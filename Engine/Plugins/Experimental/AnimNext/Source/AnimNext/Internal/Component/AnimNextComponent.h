@@ -11,6 +11,21 @@
 class UAnimNextSchedule;
 struct FAnimNextComponentInstanceData;
 
+namespace UE::AnimNext::UncookedOnly
+{
+	struct FUtils;
+}
+
+UENUM()
+enum class EAnimNextParameterScopeOrdering : uint8
+{
+	// Value will be pushed before the scope, allowing the static scope to potentially override the value
+	Before,
+
+	// Value will be pushed after the scope, potentially overriding the static scope
+	After,
+};
+
 UCLASS(MinimalAPI, meta = (BlueprintSpawnableComponent))
 class UAnimNextComponent : public UActorComponent
 {
@@ -21,9 +36,13 @@ class UAnimNextComponent : public UActorComponent
 	virtual void OnUnregister() override;
 
 public:
-	// Sets a parameter in the scope. Scopes correspond to an existing scope in a schedule.
+	// Sets a parameter's value in the supplied scope.
+	// @param    Scope    Scopes corresponding to an existing scope in a schedule, or "None". Passing "None" will apply the parameter to the whole schedule.
+	// @param    Ordering Where to apply the parameter in relation to the supplied scope. Ignored for scope "None".
+	// @param    Name     The name of the parameter to apply
+	// @param    Value    The value to set the parameter to
 	UFUNCTION(BlueprintCallable, Category = "AnimNext", CustomThunk, meta = (CustomStructureParam = Value, UnsafeDuringActorConstruction))
-	void SetParameterInScope(FName Scope, FName Name, int32 Value);
+	void SetParameterInScope(UPARAM(meta = (CustomWidget = "ParamName", AllowedParamType = "FAnimNextScope")) FName Scope, EAnimNextParameterScopeOrdering Ordering, UPARAM(meta = (CustomWidget = "ParamName")) FName Name, int32 Value);
 
 	// Enable or disable this component's update
 	UFUNCTION(BlueprintCallable, Category = "AnimNext")
@@ -33,6 +52,8 @@ private:
 	DECLARE_FUNCTION(execSetParameterInScope);
 
 private:
+	friend struct UE::AnimNext::UncookedOnly::FUtils;
+
 	// The execution schedule that this component will run
 	UPROPERTY(EditAnywhere, Category="Schedule")
 	TObjectPtr<UAnimNextSchedule> Schedule = nullptr;

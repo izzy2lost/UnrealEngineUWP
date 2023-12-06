@@ -5,6 +5,7 @@
 #include "Scheduler/AnimNextSchedule.h"
 #include "Param/ParamDefinition.h"
 #include "Engine/World.h"
+#include "Logging/StructuredLog.h"
 
 namespace UE::AnimNext
 {
@@ -110,17 +111,17 @@ UE::AnimNext::FScheduleHandle UAnimNextSchedulerWorldSubsystem::AcquireHandle(UO
 		Handle.Index = FreeEntryIndices.Last();
 		Handle.SerialNumber = ++GEntrySerialNumber;
 		FreeEntryIndices.Pop(false);
-		new (Entries[Handle.Index].Get()) FAnimNextSchedulerEntry(InSchedule, InObject, Handle, InInitMethod);
+		new (Entries[Handle.Index].Get()) FAnimNextSchedulerEntry(InSchedule, InObject, Handle, InInitMethod, MoveTemp(InInitializeCallback));
 	}
 	// Otherwise append a new entry
 	else
 	{
 		Handle.Index = Entries.Num();
 		Handle.SerialNumber = ++GEntrySerialNumber;
-		Entries.Emplace(MakeUnique<FAnimNextSchedulerEntry>(InSchedule, InObject, Handle, InInitMethod));
+		Entries.Emplace(MakeUnique<FAnimNextSchedulerEntry>(InSchedule, InObject, Handle, InInitMethod, MoveTemp(InInitializeCallback)));
 	}
 
-	Entries[Handle.Index]->Initialize(MoveTemp(InInitializeCallback));
+	Entries[Handle.Index]->Initialize();
 
 	// Skip 'invalid' 0 serial number
 	if (GEntrySerialNumber == 0)
@@ -175,27 +176,58 @@ void UAnimNextSchedulerWorldSubsystem::QueueTask(UE::AnimNext::FScheduleHandle I
 	{
 		TUniquePtr<FAnimNextSchedulerEntry>& Entry = Entries[InHandle.Index];
 
-		// TODO: Only supporting scope tasks for now
-		const FAnimNextScheduleParamScopeEntryTask* FoundScope = Entry->Schedule->ParamScopeEntryTasks.FindByPredicate([&InScheduleTaskName](const FAnimNextScheduleParamScopeEntryTask& InTask)
+		// TODO: Only supporting scope tasks or "None" for root for now
+		TSpscQueue<TUniqueFunction<void(const UE::AnimNext::FScheduleContext&)>>* Queue = nullptr;
+		if(InScheduleTaskName == NAME_None)
 		{
-			return InTask.Scope == InScheduleTaskName;
-		});
-
-		if (FoundScope)
-		{
-			switch (InLocation)
-			{
-			case FScheduler::ETaskRunLocation::Before:
-				Entry->TickFunctions[FoundScope->TickFunctionIndex]->PreExecuteTasks.Enqueue(MoveTemp(InTaskFunction));
-				break;
-			case FScheduler::ETaskRunLocation::After:
-				Entry->TickFunctions[FoundScope->TickFunctionIndex]->PostExecuteTasks.Enqueue(MoveTemp(InTaskFunction));
-				break;
-			}
+			Queue = &Entry->BeginTickFunction->PreExecuteTasks;
 		}
 		else
 		{
-			UE_LOG(LogAnimation, Warning, TEXT("QueueTask: Could not find scope '%s' in schedule '%s'"), *InScheduleTaskName.ToString(), *Entry->Schedule.GetName());
+			const FAnimNextScheduleParamScopeEntryTask* FoundScope = Entry->Schedule->ParamScopeEntryTasks.FindByPredicate([&InScheduleTaskName](const FAnimNextScheduleParamScopeEntryTask& InTask)
+			{
+				return InTask.Scope == InScheduleTaskName;
+			});
+
+			if (FoundScope)
+			{
+				switch (InLocation)
+				{
+				case FScheduler::ETaskRunLocation::Before:
+					Queue = &Entry->TickFunctions[FoundScope->TickFunctionIndex]->PreExecuteTasks;
+					break;
+				case FScheduler::ETaskRunLocation::After:
+					Queue = &Entry->TickFunctions[FoundScope->TickFunctionIndex]->PostExecuteTasks;
+					break;
+				}
+			}
+		}
+	
+		if (Queue)
+		{
+			Queue->Enqueue(MoveTemp(InTaskFunction));
+		}
+		else
+		{
+			UE_LOGFMT(LogAnimation, Warning, "QueueTask: Could not find scope '{ScopeName}' in schedule '{ScheduleName}'", InScheduleTaskName, Entry->Schedule.GetName());
 		}
 	}
 }
+
+#if WITH_EDITOR
+
+void UAnimNextSchedulerWorldSubsystem::OnScheduleCompiled(UAnimNextSchedule* InSchedule)
+{
+	// Cant do this while we are running in a world tick
+	check(!GetWorld()->bInTick); 
+
+	for(TUniquePtr<FAnimNextSchedulerEntry>& Entry : Entries)
+	{
+		if(Entry->Schedule == InSchedule)
+		{
+			Entry->OnScheduleCompiled();
+		}
+	}
+}
+
+#endif

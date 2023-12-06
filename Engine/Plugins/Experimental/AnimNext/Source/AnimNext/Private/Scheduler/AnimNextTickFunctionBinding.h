@@ -3,7 +3,7 @@
 #pragma once
 
 #include "UObject/WeakObjectPtrTemplates.h"
-#include "AnimNextExternalTaskBinding.h"
+#include "Scheduler/AnimNextExternalTaskBinding.h"
 #include "AnimNextTickFunctionBinding.generated.h"
 
 struct FTickFunction;

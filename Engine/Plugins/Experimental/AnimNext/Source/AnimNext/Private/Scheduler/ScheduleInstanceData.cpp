@@ -2,7 +2,7 @@
 
 #include "ScheduleInstanceData.h"
 #include "Scheduler/AnimNextSchedule.h"
-#include "ScheduleHandle.h"
+#include "Scheduler/ScheduleHandle.h"
 #include "Scheduler/AnimNextSchedulerWorldSubsystem.h"
 #include "Scheduler/AnimNextSchedulerEntry.h"
 #include "Scheduler/AnimNextSchedulePort.h"
@@ -25,15 +25,16 @@ FScheduleInstanceData::FScheduleInstanceData(const FScheduleContext& InScheduleC
 	SCOPE_CYCLE_COUNTER(STAT_AnimNext_CreateInstanceData);
 
 	// Preallocate data for all scopes & graphs in the schedule
-	ScopeCaches.SetNum(InSchedule->ParamScopeEntryTasks.Num());
+	ScopeCaches.SetNum(InSchedule->NumParameterScopes);
 	GraphCaches.SetNum(InSchedule->GraphTasks.Num());
 	ExternalParamCaches.SetNum(InSchedule->ExternalParamTasks.Num());
-	
-	for(int32 ScopeIndex = 0; ScopeIndex < ScopeCaches.Num(); ++ScopeIndex)
+
+	for(int32 EntryIndex = 0; EntryIndex < InSchedule->ParamScopeEntryTasks.Num(); ++EntryIndex)
 	{
-		FScopeCache& ScopeCache = ScopeCaches[ScopeIndex];
-		ScopeCache.ParameterSources.Reserve(InSchedule->ParamScopeEntryTasks[ScopeIndex].ParameterBlocks.Num());
-		for(UAnimNextParameterBlock* ParameterBlock : InSchedule->ParamScopeEntryTasks[ScopeIndex].ParameterBlocks)
+		const FAnimNextScheduleParamScopeEntryTask& EntryTask = InSchedule->ParamScopeEntryTasks[EntryIndex];
+		FScopeCache& ScopeCache = ScopeCaches[EntryTask.ParamScopeIndex];
+		ScopeCache.ParameterSources.Reserve(EntryTask.ParameterBlocks.Num());
+		for(UAnimNextParameterBlock* ParameterBlock : EntryTask.ParameterBlocks)
 		{
 			if(ParameterBlock)
 			{
@@ -43,7 +44,7 @@ FScheduleInstanceData::FScheduleInstanceData(const FScheduleContext& InScheduleC
 
 		ScopeCache.PushedLayers.Reserve(ScopeCache.ParameterSources.Num() + 1); // +1 for any user handles added dynamically
 	}
-	
+
 	// Setup param stack graph
 	RootParamStack = InCurrentEntry->RootParamStack;
 	ParamStacks.SetNum(InSchedule->NumParameterScopes);
@@ -107,9 +108,16 @@ FScheduleInstanceData::~FScheduleInstanceData() = default;
 
 void FScheduleInstanceData::AddReferencedObjects(FReferenceCollector& Collector)
 {
-	for (TPair<FName, TUniquePtr<FPropertyBagProxy>>& ParamPair : UserScopes)
+	for (TPair<FName, FUserScope>& ParamPair : UserScopes)
 	{
-		ParamPair.Value->AddReferencedObjects(Collector);
+		if(ParamPair.Value.AfterSource.IsValid())
+		{
+			ParamPair.Value.AfterSource->AddReferencedObjects(Collector);
+		}
+		if(ParamPair.Value.BeforeSource.IsValid())
+		{
+			ParamPair.Value.BeforeSource->AddReferencedObjects(Collector);
+		}
 	}
 
 	for (FGraphCache& GraphCache : GraphCaches)

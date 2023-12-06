@@ -275,6 +275,9 @@ public:
 	 */	
 	size_t GetValueTypeAlignment() const;
 
+	/** Append a string representing this type to the supplied string builder */
+	void ToString(FStringBuilderBase& InStringBuilder) const;
+
 	/** Get a string representing this type */
 	FString ToString() const;
 

@@ -3,8 +3,7 @@
 #pragma once
 
 #include "CoreMinimal.h"
-#include "ScheduleContext.h"
-#include "ScheduleHandle.h"
+#include "Scheduler/ScheduleHandle.h"
 
 enum class EAnimNextScheduleInitMethod : uint8;
 class UAnimNextGraph;
@@ -18,6 +17,11 @@ namespace UE::AnimNext
 	struct FSchedulePortDefinition;
 	struct FParamStackLayerHandle;
 	struct FScheduleContext;
+}
+
+namespace UE::AnimNext::UncookedOnly
+{
+	struct FUtils;
 }
 
 namespace UE::AnimNext
@@ -60,6 +64,14 @@ struct FScheduler
 	// @param	InTaskFunction	The function to run
 	// @param	InLocation		Where to run the task, before or after
 	static void QueueTask(UObject* InObject, FScheduleHandle InHandle, FName InScheduleTaskName, TUniqueFunction<void(const FScheduleContext&)>&& InTaskFunction, ETaskRunLocation InLocation = ETaskRunLocation::Before);
+
+private:
+	friend struct UE::AnimNext::UncookedOnly::FUtils;
+
+#if WITH_EDITOR
+	// Refresh any entries that use the provided schedule as it has been recompiled.
+	static ANIMNEXT_API void OnScheduleCompiled(UAnimNextSchedule* InSchedule);
+#endif
 };
 
 }

@@ -142,9 +142,6 @@ void FAnimNode_AnimNextGraph::Evaluate_AnyThread(FPoseContext& Output)
 
 		FAnimNextGraphLODPose ResultPose(FLODPoseHeap(RefPose, LODLevel, true, Output.ExpectsAdditivePose()));
 
-		FScheduleContext ScheduleContext(SkeletalMeshComponent);
-		FScheduleContext::AttachToCurrentThread(ScheduleContext);
-
 		FAnimGraphParamStackScope Scope(Output);
 		FParamStack& ParamStack = FParamStack::Get();
 		FParamStack::FPushedLayerHandle LayerHandle = ParamStack.PushValues(
@@ -181,8 +178,6 @@ void FAnimNode_AnimNextGraph::Evaluate_AnyThread(FPoseContext& Output)
 		FGenerationTools::RemapPose(ResultPose.LODPose, Output);
 
 		ParamStack.PopLayer(LayerHandle);
-
-		FScheduleContext::DetachFromCurrentThread();
 	}
 	else
 	{

@@ -19,7 +19,7 @@ namespace UE::AnimNext::Editor
 
 static const FProperty* GetMetadataProperty(const FProperty* Property)
 {
-	if (FProperty* OuterProperty = Property->GetOwner<FProperty>())
+	if (const FProperty* OuterProperty = Property->GetOwner<FProperty>())
 	{
 		if (OuterProperty->IsA<FArrayProperty>()
 			|| OuterProperty->IsA<FSetProperty>()
@@ -63,6 +63,7 @@ void FParamNamePropertyTypeCustomization::CustomizeHeader(TSharedRef<IPropertyHa
 		}
 		return EFilterParameterResult::Exclude;
 	});
+	PickerArgs.NewParameterType = FilterType;
 	PickerArgs.OnParameterPicked = FOnParameterPicked::CreateLambda([this, WeakPropertyHandle = WeakPropertyHandle](const FParameterBindingReference& InParameterBinding)
 	{
 		if(TSharedPtr<IPropertyHandle> PropertyHandle = WeakPropertyHandle.Pin())

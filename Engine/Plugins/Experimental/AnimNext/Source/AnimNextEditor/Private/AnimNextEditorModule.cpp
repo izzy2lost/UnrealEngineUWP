@@ -20,9 +20,8 @@
 #include "Scheduler/AnimNextSchedule.h"
 #include "Workspace/AnimNextWorkspaceEditor.h"
 #include "Param/ParameterBlockParameterCustomization.h"
-#include "Param/AnimNextParameterBlockParameter.h"
-#include "Graph/AnimNextGraph_EdGraphNode.h"
 #include "Graph/AnimNextGraph_EdGraphNodeCustomization.h"
+#include "Param/ParamPropertyCustomization.h"
 
 #define LOCTEXT_NAMESPACE "AnimNextEditorModule"
 
@@ -47,16 +46,20 @@ class FModule : public IModule
 			"AnimNextParamType",
 			FOnGetPropertyTypeCustomizationInstance::CreateLambda([] { return MakeShared<FParamTypePropertyTypeCustomization>(); }));
 
+		PropertyModule.RegisterCustomPropertyTypeLayout(
+			"AnimNextParam",
+			FOnGetPropertyTypeCustomizationInstance::CreateLambda([] { return MakeShared<FParamPropertyTypeCustomization>(); }));
+
 		Identifier = MakeShared<FParamNamePropertyTypeIdentifier>();
 		PropertyModule.RegisterCustomPropertyTypeLayout(
 			FNameProperty::StaticClass()->GetFName(),
 			FOnGetPropertyTypeCustomizationInstance::CreateLambda([] { return MakeShared<FParamNamePropertyTypeCustomization>(); }),
 			Identifier);
 
-		PropertyModule.RegisterCustomClassLayout(UAnimNextParameterBlockParameter::StaticClass()->GetFName(), 
+		PropertyModule.RegisterCustomClassLayout("AnimNextParameterBlockParameter", 
 			FOnGetDetailCustomizationInstance::CreateLambda([] { return MakeShared<FParameterBlockParameterCustomization>(); }));
 
-		PropertyModule.RegisterCustomClassLayout(UAnimNextGraph_EdGraphNode::StaticClass()->GetFName(),
+		PropertyModule.RegisterCustomClassLayout("AnimNextGraph_EdGraphNode",
 			FOnGetDetailCustomizationInstance::CreateLambda([] { return MakeShared<FAnimNextGraph_EdGraphNodeCustomization>(); }));
 
 		AnimNextGraphPanelNodeFactory = MakeShared<FAnimNextGraphPanelNodeFactory>();
@@ -160,6 +163,10 @@ class FModule : public IModule
 		{
 			FPropertyEditorModule& PropertyModule = FModuleManager::LoadModuleChecked<FPropertyEditorModule>("PropertyEditor");
 			PropertyModule.UnregisterCustomPropertyTypeLayout("AnimNextParamType");
+			PropertyModule.UnregisterCustomPropertyTypeLayout("AnimNextParam");
+			PropertyModule.UnregisterCustomPropertyTypeLayout(FNameProperty::StaticClass()->GetFName());
+			PropertyModule.UnregisterCustomClassLayout("AnimNextParameterBlockParameter");
+			PropertyModule.UnregisterCustomClassLayout("AnimNextGraph_EdGraphNode");
 		}
 
 		FEdGraphUtilities::UnregisterVisualNodeFactory(AnimNextGraphPanelNodeFactory);

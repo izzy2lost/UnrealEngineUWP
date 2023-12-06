@@ -10,6 +10,7 @@
 #include "Engine/SkeletalMesh.h"
 #include "AnimNextStats.h"
 #include "Component/AnimNextMeshComponent.h"
+#include "Param/AnimNextParam.h"
 
 DEFINE_STAT(STAT_AnimNext_Port_SkeletalMeshComponent);
 
@@ -84,15 +85,15 @@ TConstArrayView<UE::AnimNext::FScheduleTerm> UAnimNextSchedulePort_AnimNextMeshC
 	return Terms;
 }
 
-TConstArrayView<FName> UAnimNextSchedulePort_AnimNextMeshComponentPose::GetRequiredParameters() const
+TConstArrayView<FAnimNextParam> UAnimNextSchedulePort_AnimNextMeshComponentPose::GetRequiredParameters() const
 {
 	using namespace UE::AnimNext;
 
-	static const FName ParamNames[] =
+	static const FAnimNextParam Params[] =
 	{
-		ComponentParamId.GetName(),
-		ReferencePoseParamId.GetName()
+		FAnimNextParam(ComponentParamId.GetName(), FAnimNextParamType::GetType<TObjectPtr<UAnimNextMeshComponent>>()),
+		FAnimNextParam(ReferencePoseParamId.GetName(), FAnimNextParamType::GetType<FAnimNextGraphLODPose>()),
 	};
 
-	return ParamNames;
+	return Params;
 }

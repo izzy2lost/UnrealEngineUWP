@@ -18,6 +18,8 @@
 #include "Param/RigVMDispatch_GetParameter.h"
 #include "Param/RigVMDispatch_SetLayerParameter.h"
 
+#define LOCTEXT_NAMESPACE "AnimNextEditorUtils"
+
 namespace UE::AnimNext::Editor
 {
 
@@ -483,6 +485,43 @@ FName FUtils::GetNewParameterName(const TCHAR* InBaseName, TArrayView<FName> InA
 	return NAME_None;
 }
 
+bool FUtils::IsValidParameterName(const FName InName, FText& OutErrorText)
+{
+	const FString NewString = InName.ToString();
+
+	if(NewString.Len() == 0)
+	{
+		OutErrorText = LOCTEXT("Error_EmptyName", "Empty parameter names are not allowed");
+		return false;
+	}
+
+	// Check start
+	if (NewString[0] == TEXT('.') ||
+		FChar::IsUnderscore(NewString[0]) ||
+		FChar::IsDigit(NewString[0]))
+	{
+		OutErrorText = LOCTEXT("Error_Start", "Name cannot start with an underscore, period or digit");
+		return false;
+	}
+
+	bool bAllowed = true;
+	for (int32 CharIndex = 0; bAllowed && CharIndex < NewString.Len(); ++CharIndex)
+	{
+		bAllowed &= FChar::IsAlnum(NewString[CharIndex]) ||
+					FChar::IsUnderscore(NewString[CharIndex]) ||
+					NewString[CharIndex] == TEXT('.');
+	}
+
+	// Make sure the new name only contains valid characters
+	if (!bAllowed)
+	{
+		OutErrorText = LOCTEXT("Error_CharacterNotAllowed", "Only alpha-numerical, underscore or period characters are allowed");
+		return false;
+	}
+
+	return true;
+}
+
 bool FUtils::DoesParameterNameExist(const FName InName)
 {
 	FAnimNextParameterProviderAssetRegistryExports Exports;
@@ -504,3 +543,5 @@ bool FUtils::GetExportedAssetsForWorkspace(const FAssetData& InWorkspaceAsset, F
 }
 
 }
+
+#undef LOCTEXT_NAMESPACE

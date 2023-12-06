@@ -31,6 +31,16 @@ TSharedPtr<SGraphPin> FParametersGraphPanelPinFactory::CreatePin_Internal(UEdGra
 			}
 		}
 	}
+	else if(UEdGraphNode* EdGraphNode = InPin->GetOwningNode())
+	{
+		if(EdGraphNode->GetPinMetaData(InPin->GetFName(), "CustomWidget") == "ParamName")
+		{
+			const FString ParamTypeString = EdGraphNode->GetPinMetaData(InPin->GetFName(), "AllowedParamType");
+			FAnimNextParamType FilterType = FAnimNextParamType::FromString(ParamTypeString);
+			return SNew(SGraphPinParamName, InPin)
+				.FilterType(FilterType);
+		}
+	}
 
 	return FRigVMEdGraphPanelPinFactory::CreatePin_Internal(InPin);
 }

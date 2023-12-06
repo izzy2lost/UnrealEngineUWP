@@ -8,14 +8,16 @@
 #include "AnimNextStats.h"
 #include "AnimNextTickFunctionBinding.h"
 #include "Logging/StructuredLog.h"
+#include "Param/PropertyBagProxy.h"
 
 DEFINE_STAT(STAT_AnimNext_InitializeEntry);
 
-FAnimNextSchedulerEntry::FAnimNextSchedulerEntry(const UAnimNextSchedule* InSchedule, UObject* InObject, UE::AnimNext::FScheduleHandle InHandle, EAnimNextScheduleInitMethod InInitMethod)
+FAnimNextSchedulerEntry::FAnimNextSchedulerEntry(const UAnimNextSchedule* InSchedule, UObject* InObject, UE::AnimNext::FScheduleHandle InHandle, EAnimNextScheduleInitMethod InInitMethod, TUniqueFunction<void(const UE::AnimNext::FScheduleContext&)>&& InInitializeCallback)
 	: Schedule(InSchedule)
 	, WeakObject(InObject)
 	, Handle(InHandle)
 	, Context(InSchedule, this)
+	, InitializeCallback(MoveTemp(InInitializeCallback))
 	, RunState(ERunState::None)
 	, InitMethod(InInitMethod)
 {
@@ -26,7 +28,7 @@ FAnimNextSchedulerEntry::~FAnimNextSchedulerEntry()
 	Invalidate();
 }
 
-void FAnimNextSchedulerEntry::Initialize(TUniqueFunction<void(const UE::AnimNext::FScheduleContext&)>&& InInitializeCallback)
+void FAnimNextSchedulerEntry::Initialize()
 {
 	SCOPE_CYCLE_COUNTER(STAT_AnimNext_InitializeEntry);
 	
@@ -39,15 +41,15 @@ void FAnimNextSchedulerEntry::Initialize(TUniqueFunction<void(const UE::AnimNext
 	check(Handle.IsValid());
 
 	ResolvedObject = WeakObject.Get();
-	bIsEditor = ResolvedObject && ResolvedObject->GetWorld()->WorldType == EWorldType::Editor;
+	UWorld* World = ResolvedObject->GetWorld();
+	bIsEditor = ResolvedObject && World->WorldType == EWorldType::Editor;
 
 	// Setup tick function graph
 	if (Schedule->Instructions.Num() > 0)
 	{
 		// TODO: split allocation and registration into separate async tasks to reduce GT overheads of spawning
 		// This will require correctly dealing with ReleaseHandle in the schedule as the two could then overlap
-		check(RunState == ERunState::None);
-		RunState = ERunState::CreatingTasks;
+		TransitionToRunState(ERunState::CreatingTasks);
 
 		RootParamStack = MakeShared<FParamStack>();
 
@@ -55,7 +57,6 @@ void FAnimNextSchedulerEntry::Initialize(TUniqueFunction<void(const UE::AnimNext
 		Context.InstanceData = MakeUnique<FScheduleInstanceData>(Context, Schedule, Handle, this);
 
 		FParamStack::AttachToCurrentThread(RootParamStack);
-		FScheduleContext::AttachToCurrentThread(Context);
 
 		FParamStack& ParamStack = FParamStack::Get();
 
@@ -169,23 +170,28 @@ void FAnimNextSchedulerEntry::Initialize(TUniqueFunction<void(const UE::AnimNext
 				break;
 			case EAnimNextScheduleScheduleOpcode::Exit:
 				check(Prerequisites.Num() == 0);
-				EndTickFunction->AddPrerequisite(ResolvedObject, *TickFunctions.Last().Get());
-				TickFunctions.Last()->Subsequents.Emplace(ResolvedObject, *EndTickFunction.Get());
+				if(TickFunctions.Num() > 0)
+				{
+					EndTickFunction->AddPrerequisite(ResolvedObject, *TickFunctions.Last().Get());
+					TickFunctions.Last()->Subsequents.Emplace(ResolvedObject, *EndTickFunction.Get());
+				}
+				else
+				{
+					EndTickFunction->AddPrerequisite(ResolvedObject, *BeginTickFunction.Get());
+					BeginTickFunction->Subsequent = FTickPrerequisite(ResolvedObject, *EndTickFunction.Get());
+				}
 				break;
 			default:
 				checkNoEntry();
 				break;
 			}
 		}
-
-		FScheduleContext::DetachFromCurrentThread();
+		
 		FParamStack::DetachFromCurrentThread();
 
-		check(RunState == ERunState::CreatingTasks);
-		RunState = ERunState::BindingTasks;
+		TransitionToRunState(ERunState::BindingTasks);
 
 		// Register our tick functions
-		UWorld* World = ResolvedObject->GetWorld();
 		ULevel* Level = World->PersistentLevel;
 		BeginTickFunction->RegisterTickFunction(Level);
 		EndTickFunction->RegisterTickFunction(Level);
@@ -194,11 +200,11 @@ void FAnimNextSchedulerEntry::Initialize(TUniqueFunction<void(const UE::AnimNext
 			TickFunction->RegisterTickFunction(Level);
 		}
 
-		RunState = ERunState::RunningInitialUpdate;
+		TransitionToRunState(ERunState::PendingInitialUpdate);
 
-		if(InInitializeCallback)
+		if(InitializeCallback)
 		{
-			InInitializeCallback(Context);
+			InitializeCallback(Context);
 		}
 
 		// Just pause now if we arent needing an initial update
@@ -212,9 +218,7 @@ void FAnimNextSchedulerEntry::Initialize(TUniqueFunction<void(const UE::AnimNext
 			// generate an output pose, as these worlds never tick
 			if(World->WorldType == EWorldType::EditorPreview)
 			{
-				FScheduleContext::AttachToCurrentThread(Context);
-				FScheduleTickFunction::RunSchedule(Schedule->Instructions);
-				FScheduleContext::DetachFromCurrentThread();
+				FScheduleTickFunction::RunSchedule(*this);
 			}
 		}
 	}
@@ -222,11 +226,13 @@ void FAnimNextSchedulerEntry::Initialize(TUniqueFunction<void(const UE::AnimNext
 	ResolvedObject = nullptr;
 }
 
-void FAnimNextSchedulerEntry::Invalidate()
+void FAnimNextSchedulerEntry::ResetBindingsAndInstanceData()
 {
 	using namespace UE::AnimNext;
 
 	check(IsInGameThread());
+
+	TransitionToRunState(ERunState::None);
 
 	if(BeginTickFunction)
 	{
@@ -255,11 +261,20 @@ void FAnimNextSchedulerEntry::Invalidate()
 	EndTickFunction.Reset();
 	TickFunctions.Reset();
 
+	Context.InstanceData.Reset();
+}
+
+void FAnimNextSchedulerEntry::Invalidate()
+{
+	using namespace UE::AnimNext;
+
+	ResetBindingsAndInstanceData();
+
+	InitializeCallback = nullptr;
 	Schedule = nullptr;
 	WeakObject = nullptr;
 	TargetObjects.Reset();
 	Handle.Invalidate();
-	Context.InstanceData.Reset();
 }
 
 void FAnimNextSchedulerEntry::ClearTickFunctionPauseFlags()
@@ -289,5 +304,52 @@ void FAnimNextSchedulerEntry::Enable(bool bInEnabled)
 	}
 	EndTickFunction->SetTickFunctionEnable(bInEnabled);
 
-	RunState = bInEnabled ? ERunState::Running : ERunState::Paused;
+	TransitionToRunState(bInEnabled ? ERunState::Running : ERunState::Paused);
 }
+
+void FAnimNextSchedulerEntry::TransitionToRunState(ERunState InNewState)
+{
+	switch(InNewState)
+	{
+	case ERunState::None:
+		check(RunState == ERunState::None || RunState == ERunState::PendingInitialUpdate || RunState == ERunState::Paused || RunState == ERunState::Running);
+		break;
+	case ERunState::CreatingTasks:
+		check(RunState == ERunState::None);
+		break;
+	case ERunState::BindingTasks:
+		check(RunState == ERunState::CreatingTasks);
+		break;
+	case ERunState::PendingInitialUpdate:
+		check(RunState == ERunState::BindingTasks);
+		break;
+	case ERunState::Running:
+		check(RunState == ERunState::PendingInitialUpdate || RunState == ERunState::Paused || RunState == ERunState::Running);
+		break;
+	case ERunState::Paused:
+		check(RunState == ERunState::PendingInitialUpdate || RunState == ERunState::Paused || RunState == ERunState::Running);
+		break;
+	default:
+		checkNoEntry();
+	}
+
+	RunState = InNewState;
+}
+
+#if WITH_EDITOR
+void FAnimNextSchedulerEntry::OnScheduleCompiled()
+{
+	using namespace UE::AnimNext;
+
+	// Store any user-defined scopes, as the instance data will be going away
+	TUniquePtr<FPropertyBagProxy> RootUserScope = MoveTemp(Context.InstanceData->RootUserScope);
+	TMap<FName, FScheduleInstanceData::FUserScope> UserScopes = MoveTemp(Context.InstanceData->UserScopes);
+
+	ResetBindingsAndInstanceData();
+	Initialize();
+
+	// Restore any user scopes to the recreated instance data
+	Context.InstanceData->RootUserScope = MoveTemp(RootUserScope);
+	Context.InstanceData->UserScopes = MoveTemp(UserScopes);
+}
+#endif

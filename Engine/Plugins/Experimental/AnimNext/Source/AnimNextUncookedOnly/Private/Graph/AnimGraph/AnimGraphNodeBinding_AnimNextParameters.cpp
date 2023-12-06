@@ -548,6 +548,7 @@ TSharedRef<SWidget> UAnimGraphNodeBinding_AnimNextParameters::MakePropertyBindin
 				{
 					return (FParamUtils::GetCompatibility(ParamTypeHandle, InParamType.GetHandle()).IsCompatibleWithDataLoss()) ? EFilterParameterResult::Include : EFilterParameterResult::Exclude;
 				});
+				Args.NewParameterType = FParamTypeHandle::FromProperty(PropertyToBindTo).GetType();
 				Args.bMultiSelect = false;
 				Args.bShowBlocks = false;
 			

@@ -38,14 +38,18 @@ struct FParameterBindingReference
 {
 	FParameterBindingReference() = default;
 
-	FParameterBindingReference(const FName& InParameter, const FAssetData& InBlock = FAssetData())
+	FParameterBindingReference(FName InParameter, const FAnimNextParamType& InType, const FAssetData& InBlock = FAssetData())
 		: Parameter(InParameter)
+		, Type(InType)
 		, Block(InBlock)
 	{
 	}
 
 	// Parameter name
 	FName Parameter;
+
+	// Parameter type
+	FAnimNextParamType Type;
 
 	// Asset (first found in asset registry) that the parameter is used in
 	FAssetData Asset;
@@ -98,6 +102,9 @@ struct FParameterPickerArgs
 
 	// Delegate called to filter parameters by type for display to the user
 	FOnFilterParameterType OnFilterParameterType;
+
+	// Type to use for any new parameters generated through the picker
+	FAnimNextParamType NewParameterType;
 
 	// Whether we allow selecting multiple parameters or just one
 	bool bMultiSelect = true;

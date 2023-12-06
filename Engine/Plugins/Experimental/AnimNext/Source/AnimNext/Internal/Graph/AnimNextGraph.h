@@ -21,6 +21,8 @@ class UAnimGraphNode_AnimNextGraph;
 struct FAnimNode_AnimNextGraph;
 struct FRigUnit_AnimNextGraphEvaluator;
 class UAnimNextSchedule;
+struct FAnimNextScheduleGraphTask;
+struct FAnimNextParam;
 
 namespace UE::AnimNext
 {
@@ -197,6 +199,7 @@ protected:
 	friend class UAnimGraphNode_AnimNextGraph;
 	friend UE::AnimNext::FExecutionContext;
 	friend class UAnimNextSchedule;
+	friend struct FAnimNextScheduleGraphTask;
 	
 #if WITH_EDITORONLY_DATA
 	mutable FRWLock GraphInstancesLock;
@@ -248,6 +251,14 @@ protected:
 
 	UE::AnimNext::FParamId ReferencePoseId = UE::AnimNext::FParamId(ReferencePose);
 	UE::AnimNext::FParamId CurrentLODId = UE::AnimNext::FParamId(CurrentLOD);
+
+	// Hash of required parameters
+	UPROPERTY()
+	uint64 RequiredParametersHash = 0;
+
+	// All the parameters that are required for this graph to run
+	UPROPERTY()
+	TArray<FAnimNextParam> RequiredParameters;
 
 #if WITH_EDITORONLY_DATA
 	UPROPERTY(VisibleAnywhere, Instanced, Category = "Graph", meta = (ShowInnerProperties))

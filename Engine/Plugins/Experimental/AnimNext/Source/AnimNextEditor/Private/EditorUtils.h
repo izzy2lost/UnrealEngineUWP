@@ -38,7 +38,10 @@ struct FUtils
 
 	static FName GetNewParameterName(const TCHAR* InBaseName, TArrayView<FName> InAdditionalExistingNames);
 
+	static bool IsValidParameterName(const FName InName, FText& OutErrorText);
+
 	static bool DoesParameterNameExist(const FName InName);
+	
 	static bool DoesParameterNameExistInAsset(const FName InName, const FAssetData& InAsset);
 
 	static bool GetExportedAssetsForWorkspace(const FAssetData& InWorkspaceAsset, FAnimNextWorkspaceAssetRegistryExports& OutExports);

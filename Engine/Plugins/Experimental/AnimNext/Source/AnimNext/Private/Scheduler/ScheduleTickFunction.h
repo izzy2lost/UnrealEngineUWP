@@ -32,6 +32,9 @@ struct FScheduleBeginTickFunction : public FTickFunction
 	virtual void ExecuteTick(float DeltaTime, ELevelTick TickType, ENamedThreads::Type CurrentThread, const FGraphEventRef& MyCompletionGraphEvent) override;
 	virtual FString DiagnosticMessage() override;
 
+	void Run(float DeltaTime);
+
+	TSpscQueue<TUniqueFunction<void(const UE::AnimNext::FScheduleContext&)>> PreExecuteTasks;
 	FAnimNextSchedulerEntry& Entry;
 	FTickPrerequisite Subsequent;
 };
@@ -49,6 +52,8 @@ struct FScheduleEndTickFunction : public FTickFunction
 	// FTickFunction interface
 	virtual void ExecuteTick(float DeltaTime, ELevelTick TickType, ENamedThreads::Type CurrentThread, const FGraphEventRef& MyCompletionGraphEvent) override;
 	virtual FString DiagnosticMessage() override;
+
+	void Run();
 
 	FAnimNextSchedulerEntry& Entry;
 };
@@ -69,10 +74,13 @@ struct FScheduleTickFunction : public FTickFunction
 	virtual void ExecuteTick(float DeltaTime, ELevelTick TickType, ENamedThreads::Type CurrentThread, const FGraphEventRef& MyCompletionGraphEvent) override;
 	virtual FString DiagnosticMessage() override;
 
-	// Static helpers for running a slice of instructions
-	// This can be called standalone to run a whole schedule in one call
-	static void RunSchedule(TConstArrayView<FAnimNextScheduleInstruction> InInstructions);
-	static void RunSchedule(TConstArrayView<FAnimNextScheduleInstruction> InInstructions, TConstArrayView<TWeakObjectPtr<UObject>> InTargetObjects, TFunctionRef<void(void)> InPreExecuteScope, TFunctionRef<void(void)> InPostExecuteScope);
+	void Run();
+
+	// Called standalone to run a whole schedule in one call
+	static void RunSchedule(const FAnimNextSchedulerEntry& InEntry);
+
+	// Static helper for running a slice of instructions
+	static void RunScheduleHelper(const FScheduleContext& InScheduleContext, TConstArrayView<FAnimNextScheduleInstruction> InInstructions, TConstArrayView<TWeakObjectPtr<UObject>> InTargetObjects, TFunctionRef<void(void)> InPreExecuteScope, TFunctionRef<void(void)> InPostExecuteScope);
 
 	const FScheduleContext& ScheduleContext;
 	TConstArrayView<FAnimNextScheduleInstruction> Instructions;

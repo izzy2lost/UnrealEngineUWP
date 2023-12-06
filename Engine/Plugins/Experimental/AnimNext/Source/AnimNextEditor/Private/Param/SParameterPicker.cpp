@@ -48,11 +48,10 @@ struct FParameterPickerEntry
 
 	FParameterPickerEntry() = default;
 
-	FParameterPickerEntry(const FParameterBindingReference& InBinding, const FAnimNextParamType& InParamType)
+	FParameterPickerEntry(const FParameterBindingReference& InBinding)
 		: Binding(InBinding)
-		, ParamType(InParamType)
 	{
-		PinType = UE::AnimNext::UncookedOnly::FUtils::GetPinTypeFromParamType(ParamType);
+		PinType = UE::AnimNext::UncookedOnly::FUtils::GetPinTypeFromParamType(InBinding.Type);
 		PinIcon = FBlueprintEditorUtils::GetIconFromPin(PinType, /* bIsLarge = */true);
 		PinColor = GetDefault<UEdGraphSchema_K2>()->GetPinTypeColor(PinType);
 		FString ParameterString = Binding.Parameter.ToString();
@@ -84,8 +83,6 @@ struct FParameterPickerEntry
 	FString DisplayString;
 
 	FParameterBindingReference Binding;
-
-	FAnimNextParamType ParamType;
 
 	FEdGraphPinType PinType;
 
@@ -146,7 +143,9 @@ void SParameterPicker::Construct(const FArguments& InArgs)
 			FSlateApplication::Get().DismissAllMenus();
 			TSharedRef<SAddParametersDialog> AddParametersDialog =
 				SNew(SAddParametersDialog)
-				.AllowMultiple(false);
+				.AllowMultiple(false)
+				.OnFilterParameterType(Args.OnFilterParameterType)
+				.InitialParamType(Args.NewParameterType);
 			TArray<FParameterToAdd> ParametersToAdd;
 			if(AddParametersDialog->ShowModal(ParametersToAdd))
 			{
@@ -267,8 +266,7 @@ void SParameterPicker::Construct(const FArguments& InArgs)
 						{
 							FScopedTransaction Transaction(LOCTEXT("AddParameter", "Add parameter"));
 
-							FParameterBindingReference Reference;
-							Reference.Parameter = ParametersToAdd[0].Name;
+							FParameterBindingReference Reference(ParametersToAdd[0].Name, ParametersToAdd[0].Type);
 							Args.OnParameterPicked.ExecuteIfBound(Reference);
 						}
 					}
@@ -304,7 +302,7 @@ void SParameterPicker::RefreshEntries()
 
 	if(Args.bAllowNone)
 	{
-		Entries.Add(MakeShared<FParameterPickerEntry>(FParameterBindingReference(NAME_None), FAnimNextParamType()));
+		Entries.Add(MakeShared<FParameterPickerEntry>(FParameterBindingReference(NAME_None, FAnimNextParamType())));
 	}
 	
 	// Find all blocks and their bound parameters
@@ -323,7 +321,7 @@ void SParameterPicker::RefreshEntries()
 				for(const FAnimNextParameterAssetRegistryExportEntry& Export : Exports.Parameters)
 				{
 					BoundParameters.Add({ Export.Name, BlockAsset });
-					FParameterBindingReference NewReference(Export.Name, BlockAsset);
+					FParameterBindingReference NewReference(Export.Name, Export.Type, BlockAsset);
 					if(!Args.OnFilterParameter.IsBound() || Args.OnFilterParameter.Execute(NewReference) == EFilterParameterResult::Include)
 					{
 						FAnimNextParamType ParamType = UE::AnimNext::UncookedOnly::FUtils::GetParameterTypeFromName(Export.Name);
@@ -331,7 +329,7 @@ void SParameterPicker::RefreshEntries()
 						{
 							if (Args.bShowBoundParameters && EnumHasAnyFlags(Export.Flags, EAnimNextParameterFlags::Bound))
 							{
-								TSharedRef<FParameterPickerEntry> NewEntry = MakeShared<FParameterPickerEntry>(NewReference, ParamType);
+								TSharedRef<FParameterPickerEntry> NewEntry = MakeShared<FParameterPickerEntry>(NewReference);
 								Entries.Add(NewEntry);
 							}
 						}
@@ -351,15 +349,13 @@ void SParameterPicker::RefreshEntries()
 			{
 				if(!BoundParameters.Contains( { ExportEntry.Name, ExportEntry.ReferencingAsset } ))
 				{
-					FParameterBindingReference NewReference;
-					NewReference.Asset = ExportEntry.ReferencingAsset;
-					NewReference.Parameter = ExportEntry.Name;
+					FParameterBindingReference NewReference(ExportEntry.Name, ExportEntry.Type, ExportEntry.ReferencingAsset);
 
 					if(!Args.OnFilterParameter.IsBound() || Args.OnFilterParameter.Execute(NewReference) == EFilterParameterResult::Include)
 					{
 						if (!Args.OnFilterParameterType.IsBound() || Args.OnFilterParameterType.Execute(ExportEntry.Type) == EFilterParameterResult::Include)
 						{
-							TSharedRef<FParameterPickerEntry> NewEntry = MakeShared<FParameterPickerEntry>(NewReference, ExportEntry.Type);
+							TSharedRef<FParameterPickerEntry> NewEntry = MakeShared<FParameterPickerEntry>(NewReference);
 							Entries.Add(NewEntry);
 						}
 					}
@@ -372,12 +368,12 @@ void SParameterPicker::RefreshEntries()
 	{
 		FExternalParameterRegistry::ForEachParameter([this](FName InParameterName, const IParameterSourceFactory::FParameterInfo& InInfo)
 		{
-			FParameterBindingReference NewReference(InParameterName);
+			FParameterBindingReference NewReference(InParameterName, InInfo.Type);
 			if (!Args.OnFilterParameter.IsBound() || Args.OnFilterParameter.Execute(NewReference) == EFilterParameterResult::Include)
 			{
 				if (!Args.OnFilterParameterType.IsBound() || Args.OnFilterParameterType.Execute(InInfo.Type) == EFilterParameterResult::Include)
 				{
-					Entries.Add(MakeShared<FParameterPickerEntry>(NewReference, InInfo.Type));
+					Entries.Add(MakeShared<FParameterPickerEntry>(NewReference));
 				}
 			}
 		});
@@ -561,7 +557,7 @@ class SParameterPickerRow : public SMultiColumnTableRow<TSharedRef<FParameterPic
 		{
 			return
 				SNew(SHorizontalBox)
-				.Visibility(Entry->ParamType.IsValid() ? EVisibility::Visible : EVisibility::Hidden)
+				.Visibility(Entry->Binding.Type.IsValid() ? EVisibility::Visible : EVisibility::Hidden)
 				+ SHorizontalBox::Slot()
 				.HAlign(HAlign_Center)
 				.VAlign(VAlign_Center)
@@ -573,7 +569,7 @@ class SParameterPickerRow : public SMultiColumnTableRow<TSharedRef<FParameterPic
 					.ColorAndOpacity(Entry->PinColor)
 					.ToolTipText_Lambda([this]() -> FText
 					{
-						return FText::FromString(Entry->ParamType.ToString());	
+						return FText::FromString(Entry->Binding.Type.ToString());
 					})
 				];
 		}
@@ -647,7 +643,7 @@ void SParameterPicker::HandleSelectionChanged(TSharedPtr<FParameterPickerEntry> 
 		TArray<TSharedRef<FParameterPickerEntry>> SelectedEntries;
 		EntriesList->GetSelectedItems(SelectedEntries);
 
-		if(SelectedEntries[0]->ParamType.IsValid() || Args.bAllowNone)
+		if(SelectedEntries[0]->Binding.Type.IsValid() || Args.bAllowNone)
 		{
 			Args.OnParameterPicked.ExecuteIfBound(SelectedEntries[0]->Binding);
 		}
@@ -668,7 +664,7 @@ void SParameterPicker::HandleGetParameterBindings(TArray<FParameterBindingRefere
 bool SParameterPicker::HandleIsSelectableOrNavigable(TSharedRef<FParameterPickerEntry> InEntry) const
 {
 	// Only allow selecting items that have valid parameters
-	return InEntry->ParamType.IsValid();
+	return InEntry->Binding.Type.IsValid();
 }
 
 }

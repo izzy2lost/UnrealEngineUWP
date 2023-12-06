@@ -6,6 +6,7 @@
 #include "Widgets/SWindow.h"
 #include "AssetRegistry/AssetData.h"
 #include "Widgets/Views/SListView.h"
+#include "Param/ParameterPickerArgs.h"
 
 class SWrapBox;
 class UAnimNextParameterLibrary;
@@ -28,7 +29,13 @@ public:
 
 	/** Whether we allow multiple parameters to be added or just one at a time */
 	SLATE_ARGUMENT(bool, AllowMultiple)
-	
+
+	/** Delegate called to filter parameters by type for display to the user */
+	SLATE_EVENT(FOnFilterParameterType, OnFilterParameterType)
+
+	/** Initial parameter type to use */
+	SLATE_ARGUMENT(FAnimNextParamType, InitialParamType)
+
 	SLATE_END_ARGS()
 
 	void Construct(const FArguments& InArgs);
@@ -36,7 +43,7 @@ public:
 	bool ShowModal(TArray<FParameterToAdd>& OutParameters);
 
 private:
-	void AddEntry();
+	void AddEntry(const FAnimNextParamType& InParamType = FAnimNextParamType());
 
 	void RefreshEntries();
 
@@ -55,6 +62,8 @@ private:
 
 	UAnimNextParameterBlock_EditorData* TargetBlock = nullptr;
 	
+	FOnFilterParameterType OnFilterParameterType;
+
 	bool bCancelPressed = false;
 };
 

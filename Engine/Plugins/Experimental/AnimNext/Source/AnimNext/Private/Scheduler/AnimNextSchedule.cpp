@@ -7,6 +7,7 @@
 
 #if WITH_EDITOR
 TUniqueFunction<void(UAnimNextSchedule*)> UAnimNextSchedule::CompileFunction;
+TUniqueFunction<void(const UAnimNextSchedule*, TArray<UObject::FAssetRegistryTag>&)> UAnimNextSchedule::GetAssetRegistryTagsFunction;
 #endif
 
 void UAnimNextSchedule::PostLoad()
@@ -39,6 +40,15 @@ void UAnimNextSchedule::CompileSchedule()
 	check(CompileFunction);
 
 	CompileFunction(this);
+}
+
+void UAnimNextSchedule::GetAssetRegistryTags(TArray<FAssetRegistryTag>& OutTags) const
+{
+	Super::GetAssetRegistryTags(OutTags);
+
+	check(GetAssetRegistryTagsFunction);
+
+	GetAssetRegistryTagsFunction(this, OutTags);
 }
 
 #endif // #if WITH_EDITOR

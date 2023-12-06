@@ -18,18 +18,17 @@ void FAnimNextScheduleParamScopeEntryTask::RunParamScopeEntry(const UE::AnimNext
 	FParamStack& ParamStack = FParamStack::Get();
 
 	FScheduleInstanceData& InstanceData = InScheduleContext.GetInstanceData();
-	FScheduleInstanceData::FScopeCache& ScopeCache = InstanceData.ScopeCaches[TaskIndex];
+	FScheduleInstanceData::FScopeCache& ScopeCache = InstanceData.ScopeCaches[ParamScopeIndex];
 	check(ScopeCache.PushedLayers.Num() == 0);
 
-	// Update & push user params
-	if (TUniquePtr<FPropertyBagProxy>* FoundUserScope = InstanceData.UserScopes.Find(Scope))
+	// Update & push user params (before scope)
+	FScheduleInstanceData::FUserScope* FoundUserScope = InstanceData.UserScopes.Find(Scope);
+	if (FoundUserScope && FoundUserScope->BeforeSource.IsValid())
 	{
-		FPropertyBagProxy& UserParameterSource = *FoundUserScope->Get();
+		FPropertyBagProxy& UserParameterSource = *FoundUserScope->BeforeSource.Get();
 		UserParameterSource.Update();
 		ScopeCache.PushedLayers.Add(ParamStack.PushLayer(UserParameterSource.GetLayerHandle()));
 	}
-
-	// TODO: Pre/post scope support
 
 	// Update & push static params
 	for (int32 ParameterSourceIndex = 0; ParameterSourceIndex < ScopeCache.ParameterSources.Num(); ++ParameterSourceIndex)
@@ -38,6 +37,14 @@ void FAnimNextScheduleParamScopeEntryTask::RunParamScopeEntry(const UE::AnimNext
 
 		StaticParameterSource->Update();
 		ScopeCache.PushedLayers.Add(ParamStack.PushLayer(StaticParameterSource->GetLayerHandle()));
+	}
+
+	// Update & push user params (after scope)
+	if (FoundUserScope && FoundUserScope->AfterSource.IsValid())
+	{
+		FPropertyBagProxy& UserParameterSource = *FoundUserScope->AfterSource.Get();
+		UserParameterSource.Update();
+		ScopeCache.PushedLayers.Add(ParamStack.PushLayer(UserParameterSource.GetLayerHandle()));
 	}
 }
 
@@ -50,7 +57,7 @@ void FAnimNextScheduleParamScopeExitTask::RunParamScopeExit(const UE::AnimNext::
 	FParamStack& ParamStack = FParamStack::Get();
 
 	FScheduleInstanceData& InstanceData = InScheduleContext.GetInstanceData();
-	FScheduleInstanceData::FScopeCache& ScopeCache = InstanceData.ScopeCaches[TaskIndex];
+	FScheduleInstanceData::FScopeCache& ScopeCache = InstanceData.ScopeCaches[ParamScopeIndex];
 	for (int32 LayerIndex = ScopeCache.PushedLayers.Num() - 1; LayerIndex >= 0; --LayerIndex)
 	{
 		ParamStack.PopLayer(ScopeCache.PushedLayers[LayerIndex]);

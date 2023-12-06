@@ -11,6 +11,8 @@
 #include "Graph/AnimNextExecuteContext.h"
 #include "Graph/AnimNext_LODPose.h"
 #include "AnimNextStats.h"
+#include "Logging/StructuredLog.h"
+#include "Param/AnimNextParam.h"
 
 DEFINE_STAT(STAT_AnimNext_Task_Graph);
 
@@ -26,6 +28,49 @@ UAnimNextGraph* FAnimNextScheduleGraphTask::GetGraphToRun(UE::AnimNext::FParamSt
 	}
 
 	return GraphToRun;
+}
+
+void FAnimNextScheduleGraphTask::VerifyRequiredParameters(UAnimNextGraph* InGraphToRun) const
+{
+	if(SuppliedParametersHash != InGraphToRun->RequiredParametersHash)
+	{
+		bool bWarningOutput = false;
+
+		for(const FAnimNextParam& RequiredParameter : InGraphToRun->RequiredParameters)
+		{
+			bool bFound = false;
+			bool bFoundCorrectType = true;
+			FAnimNextParamType SuppliedParameterType;
+			for(const FAnimNextParam& SuppliedParameter : SuppliedParameters)
+			{
+				if(RequiredParameter.Name == SuppliedParameter.Name)
+				{
+					if(RequiredParameter.Type != SuppliedParameter.Type)
+					{
+						SuppliedParameterType = SuppliedParameter.Type;
+						bFoundCorrectType = false;
+					}
+					bFound = true;
+					break;
+				}
+			}
+
+			if(!bWarningOutput && (!bFound || !bFoundCorrectType))
+			{
+				UE_LOGFMT(LogAnimation, Warning, "AnimNext: Graph {GraphToRun} has different required parameters, it may not run correctly.", InGraphToRun->GetName());
+				bWarningOutput = true;
+			}
+			
+			if(!bFound)
+			{
+				UE_LOGFMT(LogAnimation, Warning, "    Not Found: {Name}", RequiredParameter.Name);
+			}
+			else if(!bFoundCorrectType)
+			{
+				UE_LOGFMT(LogAnimation, Warning, "    Incorrect Type: {Name} ({RequiredType} vs {SuppliedType})", RequiredParameter.Name, RequiredParameter.Type.ToString(), SuppliedParameterType.ToString());
+			}
+		}
+	}
 }
 
 void FAnimNextScheduleGraphTask::RunGraph(const UE::AnimNext::FScheduleContext& InContext) const
@@ -56,6 +101,12 @@ void FAnimNextScheduleGraphTask::RunGraph(const UE::AnimNext::FScheduleContext& 
 	if (!GraphCache.GraphInstanceData.IsValid())
 	{
 		GraphToRun->AllocateInstance(GraphCache.GraphInstanceData);
+
+		// Only do dynamic verification for dynamic graphs. Static graphs get verified at compile time. 
+		if (Graph == nullptr && DynamicGraph != NAME_None)
+		{
+			VerifyRequiredParameters(GraphToRun);
+		}
 	}
 
 	const FAnimNextGraphReferencePose* GraphReferencePose = ParamStack.GetParamPtr<FAnimNextGraphReferencePose>(GraphToRun->GetReferencePoseParam());

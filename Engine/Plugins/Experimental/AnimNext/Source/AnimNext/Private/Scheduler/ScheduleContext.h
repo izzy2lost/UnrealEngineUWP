@@ -15,15 +15,6 @@ namespace UE::AnimNext
 struct FScheduleContext
 {
 public:
-	// Attach a context to the current thread
-	static void AttachToCurrentThread(const FScheduleContext& InContext);
-
-	// Detach a context from the current thread
-	static void DetachFromCurrentThread();
-
-	// Get the context that is attached to the current thread
-	static const FScheduleContext& Get();
-
 	FScheduleContext() = default;
 
 	FScheduleContext(FScheduleContext&& InOther) = default;

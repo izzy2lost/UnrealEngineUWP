@@ -4,7 +4,7 @@
 
 #include "CoreMinimal.h"
 #include "Subsystems/WorldSubsystem.h"
-#include "ScheduleHandle.h"
+#include "Scheduler/ScheduleHandle.h"
 #include "ScheduleContext.h"
 #include "Param/ParamStack.h"
 #include "Param/ParamStackLayerHandle.h"
@@ -80,6 +80,11 @@ class UAnimNextSchedulerWorldSubsystem : public UWorldSubsystem
 	// @param	InTaskFunction	The function to run
 	// @param	InLocation		Where to run the task, before or after
 	void QueueTask(UE::AnimNext::FScheduleHandle InHandle, FName InScheduleTaskName, TUniqueFunction<void(const UE::AnimNext::FScheduleContext&)>&& InTaskFunction, UE::AnimNext::FScheduler::ETaskRunLocation InLocation);
+
+#if WITH_EDITOR
+	// Refresh any entries that use the provided schedule as it has been recompiled.
+	void OnScheduleCompiled(UAnimNextSchedule* InSchedule);
+#endif
 
 	// Currently running entries, pooled
 	TArray<TUniquePtr<FAnimNextSchedulerEntry>> Entries;

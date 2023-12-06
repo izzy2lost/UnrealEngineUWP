@@ -12,6 +12,7 @@
 #include "Engine/World.h"
 #include "Components/SkeletalMeshComponent.h"
 #include "UObject/ObjectKey.h"
+#include "UObject/UObjectIterator.h"
 
 namespace UE::AnimNext
 {
@@ -147,5 +148,17 @@ void FScheduler::QueueTask(UObject* InObject, FScheduleHandle InHandle, FName In
 
 	Subsystem->QueueTask(InHandle, InScheduleTaskName, MoveTemp(InTaskFunction), InLocation);
 }
+
+#if WITH_EDITOR
+
+void FScheduler::OnScheduleCompiled(UAnimNextSchedule* InSchedule)
+{
+	for(TObjectIterator<UAnimNextSchedulerWorldSubsystem> It; It; ++It)
+	{
+		It->OnScheduleCompiled(InSchedule);
+	}
+}
+
+#endif
 
 }

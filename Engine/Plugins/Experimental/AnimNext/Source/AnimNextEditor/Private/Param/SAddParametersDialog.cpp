@@ -23,6 +23,7 @@
 #include "SSimpleButton.h"
 #include "SSimpleComboButton.h"
 #include "ToolMenus.h"
+#include "String/ParseTokens.h"
 
 #define LOCTEXT_NAMESPACE "SAddParametersDialog"
 
@@ -56,6 +57,7 @@ void SAddParametersDialog::Construct(const FArguments& InArgs)
 	using namespace AddParametersDialog;
 
 	TargetBlock = InArgs._Block;
+	OnFilterParameterType = InArgs._OnFilterParameterType;
 
 	SWindow::Construct(SWindow::FArguments()
 		.Title(LOCTEXT("WindowTitle", "Add Parameters"))
@@ -172,10 +174,10 @@ void SAddParametersDialog::Construct(const FArguments& InArgs)
 		]);
 
 	// Add an initial item
-	AddEntry();
+	AddEntry(InArgs._InitialParamType);
 }
 
-void SAddParametersDialog::AddEntry()
+void SAddParametersDialog::AddEntry(const FAnimNextParamType& InParamType)
 {
 	const UAnimNextParameterSettings* Settings = GetDefault<UAnimNextParameterSettings>();
 	
@@ -186,7 +188,7 @@ void SAddParametersDialog::AddEntry()
 		PendingNames.Add(QueuedAdd->Name);
 	}
 	FName ParameterName = FUtils::GetNewParameterName(TEXT("NewParameter"), PendingNames);
-	Entries.Add(MakeShared<FParameterToAdd>(Settings->GetLastParameterType(), ParameterName));
+	Entries.Add(MakeShared<FParameterToAdd>(InParamType.IsValid() ? InParamType : Settings->GetLastParameterType(), ParameterName));
 
 	RefreshEntries();
 }
@@ -226,23 +228,39 @@ class SParameterToAdd : public SMultiColumnTableRow<TSharedRef<FParameterToAdd>>
 					.ToolTipText(LOCTEXT("NameTooltip", "The name of the new parameter"))
 					.Text_Lambda([this]()
 					{
-						return FText::FromName(Entry->Name);
+						return UncookedOnly::FUtils::GetParameterDisplayNameText(Entry->Name);
 					})
 					.OnTextCommitted_Lambda([this](const FText& InText, ETextCommit::Type InCommitType)
 					{
-						Entry->Name = *InText.ToString();
+						const FString UserInput = InText.ToString();
+						// Parse out segments to collapse adjacent delimiters
+						TStringBuilder<128> RebuiltInput;
+						UE::String::ParseTokensMultiple(UserInput, { TEXT('.'), TEXT('_') }, [&RebuiltInput](const FStringView InToken)
+						{
+							if(RebuiltInput.Len() != 0)
+							{
+								RebuiltInput.Append(TEXT("_"));
+							}
+							RebuiltInput.Append(InToken);
+						}, String::EParseTokensOptions::SkipEmpty);
+						Entry->Name = RebuiltInput.ToString();
 					})
 					.OnVerifyTextChanged_Lambda([this](const FText& InNewText, FText& OutErrorText)
 					{
 						const FString NewString = InNewText.ToString();
 
-						// Make sure the new name only contains valid characters
-						if (!FName::IsValidXName(NewString, INVALID_OBJECTNAME_CHARACTERS INVALID_LONGPACKAGE_CHARACTERS, &OutErrorText))
+						// See if this can be represented as an FName
+						if(!FName::IsValidXName(NewString, INVALID_NAME_CHARACTERS, &OutErrorText))
 						{
 							return false;
 						}
 
 						const FName Name(*NewString);
+						if(!FUtils::IsValidParameterName(Name, OutErrorText))
+						{
+							return false;
+						}
+
 						if(FUtils::DoesParameterNameExist(Name))
 						{
 							OutErrorText = LOCTEXT("Error_NameExists", "This name already exists in the project");
@@ -267,13 +285,62 @@ class SParameterToAdd : public SMultiColumnTableRow<TSharedRef<FParameterToAdd>>
 				UAnimNextParameterSettings* Settings = GetMutableDefault<UAnimNextParameterSettings>();
 				Settings->SetLastParameterType(Entry->Type);
 			};
+			
+			auto GetFilteredVariableTypeTree = [this](TArray<TSharedPtr<UEdGraphSchema_K2::FPinTypeTreeInfo>>& TypeTree, ETypeTreeFilter TypeTreeFilter)
+			{
+				FUtils::GetFilteredVariableTypeTree(TypeTree, TypeTreeFilter);
+
+				if(TSharedPtr<SAddParametersDialog> Dialog = WeakDialog.Pin())
+				{
+					if(Dialog->OnFilterParameterType.IsBound())
+					{
+						auto IsPinTypeAllowed = [&Dialog](const FEdGraphPinType& InType)
+						{
+							FAnimNextParamType Type = UncookedOnly::FUtils::GetParamTypeFromPinType(InType);
+							if(Type.IsValid())
+							{
+								return Dialog->OnFilterParameterType.Execute(Type) == EFilterParameterResult::Include;
+							}
+							return false;
+						};
+
+						// Additionally filter by allowed types
+						for (int32 Index = 0; Index < TypeTree.Num(); )
+						{
+							TSharedPtr<UEdGraphSchema_K2::FPinTypeTreeInfo>& PinType = TypeTree[Index];
+
+							if (PinType->Children.Num() == 0 && !IsPinTypeAllowed(PinType->GetPinType(/*bForceLoadSubCategoryObject*/false)))
+							{
+								TypeTree.RemoveAt(Index);
+								continue;
+							}
+
+							for (int32 ChildIndex = 0; ChildIndex < PinType->Children.Num(); )
+							{
+								TSharedPtr<UEdGraphSchema_K2::FPinTypeTreeInfo> Child = PinType->Children[ChildIndex];
+								if (Child.IsValid())
+								{
+									if (!IsPinTypeAllowed(Child->GetPinType(/*bForceLoadSubCategoryObject*/false)))
+									{
+										PinType->Children.RemoveAt(ChildIndex);
+										continue;
+									}
+								}
+								++ChildIndex;
+							}
+
+							++Index;
+						}
+					}
+				}
+			};
 
 			return
 				SNew(SBox)
 				.HAlign(HAlign_Left)
 				.VAlign(VAlign_Center)
 				[
-					SNew(SPinTypeSelector, FGetPinTypeTree::CreateStatic(&Editor::FUtils::GetFilteredVariableTypeTree))
+					SNew(SPinTypeSelector, FGetPinTypeTree::CreateLambda(GetFilteredVariableTypeTree))
 						.TargetPinType_Lambda(GetPinInfo)
 						.OnPinTypeChanged_Lambda(PinInfoChanged)
 						.Schema(GetDefault<UPropertyBagSchema>())

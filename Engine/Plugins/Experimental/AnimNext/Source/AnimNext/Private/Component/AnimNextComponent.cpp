@@ -1,9 +1,57 @@
 // Copyright Epic Games, Inc. All Rights Reserved.
 
-#include "AnimNextComponent.h"
+#include "Component/AnimNextComponent.h"
+
+#include "Param/ParamUtils.h"
 #include "Scheduler/Scheduler.h"
 #include "Scheduler/ScheduleContext.h"
 #include "Param/PropertyBagProxy.h"
+
+namespace UE::AnimNext::Private
+{
+
+static void SetValuesInScopeHelper(FScheduleInstanceData& InInstanceData, FName InScope, EAnimNextParameterScopeOrdering InOrdering, TConstArrayView<FPropertyBagProxy::FPropertyAndValue> InPropertiesAndValues)
+{
+	// apply to root
+	if(InScope == NAME_None)
+	{
+		if(!InInstanceData.RootUserScope.IsValid())
+		{
+			InInstanceData.RootUserScope = MakeUnique<FPropertyBagProxy>();
+		}
+
+		InInstanceData.RootUserScope->AddPropertiesAndValues(InPropertiesAndValues);
+	}
+	else // apply to specified scope
+	{
+		FScheduleInstanceData::FUserScope& ScopeSource = InInstanceData.UserScopes.FindOrAdd(InScope);
+		TUniquePtr<FPropertyBagProxy>* ProxyToUse = nullptr;
+		switch(InOrdering)
+		{
+		default:
+		case EAnimNextParameterScopeOrdering::Before:
+			if(!ScopeSource.BeforeSource.IsValid())
+			{
+				ScopeSource.BeforeSource = MakeUnique<FPropertyBagProxy>();
+			}
+			ProxyToUse = &ScopeSource.BeforeSource;
+			break;
+		case EAnimNextParameterScopeOrdering::After:
+			if(!ScopeSource.AfterSource.IsValid())
+			{
+				ScopeSource.AfterSource = MakeUnique<FPropertyBagProxy>();
+			}
+			ProxyToUse = &ScopeSource.AfterSource;
+			break;
+		}
+
+		check(ProxyToUse && ProxyToUse->IsValid());
+
+		(*ProxyToUse)->AddPropertiesAndValues(InPropertiesAndValues);
+	}
+}
+
+}
 
 void UAnimNextComponent::OnRegister()
 {
@@ -28,50 +76,20 @@ void UAnimNextComponent::OnRegister()
 				}
 			}
 
+			// Now apply to each scope
 			for(const TPair<FName, TArray<UAnimNextComponentParameter*, TInlineAllocator<4>>>& ParamPair : ParamsByScope)
 			{
-				FName Scope = ParamPair.Key;
-				TSharedPtr<FParamStack> StackToUse;
-
-				if(Scope == NAME_None)
+				TArray<FPropertyBagProxy::FPropertyAndValue, TInlineAllocator<16>> PropertiesAndValues;
+				PropertiesAndValues.Reserve(ParamPair.Value.Num());
+				for(UAnimNextComponentParameter* Parameter : ParamPair.Value)
 				{
-					StackToUse = InstanceData.RootParamStack;
-				}
-				else
-				{
-					const FAnimNextScheduleParamScopeEntryTask* FoundTask = InContext.Schedule->ParamScopeEntryTasks.FindByPredicate([Scope](const FAnimNextScheduleParamScopeEntryTask& InTask)
-					{
-						return InTask.Scope == Scope;
-					});
-
-					if(FoundTask)
-					{
-						StackToUse = InstanceData.ParamStacks[FoundTask->ParamScopeIndex];
-					}
+					FPropertyBagProxy::FPropertyAndValue& PropertyAndValue = PropertiesAndValues.AddDefaulted_GetRef();
+					PropertyAndValue.ContainerPtr = Parameter;
+					Parameter->GetParamInfo(PropertyAndValue.Name, PropertyAndValue.Property);
 				}
 
-				if(StackToUse.IsValid())
-				{
-					TArray<Private::FParamEntry, TInlineAllocator<4>> Params;
-					for(UAnimNextComponentParameter* Parameter : ParamPair.Value)
-					{
-						FParamId ParamId;
-						FAnimNextParamType Type;
-						uint8* Value = nullptr;
-						Parameter->GetParamInfo(ParamId, Type, Value);
-						check(Type.IsValid() && Value != nullptr);
-
-						constexpr bool bIsReference = true;
-						constexpr bool bIsMutable = false;
-						Params.Emplace(Private::FParamEntry(ParamId, Type.GetHandle(), TArrayView<uint8>(Value, 1), bIsReference, bIsMutable));
-					}
-
-					FParamStackLayerHandle NewLayer = FParamStack::MakeLayer(Params);
-					InstanceData.StaticUserHandles.Add(MoveTemp(NewLayer));
-
-					// Layer is never popped as this is happening at the very start of execution
-					StackToUse->PushLayer(InstanceData.StaticUserHandles.Last());
-				}
+				// NOTE: Layer is always applied 'before' currently. If we have a use case for 'After' we can add it to UAnimNextComponentParameter
+				Private::SetValuesInScopeHelper(InContext.GetInstanceData(), ParamPair.Key, EAnimNextParameterScopeOrdering::Before, PropertiesAndValues);
 			}
 		};
 
@@ -90,7 +108,7 @@ void UAnimNextComponent::OnUnregister()
 	SchedulerHandle.Invalidate();
 }
 
-void UAnimNextComponent::SetParameterInScope(FName Scope, FName Name, int32 Value)
+void UAnimNextComponent::SetParameterInScope(FName Scope, EAnimNextParameterScopeOrdering Ordering, FName Name, int32 Value)
 {
 	checkNoEntry();
 }
@@ -103,8 +121,9 @@ DEFINE_FUNCTION(UAnimNextComponent::execSetParameterInScope)
 	Stack.MostRecentPropertyAddress = nullptr;
 	Stack.MostRecentPropertyContainer = nullptr;
 
-	PARAM_PASSED_BY_VAL(Scope, FNameProperty, FName);
-	PARAM_PASSED_BY_VAL(Name, FNameProperty, FName);
+	P_GET_PROPERTY(FNameProperty, Scope);
+	P_GET_ENUM(EAnimNextParameterScopeOrdering, Ordering);
+	P_GET_PROPERTY(FNameProperty, Name);
 
 	Stack.StepCompiledIn<FProperty>(nullptr);
 	const FProperty* ValueProp = CastField<FProperty>(Stack.MostRecentProperty);
@@ -120,37 +139,38 @@ DEFINE_FUNCTION(UAnimNextComponent::execSetParameterInScope)
 		);
 
 		FBlueprintCoreDelegates::ThrowScriptException(P_THIS, Stack, ExceptionInfo);
+		return;
 	}
-	else if (Scope == NAME_None || Name == NAME_None)
+
+	if (Name == NAME_None)
 	{
 		FBlueprintExceptionInfo ExceptionInfo(
 			EBlueprintExceptionType::NonFatalError,
-			NSLOCTEXT("AnimNextComponent", "AnimNextComponent_SetParameterInScopeWarning", "Invalid scope or parameter name supplied to Set Parameter In Scope")
+			NSLOCTEXT("AnimNextComponent", "AnimNextComponent_SetParameterInScopeWarning", "Invalid parameter name supplied to Set Parameter In Scope")
 		);
 
 		FBlueprintCoreDelegates::ThrowScriptException(P_THIS, Stack, ExceptionInfo);
+		return;
 	}
-	else
+
+	P_NATIVE_BEGIN;
+
+	TUniquePtr<FInstancedPropertyBag> PropertyBag = MakeUnique<FInstancedPropertyBag>();
+	PropertyBag->AddProperty(Name, ValueProp);
+	const FProperty* NewProperty = PropertyBag->GetPropertyBagStruct()->GetPropertyDescs()[0].CachedProperty;
+	const void* ValuePtr = ValueProp->ContainerPtrToValuePtr<void>(ContainerPtr);
+	NewProperty->SetValue_InContainer(PropertyBag->GetMutableValue().GetMemory(), ValuePtr);
+
+	FScheduler::QueueTask(P_THIS, P_THIS->SchedulerHandle, Scope, [Scope, Name, NewProperty, PropertyBag = MoveTemp(PropertyBag), Ordering](const FScheduleContext& InContext) mutable
 	{
-		P_NATIVE_BEGIN;
+		FPropertyBagProxy::FPropertyAndValue PropertyAndValue;
+		PropertyAndValue.Name = Name;
+		PropertyAndValue.Property = NewProperty;
+		PropertyAndValue.ContainerPtr = PropertyBag->GetValue().GetMemory();
+		Private::SetValuesInScopeHelper(InContext.GetInstanceData(), Scope, Ordering, { PropertyAndValue });
+	});
 
-		TUniquePtr<FInstancedPropertyBag> PropertyBag = MakeUnique<FInstancedPropertyBag>();
-		PropertyBag->AddProperty(Name, ValueProp);
-		FProperty* NewProperty = PropertyBag->GetPropertyBagStruct()->FindPropertyByName(Name);
-		PropertyBag->SetValue(Name, NewProperty, ContainerPtr);
-		
-		FScheduler::QueueTask(P_THIS, P_THIS->SchedulerHandle, Scope, [Scope, Name, NewProperty, PropertyBag = MoveTemp(PropertyBag)](const FScheduleContext& InContext) mutable
-		{
-			TUniquePtr<FPropertyBagProxy>& ScopeSources = InContext.GetInstanceData().UserScopes.FindOrAdd(Scope);
-
-			// TODO: pre/post scope distinction
-
-			// Copy property to local bag
-			ScopeSources->AddPropertyAndValue(Name, NewProperty, PropertyBag->GetValue().GetMemory());
-		});
-		
-		P_NATIVE_END;
-	}
+	P_NATIVE_END;
 }
 
 void UAnimNextComponent::Enable(bool bEnabled)

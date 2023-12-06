@@ -1,6 +1,8 @@
 // Copyright Epic Games, Inc. All Rights Reserved.
 
 #include "ScheduleTickFunction.h"
+
+#include "Param/PropertyBagProxy.h"
 #include "Scheduler/ScheduleContext.h"
 #include "Scheduler/AnimNextSchedule.h"
 #include "Scheduler/AnimNextScheduleGraphTask.h"
@@ -15,6 +17,25 @@ namespace UE::AnimNext
 
 void FScheduleBeginTickFunction::ExecuteTick(float DeltaTime, ELevelTick TickType, ENamedThreads::Type CurrentThread, const FGraphEventRef& MyCompletionGraphEvent)
 {
+	Run(DeltaTime);
+}
+
+void FScheduleBeginTickFunction::Run(float DeltaTime)
+{
+	while (!PreExecuteTasks.IsEmpty())
+	{
+		TOptional<TUniqueFunction<void(const UE::AnimNext::FScheduleContext&)>> Function = PreExecuteTasks.Dequeue();
+		check(Function.IsSet());
+		Function.GetValue()(Entry.Context);
+	}
+
+	// Push any user layer we have at the root
+	FScheduleInstanceData& InstanceData = Entry.Context.GetInstanceData();
+	if(InstanceData.RootUserScope.IsValid())
+	{
+		InstanceData.PushedRootUserLayer = InstanceData.RootParamStack->PushLayer(InstanceData.RootUserScope->GetLayerHandle());
+	}
+
 	Entry.ResolvedObject = Entry.WeakObject.Get();
 	Entry.DeltaTime = DeltaTime;
 }
@@ -26,7 +47,28 @@ FString FScheduleBeginTickFunction::DiagnosticMessage()
 
 void FScheduleEndTickFunction::ExecuteTick(float DeltaTime, ELevelTick TickType, ENamedThreads::Type CurrentThread, const FGraphEventRef& MyCompletionGraphEvent)
 {
-	if(Entry.RunState == FAnimNextSchedulerEntry::ERunState::RunningInitialUpdate)
+	Run();
+}
+
+void FScheduleEndTickFunction::Run()
+{
+	// Pop any user layer we have at the root
+	FScheduleInstanceData& InstanceData = Entry.Context.GetInstanceData();
+	InstanceData.RootParamStack->PopLayer(InstanceData.PushedRootUserLayer);
+
+	auto RunTaskOnGameThread = [](TUniqueFunction<void(void)>&& InFunction)
+	{
+		if(IsInGameThread())
+		{
+			InFunction();
+		}
+		else
+		{
+			FFunctionGraphTask::CreateAndDispatchWhenReady(MoveTemp(InFunction), TStatId(), nullptr, ENamedThreads::GameThread);
+		}
+	};
+	
+	if(Entry.RunState == FAnimNextSchedulerEntry::ERunState::PendingInitialUpdate)
 	{
 		if( Entry.InitMethod == EAnimNextScheduleInitMethod::InitializeAndPause
 #if WITH_EDITOR
@@ -35,31 +77,20 @@ void FScheduleEndTickFunction::ExecuteTick(float DeltaTime, ELevelTick TickType,
 			)
 		{
 			// Queue task to disable our tick functions now we have performed our initial update
-			FFunctionGraphTask::CreateAndDispatchWhenReady(
-			[this]()
+			RunTaskOnGameThread([this]()
 			{
 				check(IsInGameThread());
-
 				Entry.Enable(false);
-				Entry.RunState = FAnimNextSchedulerEntry::ERunState::Paused;
-			},
-			TStatId(),
-			nullptr,
-			ENamedThreads::GameThread);
+			});
 		}
 	}
 	else
 	{
-		FFunctionGraphTask::CreateAndDispatchWhenReady(
-		[this]()
+		RunTaskOnGameThread([this]()
 		{
 			check(IsInGameThread());
-
-			Entry.RunState = FAnimNextSchedulerEntry::ERunState::Running;
-		},
-		TStatId(),
-		nullptr,
-		ENamedThreads::GameThread);
+			Entry.TransitionToRunState(FAnimNextSchedulerEntry::ERunState::Running);
+		});
 	}
 
 	Entry.ResolvedObject = nullptr;
@@ -72,14 +103,17 @@ FString FScheduleEndTickFunction::DiagnosticMessage()
 
 void FScheduleTickFunction::ExecuteTick(float DeltaTime, ELevelTick TickType, ENamedThreads::Type CurrentThread, const FGraphEventRef& MyCompletionGraphEvent)
 {
-	FScheduleContext::AttachToCurrentThread(ScheduleContext);
+	Run();
+}
 
-	RunSchedule(Instructions, TargetObjects,
+void FScheduleTickFunction::Run()
+{
+	RunScheduleHelper(ScheduleContext, Instructions, TargetObjects,
 		[this]()
 		{
 			while (!PreExecuteTasks.IsEmpty())
 			{
-				TOptional<TUniqueFunction<void(const UE::AnimNext::FScheduleContext&)>> Function = PreExecuteTasks.Dequeue();
+				TOptional<TUniqueFunction<void(const FScheduleContext&)>> Function = PreExecuteTasks.Dequeue();
 				check(Function.IsSet());
 				Function.GetValue()(ScheduleContext);
 			}
@@ -88,25 +122,26 @@ void FScheduleTickFunction::ExecuteTick(float DeltaTime, ELevelTick TickType, EN
 		{
 			while (!PostExecuteTasks.IsEmpty())
 			{
-				TOptional<TUniqueFunction<void(const UE::AnimNext::FScheduleContext&)>> Function = PostExecuteTasks.Dequeue();
+				TOptional<TUniqueFunction<void(const FScheduleContext&)>> Function = PostExecuteTasks.Dequeue();
 				check(Function.IsSet());
 				Function.GetValue()(ScheduleContext);
 			}
 		});
-
-	FScheduleContext::DetachFromCurrentThread();
 }
 
-void FScheduleTickFunction::RunSchedule(TConstArrayView<FAnimNextScheduleInstruction> InInstructions)
+void FScheduleTickFunction::RunSchedule(const FAnimNextSchedulerEntry& InEntry)
 {
-	RunSchedule(InInstructions, {}, [](){}, [](){});
+	InEntry.BeginTickFunction->Run(0.0f);
+	for(const TUniquePtr<FScheduleTickFunction>& TickFunction : InEntry.TickFunctions)
+	{
+		TickFunction->Run();
+	}
+	InEntry.EndTickFunction->Run();
 }
 
-void FScheduleTickFunction::RunSchedule(TConstArrayView<FAnimNextScheduleInstruction> InInstructions, TConstArrayView<TWeakObjectPtr<UObject>> InTargetObjects, TFunctionRef<void(void)> InPreExecuteScope, TFunctionRef<void(void)> InPostExecuteScope)
+void FScheduleTickFunction::RunScheduleHelper(const FScheduleContext& InScheduleContext, TConstArrayView<FAnimNextScheduleInstruction> InInstructions, TConstArrayView<TWeakObjectPtr<UObject>> InTargetObjects, TFunctionRef<void(void)> InPreExecuteScope, TFunctionRef<void(void)> InPostExecuteScope)
 {
-	const FScheduleContext& ScheduleContext = FScheduleContext::Get();
-
-	const UAnimNextSchedule* Schedule = ScheduleContext.Schedule;
+	const UAnimNextSchedule* Schedule = InScheduleContext.Schedule;
 
 	int32 InstructionIndex = 0;
 	while(InstructionIndex < InInstructions.Num())
@@ -117,10 +152,10 @@ void FScheduleTickFunction::RunSchedule(TConstArrayView<FAnimNextScheduleInstruc
 		case EAnimNextScheduleScheduleOpcode::RunGraphTask:
 			{
 				uint32 GraphTaskIndex = Instruction.Operand;
-				FScheduleInstanceData& InstanceData = ScheduleContext.GetInstanceData();
+				FScheduleInstanceData& InstanceData = InScheduleContext.GetInstanceData();
 				FParamStack::AttachToCurrentThread(InstanceData.GetParamStack(Schedule->GraphTasks[GraphTaskIndex].ParamScopeIndex), FParamStack::ECoalesce::Coalesce);
 
-				Schedule->GraphTasks[GraphTaskIndex].RunGraph(ScheduleContext);
+				Schedule->GraphTasks[GraphTaskIndex].RunGraph(InScheduleContext);
 
 				FParamStack::DetachFromCurrentThread(FParamStack::EDecoalesce::Decoalesce);
 				break;
@@ -131,7 +166,7 @@ void FScheduleTickFunction::RunSchedule(TConstArrayView<FAnimNextScheduleInstruc
 				{
 					if (const UObject* Object = InTargetObjects[InstructionIndex].Get())
 					{
-						FScheduleInstanceData& InstanceData = ScheduleContext.GetInstanceData();
+						FScheduleInstanceData& InstanceData = InScheduleContext.GetInstanceData();
 						uint32 ExternalTaskIndex = Instruction.Operand;
 						FParamStack::AddForPendingObject(Object, InstanceData.GetParamStack(Schedule->ExternalTasks[ExternalTaskIndex].ParamScopeIndex));
 					}
@@ -152,10 +187,10 @@ void FScheduleTickFunction::RunSchedule(TConstArrayView<FAnimNextScheduleInstruc
 		case EAnimNextScheduleScheduleOpcode::RunPort:
 			{
 				uint32 PortIndex = Instruction.Operand;
-				FScheduleInstanceData& InstanceData = ScheduleContext.GetInstanceData();
+				FScheduleInstanceData& InstanceData = InScheduleContext.GetInstanceData();
 				FParamStack::AttachToCurrentThread(InstanceData.GetParamStack(Schedule->Ports[PortIndex].ParamScopeIndex));
 
-				Schedule->Ports[PortIndex].RunPort(ScheduleContext);
+				Schedule->Ports[PortIndex].RunPort(InScheduleContext);
 
 				FParamStack::DetachFromCurrentThread();
 				break;
@@ -165,10 +200,10 @@ void FScheduleTickFunction::RunSchedule(TConstArrayView<FAnimNextScheduleInstruc
 				InPreExecuteScope();
 
 				uint32 ScopeEntryIndex = Instruction.Operand;
-				FScheduleInstanceData& InstanceData = ScheduleContext.GetInstanceData();
+				FScheduleInstanceData& InstanceData = InScheduleContext.GetInstanceData();
 				FParamStack::AttachToCurrentThread(InstanceData.GetParamStack(Schedule->ParamScopeEntryTasks[ScopeEntryIndex].ParamScopeIndex), FParamStack::ECoalesce::Coalesce);
 
-				Schedule->ParamScopeEntryTasks[ScopeEntryIndex].RunParamScopeEntry(ScheduleContext);
+				Schedule->ParamScopeEntryTasks[ScopeEntryIndex].RunParamScopeEntry(InScheduleContext);
 
 				FParamStack::DetachFromCurrentThread();
 
@@ -179,10 +214,10 @@ void FScheduleTickFunction::RunSchedule(TConstArrayView<FAnimNextScheduleInstruc
 		case EAnimNextScheduleScheduleOpcode::RunParamScopeExit:
 			{
 				uint32 ScopeExitIndex = Instruction.Operand;
-				FScheduleInstanceData& InstanceData = ScheduleContext.GetInstanceData();
+				FScheduleInstanceData& InstanceData = InScheduleContext.GetInstanceData();
 				FParamStack::AttachToCurrentThread(InstanceData.GetParamStack(Schedule->ParamScopeExitTasks[ScopeExitIndex].ParamScopeIndex));
 
-				Schedule->ParamScopeExitTasks[ScopeExitIndex].RunParamScopeExit(ScheduleContext);
+				Schedule->ParamScopeExitTasks[ScopeExitIndex].RunParamScopeExit(InScheduleContext);
 
 				FParamStack::DetachFromCurrentThread(FParamStack::EDecoalesce::Decoalesce);
 				break;
@@ -190,10 +225,10 @@ void FScheduleTickFunction::RunSchedule(TConstArrayView<FAnimNextScheduleInstruc
 		case EAnimNextScheduleScheduleOpcode::RunExternalParamTask:
 			{
 				uint32 ExternalParamIndex = Instruction.Operand;
-				FScheduleInstanceData& InstanceData = ScheduleContext.GetInstanceData();
+				FScheduleInstanceData& InstanceData = InScheduleContext.GetInstanceData();
 				FParamStack::AttachToCurrentThread(InstanceData.RootParamStack);
 
-				Schedule->ExternalParamTasks[ExternalParamIndex].UpdateExternalParams(ScheduleContext);
+				Schedule->ExternalParamTasks[ExternalParamIndex].UpdateExternalParams(InScheduleContext);
 
 				FParamStack::DetachFromCurrentThread();
 				break;

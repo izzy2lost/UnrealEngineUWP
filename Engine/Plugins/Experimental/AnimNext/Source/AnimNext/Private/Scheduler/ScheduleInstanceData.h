@@ -3,7 +3,7 @@
 #pragma once
 
 #include "CoreMinimal.h"
-#include "ScheduleHandle.h"
+#include "Scheduler/ScheduleHandle.h"
 #include "Graph/AnimNextGraph.h"
 #include "Param/ParamStack.h"
 
@@ -42,8 +42,23 @@ struct FScheduleInstanceData : public FGCObject
 	// Schedule entry that owns this instance
 	FAnimNextSchedulerEntry* Entry = nullptr;
 
+	// Scope for user parameters to be applied at the root of the schedule
+	TUniquePtr<FPropertyBagProxy> RootUserScope;
+
+	// Pushed layer for the root scope
+	FParamStack::FPushedLayerHandle PushedRootUserLayer;
+
+	struct FUserScope
+	{
+		// Layer that will be pushed before the scope, allowing the static scope to override the layer
+		TUniquePtr<FPropertyBagProxy> BeforeSource;
+
+		// Layer that will be pushed after the scope, overriding the static scope
+		TUniquePtr<FPropertyBagProxy> AfterSource;
+	};
+	
 	// Set of dynamic parameter scopes supplied by the user
-	TMap<FName, TUniquePtr<FPropertyBagProxy>> UserScopes;
+	TMap<FName, FUserScope> UserScopes;
 
 	// Cached data for each parameter scope
 	struct FScopeCache
@@ -63,9 +78,6 @@ struct FScheduleInstanceData : public FGCObject
 
 	// Param stacks required to run the schedule (one per task that requires a stack)
 	TArray<TSharedPtr<FParamStack>> ParamStacks;
-
-	// User handles initialized at startup, always pushed
-	TArray<FParamStackLayerHandle> StaticUserHandles;
 
 	// Intermediate data area
 	FInstancedPropertyBag IntermediatesData;

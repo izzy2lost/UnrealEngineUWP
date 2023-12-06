@@ -8,6 +8,7 @@
 
 class UAnimNextGraph;
 class UAnimNextParameterBlock;
+struct FAnimNextParam;
 
 namespace UE::AnimNext
 {
@@ -39,6 +40,9 @@ private:
 
 	UAnimNextGraph* GetGraphToRun(UE::AnimNext::FParamStack& ParamStack) const;
 
+	// Verify graph's required parameters are satisfied by this task's supplied parameters
+	void VerifyRequiredParameters(UAnimNextGraph* InGraphToRun) const;
+
 private:
 	UPROPERTY()
 	uint32 TaskIndex = MAX_uint32;
@@ -61,4 +65,11 @@ private:
 	// Index of each term in the schedule intermediates
 	UPROPERTY()
 	TArray<uint32> Terms;
+
+	UPROPERTY()
+	uint64 SuppliedParametersHash = 0;
+
+	// All supplied parameters for any dynamic graphs slotted here
+	UPROPERTY()
+	TArray<FAnimNextParam> SuppliedParameters;
 };

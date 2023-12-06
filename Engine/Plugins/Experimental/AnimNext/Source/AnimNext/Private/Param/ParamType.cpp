@@ -464,9 +464,9 @@ size_t FAnimNextParamType::GetValueTypeAlignment() const
 	return 0;
 }
 
-FString FAnimNextParamType::ToString() const
+void FAnimNextParamType::ToString(FStringBuilderBase& InStringBuilder) const
 {
-	auto GetTypeString = [this](TStringBuilder<128>& InStringBuilder)
+	auto GetTypeString = [this, &InStringBuilder]()
 	{
 		switch(ValueType)
 		{
@@ -576,25 +576,28 @@ FString FAnimNextParamType::ToString() const
 		}
 	};
 
-	TStringBuilder<128> StringBuilder;
-
 	switch(ContainerType)
 	{
 	case EContainerType::None:
-		GetTypeString(StringBuilder);
+		GetTypeString();
 		break;
 	case EContainerType::Array:
 		{
-			StringBuilder.Append(TEXT("TArray<"));
-			GetTypeString(StringBuilder);
-			StringBuilder.Append(TEXT(">"));
+			InStringBuilder.Append(TEXT("TArray<"));
+			GetTypeString();
+			InStringBuilder.Append(TEXT(">"));
 		}
 		break;
 	default:
-		StringBuilder.Append(TEXT("Error: Unknown container type"));
+		InStringBuilder.Append(TEXT("Error: Unknown container type"));
 		break;
 	}
+}
 
+FString FAnimNextParamType::ToString() const
+{
+	TStringBuilder<128> StringBuilder;
+	ToString(StringBuilder);
 	return StringBuilder.ToString();
 }
 

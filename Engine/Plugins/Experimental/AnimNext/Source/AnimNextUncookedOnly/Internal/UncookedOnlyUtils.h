@@ -10,6 +10,7 @@
 
 #include "UncookedOnlyUtils.generated.h"
 
+struct FAnimNextParam;
 class UAnimNextSchedule;
 class UAnimNextGraph;
 class UAnimNextGraph_EditorData;
@@ -171,12 +172,22 @@ struct ANIMNEXTUNCOOKEDONLY_API FUtils
 			OutNodes.Append(GraphNodes);
 		}
 	}
-	
+
+	// Gets the parameters that are exported to the asset registry for an asset
 	static bool GetExportedParametersForAsset(const FAssetData& InAsset, FAnimNextParameterProviderAssetRegistryExports& OutExports);
+
+	// Gets all the parameters that are exported to the asset registry
 	static bool GetExportedParametersFromAssetRegistry(FAnimNextParameterProviderAssetRegistryExports& OutExports);
 
-	static void GetGraphParameters(const URigVMGraph* Graph,FAnimNextParameterProviderAssetRegistryExports& OutExports);
-	
+	// Gets the parameters that are used by a RigVM graph
+	static void GetGraphParameters(const URigVMGraph* Graph, FAnimNextParameterProviderAssetRegistryExports& OutExports);
+
+	// Gets the parameters that are exported to the asset registry by a schedule
+	static void GetScheduleParameters(const UAnimNextSchedule* InSchedule, FAnimNextParameterProviderAssetRegistryExports& OutExports);
+
+	// Gets the parameters that are exported to the asset registry by a blueprint
+	static void GetBlueprintParameters(const UBlueprint* InBlueprint, FAnimNextParameterProviderAssetRegistryExports& OutExports);
+
 	// Attempts to determine the type from a parameter name
 	// If the name cannot be found, the returned type will be invalid
 	// Note that this is expensive and can query the asset registry
@@ -184,6 +195,9 @@ struct ANIMNEXTUNCOOKEDONLY_API FUtils
 
 	// Compiles a schedule
 	static void CompileSchedule(UAnimNextSchedule* InSchedule);
+
+	// Sorts the incoming array of parameters, then generates a hash and returns it.
+	static uint64 SortAndHashParameters(TArray<FAnimNextParam>& InParameters);
 };
 
 }

@@ -18,6 +18,7 @@ class UAnimNextSchedule;
 class UAnimNextSchedulerWorldSubsystem;
 class UAnimNextComponent;
 struct FAnimNextSchedulerEntry;
+struct FAnimNextParam;
 
 namespace UE::AnimNext
 {
@@ -86,7 +87,7 @@ private:
 
 	// All parameters that are required by this graph to run (only required if dynamic as static graph params can be discovered by the compiler)
 	UPROPERTY(EditAnywhere, Category = "Graph", meta = (CustomWidget = "ParamName"))
-	TArray<FName> RequiredParameters;
+	TArray<FAnimNextParam> RequiredParameters;
 
 	// The intermediate terms used by the graph
 	UPROPERTY(EditAnywhere, Category = "Graph")
@@ -235,6 +236,7 @@ private:
 #if WITH_EDITOR
 	virtual void PostEditChangeProperty(FPropertyChangedEvent& PropertyChangedEvent) override;
 	virtual void PostEditUndo() override;
+	virtual void GetAssetRegistryTags(TArray<FAssetRegistryTag>& OutTags) const override;
 
 	// Compile the editor data into a compact runtime representation
 	void CompileSchedule();
@@ -244,6 +246,9 @@ private:
 	// Function hook used to compile in editor/cooker
 	static TUniqueFunction<void(UAnimNextSchedule*)> CompileFunction;
 
+	// Function hook used to expose to asset registry
+	static TUniqueFunction<void(const UAnimNextSchedule*, TArray<FAssetRegistryTag>&)> GetAssetRegistryTagsFunction;
+	
 	// Editor only
 	// TODO: move this into an editor only subobject
 	// TODO: this is currently only a linear list, we want it to be a graph

@@ -12,7 +12,7 @@ class UAnimNextSchedulePort_AnimNextMeshComponentPose : public UAnimNextSchedule
 
 	// UAnimNextSchedulePort interface
 	virtual void Run(const UE::AnimNext::FScheduleTermContext& InContext) const override;
-	virtual TConstArrayView<FName> GetRequiredParameters() const override;
+	virtual TConstArrayView<FAnimNextParam> GetRequiredParameters() const override;
 	
 	// IAnimNextScheduleTermInterface interface
 	virtual TConstArrayView<UE::AnimNext::FScheduleTerm> GetTerms() const override;

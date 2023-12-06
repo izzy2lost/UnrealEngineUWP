@@ -15,12 +15,10 @@ class UAnimNextGraph;
 	virtual void CacheParamInfo() const override \
 	{ \
 		using namespace UE::AnimNext; \
-		if(!ParameterId.IsValid() && Parameter != NAME_None) \
+		if(Name == NAME_None || ValueProperty == nullptr) \
 		{ \
-			ParameterId = FParamId(Parameter); \
-			ValuePtr = const_cast<uint8*>(reinterpret_cast<const uint8*>((&Value))); \
+			Name = Parameter; \
 			ValueProperty = StaticClass()->FindPropertyByName(GET_MEMBER_NAME_CHECKED(Type, Value)); \
-			ValueType = FParamTypeHandle::FromProperty(ValueProperty).GetType(); \
 		} \
 	} \
 
@@ -32,8 +30,8 @@ class UAnimNextComponentParameter : public UObject
 	GENERATED_BODY()
 
 public:
-	// The scope to apply the parameter to. If this is empty, it is applied at the root scope of the schedule.
-	UPROPERTY(EditAnywhere, Category = "Parameter", AdvancedDisplay, meta = (CustomWidget = "ParamName"))
+	// The scope to apply the parameter to. If this is "None", it is applied at the root scope of the schedule.
+	UPROPERTY(EditAnywhere, Category = "Parameter", AdvancedDisplay, meta = (CustomWidget = "ParamName", AllowedParamType = "FAnimNextScope", AllowNone))
 	FName Scope;
 
 	// Check validity
@@ -41,27 +39,24 @@ public:
 	{
 		CacheParamInfo();
 
-		return ValueType.IsValid() && ParameterId.IsValid() && ValuePtr != nullptr;
+		return ValueProperty != nullptr && Name != NAME_None;
 	}
 	
 	// Get the name, type and value for this parameter
-	void GetParamInfo(UE::AnimNext::FParamId& OutParamId, FAnimNextParamType& OutType, uint8*& OutValue) const
+	void GetParamInfo(FName& OutName, const FProperty*& OutProperty) const
 	{
 		CacheParamInfo();
 
-		OutParamId = ParameterId;
-		OutType = ValueType;
-		OutValue = ValuePtr;
+		OutName = Name;
+		OutProperty = ValueProperty;
 	}
 
 private:
 	virtual void CacheParamInfo() const PURE_VIRTUAL(UAnimNextComponentParameter::CacheParamInfo, )
 
 protected:
-	mutable UE::AnimNext::FParamId ParameterId;
+	mutable FName Name;
 	mutable FProperty* ValueProperty = nullptr;
-	mutable FAnimNextParamType ValueType;
-	mutable	uint8* ValuePtr = nullptr;
 };
 
 // An object parameter

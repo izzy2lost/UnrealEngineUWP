@@ -23,11 +23,14 @@ struct FAnimNextSchedulerEntry
 	GENERATED_BODY()
 
 	FAnimNextSchedulerEntry() = default;
-	FAnimNextSchedulerEntry(const UAnimNextSchedule* InSchedule, UObject* InObject, UE::AnimNext::FScheduleHandle InHandle, EAnimNextScheduleInitMethod InInitMethod);
+	FAnimNextSchedulerEntry(const UAnimNextSchedule* InSchedule, UObject* InObject, UE::AnimNext::FScheduleHandle InHandle, EAnimNextScheduleInitMethod InInitMethod, TUniqueFunction<void(const UE::AnimNext::FScheduleContext&)>&& InInitializeCallback);
 	~FAnimNextSchedulerEntry();
 
 	// Setup the entry
-	void Initialize(TUniqueFunction<void(const UE::AnimNext::FScheduleContext&)>&& InInitializeCallback);
+	void Initialize();
+
+	// Clear data that binds the schedule to a runtime (e.g. tick functions) and any instance data
+	void ResetBindingsAndInstanceData();
 
 	// Used for pooling
 	void Invalidate();
@@ -37,6 +40,11 @@ struct FAnimNextSchedulerEntry
 
 	// Clears the bTickEvenWhenPaused flags of the entries' tick functions
 	void ClearTickFunctionPauseFlags();
+
+#if WITH_EDITOR
+	// Resets internal sata if the schedule we are bound to is recompiled in editor
+	void OnScheduleCompiled();
+#endif
 
 	UPROPERTY(Transient)
 	TObjectPtr<const UAnimNextSchedule> Schedule = nullptr;
@@ -67,6 +75,9 @@ struct FAnimNextSchedulerEntry
 	// Pre-allocated graph of tick functions
 	TArray<TUniquePtr<UE::AnimNext::FScheduleTickFunction>> TickFunctions;
 
+	// Callback to run on intialization
+	TUniqueFunction<void(const UE::AnimNext::FScheduleContext&)> InitializeCallback;
+
 	// Current delta time, updated each time the schedule runs
 	float DeltaTime = 0.0f;
 
@@ -78,7 +89,7 @@ struct FAnimNextSchedulerEntry
 
 		BindingTasks,
 
-		RunningInitialUpdate,
+		PendingInitialUpdate,
 
 		Running,
 
@@ -88,6 +99,9 @@ struct FAnimNextSchedulerEntry
 	// Current running state
 	ERunState RunState = ERunState::None;
 
+	// Transition to the specified run state, verifying that the current state is valid
+	void TransitionToRunState(ERunState InNewState);
+	
 	// How this entry initializes
 	EAnimNextScheduleInitMethod InitMethod = EAnimNextScheduleInitMethod::InitializeAndPauseInEditor;
 
