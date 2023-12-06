@@ -81,7 +81,7 @@ struct FAnimSegment
 	TObjectPtr<UAnimSequenceBase> AnimReference;
 
 #if WITH_EDITORONLY_DATA
-	UPROPERTY(EditAnywhere, Category=AnimSegment, meta=(DisplayName = "Cached Animation Asset length"))
+	UPROPERTY()
 	float CachedPlayLength = 0.f;
 #endif
 
