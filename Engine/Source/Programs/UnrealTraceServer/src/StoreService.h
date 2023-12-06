@@ -15,6 +15,7 @@ public:
 	void					operator delete (void* Addr);
 	uint32					GetPort() const;
 	uint32					GetRecorderPort() const;
+	bool					ShutdownIfNoConnections();
 
 private:
 							FStoreService() = default;

@@ -83,4 +83,20 @@ uint32 FStoreService::GetRecorderPort() const
 	return Self->Recorder.GetPort();
 }
 
+////////////////////////////////////////////////////////////////////////////////
+bool FStoreService::ShutdownIfNoConnections()
+{
+	auto* Self = (FStoreServiceImpl*)this;
+	const uint32 ConnectionCount = Self->Recorder.GetSessionCount() + Self->CborServer.GetActivePeerCount();
+	if (!ConnectionCount)
+	{
+		// Close the recorder and store server so new connections are not
+		// accepted between returning and process exiting.
+		Self->Recorder.Close();
+		Self->CborServer.Close();
+		return true;
+	}
+	return false;
+}
+
 /* vim: set noexpandtab : */
