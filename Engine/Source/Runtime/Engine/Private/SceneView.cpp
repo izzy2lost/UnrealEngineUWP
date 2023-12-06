@@ -1653,6 +1653,7 @@ void FSceneView::OverridePostProcessSettings(const FPostProcessSettings& Src, fl
 		SET_PP(LumenSceneLightingUpdateSpeed);
 		SET_PP(LumenFinalGatherQuality);
 		SET_PP(LumenFinalGatherLightingUpdateSpeed);
+		SET_PP(LumenFinalGatherScreenTraces);
 		SET_PP(LumenMaxTraceDistance);
 
 		LERP_PP(LumenDiffuseColorBoost);
@@ -1660,6 +1661,7 @@ void FSceneView::OverridePostProcessSettings(const FPostProcessSettings& Src, fl
 		LERP_PP(LumenFullSkylightLeakingDistance);
 
 		SET_PP(LumenRayLightingMode);
+		SET_PP(LumenReflectionsScreenTraces);
 		SET_PP(LumenFrontLayerTranslucencyReflections);
 		SET_PP(LumenMaxRoughnessToTraceReflections);
 		SET_PP(LumenMaxReflectionBounces);

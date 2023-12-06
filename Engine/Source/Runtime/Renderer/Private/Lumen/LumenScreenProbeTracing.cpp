@@ -677,7 +677,8 @@ void TraceScreenProbes(
 	const bool bTraceScreen = View.PrevViewInfo.ScreenSpaceRayTracingInput.IsValid()
 		&& GLumenScreenProbeGatherScreenTraces != 0
 		&& GLumenVisualizeIndirectDiffuse == 0
-		&& View.Family->EngineShowFlags.LumenScreenTraces;
+		&& View.Family->EngineShowFlags.LumenScreenTraces
+		&& View.FinalPostProcessSettings.LumenFinalGatherScreenTraces;
 
 	if (bTraceScreen)
 	{

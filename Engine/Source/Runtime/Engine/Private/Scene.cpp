@@ -566,6 +566,7 @@ FPostProcessSettings::FPostProcessSettings()
 	LumenSceneLightingUpdateSpeed = 1;
 	LumenFinalGatherQuality = 1;
 	LumenFinalGatherLightingUpdateSpeed = 1;
+	LumenFinalGatherScreenTraces = 1;
 	LumenMaxTraceDistance = 20000.0f;
 	LumenDiffuseColorBoost = 1.0f;
 	LumenSkylightLeaking = 0.0f;
@@ -610,6 +611,7 @@ FPostProcessSettings::FPostProcessSettings()
 	ReflectionMethod = EReflectionMethod::Lumen;
 	LumenReflectionQuality = 1;
 	LumenRayLightingMode = ELumenRayLightingModeOverride::Default;
+	LumenReflectionsScreenTraces = 1;
 	LumenFrontLayerTranslucencyReflections = false;
 	LumenMaxRoughnessToTraceReflections = 0.4f;
 	LumenMaxReflectionBounces = 1;
