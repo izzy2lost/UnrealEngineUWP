@@ -61,7 +61,7 @@ FActorInstanceHandle::FActorInstanceHandle(AActor* InActor, const UPrimitiveComp
 	}
 	else if (RelevantComponent)
 	{
-		FActorInstanceHandle(RelevantComponent, CollisionInstanceIndex);
+		this->FActorInstanceHandle::FActorInstanceHandle(RelevantComponent, CollisionInstanceIndex);
 	}
 	else
 	{
