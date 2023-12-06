@@ -8,6 +8,7 @@
 
 #include "Containers/ContainersFwd.h"
 #include "RHIDefinitions.h"
+#include "Templates/TypeHash.h" // This must be before StaticArray to resolve adl compile error in nopch unity builds
 #include "Containers/StaticArray.h"
 #include "Containers/StringFwd.h"
 #include "Math/IntRect.h"
