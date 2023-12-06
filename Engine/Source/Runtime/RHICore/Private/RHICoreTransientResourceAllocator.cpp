@@ -7,7 +7,6 @@
 #include "ProfilingDebugging/CountersTrace.h"
 #include "ProfilingDebugging/CsvProfiler.h"
 #include "RHICommandList.h"
-#include "RHICore.h"
 
 static int32 GRHITransientAllocatorMinimumHeapSize = 128;
 static FAutoConsoleVariableRef CVarRHITransientAllocatorMinimumHeapSize(

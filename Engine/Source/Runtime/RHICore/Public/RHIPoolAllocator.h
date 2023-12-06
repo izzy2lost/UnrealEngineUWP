@@ -1,8 +1,11 @@
 // Copyright Epic Games, Inc. All Rights Reserved.
 #pragma once
 
-#include "RHI.h"
-#include "RHIResources.h"
+#include "Containers/Array.h"
+#include "HAL/CriticalSection.h"
+
+class FRHICommandListBase;
+struct FScriptContainerElement;
 
 // Pre declares
 class FRHIPoolAllocator;
@@ -266,3 +269,8 @@ protected:
 	uint32 TotalAllocatedBlocks;
 };
 
+
+#if UE_ENABLE_INCLUDE_ORDER_DEPRECATED_IN_5_4
+#include "RHI.h"
+#include "RHIResources.h"
+#endif

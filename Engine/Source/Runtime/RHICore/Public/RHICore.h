@@ -3,9 +3,7 @@
 #pragma once
 
 #include "Logging/LogMacros.h"
-#include "RHI.h"
 #include "RHIResources.h"
-#include "RHIContext.h"
 
 RHICORE_API DECLARE_LOG_CATEGORY_EXTERN(LogRHICore, Log, VeryVerbose);
 
@@ -38,3 +36,8 @@ struct FResolveTextureInfo
 RHICORE_API void ResolveRenderPassTargets(const FRHIRenderPassInfo& Info, TFunction<void(FResolveTextureInfo)> Function);
 
 } //! UE::RHICore
+
+#if UE_ENABLE_INCLUDE_ORDER_DEPRECATED_IN_5_4
+#include "RHI.h"
+#include "RHIContext.h"
+#endif

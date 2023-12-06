@@ -2,6 +2,7 @@
 
 #include "RHIDescriptorAllocator.h"
 #include "Misc/ScopeLock.h"
+#include "RHIDefinitions.h"
 
 struct FRHIDescriptorAllocatorRange
 {

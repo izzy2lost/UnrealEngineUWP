@@ -3,7 +3,6 @@
 #pragma once
 
 #include "HAL/Platform.h"
-#include "Misc/AssertionMacros.h"
 
 #if PLATFORM_MICROSOFT
 
@@ -12,6 +11,7 @@
 #endif
 
 #include "RHIDefinitions.h"
+#include "Misc/AssertionMacros.h"
 
 #include "Microsoft/AllowMicrosoftPlatformTypes.h"
 THIRD_PARTY_INCLUDES_START

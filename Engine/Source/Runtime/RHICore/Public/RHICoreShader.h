@@ -2,8 +2,12 @@
 
 #pragma once
 
+#include "Misc/App.h"
 #include "RHICore.h"
 #include "ShaderCore.h"
+#include "ShaderParameterMacros.h"
+
+struct FRHIShaderBundleDispatch;
 
 namespace UE
 {

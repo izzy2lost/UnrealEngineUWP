@@ -3,8 +3,10 @@
 
 #include "Containers/Array.h"
 #include "HAL/CriticalSection.h"
-#include "RHIDefinitions.h"
 #include "Stats/Stats.h"
+
+enum class ERHIDescriptorHeapType : uint8;
+struct FRHIDescriptorHandle;
 
 struct FRHIDescriptorAllocatorRange;
 
@@ -95,3 +97,7 @@ private:
 	// Offset from start of heap we belong to
 	uint32 HeapOffset;
 };
+
+#if UE_ENABLE_INCLUDE_ORDER_DEPRECATED_IN_5_4
+#include "RHIDefinitions.h"
+#endif
