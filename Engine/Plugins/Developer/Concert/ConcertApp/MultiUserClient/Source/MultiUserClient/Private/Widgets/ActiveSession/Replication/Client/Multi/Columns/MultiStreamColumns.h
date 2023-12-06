@@ -57,14 +57,14 @@ namespace UE::MultiUserClient::MultiStreamColumns
 	 * A combo box which displays all current owners for an object and allows bulk reassigning properties.
 	 *
 	 * @param ConcertClient Used to look up client names
-	 * @param ConsolidatedModelAttribute Used to get child objects
+	 * @param MultiStreamModelAttribute Used to get child objects from the consolidated model and for requesting resorting the column
 	 * @param ReassignmentLogic Performs the act of reassigning
 	 * @param ClientManager Used to access all clients for display in the combo box drop-down
 	 * @param ColumnsSortPriority The order relative to the other columns
 	 */
 	ConcertClientSharedSlate::ReplicationColumns::FReplicationTopLevelObjectColumn ReassignOwnership(
 		TSharedRef<IConcertClient> ConcertClient,
-		TAttribute<ConcertClientSharedSlate::IReplicationStreamModel*> ConsolidatedModelAttribute,
+		TAttribute<TSharedPtr<ConcertClientSharedSlate::IMultiReplicationStreamEditor>> MultiStreamModelAttribute,
 		FReassignObjectPropertiesLogic& ReassignmentLogic,
 		const FReplicationClientManager& ClientManager,
 		int32 ColumnsSortPriority = static_cast<int32>(EColumnSortOrder::ReassignOwnership)

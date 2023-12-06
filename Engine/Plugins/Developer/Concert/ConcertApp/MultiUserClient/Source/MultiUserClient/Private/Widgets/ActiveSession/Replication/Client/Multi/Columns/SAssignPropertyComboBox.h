@@ -34,11 +34,23 @@ namespace UE::MultiUserClient
 	{
 	public:
 
+		DECLARE_DELEGATE_OneParam(FOnOptionClicked, const FGuid& ClientId);
+
+		/** @return The display string this widget would have with the given state. If unset, no clients are displayed in the combobox.*/
+		static TOptional<FString> GetDisplayString(
+			const TSharedRef<IConcertClient>& LocalConcertClient,
+			const FReplicationClientManager& ClientManager,
+			FConcertPropertyChain DisplayedProperty,
+			const TArray<FSoftObjectPath>& EditedObjects
+			);
+		
 		SLATE_BEGIN_ARGS(SAssignPropertyComboBox)
 		{}
 			SLATE_ARGUMENT(FConcertPropertyChain, DisplayedProperty)
 			SLATE_ARGUMENT(TArray<FSoftObjectPath>, EditedObjects)
 			SLATE_ARGUMENT(TSharedPtr<FText>, HighlightText)
+			/** Called when a valid option is selected. */
+			SLATE_EVENT(FOnOptionClicked, OnOptionSelected)
 		SLATE_END_ARGS()
 
 		void Construct(const FArguments& InArgs,
@@ -62,9 +74,11 @@ namespace UE::MultiUserClient
 
 		/** The static menu content (when there is no drop-down). */
 		TSharedPtr<ConcertClientSharedSlate::SHorizontalClientList> ClientListWidget;
-
 		/** Passed to MakeListWidgetDelegate */
 		TSharedPtr<FText> HighlightText;
+
+		/** Called when a valid option is selected. */
+		FOnOptionClicked OnOptionClickedDelegate;
 
 		/** Updates the content of the combo box */
 		void RefreshContentBoxContent();

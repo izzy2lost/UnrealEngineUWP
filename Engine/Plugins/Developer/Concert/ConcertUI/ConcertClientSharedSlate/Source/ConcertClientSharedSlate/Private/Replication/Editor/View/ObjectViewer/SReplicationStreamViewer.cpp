@@ -40,19 +40,19 @@ namespace UE::ConcertClientSharedSlate
 		RefreshPropertyData();
 	}
 
-	TArray<FSoftObjectPath> SReplicationStreamViewer::GetSelectedTopLevelObjects() const
+	void SReplicationStreamViewer::RequestObjectColumnResort(const FName& ColumnId)
 	{
-		TArray<FSoftObjectPath> Result;
-		Algo::Transform(GetSelectedOutlinerObjects(), Result, [](const TSharedPtr<FReplicatedObjectData>& Data)
-		{
-			return Data->GetObjectPath();
-		});
-		return Result;
+		ReplicatedObjects->RequestResortForColumn(ColumnId);
+	}
+
+	void SReplicationStreamViewer::RequestPropertyColumnResort(const FName& ColumnId)
+	{
+		PropertySection->RequestResortForColumn(ColumnId);
 	}
 
 	TArray<FSoftObjectPath> SReplicationStreamViewer::GetObjectsBeingPropertyEdited() const
 	{
-		return SubobjectAndPropertySection->GetObjectsSelectedForPropertyEditing();
+		return PropertySection->GetObjectsSelectedForPropertyEditing();
 	}
 
 	void SReplicationStreamViewer::RefreshObjectData()
@@ -93,7 +93,7 @@ namespace UE::ConcertClientSharedSlate
 
 	void SReplicationStreamViewer::RefreshPropertyData()
 	{
-		SubobjectAndPropertySection->RefreshPropertyData();
+		PropertySection->RefreshPropertyData();
 	}
 
 	void SReplicationStreamViewer::SelectTopLevelObjects(TConstArrayView<FSoftObjectPath> Objects)
@@ -182,6 +182,14 @@ namespace UE::ConcertClientSharedSlate
 		const bool bHasNoOutlinerObjectsAttribute = InArgs._NoOutlinerObjects.IsBound() || InArgs._NoOutlinerObjects.IsSet(); 
 		const TAttribute<FText> NoObjectsAttribute = bHasNoOutlinerObjectsAttribute ? InArgs._NoOutlinerObjects : LOCTEXT("NoObjects", "No objects to display");
 
+		// Set both primary and secondary in case one is overriden but always use the override.
+		const FColumnSortInfo PrimaryObjectSort = InArgs._PrimaryObjectSort.IsValid()
+			? InArgs._PrimaryObjectSort
+			: FColumnSortInfo{ ReplicationColumns::TopLevel::LabelColumnId, EColumnSortMode::Ascending };
+		const FColumnSortInfo SecondaryObjectSort = InArgs._SecondaryObjectSort.IsValid()
+			? InArgs._SecondaryObjectSort
+			: FColumnSortInfo{ ReplicationColumns::TopLevel::LabelColumnId, EColumnSortMode::Ascending };
+		
 		return SAssignNew(ReplicatedObjects, SReplicationTreeView<FReplicatedObjectData>)
 			.RootItemsSource(&RootObjectRowData)
 			.OnGetChildren(this, &SReplicationStreamViewer::GetObjectRowChildren)
@@ -192,6 +200,8 @@ namespace UE::ConcertClientSharedSlate
 			})
 			.Columns(Columns)
 			.ExpandableColumnLabel(ReplicationColumns::TopLevel::LabelColumnId)
+			.PrimarySort(PrimaryObjectSort)
+			.SecondarySort(SecondaryObjectSort)
 			.SelectionMode(ESelectionMode::Multi)
 			.LeftOfSearchBar() [ InArgs._LeftOfObjectSearchBar.Widget ]
 			.NoItemsContent() [ SNew(STextBlock).Text(NoObjectsAttribute) ];
@@ -220,9 +230,10 @@ namespace UE::ConcertClientSharedSlate
 				]
 				.BodyContent()
 				[
-					SAssignNew(SubobjectAndPropertySection, SReplicatedPropertyView, PropertiesModel.ToSharedRef())
+					SAssignNew(PropertySection, SReplicatedPropertyView, PropertiesModel.ToSharedRef())
 					.AdditionalPropertyColumns(InArgs._AdditionalPropertyColumns)
-					.SortPropertyRowPredicate(InArgs._SortPropertyRowPredicate)
+					.PrimarySort(InArgs._PrimaryPropertySort)
+					.SecondarySort(InArgs._SecondaryPropertySort)
 					.GetSelectedRootObjects_Lambda([this](){ return GetSelectedOutlinerObjects(); })
 					.LeftOfPropertySearchBar()
 					[

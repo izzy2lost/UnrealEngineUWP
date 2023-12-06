@@ -21,21 +21,52 @@
 
 namespace UE::MultiUserClient
 {
+	namespace ReassignObjctComboBox
+	{
+		TArray<FGuid> GetDisplayedClients(
+			const FReassignObjectPropertiesLogic& ReassignmentLogic,
+			const FSoftObjectPath& ManagedObject
+			)
+		{
+			TArray<FGuid> ClientsWithOwnership;
+			ReassignmentLogic.EnumerateClientOwnershipState(ManagedObject, [&ClientsWithOwnership](const FGuid& ClientId, FReassignObjectPropertiesLogic::EOwnershipState Ownership)
+			{
+				if (Ownership == FReassignObjectPropertiesLogic::EOwnershipState::HasObjectRegistered)
+				{
+					ClientsWithOwnership.Add(ClientId);
+				}
+				return EBreakBehavior::Continue;
+			});
+			return ClientsWithOwnership;
+		}
+	}
+	
 	void SReassignObjectComboBox::PopulateSearchTerms(
 		const IConcertClientSession& Session,
 		const FReassignObjectPropertiesLogic& ReassignmentLogic,
-		const FSoftObjectPath& ObjectPath,
+		const FSoftObjectPath& ManagedObject,
 		TArray<FString>& InOutSearchTerms
 		)
 	{
-		ReassignmentLogic.EnumerateClientOwnershipState(ObjectPath, [&Session, &InOutSearchTerms](const FGuid& ClientId, FReassignObjectPropertiesLogic::EOwnershipState Ownership)
+		for (const FGuid& ClientId : ReassignObjctComboBox::GetDisplayedClients(ReassignmentLogic, ManagedObject))
 		{
-			if (Ownership == FReassignObjectPropertiesLogic::EOwnershipState::HasObjectRegistered)
-			{
-				InOutSearchTerms.Add(ClientUtils::GetClientDisplayName(Session, ClientId));
-			}
-			return EBreakBehavior::Continue;
-		});
+			InOutSearchTerms.Add(ClientUtils::GetClientDisplayName(Session, ClientId));
+		}
+	}
+
+	TOptional<FString> SReassignObjectComboBox::GetDisplayString(
+		const TSharedRef<IConcertClient>& LocalConcertClient,
+		const FReassignObjectPropertiesLogic& ReassignmentLogic,
+		const FSoftObjectPath& ManagedObject
+		)
+	{
+		using SWidgetType = ConcertClientSharedSlate::SHorizontalClientList;
+		const TArray<FGuid> Clients = ReassignObjctComboBox::GetDisplayedClients(ReassignmentLogic, ManagedObject);
+		return SWidgetType::GetDisplayString(
+			LocalConcertClient.Get(),
+			Clients,
+			SWidgetType::FSortPredicate::CreateStatic(&SWidgetType::SortLocalClientFirstThenAlphabetical, LocalConcertClient)
+			);
 	}
 
 	void SReassignObjectComboBox::Construct(
@@ -53,6 +84,8 @@ namespace UE::MultiUserClient
 		ManagedObject = InArgs._ManagedObject;
 		ConsolidatedStreamModelAttribute = InArgs._ConsolidatedModel;
 		check(ConsolidatedStreamModelAttribute.IsSet() || ConsolidatedStreamModelAttribute.IsBound());
+
+		OnReassignAllOptionClickedDelegate = InArgs._OnReassignAllOptionClicked;
 		
 		ChildSlot
 		[
@@ -92,19 +125,9 @@ namespace UE::MultiUserClient
 
 	void SReassignObjectComboBox::UpdateComboButtonContent() const
 	{
-		using EOwnership = FReassignObjectPropertiesLogic::EOwnershipState;
-		
-		TArray<FGuid> ClientsWithOwnership;
-		ReassignmentLogic->EnumerateClientOwnershipState(ManagedObject, [&ClientsWithOwnership](const FGuid& ClientId, EOwnership Ownership)
-		{
-			if (Ownership == FReassignObjectPropertiesLogic::EOwnershipState::HasObjectRegistered)
-			{
-				ClientsWithOwnership.Add(ClientId);
-			}
-			return EBreakBehavior::Continue;
-		});
-
-		ComboClientList->RefreshList(ClientsWithOwnership);
+		ComboClientList->RefreshList(
+			ReassignObjctComboBox::GetDisplayedClients(*ReassignmentLogic, ManagedObject)
+			);
 	}
 
 	EVisibility SReassignObjectComboBox::GetThrobberVisibility() const
@@ -167,6 +190,8 @@ namespace UE::MultiUserClient
 						TArray<FSoftObjectPath> ObjectsNotInline;
 						Algo::Transform(ObjectsToAssign.Get(), ObjectsNotInline, [](const FSoftObjectPath& ObjectPath){ return ObjectPath; });
 						ReassignmentLogic->ReassignAllTo(ObjectsNotInline, ClientId);
+						
+						OnReassignAllOptionClickedDelegate.ExecuteIfBound(ClientId);
 					}),
 					FCanExecuteAction::CreateLambda([this, ObjectsToAssign, ClientId](){ return ReassignmentLogic->CanReassignAnyTo(ObjectsToAssign.Get(), ClientId); }),
 					FIsActionChecked::CreateLambda([this, ObjectsToAssign, ClientId](){ return ReassignmentLogic->OwnsAnyOf(ObjectsToAssign.Get(), ClientId); })

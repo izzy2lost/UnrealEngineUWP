@@ -23,7 +23,6 @@ namespace UE::ConcertClientSharedSlate
 	void SReplicatedPropertyView::Construct(const FArguments& InArgs, TSharedRef<IReplicationStreamModel> InPropertiesModel)
 	{
 		PropertiesModel = MoveTemp(InPropertiesModel);
-		SortPropertyRowPredicate = InArgs._SortPropertyRowPredicate;
 		GetSelectedRootObjectsDelegate = InArgs._GetSelectedRootObjects;
 		check(GetSelectedRootObjectsDelegate.IsBound());
 		
@@ -83,6 +82,11 @@ namespace UE::ConcertClientSharedSlate
 		ReplicatedProperties->OnItemsChanged();
 	}
 
+	void SReplicatedPropertyView::RequestResortForColumn(const FName& ColumnId)
+	{
+		ReplicatedProperties->RequestResortForColumn(ColumnId);
+	}
+
 	TArray<FSoftObjectPath> SReplicatedPropertyView::GetObjectsSelectedForPropertyEditing() const
 	{
 		TArray<FSoftObjectPath> Result;
@@ -101,6 +105,14 @@ namespace UE::ConcertClientSharedSlate
 			ReplicationColumns::Property::TypeColumn()
 		};
 		Columns.Append(InArgs._AdditionalPropertyColumns);
+
+		// Set both primary and secondary in case one is overriden but always use the override.
+		const FColumnSortInfo PrimarySort = InArgs._PrimarySort.IsValid()
+			? InArgs._PrimarySort
+			: FColumnSortInfo{ ReplicationColumns::TopLevel::LabelColumnId, EColumnSortMode::Ascending };
+		const FColumnSortInfo SecondarySort = InArgs._SecondarySort.IsValid()
+			? InArgs._SecondarySort
+			: FColumnSortInfo{ ReplicationColumns::TopLevel::LabelColumnId, EColumnSortMode::Ascending };
 		
 		return SAssignNew(PropertyContent, SWidgetSwitcher)
 			// Make sure the slots are coherent with the order of EReplicatedPropertyContent!
@@ -114,6 +126,8 @@ namespace UE::ConcertClientSharedSlate
 				.OnGetChildren(this, &SReplicatedPropertyView::GetPropertyRowChildren)
 				.Columns(Columns)
 				.ExpandableColumnLabel(ReplicationColumns::Property::LabelColumnId)
+				.PrimarySort(PrimarySort)
+				.SecondarySort(SecondarySort)
 				.SelectionMode(ESelectionMode::Multi)
 				.LeftOfSearchBar()
 				[
@@ -156,8 +170,6 @@ namespace UE::ConcertClientSharedSlate
 				RootPropertyRowData.Emplace(PropertyData);
 			}
 		}
-
-		SortPropertyRowArray(RootPropertyRowData);
 	}
 	
 	TOptional<FSoftClassPath> SReplicatedPropertyView::GetClassForPropertiesFromSelection(const TArray<FSoftObjectPath>& Objects) const
@@ -183,19 +195,7 @@ namespace UE::ConcertClientSharedSlate
 			}
 		}
 
-		SortPropertyRowArray(Children);
 		Algo::ForEach(Children, [&ProcessChild](const TSharedPtr<FReplicatedPropertyData>& Data){ ProcessChild(Data); });
-	}
-
-	void SReplicatedPropertyView::SortPropertyRowArray(TArray<TSharedPtr<FReplicatedPropertyData>>& ToSort) const
-	{
-		if (SortPropertyRowPredicate.IsBound())
-		{
-			ToSort.Sort([this](const TSharedPtr<FReplicatedPropertyData>& Left, const TSharedPtr<FReplicatedPropertyData>& Right)
-			{
-				return SortPropertyRowPredicate.Execute(*Left.Get(), *Right.Get());
-			});
-		}
 	}
 
 	void SReplicatedPropertyView::SetPropertyContent(EReplicatedPropertyContent Content) const

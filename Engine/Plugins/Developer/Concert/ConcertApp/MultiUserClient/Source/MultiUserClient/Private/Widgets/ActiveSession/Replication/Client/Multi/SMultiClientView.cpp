@@ -2,6 +2,7 @@
 
 #include "SMultiClientView.h"
 
+#include "IClientSelectionModel.h"
 #include "MultiStreamModel.h"
 #include "MultiUserReplicationSettings.h"
 #include "Replication/Client/ReplicationClient.h"
@@ -10,6 +11,7 @@
 #include "Replication/Editor/Model/Property/SelectPropertyFromUClassModel.h"
 #include "Replication/Editor/View/IMultiReplicationStreamEditor.h"
 #include "Replication/ReplicationWidgetFactories.h"
+#include "Replication/Editor/View/IReplicationStreamEditor.h"
 #include "Widgets/ActiveSession/Replication/Client/Multi/Columns/MultiStreamColumns.h"
 #include "Widgets/ActiveSession/Replication/Client/SClientToolbar.h"
 
@@ -19,10 +21,15 @@
 
 namespace UE::MultiUserClient
 {
-	void SMultiClientView::Construct(const FArguments& InArgs, TSharedRef<IConcertClient> InConcertClient, FReplicationClientManager& ClientManager, IClientSelectionModel& InDisplayClientsModel)
+	void SMultiClientView::Construct(const FArguments& InArgs, TSharedRef<IConcertClient> InConcertClient, FReplicationClientManager& InClientManager, IClientSelectionModel& InDisplayClientsModel)
 	{
-		StreamModel = MakeShared<FMultiStreamModel>(InDisplayClientsModel, ClientManager);
+		StreamModel = MakeShared<FMultiStreamModel>(InDisplayClientsModel, InClientManager);
 
+		ClientManager = &InClientManager;
+		ClientManager->OnRemoteClientsChanged().AddSP(this, &SMultiClientView::RebuildClientSubscriptions);
+		SelectionModel = &InDisplayClientsModel;
+		SelectionModel->OnSelectionChanged().AddSP(this, &SMultiClientView::RebuildClientSubscriptions);
+		
 		ChildSlot
 		[
 			SNew(SVerticalBox)
@@ -32,7 +39,7 @@ namespace UE::MultiUserClient
 			.AutoHeight()
 			.Padding(2.f)
 			[
-				SAssignNew(Toolbar, SClientToolbar, ClientManager.GetAuthorityCache())
+				SAssignNew(Toolbar, SClientToolbar, InClientManager.GetAuthorityCache())
 				.ViewSelectionArea() [ InArgs._ViewSelectionArea.Widget ]
 				.DisplayedClients(this, &SMultiClientView::GetDisplayClientIds)
 				.ForEachReplicatedObject(this, &SMultiClientView::EnumerateObjectsInStreams)
@@ -42,9 +49,18 @@ namespace UE::MultiUserClient
 			+SVerticalBox::Slot()
 			.FillHeight(1.f)
 			[
-				CreateEditorContent(InConcertClient, ClientManager)
+				CreateEditorContent(InConcertClient, InClientManager)
 			]
 		];
+
+		RebuildClientSubscriptions();
+	}
+
+	SMultiClientView::~SMultiClientView()
+	{
+		ClientManager->OnRemoteClientsChanged().RemoveAll(this);
+		SelectionModel->OnSelectionChanged().RemoveAll(this);
+		CleanClientSubscriptions();
 	}
 
 	TSharedRef<SWidget> SMultiClientView::CreateEditorContent(const TSharedRef<IConcertClient>& InConcertClient, FReplicationClientManager& InClientManager)
@@ -79,9 +95,10 @@ namespace UE::MultiUserClient
 				.AdditionalObjectColumns =
 				{
 					MultiStreamColumns::ReplicationToggle(InConcertClient, ConsolidatedStreamModelAttribute, InClientManager),
-					MultiStreamColumns::ReassignOwnership(InConcertClient, ConsolidatedStreamModelAttribute, InClientManager.GetReassignmentLogic(), InClientManager)
+					MultiStreamColumns::ReassignOwnership(InConcertClient, MultiStreamEditorAttribute, InClientManager.GetReassignmentLogic(), InClientManager)
 				},
-				.AdditionalPropertyColumns = { MultiStreamColumns::AssignPropertyColumn(MoveTemp(MultiStreamEditorAttribute), InConcertClient, InClientManager) }
+				.AdditionalPropertyColumns = { MultiStreamColumns::AssignPropertyColumn(MultiStreamEditorAttribute, InConcertClient, InClientManager) },
+				.PrimaryPropertySort = { MultiStreamColumns::AssignPropertyColumnId, EColumnSortMode::Ascending}
 			}
 		};
 		StreamEditor = CreateBaseMultiStreamEditor(MoveTemp(Params));
@@ -111,6 +128,33 @@ namespace UE::MultiUserClient
 			});
 			return EBreakBehavior::Continue;
 		});
+	}
+
+	void SMultiClientView::RebuildClientSubscriptions()
+	{
+		CleanClientSubscriptions();
+
+		ClientManager->ForEachClient([this](FReplicationClient& Client)
+		{
+			Client.OnModelChanged().AddSP(this, &SMultiClientView::OnClientChanged, Client.GetEndpointId());
+			return EBreakBehavior::Continue;
+		});
+	}
+
+	void SMultiClientView::CleanClientSubscriptions()
+	{
+		ClientManager->ForEachClient([this](FReplicationClient& Client)
+		{
+			Client.OnModelChanged().RemoveAll(this);
+			return EBreakBehavior::Continue;
+		});
+	}
+
+	void SMultiClientView::OnClientChanged(FGuid)
+	{
+		// When reassignment operations complete, the content of the columns changes so a resort is required.
+		StreamEditor->GetEditorBase().RequestObjectColumnResort(MultiStreamColumns::ReassignOwnershipColumnId);
+		StreamEditor->GetEditorBase().RequestPropertyColumnResort(MultiStreamColumns::AssignPropertyColumnId);
 	}
 }
 

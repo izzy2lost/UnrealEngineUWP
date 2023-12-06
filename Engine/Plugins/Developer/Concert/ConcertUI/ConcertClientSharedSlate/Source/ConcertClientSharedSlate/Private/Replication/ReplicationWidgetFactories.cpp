@@ -19,10 +19,13 @@ namespace UE::ConcertClientSharedSlate
 	{
 		return SNew(SBaseReplicationStreamEditor, Params.DataModel, Params.ObjectSource, Params.PropertySource)
 			.AdditionalObjectColumns(Params.ViewerParams.AdditionalObjectColumns)
+			.PrimaryObjectSort(Params.ViewerParams.PrimaryObjectSort)
+			.SecondaryObjectSort(Params.ViewerParams.SecondaryObjectSort)
 			.AdditionalPropertyColumns(Params.ViewerParams.AdditionalPropertyColumns)
+			.PrimaryPropertySort(Params.ViewerParams.PrimaryPropertySort)
+			.SecondaryPropertySort(Params.ViewerParams.SecondaryPropertySort)
 			.SubobjectModel(Params.ViewerParams.SubobjectModel)
 			.OnExtendObjectsContextMenu(Params.ViewerParams.OnExtendObjectsContextMenu)
-			.SortPropertyRowPredicate(Params.ViewerParams.SortPropertyRowPredicate)
 			.LeftOfObjectSearchBar() [ Params.ViewerParams.LeftOfObjectSearchBar.Widget ]
 			.LeftOfPropertySearchBar() [ Params.ViewerParams.LeftOfPropertySearchBar.Widget ]
 			.IsEditingEnabled(Params.IsEditingEnabled)
@@ -33,10 +36,13 @@ namespace UE::ConcertClientSharedSlate
 	{
 		return SNew(SDefaultReplicationStreamEditor, Params.DataModel, Params.ObjectSource, Params.PropertySource)
 			.AdditionalObjectColumns(Params.ViewerParams.AdditionalObjectColumns)
+			.PrimaryObjectSort(Params.ViewerParams.PrimaryObjectSort)
+			.SecondaryObjectSort(Params.ViewerParams.SecondaryObjectSort)
 			.AdditionalPropertyColumns(Params.ViewerParams.AdditionalPropertyColumns)
+			.PrimaryPropertySort(Params.ViewerParams.PrimaryPropertySort)
+			.SecondaryPropertySort(Params.ViewerParams.SecondaryPropertySort)
 			.SubobjectModel(Params.ViewerParams.SubobjectModel)
 			.OnExtendObjectsContextMenu(Params.ViewerParams.OnExtendObjectsContextMenu)
-			.SortPropertyRowPredicate(Params.ViewerParams.SortPropertyRowPredicate)
 			.LeftOfObjectSearchBar() [ Params.ViewerParams.LeftOfObjectSearchBar.Widget ]
 			.LeftOfPropertySearchBar() [ Params.ViewerParams.LeftOfPropertySearchBar.Widget ]
 			.IsEditingEnabled(Params.IsEditingEnabled)

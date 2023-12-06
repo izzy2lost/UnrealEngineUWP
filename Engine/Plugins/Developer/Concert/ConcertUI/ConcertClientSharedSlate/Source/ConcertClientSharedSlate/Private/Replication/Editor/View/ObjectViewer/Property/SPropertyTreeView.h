@@ -34,6 +34,10 @@ namespace UE::ConcertClientSharedSlate
 			SLATE_ARGUMENT(TArray<TReplicationColumn<FReplicatedPropertyData>>, Columns)
 			/** The name of the column that will have the SExpanderArrow for the tree view. */
 			SLATE_ARGUMENT(FName, ExpandableColumnLabel)
+			/** Initial primary sort to set. */
+			SLATE_ARGUMENT(FColumnSortInfo, PrimarySort)
+			/** Initial secondary sort to set. */
+			SLATE_ARGUMENT(FColumnSortInfo, SecondarySort)
 		
 			/** How many items are to allowed to be selected */
 			SLATE_ARGUMENT(ESelectionMode::Type, SelectionMode)
@@ -52,6 +56,9 @@ namespace UE::ConcertClientSharedSlate
 
 		/** Called when the items need to be refiltered due to the item source changing. */
 		void OnItemsChanged() const;
+
+		/** Requests that the given column be resorted, if it currently affects the row sorting. */
+		void RequestResortForColumn(const FName& ColumnId);
 
 	private:
 

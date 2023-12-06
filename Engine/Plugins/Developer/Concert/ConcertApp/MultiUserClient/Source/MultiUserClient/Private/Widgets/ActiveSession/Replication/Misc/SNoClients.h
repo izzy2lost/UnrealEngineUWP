@@ -15,16 +15,18 @@ namespace UE::MultiUserClient
 	{
 	public:
 
+		static FText GetDisplayText() { return LOCTEXT("None", " - "); }
+		
 		SLATE_BEGIN_ARGS(SNoClients)
 		{}
 		SLATE_END_ARGS()
-
+		
 		void Construct(const FArguments& InArgs)
 		{
 			ChildSlot
 			[
 				SNew(STextBlock)
-				.Text(LOCTEXT("None", " - "))
+				.Text(GetDisplayText())
 			];
 		}
 	};

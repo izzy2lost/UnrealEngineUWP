@@ -18,6 +18,15 @@ namespace UE::ConcertClientSharedSlate
 
 namespace UE::ConcertClientSharedSlate
 {
+	/** Info about a column that is being sorted. */
+	struct FColumnSortInfo
+	{
+		FName SortedColumnId;
+		EColumnSortMode::Type SortMode = EColumnSortMode::None;
+
+		bool IsValid() const { return SortedColumnId != NAME_None && SortMode != EColumnSortMode::None; }
+	};
+	
 	template<typename TListItemType>
 	struct TReplicationColumnDelegates
 	{
@@ -94,6 +103,13 @@ namespace UE::ConcertClientSharedSlate
 								const bool bIsChecked = NewState == ECheckBoxState::Checked;
 								OnChangedDelegate.Execute(bIsChecked, RowData);
 							});
+					})
+					.IsLessThan_Lambda([Delegates](const TListItemType& Left, const TListItemType& Right)
+					{
+						const bool bIsLeftChecked = Delegates.GetCheckboxStateDelegate.IsBound() && Delegates.GetCheckboxStateDelegate.Execute(Left) == ECheckBoxState::Checked;
+						const bool bIsRightChecked = Delegates.GetCheckboxStateDelegate.IsBound() && Delegates.GetCheckboxStateDelegate.Execute(Right) == ECheckBoxState::Checked;
+						// Less for checkbox means: checked < unchecked. !bIsRightChecked because checked == checked so it cannot be less.
+						return bIsLeftChecked && !bIsRightChecked;
 					})
 				.ColumnSortOrder(Priority),
 			SHeaderRow::Column(ColumnId)

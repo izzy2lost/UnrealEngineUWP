@@ -18,8 +18,17 @@ namespace UE::ConcertClientSharedSlate
 		/** Call after the data underlying the model was externally changed and needs to be redisplayed in the UI. */
 		virtual void Refresh() = 0;
 
-		/** @return The objects selected in the top of the viewer; these are the objects that IReplicationSubobjectView bases its view of. */
-		virtual TArray<FSoftObjectPath> GetSelectedTopLevelObjects() const = 0;
+		/**
+		 * Requests that column be resorted; the column is in the top object view.
+		 * This is to be called in response to a column's content changing. The rows will be resorted if the given column has a sort priority assigned.
+		 */
+		virtual void RequestObjectColumnResort(const FName& ColumnId) = 0;
+		/**
+		 * Requests that column be resorted; the column is in the bottom property view.
+		 * This is to be called in response to a column's content changing. The rows will be resorted if the given column has a sort priority assigned.
+		 */
+		virtual void RequestPropertyColumnResort(const FName& ColumnId) = 0;
+
 		/**
 		 * @return The objects for which the properties are being edited / displayed.
 		 * If there is an IReplicationSubobjectView, this is IReplicationSubobjectView::GetSelectedObjects.

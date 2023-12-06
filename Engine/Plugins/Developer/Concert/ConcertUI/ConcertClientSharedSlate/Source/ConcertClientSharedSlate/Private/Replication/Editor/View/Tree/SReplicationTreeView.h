@@ -3,6 +3,7 @@
 #pragma once
 
 #include "Replication/Editor/View/ReplicationColumn.h"
+#include "Replication/Editor/View/ReplicationColumnsUtils.h"
 #include "SReplicationColumnRow.h"
 
 #include "Algo/RemoveIf.h"
@@ -78,6 +79,10 @@ namespace UE::ConcertClientSharedSlate
 			SLATE_ARGUMENT(FName, ExpandableColumnLabel)
 			/** Visibility of the header row */
 			SLATE_ARGUMENT(EVisibility, HeaderRowVisibility)
+			/** Initial primary sort to set. */
+			SLATE_ARGUMENT(FColumnSortInfo, PrimarySort)
+			/** Initial secondary sort to set. */
+			SLATE_ARGUMENT(FColumnSortInfo, SecondarySort)
 		
 			/** How many items are to allowed to be selected */
 			SLATE_ARGUMENT(ESelectionMode::Type, SelectionMode)
@@ -105,7 +110,7 @@ namespace UE::ConcertClientSharedSlate
 			
 			SearchText = MakeShared<FText>();
 			SearchTextFilter = MakeShared<TTextFilter<const TSharedPtr<TItemType>&>>(TTextFilter<const TSharedPtr<TItemType>&>::FItemToStringArray::CreateSP(this, &SReplicationTreeView::PopulateSearchStrings));
-			SearchTextFilter->OnChanged().AddSP(this, &SReplicationTreeView::OnFilterChanged);
+			SearchTextFilter->OnChanged().AddSP(this, &SReplicationTreeView::RequestRefilter);
 			
 			ChildSlot
 			[
@@ -158,12 +163,82 @@ namespace UE::ConcertClientSharedSlate
 					]
 				]
 			];
+
+			if (!InArgs._PrimarySort.SortedColumnId.IsNone())
+			{
+				SetPrimarySortMode(
+					InArgs._PrimarySort.SortedColumnId,
+					// In case None was specified by accident, use good defaults or no sorting will occur
+					InArgs._PrimarySort.SortMode == EColumnSortMode::None ? EColumnSortMode::Ascending : InArgs._PrimarySort.SortMode
+					);
+			}
+			if (!InArgs._SecondarySort.SortedColumnId.IsNone())
+			{
+				SetSecondarySortMode(
+					InArgs._SecondarySort.SortedColumnId, 
+					// In case None was specified by accident, use good defaults or no sorting will occur
+					InArgs._SecondarySort.SortMode == EColumnSortMode::None ? EColumnSortMode::Ascending : InArgs._SecondarySort.SortMode
+					);
+			}
 		}
 		
 		void OnItemsChanged()
 		{
-			// Re-filter everything. There should not be many items so filtering everything again should be fine. Calls RequestListRefresh as well.
-			OnFilterChanged();
+			// Re-filter everything. There should not be many items so filtering everything again should be fine
+			bFilterChanged = true;
+			bRequestedSort = true;
+		}
+		void RequestRefilter()
+		{
+			bFilterChanged = true;
+			bRequestedSort = true;
+		}
+		void RequestResort()
+		{
+			bRequestedSort = true;
+		}
+		
+		/** Requests that the given column be resorted, if it currently affects the row sorting. */
+		void RequestResortForColumn(const FName& ColumnId)
+		{
+			if (PrimarySortInfo.SortedColumnId == ColumnId || SecondarySortInfo.SortedColumnId == ColumnId)
+			{
+				RequestResort();
+			}
+		}
+
+		void SetPrimarySortMode(FName SortedColumnId, EColumnSortMode::Type SortMode)
+		{
+			const TReplicationColumn<TItemType>* Column = FindColumnByName(SortedColumnId);
+			if (ensure(Column && Column->CanBeSorted()))
+			{
+				PrimarySortInfo = { SortedColumnId, SortMode };
+				
+				if (SortedColumnId == SecondarySortInfo.SortedColumnId) // Cannot be primary and secondary at the same time.
+				{
+					SecondarySortInfo.SortedColumnId = FName();
+					SecondarySortInfo.SortMode = EColumnSortMode::None;
+				}
+			}
+		}
+		void SetSecondarySortMode(FName SortedColumnId, EColumnSortMode::Type SortMode)
+		{
+			if (!PrimarySortInfo.IsValid())
+			{
+				SetPrimarySortMode(SortedColumnId, SortMode);
+				return;
+			}
+
+			if (PrimarySortInfo.SortedColumnId == SortedColumnId)
+			{
+				return;
+			}
+			
+			const TReplicationColumn<TItemType>* Column = FindColumnByName(SortedColumnId);
+			if (ensure(Column && Column->CanBeSorted()))
+			{
+				SecondarySortInfo = { SortedColumnId, SortMode };
+			}
 		}
 		
 		void SetSelectedItems(const TArray<TSharedPtr<TItemType>>& ObjectsToSelect, bool bIsSelected)
@@ -183,6 +258,7 @@ namespace UE::ConcertClientSharedSlate
 		const TArray<TSharedPtr<TItemType>>& GetFilteredRootItems() const { return FilteredRootItems; }
 		
 		virtual FReply OnKeyDown(const FGeometry& MyGeometry, const FKeyEvent& InKeyEvent) override;
+		virtual void Tick(const FGeometry& AllottedGeometry, const double InCurrentTime, const float InDeltaTime) override;
 
 	private:
 
@@ -203,6 +279,12 @@ namespace UE::ConcertClientSharedSlate
 		TArray<TSharedPtr<TItemType>>* AllRootItems = nullptr;
 		TArray<TSharedPtr<TItemType>> FilteredRootItems;
 
+		bool bFilterChanged = false;
+		bool bRequestedSort = false;
+
+		FColumnSortInfo PrimarySortInfo;
+		FColumnSortInfo SecondarySortInfo;
+
 		/** Callback for getting an item's children. */
 		FGetItemChildren OnGetChildrenDelegate;
 		/** Optional delegate for responding to pressing the delete button */
@@ -213,19 +295,31 @@ namespace UE::ConcertClientSharedSlate
 		TOverrideColumnWidget OverrideColumnWidget;
 		/** Optional callback for determining whether this item can be filtered. If false, it will not be shown when searched. */
 		FIsSearchableItem IsSearchableItemDelegate;
-		
 
+		// STreeView creation
 		TSharedRef<SWidget> CreateTreeView(const FArguments& InArgs);
 		TSharedRef<SHeaderRow> CreateHeaderRow(const FArguments& InArgs);
 		TSharedRef<ITableRow> OnGenerateRowWidget(TSharedPtr<TItemType> Item, const TSharedRef<STableViewBase>& OwnerTable);
 		void GetRowChildren(TSharedPtr<TItemType> Item, TArray<TSharedPtr<TItemType>>& OutChildren);
 		
+		// Sorting callbacks
+		EColumnSortPriority::Type GetColumnSortPriority(const FName ColumnId) const;
+		EColumnSortMode::Type GetColumnSortMode(const FName ColumnId) const;
+		void OnColumnSortModeChanged(const EColumnSortPriority::Type SortPriority, const FName& ColumnId, const EColumnSortMode::Type InSortMode);
+
+		// Searching callbacks
 		void OnSearchTextCommitted(const FText& InFilterText, ETextCommit::Type CommitType);
 		void OnSearchTextChanged(const FText& InSearchText);
 
+		// Filtering
 		void PopulateSearchStrings(const TSharedPtr<TItemType>& Item, TArray<FString>& OutSearchStrings);
-		void OnFilterChanged();
+		void ReapplyFilters();
 		bool PassesFilters(const TSharedPtr<TItemType>& Item);
+
+		// Sorting
+		void Resort();
+		void Sort(TArray<TSharedPtr<TItemType>>& Items);
+		const TReplicationColumn<TItemType>* FindColumnByName(const FName& ColumnId) const;
 	};
 
 	template <typename TItemType>
@@ -238,6 +332,22 @@ namespace UE::ConcertClientSharedSlate
 		}
 	
 		return SCompoundWidget::OnKeyDown(MyGeometry, InKeyEvent);
+	}
+
+	template <typename TItemType>
+	void SReplicationTreeView<TItemType>::Tick(const FGeometry& AllottedGeometry, const double InCurrentTime, const float InDeltaTime)
+	{
+		if (bFilterChanged)
+		{
+			ReapplyFilters();
+		}
+
+		if (bRequestedSort)
+		{
+			Resort();
+		}
+		
+		SCompoundWidget::Tick(AllottedGeometry, InCurrentTime, InDeltaTime);
 	}
 
 	template <typename TItemType>
@@ -296,11 +406,15 @@ namespace UE::ConcertClientSharedSlate
 		TSet<FName> DuplicateColumnDetection;
 		for (TReplicationColumn<TItemType>& Column : Columns)
 		{
-			check(!DuplicateColumnDetection.Contains(Column.ColumnId));
-			DuplicateColumnDetection.Add(Column.ColumnId);
+			const FName ColumnId = Column.ColumnId;
+			check(!DuplicateColumnDetection.Contains(ColumnId));
+			DuplicateColumnDetection.Add(ColumnId);
 			
 			// SHeaderRow owns the columns and deletes them when destroyed
 			TReplicationColumn<TItemType>* ManagedByHeaderRow = new TReplicationColumn<TItemType>(MoveTemp(Column));
+			ManagedByHeaderRow->SortPriority.Bind(TAttribute<EColumnSortPriority::Type>::FGetter::CreateSP(this, &SReplicationTreeView::GetColumnSortPriority, ColumnId));
+			ManagedByHeaderRow->SortMode.Bind(TAttribute<EColumnSortMode::Type>::FGetter::CreateSP(this, &SReplicationTreeView::GetColumnSortMode, ColumnId));
+			ManagedByHeaderRow->OnSortModeChanged.BindSP(this, &SReplicationTreeView::OnColumnSortModeChanged);
 			HeaderRow->AddColumn(*ManagedByHeaderRow);
 		}
 
@@ -310,19 +424,11 @@ namespace UE::ConcertClientSharedSlate
 	template <typename TItemType>
 	TSharedRef<ITableRow> SReplicationTreeView<TItemType>::OnGenerateRowWidget(TSharedPtr<TItemType> Item, const TSharedRef<STableViewBase>& OwnerTable)
 	{
-		const typename SReplicationColumnRow<TItemType>::FGetColumn ColumnGetter = SReplicationColumnRow<TItemType>::FGetColumn::CreateLambda([this](const FName& ColumnId) -> const TReplicationColumn<TItemType>*
-		{
-			for (const SHeaderRow::FColumn& Column : HeaderRow->GetColumns())
-			{
-				if (Column.ColumnId == ColumnId)
-				{
-					return static_cast<const TReplicationColumn<TItemType>*>(&Column);
-				}
-			}
-
-			checkNoEntry();
-			return nullptr;
-		});
+		const typename SReplicationColumnRow<TItemType>::FGetColumn ColumnGetter =
+			SReplicationColumnRow<TItemType>::FGetColumn::CreateSP(
+				this,
+				&SReplicationTreeView::FindColumnByName
+			);
 	
 		return SNew(SReplicationColumnRow<TItemType>, OwnerTable)
 			.HighlightText(SearchText)
@@ -344,7 +450,65 @@ namespace UE::ConcertClientSharedSlate
 					OutChildren.Add(ItemToAdd);
 				}
 			});
+			
+			Sort(OutChildren);
 		}
+	}
+
+	template <typename TItemType>
+	EColumnSortPriority::Type SReplicationTreeView<TItemType>::GetColumnSortPriority(const FName ColumnId) const
+	{
+		if (ColumnId == PrimarySortInfo.SortedColumnId)
+		{
+			return EColumnSortPriority::Primary;
+		}
+		if (ColumnId == SecondarySortInfo.SortedColumnId)
+		{
+			return EColumnSortPriority::Secondary;
+		}
+
+		return EColumnSortPriority::Max; // No specific priority.
+	}
+
+	template <typename TItemType>
+	EColumnSortMode::Type SReplicationTreeView<TItemType>::GetColumnSortMode(const FName ColumnId) const
+	{
+		if (ColumnId == PrimarySortInfo.SortedColumnId && PrimarySortInfo.IsValid())
+		{
+			return PrimarySortInfo.SortMode;
+		}
+		if (ColumnId == SecondarySortInfo.SortedColumnId && SecondarySortInfo.IsValid())
+		{
+			return SecondarySortInfo.SortMode;
+		}
+		return EColumnSortMode::None;
+	}
+
+	template <typename TItemType>
+	void SReplicationTreeView<TItemType>::OnColumnSortModeChanged(
+		const EColumnSortPriority::Type SortPriority,
+		const FName& ColumnId,
+		const EColumnSortMode::Type InSortMode
+		)
+	{
+		const TReplicationColumn<TItemType>* Column = FindColumnByName(ColumnId);
+		if (!ensure(Column)
+			// Cannot bind
+			|| !Column->CanBeSorted())
+		{
+			return;
+		}
+		
+		if (SortPriority == EColumnSortPriority::Primary)
+		{
+			SetPrimarySortMode(ColumnId, InSortMode);
+		}
+		else if (SortPriority == EColumnSortPriority::Secondary)
+		{
+			SetSecondarySortMode(ColumnId, InSortMode);
+		}
+
+		RequestResort();
 	}
 
 	template <typename TItemType>
@@ -380,7 +544,7 @@ namespace UE::ConcertClientSharedSlate
 	}
 
 	template <typename TItemType>
-	void SReplicationTreeView<TItemType>::OnFilterChanged()
+	void SReplicationTreeView<TItemType>::ReapplyFilters()
 	{
 		// Try preserving the selected activity.
 		TArray<TSharedPtr<TItemType>> SelectedItems = TreeView->GetSelectedItems();
@@ -405,6 +569,8 @@ namespace UE::ConcertClientSharedSlate
 			TreeView->RequestScrollIntoView(SelectedItems[0]);
 		}
 
+		bFilterChanged = false;
+		RequestResort();
 		TreeView->RequestListRefresh();
 	}
 
@@ -413,6 +579,68 @@ namespace UE::ConcertClientSharedSlate
 	{
 		return SearchTextFilter->PassesFilter(Item)
 			&& (!CustomFilterDelegate.IsBound() || CustomFilterDelegate.Execute(Item));
+	}
+
+	template <typename TItemType>
+	void SReplicationTreeView<TItemType>::Resort()
+	{
+		Sort(FilteredRootItems);
+		// GetRowChildren will be called again, which will do the resort the children.
+		TreeView->RequestListRefresh();
+	}
+
+	template <typename TItemType>
+	void SReplicationTreeView<TItemType>::Sort(TArray<TSharedPtr<TItemType>>& Items)
+	{
+		const auto IsLessThan = [this](const TSharedPtr<TItemType>& Left, const TSharedPtr<TItemType>& Right, const FName& ColumnName, EColumnSortMode::Type SortMode)
+		{
+			const TReplicationColumn<TItemType>* Column = FindColumnByName(ColumnName);
+			if (!ensure(Column) || !ensureMsgf(Column->CanBeSorted(), TEXT("Validate why invariant was broken.")))
+			{
+				return false;
+			}
+
+			switch (SortMode)
+			{
+				case EColumnSortMode::Ascending: return Column->IsLessThan(*Left, *Right);
+				case EColumnSortMode::Descending: return Column->IsLessThan(*Right, *Left);
+				case EColumnSortMode::None:
+				default: return false;
+			};
+		};
+		
+		Items.Sort([this, &IsLessThan](const TSharedPtr<TItemType>& Left, const TSharedPtr<TItemType>& Right)
+		{
+			if (PrimarySortInfo.IsValid() && IsLessThan(Left, Right, PrimarySortInfo.SortedColumnId, PrimarySortInfo.SortMode))
+			{
+				return true; // Left comes before Right
+			}
+			// Check for equality by inverting
+			if (PrimarySortInfo.IsValid() && IsLessThan(Right, Left, PrimarySortInfo.SortedColumnId, PrimarySortInfo.SortMode))
+			{
+				return false; // Right comes before Left
+			}
+			
+			// Lhs == Rhs on the primary column, need to order according to the secondary column if one is set.
+			return !SecondarySortInfo.IsValid()
+				? false
+				: IsLessThan(Left, Right, SecondarySortInfo.SortedColumnId, SecondarySortInfo.SortMode);
+		});
+
+		bRequestedSort = false;
+	}
+
+	template <typename TItemType>
+	const TReplicationColumn<TItemType>* SReplicationTreeView<TItemType>::FindColumnByName(const FName& ColumnId) const
+	{
+		for (const SHeaderRow::FColumn& Column : HeaderRow->GetColumns())
+		{
+			if (Column.ColumnId == ColumnId)
+			{
+				return static_cast<const TReplicationColumn<TItemType>*>(&Column);
+			}
+		}
+		return nullptr;
 	}
 }
 

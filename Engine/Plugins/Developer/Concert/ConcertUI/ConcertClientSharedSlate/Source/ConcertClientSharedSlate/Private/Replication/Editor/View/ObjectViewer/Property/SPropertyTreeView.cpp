@@ -64,6 +64,8 @@ namespace UE::ConcertClientSharedSlate
 				.OnGetChildren(InArgs._OnGetChildren)
 				.Columns(InArgs._Columns)
 				.ExpandableColumnLabel(InArgs._ExpandableColumnLabel)
+				.PrimarySort(InArgs._PrimarySort)
+				.SecondarySort(InArgs._SecondarySort)
 				.SelectionMode(InArgs._SelectionMode)
 				.FilterItem(this, &SPropertyTreeView::PassesFilters)
 				.LeftOfSearchBar()
@@ -110,6 +112,11 @@ namespace UE::ConcertClientSharedSlate
 	void SPropertyTreeView::OnItemsChanged() const
 	{
 		ReplicatedProperties->OnItemsChanged();
+	}
+
+	void SPropertyTreeView::RequestResortForColumn(const FName& ColumnId)
+	{
+		ReplicatedProperties->RequestResortForColumn(ColumnId);
 	}
 
 	SPropertyTreeView::FBuildFilterBarResult SPropertyTreeView::BuildFilterBar()

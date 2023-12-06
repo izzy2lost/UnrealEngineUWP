@@ -81,11 +81,4 @@ namespace UE::ConcertClientSharedSlate::ReplicationColumns::Property
 		TConstArrayView<FSoftObjectPath> Selection,
 		const IReplicationStreamModel& Model
 		);
-	/** Util for sorting property data by whether its ReplicatesColumns() column is checked. */
-	CONCERTCLIENTSHAREDSLATE_API bool SortBySelectionThenByName_PropertyPredicate(
-		const TArray<FSoftObjectPath>& SelectedObjects,
-		const IReplicationStreamModel& Model,
-		const FReplicatedPropertyData& Left,
-		const FReplicatedPropertyData& Right
-		);
 }

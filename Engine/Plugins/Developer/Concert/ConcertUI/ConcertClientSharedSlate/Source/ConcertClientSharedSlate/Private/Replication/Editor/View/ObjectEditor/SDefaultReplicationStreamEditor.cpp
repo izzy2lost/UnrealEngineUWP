@@ -30,15 +30,26 @@ namespace UE::ConcertClientSharedSlate
 			);
 		TArray<FReplicationPropertyColumn> PropertyColumns = InArgs._AdditionalPropertyColumns;
 		PropertyColumns.Add(ReplicatesColumn);
+
+		// Set both primary and secondary in case one is overriden but always use the override.
+		const FColumnSortInfo PrimaryPropertySort = InArgs._PrimaryObjectSort.IsValid()
+			? InArgs._PrimaryObjectSort
+			: FColumnSortInfo{ ReplicatesColumnId, EColumnSortMode::Ascending };
+		const FColumnSortInfo SecondaryPropertySort = InArgs._SecondaryObjectSort.IsValid()
+			? InArgs._SecondaryObjectSort
+			: FColumnSortInfo{ LabelColumnId, EColumnSortMode::Ascending };
 		
 		ChildSlot
 		[
 			SAssignNew(WrappedEditor, SBaseReplicationStreamEditor, InPropertiesModel, InObjectSelectionSource, InPropertySelectionSource)
 				.AdditionalObjectColumns(InArgs._AdditionalObjectColumns)
+				.PrimaryObjectSort(InArgs._PrimaryObjectSort)
+				.SecondaryObjectSort(InArgs._SecondaryObjectSort)
 				.AdditionalPropertyColumns(PropertyColumns)
+				.PrimaryPropertySort(PrimaryPropertySort)
+				.SecondaryPropertySort(SecondaryPropertySort)
 				.SubobjectModel(InArgs._SubobjectModel)
 				.OnExtendObjectsContextMenu(InArgs._OnExtendObjectsContextMenu)
-				.SortPropertyRowPredicate(this, &SDefaultReplicationStreamEditor::SortPropertiesPredicate)
 				.LeftOfObjectSearchBar()
 				[
 					InArgs._LeftOfObjectSearchBar.Widget
@@ -57,26 +68,18 @@ namespace UE::ConcertClientSharedSlate
 		return WrappedEditor->Refresh();
 	}
 
-	TArray<FSoftObjectPath> SDefaultReplicationStreamEditor::GetSelectedTopLevelObjects() const
+	void SDefaultReplicationStreamEditor::RequestObjectColumnResort(const FName& ColumnId)
 	{
-		return WrappedEditor->GetSelectedTopLevelObjects();
+		WrappedEditor->RequestObjectColumnResort(ColumnId);
+	}
+
+	void SDefaultReplicationStreamEditor::RequestPropertyColumnResort(const FName& ColumnId)
+	{
+		WrappedEditor->RequestPropertyColumnResort(ColumnId);
 	}
 
 	TArray<FSoftObjectPath> SDefaultReplicationStreamEditor::GetObjectsBeingPropertyEdited() const
 	{
 		return WrappedEditor->GetObjectsBeingPropertyEdited();
-	}
-
-	bool SDefaultReplicationStreamEditor::SortPropertiesPredicate(
-		const FReplicatedPropertyData& Left,
-		const FReplicatedPropertyData& Right
-		) const
-	{
-		return ReplicationColumns::Property::SortBySelectionThenByName_PropertyPredicate(
-			WrappedEditor->GetObjectsBeingPropertyEdited(),
-			*PropertiesModel,
-			Left,
-			Right
-			);
 	}
 }

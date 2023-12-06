@@ -75,7 +75,20 @@ namespace UE::MultiUserClient
 
 	FText SReplicationMultiToggleCheckbox::GetRootToolTipText() const
 	{
-		return LOCTEXT("RootTooltip", "Controls whether the assigned clients should replicate this object.");
+		const bool bHasProperties = IsCheckboxEnabledForObject(Object);
+		if (!bHasProperties)
+		{
+			// TODO UE-200496 Update text if we predict there to be a conflict
+			return LOCTEXT("Toggle.ToolTip.NoProperties", "Assign properties first.");
+		}
+		
+		switch (GetCheckboxStateForObject(Object))
+		{
+		case ECheckBoxState::Unchecked: return LOCTEXT("Toggle.ToolTip.Unchecked", "Not replicating.");
+		case ECheckBoxState::Checked: return LOCTEXT("Toggle.ToolTip.Checked", "Replicating all assigned objects.");
+		case ECheckBoxState::Undetermined: return LOCTEXT("Toggle.ToolTip.Undetermined", "Replicating some assigned objects, but not all.");
+		default: return FText::GetEmpty();
+		}
 	}
 
 	ECheckBoxState SReplicationMultiToggleCheckbox::GetCheckboxStateForObject(FSoftObjectPath InObject) const

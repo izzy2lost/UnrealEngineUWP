@@ -22,6 +22,9 @@ namespace UE::ConcertClientSharedSlate
 
 		DECLARE_DELEGATE_RetVal_TwoParams(bool, FSortPredicate, const FConcertSessionClientInfo& Left, const FConcertSessionClientInfo& FConcertSessionClientInfo);
 		static bool SortLocalClientFirstThenAlphabetical(const FConcertSessionClientInfo& Left, const FConcertSessionClientInfo& Right, TSharedRef<IConcertClient> Client);
+
+		/** @return The display string a SHorizontalClientList would display with the given state. Returns unset optional if EmptyListSlot would be shown. */
+		static TOptional<FString> GetDisplayString(const IConcertClient& LocalConcertClient, const TConstArrayView<FGuid>& Clients, const FSortPredicate& SortPredicate);
 		
 		SLATE_BEGIN_ARGS(SHorizontalClientList)
 			: _Font(FAppStyle::Get().GetFontStyle("NormalFont"))

@@ -26,8 +26,22 @@ namespace UE::MultiUserClient
 	{
 	public:
 
+		DECLARE_DELEGATE_OneParam(FOnReassignAllOptionClicked, const FGuid& ClientId);
+
 		/** Fills in the search terms based what the a widget instance would be displaying given its state. */
-		static void PopulateSearchTerms(const IConcertClientSession& Session, const FReassignObjectPropertiesLogic& ReassignmentLogic, const FSoftObjectPath& ObjectPath, TArray<FString>& InOutSearchTerms);
+		static void PopulateSearchTerms(
+			const IConcertClientSession& Session,
+			const FReassignObjectPropertiesLogic& ReassignmentLogic,
+			const FSoftObjectPath& ManagedObject,
+			TArray<FString>& InOutSearchTerms
+			);
+		
+		/** @return The display string this widget would have with the given state. If unset, no clients are displayed in the combobox. */
+		static TOptional<FString> GetDisplayString(
+			const TSharedRef<IConcertClient>& LocalConcertClient,
+			const FReassignObjectPropertiesLogic& ReassignmentLogic,
+			const FSoftObjectPath& ManagedObject
+			);
 
 		SLATE_BEGIN_ARGS(SReassignObjectComboBox)
 		{}
@@ -36,6 +50,9 @@ namespace UE::MultiUserClient
 			SLATE_ARGUMENT(TSharedPtr<FText>, HighlightText)
 			/** Used to to figure out child objects. */
 			SLATE_ATTRIBUTE(ConcertClientSharedSlate::IReplicationStreamModel*, ConsolidatedModel)
+
+			/** Called when a valid client ID is selected for reassignment. */
+			SLATE_EVENT(FOnReassignAllOptionClicked, OnReassignAllOptionClicked)
 		SLATE_END_ARGS()
 
 		void Construct(
@@ -65,6 +82,9 @@ namespace UE::MultiUserClient
 		TSharedPtr<ConcertClientSharedSlate::SHorizontalClientList> ComboClientList;
 		/** Passed to client list for search highlighting */
 		TSharedPtr<FText> HighlightText;
+		
+		/** Called when a valid client ID is selected for reassignment. */
+		FOnReassignAllOptionClicked OnReassignAllOptionClickedDelegate;
 
 		void UpdateComboButtonContent() const;
 

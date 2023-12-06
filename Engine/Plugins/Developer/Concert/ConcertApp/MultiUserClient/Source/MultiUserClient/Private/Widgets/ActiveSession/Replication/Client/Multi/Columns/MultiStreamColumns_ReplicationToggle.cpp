@@ -38,6 +38,7 @@ namespace UE::MultiUserClient::MultiStreamColumns
 				.ColumnSortOrder(ColumnsSortPriority),
 			SHeaderRow::Column(ReplicationToggleColumnId)
 				.DefaultLabel(FText::GetEmpty())
+				.ToolTipText(LOCTEXT("Replicates.ToolTip", "Assign properties first.\nControls whether the object should replicate."))
 				.FixedWidth(FMultiUserReplicationStyle::Get()->GetFloat(TEXT("AllClients.Object.ReplicationToggle")))
 			);
 	}

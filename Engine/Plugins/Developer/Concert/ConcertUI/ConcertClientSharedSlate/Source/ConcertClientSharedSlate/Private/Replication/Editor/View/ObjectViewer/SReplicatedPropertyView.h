@@ -3,10 +3,9 @@
 #pragma once
 
 #include "Replication/Editor/View/Tree/SelectionViewerColumns.h"
-#include "Replication/ReplicationWidgetDelegates.h"
+#include "Replication/Data/ConcertPropertySelection.h"
 
 #include "Misc/Optional.h"
-#include "Replication/Data/ConcertPropertySelection.h"
 #include "Widgets/DeclarativeSyntaxSupport.h"
 #include "Widgets/SCompoundWidget.h"
 
@@ -27,9 +26,11 @@ namespace UE::ConcertClientSharedSlate
 		{}
 			/** Additional columns to add to the property view */
 			SLATE_ARGUMENT(TArray<ReplicationColumns::FReplicationPropertyColumn>, AdditionalPropertyColumns)
+			/** Initial primary sort to set. */
+			SLATE_ARGUMENT(FColumnSortInfo, PrimarySort)
+			/** Initial secondary sort to set. Defaults to Label column. */
+			SLATE_ARGUMENT(FColumnSortInfo, SecondarySort)
 		
-			/** Optional. Used for determining the order in which properties are displayed. */
-			SLATE_EVENT(FSortPropertyPredicate, SortPropertyRowPredicate)
 			/** Gets the root objects selected in the object outliner. */
 			SLATE_EVENT(FGetSelectedRootObjects, GetSelectedRootObjects)
 		
@@ -40,6 +41,8 @@ namespace UE::ConcertClientSharedSlate
 		void Construct(const FArguments& InArgs, TSharedRef<IReplicationStreamModel> InPropertiesModel);
 		
 		void RefreshPropertyData();
+		/** Requests that the given column be resorted, if it currently affects the row sorting. */
+		void RequestResortForColumn(const FName& ColumnId);
 		
 		const TArray<TSharedPtr<FReplicatedPropertyData>>& GetPropertyRowData() const { return PropertyRowData; }
 		TArray<FSoftObjectPath> GetObjectsSelectedForPropertyEditing() const;
@@ -64,8 +67,6 @@ namespace UE::ConcertClientSharedSlate
 		/** Determines the content displayed for PropertyArea. */
 		TSharedPtr<SWidgetSwitcher> PropertyContent;
 		
-		/** Used for determining the order in which properties are displayed. Default: Sort by name. */
-		FSortPropertyPredicate SortPropertyRowPredicate;
 		/** Gets the root objects selected in the object outliner. */
 		FGetSelectedRootObjects GetSelectedRootObjectsDelegate;
 		
@@ -92,7 +93,6 @@ namespace UE::ConcertClientSharedSlate
 		void GetPropertyRowChildren(TSharedPtr<FReplicatedPropertyData> ReplicatedPropertyData, TFunctionRef<void(TSharedPtr<FReplicatedPropertyData>)> ProcessChild);
 		
 		// Utils
-		void SortPropertyRowArray(TArray<TSharedPtr<FReplicatedPropertyData>>& ToSort) const;
 		void SetPropertyContent(EReplicatedPropertyContent Content) const;
 	};
 }

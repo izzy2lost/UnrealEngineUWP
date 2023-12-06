@@ -47,11 +47,14 @@ namespace UE::ConcertClientSharedSlate
 		[
 			SAssignNew(ReplicationViewer, SReplicationStreamViewer, PropertiesModelAdapter.ToSharedRef())
 				.AdditionalObjectColumns(InArgs._AdditionalObjectColumns)
+				.PrimaryObjectSort(InArgs._PrimaryObjectSort)
+				.SecondaryObjectSort(InArgs._SecondaryObjectSort)
 				.AdditionalPropertyColumns(InArgs._AdditionalPropertyColumns)
+				.PrimaryPropertySort(InArgs._PrimaryPropertySort)
+				.SecondaryPropertySort(InArgs._SecondaryPropertySort)
 				.SubobjectModel(InArgs._SubobjectModel)
 				.OnDeleteObjects(this, &SBaseReplicationStreamEditor::OnDeleteObjects)
 				.OnObjectsContextMenuOpening(this, &SBaseReplicationStreamEditor::OnObjectsContextMenuOpening)
-				.SortPropertyRowPredicate(InArgs._SortPropertyRowPredicate)
 				.LeftOfObjectSearchBar()
 				[
 					SNew(SHorizontalBox)
@@ -85,9 +88,14 @@ namespace UE::ConcertClientSharedSlate
 		ReplicationViewer->Refresh();
 	}
 
-	TArray<FSoftObjectPath> SBaseReplicationStreamEditor::GetSelectedTopLevelObjects() const
+	void SBaseReplicationStreamEditor::RequestObjectColumnResort(const FName& ColumnId)
 	{
-		return ReplicationViewer->GetSelectedTopLevelObjects();
+		ReplicationViewer->RequestObjectColumnResort(ColumnId);
+	}
+
+	void SBaseReplicationStreamEditor::RequestPropertyColumnResort(const FName& ColumnId)
+	{
+		ReplicationViewer->RequestPropertyColumnResort(ColumnId);
 	}
 
 	TArray<FSoftObjectPath> SBaseReplicationStreamEditor::GetObjectsBeingPropertyEdited() const

@@ -54,8 +54,9 @@ namespace UE::MultiUserClient::SingleClientColumns
 						);
 				})
 				.ColumnSortOrder(static_cast<int32>(ETopLevelObjectColumnOrder::Owner)),
-			SHeaderRow::Column(OwnerOfSubobjectColumnId)
-				.DefaultLabel(LOCTEXT("Subobject.Owner", "Owner"))
+				SHeaderRow::Column(OwnerOfSubobjectColumnId)
+				.DefaultLabel(LOCTEXT("Owner.Label", "Assigned Clients"))
+				.ToolTipText(LOCTEXT("Owner.ToolTip", "Clients that have registered properties for an object"))
 				.FillSized(FMultiUserReplicationStyle::Get()->GetFloat(TEXT("SingleClient.Object.OwnerColumnWidth")))
 			);
 	}

@@ -31,20 +31,26 @@ namespace UE::ConcertClientSharedSlate::ReplicationColumns::TopLevel
 	
 	FReplicationTopLevelObjectColumn LabelColumn(TSharedRef<IReplicationStreamModel> Model, ISubobjectModel* SubobjectModel)
 	{
+		auto GetDisplayText = [SubobjectModel](const FReplicatedObjectData& ObjectData)
+		{
+			const FSoftObjectPath& ObjectPath = ObjectData.GetObjectPath();
+			FText Text = DisplayUtils::GetObjectDisplayText(ObjectPath);
+			if (SubobjectModel && !SubobjectModel->IsTopLevelObject(ObjectPath))
+			{
+				if (const TOptional<FSoftObjectPath> OwningActorPath = ObjectUtils::GetActorOf(ObjectPath))
+				{
+					SubobjectModel->SetTopLevelObject(*OwningActorPath);
+					Text = SubobjectModel->GetSubobjectDisplayName(ObjectPath);
+				}
+			}
+			return Text;
+		};
+		
 		return FReplicationTopLevelObjectColumn(
 			FReplicationTopLevelObjectColumn::FArguments()
-				.GenerateWidgetColumn_Lambda([Model = MoveTemp(Model), SubobjectModel](const FReplicationTopLevelObjectColumn::FBuildArgs& Args)
+				.GenerateWidgetColumn_Lambda([Model = MoveTemp(Model), GetDisplayText](const FReplicationTopLevelObjectColumn::FBuildArgs& Args)
 				{
-					const FSoftObjectPath& ObjectPath = Args.RowData.GetObjectPath();
-					FText Text = DisplayUtils::GetObjectDisplayText(ObjectPath);
-					if (SubobjectModel && !SubobjectModel->IsTopLevelObject(ObjectPath))
-					{
-						if (const TOptional<FSoftObjectPath> OwningActorPath = ObjectUtils::GetActorOf(ObjectPath))
-						{
-							SubobjectModel->SetTopLevelObject(*OwningActorPath);
-							Text = SubobjectModel->GetSubobjectDisplayName(ObjectPath);
-						}
-					}
+					const FText Text = GetDisplayText(Args.RowData);
 					
 					return SNew(SHorizontalBox)
 						+SHorizontalBox::Slot()
@@ -70,6 +76,10 @@ namespace UE::ConcertClientSharedSlate::ReplicationColumns::TopLevel
 				{
 					InOutSearchStrings.Add(DisplayUtils::GetObjectDisplayText(ObjectData.GetObjectPath()).ToString());
 				})
+				.IsLessThan_Lambda([GetDisplayText](const FReplicatedObjectData& Left, const FReplicatedObjectData& Right)
+				{
+					return GetDisplayText(Left).ToString() < GetDisplayText(Right).ToString();
+				})
 				.ColumnSortOrder(static_cast<int32>(ETopLevelColumnOrder::Label)),
 			SHeaderRow::Column(LabelColumnId)
 				.DefaultLabel(LOCTEXT("LabelColumnLabel", "Label"))
@@ -90,6 +100,10 @@ namespace UE::ConcertClientSharedSlate::ReplicationColumns::TopLevel
 				.PopulateSearchItems_Lambda([Model](const FReplicatedObjectData& ObjectData, TArray<FString>& InOutSearchStrings)
 				{
 					InOutSearchStrings.Add(DisplayUtils::GetObjectTypeText(Model.Get(), ObjectData.GetObjectPath()).ToString());
+				})
+				.IsLessThan_Lambda([Model](const FReplicatedObjectData& Left, const FReplicatedObjectData& Right)
+				{
+					return DisplayUtils::GetObjectTypeText(*Model, Left.GetObjectPath()).ToString() < DisplayUtils::GetObjectTypeText(*Model, Right.GetObjectPath()).ToString();
 				})
 				.ColumnSortOrder(static_cast<int32>(ETopLevelColumnOrder::Type)),
 			SHeaderRow::Column(TypeColumnId)
@@ -122,6 +136,10 @@ namespace UE::ConcertClientSharedSlate::ReplicationColumns::Property
 				{
 					InOutSearchStrings.Add(DisplayUtils::GetPropertyDisplayText(ObjectData.GetProperty()).ToString());
 				})
+				.IsLessThan_Lambda([](const FReplicatedPropertyData& Left, const FReplicatedPropertyData& Right)
+				{
+					return DisplayUtils::GetPropertyDisplayString(Left.GetProperty()) < DisplayUtils::GetPropertyDisplayString(Right.GetProperty());
+				})
 				.ColumnSortOrder(static_cast<int32>(EReplicationPropertyColumnOrder::Label)),
 			SHeaderRow::Column(LabelColumnId)
 				.DefaultLabel(LOCTEXT("LabelColumnLabel", "Label"))
@@ -149,6 +167,10 @@ namespace UE::ConcertClientSharedSlate::ReplicationColumns::Property
 				.PopulateSearchItems_Lambda([](const FReplicatedPropertyData& ObjectData, TArray<FString>& InOutSearchStrings)
 				{
 					InOutSearchStrings.Add(GetDisplayText(ObjectData).ToString());
+				})
+				.IsLessThan_Lambda([](const FReplicatedPropertyData& Left, const FReplicatedPropertyData& Right)
+				{
+					return GetDisplayText(Left).ToString() < GetDisplayText(Right).ToString();
 				})
 				.ColumnSortOrder(static_cast<int32>(EReplicationPropertyColumnOrder::Type)),
 			SHeaderRow::Column(TypeColumnId)
@@ -288,27 +310,6 @@ namespace UE::ConcertClientSharedSlate::ReplicationColumns::Property
 			}
 		}
 		return CheckBoxState;
-	}
-	
-	bool SortBySelectionThenByName_PropertyPredicate(
-		const TArray<FSoftObjectPath>& SelectedObjects,
-		const IReplicationStreamModel& Model,
-		const FReplicatedPropertyData& Left,
-		const FReplicatedPropertyData& Right
-		)
-	{
-		const ECheckBoxState LeftCheckboxState = GetPropertyCheckboxStateBasedOnSelection(Left.GetProperty(), SelectedObjects, Model);
-		const ECheckBoxState RightCheckboxState = GetPropertyCheckboxStateBasedOnSelection(Right.GetProperty(), SelectedObjects, Model);
-		
-		// Secondary sort by name
-		if (LeftCheckboxState == RightCheckboxState)
-		{
-			return DisplayUtils::GetPropertyDisplayString(Left.GetProperty()) < DisplayUtils::GetPropertyDisplayString(Right.GetProperty());
-		}
-
-		// Selected properties should appear first
-		return LeftCheckboxState == ECheckBoxState::Checked
-			&& (RightCheckboxState == ECheckBoxState::Unchecked || RightCheckboxState == ECheckBoxState::Undetermined);
 	}
 }
 

@@ -22,10 +22,48 @@
 
 namespace UE::MultiUserClient
 {
+	namespace AssignPropertyComboBox
+	{
+		TArray<FGuid> GetDisplayedClients(const FReplicationClientManager& ClientManager, FConcertPropertyChain DisplayedProperty, const TArray<FSoftObjectPath>& EditedObjects)
+		{
+			TArray<FGuid> Clients;
+			ClientManager.ForEachClient([&DisplayedProperty, &EditedObjects, &Clients](const FReplicationClient& Client)
+			{
+				const TMap<FSoftObjectPath, FReplicatedObjectInfo>& ObjectInfoMap = Client.GetStreamSynchronizer().GetServerState().ReplicatedObjects;
+				for (const FSoftObjectPath& ObjectPath : EditedObjects)
+				{
+					if (const FReplicatedObjectInfo* ObjectInfo = ObjectInfoMap.Find(ObjectPath)
+						; ObjectInfo && ObjectInfo->PropertySelection.ReplicatedProperties.Contains(DisplayedProperty))
+					{
+						Clients.Add(Client.GetEndpointId());
+						return EBreakBehavior::Continue;
+					}
+				}
+				return EBreakBehavior::Continue;
+			});
+			return Clients;
+		}
+	}
+	
+	TOptional<FString> SAssignPropertyComboBox::GetDisplayString(
+		const TSharedRef<IConcertClient>& LocalConcertClient,
+		const FReplicationClientManager& ClientManager,
+		FConcertPropertyChain DisplayedProperty,
+		const TArray<FSoftObjectPath>& EditedObjects)
+	{
+		using SWidgetType = ConcertClientSharedSlate::SHorizontalClientList;
+		const TArray<FGuid> Clients = AssignPropertyComboBox::GetDisplayedClients(ClientManager, DisplayedProperty, EditedObjects);
+		return SWidgetType::GetDisplayString(
+			LocalConcertClient.Get(),
+			Clients,
+			SWidgetType::FSortPredicate::CreateStatic(&SWidgetType::SortLocalClientFirstThenAlphabetical, LocalConcertClient)
+			);
+	}
+
 	void SAssignPropertyComboBox::Construct(const FArguments& InArgs,
-        TSharedRef<ConcertClientSharedSlate::IMultiReplicationStreamEditor> InEditor,
-        TSharedRef<IConcertClient> InConcertClient,
-        FReplicationClientManager& InClientManager
+	    TSharedRef<ConcertClientSharedSlate::IMultiReplicationStreamEditor> InEditor,
+	    TSharedRef<IConcertClient> InConcertClient,
+	    FReplicationClientManager& InClientManager
 	)
 	{
 		Editor = InEditor;
@@ -36,6 +74,8 @@ namespace UE::MultiUserClient
 		EditedObjects = InArgs._EditedObjects;
 		HighlightText = InArgs._HighlightText;
 		check(!EditedObjects.IsEmpty());
+
+		OnOptionClickedDelegate = InArgs._OnOptionSelected;
 		
 		ChildSlot
 		[
@@ -58,23 +98,9 @@ namespace UE::MultiUserClient
 	
 	void SAssignPropertyComboBox::RefreshContentBoxContent()
 	{
-		TArray<FGuid> Clients;
-		ClientManager->ForEachClient([this, &Clients](const FReplicationClient& Client)
-		{
-			const TMap<FSoftObjectPath, FReplicatedObjectInfo>& ObjectInfoMap = Client.GetStreamSynchronizer().GetServerState().ReplicatedObjects;
-			for (const FSoftObjectPath& ObjectPath : EditedObjects)
-			{
-				if (const FReplicatedObjectInfo* ObjectInfo = ObjectInfoMap.Find(ObjectPath)
-					; ObjectInfo && ObjectInfo->PropertySelection.ReplicatedProperties.Contains(Property))
-				{
-					Clients.Add(Client.GetEndpointId());
-					return EBreakBehavior::Continue;
-				}
-			}
-			return EBreakBehavior::Continue;
-		});
-
-		ClientListWidget->RefreshList(Clients);
+		ClientListWidget->RefreshList(
+			AssignPropertyComboBox::GetDisplayedClients(*ClientManager, Property, EditedObjects)
+			);
 	}
 
 	TSharedRef<SWidget> SAssignPropertyComboBox::GetMenuContent()
@@ -184,6 +210,8 @@ namespace UE::MultiUserClient
 				}
 			}
 		}
+		
+		OnOptionClickedDelegate.ExecuteIfBound(EndpointId);
 	}
 
 #define SET_REASON(Text) if (Reason) { *Reason = Text; }

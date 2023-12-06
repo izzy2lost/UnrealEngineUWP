@@ -4,7 +4,9 @@
 
 #include "Replication/Editor/View/IReplicationStreamEditor.h"
 #include "Replication/Editor/View/PredefinedReplicationColumns.h"
+#include "Replication/Editor/View/ReplicationColumnsUtils.h"
 #include "Replication/ReplicationWidgetDelegates.h"
+#include "Replication/Editor/View/Tree/SelectionViewerColumns.h"
 
 #include "Widgets/DeclarativeSyntaxSupport.h"
 
@@ -35,8 +37,17 @@ namespace UE::ConcertClientSharedSlate
 		{}
 			/** Additional columns to add to the object view */
 			SLATE_ARGUMENT(TArray<ReplicationColumns::FReplicationTopLevelObjectColumn>, AdditionalObjectColumns)
+			/** Initial primary sort to set. */
+			SLATE_ARGUMENT(FColumnSortInfo, PrimaryObjectSort)
+			/** Initial secondary sort to set. */
+			SLATE_ARGUMENT(FColumnSortInfo, SecondaryObjectSort)
+			
 			/** Additional columns to add to the property view */
 			SLATE_ARGUMENT(TArray<ReplicationColumns::FReplicationPropertyColumn>, AdditionalPropertyColumns)
+			/** Initial primary sort to set. */
+			SLATE_ARGUMENT(FColumnSortInfo, PrimaryPropertySort)
+			/** Initial secondary sort to set. */
+			SLATE_ARGUMENT(FColumnSortInfo, SecondaryPropertySort)
 			
 			/** Optional. Placed between root object outliner and property editor. */
 			SLATE_ARGUMENT(TSharedPtr<IReplicationSubobjectView>, SubobjectView)
@@ -69,7 +80,8 @@ namespace UE::ConcertClientSharedSlate
 
 		//~ Begin IReplicationStreamEditor Interface
 		virtual void Refresh() override;
-		virtual TArray<FSoftObjectPath> GetSelectedTopLevelObjects() const override;
+		virtual void RequestObjectColumnResort(const FName& ColumnId) override;
+		virtual void RequestPropertyColumnResort(const FName& ColumnId) override;
 		virtual TArray<FSoftObjectPath> GetObjectsBeingPropertyEdited() const override;
 		//~ End IReplicationStreamEditor Interface
 
@@ -80,8 +92,6 @@ namespace UE::ConcertClientSharedSlate
 		
 		/** Model needed for sorting properties based on selection. */
 		TSharedPtr<IEditableReplicationStreamModel> PropertiesModel;
-		
-		bool SortPropertiesPredicate(const FReplicatedPropertyData& Left, const FReplicatedPropertyData& Right) const;
     };
 }
 

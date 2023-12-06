@@ -47,8 +47,17 @@ namespace UE::ConcertClientSharedSlate
 		{}
 			/** Additional columns to add to the object view */
 			SLATE_ARGUMENT(TArray<ReplicationColumns::FReplicationTopLevelObjectColumn>, AdditionalObjectColumns)
+			/** Initial primary sort to set. */
+			SLATE_ARGUMENT(FColumnSortInfo, PrimaryObjectSort)
+			/** Initial secondary sort to set. */
+			SLATE_ARGUMENT(FColumnSortInfo, SecondaryObjectSort)
+		
 			/** Additional columns to add to the property view */
 			SLATE_ARGUMENT(TArray<ReplicationColumns::FReplicationPropertyColumn>, AdditionalPropertyColumns)
+			/** Initial primary sort to set. */
+			SLATE_ARGUMENT(FColumnSortInfo, PrimaryPropertySort)
+			/** Initial secondary sort to set. */
+			SLATE_ARGUMENT(FColumnSortInfo, SecondaryPropertySort)
 
 			/** Optional. If set, this determines the children nested under the root objects. */
 			SLATE_ARGUMENT(TSharedPtr<ISubobjectModel>, SubobjectModel)
@@ -58,9 +67,6 @@ namespace UE::ConcertClientSharedSlate
 		
 			/** Called to generate the context menu for objects. */
 			SLATE_EVENT(FOnContextMenuOpening, OnObjectsContextMenuOpening)
-
-			/** Optional. Used for determining the order in which properties are displayed. */
-			SLATE_EVENT(FSortPropertyPredicate, SortPropertyRowPredicate)
 		
 			/** Optional widget to add to the left of the object list search bar. */
 			SLATE_NAMED_SLOT(FArguments, LeftOfObjectSearchBar)
@@ -75,7 +81,8 @@ namespace UE::ConcertClientSharedSlate
 
 		//~ Begin IReplicationStreamViewer Interface
 		virtual void Refresh() override;
-		virtual TArray<FSoftObjectPath> GetSelectedTopLevelObjects() const override;
+		virtual void RequestObjectColumnResort(const FName& ColumnId) override;
+		virtual void RequestPropertyColumnResort(const FName& ColumnId) override;
 		virtual TArray<FSoftObjectPath> GetObjectsBeingPropertyEdited() const override;
 		//~ End IReplicationStreamViewer Interface
 
@@ -101,7 +108,7 @@ namespace UE::ConcertClientSharedSlate
 		/** Lists the properties of the selected actor */
 		TSharedPtr<SExpandableArea> PropertyArea;
 		/** Edits the property list and (optionally) exposes subobjects of the selected root object. */
-		TSharedPtr<SReplicatedPropertyView> SubobjectAndPropertySection;
+		TSharedPtr<SReplicatedPropertyView> PropertySection;
 
 		/** Tree view for replicated objects. */
 		TSharedPtr<SReplicationTreeView<FReplicatedObjectData>> ReplicatedObjects;
