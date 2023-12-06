@@ -418,20 +418,6 @@ namespace EpicGames.OIDC
 		{
 			if (RuntimeInformation.IsOSPlatform(OSPlatform.Windows))
 			{
-				// Special handling for Chrome (maybe other browsers in future?) that creates a new window to ensure we get focus when the window closes.
-				if (TryReadRegistryString(Registry.CurrentUser, @"Software\Microsoft\Windows\Shell\Associations\UrlAssociations\http\UserChoice", "ProgId", out string? progId))
-				{
-					if (TryReadRegistryString(Registry.ClassesRoot, $"{progId}\\shell\\open\\command", null, out string? command))
-					{
-						if (progId.Equals("ChromeHTML", StringComparison.Ordinal) || progId.Equals("MSEdgeHTM", StringComparison.Ordinal))
-						{
-							string exe = command.Replace("--single-argument", "", StringComparison.OrdinalIgnoreCase).Replace("%1", "", StringComparison.Ordinal).TrimEnd();
-							exe = $"{exe} --new-window \"{url}\"";
-							return Process.Start(new ProcessStartInfo(exe));
-						}
-					}
-				}
-
 				return Process.Start(new ProcessStartInfo(url) { UseShellExecute = true });
 			}
 			else if (RuntimeInformation.IsOSPlatform(OSPlatform.Linux))
