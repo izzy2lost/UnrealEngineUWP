@@ -137,19 +137,13 @@ public:
 			LightFunctionMaterialProxy = nullptr;
 		}
 
-		FTexture* IESTextureResource = Proxy->GetIESTextureResource();
-		if (IESTextureResource && View.Family->EngineShowFlags.TexturedLightProfiles)
-		{
-			IESTexture = IESTextureResource->TextureRHI;
-		}
-
 		FSceneRenderer::GetLightNameForDrawEvent(Proxy, Name);
 
-		bNeedsShadowMask = bHasShadows || bHasCloudTransmittance || LightFunctionMaterialProxy || IESTexture;
+		bNeedsShadowMask = bHasShadows || bHasCloudTransmittance || LightFunctionMaterialProxy;
 
 		// If evaluates to false, the light may still be eligible for batching during a raytraced shadow pass.
 		// The assumption is that such lights are not common so we are not optimizing for them.
-		bBatchedShadowsEligible = !bHasCloudTransmittance && !LightFunctionMaterialProxy && !IESTexture && Type != ELumenLightType::Directional;
+		bBatchedShadowsEligible = !bHasCloudTransmittance && !LightFunctionMaterialProxy && Type != ELumenLightType::Directional;
 
 		// Non-raytraced and distance field shadows require the light uniform buffer struct for each view.
 		if ((!bUseHardwareRayTracing && bHasShadows) || NeedsShadowMask())
@@ -181,7 +175,6 @@ public:
 
 	const FLightSceneInfo* LightSceneInfo = nullptr;
 	const FMaterialRenderProxy* LightFunctionMaterialProxy = nullptr;
-	FRHITexture* IESTexture = nullptr;
 	uint32 LightIndex = 0;
 	ELumenLightType Type = ELumenLightType::MAX;
 	bool bHasShadows = false;
