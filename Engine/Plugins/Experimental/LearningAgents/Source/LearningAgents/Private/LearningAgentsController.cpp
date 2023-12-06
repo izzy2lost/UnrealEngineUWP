@@ -5,19 +5,81 @@
 #include "LearningAgentsManager.h"
 #include "LearningAgentsInteractor.h"
 #include "LearningAgentsActions.h"
-#include "LearningFeatureObject.h"
 #include "LearningLog.h"
 
 ULearningAgentsController::ULearningAgentsController() : Super(FObjectInitializer::Get()) {}
 ULearningAgentsController::ULearningAgentsController(FVTableHelper& Helper) : Super(Helper) {}
 ULearningAgentsController::~ULearningAgentsController() = default;
 
-void ULearningAgentsController::SetActions_Implementation(const TArray<int32>& AgentIds)
+void ULearningAgentsController::EvaluateAgentController_Implementation(
+	TArray<FLearningAgentsActionObjectElement>& OutActionObjectElements,
+	ULearningAgentsActionObject* InActionObject,
+	const TArray<FLearningAgentsObservationObjectElement>& InObservationObjectElements,
+	const ULearningAgentsObservationObject* InObservationObject,
+	const TArray<int32>& AgentIds)
 {
-	// Can be overridden to get actions without blueprints
+	UE_LOG(LogLearning, Error, TEXT("%s: EvaluateAgentController function must be overridden!"), *GetName());
+	OutActionObjectElements.Empty();
 }
 
-void ULearningAgentsController::SetupController(ULearningAgentsInteractor* InInteractor)
+void ULearningAgentsController::EvaluateAgentControllerUsingDelegate(
+	TArray<FLearningAgentsActionObjectElement>& OutActionObjectElements,
+	ULearningAgentsActionObject* InActionObject,
+	const TArray<FLearningAgentsObservationObjectElement>& InObservationObjectElements,
+	const ULearningAgentsObservationObject* InObservationObject,
+	const TArray<int32>& AgentIds,
+	const FEvaluateAgentControllerDelegate& Delegate)
+{
+	if (!Delegate.IsBound())
+	{
+		UE_LOG(LogLearning, Error, TEXT("%s: Delegate Not Bound."), *GetName());
+		return;
+	}
+
+	const int32 AgentNum = AgentIds.Num();
+
+	if (AgentNum != InObservationObjectElements.Num())
+	{
+		UE_LOG(LogLearning, Error, TEXT("%s: Not enough Observation Objects. Expected %i, Got %i."), *GetName(), AgentNum, InObservationObjectElements.Num());
+		return;
+	}
+
+	OutActionObjectElements.Empty(AgentNum);
+	for (int32 AgentIdx = 0; AgentIdx < AgentNum; AgentIdx++)
+	{
+		OutActionObjectElements.Add(Delegate.Execute(InActionObject, InObservationObjectElements[AgentIdx], InObservationObject, AgentIds[AgentIdx]));
+	}
+}
+
+ULearningAgentsController* ULearningAgentsController::MakeController(
+	ULearningAgentsManager* InManager, 
+	ULearningAgentsInteractor* InInteractor, 
+	TSubclassOf<ULearningAgentsController> Class,
+	const FName Name)
+{
+	if (!InManager)
+	{
+		UE_LOG(LogLearning, Error, TEXT("MakeController: InManager is nullptr."));
+		return nullptr;
+	}
+
+	if (!Class)
+	{
+		UE_LOG(LogLearning, Error, TEXT("MakeController: Class is nullptr."));
+		return nullptr;
+	}
+
+	const FName UniqueName = MakeUniqueObjectName(InManager, Class, Name, EUniqueObjectNameOptions::GloballyUnique);
+
+	ULearningAgentsController* Controller = NewObject<ULearningAgentsController>(InManager, Class, UniqueName);
+	if (!Controller) { return nullptr; }
+	
+	Controller->SetupController(InManager, InInteractor);
+
+	return Controller->IsSetup() ? Controller : nullptr;
+}
+
+void ULearningAgentsController::SetupController(ULearningAgentsManager* InManager, ULearningAgentsInteractor* InInteractor)
 {
 	if (IsSetup())
 	{
@@ -25,9 +87,9 @@ void ULearningAgentsController::SetupController(ULearningAgentsInteractor* InInt
 		return;
 	}
 
-	if (!Manager)
+	if (!InManager)
 	{
-		UE_LOG(LogLearning, Error, TEXT("%s: Must be attached to a LearningAgentsManager Actor."), *GetName());
+		UE_LOG(LogLearning, Error, TEXT("%s: InManager is nullptr."), *GetName());
 		return;
 	}
 
@@ -43,16 +105,16 @@ void ULearningAgentsController::SetupController(ULearningAgentsInteractor* InInt
 		return;
 	}
 
+	Manager = InManager;
 	Interactor = InInteractor;
-
 	bIsSetup = true;
 
-	OnAgentsAdded(Manager->GetAllAgentIds());
+	InManager->AddListener(this);
 }
 
-void ULearningAgentsController::EncodeActions()
+void ULearningAgentsController::EvaluateController()
 {
-	UE_LEARNING_TRACE_CPUPROFILER_EVENT_SCOPE(ULearningAgentsController::EncodeActions);
+	UE_LEARNING_TRACE_CPUPROFILER_EVENT_SCOPE(ULearningAgentsController::EvaluateController);
 
 	if (!IsSetup())
 	{
@@ -60,80 +122,60 @@ void ULearningAgentsController::EncodeActions()
 		return;
 	}
 
-	const TLearningArrayView<1, uint64> ActionEncodingAgentIteration = Interactor->GetActionEncodingAgentIteration();
-
-	// Run Set Actions Callback
-
-	SetActions(Manager->GetAllAgentIds());
-
-	// Check that all actions have had their setter run
-
-	ValidAgentStatus.SetNumUninitialized(Manager->GetMaxAgentNum());
-	ValidAgentStatus.SetRange(0, Manager->GetMaxAgentNum(), true);
-
-	for (ULearningAgentsAction* ActionObject : Interactor->GetActionObjects())
+	if (Manager->GetAgentNum() == 0)
 	{
-		for (const int32 AgentId : Manager->GetAllAgentSet())
+		UE_LOG(LogLearning, Warning, TEXT("%s: No agents added to Manager."), *GetName());
+	}
+
+	if (Manager->GetAgentNum() != Interactor->ObservationObjectElements.Num())
+	{
+		UE_LOG(LogLearning, Error, TEXT("%s: Not enough Observation Objects added by GatherAgentObservations. Expected %i, Got %i."), *GetName(), Manager->GetAgentNum(), Interactor->ObservationObjectElements.Num());
+		return;
+	}
+
+	// Run EvaluateAgentController Callback
+
+	Interactor->ActionObject->GetActionObject().Reset();
+	Interactor->ActionObjectElements.Empty(Manager->GetMaxAgentNum());
+	EvaluateAgentController(
+		Interactor->ActionObjectElements, 
+		Interactor->ActionObject, 
+		Interactor->ObservationObjectElements,
+		Interactor->ObservationObject,
+		Manager->GetAllAgentIds());
+
+	if (Manager->GetAgentNum() != Interactor->ActionObjectElements.Num())
+	{
+		UE_LOG(LogLearning, Error, TEXT("%s: Not enough Action Objects added by EvaluateAgentController. Expected %i, Got %i."), *GetName(), Manager->GetAgentNum(), Interactor->ActionObjectElements.Num());
+		return;
+	}
+
+	// Check Action Objects are Valid and if so convert to action vectors
+
+	for (int32 AgentIdx = 0; AgentIdx < Manager->GetAgentNum(); AgentIdx++)
+	{
+		if (Interactor->ActionSchema->ValidateObjectMatchesSchema(
+			Interactor->ActionSchemaElement, 
+			Interactor->ActionObject, 
+			Interactor->ActionObjectElements[AgentIdx]))
 		{
-			if (ActionObject->GetAgentSetIteration(AgentId) == ActionEncodingAgentIteration[AgentId])
-			{
-				UE_LOG(LogLearning, Warning, TEXT("%s: Action %s for agent with id %i has not been set (got iteration %i, expected iteration %i) and so agent will not have actions encoded."), *GetName(), *ActionObject->GetName(), AgentId, ActionObject->GetAgentSetIteration(AgentId), ActionEncodingAgentIteration[AgentId] + 1);
-				ValidAgentStatus[AgentId] = false;
-				continue;
-			}
+			UE::Learning::Action::SetVectorFromObject(
+				Interactor->ActionVectors[Manager->GetAllAgentSet()[AgentIdx]],
+				Interactor->ActionSchema->GetActionSchema(),
+				Interactor->ActionSchemaElement.SchemaElement,
+				Interactor->ActionObject->GetActionObject(),
+				Interactor->ActionObjectElements[AgentIdx].ObjectElement);
 
-			if (ActionObject->GetAgentSetIteration(AgentId) > ActionEncodingAgentIteration[AgentId] + 1)
-			{
-				UE_LOG(LogLearning, Warning, TEXT("%s: Action %s for agent with id %i appears to have been set multiple times (got iteration %i, expected iteration %i) and so agent will not have actions encoded."), *GetName(), *ActionObject->GetName(), AgentId, ActionObject->GetAgentSetIteration(AgentId), ActionEncodingAgentIteration[AgentId] + 1);
-				ValidAgentStatus[AgentId] = false;
-				continue;
-			}
-
-			if (ActionObject->GetAgentSetIteration(AgentId) != ActionEncodingAgentIteration[AgentId] + 1)
-			{
-				UE_LOG(LogLearning, Warning, TEXT("%s: Action %s for agent with id %i does not have a matching iteration number (got iteration %i, expected iteration %i) and so agent will not have actions encoded."), *GetName(), *ActionObject->GetName(), AgentId, ActionObject->GetAgentSetIteration(AgentId), ActionEncodingAgentIteration[AgentId] + 1);
-				ValidAgentStatus[AgentId] = false;
-				continue;
-			}
+			Interactor->ActionVectorIteration[Manager->GetAllAgentSet()[AgentIdx]]++;
 		}
 	}
-
-	ValidAgentIds.Empty(Manager->GetAgentNum());
-
-	for (const int32 AgentId : Manager->GetAllAgentSet())
-	{
-		if (ValidAgentStatus[AgentId]) { ValidAgentIds.Add(AgentId); }
-	}
-
-	ValidAgentSet = ValidAgentIds;
-	ValidAgentSet.TryMakeSlice();
-
-	// Encode Actions
-
-	Interactor->GetActionFeature().Encode(ValidAgentSet);
-
-	// Increment Action Encoding Iteration
-
-	for (const int32 AgentId : ValidAgentSet)
-	{
-		ActionEncodingAgentIteration[AgentId]++;
-	}
-
-	// Visual Logger
-
-#if UE_LEARNING_AGENTS_ENABLE_VISUAL_LOG
-	for (const ULearningAgentsAction* ActionObject : Interactor->GetActionObjects())
-	{
-		ActionObject->VisualLog(ValidAgentSet);
-	}
-#endif
 }
 
 ULearningAgentsInteractor* ULearningAgentsController::GetInteractor(const TSubclassOf<ULearningAgentsInteractor> InteractorClass) const
 {
-	if (!Interactor)
+	if (!IsSetup())
 	{
-		UE_LOG(LogLearning, Error, TEXT("%s: Interactor is nullptr. Did we forget to call Setup on this component?"), *GetName());
+		UE_LOG(LogLearning, Error, TEXT("%s: Setup not complete."), *GetName());
 		return nullptr;
 	}
 
@@ -150,7 +192,7 @@ void ULearningAgentsController::RunController()
 		return;
 	}
 
-	Interactor->EncodeObservations();
-	EncodeActions();
-	Interactor->DecodeActions();
+	Interactor->GatherObservations();
+	EvaluateController();
+	Interactor->ScatterActions();
 }

@@ -154,57 +154,6 @@ namespace UE::Learning
 	namespace Experience
 	{
 		/**
-		* Resets an environment, replay buffer, and experience buffer
-		*/
-		LEARNINGTRAINING_API void GatherExperienceReset(
-			FReplayBuffer& ReplayBuffer,
-			FEpisodeBuffer& EpisodeBuffer,
-			FResetInstanceBuffer& ResetBuffer,
-			const FIndexSet Instances);
-
-		/**
-		* Runs a single step of experience gathering
-		*
-		* @param ReplayBuffer							Replay Buffer
-		* @param EpisodeBuffer							Episode Buffer
-		* @param ResetBuffer							Reset Buffer
-		* @param ObservationVectorBuffer				Buffer to read/write observation vectors into
-		* @param ActionVectorBuffer						Buffer to read/write action vectors into
-		* @param PreEvaluationMemoryStateVectorBuffer	Buffer to read/write pre-evaluation memory state vectors into
-		* @param MemoryStateVectorBuffer				Buffer to read/write (post-evaluation) memory state vectors into
-		* @param RewardBuffer							Buffer to read/write rewards into
-		* @param CompletionBuffer						Buffer to read/write completions into
-		* @param EpisodeEndCompletionMode				Completion mode to use for episodes that reach the max length
-		* @param ResetFunction							Function to run for resetting the environment
-		* @param ObservationFunction					Function to run for evaluating observations
-		* @param PolicyFunction							Function to run generating actions from observations
-		* @param ActionFunction							Function to run for evaluating actions
-		* @param UpdateFunction							Function to run for updating the environment
-		* @param RewardFunction							Function to run for evaluating rewards
-		* @param CompletionFunction						Function to run for evaluating completions
-		* @param Instances								Set of instances to gather experience for
-		*/
-		LEARNINGTRAINING_API bool GatherExperienceIteration(
-			FReplayBuffer& ReplayBuffer,
-			FEpisodeBuffer& EpisodeBuffer,
-			FResetInstanceBuffer& ResetBuffer,
-			TLearningArrayView<2, float> ObservationVectorBuffer,
-			TLearningArrayView<2, float> ActionVectorBuffer,
-			TLearningArrayView<2, float> PreEvaluationMemoryStateVectorBuffer,
-			TLearningArrayView<2, float> MemoryStateVectorBuffer,
-			TLearningArrayView<1, float> RewardBuffer,
-			TLearningArrayView<1, ECompletionMode> CompletionBuffer,
-			const ECompletionMode EpisodeEndCompletionMode,
-			const TFunctionRef<void(const FIndexSet Instances)> ResetFunction,
-			const TFunctionRef<void(const FIndexSet Instances)> ObservationFunction,
-			const TFunctionRef<void(const FIndexSet Instances)> PolicyFunction,
-			const TFunctionRef<void(const FIndexSet Instances)> ActionFunction,
-			const TFunctionRef<void(const FIndexSet Instances)> UpdateFunction,
-			const TFunctionRef<void(const FIndexSet Instances)> RewardFunction,
-			const TFunctionRef<void(const FIndexSet Instances)> CompletionFunction,
-			const FIndexSet Instances);
-
-		/**
 		* Resets, and then runs experience gathering until the provided replay buffer is full
 		*
 		* @param ReplayBuffer							Replay Buffer
@@ -216,7 +165,8 @@ namespace UE::Learning
 		* @param MemoryStateVectorBuffer				Buffer to read/write (post-evaluation) memory state vectors into
 		* @param RewardBuffer							Buffer to read/write rewards into
 		* @param CompletionBuffer						Buffer to read/write completions into
-		* @param EpisodeEndCompletionMode				Completion mode to use for episodes that reach the max length
+		* @param EpisodeCompletionBuffer				Additional buffer to record completions from full episode buffers
+		* @param AllCompletionBuffer					Additional buffer to record all completions from full episodes and normal completions
 		* @param ResetFunction							Function to run for resetting the environment
 		* @param ObservationFunction					Function to run for evaluating observations
 		* @param PolicyFunction							Function to run generating actions from observations
@@ -236,7 +186,8 @@ namespace UE::Learning
 			TLearningArrayView<2, float> MemoryStateVectorBuffer,
 			TLearningArrayView<1, float> RewardBuffer,
 			TLearningArrayView<1, ECompletionMode> CompletionBuffer,
-			const ECompletionMode EpisodeEndCompletionMode,
+			TLearningArrayView<1, ECompletionMode> EpisodeCompletionBuffer,
+			TLearningArrayView<1, ECompletionMode> AllCompletionBuffer,
 			const TFunctionRef<void(const FIndexSet Instances)> ResetFunction,
 			const TFunctionRef<void(const FIndexSet Instances)> ObservationFunction,
 			const TFunctionRef<void(const FIndexSet Instances)> PolicyFunction,
@@ -245,6 +196,5 @@ namespace UE::Learning
 			const TFunctionRef<void(const FIndexSet Instances)> RewardFunction,
 			const TFunctionRef<void(const FIndexSet Instances)> CompletionFunction,
 			const FIndexSet Instances);
-
 	}
 };

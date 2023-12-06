@@ -115,10 +115,14 @@ namespace UE::Learning
 		const int32 ObservationDimNum,
 		const int32 ActionDimNum,
 		const int32 MemoryStateDimNum,
-		const INeuralNetwork& PolicyNetwork,
+		const ULearningNeuralNetworkData& PolicyNetwork,
+		const ULearningNeuralNetworkData& EncoderNetwork,
+		const ULearningNeuralNetworkData& DecoderNetwork,
+		const Observation::FSchema& ObservationSchema,
+		const Observation::FSchemaElement& ObservationSchemaElement,
+		const Action::FSchema& ActionSchema,
+		const Action::FSchemaElement& ActionSchemaElement,
 		const FImitationTrainerTrainingSettings& TrainingSettings,
-		const FImitationTrainerNetworkSettings& NetworkSettings,
-		const EImitationTrainerFlags TrainerFlags,
 		const ESubprocessFlags TrainingProcessFlags,
 		const ELogSetting LogSettings)
 	{
@@ -128,7 +132,9 @@ namespace UE::Learning
 
 		// Allocate Shared Memory
 
-		Policy = SharedMemory::Allocate<1, uint8>({ PolicyNetwork.GetSerializationByteNum() });
+		Policy = SharedMemory::Allocate<1, uint8>({ PolicyNetwork.GetSnapshotByteNum() });
+		Encoder = SharedMemory::Allocate<1, uint8>({ EncoderNetwork.GetSnapshotByteNum() });
+		Decoder = SharedMemory::Allocate<1, uint8>({ DecoderNetwork.GetSnapshotByteNum() });
 		Controls = SharedMemory::Allocate<1, volatile int32>({ SharedMemoryTraining::GetControlNum() });
 		EpisodeStarts = SharedMemory::Allocate<1, int32>({ MaxEpisodeNum });
 		EpisodeLengths = SharedMemory::Allocate<1, int32>({ MaxEpisodeNum });
@@ -158,38 +164,39 @@ namespace UE::Learning
 		ConfigObject->SetStringField(TEXT("SitePackagesPath"), *FileManager.ConvertToAbsolutePathForExternalAppForRead(*SitePackagesPath));
 		ConfigObject->SetStringField(TEXT("IntermediatePath"), *FileManager.ConvertToAbsolutePathForExternalAppForRead(*IntermediatePath));
 
-		ConfigObject->SetStringField(TEXT("PolicyNetworkClass"), PolicyNetwork.GetPythonClassName());
-
 		ConfigObject->SetStringField(TEXT("PolicyGuid"), *Policy.Guid.ToString(EGuidFormats::DigitsWithHyphensInBraces));
+		ConfigObject->SetStringField(TEXT("EncoderGuid"), *Encoder.Guid.ToString(EGuidFormats::DigitsWithHyphensInBraces));
+		ConfigObject->SetStringField(TEXT("DecoderGuid"), *Decoder.Guid.ToString(EGuidFormats::DigitsWithHyphensInBraces));
 		ConfigObject->SetStringField(TEXT("ControlsGuid"), *Controls.Guid.ToString(EGuidFormats::DigitsWithHyphensInBraces));
 		ConfigObject->SetStringField(TEXT("EpisodeStartsGuid"), *EpisodeStarts.Guid.ToString(EGuidFormats::DigitsWithHyphensInBraces));
 		ConfigObject->SetStringField(TEXT("EpisodeLengthsGuid"), *EpisodeLengths.Guid.ToString(EGuidFormats::DigitsWithHyphensInBraces));
 		ConfigObject->SetStringField(TEXT("ObservationsGuid"), *Observations.Guid.ToString(EGuidFormats::DigitsWithHyphensInBraces));
 		ConfigObject->SetStringField(TEXT("ActionsGuid"), *Actions.Guid.ToString(EGuidFormats::DigitsWithHyphensInBraces));
 
+		ConfigObject->SetObjectField(TEXT("ObservationSchema"), Trainer::ConvertObservationSchemaToJSON(ObservationSchema, ObservationSchemaElement));
+		ConfigObject->SetObjectField(TEXT("ActionSchema"), Trainer::ConvertActionSchemaToJSON(ActionSchema, ActionSchemaElement));
 		ConfigObject->SetNumberField(TEXT("ObservationVectorDimensionNum"), ObservationDimNum);
 		ConfigObject->SetNumberField(TEXT("ActionVectorDimensionNum"), ActionDimNum);
 		ConfigObject->SetNumberField(TEXT("MemoryStateVectorDimensionNum"), MemoryStateDimNum);
 		ConfigObject->SetNumberField(TEXT("MaxEpisodeNum"), MaxEpisodeNum);
 		ConfigObject->SetNumberField(TEXT("MaxStepNum"), MaxStepNum);
 
-		ConfigObject->SetNumberField(TEXT("PolicyNetworkByteNum"), PolicyNetwork.GetSerializationByteNum());
-		ConfigObject->SetNumberField(TEXT("PolicyActionNoiseMin"), NetworkSettings.PolicyActionNoiseMin);
-		ConfigObject->SetNumberField(TEXT("PolicyActionNoiseMax"), NetworkSettings.PolicyActionNoiseMax);
+		ConfigObject->SetNumberField(TEXT("PolicyNetworkByteNum"), PolicyNetwork.GetSnapshotByteNum());
+		ConfigObject->SetNumberField(TEXT("EncoderNetworkByteNum"), EncoderNetwork.GetSnapshotByteNum());
+		ConfigObject->SetNumberField(TEXT("DecoderNetworkByteNum"), DecoderNetwork.GetSnapshotByteNum());
 
 		ConfigObject->SetNumberField(TEXT("IterationNum"), TrainingSettings.IterationNum);
-		ConfigObject->SetNumberField(TEXT("LearningRatePolicy"), TrainingSettings.LearningRatePolicy);
+		ConfigObject->SetNumberField(TEXT("LearningRate"), TrainingSettings.LearningRate);
 		ConfigObject->SetNumberField(TEXT("LearningRateDecay"), TrainingSettings.LearningRateDecay);
 		ConfigObject->SetNumberField(TEXT("WeightDecay"), TrainingSettings.WeightDecay);
-		ConfigObject->SetNumberField(TEXT("InitialActionScale"), TrainingSettings.InitialActionScale);
-		ConfigObject->SetNumberField(TEXT("InitialMemoryScale"), TrainingSettings.InitialMemoryScale);
-		ConfigObject->SetNumberField(TEXT("PolicyBatchSize"), TrainingSettings.PolicyBatchSize);
-		ConfigObject->SetNumberField(TEXT("PolicyWindow"), TrainingSettings.PolicyWindow);
+		ConfigObject->SetNumberField(TEXT("BatchSize"), TrainingSettings.BatchSize);
+		ConfigObject->SetNumberField(TEXT("Window"), TrainingSettings.Window);
+		ConfigObject->SetNumberField(TEXT("ActionRegularizationWeight"), TrainingSettings.ActionRegularizationWeight);
+		ConfigObject->SetNumberField(TEXT("ActionEntropyWeight"), TrainingSettings.ActionEntropyWeight);
 		ConfigObject->SetNumberField(TEXT("Seed"), TrainingSettings.Seed);
 		ConfigObject->SetStringField(TEXT("Device"), Trainer::GetDeviceString(TrainingSettings.Device));
 		ConfigObject->SetBoolField(TEXT("UseTensorBoard"), TrainingSettings.bUseTensorboard);
-
-		ConfigObject->SetBoolField(TEXT("UseInitialPolicyNetwork"), (bool)(TrainerFlags & EImitationTrainerFlags::UseInitialPolicyNetwork));
+		ConfigObject->SetBoolField(TEXT("SaveSnapshots"), TrainingSettings.bSaveSnapshots);
 
 		ConfigObject->SetBoolField(TEXT("LoggingEnabled"), LogSettings == ELogSetting::Silent ? false : true);
 
@@ -237,29 +244,95 @@ namespace UE::Learning
 	}
 
 	ETrainerResponse FSharedMemoryImitationTrainer::RecvPolicy(
-		INeuralNetwork& OutNetwork,
+		ULearningNeuralNetworkData& OutNetwork,
 		const float Timeout,
 		FRWLock* NetworkLock,
 		const ELogSetting LogSettings)
 	{
-		return SharedMemoryTraining::RecvPolicy(
+		return SharedMemoryTraining::RecvNetwork(
 			Controls.View,
 			OutNetwork,
+			SharedMemoryTraining::EControls::PolicySignal,
 			Policy.View,
 			Timeout,
 			NetworkLock,
 			LogSettings);
 	}
 
-	ETrainerResponse FSharedMemoryImitationTrainer::SendPolicy(
-		const INeuralNetwork& Network,
+	ETrainerResponse FSharedMemoryImitationTrainer::RecvEncoder(
+		ULearningNeuralNetworkData& OutNetwork,
 		const float Timeout,
 		FRWLock* NetworkLock,
 		const ELogSetting LogSettings)
 	{
-		return SharedMemoryTraining::SendPolicy(
+		return SharedMemoryTraining::RecvNetwork(
+			Controls.View,
+			OutNetwork,
+			SharedMemoryTraining::EControls::EncoderSignal,
+			Encoder.View,
+			Timeout,
+			NetworkLock,
+			LogSettings);
+	}
+
+	ETrainerResponse FSharedMemoryImitationTrainer::RecvDecoder(
+		ULearningNeuralNetworkData& OutNetwork,
+		const float Timeout,
+		FRWLock* NetworkLock,
+		const ELogSetting LogSettings)
+	{
+		return SharedMemoryTraining::RecvNetwork(
+			Controls.View,
+			OutNetwork,
+			SharedMemoryTraining::EControls::DecoderSignal,
+			Decoder.View,
+			Timeout,
+			NetworkLock,
+			LogSettings);
+	}
+
+	ETrainerResponse FSharedMemoryImitationTrainer::SendPolicy(
+		const ULearningNeuralNetworkData& Network,
+		const float Timeout,
+		FRWLock* NetworkLock,
+		const ELogSetting LogSettings)
+	{
+		return SharedMemoryTraining::SendNetwork(
 			Controls.View,
 			Policy.View,
+			SharedMemoryTraining::EControls::PolicySignal,
+			Network,
+			Timeout,
+			NetworkLock,
+			LogSettings);
+	}
+
+	ETrainerResponse FSharedMemoryImitationTrainer::SendEncoder(
+		const ULearningNeuralNetworkData& Network,
+		const float Timeout,
+		FRWLock* NetworkLock,
+		const ELogSetting LogSettings)
+	{
+		return SharedMemoryTraining::SendNetwork(
+			Controls.View,
+			Encoder.View,
+			SharedMemoryTraining::EControls::EncoderSignal,
+			Network,
+			Timeout,
+			NetworkLock,
+			LogSettings);
+	}
+
+	ETrainerResponse FSharedMemoryImitationTrainer::SendDecoder(
+		const ULearningNeuralNetworkData& Network,
+		const float Timeout,
+		FRWLock* NetworkLock,
+		const ELogSetting LogSettings)
+	{
+		return SharedMemoryTraining::SendNetwork(
+			Controls.View,
+			Decoder.View,
+			SharedMemoryTraining::EControls::DecoderSignal,
 			Network,
 			Timeout,
 			NetworkLock,
@@ -291,6 +364,8 @@ namespace UE::Learning
 	void FSharedMemoryImitationTrainer::Deallocate()
 	{
 		SharedMemory::Deallocate(Policy);
+		SharedMemory::Deallocate(Encoder);
+		SharedMemory::Deallocate(Decoder);
 		SharedMemory::Deallocate(Controls);
 		SharedMemory::Deallocate(Observations);
 		SharedMemory::Deallocate(Actions);
@@ -467,13 +542,17 @@ namespace UE::Learning
 		const int32 ObservationDimNum,
 		const int32 ActionDimNum,
 		const int32 MemoryStateDimNum,
-		const INeuralNetwork& PolicyNetwork,
+		const ULearningNeuralNetworkData& PolicyNetwork,
+		const ULearningNeuralNetworkData& EncoderNetwork,
+		const ULearningNeuralNetworkData& DecoderNetwork,
+		const Observation::FSchema& ObservationSchema,
+		const Observation::FSchemaElement& ObservationSchemaElement,
+		const Action::FSchema& ActionSchema,
+		const Action::FSchemaElement& ActionSchemaElement,
 		const TCHAR* IpAddress,
 		const uint32 Port,
 		const float Timeout,
-		const FImitationTrainerTrainingSettings& TrainingSettings,
-		const FImitationTrainerNetworkSettings& NetworkSettings,
-		const EImitationTrainerFlags TrainerFlags)
+		const FImitationTrainerTrainingSettings& TrainingSettings)
 	{
 		// Write Config
 
@@ -487,31 +566,30 @@ namespace UE::Learning
 		ConfigObject->SetStringField(TEXT("TrainerType"), TrainerType);
 		ConfigObject->SetStringField(TEXT("TimeStamp"), *TimeStamp);
 
-		ConfigObject->SetStringField(TEXT("PolicyNetworkClass"), PolicyNetwork.GetPythonClassName());
-
+		ConfigObject->SetObjectField(TEXT("ObservationSchema"), Trainer::ConvertObservationSchemaToJSON(ObservationSchema, ObservationSchemaElement));
+		ConfigObject->SetObjectField(TEXT("ActionSchema"), Trainer::ConvertActionSchemaToJSON(ActionSchema, ActionSchemaElement));
 		ConfigObject->SetNumberField(TEXT("ObservationVectorDimensionNum"), ObservationDimNum);
 		ConfigObject->SetNumberField(TEXT("ActionVectorDimensionNum"), ActionDimNum);
 		ConfigObject->SetNumberField(TEXT("MemoryStateVectorDimensionNum"), MemoryStateDimNum);
 		ConfigObject->SetNumberField(TEXT("MaxEpisodeNum"), MaxEpisodeNum);
 		ConfigObject->SetNumberField(TEXT("MaxStepNum"), MaxStepNum);
 
-		ConfigObject->SetNumberField(TEXT("PolicyNetworkByteNum"), PolicyNetwork.GetSerializationByteNum());
-		ConfigObject->SetNumberField(TEXT("PolicyActionNoiseMin"), NetworkSettings.PolicyActionNoiseMin);
-		ConfigObject->SetNumberField(TEXT("PolicyActionNoiseMax"), NetworkSettings.PolicyActionNoiseMax);
+		ConfigObject->SetNumberField(TEXT("PolicyNetworkByteNum"), PolicyNetwork.GetSnapshotByteNum());
+		ConfigObject->SetNumberField(TEXT("EncoderNetworkByteNum"), EncoderNetwork.GetSnapshotByteNum());
+		ConfigObject->SetNumberField(TEXT("DecoderNetworkByteNum"), DecoderNetwork.GetSnapshotByteNum());
 
 		ConfigObject->SetNumberField(TEXT("IterationNum"), TrainingSettings.IterationNum);
-		ConfigObject->SetNumberField(TEXT("LearningRatePolicy"), TrainingSettings.LearningRatePolicy);
+		ConfigObject->SetNumberField(TEXT("LearningRate"), TrainingSettings.LearningRate);
 		ConfigObject->SetNumberField(TEXT("LearningRateDecay"), TrainingSettings.LearningRateDecay);
 		ConfigObject->SetNumberField(TEXT("WeightDecay"), TrainingSettings.WeightDecay);
-		ConfigObject->SetNumberField(TEXT("InitialActionScale"), TrainingSettings.InitialActionScale);
-		ConfigObject->SetNumberField(TEXT("InitialMemoryScale"), TrainingSettings.InitialMemoryScale);
-		ConfigObject->SetNumberField(TEXT("PolicyBatchSize"), TrainingSettings.PolicyBatchSize);
-		ConfigObject->SetNumberField(TEXT("PolicyWindow"), TrainingSettings.PolicyWindow);
+		ConfigObject->SetNumberField(TEXT("BatchSize"), TrainingSettings.BatchSize);
+		ConfigObject->SetNumberField(TEXT("Window"), TrainingSettings.Window);
+		ConfigObject->SetNumberField(TEXT("ActionRegularizationWeight"), TrainingSettings.ActionRegularizationWeight);
+		ConfigObject->SetNumberField(TEXT("ActionEntropyWeight"), TrainingSettings.ActionEntropyWeight);
 		ConfigObject->SetNumberField(TEXT("Seed"), TrainingSettings.Seed);
 		ConfigObject->SetStringField(TEXT("Device"), Trainer::GetDeviceString(TrainingSettings.Device));
 		ConfigObject->SetBoolField(TEXT("UseTensorBoard"), TrainingSettings.bUseTensorboard);
-
-		ConfigObject->SetBoolField(TEXT("UseInitialPolicyNetwork"), (bool)(TrainerFlags & EImitationTrainerFlags::UseInitialPolicyNetwork));
+		ConfigObject->SetBoolField(TEXT("SaveSnapshots"), TrainingSettings.bSaveSnapshots);
 
 		FString JsonString;
 		TSharedRef<TJsonWriter<>> JsonWriter = TJsonWriterFactory<>::Create(&JsonString, 0);
@@ -519,7 +597,9 @@ namespace UE::Learning
 
 		// Allocate buffer to receive network data in
 
-		NetworkBuffer.SetNumUninitialized({ PolicyNetwork.GetSerializationByteNum() });
+		PolicyBuffer.SetNumUninitialized({ PolicyNetwork.GetSnapshotByteNum() });
+		EncoderBuffer.SetNumUninitialized({ EncoderNetwork.GetSnapshotByteNum() });
+		DecoderBuffer.SetNumUninitialized({ DecoderNetwork.GetSnapshotByteNum() });
 
 		// Create Socket
 
@@ -588,21 +668,57 @@ namespace UE::Learning
 	}
 
 	ETrainerResponse FSocketImitationTrainer::RecvPolicy(
-		INeuralNetwork& OutNetwork,
+		ULearningNeuralNetworkData& OutNetwork,
 		const float Timeout,
 		FRWLock* NetworkLock,
 		const ELogSetting LogSettings)
 	{
-		return SocketTraining::RecvPolicy(*Socket, OutNetwork, NetworkBuffer, Timeout, NetworkLock, LogSettings);
+		return SocketTraining::RecvNetwork(*Socket, OutNetwork, PolicyBuffer, SocketTraining::ESignal::RecvPolicy, Timeout, NetworkLock, LogSettings);
+	}
+
+	ETrainerResponse FSocketImitationTrainer::RecvEncoder(
+		ULearningNeuralNetworkData& OutNetwork,
+		const float Timeout,
+		FRWLock* NetworkLock,
+		const ELogSetting LogSettings)
+	{
+		return SocketTraining::RecvNetwork(*Socket, OutNetwork, EncoderBuffer, SocketTraining::ESignal::RecvEncoder, Timeout, NetworkLock, LogSettings);
+	}
+
+	ETrainerResponse FSocketImitationTrainer::RecvDecoder(
+		ULearningNeuralNetworkData& OutNetwork,
+		const float Timeout,
+		FRWLock* NetworkLock,
+		const ELogSetting LogSettings)
+	{
+		return SocketTraining::RecvNetwork(*Socket, OutNetwork, DecoderBuffer, SocketTraining::ESignal::RecvDecoder, Timeout, NetworkLock, LogSettings);
 	}
 
 	ETrainerResponse FSocketImitationTrainer::SendPolicy(
-		const INeuralNetwork& Network,
+		const ULearningNeuralNetworkData& Network,
 		const float Timeout,
 		FRWLock* NetworkLock,
 		const ELogSetting LogSettings)
 	{
-		return SocketTraining::SendPolicy(*Socket, NetworkBuffer, Network, Timeout, NetworkLock, LogSettings);
+		return SocketTraining::SendNetwork(*Socket, PolicyBuffer, SocketTraining::ESignal::SendPolicy, Network, Timeout, NetworkLock, LogSettings);
+	}
+
+	ETrainerResponse FSocketImitationTrainer::SendEncoder(
+		const ULearningNeuralNetworkData& Network,
+		const float Timeout,
+		FRWLock* NetworkLock,
+		const ELogSetting LogSettings)
+	{
+		return SocketTraining::SendNetwork(*Socket, EncoderBuffer, SocketTraining::ESignal::SendEncoder, Network, Timeout, NetworkLock, LogSettings);
+	}
+
+	ETrainerResponse FSocketImitationTrainer::SendDecoder(
+		const ULearningNeuralNetworkData& Network,
+		const float Timeout,
+		FRWLock* NetworkLock,
+		const ELogSetting LogSettings)
+	{
+		return SocketTraining::SendNetwork(*Socket, DecoderBuffer, SocketTraining::ESignal::SendDecoder, Network, Timeout, NetworkLock, LogSettings);
 	}
 
 	ETrainerResponse FSocketImitationTrainer::SendExperience(
@@ -627,15 +743,20 @@ namespace UE::Learning
 	{
 		ETrainerResponse Train(
 			IImitationTrainer& Trainer,
-			INeuralNetwork& Network,
+			ULearningNeuralNetworkData& PolicyNetwork,
+			ULearningNeuralNetworkData& EncoderNetwork,
+			ULearningNeuralNetworkData& DecoderNetwork,
 			const TLearningArrayView<1, const int32> EpisodeStartsExperience,
 			const TLearningArrayView<1, const int32> EpisodeLengthsExperience,
 			const TLearningArrayView<2, const float> ObservationsExperience,
 			const TLearningArrayView<2, const float> ActionsExperience,
-			const EImitationTrainerFlags TrainerFlags, 
 			TAtomic<bool>* bRequestTrainingStopSignal,
-			FRWLock* NetworkLock,
-			TAtomic<bool>* bNetworkUpdatedSignal,
+			FRWLock* PolicyNetworkLock,
+			FRWLock* EncoderNetworkLock,
+			FRWLock* DecoderNetworkLock,
+			TAtomic<bool>* bPolicyNetworkUpdatedSignal,
+			TAtomic<bool>* bEncoderNetworkUpdatedSignal,
+			TAtomic<bool>* bDecoderNetworkUpdatedSignal,
 			const ELogSetting LogSettings)
 		{
 			ETrainerResponse Response = ETrainerResponse::Success;
@@ -647,7 +768,7 @@ namespace UE::Learning
 				UE_LOG(LogLearning, Display, TEXT("Sending initial Policy..."));
 			}
 
-			Response = Trainer.SendPolicy(Network, 20.0f, NetworkLock);
+			Response = Trainer.SendPolicy(PolicyNetwork, Trainer::DefaultTimeout, PolicyNetworkLock);
 
 			if (Response != ETrainerResponse::Success)
 			{
@@ -660,27 +781,44 @@ namespace UE::Learning
 				return Response;
 			}
 
-			if (!(bool)(TrainerFlags & EImitationTrainerFlags::UseInitialPolicyNetwork))
-			{
-				// Receive initial Policy
+			// Send initial Encoder
 
+			if (LogSettings != ELogSetting::Silent)
+			{
+				UE_LOG(LogLearning, Display, TEXT("Sending initial Encoder..."));
+			}
+
+			Response = Trainer.SendEncoder(EncoderNetwork, Trainer::DefaultTimeout, EncoderNetworkLock);
+
+			if (Response != ETrainerResponse::Success)
+			{
 				if (LogSettings != ELogSetting::Silent)
 				{
-					UE_LOG(LogLearning, Display, TEXT("Receiving initial Policy..."));
+					UE_LOG(LogLearning, Error, TEXT("Error sending initial encoder from trainer: %s. Check log for errors."), Trainer::GetResponseString(Response));
 				}
 
-				Response = Trainer.RecvPolicy(Network, 20.0f, NetworkLock);
+				Trainer.Terminate();
+				return Response;
+			}
 
-				if (Response != ETrainerResponse::Success)
+			// Send initial Decoder
+
+			if (LogSettings != ELogSetting::Silent)
+			{
+				UE_LOG(LogLearning, Display, TEXT("Sending initial Decoder..."));
+			}
+
+			Response = Trainer.SendDecoder(DecoderNetwork, Trainer::DefaultTimeout, DecoderNetworkLock);
+
+			if (Response != ETrainerResponse::Success)
+			{
+				if (LogSettings != ELogSetting::Silent)
 				{
-					if (LogSettings != ELogSetting::Silent)
-					{
-						UE_LOG(LogLearning, Error, TEXT("Error receiving initial policy from trainer: %s. Check log for errors."), Trainer::GetResponseString(Response));
-					}
-
-					Trainer.Terminate();
-					return Response;
+					UE_LOG(LogLearning, Error, TEXT("Error sending initial decoder from trainer: %s. Check log for errors."), Trainer::GetResponseString(Response));
 				}
+
+				Trainer.Terminate();
+				return Response;
 			}
 
 			// Send Experience
@@ -690,7 +828,7 @@ namespace UE::Learning
 				EpisodeLengthsExperience,
 				ObservationsExperience, 
 				ActionsExperience, 
-				10.0f);
+				Trainer::DefaultTimeout);
 
 			if (Response != ETrainerResponse::Success)
 			{
@@ -734,7 +872,7 @@ namespace UE::Learning
 				
 				if (Trainer.HasPolicyOrCompleted())
 				{
-					Response = Trainer.RecvPolicy(Network, 10.0f, NetworkLock);
+					Response = Trainer.RecvPolicy(PolicyNetwork, Trainer::DefaultTimeout, PolicyNetworkLock);
 
 					if (Response == ETrainerResponse::Completed)
 					{
@@ -752,17 +890,53 @@ namespace UE::Learning
 						}
 						break;
 					}
-				}
 
-				if (bNetworkUpdatedSignal)
+					if (bPolicyNetworkUpdatedSignal)
+					{
+						*bPolicyNetworkUpdatedSignal = true;
+					}
+
+					Response = Trainer.RecvEncoder(EncoderNetwork, Trainer::DefaultTimeout, EncoderNetworkLock);
+
+					if (Response != ETrainerResponse::Success)
+					{
+						if (LogSettings != ELogSetting::Silent)
+						{
+							UE_LOG(LogLearning, Error, TEXT("Error receiving encoder from trainer: %s. Check log for errors."), Trainer::GetResponseString(Response));
+						}
+						break;
+					}
+
+					if (bEncoderNetworkUpdatedSignal)
+					{
+						*bEncoderNetworkUpdatedSignal = true;
+					}
+
+					Response = Trainer.RecvDecoder(DecoderNetwork, Trainer::DefaultTimeout, DecoderNetworkLock);
+
+					if (Response != ETrainerResponse::Success)
+					{
+						if (LogSettings != ELogSetting::Silent)
+						{
+							UE_LOG(LogLearning, Error, TEXT("Error receiving decoder from trainer: %s. Check log for errors."), Trainer::GetResponseString(Response));
+						}
+						break;
+					}
+
+					if (bDecoderNetworkUpdatedSignal)
+					{
+						*bDecoderNetworkUpdatedSignal = true;
+					}
+				}
+				else
 				{
-					*bNetworkUpdatedSignal = true;
+					FPlatformProcess::Sleep(0.001f);
 				}
 			}
 
 			// Allow some time for trainer to shut down gracefully before we kill it...
 
-			Response = Trainer.Wait(5.0f);
+			Response = Trainer.Wait(Trainer::DefaultTimeout);
 
 			if (Response != ETrainerResponse::Success)
 			{
