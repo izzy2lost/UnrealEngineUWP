@@ -154,12 +154,12 @@ namespace EpicGames.Core
 			/// <inheritdoc/>
 			protected override void Dispose(bool disposing)
 			{
-				base.Dispose(disposing);
-
 				if (disposing)
 				{
 					DisposeResource();
 				}
+
+				base.Dispose(disposing);
 			}
 
 			/// <inheritdoc/>
