@@ -70,11 +70,35 @@ namespace Horde.Server.Telemetry.Metrics
 		public JsonPath? Property { get; set; }
 
 		/// <summary>
-		/// Property to group by
+		/// Property to group by. Specified as a comma-separated list of JSON path expressions.
 		/// </summary>
-		[JsonSchemaString]
-		[JsonConverter(typeof(MetricGroupJsonConverter))]
-		public List<JsonPath> GroupBy { get; set; } = new List<JsonPath>();
+		public string GroupBy
+		{
+			get => _groupBy;
+			set 
+			{
+				_groupBy = value;
+
+				GroupByPaths.Clear();
+				if (!String.IsNullOrWhiteSpace(_groupBy))
+				{
+					List<string> fields = _groupBy.Split(',').Select(x => x.Trim()).Where(x => x.Length > 0).ToList();
+					if (fields.Count > 0)
+					{
+						GroupByPaths.AddRange(fields.Select(x => JsonPath.Parse(x)));
+					}
+				}
+			}
+		}
+
+		[JsonIgnore]
+		string _groupBy = String.Empty;
+
+		/// <summary>
+		/// Accessor for the <see cref="GroupBy"/> field, parsed as a list of json paths
+		/// </summary>
+		[JsonIgnore]
+		public List<JsonPath> GroupByPaths { get; } = new List<JsonPath>();
 
 		/// <summary>
 		/// How to aggregate samples for this metric
@@ -91,35 +115,5 @@ namespace Horde.Server.Telemetry.Metrics
 		/// </summary>
 		[JsonConverter(typeof(IntervalJsonConverter))]
 		public TimeSpan Interval { get; set; } = TimeSpan.FromHours(1.0);
-	}
-
-	/// <summary>
-	/// Converter for a list of json path expressions, separated by commas
-	/// </summary>
-	class MetricGroupJsonConverter : JsonConverter<List<JsonPath>>
-	{
-		/// <inheritdoc/>
-		public override List<JsonPath>? Read(ref Utf8JsonReader reader, Type typeToConvert, JsonSerializerOptions options)
-		{
-			string? str = reader.GetString();
-			if (String.IsNullOrWhiteSpace(str))
-			{
-				return null;
-			}
-
-			List<string> fields = str.Split(',').Select(x => x.Trim()).Where(x => x.Length > 0).ToList();
-			if (fields.Count == 0)
-			{
-				return null;
-			}
-
-			return fields.ConvertAll(x => JsonPath.Parse(x));
-		}
-
-		/// <inheritdoc/>
-		public override void Write(Utf8JsonWriter writer, List<JsonPath> value, JsonSerializerOptions options)
-		{
-			writer.WriteStringValue(string.Join(",", value.Select(x => x.ToString())));
-		}
 	}
 }

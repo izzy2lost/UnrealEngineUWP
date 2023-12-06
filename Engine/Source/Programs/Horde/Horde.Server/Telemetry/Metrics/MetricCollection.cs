@@ -149,9 +149,9 @@ namespace Horde.Server.Telemetry.Metrics
 				if (values.Count > 0)
 				{
 					List<string> groupKeys = new List<string>();
-					foreach (JsonPath groupPath in metric.GroupBy)
+					foreach (JsonPath groupByPath in metric.GroupByPaths)
 					{
-						PathResult groupResult = groupPath.Evaluate(node);
+						PathResult groupResult = groupByPath.Evaluate(node);
 
 						string groupKey;
 						if (groupResult.Error != null || groupResult.Matches == null || groupResult.Matches.Count == 0)

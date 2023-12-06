@@ -238,7 +238,7 @@ namespace Horde.Server.Tests
 			metricConfig.Function = AggregationFunction.Sum;
 			metricConfig.Interval = TimeSpan.FromHours(1.0);
 			metricConfig.Property = JsonPath.Parse("$.Payload.foo");
-			metricConfig.GroupBy.Add(JsonPath.Parse("$.Payload.group"));
+			metricConfig.GroupBy = "$.Payload.group";
 
 			GlobalConfig globalConfig = new GlobalConfig();
 			globalConfig.Metrics.Add(metricConfig);
@@ -278,11 +278,11 @@ namespace Horde.Server.Tests
 			JsonSerializerOptions serializerOptions = new JsonSerializerOptions();
 			Startup.ConfigureJsonSerializer(serializerOptions);
 
-			MetricConfig? config = JsonSerializer.Deserialize<MetricConfig>("{ \"groupBy\": \"$.foo, $.bar\" }", serializerOptions);
+			MetricConfig? config = JsonSerializer.Deserialize<MetricConfig>("{ \"groupBy\": \"$.foo,$.bar\" }", serializerOptions);
 			Assert.IsNotNull(config);
-			Assert.AreEqual(2, config.GroupBy.Count);
-			Assert.AreEqual("$.foo", config.GroupBy[0].ToString());
-			Assert.AreEqual("$.bar", config.GroupBy[1].ToString());
+			Assert.AreEqual(2, config.GroupByPaths.Count);
+			Assert.AreEqual("$.foo", config.GroupByPaths[0].ToString());
+			Assert.AreEqual("$.bar", config.GroupByPaths[1].ToString());
 
 			string text = JsonSerializer.Serialize(config, serializerOptions);
 			Assert.IsTrue(text.Contains("\"groupBy\":\"$.foo,$.bar\"", StringComparison.Ordinal));
@@ -298,8 +298,7 @@ namespace Horde.Server.Tests
 			metricConfig.Function = AggregationFunction.Sum;
 			metricConfig.Interval = TimeSpan.FromHours(1.0);
 			metricConfig.Filter = JsonPath.Parse("$[?(@.Payload.EventName == 'Included')]");
-			metricConfig.GroupBy.Add(JsonPath.Parse("$.Payload.groupFacetA"));
-			metricConfig.GroupBy.Add(JsonPath.Parse("$.Payload.groupFacetB"));
+			metricConfig.GroupBy = "$.Payload.groupFacetA, $.Payload.groupFacetB";
 			metricConfig.Property = JsonPath.Parse("$.Payload.foo");
 
 			GlobalConfig globalConfig = new GlobalConfig();
