@@ -64,6 +64,7 @@ namespace uba
 	bool StorageServer::RetrieveCasFile(RetrieveResult& out, const CasKey& casKey, const tchar* hint, FileMappingBuffer* mappingBuffer, u64 memoryMapAlignment, bool allowProxy)
 	{
 		UBA_ASSERT(!mappingBuffer);
+		UBA_ASSERT(casKey != CasKeyZero);
 		out.casKey = casKey;
 		out.size = InvalidValue;
 
