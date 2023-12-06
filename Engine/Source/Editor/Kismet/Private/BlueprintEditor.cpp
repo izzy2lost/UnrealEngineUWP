@@ -2048,6 +2048,8 @@ void FBlueprintEditor::CommonInitialization(const TArray<UBlueprint*>& InitBluep
 		InitBlueprint->OnSetObjectBeingDebugged().AddSP(this, &FBlueprintEditor::HandleSetObjectBeingDebugged);
 	}
 
+	bWasOpenedInDefaultsMode = bShouldOpenInDefaultsMode;
+
 	CreateDefaultTabContents(InitBlueprints);
 
 	FCoreUObjectDelegates::OnPreObjectPropertyChanged.AddSP(this, &FBlueprintEditor::OnPreObjectPropertyChanged);
@@ -2962,15 +2964,15 @@ void FBlueprintEditor::CreateDefaultTabContents(const TArray<UBlueprint*>& InBlu
 
 	if ( InBlueprints.Num() > 0 )
 	{
-		const bool bShowPublicView = true;
-		const bool bHideNameArea = false;
+		// Don't show the object name in defaults mode.
+		const bool bHideNameArea = bWasOpenedInDefaultsMode;
 
 		this->DefaultEditor = 
 			SNew(SKismetInspector)
 			. Kismet2(SharedThis(this))
 			. ViewIdentifier(FName("BlueprintDefaults"))
 			. IsEnabled(!bIsInterface)
-			. ShowPublicViewControl(bShowPublicView)
+			. ShowPublicViewControl(this, &FBlueprintEditor::ShouldShowPublicViewControl)
 			. ShowTitleArea(false)
 			. HideNameArea(bHideNameArea)
 			. OnFinishedChangingProperties( FOnFinishedChangingProperties::FDelegate::CreateSP( this, &FBlueprintEditor::OnFinishedChangingProperties ) );
@@ -3555,20 +3557,32 @@ bool FBlueprintEditor::IsDetailsPanelEditingGlobalOptions() const
 
 void FBlueprintEditor::EditGlobalOptions_Clicked()
 {
-	UBlueprint* Blueprint = GetBlueprintObj();
-	if ( Blueprint != nullptr )
+	SetUISelectionState(FBlueprintEditor::SelectionState_ClassSettings);
+
+	if (bWasOpenedInDefaultsMode)
 	{
-		SetUISelectionState(FBlueprintEditor::SelectionState_ClassSettings);
+		RefreshStandAloneDefaultsEditor();
+	}
+	else
+	{
+		UBlueprint* Blueprint = GetBlueprintObj();
+		if (Blueprint != nullptr)
+		{
+			// Show details for the Blueprint instance we're editing
+			Inspector->ShowDetailsForSingleObject(Blueprint);
 
-		// Show details for the Blueprint instance we're editing
-		Inspector->ShowDetailsForSingleObject(Blueprint);
-
-		TryInvokingDetailsTab();
+			TryInvokingDetailsTab();
+		}
 	}
 }
 
 bool FBlueprintEditor::IsDetailsPanelEditingClassDefaults() const
 {
+	if (bWasOpenedInDefaultsMode)
+	{
+		return !IsDetailsPanelEditingGlobalOptions();
+	}
+
 	UBlueprint* Blueprint = GetBlueprintObj();
 	if ( Blueprint != nullptr )
 	{
@@ -3584,11 +3598,7 @@ bool FBlueprintEditor::IsDetailsPanelEditingClassDefaults() const
 
 void FBlueprintEditor::EditClassDefaults_Clicked()
 {
-	if ( IsEditingSingleBlueprint() )
-	{
-		UBlueprint* Blueprint = GetBlueprintObj();
-		StartEditingDefaults( true, true );
-	}
+	StartEditingDefaults(true, true);
 }
 
 // Zooming to fit the entire graph
@@ -9248,10 +9258,16 @@ void FBlueprintEditor::RefreshStandAloneDefaultsEditor()
 	TArray<UObject*> DefaultObjects;
 	for ( int32 i = 0; i < GetEditingObjects().Num(); ++i )
 	{
-		UBlueprintCore* Blueprint = Cast<UBlueprintCore>(GetEditingObjects()[i]);
-		if ( Blueprint && Blueprint->GeneratedClass )
+		if (UBlueprint* Blueprint = Cast<UBlueprint>(GetEditingObjects()[i]))
 		{
-			DefaultObjects.Add(Blueprint->GeneratedClass->GetDefaultObject());
+			if (CurrentUISelection == FBlueprintEditor::SelectionState_ClassSettings)
+			{
+				DefaultObjects.Add(Blueprint);
+			}
+			else if (Blueprint->GeneratedClass)
+			{
+				DefaultObjects.Add(Blueprint->GeneratedClass->GetDefaultObject());
+			}
 		}
 	}
 
@@ -9593,6 +9609,12 @@ void FBlueprintEditor::NotifyPostChange(const FPropertyChangedEvent& PropertyCha
 			UpdateSubobjectPreview(PropertyChangedEvent.ChangeType == EPropertyChangeType::Interactive);
 		}
 	}
+}
+
+bool FBlueprintEditor::ShouldShowPublicViewControl() const
+{
+	// In defaults-only mode, hide the "Public View" checkbox when Class Settings is selected into the Details view.
+	return !bWasOpenedInDefaultsMode || CurrentUISelection != FBlueprintEditor::SelectionState_ClassSettings;
 }
 
 void FBlueprintEditor::OnFinishedChangingProperties(const FPropertyChangedEvent& PropertyChangedEvent)

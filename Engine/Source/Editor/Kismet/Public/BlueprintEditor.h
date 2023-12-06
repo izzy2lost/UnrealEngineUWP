@@ -1217,6 +1217,9 @@ protected:
 	virtual void NotifyPostChange( const FPropertyChangedEvent& PropertyChangedEvent, FProperty* PropertyThatChanged) override;
 	//~ End FNotifyHook Interface
 
+	/** Callback to determine visibility of the public view checkbox in the Defaults editor */
+	bool ShouldShowPublicViewControl() const;
+
 	/** Callback when properties have finished being handled */
 	virtual void OnFinishedChangingProperties(const FPropertyChangedEvent& PropertyChangedEvent);
 
@@ -1505,6 +1508,9 @@ protected:
 
 	/** If a regular node (not a comment node) has been selected */
 	bool bSelectRegularNode;
+
+	/** True if the editor was opened in defaults mode */
+	bool bWasOpenedInDefaultsMode;
 
 	/** Focus nodes which are related to the selected nodes */
 	void ResetAllNodesUnrelatedStates();

@@ -4,6 +4,7 @@
 
 #include "AssetRegistry/AssetData.h"
 #include "BlueprintEditor.h"
+#include "BlueprintEditorModes.h"
 #include "BlueprintEditorModule.h"
 #include "BlueprintEditorSettings.h"
 #include "BlueprintNamespaceRegistry.h"
@@ -6890,44 +6891,50 @@ void FBlueprintGlobalOptionsDetails::CustomizeDetails(IDetailLayoutBuilder& Deta
 			]
 		]
 		.PropertyHandleList({ParentClassProperty});
-		
+
 		const bool bIsInterfaceBP = FBlueprintEditorUtils::IsInterfaceBlueprint(Blueprint);
 		const bool bIsMacroLibrary = Blueprint->BlueprintType == BPTYPE_MacroLibrary;
 		const bool bIsLevelScriptBP = FBlueprintEditorUtils::IsLevelScriptBlueprint(Blueprint);
 		const bool bIsFunctionLibrary = Blueprint->BlueprintType == BPTYPE_FunctionLibrary;
-		const bool bSupportsInterfaces = !bIsInterfaceBP && !bIsMacroLibrary && !bIsFunctionLibrary;
-		const bool bSupportsNamespaces = GetDefault<UBlueprintEditorSettings>()->bEnableNamespaceImportingFeatures;
-
-		if(bSupportsNamespaces)
+		
+		// Interfaces/imports currently rely on the full Blueprint editor context to function properly (e.g. add/remove operations).
+		TSharedPtr<FBlueprintEditor> PinnedBlueprintEditorPtr = BlueprintEditorPtr.Pin();
+		if (PinnedBlueprintEditorPtr.IsValid() && PinnedBlueprintEditorPtr->GetCurrentMode() != FBlueprintEditorApplicationModes::BlueprintDefaultsMode)
 		{
-			// Imported namespace details
-			IDetailCategoryBuilder& ImportsCategory = DetailLayout.EditCategory("Imports", LOCTEXT("BlueprintImportDetailsCategory", "Imports"));
+			const bool bSupportsInterfaces = !bIsInterfaceBP && !bIsMacroLibrary && !bIsFunctionLibrary;
+			const bool bSupportsNamespaces = GetDefault<UBlueprintEditorSettings>()->bEnableNamespaceImportingFeatures;
 
-			TSharedRef<FBlueprintImportsLayout> DefaultImportsLayout = MakeShareable(new FBlueprintImportsLayout(SharedThis(this), /*bShowDefaultImports = */true));
-			ImportsCategory.AddCustomBuilder(DefaultImportsLayout);
+			if (bSupportsNamespaces)
+			{
+				// Imported namespace details
+				IDetailCategoryBuilder& ImportsCategory = DetailLayout.EditCategory("Imports", LOCTEXT("BlueprintImportDetailsCategory", "Imports"));
 
-			TSharedRef<FBlueprintImportsLayout> LocalImportsLayout = MakeShareable(new FBlueprintImportsLayout(SharedThis(this), /*bShowDefaultImports = */false));
-			ImportsCategory.AddCustomBuilder(LocalImportsLayout);
-		}
+				TSharedRef<FBlueprintImportsLayout> DefaultImportsLayout = MakeShareable(new FBlueprintImportsLayout(SharedThis(this), /*bShowDefaultImports = */true));
+				ImportsCategory.AddCustomBuilder(DefaultImportsLayout);
 
-		if (bSupportsInterfaces)
-		{
-			// Interface details customization
-			IDetailCategoryBuilder& InterfacesCategory = DetailLayout.EditCategory("Interfaces", LOCTEXT("BlueprintInterfacesDetailsCategory", "Interfaces"));
+				TSharedRef<FBlueprintImportsLayout> LocalImportsLayout = MakeShareable(new FBlueprintImportsLayout(SharedThis(this), /*bShowDefaultImports = */false));
+				ImportsCategory.AddCustomBuilder(LocalImportsLayout);
+			}
 
-			// ImplementedInterfaces is a hidden property so we have to add it to the property map manually to use it
-			const TSharedPtr<IPropertyHandle> InterfacesProperty = DetailLayout.AddObjectPropertyData({const_cast<UBlueprint*>(Blueprint)}, TEXT("ImplementedInterfaces"));
-			
-			TSharedRef<FBlueprintInterfaceLayout> InheritedInterfacesLayout = MakeShareable(new FBlueprintInterfaceLayout(
-				SharedThis(this)
+			if (bSupportsInterfaces)
+			{
+				// Interface details customization
+				IDetailCategoryBuilder& InterfacesCategory = DetailLayout.EditCategory("Interfaces", LOCTEXT("BlueprintInterfacesDetailsCategory", "Interfaces"));
+
+				// ImplementedInterfaces is a hidden property so we have to add it to the property map manually to use it
+				const TSharedPtr<IPropertyHandle> InterfacesProperty = DetailLayout.AddObjectPropertyData({ const_cast<UBlueprint*>(Blueprint) }, TEXT("ImplementedInterfaces"));
+
+				TSharedRef<FBlueprintInterfaceLayout> InheritedInterfacesLayout = MakeShareable(new FBlueprintInterfaceLayout(
+					SharedThis(this)
 				));
-			InterfacesCategory.AddCustomBuilder(InheritedInterfacesLayout);
+				InterfacesCategory.AddCustomBuilder(InheritedInterfacesLayout);
 
-			TSharedRef<FBlueprintInterfaceLayout> LocalInterfacesLayout = MakeShareable(new FBlueprintInterfaceLayout(
-				SharedThis(this),
-				InterfacesProperty.ToSharedRef()
+				TSharedRef<FBlueprintInterfaceLayout> LocalInterfacesLayout = MakeShareable(new FBlueprintInterfaceLayout(
+					SharedThis(this),
+					InterfacesProperty.ToSharedRef()
 				));
-			InterfacesCategory.AddCustomBuilder(LocalInterfacesLayout);
+				InterfacesCategory.AddCustomBuilder(LocalInterfacesLayout);
+			}
 		}
 
 		// Hide the bDeprecate, we override the functionality.

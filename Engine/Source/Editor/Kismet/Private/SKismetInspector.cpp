@@ -235,22 +235,23 @@ TSharedRef<SWidget> SKismetInspector::MakeContextualEditingWidget(struct FKismet
 			]
 		];
 
-		if (bShowPublicView)
-		{
-			ContextualEditingWidget->AddSlot()
-			.AutoHeight()
-			.VAlign( VAlign_Top )
+		ContextualEditingWidget->AddSlot()
+		.AutoHeight()
+		.VAlign(VAlign_Top)
+		[
+			SNew(SCheckBox)
+			.ToolTipText(LOCTEXT("TogglePublicView", "Toggle Public View"))
+			.IsChecked(this, &SKismetInspector::GetPublicViewCheckboxState)
+			.OnCheckStateChanged(this, &SKismetInspector::SetPublicViewCheckboxState)
 			[
-				SNew(SCheckBox)
-				.ToolTipText(LOCTEXT("TogglePublicView", "Toggle Public View"))
-				.IsChecked(this, &SKismetInspector::GetPublicViewCheckboxState)
-				.OnCheckStateChanged( this, &SKismetInspector::SetPublicViewCheckboxState)
-				[
-					SNew(STextBlock)
-					.Text(LOCTEXT("PublicViewCheckboxLabel", "Public View"))
-				]
-			];
-		}
+				SNew(STextBlock)
+				.Text(LOCTEXT("PublicViewCheckboxLabel", "Public View"))
+			]
+			.Visibility_Lambda([bShowPublicView = this->bShowPublicView]()
+			{
+				return bShowPublicView.Get() ? EVisibility::Visible : EVisibility::Hidden;
+			})
+		];
 	}
 
 	return ContextualEditingWidget;
