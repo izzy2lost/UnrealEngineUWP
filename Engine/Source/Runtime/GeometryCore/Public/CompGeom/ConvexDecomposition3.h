@@ -72,8 +72,8 @@ struct FNegativeSpaceSampleSettings
 	bool bOnlyConnectedToHull = false;
 	// Maximum number of voxels to use per dimension, when performing VoxelSearch
 	int32 MaxVoxelsPerDim = 128;
-	// Attempt to keep negative space computation deterministic (e.g., do not run marching cubes in parallel for voxel search)
-	bool bDeterministic = false;
+	// Attempt to keep negative space computation deterministic, at some additional runtime cost
+	bool bDeterministic = true;
 
 	// @return the scale factor that has been applied by Rescale()
 	double GetAppliedScaleFactor() const

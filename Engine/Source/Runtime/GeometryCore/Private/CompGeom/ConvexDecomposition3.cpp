@@ -228,10 +228,6 @@ bool FSphereCovering::AddNegativeSpace(const TFastWindingTree<FDynamicMesh3>& Sp
 		// TODO: Test if a smaller expand (e.g., KINDA_SMALL_NUMBER) will do just as well here
 		HullBox.Expand(1.0 * SampleSettings.GetAppliedScaleFactor());
 		FMarchingCubes MarchingCubes;
-		if (SampleSettings.bDeterministic)
-		{
-			MarchingCubes.bParallelCompute = false;
-		}
 		MarchingCubes.CubeSize = FMath::Clamp(SampleSettings.ReduceRadiusMargin * .5, HullBox.MaxDim() / (double)SampleSettings.MaxVoxelsPerDim, HullBox.MinDim() * .5);
 		MarchingCubes.Bounds = HullBox;
 		MarchingCubes.RootMode = ERootfindingModes::Bisection;
@@ -379,62 +375,94 @@ bool FSphereCovering::AddNegativeSpace(const TFastWindingTree<FDynamicMesh3>& Sp
 			}
 		};
 
-		// if we have more vertices than we want samples, downsample so that we:
-		//  (1) ~uniformly cover space and
-		//  (2) prioritize samples at 'features' (sharp angles) of the offset mesh
-		if (NegativeSpaceMesh.MaxVertexID() > SampleSettings.TargetNumSamples)
+		// Compute an angle metric to prioritize samples on 'features' of the negative space mesh
+		TArray<float> VertexAngleMetric; // favor points on sharper edges (near 'features')
+		VertexAngleMetric.SetNumZeroed(NegativeSpaceMesh.MaxVertexID());
+		TArray<FVector3d> TriNormals;
+		TriNormals.SetNumZeroed(NegativeSpaceMesh.MaxTriangleID());
+		for (int32 TID : NegativeSpaceMesh.TriangleIndicesItr())
 		{
-			TArray<float> VertexAngleMetric;
-			VertexAngleMetric.SetNumZeroed(NegativeSpaceMesh.MaxVertexID());
-			TArray<FVector3d> TriNormals;
-			TriNormals.SetNumZeroed(NegativeSpaceMesh.MaxTriangleID());
-			for (int32 TID : NegativeSpaceMesh.TriangleIndicesItr())
-			{
-				TriNormals[TID] = NegativeSpaceMesh.GetTriNormal(TID);
-			}
-			TArray<FVector3d> VertexPositions;
-			VertexPositions.SetNumZeroed(NegativeSpaceMesh.MaxVertexID());
-			for (int32 VID : NegativeSpaceMesh.VertexIndicesItr())
-			{
-				VertexPositions[VID] = NegativeSpaceMesh.GetVertex(VID);
-				// Note: Angle metric favors vertices on edges with larger dihedral angles
-				float AngleMetric = 0;
-				NegativeSpaceMesh.EnumerateVertexEdges(VID, [&](int32 EID)
+			TriNormals[TID] = NegativeSpaceMesh.GetTriNormal(TID);
+		}
+		TArray<FVector3d> VertexPositions;
+		VertexPositions.SetNumZeroed(NegativeSpaceMesh.MaxVertexID());
+		for (int32 VID : NegativeSpaceMesh.VertexIndicesItr())
+		{
+			VertexPositions[VID] = NegativeSpaceMesh.GetVertex(VID);
+			// Note: Angle metric favors vertices on edges with larger dihedral angles
+			float AngleMetric = 0;
+			NegativeSpaceMesh.EnumerateVertexEdges(VID, [&](int32 EID)
+				{
+					FIndex2i EdgeT = NegativeSpaceMesh.GetEdgeT(EID);
+					if (EdgeT.B != FDynamicMesh3::InvalidID)
 					{
-						FIndex2i EdgeT = NegativeSpaceMesh.GetEdgeT(EID);
-						if (EdgeT.B != FDynamicMesh3::InvalidID)
-						{
-							AngleMetric = FMath::Max(AngleMetric, float(1 - TriNormals[EdgeT.A].Dot(TriNormals[EdgeT.B])));
-						}
-					});
-				VertexAngleMetric[VID] = AngleMetric;
+						AngleMetric = FMath::Max(AngleMetric, float(1 - TriNormals[EdgeT.A].Dot(TriNormals[EdgeT.B])));
+					}
+				});
+			VertexAngleMetric[VID] = AngleMetric;
+		}
+
+		// If we want consistent results, sort the points -- since parallelism in marching cubes can add vertices in arbitrary order
+		if (SampleSettings.bDeterministic)
+		{
+			check(NegativeSpaceMesh.IsCompactV());
+			TArray<int32> Indices;
+			Indices.SetNumUninitialized(VertexPositions.Num());
+			for (int32 Idx = 0; Idx < Indices.Num(); ++Idx)
+			{
+				Indices[Idx] = Idx;
 			}
-			FPriorityOrderPoints Ordering;
-			Ordering.ComputeUniformSpaced(VertexPositions, VertexAngleMetric, SampleSettings.TargetNumSamples);
-			int32 NumSamples = FMath::Min(Ordering.Order.Num(), SampleSettings.TargetNumSamples);
-			for (int32 SampleIdx = 0; SampleIdx < NumSamples; ++SampleIdx)
+			Indices.Sort([&](int32 A, int32 B)
+				{
+					FVector3d VA = VertexPositions[A];
+					FVector3d VB = VertexPositions[B];
+					if (VA.X < VB.X)
+					{
+						return true;
+					}
+					else if (VA.X == VB.X)
+					{
+						if (VA.Y < VB.Y)
+						{
+							return true;
+						}
+						else if (VA.Y == VB.Y)
+						{
+							return VA.Z < VB.Z;
+						}
+					}
+					return false;
+				});
+			TArray<FVector> SortedPositions;
+			TArray<float> SortedAngleMetric;
+			SortedPositions.SetNumUninitialized(VertexPositions.Num());
+			SortedAngleMetric.SetNumUninitialized(VertexPositions.Num());
+			for (int32 Idx = 0; Idx < VertexPositions.Num(); ++Idx)
+			{
+				SortedPositions[Idx] = VertexPositions[Indices[Idx]];
+				SortedAngleMetric[Idx] = VertexAngleMetric[Indices[Idx]];
+			}
+			Swap(VertexPositions, SortedPositions);
+			Swap(VertexAngleMetric, SortedAngleMetric);
+		}
+
+		int32 NumSamples = FMath::Min(VertexPositions.Num(), SampleSettings.TargetNumSamples);
+		FPriorityOrderPoints Ordering;
+		Ordering.ComputeUniformSpaced(VertexPositions, VertexAngleMetric, SampleSettings.bRequireSearchSampleCoverage ? -1 : NumSamples);
+		for (int32 SampleIdx = 0; SampleIdx < NumSamples; ++SampleIdx)
+		{
+			int32 VID = Ordering.Order[SampleIdx];
+			AddSample(VertexPositions[VID]);
+		}
+
+		if (SampleSettings.bRequireSearchSampleCoverage)
+		{
+			double SpacingThresholdSq = SampleSettings.MinSpacing * SampleSettings.MinSpacing;
+			for (int32 SampleIdx = NumSamples; SampleIdx < Ordering.Order.Num(); ++SampleIdx)
 			{
 				int32 VID = Ordering.Order[SampleIdx];
-				AddSample(NegativeSpaceMesh.GetVertex(VID));
-			}
-
-			if (SampleSettings.bRequireSearchSampleCoverage)
-			{
-				double SpacingThresholdSq = SampleSettings.MinSpacing * SampleSettings.MinSpacing;
-				for (int32 SampleIdx = NumSamples; SampleIdx < Ordering.Order.Num(); ++SampleIdx)
-				{
-					int32 VID = Ordering.Order[SampleIdx];
-					FVector3d Pos = NegativeSpaceMesh.GetVertex(VID);
-					AddSample(Pos, true /*test cover*/);
-				}
-			}
-		}
-		else
-		{
-			// When we have fewer vertices than target samples, just try adding all of them
-			for (FVector3d Pos : NegativeSpaceMesh.VerticesItr())
-			{
-				AddSample(Pos);
+				FVector3d Pos = VertexPositions[VID];
+				AddSample(Pos, true /*test cover*/);
 			}
 		}
 	}
