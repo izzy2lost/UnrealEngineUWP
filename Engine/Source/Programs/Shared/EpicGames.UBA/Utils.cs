@@ -33,7 +33,7 @@ namespace EpicGames.UBA
 			}
 			else if (OperatingSystem.IsMacOS())
 			{
-				return Path.Combine(assemblyFolder, "runtimes", $"osx", "native", "libUbaHost.dylib");
+				return Path.Combine(assemblyFolder, "runtimes", $"osx-{arch}", "native", "libUbaHost.dylib");
 			}
 			throw new PlatformNotSupportedException();
 		}

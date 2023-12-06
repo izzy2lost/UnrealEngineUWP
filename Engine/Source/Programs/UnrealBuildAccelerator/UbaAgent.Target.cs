@@ -83,10 +83,11 @@ public class UbaAgentTarget : TargetRules
 
 		if (Target.Platform.IsInGroup(UnrealPlatformGroup.Apple))
 		{
+			string BinaryPrefix = Rules.bShouldCompileAsDLL ? "lib" : string.Empty;
 			string BinaryExt = Rules.bShouldCompileAsDLL ? ".dylib" : string.Empty;
-			Rules.OutputFile = Path.Combine(BinariesFolder, $"{Rules.LaunchModuleName}{BinaryExt}");
+			Rules.OutputFile = Path.Combine(BinariesFolder, $"{BinaryPrefix}{Rules.LaunchModuleName}{BinaryExt}");
 			Rules.GlobalDefinitions.AddRange(new string[] {
-				"UBA_DETOURS_LIBRARY=\"UbaDetours.dylib\"",
+				"UBA_DETOURS_LIBRARY=\"libUbaDetours.dylib\"",
 				"UBA_AGENT_EXECUTABLE=\"UbaAgent\"",
 			});
 		}
