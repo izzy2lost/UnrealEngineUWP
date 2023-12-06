@@ -101,7 +101,7 @@ public:
 	FSlateTextureAtlas( uint32 InWidth, uint32 InHeight, uint32 InBytesPerPixel, ESlateTextureAtlasPaddingStyle InPaddingStyle, bool bInUpdatesAfterInitialization )
 		: AtlasData()
 		, AtlasUsedSlots(NULL)
-		, AtlasEmptySlots(NULL)
+		, AtlasEmptySlotsMap()
 		, AtlasWidth( InWidth )
 		, AtlasHeight( InHeight )
 		, BytesPerPixel( InBytesPerPixel )
@@ -164,6 +164,16 @@ protected:
 	SLATECORE_API const FAtlasedTextureSlot* FindSlotForTexture( uint32 InWidth, uint32 InHeight );
 
 	/**
+	 * Get the index to start looking for a free slot.
+	 */
+	static int32 GetFreeSlotSearchIndex(uint32 InWidth, uint32 InHeight);
+
+	/**
+	 * Adds a new slot to the free slot list.
+	 */
+	void AddFreeSlot(uint32 InX, uint32 InY, uint32 InWidth, uint32 InHeight);
+
+	/**
 	 * Creates enough space for a single texture the width and height of the atlas
 	 */
 	SLATECORE_API void InitAtlasData();
@@ -222,7 +232,7 @@ protected:
 	/** The list of atlas slots pointing to used texture data in the atlas */
 	FAtlasedTextureSlot* AtlasUsedSlots;
 	/** The list of atlas slots pointing to empty texture data in the atlas */
-	FAtlasedTextureSlot* AtlasEmptySlots;
+	TArray<FAtlasedTextureSlot*> AtlasEmptySlotsMap;
 	/** Width of the atlas */
 	uint32 AtlasWidth;
 	/** Height of the atlas */
