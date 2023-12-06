@@ -4641,6 +4641,11 @@ int32 UMaterialExpressionTextureSampleParameterSubUV::Compile(class FMaterialCom
 		return Compiler->Errorf(TEXT("%s"), *SamplerTypeError);
 	}
 
+	// while this expression does provide a TextureCoordinate input pin, it is, and has always been, ignored.  And only
+	// supports using UV0.  Further, in order to support non-vertex fetch implementations we need to be sure to register
+	// the use of the first texture slot
+	Compiler->TextureCoordinate(0 /*Explit dependency on the 1st uv channel*/, false, false);
+
 	int32 TextureCodeIndex = Compiler->TextureParameter(ParameterName, Texture, SamplerType);
 	return ParticleSubUV(Compiler, TextureCodeIndex, SamplerType, CompileMipValue0(Compiler), CompileMipValue1(Compiler), MipValueMode,	bBlend);
 }
