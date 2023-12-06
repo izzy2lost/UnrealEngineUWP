@@ -322,13 +322,13 @@ namespace ModelOptimizerNNEHelper
 					Values.Reserve(Attribute.ints_size());
 					for (int64 Value64 : Attribute.ints())
 					{
-						int32 Value = (int32)Value64;
-						if ((int64)Value != Value64)
+						int64 ValueClamped = FMath::Clamp<int64>(Value64, MIN_int32, MAX_int32);
+						if (ValueClamped != Value64)
 						{
-							UE_LOG(LogNNE, Error, TEXT("Overflow detected when converting to int32 attribute '%s' in node '%s'"), *AttributeName, *NNEOpType);
-							return false;
+							UE_LOG(LogNNE, Display, TEXT("Overflow detected when converting to int32 attribute '%s' in node '%s'"), *AttributeName, *NNEOpType);
 						}
-						Values.Add(Value);
+						
+						Values.Add((int32)ValueClamped);
 					}
 
 					Builder->AddOperatorAttribute(Op, AttributeName, FNNEAttributeValue(Values));
