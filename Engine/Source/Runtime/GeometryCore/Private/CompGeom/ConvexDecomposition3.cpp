@@ -1317,10 +1317,6 @@ void FConvexDecomposition3::Compute(int32 NumOutputHulls, int32 NumAdditionalSpl
 		NumOutputHulls = FMath::Min(NumOutputHulls, MaxOutputHulls);
 	}
 	bool bUseNegativeSpace = NegativeSpace.Num() > 0;
-	if (bUseNegativeSpace)
-	{
-		InitNegativeSpaceConvexPartMapping();
-	}
 	int32 TargetNumSplits = NumOutputHulls + NumAdditionalSplits;
 	for (int32 SplitIdx = 0; SplitIdx < TargetNumSplits; SplitIdx++)
 	{
