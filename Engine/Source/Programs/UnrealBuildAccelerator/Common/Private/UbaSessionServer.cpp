@@ -1023,8 +1023,6 @@ namespace uba
 				m_trace.ProcessReturned(process->m_processId);
 				m_queuedRemoteProcesses.push_front(h);
 
-				cs2.Leave();
-
 				if (m_remoteProcessReturnedEvent)
 					m_remoteProcessReturnedEvent(*process);
 				return true;
