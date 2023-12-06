@@ -158,6 +158,18 @@ public:
 	UPROPERTY(EditAnywhere, Category = AutoDetectGeometryOverrides)
 	bool bDetectCapsules = true;
 
+	/** Whether to attempt to merge the generated collision shapes, when there are more than MergeAboveCount */
+	UPROPERTY(EditAnywhere, Category = MergeCollisionShapes)
+	bool bMergeCollisionShapes = false;
+
+	/** Attempt to merge generated collision shapes until there are at most this many */
+	UPROPERTY(EditAnywhere, Category = MergeCollisionShapes, meta = (EditConditionHides, EditCondition = "bMergeCollisionShapes", ClampMin = "1"))
+	int32 MergeAboveCount = 1;
+
+	/** Whether to protect negative space while merging the generated collision shapes, using the negative space settings */
+	UPROPERTY(EditAnywhere, Category = MergeCollisionShapes, meta = (EditConditionHides, EditCondition = "bMergeCollisionShapes"))
+	bool bUseNegativeSpaceInMerge = false;
+
 	/** Whether to simplify the convex hull */
 	UPROPERTY(EditAnywhere, Category = ConvexHulls, meta = (EditConditionHides, EditCondition = "GeometryType == ECollisionGeometryType::ConvexHulls"))
 	bool bSimplifyHulls = true;
@@ -194,15 +206,15 @@ public:
 
 	/** Negative space closer to the input than this tolerance distance can be filled in */
 	UPROPERTY(EditAnywhere, Category = NegativeSpace, meta = (UIMin = ".001", UIMax = "100", ClampMin = "0",
-		EditConditionHides, EditCondition = "GeometryType == ECollisionGeometryType::ConvexHulls && MaxHullsPerMesh > 1 && bUseNegativeSpaceInDecomposition"))
+		EditConditionHides, EditCondition = "(GeometryType == ECollisionGeometryType::ConvexHulls && MaxHullsPerMesh > 1 && bUseNegativeSpaceInDecomposition) || (bMergeCollisionShapes && bUseNegativeSpaceInMerge)"))
 	double NegativeSpaceTolerance = 3;
 	/** Minimum radius of negative space to protect; tunnels with radius smaller than this could be filled in */
 	UPROPERTY(EditAnywhere, Category = NegativeSpace, meta = (UIMin = ".001", UIMax = "100", ClampMin = "0",
-		EditConditionHides, EditCondition = "GeometryType == ECollisionGeometryType::ConvexHulls && MaxHullsPerMesh > 1 && bUseNegativeSpaceInDecomposition"))
+		EditConditionHides, EditCondition = "(GeometryType == ECollisionGeometryType::ConvexHulls && MaxHullsPerMesh > 1 && bUseNegativeSpaceInDecomposition) || (bMergeCollisionShapes && bUseNegativeSpaceInMerge)"))
 	double NegativeSpaceMinRadius = 10;
 	/** Whether to ignore negative space that is not accessible by traversing from the convex hull (via paths w/ radius of at least Negative Space Tolerance) */
 	UPROPERTY(EditAnywhere, Category = NegativeSpace, meta = (
-		EditConditionHides, EditCondition = "GeometryType == ECollisionGeometryType::ConvexHulls && MaxHullsPerMesh > 1 && bUseNegativeSpaceInDecomposition"))
+		EditConditionHides, EditCondition = "(GeometryType == ECollisionGeometryType::ConvexHulls && MaxHullsPerMesh > 1 && bUseNegativeSpaceInDecomposition) || (bMergeCollisionShapes && bUseNegativeSpaceInMerge)"))
 	bool bIgnoreInternalNegativeSpace = true;
 
 	/** If > 0, the polygon used to generate the swept hull will be simplified up to this distance tolerance, in cm */

@@ -20,6 +20,7 @@
 #include "ShapeApproximation/MeshSimpleShapeApproximation.h"
 
 #include "Physics/CollisionGeometryVisualization.h"
+#include "Physics/ComponentCollisionUtil.h"
 
 // physics data
 #include "Components/StaticMeshComponent.h"
@@ -64,9 +65,13 @@ public:
 	bool bUseMaxCount;
 	bool bRemoveContained;
 	bool bAppendToExisting;
+	bool bMergeCollisionShapes;
+	bool bUseNegativeSpaceInMerge;
 
 	EProjectedHullAxis SweepAxis;
 	int32 MaxCount;
+
+	int32 MergeAboveCount;
 
 	// Begin TGenericDataOperator interface
 	virtual void CalculateResult(FProgressCancel* Progress) override
@@ -159,6 +164,16 @@ public:
 			NewCollision->Geometry.RemoveContainedGeometry();
 		}
 
+		if (bMergeCollisionShapes)
+		{
+			FSimpleShapeSet3d::FMergeShapesSettings Settings;
+			Settings.bMergeShapesProtectNegativeSpace = bUseNegativeSpaceInMerge;
+			// Take the UseShapeGenerator negative space settings (same as we use for convex decomposition negative space)
+			Settings.bIgnoreInternalNegativeSpace = UseShapeGenerator->bIgnoreInternalNegativeSpace;
+			Settings.NegativeSpaceMinRadius = UseShapeGenerator->NegativeSpaceMinRadius;
+			Settings.NegativeSpaceTolerance = UseShapeGenerator->NegativeSpaceTolerance;
+			NewCollision->Geometry.MergeShapes(MergeAboveCount, Settings);
+		}
 		
 		if (bUseMaxCount)
 		{
@@ -302,19 +317,22 @@ void USetCollisionGeometryTool::Setup()
 	Settings->WatchProperty(Settings->bEnableMaxCount, [this](bool) { InvalidateCompute(); });
 	Settings->WatchProperty(Settings->MaxCount, [this](int32) { InvalidateCompute(); });
 	Settings->WatchProperty(Settings->MinThickness, [this](float) { InvalidateCompute(); });
-	Settings->WatchProperty(Settings->bDetectBoxes, [this](int32) { InvalidateCompute(); });
-	Settings->WatchProperty(Settings->bDetectSpheres, [this](int32) { InvalidateCompute(); });
-	Settings->WatchProperty(Settings->bDetectCapsules, [this](int32) { InvalidateCompute(); });
+	Settings->WatchProperty(Settings->bDetectBoxes, [this](bool) { InvalidateCompute(); });
+	Settings->WatchProperty(Settings->bDetectSpheres, [this](bool) { InvalidateCompute(); });
+	Settings->WatchProperty(Settings->bDetectCapsules, [this](bool) { InvalidateCompute(); });
 	Settings->WatchProperty(Settings->bSimplifyHulls, [this](bool) { InvalidateCompute(); });
 	Settings->WatchProperty(Settings->HullTargetFaceCount, [this](int32) { InvalidateCompute(); });
 	Settings->WatchProperty(Settings->MaxHullsPerMesh, [this](int32) { InvalidateCompute(); });
 	Settings->WatchProperty(Settings->ConvexDecompositionSearchFactor, [this](int32) { InvalidateCompute(); });
 	Settings->WatchProperty(Settings->AddHullsErrorTolerance, [this](int32) { InvalidateCompute(); });
 	Settings->WatchProperty(Settings->MinPartThickness, [this](int32) { InvalidateCompute(); });
-	Settings->WatchProperty(Settings->bUseNegativeSpaceInDecomposition, [this](int32) { InvalidateCompute(); });
+	Settings->WatchProperty(Settings->bUseNegativeSpaceInDecomposition, [this](bool) { InvalidateCompute(); });
 	Settings->WatchProperty(Settings->NegativeSpaceMinRadius, [this](int32) { InvalidateCompute(); });
 	Settings->WatchProperty(Settings->NegativeSpaceTolerance, [this](int32) { InvalidateCompute(); });
-	Settings->WatchProperty(Settings->bIgnoreInternalNegativeSpace, [this](int32) { InvalidateCompute(); });
+	Settings->WatchProperty(Settings->bIgnoreInternalNegativeSpace, [this](bool) { InvalidateCompute(); });
+	Settings->WatchProperty(Settings->bMergeCollisionShapes, [this](bool) { InvalidateCompute(); });
+	Settings->WatchProperty(Settings->bUseNegativeSpaceInMerge, [this](bool) { InvalidateCompute(); });
+	Settings->WatchProperty(Settings->MergeAboveCount, [this](int32) { InvalidateCompute(); });
 	Settings->WatchProperty(Settings->HullTolerance, [this](float) { InvalidateCompute(); });
 	Settings->WatchProperty(Settings->SweepAxis, [this](EProjectedHullAxis) { InvalidateCompute(); });
 	Settings->WatchProperty(Settings->LevelSetResolution, [this](int32) { InvalidateCompute(); });
@@ -437,6 +455,9 @@ TUniquePtr<UE::Geometry::TGenericDataOperator<FPhysicsDataCollection>> USetColli
 	Op->UseShapeGenerator->bIgnoreInternalNegativeSpace = Settings->bIgnoreInternalNegativeSpace;
 	Op->UseShapeGenerator->HullSimplifyTolerance = Settings->HullTolerance;
 	Op->UseShapeGenerator->LevelSetGridResolution = Settings->LevelSetResolution;
+	Op->bMergeCollisionShapes = Settings->bMergeCollisionShapes;
+	Op->bUseNegativeSpaceInMerge = Settings->bUseNegativeSpaceInMerge;
+	Op->MergeAboveCount = Settings->MergeAboveCount;
 
 	Op->ComputeType = Settings->GeometryType;
 	Op->bAppendToExisting = Settings->bAppendToExisting;
