@@ -1407,23 +1407,6 @@ void FRigReferenceElement::CopyPose(FRigBaseElement* InOther, bool bCurrent, boo
 }
 
 ////////////////////////////////////////////////////////////////////////////////
-// FRigConnectionInfo
-////////////////////////////////////////////////////////////////////////////////
-
-FRigConnectionInfo::FRigConnectionInfo(const FRigElementKeyRedirector* InRedirector, const URigHierarchy* InHierarchy)
-	: SourceHierarchy(InHierarchy)
-	, TargetHierarchy(InHierarchy)
-{
-	for(const TPair<FRigElementKey, FCachedRigElement>& Pair : InRedirector->InternalKeyToExternalKey)
-	{
-		if(Pair.Key.Type == ERigElementType::Connector)
-		{
-			ConnectionMap.Add(Pair.Key, Pair.Value.GetKey());
-		}
-	}
-}
-
-////////////////////////////////////////////////////////////////////////////////
 // FRigConnectorSettings
 ////////////////////////////////////////////////////////////////////////////////
 

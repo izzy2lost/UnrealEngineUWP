@@ -362,3 +362,35 @@ FArchive& operator<<(FArchive& Ar, FRigControlValue& Value)
 	return Ar;
 }
 
+////////////////////////////////////////////////////////////////////////////////
+// FRigElementResolveResult
+////////////////////////////////////////////////////////////////////////////////
+
+bool FRigElementResolveResult::IsValid() const
+{
+	return State == ERigElementResolveState::PossibleTarget ||
+		State == ERigElementResolveState::DefaultTarget;
+}
+
+void FRigElementResolveResult::SetInvalidTarget(const FText& InMessage)
+{
+	State = ERigElementResolveState::InvalidTarget;
+	Message = InMessage;
+}
+
+void FRigElementResolveResult::SetPossibleTarget(const FText& InMessage)
+{
+	State = ERigElementResolveState::PossibleTarget;
+	Message = InMessage;
+}
+
+void FRigElementResolveResult::SetDefaultTarget(const FText& InMessage)
+{
+	State = ERigElementResolveState::DefaultTarget;
+	Message = InMessage;
+}
+
+bool FModularRigResolveResult::IsValid() const
+{
+	return State == EModularRigResolveState::Success && !Matches.IsEmpty();
+}

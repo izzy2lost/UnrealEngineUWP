@@ -21,6 +21,7 @@
 class UControlRig;
 class URigHierarchy;
 class URigHierarchyController;
+class UModularRigRuleManager; 
 
 DECLARE_MULTICAST_DELEGATE_ThreeParams(FRigHierarchyModifiedEvent, ERigHierarchyNotification /* type */, URigHierarchy* /* hierarchy */, const FRigBaseElement* /* element */);
 DECLARE_DYNAMIC_MULTICAST_DELEGATE_ThreeParams(FRigHierarchyModifiedDynamicEvent, ERigHierarchyNotification, NotifType, URigHierarchy*, Hierarchy, FRigElementKey, Subject);
@@ -3410,6 +3411,16 @@ public:
 	URigHierarchyController* GetController(bool bCreateIfNeeded = true);
 
 	/**
+	 * Returns a rule manager for this hierarchy
+	 * Note: If the manager is not available this will return nullptr 
+	 * even if the bCreateIfNeeded flag is set to true.
+	 * @param bCreateIfNeeded Creates a controller if needed
+	 * @return The Controller for this hierarchy
+	 */
+	UFUNCTION(BlueprintCallable, Category = URigHierarchy)
+	UModularRigRuleManager* GetRuleManager(bool bCreateIfNeeded = true);
+
+	/**
 	 * Returns the topology version of this hierarchy
 	 */
 	uint32 GetTopologyVersion() const { return TopologyVersion; }
@@ -4261,6 +4272,9 @@ private:
 	UPROPERTY(Transient)
 	TObjectPtr<URigHierarchyController> HierarchyController;
 	bool bIsControllerAvailable;
+
+	UPROPERTY(Transient)
+	mutable TObjectPtr<UModularRigRuleManager> RuleManager;
 
 	TMap<FRigElementKey, FRigElementKey> PreviousParentMap;
 

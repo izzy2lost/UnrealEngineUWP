@@ -1614,45 +1614,6 @@ private:
 	friend struct FRigBaseElement;
 };
 
-USTRUCT(BlueprintType)
-struct CONTROLRIG_API FRigConnectionInfo
-{
-	GENERATED_BODY()
-
-public:
-	
-	FRigConnectionInfo()
-	: SourceHierarchy(nullptr)
-	, TargetHierarchy(nullptr)
-	{}
-
-	FRigConnectionInfo(const TMap<FRigElementKey, FRigElementKey>& InMap, const URigHierarchy* InSourceHierarchy, const URigHierarchy* InTargetHierarchy)
-	: ConnectionMap(InMap)
-	, SourceHierarchy(InSourceHierarchy)
-	, TargetHierarchy(InTargetHierarchy)
-	{}
-
-	FRigConnectionInfo(const FRigElementKeyRedirector* InRedirector, const URigHierarchy* InHierarchy);
-
-	bool IsValid() const
-	{
-		return (!ConnectionMap.IsEmpty()) && (SourceHierarchy != nullptr) && (TargetHierarchy != nullptr);
-	}
-
-	// The keys of the connectors in the source hierarchy
-	// mapping to the to-be-linked keys of the elements in the target hierarchy
-	UPROPERTY(BlueprintReadWrite, EditAnywhere, Category = Connections)
-	TMap<FRigElementKey, FRigElementKey> ConnectionMap;
-
-	// The hierarchy owning the connectors
-	UPROPERTY(BlueprintReadWrite, EditAnywhere, Category = Connections)
-	const URigHierarchy* SourceHierarchy; 
-
-	// The hierarchy to be linked into
-	UPROPERTY(BlueprintReadWrite, EditAnywhere, Category = Connections)
-	const URigHierarchy* TargetHierarchy; 
-};
-
 UENUM(BlueprintType)
 enum class EConnectorType : uint8
 {

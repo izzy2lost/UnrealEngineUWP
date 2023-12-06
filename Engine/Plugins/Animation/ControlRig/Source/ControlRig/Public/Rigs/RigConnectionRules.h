@@ -7,8 +7,10 @@
 #include "UObject/StructOnScope.h"
 #include "RigConnectionRules.generated.h"
 
+struct FRigBaseElement;
 struct FRigConnectionRule;
-struct FRigConnectionInfo;
+class FRigElementKeyRedirector;
+class URigHierarchy;
 
 USTRUCT(BlueprintType)
 struct CONTROLRIG_API FRigConnectionRuleStash
@@ -53,6 +55,7 @@ public:
 	virtual ~FRigConnectionRule() {}
 
 	virtual UScriptStruct* GetScriptStruct() const { return FRigConnectionRule::StaticStruct(); }
+	virtual FRigElementResolveResult Resolve(const FRigBaseElement* InTarget, const URigHierarchy* InHierarchy, const FRigElementKeyRedirector* InRedirector) const;
 };
 
 USTRUCT(BlueprintType, DisplayName="And Rule")
@@ -75,6 +78,7 @@ public:
 	virtual ~FRigAndConnectionRule() override {}
 
 	virtual UScriptStruct* GetScriptStruct() const override { return FRigAndConnectionRule::StaticStruct(); }
+	virtual FRigElementResolveResult Resolve(const FRigBaseElement* InTarget, const URigHierarchy* InHierarchy, const FRigElementKeyRedirector* InRedirector) const override;
 
 	UPROPERTY(BlueprintReadWrite, EditAnywhere, Category=Settings)
 	TArray<FRigConnectionRuleStash> ChildRules;
@@ -100,6 +104,7 @@ public:
 	virtual ~FRigOrConnectionRule() override {}
 
 	virtual UScriptStruct* GetScriptStruct() const override { return FRigOrConnectionRule::StaticStruct(); }
+	virtual FRigElementResolveResult Resolve(const FRigBaseElement* InTarget, const URigHierarchy* InHierarchy, const FRigElementKeyRedirector* InRedirector) const override;
 
 	UPROPERTY(BlueprintReadWrite, EditAnywhere, Category=Settings)
 	TArray<FRigConnectionRuleStash> ChildRules;
@@ -123,6 +128,7 @@ public:
 	virtual ~FRigTypeConnectionRule() override {}
 
 	virtual UScriptStruct* GetScriptStruct() const override { return FRigTypeConnectionRule::StaticStruct(); }
+	virtual FRigElementResolveResult Resolve(const FRigBaseElement* InTarget, const URigHierarchy* InHierarchy, const FRigElementKeyRedirector* InRedirector) const override;
 
 	UPROPERTY(BlueprintReadWrite, EditAnywhere, Category=Settings)
 	ERigElementType ElementType;
@@ -146,44 +152,39 @@ public:
 	virtual ~FRigTagConnectionRule() override {}
 
 	virtual UScriptStruct* GetScriptStruct() const override { return FRigTagConnectionRule::StaticStruct(); }
+	virtual FRigElementResolveResult Resolve(const FRigBaseElement* InTarget, const URigHierarchy* InHierarchy, const FRigElementKeyRedirector* InRedirector) const override;
 
 	UPROPERTY(BlueprintReadWrite, EditAnywhere, Category=Settings)
 	FName Tag;
 };
 
-USTRUCT(BlueprintType, DisplayName="Chain Rule")
-struct CONTROLRIG_API FRigChainConnectionRule : public FRigConnectionRule
+/*
+USTRUCT(BlueprintType, DisplayName="On Chain Rule")
+struct CONTROLRIG_API FRigOnChainRule : public FRigConnectionRule
 {
 	GENERATED_BODY()
 
 public:
 
-	FRigChainConnectionRule()
+	FRigOnChainRule()
 	: MinNumBones(2)
 	, MaxNumBones(0)
-	, bAllowBranches(false)
 	{}
 
-	FRigChainConnectionRule(const FRigElementKey& InRootConnector, int32 InMinNumBones = 2, int32 InMaxNumBones = 0, bool InAllowBranches = false)
-	: RootConnector(InRootConnector)
-	, MinNumBones(InMinNumBones)
+	FRigOnChainRule(int32 InMinNumBones = 2, int32 InMaxNumBones = 0)
+	: MinNumBones(InMinNumBones)
 	, MaxNumBones(InMaxNumBones)
-	, bAllowBranches(InAllowBranches)
 	{}
 
-	virtual ~FRigChainConnectionRule() override {}
+	virtual ~FRigOnChainRule() override {}
 
-	virtual UScriptStruct* GetScriptStruct() const override { return FRigChainConnectionRule::StaticStruct(); }
-
-	UPROPERTY(BlueprintReadWrite, EditAnywhere, Category=Settings)
-	FRigElementKey RootConnector;
+	virtual UScriptStruct* GetScriptStruct() const override { return FRigOnChainRule::StaticStruct(); }
+	virtual FRigElementResolveResult Resolve(const FRigBaseElement* InTarget, const URigHierarchy* InHierarchy, const FRigElementKeyRedirector* InRedirector) const override;
 
 	UPROPERTY(BlueprintReadWrite, EditAnywhere, Category=Settings)
 	int32 MinNumBones;
 
 	UPROPERTY(BlueprintReadWrite, EditAnywhere, Category=Settings)
 	int32 MaxNumBones;
-
-	UPROPERTY(BlueprintReadWrite, EditAnywhere, Category=Settings)
-	bool bAllowBranches;
 };
+*/

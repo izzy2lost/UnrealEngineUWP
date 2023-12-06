@@ -186,7 +186,6 @@ private:
 
 	friend class URigHierarchy;
 	friend class URigHierarchyController;
-	friend struct FRigConnectionInfo;
 	friend class FRigModuleInstanceDetails;
 	friend class UModularRig;
 };

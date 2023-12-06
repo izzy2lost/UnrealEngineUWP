@@ -5,6 +5,7 @@
 
 #include "Rigs/RigHierarchyElements.h"
 #include "Rigs/RigHierarchyController.h"
+#include "ModularRigRuleManager.h"
 #include "Units/RigUnitContext.h"
 #include "Math/ControlRigMathLibrary.h"
 #include "UObject/AnimObjectVersion.h"
@@ -2737,6 +2738,27 @@ URigHierarchyController* URigHierarchy::GetController(bool bCreateIfNeeded)
 			 HierarchyController->SetHierarchy(this);
 			 return HierarchyController;
 		 }
+	}
+	return nullptr;
+}
+
+UModularRigRuleManager* URigHierarchy::GetRuleManager(bool bCreateIfNeeded)
+{
+	if(RuleManager)
+	{
+		return RuleManager;
+	}
+	else if(bCreateIfNeeded)
+	{
+		if(ensure(!IsGarbageCollecting()))
+		{
+			RuleManager = NewObject<UModularRigRuleManager>(this, TEXT("RuleManager"), RF_Transient);
+			// In case we create this object from async loading thread
+			RuleManager->ClearInternalFlags(EInternalObjectFlags::Async);
+
+			RuleManager->SetHierarchy(this);
+			return RuleManager;
+		}
 	}
 	return nullptr;
 }

@@ -1785,3 +1785,119 @@ struct CONTROLRIG_API FRigEventContext
 };
 
 DECLARE_MULTICAST_DELEGATE_TwoParams(FRigEventDelegate, URigHierarchy*, const FRigEventContext&);
+
+UENUM()
+enum class ERigElementResolveState : uint8
+{
+	Unknown,
+	InvalidTarget,
+	PossibleTarget,
+	DefaultTarget,
+
+	/** MAX - invalid */
+	Max UMETA(Hidden),
+};
+
+USTRUCT(BlueprintType)
+struct CONTROLRIG_API FRigElementResolveResult
+{
+	GENERATED_BODY()
+
+public:
+	
+	FRigElementResolveResult()
+	: State(ERigElementResolveState::Unknown)
+	{
+	}
+
+	FRigElementResolveResult(const FRigElementKey& InKey, ERigElementResolveState InState = ERigElementResolveState::PossibleTarget, const FText& InMessage = FText())
+		: Key(InKey)
+		, State(InState)
+		, Message(InMessage)
+	{
+	}
+
+	bool IsValid() const;
+	const FRigElementKey& GetKey() const
+	{
+		return Key;
+	}
+	void SetInvalidTarget(const FText& InMessage);
+	void SetPossibleTarget(const FText& InMessage = FText());
+	void SetDefaultTarget(const FText& InMessage = FText());
+
+private:
+	
+	UPROPERTY()
+	FRigElementKey Key;
+
+	UPROPERTY()
+	ERigElementResolveState State;
+
+	UPROPERTY()
+	FText Message;
+
+	friend class UModularRigRuleManager;
+};
+
+UENUM()
+enum class EModularRigResolveState : uint8
+{
+	Success,
+	Error,
+
+	/** MAX - invalid */
+	Max UMETA(Hidden),
+};
+
+
+USTRUCT(BlueprintType)
+struct CONTROLRIG_API FModularRigResolveResult
+{
+	GENERATED_BODY()
+
+public:
+	
+	FModularRigResolveResult()
+		: State(EModularRigResolveState::Success)
+	{
+	}
+
+	bool IsValid() const;
+
+	EModularRigResolveState GetState() const
+	{
+		return State;
+	}
+
+	const FText& GetMessage() const
+	{
+		return Message;
+	}
+
+	const TArray<FRigElementResolveResult>& GetMatches() const
+	{
+		return Matches;
+	}
+
+	const TArray<FRigElementResolveResult>& GetExcluded() const
+	{
+		return Excluded;
+	}
+
+private:
+	
+	UPROPERTY()
+	TArray<FRigElementResolveResult> Matches;
+
+	UPROPERTY()
+	TArray<FRigElementResolveResult> Excluded;
+
+	UPROPERTY()
+	EModularRigResolveState State;
+
+	UPROPERTY()
+	FText Message;
+
+	friend class UModularRigRuleManager;
+};
