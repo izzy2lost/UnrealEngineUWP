@@ -20,6 +20,9 @@ namespace EpicGames.UBA
 
 		[DllImport("UbaHost", CharSet = CharSet.Auto)]
 		static extern void StorageServer_SaveCasTable(IntPtr server);
+
+		[DllImport("UbaHost", CharSet = CharSet.Auto)]
+		static extern void StorageServer_RegisterDisallowedPath(IntPtr server, string path);
 		#endregion
 
 		public StorageServerImpl(IServer server, ILogger logger, StorageServerCreateInfo info)
@@ -56,6 +59,8 @@ namespace EpicGames.UBA
 		public IntPtr GetHandle() => _handle;
 
 		public void SaveCasTable() => StorageServer_SaveCasTable(_handle);
+
+		public void RegisterDisallowedPath(string path) => StorageServer_RegisterDisallowedPath(_handle, path);
 		#endregion
 	}
 }

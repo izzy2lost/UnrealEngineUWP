@@ -56,6 +56,11 @@ namespace EpicGames.UBA
 		public abstract void SaveCasTable();
 
 		/// <summary>
+		/// Register disallowed paths for clients to download
+		/// </summary>
+		public abstract void RegisterDisallowedPath(string path);
+
+		/// <summary>
 		/// Create a IStorageServer object
 		/// </summary>
 		/// <param name="server">The server</param>
