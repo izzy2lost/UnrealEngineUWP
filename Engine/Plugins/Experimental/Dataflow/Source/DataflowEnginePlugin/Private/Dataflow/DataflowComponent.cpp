@@ -73,7 +73,9 @@ void UDataflowComponent::TickComponent(float DeltaTime, enum ELevelTick TickType
 			}
 		}
 
+		bBoundsNeedsUpdate = true;
 		UpdateLocalBounds();
+
 		bUpdateRender = false;
 		bNeedsSceneProxyUpdate = true;
 	}
@@ -95,7 +97,12 @@ void UDataflowComponent::UpdateLocalBounds()
 {
 	if (bBoundsNeedsUpdate)
 	{
-		GeometryCollection::Facades::FBoundsFacade(RenderCollection).UpdateBoundingBox();
+		GeometryCollection::Facades::FBoundsFacade BoundsFacade(RenderCollection);
+		BoundsFacade.DefineSchema();
+
+		BoundsFacade.UpdateBoundingBox();
+		BoundingBox = BoundsFacade.GetBoundingBoxInCollectionSpace();
+
 		bBoundsNeedsUpdate = false;
 	}
 }
