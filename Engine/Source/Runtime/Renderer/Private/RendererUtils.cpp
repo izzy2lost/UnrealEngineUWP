@@ -237,7 +237,7 @@ FPersistentBuffer::FPersistentBuffer(int32 InMinimumNumElementsReserved, const T
 {
 }
 
-FRDGBuffer* FPersistentBuffer::Register(FRDGBuilder& GraphBuilder) 
+FRDGBuffer* FPersistentBuffer::Register(FRDGBuilder& GraphBuilder) const
 { 
 	return GraphBuilder.RegisterExternalBuffer(PooledBuffer); 
 }

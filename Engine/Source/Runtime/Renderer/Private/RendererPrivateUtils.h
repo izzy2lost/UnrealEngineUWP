@@ -98,7 +98,7 @@ class FPersistentBuffer
 public:
 	FPersistentBuffer(int32 InMinimumNumElementsReserved, const TCHAR *InName, bool bInRoundUpToPOT = true);
 
-	FRDGBuffer* Register(FRDGBuilder& GraphBuilder);
+	FRDGBuffer* Register(FRDGBuilder& GraphBuilder) const;
 
 	void Empty();
 
