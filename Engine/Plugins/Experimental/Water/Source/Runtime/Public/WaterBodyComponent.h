@@ -218,6 +218,14 @@ public:
 	UFUNCTION(BlueprintCallable, Category = Rendering)
 	UMaterialInterface* GetWaterMaterial() const { return WaterMaterial; }
 
+	/** Returns river to lake transition water material */
+	UFUNCTION(BlueprintCallable, Category = Rendering)
+	virtual UMaterialInterface* GetRiverToLakeTransitionMaterial() const { return nullptr; }
+
+	/** Returns river to ocean transition water material */
+	UFUNCTION(BlueprintCallable, Category = Rendering)
+	virtual UMaterialInterface* GetRiverToOceanTransitionMaterial() const { return nullptr; }
+
 	/** Returns material used to render the water as a static mesh */
 	UMaterialInterface* GetWaterStaticMeshMaterial() const { return WaterStaticMeshMaterial; }
 

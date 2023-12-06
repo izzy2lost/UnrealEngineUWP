@@ -400,6 +400,16 @@ UMaterialInstanceDynamic* UWaterBodyRiverComponent::GetRiverToOceanTransitionMat
 	return OceanTransitionMID;
 }
 
+UMaterialInterface* UWaterBodyRiverComponent::GetRiverToLakeTransitionMaterial() const
+{
+	return LakeTransitionMaterial;
+}
+
+UMaterialInterface* UWaterBodyRiverComponent::GetRiverToOceanTransitionMaterial() const
+{
+	return OceanTransitionMaterial;
+}
+
 #if WITH_EDITOR
 TArray<UPrimitiveComponent*> UWaterBodyRiverComponent::GetBrushRenderableComponents() const
 {

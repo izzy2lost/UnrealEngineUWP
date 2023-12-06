@@ -113,6 +113,10 @@ private:
 	UPROPERTY(Transient, NonPIEDuplicateTransient, TextExportTransient)
 	TSet<TObjectPtr<UMaterialInterface>> UsedMaterials;
 
+	/** Maps from materials assigned to each water body to actually used MIDs. Persists across rebuilds in order to cache MIDs */
+	UPROPERTY(Transient, NonPIEDuplicateTransient, TextExportTransient)
+	TMap<TObjectPtr<UMaterialInterface>, TObjectPtr<UMaterialInstanceDynamic>> MaterialToMID;
+
 	/** Forces the water mesh to always render the far mesh, regardless if there is an ocean or not.*/
 	UPROPERTY(Category = "Rendering|FarDistance", EditAnywhere)
 	bool bUseFarMeshWithoutOcean = false;
