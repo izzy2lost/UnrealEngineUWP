@@ -115,6 +115,22 @@ protected:
 
 struct FProcHandle;
 
+/** Generic implementation of the per-process memory stats. */
+struct FPlatformProcessMemoryStats
+{
+	/** The amount of physical memory used by the process, in bytes. */
+	uint64 UsedPhysical;
+
+	/** The peak amount of physical memory used by the process, in bytes. */
+	uint64 PeakUsedPhysical;
+
+	/** Total amount of virtual memory used by the process, in bytes. */
+	uint64 UsedVirtual;
+
+	/** The peak amount of virtual memory used by the process, in bytes. */
+	uint64 PeakUsedVirtual;
+};
+
 /**
 * Generic implementation for most platforms, these tend to be unused and unimplemented
 **/
@@ -761,6 +777,11 @@ struct FGenericPlatformProcess
 	 * force skip calling FThreadStats::WaitForStats()
 	 */
 	static bool SkipWaitForStats() { return false; }
+
+	/**
+	 * Queries the memory usage of the process. Returns whether the operation is supported and succeeded.
+	 */
+	static CORE_API bool TryGetMemoryUsage(FProcHandle& ProcessHandle, FPlatformProcessMemoryStats& OutStats) { return false; }
 
 	/**
 	 * specifies the thread to use for UObject reference collection

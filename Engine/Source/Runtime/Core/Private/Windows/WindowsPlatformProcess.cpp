@@ -2343,6 +2343,22 @@ void FWindowsPlatformProcess::CeaseBeingFirstInstance()
 	WindowsPlatformProcess::ReleaseNamedMutex();
 }
 
+bool FWindowsPlatformProcess::TryGetMemoryUsage(FProcHandle& ProcessHandle, FPlatformProcessMemoryStats& OutStats)
+{
+	PROCESS_MEMORY_COUNTERS ProcessMemoryCounters;
+	FPlatformMemory::Memzero(&ProcessMemoryCounters, sizeof(ProcessMemoryCounters));
+	if (!::GetProcessMemoryInfo(ProcessHandle.Get(), &ProcessMemoryCounters, sizeof(ProcessMemoryCounters)))
+	{
+		UE_LOG(LogWindows, Warning, TEXT("Failure in call to GetProcessMemoryInfo (GetLastError=%d)"), ::GetLastError());
+		return false;
+	}
+	OutStats.UsedPhysical = ProcessMemoryCounters.WorkingSetSize;
+	OutStats.PeakUsedPhysical = ProcessMemoryCounters.PeakWorkingSetSize;
+	OutStats.UsedVirtual = ProcessMemoryCounters.PagefileUsage;
+	OutStats.PeakUsedVirtual = ProcessMemoryCounters.PeakPagefileUsage;
+	return true;
+}
+
 static bool InitShouldExpectLowIntegrityLevel()
 {
 	// Set default based on preprocessor flag, but the behavior can be overridden on the command line at runtime.

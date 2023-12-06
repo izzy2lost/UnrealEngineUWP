@@ -4051,6 +4051,38 @@ void FShaderCompileThreadRunnable::CompileDirectlyThroughDll()
 	}
 }
 
+void FShaderCompileThreadRunnable::PrintWorkerMemoryUsage()
+{
+	FScopeLock WorkerScopeLock(&WorkerInfosLock);
+	for (int32 Iter = 0, End = WorkerInfos.Num(); Iter < End; Iter++)
+	{
+		const TUniquePtr<FShaderCompileWorkerInfo>& WorkerInfo = WorkerInfos[Iter];
+		FProcHandle ProcHandle = WorkerInfo->WorkerProcess;
+		if (!ProcHandle.IsValid())
+		{
+			continue;
+		}
+		FPlatformProcessMemoryStats MemoryStats;
+		if (FPlatformProcess::TryGetMemoryUsage(ProcHandle, MemoryStats))
+		{
+			UE_LOG(LogShaderCompilers, Display,
+				TEXT("ShaderCompileWorker [%d/%d] MemoryStats:")
+				TEXT("\n\t     UsedPhysical %llu")
+				TEXT("\n\t PeakUsedPhysical %llu")
+				TEXT("\n\t      UsedVirtual %llu")
+				TEXT("\n\t  PeakUsedVirtual %llu"),
+				Iter,
+				End,
+				MemoryStats.UsedPhysical,
+				MemoryStats.PeakUsedPhysical,
+				MemoryStats.UsedVirtual,
+				MemoryStats.PeakUsedVirtual
+			);
+		}
+		LogQueuedCompileJobs(WorkerInfo->QueuedJobs, -1);
+	}
+}
+
 void FShaderCompileUtilities::ExecuteShaderCompileJob(FShaderCommonCompileJob& Job)
 {
 	TRACE_CPUPROFILER_EVENT_SCOPE(FShaderCompileUtilities::ExecuteShaderCompileJob);
@@ -5413,6 +5445,14 @@ IDistributedBuildController* FShaderCompilingManager::FindRemoteCompilerControll
 	return nullptr;
 }
 
+void FShaderCompilingManager::ReportMemoryUsage()
+{
+	for (const TUniquePtr<FShaderCompileThreadRunnableBase>& ThreadPtr : Threads)
+	{
+		ThreadPtr->PrintWorkerMemoryUsage();
+	}
+}
+
 FShaderCompilingManager::FShaderCompilingManager() :
 	bCompilingDuringGame(false),
 	NumExternalJobs(0),
@@ -5574,6 +5614,8 @@ FShaderCompilingManager::FShaderCompilingManager() :
 		Thread->StartThread();
 	}
 
+	OutOfMemoryDelegateHandle = FCoreDelegates::GetOutOfMemoryDelegate().AddRaw(this, &FShaderCompilingManager::ReportMemoryUsage);
+
 	FAssetCompilingManager::Get().RegisterManager(this);
 }
 
@@ -5590,6 +5632,8 @@ FShaderCompilingManager::~FShaderCompilingManager()
 		Thread->Stop();
 		Thread->WaitForCompletion();
 	}
+
+	FCoreDelegates::GetOutOfMemoryDelegate().Remove(OutOfMemoryDelegateHandle);
 
 	FAssetCompilingManager::Get().UnregisterManager(this);
 }

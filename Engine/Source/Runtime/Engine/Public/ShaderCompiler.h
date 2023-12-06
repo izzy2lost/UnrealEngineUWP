@@ -128,6 +128,8 @@ protected:
 	
 	TAtomic<bool> bForceFinish;
 
+	virtual void PrintWorkerMemoryUsage() {}
+
 public:
 	FShaderCompileThreadRunnableBase(class FShaderCompilingManager* InManager);
 	virtual ~FShaderCompileThreadRunnableBase()
@@ -183,6 +185,9 @@ public:
 	/** Initialization constructor. */
 	FShaderCompileThreadRunnable(class FShaderCompilingManager* InManager);
 	virtual ~FShaderCompileThreadRunnable();
+
+protected:
+	virtual void PrintWorkerMemoryUsage() override;
 
 private:
 
@@ -725,6 +730,9 @@ private:
 	/** Used to show a notification accompanying progress. */
 	TUniquePtr<FAsyncCompilationNotification> Notification;
 
+	/** Delegate handle for delegate used to report memory usage during out-of-memory conditions. */
+	FDelegateHandle OutOfMemoryDelegateHandle;
+
 	/** Calculate NumShaderCompilingThreads, during construction or OnMachineResourcesChanged */
 	void CalculateNumberOfCompilingThreads(int32 NumberOfCores, int32 NumberOfCoresIncludingHyperthreads);
 
@@ -760,6 +768,9 @@ private:
 
 	/** Returns the first remote compiler controller found */
 	IDistributedBuildController* FindRemoteCompilerController() const;
+
+	/** Prints out the memory usage for shader compile worker processes, if they exist. */
+	void ReportMemoryUsage();
 
 public:
 	
