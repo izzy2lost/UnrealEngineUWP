@@ -249,6 +249,9 @@ void UE::Interchange::FTaskImportObject_GameThread::DoTask(ENamedThreads::Type C
 #if INTERCHANGE_TRACE_ASYNCHRONOUS_TASK_ENABLED
 	INTERCHANGE_TRACE_ASYNCHRONOUS_TASK(TaskImportObject_GameThread)
 #endif
+
+	LLM_SCOPE_BYNAME(TEXT("Interchange"));
+
 	using namespace UE::Interchange;
 
 	TSharedPtr<FImportAsyncHelper, ESPMode::ThreadSafe> AsyncHelper = WeakAsyncHelper.Pin();
@@ -525,6 +528,9 @@ void UE::Interchange::FTaskImportObject_Async::DoTask(ENamedThreads::Type Curren
 #if INTERCHANGE_TRACE_ASYNCHRONOUS_TASK_ENABLED
 	INTERCHANGE_TRACE_ASYNCHRONOUS_TASK(TaskImportObject_Async)
 #endif
+
+	LLM_SCOPE_BYNAME(TEXT("Interchange"));
+
 	using namespace UE::Interchange;
 
 	TSharedPtr<FImportAsyncHelper, ESPMode::ThreadSafe> AsyncHelper = WeakAsyncHelper.Pin();
@@ -548,6 +554,7 @@ void UE::Interchange::FTaskImportObject_Async::DoTask(ENamedThreads::Type Curren
 		, PackageBasePath
 		, [&Factory](UInterchangeFactoryBase::FImportAssetObjectParams& ImportAssetObjectParams)
 		{
+			LLM_SCOPE_BYNAME(TEXT("Interchange"));
 			return Factory->ImportAsset_Async(ImportAssetObjectParams);
 		});
 }
@@ -557,6 +564,9 @@ void UE::Interchange::FTaskImportObjectFinalize_GameThread::DoTask(ENamedThreads
 #if INTERCHANGE_TRACE_ASYNCHRONOUS_TASK_ENABLED
 	INTERCHANGE_TRACE_ASYNCHRONOUS_TASK(TaskImportObjectFinalize_GameThread)
 #endif
+
+	LLM_SCOPE_BYNAME(TEXT("Interchange"));
+
 	using namespace UE::Interchange;
 
 	TSharedPtr<FImportAsyncHelper, ESPMode::ThreadSafe> AsyncHelper = WeakAsyncHelper.Pin();
@@ -580,6 +590,7 @@ void UE::Interchange::FTaskImportObjectFinalize_GameThread::DoTask(ENamedThreads
 		, PackageBasePath
 		, [&Factory](UInterchangeFactoryBase::FImportAssetObjectParams& ImportAssetObjectParams)
 		{
+			LLM_SCOPE_BYNAME(TEXT("Interchange"));
 			return Factory->EndImportAsset_GameThread(ImportAssetObjectParams);
 		});
 

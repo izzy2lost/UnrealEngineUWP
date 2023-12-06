@@ -1199,6 +1199,9 @@ bool UInterchangeManager::CanReimport(const UObject* Object, TArray<FString>& Ou
 void UInterchangeManager::StartQueuedTasks(bool bCancelAllTasks /*= false*/)
 {
 	TRACE_CPUPROFILER_EVENT_SCOPE(UInterchangeManager::StartQueuedTasks)
+		
+	LLM_SCOPE_BYNAME(TEXT("Interchange"));
+
 	ensure(IsInterchangeImportEnabled());
 	if (!ensure(IsInGameThread()))
 	{
@@ -1412,6 +1415,9 @@ TTuple<UE::Interchange::FAssetImportResultRef, UE::Interchange::FSceneImportResu
 UInterchangeManager::ImportInternal(const FString& ContentPath, const UInterchangeSourceData* SourceData, const FImportAssetParameters& ImportAssetParameters, const UE::Interchange::EImportType ImportType)
 {
 	TRACE_CPUPROFILER_EVENT_SCOPE(UInterchangeManager::ImportInternal)
+	
+	LLM_SCOPE_BYNAME(TEXT("Interchange"));
+
 	ensure(IsInterchangeImportEnabled());
 	check(IsInGameThread());
 	static int32 GeneratedUniqueID = 0;
@@ -1620,6 +1626,7 @@ UInterchangeManager::ImportInternal(const FString& ContentPath, const UInterchan
 
 		auto TranslateSourceFile = [&AsyncHelper]()
 		{
+			LLM_SCOPE_BYNAME(TEXT("Interchange"));
 			FScopedSlowTask Progress(2.f, NSLOCTEXT("InterchangeManager", "TranslatingSourceFile...", "Translating source file..."));
 			Progress.MakeDialog();
 			Progress.EnterProgressFrame(1.f);

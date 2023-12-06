@@ -57,6 +57,8 @@ void SInterchangePipelineItem::Construct(
 	const TSharedRef<STableViewBase>& OwnerTable,
 	TSharedPtr<FInterchangePipelineItemType> InPipelineElement)
 {
+	LLM_SCOPE_BYNAME(TEXT("Interchange"));
+
 	PipelineElement = InPipelineElement;
 	TObjectPtr<UInterchangePipelineBase> PipelineElementPtr = PipelineElement->Pipeline;
 	check(PipelineElementPtr.Get());
@@ -373,6 +375,7 @@ TSharedRef<SBox> SInterchangePipelineConfigurationDialog::SpawnPipelineConfigura
 
 void SInterchangePipelineConfigurationDialog::Construct(const FArguments& InArgs)
 {
+	LLM_SCOPE_BYNAME(TEXT("Interchange"));
 	//Make sure there is a valid default value
 
 	OwnerWindow = InArgs._OwnerWindow;
@@ -791,6 +794,8 @@ FReply SInterchangePipelineConfigurationDialog::OnKeyDown(const FGeometry& MyGeo
 
 void SInterchangePipelineConfigurationDialog::RefreshStack(bool bStackSelectionChange)
 {
+	LLM_SCOPE_BYNAME(TEXT("Interchange"));
+
 	//Save current stack settings, we want the same settings when we will go back to the same stack
 	//When doing a reimport we do not want to save the setting because the context have special default
 	//value for some options like: (Import Materials, Import Textures...).

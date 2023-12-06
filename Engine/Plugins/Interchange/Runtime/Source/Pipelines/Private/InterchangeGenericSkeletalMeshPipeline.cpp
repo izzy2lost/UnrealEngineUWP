@@ -72,6 +72,7 @@ namespace UE::Interchange::SkeletalMeshGenericPipeline
 
 void UInterchangeGenericMeshPipeline::ExecutePreImportPipelineSkeletalMesh()
 {
+	LLM_SCOPE_BYNAME(TEXT("Interchange"));
 	check(CommonMeshesProperties.IsValid());
 	if (!bImportSkeletalMeshes)
 	{
@@ -567,6 +568,7 @@ void UInterchangeGenericMeshPipeline::PostImportSkeletalMesh(UObject* CreatedAss
 void UInterchangeGenericMeshPipeline::PostImportPhysicsAssetImport(UObject* CreatedAsset, const UInterchangeFactoryBaseNode* FactoryNode)
 {
 	TRACE_CPUPROFILER_EVENT_SCOPE(UInterchangeGenericMeshPipeline::PostImportPhysicsAssetImport);
+	LLM_SCOPE_BYNAME(TEXT("Interchange"));
 #if WITH_EDITOR
 	if (!bCreatePhysicsAsset || !BaseNodeContainer)
 	{

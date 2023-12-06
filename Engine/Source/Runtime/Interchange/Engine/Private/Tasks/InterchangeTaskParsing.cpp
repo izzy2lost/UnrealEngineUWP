@@ -93,6 +93,8 @@ void UE::Interchange::FTaskParsing::DoTask(ENamedThreads::Type CurrentThread, co
 #if INTERCHANGE_TRACE_ASYNCHRONOUS_TASK_ENABLED
 	INTERCHANGE_TRACE_ASYNCHRONOUS_TASK(ParsingGraph)
 #endif
+	LLM_SCOPE_BYNAME(TEXT("Interchange"));
+
 	FGCScopeGuard GCScopeGuard;
 
 	TSharedPtr<FImportAsyncHelper, ESPMode::ThreadSafe> AsyncHelper = WeakAsyncHelper.Pin();
@@ -240,6 +242,7 @@ void UE::Interchange::FTaskParsing::DoTask(ENamedThreads::Type CurrentThread, co
 	TSet<FString> CreatedTasksAssetNames; // Tracks for which asset name we have created a task so that we don't have 2 tasks for the same asset name
 	TFunction<FGraphEventRef(FTaskData&)> CreateTasksFromData = [this, &AsyncHelper, &RenameAssets, &CreatedTasksAssetNames](FTaskData& TaskData)
 	{
+		LLM_SCOPE_BYNAME(TEXT("Interchange"));
 		check(TaskData.Nodes.Num() == 1); //We expect 1 node per asset task
 
 		const int32 SourceIndex = TaskData.SourceIndex;
@@ -292,6 +295,7 @@ void UE::Interchange::FTaskParsing::DoTask(ENamedThreads::Type CurrentThread, co
 			if (ensureMsgf(!CreatedTasksAssetNames.Contains(AssetFullPath),
 				TEXT("Found multiple task data with the same asset name (%s). Only one will be executed."), *AssetFullPath))
 			{
+				LLM_SCOPE_BYNAME(TEXT("Interchange"));
 				FGraphEventArray ImportObjectTasksPrerequistes;
 				int32 BeginImportObjectTaskIndex = AsyncHelper->BeginImportObjectTasks.Add(
 					TGraphTask<FTaskImportObject_GameThread>::CreateTask(&(TaskData.Prerequisites)).ConstructAndDispatchWhenReady(AsyncHelper->ContentBasePath, SourceIndex, WeakAsyncHelper, FactoryNode, FactoryClass)

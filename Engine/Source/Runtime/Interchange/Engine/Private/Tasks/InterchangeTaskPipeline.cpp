@@ -27,6 +27,8 @@ void UE::Interchange::FTaskPipeline::DoTask(ENamedThreads::Type CurrentThread, c
 	INTERCHANGE_TRACE_ASYNCHRONOUS_TASK(PipelinePreImport)
 #endif
 
+	LLM_SCOPE_BYNAME(TEXT("Interchange"));
+
 	TOptional<FGCScopeGuard> GCScopeGuard;
 	if (!IsInGameThread())
 	{
@@ -62,6 +64,8 @@ void UE::Interchange::FTaskWaitAssetCompilation::DoTask(ENamedThreads::Type Curr
 #if INTERCHANGE_TRACE_ASYNCHRONOUS_TASK_ENABLED
 		INTERCHANGE_TRACE_ASYNCHRONOUS_TASK(WaitAssetCompilation)
 #endif
+	
+	LLM_SCOPE_BYNAME(TEXT("Interchange"));
 
 #if WITH_EDITOR
 
@@ -93,12 +97,14 @@ void UE::Interchange::FTaskWaitAssetCompilation::DoTask(ENamedThreads::Type Curr
 	//Make sure all assets compilation are done before calling the pipeline post import task, let other thread execute if assets are not compile yet and wait 50ms before a new query
 	FPlatformProcess::ConditionalSleep([&ImportedObjects]()
 		{
+			LLM_SCOPE_BYNAME(TEXT("Interchange"));
 			//Compilation status cannot be ask in async thread, query the compile status on the main thread with a small fast function
 			//This ensure we dont stall the main thread until all assets are compile.
 			bool bCompilationFinish = false;
 			Async(EAsyncExecution::TaskGraphMainThread, [&bCompilationFinish, &ImportedObjects]()
 				{
 					TRACE_CPUPROFILER_EVENT_SCOPE(UE::Interchange::FTaskWaitAssetCompilation::DoTask::IsCompilingLambda_GameThread);
+					LLM_SCOPE_BYNAME(TEXT("Interchange"));
 					//Make sure all asset compiling managers are up to date, In case the game thread is waiting for the import to finish (like automation test or synchronous import)
 					FAssetCompilingManager::Get().ProcessAsyncTasks();
 
@@ -136,6 +142,8 @@ void UE::Interchange::FTaskPipelinePostImport::DoTask(ENamedThreads::Type Curren
 #if INTERCHANGE_TRACE_ASYNCHRONOUS_TASK_ENABLED
 	INTERCHANGE_TRACE_ASYNCHRONOUS_TASK(PipelinePostImport)
 #endif
+
+	LLM_SCOPE_BYNAME(TEXT("Interchange"));
 
 	TOptional<FGCScopeGuard> GCScopeGuard;
 	if (!IsInGameThread())

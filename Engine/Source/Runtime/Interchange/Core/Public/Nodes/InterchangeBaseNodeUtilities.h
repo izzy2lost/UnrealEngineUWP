@@ -25,12 +25,16 @@ class TArrayAttributeHelper
 public:
 	~TArrayAttributeHelper()
 	{
+		LLM_SCOPE_BYNAME(TEXT("Interchange"));
+
 		Attributes = nullptr;
 		KeyCount = NAME_None;
 	}
 
 	void Initialize(const TSharedPtr<FAttributeStorage, ESPMode::ThreadSafe>& InAttributes, const FString& BaseKeyName)
 	{
+		LLM_SCOPE_BYNAME(TEXT("Interchange"));
+
 		check(InAttributes.IsValid());
 		Attributes = InAttributes;
 		KeyCount = BaseKeyName;
@@ -298,6 +302,8 @@ class TMapAttributeHelper
 public:
 	void Initialize(const TSharedRef<FAttributeStorage, ESPMode::ThreadSafe>& InAttributes, const FString& BaseKeyName)
 	{
+		LLM_SCOPE_BYNAME(TEXT("Interchange"));
+
 		Attributes = InAttributes;
 		FString BaseTryName = BaseKeyName;
 		FAttributeKey KeyCountKey(MoveTemp(BaseTryName));
@@ -484,6 +490,8 @@ public:
 
 	void RebuildCache()
 	{
+		LLM_SCOPE_BYNAME(TEXT("Interchange"));
+
 		TSharedPtr<FAttributeStorage, ESPMode::ThreadSafe> AttributesPtr = Attributes.Pin();
 		if (AttributesPtr.IsValid() && KeyCountHandle.IsValid())
 		{
