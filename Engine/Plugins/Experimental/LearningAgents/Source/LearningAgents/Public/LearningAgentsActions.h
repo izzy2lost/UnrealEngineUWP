@@ -3,409 +3,405 @@
 #pragma once
 
 #include "LearningArray.h"
-#include "LearningAgentsDebug.h"
-
-#include "Templates/SharedPointer.h"
-#include "UObject/Object.h"
+#include "LearningAction.h"
 
 #include "LearningAgentsActions.generated.h"
 
-namespace UE::Learning
+class ULearningAgentsActionSchema;
+class ULearningAgentsActionObject;
+struct FLearningAgentsActionSchemaElement;
+struct FLearningAgentsActionObjectElement;
+
+/** An element of an Action Schema */
+USTRUCT(BlueprintType)
+struct LEARNINGAGENTS_API FLearningAgentsActionSchemaElement
 {
-	struct FFeatureObject;
-	struct FFloatFeature;
-	struct FPlanarVelocityFeature;
-	struct FRotationVectorFeature;
-}
+	GENERATED_BODY()
 
-class ULearningAgentsInteractor;
+	UE::Learning::Action::FSchemaElement SchemaElement;
+};
 
-// For functions in this file, we are favoring having more verbose names such as "AddFloatAction" vs simply "Add" in 
-// order to keep it easy to find the correct function in blueprints.
+/** An element of an Action Object */
+USTRUCT(BlueprintType)
+struct LEARNINGAGENTS_API FLearningAgentsActionObjectElement
+{
+	GENERATED_BODY()
 
-//------------------------------------------------------------------
+	UE::Learning::Action::FObjectElement ObjectElement;
+};
+
+/** Comparison operator for Action Object Elements */
+bool operator==(const FLearningAgentsActionObjectElement& Lhs, const FLearningAgentsActionObjectElement& Rhs);
+
+/** Hashing operator for Action Object Elements */
+uint32 GetTypeHash(const FLearningAgentsActionObjectElement& Element);
+
+/** Enum Type representing either action A or action B */
+UENUM(BlueprintType)
+enum class ELearningAgentsEitherAction : uint8
+{
+	A,
+	B,
+};
+
+/** Enum Type representing either a Null action or some Valid action */
+UENUM(BlueprintType)
+enum class ELearningAgentsOptionalAction : uint8
+{
+	Null,
+	Valid,
+};
 
 /**
- * The base class for all actions. Actions define the outputs from your agents. Action getters are marked non-pure by
- * convention as many of them do non-trivial amounts of work that can cause performance issues when marked pure in 
- * blueprints.
+ * Action Schema
+ * 
+ * This object is used to construct a schema describing some structure of actions.
  */
-UCLASS(Abstract, BlueprintType)
-class LEARNINGAGENTS_API ULearningAgentsAction : public UObject
+UCLASS(BlueprintType)
+class LEARNINGAGENTS_API ULearningAgentsActionSchema : public UObject
 {
 	GENERATED_BODY()
 
 public:
 
-	/** Reference to the Interactor this action is associated with. */
-	UPROPERTY(VisibleAnywhere, Transient, Category = "LearningAgents")
-	TObjectPtr<ULearningAgentsInteractor> Interactor;
+	/** Gets the internal action schema object */
+	const UE::Learning::Action::FSchema& GetActionSchema() const;
+
+	/**
+	 * Validates that the given object matches the schema. Will log errors on objects that don't match.
+	 * 
+	 * @param SchemaElement			Schema Element
+	 * @param Object				Action Object
+	 * @param ObjectElement			Action Object Element
+	 * @returns						true if the object matches the schema
+	 */
+	UFUNCTION(BlueprintPure, Category = "LearningAgents")
+	bool ValidateObjectMatchesSchema(
+		const FLearningAgentsActionSchemaElement SchemaElement,
+		const ULearningAgentsActionObject* Object,
+		const FLearningAgentsActionObjectElement ObjectElement) const;
 
 public:
 
-	/** Initialize the internal state for a given maximum number of agents */
-	void Init(const int32 MaxAgentNum);
+	UFUNCTION(BlueprintPure, Category = "LearningAgents")
+	FLearningAgentsActionSchemaElement SpecifyNullAction(const FName Name = TEXT("Null"));
 
-	/**
-	 * Called whenever agents are added to the associated ULearningAgentsInteractor object.
-	 * @param AgentIds Array of agent ids which have been added
-	 */
-	virtual void OnAgentsAdded(const TArray<int32>& AgentIds);
+	UFUNCTION(BlueprintPure, Category = "LearningAgents")
+	FLearningAgentsActionSchemaElement SpecifyContinuousAction(const int32 Size, const FName Name = TEXT("Continuous"));
 
-	/**
-	 * Called whenever agents are removed from the associated ULearningAgentsInteractor object.
-	 * @param AgentIds Array of agent ids which have been removed
-	 */
-	virtual void OnAgentsRemoved(const TArray<int32>& AgentIds);
+	UFUNCTION(BlueprintPure, Category = "LearningAgents", meta=(AutoCreateRefTerm="PriorProbabilities"))
+	FLearningAgentsActionSchemaElement SpecifyExclusiveDiscreteAction(const int32 Size, const TArray<float>& PriorProbabilities, const FName Name = TEXT("DiscreteExclusive"));
+	FLearningAgentsActionSchemaElement SpecifyExclusiveDiscreteActionFromArrayView(const int32 Size, const TArrayView<const float> PriorProbabilities, const FName Name = TEXT("DiscreteExclusive"));
 
-	/**
-	 * Called whenever agents are reset on the associated ULearningAgentsInteractor object.
-	 * @param AgentIds Array of agent ids which have been reset
-	 */
-	virtual void OnAgentsReset(const TArray<int32>& AgentIds);
+	UFUNCTION(BlueprintPure, Category = "LearningAgents", meta = (AutoCreateRefTerm = "PriorProbabilities"))
+	FLearningAgentsActionSchemaElement SpecifyInclusiveDiscreteAction(const int32 Size, const TArray<float>& PriorProbabilities, const FName Name = TEXT("DiscreteInclusive"));
+	FLearningAgentsActionSchemaElement SpecifyInclusiveDiscreteActionFromArrayView(const int32 Size, const TArrayView<const float> PriorProbabilities, const FName Name = TEXT("DiscreteInclusive"));
 
-	/** Get the number of times an action has been got for the given agent id. */
-	uint64 GetAgentGetIteration(const int32 AgentId) const;
+	UFUNCTION(BlueprintPure, Category = "LearningAgents")
+	FLearningAgentsActionSchemaElement SpecifyStructAction(const TMap<FName, FLearningAgentsActionSchemaElement>& Elements, const FName Name = TEXT("Struct"));
 
-	/** Get the number of times an action has been set for the given agent id. */
-	uint64 GetAgentSetIteration(const int32 AgentId) const;
+	UFUNCTION(BlueprintPure, Category = "LearningAgents")
+	FLearningAgentsActionSchemaElement SpecifyStructActionFromArrays(const TArray<FName>& ElementNames, const TArray<FLearningAgentsActionSchemaElement>& Elements, const FName Name = TEXT("Struct"));
+	FLearningAgentsActionSchemaElement SpecifyStructActionFromArrayViews(const TArrayView<const FName> ElementNames, const TArrayView<const FLearningAgentsActionSchemaElement> Elements, const FName Name = TEXT("Struct"));
 
-public:
-#if UE_LEARNING_AGENTS_ENABLE_VISUAL_LOG
-	/** Color used to draw this action in the visual log */
-	FLinearColor VisualLogColor = FColor::Blue;
+	UFUNCTION(BlueprintPure, Category = "LearningAgents", meta = (AutoCreateRefTerm = "PriorProbabilities"))
+	FLearningAgentsActionSchemaElement SpecifyExclusiveUnionAction(const TMap<FName, FLearningAgentsActionSchemaElement>& Elements, const TMap<FName, float>& PriorProbabilities, const FName Name = TEXT("ExclusiveUnion"));
+	
+	UFUNCTION(BlueprintPure, Category = "LearningAgents", meta = (AutoCreateRefTerm = "PriorProbabilities"))
+	FLearningAgentsActionSchemaElement SpecifyExclusiveUnionActionFromArrays(const TArray<FName>& ElementNames, const TArray<FLearningAgentsActionSchemaElement>& Elements, const TArray<float>& PriorProbabilities, const FName Name = TEXT("ExclusiveUnion"));
+	FLearningAgentsActionSchemaElement SpecifyExclusiveUnionActionFromArrayViews(const TArrayView<const FName> ElementNames, const TArrayView<const FLearningAgentsActionSchemaElement> Elements, const TArrayView<const float> PriorProbabilities, const FName Name = TEXT("ExclusiveUnion"));
 
-	/** Describes this action to the visual logger for debugging purposes. */
-	virtual void VisualLog(const UE::Learning::FIndexSet Instances) const {}
-#endif
+	UFUNCTION(BlueprintPure, Category = "LearningAgents", meta = (AutoCreateRefTerm = "PriorProbabilities"))
+	FLearningAgentsActionSchemaElement SpecifyInclusiveUnionAction(const TMap<FName, FLearningAgentsActionSchemaElement>& Elements, const TMap<FName, float>& PriorProbabilities, const FName Name = TEXT("InclusiveUnion"));
+	
+	UFUNCTION(BlueprintPure, Category = "LearningAgents", meta = (AutoCreateRefTerm = "PriorProbabilities"))
+	FLearningAgentsActionSchemaElement SpecifyInclusiveUnionActionFromArrays(const TArray<FName> ElementNames, const TArray<FLearningAgentsActionSchemaElement>& Elements, const TArray<float>& PriorProbabilities, const FName Name = TEXT("InclusiveUnion"));
+	FLearningAgentsActionSchemaElement SpecifyInclusiveUnionActionFromArrayViews(const TArrayView<const FName> ElementNames, const TArrayView<const FLearningAgentsActionSchemaElement> Elements, const TArrayView<const float> PriorProbabilities, const FName Name = TEXT("InclusiveUnion"));
 
-protected:
+	UFUNCTION(BlueprintPure, Category = "LearningAgents")
+	FLearningAgentsActionSchemaElement SpecifyStaticArrayAction(const FLearningAgentsActionSchemaElement Element, const int32 Num, const FName Name = TEXT("StaticArray"));
 
-	/** Number of times this action has been got for all agents */
-	TLearningArray<1, uint64, TInlineAllocator<32>> AgentGetIteration;
+	UFUNCTION(BlueprintPure, Category = "LearningAgents")
+	FLearningAgentsActionSchemaElement SpecifyPairAction(const FLearningAgentsActionSchemaElement Key, const FLearningAgentsActionSchemaElement Value, const FName Name = TEXT("Pair"));
 
-	/** Number of times this action has been set for all agents */
-	TLearningArray<1, uint64, TInlineAllocator<32>> AgentSetIteration;
+	UFUNCTION(BlueprintPure, Category = "LearningAgents", meta = (AutoCreateRefTerm = "PriorProbabilities"))
+	FLearningAgentsActionSchemaElement SpecifyEnumAction(const UEnum* Enum, const TMap<uint8, float>& PriorProbabilities, const FName Name = TEXT("Enum"));
+
+	UFUNCTION(BlueprintPure, Category = "LearningAgents", meta = (AutoCreateRefTerm = "PriorProbabilities"))
+	FLearningAgentsActionSchemaElement SpecifyEnumActionFromArray(const UEnum* Enum, const TArray<float>& PriorProbabilities, const FName Name = TEXT("Enum"));
+	FLearningAgentsActionSchemaElement SpecifyEnumActionFromArrayView(const UEnum* Enum, const TArrayView<const float> PriorProbabilities, const FName Name = TEXT("Enum"));
+
+	UFUNCTION(BlueprintPure, Category = "LearningAgents", meta = (AutoCreateRefTerm = "PriorProbabilities"))
+	FLearningAgentsActionSchemaElement SpecifyBitmaskAction(const UEnum* Enum, const TMap<uint8, float>& PriorProbabilities, const FName Name = TEXT("Bitmask"));
+
+	UFUNCTION(BlueprintPure, Category = "LearningAgents", meta = (AutoCreateRefTerm = "PriorProbabilities"))
+	FLearningAgentsActionSchemaElement SpecifyBitmaskActionFromArray(const UEnum* Enum, const TArray<float>& PriorProbabilities, const FName Name = TEXT("Bitmask"));
+	FLearningAgentsActionSchemaElement SpecifyBitmaskActionFromArrayView(const UEnum* Enum, const TArrayView<const float> PriorProbabilities, const FName Name = TEXT("Bitmask"));
+
+	UFUNCTION(BlueprintPure, Category = "LearningAgents")
+	FLearningAgentsActionSchemaElement SpecifyOptionalAction(const FLearningAgentsActionSchemaElement Element, const float PriorProbability = 0.5f, const FName Name = TEXT("Optional"));
+
+	UFUNCTION(BlueprintPure, Category = "LearningAgents")
+	FLearningAgentsActionSchemaElement SpecifyEitherAction(const FLearningAgentsActionSchemaElement A, const FLearningAgentsActionSchemaElement B, const float PriorProbabilityOfA = 0.5f, const FName Name = TEXT("Either"));
+
+	UFUNCTION(BlueprintPure, Category = "LearningAgents")
+	FLearningAgentsActionSchemaElement SpecifyEncodingAction(const FLearningAgentsActionSchemaElement Element, const int32 EncodingSize = 128, const FName Name = TEXT("Encoding"));
+
+	UFUNCTION(BlueprintPure, Category = "LearningAgents")
+	FLearningAgentsActionSchemaElement SpecifyBoolAction(const float PriorProbability = 0.5f, const FName Name = TEXT("Bool"));
+
+	UFUNCTION(BlueprintPure, Category = "LearningAgents")
+	FLearningAgentsActionSchemaElement SpecifyFloatAction(const FName Name = TEXT("Float"));
+
+	UFUNCTION(BlueprintPure, Category = "LearningAgents")
+	FLearningAgentsActionSchemaElement SpecifyTranslationAction(const FName Name = TEXT("Translation"));
+
+	UFUNCTION(BlueprintPure, Category = "LearningAgents")
+	FLearningAgentsActionSchemaElement SpecifyRotationAction(const FName Name = TEXT("Rotation"));
+
+	UFUNCTION(BlueprintPure, Category = "LearningAgents")
+	FLearningAgentsActionSchemaElement SpecifyScaleAction(const FName Name = TEXT("Scale"));
+
+	UFUNCTION(BlueprintPure, Category = "LearningAgents")
+	FLearningAgentsActionSchemaElement SpecifyTransformAction(const FName Name = TEXT("Transform"));
+
+	UFUNCTION(BlueprintPure, Category = "LearningAgents")
+	FLearningAgentsActionSchemaElement SpecifyAngleAction(const FName Name = TEXT("Angle"));
+
+	UFUNCTION(BlueprintPure, Category = "LearningAgents")
+	FLearningAgentsActionSchemaElement SpecifyVelocityAction(const FName Name = TEXT("Velocity"));
+
+	UFUNCTION(BlueprintPure, Category = "LearningAgents")
+	FLearningAgentsActionSchemaElement SpecifySpeedAction(const FName Name = TEXT("Speed"));
+
+private:
+
+	UE::Learning::Action::FSchema ActionSchema;
 };
 
-//------------------------------------------------------------------
-
-/** A simple float action. Used as a catch-all for situations where a more type-specific action does not exist yet. */
-UCLASS()
-class LEARNINGAGENTS_API UFloatAction : public ULearningAgentsAction
+/**
+ * Action Object
+ *
+ * This object is used to construct or get the values of actions.
+ */
+UCLASS(BlueprintType)
+class LEARNINGAGENTS_API ULearningAgentsActionObject : public UObject
 {
 	GENERATED_BODY()
 
 public:
 
-	/**
-	 * Adds a new float action to the given agent interactor. Call during ULearningAgentsInteractor::SetupActions event.
-	 * @param InInteractor The agent interactor to add this action to.
-	 * @param Name The name of this new action. Used for debugging.
-	 * @param Scale Used to normalize the data for the action.
-	 * @return The newly created action.
-	 */
-	UFUNCTION(BlueprintCallable, Category = "LearningAgents", meta = (DefaultToSelf = "InInteractor"))
-	static UFloatAction* AddFloatAction(ULearningAgentsInteractor* InInteractor, const FName Name = NAME_None, const float Scale = 1.0f);
+	/** Gets the internal action object */
+	const UE::Learning::Action::FObject& GetActionObject() const;
 
-	/**
-	 * Gets the data for this action. Call during ULearningAgentsInteractor::GetActions event.
-	 * @param AgentId The agent id to get data for.
-	 * @return The current action value.
-	 */
-	UFUNCTION(BlueprintCallable, Category = "LearningAgents", meta = (AgentId = "-1"))
-	float GetFloatAction(const int32 AgentId);
-
-	/**
-	 * Sets the data for this action. Call during ULearningAgentsController::SetActions event.
-	 * @param AgentId The agent id to set data for.
-	 * @param Value The current action value.
-	 */	
-	UFUNCTION(BlueprintCallable, Category = "LearningAgents", meta = (AgentId = "-1"))
-	void SetFloatAction(const int32 AgentId, const float Value);
-
-#if UE_LEARNING_AGENTS_ENABLE_VISUAL_LOG
-	/** Describes this action to the visual logger for debugging purposes. */
-	virtual void VisualLog(const UE::Learning::FIndexSet Instances) const override;
-#endif
-
-	TSharedPtr<UE::Learning::FFloatFeature> FeatureObject;
-};
-
-/** A simple float array action. Used as a catch-all for situations where a more type-specific action does not exist yet. */
-UCLASS()
-class LEARNINGAGENTS_API UFloatArrayAction : public ULearningAgentsAction
-{
-	GENERATED_BODY()
+	/** Gets the internal action object */
+	UE::Learning::Action::FObject& GetActionObject();
 
 public:
 
-	/**
-	 * Adds a new float array action to the given agent interactor. Call during ULearningAgentsInteractor::SetupActions event.
-	 * @param InInteractor The agent interactor to add this action to.
-	 * @param Name The name of this new action. Used for debugging.
-	 * @param Num The number of floats in the array
-	 * @param Scale Used to normalize the data for the action.
-	 * @return The newly created action.
-	 */
-	UFUNCTION(BlueprintCallable, Category = "LearningAgents", meta = (DefaultToSelf = "InInteractor"))
-	static UFloatArrayAction* AddFloatArrayAction(ULearningAgentsInteractor* InInteractor, const FName Name = NAME_None, const int32 Num = 1, const float Scale = 1.0f);
-
-	/**
-	 * Gets the data for this action. Call during ULearningAgentsInteractor::GetActions event.
-	 * @param AgentId The agent id to get data for.
-	 * @param OutValues The output array of floats
-	 */
-	UFUNCTION(BlueprintCallable, Category = "LearningAgents", meta = (AgentId = "-1"))
-	void GetFloatArrayAction(const int32 AgentId, TArray<float>& OutValues);
-
-	/**
-	 * Sets the data for this action. Call during ULearningAgentsController::SetActions event.
-	 * @param AgentId The agent id to set data for.
-	 * @param Values The current action values.
-	 */
-	UFUNCTION(BlueprintCallable, Category = "LearningAgents", meta = (AgentId = "-1"))
-	void SetFloatArrayAction(const int32 AgentId, const TArray<float>& Values);
-
-#if UE_LEARNING_AGENTS_ENABLE_VISUAL_LOG
-	/** Describes this action to the visual logger for debugging purposes. */
-	virtual void VisualLog(const UE::Learning::FIndexSet Instances) const override;
-#endif
-
-	TSharedPtr<UE::Learning::FFloatFeature> FeatureObject;
-};
-
-//------------------------------------------------------------------
-
-/** A simple FVector action. */
-UCLASS()
-class LEARNINGAGENTS_API UVectorAction : public ULearningAgentsAction
-{
-	GENERATED_BODY()
+	UFUNCTION(BlueprintPure = false, Category = "LearningAgents")
+	void LogAction(const FLearningAgentsActionObjectElement Element);
 
 public:
 
-	/**
-	 * Adds a new vector action to the given agent interactor. Call during ULearningAgentsInteractor::SetupActions event.
-	 * @param InInteractor The agent interactor to add this action to.
-	 * @param Name The name of this new action. Used for debugging.
-	 * @param Scale Used to normalize the data for the action.
-	 * @return The newly created action.
-	 */
-	UFUNCTION(BlueprintCallable, Category = "LearningAgents", meta = (DefaultToSelf = "InInteractor"))
-	static UVectorAction* AddVectorAction(ULearningAgentsInteractor* InInteractor, const FName Name = NAME_None, const float Scale = 1.0f);
+	UFUNCTION(BlueprintPure, Category = "LearningAgents")
+	FLearningAgentsActionObjectElement MakeNullAction(const FName Name = TEXT("Null"));
 
-	/**
-	 * Gets the data for this action. Call during ULearningAgentsInteractor::GetActions event.
-	 * @param AgentId The agent id to get data for.
-	 * @return The current action values.
-	 */
-	UFUNCTION(BlueprintCallable, Category = "LearningAgents", meta = (AgentId = "-1"))
-	FVector GetVectorAction(const int32 AgentId);
+	UFUNCTION(BlueprintPure, Category = "LearningAgents")
+	FLearningAgentsActionObjectElement MakeContinuousAction(const TArray<float>& Values, const FName Name = TEXT("Continuous"));
+	FLearningAgentsActionObjectElement MakeContinuousActionFromArrayView(const TArrayView<const float> Values, const FName Name = TEXT("Continuous"));
 
-	/**
-	 * Sets the data for this action. Call during ULearningAgentsController::SetActions event.
-	 * @param AgentId The agent id to set data for.
-	 * @param Value The current action values.
-	 */
-	UFUNCTION(BlueprintCallable, Category = "LearningAgents", meta = (AgentId = "-1"))
-	void SetVectorAction(const int32 AgentId, const FVector Value);
+	UFUNCTION(BlueprintPure, Category = "LearningAgents")
+	FLearningAgentsActionObjectElement MakeExclusiveDiscreteAction(const int32 Index, const FName Name = TEXT("DiscreteExclusive"));
 
-#if UE_LEARNING_AGENTS_ENABLE_VISUAL_LOG
-	/** Describes this action to the visual logger for debugging purposes. */
-	virtual void VisualLog(const UE::Learning::FIndexSet Instances) const override;
-#endif
+	UFUNCTION(BlueprintPure, Category = "LearningAgents")
+	FLearningAgentsActionObjectElement MakeInclusiveDiscreteAction(const TArray<int32>& Indices, const FName Name = TEXT("DiscreteInclusive"));
+	FLearningAgentsActionObjectElement MakeInclusiveDiscreteActionFromArrayView(const TArrayView<const int32> Indices, const FName Name = TEXT("DiscreteInclusive"));
 
-	TSharedPtr<UE::Learning::FFloatFeature> FeatureObject;
-};
+	UFUNCTION(BlueprintPure, Category = "LearningAgents")
+	FLearningAgentsActionObjectElement MakeStructAction(const TMap<FName, FLearningAgentsActionObjectElement>& Elements, const FName Name = TEXT("Struct"));
+	
+	UFUNCTION(BlueprintPure, Category = "LearningAgents")
+	FLearningAgentsActionObjectElement MakeStructActionFromArrays(const TArray<FName>& ElementNames, const TArray<FLearningAgentsActionObjectElement>& Elements, const FName Name = TEXT("Struct"));
+	FLearningAgentsActionObjectElement MakeStructActionFromArrayViews(const TArrayView<const FName> ElementNames, const TArrayView<const FLearningAgentsActionObjectElement> Elements, const FName Name = TEXT("Struct"));
 
-/** A simple array of FVector action. */
-UCLASS()
-class LEARNINGAGENTS_API UVectorArrayAction : public ULearningAgentsAction
-{
-	GENERATED_BODY()
+	UFUNCTION(BlueprintPure, Category = "LearningAgents")
+	FLearningAgentsActionObjectElement MakeExclusiveUnionAction(const FName ElementName, const FLearningAgentsActionObjectElement Element, const FName Name = TEXT("ExclusiveUnion"));
 
-public:
+	UFUNCTION(BlueprintPure, Category = "LearningAgents")
+	FLearningAgentsActionObjectElement MakeInclusiveUnionAction(const TMap<FName, FLearningAgentsActionObjectElement>& Elements, const FName Name = TEXT("InclusiveUnion"));
 
-	/**
-	 * Adds a new vector action to the given agent interactor. Call during ULearningAgentsInteractor::SetupActions event.
-	 * @param InInteractor The agent interactor to add this action to.
-	 * @param Name The name of this new action. Used for debugging.
-	 * @param Num The number of vectors in the array
-	 * @param Scale Used to normalize the data for the action.
-	 * @return The newly created action.
-	 */
-	UFUNCTION(BlueprintCallable, Category = "LearningAgents", meta = (DefaultToSelf = "InInteractor"))
-	static UVectorArrayAction* AddVectorArrayAction(ULearningAgentsInteractor* InInteractor, const FName Name = NAME_None, const int32 Num = 1, const float Scale = 1.0f);
+	UFUNCTION(BlueprintPure, Category = "LearningAgents")
+	FLearningAgentsActionObjectElement MakeInclusiveUnionActionFromArrays(const TArray<FName>& ElementNames, const TArray<FLearningAgentsActionObjectElement>& Elements, const FName Name = TEXT("InclusiveUnion"));
+	FLearningAgentsActionObjectElement MakeInclusiveUnionActionFromArrayViews(const TArrayView<const FName> ElementNames, const TArrayView<const FLearningAgentsActionObjectElement> Elements, const FName Name = TEXT("InclusiveUnion"));
 
-	/**
-	 * Gets the data for this action. Call during ULearningAgentsInteractor::GetActions event.
-	 * @param AgentId The agent id to get data for.
-	 * @param OutVectors The current action values.
-	 */
-	UFUNCTION(BlueprintCallable, Category = "LearningAgents", meta = (AgentId = "-1"))
-	void GetVectorArrayAction(const int32 AgentId, TArray<FVector>& OutVectors);
+	UFUNCTION(BlueprintPure, Category = "LearningAgents")
+	FLearningAgentsActionObjectElement MakeStaticArrayAction(const TArray<FLearningAgentsActionObjectElement>& Elements, const FName Name = TEXT("StaticArray"));
+	FLearningAgentsActionObjectElement MakeStaticArrayActionFromArrayView(const TArrayView<const FLearningAgentsActionObjectElement> Elements, const FName Name = TEXT("StaticArray"));
 
-	/**
-	 * Sets the data for this action. Call during ULearningAgentsController::SetActions event.
-	 * @param AgentId The agent id to set data for.
-	 * @param Vectors The current action values.
-	 */
-	UFUNCTION(BlueprintCallable, Category = "LearningAgents", meta = (AgentId = "-1"))
-	void SetVectorArrayAction(const int32 AgentId, const TArray<FVector>& Vectors);
+	UFUNCTION(BlueprintPure, Category = "LearningAgents")
+	FLearningAgentsActionObjectElement MakePairAction(const FLearningAgentsActionObjectElement Key, const FLearningAgentsActionObjectElement Value, const FName Name = TEXT("Pair"));
 
-#if UE_LEARNING_AGENTS_ENABLE_VISUAL_LOG
-	/** Describes this action to the visual logger for debugging purposes. */
-	virtual void VisualLog(const UE::Learning::FIndexSet Instances) const override;
-#endif
+	UFUNCTION(BlueprintPure, Category = "LearningAgents")
+	FLearningAgentsActionObjectElement MakeEnumAction(const UEnum* Enum, const uint8 EnumValue, const FName Name = TEXT("Enum"));
 
-	TSharedPtr<UE::Learning::FFloatFeature> FeatureObject;
-};
+	UFUNCTION(BlueprintPure, Category = "LearningAgents")
+	FLearningAgentsActionObjectElement MakeBitmaskAction(const UEnum* Enum, const int32 BitmaskValue, const FName Name = TEXT("Bitmask"));
 
-//------------------------------------------------------------------
+	UFUNCTION(BlueprintPure, Category = "LearningAgents")
+	FLearningAgentsActionObjectElement MakeOptionalAction(const FLearningAgentsActionObjectElement Element, const ELearningAgentsOptionalAction Option, const FName Name = TEXT("Optional"));
 
-/** A planar velocity action. */
-UCLASS()
-class LEARNINGAGENTS_API UPlanarVelocityAction : public ULearningAgentsAction
-{
-	GENERATED_BODY()
+	UFUNCTION(BlueprintPure, Category = "LearningAgents")
+	FLearningAgentsActionObjectElement MakeOptionalNullAction(const FName Name = TEXT("Optional"));
 
-public:
+	UFUNCTION(BlueprintPure, Category = "LearningAgents")
+	FLearningAgentsActionObjectElement MakeOptionalValidAction(const FLearningAgentsActionObjectElement Element, const FName Name = TEXT("Optional"));
 
-	/**
-	 * Adds a new planar velocity action to the given agent interactor. The axis parameters define the plane.
-	 * Call during ULearningAgentsInteractor::SetupActions event.
-	 * @param InInteractor The agent interactor to add this action to.
-	 * @param Name The name of this new action. Used for debugging.
-	 * @param Scale Used to normalize the data for the action.
-	 * @param Axis0 The forward axis of the plane.
-	 * @param Axis1 The right axis of the plane.
-	 * @return The newly created action.
-	 */
-	UFUNCTION(BlueprintCallable, Category = "LearningAgents", meta = (DefaultToSelf = "InInteractor"))
-	static UPlanarVelocityAction* AddPlanarVelocityAction(ULearningAgentsInteractor* InInteractor, const FName Name = NAME_None, const float Scale = 200.0f, const FVector Axis0 = FVector::ForwardVector, const FVector Axis1 = FVector::RightVector);
+	UFUNCTION(BlueprintPure, Category = "LearningAgents")
+	FLearningAgentsActionObjectElement MakeEitherAction(const FLearningAgentsActionObjectElement Element, const ELearningAgentsEitherAction Either, const FName Name = TEXT("Either"));
 
-	/**
-	 * Gets the data for this action. Call during ULearningAgentsInteractor::GetActions event.
-	 * @param AgentId The agent id to get data for.
-	 * @return The current action value.
-	 */
-	UFUNCTION(BlueprintCallable, Category = "LearningAgents", meta = (AgentId = "-1"))
-	FVector GetPlanarVelocityAction(const int32 AgentId);
+	UFUNCTION(BlueprintPure, Category = "LearningAgents", meta = (DisplayName = "Make Either A Action"))
+	FLearningAgentsActionObjectElement MakeEitherAAction(const FLearningAgentsActionObjectElement A, const FName Name = TEXT("Either"));
 
-	/**
-	 * Sets the data for this action. Call during ULearningAgentsController::SetActions event.
-	 * @param AgentId The agent id this data corresponds to.
-	 * @param Velocity The velocity currently being observed.
-	 */
-	UFUNCTION(BlueprintCallable, Category = "LearningAgents", meta = (AgentId = "-1"))
-	void SetPlanarVelocityAction(const int32 AgentId, const FVector Velocity);
+	UFUNCTION(BlueprintPure, Category = "LearningAgents", meta = (DisplayName = "Make Either B Action"))
+	FLearningAgentsActionObjectElement MakeEitherBAction(const FLearningAgentsActionObjectElement B, const FName Name = TEXT("Either"));
 
-#if UE_LEARNING_AGENTS_ENABLE_VISUAL_LOG
-	/** Describes this action to the visual logger for debugging purposes. */
-	virtual void VisualLog(const UE::Learning::FIndexSet Instances) const override;
-#endif
+	UFUNCTION(BlueprintPure, Category = "LearningAgents")
+	FLearningAgentsActionObjectElement MakeEncodingAction(const FLearningAgentsActionObjectElement Element, const FName Name = TEXT("Encoding"));
 
-	TSharedPtr<UE::Learning::FPlanarVelocityFeature> FeatureObject;
-};
+	UFUNCTION(BlueprintPure, Category = "LearningAgents")
+	FLearningAgentsActionObjectElement MakeBoolAction(const bool bValue, const FName Name = TEXT("Bool"));
 
-/** A rotation action. */
-UCLASS()
-class LEARNINGAGENTS_API URotationAction : public ULearningAgentsAction
-{
-	GENERATED_BODY()
+	UFUNCTION(BlueprintPure, Category = "LearningAgents")
+	FLearningAgentsActionObjectElement MakeFloatAction(const float Value, const float FloatScale = 1.0f, const FName Name = TEXT("Float"));
+
+	UFUNCTION(BlueprintPure, Category = "LearningAgents")
+	FLearningAgentsActionObjectElement MakeTranslationAction(const FVector Translation, const FTransform RelativeTransform = FTransform(), const float TranslationScale = 100.0f, const FName Name = TEXT("Translation"));
+
+	UFUNCTION(BlueprintPure, Category = "LearningAgents")
+	FLearningAgentsActionObjectElement MakeRotationAction(const FRotator Rotation, const FRotator RelativeRotation = FRotator::ZeroRotator, const float RotationScale = 90.0f, const FName Name = TEXT("Rotation"));
+	FLearningAgentsActionObjectElement MakeRotationActionFromQuat(const FQuat Rotation, const FQuat RelativeRotation = FQuat::Identity, const float RotationScale = 90.0f, const FName Name = TEXT("Rotation"));
+
+	UFUNCTION(BlueprintPure, Category = "LearningAgents")
+	FLearningAgentsActionObjectElement MakeScaleAction(const FVector Scale, const FVector RelativeScale = FVector(1,1,1), const FName Name = TEXT("Scale"));
+
+	UFUNCTION(BlueprintPure, Category = "LearningAgents")
+	FLearningAgentsActionObjectElement MakeTransformAction(const FTransform Transform, const FTransform RelativeTransform = FTransform(), const float TranslationScale = 100.0f, const FName Name = TEXT("Transform"));
+
+	UFUNCTION(BlueprintPure, Category = "LearningAgents")
+	FLearningAgentsActionObjectElement MakeAngleAction(const float Angle, const float RelativeAngle = 0.0f, const float AngleScale = 90.0f, const FName Name = TEXT("Angle"));
+
+	UFUNCTION(BlueprintPure, Category = "LearningAgents")
+	FLearningAgentsActionObjectElement MakeAngleActionRadians(const float Angle, const float RelativeAngle = 0.0f, const float AngleScale = 1.57079632679f, const FName Name = TEXT("Angle"));
+
+	UFUNCTION(BlueprintPure, Category = "LearningAgents")
+	FLearningAgentsActionObjectElement MakeVelocityAction(const FVector Velocity, const FTransform RelativeTransform = FTransform(), const float VelocityScale = 200.0f, const FName Name = TEXT("Velocity"));
+
+	UFUNCTION(BlueprintPure, Category = "LearningAgents")
+	FLearningAgentsActionObjectElement MakeSpeedAction(const float Speed, const float SpeedScale = 200.0f, const FName Name = TEXT("Speed"));
 
 public:
 
-	/**
-	 * Adds a new rotation action to the given agent interactor. Call during ULearningAgentsInteractor::SetupActions event.
-	 * @param InInteractor The agent interactor to add this action to.
-	 * @param Name The name of this new action. Used for debugging.
-	 * @param Scale Used to normalize the data for the action.
-	 * @return The newly created action.
-	 */
-	UFUNCTION(BlueprintCallable, Category = "LearningAgents", meta = (DefaultToSelf = "InInteractor"))
-	static URotationAction* AddRotationAction(ULearningAgentsInteractor* InInteractor, const FName Name = NAME_None, const float Scale = 180.0f);
+	UFUNCTION(BlueprintPure = false, Category = "LearningAgents")
+	UPARAM(DisplayName = "Success") bool GetNullAction(const FLearningAgentsActionObjectElement Element, const FName Name = TEXT("Null")) const;
 
-	/**
-	 * Gets the data for this action as a rotator. Call during ULearningAgentsInteractor::GetActions event.
-	 * @param AgentId The agent id to get data for.
-	 * @return The current action value.
-	 */
-	UFUNCTION(BlueprintCallable, Category = "LearningAgents", meta = (AgentId = "-1"))
-	FRotator GetRotationAction(const int32 AgentId);
+	UFUNCTION(BlueprintPure = false, Category = "LearningAgents")
+	UPARAM(DisplayName = "Success") bool GetContinuousActionNum(int32& OutNum, const FLearningAgentsActionObjectElement Element, const FName Name = TEXT("Continuous")) const;
 
-	/**
-	 * Gets the data for this action as a rotation vector. Call during ULearningAgentsInteractor::GetActions event.
-	 * @param AgentId The agent id to get data for.
-	 * @return The current action value.
-	 */
-	UFUNCTION(BlueprintCallable, Category = "LearningAgents", meta = (AgentId = "-1"))
-	FVector GetRotationActionAsRotationVector(const int32 AgentId);
+	UFUNCTION(BlueprintPure = false, Category = "LearningAgents")
+	UPARAM(DisplayName = "Success") bool GetContinuousAction(TArray<float>& OutValues, const FLearningAgentsActionObjectElement Element, const FName Name = TEXT("Continuous")) const;
+	UPARAM(DisplayName = "Success") bool GetContinuousActionToArrayView(TArrayView<float> OutValues, const FLearningAgentsActionObjectElement Element, const FName Name = TEXT("Continuous")) const;
+	
+	UFUNCTION(BlueprintPure = false, Category = "LearningAgents")
+	UPARAM(DisplayName = "Success") bool GetExclusiveDiscreteAction(int32& OutIndex, const FLearningAgentsActionObjectElement Element, const FName Name = TEXT("DiscreteExclusive")) const;
 
-	/**
-	 * Gets the data for this action as a quaternion. Call during ULearningAgentsInteractor::GetActions event.
-	 * @param AgentId The agent id to get data for.
-	 * @return The current action value.
-	 */
-	UFUNCTION(BlueprintCallable, Category = "LearningAgents", meta = (AgentId = "-1"))
-	FQuat GetRotationActionAsQuat(const int32 AgentId);
+	UFUNCTION(BlueprintPure = false, Category = "LearningAgents")
+	UPARAM(DisplayName = "Success") bool GetInclusiveDiscreteActionNum(int32& OutNum, const FLearningAgentsActionObjectElement Element, const FName Name = TEXT("DiscreteInclusive")) const;
 
-#if UE_LEARNING_AGENTS_ENABLE_VISUAL_LOG
-	/** Describes this action to the visual logger for debugging purposes. */
-	virtual void VisualLog(const UE::Learning::FIndexSet Instances) const override;
-#endif
+	UFUNCTION(BlueprintPure = false, Category = "LearningAgents")
+	UPARAM(DisplayName = "Success") bool GetInclusiveDiscreteAction(TArray<int32>& OutIndices, const FLearningAgentsActionObjectElement Element, const FName Name = TEXT("DiscreteInclusive")) const;
+	UPARAM(DisplayName = "Success") bool GetInclusiveDiscreteActionToArrayView(TArrayView<int32> OutIndices, const FLearningAgentsActionObjectElement Element, const FName Name = TEXT("DiscreteInclusive")) const;
 
-	TSharedPtr<UE::Learning::FRotationVectorFeature> FeatureObject;
-};
+	UFUNCTION(BlueprintPure = false, Category = "LearningAgents")
+	UPARAM(DisplayName = "Success") bool GetStructActionNum(int32& OutNum, const FLearningAgentsActionObjectElement Element, const FName Name = TEXT("Struct")) const;
 
-/** An array of rotation actions. */
-UCLASS()
-class LEARNINGAGENTS_API URotationArrayAction : public ULearningAgentsAction
-{
-	GENERATED_BODY()
+	UFUNCTION(BlueprintPure = false, Category = "LearningAgents")
+	UPARAM(DisplayName = "Success") bool GetStructAction(TMap<FName, FLearningAgentsActionObjectElement>& OutElements, const FLearningAgentsActionObjectElement Element, const FName Name = TEXT("Struct")) const;
+	
+	UFUNCTION(BlueprintPure = false, Category = "LearningAgents")
+	UPARAM(DisplayName = "Success") bool GetStructActionToArrays(TArray<FName>& OutElementNames, TArray<FLearningAgentsActionObjectElement>& OutElements, const FLearningAgentsActionObjectElement Element, const FName Name = TEXT("Struct")) const;
+	UPARAM(DisplayName = "Success") bool GetStructActionToArrayViews(TArrayView<FName> OutElementNames, TArrayView<FLearningAgentsActionObjectElement> OutElements, const FLearningAgentsActionObjectElement Element, const FName Name = TEXT("Struct")) const;
 
-public:
+	UFUNCTION(BlueprintPure = false, Category = "LearningAgents")
+	UPARAM(DisplayName = "Success") bool GetExclusiveUnionAction(FName& OutElementName, FLearningAgentsActionObjectElement& OutElement, const FLearningAgentsActionObjectElement Element, const FName Name = TEXT("ExclusiveUnion")) const;
 
-	/**
-	 * Adds a new rotation array action to the given agent interactor. Call during ULearningAgentsInteractor::SetupActions event.
-	 * @param InInteractor The agent interactor to add this action to.
-	 * @param Name The name of this new action. Used for debugging.
-	 * @param RotationNum The number of rotations in the array.
-	 * @param Scale Used to normalize the data for the action.
-	 * @return The newly created action.
-	 */
-	UFUNCTION(BlueprintCallable, Category = "LearningAgents", meta = (DefaultToSelf = "InInteractor"))
-	static URotationArrayAction* AddRotationArrayAction(ULearningAgentsInteractor* InInteractor, const FName Name = NAME_None, const int32 RotationNum = 1, const float Scale = 180.0f);
+	UFUNCTION(BlueprintPure = false, Category = "LearningAgents")
+	UPARAM(DisplayName = "Success") bool GetInclusiveUnionActionNum(int32& OutNum, const FLearningAgentsActionObjectElement Element, const FName Name = TEXT("InclusiveUnion")) const;
 
-	/**
-	 * Gets the data for this action as rotators. Call during ULearningAgentsInteractor::GetActions event.
-	 * @param AgentId The agent id to get data for.
-	 * @param OutRotations The current action values.
-	 */
-	UFUNCTION(BlueprintCallable, Category = "LearningAgents", meta = (AgentId = "-1"))
-	void GetRotationArrayAction(const int32 AgentId, TArray<FRotator>& OutRotations);
+	UFUNCTION(BlueprintPure = false, Category = "LearningAgents")
+	UPARAM(DisplayName = "Success") bool GetInclusiveUnionAction(TMap<FName, FLearningAgentsActionObjectElement>& OutElements, const FLearningAgentsActionObjectElement Element, const FName Name = TEXT("InclusiveUnion")) const;
+	
+	UFUNCTION(BlueprintPure = false, Category = "LearningAgents")
+	UPARAM(DisplayName = "Success") bool GetInclusiveUnionActionToArrays(TArray<FName>& OutElementNames, TArray<FLearningAgentsActionObjectElement>& OutElements, const FLearningAgentsActionObjectElement Element, const FName Name = TEXT("InclusiveUnion")) const;
+	UPARAM(DisplayName = "Success") bool GetInclusiveUnionActionToArrayViews(TArrayView<FName> OutElementNames, TArrayView<FLearningAgentsActionObjectElement> OutElements, const FLearningAgentsActionObjectElement Element, const FName Name = TEXT("InclusiveUnion")) const;
 
-	/**
-	 * Gets the data for this action as rotation vectors. Call during ULearningAgentsInteractor::GetActions event.
-	 * @param AgentId The agent id to get data for.
-	 * @param OutRotationVectors The current action values.
-	 */
-	UFUNCTION(BlueprintCallable, Category = "LearningAgents", meta = (AgentId = "-1"))
-	void GetRotationArrayActionAsRotationVectors(const int32 AgentId, TArray<FVector>& OutRotationVectors);
+	UFUNCTION(BlueprintPure = false, Category = "LearningAgents")
+	UPARAM(DisplayName = "Success") bool GetStaticArrayActionNum(int32& OutNum, const FLearningAgentsActionObjectElement Element, const FName Name = TEXT("StaticArray")) const;
 
-	/**
-	 * Gets the data for this action as quaternions. Call during ULearningAgentsInteractor::GetActions event.
-	 * @param AgentId The agent id to get data for.
-	 * @param OutRotations The current action values.
-	 */
-	UFUNCTION(BlueprintCallable, Category = "LearningAgents", meta = (AgentId = "-1"))
-	void GetRotationArrayActionAsQuats(const int32 AgentId, TArray<FQuat>& OutRotations);
+	UFUNCTION(BlueprintPure = false, Category = "LearningAgents")
+	UPARAM(DisplayName = "Success") bool GetStaticArrayAction(TArray<FLearningAgentsActionObjectElement>& OutElements, const FLearningAgentsActionObjectElement Element, const FName Name = TEXT("StaticArray")) const;
+	UPARAM(DisplayName = "Success") bool GetStaticArrayActionToArrayView(TArrayView<FLearningAgentsActionObjectElement> OutElements, const FLearningAgentsActionObjectElement Element, const FName Name = TEXT("StaticArray")) const;
 
-#if UE_LEARNING_AGENTS_ENABLE_VISUAL_LOG
-	/** Describes this action to the visual logger for debugging purposes. */
-	virtual void VisualLog(const UE::Learning::FIndexSet Instances) const override;
-#endif
+	UFUNCTION(BlueprintPure = false, Category = "LearningAgents")
+	UPARAM(DisplayName = "Success") bool GetPairAction(FLearningAgentsActionObjectElement& OutKey, FLearningAgentsActionObjectElement& OutValue, const FLearningAgentsActionObjectElement Element, const FName Name = TEXT("Pair")) const;
 
-	TSharedPtr<UE::Learning::FRotationVectorFeature> FeatureObject;
+	UFUNCTION(BlueprintPure = false, Category = "LearningAgents")
+	UPARAM(DisplayName = "Success") bool GetEnumAction(uint8& OutEnumValue, const UEnum* Enum, const FLearningAgentsActionObjectElement Element, const FName Name = TEXT("Enum")) const;
+
+	UFUNCTION(BlueprintPure = false, Category = "LearningAgents")
+	UPARAM(DisplayName = "Success") bool GetBitmaskAction(int32& OutBitmaskValue, const UEnum* Enum, const FLearningAgentsActionObjectElement Element, const FName Name = TEXT("Bitmask")) const;
+
+	UFUNCTION(BlueprintPure = false, Category = "LearningAgents", meta = (ExpandEnumAsExecs = "OutOption"))
+	UPARAM(DisplayName = "Success") bool GetOptionalAction(ELearningAgentsOptionalAction& OutOption, FLearningAgentsActionObjectElement& OutElement, const FLearningAgentsActionObjectElement Element, const FName Name = TEXT("Optional")) const;
+	
+	UFUNCTION(BlueprintPure = false, Category = "LearningAgents", meta = (ExpandEnumAsExecs = "OutEither"))
+	UPARAM(DisplayName = "Success") bool GetEitherAction(ELearningAgentsEitherAction& OutEither, FLearningAgentsActionObjectElement& OutElement, const FLearningAgentsActionObjectElement Element, const FName Name = TEXT("Either")) const;
+
+	UFUNCTION(BlueprintPure = false, Category = "LearningAgents")
+	UPARAM(DisplayName = "Success") bool GetEncodingAction(FLearningAgentsActionObjectElement& OutElement, const FLearningAgentsActionObjectElement Element, const FName Name = TEXT("Encoding")) const;
+
+	UFUNCTION(BlueprintPure = false, Category = "LearningAgents")
+	UPARAM(DisplayName = "Success") bool GetBoolAction(bool& bOutValue, const FLearningAgentsActionObjectElement Element, const FName Name = TEXT("Bool")) const;
+
+	UFUNCTION(BlueprintPure = false, Category = "LearningAgents")
+	UPARAM(DisplayName = "Success") bool GetFloatAction(float& OutValue, const FLearningAgentsActionObjectElement Element, const float FloatScale = 1.0f, const FName Name = TEXT("Float")) const;
+
+	UFUNCTION(BlueprintPure = false, Category = "LearningAgents")
+	UPARAM(DisplayName = "Success") bool GetTranslationAction(FVector& OutTranslation, const FLearningAgentsActionObjectElement Element, const FTransform RelativeTransform = FTransform(), const float TranslationScale = 100.0f, const FName Name = TEXT("Translation")) const;
+
+	UFUNCTION(BlueprintPure = false, Category = "LearningAgents")
+	UPARAM(DisplayName = "Success") bool GetRotationAction(FRotator& OutRotation, const FLearningAgentsActionObjectElement Element, const FRotator RelativeRotation = FRotator::ZeroRotator, const float RotationScale = 90.0f, const FName Name = TEXT("Rotation")) const;
+	UPARAM(DisplayName = "Success") bool GetRotationActionAsQuat(FQuat& OutRotation, const FLearningAgentsActionObjectElement Element, const FQuat RelativeRotation = FQuat::Identity, const float RotationScale = 90.0f, const FName Name = TEXT("Rotation")) const;
+
+	UFUNCTION(BlueprintPure = false, Category = "LearningAgents")
+	UPARAM(DisplayName = "Success") bool GetScaleAction(FVector& OutScale, const FLearningAgentsActionObjectElement Element, const FVector RelativeScale = FVector(1,1,1), const float Scale = 1.0f, const FName Name = TEXT("Scale")) const;
+
+	UFUNCTION(BlueprintPure = false, Category = "LearningAgents")
+	UPARAM(DisplayName = "Success") bool GetTransformAction(FTransform& OutTransform, const FLearningAgentsActionObjectElement Element, const FTransform RelativeTransform = FTransform(), const float TranslationScale = 100.0f, const float RotationScale = 1.0f, const float ScaleScale = 1.0f, const FName Name = TEXT("Transform")) const;
+
+	UFUNCTION(BlueprintPure = false, Category = "LearningAgents")
+	UPARAM(DisplayName = "Success") bool GetAngleAction(float& OutAngle, const FLearningAgentsActionObjectElement Element, const float RelativeAngle = 0.0f, const float AngleScale = 90.0f, const FName Name = TEXT("Angle")) const;
+
+	UFUNCTION(BlueprintPure = false, Category = "LearningAgents")
+	UPARAM(DisplayName = "Success") bool GetAngleActionRadians(float& OutAngle, const FLearningAgentsActionObjectElement Element, const float RelativeAngle = 0.0f, const float AngleScale = 1.57079632679f, const FName Name = TEXT("Angle")) const;
+
+	UFUNCTION(BlueprintPure = false, Category = "LearningAgents")
+	UPARAM(DisplayName = "Success") bool GetVelocityAction(FVector& OutVelocity, const FLearningAgentsActionObjectElement Element, const FTransform RelativeTransform = FTransform(), const float VelocityScale = 200.0f, const FName Name = TEXT("Velocity")) const;
+
+	UFUNCTION(BlueprintPure = false, Category = "LearningAgents")
+	UPARAM(DisplayName = "Success") bool GetSpeedAction(float& OutSpeed, const FLearningAgentsActionObjectElement Element, const float SpeedScale = 200.0f, const FName Name = TEXT("Speed")) const;
+
+private:
+
+	UE::Learning::Action::FObject ActionObject;
 };

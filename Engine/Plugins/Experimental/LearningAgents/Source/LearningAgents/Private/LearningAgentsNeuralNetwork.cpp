@@ -2,8 +2,6 @@
 
 #include "LearningAgentsNeuralNetwork.h"
 
-#include "LearningAgentsNeuralNetworkData.h"
-
 #include "LearningLog.h"
 #include "LearningArray.h"
 #include "LearningNeuralNetwork.h"
@@ -17,8 +15,11 @@ ULearningAgentsNeuralNetwork::~ULearningAgentsNeuralNetwork() = default;
 
 void ULearningAgentsNeuralNetwork::ResetNetwork()
 {
-	NeuralNetworkData->ConditionalBeginDestroy();
-	NeuralNetworkData = nullptr;
+	if (NeuralNetworkData)
+	{
+		NeuralNetworkData->ConditionalBeginDestroy();
+		NeuralNetworkData = nullptr;
+	}
 	
 	ForceMarkDirty();
 }
@@ -29,38 +30,10 @@ void ULearningAgentsNeuralNetwork::LoadNetworkFromSnapshot(const FFilePath& File
 
 	if (FFileHelper::LoadFileToArray(NetworkData, *File.FilePath))
 	{
-		ULearningAgentsNeuralNetworkData* TempNeuralNetworkData = NewObject<ULearningAgentsNeuralNetworkData>(this);
-		int32 Offset = 0;
-		bool bSuccess = TempNeuralNetworkData->GetNetworkInterface()->DeserializeFromBytes(Offset, NetworkData);
-		
-		if (!bSuccess)
+		if (!NeuralNetworkData->LoadFromSnapshot(NetworkData))
 		{
 			UE_LOG(LogLearning, Error, TEXT("%s: Failed to load network. Invalid Format: \"%s\""), *GetName(), *File.FilePath);
 			return;
-		}
-		
-		NetworkData.Empty();
-
-		if (NeuralNetworkData)
-		{
-			// If we already have a neural network check settings match
-
-			if (TempNeuralNetworkData->GetNetworkInterface()->GetInputNum() != NeuralNetworkData->GetNetworkInterface()->GetInputNum() ||
-				TempNeuralNetworkData->GetNetworkInterface()->GetOutputNum() != NeuralNetworkData->GetNetworkInterface()->GetOutputNum())
-			{
-				UE_LOG(LogLearning, Error, TEXT("%s: Failed to load network from snapshot as settings don't match."), *GetName());
-				return;
-			}
-			else
-			{
-				NeuralNetworkData->CopyFrom(TempNeuralNetworkData);
-			}
-		}
-		else
-		{
-			// Otherwise use loaded neural network as-is
-
-			NeuralNetworkData = TempNeuralNetworkData;
 		}
 
 		ForceMarkDirty();
@@ -80,11 +53,8 @@ void ULearningAgentsNeuralNetwork::SaveNetworkToSnapshot(const FFilePath& File)
 	}
 
 	TArray<uint8> NetworkData;
-	NetworkData.SetNumUninitialized(NeuralNetworkData->GetNetworkInterface()->GetSerializationByteNum());
-
-	int32 Offset = 0;
-	NeuralNetworkData->GetNetworkInterface()->SerializeToBytes(Offset, NetworkData);
-	UE_LEARNING_CHECK(Offset == NetworkData.Num());
+	NetworkData.SetNumUninitialized(NeuralNetworkData->GetSnapshotByteNum());
+	NeuralNetworkData->SaveToSnapshot(NetworkData);
 
 	if (!FFileHelper::SaveArrayToFile(NetworkData, *File.FilePath))
 	{
@@ -106,21 +76,12 @@ void ULearningAgentsNeuralNetwork::LoadNetworkFromAsset(ULearningAgentsNeuralNet
 		return;
 	}
 
-	if (NeuralNetworkData)
+	if (!NeuralNetworkData)
 	{
-		if (NeuralNetworkAsset->NeuralNetworkData->GetNetworkInterface()->GetInputNum() != NeuralNetworkData->GetNetworkInterface()->GetInputNum() ||
-			NeuralNetworkAsset->NeuralNetworkData->GetNetworkInterface()->GetOutputNum() != NeuralNetworkData->GetNetworkInterface()->GetOutputNum())
-		{
-			UE_LOG(LogLearning, Error, TEXT("%s: Failed to load network from asset as settings don't match."), *GetName());
-			return;
-		}
-	}
-	else
-	{
-		NeuralNetworkData = NewObject<ULearningAgentsNeuralNetworkData>(this);
+		NeuralNetworkData = NewObject<ULearningNeuralNetworkData>(this);
 	}
 
-	NeuralNetworkData->CopyFrom(NeuralNetworkAsset->NeuralNetworkData);
+	NeuralNetworkData->InitFrom(NeuralNetworkAsset->NeuralNetworkData);
 	ForceMarkDirty();
 }
 
@@ -140,10 +101,10 @@ void ULearningAgentsNeuralNetwork::SaveNetworkToAsset(ULearningAgentsNeuralNetwo
 
 	if (!NeuralNetworkAsset->NeuralNetworkData)
 	{
-		NeuralNetworkAsset->NeuralNetworkData = NewObject<ULearningAgentsNeuralNetworkData>(NeuralNetworkAsset);
+		NeuralNetworkAsset->NeuralNetworkData = NewObject<ULearningNeuralNetworkData>(NeuralNetworkAsset);
 	}
 
-	NeuralNetworkAsset->NeuralNetworkData->CopyFrom(NeuralNetworkData);
+	NeuralNetworkAsset->NeuralNetworkData->InitFrom(NeuralNetworkData);
 	NeuralNetworkAsset->ForceMarkDirty();
 }
 

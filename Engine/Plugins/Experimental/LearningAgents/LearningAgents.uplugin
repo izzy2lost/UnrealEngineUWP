@@ -32,11 +32,6 @@
 			"LoadingPhase": "Default"
 		},
 		{
-			"Name": "LearningAgentsEditor",
-			"Type": "Editor",
-			"LoadingPhase": "PostEngineInit"
-		},
-		{
 			"Name": "LearningAgentsTraining",
 			"Type": "Runtime",
 			"LoadingPhase": "Default"
