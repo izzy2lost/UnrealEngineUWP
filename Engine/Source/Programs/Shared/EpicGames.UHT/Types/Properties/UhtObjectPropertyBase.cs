@@ -273,11 +273,11 @@ namespace EpicGames.UHT.Types
 				case UhtIssueBehavior.AllowAndLog:
 					if (!String.IsNullOrEmpty(alternativeTypeDesc))
 					{
-						this.LogTrace($"{pointerTypeDesc} usage in member declaration detected [[[{Outer.EngineName}]]].  Consider {alternativeTypeDesc} as an alternative.");
+						this.LogInfo($"{pointerTypeDesc} usage in member declaration detected [[[{Outer.EngineName}]]].  Consider {alternativeTypeDesc} as an alternative.");
 					}
 					else
 					{
-						this.LogTrace($"{pointerTypeDesc} usage in member declaration detected [[[{Outer.EngineName}]]].");
+						this.LogInfo($"{pointerTypeDesc} usage in member declaration detected [[[{Outer.EngineName}]]].");
 					}
 					break;
 
