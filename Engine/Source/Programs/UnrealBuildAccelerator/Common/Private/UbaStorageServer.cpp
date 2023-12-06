@@ -47,6 +47,12 @@ namespace uba
 		m_server.UnregisterService(ServiceId);
 	}
 
+	bool StorageServer::RegisterDisallowedPath(const tchar* path)
+	{
+		m_disallowedPaths.push_back(path);
+		return true;
+	}
+
 	bool StorageServer::GetZone(StringBufferBase& out)
 	{
 		if (m_zone.empty())
@@ -207,6 +213,14 @@ namespace uba
 		UBA_ASSERT(fileMem);
 		auto memClose = MakeGuard([&](){ UnmapViewOfFile(fileMem, mapping.fileSize); });
 		return StorageImpl::WriteCompressed(out, from, InvalidFileHandle, fileMem, mapping.fileSize, toFile);
+	}
+
+	bool StorageServer::IsDisallowedPath(const tchar* fileName)
+	{
+		for (auto& path : m_disallowedPaths)
+			if (StartsWith(fileName, path.c_str()))
+				return true;
+		return false;
 	}
 
 	void StorageServer::SetTrace(Trace* trace, bool detailed)
@@ -388,6 +402,13 @@ namespace uba
 					casEntry = &findIt->second;
 				}
 
+				if (casEntry->disallowed)
+				{
+					writer.WriteU16(0);
+					m_logger.Error(TC("Client is asking for cas content of file that is not allowed to be transferred. (%s)"), hint.data);
+					return true;
+				}
+				
 				FileHandle readFileHandle = InvalidFileHandle;
 				u64 fileSize;
 				u8* memoryBegin = nullptr;

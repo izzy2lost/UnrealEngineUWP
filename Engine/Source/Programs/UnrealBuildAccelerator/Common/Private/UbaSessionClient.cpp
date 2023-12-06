@@ -216,6 +216,8 @@ namespace uba
 		auto insres = m_handledApplicationEnvironments.insert(application);
 		if (insres.second)
 		{
+			auto failGuard = MakeGuard([&]() { m_handledApplicationEnvironments.erase(insres.first); });
+
 			StackBinaryReader<SendMaxSize> reader;
 			{
 				StackBinaryWriter<1024> writer;
@@ -264,6 +266,8 @@ namespace uba
 				if (!WriteBinFile(temp, moduleName, newCasKey, keyStr, fileAttributes))
 					return false;
 			}
+
+			failGuard.Cancel();
 		}
 		out.Append(m_sessionBinDir).Append(keyStr).Append(PathSeparator).AppendFileName(application);
 		return true;
@@ -1347,7 +1351,8 @@ namespace uba
 					{
 						m_logger.Error(TC("Failed to ensure application environment for %s"), startInfo.application);
 						SendReturnProcess(startInfo.processId, TC("Failed to ensure application environment"));
-						continue;
+						m_loop = false;
+						break;
 					}
 
 					void* env = GetProcessEnvironmentVariables();

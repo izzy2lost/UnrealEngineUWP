@@ -131,6 +131,7 @@ namespace uba
 		bool VerifyExisting(bool& outReturnValue, ScopedWriteLock& entryLock, const CasKey& casKey, CasEntry& casEntry, StringBufferBase& casFile);
 		bool AddCasFile(const tchar* fileName, const CasKey& casKey, bool deferCreation);
 		void CasEntryAccessed(const CasKey& casKey);
+		virtual bool IsDisallowedPath(const tchar* fileName);
 		virtual bool DecompressMemoryToMemory(u8* compressedData, u8* writeData, u64 decompressedSize) override;
 		bool DecompressMemoryToFile(u8* compressedData, FileAccessor& destination, u64 decompressedSize, bool useNoBuffering);
 
@@ -168,6 +169,7 @@ namespace uba
 			bool exists = false; // File exists on disk
 			bool dropped = false; // This file is not seen anymore. will be deleted during shutdown
 			bool beingWritten = false; // This is set while file is being written (when coming from network)..
+			bool disallowed = false; // This is set if cas is created from disallowed file
 
 			FileMappingHandle mappingHandle;
 			u64 mappingOffset = 0;

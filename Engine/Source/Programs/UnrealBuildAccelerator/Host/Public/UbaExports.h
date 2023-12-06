@@ -58,6 +58,7 @@ extern "C"
 	UBA_API uba::Storage* CreateStorageServer(uba::NetworkServer& server, const uba::tchar* rootDir, uba::u64 casCapacityBytes, bool storeCompressed, uba::LogWriter& writer = uba::g_consoleLogWriter, const uba::tchar* zone = TC(""));
 	UBA_API void DestroyStorageServer(uba::Storage* storageServer);
 	UBA_API void StorageServer_SaveCasTable(uba::Storage* storageServer);
+	UBA_API void StorageServer_RegisterDisallowedPath(uba::StorageServer* storageServer, const uba::tchar* path);
 
 	//UBA_API uba::StorageClient* CreateStorageClient(uba::NetworkClient& client, const uba::tchar* rootDir, uba::u64 casCapacityBytes, bool storeCompressed, bool sendCompressed);
 

@@ -198,6 +198,11 @@ extern "C"
 		storageServer->SaveCasTable(true);
 	}
 
+	void StorageServer_RegisterDisallowedPath(uba::StorageServer* storageServer, const uba::tchar* path)
+	{
+		storageServer->RegisterDisallowedPath(path);
+	}
+
 	/*
 uba::StorageClient* CreateStorageClient(uba::NetworkClient& client, const uba::tchar* rootDir, uba::u64 casCapacityBytes, bool storeCompressed, bool sendCompressed)
 	{

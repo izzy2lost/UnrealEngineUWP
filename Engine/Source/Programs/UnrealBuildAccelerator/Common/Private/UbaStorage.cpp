@@ -503,6 +503,11 @@ namespace uba
 		CasEntryAccessed(casEntry);
 	}
 
+	bool StorageImpl::IsDisallowedPath(const tchar* fileName)
+	{
+		return false;
+	}
+
 	bool StorageImpl::DecompressMemoryToMemory(u8* compressedData, u8* writeData, u64 decompressedSize)
 	{
 		StorageStats& stats = Stats();
@@ -730,6 +735,7 @@ namespace uba
 				return true;
 
 		casEntry.key = casKey;
+		casEntry.disallowed = IsDisallowedPath(fileName);
 
 #if !UBA_USE_SPARSEFILE
 		StringBuffer<> casFile;

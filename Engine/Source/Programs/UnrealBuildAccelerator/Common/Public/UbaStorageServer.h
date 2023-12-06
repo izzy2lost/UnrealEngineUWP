@@ -20,10 +20,13 @@ namespace uba
 		StorageServer(const StorageServerCreateInfo& info);
 		~StorageServer();
 
+		bool RegisterDisallowedPath(const tchar* path);
+
 		virtual bool GetZone(StringBufferBase& out) override;
 		virtual bool RetrieveCasFile(RetrieveResult& out, const CasKey& casKey, const tchar* hint, FileMappingBuffer* mappingBuffer = nullptr, u64 memoryMapAlignment = 1, bool allowProxy = true) override;
 		virtual bool StoreCasFile(CasKey& out, StringKey fileNameKey, const tchar* fileName, FileMappingHandle mappingHandle, u64 mappingOffset, u64 fileSize, const tchar* hint, bool deferCreation = false, bool keepMappingInMemory = false) override;
 		virtual bool WriteCompressed(WriteResult& out, const tchar* from, const tchar* toFile) override;
+		virtual bool IsDisallowedPath(const tchar* fileName) override;
 		virtual void SetTrace(Trace* trace, bool detailed) override;
 		void OnDisconnected(u32 clientId);
 		bool HandleMessage(const ConnectionInfo& connectionInfo, u8 messageType, BinaryReader& reader, BinaryWriter& writer);
@@ -136,5 +139,7 @@ namespace uba
 		ReaderWriterLock m_loadCasTableLock;
 
 		Trace* m_trace = nullptr;
+
+		Vector<TString> m_disallowedPaths;
 	};
 }
