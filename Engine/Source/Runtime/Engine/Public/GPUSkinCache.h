@@ -115,6 +115,7 @@ public:
 	struct FDispatchEntry
 	{
 		FGPUSkinCacheEntry* SkinCacheEntry = nullptr;
+		uint32 RevisionNumber = 0;
 		uint32 Section = 0;	
 	};
 

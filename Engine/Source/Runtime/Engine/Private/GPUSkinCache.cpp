@@ -344,7 +344,7 @@ public:
 		// triangle index buffer (input for the RecomputeSkinTangents, might need special index buffer unique to position and normal, not considering UV/vertex color)
 		uint32 IndexBufferOffsetValue = 0;
 		uint32 NumTriangles = 0;
-		uint32 RevisionNumber = 0;
+
 		FGPUSkinCache::FSkinCacheRWBuffer* TangentBuffer = nullptr;
 		FGPUSkinCache::FSkinCacheRWBuffer* IntermediateTangentBuffer = nullptr;
 		FGPUSkinCache::FSkinCacheRWBuffer* IntermediateAccumulatedTangentBuffer = nullptr;
@@ -1319,11 +1319,10 @@ void FGPUSkinCache::DoDispatch(FRHICommandList& RHICmdList)
 		for (int32 i = 0; i < BatchCount; ++i)
 		{
 			FDispatchEntry& DispatchItem = BatchDispatches[i];
-			PrepareUpdateSkinning(DispatchItem.SkinCacheEntry, DispatchItem.Section, DispatchItem.SkinCacheEntry->DispatchData[DispatchItem.Section].RevisionNumber, &BuffersToTransitionForSkinning);
+			PrepareUpdateSkinning(DispatchItem.SkinCacheEntry, DispatchItem.Section, DispatchItem.RevisionNumber, &BuffersToTransitionForSkinning);
 
 			// Clear the flag that this is queued for dispatch.
 			DispatchItem.SkinCacheEntry->bQueuedForDispatch = false;
-			DispatchItem.SkinCacheEntry->DispatchData[DispatchItem.Section].RevisionNumber = 0;
 		}
 
 		{
@@ -1845,18 +1844,19 @@ bool FGPUSkinCache::ProcessEntry(
 		InOutEntry->bQueuedForDispatch = true;
 
 		bool bFoundEntry = false;
-
-		if (InOutEntry->DispatchData[Section].RevisionNumber != 0)
+		for (FDispatchEntry& Entry : BatchDispatches)
 		{
 			// Check if the combo of skin cache entry and section index already exists, if so use the entry and update to latest revision number.
-			InOutEntry->DispatchData[Section].RevisionNumber = FMath::Max(InOutEntry->DispatchData[Section].RevisionNumber, RevisionNumber);
-			bFoundEntry = true;
+			if (Entry.SkinCacheEntry == InOutEntry && Entry.Section == Section && Entry.RevisionNumber < RevisionNumber)
+			{
+				Entry.RevisionNumber = RevisionNumber;
+				bFoundEntry = true;
+				break;
+			}
 		}
-
 		if (!bFoundEntry)
 		{
-			InOutEntry->DispatchData[Section].RevisionNumber = RevisionNumber;
-			BatchDispatches.Add({ InOutEntry, uint32(Section) });
+			BatchDispatches.Add({ InOutEntry, RevisionNumber, uint32(Section) });
 		}
 	}
 	else
