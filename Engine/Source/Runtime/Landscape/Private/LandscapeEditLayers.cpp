@@ -8213,19 +8213,7 @@ void ULandscapeComponent::GetLandscapeComponentWeightmapsToRender(TSet<ULandscap
 			if (Usage != nullptr && Usage->ChannelUsage[Channel] != nullptr)
 			{
 				ULandscapeComponent* Component = Usage->ChannelUsage[Channel];
-				Component->ForEachLayer([&](const FGuid& LayerGuid, FLandscapeLayerComponentData& LayerData)
-				{
-					for (ULandscapeWeightmapUsage* Usage : LayerData.WeightmapData.TextureUsages)
-					{
-						for (int32 Channel = 0; Channel < ULandscapeWeightmapUsage::NumChannels; ++Channel)
-						{
-							if (Usage != nullptr && Usage->ChannelUsage[Channel] != nullptr)
-							{
-								OutWeightmapComponents.Add(Usage->ChannelUsage[Channel]);
-							}
-						}
-					}
-				});
+				OutWeightmapComponents.Add(Component);
 			}
 		}
 	}
