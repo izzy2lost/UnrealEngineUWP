@@ -55,6 +55,40 @@ enum class ECOMModel : uint8
 };
 
 /**
+ * Type of storage device
+ */
+enum class EStorageDeviceType : uint8
+{
+	/** Drive type cannot be determined */
+	Unknown = 0,
+	/** Drive is a hard disk, may or may not have a cache. */
+	HDD = 1,
+	/** Drive is a Solid State disk, typically with faster IO and constant latency. */
+	SSD = 2,
+	/** Drive is an NVMe . */
+	NVMe = 3,
+
+	Other = 0xff
+};
+
+CORE_API const TCHAR* LexToString(EStorageDeviceType StorageType);
+
+/**
+ * Storage drive information
+ */
+struct FPlatformDriveStats
+{
+	/** Drive name, usually C or D */
+	TCHAR DriveName;
+	/** Total number of used bytes on the drive, determined during PlatformInit. This information can be refreshed using FWindowsPlatformMisc::UpdateDriveFreeSpace(); */
+	uint64 UsedBytes;
+	/** Total number of free bytes on the drive, determined during PlatformInit. This information can be refreshed using FWindowsPlatformMisc::UpdateDriveFreeSpace(); */
+	uint64 FreeBytes;
+	/** Type of underlying hardware. */
+	EStorageDeviceType DriveType;
+};
+
+/**
 * Windows implementation of the misc OS functions
 **/
 struct FWindowsPlatformMisc
@@ -318,6 +352,12 @@ struct FWindowsPlatformMisc
 	static CORE_API uint64 GetFileVersion(const FString &FileName);
 
 	static CORE_API int32 GetMaxRefreshRate();
+
+	/** Update statistics of free/used bytes on all drives. */
+	static CORE_API void UpdateDriveFreeSpace();
+
+	/** Retrieve information about a drive, or nullptr if no information is available. */
+	static CORE_API const FPlatformDriveStats* GetDriveStats(WIDECHAR DriveLetter);
 };
 
 

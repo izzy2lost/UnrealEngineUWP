@@ -213,6 +213,32 @@ void FWindowsPlatformCrashContext::AddPlatformSpecificProperties() const
 {
 	AddCrashProperty(TEXT("PlatformIsRunningWindows"), 1);
 	AddCrashProperty(TEXT("IsRunningOnBattery"), FPlatformMisc::IsRunningOnBattery());
+	WIDECHAR DriveName = 0;
+	const TCHAR* ProjectDir = FGenericPlatformMisc::ProjectDir();
+	if (ProjectDir && *ProjectDir)
+	{
+		FPlatformString::Convert(&DriveName, 1, ProjectDir, 1);
+		const FPlatformDriveStats* DriveStats = FWindowsPlatformMisc::GetDriveStats(DriveName);
+		if (DriveStats)
+		{
+			AddCrashProperty(TEXT("DriveStats.Project.Name"), ProjectDir);
+			AddCrashProperty(TEXT("DriveStats.Project.Type"), LexToString(DriveStats->DriveType));
+			AddCrashProperty(TEXT("DriveStats.Project.FreeSpaceKb"), DriveStats->FreeBytes/1024);
+		}
+	}
+
+	const TCHAR* DownloadDir = FGenericPlatformMisc::GamePersistentDownloadDir();
+	if (DownloadDir && *DownloadDir)
+	{
+		FPlatformString::Convert(&DriveName, 1, DownloadDir, 1);
+		const FPlatformDriveStats* DriveStats = FWindowsPlatformMisc::GetDriveStats(DriveName);
+		if (DriveStats)
+		{
+			AddCrashProperty(TEXT("DriveStats.PersistentDownload.Name"), DownloadDir);
+			AddCrashProperty(TEXT("DriveStats.PersistentDownload.Type"), LexToString(DriveStats->DriveType));
+			AddCrashProperty(TEXT("DriveStats.PersistentDownload.FreeSpaceKb"), DriveStats->FreeBytes / 1024);
+		}
+	}
 }
 
 
@@ -302,11 +328,7 @@ bool CreateCrashReportClientPath(TCHAR* OutClientPath, int32 MaxLength)
 
 		// Find the path to crash reporter binary. Avoid creating FStrings.
 		*OutClientPath = TCHAR('\0');
-		FCString::Strncat(OutClientPath, EngineDir, MaxLength);
-		FCString::Strncat(OutClientPath, TEXT("Binaries/"), MaxLength);
-		FCString::Strncat(OutClientPath, BinariesDir, MaxLength);
-		FCString::Strncat(OutClientPath, TEXT("/"), MaxLength);
-		FCString::Strncat(OutClientPath, CrashReportClientExeName, MaxLength);
+		FCString::Strncat(OutClientPath, L"D:\\StagedBuilds\\B\\WindowsClient\\Engine\\Binaries\\Win64\\CrashReportClient.exe", MaxLength);
 
 		const DWORD Results = GetFileAttributesW(OutClientPath);
 		return Results != INVALID_FILE_ATTRIBUTES;

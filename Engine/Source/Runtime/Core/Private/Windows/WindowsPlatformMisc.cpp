@@ -56,6 +56,10 @@ THIRD_PARTY_INCLUDES_START
 	#include <shlwapi.h>
 	#include <IPHlpApi.h>
 	#include <VersionHelpers.h>
+#include "Windows/AllowWindowsPlatformAtomics.h"
+	#include <comdef.h>
+	#include <Wbemidl.h>
+#include "Windows/HideWindowsPlatformAtomics.h"
 THIRD_PARTY_INCLUDES_END
 #include "Windows/HideWindowsPlatformTypes.h"
 
@@ -65,6 +69,7 @@ THIRD_PARTY_INCLUDES_END
 	#include <Psapi.h>
 #include "Windows/HideWindowsPlatformTypes.h"
 #pragma comment(lib, "psapi.lib")
+#pragma comment(lib, "wbemuuid.lib")
 
 #include <fcntl.h>
 #include <io.h>
@@ -395,6 +400,240 @@ namespace
 		}
 		return false;
 	}
+
+	struct StorageDevice
+	{
+		FString SerialNumber;
+		WIDECHAR Drive;
+		FPlatformDriveStats Stats;
+
+		StorageDevice(FString&& SerialNumber, WIDECHAR DriveLetter)
+			: SerialNumber(MoveTemp(SerialNumber))
+			, Drive(DriveLetter)
+			, Stats{ DriveLetter, 0, 0, EStorageDeviceType ::Unknown}
+		{}
+	};
+
+	TArray<StorageDevice> StorageDevices;
+
+	static bool CollectStorageInformation()
+	{
+		IWbemLocator* WbemLocator = nullptr;
+		IWbemServices* WbemServices = nullptr;
+
+		if (!FWindowsPlatformMisc::CoInitialize())
+		{
+			return false;
+		}
+		HRESULT hres = CoInitializeSecurity(NULL, -1, NULL, NULL, RPC_C_AUTHN_LEVEL_DEFAULT, RPC_C_IMP_LEVEL_IMPERSONATE, NULL, EOAC_NONE, NULL);
+		if (FAILED(hres))
+		{
+			FWindowsPlatformMisc::CoUninitialize();
+			return false;
+		}
+		hres = CoCreateInstance(CLSID_WbemLocator, 0, CLSCTX_INPROC_SERVER, IID_IWbemLocator, (LPVOID*)&WbemLocator);
+		if (FAILED(hres))
+		{
+			FWindowsPlatformMisc::CoUninitialize();
+			return false;
+		}
+		hres = WbemLocator->ConnectServer(_bstr_t(L"ROOT\\microsoft\\windows\\storage"), NULL, NULL, 0, NULL, 0, 0, &WbemServices);
+		if (FAILED(hres))
+		{
+			WbemLocator->Release();
+			FWindowsPlatformMisc::CoUninitialize();
+			return false;
+		}
+		hres = CoSetProxyBlanket(
+			WbemServices,
+			RPC_C_AUTHN_WINNT,
+			RPC_C_AUTHZ_NONE,
+			NULL,
+			RPC_C_AUTHN_LEVEL_CALL,
+			RPC_C_IMP_LEVEL_IMPERSONATE,
+			NULL,
+			EOAC_NONE
+		);
+		if (FAILED(hres))
+		{
+			WbemServices->Release();
+			WbemLocator->Release();
+			FWindowsPlatformMisc::CoUninitialize();
+			return false;
+		}
+
+
+		IEnumWbemClassObject* StorageEnumerator = nullptr;
+		hres = WbemServices->ExecQuery(
+			bstr_t("WQL"),
+			bstr_t("SELECT * FROM MSFT_DiskToPartition"),
+			WBEM_FLAG_FORWARD_ONLY | WBEM_FLAG_RETURN_IMMEDIATELY,
+			NULL,
+			&StorageEnumerator);
+
+		if (FAILED(hres))
+		{
+			WbemServices->Release();
+			WbemLocator->Release();
+			FWindowsPlatformMisc::CoUninitialize();
+			return false;
+		}
+
+		// Enumerate all partitions, and store disk information
+		while (StorageEnumerator)
+		{
+			ULONG Returned;
+			IWbemClassObject* StorageWbemObject[10]{};
+			hres = StorageEnumerator->Next(WBEM_INFINITE, 10, StorageWbemObject, &Returned);
+			if (FAILED(hres) || Returned == 0)
+			{
+				break;
+			}
+			for (ULONG i = 0; i < Returned; ++i)
+			{
+				VARIANT Disk;
+				VARIANT Partition;
+
+				StorageWbemObject[i]->Get(L"Disk", 0, &Disk, NULL, NULL);
+				StorageWbemObject[i]->Get(L"Partition", 0, &Partition, NULL, NULL);
+
+				IWbemClassObject* PartitionObject = nullptr;
+				IWbemClassObject* DiskObject = nullptr;
+				hres = WbemServices->GetObject(
+					Partition.bstrVal,
+					WBEM_FLAG_RETURN_WBEM_COMPLETE,
+					NULL,
+					&PartitionObject,
+					NULL);
+				if (SUCCEEDED(hres))
+				{
+					hres = WbemServices->GetObject(
+						Disk.bstrVal,
+						WBEM_FLAG_RETURN_WBEM_COMPLETE,
+						NULL,
+						&DiskObject,
+						NULL);
+					if (SUCCEEDED(hres))
+					{
+						VARIANT Drive;
+						hres = PartitionObject->Get(L"DriveLetter", 0, &Drive, NULL, NULL);
+						if (SUCCEEDED(hres) && Drive.uiVal != 0)
+						{
+							VARIANT SerialNumber;
+							hres = DiskObject->Get(L"SerialNumber", 0, &SerialNumber, NULL, NULL);
+							if (SUCCEEDED(hres))
+							{
+								StorageDevices.Emplace(SerialNumber.bstrVal, Drive.uiVal);
+								VariantClear(&SerialNumber);
+							}
+							VariantClear(&Drive);
+						}
+						DiskObject->Release();
+					}
+					PartitionObject->Release();
+				}
+
+				VariantClear(&Disk);
+				VariantClear(&Partition);
+				StorageWbemObject[i]->Release();
+			}
+		}
+
+		StorageEnumerator->Release();
+		hres = WbemServices->ExecQuery(
+			bstr_t("WQL"),
+			bstr_t("SELECT * FROM MSFT_PhysicalDisk"),
+			WBEM_FLAG_FORWARD_ONLY | WBEM_FLAG_RETURN_IMMEDIATELY,
+			NULL,
+			&StorageEnumerator);
+
+		if (FAILED(hres))
+		{
+			WbemServices->Release();
+			WbemLocator->Release();
+			FWindowsPlatformMisc::CoUninitialize();
+			return false;
+		}
+
+		while (StorageEnumerator)
+		{
+			ULONG Returned;
+			IWbemClassObject* StorageWbemObject = nullptr;
+			hres = StorageEnumerator->Next(WBEM_INFINITE, 1, &StorageWbemObject, &Returned);
+			if (Returned == 0 || hres != S_OK)
+			{
+				break;
+			}
+
+			// see https://learn.microsoft.com/en-us/windows-hardware/drivers/storage/msft-physicaldisk for other properties
+			VARIANT SerialNumber;
+			VARIANT MediaType;
+			VARIANT BusType;
+
+			StorageWbemObject->Get(L"SerialNumber", 0, &SerialNumber, NULL, NULL);
+			StorageWbemObject->Get(L"MediaType", 0, &MediaType, NULL, NULL);
+			StorageWbemObject->Get(L"BusType", 0, &BusType, NULL, NULL);
+
+			FString Serial(SerialNumber.bstrVal);
+			for (auto& StorageDevice : StorageDevices)
+			{
+				if (StorageDevice.SerialNumber == Serial)
+				{
+					if (MediaType.uiVal == 3) // HDD
+					{
+						StorageDevice.Stats.DriveType = EStorageDeviceType::HDD;
+					}
+					else if (MediaType.uiVal == 4) // SSD
+					{
+						if (BusType.uiVal == 17) // NVMe
+						{
+							StorageDevice.Stats.DriveType = EStorageDeviceType::NVMe;
+						}
+						else
+						{
+							StorageDevice.Stats.DriveType = EStorageDeviceType::SSD;
+						}
+					}
+					else
+					{
+						StorageDevice.Stats.DriveType = EStorageDeviceType::Other;
+					}
+				}
+			}
+
+			VariantClear(&BusType);
+			VariantClear(&MediaType);
+			VariantClear(&SerialNumber);
+			StorageWbemObject->Release();
+		}
+
+		StorageEnumerator->Release();
+		WbemServices->Release();
+		WbemLocator->Release();
+		FWindowsPlatformMisc::CoUninitialize();
+		FWindowsPlatformMisc::UpdateDriveFreeSpace();
+
+		return true;
+	}
+}
+
+const TCHAR* LexToString(EStorageDeviceType StorageType)
+{
+	switch (StorageType)
+	{
+	case EStorageDeviceType::Other:
+		return TEXT("Other");
+	case EStorageDeviceType::HDD:
+		return TEXT("HDD");
+	case EStorageDeviceType::SSD:
+		return TEXT("SSD");
+	case EStorageDeviceType::NVMe:
+		return TEXT("NVMe");
+	case EStorageDeviceType::Unknown:
+		[[fallthrough]];
+	default:
+		return TEXT("Unknown");
+	}
 }
 
 #include "Windows/HideWindowsPlatformTypes.h"
@@ -624,6 +863,8 @@ void FWindowsPlatformMisc::PlatformInit()
 
 	// Register on the game thread.
 	FWindowsPlatformStackWalk::RegisterOnModulesChanged();
+
+	CollectStorageInformation();
 }
 
 void FWindowsPlatformMisc::PlatformTearDown()
@@ -3831,4 +4072,30 @@ int32 FWindowsPlatformMisc::GetMaxRefreshRate()
 #endif
 
 	return Result;
+}
+
+void FWindowsPlatformMisc::UpdateDriveFreeSpace()
+{
+	for (auto& StorageDevice : StorageDevices)
+	{
+		ULARGE_INTEGER TotalNumberOfBytes, TotalNumberOfFreeBytes;
+		WCHAR DriveName[4] = { StorageDevice.Stats.DriveName, L':', L'\\', 0 };
+		if (GetDiskFreeSpaceExW(DriveName, NULL, &TotalNumberOfBytes, &TotalNumberOfFreeBytes))
+		{
+			StorageDevice.Stats.FreeBytes = TotalNumberOfFreeBytes.QuadPart;
+			StorageDevice.Stats.UsedBytes = TotalNumberOfBytes.QuadPart - TotalNumberOfFreeBytes.QuadPart;
+		}
+	}
+}
+
+const FPlatformDriveStats* FWindowsPlatformMisc::GetDriveStats(WIDECHAR DriveLetter)
+{
+	for (auto& StorageDevice : StorageDevices)
+	{
+		if (StorageDevice.Stats.DriveName == DriveLetter)
+		{
+			return &StorageDevice.Stats;
+		}
+	}
+	return nullptr;
 }
