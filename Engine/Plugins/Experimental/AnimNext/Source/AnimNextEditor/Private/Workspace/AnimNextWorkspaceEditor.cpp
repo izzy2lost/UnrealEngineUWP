@@ -422,69 +422,53 @@ FGraphPanelSelectionSet FWorkspaceEditor::GetSelectedNodes() const
 
 void FWorkspaceEditor::DeleteSelectedNodes()
 {
-	TSharedPtr<SGraphEditor> FocusedGraphEd = FocusedGraphEdPtr.Pin();
-	if (!FocusedGraphEd.IsValid())
+	const FGraphPanelSelectionSet SelectedNodes = GetSelectedNodes();
+
+	bool bRelinkPins = false;
+	TArray<URigVMNode*> NodesToRemove;
+
+	for (FGraphPanelSelectionSet::TConstIterator NodeIt(SelectedNodes); NodeIt; ++NodeIt)
+	{
+		if (UEdGraphNode* Node = Cast<UEdGraphNode>(*NodeIt))
+		{
+			if (Node->CanUserDeleteNode())
+			{
+				if (const URigVMEdGraphNode* RigVMEdGraphNode = Cast<URigVMEdGraphNode>(Node))
+				{
+					bRelinkPins = bRelinkPins || FSlateApplication::Get().GetModifierKeys().IsShiftDown();
+
+					if(URigVMNode* ModelNode = GetFocusedVMController()->GetGraph()->FindNodeByName(*RigVMEdGraphNode->GetModelNodePath()))
+					{
+						NodesToRemove.Add(ModelNode);
+					}
+				}
+				else if (const UEdGraphNode_Comment* CommentNode = Cast<UEdGraphNode_Comment>(Node))
+				{
+					if(URigVMNode* ModelNode = GetFocusedVMController()->GetGraph()->FindNodeByName(CommentNode->GetFName()))
+					{
+						NodesToRemove.Add(ModelNode);
+					}
+				}
+				else
+				{
+					Node->GetGraph()->RemoveNode(Node);
+				}
+			}
+		}
+	}
+
+	if(NodesToRemove.IsEmpty())
 	{
 		return;
 	}
 
-	const FScopedTransaction Transaction(FGenericCommands::Get().Delete->GetDescription());
-	FocusedGraphEd->GetCurrentGraph()->Modify();
-	
-	const FGraphPanelSelectionSet SelectedNodes = GetSelectedNodes();
-	
-	if(FocusedGraphEd)
+	GetFocusedVMController()->OpenUndoBracket(TEXT("Delete selected nodes"));
+	if(bRelinkPins && NodesToRemove.Num() == 1)
 	{
-		FocusedGraphEd->ClearSelectionSet();
+		GetFocusedVMController()->RelinkSourceAndTargetPins(NodesToRemove[0], true);;
 	}
-
-	// Some nodes have sub-objects that are represented as other tabs.
-	// Close them here as a pre-pass before we remove their nodes. If the documents are left open they
-	// may reference dangling data and function incorrectly in cases such as FindBlueprintforNodeChecked
-	for (FGraphPanelSelectionSet::TConstIterator NodeIt( SelectedNodes ); NodeIt; ++NodeIt)
-	{
-		if (UEdGraphNode* Node = Cast<UEdGraphNode>(*NodeIt))
-		{
-			if (Node->CanUserDeleteNode())
-			{
-				auto CloseAllDocumentsTab = [this](const UEdGraphNode* InNode)
-				{
-					TArray<UObject*> NodesToClose;
-					GetObjectsWithOuter(InNode, NodesToClose);
-					for (UObject* Node : NodesToClose)
-					{
-						UEdGraph* NodeGraph = Cast<UEdGraph>(Node);
-						if (NodeGraph)
-						{
-							CloseDocumentTab(NodeGraph);
-						}
-					}
-				};
-				
-				if (Node->GetSubGraphs().Num() > 0)
-				{
-					CloseAllDocumentsTab(Node);
-				}
-			}
-		}
-	}
-
-	// Now remove the selected nodes
-	for (FGraphPanelSelectionSet::TConstIterator NodeIt( SelectedNodes ); NodeIt; ++NodeIt)
-	{
-		if (UEdGraphNode* Node = Cast<UEdGraphNode>(*NodeIt))
-		{
-			if (Node->CanUserDeleteNode())
-			{
-				if (Node->GetSubGraphs().Num() > 0)
-				{
-					DocumentManager->CleanInvalidTabs();
-				}
-
-				FBlueprintEditorUtils::RemoveNode(nullptr, Node);
-			}
-		}
-	}
+	GetFocusedVMController()->RemoveNodes(NodesToRemove, true);
+	GetFocusedVMController()->CloseUndoBracket();
 }
 
 bool FWorkspaceEditor::CanDeleteSelectedNodes()
