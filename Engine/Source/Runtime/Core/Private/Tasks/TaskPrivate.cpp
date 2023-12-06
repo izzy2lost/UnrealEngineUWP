@@ -12,7 +12,7 @@ namespace UE::Tasks
 		FExecutableTaskAllocator SmallTaskAllocator;
 		FTaskEventBaseAllocator TaskEventBaseAllocator;
 
-		void FTaskBase::Schedule()
+		void FTaskBase::Schedule(bool& bWakeUpWorker)
 		{
 			TaskTrace::Scheduled(GetTraceId());
 
@@ -42,9 +42,9 @@ namespace UE::Tasks
 			}
 #endif
 
-			LowLevelTasks::FScheduler::Get().TryLaunch(LowLevelTask, LowLevelTasks::EQueuePreference::GlobalQueuePreference, /*bWakeUpWorker=*/ true);
+			bWakeUpWorker |= LowLevelTasks::FSchedulerTls::IsBusyWaiting();
+			bWakeUpWorker |= LowLevelTasks::FScheduler::Get().TryLaunch(LowLevelTask, bWakeUpWorker ? LowLevelTasks::EQueuePreference::GlobalQueuePreference : LowLevelTasks::EQueuePreference::LocalQueuePreference, bWakeUpWorker);
 		}
-
 
 		thread_local uint32 TaskRetractionRecursion = 0;
 
@@ -70,7 +70,7 @@ namespace UE::Tasks
 
 		bool FTaskBase::TryRetractAndExecute(FTimeout Timeout, uint32 RecursionDepth/* = 0*/)
 		{
-			TRACE_CPUPROFILER_EVENT_SCOPE(TaskRetraction);
+			TRACE_CPUPROFILER_EVENT_SCOPE(FTaskBase::TryRetractAndExecute);
 
 			if (!IsAwaitable())
 			{
@@ -279,7 +279,7 @@ namespace UE::Tasks
 
 				auto TaskBody = [CurrentThread, &TaskGraph] { TaskGraph.RequestReturn(CurrentThread); };
 				using FReturnFromNamedThreadTask = TExecutableTask<decltype(TaskBody)>;
-				FReturnFromNamedThreadTask ReturnTask{ TEXT("ReturnFromNamedThreadTask"), MoveTemp(TaskBody), ETaskPriority::High, ExtendedPriority };
+				FReturnFromNamedThreadTask ReturnTask { TEXT("ReturnFromNamedThreadTask"), MoveTemp(TaskBody), ETaskPriority::High, ExtendedPriority, ETaskFlags::None };
 				ReturnTask.AddPrerequisites(Task);
 				ReturnTask.TryLaunch(sizeof(ReturnTask)); // the result doesn't matter
 

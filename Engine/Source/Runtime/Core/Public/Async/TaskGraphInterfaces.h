@@ -477,9 +477,9 @@ public:
 		}
 	}
 
-	void Init(const TCHAR* InDebugName, UE::Tasks::ETaskPriority InPriority, UE::Tasks::EExtendedTaskPriority InExtendedPriority)
+	void Init(const TCHAR* InDebugName, UE::Tasks::ETaskPriority InPriority, UE::Tasks::EExtendedTaskPriority InExtendedPriority, UE::Tasks::ETaskFlags InTaskFlags = UE::Tasks::ETaskFlags::None)
 	{
-		FTaskBase::Init(InDebugName, InPriority, InExtendedPriority);
+		FTaskBase::Init(InDebugName, InPriority, InExtendedPriority, InTaskFlags);
 	}
 
 	void Unlock(ENamedThreads::Type CurrentThreadIfKnown = ENamedThreads::AnyThread)

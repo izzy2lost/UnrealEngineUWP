@@ -1016,6 +1016,25 @@ PRAGMA_ENABLE_DEPRECATION_WARNINGS
 		FTaskGraphInterface::Get().WaitUntilTasksComplete(Tasks);
 	}
 
+	template<int NumTasks>
+	void TestPerfChaining()
+	{
+		FGraphEventRef Ref;
+		for (int32 TaskIndex = 0; TaskIndex < NumTasks; ++TaskIndex)
+		{
+			if (Ref.IsValid())
+			{
+				Ref = FFunctionGraphTask::CreateAndDispatchWhenReady([&]() {}, TStatId{}, Ref);
+			}
+			else
+			{
+				Ref = FFunctionGraphTask::CreateAndDispatchWhenReady([&]() {});
+			}
+		}
+
+		FTaskGraphInterface::Get().WaitUntilTaskCompletes(Ref);
+	}
+
 	template<int32 NumTasks, int32 BatchSize>
 	void TestPerfBatch()
 	{
@@ -1274,6 +1293,7 @@ PRAGMA_ENABLE_DEPRECATION_WARNINGS
 		UE_BENCHMARK(5, TestPerfBatch<100000, 100>);
 		UE_BENCHMARK(5, TestPerfBatchOptimised<100000, 100>);
 		UE_BENCHMARK(5, TestLatency<10000>);
+		UE_BENCHMARK(5, TestPerfChaining<10000>);
 		UE_BENCHMARK(5, TestFGraphEventPerf<100000>);
 		UE_BENCHMARK(5, TestWorkStealing<100, 1000>);
 		UE_BENCHMARK(5, TestSpawning<100000>);
