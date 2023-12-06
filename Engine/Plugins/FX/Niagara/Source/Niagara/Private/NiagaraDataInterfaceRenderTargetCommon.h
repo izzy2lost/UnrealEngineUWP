@@ -15,6 +15,8 @@ namespace NiagaraDataInterfaceRenderTargetCommon
 
 	extern bool GetRenderTargetFormat(bool bOverrideFormat, ETextureRenderTargetFormat OverrideFormat, ETextureRenderTargetFormat& OutRenderTargetFormat);
 
+	extern const ETextureRenderTargetFormat GetRenderTargetFormatFromPixelFormat(EPixelFormat InPixelFormat);
+
 	template<typename TRenderTargetType, typename TInstanceDataType>
 	static bool CreateRenderTarget(FNiagaraSystemInstance* SystemInstance, TInstanceDataType* InstanceData)
 	{

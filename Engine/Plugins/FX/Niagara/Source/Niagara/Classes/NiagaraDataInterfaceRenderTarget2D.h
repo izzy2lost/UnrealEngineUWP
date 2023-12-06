@@ -9,6 +9,7 @@
 #include "NiagaraDataInterfaceRW.h"
 #include "NiagaraComponent.h"
 #include "NiagaraGenerateMips.h"
+#include "NiagaraSimCacheCustomStorageInterface.h"
 #include "NiagaraDataInterfaceRenderTarget2D.generated.h"
 
 class FNiagaraSystemInstance;
@@ -73,7 +74,7 @@ struct FNiagaraDataInterfaceProxyRenderTarget2DProxy : public FNiagaraDataInterf
 };
 
 UCLASS(EditInlineNew, Category = "Rendering", CollapseCategories, meta = (DisplayName = "Render Target 2D"), Blueprintable, BlueprintType, MinimalAPI)
-class UNiagaraDataInterfaceRenderTarget2D : public UNiagaraDataInterfaceRWBase
+class UNiagaraDataInterfaceRenderTarget2D : public UNiagaraDataInterfaceRWBase, public INiagaraSimCacheCustomStorageInterface
 {
 	GENERATED_UCLASS_BODY()
 
@@ -117,6 +118,13 @@ public:
 	virtual bool CanRenderVariablesToCanvas() const { return true; }
 	NIAGARA_API virtual void GetCanvasVariables(TArray<FNiagaraVariableBase>& OutVariables) const override;
 	NIAGARA_API virtual bool RenderVariableToCanvas(FNiagaraSystemInstanceID SystemInstanceID, FName VariableName, class FCanvas* Canvas, const FIntRect& DrawRect) const override;
+	//~ UNiagaraDataInterface interface END
+
+	//~ INiagaraSimCacheCustomStorageInterface interface BEGIN
+	NIAGARA_API virtual UObject* SimCacheBeginWrite(UObject* SimCache, FNiagaraSystemInstance* NiagaraSystemInstance, const void* OptionalPerInstanceData, FNiagaraSimCacheFeedbackContext& FeedbackContext) const override;
+	NIAGARA_API virtual bool SimCacheWriteFrame(UObject* StorageObject, int FrameIndex, FNiagaraSystemInstance* SystemInstance, const void* OptionalPerInstanceData, FNiagaraSimCacheFeedbackContext& FeedbackContext) const override;
+	NIAGARA_API virtual bool SimCacheEndWrite(UObject* StorageObject) const override;
+	NIAGARA_API virtual bool SimCacheReadFrame(UObject* StorageObject, int FrameA, int FrameB, float Interp, FNiagaraSystemInstance* SystemInstance, void* OptionalPerInstanceData) override;
 	//~ UNiagaraDataInterface interface END
 
 	NIAGARA_API void VMGetSize(FVectorVMExternalFunctionContext& Context);
