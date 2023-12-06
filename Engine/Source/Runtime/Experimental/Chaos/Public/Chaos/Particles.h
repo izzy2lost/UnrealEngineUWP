@@ -4,6 +4,7 @@
 #include "Chaos/ArrayCollection.h"
 #include "Chaos/ArrayCollectionArray.h"
 #include "Chaos/Core.h"
+#include "Chaos/Particle/ObjectState.h"
 #include "Chaos/Vector.h"
 #include "ChaosArchive.h"
 #include "HAL/LowLevelMemTracker.h"
@@ -214,17 +215,6 @@ namespace Chaos
 		return InParticles.GetTypeHash();
 	}
 	
-	enum class EObjectStateType: int8
-	{
-		Uninitialized = 0,
-		Sleeping = 1,
-		Kinematic = 2,
-		Static = 3,
-		Dynamic = 4,
-
-		Count
-	};
-
 	enum class EChaosCollisionTraceFlag : int8
 	{
 		/** Use project physics settings (DefaultShapeComplexity) */

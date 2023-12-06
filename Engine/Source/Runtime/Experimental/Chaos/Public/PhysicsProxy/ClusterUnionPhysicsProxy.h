@@ -36,6 +36,9 @@ namespace Chaos
 		bool bUnbreakable = false;
 		bool bGenerateConnectivityEdges = true;
 		int32 GravityGroupOverride = INDEX_NONE;
+#if CHAOS_DEBUG_NAME
+		TSharedPtr<FString, ESPMode::ThreadSafe> DebugName;
+#endif
 	};
 
 	/**

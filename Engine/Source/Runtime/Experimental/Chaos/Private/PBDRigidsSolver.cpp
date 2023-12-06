@@ -618,6 +618,13 @@ namespace Chaos
 			});
 	}
 
+#if CHAOS_DEBUG_NAME
+	void FPBDRigidsSolver::OnDebugNameChanged()
+	{
+		MEvolution->SetName(GetDebugName().ToString());
+	}
+#endif
+
 	FRealSingle MaxBoundsForTree = (FRealSingle)10000;
 	FAutoConsoleVariableRef CVarMaxBoundsForTree(
 		TEXT("p.MaxBoundsForTree"),

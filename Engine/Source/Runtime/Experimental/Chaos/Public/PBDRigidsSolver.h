@@ -340,6 +340,12 @@ namespace Chaos
 		// Apply callbacks internally 
 		CHAOS_API virtual void ApplyCallbacks_Internal() override;
 
+	protected:
+
+#if CHAOS_DEBUG_NAME
+		virtual void OnDebugNameChanged() override final;
+#endif
+
 	private:
 
 		/**/

@@ -728,6 +728,10 @@ void FGeometryCollectionPhysicsProxy::CreateGTParticles(const TBitArray<>& Effec
 				GTParticlesToTransformGroupIndex.Add(P, Index);
 				GTParticles[Index]->SetUniqueIdx(UniqueIdxs[Index]);
 
+#if CHAOS_DEBUG_NAME
+				P->SetDebugName(MakeShared<FString, ESPMode::ThreadSafe>(FString::Printf(TEXT("%s-%d"), *Parameters.Name, Index)));
+#endif
+
 				const float ScaledMass = AdjustMassForScale(Mass[Index]);
 
 				// Note that this transform must match the physics thread transform computation for initialization.
@@ -790,10 +794,6 @@ void FGeometryCollectionPhysicsProxy::CreateGTParticles(const TBitArray<>& Effec
 
 				const bool bIsOneWayInteraction = (Parameters.OneWayInteractionLevel >= 0) && (Level[Index] >= Parameters.OneWayInteractionLevel);
 				P->SetOneWayInteraction(bIsOneWayInteraction);
-
-#if !(UE_BUILD_SHIPPING || UE_BUILD_TEST)
-				P->SetDebugName(MakeShared<FString, ESPMode::ThreadSafe>(FString::Printf(TEXT("%s-%d"), *Parameters.Name, Index)));
-#endif
 			}
 		}
 		// this step is necessary for Phase 2 where we need to walk back the hierarchy from children to parent 
@@ -1488,6 +1488,11 @@ void FGeometryCollectionPhysicsProxy::InitializeBodiesPT(Chaos::FPBDRigidsSolver
 						Handle->GTGeometryParticle() = GTParticle;
 					}
 
+#if CHAOS_DEBUG_NAME
+					TSharedPtr<FString, ESPMode::ThreadSafe> ParticleName = MakeShared<FString, ESPMode::ThreadSafe>(FString::Printf(TEXT("%s-%d"), *Parameters.Name, TransformGroupIndex));
+					Handle->SetDebugName(ParticleName);
+#endif
+
 					int32 RigidChildrenIdx = 0;
 					for(const int32 ChildTransformIndex : RigidChildrenTransformGroupIndex)
 					{
@@ -1635,10 +1640,6 @@ void FGeometryCollectionPhysicsProxy::InitializeBodiesPT(Chaos::FPBDRigidsSolver
 				Handle->SetLinearEtherDrag(Parameters.LinearDamping);
 				Handle->SetAngularEtherDrag(Parameters.AngularDamping);
 				Handle->SetInitialOverlapDepenetrationVelocity(Parameters.InitialOverlapDepenetrationVelocity);
-
-#if !(UE_BUILD_SHIPPING || UE_BUILD_TEST)
-				Handle->SetDebugName(MakeShared<FString, ESPMode::ThreadSafe>(FString::Printf(TEXT("%s-%d"), *Parameters.Name, HandleIndex)));
-#endif
 			}
 
 #if !(UE_BUILD_SHIPPING || UE_BUILD_TEST)

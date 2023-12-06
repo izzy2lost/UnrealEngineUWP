@@ -17,11 +17,7 @@ namespace Chaos
 	namespace Private
 	{
 		// The name shown for particoles that have not had their DebugName set
-#if CHAOS_DEBUG_NAME
-		FString EmptyParticleName = TEXT("<NotNamed>");
-#else
-		FString EmptyParticleName = TEXT("<NotSupported>");
-#endif
+		FString EmptyParticleName = TEXT("<NoName>");
 	}
 
 	FShapeOrShapesArray::FShapeOrShapesArray(const FGeometryParticleHandle* Particle)

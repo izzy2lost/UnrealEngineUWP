@@ -705,8 +705,13 @@ void UClusterUnionComponent::OnCreatePhysicsState()
 	InitData.bCheckConnectivity = bHasAuthority;
 	InitData.bGenerateConnectivityEdges = bHasAuthority;
 
+#if CHAOS_DEBUG_NAME
+	InitData.DebugName = MakeShared<FString>(FString::Printf(TEXT("%s %s"), *AActor::GetDebugName(GetOwner()), *GetName()));
+#endif
+
 	PhysicsProxy = new Chaos::FClusterUnionPhysicsProxy{ this, Parameters, InitData };
 	PhysicsProxy->Initialize_External();
+
 	if (FPhysScene_Chaos* Scene = GetChaosScene())
 	{
 		Scene->AddObject(this, PhysicsProxy);

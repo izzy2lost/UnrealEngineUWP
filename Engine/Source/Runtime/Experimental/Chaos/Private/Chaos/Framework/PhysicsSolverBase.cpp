@@ -214,6 +214,9 @@ namespace Chaos
 	FPhysicsSolverBase::FPhysicsSolverBase(const EMultiBufferMode BufferingModeIn,const EThreadingModeTemp InThreadingMode,UObject* InOwner, Chaos::FReal InAsyncDt)
 		: BufferMode(BufferingModeIn)
 		, ThreadingMode(!!GSingleThreadedPhysics ? EThreadingModeTemp::SingleThread : InThreadingMode)
+#if CHAOS_DEBUG_NAME
+		, DebugName(NAME_None)
+#endif
 		, PullResultsManager(MakeUnique<FChaosResultsManager>(MarshallingManager))
 		, PendingSpatialOperations_External(MakeUnique<FPendingSpatialDataQueue>())
 		, bUseCollisionResimCache(false)
@@ -241,6 +244,23 @@ namespace Chaos
 		{
 			PhysicsRunsOnGT = 1;
 		}
+	}
+
+#if CHAOS_DEBUG_NAME
+	void FPhysicsSolverBase::SetDebugName(const FName& Name)
+	{
+		DebugName = Name;
+		OnDebugNameChanged();
+	}
+#endif
+
+	FName FPhysicsSolverBase::GetDebugName() const
+	{
+#if CHAOS_DEBUG_NAME
+		return DebugName;
+#else
+		return NAME_None;
+#endif
 	}
 
 	void FPhysicsSolverBase::EnableAsyncMode(FReal FixedDt)

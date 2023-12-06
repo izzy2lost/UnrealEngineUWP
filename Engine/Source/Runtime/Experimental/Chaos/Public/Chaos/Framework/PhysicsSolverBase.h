@@ -508,16 +508,10 @@ namespace Chaos
 		CHAOS_API FGraphEventRef AdvanceAndDispatch_External(FReal InDt);
 
 #if CHAOS_DEBUG_NAME
-		void SetDebugName(const FName& Name)
-		{
-			DebugName = Name;
-		}
-
-		const FName& GetDebugName() const
-		{
-			return DebugName;
-		}
+		CHAOS_API void SetDebugName(const FName& Name);
 #endif
+		CHAOS_API FName GetDebugName() const;
+
 
 		//Tells us if we're on the frozen game thread. This is needed for knowing which data to read/write to
 		//The IsInGameThread check is so that other threads (e.g audio thread) which might be running queries in parallel will continue to use the correct interpolated GT data
@@ -745,35 +739,37 @@ namespace Chaos
 		virtual void SetExternalTimestampConsumed_Internal(const int32 Timestamp) = 0;
 
 #if CHAOS_DEBUG_NAME
+		virtual void OnDebugNameChanged() {}
+
 		FName DebugName;
 #endif
 
-	FChaosMarshallingManager MarshallingManager;
-	TUniquePtr<FChaosResultsManager> PullResultsManager;	//must come after MarshallingManager since it knows about MarshallingManager
+		FChaosMarshallingManager MarshallingManager;
+		TUniquePtr<FChaosResultsManager> PullResultsManager;	//must come after MarshallingManager since it knows about MarshallingManager
 
-	// The spatial operations not yet consumed by the internal sim. Use this to ensure any GT operations are seen immediately
-	TUniquePtr<FPendingSpatialDataQueue> PendingSpatialOperations_External;
+		// The spatial operations not yet consumed by the internal sim. Use this to ensure any GT operations are seen immediately
+		TUniquePtr<FPendingSpatialDataQueue> PendingSpatialOperations_External;
 
-	TArray<ISimCallbackObject*> SimCallbackObjects;
-	TArray<ISimCallbackObject*> MidPhaseModifiers;
-	TArray<ISimCallbackObject*> CCDModifiers;
-	TArray<ISimCallbackObject*> StrainModifiers;
-	TArray<ISimCallbackObject*> ContactModifiers;
-	TArray<ISimCallbackObject*> RegistrationWatchers;
-	TArray<ISimCallbackObject*> UnregistrationWatchers;
-	TArray<ISimCallbackObject*> PhysicsObjectUnregistrationWatchers;
+		TArray<ISimCallbackObject*> SimCallbackObjects;
+		TArray<ISimCallbackObject*> MidPhaseModifiers;
+		TArray<ISimCallbackObject*> CCDModifiers;
+		TArray<ISimCallbackObject*> StrainModifiers;
+		TArray<ISimCallbackObject*> ContactModifiers;
+		TArray<ISimCallbackObject*> RegistrationWatchers;
+		TArray<ISimCallbackObject*> UnregistrationWatchers;
+		TArray<ISimCallbackObject*> PhysicsObjectUnregistrationWatchers;
 
-	TUniquePtr<FRewindData> MRewindData;
-	TUniquePtr<IRewindCallback> MRewindCallback;
+		TUniquePtr<FRewindData> MRewindData;
+		TUniquePtr<IRewindCallback> MRewindCallback;
 
-	bool bUseCollisionResimCache;
+		bool bUseCollisionResimCache;
 
-	FGraphEventRef PendingTasks;
+		FGraphEventRef PendingTasks;
 
-	bool bSolverHasFrozenGameThreadCallbacks = false;
-	bool bGameThreadFrozen = false;
-	FReal MLastDt = FReal(0);
-	FReal MTime = FReal(0);
+		bool bSolverHasFrozenGameThreadCallbacks = false;
+		bool bGameThreadFrozen = false;
+		FReal MLastDt = FReal(0);
+		FReal MTime = FReal(0);
 
 	private:
 

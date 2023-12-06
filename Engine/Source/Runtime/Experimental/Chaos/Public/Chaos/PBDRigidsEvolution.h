@@ -949,6 +949,9 @@ public:
 	const TArray<FRemovalData>& GetAllRemovals() { return MAllRemovals; }
 	void ResetAllRemovals() { MAllRemovals.Reset(); }
 
+	void SetName(const FString& InName) { EvolutionName = InName; }
+	const FString& GetName() const { return EvolutionName; }
+
 protected:
 	int32 NumConstraints() const
 	{
@@ -1141,6 +1144,9 @@ protected:
 	TArray<FUniqueIdx> PendingReleaseIndices;	//for now just assume a one frame delay, but may need something more general
 	bool bIsResim = false; 
 	bool bIsReset = false;
+
+	// Useful name for debugging. E.g., Indicates whether we are on client or server
+	FString EvolutionName;
 
 #if CHAOS_EVOLUTION_COLLISION_TESTMODE
 	// Test Mode for Collision issues (resets particle positions every tick for repeatable testing)

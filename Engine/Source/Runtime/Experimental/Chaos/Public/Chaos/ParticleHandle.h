@@ -30,6 +30,8 @@ namespace Chaos
 	namespace Private
 	{
 		class FConvexOptimizer;
+
+		CHAOS_API extern FString EmptyParticleName;
 	}
 
 	namespace CVars
@@ -537,15 +539,15 @@ public:
 	
 	void SetNonFrequentData(const FParticleNonFrequentData& InData)
 	{
+#if CHAOS_DEBUG_NAME
+		SetDebugName(InData.DebugName());
+#endif
+
 		SetGeometry(Chaos::FImplicitObjectPtr(InData.GetGeometry()));
 		SetUniqueIdx(InData.UniqueIdx());
 		SetSpatialIdx(InData.SpatialIdx());
 		SetResimType(InData.ResimType());
 		SetParticleID(InData.ParticleID());
-
-#if CHAOS_DEBUG_NAME
-		SetDebugName(InData.DebugName());
-#endif
 	}
 
 	bool HasCollision() const { return GeometryParticles->HasCollision(ParticleIdx); }
@@ -2677,6 +2679,18 @@ public:
 		MNonFrequentData.Modify(true,MDirtyFlags,Proxy,[&InDebugName](auto& Data){ Data.SetDebugName(InDebugName);});
 	}
 #endif
+
+	const FString& GetDebugName() const
+	{
+#if CHAOS_DEBUG_NAME
+		const TSharedPtr<FString, ESPMode::ThreadSafe>& DebugNamePtr = DebugName();
+		if (DebugNamePtr.IsValid())
+		{
+			return *(DebugNamePtr.Get());
+		}
+#endif
+		return Private::EmptyParticleName;
+	}
 
 	void MergeShapesArray(FShapesArray&& InShapesArray)
 	{

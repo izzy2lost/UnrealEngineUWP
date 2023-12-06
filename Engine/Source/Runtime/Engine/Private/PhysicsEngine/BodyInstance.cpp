@@ -1102,13 +1102,7 @@ TSharedPtr<TArray<ANSICHAR>> GetDebugDebugName(const UPrimitiveComponent* Primit
 
 	if (PrimitiveComp)
 	{
-#if WITH_EDITOR
-		if (PrimitiveComp->GetOwner())
-		{
-			DebugName += FString::Printf(TEXT("Actor: '%s' "), *PrimitiveComp->GetOwner()->GetActorLabel(false));
-		}
-#endif
-		DebugName += FString::Printf(TEXT("Component: '%s' "), *PrimitiveComp->GetPathName());
+		DebugName += FString::Printf(TEXT("%s %s "), *AActor::GetDebugName(PrimitiveComp->GetOwner()), *PrimitiveComp->GetName());
 	}
 
 	if (BodySetup->BoneName != NAME_None)

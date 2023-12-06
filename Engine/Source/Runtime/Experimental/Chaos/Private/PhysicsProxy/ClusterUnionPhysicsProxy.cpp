@@ -81,6 +81,10 @@ namespace Chaos
 		Particle_External = FExternalParticle::CreateParticle();
 		check(Particle_External != nullptr);
 
+#if CHAOS_DEBUG_NAME
+		Particle_External->SetDebugName(InitData.DebugName);
+#endif
+
 		Particle_External->SetProxy(this);
 		Particle_External->SetUserData(InitData.UserData);
 		Particle_External->SetX(InitData.InitialTransform.GetTranslation());
@@ -135,8 +139,11 @@ namespace Chaos
 			Particle_Internal->SetCenterOfMass(FVector3f::ZeroVector);
 			Particle_Internal->SetRotationOfMass(FQuat::Identity);
 
-#if !(UE_BUILD_SHIPPING || UE_BUILD_TEST)
-			Particle_Internal->SetDebugName(MakeShared<FString, ESPMode::ThreadSafe>(FString::Printf(TEXT("%s"), *GetOwner()->GetName())));
+#if CHAOS_DEBUG_NAME
+			if (Particle_External.IsValid())
+			{
+				Particle_Internal->SetDebugName(Particle_External->DebugName());
+			}
 #endif
 
 			// For explicit cluster unions (i.e. cluster unions created via a cluster union component rather than the cluster group index), the cluster union itself is responsible for initializing
