@@ -48,6 +48,9 @@ FReplicatedPredictionKeyItem& FReplicatedPredictionKeyItem::operator=(FReplicate
 /** The key to understanding this function is that when a key is received by the server, we note which connection gave it to us. We only serialize the key back to that client.  */
 bool FPredictionKey::NetSerialize(FArchive& Ar, class UPackageMap* Map, bool& bOutSuccess)
 {
+	Ar.UsingCustomVersion(FEngineNetworkCustomVersion::Guid);
+	const bool bReplicateDeprecatedBaseForDemoPurposes = (Ar.EngineNetVer() < FEngineNetworkCustomVersion::PredictionKeyBaseNotReplicated);
+
 	// First bit for valid key for this connection or not. (most keys are not valid)
 	uint8 ValidKeyForConnection = 0;
 	if (Ar.IsSaving())
@@ -61,9 +64,9 @@ bool FPredictionKey::NetSerialize(FArchive& Ar, class UPackageMap* Map, bool& bO
 	}
 	Ar.SerializeBits(&ValidKeyForConnection, 1);
 
-	// Second bit for base key (only if valid connection)
+	// Second bit for the now-deprecated base key (only if valid connection)
 	uint8 HasBaseKey = 0;
-	if (ValidKeyForConnection)
+	if (bReplicateDeprecatedBaseForDemoPurposes && ValidKeyForConnection)
 	{
 		if (Ar.IsSaving())
 		{
@@ -83,6 +86,7 @@ bool FPredictionKey::NetSerialize(FArchive& Ar, class UPackageMap* Map, bool& bO
 		Ar << Current;
 		if (HasBaseKey)
 		{
+			ensureMsgf(bReplicateDeprecatedBaseForDemoPurposes, TEXT("We should only ever be replicating a Base Key if we're loading an old demo, see bReplicateDeprecatedBaseForDemoPurposes"));
 			Ar << Base;
 		}
 	}	
@@ -103,7 +107,7 @@ void FPredictionKey::GenerateNewPredictionKey()
 {
 	static KeyType GKey = 1;
 	Current = GKey++;
-	if (GKey < 0)
+	if (GKey <= 0)
 	{
 		GKey = 1;
 	}
@@ -118,14 +122,10 @@ void FPredictionKey::GenerateDependentPredictionKey()
 		return;
 	}
 
-	KeyType Previous = 0;
+	KeyType Previous = Current;
 	if (Base == 0)
 	{
 		Base = Current;
-	}
-	else
-	{
-		Previous = Current;
 	}
 
 	GenerateNewPredictionKey();
