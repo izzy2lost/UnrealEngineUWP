@@ -25,12 +25,14 @@ struct FMovieSceneEventParameters
 
 	FMovieSceneEventParameters()
 		: PackageFileVersion(GPackageFileUEVersion)
+		, LicenseePackageFileVersion(GPackageFileLicenseeUEVersion )
 	{}
 
 	/** Construction from a struct type */
 	FMovieSceneEventParameters(UScriptStruct& InStruct)
 		: StructType(&InStruct)
 		, PackageFileVersion(GPackageFileUEVersion)
+		, LicenseePackageFileVersion(GPackageFileLicenseeUEVersion )
 	{
 	}
 
@@ -92,6 +94,7 @@ private:
 
 	/** Used while loading to pass along to the FEventParameterReader */
 	FPackageFileVersion PackageFileVersion;
+	int32 LicenseePackageFileVersion;
 
 	/** Serialized bytes that represent the payload. Serialized internally with FEventParameterArchive */
 	TArray<uint8> StructBytes;
