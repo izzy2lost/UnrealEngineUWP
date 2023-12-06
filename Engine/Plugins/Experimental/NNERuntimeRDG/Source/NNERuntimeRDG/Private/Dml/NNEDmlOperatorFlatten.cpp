@@ -114,7 +114,10 @@ public:
 };
 
 // Register Reshape operator on Module startup
-NNE_DML_REGISTER_OP(Flatten)
+NNE_DML_REGISTER_OP_VERSION(Flatten, 1)
+NNE_DML_REGISTER_OP_VERSION(Flatten, 9)
+NNE_DML_REGISTER_OP_VERSION(Flatten, 11)
+NNE_DML_REGISTER_OP_VERSION(Flatten, 13)
 
 } // namespace UE::NNERuntimeRDG::Private::Dml
 

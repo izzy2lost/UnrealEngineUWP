@@ -155,8 +155,6 @@ namespace UE::NNERuntimeRDG::Private::Hlsl
 	{
 		bool bIsValid = true;
 
-		// This matches versions 1, 11 and 13 of the Gather operator
-		// https://github.com/onnx/onnx/blob/main/docs/Operators.md#Gather
 		FAttributeValidator AttributeValidator;
 		AttributeValidator.AddOptional(TEXT("axis"), ENNEAttributeDataType::Int32);
 		bIsValid &= AttributeValidator.Validate(AttributeMap);
@@ -184,7 +182,10 @@ namespace UE::NNERuntimeRDG::Private::Hlsl
 
 	bool RegisterGatherOperator(FOperatorRegistryHlsl& Registry)
 	{
-		Registry.OpAdd({{TEXT("Gather"), TEXT("Onnx")}}, CreateGatherOperator, ValidateGatherOperator);
+		// Note: support of a particular version is partial with respect to tensor data types (only the most typical ones are usually supported).
+		Registry.OpAdd({{TEXT("Gather"), TEXT("Onnx")}, 1}, CreateGatherOperator, ValidateGatherOperator);
+		Registry.OpAdd({{TEXT("Gather"), TEXT("Onnx")}, 11}, CreateGatherOperator, ValidateGatherOperator);
+		Registry.OpAdd({{TEXT("Gather"), TEXT("Onnx")}, 13}, CreateGatherOperator, ValidateGatherOperator);
 		return true;
 	}
 } // UE::NNERuntimeRDG::Private::Hlsl

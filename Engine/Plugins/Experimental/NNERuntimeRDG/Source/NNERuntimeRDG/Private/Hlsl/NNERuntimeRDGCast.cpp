@@ -65,8 +65,6 @@ namespace UE::NNERuntimeRDG::Private::Hlsl
 	{
 		bool bIsValid = true;
 
-		//This match version 13 of the Cast operator
-		//https://github.com/onnx/onnx/blob/main/docs/Operators.md#Cast
 		FAttributeValidator AttributeValidator;
 		AttributeValidator.AddRequired(TEXT("to"), ENNEAttributeDataType::Int32);
 		bIsValid &= AttributeValidator.Validate(AttributeMap);
@@ -106,7 +104,11 @@ namespace UE::NNERuntimeRDG::Private::Hlsl
 
 	bool RegisterCastOperator(FOperatorRegistryHlsl& Registry)
 	{
-		Registry.OpAdd({{TEXT("Cast"), TEXT("Onnx")}}, CreateCastOperator, ValidateCastOperator);
+		// Note: support of a particular version is partial with respect to tensor data types (only the most typical ones are usually supported).
+		Registry.OpAdd({{TEXT("Cast"), TEXT("Onnx")}, 6}, CreateCastOperator, ValidateCastOperator);
+		Registry.OpAdd({{TEXT("Cast"), TEXT("Onnx")}, 9}, CreateCastOperator, ValidateCastOperator);
+		Registry.OpAdd({{TEXT("Cast"), TEXT("Onnx")}, 13}, CreateCastOperator, ValidateCastOperator);
+		// Next version: 19
 		return true;
 	}
 } // UE::NNERuntimeRDG::Private::Hlsl

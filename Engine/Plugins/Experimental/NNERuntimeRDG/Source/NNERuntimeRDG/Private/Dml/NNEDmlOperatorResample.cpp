@@ -466,20 +466,22 @@ public:
 	}
 };
 
-#define NNE_DML_REGISTER_RESAMPLE_OP(OpName, IsResize) \
-struct FDmlOperator##OpName##Registrator \
+#define NNE_DML_REGISTER_RESAMPLE_OP(OpName, IsResize, Version) \
+struct FDmlOperator##OpName##Version##Registrator \
 { \
-	FDmlOperator##OpName##Registrator() \
+	FDmlOperator##OpName##Version##Registrator() \
 	{ \
-		FOperatorRegistryDml::Get()->OpAdd({{TEXT(#OpName), TEXT("Onnx")}}, FOperatorDmlResample<IsResize>::Create, FOperatorDmlResample<IsResize>::Validate); \
+		FOperatorRegistryDml::Get()->OpAdd({{TEXT(#OpName), TEXT("Onnx")}, Version}, FOperatorDmlResample<IsResize>::Create, FOperatorDmlResample<IsResize>::Validate); \
 	} \
 }; \
 \
-static FDmlOperator##OpName##Registrator RegisterDmlOperator##OpName;
+static FDmlOperator##OpName##Version##Registrator RegisterDmlOperator##OpName##Version;
 
 // Register operator on Module startup
-NNE_DML_REGISTER_RESAMPLE_OP(Upsample, false)
-NNE_DML_REGISTER_RESAMPLE_OP(Resize, true)
+NNE_DML_REGISTER_RESAMPLE_OP(Upsample, false, 9)
+NNE_DML_REGISTER_RESAMPLE_OP(Resize, true, 10)
+NNE_DML_REGISTER_RESAMPLE_OP(Resize, true, 11)
+NNE_DML_REGISTER_RESAMPLE_OP(Resize, true, 13)
 
 } // namespace UE::NNERuntimeRDG::Private::Dml
 

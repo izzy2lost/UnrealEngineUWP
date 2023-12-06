@@ -137,7 +137,8 @@ public:
 };
 
 // Register Transpose operator on Module startup
-NNE_DML_REGISTER_OP(Transpose)
+NNE_DML_REGISTER_OP_VERSION(Transpose, 1)
+NNE_DML_REGISTER_OP_VERSION(Transpose, 13)
 
 } // namespace UE::NNERuntimeRDG::Private::Dml
 

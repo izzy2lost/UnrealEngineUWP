@@ -176,7 +176,8 @@ public:
 };
 
 // Register Split operator on Module startup
-NNE_DML_REGISTER_OP(Split)
+NNE_DML_REGISTER_OP_VERSION(Split, 2)
+NNE_DML_REGISTER_OP_VERSION(Split, 11)
 
 } // namespace UE::NNERuntimeRDG::Private::Dml
 

@@ -93,8 +93,6 @@ namespace UE::NNERuntimeRDG::Private::Hlsl
 	{
 		bool bIsValid = true;
 
-		//This match version 1 of the Unsqueeze operator, next version are 11 and 13
-		//https://github.com/onnx/onnx/blob/main/docs/Operators.md#Unsqueeze
 		FAttributeValidator AttributeValidator;
 		AttributeValidator.AddRequired(TEXT("axes"), ENNEAttributeDataType::Int32Array);
 		bIsValid &= AttributeValidator.Validate(AttributeMap);
@@ -125,7 +123,8 @@ namespace UE::NNERuntimeRDG::Private::Hlsl
 
 	bool RegisterUnsqueezeOperator(FOperatorRegistryHlsl& Registry)
 	{
-		Registry.OpAdd({{TEXT("Unsqueeze"), TEXT("Onnx")}}, CreateUnsqueezeOperator, ValidateUnsqueezeOperator);
+		// Note: support of a particular version is partial with respect to tensor data types (only the most typical ones are usually supported).
+		Registry.OpAdd({{TEXT("Unsqueeze"), TEXT("Onnx")}, 1}, CreateUnsqueezeOperator, ValidateUnsqueezeOperator);
 		return true;
 	}
 } // UE::NNERuntimeRDG::Private::Hlsl

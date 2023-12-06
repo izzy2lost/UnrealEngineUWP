@@ -67,8 +67,6 @@ namespace UE::NNERuntimeRDG::Private::Hlsl
 	{
 		bool bIsValid = true;
 
-		//This match version 1 of the shape operator (next version is with opset 13)
-		//https://github.com/onnx/onnx/blob/main/docs/Changelog.md#Shape-1
 		FAttributeValidator AttributeValidator;
 		bIsValid &= AttributeValidator.Validate(AttributeMap);
 
@@ -97,7 +95,9 @@ namespace UE::NNERuntimeRDG::Private::Hlsl
 
 	bool RegisterShapeOperator(FOperatorRegistryHlsl& Registry)
 	{
-		Registry.OpAdd({{TEXT("Shape"), TEXT("Onnx")}}, CreateShapeOperator, ValidateShapeOperator);
+		// Note: support of a particular version is partial with respect to tensor data types (only the most typical ones are usually supported).
+		Registry.OpAdd({{TEXT("Shape"), TEXT("Onnx")}, 1}, CreateShapeOperator, ValidateShapeOperator);
+		Registry.OpAdd({{TEXT("Shape"), TEXT("Onnx")}, 13}, CreateShapeOperator, ValidateShapeOperator);
 		return true;
 	}
 } // UE::NNERuntimeRDG::Private::Hlsl

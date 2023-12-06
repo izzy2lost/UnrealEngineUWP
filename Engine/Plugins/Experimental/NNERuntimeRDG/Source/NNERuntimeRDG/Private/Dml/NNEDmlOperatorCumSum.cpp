@@ -151,7 +151,8 @@ public:
 };
 
 // Register CumSum operator on Module startup
-NNE_DML_REGISTER_OP(CumSum)
+NNE_DML_REGISTER_OP_VERSION(CumSum, 11)
+NNE_DML_REGISTER_OP_VERSION(CumSum, 14)
 
 } // namespace UE::NNERuntimeRDG::Private::Dml
 

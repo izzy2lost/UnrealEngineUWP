@@ -289,7 +289,9 @@ public:
 };
 
 // Register Slice operator on Module startup
-NNE_DML_REGISTER_OP(Slice)
+NNE_DML_REGISTER_OP_VERSION(Slice, 10)
+NNE_DML_REGISTER_OP_VERSION(Slice, 11)
+NNE_DML_REGISTER_OP_VERSION(Slice, 13)
 
 } // namespace UE::NNERuntimeRDG::Private::Dml
 

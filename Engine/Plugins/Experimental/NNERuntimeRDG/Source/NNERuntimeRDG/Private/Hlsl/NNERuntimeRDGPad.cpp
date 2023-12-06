@@ -129,8 +129,6 @@ namespace UE::NNERuntimeRDG::Private::Hlsl
 	{
 		bool bIsValid = true;
 
-		//This match version 2 of the pad operator (next version is with opset 11)
-		//https://github.com/onnx/onnx/blob/main/docs/Changelog.md#Pad-2
 		FAttributeValidator AttributeValidator;
 		AttributeValidator.AddOptional(TEXT("mode"), ENNEAttributeDataType::String);
 		AttributeValidator.AddRequired(TEXT("pads"), ENNEAttributeDataType::Int32Array);
@@ -161,7 +159,8 @@ namespace UE::NNERuntimeRDG::Private::Hlsl
 
 	bool RegisterPadOperator(FOperatorRegistryHlsl& Registry)
 	{
-		Registry.OpAdd({{TEXT("Pad"), TEXT("Onnx")}}, CreatePadOperator, ValidatePadOperator);
+		// Note: support of a particular version is partial with respect to tensor data types (only the most typical ones are usually supported).
+		Registry.OpAdd({{TEXT("Pad"), TEXT("Onnx")}, 2}, CreatePadOperator, ValidatePadOperator);
 		return true;
 	}
 } // UE::NNERuntimeRDG::Private::Hlsl

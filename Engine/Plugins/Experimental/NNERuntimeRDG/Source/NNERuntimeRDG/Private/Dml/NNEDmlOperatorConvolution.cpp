@@ -258,12 +258,14 @@ public:
 
 void RegisterConvOperator()
 {
-	FOperatorRegistryDml::Get()->OpAdd({{TEXT("Conv"), TEXT("Onnx")}}, FOperatorDmlConv<DML_CONVOLUTION_DIRECTION_FORWARD>::Create);
+	FOperatorRegistryDml::Get()->OpAdd({{TEXT("Conv"), TEXT("Onnx")}, 1}, FOperatorDmlConv<DML_CONVOLUTION_DIRECTION_FORWARD>::Create);
+	FOperatorRegistryDml::Get()->OpAdd({{TEXT("Conv"), TEXT("Onnx")}, 11}, FOperatorDmlConv<DML_CONVOLUTION_DIRECTION_FORWARD>::Create);
 }
 
 void RegisterConvTransposeOperator()
 {
-	FOperatorRegistryDml::Get()->OpAdd({{TEXT("ConvTranspose"), TEXT("Onnx")}}, FOperatorDmlConv<DML_CONVOLUTION_DIRECTION_BACKWARD>::Create);
+	FOperatorRegistryDml::Get()->OpAdd({{TEXT("ConvTranspose"), TEXT("Onnx")}, 1}, FOperatorDmlConv<DML_CONVOLUTION_DIRECTION_BACKWARD>::Create);
+	FOperatorRegistryDml::Get()->OpAdd({{TEXT("ConvTranspose"), TEXT("Onnx")}, 11}, FOperatorDmlConv<DML_CONVOLUTION_DIRECTION_BACKWARD>::Create);
 }
 
 struct FDmlOperatorConvRegistrator

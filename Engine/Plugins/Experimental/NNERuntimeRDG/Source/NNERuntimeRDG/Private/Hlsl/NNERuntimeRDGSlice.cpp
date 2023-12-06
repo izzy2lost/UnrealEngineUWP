@@ -195,8 +195,6 @@ namespace UE::NNERuntimeRDG::Private::Hlsl
 	{
 		bool bIsValid = true;
 
-		//This match version 1 of the Slice operator, next version are 10, 11 and 13
-		//https://github.com/onnx/onnx/blob/main/docs/Changelog.md#Slice-1
 		FAttributeValidator AttributeValidator;
 		AttributeValidator.AddOptional(TEXT("axes"), ENNEAttributeDataType::Int32Array);
 		AttributeValidator.AddRequired(TEXT("ends"), ENNEAttributeDataType::Int32Array);
@@ -221,7 +219,8 @@ namespace UE::NNERuntimeRDG::Private::Hlsl
 
 	bool RegisterSliceOperator(FOperatorRegistryHlsl& Registry)
 	{
-		Registry.OpAdd({{TEXT("Slice"), TEXT("Onnx")}}, CreateSliceOperator, ValidateSliceOperator);
+		// Note: support of a particular version is partial with respect to tensor data types (only the most typical ones are usually supported).
+		Registry.OpAdd({{TEXT("Slice"), TEXT("Onnx")}, 1}, CreateSliceOperator, ValidateSliceOperator);
 		return true;
 	}
 } // UE::NNERuntimeRDG::Private::Hlsl

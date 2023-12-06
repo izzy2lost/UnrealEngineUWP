@@ -177,7 +177,10 @@ public:
 };
 
 // Register Concat operator on Module startup
-NNE_DML_REGISTER_OP(Concat)
+NNE_DML_REGISTER_OP_VERSION(Concat, 1)
+NNE_DML_REGISTER_OP_VERSION(Concat, 4)
+NNE_DML_REGISTER_OP_VERSION(Concat, 11)
+NNE_DML_REGISTER_OP_VERSION(Concat, 13)
 
 } // namespace UE::NNERuntimeRDG::Private::Dml
 

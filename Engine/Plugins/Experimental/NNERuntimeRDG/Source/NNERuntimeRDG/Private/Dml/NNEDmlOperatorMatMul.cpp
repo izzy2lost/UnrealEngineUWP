@@ -321,7 +321,9 @@ public:
 	}
 };
 
-NNE_DML_REGISTER_OP(MatMul)
+NNE_DML_REGISTER_OP_VERSION(MatMul, 1)
+NNE_DML_REGISTER_OP_VERSION(MatMul, 9)
+NNE_DML_REGISTER_OP_VERSION(MatMul, 13)
 
 } // namespace UE::NNERuntimeRDG::Private::Dml
 

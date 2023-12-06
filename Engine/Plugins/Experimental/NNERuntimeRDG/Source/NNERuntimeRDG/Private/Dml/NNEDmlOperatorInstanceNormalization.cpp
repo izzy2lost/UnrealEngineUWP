@@ -194,7 +194,7 @@ public:
 };
 
 // Register operator on Module startup
-NNE_DML_REGISTER_OP(InstanceNormalization)
+NNE_DML_REGISTER_OP_VERSION(InstanceNormalization, 6)
 
 } // namespace UE::NNERuntimeRDG::Private::Dml
 

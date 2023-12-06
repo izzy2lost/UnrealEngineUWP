@@ -131,7 +131,8 @@ public:
 };
 
 // Register operator on Module startup
-NNE_DML_REGISTER_OP(MeanVarianceNormalization)
+NNE_DML_REGISTER_OP_VERSION(MeanVarianceNormalization, 9)
+NNE_DML_REGISTER_OP_VERSION(MeanVarianceNormalization, 13)
 
 } // namespace UE::NNERuntimeRDG::Private::Dml
 

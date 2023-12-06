@@ -101,8 +101,6 @@ namespace UE::NNERuntimeRDG::Private::Hlsl
 	{
 		bool bIsValid = true;
 
-		//This match version 1 of the Squeeze operator, next version are 11 and 13
-		//https://github.com/onnx/onnx/blob/main/docs/Operators.md#Squeeze
 		FAttributeValidator AttributeValidator;
 		AttributeValidator.AddRequired(TEXT("axes"), ENNEAttributeDataType::Int32Array);
 		bIsValid &= AttributeValidator.Validate(AttributeMap);
@@ -133,7 +131,8 @@ namespace UE::NNERuntimeRDG::Private::Hlsl
 
 	bool RegisterSqueezeOperator(FOperatorRegistryHlsl& Registry)
 	{
-		Registry.OpAdd({{TEXT("Squeeze"), TEXT("Onnx")}}, CreateSqueezeOperator, ValidateSqueezeOperator);
+		// Note: support of a particular version is partial with respect to tensor data types (only the most typical ones are usually supported).
+		Registry.OpAdd({{TEXT("Squeeze"), TEXT("Onnx")}, 1}, CreateSqueezeOperator, ValidateSqueezeOperator);
 		return true;
 	}
 } // UE::NNERuntimeRDG::Private::Hlsl

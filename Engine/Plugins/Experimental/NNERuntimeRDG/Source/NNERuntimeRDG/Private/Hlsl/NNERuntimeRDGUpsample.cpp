@@ -147,7 +147,8 @@ namespace UE::NNERuntimeRDG::Private::Hlsl
 
 	bool RegisterUpsampleOperator(FOperatorRegistryHlsl& Registry)
 	{
-		Registry.OpAdd({{TEXT("Upsample"), TEXT("Onnx")}}, CreateUpsampleOperator, ValidateUpsampleOperator);
+		// Note: support of a particular version is partial with respect to tensor data types (only the most typical ones are usually supported).
+		Registry.OpAdd({{TEXT("Upsample"), TEXT("Onnx")}, 9}, CreateUpsampleOperator, ValidateUpsampleOperator);
 		return true;
 	}
 } // UE::NNERuntimeRDG::Private::Hlsl

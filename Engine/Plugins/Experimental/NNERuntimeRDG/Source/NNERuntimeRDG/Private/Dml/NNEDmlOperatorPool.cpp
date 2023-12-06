@@ -298,25 +298,32 @@ public:
 	}
 };
 
-#define NNE_DML_REGISTER_POOLING_OP(OpName, DmlPrefix, UseGlobalPooling) \
-TCHAR const Op##OpName##Name[] = TEXT(#OpName); \
-struct FDmlOperator##OpName##Registrator \
+#define NNE_DML_REGISTER_POOLING_OP(OpName, DmlPrefix, UseGlobalPooling, Version) \
+TCHAR const Op##OpName##Version##Name[] = TEXT(#OpName); \
+struct FDmlOperator##OpName##Version##Registrator \
 { \
-	FDmlOperator##OpName##Registrator() \
+	FDmlOperator##OpName##Version##Registrator() \
 	{ \
-		FOperatorRegistryDml::Get()->OpAdd({{TEXT(#OpName), TEXT("Onnx")}}, FOperatorDmlPool<DML_##DmlPrefix##_POOLING_OPERATOR_DESC, DML_OPERATOR_##DmlPrefix##_POOLING, UseGlobalPooling, Op##OpName##Name>::Create, FOperatorDmlPool<DML_##DmlPrefix##_POOLING_OPERATOR_DESC, DML_OPERATOR_##DmlPrefix##_POOLING, UseGlobalPooling, Op##OpName##Name>::Validate); \
+		FOperatorRegistryDml::Get()->OpAdd({{TEXT(#OpName), TEXT("Onnx")}, Version}, FOperatorDmlPool<DML_##DmlPrefix##_POOLING_OPERATOR_DESC, DML_OPERATOR_##DmlPrefix##_POOLING, UseGlobalPooling, Op##OpName##Version##Name>::Create, FOperatorDmlPool<DML_##DmlPrefix##_POOLING_OPERATOR_DESC, DML_OPERATOR_##DmlPrefix##_POOLING, UseGlobalPooling, Op##OpName##Version##Name>::Validate); \
 	} \
 }; \
 \
-static FDmlOperator##OpName##Registrator RegisterDmlOperator##OpName;
+static FDmlOperator##OpName##Version##Registrator RegisterDmlOperator##OpName##Version;
 
 // Register pooling operator on Module startup
-NNE_DML_REGISTER_POOLING_OP(MaxPool, MAX, false)
-NNE_DML_REGISTER_POOLING_OP(GlobalMaxPool, MAX, true)
-NNE_DML_REGISTER_POOLING_OP(AveragePool, AVERAGE, false)
-NNE_DML_REGISTER_POOLING_OP(GlobalAveragePool, AVERAGE, true)
-NNE_DML_REGISTER_POOLING_OP(LpPool, LP, false)
-NNE_DML_REGISTER_POOLING_OP(GlobalLpPool, LP, true)
+NNE_DML_REGISTER_POOLING_OP(MaxPool, MAX, false, 1)
+NNE_DML_REGISTER_POOLING_OP(MaxPool, MAX, false, 8)
+NNE_DML_REGISTER_POOLING_OP(MaxPool, MAX, false, 11)
+NNE_DML_REGISTER_POOLING_OP(MaxPool, MAX, false, 12)
+NNE_DML_REGISTER_POOLING_OP(GlobalMaxPool, MAX, true, 1)
+NNE_DML_REGISTER_POOLING_OP(AveragePool, AVERAGE, false, 1)
+NNE_DML_REGISTER_POOLING_OP(AveragePool, AVERAGE, false, 7)
+NNE_DML_REGISTER_POOLING_OP(AveragePool, AVERAGE, false, 10)
+NNE_DML_REGISTER_POOLING_OP(AveragePool, AVERAGE, false, 11)
+NNE_DML_REGISTER_POOLING_OP(GlobalAveragePool, AVERAGE, true, 1)
+NNE_DML_REGISTER_POOLING_OP(LpPool, LP, false, 2)
+NNE_DML_REGISTER_POOLING_OP(LpPool, LP, false, 11)
+NNE_DML_REGISTER_POOLING_OP(GlobalLpPool, LP, true, 2)
 
 #undef NNE_DML_REGISTER_POOLING_OP
 

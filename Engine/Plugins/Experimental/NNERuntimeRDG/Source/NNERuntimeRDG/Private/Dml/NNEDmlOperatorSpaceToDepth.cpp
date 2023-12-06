@@ -126,7 +126,8 @@ public:
 };
 
 // Register SpaceToDepth operator on Module startup
-NNE_DML_REGISTER_OP(SpaceToDepth)
+NNE_DML_REGISTER_OP_VERSION(SpaceToDepth, 1)
+NNE_DML_REGISTER_OP_VERSION(SpaceToDepth, 13)
 
 } // namespace UE::NNERuntimeRDG::Private::Dml
 

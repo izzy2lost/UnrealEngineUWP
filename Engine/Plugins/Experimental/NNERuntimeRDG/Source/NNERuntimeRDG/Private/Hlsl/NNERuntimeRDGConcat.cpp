@@ -151,8 +151,6 @@ namespace UE::NNERuntimeRDG::Private::Hlsl
 	{
 		bool bIsValid = true;
 
-		//This match version 11 of the Concat operator
-		//https://github.com/onnx/onnx/blob/main/docs/Operators.md#Concat
 		FAttributeValidator AttributeValidator;
 		AttributeValidator.AddRequired(TEXT("axis"), ENNEAttributeDataType::Int32);
 		bIsValid &= AttributeValidator.Validate(AttributeMap);
@@ -181,7 +179,10 @@ namespace UE::NNERuntimeRDG::Private::Hlsl
 
 	bool RegisterConcatOperator(FOperatorRegistryHlsl& Registry)
 	{
-		Registry.OpAdd({{TEXT("Concat"), TEXT("Onnx")}}, CreateConcatOperator, ValidateConcatOperator);
+		// Note: support of a particular version is partial with respect to tensor data types (only the most typical ones are usually supported).
+		Registry.OpAdd({{TEXT("Concat"), TEXT("Onnx")}, 4}, CreateConcatOperator, ValidateConcatOperator);
+		Registry.OpAdd({{TEXT("Concat"), TEXT("Onnx")}, 11}, CreateConcatOperator, ValidateConcatOperator);
+		Registry.OpAdd({{TEXT("Concat"), TEXT("Onnx")}, 13}, CreateConcatOperator, ValidateConcatOperator);
 		return true;
 	}
 } // UE::NNERuntimeRDG::Private::Hlsl

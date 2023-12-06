@@ -324,8 +324,9 @@ namespace UE::NNERuntimeRDG::Private::Hlsl
 
 	bool RegisterConvOperator(FOperatorRegistryHlsl& Registry)
 	{
-		Registry.OpAdd({{TEXT("Conv"), TEXT("Onnx")}}, FConv::Create, ValidateConvOperator);
-
+		// Note: support of a particular version is partial with respect to tensor data types (only the most typical ones are usually supported).
+		Registry.OpAdd({{TEXT("Conv"), TEXT("Onnx")}, 1}, FConv::Create, ValidateConvOperator);
+		Registry.OpAdd({{TEXT("Conv"), TEXT("Onnx")}, 11}, FConv::Create, ValidateConvOperator);
 		return true;
 	}
 

@@ -162,7 +162,10 @@ namespace UE::NNERuntimeRDG::Private::Hlsl
 
 	bool RegisterMatMulOperator(FOperatorRegistryHlsl& Registry)
 	{
-		Registry.OpAdd({{TEXT("MatMul"), TEXT("Onnx")}}, CreateMatMulOperator, ValidateMatMulOperator);
+		// Note: support of a particular version is partial with respect to tensor data types (only the most typical ones are usually supported).
+		Registry.OpAdd({{TEXT("MatMul"), TEXT("Onnx")}, 1}, CreateMatMulOperator, ValidateMatMulOperator);
+		Registry.OpAdd({{TEXT("MatMul"), TEXT("Onnx")}, 9}, CreateMatMulOperator, ValidateMatMulOperator);
+		Registry.OpAdd({{TEXT("MatMul"), TEXT("Onnx")}, 13}, CreateMatMulOperator, ValidateMatMulOperator);
 		return true;
 	}
 } // UE::NNERuntimeRDG::Private::Hlsl

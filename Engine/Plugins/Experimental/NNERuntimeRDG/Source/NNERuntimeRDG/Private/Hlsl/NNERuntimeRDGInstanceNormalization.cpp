@@ -172,7 +172,8 @@ namespace UE::NNERuntimeRDG::Private::Hlsl
 
 	bool RegisterInstanceNormalizationOperator(FOperatorRegistryHlsl& Registry)
 	{
-		Registry.OpAdd({{TEXT("InstanceNormalization"), TEXT("Onnx")}}, CreateInstanceNormalizationOperator, ValidateInstanceNormalizationOperator);
+		// Note: support of a particular version is partial with respect to tensor data types (only the most typical ones are usually supported).
+		Registry.OpAdd({{TEXT("InstanceNormalization"), TEXT("Onnx")}, 6}, CreateInstanceNormalizationOperator, ValidateInstanceNormalizationOperator);
 		return true;
 	}
 } // UE::NNERuntimeRDG::Private::Hlsl

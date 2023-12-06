@@ -72,8 +72,6 @@ namespace UE::NNERuntimeRDG::Private::Hlsl
 	{
 		bool bIsValid = true;
 
-		//This match version 13 of the Dropout operator
-		//https://github.com/onnx/onnx/blob/main/docs/Operators.md#Dropout
 		FAttributeValidator AttributeValidator;
 		AttributeValidator.AddOptional(TEXT("seed"), ENNEAttributeDataType::Int32); //Will be ignored, only useful in training mode.
 		bIsValid &= AttributeValidator.Validate(AttributeMap);
@@ -101,7 +99,9 @@ namespace UE::NNERuntimeRDG::Private::Hlsl
 
 	bool RegisterDropoutOperator(FOperatorRegistryHlsl& Registry)
 	{
-		Registry.OpAdd({{TEXT("Dropout"), TEXT("Onnx")}}, CreateDropoutOperator, ValidateDropoutOperator);
+		// Note: support of a particular version is partial with respect to tensor data types (only the most typical ones are usually supported).
+		Registry.OpAdd({{TEXT("Dropout"), TEXT("Onnx")}, 12}, CreateDropoutOperator, ValidateDropoutOperator);
+		Registry.OpAdd({{TEXT("Dropout"), TEXT("Onnx")}, 13}, CreateDropoutOperator, ValidateDropoutOperator);
 		return true;
 	}
 } // UE::NNERuntimeRDG::Private::Hlsl

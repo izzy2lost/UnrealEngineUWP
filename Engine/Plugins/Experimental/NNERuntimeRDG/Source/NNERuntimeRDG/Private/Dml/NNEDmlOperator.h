@@ -10,16 +10,41 @@
 #include "NNEAttributeMap.h"
 #include "NNERuntimeRDGBase.h"
 
+#define OP_DML_CLASS(OpName) FOperatorDml##OpName
+#define OP_DML_CLASS_TEMPL(OpName,OpVer) OP_TEST_CLASS(OpName) <OpVer>
+
 #define NNE_DML_REGISTER_OP(OpName) \
 struct FDmlOperator##OpName##Registrator \
 { \
 	FDmlOperator##OpName##Registrator() \
 	{ \
-		FOperatorRegistryDml::Get()->OpAdd({{TEXT(#OpName), TEXT("Onnx")}}, FOperatorDml##OpName##::Create, FOperatorDml##OpName##::Validate); \
+		FOperatorRegistryDml::Get()->OpAdd({{TEXT(#OpName), TEXT("Onnx")}}, OP_DML_CLASS(OpName)::Create, OP_DML_CLASS(OpName)::Validate); \
 	} \
 }; \
 \
 static FDmlOperator##OpName##Registrator RegisterDmlOperator##OpName;
+
+#define NNE_DML_REGISTER_OP_VERSION(OpName, OpVer) \
+struct FDmlOperator##OpName##OpVer##Registrator \
+{ \
+	FDmlOperator##OpName##OpVer##Registrator() \
+	{ \
+		FOperatorRegistryDml::Get()->OpAdd({{TEXT(#OpName), TEXT("Onnx")}, OpVer}, OP_DML_CLASS(OpName)::Create, OP_DML_CLASS(OpName)::Validate); \
+	} \
+}; \
+\
+static FDmlOperator##OpName##OpVer##Registrator RegisterDmlOperator##OpName##OpVer;
+
+#define NNE_DML_REGISTER_OP_TEMPL_VERSION(OpName, OpTemplVer, OpVer) \
+struct FDmlOperator##OpName##OpVer##Registrator \
+{ \
+	FDmlOperator##OpName##OpVer##Registrator() \
+	{ \
+		FOperatorRegistryDml::Get()->OpAdd({{TEXT(#OpName), TEXT("Onnx")}, OpVer}, OP_DML_CLASS_TEMPL(OpName,OpTemplVer)::Create, OP_DML_CLASS_TEMPL(OpName,OpTemplVer)::Validate); \
+	} \
+}; \
+\
+static FDmlOperator##OpName##OpVer##Registrator RegisterDmlOperator##OpName##OpVer;
 
 
 namespace UE::NNERuntimeRDG::Private::Dml

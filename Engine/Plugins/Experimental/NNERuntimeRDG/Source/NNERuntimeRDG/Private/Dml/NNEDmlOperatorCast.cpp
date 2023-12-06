@@ -118,7 +118,9 @@ public:
 };
 
 // Register operator on Module startup
-NNE_DML_REGISTER_OP(Cast)
+NNE_DML_REGISTER_OP_VERSION(Cast, 6)
+NNE_DML_REGISTER_OP_VERSION(Cast, 9)
+NNE_DML_REGISTER_OP_VERSION(Cast, 13)
 
 } // namespace UE::NNERuntimeRDG::Private::Dml
 

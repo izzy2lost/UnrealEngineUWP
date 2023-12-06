@@ -107,7 +107,8 @@ public:
 };
 
 // Register operator on Module startup
-NNE_DML_REGISTER_OP(LRN)
+NNE_DML_REGISTER_OP_VERSION(LRN, 1)
+NNE_DML_REGISTER_OP_VERSION(LRN, 13)
 
 } // namespace UE::NNERuntimeRDG::Private::Dml
 

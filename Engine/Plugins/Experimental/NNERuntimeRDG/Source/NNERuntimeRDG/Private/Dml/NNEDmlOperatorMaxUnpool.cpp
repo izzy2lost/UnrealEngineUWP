@@ -207,7 +207,8 @@ public:
 };
 
 // Register MaxUnpool operator on Module startup
-NNE_DML_REGISTER_OP(MaxUnpool)
+NNE_DML_REGISTER_OP_VERSION(MaxUnpool, 9)
+NNE_DML_REGISTER_OP_VERSION(MaxUnpool, 11)
 
 } // namespace UE::NNERuntimeRDG::Private::Dml
 

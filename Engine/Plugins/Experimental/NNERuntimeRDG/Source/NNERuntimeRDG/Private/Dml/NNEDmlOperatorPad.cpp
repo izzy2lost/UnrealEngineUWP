@@ -194,7 +194,9 @@ public:
 };
 
 // Register Pad operator on Module startup
-NNE_DML_REGISTER_OP(Pad)
+NNE_DML_REGISTER_OP_VERSION(Pad, 2)
+NNE_DML_REGISTER_OP_VERSION(Pad, 11)
+NNE_DML_REGISTER_OP_VERSION(Pad, 13)
 
 } // namespace UE::NNERuntimeRDG::Private::Dml
 

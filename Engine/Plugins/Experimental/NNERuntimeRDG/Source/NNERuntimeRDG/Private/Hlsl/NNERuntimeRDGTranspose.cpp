@@ -132,8 +132,6 @@ namespace UE::NNERuntimeRDG::Private::Hlsl
 	{
 		bool bIsValid = true;
 
-		//This match version 1 and 13 of the Transpose operator
-		//https://github.com/onnx/onnx/blob/main/docs/Operators.md#Transpose
 		FAttributeValidator AttributeValidator;
 		AttributeValidator.AddOptional(TEXT("perm"), ENNEAttributeDataType::Int32Array);
 		bIsValid &= AttributeValidator.Validate(AttributeMap);
@@ -153,7 +151,9 @@ namespace UE::NNERuntimeRDG::Private::Hlsl
 
 	bool RegisterTransposeOperator(FOperatorRegistryHlsl& Registry)
 	{
-		Registry.OpAdd({{TEXT("Transpose"), TEXT("Onnx")}}, CreateTransposeOperator, ValidateTransposeOperator);
+		// Note: support of a particular version is partial with respect to tensor data types (only the most typical ones are usually supported).
+		Registry.OpAdd({{TEXT("Transpose"), TEXT("Onnx")}, 1}, CreateTransposeOperator, ValidateTransposeOperator);
+		Registry.OpAdd({{TEXT("Transpose"), TEXT("Onnx")}, 13}, CreateTransposeOperator, ValidateTransposeOperator);
 		return true;
 	}
 } // UE::NNERuntimeRDG::Private::Hlsl

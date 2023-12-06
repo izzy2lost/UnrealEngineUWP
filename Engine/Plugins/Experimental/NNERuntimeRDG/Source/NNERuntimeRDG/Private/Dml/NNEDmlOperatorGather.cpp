@@ -174,7 +174,9 @@ public:
 };
 
 // Register operator on Module startup
-NNE_DML_REGISTER_OP(Gather)
+NNE_DML_REGISTER_OP_VERSION(Gather, 1)
+NNE_DML_REGISTER_OP_VERSION(Gather, 11)
+NNE_DML_REGISTER_OP_VERSION(Gather, 13)
 
 } // namespace UE::NNERuntimeRDG::Private::Dml
 
