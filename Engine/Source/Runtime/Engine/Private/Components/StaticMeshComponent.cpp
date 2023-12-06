@@ -208,7 +208,6 @@ UStaticMeshComponent::UStaticMeshComponent(const FObjectInitializer& ObjectIniti
 	bWorldPositionOffsetWritesVelocity = true;
 	bEvaluateWorldPositionOffsetInRayTracing = false;
 	bInitialEvaluateWorldPositionOffset = false;
-	bMipLevelCallbackRegistered = false;
 	DistanceFieldIndirectShadowMinVisibility = .1f;
 	GetBodyInstance()->bAutoWeld = true;	//static mesh by default has auto welding
 
@@ -679,17 +678,11 @@ void UStaticMeshComponent::NotifyIfStaticMeshChanged()
 #if WITH_EDITOR
 	if (KnownStaticMesh != StaticMesh)
 	{
-		// Remove delegates from our previous mesh 
+		// Remove delegate from our previous mesh 
 		if (KnownStaticMesh)
 		{
 			KnownStaticMesh->OnPreMeshBuild().Remove(PreMeshBuildDelegateHandle);
 			PreMeshBuildDelegateHandle.Reset();
-
-			if (bMipLevelCallbackRegistered)
-			{
-				KnownStaticMesh->RemoveMipLevelChangeCallback(this);
-				bMipLevelCallbackRegistered = false;
-			}
 		}
 
 		KnownStaticMesh = StaticMesh;
@@ -1868,12 +1861,6 @@ void UStaticMeshComponent::ReleaseResources()
 
 void UStaticMeshComponent::BeginDestroy()
 {
-	if (bMipLevelCallbackRegistered && GetStaticMesh())
-	{
-		GetStaticMesh()->RemoveMipLevelChangeCallback(this);
-		bMipLevelCallbackRegistered = false;
-	}
-
 	Super::BeginDestroy();
 	ReleaseResources();
 
@@ -3135,40 +3122,6 @@ UMaterialInterface* UStaticMeshComponent::GetMaterialFromCollisionFaceIndex(int3
 	return Result;
 }
 
-
-void UStaticMeshComponent::RegisterLODStreamingCallback(FLODStreamingCallback&& Callback, int32 LODIdx, float TimeoutSecs, bool bOnStreamIn)
-{
-	if (UStaticMesh* Mesh = GetStaticMesh())
-	{
-		if (LODIdx < 0)
-		{
-			LODIdx = Mesh->GetMinLODIdx(true);
-		}
-		Mesh->RegisterMipLevelChangeCallback(this, LODIdx, TimeoutSecs, bOnStreamIn, MoveTemp(Callback));
-		bMipLevelCallbackRegistered = true;
-	}
-}
-
-void UStaticMeshComponent::RegisterLODStreamingCallback(FLODStreamingCallback&& CallbackStreamingStart, FLODStreamingCallback&& CallbackStreamingDone, float TimeoutStartSecs, float TimeoutDoneSecs)
-{
-	if (UStaticMesh* Mesh = GetStaticMesh())
-	{
-		Mesh->RegisterMipLevelChangeCallback(this, TimeoutStartSecs, MoveTemp(CallbackStreamingStart), TimeoutDoneSecs, MoveTemp(CallbackStreamingDone));
-		bMipLevelCallbackRegistered = true;
-	}
-}
-
-bool UStaticMeshComponent::PrestreamMeshLODs(float Seconds)
-{
-	if (UStaticMesh* Mesh = GetStaticMesh())
-	{
-		static IConsoleVariable* CVarAllowFastForceResident = IConsoleManager::Get().FindConsoleVariable(TEXT("r.Streaming.AllowFastForceResident"));
-		Mesh->bIgnoreStreamingMipBias = CVarAllowFastForceResident && CVarAllowFastForceResident->GetInt();
-		Mesh->SetForceMipLevelsToBeResident(Seconds);
-		return IStreamingManager::Get().GetRenderAssetStreamingManager().FastForceFullyResident(Mesh);
-	}
-	return false;
-}
 
 bool UStaticMeshComponent::IsNavigationRelevant() const
 {
