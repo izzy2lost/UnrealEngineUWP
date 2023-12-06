@@ -509,7 +509,7 @@ void SOutlinerView::AddOutlinerColumnCallback(TSharedPtr<ISequencerOutlinerColum
 		return SNew(SBox).HeightOverride(10.f);
 	};
 
-	Columns.Add(InColumn->GetColumnName(), FOutlinerViewColumn(GenerateToolColumn, 16.f, true));
+	Columns.Add(InColumn->GetColumnName(), FOutlinerViewColumn(GenerateToolColumn, 22.f, true));
 }
 
 void SOutlinerView::UpdateTrackGutterColumns(TSharedPtr<FEditorViewModel> InEditorViewModel)

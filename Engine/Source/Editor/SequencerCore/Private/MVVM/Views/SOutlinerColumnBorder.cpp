@@ -22,7 +22,7 @@ void SOutlinerColumnInnerBorder::Construct(const FArguments& InArgs, const FCrea
 
 	TSharedPtr<SScaleBox> UniformScaleBox;
 
-	// Size of outliner column widgets stretch to desired height and are usually 12x12 based off padding and fixed width of columns
+	// Size of outliner column widgets stretch to desired height and are usually 14x14 based off padding and fixed width of columns
 	TSharedRef<SWidget>	FinalWidget = SNew(SVerticalBox)
 		+ SVerticalBox::Slot()
 		.AutoHeight()
@@ -31,13 +31,7 @@ void SOutlinerColumnInnerBorder::Construct(const FArguments& InArgs, const FCrea
 		[
 			SAssignNew(UniformScaleBox, SScaleBox)
 			[
-				SNew(SBorder)
-				.VAlign(VAlign_Center)
-				.BorderImage(FAppStyle::GetBrush("Sequencer.Column.OutlinerColumnBox"))
-				.Padding(FMargin(1.f))
-				[
-					InArgs._Content.Widget
-				]
+				InArgs._Content.Widget
 			]
 		];
 
@@ -85,7 +79,6 @@ void SOutlinerColumnBorder::Construct(const FArguments& InArgs, const FCreateOut
 	ChildSlot
 	.VAlign(VAlign_Center)
 	.HAlign(HAlign_Center)
-	.Padding(FMargin(2.0f))
 	[
 		InnerWidget.ToSharedRef()
 	];

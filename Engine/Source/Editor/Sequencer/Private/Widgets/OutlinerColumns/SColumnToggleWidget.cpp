@@ -126,7 +126,7 @@ FSlateColor SColumnToggleWidget::GetImageColorAndOpacity() const
 	else if (bIsMouseOverWidget)
 	{
 		// Mouse is over widget and it is not directly active.
-		Opacity = .65f;
+		Opacity = .8f;
 	}
 	else if (bIsImplicitlyActive)
 	{
@@ -136,12 +136,12 @@ FSlateColor SColumnToggleWidget::GetImageColorAndOpacity() const
 	else if (Editor->GetOutliner()->GetHoveredItem() == OutlinerItem)
 	{
 		// Mouse is hovered over outliner item and not the widget itself, preview icons for widget.
-		Opacity = .2f;
+		Opacity = .25f;
 	}
 	else
 	{
 		// Not active in any way and mouse is not over widget or item.
-		Opacity = 0.0f;
+		Opacity = 0.1f;
 	}
 
 	OutColor.A = Opacity;
