@@ -1,11 +1,11 @@
 // Copyright Epic Games, Inc. All Rights Reserved.
 
 using System.Collections.Generic;
-using Horde.Agent.Relay;
 using Horde.Common.Rpc;
+using Horde.Server.Agents.Relay;
 using Microsoft.VisualStudio.TestTools.UnitTesting;
 
-namespace Horde.Agent.Tests.Relay;
+namespace Horde.Server.Tests.Agents.Relay;
 
 [TestClass]
 public class NftablesTests

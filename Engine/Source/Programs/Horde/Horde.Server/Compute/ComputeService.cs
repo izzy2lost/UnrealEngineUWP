@@ -18,6 +18,7 @@ using Google.Protobuf;
 using Google.Protobuf.WellKnownTypes;
 using Horde.Common.Rpc;
 using Horde.Server.Agents;
+using Horde.Server.Agents.Relay;
 using Horde.Server.Jobs;
 using Horde.Server.Logs;
 using Horde.Server.Server;

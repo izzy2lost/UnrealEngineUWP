@@ -5,14 +5,13 @@ using System.Collections.Generic;
 using System.Threading;
 using System.Threading.Tasks;
 using Grpc.Core;
-using Horde.Agent.Relay;
 using Horde.Common.Rpc;
-using Horde.Server.Tests;
+using Horde.Server.Agents.Relay;
 using Horde.Server.Utilities;
 using Microsoft.Extensions.Logging.Abstractions;
 using Microsoft.VisualStudio.TestTools.UnitTesting;
 
-namespace Horde.Agent.Tests.Relay;
+namespace Horde.Server.Tests.Agents.Relay;
 
 public class TestRelayRpcClient : RelayRpc.RelayRpcClient
 {
@@ -29,14 +28,14 @@ public class TestRelayRpcClient : RelayRpc.RelayRpcClient
 }
 
 [TestClass]
-public class RelayServiceTest
+public class AgentRelayClientTest
 {
 	private readonly TestRelayRpcClient _grpcClient = new ();
-	private readonly RelayClient _relayClient;
+	private readonly AgentRelayClient _relayClient;
 
-	public RelayServiceTest()
+	public AgentRelayClientTest()
 	{
-		_relayClient = new RelayClient("myCluster", "myAgent", new List<string> { "192.168.1.99" }, Nftables.CreateNull(), _grpcClient, NullLogger<RelayClient>.Instance);
+		_relayClient = new AgentRelayClient("myCluster", "myAgent", new List<string> { "192.168.1.99" }, Nftables.CreateNull(), _grpcClient, NullLogger<AgentRelayClient>.Instance);
 		_relayClient.CooldownOnException = TimeSpan.Zero;
 	}
 	

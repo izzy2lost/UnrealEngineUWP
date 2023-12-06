@@ -9,14 +9,14 @@ using Grpc.Core;
 using Horde.Common.Rpc;
 using Microsoft.Extensions.Logging;
 
-namespace Horde.Agent.Relay;
+namespace Horde.Server.Agents.Relay;
 
 /// <summary>
 /// Relay service mirroring port mappings sent from server
 /// These mappings will port forward specific ports to agents sitting behind a firewall.
 /// An agent using this relay mode usually has multiple IPs assigned to allow bridging.
 /// </summary>
-public class RelayClient
+public class AgentRelayClient
 {
 	/// <summary>
 	/// Cooldown after an exception occurs. Primarily set to speed up tests.
@@ -44,7 +44,7 @@ public class RelayClient
 	/// <param name="nftables"></param>
 	/// <param name="relayRpcClient"></param>
 	/// <param name="logger"></param>
-	public RelayClient(string clusterId, string agentId, List<string> ipAddresses, Nftables nftables, RelayRpc.RelayRpcClient relayRpcClient, ILogger logger)
+	public AgentRelayClient(string clusterId, string agentId, List<string> ipAddresses, Nftables nftables, RelayRpc.RelayRpcClient relayRpcClient, ILogger logger)
 	{
 		_clusterId = clusterId;
 		_agentId = agentId;

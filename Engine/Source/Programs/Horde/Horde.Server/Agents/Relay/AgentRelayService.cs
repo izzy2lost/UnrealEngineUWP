@@ -21,7 +21,7 @@ using Microsoft.Extensions.Hosting;
 using Microsoft.Extensions.Logging;
 using StackExchange.Redis;
 
-namespace Horde.Server.Agents;
+namespace Horde.Server.Agents.Relay;
 
 /// <summary>
 /// Exception thrown by agent relay related code

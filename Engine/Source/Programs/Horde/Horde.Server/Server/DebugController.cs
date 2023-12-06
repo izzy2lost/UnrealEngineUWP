@@ -19,7 +19,7 @@ using EpicGames.Horde.Compute;
 using Google.Protobuf;
 using Horde.Common.Rpc;
 using Horde.Server.Acls;
-using Horde.Server.Agents;
+using Horde.Server.Agents.Relay;
 using Horde.Server.Configuration;
 using Horde.Server.Jobs;
 using Horde.Server.Jobs.Graphs;

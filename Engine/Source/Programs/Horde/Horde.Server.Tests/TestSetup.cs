@@ -51,6 +51,7 @@ using Horde.Server.Jobs.Artifacts;
 using Horde.Server.Jobs.Schedules;
 using Horde.Server.Perforce;
 using Horde.Server.Agents.Fleet;
+using Horde.Server.Agents.Relay;
 using Horde.Server.Agents.Telemetry;
 using Horde.Server.Logs.Storage;
 using Horde.Server.Tasks;

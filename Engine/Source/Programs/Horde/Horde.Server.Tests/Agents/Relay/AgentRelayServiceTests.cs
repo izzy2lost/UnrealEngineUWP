@@ -9,16 +9,16 @@ using System.Threading.Tasks;
 using EpicGames.Horde.Agents.Leases;
 using EpicGames.Horde.Compute;
 using Grpc.Core;
-using Horde.Server.Agents;
 using Microsoft.VisualStudio.TestTools.UnitTesting;
 using Horde.Common.Rpc;
+using Horde.Server.Agents.Relay;
 using Horde.Server.Utilities;
 using Microsoft.Extensions.Logging.Abstractions;
 
-namespace Horde.Server.Tests.Agents;
+namespace Horde.Server.Tests.Agents.Relay;
 
 [TestClass]
-public class AgentRelayTests : TestSetup
+public class AgentRelayServiceTests : TestSetup
 {
 	private readonly AgentRelayService _service;
 	private readonly GetPortMappingsRequest _request = new () { ClusterId = "cluster1", AgentId = "agent1", IpAddresses = { "192.168.1.1" }};
@@ -54,7 +54,7 @@ public class AgentRelayTests : TestSetup
 		}
 	};
 	
-	public AgentRelayTests()
+	public AgentRelayServiceTests()
 	{
 		_service = new AgentRelayService(GetRedisServiceSingleton(), Clock, NullLogger<AgentRelayService>.Instance);
 	}

@@ -10,6 +10,7 @@ using EpicGames.Horde.Agents;
 using EpicGames.Horde.Agents.Leases;
 using EpicGames.Horde.Compute;
 using Horde.Server.Agents;
+using Horde.Server.Agents.Relay;
 using Horde.Server.Server;
 using Horde.Server.Tasks;
 using HordeCommon;
