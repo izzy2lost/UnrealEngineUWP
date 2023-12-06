@@ -14,7 +14,7 @@ namespace Chaos
 	* A wrapper around shared pointer to a string that compiles away in shipping buiilds,
 	* but Get() always returns a valid string reference to make writing logs a little easier
 	*/
-	CHAOS_API class FSharedDebugName
+	class CHAOS_API FSharedDebugName
 	{
 	public:
 		FSharedDebugName() = default;
