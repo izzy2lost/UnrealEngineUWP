@@ -231,6 +231,8 @@ struct FNiagaraSimCacheVariable
 
 	UPROPERTY()
 	uint16 Int32Count = 0;
+
+	NIAGARA_API bool operator==(const FNiagaraSimCacheVariable& Other) const;
 };
 
 USTRUCT()
@@ -371,6 +373,7 @@ UCLASS(Experimental, BlueprintType, MinimalAPI)
 class UNiagaraSimCache : public UObject
 {
 	friend struct FNiagaraSimCacheAttributeReaderHelper;
+	friend struct FNiagaraSimCacheCompare;
 	friend struct FNiagaraSimCacheHelper;
 	friend struct FNiagaraSimCacheGpuResource;
 
@@ -559,9 +562,6 @@ public:
 	*/
 	UFUNCTION(BlueprintCallable, Category = NiagaraSimCache)
 	NIAGARA_API void ReadQuatAttributeWithRebase(TArray<FQuat>& OutValues, FQuat Quat, FName AttributeName = FName("MeshOrientation"), FName EmitterName = NAME_None, int FrameIndex = 0) const;
-
-	UE_DEPRECATED(5.3, "For test purposes only, don't use in production code.")
-	NIAGARA_API bool IsDataEqual(const UNiagaraSimCache& OtherCache, float ErrorTolerance, FString& OutDifference) const;
 	
 private:
 	UPROPERTY(VisibleAnywhere, Category=SimCache)
