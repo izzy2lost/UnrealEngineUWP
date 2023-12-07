@@ -4,6 +4,7 @@
 
 #include "PrimitiveSceneProxy.h"
 #include "SceneInterface.h"
+#include "ComponentRecreateRenderStateContext.h"
 
 #include "RHIResources.h"
 #include "RHICommandList.h"
@@ -12,6 +13,24 @@
 #include "RenderUtils.h"
 
 #if RHI_RAYTRACING
+
+static bool bHasRayTracingEnableChanged = false;
+static TAutoConsoleVariable<int32> CVarRayTracingEnable(
+	TEXT("r.RayTracing.Enable"),
+	1,
+	TEXT("Runtime toggle for switching raytracing on/off (experimental)."),
+	FConsoleVariableDelegate::CreateLambda([](IConsoleVariable* InVariable)
+		{
+			FGlobalComponentRecreateRenderStateContext Context;
+			ENQUEUE_RENDER_COMMAND(RayTracingToggledCmd)(
+				[](FRHICommandListImmediate&)
+				{
+					bHasRayTracingEnableChanged = true;
+				}
+			);
+		}),
+	ECVF_RenderThreadSafe
+);
 
 static int32 GRayTracingMaxBuiltPrimitivesPerFrame = -1;
 static FAutoConsoleVariableRef CVarRayTracingMaxBuiltPrimitivesPerFrame(
@@ -107,7 +126,7 @@ void FRayTracingGeometryManager::ReleaseRayTracingGeometryHandle(RayTracingGeome
 	}	
 }
 
-void FRayTracingGeometryManager::Tick(FRHICommandList& RHICmdList, bool bHasRayTracingEnableChanged)
+void FRayTracingGeometryManager::Tick(FRHICommandList& RHICmdList)
 {
 	if (GetRayTracingMode() != ERayTracingMode::Dynamic)
 	{
@@ -141,14 +160,29 @@ void FRayTracingGeometryManager::Tick(FRHICommandList& RHICmdList, bool bHasRayT
 		return;
 	}
 
+	bHasRayTracingEnableChanged = false;
+
 	if (IsRayTracingEnabled())
 	{
-		FScopeLock ScopeLock(&RequestCS);
-		for (FRayTracingGeometry* Geometry : RegisteredGeometries)
 		{
-			if (Geometry->IsEvicted())
+			FScopeLock ScopeLock(&RequestCS);
+			for (FRayTracingGeometry* Geometry : RegisteredGeometries)
 			{
-				Geometry->MakeResident(RHICmdList);
+				if (Geometry->IsEvicted())
+				{
+					Geometry->MakeResident(RHICmdList);
+				}
+			}
+		}
+
+		{
+			FScopeLock ScopeLock(&CachedRayTracingStateProxiesCS);
+			for (TPair<const UStaticMesh*, TSet<FPrimitiveSceneProxy*>>& ProxiesSet : CachedRayTracingStateProxiesMap)
+			{
+				for (FPrimitiveSceneProxy* Proxy : ProxiesSet.Value)
+				{
+					Proxy->GetScene().UpdateCachedRayTracingState(Proxy);
+				}
 			}
 		}
 	}

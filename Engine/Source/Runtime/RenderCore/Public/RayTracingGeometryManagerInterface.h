@@ -38,7 +38,7 @@ public:
 	RENDERCORE_API virtual RayTracingGeometryHandle RegisterRayTracingGeometry(FRayTracingGeometry* InGeometry) = 0;
 	RENDERCORE_API virtual void ReleaseRayTracingGeometryHandle(RayTracingGeometryHandle Handle) = 0;
 
-	RENDERCORE_API virtual void Tick(FRHICommandList& RHICmdList, bool bHasRayTracingEnableChanged) = 0;
+	RENDERCORE_API virtual void Tick(FRHICommandList& RHICmdList) = 0;
 };
 
 extern RENDERCORE_API IRayTracingGeometryManager* GRayTracingGeometryManager;

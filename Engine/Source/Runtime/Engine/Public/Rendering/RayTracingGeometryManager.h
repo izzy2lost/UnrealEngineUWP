@@ -27,7 +27,7 @@ public:
 	ENGINE_API virtual RayTracingGeometryHandle RegisterRayTracingGeometry(FRayTracingGeometry* InGeometry) override;
 	ENGINE_API virtual void ReleaseRayTracingGeometryHandle(RayTracingGeometryHandle Handle) override;
 
-	ENGINE_API virtual void Tick(FRHICommandList& RHICmdList, bool bHasRayTracingEnableChanged) override;
+	ENGINE_API virtual void Tick(FRHICommandList& RHICmdList) override;
 
 	void RegisterProxyWithCachedRayTracingState(FPrimitiveSceneProxy* Proxy, const UStaticMesh* StaticMesh);
 	void UnregisterProxyWithCachedRayTracingState(FPrimitiveSceneProxy* Proxy, const UStaticMesh* StaticMesh);

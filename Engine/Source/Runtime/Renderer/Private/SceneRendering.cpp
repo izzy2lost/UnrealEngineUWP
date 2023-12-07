@@ -70,6 +70,7 @@
 #include "Rendering/StaticLightingSystemInterface.h"
 #endif
 #include "RayTracing/RayTracingScene.h"
+#include "Rendering/RayTracingGeometryManager.h"
 #include "FXSystem.h"
 #include "Lumen/Lumen.h"
 #include "Nanite/Nanite.h"
@@ -4970,14 +4971,17 @@ void FRendererModule::PostRenderAllViewports()
 #if RHI_RAYTRACING
 	// Update the resource state after all viewports are done with rendering - all info collected for all views
 	Nanite::FCoarseMeshStreamingManager* CoarseMeshSM = IStreamingManager::Get().GetNaniteCoarseMeshStreamingManager();
-	if (CoarseMeshSM)
-	{
-		ENQUEUE_RENDER_COMMAND(NaniteCoarseMeshUpdateResourceStates)(
-			[CoarseMeshSM](FRHICommandListImmediate& RHICmdList)
+
+	ENQUEUE_RENDER_COMMAND(PostRenderAllViewports_RenderThread)(
+ 		[CoarseMeshSM](FRHICommandListImmediate& RHICmdList)
+ 		{
+			if (CoarseMeshSM)
 			{
 				CoarseMeshSM->UpdateResourceStates();
-			});
-	}
+			}
+
+ 			GRayTracingGeometryManager->Tick(RHICmdList);
+ 		});
 #endif //#if RHI_RAYTRACING
 }
 

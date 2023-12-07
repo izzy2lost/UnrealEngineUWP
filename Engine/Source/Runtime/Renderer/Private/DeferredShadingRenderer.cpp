@@ -155,24 +155,6 @@ static TAutoConsoleVariable<int32> CVarRayTracing(
 	TEXT(" 1: on"),
 	ECVF_RenderThreadSafe | ECVF_ReadOnly);
 
-static bool bHasRayTracingEnableChanged = false;
-static TAutoConsoleVariable<int32> CVarRayTracingEnable(
-	TEXT("r.RayTracing.Enable"),
-	1,
-	TEXT("Runtime toggle for switching raytracing on/off (experimental)."),
-	FConsoleVariableDelegate::CreateLambda([](IConsoleVariable* InVariable)
-		{
-			FGlobalComponentRecreateRenderStateContext Context;		 
-			ENQUEUE_RENDER_COMMAND(RefreshRayTracingMeshCommandsCmd)(
-				[](FRHICommandListImmediate&)
-				{
-					bHasRayTracingEnableChanged = true;
-				}
-			);
-		}),
-	ECVF_RenderThreadSafe
-);
-
 int32 GRayTracingUseTextureLod = 0;
 static TAutoConsoleVariable<int32> CVarRayTracingTextureLod(
 	TEXT("r.RayTracing.UseTextureLod"),
@@ -1613,8 +1595,6 @@ void FDeferredShadingSceneRenderer::Render(FRDGBuilder& GraphBuilder)
 		// Initialize ray tracing flags, in case they weren't initialized in the CreateSceneRenderers code path
 		InitializeRayTracingFlags_RenderThread();
 
-		GRayTracingGeometryManager->Tick(GraphBuilder.RHICmdList, bHasRayTracingEnableChanged);
-
 		// Now that we have updated all the PrimitiveSceneInfos, update the RayTracing mesh commands cache if needed
 		{
 			const ERayTracingMeshCommandsMode CurrentMode = ViewFamily.EngineShowFlags.PathTracing ? ERayTracingMeshCommandsMode::PATH_TRACING : ERayTracingMeshCommandsMode::RAY_TRACING;
@@ -1627,7 +1607,6 @@ void FDeferredShadingSceneRenderer::Render(FRDGBuilder& GraphBuilder)
 			if (CurrentMode != Scene->CachedRayTracingMeshCommandsMode
 				|| bNaniteCoarseMeshStreamingModeChanged
 				|| bNaniteRayTracingModeChanged
-				|| bHasRayTracingEnableChanged
 				|| bUpdateCachedRayTracingState)
 			{
 				Scene->WaitForCacheRayTracingPrimitivesTask();
@@ -1636,7 +1615,6 @@ void FDeferredShadingSceneRenderer::Render(FRDGBuilder& GraphBuilder)
 				// This operation is a bit expensive but only happens once as we transition between modes which should be rare.
 				Scene->CachedRayTracingMeshCommandsMode = CurrentMode;
 				Scene->RefreshRayTracingMeshCommandCache();
-				bHasRayTracingEnableChanged = false;
 				bUpdateCachedRayTracingState = false;
 			}
 
