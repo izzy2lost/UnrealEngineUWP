@@ -38,7 +38,12 @@ TSharedRef<SWidget> FSchematicViewportTabSummoner::CreateTabBody(const FWorkflow
 {
 	TSharedRef<SSchematicGraphPanel> Viewport = SNew(SSchematicGraphPanel)
 											.GraphData(SchematicGraph)
-											.IsOverlay(false);
+											.IsOverlay(false)
+											.PaddingLeft(30)
+											.PaddingRight(30)
+											.PaddingTop(30)
+											.PaddingBottom(30)
+											.PaddingInterNode(5);
 	OnViewportCreated.ExecuteIfBound(Viewport);
 	return Viewport;
 }

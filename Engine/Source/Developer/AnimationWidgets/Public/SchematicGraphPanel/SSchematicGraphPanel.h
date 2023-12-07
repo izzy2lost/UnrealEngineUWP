@@ -7,14 +7,25 @@
 #include "TickableEditorObject.h"
 #include "Animation/AnimatedAttribute.h"
 
+enum ESchematicGraphNodePlacement
+{
+	Panel,
+	TopLeft,
+	TopRight,
+	BottomLeft,
+	BottomRight
+};
+
 struct ANIMATIONWIDGETS_API FSchematicGraphNode
 {
 	FString Name;
 	bool bIsSelected = false;
+	ESchematicGraphNodePlacement Placement;
 };
 
 DECLARE_EVENT_OneParam(FSchematicGraph, FOnNodeAdded, FSchematicGraphNode*);
 DECLARE_EVENT_OneParam(FSchematicGraph, FOnNodeRemoved, FSchematicGraphNode*);
+DECLARE_EVENT_OneParam(FSchematicGraph, FOnNodeRenamed, FSchematicGraphNode*);
 DECLARE_EVENT(FSchematicGraph, FOnGraphReset);
 
 class ANIMATIONWIDGETS_API FSchematicGraph
@@ -32,6 +43,8 @@ public:
 	FOnNodeAdded& OnNodeAdded() { return OnNodeAddedDelegate; }
 	FOnNodeRemoved OnNodeRemovedDelegate;
 	FOnNodeRemoved& OnNodeRemoved() { return OnNodeRemovedDelegate; }
+	FOnNodeRenamed OnNodeRenamedDelegate;
+	FOnNodeRenamed& OnNodeRenamed() { return OnNodeRenamedDelegate; }
 	FOnGraphReset OnGraphResetDelegate;
 	FOnGraphReset& OnGraphReset() { return OnGraphResetDelegate; }
 };
@@ -95,12 +108,22 @@ public:
 	SLATE_BEGIN_ARGS(SSchematicGraphPanel) {}
 	SLATE_ARGUMENT(bool, IsOverlay)
 	SLATE_ARGUMENT(FSchematicGraph*, GraphData)
+	SLATE_ARGUMENT(int32, PaddingLeft)
+	SLATE_ARGUMENT(int32, PaddingRight)
+	SLATE_ARGUMENT(int32, PaddingTop)
+	SLATE_ARGUMENT(int32, PaddingBottom)
+	SLATE_ARGUMENT(int32, PaddingInterNode)
 	SLATE_EVENT(FUpdateNodeWidget, OnUpdateNodeWidget)
 	SLATE_EVENT(FOnNodeClicked, OnNodeClicked)
 	SLATE_EVENT(FOnDrop, OnDrop)
 	SLATE_END_ARGS()
 
-	~SSchematicGraphPanel(){}
+	~SSchematicGraphPanel()
+	{
+		UpdateNodeWidgetDelegate.Unbind();
+		OnNodeClickedDelegate.Unbind();
+		OnDropDelegate.Unbind();
+	}
 
 	void SetSchematicGraph(FSchematicGraph* InGraphData);
 	void Construct(const FArguments& InArgs);
@@ -108,6 +131,7 @@ public:
 	void RebuildPanel();
 	void AddNode(FSchematicGraphNode* NodeToAdd);
 	void RemoveNode(FSchematicGraphNode* NodeToRemove);
+	void RenameNode(FSchematicGraphNode* NodeToRemove);
 
 	// SNodePanel interface
 	virtual int32 OnPaint(const FPaintArgs& Args, const FGeometry& AllottedGeometry, const FSlateRect& MyCullingRect, FSlateWindowElementList& OutDrawElements, int32 LayerId, const FWidgetStyle& InWidgetStyle, bool bParentEnabled) const override;
@@ -128,6 +152,11 @@ public:
 	void SetFadeBackground(bool bInFade) { FadeBackgroundAlpha->Set(bInFade ? 0.5f : 0.f); }
 
 	bool bIsOverlay;
+	int32 PaddingLeft = 0;
+	int32 PaddingRight = 0;
+	int32 PaddingTop = 0;
+	int32 PaddingBottom = 0;
+	int32 PaddingInterNode = 0;
 	TSharedPtr<TAnimatedAttribute<float>> FadeBackgroundAlpha;
 	FSchematicGraph* GraphData;
 	FUpdateNodeWidget UpdateNodeWidgetDelegate;

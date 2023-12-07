@@ -13,7 +13,10 @@ void FSchematicGraph::Reset()
 	Nodes.Reset();
 	Links.Reset();
 
-	OnGraphReset().Broadcast();
+	if (OnGraphResetDelegate.IsBound())
+	{
+		OnGraphReset().Broadcast();
+	}
 }
 
 bool FSchematicGraph::AddNode(const FString& InName)
@@ -30,7 +33,11 @@ bool FSchematicGraph::AddNode(const FString& InName)
 	new (NewElement) FSchematicGraphNode();
 	NewElement->Name = InName;
 	Nodes.Add(NewElement);
-	OnNodeAddedDelegate.Broadcast(NewElement);
+
+	if (OnNodeAddedDelegate.IsBound())
+	{
+		OnNodeAddedDelegate.Broadcast(NewElement);
+	}
 	return true;
 }
 
@@ -43,6 +50,10 @@ bool FSchematicGraph::RenameNode(const FString& InOldName, const FString& InNewN
 
 	if (FoundNode)
 	{
+		if (OnNodeRenamedDelegate.IsBound())
+		{
+			OnNodeRenamedDelegate.Broadcast(*FoundNode);
+		}
 		(*FoundNode)->Name = InNewName;
 		return true;
 	}
@@ -58,7 +69,10 @@ bool FSchematicGraph::RemoveNode(const FString& InName)
 	});
 	if (FoundNode)
 	{
-		OnNodeRemovedDelegate.Broadcast(*FoundNode);
+		if (OnNodeRemovedDelegate.IsBound())
+		{
+			OnNodeRemovedDelegate.Broadcast(*FoundNode);
+		}
 		Nodes.Remove(*FoundNode);
 		FMemory::Free(*FoundNode);
 		return true;
@@ -78,6 +92,7 @@ void SSchematicGraphNode::Construct(const FArguments& InArgs)
 	Scale = TAnimatedAttribute<float>::Create(FloatInterpSettings, 1.f);
 	Brush = *FAppStyle::GetBrush("WhiteTexture");
 	Brush.TintColor = EStyleColor::AccentWhite;
+	SetToolTipText(FText::FromString(NodeData->Name));
 }
 
 FVector2D SSchematicGraphNode::ComputeDesiredSize(float LayoutScaleMultiplier) const
@@ -161,6 +176,7 @@ void SSchematicGraphPanel::SetSchematicGraph(FSchematicGraph* InGraphData)
 	{
 		GraphData->OnNodeAdded().RemoveAll(this);
 		GraphData->OnNodeRemoved().RemoveAll(this);
+		GraphData->OnNodeRenamed().RemoveAll(this);
 		GraphData->OnGraphReset().RemoveAll(this);
 	}
 	
@@ -169,6 +185,7 @@ void SSchematicGraphPanel::SetSchematicGraph(FSchematicGraph* InGraphData)
 	{
 		GraphData->OnNodeAdded().AddSP(this, &SSchematicGraphPanel::AddNode);
 		GraphData->OnNodeRemoved().AddSP(this, &SSchematicGraphPanel::RemoveNode);
+		GraphData->OnNodeRenamed().AddSP(this, &SSchematicGraphPanel::RenameNode);
 		GraphData->OnGraphReset().AddSP(this, &SSchematicGraphPanel::RebuildPanel);
 	}
 }
@@ -177,6 +194,11 @@ void SSchematicGraphPanel::Construct(const FArguments& InArgs)
 {
 	GraphData = InArgs._GraphData;
 	bIsOverlay = InArgs._IsOverlay;
+	PaddingLeft = InArgs._PaddingLeft;
+	PaddingRight = InArgs._PaddingRight;
+	PaddingTop = InArgs._PaddingTop;
+	PaddingBottom = InArgs._PaddingBottom;
+	PaddingInterNode = InArgs._PaddingInterNode;
 	UpdateNodeWidgetDelegate = InArgs._OnUpdateNodeWidget;
 	OnNodeClickedDelegate = InArgs._OnNodeClicked;
 	OnDropDelegate = InArgs._OnDrop;
@@ -191,6 +213,7 @@ void SSchematicGraphPanel::Construct(const FArguments& InArgs)
 	{
 		GraphData->OnNodeAdded().AddSP(this, &SSchematicGraphPanel::AddNode);
 		GraphData->OnNodeRemoved().AddSP(this, &SSchematicGraphPanel::RemoveNode);
+		GraphData->OnNodeRenamed().AddSP(this, &SSchematicGraphPanel::RenameNode);
 		GraphData->OnGraphReset().AddSP(this, &SSchematicGraphPanel::RebuildPanel);
 	}
 }
@@ -234,6 +257,28 @@ void SSchematicGraphPanel::RemoveNode(FSchematicGraphNode* InNodeToRemove)
 		if (Child->NodeData == InNodeToRemove)
 		{
 			VisibleChildren.RemoveAt(Iter);
+			break;
+		}
+	}
+}
+
+void SSchematicGraphPanel::RenameNode(FSchematicGraphNode* InNodeToRename)
+{
+	for (int32 Iter = 0; Iter != Children.Num(); ++Iter)
+	{
+		TSharedRef<SSchematicGraphNode> Child = GetChild(Iter);
+		if (Child->NodeData == InNodeToRename)
+		{
+			Child->SetToolTipText(FText::FromString(InNodeToRename->Name));
+			break;
+		}
+	}
+	for (int32 Iter = 0; Iter != VisibleChildren.Num(); ++Iter)
+	{
+		TSharedRef<SSchematicGraphNode> Child = StaticCastSharedRef<SSchematicGraphNode>(VisibleChildren[Iter]);
+		if (Child->NodeData == InNodeToRename)
+		{
+			Child->SetToolTipText(FText::FromString(InNodeToRename->Name));
 			break;
 		}
 	}
@@ -331,11 +376,48 @@ void SSchematicGraphPanel::Tick(float DeltaTime)
 		}
 	}
 	SetFadeBackground(bFadeBackgroundBlanket);
-	
+
+	uint16 TopRightNodes = 0;
+	uint16 TopLeftNodes = 0;
+	uint16 BottomRightNodes = 0;
+	uint16 BottomLeftNodes = 0;
+	FVector2D Size = GetCachedGeometry().Size;
 	for (int32 i=0; i<Children.Num(); ++i)
 	{
 		TSharedRef<SSchematicGraphNode> SNode = GetChild(i);
-		UpdateNodeWidgetDelegate.Execute(this, SNode.ToSharedPtr());
+		UpdateNodeWidgetDelegate.ExecuteIfBound(this, SNode.ToSharedPtr());
+		
+		switch(SNode->NodeData->Placement)
+		{
+			case ESchematicGraphNodePlacement::Panel:
+			{
+				break;
+			}
+			case ESchematicGraphNodePlacement::TopLeft:
+			{
+				SNode->SetPosition(FVector2d(PaddingLeft + SNode->OriginalSize.X*0.5, PaddingTop + SNode->OriginalSize.Y*0.5 + ((SNode->OriginalSize.Y + PaddingInterNode) * TopLeftNodes)), true);
+				TopLeftNodes++;
+				break;
+			}
+			case ESchematicGraphNodePlacement::TopRight:
+			{
+				SNode->SetPosition(FVector2d(Size.X - PaddingRight - (SNode->OriginalSize.X * 0.5), PaddingTop + SNode->OriginalSize.Y*0.5 + ((SNode->OriginalSize.Y + PaddingInterNode) * TopRightNodes)), true);
+				TopRightNodes++;
+				break;
+			}
+			case ESchematicGraphNodePlacement::BottomLeft:
+			{
+				SNode->SetPosition(FVector2d(PaddingLeft + SNode->OriginalSize.X*0.5, Size.Y - PaddingBottom - (SNode->OriginalSize.Y * 0.5) - ((SNode->OriginalSize.Y + PaddingInterNode)  * BottomLeftNodes)), true);
+				BottomLeftNodes++;
+				break;
+			}
+			case ESchematicGraphNodePlacement::BottomRight:
+			{
+				SNode->SetPosition(FVector2d(Size.X - PaddingRight - (SNode->OriginalSize.X * 0.5), Size.Y - PaddingBottom - (SNode->OriginalSize.Y * 0.5) - ((SNode->OriginalSize.Y + PaddingInterNode)  * BottomRightNodes)), true);
+				BottomRightNodes++;
+				break;
+			}
+		}
 	}
 }
 

@@ -155,6 +155,7 @@ FControlRigEditor::~FControlRigEditor()
 		{
 			RigBlueprint->OnSetObjectBeingDebugged().RemoveAll(&SchematicModel);
 			RigBlueprint->OnHierarchyModified().RemoveAll(&SchematicModel);
+			RigBlueprint->GetModularRigController()->OnModified().RemoveAll(&SchematicModel);
 		}
 
 		RigBlueprint->OnRigTypeChanged().RemoveAll(this);
@@ -328,8 +329,10 @@ void FControlRigEditor::InitRigVMEditor(const EToolkitMode::Type Mode, const TSh
 
 		if (ControlRigBlueprint->IsModularRig())
 		{
+			SchematicModel.SetEditor(SharedThis(this));
 			ControlRigBlueprint->OnSetObjectBeingDebugged().AddRaw(&SchematicModel, &FControlRigSchematicModel::OnSetObjectBeingDebugged);
 			ControlRigBlueprint->OnHierarchyModified().AddRaw(&SchematicModel, &FControlRigSchematicModel::OnHierarchyModified);
+			ControlRigBlueprint->GetModularRigController()->OnModified().AddRaw(&SchematicModel, &FControlRigSchematicModel::HandleModularRigModified);
 		}
 
 		ControlRigBlueprint->OnRigTypeChanged().AddSP(this, &FControlRigEditor::HandleRigTypeChanged);
@@ -2268,8 +2271,14 @@ void FControlRigEditor::HandleViewportCreated(const TSharedRef<class IPersonaVie
 			if (Blueprint->IsModularRig())
 			{
 				TSharedRef<SSchematicGraphPanel> SchematicPanel = SNew(SSchematicGraphPanel)
-																.GraphData(&SchematicModel.SchematicGraph)
-																.IsOverlay(true);
+																.GraphData(&SchematicModel)
+																.IsOverlay(true)
+																.PaddingLeft(30)
+																.PaddingRight(30)
+																.PaddingTop(60)
+																.PaddingBottom(60)
+																.PaddingInterNode(5)
+				;
 				InViewport->AddOverlayWidget(SchematicPanel);
 				HandleSchematicViewportCreated(SchematicPanel);
 			}
@@ -2565,9 +2574,9 @@ void FControlRigEditor::CacheNameLists()
 
 void FControlRigEditor::HandleSchematicViewportCreated(const TSharedRef<SSchematicGraphPanel>& InViewport)
 {
-	InViewport->UpdateNodeWidgetDelegate.BindSP(this, &FControlRigEditor::HandleUpdateSchematicNodes);
-	InViewport->OnNodeClickedDelegate.BindSP(this, &FControlRigEditor::HandleSchematicNodeClicked);
-	InViewport->OnDropDelegate.BindSP(this, &FControlRigEditor::HandleSchematicDrop);
+	InViewport->UpdateNodeWidgetDelegate.BindRaw(&SchematicModel, &FControlRigSchematicModel::HandleUpdateSchematicNodes);
+	InViewport->OnNodeClickedDelegate.BindRaw(&SchematicModel, &FControlRigSchematicModel::HandleSchematicNodeClicked);
+	InViewport->OnDropDelegate.BindRaw(&SchematicModel, &FControlRigSchematicModel::HandleSchematicDrop);
 }
 
 FVector2D FControlRigEditor::ComputePersonaProjectedScreenPos(const FVector& InWorldPos)
@@ -2611,136 +2620,6 @@ FVector2D FControlRigEditor::ComputePersonaProjectedScreenPos(const FVector& InW
 		return FVector2D(ScreenPos.X, ScreenPos.Y);
 	}
 	return FVector2D::ZeroVector;
-}
-
-void FControlRigEditor::HandleUpdateSchematicNodes(SSchematicGraphPanel* InPanel, TSharedPtr<SSchematicGraphNode> InNode)
-{
-	UControlRigBlueprint* Blueprint = GetControlRigBlueprint();
-	if (!Blueprint)
-	{
-		return;
-	}
-
-	if (InPanel->bIsOverlay)
-	{
-		FTransform Transform;
-		if (UControlRig* DebuggedControlRig = Cast<UControlRig>(GetBlueprintObj()->GetObjectBeingDebugged()))
-		{
-			FRigElementKey SocketKey(*InNode->NodeData->Name, ERigElementType::Socket);
-			Transform = DebuggedControlRig->GetHierarchy()->GetGlobalTransform(SocketKey);
-			FVector2D PixelPos = ComputePersonaProjectedScreenPos(Transform.GetLocation());
-			InNode->SetPosition(PixelPos, true);
-
-			
-			if (const FRigElementKey* ConnectorKey = DebuggedControlRig->ElementKeyRedirector.FindReverse(SocketKey))
-			{
-				InNode->Brush = *FControlRigEditorStyle::Get().GetBrush( "ControlRig.Schematic.SocketResolved");
-				InNode->Size->Set(InNode->OriginalSize*0.5);
-			}
-			else
-			{
-				InNode->Brush = *FControlRigEditorStyle::Get().GetBrush( "ControlRig.Schematic.SocketUnresolved");
-				InNode->Size->Set(InNode->OriginalSize);
-			}
-
-			if (FRigSocketElement* SocketElement = Cast<FRigSocketElement>(DebuggedControlRig->GetHierarchy()->Find(SocketKey)))
-			{
-				InNode->Brush.TintColor = SocketElement->GetColor(DebuggedControlRig->GetHierarchy());
-			}
-			else
-			{
-				InNode->Brush.TintColor = FStyleColors::AccentBlue;
-			}
-		}
-
-	}
-	else
-	{
-		InNode->SetPosition(FVector2D(0, 0));
-		InNode->Brush = *FAppStyle::GetBrush("WhiteTexture");
-	}
-}
-
-void FControlRigEditor::HandleSchematicNodeClicked(SSchematicGraphPanel* InPanel, SSchematicGraphNode* InNode)
-{
-	for (FSchematicGraphNode* Node : SchematicModel.SchematicGraph.Nodes)
-	{
-		Node->bIsSelected = Node == InNode->NodeData;
-	}
-}
-
-void FControlRigEditor::HandleSchematicDrop(SSchematicGraphPanel* InPanel, SSchematicGraphNode* InNode, const FDragDropEvent& InDragDropEvent)
-{
-	UControlRigBlueprint* Blueprint = GetControlRigBlueprint();
-	if (!Blueprint)
-	{
-		return;
-	}
-
-	UControlRig* ControlRig = Blueprint->GetDebuggedControlRig();
-	if (!ControlRig)
-	{
-		return;
-	}
-
-	URigHierarchy* Hierarchy = ControlRig->GetHierarchy();
-	if (!Hierarchy)
-	{
-		return;
-	}
-	
-	FRigBaseElement* Element = Hierarchy->Find(FRigElementKey(*InNode->NodeData->Name, ERigElementType::Socket));
-	if (!Element)
-	{
-		return;
-	}
-
-	FRigSocketElement* Socket = Cast<FRigSocketElement>(Element);
-	if (!Socket)
-	{
-		return;
-	}
-
-	TSharedPtr<FAssetDragDropOp> AssetDragDropOp = InDragDropEvent.GetOperationAs<FAssetDragDropOp>();
-	if (AssetDragDropOp.IsValid())
-	{
-		for (const FAssetData& AssetData : AssetDragDropOp->GetAssets())
-		{
-			UClass* AssetClass = AssetData.GetClass();
-			if (!AssetClass->IsChildOf(UControlRigBlueprint::StaticClass()))
-			{
-				continue;
-			}
-
-			if(UControlRigBlueprint* AssetBlueprint = Cast<UControlRigBlueprint>(AssetData.GetAsset()))
-			{
-				if (UModularRigController* Controller = Blueprint->GetModularRigController())
-				{
-					const FName ModuleName = Controller->GetSafeNewName(FString(), FRigName(AssetBlueprint->RigModuleSettings.Identifier.Name));
-					const FString ModulePath = Controller->AddModule(ModuleName, AssetBlueprint->GetControlRigClass(), FString());
-					if(!ModulePath.IsEmpty())
-					{
-						FRigElementKey PrimaryConnectorKey;
-						TArray<FRigConnectorElement*> Connectors = Hierarchy->GetElementsOfType<FRigConnectorElement>();
-						for (FRigConnectorElement* Connector : Connectors)
-						{
-							if (Connector->Settings.Type == EConnectorType::Primary)
-							{
-								FString Path, Name;
-								Connector->GetName().Split(UModularRig::NamespaceSeparator, &Path, &Name, ESearchCase::CaseSensitive, ESearchDir::FromEnd);
-								if (Path == ModulePath)
-								{
-									PrimaryConnectorKey = Connector->GetKey();
-									break;
-								}
-							}
-						}
-						Controller->ConnectConnectorToElement(PrimaryConnectorKey, Socket->GetKey());
-					}
-				}
-			}
-		}
-	}
 }
 
 void FControlRigEditor::HandlePreviewMeshChanged(USkeletalMesh* InOldSkeletalMesh, USkeletalMesh* InNewSkeletalMesh)

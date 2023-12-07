@@ -1465,6 +1465,19 @@ public:
 		, Name(InName)
 	{}
 
+	FRigElementKey(const FString& InKeyString)
+	{
+		FString TypeStr, NameStr;
+		check(InKeyString.Split(TEXT("("), &TypeStr, &NameStr));
+		NameStr.RemoveFromEnd(TEXT(")"));
+		Name = *NameStr;
+
+		const UEnum* ElementTypeEnum = StaticEnum<ERigElementType>();
+		Type = (ERigElementType)ElementTypeEnum->GetValueByName(*TypeStr);
+		check(Type > ERigElementType::None && Type < ERigElementType::All);
+		
+	}
+
 	void Serialize(FArchive& Ar);
 	void Save(FArchive& Ar);
 	void Load(FArchive& Ar);

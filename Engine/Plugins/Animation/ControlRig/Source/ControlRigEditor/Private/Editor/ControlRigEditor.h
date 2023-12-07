@@ -192,6 +192,8 @@ public:
 	FText GetConnectorWarningText() const;
 	FReply OnNavigateToConnectorWarning() const;
 	FSimpleMulticastDelegate& OnRequestNavigateToConnectorWarning() { return RequestNavigateToConnectorWarningDelegate; }
+
+	FVector2D ComputePersonaProjectedScreenPos(const FVector& InWorldPos);
 	
 protected:
 
@@ -245,10 +247,6 @@ private:
 
 	/** Handle schematic panel setup*/
 	void HandleSchematicViewportCreated(const TSharedRef<class SSchematicGraphPanel>& InViewport);
-	void HandleUpdateSchematicNodes(SSchematicGraphPanel* InPanel, TSharedPtr<SSchematicGraphNode> InNode);
-	void HandleSchematicNodeClicked(SSchematicGraphPanel* InPanel, SSchematicGraphNode* InNode);
-	void HandleSchematicDrop(SSchematicGraphPanel* InPanel, SSchematicGraphNode* InNode, const FDragDropEvent& InDragDropEvent);
-	FVector2D ComputePersonaProjectedScreenPos(const FVector& InWorldPos);
 
 		/** Handle switching skeletal meshes */
 	void HandlePreviewMeshChanged(USkeletalMesh* InOldSkeletalMesh, USkeletalMesh* InNewSkeletalMesh);
