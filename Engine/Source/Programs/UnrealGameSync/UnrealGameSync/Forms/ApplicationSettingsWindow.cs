@@ -14,6 +14,14 @@ namespace UnrealGameSync
 {
 	partial class ApplicationSettingsWindow : Form
 	{
+		public enum Result
+		{
+			Cancel,
+			Ok,
+			Restart,
+			RestartAndConfigureUpdate,
+		}
+
 		static class PerforceTestConnectionTask
 		{
 			public static async Task RunAsync(IPerforceConnection perforce, string depotPath, CancellationToken cancellationToken)
@@ -33,16 +41,12 @@ namespace UnrealGameSync
 		readonly UserSettings _settings;
 		readonly ILogger _logger;
 
-		readonly string? _initialServerAndPort;
-		readonly string? _initialUserName;
-		readonly string? _initialDepotPath;
-		readonly bool _initialPreview;
 		readonly int _initialAutomationPortNumber;
 		readonly ProtocolHandlerState _initialProtocolHandlerState;
 
-		bool? _restartPreview;
-
 		readonly ToolUpdateMonitor _toolUpdateMonitor;
+
+		Result _result = Result.Ok;
 
 		class ToolItem
 		{
@@ -98,32 +102,25 @@ namespace UnrealGameSync
 			LauncherSettings launcherSettings = new LauncherSettings();
 			launcherSettings.Read();
 
-			_initialServerAndPort = launcherSettings.PerforceServerAndPort;
-			_initialUserName = launcherSettings.PerforceUserName;
-			_initialDepotPath = launcherSettings.PerforceDepotPath;
-			_initialPreview = launcherSettings.PreviewBuild;
-
 			_initialAutomationPortNumber = AutomationServer.GetPortNumber();
 			_initialProtocolHandlerState = ProtocolHandlerUtils.GetState();
 
 			AutomaticallyRunAtStartupCheckBox.Checked = IsAutomaticallyRunAtStartup();
 			KeepInTrayCheckBox.Checked = settings.KeepInTray;
 
-			ServerTextBox.Text = _initialServerAndPort;
+			HordeServerTextBox.Text = launcherSettings.HordeServer;
+			HordeServerTextBox.Select(HordeServerTextBox.TextLength, 0);
+			HordeServerTextBox.CueBanner = launcherSettings.HordeServer ?? String.Empty;
+
+			ServerTextBox.Text = launcherSettings.PerforceServerAndPort;
 			ServerTextBox.Select(ServerTextBox.TextLength, 0);
 			ServerTextBox.CueBanner = $"Default ({defaultPerforceSettings.ServerAndPort})";
 
-			UserNameTextBox.Text = _initialUserName;
+			UserNameTextBox.Text = launcherSettings.PerforceUserName;
 			UserNameTextBox.Select(UserNameTextBox.TextLength, 0);
 			UserNameTextBox.CueBanner = $"Default ({defaultPerforceSettings.UserName})";
 
 			ParallelSyncThreadsSpinner.Value = Math.Max(Math.Min(settings.SyncOptions.NumThreads ?? PerforceSyncOptions.DefaultNumThreads, ParallelSyncThreadsSpinner.Maximum), ParallelSyncThreadsSpinner.Minimum);
-
-			DepotPathTextBox.Text = _initialDepotPath;
-			DepotPathTextBox.Select(DepotPathTextBox.TextLength, 0);
-			DepotPathTextBox.CueBanner = DeploymentSettings.Instance.DefaultDepotPath ?? String.Empty;
-
-			UsePreviewBuildCheckBox.Checked = preview;
 
 			if (_initialAutomationPortNumber > 0)
 			{
@@ -194,17 +191,11 @@ namespace UnrealGameSync
 			}
 		}
 
-		public static bool? ShowModal(IWin32Window owner, IPerforceSettings defaultPerforceSettings, bool preview, string originalExecutableFileName, UserSettings settings, ToolUpdateMonitor toolUpdateMonitor, ILogger<ApplicationSettingsWindow> logger)
+		public static Result ShowModal(IWin32Window owner, IPerforceSettings defaultPerforceSettings, bool preview, string originalExecutableFileName, UserSettings settings, ToolUpdateMonitor toolUpdateMonitor, ILogger<ApplicationSettingsWindow> logger)
 		{
 			using ApplicationSettingsWindow applicationSettings = new ApplicationSettingsWindow(defaultPerforceSettings, preview, originalExecutableFileName, settings, toolUpdateMonitor, logger);
-			if (applicationSettings.ShowDialog(owner) == DialogResult.OK)
-			{
-				return applicationSettings._restartPreview;
-			}
-			else
-			{
-				return null;
-			}
+			applicationSettings.ShowDialog(owner);
+			return applicationSettings._result;
 		}
 
 		private static bool IsAutomaticallyRunAtStartup()
@@ -213,10 +204,34 @@ namespace UnrealGameSync
 			return (key?.GetValue("UnrealGameSync") != null);
 		}
 
+		private void UpdateSettingsBtn_Click(object sender, EventArgs e)
+		{
+			if (MessageBox.Show("UnrealGameSync must be restarted to configure update settings.\n\nWould you like to restart now?", "Restart Required", MessageBoxButtons.OKCancel) != DialogResult.OK)
+			{
+				return;
+			}
+
+			ApplySettings(Result.RestartAndConfigureUpdate);
+		}
+
 		private void OkBtn_Click(object sender, EventArgs e)
 		{
+			ApplySettings(Result.Ok);
+		}
+
+		private void ApplySettings(Result result)
+		{
+			LauncherSettings originalLauncherSettings = new LauncherSettings();
+			originalLauncherSettings.Read();
+
 			// Update the settings
-			LauncherSettings launcherSettings = new LauncherSettings();
+			LauncherSettings launcherSettings = new LauncherSettings(originalLauncherSettings);
+
+			launcherSettings.HordeServer = HordeServerTextBox.Text.Trim();
+			if (launcherSettings.HordeServer.Length == 0 || String.Equals(launcherSettings.HordeServer, DeploymentSettings.Instance.HordeUrl, StringComparison.OrdinalIgnoreCase))
+			{
+				launcherSettings.HordeServer = null;
+			}
 
 			launcherSettings.PerforceServerAndPort = ServerTextBox.Text.Trim();
 			if (launcherSettings.PerforceServerAndPort.Length == 0)
@@ -230,44 +245,28 @@ namespace UnrealGameSync
 				launcherSettings.PerforceUserName = null;
 			}
 
-			launcherSettings.PerforceDepotPath = DepotPathTextBox.Text.Trim();
-			if (launcherSettings.PerforceDepotPath.Length == 0 || launcherSettings.PerforceDepotPath == DeploymentSettings.Instance.DefaultDepotPath)
-			{
-				launcherSettings.PerforceDepotPath = null;
-			}
-
-			launcherSettings.PreviewBuild = UsePreviewBuildCheckBox.Checked;
-
 			int automationPortNumber;
 			if (!EnableAutomationCheckBox.Checked || !Int32.TryParse(AutomationPortTextBox.Text, out automationPortNumber))
 			{
 				automationPortNumber = -1;
 			}
 
-			if (launcherSettings.PerforceServerAndPort != _initialServerAndPort || launcherSettings.PerforceUserName != _initialUserName || launcherSettings.PerforceDepotPath != _initialDepotPath || launcherSettings.PreviewBuild != _initialPreview || automationPortNumber != _initialAutomationPortNumber)
+			if (!String.Equals(launcherSettings.HordeServer, originalLauncherSettings.HordeServer, StringComparison.OrdinalIgnoreCase) ||
+				!String.Equals(launcherSettings.PerforceServerAndPort, originalLauncherSettings.PerforceServerAndPort, StringComparison.OrdinalIgnoreCase) ||
+				!String.Equals(launcherSettings.PerforceUserName, originalLauncherSettings.PerforceUserName, StringComparison.OrdinalIgnoreCase))
 			{
-				// Try to log in to the new server, and check the application is there
-				if (launcherSettings.PerforceServerAndPort != _initialServerAndPort || launcherSettings.PerforceUserName != _initialUserName || launcherSettings.PerforceDepotPath != _initialDepotPath)
+				if (result == Result.Ok)
 				{
-					PerforceSettings settings = Utility.OverridePerforceSettings(_defaultPerforceSettings, launcherSettings.PerforceServerAndPort, launcherSettings.PerforceUserName);
-
-					string? testDepotPath = launcherSettings.PerforceDepotPath ?? DeploymentSettings.Instance.DefaultDepotPath;
-					if (testDepotPath != null)
+					if (MessageBox.Show("UnrealGameSync must be restarted to apply these settings.\n\nWould you like to restart now?", "Restart Required", MessageBoxButtons.OKCancel) != DialogResult.OK)
 					{
-						ModalTask? task = PerforceModalTask.Execute(this, "Checking connection", "Checking connection, please wait...", settings, (p, c) => PerforceTestConnectionTask.RunAsync(p, testDepotPath, c), _logger);
-						if (task == null || !task.Succeeded)
-						{
-							return;
-						}
+						return;
+					}
+					else
+					{
+						result = Result.Restart;
 					}
 				}
 
-				if (MessageBox.Show("UnrealGameSync must be restarted to apply these settings.\n\nWould you like to restart now?", "Restart Required", MessageBoxButtons.OKCancel) != DialogResult.OK)
-				{
-					return;
-				}
-
-				_restartPreview = UsePreviewBuildCheckBox.Checked;
 				launcherSettings.Save();
 				AutomationServer.SetPortNumber(automationPortNumber);
 			}
@@ -321,13 +320,13 @@ namespace UnrealGameSync
 				}
 			}
 
-			DialogResult = DialogResult.OK;
+			_result = result;
 			Close();
 		}
 
 		private void CancelBtn_Click(object sender, EventArgs e)
 		{
-			DialogResult = DialogResult.Cancel;
+			_result = Result.Cancel;
 			Close();
 		}
 

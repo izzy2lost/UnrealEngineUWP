@@ -1,5 +1,8 @@
 // Copyright Epic Games, Inc. All Rights Reserved.
 
+using EpicGames.Core;
+using EpicGames.Horde;
+using EpicGames.Horde.Tools;
 using EpicGames.Perforce;
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Logging;
@@ -15,7 +18,101 @@ namespace UnrealGameSync
 		UserInitiated,
 	}
 
-	class UpdateMonitor : IDisposable
+	abstract class UpdateMonitor : IDisposable
+	{
+		public bool IsUpdateAvailable
+		{
+			get;
+			private set;
+		}
+
+		public Action<UpdateType>? OnUpdateAvailable;
+
+		public bool OpenSettings
+		{
+			get;
+			private set;
+		}
+
+		public abstract void Dispose();
+
+		public void TriggerUpdate(UpdateType updateType, bool openSettings)
+		{
+			OpenSettings = openSettings;
+			IsUpdateAvailable = true;
+			if (OnUpdateAvailable != null)
+			{
+				OnUpdateAvailable(updateType);
+			}
+		}
+	}
+
+	class HordeUpdateMonitor : UpdateMonitor
+	{
+		readonly ToolId _toolId;
+		readonly string _currentVersion;
+		readonly IServiceProvider _serviceProvider;
+		readonly BackgroundTask _backgroundTask;
+		readonly ILogger _logger;
+
+		public HordeUpdateMonitor(string currentVersion, IServiceProvider serviceProvider)
+			: this(DeploymentSettings.Instance.HordeToolId, currentVersion, serviceProvider)
+		{
+		}
+
+		public HordeUpdateMonitor(ToolId toolId, string currentVersion, IServiceProvider serviceProvider)
+		{
+			_toolId = toolId;
+			_currentVersion = currentVersion;
+			_serviceProvider = serviceProvider;
+			_logger = serviceProvider.GetRequiredService<ILogger<HordeUpdateMonitor>>();
+			_backgroundTask = BackgroundTask.StartNew(ctx => CheckForUpdatesLoopAsync(ctx));
+		}
+
+		public override void Dispose()
+		{
+			Task.Run(() => _backgroundTask.DisposeAsync()).Wait();
+		}
+
+		public async Task CheckForUpdatesLoopAsync(CancellationToken cancellationToken)
+		{
+			for (; ; )
+			{
+				// Check if there's a new build available on the server
+				HordeHttpClient hordeHttpClient = _serviceProvider.GetRequiredService<HordeHttpClient>();
+				try
+				{
+					GetToolResponse response = await hordeHttpClient.GetToolAsync(_toolId, cancellationToken);
+					if (response.Deployments.Count == 0)
+					{
+						_logger.LogWarning("No deployments on Horde server for tool {ToolId}", _toolId);
+					}
+					else
+					{
+						string latestUrl = new Uri(hordeHttpClient.BaseUrl, $"api/v1/tools/{_toolId}/deployments/{response.Deployments[^1].Id}").ToString();
+						if (String.Equals(latestUrl, _currentVersion, StringComparison.OrdinalIgnoreCase))
+						{
+							_logger.LogInformation("Currently running latest version ({LatestUrl})", latestUrl);
+						}
+						else
+						{
+							_logger.LogInformation("Triggering update request {CurrentUrl} -> {LatestUrl}", _currentVersion, latestUrl);
+							TriggerUpdate(UpdateType.Background, false);
+						}
+					}
+				}
+				catch (Exception ex)
+				{
+					_logger.LogError(ex, "Error while checking for tool updates: {Message}", ex.Message);
+				}
+
+				// Wait a while before checking again
+				await Task.Delay(TimeSpan.FromMinutes(5.0), cancellationToken);
+			}
+		}
+	}
+
+	class PerforceUpdateMonitor : UpdateMonitor 
 	{
 		Task? _workerTask;
 #pragma warning disable CA2213 // warning CA2213: 'UpdateMonitor' contains field '_cancellationSource' that is of IDisposable type 'CancellationTokenSource', but it is never disposed. Change the Dispose method on 'UpdateMonitor' to call Close or Dispose on this field.
@@ -24,15 +121,7 @@ namespace UnrealGameSync
 		readonly ILogger _logger;
 		readonly IAsyncDisposer _asyncDisposer;
 
-		public Action<UpdateType>? OnUpdateAvailable;
-
-		public bool? RelaunchPreview
-		{
-			get;
-			private set;
-		}
-
-		public UpdateMonitor(IPerforceSettings perforceSettings, string? watchPath, IServiceProvider serviceProvider)
+		public PerforceUpdateMonitor(IPerforceSettings perforceSettings, string? watchPath, IServiceProvider serviceProvider)
 		{
 			_logger = serviceProvider.GetRequiredService<ILogger<UpdateMonitor>>();
 			_asyncDisposer = serviceProvider.GetRequiredService<IAsyncDisposer>();
@@ -44,7 +133,7 @@ namespace UnrealGameSync
 			}
 		}
 
-		public void Dispose()
+		public override void Dispose()
 		{
 			OnUpdateAvailable = null;
 
@@ -54,12 +143,6 @@ namespace UnrealGameSync
 				_asyncDisposer.Add(_workerTask.ContinueWith(_ => _cancellationSource.Dispose(), TaskScheduler.Default));
 				_workerTask = null;
 			}
-		}
-
-		public bool IsUpdateAvailable
-		{
-			get;
-			private set;
 		}
 
 		async Task PollForUpdatesAsync(IPerforceSettings perforceSettings, string watchPath, CancellationToken cancellationToken)
@@ -76,7 +159,7 @@ namespace UnrealGameSync
 					PerforceResponseList<ChangesRecord> changes = await perforce.TryGetChangesAsync(ChangesOptions.None, -1, ChangeStatus.Submitted, watchPath, cancellationToken);
 					if (changes.Succeeded && changes.Data.Count > 0)
 					{
-						TriggerUpdate(UpdateType.Background, null);
+						TriggerUpdate(UpdateType.Background, false);
 					}
 				}
 				catch (PerforceException ex)
@@ -92,16 +175,6 @@ namespace UnrealGameSync
 				{
 					perforce?.Dispose();
 				}
-			}
-		}
-
-		public void TriggerUpdate(UpdateType updateType, bool? relaunchPreview)
-		{
-			RelaunchPreview = relaunchPreview;
-			IsUpdateAvailable = true;
-			if(OnUpdateAvailable != null)
-			{
-				OnUpdateAvailable(updateType);
 			}
 		}
 	}

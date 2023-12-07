@@ -4,6 +4,8 @@
 #pragma warning disable CA1802 // warning CA1802: Field 'EnableAlerts' is declared as 'readonly' but is initialized with a constant value. Mark this field as 'const' instead.
 
 using EpicGames.Core;
+using EpicGames.Horde;
+using EpicGames.Horde.Tools;
 using Microsoft.Extensions.Logging;
 using Microsoft.Extensions.Logging.Abstractions;
 using System.Collections.Generic;
@@ -24,6 +26,11 @@ namespace UnrealGameSync
 		/// Url for the Horde server
 		/// </summary>
 		public string? HordeUrl { get; set; }
+
+		/// <summary>
+		/// Identifier for the tool to sync from UGS
+		/// </summary>
+		public ToolId HordeToolId { get; set; } = new ToolId("ugs-win");
 
 		/// <summary>
 		/// SQL connection string used to connect to the database for telemetry and review data.

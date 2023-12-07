@@ -17,27 +17,36 @@ namespace UnrealGameSyncLauncher
 		[DllImport("user32.dll")]
 		private static extern IntPtr SendMessage(IntPtr hWnd, int msg, int wParam, [MarshalAs(UnmanagedType.LPWStr)] string lParam);
 
-		public delegate Task SyncAndRunDelegate(IPerforceConnection perforce, string? depotPath, bool preview, ILogger logWriter, CancellationToken cancellationToken);
+		public delegate Task SyncAndRunDelegate(IPerforceConnection? perforce, LauncherSettings settings, ILogger logWriter, CancellationToken cancellationToken);
 
 		const int EmSetcuebanner = 0x1501;
 
+		LauncherSettings _settings;
 		string? _logText;
 		readonly SyncAndRunDelegate _syncAndRun;
 
-		public SettingsWindow(string? prompt, string? logText, string? serverAndPort, string? userName, string? depotPath, bool preview, SyncAndRunDelegate syncAndRun)
+		public SettingsWindow(string? prompt, string? logText, LauncherSettings settings, SyncAndRunDelegate syncAndRun)
 		{
 			InitializeComponent();
+			Font = new System.Drawing.Font("Segoe UI", 8.25F, System.Drawing.FontStyle.Regular, System.Drawing.GraphicsUnit.Point, ((byte)(0)));
 
-			if(prompt != null)
+			if (prompt != null)
 			{
 				PromptLabel.Text = prompt;
 			}
 
 			_logText = logText;
-			ServerTextBox.Text = serverAndPort ?? String.Empty;
-			UserNameTextBox.Text = userName ?? String.Empty;
-			DepotPathTextBox.Text = depotPath ?? String.Empty;
-			UsePreviewBuildCheckBox.Checked = preview;
+			_settings = settings;
+
+			string defaultHordeServer = DeploymentSettings.Instance.HordeUrl ?? String.Empty;
+
+			HordeRadioBtn.Checked = settings.UpdateSource == LauncherUpdateSource.Horde;
+			HordeServerTextBox.Text = String.IsNullOrEmpty(settings.HordeServer) ? defaultHordeServer : settings.HordeServer;
+			ServerTextBox.Text = settings.PerforceServerAndPort ?? String.Empty;
+			UserNameTextBox.Text = settings.PerforceUserName ?? String.Empty;
+			DepotPathTextBox.Text = settings.PerforceDepotPath ?? String.Empty;
+			UsePreviewBuildCheckBox.Checked = settings.PreviewBuild;
+
 			_syncAndRun = syncAndRun;
 
 			ViewLogBtn.Visible = logText != null;
@@ -59,51 +68,48 @@ namespace UnrealGameSyncLauncher
 
 		private void ConnectBtn_Click(object sender, EventArgs e)
 		{
-			// Update the settings
-			LauncherSettings launcherSettings = new LauncherSettings();
-
-			launcherSettings.PerforceServerAndPort = ServerTextBox.Text.Trim();
-			if(launcherSettings.PerforceServerAndPort.Length == 0)
+			_settings.UpdateSource = HordeRadioBtn.Checked ? LauncherUpdateSource.Horde : LauncherUpdateSource.Perforce;
+			_settings.HordeServer = HordeServerTextBox.Text.Trim();
+			if (String.Equals(_settings.HordeServer, DeploymentSettings.Instance.HordeUrl, StringComparison.OrdinalIgnoreCase))
 			{
-				launcherSettings.PerforceServerAndPort = null;
+				_settings.HordeServer = null;
 			}
-
-			launcherSettings.PerforceUserName = UserNameTextBox.Text.Trim();
-			if(launcherSettings.PerforceUserName.Length == 0)
-			{
-				launcherSettings.PerforceUserName = null;
-			}
-
-			launcherSettings.PerforceDepotPath = DepotPathTextBox.Text.Trim();
-			if(launcherSettings.PerforceDepotPath.Length == 0)
-			{
-				launcherSettings.PerforceDepotPath = null;
-			}
-
-			launcherSettings.PreviewBuild = UsePreviewBuildCheckBox.Checked;
-			launcherSettings.Save();
-
-			PerforceSettings perforceSettings = new PerforceSettings(PerforceSettings.Default);
-			if (!String.IsNullOrEmpty(launcherSettings.PerforceServerAndPort))
-			{
-				perforceSettings.ServerAndPort = launcherSettings.PerforceServerAndPort;
-			}
-			if (!String.IsNullOrEmpty(launcherSettings.PerforceUserName))
-			{
-				perforceSettings.UserName = launcherSettings.PerforceUserName;
-			}
-			perforceSettings.PreferNativeClient = true;
+			_settings.PerforceServerAndPort = ServerTextBox.Text.Trim();
+			_settings.PerforceUserName = UserNameTextBox.Text.Trim();
+			_settings.PerforceDepotPath = DepotPathTextBox.Text.Trim();
+			_settings.PreviewBuild = UsePreviewBuildCheckBox.Checked;
+			_settings.Save();
 
 			// Create the P4 connection
 			CaptureLogger logger = new CaptureLogger();
 
 			// Create the task for connecting to this server
-			ModalTask? task = PerforceModalTask.Execute(this, "Updating", "Checking for updates, please wait...", perforceSettings, (p, c) => _syncAndRun(p, launcherSettings.PerforceDepotPath, launcherSettings.PreviewBuild, logger, c), logger);
+			ModalTask? task;
+			if (_settings.UpdateSource == LauncherUpdateSource.Horde)
+			{
+				task = ModalTask.Execute(this, "Updating", "Checking for updates, please wait...", c => _syncAndRun(null, _settings, logger, c));
+			}
+			else
+			{
+				PerforceSettings perforceSettings = new PerforceSettings(PerforceSettings.Default);
+				if (!String.IsNullOrEmpty(_settings.PerforceServerAndPort))
+				{
+					perforceSettings.ServerAndPort = _settings.PerforceServerAndPort;
+				}
+				if (!String.IsNullOrEmpty(_settings.PerforceUserName))
+				{
+					perforceSettings.UserName = _settings.PerforceUserName;
+				}
+				perforceSettings.PreferNativeClient = true;
+
+				task = PerforceModalTask.Execute(this, "Updating", "Checking for updates, please wait...", perforceSettings, (p, c) => _syncAndRun(p, _settings, logger, c), logger);
+			}
+
 			if (task != null)
 			{
-				if(task.Succeeded)
+				if (task.Succeeded)
 				{
-					launcherSettings.Save();
+					_settings.Save();
 					DialogResult = DialogResult.OK;
 					Close();
 				}
@@ -118,6 +124,18 @@ namespace UnrealGameSyncLauncher
 		{
 			DialogResult = DialogResult.Cancel;
 			Close();
+		}
+
+		private void HordeRadioBtn_CheckedChanged(object sender, EventArgs e)
+		{
+			HordeGroupBox.Enabled = HordeRadioBtn.Checked;
+			PerforceGroupBox.Enabled = PerforceRadioBtn.Checked;
+		}
+
+		private void PerforceRadioBtn_CheckedChanged(object sender, EventArgs e)
+		{
+			HordeGroupBox.Enabled = HordeRadioBtn.Checked;
+			PerforceGroupBox.Enabled = PerforceRadioBtn.Checked;
 		}
 	}
 }

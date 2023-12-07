@@ -31,188 +31,321 @@ namespace UnrealGameSyncLauncher
 		private void InitializeComponent()
 		{
 			System.ComponentModel.ComponentResourceManager resources = new System.ComponentModel.ComponentResourceManager(typeof(SettingsWindow));
-			this.ServerTextBox = new System.Windows.Forms.TextBox();
-			this.DepotPathTextBox = new System.Windows.Forms.TextBox();
-			this.label1 = new System.Windows.Forms.Label();
-			this.DepotPathLabel = new System.Windows.Forms.Label();
-			this.PromptLabel = new System.Windows.Forms.Label();
-			this.groupBox1 = new System.Windows.Forms.GroupBox();
-			this.UsePreviewBuildCheckBox = new System.Windows.Forms.CheckBox();
-			this.UserNameTextBox = new System.Windows.Forms.TextBox();
-			this.label3 = new System.Windows.Forms.Label();
-			this.RetryBtn = new System.Windows.Forms.Button();
-			this.CancelBtn = new System.Windows.Forms.Button();
-			this.ViewLogBtn = new System.Windows.Forms.Button();
-			this.groupBox1.SuspendLayout();
-			this.SuspendLayout();
+			ServerTextBox = new System.Windows.Forms.TextBox();
+			DepotPathTextBox = new System.Windows.Forms.TextBox();
+			DepotPathLabel = new System.Windows.Forms.Label();
+			PromptLabel = new System.Windows.Forms.Label();
+			tableLayoutPanel1 = new System.Windows.Forms.TableLayoutPanel();
+			UserNameTextBox = new System.Windows.Forms.TextBox();
+			tableLayoutPanel2 = new System.Windows.Forms.TableLayoutPanel();
+			UsePreviewBuildCheckBox = new System.Windows.Forms.CheckBox();
+			label3 = new System.Windows.Forms.Label();
+			label1 = new System.Windows.Forms.Label();
+			PerforceRadioBtn = new System.Windows.Forms.RadioButton();
+			RetryBtn = new System.Windows.Forms.Button();
+			CancelBtn = new System.Windows.Forms.Button();
+			ViewLogBtn = new System.Windows.Forms.Button();
+			HordeRadioBtn = new System.Windows.Forms.RadioButton();
+			PerforceGroupBox = new System.Windows.Forms.GroupBox();
+			HordeGroupBox = new System.Windows.Forms.GroupBox();
+			tableLayoutPanel3 = new System.Windows.Forms.TableLayoutPanel();
+			HordeServerTextBox = new System.Windows.Forms.TextBox();
+			label5 = new System.Windows.Forms.Label();
+			tableLayoutPanel1.SuspendLayout();
+			tableLayoutPanel2.SuspendLayout();
+			PerforceGroupBox.SuspendLayout();
+			HordeGroupBox.SuspendLayout();
+			tableLayoutPanel3.SuspendLayout();
+			SuspendLayout();
 			// 
 			// ServerTextBox
 			// 
-			this.ServerTextBox.Anchor = ((System.Windows.Forms.AnchorStyles)(((System.Windows.Forms.AnchorStyles.Top | System.Windows.Forms.AnchorStyles.Left) 
-            | System.Windows.Forms.AnchorStyles.Right)));
-			this.ServerTextBox.Location = new System.Drawing.Point(106, 26);
-			this.ServerTextBox.Name = "ServerTextBox";
-			this.ServerTextBox.Size = new System.Drawing.Size(699, 23);
-			this.ServerTextBox.TabIndex = 1;
+			ServerTextBox.Anchor = System.Windows.Forms.AnchorStyles.Left | System.Windows.Forms.AnchorStyles.Right;
+			ServerTextBox.Location = new System.Drawing.Point(103, 5);
+			ServerTextBox.Name = "ServerTextBox";
+			ServerTextBox.Size = new System.Drawing.Size(664, 23);
+			ServerTextBox.TabIndex = 1;
 			// 
 			// DepotPathTextBox
 			// 
-			this.DepotPathTextBox.Anchor = ((System.Windows.Forms.AnchorStyles)(((System.Windows.Forms.AnchorStyles.Top | System.Windows.Forms.AnchorStyles.Left) 
-            | System.Windows.Forms.AnchorStyles.Right)));
-			this.DepotPathTextBox.Location = new System.Drawing.Point(106, 84);
-			this.DepotPathTextBox.Name = "DepotPathTextBox";
-			this.DepotPathTextBox.Size = new System.Drawing.Size(559, 23);
-			this.DepotPathTextBox.TabIndex = 5;
-			// 
-			// label1
-			// 
-			this.label1.AutoSize = true;
-			this.label1.Location = new System.Drawing.Point(28, 29);
-			this.label1.Name = "label1";
-			this.label1.Size = new System.Drawing.Size(42, 15);
-			this.label1.TabIndex = 0;
-			this.label1.Text = "Server:";
+			DepotPathTextBox.Anchor = System.Windows.Forms.AnchorStyles.Left | System.Windows.Forms.AnchorStyles.Right;
+			DepotPathTextBox.Location = new System.Drawing.Point(3, 5);
+			DepotPathTextBox.Name = "DepotPathTextBox";
+			DepotPathTextBox.Size = new System.Drawing.Size(532, 23);
+			DepotPathTextBox.TabIndex = 5;
 			// 
 			// DepotPathLabel
 			// 
-			this.DepotPathLabel.AutoSize = true;
-			this.DepotPathLabel.Location = new System.Drawing.Point(28, 87);
-			this.DepotPathLabel.Name = "DepotPathLabel";
-			this.DepotPathLabel.Size = new System.Drawing.Size(69, 15);
-			this.DepotPathLabel.TabIndex = 4;
-			this.DepotPathLabel.Text = "Depot Path:";
+			DepotPathLabel.Anchor = System.Windows.Forms.AnchorStyles.Left;
+			DepotPathLabel.AutoSize = true;
+			DepotPathLabel.Location = new System.Drawing.Point(3, 75);
+			DepotPathLabel.Name = "DepotPathLabel";
+			DepotPathLabel.Size = new System.Drawing.Size(69, 15);
+			DepotPathLabel.TabIndex = 4;
+			DepotPathLabel.Text = "Depot Path:";
 			// 
 			// PromptLabel
 			// 
-			this.PromptLabel.Anchor = ((System.Windows.Forms.AnchorStyles)(((System.Windows.Forms.AnchorStyles.Top | System.Windows.Forms.AnchorStyles.Left) 
-            | System.Windows.Forms.AnchorStyles.Right)));
-			this.PromptLabel.AutoSize = true;
-			this.PromptLabel.Location = new System.Drawing.Point(12, 19);
-			this.PromptLabel.Name = "PromptLabel";
-			this.PromptLabel.Size = new System.Drawing.Size(409, 15);
-			this.PromptLabel.TabIndex = 0;
-			this.PromptLabel.Text = "UnrealGameSync will be updated from Perforce using the following settings.";
+			PromptLabel.Anchor = System.Windows.Forms.AnchorStyles.Top | System.Windows.Forms.AnchorStyles.Left | System.Windows.Forms.AnchorStyles.Right;
+			PromptLabel.AutoSize = true;
+			PromptLabel.Location = new System.Drawing.Point(12, 16);
+			PromptLabel.Name = "PromptLabel";
+			PromptLabel.Size = new System.Drawing.Size(333, 15);
+			PromptLabel.TabIndex = 0;
+			PromptLabel.Text = "UnrealGameSync will be updated using the following settings.";
 			// 
-			// groupBox1
+			// tableLayoutPanel1
 			// 
-			this.groupBox1.Anchor = ((System.Windows.Forms.AnchorStyles)(((System.Windows.Forms.AnchorStyles.Top | System.Windows.Forms.AnchorStyles.Left) 
-            | System.Windows.Forms.AnchorStyles.Right)));
-			this.groupBox1.Controls.Add(this.UsePreviewBuildCheckBox);
-			this.groupBox1.Controls.Add(this.UserNameTextBox);
-			this.groupBox1.Controls.Add(this.label3);
-			this.groupBox1.Controls.Add(this.DepotPathTextBox);
-			this.groupBox1.Controls.Add(this.ServerTextBox);
-			this.groupBox1.Controls.Add(this.DepotPathLabel);
-			this.groupBox1.Controls.Add(this.label1);
-			this.groupBox1.Location = new System.Drawing.Point(25, 49);
-			this.groupBox1.Name = "groupBox1";
-			this.groupBox1.Size = new System.Drawing.Size(838, 129);
-			this.groupBox1.TabIndex = 1;
-			this.groupBox1.TabStop = false;
-			this.groupBox1.Text = "Connection Settings";
-			// 
-			// UseUnstableBuildCheckBox
-			// 
-			this.UsePreviewBuildCheckBox.Anchor = ((System.Windows.Forms.AnchorStyles)((System.Windows.Forms.AnchorStyles.Top | System.Windows.Forms.AnchorStyles.Right)));
-			this.UsePreviewBuildCheckBox.AutoSize = true;
-			this.UsePreviewBuildCheckBox.Location = new System.Drawing.Point(681, 86);
-			this.UsePreviewBuildCheckBox.Name = "UsePreviewBuildCheckBox";
-			this.UsePreviewBuildCheckBox.Size = new System.Drawing.Size(124, 19);
-			this.UsePreviewBuildCheckBox.TabIndex = 6;
-			this.UsePreviewBuildCheckBox.Text = "Use Preview Build";
-			this.UsePreviewBuildCheckBox.UseVisualStyleBackColor = true;
+			tableLayoutPanel1.Anchor = System.Windows.Forms.AnchorStyles.Top | System.Windows.Forms.AnchorStyles.Left | System.Windows.Forms.AnchorStyles.Right;
+			tableLayoutPanel1.AutoSizeMode = System.Windows.Forms.AutoSizeMode.GrowAndShrink;
+			tableLayoutPanel1.ColumnCount = 2;
+			tableLayoutPanel1.ColumnStyles.Add(new System.Windows.Forms.ColumnStyle(System.Windows.Forms.SizeType.Absolute, 100F));
+			tableLayoutPanel1.ColumnStyles.Add(new System.Windows.Forms.ColumnStyle(System.Windows.Forms.SizeType.Percent, 100F));
+			tableLayoutPanel1.Controls.Add(UserNameTextBox, 1, 1);
+			tableLayoutPanel1.Controls.Add(tableLayoutPanel2, 1, 2);
+			tableLayoutPanel1.Controls.Add(ServerTextBox, 1, 0);
+			tableLayoutPanel1.Controls.Add(label3, 0, 1);
+			tableLayoutPanel1.Controls.Add(DepotPathLabel, 0, 2);
+			tableLayoutPanel1.Controls.Add(label1, 0, 0);
+			tableLayoutPanel1.Location = new System.Drawing.Point(13, 25);
+			tableLayoutPanel1.Name = "tableLayoutPanel1";
+			tableLayoutPanel1.RowCount = 3;
+			tableLayoutPanel1.RowStyles.Add(new System.Windows.Forms.RowStyle(System.Windows.Forms.SizeType.Percent, 33.3333321F));
+			tableLayoutPanel1.RowStyles.Add(new System.Windows.Forms.RowStyle(System.Windows.Forms.SizeType.Percent, 33.33333F));
+			tableLayoutPanel1.RowStyles.Add(new System.Windows.Forms.RowStyle(System.Windows.Forms.SizeType.Percent, 33.33334F));
+			tableLayoutPanel1.Size = new System.Drawing.Size(770, 100);
+			tableLayoutPanel1.TabIndex = 5;
 			// 
 			// UserNameTextBox
 			// 
-			this.UserNameTextBox.Anchor = ((System.Windows.Forms.AnchorStyles)(((System.Windows.Forms.AnchorStyles.Top | System.Windows.Forms.AnchorStyles.Left) 
-            | System.Windows.Forms.AnchorStyles.Right)));
-			this.UserNameTextBox.Location = new System.Drawing.Point(106, 55);
-			this.UserNameTextBox.Name = "UserNameTextBox";
-			this.UserNameTextBox.Size = new System.Drawing.Size(699, 23);
-			this.UserNameTextBox.TabIndex = 3;
+			UserNameTextBox.Anchor = System.Windows.Forms.AnchorStyles.Left | System.Windows.Forms.AnchorStyles.Right;
+			UserNameTextBox.Location = new System.Drawing.Point(103, 38);
+			UserNameTextBox.Name = "UserNameTextBox";
+			UserNameTextBox.Size = new System.Drawing.Size(664, 23);
+			UserNameTextBox.TabIndex = 3;
+			// 
+			// tableLayoutPanel2
+			// 
+			tableLayoutPanel2.Anchor = System.Windows.Forms.AnchorStyles.Top | System.Windows.Forms.AnchorStyles.Bottom | System.Windows.Forms.AnchorStyles.Left | System.Windows.Forms.AnchorStyles.Right;
+			tableLayoutPanel2.AutoSize = true;
+			tableLayoutPanel2.AutoSizeMode = System.Windows.Forms.AutoSizeMode.GrowAndShrink;
+			tableLayoutPanel2.ColumnCount = 2;
+			tableLayoutPanel2.ColumnStyles.Add(new System.Windows.Forms.ColumnStyle(System.Windows.Forms.SizeType.Percent, 100F));
+			tableLayoutPanel2.ColumnStyles.Add(new System.Windows.Forms.ColumnStyle());
+			tableLayoutPanel2.Controls.Add(UsePreviewBuildCheckBox, 1, 0);
+			tableLayoutPanel2.Controls.Add(DepotPathTextBox, 0, 0);
+			tableLayoutPanel2.Location = new System.Drawing.Point(100, 66);
+			tableLayoutPanel2.Margin = new System.Windows.Forms.Padding(0);
+			tableLayoutPanel2.Name = "tableLayoutPanel2";
+			tableLayoutPanel2.RowCount = 1;
+			tableLayoutPanel2.RowStyles.Add(new System.Windows.Forms.RowStyle(System.Windows.Forms.SizeType.Percent, 100F));
+			tableLayoutPanel2.Size = new System.Drawing.Size(670, 34);
+			tableLayoutPanel2.TabIndex = 6;
+			// 
+			// UsePreviewBuildCheckBox
+			// 
+			UsePreviewBuildCheckBox.Anchor = System.Windows.Forms.AnchorStyles.None;
+			UsePreviewBuildCheckBox.AutoSize = true;
+			UsePreviewBuildCheckBox.Location = new System.Drawing.Point(548, 7);
+			UsePreviewBuildCheckBox.Margin = new System.Windows.Forms.Padding(10, 3, 3, 3);
+			UsePreviewBuildCheckBox.Name = "UsePreviewBuildCheckBox";
+			UsePreviewBuildCheckBox.Size = new System.Drawing.Size(119, 19);
+			UsePreviewBuildCheckBox.TabIndex = 6;
+			UsePreviewBuildCheckBox.Text = "Use Preview Build";
+			UsePreviewBuildCheckBox.UseVisualStyleBackColor = true;
 			// 
 			// label3
 			// 
-			this.label3.AutoSize = true;
-			this.label3.Location = new System.Drawing.Point(28, 58);
-			this.label3.Name = "label3";
-			this.label3.Size = new System.Drawing.Size(33, 15);
-			this.label3.TabIndex = 2;
-			this.label3.Text = "User:";
+			label3.Anchor = System.Windows.Forms.AnchorStyles.Left;
+			label3.AutoSize = true;
+			label3.Location = new System.Drawing.Point(3, 42);
+			label3.Name = "label3";
+			label3.Size = new System.Drawing.Size(33, 15);
+			label3.TabIndex = 2;
+			label3.Text = "User:";
+			// 
+			// label1
+			// 
+			label1.Anchor = System.Windows.Forms.AnchorStyles.Left;
+			label1.AutoSize = true;
+			label1.Location = new System.Drawing.Point(3, 9);
+			label1.Name = "label1";
+			label1.Size = new System.Drawing.Size(42, 15);
+			label1.TabIndex = 7;
+			label1.Text = "Server:";
+			// 
+			// PerforceRadioBtn
+			// 
+			PerforceRadioBtn.AutoSize = true;
+			PerforceRadioBtn.Location = new System.Drawing.Point(28, 135);
+			PerforceRadioBtn.Name = "PerforceRadioBtn";
+			PerforceRadioBtn.Size = new System.Drawing.Size(69, 19);
+			PerforceRadioBtn.TabIndex = 0;
+			PerforceRadioBtn.TabStop = true;
+			PerforceRadioBtn.Text = "Perforce";
+			PerforceRadioBtn.UseVisualStyleBackColor = true;
+			PerforceRadioBtn.CheckedChanged += PerforceRadioBtn_CheckedChanged;
 			// 
 			// RetryBtn
 			// 
-			this.RetryBtn.Anchor = ((System.Windows.Forms.AnchorStyles)((System.Windows.Forms.AnchorStyles.Bottom | System.Windows.Forms.AnchorStyles.Right)));
-			this.RetryBtn.Location = new System.Drawing.Point(786, 193);
-			this.RetryBtn.Name = "RetryBtn";
-			this.RetryBtn.Size = new System.Drawing.Size(89, 26);
-			this.RetryBtn.TabIndex = 4;
-			this.RetryBtn.Text = "Connect";
-			this.RetryBtn.UseVisualStyleBackColor = true;
-			this.RetryBtn.Click += new System.EventHandler(this.ConnectBtn_Click);
+			RetryBtn.Anchor = System.Windows.Forms.AnchorStyles.Bottom | System.Windows.Forms.AnchorStyles.Right;
+			RetryBtn.AutoSize = true;
+			RetryBtn.Location = new System.Drawing.Point(689, 295);
+			RetryBtn.Name = "RetryBtn";
+			RetryBtn.Padding = new System.Windows.Forms.Padding(20, 0, 20, 0);
+			RetryBtn.Size = new System.Drawing.Size(119, 30);
+			RetryBtn.TabIndex = 4;
+			RetryBtn.Text = "Connect";
+			RetryBtn.UseVisualStyleBackColor = true;
+			RetryBtn.Click += ConnectBtn_Click;
 			// 
 			// CancelBtn
 			// 
-			this.CancelBtn.Anchor = ((System.Windows.Forms.AnchorStyles)((System.Windows.Forms.AnchorStyles.Bottom | System.Windows.Forms.AnchorStyles.Right)));
-			this.CancelBtn.DialogResult = System.Windows.Forms.DialogResult.Cancel;
-			this.CancelBtn.Location = new System.Drawing.Point(691, 193);
-			this.CancelBtn.Name = "CancelBtn";
-			this.CancelBtn.Size = new System.Drawing.Size(89, 26);
-			this.CancelBtn.TabIndex = 3;
-			this.CancelBtn.Text = "Cancel";
-			this.CancelBtn.UseVisualStyleBackColor = true;
-			this.CancelBtn.Click += new System.EventHandler(this.CancelBtn_Click);
+			CancelBtn.Anchor = System.Windows.Forms.AnchorStyles.Bottom | System.Windows.Forms.AnchorStyles.Right;
+			CancelBtn.AutoSize = true;
+			CancelBtn.DialogResult = System.Windows.Forms.DialogResult.Cancel;
+			CancelBtn.Location = new System.Drawing.Point(564, 295);
+			CancelBtn.Name = "CancelBtn";
+			CancelBtn.Padding = new System.Windows.Forms.Padding(20, 0, 20, 0);
+			CancelBtn.Size = new System.Drawing.Size(119, 30);
+			CancelBtn.TabIndex = 3;
+			CancelBtn.Text = "Cancel";
+			CancelBtn.UseVisualStyleBackColor = true;
+			CancelBtn.Click += CancelBtn_Click;
 			// 
 			// ViewLogBtn
 			// 
-			this.ViewLogBtn.Anchor = ((System.Windows.Forms.AnchorStyles)((System.Windows.Forms.AnchorStyles.Bottom | System.Windows.Forms.AnchorStyles.Left)));
-			this.ViewLogBtn.Location = new System.Drawing.Point(12, 193);
-			this.ViewLogBtn.Name = "ViewLogBtn";
-			this.ViewLogBtn.Size = new System.Drawing.Size(87, 26);
-			this.ViewLogBtn.TabIndex = 2;
-			this.ViewLogBtn.Text = "View Log";
-			this.ViewLogBtn.UseVisualStyleBackColor = true;
-			this.ViewLogBtn.Click += new System.EventHandler(this.ViewLogBtn_Click);
+			ViewLogBtn.Anchor = System.Windows.Forms.AnchorStyles.Bottom | System.Windows.Forms.AnchorStyles.Left;
+			ViewLogBtn.Location = new System.Drawing.Point(12, 295);
+			ViewLogBtn.Name = "ViewLogBtn";
+			ViewLogBtn.Size = new System.Drawing.Size(113, 30);
+			ViewLogBtn.TabIndex = 2;
+			ViewLogBtn.Text = "View Log";
+			ViewLogBtn.UseVisualStyleBackColor = true;
+			ViewLogBtn.Click += ViewLogBtn_Click;
+			// 
+			// HordeRadioBtn
+			// 
+			HordeRadioBtn.AutoSize = true;
+			HordeRadioBtn.Location = new System.Drawing.Point(28, 49);
+			HordeRadioBtn.Name = "HordeRadioBtn";
+			HordeRadioBtn.Size = new System.Drawing.Size(58, 19);
+			HordeRadioBtn.TabIndex = 0;
+			HordeRadioBtn.TabStop = true;
+			HordeRadioBtn.Text = "Horde";
+			HordeRadioBtn.UseVisualStyleBackColor = true;
+			HordeRadioBtn.CheckedChanged += HordeRadioBtn_CheckedChanged;
+			// 
+			// PerforceGroupBox
+			// 
+			PerforceGroupBox.Anchor = System.Windows.Forms.AnchorStyles.Top | System.Windows.Forms.AnchorStyles.Left | System.Windows.Forms.AnchorStyles.Right;
+			PerforceGroupBox.Controls.Add(tableLayoutPanel1);
+			PerforceGroupBox.Location = new System.Drawing.Point(12, 135);
+			PerforceGroupBox.Name = "PerforceGroupBox";
+			PerforceGroupBox.Size = new System.Drawing.Size(796, 142);
+			PerforceGroupBox.TabIndex = 9;
+			PerforceGroupBox.TabStop = false;
+			// 
+			// HordeGroupBox
+			// 
+			HordeGroupBox.Anchor = System.Windows.Forms.AnchorStyles.Top | System.Windows.Forms.AnchorStyles.Left | System.Windows.Forms.AnchorStyles.Right;
+			HordeGroupBox.Controls.Add(tableLayoutPanel3);
+			HordeGroupBox.Location = new System.Drawing.Point(12, 49);
+			HordeGroupBox.Name = "HordeGroupBox";
+			HordeGroupBox.Size = new System.Drawing.Size(796, 80);
+			HordeGroupBox.TabIndex = 10;
+			HordeGroupBox.TabStop = false;
+			// 
+			// tableLayoutPanel3
+			// 
+			tableLayoutPanel3.Anchor = System.Windows.Forms.AnchorStyles.Top | System.Windows.Forms.AnchorStyles.Left | System.Windows.Forms.AnchorStyles.Right;
+			tableLayoutPanel3.AutoSizeMode = System.Windows.Forms.AutoSizeMode.GrowAndShrink;
+			tableLayoutPanel3.ColumnCount = 2;
+			tableLayoutPanel3.ColumnStyles.Add(new System.Windows.Forms.ColumnStyle(System.Windows.Forms.SizeType.Absolute, 100F));
+			tableLayoutPanel3.ColumnStyles.Add(new System.Windows.Forms.ColumnStyle(System.Windows.Forms.SizeType.Percent, 100F));
+			tableLayoutPanel3.Controls.Add(HordeServerTextBox, 1, 0);
+			tableLayoutPanel3.Controls.Add(label5, 0, 0);
+			tableLayoutPanel3.Location = new System.Drawing.Point(13, 25);
+			tableLayoutPanel3.Name = "tableLayoutPanel3";
+			tableLayoutPanel3.RowCount = 1;
+			tableLayoutPanel3.RowStyles.Add(new System.Windows.Forms.RowStyle(System.Windows.Forms.SizeType.Percent, 100F));
+			tableLayoutPanel3.RowStyles.Add(new System.Windows.Forms.RowStyle(System.Windows.Forms.SizeType.Absolute, 20F));
+			tableLayoutPanel3.RowStyles.Add(new System.Windows.Forms.RowStyle(System.Windows.Forms.SizeType.Absolute, 20F));
+			tableLayoutPanel3.Size = new System.Drawing.Size(770, 40);
+			tableLayoutPanel3.TabIndex = 6;
+			// 
+			// HordeServerTextBox
+			// 
+			HordeServerTextBox.Anchor = System.Windows.Forms.AnchorStyles.Left | System.Windows.Forms.AnchorStyles.Right;
+			HordeServerTextBox.Location = new System.Drawing.Point(103, 8);
+			HordeServerTextBox.Name = "HordeServerTextBox";
+			HordeServerTextBox.Size = new System.Drawing.Size(664, 23);
+			HordeServerTextBox.TabIndex = 1;
+			// 
+			// label5
+			// 
+			label5.Anchor = System.Windows.Forms.AnchorStyles.Left;
+			label5.AutoSize = true;
+			label5.Location = new System.Drawing.Point(3, 12);
+			label5.Name = "label5";
+			label5.Size = new System.Drawing.Size(42, 15);
+			label5.TabIndex = 7;
+			label5.Text = "Server:";
 			// 
 			// SettingsWindow
 			// 
-			this.AcceptButton = this.RetryBtn;
-			this.AutoScaleDimensions = new System.Drawing.SizeF(96F, 96F);
-			this.AutoScaleMode = System.Windows.Forms.AutoScaleMode.Dpi;
-			this.CancelButton = this.CancelBtn;
-			this.ClientSize = new System.Drawing.Size(887, 231);
-			this.Controls.Add(this.ViewLogBtn);
-			this.Controls.Add(this.CancelBtn);
-			this.Controls.Add(this.RetryBtn);
-			this.Controls.Add(this.groupBox1);
-			this.Controls.Add(this.PromptLabel);
-			this.Font = new System.Drawing.Font("Segoe UI", 9F, System.Drawing.FontStyle.Regular, System.Drawing.GraphicsUnit.Point, ((byte)(0)));
-			this.Icon = ((System.Drawing.Icon)(resources.GetObject("$this.Icon")));
-			this.MaximizeBox = false;
-			this.MinimizeBox = false;
-			this.Name = "SettingsWindow";
-			this.StartPosition = System.Windows.Forms.FormStartPosition.CenterScreen;
-			this.Text = "UnrealGameSync Launcher";
-			this.groupBox1.ResumeLayout(false);
-			this.groupBox1.PerformLayout();
-			this.ResumeLayout(false);
-			this.PerformLayout();
-
+			AcceptButton = RetryBtn;
+			AutoScaleDimensions = new System.Drawing.SizeF(96F, 96F);
+			AutoScaleMode = System.Windows.Forms.AutoScaleMode.Dpi;
+			CancelButton = CancelBtn;
+			ClientSize = new System.Drawing.Size(820, 337);
+			Controls.Add(PerforceRadioBtn);
+			Controls.Add(HordeRadioBtn);
+			Controls.Add(HordeGroupBox);
+			Controls.Add(PerforceGroupBox);
+			Controls.Add(RetryBtn);
+			Controls.Add(CancelBtn);
+			Controls.Add(ViewLogBtn);
+			Controls.Add(PromptLabel);
+			Icon = (System.Drawing.Icon)resources.GetObject("$this.Icon");
+			MaximizeBox = false;
+			MinimizeBox = false;
+			Name = "SettingsWindow";
+			StartPosition = System.Windows.Forms.FormStartPosition.CenterScreen;
+			Text = "UnrealGameSync Launcher";
+			tableLayoutPanel1.ResumeLayout(false);
+			tableLayoutPanel1.PerformLayout();
+			tableLayoutPanel2.ResumeLayout(false);
+			tableLayoutPanel2.PerformLayout();
+			PerforceGroupBox.ResumeLayout(false);
+			HordeGroupBox.ResumeLayout(false);
+			tableLayoutPanel3.ResumeLayout(false);
+			tableLayoutPanel3.PerformLayout();
+			ResumeLayout(false);
+			PerformLayout();
 		}
 
 		#endregion
 
 		private System.Windows.Forms.TextBox ServerTextBox;
 		private System.Windows.Forms.TextBox DepotPathTextBox;
-		private System.Windows.Forms.Label label1;
 		private System.Windows.Forms.Label DepotPathLabel;
 		private System.Windows.Forms.Label PromptLabel;
-		private System.Windows.Forms.GroupBox groupBox1;
 		private System.Windows.Forms.Button RetryBtn;
 		private System.Windows.Forms.Button CancelBtn;
 		private System.Windows.Forms.Button ViewLogBtn;
 		private System.Windows.Forms.TextBox UserNameTextBox;
 		private System.Windows.Forms.Label label3;
 		private System.Windows.Forms.CheckBox UsePreviewBuildCheckBox;
+		private System.Windows.Forms.TableLayoutPanel tableLayoutPanel1;
+		private System.Windows.Forms.TableLayoutPanel tableLayoutPanel2;
+		private System.Windows.Forms.RadioButton PerforceRadioBtn;
+		private System.Windows.Forms.RadioButton HordeRadioBtn;
+		private System.Windows.Forms.Label label1;
+		private System.Windows.Forms.GroupBox PerforceGroupBox;
+		private System.Windows.Forms.GroupBox HordeGroupBox;
+		private System.Windows.Forms.TableLayoutPanel tableLayoutPanel3;
+		private System.Windows.Forms.TextBox HordeServerTextBox;
+		private System.Windows.Forms.Label label5;
 	}
 }

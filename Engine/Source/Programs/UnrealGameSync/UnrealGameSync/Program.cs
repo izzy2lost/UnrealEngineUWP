@@ -1,6 +1,7 @@
 // Copyright Epic Games, Inc. All Rights Reserved.
 
 using EpicGames.Core;
+using EpicGames.Horde;
 using EpicGames.OIDC;
 using EpicGames.Perforce;
 using Microsoft.Extensions.DependencyInjection;
@@ -180,6 +181,7 @@ namespace UnrealGameSync
 				services.AddSingleton<IAsyncDisposer, AsyncDisposer>();
 				services.AddSingleton(sp => TokenStoreFactory.CreateTokenStore());
 				services.AddSingleton<OidcTokenManager>();
+				services.AddHordeHttpClient(x => x.BaseAddress = new Uri(launcherSettings.HordeServer ?? "http://localhost:5000"));
 
 				await using (ServiceProvider serviceProvider = services.BuildServiceProvider())
 				{
@@ -220,7 +222,7 @@ namespace UnrealGameSync
 
 							ProtocolHandlerUtils.InstallQuiet(logger);
 
-							using (UpdateMonitor updateMonitor = new UpdateMonitor(defaultSettings, updatePath, serviceProvider))
+							using (UpdateMonitor updateMonitor = CreateUpdateMonitor(launcherSettings, defaultSettings, updatePath, serviceProvider))
 							{
 								using ProgramApplicationContext context = new ProgramApplicationContext(defaultSettings, updateMonitor, DeploymentSettings.Instance.ApiUrl, dataFolder, activateEvent, restoreState, updateSpawn, projectFileName, preview, serviceProvider, uri);
 								Application.Run(context);
@@ -228,8 +230,7 @@ namespace UnrealGameSync
 								if (updateMonitor.IsUpdateAvailable && updateSpawn != null)
 								{
 									instanceMutex.Close();
-									bool launchPreview = updateMonitor.RelaunchPreview ?? preview;
-									Utility.SpawnProcess(updateSpawn, "-restorestate" + (launchPreview ? " -unstable" : ""));
+									Utility.SpawnProcess(updateSpawn, "-restorestate" + (updateMonitor.OpenSettings ? " -settings" : ""));
 								}
 							}
 						}
@@ -244,6 +245,18 @@ namespace UnrealGameSync
 						}
 					}
 				}
+			}
+		}
+
+		private static UpdateMonitor CreateUpdateMonitor(LauncherSettings launcherSettings, IPerforceSettings defaultSettings, string? updatePath, IServiceProvider serviceProvider)
+		{
+			if (launcherSettings.UpdateSource == LauncherUpdateSource.Horde)
+			{
+				return new HordeUpdateMonitor(SyncVersion ?? String.Empty, serviceProvider);
+			}
+			else
+			{
+				return new PerforceUpdateMonitor(defaultSettings, updatePath, serviceProvider);
 			}
 		}
 

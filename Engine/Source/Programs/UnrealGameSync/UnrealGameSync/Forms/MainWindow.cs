@@ -1526,10 +1526,14 @@ namespace UnrealGameSync
 
 		public void ModifyApplicationSettings()
 		{
-			bool? relaunchPreview = ApplicationSettingsWindow.ShowModal(this, _defaultPerforceSettings, _preview, _originalExecutableFileName, _settings, ToolUpdateMonitor, _serviceProvider.GetRequiredService<ILogger<ApplicationSettingsWindow>>());
-			if(relaunchPreview.HasValue)
+			ApplicationSettingsWindow.Result result = ApplicationSettingsWindow.ShowModal(this, _defaultPerforceSettings, _preview, _originalExecutableFileName, _settings, ToolUpdateMonitor, _serviceProvider.GetRequiredService<ILogger<ApplicationSettingsWindow>>());
+			if (result == ApplicationSettingsWindow.Result.Restart)
 			{
-				_updateMonitor.TriggerUpdate(UpdateType.UserInitiated, relaunchPreview);
+				_updateMonitor.TriggerUpdate(UpdateType.UserInitiated, false);
+			}
+			else if(result == ApplicationSettingsWindow.Result.RestartAndConfigureUpdate)
+			{
+				_updateMonitor.TriggerUpdate(UpdateType.UserInitiated, true);
 			}
 
 			for (int idx = 0; idx < TabControl.GetTabCount(); idx++)
