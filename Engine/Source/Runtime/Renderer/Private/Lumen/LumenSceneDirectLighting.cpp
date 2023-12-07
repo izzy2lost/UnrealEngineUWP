@@ -606,10 +606,10 @@ BEGIN_SHADER_PARAMETER_STRUCT(FLumenDirectLightingNonRayTracedShadowsParameters,
 	SHADER_PARAMETER(float, MaxTraceDistance)
 END_SHADER_PARAMETER_STRUCT()
 
-class FLumenDirectLightingNonRayTracedShadowsCS : public FGlobalShader
+class FLumenDirectLightingShadowMaskFromLightAttenuationCS : public FGlobalShader
 {
-	DECLARE_GLOBAL_SHADER(FLumenDirectLightingNonRayTracedShadowsCS)
-	SHADER_USE_PARAMETER_STRUCT(FLumenDirectLightingNonRayTracedShadowsCS, FGlobalShader);
+	DECLARE_GLOBAL_SHADER(FLumenDirectLightingShadowMaskFromLightAttenuationCS)
+	SHADER_USE_PARAMETER_STRUCT(FLumenDirectLightingShadowMaskFromLightAttenuationCS, FGlobalShader);
 
 	BEGIN_SHADER_PARAMETER_STRUCT(FParameters, )
 		SHADER_PARAMETER_STRUCT_INCLUDE(FLumenDirectLightingNonRayTracedShadowsParameters, Common)
@@ -645,7 +645,7 @@ class FLumenDirectLightingNonRayTracedShadowsCS : public FGlobalShader
 	}
 };
 
-IMPLEMENT_GLOBAL_SHADER(FLumenDirectLightingNonRayTracedShadowsCS, "/Engine/Private/Lumen/LumenSceneDirectLightingShadowMask.usf", "LumenSceneDirectLightingNonRayTracedShadowsCS", SF_Compute);
+IMPLEMENT_GLOBAL_SHADER(FLumenDirectLightingShadowMaskFromLightAttenuationCS, "/Engine/Private/Lumen/LumenSceneDirectLightingShadowMask.usf", "LumenSceneDirectLightingShadowMaskFromLightAttenuationCS", SF_Compute);
 
 BEGIN_SHADER_PARAMETER_STRUCT(FLightFunctionParameters, )
 	SHADER_PARAMETER(FVector4f, LightFunctionParameters)
@@ -653,11 +653,11 @@ BEGIN_SHADER_PARAMETER_STRUCT(FLightFunctionParameters, )
 	SHADER_PARAMETER(FVector3f, LightFunctionParameters2)
 END_SHADER_PARAMETER_STRUCT()
 
-class FLumenDirectLightingNonRayTracedShadowsWithLightFunctionCS : public FMaterialShader
+class FLumenDirectLightingShadowMaskFromLightAttenuationWithLightFunctionCS : public FMaterialShader
 {
-	DECLARE_SHADER_TYPE(FLumenDirectLightingNonRayTracedShadowsWithLightFunctionCS, Material);
+	DECLARE_SHADER_TYPE(FLumenDirectLightingShadowMaskFromLightAttenuationWithLightFunctionCS, Material);
 
-	FLumenDirectLightingNonRayTracedShadowsWithLightFunctionCS(const ShaderMetaType::CompiledShaderInitializerType& Initializer)
+	FLumenDirectLightingShadowMaskFromLightAttenuationWithLightFunctionCS(const ShaderMetaType::CompiledShaderInitializerType& Initializer)
 		: FMaterialShader(Initializer)
 	{
 		Bindings.BindForLegacyShaderParameters(
@@ -669,7 +669,7 @@ class FLumenDirectLightingNonRayTracedShadowsWithLightFunctionCS : public FMater
 			false);
 	}
 
-	FLumenDirectLightingNonRayTracedShadowsWithLightFunctionCS() {}
+	FLumenDirectLightingShadowMaskFromLightAttenuationWithLightFunctionCS() {}
 
 	BEGIN_SHADER_PARAMETER_STRUCT(FParameters, )
 		SHADER_PARAMETER_STRUCT_INCLUDE(FLumenDirectLightingNonRayTracedShadowsParameters, Common)
@@ -704,7 +704,7 @@ class FLumenDirectLightingNonRayTracedShadowsWithLightFunctionCS : public FMater
 	}
 };
 
-IMPLEMENT_MATERIAL_SHADER_TYPE(, FLumenDirectLightingNonRayTracedShadowsWithLightFunctionCS, TEXT("/Engine/Private/Lumen/LumenSceneDirectLightingShadowMask.usf"), TEXT("LumenSceneDirectLightingNonRayTracedShadowsCS"), SF_Compute);
+IMPLEMENT_MATERIAL_SHADER_TYPE(, FLumenDirectLightingShadowMaskFromLightAttenuationWithLightFunctionCS, TEXT("/Engine/Private/Lumen/LumenSceneDirectLightingShadowMask.usf"), TEXT("LumenSceneDirectLightingShadowMaskFromLightAttenuationCS"), SF_Compute);
 
 class FInitShadowTraceIndirectArgsCS : public FGlobalShader
 {
@@ -1027,7 +1027,9 @@ static void SetPerLightParameters(FPerLightParameters& DstParameters, const FLum
 	DstParameters.DeferredLightUniforms = Light.DeferredLightUniformBuffers[ViewIndex];
 }
 
-static int32 ComputeNonRayTracedShadows(
+// Compute for each light the shadow mask based on light attenuation properties (distance falloff, light functions, IES, volumetric cloud)
+// This pass allows to pre-cull needs for tracing shadow rays
+static int32 ComputeShadowMaskFromLightAttenuation(
 	FRDGBuilder& GraphBuilder,
 	const FScene* Scene,
 	const FViewInfo& View,
@@ -1077,7 +1079,7 @@ static int32 ComputeNonRayTracedShadows(
 
 		if (LightFunctionMaterialProxy)
 		{
-			FLumenDirectLightingNonRayTracedShadowsWithLightFunctionCS::FParameters* PassParameters = GraphBuilder.AllocParameters<FLumenDirectLightingNonRayTracedShadowsWithLightFunctionCS::FParameters>();
+			FLumenDirectLightingShadowMaskFromLightAttenuationWithLightFunctionCS::FParameters* PassParameters = GraphBuilder.AllocParameters<FLumenDirectLightingShadowMaskFromLightAttenuationWithLightFunctionCS::FParameters>();
 			SetCommonParameters(PassParameters->Common);
 			SetPerLightParameters(PassParameters->Common.LightParameters, Light, ViewIndex);
 			const bool bUseCloudTransmittance = SetupLightCloudTransmittanceParameters(
@@ -1088,21 +1090,21 @@ static int32 ComputeNonRayTracedShadows(
 				PassParameters->Common.LightCloudTransmittanceParameters);
 			SetupLightFunctionParameters(View, Light.LightSceneInfo, 1.0f, PassParameters->LightFunctionParameters);
 
-			FLumenDirectLightingNonRayTracedShadowsWithLightFunctionCS::FPermutationDomain PermutationVector;
-			PermutationVector.Set<FLumenDirectLightingNonRayTracedShadowsWithLightFunctionCS::FThreadGroupSize32>(Lumen::UseThreadGroupSize32());
-			PermutationVector.Set<FLumenDirectLightingNonRayTracedShadowsWithLightFunctionCS::FCompactShadowTraces>(ShadowTraceAllocatorUAV != nullptr);
-			PermutationVector.Set<FLumenDirectLightingNonRayTracedShadowsWithLightFunctionCS::FLightType>(Light.Type);
-			PermutationVector.Set<FLumenDirectLightingNonRayTracedShadowsWithLightFunctionCS::FCloudTransmittance>(bUseCloudTransmittance);
+			FLumenDirectLightingShadowMaskFromLightAttenuationWithLightFunctionCS::FPermutationDomain PermutationVector;
+			PermutationVector.Set<FLumenDirectLightingShadowMaskFromLightAttenuationWithLightFunctionCS::FThreadGroupSize32>(Lumen::UseThreadGroupSize32());
+			PermutationVector.Set<FLumenDirectLightingShadowMaskFromLightAttenuationWithLightFunctionCS::FCompactShadowTraces>(ShadowTraceAllocatorUAV != nullptr);
+			PermutationVector.Set<FLumenDirectLightingShadowMaskFromLightAttenuationWithLightFunctionCS::FLightType>(Light.Type);
+			PermutationVector.Set<FLumenDirectLightingShadowMaskFromLightAttenuationWithLightFunctionCS::FCloudTransmittance>(bUseCloudTransmittance);
 
 			const FMaterial& Material = LightFunctionMaterialProxy->GetMaterialWithFallback(Scene->GetFeatureLevel(), LightFunctionMaterialProxy);
 			const FMaterialShaderMap* MaterialShaderMap = Material.GetRenderingThreadShaderMap();
-			TShaderRef<FLumenDirectLightingNonRayTracedShadowsWithLightFunctionCS> ComputeShader = MaterialShaderMap->GetShader<FLumenDirectLightingNonRayTracedShadowsWithLightFunctionCS>(PermutationVector);
+			TShaderRef<FLumenDirectLightingShadowMaskFromLightAttenuationWithLightFunctionCS> ComputeShader = MaterialShaderMap->GetShader<FLumenDirectLightingShadowMaskFromLightAttenuationWithLightFunctionCS>(PermutationVector);
 
 			FRDGBufferRef IndirectArgsBuffer = LightTileScatterParameters.DispatchIndirectArgs;
 			ClearUnusedGraphResources(ComputeShader, PassParameters, { IndirectArgsBuffer });
 
 			GraphBuilder.AddPass(
-				RDG_EVENT_NAME("NonRayTracedShadowPass LF %s", *Light.Name),
+				RDG_EVENT_NAME("ShadowMaskFromLightAttenuationPass(LF,%s)", *Light.Name),
 				PassParameters,
 				ComputePassFlags,
 				[PassParameters, ComputeShader, IndirectArgsBuffer, DispatchIndirectArgOffset, LightFunctionMaterialProxy, &Material, &View](FRHIComputeCommandList& RHICmdList)
@@ -1119,7 +1121,7 @@ static int32 ComputeNonRayTracedShadows(
 		}
 		else
 		{
-			FLumenDirectLightingNonRayTracedShadowsCS::FParameters* PassParameters = GraphBuilder.AllocParameters<FLumenDirectLightingNonRayTracedShadowsCS::FParameters>();
+			FLumenDirectLightingShadowMaskFromLightAttenuationCS::FParameters* PassParameters = GraphBuilder.AllocParameters<FLumenDirectLightingShadowMaskFromLightAttenuationCS::FParameters>();
 			SetCommonParameters(PassParameters->Common);
 			SetPerLightParameters(PassParameters->Common.LightParameters, Light, ViewIndex);
 			const bool bUseCloudTransmittance = SetupLightCloudTransmittanceParameters(
@@ -1129,17 +1131,17 @@ static int32 ComputeNonRayTracedShadows(
 				bMayUseCloudTransmittance ? Light.LightSceneInfo : nullptr,
 				PassParameters->Common.LightCloudTransmittanceParameters);
 
-			FLumenDirectLightingNonRayTracedShadowsCS::FPermutationDomain PermutationVector;
-			PermutationVector.Set<FLumenDirectLightingNonRayTracedShadowsCS::FThreadGroupSize32>(Lumen::UseThreadGroupSize32());
-			PermutationVector.Set<FLumenDirectLightingNonRayTracedShadowsCS::FCompactShadowTraces>(ShadowTraceAllocatorUAV != nullptr);
-			PermutationVector.Set<FLumenDirectLightingNonRayTracedShadowsCS::FLightType>(Light.Type);
-			PermutationVector.Set<FLumenDirectLightingNonRayTracedShadowsCS::FCloudTransmittance>(bUseCloudTransmittance);
-			PermutationVector.Set<FLumenDirectLightingNonRayTracedShadowsCS::FLightFunctionAtlas>(false);
-			TShaderRef<FLumenDirectLightingNonRayTracedShadowsCS> ComputeShader = View.ShaderMap->GetShader<FLumenDirectLightingNonRayTracedShadowsCS>(PermutationVector);
+			FLumenDirectLightingShadowMaskFromLightAttenuationCS::FPermutationDomain PermutationVector;
+			PermutationVector.Set<FLumenDirectLightingShadowMaskFromLightAttenuationCS::FThreadGroupSize32>(Lumen::UseThreadGroupSize32());
+			PermutationVector.Set<FLumenDirectLightingShadowMaskFromLightAttenuationCS::FCompactShadowTraces>(ShadowTraceAllocatorUAV != nullptr);
+			PermutationVector.Set<FLumenDirectLightingShadowMaskFromLightAttenuationCS::FLightType>(Light.Type);
+			PermutationVector.Set<FLumenDirectLightingShadowMaskFromLightAttenuationCS::FCloudTransmittance>(bUseCloudTransmittance);
+			PermutationVector.Set<FLumenDirectLightingShadowMaskFromLightAttenuationCS::FLightFunctionAtlas>(false);
+			TShaderRef<FLumenDirectLightingShadowMaskFromLightAttenuationCS> ComputeShader = View.ShaderMap->GetShader<FLumenDirectLightingShadowMaskFromLightAttenuationCS>(PermutationVector);
 
 			FComputeShaderUtils::AddPass(
 				GraphBuilder,
-				RDG_EVENT_NAME("NonRayTracedShadowPass %s", *Light.Name),
+				RDG_EVENT_NAME("ShadowMaskFromLightAttenuationPass(%s)", *Light.Name),
 				ComputePassFlags,
 				ComputeShader,
 				PassParameters,
@@ -1156,7 +1158,7 @@ static int32 ComputeNonRayTracedShadows(
 
 		if (BatchedLightParameters.Num() > 0)
 		{
-			FLumenDirectLightingNonRayTracedShadowsCS::FParameters* PassParameters = GraphBuilder.AllocParameters<FLumenDirectLightingNonRayTracedShadowsCS::FParameters>();
+			FLumenDirectLightingShadowMaskFromLightAttenuationCS::FParameters* PassParameters = GraphBuilder.AllocParameters<FLumenDirectLightingShadowMaskFromLightAttenuationCS::FParameters>();
 			SetCommonParameters(PassParameters->Common);
 			SetupLightCloudTransmittanceParameters(GraphBuilder, Scene, View, nullptr, PassParameters->Common.LightCloudTransmittanceParameters);
 			if (bUseLightFunctionAtlas)
@@ -1164,20 +1166,20 @@ static int32 ComputeNonRayTracedShadows(
 				PassParameters->LightFunctionAtlas = LightFunctionAtlas::BindGlobalParameters(GraphBuilder, View, ViewIndex);
 			}
 
-			FLumenDirectLightingNonRayTracedShadowsCS::FPermutationDomain PermutationVector;
-			PermutationVector.Set<FLumenDirectLightingNonRayTracedShadowsCS::FThreadGroupSize32>(Lumen::UseThreadGroupSize32());
-			PermutationVector.Set<FLumenDirectLightingNonRayTracedShadowsCS::FCompactShadowTraces>(ShadowTraceAllocatorUAV != nullptr);
-			PermutationVector.Set<FLumenDirectLightingNonRayTracedShadowsCS::FLightType>((ELumenLightType)LightTypeIndex);
-			PermutationVector.Set<FLumenDirectLightingNonRayTracedShadowsCS::FCloudTransmittance>(false);
-			PermutationVector.Set<FLumenDirectLightingNonRayTracedShadowsCS::FLightFunctionAtlas>(bUseLightFunctionAtlas);
-			TShaderRef<FLumenDirectLightingNonRayTracedShadowsCS> ComputeShader = View.ShaderMap->GetShader<FLumenDirectLightingNonRayTracedShadowsCS>(PermutationVector);
+			FLumenDirectLightingShadowMaskFromLightAttenuationCS::FPermutationDomain PermutationVector;
+			PermutationVector.Set<FLumenDirectLightingShadowMaskFromLightAttenuationCS::FThreadGroupSize32>(Lumen::UseThreadGroupSize32());
+			PermutationVector.Set<FLumenDirectLightingShadowMaskFromLightAttenuationCS::FCompactShadowTraces>(ShadowTraceAllocatorUAV != nullptr);
+			PermutationVector.Set<FLumenDirectLightingShadowMaskFromLightAttenuationCS::FLightType>((ELumenLightType)LightTypeIndex);
+			PermutationVector.Set<FLumenDirectLightingShadowMaskFromLightAttenuationCS::FCloudTransmittance>(false);
+			PermutationVector.Set<FLumenDirectLightingShadowMaskFromLightAttenuationCS::FLightFunctionAtlas>(bUseLightFunctionAtlas);
+			TShaderRef<FLumenDirectLightingShadowMaskFromLightAttenuationCS> ComputeShader = View.ShaderMap->GetShader<FLumenDirectLightingShadowMaskFromLightAttenuationCS>(PermutationVector);
 
-			const FShaderParametersMetadata* ParametersMetaData = FLumenDirectLightingNonRayTracedShadowsCS::FParameters::FTypeInfo::GetStructMetadata();
+			const FShaderParametersMetadata* ParametersMetaData = FLumenDirectLightingShadowMaskFromLightAttenuationCS::FParameters::FTypeInfo::GetStructMetadata();
 			FRDGBufferRef IndirectArgsBuffer = LightTileScatterParameters.DispatchIndirectArgs;
 			ClearUnusedGraphResourcesImpl(ComputeShader->Bindings, ParametersMetaData, PassParameters, { IndirectArgsBuffer });
 
 			GraphBuilder.AddPass(
-				RDG_EVENT_NAME("NonRayTracedShadowPass LightType=%d BatchedNum=%d", LightTypeIndex, BatchedLightParameters.Num()),
+				RDG_EVENT_NAME("ShadowMaskFromLightAttenuationPass(LightType=%d,BatchedNum=%d)", LightTypeIndex, BatchedLightParameters.Num()),
 				PassParameters,
 				ComputePassFlags,
 				[PassParameters, ComputeShader, IndirectArgsBuffer, NumViews, ViewIndex, BatchedLightParameters](FRHIComputeCommandList& RHICmdList)
@@ -1450,7 +1452,7 @@ struct FLightTileCullContext
 };
 
 // Build list of surface cache tiles per light for future processing
-void CullDirectLightingTiles(
+static void CullDirectLightingTiles(
 	const TArray<FViewInfo>& Views,
 	FRDGBuilder& GraphBuilder,
 	const FLumenCardUpdateContext& CardUpdateContext,
@@ -1851,10 +1853,10 @@ void FDeferredShadingSceneRenderer::RenderDirectLightingForLumenScene(
 			AddClearUAVPass(GraphBuilder, GraphBuilder.CreateUAV(ShadowTraceAllocator), 0);
 		}
 
-		// Apply shadow map
+		// Compute shadow mask basd on light attenuation (IES/LightFunction/Distance fall) to reduce need for shadow tracing done after.
 		{
-			SCOPED_NAMED_EVENT_TEXT("Non raytraced shadows", FColor::Green);
-			RDG_EVENT_SCOPE_FINAL(GraphBuilder, "Non raytraced shadows");
+			SCOPED_NAMED_EVENT_TEXT("Light Attenuation ShadowMask ", FColor::Green);
+			RDG_EVENT_SCOPE_FINAL(GraphBuilder, "Light Attenuation ShadowMask");
 
 			FRDGBufferUAVRef ShadowMaskTilesUAV = GraphBuilder.CreateUAV(ShadowMaskTiles, ERDGUnorderedAccessViewFlags::SkipBarrier);
 			FRDGBufferUAVRef ShadowTraceAllocatorUAV = ShadowTraceAllocator ? GraphBuilder.CreateUAV(ShadowTraceAllocator, ERDGUnorderedAccessViewFlags::SkipBarrier) : nullptr;
@@ -1865,7 +1867,7 @@ void FDeferredShadingSceneRenderer::RenderDirectLightingForLumenScene(
 			{
 				const FViewInfo& View = Views[ViewIndex];
 
-				NumShadowedLights = ComputeNonRayTracedShadows(
+				NumShadowedLights = ComputeShadowMaskFromLightAttenuation(
 					GraphBuilder,
 					Scene,
 					View,
