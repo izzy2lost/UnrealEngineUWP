@@ -1248,7 +1248,8 @@ FMaterialClosestHitPayload TraceMaterialRay(
 	// Payload Inputs
 	inout FRayCone RayCone,
 	in bool bEnableSkyLightContribution,
-	in bool bIgnoreTranslucentMaterials)
+	in bool bIgnoreTranslucentMaterials,
+	in bool bIsCameraRay)
 {
 	const uint RayContributionToHitGroupIndex = RAY_TRACING_SHADER_SLOT_MATERIAL;
 	const uint MultiplierForGeometryContributionToShaderIndex = RAY_TRACING_NUM_SHADER_SLOTS;
@@ -1269,6 +1270,11 @@ FMaterialClosestHitPayload TraceMaterialRay(
 	if (bIgnoreTranslucentMaterials)
 	{
 		PackedPayload.SetIgnoreTranslucentMaterials();
+	}
+
+	if (bIsCameraRay)
+	{
+		PackedPayload.SetCameraRay();
 	}
 
 	// Trace the ray

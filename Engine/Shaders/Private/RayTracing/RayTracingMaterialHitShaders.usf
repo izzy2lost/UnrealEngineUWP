@@ -624,6 +624,20 @@ RAY_TRACING_ENTRY_CLOSEST_HIT(MaterialCHS,
 		PackedPayload.SetGeometryNormal(GeoNormal);
 	}
 
+#if MATERIAL_VIRTUALTEXTURE_FEEDBACK
+	if (bIsCameraRay)
+	{
+		// Virtual texturing feedback logic (camera rays only for now)
+		FinalizeVirtualTextureFeedback(
+			MaterialParameters.VirtualTextureFeedback,
+			MaterialParameters.SvPosition,
+			Payload.Opacity,
+			View.FrameNumber,
+			View.VTFeedbackBuffer
+		);
+	}
+#endif
+
 #endif // USE_MATERIAL_CLOSEST_HIT_SHADER
 }
 
