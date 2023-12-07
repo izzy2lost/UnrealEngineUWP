@@ -49,15 +49,15 @@ void UnrealMutableInputStream::Read(void* pData, uint64 size)
 //-------------------------------------------------------------------------------------------------
 FUnrealMutableModelBulkReader::~FUnrealMutableModelBulkReader()
 {
-	EndStreaming();
+	if (!CVarRollbackFixModelDiskStreamerDataRace.GetValueOnAnyThread())
+	{
+		EndStreaming();
+	}
 }
 
 
 bool FUnrealMutableModelBulkReader::PrepareStreamingForObject(UCustomizableObject* CustomizableObject)
 {
-	// This happens in the game thread
-	check(IsInGameThread());
-
 	if (!CustomizableObject)
 	{
 		check(false);
