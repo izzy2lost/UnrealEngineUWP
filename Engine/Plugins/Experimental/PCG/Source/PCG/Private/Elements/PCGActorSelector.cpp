@@ -224,22 +224,41 @@ FPCGActorSelectionKey::FPCGActorSelectionKey(TSubclassOf<AActor> InSelectionClas
 	ActorFilter = EPCGActorFilter::AllWorldActors;
 }
 
+FPCGActorSelectionKey FPCGActorSelectionKey::CreateFromPath(const FSoftObjectPath& InObjectPath)
+{
+	FPCGActorSelectionKey Res{};
+	Res.Selection = EPCGActorSelection::ByPath;
+	Res.ObjectPath = InObjectPath;
+	Res.ActorFilter = EPCGActorFilter::AllWorldActors;
+
+	return Res;
+}
+
 void FPCGActorSelectionKey::SetExtraDependency(const UClass* InExtraDependency)
 {
 	OptionalExtraDependency = InExtraDependency;
 }
 
-bool FPCGActorSelectionKey::IsMatching(const AActor* InActor, const UPCGComponent* InComponent) const
+bool FPCGActorSelectionKey::IsMatching(const TSoftObjectPtr<UObject>& InObjectPtr, const UPCGComponent* InComponent) const
 {
-	if (!InActor)
+	if (InObjectPtr.IsNull())
 	{
 		return false;
 	}
+
+	const UObject* InObject = InObjectPtr.Get();
 	
 	// If we filter something else than all world actors, matching depends on the component.
-	// Re-use the same mecanism than Get Actor Data, which should be cheap since we don't look for all actors in the world.
+	// Re-use the same mechanism than Get Actor Data, which should be cheap since we don't look for all actors in the world.
 	if (ActorFilter != EPCGActorFilter::AllWorldActors)
 	{
+		const AActor* InActor = Cast<const AActor>(InObject);
+
+		if (!InActor)
+		{
+			return false;
+		}
+
 		// InKey provide the info for selecting a given actor.
 		// We reconstruct the selector settings from this key, and we also force it to SelectMultiple, since
 		// we want to gather all the actors that matches this given key, to find if ours matches.
@@ -252,9 +271,14 @@ bool FPCGActorSelectionKey::IsMatching(const AActor* InActor, const UPCGComponen
 	switch (Selection)
 	{
 	case EPCGActorSelection::ByTag:
-		return InActor->ActorHasTag(Tag);
+	{
+		const AActor* InActor = Cast<const AActor>(InObject);
+		return InActor && InActor->ActorHasTag(Tag);
+	}
 	case EPCGActorSelection::ByClass:
-		return InActor->IsA(ActorSelectionClass);
+		return InObject && InObject->GetClass()->IsChildOf(ActorSelectionClass);
+	case EPCGActorSelection::ByPath:
+		return InObjectPtr.ToSoftObjectPath() == ObjectPath;
 	default:
 		return false;
 	}
@@ -273,6 +297,8 @@ bool FPCGActorSelectionKey::operator==(const FPCGActorSelectionKey& InOther) con
 		return Tag == InOther.Tag;
 	case EPCGActorSelection::ByClass:
 		return ActorSelectionClass == InOther.ActorSelectionClass;
+	case EPCGActorSelection::ByPath:
+		return ObjectPath == InOther.ObjectPath;
 	case EPCGActorSelection::Unknown: // Fall-through
 	case EPCGActorSelection::ByName:
 		return true;
@@ -290,6 +316,7 @@ uint32 GetTypeHash(const FPCGActorSelectionKey& In)
 	HashResult = HashCombine(HashResult, GetTypeHash(In.Tag));
 	HashResult = HashCombine(HashResult, GetTypeHash(In.ActorSelectionClass));
 	HashResult = HashCombine(HashResult, GetTypeHash(In.OptionalExtraDependency));
+	HashResult = HashCombine(HashResult, GetTypeHash(In.ObjectPath));
 
 	return HashResult;
 }

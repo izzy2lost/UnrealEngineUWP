@@ -299,7 +299,7 @@ public:
 	/** Did the given node produce one or more data items in the given stack in a previous execution. */
 	bool HasNodeProducedData(const UPCGNode* InNode, const FPCGStack& Stack) const;
 
-	bool IsActorTracked(AActor* InActor, bool& bOutIsCulled) const;
+	bool IsObjectTracked(const TSoftObjectPtr<UObject>& InObjectPtr, bool& bOutIsCulled) const;
 
 	/** Know if we need to force a generation, in case of BP added to the world in editor */
 	bool ShouldGenerateBPPCGAddedToWorld() const;
@@ -437,14 +437,14 @@ private:
 	/** Returns true if something changed in the tracking. */
 	bool UpdateTrackingCache(TArray<FPCGActorSelectionKey>* OptionalChangedKeys = nullptr);
 
-	/** Gather all the settings that are tracking the given actor. If the settings should cull and there is no intersection, it will not be added to the list.
-	* @param InActor                    The actor the component is tracking
+	/** Gather all the settings that are tracking the given object. If it is an actor, the settings should cull and there is no intersection, it will not be added to the list.
+	* @param InObject                   The object the component is tracking. Can be an Actor (for culling).
 	* @param bIntersect                 If the actor is intersecting with the component. Useful for culling.
 	* @param InRemovedTags              List of tags that were removed, because the actor won't have those tags on it, but we still need to gather the settings that were tracking this tag. Can be empty.
 	* @param InOriginatingChangeObject: Optional pointer on the originating object that triggered the update. Useful to track PCGComponents generation/cleanup. Can be null.
 	* @return                           Array of all the settings that track the actor.
 	*/
-	TArray<const UPCGSettings*> GatherSettingsTrackingActor(const AActor* InActor, const bool bIntersect, const TSet<FName>& InRemovedTags, const UObject* InOriginatingChangeObject) const;
+	TArray<const UPCGSettings*> GatherSettingsTracking(const UObject* InObject, const bool bIntersect, const TSet<FName>& InRemovedTags, const UObject* InOriginatingChangeObject) const;
 
 	bool ShouldTrackLandscape() const;
 

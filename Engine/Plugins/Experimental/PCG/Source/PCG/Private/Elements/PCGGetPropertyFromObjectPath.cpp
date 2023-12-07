@@ -13,6 +13,21 @@
 #define LOCTEXT_NAMESPACE "PCGGetPropertyFromObjectPathElement"
 
 #if WITH_EDITOR
+void UPCGGetPropertyFromObjectPathSettings::GetTrackedActorKeys(FPCGActorSelectionKeyToSettingsMap& OutKeysToSettings, TArray<TObjectPtr<const UPCGGraph>>& OutVisitedGraphs) const
+{
+	for (const FSoftObjectPath& ObjectPath : ObjectPathsToExtract)
+	{
+		if (ObjectPath.IsNull())
+		{
+			continue;
+		}
+
+		FPCGActorSelectionKey Key = FPCGActorSelectionKey::CreateFromPath(ObjectPath);
+
+		OutKeysToSettings.FindOrAdd(Key).Emplace(this, /*bCulling=*/false);
+	}
+}
+
 FName UPCGGetPropertyFromObjectPathSettings::GetDefaultNodeName() const
 {
 	return FName(TEXT("GetPropertyFromObjectPath"));

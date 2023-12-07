@@ -2042,24 +2042,26 @@ bool UPCGComponent::ShouldGenerateBPPCGAddedToWorld() const
 	}
 }
 
-bool UPCGComponent::IsActorTracked(AActor* InActor, bool& bOutIsCulled) const
+bool UPCGComponent::IsObjectTracked(const TSoftObjectPtr<UObject>& InObjectPtr, bool& bOutIsCulled) const
 {
-	check(InActor);
+	check(!InObjectPtr.IsNull());
 
 	if (!GetOwner())
 	{
 		return false;
 	}
 
+	const UObject* InObject = InObjectPtr.Get();
+
 	// We should always track the owner of the component, without culling
-	if (GetOwner() == InActor)
+	if (GetOwner() == InObject)
 	{
 		bOutIsCulled = false;
 		return true;
 	}
 
 	// If we track the landscape using legacy methods and it is a landscape, it should be tracked as culled
-	if (InActor->IsA<ALandscapeProxy>() && ShouldTrackLandscape())
+	if (InObject && InObject->IsA<ALandscapeProxy>() && ShouldTrackLandscape())
 	{
 		bOutIsCulled = true;
 		return true;
@@ -2069,7 +2071,7 @@ bool UPCGComponent::IsActorTracked(AActor* InActor, bool& bOutIsCulled) const
 
 	for (const TPair<FPCGActorSelectionKey, bool>& It : CachedTrackedKeysToCulling)
 	{
-		if (It.Key.IsMatching(InActor, this))
+		if (It.Key.IsMatching(InObjectPtr, this))
 		{
 			bOutIsCulled = It.Value;
 			bFound = true;
@@ -2678,11 +2680,11 @@ UPCGSubsystem* UPCGComponent::GetSubsystem() const
 }
 
 #if WITH_EDITOR
-TArray<const UPCGSettings*> UPCGComponent::GatherSettingsTrackingActor(const AActor* InActor, bool bIntersect, const TSet<FName>& InRemovedTags, const UObject* InOriginatingChangeObject) const
+TArray<const UPCGSettings*> UPCGComponent::GatherSettingsTracking(const UObject* InObject, bool bIntersect, const TSet<FName>& InRemovedTags, const UObject* InOriginatingChangeObject) const
 {
-	TRACE_CPUPROFILER_EVENT_SCOPE(UPCGComponent::GatherSettingsTrackingActor);
+	TRACE_CPUPROFILER_EVENT_SCOPE(UPCGComponent::GatherSettingsTracking);
 
-	if (!InActor)
+	if (!InObject)
 	{
 		return {};
 	}
@@ -2695,7 +2697,7 @@ TArray<const UPCGSettings*> UPCGComponent::GatherSettingsTrackingActor(const AAc
 
 		const bool bRemovedTagIsTracked = (Key.Selection == EPCGActorSelection::ByTag) && InRemovedTags.Contains(Key.Tag);
 
-		if (It.Key.IsMatching(InActor, this) || bRemovedTagIsTracked)
+		if (It.Key.IsMatching(InObject, this) || bRemovedTagIsTracked)
 		{
 			// Extra care if the change originates from a PCGComponent. Only dirty if we are tracking a PCG component.
 			if (InOriginatingChangeObject && InOriginatingChangeObject->IsA<UPCGComponent>() 

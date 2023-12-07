@@ -17,6 +17,17 @@ namespace PCGIndirectionSettings
 }
 
 #if WITH_EDITOR
+void UPCGIndirectionSettings::GetTrackedActorKeys(FPCGActorSelectionKeyToSettingsMap& OutKeysToSettings, TArray<TObjectPtr<const UPCGGraph>>& OutVisitedGraphs) const
+{
+	if (Settings.IsNull())
+	{
+		return;
+	}
+
+	FPCGActorSelectionKey Key = FPCGActorSelectionKey::CreateFromPath(Settings.ToSoftObjectPath());
+
+	OutKeysToSettings.FindOrAdd(Key).Emplace(this, /*bCulling=*/false);
+}
 
 FName UPCGIndirectionSettings::GetDefaultNodeName() const
 {

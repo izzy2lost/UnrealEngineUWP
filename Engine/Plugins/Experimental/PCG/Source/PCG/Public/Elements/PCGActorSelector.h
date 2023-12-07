@@ -18,6 +18,7 @@ enum class EPCGActorSelection : uint8
 	// Deprecated - actor labels are unavailable in shipping builds
 	ByName UMETA(Hidden),
 	ByClass,
+	ByPath UMETA(Hidden), // Hidden because actors are not tracked by paths.
 	Unknown UMETA(Hidden)
 };
 
@@ -36,6 +37,12 @@ enum class EPCGActorFilter : uint8
 	Original,
 };
 
+/**
+* Structure to specify a selection criteria for an object/actor
+* Object can be selected using the EPCGActorSelection::ByClass or EPCGActorSelection::ByPath
+* Actors have more selection with Self/Parent/Root/Original and also EPCGActorSelection::ByTag
+* TODO: Might want to rename it, since it is not limited to Actors anymore.
+*/
 struct FPCGActorSelectionKey
 {
 	FPCGActorSelectionKey() = default;
@@ -46,10 +53,12 @@ struct FPCGActorSelectionKey
 	explicit FPCGActorSelectionKey(FName InTag);
 	explicit FPCGActorSelectionKey(TSubclassOf<AActor> InSelectionClass);
 
+	static FPCGActorSelectionKey CreateFromPath(const FSoftObjectPath& InObjectPath);
+
 	bool operator==(const FPCGActorSelectionKey& InOther) const;
 
 	friend uint32 GetTypeHash(const FPCGActorSelectionKey& In);
-	bool IsMatching(const AActor* InActor, const UPCGComponent* InComponent) const;
+	bool IsMatching(const TSoftObjectPtr<UObject>& InObjectPtr, const UPCGComponent* InComponent) const;
 
 	void SetExtraDependency(const UClass* InExtraDependency);
 
@@ -57,6 +66,9 @@ struct FPCGActorSelectionKey
 	EPCGActorSelection Selection = EPCGActorSelection::Unknown;
 	FName Tag = NAME_None;
 	TSubclassOf<AActor> ActorSelectionClass = nullptr;
+
+	// If the Selection is ByPath, contain the path to select.
+	FSoftObjectPath ObjectPath;
 
 	// If it should track a specific object dependency instead of an actor. For example, GetActorData with GetPCGComponent data.
 	const UClass* OptionalExtraDependency = nullptr;

@@ -13,6 +13,7 @@
 #include "Templates/Function.h"
 #include "UObject/ObjectKey.h"
 #include "UObject/ObjectPtr.h"
+#include "UObject/ObjectSaveContext.h"
 #include "UObject/SoftObjectPtr.h"
 #include "UObject/WeakObjectPtr.h"
 
@@ -136,6 +137,9 @@ private:
 	/* Return true if the actor was tracked. */
 	bool UnregisterActor(AActor* InActor);
 
+	/* Return true if the object was tracked. */
+	bool UnregisterObject(const TSoftObjectPtr<UObject>& InObject);
+
 	void OnActorAdded(AActor* InActor);
 	void OnActorLoaded(AActor& InActor);
 	void OnActorAdded_Internal(AActor* InActor, bool bShouldDirty, int32 LevelInstanceDepth, bool bForceAddDelayedActor = false);
@@ -148,6 +152,7 @@ private:
 	void ApplyLandscapeChanges(ALandscapeProxy* InLandscape);
 	void OnPreObjectPropertyChanged(UObject* InObject, const FEditPropertyChain& InEditPropertyChain);
 	void OnObjectPropertyChanged(UObject* InObject, FPropertyChangedEvent& InEvent);
+	void OnObjectSaved(UObject* InObject, FObjectPreSaveContext InObjectSaveContext);
 	void OnPCGGraphGeneratedOrCleaned(UPCGComponent* InComponent);
 
 	/** Remap the tracking in case of BP components. */
@@ -157,7 +162,7 @@ private:
 	void UnregisterTracking(UPCGComponent* InComponent);
 
 	/** Unregister tracking when a component is removed or keys are unregistered */
-	void UnregisterTracking(UPCGComponent* InComponent, const TSet<TObjectKey<AActor>>* OptionalActorsToUntrack, const TSet<FPCGActorSelectionKey>* OptionalKeysToUntrack);
+	void UnregisterTracking(UPCGComponent* InComponent, const TSet<TSoftObjectPtr<UObject>>* OptionalObjectsToUntrack);
 
 	/** Trigger an update when the actor changed. 
 	* Can specify if the actor has moved to also update components that were at its previous position.
@@ -172,7 +177,7 @@ private:
 	bool IsActorTracked(const AActor* InActor) const;
 
 	/** Gather all settings from a given component that track the actor, and clear the cache for them. Returns true if we should dirty afterwards (aka at least one settings was cleared and/or landscape changed). */
-	bool ClearCacheForActor(const AActor* InActor, const UPCGComponent* InComponent, const bool bIntersect, const TSet<FName>& InRemovedTags, const UObject* InOriginatingChange) const;
+	bool ClearCache(const UObject* InObject, const UPCGComponent* InComponent, const bool bIntersect, const TSet<FName>& InRemovedTags, const UObject* InOriginatingChange) const;
 #endif // WITH_EDITOR
 
 private:
@@ -213,8 +218,8 @@ private:
 	/** Same mapping but for always tracked actors */
 	TMap<TObjectKey<AActor>, TSet<UPCGComponent*>> AlwaysTrackedActorsToComponentsMap;
 
-	/** Keep the list of the keys already tracked, to avoid requerying the actors everytime */
-	TMap<FPCGActorSelectionKey, TSet<UPCGComponent*>> KeysToComponentsMap;
+	/** Object tracking. Use soft pointers, because tracked objects might not be yet loaded. */
+	TMap<TSoftObjectPtr<UObject>, TSet<UPCGComponent*>> TrackedObjectsToComponentsMap;
 
 	/** Finally keep a mapping between actors and their position to know if an actor move in/out of a component tracking bounds. Only kept for actors that need to be culled. */
 	TMap<TObjectKey<AActor>, FBox> TrackedActorToPositionMap;
