@@ -165,7 +165,7 @@ public:
 	typedef TPair<int32, TArray<int32>> TElementDependencyMapPair;
 	typedef TTuple<int32, int32, int32, ERigTransformType::Type> TInstructionSliceElement;
 	inline static const FName TagMetadataName = TEXT("Tags");
-	inline static const FName ShortNameMetadataName = TEXT("ShortName");
+	inline static const FName ShortModuleNameMetadataName = TEXT("ShortModuleName");
 	inline static const FName DesiredNameMetadataName = TEXT("DesiredName");
 	inline static const FName DesiredKeyMetadataName = TEXT("DesiredKey");
 	inline static const FName ModuleMetadataName = TEXT("Module");
@@ -1660,6 +1660,12 @@ public:
 	}
 
 	/**
+	 * Returns the two name sections with the right namespace separator
+	 */
+	static FString JoinNameSpace(const FString& InLeft, const FString& InRight);
+	static FRigName JoinNameSpace(const FRigName& InLeft, const FRigName& InRight);
+
+	/**
 	 * Returns the max allowed length for a name within the hierarchy.
 	 * @return Returns the max allowed length for a name within the hierarchy.
 	 */
@@ -1711,6 +1717,12 @@ public:
 	 * @return Returns the name to use for the to-be-added element.
 	 */
 	FRigName GetSafeNewDisplayName(const FRigElementKey& InParentElement, const FRigName& InPotentialNewDisplayName) const;
+
+	/**
+	 * Returns the display label for an element to be used for the UI
+	 */
+	FText GetDisplayNameForUI(const FRigBaseElement* InElement, bool bIncludeNameSpace = true) const;
+	FText GetDisplayNameForUI(const FRigElementKey& InKey, bool bIncludeNameSpace = true) const;
 
 	/**
 	 * Returns the modified event, which can be used to 

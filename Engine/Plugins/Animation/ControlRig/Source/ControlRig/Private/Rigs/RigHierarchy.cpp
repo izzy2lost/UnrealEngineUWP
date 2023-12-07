@@ -1226,6 +1226,16 @@ TArray<FRigElementKey> URigHierarchy::GetSelectedKeys(ERigElementType InTypeFilt
 	return Selection;
 }
 
+FRigName URigHierarchy::JoinNameSpace(const FRigName& InLeft, const FRigName& InRight)
+{
+	return FRigName(JoinNameSpace(InLeft.ToString(), InRight.ToString()));
+}
+
+FString URigHierarchy::JoinNameSpace(const FString& InLeft, const FString& InRight)
+{
+	return InLeft + UModularRig::NamespaceSeparator + InRight;
+}
+
 void URigHierarchy::SanitizeName(FRigName& InOutName, bool bAllowNameSpaces)
 {
 	// Sanitize the name
@@ -1495,6 +1505,38 @@ FRigName URigHierarchy::GetSafeNewDisplayName(const FRigElementKey& InParentElem
 	}
 
 	return Name;
+}
+
+FText URigHierarchy::GetDisplayNameForUI(const FRigBaseElement* InElement, bool bIncludeNameSpace) const
+{
+	check(InElement);
+
+	const FName& DisplayName = InElement->GetDisplayName();
+	
+	if(bIncludeNameSpace)
+	{
+		const FName ModuleShortName = GetNameMetadata(InElement->Key, ShortModuleNameMetadataName, NAME_None);
+		if(!ModuleShortName.IsNone())
+		{
+			FString DisplayNameString = DisplayName.ToString();
+			(void)DisplayNameString.Split(UModularRig::NamespaceSeparator, nullptr, &DisplayNameString, ESearchCase::CaseSensitive, ESearchDir::FromEnd);
+			
+			const FString ModuleShortNameString = ModuleShortName.ToString();
+			const FString ModuleDisplayName = JoinNameSpace(ModuleShortNameString, DisplayNameString);
+			return FText::FromString(ModuleDisplayName);
+		}
+	}
+
+	return FText::FromName(DisplayName);
+}
+
+FText URigHierarchy::GetDisplayNameForUI(const FRigElementKey& InKey, bool bIncludeNameSpace) const
+{
+	if(const FRigBaseElement* Element = Find(InKey))
+	{
+		return GetDisplayNameForUI(Element, bIncludeNameSpace);
+	}
+	return FText();
 }
 
 int32 URigHierarchy::GetPoseVersion(const FRigElementKey& InKey) const

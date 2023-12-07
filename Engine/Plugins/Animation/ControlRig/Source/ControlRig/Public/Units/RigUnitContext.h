@@ -13,6 +13,7 @@
 
 class UControlRig;
 class UControlRigShapeLibrary;
+struct FRigModuleInstance;
 
 /**
  * The type of interaction happening on a rig
@@ -170,6 +171,14 @@ public:
 	}
 
 	/**
+	 * Returns the module this unit is running inside of (or nullptr)
+	 */
+	const FRigModuleInstance* GetRigModuleInstance() const
+	{
+		return RigModuleInstance;
+	}
+
+	/**
 	 * Adapts a metadata name according to rig module namespace.
 	 */
 	FName AdaptMetadataName(bool bUseNameSpace, const FName& InMetadataName) const;
@@ -189,6 +198,7 @@ public:
 private:
 	FString RigModuleNameSpace;
 	uint32 RigModuleNameSpaceHash;
+	const FRigModuleInstance* RigModuleInstance;
 
 	friend class FControlRigExecuteContextRigModuleGuard;
 	friend class UModularRig;

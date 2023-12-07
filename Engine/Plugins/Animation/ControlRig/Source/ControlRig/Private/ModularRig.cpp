@@ -75,7 +75,7 @@ FString FRigModuleInstance::GetPath() const
 {
 	if (!ParentPath.IsEmpty())
 	{
-		return FString::Printf(TEXT("%s:%s"), *ParentPath, *Name.ToString()); 
+		return URigHierarchy::JoinNameSpace(ParentPath, Name.ToString()); 
 	}
 	return Name.ToString();
 }
@@ -325,6 +325,7 @@ void UModularRig::ExecuteQueue()
 			// forward the draw interface to each module
 			RigPublicContext.SetDrawInterface(PublicContext.GetDrawInterface());
 			RigPublicContext.SetDrawContainer(PublicContext.GetDrawContainer());
+			RigPublicContext.RigModuleInstance = ExecutionElement.ModuleInstance;
 
 			// re-initialize the module in case only the VM side got recompiled.
 			// this happens when the user relies on auto recompilation when editing the

@@ -46,7 +46,7 @@ FRigTreeElement::FRigTreeElement(const FRigElementKey& InKey, TWeakPtr<SRigHiera
 	{
 		if(const URigHierarchy* Hierarchy = InTreeView.Pin()->GetRigTreeDelegates().GetHierarchy())
 		{
-			ShortName = Hierarchy->GetNameMetadata(InKey, URigHierarchy::ShortNameMetadataName, ShortName);
+			ShortName = *Hierarchy->GetDisplayNameForUI(InKey).ToString();
 			
 			const FRigTreeDisplaySettings& Settings = InTreeView.Pin()->GetRigTreeDelegates().GetDisplaySettings();
 			RefreshDisplaySettings(Hierarchy, Settings);
@@ -519,7 +519,7 @@ bool SRigHierarchyTreeView::AddElement(const FRigBaseElement* InElement)
 								FName Name = ConnectorKey.Name;
 								if (GetRigTreeDelegates().GetDisplaySettings().bUseShortName)
 								{
-									Name = Hierarchy->GetNameMetadata(ConnectorKey, URigHierarchy::ShortNameMetadataName, ConnectorKey.Name);
+									Name = *Hierarchy->GetDisplayNameForUI(ConnectorKey).ToString();
 								}
 								TagArguments.Text(FText::FromName(Name));
 								TagArguments.TooltipText(FText::FromName(ConnectorKey.Name));

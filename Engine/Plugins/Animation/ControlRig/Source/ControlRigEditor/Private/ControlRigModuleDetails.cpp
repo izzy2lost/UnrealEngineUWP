@@ -704,7 +704,7 @@ void FRigModuleInstanceDetails::OnElementNameChanged(TSharedPtr<FString> InItem,
 
 				if(const FRigModuleInstance* Module = Info.GetModule())
 				{
-					FRigElementKey NamespacedConnector(*FString::Printf(TEXT("%s:%s"), *Module->GetPath(), *Connector.Name.ToString()), ERigElementType::Connector);
+					FRigElementKey NamespacedConnector(*URigHierarchy::JoinNameSpace(Module->GetPath(), Connector.Name.ToString()), ERigElementType::Connector);
 					Controller->ConnectConnectorToElement(NamespacedConnector, *TargetKey);
 				}
 			}
@@ -727,7 +727,7 @@ void FRigModuleInstanceDetails::OnElementTypeChanged(ERigElementType InElementTy
 
 				if(const FRigModuleInstance* Module = Info.GetModule())
 				{
-					FRigElementKey NamespacedConnector(*FString::Printf(TEXT("%s:%s"), *Module->GetPath(), *Connector.Name.ToString()), ERigElementType::Connector);
+					FRigElementKey NamespacedConnector(*URigHierarchy::JoinNameSpace(Module->GetPath(), Connector.Name.ToString()), ERigElementType::Connector);
 					Controller->ConnectConnectorToElement(NamespacedConnector, *TargetKey);
 				}
 			}
@@ -753,7 +753,7 @@ FReply FRigModuleInstanceDetails::OnGetSelectedClicked(FRigElementKey Connector)
 		{
 			if(const FRigModuleInstance* Module = PerModuleInfos[0].GetModule())
 			{
-				FRigElementKey NamespacedConnector(*FString::Printf(TEXT("%s:%s"), *Module->GetPath(), *Connector.Name.ToString()), ERigElementType::Connector);
+				FRigElementKey NamespacedConnector(*URigHierarchy::JoinNameSpace(Module->GetPath(), Connector.Name.ToString()), ERigElementType::Connector);
 				Blueprint->GetModularRigController()->ConnectConnectorToElement(NamespacedConnector, Selected[0]);
 			}
 		}

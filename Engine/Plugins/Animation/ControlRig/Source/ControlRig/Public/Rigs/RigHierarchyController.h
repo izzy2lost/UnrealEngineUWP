@@ -18,7 +18,7 @@ public:
 
 	URigHierarchyController()
 	: bReportWarningsAndErrors(true)
-	, Hierarchy(nullptr)
+	, WeakHierarchy(nullptr)
 	, bSuspendAllNotifications(false)
 	, bSuspendSelectionNotifications(false)
 	, bSuspendPythonPrinting(false)
@@ -34,7 +34,7 @@ public:
 	UFUNCTION(BlueprintCallable, Category = URigHierarchyController)
 	URigHierarchy* GetHierarchy() const
 	{
-		return Hierarchy.Get();
+		return WeakHierarchy.Get();
 	}
 
 	// Sets the hierarchy currently linked to this controller
@@ -631,7 +631,7 @@ public:
 private:
 
 	UPROPERTY(transient)
-	TWeakObjectPtr<URigHierarchy> Hierarchy;
+	TWeakObjectPtr<URigHierarchy> WeakHierarchy;
 
 	FRigHierarchyModifiedEvent ModifiedEvent;
 	void Notify(ERigHierarchyNotification InNotifType, const FRigBaseElement* InElement);

@@ -315,7 +315,7 @@ TArray<FString> UModularRigController::GetPossibleBindings(const FString& InModu
 			for (const FRigVMExternalVariable& Variable : Variables)
 			{
 				FText ErrorMessage;
-				const FString SourceVariablePath = FString::Printf(TEXT("%s:%s"), *CurModulePath, *Variable.Name.ToString());
+				const FString SourceVariablePath = URigHierarchy::JoinNameSpace(CurModulePath, Variable.Name.ToString());
 				if (CanBindModuleVariable(InModulePath, InVariableName, SourceVariablePath, ErrorMessage))
 				{
 					PossibleBindings.Add(SourceVariablePath);
@@ -394,7 +394,7 @@ bool UModularRigController::CanBindModuleVariable(const FString& InModulePath, c
 		return false;
 	}
 
-	FString SourcePath = (SourceModulePath.IsEmpty()) ? SourceVariableName : FString::Printf(TEXT("%s:%s"), *SourceModulePath, *SourceVariableName);
+	FString SourcePath = (SourceModulePath.IsEmpty()) ? SourceVariableName : URigHierarchy::JoinNameSpace(SourceModulePath, SourceVariableName);
 	if (!RigVMTypeUtils::AreCompatible(SourceProperty, TargetProperty))
 	{
 		FString TargetPath = FString::Printf(TEXT("%s.%s"), *InModulePath, *InVariableName.ToString());
@@ -410,7 +410,7 @@ bool UModularRigController::BindModuleVariable(const FString& InModulePath, cons
 	FText ErrorMessage;
 	if (!CanBindModuleVariable(InModulePath, InVariableName, InSourcePath, ErrorMessage))
 	{
-		UE_LOG(LogControlRig, Error, TEXT("Could not bind module variable %s:%s : %s"), *InModulePath, *InVariableName.ToString(), *ErrorMessage.ToString());
+		UE_LOG(LogControlRig, Error, TEXT("Could not bind module variable %s : %s"), *URigHierarchy::JoinNameSpace(InModulePath, InVariableName.ToString()), *ErrorMessage.ToString());
 		return false;
 	}
 	
@@ -439,7 +439,7 @@ bool UModularRigController::BindModuleVariable(const FString& InModulePath, cons
 		}
 	}
 
-	FString SourcePath = (SourceModulePath.IsEmpty()) ? SourceVariableName : FString::Printf(TEXT("%s:%s"), *SourceModulePath, *SourceVariableName);
+	FString SourcePath = (SourceModulePath.IsEmpty()) ? SourceVariableName : URigHierarchy::JoinNameSpace(SourceModulePath, SourceVariableName);
 
 #if WITH_EDITOR
 	TSharedPtr<FScopedTransaction> TransactionPtr;
@@ -595,8 +595,8 @@ FString UModularRigController::RenameModule(const FString& InModulePath, const F
 	}
 #endif
 	
-	const FString OldPath = (Module->ParentPath.IsEmpty()) ? OldName : FString::Printf(TEXT("%s:%s"), *Module->ParentPath, *OldName);
-	const FString NewPath = (Module->ParentPath.IsEmpty()) ? *NewName :  FString::Printf(TEXT("%s:%s"), *Module->ParentPath, *NewName);
+	const FString OldPath = (Module->ParentPath.IsEmpty()) ? OldName : URigHierarchy::JoinNameSpace(Module->ParentPath, OldName);
+	const FString NewPath = (Module->ParentPath.IsEmpty()) ? *NewName :  URigHierarchy::JoinNameSpace(Module->ParentPath, NewName);
 	Module->PreviousName = Module->Name;
 	Module->Name = InNewName;
 	TArray<FRigModuleReference*> Children;
@@ -618,7 +618,7 @@ FString UModularRigController::RenameModule(const FString& InModulePath, const F
 			Binding.Value.Split(UModularRig::NamespaceSeparator, &ModulePath, &VariableName, ESearchCase::CaseSensitive, ESearchDir::FromEnd);
 			if (ModulePath == OldPath)
 			{
-				Binding.Value = FString::Printf(TEXT("%s:%s"), *NewPath, *VariableName);
+				Binding.Value = URigHierarchy::JoinNameSpace(NewPath, VariableName);
 			}
 		};
 	}
@@ -714,7 +714,7 @@ FString UModularRigController::ReparentModule(const FString& InModulePath, const
 			Binding.Value.Split(UModularRig::NamespaceSeparator, &ModulePath, &VariableName, ESearchCase::CaseSensitive, ESearchDir::FromEnd);
 			if (ModulePath == OldPath)
 			{
-				Binding.Value = FString::Printf(TEXT("%s:%s"), *NewPath, *VariableName);
+				Binding.Value = URigHierarchy::JoinNameSpace(NewPath, VariableName);
 				ModulePath = NewPath;
 			}
 
@@ -990,7 +990,7 @@ void UModularRigController::UpdateShortNames()
 
 				while (RemainingPath.Split(UModularRig::NamespaceSeparator, &Left, &Right, ESearchCase::IgnoreCase, ESearchDir::FromEnd))
 				{
-					ShortPath = ShortPath.IsEmpty() ? Right : FString::Printf(TEXT("%s:%s"), *Right, *ShortPath);
+					ShortPath = ShortPath.IsEmpty() ? Right : URigHierarchy::JoinNameSpace(Right, ShortPath);
 
 					// if the short path only exists once - that's what we use for the display name
 					if(TokenToCount.FindChecked(ShortPath) == 1)
@@ -1004,7 +1004,7 @@ void UModularRigController::UpdateShortNames()
 
 				if(!RemainingPath.IsEmpty())
 				{
-					ShortPath = FString::Printf(TEXT("%s:%s"), *RemainingPath, *ShortPath);
+					ShortPath = URigHierarchy::JoinNameSpace(RemainingPath, ShortPath);
 				}
 			}
 

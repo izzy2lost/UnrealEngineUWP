@@ -151,12 +151,9 @@ FControlRigEditor::~FControlRigEditor()
 			EditMode->OnEditorClosed();
 		}
 
-		if (RigBlueprint->IsModularRig())
-		{
-			RigBlueprint->OnSetObjectBeingDebugged().RemoveAll(&SchematicModel);
-			RigBlueprint->OnHierarchyModified().RemoveAll(&SchematicModel);
-			RigBlueprint->GetModularRigController()->OnModified().RemoveAll(&SchematicModel);
-		}
+		RigBlueprint->OnSetObjectBeingDebugged().RemoveAll(&SchematicModel);
+		RigBlueprint->OnHierarchyModified().RemoveAll(&SchematicModel);
+		RigBlueprint->GetModularRigController()->OnModified().RemoveAll(&SchematicModel);
 
 		RigBlueprint->OnRigTypeChanged().RemoveAll(this);
 		if (RigBlueprint->IsModularRig())
@@ -3764,11 +3761,11 @@ void FControlRigEditor::HandleModularRigModified(EModularRigNotification InNotif
 			FString OldPath;
 			if (InNotification == EModularRigNotification::ModuleRenamed)
 			{
-				OldPath = FString::Printf(TEXT("%s:%s"), *InModule->ParentPath, *InModule->PreviousName.ToString());
+				OldPath = URigHierarchy::JoinNameSpace(InModule->ParentPath, InModule->PreviousName.ToString());
 			}
 			else
 			{
-				OldPath = FString::Printf(TEXT("%s:%s"), *InModule->PreviousParentPath, *InModule->Name.ToString());
+				OldPath = URigHierarchy::JoinNameSpace(InModule->PreviousParentPath, InModule->Name.ToString());
 			}
 			ModulesSelected.Remove(OldPath);
 			ModulesSelected.Add(InModule->GetPath());

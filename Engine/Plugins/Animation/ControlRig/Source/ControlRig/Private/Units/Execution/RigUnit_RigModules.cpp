@@ -37,7 +37,7 @@ FRigUnit_GetItemShortName_Execute()
 
 	if(const URigHierarchy* Hierarchy = ExecuteContext.Hierarchy)
 	{
-		ShortName = Hierarchy->GetNameMetadata(Item, URigHierarchy::ShortNameMetadataName, NAME_None);
+		ShortName = *Hierarchy->GetDisplayNameForUI(Item).ToString();
 	}
 
 	if(ShortName.IsNone())

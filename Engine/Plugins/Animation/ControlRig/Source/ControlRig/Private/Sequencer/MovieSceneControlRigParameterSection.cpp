@@ -1633,7 +1633,7 @@ EMovieSceneChannelProxyType UMovieSceneControlRigParameterSection::CacheChannelP
 				if(const FRigControlElement* ParentControlElement = Cast<FRigControlElement>(Hierarchy->GetFirstParent(ControlElement)))
 				{
 					ParentControlName = ParentControlElement->GetFName();
-					Group = FText::FromName(ParentControlElement->GetDisplayName());
+					Group = Hierarchy->GetDisplayNameForUI(ParentControlElement);
 				}
 			}
 
@@ -1652,7 +1652,7 @@ EMovieSceneChannelProxyType UMovieSceneControlRigParameterSection::CacheChannelP
 							if (Group.IsEmpty())
 							{
 								ControlChannelMap.Add(Scalar.ParameterName, FChannelMapInfo(ControlIndex, TotalIndex, FloatChannelIndex, INDEX_NONE, NAME_None, MaskIndex, CategoryIndex));
-								Group = FText::FromName(ControlElement->GetDisplayName());
+								Group = Hierarchy->GetDisplayNameForUI(ControlElement);
 								if (bEnabled)
 								{
 									++CategoryIndex;
@@ -1666,7 +1666,7 @@ EMovieSceneChannelProxyType UMovieSceneControlRigParameterSection::CacheChannelP
 							}
 
 							FParameterFloatChannelEditorData EditorData(ControlRig, Scalar.ParameterName, bEnabled, Group, TotalIndex);
-							EditorData.MetaData.DisplayText = FText::FromName(ControlElement->GetDisplayName());
+							EditorData.MetaData.DisplayText = Hierarchy->GetDisplayNameForUI(ControlElement);
 							Channels.Add(Scalar.ParameterCurve, EditorData.MetaData, EditorData.ExternalValues);
 							FloatChannelIndex += 1;
 							TotalIndex += 1;
@@ -1685,7 +1685,7 @@ EMovieSceneChannelProxyType UMovieSceneControlRigParameterSection::CacheChannelP
 							if (Group.IsEmpty())
 							{
 								ControlChannelMap.Add(Bool.ParameterName, FChannelMapInfo(ControlIndex, TotalIndex, BoolChannelIndex, INDEX_NONE,BoolChannelTypeName,MaskIndex, CategoryIndex));
-								Group = FText::FromName(ControlElement->GetDisplayName());
+								Group = Hierarchy->GetDisplayNameForUI(ControlElement);
 								if (bEnabled)
 								{
 									++CategoryIndex;
@@ -1699,7 +1699,7 @@ EMovieSceneChannelProxyType UMovieSceneControlRigParameterSection::CacheChannelP
 							}
 
 							FMovieSceneChannelMetaData MetaData(Bool.ParameterName, Group, Group, bEnabled);
-							MetaData.DisplayText = FText::FromName(ControlElement->GetDisplayName());
+							MetaData.DisplayText = Hierarchy->GetDisplayNameForUI(ControlElement);
 							MetaData.SortOrder = TotalIndex++;
 							BoolChannelIndex += 1;
 							ControlIndex += 1;
@@ -1722,7 +1722,7 @@ EMovieSceneChannelProxyType UMovieSceneControlRigParameterSection::CacheChannelP
 								if (Group.IsEmpty())
 								{
 									ControlChannelMap.Add(Enum.ParameterName, FChannelMapInfo(ControlIndex, TotalIndex, EnumChannelIndex,INDEX_NONE, EnumChannelTypeName,MaskIndex, CategoryIndex));
-									Group = FText::FromName(ControlElement->GetDisplayName());
+									Group = Hierarchy->GetDisplayNameForUI(ControlElement);
 									if (bEnabled)
 									{
 										++CategoryIndex;
@@ -1736,7 +1736,7 @@ EMovieSceneChannelProxyType UMovieSceneControlRigParameterSection::CacheChannelP
 								}
 
 								FMovieSceneChannelMetaData MetaData(Enum.ParameterName, Group, Group, bEnabled);
-								MetaData.DisplayText = FText::FromName(ControlElement->GetDisplayName());
+								MetaData.DisplayText = Hierarchy->GetDisplayNameForUI(ControlElement);
 								EnumChannelIndex += 1;
 								ControlIndex += 1;
 								MetaData.SortOrder = TotalIndex++;
@@ -1756,7 +1756,7 @@ EMovieSceneChannelProxyType UMovieSceneControlRigParameterSection::CacheChannelP
 								if (Group.IsEmpty())
 								{
 									ControlChannelMap.Add(Integer.ParameterName, FChannelMapInfo(ControlIndex, TotalIndex, IntegerChannelIndex,INDEX_NONE,IntegerChannelTypeName,MaskIndex, CategoryIndex));
-									Group = FText::FromName(ControlElement->GetDisplayName());
+									Group = Hierarchy->GetDisplayNameForUI(ControlElement);
 									if (bEnabled)
 									{
 										++CategoryIndex;
@@ -1770,7 +1770,7 @@ EMovieSceneChannelProxyType UMovieSceneControlRigParameterSection::CacheChannelP
 								}
 
 								FMovieSceneChannelMetaData MetaData(Integer.ParameterName, Group, Group, bEnabled);
-								MetaData.DisplayText = FText::FromName(ControlElement->GetDisplayName());
+								MetaData.DisplayText = Hierarchy->GetDisplayNameForUI(ControlElement);
 								IntegerChannelIndex += 1;
 								ControlIndex += 1;
 								MetaData.SortOrder = TotalIndex++;
@@ -1797,7 +1797,7 @@ EMovieSceneChannelProxyType UMovieSceneControlRigParameterSection::CacheChannelP
 								{
 									++CategoryIndex;
 								}
-								Group = FText::FromName(ControlElement->GetDisplayName());
+								Group = Hierarchy->GetDisplayNameForUI(ControlElement);
 							}
 							else
 							{
@@ -1833,7 +1833,7 @@ EMovieSceneChannelProxyType UMovieSceneControlRigParameterSection::CacheChannelP
 								{
 									++CategoryIndex;
 								}
-								Group = FText::FromName(ControlElement->GetDisplayName());
+								Group = Hierarchy->GetDisplayNameForUI(ControlElement);
 							}
 							else
 							{
@@ -1913,7 +1913,7 @@ EMovieSceneChannelProxyType UMovieSceneControlRigParameterSection::CacheChannelP
 								{
 									++CategoryIndex;
 								}
-								Group = FText::FromName(ControlElement->GetDisplayName());
+								Group = Hierarchy->GetDisplayNameForUI(ControlElement);
 							}
 							else
 							{

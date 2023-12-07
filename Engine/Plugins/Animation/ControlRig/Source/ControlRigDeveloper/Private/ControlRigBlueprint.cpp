@@ -2491,13 +2491,13 @@ void UControlRigBlueprint::HandleRigModulesModified(EModularRigNotification InNo
 						FString OldNamespace;
 						if (InNotification == EModularRigNotification::ModuleRenamed)
 						{
-							OldNamespace = (InModule->ParentPath.IsEmpty()) ? *InModule->PreviousName.ToString() : FString::Printf(TEXT("%s:%s"), *InModule->ParentPath, *InModule->PreviousName.ToString());
+							OldNamespace = (InModule->ParentPath.IsEmpty()) ? *InModule->PreviousName.ToString() : URigHierarchy::JoinNameSpace(InModule->ParentPath, InModule->PreviousName.ToString());
 						}
 						else if(InNotification == EModularRigNotification::ModuleReparented)
 						{
-							OldNamespace = (InModule->PreviousParentPath.IsEmpty()) ? *InModule->Name.ToString() : FString::Printf(TEXT("%s:%s"), *InModule->PreviousParentPath, *InModule->Name.ToString());
+							OldNamespace = (InModule->PreviousParentPath.IsEmpty()) ? *InModule->Name.ToString() : URigHierarchy::JoinNameSpace(InModule->PreviousParentPath, InModule->Name.ToString());
 						}
-						FString NewNamespace = (InModule->ParentPath.IsEmpty()) ? *InModule->Name.ToString() : FString::Printf(TEXT("%s:%s"), *InModule->ParentPath, *InModule->Name.ToString());
+						FString NewNamespace = (InModule->ParentPath.IsEmpty()) ? *InModule->Name.ToString() : URigHierarchy::JoinNameSpace(InModule->ParentPath, InModule->Name.ToString());
 						OldNamespace.Append(UModularRig::NamespaceSeparator);
 						NewNamespace.Append(UModularRig::NamespaceSeparator);
 						
