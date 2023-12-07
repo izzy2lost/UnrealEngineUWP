@@ -26,12 +26,6 @@ DECLARE_CYCLE_STAT(TEXT("VectorVM - Compiler - CompileShader_VectorVM"), STAT_Ve
 DECLARE_CYCLE_STAT(TEXT("VectorVM - Compiler - PreprocessShader"), STAT_VectorVM_Compiler_CompileShader_VectorVMPreprocessShader, STATGROUP_VectorVM);
 DECLARE_CYCLE_STAT(TEXT("VectorVM - Compiler - CrossCompilerContextRun"), STAT_VectorVM_Compiler_CompileShader_CrossCompilerContextRun, STATGROUP_VectorVM);
 
-bool PreprocessVectorVMShader(const FShaderCompilerInput& Input, const FShaderCompilerEnvironment& Environment, FShaderPreprocessOutput& Output)
-{
-	SCOPE_CYCLE_COUNTER(STAT_VectorVM_Compiler_CompileShader_VectorVMPreprocessShader);
-	return PreprocessShader(Output, Input, Environment);
-}
-
 bool CompileVectorVMShader(
 	const FShaderCompilerInput& Input,
 	const FShaderPreprocessOutput& PreprocessOutput,
@@ -151,7 +145,7 @@ bool TestCompileVectorVMShader(
 	bool bSkipBackendOptimizations)
 {
 	FShaderPreprocessOutput PreprocessOutput;
-	if (!PreprocessVectorVMShader(Input, Input.Environment, PreprocessOutput))
+	if (!UE::ShaderCompilerCommon::ExecuteShaderPreprocessingSteps(PreprocessOutput, Input, Input.Environment))
 	{
 		if (PreprocessOutput.GetErrors().Num() != 0)
 		{

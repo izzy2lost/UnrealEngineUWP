@@ -106,12 +106,6 @@ public:
 		}
 	}
 
-	virtual bool PreprocessShader(const FShaderCompilerInput& Input, const FShaderCompilerEnvironment& Environment, FShaderPreprocessOutput& PreprocessOutput) const override
-	{
-		CheckFormat(Input.ShaderFormat);
-		return ::PreprocessShader(PreprocessOutput, Input, Environment);
-	}
-
 	virtual void CompilePreprocessedShader(const FShaderCompilerInput& Input, const FShaderPreprocessOutput& PreprocessOutput, FShaderCompilerOutput& Output, const FString& WorkingDirectory) const override
 	{
 		CheckFormat(Input.ShaderFormat);

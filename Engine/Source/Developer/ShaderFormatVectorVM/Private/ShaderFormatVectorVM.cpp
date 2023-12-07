@@ -8,14 +8,11 @@
 #include "Interfaces/IShaderFormat.h"
 #include "Interfaces/IShaderFormatModule.h"
 #include "hlslcc.h"
+#include "ShaderCompilerCommon.h"
 #include "ShaderCompilerCore.h"
 #include "ShaderCore.h"
 
 
-extern bool PreprocessVectorVMShader(
-	const FShaderCompilerInput& Input,
-	const FShaderCompilerEnvironment& Environment,
-	class FShaderPreprocessOutput& PreprocessOutput);
 
 extern bool CompileVectorVMShader(
 	const FShaderCompilerInput& Input,
@@ -30,7 +27,7 @@ extern void OutputVectorVMDebugData(
 
 static FName NAME_VVM_1_0(TEXT("VVM_1_0"));
 
-class FShaderFormatVectorVM : public IShaderFormat
+class FShaderFormatVectorVM : public UE::ShaderCompilerCommon::FBaseShaderFormat
 {
 	enum class VectorVMFormats : uint8
 	{
@@ -72,12 +69,6 @@ public:
 
 		// minifier has not been tested on vector VM; it's possible this could be removed to improve deduplication rate
 		Input.Environment.CompilerFlags.Remove(CFLAG_RemoveDeadCode);
-	}
-
-	virtual bool PreprocessShader(const FShaderCompilerInput& Input, const FShaderCompilerEnvironment& Environment, FShaderPreprocessOutput& PreprocessOutput) const override
-	{
-		CheckFormat(Input.ShaderFormat);
-		return PreprocessVectorVMShader(Input, Environment, PreprocessOutput);
 	}
 
 	virtual void CompilePreprocessedShader(const FShaderCompilerInput& Input, const FShaderPreprocessOutput& PreprocessOutput, FShaderCompilerOutput& Output, const FString& WorkingDirectory) const override

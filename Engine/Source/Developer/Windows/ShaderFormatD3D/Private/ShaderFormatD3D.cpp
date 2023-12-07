@@ -171,11 +171,6 @@ public:
 	}
 #endif
 
-	virtual bool PreprocessShader(const FShaderCompilerInput& Input, const FShaderCompilerEnvironment& MergedEnvironment, FShaderPreprocessOutput& PreprocessOutput) const
-	{
-		return ::PreprocessShader(PreprocessOutput, Input, MergedEnvironment);
-	}
-
 	virtual void CompilePreprocessedShader(
 		const FShaderCompilerInput& Input, 
 		const FShaderPreprocessOutput& PreprocessOutput, 

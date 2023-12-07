@@ -34,7 +34,7 @@ static const FGuid UE_SHADER_VULKAN_ES3_1_VER = FGuid("B84F72C8-3ECD-411E-993C-D
 static const FGuid UE_SHADER_VULKAN_SM5_VER = FGuid("0715D8EE-9907-4A25-93AD-A3902C8E069A");
 static const FGuid UE_SHADER_VULKAN_SM6_VER = FGuid("C5161730-83C6-40AF-A990-78CD4C1581DB");
 
-class FShaderFormatVulkan : public IShaderFormat
+class FShaderFormatVulkan : public UE::ShaderCompilerCommon::FBaseShaderFormat
 {
 	FGuid InternalGetVersion(FName Format) const
 	{
@@ -91,11 +91,6 @@ public:
 	virtual void ModifyShaderCompilerInput(FShaderCompilerInput& Input) const override
 	{
 		ModifyVulkanCompilerInput(Input);
-	}
-
-	virtual bool PreprocessShader(const FShaderCompilerInput& Input, const FShaderCompilerEnvironment& Environment, FShaderPreprocessOutput& PreprocessOutput) const
-	{
-		return ::PreprocessShader(PreprocessOutput, Input, Environment);
 	}
 
 	virtual void CompilePreprocessedShader(const FShaderCompilerInput& Input, const FShaderPreprocessOutput& PreprocessOutput, FShaderCompilerOutput& Output,const FString& WorkingDirectory) const override

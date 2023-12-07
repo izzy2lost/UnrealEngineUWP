@@ -10,8 +10,6 @@ public class ShaderPreprocessor : ModuleRules
 			new string[] {
 				"Core",
 				"RenderCore",
-				"ShaderCompilerCommon",
-				"TargetPlatform",
 			}
 			);
 

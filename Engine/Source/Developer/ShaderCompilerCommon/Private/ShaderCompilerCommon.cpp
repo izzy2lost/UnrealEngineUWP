@@ -12,6 +12,7 @@
 #include "Serialization/MemoryReader.h"
 #include "Serialization/MemoryWriter.h"
 #include "String/RemoveFrom.h"
+#include "ShaderPreprocessor.h"
 #include "ShaderPreprocessTypes.h"
 #include "ShaderSymbolExport.h"
 #include "ShaderMinifier.h"
@@ -1806,9 +1807,67 @@ const FString GetDebugFileName(
 
 namespace UE::ShaderCompilerCommon
 {
+	bool ExecuteShaderPreprocessingSteps(
+		FShaderPreprocessOutput& PreprocessOutput,
+		const FShaderCompilerInput& Input,
+		const FShaderCompilerEnvironment& Environment,
+		PRAGMA_DISABLE_DEPRECATION_WARNINGS
+		const FShaderCompilerDefinitions& AdditionalDefines
+		PRAGMA_ENABLE_DEPRECATION_WARNINGS
+		)
+	{
+		TRACE_CPUPROFILER_EVENT_SCOPE(FBaseShaderFormat_PreprocessShader);
+		PreprocessOutput.EditSource().Empty();
+
+		if (EnumHasAnyFlags(Input.DebugInfoFlags, EShaderDebugInfoFlags::CompileFromDebugUSF))
+		{
+			// the "VirtualSourceFilePath" given is actually an absolute path to a dumped debug USF file; load it directly.
+			// this occurs when running SCW in "direct compile" mode; this file will already be preprocessed.
+			bool bSuccess = FFileHelper::LoadFileToString(PreprocessOutput.EditSource(), *Input.VirtualSourceFilePath);
+
+			if (bSuccess)
+			{
+				// const_cast for compile environment; need to populate a subset of environment parameters from parsing comments in the preprocessed code
+				UE::ShaderCompilerCommon::SerializeEnvironmentFromBase64(const_cast<FShaderCompilerEnvironment&>(Input.Environment), PreprocessOutput.GetSource());
+
+				// strip comments from source when loading from a debug USF. some backends don't handle the comments that the debug dump inserts properly.
+				// this (currently) incurs an extra conversion (TCHAR -> ANSI -> TCHAR), but since this is only used in the debug path the perf hit is irrelevant
+				TArray<ANSICHAR> Stripped;
+				ShaderConvertAndStripComments(PreprocessOutput.GetSource(), Stripped);
+				PreprocessOutput.EditSource() = Stripped.GetData();
+			}
+
+			return bSuccess;
+		}
+
+		check(CheckVirtualShaderFilePath(Input.VirtualSourceFilePath));
+
+		bool bSuccess = ::PreprocessShader(PreprocessOutput, Input, Environment, AdditionalDefines);
+		if (bSuccess)
+		{
+			CleanupUniformBufferCode(Environment, PreprocessOutput.EditSource());
+
+			if (Input.Environment.CompilerFlags.Contains(CFLAG_RemoveDeadCode))
+			{
+				const TArray<FStringView> RequiredSymbols(MakeArrayView(Input.RequiredSymbols));
+				UE::ShaderCompilerCommon::RemoveDeadCode(PreprocessOutput.EditSource(), Input.EntryPointName, RequiredSymbols, PreprocessOutput.EditErrors());
+			}
+		}
+
+		return bSuccess;
+	}
+
 	FString FDebugShaderDataOptions::GetDebugShaderPath(const FShaderCompilerInput& Input) const
 	{
 		return GetDebugFileName(Input, *this, OverrideBaseFilename);
+	}
+
+	bool FBaseShaderFormat::PreprocessShader(
+		const FShaderCompilerInput& Input,
+		const FShaderCompilerEnvironment& Environment,
+		FShaderPreprocessOutput& PreprocessOutput) const
+	{
+		return ExecuteShaderPreprocessingSteps(PreprocessOutput, Input, Environment);
 	}
 
 	void FBaseShaderFormat::OutputDebugData(

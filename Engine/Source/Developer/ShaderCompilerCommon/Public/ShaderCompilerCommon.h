@@ -64,6 +64,15 @@ extern SHADERCOMPILERCOMMON_API int16 GetNumUniformBuffersUsed(const FShaderComp
 
 namespace UE::ShaderCompilerCommon
 {
+	extern SHADERCOMPILERCOMMON_API bool ExecuteShaderPreprocessingSteps(
+		FShaderPreprocessOutput& PreprocessOutput,
+		const FShaderCompilerInput& Input,
+		const FShaderCompilerEnvironment& Environment,
+		PRAGMA_DISABLE_DEPRECATION_WARNINGS		// FShaderCompilerDefinitions will be made internal in the future, marked deprecated until then
+		const FShaderCompilerDefinitions& AdditionalDefines = FShaderCompilerDefinitions()
+		PRAGMA_ENABLE_DEPRECATION_WARNINGS
+		);
+
 	extern SHADERCOMPILERCOMMON_API FStringView          RemoveConstantBufferPrefix(FStringView InName);
 	extern SHADERCOMPILERCOMMON_API FString              RemoveConstantBufferPrefix(const FString& InName);
 
@@ -170,6 +179,11 @@ namespace UE::ShaderCompilerCommon
 	class FBaseShaderFormat : public IShaderFormat
 	{
 	public:
+		virtual SHADERCOMPILERCOMMON_API bool PreprocessShader(
+			const FShaderCompilerInput& Input,
+			const FShaderCompilerEnvironment& Environment,
+			FShaderPreprocessOutput& PreprocessOutput) const override;
+
 		virtual SHADERCOMPILERCOMMON_API void OutputDebugData(
 			const FShaderCompilerInput& Input,
 			const FShaderPreprocessOutput& PreprocessOutput,
