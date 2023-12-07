@@ -1614,13 +1614,6 @@ void SetMeshUVChannelDensity(FMeshUVChannelInfo& UVChannelInfo, float Density = 
 	}
 }
 
-// TODO PRP: MTBL-1653 Remove CVar
-static bool bApplyFixDoComponentsNeedUpdate = true;
-FAutoConsoleVariableRef CVarApplyFixDoComponentsNeedUpdate(
-	TEXT("Mutable.ApplyFixDoComponentsNeedUpdate"),
-	bApplyFixDoComponentsNeedUpdate,
-	TEXT("If true, the new version of DoComponentsNeedUpdate will be used. This fix tries to detect cases where the output mesh would be invalid and cancel the update."));
-
 
 bool UCustomizableInstancePrivateData::DoComponentsNeedUpdate(UCustomizableObjectInstance* Public, const TSharedRef<FUpdateContextPrivate>& OperationData, TArray<bool>& OutComponentNeedsUpdate, bool& bHasInvalidMesh)
 {
@@ -1630,190 +1623,95 @@ bool UCustomizableInstancePrivateData::DoComponentsNeedUpdate(UCustomizableObjec
 	const int32 NumLODs = OperationData->InstanceUpdateData.LODs.Num();
 	const int32 NumComponents = CustomizableObject->GetComponentCount();
 
-	if (bApplyFixDoComponentsNeedUpdate)
+	TArray<bool> ComponentWithMesh;
+	ComponentWithMesh.Init(false, NumComponents);
+
+	TArray<mu::FResourceID> MeshIDs;
+	MeshIDs.Init(MAX_uint64, NumComponents * MAX_MESH_LOD_COUNT);
+
+	// Gather the Mesh Ids of all components, and validate the integrity of the meshes to generate. 
+	for (int32 LODIndex = OperationData->CurrentMinLOD; LODIndex <= OperationData->CurrentMaxLOD && LODIndex < NumLODs; ++LODIndex)
 	{
-		TArray<bool> ComponentWithMesh;
-		ComponentWithMesh.Init(false, NumComponents);
+		const FInstanceUpdateData::FLOD& LOD = OperationData->InstanceUpdateData.LODs[LODIndex];
 
-		TArray<mu::FResourceID> MeshIDs;
-		MeshIDs.Init(MAX_uint64, NumComponents * MAX_MESH_LOD_COUNT);
-
-		// Gather the Mesh Ids of all components, and validate the integrity of the meshes to generate. 
-		for (int32 LODIndex = OperationData->CurrentMinLOD; LODIndex <= OperationData->CurrentMaxLOD && LODIndex < NumLODs; ++LODIndex)
+		for (int32 ComponentIndex = 0; ComponentIndex < LOD.ComponentCount; ++ComponentIndex)
 		{
-			const FInstanceUpdateData::FLOD& LOD = OperationData->InstanceUpdateData.LODs[LODIndex];
+			const FInstanceUpdateData::FComponent& Component = OperationData->InstanceUpdateData.Components[LOD.FirstComponent + ComponentIndex];
 
-			for (int32 ComponentIndex = 0; ComponentIndex < LOD.ComponentCount; ++ComponentIndex)
+			if (Component.Id >= NumComponents)
 			{
-				const FInstanceUpdateData::FComponent& Component = OperationData->InstanceUpdateData.Components[LOD.FirstComponent + ComponentIndex];
-
-				if (Component.Id >= NumComponents)
-				{
-					ensureMsgf(false, TEXT("Mutable: Failed to generate SkeletalMesh. Invalid ComponentIndex. Index [%d]. Valid range [0 .. %d)."), Component.Id, NumComponents);
-					bHasInvalidMesh = true;
-					return false;
-				}
-
-				if (!Component.bGenerated || !Component.Mesh || Component.SurfaceCount == 0) // else
-				{
-					continue;
-				}
-
-				// Unreal does not support empty sections.
-				if (Component.Mesh->GetVertexCount() == 0) // else
-				{
-					UE_LOG(LogMutable, Error, TEXT("Failed to generate SkeletalMesh for CO Instance [%s]. CO [%s] has invalid geometry for LOD [%d] Component [%d]."),
-						*Public->GetName(), *CustomizableObject->GetName(),
-						OperationData->CurrentMaxLOD, ComponentIndex);
-					bHasInvalidMesh = true;
-					continue;
-				}
-
-				ComponentWithMesh[Component.Id] = true;
-				MeshIDs[Component.Id * MAX_MESH_LOD_COUNT + LODIndex] = Component.MeshID;
+				ensureMsgf(false, TEXT("Mutable: Failed to generate SkeletalMesh. Invalid ComponentIndex. Index [%d]. Valid range [0 .. %d)."), Component.Id, NumComponents);
+				bHasInvalidMesh = true;
+				return false;
 			}
-		}
 
-		// Find which components need an update
-		OutComponentNeedsUpdate.AddDefaulted(NumComponents);
-
-		for (int32 ComponentIndex = 0; ComponentIndex < NumComponents; ++ComponentIndex)
-		{
-			if (OperationData->bUseMeshCache)
+			if (!Component.bGenerated || !Component.Mesh || Component.SurfaceCount == 0) // else
 			{
-				if (CustomizableObject->GetPrivate()->MeshCache.Get(OperationData->MeshDescriptors[ComponentIndex]))
-				{
-					OutComponentNeedsUpdate[ComponentIndex] = true;
-					ComponentWithMesh[ComponentIndex] = true;
-					continue;					
-				}
+				continue;
 			}
-			
-			// Components with mesh must have valid geometry at CurrentMaxLOD
-			if (ComponentWithMesh[ComponentIndex] && MeshIDs[ComponentIndex * MAX_MESH_LOD_COUNT + OperationData->CurrentMaxLOD] == MAX_uint64)
+
+			// Unreal does not support empty sections.
+			if (Component.Mesh->GetVertexCount() == 0) // else
 			{
-				UE_LOG(LogMutable, Error, TEXT("Failed to generate SkeletalMesh for CO Instance [%s]. CO [%s] is missing geometry for LOD [%d] Component [%d]."),
+				UE_LOG(LogMutable, Error, TEXT("Failed to generate SkeletalMesh for CO Instance [%s]. CO [%s] has invalid geometry for LOD [%d] Component [%d]."),
 					*Public->GetName(), *CustomizableObject->GetName(),
 					OperationData->CurrentMaxLOD, ComponentIndex);
 				bHasInvalidMesh = true;
 				continue;
 			}
 
-			// Update the component if there is a mesh and it shouldn't, or the other way around.
-			const bool bHasSkeletalMesh = Public->SkeletalMeshes.IsValidIndex(ComponentIndex) && Public->SkeletalMeshes[ComponentIndex];
-			OutComponentNeedsUpdate[ComponentIndex] = (ComponentWithMesh[ComponentIndex] != bHasSkeletalMesh);
+			ComponentWithMesh[Component.Id] = true;
+			MeshIDs[Component.Id * MAX_MESH_LOD_COUNT + LODIndex] = Component.MeshID;
+		}
+	}
 
-			const FCustomizableInstanceComponentData* ComponentData = GetComponentData(ComponentIndex);
-			if (!ComponentData) // Could be nullptr if the component has not been generated.
+	// Find which components need an update
+	OutComponentNeedsUpdate.AddDefaulted(NumComponents);
+
+	for (int32 ComponentIndex = 0; ComponentIndex < NumComponents; ++ComponentIndex)
+	{
+		if (OperationData->bUseMeshCache)
+		{
+			if (CustomizableObject->GetPrivate()->MeshCache.Get(OperationData->MeshDescriptors[ComponentIndex]))
 			{
+				OutComponentNeedsUpdate[ComponentIndex] = true;
+				ComponentWithMesh[ComponentIndex] = true;
 				continue;
 			}
-
-			// Update if MeshIDs are different
-			const int32 ComponentOffset = ComponentIndex * MAX_MESH_LOD_COUNT;
-			for (int32 MeshIndex = 0; !OutComponentNeedsUpdate[ComponentIndex] && MeshIndex < MAX_MESH_LOD_COUNT; ++MeshIndex)
-			{
-				OutComponentNeedsUpdate[ComponentIndex] = MeshIDs[ComponentOffset + MeshIndex] != ComponentData->LastMeshIdPerLOD[MeshIndex];
-			}
 		}
 
-		// Mark as invalid if all components have empty meshes.
-		bHasInvalidMesh = bHasInvalidMesh || ComponentWithMesh.Find(true) == INDEX_NONE;
+		// Components with mesh must have valid geometry at CurrentMaxLOD
+		if (ComponentWithMesh[ComponentIndex] && MeshIDs[ComponentIndex * MAX_MESH_LOD_COUNT + OperationData->CurrentMaxLOD] == MAX_uint64)
+		{
+			UE_LOG(LogMutable, Error, TEXT("Failed to generate SkeletalMesh for CO Instance [%s]. CO [%s] is missing geometry for LOD [%d] Component [%d]."),
+				*Public->GetName(), *CustomizableObject->GetName(),
+				OperationData->CurrentMaxLOD, ComponentIndex);
+			bHasInvalidMesh = true;
+			continue;
+		}
 
-		return !bHasInvalidMesh && OutComponentNeedsUpdate.Find(true) != INDEX_NONE;
+		// Update the component if there is a mesh and it shouldn't, or the other way around.
+		const bool bHasSkeletalMesh = Public->SkeletalMeshes.IsValidIndex(ComponentIndex) && Public->SkeletalMeshes[ComponentIndex];
+		OutComponentNeedsUpdate[ComponentIndex] = (ComponentWithMesh[ComponentIndex] != bHasSkeletalMesh);
+
+		const FCustomizableInstanceComponentData* ComponentData = GetComponentData(ComponentIndex);
+		if (!ComponentData) // Could be nullptr if the component has not been generated.
+		{
+			continue;
+		}
+
+		// Update if MeshIDs are different
+		const int32 ComponentOffset = ComponentIndex * MAX_MESH_LOD_COUNT;
+		for (int32 MeshIndex = 0; !OutComponentNeedsUpdate[ComponentIndex] && MeshIndex < MAX_MESH_LOD_COUNT; ++MeshIndex)
+		{
+			OutComponentNeedsUpdate[ComponentIndex] = MeshIDs[ComponentOffset + MeshIndex] != ComponentData->LastMeshIdPerLOD[MeshIndex];
+		}
 	}
-	else // TODO PRP: MTBL-1653 Remove old version
-	{
-		OutComponentNeedsUpdate.AddDefaulted(NumComponents);
 
-		// Return true if at least one mesh needs to be updated
-		bool bUpdateMeshes = false;
+	// Mark as invalid if all components have empty meshes.
+	bHasInvalidMesh = bHasInvalidMesh || ComponentWithMesh.Find(true) == INDEX_NONE;
 
-		for (int32 ComponentIndex = 0; ComponentIndex < NumComponents; ++ComponentIndex)
-		{
-			USkeletalMesh* SkeletalMesh = Public->SkeletalMeshes.IsValidIndex(ComponentIndex) ? Public->SkeletalMeshes[ComponentIndex] : nullptr;
-			FCustomizableInstanceComponentData* ComponentData = GetComponentData(ComponentIndex);
-
-			// Check if the mesh is/isn't generated and it should/shouldn't
-			bool bMeshNeedsUpdate = (SkeletalMesh && !ComponentData) || (!SkeletalMesh && ComponentData);
-
-			if (SkeletalMesh)
-			{
-				bMeshNeedsUpdate = bMeshNeedsUpdate || (SkeletalMesh->GetLODNum() - 1) != OperationData->CurrentMaxLOD;
-			}
-
-			if (ComponentData)
-			{
-				for (int32 LODIndex = 0; !bMeshNeedsUpdate && LODIndex < NumLODs; ++LODIndex)
-				{
-					// Check if an LOD is generated and it shouldn't
-					const bool LODCanBeGenerated = LODIndex >= OperationData->CurrentMinLOD && LODIndex <= OperationData->CurrentMaxLOD;
-					bMeshNeedsUpdate = !LODCanBeGenerated && ComponentData->LastMeshIdPerLOD[LODIndex] != MAX_uint64;
-				}
-			}
-
-			OutComponentNeedsUpdate[ComponentIndex] = bMeshNeedsUpdate;
-
-			bUpdateMeshes = bUpdateMeshes || bMeshNeedsUpdate;
-		}
-
-		bool bFoundEmptyMesh = false;
-		bool bFoundEmptyLOD = false;
-
-		bool bFoundNonEmptyMesh = false;
-
-		for (int32 LODIndex = OperationData->CurrentMinLOD; LODIndex <= OperationData->CurrentMaxLOD && LODIndex < NumLODs; ++LODIndex)
-		{
-
-			const FInstanceUpdateData::FLOD& LOD = OperationData->InstanceUpdateData.LODs[LODIndex];
-
-			for (int32 ComponentIndex = 0; ComponentIndex < LOD.ComponentCount; ++ComponentIndex)
-			{
-				const FInstanceUpdateData::FComponent& Component = OperationData->InstanceUpdateData.Components[LOD.FirstComponent + ComponentIndex];
-
-				const mu::FResourceID LastMeshID = GetLastMeshId(Component.Id, LODIndex);
-
-				if (Component.bGenerated)
-				{
-					if (Component.Mesh)
-					{
-						OutComponentNeedsUpdate[Component.Id] = OutComponentNeedsUpdate[Component.Id] || LastMeshID != Component.MeshID;
-
-						// Don't build a degenerated mesh if something went wrong
-						if (Component.Mesh->GetVertexCount() > 0)
-						{
-							bFoundNonEmptyMesh = true;
-						}
-						else if (LOD.ComponentCount == 1)
-						{
-							bFoundEmptyMesh = true;
-						}
-					}
-					else
-					{
-						OutComponentNeedsUpdate[Component.Id] = true;
-					}
-				}
-				else
-				{
-					OutComponentNeedsUpdate[Component.Id] = OutComponentNeedsUpdate[Component.Id] || LastMeshID != MAX_uint64;
-				}
-
-				bUpdateMeshes = bUpdateMeshes || OutComponentNeedsUpdate[Component.Id];
-			}
-		}
-
-
-		if (!bFoundNonEmptyMesh)
-		{
-			bFoundEmptyLOD = true;
-			bUpdateMeshes = true;
-			UE_LOG(LogMutable, Warning, TEXT("Building instance: An LOD has no mesh geometry. This cannot be handled by Unreal."));
-		}
-
-		bHasInvalidMesh = bFoundEmptyLOD || bFoundEmptyMesh;
-		return bUpdateMeshes;
-	}
+	return !bHasInvalidMesh && OutComponentNeedsUpdate.Find(true) != INDEX_NONE;
 }
 
 

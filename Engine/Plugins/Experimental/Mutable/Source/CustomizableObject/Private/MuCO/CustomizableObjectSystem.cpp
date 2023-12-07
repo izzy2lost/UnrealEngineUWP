@@ -740,13 +740,6 @@ FAutoConsoleVariableRef CVarMaxTextureSizeToGenerate(
 	TEXT("Max texture size on Mutable textures. Mip 0 will be the first mip with max size equal or less than MaxTextureSizeToGenerate."
 		"If a texture doesn't have small enough mips, mip 0 will be the last mip available."));
 
-static bool bApplyFixPrepareSkeletons = true;
-
-static FAutoConsoleVariableRef CVarApplyFixPrepareSkeletons(
-	TEXT("mutable.ApplyFixPrepareSkeletons"), bApplyFixPrepareSkeletons,
-	TEXT("If true, Fix missing SkeletonsData when FirstLODToGenerate is greater than 0. If false, There may be a crash when generating meshes on platform that skip LODs."),
-	ECVF_Default);
-
 static FAutoConsoleVariable CVarDescriptorDebugPrint(
 	TEXT("mutable.DescriptorDebugPrint"),
 	false,
@@ -2050,135 +2043,53 @@ namespace impl
 	// This runs in a worker thread
 	void Subtask_Mutable_PrepareSkeletonData(const TSharedRef<FUpdateContextPrivate>& OperationData)
 	{
-		MUTABLE_CPUPROFILER_SCOPE(Subtask_Mutable_PrepareSkeletonData)
+		MUTABLE_CPUPROFILER_SCOPE(Subtask_Mutable_PrepareSkeletonData);
 
-		if (bApplyFixPrepareSkeletons)
+		for (FInstanceUpdateData::FComponent& Component : OperationData->InstanceUpdateData.Components)
 		{
-			for (FInstanceUpdateData::FComponent& Component : OperationData->InstanceUpdateData.Components)
+			if (!OperationData->InstanceUpdateData.Skeletons.IsValidIndex(Component.Id))
 			{
-				if (!OperationData->InstanceUpdateData.Skeletons.IsValidIndex(Component.Id))
-				{
-					OperationData->InstanceUpdateData.Skeletons.SetNum(Component.Id + 1);
-				}
-
-				FInstanceUpdateData::FSkeletonData& SkeletonData = OperationData->InstanceUpdateData.Skeletons[Component.Id];
-				SkeletonData.ComponentIndex = Component.Id;
-
-				mu::MeshPtrConst Mesh = Component.Mesh;
-				if (!Mesh)
-				{
-					continue;
-				}
-
-				// Add SkeletonIds 
-				const int32 SkeletonIDsCount = Mesh->GetSkeletonIDsCount();
-				for (int32 SkeletonIndex = 0; SkeletonIndex < SkeletonIDsCount; ++SkeletonIndex)
-				{
-					SkeletonData.SkeletonIds.AddUnique(Mesh->GetSkeletonID(SkeletonIndex));
-				}
-
-				// Append BoneMap to the array of BoneMaps
-				const TArray<uint16>& BoneMap = Mesh->GetBoneMap();
-				Component.FirstBoneMap = OperationData->InstanceUpdateData.BoneMaps.Num();
-				Component.BoneMapCount = BoneMap.Num();
-				OperationData->InstanceUpdateData.BoneMaps.Append(BoneMap);
-
-				// Add active bone indices and poses
-				const int32 MaxBoneIndex = Mesh->GetBonePoseCount();
-				Component.ActiveBones.Reserve(MaxBoneIndex);
-				for (int32 BonePoseIndex = 0; BonePoseIndex < MaxBoneIndex; ++BonePoseIndex)
-				{
-					const uint16 BoneId = Mesh->GetBonePoseBoneId(BonePoseIndex);
-
-					Component.ActiveBones.Add(BoneId);
-
-					if (SkeletonData.BoneIds.Find(BoneId) == INDEX_NONE)
-					{
-						SkeletonData.BoneIds.Add(BoneId);
-
-						FTransform3f Transform;
-						Mesh->GetBoneTransform(BonePoseIndex, Transform);
-						SkeletonData.BoneMatricesWithScale.Emplace(Transform.Inverse().ToMatrixWithScale());
-					}
-				}
-			}
-		
-			return;
-		}
-
-
-		const int32 LODCount = OperationData->InstanceUpdateData.LODs.Num();
-		const FInstanceUpdateData::FLOD& MinLOD = OperationData->InstanceUpdateData.LODs[OperationData->CurrentMinLOD];
-		const int32 ComponentCount = MinLOD.ComponentCount;
-
-		// Add SkeletonData for each component
-		OperationData->InstanceUpdateData.Skeletons.AddDefaulted(ComponentCount);
-
-		for (int32 ComponentIndex = 0; ComponentIndex < ComponentCount; ++ComponentIndex)
-		{
-			FInstanceUpdateData::FComponent& MinLODComponent = OperationData->InstanceUpdateData.Components[MinLOD.FirstComponent + ComponentIndex];
-
-			// Set the ComponentIndex
-			OperationData->InstanceUpdateData.Skeletons[ComponentIndex].ComponentIndex = MinLODComponent.Id;
-
-			// Fill the data used to generate the RefSkeletalMesh
-			TArray<uint16>& SkeletonIds = OperationData->InstanceUpdateData.Skeletons[ComponentIndex].SkeletonIds;
-			TArray<uint16>& BoneIds = OperationData->InstanceUpdateData.Skeletons[ComponentIndex].BoneIds;
-			TArray<FMatrix44f>& BoneMatricesWithScale = OperationData->InstanceUpdateData.Skeletons[ComponentIndex].BoneMatricesWithScale;
-
-			// Use first valid LOD bone count as a potential total number of bones, used for pre-allocating data arrays
-			if (MinLODComponent.Mesh && MinLODComponent.Mesh->GetSkeleton())
-			{
-				const int32 TotalPossibleBones = MinLODComponent.Mesh->GetSkeleton()->GetBoneCount();
-
-				// Out Data
-				BoneIds.Reserve(TotalPossibleBones);
-				BoneMatricesWithScale.Reserve(TotalPossibleBones);
+				OperationData->InstanceUpdateData.Skeletons.SetNum(Component.Id + 1);
 			}
 
-			for (int32 LODIndex = OperationData->CurrentMinLOD; LODIndex <= OperationData->CurrentMaxLOD && LODIndex < LODCount; ++LODIndex)
+			FInstanceUpdateData::FSkeletonData& SkeletonData = OperationData->InstanceUpdateData.Skeletons[Component.Id];
+			SkeletonData.ComponentIndex = Component.Id;
+
+			mu::MeshPtrConst Mesh = Component.Mesh;
+			if (!Mesh)
 			{
-				MUTABLE_CPUPROFILER_SCOPE(PrepareSkeletonData_LODs);
+				continue;
+			}
 
-				const FInstanceUpdateData::FLOD& CurrentLOD = OperationData->InstanceUpdateData.LODs[LODIndex];
-				FInstanceUpdateData::FComponent& CurrentLODComponent = OperationData->InstanceUpdateData.Components[CurrentLOD.FirstComponent + ComponentIndex];
-				mu::MeshPtrConst Mesh = CurrentLODComponent.Mesh;
+			// Add SkeletonIds 
+			const int32 SkeletonIDsCount = Mesh->GetSkeletonIDsCount();
+			for (int32 SkeletonIndex = 0; SkeletonIndex < SkeletonIDsCount; ++SkeletonIndex)
+			{
+				SkeletonData.SkeletonIds.AddUnique(Mesh->GetSkeletonID(SkeletonIndex));
+			}
 
-				if (!Mesh)
+			// Append BoneMap to the array of BoneMaps
+			const TArray<uint16>& BoneMap = Mesh->GetBoneMap();
+			Component.FirstBoneMap = OperationData->InstanceUpdateData.BoneMaps.Num();
+			Component.BoneMapCount = BoneMap.Num();
+			OperationData->InstanceUpdateData.BoneMaps.Append(BoneMap);
+
+			// Add active bone indices and poses
+			const int32 MaxBoneIndex = Mesh->GetBonePoseCount();
+			Component.ActiveBones.Reserve(MaxBoneIndex);
+			for (int32 BonePoseIndex = 0; BonePoseIndex < MaxBoneIndex; ++BonePoseIndex)
+			{
+				const uint16 BoneId = Mesh->GetBonePoseBoneId(BonePoseIndex);
+
+				Component.ActiveBones.Add(BoneId);
+
+				if (SkeletonData.BoneIds.Find(BoneId) == INDEX_NONE)
 				{
-					continue;
-				}
+					SkeletonData.BoneIds.Add(BoneId);
 
-				// Add SkeletonIds 
-				const int32 SkeletonIDsCount = Mesh->GetSkeletonIDsCount();
-				for (int32 SkeletonIndex = 0; SkeletonIndex < SkeletonIDsCount; ++SkeletonIndex)
-				{
-					SkeletonIds.AddUnique(Mesh->GetSkeletonID(SkeletonIndex));
-				}
-
-				// Append BoneMap to the array of BoneMaps
-				const TArray<uint16>& BoneMap = Mesh->GetBoneMap();
-				CurrentLODComponent.FirstBoneMap = OperationData->InstanceUpdateData.BoneMaps.Num();
-				CurrentLODComponent.BoneMapCount = BoneMap.Num();
-				OperationData->InstanceUpdateData.BoneMaps.Append(BoneMap);
-
-				// Add active bone indices and poses
-				const int32 MaxBoneIndex = Mesh->GetBonePoseCount();
-				CurrentLODComponent.ActiveBones.Reserve(MaxBoneIndex);
-				for (int32 BonePoseIndex = 0; BonePoseIndex < MaxBoneIndex; ++BonePoseIndex)
-				{
-					const uint16 BoneId = Mesh->GetBonePoseBoneId(BonePoseIndex);
-
-					CurrentLODComponent.ActiveBones.Add(BoneId);
-
-					if(BoneIds.Find(BoneId) == INDEX_NONE)
-					{
-						BoneIds.Add(BoneId);
-
-						FTransform3f Transform;
-						Mesh->GetBoneTransform(BonePoseIndex, Transform);
-						BoneMatricesWithScale.Emplace(Transform.Inverse().ToMatrixWithScale());
-					}
+					FTransform3f Transform;
+					Mesh->GetBoneTransform(BonePoseIndex, Transform);
+					SkeletonData.BoneMatricesWithScale.Emplace(Transform.Inverse().ToMatrixWithScale());
 				}
 			}
 		}
@@ -3355,19 +3266,9 @@ void UCustomizableObjectSystem::UnregisterImageProvider(UCustomizableSystemImage
 	GetPrivateChecked()->GetImageProviderChecked()->ImageProviders.Remove(Provider);
 }
 
-static bool bRevertCacheTextureParameters = false;
-static FAutoConsoleVariableRef CVarRevertCacheTextureParameters(
-	TEXT("mutable.RevertCacheTextureParameters"), bRevertCacheTextureParameters,
-	TEXT("If true, FUpdateContextPrivate will not cache/uncache texture parameters. If false, FUpdateContextPrivate will add an additional reference to the TextureParameters being used in the update."));
-
 
 void CacheTexturesParameters(const TArray<FName>& TextureParameters)
 {
-	if (bRevertCacheTextureParameters)
-	{
-		return;
-	}
-
 	if (!TextureParameters.IsEmpty() && UCustomizableObjectSystem::IsCreated())
 	{
 		FUnrealMutableImageProvider* ImageProvider = UCustomizableObjectSystem::GetInstance()->GetPrivateChecked()->GetImageProviderChecked();
@@ -3383,11 +3284,6 @@ void CacheTexturesParameters(const TArray<FName>& TextureParameters)
 
 void UnCacheTexturesParameters(const TArray<FName>& TextureParameters)
 {
-	if (bRevertCacheTextureParameters)
-	{
-		return;
-	}
-
 	if (!TextureParameters.IsEmpty() && UCustomizableObjectSystem::IsCreated())
 	{
 		FUnrealMutableImageProvider* ImageProvider = UCustomizableObjectSystem::GetInstance()->GetPrivateChecked()->GetImageProviderChecked();
