@@ -246,7 +246,10 @@ namespace EpicGames.Horde.Storage.Bundles.V2
 					return;
 				}
 
-				FinishPacket();
+				if (_packetWriter != null)
+				{
+					FinishPacket();
+				}
 
 				if (_encodedPacketWriter.Length == 0)
 				{
