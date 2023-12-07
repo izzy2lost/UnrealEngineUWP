@@ -93,6 +93,9 @@ protected:
 	// Validate our current connections, removing those that have timed out.
 	void ValidateConnections();
 
+	// Close a connection using its address.
+	void CloseConnection(FMessageAddress Address);
+
 	// Get the cached data struct for a subject
 	TPair<UClass*, FLiveLinkStaticDataStruct*> GetLastSubjectStaticDataStruct(FName SubjectName);
 

@@ -116,6 +116,30 @@ void FLiveLinkProvider::ValidateConnections()
 	}
 }
 
+void FLiveLinkProvider::CloseConnection(FMessageAddress Address)
+{
+	TArray<FMessageAddress> RemovedConnections;
+
+	{
+		FScopeLock Lock(&CriticalSection);
+		ConnectedAddresses.SetNumUninitialized(Algo::RemoveIf(ConnectedAddresses, [this, Address, &RemovedConnections](const FTrackedAddress& TrackedAddress) mutable
+		{
+			if (TrackedAddress.Address == Address)
+			{
+				RemovedConnections.Add(TrackedAddress.Address);
+				return true;
+			}
+			return false;
+		}));
+	}
+
+	if (RemovedConnections.Num() > 0)
+	{
+		OnConnectionsClosed(RemovedConnections);
+		OnConnectionStatusChanged.Broadcast();
+	}
+}
+
 // Get the cached data for the named subject
 FTrackedSubject& FLiveLinkProvider::GetTrackedSubject(const FName& SubjectName)
 {

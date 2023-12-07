@@ -193,9 +193,9 @@ void FLiveLinkHub::ClearClient()
 	check(LiveLinkProvider.IsValid());
 	check(LiveLinkHubClient.IsValid());
 	
-	TMap<FMessageAddress, FLiveLinkHubUEClientInfo> Clients = LiveLinkProvider->GetClientsMap();
+	TMap<FLiveLinkHubClientId, FLiveLinkHubUEClientInfo> Clients = LiveLinkProvider->GetClientsMap();
 	
-	for (const TTuple<FMessageAddress, FLiveLinkHubUEClientInfo>& Client : Clients)
+	for (const TTuple<FLiveLinkHubClientId, FLiveLinkHubUEClientInfo>& Client : Clients)
 	{
 		LiveLinkProvider->RemoveClient(Client.Key);
 	}
@@ -271,9 +271,9 @@ void FLiveLinkHub::SaveConfig()
 		LiveLinkHubConfigData.Subjects.Add(LiveLinkHubClient->GetSubjectPreset(Subject, nullptr));
 	}
 
-	const TMap<FMessageAddress, FLiveLinkHubUEClientInfo>& ClientMap = LiveLinkProvider->GetClientsMap();
+	const TMap<FLiveLinkHubClientId, FLiveLinkHubUEClientInfo>& ClientMap = LiveLinkProvider->GetClientsMap();
 	
-	for (const TTuple<FMessageAddress, FLiveLinkHubUEClientInfo>& ClientKeyVal : ClientMap)
+	for (const TTuple<FLiveLinkHubClientId, FLiveLinkHubUEClientInfo>& ClientKeyVal : ClientMap)
 	{
 		LiveLinkHubConfigData.Clients.Add(ClientKeyVal.Value);
 	}
@@ -327,7 +327,7 @@ void FLiveLinkHub::OpenConfig()
 
 			for (const FLiveLinkHubUEClientInfo& Client : ConfigData->Clients)
 			{
-				LiveLinkProvider->AddClient(Client, FMessageAddress::NewAddress());
+				LiveLinkProvider->AddClient(Client);
 			}
 		}
 	}

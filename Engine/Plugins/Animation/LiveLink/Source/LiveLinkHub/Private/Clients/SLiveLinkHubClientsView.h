@@ -23,7 +23,7 @@ class FLiveLinkHub;
 
 #define LOCTEXT_NAMESPACE "LiveLinkHub.ClientsView"
 
-DECLARE_DELEGATE_OneParam(FOnClientSelected, FMessageAddress/*ClientIdentifier*/);
+DECLARE_DELEGATE_OneParam(FOnClientSelected, FLiveLinkHubClientId/*ClientIdentifier*/);
 
 static const FName NameColumnId = "Name";
 static const FName StatusColumnId = "Status";
@@ -34,8 +34,8 @@ struct FClientTreeViewItem
 {
 	virtual ~FClientTreeViewItem() = default;
 
-	FClientTreeViewItem(FMessageAddress InClientAddress, TSharedRef<ILiveLinkHubClientsModel> InClientsModel)
-		: ClientAddress(MoveTemp(InClientAddress))
+	FClientTreeViewItem(FLiveLinkHubClientId InClientId, TSharedRef<ILiveLinkHubClientsModel> InClientsModel)
+		: ClientId(MoveTemp(InClientId))
 		, ClientsModel(MoveTemp(InClientsModel))
 	{
 	}
@@ -70,7 +70,7 @@ struct FClientTreeViewItem
 	/** Name of the tree item (client or subject name). */
 	FText Name;
 	/** Identifier of the unreal client for this item. */
-	FMessageAddress ClientAddress;
+	FLiveLinkHubClientId ClientId;
 	/** ClientsModel used to retrieve information about clients/subjects. */
 	TWeakPtr<ILiveLinkHubClientsModel> ClientsModel;
 };
@@ -78,19 +78,12 @@ struct FClientTreeViewItem
 /** Holds a client row's data. */
 struct FClientTreeViewClientItem : public FClientTreeViewItem
 {
-	FClientTreeViewClientItem(FMessageAddress InClientAddress, TSharedRef<ILiveLinkHubClientsModel> InClientsModel)
-		: FClientTreeViewItem(MoveTemp(InClientAddress), MoveTemp(InClientsModel))
+	FClientTreeViewClientItem(FLiveLinkHubClientId InClientId, TSharedRef<ILiveLinkHubClientsModel> InClientsModel)
+		: FClientTreeViewItem(MoveTemp(InClientId), MoveTemp(InClientsModel))
 	{
-		if (TSharedPtr<ILiveLinkHubClientsModel> ClientModelPtr = ClientsModel.Pin())
+		if (const TSharedPtr<ILiveLinkHubClientsModel> ClientModelPtr = ClientsModel.Pin())
 		{
-			if (TOptional<FLiveLinkHubUEClientInfo> ClientInfo = ClientModelPtr->GetClientInfo(ClientAddress))
-			{
-				Name = ClientInfo ? FText::FromString(ClientInfo->LongName) : LOCTEXT("InvalidSourceLabel", "Invalid Source");
-			}
-			else
-			{
-				ensureMsgf(false, TEXT("Client Info was invalid"));
-			}
+			Name = ClientModelPtr->GetClientDisplayName(ClientId);
 		}
 	}
 
@@ -98,22 +91,26 @@ struct FClientTreeViewClientItem : public FClientTreeViewItem
 	{
 		if (const TSharedPtr<ILiveLinkHubClientsModel> ClientsModelPtr = ClientsModel.Pin())
 		{
-			return ClientsModelPtr->IsClientEnabled(ClientAddress);
+			return ClientsModelPtr->IsClientEnabled(ClientId);
 		}
 		return false;
 	}
 
 	virtual bool IsReadOnly() const override
 	{
-		// todo: when the client list will be modified to show disconnected sources, put this in read only when client is disconnected.
-		return false;
+		if (const TSharedPtr<ILiveLinkHubClientsModel> ClientsModelPtr = ClientsModel.Pin())
+		{
+			return !ClientsModelPtr->IsClientConnected(ClientId);
+		}
+
+		return true;
 	}
 
 	virtual void SetEnabled(bool bInEnabled) override
 	{
 		if (const TSharedPtr<ILiveLinkHubClientsModel> ClientsModelPtr = ClientsModel.Pin())
 		{
-			ClientsModelPtr->SetClientEnabled(ClientAddress, bInEnabled);
+			ClientsModelPtr->SetClientEnabled(ClientId, bInEnabled);
 		}
 	}
 
@@ -121,10 +118,10 @@ struct FClientTreeViewClientItem : public FClientTreeViewItem
 	{
 		if (const TSharedPtr<ILiveLinkHubClientsModel> ClientsModelPtr = ClientsModel.Pin())
 		{
-			return ClientsModelPtr->GetClientStatus(ClientAddress);
+			return ClientsModelPtr->GetClientStatus(ClientId);
 		}
 
-		return LOCTEXT("InvalidStatus", "Invalid");
+		return LOCTEXT("InvalidStatus", "Disconnected");
 	}
 	//~ End FClientTreeViewItem interface
 };
@@ -132,8 +129,8 @@ struct FClientTreeViewClientItem : public FClientTreeViewItem
 /** Holds a subject row's data. */
 struct FClientTreeViewSubjectItem : public FClientTreeViewItem
 {
-	FClientTreeViewSubjectItem(FMessageAddress InClientAddress, FLiveLinkSubjectKey InLiveLinkSubjectKey, TSharedRef<ILiveLinkHubClientsModel> InClientsModel)
-		: FClientTreeViewItem(MoveTemp(InClientAddress), MoveTemp(InClientsModel))
+	FClientTreeViewSubjectItem(FLiveLinkHubClientId InClientId, FLiveLinkSubjectKey InLiveLinkSubjectKey, TSharedRef<ILiveLinkHubClientsModel> InClientsModel)
+		: FClientTreeViewItem(MoveTemp(InClientId), MoveTemp(InClientsModel))
 		, LiveLinkSubjectKey(MoveTemp(InLiveLinkSubjectKey))
 	{
 		const FLiveLinkClient& LiveLinkClient = IModularFeatures::Get().GetModularFeature<FLiveLinkClient>(ILiveLinkClient::ModularFeatureName);
@@ -150,7 +147,7 @@ struct FClientTreeViewSubjectItem : public FClientTreeViewItem
 	{
 		if (const TSharedPtr<ILiveLinkHubClientsModel> ClientsModelPtr = ClientsModel.Pin())
 		{
-			return ClientsModelPtr->IsSubjectEnabled(ClientAddress, LiveLinkSubjectKey);
+			return ClientsModelPtr->IsSubjectEnabled(ClientId, LiveLinkSubjectKey);
 		}
 		return false;
 	}
@@ -159,7 +156,7 @@ struct FClientTreeViewSubjectItem : public FClientTreeViewItem
 	{
 		if (const TSharedPtr<ILiveLinkHubClientsModel> ClientsModelPtr = ClientsModel.Pin())
 		{
-			return !ClientsModelPtr->IsClientEnabled(ClientAddress);
+			return !ClientsModelPtr->IsClientEnabled(ClientId);
 		}
 
 		return false;
@@ -169,7 +166,7 @@ struct FClientTreeViewSubjectItem : public FClientTreeViewItem
 	{
 		if (const TSharedPtr<ILiveLinkHubClientsModel> ClientsModelPtr = ClientsModel.Pin())
 		{
-			ClientsModelPtr->SetSubjectEnabled(ClientAddress, LiveLinkSubjectKey, bInEnabled);
+			ClientsModelPtr->SetSubjectEnabled(ClientId, LiveLinkSubjectKey, bInEnabled);
 		}
 	}
 
@@ -302,6 +299,7 @@ public:
 				.OnSelectionChanged(this, &SLiveLinkHubClientsView::OnSelectionChanged)
 				.OnGenerateRow(this, &SLiveLinkHubClientsView::OnGenerateClientRow)
 				.OnGetChildren(this, &SLiveLinkHubClientsView::OnGetChildren)
+				.OnKeyDownHandler(this, &SLiveLinkHubClientsView::OnKeyDownHandler)
 				.HeaderRow
 				(
 					SNew(SHeaderRow)
@@ -336,16 +334,18 @@ public:
 		}
 	}
 
-	/** Get the currently selected client, an invalid address if none is currently selected. */
-	FMessageAddress GetSelectedClient() const
+	/** Get the currently selected client, or an invalid optional when nothing is selected. */
+	TOptional<FLiveLinkHubClientId> GetSelectedClient() const
 	{
+		TOptional<FLiveLinkHubClientId> ClientId;
+
 		TArray<FClientTreeItemPtr> SelectedClients = TreeView->GetSelectedItems();
 		if (SelectedClients.Num())
 		{
-			return SelectedClients[0]->ClientAddress;
+			ClientId = SelectedClients[0]->ClientId;
 		}
 
-		return FMessageAddress();
+		return ClientId;
 	}
 
 private:
@@ -362,26 +362,41 @@ private:
 		OutChildren.Append(Item->Children);
 	}
 
+	/** Method to handle deleting clients when the delete key is pressed. */
+    FReply OnKeyDownHandler(const FGeometry&, const FKeyEvent& InKeyEvent)
+    {
+		if (InKeyEvent.GetKey() == EKeys::Delete || InKeyEvent.GetKey() == EKeys::BackSpace)
+    	{
+			if (TOptional<FLiveLinkHubClientId> Id = GetSelectedClient())
+			{
+				ClientsModel->RemoveClient(*Id);
+			}
+    		return FReply::Handled();
+    	}
+
+    	return FReply::Unhandled();
+    }
+
 	/** Handler called when selection changes in the list view. */
 	void OnSelectionChanged(FClientTreeItemPtr InItem, const ESelectInfo::Type InSelectInfoType)
 	{
 		if (InItem)
 		{
-			OnClientSelectedDelegate.ExecuteIfBound(InItem->ClientAddress);
+			OnClientSelectedDelegate.ExecuteIfBound(InItem->ClientId);
 		}
 	}
 
 	/** Handler called when the client list has changed. */
-	void OnClientEvent(FMessageAddress MessageAddress, ILiveLinkHubClientsModel::EClientEventType EventType)
+	void OnClientEvent(FLiveLinkHubClientId ClientId, ILiveLinkHubClientsModel::EClientEventType EventType)
 	{
 		switch (EventType)
 		{
 		case ILiveLinkHubClientsModel::EClientEventType::Connected:
 		{
-			if (!Clients.ContainsByPredicate([MessageAddress](const FClientTreeItemPtr& InClient) { return InClient->ClientAddress == MessageAddress; }))
+			if (!Clients.ContainsByPredicate([ClientId](const FClientTreeItemPtr& InClient) { return InClient->ClientId == ClientId; }))
 			{
-				TSharedPtr<FClientTreeViewClientItem> ClientItem = MakeShared<FClientTreeViewClientItem>(MessageAddress, ClientsModel.ToSharedRef());
-				ClientItem->ClientAddress = MessageAddress;
+				TSharedPtr<FClientTreeViewClientItem> ClientItem = MakeShared<FClientTreeViewClientItem>(ClientId, ClientsModel.ToSharedRef());
+				ClientItem->ClientId = ClientId;
 				InitializeClientItem(*ClientItem);
 
 				Clients.Add(ClientItem);
@@ -389,9 +404,9 @@ private:
 			}
 			break;
 		}
-		case ILiveLinkHubClientsModel::EClientEventType::Disconnected:
+		case ILiveLinkHubClientsModel::EClientEventType::Removed:
 		{
-			Clients.RemoveAll([MessageAddress](const FClientTreeItemPtr& InClient) { return InClient->ClientAddress == MessageAddress; });
+			Clients.RemoveAll([ClientId](const FClientTreeItemPtr& InClient) { return InClient->ClientId == ClientId; });
 			TreeView->RequestTreeRefresh();
 			break;
 		}
@@ -418,7 +433,7 @@ private:
 
 		for (const FLiveLinkSubjectKey& SubjectKey : LiveLinkSubjects)
 		{
-			TSharedPtr<FClientTreeViewSubjectItem> SubjectItem = MakeShared<FClientTreeViewSubjectItem>(ClientItem.ClientAddress, SubjectKey, ClientsModel.ToSharedRef());
+			TSharedPtr<FClientTreeViewSubjectItem> SubjectItem = MakeShared<FClientTreeViewSubjectItem>(ClientItem.ClientId, SubjectKey, ClientsModel.ToSharedRef());
 			ClientItem.Children.Add(SubjectItem);
 		}
 	}
@@ -441,7 +456,7 @@ private:
 	{
 		for (const FClientTreeItemPtr& Client : Clients)
 		{
-			TSharedPtr<FClientTreeViewSubjectItem> SubjectItem = MakeShared<FClientTreeViewSubjectItem>(Client->ClientAddress, SubjectKey, ClientsModel.ToSharedRef());
+			TSharedPtr<FClientTreeViewSubjectItem> SubjectItem = MakeShared<FClientTreeViewSubjectItem>(Client->ClientId, SubjectKey, ClientsModel.ToSharedRef());
 			SubjectItem->LiveLinkSubjectKey = SubjectKey;
 
 			if (!Client->Children.ContainsByPredicate([&](const TSharedPtr<FClientTreeViewItem>& Child)
@@ -487,13 +502,13 @@ private:
 	/** Build the client list. */
 	void PopulateClients()
 	{
-		TArray<FMessageAddress> ClientList = ClientsModel->GetClients();
+		TArray<FLiveLinkHubClientId> ClientList = ClientsModel->GetDiscoveredClients();
 		Clients.Reset(ClientList.Num());
 
-		for (FMessageAddress Client : ClientList)
+		for (const FLiveLinkHubClientId& Client : ClientList)
 		{
 			TSharedPtr<FClientTreeViewClientItem> ClientItem = MakeShared<FClientTreeViewClientItem>(Client, ClientsModel.ToSharedRef());
-			ClientItem->ClientAddress = Client;
+			ClientItem->ClientId = Client;
 			InitializeClientItem(*ClientItem);
 			Clients.Add(ClientItem);
 		}

@@ -72,7 +72,7 @@ public:
 	virtual bool ShouldTransmitToSubject_AnyThread(FName SubjectName, FMessageAddress Address) const override
 	{
 		FReadScopeLock Locker(ClientsMapLock);
-		if (const FLiveLinkHubUEClientInfo* ClientInfoPtr = ClientsMap.Find(Address))
+		if (const FLiveLinkHubUEClientInfo* ClientInfoPtr = ClientsMap.FindByHash(GetTypeHash(Address), Address))
 		{
 			if (!ClientInfoPtr->bEnabled)
 			{
@@ -90,21 +90,32 @@ public:
 	}
 
 	/** Manually add a client to the client map. */
-	void AddClient(const FLiveLinkHubUEClientInfo& InClientInfo, const FMessageAddress& InMessageAddress)
+	void AddClient(const FLiveLinkHubUEClientInfo& InClientInfo)
 	{
-		ClientsMap.Add(InMessageAddress, InClientInfo);
-		OnClientEventDelegate.Broadcast(InMessageAddress, EClientEventType::Connected);
+		{
+			FWriteScopeLock Locker(ClientsMapLock);
+			ClientsMap.Add(InClientInfo.Id, InClientInfo);
+		}
+
+		OnClientEventDelegate.Broadcast(InClientInfo.Id, EClientEventType::Connected);
 	}
 
 	/** Manually remove a client from the client map. */
-	void RemoveClient(const FMessageAddress& InMessageAddress)
+	virtual void RemoveClient(FLiveLinkHubClientId InClientId) override
 	{
-		ClientsMap.Remove(InMessageAddress);
-		OnClientEventDelegate.Broadcast(InMessageAddress, EClientEventType::Disconnected);
+		{
+			// Remove the client from the map so that the connection closed callback doesn't set it to disconnected status.
+			FWriteScopeLock Locker(ClientsMapLock);
+			ClientsMap.Remove(InClientId);
+		}
+
+		CloseConnection(InClientId.GetAddress());
+
+		OnClientEventDelegate.Broadcast(InClientId, EClientEventType::Removed);
 	}
 
 	/** Retrieve the existing client map. */
-	const TMap<FMessageAddress, FLiveLinkHubUEClientInfo>& GetClientsMap() const { return ClientsMap; }
+	const TMap<FLiveLinkHubClientId, FLiveLinkHubUEClientInfo>& GetClientsMap() const { return ClientsMap; }
 
 private:
 	/** Handle a connection message resulting from a livelink hub message bus source connecting to this provider. */
@@ -114,10 +125,9 @@ private:
 		ConnectMessage.LiveLinkVersion = Message.ClientInfo.LiveLinkVersion;
 		FLiveLinkProvider::HandleConnectMessage(ConnectMessage, Context);
 
-		FMessageAddress ConnectionAddress = Context->GetSender();
+		const FMessageAddress ConnectionAddress = Context->GetSender();
 
-
-		TOptional<FMessageAddress> RemovedAddress;
+		TOptional<FLiveLinkHubClientId> UpdatedClient;
 		{
 			FWriteScopeLock Locker(ClientsMapLock);
 			// Remove old entries if one is found
@@ -127,56 +137,85 @@ private:
             	if (IteratedClient.Hostname == Message.ClientInfo.Hostname && IteratedClient.LongName == Message.ClientInfo.LongName
             		&& IteratedClient.ProjectName == Message.ClientInfo.ProjectName && IteratedClient.CurrentLevel == Message.ClientInfo.CurrentLevel)
             	{
-            		RemovedAddress = It->Key;
-            		It.RemoveCurrent();
-            		break;
+            		// Only replace disconnected clients to support multiple UE instances on the same host.
+					if (IteratedClient.Status == ELiveLinkClientStatus::Disconnected)
+					{
+						FLiveLinkHubUEClientInfo RemovedInfo = MoveTemp(It->Value);
+						RemovedInfo.Id.InvalidateAddress();
+						RemovedInfo.Status = ELiveLinkClientStatus::Connected;
+						ClientsMap.Remove(It->Key);
+
+						FLiveLinkHubClientId NewId = RemovedInfo.Id;
+						ClientsMap.Add(NewId, MoveTemp(RemovedInfo));
+						UpdatedClient = NewId;
+            			break;
+					}
             	}
             }
 		}
 
-		ClientsMap.Add(ConnectionAddress, FLiveLinkHubUEClientInfo(Message.ClientInfo, ConnectionAddress));
-
-		if (RemovedAddress)
+		if (UpdatedClient)
 		{
-			OnClientEventDelegate.Broadcast(*RemovedAddress, EClientEventType::Disconnected);
+			OnClientEventDelegate.Broadcast(*UpdatedClient, EClientEventType::Modified);
 		}
-		OnClientEventDelegate.Broadcast(ConnectionAddress, EClientEventType::Connected);
+		else
+		{
+			FLiveLinkHubUEClientInfo NewClient{Message.ClientInfo, ConnectionAddress};
+			const FLiveLinkHubClientId NewClientId = NewClient.Id;
+			{
+				FWriteScopeLock Locker(ClientsMapLock);
+				ClientsMap.Add(NewClient.Id, MoveTemp(NewClient));
+			}
+
+			OnClientEventDelegate.Broadcast(NewClientId, EClientEventType::Connected);
+		}
 	}
 	
 	/** Handle a client info message being received. Happens when new information about a client is received (ie. Client has changed map) */
 	void HandleClientInfoMessage(const FLiveLinkClientInfoMessage& Message, const TSharedRef<IMessageContext, ESPMode::ThreadSafe>& Context)
 	{
-		FWriteScopeLock Locker(ClientsMapLock);
 		FMessageAddress Address = Context->GetSender();
-		if (FLiveLinkHubUEClientInfo* ClientInfo = ClientsMap.Find(Address))
-		{
-			*ClientInfo = FLiveLinkHubUEClientInfo(Message, Address);
-		}
+		FLiveLinkHubClientId Id(Address);
 
-		OnClientEventDelegate.Broadcast(Address, EClientEventType::Modified);
+		{
+			FWriteScopeLock Locker(ClientsMapLock);
+			if (FLiveLinkHubUEClientInfo* ClientInfo = ClientsMap.Find(Id))
+			{
+				*ClientInfo = FLiveLinkHubUEClientInfo(Message, Address);
+			}
+		}
+		OnClientEventDelegate.Broadcast(Id, EClientEventType::Modified);
 	}
 
 protected:
 	//~ Begin FLiveLinkProvider interface
 	virtual void OnConnectionsClosed(const TArray<FMessageAddress>& ClosedAddresses) override
 	{
-		TArray<FMessageAddress> Notifications;
+		TArray<FLiveLinkHubClientId> Notifications;
 		{
 			FWriteScopeLock Locker(ClientsMapLock);
-			// todo: If we want to show disconnected clients, we should update the status in the clients map rather than remove it.
+
 			for (FMessageAddress TrackedAddress : ClosedAddresses)
 			{
-				if (ClientsMap.Contains(TrackedAddress))
+				const FLiveLinkHubClientId Id{ TrackedAddress };
+
+				if (FLiveLinkHubUEClientInfo* FoundInfo = ClientsMap.Find(Id))
 				{
-					ClientsMap.Remove(TrackedAddress);
-					Notifications.Add(TrackedAddress);
+					FLiveLinkHubUEClientInfo RemovedInfo = MoveTemp(*FoundInfo);
+					RemovedInfo.Id.InvalidateAddress();
+					RemovedInfo.Status = ELiveLinkClientStatus::Disconnected;
+					ClientsMap.Remove(Id);
+
+					FLiveLinkHubClientId NewId = RemovedInfo.Id;
+					ClientsMap.Add(NewId, MoveTemp(RemovedInfo));
+					Notifications.Add(Id);
 				}
 			}
 		}
 
-		for (FMessageAddress TrackedAddress : Notifications)
+		for (FLiveLinkHubClientId Id : Notifications)
 		{
-			OnClientEventDelegate.Broadcast(TrackedAddress, EClientEventType::Modified);
+			OnClientEventDelegate.Broadcast(Id, EClientEventType::Modified);
 		}
 	}
 
@@ -185,15 +224,15 @@ protected:
 		return Annotations;
 	}
 
-	virtual TArray<FMessageAddress> GetClients() const override
+	virtual TArray<FLiveLinkHubClientId> GetDiscoveredClients() const override
 	{
 		FReadScopeLock Locker(ClientsMapLock);
-		TArray<FMessageAddress> ClientAddresses;
+		TArray<FLiveLinkHubClientId> ClientAddresses;
 		ClientsMap.GenerateKeyArray(ClientAddresses);
 		return ClientAddresses;
 	}
 
-	virtual TOptional<FLiveLinkHubUEClientInfo> GetClientInfo(FMessageAddress InAddress) const override
+	virtual TOptional<FLiveLinkHubUEClientInfo> GetClientInfo(FLiveLinkHubClientId InAddress) const override
 	{
 		FReadScopeLock Locker(ClientsMapLock);
 		TOptional<FLiveLinkHubUEClientInfo> ClientInfo;
@@ -204,12 +243,30 @@ protected:
 
 		return ClientInfo;
 	}
+
+	virtual FText GetClientDisplayName(FLiveLinkHubClientId InAddress) const override
+	{
+		FReadScopeLock Locker(ClientsMapLock);
+		FText DisplayName;
+
+		if (const FLiveLinkHubUEClientInfo* ClientInfoPtr = ClientsMap.Find(InAddress))
+       	{
+			DisplayName = FText::FromString(ClientInfoPtr->LongName);
+       	}
+       	else
+       	{
+       		DisplayName = LOCTEXT("InvalidSourceLabel", "Invalid Source");
+       	}
+
+       	return DisplayName;
+	}
+
 	virtual FOnClientEvent& OnClientEvent() override
 	{
 		return OnClientEventDelegate;
 	}
 
-	virtual FText GetClientStatus(FMessageAddress Client) const override
+	virtual FText GetClientStatus(FLiveLinkHubClientId Client) const override
 	{
 		FReadScopeLock Locker(ClientsMapLock);
 		if (const FLiveLinkHubUEClientInfo* ClientInfoPtr = ClientsMap.Find(Client))
@@ -217,11 +274,11 @@ protected:
 			return StaticEnum<ELiveLinkClientStatus>()->GetDisplayNameTextByValue(static_cast<int64>(ClientInfoPtr->Status));
 		}
 		
-		return LOCTEXT("InvalidStatus", "Invalid");
+		return LOCTEXT("InvalidStatus", "Disconnected");
 	}
 
 	/** Get whether a client should receive livelink data. */
-	virtual bool IsClientEnabled(FMessageAddress Client) const override
+	virtual bool IsClientEnabled(FLiveLinkHubClientId Client) const override
 	{
 		FReadScopeLock Locker(ClientsMapLock);
 		if (const FLiveLinkHubUEClientInfo* ClientInfoPtr = ClientsMap.Find(Client))
@@ -231,8 +288,18 @@ protected:
 		return false;
 	}
 
+	virtual bool IsClientConnected(FLiveLinkHubClientId Client) const override
+	{
+		FReadScopeLock Locker(ClientsMapLock);
+		if (const FLiveLinkHubUEClientInfo* ClientInfoPtr = ClientsMap.Find(Client))
+		{
+			return ClientInfoPtr->Status == ELiveLinkClientStatus::Connected;
+		}
+		return false;
+	}
+
 	/** Set whether a client should receive livelink data. */
-	virtual void SetClientEnabled(FMessageAddress Client, bool bInEnable) override
+	virtual void SetClientEnabled(FLiveLinkHubClientId Client, bool bInEnable) override
 	{
 		FWriteScopeLock Locker(ClientsMapLock);
 		if (FLiveLinkHubUEClientInfo* ClientInfoPtr = ClientsMap.Find(Client))
@@ -242,7 +309,7 @@ protected:
 	}
 
 	/** Get whether a subject is enabled on a given client. */
-	virtual bool IsSubjectEnabled(FMessageAddress Client, const FLiveLinkSubjectKey& Subject) const override
+	virtual bool IsSubjectEnabled(FLiveLinkHubClientId Client, const FLiveLinkSubjectKey& Subject) const override
 	{
 		FReadScopeLock Locker(ClientsMapLock);
 		if (const FLiveLinkHubUEClientInfo* ClientInfoPtr = ClientsMap.Find(Client))
@@ -253,7 +320,7 @@ protected:
 	}
 
 	/** Set whether a subject should receive livelink data. */
-	virtual void SetSubjectEnabled(FMessageAddress Client, const FLiveLinkSubjectKey& Subject, bool bInEnable) override
+	virtual void SetSubjectEnabled(FLiveLinkHubClientId Client, const FLiveLinkSubjectKey& Subject, bool bInEnable) override
 	{
 		FWriteScopeLock Locker(ClientsMapLock);
 		if (FLiveLinkHubUEClientInfo* ClientInfoPtr = ClientsMap.Find(Client))
@@ -273,8 +340,8 @@ protected:
 private:
 	/** Handle to the timer responsible for validating the livelinkprovider's connections.*/
 	FTimerHandle ValidateConnectionsTimer;
-	/** List of information we haved on clients we have discovered. */
-	TMap<FMessageAddress, FLiveLinkHubUEClientInfo> ClientsMap;
+	/** List of information we have on clients we have discovered. */
+	TMap<FLiveLinkHubClientId, FLiveLinkHubUEClientInfo> ClientsMap;
 	/** Delegate called when the provider receives a client change. */
 	FOnClientEvent OnClientEventDelegate;
 	/** Annotations sent with every message from this provider. In our case it's use to disambiguate a livelink hub provider from other livelink providers.*/

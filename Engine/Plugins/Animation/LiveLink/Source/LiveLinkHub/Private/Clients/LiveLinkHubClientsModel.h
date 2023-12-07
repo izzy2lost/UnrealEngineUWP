@@ -6,8 +6,8 @@
 #include "Containers/ObservableArray.h"
 
 template <typename OptionalType> struct TOptional;
+struct FLiveLinkHubClientId;
 struct FLiveLinkClientInfoMessage;
-struct FMessageAddress;
 struct FLiveLinkHubUEClientInfo;
 struct FLiveLinkSubjectKey;
 
@@ -20,11 +20,11 @@ public:
 	enum class EClientEventType
 	{
 		Connected,
-		Disconnected,
+		Removed,
 		Modified
 	};
 
-	DECLARE_MULTICAST_DELEGATE_TwoParams(FOnClientEvent, FMessageAddress, EClientEventType);
+	DECLARE_MULTICAST_DELEGATE_TwoParams(FOnClientEvent, FLiveLinkHubClientId, EClientEventType);
 
 	virtual ~ILiveLinkHubClientsModel() = default;
 
@@ -32,23 +32,32 @@ public:
 	virtual FOnClientEvent& OnClientEvent() = 0;
 
 	/** Get the status text of a client. */
-	virtual FText GetClientStatus(FMessageAddress Client) const = 0;
+	virtual FText GetClientStatus(FLiveLinkHubClientId InClient) const = 0;
 
-	/** Get the list of clients connected to the hub. */
-	virtual TArray<FMessageAddress> GetClients() const = 0;
+	/** Get the list of clients discovered by the hub. */
+	virtual TArray<FLiveLinkHubClientId> GetDiscoveredClients() const = 0;
 
 	/** Get information about a given client given its address. */
-	virtual TOptional<FLiveLinkHubUEClientInfo> GetClientInfo(FMessageAddress InAddress) const = 0;
+	virtual TOptional<FLiveLinkHubUEClientInfo> GetClientInfo(FLiveLinkHubClientId InClient) const = 0;
+
+	/** Get the name of a client. */
+	virtual FText GetClientDisplayName(FLiveLinkHubClientId InClient) const = 0;
+
+	/** Remove a client from the client list. */
+	virtual void RemoveClient(FLiveLinkHubClientId InClient) = 0;
 
 	/** Get whether a client should receive livelink data. */
-	virtual bool IsClientEnabled(FMessageAddress Client) const = 0;
+	virtual bool IsClientEnabled(FLiveLinkHubClientId InClient) const = 0;
+
+	/** Get whether a client is connected to the hub. */
+	virtual bool IsClientConnected(FLiveLinkHubClientId InClient) const = 0;
 
 	/** Set whether a client should receive livelink data. */
-	virtual void SetClientEnabled(FMessageAddress Client, bool bInEnable) = 0;
+	virtual void SetClientEnabled(FLiveLinkHubClientId InClient, bool bInEnable) = 0;
 
 	/** Get whether a subject is enabled on a given client. */
-	virtual bool IsSubjectEnabled(FMessageAddress Client, const FLiveLinkSubjectKey& Subject) const = 0;
+	virtual bool IsSubjectEnabled(FLiveLinkHubClientId InClient, const FLiveLinkSubjectKey& Subject) const = 0;
 
 	/** Set whether a subject should receive livelink data. */
-	virtual void SetSubjectEnabled(FMessageAddress Client, const FLiveLinkSubjectKey& Subject, bool bInEnable) = 0;
+	virtual void SetSubjectEnabled(FLiveLinkHubClientId InClient, const FLiveLinkSubjectKey& Subject, bool bInEnable) = 0;
 };

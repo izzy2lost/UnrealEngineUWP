@@ -38,7 +38,7 @@ public:
 	TSharedRef<SWidget> MakeClientsView()
 	{
 		return SAssignNew(ClientsView, SLiveLinkHubClientsView, ClientsModel.ToSharedRef())
-			.OnClientSelected_Raw(this, &FLiveLinkHubClientsController::OnClientSelected);
+			.OnClientSelected_Raw(this, &FLiveLinkHubClientsController::UpdateClientDetails);
 	}
 
 	/** Create the widget that displays information about a given UE client. */
@@ -63,21 +63,30 @@ public:
 
 private:
 	/** Update the client info details if we received new info about it. */
-	void OnClientEvent(FMessageAddress MessageAddress, ILiveLinkHubClientsModel::EClientEventType EventType)
+	void OnClientEvent(FLiveLinkHubClientId ClientIdentifier, ILiveLinkHubClientsModel::EClientEventType EventType)
 	{
 		switch (EventType)
 		{
 			case ILiveLinkHubClientsModel::EClientEventType::Connected:
 				break;
-			case ILiveLinkHubClientsModel::EClientEventType::Disconnected:
+			case ILiveLinkHubClientsModel::EClientEventType::Removed:
+			{
+				if (TOptional<FLiveLinkHubClientId> SelectedClient = ClientsView->GetSelectedClient())
+				{
+					if (ClientIdentifier == *SelectedClient)
+					{
+						StructDetailsView->SetStructureData(nullptr);
+					}
+				}
 				break;
+			}
 			case ILiveLinkHubClientsModel::EClientEventType::Modified:
 			{
-				if (FMessageAddress ClientAddress = ClientsView->GetSelectedClient(); ClientAddress.IsValid())
+				if (TOptional<FLiveLinkHubClientId> SelectedClient = ClientsView->GetSelectedClient())
 				{
-					if (MessageAddress == ClientAddress)
+					if (ClientIdentifier == *SelectedClient)
 					{
-						UpdateClientDetails(MessageAddress);
+						UpdateClientDetails(ClientIdentifier);
 					}
 				}
 				break;
@@ -88,30 +97,20 @@ private:
 			}
 		}
 	}
-
-	/** Handler called when a client is selected in the clients view. */
-	void OnClientSelected(FMessageAddress Client)
-	{
-		if (Client.IsValid())
-		{
-			UpdateClientDetails(Client);
-		}
-		else
-		{
-			// Disable this for the time being, this hides the details panel when you click on the empty list
-			//StructDetailsView->SetStructureData(nullptr);
-		}
-	}
 	
 	/** Handles updating client details in the client details panel. */
-	void UpdateClientDetails(FMessageAddress Client)
+	void UpdateClientDetails(FLiveLinkHubClientId Client)
 	{
 		if (TOptional<FLiveLinkHubUEClientInfo> ClientInfo = ClientsModel->GetClientInfo(Client))
 		{
 			UEClientInfo->InitializeAs<FLiveLinkHubUEClientInfo>(*ClientInfo);
 			StructDetailsView->SetStructureData(UEClientInfo);
 		}
-		
+		else
+		{
+			// Disable this for the time being, this hides the details panel when you click on the empty list
+			//StructDetailsView->SetStructureData(nullptr);
+		}
 	}
 
 private:
