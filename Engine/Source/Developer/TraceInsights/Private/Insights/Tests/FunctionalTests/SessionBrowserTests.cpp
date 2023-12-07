@@ -26,7 +26,7 @@ void FAutomationDriverUnrealInsightsSessionBrowserTest::Define()
 	BeforeEach([this]() {
 		AutomationWindow = FSlateApplication::Get().GetActiveTopLevelWindow();
 		const FString AutomationWindowName = TEXT("Automation");
-		if (AutomationWindow->GetTitle().ToString().Contains(AutomationWindowName))
+		if (AutomationWindow && AutomationWindow->GetTitle().ToString().Contains(AutomationWindowName))
 		{
 			AutomationWindow->Minimize();
 		}
