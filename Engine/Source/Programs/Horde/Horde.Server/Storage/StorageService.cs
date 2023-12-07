@@ -595,6 +595,8 @@ namespace Horde.Server.Storage
 			{
 				if (_lastState == null || !String.Equals(_lastConfigRevision, globalConfig.Revision, StringComparison.Ordinal))
 				{
+					_logger.LogDebug("Updating storage providers for config {Revision}", globalConfig.Revision);
+
 					_lastState?.Release();
 					_lastState = null;
 
