@@ -59,7 +59,6 @@ namespace UE::MultiUserClient
 	SMultiClientView::~SMultiClientView()
 	{
 		ClientManager->OnRemoteClientsChanged().RemoveAll(this);
-		SelectionModel->OnSelectionChanged().RemoveAll(this);
 		CleanClientSubscriptions();
 	}
 
