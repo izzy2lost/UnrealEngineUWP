@@ -434,7 +434,8 @@ protected:
 
 #if RHI_RAYTRACING
 	ENGINE_API int32 GetFirstValidRaytracingGeometryLODIndex() const;
-	ENGINE_API virtual void SetupRayTracingMaterials(int32 LODIndex, TArray<FMeshBatch>& Materials, bool bUseNaniteVertexFactory) const;
+	ENGINE_API virtual void SetupRayTracingMaterials(int32 LODIndex, TArray<FMeshBatch>& OutMaterials) const;
+	ENGINE_API virtual void SetupFallbackRayTracingMaterials(int32 LODIndex, TArray<FMeshBatch>& OutMaterials) const;
 #endif // RHI_RAYTRACING
 
 #if NANITE_ENABLE_DEBUG_RENDERING

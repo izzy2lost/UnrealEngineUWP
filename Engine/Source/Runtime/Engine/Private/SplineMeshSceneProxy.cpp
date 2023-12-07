@@ -379,13 +379,13 @@ void FNaniteSplineMeshSceneProxy::GetDynamicRayTracingInstances(struct FRayTraci
 	return Nanite::FSceneProxy::GetDynamicRayTracingInstances(Context, OutRayTracingInstances);
 }
 
-void FNaniteSplineMeshSceneProxy::SetupRayTracingMaterials(int32 LODIndex, TArray<FMeshBatch>& Materials, bool bUseNaniteVertexFactory) const
+void FNaniteSplineMeshSceneProxy::SetupFallbackRayTracingMaterials(int32 LODIndex, TArray<FMeshBatch>& OutMaterials) const
 {
-	Nanite::FSceneProxy::SetupRayTracingMaterials(LODIndex, Materials, bUseNaniteVertexFactory);
+	Nanite::FSceneProxy::SetupFallbackRayTracingMaterials(LODIndex, OutMaterials);
 
 	// set up the vertex factories
 	const FStaticMeshVertexFactories& VFs = RenderData->LODVertexFactories[LODIndex];
-	for (auto& MeshBatch : Materials)
+	for (auto& MeshBatch : OutMaterials)
 	{
 		MeshBatch.VertexFactory = MeshBatch.Elements[0].bUserDataIsColorVertexBuffer ? VFs.SplineVertexFactoryOverrideColorVertexBuffer : VFs.SplineVertexFactory;
 		check(MeshBatch.VertexFactory);
