@@ -140,9 +140,9 @@ namespace UE::ConcertClientSharedSlate
 			}
 		}
 
-		if (ItemsToExpand.IsEmpty())
+		if (!ItemsToExpand.IsEmpty())
 		{
-			ReplicatedObjects->SetSelectedItems(ItemsToExpand, true);
+			ReplicatedObjects->SetExpandedItems(ItemsToExpand, true);
 		}
 	}
 	
