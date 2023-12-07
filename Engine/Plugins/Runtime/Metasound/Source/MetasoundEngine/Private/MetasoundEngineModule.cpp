@@ -82,7 +82,6 @@ public:
 		FModuleManager::Get().LoadModuleChecked("MetasoundFrontend");
 		FModuleManager::Get().LoadModuleChecked("MetasoundStandardNodes");
 		FModuleManager::Get().LoadModuleChecked("MetasoundGenerator");
-		FModuleManager::Get().LoadModuleChecked("AudioCodecEngine");
 		FModuleManager::Get().LoadModuleChecked("WaveTable");
 		
 		// Set GCObject referencer for metasound frontend node registry. The MetaSound
