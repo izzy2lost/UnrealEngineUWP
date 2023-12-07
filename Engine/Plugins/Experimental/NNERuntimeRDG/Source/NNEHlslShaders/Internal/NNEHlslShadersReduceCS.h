@@ -23,6 +23,7 @@ namespace UE::NNEHlslShaders::Internal
 		Prod,
 		Sum,
 		SumExp,//Should not be used for multiple axis reduction
+		AverageInvStdDev,//Should not be used for multiple axis reduction
 		MAX
 	};
 
@@ -46,12 +47,14 @@ namespace UE::NNEHlslShaders::Internal
 			SHADER_PARAMETER(int32, NumElemBeforeAxis)
 			SHADER_PARAMETER(int32, AxisSize)
 			SHADER_PARAMETER(int32, NumElemAfterAxis)
+			SHADER_PARAMETER(float, Epsilon)
 			SHADER_PARAMETER_RDG_BUFFER_SRV(Buffer<float>, Input)
 			SHADER_PARAMETER_RDG_BUFFER_UAV(RWBuffer<float>, Output)
+			SHADER_PARAMETER_RDG_BUFFER_UAV(RWBuffer<float>, Output2)
 		END_SHADER_PARAMETER_STRUCT()
 
 		static void ModifyCompilationEnvironment(const FGlobalShaderPermutationParameters& InParameters, FShaderCompilerEnvironment& OutEnvironment);
 		static void FillInParameters(TConstArrayView<uint32> Shape, int32 Axis, FParameters* Parameters);
-		static void EnqueueRDG(FRDGBuilder& GraphBuilder, FParameters* Parameters, FRDGBufferRef Input, FRDGBufferRef Output, EReduceOperatorType OperatorType);
+		static void EnqueueRDG(FRDGBuilder& GraphBuilder, FParameters* Parameters, FRDGBufferRef Input, FRDGBufferRef Output, EReduceOperatorType OperatorType, FRDGBufferRef Output2 = {});
 	};
 } // UE::NNEHlslShaders::Internal

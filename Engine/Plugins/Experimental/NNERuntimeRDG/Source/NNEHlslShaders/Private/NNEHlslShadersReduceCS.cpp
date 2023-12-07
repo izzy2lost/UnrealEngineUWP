@@ -32,14 +32,18 @@ namespace UE::NNEHlslShaders::Internal
 		Parameters->NumElemBeforeAxis = NumElemBeforeAxis;
 		Parameters->AxisSize = Shape[Axis];
 		Parameters->NumElemAfterAxis = NumElemAfterAxis;
+		Parameters->Epsilon = 0;
 	}
 
-	void TReduceCS::EnqueueRDG(FRDGBuilder& GraphBuilder, TReduceCS::FParameters* Parameters, FRDGBufferRef Input, FRDGBufferRef Output, EReduceOperatorType OperatorType)
+	void TReduceCS::EnqueueRDG(FRDGBuilder& GraphBuilder, TReduceCS::FParameters* Parameters, FRDGBufferRef Input, FRDGBufferRef Output, EReduceOperatorType OperatorType, FRDGBufferRef Output2)
 	{
 		check(Parameters);
 
 		Parameters->Input = GraphBuilder.CreateSRV(FRDGBufferSRVDesc(Input, PF_R32_FLOAT));
 		Parameters->Output = GraphBuilder.CreateUAV(FRDGBufferUAVDesc(Output, PF_R32_FLOAT));
+		if (Output2 != nullptr) {
+			Parameters->Output2 = GraphBuilder.CreateUAV(FRDGBufferUAVDesc(Output2, PF_R32_FLOAT));
+		}
 
 		TReduceCS::FPermutationDomain PermutationVector;
 		PermutationVector.Set<TReduceCS::FReduceType>(OperatorType);
