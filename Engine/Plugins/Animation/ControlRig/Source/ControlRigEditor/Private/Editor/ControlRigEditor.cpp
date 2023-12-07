@@ -151,15 +151,15 @@ FControlRigEditor::~FControlRigEditor()
 			EditMode->OnEditorClosed();
 		}
 
-		RigBlueprint->OnSetObjectBeingDebugged().RemoveAll(&SchematicModel);
-		RigBlueprint->OnHierarchyModified().RemoveAll(&SchematicModel);
-		RigBlueprint->GetModularRigController()->OnModified().RemoveAll(&SchematicModel);
-
 		RigBlueprint->OnRigTypeChanged().RemoveAll(this);
 		if (RigBlueprint->IsModularRig())
 		{
 			RigBlueprint->GetModularRigController()->OnModified().RemoveAll(this);
 			RigBlueprint->OnModularRigCompiled().RemoveAll(this);
+
+			RigBlueprint->OnSetObjectBeingDebugged().RemoveAll(&SchematicModel);
+			RigBlueprint->OnHierarchyModified().RemoveAll(&SchematicModel);
+			RigBlueprint->GetModularRigController()->OnModified().RemoveAll(&SchematicModel);
 		}
 	}
 
