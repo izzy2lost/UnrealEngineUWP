@@ -3046,9 +3046,14 @@ void UAnimInstance::PerformLinkedLayerOverlayOperation(TSubclassOf<UAnimInstance
 	if (IAnimClassInterface* AnimBlueprintClass = IAnimClassInterface::GetFromClass(GetClass()))
 	{
 		UClass* NewClass = InClass.Get();
+		USkeletalMeshComponent* MeshComp = GetSkelMeshComponent();
 
-		// Make sure we have valid objects as initialization can route back out of linked instances into this outer graph
-		GetProxyOnAnyThread<FAnimInstanceProxy>().InitializeObjects(this);
+		MeshComp->ForEachAnimInstance([](UAnimInstance* InInstance)
+		{
+			// Make sure we have valid objects on all instances as initialization can route back
+			// out of linked instances into other graphs, including 'this'
+			InInstance->GetProxyOnAnyThread<FAnimInstanceProxy>().InitializeObjects(InInstance);
+		});
 
 		// Map of group name->nodes, per class, to run under that group instance
 		TMap<UClass*, TMap<FName, TArray<FAnimNode_LinkedAnimLayer*, TInlineAllocator<4>>, TInlineSetAllocator<4>>, TInlineSetAllocator<4>> LayerNodesToSet;
@@ -3084,8 +3089,6 @@ void UAnimInstance::PerformLinkedLayerOverlayOperation(TSubclassOf<UAnimInstance
 				LayerNodes.Add(Layer);
 			}
 		}
-
-		USkeletalMeshComponent* MeshComp = GetSkelMeshComponent();
 
 		auto UnlinkLayerNodesInInstance = [](UAnimInstance* InAnimInstance, TArrayView<FAnimNode_LinkedAnimLayer*> InLayerNodes)
 		{
