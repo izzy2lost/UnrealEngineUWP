@@ -1986,16 +1986,14 @@ TArray<FOptimusComputeGraphInfo> UOptimusDeformer::CompileNodeGraphToComputeGrap
 					else
 					{
 						// Plain connections
-						// 1. Kernel <-> Kernel
+						// 1. Kernel <-> Kernel, validation should make sure the source kernel is not looped or both kernel belong to the same loop
 						// 2. Kernel <-> Data Interface
 						// 3. Kernel -> index/count pin on Loop Terminals 
 						const FOptimusRoutedConstNode SourceRoutedNode = {OtherNode, OtherPins[0].TraversalContext};
-						const int32 SourceLoopIndex = NodeToMaxLoopIndex[SourceRoutedNode];	
-						if (ensure(SourceLoopIndex == 0))
-						{
-							const FOptimusInstancedPin InstancedSourcePin = {FOptimusInstancedNode(SourceRoutedNode, SourceLoopIndex), OtherPin};
-							TargetPinToSourcePin.Add(InstancedTargetPin) = InstancedSourcePin;	
-						}	
+						const int32 SourceLoopIndex = FMath::Clamp(InstancedNode.LoopIndex, 0, NodeToMaxLoopIndex[SourceRoutedNode]);
+						
+						const FOptimusInstancedPin InstancedSourcePin = {FOptimusInstancedNode(SourceRoutedNode, SourceLoopIndex), OtherPin};
+						TargetPinToSourcePin.Add(InstancedTargetPin) = InstancedSourcePin;	
 					}
 				}
 			}
@@ -2352,7 +2350,17 @@ TArray<FOptimusComputeGraphInfo> UOptimusDeformer::CompileNodeGraphToComputeGrap
 		GraphInfo.GraphType = GraphType;
 		GraphInfo.ComputeGraph = NewObject<UOptimusComputeGraph>(this, GraphInfo.GraphName);
 
-		GraphInfos.Add(GraphInfo);
+		if (GraphType != InNodeGraph->GraphType)
+		{
+			// Make sure generated graphs run before the user created graph
+			check(GraphType == EOptimusNodeGraphType::Setup);
+			GraphInfos.Insert(GraphInfo, 0);
+		}
+		else
+		{
+			GraphInfos.Add(GraphInfo);
+		}
+		
 	}
 
 	for (int32 GraphIndex = 0 ; GraphIndex < GraphInfos.Num(); GraphIndex++)

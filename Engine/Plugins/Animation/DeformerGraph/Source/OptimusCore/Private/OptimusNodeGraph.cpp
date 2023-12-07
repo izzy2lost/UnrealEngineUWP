@@ -1741,7 +1741,7 @@ TSet<UOptimusComponentSourceBinding*> UOptimusNodeGraph::GetComponentSourceBindi
 
 bool UOptimusNodeGraph::IsPinMutable(const UOptimusNodePin* InNodePin) const
 {
-	TSet<FOptimusRoutedConstNode> VisitedNodes;
+	TSet<FOptimusRoutedConstNodePin> VisitedPins;
 	TQueue<FOptimusRoutedConstNodePin> WorkingSet;
 
 	// If given an input pin, find the other side, since output pin provides mutability definition
@@ -1797,12 +1797,10 @@ bool UOptimusNodeGraph::IsPinMutable(const UOptimusNodePin* InNodePin) const
 				if (ensure(ConnectedPin.NodePin != nullptr))
 				{
 					FOptimusRoutedConstNodePin CollectedNodePin{ConnectedPin.NodePin, ConnectedPin.TraversalContext};
-					const UOptimusNode *NextNode = ConnectedPin.NodePin->GetOwningNode();
-					FOptimusRoutedConstNode CollectedNode{NextNode, ConnectedPin.TraversalContext};
 
-					if (!VisitedNodes.Contains(CollectedNode))
+					if (!VisitedPins.Contains(CollectedNodePin))
 					{
-						VisitedNodes.Add(CollectedNode);
+						VisitedPins.Add(CollectedNodePin);
 						WorkingSet.Enqueue(CollectedNodePin);
 					}
 				}
@@ -1815,12 +1813,10 @@ bool UOptimusNodeGraph::IsPinMutable(const UOptimusNodePin* InNodePin) const
 			{
 				const UOptimusNodePin* NextPin = LoopTerminal->GetPinCounterpart(NodePin, EOptimusTerminalType::Return, EOptimusNodePinDirection::Output);
 				
-				const UOptimusNode*	NextNode = LoopTerminal->GetOtherTerminal();
-				FOptimusRoutedConstNode CollectedNode{NextNode, WorkItem.TraversalContext};
-
-				if (!VisitedNodes.Contains(CollectedNode))
+				FOptimusRoutedConstNodePin CollectedNodePin{NextPin, WorkItem.TraversalContext};	
+				if (!VisitedPins.Contains(CollectedNodePin))
 				{
-					VisitedNodes.Add(CollectedNode);
+					VisitedPins.Add(CollectedNodePin);
 					WorkingSet.Enqueue({NextPin, WorkItem.TraversalContext});
 				}
 			}
