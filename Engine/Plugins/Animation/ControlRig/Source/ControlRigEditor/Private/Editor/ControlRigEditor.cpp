@@ -151,6 +151,12 @@ FControlRigEditor::~FControlRigEditor()
 			EditMode->OnEditorClosed();
 		}
 
+		if (RigBlueprint->IsModularRig())
+		{
+			RigBlueprint->OnSetObjectBeingDebugged().RemoveAll(&SchematicModel);
+			RigBlueprint->OnHierarchyModified().RemoveAll(&SchematicModel);
+		}
+
 		RigBlueprint->OnRigTypeChanged().RemoveAll(this);
 		if (RigBlueprint->IsModularRig())
 		{
