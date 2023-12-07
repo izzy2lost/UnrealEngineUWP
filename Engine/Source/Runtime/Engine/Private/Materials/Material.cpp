@@ -181,6 +181,11 @@ FMaterialResource::~FMaterialResource()
 int32 FMaterialResource::CompilePropertyAndSetMaterialProperty(EMaterialProperty Property, FMaterialCompiler* Compiler, EShaderFrequency OverrideShaderFrequency, bool bUsePreviousFrameTime) const
 {
 #if WITH_EDITOR
+	if (Compiler->ShouldStopTranslating())
+	{
+		return INDEX_NONE;
+	}
+
 	// needs to be called in this function!!
 	// sets CurrentShaderFrequency
 	Compiler->SetMaterialProperty(Property, OverrideShaderFrequency, bUsePreviousFrameTime);

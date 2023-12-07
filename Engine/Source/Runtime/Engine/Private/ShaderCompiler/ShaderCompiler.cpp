@@ -5215,26 +5215,29 @@ void FShaderCompilerStats::RegisterJobBatch(int32 NumJobs, EExecutionType ExecTy
 
 void FShaderCompilerStats::FMaterialCounters::WriteStatSummary(const TCHAR* AggregatedSuffix)
 {
+	auto CalcTimePercentage = [&](double Val) {
+		return  (int)round(Val / FMath::Max(1e-6, MaterialTranslateTotalTimeSec) * 100);
+	};
+
 	UE_LOG(LogShaderCompilers, Display, TEXT("=== Material stats%s ==="), AggregatedSuffix);
 	UE_LOG(LogShaderCompilers, Display, TEXT("Materials Cooked:        %d"), NumMaterialsCooked);
 	UE_LOG(LogShaderCompilers, Display, TEXT("Materials Translated:    %d"), MaterialTranslateCalls);
-	UE_LOG(LogShaderCompilers, Display, TEXT("Material Translate Time: %.2f s"), MaterialTranslateTimeSec);
-	UE_LOG(LogShaderCompilers, Display, TEXT("Material Cache Time: %.2f s"), MaterialCacheTimeSec);
+	UE_LOG(LogShaderCompilers, Display, TEXT("Material Total Translate Time: %.2f s"), MaterialTranslateTotalTimeSec);
+	UE_LOG(LogShaderCompilers, Display, TEXT("Material Translation Only: %.2f s (%d%%)"), MaterialTranslateTranslationOnlyTimeSec, CalcTimePercentage(MaterialTranslateTranslationOnlyTimeSec));
+	UE_LOG(LogShaderCompilers, Display, TEXT("Material DDC Serialization Only: %.2f s (%d%%)"), MaterialTranslateSerializationOnlyTimeSec, CalcTimePercentage(MaterialTranslateSerializationOnlyTimeSec));
 
-	int HitsPercentage = MaterialTranslateCalls ? MaterialCacheHits * 100 / MaterialTranslateCalls : 0;
+	int HitsPercentage = MaterialTranslateCalls ? (int)roundf(float(MaterialCacheHits) / MaterialTranslateCalls * 100) : 0;
 	UE_LOG(LogShaderCompilers, Display, TEXT("Material Cache Hits: %d (%d%%)"), MaterialCacheHits, HitsPercentage);
-
-	UE_LOG(LogShaderCompilers, Display, TEXT("Material translations not on DDC: %d"), MaterialTranslationSkippedDDCCount);
 }
 
 void FShaderCompilerStats::FMaterialCounters::GatherAnalytics(TArray<FAnalyticsEventAttribute>& Attributes)
 {
 	Attributes.Emplace(TEXT("Material_NumMaterialsCooked"), NumMaterialsCooked);
 	Attributes.Emplace(TEXT("Material_MaterialTranslateCalls"), MaterialTranslateCalls);
-	Attributes.Emplace(TEXT("Material_MaterialTranslateTimeSec"), MaterialTranslateTimeSec);
-	Attributes.Emplace(TEXT("Material_MaterialCacheTimeSec"), MaterialCacheTimeSec);
+	Attributes.Emplace(TEXT("Material_MaterialTranslateTimeSec"), MaterialTranslateTotalTimeSec);
+	Attributes.Emplace(TEXT("Material_MaterialTranslateTranslationOnlyTimeSec"), MaterialTranslateTranslationOnlyTimeSec);
+	Attributes.Emplace(TEXT("Material_MaterialTranslateSerializationOnlyTimeSec"), MaterialTranslateSerializationOnlyTimeSec);
 	Attributes.Emplace(TEXT("Material_MaterialCacheHits"), MaterialCacheHits);
-	Attributes.Emplace(TEXT("Material_MaterialTranslationSkippedDDCCount"), MaterialTranslationSkippedDDCCount);
 }
 
 void FShaderCompilerStats::IncrementMaterialCook()
@@ -5243,23 +5246,19 @@ void FShaderCompilerStats::IncrementMaterialCook()
 	MaterialCounters.NumMaterialsCooked++;
 }
 
-void FShaderCompilerStats::IncrementMaterialTranslated(double InTime)
+void FShaderCompilerStats::IncrementMaterialTranslated(double InTotalTime, double InTranslationOnlyTime, double InSerializeTime)
 {
 	FScopeLock Lock(&CompileStatsLock);
 	MaterialCounters.MaterialTranslateCalls++;
-	MaterialCounters.MaterialTranslateTimeSec += InTime;
+	MaterialCounters.MaterialTranslateTotalTimeSec += InTotalTime;
+	MaterialCounters.MaterialTranslateTranslationOnlyTimeSec += InTranslationOnlyTime;
+	MaterialCounters.MaterialTranslateSerializationOnlyTimeSec += InSerializeTime;
 }
 
-void FShaderCompilerStats::IncrementMaterialCacheHit(double InCacheTime)
+void FShaderCompilerStats::IncrementMaterialCacheHit()
 {
 	FScopeLock Lock(&CompileStatsLock);
 	MaterialCounters.MaterialCacheHits++;
-	MaterialCounters.MaterialCacheTimeSec += InCacheTime;
-}
-
-void FShaderCompilerStats::IncrementMaterialTranslationSkippedDDC()
-{
-	MaterialCounters.MaterialTranslationSkippedDDCCount++;
 }
 
 void FShaderCompilerStats::RegisterCookedShaders(uint32 NumCooked, float CompileTime, EShaderPlatform Platform, const FString MaterialPath, FString PermutationString)
