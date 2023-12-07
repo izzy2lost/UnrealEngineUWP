@@ -2,7 +2,7 @@
 
 #pragma once
 
-#include "IStreamExtender.h"
+#include "Extension/IStreamExtender.h"
 #include "Misc/Attribute.h"
 
 class UObject;
@@ -18,8 +18,7 @@ namespace UE::ConcertClientSharedSlate
 		FStreamExtenderBySettings(TAttribute<const FConcertReplicationEditorSettings*> InReplicationSettingsAttribute);
 
 		//~ Begin IStreamExtender Interface
-		virtual void ExtendObjectProperties(UObject& Object, FEnumerateProperties ForEachPropertyToAdd) override;
-		virtual void AppendAdditionalObjects(UObject& Object, FEnumerateObjects ForEachAdditionalObject) override;
+		virtual void ExtendStream(UObject& ExtendedObject, IStreamExtensionContext& Context) override;
 		//~ End IStreamExtender Interface
 
 	private:

@@ -3,6 +3,7 @@
 #include "Replication/Editor/Model/StreamExtenderBySettings.h"
 
 #include "Replication/Data/ConcertPropertySelection.h"
+#include "Replication/Editor/Model/Extension/IStreamExtensionContext.h"
 #include "Replication/Settings/ConcertReplicationEditorSettings.h"
 
 namespace UE::ConcertClientSharedSlate
@@ -11,31 +12,20 @@ namespace UE::ConcertClientSharedSlate
 		: ReplicationSettingsAttribute(MoveTemp(InReplicationSettingsAttribute))
 	{}
 
-	void FStreamExtenderBySettings::ExtendObjectProperties(UObject& Object, FEnumerateProperties ForEachPropertyToAdd)
+	void FStreamExtenderBySettings::ExtendStream(UObject& ExtendedObject, IStreamExtensionContext& Context)
 	{
 		const FConcertReplicationEditorSettings* Settings = ReplicationSettingsAttribute.Get();
 		if (!ensure(Settings))
 		{
 			return;
 		}
-		
-		Settings->AddDefaultPropertiesFromSettings(*Object.GetClass(), [&ForEachPropertyToAdd](FConcertPropertyChain&& PropertyChain)
+		Settings->AddDefaultPropertiesFromSettings(*ExtendedObject.GetClass(), [&ExtendedObject, &Context](FConcertPropertyChain&& PropertyChain)
 		{
-			ForEachPropertyToAdd(MoveTemp(PropertyChain));
+			Context.AddPropertyTo(ExtendedObject, MoveTemp(PropertyChain));
 		});
-	}
-
-	void FStreamExtenderBySettings::AppendAdditionalObjects(UObject& Object, FEnumerateObjects ForEachAdditionalObject)
-	{
-		const FConcertReplicationEditorSettings* Settings = ReplicationSettingsAttribute.Get();
-		if (!ensure(Settings))
+		Settings->AddAdditionalObjectsFromSettings(ExtendedObject, [&ExtendedObject, &Context](UObject& AdditionalObject)
 		{
-			return;
-		}
-		
-		Settings->AddAdditionalObjectsFromSettings(Object, [&ForEachAdditionalObject](UObject& AdditionalObject)
-		{
-			ForEachAdditionalObject(AdditionalObject);
+			Context.AddAdditionalObject(AdditionalObject);
 		});
 	}
 }

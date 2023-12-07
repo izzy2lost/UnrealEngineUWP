@@ -2,15 +2,35 @@
 
 #include "GenericReplicationStreamModel.h"
 
+#include "ConcertLogGlobal.h"
 #include "Replication/PropertyChainUtils.h"
 #include "Replication/Data/ObjectReplicationMap.h"
+#include "Replication/Editor/Model/Extension/IStreamExtender.h"
+#include "Replication/Editor/Model/Extension/IStreamExtensionContext.h"
 
 #include "Algo/AllOf.h"
 #include "Containers/Queue.h"
-#include "Replication/Editor/Model/IStreamExtender.h"
 
 namespace UE::ConcertClientSharedSlate
 {
+	namespace Private
+	{
+		/** @return Whether any property was added */
+		static bool AddParentProperties(const UStruct& Class, const FConcertPropertyChain& PropertyToAdd, TArray<FConcertPropertyChain>& ReplicatedProperties)
+		{
+			bool bAddedAtLeastOne = false;
+			ConcertSyncCore::PropertyChain::ForEachReplicatableConcertProperty(Class, [&bAddedAtLeastOne, &ReplicatedProperties, &PropertyToAdd](FConcertPropertyChain&& Property)
+				{
+					if (Property.IsParentOf(PropertyToAdd))
+					{
+						bAddedAtLeastOne |= ReplicatedProperties.AddUnique(Property) != INDEX_NONE;
+					}
+					return EBreakBehavior::Continue;
+				});
+			return bAddedAtLeastOne;
+		}
+	}
+
 	FGenericReplicationStreamModel::FGenericReplicationStreamModel(
 		TAttribute<FObjectReplicationMap*> InReplicationMapAttribute,
 		TSharedPtr<IStreamExtender> InExtender
@@ -187,17 +207,11 @@ namespace UE::ConcertClientSharedSlate
 		for (const FConcertPropertyChain& AddedProperty : Properties)
 		{
 			bAddedAtLeastOne |= ReplicatedProperties.AddUnique(AddedProperty) != INDEX_NONE;
-
 			// Parent properties must also be added
 			// Not exactly efficient to iterate through the hierarchy for every removed item but it should be fine... Properties.Num() == 1 is the most common case
-			ConcertSyncCore::PropertyChain::ForEachReplicatableConcertProperty(*Class, [&bAddedAtLeastOne, &AssignedProperties, &AddedProperty](FConcertPropertyChain&& Property)
-			{
-				if (Property.IsParentOf(AddedProperty))
-				{
-					bAddedAtLeastOne |= AssignedProperties->PropertySelection.ReplicatedProperties.AddUnique(Property) != INDEX_NONE;
-				}
-				return EBreakBehavior::Continue;
-			});
+			bAddedAtLeastOne |= Private::AddParentProperties(*Class, AddedProperty, ReplicatedProperties);
+			
+			// TODO UE-202079: Make sure to append FConcertPropertyChain::InternalContainerPropertyValueName if needed
 		}
 
 		if (bAddedAtLeastOne)
@@ -257,28 +271,60 @@ namespace UE::ConcertClientSharedSlate
 			return;
 		}
 
-		TQueue<UObject*> ObjectsToProcess;
-		ObjectsToProcess.Enqueue(&AddedObject);
-
-		UObject* CurrentObject;
-		while (ObjectsToProcess.Dequeue(CurrentObject))
+		class FExtensionContext : public IStreamExtensionContext
 		{
-			FReplicatedObjectInfo& ObjectInfo = ReplicationMap.ReplicatedObjects[CurrentObject];
-			Extender->ExtendObjectProperties(*CurrentObject, [&ObjectInfo](FConcertPropertyChain PropertyChain)
-			{
-				ObjectInfo.PropertySelection.ReplicatedProperties.AddUnique(MoveTemp(PropertyChain));
-			});
+		public:
 
-			Extender->AppendAdditionalObjects(*CurrentObject, [&ReplicationMap, &ObjectsAddedSoFar, &ObjectsToProcess](UObject& AdditionalObject)
+			TQueue<UObject*> ObjectsToProcess;
+			FObjectReplicationMap& ReplicationMap;
+			TArray<UObject*>& ObjectsAddedSoFar;
+
+			explicit FExtensionContext(FObjectReplicationMap& ReplicationMap, TArray<UObject*>& ObjectsAddedSoFar)
+				: ReplicationMap(ReplicationMap)
+				, ObjectsAddedSoFar(ObjectsAddedSoFar)
+			{}
+
+			virtual void AddPropertyTo(UObject& Object, FConcertPropertyChain&& PropertyChain) override
 			{
-				if (!ObjectsAddedSoFar.Contains(&AdditionalObject))
+				AddAdditionalObject(Object);
+				FReplicatedObjectInfo& ObjectInfo = ReplicationMap.ReplicatedObjects[&Object];
+
+				constexpr bool bLog = false;
+				const FProperty* ResolvedProperty = PropertyChain.ResolveProperty(*Object.GetClass(), bLog);
+				if (!ResolvedProperty || !ConcertSyncCore::PropertyChain::IsReplicatableProperty(*ResolvedProperty))
 				{
-					ObjectsAddedSoFar.AddUnique(&AdditionalObject);
-					ReplicationMap.ReplicatedObjects.FindOrAdd(&AdditionalObject)
-						.ClassPath = AdditionalObject.GetClass();
-					ObjectsToProcess.Enqueue(&AdditionalObject);
+					UE_LOG(LogConcert, Warning, TEXT("Property \"%s\" is not a valid property to assign to object \"%s\"."), *PropertyChain.ToString(), *Object.GetPathName());
+					return;
 				}
-			});
+
+				if (!ObjectInfo.PropertySelection.ReplicatedProperties.Contains(PropertyChain))
+				{
+					TArray<FConcertPropertyChain>& Properties = ObjectInfo.PropertySelection.ReplicatedProperties;
+					Properties.Emplace(MoveTemp(PropertyChain));
+					Private::AddParentProperties(*Object.GetClass(), PropertyChain, Properties);
+					// TODO UE-202079: Make sure to append FConcertPropertyChain::InternalContainerPropertyValueName if needed
+				}
+			}
+			
+			virtual void AddAdditionalObject(UObject& Object) override
+			{
+				if (!ObjectsAddedSoFar.Contains(&Object))
+				{
+					ObjectsAddedSoFar.AddUnique(&Object);
+					ReplicationMap.ReplicatedObjects.FindOrAdd(&Object)
+						.ClassPath = Object.GetClass();
+					ObjectsToProcess.Enqueue(&Object);
+				}
+			}
+		};
+
+		FExtensionContext Context(ReplicationMap, ObjectsAddedSoFar);
+		Context.ObjectsToProcess.Enqueue(&AddedObject);
+		
+		UObject* CurrentObject;
+		while (Context.ObjectsToProcess.Dequeue(CurrentObject))
+		{
+			Extender->ExtendStream(*CurrentObject, Context);
 		}
 	}
 }

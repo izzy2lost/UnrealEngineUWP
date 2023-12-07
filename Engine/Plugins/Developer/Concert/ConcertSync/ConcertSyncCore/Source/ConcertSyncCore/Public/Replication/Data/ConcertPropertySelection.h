@@ -21,12 +21,17 @@ struct CONCERTSYNCCORE_API FConcertPropertyChain
 	/**
 	 * The name of inner properties of containers (array, set, map), which are either primitive or native serialized structs.
 	 * 
-	 * Note that inner properties are only included if they are at the end of the path (and only for primitive or native serialized structs!), e.g.
+	 * Inner properties are included if they are at the end of the path (and only for primitive or native serialized structs!).
+	 * Cases:
 	 * - ArrayOfStructs.ArrayOfFloats.Value
-	 *	This means there is an array property called ArrayOfStructs containing structs. The contained struct has an array of floats property
+	 *	There is an array property called ArrayOfStructs containing structs. The contained struct has an array of floats property
 	 *	called ArrayOfFloats. Value corresponds to FArrayProperty::Inner and is called InternalContainerPropertyValueName.
-	 *	
-	 * - but not ArrayOfStructs.Value.ArrayOfFloats.Value.
+	 * - ArrayOfStructs.ArrayOfFloats
+	 *  Similar situation but only the size of the array will be replicated. The elements are default initialized.
+	 * - ArrayOfStructs.Value
+	 *  There is an array property called ArrayOfStructs and the struct has a native Serialize() function.
+	 *  
+	 * - BUT not ArrayOfStructs.Value.ArrayOfFloats.Value.
 	 *	This path would imply a different situation in which ArrayOfStructs contains a struct with a struct property called Value;
 	 *	Value's owning struct property would contain an array of floats called ArrayOfFloats.
 	 */

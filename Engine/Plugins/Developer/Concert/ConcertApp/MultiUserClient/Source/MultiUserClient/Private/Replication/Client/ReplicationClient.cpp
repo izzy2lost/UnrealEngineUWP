@@ -2,11 +2,10 @@
 
 #include "ReplicationClient.h"
 
-#include "MultiUserReplicationSettings.h"
 #include "Assets/MultiUserReplicationClientPreset.h"
 #include "Replication/Editor/Model/IEditableReplicationStreamModel.h"
-#include "Replication/Editor/Model/StreamExtenderBySettings.h"
 #include "Replication/ReplicationWidgetFactories.h"
+#include "Replication/Stream/Discovery/MultiUserStreamExtender.h"
 #include "Replication/Stream/StreamChangeTracker.h"
 #include "Replication/Submission/Data/AuthoritySubmission.h"
 
@@ -28,16 +27,11 @@ namespace UE::MultiUserClient
 		, AuthoritySynchronizer(MoveTemp(InAuthoritySynchronizer))
 		, SubmissionWorkflow(MoveTemp(InSubmissionWorkflow))
 		, SubmissionQueue(*SubmissionWorkflow)
-		, LocalClientEditModel(ConcertClientSharedSlate::CreatePropertySelectionModel(
+		, LocalClientEditModel(CreatePropertySelectionModel(
 			*ClientContentStorage->Stream,
 			ClientContentStorage->Stream->MakeReplicationMapGetterAttribute(),
-			// Use MU settings for auto adding properties & objects
-			MakeShared<ConcertClientSharedSlate::FStreamExtenderBySettings>(
-				TAttribute<const FConcertReplicationEditorSettings*>::CreateLambda([]()
-				{
-					return &UMultiUserReplicationSettings::Get()->ReplicationEditorSettings;
-				}))
-			))
+			MakeShared<FMultiUserStreamExtender>())
+			)
 		, LocalClientStreamDiffer(
 			GetStreamSynchronizer(),
 			ClientContentStorage->Stream->MakeReplicationMapGetterAttribute(),
