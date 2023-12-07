@@ -9,6 +9,7 @@ public class UMG : ModuleRules
 		PrivateDependencyModuleNames.AddRange(
 			new string[] {
 				"Core",
+				"TraceLog",
 				"CoreUObject",
 				"DeveloperSettings",
 				"Engine",

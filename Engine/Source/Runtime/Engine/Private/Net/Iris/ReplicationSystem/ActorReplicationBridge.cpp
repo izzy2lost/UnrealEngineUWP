@@ -30,11 +30,13 @@
 #include "Engine/Level.h"
 #include "Engine/World.h"
 #include "GameFramework/Actor.h"
+#include "HAL/LowLevelMemStats.h"
 #include "Net/DataBunch.h"
 #include "Net/DataChannel.h"
 #include "Net/Core/Connection/NetCloseResult.h"
 #include "Net/Core/Misc/NetSubObjectRegistry.h"
 #include "Net/NetSubObjectRegistryGetter.h"
+#include "ProfilingDebugging/AssetMetadataTrace.h"
 #include "Templates/Casts.h"
 #include "UObject/Package.h"
 #include <limits>
@@ -566,6 +568,9 @@ FObjectReplicationBridgeInstantiateResult UActorReplicationBridge::BeginInstanti
 
 			if (Archetype)
 			{
+				LLM_SCOPE_DYNAMIC_STAT_OBJECTPATH(Archetype->GetPackage(), ELLMTagSet::Assets);
+				LLM_SCOPE_DYNAMIC_STAT_OBJECTPATH(Archetype->GetClass(), ELLMTagSet::AssetClasses);
+				UE_TRACE_METADATA_SCOPE_ASSET(Archetype, Archetype->GetClass());
 				// For streaming levels, it's possible that the owning level has been made not-visible but is still loaded.
 				// In that case, the level will still be found but the owning world will be invalid.
 				// If that happens, wait to spawn the Actor until the next time the level is streamed in.

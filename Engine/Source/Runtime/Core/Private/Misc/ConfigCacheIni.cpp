@@ -12,6 +12,7 @@
 #include "Math/Vector4.h"
 #include "Stats/Stats.h"
 #include "HAL/IConsoleManager.h"
+#include "HAL/LowLevelMemStats.h"
 #include "HAL/LowLevelMemTracker.h"
 #include "Misc/CoreDelegates.h"
 #include "Misc/App.h"
@@ -22,6 +23,7 @@
 #include "Misc/StringBuilder.h"
 #include "Misc/Paths.h"
 #include "ProfilingDebugging/CpuProfilerTrace.h"
+#include "ProfilingDebugging/AssetMetadataTrace.h"
 #include "Serialization/MemoryReader.h"
 #include "Serialization/MemoryWriter.h"
 #include "Serialization/LargeMemoryReader.h"
@@ -755,6 +757,12 @@ static void WarnAboutKeyRemap(const FString& OldValue, const FString& NewValue, 
 
 void FConfigFile::CombineFromBuffer(const FString& Buffer, const FString& FileHint)
 {
+	static const FName ConfigFileClassName = TEXT("ConfigFile");
+	const FName FileName = FName(*FileHint);
+	LLM_SCOPE_DYNAMIC_STAT_OBJECTPATH_FNAME(FileName, ELLMTagSet::Assets);
+	LLM_SCOPE_DYNAMIC_STAT_OBJECTPATH_FNAME(ConfigFileClassName, ELLMTagSet::AssetClasses);
+	UE_TRACE_METADATA_SCOPE_ASSET_FNAME(FileName, ConfigFileClassName, FileName);
+
 	const TCHAR* Ptr = *Buffer;
 	FConfigSection* CurrentSection = nullptr;
 	FString CurrentSectionName;
@@ -986,6 +994,12 @@ void FConfigFile::CombineFromBuffer(const FString& Buffer, const FString& FileHi
  */
 void FConfigFile::ProcessInputFileContents(FStringView Contents, const FString& FileHint)
 {
+	static const FName ConfigFileClassName = TEXT("ConfigFile");
+	const FName FileName = FName(*FileHint);
+	LLM_SCOPE_DYNAMIC_STAT_OBJECTPATH_FNAME(FileName, ELLMTagSet::Assets);
+	LLM_SCOPE_DYNAMIC_STAT_OBJECTPATH_FNAME(ConfigFileClassName, ELLMTagSet::AssetClasses);
+	UE_TRACE_METADATA_SCOPE_ASSET_FNAME(FileName, ConfigFileClassName, FileName);
+
 	const TCHAR* Ptr = Contents.Len() > 0 ? Contents.GetData() : nullptr;
 	FConfigSection* CurrentSection = nullptr;
 	FString CurrentSectionName;

@@ -11,6 +11,8 @@
 #include "Misc/Paths.h"
 #include "Misc/DataDrivenPlatformInfoRegistry.h"
 #include "ProfilingDebugging/CpuProfilerTrace.h"
+#include "ProfilingDebugging/AssetMetadataTrace.h"
+#include "HAL/LowLevelMemStats.h"
 
 namespace
 {
@@ -331,6 +333,7 @@ static void LoadAnIniFile(const FString& FilenameToLoad, FConfigFile& ConfigFile
 bool FConfigContext::PerformLoad()
 {
 	LLM_SCOPE(ELLMTag::ConfigSystem);
+	static const FName ConfigContextClassName = TEXT("ConfigContext");
 
 	// if bIsBaseIniName is false, that means the .ini is a ready-to-go .ini file, and just needs to be loaded into the FConfigFile
 	if (!bIsHierarchicalConfig)
@@ -347,15 +350,24 @@ bool FConfigContext::PerformLoad()
 			DestIniFilename = FString::Printf(TEXT("%s/%s.ini"), *ProjectConfigDir, *BaseIniName);
 		}
 
+		const FName BaseName = FName(*BaseIniName);
+		LLM_SCOPE_DYNAMIC_STAT_OBJECTPATH_FNAME(BaseName, ELLMTagSet::Assets);
+		LLM_SCOPE_DYNAMIC_STAT_OBJECTPATH_FNAME(ConfigContextClassName, ELLMTagSet::AssetClasses);
+		UE_TRACE_METADATA_SCOPE_ASSET_FNAME(BaseName, ConfigContextClassName, BaseName);
+
 		// load the .ini file straight up
 		LoadAnIniFile(*DestIniFilename, *ConfigFile);
 
-		ConfigFile->Name = FName(*BaseIniName);
+		ConfigFile->Name = BaseName;
 		ConfigFile->PlatformName.Reset();
 		ConfigFile->bHasPlatformName = false;
 	}
 	else
 	{
+		const FName BaseName = FName(*BaseIniName);
+		LLM_SCOPE_DYNAMIC_STAT_OBJECTPATH_FNAME(BaseName, ELLMTagSet::Assets);
+		LLM_SCOPE_DYNAMIC_STAT_OBJECTPATH_FNAME(ConfigContextClassName, ELLMTagSet::AssetClasses);
+		UE_TRACE_METADATA_SCOPE_ASSET_FNAME(BaseName, ConfigContextClassName, BaseName);
 #if DISABLE_GENERATED_INI_WHEN_COOKED
 		if (BaseIniName != TEXT("GameUserSettings"))
 		{
@@ -384,7 +396,7 @@ bool FConfigContext::PerformLoad()
 		// just write out the exact same thing it read in!
 		bool bNeedsWrite = GenerateDestIniFile();
 
-		ConfigFile->Name = FName(*BaseIniName);
+		ConfigFile->Name = BaseName;
 		ConfigFile->PlatformName = Platform;
 		ConfigFile->bHasPlatformName = true;
 
