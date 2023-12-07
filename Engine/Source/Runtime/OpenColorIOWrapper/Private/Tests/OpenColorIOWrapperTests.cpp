@@ -1,33 +1,24 @@
 // Copyright Epic Games, Inc. All Rights Reserved.
 
 #include "CoreTypes.h"
+#include "Misc/AutomationTest.h"
+
+#if WITH_DEV_AUTOMATION_TESTS && WITH_OCIO
+
 #include "ColorSpace.h"
 #include "Logging/LogMacros.h"
-#include "Math/NumericLimits.h"
 #include "Math/UnrealMathUtility.h"
-#include "Misc/AutomationTest.h"
 #include "OpenColorIOWrapper.h"
 #include "TransferFunctions.h"
-
-#if WITH_DEV_AUTOMATION_TESTS
-
-#if WITH_OCIO
-THIRD_PARTY_INCLUDES_START
-#include "OpenColorIO/OpenColorIO.h"
-THIRD_PARTY_INCLUDES_END
-#endif
 
 DEFINE_LOG_CATEGORY_STATIC(LogUnrealOpenColorIOTest, Log, All);
 
 IMPLEMENT_SIMPLE_AUTOMATION_TEST(FOpenColorIOTransferFunctionsTest, "System.OpenColorIO.DecodeToWorkingColorSpace", EAutomationTestFlags::EditorContext | EAutomationTestFlags::EngineFilter)
 bool FOpenColorIOTransferFunctionsTest::RunTest(const FString& Parameters)
 {
-	bool bSuccess = true;
-
-#if WITH_OCIO
-	using namespace OCIO_NAMESPACE;
 	using namespace UE::Color;
 
+	bool bSuccess = true;
 	const FLinearColor TestColor = FLinearColor(0.9f, 0.5f, 0.2f, 1.0f);
 
 	for (uint8 TestEncoding = static_cast<uint8>(EEncoding::None); TestEncoding < static_cast<uint8>(EEncoding::Max); ++TestEncoding)
@@ -93,8 +84,6 @@ bool FOpenColorIOTransferFunctionsTest::RunTest(const FString& Parameters)
 	}
 
 	bSuccess &= TestEqual(TEXT("OpenColorIO: Name hash collision test"), Keys.Num(), Count);
-
-#endif
 
 	return bSuccess;
 }
