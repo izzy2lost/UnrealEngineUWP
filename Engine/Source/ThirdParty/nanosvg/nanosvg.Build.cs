@@ -1,6 +1,5 @@
-// Fill out your copyright notice in the Description page of Project Settings.
+// Copyright Epic Games, Inc. All Rights Reserved.
 
-using System.IO;
 using UnrealBuildTool;
 
 public class Nanosvg : ModuleRules
@@ -9,6 +8,11 @@ public class Nanosvg : ModuleRules
 	{
 		PublicDefinitions.Add("NSVG_USE_BGRA=1");
 
-		Type = ModuleType.External;
+		PrivateDependencyModuleNames.AddRange(
+			new string[]
+			{
+				"Core"
+			}
+		);
 	}
 }
