@@ -63,7 +63,12 @@ public:
 
 	UPROPERTY()
 	FVector Normal;
-	
+
+private:
+	UPROPERTY()
+	bool bOldOffset_DEPRECATED;
+
+public:
 	UPROPERTY(EditAnywhere, Category = MeshClipParameters, meta = (DisplayName = "Max Effect Radius", ToolTip = "The maximum distance from the origin of the widget where vertices will be affected. If negative, there will be no limit."))
 	float MaxEffectRadius;
 

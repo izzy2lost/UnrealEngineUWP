@@ -115,8 +115,9 @@ void UCustomizableObjectNodeMeshClipMorph::Serialize(FArchive& Ar)
 
 	Ar.UsingCustomVersion(FCustomizableObjectCustomVersion::GUID);
 
-	if (Ar.CustomVer(FCustomizableObjectCustomVersion::GUID) < FCustomizableObjectCustomVersion::PostLoadToCustomVersion
-		&& bLocalStartOffset)
+	if (Ar.CustomVer(FCustomizableObjectCustomVersion::GUID) < FCustomizableObjectCustomVersion::PostLoadToCustomVersion &&
+		bOldOffset_DEPRECATED &&
+		bLocalStartOffset)
 	{
 		// Previous Offset
 		FVector Tangent, Binormal;
