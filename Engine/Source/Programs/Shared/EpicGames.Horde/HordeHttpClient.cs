@@ -2,6 +2,7 @@
 
 using System;
 using System.Collections.Generic;
+using System.IO;
 using System.Net.Http;
 using System.Net.Http.Headers;
 using System.Net.Http.Json;
@@ -17,12 +18,15 @@ using EpicGames.Horde.Projects;
 using EpicGames.Horde.Secrets;
 using EpicGames.Horde.Server;
 using EpicGames.Horde.Storage.Clients;
+using EpicGames.Horde.Tools;
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Logging;
 using Polly;
 using Polly.Extensions.Http;
 using Polly.Retry;
 using Polly.Timeout;
+
+#pragma warning disable CA2234
 
 namespace EpicGames.Horde
 {
@@ -50,6 +54,11 @@ namespace EpicGames.Horde
 
 		static readonly JsonSerializerOptions s_jsonSerializerOptions = CreateJsonSerializerOptions();
 		internal static JsonSerializerOptions JsonSerializerOptions => s_jsonSerializerOptions;
+
+		/// <summary>
+		/// Base address for the Horde server
+		/// </summary>
+		public Uri BaseUrl => _httpClient.BaseAddress ?? throw new InvalidOperationException("Expected Horde server base address to be configured");
 
 		/// <summary>
 		/// Constructor
@@ -252,6 +261,42 @@ namespace EpicGames.Horde
 				queryParams.Add("TzOffset", tzOffset.Value.ToString());
 			}
 			return GetAsync<List<UtilizationTelemetryResponse>>(_httpClient, $"api/v1/reports/utilization/{endDate}?{queryParams}", cancellationToken);
+		}
+
+		#endregion
+
+		#region Tools
+
+		/// <summary>
+		/// Enumerates all the available tools.
+		/// </summary>
+		public Task<GetToolsSummaryResponse> GetToolsAsync(CancellationToken cancellationToken = default)
+		{
+			return GetAsync<GetToolsSummaryResponse>(_httpClient, "api/v1/tools", cancellationToken);
+		}
+
+		/// <summary>
+		/// Gets information about a particular tool
+		/// </summary>
+		public Task<GetToolResponse> GetToolAsync(ToolId id, CancellationToken cancellationToken = default)
+		{
+			return GetAsync<GetToolResponse>(_httpClient, $"api/v1/tools/{id}", cancellationToken);
+		}
+
+		/// <summary>
+		/// Gets information about a particular deployment
+		/// </summary>
+		public Task<GetToolDeploymentResponse> GetToolDeploymentAsync(ToolId id, ToolDeploymentId deploymentId, CancellationToken cancellationToken = default)
+		{
+			return GetAsync<GetToolDeploymentResponse>(_httpClient, $"api/v1/tools/{id}/deployments/{deploymentId}", cancellationToken);
+		}
+
+		/// <summary>
+		/// Gets a zip stream for a particular deployment
+		/// </summary>
+		public async Task<Stream> GetToolDeploymentZipAsync(ToolId id, ToolDeploymentId deploymentId, CancellationToken cancellationToken = default)
+		{
+			return await _httpClient.GetStreamAsync($"api/v1/tools/{id}/deployments/{deploymentId}?action=download", cancellationToken);
 		}
 
 		#endregion
