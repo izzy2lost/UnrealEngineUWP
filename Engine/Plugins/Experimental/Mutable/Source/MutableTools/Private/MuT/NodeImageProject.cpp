@@ -10,7 +10,7 @@
 #include "MuT/NodePrivate.h"
 #include "MuT/NodeProjector.h"
 #include "MuT/NodeScalar.h"
-
+#include "MuR/Image.h"
 
 
 namespace mu

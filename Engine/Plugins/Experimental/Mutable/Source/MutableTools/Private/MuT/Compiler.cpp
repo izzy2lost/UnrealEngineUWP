@@ -20,6 +20,7 @@
 #include "MuR/ParametersPrivate.h"
 #include "MuR/Platform.h"
 #include "MuR/Serialisation.h"
+#include "MuR/MutableRuntimeModule.h"
 #include "MuR/System.h"
 #include "MuT/AST.h"
 #include "MuT/ASTOpParameter.h"

@@ -6,11 +6,11 @@
 
 #include "MuR/Settings.h"
 #include "MuR/Operations.h"
-#include "MuR/ImagePrivate.h"
+#include "MuR/Image.h"
 #include "MuR/MutableString.h"
 #include "MuR/ModelPrivate.h"
-#include "MuR/MeshPrivate.h"
-#include "MuR/InstancePrivate.h"
+#include "MuR/Mesh.h"
+#include "MuR/Instance.h"
 #include "MuR/ParametersPrivate.h"
 #include "MuR/MutableTrace.h"
 

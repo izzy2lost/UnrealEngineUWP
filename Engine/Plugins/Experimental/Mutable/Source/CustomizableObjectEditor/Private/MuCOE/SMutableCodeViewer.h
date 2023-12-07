@@ -9,6 +9,7 @@
 #include "Widgets/SCompoundWidget.h"
 #include "Widgets/Input/SSearchBox.h"
 #include "Engine/Texture.h"
+#include "MuR/Mesh.h"
 #include "UObject/SoftObjectPtr.h"
 
 class STableViewBase;

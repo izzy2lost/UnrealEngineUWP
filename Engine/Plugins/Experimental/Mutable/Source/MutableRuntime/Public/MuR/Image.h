@@ -24,12 +24,16 @@ namespace mu::MemoryCounters
 
 namespace mu
 {
-
 	// Forward declarations
 	class Image;
 
 	typedef Ptr<Image> ImagePtr;
 	typedef Ptr<const Image> ImagePtrConst;
+
+	MUTABLE_DEFINE_ENUM_SERIALISABLE( EBlendType );
+	MUTABLE_DEFINE_ENUM_SERIALISABLE( ECompositeImageMode );
+	MUTABLE_DEFINE_ENUM_SERIALISABLE( ESamplingMethod );
+	MUTABLE_DEFINE_ENUM_SERIALISABLE( EMinFilterMethod );
 
     //! \brief 2D image resource with mipmaps.
 	//! \ingroup runtime
@@ -410,6 +414,62 @@ namespace mu
 	/** */
 	MUTABLERUNTIME_API void ImageSwizzle(Image* Result, const Ptr<const Image> Sources[], const uint8 Channels[]);
 
+	MUTABLERUNTIME_API inline EImageFormat GetUncompressedFormat(EImageFormat Format)
+	{
+		check(Format < EImageFormat::IF_COUNT);
 
+		EImageFormat Result = Format;
+
+		switch (Result)
+		{
+		case EImageFormat::IF_L_UBIT_RLE: Result = EImageFormat::IF_L_UBYTE; break;
+		case EImageFormat::IF_L_UBYTE_RLE: Result = EImageFormat::IF_L_UBYTE; break;
+		case EImageFormat::IF_RGB_UBYTE_RLE: Result = EImageFormat::IF_RGB_UBYTE; break;
+        case EImageFormat::IF_RGBA_UBYTE_RLE: Result = EImageFormat::IF_RGBA_UBYTE; break;
+        case EImageFormat::IF_BC1: Result = EImageFormat::IF_RGBA_UBYTE; break;
+        case EImageFormat::IF_BC2: Result = EImageFormat::IF_RGBA_UBYTE; break;
+        case EImageFormat::IF_BC3: Result = EImageFormat::IF_RGBA_UBYTE; break;
+        case EImageFormat::IF_BC4: Result = EImageFormat::IF_L_UBYTE; break;
+        case EImageFormat::IF_BC5: Result = EImageFormat::IF_RGB_UBYTE; break;
+		case EImageFormat::IF_ASTC_4x4_RGB_LDR: Result = EImageFormat::IF_RGB_UBYTE; break;
+		case EImageFormat::IF_ASTC_4x4_RGBA_LDR: Result = EImageFormat::IF_RGBA_UBYTE; break;
+		case EImageFormat::IF_ASTC_4x4_RG_LDR: Result = EImageFormat::IF_RGB_UBYTE; break;
+		case EImageFormat::IF_ASTC_6x6_RGB_LDR: Result = EImageFormat::IF_RGB_UBYTE; break;
+		case EImageFormat::IF_ASTC_6x6_RGBA_LDR: Result = EImageFormat::IF_RGBA_UBYTE; break;
+		case EImageFormat::IF_ASTC_6x6_RG_LDR: Result = EImageFormat::IF_RGB_UBYTE; break;
+		case EImageFormat::IF_ASTC_8x8_RGB_LDR: Result = EImageFormat::IF_RGB_UBYTE; break;
+		case EImageFormat::IF_ASTC_8x8_RGBA_LDR: Result = EImageFormat::IF_RGBA_UBYTE; break;
+		case EImageFormat::IF_ASTC_8x8_RG_LDR: Result = EImageFormat::IF_RGB_UBYTE; break;
+		case EImageFormat::IF_ASTC_10x10_RGB_LDR: Result = EImageFormat::IF_RGB_UBYTE; break;
+		case EImageFormat::IF_ASTC_10x10_RGBA_LDR: Result = EImageFormat::IF_RGBA_UBYTE; break;
+		case EImageFormat::IF_ASTC_10x10_RG_LDR: Result = EImageFormat::IF_RGB_UBYTE; break;
+		case EImageFormat::IF_ASTC_12x12_RGB_LDR: Result = EImageFormat::IF_RGB_UBYTE; break;
+		case EImageFormat::IF_ASTC_12x12_RGBA_LDR: Result = EImageFormat::IF_RGBA_UBYTE; break;
+		case EImageFormat::IF_ASTC_12x12_RG_LDR: Result = EImageFormat::IF_RGB_UBYTE; break;
+		default: break;
+		}
+
+		return Result;
+	}
+
+	//---------------------------------------------------------------------------------------------
+	//! Use with care.
+	//---------------------------------------------------------------------------------------------
+	template<class T>
+	Ptr<T> CloneOrTakeOver( const T* source )
+	{
+		Ptr<T> result;
+		if (source->IsUnique())
+		{
+			result = const_cast<T*>(source);
+		}
+		else
+		{
+			result = source->Clone();
+		}
+
+		return result;
+	}
+	
 }
 

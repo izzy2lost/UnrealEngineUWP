@@ -4,6 +4,7 @@
 
 
 #include "MuR/Platform.h"
+#include "MuR/MutableRuntimeModule.h"
 #include "Logging/LogMacros.h"
 #include "HAL/LowLevelMemTracker.h"
 #include "HAL/IConsoleManager.h"

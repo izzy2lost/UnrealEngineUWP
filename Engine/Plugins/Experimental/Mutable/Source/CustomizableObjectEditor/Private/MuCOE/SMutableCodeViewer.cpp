@@ -25,7 +25,7 @@
 #include "MuCOE/SMutableStringViewer.h"
 #include "MuCOE/UnrealEditorPortabilityHelpers.h"
 #include "MuR/SystemPrivate.h"
-#include "MuT/ErrorLogPrivate.h"
+#include "MuT/ErrorLog.h"
 #include "MuT/Streams.h"
 #include "MuT/TypeInfo.h"
 #include "Widgets/SNullWidget.h"

@@ -9,9 +9,10 @@
 #include "MuR/Operations.h"
 #include "MuR/ExtensionData.h"
 #include "MuR/ExtensionDataStreamer.h"
-#include "MuR/ImagePrivate.h"
-#include "MuR/MeshPrivate.h"
+#include "MuR/Image.h"
+#include "MuR/Mesh.h"
 #include "MuR/ParametersPrivate.h"
+#include "MuR/MutableRuntimeModule.h"
 
 #define MUTABLE_MAX_RUNTIME_PARAMETERS_PER_STATE	64
 #define MUTABLE_GROW_BORDER_VALUE					2

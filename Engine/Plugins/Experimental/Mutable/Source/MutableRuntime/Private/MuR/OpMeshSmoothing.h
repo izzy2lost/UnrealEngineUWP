@@ -15,6 +15,7 @@
 #include "MuR/Mesh.h"
 #include "MuR/MeshPrivate.h"
 #include "MuR/MutableTrace.h"
+#include "MuR/MutableRuntimeModule.h"
 
 
 namespace mu

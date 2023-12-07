@@ -30,6 +30,8 @@
 #include <utility>
 #include <set>
 
+#include "MuT/Compiler.h"
+
 namespace std
 {
 
@@ -177,8 +179,6 @@ namespace mu
     typedef TArray<Ptr<ASTOp>> ASTOpList;
     typedef TSet<Ptr<ASTOp>> ASTOpSet;
 
-
-	typedef TFunction<Ptr<Image>(int32)> FReferencedResourceFunc;
 
     //! Detailed optimization flags
     struct FModelOptimizationOptions

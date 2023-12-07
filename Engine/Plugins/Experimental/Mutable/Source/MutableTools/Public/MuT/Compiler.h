@@ -2,7 +2,6 @@
 
 #pragma once
 
-#include "MuT/AST.h"
 #include "MuR/Ptr.h"
 #include "MuR/RefCounted.h"
 #include "MuR/Image.h"
@@ -30,6 +29,8 @@ namespace mu
 
     class Node;
     class NodeTransformedObject;
+
+	typedef TFunction<Ptr<Image>(int32)> FReferencedResourceFunc;
 
     //! \brief Options used to compile the models with a compiler.
     class MUTABLETOOLS_API CompilerOptions : public RefCounted

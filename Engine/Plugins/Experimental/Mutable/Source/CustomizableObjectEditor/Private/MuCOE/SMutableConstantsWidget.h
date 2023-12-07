@@ -5,6 +5,7 @@
 #include "MuR/Image.h"
 #include "MuR/Mesh.h"
 #include "MuR/Operations.h"
+#include "MuR/ModelPrivate.h"
 #include "Widgets/Views/SHeaderRow.h"
 #include "Widgets/Views/STileView.h"
 

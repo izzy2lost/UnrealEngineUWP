@@ -34,6 +34,7 @@
 #include "MuR/SerialisationPrivate.h"
 #include "MuR/Settings.h"
 #include "MuR/SystemPrivate.h"
+#include "MuR/MutableRuntimeModule.h"
 #include "Stats/Stats2.h"
 #include "Templates/RefCounting.h"
 #include "Templates/SharedPointer.h"

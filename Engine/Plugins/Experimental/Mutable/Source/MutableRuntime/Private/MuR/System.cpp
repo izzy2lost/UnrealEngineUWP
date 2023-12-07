@@ -29,6 +29,7 @@
 #include "MuR/Platform.h"
 #include "MuR/Serialisation.h"
 #include "MuR/SystemPrivate.h"
+#include "MuR/MutableRuntimeModule.h"
 #include "Templates/SharedPointer.h"
 #include "Templates/Tuple.h"
 #include "Trace/Detail/Channel.h"

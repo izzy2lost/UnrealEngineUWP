@@ -6,6 +6,7 @@
 #include "MuT/NodeImageLayerPrivate.h"
 #include "MuT/NodeImageLayerColour.h"
 #include "MuT/NodeColour.h"
+#include "MuR/Image.h"
 
 
 namespace mu

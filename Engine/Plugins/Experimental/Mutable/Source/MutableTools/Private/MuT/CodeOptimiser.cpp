@@ -23,6 +23,8 @@
 
 #include <unordered_set>
 
+#include "MuR/MutableRuntimeModule.h"
+
 namespace mu
 {
 

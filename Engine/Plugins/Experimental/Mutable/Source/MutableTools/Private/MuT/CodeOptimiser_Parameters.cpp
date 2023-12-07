@@ -36,6 +36,8 @@
 #include <memory>
 #include <utility>
 
+#include "MuR/MutableRuntimeModule.h"
+
 
 namespace mu
 {

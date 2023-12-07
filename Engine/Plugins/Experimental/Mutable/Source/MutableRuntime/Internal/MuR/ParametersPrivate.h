@@ -8,7 +8,7 @@
 #include "MuR/Parameters.h"
 #include "MuR/SerialisationPrivate.h"
 #include "MuR/Operations.h"
-#include "MuR/ImagePrivate.h"
+#include "MuR/Image.h"
 
 #include "MuR/Model.h"
 

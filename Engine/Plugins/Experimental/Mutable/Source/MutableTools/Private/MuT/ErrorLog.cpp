@@ -20,6 +20,7 @@
 #include "MuR/Platform.h"
 #include "MuR/Skeleton.h"
 #include "MuR/System.h"
+#include "MuR/MutableRuntimeModule.h"
 #include "MuT/ErrorLogPrivate.h"
 #include "Templates/Tuple.h"
 #include "Trace/Detail/Channel.h"

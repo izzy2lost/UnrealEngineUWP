@@ -6,6 +6,7 @@
 #include "Misc/AssertionMacros.h"
 #include "MuT/NodeImageNormalCompositePrivate.h"
 #include "MuT/NodePrivate.h"
+#include "MuR/Image.h"
 
 
 namespace mu

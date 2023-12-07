@@ -3,7 +3,6 @@
 #pragma once
 
 #include "MuR/Image.h"
-#include "MuR/Platform.h"
 #include "MuR/SerialisationPrivate.h"
 #include "HAL/PlatformMath.h"
 #include "HAL/UnrealMemory.h"
