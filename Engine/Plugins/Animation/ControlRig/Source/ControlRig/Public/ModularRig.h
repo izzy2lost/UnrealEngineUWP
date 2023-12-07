@@ -68,11 +68,17 @@ public:
 
 	TArray<FRigModuleInstance*> CachedChildren;
 
+	FString GetShortName() const;
+	FString GetLongName() const
+	{
+		return GetPath();
+	}
 	FString GetPath() const;
 	FString GetNamespace() const;
 	UControlRig* GetRig() const;
 	void SetRig(UControlRig* InRig);
 	bool ContainsRig(const UControlRig* InRig) const;
+	const FRigModuleReference* GetModuleReference() const;
 };
 
 USTRUCT(BlueprintType)

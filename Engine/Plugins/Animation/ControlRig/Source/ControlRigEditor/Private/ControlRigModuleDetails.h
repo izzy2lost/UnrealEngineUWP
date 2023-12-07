@@ -22,6 +22,7 @@
 #include "ScopedTransaction.h"
 #include "Styling/AppStyle.h"
 #include "Algo/Transform.h"
+#include "IPropertyUtilities.h"
 
 class IPropertyHandle;
 
@@ -39,6 +40,12 @@ public:
 	}
 
 	FText GetName() const;
+	void SetName(const FText& InValue, ETextCommit::Type InCommitType, const TSharedRef<IPropertyUtilities> PropertyUtilities);
+	bool OnVerifyNameChanged(const FText& InText, FText& OutErrorMessage);
+	FText GetShortName() const;
+	void SetShortName(const FText& InValue, ETextCommit::Type InCommitType, const TSharedRef<IPropertyUtilities> PropertyUtilities);
+	bool OnVerifyShortNameChanged(const FText& InText, FText& OutErrorMessage);
+	FText GetLongName() const;
 	FText GetRigClassPath() const;
 	TArray<FRigModuleConnector> GetConnectors() const;
 	FRigElementKeyRedirector GetConnections() const;

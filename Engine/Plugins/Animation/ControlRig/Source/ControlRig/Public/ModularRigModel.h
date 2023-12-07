@@ -22,6 +22,8 @@ enum class EModularRigNotification : uint8
 
 	ModuleConfigValueChanged,
 
+	ModuleShortNameChanged,
+
 	/** MAX - invalid */
 	Max UMETA(Hidden),
 };
@@ -33,18 +35,28 @@ struct CONTROLRIG_API FRigModuleReference
 
 	FRigModuleReference()
 		: Name(NAME_None)
+		, ShortName()
+		, bShortNameBasedOnPath(true)
 		, ParentPath(FString())
 		, Class(nullptr)
 	{}
 	
 	FRigModuleReference(const FName& InName, TSubclassOf<UControlRig> InClass, const FString& InParentPath)
 		: Name(InName)
+		, ShortName()
+		, bShortNameBasedOnPath(true)
 		, ParentPath(InParentPath)
 		, Class(InClass)
 	{}
 
 	UPROPERTY()
 	FName Name;
+
+	UPROPERTY()
+	FString ShortName;
+
+	UPROPERTY()
+	bool bShortNameBasedOnPath;
 
 	UPROPERTY()
 	FString ParentPath;
@@ -68,6 +80,13 @@ struct CONTROLRIG_API FRigModuleReference
 	FString PreviousParentPath;
 
 	TArray<FRigModuleReference*> CachedChildren;
+
+	FString GetShortName() const;
+
+	FString GetLongName() const
+	{
+		return GetPath();
+	}
 
 	FString GetPath() const;
 

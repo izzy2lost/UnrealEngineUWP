@@ -78,6 +78,7 @@ FString UModularRigController::AddModule(const FName& InModuleName, TSubclassOf<
 	}
 
 	Model->UpdateCachedChildren();
+	UpdateShortNames();
 
 	if (!NewModule)
 	{
@@ -532,6 +533,7 @@ bool UModularRigController::DeleteModule(const FString& InModulePath, bool bSetu
 	Model->DeletedModules.Add(*Module);
 	Model->Modules.RemoveSingle(*Module);
 	Model->UpdateCachedChildren();
+	UpdateShortNames();
 
 	// Fix bindings
 	for (FRigModuleReference& Reference : Model->Modules)
@@ -558,27 +560,27 @@ bool UModularRigController::DeleteModule(const FString& InModulePath, bool bSetu
 	return false;
 }
 
-bool UModularRigController::RenameModule(const FString& InModulePath, const FName& InNewName, bool bSetupUndo)
+FString UModularRigController::RenameModule(const FString& InModulePath, const FName& InNewName, bool bSetupUndo)
 {
 	FRigModuleReference* Module = FindModule(InModulePath);
 	if (!Module)
 	{
 		UE_LOG(LogControlRig, Error, TEXT("Could not find module %s"), *InModulePath);
-		return false;
+		return FString();
 	}
 
 	FText ErrorMessage;
 	if (!CanRenameModule(InModulePath, InNewName, ErrorMessage))
 	{
 		UE_LOG(LogControlRig, Error, TEXT("Could not rename module %s: %s"), *InModulePath, *ErrorMessage.ToString());
-		return false;
+		return FString();
 	}
 
 	const FString OldName = Module->Name.ToString();
 	const FString NewName = InNewName.ToString();
 	if (OldName.Equals(NewName))
 	{
-		return true;
+		return Module->GetPath();
 	}
 	
 #if WITH_EDITOR
@@ -621,16 +623,17 @@ bool UModularRigController::RenameModule(const FString& InModulePath, const FNam
 		};
 	}
 
+	UpdateShortNames();
 	Notify(EModularRigNotification::ModuleRenamed, Module);
 
 #if WITH_EDITOR
 	TransactionPtr.Reset();
 #endif
 	
-	return true;
+	return NewPath;
 }
 
-bool UModularRigController::CanRenameModule(const FString& InModulePath, const FName& InNewName, FText& OutErrorMessage)
+bool UModularRigController::CanRenameModule(const FString& InModulePath, const FName& InNewName, FText& OutErrorMessage) const
 {
 	if (InNewName.IsNone() || InNewName.ToString().IsEmpty())
 	{
@@ -638,54 +641,42 @@ bool UModularRigController::CanRenameModule(const FString& InModulePath, const F
 		return false;
 	}
 
-	FRigModuleReference* Module = FindModule(InModulePath);
+	if(InNewName.ToString().Contains(UModularRig::NamespaceSeparator))
+	{
+		OutErrorMessage = NSLOCTEXT("ModularRigController", "NameContainsNamespaceSeparator", "Name contains namespace separator ':'.");
+		return false;
+	}
+
+	const FRigModuleReference* Module = const_cast<UModularRigController*>(this)->FindModule(InModulePath);
 	if (!Module)
 	{
 		OutErrorMessage = FText::FromString(FString::Printf(TEXT("Module %s not found."), *InModulePath));
 		return false;
 	}
 
-	const FString NewNameStr = InNewName.ToString();
-	const FString NewPath = (Module->ParentPath.IsEmpty()) ? NewNameStr : FString::Printf(TEXT("%s:%s"), *Module->ParentPath, *NewNameStr);
-	if (InModulePath == NewPath)
+	FString ErrorMessage;
+	if(!IsNameAvailable(Module->ParentPath, InNewName, &ErrorMessage))
 	{
-		return true;
-	}
-
-	// Check there are no siblings with the same name
-	{
-		FRigModuleReference* Parent = FindModule(Module->ParentPath);
-		TArray<FRigModuleReference*>* Siblings = &Model->RootModules;
-		if (Parent)
-		{
-			Siblings = &Parent->CachedChildren;
-		}
-		for (FRigModuleReference* Sibling : *Siblings)
-		{
-			if (Sibling->Name.ToString() == NewNameStr)
-			{
-				OutErrorMessage = FText::FromString(FString::Printf(TEXT("Sibling with path %s already exists"), *Sibling->GetPath()));
-				return false;
-			}
-		}
+		OutErrorMessage = FText::FromString(ErrorMessage);
+		return false;
 	}
 	return true;
 }
 
-bool UModularRigController::ReparentModule(const FString& InModulePath, const FString& InNewParentModulePath, bool bSetupUndo)
+FString UModularRigController::ReparentModule(const FString& InModulePath, const FString& InNewParentModulePath, bool bSetupUndo)
 {
 	FRigModuleReference* Module = FindModule(InModulePath);
 	if (!Module)
 	{
 		UE_LOG(LogControlRig, Error, TEXT("Could not find module %s"), *InModulePath);
-		return false;
+		return FString();
 	}
 
 #if WITH_EDITOR
 	TSharedPtr<FScopedTransaction> TransactionPtr;
 	if (bSetupUndo)
 	{
-		TransactionPtr = MakeShared<FScopedTransaction>(NSLOCTEXT("ModularRigController", "RenameModuleTransaction", "Rename Module"));
+		TransactionPtr = MakeShared<FScopedTransaction>(NSLOCTEXT("ModularRigController", "ReparentModuleTransaction", "Reparent Module"));
 		if(UBlueprint* Blueprint = Cast<UBlueprint>(GetOuter()))
 		{
 			Blueprint->Modify();
@@ -698,7 +689,7 @@ bool UModularRigController::ReparentModule(const FString& InModulePath, const FS
 	const FString OldPath = Module->GetPath();
 	Module->PreviousParentPath = Module->ParentPath;
 	Module->ParentPath = (NewParentModule) ? NewParentModule->GetPath() : FString();
-	Module->Name = GetSafeNewName(Module->GetPath());
+	Module->Name = GetSafeNewName(Module->ParentPath, FRigName(Module->Name));
 	const FString NewPath = Module->GetPath();
 
 	// Fix all the subtree namespaces
@@ -711,6 +702,7 @@ bool UModularRigController::ReparentModule(const FString& InModulePath, const FS
 
 
 	Model->UpdateCachedChildren();
+	UpdateShortNames();
 
 	// Fix bindings
 	for (FRigModuleReference& Reference : Model->Modules)
@@ -742,40 +734,218 @@ bool UModularRigController::ReparentModule(const FString& InModulePath, const FS
 
 	Notify(EModularRigNotification::ModuleReparented, Module);
 	
-	return false;
+	return NewPath;
 }
 
-FName UModularRigController::GetSafeNewName(const FString& InModuleDesiredPath)
+bool UModularRigController::SetModuleShortName(const FString& InModulePath, const FString& InNewShortName, bool bSetupUndo)
 {
-	FString ParentPath, DesiredName = InModuleDesiredPath;
-	InModuleDesiredPath.Split(UModularRig::NamespaceSeparator, &ParentPath, &DesiredName, ESearchCase::CaseSensitive, ESearchDir::FromEnd);
+	FRigModuleReference* Module = FindModule(InModulePath);
+	if (!Module)
+	{
+		UE_LOG(LogControlRig, Error, TEXT("Could not find module %s"), *InModulePath);
+		return false;
+	}
+
+	FText ErrorMessage;
+	if (!CanSetModuleShortName(InModulePath, InNewShortName, ErrorMessage))
+	{
+		UE_LOG(LogControlRig, Error, TEXT("Could not rename module %s: %s"), *InModulePath, *ErrorMessage.ToString());
+		return false;
+	}
+
+	const FString OldShortName = Module->GetShortName();
+	const FString NewShortName = InNewShortName;
+	if (OldShortName.Equals(NewShortName))
+	{
+		return true;
+	}
+	
+#if WITH_EDITOR
+	TSharedPtr<FScopedTransaction> TransactionPtr;
+	if (bSetupUndo)
+	{
+		TransactionPtr = MakeShared<FScopedTransaction>(NSLOCTEXT("ModularRigController", "SetModuleShortNameTransaction", "Set Module Display Name"));
+		if(UBlueprint* Blueprint = Cast<UBlueprint>(GetOuter()))
+		{
+			Blueprint->Modify();
+		}
+	}
+#endif
+	
+	Module->ShortName = InNewShortName;
+	Module->bShortNameBasedOnPath = false;
+
+	Notify(EModularRigNotification::ModuleShortNameChanged, Module);
+
+	// update all other display named to avoid collision
+	UpdateShortNames();
+
+#if WITH_EDITOR
+	TransactionPtr.Reset();
+#endif
+	
+	return true;
+}
+
+bool UModularRigController::CanSetModuleShortName(const FString& InModulePath, const FString& InNewShortName, FText& OutErrorMessage) const
+{
+	FString ErrorMessage;
+	if(!IsShortNameAvailable(FRigName(InNewShortName), &ErrorMessage))
+	{
+		OutErrorMessage = FText::FromString(ErrorMessage);
+		return false;
+	}
+	return true;
+}
+
+void UModularRigController::SanitizeName(FRigName& InOutName, bool bAllowNameSpaces)
+{
+	// Sanitize the name
+	FString SanitizedNameString = InOutName.GetName();
+	bool bChangedSomething = false;
+	for (int32 i = 0; i < SanitizedNameString.Len(); ++i)
+	{
+		TCHAR& C = SanitizedNameString[i];
+
+		const bool bGoodChar = FChar::IsAlpha(C) ||					 // Any letter
+			(C == '_') || (C == '-') || (C == '.') || (C == '|') ||	 // _  - .  | anytime
+			(FChar::IsDigit(C)) ||									 // 0-9 anytime
+			((i > 0) && (C== ' '));									 // Space after the first character to support virtual bones
+
+		if (!bGoodChar)
+		{
+			if(bAllowNameSpaces && C == ':')
+			{
+				continue;
+			}
+			
+			C = '_';
+			bChangedSomething = true;
+		}
+	}
+
+	if (SanitizedNameString.Len() > GetMaxNameLength())
+	{
+		SanitizedNameString.LeftChopInline(SanitizedNameString.Len() - GetMaxNameLength());
+		bChangedSomething = true;
+	}
+
+	if(bChangedSomething)
+	{
+		InOutName.SetName(SanitizedNameString);
+	}
+}
+
+FRigName UModularRigController::GetSanitizedName(const FRigName& InName, bool bAllowNameSpaces)
+{
+	FRigName Name = InName;
+	SanitizeName(Name, bAllowNameSpaces);
+	return Name;
+}
+
+bool UModularRigController::IsNameAvailable(const FString& InParentModulePath, const FRigName& InDesiredName, FString* OutErrorMessage) const
+{
+	const FRigName DesiredName = GetSanitizedName(InDesiredName, false);
+	if(DesiredName != InDesiredName)
+	{
+		if(OutErrorMessage)
+		{
+			static const FString ContainsInvalidCharactersMessage = TEXT("Name contains invalid characters.");
+			*OutErrorMessage = ContainsInvalidCharactersMessage;
+		}
+		return false;
+	}
 
 	TArray<FRigModuleReference*>* Children = &Model->RootModules;
-	if (!ParentPath.IsEmpty())
+	if (!InParentModulePath.IsEmpty())
 	{
-		if (FRigModuleReference* Parent = FindModule(ParentPath))
+		if (FRigModuleReference* Parent = const_cast<UModularRigController*>(this)->FindModule(InParentModulePath))
 		{
 			Children = &Parent->CachedChildren;
 		}
 	}
 
+	for (const FRigModuleReference* Child : *Children)
+	{
+		if (FRigName(Child->Name) == DesiredName)
+		{
+			if(OutErrorMessage)
+			{
+				static const FString NameAlreadyInUse = TEXT("This name is already in use.");
+				*OutErrorMessage = NameAlreadyInUse;
+			}
+			return false;
+		}
+	}
+	return true;
+}
+
+bool UModularRigController::IsShortNameAvailable(const FRigName& InDesiredShortName, FString* OutErrorMessage) const
+{
+	const FRigName DesiredShortName = GetSanitizedName(InDesiredShortName, false);
+	if(DesiredShortName != InDesiredShortName)
+	{
+		if(OutErrorMessage)
+		{
+			static const FString ContainsInvalidCharactersMessage = TEXT("Display Name contains invalid characters.");
+			*OutErrorMessage = ContainsInvalidCharactersMessage;
+		}
+		return false;
+	}
+
+	for (const FRigModuleReference& Child : Model->Modules)
+	{
+		if (InDesiredShortName == FRigName(Child.GetShortName()))
+		{
+			if(OutErrorMessage)
+			{
+				static const FString NameAlreadyInUse = TEXT("This name is already in use.");
+				*OutErrorMessage = NameAlreadyInUse;
+			}
+			return false;
+		}
+	}
+	return true;
+}
+
+FRigName UModularRigController::GetSafeNewName(const FString& InParentModulePath, const FRigName& InDesiredName) const
+{
 	bool bSafeToUse = false;
-	FString NewName = DesiredName;
+
+	// create a copy of the desired name so that the string conversion can be cached
+	const FRigName DesiredName = GetSanitizedName(InDesiredName, false);
+	FRigName NewName = DesiredName;
 	int32 Index = 0;
 	while (!bSafeToUse)
 	{
 		bSafeToUse = true;
-		for (FRigModuleReference* Child : *Children)
+		if(!IsNameAvailable(InParentModulePath, NewName))
 		{
-			if (Child->Name == *NewName)
-			{
-				bSafeToUse = false;
-				NewName = FString::Printf(TEXT("%s%d"), *DesiredName, ++Index);
-				break;
-			}
+			bSafeToUse = false;
+			NewName = FString::Printf(TEXT("%s_%d"), *DesiredName.ToString(), ++Index);
 		}
 	}
-	return *NewName;
+	return NewName;
+}
+
+FRigName UModularRigController::GetSafeNewShortName(const FRigName& InDesiredShortName) const
+{
+	bool bSafeToUse = false;
+
+	// create a copy of the desired name so that the string conversion can be cached
+	const FRigName DesiredShortName = GetSanitizedName(InDesiredShortName, true);
+	FRigName NewShortName = DesiredShortName;
+	int32 Index = 0;
+	while (!bSafeToUse)
+	{
+		bSafeToUse = true;
+		if(!IsShortNameAvailable(NewShortName))
+		{
+			bSafeToUse = false;
+			NewShortName = FString::Printf(TEXT("%s_%d"), *DesiredShortName.ToString(), ++Index);
+		}
+	}
+	return NewShortName;
 }
 
 void UModularRigController::Notify(const EModularRigNotification& InNotification, const FRigModuleReference* InElement)
@@ -783,5 +953,71 @@ void UModularRigController::Notify(const EModularRigNotification& InNotification
 	if(!bSuspendNotifications)
 	{
 		ModifiedEvent.Broadcast(InNotification, InElement);
+	}
+}
+
+void UModularRigController::UpdateShortNames()
+{
+	TMap<FString, int32> TokenToCount;
+
+	// collect all usages of all paths and their segments
+	for(const FRigModuleReference& Module : Model->Modules)
+	{
+		if(Module.bShortNameBasedOnPath)
+		{
+			FString RemainingPath = Module.GetPath();
+			TokenToCount.FindOrAdd(RemainingPath, 0)++;
+			while(RemainingPath.Split(UModularRig::NamespaceSeparator, nullptr, &RemainingPath, ESearchCase::IgnoreCase, ESearchDir::FromStart))
+			{
+				TokenToCount.FindOrAdd(RemainingPath, 0)++;
+			}
+		}
+		else
+		{
+			TokenToCount.FindOrAdd(Module.ShortName, 0)++;
+		}
+	}
+
+	for(FRigModuleReference& Module : Model->Modules)
+	{
+		if(Module.bShortNameBasedOnPath)
+		{
+			FString ShortPath = Module.GetPath();
+			if(!Module.ParentPath.IsEmpty())
+			{
+				FString Left, Right, RemainingPath = Module.GetPath();
+				ShortPath.Reset();
+
+				while (RemainingPath.Split(UModularRig::NamespaceSeparator, &Left, &Right, ESearchCase::IgnoreCase, ESearchDir::FromEnd))
+				{
+					ShortPath = ShortPath.IsEmpty() ? Right : FString::Printf(TEXT("%s:%s"), *Right, *ShortPath);
+
+					// if the short path only exists once - that's what we use for the display name
+					if(TokenToCount.FindChecked(ShortPath) == 1)
+					{
+						RemainingPath.Reset();
+						break;
+					}
+
+					RemainingPath = Left;
+				}
+
+				if(!RemainingPath.IsEmpty())
+				{
+					ShortPath = FString::Printf(TEXT("%s:%s"), *RemainingPath, *ShortPath);
+				}
+			}
+
+			if(!Module.ShortName.Equals(ShortPath, ESearchCase::CaseSensitive))
+			{
+				Module.ShortName = ShortPath;
+				Notify(EModularRigNotification::ModuleShortNameChanged, &Module);
+			}
+		}
+		else
+		{
+			// the display name is user defined so we won't touch it
+		}
+		
 	}
 }

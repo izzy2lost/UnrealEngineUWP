@@ -2710,7 +2710,7 @@ void FControlRigEditor::HandleSchematicDrop(SSchematicGraphPanel* InPanel, SSche
 			{
 				if (UModularRigController* Controller = Blueprint->GetModularRigController())
 				{
-					const FName ModuleName = Controller->GetSafeNewName(AssetBlueprint->RigModuleSettings.Identifier.Name);
+					const FName ModuleName = Controller->GetSafeNewName(FString(), FRigName(AssetBlueprint->RigModuleSettings.Identifier.Name));
 					const FString ModulePath = Controller->AddModule(ModuleName, AssetBlueprint->GetControlRigClass(), FString());
 					if(!ModulePath.IsEmpty())
 					{
@@ -3887,6 +3887,7 @@ void FControlRigEditor::HandleModularRigModified(EModularRigNotification InNotif
 			}
 			ModulesSelected.Remove(OldPath);
 			ModulesSelected.Add(InModule->GetPath());
+			RefreshDetailView();
 
 			// todo: update SchematicGraph
 			break;

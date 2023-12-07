@@ -155,20 +155,66 @@ void FRigModuleInstanceDetails::CustomizeDetails(IDetailLayoutBuilder& DetailBui
 
 	IDetailCategoryBuilder& GeneralCategory = DetailBuilder.EditCategory(TEXT("General"), LOCTEXT("General", "General"));
 	{
+		static const FText NameTooltip = LOCTEXT("NameTooltip", "The name is used to determine the long name (the full path) and to provide a unique address within the rig.");
 		GeneralCategory.AddCustomRow(FText::FromString(TEXT("Name")))
 		.NameContent()
 		[
 			SNew(STextBlock)
 			.Text(FText::FromString(TEXT("Name")))
 			.Font(IDetailLayoutBuilder::GetDetailFont())
-			.IsEnabled(true)
+			.ToolTipText(NameTooltip)
+			.IsEnabled(PerModuleInfos.Num() == 1)
 		]
 		.ValueContent()
 		[
 			SNew(SInlineEditableTextBlock)
 			.Font(IDetailLayoutBuilder::GetDetailFont())
 			.Text(this, &FRigModuleInstanceDetails::GetName)
-			.IsEnabled(true)
+			.OnTextCommitted(this, &FRigModuleInstanceDetails::SetName, DetailBuilder.GetPropertyUtilities())
+			.ToolTipText(NameTooltip)
+			.IsEnabled(PerModuleInfos.Num() == 1)
+			.OnVerifyTextChanged(this, &FRigModuleInstanceDetails::OnVerifyNameChanged)
+		];
+
+		static const FText ShortNameTooltip = LOCTEXT("ShortNameTooltip", "The short name is used for the user interface, for example the sequencer channels.\nThis value can be edited and adjusted as needed.");
+		GeneralCategory.AddCustomRow(FText::FromString(TEXT("Short Name")))
+		.NameContent()
+		[
+			SNew(STextBlock)
+			.Text(FText::FromString(TEXT("Short Name")))
+			.Font(IDetailLayoutBuilder::GetDetailFont())
+			.ToolTipText(ShortNameTooltip)
+			.IsEnabled(PerModuleInfos.Num() == 1)
+		]
+		.ValueContent()
+		[
+			SNew(SInlineEditableTextBlock)
+			.Font(IDetailLayoutBuilder::GetDetailFont())
+			.Text(this, &FRigModuleInstanceDetails::GetShortName)
+			.OnTextCommitted(this, &FRigModuleInstanceDetails::SetShortName, DetailBuilder.GetPropertyUtilities())
+			.ToolTipText(ShortNameTooltip)
+			.IsEnabled(PerModuleInfos.Num() == 1)
+			.OnVerifyTextChanged(this, &FRigModuleInstanceDetails::OnVerifyShortNameChanged)
+		];
+
+		static const FText LongNameTooltip = LOCTEXT("LongNameTooltip", "The long name represents a unique address within the rig but isn't used for the user interface.");
+		GeneralCategory.AddCustomRow(FText::FromString(TEXT("Long Name")))
+		.NameContent()
+		[
+			SNew(STextBlock)
+			.Text(FText::FromString(TEXT("Long Name")))
+			.Font(IDetailLayoutBuilder::GetDetailFont())
+			.ToolTipText(LOCTEXT("LongNameTooltip", "The long name represents a unique address within the rig but isn't used for the user interface."))
+			.ToolTipText(LongNameTooltip)
+			.IsEnabled(false)
+		]
+		.ValueContent()
+		[
+			SNew(SInlineEditableTextBlock)
+			.Font(IDetailLayoutBuilder::GetDetailFont())
+			.Text(this, &FRigModuleInstanceDetails::GetLongName)
+			.ToolTipText(LongNameTooltip)
+			.IsEnabled(false)
 		];
 
 		GeneralCategory.AddCustomRow(FText::FromString(TEXT("RigClass")))
@@ -332,15 +378,25 @@ void FRigModuleInstanceDetails::CustomizeDetails(IDetailLayoutBuilder& DetailBui
 
 FText FRigModuleInstanceDetails::GetName() const
 {
+	const FRigModuleInstance* FirstModule = PerModuleInfos[0].GetModule();
+	if(FirstModule == nullptr)
+	{
+		return FText();
+	}
+	
+	const FName FirstValue = FirstModule->Name;
 	if(PerModuleInfos.Num() > 1)
 	{
 		bool bSame = true;
 		for (int32 i=1; i<PerModuleInfos.Num(); ++i)
 		{
-			if (PerModuleInfos[i].GetModule()->Name !=  PerModuleInfos[0].GetModule()->Name)
+			if(const FRigModuleInstance* Module = PerModuleInfos[i].GetModule())
 			{
-				bSame = false;
-				break;
+				if (Module->Name.IsEqual(FirstValue, ENameCase::CaseSensitive))
+				{
+					bSame = false;
+					break;
+				}
 			}
 		}
 		if (!bSame)
@@ -348,25 +404,177 @@ FText FRigModuleInstanceDetails::GetName() const
 			return ControlRigModuleDetailsMultipleValues;
 		}
 	}
-	return FText::FromName(PerModuleInfos[0].GetModule()->Name);
+	return FText::FromName(FirstValue);
 }
 
-FText FRigModuleInstanceDetails::GetRigClassPath() const
+void FRigModuleInstanceDetails::SetName(const FText& InValue, ETextCommit::Type InCommitType, const TSharedRef<IPropertyUtilities> PropertyUtilities)
 {
+	if(InValue.IsEmpty())
+	{
+		return;
+	}
+	
+	check(PerModuleInfos.Num() == 1);
+	FPerModuleInfo& Info = PerModuleInfos[0];
+	if (const FRigModuleInstance* ModuleInstance = Info.GetModule())
+	{
+		if (UControlRigBlueprint* Blueprint = Info.GetBlueprint())
+		{
+			UModularRigController* Controller = Blueprint->GetModularRigController();
+			const FString OldPath = ModuleInstance->GetPath();
+			(void)Controller->RenameModule(OldPath, *InValue.ToString(), true);
+		}
+	}
+}
+
+bool FRigModuleInstanceDetails::OnVerifyNameChanged(const FText& InText, FText& OutErrorMessage)
+{
+	check(PerModuleInfos.Num() == 1);
+
+	if(InText.IsEmpty())
+	{
+		static const FText EmptyNameIsNotAllowed = LOCTEXT("EmptyNameIsNotAllowed", "Empty name is not allowed.");
+		OutErrorMessage = EmptyNameIsNotAllowed;
+		return false;
+	}
+
+	const FPerModuleInfo& Info = PerModuleInfos[0];
+	if (const FRigModuleInstance* ModuleInstance = Info.GetModule())
+	{
+		if (UControlRigBlueprint* Blueprint = Info.GetBlueprint())
+		{
+			UModularRigController* Controller = Blueprint->GetModularRigController();
+			return Controller->CanRenameModule(ModuleInstance->GetPath(), *InText.ToString(), OutErrorMessage);
+		}
+	}
+
+	return true;
+}
+
+FText FRigModuleInstanceDetails::GetShortName() const
+{
+	const FRigModuleInstance* FirstModule = PerModuleInfos[0].GetModule();
+	if(FirstModule == nullptr)
+	{
+		return FText();
+	}
+
+	const FString FirstValue = FirstModule->GetShortName();
 	if(PerModuleInfos.Num() > 1)
 	{
 		bool bSame = true;
 		for (int32 i=1; i<PerModuleInfos.Num(); ++i)
 		{
-			if (PerModuleInfos[i].GetModule()->GetRig()->GetClass() !=  PerModuleInfos[0].GetModule()->GetRig()->GetClass())
+			if(const FRigModuleInstance* Module = PerModuleInfos[i].GetModule())
 			{
-				bSame = false;
-				break;
+				if (Module->GetShortName().Equals(FirstValue, ESearchCase::CaseSensitive))
+				{
+					bSame = false;
+					break;
+				}
 			}
 		}
 		if (!bSame)
 		{
 			return ControlRigModuleDetailsMultipleValues;
+		}
+	}
+	return FText::FromString(FirstValue);
+}
+
+void FRigModuleInstanceDetails::SetShortName(const FText& InValue, ETextCommit::Type InCommitType, const TSharedRef<IPropertyUtilities> PropertyUtilities)
+{
+	if(InValue.IsEmpty())
+	{
+		return;
+	}
+	
+	check(PerModuleInfos.Num() == 1);
+	const FPerModuleInfo& Info = PerModuleInfos[0];
+	if (const FRigModuleInstance* ModuleInstance = Info.GetModule())
+	{
+		if (UControlRigBlueprint* Blueprint = Info.GetBlueprint())
+		{
+			UModularRigController* Controller = Blueprint->GetModularRigController();
+			Controller->SetModuleShortName(ModuleInstance->GetPath(), *InValue.ToString(), true);
+		}
+	}
+}
+
+bool FRigModuleInstanceDetails::OnVerifyShortNameChanged(const FText& InText, FText& OutErrorMessage)
+{
+	check(PerModuleInfos.Num() == 1);
+
+	if(InText.IsEmpty())
+	{
+		return true;
+	}
+
+	const FPerModuleInfo& Info = PerModuleInfos[0];
+	if (const FRigModuleInstance* ModuleInstance = Info.GetModule())
+	{
+		if (UControlRigBlueprint* Blueprint = Info.GetBlueprint())
+		{
+			UModularRigController* Controller = Blueprint->GetModularRigController();
+			return Controller->CanSetModuleShortName(ModuleInstance->GetPath(), *InText.ToString(), OutErrorMessage);
+		}
+	}
+
+	return false;
+}
+
+FText FRigModuleInstanceDetails::GetLongName() const
+{
+	const FRigModuleInstance* FirstModule = PerModuleInfos[0].GetModule();
+	if(FirstModule == nullptr)
+	{
+		return FText();
+	}
+
+	const FString FirstValue = FirstModule->GetLongName();
+	if(PerModuleInfos.Num() > 1)
+	{
+		bool bSame = true;
+		for (int32 i=1; i<PerModuleInfos.Num(); ++i)
+		{
+			if(const FRigModuleInstance* Module = PerModuleInfos[i].GetModule())
+			{
+				if (Module->GetLongName().Equals(FirstValue, ESearchCase::CaseSensitive))
+				{
+					bSame = false;
+					break;
+				}
+			}
+		}
+		if (!bSame)
+		{
+			return ControlRigModuleDetailsMultipleValues;
+		}
+	}
+	return FText::FromString(FirstValue);
+}
+FText FRigModuleInstanceDetails::GetRigClassPath() const
+{
+	if(PerModuleInfos.Num() > 1)
+	{
+		if(const FRigModuleInstance* FirstModule = PerModuleInfos[0].GetModule())
+		{
+			bool bSame = true;
+			for (int32 i=1; i<PerModuleInfos.Num(); ++i)
+			{
+				if(const FRigModuleInstance* Module = PerModuleInfos[i].GetModule())
+				{
+					if (Module->GetRig()->GetClass() !=  FirstModule->GetRig()->GetClass())
+					{
+						bSame = false;
+						break;
+					}
+				}
+			}
+			if (!bSame)
+			{
+				return ControlRigModuleDetailsMultipleValues;
+			}
 		}
 	}
 
@@ -440,7 +648,11 @@ const FRigModuleInstanceDetails::FPerModuleInfo& FRigModuleInstanceDetails::Find
 {
 	const FPerModuleInfo* Info = FindModuleByPredicate([InPath](const FPerModuleInfo& Info)
 	{
-		return Info.GetModule()->GetPath() == InPath;
+		if(const FRigModuleInstance* Module = Info.GetModule())
+		{
+			return Module->GetPath() == InPath;
+		}
+		return false;
 	});
 
 	if(Info)
@@ -484,8 +696,11 @@ void FRigModuleInstanceDetails::OnElementNameChanged(TSharedPtr<FString> InItem,
 					TargetKey->Name = **InItem;
 				}
 
-				FRigElementKey NamespacedConnector(*FString::Printf(TEXT("%s:%s"), *Info.GetModule()->GetPath(), *Connector.Name.ToString()), ERigElementType::Connector);
-				Controller->ConnectConnectorToElement(NamespacedConnector, *TargetKey);
+				if(const FRigModuleInstance* Module = Info.GetModule())
+				{
+					FRigElementKey NamespacedConnector(*FString::Printf(TEXT("%s:%s"), *Module->GetPath(), *Connector.Name.ToString()), ERigElementType::Connector);
+					Controller->ConnectConnectorToElement(NamespacedConnector, *TargetKey);
+				}
 			}
 		}
 	}
@@ -504,8 +719,11 @@ void FRigModuleInstanceDetails::OnElementTypeChanged(ERigElementType InElementTy
 			{
 				TargetKey->Type = InElementType;
 
-				FRigElementKey NamespacedConnector(*FString::Printf(TEXT("%s:%s"), *Info.GetModule()->GetPath(), *Connector.Name.ToString()), ERigElementType::Connector);
-				Controller->ConnectConnectorToElement(NamespacedConnector, *TargetKey);
+				if(const FRigModuleInstance* Module = Info.GetModule())
+				{
+					FRigElementKey NamespacedConnector(*FString::Printf(TEXT("%s:%s"), *Module->GetPath(), *Connector.Name.ToString()), ERigElementType::Connector);
+					Controller->ConnectConnectorToElement(NamespacedConnector, *TargetKey);
+				}
 			}
 		}
 	}
@@ -527,8 +745,11 @@ FReply FRigModuleInstanceDetails::OnGetSelectedClicked(FRigElementKey Connector)
 		const TArray<FRigElementKey>& Selected = Blueprint->Hierarchy->GetSelectedKeys();
 		if (Selected.Num() > 0)
 		{
-			FRigElementKey NamespacedConnector(*FString::Printf(TEXT("%s:%s"), *PerModuleInfos[0].GetModule()->GetPath(), *Connector.Name.ToString()), ERigElementType::Connector);
-			Blueprint->GetModularRigController()->ConnectConnectorToElement(NamespacedConnector, Selected[0]);
+			if(const FRigModuleInstance* Module = PerModuleInfos[0].GetModule())
+			{
+				FRigElementKey NamespacedConnector(*FString::Printf(TEXT("%s:%s"), *Module->GetPath(), *Connector.Name.ToString()), ERigElementType::Connector);
+				Blueprint->GetModularRigController()->ConnectConnectorToElement(NamespacedConnector, Selected[0]);
+			}
 		}
 	}
 	return FReply::Handled();

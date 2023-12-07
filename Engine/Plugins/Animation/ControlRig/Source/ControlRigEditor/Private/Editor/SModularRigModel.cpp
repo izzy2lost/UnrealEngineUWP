@@ -510,14 +510,13 @@ void SModularRigModel::HandleNewItem(UClass* InClass, const FString &InParentPat
 	
 	if (ControlRigBlueprint.IsValid())
 	{
+		UModularRigController* Controller = ControlRigBlueprint->GetModularRigController();
+		
 		FString ClassName = InClass->GetName();
 		ClassName.RemoveFromEnd(TEXT("_C"));
-		FString PathName = InParentPath.IsEmpty() ? *ClassName : FString::Printf(TEXT("%s:%s"), *InParentPath, *ClassName);
-		const FName Name = CreateUniqueName(*PathName);
-		ControlRigBlueprint->GetModularRigController()->AddModule(Name, InClass, InParentPath);
-
-		FString NewPathName = InParentPath.IsEmpty() ? *Name.ToString() : FString::Printf(TEXT("%s:%s"), *InParentPath, *Name.ToString());
-		TSharedPtr<FModularRigTreeElement> Element = TreeView->FindElement(NewPathName);
+		const FRigName Name = Controller->GetSafeNewName(InParentPath, FRigName(ClassName));
+		const FString NewPath = Controller->AddModule(Name, InClass, InParentPath);
+		TSharedPtr<FModularRigTreeElement> Element = TreeView->FindElement(NewPath);
 		if (Element.IsValid())
 		{
 			TreeView->SetSelection({Element});
@@ -567,8 +566,7 @@ FName SModularRigModel::HandleRenameModule(const FString& InOldPath, const FName
 		UModularRigController* Controller = ControlRigBlueprint->GetModularRigController();
 		check(Controller);
 
-		FName ResultingName = NAME_None;
-		if (Controller->RenameModule(InOldPath, InNewName))
+		if (!Controller->RenameModule(InOldPath, InNewName).IsEmpty())
 		{
 			return InNewName;
 		}
@@ -708,11 +706,6 @@ UModularRig* SModularRigModel::GetDefaultModularRig() const
 	return nullptr;
 }
 
-
-FName SModularRigModel::CreateUniqueName(const FName& InBasePath) const
-{
-	return ControlRigBlueprint->GetModularRigController()->GetSafeNewName(InBasePath.ToString());
-}
 
 void SModularRigModel::OnRequestDetailsInspection(const FString& InKey)
 {

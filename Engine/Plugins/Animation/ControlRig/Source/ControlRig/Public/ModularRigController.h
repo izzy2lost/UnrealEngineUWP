@@ -45,15 +45,31 @@ class CONTROLRIG_API UModularRigController : public UObject
 	bool DeleteModule(const FString& InModulePath, bool bSetupUndo = true);
 
 	UFUNCTION(BlueprintCallable, Category = "ControlRig | Modules")
-	bool RenameModule(const FString& InModulePath, const FName& InNewName, bool bSetupUndo = true);
-	bool CanRenameModule(const FString& InModulePath, const FName& InNewName, FText& OutErrorMessage);
+	FString RenameModule(const FString& InModulePath, const FName& InNewName, bool bSetupUndo = true);
+	bool CanRenameModule(const FString& InModulePath, const FName& InNewName, FText& OutErrorMessage) const;
 
 	UFUNCTION(BlueprintCallable, Category = "ControlRig | Modules")
-	bool ReparentModule(const FString& InModulePath, const FString& InNewParentModulePath, bool bSetupUndo = true);
-	
-	FName GetSafeNewName(const FString& InModuleDesiredPath);
-	void SetModel(FModularRigModel* InModel) { Model = InModel; }
+	FString ReparentModule(const FString& InModulePath, const FString& InNewParentModulePath, bool bSetupUndo = true);
+
+	UFUNCTION(BlueprintCallable, Category = "ControlRig | Modules")
+	bool SetModuleShortName(const FString& InModulePath, const FString& InNewShortName, bool bSetupUndo = true);
+	bool CanSetModuleShortName(const FString& InModulePath, const FString& InNewShortName, FText& OutErrorMessage) const;
+
+	static int32 GetMaxNameLength() { return 100; }
+	static void SanitizeName(FRigName& InOutName, bool bAllowNameSpaces);
+	static FRigName GetSanitizedName(const FRigName& InName, bool bAllowNameSpaces);
+	bool IsNameAvailable(const FString& InParentModulePath, const FRigName& InDesiredName, FString* OutErrorMessage = nullptr) const;
+	bool IsShortNameAvailable(const FRigName& InDesiredShortName, FString* OutErrorMessage = nullptr) const;
+	FRigName GetSafeNewName(const FString& InParentModulePath, const FRigName& InDesiredName) const;
+	FRigName GetSafeNewShortName(const FRigName& InDesiredShortName) const;
 	FRigModuleReference* FindModule(const FString& InPath);
 	FModularRigModifiedEvent& OnModified() { return ModifiedEvent; }
+
+private:
+
+	void SetModel(FModularRigModel* InModel) { Model = InModel; }
 	void Notify(const EModularRigNotification& InNotification, const FRigModuleReference* InElement);
+	void UpdateShortNames();
+	
+	friend struct FModularRigModel;
 };

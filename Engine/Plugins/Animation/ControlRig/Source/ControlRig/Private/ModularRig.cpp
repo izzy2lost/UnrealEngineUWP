@@ -58,6 +58,19 @@ void UModularRig::BeginDestroy()
 #endif
 }
 
+FString FRigModuleInstance::GetShortName() const
+{
+	if(const FRigModuleReference* ModuleReference = GetModuleReference())
+	{
+		const FString ShortName = ModuleReference->GetShortName();
+		if(!ShortName.IsEmpty())
+		{
+			return ShortName;
+		}
+	}
+	return Name.ToString();
+}
+
 FString FRigModuleInstance::GetPath() const
 {
 	if (!ParentPath.IsEmpty())
@@ -106,6 +119,19 @@ bool FRigModuleInstance::ContainsRig(const UControlRig* InRig) const
 		return true;
 	}
 	return false;
+}
+
+const FRigModuleReference* FRigModuleInstance::GetModuleReference() const
+{
+	if(const UControlRig* Rig = GetRig())
+	{
+		if(const UModularRig* ModularRig = Cast<UModularRig>(Rig->GetParentRig()))
+		{
+			const FModularRigModel& Model = ModularRig->GetModularRigModel();
+			return Model.FindModule(GetPath());
+		}
+	}
+	return nullptr;
 }
 
 void UModularRig::InitializeVMs(bool bRequestInit)

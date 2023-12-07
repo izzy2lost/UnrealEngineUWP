@@ -145,7 +145,6 @@ private:
 	UModularRig* GetModularRig() const;
 	UModularRig* GetDefaultModularRig() const;
 	const UModularRig* GetModularRigForTreeView() const { return GetModularRig(); }
-	FName CreateUniqueName(const FName& InBasePath) const;
 	void OnRequestDetailsInspection(const FString& InKey);
 	void HandlePreCompileModularRigs(URigVMBlueprint* InBlueprint);
 	void HandlePostCompileModularRigs(URigVMBlueprint* InBlueprint);

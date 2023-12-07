@@ -2821,8 +2821,9 @@ FReply SRigHierarchy::OnAcceptDrop(const FDragDropEvent& DragDropEvent, EItemDro
 			{
 				if (UModularRigController* Controller = ControlRigBlueprint->GetModularRigController())
 				{
-					const FName ModuleName = Controller->GetSafeNewName(AssetBlueprint->RigModuleSettings.Identifier.Name);
-					const FString ModulePath = Controller->AddModule(ModuleName, AssetBlueprint->GetControlRigClass(), FString());
+					static const FString ParentPath = FString();
+					const FRigName ModuleName = Controller->GetSafeNewName(ParentPath, FRigName(AssetBlueprint->RigModuleSettings.Identifier.Name));
+					const FString ModulePath = Controller->AddModule(ModuleName, AssetBlueprint->GetControlRigClass(), ParentPath);
 					if(TargetItem.IsValid() && !ModulePath.IsEmpty())
 					{
 						FRigElementKey PrimaryConnectorKey;

@@ -6,6 +6,15 @@
 
 #include UE_INLINE_GENERATED_CPP_BY_NAME(ModularRigModel)
 
+FString FRigModuleReference::GetShortName() const
+{
+	if(!ShortName.IsEmpty())
+	{
+		return ShortName;
+	}
+	return GetPath();
+}
+
 FString FRigModuleReference::GetPath() const
 {
 	if (ParentPath.IsEmpty())
