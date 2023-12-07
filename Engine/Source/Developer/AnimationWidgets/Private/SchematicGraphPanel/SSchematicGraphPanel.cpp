@@ -80,6 +80,35 @@ bool FSchematicGraph::RemoveNode(const FString& InName)
 	return false;
 }
 
+TSharedRef<FSchematicGraphNodeDragDropOp> FSchematicGraphNodeDragDropOp::New(const TArray<FString>& InElements)
+{
+	TSharedRef<FSchematicGraphNodeDragDropOp> Operation = MakeShared<FSchematicGraphNodeDragDropOp>();
+	Operation->Elements = InElements;
+	Operation->Construct();
+	return Operation;
+}
+
+TSharedPtr<SWidget> FSchematicGraphNodeDragDropOp::GetDefaultDecorator() const
+{
+	return SNew(SBorder)
+		.Visibility(EVisibility::Visible)
+		.BorderImage(FAppStyle::GetBrush("Menu.Background"))
+		[
+			SNew(STextBlock)
+			.Text(FText::FromString(GetJoinedElementNames()))
+		];
+}
+
+FString FSchematicGraphNodeDragDropOp::GetJoinedElementNames() const
+{
+	TArray<FString> ElementNameStrings;
+	for (const FString& Element: Elements)
+	{
+		ElementNameStrings.Add(Element);
+	}
+	return FString::Join(ElementNameStrings, TEXT(","));
+}
+
 void SSchematicGraphNode::Construct(const FArguments& InArgs)
 {
 	NodeData = InArgs._NodeData;
@@ -105,10 +134,8 @@ int32 SSchematicGraphNode::OnPaint(const FPaintArgs& Args, const FGeometry& Allo
 	int32 NewLayerId = SNodePanel::SNode::OnPaint(Args, AllottedGeometry, MyCullingRect, OutDrawElements, LayerId, InWidgetStyle, bParentEnabled);
 	NewLayerId++;
 
-	//FVector2d CenterOffset = OriginalSize*-0.5;
 	FVector2d CurSize = Size->Get() * Scale->Get();
 	FVector2d SizeOffset = (CurSize-OriginalSize)*-0.5;
-	//FVector2d TotalOffset = CenterOffset + SizeOffset;
 	FVector2d TotalOffset = SizeOffset;
 
 	FSlateDrawElement::MakeBox(
@@ -155,6 +182,19 @@ FReply SSchematicGraphNode::OnDrop(const FGeometry& MyGeometry, const FDragDropE
 	return FReply::Unhandled();
 }
 
+FReply SSchematicGraphNode::OnDragDetected(const FGeometry& MyGeometry, const FPointerEvent& MouseEvent)
+{
+	TArray<FString> DraggedElements = {NodeData->Name};
+	if (MouseEvent.IsMouseButtonDown(EKeys::LeftMouseButton) && DraggedElements.Num() > 0)
+	{
+		bIsBeingDragged = true;
+		TSharedRef<FSchematicGraphNodeDragDropOp> DragDropOp = FSchematicGraphNodeDragDropOp::New(MoveTemp(DraggedElements));
+		return FReply::Handled().BeginDragDrop(DragDropOp);
+	}
+	
+	return FReply::Unhandled();
+}
+
 FReply SSchematicGraphNode::OnMouseButtonDown(const FGeometry& MyGeometry, const FPointerEvent& MouseEvent)
 {
 	SNode::OnMouseButtonDown(MyGeometry, MouseEvent);
@@ -162,12 +202,19 @@ FReply SSchematicGraphNode::OnMouseButtonDown(const FGeometry& MyGeometry, const
 	{
 		OnClickedDelegate.ExecuteIfBound(this);
 	}
-	return FReply::Handled();
+	return FReply::Handled().DetectDrag(SharedThis(this), EKeys::LeftMouseButton);
 }
 
 FVector2d SSchematicGraphNode::GetPosition() const
 {
 	return Position->Get() - (OriginalSize*0.5);
+}
+
+void SSchematicGraphNode::SetPosition(const FVector2d& InPosition, bool bImmediately)
+{
+	bImmediately ?
+		Position->SetValueAndStop(FVector2d(InPosition))
+		: Position->Set(InPosition);
 }
 
 void SSchematicGraphPanel::SetSchematicGraph(FSchematicGraph* InGraphData)
@@ -238,6 +285,12 @@ void SSchematicGraphPanel::AddNode(FSchematicGraphNode* NodeToAdd)
 														.OnDrop_Raw(this, &SSchematicGraphPanel::OnDropEvent)
 														.NodeData(NodeToAdd);
 	SNodePanel::AddGraphNode(NewNode);
+
+	// Update the position/size/brush immediately without animation
+	{
+		TGuardValue<bool> AnimateNodeGuard(bAnimatePosition, false);
+		Tick(0.f);
+	}
 }
 
 void SSchematicGraphPanel::RemoveNode(FSchematicGraphNode* InNodeToRemove)
@@ -365,17 +418,21 @@ TStatId SSchematicGraphPanel::GetStatId() const
 
 void SSchematicGraphPanel::Tick(float DeltaTime)
 {
-	bool bFadeBackgroundBlanket = false;
+	bool bIsDragging = false;
 	FSlateApplication& Application = FSlateApplication::Get();
 	if (Application.IsDragDropping())
 	{
 		TSharedPtr<FDragDropOperation> DragDropOp = Application.GetDragDroppingContent();
 		if (DragDropOp.IsValid())
 		{
-			bFadeBackgroundBlanket = true;
+			bIsDragging = true;
 		}
 	}
-	SetFadeBackground(bFadeBackgroundBlanket);
+	else
+	{
+		bIsDragging = false;
+	}
+	SetFadeBackground(bIsDragging);
 
 	uint16 TopRightNodes = 0;
 	uint16 TopLeftNodes = 0;
@@ -386,7 +443,9 @@ void SSchematicGraphPanel::Tick(float DeltaTime)
 	{
 		TSharedRef<SSchematicGraphNode> SNode = GetChild(i);
 		UpdateNodeWidgetDelegate.ExecuteIfBound(this, SNode.ToSharedPtr());
-		
+
+		FVector2d NewPosition = SNode->GetPosition() + (SNode->OriginalSize*0.5);
+		bool bImmediatePosition = !bAnimatePosition;
 		switch(SNode->NodeData->Placement)
 		{
 			case ESchematicGraphNodePlacement::Panel:
@@ -395,29 +454,49 @@ void SSchematicGraphPanel::Tick(float DeltaTime)
 			}
 			case ESchematicGraphNodePlacement::TopLeft:
 			{
-				SNode->SetPosition(FVector2d(PaddingLeft + SNode->OriginalSize.X*0.5, PaddingTop + SNode->OriginalSize.Y*0.5 + ((SNode->OriginalSize.Y + PaddingInterNode) * TopLeftNodes)), true);
+				NewPosition = FVector2d(PaddingLeft + SNode->OriginalSize.X*0.5, PaddingTop + SNode->OriginalSize.Y*0.5 + ((SNode->OriginalSize.Y + PaddingInterNode) * TopLeftNodes));
 				TopLeftNodes++;
 				break;
 			}
 			case ESchematicGraphNodePlacement::TopRight:
 			{
-				SNode->SetPosition(FVector2d(Size.X - PaddingRight - (SNode->OriginalSize.X * 0.5), PaddingTop + SNode->OriginalSize.Y*0.5 + ((SNode->OriginalSize.Y + PaddingInterNode) * TopRightNodes)), true);
+				NewPosition = FVector2d(Size.X - PaddingRight - (SNode->OriginalSize.X * 0.5), PaddingTop + SNode->OriginalSize.Y*0.5 + ((SNode->OriginalSize.Y + PaddingInterNode) * TopRightNodes));
 				TopRightNodes++;
 				break;
 			}
 			case ESchematicGraphNodePlacement::BottomLeft:
 			{
-				SNode->SetPosition(FVector2d(PaddingLeft + SNode->OriginalSize.X*0.5, Size.Y - PaddingBottom - (SNode->OriginalSize.Y * 0.5) - ((SNode->OriginalSize.Y + PaddingInterNode)  * BottomLeftNodes)), true);
+				NewPosition = FVector2d(PaddingLeft + SNode->OriginalSize.X*0.5, Size.Y - PaddingBottom - (SNode->OriginalSize.Y * 0.5) - ((SNode->OriginalSize.Y + PaddingInterNode)  * BottomLeftNodes));
 				BottomLeftNodes++;
 				break;
 			}
 			case ESchematicGraphNodePlacement::BottomRight:
 			{
-				SNode->SetPosition(FVector2d(Size.X - PaddingRight - (SNode->OriginalSize.X * 0.5), Size.Y - PaddingBottom - (SNode->OriginalSize.Y * 0.5) - ((SNode->OriginalSize.Y + PaddingInterNode)  * BottomRightNodes)), true);
+				NewPosition = FVector2d(Size.X - PaddingRight - (SNode->OriginalSize.X * 0.5), Size.Y - PaddingBottom - (SNode->OriginalSize.Y * 0.5) - ((SNode->OriginalSize.Y + PaddingInterNode)  * BottomRightNodes));
 				BottomRightNodes++;
 				break;
 			}
 		}
+
+		if (SNode->bIsBeingDragged)
+		{
+			if (bIsDragging)
+			{
+				const FVector2f AbsoluteMousePosition = FSlateApplication::Get().GetCursorPos();
+				const FGeometry& Geometry = GetTickSpaceGeometry();
+
+				const FVector2d LocalMousePosition =  (AbsoluteMousePosition - Geometry.GetAbsolutePosition()) / Geometry.GetAccumulatedLayoutTransform().GetScale();
+				NewPosition = LocalMousePosition;
+				bImmediatePosition = true;
+				
+			}
+			else
+			{
+				SNode->bIsBeingDragged = false;
+			}
+		}
+
+		SNode->SetPosition(NewPosition, bImmediatePosition);
 	}
 }
 

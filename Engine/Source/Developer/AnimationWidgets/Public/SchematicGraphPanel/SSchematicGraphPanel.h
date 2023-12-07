@@ -49,6 +49,35 @@ public:
 	FOnGraphReset& OnGraphReset() { return OnGraphResetDelegate; }
 };
 
+class FSchematicGraphNodeDragDropOp : public FDragDropOperation
+{
+public:
+	DRAG_DROP_OPERATOR_TYPE(FSchematicGraphNodeDragDropOp, FDragDropOperation)
+
+	static TSharedRef<FSchematicGraphNodeDragDropOp> New(const TArray<FString>& InElements);
+
+	virtual TSharedPtr<SWidget> GetDefaultDecorator() const override;
+
+	/** @return true if this drag operation contains property paths */
+	bool HasElements() const
+	{
+		return Elements.Num() > 0;
+	}
+
+	/** @return The property paths from this drag operation */
+	const TArray<FString>& GetElements() const
+	{
+		return Elements;
+	}
+
+	FString GetJoinedElementNames() const;
+
+private:
+
+	/** Data for the property paths this item represents */
+	TArray<FString> Elements;
+};
+
 class ANIMATIONWIDGETS_API SSchematicGraphNode : public SNodePanel::SNode
 {
 public:
@@ -72,16 +101,13 @@ public:
 	virtual FReply OnDragOver(const FGeometry& MyGeometry, const FDragDropEvent& DragDropEvent) override;
 	virtual void OnDragLeave(const FDragDropEvent& DragDropEvent) override;
 	virtual FReply OnDrop(const FGeometry& MyGeometry, const FDragDropEvent& DragDropEvent) override;
+	virtual FReply OnDragDetected(const FGeometry& MyGeometry, const FPointerEvent& MouseEvent) override;
 
 	virtual FVector2d GetPosition() const override;
 
-	void SetPosition(const FVector2d& InPosition, bool bImmediately = false)
-	{
-		bImmediately ?
-			Position->SetValueAndStop(FVector2d(InPosition))
-		: Position->Set(InPosition);
-	}
-	
+	void SetPosition(const FVector2d& InPosition, bool bImmediately = false);
+
+	bool bIsBeingDragged = false;
 	FVector2d OriginalSize = FVector2d(50.0,50.0);
 	float ScaledUp = 1.25;
 	float ScaledDown = 0.75;
@@ -151,6 +177,7 @@ public:
 
 	void SetFadeBackground(bool bInFade) { FadeBackgroundAlpha->Set(bInFade ? 0.5f : 0.f); }
 
+	bool bAnimatePosition = true;
 	bool bIsOverlay;
 	int32 PaddingLeft = 0;
 	int32 PaddingRight = 0;

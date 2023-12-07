@@ -7,6 +7,7 @@
 #include "ControlRigEditorStyle.h"
 #include "ModularRig.h"
 #include "DragAndDrop/AssetDragDropOp.h"
+#include "Rigs/RigHierarchyController.h"
 
 FControlRigSchematicModel::~FControlRigSchematicModel()
 {
@@ -156,6 +157,18 @@ void FControlRigSchematicModel::HandleSchematicNodeClicked(SSchematicGraphPanel*
 	{
 		Node->bIsSelected = Node == InNode->NodeData;
 	}
+
+	if (ControlRigBeingDebuggedPtr.IsValid())
+	{
+		if (URigHierarchy* Hierarchy = ControlRigBeingDebuggedPtr->GetHierarchy())
+		{
+			if (URigHierarchyController* Controller = Hierarchy->GetController())
+			{
+				TArray<FRigElementKey> Selection = {FRigElementKey(InNode->NodeData->Name)};
+				Controller->SetSelection(Selection);
+			}
+		}
+	}
 }
 
 void FControlRigSchematicModel::HandleUpdateSchematicNodes(SSchematicGraphPanel* InPanel, TSharedPtr<SSchematicGraphNode> InNode)
@@ -251,19 +264,14 @@ void FControlRigSchematicModel::HandleSchematicDrop(SSchematicGraphPanel* InPane
 		return;
 	}
 	
-	FRigBaseElement* Element = Hierarchy->Find(FRigElementKey(InNode->NodeData->Name));
-	if (!Element)
-	{
-		return;
-	}
-
-	FRigSocketElement* Socket = Cast<FRigSocketElement>(Element);
-	if (!Socket)
+	FRigBaseElement* Target = Hierarchy->Find(FRigElementKey(InNode->NodeData->Name));
+	if (!Target)
 	{
 		return;
 	}
 
 	TSharedPtr<FAssetDragDropOp> AssetDragDropOp = InDragDropEvent.GetOperationAs<FAssetDragDropOp>();
+	TSharedPtr<FSchematicGraphNodeDragDropOp> SchematicDragDropOp = InDragDropEvent.GetOperationAs<FSchematicGraphNodeDragDropOp>();
 	if (AssetDragDropOp.IsValid())
 	{
 		for (const FAssetData& AssetData : AssetDragDropOp->GetAssets())
@@ -297,7 +305,25 @@ void FControlRigSchematicModel::HandleSchematicDrop(SSchematicGraphPanel* InPane
 								}
 							}
 						}
-						Controller->ConnectConnectorToElement(PrimaryConnectorKey, Socket->GetKey());
+						Controller->ConnectConnectorToElement(PrimaryConnectorKey, Target->GetKey());
+					}
+				}
+			}
+		}
+	}
+	else if(SchematicDragDropOp.IsValid())
+	{
+		if (UModularRigController* Controller = ControlRigBlueprint->GetModularRigController())
+		{
+			TArray<FString> Sources = SchematicDragDropOp->GetElements();
+			for (FString& SourceName : Sources)
+			{
+				FRigElementKey Key(SourceName);
+				if (FRigBaseElement* SourceElement = Hierarchy->Find(SourceName))
+				{
+					if (FRigConnectorElement* Connector = Cast<FRigConnectorElement>(SourceElement))
+					{
+						Controller->ConnectConnectorToElement(Key, Target->GetKey());
 					}
 				}
 			}
