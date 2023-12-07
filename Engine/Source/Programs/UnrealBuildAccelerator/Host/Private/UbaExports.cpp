@@ -175,9 +175,8 @@ extern "C"
 		if (!zone || !*zone)
 		{
 			LoggerWithWriter logger(writer, TC(""));
-			if (aws.InitCore(logger, TC("UbaHost")))
-				if (aws.InitAvailabilityZone(logger))
-					zone = aws.GetAvailabilityZone();
+			if (aws.QueryAvailabilityZone(logger, rootDir))
+				zone = aws.GetAvailabilityZone();
 		}
 #endif
 

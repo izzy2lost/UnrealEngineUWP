@@ -2,6 +2,7 @@
 
 #pragma once
 
+#include "UbaFileAccessor.h"
 #include "UbaNetworkBackend.h"
 #include "UbaStringBuffer.h"
 
@@ -21,14 +22,9 @@ namespace uba
 		static constexpr char g_imdsSpotInstanceAction[]		= "latest/meta-data/spot/instance-action";
 
 
-		bool InitCore(Logger& logger, const tchar* application)
+		bool QueryInformation(Logger& logger, StringBufferBase& outExtraInfo, const tchar* rootDir)
 		{
-			return true;
-		}
-
-		bool Init(Logger& logger, StringBufferBase& outExtraInfo, const tchar* application)
-		{
-			if (!InitCore(logger, application))
+			if (IsNotAWS(logger, rootDir))
 				return false;
 
 			HttpConnection http;
@@ -37,7 +33,8 @@ namespace uba
 
 			StringBuffer<128> instanceId;
 			if (!http.Get(logger, instanceId, statusCode, g_imdsHost, g_imdsInstanceId))
-				return false;
+				return WriteIsNotAws(logger, rootDir);
+
 			outExtraInfo.Append(TC(", AWS: ")).Append(instanceId);
 
 			StringBuffer<32> instanceLifeCycle;
@@ -54,27 +51,51 @@ namespace uba
 				m_isAutoscaling = true;
 			}
 
-			if (!InitAvailabilityZone(logger))
+			if (!QueryAvailabilityZone(logger, nullptr))
 				return false;
 
 			return true;
 		}
 
-		bool InitAvailabilityZone(Logger& logger)
+		bool QueryAvailabilityZone(Logger& logger, const tchar* rootDir)
 		{
+			if (rootDir && IsNotAWS(logger, rootDir))
+				return false;
+
 			HttpConnection http;
 
 			StringBuffer<128> availabilityZone;
 			u32 statusCode = 0;
 			if (!http.Get(logger, availabilityZone, statusCode, g_imdsHost, g_imdsInstanceAvailabilityZone))
+			{
+				if (rootDir)
+					WriteIsNotAws(logger, rootDir);
 				return false;
+			}
 			m_availabilityZone = availabilityZone.data;
 			return true;
 		}
 
-		bool InitPolling(Logger& logger)
+		// Returns true if we _know_ we are not in AWS
+		bool IsNotAWS(Logger& logger, const tchar* rootDir)
 		{
-			return true;
+			StringBuffer<512> file;
+			file.Append(rootDir).EnsureEndsWithSlash().Append(".isNotAWS");
+			if (FileExists(logger, file.data))
+				return true;
+			return false;
+		}
+
+		bool WriteIsNotAws(Logger& logger, const tchar* rootDir)
+		{
+			StringBuffer<512> file;
+			file.Append(rootDir).EnsureEndsWithSlash().Append(".isNotAWS");
+			FileAccessor f(logger, file.data);
+			if (!f.CreateWrite())
+				return false;
+			if (!f.Close())
+				return false;
+			return false;
 		}
 
 		bool IsTerminating(Logger& logger, StringBufferBase& outReason, u64& outTerminationTimeMs)

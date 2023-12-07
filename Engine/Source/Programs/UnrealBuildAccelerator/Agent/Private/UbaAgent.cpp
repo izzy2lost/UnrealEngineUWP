@@ -686,7 +686,7 @@ namespace uba
 		// Check if AWS
 		#if defined(UBA_USE_AWS)
 		AWS aws;
-		aws.Init(logger, extraInfo, TC("Agent"));
+		aws.QueryInformation(logger, extraInfo, g_rootDir.data);
 		if (zone.IsEmpty())
 			zone.Append(aws.GetAvailabilityZone());
 		#endif
@@ -1028,10 +1028,6 @@ namespace uba
 				logger.Info(TC("----------- Session %s started -----------"), sessionClient->GetId());
 
 			u64 lastLogTime = GetTime();
-
-			#if defined(UBA_USE_AWS)
-			aws.InitPolling(logger);
-			#endif
 
 			u32 tcpConnectionCount = 1;
 

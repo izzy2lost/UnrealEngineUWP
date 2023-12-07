@@ -201,7 +201,8 @@ namespace uba
 			{
 				if (value.IsEmpty())
 					return PrintHelp(TC("-workdir needs a value"));
-				workDir.Append(value);
+				if ((workDir.count = GetFullPathNameW(value.data, workDir.capacity, workDir.data, nullptr)) == 0)
+					return PrintHelp(StringBuffer<>().Appendf(TC("-workdir has invalid path %s"), value.data).data);
 			}
 			else if (name.Equals(TC("-capacity")))
 			{
@@ -291,7 +292,7 @@ namespace uba
 		{
 			AWS aws;
 			StringBuffer<> info;
-			if (aws.Init(logger, info, TC("UbaCli")))
+			if (aws.QueryInformation(logger, info, TC("UbaCli")))
 			{
 				logger.Info(TC("We are inside AWS: %s (%s)"), info.data, aws.GetAvailabilityZone());
 				
@@ -363,6 +364,9 @@ namespace uba
 
 		if (workDir.IsEmpty())
 			workDir.Append(currentDir);
+
+		// TODO: Change workdir to make it full
+
 
 		StringBuffer<> logFile;
 		logFile.count = GetFullPathNameW(g_rootDir.data, logFile.capacity, logFile.data, nullptr);
