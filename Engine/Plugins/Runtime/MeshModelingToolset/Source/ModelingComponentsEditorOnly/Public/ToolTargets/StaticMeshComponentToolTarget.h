@@ -12,6 +12,7 @@
 #include "TargetInterfaces/StaticMeshBackedTarget.h"
 #include "TargetInterfaces/PhysicsDataSource.h"
 #include "ToolTargets/PrimitiveComponentToolTarget.h"
+#include "ToolTargets/StaticMeshToolTarget.h" // for FMeshDescriptionCache
 #include "ComponentSourceInterfaces.h"  // for EMeshLODIdentifier
 
 #include "StaticMeshComponentToolTarget.generated.h"
@@ -85,6 +86,9 @@ protected:
 	EMeshLODIdentifier EditingLOD = EMeshLODIdentifier::LOD0;
 
 	friend class UStaticMeshComponentToolTargetFactory;
+
+private:
+	UStaticMeshToolTarget::FMeshDescriptionCache CachedMeshDescriptions;
 };
 
 
