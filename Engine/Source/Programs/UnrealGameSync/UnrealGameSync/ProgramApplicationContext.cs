@@ -15,8 +15,6 @@ using System.Threading;
 using System.Threading.Tasks;
 using System.Windows.Forms;
 using EpicGames.OIDC;
-using UnrealGameSync.Forms;
-using Microsoft.Extensions.Logging.Abstractions;
 
 #nullable enable
 

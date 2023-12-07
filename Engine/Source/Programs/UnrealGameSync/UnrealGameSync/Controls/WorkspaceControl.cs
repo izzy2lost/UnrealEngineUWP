@@ -2085,8 +2085,6 @@ namespace UnrealGameSync
 		/// Determines if the ini specified INI filter is a subset of the InBadges passed
 		/// BadgeGroupSyncFilter - is used as the ini 
 		/// </summary>
-		/// <param name="inBadges"></param>
-		/// <returns></returns>
 		private static bool DoRequiredBadgesExist(List<string> requiredBadgeList, List<BadgeData> inBadges)
 		{
 			Dictionary<string, BadgeData> inBadgeDictionary = new Dictionary<string, BadgeData>();

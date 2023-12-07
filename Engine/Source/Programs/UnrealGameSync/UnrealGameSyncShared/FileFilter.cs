@@ -78,7 +78,7 @@ namespace UnrealGameSync
 		/// <summary>
 		/// Adds an include or exclude rule to the filter
 		/// </summary>
-		/// <param name="Pattern">Pattern to match. See CreateRegex() for details.</param>
+		/// <param name="rule">Pattern to match. See CreateRegex() for details.</param>
 		public void AddRule(string rule)
 		{
 			if (rule.StartsWith("-", StringComparison.Ordinal))
@@ -94,7 +94,8 @@ namespace UnrealGameSync
 		/// <summary>
 		/// Adds an include or exclude rule to the filter. The rule may be 
 		/// </summary>
-		/// <param name="Pattern">Pattern to match. See CreateRegex() for details.</param>
+		/// <param name="rule">Pattern to match. See CreateRegex() for details.</param>
+		/// <param name="allowTags"></param>
 		public void AddRule(string rule, params string[] allowTags)
 		{
 			string cleanRule = rule.Trim();
@@ -123,7 +124,7 @@ namespace UnrealGameSync
 		/// <summary>
 		/// Adds several rules to the filter
 		/// </summary>
-		/// <param name="Patterns">List of patterns to match.</param>
+		/// <param name="rules">List of patterns to match.</param>
 		public void AddRules(IEnumerable<string> rules)
 		{
 			foreach(string rule in rules)
@@ -136,8 +137,6 @@ namespace UnrealGameSync
 		/// Adds several rules in the given lines. Rules may be prefixed with conditions of the syntax {Key=Value, Key2=Value2}, which
 		/// will be evaluated using variables in the given dictionary before being added.
 		/// </summary>
-		/// <param name="Lines"></param>
-		/// <param name="Variables">Lookup for variables to test against</param>
 		public void AddRules(IEnumerable<string> rules, params string[] tags)
 		{
 			foreach(string rule in rules)
@@ -149,9 +148,6 @@ namespace UnrealGameSync
 		/// <summary>
 		/// Reads a configuration file split into sections
 		/// </summary>
-		/// <param name="Filter"></param>
-		/// <param name="RulesFileName"></param>
-		/// <param name="Conditions"></param>
 		public void ReadRulesFromFile(string fileName, string sectionName, params string[] allowTags)
 		{
 			bool inSection = false;
@@ -218,7 +214,7 @@ namespace UnrealGameSync
 		/// Adds an include or exclude rule to the filter
 		/// </summary>
 		/// <param name="pattern">The pattern which the rule should match</param>
-		/// <param name="bInclude">Whether to include or exclude files matching this rule</param>
+		/// <param name="type">Whether to include or exclude files matching this rule</param>
 		public void AddRule(string pattern, FileFilterType type)
 		{
 			string normalizedPattern = pattern.Replace('\\', '/');

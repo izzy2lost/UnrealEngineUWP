@@ -5,7 +5,6 @@ using System;
 using System.Collections.Generic;
 using System.IO;
 using System.Linq;
-using System.Reflection;
 using System.Threading;
 
 namespace UnrealGameSync
@@ -235,7 +234,6 @@ namespace UnrealGameSync
 		/// <summary>
 		/// Constructor
 		/// </summary>
-		/// <param name="file"></param>
 		public WorkspaceStateWrapper(DirectoryReference rootDir, Func<WorkspaceState> createNew)
 		{
 			RootDir = rootDir;

@@ -881,7 +881,7 @@ namespace UnrealGameSync
 				_logger.LogInformation("Polling for events...");
 
 				//////////////
-				/// Initial Ids 
+				// Initial Ids 
 				//////////////
 				if (_apiVersion == 0)
 				{
@@ -933,7 +933,7 @@ namespace UnrealGameSync
 				else
 				{
 					//////////////
-					/// Builds
+					// Builds
 					//////////////
 					List<BadgeData> builds = await RestApi.GetAsync<List<BadgeData>>($"{_apiUrl}/api/build?project={_project}&lastbuildid={_latestIds.LastBuildId}", cancellationToken);
 					foreach (BadgeData build in builds)
@@ -943,12 +943,12 @@ namespace UnrealGameSync
 					}
 
 					//////////////////////////
-					/// Throttled Requests
+					// Throttled Requests
 					//////////////////////////
 					if (fireThrottledRequests)
 					{
 						//////////////
-						/// Reviews 
+						// Reviews 
 						//////////////
 						List<EventData> events = await RestApi.GetAsync<List<EventData>>($"{_apiUrl}/api/event?project={_project}&lasteventid={_latestIds.LastEventId}", cancellationToken);
 						foreach (EventData review in events)
@@ -958,7 +958,7 @@ namespace UnrealGameSync
 						}
 
 						//////////////
-						/// Comments 
+						// Comments 
 						//////////////
 						List<CommentData> comments = await RestApi.GetAsync<List<CommentData>>($"{_apiUrl}/api/comment?project={_project}&lastcommentid={_latestIds.LastCommentId}", cancellationToken);
 						foreach (CommentData comment in comments)

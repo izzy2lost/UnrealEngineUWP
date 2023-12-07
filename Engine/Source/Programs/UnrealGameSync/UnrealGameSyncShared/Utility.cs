@@ -2,7 +2,6 @@
 
 using EpicGames.Core;
 using EpicGames.Perforce;
-using JetBrains.Annotations;
 using Microsoft.Extensions.Caching.Memory;
 using Microsoft.Extensions.Logging;
 using Microsoft.Win32;
@@ -587,8 +586,6 @@ namespace UnrealGameSync
 		/// <summary>
 		/// Determines if a project is an enterprise project
 		/// </summary>
-		/// <param name="FileName">Path to the project file</param>
-		/// <returns>True if the given filename is an enterprise project</returns>
 		public static bool IsEnterpriseProjectFromText(string text)
 		{
 			try
@@ -742,7 +739,6 @@ namespace UnrealGameSync
 					logger.LogWarning(ex, "Error while reading cache file {LocalFile}: {Message}", cacheFile, ex.Message);
 				}
 			}
-
 
 			DirectoryReference.CreateDirectory(cacheFolder);
 
