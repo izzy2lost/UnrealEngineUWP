@@ -3,18 +3,17 @@
 #include "AudioSpectrumAnalyzer.h"
 
 #include "DSP/EnvelopeFollower.h"
-#include "Engine/World.h"
 
 namespace AudioWidgets
 {
-	FAudioSpectrumAnalyzer::FAudioSpectrumAnalyzer(int32 InNumChannels, UWorld& InWorld, TObjectPtr<UAudioBus> InExternalAudioBus)
+	FAudioSpectrumAnalyzer::FAudioSpectrumAnalyzer(int32 InNumChannels, Audio::FDeviceId InAudioDeviceId, TObjectPtr<UAudioBus> InExternalAudioBus)
 		: Widget(SNew(SAudioSpectrumPlot)
 			.Clipping(EWidgetClipping::ClipToBounds)
 			.DisplayFrequencyAxisLabels(false)
 			.DisplaySoundLevelAxisLabels(false)
 			.OnGetAudioSpectrumData_Raw(this, &FAudioSpectrumAnalyzer::GetAudioSpectrumData))
 	{
-		Init(InNumChannels, InWorld, InExternalAudioBus);
+		Init(InNumChannels, InAudioDeviceId, InExternalAudioBus);
 	}
 
 	FAudioSpectrumAnalyzer::~FAudioSpectrumAnalyzer()
@@ -32,7 +31,7 @@ namespace AudioWidgets
 		return Widget->AsShared();
 	}
 
-	void FAudioSpectrumAnalyzer::Init(int32 InNumChannels, UWorld& InWorld, TObjectPtr<UAudioBus> InExternalAudioBus)
+	void FAudioSpectrumAnalyzer::Init(int32 InNumChannels, Audio::FDeviceId InAudioDeviceId, TObjectPtr<UAudioBus> InExternalAudioBus)
 	{
 		check(InNumChannels > 0);
 
@@ -57,8 +56,7 @@ namespace AudioWidgets
 
 		ResultsDelegateHandle = Analyzer->OnConstantQResultsNative.AddRaw(this, &FAudioSpectrumAnalyzer::OnConstantQResults);
 
-		WorldPtr = &InWorld;
-		Analyzer->StartAnalyzing(&InWorld, AudioBus.Get());
+		Analyzer->StartAnalyzing(InAudioDeviceId, AudioBus.Get());
 	}
 
 	void FAudioSpectrumAnalyzer::OnConstantQResults(UConstantQAnalyzer* InSpectrumAnalyzer, int32 ChannelIndex, const TArray<FConstantQResults>& InSpectrumResultsArray)

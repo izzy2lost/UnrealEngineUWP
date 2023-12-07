@@ -40,7 +40,20 @@ void UAudioOscilloscope::CreateDataProvider()
 {
 	constexpr uint32 NumChannelsToProvide = 1;
 	constexpr float  MaxTimeWindowMs      = 5000.0f; // TODO alex.perez: should we expose this as a UPROPERTY?
-	AudioSamplesDataProvider = MakeShared<AudioWidgets::FWaveformAudioSamplesDataProvider>(GetWorld(), AudioBus, NumChannelsToProvide, TimeWindowMs, MaxTimeWindowMs, AnalysisPeriodMs);
+
+	UWorld* World = GetWorld();
+	if (!World)
+	{
+		return;
+	}
+
+	const FAudioDeviceHandle AudioDevice = World->GetAudioDevice();
+	if (!AudioDevice.IsValid())
+	{
+		return;
+	}
+
+	AudioSamplesDataProvider = MakeShared<AudioWidgets::FWaveformAudioSamplesDataProvider>(AudioDevice.GetDeviceID(), AudioBus, NumChannelsToProvide, TimeWindowMs, MaxTimeWindowMs, AnalysisPeriodMs);
 }
 
 void UAudioOscilloscope::CreateOscilloscopeWidget()

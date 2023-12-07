@@ -2,12 +2,11 @@
 
 #include "AudioVectorscope.h"
 
-#include "Engine/World.h"
 #include "SAudioVectorscopePanelWidget.h"
 
 namespace AudioWidgets
 {
-	FAudioVectorscope::FAudioVectorscope(UWorld* InWorld, 
+	FAudioVectorscope::FAudioVectorscope(Audio::FDeviceId InAudioDeviceId,
 		const uint32 InNumChannels, 
 		const float InTimeWindowMs, 
 		const float InMaxTimeWindowMs, 
@@ -16,7 +15,7 @@ namespace AudioWidgets
 		: VectorscopePanelStyle(FAudioVectorscopePanelStyle::GetDefault())
 	{
 		CreateAudioBus(InNumChannels);
-		CreateDataProvider(InWorld, InTimeWindowMs, InMaxTimeWindowMs, InAnalysisPeriodMs);
+		CreateDataProvider(InAudioDeviceId, InTimeWindowMs, InMaxTimeWindowMs, InAnalysisPeriodMs);
 		CreateVectorscopeWidget(InPanelLayoutType);
 	}
 
@@ -26,11 +25,11 @@ namespace AudioWidgets
 		AudioBus->AudioBusChannels = AudioBusUtils::ConvertIntToEAudioBusChannels(InNumChannels);
 	}
 
-	void FAudioVectorscope::CreateDataProvider(UWorld* InWorld, const float InTimeWindowMs,	const float InMaxTimeWindowMs, const float InAnalysisPeriodMs)
+	void FAudioVectorscope::CreateDataProvider(Audio::FDeviceId InAudioDeviceId, const float InTimeWindowMs,	const float InMaxTimeWindowMs, const float InAnalysisPeriodMs)
 	{
 		check(AudioBus);
 
-		AudioSamplesDataProvider = MakeShared<FWaveformAudioSamplesDataProvider>(InWorld, AudioBus.Get(), AudioBus->GetNumChannels(), InTimeWindowMs, InMaxTimeWindowMs, InAnalysisPeriodMs);
+		AudioSamplesDataProvider = MakeShared<FWaveformAudioSamplesDataProvider>(InAudioDeviceId, AudioBus.Get(), AudioBus->GetNumChannels(), InTimeWindowMs, InMaxTimeWindowMs, InAnalysisPeriodMs);
 	}
 
 	void FAudioVectorscope::CreateVectorscopeWidget(const EAudioPanelLayoutType InPanelLayoutType)

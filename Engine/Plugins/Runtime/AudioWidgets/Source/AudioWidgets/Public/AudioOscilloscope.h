@@ -2,6 +2,7 @@
 
 #pragma once
 
+#include "AudioDefines.h"
 #include "AudioOscilloscopePanelStyle.h"
 #include "AudioWidgetsEnums.h"
 #include "SAudioOscilloscopePanelWidget.h"
@@ -18,7 +19,7 @@ namespace AudioWidgets
 	class AUDIOWIDGETS_API FAudioOscilloscope
 	{
 	public:
-		FAudioOscilloscope(UWorld* InWorld, 
+		FAudioOscilloscope(Audio::FDeviceId InAudioDeviceId,
 			const uint32 InNumChannels, 
 			const float InTimeWindowMs, 
 			const float InMaxTimeWindowMs, 
@@ -27,7 +28,7 @@ namespace AudioWidgets
 
 		void CreateAudioBus(const uint32 InNumChannels);
 
-		void CreateDataProvider(UWorld* InWorld,
+		void CreateDataProvider(Audio::FDeviceId InAudioDeviceId,
 			const float InTimeWindowMs,
 			const float InMaxTimeWindowMs,
 			const float InAnalysisPeriodMs,

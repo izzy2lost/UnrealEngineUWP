@@ -2,12 +2,12 @@
 #include "AudioOscilloscopeAnalyzer.h"
 
 #include "AudioBusSubsystem.h"
+#include "AudioDefines.h"
 #include "AudioDeviceManager.h"
 #include "AudioInsightsModule.h"
 #include "AudioOscilloscope.h"
 #include "AudioMixerDevice.h"
 #include "AudioMixerSubmix.h"
-#include "Editor.h"
 
 namespace UE::Audio::Insights
 {
@@ -20,26 +20,23 @@ namespace UE::Audio::Insights
 		{
 			using namespace ::Audio;
 
+			const IAudioInsightsModule& InsightsModule = FModuleManager::GetModuleChecked<IAudioInsightsModule>(IAudioInsightsModule::GetName());
+			const FDeviceId AudioDeviceId = InsightsModule.GetDeviceId();
+
 			if (FAudioDeviceManager* AudioDeviceManager = FAudioDeviceManager::Get())
 			{
-				const IAudioInsightsModule& InsightsModule = FModuleManager::GetModuleChecked<IAudioInsightsModule>(IAudioInsightsModule::GetName());
-				TArray<UWorld*> DeviceWorlds = AudioDeviceManager->GetWorldsUsingAudioDevice(InsightsModule.GetDeviceId());
-
-				if (UWorld* World = (DeviceWorlds.Num() > 0) ? DeviceWorlds[0] : nullptr)
+				if (const FMixerDevice* MixerDevice = static_cast<const FMixerDevice*>(AudioDeviceManager->GetAudioDeviceRaw(AudioDeviceId)))
 				{
-					if (FMixerDevice* MixerDevice = static_cast<FMixerDevice*>(World->GetAudioDeviceRaw()))
-					{
-						return MakeShared<AudioWidgets::FAudioOscilloscope>(DeviceWorlds[0],
-							MixerDevice->GetNumDeviceChannels(),
-							InTimeWindowMs,
-							InMaxTimeWindowMs,
-							InAnalysisPeriodMs,
-							InPanelLayoutType);
-					}
+					return MakeShared<AudioWidgets::FAudioOscilloscope>(AudioDeviceId,
+						MixerDevice->GetNumDeviceChannels(),
+						InTimeWindowMs,
+						InMaxTimeWindowMs,
+						InAnalysisPeriodMs,
+						InPanelLayoutType);
 				}
 			}
 			
-			return MakeShared<AudioWidgets::FAudioOscilloscope>(GEditor->GetWorld(), 1, InTimeWindowMs, InMaxTimeWindowMs, InAnalysisPeriodMs, InPanelLayoutType);
+			return MakeShared<AudioWidgets::FAudioOscilloscope>(AudioDeviceId, 1, InTimeWindowMs, InMaxTimeWindowMs, InAnalysisPeriodMs, InPanelLayoutType);
 		}
 	}
 
@@ -72,15 +69,9 @@ namespace UE::Audio::Insights
 		}
 
 		const IAudioInsightsModule& InsightsModule = FModuleManager::GetModuleChecked<IAudioInsightsModule>(IAudioInsightsModule::GetName());
-		TArray<UWorld*> DeviceWorlds = AudioDeviceManager->GetWorldsUsingAudioDevice(InsightsModule.GetDeviceId());
+		const FDeviceId AudioDeviceId = InsightsModule.GetDeviceId();
 
-		UWorld* World = (DeviceWorlds.Num() > 0) ? DeviceWorlds[0] : nullptr;
-		if (!World)
-		{
-			return;
-		}
-
-		FMixerDevice* MixerDevice = static_cast<FMixerDevice*>(World->GetAudioDeviceRaw());
+		const FMixerDevice* MixerDevice = static_cast<FMixerDevice*>(AudioDeviceManager->GetAudioDeviceRaw(AudioDeviceId));
 		if (!MixerDevice)
 		{
 			return;
@@ -91,13 +82,13 @@ namespace UE::Audio::Insights
 			return;
 		}
 
-		FMixerSubmixPtr MixerSubmix = MixerDevice->GetSubmixInstance(SoundSubmix.Get()).Pin();
-		if (!MixerSubmix.IsValid())
+		FMixerSubmixWeakPtr MixerSubmixWeakPtr = MixerDevice->GetSubmixInstance(SoundSubmix.Get());
+		if (!MixerSubmixWeakPtr.IsValid())
 		{
 			return;
 		}
 
-		AudioOscilloscope->CreateDataProvider(World, TimeWindowMs, MaxTimeWindowMs, AnalysisPeriodMs, PanelLayoutType);
+		AudioOscilloscope->CreateDataProvider(AudioDeviceId, TimeWindowMs, MaxTimeWindowMs, AnalysisPeriodMs, PanelLayoutType);
 		AudioOscilloscope->CreateOscilloscopeWidget(MixerDevice->GetNumDeviceChannels(), PanelLayoutType);
 
 		// Start processing
@@ -113,12 +104,16 @@ namespace UE::Audio::Insights
 		const FAudioBusKey AudioBusKey(AudioBus->GetUniqueID());
 		const int32 AudioBusNumChannels = AudioBus->GetNumChannels();
 
-		FAudioThread::RunCommandOnAudioThread([MixerDevice, MixerSubmix, AudioBusKey, AudioBusNumChannels]()
+		FAudioThread::RunCommandOnAudioThread([MixerDevice, MixerSubmixWeakPtr, AudioBusKey, AudioBusNumChannels]()
 		{
 			TObjectPtr<UAudioBusSubsystem> AudioBusSubsystem = MixerDevice->GetSubsystem<UAudioBusSubsystem>();
 			check(AudioBusSubsystem);
 
-			MixerSubmix->RegisterAudioBus(AudioBusKey, AudioBusSubsystem->AddPatchInputForAudioBus(AudioBusKey, MixerDevice->GetNumOutputFrames(), AudioBusNumChannels));
+			if (FMixerSubmixPtr MixerSubmix = MixerSubmixWeakPtr.Pin();
+				MixerSubmix.IsValid())
+			{
+				MixerSubmix->RegisterAudioBus(AudioBusKey, AudioBusSubsystem->AddPatchInputForAudioBus(AudioBusKey, MixerDevice->GetNumOutputFrames(), AudioBusNumChannels));
+			}
 		});
 	}
 
@@ -133,15 +128,9 @@ namespace UE::Audio::Insights
 		}
 
 		const IAudioInsightsModule& InsightsModule = FModuleManager::GetModuleChecked<IAudioInsightsModule>(IAudioInsightsModule::GetName());
-		TArray<UWorld*> DeviceWorlds = AudioDeviceManager->GetWorldsUsingAudioDevice(InsightsModule.GetDeviceId());
+		const FDeviceId AudioDeviceId = InsightsModule.GetDeviceId();
 
-		UWorld* World = (DeviceWorlds.Num() > 0) ? DeviceWorlds[0] : nullptr;
-		if (!World)
-		{
-			return;
-		}
-
-		FMixerDevice* MixerDevice = static_cast<FMixerDevice*>(World->GetAudioDeviceRaw());
+		const FMixerDevice* MixerDevice = static_cast<FMixerDevice*>(AudioDeviceManager->GetAudioDeviceRaw(AudioDeviceId));
 		if (!MixerDevice)
 		{
 			return;
@@ -152,8 +141,8 @@ namespace UE::Audio::Insights
 			return;
 		}
 
-		FMixerSubmixPtr MixerSubmix = MixerDevice->GetSubmixInstance(SoundSubmix.Get()).Pin();
-		if (!MixerSubmix.IsValid())
+		FMixerSubmixWeakPtr MixerSubmixWeakPtr = MixerDevice->GetSubmixInstance(SoundSubmix.Get());
+		if (!MixerSubmixWeakPtr.IsValid())
 		{
 			return;
 		}
@@ -167,9 +156,13 @@ namespace UE::Audio::Insights
 
 		const FAudioBusKey AudioBusKey(AudioBus->GetUniqueID());
 
-		FAudioThread::RunCommandOnAudioThread([MixerDevice, MixerSubmix, AudioBusKey]()
+		FAudioThread::RunCommandOnAudioThread([MixerSubmixWeakPtr, AudioBusKey]()
 		{
-			MixerSubmix->UnregisterAudioBus(AudioBusKey);
+			if (FMixerSubmixPtr MixerSubmix = MixerSubmixWeakPtr.Pin();
+				MixerSubmix.IsValid())
+			{
+				MixerSubmix->UnregisterAudioBus(AudioBusKey);
+			}
 		});
 
 		// Stop processing

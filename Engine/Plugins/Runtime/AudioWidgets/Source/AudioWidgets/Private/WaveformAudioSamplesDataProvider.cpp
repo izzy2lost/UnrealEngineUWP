@@ -35,34 +35,33 @@ namespace AudioWidgets
 		};
 	}
 
-	FWaveformAudioSamplesDataProvider::FWaveformAudioSamplesDataProvider(UWorld* InWorld,
+	FWaveformAudioSamplesDataProvider::FWaveformAudioSamplesDataProvider(const Audio::FDeviceId InAudioDeviceId,
 		UAudioBus* InAudioBus,
 		const uint32 InNumChannelToProvide,
 		const float InTimeWindowMs,
 		const float InMaxTimeWindowMs,
 		const float InAnalysisPeriodMs)
 	{
-		if (!InWorld)
-		{
-			UE_LOG(LogAudioWidgets, Error, TEXT("World pointer needed to retrieve the AudioDevice is not available."));
-			return;
-		}
-
 		if (!InAudioBus)
 		{
 			UE_LOG(LogAudioWidgets, Error, TEXT("Unable to obtain audio samples for visualization without a valid audio bus."));
 			return;
 		}
 
-		MixerDevice = static_cast<Audio::FMixerDevice*>(InWorld->GetAudioDeviceRaw());
+		const FAudioDeviceManager* AudioDeviceManager = FAudioDeviceManager::Get();
+		if (!AudioDeviceManager)
+		{
+			UE_LOG(LogAudioWidgets, Error, TEXT("Unable to obtain audio samples for visualization without a valid audio device manager."));
+			return;
+		}
 
+		MixerDevice = static_cast<const Audio::FMixerDevice*>(AudioDeviceManager->GetAudioDeviceRaw(InAudioDeviceId));
 		if (!MixerDevice)
 		{
 			UE_LOG(LogAudioWidgets, Error, TEXT("Unable to obtain audio samples for visualization without a valid audio mixer."));
 			return;
 		}
 
-		WorldPtr = InWorld;
 		AudioBus = InAudioBus;
 
 		NumChannelsToProvide = InNumChannelToProvide;
@@ -115,7 +114,6 @@ namespace AudioWidgets
 			return;
 		}
 
-		check(WorldPtr);
 		check(AudioBus);
 		check(MixerDevice);
 

@@ -2,11 +2,9 @@
 
 #include "AudioOscilloscope.h"
 
-#include "Engine/World.h"
-
 namespace AudioWidgets
 {
-	FAudioOscilloscope::FAudioOscilloscope(UWorld* InWorld, 
+	FAudioOscilloscope::FAudioOscilloscope(Audio::FDeviceId InAudioDeviceId,
 		const uint32 InNumChannels, 
 		const float InTimeWindowMs, 
 		const float InMaxTimeWindowMs, 
@@ -15,7 +13,7 @@ namespace AudioWidgets
 		: OscilloscopePanelStyle(FAudioOscilloscopePanelStyle::GetDefault())
 	{
 		CreateAudioBus(InNumChannels);
-		CreateDataProvider(InWorld, InTimeWindowMs, InMaxTimeWindowMs, InAnalysisPeriodMs, InPanelLayoutType);
+		CreateDataProvider(InAudioDeviceId, InTimeWindowMs, InMaxTimeWindowMs, InAnalysisPeriodMs, InPanelLayoutType);
 		CreateOscilloscopeWidget(InNumChannels, InPanelLayoutType);
 	}
 
@@ -25,7 +23,7 @@ namespace AudioWidgets
 		AudioBus->AudioBusChannels = AudioBusUtils::ConvertIntToEAudioBusChannels(InNumChannels);
 	}
 
-	void FAudioOscilloscope::CreateDataProvider(UWorld* InWorld,
+	void FAudioOscilloscope::CreateDataProvider(Audio::FDeviceId InAudioDeviceId,
 		const float InTimeWindowMs,
 		const float InMaxTimeWindowMs,
 		const float InAnalysisPeriodMs,
@@ -34,7 +32,7 @@ namespace AudioWidgets
 		check(AudioBus);
 
 		const uint32 NumChannelsToProvide = (InPanelLayoutType == EAudioPanelLayoutType::Advanced) ? 1 : AudioBus->GetNumChannels(); // Advanced mode waveform display is based on channel selection
-		AudioSamplesDataProvider = MakeShared<FWaveformAudioSamplesDataProvider>(InWorld, AudioBus.Get(), NumChannelsToProvide, InTimeWindowMs, InMaxTimeWindowMs, InAnalysisPeriodMs);
+		AudioSamplesDataProvider = MakeShared<FWaveformAudioSamplesDataProvider>(InAudioDeviceId, AudioBus.Get(), NumChannelsToProvide, InTimeWindowMs, InMaxTimeWindowMs, InAnalysisPeriodMs);
 	}
 
 	void FAudioOscilloscope::CreateOscilloscopeWidget(const uint32 InNumChannels, const EAudioPanelLayoutType InPanelLayoutType)

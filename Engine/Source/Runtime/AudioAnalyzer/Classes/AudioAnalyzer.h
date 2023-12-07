@@ -3,12 +3,14 @@
 #pragma once
 
 #include "Async/AsyncWork.h"
-#include "CoreMinimal.h"
-#include "IAudioAnalyzerInterface.h"
 #include "AudioAnalyzerAsset.h"
 #include "AudioAnalyzerFacade.h"
-#include "Sound/AudioBus.h"
+#include "AudioDefines.h"
+#include "CoreMinimal.h"
 #include "DSP/MultithreadedPatching.h"
+#include "IAudioAnalyzerInterface.h"
+#include "Sound/AudioBus.h"
+
 #include "AudioAnalyzer.generated.h"
 
 class UAudioAnalyzerSubsystem;
@@ -94,7 +96,10 @@ public:
 	AUDIOANALYZER_API void StartAnalyzing(const UObject* WorldContextObject, UAudioBus* AudioBusToAnalyze);
 
 	/** Starts analyzing using the given world.*/
+	UE_DEPRECATED(5.4, "Use the StartAnalyzing method that uses Audio::FDeviceId.")
 	AUDIOANALYZER_API void StartAnalyzing(UWorld* InWorld, UAudioBus* AudioBusToAnalyze);
+
+	AUDIOANALYZER_API void StartAnalyzing(const Audio::FDeviceId InAudioDeviceId, UAudioBus* AudioBusToAnalyze);
 
 	/** Stops analyzing audio. */
 	UFUNCTION(BlueprintCallable, BlueprintCosmetic, Category = AudioAnalyzer, meta = (WorldContext = "WorldContextObject"))

@@ -1,14 +1,15 @@
 // Copyright Epic Games, Inc. All Rights Reserved.
 
-
 #include "AudioAnalyzer.h"
+
+#include "Async/Async.h"
 #include "AudioAnalyzerFacade.h"
 #include "AudioAnalyzerModule.h"
-#include "Async/Async.h"
-#include "AudioMixerDevice.h"
-#include "AudioDeviceManager.h"
 #include "AudioAnalyzerSubsystem.h"
 #include "AudioBusSubsystem.h"
+#include "AudioDeviceHandle.h"
+#include "AudioDeviceManager.h"
+#include "AudioMixerDevice.h"
 #include "Engine/Engine.h"
 
 #include UE_INLINE_GENERATED_CPP_BY_NAME(AudioAnalyzer)
@@ -39,18 +40,36 @@ void FAudioAnalyzeTask::DoWork()
 
 void UAudioAnalyzer::StartAnalyzing(UWorld* InWorld, UAudioBus* AudioBusToAnalyze)
 {
+	if (!InWorld)
+	{
+		return;
+	}
+
+	const FAudioDeviceHandle AudioDevice = InWorld->GetAudioDevice();
+	if (!AudioDevice.IsValid())
+	{
+		return;
+	}
+
+	StartAnalyzing(AudioDevice.GetDeviceID(), AudioBusToAnalyze);
+}
+
+void UAudioAnalyzer::StartAnalyzing(const Audio::FDeviceId InAudioDeviceId, UAudioBus* AudioBusToAnalyze)
+{
 	if (!AudioBusToAnalyze)
 	{
 		UE_LOG(LogAudioAnalyzer, Error, TEXT("Unable to analyze audio without an audio bus to analyze."));
 		return;
 	}
 
-	if (!InWorld)
+	const FAudioDeviceManager* AudioDeviceManager = FAudioDeviceManager::Get();
+	if (!AudioDeviceManager)
 	{
+		UE_LOG(LogAudioAnalyzer, Error, TEXT("Unable to analyze audio with a null audio device manager."));
 		return;
 	}
 
-	Audio::FMixerDevice* MixerDevice = static_cast<Audio::FMixerDevice*>(InWorld->GetAudioDeviceRaw());
+	const Audio::FMixerDevice* MixerDevice = static_cast<const Audio::FMixerDevice*>(AudioDeviceManager->GetAudioDeviceRaw(InAudioDeviceId));
 
 	if (!MixerDevice)
 	{
@@ -120,7 +139,13 @@ void UAudioAnalyzer::StartAnalyzing(const UObject* WorldContextObject, UAudioBus
 		return;
 	}
 
-	StartAnalyzing(ThisWorld, AudioBusToAnalyze);
+	const FAudioDeviceHandle AudioDevice = ThisWorld->GetAudioDevice();
+	if (!AudioDevice.IsValid())
+	{
+		return;
+	}
+
+	StartAnalyzing(AudioDevice.GetDeviceID(), AudioBusToAnalyze);
 }
 
 void UAudioAnalyzer::StopAnalyzing(const UObject* WorldContextObject)

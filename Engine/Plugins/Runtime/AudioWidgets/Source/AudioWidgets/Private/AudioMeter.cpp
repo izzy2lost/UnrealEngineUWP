@@ -162,6 +162,12 @@ const FText UAudioMeter::GetPaletteCategory()
 namespace AudioWidgets
 {
 	FAudioMeter::FAudioMeter(int32 InNumChannels, UWorld& InWorld, TObjectPtr<UAudioBus> InExternalAudioBus)
+		: FAudioMeter(InNumChannels, InWorld.GetAudioDevice().GetDeviceID(), InExternalAudioBus)
+	{
+		
+	}
+
+	FAudioMeter::FAudioMeter(const int32 InNumChannels, const Audio::FDeviceId InAudioDeviceId, const TObjectPtr<UAudioBus> InExternalAudioBus)
 		: Widget(SNew(SAudioMeter)
 			.Orientation(EOrientation::Orient_Vertical)
 			.BackgroundColor(FLinearColor::Transparent)
@@ -175,7 +181,7 @@ namespace AudioWidgets
 			.MeterScaleLabelColor(FLinearColor(0.442708f, 0.442708f, 0.442708f, 1.0f))
 		)
 	{
-		Init(InNumChannels, InWorld, InExternalAudioBus);
+		Init(InNumChannels, InAudioDeviceId, InExternalAudioBus);
 	}
 
 	FAudioMeter::~FAudioMeter()
@@ -195,6 +201,17 @@ namespace AudioWidgets
 
 	void FAudioMeter::Init(int32 InNumChannels, UWorld& InWorld, TObjectPtr<UAudioBus> InExternalAudioBus)
 	{
+		const FAudioDeviceHandle AudioDevice = InWorld.GetAudioDevice();
+		if (!AudioDevice.IsValid())
+		{
+			return;
+		}
+
+		Init(InNumChannels, AudioDevice.GetDeviceID(), InExternalAudioBus);
+	}
+
+	void FAudioMeter::Init(const int32 InNumChannels, const Audio::FDeviceId InAudioDeviceId, const TObjectPtr<UAudioBus> InExternalAudioBus)
+	{
 		check(InNumChannels > 0);
 
 		Teardown();
@@ -212,8 +229,7 @@ namespace AudioWidgets
 
 		ResultsDelegateHandle = Analyzer->OnLatestPerChannelMeterResultsNative.AddRaw(this, &FAudioMeter::OnMeterOutput);
 
-		WorldPtr = &InWorld;
-		Analyzer->StartAnalyzing(&InWorld, AudioBus.Get());
+		Analyzer->StartAnalyzing(InAudioDeviceId, AudioBus.Get());
 
 		constexpr float DefaultMeterValue = -60.0f;
 		constexpr float DefaultPeakValue = -60.0f;

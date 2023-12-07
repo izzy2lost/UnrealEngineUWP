@@ -2,6 +2,7 @@
 
 #pragma once
 
+#include "AudioDefines.h"
 #include "AudioVectorscopePanelStyle.h"
 #include "AudioWidgetsEnums.h"
 #include "Sound/AudioBus.h"
@@ -17,7 +18,7 @@ namespace AudioWidgets
 	class AUDIOWIDGETS_API FAudioVectorscope
 	{
 	public:
-		FAudioVectorscope(UWorld* InWorld, 
+		FAudioVectorscope(Audio::FDeviceId InAudioDeviceId,
 			const uint32 InNumChannels, 
 			const float InTimeWindowMs, 
 			const float InMaxTimeWindowMs, 
@@ -25,7 +26,7 @@ namespace AudioWidgets
 			const EAudioPanelLayoutType InPanelLayoutType);
 
 		void CreateAudioBus(const uint32 InNumChannels);
-		void CreateDataProvider(UWorld* InWorld, const float InTimeWindowMs, const float InMaxTimeWindowMs, const float InAnalysisPeriodMs);
+		void CreateDataProvider(Audio::FDeviceId InAudioDeviceId, const float InTimeWindowMs, const float InMaxTimeWindowMs, const float InAnalysisPeriodMs);
 		void CreateVectorscopeWidget(const EAudioPanelLayoutType InPanelLayoutType);
 
 		void StartProcessing();

@@ -2,14 +2,19 @@
 
 #pragma once
 
+#include "AudioDefines.h"
 #include "AudioOscilloscopeEnums.h"
 #include "Containers/ArrayView.h"
 #include "Containers/Ticker.h"
 #include "DSP/Dsp.h"
 #include "DSP/MultithreadedPatching.h"
-#include "Engine/World.h"
 #include "FixedSampledSequenceView.h"
 #include "IFixedSampledSequenceViewProvider.h"
+
+namespace Audio
+{
+	class FMixerDevice;
+}
 
 class UAudioBus;
 
@@ -23,7 +28,7 @@ namespace AudioWidgets
 															   public TSharedFromThis<FWaveformAudioSamplesDataProvider>
 	{
 	public:
-		FWaveformAudioSamplesDataProvider(UWorld* InWorld, 
+		FWaveformAudioSamplesDataProvider(const Audio::FDeviceId InAudioDeviceId,
 			UAudioBus* InAudioBus, 
 			const uint32 InNumChannelToProvide, 
 			const float InTimeWindowMs, 
@@ -55,7 +60,6 @@ namespace AudioWidgets
 		void PushAudioSamplesToCircularBuffer();
 		bool Tick(float DeltaTime);
 
-		UWorld* WorldPtr = nullptr;
 		FTSTicker::FDelegateHandle TickerHandle = nullptr;
 
 		uint32 NumChannelsToProvide = 0;

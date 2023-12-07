@@ -3,6 +3,8 @@
 
 #include "Analysis/MetasoundFrontendVertexAnalyzerAudioBuffer.h"
 #include "AudioBusSubsystem.h"
+#include "AudioDefines.h"
+#include "AudioDeviceManager.h"
 #include "AudioMixerDevice.h"
 #include "AudioOscilloscope.h"
 #include "MetasoundEditor.h"
@@ -36,18 +38,19 @@ namespace Metasound
 		FMetasoundPinAudioInspector::FMetasoundPinAudioInspector(FEdGraphPinReference InPinRef)
 			: GraphPinObj(FMetasoundPinAudioInspectorPrivate::ResolvePinObjectAsOutput(InPinRef.Get()))
 		{
+			using namespace Audio;
+
 			// Initialize Oscilloscope
-			UWorld* EditorWorld = GEditor->GetEditorWorldContext().World();
-			check(EditorWorld);
+			const FDeviceId AudioDeviceId = GEditor->GetMainAudioDeviceID();
 
 			constexpr int32 NumChannels = 1; // Audio wires are currently mono signals
 
-			Oscilloscope = MakeShared<AudioWidgets::FAudioOscilloscope>(EditorWorld,
-																		NumChannels,
-																		/*InTimeWindowMs*/     10.0f,
-																		/*InMaxTimeWindowMs*/  10.0f,
-																		/*InAnalysisPeriodMs*/ 10.0f,
-																		/*InPanelLayoutType*/  EAudioPanelLayoutType::Basic);
+			Oscilloscope = MakeShared<AudioWidgets::FAudioOscilloscope>(AudioDeviceId,
+				NumChannels,
+				/*InTimeWindowMs*/     10.0f,
+				/*InMaxTimeWindowMs*/  10.0f,
+				/*InAnalysisPeriodMs*/ 10.0f,
+				/*InPanelLayoutType*/  EAudioPanelLayoutType::Basic);
 
 			PinAudioInspectorWidget = SNew(SMetasoundPinAudioInspector)
 									  .VisualizationWidget(Oscilloscope->GetPanelWidget());
@@ -55,14 +58,17 @@ namespace Metasound
 			Oscilloscope->StartProcessing();
 
 			// Set PatchInput from Oscilloscope AudioBus
-			Audio::FMixerDevice* MixerDevice = static_cast<Audio::FMixerDevice*>(EditorWorld->GetAudioDeviceRaw());
+			const FAudioDeviceManager* AudioDeviceManager = FAudioDeviceManager::Get();
+			check(AudioDeviceManager);
+
+			const FMixerDevice* MixerDevice = static_cast<const FMixerDevice*>(AudioDeviceManager->GetAudioDeviceRaw(AudioDeviceId));
 			check(MixerDevice);
 
 			UAudioBusSubsystem* AudioBusSubsystem = MixerDevice->GetSubsystem<UAudioBusSubsystem>();
 			check(AudioBusSubsystem);
 
 			const uint32 AudioBusId = Oscilloscope->GetAudioBus()->GetUniqueID();
-			PatchInput = AudioBusSubsystem->AddPatchInputForAudioBus(Audio::FAudioBusKey(AudioBusId), MixerDevice->GetNumOutputFrames(), NumChannels);
+			PatchInput = AudioBusSubsystem->AddPatchInputForAudioBus(FAudioBusKey(AudioBusId), MixerDevice->GetNumOutputFrames(), NumChannels);
 
 			// Track Audio Pin
 			if (GraphPinObj && !GraphPinObj->LinkedTo.IsEmpty() && GraphPinObj->PinType.PinCategory == FGraphBuilder::PinCategoryAudio)

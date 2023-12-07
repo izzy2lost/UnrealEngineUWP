@@ -1170,67 +1170,65 @@ namespace Metasound
 			{
 				if (ensure(GEditor))
 				{
-					UWorld* EditorWorld = GEditor->GetEditorWorldContext().World();
-					if (ensure(EditorWorld))
+					const Audio::FDeviceId AudioDeviceId = GEditor->GetMainAudioDeviceID();
+
+					if (!OutputMeter.IsValid())
 					{
-						if (!OutputMeter.IsValid())
-						{
-							OutputMeter = MakeShared<AudioWidgets::FAudioMeter>(MetaSoundSource->NumChannels, *EditorWorld);
-						}
-
-						const uint32 MetaSoundNumChannels = static_cast<uint32>(MetaSoundSource->NumChannels);
-
-						// Init Oscilloscope
-						constexpr float OscilloscopeTimeWindowMs     = 10.0f;
-						constexpr float OscilloscopeMaxTimeWindowMs  = 10.0f;
-						constexpr float OscilloscopeAnalysisPeriodMs = 10.0f;
-						constexpr EAudioPanelLayoutType OscilloscopePanelLayoutType = EAudioPanelLayoutType::Basic;
-
-						if (!OutputOscilloscope.IsValid())
-						{
-							OutputOscilloscope = MakeShared<AudioWidgets::FAudioOscilloscope>(EditorWorld,
-								MetaSoundNumChannels,
-								OscilloscopeTimeWindowMs,
-								OscilloscopeMaxTimeWindowMs,
-								OscilloscopeAnalysisPeriodMs,
-								OscilloscopePanelLayoutType);
-						}
-						else
-						{
-							OutputOscilloscope->CreateAudioBus(MetaSoundNumChannels);
-							OutputOscilloscope->CreateDataProvider(EditorWorld,	OscilloscopeTimeWindowMs, OscilloscopeMaxTimeWindowMs, OscilloscopeAnalysisPeriodMs, OscilloscopePanelLayoutType);
-							OutputOscilloscope->CreateOscilloscopeWidget(MetaSoundNumChannels, EAudioPanelLayoutType::Basic);
-						}
-
-						// Init Vectorscope
-						constexpr float VectorscopeTimeWindowMs     = 30.0f;
-						constexpr float VectorscopeMaxTimeWindowMs  = 30.0f;
-						constexpr float VectorscopeAnalysisPeriodMs = 10.0f;
-						constexpr EAudioPanelLayoutType VectorscopePanelLayoutType = EAudioPanelLayoutType::Basic;
-
-						if (!OutputVectorscope.IsValid())
-						{
-							OutputVectorscope = MakeShared<AudioWidgets::FAudioVectorscope>(EditorWorld,
-								MetaSoundNumChannels,
-								VectorscopeTimeWindowMs,
-								VectorscopeMaxTimeWindowMs,
-								VectorscopeAnalysisPeriodMs,
-								VectorscopePanelLayoutType);
-						}
-						else
-						{
-							OutputVectorscope->CreateAudioBus(MetaSoundNumChannels);
-							OutputVectorscope->CreateDataProvider(EditorWorld, VectorscopeTimeWindowMs, VectorscopeMaxTimeWindowMs, VectorscopeAnalysisPeriodMs);
-							OutputVectorscope->CreateVectorscopeWidget(VectorscopePanelLayoutType);
-						}
-
-						if (!OutputSpectrumAnalyzer.IsValid())
-						{
-							OutputSpectrumAnalyzer = MakeShared<AudioWidgets::FAudioSpectrumAnalyzer>(MetaSoundSource->NumChannels, *EditorWorld);
-						}
-
-						return;
+						OutputMeter = MakeShared<AudioWidgets::FAudioMeter>(MetaSoundSource->NumChannels, AudioDeviceId);
 					}
+
+					const uint32 MetaSoundNumChannels = static_cast<uint32>(MetaSoundSource->NumChannels);
+
+					// Init Oscilloscope
+					constexpr float OscilloscopeTimeWindowMs     = 10.0f;
+					constexpr float OscilloscopeMaxTimeWindowMs  = 10.0f;
+					constexpr float OscilloscopeAnalysisPeriodMs = 10.0f;
+					constexpr EAudioPanelLayoutType OscilloscopePanelLayoutType = EAudioPanelLayoutType::Basic;
+
+					if (!OutputOscilloscope.IsValid())
+					{
+						OutputOscilloscope = MakeShared<AudioWidgets::FAudioOscilloscope>(AudioDeviceId,
+							MetaSoundNumChannels,
+							OscilloscopeTimeWindowMs,
+							OscilloscopeMaxTimeWindowMs,
+							OscilloscopeAnalysisPeriodMs,
+							OscilloscopePanelLayoutType);
+					}
+					else
+					{
+						OutputOscilloscope->CreateAudioBus(MetaSoundNumChannels);
+						OutputOscilloscope->CreateDataProvider(AudioDeviceId, OscilloscopeTimeWindowMs, OscilloscopeMaxTimeWindowMs, OscilloscopeAnalysisPeriodMs, OscilloscopePanelLayoutType);
+						OutputOscilloscope->CreateOscilloscopeWidget(MetaSoundNumChannels, EAudioPanelLayoutType::Basic);
+					}
+
+					// Init Vectorscope
+					constexpr float VectorscopeTimeWindowMs     = 30.0f;
+					constexpr float VectorscopeMaxTimeWindowMs  = 30.0f;
+					constexpr float VectorscopeAnalysisPeriodMs = 10.0f;
+					constexpr EAudioPanelLayoutType VectorscopePanelLayoutType = EAudioPanelLayoutType::Basic;
+
+					if (!OutputVectorscope.IsValid())
+					{
+						OutputVectorscope = MakeShared<AudioWidgets::FAudioVectorscope>(AudioDeviceId,
+							MetaSoundNumChannels,
+							VectorscopeTimeWindowMs,
+							VectorscopeMaxTimeWindowMs,
+							VectorscopeAnalysisPeriodMs,
+							VectorscopePanelLayoutType);
+					}
+					else
+					{
+						OutputVectorscope->CreateAudioBus(MetaSoundNumChannels);
+						OutputVectorscope->CreateDataProvider(AudioDeviceId, VectorscopeTimeWindowMs, VectorscopeMaxTimeWindowMs, VectorscopeAnalysisPeriodMs);
+						OutputVectorscope->CreateVectorscopeWidget(VectorscopePanelLayoutType);
+					}
+
+					if (!OutputSpectrumAnalyzer.IsValid())
+					{
+						OutputSpectrumAnalyzer = MakeShared<AudioWidgets::FAudioSpectrumAnalyzer>(MetaSoundSource->NumChannels, AudioDeviceId);
+					}
+
+					return;
 				}
 			}
 

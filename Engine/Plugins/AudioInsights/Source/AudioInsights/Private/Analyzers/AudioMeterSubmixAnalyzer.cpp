@@ -2,6 +2,7 @@
 #include "AudioMeterSubmixAnalyzer.h"
 
 #include "AudioBusSubsystem.h"
+#include "AudioDefines.h"
 #include "AudioDeviceManager.h"
 #include "AudioInsightsModule.h"
 #include "AudioMeter.h"
@@ -47,22 +48,16 @@ namespace UE::Audio::Insights
 		}
 
 		const IAudioInsightsModule& InsightsModule = FModuleManager::GetModuleChecked<IAudioInsightsModule>(IAudioInsightsModule::GetName());
-		TArray<UWorld*> DeviceWorlds = AudioDeviceManager->GetWorldsUsingAudioDevice(InsightsModule.GetDeviceId());
+		const FDeviceId AudioDeviceId = InsightsModule.GetDeviceId();
 
-		UWorld* World = (DeviceWorlds.Num() > 0) ? DeviceWorlds[0] : nullptr;
-		if (!World)
-		{
-			return;
-		}
-
-		FMixerDevice* MixerDevice = static_cast<FMixerDevice*>(World->GetAudioDeviceRaw());
+		const FMixerDevice* MixerDevice = static_cast<const FMixerDevice*>(AudioDeviceManager->GetAudioDeviceRaw(AudioDeviceId));
 		if (!MixerDevice)
 		{
 			return;
 		}
 
-		FMixerSubmixPtr MixerSubmix = MixerDevice->GetSubmixInstance(SoundSubmix.Get()).Pin();
-		if (!MixerSubmix.IsValid())
+		FMixerSubmixWeakPtr MixerSubmixWeakPtr = MixerDevice->GetSubmixInstance(SoundSubmix.Get());
+		if (!MixerSubmixWeakPtr.IsValid())
 		{
 			return;
 		}
@@ -77,12 +72,16 @@ namespace UE::Audio::Insights
 		const FAudioBusKey AudioBusKey(AudioBus->GetUniqueID());
 		const int32 AudioBusNumChannels = AudioBus->GetNumChannels();
 
-		FAudioThread::RunCommandOnAudioThread([MixerDevice, MixerSubmix, AudioBusKey, AudioBusNumChannels]()
+		FAudioThread::RunCommandOnAudioThread([MixerDevice, MixerSubmixWeakPtr, AudioBusKey, AudioBusNumChannels]()
 		{
 			TObjectPtr<UAudioBusSubsystem> AudioBusSubsystem = MixerDevice->GetSubsystem<UAudioBusSubsystem>();
 			check(AudioBusSubsystem);
 
-			MixerSubmix->RegisterAudioBus(AudioBusKey, AudioBusSubsystem->AddPatchInputForAudioBus(AudioBusKey, MixerDevice->GetNumOutputFrames(), AudioBusNumChannels));
+			if (FMixerSubmixPtr MixerSubmix = MixerSubmixWeakPtr.Pin();
+				MixerSubmix.IsValid())
+			{
+				MixerSubmix->RegisterAudioBus(AudioBusKey, AudioBusSubsystem->AddPatchInputForAudioBus(AudioBusKey, MixerDevice->GetNumOutputFrames(), AudioBusNumChannels));
+			}
 		});
 	}
 
@@ -97,15 +96,9 @@ namespace UE::Audio::Insights
 		}
 
 		const IAudioInsightsModule& InsightsModule = FModuleManager::GetModuleChecked<IAudioInsightsModule>(IAudioInsightsModule::GetName());
-		TArray<UWorld*> DeviceWorlds = AudioDeviceManager->GetWorldsUsingAudioDevice(InsightsModule.GetDeviceId());
+		const FDeviceId AudioDeviceId = InsightsModule.GetDeviceId();
 
-		UWorld* World = (DeviceWorlds.Num() > 0) ? DeviceWorlds[0] : nullptr;
-		if (!World)
-		{
-			return;
-		}
-
-		FMixerDevice* MixerDevice = static_cast<FMixerDevice*>(World->GetAudioDeviceRaw());
+		const FMixerDevice* MixerDevice = static_cast<const FMixerDevice*>(AudioDeviceManager->GetAudioDeviceRaw(AudioDeviceId));
 		if (!MixerDevice)
 		{
 			return;
@@ -116,8 +109,8 @@ namespace UE::Audio::Insights
 			return;
 		}
 
-		FMixerSubmixPtr MixerSubmix = MixerDevice->GetSubmixInstance(SoundSubmix.Get()).Pin();
-		if (!MixerSubmix.IsValid())
+		FMixerSubmixWeakPtr MixerSubmixWeakPtr = MixerDevice->GetSubmixInstance(SoundSubmix.Get());
+		if (!MixerSubmixWeakPtr.IsValid())
 		{
 			return;
 		}
@@ -131,9 +124,13 @@ namespace UE::Audio::Insights
 
 		const FAudioBusKey AudioBusKey(AudioBus->GetUniqueID());
 
-		FAudioThread::RunCommandOnAudioThread([MixerDevice, MixerSubmix, AudioBusKey]()
+		FAudioThread::RunCommandOnAudioThread([MixerSubmixWeakPtr, AudioBusKey]()
 		{
-			MixerSubmix->UnregisterAudioBus(AudioBusKey);
+			if (FMixerSubmixPtr MixerSubmix = MixerSubmixWeakPtr.Pin();
+				MixerSubmix.IsValid())
+			{
+				MixerSubmix->UnregisterAudioBus(AudioBusKey);
+			}
 		});
 	}
 

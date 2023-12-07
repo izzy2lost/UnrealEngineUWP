@@ -3,6 +3,7 @@
 #include "AudioVectorscopeUMG.h"
 
 #include "AudioMixerDevice.h"
+#include "Engine/World.h"
 #include "SAudioVectorscopePanelWidget.h"
 #include "WaveformAudioSamplesDataProvider.h"
 
@@ -33,7 +34,20 @@ void UAudioVectorscope::CreateDummyVectorscopeWidget()
 void UAudioVectorscope::CreateDataProvider()
 {
 	constexpr float MaxDisplayPersistenceMs = 500.0f; // TODO alex.perez: should we expose this as a UPROPERTY?
-	AudioSamplesDataProvider = MakeShared<AudioWidgets::FWaveformAudioSamplesDataProvider>(GetWorld(), AudioBus, AudioBus->GetNumChannels(), DisplayPersistenceMs, MaxDisplayPersistenceMs, AnalysisPeriodMs);
+
+	UWorld* World = GetWorld();
+	if (!World)
+	{
+		return;
+	}
+
+	const FAudioDeviceHandle AudioDevice = World->GetAudioDevice();
+	if (!AudioDevice.IsValid())
+	{
+		return;
+	}
+
+	AudioSamplesDataProvider = MakeShared<AudioWidgets::FWaveformAudioSamplesDataProvider>(AudioDevice.GetDeviceID(), AudioBus, AudioBus->GetNumChannels(), DisplayPersistenceMs, MaxDisplayPersistenceMs, AnalysisPeriodMs);
 }
 
 void UAudioVectorscope::CreateVectorscopeWidget()

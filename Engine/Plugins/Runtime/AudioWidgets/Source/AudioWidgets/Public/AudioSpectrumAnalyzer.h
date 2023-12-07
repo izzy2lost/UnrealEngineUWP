@@ -18,14 +18,14 @@ namespace AudioWidgets
 	class AUDIOWIDGETS_API FAudioSpectrumAnalyzer
 	{
 	public:
-		FAudioSpectrumAnalyzer(int32 InNumChannels, UWorld& InWorld, TObjectPtr<UAudioBus> InExternalAudioBus = nullptr);
+		FAudioSpectrumAnalyzer(int32 InNumChannels, Audio::FDeviceId InAudioDeviceId, TObjectPtr<UAudioBus> InExternalAudioBus = nullptr);
 		~FAudioSpectrumAnalyzer();
 
 		UAudioBus* GetAudioBus() const;
 
 		TSharedRef<SWidget> GetWidget() const;
 
-		void Init(int32 InNumChannels, UWorld& InWorld, TObjectPtr<UAudioBus> InExternalAudioBus = nullptr);
+		void Init(int32 InNumChannels, Audio::FDeviceId InAudioDeviceId, TObjectPtr<UAudioBus> InExternalAudioBus = nullptr);
 
 	protected:
 		void OnConstantQResults(UConstantQAnalyzer* InSpectrumAnalyzer, int32 ChannelIndex, const TArray<FConstantQResults>& InSpectrumResultsArray);
@@ -54,8 +54,6 @@ namespace AudioWidgets
 
 		/** Slate widget for spectrum display */
 		TSharedPtr<SAudioSpectrumPlot> Widget;
-
-		TWeakObjectPtr<UWorld> WorldPtr;
 
 		bool bUseExternalAudioBus = false;
 
