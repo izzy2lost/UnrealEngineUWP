@@ -1,4 +1,4 @@
-﻿namespace UnrealGameSyncLauncher
+﻿namespace UnrealGameSync
 {
 	partial class LogWindow
 	{

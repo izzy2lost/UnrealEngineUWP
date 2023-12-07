@@ -12,6 +12,7 @@ using System;
 using System.Collections.Generic;
 using System.Diagnostics.CodeAnalysis;
 using System.IO;
+using System.Linq;
 using System.Reflection;
 using System.Threading;
 using System.Threading.Tasks;
@@ -74,6 +75,18 @@ namespace UnrealGameSync
 				TaskScheduler.UnobservedTaskException += Application_UnobservedException_Sentry;
 			}
 
+			try
+			{
+				RealMain(args);
+			}
+			catch (Exception ex)
+			{
+				CaptureException(ex);
+			}
+		}
+
+		static void RealMain(string[] args)
+		{
 			bool firstInstance;
 			using (Mutex instanceMutex = new Mutex(true, "UnrealGameSyncRunning", out firstInstance))
 			{
@@ -83,33 +96,28 @@ namespace UnrealGameSync
 
 				using (EventWaitHandle activateEvent = new EventWaitHandle(false, EventResetMode.AutoReset, "ActivateUnrealGameSync"))
 				{
-					// handle any url passed in, possibly exiting
+					// Check for a newer version of the application
+					if (!args.Contains("-NoUpdateCheck", StringComparer.OrdinalIgnoreCase) && Launcher.SyncAndRunLatest(instanceMutex, args))
+					{
+						return;
+					}
+
+					// Handle any url passed in, possibly exiting
 					if (UriHandler.ProcessCommandLine(args, firstInstance, activateEvent))
 					{
 						return;
 					}
 
+					// Launch the application proper
 					if (firstInstance)
 					{
-						GuardedInnerMainAsync(instanceMutex, activateEvent, args);
+						InnerMainAsync(instanceMutex, activateEvent, args).GetAwaiter().GetResult();
 					}
 					else
 					{
 						activateEvent.Set();
 					}
 				}
-			}
-		}
-
-		static void GuardedInnerMainAsync(Mutex instanceMutex, EventWaitHandle activateEvent, string[] args)
-		{
-			try
-			{
-				InnerMainAsync(instanceMutex, activateEvent, args).GetAwaiter().GetResult();
-			}
-			catch (Exception ex)
-			{
-				CaptureException(ex);
 			}
 		}
 

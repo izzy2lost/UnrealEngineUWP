@@ -1,8 +1,8 @@
 // Copyright Epic Games, Inc. All Rights Reserved.
 
-namespace UnrealGameSyncLauncher
+namespace UnrealGameSync
 {
-	partial class SettingsWindow
+	partial class UpdateSettingsWindow
 	{
 		/// <summary>
 		/// Required designer variable.
@@ -30,7 +30,7 @@ namespace UnrealGameSyncLauncher
 		/// </summary>
 		private void InitializeComponent()
 		{
-			System.ComponentModel.ComponentResourceManager resources = new System.ComponentModel.ComponentResourceManager(typeof(SettingsWindow));
+			System.ComponentModel.ComponentResourceManager resources = new System.ComponentModel.ComponentResourceManager(typeof(UpdateSettingsWindow));
 			ServerTextBox = new System.Windows.Forms.TextBox();
 			DepotPathTextBox = new System.Windows.Forms.TextBox();
 			DepotPathLabel = new System.Windows.Forms.Label();
@@ -312,7 +312,7 @@ namespace UnrealGameSyncLauncher
 			MinimizeBox = false;
 			Name = "SettingsWindow";
 			StartPosition = System.Windows.Forms.FormStartPosition.CenterScreen;
-			Text = "UnrealGameSync Launcher";
+			Text = "Update Settings";
 			tableLayoutPanel1.ResumeLayout(false);
 			tableLayoutPanel1.PerformLayout();
 			tableLayoutPanel2.ResumeLayout(false);

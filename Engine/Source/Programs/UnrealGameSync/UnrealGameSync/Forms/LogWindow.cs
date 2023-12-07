@@ -2,7 +2,7 @@
 
 using System.Windows.Forms;
 
-namespace UnrealGameSyncLauncher
+namespace UnrealGameSync
 {
 	public partial class LogWindow : Form
 	{

@@ -10,9 +10,9 @@ using System.Threading.Tasks;
 using System.Windows.Forms;
 using UnrealGameSync;
 
-namespace UnrealGameSyncLauncher
+namespace UnrealGameSync
 {
-	partial class SettingsWindow : Form
+	partial class UpdateSettingsWindow : Form
 	{
 		[DllImport("user32.dll")]
 		private static extern IntPtr SendMessage(IntPtr hWnd, int msg, int wParam, [MarshalAs(UnmanagedType.LPWStr)] string lParam);
@@ -25,7 +25,7 @@ namespace UnrealGameSyncLauncher
 		string? _logText;
 		readonly SyncAndRunDelegate _syncAndRun;
 
-		public SettingsWindow(string? prompt, string? logText, LauncherSettings settings, SyncAndRunDelegate syncAndRun)
+		public UpdateSettingsWindow(string? prompt, string? logText, LauncherSettings settings, SyncAndRunDelegate syncAndRun)
 		{
 			InitializeComponent();
 			Font = new System.Drawing.Font("Segoe UI", 8.25F, System.Drawing.FontStyle.Regular, System.Drawing.GraphicsUnit.Point, ((byte)(0)));
