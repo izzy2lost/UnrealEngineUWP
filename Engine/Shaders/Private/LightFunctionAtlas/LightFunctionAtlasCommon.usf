@@ -31,7 +31,9 @@ FLightFunctionColor GetLocalLightFunctionCommon(float3 TranslatedWorldPosition, 
 		return 1.0f;
 	}
 
-	float4 LightFunctionLightDataParameters = LightFunctionAtlas.LightInfoDataParameters[LightFunctionAtlasLightIndex];
+	const uint BaseBufferIndex = LightFunctionAtlasLightIndex * 5; // See FAtlasLightInfoData
+
+	float4 LightFunctionLightDataParameters = LightFunctionAtlas.LightInfoDataBuffer[BaseBufferIndex + 0];
 	const float  FadeDistance				= LightFunctionLightDataParameters.x;
 	const uint   PackedLightInfoDataParams	= asuint(LightFunctionLightDataParameters.y);
 	const float2 Slot_MinUV					= LightFunctionLightDataParameters.zw;
@@ -39,7 +41,11 @@ FLightFunctionColor GetLocalLightFunctionCommon(float3 TranslatedWorldPosition, 
 	const uint   LightType					= PackedLightInfoDataParams & 0xFF;
 	const float  DisabledBrightness			= f16tof32((PackedLightInfoDataParams >> 8) & 0xFFFF);
 
-	float4x4 ActualLightFunctionMatrix = LightFunctionAtlas.LightInfoDataMatrix[LightFunctionAtlasLightIndex];
+	float4x4 ActualLightFunctionMatrix = float4x4(
+		LightFunctionAtlas.LightInfoDataBuffer[BaseBufferIndex + 1],
+		LightFunctionAtlas.LightInfoDataBuffer[BaseBufferIndex + 2],
+		LightFunctionAtlas.LightInfoDataBuffer[BaseBufferIndex + 3],
+		LightFunctionAtlas.LightInfoDataBuffer[BaseBufferIndex + 4]);
 	float4 HomogeneousShadowPosition = mul(float4(TranslatedWorldPosition, 1), ActualLightFunctionMatrix);
 
 	float2 LightFunctionUV;

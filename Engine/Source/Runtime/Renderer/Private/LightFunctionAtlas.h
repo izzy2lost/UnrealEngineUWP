@@ -103,22 +103,20 @@ struct FLightFunctionSlot
 
 #define LIGHT_FUNCTION_ATLAS_MAX_LIGHT_FUNCTION_COUNT 256
 
-/**
- * On devices using OpenGL, we are limited to 256 vec4s. 
- * Light parameters take 5 vec4s. So we can fit at maximum of 51.2 light info data. We round it down to 48 lights.
- * This is already plenty. And we can move to use a buffer later on.
- */
-#define LIGHT_FUNCTION_ATLAS_MAX_LIGHT_COUNT 48
+struct FAtlasLightInfoData
+{
+	FVector4f  Parameters;
+	FMatrix44f Transform;
+};
 
 // This allows to not have to store more data per GPU light representation on GPU. The light only needs an index into the array.
 // Using a constant buffer also workaround the fact that we would otherwise need another SRV in forward shaders. 
 // The light atlas texture itself already use 1 extra SRV. We could an extra SRV and have LightInfoDataXXX be in a buffer that scale with amount of light in the scene.
 BEGIN_GLOBAL_SHADER_PARAMETER_STRUCT(FLightFunctionAtlasGlobalParameters, )
 	SHADER_PARAMETER_RDG_TEXTURE(Texture2D<float4>, LightFunctionAtlasTexture)
+	SHADER_PARAMETER_RDG_BUFFER_SRV(StructuredBuffer<float4>, LightInfoDataBuffer)
 	SHADER_PARAMETER_SAMPLER(SamplerState, LightFunctionAtlasSampler)
 	SHADER_PARAMETER(float, Slot_UVSize)
-	SHADER_PARAMETER_ARRAY(FMatrix44f, LightInfoDataMatrix, [LIGHT_FUNCTION_ATLAS_MAX_LIGHT_COUNT])		// Light data
-	SHADER_PARAMETER_ARRAY(FVector4f,  LightInfoDataParameters, [LIGHT_FUNCTION_ATLAS_MAX_LIGHT_COUNT]) // Light data
 END_GLOBAL_SHADER_PARAMETER_STRUCT()
 
 
@@ -161,6 +159,7 @@ private:
 	bool bLightFunctionAtlasEnabled = false;
 
 	FRDGTextureRef RDGAtlasTexture2D = nullptr;
+	FRDGBufferRef RDGLightInfoDataBuffer = nullptr;
 
 	// All the lights that wants to sample light functions
 	TArray<FLightSceneInfo*> RegisteredLights;
@@ -189,7 +188,7 @@ private:
 	FLightFunctionAtlasGlobalParameters*								DefaultLightFunctionAtlasGlobalParameters = nullptr;
 	TRDGUniformBufferRef<FLightFunctionAtlasGlobalParameters>			DefaultLightFunctionAtlasGlobalParametersUB;
 
-	TArray<FLightFunctionAtlasGlobalParameters*>							ViewLightFunctionAtlasGlobalParametersArray;
+	TArray<FLightFunctionAtlasGlobalParameters*>						ViewLightFunctionAtlasGlobalParametersArray;
 	TArray<TRDGUniformBufferRef<FLightFunctionAtlasGlobalParameters>>	ViewLightFunctionAtlasGlobalParametersUBArray;
 };
 
