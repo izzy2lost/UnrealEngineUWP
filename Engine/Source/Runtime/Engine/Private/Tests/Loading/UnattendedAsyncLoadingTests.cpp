@@ -125,6 +125,8 @@ namespace UnattendedLoadTestImpl
 									{
 										// Filter out some progress types as we wait until later to start loading the next package
 										case EAsyncLoadingProgress::Started:
+											[[fallthrough]];
+										case EAsyncLoadingProgress::Read:
 											return;
 
 										// Whenever we receive a progress type that indicate the request has finished being processed

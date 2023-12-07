@@ -2999,8 +2999,7 @@ public:
 
 	/** [EDL] End Event driven loader specific stuff */
 
-	void CallCompletionCallbacks(EAsyncLoadingResult::Type LoadingResult);
-
+	void CallProgressCallbacks(EAsyncLoadingProgress ProgressType);
 private:
 	void InitializeExportArchive(FExportArchive& Ar, bool bIsOptionalSegment);
 	void CreatePackageNodes(const FAsyncLoadEventSpec* EventSpecs);
@@ -3221,7 +3220,6 @@ private:
 				}
 				ProgressCallbacks.Empty();
 			}
-
 		}
 	};
 	TArray<FCompletedPackageRequest> CompletedPackageRequests;
@@ -5273,22 +5271,7 @@ void FAsyncPackage2::StartLoading(FAsyncLoadingThreadState2& ThreadState, FIoBat
 
 	LoadStartTime = FPlatformTime::Seconds();
 
-	if (ProgressCallbacks.Num() != 0)
-	{
-		TRACE_CPUPROFILER_EVENT_SCOPE(PackageProgressCallbacks_Started);
-
-		const FLoadPackageAsyncProgressParams Params
-		{
-			.PackageName = Desc.UPackageName,
-			.LoadedPackage = GetLinkerRoot(),
-			.ProgressType = EAsyncLoadingProgress::Started
-		};
-
-		for (TUniquePtr<FLoadPackageAsyncProgressDelegate>& ProgressCallback : ProgressCallbacks)
-		{
-			ProgressCallback->ExecuteIfBound(Params);
-		}
-	}
+	CallProgressCallbacks(EAsyncLoadingProgress::Started);
 
 	AsyncPackageLoadingState = EAsyncPackageLoadingState2::WaitingForIo;
 
@@ -5985,6 +5968,8 @@ EEventLoadNodeExecutionResult FAsyncPackage2::Event_ProcessPackageSummary(FAsync
 	UE::Core::Private::FPlayInEditorLoadingScope PlayInEditorIDScope(Package->Desc.PIEInstanceID);
 #endif
 
+	Package->CallProgressCallbacks(EAsyncLoadingProgress::Read);
+
 #if ALT2_ENABLE_LINKERLOAD_SUPPORT
 	if (Package->LinkerLoadState.IsSet())
 	{
@@ -6100,6 +6085,26 @@ EEventLoadNodeExecutionResult FAsyncPackage2::Event_DependenciesReady(FAsyncLoad
 	Package->AsyncPackageLoadingState = EAsyncPackageLoadingState2::DependenciesReady;
 	Package->ConditionalBeginProcessPackageExports(ThreadState);
 	return EEventLoadNodeExecutionResult::Complete;
+}
+
+void FAsyncPackage2::CallProgressCallbacks(EAsyncLoadingProgress ProgressType)
+{
+	if (ProgressCallbacks.Num() != 0)
+	{
+		TRACE_CPUPROFILER_EVENT_SCOPE(FAsyncPackage2::CallProgressCallbacks);
+
+		const FLoadPackageAsyncProgressParams Params
+		{
+			.PackageName = Desc.UPackageName,
+			.LoadedPackage = GetLinkerRoot(),
+			.ProgressType = ProgressType
+		};
+
+		for (TUniquePtr<FLoadPackageAsyncProgressDelegate>& ProgressCallback : ProgressCallbacks)
+		{
+			ProgressCallback->ExecuteIfBound(Params);
+		}
+	}
 }
 
 void FAsyncPackage2::InitializeExportArchive(FExportArchive& Ar, bool bIsOptionalSegment)
@@ -6914,22 +6919,7 @@ EEventLoadNodeExecutionResult FAsyncPackage2::Event_ExportsDone(FAsyncLoadingThr
 		FCoreDelegates::ReleasePreloadedPackageShaderMaps.ExecuteIfBound(Package->Data.ShaderMapHashes);
 	}
 
-	if (Package->ProgressCallbacks.Num())
-	{
-		TRACE_CPUPROFILER_EVENT_SCOPE(PackageProgressCallbacks_Serialized);
-
-		const FLoadPackageAsyncProgressParams Params
-		{
-			.PackageName = Package->Desc.UPackageName,
-			.LoadedPackage = Package->GetLinkerRoot(),
-			.ProgressType = EAsyncLoadingProgress::Serialized
-		};
-
-		for (TUniquePtr<FLoadPackageAsyncProgressDelegate>& ProgressCallback : Package->ProgressCallbacks)
-		{
-			ProgressCallback->ExecuteIfBound(Params);
-		}
-	}
+	Package->CallProgressCallbacks(EAsyncLoadingProgress::Serialized);
 
 	FAsyncLoadingPostLoadGroup* PostLoadGroup = Package->PostLoadGroup;
 	check(PostLoadGroup);

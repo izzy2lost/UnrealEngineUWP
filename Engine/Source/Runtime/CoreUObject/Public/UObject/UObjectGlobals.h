@@ -669,6 +669,8 @@ enum class EAsyncLoadingProgress : uint32
 	Failed,
 	/** Package has started loading. */
 	Started,
+	/** Package I/O has been read. */
+	Read,
 	/** Package has finished its serialization phase. */
 	Serialized,
 	/** Package has finished all loading phase successfully */
