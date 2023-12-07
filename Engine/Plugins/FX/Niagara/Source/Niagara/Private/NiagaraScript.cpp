@@ -2736,7 +2736,20 @@ bool UNiagaraScript::BinaryToExecData(const UNiagaraScript* Script, const TArray
 	}
 
 	FMemoryReader Ar(InBinaryData, true);
+
+	// Read the archive version from the header of the payload so we can setup our reader with the right version
+	FPackageFileVersion ArchiveVersion;
+	Ar << ArchiveVersion;
+
+	if (!ArchiveVersion.IsCompatible(GOldestLoadablePackageFileUEVersion))
+	{
+		UE_LOG(LogNiagara, Display, TEXT("Failed to validate FNiagaraVMExecutableData received from DDC, rejecting!  Reasons:\nDeprecated object version"));
+		return false;
+	}
+
 	FObjectAndNameAsStringProxyArchive SafeAr(Ar, false);
+	SafeAr.SetUEVer(ArchiveVersion);
+
 	OutExecData.SerializeData(SafeAr, true);
 
 	FString ValidationErrors;
@@ -2766,6 +2779,11 @@ bool UNiagaraScript::ExecToBinaryData(const UNiagaraScript* Script, TArray<uint8
 	}
 
 	FMemoryWriter Ar(OutBinaryData, true);
+
+	// include the archive version into the payload since we're using struct serialization for the ExecData
+	FPackageFileVersion ArchiveVersion = GPackageFileUEVersion;
+	Ar << ArchiveVersion;
+
 	FObjectAndNameAsStringProxyArchive SafeAr(Ar, false);
 	InExecData.SerializeData(SafeAr, true);
 
