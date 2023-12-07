@@ -26,6 +26,8 @@ FChooserEditorStyle::FChooserEditorStyle() :
 
 	// tab icon
 	Set("ChooserEditor.ChooserTableIconSmall", new IMAGE_BRUSH_SVG("ChooserIcon_16", Icon16x16));
+	
+	Set("ChooserEditor.FallbackIcon", new IMAGE_BRUSH_SVG("Fallback", Icon16x16));
 }
 
 void FChooserEditorStyle::Initialize()
