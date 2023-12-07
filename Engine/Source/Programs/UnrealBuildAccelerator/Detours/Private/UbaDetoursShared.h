@@ -19,7 +19,7 @@ namespace uba
 
 	ANALYSIS_NORETURN void FatalError(u32 code, const tchar* format, ...);
 
-	void Rpc_WriteLog(const tchar* text, u64 textCharLength, bool printInSession);
+	void Rpc_WriteLog(const tchar* text, u64 textCharLength, bool printInSession, bool isError);
 	void Rpc_WriteLogf(const tchar* format, ...);
 
 	const tchar* GetApplicationShortName();
@@ -128,8 +128,8 @@ namespace uba
 	inline bool CanDetour(const tchar* file) { return !t_disallowDetour && g_rules->CanDetour(file); }
 	inline bool KeepInMemory(const tchar* fileName, u32 fileNameLen) { return g_allowKeepFilesInMemory && g_rules->KeepInMemory(fileName, fileNameLen, g_systemTemp.data); }
 
-	void Shared_WriteConsole(const char* chars, u32 charCount);
-	void Shared_WriteConsole(const wchar_t* chars, u32 charCount);
+	void Shared_WriteConsole(const char* chars, u32 charCount, bool isError);
+	void Shared_WriteConsole(const wchar_t* chars, u32 charCount, bool isError);
 
 	const tchar* Shared_GetFileAttributes(FileAttributes& outAttr, const tchar* fileName, bool checkIfDir = false);
 }

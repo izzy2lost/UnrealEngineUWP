@@ -315,7 +315,7 @@ BOOL Detoured_WriteConsoleA(HANDLE hConsoleOutput, const VOID* lpBuffer, DWORD n
 {
 	DETOURED_CALL(WriteConsoleA);
 	//DEBUG_LOG_TRUE_AND_DETOURED(L"WriteConsoleA (%hs)", (char*)lpBuffer);
-	Shared_WriteConsole((const char*)lpBuffer, nNumberOfCharsToWrite);
+	Shared_WriteConsole((const char*)lpBuffer, nNumberOfCharsToWrite, false);
 	if (lpNumberOfCharsWritten)
 		*lpNumberOfCharsWritten = nNumberOfCharsToWrite;
 	return TRUE;//True_WriteConsoleA(hConsoleOutput, lpBuffer, nNumberOfCharsToWrite, lpNumberOfCharsWritten, lpReserved);
@@ -325,7 +325,7 @@ BOOL Detoured_WriteConsoleW(HANDLE hConsoleOutput, const VOID* lpBuffer, DWORD n
 {
 	DETOURED_CALL(WriteConsoleW);
 	//DEBUG_LOG_DETOURED(L"WriteConsoleW"", L""); // Too much spam
-	Shared_WriteConsole((const wchar_t*)lpBuffer, nNumberOfCharsToWrite);
+	Shared_WriteConsole((const wchar_t*)lpBuffer, nNumberOfCharsToWrite, false);
 	if (lpNumberOfCharsWritten)
 		*lpNumberOfCharsWritten = nNumberOfCharsToWrite;
 	return TRUE;//True_WriteConsoleW(hConsoleOutput, lpBuffer, nNumberOfCharsToWrite, lpNumberOfCharsWritten, lpReserved);
@@ -498,7 +498,7 @@ DWORD Detoured_GetSecurityInfo(HANDLE handle, SE_OBJECT_TYPE ObjectType, SECURIT
 	return True_GetSecurityInfo(handle, ObjectType, SecurityInfo, ppsidOwner, ppsidGroup, ppDacl, ppSacl, ppSecurityDescriptor);
 }
 
-void WriteStdFile(LPCVOID lpBuffer, DWORD nNumberOfBytesToWrite)
+void WriteStdFile(LPCVOID lpBuffer, DWORD nNumberOfBytesToWrite, bool isError)
 {
 	if (!g_echoOn)
 		return;
@@ -516,7 +516,7 @@ void WriteStdFile(LPCVOID lpBuffer, DWORD nNumberOfBytesToWrite)
 				--len;
 			if (len)
 				g_stdFile.Appendf(L"%.*hs", len, bufferStr + start);
-			Rpc_WriteLog(g_stdFile.data, g_stdFile.count, false);
+			Rpc_WriteLog(g_stdFile.data, g_stdFile.count, false, isError);
 			g_stdFile.Clear();
 			start = i + 1;
 		}
@@ -538,7 +538,7 @@ BOOL Detoured_WriteFile(HANDLE hFile, LPCVOID lpBuffer, DWORD nNumberOfBytesToWr
 
 		if (dh.type == HandleType_Std)
 		{
-			WriteStdFile(lpBuffer, nNumberOfBytesToWrite);
+			WriteStdFile(lpBuffer, nNumberOfBytesToWrite, hFile == g_stdHandle[0]);
 			*lpNumberOfBytesWritten = nNumberOfBytesToWrite;
 			SetLastError(ERROR_SUCCESS);
 			return true;
@@ -564,7 +564,7 @@ BOOL Detoured_WriteFile(HANDLE hFile, LPCVOID lpBuffer, DWORD nNumberOfBytesToWr
 	}
 	else if (hFile == g_stdHandle[1] || hFile == g_stdHandle[0])
 	{
-		WriteStdFile(lpBuffer, nNumberOfBytesToWrite);
+		WriteStdFile(lpBuffer, nNumberOfBytesToWrite, hFile == g_stdHandle[0]);
 		SetLastError(ERROR_SUCCESS);
 		return true;
 	}

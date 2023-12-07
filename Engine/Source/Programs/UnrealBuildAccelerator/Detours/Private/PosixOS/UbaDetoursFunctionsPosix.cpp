@@ -836,7 +836,7 @@ UBA_EXPORT ssize_t UBA_WRAPPER(write)(int fd, const void* buf, size_t count)
 	UBA_INIT_DETOUR(write, fd, buf, count);
 	if (isatty(fd)) // stdout and stderr
 	{
-		Shared_WriteConsole((const char*)buf, count);
+		Shared_WriteConsole((const char*)buf, count, fd == fileno(stderr));
 		return count;
 	}
 	//DEBUG_LOG_TRUE("write", "(%i size: %llu)", fd, count);
@@ -1923,7 +1923,7 @@ namespace uba
 		SuppressDetourScope s;
 		StringBuffer<4096> b;
 		WriteAssertInfo(b, text, file, line, expr, 1);
-		Rpc_WriteLog(b.data, b.count, true);
+		Rpc_WriteLog(b.data, b.count, true, true);
 
 		BinaryWriter writer;
 		writer.WriteByte(MessageType_Exit);

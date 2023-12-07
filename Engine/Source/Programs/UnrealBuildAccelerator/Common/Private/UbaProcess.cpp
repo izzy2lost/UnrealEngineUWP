@@ -770,8 +770,9 @@ namespace uba
 			case MessageType_Log:
 				{
 					bool printInSession = reader.ReadBool();
+					bool isError = reader.ReadBool();
 					TString line = reader.ReadString();
-					LogLine(printInSession, std::move(line), LogEntryType_Info);
+					LogLine(printInSession, std::move(line), isError ? LogEntryType_Error : LogEntryType_Info);
 					return true;
 				}
 				
@@ -1293,10 +1294,17 @@ namespace uba
 
 			wordexp_t  w;
 
-			auto expRes = wordexp(m_realApplication.c_str(), &w, 0);
+			const char* realApplication = m_realApplication.c_str();
+			StringBuffer<> tempApplication;
+			if (m_realApplication.find(' ') != TString::npos)
+			{
+				tempApplication.Append('\"').Append(m_realApplication).Append('\"');
+				realApplication = tempApplication.data;
+			}
+			auto expRes = wordexp(realApplication, &w, 0);
 			if (expRes != 0)
 			{
-				logger.Error("wordexp failed (%i) parsing application name: %s", expRes, m_realApplication.c_str());
+				logger.Error("wordexp failed (%i) parsing application name: %s", expRes, realApplication);
 				return UBA_EXIT_CODE(16);
 			}
 			const char* args = m_startInfo.arguments;

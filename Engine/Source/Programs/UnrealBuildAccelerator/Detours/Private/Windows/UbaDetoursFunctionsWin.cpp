@@ -375,7 +375,7 @@ void UbaAssert(const wchar_t* text, const char* file, u32 line, const char* expr
 	
 	StringBuffer<32*1024> b;
 	WriteAssertInfo(b, text, file, line, expr, 1);
-	Rpc_WriteLog(b.data, b.count, true);
+	Rpc_WriteLog(b.data, b.count, true, true);
 	#if UBA_DEBUG_LOG_ENABLED
 	FlushDebugLog();
 	#endif

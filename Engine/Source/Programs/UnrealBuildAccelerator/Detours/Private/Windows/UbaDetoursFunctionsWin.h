@@ -11,6 +11,7 @@
 #include <mbstring.h>
 #include <Shlwapi.h>
 #include <wchar.h>
+#include <stdio.h>
 
 
 #if UBA_DEBUG
@@ -145,6 +146,7 @@
 	DETOURED_FUNCTION(_get_osfhandle) \
 	DETOURED_FUNCTION(_isatty) \
 	DETOURED_FUNCTION(_write) \
+	DETOURED_FUNCTION(fputs) \
 	DETOURED_FUNCTIONS_CRTBASE_DEBUG \
 
 #if defined(UBA_USE_MIMALLOC)

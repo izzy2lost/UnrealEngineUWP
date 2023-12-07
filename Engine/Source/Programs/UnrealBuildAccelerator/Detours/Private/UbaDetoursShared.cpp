@@ -151,7 +151,7 @@ namespace uba
 		va_end(arg);
 		StringBuffer<2048> sb;
 		sb.Append(GetApplicationShortName()).Append(TC(" ERROR: ")).Append(buffer);
-		Rpc_WriteLog(sb.data, sb.count, true);
+		Rpc_WriteLog(sb.data, sb.count, true, true);
 
 		#if PLATFORM_WINDOWS // Maybe all platforms should call exit()?
 		ExitProcess(code);
@@ -160,7 +160,7 @@ namespace uba
 		#endif
 	}
 
-	void Rpc_WriteLog(const tchar* text, u64 textCharLength, bool printInSession)
+	void Rpc_WriteLog(const tchar* text, u64 textCharLength, bool printInSession, bool isError)
 	{
 		DEBUG_LOG(TC("LOG  %.*s"), u32(textCharLength), text); // TODO: Investigate, deadlocks on non-windows
 		TimerScope ts(g_stats.log);
@@ -168,7 +168,7 @@ namespace uba
 		BinaryWriter writer;
 		writer.WriteByte(MessageType_Log);
 		writer.WriteBool(printInSession);
-		//writer.WriteBool(hConsoleOutput == g_stderrHandle);
+		writer.WriteBool(isError);
 		writer.WriteString(text, textCharLength);
 		writer.Flush();
 	}
@@ -185,7 +185,7 @@ namespace uba
 			count = int(TStrlen(buffer));
 		}
 		va_end(arg);
-		Rpc_WriteLog(buffer, u32(count), false);
+		Rpc_WriteLog(buffer, u32(count), false, false);
 	}
 
 	//TODO: Implement SetConsoleTextAttribute.. clang is using it to color errors
@@ -195,7 +195,7 @@ namespace uba
 	EARLY_INIT ReaderWriterLock g_consoleStringCs;
 
 	template<typename CharType>
-	void Shared_WriteConsoleT(const CharType* chars, u32 charCount)
+	void Shared_WriteConsoleT(const CharType* chars, u32 charCount, bool isError)
 	{
 		if (!g_echoOn)
 			return;
@@ -212,7 +212,7 @@ namespace uba
 				*write = 0;
 				u32 strLen = u32(write - g_consoleString);
 				if (!g_rules->SuppressLogLine(g_consoleString, strLen))
-					Rpc_WriteLog(g_consoleString, strLen, false);
+					Rpc_WriteLog(g_consoleString, strLen, false, isError);
 				write = g_consoleString;
 				left = sizeof_array(g_consoleString) - 1;
 			}
@@ -228,10 +228,10 @@ namespace uba
 		g_consoleStringIndex = u32(write - g_consoleString);
 	}
 
-	void Shared_WriteConsole(const char* chars, u32 charCount) { Shared_WriteConsoleT(chars, charCount); }
+	void Shared_WriteConsole(const char* chars, u32 charCount, bool isError) { Shared_WriteConsoleT(chars, charCount, isError); }
 
 	#if PLATFORM_WINDOWS
-	void Shared_WriteConsole(const wchar_t* chars, u32 charCount) { Shared_WriteConsoleT(chars, charCount); }
+	void Shared_WriteConsole(const wchar_t* chars, u32 charCount, bool isError) { Shared_WriteConsoleT(chars, charCount, isError); }
 	#endif
 
 

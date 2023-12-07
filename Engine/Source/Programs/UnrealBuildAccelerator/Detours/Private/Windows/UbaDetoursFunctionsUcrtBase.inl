@@ -255,6 +255,18 @@ int Detoured__write(int fd, const void* buffer, unsigned int count)
 	return res;
 }
 
+int Detoured_fputs(const char* str, FILE* stream)
+{
+	int fno = _fileno(stream); (void)fno;
+	int errfno = _fileno(stderr);
+	if (fno == errfno || fno == _fileno(stdout))
+	{
+		Shared_WriteConsole(str, u32(strlen(str)), fno == errfno);
+		return 1;
+	}
+	return True_fputs(str, stream);
+}
+
 int Detoured__wspawnl(int mode, const wchar_t* cmdname, const wchar_t* arg0, const wchar_t* arg1, ...)
 {
 	DETOURED_CALL(_wspawnl);
