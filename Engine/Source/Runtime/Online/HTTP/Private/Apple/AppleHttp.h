@@ -85,7 +85,7 @@ private:
 	 *
 	 * @return true if the request was started
 	 */
-	bool StartRequest();
+	virtual bool SetupRequest() override;
 
 	/**
 	 * Close session/request handles and unregister callbacks

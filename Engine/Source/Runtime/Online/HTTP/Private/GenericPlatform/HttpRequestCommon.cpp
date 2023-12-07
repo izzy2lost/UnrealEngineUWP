@@ -56,6 +56,58 @@ bool FHttpRequestCommon::PreCheck() const
 	return true;
 }
 
+bool FHttpRequestCommon::PreProcess()
+{
+	ClearInCaseOfRetry();
+
+	if (!PreCheck() || !SetupRequest())
+	{
+		FinishRequestNotInHttpManager();
+		return false;
+	}
+
+	return true;
+}
+
+void FHttpRequestCommon::ClearInCaseOfRetry()
+{
+	// TODO: clear response shared ptr here as well after moving it from child class to this class
+
+	FailureReason = EHttpFailureReason::None;
+}
+
+void FHttpRequestCommon::FinishRequestNotInHttpManager()
+{
+	if (IsInGameThread())
+	{
+		if (DelegateThreadPolicy == EHttpRequestDelegateThreadPolicy::CompleteOnGameThread)
+		{
+			FinishRequest();
+		}
+		else
+		{
+			FHttpModule::Get().GetHttpManager().AddHttpThreadTask([StrongThis = StaticCastSharedRef<FHttpRequestCommon>(AsShared())]()
+			{
+				StrongThis->FinishRequest();
+			});
+		}
+	}
+	else
+	{
+		if (DelegateThreadPolicy == EHttpRequestDelegateThreadPolicy::CompleteOnHttpThread)
+		{
+			FinishRequest();
+		}
+		else
+		{
+			FHttpModule::Get().GetHttpManager().AddGameThreadTask([StrongThis = StaticCastSharedRef<FHttpRequestCommon>(AsShared())]()
+			{
+				StrongThis->FinishRequest();
+			});
+		}
+	}
+}
+
 void FHttpRequestCommon::SetDelegateThreadPolicy(EHttpRequestDelegateThreadPolicy InDelegateThreadPolicy)
 { 
 	DelegateThreadPolicy = InDelegateThreadPolicy; 
@@ -79,6 +131,7 @@ void FHttpRequestCommon::SetStatus(EHttpRequestStatus::Type InCompletionStatus)
 
 void FHttpRequestCommon::SetFailureReason(EHttpFailureReason InFailureReason)
 {
+	check(FailureReason == EHttpFailureReason::None);
 	FailureReason = InFailureReason;
 
 	if (FHttpResponsePtr Response = GetResponse())
@@ -87,3 +140,24 @@ void FHttpRequestCommon::SetFailureReason(EHttpFailureReason InFailureReason)
 		ResponseCommon->SetRequestFailureReason(InFailureReason);
 	}
 }
+
+void FHttpRequestCommon::SetTimeout(float InTimeoutSecs)
+{
+	TimeoutSecs = InTimeoutSecs;
+}
+
+void FHttpRequestCommon::ClearTimeout()
+{
+	TimeoutSecs.Reset();
+}
+
+TOptional<float> FHttpRequestCommon::GetTimeout() const
+{
+	return TimeoutSecs;
+}
+
+float FHttpRequestCommon::GetTimeoutOrDefault() const
+{
+	return GetTimeout().Get(FHttpModule::Get().GetHttpTimeout());
+}
+

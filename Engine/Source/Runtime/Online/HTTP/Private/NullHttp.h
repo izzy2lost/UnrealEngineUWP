@@ -42,6 +42,9 @@ public:
 	virtual float GetElapsedTime() const override;
 	virtual void SetDelegateThreadPolicy(EHttpRequestDelegateThreadPolicy InThreadPolicy) override;
 	virtual EHttpRequestDelegateThreadPolicy GetDelegateThreadPolicy() const override;
+	virtual void SetTimeout(float InTimeoutSecs) override;
+	virtual void ClearTimeout() override;
+	virtual TOptional<float> GetTimeout() const override;
 
 	FNullHttpRequest()
 		: CompletionStatus(EHttpRequestStatus::NotStarted)
@@ -60,6 +63,7 @@ private:
 	EHttpFailureReason FailureReason;
 	TMap<FString, FString> Headers;
 	float ElapsedTime;
+	TOptional<float> TimeoutSecs;
 };
 
 /**

@@ -124,6 +124,9 @@ public:
 	virtual float GetElapsedTime() const override { return 0.0f; }
 	virtual void SetDelegateThreadPolicy(EHttpRequestDelegateThreadPolicy InDelegateThreadPolicy) override {}
 	virtual EHttpRequestDelegateThreadPolicy GetDelegateThreadPolicy() const override { return EHttpRequestDelegateThreadPolicy::CompleteOnGameThread; }
+	virtual void SetTimeout(float InTimeoutSecs) override {}
+	virtual void ClearTimeout() override {}
+	virtual TOptional<float> GetTimeout() const override { return TOptional<float>(); }
 };
 
 FDefaultUserAgentBuilder::FDefaultUserAgentBuilder()

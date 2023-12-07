@@ -981,9 +981,8 @@ bool FCurlHttpRequest::ProcessRequest()
 	Response = nullptr;
 	LastReportedBytesRead = 0;
 
-	if (!PreCheck() || !SetupRequest())
+	if (!PreProcess())
 	{
-		FinishRequestNotInHttpManager();
 		return false;
 	}
 
@@ -999,7 +998,7 @@ bool FCurlHttpRequest::ProcessRequest()
 	QUICK_SCOPE_CYCLE_COUNTER(STAT_CurlHttpAddThreadedRequest);
 	// Mark as in-flight to prevent overlapped requests using the same object
 	SetStatus(EHttpRequestStatus::Processing);
-	SetFailureReason(EHttpFailureReason::None);
+
 	// Add to global list while being processed so that the ref counted request does not get deleted
 	FHttpModule::Get().GetHttpManager().AddThreadedRequest(SharedThis(this));
 

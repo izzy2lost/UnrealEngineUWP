@@ -18,12 +18,6 @@ public:
 	HTTP_API virtual FHttpRequestHeaderReceivedDelegate& OnHeaderReceived() override;
 	HTTP_API virtual FHttpRequestWillRetryDelegate& OnRequestWillRetry() override;
 
-	HTTP_API virtual void SetTimeout(float InTimeoutSecs) override;
-	HTTP_API virtual void ClearTimeout() override;
-	HTTP_API virtual TOptional<float> GetTimeout() const override;
-
-	HTTP_API float GetTimeoutOrDefault() const;
-
 protected:
 	/** 
 	 * Broadcast all of our response's headers as having been received
@@ -46,7 +40,4 @@ protected:
 	
 	/** Delegate that will get called when request will be retried */
 	FHttpRequestWillRetryDelegate OnRequestWillRetryDelegate;
-
-	/** Timeout in seconds for the entire HTTP request to complete */
-	TOptional<float> TimeoutSecs;
 };

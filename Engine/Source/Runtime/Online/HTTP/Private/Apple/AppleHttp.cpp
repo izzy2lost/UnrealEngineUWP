@@ -652,19 +652,18 @@ bool FAppleHttpRequest::ProcessRequest()
 	SCOPED_AUTORELEASE_POOL;
 	UE_LOG(LogHttp, Verbose, TEXT("FAppleHttpRequest::ProcessRequest()"));
 
-	if (!PreCheck() || !StartRequest())
+	if (!PreProcess())
 	{
-		FinishRequestNotInHttpManager();
 		return false;
 	}
 
 	return true;
 }
 
-bool FAppleHttpRequest::StartRequest()
+bool FAppleHttpRequest::SetupRequest()
 {
 	SCOPED_AUTORELEASE_POOL;
-	UE_LOG(LogHttp, Verbose, TEXT("FAppleHttpRequest::StartRequest()"));
+	UE_LOG(LogHttp, Verbose, TEXT("FAppleHttpRequest::SetupRequest()"));
 	bool bStarted = false;
 
 	// set the content-length and user-agent (it is possible that the OS ignores this value)

@@ -337,7 +337,7 @@ private:
 	 *
 	 * @return true if the request was successfully setup
 	 */
-	bool SetupRequest();
+	virtual bool SetupRequest() override;
 
 	/**
 	 * Trigger the request progress delegate if progress has changed

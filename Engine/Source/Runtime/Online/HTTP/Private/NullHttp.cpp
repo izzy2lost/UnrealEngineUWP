@@ -170,7 +170,7 @@ void FNullHttpRequest::Tick(float DeltaSeconds)
 	if (CompletionStatus == EHttpRequestStatus::Processing)
 	{
 		ElapsedTime += DeltaSeconds;
-		const float HttpTimeout = GetTimeoutOrDefault();
+		const float HttpTimeout = GetTimeout().Get(FHttpModule::Get().GetHttpTimeout());
 		if (HttpTimeout > 0 && ElapsedTime >= HttpTimeout)
 		{
 			UE_LOG(LogHttp, Warning, TEXT("Timeout processing Http request. %p"),
@@ -204,6 +204,21 @@ void FNullHttpRequest::SetDelegateThreadPolicy(EHttpRequestDelegateThreadPolicy 
 EHttpRequestDelegateThreadPolicy FNullHttpRequest::GetDelegateThreadPolicy() const
 {
 	return EHttpRequestDelegateThreadPolicy::CompleteOnGameThread;
+}
+
+void FNullHttpRequest::SetTimeout(float InTimeoutSecs) 
+{
+	TimeoutSecs = InTimeoutSecs;
+}
+
+void FNullHttpRequest::ClearTimeout() 
+{
+	TimeoutSecs.Reset();
+}
+
+TOptional<float> FNullHttpRequest::GetTimeout() const 
+{ 
+	return TimeoutSecs; 
 }
 
 // FNullHttpResponse
@@ -252,5 +267,3 @@ FString FNullHttpResponse::GetContentAsString() const
 {
 	return FString();
 }
-
-
