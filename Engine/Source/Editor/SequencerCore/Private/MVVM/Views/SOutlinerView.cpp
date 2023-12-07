@@ -76,6 +76,7 @@ void SOutlinerViewRow::Construct(const FArguments& InArgs, const TSharedRef<STab
 
 	SMultiColumnTableRow::Construct(
 		SMultiColumnTableRow::FArguments()
+			.Style(&FAppStyle::Get().GetWidgetStyle<FTableRowStyle>("Sequencer.TableView.Row"))
 			.OnDragDetected(this, &SOutlinerViewRow::OnDragDetected)
 			.OnCanAcceptDrop(this, &SOutlinerViewRow::OnCanAcceptDrop)
 			.OnAcceptDrop(this, &SOutlinerViewRow::OnAcceptDrop)

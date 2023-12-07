@@ -1068,6 +1068,23 @@ public:
 		return false;
 	}
 
+	/**
+	 * Callback to determine if the row is highlighted or not
+	 *
+	 * @return		true if highlighted by owning widget.
+	 */
+	bool IsHighlighted() const
+	{
+		TSharedRef< ITypedTableView< ItemType > > OwnerTable = OwnerTablePtr.Pin().ToSharedRef();
+
+		if (const TObjectPtrWrapTypeOf<ItemType>* MyItemPtr = GetItemForThis(OwnerTable))
+		{
+			return OwnerTable->Private_IsItemHighlighted(*MyItemPtr);
+		}
+
+		return false;
+	}
+
 	/** By default, this function does nothing, it should be implemented by derived class */
 	virtual FVector2D GetRowSizeForColumn(const FName& InColumnName) const override
 	{

@@ -92,7 +92,7 @@ void SOutlinerItemViewBase::Construct(
 		InnerNodePadding = FMargin(0.f);
 	}
 
-	TableRowStyle = &FAppStyle::Get().GetWidgetStyle<FTableRowStyle>("TableView.Row");
+	TableRowStyle = &FAppStyle::Get().GetWidgetStyle<FTableRowStyle>("Sequencer.TableView.Row");
 
 	TSharedPtr<SWidget> LabelContent;
 

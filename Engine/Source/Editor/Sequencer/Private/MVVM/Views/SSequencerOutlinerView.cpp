@@ -2,9 +2,11 @@
 
 #include "MVVM/Views/SSequencerOutlinerView.h"
 #include "MVVM/Extensions/IOutlinerExtension.h"
+#include "MVVM/ViewModels/OutlinerSpacer.h"
 #include "MVVM/ViewModels/OutlinerViewModel.h"
 #include "MVVM/Views/SOutlinerItemViewBase.h"
 
+#include "SequencerCoreFwd.h"
 #include "Styling/StyleColors.h"
 
 namespace UE::Sequencer
@@ -19,33 +21,39 @@ public:
 		WeakOutliner = InWeakOutliner;
 
 		SOutlinerViewRow::Construct(InArgs, OwnerTableView, InWeakModel);
-
-		if (InWeakModel.Pin()->HasBackground())
-		{
-			SetBorderImage(TAttribute<const FSlateBrush*>(FAppStyle::GetBrush("WhiteBrush")));
-			SetBorderBackgroundColor(MakeAttributeSP(this, &SSequencerOutlinerViewRow::GetBorderTint));
-		}
 	}
 
-	FSlateColor GetBorderTint() const
+	virtual const FSlateBrush* GetBorder() const override
 	{
-		TSharedPtr<FOutlinerViewModel>    Outliner     = WeakOutliner.Pin();
+		const bool bEvenEntryIndex = (IndexInList % 2 == 0);
+
+		TSharedPtr<FOutlinerViewModel>    Outliner = WeakOutliner.Pin();
 		TViewModelPtr<IOutlinerExtension> OutlinerItem = WeakModel.Pin();
 
 		if (!Outliner || !OutlinerItem)
 		{
-			return FLinearColor(0.f,0.f,0.f,0.f);
+			return SOutlinerViewRow::GetBorder();
+		}
+
+		// If selected or highlighted, early out and return the default selected or highlighted border
+		if (IsSelected() || IsHighlighted())
+		{
+			return SOutlinerViewRow::GetBorder();
 		}
 
 		EOutlinerSelectionState SelectionState = OutlinerItem->GetSelectionState();
 
 		if (EnumHasAnyFlags(SelectionState, EOutlinerSelectionState::SelectedDirectly))
 		{
-			return FStyleColors::Select;
+			return &Style->ActiveBrush;
 		}
+
+		// If keys or the track area are selected, highlight this track row
 		if (EnumHasAnyFlags(SelectionState, EOutlinerSelectionState::HasSelectedKeys | EOutlinerSelectionState::HasSelectedTrackAreaItems))
 		{
-			return FStyleColors::Header;
+			return IsHovered()
+				? (bEvenEntryIndex ? &Style->EvenRowBackgroundHoveredBrush : &Style->OddRowBackgroundHoveredBrush)
+				: &Style->ActiveHighlightedBrush;
 		}
 
 		// If this is collapsed but has any children with selected keys or sections, we report that state on the parent
@@ -53,24 +61,21 @@ public:
 		{
 			if (EnumHasAnyFlags(SelectionState, EOutlinerSelectionState::DescendentHasSelectedTrackAreaItems | EOutlinerSelectionState::DescendentHasSelectedKeys))
 			{
-				return FStyleColors::Header;
+				return IsHovered()
+					? (bEvenEntryIndex ? &Style->EvenRowBackgroundHoveredBrush : &Style->OddRowBackgroundHoveredBrush)
+					: &Style->ActiveHighlightedBrush;
 			}
 		}
 
-		// @todo: Currently we are always using 'default' for the style here. A lot of this is carried over from earlier Sequencer UIs
-		//        so we either need to re-evaluate whether EOutlinerItemViewBaseStyle is even necessary, or add proper support to the outliner extension to specify it
-		EOutlinerItemViewBaseStyle ItemStyle = EOutlinerItemViewBaseStyle::Default; /* OutlinerItem->GetItemViewStyle() */;
-
-		if (Outliner->GetHoveredItem() == OutlinerItem)
+		// If this is at the root level, return it as a parent row
+		if (GetIndentLevel() == 0 && !OutlinerItem.AsModel()->IsA<FOutlinerSpacer>())
 		{
-			return /*ItemStyle == EOutlinerItemViewBaseStyle::ContainerHeader
-				? FLinearColor(FColor(52, 52, 52, 255))
-				: */FLinearColor(FColor(72, 72, 72, 255));
+			return IsHovered()
+				? &Style->ParentRowBackgroundHoveredBrush
+				: &Style->ParentRowBackgroundBrush;
 		}
 
-		return /*ItemStyle == EOutlinerItemViewBaseStyle::ContainerHeader
-			? FLinearColor(FColor(48, 48, 48, 255))
-			: */FLinearColor(FColor(62, 62, 62, 255));
+		return SOutlinerViewRow::GetBorder();
 	}
 
 private:
