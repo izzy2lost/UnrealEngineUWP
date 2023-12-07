@@ -2,6 +2,7 @@
 
 #pragma once
 
+#include "Async/LockTags.h"
 #include "CoreTypes.h"
 #include <atomic>
 
@@ -18,6 +19,12 @@ class FMutex final
 {
 public:
 	constexpr FMutex() = default;
+
+	/** Construct in a locked state. Avoids an expensive compare-and-swap at creation time. */
+	inline explicit FMutex(FAcquireLock)
+		: State(IsLockedFlag)
+	{
+	}
 
 	FMutex(const FMutex&) = delete;
 	FMutex& operator=(const FMutex&) = delete;

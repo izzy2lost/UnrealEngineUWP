@@ -2,16 +2,11 @@
 
 #pragma once
 
+#include "Async/LockTags.h"
 #include "Misc/AssertionMacros.h"
 
 namespace UE
 {
-
-/** Use with dynamic locks to defer locking on construction. */
-struct FDeferLock final
-{
-	explicit FDeferLock() = default;
-};
 
 /**
  * A basic mutex ownership wrapper that locks on construction and unlocks on destruction.

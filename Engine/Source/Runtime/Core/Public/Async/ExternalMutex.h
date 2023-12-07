@@ -2,6 +2,7 @@
 
 #pragma once
 
+#include "Async/LockTags.h"
 #include "CoreTypes.h"
 #include <atomic>
 
@@ -21,7 +22,17 @@ namespace UE
 class FExternalMutex final
 {
 public:
-	constexpr FExternalMutex(std::atomic<uint8>& InState) : State(InState) {}
+	inline constexpr explicit FExternalMutex(std::atomic<uint8>& InState)
+		: State(InState)
+	{
+	}
+
+	/** Construct in a locked state. Avoids an expensive compare-and-swap at creation time. */
+	inline explicit FExternalMutex(std::atomic<uint8>& InState, FAcquireLock)
+		: State(InState)
+	{
+		State.fetch_or(IsLockedFlag, std::memory_order_acquire);
+	}
 
 	FExternalMutex(const FExternalMutex&) = delete;
 	FExternalMutex& operator=(const FExternalMutex&) = delete;
@@ -30,7 +41,7 @@ public:
 	{
 		return (State.load(std::memory_order_relaxed) & IsLockedFlag);
 	}
-	
+
 	inline bool TryLock()
 	{
 		uint8 Expected = State.load(std::memory_order_acquire);
@@ -65,10 +76,10 @@ private:
 	UE_API void LockSlow();
 	UE_API void UnlockSlow();
 
-	std::atomic<uint8>& State;
-
 	static constexpr uint8 IsLockedFlag = 1 << 0;
 	static constexpr uint8 HasWaitingThreadsFlag = 1 << 1;
+
+	std::atomic<uint8>& State;
 };
 
 } // UE
