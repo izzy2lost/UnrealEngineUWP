@@ -128,7 +128,7 @@ FString UPCGCreateAttributeBaseSettings::GetAdditionalTitleInformationInternal(F
 		}
 		else
 		{
-			return OutputAttributeName == NAME_None ? SourceParamAttributeName.ToString() : OutputAttributeName.ToString();
+			return ((OutputAttributeName == NAME_None) ? SourceParamAttributeName : OutputAttributeName).ToString();
 		}
 	}
 	else
