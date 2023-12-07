@@ -640,6 +640,12 @@ public:
 	UPROPERTY(config)
 	TArray<FProjectBuildSettings> EngineCustomBuilds;
 
+	/**
+	* The type name of a CustomStageCopyHandler subclass to instanciate during the copy build to staging directory step. See SetupCustomStageCopyHandler() in CopyBuildToStagingDirectory.Automation.cs and CustomStageCopyHandler.cs
+	*/
+	UPROPERTY(config)
+	FString CustomStageCopyHandler;
+
 private:
 	/** Helper array used to mirror Blueprint asset selections across edits */
 	TArray<FFilePath> CachedNativizeBlueprintAssets;

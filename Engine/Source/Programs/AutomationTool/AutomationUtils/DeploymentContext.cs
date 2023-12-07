@@ -313,6 +313,11 @@ public class DeploymentContext //: ProjectParams
 	/// </summary>
 	public HashSet<StagedFileReference> ExtraFilesAllowList = new HashSet<StagedFileReference>();
 
+	/// <summary>
+	/// Optional copy handler that during CopyOrWriteManifestFilesToStageDir will be passed to SafeCopy to handle
+	/// the copy operation of files.
+	/// </summary>
+	public OverrideCopyDelegate OverrideCopyHandler = null;
 
 	/// <summary>
 	/// List of ini keys to strip when staging

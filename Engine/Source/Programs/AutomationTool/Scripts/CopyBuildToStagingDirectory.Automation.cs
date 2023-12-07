@@ -2145,7 +2145,7 @@ namespace AutomationScripts
 					FileReference Dest = FileReference.Combine(StageDirectory, Pair.Key.Name);
 					if (Src != Dest)  // special case for things created in the staging directory, like the pak file
 					{
-						CopyFileIncremental(Src, Dest, IniKeyDenyList: SC.IniKeyDenyList, IniSectionDenyList: SC.IniSectionDenyList);
+						CopyFileIncremental(Src, Dest, SC.OverrideCopyHandler, IniKeyDenyList: SC.IniKeyDenyList, IniSectionDenyList: SC.IniSectionDenyList);
 					}
 				}
 			}
@@ -5223,9 +5223,31 @@ namespace AutomationScripts
 				{
 					DeploymentContexts.Insert(0, SC);
 				}
+
+				SetupCustomStageCopyHandler(Params, SC);
 			}
 
 			return DeploymentContexts;
+		}
+		private static void SetupCustomStageCopyHandler(ProjectParams Params, DeploymentContext SC)
+		{
+			string CustomStageCopyHandlerName = null;
+			ConfigHierarchy GameIni = ConfigCache.ReadHierarchy(ConfigHierarchyType.Game, Params.RawProjectPath.Directory, SC.StageTargetPlatform.PlatformType, SC.CustomConfig);
+			GameIni.GetString("/Script/UnrealEd.ProjectPackagingSettings", "CustomStageCopyHandler", out CustomStageCopyHandlerName);
+
+			if (!string.IsNullOrEmpty(CustomStageCopyHandlerName))
+			{
+				CustomStageCopyHandler CustomStageCopyHandler = CustomStageCopyHandler.Create(CustomStageCopyHandlerName);
+				if (CustomStageCopyHandler != null)
+				{
+					Logger.LogInformation("CopyBuildToStagingDirectory using CustomStageCopyHandler {0}", CustomStageCopyHandlerName);
+
+					SC.OverrideCopyHandler = (ILogger Logger, string SourceName, string TargetName) =>
+					{
+						return CustomStageCopyHandler.StageFile(Logger, SourceName, TargetName);
+					};
+				}
+			}
 		}
 
 		public static void CopyBuildToStagingDirectory(ProjectParams Params)
