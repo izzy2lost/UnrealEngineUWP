@@ -177,9 +177,8 @@ namespace Horde.Server.Tools
 		}
 
 		/// <summary>
-		/// Create a new deployment of the given tool.
+		/// Enumerates all the available tools.
 		/// </summary>
-		/// <returns>Information about the registered agent</returns>
 		[HttpGet]
 		[Route("/api/v1/tools")]
 		public async Task<ActionResult<GetToolsSummaryResponse>> GetToolsAsync()
