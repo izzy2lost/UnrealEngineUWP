@@ -286,15 +286,14 @@ public:
 	 *  By default, it will return the underlying class, to try to jump to its header in code
      */
 	virtual UObject* GetJumpTargetForDoubleClick() const;
-	virtual bool IsPropertyOverriddenByPin(const FProperty* InProperty) const;
 
-	/* Return preconfigured info that will be filled in the editor palette action, allowing to create pre-configured settings */
+	/** Return preconfigured info that will be filled in the editor palette action, allowing to create pre-configured settings */
 	virtual TArray<FPCGPreConfiguredSettingsInfo> GetPreconfiguredInfo() const { return {}; }
 
-	/* If there are preconfigured info, we can skip the default settings and only expose pre-configured actions in the editor palette */
+	/** If there are preconfigured info, we can skip the default settings and only expose pre-configured actions in the editor palette */
 	virtual bool OnlyExposePreconfiguredSettings() const { return false; }
 
-	/* Perform post-operations when an editor node is copied */
+	/** Perform post-operations when an editor node is copied */
 	virtual void PostPaste();
 #endif // WITH_EDITOR
 
@@ -303,6 +302,15 @@ public:
 
 	/** Display generated title line as primary title (example: BP nodes display the blueprint name as the primary title). */
 	virtual bool HasFlippedTitleLines() const { return false; }
+
+	/** Returns true if the given property is overridden by graph parameters */
+	virtual bool IsPropertyOverriddenByPin(const FProperty* InProperty) const;
+
+	/** Returns true if the base property, given by name, is overridden by graph parameters */
+	virtual bool IsPropertyOverriddenByPin(FName PropertyName) const;
+
+	/** Returns true if the property, given by chain of property names, is overridden by graph parameters */
+	virtual bool IsPropertyOverriddenByPin(const TArrayView<const FName>& PropertyNameChain) const;
 
 	virtual void ApplyPreconfiguredSettings(const FPCGPreConfiguredSettingsInfo& PreconfigureInfo) {}
 

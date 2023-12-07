@@ -603,29 +603,6 @@ bool UPCGSettings::CanEditChange(const FProperty* InProperty) const
 	return Super::CanEditChange(InProperty);
 }
 
-bool UPCGSettings::IsPropertyOverriddenByPin(const FProperty* InProperty) const
-{
-	if (const UPCGNode* Node = Cast<UPCGNode>(GetOuter()))
-	{
-		const FPCGSettingsOverridableParam* Param = OverridableParams().FindByPredicate([InProperty](const FPCGSettingsOverridableParam& ParamToCheck)
-		{
-			// In OverridableParam, the array of properties is the chain of properties from the Settings class to the wanted param.
-			// Therefore the property we are editing would match the latest property of the array.
-			return !ParamToCheck.Properties.IsEmpty() && ParamToCheck.Properties.Last() == InProperty;
-		});
-
-		if (Param)
-		{
-			if (const UPCGPin* Pin = Node->GetInputPin(Param->Label))
-			{
-				return Pin->IsConnected();
-			}
-		}
-	}
-
-	return false;
-}
-
 void UPCGSettings::PostPaste()
 {
 	// Params are not properly built when importing from pasted text (because param
@@ -648,6 +625,64 @@ void UPCGSettings::ApplyDeprecationBeforeUpdatePins(UPCGNode* InOutNode, TArray<
 	}
 }
 #endif // WITH_EDITOR
+
+bool UPCGSettings::IsPropertyOverriddenByPin(const FProperty* InProperty) const
+{
+	if (!InProperty)
+	{
+		return false;
+	}
+
+	if (const UPCGNode* Node = Cast<UPCGNode>(GetOuter()))
+	{
+		const FPCGSettingsOverridableParam* Param = OverridableParams().FindByPredicate([InProperty](const FPCGSettingsOverridableParam& ParamToCheck)
+		{
+			// In OverridableParam, the array of properties is the chain of properties from the Settings class to the wanted param.
+			// Therefore the property we are editing would match the latest property of the array.
+			return !ParamToCheck.Properties.IsEmpty() && ParamToCheck.Properties.Last() == InProperty;
+		});
+
+		if (Param)
+		{
+			if (const UPCGPin* Pin = Node->GetInputPin(Param->Label))
+			{
+				return Pin->IsConnected();
+			}
+		}
+	}
+
+	return false;
+}
+
+bool UPCGSettings::IsPropertyOverriddenByPin(const FName PropertyName) const
+{
+	return IsPropertyOverriddenByPin(TArrayView<const FName>(&PropertyName, 1));
+}
+
+bool UPCGSettings::IsPropertyOverriddenByPin(const TArrayView<const FName>& PropertyNameChain) const
+{
+	if (PropertyNameChain.IsEmpty())
+	{
+		return false;
+	}
+
+	if (const UPCGNode* Node = Cast<UPCGNode>(GetOuter()))
+	{
+		const FPCGSettingsOverridableParam* Param = OverridableParams().FindByPredicate([&PropertyNameChain](const FPCGSettingsOverridableParam& ParamToCheck)
+		{
+			return ParamToCheck.PropertiesNames == PropertyNameChain;
+		});
+
+		if (Param)
+		{
+			if (const UPCGPin* Pin = Node->GetInputPin(Param->Label))
+			{
+				return Pin->IsConnected();
+			}
+		}
+	}
+	return false;
+}
 
 EPCGDataType UPCGSettings::GetCurrentPinTypes(const UPCGPin* InPin) const
 {

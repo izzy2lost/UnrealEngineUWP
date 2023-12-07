@@ -63,6 +63,7 @@ namespace UnrealBuildTool.Rules
 					"StructUtils",
 					"StructUtilsEditor",
 					"ToolMenus",
+					"ToolWidgets",
 					"TypedElementFramework",
 					"TypedElementRuntime",
 					"UnrealEd",

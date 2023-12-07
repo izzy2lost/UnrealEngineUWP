@@ -37,9 +37,7 @@ FString UPCGMetadataOperationSettings::GetAdditionalTitleInformation() const
 		return LOCTEXT("NoteTitleAllAttributes", "All Attributes").ToString();
 	}
 
-	const FProperty* FromAttributeProperty = GetClass() ? FindFProperty<FProperty>(GetClass(), GET_MEMBER_NAME_CHECKED(UPCGMetadataOperationSettings, InputSource)) : nullptr;
-	const FProperty* ToAttributeProperty = GetClass() ? FindFProperty<FProperty>(GetClass(), GET_MEMBER_NAME_CHECKED(UPCGMetadataOperationSettings, OutputTarget)) : nullptr;
-	if ((FromAttributeProperty && IsPropertyOverriddenByPin(FromAttributeProperty)) || (ToAttributeProperty && IsPropertyOverriddenByPin(ToAttributeProperty)))
+	if (IsPropertyOverriddenByPin(GET_MEMBER_NAME_CHECKED(UPCGMetadataOperationSettings, InputSource)) || IsPropertyOverriddenByPin(GET_MEMBER_NAME_CHECKED(UPCGMetadataOperationSettings, OutputTarget)))
 	{
 		return FString();
 	}

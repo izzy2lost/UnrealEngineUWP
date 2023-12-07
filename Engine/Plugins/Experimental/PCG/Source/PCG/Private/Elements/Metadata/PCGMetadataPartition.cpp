@@ -46,8 +46,7 @@ void UPCGMetadataPartitionSettings::PostLoad()
 FString UPCGMetadataPartitionSettings::GetAdditionalTitleInformation() const
 {
 #if WITH_EDITOR
-	FProperty* AttributeProperty = GetClass() ? FindFProperty<FProperty>(GetClass(), GET_MEMBER_NAME_CHECKED(UPCGMetadataPartitionSettings, PartitionAttributeSource)) : nullptr;
-	if (AttributeProperty && IsPropertyOverriddenByPin(AttributeProperty))
+	if (IsPropertyOverriddenByPin(GET_MEMBER_NAME_CHECKED(UPCGMetadataPartitionSettings, PartitionAttributeSource)))
 	{
 		return FString();
 	}

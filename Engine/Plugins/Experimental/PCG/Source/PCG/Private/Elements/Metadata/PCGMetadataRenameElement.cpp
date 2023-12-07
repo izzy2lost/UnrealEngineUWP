@@ -15,9 +15,7 @@
 FString UPCGMetadataRenameSettings::GetAdditionalTitleInformation() const
 {
 #if WITH_EDITOR
-	const FProperty* FromAttributeProperty = GetClass() ? FindFProperty<FProperty>(GetClass(), GET_MEMBER_NAME_CHECKED(UPCGMetadataRenameSettings, AttributeToRename)) : nullptr;
-	const FProperty* ToAttributeProperty = GetClass() ? FindFProperty<FProperty>(GetClass(), GET_MEMBER_NAME_CHECKED(UPCGMetadataRenameSettings, NewAttributeName)) : nullptr;
-	if ((FromAttributeProperty && IsPropertyOverriddenByPin(FromAttributeProperty)) || (ToAttributeProperty && IsPropertyOverriddenByPin(ToAttributeProperty)))
+	if (IsPropertyOverriddenByPin(GET_MEMBER_NAME_CHECKED(UPCGMetadataRenameSettings, AttributeToRename)) || IsPropertyOverriddenByPin(GET_MEMBER_NAME_CHECKED(UPCGMetadataRenameSettings, NewAttributeName)))
 	{
 		return FString();
 	}

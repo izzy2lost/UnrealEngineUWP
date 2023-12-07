@@ -87,8 +87,7 @@ void UPCGDifferenceSettings::ApplyStructuralDeprecation(UPCGNode* InOutNode)
 FString UPCGDifferenceSettings::GetAdditionalTitleInformation() const
 {
 #if WITH_EDITOR
-	const FProperty* DensityFunctionProperty = GetClass() ? FindFProperty<FProperty>(GetClass(), GET_MEMBER_NAME_CHECKED(UPCGDifferenceSettings, DensityFunction)) : nullptr;
-	if (DensityFunctionProperty && IsPropertyOverriddenByPin(DensityFunctionProperty))
+	if (IsPropertyOverriddenByPin(GET_MEMBER_NAME_CHECKED(UPCGDifferenceSettings, DensityFunction)))
 	{
 		return FString();
 	}

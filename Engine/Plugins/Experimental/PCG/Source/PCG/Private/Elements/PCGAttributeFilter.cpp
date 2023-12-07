@@ -304,8 +304,7 @@ TArray<FPCGPinProperties> UPCGAttributeFilteringSettings::OutputPinProperties() 
 FString UPCGAttributeFilteringSettings::GetAdditionalTitleInformation() const
 {
 #if WITH_EDITOR
-	const FProperty* AttributeProperty = GetClass() ? FindFProperty<FProperty>(GetClass(), GET_MEMBER_NAME_CHECKED(UPCGAttributeFilteringSettings, TargetAttribute)) : nullptr;
-	if (AttributeProperty && IsPropertyOverriddenByPin(AttributeProperty))
+	if (IsPropertyOverriddenByPin(GET_MEMBER_NAME_CHECKED(UPCGAttributeFilteringSettings, TargetAttribute)))
 	{
 		return FString();
 	}
@@ -352,8 +351,7 @@ void UPCGAttributeFilteringRangeSettings::PostLoad()
 FString UPCGAttributeFilteringRangeSettings::GetAdditionalTitleInformation() const
 {
 #if WITH_EDITOR
-	const FProperty* AttributeProperty = GetClass() ? FindFProperty<FProperty>(GetClass(), GET_MEMBER_NAME_CHECKED(UPCGAttributeFilteringRangeSettings, TargetAttribute)) : nullptr;
-	if (AttributeProperty && IsPropertyOverriddenByPin(AttributeProperty))
+	if (IsPropertyOverriddenByPin(GET_MEMBER_NAME_CHECKED(UPCGAttributeFilteringRangeSettings, TargetAttribute)))
 	{
 		return FString();
 	}

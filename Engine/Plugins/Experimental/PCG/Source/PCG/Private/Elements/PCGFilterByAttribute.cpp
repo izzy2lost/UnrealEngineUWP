@@ -18,8 +18,7 @@ FText UPCGFilterByAttributeSettings::GetDefaultNodeTitle() const
 FString UPCGFilterByAttributeSettings::GetAdditionalTitleInformation() const
 {
 #if WITH_EDITOR
-	const FProperty* AttributeProperty = GetClass() ? FindFProperty<FProperty>(GetClass(), GET_MEMBER_NAME_CHECKED(UPCGFilterByAttributeSettings, Attribute)) : nullptr;
-	if (AttributeProperty && IsPropertyOverriddenByPin(AttributeProperty))
+	if (IsPropertyOverriddenByPin(GET_MEMBER_NAME_CHECKED(UPCGFilterByAttributeSettings, Attribute)))
 	{
 		return FString();
 	}
