@@ -4,19 +4,18 @@ using System.Collections.Generic;
 using System.Linq;
 using System.Text;
 using System.IO;
-using AutomationTool;
 using UnrealBuildTool;
 using EpicGames.Core;
 using Microsoft.Extensions.Logging;
 
 using static AutomationTool.CommandUtils;
-using UnrealBuildBase;
 
 namespace EpicGames.Localization
 {
 	public class NewPluginLocalizationTargetCommand : PluginLocalizationTargetCommand
 	{
 		private LocalizationTargetDescriptorLoadingPolicy _loadingPolicy;
+		private LocalizationConfigGenerationPolicy _configGenerationPolicy;
 		private string _localizationTargetNameSuffix = "";
 		private LocalizationConfigFileFormat _fileFormat = LocalizationConfigFileFormat.Latest;
 		private List<string> _filesToAdd = new List<string>();
@@ -40,7 +39,9 @@ namespace EpicGames.Localization
 			helpTextBuilder.AppendLine("UEProjectDirectory - Required relative path from UERootDirectory to the project. This should be  your project directory that contains the Plugins directory.");
 			helpTextBuilder.AppendLine("UEProjectName - An optional name of the project the plugin is under. If blank, this implies the plugin is under Engine.");
 			helpTextBuilder.AppendLine("LocalizationTargetLoadingPolicy - A required string that determines when the plugin should load the localization data for the localization target. Valid values are Game, Always, Editor, PropertyNames, ToolTips. See LocalizationTargetDescriptorLoadingPolicy");
-			helpTextBuilder.AppendLine("_localizationTargetNameSuffix - An optional suffix to give to the plugin localization target. By default, the name of the plugin localization target would be the name of the plugin. This allows multiple localization targets to be created for plugins.");
+			helpTextBuilder.AppendLine("LocalizationConfigGenerationPolicy- An optional string that specifies how localization config files should be generated during the localization gather process for the plugin. Acceptable values are Never, Auto, User. If not specified, defaults to Auto.");
+			helpTextBuilder.AppendLine("Never means no localization config files will be generated or used during the localization process. No localization data will be generated for the plugin druing a gather. Auto means temporary, default localization config files will be generated druing localization gather and used to generate localization data. User means there are user provided localization config files in the plugins's Config/Localization folder that will be used during localization gathers to generate localization data.");
+			helpTextBuilder.AppendLine("LocalizationTargetNameSuffix - An optional suffix to give to the plugin localization target. By default, the name of the plugin localization target would be the name of the plugin. This allows multiple localization targets to be created for plugins.");
 			// Include plugins 
 			helpTextBuilder.AppendLine("IncludePlugins - An optional comma separated list of plugins to create localization targets for. E.g PluginA,PluginB,PluginC");
 			helpTextBuilder.AppendLine("IncludePluginsDirectory - An optional relative directory to UEProjectDirectory. All plugins under this directory will have localization targets created if they are not excluded. E.g Plugins/PluginFolderA.");
@@ -61,8 +62,18 @@ namespace EpicGames.Localization
 			// @TODOLocalization: Support an override for the localization config file format 
 			_fileFormat = LocalizationConfigFileFormat.Latest;
 			_loadingPolicy = _commandLineHelper.ParseRequiredEnumParamEnum<LocalizationTargetDescriptorLoadingPolicy>("LocalizationTargetLoadingPolicy");
-
-			return true;
+			LocalizationConfigGenerationPolicy? nullableGenerationPolicy = _commandLineHelper.ParseOptionalEnumParam<LocalizationConfigGenerationPolicy>("LocalizationConfigGenerationPolicy");
+			if (nullableGenerationPolicy.HasValue)
+			{
+				_configGenerationPolicy = nullableGenerationPolicy.Value;
+			}
+			else
+			{
+				_configGenerationPolicy = LocalizationConfigGenerationPolicy.Auto;
+				Logger.LogInformation("LocalizationConfigGenerationPolicy is defaulting to Auto. All plugin localization targets created will have default, temporary localization config files generated during the localization pipeline. To change this behavior, please see the helpt text for the LocalizationConfigGenerationPolicy parameter.");
+			}
+			
+				return true;
 		}
 
 		public override bool Execute()
@@ -101,7 +112,15 @@ namespace EpicGames.Localization
 					pluginLocalizationTargetName += "_" + _localizationTargetNameSuffix;
 				}
 
-				GeneratePluginLocalizationConfigFiles(pluginInfo, pluginLocalizationTargetName, pluginInfo.Directory.MakeRelativeTo(ueProjectDirectoryReference));
+				// We  only generate the config files if it's set to user. Auto will autogen the config files and never implies we don't need localization config files at all.
+				if (_configGenerationPolicy == LocalizationConfigGenerationPolicy.User)
+				{
+					GeneratePluginLocalizationConfigFiles(pluginInfo, pluginLocalizationTargetName, pluginInfo.Directory.MakeRelativeTo(ueProjectDirectoryReference));
+				}
+				else
+				{
+					Logger.LogInformation($"Localization target generation policy is {_configGenerationPolicy.ToString()}. No localization config files will be generated for {pluginLocalizationTargetName}.	");
+				}
 				// Update the .uplugin file with updated localization target descriptors 
 				UpdatePluginLocalizationTargetDescriptor(pluginInfo, pluginLocalizationTargetName);
 			}
@@ -165,7 +184,7 @@ namespace EpicGames.Localization
 					}
 				}
 			}
-			LocalizationTargetDescriptor locTargetDescriptorToAdd = new LocalizationTargetDescriptor(localizationTargetName, _loadingPolicy);
+			LocalizationTargetDescriptor locTargetDescriptorToAdd = new LocalizationTargetDescriptor(localizationTargetName, _loadingPolicy, _configGenerationPolicy);
 			if (descriptor.LocalizationTargets is null)
 			{
 				descriptor.LocalizationTargets = new LocalizationTargetDescriptor[] { locTargetDescriptorToAdd };
@@ -179,7 +198,7 @@ namespace EpicGames.Localization
 				descriptor.LocalizationTargets = newLocalizationTargets;
 			}
 
-			Logger.LogInformation($"Updating localization target information for {pluginInfo.Name} plugin. Adding localization target {localizationTargetName} with loading policy {_loadingPolicy.ToString()}");
+			Logger.LogInformation($"Updating localization target information for {pluginInfo.Name} plugin. Adding localization target {localizationTargetName} with loading policy {_loadingPolicy.ToString()} and ConfigGenerationPolicy {_configGenerationPolicy}.");
 
 			// Add descriptor to processing list 
 			_filesToEdit.Add(pluginInfo.File.FullName);
