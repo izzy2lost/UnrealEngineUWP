@@ -3,6 +3,7 @@
 #pragma once
 
 #include "Subsystems/EngineSubsystem.h"
+#include "Tickable.h"
 #include "UObject/ObjectKey.h"
 #include "View/MVVMViewClass.h"
 
@@ -12,14 +13,11 @@ class UMVVMView;
 
 /** */
 UCLASS(NotBlueprintable, Hidden)
-class UMVVMBindingSubsystem : public UEngineSubsystem
+class UMVVMBindingSubsystem : public UEngineSubsystem, public FTickableGameObject
 {
 	GENERATED_BODY()
 
 public:
-	virtual void Initialize(FSubsystemCollectionBase& Collection) override;
-	virtual void Deinitialize() override;
-
 	void AddViewWithTickBinding(const UMVVMView* View);
 	void RemoveViewWithTickBinding(const UMVVMView* View);
 
@@ -27,9 +25,24 @@ public:
 	void RemoveDelayedBindings(const UMVVMView* View);
 	void RemoveDelayedBindings(const UMVVMView* View, FMVVMViewClass_SourceKey SourceKey);
 
-private:
-	void HandlePreTick(float DeltaTIme);
+	//~ FTickableGameObject
+	virtual bool IsTickableWhenPaused() const override
+	{
+		return true;
+	}
+	virtual bool IsTickableInEditor() const override
+	{
+		return true;
+	}
+	virtual ETickableTickType GetTickableTickType() const override
+	{
+		return ETickableTickType::Always;
+	}
 
+	virtual void Tick(float DeltaTime) override;
+	virtual TStatId GetStatId() const override;
+
+private:
 	using FDelayedBindingList = TArray<FMVVMViewClass_BindingKey, TInlineAllocator<8>>;
 	using FDelayedBindingMap = TMap<TObjectKey<const UMVVMView>, FDelayedBindingList>;
 	FDelayedBindingMap DelayedBindings;

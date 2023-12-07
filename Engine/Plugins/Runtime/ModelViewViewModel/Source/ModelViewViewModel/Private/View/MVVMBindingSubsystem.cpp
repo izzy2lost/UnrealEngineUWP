@@ -13,25 +13,6 @@
 
 DECLARE_CYCLE_STAT(TEXT("MVVM Bindings"), STAT_MVVMBindingTick, STATGROUP_Slate);
 
-void UMVVMBindingSubsystem::Initialize(FSubsystemCollectionBase& Collection)
-{
-	Super::Initialize(Collection);
-
-	if (FSlateApplication::IsInitialized())
-	{
-		FSlateApplication::Get().OnPreTick().AddUObject(this, &UMVVMBindingSubsystem::HandlePreTick);
-	}
-}
-
-void UMVVMBindingSubsystem::Deinitialize()
-{
-	if (FSlateApplication::IsInitialized())
-	{
-		FSlateApplication::Get().OnPreTick().RemoveAll(this);
-	}
-	Super::Deinitialize();
-}
-
 namespace UE::MVVM::Private
 {
 struct FViewAndBinding
@@ -58,7 +39,7 @@ struct FViewAndBinding
 };
 }
 
-void UMVVMBindingSubsystem::HandlePreTick(float DeltaTime)
+void UMVVMBindingSubsystem::Tick(float DeltaTime)
 {
 	SCOPE_CYCLE_COUNTER(STAT_MVVMBindingTick);
 
@@ -140,6 +121,11 @@ void UMVVMBindingSubsystem::HandlePreTick(float DeltaTime)
 
 		} while (DelayedBindingsWhileTicking.Num() > 0);
 	}
+}
+
+TStatId UMVVMBindingSubsystem::GetStatId() const
+{
+	RETURN_QUICK_DECLARE_CYCLE_STAT(UMVVMBindingSubsystem, STATGROUP_Tickables);
 }
 
 void UMVVMBindingSubsystem::AddViewWithTickBinding(const UMVVMView* InView)
