@@ -817,13 +817,30 @@ FORCEINLINE bool IsPossiblyAllocatedUObjectPointer(UObject* Ptr)
 }
 
 /**
- * Returns the name of this object (with no path information)
- * @param Object object to retrieve the name for; NULL gives "None"
+ * Returns the logical name of this object.
+ * @param Object object to retrieve the name for; null gives NAME_None.
  * @return Name of the object.
 */
-FORCEINLINE FString GetNameSafe(const UObjectBaseUtility *Object)
+FORCEINLINE FName GetFNameSafe(const UObjectBaseUtility* Object)
 {
-	if( Object == NULL )
+	if (Object == nullptr)
+	{
+		return NAME_None;
+	}
+	else
+	{
+		return Object->GetFName();
+	}
+}
+
+/**
+ * Returns the name of this object (with no path information).
+ * @param Object object to retrieve the name for; null gives "None".
+ * @return Name of the object.
+*/
+FORCEINLINE FString GetNameSafe(const UObjectBaseUtility* Object)
+{
+	if (Object == nullptr)
 	{
 		return TEXT("None");
 	}
@@ -834,13 +851,13 @@ FORCEINLINE FString GetNameSafe(const UObjectBaseUtility *Object)
 }
 
 /**
- * Returns the path name of this object
- * @param Object object to retrieve the path name for; NULL gives "None"
+ * Returns the path name of this object.
+ * @param Object object to retrieve the path name for; null gives "None".
  * @return path name of the object.
 */
-FORCEINLINE FString GetPathNameSafe(const UObjectBaseUtility *Object)
+FORCEINLINE FString GetPathNameSafe(const UObjectBaseUtility* Object)
 {
-	if( Object == NULL )
+	if (Object == nullptr)
 	{
 		return TEXT("None");
 	}
@@ -851,13 +868,13 @@ FORCEINLINE FString GetPathNameSafe(const UObjectBaseUtility *Object)
 }
 
 /**
- * Returns the full name of this object
- * @param Object object to retrieve the full name for; NULL (or a null class!) gives "None"
+ * Returns the full name of this object.
+ * @param Object object to retrieve the full name for; null (or a null class!) gives "None".
  * @return full name of the object.
 */
-FORCEINLINE FString GetFullNameSafe(const UObjectBaseUtility *Object)
+FORCEINLINE FString GetFullNameSafe(const UObjectBaseUtility* Object)
 {
-	if( !Object || !Object->GetClass())
+	if (!Object || !Object->GetClass())
 	{
 		return TEXT("None");
 	}

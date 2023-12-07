@@ -1054,6 +1054,20 @@ inline void SerializeSingleField(FArchive& Ar, FieldType*& Field, FFieldVariant 
 /**
  * Gets the name of the provided field. If the field pointer is null, the result is "none"
  */
+inline FName GetFNameSafe(const FField* InField)
+{
+	if (InField)
+	{
+		return InField->GetFName();
+	}
+	else
+	{
+		return NAME_None;
+	}
+}
+/**
+ * Gets the name of the provided field. If the field pointer is null, the result is "none"
+ */
 inline FString GetNameSafe(const FField* InField)
 {
 	if (InField)
