@@ -860,7 +860,7 @@ namespace Jupiter.Controllers
 
 					if (!objectRecord.IsFinalized)
 					{
-						throw new Exception("Object is not finalized");
+						return ToErrorResult("object not finalized", HttpStatusCode.BadRequest);
 					}
 
 					if (blob == null)
@@ -1007,6 +1007,16 @@ namespace Jupiter.Controllers
 			{
 				writer.WriteString("stackTrace", e.StackTrace);
 			}
+			writer.EndObject();
+			return (writer.ToObject(), statusCode);
+		}
+
+		private static (CbObject, HttpStatusCode) ToErrorResult(string message, HttpStatusCode statusCode = HttpStatusCode.InternalServerError)
+		{
+			CbWriter writer = new CbWriter();
+			writer.BeginObject();
+			writer.WriteString("title", message);
+			writer.WriteInteger("status", (int)statusCode);
 			writer.EndObject();
 			return (writer.ToObject(), statusCode);
 		}
