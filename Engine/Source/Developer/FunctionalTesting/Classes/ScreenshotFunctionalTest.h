@@ -28,21 +28,20 @@ public:
 	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Camera", SimpleDisplay)
 	bool bCameraCutOnScreenshotPrep;
 
-	// If r.EnableStereoScreenshotTestVariants is enabled, also take and compare screenshots in stereo rendering emulation modes when running this test
-	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Screenshot", SimpleDisplay)
-	bool bSupportStereoTestVariants = true;
-
 protected:
 	virtual void PrepareTest() override;
 	virtual void RequestScreenshot() override;
 	virtual void OnScreenShotCaptured(int32 InSizeX, int32 InSizeY, const TArray<FColor>& InImageData) override;
 	virtual void OnScreenshotTakenAndCompared() override;
+	virtual void StartTest() override;
 
 private:
-	void PerformVariant(FString VariantName, FString SetpCommand, FString RestoreCommand);
+	void SetupVariant(FString VariantName, FString SetpCommand, FString RestoreCommand);
 
 	FString CurrentVariantName;
 	FString VariantRestoreCommand;
 	bool bNeedsVariantRestore;
+
+	bool bShouldDoBaselineTest;
 	bool bShouldDoViewRectOffsetVariant;
 };

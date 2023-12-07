@@ -23,6 +23,7 @@ AScreenshotFunctionalTest::AScreenshotFunctionalTest( const FObjectInitializer& 
 	: AScreenshotFunctionalTestBase(ObjectInitializer)
 	, bCameraCutOnScreenshotPrep(true)
 	, bNeedsVariantRestore(false)
+	, bShouldDoBaselineTest(false)
 	, bShouldDoViewRectOffsetVariant(false)
 {
 }
@@ -41,7 +42,9 @@ void AScreenshotFunctionalTest::Serialize(FArchive& Ar)
 
 void AScreenshotFunctionalTest::PrepareTest()
 {
-	bShouldDoViewRectOffsetVariant = bSupportStereoTestVariants && FAutomationTestFramework::NeedPerformStereoTestVariants();
+	// If variants are enabled and lightweight variants are on, skip the baseline test
+	bShouldDoViewRectOffsetVariant = FAutomationTestFramework::NeedPerformStereoTestVariants();
+	bShouldDoBaselineTest = !(bShouldDoViewRectOffsetVariant && FAutomationTestFramework::NeedUseLightweightStereoTestVariants());
 
 	// Pre-prep flush to allow rendering to temporary targets and other test resources
 	UAutomationBlueprintFunctionLibrary::FinishLoadingBeforeScreenshot();
@@ -152,19 +155,47 @@ void AScreenshotFunctionalTest::OnScreenShotCaptured(int32 InSizeX, int32 InSize
 #endif
 }
 
+void AScreenshotFunctionalTest::StartTest()
+{
+	if (bShouldDoBaselineTest)
+	{
+		bShouldDoBaselineTest = false;
+	}
+	else if (bShouldDoViewRectOffsetVariant)
+	{
+		bShouldDoViewRectOffsetVariant = false;
+		SetupVariant("ViewRectOffset", "r.Test.ViewRectOffset 5", "r.Test.ViewRectOffset 0");
+	}
+
+	Super::StartTest();
+}
+
 void AScreenshotFunctionalTest::OnScreenshotTakenAndCompared()
 {
 	FAutomationTestBase* CurrentTest = FAutomationTestFramework::Get().GetCurrentTest();
 	bool bSkipDueToError = FAutomationTestFramework::Get().NeedUseLightweightStereoTestVariants() && (!CurrentTest || CurrentTest->HasAnyErrors());
 
+	// If we still need to perform any variants, loop back here
 	if (bShouldDoViewRectOffsetVariant && !bSkipDueToError)
 	{
-		bShouldDoViewRectOffsetVariant = false;
+		// Re-prepare test if necessary
+		if (bCameraCutOnScreenshotPrep)
+		{
+			APlayerController* PlayerController = UGameplayStatics::GetPlayerController(GetWorld(), 0);
 
-		// 0: Off, 1: Center, 2: Top Left, 3: Top Right, 4: Bottom Left, 5: Bottom Right
-		// We use bottom right to test both horizontal and vertical offsets (typically used for XR and split-screen, respectively).
-		PerformVariant("ViewRectOffset", "r.Test.ViewRectOffset 5", "r.Test.ViewRectOffset 0");
+			if (PlayerController && PlayerController->PlayerCameraManager)
+			{
+				PlayerController->PlayerCameraManager->SetGameCameraCutThisFrame();
+				if (ScreenshotCamera)
+				{
+					ScreenshotCamera->NotifyCameraCut();
+				}
+			}
+		}
+
+		StartTest();
 	}
+
 	else
 	{
 		// This ends the test and reports results
@@ -172,7 +203,7 @@ void AScreenshotFunctionalTest::OnScreenshotTakenAndCompared()
 	}
 }
 
-void AScreenshotFunctionalTest::PerformVariant(FString VariantName, FString SetupCommand, FString RestoreCommand)
+void AScreenshotFunctionalTest::SetupVariant(FString VariantName, FString SetupCommand, FString RestoreCommand)
 {
 	// Set up variant
 	GEngine->Exec(nullptr, *SetupCommand);
@@ -184,21 +215,4 @@ void AScreenshotFunctionalTest::PerformVariant(FString VariantName, FString Setu
 		VariantRestoreCommand = RestoreCommand;
 		bNeedsVariantRestore = true;
 	}
-
-	// Re-prepare test and request screenshot comparison
-	if (bCameraCutOnScreenshotPrep)
-	{
-		APlayerController* PlayerController = UGameplayStatics::GetPlayerController(GetWorld(), 0);
-
-		if (PlayerController && PlayerController->PlayerCameraManager)
-		{
-			PlayerController->PlayerCameraManager->SetGameCameraCutThisFrame();
-			if (ScreenshotCamera)
-			{
-				ScreenshotCamera->NotifyCameraCut();
-			}
-		}
-	}
-
-	RequestScreenshot(); 
 }

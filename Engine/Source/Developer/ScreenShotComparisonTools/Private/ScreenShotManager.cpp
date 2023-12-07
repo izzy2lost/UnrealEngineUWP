@@ -392,12 +392,13 @@ FImageComparisonResult FScreenShotManager::CompareScreenshot(const FString& InUn
 	ComparisonResult.ScreenshotName = ResultsSubFolder;
 
 	// Do not save passing variant test screenshots
-	const bool bIsVariant = !IncomingMetaData.VariantName.IsEmpty();
+	// Disabled for now until more variants are added, since variants now run without baseline tests in lightweight mode and we need to save at least one screenshot
+	/*const bool bIsVariant = !IncomingMetaData.VariantName.IsEmpty();
 	if (bIsVariant && FAutomationTestFramework::Get().NeedUseLightweightStereoTestVariants() && ComparisonResult.AreSimilar())
 	{
 		ComparisonResult.bSkipAttachingImages = true;
 		return ComparisonResult;
-	}
+	}*/
 
 	// Result paths should be relative to the project. Note this may be empty, and if it is MakePathRelative returns
 	// a non empty relative path... but we want it to stay empty as that's how we signal that no approved file exists
