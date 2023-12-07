@@ -3666,7 +3666,7 @@ void CalcMaterialParametersEx(
 
 #if MATERIAL_TWOSIDED && HAS_PRIMITIVE_UNIFORM_BUFFER
 	// #dxr: DirectX Raytracing's HitKind() intrinsic already accounts for negative scaling
-	#if PIXELSHADER
+	#if !RAYHITGROUPSHADER
 		Parameters.TwoSidedSign *= ResolvedView.CullingSign * GetPrimitive_DeterminantSign(Parameters.PrimitiveId);
 	#endif
 #endif
