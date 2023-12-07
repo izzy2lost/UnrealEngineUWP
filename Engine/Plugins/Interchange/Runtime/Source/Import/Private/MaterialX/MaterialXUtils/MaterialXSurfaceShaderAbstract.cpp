@@ -28,27 +28,22 @@ FMaterialXSurfaceShaderAbstract::FMaterialXSurfaceShaderAbstract(UInterchangeBas
 	, bTangentSpaceInput{ false }
 {}
 
-bool FMaterialXSurfaceShaderAbstract::AddAttribute(MaterialX::InputPtr Input, const FString& InputChannelName, UInterchangeShaderNode* ShaderNode) const
+bool FMaterialXSurfaceShaderAbstract::AddAttribute(MaterialX::InputPtr Input, const FString& InputChannelName, UInterchangeShaderNode* ShaderNode)
 {
+	using namespace UE::Interchange::Materials::Standard::Nodes;
 	if(Input)
 	{
-		// The parent is either a node, or it's an interfacename and we just take the name of the input
-		mx::NodePtr Node = Input->getParent()->asA<mx::Node>();
-		FString NodeName = Node ? Node->getName().c_str() + FString{ TEXT("_") } : FString{};
-		ShaderNode->SetDisplayLabel(NodeName + Input->getName().c_str());
-
 		if(Input->getType() == mx::Type::Float)
 		{
-			return ShaderNode->AddFloatInput(InputChannelName, mx::fromValueString<float>(Input->getValueString()), true);
+			return AddFloatAttribute(Input, InputChannelName, ShaderNode);
 		}
-		else if(Input->getType() == mx::Type::Integer) //Let's add it a Float attribute, because Interchange doesn't create a scalar if it's an int
+		else if(Input->getType() == mx::Type::Integer) //Let's add Float attribute, because Interchange doesn't create a scalar if it's an int
 		{
 			return ShaderNode->AddFloatAttribute(UInterchangeShaderPortsAPI::MakeInputValueKey(InputChannelName), mx::fromValueString<int32>(Input->getValueString()));
 		}
 		else if(Input->getType() == mx::Type::Color3 || Input->getType() == mx::Type::Color4)
 		{
-			FLinearColor LinearColor = GetLinearColor(Input);
-			return ShaderNode->AddLinearColorInput(InputChannelName, LinearColor, true);
+			return AddLinearColorAttribute(Input, InputChannelName, ShaderNode);
 		}
 		else if(Input->getType() == mx::Type::Vector2)
 		{
@@ -57,8 +52,7 @@ bool FMaterialXSurfaceShaderAbstract::AddAttribute(MaterialX::InputPtr Input, co
 		}
 		else if(Input->getType() == mx::Type::Vector3 || Input->getType() == mx::Type::Vector4)
 		{
-			FLinearColor Vector = GetVector(Input);
-			return ShaderNode->AddLinearColorInput(InputChannelName, Vector, true);
+			return AddVectorAttribute(Input, InputChannelName, ShaderNode);
 		}
 	}
 
@@ -103,45 +97,69 @@ bool FMaterialXSurfaceShaderAbstract::AddAttributeFromValueOrInterface(MaterialX
 	return bAttribute;
 }
 
-bool FMaterialXSurfaceShaderAbstract::AddFloatAttribute(MaterialX::InputPtr Input, const FString& InputChannelName, UInterchangeShaderNode* ShaderNode, float DefaultValue) const
+bool FMaterialXSurfaceShaderAbstract::AddFloatAttribute(MaterialX::InputPtr Input, const FString& InputChannelName, UInterchangeShaderNode* ShaderNode, float DefaultValue)
 {
+	using namespace UE::Interchange::Materials::Standard::Nodes;
 	if(Input && Input->hasValue())
 	{
 		float Value = mx::fromValueString<float>(Input->getValueString());
 
 		if(!FMath::IsNearlyEqual(Value, DefaultValue))
 		{
-			return ShaderNode->AddFloatInput(InputChannelName, Value, true);
+			// The parent is either a node, or it's an interfacename and we just take the name of the input
+			mx::NodePtr Node = Input->getParent()->asA<mx::Node>();
+			FString NodeName = Node ? Node->getName().c_str() + FString{ TEXT("_") } : FString{};
+			NodeName += Input->getName().c_str();
+
+			UInterchangeShaderNode* ScalarParameterNode = CreateShaderNode(NodeName, ScalarParameter::Name.ToString());
+			ScalarParameterNode->AddFloatAttribute(UInterchangeShaderPortsAPI::MakeInputParameterKey(ScalarParameter::Attributes::DefaultValue.ToString()), mx::fromValueString<float>(Input->getValueString()));
+			return UInterchangeShaderPortsAPI::ConnectDefaultOuputToInput(ShaderNode, InputChannelName, ScalarParameterNode->GetUniqueID());
 		}
 	}
 
 	return false;
 }
 
-bool FMaterialXSurfaceShaderAbstract::AddLinearColorAttribute(MaterialX::InputPtr Input, const FString& InputChannelName, UInterchangeShaderNode* ShaderNode, const FLinearColor& DefaultValue) const
+bool FMaterialXSurfaceShaderAbstract::AddLinearColorAttribute(MaterialX::InputPtr Input, const FString& InputChannelName, UInterchangeShaderNode* ShaderNode, const FLinearColor& DefaultValue)
 {
+	using namespace UE::Interchange::Materials::Standard::Nodes;
 	if(Input && Input->hasValue())
 	{
 		const FLinearColor Value = GetLinearColor(Input);
 
 		if(!Value.Equals(DefaultValue))
 		{
-			return ShaderNode->AddLinearColorInput(InputChannelName, Value, true);
+			// The parent is either a node, or it's an interfacename and we just take the name of the input
+			mx::NodePtr Node = Input->getParent()->asA<mx::Node>();
+			FString NodeName = Node ? Node->getName().c_str() + FString{ TEXT("_") } : FString{};
+			NodeName += Input->getName().c_str();
+
+			UInterchangeShaderNode* VectorParameterNode = CreateShaderNode(NodeName, VectorParameter::Name.ToString());
+			VectorParameterNode->AddLinearColorAttribute(UInterchangeShaderPortsAPI::MakeInputParameterKey(VectorParameter::Attributes::DefaultValue.ToString()), Value);
+			return UInterchangeShaderPortsAPI::ConnectDefaultOuputToInput(ShaderNode, InputChannelName, VectorParameterNode->GetUniqueID());
 		}
 	}
 
 	return false;
 }
 
-bool FMaterialXSurfaceShaderAbstract::AddVectorAttribute(MaterialX::InputPtr Input, const FString& InputChannelName, UInterchangeShaderNode* ShaderNode, const FVector4f& DefaultValue) const
+bool FMaterialXSurfaceShaderAbstract::AddVectorAttribute(MaterialX::InputPtr Input, const FString& InputChannelName, UInterchangeShaderNode* ShaderNode, const FVector4f& DefaultValue)
 {
+	using namespace UE::Interchange::Materials::Standard::Nodes;
 	if(Input && Input->hasValue())
 	{
 		const FLinearColor Value = GetVector(Input);
 
 		if(!Value.Equals(DefaultValue))
 		{
-			return ShaderNode->AddLinearColorInput(InputChannelName, Value, true);
+			// The parent is either a node, or it's an interfacename and we just take the name of the input
+			mx::NodePtr Node = Input->getParent()->asA<mx::Node>();
+			FString NodeName = Node ? Node->getName().c_str() + FString{ TEXT("_") } : FString{};
+			NodeName += Input->getName().c_str();
+
+			UInterchangeShaderNode* VectorParameterNode = CreateShaderNode(NodeName, VectorParameter::Name.ToString());
+			VectorParameterNode->AddLinearColorAttribute(UInterchangeShaderPortsAPI::MakeInputParameterKey(VectorParameter::Attributes::DefaultValue.ToString()), Value);
+			return UInterchangeShaderPortsAPI::ConnectDefaultOuputToInput(ShaderNode, InputChannelName, VectorParameterNode->GetUniqueID());
 		}
 	}
 
