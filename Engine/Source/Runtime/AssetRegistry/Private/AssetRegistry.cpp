@@ -7757,6 +7757,18 @@ void UAssetRegistryImpl::Broadcast(UE::AssetRegistry::Impl::FEventContext& Event
 
 	if (EventContext.bFileLoadedEventBroadcast)
 	{
+		if (&EventContext != &DeferredEvents)
+		{
+			FWriteScopeLock InterfaceScopeLock(InterfaceLock);
+			// Do not send the file loaded event yet if there are still deferred events and pass the flag on instead
+			if (!DeferredEvents.IsEmpty())
+			{
+				EventContext.bFileLoadedEventBroadcast = false;
+				DeferredEvents.bFileLoadedEventBroadcast = true;
+				return;
+			}
+		}
+
 		FileLoadedEvent.Broadcast();
 		EventContext.bFileLoadedEventBroadcast = false;
 	}
