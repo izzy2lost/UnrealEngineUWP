@@ -934,16 +934,16 @@ public:
 	// @todo document
 	void DrawConstraint(int32 ViewIndex, class FMeshElementCollector& Collector,
 		float Scale, float LimitDrawScale, bool bDrawLimits, bool bDrawSelected,
-		const FTransform& Con1Frame, const FTransform& Con2Frame, bool bDrawAsPoint) const
+		const FTransform& Con1Frame, const FTransform& Con2Frame, bool bDrawAsPoint, bool bDrawViolatedLimits) const
 	{
-		DrawConstraintImp(FPDIOrCollector(ViewIndex, Collector), Scale, LimitDrawScale, bDrawLimits, bDrawSelected, Con1Frame, Con2Frame, bDrawAsPoint);
+		DrawConstraintImp(FPDIOrCollector(ViewIndex, Collector), Scale, LimitDrawScale, bDrawLimits, bDrawSelected, Con1Frame, Con2Frame, bDrawAsPoint, bDrawViolatedLimits);
 	}
 
 	void DrawConstraint(FPrimitiveDrawInterface* PDI,
 		float Scale, float LimitDrawScale, bool bDrawLimits, bool bDrawSelected,
-		const FTransform& Con1Frame, const FTransform& Con2Frame, bool bDrawAsPoint) const
+		const FTransform& Con1Frame, const FTransform& Con2Frame, bool bDrawAsPoint, bool bDrawViolatedLimits) const
 	{
-		DrawConstraintImp(FPDIOrCollector(PDI), Scale, LimitDrawScale, bDrawLimits, bDrawSelected, Con1Frame, Con2Frame, bDrawAsPoint);
+		DrawConstraintImp(FPDIOrCollector(PDI), Scale, LimitDrawScale, bDrawLimits, bDrawSelected, Con1Frame, Con2Frame, bDrawAsPoint, bDrawViolatedLimits);
 	}
 
 	ENGINE_API void GetUsedMaterials(TArray<UMaterialInterface*>& Materials);
@@ -1050,7 +1050,7 @@ private:
 
 	ENGINE_API void DrawConstraintImp(const FPDIOrCollector& PDIOrCollector,
 		float Scale, float LimitDrawScale, bool bDrawLimits, bool bDrawSelected,
-		const FTransform& Con1Frame, const FTransform& Con2Frame, bool bDrawAsPoint) const;
+		const FTransform& Con1Frame, const FTransform& Con2Frame, bool bDrawAsPoint, bool bDrawViolatedLimits = false) const;
 
 	ENGINE_API void UpdateBreakable();
 	ENGINE_API void UpdatePlasticity();

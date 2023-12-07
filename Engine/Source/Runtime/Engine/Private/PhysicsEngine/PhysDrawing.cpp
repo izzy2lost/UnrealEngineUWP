@@ -20,6 +20,9 @@
 #include "Chaos/Levelset.h"
 #include "Chaos/UniformGrid.h"
 #include "Chaos/WeightedLatticeImplicitObject.h"
+#include "Chaos/PBDJointConstraintUtilities.h"
+
+//UE_DISABLE_OPTIMIZATION
 #include "Misc/ScopeLock.h"
 
 static const int32 DrawCollisionSides = 32;
@@ -33,6 +36,9 @@ static const float UnselectedJointRenderSize = 4.f;
 static const float SelectedJointRenderSize = 10.f;
 static const float LimitRenderSize = 0.16f;
 
+static const float ConstraintPointSize = 4.0f;
+static const float ConstraintLimitViolatedPointSize = 6.0f;
+
 static const FColor JointUnselectedColor(255, 0, 255);
 static const FColor JointRed(FColor::Red);
 static const FColor JointGreen(FColor::Green);
@@ -42,6 +48,7 @@ static const FColor	JointLimitColor(FColor::Green);
 static const FColor	JointRefColor(FColor::Yellow);
 static const FColor JointLockedColor(255,128,10);
 
+static const FColor JointLimitsViolatedColor(FColor::Purple);
 
 static int SkinnedLatticeBoneWeight = -1;
 static FAutoConsoleVariableRef CVarClothVizDrawSkinnedLattice(TEXT("p.PhysDrawing.SkinnedLatticeBoneWeight"), SkinnedLatticeBoneWeight, TEXT("Draw skinned lattice bone weight. -1 = all lattice points"));
@@ -1332,7 +1339,7 @@ void UPhysicsAsset::DrawConstraints(int32 ViewIndex, FMeshElementCollector& Coll
 		}
 
 
-		Instance.DrawConstraint(ViewIndex, Collector, Scale, 1.f, true, true, Con1Frame, Con2Frame, false);
+		Instance.DrawConstraint(ViewIndex, Collector, Scale, 1.f, true, true, Con1Frame, Con2Frame, false, false);
 	}
 }
 static void DrawLinearLimit(FPrimitiveDrawInterface* PDI, const FVector& Origin, const FVector& Axis, const FVector& Orth, float LinearLimitRadius, bool bLinearLimited, float DrawScale)
@@ -1433,22 +1440,22 @@ void FConstraintInstance::GetUsedMaterials(TArray<UMaterialInterface*>& Material
 	Materials.AddUnique(GEngine->ConstraintLimitMaterialZAxis);
 }
 
-void FConstraintInstance::DrawConstraintImp(const FPDIOrCollector& PDIOrCollector, float Scale, float LimitDrawScale, bool bDrawLimits, bool bDrawSelected, const FTransform& Con1Frame, const FTransform& Con2Frame, bool bDrawAsPoint) const
+void FConstraintInstance::DrawConstraintImp(const FPDIOrCollector& PDIOrCollector, float Scale, float LimitDrawScale, bool bDrawLimits, bool bDrawSelected, const FTransform& Con1Frame, const FTransform& Con2Frame, bool bDrawAsPoint, bool bDrawViolatedLimits) const
 {
 	// Do nothing if we're shipping
 #if !UE_BUILD_SHIPPING
 	const ESceneDepthPriorityGroup Layer = ESceneDepthPriorityGroup::SDPG_World;
 	FPrimitiveDrawInterface* PDI = PDIOrCollector.GetPDI();
 
-	check((GEngine->ConstraintLimitMaterialX != nullptr) && (GEngine->ConstraintLimitMaterialY != nullptr) && (GEngine->ConstraintLimitMaterialZ != nullptr));
+	check(GEngine->ConstraintLimitMaterialX && GEngine->ConstraintLimitMaterialY && GEngine->ConstraintLimitMaterialZ);
 
-	static UMaterialInterface * LimitMaterialX = GEngine->ConstraintLimitMaterialX;
-	static UMaterialInterface * LimitMaterialXAxis = GEngine->ConstraintLimitMaterialXAxis;
-	static UMaterialInterface * LimitMaterialY = GEngine->ConstraintLimitMaterialY;
-	static UMaterialInterface * LimitMaterialYAxis = GEngine->ConstraintLimitMaterialYAxis;
-	static UMaterialInterface * LimitMaterialZ = GEngine->ConstraintLimitMaterialZ;
-	static UMaterialInterface * LimitMaterialZAxis = GEngine->ConstraintLimitMaterialZAxis;
-	
+	static UMaterialInterface* LimitMaterialX = GEngine->ConstraintLimitMaterialX;
+	static UMaterialInterface* LimitMaterialXAxis = GEngine->ConstraintLimitMaterialXAxis;
+	static UMaterialInterface* LimitMaterialY = GEngine->ConstraintLimitMaterialY;
+	static UMaterialInterface* LimitMaterialYAxis = GEngine->ConstraintLimitMaterialYAxis;
+	static UMaterialInterface* LimitMaterialZ = GEngine->ConstraintLimitMaterialZ;
+	static UMaterialInterface* LimitMaterialZAxis = GEngine->ConstraintLimitMaterialZAxis;
+
 	const FVector Con1Pos = Con1Frame.GetTranslation();
 	const FVector Con2Pos = Con2Frame.GetTranslation();
 
@@ -1458,8 +1465,8 @@ void FConstraintInstance::DrawConstraintImp(const FPDIOrCollector& PDIOrCollecto
 	// Special mode for drawing joints just as points..
 	if(bDrawAsPoint && !bDrawSelected)
 	{
-		PDI->DrawPoint( Con1Frame.GetTranslation(), JointUnselectedColor, 4.f, ESceneDepthPriorityGroup::SDPG_Foreground );
-		PDI->DrawPoint( Con2Frame.GetTranslation(), JointUnselectedColor, 4.f, ESceneDepthPriorityGroup::SDPG_Foreground );
+		PDI->DrawPoint( Con1Frame.GetTranslation(), JointUnselectedColor, ConstraintPointSize, ESceneDepthPriorityGroup::SDPG_Foreground );
+		PDI->DrawPoint( Con2Frame.GetTranslation(), JointUnselectedColor, ConstraintPointSize, ESceneDepthPriorityGroup::SDPG_Foreground );
 
 		// do nothing else in this mode.
 		return;
@@ -1467,6 +1474,20 @@ void FConstraintInstance::DrawConstraintImp(const FPDIOrCollector& PDIOrCollecto
 
 	if (bDrawLimits)
 	{
+		bool bTwistViolated = false;
+		bool bSwing1Violated = false;
+		bool bSwing2Violated = false;
+		if (bDrawViolatedLimits)
+		{
+			Chaos::FReal TwistAngle, Swing1Angle, Swing2Angle;
+			const FQuat ParentQ = Con2Frame.GetRotation();
+			FQuat ChildQ = Con1Frame.GetRotation();
+			ChildQ.EnforceShortestArcWith(ParentQ);
+			Chaos::FPBDJointUtilities::GetSwingTwistAngles(ParentQ, ChildQ, TwistAngle, Swing1Angle, Swing2Angle);
+			bTwistViolated = GetAngularTwistMotion() == ACM_Limited && FMath::Abs(TwistAngle) > FMath::DegreesToRadians(GetAngularTwistLimit());
+			bSwing1Violated = GetAngularSwing1Motion() == ACM_Limited && FMath::Abs(Swing1Angle) > FMath::DegreesToRadians(GetAngularSwing1Limit());
+			bSwing2Violated = GetAngularSwing2Motion() == ACM_Limited && FMath::Abs(Swing2Angle) > FMath::DegreesToRadians(GetAngularSwing2Limit());
+		}
 
 		//////////////////////////////////////////////////////////////////////////
 		// ANGULAR DRAWING
@@ -1503,6 +1524,11 @@ void FConstraintInstance::DrawConstraintImp(const FPDIOrCollector& PDIOrCollecto
 			FTransform ArrowTM = Con1Frame;
 			ArrowTM.SetTranslation(Con2Pos);
 			PDIOrCollector.DrawArrow(ArrowTM.ToMatrixWithScale(), Length, Thickness, DrawConeLimitSides, JointLimitColor, LimitMaterialX->GetRenderProxy(), Layer);
+
+			if (bSwing1Violated || bSwing2Violated)
+			{
+				PDI->DrawPoint(ArrowTM.TransformPosition(FVector(Length, 0, 0)), JointLimitsViolatedColor, ConstraintLimitViolatedPointSize, ESceneDepthPriorityGroup::SDPG_Foreground);
+			}
 		}
 
 		// Draw the twist limit - A green arc that shows the allowed range of rotation about the parent frame's x axis.
@@ -1517,6 +1543,12 @@ void FConstraintInstance::DrawConstraintImp(const FPDIOrCollector& PDIOrCollecto
 			const FVector TwistIndicator = FVector::PointPlaneProject(Con1Frame.GetScaledAxis(EAxis::Y), FVector::ZeroVector, Con2Frame.GetUnitAxis(EAxis::X)).GetSafeNormal(); // project the y axis of the child frame into the parent frame's yz plane
 			const FTransform ArrowTM(TwistIndicator, Con2Frame.GetScaledAxis(EAxis::X), TwistIndicator ^ Con2Frame.GetScaledAxis(EAxis::X), Con2Frame.GetTranslation());
 			PDIOrCollector.DrawArrow(ArrowTM.ToMatrixWithScale(), Length, Thickness, DrawConeLimitSides, JointLimitColor, LimitMaterialYAxis->GetRenderProxy(), Layer);
+
+			if (bTwistViolated)
+			{
+				PDI->DrawPoint(ArrowTM.TransformPosition(FVector(Length, 0, 0)), JointLimitsViolatedColor, ConstraintLimitViolatedPointSize, ESceneDepthPriorityGroup::SDPG_Foreground);
+			}
+
 		}
 	}
 
