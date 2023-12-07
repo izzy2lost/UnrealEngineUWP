@@ -190,6 +190,9 @@ struct IBuffer2DView
 	// copy up to Count elements to Dest, in X then Y order (standard image order)
 	virtual void CopyTo(T* Dest, int32 Count) const = 0;
 
+	// copy up to Count elements to Dest, in X then Y order (standard image order)
+	virtual bool CopyToAndCalcIsAllZero(T* Dest, int32 Count) const = 0;
+
 	// return the total number of elements
 	virtual int32 Num() const = 0;
 };
@@ -237,7 +240,7 @@ struct FLandscapeComponentGrassData
 	bool HasData() const;
 
 	void InitializeFrom(const TArray<uint16>& HeightData, const TMap<ULandscapeGrassType*, TArray<uint8>>& WeightData);
-	void InitializeFrom(IBuffer2DView<uint16>* HeightData, TMap<ULandscapeGrassType*, IBuffer2DView<uint8>*>& WeightData);
+	void InitializeFrom(IBuffer2DView<uint16>* HeightData, TMap<ULandscapeGrassType*, IBuffer2DView<uint8>*>& WeightData, bool bStripEmptyWeights);
 
 	bool HasWeightData() const;
 	TArrayView<uint8> GetWeightData(const ULandscapeGrassType* GrassType);
@@ -905,6 +908,9 @@ public:
 
 	virtual TSubclassOf<class UHLODBuilder> GetCustomHLODBuilderClass() const override;
 #endif
+
+	int32 GetCurrentRuntimeMaterialInstanceCount() const;
+	class UMaterialInterface* GetCurrentRuntimeMaterialInterface(int32 InIndex);
 
 	LANDSCAPE_API int32 GetMaterialInstanceCount(bool InDynamic = true) const;
 	LANDSCAPE_API class UMaterialInstance* GetMaterialInstance(int32 InIndex, bool InDynamic = true) const;

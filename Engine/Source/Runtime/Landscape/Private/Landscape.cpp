@@ -315,6 +315,33 @@ UMaterialInstance* ULandscapeComponent::GetMaterialInstance(int32 InIndex, bool 
 	return MaterialInstances[InIndex];
 }
 
+int32 ULandscapeComponent::GetCurrentRuntimeMaterialInstanceCount() const
+{
+	ALandscapeProxy* Proxy = GetLandscapeProxy();
+	const ERHIFeatureLevel::Type FeatureLevel = Proxy->GetWorld()->GetFeatureLevel();
+	if (FeatureLevel == ERHIFeatureLevel::ES3_1)
+	{
+		return MobileMaterialInterfaces.Num();
+	}
+
+	bool bDynamic = Proxy->bUseDynamicMaterialInstance;
+	return GetMaterialInstanceCount(bDynamic);
+}
+
+class UMaterialInterface* ULandscapeComponent::GetCurrentRuntimeMaterialInterface(int32 InIndex)
+{
+	ALandscapeProxy* Proxy = GetLandscapeProxy();
+	const ERHIFeatureLevel::Type FeatureLevel = GetLandscapeProxy()->GetWorld()->GetFeatureLevel();
+
+	if (FeatureLevel == ERHIFeatureLevel::ES3_1)
+	{
+		return MobileMaterialInterfaces[InIndex];
+	}
+
+	bool bDynamic = Proxy->bUseDynamicMaterialInstance;
+	return GetMaterialInstance(InIndex, bDynamic);
+}
+
 UMaterialInstanceDynamic* ULandscapeComponent::GetMaterialInstanceDynamic(int32 InIndex) const
 {
 	ALandscapeProxy* Actor = GetLandscapeProxy();
@@ -3535,6 +3562,22 @@ void ALandscape::EnableNaniteSkirts(bool bInEnable, float InSkirtDepth, bool bIn
 	}
 }
 
+void ALandscape::SetDisableRuntimeGrassMapGeneration(bool bInDisableRuntimeGrassMapGeneration)
+{
+	bDisableRuntimeGrassMapGeneration = bInDisableRuntimeGrassMapGeneration;
+	if (ULandscapeInfo* LandscapeInfo = GetLandscapeInfo())
+	{
+		LandscapeInfo->ForEachLandscapeProxy([bInDisableRuntimeGrassMapGeneration](ALandscapeProxy* Proxy) -> bool
+		{
+			if (Proxy != nullptr)
+			{
+				Proxy->bDisableRuntimeGrassMapGeneration = bInDisableRuntimeGrassMapGeneration;
+			}
+			return true;
+		});
+	}
+}
+
 void ALandscapeProxy::OnFeatureLevelChanged(ERHIFeatureLevel::Type NewFeatureLevel)
 {
 	FlushGrassComponents();
@@ -3571,11 +3614,19 @@ void ALandscapeProxy::PreSave(FObjectPreSaveContext ObjectSaveContext)
 		{
 			// generate all of the grass data
 			BuildGrassMaps();
+
+			int32 ValidGrassCount = 0;
 			for (ULandscapeComponent* Component : LandscapeComponents)
 			{
 				// Manually reset dirty flag (for post save)
 				Component->GrassData->bIsDirty = false;
+				if (Component->GrassData->HasValidData())
+				{
+					ValidGrassCount++;
+				}
 			}
+
+			UE_LOG(LogGrass, Verbose, TEXT("PRESAVE: landscape %s has %d / %d valid grass components (UseRuntimeGeneration %d Disable %d)"), *GetName(), ValidGrassCount, LandscapeComponents.Num(), GGrassMapUseRuntimeGeneration, bDisableRuntimeGrassMapGeneration);
 		}
 	}
 
@@ -4105,6 +4156,36 @@ void ALandscapeProxy::PostLoad()
 		BodyInstance.FixupData(this);
 	}
 
+	for (ULandscapeComponent* Comp : LandscapeComponents)
+	{
+		if (Comp == nullptr)
+		{
+			continue;
+		}
+
+		UE_LOG(LogGrass, Verbose, TEXT("POSTLOAD: component %s on landscape %s UseRuntimeGeneration %d Disable: %d data: %d"),
+			*Comp->GetName(),
+			*GetName(),
+			GGrassMapUseRuntimeGeneration, bDisableRuntimeGrassMapGeneration, Comp->GrassData->NumElements);
+
+#if !WITH_EDITOR
+		// if using runtime grass gen, it should have been cleared out in PreSave
+		if (GGrassMapUseRuntimeGeneration && !bDisableRuntimeGrassMapGeneration)
+		{
+			if (Comp->GrassData->HasData())
+			{
+				UE_LOG(LogGrass, Warning, TEXT("grass.GrassMap.UseRuntimeGeneration is enabled, but component %s on landscape %s has unnecessary grass data saved.  Ensure grass.GrassMap.UseRuntimeGeneration is enabled at cook time to reduce cooked data size."),
+					*Comp->GetName(),
+					*GetName());
+
+				// Free the memory, so at least we will save the space at runtime.
+				TUniquePtr<FLandscapeComponentGrassData> NewGrassData = MakeUnique<FLandscapeComponentGrassData>();
+				Comp->GrassData = MakeShareable(NewGrassData.Release());
+			}
+		}
+#endif // !WITH_EDITOR
+	}
+
 #if WITH_EDITOR
 	PRAGMA_DISABLE_DEPRECATION_WARNINGS;
 	if (!LandscapeMaterialsOverride_DEPRECATED.IsEmpty())
@@ -4170,23 +4251,6 @@ void ALandscapeProxy::PostLoad()
 		{
 			continue;
 		}
-
-#if !WITH_EDITOR
-		// if using runtime grass gen, it should have been cleared out in PreSave
-		if (GGrassMapUseRuntimeGeneration)
-		{
-			if (Comp->GrassData->HasValidData() && bUseRuntimeGrassMapGeneration)
-			{
-				UE_LOG(LogGrass, Warning, TEXT("grass.GrassMap.UseRuntimeGeneration is enabled, but component %s on landscape %s has unnecessary grass data saved.  Ensure grass.GrassMap.UseRuntimeGeneration is enabled at cook time to reduce cooked data size."),
-					*Comp->GetName(),
-					*GetName());
-
-				// Free the memory, so at least we will save the space at runtime.
-				TUniquePtr<FLandscapeComponentGrassData> NewGrassData = MakeUnique<FLandscapeComponentGrassData>();
-				Comp->GrassData = MakeShareable(NewGrassData.Release());
-			}
-		}
-#endif // !WITH_EDITOR
 
 		// Validate the layer combination and store it in the MaterialInstanceConstantMap
 		UMaterialInstance* MaterialInstance = Comp->GetMaterialInstance(0, false);

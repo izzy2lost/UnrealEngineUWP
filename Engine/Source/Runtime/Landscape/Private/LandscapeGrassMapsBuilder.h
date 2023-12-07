@@ -2,6 +2,7 @@
 #pragma once
 
 #include "CoreMinimal.h"
+#include "Async/AsyncWork.h"
 #include "UObject/WeakObjectPtrTemplates.h"
 #include "LandscapeComponent.h"
 #include "LandscapeTextureStreamingManager.h"
@@ -9,6 +10,26 @@
 
 class FLandscapeGrassWeightExporter;
 struct FScopedSlowTask;
+
+class FAsyncFetchTask : public FNonAbandonableTask
+{
+public:
+	// non-owned pointer. The lifetime is managed externally and must guarantee this pointer is valid while the task is in flight
+	TNonNullPtr< FLandscapeGrassWeightExporter> ActiveRender;
+	TMap<ULandscapeComponent*, TUniquePtr<FLandscapeComponentGrassData>, TInlineSetAllocator<1>> Results;
+
+	FAsyncFetchTask(FLandscapeGrassWeightExporter* ActiveRender)
+		: ActiveRender(ActiveRender)
+	{
+	}
+
+	void DoWork();
+
+	FORCEINLINE TStatId GetStatId() const
+	{
+		RETURN_QUICK_DECLARE_CYCLE_STAT(FAsyncFetchTask, STATGROUP_ThreadPoolAsyncTasks);
+	}
+};
 
 /**
  * Helper class used to Build or monitor outdated Grass maps of a world
@@ -33,7 +54,7 @@ public:
 	// called when components are registered to the world
 	void RegisterComponent(ULandscapeComponent* Component);
 	// called when components are unregistered from the world.
-	void UnregisterComponent(ULandscapeComponent* Component);
+	void UnregisterComponent(const ULandscapeComponent* Component);
 
 	// get the number of grass maps that are still waiting to render, as of the last AmortizedUpdateGrassMaps()
 	int32 GetTotalGrassMapsWaitingToRender() const { return TotalComponentsWaitingCount; }
@@ -71,6 +92,7 @@ private:
 		NotReady,							// tried to start generation process, but either no grass types exist or the material is not ready. wait for that to change.
 		TextureStreaming,					// texture streaming was requested.  wait for the mips to be available
 		Rendering,							// GPU render commands were sent -- waiting for async readback to complete
+		AsyncFetch,							// Waiting for the async fetch task to complete
 		GrassMapsPopulated,					// grass maps are built and are ready to create instances
 	};
 
@@ -96,7 +118,10 @@ private:
 		TArray<UTexture*> TexturesToStream;
 		
 		// the active render (valid only in Rendering stage)
-		FLandscapeGrassWeightExporter* ActiveRender = nullptr;
+		TUniquePtr<FLandscapeGrassWeightExporter> ActiveRender;
+
+		// when in AsyncFetch stage, this is async task that we are waiting for
+		TUniquePtr<FAsyncTask<FAsyncFetchTask>> AsyncFetchTask;
 
 		FComponentState(ULandscapeComponent* Component);
 
@@ -188,6 +213,7 @@ private:
 	int32 NotReadyCount = 0;
 	int32 StreamingCount = 0;
 	int32 RenderingCount = 0;
+	int32 AsyncFetchCount = 0;
 	int32 PopulatedCount = 0;
 
 	// number of components that need to render but are waiting (as of the last call to StartTrackingComponents())
@@ -198,6 +224,7 @@ private:
 	// store the grass map state of each registered (or recently unregistered) component
 	TMap<ULandscapeComponent*, FComponentState*> ComponentStates;
 
+	// Pending components, in a min heap by distance to streaming cameras
 	TArray<FPendingComponent> PendingComponentsHeap;
 	int32 PendingUpdateAmortizationCounter = 0;
 
@@ -217,7 +244,9 @@ private:
 	void KickOffRenderAndReadback(FComponentState& State);
 
 	// once the GPU readback is complete, this starts processing the data to generate a GrassData structure
-	void ProcessGrassDataAsync(FComponentState& State);
+	void LaunchAsyncFetchTask(FComponentState& State);
+
+	void PopulateGrassDataFromAsyncFetchTask(FComponentState& State);
 
 	// once the GPU readback is complete, this populates the grass data on the component (and cancels texture stream requests)
 	void PopulateGrassDataFromReadback(FComponentState& State);

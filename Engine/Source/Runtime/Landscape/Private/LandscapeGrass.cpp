@@ -965,7 +965,7 @@ TArray<uint16> ULandscapeComponent::RenderWPOHeightmap(int32 LOD)
 		{
 			FLandscapeGrassWeightExporter Exporter(GetLandscapeProxy(), { this }, /*bInNeedsGrassmap = */ false, /*bInNeedsHeightmap =*/ true, {});
 			TMap<ULandscapeComponent*, TUniquePtr<FLandscapeComponentGrassData>, TInlineSetAllocator<1>> TempGrassData;
-			TempGrassData = Exporter.FetchResults();
+			TempGrassData = Exporter.FetchResults(/* bFreeAsyncReadback= */ true);
 			Results = TArray<uint16>(TempGrassData[this]->GetHeightData());
 		}
 		else
@@ -974,7 +974,7 @@ TArray<uint16> ULandscapeComponent::RenderWPOHeightmap(int32 LOD)
 			HeightMips.Add(LOD);
 			FLandscapeGrassWeightExporter Exporter(GetLandscapeProxy(), { this }, /*bInNeedsGrassmap = */ false, /*bInNeedsHeightmap =*/ false, MoveTemp(HeightMips));
 			TMap<ULandscapeComponent*, TUniquePtr<FLandscapeComponentGrassData>, TInlineSetAllocator<1>> TempGrassData;
-			TempGrassData = Exporter.FetchResults();
+			TempGrassData = Exporter.FetchResults(/* bFreeAsyncReadback= */ true);
 			Results = MoveTemp(TempGrassData[this]->HeightMipData[LOD]);
 		}
 	}
@@ -1483,12 +1483,13 @@ void FLandscapeComponentGrassData::InitializeFrom(const TArray<uint16>& HeightDa
 }
 
 // Note that this is a relatively expensive operation (in the runtime sense), as it's making a copy of the buffers
-void FLandscapeComponentGrassData::InitializeFrom(IBuffer2DView<uint16>* HeightData, TMap<ULandscapeGrassType*, IBuffer2DView<uint8>*>& WeightData)
+void FLandscapeComponentGrassData::InitializeFrom(IBuffer2DView<uint16>* HeightData, TMap<ULandscapeGrassType*, IBuffer2DView<uint8>*>& WeightData, bool bStripEmptyWeights)
 {
-	WeightOffsets.Empty(WeightData.Num());
+	const int32 OriginalGrassTypeCount = WeightData.Num();
+	WeightOffsets.Empty(OriginalGrassTypeCount);
 
 	// If weight data is empty make sure we don't have any memory allocated to grass
-	if (WeightData.Num() == 0)
+	if (OriginalGrassTypeCount == 0)
 	{
 		NumElements = 0;
 		HeightWeightData.Empty();
@@ -1496,7 +1497,9 @@ void FLandscapeComponentGrassData::InitializeFrom(IBuffer2DView<uint16>* HeightD
 	}
 
 	NumElements = HeightData->Num();
-	HeightWeightData.SetNumUninitialized(NumElements * sizeof(uint16) + NumElements * WeightData.Num() * sizeof(uint8));
+
+	// reserve space for up to OriginalGrassTypeCount weight elements
+	HeightWeightData.SetNumUninitialized(NumElements * sizeof(uint16) + NumElements * OriginalGrassTypeCount * sizeof(uint8));
 
 	uint8* CopyDest = HeightWeightData.GetData();
 	int32 CopyOffset = 0;
@@ -1504,20 +1507,32 @@ void FLandscapeComponentGrassData::InitializeFrom(IBuffer2DView<uint16>* HeightD
 
 	check((CopyOffset + CopySize) <= HeightWeightData.Num());
 
+	// copy the height data
 	HeightData->CopyTo((uint16*)&CopyDest[CopyOffset], CopySize / sizeof(uint16));
-
 	CopyOffset += CopySize;
 	CopySize = NumElements * sizeof(uint8);
 
 	for (const TPair<ULandscapeGrassType*, IBuffer2DView<uint8>*>& Pair : WeightData)
 	{
-		WeightOffsets.Add(Pair.Key, CopyOffset);
 		check(Pair.Value->Num() == NumElements);
 		check((CopyOffset + CopySize) <= HeightWeightData.Num());
 
-		Pair.Value->CopyTo(&CopyDest[CopyOffset], CopySize);
-		CopyOffset += CopySize;
+		const bool bIsAllZero = Pair.Value->CopyToAndCalcIsAllZero(&CopyDest[CopyOffset], CopySize);
+
+		if (bStripEmptyWeights && bIsAllZero)
+		{
+			// strip all zero weights
+		}
+		else
+		{
+			// record the weight data
+			WeightOffsets.Add(Pair.Key, CopyOffset);
+			CopyOffset += CopySize;
+		}
 	}
+
+	// shrink if necessary to account for stripped weight data
+	HeightWeightData.SetNum(CopyOffset);
 }
 
 FArchive& operator<<(FArchive& Ar, FLandscapeComponentGrassData& Data)
@@ -2982,6 +2997,15 @@ void ALandscapeProxy::ProcessAsyncGrassInstanceTasks(bool bWaitAsyncTasks, bool 
 			UGrassInstancedStaticMeshComponent* GrassISMComponent = Cast<UGrassInstancedStaticMeshComponent>(Inner.Foliage.Get());
 			int32 NumBuiltRenderInstances = Inner.Builder->InstanceBuffer.GetNumInstances();
 			//UE_LOG(LogCore, Display, TEXT("%d instances in %4.0fms     %6.0f instances / sec"), NumBuiltRenderInstances, 1000.0f * float(Inner.Builder->BuildTime), float(NumBuiltRenderInstances) / float(Inner.Builder->BuildTime));
+
+			FCachedLandscapeFoliage::FGrassCompKey& InnerKey = Inner.Key;
+
+			UE_LOG(LogGrass, Verbose, TEXT("ASYNC GRASS INSTANCES COMPLETE %s %s %d %d (%d)"),
+				*InnerKey.BasedOn->GetName(),
+				*(InnerKey.GrassType->GrassVarieties[InnerKey.VarietyIndex].GrassMesh->GetName()),
+				InnerKey.SubsectionX,
+				InnerKey.SubsectionY,
+				NumBuiltRenderInstances);
 
 			if (GrassISMComponent && StillUsed.Contains(GrassISMComponent))
 			{

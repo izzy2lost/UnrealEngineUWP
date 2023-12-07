@@ -363,7 +363,7 @@ void ULandscapeSubsystem::Tick(float DeltaTime)
 			
 			// Update the proxies proxy
 			{
-				if (Proxy->bUseRuntimeGrassMapGeneration)
+				if (!Proxy->GetDisableRuntimeGrassMapGeneration())
 				{
 					bAllProxiesRuntimeGrassMapsDisabled = false;
 				}
@@ -814,7 +814,7 @@ void ULandscapeSubsystem::DisplayMessages(FCanvas* Canvas, float& XPos, float& Y
 		if (ModifiedNotDirtyCount > 0)
 		{
 			SmallTextItem.SetColor(FLinearColor::Red);
-			SmallTextItem.Text = FText::Format(LOCTEXT("LANDSCAPE_NEED_TO_BE_SAVED", "LANDSCAPE: NEED TO BE SAVED ({0} {0}|plural(one=object,other=objects))"), ModifiedNotDirtyCount);
+			SmallTextItem.Text = FText::Format(LOCTEXT("LANDSCAPE_NEED_TO_BE_SAVED", "LANDSCAPE: NEED TO SAVE TO SHOW CHANGES IN A COOKED GAME ({0} {0}|plural(one=object,other=objects))"), ModifiedNotDirtyCount);
 			Canvas->DrawItem(SmallTextItem, FVector2D(XPos, YPos));
 			YPos += FontSizeY;
 		}

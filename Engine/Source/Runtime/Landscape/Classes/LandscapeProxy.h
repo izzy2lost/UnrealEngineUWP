@@ -412,6 +412,10 @@ protected:
 	
 #endif // WITH_EDITORONLY_DATA
 
+	/** Disable runtime grass data generation.  If disabled, the grass maps will be serialized at cook time. Do not set directly, use ALandscape::SetDisableRuntimeGrassMapGeneration to ensure it is set on all loaded proxies. */
+	UPROPERTY(meta = (LandscapeInherited))
+	bool bDisableRuntimeGrassMapGeneration = false;
+
 public:
 	/** Offset in quads from global components grid origin (in quads) **/
 	UPROPERTY()
@@ -626,6 +630,8 @@ public:
 	inline void InvalidateGrassTypeSummary() { GrassTypeSummary.LandscapeComponentCount = -1; }
 	void UpdateGrassTypeSummary();
 
+	inline bool GetDisableRuntimeGrassMapGeneration() { return bDisableRuntimeGrassMapGeneration; }
+
 	/**
 	 *	The resolution to cache lighting at, in texels/quad in one axis
 	 *  Total resolution would be changed by StaticLightingResolution*StaticLightingResolution
@@ -810,11 +816,6 @@ public:
 	/** Enable compressed heightmap texture storage. */
 	UPROPERTY(EditAnywhere, Category = Landscape, AdvancedDisplay, meta = (LandscapeInherited))
 	bool bUseCompressedHeightmapStorage = false;
-
-	/** Enable runtime grass data generation to save memory, when grass.GrassMap.UseRuntimeGeneration is true (this is checked per platform).
-		When enabled grass data is not serialized during cook and will be regenerated at runtime when the landscape is loaded. */
-	UPROPERTY(EditAnywhere, Category = Landscape, AdvancedDisplay, meta = (LandscapeInherited))
-	bool bUseRuntimeGrassMapGeneration = false;
 
 	/** Strip Physics/collision components when cooked for client */
 	UPROPERTY(EditAnywhere, Category = Landscape, AdvancedDisplay, meta = (LandscapeOverridable))

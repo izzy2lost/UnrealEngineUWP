@@ -14,13 +14,11 @@ class UTextureRenderTarget2D;
 // data also accessible by render thread
 class FLandscapeGrassWeightExporter_RenderThread
 {
-	FLandscapeGrassWeightExporter_RenderThread(const TArray<int32>& InHeightMips, bool bInUseAsyncReadback)
+	FLandscapeGrassWeightExporter_RenderThread(const TArray<int32>& InHeightMips)
 		: HeightMips(InHeightMips)
 	{
-		if (bInUseAsyncReadback)
-		{
-			AsyncReadbackPtr = new FLandscapeAsyncTextureReadback();
-		}
+		// even when doing a synchronous readback, we use the async readback structure
+		AsyncReadbackPtr = new FLandscapeAsyncTextureReadback();
 	}
 
 	friend class FLandscapeGrassWeightExporter;
@@ -67,7 +65,6 @@ public:
 	};
 
 	FSceneInterface* SceneInterface = nullptr;
-	FTextureRenderTarget2DResource* RenderTargetResource = nullptr;
 	TArray<FComponentInfo, TInlineAllocator<1>> ComponentInfos;
 	FIntPoint TargetSize;
 	TArray<int32> HeightMips;
@@ -88,10 +85,9 @@ class FLandscapeGrassWeightExporter : public FLandscapeGrassWeightExporter_Rende
 	int32 SubsectionSizeQuads;
 	int32 NumSubsections;
 	TArray<TObjectPtr<ULandscapeGrassType>> GrassTypes;
-	TObjectPtr<UTextureRenderTarget2D> RenderTargetTexture;
 
 public:
-	FLandscapeGrassWeightExporter(ALandscapeProxy* InLandscapeProxy, TArrayView<ULandscapeComponent* const> InLandscapeComponents, bool bInNeedsGrassmap = true, bool bInNeedsHeightmap = true, const TArray<int32>& InHeightMips = {}, bool bUseAsyncReadback = false);
+	FLandscapeGrassWeightExporter(ALandscapeProxy* InLandscapeProxy, TArrayView<ULandscapeComponent* const> InLandscapeComponents, bool bInNeedsGrassmap = true, bool bInNeedsHeightmap = true, const TArray<int32>& InHeightMips = {});
 
 	// If using the async readback path, check its status and update if needed. Return true when the AsyncReadbackResults are available.
 	// You must call this periodically, or the async readback may not complete.
@@ -110,13 +106,17 @@ public:
 
 	// Fetches the results from the GPU texture and translates them into FLandscapeComponentGrassDatas.
 	// If using async readback, requires AsyncReadback to be complete before calling this.
-	TMap<ULandscapeComponent*, TUniquePtr<FLandscapeComponentGrassData>, TInlineSetAllocator<1>> FetchResults();
+	// bFreeAsyncReadback if true will call FreeAsyncReadback() to free the readback resource (otherwise you must do it manually)
+	TMap<ULandscapeComponent*, TUniquePtr<FLandscapeComponentGrassData>, TInlineSetAllocator<1>> FetchResults(bool bFreeAsyncReadback);
+
+	void FreeAsyncReadback();
+
+	// Applies the results using pre-fetched data.
+	static void ApplyResults(TMap<ULandscapeComponent*, TUniquePtr<FLandscapeComponentGrassData>, TInlineSetAllocator<1>>& Results);
 
 	// Fetches the results and applies them to the landscape components
 	// If using async readback, requires AsyncReadback to be complete before calling this.
 	void ApplyResults();
-
-	void AddReferencedObjects(UObject* InThis, FReferenceCollector& Collector);
 };
 
 namespace UE::Landscape::Grass

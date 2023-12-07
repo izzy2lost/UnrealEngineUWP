@@ -19,6 +19,20 @@
 
 #define GRASS_DEBUG_LOG(...) UE_LOG(LogGrass, Verbose, __VA_ARGS__)
 
+#define DEBUG_TRANSITION(StateRef, StageBefore, StageAfter) \
+	GRASS_DEBUG_LOG(TEXT("%s %s -> %s (after %d ticks) Pend:%d Strm:%d Rend:%d Fetch:%d Pop:%d NR:%d Total:%d"), \
+		StateRef.Component ? *StateRef.Component->GetName() : TEXT("<REMOVED>"), \
+		TEXT(#StageBefore), \
+		TEXT(#StageAfter), \
+		StateRef.TickCount, \
+		PendingCount, \
+		StreamingCount, \
+		RenderingCount, \
+		AsyncFetchCount, \
+		PopulatedCount, \
+		NotReadyCount, \
+		ComponentStates.Num())
+
 extern int32 GGrassEnable;
 extern float GGrassCullDistanceScale;
 
@@ -27,6 +41,12 @@ FAutoConsoleVariableRef CVarGrassMapUseRuntimeGeneration(
 	TEXT("grass.GrassMap.UseRuntimeGeneration"),
 	GGrassMapUseRuntimeGeneration,
 	TEXT("Enable runtime grass map generation to save disk space and runtime memory.  When enabled the grass density maps are not serialized and are built on the fly at runtime."));
+
+int32 GGrassMapUseAsyncFetch = 0;
+FAutoConsoleVariableRef CVarGrassMapUseAsyncFetch(
+	TEXT("grass.GrassMap.UseAsyncFetch"),
+	GGrassMapUseAsyncFetch,
+	TEXT("Enable async fetch tasks to readback the runtime grass maps from the GPU.  When disabled, it the fetch is performed on the game thread, when enabled it uses an async task instead."));
 
 int32 GGrassMapAlwaysBuildRuntimeGenerationResources = 0;
 static FAutoConsoleVariableRef CVarGrassMapAlwaysBuildRuntimeGenerationResources(
@@ -110,7 +130,7 @@ namespace UE::Landscape
 		Hash = FCrc::TypeCrc32(Material->ComputeAllStateCRC(), Hash);
 
 		// hash the heightmap texture (we use Source Id as it is a content hash, lighting guid is random)
-		UTexture2D* Heightmap = Component->GetHeightmap();
+		const UTexture2D* Heightmap = Component->GetHeightmap();
 		check(Heightmap->Source.IsValid());
 		Hash = FCrc::TypeCrc32(Heightmap->Source.GetId(), Hash);
 
@@ -141,7 +161,7 @@ namespace UE::Landscape
 	}
 
 #if WITH_EDITOR
-	void CompileGrassMapShader(ULandscapeComponent* Component)
+	void CompileGrassMapShader(const ULandscapeComponent* Component)
 	{
 		if (Component->GetMaterialInstanceCount(false) > 0)
 		{
@@ -159,18 +179,38 @@ namespace UE::Landscape
 	bool CanRenderGrassMap(ULandscapeComponent *Component)
 	{
 		// Check we can render
-		UWorld* ComponentWorld = Component->GetWorld();
+		const UWorld* ComponentWorld = Component->GetWorld();
 		if (GUsingNullRHI || !ComponentWorld || !Component->SceneProxy)
 		{
+			GRASS_DEBUG_LOG(TEXT("GrassMap No SceneProxy for %s"), *Component->GetName());
 			return false;
 		}
 
-		UMaterialInstance* MaterialInstance = Component->GetMaterialInstanceCount(false) > 0 ? Component->GetMaterialInstance(0) : nullptr;
-		FMaterialResource* MaterialResource = MaterialInstance != nullptr ? MaterialInstance->GetMaterialResource(ComponentWorld->GetFeatureLevel()) : nullptr;
-
 		// Check we can render the material
+		const int32 MatInstCount = Component->GetCurrentRuntimeMaterialInstanceCount();
+		if (MatInstCount <= 0)
+		{
+			GRASS_DEBUG_LOG(TEXT("GrassMap MaterialInstanceCount %d <= 0 for %s (%d dyn:%d inst:%d mob:%d)"),
+				MatInstCount,
+				*Component->GetName(),
+				Component->GetLandscapeProxy()->bUseDynamicMaterialInstance ? 1 : 0,
+				Component->MaterialInstancesDynamic.Num(),
+				Component->MaterialInstances.Num(),
+				Component->MobileMaterialInterfaces.Num());
+			return false;
+		}
+
+		UMaterialInterface* MaterialInterface = Component->GetCurrentRuntimeMaterialInterface(0);
+		if (MaterialInterface == nullptr)
+		{
+			GRASS_DEBUG_LOG(TEXT("GrassMap MaterialInterface NULL for %s"), *Component->GetName());
+			return false;
+		}
+
+		const FMaterialResource* MaterialResource = MaterialInterface->GetMaterialResource(ComponentWorld->GetFeatureLevel());
 		if (MaterialResource == nullptr)
 		{
+			GRASS_DEBUG_LOG(TEXT("GrassMap MaterialResource NULL for %s (%s feature level %d)"), *Component->GetName(), *MaterialInterface->GetName(), ComponentWorld->GetFeatureLevel());
 			return false;
 		}
 
@@ -178,9 +218,10 @@ namespace UE::Landscape
 		FMaterialShaderTypes ShaderTypes;
 		UE::Landscape::Grass::AddGrassWeightShaderTypes(ShaderTypes);
 
-		FVertexFactoryType* LandscapeGrassVF = FindVertexFactoryType(FName(TEXT("FLandscapeFixedGridVertexFactory"), FNAME_Find));
+		const FVertexFactoryType* LandscapeGrassVF = FindVertexFactoryType(FName(TEXT("FLandscapeFixedGridVertexFactory"), FNAME_Find));
 		if (!MaterialResource->HasShaders(ShaderTypes, LandscapeGrassVF))
 		{
+			GRASS_DEBUG_LOG(TEXT("GrassMap MaterialResource does not have FixedGridVF for %s"), *Component->GetName());
 			return false;
 		}
 		return true;
@@ -306,6 +347,13 @@ void FLandscapeGrassMapsBuilder::FPendingComponent::UpdatePriorityDistance(const
 	PriorityKey = MinSqrDistanceToComponent;
 }
 
+void FAsyncFetchTask::DoWork()
+{
+	// do not delete the async readback resources (it must be done on the game thread, after the task completes)
+	constexpr bool bFreeAsyncReadback = false;
+	Results = ActiveRender->FetchResults(bFreeAsyncReadback);
+}
+
 bool FLandscapeGrassMapsBuilder::UpdateTrackedComponents(const TArray<FVector>& Cameras, int32 LocalMaxRendering, int32 MaxExpensiveUpdateChecksToPerform, bool bCancelAndEvictAll)
 {
 	SCOPE_CYCLE_COUNTER(STAT_UpdateComponentGrassMaps);
@@ -321,6 +369,8 @@ bool FLandscapeGrassMapsBuilder::UpdateTrackedComponents(const TArray<FVector>& 
 	ComponentsToRemoveFoliageInstances.Reset();
 
 	AmortizedUpdate.StartUpdateTick(ComponentStates.Num(), MaxExpensiveUpdateChecksToPerform);
+
+	const bool bIsGameWorld = World->IsGameWorld();
 
 	// Iterate our components, removing invalid ones and counting how many are in each state.
 	// We can also immediately process any components in the populated or rendering states
@@ -343,24 +393,18 @@ bool FLandscapeGrassMapsBuilder::UpdateTrackedComponents(const TArray<FVector>& 
 			switch (State->Stage)
 			{
 			case EComponentStage::Pending:
-				if (World->IsGameWorld())
-				{
-					// if runtime grass generation is disabled, go straight to not ready.
-					if (!Component->GetLandscapeProxy()->bUseRuntimeGrassMapGeneration)
-					{
-						PendingToNotReady(*State);
-						continue; // next!
-					}
-				}
 				continue; // next!
 			case EComponentStage::NotReady:
 				// in game, any not ready component will never become ready.
 				// in editor, check to see if the conditions changed.
-				if (World->IsGameWorld() || !UE::Landscape::CanRenderGrassMap(Component))
+				if (!bIsGameWorld && AmortizedUpdate.ShouldUpdate(ComponentStateIndex))
 				{
-					continue; // still not ready - next!
+					if (UE::Landscape::CanRenderGrassMap(Component))
+					{
+						break; // cancel and evict to restart build process
+					}
 				}
-				break; // cancel and evict to restart build process
+				continue; // next!
 			case EComponentStage::TextureStreaming:
 				// don't process streaming states yet -- first process rendering states to free up slots
 				StreamingStatesToProcess.Add(State);
@@ -370,9 +414,26 @@ bool FLandscapeGrassMapsBuilder::UpdateTrackedComponents(const TArray<FVector>& 
 				check(State->ActiveRender != nullptr);
 				if (State->ActiveRender->CheckAndUpdateAsyncReadback())
 				{
-					// TODO [chris.tchou] We could move this to an async task, it does have a decent cost to it
-					PopulateGrassDataFromReadback(*State);
+					if (GGrassMapUseAsyncFetch != 0)
+					{
+						LaunchAsyncFetchTask(*State);
+					}
+					else
+					{
+						PopulateGrassDataFromReadback(*State);
+					}
 					bChanged = true;
+				}
+				continue; // next!
+
+			case EComponentStage::AsyncFetch:
+				{
+					FAsyncTask<FAsyncFetchTask>* Task = State->AsyncFetchTask.Get();
+					check(Task);
+					if (Task->IsDone())
+					{
+						PopulateGrassDataFromAsyncFetchTask(*State);
+					}
 				}
 				continue; // next!
 
@@ -395,27 +456,30 @@ bool FLandscapeGrassMapsBuilder::UpdateTrackedComponents(const TArray<FVector>& 
 					}
 
 #if WITH_EDITOR
-					UMaterialInterface* Material = Component->GetLandscapeMaterial();
-					if (Material == nullptr)
+					if (!bIsGameWorld)
 					{
-						break; // cancel and evict
-					}
+						UMaterialInterface* Material = Component->GetLandscapeMaterial();
+						if (Material == nullptr)
+						{
+							break; // cancel and evict
+						}
 
-					// check if any dependencies changed
-					uint32 CurGrassMapGenerationHash = UE::Landscape::ComputeGrassMapGenerationHash(Component, Material);
-					if (State->GrassMapGenerationHash != CurGrassMapGenerationHash)
-					{
-						break; // cancel and evict to restart process
-					}
+						// check if any dependencies changed
+						const uint32 CurGrassMapGenerationHash = UE::Landscape::ComputeGrassMapGenerationHash(Component, Material);
+						if (State->GrassMapGenerationHash != CurGrassMapGenerationHash)
+						{
+							break; // cancel and evict to restart process
+						}
 
-					// check if any grass types have changed -- this invalidates foliage instances but not the grass maps
-					const TArray<TObjectPtr<ULandscapeGrassType>>& GrassTypes = Component->GetGrassTypes();
-					uint32 CurGrassInstanceGenerationHash = UE::Landscape::ComputeGrassInstanceGenerationHash(CurGrassMapGenerationHash, GrassTypes);
-					if (State->GrassInstanceGenerationHash != CurGrassInstanceGenerationHash)
-					{
-						ComponentsToRemoveFoliageInstances.Add(Component);
-						Component->InvalidateGrassTypeSummary();
-						State->GrassInstanceGenerationHash = CurGrassInstanceGenerationHash;
+						// check if any grass types have changed -- this invalidates foliage instances but not the grass maps
+						const TArray<TObjectPtr<ULandscapeGrassType>>& GrassTypes = Component->GetGrassTypes();
+						const uint32 CurGrassInstanceGenerationHash = UE::Landscape::ComputeGrassInstanceGenerationHash(CurGrassMapGenerationHash, GrassTypes);
+						if (State->GrassInstanceGenerationHash != CurGrassInstanceGenerationHash)
+						{
+							ComponentsToRemoveFoliageInstances.Add(Component);
+							Component->InvalidateGrassTypeSummary();
+							State->GrassInstanceGenerationHash = CurGrassInstanceGenerationHash;
+						}
 					}
 #endif // WITH_EDITOR
 				}
@@ -487,7 +551,6 @@ void FLandscapeGrassMapsBuilder::StartPrioritizedGrassMapGeneration(const TArray
 	// no point in calling this if there are no cameras -- we can't calculate priority
 	check(Cameras.Num() > 0);
 
-	float DiscardDistanceScale = GGrassMapGuardBandDiscardMultiplier * GGrassCullDistanceScale;
 	float MustHaveDistanceScale = GGrassMapGuardBandMultiplier * GGrassCullDistanceScale;
 
 	// update pending component priorities (distances)
@@ -531,15 +594,15 @@ void FLandscapeGrassMapsBuilder::StartPrioritizedGrassMapGeneration(const TArray
 	// now pull as many elements off of the heap as we need
 	while ((MaxComponentsToStart > 0) && PendingComponentsHeap.Num() > 0)
 	{
-		FPendingComponent Pending = PendingComponentsHeap[0];
+		const FPendingComponent Pending = PendingComponentsHeap[0];
 		FComponentState* State = Pending.State;
-		ULandscapeComponent* Component = State->Component;
+		const ULandscapeComponent* Component = State->Component;
 		check(State->Stage == EComponentStage::Pending);
 
 		// runtime generation doesn't generate past this distance
 		if (GGrassMapUseRuntimeGeneration)
 		{
-			double MaxSpawnDistance = Component->GrassTypeSummary.MaxInstanceDiscardDistance * MustHaveDistanceScale;
+			const double MaxSpawnDistance = Component->GrassTypeSummary.MaxInstanceDiscardDistance * MustHaveDistanceScale;
 			if (Pending.PriorityKey > MaxSpawnDistance * MaxSpawnDistance)
 			{
 				// the closest component is not close enough to generate yet
@@ -547,7 +610,7 @@ void FLandscapeGrassMapsBuilder::StartPrioritizedGrassMapGeneration(const TArray
 			}
 		}
 
-		PendingComponentsHeap.HeapPop(Pending, false);
+		PendingComponentsHeap.HeapPopDiscard(false);
 		if (StartGrassMapGeneration(*State, false))
 		{
 			MaxComponentsToStart--;
@@ -580,7 +643,7 @@ void FLandscapeGrassMapsBuilder::RegisterComponent(ULandscapeComponent* Componen
 	}
 }
 
-void FLandscapeGrassMapsBuilder::UnregisterComponent(ULandscapeComponent* Component)
+void FLandscapeGrassMapsBuilder::UnregisterComponent(const ULandscapeComponent* Component)
 {
 	check(Component);
 	if (FComponentState* State = ComponentStates.FindRef(Component))
@@ -642,14 +705,14 @@ void FLandscapeGrassMapsBuilder::AmortizedUpdateGrassMaps(
 		AmortizedMaxRendering *= GGrassMapPrioritizedMultiplier;
 	}
 
-	bool bCancelAndEvictAll = !GGrassEnable;
+	const bool bCancelAndEvictAll = !GGrassEnable;
 	UpdateTrackedComponents(Cameras, AmortizedMaxRendering, GGrassMapMaxDiscardChecksPerFrame, bCancelAndEvictAll);
 
 	// no point in looking to start new grass map generation if nothing is pending, if grass is disabled or there are no cameras
 	if (bAllowStartGrassMapGeneration && PendingCount > 0 && GGrassEnable && Cameras.Num() > 0)
 	{
 		// check our pipeline limits to make sure we have room to start components
-		int32 AvailableStreamingSlots = AmortizedMaxStreaming - StreamingCount;
+		const int32 AvailableStreamingSlots = AmortizedMaxStreaming - StreamingCount;
 		StartPrioritizedGrassMapGeneration(Cameras, AvailableStreamingSlots);
 	}
 }
@@ -659,7 +722,7 @@ bool FLandscapeGrassMapsBuilder::BuildGrassMapsNowForComponents(
 	TArrayView<TObjectPtr<ULandscapeComponent>> LandscapeComponents, FScopedSlowTask* SlowTask, bool bMarkDirty)
 {
 	TRACE_CPUPROFILER_EVENT_SCOPE(BuildGrassMapsNowForComponents);
-	int32 MaxStreamingRendering = FMath::Max(GGrassMapMaxComponentsForBlockingUpdate, 1);
+	const int32 MaxStreamingRendering = FMath::Max(GGrassMapMaxComponentsForBlockingUpdate, 1);
 
 	if (LandscapeComponents.IsEmpty())
 	{
@@ -680,16 +743,16 @@ bool FLandscapeGrassMapsBuilder::BuildGrassMapsNowForComponents(
 	};
 
 	// using an empty cameras array causes all distance checks to return 0, so grass maps won't be evicted
-	TArray<FVector> EmptyCamerasArray;
+	const TArray<FVector> EmptyCamerasArray;
 	int32 LastUpToDateCount = 0;
 	int32 UpToDateCount = 0;
 	
-	double StartTime = FPlatformTime::Seconds();
+	const double StartTime = FPlatformTime::Seconds();
 	double LastChangeTime = StartTime;
 	while (UpToDateCount != LandscapeComponents.Num())
 	{
 		// ensure we are making progress within a reasonable amount of time TODO [chris.tchou] there should be a better way to detect non-progress here
-		double CurTime = FPlatformTime::Seconds();
+		const double CurTime = FPlatformTime::Seconds();
 		if (CurTime > LastChangeTime + 15.0)
 		{
 			UE_LOG(LogGrass, Error, TEXT("ERROR: BuildGrassMapsNowForComponents() took too long, grass maps are not up to date"));
@@ -697,7 +760,7 @@ bool FLandscapeGrassMapsBuilder::BuildGrassMapsNowForComponents(
 		}
 
 		// update all components that are tracked (without evicting)
-		int32 UpdateAllComponentCount = ComponentStates.Num();
+		const int32 UpdateAllComponentCount = ComponentStates.Num();
 		bool bChanged = UpdateTrackedComponents(EmptyCamerasArray, MaxStreamingRendering, UpdateAllComponentCount, /* bCancelAndEvictAll= */ false);
 
 		UpToDateCount = 0;
@@ -710,7 +773,7 @@ bool FLandscapeGrassMapsBuilder::BuildGrassMapsNowForComponents(
 			if (State->Stage == EComponentStage::Pending)
 			{
 				// Start tracking to kick off the build process
-				const bool bForceCompileShaders = true;
+				constexpr bool bForceCompileShaders = true;
 				if ((AvailableStreamingSlots > 0) && StartGrassMapGeneration(*State, bForceCompileShaders))
 				{
 					// modification isn't complete yet, but convenient to dirty the package when starting the process here
@@ -780,6 +843,7 @@ bool FLandscapeGrassMapsBuilder::CancelAndEvict(FComponentState& State)
 			check(NotReadyCount > 0);
 			NotReadyCount--;
 			PendingCount++;
+			DEBUG_TRANSITION(State, NotReady, Pending);
 		}
 		break;
 	case EComponentStage::TextureStreaming:
@@ -788,6 +852,7 @@ bool FLandscapeGrassMapsBuilder::CancelAndEvict(FComponentState& State)
 			check(StreamingCount > 0);
 			StreamingCount--;
 			PendingCount++;
+			DEBUG_TRANSITION(State, TextureStreaming, Pending);
 		}
 		break;
 	case EComponentStage::Rendering:
@@ -801,12 +866,33 @@ bool FLandscapeGrassMapsBuilder::CancelAndEvict(FComponentState& State)
 					// we can't cancel yet.. must wait for the readback to complete
 					return false;
 				}
-				delete State.ActiveRender;
-				State.ActiveRender = nullptr;
+				State.ActiveRender.Reset();
 			}
 			check(RenderingCount > 0);
 			RenderingCount--;
 			PendingCount++;
+			DEBUG_TRANSITION(State, Rendering, Pending);
+		}
+		break;
+	case EComponentStage::AsyncFetch:
+		{
+			FAsyncTask<FAsyncFetchTask>* Task = State.AsyncFetchTask.Get();
+			if (Task != nullptr)
+			{
+				if (!Task->IsDone())
+				{
+					// can't cancel, async task is still in flight
+					return false;
+				}
+
+				State.ActiveRender->FreeAsyncReadback();
+				State.ActiveRender.Reset();
+				State.AsyncFetchTask.Reset();
+			}
+			check(AsyncFetchCount > 0);
+			AsyncFetchCount--;
+			PendingCount++;
+			DEBUG_TRANSITION(State, AsyncFetch, Pending);
 		}
 		break;
 	case EComponentStage::GrassMapsPopulated:
@@ -830,6 +916,7 @@ bool FLandscapeGrassMapsBuilder::CancelAndEvict(FComponentState& State)
 			check(PopulatedCount > 0);
 			PopulatedCount--;
 			PendingCount++;
+			DEBUG_TRANSITION(State, Populated, Pending);
 		}
 		break;
 	default:
@@ -842,17 +929,6 @@ bool FLandscapeGrassMapsBuilder::CancelAndEvict(FComponentState& State)
 
 	if (State.Stage != EComponentStage::Pending)
 	{
-		GRASS_DEBUG_LOG(TEXT("CancelAndEvict %s (from %d after %d ticks) p:%d S:%d R:%d P:%d NR:%d T:%d"),
-			State.Component ? *State.Component->GetName() : TEXT("<REMOVED>"),
-			State.Stage,
-			State.TickCount,
-			PendingCount,
-			StreamingCount,
-			RenderingCount,
-			PopulatedCount,
-			NotReadyCount,
-			ComponentStates.Num());
-
 		// back to pending state with you!
 		State.Stage = EComponentStage::Pending;
 		State.TickCount = 0;
@@ -876,8 +952,9 @@ bool FLandscapeGrassMapsBuilder::StartGrassMapGeneration(FComponentState& State,
 	if (World->IsGameWorld()) // including PIE
 	{
 		// if runtime grass generation is disabled, go straight to not ready
-		if (!Component->GetLandscapeProxy()->bUseRuntimeGrassMapGeneration)
+		if (Component->GetLandscapeProxy()->GetDisableRuntimeGrassMapGeneration())
 		{
+			GRASS_DEBUG_LOG(TEXT("GrassMap Proxy DisableRuntimeGeneration for %s"), *Component->GetName());
 			PendingToNotReady(State);
 			return false;
 		}
@@ -886,8 +963,7 @@ bool FLandscapeGrassMapsBuilder::StartGrassMapGeneration(FComponentState& State,
 	{
 #if WITH_EDITOR
 		// recalculate hashes
-		UMaterialInterface* Material = Component->GetLandscapeMaterial();
-		if (Material)
+		if (UMaterialInterface* Material = Component->GetLandscapeMaterial())
 		{
 			State.GrassMapGenerationHash = UE::Landscape::ComputeGrassMapGenerationHash(Component, Material);
 			const TArray<TObjectPtr<ULandscapeGrassType>>& GrassTypes = Material->GetCachedExpressionData().GrassTypes;
@@ -941,16 +1017,7 @@ void FLandscapeGrassMapsBuilder::PendingToNotReady(FComponentState& State)
 
 	RemoveFromPendingComponentHeap(&State);
 
-	GRASS_DEBUG_LOG(TEXT("%s Pending -> NotReady (after %d ticks) p:%d S:%d R:%d P:%d NR:%d T:%d"),
-		*State.Component->GetName(),
-		State.TickCount,
-		PendingCount,
-		StreamingCount,
-		RenderingCount,
-		PopulatedCount,
-		NotReadyCount,
-		ComponentStates.Num());
-
+	DEBUG_TRANSITION(State, Pending, NotReady);
 	State.TickCount = 0;
 }
 
@@ -963,16 +1030,7 @@ void FLandscapeGrassMapsBuilder::PendingToPopulatedFastPathAlreadyHasData(FCompo
 
 	RemoveFromPendingComponentHeap(&State);
 
-	GRASS_DEBUG_LOG(TEXT("%s Pending -> Populated(Existing) (after %d ticks) p:%d S:%d R:%d P:%d NR:%d T:%d"),
-		*State.Component->GetName(),
-		State.TickCount,
-		PendingCount,
-		StreamingCount,
-		RenderingCount,
-		PopulatedCount,
-		NotReadyCount,
-		ComponentStates.Num());
-
+	DEBUG_TRANSITION(State, Pending, Populated_Existing);
 	State.TickCount = 0;
 }
 
@@ -994,16 +1052,7 @@ void FLandscapeGrassMapsBuilder::PendingToPopulatedFastPathNoGrass(FComponentSta
 
 	RemoveFromPendingComponentHeap(&State);
 
-	GRASS_DEBUG_LOG(TEXT("%s Pending -> Populated(Empty) (after %d ticks) p:%d S:%d R:%d P:%d NR:%d T:%d"),
-		*Component->GetName(),
-		State.TickCount,
-		PendingCount,
-		StreamingCount,
-		RenderingCount,
-		PopulatedCount,
-		NotReadyCount,
-		ComponentStates.Num());
-
+	DEBUG_TRANSITION(State, Pending, Populated_Empty);
 	State.TickCount = 0;
 }
 
@@ -1016,7 +1065,7 @@ void FLandscapeGrassMapsBuilder::PendingToStreaming(FComponentState& State)
 	// TODO [chris.tchou] : also grab asset textures from the material.
 	State.TexturesToStream.Add(Component->GetHeightmap());
 
-	ERHIFeatureLevel::Type FeatureLevel = World->GetFeatureLevel();
+	const ERHIFeatureLevel::Type FeatureLevel = World->GetFeatureLevel();
 	for (UTexture2D* WeightmapTexture : Component->GetRenderedWeightmapTexturesForFeatureLevel(FeatureLevel))
 	{
 		State.TexturesToStream.Add(WeightmapTexture);
@@ -1035,16 +1084,7 @@ void FLandscapeGrassMapsBuilder::PendingToStreaming(FComponentState& State)
 
 	RemoveFromPendingComponentHeap(&State);
 
-	GRASS_DEBUG_LOG(TEXT("%s Pending -> Streaming (after %d ticks) p:%d S:%d R:%d P:%d NR:%d U:%d"),
-		*Component->GetName(),
-		State.TickCount,
-		PendingCount,
-		StreamingCount,
-		RenderingCount,
-		PopulatedCount,
-		NotReadyCount,
-		ComponentStates.Num());
-
+	DEBUG_TRANSITION(State, Pending, Streaming);
 	State.TickCount = 0;
 }
 
@@ -1088,23 +1128,55 @@ void FLandscapeGrassMapsBuilder::KickOffRenderAndReadback(FComponentState& State
 	check(State.ActiveRender == nullptr);
 	constexpr bool bInNeedsGrassmap = true;
 	constexpr bool bInNeedsHeightmap = true;
-	constexpr bool bUseAsyncReadback = true;
-	State.ActiveRender = new FLandscapeGrassWeightExporter(Component->GetLandscapeProxy(), { Component }, bInNeedsGrassmap, bInNeedsHeightmap, MoveTemp(HeightMips), bUseAsyncReadback);
+	State.ActiveRender.Reset(new FLandscapeGrassWeightExporter(Component->GetLandscapeProxy(), { Component }, bInNeedsGrassmap, bInNeedsHeightmap, MoveTemp(HeightMips)));
 	check(State.ActiveRender != nullptr);
 
 	State.Stage = EComponentStage::Rendering;
 	RenderingCount++;
 
-	GRASS_DEBUG_LOG(TEXT("%s Streaming -> Rendering (after %d ticks) p:%d S:%d R:%d P:%d NR:%d T:%d"),
-		*Component->GetName(),
-		State.TickCount,
-		PendingCount,
-		StreamingCount,
-		RenderingCount,
-		PopulatedCount,
-		NotReadyCount,
-		ComponentStates.Num());
+	DEBUG_TRANSITION(State, Streaming, Rendering);
+	State.TickCount = 0;
+}
 
+void FLandscapeGrassMapsBuilder::LaunchAsyncFetchTask(FComponentState& State)
+{
+	SCOPE_CYCLE_COUNTER(STAT_PopulateGrassMap);
+
+	check(State.Stage == EComponentStage::Rendering);
+	check(RenderingCount > 0);
+	RenderingCount--;
+
+	// now that render is complete, we can drop the texture streaming requests and allow textures to stream out
+	RemoveTextureStreamingRequests(State);
+
+	check(State.ActiveRender != nullptr);
+
+	State.AsyncFetchTask.Reset(new FAsyncTask<FAsyncFetchTask>(State.ActiveRender.Get()));
+	State.AsyncFetchTask->StartBackgroundTask();
+	State.Stage = EComponentStage::AsyncFetch;
+	AsyncFetchCount++;
+
+	DEBUG_TRANSITION(State, Rendering, AsyncFetch);
+	State.TickCount = 0;
+}
+
+void FLandscapeGrassMapsBuilder::PopulateGrassDataFromAsyncFetchTask(FComponentState& State)
+{
+	check(AsyncFetchCount > 0);
+	AsyncFetchCount--;
+
+	State.ActiveRender->FreeAsyncReadback();
+
+	FAsyncFetchTask& Inner = State.AsyncFetchTask->GetTask();
+	FLandscapeGrassWeightExporter::ApplyResults(Inner.Results);
+
+	State.ActiveRender.Reset();
+	State.AsyncFetchTask.Reset();
+
+	State.Stage = EComponentStage::GrassMapsPopulated;
+	PopulatedCount++;
+
+	DEBUG_TRANSITION(State, AsyncFetch, Populated);
 	State.TickCount = 0;
 }
 
@@ -1121,22 +1193,12 @@ void FLandscapeGrassMapsBuilder::PopulateGrassDataFromReadback(FComponentState& 
 
 	check(State.ActiveRender != nullptr);
 	State.ActiveRender->ApplyResults();
-	delete State.ActiveRender;
-	State.ActiveRender = nullptr;
+	State.ActiveRender.Reset();
 
 	State.Stage = EComponentStage::GrassMapsPopulated;
 	PopulatedCount++;
 
-	GRASS_DEBUG_LOG(TEXT("%s Rendering -> Populated (after %d ticks) p:%d S:%d R:%d P:%d NR:%d T:%d"),
-		*State.Component->GetName(),
-		State.TickCount,
-		PendingCount,
-		StreamingCount,
-		RenderingCount,
-		PopulatedCount,
-		NotReadyCount,
-		ComponentStates.Num());
-
+	DEBUG_TRANSITION(State, Rendering, Populated);
 	State.TickCount = 0;
 }
 
@@ -1168,10 +1230,10 @@ bool FLandscapeGrassMapsBuilder::FComponentState::IsRenderReadbackComplete() con
 bool FLandscapeGrassMapsBuilder::FComponentState::IsBeyondEvictionRange(const TArray<FVector>& Cameras) const
 {
 	check(Stage == EComponentStage::GrassMapsPopulated);
-	FBoxSphereBounds WorldBounds = Component->CalcBounds(Component->GetComponentTransform());
-	float MinSqrDistanceToComponent = UE::Landscape::CalculateMinDistanceToCameras(Cameras, WorldBounds);
-	float DiscardDistanceScale = GGrassMapGuardBandDiscardMultiplier * GGrassCullDistanceScale;
-	float MinEvictDistance = Component->GrassTypeSummary.MaxInstanceDiscardDistance * DiscardDistanceScale;
+	const FBoxSphereBounds WorldBounds = Component->CalcBounds(Component->GetComponentTransform());
+	const float MinSqrDistanceToComponent = UE::Landscape::CalculateMinDistanceToCameras(Cameras, WorldBounds);
+	const float DiscardDistanceScale = GGrassMapGuardBandDiscardMultiplier * GGrassCullDistanceScale;
+	const float MinEvictDistance = Component->GrassTypeSummary.MaxInstanceDiscardDistance * DiscardDistanceScale;
 	return (MinSqrDistanceToComponent > MinEvictDistance * MinEvictDistance);
 }
 
@@ -1182,27 +1244,39 @@ void FLandscapeGrassMapsBuilder::Build()
 {
 	if (World)
 	{
+		int32 ValidCount = 0;
+		int32 TotalCount = 0;
+
 		// iterate proxies, update grass types and create the list of components to build
 		TArray<TObjectPtr<ULandscapeComponent>> LandscapeComponentsToBuild;
 		for (TActorIterator<ALandscapeProxy> ProxyIt(World); ProxyIt; ++ProxyIt)
 		{
-			check(!ProxyIt->HasAnyFlags(RF_ClassDefaultObject));
+			ALandscapeProxy* Proxy = *ProxyIt;
+			check(!Proxy->HasAnyFlags(RF_ClassDefaultObject));
 
-			for (ULandscapeComponent* Component : ProxyIt->LandscapeComponents)
+			for (ULandscapeComponent* Component : Proxy->LandscapeComponents)
 			{
 				FComponentState* State = ComponentStates.FindRef(Component);
 
-				if (Component->UpdateGrassTypes() ||
-					State->Stage != EComponentStage::GrassMapsPopulated)	// TODO check up to date slow?
+				ValidCount += Component->GrassData->HasValidData() ? 1 : 0;
+				TotalCount ++;
+
+				bool bBuildThisComponent =
+					Component->UpdateGrassTypes() ||							// grass types changed
+					(State->Stage != EComponentStage::GrassMapsPopulated);		// not in a populated state yet
+
+				if (bBuildThisComponent)
 				{
-					
 					Component->MarkPackageDirty();
 					LandscapeComponentsToBuild.Add(Component);
 				}
 			}
 
-			ProxyIt->UpdateGrassTypeSummary();
+			Proxy->UpdateGrassTypeSummary();
 		}
+
+		UE_LOG(LogGrass, Verbose, TEXT("FLandscapeGrassMapsBuilder::Build() building %d component grass maps (%d / %d valid)"),
+			LandscapeComponentsToBuild.Num(), ValidCount, TotalCount);
 
 		// build the grass maps
 		if (LandscapeComponentsToBuild.Num() > 0)
@@ -1210,7 +1284,7 @@ void FLandscapeGrassMapsBuilder::Build()
 			FScopedSlowTask SlowTask(static_cast<float>(LandscapeComponentsToBuild.Num()), (LOCTEXT("GrassMaps_BuildGrassMaps", "Building Grass maps")));
 			SlowTask.MakeDialog();
 
-			bool bMarkDirty = true;
+			constexpr bool bMarkDirty = true;
 			BuildGrassMapsNowForComponents(LandscapeComponentsToBuild, &SlowTask, bMarkDirty);
 		}
 	}
@@ -1240,7 +1314,7 @@ int32 FLandscapeGrassMapsBuilder::GetOutdatedGrassMapCount(bool bInForceUpdate) 
 		bool bUpdate = bInForceUpdate || GLandscapeEditModeActive;
 		if (!bUpdate)
 		{
-			double GrassMapsTimeNow = FPlatformTime::Seconds();
+			const double GrassMapsTimeNow = FPlatformTime::Seconds();
 			// Recheck every 20 secs to handle the case where levels may have been Streamed in/out
 			if ((GrassMapsTimeNow - GrassMapsLastCheckTime) > 20)
 			{

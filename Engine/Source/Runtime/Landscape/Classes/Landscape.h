@@ -408,6 +408,8 @@ public:
 
 	LANDSCAPE_API void EnableNaniteSkirts(bool bInEnable, float InSkirtDepth, bool bInShouldDirtyPackage);
 
+	LANDSCAPE_API void SetDisableRuntimeGrassMapGeneration(bool bInDisableRuntimeGrassMapGeneration);
+
 protected:
 	FName GenerateUniqueLayerName(FName InName = NAME_None) const;
 
