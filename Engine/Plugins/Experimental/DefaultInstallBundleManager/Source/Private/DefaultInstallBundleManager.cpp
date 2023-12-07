@@ -185,16 +185,12 @@ void LoadKeychainFromInI(FKeyChain& OutCryptoSettings)
 }
 #endif // WITH_EDITOR
 
-FDefaultInstallBundleManager::FDefaultInstallBundleManager(const TCHAR* InConfigBaseName, FInstallBundleSourceFactoryFunction InInstallBundleSourceFactory)
+FDefaultInstallBundleManager::FDefaultInstallBundleManager(FInstallBundleSourceFactoryFunction InInstallBundleSourceFactory)
 	: InstallBundleSourceFactory(InInstallBundleSourceFactory ? InInstallBundleSourceFactory : InstallBundleManagerUtil::MakeBundleSource )
 	, PersistentStats(MakeShared<InstallBundleManagerUtil::FPersistentStatContainer>())
 	, AnalyticsProvider(nullptr)
 	, StatsMap(MakeShared<InstallBundleUtil::FContentRequestStatsMap>())
 {
-	// Init Config Settings
-	const TCHAR* DefaultConfigBaseName = TEXT("InstallBundleManager");
-	FConfigContext::ReadIntoGConfig().Load(InConfigBaseName ? InConfigBaseName : DefaultConfigBaseName, GInstallBundleManagerIni);
-
 #if WITH_EDITOR
 	// -UsePaks needs to be specified on the command line for valid pak to be created.
 	// To support mounting pak files in the editor binary add the encryption key.

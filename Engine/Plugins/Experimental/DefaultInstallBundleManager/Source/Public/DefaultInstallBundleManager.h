@@ -474,7 +474,12 @@ protected:
 public:
 	typedef TFunction<TSharedPtr<IInstallBundleSource>(EInstallBundleSourceType)> FInstallBundleSourceFactoryFunction;
 
-	FDefaultInstallBundleManager(const TCHAR* InConfigBaseName = nullptr, FInstallBundleSourceFactoryFunction InBundleSourceFactory = nullptr);
+	UE_DEPRECATED(5.4, "GInstallBundleManagerIni is deprecated, use InstallBundle.ini hierarchy instead.")
+	FDefaultInstallBundleManager(const TCHAR* InConfigBaseName, FInstallBundleSourceFactoryFunction InBundleSourceFactory = nullptr)
+		: FDefaultInstallBundleManager(InBundleSourceFactory)
+	{}
+
+	FDefaultInstallBundleManager(FInstallBundleSourceFactoryFunction InBundleSourceFactory = nullptr);
 	FDefaultInstallBundleManager(const FDefaultInstallBundleManager& Other) = delete;
 	FDefaultInstallBundleManager& operator=(const FDefaultInstallBundleManager& Other) = delete;
 
