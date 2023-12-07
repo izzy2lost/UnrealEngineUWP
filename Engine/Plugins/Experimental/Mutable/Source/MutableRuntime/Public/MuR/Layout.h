@@ -22,7 +22,8 @@ namespace mu
 	enum class EPackStrategy : uint32
 	{
 		RESIZABLE_LAYOUT,
-		FIXED_LAYOUT
+		FIXED_LAYOUT,
+		OVERLAY_LAYOUT
 	};
 
 	//! Types of layout reduction methods 

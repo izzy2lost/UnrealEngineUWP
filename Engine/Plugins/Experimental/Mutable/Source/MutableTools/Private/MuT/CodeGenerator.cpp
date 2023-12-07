@@ -1158,7 +1158,9 @@ namespace mu
 						}
 					}
 
-                    if ( layoutOp )
+					bool bIsOverlayLayout = pLayout->GetLayoutPackingStrategy() == mu::EPackStrategy::OVERLAY_LAYOUT;
+
+                    if (!bIsOverlayLayout && layoutOp)
                     {
                         // Add layout packing instructions
 						if (!SharedMeshResults)

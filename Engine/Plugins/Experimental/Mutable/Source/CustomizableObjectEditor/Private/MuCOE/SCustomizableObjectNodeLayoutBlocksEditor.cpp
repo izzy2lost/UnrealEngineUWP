@@ -249,6 +249,7 @@ TSharedRef<SWidget> SCustomizableObjectNodeLayoutBlocksEditor::BuildLayoutStrate
 	LayoutPackingStrategies.Empty();
 	LayoutPackingStrategies.Add(MakeShareable(new FString("Resizable")));
 	LayoutPackingStrategies.Add(MakeShareable(new FString("Fixed")));
+	LayoutPackingStrategies.Add(MakeShareable(new FString("Overlay")));
 
 	BlockReductionMethods.Empty();
 	BlockReductionMethods.Add(MakeShareable(new FString("Halve")));

@@ -3,7 +3,9 @@
 #pragma once
 
 
+#include "MuT/NodeLayout.h"
 #include "CustomizableObjectLayout.generated.h"
+
 
 UENUM()
 enum class ECustomizableObjectTextureLayoutPackingStrategy : uint8
@@ -11,8 +13,12 @@ enum class ECustomizableObjectTextureLayoutPackingStrategy : uint8
 	// The layout increases its size to fit all the blocks.
 	Resizable = 0 UMETA(DisplayName = "Resizable Layout"),
 	// The layout resizes the blocks to keep its size.
-	Fixed = 1 UMETA(DisplayName = "Fixed Layout")
+	Fixed = 1 UMETA(DisplayName = "Fixed Layout"),
+	// The layout is not modified and blocks are ignored. Extend material nodes just add their layouts on top of the base one.
+	Overlay = 2 UMETA(DisplayName = "Overlay Layout")
 };
+
+mu::EPackStrategy ConvertLayoutStrategy(const ECustomizableObjectTextureLayoutPackingStrategy LayoutPackStrategy);
 
 // Fixed Layout reduction methods
 UENUM()
