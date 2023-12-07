@@ -847,3 +847,7 @@ int32 ComputeLODBias(const FMutableGraphGenerationContext& GenerationContext, co
 int32 GetMaxTextureSize(const UTexture2D* ReferenceTexture, const FMutableGraphGenerationContext& GenerationContext);
 
 mu::Ptr<mu::Image> GenerateImageConstant( UTexture*, FMutableGraphGenerationContext&, bool bIsReference);
+
+/** Generates a mutable image descriptor from an unreal engine texture */
+mu::FImageDesc GenerateImageDescriptor(UTexture* Texture);
+

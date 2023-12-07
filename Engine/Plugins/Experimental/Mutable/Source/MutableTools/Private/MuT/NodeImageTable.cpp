@@ -70,6 +70,13 @@ namespace mu
 		return m_pD->MaxTextureSize;
 	}
 
+
+	//---------------------------------------------------------------------------------------------
+	void NodeImageTable::SetReferenceImageDescriptor(const FImageDesc& ImageDesc)
+	{
+		m_pD->ReferenceImageDesc = ImageDesc;
+	}
+
 }
 
 

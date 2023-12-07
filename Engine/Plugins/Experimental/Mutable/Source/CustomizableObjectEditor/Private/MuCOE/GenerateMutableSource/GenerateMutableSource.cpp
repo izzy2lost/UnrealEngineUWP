@@ -1676,6 +1676,36 @@ int32 GetMaxTextureSize(const UTexture2D* ReferenceTexture, const FMutableGraphG
 }
 
 
+mu::FImageDesc GenerateImageDescriptor(UTexture* Texture)
+{
+	check(Texture);
+	mu::FImageDesc ImageDesc;
+
+	ImageDesc.m_size[0] = Texture->Source.GetSizeX();
+	ImageDesc.m_size[1] = Texture->Source.GetSizeY();
+	ImageDesc.m_lods = Texture->Source.GetNumMips();
+
+	mu::EImageFormat MutableFormat = mu::EImageFormat::IF_RGBA_UBYTE;
+	ETextureSourceFormat SourceFormat = Texture->Source.GetFormat();
+	switch (SourceFormat)
+	{
+	case ETextureSourceFormat::TSF_G8:
+	case ETextureSourceFormat::TSF_G16:
+	case ETextureSourceFormat::TSF_R16F:
+	case ETextureSourceFormat::TSF_R32F:
+		MutableFormat = mu::EImageFormat::IF_L_UBYTE;
+		break;
+
+	default:
+		break;
+	}
+
+	ImageDesc.m_format = MutableFormat;
+
+	return ImageDesc;
+}
+
+
 mu::Ptr<mu::Image> GenerateImageConstant(UTexture* Texture, FMutableGraphGenerationContext& GenerationContext, bool bIsReference)
 {
 	if (!Texture)
@@ -1714,29 +1744,7 @@ mu::Ptr<mu::Image> GenerateImageConstant(UTexture* Texture, FMutableGraphGenerat
 	// Create a descriptor for the image.
 	// \TODO: If passthrough (bIsReference) we should apply lod bias, and max texture size to this desc.
 	// For now it is not a problem because passthrough textures shouldn't mix with any other operations.
-	mu::FImageDesc ImageDesc;
-	{
-		ImageDesc.m_size[0] = Texture->Source.GetSizeX();
-		ImageDesc.m_size[1] = Texture->Source.GetSizeY();
-		ImageDesc.m_lods = Texture->Source.GetNumMips();
-
-		mu::EImageFormat MutableFormat = mu::EImageFormat::IF_RGBA_UBYTE;
-		ETextureSourceFormat SourceFormat = Texture->Source.GetFormat();
-		switch (SourceFormat)
-		{
-		case ETextureSourceFormat::TSF_G8:
-		case ETextureSourceFormat::TSF_G16:
-		case ETextureSourceFormat::TSF_R16F:
-		case ETextureSourceFormat::TSF_R32F:
-			MutableFormat = mu::EImageFormat::IF_L_UBYTE;
-			break;
-
-		default:
-			break;
-		}
-
-		ImageDesc.m_format = MutableFormat;
-	}
+	mu::FImageDesc ImageDesc = GenerateImageDescriptor(Texture);
 
 	// Compile-time references that are left should be resolved immediately (should only happen in editor).
 	mu::Ptr<mu::Image> Result = mu::Image::CreateAsReference(Entry.ID, ImageDesc, bForceLoad);

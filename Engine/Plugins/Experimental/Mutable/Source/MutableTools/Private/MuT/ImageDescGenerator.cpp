@@ -119,20 +119,7 @@ namespace mu
             return 0;
         }
 
-        int32 i = 0;
-        while ( i<node.m_pTable->GetPrivate()->Rows.Num() )
-        {
-			Ptr<const Image> pImage = node.m_pTable->GetPrivate()->Rows[i].Values[ colIndex ].ProxyImage->Get();
-            ++i;
-
-			if (pImage)
-			{
-				m_desc.m_size[0] = FMath::Max(m_desc.m_size[0], pImage->GetSizeX());
-				m_desc.m_size[1] = FMath::Max(m_desc.m_size[1], pImage->GetSizeX());
-				m_desc.m_lods = FMath::Max(m_desc.m_lods, uint8(pImage->GetLODCount()));
-				m_desc.m_format = mu::GetMostGenericFormat(m_desc.m_format, pImage->GetFormat());
-			}
-        }
+		m_desc = node.ReferenceImageDesc;
 
         return 0;
     }

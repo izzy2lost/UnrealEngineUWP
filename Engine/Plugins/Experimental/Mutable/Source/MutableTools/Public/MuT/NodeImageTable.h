@@ -22,6 +22,7 @@ namespace mu
 
 	class InputArchive;
 	class OutputArchive;
+	struct FImageDesc;
 
 
 	//! This node provides the meshes stored in the column of a table.
@@ -65,6 +66,9 @@ namespace mu
 		//!
 		void SetMaxTextureSize(uint16 Size);
 		uint16 GetMaxTextureSize();
+
+		//!
+		void SetReferenceImageDescriptor(const FImageDesc& Descriptor);
 
 		//-----------------------------------------------------------------------------------------
 		// Interface pattern
