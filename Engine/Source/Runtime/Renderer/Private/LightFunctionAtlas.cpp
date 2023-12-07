@@ -35,10 +35,6 @@ To avoid allocating SRV when using the atlas we use a constant buffer to store a
 	- A single SRV is used, being the atlas Texture2D.
 	- Otherwise a single constant buffer entry is used for each view, storing: AtlasSlotIndex=>{SubUVs} read for a Light LightIndex=>{FadeParams, AtlasSlotIndex, TranslatedWorlViewProjectionMatrix}
 
-Systems currently using the LightFunctionAtlas:
- - Volumetric fog to inject local lights scattering using the light grid (when shadow casting is not enabled)
- - Deferred lighting: applied to all lights of a scene stored in the light grid, preventing them from going the slow un-bactched route.
-
 How to use the Atlas:
  - Add FLightFunctionAtlasGlobalParameters to your shader
  - #include "LightFunctionAtlas/LightFunctionAtlasCommon.usf" 
@@ -47,9 +43,8 @@ How to use the Atlas:
  What is next:
  - Super sample CVAR
  - Convert systems:
-    - Lumen
     - Path tracer
-    - Check those path with Substrate
+	- Ray tracing?
 
 */
 

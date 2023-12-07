@@ -10,6 +10,10 @@
 #if SUBSTRATE_ENABLED
 #ifdef USE_SUBSTRATE_FORWARD_LIGHTING_COMMON
 
+#if USE_LIGHT_FUNCTION_ATLAS
+#include "../LightFunctionAtlas/LightFunctionAtlasCommon.usf"
+#endif
+
 // Used by non-mobile path
 half4 GetPrecomputedShadowFactors(FSubstratePixelHeader SubstratePixelHeader, float3 TranslatedWorldPosition)
 {
@@ -136,7 +140,12 @@ float3 SubstrateForwardLightingCommon(
 			{
 				float3 DiffuseLuminance = BSDFEvaluate.IntegratedDiffuseValue;
 				float3 SpecularLuminance = BSDFEvaluate.IntegratedSpecularValue * LightData.SpecularScale;
-				const float3 LightCommonMultiplier = LightData.Color * LightMask;
+				float3 LightCommonMultiplier = LightData.Color * LightMask;
+
+			#if USE_LIGHT_FUNCTION_ATLAS
+				LightCommonMultiplier *= GetLocalLightFunctionCommon(TranslatedWorldPosition, LightData.LightFunctionAtlasLightIndex);
+			#endif
+
 				Color += (DiffuseLuminance + SpecularLuminance) * LightCommonMultiplier * BSDFColoredVisibility;
 			}
 		#endif
