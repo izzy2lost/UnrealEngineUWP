@@ -131,7 +131,19 @@ FStaticMeshInstanceVisualizationDescHandle UMassVisualizationComponent::AddVisua
 			check(VisualHandle.IsValid());
 		}
 
-		const uint32 ISMComponentPathHash = GetTypeHash(ISMComponents[EntryIndex]->GetPathName());
+		const FString ISMCPath = ISMComponents[EntryIndex]->GetPathName();
+		const uint32 ISMComponentPathHash = GetTypeHash(ISMCPath); 
+#if WITH_MASSGAMEPLAY_DEBUG
+		TArray<FString>& DebugPaths = DebugHashToPathMap.FindOrAdd(ISMComponentPathHash, TArray<FString>());
+		if (!ensureMsgf(DebugPaths.Add(ISMCPath) == 0, TEXT("Multiple ISMC paths resulting in the same hash")))
+		{
+			UE_VLOG_UELOG(this, LogMassRepresentation, Error, TEXT("%hs multiple ISMComponents resulting in identical hash %u"), __FUNCTION__, ISMComponentPathHash);
+			for (const FString& Path : DebugPaths)
+			{
+				UE_VLOG_UELOG(this, LogMassRepresentation, Error, TEXT("\t%s"), *Path);
+			}
+		}
+#endif // WITH_MASSGAMEPLAY_DEBUG
 		FMassISMCSharedData& NewData = ISMCSharedData.FindOrAdd(ISMComponentPathHash, FMassISMCSharedData(ISMComponents[EntryIndex], /*bInRequiresExternalInstanceIDTracking=*/true));
 		InstancedStaticMeshInfos[VisualHandle.ToIndex()].AddISMComponent(NewData);
 		ISMComponentPathHashes.Add(ISMComponentPathHash);
@@ -161,11 +173,24 @@ void UMassVisualizationComponent::RemoveVisualDesc(const FStaticMeshInstanceVisu
 	{
 		for (TObjectPtr<UInstancedStaticMeshComponent>& ISMComponent : InstancedStaticMeshInfos[VisualizationHandle.ToIndex()].InstancedStaticMeshComponents)
 		{
-			const uint32 ISMComponentPathHash = GetTypeHash(ISMComponent.GetPathName());
-			const FStaticMeshInstanceVisualizationDescHandle StoredVisualizationDescHandle = ISMComponentMap.FindAndRemoveChecked(ISMComponentPathHash);
-			ensure(StoredVisualizationDescHandle == VisualizationHandle);
+			// @todo using ISMComponent.GetPathName() here might be wrong for cases where we use GetTypeHash(MeshDesc)
+			// to create the ISMComponentMap key
+			const FString ISMCPath = ISMComponent.GetPathName();
+			const uint32 ISMComponentPathHash = GetTypeHash(ISMCPath);
+
+			const bool bValidKey = ISMComponentMap.Contains(ISMComponentPathHash);
+			checkf(bValidKey, TEXT("Failed to find %u as a key in ISMComponentMap, ISMC path: %s"), ISMComponentPathHash, *ISMComponent.GetPathName());
+			if (bValidKey)
+			{
+				const FStaticMeshInstanceVisualizationDescHandle StoredVisualizationDescHandle = ISMComponentMap.FindAndRemoveChecked(ISMComponentPathHash);
+				ensure(StoredVisualizationDescHandle == VisualizationHandle);
+			}
 		
 			ISMCSharedData.Remove(ISMComponentPathHash);
+#if WITH_MASSGAMEPLAY_DEBUG
+			TArray<FString>& Paths = DebugHashToPathMap.FindChecked(ISMComponentPathHash);
+			ensure(Paths.Remove(ISMCPath));
+#endif // WITH_MASSGAMEPLAY_DEBUG
 		}
 		
 		InstancedStaticMeshInfos[VisualizationHandle.ToIndex()].Reset();
@@ -650,11 +675,12 @@ void FMassLODSignificanceRange::AddBatchedTransform(const int32 InstanceId, cons
 			continue;
 		}
 
-		FMassISMCSharedData& SharedData = ISMCSharedDataPtr->GetAndMarkDirtyChecked(StaticMeshRefs[StaticMeshIndex]);
-
-		SharedData.UpdateInstanceIds.Add(InstanceId);
-		SharedData.StaticMeshInstanceTransforms.Add(Transform);
-		SharedData.StaticMeshInstancePrevTransforms.Add(PrevTransform);
+		if (FMassISMCSharedData* SharedData = ISMCSharedDataPtr->GetAndMarkDirty(StaticMeshRefs[StaticMeshIndex]))
+		{
+			SharedData->UpdateInstanceIds.Add(InstanceId);
+			SharedData->StaticMeshInstanceTransforms.Add(Transform);
+			SharedData->StaticMeshInstancePrevTransforms.Add(PrevTransform);
+		}
 	}
 }
 
@@ -668,8 +694,10 @@ void FMassLODSignificanceRange::AddBatchedCustomDataFloats(const TArray<float>& 
 			continue;
 		}
 
-		FMassISMCSharedData& SharedData = ISMCSharedDataPtr->GetAndMarkDirtyChecked(StaticMeshRefs[StaticMeshIndex]);
-		SharedData.StaticMeshInstanceCustomFloats.Append(CustomFloats);
+		if (FMassISMCSharedData* SharedData = ISMCSharedDataPtr->GetAndMarkDirty(StaticMeshRefs[StaticMeshIndex]))
+		{
+			SharedData->StaticMeshInstanceCustomFloats.Append(CustomFloats);
+		}
 	}
 }
 
@@ -678,10 +706,12 @@ void FMassLODSignificanceRange::AddInstance(const int32 InstanceId, const FTrans
 	check(ISMCSharedDataPtr);
 	for (int32 StaticMeshIndex = 0; StaticMeshIndex < StaticMeshRefs.Num(); ++StaticMeshIndex)
 	{
-		FMassISMCSharedData& SharedData = ISMCSharedDataPtr->GetAndMarkDirtyChecked(StaticMeshRefs[StaticMeshIndex]);
-		SharedData.UpdateInstanceIds.Add(InstanceId);
-		SharedData.StaticMeshInstanceTransforms.Add(Transform);
-		SharedData.StaticMeshInstancePrevTransforms.Add(Transform);
+		if (FMassISMCSharedData* SharedData = ISMCSharedDataPtr->GetAndMarkDirty(StaticMeshRefs[StaticMeshIndex]))
+		{
+			SharedData->UpdateInstanceIds.Add(InstanceId);
+			SharedData->StaticMeshInstanceTransforms.Add(Transform);
+			SharedData->StaticMeshInstancePrevTransforms.Add(Transform);
+		}
 	}
 }
 
@@ -707,17 +737,18 @@ void FMassLODSignificanceRange::WriteCustomDataFloatsAtStartIndex(int32 StaticMe
 			return;
 		}
 
-		FMassISMCSharedData& SharedData = ISMCSharedDataPtr->GetAndMarkDirtyChecked(StaticMeshRefs[StaticMeshIndex]);
-
-		int32 StartIndex = FloatsPerInstance * SharedData.WriteIterator + StartFloatIndex;
-
-		ensure(SharedData.StaticMeshInstanceCustomFloats.Num() >= StartIndex + CustomFloats.Num());
-
-		for (int CustomFloatIdx = 0; CustomFloatIdx < CustomFloats.Num(); CustomFloatIdx++)
+		if (FMassISMCSharedData* SharedData = ISMCSharedDataPtr->GetAndMarkDirty(StaticMeshRefs[StaticMeshIndex]))
 		{
-			SharedData.StaticMeshInstanceCustomFloats[StartIndex + CustomFloatIdx] = CustomFloats[CustomFloatIdx];
+			const int32 StartIndex = FloatsPerInstance * SharedData->WriteIterator + StartFloatIndex;
+
+			ensure(SharedData->StaticMeshInstanceCustomFloats.Num() >= StartIndex + CustomFloats.Num());
+
+			for (int CustomFloatIdx = 0; CustomFloatIdx < CustomFloats.Num(); CustomFloatIdx++)
+			{
+				SharedData->StaticMeshInstanceCustomFloats[StartIndex + CustomFloatIdx] = CustomFloats[CustomFloatIdx];
+			}
+			SharedData->WriteIterator++;
 		}
-		SharedData.WriteIterator++;
 	}
 }
 

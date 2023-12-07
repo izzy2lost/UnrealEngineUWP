@@ -338,7 +338,7 @@ public:
  * @see UMassVisualizationComponent::EndVisualChanges for iteration
  * @see FMassLODSignificanceRange methods for performing dirtying operations
  */
-struct FMassISMCSharedDataMap 
+struct FMassISMCSharedDataMap
 {
 	struct FDirtyIterator
 	{
@@ -392,7 +392,8 @@ struct FMassISMCSharedDataMap
 
 	FMassISMCSharedData* GetAndMarkDirty(const uint32 Hash)
 	{
-		if (const int32* DataIndex = Map.Find(Hash))
+		const int32* DataIndex = Map.Find(Hash);
+		if (ensureMsgf(DataIndex, TEXT("%hs Failed to find Hash %u"), __FUNCTION__, Hash))
 		{
 			DirtyData[*DataIndex] = true;
 			return &Data[*DataIndex];

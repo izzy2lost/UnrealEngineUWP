@@ -3,6 +3,7 @@
 #pragma once
 
 #include "MassRepresentationTypes.h"
+#include "MassCommonTypes.h"
 #include "Components/ActorComponent.h"
 #include "MassRepresentationTypes.h"
 #include "Misc/MTAccessDetector.h"
@@ -134,4 +135,8 @@ protected:
 
 	UE_DEPRECATED(5.4, "This flavor of BuildLODSignificanceForInfo is no longer supported. Use the other one instead.")
 	void BuildLODSignificanceForInfo(FMassInstancedStaticMeshInfo& Info, const uint32 ForcedStaticMeshRefKey);
+
+#if WITH_MASSGAMEPLAY_DEBUG
+	TMap<uint32, TArray<FString>> DebugHashToPathMap;
+#endif // WITH_MASSGAMEPLAY_DEBUG
 };
