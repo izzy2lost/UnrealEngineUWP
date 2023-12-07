@@ -14,7 +14,16 @@
     <RuntimeIdentifiers>win10-x64</RuntimeIdentifiers>
     <Nullable>enable</Nullable>
     <NeutralLanguage>en-US</NeutralLanguage>
+    <RunAnalyzersDuringBuild>False</RunAnalyzersDuringBuild>
+    <Configurations>Debug;Release;Analyze</Configurations>
   </PropertyGroup>
+
+  <PropertyGroup Condition=" '$(Configuration)|$(Platform)' == 'Analyze|AnyCPU' ">
+    <RunAnalyzersDuringBuild>True</RunAnalyzersDuringBuild>
+    <TreatWarningsAsErrors>false</TreatWarningsAsErrors>
+    <EnforceCodeStyleInBuild>True</EnforceCodeStyleInBuild>
+  </PropertyGroup>
+
   <ItemGroup>
     <Compile Include="..\UnrealGameSync\Forms\ModalTaskWindow.cs">
       <Link>UnrealGameSync\ModalTaskWindow.cs</Link>
