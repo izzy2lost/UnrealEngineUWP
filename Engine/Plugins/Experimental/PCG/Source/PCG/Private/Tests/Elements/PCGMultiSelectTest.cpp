@@ -47,12 +47,20 @@ protected:
 		{
 			if (!SelectElementPinProperties[i].bAdvancedPin && SelectElementPinProperties[i].Label != DefaultPathPinLabel)
 			{
-				TestData.InputData.TaggedData.Emplace(PCGTestsCommon::CreateEmptyPointData(), TSet{CreateDataTag(i)}, SelectElementPinProperties[i].Label);
+				UPCGPointData* PointData = PCGTestsCommon::CreateEmptyPointData();
+				FPCGTaggedData& TaggedData = TestData.InputData.TaggedData.Emplace_GetRef();
+				TaggedData.Data = PointData;
+				TaggedData.Tags.Emplace(CreateDataTag(i));
+				TaggedData.Pin = SelectElementPinProperties[i].Label;
 			}
 		}
 
 		// Add an input to the default path
-		TestData.InputData.TaggedData.Emplace(PCGTestsCommon::CreateEmptyPointData(), TSet{DefaultPathPinDataTag}, DefaultPathPinLabel);
+		UPCGPointData* PointData = PCGTestsCommon::CreateEmptyPointData();
+		FPCGTaggedData& TaggedData = TestData.InputData.TaggedData.Emplace_GetRef();
+		TaggedData.Data = PointData;
+		TaggedData.Tags.Emplace(DefaultPathPinDataTag);
+		TaggedData.Pin = DefaultPathPinLabel;
 
 		const TUniquePtr<FPCGContext> TestContext = TestData.InitializeTestContext();
 

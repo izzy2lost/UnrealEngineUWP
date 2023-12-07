@@ -27,8 +27,17 @@ protected:
 
 		UTEST_TRUE("Test element created and valid", TestElement.IsValid());
 
-		TestData.InputData.TaggedData.Emplace(PCGTestsCommon::CreateEmptyPointData(), TSet({FirstDataTag}), FirstInputPinLabel);
-		TestData.InputData.TaggedData.Emplace(PCGTestsCommon::CreateEmptyPointData(), TSet({SecondDataTag}), SecondInputPinLabel);
+		UPCGPointData* FirstPointData = PCGTestsCommon::CreateEmptyPointData();
+		FPCGTaggedData& FirstTaggedData = TestData.InputData.TaggedData.Emplace_GetRef();
+		FirstTaggedData.Data = FirstPointData;
+		FirstTaggedData.Tags.Emplace(FirstDataTag);
+		FirstTaggedData.Pin = FirstInputPinLabel;
+
+		UPCGPointData* SecondPointData = PCGTestsCommon::CreateEmptyPointData();
+		FPCGTaggedData& SecondTaggedData = TestData.InputData.TaggedData.Emplace_GetRef();
+		SecondTaggedData.Data = SecondPointData;
+		SecondTaggedData.Tags.Emplace(SecondDataTag);
+		SecondTaggedData.Pin = SecondInputPinLabel;
 
 		const TUniquePtr<FPCGContext> TestContext = TestData.InitializeTestContext();
 
