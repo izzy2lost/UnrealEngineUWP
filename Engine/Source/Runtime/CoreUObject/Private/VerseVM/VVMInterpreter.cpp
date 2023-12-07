@@ -1104,7 +1104,7 @@ class FInterpreter
 				[&](uint32 Param, VValue Value) {
 					Args[Param] = Value;
 				});
-			FNativeCallResult Result = (*NativeFunction->Thunk)(Context, Args);
+			FNativeCallResult Result = (*NativeFunction->Thunk)(Context, NativeFunction->ParentScope.Get(), Args);
 			OP_RESULT_HELPER(Result);
 			DEF(Op.Dest, Result.Value);
 		}
@@ -1333,6 +1333,10 @@ class FInterpreter
 		if (FieldValue.IsCellOfType<VProcedure>())
 		{
 			FieldValue = VFunction::New(Context, FieldValue.StaticCast<VProcedure>(), Object);
+		}
+		else if (FieldValue.IsCellOfType<VNativeFunction>())
+		{
+			FieldValue = FieldValue.StaticCast<VNativeFunction>().Bind(Context, ObjectOperand);
 		}
 		DEF(Op.Dest, FieldValue);
 		return {FOpResult::Normal};

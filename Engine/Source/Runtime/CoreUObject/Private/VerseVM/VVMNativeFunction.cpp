@@ -9,8 +9,13 @@ namespace Verse
 {
 
 DEFINE_DERIVED_VCPPCLASSINFO(VNativeFunction);
-DEFINE_TRIVIAL_VISIT_REFERENCES(VNativeFunction);
 TGlobalTrivialEmergentTypePtr<&VNativeFunction::StaticCppClassInfo> VNativeFunction::GlobalTrivialEmergentType;
+
+template <typename TVisitor>
+void VNativeFunction::VisitReferencesImpl(TVisitor& Visitor)
+{
+	Visitor.Visit(ParentScope, TEXT("ParentScope"));
+}
 
 } // namespace Verse
 #endif // WITH_VERSE_VM || defined(__INTELLISENSE__)
