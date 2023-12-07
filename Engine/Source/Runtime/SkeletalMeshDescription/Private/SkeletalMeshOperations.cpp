@@ -2,8 +2,10 @@
 
 #include "SkeletalMeshOperations.h"
 
-#include "SkeletalMeshAttributes.h"
 #include "BoneWeights.h"
+#include "MeshDescriptionAdapter.h"
+#include "SkeletalMeshAttributes.h"
+#include "Spatial/MeshAABBTree3.h"
 
 
 DEFINE_LOG_CATEGORY(LogSkeletalMeshOperations);
@@ -110,6 +112,114 @@ void FSkeletalMeshOperations::AppendSkinWeight(const FMeshDescription& SourceMes
 	}
 
 	TargetMesh.ResumeVertexIndexing();
+}
+
+
+bool FSkeletalMeshOperations::CopySkinWeightAttributeFromMesh(
+	const FMeshDescription& InSourceMesh,
+	FMeshDescription& InTargetMesh,
+	const FName InSourceProfile,
+	const FName InTargetProfile,
+	const TMap<int32, int32>* SourceBoneIndexToTargetBoneIndexMap
+	)
+{
+	// This is effectively a slower and dumber version of FTransferBoneWeights.
+	using namespace UE::AnimationCore;
+	using namespace UE::Geometry;
+
+	FSkeletalMeshConstAttributes SourceAttributes(InSourceMesh);
+	FSkeletalMeshAttributes TargetAttributes(InTargetMesh);
+	
+	FSkinWeightsVertexAttributesConstRef SourceWeights = SourceAttributes.GetVertexSkinWeights(InSourceProfile);
+	FSkinWeightsVertexAttributesRef TargetWeights = TargetAttributes.GetVertexSkinWeights(InTargetProfile);
+	TVertexAttributesConstRef<FVector3f> TargetPositions = TargetAttributes.GetVertexPositions();
+
+	if (!SourceWeights.IsValid() || !TargetWeights.IsValid())
+	{
+		return false;
+	}
+	
+	FMeshDescriptionTriangleMeshAdapter MeshAdapter(&InSourceMesh);
+	TMeshAABBTree3<FMeshDescriptionTriangleMeshAdapter> BVH(&MeshAdapter);
+
+	auto RemapBoneWeights = [SourceBoneIndexToTargetBoneIndexMap](const FVertexBoneWeightsConst& InWeights) -> FBoneWeights
+	{
+		TArray<FBoneWeight, TInlineAllocator<MaxInlineBoneWeightCount>> Weights;
+
+		if (SourceBoneIndexToTargetBoneIndexMap)
+		{
+			for (FBoneWeight OriginalWeight: InWeights)
+			{
+				FBoneWeight NewWeight(static_cast<FBoneIndexType>((*SourceBoneIndexToTargetBoneIndexMap)[OriginalWeight.GetBoneIndex()]), OriginalWeight.GetRawWeight());
+				Weights.Add(NewWeight);
+			}
+		}
+		else
+		{
+			for (FBoneWeight Weight: InWeights)
+			{
+				Weights.Add(Weight);
+			}
+		}
+		return FBoneWeights::Create(Weights);
+	};
+	
+	auto InterpolateWeights = [&MeshAdapter, &SourceWeights, &RemapBoneWeights](int32 InTriangleIndex, const FVector3d& InTargetPoint) -> FBoneWeights
+	{
+		const FDistPoint3Triangle3d Query = TMeshQueries<FMeshDescriptionTriangleMeshAdapter>::TriangleDistance(MeshAdapter, InTriangleIndex, InTargetPoint);
+
+		const FIndex3i TriangleVertexes = MeshAdapter.GetTriangle(InTriangleIndex);
+		const FVector3f BaryCoords(VectorUtil::BarycentricCoords(Query.ClosestTrianglePoint, MeshAdapter.GetVertex(TriangleVertexes.A), MeshAdapter.GetVertex(TriangleVertexes.B), MeshAdapter.GetVertex(TriangleVertexes.C)));
+		const FBoneWeights WeightsA = RemapBoneWeights(SourceWeights.Get(TriangleVertexes.A));
+		const FBoneWeights WeightsB = RemapBoneWeights(SourceWeights.Get(TriangleVertexes.B));
+		const FBoneWeights WeightsC = RemapBoneWeights(SourceWeights.Get(TriangleVertexes.C));
+
+		FBoneWeights BoneWeights = FBoneWeights::Blend(WeightsA, WeightsB, WeightsC, BaryCoords.X, BaryCoords.Y, BaryCoords.Z);
+		
+		// Blending can leave us with zero weights. Let's strip them out here.
+		BoneWeights.Renormalize();
+		return BoneWeights;
+	};
+
+	TArray<FBoneWeights> TargetBoneWeights;
+	TargetBoneWeights.SetNum(InTargetMesh.Vertices().GetArraySize());
+
+	ParallelFor(InTargetMesh.Vertices().GetArraySize(), [&BVH, &InTargetMesh, &TargetPositions, &TargetBoneWeights, &InterpolateWeights](int32 InVertexIndex)
+	{
+		const FVertexID VertexID(InVertexIndex);
+		if (!InTargetMesh.Vertices().IsValid(VertexID))
+		{
+			return;
+		}
+
+		const FVector3d TargetPoint(TargetPositions.Get(VertexID));
+
+		const IMeshSpatial::FQueryOptions Options;
+		double NearestDistanceSquared;
+		const int32 NearestTriangleIndex = BVH.FindNearestTriangle(TargetPoint, NearestDistanceSquared, Options);
+
+		if (!ensure(NearestTriangleIndex != IndexConstants::InvalidID))
+		{
+			return;
+		}
+
+		TargetBoneWeights[InVertexIndex] = InterpolateWeights(NearestTriangleIndex, TargetPoint);
+	});
+
+	// Transfer the computed bone weights to the target mesh.
+	for (FVertexID TargetVertexID: InTargetMesh.Vertices().GetElementIDs())
+	{
+		FBoneWeights& BoneWeights = TargetBoneWeights[TargetVertexID];
+		if (BoneWeights.Num() == 0)
+		{
+			// Bind to root so that we have something.
+			BoneWeights.SetBoneWeight(FBoneIndexType{0}, 1.0);
+		}
+
+		TargetWeights.Set(TargetVertexID, BoneWeights);
+	}
+
+	return true;
 }
 
 #undef LOCTEXT_NAMESPACE

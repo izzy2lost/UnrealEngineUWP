@@ -5,7 +5,10 @@
 
 namespace MeshAttribute
 {
-	const FName Vertex::SkinWeights("SkinWeights");
+	namespace Vertex
+	{
+		const FName SkinWeights("SkinWeights");
+	}
 	
 	namespace Bone
 	{
@@ -20,6 +23,9 @@ namespace MeshAttribute
 FName FSkeletalMeshAttributesShared::DefaultSkinWeightProfileName("Default");
 
 FName FSkeletalMeshAttributesShared::BonesElementName("BonesElementName");
+
+static FString MorphTargetAttributeNamePrefix("Morph-");
+
 
 static FString SkinWeightAttributeNamePrefix()
 {
@@ -70,7 +76,8 @@ void FSkeletalMeshAttributes::RegisterColorAttribute()
 	BoneAttributes().RegisterAttribute<FVector4f>(MeshAttribute::Bone::Color, 1, FVector4f(1.0f, 1.0f, 1.0f, 1.0f), EMeshAttributeFlags::Mandatory);
 }
 
-bool FSkeletalMeshAttributes::RegisterSkinWeightAttribute(const FName& InProfileName)
+
+bool FSkeletalMeshAttributes::RegisterSkinWeightAttribute(const FName InProfileName)
 {
 	if (!IsValidSkinWeightProfileName(InProfileName))
 	{
@@ -78,29 +85,27 @@ bool FSkeletalMeshAttributes::RegisterSkinWeightAttribute(const FName& InProfile
 	}	
 	
 	const FName AttributeName = CreateSkinWeightAttributeName(InProfileName);
-	if (ensure(AttributeName.IsValid()))
-	{
-		TArray<FName> AllAttributeNames;
-		MeshDescription.VertexAttributes().GetAttributeNames(AllAttributeNames);
-		if (AllAttributeNames.Contains(AttributeName))
-		{
-			return false;
-		}
-
-		return MeshDescription.VertexAttributes().RegisterAttribute<int32[]>(AttributeName, 1, 0, EMeshAttributeFlags::Mandatory).IsValid();
-	}
-	else
+	if (!ensure(AttributeName.IsValid()))
 	{
 		return false;
-	}	
+	}
+	
+	if (MeshDescription.VertexAttributes().HasAttribute(AttributeName))
+	{
+		return false;
+	}
+
+	return MeshDescription.VertexAttributes().RegisterAttribute<int32[]>(AttributeName, 1, 0, EMeshAttributeFlags::None).IsValid();
 }
 
-FSkinWeightsVertexAttributesRef FSkeletalMeshAttributes::GetVertexSkinWeights(const FName& InProfileName)
+
+FSkinWeightsVertexAttributesRef FSkeletalMeshAttributes::GetVertexSkinWeights(const FName InProfileName)
 {
 	return MeshDescription.VertexAttributes().GetAttributesRef<TArrayAttribute<int32>>(CreateSkinWeightAttributeName(InProfileName));
 }
 
-FSkinWeightsVertexAttributesRef FSkeletalMeshAttributes::GetVertexSkinWeightsFromAttributeName(const FName& InAttributeName)
+
+FSkinWeightsVertexAttributesRef FSkeletalMeshAttributes::GetVertexSkinWeightsFromAttributeName(const FName InAttributeName)
 {
 	if (IsSkinWeightAttribute(InAttributeName))
 	{
@@ -111,6 +116,44 @@ FSkinWeightsVertexAttributesRef FSkeletalMeshAttributes::GetVertexSkinWeightsFro
 		return {};
 	}
 }
+
+
+bool FSkeletalMeshAttributes::RegisterMorphTargetAttribute(const FName InMorphTargetName)
+{
+	if (InMorphTargetName.IsNone())
+	{
+		return false;
+	}
+
+	const FName AttributeName = CreateMorphTargetAttributeName(InMorphTargetName);
+	if (!ensure(AttributeName.IsValid()))
+	{
+		return false;
+	}
+
+	// Already has this attribute?
+	if (MeshDescription.VertexAttributes().HasAttribute(AttributeName))
+	{
+		return false;
+	}
+
+	return MeshDescription.VertexAttributes().RegisterAttribute<FVector3f[2]>(AttributeName, 1, FVector3f::ZeroVector, EMeshAttributeFlags::None).IsValid();
+}
+
+FMorphTargetVertexAttributesRef FSkeletalMeshAttributes::GetVertexMorphTarget(const FName InMorphTargetName)
+{
+	return MeshDescription.VertexAttributes().GetAttributesRef<TArrayView<FVector3f>>(CreateMorphTargetAttributeName(InMorphTargetName));
+}
+
+FMorphTargetVertexAttributesRef FSkeletalMeshAttributes::GetVertexMorphTargetFromAttributeName(const FName InAttributeName)
+{
+	if (!IsMorphTargetAttribute(InAttributeName))
+	{
+		return {};
+	}
+	return MeshDescription.VertexAttributes().GetAttributesRef<TArrayView<FVector3f>>(InAttributeName);
+}
+
 
 FSkeletalMeshAttributes::FBoneArray& FSkeletalMeshAttributes::Bones() 
 { 
@@ -178,12 +221,12 @@ MeshDescriptionShared(InMeshDescription)
 	}
 }
 
-FSkinWeightsVertexAttributesConstRef FSkeletalMeshAttributesShared::GetVertexSkinWeights(const FName& InProfileName) const
+FSkinWeightsVertexAttributesConstRef FSkeletalMeshAttributesShared::GetVertexSkinWeights(const FName InProfileName) const
 {
 	return MeshDescriptionShared.VertexAttributes().GetAttributesRef<TArrayAttribute<int32>>(CreateSkinWeightAttributeName(InProfileName));
 }
 
-FSkinWeightsVertexAttributesConstRef FSkeletalMeshAttributesShared::GetVertexSkinWeightsFromAttributeName(const FName& InAttributeName) const
+FSkinWeightsVertexAttributesConstRef FSkeletalMeshAttributesShared::GetVertexSkinWeightsFromAttributeName(const FName InAttributeName) const
 {
 	if (IsSkinWeightAttribute(InAttributeName))
 	{
@@ -203,7 +246,7 @@ TArray<FName> FSkeletalMeshAttributesShared::GetSkinWeightProfileNames() const
 	TArray<FName> SkinWeightProfileNames;
 	bool bHasDefault = false; 
 
-	for (const FName& AttributeName: AllAttributeNames)
+	for (const FName AttributeName: AllAttributeNames)
 	{
 		if (AttributeName == MeshAttribute::Vertex::SkinWeights)
 		{
@@ -224,18 +267,18 @@ TArray<FName> FSkeletalMeshAttributesShared::GetSkinWeightProfileNames() const
 	return SkinWeightProfileNames;
 }
 
-bool FSkeletalMeshAttributesShared::IsValidSkinWeightProfileName(const FName& InProfileName)
+bool FSkeletalMeshAttributesShared::IsValidSkinWeightProfileName(const FName InProfileName)
 {
 	return !InProfileName.IsNone() && !InProfileName.IsEqual(DefaultSkinWeightProfileName, ENameCase::IgnoreCase);
 }
 
-bool FSkeletalMeshAttributesShared::IsSkinWeightAttribute(const FName& InAttributeName)
+bool FSkeletalMeshAttributesShared::IsSkinWeightAttribute(const FName InAttributeName)
 {
 	return InAttributeName == MeshAttribute::Vertex::SkinWeights ||
 		   InAttributeName.ToString().StartsWith(SkinWeightAttributeNamePrefix());
 }
 
-FName FSkeletalMeshAttributesShared::GetProfileNameFromAttribute(const FName& InAttributeName)
+FName FSkeletalMeshAttributesShared::GetProfileNameFromAttribute(const FName InAttributeName)
 {
 	if (InAttributeName == MeshAttribute::Vertex::SkinWeights)
 	{
@@ -253,7 +296,7 @@ FName FSkeletalMeshAttributesShared::GetProfileNameFromAttribute(const FName& In
 	}
 }
 
-FName FSkeletalMeshAttributesShared::CreateSkinWeightAttributeName(const FName& InProfileName)
+FName FSkeletalMeshAttributesShared::CreateSkinWeightAttributeName(const FName InProfileName)
 {
 	// If it's the default profile, then return the base skin weights attribute name.
 	if (InProfileName.IsNone() || InProfileName.IsEqual(FSkeletalMeshAttributesShared::DefaultSkinWeightProfileName, ENameCase::IgnoreCase))
@@ -263,6 +306,62 @@ FName FSkeletalMeshAttributesShared::CreateSkinWeightAttributeName(const FName& 
 
 	return FName(SkinWeightAttributeNamePrefix() + InProfileName.ToString());
 }
+
+FName FSkeletalMeshAttributesShared::CreateMorphTargetAttributeName(const FName InMorphTargetName)
+{
+	if (ensure(!InMorphTargetName.IsNone()))
+	{
+		return FName(MorphTargetAttributeNamePrefix + InMorphTargetName.ToString());
+	}
+	
+	return NAME_None;
+}
+
+
+TArray<FName> FSkeletalMeshAttributesShared::GetMorphTargetNames() const
+{
+	TArray<FName> AllAttributeNames;
+	MeshDescriptionShared.VertexAttributes().GetAttributeNames(AllAttributeNames);
+
+	TArray<FName> AllMorphTargetNames;
+	for (const FName AttributeName: AllAttributeNames)
+	{
+		if (IsMorphTargetAttribute(AttributeName))
+		{
+			AllMorphTargetNames.Add(GetMorphTargetNameFromAttribute(AttributeName));
+		}
+	}
+	return AllMorphTargetNames;
+}
+
+bool FSkeletalMeshAttributesShared::IsMorphTargetAttribute(const FName InAttributeName)
+{
+	return InAttributeName.ToString().StartsWith(MorphTargetAttributeNamePrefix);
+}
+
+FName FSkeletalMeshAttributesShared::GetMorphTargetNameFromAttribute(const FName InAttributeName)
+{
+	if (ensure(IsMorphTargetAttribute(InAttributeName)))
+	{
+		return FName(InAttributeName.ToString().Mid(MorphTargetAttributeNamePrefix.Len()));
+	}
+	return NAME_None;
+}
+
+FMorphTargetVertexAttributesConstRef FSkeletalMeshAttributesShared::GetVertexMorphTarget(const FName InMorphTargetName) const
+{
+	return MeshDescriptionShared.VertexAttributes().GetAttributesRef<TArrayView<FVector3f>>(CreateMorphTargetAttributeName(InMorphTargetName));
+}
+
+FMorphTargetVertexAttributesConstRef FSkeletalMeshAttributesShared::GetVertexMorphTargetFromAttributeName(const FName InAttributeName) const
+{
+	if (!IsMorphTargetAttribute(InAttributeName))
+	{
+		return {};
+	}
+	return MeshDescriptionShared.VertexAttributes().GetAttributesRef<TArrayView<FVector3f>>(InAttributeName);
+}
+
 
 bool FSkeletalMeshAttributesShared::HasBoneColorAttribute() const
 {
@@ -297,6 +396,11 @@ const TAttributesSet<FBoneID>& FSkeletalMeshAttributesShared::BoneAttributes() c
 int32 FSkeletalMeshAttributesShared::GetNumBones() const
 {
 	return HasBones() ? BoneElementsShared->Get().Num() : 0;
+}
+
+bool FSkeletalMeshAttributesShared::IsBoneValid(const FBoneID BoneID) const
+{
+	return BoneElementsShared->Get().IsValid(BoneID.GetValue());
 }
 
 FSkeletalMeshAttributesShared::FBoneNameAttributesConstRef FSkeletalMeshAttributesShared::GetBoneNames() const

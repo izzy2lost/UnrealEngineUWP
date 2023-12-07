@@ -1,6 +1,7 @@
 // Copyright Epic Games, Inc. All Rights Reserved.
 
 #pragma once
+#include "MeshDescription.h"
 
 #if WITH_EDITOR
 
@@ -420,18 +421,25 @@ public:
 	/**
 	 * Returns a mesh description from the import data
 	 */
-	ENGINE_API bool GetMeshDescription(FMeshDescription &OutMeshDescription) const;
+	ENGINE_API bool GetMeshDescription(FMeshDescription& OutMeshDescription) const;
 
 	/**
 	 * @note MeshDescription always contains color, normal and tangent data by default. Therefore, while iterating
 	 * over the vertices, we check if at least one normal/tangent vector is not a zero vector and the color is
 	 * not white, then we set the corresponding bHasNormals/bHasTangent/bHasVertexColors flags to true.
 	 */
-	static ENGINE_API FSkeletalMeshImportData CreateFromMeshDescription(const FMeshDescription &InMeshDescription);
+	static ENGINE_API FSkeletalMeshImportData CreateFromMeshDescription(const FMeshDescription& InMeshDescription);
 
 private:
-	ENGINE_API void CleanUpUnusedMaterials();
-	ENGINE_API void SplitVerticesBySmoothingGroups();
+	void CopySkinWeightsToMeshDescription(
+		const FName InSkinWeightName,
+		const FSkeletalMeshImportData& InSkinWeightMesh,
+		const TArray<FVertexID>& InVertexIDMap,
+		FMeshDescription& OutMeshDescription
+		) const;
+
+	void CleanUpUnusedMaterials();
+	void SplitVerticesBySmoothingGroups();
 	
 	friend FArchive& operator<<(FArchive& Ar, FSkeletalMeshImportData& RawMesh);
 };

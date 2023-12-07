@@ -5,7 +5,7 @@
 #include "Containers/Array.h"
 #include "HAL/Platform.h"
 #include "MeshAttributeArray.h"
-#include "MeshAttributes.h"
+#include "MorphTargetAttributesRef.h"
 #include "SkinWeightsAttributesRef.h"
 #include "StaticMeshAttributes.h"
 #include "UObject/NameTypes.h"
@@ -21,6 +21,7 @@ namespace MeshAttribute
 {
  	namespace Vertex
  	{
+ 		// Name of the default skin weights attribute.
 		extern SKELETALMESHDESCRIPTION_API const FName SkinWeights;
  	}
 
@@ -74,20 +75,36 @@ public:
 	
 	/// Returns \c true if the given identifier is a valid profile name. If the name is empty, or matches the default profile,
 	/// then the profile name is considered invalid. 
-	static SKELETALMESHDESCRIPTION_API bool IsValidSkinWeightProfileName(const FName& InProfileName);
+	static SKELETALMESHDESCRIPTION_API bool IsValidSkinWeightProfileName(const FName InProfileName);
 
 	/// Helper function that indicates whether an attribute name represents a skin weight attribute.
-	static SKELETALMESHDESCRIPTION_API bool IsSkinWeightAttribute(const FName& InAttributeName);
+	static SKELETALMESHDESCRIPTION_API bool IsSkinWeightAttribute(const FName InAttributeName);
 
 	/// Returns a skin profile name from the attribute name, if the attribute name is a valid skin weights
 	/// attribute.
-	static SKELETALMESHDESCRIPTION_API FName GetProfileNameFromAttribute(const FName& InAttributeName);
+	static SKELETALMESHDESCRIPTION_API FName GetProfileNameFromAttribute(const FName InAttributeName);
 
-	SKELETALMESHDESCRIPTION_API FSkinWeightsVertexAttributesConstRef GetVertexSkinWeights(const FName& InProfileName = NAME_None) const;
+	SKELETALMESHDESCRIPTION_API FSkinWeightsVertexAttributesConstRef GetVertexSkinWeights(const FName InProfileName = NAME_None) const;
 	
-	SKELETALMESHDESCRIPTION_API FSkinWeightsVertexAttributesConstRef GetVertexSkinWeightsFromAttributeName(const FName& InAttributeName = NAME_None) const;
+	SKELETALMESHDESCRIPTION_API FSkinWeightsVertexAttributesConstRef GetVertexSkinWeightsFromAttributeName(const FName InAttributeName = NAME_None) const;
 
+	//
+	// Morph Target Methods
+	//
 
+	/// Returns the list of all registered morph targets on this mesh.
+	SKELETALMESHDESCRIPTION_API TArray<FName> GetMorphTargetNames() const;
+	
+	/// Returns \c true if the given attribute name refers to a morph target attribute.
+	static SKELETALMESHDESCRIPTION_API bool IsMorphTargetAttribute(const FName InAttributeName);
+
+	/// Returns the name of a morph target given the attribute name. If the given attribute name is invalid, \c NAME_None is returned.
+	static SKELETALMESHDESCRIPTION_API FName GetMorphTargetNameFromAttribute(const FName InAttributeName);
+
+	SKELETALMESHDESCRIPTION_API FMorphTargetVertexAttributesConstRef GetVertexMorphTarget(const FName InMorphTargetName = NAME_None) const;
+	
+	SKELETALMESHDESCRIPTION_API FMorphTargetVertexAttributesConstRef GetVertexMorphTargetFromAttributeName(const FName InAttributeName = NAME_None) const;
+	
 	//
 	// Bones Methods
 	//
@@ -128,8 +145,11 @@ protected:
 	/// Construct a name for a skin weight attribute with the given skin weight profile name.
 	/// Each mesh description can hold different skin weight profiles, although the default
 	/// is always present.
-	static SKELETALMESHDESCRIPTION_API FName CreateSkinWeightAttributeName(const FName& InProfileName);
+	static SKELETALMESHDESCRIPTION_API FName CreateSkinWeightAttributeName(const FName InProfileName);
 
+	/// Construct a name for a morph target attribute with the given a user-visible morph target name.
+	static SKELETALMESHDESCRIPTION_API FName CreateMorphTargetAttributeName(const FName InMorphTargetName);
+	
 private:
 	const FMeshElementChannels* BoneElementsShared = nullptr;
 
@@ -146,6 +166,17 @@ public:
 	SKELETALMESHDESCRIPTION_API explicit FSkeletalMeshAttributes(FMeshDescription& InMeshDescription);
 
 	SKELETALMESHDESCRIPTION_API virtual void Register(bool bKeepExistingAttribute = false) override;
+
+	static bool IsReservedAttributeName(const FName InAttributeName)
+	{
+		return FStaticMeshAttributes::IsReservedAttributeName(InAttributeName) ||
+			   IsSkinWeightAttribute(InAttributeName) ||
+			   IsMorphTargetAttribute(InAttributeName) ||
+			   InAttributeName == MeshAttribute::Bone::Name ||
+			   InAttributeName == MeshAttribute::Bone::ParentIndex ||
+			   InAttributeName == MeshAttribute::Bone::Pose ||
+			   InAttributeName == MeshAttribute::Bone::Color;
+	}
 	
 	//
 	// Skin Weights Methods
@@ -154,23 +185,26 @@ public:
 	/// Register a new skin weight profile with the given name. The attribute name will encode the profile name and
 	/// it will be listed in GetSkinWeightProfileNames(). Returns \c true if the profile was successfully registered.
 	/// Returns \c false if the attribute was already registered or if IsValidSkinWeightProfileName() returned false.
-	SKELETALMESHDESCRIPTION_API bool RegisterSkinWeightAttribute(const FName& InProfileName);
+	SKELETALMESHDESCRIPTION_API bool RegisterSkinWeightAttribute(const FName InProfileName);
 
-	static bool IsReservedAttributeName(const FName& InAttributeName)
-	{
-		return FStaticMeshAttributes::IsReservedAttributeName(InAttributeName) ||
-			   IsSkinWeightAttribute(InAttributeName) ||
-			   InAttributeName == MeshAttribute::Bone::Name ||
-			   InAttributeName == MeshAttribute::Bone::ParentIndex ||
-			   InAttributeName == MeshAttribute::Bone::Pose ||
-			   InAttributeName == MeshAttribute::Bone::Color;
-	}
-	
 	/// Returns the skin weight profile given by its name. NAME_None corresponds to the default profile.
-	SKELETALMESHDESCRIPTION_API FSkinWeightsVertexAttributesRef GetVertexSkinWeights(const FName& InProfileName = NAME_None);
+	SKELETALMESHDESCRIPTION_API FSkinWeightsVertexAttributesRef GetVertexSkinWeights(const FName InProfileName = NAME_None);
 
-	SKELETALMESHDESCRIPTION_API FSkinWeightsVertexAttributesRef GetVertexSkinWeightsFromAttributeName(const FName& InAttributeName = NAME_None);
+	SKELETALMESHDESCRIPTION_API FSkinWeightsVertexAttributesRef GetVertexSkinWeightsFromAttributeName(const FName InAttributeName = NAME_None);
 
+	//
+	// Morph Target Methods
+	//
+	
+	/// Register a new morph target with the given name. The attribute name will encode the user-defined morph target name and
+	/// it will be listed in GetMorphTargetNames(). Returns \c true if the morph target was successfully registered.
+	/// Returns \c false if the attribute was already registered or if \c InMorphTargetName is empty.
+	SKELETALMESHDESCRIPTION_API bool RegisterMorphTargetAttribute(const FName InMorphTargetName);
+	
+	SKELETALMESHDESCRIPTION_API FMorphTargetVertexAttributesRef GetVertexMorphTarget(const FName InMorphTargetName = NAME_None);
+	
+	SKELETALMESHDESCRIPTION_API FMorphTargetVertexAttributesRef GetVertexMorphTargetFromAttributeName(const FName InAttributeName = NAME_None);
+	
 	//
 	// Bones Methods
 	//
