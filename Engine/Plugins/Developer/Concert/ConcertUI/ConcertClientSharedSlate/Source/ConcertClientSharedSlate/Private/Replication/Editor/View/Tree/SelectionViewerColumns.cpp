@@ -53,6 +53,8 @@ namespace UE::ConcertClientSharedSlate::ReplicationColumns::TopLevel
 					const FText Text = GetDisplayText(Args.RowData);
 					
 					return SNew(SHorizontalBox)
+						.ToolTipText(FText::FromString(Args.RowData.GetObjectPath().ToString()))
+					
 						+SHorizontalBox::Slot()
 						.AutoWidth()
 						.HAlign(HAlign_Center)

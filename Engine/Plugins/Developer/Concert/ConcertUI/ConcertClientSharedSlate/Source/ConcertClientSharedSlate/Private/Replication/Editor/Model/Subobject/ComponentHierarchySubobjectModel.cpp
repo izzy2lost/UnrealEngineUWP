@@ -38,8 +38,11 @@ namespace UE::ConcertClientSharedSlate
 				for (const FSubobjectDataHandle& Handle : Handles)
 				{
 					const FSubobjectData* SubobjectData = Handle.GetData();
-					const UObject* Object = SubobjectData->GetObject();
-					ObjectMetaData.Add(Object, { FText::FromString(SubobjectData->GetDisplayString()) });
+					const UObject* Object = SubobjectData->FindComponentInstanceInActor(Actor);
+					if (Object)
+					{
+						ObjectMetaData.Add(Object, { FText::FromString(SubobjectData->GetDisplayString()) });
+					}
 				}
 			}
 			OnHierarchyChangedDelegate.Broadcast();
