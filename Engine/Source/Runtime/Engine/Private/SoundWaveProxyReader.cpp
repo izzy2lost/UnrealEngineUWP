@@ -1,6 +1,6 @@
 // Copyright Epic Games, Inc. All Rights Reserved.
 
-#include "SoundWaveProxyReader.h"
+#include "Sound/SoundWaveProxyReader.h"
 
 #include "Audio.h"
 #include "Containers/Array.h"
@@ -165,7 +165,7 @@ bool FSoundWaveProxyReader::CanProduceMoreAudio() const
 	return bDecoderOutputHasMoreData || bDecoderCanDecodeMoreData;
 }
 
-AUDIOCODECENGINE_API bool FSoundWaveProxyReader::SeekToFrame(uint32 InFrameNum)
+bool FSoundWaveProxyReader::SeekToFrame(uint32 InFrameNum)
 {
 	// ignore seek request if we're already at the specified time
 	if (InFrameNum == CurrentFrameIndex)

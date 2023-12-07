@@ -70,10 +70,10 @@ public:
 	 * @param InWaveProxy - A TSharedRef of a FSoundWaveProxy which is to be played.
 	 * @param InSettings - Reader settings.
 	 */
-	static AUDIOCODECENGINE_API TUniquePtr<FSoundWaveProxyReader> Create(FSoundWaveProxyRef InWaveProxy, const FSettings& InSettings);
+	static ENGINE_API TUniquePtr<FSoundWaveProxyReader> Create(FSoundWaveProxyRef InWaveProxy, const FSettings& InSettings);
 
 	/** Set whether the reader should loop the audio or not. */
-	AUDIOCODECENGINE_API void SetIsLooping(bool bInIsLooping);
+	ENGINE_API void SetIsLooping(bool bInIsLooping);
 
 	/** Returns true if the audio will be looped, false otherwise. */
 	FORCEINLINE bool IsLooping() const
@@ -82,14 +82,14 @@ public:
 	}
 
 	/** Sets the beginning position of the loop. */
-	AUDIOCODECENGINE_API void SetLoopStartTime(float InLoopStartTimeInSeconds);
+	ENGINE_API void SetLoopStartTime(float InLoopStartTimeInSeconds);
 
 	/** Sets the duration of the loop in seconds.
 	 *
 	 * If the value is negative, the MaxLoopDurationInSeconds will be used
 	 * which will effectively loop at the end of the file.
 	 */
-	AUDIOCODECENGINE_API void SetLoopDuration(float InLoopDurationInSeconds);
+	ENGINE_API void SetLoopDuration(float InLoopDurationInSeconds);
 
 	FORCEINLINE float GetSampleRate() const
 	{
@@ -133,7 +133,7 @@ public:
 	 *
 	 * @return true on success, false on failure.
 	 */
-	AUDIOCODECENGINE_API bool SeekToTime(float InSeconds);
+	ENGINE_API bool SeekToTime(float InSeconds);
 
 	/** Seeks to position in wave at a specific frame.
 	 *
@@ -141,19 +141,19 @@ public:
 	 *
 	 * @return true on success, false on failure.
 	 */
-	AUDIOCODECENGINE_API bool SeekToFrame(uint32 InFrameNum);
+	ENGINE_API bool SeekToFrame(uint32 InFrameNum);
 
 
 	/** Pops audio from reader and copies audio into OutBuffer. It returns the number of samples copied.
 	 * Samples not written to will be set to zero.
 	 */
-	AUDIOCODECENGINE_API int32 PopAudio(Audio::FAlignedFloatBuffer& OutBuffer);
+	ENGINE_API int32 PopAudio(Audio::FAlignedFloatBuffer& OutBuffer);
 
 	/** Returns TRUE if the reader can produce audio (eg. has a valid decoder, it can still decode, etc.)
 	 *
 	 * @return true on success, false on failure.
 	 */
-	AUDIOCODECENGINE_API bool CanProduceMoreAudio() const;
+	ENGINE_API bool CanProduceMoreAudio() const;
 
 private:
 
