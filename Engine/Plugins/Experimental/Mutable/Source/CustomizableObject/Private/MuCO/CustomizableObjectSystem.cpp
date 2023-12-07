@@ -2580,7 +2580,7 @@ namespace impl
 		FCustomizableObjectSystemPrivate* SystemPrivate = System->GetPrivateChecked();
 
 		const UCustomizableObject* CustomizableObject = Operation->Instance->GetCustomizableObject();
-		FCustomizableObjectPrivateData* CustomizableObjectPrivate = CustomizableObject->GetPrivate();
+		UCustomizableObjectPrivate* CustomizableObjectPrivate = CustomizableObject->GetPrivate();
 		
 		for (const TArray<mu::FResourceID>& MeshId : Operation->MeshDescriptors)
 		{

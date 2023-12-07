@@ -10,6 +10,8 @@
 #include "Misc/Guid.h"
 #endif
 
+#include "CustomizableObjectPrivate.generated.h"
+
 namespace mu { class Model; }
 class UCustomizableObject;
 class USkeletalMesh;
@@ -27,8 +29,11 @@ private:
 };
 
 
-class FCustomizableObjectPrivateData
+UCLASS()
+class UCustomizableObjectPrivate : public UObject
 {
+	GENERATED_BODY()
+	
 	TSharedPtr<mu::Model, ESPMode::ThreadSafe> MutableModel;
 
 public:

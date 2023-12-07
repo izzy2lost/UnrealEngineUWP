@@ -108,7 +108,7 @@ enum class ECustomizableObjectRelevancy : uint8
 
 
 // This is used to hide Mutable SDK members in the public headers.
-class FCustomizableObjectPrivateData;
+class UCustomizableObjectPrivate;
 
 USTRUCT()
 struct FProfileParameterDat
@@ -1059,7 +1059,7 @@ private:
 UCLASS( BlueprintType, config=Engine )
 class CUSTOMIZABLEOBJECT_API UCustomizableObject : public UObject
 {
-	friend FCustomizableObjectPrivateData;
+	friend UCustomizableObjectPrivate;
 	
 public:
 	GENERATED_BODY()
@@ -1445,8 +1445,7 @@ public:
 	// Begin UObject interface.
 	void PreSave(FObjectPreSaveContext ObjectSaveContext) override;
 	void PostRename(UObject* OldOuter, const FName OldName) override;
-	void PostDuplicate(EDuplicateMode::Type DuplicateMode) override;
-
+	
 	void BeginCacheForCookedPlatformData(const ITargetPlatform* TargetPlatform) override;
 	bool IsCachedCookedPlatformDataLoaded(const ITargetPlatform* TargetPlatform) override;
 	// End UObject interface.
@@ -1610,7 +1609,7 @@ public:
 	// Return a pointer to the BulkData subobject, only valid in packaged builds
 	const UCustomizableObjectBulk* GetStreamableBulkData() const { return BulkData; }
 
-	FCustomizableObjectPrivateData* GetPrivate() const;
+	UCustomizableObjectPrivate* GetPrivate() const;
 
 	/** Check if the CustomizableObject asset has been compiled. This will always be true in a packaged game, but it could be false in the editor. */
 	UFUNCTION(BlueprintCallable, Category = CustomizableObject)
@@ -1670,8 +1669,9 @@ private:
 	UPROPERTY()
 	TMap<TObjectPtr<const UObject>, FGuid> ParticipatingObjects;
 #endif
-	
-	TSharedPtr<FCustomizableObjectPrivateData> PrivateData;
+
+	UPROPERTY()
+	UCustomizableObjectPrivate* Private;
 };
 
 #if UE_ENABLE_INCLUDE_ORDER_DEPRECATED_IN_5_2
