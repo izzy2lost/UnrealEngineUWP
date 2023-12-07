@@ -121,6 +121,7 @@ PRAGMA_ENABLE_DEPRECATION_WARNINGS
 		const TSharedPtr<Softs::FPBDEdgeSpringConstraints>& GetEdgeSpringConstraints() const { return EdgeConstraints; }
 		const TSharedPtr<Softs::FXPBDEdgeSpringConstraints>& GetXEdgeSpringConstraints() const { return XEdgeConstraints; }
 		const TSharedPtr<Softs::FXPBDStretchBiasElementConstraints>& GetXStretchBiasConstraints() const { return XStretchBiasConstraints; }
+		const TSharedPtr<Softs::FXPBDAnisotropicSpringConstraints>& GetXAnisoSpringConstraints() const { return XAnisoSpringConstraints; }
 		const TSharedPtr<Softs::FPBDBendingSpringConstraints>& GetBendingSpringConstraints() const { return BendingConstraints; }
 		const TSharedPtr<Softs::FXPBDBendingSpringConstraints>& GetXBendingSpringConstraints() const { return XBendingConstraints; }
 		const TSharedPtr<Softs::FPBDBendingConstraints>& GetBendingElementConstraints() const { return BendingElementConstraints; }
@@ -202,6 +203,7 @@ PRAGMA_ENABLE_DEPRECATION_WARNINGS
 		TSharedPtr<Softs::FPBDEdgeSpringConstraints> EdgeConstraints;
 		TSharedPtr<Softs::FXPBDEdgeSpringConstraints> XEdgeConstraints;
 		TSharedPtr<Softs::FXPBDStretchBiasElementConstraints> XStretchBiasConstraints;
+		TSharedPtr<Softs::FXPBDAnisotropicSpringConstraints> XAnisoSpringConstraints;
 		TSharedPtr<Softs::FPBDBendingSpringConstraints> BendingConstraints;
 		TSharedPtr<Softs::FXPBDBendingSpringConstraints> XBendingConstraints;
 		TSharedPtr<Softs::FPBDBendingConstraints> BendingElementConstraints;
@@ -267,5 +269,7 @@ PRAGMA_ENABLE_DEPRECATION_WARNINGS
 		int32 PostCollisionConstraintRuleOffset;
 		int32 PostprocessingConstraintRuleOffset;
 		//~ End PBD solver only fields
+
+		class FRuleCreator;
 	};
 } // namespace Chaos

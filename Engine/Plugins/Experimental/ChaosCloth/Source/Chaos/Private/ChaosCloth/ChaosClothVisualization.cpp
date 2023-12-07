@@ -26,6 +26,7 @@
 #include "Chaos/XPBDBendingConstraints.h"
 #include "Chaos/XPBDSpringConstraints.h"
 #include "Chaos/XPBDAnisotropicBendingConstraints.h"
+#include "Chaos/XPBDAnisotropicSpringConstraints.h"
 #include "Chaos/XPBDStretchBiasElementConstraints.h"
 #include "Chaos/WeightedLatticeImplicitObject.h"
 #include "DynamicMeshBuilder.h"
@@ -74,6 +75,14 @@ static FAutoConsoleVariableRef CVarClothVizStretchBiasDrawRangeMin(TEXT("p.Chaos
 static FAutoConsoleVariableRef CVarClothVizStretchBiasDrawRangeMax(TEXT("p.ChaosClothVisualization.StretchBiasDrawRangeMax"), StretchBiasDrawRangeMax, TEXT("Max stretch in draw color range. Negative = compressed, 0 = undeformed, positive = stretched. (When drawing warp/weft stretch)"));
 static bool bStretchBiasDrawOutOfRange = true;
 static FAutoConsoleVariableRef CVarClothVizStretchBiasDrawOutOfRange(TEXT("p.ChaosClothVisualization.StretchBiasDrawOutOfRange"), bStretchBiasDrawOutOfRange, TEXT("Draw out of range elements (When drawing warp/weft stretch)"));
+
+enum class EAnisoSpringDrawMode : int
+{
+	ParallelGraphColor = 0,
+	Anisotropy = 1,
+};
+static int32 AnisoSpringDrawMode = (int32)EAnisoSpringDrawMode::ParallelGraphColor;
+static FAutoConsoleVariableRef CVarClothVizAnisoSpringDrawMode(TEXT("p.ChaosClothVisualization.AnisoSpringDrawMode"), AnisoSpringDrawMode, TEXT("Stretch draw mode, 0 = Parallel graph color, 1 = Anisotropy"));
 
 static FString WeightMapName = "";
 static FAutoConsoleVariableRef CVarClothVizWeightMapName(TEXT("p.ChaosClothVisualization.WeightMapName"), WeightMapName, TEXT("Weight map name to be visualized"));
@@ -1355,13 +1364,11 @@ static FAutoConsoleVariableRef CVarClothVizWeightMapName(TEXT("p.ChaosClothVisua
 			}
 		}
 	}
-
-	template<typename SpringConstraintType>
-	static void DrawSpringConstraintColors(FPrimitiveDrawInterface* PDI, const TConstArrayView<::Chaos::Softs::FSolverVec3>& Positions, const ::Chaos::FVec3& LocalSpaceLocation, const SpringConstraintType* const SpringConstraints)
+	template<typename SpringConstraintType, typename GetEndPointsFuncType>
+	static void DrawSpringConstraintColors(FPrimitiveDrawInterface* PDI, const ::Chaos::FVec3& LocalSpaceLocation, const SpringConstraintType* const SpringConstraints, GetEndPointsFuncType GetEndPoints)
 	{
 		check(SpringConstraints);
 
-		const auto& Constraints = SpringConstraints->GetConstraints(); // auto because constraints can be TVec2<int> or TVec4<int>, but we just care about first two for drawing here either way
 		const TArray<int32>& ConstraintsPerColorStartIndex = SpringConstraints->GetConstraintsPerColorStartIndex();
 		if (ConstraintsPerColorStartIndex.Num() > 1)
 		{
@@ -1381,24 +1388,39 @@ static FAutoConsoleVariableRef CVarClothVizWeightMapName(TEXT("p.ChaosClothVisua
 				for (int32 ConstraintIndex = ColorStart; ConstraintIndex < ColorEnd; ++ConstraintIndex)
 				{
 					// Draw line
-					const auto& Constraint = Constraints[ConstraintIndex];
-					const FVec3 Pos0 = FVec3(Positions[Constraint[0]]) + LocalSpaceLocation;
-					const FVec3 Pos1 = FVec3(Positions[Constraint[1]]) + LocalSpaceLocation;
+					Softs::FSolverVec3 P1, P2;
+					GetEndPoints(ConstraintIndex, P1, P2);
+
+					const FVec3 Pos0 = FVec3(P1) + LocalSpaceLocation;
+					const FVec3 Pos1 = FVec3(P2) + LocalSpaceLocation;
 					DrawLine(PDI, Pos0, Pos1, DrawColor);
 				}
 			}
 		}
 		else
 		{
-			for (const auto& Constraint : Constraints)
+			for (int32 ConstraintIndex = 0; ConstraintIndex < SpringConstraints->GetConstraints().Num(); ++ConstraintIndex)
 			{
 				// Draw line
-				const FVec3 Pos0 = FVec3(Positions[Constraint[0]]) + LocalSpaceLocation;
-				const FVec3 Pos1 = FVec3(Positions[Constraint[1]]) + LocalSpaceLocation;
+				Softs::FSolverVec3 P1, P2;
+				GetEndPoints(ConstraintIndex, P1, P2);
+
+				const FVec3 Pos0 = FVec3(P1) + LocalSpaceLocation;
+				const FVec3 Pos1 = FVec3(P2) + LocalSpaceLocation;
 
 				DrawLine(PDI, Pos0, Pos1, FLinearColor::Black);
 			}
 		}
+	}
+
+	template<typename SpringConstraintType>
+	static void DrawSpringConstraintColors(FPrimitiveDrawInterface* PDI, const TConstArrayView<::Chaos::Softs::FSolverVec3>& Positions, const ::Chaos::FVec3& LocalSpaceLocation, const SpringConstraintType* const SpringConstraints)
+	{
+		DrawSpringConstraintColors(PDI, LocalSpaceLocation, SpringConstraints, [&SpringConstraints, &Positions](const int32 ConstraintIndex, Softs::FSolverVec3& P1, Softs::FSolverVec3& P2)
+		{
+			P1 = Positions[SpringConstraints->GetConstraints()[ConstraintIndex][0]];
+			P2 = Positions[SpringConstraints->GetConstraints()[ConstraintIndex][1]];
+		});
 	}
 
 	static void DrawStretchBiasConstraints_ParallelGraphColor(FPrimitiveDrawInterface* PDI, const TConstArrayView<::Chaos::Softs::FSolverVec3>& Positions, const ::Chaos::FVec3& LocalSpaceLocation, const FMaterialRenderProxy* MaterialRenderProxy, const Softs::FXPBDStretchBiasElementConstraints* const SpringConstraints)
@@ -1588,6 +1610,55 @@ static FAutoConsoleVariableRef CVarClothVizWeightMapName(TEXT("p.ChaosClothVisua
 #endif
 	}
 
+	template<typename ConstraintType>
+	static void DrawEdgeAnisotropy(FPrimitiveDrawInterface* PDI, const TConstArrayView<::Chaos::Softs::FSolverVec3>& Positions, const ::Chaos::FVec3& LocalSpaceLocation, const ConstraintType* const BendingConstraints)
+	{
+		const auto& Constraints = BendingConstraints->GetConstraints(); // auto because this could be Vec2 or Vec4, but we always just care about first two indices
+		const TArray<Softs::FSolverVec3>& WarpWeftBiasBaseMultipliers = BendingConstraints->GetWarpWeftBiasBaseMultipliers();
+		for (int32 ConstraintIndex = 0; ConstraintIndex < Constraints.Num(); ++ConstraintIndex)
+		{
+			const Softs::FSolverVec3& P1 = Positions[Constraints[ConstraintIndex][0]];
+			const Softs::FSolverVec3& P2 = Positions[Constraints[ConstraintIndex][1]];
+			const Softs::FSolverVec3& Multiplier = WarpWeftBiasBaseMultipliers[ConstraintIndex];
+
+			const FVec3 Pos0 = FVec3(P1) + LocalSpaceLocation;
+			const FVec3 Pos1 = FVec3(P2) + LocalSpaceLocation;
+			DrawLine(PDI, Pos0, Pos1, FLinearColor(Multiplier[0], Multiplier[1], Multiplier[2]));
+		}
+	}
+
+	template<typename ConstraintType>
+	static void DrawAxialSpringAnisotropy(FPrimitiveDrawInterface* PDI, const TConstArrayView<::Chaos::Softs::FSolverVec3>& Positions, const ::Chaos::FVec3& LocalSpaceLocation, const ConstraintType* const AxialConstraints)
+	{
+		const TArray<TVec3<int32>>& Constraints = AxialConstraints->GetConstraints();
+		const TArray<Softs::FSolverVec3>& WarpWeftBiasBaseMultipliers = AxialConstraints->GetWarpWeftBiasBaseMultipliers();
+		const TArray<Softs::FSolverReal>& Barys = AxialConstraints->GetBarys();
+		for (int32 ConstraintIndex = 0; ConstraintIndex < Constraints.Num(); ++ConstraintIndex)
+		{
+			const Softs::FSolverVec3& P1 = Positions[Constraints[ConstraintIndex][0]];
+			const Softs::FSolverVec3& P2 = Positions[Constraints[ConstraintIndex][1]];
+			const Softs::FSolverVec3& P3 = Positions[Constraints[ConstraintIndex][2]];
+			const Softs::FSolverVec3 P = Barys[ConstraintIndex] * P2 + ((FSolverReal)1. - Barys[ConstraintIndex]) * P3;
+			const Softs::FSolverVec3& Multiplier = WarpWeftBiasBaseMultipliers[ConstraintIndex];
+
+			const FVec3 Pos0 = FVec3(P1) + LocalSpaceLocation;
+			const FVec3 Pos1 = FVec3(P) + LocalSpaceLocation;
+			DrawLine(PDI, Pos0, Pos1, FLinearColor(Multiplier[0], Multiplier[1], Multiplier[2]));
+		}
+	}
+
+	template<typename SpringConstraintType>
+	static void DrawAxialSpringConstraintColors(FPrimitiveDrawInterface* PDI, const TConstArrayView<::Chaos::Softs::FSolverVec3>& Positions, const ::Chaos::FVec3& LocalSpaceLocation, const SpringConstraintType* const SpringConstraints)
+	{
+		DrawSpringConstraintColors(PDI, LocalSpaceLocation, SpringConstraints, [&SpringConstraints, &Positions](const int32 ConstraintIndex, Softs::FSolverVec3& P1, Softs::FSolverVec3& P2)
+		{
+			P1 = Positions[SpringConstraints->GetConstraints()[ConstraintIndex][0]];
+			const Softs::FSolverReal Bary = SpringConstraints->GetBarys()[ConstraintIndex];
+			
+			P2 = Bary * Positions[SpringConstraints->GetConstraints()[ConstraintIndex][1]] + ((FSolverReal)1. - Bary)* Positions[SpringConstraints->GetConstraints()[ConstraintIndex][2]];
+		});
+	}
+
 	void FClothVisualization::DrawEdgeConstraint(FPrimitiveDrawInterface* PDI) const
 	{
 		if (!Solver)
@@ -1619,6 +1690,22 @@ static FAutoConsoleVariableRef CVarClothVizWeightMapName(TEXT("p.ChaosClothVisua
 			if (const Softs::FXPBDEdgeSpringConstraints* const EdgeConstraints = ClothConstraints.GetXEdgeSpringConstraints().Get())
 			{
 				DrawSpringConstraintColors(PDI, Positions, LocalSpaceLocation, EdgeConstraints);
+			}
+
+			if (const Softs::FXPBDAnisotropicSpringConstraints* const AnisoSpringConstraints = ClothConstraints.GetXAnisoSpringConstraints().Get())
+			{
+				switch ((Private::EAnisoSpringDrawMode)Private::AnisoSpringDrawMode)
+				{
+				case Private::EAnisoSpringDrawMode::Anisotropy:
+					DrawEdgeAnisotropy(PDI, Positions, LocalSpaceLocation, &AnisoSpringConstraints->GetEdgeConstraints());
+					DrawAxialSpringAnisotropy(PDI, Positions, LocalSpaceLocation, &AnisoSpringConstraints->GetAxialConstraints());
+					break;
+				case Private::EAnisoSpringDrawMode::ParallelGraphColor: // fallthrough
+				default:
+					DrawSpringConstraintColors(PDI, Positions, LocalSpaceLocation, &AnisoSpringConstraints->GetEdgeConstraints());
+					DrawAxialSpringConstraintColors(PDI, Positions, LocalSpaceLocation, &AnisoSpringConstraints->GetAxialConstraints());
+					break;
+				}
 			}
 
 			if (const Softs::FXPBDStretchBiasElementConstraints* const StretchConstraints = ClothConstraints.GetXStretchBiasConstraints().Get())
@@ -1666,21 +1753,8 @@ static FAutoConsoleVariableRef CVarClothVizWeightMapName(TEXT("p.ChaosClothVisua
 		}
 	}
 
-	static void DrawBendingElementAnisotropy(FPrimitiveDrawInterface* PDI, const TConstArrayView<::Chaos::Softs::FSolverVec3>& Positions, const ::Chaos::FVec3& LocalSpaceLocation, const ::Chaos::Softs::FXPBDAnisotropicBendingConstraints* const BendingConstraints)
-	{
-		const TArray<TVec4<int32>>& Constraints = BendingConstraints->GetConstraints();
-		const TArray<Softs::FSolverVec3>& WarpWeftBiasBaseMultipliers = BendingConstraints->GetWarpWeftBiasBaseMultipliers();
-		for (int32 ConstraintIndex = 0; ConstraintIndex < Constraints.Num(); ++ConstraintIndex)
-		{
-			const Softs::FSolverVec3& P1 = Positions[Constraints[ConstraintIndex][0]];
-			const Softs::FSolverVec3& P2 = Positions[Constraints[ConstraintIndex][1]];
-			const Softs::FSolverVec3& Multiplier = WarpWeftBiasBaseMultipliers[ConstraintIndex];
 
-			const FVec3 Pos0 = FVec3(P1) + LocalSpaceLocation;
-			const FVec3 Pos1 = FVec3(P2) + LocalSpaceLocation;
-			DrawLine(PDI, Pos0, Pos1, FLinearColor(Multiplier[0], Multiplier[1], Multiplier[2]));
-		}
-	}
+
 	static void DrawBendingElementRestAngle(FPrimitiveDrawInterface* PDI, const TConstArrayView<::Chaos::Softs::FSolverVec3>& Positions, const ::Chaos::FVec3& LocalSpaceLocation, const ::Chaos::Softs::FPBDBendingConstraintsBase* const BendingConstraints)
 	{
 		const TArray<TVec4<int32>>& Constraints = BendingConstraints->GetConstraints();
@@ -1777,7 +1851,7 @@ static FAutoConsoleVariableRef CVarClothVizWeightMapName(TEXT("p.ChaosClothVisua
 					DrawSpringConstraintColors(PDI, Positions, LocalSpaceLocation, BendingConstraints);
 					break;
 				case Private::EBendingDrawMode::Anisotropy:
-					DrawBendingElementAnisotropy(PDI, Positions, LocalSpaceLocation, BendingConstraints);
+					DrawEdgeAnisotropy(PDI, Positions, LocalSpaceLocation, BendingConstraints);
 					break;
 				case Private::EBendingDrawMode::BuckleStatus:
 				default:

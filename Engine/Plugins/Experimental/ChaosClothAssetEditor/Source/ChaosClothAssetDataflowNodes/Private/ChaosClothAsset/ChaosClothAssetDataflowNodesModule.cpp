@@ -35,6 +35,7 @@
 #include "ChaosClothAsset/SimulationVelocityScaleConfigNode.h"
 #include "ChaosClothAsset/SimulationXPBDAreaSpringConfigNode.h"
 #include "ChaosClothAsset/SimulationXPBDAnisoBendingConfigNode.h"
+#include "ChaosClothAsset/SimulationXPBDAnisoSpringConfigNode.h"
 #include "ChaosClothAsset/SimulationXPBDAnisoStretchConfigNode.h"
 #include "ChaosClothAsset/SimulationXPBDBendingElementConfigNode.h"
 #include "ChaosClothAsset/SimulationXPBDBendingSpringConfigNode.h"
@@ -87,6 +88,7 @@ namespace UE::Chaos::ClothAsset
 			DATAFLOW_NODE_REGISTER_CREATION_FACTORY(FChaosClothAssetSimulationSolverConfigNode);
 			DATAFLOW_NODE_REGISTER_CREATION_FACTORY(FChaosClothAssetSimulationVelocityScaleConfigNode);
 			DATAFLOW_NODE_REGISTER_CREATION_FACTORY(FChaosClothAssetSimulationXPBDAnisoBendingConfigNode);
+			DATAFLOW_NODE_REGISTER_CREATION_FACTORY(FChaosClothAssetSimulationXPBDAnisoSpringConfigNode);
 			DATAFLOW_NODE_REGISTER_CREATION_FACTORY(FChaosClothAssetSimulationXPBDAnisoStretchConfigNode);
 			DATAFLOW_NODE_REGISTER_CREATION_FACTORY(FChaosClothAssetSimulationXPBDAreaSpringConfigNode);
 			DATAFLOW_NODE_REGISTER_CREATION_FACTORY(FChaosClothAssetSimulationXPBDBendingElementConfigNode);

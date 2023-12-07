@@ -5,6 +5,7 @@
 #include "Chaos/PBDSpringConstraints.h"
 #include "Chaos/XPBDSpringConstraints.h"
 #include "Chaos/XPBDStretchBiasElementConstraints.h"
+#include "Chaos/XPBDAnisotropicSpringConstraints.h"
 #include "Chaos/PBDBendingConstraints.h"
 #include "Chaos/XPBDBendingConstraints.h"
 #include "Chaos/XPBDAnisotropicBendingConstraints.h"
@@ -99,6 +100,233 @@ bool bEnableGS = false;
 	static FAutoConsoleVariableRef CVarClothSOROmega(TEXT("p.Chaos.Cloth.SOROmega"), SOROmega, TEXT("SOR omega coefficient for acceleration [def: 1.7]"));
 
 #endif
+
+class FClothConstraints::FRuleCreator
+{
+public:
+	explicit FRuleCreator(FClothConstraints* InConstraints)
+		: Constraints(InConstraints)
+	{
+		check(Constraints);
+		Constraints->Evolution->AllocatePreSubstepParallelInitRange(Constraints->ParticleRangeId, Constraints->NumPreSubstepInits);
+		Constraints->Evolution->AllocatePBDExternalForceRulesRange(Constraints->ParticleRangeId, Constraints->NumExternalForceRules);
+		Constraints->Evolution->AllocatePostInitialGuessParallelInitRange(Constraints->ParticleRangeId, Constraints->NumConstraintInits);
+		Constraints->Evolution->AllocatePreSubstepConstraintRulesRange(Constraints->ParticleRangeId, Constraints->NumPreSubstepConstraintRules);
+		Constraints->Evolution->AllocatePerIterationPBDConstraintRulesRange(Constraints->ParticleRangeId, Constraints->NumConstraintRules);
+		Constraints->Evolution->AllocatePerIterationCollisionPBDConstraintRulesRange(Constraints->ParticleRangeId, Constraints->NumCollisionConstraintRules);
+		Constraints->Evolution->AllocatePerIterationPostCollisionsPBDConstraintRulesRange(Constraints->ParticleRangeId, Constraints->NumPostCollisionConstraintRules);
+		Constraints->Evolution->AllocateUpdateLinearSystemRulesRange(Constraints->ParticleRangeId, Constraints->NumUpdateLinearSystemRules);
+		Constraints->Evolution->AllocateUpdateLinearSystemCollisionsRulesRange(Constraints->ParticleRangeId, Constraints->NumUpdateLinearSystemCollisionsRules);
+		Constraints->Evolution->AllocatePostSubstepConstraintRulesRange(Constraints->ParticleRangeId, Constraints->NumPostprocessingConstraintRules);
+
+		PreSubstepParallelInits = Constraints->Evolution->GetPreSubstepParallelInitRange(Constraints->ParticleRangeId);
+		ExternalForceRules = Constraints->Evolution->GetPBDExternalForceRulesRange(Constraints->ParticleRangeId);
+		PostInitialGuessParallelInits = Constraints->Evolution->GetPostInitialGuessParallelInitRange(Constraints->ParticleRangeId);
+		PreSubstepConstraintRules = Constraints->Evolution->GetPreSubstepConstraintRulesRange(Constraints->ParticleRangeId);
+		PerIterationConstraintRules = Constraints->Evolution->GetPerIterationPBDConstraintRulesRange(Constraints->ParticleRangeId);
+		PerIterationCollisionConstraintRules = Constraints->Evolution->GetPerIterationCollisionPBDConstraintRulesRange(Constraints->ParticleRangeId);
+		PerIterationPostCollisionsConstraintRules = Constraints->Evolution->GetPerIterationPostCollisionsPBDConstraintRulesRange(Constraints->ParticleRangeId);
+		UpdateLinearSystemRules = Constraints->Evolution->GetUpdateLinearSystemRulesRange(Constraints->ParticleRangeId);
+		UpdateLinearSystemCollisionsRules = Constraints->Evolution->GetUpdateLinearSystemCollisionsRulesRange(Constraints->ParticleRangeId);
+		PostSubstepConstraintRules = Constraints->Evolution->GetPostSubstepConstraintRulesRange(Constraints->ParticleRangeId);
+	}
+
+	~FRuleCreator()
+	{
+		if (Constraints)
+		{
+			check(PreSubstepInitsIndex == Constraints->NumPreSubstepInits);
+			check(ExternalForceRulesIndex == Constraints->NumExternalForceRules);
+			check(PostInitialGuessInitsIndex == Constraints->NumConstraintInits);
+			check(PreSubstepConstraintRulesIndex == Constraints->NumPreSubstepConstraintRules);
+			check(ConstraintRuleIndex == Constraints->NumConstraintRules);
+			check(CollisionConstraintRulesIndex == Constraints->NumCollisionConstraintRules);
+			check(PostCollisionConstraintRulesIndex == Constraints->NumPostCollisionConstraintRules);
+			check(UpdateLinearSystemRulesIndex == Constraints->NumUpdateLinearSystemRules);
+			check(UpdateLinearSystemCollisionsRulesIndex == Constraints->NumUpdateLinearSystemCollisionsRules);
+			check(PostSubstepConstraintRulesIndex == Constraints->NumPostprocessingConstraintRules);
+		}
+	}
+
+	void PreSubstepParallelInitRule(Softs::FEvolution::ParallelInitFunc&& Rule)
+	{
+		PreSubstepParallelInits[PreSubstepInitsIndex++] = MoveTemp(Rule);
+	}
+
+	void AddExternalForceRule(Softs::FEvolution::PBDConstraintRuleFunc&& Rule)
+	{
+		ExternalForceRules[ExternalForceRulesIndex++] = MoveTemp(Rule);
+	}
+
+	void AddPostInitialGuessParallelInitRule(Softs::FEvolution::ParallelInitFunc&& Rule)
+	{
+		PostInitialGuessParallelInits[PostInitialGuessInitsIndex++] = MoveTemp(Rule);
+	}
+
+	void AddPreSubstepConstraintRule(Softs::FEvolution::ConstraintRuleFunc&& Rule)
+	{
+		PreSubstepConstraintRules[PreSubstepConstraintRulesIndex++] = MoveTemp(Rule);
+	}
+
+	void AddPerIterationPBDConstraintRule(Softs::FEvolution::PBDConstraintRuleFunc&& Rule)
+	{
+		PerIterationConstraintRules[ConstraintRuleIndex++] = MoveTemp(Rule);
+	}
+
+	void AddPerIterationCollisionPBDConstraintRule(Softs::FEvolution::PBDCollisionConstraintRuleFunc&& Rule)
+	{
+		PerIterationCollisionConstraintRules[CollisionConstraintRulesIndex++] = MoveTemp(Rule);
+	}
+
+	void AddPerIterationPostCollisionsPBDConstraintRule(Softs::FEvolution::PBDConstraintRuleFunc&& Rule)
+	{
+		PerIterationPostCollisionsConstraintRules[PostCollisionConstraintRulesIndex++] = MoveTemp(Rule);
+	}
+
+	void AddUpdateLinearSystemRule(Softs::FEvolution::UpdateLinearSystemFunc&& Rule)
+	{
+		UpdateLinearSystemRules[UpdateLinearSystemRulesIndex++] = MoveTemp(Rule);
+	}
+
+	void AddUpdateLinearSystemCollisionsRule(Softs::FEvolution::UpdateLinearSystemCollisionsFunc&& Rule)
+	{
+		UpdateLinearSystemCollisionsRules[UpdateLinearSystemCollisionsRulesIndex++] = MoveTemp(Rule);
+	}
+
+	void AddPostSubstepConstraintRule(Softs::FEvolution::ConstraintRuleFunc&& Rule)
+	{
+		PostSubstepConstraintRules[PostSubstepConstraintRulesIndex++] = MoveTemp(Rule);
+	}
+
+	template<typename ConstraintType>
+	void AddExternalForceRule_Apply(ConstraintType* const Constraint)
+	{
+		AddExternalForceRule(
+			[Constraint](Softs::FSolverParticlesRange& Particles, const Softs::FSolverReal Dt)
+		{
+			Constraint->Apply(Particles, Dt);
+		});
+	}
+
+	template<typename ConstraintType>
+	void AddUpdateLinearSystemRule_UpdateLinearSystem(ConstraintType* const Constraint)
+	{
+		AddUpdateLinearSystemRule([Constraint](const Softs::FSolverParticlesRange& Particles, const FSolverReal Dt, Softs::FEvolutionLinearSystem& LinearSystem)
+		{
+			Constraint->UpdateLinearSystem(Particles, Dt, LinearSystem);
+		});
+	}
+
+	template<bool bInitParticles = false, typename ConstraintType>
+	void AddXPBDParallelInitRule(ConstraintType* const Constraint)
+	{
+		if constexpr (bInitParticles)
+		{
+			AddPostInitialGuessParallelInitRule(
+				[Constraint, Evolution = Constraints->Evolution](const Softs::FSolverParticlesRange& Particles, const Softs::FSolverReal Dt, const Softs::ESolverMode SolverMode)
+			{
+				Constraint->ApplyProperties(Dt, Evolution->GetIterations());
+				if ((SolverMode & Softs::ESolverMode::PBD) != Softs::ESolverMode::None)\
+				{
+					Constraint->Init(Particles);
+				}
+			});
+		}
+		else
+		{
+			AddPostInitialGuessParallelInitRule(
+				[Constraint, Evolution = Constraints->Evolution](const Softs::FSolverParticlesRange& Particles, const Softs::FSolverReal Dt, const Softs::ESolverMode SolverMode)
+			{
+				Constraint->ApplyProperties(Dt, Evolution->GetIterations());
+				if ((SolverMode & Softs::ESolverMode::PBD) != Softs::ESolverMode::None)\
+				{
+					Constraint->Init();
+				}
+			});
+		}
+	}
+
+	template<typename ConstraintType>
+	void AddPBDParallelInitRule(ConstraintType* const Constraint)
+	{
+		AddPostInitialGuessParallelInitRule(
+			[Constraint, Evolution = Constraints->Evolution](const Softs::FSolverParticlesRange& Particles, const Softs::FSolverReal Dt, const Softs::ESolverMode SolverMode)
+		{
+			if ((SolverMode & Softs::ESolverMode::PBD) != Softs::ESolverMode::None)
+			{
+				Constraint->ApplyProperties(Dt, Evolution->GetIterations()); 
+			}
+		});
+	}
+
+	template<bool bPostCollisions, typename ConstraintType>
+	void AddPerIterationPBDConstraintRule_Apply(ConstraintType* const Constraint)
+	{
+		if constexpr (bPostCollisions)
+		{
+			AddPerIterationPostCollisionsPBDConstraintRule(
+				[Constraint](Softs::FSolverParticlesRange& Particles, const Softs::FSolverReal Dt)
+			{
+				Constraint->Apply(Particles, Dt);
+			});
+		}
+		else
+		{
+			AddPerIterationPBDConstraintRule(
+				[Constraint](Softs::FSolverParticlesRange& Particles, const Softs::FSolverReal Dt)
+			{
+				Constraint->Apply(Particles, Dt);
+			});
+		}
+	}
+
+	template<typename ConstraintType>
+	void AddPerIterationCollisionPBDConstraintRule_Apply(ConstraintType* const Constraint)
+	{
+		AddPerIterationCollisionPBDConstraintRule(
+			[Constraint](Softs::FSolverParticlesRange& Particles, const Softs::FSolverReal Dt, const TArray<Softs::FSolverCollisionParticlesRange>& CollisionParticles)
+		{
+			Constraint->Apply(Particles, Dt, CollisionParticles);
+		}
+		);
+	}
+
+	template<typename ConstraintType>
+	void AddUpdateLinearSystemCollisionsRule_UpdateLinearSystem(ConstraintType* const Constraint)
+	{
+		AddUpdateLinearSystemCollisionsRule(
+			[Constraint](const Softs::FSolverParticlesRange& Particles, const Softs::FSolverReal Dt, const TArray<Softs::FSolverCollisionParticlesRange>& CollisionParticles, Softs::FEvolutionLinearSystem& LinearSystem)
+		{
+			Constraint->UpdateLinearSystem(Particles, Dt, CollisionParticles, LinearSystem);
+		}
+		);
+	}
+
+private:
+
+	FClothConstraints* const Constraints = nullptr;
+	TArrayView<Softs::FEvolution::ParallelInitFunc> PreSubstepParallelInits;
+	TArrayView<Softs::FEvolution::PBDConstraintRuleFunc> ExternalForceRules;
+	TArrayView<Softs::FEvolution::ParallelInitFunc> PostInitialGuessParallelInits;
+	TArrayView<Softs::FEvolution::ConstraintRuleFunc> PreSubstepConstraintRules;
+	TArrayView<Softs::FEvolution::PBDConstraintRuleFunc> PerIterationConstraintRules;
+	TArrayView<Softs::FEvolution::PBDCollisionConstraintRuleFunc> PerIterationCollisionConstraintRules;
+	TArrayView<Softs::FEvolution::PBDConstraintRuleFunc> PerIterationPostCollisionsConstraintRules;
+	TArrayView<Softs::FEvolution::UpdateLinearSystemFunc> UpdateLinearSystemRules;
+	TArrayView<Softs::FEvolution::UpdateLinearSystemCollisionsFunc> UpdateLinearSystemCollisionsRules;
+	TArrayView<Softs::FEvolution::ConstraintRuleFunc> PostSubstepConstraintRules;
+
+	int32 PreSubstepInitsIndex = 0;
+	int32 ExternalForceRulesIndex = 0;
+	int32 PostInitialGuessInitsIndex = 0;
+	int32 PreSubstepConstraintRulesIndex = 0;
+	int32 ConstraintRuleIndex = 0;
+	int32 CollisionConstraintRulesIndex = 0;
+	int32 PostCollisionConstraintRulesIndex = 0;
+	int32 UpdateLinearSystemRulesIndex = 0;
+	int32 UpdateLinearSystemCollisionsRulesIndex = 0;
+	int32 PostSubstepConstraintRulesIndex = 0;
+};
 
 FClothConstraints::FClothConstraints()
 	: Evolution(nullptr), PBDEvolution(nullptr)
@@ -791,6 +1019,36 @@ void FClothConstraints::CreateStretchConstraints(
 		++NumConstraintInits;  // Uses init to update the property tables
 		++NumConstraintRules;
 	}
+	if (PatternData && PatternData->PatternPositions.Num() && Softs::FXPBDAnisotropicSpringConstraints::IsEnabled(ConfigProperties))
+	{
+		if (Evolution)
+		{
+			XAnisoSpringConstraints = MakeShared<Softs::FXPBDAnisotropicSpringConstraints>(
+				Evolution->GetSoftBodyParticles(ParticleRangeId),
+				TriangleMesh,
+				PatternData->WeldedFaceVertexPatternPositions,
+				WeightMaps,
+				ConfigProperties,
+				/*bTrimKinematicConstraints =*/ true);
+			++NumUpdateLinearSystemRules;
+		}
+		else
+		{
+			XAnisoSpringConstraints = MakeShared<Softs::FXPBDAnisotropicSpringConstraints>(
+				PBDEvolution->Particles(),
+				ParticleOffset,
+				NumParticles,
+				TriangleMesh,
+				PatternData->WeldedFaceVertexPatternPositions,
+				WeightMaps,
+				ConfigProperties,
+				/*bTrimKinematicConstraints =*/ true);
+		}
+
+		++NumConstraintInits;  // Uses init to update the property tables
+		++NumConstraintRules;
+		++NumConstraintRules; // 2X because edge and axial spring applies are split
+	}
 }
 
 void FClothConstraints::CreateBendingConstraints(
@@ -1178,83 +1436,28 @@ void FClothConstraints::CreateCollisionConstraint(
 
 void FClothConstraints::CreateForceBasedRules()
 {
-	Evolution->AllocatePreSubstepParallelInitRange(ParticleRangeId, NumPreSubstepInits);
-	Evolution->AllocatePBDExternalForceRulesRange(ParticleRangeId, NumExternalForceRules);
-	Evolution->AllocatePostInitialGuessParallelInitRange(ParticleRangeId, NumConstraintInits);
-	Evolution->AllocatePreSubstepConstraintRulesRange(ParticleRangeId, NumPreSubstepConstraintRules);
-	Evolution->AllocatePerIterationPBDConstraintRulesRange(ParticleRangeId, NumConstraintRules);
-	Evolution->AllocatePerIterationCollisionPBDConstraintRulesRange(ParticleRangeId, NumCollisionConstraintRules);
-	Evolution->AllocatePerIterationPostCollisionsPBDConstraintRulesRange(ParticleRangeId, NumPostCollisionConstraintRules);
-	Evolution->AllocateUpdateLinearSystemRulesRange(ParticleRangeId, NumUpdateLinearSystemRules);
-	Evolution->AllocateUpdateLinearSystemCollisionsRulesRange(ParticleRangeId, NumUpdateLinearSystemCollisionsRules);
-	Evolution->AllocatePostSubstepConstraintRulesRange(ParticleRangeId, NumPostprocessingConstraintRules);
-
-	TArrayView<Softs::FEvolution::ParallelInitFunc> PreSubstepParallelInits =
-		Evolution->GetPreSubstepParallelInitRange(ParticleRangeId);
-	TArrayView<Softs::FEvolution::PBDConstraintRuleFunc> ExternalForceRules =
-		Evolution->GetPBDExternalForceRulesRange(ParticleRangeId);
-	TArrayView<Softs::FEvolution::ParallelInitFunc> PostInitialGuessParallelInits =
-		Evolution->GetPostInitialGuessParallelInitRange(ParticleRangeId);
-	TArrayView<Softs::FEvolution::ConstraintRuleFunc> PreSubstepConstraintRules =
-		Evolution->GetPreSubstepConstraintRulesRange(ParticleRangeId);
-	TArrayView<Softs::FEvolution::PBDConstraintRuleFunc> PerIterationConstraintRules =
-		Evolution->GetPerIterationPBDConstraintRulesRange(ParticleRangeId);
-	TArrayView<Softs::FEvolution::PBDCollisionConstraintRuleFunc> PerIterationCollisionConstraintRules =
-		Evolution->GetPerIterationCollisionPBDConstraintRulesRange(ParticleRangeId);
-	TArrayView<Softs::FEvolution::PBDConstraintRuleFunc> PerIterationPostCollisionsConstraintRules =
-		Evolution->GetPerIterationPostCollisionsPBDConstraintRulesRange(ParticleRangeId);
-	TArrayView<Softs::FEvolution::UpdateLinearSystemFunc> UpdateLinearSystemRules =
-		Evolution->GetUpdateLinearSystemRulesRange(ParticleRangeId);
-	TArrayView<Softs::FEvolution::UpdateLinearSystemCollisionsFunc> UpdateLinearSystemCollisionsRules =
-		Evolution->GetUpdateLinearSystemCollisionsRulesRange(ParticleRangeId);
-	TArrayView<Softs::FEvolution::ConstraintRuleFunc> PostSubstepConstraintRules =
-		Evolution->GetPostSubstepConstraintRulesRange(ParticleRangeId);
-
-	int32 PreSubstepInitsIndex = 0;
-	int32 ExternalForceRulesIndex = 0;
-	int32 PostInitialGuessInitsIndex = 0;
-	int32 PreSubstepConstraintRulesIndex = 0;
-	int32 ConstraintRuleIndex = 0;
-	int32 CollisionConstraintRulesIndex = 0;
-	int32 PostCollisionConstraintRulesIndex = 0;
-	int32 UpdateLinearSystemRulesIndex = 0;
-	int32 UpdateLinearSystemCollisionsRulesIndex = 0;
-	int32 PostprocessingConstraintRulesIndex = 0;
+	FRuleCreator RuleCreator(this);
 
 	if (ExternalForces)
 	{
-		ExternalForceRules[ExternalForceRulesIndex++] =
-			[this](Softs::FSolverParticlesRange& Particles, const Softs::FSolverReal Dt)
-		{
-			ExternalForces->Apply(Particles, Dt);
-		};
-		UpdateLinearSystemRules[UpdateLinearSystemRulesIndex++] =
-			[this](const Softs::FSolverParticlesRange& Particles, const FSolverReal Dt, Softs::FEvolutionLinearSystem& LinearSystem)
-		{
-			ExternalForces->UpdateLinearSystem(Particles, Dt, LinearSystem);
-		};
+		RuleCreator.AddExternalForceRule_Apply(ExternalForces.Get());
+		RuleCreator.AddUpdateLinearSystemRule_UpdateLinearSystem(ExternalForces.Get());
 	}
-
 	if (VelocityAndPressureField)
 	{
-		PreSubstepParallelInits[PreSubstepInitsIndex++] =
+		RuleCreator.PreSubstepParallelInitRule(
 			[this](const Softs::FSolverParticlesRange& Particles, const Softs::FSolverReal Dt, const Softs::ESolverMode SolverMode)
 		{
 			VelocityAndPressureField->UpdateForces(Particles, Dt);
-		};
-
-		ExternalForceRules[ExternalForceRulesIndex++] =
-			[this](Softs::FSolverParticlesRange& Particles, const Softs::FSolverReal Dt)
-		{
-			VelocityAndPressureField->Apply(Particles, Dt);
-		};
+		});
+		RuleCreator.AddExternalForceRule_Apply(VelocityAndPressureField.Get());
 
 		// TODO Linear System
 	}
 
 	if (PerSolverField)
 	{
-		ExternalForceRules[ExternalForceRulesIndex++] =
+		RuleCreator.AddExternalForceRule(
 			[this](Softs::FSolverParticlesRange& Particles, const Softs::FSolverReal Dt)
 		{
 			const TArray<FVector>& LinearVelocities = PerSolverField->GetOutputResults(EFieldCommandOutputType::LinearVelocity);
@@ -1284,173 +1487,155 @@ void FClothConstraints::CreateForceBasedRules()
 					}
 				}
 			}
-		};
+		});
 
 		// TODO: Linear System
 	}
 
-#define UE_CHAOS_XPBD_INIT_VOID(Constraint)\
-	PostInitialGuessParallelInits[PostInitialGuessInitsIndex++] = \
-		[this](const Softs::FSolverParticlesRange& /*Particles*/, const Softs::FSolverReal Dt, const Softs::ESolverMode SolverMode)\
-	{\
-		Constraint->ApplyProperties(Dt, Evolution->GetIterations()); \
-		if ((SolverMode & Softs::ESolverMode::PBD) != Softs::ESolverMode::None)\
-		{\
-			Constraint->Init(); \
-		}\
-	};
-#define UE_CHAOS_XPBD_INIT_PARTICLES(Constraint)\
-	PostInitialGuessParallelInits[PostInitialGuessInitsIndex++] = \
-		[this](const Softs::FSolverParticlesRange& Particles, const Softs::FSolverReal Dt, const Softs::ESolverMode SolverMode)\
-	{\
-		Constraint->ApplyProperties(Dt, Evolution->GetIterations()); \
-		if ((SolverMode & Softs::ESolverMode::PBD) != Softs::ESolverMode::None)\
-		{\
-			Constraint->Init(Particles); \
-		}\
-	};
-#define UE_CHAOS_PBD_INIT(Constraint)\
-	PostInitialGuessParallelInits[PostInitialGuessInitsIndex++] = \
-		[this](const Softs::FSolverParticlesRange& /*Particles*/, const Softs::FSolverReal Dt, const Softs::ESolverMode SolverMode)\
-	{\
-		if ((SolverMode & Softs::ESolverMode::PBD) != Softs::ESolverMode::None)\
-		{\
-			Constraint->ApplyProperties(Dt, Evolution->GetIterations()); \
-		}\
-	};
-#define UE_CHAOS_APPLY_CONSTRAINT(Constraint)\
-	PerIterationConstraintRules[ConstraintRuleIndex++] = \
-		[this](Softs::FSolverParticlesRange& Particles, const Softs::FSolverReal Dt)\
-	{\
-		Constraint->Apply(Particles, Dt); \
-	}; 
-#define UE_CHAOS_UPDATE_LINEAR_SYSTEM(Constraint)\
-	UpdateLinearSystemRules[UpdateLinearSystemRulesIndex++] =\
-		[this](const Softs::FSolverParticlesRange& Particles, const FSolverReal Dt, Softs::FEvolutionLinearSystem& LinearSystem)\
-	{\
-		Constraint->UpdateLinearSystem(Particles, Dt, LinearSystem);\
-	};
-
-#define UE_CHAOS_ADD_XPBD_CONSTRAINT_NO_LINEAR_SYSTEM(Constraint) \
-	if (Constraint)\
-	{\
-		UE_CHAOS_XPBD_INIT_VOID(Constraint)\
-		UE_CHAOS_APPLY_CONSTRAINT(Constraint)\
+	if (XStretchBiasConstraints)
+	{
+		constexpr bool bInitParticles = false;
+		RuleCreator.AddXPBDParallelInitRule<bInitParticles>(XStretchBiasConstraints.Get());
+		constexpr bool bPostCollisions = false;
+		RuleCreator.AddPerIterationPBDConstraintRule_Apply<bPostCollisions>(XStretchBiasConstraints.Get());
+	}
+	if (XEdgeConstraints)
+	{
+		constexpr bool bInitParticles = false;
+		RuleCreator.AddXPBDParallelInitRule<bInitParticles>(XEdgeConstraints.Get());
+		constexpr bool bPostCollisions = false;
+		RuleCreator.AddPerIterationPBDConstraintRule_Apply<bPostCollisions>(XEdgeConstraints.Get());
+		RuleCreator.AddUpdateLinearSystemRule_UpdateLinearSystem(XEdgeConstraints.Get());
+	}
+	if (EdgeConstraints)
+	{
+		RuleCreator.AddPBDParallelInitRule(EdgeConstraints.Get());
+		constexpr bool bPostCollisions = false;
+		RuleCreator.AddPerIterationPBDConstraintRule_Apply<bPostCollisions>(EdgeConstraints.Get());
+	}
+	if (XAnisoSpringConstraints)
+	{
+		constexpr bool bInitParticles = false;
+		RuleCreator.AddXPBDParallelInitRule<bInitParticles>(XAnisoSpringConstraints.Get());
+		constexpr bool bPostCollisions = false;
+		RuleCreator.AddPerIterationPBDConstraintRule_Apply<bPostCollisions>(&XAnisoSpringConstraints->GetEdgeConstraints());
+		RuleCreator.AddUpdateLinearSystemRule(
+			[this](const Softs::FSolverParticlesRange& Particles, const FSolverReal Dt, Softs::FEvolutionLinearSystem& LinearSystem)
+		{
+			XAnisoSpringConstraints->GetEdgeConstraints().UpdateLinearSystem(Particles, Dt, LinearSystem);
+			XAnisoSpringConstraints->GetAxialConstraints().UpdateLinearSystem(Particles, Dt, LinearSystem);
+		});
 	}
 
-#define UE_CHAOS_ADD_XPBD_CONSTRAINT_INIT_PARTICLES_NO_LINEAR_SYSTEM(Constraint) \
-	if (Constraint)\
-	{\
-		UE_CHAOS_XPBD_INIT_PARTICLES(Constraint)\
-		UE_CHAOS_APPLY_CONSTRAINT(Constraint)\
+	if (XBendingConstraints)
+	{
+		constexpr bool bInitParticles = false;
+		RuleCreator.AddXPBDParallelInitRule<bInitParticles>(XBendingConstraints.Get());
+		constexpr bool bPostCollisions = false;
+		RuleCreator.AddPerIterationPBDConstraintRule_Apply<bPostCollisions>(XBendingConstraints.Get());
+		RuleCreator.AddUpdateLinearSystemRule_UpdateLinearSystem(XBendingConstraints.Get());
 	}
-
-#define UE_CHAOS_ADD_XPBD_CONSTRAINT(Constraint) \
-	if (Constraint)\
-	{\
-		UE_CHAOS_XPBD_INIT_VOID(Constraint)\
-		UE_CHAOS_APPLY_CONSTRAINT(Constraint)\
-		UE_CHAOS_UPDATE_LINEAR_SYSTEM(Constraint)\
+	if (BendingConstraints)
+	{
+		RuleCreator.AddPBDParallelInitRule(BendingConstraints.Get());
+		constexpr bool bPostCollisions = false;
+		RuleCreator.AddPerIterationPBDConstraintRule_Apply<bPostCollisions>(BendingConstraints.Get());
 	}
-
-#define UE_CHAOS_ADD_PBD_CONSTRAINT(Constraint) \
-	if (Constraint)\
-	{\
-		UE_CHAOS_PBD_INIT(Constraint)\
-		UE_CHAOS_APPLY_CONSTRAINT(Constraint)\
+	if (BendingElementConstraints)
+	{
+		RuleCreator.AddPBDParallelInitRule(BendingElementConstraints.Get());
+		constexpr bool bPostCollisions = false;
+		RuleCreator.AddPerIterationPBDConstraintRule_Apply<bPostCollisions>(BendingElementConstraints.Get());
 	}
-
-#define UE_CHAOS_ADD_PBD_CONSTRAINT_NO_PROPERTIES(Constraint) \
-	if (Constraint)\
-	{\
-		UE_CHAOS_APPLY_CONSTRAINT(Constraint)\
+	if (XBendingElementConstraints)
+	{
+		constexpr bool bInitParticles = true;
+		RuleCreator.AddXPBDParallelInitRule<bInitParticles>(XBendingElementConstraints.Get());
+		constexpr bool bPostCollisions = false;
+		RuleCreator.AddPerIterationPBDConstraintRule_Apply<bPostCollisions>(XBendingElementConstraints.Get());
 	}
-	
-	UE_CHAOS_ADD_XPBD_CONSTRAINT_NO_LINEAR_SYSTEM(XStretchBiasConstraints);
-	UE_CHAOS_ADD_XPBD_CONSTRAINT(XEdgeConstraints);
-	UE_CHAOS_ADD_PBD_CONSTRAINT(EdgeConstraints);
-	UE_CHAOS_ADD_XPBD_CONSTRAINT(XBendingConstraints);
-	UE_CHAOS_ADD_PBD_CONSTRAINT(BendingConstraints);
-	UE_CHAOS_ADD_PBD_CONSTRAINT(BendingElementConstraints);
-	UE_CHAOS_ADD_XPBD_CONSTRAINT_INIT_PARTICLES_NO_LINEAR_SYSTEM(XBendingElementConstraints);
-	UE_CHAOS_ADD_XPBD_CONSTRAINT_INIT_PARTICLES_NO_LINEAR_SYSTEM(XAnisoBendingElementConstraints);
-	UE_CHAOS_ADD_XPBD_CONSTRAINT_NO_LINEAR_SYSTEM(XAreaConstraints);
-	UE_CHAOS_ADD_PBD_CONSTRAINT(AreaConstraints);
-	UE_CHAOS_ADD_PBD_CONSTRAINT_NO_PROPERTIES(MaximumDistanceConstraints);
-	UE_CHAOS_ADD_PBD_CONSTRAINT_NO_PROPERTIES(BackstopConstraints);
-	UE_CHAOS_ADD_PBD_CONSTRAINT(AnimDriveConstraints);
-
-#undef UE_CHAOS_ADD_PBD_CONSTRAINT_NO_PROPERTIES
-#undef UE_CHAOS_ADD_PBD_CONSTRAINT
-#undef UE_CHAOS_ADD_XPBD_CONSTRAINT
-#undef UE_CHAOS_ADD_XPBD_CONSTRAINT_INIT_PARTICLES_NO_LINEAR_SYSTEM
-#undef UE_CHAOS_ADD_XPBD_CONSTRAINT_NO_LINEAR_SYSTEM
-#undef UE_CHAOS_UPDATE_LINEAR_SYSTEM
-#undef UE_CHAOS_APPLY_CONSTRAINT
-#undef UE_CHAOS_PBD_INIT
-#undef UE_CHAOS_XPBD_INIT_PARTICLES
-#undef UE_CHAOS_XPBD_INIT_VOID
+	if (XAnisoBendingElementConstraints)
+	{
+		constexpr bool bInitParticles = true;
+		RuleCreator.AddXPBDParallelInitRule<bInitParticles>(XAnisoBendingElementConstraints.Get());
+		constexpr bool bPostCollisions = false;
+		RuleCreator.AddPerIterationPBDConstraintRule_Apply<bPostCollisions>(XAnisoBendingElementConstraints.Get());
+	}
+	if (XAreaConstraints)
+	{
+		constexpr bool bInitParticles = false;
+		RuleCreator.AddXPBDParallelInitRule<bInitParticles>(XAreaConstraints.Get());
+		constexpr bool bPostCollisions = false;
+		RuleCreator.AddPerIterationPBDConstraintRule_Apply<bPostCollisions>(XAreaConstraints.Get());
+	}
+	if (AreaConstraints)
+	{
+		RuleCreator.AddPBDParallelInitRule(AreaConstraints.Get());
+		constexpr bool bPostCollisions = false;
+		RuleCreator.AddPerIterationPBDConstraintRule_Apply<bPostCollisions>(AreaConstraints.Get());
+	}
+	if (XAnisoSpringConstraints)
+	{
+		constexpr bool bPostCollisions = false;
+		RuleCreator.AddPerIterationPBDConstraintRule_Apply<bPostCollisions>(&XAnisoSpringConstraints->GetAxialConstraints());
+	}
+	if (MaximumDistanceConstraints)
+	{
+		constexpr bool bPostCollisions = false;
+		RuleCreator.AddPerIterationPBDConstraintRule_Apply<bPostCollisions>(MaximumDistanceConstraints.Get());
+	}
+	if (BackstopConstraints)
+	{
+		constexpr bool bPostCollisions = false;
+		RuleCreator.AddPerIterationPBDConstraintRule_Apply<bPostCollisions>(BackstopConstraints.Get());
+	}
+	if (AnimDriveConstraints)
+	{
+		RuleCreator.AddPBDParallelInitRule(AnimDriveConstraints.Get());
+		constexpr bool bPostCollisions = false;
+		RuleCreator.AddPerIterationPBDConstraintRule_Apply<bPostCollisions>(AnimDriveConstraints.Get());
+	}
 
 	if (CollisionConstraint)
 	{
-		PerIterationCollisionConstraintRules[CollisionConstraintRulesIndex++] =
-			[this](Softs::FSolverParticlesRange& Particles, const Softs::FSolverReal Dt, const TArray<Softs::FSolverCollisionParticlesRange>& CollisionParticles)
-		{
-			CollisionConstraint->Apply(Particles, Dt, CollisionParticles);
-		};
-
-		UpdateLinearSystemCollisionsRules[UpdateLinearSystemCollisionsRulesIndex++] =
-			[this](const Softs::FSolverParticlesRange& Particles, const Softs::FSolverReal Dt, const TArray<Softs::FSolverCollisionParticlesRange>& CollisionParticles, Softs::FEvolutionLinearSystem& LinearSystem)
-		{
-			CollisionConstraint->UpdateLinearSystem(Particles, Dt, CollisionParticles, LinearSystem);
-		};
+		RuleCreator.AddPerIterationCollisionPBDConstraintRule_Apply(CollisionConstraint.Get());
+		RuleCreator.AddUpdateLinearSystemCollisionsRule_UpdateLinearSystem(CollisionConstraint.Get());
 	}
 	if (SelfCollisionInit && SelfCollisionConstraints)
 	{
-		PostInitialGuessParallelInits[PostInitialGuessInitsIndex++] =
+		RuleCreator.AddPostInitialGuessParallelInitRule(
 			[this](const Softs::FSolverParticlesRange& Particles, const Softs::FSolverReal Dt, const Softs::ESolverMode SolverMode)
 		{
 			// Thickness * 2 to account for collision radius for both particles
 			SelfCollisionInit->Init(Particles, SelfCollisionConstraints->GetThickness() * (Softs::FSolverReal)2.f);
 			SelfCollisionConstraints->Init(Particles, SelfCollisionInit->GetSpatialHash(), SelfCollisionInit->GetVertexGIAColors(), SelfCollisionInit->GetTriangleGIAColors());
-		};
+		});
 
-		PerIterationPostCollisionsConstraintRules[PostCollisionConstraintRulesIndex++] =
-			[this](Softs::FSolverParticlesRange& Particles, const Softs::FSolverReal Dt)
-		{
-			SelfCollisionConstraints->Apply(Particles, Dt);
-		};
-
-		UpdateLinearSystemRules[UpdateLinearSystemRulesIndex++] =
-			[this](const Softs::FSolverParticlesRange& Particles, const FSolverReal Dt, Softs::FEvolutionLinearSystem& LinearSystem)
-		{
-			SelfCollisionConstraints->UpdateLinearSystem(Particles, Dt, LinearSystem);
-		};
+		constexpr bool bPostCollisions = true;
+		RuleCreator.AddPerIterationPBDConstraintRule_Apply<bPostCollisions>(SelfCollisionConstraints.Get());
+		RuleCreator.AddUpdateLinearSystemRule_UpdateLinearSystem(SelfCollisionConstraints.Get());
 	}
 	if (SelfCollisionSphereConstraints)
 	{
-		PostInitialGuessParallelInits[PostInitialGuessInitsIndex++] =
+		RuleCreator.AddPostInitialGuessParallelInitRule(
 			[this](const Softs::FSolverParticlesRange& Particles, const Softs::FSolverReal Dt, const Softs::ESolverMode SolverMode)
 		{
 			SelfCollisionSphereConstraints->Init(Particles);
-		};
+		});
 
-		PerIterationPostCollisionsConstraintRules[PostCollisionConstraintRulesIndex++] =
-			[this](Softs::FSolverParticlesRange& Particles, const Softs::FSolverReal Dt)
-		{
-			SelfCollisionSphereConstraints->Apply(Particles, Dt);
-		};
+		constexpr bool bPostCollisions = true;
+		RuleCreator.AddPerIterationPBDConstraintRule_Apply<bPostCollisions>(SelfCollisionSphereConstraints.Get());
 	}
 
 	if (SelfCollisionInit && SelfIntersectionConstraints)
 	{
-		PreSubstepConstraintRules[PreSubstepConstraintRulesIndex++] =
+		RuleCreator.AddPreSubstepConstraintRule(
 			[this](Softs::FSolverParticlesRange& Particles, const Softs::FSolverReal Dt, const Softs::ESolverMode SolverMode)
 		{
 			SelfIntersectionConstraints->Apply(Particles, SelfCollisionInit->GetContourMinimizationIntersections(), Dt);
-		};
+		});
 
-		PostSubstepConstraintRules[PostprocessingConstraintRulesIndex++] =
+		RuleCreator.AddPostSubstepConstraintRule(
 			[this](Softs::FSolverParticlesRange& Particles, const Softs::FSolverReal Dt, const Softs::ESolverMode SolverMode)
 		{
 			const int32 NumContourIterations = SelfCollisionInit->GetNumContourMinimizationPostSteps();
@@ -1459,11 +1644,11 @@ void FClothConstraints::CreateForceBasedRules()
 				SelfCollisionInit->PostStepInit(Particles);
 				SelfIntersectionConstraints->Apply(Particles, SelfCollisionInit->GetPostStepContourMinimizationIntersections(), Dt);
 			}
-		};
+		});
 	}
 	if (LongRangeConstraints)
 	{
-		PreSubstepConstraintRules[PreSubstepConstraintRulesIndex++] =
+		RuleCreator.AddPreSubstepConstraintRule(
 			[this](Softs::FSolverParticlesRange& Particles, const Softs::FSolverReal Dt, const Softs::ESolverMode SolverMode)
 		{
 			if ((SolverMode & Softs::ESolverMode::PBD) != Softs::ESolverMode::None)
@@ -1473,19 +1658,8 @@ void FClothConstraints::CreateForceBasedRules()
 				LongRangeConstraints->ApplyProperties(Dt, NumLRAIterations);
 				LongRangeConstraints->Apply(Particles, Dt);  // Run the LRA constraint only once per timestep
 			}
-		};
+		});
 	}
-
-	check(PreSubstepInitsIndex == NumPreSubstepInits);
-	check(ExternalForceRulesIndex == NumExternalForceRules);
-	check(PostInitialGuessInitsIndex == NumConstraintInits)
-	check(PreSubstepConstraintRulesIndex == NumPreSubstepConstraintRules);
-	check(ConstraintRuleIndex == NumConstraintRules);
-	check(CollisionConstraintRulesIndex == NumCollisionConstraintRules);
-	check(PostCollisionConstraintRulesIndex == NumPostCollisionConstraintRules);
-	check(UpdateLinearSystemRulesIndex == NumUpdateLinearSystemRules);
-	check(UpdateLinearSystemCollisionsRulesIndex == NumUpdateLinearSystemCollisionsRules);
-	check(PostprocessingConstraintRulesIndex == NumPostprocessingConstraintRules);
 }
 
 
@@ -1660,6 +1834,20 @@ void FClothConstraints::CreatePBDRules()
 				EdgeConstraints->Apply(Particles, Dt);
 			};
 	}
+	if (XAnisoSpringConstraints)
+	{
+		ConstraintInits[ConstraintInitIndex++] =
+			[this](Softs::FSolverParticles& /*Particles*/, const Softs::FSolverReal Dt)
+		{
+			XAnisoSpringConstraints->Init();
+			XAnisoSpringConstraints->ApplyProperties(Dt, PBDEvolution->GetIterations());
+		};
+		ConstraintRules[ConstraintRuleIndex++] =
+			[this](Softs::FSolverParticles& Particles, const Softs::FSolverReal Dt)
+		{
+			XAnisoSpringConstraints->GetEdgeConstraints().Apply(Particles, Dt);
+		};
+	}
 	if (XBendingConstraints)
 	{
 		ConstraintInits[ConstraintInitIndex++] =
@@ -1755,6 +1943,14 @@ void FClothConstraints::CreatePBDRules()
 			{
 				AreaConstraints->Apply(Particles, Dt);
 			};
+	}
+	if (XAnisoSpringConstraints)
+	{
+		ConstraintRules[ConstraintRuleIndex++] =
+			[this](Softs::FSolverParticles& Particles, const Softs::FSolverReal Dt)
+		{
+			XAnisoSpringConstraints->GetAxialConstraints().Apply(Particles, Dt);
+		};
 	}
 	if (MaximumDistanceConstraints)
 	{
@@ -1902,6 +2098,10 @@ void FClothConstraints::Update(
 	if (XStretchBiasConstraints)
 	{
 		XStretchBiasConstraints->SetProperties(ConfigProperties, WeightMaps);
+	}
+	if (XAnisoSpringConstraints)
+	{
+		XAnisoSpringConstraints->SetProperties(ConfigProperties, WeightMaps);
 	}
 	if (BendingConstraints)
 	{

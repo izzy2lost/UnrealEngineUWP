@@ -26,7 +26,7 @@ FAutoConsoleVariableRef CVarChaosXPBDSpringISPCEnabled(TEXT("p.Chaos.XPBDSpring.
 namespace Chaos::Softs {
 
 // @todo(chaos): the parallel threshold (or decision to run parallel) should probably be owned by the solver and passed to the constraint container
-static int32 Chaos_XPBDSpring_ParallelConstraintCount = 100;
+int32 Chaos_XPBDSpring_ParallelConstraintCount = 100;
 #if !UE_BUILD_SHIPPING
 FAutoConsoleVariableRef CVarChaosXPBDSpringParallelConstraintCount(TEXT("p.Chaos.XPBDSpring.ParallelConstraintCount"), Chaos_XPBDSpring_ParallelConstraintCount, TEXT("If we have more constraints than this, use parallel-for in Apply."));
 #endif

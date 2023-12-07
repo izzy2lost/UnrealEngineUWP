@@ -78,6 +78,9 @@ public:
 
 	void ApplyProperties(const FSolverReal Dt, const int32 NumIterations) { Stiffness.ApplyPBDValues(Dt, NumIterations); }
 
+	const TArray<TVec3<int32>>& GetConstraints() const { return Constraints; }
+	const TArray<FSolverReal>& GetBarys() const { return Barys; }
+
 protected:
 	template<typename SolverParticlesOrRange>
 	inline FSolverVec3 GetDelta(const SolverParticlesOrRange& Particles, const int32 ConstraintIndex, const FSolverReal ExpStiffnessValue) const
