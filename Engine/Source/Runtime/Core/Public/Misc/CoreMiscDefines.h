@@ -278,6 +278,12 @@ enum EInPlace {InPlace};
 	#define UE_DEPRECATED_FORGAME(...)
 #endif
 
+#if UE_VALIDATE_INTERNAL_API
+	#define UE_INTERNAL [[deprecated("Please remove usage of this internal API before upgrading to the next release, otherwise your project will no longer compile.")]]
+#else
+	#define UE_INTERNAL
+#endif
+
 /*
  * Macro that can be defined in the target file to strip deprecated properties in objects across the engine that check against this define.
  * Can be used by project that have migrated away from using deprecated functions and data members to potentially gain back some memory and perf.

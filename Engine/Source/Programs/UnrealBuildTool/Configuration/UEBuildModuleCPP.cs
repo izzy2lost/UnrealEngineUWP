@@ -1052,6 +1052,7 @@ namespace UnrealBuildTool
 			{
 				if (Definition.Contains("UE_IS_ENGINE_MODULE") ||
 					Definition.Contains("UE_VALIDATE_FORMAT_STRINGS") ||
+					Definition.Contains("UE_VALIDATE_INTERNAL_API") ||
 					Definition.Contains("DEPRECATED_FORGAME") ||
 					Definition.Contains("UE_DEPRECATED_FORGAME") ||
 					Definition.Contains("UE_ENABLE_INCLUDE_ORDER_DEPRECATED_IN_"))
@@ -1132,6 +1133,14 @@ namespace UnrealBuildTool
 					Definitions = new List<string>(Definitions);
 					Definitions.RemoveAll(x => x.Contains("UE_VALIDATE_FORMAT_STRINGS", StringComparison.Ordinal));
 					Definitions.Add($"UE_VALIDATE_FORMAT_STRINGS={(ModuleCompileEnvironment.bValidateFormatStrings ? "1" : "0")}");
+				}
+
+				// Modify definitions if we need to create a new shared pch for validating internal api usage
+				if (ModuleCompileEnvironment.bValidateInternalApi != Template.BaseCompileEnvironment.bValidateInternalApi)
+				{
+					Definitions = new List<string>(Definitions);
+					Definitions.RemoveAll(x => x.Contains("UE_VALIDATE_INTERNAL_API", StringComparison.Ordinal));
+					Definitions.Add($"UE_VALIDATE_INTERNAL_API={(ModuleCompileEnvironment.bValidateInternalApi ? "1" : "0")}");
 				}
 
 				// Create a suffix to distinguish this shared PCH variant from any others. Currently only optimized and non-optimized shared PCHs are supported.
@@ -1257,6 +1266,11 @@ namespace UnrealBuildTool
 			{
 				return false;
 			}
+
+			if (ModuleCompileEnvironment.bValidateInternalApi != CompileEnvironment.bValidateInternalApi)
+			{
+				return false;
+			}
 			return true;
 		}
 
@@ -1314,6 +1328,18 @@ namespace UnrealBuildTool
 				}
 			}
 
+			if (CompileEnvironment.bValidateInternalApi != BaseCompileEnvironment.bValidateInternalApi)
+			{
+				if (CompileEnvironment.bValidateInternalApi)
+				{
+					Variant += ".ValApi";
+				}
+				else
+				{
+					Variant += ".NoValApi";
+				}
+			}
+
 			if (CompileEnvironment.bDeterministic != BaseCompileEnvironment.bDeterministic)
 			{
 				if (CompileEnvironment.bDeterministic)
@@ -1363,6 +1389,7 @@ namespace UnrealBuildTool
 			CompileEnvironment.bUseAutoRTFMCompiler = ModuleCompileEnvironment.bUseAutoRTFMCompiler;
 			CompileEnvironment.bAllowAutoRTFMInstrumentation = ModuleCompileEnvironment.bAllowAutoRTFMInstrumentation;
 			CompileEnvironment.bValidateFormatStrings = ModuleCompileEnvironment.bValidateFormatStrings;
+			CompileEnvironment.bValidateInternalApi = ModuleCompileEnvironment.bValidateInternalApi;
 		}
 
 		/// <summary>
@@ -1611,6 +1638,10 @@ namespace UnrealBuildTool
 								{
 									Writer.AppendLine("#undef " + DeprecationDefine);
 								}
+							}
+							if (Rules.bValidateInternalApi)
+							{
+								Writer.AppendLine("#undef UE_VALIDATE_INTERNAL_API");
 							}
 
 							// Only add new definitions that are not already existing in the shared pch
@@ -1990,6 +2021,7 @@ namespace UnrealBuildTool
 			Result.IncludeOrderVersion = Rules.IncludeOrderVersion;
 			Result.DeterministicWarningLevel = Rules.DeterministicWarningLevel;
 			Result.bValidateFormatStrings = Rules.bValidateFormatStrings;
+			Result.bValidateInternalApi = Rules.bValidateInternalApi;
 			Result.bUseAutoRTFMCompiler = Target.bUseAutoRTFMCompiler;
 
 			CompileEnvironmentDebugInfoSettings(Target, Result);
@@ -2082,6 +2114,7 @@ namespace UnrealBuildTool
 			}
 
 			Result.Definitions.Add($"UE_VALIDATE_FORMAT_STRINGS={(Rules.bValidateFormatStrings ? "1" : "0")}");
+			Result.Definitions.Add($"UE_VALIDATE_INTERNAL_API={(Rules.bValidateInternalApi ? "1" : "0")}");
 
 			Result.Definitions.AddRange(EngineIncludeOrderHelper.GetDeprecationDefines(Rules.IncludeOrderVersion));
 
@@ -2130,6 +2163,7 @@ namespace UnrealBuildTool
 			CompileEnvironment.bOptimizeCode = ShouldEnableOptimization(ModuleRules.CodeOptimization.Default, Target.Configuration, Rules.bTreatAsEngineModule, Rules.bCodeCoverage);
 			CompileEnvironment.bCodeCoverage = Rules.bCodeCoverage;
 			CompileEnvironment.bValidateFormatStrings = Rules.bValidateFormatStrings;
+			CompileEnvironment.bValidateInternalApi = Rules.bValidateInternalApi;
 
 			// Override compile environment
 			CompileEnvironment.bIsBuildingDLL = !Target.ShouldCompileMonolithic();
@@ -2146,6 +2180,7 @@ namespace UnrealBuildTool
 			}
 
 			CompileEnvironment.Definitions.Add($"UE_VALIDATE_FORMAT_STRINGS={(Rules.bValidateFormatStrings ? "1" : "0")}");
+			CompileEnvironment.Definitions.Add($"UE_VALIDATE_INTERNAL_API={(Rules.bValidateInternalApi ? "1" : "0")}");
 
 			CompileEnvironment.Definitions.AddRange(EngineIncludeOrderHelper.GetDeprecationDefines(Rules.IncludeOrderVersion));
 

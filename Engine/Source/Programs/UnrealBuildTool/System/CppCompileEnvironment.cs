@@ -683,6 +683,11 @@ namespace UnrealBuildTool
 		public bool bValidateFormatStrings = true;
 
 		/// <summary>
+		/// Emits compilation errors for incorrect UE_LOG format strings.
+		/// </summary>
+		public bool bValidateInternalApi = false;
+
+		/// <summary>
 		/// Directory where to put crash report files for platforms that support it
 		/// </summary>
 		public string? CrashDiagnosticDirectory;
@@ -797,6 +802,7 @@ namespace UnrealBuildTool
 			DeterministicWarningLevel = Other.DeterministicWarningLevel;
 			CrashDiagnosticDirectory = Other.CrashDiagnosticDirectory;
 			bValidateFormatStrings = Other.bValidateFormatStrings;
+			bValidateInternalApi = Other.bValidateInternalApi;
 		}
 
 		public CppCompileEnvironment(CppCompileEnvironment Other, UnrealArch OverrideArchitecture)

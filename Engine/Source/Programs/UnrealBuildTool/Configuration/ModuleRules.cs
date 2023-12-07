@@ -796,6 +796,16 @@ namespace UnrealBuildTool
 		private bool? bValidateFormatStringsPrivate;
 
 		/// <summary>
+		/// Emits deprecated warnings\errors for internal API usage for non-engine modules 
+		/// </summary>
+		public bool bValidateInternalApi
+		{
+			get => bValidateInternalApiPrivate ?? !bTreatAsEngineModule;
+			set => bValidateInternalApiPrivate = value;
+		}
+		private bool? bValidateInternalApiPrivate;
+
+		/// <summary>
 		/// Which engine version's build settings to use by default. 
 		/// </summary>
 		public BuildSettingsVersion DefaultBuildSettings
