@@ -225,7 +225,7 @@ public:
 			//InViewFamily.EngineShowFlags.SetEyeAdaptation(false);
 			//InViewFamily.EngineShowFlags.SetTonemapper(false);
 		}
-		}
+	}
 
 	virtual void BeginRenderViewFamily(FSceneViewFamily& InViewFamily) {}
 	virtual void PreRenderViewFamily_RenderThread(FRDGBuilder& GraphBuilder, FSceneViewFamily& InViewFamily) {}
@@ -275,18 +275,16 @@ void FAutomationTestScreenshotEnvSetup::Setup(UWorld* InWorld, FAutomationScreen
 		ContactShadows.Set(0);
 		EyeAdaptationQuality.Set(0);
 		TonemapperGamma.Set(2.2f);
-		//TonemapperSharpen.Set(0);
 	}
 	else if (InOutOptions.bDisableTonemapping)
 	{
 		EyeAdaptationQuality.Set(0);
 		TonemapperGamma.Set(2.2f);
-		//TonemapperSharpen.Set(0);
 	}
 
 	// Forces ScreenPercentage=100
 	{
-		// Completly disable dynamic resolution
+		// Completely disable dynamic resolution
 		{
 			DynamicResTestScreenPercentage.Set(0);
 			DynamicResOperationMode.Set(0);
