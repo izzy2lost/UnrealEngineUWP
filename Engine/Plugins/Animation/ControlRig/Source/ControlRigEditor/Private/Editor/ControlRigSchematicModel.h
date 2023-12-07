@@ -5,6 +5,7 @@
 #include "ModularRigModel.h"
 #include "SchematicGraphPanel/SSchematicGraphPanel.h"
 #include "Rigs/RigHierarchyDefines.h"
+#include "ControlRigBlueprint.h"
 
 class FControlRigEditor;
 class UControlRig;
