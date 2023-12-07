@@ -220,7 +220,7 @@ FD3D12View::FD3D12View(FD3D12Device* InDevice, ERHIDescriptorHeapType InHeapType
 #if PLATFORM_SUPPORTS_BINDLESS_RENDERING
 	if (HeapType == ERHIDescriptorHeapType::Standard)
 	{
-		BindlessHandle = InDevice->GetBindlessDescriptorManager().Allocate(ERHIDescriptorHeapType::Standard);
+		BindlessHandle = InDevice->GetBindlessDescriptorManager().AllocateResourceHandle();
 	}
 #endif
 }
@@ -229,10 +229,9 @@ FD3D12View::~FD3D12View()
 {
 	// Unregister this view from the underlying resource
 	if (ResourceInfo.BaseResource)
+	{
 		ResourceInfo.BaseResource->RemoveRenameListener(this);
-
-	// Free the descriptor heap slot and bindless handle
-	GetParentDevice()->GetOfflineDescriptorManager(HeapType).FreeHeapSlot(OfflineCpuHandle);
+	}
 
 #if PLATFORM_SUPPORTS_BINDLESS_RENDERING
 	if (BindlessHandle.IsValid())
@@ -241,6 +240,9 @@ FD3D12View::~FD3D12View()
 		BindlessHandle = {};
 	}
 #endif
+
+	// Free the descriptor heap slot and bindless handle
+	GetParentDevice()->GetOfflineDescriptorManager(HeapType).FreeHeapSlot(OfflineCpuHandle);
 }
 
 void FD3D12View::InitializeBindlessSlot()
@@ -248,8 +250,7 @@ void FD3D12View::InitializeBindlessSlot()
 #if PLATFORM_SUPPORTS_BINDLESS_RENDERING
 	if (BindlessHandle.IsValid())
 	{
-		FD3D12BindlessDescriptorManager& BindlessManager = GetParentDevice()->GetBindlessDescriptorManager();
-		BindlessManager.UpdateDescriptorImmediately(BindlessHandle, OfflineCpuHandle);
+		GetParentDevice()->GetBindlessDescriptorManager().UpdateDescriptorImmediately(BindlessHandle, this);
 	}
 #endif
 }
@@ -260,8 +261,7 @@ void FD3D12View::UpdateBindlessSlot(FRHICommandListBase& RHICmdList)
 	if (BindlessHandle.IsValid())
 	{
 		check(BindlessHandle.GetType() == ERHIDescriptorHeapType::Standard);
-		FD3D12BindlessDescriptorManager& BindlessManager = GetParentDevice()->GetBindlessDescriptorManager();
-		BindlessManager.UpdateResourceDescriptor(RHICmdList, BindlessHandle, OfflineCpuHandle);
+		GetParentDevice()->GetBindlessDescriptorManager().UpdateDescriptor(RHICmdList, BindlessHandle, this);
 	}
 #endif
 }

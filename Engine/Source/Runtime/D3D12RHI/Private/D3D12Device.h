@@ -341,6 +341,7 @@ public:
 	// shared code for different D3D12  devices (e.g. PC DirectX12 and XboxOne) called
 	// after device creation and GRHISupportsAsyncTextureCreation was set and before resource init
 	void SetupAfterDeviceCreation();
+	void CleanupResources();
 
 private:
 	// called by SetupAfterDeviceCreation() when the device gets initialized

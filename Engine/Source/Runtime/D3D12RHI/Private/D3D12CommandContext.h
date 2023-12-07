@@ -742,10 +742,13 @@ public:
 		return StaticUniformBuffers;
 	}
 
-	void AddPendingDescriptorUpdate(FRHIDescriptorHandle InHandle, D3D12_CPU_DESCRIPTOR_HANDLE InDescriptor);
 	void FlushPendingDescriptorUpdates();
 
 	virtual void Finalize(TArray<FD3D12Payload*>& OutPayloads) override;
+
+#if PLATFORM_SUPPORTS_BINDLESS_RENDERING
+	FD3D12ContextBindlessState& GetBindlessState() { return BindlessState; }
+#endif
 
 protected:
 
@@ -772,7 +775,7 @@ private:
 	TArray<FRHIUniformBuffer*> StaticUniformBuffers;
 
 #if PLATFORM_SUPPORTS_BINDLESS_RENDERING
-	FD3D12PendingResourceDescriptorUpdates PendingDescriptorUpdates;
+	FD3D12ContextBindlessState BindlessState;
 #endif
 };
 

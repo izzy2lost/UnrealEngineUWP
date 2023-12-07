@@ -364,6 +364,9 @@ public:
 	bool SwitchToContextLocalViewHeap();
 	bool SwitchToContextLocalSamplerHeap();
 	void SwitchToGlobalSamplerHeap();
+#if PLATFORM_SUPPORTS_BINDLESS_RENDERING
+	void SwitchToNewBindlessResourceHeap(FD3D12DescriptorHeap* InHeap);
+#endif
 
 	void OverrideLastSetHeaps(ID3D12DescriptorHeap* ViewHeap, ID3D12DescriptorHeap* SamplerHeap);
 	void RestoreAfterExternalHeapsSet();
@@ -374,6 +377,28 @@ public:
 	// Sets the current descriptor tables on the command list and marks any descriptor tables as dirty if necessary.
 	// Returns true if one of the heaps actually changed, false otherwise.
 	bool SetDescriptorHeaps(bool bForceHeapChanged = false);
+
+#if PLATFORM_SUPPORTS_BINDLESS_RENDERING
+	void SetBindlessResourcesHeapDirectly(FD3D12DescriptorHeap* InHeap)
+	{
+		BindlessResourcesHeap = InHeap;
+	}
+
+	void SetBindlessSamplersHeapDirectly(FD3D12DescriptorHeap* InHeap)
+	{
+		BindlessSamplersHeap = InHeap;
+	}
+
+	FD3D12DescriptorHeap* GetBindlessResourcesHeap() const
+	{
+		return BindlessResourcesHeap;
+	}
+
+	FD3D12DescriptorHeap* GetBindlessSamplersHeap() const
+	{
+		return BindlessSamplersHeap;
+	}
+#endif
 
 protected:
 	FD3D12CommandContext& Context;
@@ -405,7 +430,7 @@ private:
 	bool bBindlessResources = false;
 	bool bBindlessSamplers = false;
 
-	FD3D12DescriptorHeap* BindlessResourcesHeap = nullptr;
-	FD3D12DescriptorHeap* BindlessSamplersHeap = nullptr;
+	FD3D12DescriptorHeapPtr BindlessResourcesHeap = nullptr;
+	FD3D12DescriptorHeapPtr BindlessSamplersHeap = nullptr;
 #endif
 };

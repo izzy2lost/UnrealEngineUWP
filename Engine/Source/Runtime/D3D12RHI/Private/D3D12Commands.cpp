@@ -78,21 +78,10 @@ static void BindUniformBuffer(FD3D12CommandContext& Context, FRHIShader* Shader,
 	Context.DirtyUniformBuffers[ShaderFrequency] |= (1 << BufferIndex);
 }
 
-void FD3D12CommandContext::AddPendingDescriptorUpdate(FRHIDescriptorHandle InHandle, D3D12_CPU_DESCRIPTOR_HANDLE InDescriptor)
-{
-#if PLATFORM_SUPPORTS_BINDLESS_RENDERING
-	PendingDescriptorUpdates.Add(InHandle, InDescriptor);
-#endif
-}
-
 void FD3D12CommandContext::FlushPendingDescriptorUpdates()
 {
 #if PLATFORM_SUPPORTS_BINDLESS_RENDERING
-	if (PendingDescriptorUpdates.Num())
-	{
-		GetParentDevice()->GetBindlessDescriptorManager().FlushPendingDescriptorUpdates(*this, GetPipeline(), PendingDescriptorUpdates);
-		PendingDescriptorUpdates.Empty();
-	}
+	GetParentDevice()->GetBindlessDescriptorManager().FlushPendingDescriptorUpdates(*this);
 #endif
 }
 
@@ -1078,6 +1067,7 @@ static void SetShaderParametersOnContext(
 				break;
 			}
 
+			checkf(Handle.IsValid(), TEXT("D3D12 resource did not provide a valid descriptor handle. Please validate that all D3D12 types can provide this or that the resource is still valid."));
 			Binder.SetBindlessHandle(Handle, Parameter.Index);
 		}
 	}

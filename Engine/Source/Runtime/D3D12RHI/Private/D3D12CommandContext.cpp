@@ -398,7 +398,9 @@ void FD3D12ContextCommon::Finalize(TArray<FD3D12Payload*>& OutPayloads)
 
 void FD3D12CommandContext::Finalize(TArray<FD3D12Payload*>& OutPayloads)
 {
-	FlushPendingDescriptorUpdates();
+#if PLATFORM_SUPPORTS_BINDLESS_RENDERING
+	GetParentDevice()->GetBindlessDescriptorManager().FinalizeContext(*this);
+#endif
 
 	FD3D12ContextCommon::Finalize(OutPayloads);
 }

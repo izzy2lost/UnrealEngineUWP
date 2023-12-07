@@ -418,6 +418,23 @@ void FD3D12Device::SetupAfterDeviceCreation()
 	ImmediateCommandContext = FD3D12DynamicRHI::GetD3DRHI()->CreateCommandContext(this, ED3D12QueueType::Direct, true);
 }
 
+void FD3D12Device::CleanupResources()
+{
+	for (FD3D12OfflineDescriptorManager& Manager : OfflineDescriptorManagers)
+	{
+		Manager.CleanupResources();
+	}
+	OnlineDescriptorManager.CleanupResources();
+
+#if PLATFORM_SUPPORTS_BINDLESS_RENDERING
+	BindlessDescriptorManager.CleanupResources();
+#endif
+
+#if D3D12_RHI_RAYTRACING
+	CleanupRayTracing();
+#endif
+}
+
 void FD3D12Device::CreateDefaultViews()
 {
 	{

@@ -958,27 +958,6 @@ FTextureRHIRef FD3D12DynamicRHI::RHICreateTexture(FRHICommandListBase& RHICmdLis
 	return CreateD3D12Texture(CreateDesc, &RHICmdList, ResourceAllocator);
 }
 
-void FD3D12DynamicRHI::RHIUpdateTextureReference(FRHICommandListBase& RHICmdList, FRHITextureReference* TextureRef, FRHITexture* InNewTexture)
-{
-	FRHITexture* NewTexture = InNewTexture ? InNewTexture : FRHITextureReference::GetDefaultTexture();
-
-#if PLATFORM_SUPPORTS_BINDLESS_RENDERING
-	if (FRHIShaderResourceView* DestinationSRVRHI = TextureRef ? TextureRef->GetBindlessView() : nullptr)
-	{
-		FD3D12ShaderResourceView* DestinationSRV = ResourceCast(DestinationSRVRHI);
-		if (DestinationSRV->IsBindless())
-		{
-			FD3D12ShaderResourceView* SourceSRV = ResourceCast(NewTexture)->GetShaderResourceView();
-
-			FD3D12BindlessDescriptorManager& BindlessDescriptorManager = DestinationSRV->GetParentDevice()->GetBindlessDescriptorManager();
-			BindlessDescriptorManager.UpdateResourceDescriptor(RHICmdList, DestinationSRV->GetBindlessHandle(), SourceSRV->GetOfflineCpuHandle());
-		}
-	}
-#endif // PLATFORM_SUPPORTS_BINDLESS_RENDERING
-
-	FDynamicRHI::RHIUpdateTextureReference(RHICmdList, TextureRef, NewTexture);
-}
-
 class FWaitInitialMipDataUploadTask
 {
 public:
@@ -2977,7 +2956,12 @@ void FD3D12CommandContext::RHICopyTexture(FRHITexture* SourceTextureRHI, FRHITex
 // FD3D12BackBufferReferenceTexture2D functions
 ///////////////////////////////////////////////////////////////////////////////////////////
 
-FRHITexture* FD3D12BackBufferReferenceTexture2D::GetBackBufferTexture()
+FRHITexture* FD3D12BackBufferReferenceTexture2D::GetBackBufferTexture() const
 {
 	return bIsSDR ? Viewport->GetSDRBackBuffer_RHIThread() : Viewport->GetBackBuffer_RHIThread();
+}
+
+FRHIDescriptorHandle FD3D12BackBufferReferenceTexture2D::GetDefaultBindlessHandle() const
+{
+	return GetBackBufferTexture()->GetDefaultBindlessHandle();
 }

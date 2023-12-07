@@ -337,10 +337,8 @@ void FD3D12ExplicitDescriptorCache::SetDescriptorHeaps(FD3D12CommandContext& Com
 	check(bBindlessViews || ViewHeap.GetParentDevice() == CommandContext.GetParentDevice());
 	check(bBindlessSamplers || SamplerHeap.GetParentDevice() == CommandContext.GetParentDevice());
 
-	FD3D12BindlessDescriptorManager& BindlessManager = GetParentDevice()->GetBindlessDescriptorManager();
-
-	ID3D12DescriptorHeap* ViewHeapToSet = bBindlessViews ? BindlessManager.GetResourceHeap(CommandContext.GetPipeline())->GetHeap() : ViewHeap.D3D12Heap;
-	ID3D12DescriptorHeap* SamplerHeapToSet = bBindlessSamplers ? BindlessManager.GetSamplerHeap()->GetHeap() : SamplerHeap.D3D12Heap;
+	ID3D12DescriptorHeap* ViewHeapToSet = bBindlessViews ? nullptr : ViewHeap.D3D12Heap;
+	ID3D12DescriptorHeap* SamplerHeapToSet = bBindlessSamplers ? nullptr : SamplerHeap.D3D12Heap;
 #else
 	check(ViewHeap.GetParentDevice() == CommandContext.GetParentDevice());
 	check(SamplerHeap.GetParentDevice() == CommandContext.GetParentDevice());

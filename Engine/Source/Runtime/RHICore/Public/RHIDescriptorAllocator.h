@@ -8,7 +8,12 @@
 enum class ERHIDescriptorHeapType : uint8;
 struct FRHIDescriptorHandle;
 
-struct FRHIDescriptorAllocatorRange;
+struct FRHIDescriptorAllocatorRange
+{
+	FRHIDescriptorAllocatorRange(uint32 InFirst, uint32 InLast) : First(InFirst), Last(InLast) {}
+	uint32 First;
+	uint32 Last;
+};
 
 class FRHIDescriptorAllocator
 {
@@ -26,7 +31,10 @@ public:
 	RHICORE_API bool Allocate(uint32 NumDescriptors, uint32& OutSlot);
 	RHICORE_API void Free(uint32 Slot, uint32 NumDescriptors);
 
-	inline uint32 GetCapacity() const { return Capacity; }
+	// Get the range of allocated descriptors. Useful for determining the smallest range to copy between heaps.
+	RHICORE_API bool GetAllocatedRange(FRHIDescriptorAllocatorRange& OutRange);
+
+	uint32 GetCapacity() const { return Capacity; }
 
 private:
 	void RecordAlloc(uint32 Count)
@@ -59,6 +67,7 @@ private:
 #endif
 };
 
+
 class FRHIHeapDescriptorAllocator : protected FRHIDescriptorAllocator
 {
 public:
@@ -70,6 +79,8 @@ public:
 
 	RHICORE_API bool Allocate(uint32 NumDescriptors, uint32& OutSlot);
 	RHICORE_API void Free(uint32 Slot, uint32 NumDescriptors);
+
+	using FRHIDescriptorAllocator::GetAllocatedRange;
 
 	using FRHIDescriptorAllocator::GetCapacity;
 	inline ERHIDescriptorHeapType GetType() const { return Type; }

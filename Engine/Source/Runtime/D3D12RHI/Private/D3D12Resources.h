@@ -785,11 +785,8 @@ struct FD3D12LockedResource : public FD3D12DeviceChild
 };
 
 /** Resource which might needs to be notified about changes on dependent resources (Views, RTGeometryObject, Cached binding tables) */
-class FD3D12ShaderResourceRenameListener
+struct FD3D12ShaderResourceRenameListener
 {
-protected:
-
-	friend class FD3D12BaseShaderResource;
 	virtual void ResourceRenamed(FRHICommandListBase& RHICmdList, FD3D12BaseShaderResource* InRenamedResource, FD3D12ResourceLocation* InNewResourceLocation) = 0;
 };
 

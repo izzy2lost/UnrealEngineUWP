@@ -907,15 +907,59 @@ uint32 FVulkanDynamicRHI::RHIComputeMemorySize(FRHITexture* TextureRHI)
 	return ResourceCast(TextureRHI)->GetMemorySize();
 }
 
+class FVulkanTextureReference : public FRHITextureReference
+{
+public:
+	FVulkanTextureReference(FRHITexture* InReferencedTexture)
+		: FRHITextureReference(InReferencedTexture)
+	{
+	}
+
+#if PLATFORM_SUPPORTS_BINDLESS_RENDERING
+	FVulkanTextureReference(FRHITexture* InReferencedTexture, FVulkanShaderResourceView* InBindlessView)
+		: FRHITextureReference(InReferencedTexture, InBindlessView->GetBindlessHandle())
+		, BindlessView(InBindlessView)
+	{
+	}
+
+	TRefCountPtr<FVulkanShaderResourceView> BindlessView;
+#endif
+};
+
+template<>
+struct TVulkanResourceTraits<FRHITextureReference>
+{
+	using TConcreteType = FVulkanTextureReference;
+};
+
+FTextureReferenceRHIRef FVulkanDynamicRHI::RHICreateTextureReference(FRHICommandListBase& RHICmdList, FRHITexture* InReferencedTexture)
+{
+	FRHITexture* ReferencedTexture = InReferencedTexture ? InReferencedTexture : FRHITextureReference::GetDefaultTexture();
+
+#if PLATFORM_SUPPORTS_BINDLESS_RENDERING
+	// If the referenced texture is configured for bindless, make sure we also create an SRV to use for bindless.
+	if (ReferencedTexture && ReferencedTexture->GetDefaultBindlessHandle().IsValid())
+	{
+		FShaderResourceViewRHIRef BindlessView = RHICmdList.CreateShaderResourceView(ReferencedTexture, 0u);
+		return new FVulkanTextureReference(ReferencedTexture, ResourceCast(BindlessView.GetReference()));
+	}
+#endif
+
+	return new FVulkanTextureReference(ReferencedTexture);
+}
+
 void FVulkanDynamicRHI::RHIUpdateTextureReference(FRHICommandListBase& RHICmdList, FRHITextureReference* TextureRef, FRHITexture* InNewTexture)
 {
+	FRHITexture* NewTexture = InNewTexture ? InNewTexture : FRHITextureReference::GetDefaultTexture();
+
+#if PLATFORM_SUPPORTS_BINDLESS_RENDERING
 	if (Device->SupportsBindless())
 	{
-		FRHITexture* NewTexture = InNewTexture ? InNewTexture : FRHITextureReference::GetDefaultTexture();
-
-		if (FRHIShaderResourceView* TextureRefSRV = TextureRef ? TextureRef->GetBindlessView() : nullptr)
+		if (TextureRef && TextureRef->IsBindless())
 		{
-			FVulkanShaderResourceView* VulkanTextureRefSRV = ResourceCast(TextureRefSRV);
+			FVulkanTextureReference* VulkanTextureReference = ResourceCast(TextureRef);
+
+			FVulkanShaderResourceView* VulkanTextureRefSRV = VulkanTextureReference->BindlessView;
 			FRHIDescriptorHandle DestHandle = VulkanTextureRefSRV->GetBindlessHandle();
 
 			if (DestHandle.IsValid())
@@ -939,10 +983,10 @@ void FVulkanDynamicRHI::RHIUpdateTextureReference(FRHICommandListBase& RHICmdLis
 					, !NewVulkanTexture->SupportsSampling());
 			}
 		}
-
 	}
+#endif // PLATFORM_SUPPORTS_BINDLESS_RENDERING
 
-	FDynamicRHI::RHIUpdateTextureReference(RHICmdList, TextureRef, InNewTexture);
+	FDynamicRHI::RHIUpdateTextureReference(RHICmdList, TextureRef, NewTexture);
 }
 
 /*-----------------------------------------------------------------------------

@@ -69,15 +69,14 @@ bool FD3D12DescriptorCache::SetDescriptorHeaps(bool bForceHeapChanged)
 	// See if the descriptor heaps changed.
 	bool bHeapChanged = bForceHeapChanged;
 
-#if PLATFORM_SUPPORTS_BINDLESS_RENDERING && DO_ENSURE
-	FD3D12BindlessDescriptorManager& BindlessDescriptorManager = GetParentDevice()->GetBindlessDescriptorManager();
+#if PLATFORM_SUPPORTS_BINDLESS_RENDERING && DO_CHECK
 	if (IsUsingBindlessResources())
 	{
-		check(BindlessResourcesHeap == BindlessDescriptorManager.GetResourceHeap(Pipeline));
+		checkf(BindlessResourcesHeap, TEXT("Bindless resource heap was not set in OpenCommandList!"));
 	}
 	if (IsUsingBindlessSamplers())
 	{
-		check(BindlessSamplersHeap == BindlessDescriptorManager.GetSamplerHeap());
+		checkf(BindlessSamplersHeap, TEXT("Bindless sampler heap was not set in OpenCommandList!"));
 	}
 #endif
 
@@ -142,25 +141,19 @@ void FD3D12DescriptorCache::OpenCommandList()
 	LastSetViewHeap = nullptr;
 	LastSetSamplerHeap = nullptr;
 
-
 #if PLATFORM_SUPPORTS_BINDLESS_RENDERING
-	if (IsUsingBindlessSamplers())
+	if (IsUsingBindlessSamplers() || IsUsingBindlessResources())
 	{
-		BindlessSamplersHeap = GetParentDevice()->GetBindlessDescriptorManager().GetSamplerHeap();
+		GetParentDevice()->GetBindlessDescriptorManager().OpenCommandList(Context);
 	}
-	else
+
+	if (!IsUsingBindlessSamplers())
 #endif
 	{
 		// The global sampler heap doesn't care about the current command list
 		LocalSamplerHeap.OpenCommandList();
 	}
 
-#if PLATFORM_SUPPORTS_BINDLESS_RENDERING
-	if (IsUsingBindlessResources())
-	{
-		BindlessResourcesHeap = GetParentDevice()->GetBindlessDescriptorManager().GetResourceHeap(Context.GetPipeline());
-	}
-#endif
 	if (CurrentViewHeap)
 	{
 		CurrentViewHeap->OpenCommandList();
@@ -184,7 +177,14 @@ void FD3D12DescriptorCache::CloseCommandList()
 		CurrentViewHeap->CloseCommandList();
 	}
 
+#if PLATFORM_SUPPORTS_BINDLESS_RENDERING
+	if (IsUsingBindlessSamplers() || IsUsingBindlessResources())
+	{
+		GetParentDevice()->GetBindlessDescriptorManager().CloseCommandList(Context);
+	}
+
 	if (!IsUsingBindlessSamplers())
+#endif
 	{
 		LocalSamplerHeap.CloseCommandList();
 
@@ -731,6 +731,25 @@ void FD3D12DescriptorCache::SwitchToGlobalSamplerHeap()
 	CurrentSamplerHeap = &GlobalSamplerHeap;
 }
 
+#if PLATFORM_SUPPORTS_BINDLESS_RENDERING
+void FD3D12DescriptorCache::SwitchToNewBindlessResourceHeap(FD3D12DescriptorHeap* InHeap)
+{
+	if (ensure(IsUsingBindlessResources()))
+	{
+		BindlessResourcesHeap = InHeap;
+
+		// TODO: should we be forced open before here?
+		if (IsUsingBindlessSamplers())
+		{
+			check(BindlessSamplersHeap != nullptr);
+		}
+
+		// If we didn't change heaps, then the caller sent us the wrong heap.
+		ensure(SetDescriptorHeaps());
+	}
+}
+#endif
+
 void FD3D12DescriptorCache::OverrideLastSetHeaps(ID3D12DescriptorHeap* ViewHeap, ID3D12DescriptorHeap* SamplerHeap)
 {
 	ID3D12DescriptorHeap* ViewHeapToSet = ViewHeap ? ViewHeap : LastSetViewHeap;
@@ -912,7 +931,7 @@ void FD3D12GlobalOnlineSamplerHeap::Init(uint32 TotalSize)
 		TEXT("Device Global - Online Sampler Heap"),
 		ERHIDescriptorHeapType::Sampler,
 		TotalSize,
-		D3D12_DESCRIPTOR_HEAP_FLAG_SHADER_VISIBLE
+		ED3D12DescriptorHeapFlags::GpuVisible
 	);
 
 	INC_DWORD_STAT(STAT_NumSamplerOnlineDescriptorHeaps);
@@ -1075,7 +1094,7 @@ void FD3D12LocalOnlineHeap::Init(uint32 InNumDescriptors, ERHIDescriptorHeapType
 			DebugName,
 			InHeapType,
 			InNumDescriptors,
-			D3D12_DESCRIPTOR_HEAP_FLAG_SHADER_VISIBLE
+			ED3D12DescriptorHeapFlags::GpuVisible
 		);
 
 		Entry.Heap = Heap;
@@ -1129,7 +1148,7 @@ bool FD3D12LocalOnlineHeap::RollOver()
 			DebugName,
 			HeapType,
 			NumDescriptors,
-			D3D12_DESCRIPTOR_HEAP_FLAG_SHADER_VISIBLE
+			ED3D12DescriptorHeapFlags::GpuVisible
 		);
 
 		if (HeapType == ERHIDescriptorHeapType::Standard)

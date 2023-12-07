@@ -453,14 +453,14 @@ void FD3D12StateCache::ApplyState(ERHIPipeline HardwarePipe, ED3D12PipelineType 
 	{
 		FD3D12BindlessDescriptorManager& BindlessManager = GetParentDevice()->GetBindlessDescriptorManager();
 
-		FD3D12DescriptorHeap* ResourceHeap = BindlessManager.GetResourceHeap(HardwarePipe, ERHIBindlessConfiguration::AllShaders);
-		FD3D12DescriptorHeap* SamplerHeap = BindlessManager.GetSamplerHeap(ERHIBindlessConfiguration::AllShaders);
+		bool bHaveResourceHeap = BindlessManager.AreResourcesBindless(ERHIBindlessConfiguration::AllShaders);
+		bool bHaveSamplerHeap = BindlessManager.AreSamplersBindless(ERHIBindlessConfiguration::AllShaders);
 
-		checkf(!bBindlessResources || ResourceHeap != nullptr, TEXT("Using dynamic samplers without the bindless sampler heap configured. Please check your configuration."));
-		checkf(!bBindlessSamplers || SamplerHeap != nullptr, TEXT("Using dynamic samplers without the bindless sampler heap configured. Please check your configuration."));
+		checkf(!bBindlessResources || bHaveResourceHeap, TEXT("Using dynamic samplers without the bindless sampler heap configured. Please check your configuration."));
+		checkf(!bBindlessSamplers  || bHaveSamplerHeap, TEXT("Using dynamic samplers without the bindless sampler heap configured. Please check your configuration."));
 
-		check(!(ResourceHeap != nullptr && bHasTableResources));
-		check(!(SamplerHeap  != nullptr && bHasSamplers      ));
+		check(!(bHaveResourceHeap && bHasTableResources));
+		check(!(bHaveSamplerHeap  && bHasSamplers      ));
 	}
 #endif
 
@@ -768,6 +768,7 @@ void FD3D12StateCache::ApplyResources(const FD3D12RootSignature* const pRootSign
 
 void FD3D12StateCache::ApplyBindlessResources(const FD3D12RootSignature* const pRootSignature, uint32 StartStage, uint32 EndStage)
 {
+#if PLATFORM_SUPPORTS_BINDLESS_RENDERING
 	for (uint32 Index = StartStage; Index < EndStage; Index++)
 	{
 		DescriptorCache.PrepareBindlessViews(
@@ -835,6 +836,8 @@ void FD3D12StateCache::ApplyBindlessResources(const FD3D12RootSignature* const p
 		}
 	}
 #endif // D3D12RHI_USE_CONSTANT_BUFFER_VIEWS
+
+#endif // PLATFORM_SUPPORTS_BINDLESS_RENDERING
 }
 
 void FD3D12StateCache::ApplyConstants(const FD3D12RootSignature* const pRootSignature, uint32 StartStage, uint32 EndStage)

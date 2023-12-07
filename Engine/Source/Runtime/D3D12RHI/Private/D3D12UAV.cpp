@@ -362,8 +362,20 @@ void FD3D12CommandContext::ClearUAV(TRHICommandList_RecursiveHazardous<FD3D12Com
 				FD3D12UnorderedAccessView UAV(ParentDevice);
 				UAV.CreateView(UnorderedAccessView->GetResourceLocation(), R32UAVDesc, FD3D12UnorderedAccessView::EFlags::None);
 
+				FD3D12OfflineDescriptor OfflineHandle = UAV.GetOfflineCpuHandle();
 				D3D12_GPU_DESCRIPTOR_HANDLE GPUHandle{};
-				if (!Context.StateCache.GetDescriptorCache()->IsUsingBindlessResources())
+
+#if PLATFORM_SUPPORTS_BINDLESS_RENDERING
+				if (UAV.GetBindlessHandle().IsValid())
+				{
+					Context.FlushPendingDescriptorUpdates();
+
+					FD3D12DescriptorHeap* BindlessHeap = Context.StateCache.GetDescriptorCache()->GetBindlessResourcesHeap();
+					UE::D3D12Descriptors::CopyDescriptor(ParentDevice, BindlessHeap, UAV.GetBindlessHandle(), OfflineHandle);
+					GPUHandle = BindlessHeap->GetGPUSlotHandle(UAV.GetBindlessHandle().GetIndex());
+				}
+				else
+#endif
 				{
 					// Check if the view heap is full and needs to rollover.
 					if (!Context.StateCache.GetDescriptorCache()->GetCurrentViewHeap()->CanReserveSlots(1))
@@ -375,19 +387,13 @@ void FD3D12CommandContext::ClearUAV(TRHICommandList_RecursiveHazardous<FD3D12Com
 					D3D12_CPU_DESCRIPTOR_HANDLE DestSlot = Context.StateCache.GetDescriptorCache()->GetCurrentViewHeap()->GetCPUSlotHandle(ReservedSlot);
 					GPUHandle = Context.StateCache.GetDescriptorCache()->GetCurrentViewHeap()->GetGPUSlotHandle(ReservedSlot);
 
-					Device->CopyDescriptorsSimple(1, DestSlot, UAV.GetOfflineCpuHandle(), D3D12_DESCRIPTOR_HEAP_TYPE_CBV_SRV_UAV);
+					Device->CopyDescriptorsSimple(1, DestSlot, OfflineHandle, D3D12_DESCRIPTOR_HEAP_TYPE_CBV_SRV_UAV);
 				}
-#if PLATFORM_SUPPORTS_BINDLESS_RENDERING
-				else
-				{
-					GPUHandle = ParentDevice->GetBindlessDescriptorManager().GetResourceGpuHandle(Context.GetPipeline(), UAV.GetBindlessHandle());
-				}
-#endif
 
 				Context.TransitionResource(UnorderedAccessView, D3D12_RESOURCE_STATE_UNORDERED_ACCESS);
 
 				Context.FlushResourceBarriers();
-				Context.GraphicsCommandList()->ClearUnorderedAccessViewUint(GPUHandle, UAV.GetOfflineCpuHandle(), UAV.GetResource()->GetResource(), *reinterpret_cast<const UINT(*)[4]>(ClearValues), 0, nullptr);
+				Context.GraphicsCommandList()->ClearUnorderedAccessViewUint(GPUHandle, OfflineHandle, UAV.GetResource()->GetResource(), *reinterpret_cast<const UINT(*)[4]>(ClearValues), 0, nullptr);
 				Context.UpdateResidency(UnorderedAccessView->GetResidencyHandles());
 				Context.ConditionalSplitCommandList();
 

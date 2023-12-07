@@ -1471,12 +1471,10 @@ void FD3D12Adapter::CleanupResources()
 
 	TransientMemoryCache = nullptr;
 
-#if D3D12_RHI_RAYTRACING
 	for (uint32 GPUIndex : FRHIGPUMask::All())
 	{
-		Devices[GPUIndex]->CleanupRayTracing();
+		Devices[GPUIndex]->CleanupResources();
 	}
-#endif // D3D12_RHI_RAYTRACING
 }
 
 FD3D12Adapter::~FD3D12Adapter()

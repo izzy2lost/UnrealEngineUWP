@@ -3,14 +3,19 @@
 #pragma once
 
 #include "D3D12RHICommon.h"
+#include "D3D12Descriptors.h"
 #include "RHIDefinitions.h"
 #include "RHIDescriptorAllocator.h"
+#include "RHIPipeline.h"
 #include "Templates/RefCounting.h"
 
 class FD3D12CommandContext;
+class FRHICommandListBase;
+class FD3D12SamplerState;
+class FD3D12ShaderResourceView;
+class FD3D12UnorderedAccessView;
 
-struct FD3D12DescriptorHeap;
-using FD3D12DescriptorHeapPtr = TRefCountPtr<FD3D12DescriptorHeap>;
+struct FD3D12Payload;
 
 #if PLATFORM_SUPPORTS_BINDLESS_RENDERING
 
@@ -20,6 +25,7 @@ namespace UE::D3D12BindlessDescriptors
 {
 	FD3D12DescriptorHeap* CreateCpuHeap(FD3D12Device* InDevice, ERHIDescriptorHeapType InType, uint32 InNewNumDescriptorsPerHeap);
 	FD3D12DescriptorHeap* CreateGpuHeap(FD3D12Device* InDevice, ERHIDescriptorHeapType InType, uint32 InNewNumDescriptorsPerHeap);
+	void DeferredFreeHeap(FD3D12Device* InDevice, FD3D12DescriptorHeap* InHeap);
 }
 
 /** Manager specifically for bindless sampler descriptors. */
@@ -29,43 +35,77 @@ public:
 	FD3D12BindlessSamplerManager() = delete;
 	FD3D12BindlessSamplerManager(FD3D12Device* InDevice, uint32 InNumDescriptors, TConstArrayView<TStatId> InStats);
 
-	FRHIDescriptorHandle Allocate();
+	void CleanupResources();
+
+	FRHIDescriptorHandle AllocateAndInitialize(FD3D12SamplerState* SamplerState);
 	void                 Free(FRHIDescriptorHandle InHandle);
 
-	void UpdateDescriptorImmediately(FRHIDescriptorHandle DstHandle, D3D12_CPU_DESCRIPTOR_HANDLE SrcDescriptor);
+	void OpenCommandList(FD3D12CommandContext& Context);
+	void CloseCommandList(FD3D12CommandContext& Context);
 
 	FD3D12DescriptorHeap* GetHeap() { return GpuHeap.GetReference(); }
 
 private:
-	FD3D12DescriptorHeapPtr GpuHeap;
+	FD3D12DescriptorHeapPtr      GpuHeap;
 	FRHIHeapDescriptorAllocator  Allocator;
 };
 
 #if !D3D12RHI_CUSTOM_BINDLESS_RESOURCE_MANAGER
 
-struct FD3D12PendingResourceDescriptorUpdates
+struct FD3D12PendingDescriptorUpdates
 {
-	TArray<FRHIDescriptorHandle> Handles;
-	TArray<D3D12_CPU_DESCRIPTOR_HANDLE> Descriptors;
+	// List of handles that need updating
+	TArray<FRHIDescriptorHandle>    Handles;
+	// Copies of descriptors to update each handle with. These need to be freed in a specific way.
+	TArray<FD3D12OfflineDescriptor> OfflineDescriptors;
 
-	int32 Num() const
+	~FD3D12PendingDescriptorUpdates()
 	{
-		return Handles.Num();
+		checkSlow(Handles.Num() == 0);
 	}
 
-	void Add(FRHIDescriptorHandle InHandle, const D3D12_CPU_DESCRIPTOR_HANDLE& InDescriptor)
+	void Add(FD3D12Device* Device, FRHIDescriptorHandle DestinationHandle, const FD3D12OfflineDescriptor& OfflineDescriptor)
 	{
-		if (ensure(InHandle.IsValid()))
+		if (ensure(DestinationHandle.IsValid()))
 		{
-			Handles.Emplace(InHandle);
-			Descriptors.Emplace(InDescriptor);
+			Handles.Emplace(DestinationHandle);
+			OfflineDescriptors.Emplace(OfflineDescriptor);
 		}
 	}
 
-	void Empty()
+	void Empty(FD3D12Device* Device)
 	{
+		for (FD3D12OfflineDescriptor& OfflineDescriptor : OfflineDescriptors)
+		{
+			UE::D3D12Descriptors::FreeOfflineCopy(Device, OfflineDescriptor, ERHIDescriptorHeapType::Standard);
+		}
+
 		Handles.Empty();
-		Descriptors.Empty();
+		OfflineDescriptors.Empty();
+	}
+
+	int32 Num()     const { return Handles.Num(); }
+	bool  IsEmpty() const { return Num() == 0; }
+};
+
+// Helper container for all context related bindless state.
+struct FD3D12ContextBindlessState
+{
+	FD3D12PendingDescriptorUpdates   PendingDescriptorRollbacks;
+	FD3D12DescriptorHeapPtr          CurrentGpuHeap;
+
+	// All heaps used on the context. Used for lifetime management.
+	TArray<FD3D12DescriptorHeapPtr> UsedHeaps;
+
+	FD3D12ContextBindlessState() = default;
+	~FD3D12ContextBindlessState()
+	{
+		check(PendingDescriptorRollbacks.IsEmpty());
+	}
+
+	bool HasAnyPending() const
+	{
+		return UsedHeaps.Num() > 0 || PendingDescriptorRollbacks.Num() > 0;
 	}
 };
 
@@ -76,44 +116,32 @@ public:
 	FD3D12BindlessResourceManager() = delete;
 	FD3D12BindlessResourceManager(FD3D12Device* InDevice, uint32 InNumDescriptors, TConstArrayView<TStatId> InStats);
 
+	void CleanupResources();
+
 	FRHIDescriptorHandle Allocate();
 	void                 Free(FRHIDescriptorHandle InHandle);
 
-	void UpdateDescriptorImmediately(FRHIDescriptorHandle DstHandle, D3D12_CPU_DESCRIPTOR_HANDLE SrcDescriptor);
-	void UpdateDescriptor(FRHICommandListBase& RHICmdList, FRHIDescriptorHandle DstHandle, D3D12_CPU_DESCRIPTOR_HANDLE SrcDescriptor);
+	void UpdateDescriptorImmediately(FRHIDescriptorHandle DstHandle, FD3D12View* View);
+	void UpdateDescriptor(FRHICommandListBase& RHICmdList, FRHIDescriptorHandle DstHandle, FD3D12View* View);
 
-	void FlushPendingDescriptorUpdates(FD3D12CommandContext& Context, ERHIPipeline PipelineIndex, const FD3D12PendingResourceDescriptorUpdates& PendingDescriptorUpdates);
+	void FlushPendingDescriptorUpdates(FD3D12CommandContext& Context);
 
-	bool IsEnabledForPipeline(ERHIPipeline Pipeline) const
-	{
-		return EnumHasAnyFlags(ConfiguredPipelines, Pipeline);
-	}
+	void OpenCommandList(FD3D12CommandContext& Context);
+	void CloseCommandList(FD3D12CommandContext& Context);
+	void FinalizeContext(FD3D12CommandContext& Context);
 
 	FD3D12DescriptorHeap* GetHeap(ERHIPipeline Pipeline)
 	{
-		if (IsEnabledForPipeline(Pipeline))
-		{
-			return Pipelines[Pipeline].GpuHeap.GetReference();
-		}
+		checkNoEntry();
 		return nullptr;
 	}
 
 private:
-	template <typename TFunctionType>
-	void EnumeratePipelines(TFunctionType&& Function)
-	{
-		EnumerateRHIPipelines(ConfiguredPipelines, Forward<TFunctionType>(Function));
-	}
+	void CopyCpuHeap(FD3D12DescriptorHeap* DestinationHeap);
+	void CreateHeapOnState(FD3D12ContextBindlessState& State);
+	void FinalizeHeapOnState(FD3D12ContextBindlessState& State);
 
-	struct FPipeline
-	{
-		FD3D12DescriptorHeapPtr CpuHeap;
-		FD3D12DescriptorHeapPtr GpuHeap;
-	};
-
-	ERHIPipeline                 ConfiguredPipelines;
-	TRHIPipelineArray<FPipeline> Pipelines;
-
+	FD3D12DescriptorHeapPtr      CpuHeap;
 	FRHIHeapDescriptorAllocator  Allocator;
 };
 
@@ -127,6 +155,7 @@ public:
 	~FD3D12BindlessDescriptorManager();
 
 	void Init();
+	void CleanupResources();
 
 	ERHIBindlessConfiguration GetResourcesConfiguration() const { return ResourcesConfiguration; }
 	ERHIBindlessConfiguration GetSamplersConfiguration()  const { return SamplersConfiguration; }
@@ -140,14 +169,20 @@ public:
 	bool AreResourcesFullyBindless() const { return GetResourcesConfiguration() == ERHIBindlessConfiguration::AllShaders; }
 	bool AreSamplersFullyBindless () const { return GetSamplersConfiguration()  == ERHIBindlessConfiguration::AllShaders; }
 
-	FRHIDescriptorHandle Allocate(ERHIDescriptorHeapType InType);
+	FRHIDescriptorHandle AllocateResourceHandle();
+	FRHIDescriptorHandle AllocateAndInitialize(FD3D12SamplerState* SamplerState);
 	void                 ImmediateFree(FRHIDescriptorHandle InHandle);
 	void                 DeferredFreeFromDestructor(FRHIDescriptorHandle InHandle);
 
-	void UpdateDescriptorImmediately(FRHIDescriptorHandle DstHandle, D3D12_CPU_DESCRIPTOR_HANDLE SrcDescriptor);
-	void UpdateResourceDescriptor(FRHICommandListBase& RHICmdList, FRHIDescriptorHandle DstHandle, D3D12_CPU_DESCRIPTOR_HANDLE SrcDescriptor);
+	void UpdateDescriptorImmediately(FRHIDescriptorHandle DstHandle, FD3D12View* View);
+	void UpdateDescriptor(FRHICommandListBase& RHICmdList, FRHIDescriptorHandle DstHandle, FD3D12View* SourceView);
 
-	void FlushPendingDescriptorUpdates(FD3D12CommandContext& Context, ERHIPipeline PipelineIndex, const FD3D12PendingResourceDescriptorUpdates& PendingDescriptorUpdates);
+	void FinalizeContext(FD3D12CommandContext& Context);
+
+	void OpenCommandList(FD3D12CommandContext& Context);
+	void CloseCommandList(FD3D12CommandContext& Context);
+
+	void FlushPendingDescriptorUpdates(FD3D12CommandContext& Context);
 
 #if D3D12RHI_USE_CONSTANT_BUFFER_VIEWS
 	TRHIPipelineArray<FD3D12DescriptorHeapPtr> AllocateResourceHeapsForAllPipelines(int32 InSize);
@@ -158,8 +193,6 @@ public:
 
 	FD3D12DescriptorHeap* GetResourceHeap(ERHIPipeline Pipeline, ERHIBindlessConfiguration InConfiguration);
 	FD3D12DescriptorHeap* GetSamplerHeap(ERHIBindlessConfiguration InConfiguration);
-
-	D3D12_GPU_DESCRIPTOR_HANDLE GetResourceGpuHandle(ERHIPipeline Pipeline, FRHIDescriptorHandle InHandle) const;
 
 private:
 	TUniquePtr<FD3D12BindlessResourceManager> ResourceManager;
