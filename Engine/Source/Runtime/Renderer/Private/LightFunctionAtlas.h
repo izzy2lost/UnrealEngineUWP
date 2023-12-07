@@ -21,49 +21,54 @@ struct IPooledRenderTarget;
 struct FLightFunctionAtlas;
 
 
+enum class ELightFunctionAtlasSystem
+{
+	VolumetricFog,
+	DeferredLighting,
+	SampledDirectLighting,
+	Lumen,
+};
 
 struct FLightFunctionAtlasSceneData
 {
-	void SetData(FLightFunctionAtlas* InLightFunctionAtlas,
-		bool bInLightFunctionAtlasEnabled,
-		bool bInVolumetricFogUsesLightFunctionAtlas,
-		bool bInDeferredlightingUsesLightFunctionAtlas,
-		bool bInSampledDirectLightingUsesLightFunctionAtlas)
+	void SetData(FLightFunctionAtlas* InLightFunctionAtlas, bool bInLightFunctionAtlasEnabled)
 	{
 		LightFunctionAtlas = InLightFunctionAtlas;
 		bLightFunctionAtlasEnabled = bInLightFunctionAtlasEnabled;
-		bVolumetricFogUsesLightFunctionAtlas = bInVolumetricFogUsesLightFunctionAtlas;
-		bDeferredlightingUsesLightFunctionAtlas = bInDeferredlightingUsesLightFunctionAtlas;
-		bSampledDirectLightingUsesLightFunctionAtlas = bInSampledDirectLightingUsesLightFunctionAtlas;
 	}
 
-	FLightFunctionAtlas* GetLightFunctionAtlas()			const { return LightFunctionAtlas; }
-	bool GetLightFunctionAtlasEnabled()						const { return bLightFunctionAtlasEnabled; }
-	bool GetVolumetricFogUsesLightFunctionAtlas()			const { return bVolumetricFogUsesLightFunctionAtlas; }
-	bool GetDeferredlightingUsesLightFunctionAtlas()		const { return bDeferredlightingUsesLightFunctionAtlas; }
-	bool GetSampledDirectLightingUsesLightFunctionAtlas()	const { return bSampledDirectLightingUsesLightFunctionAtlas; }
+	void AddSystem(ELightFunctionAtlasSystem In)
+	{
+		SystemFlags |= 1u << uint32(In);
+	}
+
+	void ClearSystems()
+	{
+		SystemFlags = 0;
+	}
+
+	FLightFunctionAtlas* GetLightFunctionAtlas()				const { return LightFunctionAtlas; }
+	bool UsesLightFunctionAtlas(ELightFunctionAtlasSystem In)	const { return (SystemFlags & (1u<<uint32(In))) != 0; }
+	bool GetLightFunctionAtlasEnabled()							const { return bLightFunctionAtlasEnabled; }
 
 private:
 	FLightFunctionAtlas* LightFunctionAtlas = nullptr;
 	bool bLightFunctionAtlasEnabled = false;
-	bool bVolumetricFogUsesLightFunctionAtlas = false;
-	bool bDeferredlightingUsesLightFunctionAtlas = false;
-	bool bSampledDirectLightingUsesLightFunctionAtlas = false;
+	uint32 SystemFlags = 0;
 };
 
 struct FLightFunctionAtlasViewData
 {
-	FLightFunctionAtlasViewData() : SceneData(nullptr) {}
-	FLightFunctionAtlasViewData(FLightFunctionAtlasSceneData* InSceneData) : SceneData(InSceneData) {}
+	FLightFunctionAtlasViewData() {}
+	FLightFunctionAtlasViewData(FLightFunctionAtlasSceneData* InSceneData, uint32 ViewIndex) : SceneData(InSceneData), ViewIndex(0) {}
 
-	FLightFunctionAtlas* GetLightFunctionAtlas()			const { return SceneData ? SceneData->GetLightFunctionAtlas() : nullptr; }
-	bool GetLightFunctionAtlasEnabled()						const { return SceneData ? SceneData->GetLightFunctionAtlasEnabled() : false; }
-	bool GetVolumetricFogUsesLightFunctionAtlas()			const { return SceneData ? SceneData->GetVolumetricFogUsesLightFunctionAtlas() : false; }
-	bool GetDeferredlightingUsesLightFunctionAtlas()		const { return SceneData ? SceneData->GetDeferredlightingUsesLightFunctionAtlas() : false; }
-	bool GetSampledDirectLightingUsesLightFunctionAtlas()	const { return SceneData ? SceneData->GetSampledDirectLightingUsesLightFunctionAtlas() : false; }
+	FLightFunctionAtlas* GetLightFunctionAtlas()				const { return SceneData ? SceneData->GetLightFunctionAtlas() : nullptr; }
+	bool GetLightFunctionAtlasEnabled()							const { return SceneData ? SceneData->GetLightFunctionAtlasEnabled() : false; }
+	bool UsesLightFunctionAtlas(ELightFunctionAtlasSystem In)	const { return SceneData ? SceneData->UsesLightFunctionAtlas(In) : false; }
 
 private:
-	FLightFunctionAtlasSceneData* SceneData;
+	FLightFunctionAtlasSceneData* SceneData = nullptr;
+	uint32 ViewIndex = 0;
 };
 
 
@@ -126,7 +131,7 @@ struct FLightFunctionAtlas
 
 	bool IsLightFunctionAtlasEnabled() const { return bLightFunctionAtlasEnabled; }
 
-	void ClearEmptySceneFrame(FViewInfo* View = nullptr, FLightFunctionAtlasSceneData* LightFunctionAtlasSceneData = nullptr);
+	void ClearEmptySceneFrame(FViewInfo* View = nullptr, uint32 ViewIndex = 0, FLightFunctionAtlasSceneData* LightFunctionAtlasSceneData = nullptr);
 
 	void BeginSceneFrame(FViewFamilyInfo& ViewFamily, TArray<FViewInfo>& Views, FLightFunctionAtlasSceneData& LightFunctionAtlasSceneData, bool bShouldRenderVolumetricFog);
 
@@ -139,8 +144,8 @@ struct FLightFunctionAtlas
 
 	FScreenPassTexture AddDebugVisualizationPasses(FRDGBuilder& GraphBuilder, const FViewInfo& View, FScreenPassTexture& ScreenPassSceneColor)  const;
 
-	FLightFunctionAtlasGlobalParameters*						GetLightFunctionAtlasGlobalParametersStruct(uint32 ViewIndex, FRDGBuilder& GraphBuilder);
-	TRDGUniformBufferRef<FLightFunctionAtlasGlobalParameters>	GetLightFunctionAtlasGlobalParameters(uint32 ViewIndex, FRDGBuilder& GraphBuilder);
+	FLightFunctionAtlasGlobalParameters*						GetLightFunctionAtlasGlobalParametersStruct(FRDGBuilder& GraphBuilder, uint32 ViewIndex);
+	TRDGUniformBufferRef<FLightFunctionAtlasGlobalParameters>	GetLightFunctionAtlasGlobalParameters(FRDGBuilder& GraphBuilder, uint32 ViewIndex);
 	
 	static FLightFunctionAtlasGlobalParameters*					GetDefaultLightFunctionAtlasGlobalParametersStruct(FRDGBuilder& GraphBuilder);
 	TRDGUniformBufferRef<FLightFunctionAtlasGlobalParameters>	GetDefaultLightFunctionAtlasGlobalParameters(FRDGBuilder& GraphBuilder);
@@ -187,3 +192,12 @@ private:
 	TArray<FLightFunctionAtlasGlobalParameters*>							ViewLightFunctionAtlasGlobalParametersArray;
 	TArray<TRDGUniformBufferRef<FLightFunctionAtlasGlobalParameters>>	ViewLightFunctionAtlasGlobalParametersUBArray;
 };
+
+namespace LightFunctionAtlas
+{
+	bool IsEnabled(const FViewInfo& InView, ELightFunctionAtlasSystem In);
+	bool IsEnabled(const FScene& InScene, ELightFunctionAtlasSystem In);
+
+	TRDGUniformBufferRef<FLightFunctionAtlasGlobalParameters> BindGlobalParameters(FRDGBuilder& GraphBuilder, const FViewInfo& View, uint32 ViewIndex);
+	FLightFunctionAtlasGlobalParameters* GetGlobalParametersStruct(FRDGBuilder& GraphBuilder, const FViewInfo& View, uint32 ViewIndex);
+}

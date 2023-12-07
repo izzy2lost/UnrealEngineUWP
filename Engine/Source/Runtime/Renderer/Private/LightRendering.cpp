@@ -1136,7 +1136,7 @@ void FSceneRenderer::GatherAndSortLights(FSortedLightSetSceneInfo& OutSortedLigh
 	// NOTE: we allocate space also for simple lights such that they can be referenced in the same sorted range
 	SortedLights.Empty(Scene->Lights.Num() + SimpleLights.InstanceData.Num());
 
-	const bool bUseLightFunctionAtlas = Scene->LightFunctionAtlasSceneData.GetDeferredlightingUsesLightFunctionAtlas();
+	const bool bUseLightFunctionAtlas = LightFunctionAtlas::IsEnabled(*Scene, ELightFunctionAtlasSystem::DeferredLighting);
 	bool bDynamicShadows = ViewFamily.EngineShowFlags.DynamicShadows && GetShadowQuality() > 0;
 
 #if ENABLE_DEBUG_DISCARD_PROP
@@ -1320,7 +1320,7 @@ void FDeferredShadingSceneRenderer::RenderLights(
 #else
 	const bool bEnableRayTracing = false;
 #endif // RHI_RAYTRACING
-	const bool bUseLightFunctionAtlas = Scene->LightFunctionAtlasSceneData.GetDeferredlightingUsesLightFunctionAtlas();
+	const bool bUseLightFunctionAtlas = LightFunctionAtlas::IsEnabled(*Scene, ELightFunctionAtlasSystem::DeferredLighting);
 
 	RDG_EVENT_SCOPE(GraphBuilder, "Lights");
 	RDG_GPU_STAT_SCOPE(GraphBuilder, Lights);
@@ -1451,7 +1451,7 @@ void FDeferredShadingSceneRenderer::RenderLights(
 					// Render the light to the scene color buffer, using a 1x1 white texture as input
 					const FLightSceneInfo* LightSceneInfo = SortedLights[LightIndex].LightSceneInfo;
 					RenderLight(GraphBuilder, Scene, View, SceneTextures, LightSceneInfo, nullptr, LightingChannelsTexture, false /*bRenderOverlap*/, false /*bCloudShadow*/,
-						LightFunctionAtlas.GetLightFunctionAtlasGlobalParameters(ViewIndex, GraphBuilder));
+						LightFunctionAtlas::BindGlobalParameters(GraphBuilder, View, ViewIndex));
 				}
 			}
 
@@ -1470,7 +1470,7 @@ void FDeferredShadingSceneRenderer::RenderLights(
 							const FLightSceneInfo* LightSceneInfo = SortedLights[LightIndex].LightSceneInfo;
 							RenderLightForHair(GraphBuilder, View, SceneTextures, LightSceneInfo, 
 								NullScreenShadowMaskSubPixelTexture, LightingChannelsTexture, DummyTransmittanceMaskData, false /*bForwardRendering*/,
-								LightFunctionAtlas.GetLightFunctionAtlasGlobalParameters(ViewIndex, GraphBuilder));
+								LightFunctionAtlas::BindGlobalParameters(GraphBuilder, View, ViewIndex));
 						}
 					}
 				}
@@ -2077,7 +2077,7 @@ void FDeferredShadingSceneRenderer::RenderLights(
 						RenderLight(
 							GraphBuilder, Scene, View, SceneTextures, &LightSceneInfo, 
 							VirtualShadowMapId != INDEX_NONE ? nullptr : ScreenShadowMaskTexture, LightingChannelsTexture, false /*bRenderOverlap*/, true /*bCloudShadow*/, 
-							LightFunctionAtlas.GetLightFunctionAtlasGlobalParameters(ViewIndex, GraphBuilder),
+							LightFunctionAtlas::BindGlobalParameters(GraphBuilder, View, ViewIndex),
 							VirtualShadowMapArray.GetUniformBuffer(), ShadowSceneRenderer->VirtualShadowMapMaskBits, VirtualShadowMapId);
 					}
 				}
@@ -2109,7 +2109,7 @@ void FDeferredShadingSceneRenderer::RenderLights(
 							RenderLightForHair(
 								GraphBuilder, View, SceneTextures, &LightSceneInfo, 
 								HairShadowMask, LightingChannelsTexture, TransmittanceMaskData, false /*bForwardRendering*/, 
-								LightFunctionAtlas.GetLightFunctionAtlasGlobalParameters(ViewIndex, GraphBuilder));
+								LightFunctionAtlas::BindGlobalParameters(GraphBuilder, View, ViewIndex));
 						}
 					}
 				}
@@ -2263,7 +2263,7 @@ static void CalculateLightNearFarDepthFromBounds(const FViewInfo& View, const FS
 static TRDGUniformBufferRef<FDeferredLightUniformStruct> CreateDeferredLightUniformBuffer(FRDGBuilder& GraphBuilder, const FViewInfo& View, const FLightSceneInfo& LightSceneInfo)
 {
 	auto* DeferredLightStruct = GraphBuilder.AllocParameters<FDeferredLightUniformStruct>();
-	*DeferredLightStruct = GetDeferredLightParameters(View, LightSceneInfo, View.LightFunctionAtlasViewData.GetDeferredlightingUsesLightFunctionAtlas());
+	*DeferredLightStruct = GetDeferredLightParameters(View, LightSceneInfo, LightFunctionAtlas::IsEnabled(View, ELightFunctionAtlasSystem::DeferredLighting));
 	return GraphBuilder.CreateUniformBuffer(DeferredLightStruct);
 }
 
@@ -2620,7 +2620,7 @@ static void RenderLight(
 		PermutationVector.Set< FDeferredLightPS::FSubstrateTileType >(0);
 		PermutationVector.Set< FDeferredLightPS::FHairComplexTransmittance >(bNeedComplexTransmittanceSupport);
 		PermutationVector.Set< FDeferredLightPS::FLightFunctionAtlasDim >(
-			View.LightFunctionAtlasViewData.GetDeferredlightingUsesLightFunctionAtlas() && LightSceneInfo->Proxy->HasValidLightFunctionAtlasSlot() &&
+			LightFunctionAtlas::IsEnabled(View, ELightFunctionAtlasSystem::DeferredLighting) && LightSceneInfo->Proxy->HasValidLightFunctionAtlasSlot() &&
 			LightSceneInfo->Proxy->GetLightFunctionMaterial() != nullptr && !View.Family->EngineShowFlags.VisualizeLightCulling);
 		if (bIsRadial)
 		{
@@ -2769,7 +2769,7 @@ void FDeferredShadingSceneRenderer::RenderLightForHair(
 	PermutationVector.Set< FDeferredLightPS::FHairLighting>(1);
 	PermutationVector.Set< FDeferredLightPS::FHairComplexTransmittance>(true);
 	PermutationVector.Set< FDeferredLightPS::FLightFunctionAtlasDim >(
-		View.LightFunctionAtlasViewData.GetDeferredlightingUsesLightFunctionAtlas() && LightSceneInfo->Proxy->HasValidLightFunctionAtlasSlot() &&
+		LightFunctionAtlas::IsEnabled(View, ELightFunctionAtlasSystem::DeferredLighting) && LightSceneInfo->Proxy->HasValidLightFunctionAtlasSlot() &&
 		LightSceneInfo->Proxy->GetLightFunctionMaterial() != nullptr && !View.Family->EngineShowFlags.VisualizeLightCulling);
 	if (bIsDirectional)
 	{
@@ -2870,7 +2870,7 @@ void FDeferredShadingSceneRenderer::RenderLightsForHair(
 						LightingChannelsTexture,
 						TransmittanceMaskData,
 						true /*bForwardRendering*/,
-						LightFunctionAtlas.GetLightFunctionAtlasGlobalParameters(ViewIndex, GraphBuilder));
+						LightFunctionAtlas::BindGlobalParameters(GraphBuilder, View, ViewIndex));
 				}
 			}
 		}

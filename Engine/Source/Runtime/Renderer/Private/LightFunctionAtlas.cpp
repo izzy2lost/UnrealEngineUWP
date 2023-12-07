@@ -113,6 +113,14 @@ FAutoConsoleVariableRef CVarSampledDirectLightingUsesLightFunctionAtlas(
 	ECVF_Scalability | ECVF_RenderThreadSafe
 );
 
+int GLumenUsesLightFunctionAtlas = 1;
+FAutoConsoleVariableRef CVarLumenUsesLightFunctionAtlas(
+	TEXT("r.Lumen.UsesLightFunctionAtlas"),
+	GLumenUsesLightFunctionAtlas,
+	TEXT("Whether the light function atlas is sampled for lumen scene lighting."),
+	ECVF_RenderThreadSafe
+);
+
 //////////////////////////////////////////////////////////////////////////
 
 static uint32 GetAtlasSlotResolution()
@@ -224,7 +232,7 @@ void FLightFunctionAtlas::UpdateRegisterLightSceneInfo(FLightSceneInfo* LightSce
 	}
 }
 
-void FLightFunctionAtlas::ClearEmptySceneFrame(FViewInfo* View, FLightFunctionAtlasSceneData* LightFunctionAtlasSceneData)
+void FLightFunctionAtlas::ClearEmptySceneFrame(FViewInfo* View, uint32 ViewIndex, FLightFunctionAtlasSceneData* LightFunctionAtlasSceneData)
 {
 	RegisteredLights.Empty(64);
 	DefaultLightFunctionAtlasGlobalParameters = nullptr;
@@ -235,17 +243,13 @@ void FLightFunctionAtlas::ClearEmptySceneFrame(FViewInfo* View, FLightFunctionAt
 	bLightFunctionAtlasEnabled = false;
 	if (LightFunctionAtlasSceneData)
 	{
-		LightFunctionAtlasSceneData->SetData(
-			this,
-			bLightFunctionAtlasEnabled,
-			bLightFunctionAtlasEnabled,
-			bLightFunctionAtlasEnabled,
-			bLightFunctionAtlasEnabled);
+		LightFunctionAtlasSceneData->SetData(this, false);
+		LightFunctionAtlasSceneData->ClearSystems();
 	}
 
 	if (View && LightFunctionAtlasSceneData)
 	{
-		View->LightFunctionAtlasViewData = FLightFunctionAtlasViewData(LightFunctionAtlasSceneData);
+		View->LightFunctionAtlasViewData = FLightFunctionAtlasViewData(LightFunctionAtlasSceneData, ViewIndex);
 	}
 }
 
@@ -257,33 +261,39 @@ void FLightFunctionAtlas::BeginSceneFrame(FViewFamilyInfo& ViewFamily, TArray<FV
 	bLightFunctionAtlasEnabled = CVarLightFunctionAtlas.GetValueOnRenderThread() > 0 && ViewFamily.EngineShowFlags.LightFunctions > 0;
 
 	// But only really enable the atlas generation if a system asks for it
-	bool bVolumetricFogRequestsLightFunctionAtlas = false;
-	bool bDeferredlightingRequestsLightFunctionAtlas = false;
-	bool bSampledDirectLightingRequestsLightFunctionAtlas = false;
+	bool bVolumetricFogRequestsLF = false;
+	bool bDeferredlightingRequestsLF = false;
+	bool bSampledDirectLightingRequestsLF = false;
+	bool bLumenRequestsLF = false;
 	if (bLightFunctionAtlasEnabled)
 	{
-		bVolumetricFogRequestsLightFunctionAtlas = bShouldRenderVolumetricFog && GVolumetricFogUsesLightFunctionAtlas > 0;
-
-		bDeferredlightingRequestsLightFunctionAtlas = GDeferredUsesLightFunctionAtlas > 0;
-
-		bSampledDirectLightingRequestsLightFunctionAtlas = SampledDirectLighting::IsEnabled() && GSampledDirectLightingUsesLightFunctionAtlas > 0;
+		bVolumetricFogRequestsLF 		= bShouldRenderVolumetricFog && GVolumetricFogUsesLightFunctionAtlas > 0;
+		bDeferredlightingRequestsLF 	= GDeferredUsesLightFunctionAtlas > 0;
+		bSampledDirectLightingRequestsLF= SampledDirectLighting::IsEnabled() && GSampledDirectLightingUsesLightFunctionAtlas > 0;
+		bLumenRequestsLF 				= GLumenUsesLightFunctionAtlas > 0;// && IsLumenTranslucencyGIEnabled();// GLumenScene enabled ...;
 
 		bLightFunctionAtlasEnabled = bLightFunctionAtlasEnabled && 
-			(bVolumetricFogRequestsLightFunctionAtlas || bDeferredlightingRequestsLightFunctionAtlas || bSampledDirectLightingRequestsLightFunctionAtlas ||
-			 GetSingleLayerWaterUsesLightFunctionAtlas() || GetTranslucentUsesLightFunctionAtlas()); 
+			(bVolumetricFogRequestsLF || 
+			bDeferredlightingRequestsLF || 
+			bSampledDirectLightingRequestsLF ||
+			bLumenRequestsLF ||
+			GetSingleLayerWaterUsesLightFunctionAtlas() || 
+			GetTranslucentUsesLightFunctionAtlas()); 
 	}
 
 	// We propagate bLightFunctionAtlasEnabled to all the views to ease later shader parameter decision and binding for lighting, shadow or volumetric fog for instance (avoid sending lots of parameters all over the place)
-	LightFunctionAtlasSceneData.SetData(
-		this,
-		bLightFunctionAtlasEnabled,
-		bLightFunctionAtlasEnabled && bVolumetricFogRequestsLightFunctionAtlas,
-		bLightFunctionAtlasEnabled && bDeferredlightingRequestsLightFunctionAtlas,
-		bLightFunctionAtlasEnabled && bSampledDirectLightingRequestsLightFunctionAtlas);
-
-	for (auto& View : Views)
+	LightFunctionAtlasSceneData.SetData(this, bLightFunctionAtlasEnabled);
+	if (bLightFunctionAtlasEnabled)
 	{
-		View.LightFunctionAtlasViewData = FLightFunctionAtlasViewData(&LightFunctionAtlasSceneData);
+		if (bVolumetricFogRequestsLF) 			{ LightFunctionAtlasSceneData.AddSystem(ELightFunctionAtlasSystem::VolumetricFog); }
+		if (bDeferredlightingRequestsLF)		{ LightFunctionAtlasSceneData.AddSystem(ELightFunctionAtlasSystem::DeferredLighting); }
+		if (bSampledDirectLightingRequestsLF)	{ LightFunctionAtlasSceneData.AddSystem(ELightFunctionAtlasSystem::SampledDirectLighting); }
+		if (bLumenRequestsLF) 					{ LightFunctionAtlasSceneData.AddSystem(ELightFunctionAtlasSystem::Lumen); }
+	}
+
+	for (uint32 ViewIndex=0,ViewCount=Views.Num();ViewIndex<ViewCount;++ViewIndex)
+	{
+		Views[ViewIndex].LightFunctionAtlasViewData = FLightFunctionAtlasViewData(&LightFunctionAtlasSceneData, ViewIndex);
 	}
 }
 
@@ -425,7 +435,7 @@ void FLightFunctionAtlas::AllocateAtlasSlots(const TArray<FViewInfo>& Views)
 		FLightSceneInfo* LightSceneInfo = RegisteredLights[SortedRegisteredLight.RegisteredLightIndex];
 		FLightSceneProxy* Proxy = LightSceneInfo->Proxy;
 
-		if (LocalLightWithLightFunctionCount > LIGHT_FUNCTION_ATLAS_MAX_LIGHT_COUNT)
+		if (LocalLightWithLightFunctionCount >= LIGHT_FUNCTION_ATLAS_MAX_LIGHT_COUNT)
 		{
 			// We cannot register anymore light, so set them to no light function
 			Proxy->SetLightFunctionAtlasIndices(0);
@@ -459,35 +469,31 @@ void FLightFunctionAtlas::AllocateAtlasSlots(const TArray<FViewInfo>& Views)
 	// TODO we could do all the constant buffer setup inline above (done in RenderAtlasSlots right now) if we would send a GraphBuilder here.
 }
 
-FLightFunctionAtlasGlobalParameters* FLightFunctionAtlas::GetLightFunctionAtlasGlobalParametersStruct(uint32 ViewIndex, FRDGBuilder& GraphBuilder)
+FLightFunctionAtlasGlobalParameters* FLightFunctionAtlas::GetLightFunctionAtlasGlobalParametersStruct(FRDGBuilder& GraphBuilder, uint32 ViewIndex)
 {
-	if (!IsLightFunctionAtlasEnabled())
+	if (IsLightFunctionAtlasEnabled())
 	{
-		return GetDefaultLightFunctionAtlasGlobalParametersStruct(GraphBuilder);
-	}
-
-	const bool bViewIndexIsValid = ViewIndex < uint32(ViewLightFunctionAtlasGlobalParametersUBArray.Num());
-	check(bViewIndexIsValid);
-	if (bViewIndexIsValid)
-	{
-		return ViewLightFunctionAtlasGlobalParametersArray[ViewIndex];
+		const bool bViewIndexIsValid = ViewIndex < uint32(ViewLightFunctionAtlasGlobalParametersUBArray.Num());
+		check(bViewIndexIsValid);
+		if (bViewIndexIsValid)
+		{
+			return ViewLightFunctionAtlasGlobalParametersArray[ViewIndex];
+		}
 	}
 
 	return GetDefaultLightFunctionAtlasGlobalParametersStruct(GraphBuilder);
 }
 
-TRDGUniformBufferRef<FLightFunctionAtlasGlobalParameters> FLightFunctionAtlas::GetLightFunctionAtlasGlobalParameters(uint32 ViewIndex, FRDGBuilder& GraphBuilder)
+TRDGUniformBufferRef<FLightFunctionAtlasGlobalParameters> FLightFunctionAtlas::GetLightFunctionAtlasGlobalParameters(FRDGBuilder& GraphBuilder, uint32 ViewIndex)
 {
-	if (!IsLightFunctionAtlasEnabled())
+	if (IsLightFunctionAtlasEnabled())
 	{
-		return GetDefaultLightFunctionAtlasGlobalParameters(GraphBuilder);
-	}
-
-	const bool bViewIndexIsValid = ViewIndex < uint32(ViewLightFunctionAtlasGlobalParametersUBArray.Num());
-	check(bViewIndexIsValid);
-	if (bViewIndexIsValid)
-	{
-		return ViewLightFunctionAtlasGlobalParametersUBArray[ViewIndex];
+		const bool bViewIndexIsValid = ViewIndex < uint32(ViewLightFunctionAtlasGlobalParametersUBArray.Num());
+		check(bViewIndexIsValid);
+		if (bViewIndexIsValid)
+		{
+			return ViewLightFunctionAtlasGlobalParametersUBArray[ViewIndex];
+		}
 	}
 
 	return GetDefaultLightFunctionAtlasGlobalParameters(GraphBuilder);
@@ -827,4 +833,34 @@ FScreenPassTexture FLightFunctionAtlas::AddDebugVisualizationPasses(FRDGBuilder&
 #endif // WITH_EDITOR
 
 	return MoveTemp(ScreenPassSceneColor);
+}
+
+namespace LightFunctionAtlas
+{
+	bool IsEnabled(const FViewInfo& InView, ELightFunctionAtlasSystem In)
+	{
+		return InView.LightFunctionAtlasViewData.UsesLightFunctionAtlas(In);
+	}
+
+	bool IsEnabled(const FScene& InScene, ELightFunctionAtlasSystem In)
+	{
+		return InScene.LightFunctionAtlasSceneData.UsesLightFunctionAtlas(In);
+	}
+
+	TRDGUniformBufferRef<FLightFunctionAtlasGlobalParameters> BindGlobalParameters(FRDGBuilder& GraphBuilder, const FViewInfo& InView, uint32 InViewIndex)
+	{
+		return InView.LightFunctionAtlasViewData.GetLightFunctionAtlas()->GetLightFunctionAtlasGlobalParameters(GraphBuilder, InViewIndex);
+	}
+
+	FLightFunctionAtlasGlobalParameters* GetGlobalParametersStruct(FRDGBuilder& GraphBuilder, const FViewInfo& InView, uint32 InViewIndex)
+	{		
+		if (FLightFunctionAtlas* LightFunctionAtlas = InView.LightFunctionAtlasViewData.GetLightFunctionAtlas())
+		{
+			return LightFunctionAtlas->GetLightFunctionAtlasGlobalParametersStruct(GraphBuilder, InViewIndex);
+		}
+		else
+		{
+			return FLightFunctionAtlas::GetDefaultLightFunctionAtlasGlobalParametersStruct(GraphBuilder);
+		}
+	}
 }

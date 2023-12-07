@@ -726,8 +726,8 @@ void FSceneRenderer::RenderLocalLightsForVolumetricFog(
 	}
 
 	// Setup the light function atlas
-	const bool bUseLightFunctionAtlas = View.LightFunctionAtlasViewData.GetVolumetricFogUsesLightFunctionAtlas();
-	TRDGUniformBufferRef<FLightFunctionAtlasGlobalParameters> LightFunctionAtlasGlobalParameters = LightFunctionAtlas.GetLightFunctionAtlasGlobalParameters(ViewIndex, GraphBuilder);
+	const bool bUseLightFunctionAtlas = LightFunctionAtlas::IsEnabled(View, ELightFunctionAtlasSystem::VolumetricFog);
+	TRDGUniformBufferRef<FLightFunctionAtlasGlobalParameters> LightFunctionAtlasGlobalParameters = LightFunctionAtlas::BindGlobalParameters(GraphBuilder, View, ViewIndex);
 
 	// Now voxelise all the light we have just gathered.
 	bool bClearExecuted = false;
@@ -1344,7 +1344,7 @@ void FSceneRenderer::ComputeVolumetricFog(FRDGBuilder& GraphBuilder,
 		}
 
 		// Mobile has limited capacities with SRV binding so do not enable atlas sampling on there.
-		const bool bUseLightFunctionAtlas = Scene->LightFunctionAtlasSceneData.GetVolumetricFogUsesLightFunctionAtlas() && !IsMobilePlatform(View.GetShaderPlatform());
+		const bool bUseLightFunctionAtlas = LightFunctionAtlas::IsEnabled(*Scene, ELightFunctionAtlasSystem::VolumetricFog) && !IsMobilePlatform(View.GetShaderPlatform());
 
 		const bool bUseTemporalReprojection =
 			GVolumetricFogTemporalReprojection
@@ -1627,7 +1627,7 @@ void FSceneRenderer::ComputeVolumetricFog(FRDGBuilder& GraphBuilder,
 
 			PassParameters->RaytracedShadowsVolume = RaytracedShadowsVolume ? GraphBuilder.CreateSRV(RaytracedShadowsVolume) : nullptr;
 
-			PassParameters->LightFunctionAtlas = LightFunctionAtlas.GetLightFunctionAtlasGlobalParameters(ViewIndex, GraphBuilder);
+			PassParameters->LightFunctionAtlas = LightFunctionAtlas::BindGlobalParameters(GraphBuilder, View, ViewIndex);
 			if (bUseLightFunctionAtlas)
 			{
 				PassParameters->DirectionalApplyLightFunctionFromAtlas = bUseLightFunctionAtlas && DirectionalLightSceneInfo && DirectionalLightSceneInfo->Proxy->HasValidLightFunctionAtlasSlot() ? 1 :0;

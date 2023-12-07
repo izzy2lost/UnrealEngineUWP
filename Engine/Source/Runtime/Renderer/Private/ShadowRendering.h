@@ -1598,7 +1598,7 @@ public:
 
 		if (DeferredLightParameter.IsBound())
 		{
-			SetDeferredLightParameters(BatchedParameters, DeferredLightParameter, &ShadowInfo->GetLightSceneInfo(), View, View.LightFunctionAtlasViewData.GetDeferredlightingUsesLightFunctionAtlas());
+			SetDeferredLightParameters(BatchedParameters, DeferredLightParameter, &ShadowInfo->GetLightSceneInfo(), View, LightFunctionAtlas::IsEnabled(View, ELightFunctionAtlasSystem::DeferredLighting));
 		}
 	}
 

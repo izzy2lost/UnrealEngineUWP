@@ -634,8 +634,7 @@ void FDeferredShadingSceneRenderer::RenderSampledDirectLighting(FRDGBuilder& Gra
 	}
 
 	// Setup the light function atlas
-	const bool bUseLightFunctionAtlas = View.LightFunctionAtlasViewData.GetSampledDirectLightingUsesLightFunctionAtlas();
-	TRDGUniformBufferRef<FLightFunctionAtlasGlobalParameters> LightFunctionAtlasGlobalParameters = LightFunctionAtlas.GetLightFunctionAtlasGlobalParameters(ViewIndex, GraphBuilder);
+	const bool bUseLightFunctionAtlas = LightFunctionAtlas::IsEnabled(View, ELightFunctionAtlasSystem::SampledDirectLighting);
 
 	const FIntPoint ViewSizeInTiles = FIntPoint::DivideAndRoundUp(View.ViewRect.Size(), SampledDirectLighting::TileSize);
 	const int32 TileDataStride = ViewSizeInTiles.X * ViewSizeInTiles.Y;
@@ -655,7 +654,7 @@ void FDeferredShadingSceneRenderer::RenderSampledDirectLighting(FRDGBuilder& Gra
 		SampledDirectLightingParameters.SceneTexturesStruct = SceneTextures.UniformBuffer;
 		SampledDirectLightingParameters.Substrate = Substrate::BindSubstrateGlobalUniformParameters(View);
 		SampledDirectLightingParameters.ForwardLightData = View.ForwardLightingResources.ForwardLightUniformBuffer;
-		SampledDirectLightingParameters.LightFunctionAtlas = LightFunctionAtlasGlobalParameters;
+		SampledDirectLightingParameters.LightFunctionAtlas = LightFunctionAtlas::BindGlobalParameters(GraphBuilder, View, ViewIndex);
 		SampledDirectLightingParameters.BlueNoise = BlueNoiseUniformBuffer;
 		SampledDirectLightingParameters.PreIntegratedGF = GSystemTextures.PreintegratedGF->GetRHI();
 		SampledDirectLightingParameters.PreIntegratedGFSampler = TStaticSamplerState<SF_Bilinear, AM_Clamp, AM_Clamp, AM_Clamp>::GetRHI();

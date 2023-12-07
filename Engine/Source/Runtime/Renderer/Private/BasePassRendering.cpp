@@ -738,14 +738,7 @@ void SetupSharedBasePassParameters(
 	SharedParameters.LFV = View.LocalFogVolumeViewData.UniformParametersStruct;
 
 	FLightFunctionAtlas* LightFunctionAtlas = View.LightFunctionAtlasViewData.GetLightFunctionAtlas();
-	if (LightFunctionAtlas)
-	{
-		SharedParameters.LightFunctionAtlas = *LightFunctionAtlas->GetLightFunctionAtlasGlobalParametersStruct(ViewIndex, GraphBuilder);
-	}
-	else
-	{
-		SharedParameters.LightFunctionAtlas = *FLightFunctionAtlas::GetDefaultLightFunctionAtlasGlobalParametersStruct(GraphBuilder);
-	}
+	SharedParameters.LightFunctionAtlas = *LightFunctionAtlas::GetGlobalParametersStruct(GraphBuilder, View, ViewIndex);
 
 	const FScene* Scene = View.Family->Scene ? View.Family->Scene->GetRenderScene() : nullptr;
 	const FPlanarReflectionSceneProxy* ReflectionSceneProxy = Scene ? Scene->GetForwardPassGlobalPlanarReflection() : nullptr;

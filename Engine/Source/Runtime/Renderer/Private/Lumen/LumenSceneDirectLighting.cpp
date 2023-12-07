@@ -131,19 +131,19 @@ public:
 		}
 
 		LightFunctionMaterialProxy = Proxy->GetLightFunctionMaterial();
-		if (LightFunctionMaterialProxy
-			&& (!View.Family->EngineShowFlags.LightFunctions || !LightFunctionMaterialProxy->GetIncompleteMaterialWithFallback(Scene->GetFeatureLevel()).IsLightFunction()))
+		if (LightFunctionMaterialProxy && (!View.Family->EngineShowFlags.LightFunctions || !LightFunctionMaterialProxy->GetIncompleteMaterialWithFallback(Scene->GetFeatureLevel()).IsLightFunction()))
 		{
 			LightFunctionMaterialProxy = nullptr;
 		}
-
+		const bool bBatchableLightFunction = LightFunctionMaterialProxy == nullptr || (LightFunctionAtlas::IsEnabled(View, ELightFunctionAtlasSystem::Lumen) && LightSceneInfo->Proxy->HasValidLightFunctionAtlasSlot());
+		
 		FSceneRenderer::GetLightNameForDrawEvent(Proxy, Name);
 
 		bNeedsShadowMask = bHasShadows || bHasCloudTransmittance || LightFunctionMaterialProxy;
 
 		// If evaluates to false, the light may still be eligible for batching during a raytraced shadow pass.
 		// The assumption is that such lights are not common so we are not optimizing for them.
-		bBatchedShadowsEligible = !bHasCloudTransmittance && !LightFunctionMaterialProxy && Type != ELumenLightType::Directional;
+		bBatchedShadowsEligible = !bHasCloudTransmittance && bBatchableLightFunction && Type != ELumenLightType::Directional;
 
 		// Non-raytraced and distance field shadows require the light uniform buffer struct for each view.
 		if ((!bUseHardwareRayTracing && bHasShadows) || NeedsShadowMask())
@@ -613,13 +613,15 @@ class FLumenDirectLightingNonRayTracedShadowsCS : public FGlobalShader
 
 	BEGIN_SHADER_PARAMETER_STRUCT(FParameters, )
 		SHADER_PARAMETER_STRUCT_INCLUDE(FLumenDirectLightingNonRayTracedShadowsParameters, Common)
+		SHADER_PARAMETER_RDG_UNIFORM_BUFFER(FLightFunctionAtlasGlobalParameters, LightFunctionAtlas)
 	END_SHADER_PARAMETER_STRUCT()
 
 	class FThreadGroupSize32 : SHADER_PERMUTATION_BOOL("THREADGROUP_SIZE_32");
 	class FCompactShadowTraces : SHADER_PERMUTATION_BOOL("COMPACT_SHADOW_TRACES");
 	class FLightType : SHADER_PERMUTATION_ENUM_CLASS("LIGHT_TYPE", ELumenLightType);
 	class FCloudTransmittance : SHADER_PERMUTATION_BOOL("USE_CLOUD_TRANSMITTANCE");
-	using FPermutationDomain = TShaderPermutationDomain<FThreadGroupSize32, FCompactShadowTraces, FLightType, FCloudTransmittance>;
+	class FLightFunctionAtlas : SHADER_PERMUTATION_BOOL("USE_LIGHT_FUNCTION_ATLAS");
+	using FPermutationDomain = TShaderPermutationDomain<FThreadGroupSize32, FCompactShadowTraces, FLightType, FCloudTransmittance, FLightFunctionAtlas>;
 
 	static bool ShouldCompilePermutation(const FGlobalShaderPermutationParameters& Parameters)
 	{
@@ -969,7 +971,7 @@ void CullMeshObjectsForLightCards(
 		LightTileIntersectionParameters);
 }
 
-void RenderDirectLightIntoLumenCardsBatched(
+static void RenderDirectLightIntoLumenCardsBatched(
 	FRDGBuilder& GraphBuilder,
 	const TArray<FViewInfo>& Views,
 	TRDGUniformBufferRef<FLumenCardScene> LumenCardSceneUniformBuffer,
@@ -1025,7 +1027,7 @@ static void SetPerLightParameters(FPerLightParameters& DstParameters, const FLum
 	DstParameters.DeferredLightUniforms = Light.DeferredLightUniformBuffers[ViewIndex];
 }
 
-int32 ComputeNonRayTracedShadows(
+static int32 ComputeNonRayTracedShadows(
 	FRDGBuilder& GraphBuilder,
 	const FScene* Scene,
 	const FViewInfo& View,
@@ -1036,6 +1038,7 @@ int32 ComputeNonRayTracedShadows(
 	const FLumenLightTileScatterParameters& LightTileScatterParameters,
 	int32 ViewIndex,
 	int32 NumViews,
+	const bool bHasLightFunctions, 
 	FRDGBufferUAVRef ShadowMaskTilesUAV,
 	FRDGBufferUAVRef ShadowTraceAllocatorUAV,
 	FRDGBufferUAVRef ShadowTracesUAV,
@@ -1131,6 +1134,7 @@ int32 ComputeNonRayTracedShadows(
 			PermutationVector.Set<FLumenDirectLightingNonRayTracedShadowsCS::FCompactShadowTraces>(ShadowTraceAllocatorUAV != nullptr);
 			PermutationVector.Set<FLumenDirectLightingNonRayTracedShadowsCS::FLightType>(Light.Type);
 			PermutationVector.Set<FLumenDirectLightingNonRayTracedShadowsCS::FCloudTransmittance>(bUseCloudTransmittance);
+			PermutationVector.Set<FLumenDirectLightingNonRayTracedShadowsCS::FLightFunctionAtlas>(false);
 			TShaderRef<FLumenDirectLightingNonRayTracedShadowsCS> ComputeShader = View.ShaderMap->GetShader<FLumenDirectLightingNonRayTracedShadowsCS>(PermutationVector);
 
 			FComputeShaderUtils::AddPass(
@@ -1144,6 +1148,7 @@ int32 ComputeNonRayTracedShadows(
 		}
 	}
 
+	const bool bUseLightFunctionAtlas = bHasLightFunctions && LightFunctionAtlas::IsEnabled(View, ELightFunctionAtlasSystem::Lumen);
 	for (int32 LightTypeIndex = 0; LightTypeIndex < (int32)ELumenLightType::MAX; ++LightTypeIndex)
 	{
 		TConstArrayView<FPerLightParameters> BatchedLightParameters = ViewBatchedLightParameters.PerLightTypeParameters[LightTypeIndex];
@@ -1154,12 +1159,17 @@ int32 ComputeNonRayTracedShadows(
 			FLumenDirectLightingNonRayTracedShadowsCS::FParameters* PassParameters = GraphBuilder.AllocParameters<FLumenDirectLightingNonRayTracedShadowsCS::FParameters>();
 			SetCommonParameters(PassParameters->Common);
 			SetupLightCloudTransmittanceParameters(GraphBuilder, Scene, View, nullptr, PassParameters->Common.LightCloudTransmittanceParameters);
+			if (bUseLightFunctionAtlas)
+			{
+				PassParameters->LightFunctionAtlas = LightFunctionAtlas::BindGlobalParameters(GraphBuilder, View, ViewIndex);
+			}
 
 			FLumenDirectLightingNonRayTracedShadowsCS::FPermutationDomain PermutationVector;
 			PermutationVector.Set<FLumenDirectLightingNonRayTracedShadowsCS::FThreadGroupSize32>(Lumen::UseThreadGroupSize32());
 			PermutationVector.Set<FLumenDirectLightingNonRayTracedShadowsCS::FCompactShadowTraces>(ShadowTraceAllocatorUAV != nullptr);
 			PermutationVector.Set<FLumenDirectLightingNonRayTracedShadowsCS::FLightType>((ELumenLightType)LightTypeIndex);
 			PermutationVector.Set<FLumenDirectLightingNonRayTracedShadowsCS::FCloudTransmittance>(false);
+			PermutationVector.Set<FLumenDirectLightingNonRayTracedShadowsCS::FLightFunctionAtlas>(bUseLightFunctionAtlas);
 			TShaderRef<FLumenDirectLightingNonRayTracedShadowsCS> ComputeShader = View.ShaderMap->GetShader<FLumenDirectLightingNonRayTracedShadowsCS>(PermutationVector);
 
 			const FShaderParametersMetadata* ParametersMetaData = FLumenDirectLightingNonRayTracedShadowsCS::FParameters::FTypeInfo::GetStructMetadata();
@@ -1424,7 +1434,7 @@ struct FLumenPackedLight
 	uint32 LightingChannelMask;
 	uint32 bHasShadowMask;
 	float IESAtlasIndex;
-	uint32 Padding;
+	uint32 LightFunctionAtlasIndex;
 };
 
 struct FLightTileCullContext
@@ -1635,6 +1645,7 @@ struct FLumenDirectLightingTaskData
 	// Note: All standalone (non-batched) lights need shadow masks but may not cast ray traced shadows
 	TArray<int32, TInlineAllocator<4>> StandaloneLightIndices;
 	bool bHasRectLights = false;
+	bool bHasLightFunctions = false;
 };
 
 void FDeferredShadingSceneRenderer::BeginGatherLumenLights(FLumenDirectLightingTaskData*& TaskData, IVisibilityTaskData* VisibilityTaskData)
@@ -1690,6 +1701,7 @@ void FDeferredShadingSceneRenderer::BeginGatherLumenLights(FLumenDirectLightingT
 						}
 
 						TaskData->bHasRectLights |= GatheredLight.Type == ELumenLightType::Rect;
+						TaskData->bHasLightFunctions |= GatheredLight.LightFunctionMaterialProxy != nullptr;
 						TaskData->GatheredLights.Add(GatheredLight);
 						break;
 					}
@@ -1766,6 +1778,7 @@ void FDeferredShadingSceneRenderer::BeginGatherLumenLights(FLumenDirectLightingT
 			}
 			LightData.RectLightAtlasUVOffset = ShaderParameters.RectLightAtlasUVOffset;
 			LightData.IESAtlasIndex = ShaderParameters.IESAtlasIndex;
+			LightData.LightFunctionAtlasIndex = ShaderParameters.LightFunctionAtlasLightIndex;
 			LightData.LightingChannelMask = LightSceneInfo->Proxy->GetLightingChannelMask();
 			LightData.bHasShadowMask = LumenLight.NeedsShadowMask() ? 1 : 0;
 
@@ -1863,6 +1876,7 @@ void FDeferredShadingSceneRenderer::RenderDirectLightingForLumenScene(
 					CullContext.LightTileScatterParameters,
 					ViewIndex,
 					Views.Num(),
+					LightingTaskData->bHasLightFunctions,
 					ShadowMaskTilesUAV,
 					ShadowTraceAllocatorUAV,
 					ShadowTracesUAV,

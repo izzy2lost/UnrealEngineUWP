@@ -157,8 +157,7 @@ static void InternalAddClusteredDeferredShadingPass(
 	FRDGTextureRef ShadowMaskBits,
 	FVirtualShadowMapArray& VirtualShadowMapArray,
 	FRDGBufferSRVRef HairTransmittanceBuffer,
-	FSubstrateSceneData* SubstrateSceneData,
-	FLightFunctionAtlas& LightFunctionAtlas)
+	FSubstrateSceneData* SubstrateSceneData)
 {
 	check(SortedLightsSet.ClusteredSupportedEnd > 0);
 	const FIntPoint SceneTextureExtent = SceneTextures.Config.Extent;
@@ -174,7 +173,7 @@ static void InternalAddClusteredDeferredShadingPass(
 	PassParameters->VirtualShadowMapSamplingParameters = VirtualShadowMapArray.GetSamplingParameters(GraphBuilder);
 	PassParameters->HairTransmittanceBuffer = HairTransmittanceBuffer;
 	PassParameters->Substrate = Substrate::BindSubstrateGlobalUniformParameters(View);
-	PassParameters->LightFunctionAtlas = LightFunctionAtlas.GetLightFunctionAtlasGlobalParameters(ViewIndex, GraphBuilder);
+	PassParameters->LightFunctionAtlas = LightFunctionAtlas::BindGlobalParameters(GraphBuilder, View, ViewIndex);
 	ShaderPrint::SetParameters(GraphBuilder, View.ShaderPrintData, PassParameters->ShaderPrintUniformBuffer);
 
 	PassParameters->RenderTargets[0] = FRenderTargetBinding(SceneTextures.Color.Target, ERenderTargetLoadAction::ELoad);
@@ -212,7 +211,7 @@ static void InternalAddClusteredDeferredShadingPass(
 		PermutationVector.Set<FClusteredShadingPS::FVisualizeLightCullingDim>(View.Family->EngineShowFlags.VisualizeLightCulling);
 		PermutationVector.Set<FClusteredShadingPS::FHairStrandsLighting>(bHairStrands);
 		PermutationVector.Set<FClusteredShadingPS::FSubstrateTileType>(bSubstrate ? TileType : 0);
-		PermutationVector.Set<FClusteredShadingPS::FLightFunctionAtlasDim>(View.LightFunctionAtlasViewData.GetDeferredlightingUsesLightFunctionAtlas());
+		PermutationVector.Set<FClusteredShadingPS::FLightFunctionAtlasDim>(LightFunctionAtlas::IsEnabled(View, ELightFunctionAtlasSystem::DeferredLighting));
 		TShaderMapRef<FClusteredShadingPS> PixelShader(View.ShaderMap, PermutationVector);
 		{
 			FGraphicsPipelineStateInitializer GraphicsPSOInit;
@@ -308,8 +307,7 @@ void FDeferredShadingSceneRenderer::AddClusteredDeferredShadingPass(
 					ShadowMaskBits,
 					VirtualShadowMapArray,
 					nullptr,
-					SubstrateSceneData,
-					LightFunctionAtlas);
+					SubstrateSceneData);
 
 				InternalAddClusteredDeferredShadingPass(
 					GraphBuilder,
@@ -322,8 +320,7 @@ void FDeferredShadingSceneRenderer::AddClusteredDeferredShadingPass(
 					ShadowMaskBits,
 					VirtualShadowMapArray,
 					nullptr,
-					SubstrateSceneData,
-					LightFunctionAtlas);
+					SubstrateSceneData);
 
 				InternalAddClusteredDeferredShadingPass(
 					GraphBuilder,
@@ -336,8 +333,7 @@ void FDeferredShadingSceneRenderer::AddClusteredDeferredShadingPass(
 					ShadowMaskBits,
 					VirtualShadowMapArray,
 					nullptr,
-					SubstrateSceneData,
-					LightFunctionAtlas);
+					SubstrateSceneData);
 
 				InternalAddClusteredDeferredShadingPass(
 					GraphBuilder,
@@ -350,8 +346,7 @@ void FDeferredShadingSceneRenderer::AddClusteredDeferredShadingPass(
 					ShadowMaskBits,
 					VirtualShadowMapArray,
 					nullptr, 
-					SubstrateSceneData,
-					LightFunctionAtlas);
+					SubstrateSceneData);
 			}
 			else
 			{
@@ -366,8 +361,7 @@ void FDeferredShadingSceneRenderer::AddClusteredDeferredShadingPass(
 					ShadowMaskBits,
 					VirtualShadowMapArray,
 					nullptr,
-					SubstrateSceneData,
-					LightFunctionAtlas);
+					SubstrateSceneData);
 			}
 
 			if (HairStrands::HasViewHairStrandsData(View))
@@ -384,8 +378,7 @@ void FDeferredShadingSceneRenderer::AddClusteredDeferredShadingPass(
 					HairStrandsShadowMaskBits,
 					VirtualShadowMapArray,
 					GraphBuilder.CreateSRV(TransmittanceMask.TransmittanceMask, FHairStrandsTransmittanceMaskData::Format),
-					SubstrateSceneData,
-					LightFunctionAtlas);
+					SubstrateSceneData);
 			}
 		}
 	}

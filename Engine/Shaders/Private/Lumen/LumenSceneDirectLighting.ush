@@ -128,7 +128,7 @@ struct FLumenPackedLight
 	uint LightingChannelMask;
 	uint bHasShadowMask;
 	float IESAtlasIndex;
-	uint Padding;
+	uint LightFunctionAtlasIndex;
 };
 
 struct FLumenLight
@@ -181,6 +181,7 @@ FLumenLight LoadLumenLight(uint LightIndex, float3 PreViewTranslation)
 	DeferredLightData.bSpotLight = PackedLight.LightType == LIGHT_TYPE_SPOT;
 	DeferredLightData.bRectLight = PackedLight.LightType == LIGHT_TYPE_RECT;
 	DeferredLightData.IESAtlasIndex = PackedLight.IESAtlasIndex;
+	DeferredLightData.LightFunctionAtlasLightIndex = PackedLight.LightFunctionAtlasIndex;
 
 	FLumenLight LumenLight = (FLumenLight)0;
 	LumenLight.DeferredLightData = DeferredLightData;
