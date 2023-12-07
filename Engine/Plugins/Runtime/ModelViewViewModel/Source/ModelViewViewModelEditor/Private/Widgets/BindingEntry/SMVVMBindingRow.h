@@ -93,6 +93,9 @@ private:
 
 	void OnBindingModeSelectionChanged(FName ValueName, ESelectInfo::Type);
 
+	TSharedRef<SWidget> HandleContextMenu() const;
+	void HandleDuplicateGraph() const;
+
 private:
 	TArray<TSharedPtr<FText>> ErrorItems;
 	EMVVMExecutionMode DefaultExecutionMode = EMVVMExecutionMode::DelayedWhenSharedElseImmediate;

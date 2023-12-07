@@ -126,6 +126,10 @@ public:
 	UPROPERTY(EditAnywhere, config, Category = "Viewmodel")
 	bool bShowViewSettings = true;
 
+	/** For the binding list widget, allow the user to generate a copy of the binding/event graph. */
+	UPROPERTY(EditAnywhere, config, Category = "Viewmodel")
+	bool bShowDeveloperGenerateGraphSettings = true;
+
 	/** When a conversion function requires a wrapper graph, add and save the generated graph to the blueprint. */
 	UPROPERTY(EditAnywhere, config, Category = "Viewmodel")
 	bool bAllowConversionFunctionGeneratedGraphInEditor = false;

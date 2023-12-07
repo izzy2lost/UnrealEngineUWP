@@ -4,14 +4,11 @@
 #include "Widgets/BindingEntry/SMVVMEventRow.h"
 
 #include "Bindings/MVVMBindingHelper.h"
-#include "Blueprint/WidgetTree.h"
-#include "MVVMBlueprintViewBinding.h"
+#include "Framework/MVVMRowHelper.h"
 #include "MVVMBlueprintViewEvent.h"
 #include "MVVMDeveloperProjectSettings.h"
 #include "MVVMPropertyPath.h"
 
-#include "Details/WidgetPropertyDragDropOp.h"
-#include "DragAndDrop/DecoratedDragDropOp.h"
 #include "Styling/AppStyle.h"
 #include "Styling/MVVMEditorStyle.h"
 
@@ -24,7 +21,6 @@
 #include "Widgets/SBoxPanel.h"
 #include "Widgets/SMVVMFieldSelector.h"
 #include "Widgets/SMVVMSourceSelector.h"
-#include "Widgets/ViewModelFieldDragDropOp.h"
 #include "SSimpleButton.h"
 
 #define LOCTEXT_NAMESPACE "BindingListView_EventRow"
@@ -63,7 +59,7 @@ TSharedRef<SWidget> SEventRow::BuildRowWidget()
 	.BorderBackgroundColor(this, &SEventRow::GetErrorBorderColor)
 	[
 		SNew(SBox)
-		.HeightOverride(30)
+		.HeightOverride(30.0f)
 		[
 			SNew(SHorizontalBox)
 			+ SHorizontalBox::Slot()
@@ -75,6 +71,19 @@ TSharedRef<SWidget> SEventRow::BuildRowWidget()
 				SNew(SCheckBox)
 				.IsChecked(this, &SEventRow::IsEventCompiled)
 				.OnCheckStateChanged(this, &SEventRow::OnIsEventCompileChanged)
+			]
+
+			+ SHorizontalBox::Slot()
+			.Padding(0.0f)
+			.VAlign(VAlign_Center)
+			.HAlign(HAlign_Left)
+			.AutoWidth()
+			[
+				SNew(SSimpleButton)
+					.Icon(FAppStyle::Get().GetBrush("Icons.Error"))
+					.Visibility(this, &SEventRow::GetErrorButtonVisibility)
+					.ToolTipText(this, &SEventRow::GetErrorButtonToolTip)
+					.OnClicked(this, &SEventRow::OnErrorButtonClicked)
 			]
 
 			+ SHorizontalBox::Slot()
@@ -144,11 +153,17 @@ TSharedRef<SWidget> SEventRow::BuildRowWidget()
 			.HAlign(HAlign_Left)
 			.AutoWidth()
 			[
-				SNew(SSimpleButton)
-				.Icon(FAppStyle::Get().GetBrush("Icons.Error"))
-				.Visibility(this, &SEventRow::GetErrorButtonVisibility)
-				.ToolTipText(this, &SEventRow::GetErrorButtonToolTip)
-				.OnClicked(this, &SEventRow::OnErrorButtonClicked)
+				SNew(SComboButton)
+				.ContentPadding(FMargin(2.f, 0.0f))
+				.ComboButtonStyle(&FMVVMEditorStyle::Get().GetWidgetStyle<FComboButtonStyle>("NoStyleComboButton"))
+				.HasDownArrow(false)
+				.OnGetMenuContent(this, &SEventRow::HandleContextMenu)
+				.ButtonContent()
+				[
+					SNew(SImage)
+					.Image(FMVVMEditorStyle::Get().GetBrush("Icon.Ellipsis"))
+					.DesiredSizeOverride(FVector2D(6.0, 24.0))
+				]
 			]
 		]
 	];
@@ -360,115 +375,69 @@ FFieldSelectionContext SEventRow::GetSelectedSelectionContext(bool bEvent) const
 
 FReply SEventRow::HandleFieldSelectorDrop(const FGeometry& MyGeometry, const FDragDropEvent& DragDropEvent, bool bEvent)
 {
-	TSharedPtr<FDecoratedDragDropOp> DragDropOp = DragDropEvent.GetOperationAs<FDecoratedDragDropOp>();
-	if (!DragDropOp.IsValid())
-	{
-		return FReply::Unhandled();
-	}
-
-	// Accept all drag-drop operations that are widget properties, but only accept view model fields when we are dropping into the Source box.
-	if (!DragDropOp->IsOfType<FWidgetPropertyDragDropOp>() && (!DragDropOp->IsOfType<FViewModelFieldDragDropOp>() || !bEvent))
-	{
-		return FReply::Unhandled();
-	}
-
 	UMVVMBlueprintViewEvent* Event = GetEvent();
-	UWidgetBlueprint* WidgetBlueprintPtr = GetBlueprint();
-	if (Event == nullptr || WidgetBlueprintPtr == nullptr)
+	if (Event == nullptr)
 	{
 		return FReply::Unhandled();
 	}
 
-	TSharedPtr<FViewModelFieldDragDropOp> ViewModelFieldDragDropOp = DragDropEvent.GetOperationAs<FViewModelFieldDragDropOp>();
-	TSharedPtr<FWidgetPropertyDragDropOp> WidgetPropertyDragDropOp = DragDropEvent.GetOperationAs<FWidgetPropertyDragDropOp>();
-	bool bIsViewModelProperty = ViewModelFieldDragDropOp != nullptr;
-
-	UWidgetBlueprint* DragDropWidgetBP = bIsViewModelProperty ? ViewModelFieldDragDropOp->WidgetBP.Get() : WidgetPropertyDragDropOp->WidgetBP.Get();
-	if (WidgetBlueprintPtr != DragDropWidgetBP)
+	TOptional<FMVVMBlueprintPropertyPath> PropertyPath = BindingEntry::FRowHelper::DropFieldSelector(GetBlueprint(), DragDropEvent);
+	if (!PropertyPath.IsSet())
 	{
 		return FReply::Unhandled();
-	}
-
-	TArray<FFieldVariant> FieldPath = bIsViewModelProperty ? ViewModelFieldDragDropOp->DraggedField : WidgetPropertyDragDropOp->DraggedPropertyPath;
-	FMVVMBlueprintPropertyPath PropertyPath;
-	for (const FFieldVariant& Field : FieldPath)
-	{
-		PropertyPath.AppendPropertyPath(WidgetBlueprintPtr, FMVVMConstFieldVariant(Field));
-	}
-
-	UMVVMEditorSubsystem* Subsystem = GetEditorSubsystem();
-	if (bIsViewModelProperty)
-	{
-		if (ViewModelFieldDragDropOp->ViewModelId.IsValid())
-		{
-			PropertyPath.SetViewModelId(ViewModelFieldDragDropOp->ViewModelId);
-		}
-		else
-		{
-			return FReply::Unhandled();
-		}
-	}
-	else
-	{
-		if (UWidget* OwnerWidgetPtr = WidgetPropertyDragDropOp->OwnerWidget.Get())
-		{
-			// Search for the widget by its name in the widget tree
-			// If the widget is not found, we know it is the root preview widget so we use the blueprint name.
-			if (WidgetBlueprintPtr->WidgetTree->FindWidget(OwnerWidgetPtr->GetFName()) && WidgetBlueprintPtr->GetFName() != OwnerWidgetPtr->GetFName())
-			{
-				PropertyPath.SetWidgetName(OwnerWidgetPtr->GetFName());
-			}
-			else
-			{
-				PropertyPath.SetSelfContext();
-			}
-		}
 	}
 
 	if (bEvent)
 	{
-		Subsystem->SetEventPath(Event, PropertyPath);
+		GetEditorSubsystem()->SetEventPath(Event, PropertyPath.GetValue());
 	}
 	else
 	{
-		Subsystem->SetEventDestinationPath(Event, PropertyPath);
+		GetEditorSubsystem()->SetEventDestinationPath(Event, PropertyPath.GetValue());
 	}
 	return FReply::Handled();
 }
 
 void SEventRow::HandleFieldSelectorDragEnter(const FGeometry& MyGeometry, const FDragDropEvent& DragDropEvent, bool bEvent)
 {
-	TSharedPtr<FDecoratedDragDropOp> DragDropOp = DragDropEvent.GetOperationAs<FDecoratedDragDropOp>();
-	if (DragDropOp.IsValid())
+	BindingEntry::FRowHelper::DragEnterFieldSelector(GetBlueprint(), DragDropEvent);
+}
+
+TSharedRef<SWidget> SEventRow::HandleContextMenu() const
+{
+	TSharedPtr<FBindingEntry> Entry = GetEntry();
+	FMenuBuilder MenuBuilder = BindingEntry::FRowHelper::CreateContextMenu(GetBlueprint(), GetBlueprintView(), MakeArrayView(&Entry, 1));
+	
 	{
-		// Accept all drag-drop operations that are widget properties, but only accept view model fields when we are dropping into the Source box.
-		if (DragDropOp->IsOfType<FWidgetPropertyDragDropOp>() || (DragDropOp->IsOfType<FViewModelFieldDragDropOp>() && !bEvent))
+		MenuBuilder.BeginSection("Developer", LOCTEXT("Developer", "Developer"));
+
+		UMVVMBlueprintViewEvent* Event = GetEvent();
+		if (GetDefault<UMVVMDeveloperProjectSettings>()->bShowDeveloperGenerateGraphSettings)		
 		{
-			if (UWidgetBlueprint* WidgetBlueprintPtr = GetBlueprint())
-			{
-				TSharedPtr<FViewModelFieldDragDropOp> ViewModelFieldDragDropOp = DragDropEvent.GetOperationAs<FViewModelFieldDragDropOp>();
-				TSharedPtr<FWidgetPropertyDragDropOp> WidgetPropertyDragDropOp = DragDropEvent.GetOperationAs<FWidgetPropertyDragDropOp>();
-				bool IsViewModelProperty = false;
+			bool bCanDuplicateGraph = Event && Event->GetWrapperGraph();
+			//CanDuplicateGraph(GraphToDuplicate)
 
-				if (ViewModelFieldDragDropOp)
-				{
-					IsViewModelProperty = true;
-				}
-
-				UWidgetBlueprint* DragDropWidgetBP = IsViewModelProperty ? ViewModelFieldDragDropOp->WidgetBP.Get() : WidgetPropertyDragDropOp->WidgetBP.Get();
-
-				if (DragDropWidgetBP && DragDropWidgetBP == WidgetBlueprintPtr)
-				{
-					DragDropOp->CurrentIconBrush = FAppStyle::GetBrush(TEXT("Graph.ConnectorFeedback.OK"));
-					return;
-				}
-			}
+			FUIAction DuplicateAction;
+			DuplicateAction.ExecuteAction = FExecuteAction::CreateSP(this, &SEventRow::HandleDuplicateGraph);
+			DuplicateAction.CanExecuteAction = FCanExecuteAction::CreateLambda([bCanDuplicateGraph]() { return bCanDuplicateGraph; });
+			MenuBuilder.AddMenuEntry(LOCTEXT("DuplicateGraph", "Copy event graph")
+				, LOCTEXT("DuplicateGraphTooltip", "Add a copy of the event graph to Blueprint."
+					" The copied graph will not bu used."
+					" The graph is always generated but may not be visible to the user.")
+				, FSlateIcon(FAppStyle::GetAppStyleSetName(), "Icons.Duplicate")
+				, DuplicateAction);
 		}
-		else
-		{
-			DragDropOp->CurrentIconBrush = FAppStyle::GetBrush(TEXT("Graph.ConnectorFeedback.Error"));
-		}
+
+		MenuBuilder.EndSection();
 	}
+
+	return MenuBuilder.MakeWidget();
+}
+
+void SEventRow::HandleDuplicateGraph() const
+{
+	TSharedPtr<FBindingEntry> Entry = GetEntry();
+	BindingEntry::FRowHelper::DuplicateBlueprintGraph(GetBlueprintEditor().Get(), GetBlueprint(), GetBlueprintView(), MakeArrayView(&Entry, 1));
 }
 
 } // namespace

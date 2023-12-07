@@ -63,6 +63,9 @@ private:
 
 	void HandleFieldSelectorDragEnter(const FGeometry& MyGeometry, const FDragDropEvent& DragDropEvent, bool bSource);
 
+	TSharedRef<SWidget> HandleContextMenu() const;
+	void HandleDuplicateGraph() const;
+
 private:
 	TArray<TSharedPtr<FText>> ErrorItems;
 };
