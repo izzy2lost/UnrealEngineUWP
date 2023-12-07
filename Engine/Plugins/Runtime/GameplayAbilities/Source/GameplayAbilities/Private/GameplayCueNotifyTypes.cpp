@@ -426,7 +426,7 @@ bool FGameplayCueNotify_ParticleInfo::PlayParticleEffect(const FGameplayCueNotif
 						SpawnLocation, SpawnRotation, SpawnScale, bAutoDestroy, bAutoActivate, ENCPoolMethod::AutoRelease);
 				}
 
-				if (ensure(SpawnedFXSC))
+				if (SpawnedFXSC)
 				{
 					SpawnedFXSC->SetCastShadow(bCastShadow);
 				}
