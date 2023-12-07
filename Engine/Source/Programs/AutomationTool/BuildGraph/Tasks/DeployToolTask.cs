@@ -1,6 +1,7 @@
 // Copyright Epic Games, Inc. All Rights Reserved.
 
 using AutomationTool;
+using AutomationUtils;
 using EpicGames.Core;
 using System;
 using System.Collections.Generic;
@@ -141,7 +142,7 @@ namespace AutomationTool.Tasks
 
 			HttpClient CreateHttpClient()
 			{
-				HttpClient httpClient = new HttpClient();
+				HttpClient httpClient = HttpClientSingleton<DeployToolTask>.Client;
 				httpClient.BaseAddress = serverUri;
 				if (settings?.Token != null)
 				{
