@@ -142,9 +142,9 @@ namespace uba
 			return;
 		SOCKET s = conn.socket;
 		conn.socket = INVALID_SOCKET;
-		closesocket(s);
 		lock.Leave();
 		conn.recvThread.Wait();
+		closesocket(s);
 	}
 
 	bool NetworkBackendTcp::Send(Logger& logger, void* connection, const void* data, u32 dataSize, SendContext& sendContext)

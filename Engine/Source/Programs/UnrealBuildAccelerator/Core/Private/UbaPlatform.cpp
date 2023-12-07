@@ -327,13 +327,7 @@ namespace uba
 		#if PLATFORM_WINDOWS
 		return ::GetActiveProcessorCount(ALL_PROCESSOR_GROUPS);
 		#else
-		#if PLATFORM_MAC
-		UBA_ASSERTF(false, TC("GetLogicalProcessorCount not implemented"));
-		return 0;
-		#else
 		return (u32)sysconf(_SC_NPROCESSORS_ONLN);
-		//return std::thread::hardware_concurrency();
-		#endif
 		#endif
 	}
 
