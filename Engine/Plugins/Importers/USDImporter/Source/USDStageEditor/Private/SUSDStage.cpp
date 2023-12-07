@@ -2652,7 +2652,8 @@ void SUsdStage::OnViewportSelectionChanged( UObject* NewSelection )
 
 		for ( AActor* SelectedActor : SelectedActors )
 		{
-			if ( SelectedActor )
+			// Some actors like AWorldDataLayer don't have a root component
+			if ( SelectedActor && SelectedActor->GetRootComponent() )
 			{
 				AllSelectedComponents.Add( SelectedActor->GetRootComponent() );
 			}
