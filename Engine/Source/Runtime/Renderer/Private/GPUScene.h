@@ -13,7 +13,6 @@
 #include "LightSceneData.h"
 #include "SceneUniformBuffer.h"
 #include "UnifiedBuffer.h"
-#include "RendererPrivateUtils.h"
 
 class FRDGExternalAccessQueue;
 class FRHICommandList;
@@ -334,7 +333,7 @@ public:
 private:
 	static constexpr int32 InitialBufferSize = 256;
 
-	TPersistentStructuredBuffer<FLightSceneData> LightDataBuffer;
+	TRefCountPtr<FRDGPooledBuffer> LightDataBuffer;
 
 	// Buffers used by GPU-Scene, since they can be resized during updates AND the render passes must retain the 
 	// right copy (this is chiefly because the init of shadow views after pre-pass means we need to be able to set 
