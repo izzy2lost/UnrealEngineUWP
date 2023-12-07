@@ -52,20 +52,38 @@ void FWeakKeyMap::Remove(VCell* Key, VCell* Map)
 template <typename TVisitor>
 void FWeakKeyMap::Visit(VCell* Key, TVisitor& Visitor)
 {
-	if (TMap<VCell*, VCell*>* MapMap = InternalMap.Find(Key))
+	if constexpr (TVisitor::bIsAbstractVisitor)
 	{
-		Visitor.BeginMap("Values");
-		for (auto It = MapMap->CreateIterator(); It; ++It)
+		if (TMap<VCell*, VCell*>* MapMap = InternalMap.Find(Key))
 		{
-			// It->Key is a weak map in this case.
-			Visitor.BeginObject();
-			if (Visitor.IsMarked(It->Key, "Key"))
+			uint64 ScratchNumElements = MapMap->Num();
+			Visitor.BeginMap(TEXT("Values"), ScratchNumElements);
+			for (auto It = MapMap->CreateIterator(); It; ++It)
 			{
-				Visitor.VisitNonNull(It->Value, "Value");
+				// It->Key is a weak map in this case.
+				Visitor.BeginObject();
+				if (Visitor.IsMarked(It->Key, TEXT("Key")))
+				{
+					Visitor.VisitNonNull(It->Value, TEXT("Value"));
+				}
+				Visitor.EndObject();
 			}
-			Visitor.EndObject();
+			Visitor.EndMap();
 		}
-		Visitor.EndMap();
+	}
+	else
+	{
+		if (TMap<VCell*, VCell*>* MapMap = InternalMap.Find(Key))
+		{
+			for (auto It = MapMap->CreateIterator(); It; ++It)
+			{
+				// It->Key is a weak map in this case.
+				if (Visitor.IsMarked(It->Key, TEXT("Key")))
+				{
+					Visitor.VisitNonNull(It->Value, TEXT("Value"));
+				}
+			}
+		}
 	}
 }
 

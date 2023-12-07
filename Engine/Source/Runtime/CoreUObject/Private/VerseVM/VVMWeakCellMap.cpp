@@ -59,17 +59,31 @@ void VWeakCellMap::VisitReferencesImpl(TVisitor& Visitor)
 {
 	UE::FExternalMutex ExternalMutex(Mutex);
 	UE::TUniqueLock Lock(ExternalMutex);
-	Visitor.BeginMap("Values");
-	for (auto It = Map.CreateIterator(); It; ++It)
+	if constexpr (TVisitor::bIsAbstractVisitor)
 	{
-		Visitor.BeginObject();
-		if (Visitor.IsMarked(It->Key, "Key"))
+		uint64 ScratchNumElements = Map.Num();
+		Visitor.BeginMap(TEXT("Values"), ScratchNumElements);
+		for (auto It = Map.CreateIterator(); It; ++It)
 		{
-			Visitor.VisitNonNull(It->Value, "Value");
+			Visitor.BeginObject();
+			if (Visitor.IsMarked(It->Key, TEXT("Key")))
+			{
+				Visitor.VisitNonNull(It->Value, TEXT("Value"));
+			}
+			Visitor.EndObject();
 		}
-		Visitor.EndObject();
+		Visitor.EndMap();
 	}
-	Visitor.EndMap();
+	else
+	{
+		for (auto It = Map.CreateIterator(); It; ++It)
+		{
+			if (Visitor.IsMarked(It->Key, TEXT("Key")))
+			{
+				Visitor.VisitNonNull(It->Value, TEXT("Value"));
+			}
+		}
+	}
 	Visitor.ReportNativeBytes(GetAllocatedSize());
 }
 

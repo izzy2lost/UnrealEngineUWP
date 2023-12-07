@@ -45,9 +45,9 @@ FNativeCallResult VIntrinsics::FloorImpl(FRunningContext Context, VNativeFunctio
 template <typename TVisitor>
 void VIntrinsics::VisitReferencesImpl(TVisitor& Visitor)
 {
-	Visitor.Visit(Abs, "Abs");
-	Visitor.Visit(Ceil, "Ceil");
-	Visitor.Visit(Floor, "Floor");
+	Visitor.Visit(Abs, TEXT("Abs"));
+	Visitor.Visit(Ceil, TEXT("Ceil"));
+	Visitor.Visit(Floor, TEXT("Floor"));
 }
 
 } // namespace Verse

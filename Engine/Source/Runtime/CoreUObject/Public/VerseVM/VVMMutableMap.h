@@ -49,6 +49,8 @@ struct VMutableMap : VMapBase
 		return *new (Context.Allocate(Verse::FHeap::DestructorSpace, sizeof(VMutableMap))) VMutableMap(Context, NumEntries, InitEntryFunc);
 	}
 
+	static void SerializeImpl(VMutableMap*& This, FAllocationContext Context, FAbstractVisitor& Visitor);
+
 private:
 	VMutableMap(FAllocationContext Context, uint32 InitialCapacity)
 		: VMapBase(Context, InitialCapacity, &GlobalTrivialEmergentType.Get(Context)) {}

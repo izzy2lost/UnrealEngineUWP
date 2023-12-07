@@ -3225,7 +3225,7 @@ struct TVerseDebugReachabilityVisitor : public Verse::FAbstractVisitor
 	{
 	}
 
-	virtual void VisitNonNull(Verse::VCell* InCell, const char* ElementName) override
+	virtual void VisitNonNull(Verse::VCell*& InCell, const TCHAR* ElementName) override
 	{
 		Context.Stats.AddVerseCells(1);
 		if (MarkStack.TryMarkNonNull(InCell) && bTrackHistory)
@@ -3239,7 +3239,7 @@ struct TVerseDebugReachabilityVisitor : public Verse::FAbstractVisitor
 		}
 	}
 
-	virtual void VisitNonNull(UObject* InObject, const char* ElementName) override
+	virtual void VisitNonNull(UObject* InObject, const TCHAR* ElementName) override
 	{
 		UE::GC::GStats.IncreaseObjectRefStats(InObject);
 		Verse::FAbstractVisitor::FReferrerContext* VisitorContext = GetContext();

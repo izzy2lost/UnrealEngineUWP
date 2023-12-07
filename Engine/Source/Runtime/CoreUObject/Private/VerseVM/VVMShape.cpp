@@ -40,22 +40,41 @@ VShape::VShape(FAllocationContext Context, FieldsMap&& InFields)
 template <typename TVisitor>
 void VShape::VisitReferencesImpl(TVisitor& Visitor)
 {
-	Visitor.BeginArray("Fields");
-	for (auto It = Fields.CreateIterator(); It; ++It)
+	if constexpr (TVisitor::bIsAbstractVisitor)
 	{
-		Visitor.BeginObject();
-		Visitor.Visit(It->Key, "Key");
-		switch (It->Value.Type)
+		uint64 ScratchFieldCount = Fields.Num();
+		Visitor.BeginArray(TEXT("Fields"), ScratchFieldCount);
+		for (auto It = Fields.CreateIterator(); It; ++It)
 		{
-			case EFieldType::Offset:
-				break;
-			case EFieldType::Constant:
-				Visitor.Visit(It->Value.Value, "Value");
-				break;
+			Visitor.BeginObject();
+			Visitor.Visit(It->Key, TEXT("Key"));
+			switch (It->Value.Type)
+			{
+				case EFieldType::Offset:
+					break;
+				case EFieldType::Constant:
+					Visitor.Visit(It->Value.Value, TEXT("Value"));
+					break;
+			}
+			Visitor.EndObject();
 		}
-		Visitor.EndObject();
+		Visitor.EndArray();
 	}
-	Visitor.EndArray();
+	else
+	{
+		for (auto It = Fields.CreateIterator(); It; ++It)
+		{
+			Visitor.Visit(It->Key, TEXT("Key"));
+			switch (It->Value.Type)
+			{
+				case EFieldType::Offset:
+					break;
+				case EFieldType::Constant:
+					Visitor.Visit(It->Value.Value, TEXT("Value"));
+					break;
+			}
+		}
+	}
 }
 
 VShape* VShape::New(FAllocationContext Context, FieldsMap&& InFields)

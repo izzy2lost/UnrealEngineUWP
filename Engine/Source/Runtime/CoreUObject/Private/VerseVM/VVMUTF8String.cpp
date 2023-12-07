@@ -2,6 +2,7 @@
 
 #if WITH_VERSE_VM || defined(__INTELLISENSE__)
 #include "Async/UniqueLock.h"
+#include "Containers/StringConv.h"
 #include "Containers/StringView.h"
 #include "VerseVM/Inline/VVMAbstractVisitorInline.h"
 #include "VerseVM/Inline/VVMCellInline.h"
@@ -54,12 +55,38 @@ uint32 VUTF8String::GetTypeHashImpl()
 template <typename TVisitor>
 void VUTF8String::VisitReferencesImpl(TVisitor& Visitor)
 {
-	Visitor.Visit(AsCString(), "Value");
+	if constexpr (TVisitor::bIsAbstractVisitor)
+	{
+		if (Visitor.IsLoading())
+		{
+			V_DIE("VUTF8String isn't mutable and can not be loaded through the abstract visitors, use the Serialization method");
+		}
+		else
+		{
+			FString ScratchString(AsStringView());
+			Visitor.Visit(ScratchString, TEXT("Value"));
+		}
+	}
 }
 
 void VUTF8String::ToStringImpl(FStringBuilderBase& Builder, FAllocationContext Context, const FCellFormatter& Formatter)
 {
 	Builder.Append(TEXT("\"")).Append(AsCString()).Append(TEXT("\""));
+}
+
+void VUTF8String::SerializeImpl(VUTF8String*& This, FAllocationContext Context, FAbstractVisitor& Visitor)
+{
+	if (Visitor.IsLoading())
+	{
+		FString ScratchString;
+		Visitor.Visit(ScratchString, TEXT("Value"));
+		This = &VUTF8String::New(Context, TCHAR_TO_UTF8(*ScratchString));
+	}
+	else
+	{
+		FString ScratchString(This->AsStringView());
+		Visitor.Visit(ScratchString, TEXT("Value"));
+	}
 }
 
 DEFINE_DERIVED_VCPPCLASSINFO(VUTF8String);
@@ -72,6 +99,21 @@ TGlobalTrivialEmergentTypePtr<&VUniqueString::StaticCppClassInfo> VUniqueString:
 void VUniqueString::ToStringImpl(FStringBuilderBase& Builder, FAllocationContext Context, const FCellFormatter& Formatter)
 {
 	Builder.Append(TEXT("\"")).Append(AsCString()).Append(TEXT("\""));
+}
+
+void VUniqueString::SerializeImpl(VUniqueString*& This, FAllocationContext Context, FAbstractVisitor& Visitor)
+{
+	if (Visitor.IsLoading())
+	{
+		FString ScratchString;
+		Visitor.Visit(ScratchString, TEXT("Value"));
+		This = &VUniqueString::New(Context, TCHAR_TO_UTF8(*ScratchString));
+	}
+	else
+	{
+		FString ScratchString(This->AsStringView());
+		Visitor.Visit(ScratchString, TEXT("Value"));
+	}
 }
 
 TLazyInitialized<VStringInternPool> VUniqueString::StringPool;
@@ -135,7 +177,7 @@ template <typename TVisitor>
 void VUniqueStringSet::VisitReferencesImpl(TVisitor& Visitor)
 {
 	// We still have to mark each of the strings in the set as being used.
-	Visitor.Visit(Strings.begin(), Strings.end(), "Strings");
+	Visitor.Visit(Strings, TEXT("Strings"));
 }
 
 void VUniqueStringSet::ToStringImpl(FStringBuilderBase& Builder, FAllocationContext Context, const FCellFormatter& Formatter)
@@ -150,6 +192,31 @@ void VUniqueStringSet::ToStringImpl(FStringBuilderBase& Builder, FAllocationCont
 		Builder.Append(TEXT("("));
 		Formatter.Append(Builder, Context, *CurrentString);
 		Builder.Append(TEXT(")"));
+	}
+}
+
+void VUniqueStringSet::SerializeImpl(VUniqueStringSet*& This, FAllocationContext Context, FAbstractVisitor& Visitor)
+{
+	if (Visitor.IsLoading())
+	{
+		uint64 ScratchNumValues = 0;
+		Visitor.BeginArray(TEXT("Strings"), ScratchNumValues);
+		TSet<VUniqueString*> Strings;
+		for (uint32 Index = (uint32)ScratchNumValues; Index > 0; --Index)
+		{
+			VCell* ScratchCell;
+			Visitor.Visit(ScratchCell, TEXT(""));
+			Strings.Add(&ScratchCell->StaticCast<VUniqueString>());
+		}
+		Visitor.EndArray();
+		This = &VUniqueStringSet::New(Context, Strings);
+	}
+	else
+	{
+		uint64 ScratchNumValues = This->Num();
+		Visitor.BeginArray(TEXT("Strings"), ScratchNumValues);
+		Visitor.Visit(This->Strings.begin(), This->Strings.end());
+		Visitor.EndArray();
 	}
 }
 

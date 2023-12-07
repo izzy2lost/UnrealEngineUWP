@@ -53,13 +53,13 @@ struct VRestValue
 	void ToString(FStringBuilderBase& Builder, FAllocationContext Context, const FCellFormatter& Formatter) const;
 
 	template <typename TVisitor>
-	FORCEINLINE void Visit(TVisitor& Visitor, const char* ElementName)
+	FORCEINLINE void Visit(TVisitor& Visitor, const TCHAR* ElementName)
 	{
 		Visitor.Visit(Value, ElementName);
 	}
 
 	template <typename TVisitor>
-	FORCEINLINE void Visit(TVisitor& Visitor, const char* ElementName) const
+	FORCEINLINE void Visit(TVisitor& Visitor, const TCHAR* ElementName) const
 	{
 		Visitor.Visit(Value, ElementName);
 	}

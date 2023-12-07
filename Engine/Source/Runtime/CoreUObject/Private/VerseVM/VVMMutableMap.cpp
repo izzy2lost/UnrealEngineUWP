@@ -11,11 +11,40 @@ namespace Verse
 {
 
 DEFINE_DERIVED_VCPPCLASSINFO(VMutableMap);
+DEFINE_TRIVIAL_VISIT_REFERENCES(VMutableMap);
 TGlobalTrivialEmergentTypePtr<&VMutableMap::StaticCppClassInfo> VMutableMap::GlobalTrivialEmergentType;
 
-template <typename TVisitor>
-inline void VMutableMap::VisitReferencesImpl(TVisitor& Visitor)
+void VMutableMap::SerializeImpl(VMutableMap*& This, FAllocationContext Context, FAbstractVisitor& Visitor)
 {
+	if (Visitor.IsLoading())
+	{
+		uint64 ScratchNumValues = 0;
+		Visitor.BeginArray(TEXT("Values"), ScratchNumValues);
+		This = &VMutableMap::New(Context, (uint32)ScratchNumValues);
+		for (uint32 Index = (uint32)ScratchNumValues; Index != 0; --Index)
+		{
+			VValue Key, Value;
+			Visitor.BeginObject();
+			Visitor.Visit(Key, TEXT("Key"));
+			Visitor.Visit(Value, TEXT("Value"));
+			Visitor.EndObject();
+			This->Add(Context, Key, Value);
+		}
+		Visitor.EndArray();
+	}
+	else
+	{
+		uint64 ScratchNumValues = This->Num();
+		Visitor.BeginMap(TEXT("Values"), ScratchNumValues);
+		for (TTuple<VValue, VValue> Kvp : *This)
+		{
+			Visitor.BeginObject();
+			Visitor.Visit(Kvp.Key, TEXT("Key"));
+			Visitor.Visit(Kvp.Value, TEXT("Value"));
+			Visitor.EndObject();
+		}
+		Visitor.EndMap();
+	}
 }
 
 } // namespace Verse

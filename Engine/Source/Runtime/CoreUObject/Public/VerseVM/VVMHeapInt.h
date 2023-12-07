@@ -54,6 +54,11 @@ struct VHeapInt final : VHeapValue
 		return *CreateWithLength(Context, NumWords);
 	}
 
+	static VHeapInt& New(FAllocationContext Context, bool Sign, TArrayView<Digit> Digits)
+	{
+		return *CreateWithDigits(Context, Sign, Digits);
+	}
+
 	FORCENOINLINE static VHeapInt& FromInt64(FAllocationContext Context, int64 Int64)
 	{
 		return *CreateFrom(Context, Int64);
@@ -101,6 +106,8 @@ struct VHeapInt final : VHeapValue
 
 	COREUOBJECT_API void ToStringImpl(FStringBuilderBase& Builder, FAllocationContext Context, const FCellFormatter& Formatter);
 
+	static void SerializeImpl(VHeapInt*& This, FAllocationContext Context, FAbstractVisitor& Visitor);
+
 private:
 	explicit VHeapInt(FAllocationContext Context, uint32 NumWords)
 		: VHeapValue(Context, &GlobalTrivialEmergentType.Get(Context))
@@ -117,6 +124,7 @@ private:
 
 	static VHeapInt* CreateWithLength(FAllocationContext, uint32 length);
 	COREUOBJECT_API static VHeapInt* CreateFrom(FAllocationContext, int64 Value);
+	static VHeapInt* CreateWithDigits(FAllocationContext, bool Sign, TArrayView<Digit> Digits);
 
 	void SetSign(bool NewSign) { Sign = NewSign; }
 

@@ -15,8 +15,8 @@ DEFINE_DERIVED_VCPPCLASSINFO(VEmergentType);
 template <typename TVisitor>
 void VEmergentType::VisitReferencesImpl(TVisitor& Visitor)
 {
-	Visitor.Visit(Shape, "Shape");
-	Visitor.Visit(Type, "Type");
+	Visitor.Visit(Shape, TEXT("Shape"));
+	Visitor.Visit(Type, TEXT("Type"));
 }
 
 } // namespace Verse

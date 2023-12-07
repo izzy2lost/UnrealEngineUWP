@@ -63,7 +63,7 @@ struct FDefaultCellFormmatterVisitor : FAbstractVisitor
 		check(NestingInfo.Num() == 0);
 	}
 
-	virtual void BeginArray(const char* ElementName) override
+	virtual void BeginArray(const TCHAR* ElementName, uint64& NumElements) override
 	{
 		BeginElement(ElementName);
 		PushNesting(ENestingType::Array);
@@ -76,7 +76,7 @@ struct FDefaultCellFormmatterVisitor : FAbstractVisitor
 		Builder.Append(TEXT(")"));
 	}
 
-	virtual void BeginSet(const char* ElementName) override
+	virtual void BeginSet(const TCHAR* ElementName, uint64& NumElements) override
 	{
 		BeginElement(ElementName);
 		PushNesting(ENestingType::Set);
@@ -89,7 +89,7 @@ struct FDefaultCellFormmatterVisitor : FAbstractVisitor
 		Builder.Append(TEXT(")"));
 	}
 
-	virtual void BeginMap(const char* ElementName) override
+	virtual void BeginMap(const TCHAR* ElementName, uint64& NumElements) override
 	{
 		BeginElement(ElementName);
 		PushNesting(ENestingType::Map);
@@ -115,7 +115,7 @@ struct FDefaultCellFormmatterVisitor : FAbstractVisitor
 		Builder.Append(TEXT(")"));
 	}
 
-	virtual void VisitNonNull(VCell* InCell, const char* ElementName) override
+	virtual void VisitNonNull(VCell*& InCell, const TCHAR* ElementName) override
 	{
 		BeginElement(ElementName);
 		Formatter.Append(Builder, Context, *InCell);
@@ -126,13 +126,13 @@ struct FDefaultCellFormmatterVisitor : FAbstractVisitor
 		// Any emergent type formatting has already been done
 	}
 
-	virtual void VisitNonNull(UObject* InObject, const char* ElementName) override
+	virtual void VisitNonNull(UObject* InObject, const TCHAR* ElementName) override
 	{
 		BeginElement(ElementName);
 		Builder.Append(TEXT("\"UObject\""));
 	}
 
-	virtual void Visit(VCell* InCell, const char* ElementName) override
+	virtual void Visit(VCell*& InCell, const TCHAR* ElementName) override
 	{
 		if (InCell != nullptr)
 		{
@@ -143,7 +143,7 @@ struct FDefaultCellFormmatterVisitor : FAbstractVisitor
 		Builder.Append(TEXT("nullptr"));
 	}
 
-	virtual void Visit(UObject* InObject, const char* ElementName) override
+	virtual void Visit(UObject* InObject, const TCHAR* ElementName) override
 	{
 		if (InObject != nullptr)
 		{
@@ -154,33 +154,25 @@ struct FDefaultCellFormmatterVisitor : FAbstractVisitor
 		Builder.Append(TEXT("nullptr"));
 	}
 
-	virtual void Visit(VValue Value, const char* ElementName) override
+	virtual void Visit(VValue& Value, const TCHAR* ElementName) override
 	{
 		BeginElement(ElementName);
 		Value.ToString(Builder, Context, Formatter);
 	}
 
-	virtual void Visit(VRestValue& Value, const char* ElementName) override
+	virtual void Visit(VRestValue& Value, const TCHAR* ElementName) override
 	{
 		BeginElement(ElementName);
 		Value.ToString(Builder, Context, Formatter);
 	}
 
-	void Visit(bool bValue, const char* ElementName) override
+	void Visit(bool& bValue, const TCHAR* ElementName) override
 	{
 		BeginElement(ElementName);
 		Builder.Append(bValue ? TEXT("true") : TEXT("false"));
 	}
 
-	virtual void Visit(const char* Value, const char* ElementName) override
-	{
-		BeginElement(ElementName);
-		Builder.Append(TEXT("\""));
-		Builder.Append(Value);
-		Builder.Append(TEXT("\""));
-	}
-
-	virtual void Visit(const FStringView Value, const char* ElementName) override
+	virtual void Visit(FString& Value, const TCHAR* ElementName) override
 	{
 		BeginElement(ElementName);
 		Builder.Append(TEXT("\""));
@@ -219,7 +211,7 @@ private:
 		check(NestingInfo.Num() > 0 && NestingInfo.Last().Type == InExpectedType);
 	}
 
-	void BeginElement(const char* ElementName)
+	void BeginElement(const TCHAR* ElementName)
 	{
 		check(NestingInfo.Num() > 0);
 		IncrementIndex();

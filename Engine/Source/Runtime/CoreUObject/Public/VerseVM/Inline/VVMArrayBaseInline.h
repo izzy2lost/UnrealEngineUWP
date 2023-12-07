@@ -65,8 +65,19 @@ inline T& VArrayBase::Concat(FAllocationContext Context, VArrayBase& Lhs, VArray
 template <typename TVisitor>
 inline void VArrayBase::VisitReferencesImpl(TVisitor& Visitor)
 {
-	Visitor.VisitAux(GetData(), "ValuesBuffer");   // Visit the buffer we allocated for the array as Aux memory
-	Visitor.Visit(GetData(), NumValues, "Values"); // Visit allocated elements in the buffer
+	if constexpr (TVisitor::bIsAbstractVisitor)
+	{
+		Visitor.VisitAux(GetData(), TEXT("ValuesBuffer")); // Visit the buffer we allocated for the array as Aux memory
+		uint64 ScratchNumValues = NumValues;
+		Visitor.BeginArray(TEXT("Values"), ScratchNumValues);
+		Visitor.Visit(GetData(), GetData() + NumValues); // Visit allocated elements in the buffer
+		Visitor.EndArray();
+	}
+	else
+	{
+		Visitor.VisitAux(GetData(), TEXT("ValuesBuffer")); // Visit the buffer we allocated for the array as Aux memory
+		Visitor.Visit(GetData(), GetData() + NumValues);   // Visit allocated elements in the buffer
+	}
 }
 
 } // namespace Verse

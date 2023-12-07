@@ -8,9 +8,11 @@
 
 #include "CoreTypes.h"
 #include "Misc/AssertionMacros.h"
+#include "VVMCell.h"
 #include "VVMValue.h"
 #include "VVMWriteBarrier.h"
 
+class FArchive;
 class UObject;
 
 namespace Verse
@@ -71,107 +73,142 @@ struct FAbstractVisitor
 
 	// Override the following methods to constomize how different values will be processed.  For visitors that just need
 	// to enumerate VCell and UObject references, these are the only methods that need to be overridden
-	virtual void VisitNonNull(VCell* InCell, const char* ElementName);
-	virtual void VisitNonNull(UObject* InObject, const char* ElementName);
-	virtual void VisitAuxNonNull(void* InAux, const char* ElementName);
+	virtual void VisitNonNull(VCell*& InCell, const TCHAR* ElementName);
+	virtual void VisitNonNull(UObject* InObject, const TCHAR* ElementName);
+	virtual void VisitAuxNonNull(void* InAux, const TCHAR* ElementName);
 
 	// This method is only invoked by VCell to visit the emergent type of the cell.  It should not be
 	// called in any other situtation.
 	virtual void VisitEmergentType(const VCell* InEmergentType);
 
 	// POD type visitors
-	virtual void Visit(bool bValue, const char* ElementName);
-	virtual void Visit(const char* Value, const char* ElementName);
-	virtual void Visit(const FStringView Value, const char* ElementName);
+	virtual void Visit(bool& bValue, const TCHAR* ElementName);
+	virtual void Visit(FString& Value, const TCHAR* ElementName);
+	virtual void Visit(uint64& Value, const TCHAR* ElementName);
+	virtual void Visit(int64& Value, const TCHAR* ElementName);
 
 	// Override the following methods to handle nesting of elements.  Begin/EndObject are intended for when
 	// objects are elements in arrays.
-	virtual void BeginArray(const char* ElementName);
+	virtual void BeginArray(const TCHAR* ElementName, uint64& NumElements);
 	virtual void EndArray();
-	virtual void BeginSet(const char* ElementName);
+	virtual void BeginSet(const TCHAR* ElementName, uint64& NumElements);
 	virtual void EndSet();
-	virtual void BeginMap(const char* ElementName);
+	virtual void BeginMap(const TCHAR* ElementName, uint64& NumElements);
 	virtual void EndMap();
 	virtual void BeginObject();
 	virtual void EndObject();
 
-	virtual bool IsMarked(VCell* InCell, const char* ElementName) { return true; }
+	virtual bool IsMarked(VCell* InCell, const TCHAR* ElementName) { return true; }
 
 	// The default implementation of the following methods just check for null values and then forward to the non-null variants
-	virtual void Visit(VCell* InCell, const char* ElementName);
-	virtual void Visit(UObject* InObject, const char* ElementName);
-	virtual void VisitAux(void* InAux, const char* ElementName);
+	virtual void Visit(VCell*& InCell, const TCHAR* ElementName);
+	virtual void Visit(UObject* InObject, const TCHAR* ElementName);
+	virtual void VisitAux(void* InAux, const TCHAR* ElementName);
 
 	// The default implementation looks for either a VCell or UObject pointer and invokes the proper Visit method if found
-	virtual void Visit(VValue Value, const char* ElementName);
+	virtual void Visit(VValue& Value, const TCHAR* ElementName);
 
 	// The default implementation forwards the call to the VRestValue::Visit method
-	virtual void Visit(VRestValue& Value, const char* ElementName);
+	virtual void Visit(VRestValue& Value, const TCHAR* ElementName);
 
 	template <typename T>
-	FORCEINLINE void Visit(TWriteBarrier<T>& Value, const char* ElementName)
+	FORCEINLINE void Visit(TWriteBarrier<T>& Value, const TCHAR* ElementName)
 	{
-		Visit(Value.Get(), ElementName);
+		using TValue = typename TWriteBarrier<T>::TValue;
+		if (IsLoading())
+		{
+			if constexpr (TWriteBarrier<T>::bIsVValue)
+			{
+				TValue Scratch = TValue{};
+				Visit(Scratch, ElementName);
+				Value.Set(GetLoadingContext(), Scratch);
+			}
+			else if constexpr (TWriteBarrier<T>::bIsAux)
+			{
+			}
+			else
+			{
+				VCell* Scratch = nullptr;
+				Visit(Scratch, ElementName);
+				Value.Set(GetLoadingContext(), Scratch->StaticCast<T>());
+			}
+		}
+		else
+		{
+			if constexpr (TWriteBarrier<T>::bIsVValue)
+			{
+				TValue Scratch = Value.Get();
+				Visit(Scratch, ElementName);
+			}
+			else if constexpr (TWriteBarrier<T>::bIsAux)
+			{
+			}
+			else
+			{
+				VCell* Scratch = Value.Get();
+				Visit(Scratch, ElementName);
+			}
+		}
 	}
 
 	// Simple arrays
 	template <typename T>
-	FORCEINLINE void Visit(T Begin, T End, const char* ElementName)
+	FORCEINLINE void Visit(T Begin, T End)
 	{
-		BeginArray(ElementName);
 		for (; Begin != End; ++Begin)
 		{
-			Visit(*Begin, ElementName);
+			Visit(*Begin, TEXT(""));
 		}
+	}
+
+	// Arrays
+	template <typename ElementType, typename AllocatorType>
+	FORCEINLINE void Visit(const TArray<ElementType, AllocatorType>& Values, const TCHAR* ElementName)
+	{
+		uint64 ScratchNumElements = Values.Num();
+		BeginArray(ElementName, ScratchNumElements);
+		Visit(Values.begin(), Values.end());
 		EndArray();
 	}
 
-	template <typename T>
-	FORCEINLINE void Visit(T* Values, uint32 Count, const char* ElementName)
-	{
-		Visit(Values, Values + Count, ElementName);
-	}
-
-	template <typename T>
-	FORCEINLINE void Visit(T* Values, uint64 Count, const char* ElementName)
-	{
-		Visit(Values, Values + Count, ElementName);
-	}
-
-	template <typename T>
-	FORCEINLINE void Visit(const TArray<T>& Values, const char* ElementName)
-	{
-		Visit(Values.begin(), Values.end(), ElementName);
-	}
-
 	// Sets
-	template <typename T>
-	FORCEINLINE void Visit(const TSet<T>& Values, const char* ElementName)
+	template <typename ElementType, typename KeyFuncs, typename Allocator>
+	FORCEINLINE void Visit(const TSet<ElementType, KeyFuncs, Allocator>& Values, const TCHAR* ElementName)
 	{
-		BeginSet(ElementName);
+		uint64 ScratchNumElements = Values.Num();
+		BeginSet(ElementName, ScratchNumElements);
 		for (const auto& Value : Values)
 		{
-			Visit(Value, ElementName);
+			Visit(const_cast<ElementType&>(Value), TEXT(""));
 		}
 		EndSet();
 	}
 
 	// Maps
 	template <typename KeyType, typename ValueType, typename SetAllocator, typename KeyFuncs>
-	FORCEINLINE void Visit(TMap<KeyType, ValueType, SetAllocator, KeyFuncs>& Values, const char* ElementName)
+	FORCEINLINE void Visit(TMap<KeyType, ValueType, SetAllocator, KeyFuncs>& Values, const TCHAR* ElementName)
 	{
-		BeginMap(ElementName);
+		uint64 ScratchNumElements = Values.Num();
+		BeginMap(ElementName, ScratchNumElements);
 		for (auto& Kvp : Values)
 		{
 			BeginObject();
-			Visit(Kvp.Key, "Key");
-			Visit(Kvp.Value, "Value");
+			Visit(Kvp.Key, TEXT("Key"));
+			Visit(Kvp.Value, TEXT("Value"));
 			EndObject();
 		}
 		EndMap();
 	}
 
 	virtual void ReportNativeBytes(size_t Bytes) {}
+
+	// FArchive support
+	virtual FArchive* GetUnderlyingArchive();
+	virtual bool IsLoading();
+	virtual bool IsTextFormat();
+
+	// Loading support
+	virtual FAccessContext GetLoadingContext();
 
 protected:
 	FAbstractVisitor() = default;

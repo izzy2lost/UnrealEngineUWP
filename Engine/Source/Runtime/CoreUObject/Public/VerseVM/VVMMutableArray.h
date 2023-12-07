@@ -55,7 +55,7 @@ public:
 		return *new (Context.AllocateFastCell(sizeof(VMutableArray))) VMutableArray(Context, Other);
 	}
 
-	COREUOBJECT_API void ToStringImpl(FStringBuilderBase& Builder, FAllocationContext Context, const FCellFormatter& Formatter);
+	static void SerializeImpl(VMutableArray*& This, FAllocationContext Context, FAbstractVisitor& Visitor);
 
 private:
 	VMutableArray(FAllocationContext Context, uint32 InitialCapacity)

@@ -91,7 +91,17 @@ private:
 	void VisitImpl(TVisitor& Visitor)
 	{
 		UE::TUniqueLock Lock(Mutex);
-		Visitor.Visit(Items, ItemsEnd, "Items");
+		if constexpr (TVisitor::bIsAbstractVisitor)
+		{
+			uint64 ScratchNumItems = ItemsEnd;
+			Visitor.BeginArray(TEXT("Items"), ScratchNumItems);
+			Visitor.Visit(Items, Items + ItemsEnd);
+			Visitor.EndArray();
+		}
+		else
+		{
+			Visitor.Visit(Items, Items + ItemsEnd);
+		}
 	}
 
 	UE::FMutex Mutex;

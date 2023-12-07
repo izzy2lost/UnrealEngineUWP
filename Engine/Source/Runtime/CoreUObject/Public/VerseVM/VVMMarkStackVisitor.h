@@ -20,70 +20,45 @@ struct FMarkStackVisitor
 
 	static constexpr bool bIsAbstractVisitor = false;
 
+	// No need to save the string when using the mark stack visitor
+	struct ConsumeElementName
+	{
+		ConsumeElementName(const TCHAR*)
+		{
+		}
+	};
+
 	FMarkStackVisitor(FMarkStack& InMarkStack)
 		: MarkStack(InMarkStack)
 	{
 	}
 
-	FORCEINLINE bool IsMarked(const VCell* InCell, const char* ElementName)
+	FORCEINLINE bool IsMarked(const VCell* InCell, ConsumeElementName ElementName)
 	{
 		return FHeap::IsMarked(InCell);
 	}
 
-	// Structure notification methods with no implementation in the mark stack.  Will be optimized away
-	FORCEINLINE void BeginArray(const char* ElementName)
-	{
-	}
-
-	FORCEINLINE void EndArray()
-	{
-	}
-
-	FORCEINLINE void BeginSet(const char* ElementName)
-	{
-	}
-
-	FORCEINLINE void EndSet()
-	{
-	}
-
-	FORCEINLINE void BeginMap(const char* ElementName)
-	{
-	}
-
-	FORCEINLINE void EndMap()
-	{
-	}
-
-	FORCEINLINE void BeginObject()
-	{
-	}
-
-	FORCEINLINE void EndObject()
-	{
-	}
-
-	void VisitNonNull(const VCell* InCell, const char* ElementName)
+	void VisitNonNull(const VCell* InCell, ConsumeElementName ElementName)
 	{
 		MarkStack.MarkNonNull(InCell);
 	}
 
-	void VisitNonNull(const UObject* InObject, const char* ElementName)
+	void VisitNonNull(const UObject* InObject, ConsumeElementName ElementName)
 	{
 		MarkStack.MarkNonNull(InObject);
 	}
 
-	void VisitAuxNonNull(const void* InAux, const char* ElementName)
+	void VisitAuxNonNull(const void* InAux, ConsumeElementName ElementName)
 	{
 		MarkStack.MarkAuxNonNull(InAux);
 	}
 
 	FORCEINLINE void VisitEmergentType(const VCell* InEmergentType)
 	{
-		VisitNonNull(InEmergentType, "EmergentType");
+		VisitNonNull(InEmergentType, TEXT("EmergentType"));
 	}
 
-	FORCEINLINE void Visit(const VCell* InCell, const char* ElementName)
+	FORCEINLINE void Visit(const VCell* InCell, ConsumeElementName ElementName)
 	{
 		if (InCell != nullptr)
 		{
@@ -91,7 +66,7 @@ struct FMarkStackVisitor
 		}
 	}
 
-	FORCEINLINE void Visit(const UObject* InObject, const char* ElementName)
+	FORCEINLINE void Visit(const UObject* InObject, ConsumeElementName ElementName)
 	{
 		if (InObject != nullptr)
 		{
@@ -99,7 +74,7 @@ struct FMarkStackVisitor
 		}
 	}
 
-	FORCEINLINE void VisitAux(const void* Aux, const char* ElementName)
+	FORCEINLINE void VisitAux(const void* Aux, ConsumeElementName ElementName)
 	{
 		if (Aux != nullptr)
 		{
@@ -107,7 +82,7 @@ struct FMarkStackVisitor
 		}
 	}
 
-	FORCEINLINE void Visit(VValue Value, const char* ElementName)
+	FORCEINLINE void Visit(VValue Value, ConsumeElementName ElementName)
 	{
 		if (VCell* Cell = Value.ExtractCell())
 		{
@@ -119,83 +94,70 @@ struct FMarkStackVisitor
 		}
 	}
 
-	FORCEINLINE void Visit(const VRestValue& Value, const char* ElementName)
+	FORCEINLINE void Visit(const VRestValue& Value, ConsumeElementName ElementName)
 	{
-		Value.Visit(*this, ElementName);
+		Value.Visit(*this, TEXT(""));
 	}
 
 	// Null visitors that are only used by the abstract visitor
-	FORCEINLINE void Visit(bool bValue, const char* ElementName)
+	FORCEINLINE void Visit(bool bValue, ConsumeElementName ElementName)
 	{
 	}
 
-	FORCEINLINE void Visit(const char* Value, const char* ElementName)
+	FORCEINLINE void Visit(const FAnsiStringView Value, ConsumeElementName ElementName)
 	{
 	}
 
-	FORCEINLINE void Visit(const FStringView Value, const char* ElementName)
+	FORCEINLINE void Visit(const FWideStringView Value, ConsumeElementName ElementName)
+	{
+	}
+
+	FORCEINLINE void Visit(const FUtf8StringView Value, ConsumeElementName ElementName)
 	{
 	}
 
 	// NOTE: The Value parameter can not be passed by value.
 	template <typename T>
-	FORCEINLINE void Visit(const TWriteBarrier<T>& Value, const char* ElementName)
+	FORCEINLINE void Visit(const TWriteBarrier<T>& Value, ConsumeElementName ElementName)
 	{
 		Visit(Value.Get(), ElementName);
 	}
 
 	template <typename T>
-	FORCEINLINE void Visit(T Begin, T End, const char* ElementName)
+	FORCEINLINE void Visit(T Begin, T End)
 	{
-		BeginArray(ElementName);
 		for (; Begin != End; ++Begin)
 		{
-			Visit(*Begin, ElementName);
+			Visit(*Begin, TEXT(""));
 		}
-		EndArray();
 	}
 
-	template <typename T>
-	FORCEINLINE void Visit(T* Values, uint32 Count, const char* ElementName)
-	{
-		Visit(Values, Values + Count, ElementName);
-	}
-
-	template <typename T>
-	FORCEINLINE void Visit(T* Values, uint64 Count, const char* ElementName)
-	{
-		Visit(Values, Values + Count, ElementName);
-	}
-
-	template <typename T>
-	FORCEINLINE void Visit(const TArray<T>& Values, const char* ElementName)
+	// Arrays
+	template <typename ElementType, typename AllocatorType>
+	FORCEINLINE void Visit(const TArray<ElementType, AllocatorType>& Values, ConsumeElementName ElementName)
 	{
 		Visit(Values.begin(), Values.end(), ElementName);
 	}
 
-	template <typename T>
-	FORCEINLINE void Visit(const TSet<T>& Values, const char* ElementName)
+	// Sets
+	template <typename ElementType, typename KeyFuncs, typename Allocator>
+	FORCEINLINE void Visit(const TSet<ElementType, KeyFuncs, Allocator>& Values, ConsumeElementName ElementName)
 	{
-		BeginSet(ElementName);
 		for (const auto& Value : Values)
 		{
 			Visit(Value, ElementName);
 		}
-		EndSet();
 	}
 
+	// Maps
 	template <typename KeyType, typename ValueType, typename SetAllocator, typename KeyFuncs>
-	FORCEINLINE void Visit(const TMap<KeyType, ValueType, SetAllocator, KeyFuncs>& Values, const char* ElementName)
+	FORCEINLINE void Visit(const TMap<KeyType, ValueType, SetAllocator, KeyFuncs>& Values, ConsumeElementName ElementName)
 	{
-		BeginMap(ElementName);
 		for (const auto& Kvp : Values)
 		{
-			BeginObject();
-			Visit(Kvp.Key, "Key");
-			Visit(Kvp.Value, "Value");
-			EndObject();
+			Visit(Kvp.Key, TEXT("Key"));
+			Visit(Kvp.Value, TEXT("Value"));
 		}
-		EndMap();
 	}
 
 	void ReportNativeBytes(size_t Bytes)

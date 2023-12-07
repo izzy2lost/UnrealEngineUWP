@@ -104,5 +104,15 @@ bool VCell::HasWeakMappings()
 	}
 }
 
+void VCell::VisitReferences(FMarkStackVisitor& Visitor)
+{
+	GetEmergentType()->CppClassInfo->VisitReferences(this, Visitor);
+}
+
+void VCell::VisitReferences(FAbstractVisitor& Visitor)
+{
+	GetEmergentType()->CppClassInfo->VisitReferences(this, Visitor);
+}
+
 } // namespace Verse
 #endif // WITH_VERSE_VM || defined(__INTELLISENSE__)

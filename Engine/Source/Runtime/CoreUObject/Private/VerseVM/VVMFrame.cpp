@@ -17,14 +17,31 @@ TGlobalTrivialEmergentTypePtr<&VFrame::StaticCppClassInfo> VFrame::GlobalTrivial
 template <typename TVisitor>
 void VFrame::VisitReferencesImpl(TVisitor& Visitor)
 {
-	Visitor.Visit(ReturnEffectToken, "ReturnEffectToken");
-	Visitor.Visit(Procedure, "Procedure");
-	if (ReturnKind == EReturnKind::Value)
+	if constexpr (TVisitor::bIsAbstractVisitor)
 	{
-		Visitor.Visit(Return.Value, "ReturnSlot");
+		Visitor.Visit(ReturnEffectToken, TEXT("ReturnEffectToken"));
+		Visitor.Visit(Procedure, TEXT("Procedure"));
+		if (ReturnKind == EReturnKind::Value)
+		{
+			Visitor.Visit(Return.Value, TEXT("ReturnSlot"));
+		}
+		Visitor.Visit(CallerFrame, TEXT("CallerFrame"));
+		uint64 ScratchNumRegisters = NumRegisters;
+		Visitor.BeginArray(TEXT("Registers"), ScratchNumRegisters);
+		Visitor.Visit(Registers, Registers + NumRegisters);
+		Visitor.EndArray();
 	}
-	Visitor.Visit(CallerFrame, "CallerFrame");
-	Visitor.Visit(Registers, NumRegisters, "Registers");
+	else
+	{
+		Visitor.Visit(ReturnEffectToken, TEXT("ReturnEffectToken"));
+		Visitor.Visit(Procedure, TEXT("Procedure"));
+		if (ReturnKind == EReturnKind::Value)
+		{
+			Visitor.Visit(Return.Value, TEXT("ReturnSlot"));
+		}
+		Visitor.Visit(CallerFrame, TEXT("CallerFrame"));
+		Visitor.Visit(Registers, Registers + NumRegisters);
+	}
 }
 
 } // namespace Verse

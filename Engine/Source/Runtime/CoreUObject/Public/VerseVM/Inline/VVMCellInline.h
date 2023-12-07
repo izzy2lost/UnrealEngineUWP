@@ -70,12 +70,6 @@ inline uint32 GetTypeHash(VCell& Cell)
 }
 
 template <typename TVisitor>
-void VCell::VisitReferences(TVisitor& Visitor)
-{
-	GetEmergentType()->CppClassInfo->VisitReferences(this, Visitor);
-}
-
-template <typename TVisitor>
 void VCell::VisitReferencesImpl(TVisitor& Visitor)
 {
 	Visitor.VisitEmergentType(GetEmergentType());

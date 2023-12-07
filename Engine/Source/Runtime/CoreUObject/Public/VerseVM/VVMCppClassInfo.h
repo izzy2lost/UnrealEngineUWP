@@ -98,6 +98,7 @@ public:                                                                         
 			return This->StaticCast<CellType>().GetTypeHashImpl();                                                                                                              \
 		},                                                                                                                                                                      \
 		::Verse::Details::GetToStringMethod<CellType>(),                                                                                                                        \
+		::Verse::Details::GetSerializeMethod<CellType>(),                                                                                                                       \
 	};                                                                                                                                                                          \
 	::Verse::VCppClassInfoRegister CellType##_Register(&CellType::StaticCppClassInfo);
 
@@ -128,6 +129,7 @@ struct VCppClassInfo
 	bool (*Equal)(FRunningContext Context, VCell* This, VCell* Other, const TFunction<void(::Verse::VValue, ::Verse::VValue)>& HandlePlaceholder);
 	uint32 (*GetTypeHash)(VCell* This);
 	void (*ToString)(VCell* This, FStringBuilderBase& Builder, FAllocationContext Context, const FCellFormatter& Formatter);
+	void (*Serialize)(VCell*& This, FAllocationContext Context, FAbstractVisitor& Visitor);
 
 	bool IsA(const VCppClassInfo* Other) const
 	{

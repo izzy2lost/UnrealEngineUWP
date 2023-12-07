@@ -78,6 +78,8 @@ struct VArray : VArrayBase
 		return *new (Context.AllocateFastCell(sizeof(VArray))) VArray(Context, Other);
 	}
 
+	static void SerializeImpl(VArray*& This, FAllocationContext Context, FAbstractVisitor& Visitor);
+
 private:
 	friend struct VMutableArray;
 	VArray(FAllocationContext Context, uint32 InNumValues)

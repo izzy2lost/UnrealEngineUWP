@@ -20,16 +20,28 @@ TGlobalTrivialEmergentTypePtr<&VConstructor::StaticCppClassInfo> VConstructor::G
 template <typename TVisitor>
 void VConstructor::VisitReferencesImpl(TVisitor& Visitor)
 {
-	Visitor.BeginArray("Entries");
-	for (uint32 Index = 0; Index < NumEntries; ++Index)
+	if constexpr (TVisitor::bIsAbstractVisitor)
 	{
-		Visitor.BeginObject();
-		Visitor.Visit(Entries[Index].Name, "Name");
-		Visitor.Visit(Entries[Index].Value, "Value");
-		Visitor.Visit(Entries[Index].bDynamic, "Dynamic");
-		Visitor.EndObject();
+		uint64 ScratchNumEntries = NumEntries;
+		Visitor.BeginArray(TEXT("Entries"), ScratchNumEntries);
+		for (uint32 Index = 0; Index < NumEntries; ++Index)
+		{
+			Visitor.BeginObject();
+			Visitor.Visit(Entries[Index].Name, TEXT("Name"));
+			Visitor.Visit(Entries[Index].Value, TEXT("Value"));
+			Visitor.Visit(Entries[Index].bDynamic, TEXT("Dynamic"));
+			Visitor.EndObject();
+		}
+		Visitor.EndArray();
 	}
-	Visitor.EndArray();
+	else
+	{
+		for (uint32 Index = 0; Index < NumEntries; ++Index)
+		{
+			Visitor.Visit(Entries[Index].Name, TEXT("Name"));
+			Visitor.Visit(Entries[Index].Value, TEXT("Value"));
+		}
+	}
 }
 
 void VConstructor::ToStringImpl(FStringBuilderBase& Builder, FAllocationContext Context, const FCellFormatter& Formatter)
@@ -120,16 +132,26 @@ VEmergentType& VClass::GetOrCreateEmergentTypeForArchetype(FAllocationContext Co
 template <typename TVisitor>
 void VClass::VisitReferencesImpl(TVisitor& Visitor)
 {
-	Visitor.Visit(Constructor, "Constructor");
+	Visitor.Visit(Constructor, TEXT("Constructor"));
 
 	// Mark the inherited classes to ensure that they don't get swept during GC since we want to keep their information
 	// around when anything needs to query the class inheritance hierarchy.
-	Visitor.Visit(Inherited, NumInherited, "Inherited");
+	if constexpr (TVisitor::bIsAbstractVisitor)
+	{
+		uint64 ScratchNumInherited = NumInherited;
+		Visitor.BeginArray(TEXT("Inherited"), ScratchNumInherited);
+		Visitor.Visit(Inherited, Inherited + NumInherited);
+		Visitor.EndArray();
+	}
+	else
+	{
+		Visitor.Visit(Inherited, Inherited + NumInherited);
+	}
 
 	// We need both the unique string sets and emergent types that are being cached for fast lookup of emergent types to remain allocated.
 	UE::FExternalMutex ExternalMutex(Mutex);
 	UE::TUniqueLock Lock(ExternalMutex);
-	Visitor.Visit(EmergentTypesCache, "EmergentTypesCache");
+	Visitor.Visit(EmergentTypesCache, TEXT("EmergentTypesCache"));
 }
 
 } // namespace Verse

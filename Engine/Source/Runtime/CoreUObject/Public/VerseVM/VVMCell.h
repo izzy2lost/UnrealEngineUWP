@@ -18,10 +18,12 @@
 
 namespace Verse
 {
+struct FAbstractVisitor;
 struct FAccessContext;
 struct FCellFormatter;
-struct VCppClassInfo;
 struct FMarkStack;
+struct FMarkStackVisitor;
+struct VCppClassInfo;
 struct VEmergentType;
 
 struct VCell
@@ -62,8 +64,8 @@ struct VCell
 	//    concurrent by design. Like, maybe we'll want GC-time hash-consing.
 	// 2) In a parallel GC, we'll probably want to just reuse the fact that each context has a
 	//    MarkStack.
-	template <typename TVisitor>
-	void VisitReferences(TVisitor& Visitor);
+	void VisitReferences(FMarkStackVisitor& Visitor);
+	void VisitReferences(FAbstractVisitor& Visitor);
 	COREUOBJECT_API void ConductCensus();
 	COREUOBJECT_API void RunDestructor();
 	COREUOBJECT_API bool Equal(FRunningContext Context, VCell* Other, const TFunction<void(::Verse::VValue, ::Verse::VValue)>& HandlePlaceholder);
@@ -197,12 +199,12 @@ namespace Details
 {
 
 template <typename T, typename = void>
-struct HasToString : std::false_type
+struct Stringifiable : std::false_type
 {
 };
 
 template <typename T>
-struct HasToString<T, std::void_t<decltype(std::declval<T>().ToStringImpl(std::declval<FStringBuilderBase&>(), std::declval<FAllocationContext>(), std::declval<FCellFormatter&>()))>> : std::true_type
+struct Stringifiable<T, std::void_t<decltype(std::declval<T>().ToStringImpl(std::declval<FStringBuilderBase&>(), std::declval<FAllocationContext>(), std::declval<FCellFormatter&>()))>> : std::true_type
 {
 };
 
@@ -210,7 +212,7 @@ using ToStringMethodSig = void (*)(VCell* This, FStringBuilderBase& Builder, FAl
 template <typename CellType>
 constexpr ToStringMethodSig GetToStringMethod()
 {
-	if constexpr (HasToString<CellType>::value)
+	if constexpr (Stringifiable<CellType>::value)
 	{
 		return [](VCell* This, FStringBuilderBase& Builder, FAllocationContext Context, const FCellFormatter& Formatter) {
 			This->StaticCast<CellType>().ToStringImpl(Builder, Context, Formatter);
@@ -221,6 +223,35 @@ constexpr ToStringMethodSig GetToStringMethod()
 		return nullptr;
 	}
 }
+
+template <typename T, typename = void>
+struct Serializable : std::false_type
+{
+};
+
+template <typename T>
+struct Serializable<T, std::void_t<decltype(T::SerializeImpl(std::declval<T*&>(), std::declval<FAllocationContext>(), std::declval<FAbstractVisitor&>()))>> : std::true_type
+{
+};
+
+using SerializeMethodSig = void (*)(VCell*& This, FAllocationContext Context, FAbstractVisitor& Visitor);
+template <typename CellType>
+constexpr SerializeMethodSig GetSerializeMethod()
+{
+	if constexpr (Serializable<CellType>::value)
+	{
+		return [](VCell*& This, FAllocationContext Context, FAbstractVisitor& Visitor) {
+			CellType* Scratch = This != nullptr ? &This->StaticCast<CellType>() : nullptr;
+			CellType::SerializeImpl(Scratch, Context, Visitor);
+			This = Scratch;
+		};
+	}
+	else
+	{
+		return nullptr;
+	}
+}
+
 } // namespace Details
 
 } // namespace Verse

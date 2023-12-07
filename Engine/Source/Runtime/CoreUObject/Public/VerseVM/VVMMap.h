@@ -34,6 +34,8 @@ struct VMap : VMapBase
 		return *new (Context.Allocate(Verse::FHeap::DestructorSpace, sizeof(VMap))) VMap(Context, NumEntries, InitEntryFunc);
 	}
 
+	static void SerializeImpl(VMap*& This, FAllocationContext Context, FAbstractVisitor& Visitor);
+
 private:
 	VMap(FAllocationContext Context, uint32 InitialCapacity)
 		: VMapBase(Context, InitialCapacity, &GlobalTrivialEmergentType.Get(Context)) {}

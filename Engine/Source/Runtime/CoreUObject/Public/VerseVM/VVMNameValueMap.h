@@ -88,7 +88,7 @@ struct VNameValueMap
 	}
 
 	template <typename TVisitor>
-	void VisitReferencesImpl(TVisitor& Visitor, const char* MapName)
+	void Visit(TVisitor& Visitor, const TCHAR* MapName)
 	{
 		Visitor.Visit(NameAndValues, MapName);
 	}

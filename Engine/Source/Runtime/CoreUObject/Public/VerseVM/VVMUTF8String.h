@@ -140,6 +140,8 @@ struct VUTF8String : VHeapValue
 
 	COREUOBJECT_API void ToStringImpl(FStringBuilderBase& Builder, FAllocationContext Context, const FCellFormatter& Formatter);
 
+	static void SerializeImpl(VUTF8String*& This, FAllocationContext Context, FAbstractVisitor& Visitor);
+
 private:
 	static size_t DataOffset()
 	{
@@ -199,6 +201,8 @@ struct VUniqueString final : VUTF8String
 	}
 
 	COREUOBJECT_API void ToStringImpl(FStringBuilderBase& Builder, FAllocationContext Context, const FCellFormatter& Formatter);
+
+	static void SerializeImpl(VUniqueString*& This, FAllocationContext Context, FAbstractVisitor& Visitor);
 
 private:
 	static VUniqueString& Make(FAllocationContext Context, FUtf8StringView String)
@@ -272,6 +276,8 @@ struct VUniqueStringSet : VCell
 	bool IsValidId(const FSetElementId& Id) const;
 
 	COREUOBJECT_API void ToStringImpl(FStringBuilderBase& Builder, FAllocationContext Context, const FCellFormatter& Formatter);
+
+	static void SerializeImpl(VUniqueStringSet*& This, FAllocationContext Context, FAbstractVisitor& Visitor);
 
 private:
 	static SetType FormSet(FAllocationContext Context, const TSet<VUniqueString*>& InSet);

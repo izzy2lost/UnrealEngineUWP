@@ -80,6 +80,68 @@ void ToString(FStringBuilderBase& Builder, const VHeapInt& Value)
 
 	Builder.Append(TEXT("h"));
 }
+
+VHeapInt& Parse(FAllocationContext Context, FStringView Text)
+{
+	Text = Text.TrimStartAndEnd();
+
+	// Strip the sign
+	bool Sign = false;
+	if (Text.Len() > 0)
+	{
+		if (Text[0] == '-')
+		{
+			Sign = true;
+			Text = Text.RightChop(1).TrimStart();
+		}
+		else if (Text[0] == '+')
+		{
+			Text = Text.RightChop(1).TrimStart();
+		}
+	}
+
+	// Strip the ending 'h'
+	if (Text.Len() > 0 && Text[Text.Len() - 1] == 'h')
+	{
+		Text = Text.LeftChop(1).TrimEnd();
+	}
+
+	// Check for zero
+	if (Text.Len() == 1 && Text[0] == '0')
+	{
+		return *VHeapInt::CreateZero(Context);
+	}
+
+	// Fetch the digits
+	TArray<VHeapInt::Digit> Digits;
+	Digits.Reserve(8);
+	while (Text.Len() > 0)
+	{
+		int32 DigitEnd;
+		if (!Text.FindChar(' ', DigitEnd))
+		{
+			DigitEnd = Text.Len();
+		}
+		FStringView Digit = Text.Left(DigitEnd);
+		Text = Text.RightChop(DigitEnd).TrimStart();
+
+		FString NullText(Digit);
+		TCHAR* End;
+		uint64 DigitValue = FCString::Strtoui64(*NullText, &End, 16);
+		Digits.Add(static_cast<VHeapInt::Digit>(DigitValue));
+	}
+
+	// The digits are most significant to least significant.  However, internally they
+	// are least to most.
+	for (int32 Lhs = 0, Rhs = Digits.Num() - 1; Lhs < Rhs; ++Lhs, --Rhs)
+	{
+		Swap(Digits[Lhs], Digits[Rhs]);
+	}
+
+	// Create the int
+	return VHeapInt::New(Context, Sign, TArrayView<VHeapInt::Digit>(Digits));
+}
+
 } // namespace
 
 template <typename TVisitor>
@@ -87,9 +149,34 @@ void VHeapInt::VisitReferencesImpl(TVisitor& Visitor)
 {
 	if constexpr (TVisitor::bIsAbstractVisitor)
 	{
+		if (Visitor.IsLoading())
+		{
+			V_DIE("VHeapInt isn't mutable and can not be loaded through the abstract visitors, use the Serialization method");
+		}
+		else
+		{
+			TStringBuilder<128> Builder;
+			ToString(Builder, *this);
+			FString ScratchString(Builder.ToView());
+			Visitor.Visit(ScratchString, TEXT("Value"));
+		}
+	}
+}
+
+void VHeapInt::SerializeImpl(VHeapInt*& This, FAllocationContext Context, FAbstractVisitor& Visitor)
+{
+	if (Visitor.IsLoading())
+	{
+		FString ScratchString;
+		Visitor.Visit(ScratchString, TEXT("Value"));
+		This = &Parse(Context, ScratchString);
+	}
+	else
+	{
 		TStringBuilder<128> Builder;
-		ToString(Builder, *this);
-		Visitor.Visit(Builder.ToView(), "Value");
+		ToString(Builder, *This);
+		FString ScratchString(Builder.ToView());
+		Visitor.Visit(ScratchString, TEXT("Value"));
 	}
 }
 
@@ -300,6 +387,17 @@ VHeapInt* VHeapInt::CreateWithLength(FAllocationContext Context, uint32 Length)
 			VHeapInt{Context, Length};
 	check(BigInt);
 
+	return BigInt;
+}
+
+VHeapInt* VHeapInt::CreateWithDigits(FAllocationContext Context, bool Sign, TArrayView<Digit> Digits)
+{
+	VHeapInt* BigInt = CreateWithLength(Context, Digits.Num());
+	BigInt->SetSign(Sign);
+	for (uint32 Index = 0, EIndex = Digits.Num(); Index < EIndex; ++Index)
+	{
+		BigInt->SetDigit(Index, Digits[Index]);
+	}
 	return BigInt;
 }
 

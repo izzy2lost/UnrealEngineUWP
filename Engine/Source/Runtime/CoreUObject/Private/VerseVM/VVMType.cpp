@@ -18,6 +18,9 @@ VType::VType(FAllocationContext Context, EVerseTypeTag T)
 {
 }
 
+DEFINE_DERIVED_VCPPCLASSINFO(VTrivialType)
+DEFINE_TRIVIAL_VISIT_REFERENCES(VTrivialType);
+
 TGlobalHeapPtr<VTrivialType> VTrivialType::Singleton;
 
 void VTrivialType::Initialize(FAllocationContext Context)

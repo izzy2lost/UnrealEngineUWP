@@ -23,17 +23,17 @@ TGlobalTrivialEmergentTypePtr<&VLambdaSuspension::StaticCppClassInfo> VLambdaSus
 template <typename TVisitor>
 void VSuspension::VisitReferencesImpl(TVisitor& Visitor)
 {
-	Visitor.Visit(FailureContext, "FailureContext");
-	Visitor.Visit(Next, "Next");
+	Visitor.Visit(FailureContext, TEXT("FailureContext"));
+	Visitor.Visit(Next, TEXT("Next"));
 }
 
 template <typename TVisitor>
 void VBytecodeSuspension::VisitReferencesImpl(TVisitor& Visitor)
 {
-	Visitor.Visit(Procedure, "Procedure");
+	Visitor.Visit(Procedure, TEXT("Procedure"));
 	CaptureSwitch([&Visitor](auto& Captures) {
 		Captures.ForEachOperand([&Visitor](EOperandRole, auto Value) {
-			Visitor.Visit(Value, "Value"); // Whether or not this is a `VValue` or `TWriteBarrier<T>`, just mark it.
+			Visitor.Visit(Value, TEXT("Value")); // Whether or not this is a `VValue` or `TWriteBarrier<T>`, just mark it.
 		});
 	});
 }
@@ -41,7 +41,17 @@ void VBytecodeSuspension::VisitReferencesImpl(TVisitor& Visitor)
 template <typename TVisitor>
 void VLambdaSuspension::VisitReferencesImpl(TVisitor& Visitor)
 {
-	Visitor.Visit(Args(), NumValues, "Args");
+	if constexpr (TVisitor::bIsAbstractVisitor)
+	{
+		uint64 ScratchNumValues = NumValues;
+		Visitor.BeginArray(TEXT("Args"), ScratchNumValues);
+		Visitor.Visit(Args(), Args() + NumValues);
+		Visitor.EndArray();
+	}
+	else
+	{
+		Visitor.Visit(Args(), Args() + NumValues);
+	}
 }
 
 } // namespace Verse

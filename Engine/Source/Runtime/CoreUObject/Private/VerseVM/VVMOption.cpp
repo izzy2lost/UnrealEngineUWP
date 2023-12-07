@@ -17,7 +17,7 @@ TGlobalTrivialEmergentTypePtr<&VOption::StaticCppClassInfo> VOption::GlobalTrivi
 template <typename TVisitor>
 void VOption::VisitReferencesImpl(TVisitor& Visitor)
 {
-	Visitor.Visit(Value, "Value");
+	Visitor.Visit(Value, TEXT("Value"));
 }
 
 uint32 VOption::GetTypeHashImpl()
