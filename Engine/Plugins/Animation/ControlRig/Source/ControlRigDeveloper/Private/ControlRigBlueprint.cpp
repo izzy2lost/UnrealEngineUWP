@@ -1362,7 +1362,24 @@ void UControlRigBlueprint::PostDuplicate(bool bDuplicateForPIE)
 		ModularController->OnModified().AddUObject(this, &UControlRigBlueprint::HandleRigModulesModified);
 	}
 
+	// update the rig module identifier after save-as or duplicate asset
+	if(IsControlRigModule())
+	{
+		RigModuleSettings.Identifier.Name = URigHierarchy::GetSanitizedName(FRigName(GetName())).ToString();
+	}
+
 	ModularRigModel.UpdateCachedChildren();
+}
+
+void UControlRigBlueprint::PostRename(UObject* OldOuter, const FName OldName)
+{
+	Super::PostRename(OldOuter, OldName);
+
+	// update the rig module identifier after renaming the asset
+	if(IsControlRigModule())
+	{
+		RigModuleSettings.Identifier.Name = URigHierarchy::GetSanitizedName(FRigName(GetName())).ToString();
+	}
 }
 
 TArray<UControlRigBlueprint*> UControlRigBlueprint::GetCurrentlyOpenRigBlueprints()

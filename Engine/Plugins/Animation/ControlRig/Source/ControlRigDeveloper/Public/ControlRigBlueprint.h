@@ -78,6 +78,7 @@ public:
 	virtual void PostLoad() override;
 	virtual void PostTransacted(const FTransactionObjectEvent& TransactionEvent) override;
 	virtual void PostDuplicate(bool bDuplicateForPIE) override;
+	virtual void PostRename(UObject* OldOuter, const FName OldName) override;
 	virtual bool RequiresForceLoadMembers(UObject* InObject) const override;
 
 	virtual bool SupportsGlobalVariables() const override { return true; }
