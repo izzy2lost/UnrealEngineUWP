@@ -29,6 +29,10 @@ public:
 	{
 		return CubeFace;
 	}
+	void SetCubeFace(ECubeFace InCubeFace)
+	{
+		CubeFace = InCubeFace;
+	}
 
 	ERangeCompressionMode GetCompressionMode() const
 	{

@@ -31,6 +31,31 @@ UTextureRenderTarget2DArray::UTextureRenderTarget2DArray(const FObjectInitialize
 	bForceLinearGamma = true;
 }
 
+EPixelFormat UTextureRenderTarget2DArray::GetFormat() const
+{
+	if(OverrideFormat == PF_Unknown)
+	{
+		return bHDR ? PF_FloatRGBA : PF_B8G8R8A8;
+	}
+	else
+	{
+		return OverrideFormat;
+	}
+}
+
+bool UTextureRenderTarget2DArray::IsSRGB() const
+{
+	bool bIsSRGB = true;
+
+	// if render target gamma used was 1.0 then disable SRGB for the static texture
+	if(FMath::Abs(GetDisplayGamma() - 1.0f) < UE_KINDA_SMALL_NUMBER)
+	{
+		bIsSRGB = false;
+	}	
+
+	return bIsSRGB;
+}
+
 void UTextureRenderTarget2DArray::Init(uint32 InSizeX, uint32 InSizeY, uint32 InSlices, EPixelFormat InFormat)
 {
 	check((InSizeX > 0) && (InSizeY > 0) && (InSlices > 0));
@@ -201,16 +226,8 @@ void FTextureRenderTarget2DArrayResource::InitRHI(FRHICommandListBase& RHICmdLis
 
 	if((Owner->SizeX > 0) && (Owner->SizeY > 0) && (Owner->Slices > 0))
 	{
-		bool bIsSRGB = true;
-
-		// if render target gamma used was 1.0 then disable SRGB for the static texture
-		if(FMath::Abs(GetDisplayGamma() - 1.0f) < UE_KINDA_SMALL_NUMBER)
-		{
-			bIsSRGB = false;
-		}
-
 		// Create the RHI texture. Only one mip is used and the texture is targetable for resolve.
-		ETextureCreateFlags TexCreateFlags = bIsSRGB ? ETextureCreateFlags::SRGB : ETextureCreateFlags::None;
+		ETextureCreateFlags TexCreateFlags = Owner->IsSRGB() ? ETextureCreateFlags::SRGB : ETextureCreateFlags::None;
 		if (Owner->bCanCreateUAV)
 		{
 			TexCreateFlags |= ETextureCreateFlags::UAV;
@@ -318,18 +335,23 @@ FIntPoint FTextureRenderTarget2DArrayResource::GetSizeXY() const
 	return FIntPoint(Owner->SizeX, Owner->SizeX);
 }
 
-float FTextureRenderTarget2DArrayResource::GetDisplayGamma() const
+float UTextureRenderTarget2DArray::GetDisplayGamma() const
 {
-	if(Owner->TargetGamma > UE_KINDA_SMALL_NUMBER * 10.0f)
+	if(TargetGamma > UE_KINDA_SMALL_NUMBER * 10.0f)
 	{
-		return Owner->TargetGamma;
+		return TargetGamma;
 	}
-	EPixelFormat Format = Owner->GetFormat();
-	if(Format == PF_FloatRGB || Format == PF_FloatRGBA || Owner->bForceLinearGamma)
+	EPixelFormat Format = GetFormat();
+	if(Format == PF_FloatRGB || Format == PF_FloatRGBA || bForceLinearGamma)
 	{
 		return 1.0f;
 	}
-	return FTextureRenderTargetResource::GetDisplayGamma();
+	return UTextureRenderTarget::GetDefaultDisplayGamma();
+}
+
+float FTextureRenderTarget2DArrayResource::GetDisplayGamma() const
+{
+	return Owner->GetDisplayGamma();
 }
 
 PRAGMA_DISABLE_DEPRECATION_WARNINGS

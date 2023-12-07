@@ -78,19 +78,7 @@ class UTextureRenderTargetCube : public UTextureRenderTarget
 	virtual FTextureResource* CreateResource() override;
 	virtual EMaterialValueType GetMaterialType() const override;
 	//~ End UTexture Interface.
-
-	EPixelFormat GetFormat() const
-	{
-		if(OverrideFormat == PF_Unknown)
-		{
-			return bHDR ? PF_FloatRGBA : PF_B8G8R8A8;
-		}
-		else
-		{
-			return OverrideFormat;
-		}
-	}
-
+	
 	FORCEINLINE int32 GetNumMips() const
 	{
 		return 1;
@@ -107,6 +95,9 @@ class UTextureRenderTargetCube : public UTextureRenderTarget
 	//~ Begin UTextureRenderTarget Interface
 	virtual bool CanConvertToTexture(ETextureSourceFormat& OutTextureSourceFormat, EPixelFormat& OutPixelFormat, FText* OutErrorMessage) const override;
 	virtual TSubclassOf<UTexture> GetTextureUClass() const override;
+	virtual EPixelFormat GetFormat() const override;
+	virtual bool IsSRGB() const override;
+	virtual float GetDisplayGamma() const override;
 	//~ End UTextureRenderTarget Interface
 };
 

@@ -467,9 +467,9 @@ bool FCanvasBatchedElementRenderItem::Render_GameThread(const FCanvas* Canvas, F
 	{
 		bDirty = true;
 
-		// current render target set for the canvas
+		// current render target set for the canvas  (eg. an FSlateTextureRenderTarget2DResource)
 		const FRenderTarget* CanvasRenderTarget = Canvas->GetRenderTarget();
-		float Gamma = 1.0f / CanvasRenderTarget->GetDisplayGamma();
+		float Gamma = 1.0f / CanvasRenderTarget->GetDisplayGamma(); // GetDisplayGamma typically == 2.2
 		
 		// Render the batched elements.
 		struct FBatchedDrawParameters

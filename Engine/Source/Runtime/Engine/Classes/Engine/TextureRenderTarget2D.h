@@ -172,6 +172,9 @@ class UTextureRenderTarget2D : public UTextureRenderTarget
 	//~ Begin UTextureRenderTarget Interface
 	virtual bool CanConvertToTexture(ETextureSourceFormat& OutTextureSourceFormat, EPixelFormat& OutPixelFormat, FText* OutErrorMessage) const override;
 	virtual TSubclassOf<UTexture> GetTextureUClass() const override;
+	virtual EPixelFormat GetFormat() const override;
+	virtual bool IsSRGB() const override;
+	virtual float GetDisplayGamma() const override;
 	//~ End UTextureRenderTarget Interface
 
 	/**
@@ -229,35 +232,6 @@ PRAGMA_ENABLE_DEPRECATION_WARNINGS
 	FORCEINLINE int32 GetNumMips() const
 	{
 		return NumMips;
-	}
-
-
-	FORCEINLINE EPixelFormat GetFormat() const
-	{
-		if (OverrideFormat == PF_Unknown)
-		{
-			return GetPixelFormatFromRenderTargetFormat(RenderTargetFormat);
-		}
-		else
-		{
-			return OverrideFormat;
-		}
-	}
-
-	bool IsSRGB() const
-	{
-		// ?? note: UTextureRenderTarget::TargetGamma is ignored here
-
-		// ?? note: GetDisplayGamma forces linear for some float formats, but this doesn't
-
-		if (OverrideFormat == PF_Unknown)
-		{
-			return RenderTargetFormat == RTF_RGBA8_SRGB;
-		}
-		else
-		{
-			return !bForceLinearGamma;
-		}
 	}
 
 private:

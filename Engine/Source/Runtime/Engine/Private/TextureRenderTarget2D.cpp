@@ -54,6 +54,35 @@ UTextureRenderTarget2D::UTextureRenderTarget2D(const FObjectInitializer& ObjectI
 	// see also UTextureRenderTarget::TargetGamma
 }
 
+EPixelFormat UTextureRenderTarget2D::GetFormat() const
+{
+	if (OverrideFormat == PF_Unknown)
+	{
+		return GetPixelFormatFromRenderTargetFormat(RenderTargetFormat);
+	}
+	else
+	{
+		return OverrideFormat;
+	}
+}
+
+bool UTextureRenderTarget2D::IsSRGB() const
+{
+	// in theory you'd like the "bool SRGB" variable to == this, but it does not
+
+	// ?? note: UTextureRenderTarget::TargetGamma is ignored here
+	// ?? note: GetDisplayGamma forces linear for some float formats, but this doesn't
+
+	if (OverrideFormat == PF_Unknown)
+	{
+		return RenderTargetFormat == RTF_RGBA8_SRGB;
+	}
+	else
+	{
+		return !bForceLinearGamma;
+	}
+}
+
 FTextureResource* UTextureRenderTarget2D::CreateResource()
 {
 	UWorld* World = GetWorld();
@@ -646,21 +675,27 @@ FIntPoint FTextureRenderTarget2DResource::GetSizeXY() const
 *
 * @return display gamma expected for rendering to this render target 
 */
-float FTextureRenderTarget2DResource::GetDisplayGamma() const
+float UTextureRenderTarget2D::GetDisplayGamma() const
 {
 	// if TargetGamma is set (not zero), it overrides everything else
-	if (Owner->TargetGamma > UE_KINDA_SMALL_NUMBER * 10.0f)
+	if (TargetGamma > UE_KINDA_SMALL_NUMBER * 10.0f)
 	{
-		return Owner->TargetGamma;
+		return TargetGamma;
 	}
 
 	// ?? special casing just two of the float PixelFormats to force 1.0 gamma here is inconsistent
 	//		(there are lots of other float formats)
 	// ignores Owner->IsSRGB() ? it's similar but not quite the same
-	if (Format == PF_FloatRGB || Format == PF_FloatRGBA || Owner->bForceLinearGamma )
+	EPixelFormat Format = GetFormat();
+	if (Format == PF_FloatRGB || Format == PF_FloatRGBA || bForceLinearGamma )
 	{
 		return 1.0f;
 	}
 
-	return FTextureRenderTargetResource::GetDisplayGamma(); // hard-coded 2.2 , actually means SRGB
+	return UTextureRenderTarget::GetDefaultDisplayGamma(); // hard-coded 2.2 , actually means SRGB
+}
+
+float FTextureRenderTarget2DResource::GetDisplayGamma() const
+{
+	return Owner->GetDisplayGamma();
 }

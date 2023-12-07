@@ -13,6 +13,7 @@ ImageUtils.cpp: Image utility functions.
 #include "Engine/TextureCubeArray.h"
 #include "Engine/VolumeTexture.h"
 #include "Engine/TextureRenderTarget2D.h"
+#include "Engine/TextureRenderTargetCube.h"
 #include "IImageWrapper.h"
 #include "IImageWrapperModule.h"
 #include "Logging/MessageLog.h"
@@ -314,6 +315,113 @@ bool FImageUtils::ExportTextureSourceToDDS(TArray64<uint8> & OutData, UTexture *
 #endif
 }
 
+bool FImageUtils::ExportRenderTargetToDDS(TArray64<uint8> & OutData, UTextureRenderTarget * TexRT)
+{
+	FImage Image;
+	if ( ! GetRenderTargetImage(TexRT,Image) )
+	{
+		UE_LOG(LogImageUtils,Warning,TEXT("ExportRenderTargetToDDS : GetRenderTargetImage failed"));
+		return false;
+	}
+
+	// some code dupe with GetRenderTargetImage to identify 2d/cube/vol :
+	UTextureRenderTargetCube * TexRTCube = Cast<UTextureRenderTargetCube>(TexRT);
+	bool bIsCube = ( TexRTCube != nullptr );
+	// UTextureRenderTargetCubeArray does not exist at the moment
+	
+	int64 SizeX = FMath::RoundToInt64( TexRT->GetSurfaceWidth() ); // GetSurfaceWidth returns SizeX but as float
+	int64 SizeY = FMath::RoundToInt64( TexRT->GetSurfaceHeight() );
+	int64 TexRT_SizeZ = FMath::RoundToInt64( TexRT->GetSurfaceDepth() );
+	int64 TexRT_ArraySize = TexRT->GetSurfaceArraySize();
+	// TexRT_SizeZ , ArraySize are 0 if not used, not 1
+
+	int32 NumMips = 1;
+
+	int32 Dimension;
+	int32 SizeZ;
+	int32 ArraySize;
+	uint32 CreateFlags = 0;
+	if ( TexRT_SizeZ <= 1 && !bIsCube ) // 2D
+	{
+		Dimension = 2;
+		SizeZ = 1;
+		ArraySize = TexRT_ArraySize ? TexRT_ArraySize : 1;
+	}
+	else if ( bIsCube )
+	{
+		Dimension = 2;
+		SizeZ = 1;
+
+		check( TexRT_ArraySize == 6 );
+		ArraySize = 6;
+		CreateFlags = UE::DDS::FDDSFile::CREATE_FLAG_CUBEMAP;
+	}
+	else if ( TexRT_SizeZ > 1 )
+	{
+		Dimension = 3;
+		SizeZ = TexRT_SizeZ;
+		ArraySize = 1;
+	}
+	else
+	{
+		checkf(false, TEXT("unexpected TextureClass"));
+		return false;
+	}
+	
+	UE::DDS::EDXGIFormat DXGIFormat = UE::DDS::DXGIFormatFromRawFormat(Image.Format,Image.GammaSpace);
+	
+	UE_LOG(LogImageUtils,Display,TEXT("Exporting DDS Dimension=%d SizeX=%d SizeY=%d SizeZ=%d NumMips=%d ArraySize=%d"),Dimension, SizeX,SizeY,SizeZ,NumMips,ArraySize);	
+	
+	UE::DDS::EDDSError Error;
+	UE::DDS::FDDSFile * DDS = UE::DDS::FDDSFile::CreateEmpty(Dimension, SizeX,SizeY,SizeZ,NumMips,ArraySize, DXGIFormat,CreateFlags, &Error);
+	if ( DDS == nullptr || Error != UE::DDS::EDDSError::OK )
+	{
+		UE_LOG(LogImageUtils,Warning,TEXT("FDDSFile::CreateEmpty (Error=%d)"),(int)Error);			
+		return false;
+	}
+	
+	// delete DDS at scope exit :
+	TUniquePtr<UE::DDS::FDDSFile> DDSPtr(DDS);
+
+	check( DDS->Validate() == UE::DDS::EDDSError::OK );
+	
+	// blit into the mips:
+	const int32 MipIndex = 0;
+
+	if ( DDS->Dimension == 3 )
+	{
+		check( DDS->Mips.Num() == DDS->MipCount );
+		check( DDS->Mips[MipIndex].Depth == Image.NumSlices );
+
+		DDS->FillMip( Image, MipIndex );
+	}
+	else
+	{
+		// DDS->Mips[] contains both mips and arrays
+		check( DDS->Mips.Num() == DDS->MipCount * Image.NumSlices );
+
+		for(int SliceIndex=0;SliceIndex<Image.NumSlices;SliceIndex++)
+		{
+			FImageView MipSlice = Image.GetSlice(SliceIndex);
+				
+			// DDS Mips[] array has whole mip chain of each slice, then next slice
+			// we have the opposite (all slices of top mip first, then next mip)
+			int DDSMipIndex = SliceIndex * DDS->MipCount + MipIndex;
+				
+			DDS->FillMip( MipSlice, DDSMipIndex );
+		}
+	}
+
+	Error = DDS->WriteDDS(OutData);
+	if ( Error != UE::DDS::EDDSError::OK )
+	{
+		UE_LOG(LogImageUtils,Warning,TEXT("FDDSFile::WriteDDS failed (Error=%d)"),(int)Error);			
+		return false;
+	}
+
+	return true;
+}
+
 bool FImageUtils::GetRawData(UTextureRenderTarget2D* TexRT, TArray64<uint8>& RawData)
 {
 	// DEPRECATED , use GetRenderTargetImage
@@ -330,20 +438,67 @@ bool FImageUtils::GetRawData(UTextureRenderTarget2D* TexRT, TArray64<uint8>& Raw
 	return true;
 }
 
-bool FImageUtils::GetRenderTargetImage(UTextureRenderTarget2D* TexRT, FImage & Image)
+bool FImageUtils::GetRenderTargetImage(UTextureRenderTarget* TexRT, FImage & Image)
 {
 	return GetRenderTargetImage(TexRT,Image,FIntRect(0,0,0,0));
 }
 
-bool FImageUtils::GetRenderTargetImage(UTextureRenderTarget2D* TexRT, FImage & Image, const FIntRect & InRectOrZero)
+bool FImageUtils::GetRenderTargetImage(UTextureRenderTarget* TexRT, FImage & OutImage, const FIntRect & InRectOrZero)
 {
-	Image = FImage();
+	OutImage = FImage();
 	
 	FRenderTarget* RenderTarget = TexRT->GameThread_GetRenderTargetResource();
 	EPixelFormat RTFormat = TexRT->GetFormat();
 
 	ERawImageFormat::Type ReadFormat = UTextureRenderTarget::GetReadPixelsFormat(RTFormat,false);
-		
+	
+	//UTextureRenderTarget2D * TexRT2D = Cast<UTextureRenderTarget2D>(TexRT);
+	//UTextureRenderTarget2DArray * TexRT2DA = Cast<UTextureRenderTarget2DArray>(TexRT);
+	//UTextureRenderTargetVolume * TexRTVolume = Cast<UTextureRenderTargetVolume>(TexRT);
+
+	// we have to identify cubes because they are treated differently
+	// can't use TexRT->GetTextureClass() because it's always RenderTarget
+	UTextureRenderTargetCube * TexRTCube = Cast<UTextureRenderTargetCube>(TexRT);
+	bool bIsCube = ( TexRTCube != nullptr );
+	// UTextureRenderTargetCubeArray does not exist at the moment
+	
+	// UTextureRenderTarget2DArray does not derive from UTextureRenderTarget2D, so TexRT2D will be null
+
+	int64 TexRT_SizeX = FMath::RoundToInt64( TexRT->GetSurfaceWidth() ); // GetSurfaceWidth returns SizeX but as float
+	int64 TexRT_SizeY = FMath::RoundToInt64( TexRT->GetSurfaceHeight() );
+	int64 TexRT_SizeZ = FMath::RoundToInt64( TexRT->GetSurfaceDepth() );
+	int64 TexRT_ArraySize = TexRT->GetSurfaceArraySize();
+
+	if ( TexRT_SizeX <= 0 || TexRT_SizeY <= 0 )
+	{
+		return false;
+	}
+
+	int64 NumSlices;
+	if ( bIsCube )
+	{
+		check( TexRT_SizeZ == 0 );
+		check( TexRT_ArraySize == 6 );
+		NumSlices = 6;
+	}
+	else if ( TexRT_SizeZ != 0 )
+	{
+		check( TexRT_ArraySize == 0 );
+		NumSlices = TexRT_SizeZ;
+	}
+	else if ( TexRT_ArraySize != 0 )
+	{
+		check( TexRT_SizeZ == 0 );
+		NumSlices = TexRT_ArraySize;
+	}
+	else
+	{
+		// 2D
+		NumSlices = 1;
+	}
+	
+	// UTextureRenderTarget2D returns 0 for Depth and ArraySize, not 1
+
 	// RCM_MinMax means don't renormalize, just read the pixels as they are
 	//	default RCM_UNorm does funny scalings
 	FReadSurfaceDataFlags ReadFlags(RCM_MinMax, CubeFace_MAX);
@@ -351,13 +506,13 @@ bool FImageUtils::GetRenderTargetImage(UTextureRenderTarget2D* TexRT, FImage & I
 	FIntRect Rect = InRectOrZero;
 	if (InRectOrZero == FIntRect(0, 0, 0, 0))
 	{
-		Rect = FIntRect(0, 0, TexRT->SizeX, TexRT->SizeY);
+		Rect = FIntRect(0, 0, TexRT_SizeX, TexRT_SizeY);
 	}
 
 	int64 RectSizeX = Rect.Width();
 	int64 RectSizeY = Rect.Height();
 	if ( ! ensure( Rect.Min.X >= 0 && Rect.Min.Y >= 0 && 
-		Rect.Max.X <= TexRT->SizeX && Rect.Max.Y <= TexRT->SizeY &&
+		Rect.Max.X <= TexRT_SizeX && Rect.Max.Y <= TexRT_SizeY &&
 		RectSizeX >= 0 && RectSizeY >= 0 ) )
 	{
 		return false;
@@ -372,16 +527,24 @@ bool FImageUtils::GetRenderTargetImage(UTextureRenderTarget2D* TexRT, FImage & I
 		// ReadFloat16Pixels does no conversions
 		//	must be used only exactly with FloatRGBA type
 
-		Image.Init(RectSizeX,RectSizeY,ERawImageFormat::RGBA16F,EGammaSpace::Linear);
+		OutImage.Init(RectSizeX,RectSizeY,NumSlices,ERawImageFormat::RGBA16F,EGammaSpace::Linear);
 		
 		TArray<FFloat16Color> Colors;
-		if ( ! RenderTarget->ReadFloat16Pixels(Colors,ReadFlags,Rect) )
+		
+		for (int32 SliceIndex = 0; SliceIndex < NumSlices; ++SliceIndex)
 		{
-			return false;
-		}
+			ReadFlags.SetCubeFace(  bIsCube ? (ECubeFace)(SliceIndex % 6) : CubeFace_MAX);
+			ReadFlags.SetArrayIndex(bIsCube ? (SliceIndex/6) : SliceIndex);
 
-		check( Image.GetImageSizeBytes() == Colors.Num() * sizeof(Colors[0]) );
-		memcpy( &Image.RawData[0], &Colors[0], Image.GetImageSizeBytes() );
+			if ( ! RenderTarget->ReadFloat16Pixels(Colors,ReadFlags,Rect) )
+			{
+				return false;
+			}
+
+			FImageView ImageSlice = OutImage.GetSlice(SliceIndex);
+			check( ImageSlice.GetImageSizeBytes() == Colors.Num() * sizeof(Colors[0]) );
+			memcpy( ImageSlice.RawData, Colors.GetData(), ImageSlice.GetImageSizeBytes() );
+		}
 	}
 	else if ( ReadFormat == ERawImageFormat::BGRA8 )
 	{
@@ -389,7 +552,7 @@ bool FImageUtils::GetRenderTargetImage(UTextureRenderTarget2D* TexRT, FImage & I
 		//	mainly we are trying to catch the check for whether the _SRGB or non _SRGB BGRA8 format as chosen
 		EGammaSpace GammaSpace = TexRT->IsSRGB() ? EGammaSpace::sRGB : EGammaSpace::Linear;
 		
-		Image.Init(RectSizeX,RectSizeY,ERawImageFormat::BGRA8,GammaSpace);
+		OutImage.Init(RectSizeX,RectSizeY,NumSlices,ERawImageFormat::BGRA8,GammaSpace);
 		
 		// "LinearToGamma" is basically moot; that would only be used if we were reading float pixels to FColor
 		//	but in that case the ReadFormat should have been float, so we won't be here
@@ -397,26 +560,42 @@ bool FImageUtils::GetRenderTargetImage(UTextureRenderTarget2D* TexRT, FImage & I
 		ReadFlags.SetLinearToGamma( GammaSpace == EGammaSpace::sRGB );
 
 		TArray<FColor> Colors;
-		if ( ! RenderTarget->ReadPixels(Colors,ReadFlags,Rect) )
+		
+		for (int32 SliceIndex = 0; SliceIndex < NumSlices; ++SliceIndex)
 		{
-			return false;
-		}
+			ReadFlags.SetCubeFace(  bIsCube ? (ECubeFace)(SliceIndex % 6) : CubeFace_MAX);
+			ReadFlags.SetArrayIndex(bIsCube ? (SliceIndex/6) : SliceIndex);
 
-		check( Image.GetImageSizeBytes() == Colors.Num() * sizeof(Colors[0]) );
-		memcpy( &Image.RawData[0], &Colors[0], Image.GetImageSizeBytes() );
+			if ( ! RenderTarget->ReadPixels(Colors,ReadFlags,Rect) )
+			{
+				return false;
+			}
+		
+			FImageView ImageSlice = OutImage.GetSlice(SliceIndex);
+			check( ImageSlice.GetImageSizeBytes() == Colors.Num() * sizeof(Colors[0]) );
+			memcpy( ImageSlice.RawData, Colors.GetData(), ImageSlice.GetImageSizeBytes() );
+		}
 	}
 	else if ( ReadFormat == ERawImageFormat::RGBA32F )
 	{
-		Image.Init(RectSizeX,RectSizeY,ERawImageFormat::RGBA32F,EGammaSpace::Linear);
+		OutImage.Init(RectSizeX,RectSizeY,NumSlices,ERawImageFormat::RGBA32F,EGammaSpace::Linear);
 		
 		TArray<FLinearColor> Colors;
-		if ( ! RenderTarget->ReadLinearColorPixels(Colors,ReadFlags,Rect) )
+		
+		for (int32 SliceIndex = 0; SliceIndex < NumSlices; ++SliceIndex)
 		{
-			return false;
-		}
+			ReadFlags.SetCubeFace(  bIsCube ? (ECubeFace)(SliceIndex % 6) : CubeFace_MAX);
+			ReadFlags.SetArrayIndex(bIsCube ? (SliceIndex/6) : SliceIndex);
 
-		check( Image.GetImageSizeBytes() == Colors.Num() * sizeof(Colors[0]) );
-		memcpy( &Image.RawData[0], &Colors[0], Image.GetImageSizeBytes() );
+			if ( ! RenderTarget->ReadLinearColorPixels(Colors,ReadFlags,Rect) )
+			{
+				return false;
+			}
+			
+			FImageView ImageSlice = OutImage.GetSlice(SliceIndex);
+			check( ImageSlice.GetImageSizeBytes() == Colors.Num() * sizeof(Colors[0]) );
+			memcpy( ImageSlice.RawData, Colors.GetData(), ImageSlice.GetImageSizeBytes() );
+		}
 	}
 	else
 	{

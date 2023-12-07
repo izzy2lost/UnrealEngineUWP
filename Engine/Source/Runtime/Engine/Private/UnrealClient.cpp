@@ -150,6 +150,13 @@ bool FRenderTarget::ReadLinearColorPixelsPtr(FLinearColor* OutImageBytes, FReadS
 
 float FRenderTarget::GetDisplayGamma() const
 {
+	return GetEngineDisplayGamma();
+}
+
+float FRenderTarget::GetEngineDisplayGamma() // static
+{
+	// when we say we want a 2.2 gamma, what we actually mean is that we want SRGB conversion in most cases
+
 	if (GEngine == NULL)
 	{
 		return 2.2f;

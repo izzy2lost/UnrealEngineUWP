@@ -225,7 +225,7 @@ bool UTextureRenderTarget::UpdateTexture(UTexture* InTexture, EConstructTextureF
 		ReadFormat == ERawImageFormat::RGBA16F );
 
 	EGammaSpace ReadGammaSpace = EGammaSpace::Linear;
-	bool bSRGB = RenderTarget->GetDisplayGamma() > 1.5f; // @@ no way to call IsSRGB() , no uniform query on RenderTarget
+	bool bSRGB = IsSRGB();
 	if ( ERawImageFormat::GetFormatNeedsGammaSpace(ReadFormat) && bSRGB )
 	{
 		ReadGammaSpace = EGammaSpace::sRGB;
@@ -531,6 +531,16 @@ const FTextureRHIRef& FTextureRenderTargetResource::GetShaderResourceTexture() c
 }
 
 
+/*static*/ float UTextureRenderTarget::GetDefaultDisplayGamma()
+{
+	// TextureRenderTarget default gamma does not respond to Engine->DisplayGamma setting
+	//	?? was that intentional or a bug ?
+	//return FRenderTarget::GetEngineDisplayGamma();
+
+	// return hard-coded gamma 2.2 which corresponds to SRGB
+	return 2.2f;
+}
+
 /** 
 * Render target resource should be sampled in linear color space
 *
@@ -538,8 +548,10 @@ const FTextureRHIRef& FTextureRenderTargetResource::GetShaderResourceTexture() c
 */
 float FTextureRenderTargetResource::GetDisplayGamma() const
 {
-	// when we say we want a 2.2 gamma, what we actually mean is that we want SRGB conversion in most cases
-	return 2.2f;  
+	// we'd like to just do this, but Owner is in the derived classes
+	//return Owner->GetDisplayGamma();
+
+	return UTextureRenderTarget::GetDefaultDisplayGamma();
 }
 
 /*-----------------------------------------------------------------------------

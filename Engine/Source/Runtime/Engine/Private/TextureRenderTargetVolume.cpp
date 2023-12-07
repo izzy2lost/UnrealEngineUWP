@@ -31,6 +31,30 @@ UTextureRenderTargetVolume::UTextureRenderTargetVolume(const FObjectInitializer&
 	bForceLinearGamma = true;
 }
 
+EPixelFormat UTextureRenderTargetVolume::GetFormat() const
+{
+	if(OverrideFormat == PF_Unknown)
+	{
+		return bHDR ? PF_FloatRGBA : PF_B8G8R8A8;
+	}
+	else
+	{
+		return OverrideFormat;
+	}
+}
+
+bool UTextureRenderTargetVolume::IsSRGB() const
+{
+	bool bIsSRGB = true;
+	// if render target gamma used was 1.0 then disable SRGB for the static texture
+	if(FMath::Abs(GetDisplayGamma() - 1.0f) < UE_KINDA_SMALL_NUMBER)
+	{
+		bIsSRGB = false;
+	}
+	
+	return bIsSRGB;
+}
+
 void UTextureRenderTargetVolume::Init(uint32 InSizeX, uint32 InSizeY, uint32 InSizeZ, EPixelFormat InFormat)
 {
 	check((InSizeX > 0) && (InSizeY > 0) && (InSizeZ > 0));
@@ -211,16 +235,8 @@ void FTextureRenderTargetVolumeResource::InitRHI(FRHICommandListBase& RHICmdList
 
 	if((Owner->SizeX > 0) && (Owner->SizeY > 0) && (Owner->SizeZ > 0))
 	{
-		// ?? Volume's version of IsSRGB() here :
-		bool bIsSRGB = true;
-		// if render target gamma used was 1.0 then disable SRGB for the static texture
-		if(FMath::Abs(GetDisplayGamma() - 1.0f) < UE_KINDA_SMALL_NUMBER)
-		{
-			bIsSRGB = false;
-		}
-
 		// Create the RHI texture. Only one mip is used and the texture is targetable for resolve.
-		ETextureCreateFlags TexCreateFlags = bIsSRGB ? TexCreate_SRGB : TexCreate_None;
+		ETextureCreateFlags TexCreateFlags = Owner->IsSRGB() ? TexCreate_SRGB : TexCreate_None;
 
 		if (Owner->bCanCreateUAV)
 		{
@@ -298,45 +314,47 @@ void FTextureRenderTargetVolumeResource::UpdateDeferredResource(FRHICommandListI
 	}
 }
 
-/** 
- * @return width of target
- */
 uint32 FTextureRenderTargetVolumeResource::GetSizeX() const
 {
 	return Owner->SizeX;
 }
 
-/** 
- * @return height of target
- */
 uint32 FTextureRenderTargetVolumeResource::GetSizeY() const
 {
-	return Owner->SizeX;
+	return Owner->SizeY;
 }
 
-/** 
- * @return dimensions of target surface
- */
+uint32 FTextureRenderTargetVolumeResource::GetSizeZ() const
+{
+	return Owner->SizeZ;
+}
+
 FIntPoint FTextureRenderTargetVolumeResource::GetSizeXY() const
 {
-	return FIntPoint(Owner->SizeX, Owner->SizeX);
+	return FIntPoint(Owner->SizeX, Owner->SizeY);
+}
+
+float UTextureRenderTargetVolume::GetDisplayGamma() const
+{
+	// code dupe ; move this up to the top level, it's duped everywhere
+
+	if(TargetGamma > UE_KINDA_SMALL_NUMBER * 10.0f)
+	{
+		return TargetGamma;
+	}
+	EPixelFormat Format = GetFormat();
+	// ?? hard-coding a few formats but not others, likely wrong
+	if(Format == PF_R32_FLOAT || Format == PF_FloatRGBA || bForceLinearGamma)
+	{
+		return 1.0f;
+	}
+
+	return UTextureRenderTarget::GetDefaultDisplayGamma();
 }
 
 float FTextureRenderTargetVolumeResource::GetDisplayGamma() const
 {
-	// code dupe ; move this up to the top level, it's duped everywhere
-
-	if(Owner->TargetGamma > UE_KINDA_SMALL_NUMBER * 10.0f)
-	{
-		return Owner->TargetGamma;
-	}
-	EPixelFormat Format = Owner->GetFormat();
-	// ?? hard-coding a few formats but not others, likely wrong
-	if(Format == PF_R32_FLOAT || Format == PF_FloatRGBA || Owner->bForceLinearGamma)
-	{
-		return 1.0f;
-	}
-	return FTextureRenderTargetResource::GetDisplayGamma();
+	return Owner->GetDisplayGamma();
 }
 
 bool FTextureRenderTargetVolumeResource::ReadPixels(TArray<FColor>& OutImageData, FReadSurfaceDataFlags InFlags, FIntRect InSrcRect)
@@ -357,15 +375,7 @@ bool FTextureRenderTargetVolumeResource::ReadFloat16Pixels(TArray<FFloat16Color>
 
 	if ( PF != PF_FloatRGBA && PF != PF_R16F && PF != PF_R32_FLOAT )
 	{
-		/**
-
-		deep inside RHI this will crash unless the format is one of these :
-
-		bool bIsRGBAFmt = TextureDesc.Format == GPixelFormats[PF_FloatRGBA].PlatformFormat;
-		bool bIsR16FFmt = TextureDesc.Format == GPixelFormats[PF_R16F].PlatformFormat;
-		bool bIsR32FFmt = TextureDesc.Format == GPixelFormats[PF_R32_FLOAT].PlatformFormat;
-		check(bIsRGBAFmt || bIsR16FFmt || bIsR32FFmt);
-		**/
+		// limitation of RHIRead3DSurfaceFloatData
 
 		return false;
 	}

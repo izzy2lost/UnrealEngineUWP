@@ -35,8 +35,35 @@ UTextureRenderTargetCube::UTextureRenderTargetCube(const FObjectInitializer& Obj
 	ClearColor = FLinearColor(0.0f, 1.0f, 0.0f, 1.0f);
 	OverrideFormat = PF_Unknown;
 	bForceLinearGamma = true;
+	// note bool SRGB not set
 }
 
+EPixelFormat UTextureRenderTargetCube::GetFormat() const
+{
+	if(OverrideFormat == PF_Unknown)
+	{
+		return bHDR ? PF_FloatRGBA : PF_B8G8R8A8;
+	}
+	else
+	{
+		return OverrideFormat;
+	}
+}
+
+bool UTextureRenderTargetCube::IsSRGB() const
+{
+	// compare with IsSRGB() call on RenderTarget2D which uses different logic
+	//	also "bool SRGB" should be set = bIsSRGB, but isn't
+
+	bool bIsSRGB = true;
+	// if render target gamma used was 1.0 then disable SRGB for the static texture
+	if(FMath::Abs(GetDisplayGamma() - 1.0f) < UE_KINDA_SMALL_NUMBER)
+	{
+		bIsSRGB = false;
+	}
+
+	return bIsSRGB;
+}
 
 void UTextureRenderTargetCube::Init(uint32 InSizeX, EPixelFormat InFormat)
 {
@@ -224,17 +251,11 @@ void FTextureRenderTargetCubeResource::InitRHI(FRHICommandListBase& RHICmdList)
 
 	if(Owner->SizeX > 0)
 	{
-		// compare with IsSRGB() call on RenderTarget2D
-		//	also "bool SRGB" should be set = bIsSRGB, but isn't
-		bool bIsSRGB = true;
-		// if render target gamma used was 1.0 then disable SRGB for the static texture
-		if(FMath::Abs(GetDisplayGamma() - 1.0f) < UE_KINDA_SMALL_NUMBER)
-		{
-			bIsSRGB = false;
-		}
+		// note Resource has a bSRGB and Owner has a bool SRGB , neither are set right
+		//	instead call Owner->IsSRGB()
 
 		// Create the RHI texture. Only one mip is used and the texture is targetable for resolve.
-		ETextureCreateFlags TexCreateFlags = bIsSRGB ? ETextureCreateFlags::SRGB : ETextureCreateFlags::None;
+		ETextureCreateFlags TexCreateFlags = Owner->IsSRGB() ? ETextureCreateFlags::SRGB : ETextureCreateFlags::None;
 		if (Owner->bCanCreateUAV)
 		{
 			TexCreateFlags |= ETextureCreateFlags::UAV;
@@ -360,7 +381,7 @@ uint32 FTextureRenderTargetCubeResource::GetSizeX() const
  */
 uint32 FTextureRenderTargetCubeResource::GetSizeY() const
 {
-	return Owner->SizeX;
+	return Owner->SizeX; // there is no "SizeY" , cubes must be square
 }
 
 /** 
@@ -371,20 +392,26 @@ FIntPoint FTextureRenderTargetCubeResource::GetSizeXY() const
 	return FIntPoint(Owner->SizeX, Owner->SizeX);
 }
 
-float FTextureRenderTargetCubeResource::GetDisplayGamma() const
+float UTextureRenderTargetCube::GetDisplayGamma() const
 {
 	// code dupe of RenderTarget2D
 
-	if(Owner->TargetGamma > UE_KINDA_SMALL_NUMBER * 10.0f)
+	if(TargetGamma > UE_KINDA_SMALL_NUMBER * 10.0f)
 	{
-		return Owner->TargetGamma;
+		return TargetGamma;
 	}
-	EPixelFormat Format = Owner->GetFormat();
-	if(Format == PF_FloatRGB || Format == PF_FloatRGBA || Owner->bForceLinearGamma)
+	EPixelFormat Format = GetFormat();
+	if(Format == PF_FloatRGB || Format == PF_FloatRGBA || bForceLinearGamma)
 	{
 		return 1.0f;
 	}
-	return FTextureRenderTargetResource::GetDisplayGamma();
+
+	return UTextureRenderTarget::GetDefaultDisplayGamma(); // eg. 2.2
+}
+
+float FTextureRenderTargetCubeResource::GetDisplayGamma() const
+{
+	return Owner->GetDisplayGamma();
 }
 
 PRAGMA_DISABLE_DEPRECATION_WARNINGS

@@ -29,6 +29,7 @@ class UTexture2DArray;
 class UTextureCube;
 class UTextureCubeArray;
 class UVolumeTexture;
+class UTextureRenderTarget;
 class UTextureRenderTarget2D;
 class UTextureRenderTargetCube;
 class IImageWrapperModule;
@@ -149,6 +150,16 @@ public:
 	* 
 	*/
 	ENGINE_API static bool ExportTextureSourceToDDS(TArray64<uint8> & OutData, UTexture * Texture, int BlockIndex=0, int LayerIndex=0);
+	
+	/**
+	*  Export Texture RenderTarget (2D,Array,Cube,CubeArray,Volume) to DDS
+	*  reads from texture rendertarget RHI texture
+	* 
+	* @param OutData    Filled with DDS file format
+	* @param TexRT    Texture RenderTarget (2D,Array,Cube,CubeArray,Volume) to export
+	* 
+	*/
+	ENGINE_API static bool ExportRenderTargetToDDS(TArray64<uint8> & OutData, UTextureRenderTarget * TexRT);
 
 	/**
 	 * if Texture source is available, get it as an FImage
@@ -437,8 +448,10 @@ public:
 	* 
 	* @param TexRT		The texture rendertarget to copy from
 	* @param OutImage	Filled with the image, allocated as needed
+	*
+	* Works for Cubes, Volumes, etc.  (fills Image slices)
 	*/
-	ENGINE_API static bool GetRenderTargetImage(UTextureRenderTarget2D* TexRT, FImage & OutImage);
-	ENGINE_API static bool GetRenderTargetImage(UTextureRenderTarget2D* TexRT, FImage & OutImage, const FIntRect & Rect);
+	ENGINE_API static bool GetRenderTargetImage(UTextureRenderTarget* TexRT, FImage & OutImage);
+	ENGINE_API static bool GetRenderTargetImage(UTextureRenderTarget* TexRT, FImage & OutImage, const FIntRect & Rect);
 
 };

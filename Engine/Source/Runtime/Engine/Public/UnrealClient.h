@@ -73,6 +73,9 @@ public:
 	*/
 	ENGINE_API virtual float GetDisplayGamma() const;
 
+	// return global Engine default gamma (GetDisplayGamma returns this if not overriden)
+	static float GetEngineDisplayGamma();
+
 	virtual EDisplayColorGamut GetDisplayColorGamut() const { return EDisplayColorGamut::sRGB_D65; }
 	virtual EDisplayOutputFormat GetDisplayOutputFormat() const { return EDisplayOutputFormat::SDR_sRGB; }
 	virtual bool GetSceneHDREnabled() const { return false; }

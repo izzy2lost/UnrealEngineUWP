@@ -48,19 +48,12 @@ public:
 
 	// FRenderTarget interface.
 
-	/**
-	 * @return width of the target
-	 */
+	// FTexture interface :
 	virtual uint32 GetSizeX() const override;
-
-	/**
-	 * @return height of the target
-	 */
 	virtual uint32 GetSizeY() const override;
+	virtual uint32 GetSizeZ() const override;
 
-	/**
-	 * @return dimensions of the target
-	 */
+	// FRenderTarget interface:	
 	virtual FIntPoint GetSizeXY() const override;
 
 	/**

@@ -374,17 +374,20 @@ public:
 
 	virtual void ClampSize(int32 SizeX,int32 SizeY) {}
 
-	// FRenderTarget interface.
-	virtual uint32 GetSizeX() const = 0;
-	virtual uint32 GetSizeY() const = 0;
-	virtual FIntPoint GetSizeXY() const = 0;
+	// GetSizeX/GetSizeY are from "FTexture" interface.
+	//   the FTexture implementations return zero; force them to be implemented:
+	virtual uint32 GetSizeX() const override = 0;
+	virtual uint32 GetSizeY() const override = 0;
+	// also GetSizeZ()
+	// GetSizeXY from "FRenderTarget"
+	//virtual FIntPoint GetSizeXY() const override = 0;
 
 	/** 
 	 * Render target resource should be sampled in linear color space
 	 *
 	 * @return display gamma expected for rendering to this render target 
 	 */
-	virtual float GetDisplayGamma() const;
+	virtual float GetDisplayGamma() const override;
 
 	virtual FRHIGPUMask GetGPUMask(FRHICommandListImmediate& RHICmdList) const final override
 	{

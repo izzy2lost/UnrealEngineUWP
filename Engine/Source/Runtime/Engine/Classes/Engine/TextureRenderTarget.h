@@ -71,7 +71,17 @@ class UTextureRenderTarget : public UTexture
 	/**
 	 * Returns the UTexture class that corresponds to this render target (e.g. UTexture2D for UTextureRenderTarget2D)
 	 */
-	ENGINE_API virtual TSubclassOf<UTexture> GetTextureUClass() const PURE_VIRTUAL(UTextureRenderTarget, return nullptr;);
+	ENGINE_API virtual TSubclassOf<UTexture> GetTextureUClass() const PURE_VIRTUAL(UTextureRenderTarget, return nullptr;)
+
+	ENGINE_API virtual EPixelFormat GetFormat() const PURE_VIRTUAL(GetFormat,return PF_Unknown;)
+
+	ENGINE_API virtual bool IsSRGB() const PURE_VIRTUAL(IsSRGB,return false;)
+
+	ENGINE_API virtual float GetDisplayGamma() const PURE_VIRTUAL(GetDisplayGamma,return 0.f;)
+
+	// UTextureRenderTarget default display gamma if none is set
+	//	returns hard-coded 2.2
+	static float GetDefaultDisplayGamma();
 
 	// get the variant of ReadPixels call that should be used
 	//	either BGRA8,RGBA32F,or RGBA16F

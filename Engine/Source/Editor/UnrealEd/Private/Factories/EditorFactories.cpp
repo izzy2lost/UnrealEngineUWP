@@ -4699,7 +4699,14 @@ bool UTextureExporterDDS::SupportsObject(UObject* Object) const
 	
 	if ( !Texture->Source.IsValid() )
 	{
-		return false;
+		if ( Texture->GetTextureClass() == ETextureClass::RenderTarget )
+		{
+			return true;
+		}
+		else
+		{
+			return false;
+		}
 	}
 
 	if ( Texture->Source.GetFormat() == TSF_BGRE8 )
@@ -4720,31 +4727,50 @@ bool UTextureExporterDDS::ExportBinary( UObject* Object, const TCHAR* Type, FArc
 {
 	UTexture * Texture = GetExportTexture( Object );
 	check( Texture != nullptr );
-	
-	// FileIndex for layers for VT :
-	
-	int NumBlocks = Texture->Source.GetNumBlocks();
-	int NumLayers = Texture->Source.GetNumLayers();
 
-	int NumFiles = NumBlocks * NumLayers;
-	check( FileIndex < NumFiles );
-	int BlockIndex = FileIndex / NumLayers;
-	int LayerIndex = FileIndex % NumLayers; 
-
-	UE_LOG(LogEditorFactories, Display, TEXT("Exporting DDS from Layer %d/%d Block %d/%d"), LayerIndex,NumLayers, BlockIndex,NumBlocks);
-
-	// Type == Image extension
+	UTextureRenderTarget * RT = Cast<UTextureRenderTarget>(Texture);
 	
-	TArray64<uint8> OutArray;
-	if ( ! FImageUtils::ExportTextureSourceToDDS(OutArray,Texture,BlockIndex,LayerIndex) )
+	if ( RT != nullptr )
 	{
-		Warn->Logf(ELogVerbosity::Error, TEXT("ExportTextureSourceToDDS failed"));
-		return false;
+		TArray64<uint8> OutArray;
+		if ( ! FImageUtils::ExportRenderTargetToDDS(OutArray,RT) )
+		{
+			Warn->Logf(ELogVerbosity::Error, TEXT("ExportRenderTargetToDDS failed"));
+			return false;
+		}
+
+		Ar.Serialize(OutArray.GetData(),OutArray.Num());
+
+		return true;		
 	}
+	else
+	{
 
-	Ar.Serialize(OutArray.GetData(),OutArray.Num());
+		// FileIndex for layers for VT :
+	
+		int NumBlocks = Texture->Source.GetNumBlocks();
+		int NumLayers = Texture->Source.GetNumLayers();
 
-	return true;
+		int NumFiles = NumBlocks * NumLayers;
+		check( FileIndex < NumFiles );
+		int BlockIndex = FileIndex / NumLayers;
+		int LayerIndex = FileIndex % NumLayers; 
+
+		UE_LOG(LogEditorFactories, Display, TEXT("Exporting DDS from Layer %d/%d Block %d/%d"), LayerIndex,NumLayers, BlockIndex,NumBlocks);
+
+		// Type == Image extension
+	
+		TArray64<uint8> OutArray;
+		if ( ! FImageUtils::ExportTextureSourceToDDS(OutArray,Texture,BlockIndex,LayerIndex) )
+		{
+			Warn->Logf(ELogVerbosity::Error, TEXT("ExportTextureSourceToDDS failed"));
+			return false;
+		}
+
+		Ar.Serialize(OutArray.GetData(),OutArray.Num());
+
+		return true;
+	}
 }
 
 UVirtualTextureBuilderExporterDDS::UVirtualTextureBuilderExporterDDS(const FObjectInitializer& ObjectInitializer)
@@ -4856,14 +4882,22 @@ int32 UTextureExporterGeneric::GetFileCount(UObject* Object) const
 	UTexture* Texture = GetExportTexture(Object);
 	check(Texture != nullptr);
 
-	// standard textures will have NumBlocks == NumLayers == 1
-	// VT can have them > 1
-	// UDIM gives you NumBlocks
-	int NumBlocks = Texture->Source.GetNumBlocks();
-	int NumLayers = Texture->Source.GetNumLayers();
-	int FileCount = NumBlocks * NumLayers;
-	check( FileCount > 0 );
-	return FileCount;
+	if ( Texture->Source.IsValid() )
+	{
+		// standard textures will have NumBlocks == NumLayers == 1
+		// VT can have them > 1
+		// UDIM gives you NumBlocks
+		int NumBlocks = Texture->Source.GetNumBlocks();
+		int NumLayers = Texture->Source.GetNumLayers();
+		int FileCount = NumBlocks * NumLayers;
+		check( FileCount > 0 );
+		return FileCount;
+	}
+	else
+	{
+		// eg. render targets
+		return 1;
+	}
 }
 
 FString UTextureExporterGeneric::GetUniqueFilename( UObject* Object, const TCHAR* Filename, int32 FileIndex, int32 FileCount ) const
