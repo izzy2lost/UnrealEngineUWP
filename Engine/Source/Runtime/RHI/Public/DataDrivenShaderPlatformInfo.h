@@ -136,7 +136,6 @@ class FGenericDataDrivenShaderPlatformInfo
 
 public:
 	RHI_API static void Initialize();
-	RHI_API static void UpdatePreviewPlatforms();
 	RHI_API static const EShaderPlatform GetShaderPlatformFromName(const FName ShaderPlatformName);
 
 	static FORCEINLINE_DEBUGGABLE const FName GetName(const FStaticShaderPlatform Platform)
@@ -787,6 +786,7 @@ public:
 	}
 
 #if WITH_EDITOR
+	RHI_API static void UpdatePreviewPlatforms();
 	RHI_API static FText GetFriendlyName(const FStaticShaderPlatform Platform);
 	RHI_API static const EShaderPlatform GetPreviewShaderPlatformParent(const FStaticShaderPlatform Platform);
 
