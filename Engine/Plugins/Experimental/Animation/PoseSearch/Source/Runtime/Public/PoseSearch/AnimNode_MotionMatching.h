@@ -6,7 +6,6 @@
 #include "GameplayTagContainer.h"
 #include "BlendStack/AnimNode_BlendStack.h"
 #include "PoseSearch/PoseSearchLibrary.h"
-#include "PoseSearch/PoseSearchTrajectoryTypes.h"
 #include "AnimNode_MotionMatching.generated.h"
 
 class UPoseSearchDatabase;
@@ -51,14 +50,6 @@ private:
 	// The database to search. This can be overridden by Anim Node Functions such as "On Become Relevant" and "On Update" via SetDatabaseToSearch/SetDatabasesToSearch.
 	UPROPERTY(EditAnywhere, Category = Settings, meta = (PinShownByDefault))
 	TObjectPtr<const UPoseSearchDatabase> Database = nullptr;
-
-	// Motion Trajectory samples for pose search queries in Motion Matching. These are expected to be in the world space of the SkeletalMeshComponent. This is provided with the CharacterMovementTrajectory Component output.
-	UPROPERTY(EditAnywhere, Category = Settings, meta = (PinShownByDefault))
-	FPoseSearchQueryTrajectory Trajectory;
-
-	// Input Trajectory velocity will be multiplied by TrajectorySpeedMultiplier: values below 1 will result in selecting animation slower than requested from the original Trajectory
-	UPROPERTY(EditAnywhere, Category = Settings, meta = (PinHiddenByDefault, ClampMin="0"))
-	float TrajectorySpeedMultiplier = 1.f;
 
 	// Time in seconds to blend out to the new pose. Uses either inertial blending, requiring an Inertialization node after this node, or the internal blend stack, if MaxActiveBlends is greater than zero.
 	UPROPERTY(EditAnywhere, Category = Settings, meta = (PinHiddenByDefault, ClampMin="0"))
@@ -106,14 +97,14 @@ private:
 	bool bShouldUseCachedChannelData = false;
 	
 	// blend time over which the yaw from the animation is distributed across the trajectory samples (negative values implies yaw from the animation is constant over the entire trajectory, so the trajectory will not try to recover towards the capsule orientation)
-	UPROPERTY(EditAnywhere, Category = RootMotion, meta = (PinHiddenByDefault))
+	UPROPERTY(EditAnywhere, Category = "Root Motion (Experimental)", meta = (PinHiddenByDefault))
 	float YawFromAnimationTrajectoryBlendTime = 0.1f;
 
 	// rate at which the root bone orientation catches up to the capsule orientation after being controlled by animation
 	// (negative values mean the capsule is authoritative over the root bone orientation and the root bone is always synchronized with the capsule,
 	// 0 means the orientation will be fully controlled by animation, and potentially never converge over the capsule orientation,
 	// positive values represent the rate at which the orientation drifts towards the capsule orientation after being controlled by animation)
-	UPROPERTY(EditAnywhere, Category = RootMotion, meta = (PinHiddenByDefault))
+	UPROPERTY(EditAnywhere, Category = "Root Motion (Experimental)", meta = (PinHiddenByDefault))
 	float YawFromAnimationBlendRate = -1.f;
 
 	// Encapsulated motion matching algorithm and internal state

@@ -41,7 +41,6 @@ enum class EPoseSearchInterruptMode : uint8
 };
 
 struct FAnimationUpdateContext;
-struct FPoseSearchQueryTrajectory;
 
 struct FMotionMatchingState
 {
@@ -97,7 +96,6 @@ class POSESEARCH_API UPoseSearchLibrary : public UBlueprintFunctionLibrary
 
 #if UE_POSE_SEARCH_TRACE_ENABLED
 	static void TraceMotionMatchingState(
-		const FPoseSearchQueryTrajectory& Trajectory,
 		UE::PoseSearch::FSearchContext& SearchContext,
 		const UE::PoseSearch::FSearchResult& CurrentResult,
 		float ElapsedPoseSearchTime,
@@ -109,20 +107,12 @@ class POSESEARCH_API UPoseSearchLibrary : public UBlueprintFunctionLibrary
 		float RecordingTime);
 #endif // UE_POSE_SEARCH_TRACE_ENABLED
 
-	static FPoseSearchQueryTrajectory ProcessTrajectory(
-		const FPoseSearchQueryTrajectory& Trajectory,
-		const FTransform& RootBoneTransform,
-		float RootBoneDeltaYaw,
-		float YawFromAnimationTrajectoryBlendTime,
-		float TrajectorySpeedMultiplier);
-
 public:
 	/**
 	* Implementation of the core motion matching algorithm
 	*
 	* @param Context						Input animation update context providing access to the proxy and delta time
 	* @param Databases						Input array of databases to search
-	* @param Trajectory						Input motion trajectory samples for pose search queries. Expected to be in the space of the SkeletalMeshComponent. This is provided with the CharacterMovementTrajectory Component output.
 	* @param BlendTime						Input time in seconds to blend out to the new pose. Uses either inertial blending, requiring an Inertialization node after this node, or the internal blend stack, if MaxActiveBlends is greater than zero.
 	* @param MaxActiveBlends				Input number of max active animation segments being blended together in the blend stack. If MaxActiveBlends is zero then the blend stack is disabled.
 	* @param PoseJumpThresholdTime			Input don't jump to poses of the same segment that are within the interval this many seconds away from the continuing pose.
@@ -138,8 +128,6 @@ public:
 	static void UpdateMotionMatchingState(
 		const FAnimationUpdateContext& Context,
 		const TArray<TObjectPtr<const UPoseSearchDatabase>>& Databases,
-		const FPoseSearchQueryTrajectory& Trajectory,
-		float TrajectorySpeedMultiplier,
 		float BlendTime,
 		int32 MaxActiveBlends,
 		const FFloatInterval& PoseJumpThresholdTime,
@@ -153,16 +141,13 @@ public:
 		bool bShouldSearch = true,
 		bool bShouldUseCachedChannelData = true,
 		bool bDebugDrawQuery = false,
-		bool bDebugDrawCurResult = false,
-		bool bDebugDrawPoseHistory = false);
+		bool bDebugDrawCurResult = false);
 
 	/**
 	* Implementation of the core motion matching algorithm
 	*
 	* @param AnimInstance					Input animation instance
 	* @param Database						Input database to search
-	* @param Trajectory						Input motion trajectory samples for pose search queries. Expected to be in the space of the SkeletalMeshComponent. This is provided with the CharacterMovementTrajectory Component output.
-	* @param TrajectorySpeedMultiplier		Input Trajectory velocity will be multiplied by TrajectorySpeedMultiplier: values below 1 will result in selecting animation slower than requested from the original Trajectory
 	* @param PoseHistoryName				Input tag of the associated PoseSearchHistoryCollector node in the anim graph
 	* @param SelectedAnimation				Output selected animation from the Database asset
 	* @param SelectedTime					Output selected animation time
@@ -179,8 +164,6 @@ public:
 	static void MotionMatch(
 		UAnimInstance* AnimInstance,
 		const UPoseSearchDatabase* Database,
-		const FPoseSearchQueryTrajectory Trajectory,
-		float TrajectorySpeedMultiplier,
 		const FName PoseHistoryName,
 		FPoseSearchBlueprintResult& Result,
 		const UAnimationAsset* FutureAnimation = nullptr,

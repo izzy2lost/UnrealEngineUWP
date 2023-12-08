@@ -170,7 +170,7 @@ struct FCachedChannel
 struct POSESEARCH_API FSearchContext
 {
 	FSearchContext(const UAnimInstance* InAnimInstance, const IPoseHistory* InHistory, TConstArrayView<const UAnimationAsset*> InAnimationsToConsider = TConstArrayView<const UAnimationAsset*>(),
-		const FPoseSearchQueryTrajectory* InTrajectory = nullptr, float InDesiredPermutationTimeOffset = 0.f, const FPoseIndicesHistory* InPoseIndicesHistory = nullptr,
+		float InDesiredPermutationTimeOffset = 0.f, const FPoseIndicesHistory* InPoseIndicesHistory = nullptr,
 		const FSearchResult& InCurrentResult = FSearchResult(), const FFloatInterval& InPoseJumpThresholdTime = FFloatInterval(0.f, 0.f), bool bInUseCachedChannelData = false);
 
 	// Returns the rotation of the bone Schema.BoneReferences[SchemaSampleBoneIdx] at an offset time of SampleTimeOffset relative to the
@@ -204,8 +204,7 @@ struct POSESEARCH_API FSearchContext
 	const FSearchResult& GetCurrentResult() const { return CurrentResult; }
 	const FFloatInterval& GetPoseJumpThresholdTime() const { return PoseJumpThresholdTime; }
 	const FPoseIndicesHistory* GetPoseIndicesHistory() const { return PoseIndicesHistory; }
-	bool IsHistoryValid() const { return History != nullptr; }
-	bool IsTrajectoryValid() const { return Trajectory != nullptr; }
+	const IPoseHistory* GetHistory() const { return History; }
 	float GetDesiredPermutationTimeOffset() const { return DesiredPermutationTimeOffset; }
 	const UAnimInstance* GetAnimInstance() const { return AnimInstance; }
 
@@ -221,6 +220,7 @@ struct POSESEARCH_API FSearchContext
 	bool IsAsyncBuildIndexInProgress() const { return bAsyncBuildIndexInProgress; }
 #endif // WITH_EDITOR
 
+	bool AnyCachedQuery() const { return !CachedQueries.IsEmpty(); }
 	void AddNewFeatureVectorBuilder(const UPoseSearchSchema* Schema) { CachedQueries.Emplace(Schema); }
 	TArrayView<float> EditFeatureVector();
 	
@@ -239,8 +239,6 @@ private:
 	// if AnimationsToConsider is not empty, we'll search only for poses from UAnimationAsset(s) that are in the AnimationsToConsider
 	TConstArrayView<const UAnimationAsset*> AnimationsToConsider;
 
-	// Trajectory has been transformed in root bone world space reference system
-	const FPoseSearchQueryTrajectory* Trajectory = nullptr;
 	const float DesiredPermutationTimeOffset = 0.f;
 	const FPoseIndicesHistory* PoseIndicesHistory = nullptr;
 	const FSearchResult& CurrentResult;

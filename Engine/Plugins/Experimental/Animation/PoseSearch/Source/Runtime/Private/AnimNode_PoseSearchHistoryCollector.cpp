@@ -10,10 +10,6 @@
 
 #define LOCTEXT_NAMESPACE "AnimNode_PoseSearchHistoryCollector"
 
-#if ENABLE_DRAW_DEBUG && ENABLE_ANIM_DEBUG
-TAutoConsoleVariable<bool> CVarAnimPoseHistoryDebugDraw(TEXT("a.AnimNode.PoseHistory.DebugDraw"), false, TEXT("Enable / Disable Pose History DebugDraw"));
-#endif
-
 namespace UE::PoseSearch::Private
 {
 
@@ -128,22 +124,20 @@ void FAnimNode_PoseSearchHistoryCollector::Evaluate_AnyThread(FPoseContext& Outp
 	Super::Evaluate_AnyThread(Output);
 	Source.Evaluate(Output);
 
+	PoseHistory.UpdateTrajectory(Trajectory, TrajectorySpeedMultiplier);
+
 	FCSPose<FCompactPose> ComponentSpacePose;
 	ComponentSpacePose.InitPose(Output.Pose);
 	PoseHistory.Update(Output.AnimInstanceProxy->GetDeltaSeconds(), ComponentSpacePose, bStoreScales);
 
 #if ENABLE_DRAW_DEBUG && ENABLE_ANIM_DEBUG
-	if (CVarAnimPoseHistoryDebugDraw.GetValueOnAnyThread())
-	{
 		FColor Color;
 #if WITH_EDITORONLY_DATA
 		Color = DebugColor.ToFColor(true);
 #else // WITH_EDITORONLY_DATA
 		Color = FLinearColor::Red.ToFColor(true);
 #endif // WITH_EDITORONLY_DATA
-
-		PoseHistory.DebugDraw(*Output.AnimInstanceProxy, Color, &DebugDrawTrajectory);
-	}
+	PoseHistory.DebugDraw(*Output.AnimInstanceProxy, Color);
 #endif // ENABLE_DRAW_DEBUG && ENABLE_ANIM_DEBUG
 }
 
@@ -160,7 +154,6 @@ void FAnimNode_PoseSearchHistoryCollector::GatherDebugData(FNodeDebugData& Debug
 	Super::GatherDebugData(DebugData);
 	Source.GatherDebugData(DebugData);
 }
-
 
 /////////////////////////////////////////////////////
 // FAnimNode_PoseSearchComponentSpaceHistoryCollector
@@ -189,20 +182,17 @@ void FAnimNode_PoseSearchComponentSpaceHistoryCollector::EvaluateComponentSpace_
 	Super::EvaluateComponentSpace_AnyThread(Output);
 	Source.EvaluateComponentSpace(Output);
 
+	PoseHistory.UpdateTrajectory(Trajectory, TrajectorySpeedMultiplier);
 	PoseHistory.Update(Output.AnimInstanceProxy->GetDeltaSeconds(), Output.Pose, bStoreScales);
 
 #if ENABLE_DRAW_DEBUG && ENABLE_ANIM_DEBUG
-	if (CVarAnimPoseHistoryDebugDraw.GetValueOnAnyThread())
-	{
 		FColor Color;
 #if WITH_EDITORONLY_DATA
 		Color = DebugColor.ToFColor(true);
 #else // WITH_EDITORONLY_DATA
 		Color = FLinearColor::Red.ToFColor(true);
 #endif // WITH_EDITORONLY_DATA
-
-		PoseHistory.DebugDraw(*Output.AnimInstanceProxy, Color, &DebugDrawTrajectory);
-	}
+	PoseHistory.DebugDraw(*Output.AnimInstanceProxy, Color);
 #endif // ENABLE_DRAW_DEBUG && ENABLE_ANIM_DEBUG
 }
 

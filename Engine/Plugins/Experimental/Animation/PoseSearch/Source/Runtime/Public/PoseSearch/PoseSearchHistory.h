@@ -7,35 +7,25 @@
 #include "Containers/RingBuffer.h"
 #include "DrawDebugHelpers.h"
 #include "PoseSearch/PoseSearchDefines.h"
+#include "PoseSearch/PoseSearchTrajectoryTypes.h"
 #include "UObject/ObjectKey.h"
 
 struct FAnimInstanceProxy;
-struct FPoseSearchQueryTrajectory;
 class USkeleton;
 class UWorld;
 
 namespace UE::PoseSearch
 {
 
+#if ENABLE_DRAW_DEBUG && ENABLE_ANIM_DEBUG
+extern POSESEARCH_API TAutoConsoleVariable<bool> CVarAnimPoseHistoryDebugDrawPose;
+extern POSESEARCH_API TAutoConsoleVariable<bool> CVarAnimPoseHistoryDebugDrawTrajectory;
+#endif
+
 struct FSearchResult;
 typedef uint16 FComponentSpaceTransformIndex;
 typedef TPair<FBoneIndexType, FComponentSpaceTransformIndex> FBoneToTransformPair;
 typedef TMap<FBoneIndexType, FComponentSpaceTransformIndex> FBoneToTransformMap;
-
-struct POSESEARCH_API IPoseHistory
-{
-	virtual ~IPoseHistory() {}
-	
-	// returns the BoneIndexType transform relative to ReferenceBoneIndexType: 
-	// if ReferenceBoneIndexType is 0 (RootBoneIndexType), OutBoneTransform is in root bone space
-	// if ReferenceBoneIndexType is FBoneIndexType(-1) (ComponentSpaceIndexType), OutBoneTransform is in component space
-	virtual bool GetTransformAtTime(float Time, FTransform& OutBoneTransform, const USkeleton* BoneIndexSkeleton = nullptr, FBoneIndexType BoneIndexType = RootBoneIndexType, FBoneIndexType ReferenceBoneIndexType = ComponentSpaceIndexType, bool bExtrapolate = true) const = 0;
-	virtual bool IsEmpty() const = 0;
-#if ENABLE_DRAW_DEBUG && ENABLE_ANIM_DEBUG
-	// debug draw the pose history. If Trajectory is not provided all the poses will be drawn at the AnimInstanceProxy transform
-	virtual void DebugDraw(FAnimInstanceProxy& AnimInstanceProxy, FColor Color, const FPoseSearchQueryTrajectory* Trajectory = nullptr) const = 0;
-#endif
-};
 
 struct FPoseHistoryEntry
 {
@@ -57,24 +47,48 @@ struct FPoseHistoryEntry
 typedef TRingBuffer<FPoseHistoryEntry> FPoseHistoryEntries;
 typedef TArray<FPoseHistoryEntry> FPoseHistoryFutureEntries;
 
+struct POSESEARCH_API IPoseHistory
+{
+public:
+	virtual ~IPoseHistory() {}
+	
+	// returns the BoneIndexType transform relative to ReferenceBoneIndexType: 
+	// if ReferenceBoneIndexType is 0 (RootBoneIndexType), OutBoneTransform is in root bone space
+	// if ReferenceBoneIndexType is FBoneIndexType(-1) (ComponentSpaceIndexType), OutBoneTransform is in component space
+	// if ReferenceBoneIndexType is FBoneIndexType(-2) (WorldSpaceIndexType), OutBoneTransform is in world space
+	virtual bool GetTransformAtTime(float Time, FTransform& OutBoneTransform, const USkeleton* BoneIndexSkeleton = nullptr, FBoneIndexType BoneIndexType = RootBoneIndexType, FBoneIndexType ReferenceBoneIndexType = ComponentSpaceIndexType, bool bExtrapolate = true) const = 0;
+	virtual const FPoseSearchQueryTrajectory& GetTrajectory() const = 0;
+	
+	// @todo: deprecate this API. TrajectorySpeedMultiplier should be a global query scaling value passed as input parameter of FSearchContext during config BuildQuery
+	virtual float GetTrajectorySpeedMultiplier() const = 0;
+	virtual bool IsEmpty() const = 0;
+
+	virtual const FBoneToTransformMap& GetBoneToTransformMap() const = 0;
+	virtual const FPoseHistoryEntries& GetEntries() const = 0;
+	virtual const USkeleton* GetLastUpdateSkeleton() const = 0;
+};
+
 struct FPoseHistory : public IPoseHistory
 {
 	void Init(int32 InNumPoses, float InSamplingInterval, const TArray<FBoneIndexType>& RequiredBones);
 	void Update(float SecondsElapsed, FCSPose<FCompactPose>& ComponentSpacePose, bool bStoreScales);
 
-	const FBoneToTransformMap& GetBoneToTransformMap() const { return BoneToTransformMap; }
-	const FPoseHistoryEntries& GetEntries() const { return Entries; }
-	const USkeleton* GetLastUpdateSkeleton() const { return LastUpdateSkeleton.Get(); }
+#if ENABLE_DRAW_DEBUG && ENABLE_ANIM_DEBUG
+	void DebugDraw(FAnimInstanceProxy& AnimInstanceProxy, FColor Color) const;
+#endif
+
+	void ClearHistory() { Entries.Reset(); }
+	void UpdateTrajectory(const FPoseSearchQueryTrajectory& InTrajectory, float InTrajectorySpeedMultiplier);
 
 	// IPoseHistory interface
 	virtual bool GetTransformAtTime(float Time, FTransform& OutBoneTransform, const USkeleton* BoneIndexSkeleton = nullptr, FBoneIndexType BoneIndexType = RootBoneIndexType, FBoneIndexType ReferenceBoneIndexType = ComponentSpaceIndexType, bool bExtrapolate = true) const override;
-	virtual bool IsEmpty() const override;
-#if ENABLE_DRAW_DEBUG && ENABLE_ANIM_DEBUG
-	virtual void DebugDraw(FAnimInstanceProxy& AnimInstanceProxy, FColor Color, const FPoseSearchQueryTrajectory* Trajectory = nullptr) const override;
-#endif
+	virtual const FPoseSearchQueryTrajectory& GetTrajectory() const override { return Trajectory; }
+	virtual float GetTrajectorySpeedMultiplier() const override { return TrajectorySpeedMultiplier; }
+	virtual bool IsEmpty() const override { return Entries.IsEmpty(); }
+	virtual const FBoneToTransformMap& GetBoneToTransformMap() const override { return BoneToTransformMap; }
+	virtual const FPoseHistoryEntries& GetEntries() const override { return Entries; }
+	virtual const USkeleton* GetLastUpdateSkeleton() const override { return LastUpdateSkeleton.Get(); }
 	// End of IPoseHistory interface
-
-	void ClearHistory();
 
 	static FBoneIndexType GetRemappedBoneIndexType(FBoneIndexType BoneIndexType, const USkeleton* BoneIndexSkeleton, const USkeleton* LastUpdateSkeleton);
 	static FComponentSpaceTransformIndex GetRemappedComponentSpaceTransformIndex(const USkeleton* BoneIndexSkeleton, const USkeleton* LastUpdateSkeleton, const FBoneToTransformMap& BoneToTransformMap, FBoneIndexType BoneIndexType, bool& bSuccess);
@@ -90,27 +104,39 @@ private:
 	// ring buffer of collected bones
 	FPoseHistoryEntries Entries;
 	float SamplingInterval = 0.f;
+
+	// @todo: embed past Trajectory into Entries to have consistent timing of poses and trajectory. necessary during trajectory discontinuities
+	FPoseSearchQueryTrajectory Trajectory;
+
+	// @todo: deprecate this member and expose it via blue print logic or as global query scaling multiplier
+	float TrajectorySpeedMultiplier = 1.f;
 };
 
 struct FExtendedPoseHistory : public IPoseHistory
 {
-	void Init(const FPoseHistory* InPoseHistory);
+	void Init(const IPoseHistory* InPoseHistory);
 
 	bool IsInitialized() const;
 
 	// IPoseHistory interface
 	virtual bool GetTransformAtTime(float Time, FTransform& OutBoneTransform, const USkeleton* BoneIndexSkeleton = nullptr, FBoneIndexType BoneIndexType = RootBoneIndexType, FBoneIndexType ReferenceBoneIndexType = ComponentSpaceIndexType, bool bExtrapolate = true) const override;
-	virtual bool IsEmpty() const override;
-#if ENABLE_DRAW_DEBUG && ENABLE_ANIM_DEBUG
-	virtual void DebugDraw(FAnimInstanceProxy& AnimInstanceProxy, FColor Color, const FPoseSearchQueryTrajectory* Trajectory = nullptr) const override;	
-#endif
+	virtual const FPoseSearchQueryTrajectory& GetTrajectory() const override { check(PoseHistory); return PoseHistory->GetTrajectory(); }
+	virtual float GetTrajectorySpeedMultiplier() const override { check(PoseHistory); return PoseHistory->GetTrajectorySpeedMultiplier(); }
+	virtual bool IsEmpty() const override { check(PoseHistory); return PoseHistory->IsEmpty() && FutureEntries.IsEmpty(); }
+	virtual const FBoneToTransformMap& GetBoneToTransformMap() const override { check(PoseHistory); return PoseHistory->GetBoneToTransformMap(); }
+	virtual const FPoseHistoryEntries& GetEntries() const override { check(PoseHistory); return PoseHistory->GetEntries(); }
+	virtual const USkeleton* GetLastUpdateSkeleton() const override { check(PoseHistory); return PoseHistory->GetLastUpdateSkeleton(); }
 	// End of IPoseHistory interface
+	
+#if ENABLE_DRAW_DEBUG && ENABLE_ANIM_DEBUG
+	void DebugDraw(FAnimInstanceProxy& AnimInstanceProxy, FColor Color) const;
+#endif
 
-	void ResetFuturePoses();
-	void AddFuturePose(float SecondsInTheFuture, FCSPose<FCompactPose>& ComponentSpacePose, const FTransform& ComponentTransform);
+	void AddFutureRootBone(float SecondsInTheFuture, const FTransform& FutureRootBoneTransform, bool bStoreScales);
+	void AddFuturePose(float SecondsInTheFuture, FCSPose<FCompactPose>& ComponentSpacePose);
 
 private:
-	const FPoseHistory* PoseHistory = nullptr;
+	const IPoseHistory* PoseHistory = nullptr;
 	FPoseHistoryFutureEntries FutureEntries;
 };
 

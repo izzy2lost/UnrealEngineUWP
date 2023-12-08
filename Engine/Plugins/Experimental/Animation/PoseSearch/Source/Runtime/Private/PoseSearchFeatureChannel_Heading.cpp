@@ -142,20 +142,20 @@ void UPoseSearchFeatureChannel_Heading::BuildQuery(UE::PoseSearch::FSearchContex
 
 	const bool bCanUseCurrentResult = SearchContext.CanUseCurrentResult();
 	const bool bSkip = InputQueryPose != EInputQueryPose::UseCharacterPose && bCanUseCurrentResult;
-	if (bSkip || (!SearchContext.IsHistoryValid() && !bIsRootBone))
-	{
-		if (bCanUseCurrentResult)
+	if (bSkip || (!SearchContext.GetHistory() && !bIsRootBone))
 		{
+		if (bCanUseCurrentResult)
+			{
 			FFeatureVectorHelper::Copy(SearchContext.EditFeatureVector(), ChannelDataOffset, ChannelCardinality, SearchContext.GetCurrentResultPoseVector());
 			return;
-		}
+			}
 		
 		// we leave the SearchContext.EditFeatureVector() set to zero since the SearchContext.History is invalid and it'll fail if we continue
-		UE_LOG(LogPoseSearch, Error, TEXT("UPoseSearchFeatureChannel_Heading::BuildQuery - Failed because Pose History Node is missing."));
+				UE_LOG(LogPoseSearch, Error, TEXT("UPoseSearchFeatureChannel_Heading::BuildQuery - Failed because Pose History Node is missing."));
 		return;
-	}
+			}
 	
-	// calculating the BoneRotation in component space for the bone indexed by SchemaBoneIdx
+			// calculating the BoneRotation in component space for the bone indexed by SchemaBoneIdx
 	const FQuat BoneRotation = SearchContext.GetSampleRotation(SampleTimeOffset, OriginTimeOffset, SchemaBoneIdx, SchemaOriginBoneIdx, PermutationTimeType);
 	FFeatureVectorHelper::EncodeVector(SearchContext.EditFeatureVector(), ChannelDataOffset, GetAxis(BoneRotation), ComponentStripping);
 }

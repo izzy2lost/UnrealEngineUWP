@@ -7,6 +7,8 @@
 
 #include "PoseSearchTrajectoryTypes.generated.h"
 
+struct FAnimInstanceProxy;
+
 USTRUCT(BlueprintType, Category="Pose Search Trajectory")
 struct POSESEARCH_API FPoseSearchQueryTrajectorySample
 {
@@ -40,6 +42,7 @@ struct POSESEARCH_API FPoseSearchQueryTrajectory
 	
 #if ENABLE_ANIM_DEBUG
 	void DebugDrawTrajectory(const UWorld* World, float HeightOffset = 0.f) const;
+	void DebugDrawTrajectory(FAnimInstanceProxy& AnimInstanceProxy, float HeightOffset = 0.f) const;
 #endif // ENABLE_ANIM_DEBUG
 };
 POSESEARCH_API FArchive& operator<<(FArchive& Ar, FPoseSearchQueryTrajectory& Trajectory);

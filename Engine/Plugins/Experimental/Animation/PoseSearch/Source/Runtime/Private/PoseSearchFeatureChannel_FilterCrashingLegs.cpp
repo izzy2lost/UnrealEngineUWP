@@ -91,7 +91,7 @@ void UPoseSearchFeatureChannel_FilterCrashingLegs::BuildQuery(UE::PoseSearch::FS
 	// trying to get the BuildQuery data from the continuing pose
 	const bool bCanUseCurrentResult = SearchContext.CanUseCurrentResult();
 	const bool bSkip = InputQueryPose != EInputQueryPose::UseCharacterPose && bCanUseCurrentResult;
-	if (bSkip || !SearchContext.IsHistoryValid())
+	if (bSkip || !SearchContext.GetHistory())
 	{
 		if (bCanUseCurrentResult)
 		{

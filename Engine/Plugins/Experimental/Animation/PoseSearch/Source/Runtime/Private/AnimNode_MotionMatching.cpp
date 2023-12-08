@@ -22,7 +22,6 @@
 #if ENABLE_ANIM_DEBUG
 static TAutoConsoleVariable<bool> CVarAnimNodeMotionMatchingDrawQuery(TEXT("a.AnimNode.MotionMatching.DebugDrawQuery"), false, TEXT("Draw input query"));
 static TAutoConsoleVariable<bool> CVarAnimNodeMotionMatchingDrawCurResult(TEXT("a.AnimNode.MotionMatching.DebugDrawCurResult"), false, TEXT("Draw current result"));
-static TAutoConsoleVariable<bool> CVarAnimNodeMotionMatchingDrawPoseHistory(TEXT("a.AnimNode.MotionMatching.DebugDrawPoseHistory"), false, TEXT("Draw Pose History"));
 static TAutoConsoleVariable<bool> CVarAnimNodeMotionMatchingDrawInfo(TEXT("a.AnimNode.MotionMatching.DebugDrawInfo"), false, TEXT("Draw info like current databases and asset"));
 static TAutoConsoleVariable<bool> CVarAnimNodeMotionMatchingDrawInfoVerbose(TEXT("a.AnimNode.MotionMatching.DebugDrawInfoVerbose"), true, TEXT("Draw additional info like blend stack"));
 static TAutoConsoleVariable<float> CVarAnimNodeMotionMatchingDrawInfoHeight(TEXT("a.AnimNode.MotionMatching.DebugDrawInfoHeight"), 50.f, TEXT("Vertical offset for DebugDrawInfo"));
@@ -169,8 +168,6 @@ void FAnimNode_MotionMatching::UpdateAssetPlayer(const FAnimationUpdateContext& 
 	UPoseSearchLibrary::UpdateMotionMatchingState(
 		Context,
 		DatabasesToSearch,
-		Trajectory,
-		TrajectorySpeedMultiplier,
 		BlendTime,
 		MaxActiveBlends,
 		PoseJumpThresholdTime,
@@ -186,7 +183,6 @@ void FAnimNode_MotionMatching::UpdateAssetPlayer(const FAnimationUpdateContext& 
 		#if ENABLE_ANIM_DEBUG
 		, CVarAnimNodeMotionMatchingDrawQuery.GetValueOnAnyThread()
 		, CVarAnimNodeMotionMatchingDrawCurResult.GetValueOnAnyThread()
-		, CVarAnimNodeMotionMatchingDrawPoseHistory.GetValueOnAnyThread()
 		#endif // ENABLE_ANIM_DEBUG
 	);
 

@@ -45,16 +45,20 @@ public:
 	FLinearColor DebugColor = FLinearColor::Red;
 #endif // WITH_EDITORONLY_DATA
 
-	// Optional Trajectory for debug drawing purposes only: if not provided, all the collected pose transforms will be drawn using the Graph context
-	UPROPERTY(EditAnywhere, Category = Debug, meta = (PinHiddenByDefault))
-	FPoseSearchQueryTrajectory DebugDrawTrajectory;
+	// Trajectory samples for pose search queries in Motion Matching. These are expected to be in the world space of the SkeletalMeshComponent. This is provided with the CharacterMovementTrajectory Component output.
+	UPROPERTY(EditAnywhere, Category = Settings, meta = (PinShownByDefault))
+	FPoseSearchQueryTrajectory Trajectory;
+
+	// Input Trajectory velocity will be multiplied by TrajectorySpeedMultiplier: values below 1 will result in selecting animation slower than requested from the original Trajectory
+	UPROPERTY(EditAnywhere, Category = Settings, meta = (PinHiddenByDefault, ClampMin="0"))
+	float TrajectorySpeedMultiplier = 1.f;
 
 	// FAnimNode_Base interface
 	virtual void CacheBones_AnyThread(const FAnimationCacheBonesContext& Context) override;
 	virtual void Update_AnyThread(const FAnimationUpdateContext& Context) override;
 	// End of FAnimNode_Base interface
 
-	const UE::PoseSearch::FPoseHistory& GetPoseHistory() const { return PoseHistory; }
+	const UE::PoseSearch::IPoseHistory& GetPoseHistory() const { return PoseHistory; }
 
 protected:
 	UE::PoseSearch::FPoseHistory PoseHistory;

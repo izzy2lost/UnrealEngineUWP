@@ -97,25 +97,25 @@ void UPoseSearchFeatureChannel_Velocity::BuildQuery(UE::PoseSearch::FSearchConte
 
 	const bool bCanUseCurrentResult = SearchContext.CanUseCurrentResult();
 	const bool bSkip = InputQueryPose != EInputQueryPose::UseCharacterPose && bCanUseCurrentResult;
-	if (bSkip || (!SearchContext.IsHistoryValid() && !bIsRootBone))
-	{
-		if (bCanUseCurrentResult)
+	if (bSkip || (!SearchContext.GetHistory() && !bIsRootBone))
 		{
+		if (bCanUseCurrentResult)
+			{
 			FFeatureVectorHelper::Copy(SearchContext.EditFeatureVector(), ChannelDataOffset, ChannelCardinality, SearchContext.GetCurrentResultPoseVector());
 			return;
-		}
+			}
 
 		// we leave the SearchContext.EditFeatureVector() set to zero since the SearchContext.History is invalid and it'll fail if we continue
-		UE_LOG(LogPoseSearch, Error, TEXT("UPoseSearchFeatureChannel_Velocity::BuildQuery - Failed because Pose History Node is missing."));
+				UE_LOG(LogPoseSearch, Error, TEXT("UPoseSearchFeatureChannel_Velocity::BuildQuery - Failed because Pose History Node is missing."));
 		return;
-	}
+			}
 	
-	// calculating the LinearVelocity for the bone indexed by SchemaBoneIdx
+			// calculating the LinearVelocity for the bone indexed by SchemaBoneIdx
 	FVector LinearVelocity = SearchContext.GetSampleVelocity(SampleTimeOffset, OriginTimeOffset, SchemaBoneIdx, SchemaOriginBoneIdx, bUseCharacterSpaceVelocities, PermutationTimeType);
-	if (bNormalize)
-	{
-		LinearVelocity = LinearVelocity.GetClampedToMaxSize(1.f);
-	}
+			if (bNormalize)
+			{
+				LinearVelocity = LinearVelocity.GetClampedToMaxSize(1.f);
+			}
 
 	FFeatureVectorHelper::EncodeVector(SearchContext.EditFeatureVector(), ChannelDataOffset, LinearVelocity, ComponentStripping);
 }

@@ -361,12 +361,11 @@ FCachedQuery::FCachedQuery(const UPoseSearchSchema* InSchema)
 //////////////////////////////////////////////////////////////////////////
 // FSearchContext
 FSearchContext::FSearchContext(const UAnimInstance* InAnimInstance, const IPoseHistory* InHistory, TConstArrayView<const UAnimationAsset*> InAnimationsToConsider,
-		const FPoseSearchQueryTrajectory* InTrajectory, float InDesiredPermutationTimeOffset, const FPoseIndicesHistory* InPoseIndicesHistory,
+		float InDesiredPermutationTimeOffset, const FPoseIndicesHistory* InPoseIndicesHistory,
 		const FSearchResult& InCurrentResult, const FFloatInterval& InPoseJumpThresholdTime, bool bInUseCachedChannelData)
 : AnimInstance(InAnimInstance)
 , History(InHistory)
 , AnimationsToConsider(InAnimationsToConsider)
-, Trajectory(InTrajectory)
 , DesiredPermutationTimeOffset(InDesiredPermutationTimeOffset)
 , PoseIndicesHistory(InPoseIndicesHistory)
 , CurrentResult(InCurrentResult)
@@ -440,18 +439,29 @@ FVector FSearchContext::GetSampleVelocity(float SampleTimeOffset, float OriginTi
 
 FTransform FSearchContext::GetWorldRootBoneTransformAtTime(float SampleTime) const
 {
-	if (Trajectory)
+	check(!CachedQueries.IsEmpty());
+	const UPoseSearchSchema* Schema = CachedQueries.Last().GetSchema();
+	check(Schema);
+
+	#if WITH_EDITOR
+	if (!History)
 	{
-		// Trajectory is already in root bone world space (transformed in UPoseSearchLibrary::ProcessTrajectory), so we just ask for a sample at the proper SampleTime
-		return Trajectory->GetSampleAtTime(SampleTime, true).GetTransform();
+		UE_LOG(LogPoseSearch, Error, TEXT("FSearchContext::GetWorldRootBoneTransformAtTime - Couldn't search for world space root boneTransform by %s, because no IPoseHistory has been found!"), *Schema->GetName());
+	}
+	else
+	#endif // WITH_EDITOR
+	{
+		FTransform WorldRootBoneTransform;
+		if (ensure(History) && History->GetTransformAtTime(SampleTime, WorldRootBoneTransform, Schema->Skeleton, RootBoneIndexType, WorldSpaceIndexType))
+		{
+			return WorldRootBoneTransform;
+		}
 	}
 
 	if (AnimInstance && AnimInstance->CurrentSkeleton)
 	{
-		// @todo: perhaps pass in to FSearchContext the previous frame root bone transform as we should do in ProcessTrajectory
 		const FTransform& RootBoneTransform = AnimInstance->CurrentSkeleton->GetReferenceSkeleton().GetRefBonePose()[RootSchemaBoneIdx];
 		const FTransform& ComponentToWorldTransform = AnimInstance->GetSkelMeshComponent()->GetComponentTransform();
-
 		return RootBoneTransform * ComponentToWorldTransform;
 	}
 
@@ -461,8 +471,11 @@ FTransform FSearchContext::GetWorldRootBoneTransformAtTime(float SampleTime) con
 FTransform FSearchContext::GetWorldBoneTransformAtTime(float SampleTime, int8 SchemaBoneIdx)
 {
 	// CachedQueries.Last is the query we're building 
-	const UPoseSearchSchema* Schema = !CachedQueries.IsEmpty() ? CachedQueries.Last().GetSchema() : nullptr;
-	const FBoneIndexType BoneIndexType = !Schema || SchemaBoneIdx == RootSchemaBoneIdx ? RootBoneIndexType : Schema->GetBoneIndexType(SchemaBoneIdx);
+	check(!CachedQueries.IsEmpty());
+	const UPoseSearchSchema* Schema = CachedQueries.Last().GetSchema();
+	check(Schema);
+
+	const FBoneIndexType BoneIndexType = Schema->GetBoneIndexType(SchemaBoneIdx);
 	if (const FCachedTransform<FTransform>* CachedTransform = CachedTransforms.Find(SampleTime, BoneIndexType))
 	{
 		return CachedTransform->Transform;
@@ -485,8 +498,6 @@ FTransform FSearchContext::GetWorldBoneTransformAtTime(float SampleTime, int8 Sc
 		{
 			WorldBoneTransform = GetWorldRootBoneTransformAtTime(SampleTime);
 		}
-
-		check(Schema);
 
 		// collecting the local bone transforms from the IPoseHistory
 		#if WITH_EDITOR

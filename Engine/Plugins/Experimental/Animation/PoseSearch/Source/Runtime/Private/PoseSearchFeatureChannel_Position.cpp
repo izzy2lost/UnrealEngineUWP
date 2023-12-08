@@ -118,21 +118,21 @@ void UPoseSearchFeatureChannel_Position::BuildQuery(UE::PoseSearch::FSearchConte
 
 	const bool bCanUseCurrentResult = SearchContext.CanUseCurrentResult();
 	const bool bSkip = InputQueryPose != EInputQueryPose::UseCharacterPose && bCanUseCurrentResult;
-	const bool bIsRootBone = SchemaBoneIdx == RootSchemaBoneIdx;
-	if (bSkip || (!SearchContext.IsHistoryValid() && !bIsRootBone))
-	{
-		if (bCanUseCurrentResult)
+		const bool bIsRootBone = SchemaBoneIdx == RootSchemaBoneIdx;
+	if (bSkip || (!SearchContext.GetHistory() && !bIsRootBone))
 		{
+		if (bCanUseCurrentResult)
+			{
 			FFeatureVectorHelper::Copy(SearchContext.EditFeatureVector(), ChannelDataOffset, ChannelCardinality, SearchContext.GetCurrentResultPoseVector());
 			return;
-		}
+			}
 
 		// we leave the SearchContext.EditFeatureVector() set to zero since the SearchContext.History is invalid and it'll fail if we continue
-		UE_LOG(LogPoseSearch, Error, TEXT("UPoseSearchFeatureChannel_Position::BuildQuery - Failed because Pose History Node is missing."));
+				UE_LOG(LogPoseSearch, Error, TEXT("UPoseSearchFeatureChannel_Position::BuildQuery - Failed because Pose History Node is missing."));
 		return;
-	}
+			}
 	
-	// calculating the BonePosition in root bone space for the bone indexed by SchemaBoneIdx
+			// calculating the BonePosition in root bone space for the bone indexed by SchemaBoneIdx
 	const FVector BonePosition = SearchContext.GetSamplePosition(SampleTimeOffset, OriginTimeOffset, SchemaBoneIdx, SchemaOriginBoneIdx, PermutationTimeType);
 	FFeatureVectorHelper::EncodeVector(SearchContext.EditFeatureVector(), ChannelDataOffset, BonePosition, ComponentStripping);
 }

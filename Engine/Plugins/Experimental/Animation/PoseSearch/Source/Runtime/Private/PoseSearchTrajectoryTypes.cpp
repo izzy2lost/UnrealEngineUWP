@@ -1,7 +1,7 @@
 // Copyright Epic Games, Inc. All Rights Reserved.
 
 #include "PoseSearch/PoseSearchTrajectoryTypes.h"
-
+#include "Animation/AnimInstanceProxy.h"
 #include "Animation/AnimTypes.h"
 #include "Components/SceneComponent.h"
 #include "DrawDebugHelpers.h"
@@ -78,6 +78,28 @@ void FPoseSearchQueryTrajectory::DebugDrawTrajectory(const UWorld* World, float 
 			}
 			
 			DrawDebugLine(World, Samples[Index].Position + OffsetVector, Samples[Index + 1].Position + OffsetVector, FColor::Black);
+		}
+	}
+}
+
+void FPoseSearchQueryTrajectory::DebugDrawTrajectory(FAnimInstanceProxy& AnimInstanceProxy, float HeightOffset) const
+{
+	FVector OffsetVector = FVector::UpVector * HeightOffset;
+
+	const int32 LastIndex = Samples.Num() - 1;
+	if (LastIndex >= 0)
+	{
+		for (int32 Index = 0; ; ++Index)
+		{
+			AnimInstanceProxy.AnimDrawDebugSphere(Samples[Index].Position + OffsetVector, 2.f /*Radius*/, 4 /*Segments*/, FColor::Black);
+			AnimInstanceProxy.AnimDrawDebugCoordinateSystem(Samples[Index].Position + OffsetVector, FRotator(Samples[Index].Facing), 12.f /*Scale*/);
+
+			if (Index == LastIndex)
+			{
+				break;
+			}
+			
+			AnimInstanceProxy.AnimDrawDebugLine(Samples[Index].Position + OffsetVector, Samples[Index + 1].Position + OffsetVector, FColor::Black);
 		}
 	}
 }

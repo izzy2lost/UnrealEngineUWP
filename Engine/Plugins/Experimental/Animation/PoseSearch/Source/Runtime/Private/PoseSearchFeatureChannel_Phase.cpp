@@ -334,7 +334,7 @@ void UPoseSearchFeatureChannel_Phase::BuildQuery(UE::PoseSearch::FSearchContext&
 
 	const bool bCanUseCurrentResult = SearchContext.CanUseCurrentResult();
 	const bool bSkip = InputQueryPose != EInputQueryPose::UseCharacterPose && bCanUseCurrentResult;
-	if (bSkip || !SearchContext.IsHistoryValid())
+	if (bSkip || !SearchContext.GetHistory())
 	{
 		if (bCanUseCurrentResult)
 		{

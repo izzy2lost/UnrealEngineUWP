@@ -26,6 +26,7 @@ namespace UE::PoseSearch
 static constexpr int8 RootSchemaBoneIdx = 0;
 static constexpr FBoneIndexType RootBoneIndexType = 0;
 static constexpr FBoneIndexType ComponentSpaceIndexType = FBoneIndexType(-1);
+static constexpr FBoneIndexType WorldSpaceIndexType = FBoneIndexType(-2);
 
 static constexpr int32 PreallocatedCachedQueriesNum = 8;
 static constexpr int32 PreallocatedCachedChannelDataNum = 64;
