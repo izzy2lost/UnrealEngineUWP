@@ -25,7 +25,7 @@ namespace UE::ConcertSyncTests
 	/**
 	 * Tests that FObjectReplicationCache works as expected.
 	 */
-	IMPLEMENT_SIMPLE_AUTOMATION_TEST(FReplicationCacheTest, "Concert.Replication.Components.ReplicationCache", EAutomationTestFlags::EditorContext | EAutomationTestFlags::EngineFilter);
+	IMPLEMENT_SIMPLE_AUTOMATION_TEST(FReplicationCacheTest, "Editor.Concert.Replication.Components.ReplicationCache", EAutomationTestFlags::EditorContext | EAutomationTestFlags::EngineFilter);
 	bool FReplicationCacheTest::RunTest(const FString& Parameters)
 	{
 		class FTestReplicationFormat : public ConcertSyncCore::IObjectReplicationFormat

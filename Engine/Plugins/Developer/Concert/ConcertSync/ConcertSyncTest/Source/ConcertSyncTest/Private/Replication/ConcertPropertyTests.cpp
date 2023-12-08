@@ -21,7 +21,7 @@ namespace UE::ConcertSyncTest::Replication::PropertyChain
 	 *		- "normal" structs, like FVector > lists sub-properties
 	 *		- primitives and native structs > Path contains FConcertPropertyChain::InternalContainerPropertyValueName ("Value") at the end
 	 */
-	IMPLEMENT_SIMPLE_AUTOMATION_TEST(FConcertPropertyChainTests, "Concert.Replication.Data.PropertyChainTests", EAutomationTestFlags::EditorContext | EAutomationTestFlags::EngineFilter)
+	IMPLEMENT_SIMPLE_AUTOMATION_TEST(FConcertPropertyChainTests, "Editor.Concert.Replication.Data.PropertyChainTests", EAutomationTestFlags::EditorContext | EAutomationTestFlags::EngineFilter)
 	bool FConcertPropertyChainTests::RunTest(const FString& Parameters)
 	{
 		// The test is intentionally set up to make it it easy to set breakpoints albeit at the expense of increasing the amount of code
@@ -121,7 +121,7 @@ namespace UE::ConcertSyncTest::Replication::PropertyChain
 	/**
 	 * Tests that all property cases on the specially constructed example class UTestReflectionObject.
 	 */
-	IMPLEMENT_SIMPLE_AUTOMATION_TEST(FConcertForEachReplictableConcertPropertyTests, "Concert.Replication.Data.ForEachReplicatableConcertProperty", EAutomationTestFlags::EditorContext | EAutomationTestFlags::EngineFilter)
+	IMPLEMENT_SIMPLE_AUTOMATION_TEST(FConcertForEachReplictableConcertPropertyTests, "Editor.Concert.Replication.Data.ForEachReplicatableConcertProperty", EAutomationTestFlags::EditorContext | EAutomationTestFlags::EngineFilter)
 	bool FConcertForEachReplictableConcertPropertyTests::RunTest(const FString& Parameters)
 	{
 		UClass* Class = UTestReflectionObject::StaticClass();
@@ -220,7 +220,7 @@ namespace UE::ConcertSyncTest::Replication::PropertyChain
 	/**
 	 * Tests FConcertPropertyChain::Matches.
 	 */
-	IMPLEMENT_SIMPLE_AUTOMATION_TEST(FMatchConcertPropertyChainTest, "Concert.Replication.Data.MatchConcertPropertyChain", EAutomationTestFlags::EditorContext | EAutomationTestFlags::EngineFilter)
+	IMPLEMENT_SIMPLE_AUTOMATION_TEST(FMatchConcertPropertyChainTest, "Editor.Concert.Replication.Data.MatchConcertPropertyChain", EAutomationTestFlags::EditorContext | EAutomationTestFlags::EngineFilter)
 	bool FMatchConcertPropertyChainTest::RunTest(const FString& Parameters)
 	{
 		// 1. Set up
@@ -293,7 +293,7 @@ namespace UE::ConcertSyncTest::Replication::PropertyChain
 	 * Tests that UE::ConcertSyncCore::FReplicationPropertyFilter works correctly.
 	 * This uses the filter and serializes an object, doing a Memcmp to detect that exactly the expected properties are serialized.
 	 */
-	IMPLEMENT_SIMPLE_AUTOMATION_TEST(FSerializeWithPropertyFilterTest, "Concert.Replication.Data.SerializeWithPropertyFilter", EAutomationTestFlags::EditorContext | EAutomationTestFlags::EngineFilter)
+	IMPLEMENT_SIMPLE_AUTOMATION_TEST(FSerializeWithPropertyFilterTest, "Editor.Concert.Replication.Data.SerializeWithPropertyFilter", EAutomationTestFlags::EditorContext | EAutomationTestFlags::EngineFilter)
 	bool FSerializeWithPropertyFilterTest::RunTest(const FString& Parameters)
 	{
 		class FTestArchive : public FMemoryWriter
@@ -460,7 +460,7 @@ namespace UE::ConcertSyncTest::Replication::PropertyChain
 	 * Tests that UE::ConcertSyncCore::FReplicationPropertyFilter works correctly.
 	 * This uses the filter and serializes an object, doing a Memcmp to detect that exactly the expected properties are serialized.
 	 */
-	IMPLEMENT_SIMPLE_AUTOMATION_TEST(FOverlapPropertiesTest, "Concert.Replication.Data.OverlapProperties", EAutomationTestFlags::EditorContext | EAutomationTestFlags::EngineFilter)
+	IMPLEMENT_SIMPLE_AUTOMATION_TEST(FOverlapPropertiesTest, "Editor.Concert.Replication.Data.OverlapProperties", EAutomationTestFlags::EditorContext | EAutomationTestFlags::EngineFilter)
 	bool FOverlapPropertiesTest::RunTest(const FString& Parameters)
 	{
 		// 1. Define paths

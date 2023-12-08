@@ -91,7 +91,7 @@ namespace UE::ConcertSyncTests::Replication::SendReceiveFlow
 	/**
 	 * Tests replicating data from sender client > server > receiver client.
 	 */
-	IMPLEMENT_CUSTOM_SIMPLE_AUTOMATION_TEST(FSendReceiveFlowTests, FSendReceiveObjectTestBase, "Concert.Replication.SendReceive.SingleStream", EAutomationTestFlags::EditorContext | EAutomationTestFlags::EngineFilter);
+	IMPLEMENT_CUSTOM_SIMPLE_AUTOMATION_TEST(FSendReceiveFlowTests, FSendReceiveObjectTestBase, "Editor.Concert.Replication.SendReceive.SingleStream", EAutomationTestFlags::EditorContext | EAutomationTestFlags::EngineFilter);
 	bool FSendReceiveFlowTests::RunTest(const FString& Parameters)
 	{
 		SharedSetupSet(*this);
@@ -140,7 +140,7 @@ namespace UE::ConcertSyncTests::Replication::SendReceiveFlow
 	};
 
 	/** Test which still sends TestObject but does so with two separate streams: one for the float and the other for the vector property. */
-	IMPLEMENT_CUSTOM_SIMPLE_AUTOMATION_TEST(FSendReceiveMultiStreamSameObjectTests, FSplitSendReceiveObjectTest, "Concert.Replication.SendReceive.MultipleStreamsForSameObject", EAutomationTestFlags::EditorContext | EAutomationTestFlags::EngineFilter);
+	IMPLEMENT_CUSTOM_SIMPLE_AUTOMATION_TEST(FSendReceiveMultiStreamSameObjectTests, FSplitSendReceiveObjectTest, "Editor.Concert.Replication.SendReceive.MultipleStreamsForSameObject", EAutomationTestFlags::EditorContext | EAutomationTestFlags::EngineFilter);
 	bool FSendReceiveMultiStreamSameObjectTests::RunTest(const FString& Parameters)
 	{
 		SharedSetupSet(*this);
@@ -149,7 +149,7 @@ namespace UE::ConcertSyncTests::Replication::SendReceiveFlow
 	}
 
 	/** Tests that changing a stream while replication is in progress actually changes the properties being replicated. */
-	IMPLEMENT_CUSTOM_SIMPLE_AUTOMATION_TEST(FUpdateStreamWhileSendingUpdatesSentProperties, FSendReceiveObjectTestBase, "Concert.Replication.SendReceive.UpdateStreamWhileSendingUpdatesSentProperties", EAutomationTestFlags::EditorContext | EAutomationTestFlags::EngineFilter);
+	IMPLEMENT_CUSTOM_SIMPLE_AUTOMATION_TEST(FUpdateStreamWhileSendingUpdatesSentProperties, FSendReceiveObjectTestBase, "Editor.Concert.Replication.SendReceive.UpdateStreamWhileSendingUpdatesSentProperties", EAutomationTestFlags::EditorContext | EAutomationTestFlags::EngineFilter);
 	bool FUpdateStreamWhileSendingUpdatesSentProperties::RunTest(const FString& Parameters)
 	{
 		// 1. Send all properties with the stream from handshake

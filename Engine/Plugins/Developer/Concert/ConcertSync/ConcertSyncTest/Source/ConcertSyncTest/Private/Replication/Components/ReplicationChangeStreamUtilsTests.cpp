@@ -19,7 +19,7 @@ namespace UE::ConcertSyncTests::ChangeStreamUtils
 	 *  - adding and removing objects
 	 *  - modify properties and class
 	 */
-	IMPLEMENT_SIMPLE_AUTOMATION_TEST(FSimpleDiffChangesTest, "Concert.Replication.Components.DiffChangesSimple", EAutomationTestFlags::EditorContext | EAutomationTestFlags::EngineFilter);
+	IMPLEMENT_SIMPLE_AUTOMATION_TEST(FSimpleDiffChangesTest, "Editor.Concert.Replication.Components.DiffChangesSimple", EAutomationTestFlags::EditorContext | EAutomationTestFlags::EngineFilter);
 	bool FSimpleDiffChangesTest::RunTest(const FString& Parameters)
 	{
 		// 1. Set up

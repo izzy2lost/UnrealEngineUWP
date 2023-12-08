@@ -21,7 +21,7 @@ namespace UE::ConcertSyncTests::Replication::Handshake
 	/**
 	 * Tests the handshake for joining and leaving a replication session.
 	 */
-	IMPLEMENT_CUSTOM_SIMPLE_AUTOMATION_TEST(FJoinHandshakeTest, FConcertClientServerCommunicationTest, "Concert.Replication.Handshake", EAutomationTestFlags::EditorContext | EAutomationTestFlags::EngineFilter);
+	IMPLEMENT_CUSTOM_SIMPLE_AUTOMATION_TEST(FJoinHandshakeTest, FConcertClientServerCommunicationTest, "Editor.Concert.Replication.Handshake", EAutomationTestFlags::EditorContext | EAutomationTestFlags::EngineFilter);
 	bool FJoinHandshakeTest::RunTest(const FString& Parameters)
 	{
 		using namespace ConcertSyncClient::TestInterface;

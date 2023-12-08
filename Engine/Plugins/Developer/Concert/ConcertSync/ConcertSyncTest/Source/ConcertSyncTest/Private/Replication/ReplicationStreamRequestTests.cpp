@@ -20,7 +20,7 @@ namespace UE::ConcertSyncTests::Replication::Stream
 	 * - that the authority updates,
 	 * - the EConcertQueryClientStreamFlags flags
 	 */
-	IMPLEMENT_CUSTOM_SIMPLE_AUTOMATION_TEST(FQueryOtherClientStreams, FSendReceiveObjectTestBase, "Concert.Replication.Stream.QueryClientStream", EAutomationTestFlags::EditorContext | EAutomationTestFlags::EngineFilter);
+	IMPLEMENT_CUSTOM_SIMPLE_AUTOMATION_TEST(FQueryOtherClientStreams, FSendReceiveObjectTestBase, "Editor.Concert.Replication.Stream.QueryClientStream", EAutomationTestFlags::EditorContext | EAutomationTestFlags::EngineFilter);
 	bool FQueryOtherClientStreams::RunTest(const FString& Parameters)
 	{
 		// 1. Init
@@ -276,7 +276,7 @@ namespace UE::ConcertSyncTests::Replication::Stream
 	};
 	
 	/** Simple case of FConcertChangeStream_Request where the requesting client has authority and thus cannot generate any authority conflicts. */
-	IMPLEMENT_CUSTOM_SIMPLE_AUTOMATION_TEST(FSimpleChangeStream, FChangeStreamsTestBase, "Concert.Replication.Stream.SimpleChangeStream", EAutomationTestFlags::EditorContext | EAutomationTestFlags::EngineFilter);
+	IMPLEMENT_CUSTOM_SIMPLE_AUTOMATION_TEST(FSimpleChangeStream, FChangeStreamsTestBase, "Editor.Concert.Replication.Stream.SimpleChangeStream", EAutomationTestFlags::EditorContext | EAutomationTestFlags::EngineFilter);
 	bool FSimpleChangeStream::RunTest(const FString& Parameters)
 	{
 		using namespace ConcertSyncClient::Replication;
@@ -314,7 +314,7 @@ namespace UE::ConcertSyncTests::Replication::Stream
 	}
 
 	/** Case of FConcertChangeStream_Request in which requester has authority over an object and creates two streams which have authority over overlapping properties. This is allowed. */
-	IMPLEMENT_CUSTOM_SIMPLE_AUTOMATION_TEST(FChangeStreamWithOverlappingProperties, FChangeStreamsTestBase, "Concert.Replication.Stream.ChangeStreamWithOverlappingProperties", EAutomationTestFlags::EditorContext | EAutomationTestFlags::EngineFilter);
+	IMPLEMENT_CUSTOM_SIMPLE_AUTOMATION_TEST(FChangeStreamWithOverlappingProperties, FChangeStreamsTestBase, "Editor.Concert.Replication.Stream.ChangeStreamWithOverlappingProperties", EAutomationTestFlags::EditorContext | EAutomationTestFlags::EngineFilter);
 	bool FChangeStreamWithOverlappingProperties::RunTest(const FString& Parameters)
 	{
 		using namespace ConcertSyncClient::Replication;
@@ -361,7 +361,7 @@ namespace UE::ConcertSyncTests::Replication::Stream
 	 * The requester and client have authority over separate properties on the same object.
 	 * The request would cause the requester's existing authority to overlap with the other client, which is rejected.
 	 */
-	IMPLEMENT_CUSTOM_SIMPLE_AUTOMATION_TEST(FRejectChangeStreamWithConflictingAuthority, FChangeStreamsTestBase, "Concert.Replication.Stream.RejectChangeStreamWithConflictingAuthority", EAutomationTestFlags::EditorContext | EAutomationTestFlags::EngineFilter);
+	IMPLEMENT_CUSTOM_SIMPLE_AUTOMATION_TEST(FRejectChangeStreamWithConflictingAuthority, FChangeStreamsTestBase, "Editor.Concert.Replication.Stream.RejectChangeStreamWithConflictingAuthority", EAutomationTestFlags::EditorContext | EAutomationTestFlags::EngineFilter);
 	bool FRejectChangeStreamWithConflictingAuthority::RunTest(const FString& Parameters)
 	{
 		using namespace ConcertSyncClient::Replication;
@@ -447,7 +447,7 @@ namespace UE::ConcertSyncTests::Replication::Stream
 	}
 
 	/** Tests that no changes are made if a sub-step of FConcertChangeStream_Request causes an error. */
-	IMPLEMENT_CUSTOM_SIMPLE_AUTOMATION_TEST(FChangeStreamIsAtmoic, FChangeStreamsTestBase, "Concert.Replication.Stream.ChangeStreamIsAtmoic", EAutomationTestFlags::EditorContext | EAutomationTestFlags::EngineFilter);
+	IMPLEMENT_CUSTOM_SIMPLE_AUTOMATION_TEST(FChangeStreamIsAtmoic, FChangeStreamsTestBase, "Editor.Concert.Replication.Stream.ChangeStreamIsAtmoic", EAutomationTestFlags::EditorContext | EAutomationTestFlags::EngineFilter);
 	bool FChangeStreamIsAtmoic::RunTest(const FString& Parameters)
 	{
 		using namespace ConcertSyncClient::Replication;
@@ -488,7 +488,7 @@ namespace UE::ConcertSyncTests::Replication::Stream
 	}
 
 	/** Removing an object from a stream over which the requester has authority, clears the authority the client had. Tests that another client can now claim authority over the previously authored properties. */
-	IMPLEMENT_CUSTOM_SIMPLE_AUTOMATION_TEST(FRemovingObjectClearsAuthority, FChangeStreamsTestBase, "Concert.Replication.Stream.RemovingObjectClearsAuthority", EAutomationTestFlags::EditorContext | EAutomationTestFlags::EngineFilter);
+	IMPLEMENT_CUSTOM_SIMPLE_AUTOMATION_TEST(FRemovingObjectClearsAuthority, FChangeStreamsTestBase, "Editor.Concert.Replication.Stream.RemovingObjectClearsAuthority", EAutomationTestFlags::EditorContext | EAutomationTestFlags::EngineFilter);
 	bool FRemovingObjectClearsAuthority::RunTest(const FString& Parameters)
 	{
 		using namespace ConcertSyncClient::Replication;
@@ -528,7 +528,7 @@ namespace UE::ConcertSyncTests::Replication::Stream
 	/**
      * Tests that client updates its local cache of the server state when RequestAuthorityChange times out.
      */
-    IMPLEMENT_CUSTOM_SIMPLE_AUTOMATION_TEST(FChangingStreamTimeoutRetainsServerState, FChangeStreamsTestBase, "Concert.Replication.Stream.ChangeStreamTimeoutRetainsServerState", EAutomationTestFlags::EditorContext | EAutomationTestFlags::EngineFilter);
+    IMPLEMENT_CUSTOM_SIMPLE_AUTOMATION_TEST(FChangingStreamTimeoutRetainsServerState, FChangeStreamsTestBase, "Editor.Concert.Replication.Stream.ChangeStreamTimeoutRetainsServerState", EAutomationTestFlags::EditorContext | EAutomationTestFlags::EngineFilter);
     bool FChangingStreamTimeoutRetainsServerState::RunTest(const FString& Parameters)
     {
     	// 1. Start up client with float property stream
