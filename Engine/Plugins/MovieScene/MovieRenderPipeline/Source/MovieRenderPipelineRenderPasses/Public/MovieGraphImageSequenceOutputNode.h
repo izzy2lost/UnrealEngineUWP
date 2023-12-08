@@ -66,6 +66,7 @@ protected:
 		const UMovieGraphPipeline* InPipeline,
 		const TPair<FMovieGraphRenderDataIdentifier, TUniquePtr<FImagePixelData>>& InRenderData,
 		const EImageFormat InImageFormat,
+		const FString& InFileNameFormat,
 		FMovieGraphResolveArgs& OutMergedFormatArgs) const;
 
 protected:
@@ -173,6 +174,12 @@ class UMovieGraphImageSequenceOutputNode_MultiLayerEXR : public UMovieGraphImage
 	GENERATED_BODY()
 
 public:
+	UMovieGraphImageSequenceOutputNode_MultiLayerEXR()
+		: UMovieGraphImageSequenceOutputNode_EXR()
+	{
+		// Multi-layer default excludes {render_layer}.
+		FileNameFormat = TEXT("{sequence_name}.{frame_number}");
+	}
 
 	virtual EMovieGraphBranchRestriction GetBranchRestriction() const override
 	{
