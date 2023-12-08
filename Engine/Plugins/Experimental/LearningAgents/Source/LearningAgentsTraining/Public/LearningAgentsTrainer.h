@@ -135,47 +135,59 @@ public:
 	int32 NumberOfIterations = 1000000;
 
 	/** Learning rate of the policy network. Typical values are between 0.001 and 0.0001. */
-	UPROPERTY(EditAnywhere, Category = "LearningAgents", meta = (ClampMin = "0.0", ClampMax = "1.0", UIMin = "0.0", UIMax = "1.0"))
+	UPROPERTY(EditAnywhere, Category = "LearningAgents", meta = (ClampMin = "0.0", UIMin = "0.0", UIMax = "1.0"))
 	float LearningRatePolicy = 0.0001f;
 
 	/**
 	 * Learning rate of the critic network. To avoid instability generally the critic should have a larger learning 
 	 * rate than the policy. Typically this can be set to 10x the rate of the policy.
 	 */
-	UPROPERTY(EditAnywhere, Category = "LearningAgents", meta = (ClampMin = "0.0", ClampMax = "1.0", UIMin = "0.0", UIMax = "1.0"))
+	UPROPERTY(EditAnywhere, Category = "LearningAgents", meta = (ClampMin = "0.0", UIMin = "0.0", UIMax = "1.0"))
 	float LearningRateCritic = 0.001f;
 
-	/** Ratio by which to decay the learning rate every 1000 iterations. */
+	/** Amount by which to multiply the learning rate every 1000 iterations. */
 	UPROPERTY(EditAnywhere, Category = "LearningAgents", meta = (ClampMin = "0.0", ClampMax = "1.0", UIMin = "0.0", UIMax = "1.0"))
-	float LearningRateDecay = 0.99f;
+	float LearningRateDecay = 1.0f;
 
 	/**
 	 * Amount of weight decay to apply to the network. Larger values encourage network weights to be smaller but too 
 	 * large a value can cause the network weights to collapse to all zeros.
 	 */
-	UPROPERTY(EditAnywhere, Category = "LearningAgents", meta = (ClampMin = "0.0", ClampMax = "1.0", UIMin = "0.0", UIMax = "1.0"))
-	float WeightDecay = 0.001f;
+	UPROPERTY(EditAnywhere, Category = "LearningAgents", meta = (ClampMin = "0.0", UIMin = "0.0", UIMax = "1.0"))
+	float WeightDecay = 0.0001f;
 
 	/**
-	 * Batch size to use for training the policy. Smaller values tend to produce better results at the cost of slowing down 
-	 * training. Large batch sizes are much more computationally efficient when training on the GPU.
+	 * Batch size to use for training the policy. Large batch sizes are much more computationally efficient when training on the GPU.
 	 */
-	UPROPERTY(EditAnywhere, Category = "LearningAgents", meta = (ClampMin = "1", ClampMax = "4096", UIMin = "1", UIMax = "4096"))
-	int32 PolicyBatchSize = 32;
+	UPROPERTY(EditAnywhere, Category = "LearningAgents", meta = (ClampMin = "1", UIMin = "1", UIMax = "4096"))
+	int32 PolicyBatchSize = 1024;
 
 	/**
-	 * Batch size to use for training the critic. Smaller values tend to produce better results at the cost of slowing down
-	 * training. Large batch sizes are much more computationally efficient when training on the GPU.
+	 * Batch size to use for training the critic. Large batch sizes are much more computationally efficient when training on the GPU.
 	 */
-	UPROPERTY(EditAnywhere, Category = "LearningAgents", meta = (ClampMin = "1", ClampMax = "4096", UIMin = "1", UIMax = "4096"))
-	int32 CriticBatchSize = 256;
+	UPROPERTY(EditAnywhere, Category = "LearningAgents", meta = (ClampMin = "1", UIMin = "1", UIMax = "4096"))
+	int32 CriticBatchSize = 4096;
 
 	/**
-	 * The size of the window of observations and actions over which to do the training of the policy. Increasing this value 
+	 * The number of consecutive steps of observations and actions over which to train the policy. Increasing this value 
 	 * will encourage the policy to use its memory effectively. Too large and training can become slow and unstable.
 	 */
-	UPROPERTY(EditAnywhere, Category = "LearningAgents", meta = (ClampMin = "1", ClampMax = "128", UIMin = "1", UIMax = "128"))
-	int32 PolicyWindowSize = 8;
+	UPROPERTY(EditAnywhere, Category = "LearningAgents", meta = (ClampMin = "1", UIMin = "1", UIMax = "128"))
+	int32 PolicyWindowSize = 16;
+
+	/**
+	 * Number of training iterations to perform per buffer of experience gathered. This should be large enough for
+	 * the critic and policy to be effectively updated, but too large and it will simply slow down training.
+	 */
+	UPROPERTY(EditAnywhere, Category = "LearningAgents", meta = (ClampMin = "1", UIMin = "1", UIMax = "1024"))
+	int32 IterationsPerGather = 32;
+
+	/**
+	 * Number of iterations of training to perform to warm - up the Critic. This helps speed up and stabilize training
+	 * at the beginning when the Critic may be producing predictions at the wrong order of magnitude.
+	 */
+	UPROPERTY(EditAnywhere, Category = "LearningAgents", meta = (ClampMin = "1", UIMin = "1", UIMax = "128"))
+	int32 CriticWarmupIterations = 8;
 
 	/**
 	 * Clipping ratio to apply to policy updates. Keeps the training "on-policy". Larger values may speed up training at 
@@ -188,29 +200,29 @@ public:
 	/**
 	 * Weight used to regularize returns. Encourages the critic not to over or under estimate returns.
 	 */
-	UPROPERTY(EditAnywhere, Category = "LearningAgents", meta = (ClampMin = "0.0", ClampMax = "1.0", UIMin = "0.0", UIMax = "1.0"))
+	UPROPERTY(EditAnywhere, Category = "LearningAgents", meta = (ClampMin = "0.0", UIMin = "0.0", UIMax = "1.0"))
 	float ReturnRegularizationWeight = 0.0001f;
 
 	/**
-	 * Weight used to regularize actions. Larger values will encourage smaller actions but too large will cause actions 
-	 * to become always zero.
+	 * Weight used to regularize actions. Larger values will encourage exploration and smaller actions, but too large will cause 
+	 * noisy actions centered around zero.
 	 */
-	UPROPERTY(EditAnywhere, Category = "LearningAgents", meta = (ClampMin = "0.0", ClampMax = "1.0", UIMin = "0.0", UIMax = "1.0"))
+	UPROPERTY(EditAnywhere, Category = "LearningAgents", meta = (ClampMin = "0.0", UIMin = "0.0", UIMax = "1.0"))
 	float ActionRegularizationWeight = 0.001f;
 
 	/**
 	 * Weighting used for the entropy bonus. Larger values encourage larger action noise and therefore greater 
 	 * exploration but can make actions very noisy.
 	 */
-	UPROPERTY(EditAnywhere, Category = "LearningAgents", meta = (ClampMin = "0.0", ClampMax = "1.0", UIMin = "0.0", UIMax = "1.0"))
+	UPROPERTY(EditAnywhere, Category = "LearningAgents", meta = (ClampMin = "0.0", UIMin = "0.0", UIMax = "1.0"))
 	float ActionEntropyWeight = 0.0f;
 
 	/**
-	 * This is used in the Generalized Advantage Estimation as what is essentially an exponential smoothing/decay. 
-	 * Typical values should be between 0.9 and 1.0.
+	 * This is used in the Generalized Advantage Estimation, where larger values will tend to assign more credit to recent actions. Typical
+	 * values should be between 0.9 and 1.0.
 	 */
 	UPROPERTY(EditAnywhere, Category = "LearningAgents", meta = (ClampMin = "0.0", ClampMax = "1.0", UIMin = "0.0", UIMax = "1.0"))
-	float GaeLambda = 0.9f;
+	float GaeLambda = 0.95f;
 
 	/** When true, advantages are normalized. This tends to makes training more robust to adjustments of the scale of rewards. */
 	UPROPERTY(EditAnywhere, Category = "LearningAgents")
@@ -220,14 +232,14 @@ public:
 	 * The minimum advantage to allow. Setting this below zero will encourage the policy to move away from bad actions, 
 	 * but can introduce instability.
 	 */
-	UPROPERTY(EditAnywhere, Category = "LearningAgents")
+	UPROPERTY(EditAnywhere, Category = "LearningAgents", meta = (UIMin = "-10.0", UIMax = "0.0"))
 	float MinimumAdvantage = 0.0f;
 
 	/**
 	 * The maximum advantage to allow. Making this smaller may increase training stability
 	 * at the cost of some training speed.
 	 */
-	UPROPERTY(EditAnywhere, Category = "LearningAgents")
+	UPROPERTY(EditAnywhere, Category = "LearningAgents", meta = (UIMin = "0.0", UIMax = "10.0"))
 	float MaximumAdvantage = 10.0f;
 
 	/**

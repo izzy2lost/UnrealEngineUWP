@@ -41,50 +41,50 @@ struct LEARNINGAGENTSTRAINING_API FLearningAgentsImitationTrainerTrainingSetting
 public:
 
 	/** The number of iterations to run before ending training. */
-	UPROPERTY(EditAnywhere, Category = "LearningAgents", meta = (ClampMin = "0", UIMin = "0"))
+	UPROPERTY(EditAnywhere, Category = "LearningAgents", meta = (ClampMin = "1", UIMin = "1"))
 	int32 NumberOfIterations = 1000000;
 
 	/** Learning rate of the policy network. Typical values are between 0.001 and 0.0001. */
-	UPROPERTY(EditAnywhere, Category = "LearningAgents", meta = (ClampMin = "0.0", ClampMax = "1.0", UIMin = "0.0", UIMax = "1.0"))
+	UPROPERTY(EditAnywhere, Category = "LearningAgents", meta = (ClampMin = "0.0", UIMin = "0.0", UIMax = "1.0"))
 	float LearningRate = 0.001f;
 
-	/** Ratio by which to decay the learning rate every 1000 iterations. */
+	/** Amount by which to multiply the learning rate every 1000 iterations. */
 	UPROPERTY(EditAnywhere, Category = "LearningAgents", meta = (ClampMin = "0.0", ClampMax = "1.0", UIMin = "0.0", UIMax = "1.0"))
-	float LearningRateDecay = 0.99f;
+	float LearningRateDecay = 1.0f;
 
 	/**
 	 * Amount of weight decay to apply to the network. Larger values encourage network weights to be smaller but too
 	 * large a value can cause the network weights to collapse to all zeros.
 	 */
-	UPROPERTY(EditAnywhere, Category = "LearningAgents", meta = (ClampMin = "0.0", ClampMax = "1.0", UIMin = "0.0", UIMax = "1.0"))
-	float WeightDecay = 0.001f;
+	UPROPERTY(EditAnywhere, Category = "LearningAgents", meta = (ClampMin = "0.0", UIMin = "0.0", UIMax = "1.0"))
+	float WeightDecay = 0.0001f;
 
 	/**
 	 * Batch size to use for training. Smaller values tend to produce better results at the cost of slowing down
 	 * training. Large batch sizes are much more computationally efficient when training on the GPU.
 	 */
-	UPROPERTY(EditAnywhere, Category = "LearningAgents", meta = (ClampMin = "0", ClampMax = "4096", UIMin = "0", UIMax = "4096"))
+	UPROPERTY(EditAnywhere, Category = "LearningAgents", meta = (ClampMin = "1", UIMin = "1", UIMax = "4096"))
 	uint32 BatchSize = 128;
 
 	/**
-	 * The window of observations and actions over which to do the training.Increasing this value will encourage the policy to use its memory 
+	 * The number of consecutive steps of observations and actions over which to train the policy. Increasing this value will encourage the policy to use its memory 
 	 * effectively. Too large and training can become unstable. Given we don't know the memory state during imitation learning it is better this is 
 	 * slightly larger than when we are doing reinforcement learning.
 	 */
-	UPROPERTY(EditAnywhere, Category = "LearningAgents", meta = (ClampMin = "1", ClampMax = "128", UIMin = "1", UIMax = "512"))
+	UPROPERTY(EditAnywhere, Category = "LearningAgents", meta = (ClampMin = "1", UIMin = "1", UIMax = "512"))
 	uint32 Window = 64;
 
 	/**
 	 * Weight used to regularize actions. Larger values will encourage smaller actions but too large will cause actions to become always zero.
 	 */
-	UPROPERTY(EditAnywhere, Category = "LearningAgents", meta = (ClampMin = "0", UIMin = "0"))
+	UPROPERTY(EditAnywhere, Category = "LearningAgents", meta = (ClampMin = "0.0", UIMin = "0.0"))
 	float ActionRegularizationWeight = 0.001f;
 
 	/**
 	 * Weighting used for the entropy bonus. Larger values encourage larger action noise and therefore greater exploration but can make actions very 
 	 * noisy.
 	 */
-	UPROPERTY(EditAnywhere, Category = "LearningAgents", meta = (ClampMin = "0", UIMin = "0"))
+	UPROPERTY(EditAnywhere, Category = "LearningAgents", meta = (ClampMin = "0.0", UIMin = "0.0"))
 	float ActionEntropyWeight = 0.0f;
 
 	/** The seed used for any random sampling the trainer will perform, e.g. for weight initialization. */

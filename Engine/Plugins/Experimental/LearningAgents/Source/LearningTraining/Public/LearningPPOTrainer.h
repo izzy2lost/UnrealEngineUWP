@@ -51,34 +51,30 @@ namespace UE::Learning
 		// should have a larger learning rate than the policy.
 		float LearningRateCritic = 0.001f;
 
-		// Ratio by which to decay the learning rate every 1000 iterations.
-		float LearningRateDecay = 0.99f;
+		// Amount by which to multiply the learning rate every 1000 iterations.
+		float LearningRateDecay = 1.0f;
 
 		// Amount of weight decay to apply to the network. Larger values encourage network 
 		// weights to be smaller but too large a value can cause the network weights to collapse to all zeros.
-		float WeightDecay = 0.001f;
+		float WeightDecay = 0.0001f;
 
-		// Batch size to use for training the policy. Smaller values tend to produce better results 
-		// at the cost of slowing down training. Large batch sizes are much more computationally efficient 
-		// when training on the GPU.
-		uint32 PolicyBatchSize = 32;
+		// Batch size to use for training the policy. Large batch sizes are much more computationally efficient when training on the GPU.
+		uint32 PolicyBatchSize = 1024;
 
-		// Batch size to use for training the critic. Smaller values tend to produce better results 
-		// at the cost of slowing down training. Large batch sizes are much more computationally efficient 
-		// when training on the GPU.
-		uint32 CriticBatchSize = 256;
+		// Batch size to use for training the critic. Large batch sizes are much more computationally efficient when training on the GPU.
+		uint32 CriticBatchSize = 4096;
 
-		// The window of observations and actions over which to do the training of the policy. Increasing this value 
+		// The number of consecutive steps of observations and actions over which to train the policy. Increasing this value 
 		// will encourage the policy to use its memory effectively. Too large and training can become slow and unstable.
-		uint32 PolicyWindow = 8;
+		uint32 PolicyWindow = 16;
 
 		// Number of training iterations to perform per buffer of experience gathered. This should be large enough for
 		// the critic and policy to be effectively updated, but too large and it will simply slow down training.
-		uint32 IterationsPerGather = 250;
+		uint32 IterationsPerGather = 32;
 
 		// Number of iterations of training to perform to warm-up the Critic. This helps speed up and stabilize training
 		// at the beginning when the Critic may be producing predictions at the wrong order of magnitude.
-		uint32 CriticWarmupIterations = 10;
+		uint32 CriticWarmupIterations = 8;
 
 		// Clipping ratio to apply to policy updates. Keeps the training "on-policy". 
 		// Larger values may speed up training at the cost of stability. Conversely, too small 
@@ -91,17 +87,17 @@ namespace UE::Learning
 		// Weight for the loss used to train the policy via the PPO surrogate objective.
 		float ActionSurrogateWeight = 1.0f;
 
-		// Weight used to regularize actions. Larger values will encourage smaller actions but too large
-		// will cause actions to become always zero.
+		// Weight used to regularize actions.Larger values will encourage exploration and smaller actions, but too large will cause
+		// noisy actions centered around zero.
 		float ActionRegularizationWeight = 0.001f;
 
 		// Weighting used for the entropy bonus. Larger values encourage larger action 
 		// noise and therefore greater exploration but can make actions very noisy.
 		float ActionEntropyWeight = 0.0f;
 
-		// This is used in the Generalized Advantage Estimation as what is essentially 
-		// an exponential smoothing/decay. Typical values should be between 0.9 and 1.0.
-		float GaeLambda = 0.9f;
+		// This is used in the Generalized Advantage Estimation, where larger values will tend to assign more credit to recent actions. Typical 
+		// values should be between 0.9 and 1.0.
+		float GaeLambda = 0.95f;
 
 		// When true, advantages are normalized. This tends to makes training more robust to 
 		// adjustments of the scale of rewards. 

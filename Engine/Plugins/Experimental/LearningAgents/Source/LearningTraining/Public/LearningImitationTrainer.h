@@ -39,18 +39,18 @@ namespace UE::Learning
 		// Learning rate of the training network. Typical values are between 0.001f and 0.0001f
 		float LearningRate = 0.001f;
 
-		// Ratio by which to decay the learning rate every 1000 iterations.
-		float LearningRateDecay = 0.99f;
+		// Amount by which to multiply the learning rate every 1000 iterations.
+		float LearningRateDecay = 1.0f;
 
 		// Amount of weight decay to apply to the network. Larger values encourage network 
 		// weights to be smaller.
-		float WeightDecay = 0.001f;
+		float WeightDecay = 0.0001f;
 
 		// Batch size to use for training. Smaller values tend to produce better results 
 		// at the cost of slowing down training.
 		uint32 BatchSize = 128;
 
-		// The window of observations and actions over which to do the training. Increasing this value 
+		// The number of consecutive steps of observations and actions over which to train the policy. Increasing this value 
 		// will encourage the policy to use its memory effectively. Too large and training can become unstable. Given
 		// we don't know the memory state during imitation learning it is better this is slightly larger than when we 
 		// are doing reinforcement learning.

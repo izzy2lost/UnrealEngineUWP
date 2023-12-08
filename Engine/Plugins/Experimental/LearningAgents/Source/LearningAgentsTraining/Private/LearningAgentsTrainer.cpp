@@ -477,6 +477,8 @@ void ULearningAgentsTrainer::BeginTraining(
 	PPOTrainingSettings.PolicyBatchSize = TrainerTrainingSettings.PolicyBatchSize;
 	PPOTrainingSettings.CriticBatchSize = TrainerTrainingSettings.CriticBatchSize;
 	PPOTrainingSettings.PolicyWindow = TrainerTrainingSettings.PolicyWindowSize;
+	PPOTrainingSettings.IterationsPerGather = TrainerTrainingSettings.IterationsPerGather;
+	PPOTrainingSettings.CriticWarmupIterations = TrainerTrainingSettings.CriticWarmupIterations;
 	PPOTrainingSettings.EpsilonClip = TrainerTrainingSettings.EpsilonClip;
 	PPOTrainingSettings.ReturnRegularizationWeight = TrainerTrainingSettings.ReturnRegularizationWeight;
 	PPOTrainingSettings.ActionRegularizationWeight = TrainerTrainingSettings.ActionRegularizationWeight;
