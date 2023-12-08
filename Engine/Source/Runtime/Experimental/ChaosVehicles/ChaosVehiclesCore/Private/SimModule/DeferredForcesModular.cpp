@@ -6,6 +6,8 @@
 #include "Chaos/Utilities.h"
 #include "Chaos/ParticleHandle.h"
 
+#include "PhysicsProxy/GeometryCollectionPhysicsProxy.h"
+
 #if CHAOS_DEBUG_DRAW
 #include "Chaos/DebugDrawQueue.h"
 #endif
@@ -36,8 +38,7 @@ Chaos::FPBDRigidParticleHandle* FDeferredForcesModular::GetParticleFromUniqueInd
 }
 
 // #TODO: passing all these parameters in is horrible, tidy this up now we know what needs to be done
-Chaos::FPBDRigidParticleHandle* FDeferredForcesModular::GetParticle(TArray<Chaos::FPBDRigidClusteredParticleHandle*>& Particles
-		, TArray<Chaos::FPBDRigidClusteredParticleHandle*>& ClusterParticles
+Chaos::FPBDRigidParticleHandle* FDeferredForcesModular::GetParticle(FGeometryCollectionPhysicsProxy* Proxy
 		, int TransformIndex
 		, int32 ParticleIdx
 		, const FVector& PositionalOffset
@@ -47,8 +48,8 @@ Chaos::FPBDRigidParticleHandle* FDeferredForcesModular::GetParticle(TArray<Chaos
 		, FTransform& TransformOut)
 {
 
-	Chaos::FPBDRigidParticleHandle* SimParticle = Particles[TransformIndex];
-	Chaos::FPBDRigidClusteredParticleHandle* SimClusterParticle = ClusterParticles[TransformIndex];
+	Chaos::FPBDRigidParticleHandle* SimParticle = Proxy->GetParticle_Internal(TransformIndex);
+	Chaos::FPBDRigidClusteredParticleHandle* SimClusterParticle = Proxy->GetSolverClusterHandle_Internal(TransformIndex);
 
 	if (SimParticle && !SimParticle->Disabled())
 	{
@@ -68,8 +69,7 @@ Chaos::FPBDRigidParticleHandle* FDeferredForcesModular::GetParticle(TArray<Chaos
 }
 
 // #TODO: passing all these parameters in is horrible, tidy this up now we know what needs to be done
-Chaos::FPBDRigidParticleHandle* FDeferredForcesModular::GetParticle(TArray<Chaos::FPBDRigidClusteredParticleHandle*>& Particles
-	, TArray<Chaos::FPBDRigidClusteredParticleHandle*>& ClusterParticles
+Chaos::FPBDRigidParticleHandle* FDeferredForcesModular::GetParticle(FGeometryCollectionPhysicsProxy* Proxy
 	, int TransformIndex
 	, int32 ParticleIdx
 	, const FVector& PositionalOffset
@@ -79,8 +79,8 @@ Chaos::FPBDRigidParticleHandle* FDeferredForcesModular::GetParticle(TArray<Chaos
 	, FTransform& TransformOut)
 {
 
-	Chaos::FPBDRigidParticleHandle* SimParticle = Particles[TransformIndex];
-	Chaos::FPBDRigidClusteredParticleHandle* SimClusterParticle = ClusterParticles[TransformIndex];
+	Chaos::FPBDRigidParticleHandle* SimParticle = Proxy->GetParticle_Internal(TransformIndex);
+	Chaos::FPBDRigidClusteredParticleHandle* SimClusterParticle = Proxy->GetSolverClusterHandle_Internal(TransformIndex);
 
 	if (SimParticle && !SimParticle->Disabled())
 	{
@@ -97,6 +97,48 @@ Chaos::FPBDRigidParticleHandle* FDeferredForcesModular::GetParticle(TArray<Chaos
 	}
 
 	return nullptr;
+}
+
+Chaos::FPBDRigidParticleHandle* FDeferredForcesModular::GetParticle(const FTransform& OffsetTransform
+	, FGeometryCollectionPhysicsProxy* Proxy
+	, int TransformIndex
+	, const FVector& PositionalOffset
+	, FTransform& TransformOut)
+{
+	using namespace Chaos;
+
+	const int SingleChassisIndex = 0;
+	TransformOut = FTransform::Identity;
+
+	Chaos::FPBDRigidClusteredParticleHandle* ClusterParticle = Proxy->GetSolverClusterHandle_Internal(SingleChassisIndex);
+	Chaos::FPBDRigidParticleHandle* Child = Proxy->GetParticle_Internal(TransformIndex);
+	FRigidTransform3 Frame = FRigidTransform3::Identity;
+
+	if (ClusterParticle != nullptr && Child != nullptr)
+	{
+		const FRigidTransform3 ClusterWorldTM(ClusterParticle->X(), ClusterParticle->R());
+		
+		Proxy->GetParticle_Internal(TransformIndex);
+
+		if (FPBDRigidClusteredParticleHandle* ClusterChild = Child->CastToClustered(); ClusterChild && ClusterChild->IsChildToParentLocked())
+		{
+			Frame = ClusterChild->ChildToParent();
+		}
+		else
+		{
+			//FTransform ChildT = Child->GetTransformXRCom();
+			//const FRigidTransform3 ChildWorldTM(ChildT.GetLocation(), ChildT.GetRotation());
+			const FRigidTransform3 ChildWorldTM(Child->X(), Child->R());
+			Frame = ChildWorldTM.GetRelativeTransform(ClusterWorldTM);
+			Frame.SetLocation(Frame.GetLocation() + OffsetTransform.TransformVector(PositionalOffset));
+
+			//UE_LOG(LogChaos, Warning, TEXT("ApplyForce Data TIdx %d %s"), TransformIndex, *Frame.GetTranslation().ToString());
+		}
+	}
+
+	// local transform
+	TransformOut.SetTranslation(Frame.GetTranslation());
+	return ClusterParticle;
 }
 
 Chaos::FPBDRigidParticleHandle* FDeferredForcesModular::GetParticle(const FTransform& OffsetTransform
@@ -137,8 +179,7 @@ Chaos::FPBDRigidParticleHandle* FDeferredForcesModular::GetParticle(const FTrans
 }
 
 template<typename TransformType>
-void FDeferredForcesModular::ApplyTemplate(TArray<Chaos::FPBDRigidClusteredParticleHandle*>& Particles
-		, TArray<Chaos::FPBDRigidClusteredParticleHandle*>& ClusterParticles
+void FDeferredForcesModular::ApplyTemplate(FGeometryCollectionPhysicsProxy* Proxy
 		, const TManagedArray<TransformType>& Transforms
 		, const TManagedArray<FTransform>& CollectionMassToLocal
 		, const TManagedArray<int32>& Parent)
@@ -148,7 +189,7 @@ void FDeferredForcesModular::ApplyTemplate(TArray<Chaos::FPBDRigidClusteredParti
 		FTransform RelativeTransform;
 		for (const FApplyForceData& Data : ApplyForceDatas)
 		{
-			Chaos::FPBDRigidParticleHandle* RigidHandle = GetParticle(Particles, ClusterParticles, Data.TransformIndex, Data.ParticleIdx, FVector::ZeroVector, FTransform(Transforms[Data.TransformIndex]), CollectionMassToLocal, Parent, RelativeTransform);
+			Chaos::FPBDRigidParticleHandle* RigidHandle = GetParticle(Proxy, Data.TransformIndex, Data.ParticleIdx, FVector::ZeroVector, FTransform(Transforms[Data.TransformIndex]), CollectionMassToLocal, Parent, RelativeTransform);
 			if (RigidHandle)
 			{
 				AddForce(RigidHandle, Data, RelativeTransform);
@@ -157,7 +198,7 @@ void FDeferredForcesModular::ApplyTemplate(TArray<Chaos::FPBDRigidClusteredParti
 
 		for (const FApplyForceAtPositionData& Data : ApplyForceAtPositionDatas)
 		{
-			Chaos::FPBDRigidParticleHandle* RigidHandle = GetParticle(Particles, ClusterParticles, Data.TransformIndex, Data.ParticleIdx, Data.Position, FTransform(Transforms[Data.TransformIndex]), CollectionMassToLocal, Parent, RelativeTransform);
+			Chaos::FPBDRigidParticleHandle* RigidHandle = GetParticle(Proxy, Data.TransformIndex, Data.ParticleIdx, Data.Position, FTransform(Transforms[Data.TransformIndex]), CollectionMassToLocal, Parent, RelativeTransform);
 			if (RigidHandle)
 			{
 				AddForceAtPosition(RigidHandle, Data, RelativeTransform);
@@ -166,7 +207,7 @@ void FDeferredForcesModular::ApplyTemplate(TArray<Chaos::FPBDRigidClusteredParti
 
 		for (const FAddTorqueInRadiansData& Data : ApplyTorqueDatas)
 		{
-			Chaos::FPBDRigidParticleHandle* RigidHandle = GetParticle(Particles, ClusterParticles, Data.TransformIndex, Data.ParticleIdx, FVector::ZeroVector, FTransform(Transforms[Data.TransformIndex]), CollectionMassToLocal, Parent, RelativeTransform);
+			Chaos::FPBDRigidParticleHandle* RigidHandle = GetParticle(Proxy, Data.TransformIndex, Data.ParticleIdx, FVector::ZeroVector, FTransform(Transforms[Data.TransformIndex]), CollectionMassToLocal, Parent, RelativeTransform);
 			if (RigidHandle)
 			{
 				AddTorque(RigidHandle, Data, RelativeTransform);
@@ -179,24 +220,60 @@ void FDeferredForcesModular::ApplyTemplate(TArray<Chaos::FPBDRigidClusteredParti
 	ApplyTorqueDatas.Empty();
 }
 
-void FDeferredForcesModular::Apply(TArray<Chaos::FPBDRigidClusteredParticleHandle*>& Particles
-	, TArray<Chaos::FPBDRigidClusteredParticleHandle*>& ClusterParticles
+void FDeferredForcesModular::Apply(FGeometryCollectionPhysicsProxy* Proxy
 	, const TManagedArray<FTransform>& Transforms
 	, const TManagedArray<FTransform>& CollectionMassToLocal
 	, const TManagedArray<int32>& Parent)
 {
-	ApplyTemplate(Particles, ClusterParticles, Transforms, CollectionMassToLocal, Parent);
+	ApplyTemplate(Proxy, Transforms, CollectionMassToLocal, Parent);
 }
 
-void FDeferredForcesModular::Apply(TArray<Chaos::FPBDRigidClusteredParticleHandle*>& Particles
-	, TArray<Chaos::FPBDRigidClusteredParticleHandle*>& ClusterParticles
+void FDeferredForcesModular::Apply(FGeometryCollectionPhysicsProxy* Proxy
 	, const TManagedArray<FTransform3f>& Transforms
 	, const TManagedArray<FTransform>& CollectionMassToLocal
 	, const TManagedArray<int32>& Parent)
 {
-	ApplyTemplate(Particles, ClusterParticles, Transforms, CollectionMassToLocal, Parent);
+	ApplyTemplate(Proxy, Transforms, CollectionMassToLocal, Parent);
 }
 
+
+void FDeferredForcesModular::Apply(FGeometryCollectionPhysicsProxy* Proxy)
+{
+	if (!GCoreModularVehicleDebugParams.DisableForces)
+	{
+		FTransform RelativeTransform;
+		for (const FApplyForceData& Data : ApplyForceDatas)
+		{
+			Chaos::FPBDRigidParticleHandle* RigidHandle = GetParticle(Data.OffsetTransform, Proxy, Data.TransformIndex, FVector::ZeroVector, RelativeTransform);
+			if (RigidHandle)
+			{
+				AddForce(RigidHandle, Data, RelativeTransform);
+			}
+		}
+
+		for (const FApplyForceAtPositionData& Data : ApplyForceAtPositionDatas)
+		{
+			Chaos::FPBDRigidParticleHandle* RigidHandle = GetParticle(Data.OffsetTransform, Proxy, Data.TransformIndex, Data.Position, RelativeTransform);
+			if (RigidHandle)
+			{
+				AddForceAtPosition(RigidHandle, Data, RelativeTransform);
+			}
+		}
+
+		for (const FAddTorqueInRadiansData& Data : ApplyTorqueDatas)
+		{
+			Chaos::FPBDRigidParticleHandle* RigidHandle = GetParticle(Data.OffsetTransform, Proxy, Data.TransformIndex, FVector::ZeroVector, RelativeTransform);
+			if (RigidHandle)
+			{
+				AddTorque(RigidHandle, Data, RelativeTransform);
+			}
+		}
+	}
+
+	ApplyForceDatas.Empty();
+	ApplyForceAtPositionDatas.Empty();
+	ApplyTorqueDatas.Empty();
+}
 
 void FDeferredForcesModular::Apply(TArray<Chaos::FPBDRigidParticleHandle*>& Particles
 	, TArray<Chaos::FPBDRigidClusteredParticleHandle*>& ClusterParticles)

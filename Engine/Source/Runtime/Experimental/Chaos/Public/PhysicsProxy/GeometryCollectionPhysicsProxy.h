@@ -19,6 +19,7 @@
 #include "Chaos/Defines.h"
 #include "Chaos/GeometryParticlesfwd.h"
 
+
 namespace Chaos
 {
 	template <typename T> class TSerializablePtr;
@@ -236,9 +237,21 @@ public:
 	void SetCollisionParticlesPerObjectFraction(float CollisionParticlesPerObjectFractionIn) 
 	{CollisionParticlesPerObjectFraction = CollisionParticlesPerObjectFractionIn;}
 
+	UE_DEPRECATED(5.4, "Use GetSolverClusterHandle_Internal instead")
 	TArray<FClusterHandle*>& GetSolverClusterHandles() { return SolverClusterHandles; }
 
+	UE_DEPRECATED(5.4, "Use GetParticle_Internal instead")
 	TArray<FClusterHandle*>& GetSolverParticleHandles() { return SolverParticleHandles; }
+
+	FClusterHandle* GetSolverClusterHandle_Internal(int32 Index) const
+	{
+		const int32 ParticleIndex = FromTransformToParticleIndex[Index];
+		if (ParticleIndex != INDEX_NONE)
+		{
+			return SolverClusterHandles[ParticleIndex];
+		}
+		return nullptr;
+	}
 
 	const FGeometryCollectionResults* GetConsumerResultsGT() const 
 	{ return PhysToGameInterchange.PeekConsumerBuffer(); }
@@ -277,9 +290,25 @@ public:
 	// Set whether the GC should be using collision from the Static Mesh or the GC itself for game thread traces ( this needs to be called on the game thread )
 	CHAOS_API void SetUseStaticMeshCollisionForTraces_External(bool bInUseStaticMeshCollisionForTraces);
 
+	UE_DEPRECATED(5.4, "Use GetParticle_Internal instead")
 	const TArray<FClusterHandle*> GetParticles() const
 	{
 		return SolverParticleHandles;
+	}
+
+	const TArray<FClusterHandle*>GetUnorderedParticles_Internal() const
+	{
+		return SolverParticleHandles;
+	}
+
+	FClusterHandle* GetParticle_Internal(int32 Index) const
+	{
+		const int32 ParticleIndex = FromTransformToParticleIndex[Index];
+		if (ParticleIndex != INDEX_NONE)
+		{
+			return SolverParticleHandles[ParticleIndex];
+		}
+		return nullptr;
 	}
 
 	const FSimulationParameters& GetSimParameters() const
@@ -302,7 +331,13 @@ public:
 		return GameThreadCollection;
 	}
 
+	UE_DEPRECATED(5.4, "Use GetUnorderedParticles_External instead")
 	TArray<TUniquePtr<FParticle>>& GetExternalParticles()
+	{
+		return GTParticles;
+	}
+
+	TArray<TUniquePtr<FParticle>>& GetUnorderedParticles_External()
 	{
 		return GTParticles;
 	}
@@ -391,7 +426,7 @@ public:
 		{
 			return FGeometryCollectionItemIndex::CreateInternalClusterItemIndex(*InternalClusterUniqueIdx);
 		}
-		// regular particle that has a matchig transform index 
+		// regular particle that has a matching transform index 
 		if (const int32* TransformGroupIndex = GTParticlesToTransformGroupIndex.Find(GTPParticle))
 		{
 			return FGeometryCollectionItemIndex::CreateTransformItemIndex(*TransformGroupIndex);
@@ -494,13 +529,18 @@ public:
 	CHAOS_API TArray<Chaos::FPhysicsObjectHandle> GetAllPhysicsObjects() const ;
 	CHAOS_API TArray<Chaos::FPhysicsObjectHandle> GetAllPhysicsObjectIncludingNulls() const;
 	CHAOS_API Chaos::FPhysicsObjectHandle GetPhysicsObjectByIndex(int32 Index) const;
-	int32 GetNumParticles() const { return NumParticles; }
+
+	UE_DEPRECATED(5.4, "Use GetNumTransforms instead")
+	int32 GetNumParticles() const { return NumTransforms; }
+	int32 GetNumTransforms() const { return NumTransforms; }
 
 	// todo(chaos): Remove this and move to a cook time approach of the SM data based on the GC property
 	using FCreateTraceCollisionGeometryCallback = TFunction<void(const FTransform& InToLocal, TArray<Chaos::FImplicitObjectPtr>& OutGeoms, Chaos::FShapesArray& OutShapes)>;
 	void SetCreateTraceCollisionGeometryCallback(FCreateTraceCollisionGeometryCallback InCreateGeometryCallback) { CreateTraceCollisionGeometryCallback = InCreateGeometryCallback; }
 
 	CHAOS_API void CreateChildrenGeometry_Internal();
+
+	int32 GetFromParticleToTransformIndex(int32 Index) const { check(FromParticleToTransformIndex.IsValidIndex(Index));  return FromParticleToTransformIndex[Index]; }
 
 protected:
 
@@ -607,23 +647,24 @@ private:
 	//
 	//  Proxy State Information
 	//
-	int32 NumParticles;
+	int32 NumTransforms;
 	int32 NumEffectiveParticles;
 	int32 BaseParticleIndex;
 	TArray<FParticleHandle*> SolverClusterID;
-	TArray<FClusterHandle*> SolverClusterHandles; // make a TArray of the base clase with type
+	TArray<FClusterHandle*> SolverClusterHandles; // make a TArray of the base class with type
 	TArray<FClusterHandle*> SolverParticleHandles;// make a TArray of base class and join with above
-	TSet<FClusterHandle*> SolverAnchors;
 	TMap<FParticleHandle*, int32> HandleToTransformGroupIndex;
 	TMap<int32, FClusterHandle*> UniqueIdxToInternalClusterHandle;
 	TArray<Chaos::FUniqueIdx> UniqueIdxs;
+	TArray<int32> FromParticleToTransformIndex;
+	TArray<int32> FromTransformToParticleIndex;
 
 	//
 	// Buffer Results State Information
 	//
 	bool IsObjectDynamic; // Records current dynamic state
 	bool IsObjectLoading; // Indicate when loaded
-	bool IsObjectDeleting; // Indicatge when pending deletion
+	bool IsObjectDeleting; // Indicate when pending deletion
 
 	EReplicationMode ReplicationMode = EReplicationMode::Unknown;	
 

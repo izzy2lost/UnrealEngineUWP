@@ -784,7 +784,7 @@ void FPhysScene_Chaos::RemoveObject(FGeometryCollectionPhysicsProxy* InObject)
 {
 	Chaos::FPhysicsSolver* Solver = InObject->GetSolver<Chaos::FPhysicsSolver>();
 
-	for (TUniquePtr<Chaos::TPBDRigidParticle<Chaos::FReal, 3>>& GTParticleUnique : InObject->GetExternalParticles())
+	for (TUniquePtr<Chaos::TPBDRigidParticle<Chaos::FReal, 3>>& GTParticleUnique : InObject->GetUnorderedParticles_External())
 	{
 		Chaos::TPBDRigidParticle<Chaos::FReal, 3>* GTParticle = GTParticleUnique.Get();
 		if (GTParticle != nullptr)
@@ -2190,14 +2190,13 @@ static void UpdateAccelerationStructureFromGeometryCollectionProxy(FGeometryColl
 		return Chaos::FAABB3(Particle.X(), Particle.X());
 	};
 
-	const TArray<TUniquePtr<Chaos::FPBDRigidParticle>>& GTParticles = Proxy.GetExternalParticles();
+	const TArray<TUniquePtr<Chaos::FPBDRigidParticle>>& UnorderedGTParticles = Proxy.GetUnorderedParticles_External();
 	if (bIsParentProxyNull)
 	{
-		for (const TUniquePtr<Chaos::FPBDRigidParticle>& GTParticle : GTParticles)
+		for (const TUniquePtr<Chaos::FPBDRigidParticle>& GTParticle : UnorderedGTParticles)
 		{
 			if (GTParticle)
 			{
-
 				const Chaos::FSpatialAccelerationIdx SpatialIndex = GTParticle->SpatialIdx();
 
 				// It's possible to be an enabled particle and not qualify for query collisions if the GC particle has been replication abandoned. 
@@ -2224,7 +2223,7 @@ static void UpdateAccelerationStructureFromGeometryCollectionProxy(FGeometryColl
 	{
 		// if we have a parent proxy ( like attached to a cluster union) then none of the handles should be in the acceleration structure 
 		// todo : right now we are sending all the particles, but we should be able to get away with active + direct children that could reduce the overall cost 
-		for (const TUniquePtr<Chaos::FPBDRigidParticle>& GTParticle : GTParticles)
+		for (const TUniquePtr<Chaos::FPBDRigidParticle>& GTParticle : UnorderedGTParticles)
 		{
 			if (GTParticle)
 			{

@@ -143,25 +143,21 @@ void FModularVehicleSimulationGC::PerformAdditionalSimWork(UWorld* InWorld, cons
 	Chaos::EnsureIsInPhysicsThreadContext();
 
 	FGeometryDynamicCollection& GeometryCollection = Proxy->GetPhysicsCollection();
-	const TArray<Chaos::FPBDRigidClusteredParticleHandle*>& Clusters = Proxy->GetSolverClusterHandles();
-	const TArray<Chaos::FPBDRigidClusteredParticleHandle*>& Particles = Proxy->GetSolverParticleHandles();
 
-	if (Clusters.Num() > 0)
+	if (Proxy->GetUnorderedParticles_Internal().Num() > 0)
 	{
 		const TArray<Chaos::FSimModuleTree::FSimModuleNode>& ModuleArray = SimModuleTree->GetSimulationModuleTree();
-
 		for (const Chaos::FSimModuleTree::FSimModuleNode& Node : ModuleArray)
 		{
-			if (!Node.SimModule->IsEnabled() || !Particles[Node.SimModule->GetTransformIndex()]->Disabled())
+			const Chaos::FPBDRigidClusteredParticleHandle* Cluster = Proxy->GetParticle_Internal(Node.SimModule->GetTransformIndex());
+			const Chaos::FPBDRigidClusteredParticleHandle* Particle = Proxy->GetSolverClusterHandle_Internal(Node.SimModule->GetTransformIndex());
+			if (Cluster != nullptr && Particle != nullptr)
 			{
-				Node.SimModule->SetStateFlags(Chaos::eSimModuleState::Disabled);
-				continue;
-			}
-
-			check(Node.SimModule->GetTransformIndex() < Clusters.Num());
-			const Chaos::FPBDRigidClusteredParticleHandle* Particle = Clusters[Node.SimModule->GetTransformIndex()];
-			if (Particle)
-			{
+				if (!Node.SimModule->IsEnabled() || !Cluster->Disabled())
+				{
+					Node.SimModule->SetStateFlags(Chaos::eSimModuleState::Disabled);
+					continue;
+				}
 				const FTransform BodyTransform(Particle->R(), Particle->X());
 
 				// #TODO: cheating just now to get it working - do we pass in one or one per particle, as it will be different if it has split into fragments
@@ -300,8 +296,7 @@ void FModularVehicleSimulationGC::ApplyDeferredForces(FGeometryCollectionPhysics
 					const TManagedArray<FTransform>& CollectionMassToLocal = Rest->GetGeometryCollection()->GetAttribute<FTransform>(TEXT("MassToLocal"), FTransformCollection::TransformGroup);
 
 					SimModuleTree->AccessDeferredForces().Apply(
-						Proxy->GetSolverParticleHandles(),
-						Proxy->GetSolverClusterHandles(),
+						Proxy,
 						Rest->GetGeometryCollection()->Transform,
 						CollectionMassToLocal,
 						Rest->GetGeometryCollection()->Parent);

@@ -20,6 +20,8 @@ enum class EForceFlags : uint32
 ENUM_CLASS_FLAGS(EForceFlags);	
 
 
+class FGeometryCollectionPhysicsProxy;
+
 class CHAOSVEHICLESCORE_API FDeferredForcesModular
 {
 public:
@@ -159,8 +161,7 @@ public:
 
 	Chaos::FPBDRigidParticleHandle* GetParticleFromUniqueIndex(int32 ParticleUniqueIdx, const TArray<Chaos::FPBDRigidParticleHandle*>& Particles) const;
 
-	Chaos::FPBDRigidParticleHandle* GetParticle(TArray<Chaos::FPBDRigidClusteredParticleHandle*>& Particles
-			, TArray<Chaos::FPBDRigidClusteredParticleHandle*>& ClusterParticles
+	Chaos::FPBDRigidParticleHandle* GetParticle(FGeometryCollectionPhysicsProxy* Proxy
 			, int TransformIndex
 			, int32 ParticleIdx
 			, const FVector& PositionalOffset
@@ -169,8 +170,7 @@ public:
 			, const TManagedArray<int32>& Parent
 			, FTransform& TransformOut);
 
-	Chaos::FPBDRigidParticleHandle* GetParticle(TArray<Chaos::FPBDRigidClusteredParticleHandle*>& Particles
-		, TArray<Chaos::FPBDRigidClusteredParticleHandle*>& ClusterParticles
+	Chaos::FPBDRigidParticleHandle* GetParticle(FGeometryCollectionPhysicsProxy* Proxy
 		, int TransformIndex
 		, int32 ParticleIdx
 		, const FVector& PositionalOffset
@@ -180,32 +180,37 @@ public:
 		, FTransform& TransformOut);
 
 	Chaos::FPBDRigidParticleHandle* GetParticle(const FTransform& OffsetTransform
+		, FGeometryCollectionPhysicsProxy* Proxy
+		, int32 ParticleIdx
+		, const FVector& PositionalOffset
+		, FTransform& TransformOut);
+
+	Chaos::FPBDRigidParticleHandle* GetParticle(const FTransform& OffsetTransform
 		, TArray<Chaos::FPBDRigidParticleHandle*>& Particles
 		, TArray<Chaos::FPBDRigidClusteredParticleHandle*>& ClusterParticles
 		, int32 ParticleIdx
 		, const FVector& PositionalOffset
 		, FTransform& TransformOut);
 
-	void Apply(TArray<Chaos::FPBDRigidClusteredParticleHandle*>& Particles
-		, TArray<Chaos::FPBDRigidClusteredParticleHandle*>& ClusterParticles
+	void Apply(FGeometryCollectionPhysicsProxy* Proxy
 		, const TManagedArray<FTransform>& Transforms
 		, const TManagedArray<FTransform>& CollectionMassToLocal
 		, const TManagedArray<int32>& Parent);
 
-	void Apply(TArray<Chaos::FPBDRigidClusteredParticleHandle*>& Particles
-		, TArray<Chaos::FPBDRigidClusteredParticleHandle*>& ClusterParticles
+	void Apply(FGeometryCollectionPhysicsProxy* Proxy
 		, const TManagedArray<FTransform3f>& Transforms
 		, const TManagedArray<FTransform>& CollectionMassToLocal
 		, const TManagedArray<int32>& Parent);
 	
+	void Apply(FGeometryCollectionPhysicsProxy* Proxy);
+
 	void Apply(TArray<Chaos::FPBDRigidParticleHandle*>& Particles
 		, TArray<Chaos::FPBDRigidClusteredParticleHandle*>& ClusterParticles);
 
 private:
 
 	template<typename TransformType>
-	void ApplyTemplate(TArray<Chaos::FPBDRigidClusteredParticleHandle*>& Particles
-		, TArray<Chaos::FPBDRigidClusteredParticleHandle*>& ClusterParticles
+	void ApplyTemplate(FGeometryCollectionPhysicsProxy* Proxy
 		, const TManagedArray<TransformType>& Transforms
 		, const TManagedArray<FTransform>& CollectionMassToLocal
 		, const TManagedArray<int32>& Parent);
