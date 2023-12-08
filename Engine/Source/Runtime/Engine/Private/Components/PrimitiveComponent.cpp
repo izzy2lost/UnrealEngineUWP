@@ -46,6 +46,7 @@
 #include "Engine/DamageEvents.h"
 #include "MeshUVChannelInfo.h"
 #include "PrimitiveSceneDesc.h"
+#include "PSOPrecacheMaterial.h"
 
 #if WITH_EDITOR
 #include "Engine/LODActor.h"
@@ -4606,6 +4607,20 @@ void UPrimitiveComponent::SetupPrecachePSOParams(FPSOPrecacheParams& Params)
 	Params.bCastShadowAsTwoSided = bCastShadowAsTwoSided;
 	Params.SetMobility(Mobility);	
 	Params.SetStencilWriteMask(FRendererStencilMaskEvaluation::ToStencilMask(CustomDepthStencilWriteMask));
+
+	TArray<UMaterialInterface*> UsedMaterials;
+	GetUsedMaterials(UsedMaterials);
+	for (const UMaterialInterface* MaterialInterface : UsedMaterials)
+	{
+		if (MaterialInterface)
+		{
+			if (MaterialInterface->GetRelevance_Concurrent(GMaxRHIFeatureLevel).bUsesWorldPositionOffset)
+			{
+				Params.bAnyMaterialHasWorldPositionOffset = true;
+				break;
+			}
+		}
+	}
 }
 
 class FMarkRenderStateDirtyTask

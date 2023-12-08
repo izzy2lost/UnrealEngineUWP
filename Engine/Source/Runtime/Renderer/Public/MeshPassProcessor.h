@@ -11,7 +11,7 @@
 #include "SceneUtils.h"
 #include "MeshBatch.h"
 #include "MeshDrawCommandStatsDefines.h"
-#include "PSOPrecache.h"
+#include "PSOPrecacheMaterial.h"
 #include "Hash/CityHash.h"
 #include "Experimental/Containers/RobinHoodHashTable.h"
 #include "RHIImmutableSamplerState.h"
@@ -737,7 +737,7 @@ struct FMeshDrawCommandDebugData
 	const FVertexFactoryType* VertexFactoryType;
 	int8 LODIndex;
 	uint8 SegmentIndex;
-	uint32 MeshPassType;
+	uint32 PSOCollectorIndex;
 	FName ResourceName;
 	FString MaterialName;
 #endif
@@ -1281,9 +1281,9 @@ public:
 		return Other.CachedPipelineId.GetId();
 	}
 #if MESH_DRAW_COMMAND_DEBUG_DATA
-	RENDERER_API void SetDebugData(const FPrimitiveSceneProxy* PrimitiveSceneProxy, const FMaterial* Material, const FMaterialRenderProxy* MaterialRenderProxy, const FMeshProcessorShaders& UntypedShaders, const FVertexFactory* VertexFactory, const FMeshBatch& MeshBatch, uint32 MeshPassType);
+	RENDERER_API void SetDebugData(const FPrimitiveSceneProxy* PrimitiveSceneProxy, const FMaterial* Material, const FMaterialRenderProxy* MaterialRenderProxy, const FMeshProcessorShaders& UntypedShaders, const FVertexFactory* VertexFactory, const FMeshBatch& MeshBatch, int32 PSOCollectorIndex);
 #else
-	void SetDebugData(const FPrimitiveSceneProxy* PrimitiveSceneProxy, const FMaterial* Material, const FMaterialRenderProxy* MaterialRenderProxy, const FMeshProcessorShaders& UntypedShaders, const FVertexFactory* VertexFactory, const FMeshBatch& MeshBatch, uint32 MeshPassType) {}
+	void SetDebugData(const FPrimitiveSceneProxy* PrimitiveSceneProxy, const FMaterial* Material, const FMaterialRenderProxy* MaterialRenderProxy, const FMeshProcessorShaders& UntypedShaders, const FVertexFactory* VertexFactory, const FMeshBatch& MeshBatch, int32 PSOCollectorIndex) {}
 #endif
 
 	SIZE_T GetAllocatedSize() const
@@ -2037,10 +2037,12 @@ public:
 	const FSceneView* ViewIfDynamicMeshCommand;
 	FMeshPassDrawListContext* DrawListContext;
 		
+	UE_DEPRECATED(5.4, "Use the below Ctor instead which provides either EMeshPass::Type or the name of the mesh pass directly.")
 	FMeshPassProcessor(const FScene* InScene, ERHIFeatureLevel::Type InFeatureLevel, const FSceneView* InViewIfDynamicMeshCommand, FMeshPassDrawListContext* InDrawListContext) :
 		FMeshPassProcessor(EMeshPass::Num, InScene, InFeatureLevel, InViewIfDynamicMeshCommand, InDrawListContext) { }
 
 	RENDERER_API FMeshPassProcessor(EMeshPass::Type InMeshPassType, const FScene* InScene, ERHIFeatureLevel::Type InFeatureLevel, const FSceneView* InViewIfDynamicMeshCommand, FMeshPassDrawListContext* InDrawListContext);
+	RENDERER_API FMeshPassProcessor(const TCHAR* InMeshPassName, const FScene* InScene, ERHIFeatureLevel::Type InFeatureLevel, const FSceneView* InViewIfDynamicMeshCommand, FMeshPassDrawListContext* InDrawListContext);
 
 	virtual ~FMeshPassProcessor() {}
 
@@ -2147,6 +2149,16 @@ namespace PSOCollectorStats
 	 * Compute the hash of a minimal graphics PSO initializer to be used by PSO precaching validation.
 	 */
 	RENDERER_API extern uint64 GetPSOPrecacheHash(const FGraphicsMinimalPipelineStateInitializer& Initializer);
+
+	/**
+	 * Check if ShaderOnly PSO is precached and if not log information
+	 */
+	RENDERER_API extern void CheckShaderOnlyStateInCache(const FGraphicsMinimalPipelineStateInitializer& Initializer, const FMaterial& Material, const FVertexFactoryType* VFType, const FPrimitiveSceneProxy* PrimitiveSceneProxy, int32 PSOCollectorIndex);
+
+	/**
+	 * Check if minimal graphics PSO is precached and if not log information
+	 */
+	RENDERER_API extern void CheckMinimalPipelineStateInCache(const FGraphicsMinimalPipelineStateInitializer& Initializer, const FMaterial& Material, const FVertexFactoryType* VFType, const FPrimitiveSceneProxy* PrimitiveSceneProxy, int32 PSOCollectorIndex);
 }
 
 #endif // PSO_PRECACHING_VALIDATE
@@ -2188,6 +2200,18 @@ public:
 		return Flags[ShadingPathIdx][PassType];
 	}
 
+	static int32 GetPSOCollectorIndex(EShadingPath ShadingPath, EMeshPass::Type PassType)
+	{
+		if (PassType == EMeshPass::Num)
+		{
+			return INDEX_NONE;
+		}
+
+		check(ShadingPath < EShadingPath::Num);
+		uint32 ShadingPathIdx = (uint32)ShadingPath;
+		return PSOCollectorIndex[ShadingPathIdx][PassType];
+	}
+
 	/** Only call on the game thread. Heavy weight. Flush rendering commands and recreate all component render states. */
 	static void SetPassFlags(EShadingPath ShadingPath, EMeshPass::Type PassType, EMeshPassFlags NewFlags);
 
@@ -2195,19 +2219,21 @@ private:
 	RENDERER_API static PassProcessorCreateFunction JumpTable[(uint32)EShadingPath::Num][EMeshPass::Num];
 	RENDERER_API static DeprecatedPassProcessorCreateFunction DeprecatedJumpTable[(uint32)EShadingPath::Num][EMeshPass::Num];
 	RENDERER_API static EMeshPassFlags Flags[(uint32)EShadingPath::Num][EMeshPass::Num];
+	RENDERER_API static int32 PSOCollectorIndex[(uint32)EShadingPath::Num][EMeshPass::Num];
 	friend class FRegisterPassProcessorCreateFunction;
 };
 
 class FRegisterPassProcessorCreateFunction
 {
 public:
-	FRegisterPassProcessorCreateFunction(PassProcessorCreateFunction CreateFunction, EShadingPath InShadingPath, EMeshPass::Type InPassType, EMeshPassFlags PassFlags) 
+	FRegisterPassProcessorCreateFunction(PassProcessorCreateFunction CreateFunction, EShadingPath InShadingPath, EMeshPass::Type InPassType, EMeshPassFlags PassFlags, int32 PSOCollectorIndex = INDEX_NONE) 
 		: ShadingPath(InShadingPath)
 		, PassType(InPassType)
 	{
 		uint32 ShadingPathIdx = (uint32)ShadingPath;
 		FPassProcessorManager::JumpTable[ShadingPathIdx][PassType] = CreateFunction;
 		FPassProcessorManager::Flags[ShadingPathIdx][PassType] = PassFlags;
+		FPassProcessorManager::PSOCollectorIndex[ShadingPathIdx][PassType] = PSOCollectorIndex;
 	}
 
 	~FRegisterPassProcessorCreateFunction()
@@ -2215,6 +2241,7 @@ public:
 		uint32 ShadingPathIdx = (uint32)ShadingPath;
 		FPassProcessorManager::JumpTable[ShadingPathIdx][PassType] = nullptr;
 		FPassProcessorManager::Flags[ShadingPathIdx][PassType] = EMeshPassFlags::None;
+		FPassProcessorManager::PSOCollectorIndex[ShadingPathIdx][PassType] = INDEX_NONE;
 	}
 
 private:
@@ -2224,12 +2251,13 @@ private:
 
 // Helper marco to register the mesh pass processor to both the FPassProcessorManager & the FPSOCollectorCreateManager
 #define REGISTER_MESHPASSPROCESSOR_AND_PSOCOLLECTOR(Name, MeshPassProcessorCreateFunction, ShadingPath, MeshPass, MeshPassFlags) \
-	FRegisterPassProcessorCreateFunction RegisterMeshPassProcesser##Name(&MeshPassProcessorCreateFunction, ShadingPath, MeshPass, MeshPassFlags); \
 	IPSOCollector* CreatePSOCollector##Name(ERHIFeatureLevel::Type FeatureLevel) \
 	{ \
 		return MeshPassProcessorCreateFunction(FeatureLevel, nullptr, nullptr, nullptr); \
 	} \
-	FRegisterPSOCollectorCreateFunction RegisterPSOCollector##Name(&CreatePSOCollector##Name, ShadingPath, (uint32) MeshPass);
+	FRegisterPSOCollectorCreateFunction RegisterPSOCollector##Name(&CreatePSOCollector##Name, ShadingPath, GetMeshPassName(MeshPass)); \
+	FRegisterPassProcessorCreateFunction RegisterMeshPassProcesser##Name(&MeshPassProcessorCreateFunction, ShadingPath, MeshPass, MeshPassFlags, RegisterPSOCollector##Name.GetIndex());
+
 
 RENDERER_API extern void SubmitMeshDrawCommands(
 	const FMeshCommandOneFrameArray& VisibleMeshDrawCommands,

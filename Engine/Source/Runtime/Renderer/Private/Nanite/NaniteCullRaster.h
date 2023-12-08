@@ -5,6 +5,7 @@
 #include "NaniteShared.h"
 #include "NaniteSceneProxy.h"
 #include "NaniteVisibility.h"
+#include "PSOPrecacheMaterial.h"
 
 class FVirtualShadowMapArray;
 class FViewFamilyInfo;
@@ -110,6 +111,7 @@ void CollectRasterPSOInitializers(
 	const FMaterial& Material,
 	const FPSOPrecacheParams& PreCacheParams,
 	EShaderPlatform ShaderPlatform,
+	int32 PSOCollectorIndex,
 	TArray<FPSOPrecacheData>& PSOInitializers);
 
 FRasterContext InitRasterContext(

@@ -81,6 +81,7 @@ void CollectShadingPSOInitializers(
 	const FPSOPrecacheParams& PreCacheParams,
 	ERHIFeatureLevel::Type FeatureLevel,
 	EShaderPlatform ShaderPlatform,
+	int32 PSOCollectorIndex,
 	TArray<FPSOPrecacheData>& PSOInitializers
 );
 

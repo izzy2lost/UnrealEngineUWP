@@ -178,7 +178,7 @@ public:
 		int32 RenderPassIndex,
 		FIntPoint ScratchTilePoolOffset
 	)
-		: FMeshPassProcessor(InScene, InView->GetFeatureLevel(), InView, InDrawListContext)
+		: FMeshPassProcessor(TEXT("LightmapGBuffer"), InScene, InView->GetFeatureLevel(), InView, InDrawListContext)
 		, VirtualTexturePhysicalTileCoordinateScaleAndBias(VirtualTexturePhysicalTileCoordinateScaleAndBias)
 		, RenderPassIndex(RenderPassIndex)
 		, ScratchTilePoolOffset(ScratchTilePoolOffset)

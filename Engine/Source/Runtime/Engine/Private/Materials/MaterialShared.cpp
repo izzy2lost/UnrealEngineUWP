@@ -31,6 +31,7 @@
 #include "Engine/Texture2D.h"
 #include "Engine/Font.h"
 #include "SceneView.h"
+#include "PSOPrecacheMaterial.h"
 #include "ShaderPlatformQualitySettings.h"
 #include "MaterialShaderQualitySettings.h"
 #include "Engine/RendererSettings.h"
@@ -3129,6 +3130,11 @@ FGraphEventArray FMaterial::CollectPSOs(ERHIFeatureLevel::Type InFeatureLevel, c
 	TRACE_CPUPROFILER_EVENT_SCOPE(FMaterial::CollectPSOs);
 	
 	FGraphEventArray GraphEvents;
+	if (GameThreadShaderMap == nullptr)
+	{
+		return GraphEvents;
+	}
+
 	for (const FPSOPrecacheVertexFactoryData& VFData : VertexFactoryDataList)
 	{
 		if (!VFData.VertexFactoryType->SupportsPSOPrecaching())
@@ -3153,6 +3159,16 @@ FGraphEventArray FMaterial::CollectPSOs(ERHIFeatureLevel::Type InFeatureLevel, c
 		}
 	}
 	return GraphEvents;
+}
+
+TArray<FMaterialPSOPrecacheRequestID> FMaterial::GetMaterialPSOPrecacheRequestIDs() const
+{
+	TArray<FMaterialPSOPrecacheRequestID> TmpPrecachedPSORequestIDs;
+	{
+		FScopeLock ScopeLock(&PrecachedPSORequestIDsCS);
+		TmpPrecachedPSORequestIDs = PrecachedPSORequestIDs;
+	}
+	return TmpPrecachedPSORequestIDs;
 }
 
 #if WITH_EDITOR

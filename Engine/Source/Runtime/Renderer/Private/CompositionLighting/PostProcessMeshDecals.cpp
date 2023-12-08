@@ -167,13 +167,15 @@ private:
 IMPLEMENT_STATIC_UNIFORM_BUFFER_SLOT(DeferredDecals);
 IMPLEMENT_STATIC_UNIFORM_BUFFER_STRUCT(FDeferredDecalUniformParameters, "DeferredDecal", DeferredDecals);
 
+static const TCHAR* MeshDecalPassName = TEXT("MeshDecal");
+
 FMeshDecalMeshProcessor::FMeshDecalMeshProcessor(const FScene* Scene, 
 	ERHIFeatureLevel::Type InFeatureLevel,
 	const FSceneView* InViewIfDynamicMeshCommand, 
 	EDecalRenderStage InPassDecalStage, 
 	EDecalRenderTargetMode InRenderTargetMode,
 	FMeshPassDrawListContext* InDrawListContext)
-	: FMeshPassProcessor(EMeshPass::MeshDecal, Scene, InFeatureLevel, InViewIfDynamicMeshCommand, InDrawListContext)
+	: FMeshPassProcessor(MeshDecalPassName, Scene, InFeatureLevel, InViewIfDynamicMeshCommand, InDrawListContext)
 	, PassDecalStage(InPassDecalStage)
 	, RenderTargetMode(InRenderTargetMode)
 {
@@ -413,7 +415,7 @@ IPSOCollector* CreateMeshDecalMeshProcessor(ERHIFeatureLevel::Type FeatureLevel)
 }
 
 // Only register for PSO Collection
-FRegisterPSOCollectorCreateFunction RegisterPSOCollectorMeshDecal(&CreateMeshDecalMeshProcessor, EShadingPath::Deferred, (uint32)EMeshPass::MeshDecal);
+FRegisterPSOCollectorCreateFunction RegisterPSOCollectorMeshDecal(&CreateMeshDecalMeshProcessor, EShadingPath::Deferred, MeshDecalPassName);
 
 void DrawDecalMeshCommands(
 	FRDGBuilder& GraphBuilder,

@@ -16,6 +16,8 @@
 #include "Async/ParallelFor.h"
 #include "Materials/Material.h"
 #include "Materials/MaterialRenderProxy.h"
+#include "PSOPrecacheMaterial.h"
+#include "PSOPrecacheValidation.h"
 
 DEFINE_STAT(STAT_CLP_NaniteBasePass);
 
@@ -1800,6 +1802,7 @@ void CollectShadingPSOInitializers(
 	const FPSOPrecacheParams& PreCacheParams,
 	ERHIFeatureLevel::Type FeatureLevel,
 	EShaderPlatform ShaderPlatform,
+	int32 PSOCollectorIndex,
 	TArray<FPSOPrecacheData>& PSOInitializers)
 {
 	// Base Pass
@@ -1841,16 +1844,16 @@ void CollectShadingPSOInitializers(
 				ComputePSOPrecacheData.Type = FPSOPrecacheData::EType::Compute;
 				ComputePSOPrecacheData.ComputeShader = BasePassComputeShader.GetComputeShader();
 			#if PSO_PRECACHING_VALIDATE
-				ComputePSOPrecacheData.MeshPassType = (uint32)EMeshPass::BasePass;
+				ComputePSOPrecacheData.PSOCollectorIndex = PSOCollectorIndex;
 				ComputePSOPrecacheData.VertexFactoryType = VertexFactoryData.VertexFactoryType;
 			#endif
 				PSOInitializers.Add(ComputePSOPrecacheData);
 
 			#if PSO_PRECACHING_VALIDATE
-				if (PSOCollectorStats::IsMinimalPSOValidationEnabled())
+				if (PSOCollectorStats::IsFullPrecachingValidationEnabled())
 				{
-					PSOCollectorStats::GetShadersOnlyPSOPrecacheStatsCollector().AddStateToCache(*ComputePSOPrecacheData.ComputeShader, PSOCollectorStats::GetPSOPrecacheHash, (uint32)EMeshPass::BasePass, VertexFactoryData.VertexFactoryType);
-					PSOCollectorStats::GetMinimalPSOPrecacheStatsCollector().AddStateToCache(*ComputePSOPrecacheData.ComputeShader, PSOCollectorStats::GetPSOPrecacheHash, (uint32)EMeshPass::BasePass, VertexFactoryData.VertexFactoryType);
+					PSOCollectorStats::GetShadersOnlyPSOPrecacheStatsCollector().AddStateToCache(*ComputePSOPrecacheData.ComputeShader, PSOCollectorStats::GetPSOPrecacheHash, &Material, (uint32)EMeshPass::BasePass, VertexFactoryData.VertexFactoryType);
+					PSOCollectorStats::GetMinimalPSOPrecacheStatsCollector().AddStateToCache(*ComputePSOPrecacheData.ComputeShader, PSOCollectorStats::GetPSOPrecacheHash, &Material, (uint32)EMeshPass::BasePass, VertexFactoryData.VertexFactoryType);
 				}
 			#endif
 			}

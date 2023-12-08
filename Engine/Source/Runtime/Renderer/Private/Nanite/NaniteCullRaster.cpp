@@ -26,6 +26,8 @@
 #include "Lumen/Lumen.h"
 #include "TessellationTable.h"
 #include "SceneCulling/SceneCullingRenderer.h"
+#include "PSOPrecacheValidation.h"
+
 
 DECLARE_DWORD_COUNTER_STAT(TEXT("CullingContexts"), STAT_NaniteCullingContexts, STATGROUP_Nanite);
 
@@ -1708,6 +1710,7 @@ void CollectRasterPSOInitializersForPermutation(
 	FHWRasterizeMS::FPermutationDomain& PermutationVectorMS,
 	FHWRasterizePS::FPermutationDomain& PermutationVectorPS,
 	FMicropolyRasterizeCS::FPermutationDomain& PermutationVectorCS,
+	int32 PSOCollectorIndex,
 	TArray<FPSOPrecacheData>& PSOInitializers)
 {
 	FMaterialShaderTypes ProgrammableShaderTypes;
@@ -1757,13 +1760,13 @@ void CollectRasterPSOInitializersForPermutation(
 			FGraphicsPipelineStateInitializer GraphicsPSOInit = MinimalPipelineStateInitializer.AsGraphicsPipelineStateInitializer();
 
 		#if PSO_PRECACHING_VALIDATE
-			if (PSOCollectorStats::IsMinimalPSOValidationEnabled())
+			if (PSOCollectorStats::IsFullPrecachingValidationEnabled())
 			{
 				MinimalPipelineStateInitializer.StatePrecachePSOHash = GraphicsPSOInit.StatePrecachePSOHash;
 				FGraphicsMinimalPipelineStateInitializer ShadersOnlyInitializer = PSOCollectorStats::GetShadersOnlyInitializer(MinimalPipelineStateInitializer);
-				PSOCollectorStats::GetShadersOnlyPSOPrecacheStatsCollector().AddStateToCache(ShadersOnlyInitializer, PSOCollectorStats::GetPSOPrecacheHash, (uint32)EMeshPass::NaniteMeshPass, nullptr);
+				PSOCollectorStats::GetShadersOnlyPSOPrecacheStatsCollector().AddStateToCache(ShadersOnlyInitializer, PSOCollectorStats::GetPSOPrecacheHash, &Material, (uint32)EMeshPass::NaniteMeshPass, nullptr);
 				FGraphicsMinimalPipelineStateInitializer PatchedMinimalInitializer = PSOCollectorStats::PatchMinimalPipelineStateToCheck(MinimalPipelineStateInitializer);
-				PSOCollectorStats::GetMinimalPSOPrecacheStatsCollector().AddStateToCache(PatchedMinimalInitializer, PSOCollectorStats::GetPSOPrecacheHash, (uint32)EMeshPass::NaniteMeshPass, nullptr);
+				PSOCollectorStats::GetMinimalPSOPrecacheStatsCollector().AddStateToCache(PatchedMinimalInitializer, PSOCollectorStats::GetPSOPrecacheHash, &Material, (uint32)EMeshPass::NaniteMeshPass, nullptr);
 			}
 		#endif
 			
@@ -1771,7 +1774,7 @@ void CollectRasterPSOInitializersForPermutation(
 			PSOPrecacheData.Type = FPSOPrecacheData::EType::Graphics;
 			PSOPrecacheData.GraphicsPSOInitializer = GraphicsPSOInit;
 		#if PSO_PRECACHING_VALIDATE
-			PSOPrecacheData.MeshPassType = (uint32)EMeshPass::NaniteMeshPass;
+			PSOPrecacheData.PSOCollectorIndex = PSOCollectorIndex;
 			PSOPrecacheData.VertexFactoryType = nullptr;
 		#endif
 			PSOInitializers.Add(PSOPrecacheData);
@@ -1785,7 +1788,7 @@ void CollectRasterPSOInitializersForPermutation(
 			ComputePSOPrecacheData.Type = FPSOPrecacheData::EType::Compute;
 			ComputePSOPrecacheData.ComputeShader = MicropolyRasterizeCS.GetComputeShader();
 		#if PSO_PRECACHING_VALIDATE
-			ComputePSOPrecacheData.MeshPassType = (uint32)EMeshPass::NaniteMeshPass;
+			ComputePSOPrecacheData.PSOCollectorIndex = PSOCollectorIndex;
 			ComputePSOPrecacheData.VertexFactoryType = nullptr;
 		#endif
 			PSOInitializers.Add(ComputePSOPrecacheData);
@@ -1801,6 +1804,7 @@ void CollectRasterPSOInitializersForDefaultMaterial(
 	FHWRasterizeMS::FPermutationDomain& PermutationVectorMS,
 	FHWRasterizePS::FPermutationDomain& PermutationVectorPS,
 	FMicropolyRasterizeCS::FPermutationDomain& PermutationVectorCS,
+	int32 PSOCollectorIndex,
 	TArray<FPSOPrecacheData>& PSOInitializers)
 {
 	// Collect PSOs for all possible combinations of vertex/pixel programmable and if two sided or not
@@ -1819,7 +1823,7 @@ void CollectRasterPSOInitializersForDefaultMaterial(
 					if (!bSplineMesh || NaniteSplineMeshesSupported())
 					{
 						CollectRasterPSOInitializersForPermutation(Material, bVertexProgrammable, bPixelProgrammable, bUseMeshShader, bUsePrimitiveShader, bIsTwoSided, bSplineMesh,
-							PermutationVectorVS, PermutationVectorMS, PermutationVectorPS, PermutationVectorCS, PSOInitializers);
+							PermutationVectorVS, PermutationVectorMS, PermutationVectorPS, PermutationVectorCS, PSOCollectorIndex, PSOInitializers);
 					}
 				}
 			}
@@ -1832,6 +1836,7 @@ void CollectRasterPSOInitializersForPipeline(
 	const FMaterial& RasterMaterial,
 	const FPSOPrecacheParams& PreCacheParams,
 	EShaderPlatform ShaderPlatform,
+	int32 PSOCollectorIndex,
 	EPipeline Pipeline,
 	TArray<FPSOPrecacheData>& PSOInitializers)
 {
@@ -1852,7 +1857,7 @@ void CollectRasterPSOInitializersForPipeline(
 
 	if (PreCacheParams.bDefaultMaterial)
 	{
-		CollectRasterPSOInitializersForDefaultMaterial(RasterMaterial, bUseMeshShader, bUsePrimitiveShader, PermutationVectorVS, PermutationVectorMS, PermutationVectorPS, PermutationVectorCS, PSOInitializers);
+		CollectRasterPSOInitializersForDefaultMaterial(RasterMaterial, bUseMeshShader, bUsePrimitiveShader, PermutationVectorVS, PermutationVectorMS, PermutationVectorPS, PermutationVectorCS, PSOCollectorIndex, PSOInitializers);
 	}
 	else
 	{
@@ -1872,7 +1877,7 @@ void CollectRasterPSOInitializersForPipeline(
 		const bool bIsTwoSided = MeshCullMode == CM_None;
 
 		CollectRasterPSOInitializersForPermutation(RasterMaterial, bVertexProgrammable, bPixelProgrammable, bUseMeshShader, bUsePrimitiveShader, bIsTwoSided, bSplineMesh,
-			PermutationVectorVS, PermutationVectorMS, PermutationVectorPS, PermutationVectorCS, PSOInitializers);
+			PermutationVectorVS, PermutationVectorMS, PermutationVectorPS, PermutationVectorCS, PSOCollectorIndex, PSOInitializers);
 	}
 }
 
@@ -1881,11 +1886,12 @@ void CollectRasterPSOInitializers(
 	const FMaterial& RasterMaterial,
 	const FPSOPrecacheParams& PreCacheParams,
 	EShaderPlatform ShaderPlatform,
+	int32 PSOCollectorIndex,
 	TArray<FPSOPrecacheData>& PSOInitializers)
 {
 	// Collect for primary & shadows
-	CollectRasterPSOInitializersForPipeline(SceneTexturesConfig, RasterMaterial, PreCacheParams, ShaderPlatform, EPipeline::Primary, PSOInitializers);
-	CollectRasterPSOInitializersForPipeline(SceneTexturesConfig, RasterMaterial, PreCacheParams, ShaderPlatform, EPipeline::Shadows, PSOInitializers);
+	CollectRasterPSOInitializersForPipeline(SceneTexturesConfig, RasterMaterial, PreCacheParams, ShaderPlatform, PSOCollectorIndex, EPipeline::Primary, PSOInitializers);
+	CollectRasterPSOInitializersForPipeline(SceneTexturesConfig, RasterMaterial, PreCacheParams, ShaderPlatform, PSOCollectorIndex, EPipeline::Shadows, PSOInitializers);
 }
 
 

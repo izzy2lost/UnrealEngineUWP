@@ -28,6 +28,9 @@
 #include "Materials/Material.h"
 #include "MaterialHLSLGenerator.h"
 #include "HLSLMaterialTranslator.h"
+#include "PSOPrecache.h"
+#include "PSOPrecacheMaterial.h"
+#include "PSOPrecacheValidation.h"
 
 #if WITH_EDITOR
 #include "Serialization/MemoryReader.h"
@@ -2716,18 +2719,22 @@ bool FMaterialShaderMap::IsComplete(const FMaterial* Material, bool bSilent)
 	return true;
 }
 
-FPSOPrecacheRequestResultArray FMaterialShaderMap::CollectPSOs(const FMaterialPSOPrecacheParams& PrecacheParams)
+FPSOPrecacheDataArray FMaterialShaderMap::CollectPSOPrecacheData(const FMaterialPSOPrecacheParams& PrecacheParams)
 {
-	TRACE_CPUPROFILER_EVENT_SCOPE(FMaterialShaderMap::CollectPSOs);
+	TRACE_CPUPROFILER_EVENT_SCOPE(FMaterialShaderMap::CollectPSOPrecacheData);
 
 	// Shouldn't get here if the type doesn't support precaching
 	check(PrecacheParams.VertexFactoryData.VertexFactoryType->SupportsPSOPrecaching());
+
+#if PSO_PRECACHING_VALIDATE
+	ConditionalBreakOnPSOPrecacheMaterial(*PrecacheParams.Material, INDEX_NONE);
+#endif // PSO_PRECACHING_VALIDATE
 
 	// Has data for this VF type
 	const FMaterialShaderMapContent* LocalContent = GetContent();
 	if (LocalContent == nullptr || !LocalContent->GetMeshShaderMap(PrecacheParams.VertexFactoryData.VertexFactoryType->GetHashedName()))
 	{
-		return FPSOPrecacheRequestResultArray();
+		return FPSOPrecacheDataArray();
 	}
 
 	// Only feature level is currently set as init settings - rest is default
@@ -2740,10 +2747,10 @@ FPSOPrecacheRequestResultArray FMaterialShaderMap::CollectPSOs(const FMaterialPS
 
 	const EShadingPath ShadingPath = GetFeatureLevelShadingPath(PrecacheParams.FeatureLevel);
 
-	TArray<FPSOPrecacheData> PSOInitializers;
+	FPSOPrecacheDataArray PSOInitializers;
 	PSOInitializers.Reserve(32);
 	
-	for (uint32 Index = 0; Index < FPSOCollectorCreateManager::MaxPSOCollectorCount; ++Index)
+	for (int32 Index = 0; Index < FPSOCollectorCreateManager::GetPSOCollectorCount(ShadingPath); ++Index)
 	{
 		PSOCollectorCreateFunction CreateFunction = FPSOCollectorCreateManager::GetCreateFunction(ShadingPath, Index);
 		if (CreateFunction)
@@ -2751,13 +2758,19 @@ FPSOPrecacheRequestResultArray FMaterialShaderMap::CollectPSOs(const FMaterialPS
 			IPSOCollector* PSOCollector = CreateFunction(PrecacheParams.FeatureLevel);
 			if (PSOCollector != nullptr)
 			{
+				check(PSOCollector->PSOCollectorIndex == Index);
+
+#if PSO_PRECACHING_VALIDATE
+				ConditionalBreakOnPSOPrecacheMaterial(*PrecacheParams.Material, Index);
+#endif // PSO_PRECACHING_VALIDATE
+
 				PSOCollector->CollectPSOInitializers(SceneTexturesConfig, *PrecacheParams.Material, PrecacheParams.VertexFactoryData, PrecacheParams.PrecachePSOParams, PSOInitializers);							
 				delete PSOCollector;
 			}
 		}
 	}
 
-	return PrecachePSOs(PSOInitializers);
+	return PSOInitializers;
 }
 
 #if WITH_EDITOR

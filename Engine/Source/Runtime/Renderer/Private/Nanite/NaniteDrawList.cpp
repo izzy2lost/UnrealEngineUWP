@@ -358,6 +358,8 @@ void SubmitNaniteMultiViewMaterial(
 	FMeshDrawCommand::SubmitDrawEnd(MeshDrawCommand, SceneArgs, InstanceFactor, RHICmdList);
 }
 
+static const TCHAR* NaniteMeshPassName = TEXT("NaniteMesh");
+
 FNaniteMeshProcessor::FNaniteMeshProcessor(
 	const FScene* InScene,
 	ERHIFeatureLevel::Type InFeatureLevel,
@@ -365,7 +367,7 @@ FNaniteMeshProcessor::FNaniteMeshProcessor(
 	const FMeshPassProcessorRenderState& InDrawRenderState,
 	FMeshPassDrawListContext* InDrawListContext
 )
-	: FMeshPassProcessor(EMeshPass::NaniteMeshPass, InScene, InFeatureLevel, InViewIfDynamicMeshCommand, InDrawListContext)
+	: FMeshPassProcessor(NaniteMeshPassName, InScene, InFeatureLevel, InViewIfDynamicMeshCommand, InDrawListContext)
 	, PassDrawRenderState(InDrawRenderState)
 {
 	check(DoesPlatformSupportNanite(GMaxRHIShaderPlatform));
@@ -508,7 +510,7 @@ void FNaniteMeshProcessor::CollectPSOInitializers(
 		
 	if (VertexFactoryData.VertexFactoryType == &FNaniteVertexFactory::StaticType)
 	{
-		Nanite::CollectShadingPSOInitializers(SceneTexturesConfig, NaniteVertexFactoryData, Material, PreCacheParams, FeatureLevel, ShaderPlatform, PSOInitializers);
+		Nanite::CollectShadingPSOInitializers(SceneTexturesConfig, NaniteVertexFactoryData, Material, PreCacheParams, FeatureLevel, ShaderPlatform, PSOCollectorIndex, PSOInitializers);
 	}
 	else
 	{
@@ -521,7 +523,7 @@ void FNaniteMeshProcessor::CollectPSOInitializers(
 			CollectPSOInitializersForSkyLight(SceneTexturesConfig, NaniteVertexFactoryData, Material, bRenderSkyLight, PSOInitializers);
 		}
 
-		Nanite::CollectRasterPSOInitializers(SceneTexturesConfig, Material, PreCacheParams, ShaderPlatform, PSOInitializers);
+		Nanite::CollectRasterPSOInitializers(SceneTexturesConfig, Material, PreCacheParams, ShaderPlatform, PSOCollectorIndex, PSOInitializers);
 	}
 }
 
@@ -616,7 +618,7 @@ IPSOCollector* CreateNaniteMeshProcessorForPSOCollection(ERHIFeatureLevel::Type 
 }
 
 // Only register for PSO Collection
-FRegisterPSOCollectorCreateFunction RegisterPSOCollectorNaniteMeshPass(&CreateNaniteMeshProcessorForPSOCollection, EShadingPath::Deferred, (uint32)EMeshPass::NaniteMeshPass);
+FRegisterPSOCollectorCreateFunction RegisterPSOCollectorNaniteMeshPass(&CreateNaniteMeshProcessorForPSOCollection, EShadingPath::Deferred, NaniteMeshPassName);
 
 class FSubmitNaniteMaterialPassCommandsAnyThreadTask : public FRenderTask
 {

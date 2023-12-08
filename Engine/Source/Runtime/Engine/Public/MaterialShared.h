@@ -1300,9 +1300,9 @@ public:
 	bool IsComplete(const FMaterial* Material, bool bSilent);
 
 	/**
-	 * Collect all possible PSO's  which can be used with this material shader map for given parameters - PSOs will be async precached
+	 * Collect all possible PSO's  which can be used with this material shader map for given parameters
 	 */
-	FPSOPrecacheRequestResultArray CollectPSOs(const FMaterialPSOPrecacheParams& PrecacheParams);
+	FPSOPrecacheDataArray CollectPSOPrecacheData(const FMaterialPSOPrecacheParams& PrecacheParams);
 
 #if WITH_EDITOR
 	/** Attempts to load missing shaders from memory. */
@@ -1840,6 +1840,11 @@ public:
 	 * Collect all possible PSO's  which can be used with this material for given parameters - PSOs will be async precached
 	 */
 	ENGINE_API FGraphEventArray CollectPSOs(ERHIFeatureLevel::Type InFeatureLevel, const FPSOPrecacheVertexFactoryDataList& VertexFactoryDataList, const FPSOPrecacheParams& PreCacheParams, EPSOPrecachePriority Priority, TArray<FMaterialPSOPrecacheRequestID>& OutMaterialPSORequestIDs);
+
+	/**
+	 * Collect all PSO request information already done for this material
+	 */
+	ENGINE_API TArray<FMaterialPSOPrecacheRequestID> GetMaterialPSOPrecacheRequestIDs() const;
 
 	/**
 	 * Should the shader for this material with the given platform, shader type and vertex 
