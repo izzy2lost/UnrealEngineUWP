@@ -87,8 +87,8 @@ public:
 	
 	// Accessors
 	bool HasBag(const UObjectBase* Owner) const;
-	FPropertyBag* FindBag(const UObjectBase* Owner);
-	const FPropertyBag* FindBag(const UObjectBase* Owner) const;
+	COREUOBJECT_API FPropertyBag* FindBag(const UObjectBase* Owner);
+	COREUOBJECT_API const FPropertyBag* FindBag(const UObjectBase* Owner) const;
 
 	bool HasArchetype(const UObjectBase* Owner) const;
 	UObject* FindArchetype(const UObjectBase* Owner);
