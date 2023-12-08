@@ -153,6 +153,10 @@ class UInstancedStaticMeshComponent : public UStaticMeshComponent, public ISMIns
 	UPROPERTY(EditAnywhere, BlueprintReadOnly, Category = Culling)
 	uint8 bUseGpuLodSelection : 1;
 
+	/** If true, this component will avoid serializing its per instance data / those properties will also not be editable */
+	UPROPERTY()
+	uint8 bInheritPerInstanceData : 1;
+
 	/** Mapping from PerInstanceSMData order to instance render buffer order. If empty, the PerInstanceSMData order is used. */
 	UPROPERTY()
 	TArray<int32> InstanceReorderTable;
@@ -394,6 +398,8 @@ class UInstancedStaticMeshComponent : public UStaticMeshComponent, public ISMIns
 
 	ENGINE_API virtual bool IsInstanceTouchingSelectionBox(int32 InstanceIndex, const FBox& InBox, const bool bMustEncompassEntireInstance) const;
 	ENGINE_API virtual bool IsInstanceTouchingSelectionFrustum(int32 InstanceIndex, const FConvexVolume& InFrustum, const bool bMustEncompassEntireInstance) const;
+
+	ENGINE_API virtual bool CanEditChange(const FProperty* InProperty) const override;
 #endif
 
 	// Helper function to construct a base-set of instance data flags that in
@@ -590,6 +596,10 @@ public:
 	ENGINE_API void InvalidateInstanceDataTracking();
 
 private:
+	ENGINE_API void ApplyInheritedPerInstanceData(const UInstancedStaticMeshComponent* InArchetype);
+	ENGINE_API bool ShouldInheritPerInstanceData(const UInstancedStaticMeshComponent* InArchetype) const;
+	ENGINE_API bool ShouldInheritPerInstanceData() const;
+
 	void CalcAndCacheNavigationBounds();
 
 	/** Sets up new instance data to sensible defaults, creates physics counterparts if possible. */

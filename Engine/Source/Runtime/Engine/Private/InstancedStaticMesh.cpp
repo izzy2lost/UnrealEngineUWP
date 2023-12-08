@@ -1999,6 +1999,7 @@ UInstancedStaticMeshComponent::UInstancedStaticMeshComponent(const FObjectInitia
 	bMultiBodyOverlap = true;
 
 	bUseGpuLodSelection = true;
+	bInheritPerInstanceData = false;
 
 #if STATS
 	{
@@ -2086,6 +2087,13 @@ void UInstancedStaticMeshComponent::ApplyComponentInstanceData(FInstancedStaticM
 	}
 
 	bool bMatch = false;
+
+	// If we should inherit from archetype do it here after data was applied and before comparing (RerunConstructionScript will serialize SkipSerialization properties and reapply them even if we want to inherit them)
+	const UInstancedStaticMeshComponent* Archetype = Cast<UInstancedStaticMeshComponent>(GetArchetype());
+	if (ShouldInheritPerInstanceData(Archetype))
+	{
+		ApplyInheritedPerInstanceData(Archetype);
+	}
 
 	// Check for any instance having moved as that would invalidate static lighting
 	if (PerInstanceSMData.Num() == InstancedMeshData->PerInstanceSMData.Num() &&
@@ -2983,6 +2991,24 @@ void UInstancedStaticMeshComponent::SerializeRenderData(FArchive& Ar)
 	}
 }
 
+void UInstancedStaticMeshComponent::ApplyInheritedPerInstanceData(const UInstancedStaticMeshComponent* InArchetype)
+{
+	check(InArchetype);
+	PerInstanceSMData = InArchetype->PerInstanceSMData;
+	PerInstanceSMCustomData = InArchetype->PerInstanceSMCustomData;
+	NumCustomDataFloats = InArchetype->NumCustomDataFloats;
+}
+
+bool UInstancedStaticMeshComponent::ShouldInheritPerInstanceData() const
+{
+	return ShouldInheritPerInstanceData(Cast<UInstancedStaticMeshComponent>(GetArchetype()));
+}
+
+bool UInstancedStaticMeshComponent::ShouldInheritPerInstanceData(const UInstancedStaticMeshComponent* InArchetype) const
+{
+	return (bInheritPerInstanceData || !bEditableWhenInherited) && InArchetype && InArchetype->IsInBlueprint() && !IsTemplate();
+}
+
 void UInstancedStaticMeshComponent::Serialize(FArchive& Ar)
 {
 	LLM_SCOPE(ELLMTag::InstancedMesh);
@@ -2999,11 +3025,10 @@ void UInstancedStaticMeshComponent::Serialize(FArchive& Ar)
 		Ar << bCooked;
 	}
 
-	// Inherit properties when bEditableWhenInherited == true (when the component isn't a template and we are persisting data)
+	// Inherit properties when bEditableWhenInherited == false || bInheritPerInstanceData == true (when the component isn't a template and we are persisting data)
 	const UInstancedStaticMeshComponent* Archetype = Cast<UInstancedStaticMeshComponent>(GetArchetype());
-	const bool bInheritSkipSerializationProperties = !bEditableWhenInherited && Archetype && Archetype->IsInBlueprint() && Ar.IsPersistent() && !IsTemplate();
+	const bool bInheritSkipSerializationProperties = ShouldInheritPerInstanceData(Archetype) && Ar.IsPersistent();
 	
-
 	// Check if we need have SkipSerialization property data to load/save
 	bool bHasSkipSerializationPropertiesData = !bInheritSkipSerializationProperties;
 	if (Ar.IsLoading())
@@ -3053,11 +3078,7 @@ void UInstancedStaticMeshComponent::Serialize(FArchive& Ar)
 		// If we should inherit use Archetype Data
 		if (bInheritSkipSerializationProperties)
 		{
-			PerInstanceSMData = Archetype->PerInstanceSMData;
-			PerInstanceSMCustomData = Archetype->PerInstanceSMCustomData;
-
-			// Make sure that if we inherit the PerInstanceSMCustomData we also do inherit this value
-			NumCustomDataFloats = Archetype->NumCustomDataFloats;
+			ApplyInheritedPerInstanceData(Archetype);
 		} 
 		// It is possible for a component to lose its BP archetype between a save / load so in this case we have no per instance data (usually this component gets deleted through construction script)
 		else if(bHasSkipSerializationPropertiesData)
@@ -4541,6 +4562,26 @@ void UInstancedStaticMeshComponent::OnRegister()
 }
 		
 #if WITH_EDITOR
+
+bool UInstancedStaticMeshComponent::CanEditChange(const FProperty* InProperty) const
+{
+	if (!Super::CanEditChange(InProperty))
+	{
+		return false;
+	}
+
+	if (InProperty)
+	{
+		if (InProperty->GetFName() == GET_MEMBER_NAME_CHECKED(UInstancedStaticMeshComponent, PerInstanceSMData) ||
+			InProperty->GetFName() == GET_MEMBER_NAME_CHECKED(UInstancedStaticMeshComponent, PerInstanceSMCustomData) ||
+			InProperty->GetFName() == GET_MEMBER_NAME_CHECKED(UInstancedStaticMeshComponent, NumCustomDataFloats))
+		{
+			return !ShouldInheritPerInstanceData();
+		}
+	}
+
+	return true;
+}
 
 bool UInstancedStaticMeshComponent::ComponentIsTouchingSelectionBox(const FBox& InSelBBox, const bool bConsiderOnlyBSP, const bool bMustEncompassEntireComponent) const
 {
