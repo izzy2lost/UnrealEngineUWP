@@ -92,8 +92,8 @@ public:
 					if (Direction.Normalize())
 					{
 						// Scale by angle
-						const FReal DirectionDot = FVec3::DotProduct(Direction, N[Index]);
-						const FReal ScaleFactor = FMath::Min(1.f, FMath::Abs(DirectionDot) * LegacyWindAdaptation);
+						const FSolverReal DirectionDot = FSolverVec3::DotProduct(Direction, N[Index]);
+						const FSolverReal ScaleFactor = FMath::Min(1.f, FMath::Abs(DirectionDot) * LegacyWindAdaptation);
 						Force += VelocityDelta * ScaleFactor * M[Index];
 					}
 				}
