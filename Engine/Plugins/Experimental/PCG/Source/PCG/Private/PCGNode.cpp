@@ -355,7 +355,7 @@ FText UPCGNode::GetNodeTitle(EPCGNodeTitleType TitleType) const
 
 		if (bDebuggingEnabled)
 		{
-			SecondaryTitleLine += FString::Format(TEXT(" [{1}]"), { NumCacheEntries });
+			SecondaryTitleLine += FString::Format(TEXT(" [{0}]"), { NumCacheEntries });
 		}
 #endif
 

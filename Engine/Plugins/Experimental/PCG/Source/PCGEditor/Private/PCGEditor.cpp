@@ -2357,6 +2357,21 @@ void FPCGEditor::OnComponentGenerationCompleteOrCancelled()
 {
 	DebugObjectWidget->RefreshDebugObjects();
 	DebugObjectTreeWidget->RequestRefresh();
+
+	// If we are debugging the graph cache then we need to refresh the cache count displayed in the title after every generation.
+	if (UPCGSubsystem* Subsystem = GetSubsystem())
+	{
+		if (Subsystem->IsGraphCacheDebuggingEnabled() && PCGEditorGraph)
+		{
+			for (UEdGraphNode* EdGraphNode : PCGEditorGraph->Nodes)
+			{
+				if (UPCGEditorGraphNodeBase* PCGEditorGraphNode = Cast<UPCGEditorGraphNodeBase>(EdGraphNode))
+				{
+					PCGEditorGraphNode->ReconstructNode();
+				}
+			}
+		}
+	}
 }
 
 UPCGSubsystem* FPCGEditor::GetSubsystem()
