@@ -667,7 +667,6 @@ const DevicePanel: React.FC = observer(() => {
          localState.stateFromSearch();
          setPivotState({ key: localState.searchState.pivotKey!, poolFilter: new Set(localState.searchState.filterPools) });
          setPlatformState(new Set(localState.searchState.filterPlatforms));
-         localState.setPoolFilters(pivotState.poolFilter);
       }
       setInitDeviceUpdater(true);
    };
