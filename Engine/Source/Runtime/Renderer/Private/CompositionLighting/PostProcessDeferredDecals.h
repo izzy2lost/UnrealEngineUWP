@@ -76,6 +76,14 @@ void GetDeferredDecalRenderTargetsInfo(
 	EDecalRenderTargetMode RenderTargetMode,
 	FGraphicsPipelineRenderTargetsInfo& RenderTargetsInfo);
 
+void CollectDeferredDecalPassPSOInitializers(
+	int32 PSOCollectorIndex,
+	ERHIFeatureLevel::Type FeatureLevel,
+	const FSceneTexturesConfig& SceneTexturesConfig,
+	const FMaterial& Material,
+	EDecalRenderStage DecalRenderStage,
+	TArray<FPSOPrecacheData>& PSOInitializers);
+
 void GetDeferredDecalPassParameters(
 	FRDGBuilder& GraphBuilder,
 	const FViewInfo& View,

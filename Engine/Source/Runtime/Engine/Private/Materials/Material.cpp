@@ -86,6 +86,7 @@
 #include "Misc/OutputDeviceArchiveWrapper.h"
 #include "HAL/FileManager.h"
 #include "BuildSettings.h"
+#include "LocalVertexFactory.h"
 
 #if WITH_EDITOR
 #include "Framework/Notifications/NotificationManager.h"
@@ -4193,6 +4194,12 @@ void UMaterial::PostLoad()
 	{
 		// Ensure that the ReferencedTextureGuids array is up to date.
 		UpdateLightmassTextureTracking();
+	}
+
+	if (IsDeferredDecal())
+	{
+		FPSOPrecacheParams PSOPrecacheParams;
+		UMaterialInterface::PrecachePSOs(&FLocalVertexFactory::StaticType, PSOPrecacheParams);
 	}
 
 	//DumpDebugInfo(*GLog);

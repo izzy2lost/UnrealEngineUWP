@@ -56,6 +56,7 @@
 #include "ComponentRecreateRenderStateContext.h"
 #include "UObject/UE5ReleaseStreamObjectVersion.h"
 #include "VT/RuntimeVirtualTexture.h"
+#include "LocalVertexFactory.h"
 
 #include UE_INLINE_GENERATED_CPP_BY_NAME(MaterialInstance)
 
@@ -3206,6 +3207,13 @@ void UMaterialInstance::PostLoad()
 
 		LightingGuidFixupMap.Add(GetLightingGuid(), this);
 	}
+
+	if (IsDeferredDecal())
+	{
+		FPSOPrecacheParams PSOPrecacheParams;
+		UMaterialInterface::PrecachePSOs(&FLocalVertexFactory::StaticType, PSOPrecacheParams);
+	}
+
 	//DumpDebugInfo(*GLog);
 }
 
@@ -4614,6 +4622,11 @@ float UMaterialInstance::GetMaxWorldPositionOffsetDisplacement() const
 bool UMaterialInstance::ShouldAlwaysEvaluateWorldPositionOffset() const
 {
 	return Parent ? Parent->ShouldAlwaysEvaluateWorldPositionOffset() : false;
+}
+
+bool UMaterialInstance::IsDeferredDecal() const
+{
+	return Parent ? Parent->IsDeferredDecal() : false;
 }
 
 bool UMaterialInstance::HasPixelAnimation() const

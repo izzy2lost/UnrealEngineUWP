@@ -404,6 +404,26 @@ namespace DecalRendering
 		return OutPixelShader.IsValid();
 	}
 
+	bool SetupShaderState(
+		ERHIFeatureLevel::Type FeatureLevel,
+		const FMaterial& Material, 
+		EDecalRenderStage DecalRenderStage, 
+		FBoundShaderStateInput& OutBoundShaderState)
+	{
+		TShaderRef<FDeferredDecalPS> PixelShader;
+		if (!TryGetDeferredDecalShaders(Material, FeatureLevel, DecalRenderStage, PixelShader))
+		{
+			return false;
+		}
+
+		TShaderMapRef<FDeferredDecalVS> VertexShader(GetGlobalShaderMap(FeatureLevel));
+		OutBoundShaderState.VertexDeclarationRHI = GetVertexDeclarationFVector4();
+		OutBoundShaderState.VertexShaderRHI = VertexShader.GetVertexShader();
+		OutBoundShaderState.PixelShaderRHI = PixelShader.GetPixelShader();
+
+		return true;
+	}
+
 	FMaterialRenderProxy const* TryGetDeferredDecalMaterial(
 		FMaterialRenderProxy const* MaterialProxy, 
 		ERHIFeatureLevel::Type FeatureLevel,
