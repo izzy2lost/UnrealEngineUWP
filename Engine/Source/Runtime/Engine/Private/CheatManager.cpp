@@ -123,8 +123,10 @@ bool UCheatManager::ProcessConsoleExec(const TCHAR* Cmd, FOutputDevice& Ar, UObj
 
 				if ((Function != nullptr) && Function->HasAnyFunctionFlags(FUNC_BlueprintAuthorityOnly))
 				{
-					TGuardValue AutoRestore(GAllowActorScriptExecutionInEditor, false);
-					MyPC->ServerExec(Cmd);
+					if(ensureMsgf(GAllowActorScriptExecutionInEditor == false, TEXT("GAllowActorScriptExecutionInEditor must be false when executing commands.")))
+					{
+						MyPC->ServerExec(Cmd);
+					}
 					return true;
 				}
 			}

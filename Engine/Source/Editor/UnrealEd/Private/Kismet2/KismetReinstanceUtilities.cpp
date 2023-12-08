@@ -1455,6 +1455,8 @@ void FActorReplacementHelper::Finalize(const TMap<UObject*, UObject*>& OldToNewI
 	{
 		if (World->HasBegunPlay())
 		{
+			//GAllowActorScriptExecutionInEditor must be false when we call BeginPlay
+			TGuardValue AutoRestore(GAllowActorScriptExecutionInEditor, false);
 			NewActor->PostActorConstruction();
 		}
 	}
