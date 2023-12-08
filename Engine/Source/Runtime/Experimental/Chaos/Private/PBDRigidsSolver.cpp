@@ -772,7 +772,7 @@ namespace Chaos
 		InProxy->NewData(); // Buffers data on the proxy.
 
 		// Need to immediately add to the SQ to make sure that the GC is in the external SQ even after the SQ's flip.
-		for (const TUniquePtr<FPBDRigidParticle>& Particle : InProxy->GetUnorderedParticles_External())
+		for (const TUniquePtr<FPBDRigidParticle>& Particle : InProxy->GetExternalParticles())
 		{
 			if (Particle && !Particle->Disabled())
 			{

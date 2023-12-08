@@ -2108,11 +2108,12 @@ void UGeometryCollectionComponent::UpdateRepData()
 		const FRigidClustering& RigidClustering = Solver->GetEvolution()->GetRigidClustering();
 
 		const TManagedArrayAccessor<int32> InitialLevels = PhysicsProxy->GetPhysicsCollection().GetInitialLevels();
-		const TArray<FPBDRigidClusteredParticleHandle*>& UnorderedParticleHandles = PhysicsProxy->GetUnorderedParticles_Internal();
+		const TArray<FPBDRigidClusteredParticleHandle*>& ParticleHandles = PhysicsProxy->GetParticles();
 
 		// Replicate the anchored state of the root particle
 		LocalRepData.bIsRootAnchored = RepData.bIsRootAnchored;
-		if (FPBDRigidClusteredParticleHandle* RootHandle = PhysicsProxy->GetInitialRootHandle_Internal())
+		const int32 InitialRootIndex = PhysicsProxy->GetSimParameters().InitialRootIndex;
+		if (FPBDRigidClusteredParticleHandle* RootHandle = ParticleHandles[InitialRootIndex])
 		{
 			LocalRepData.bIsRootAnchored = RootHandle->IsAnchored();
 		}
@@ -2122,7 +2123,7 @@ void UGeometryCollectionComponent::UpdateRepData()
 
 		// It feels weird to start from the previous one. Need to be checked
 		LocalRepData.OneOffActivated = RepData.OneOffActivated;
-		for (FPBDRigidClusteredParticleHandle* Particle : UnorderedParticleHandles)
+		for (FPBDRigidClusteredParticleHandle* Particle : ParticleHandles)
 		{
 			// Particle can be null if we have embedded geometry 
 			if (Particle)
@@ -2181,7 +2182,7 @@ void UGeometryCollectionComponent::UpdateRepData()
 						//a one off so record it
 						ensureMsgf(TransformGroupIdx >= 0, TEXT("Non-internal cluster should always have a group index"));
 						ensureMsgf(TransformGroupIdx < TNumericLimits<uint16>::Max(), TEXT("Trying to replicate GC with more than 65k pieces. We assumed uint16 would suffice"));
-						ensureMsgf(PhysicsProxy->GetParticle_Internal(TransformGroupIdx) != nullptr, TEXT("Invalid particle index being replicated - Contact physics team"));
+						ensureMsgf(PhysicsProxy->GetParticles().IsValidIndex(TransformGroupIdx) && PhysicsProxy->GetParticles()[TransformGroupIdx] != nullptr, TEXT("Invalid particle index being replicated - Contact physics team"));
 
 						// Because we cull ClustersToRep with abandoned level, we must make sure we don't add duplicates to one off activated.
 						// TODO: avoid search for entry for perf
@@ -2304,8 +2305,8 @@ void UGeometryCollectionComponent::UpdateRepStateAndDynamicData()
 			FPBDRigidsSolver* Solver = PhysicsProxy->GetSolver<Chaos::FPBDRigidsSolver>();
 
 			// let go through all the transform and see which one has changed its state
-			const TArray<FPBDRigidClusteredParticleHandle*>& UnorderedParticleHandles = PhysicsProxy->GetUnorderedParticles_Internal();
-			const int32 NumParticles = UnorderedParticleHandles.Num();
+			const TArray<FPBDRigidClusteredParticleHandle*>& ParticleHandles = PhysicsProxy->GetParticles();
+			const int32 NumTransforms = ParticleHandles.Num();
 
 			const TManagedArrayAccessor<int32> InitialLevels = PhysicsProxy->GetPhysicsCollection().GetInitialLevels();
 			
@@ -2318,7 +2319,7 @@ void UGeometryCollectionComponent::UpdateRepStateAndDynamicData()
 			// root level anchor state
 			LocalRepStateData.bIsRootAnchored = RepStateData.bIsRootAnchored;
 			const int32 InitialRootIndex = PhysicsProxy->GetSimParameters().InitialRootIndex;
-			if (FPBDRigidClusteredParticleHandle* RootHandle = UnorderedParticleHandles[InitialRootIndex])
+			if (FPBDRigidClusteredParticleHandle* RootHandle = ParticleHandles[InitialRootIndex])
 			{
 				LocalRepStateData.bIsRootAnchored = RootHandle->IsAnchored() ? 1 : 0;
 			}
@@ -2339,14 +2340,11 @@ void UGeometryCollectionComponent::UpdateRepStateAndDynamicData()
 			const int32 RootIndex = GetRootIndex();
 
 			// go through particles and send replicated data 
-			const int32 NumTransforms = PhysicsProxy->GetNumTransforms();
 			LocalRepStateData.BrokenState.SetNum(NumTransforms, false);
 			LocalRepStateData.ReleasedData.Reserve(NumTransforms);
-			for (int32 ParticleIndex = 0; ParticleIndex < NumParticles; ParticleIndex++)
+			for (int32 TransformIndex = 0; TransformIndex < NumTransforms; TransformIndex++)
 			{
-				const int32 TransformIndex = PhysicsProxy->GetFromParticleToTransformIndex(ParticleIndex);
-				FPBDRigidClusteredParticleHandle* ParticleHandle = UnorderedParticleHandles[ParticleIndex];
-				check(ParticleHandle);
+				if (FPBDRigidClusteredParticleHandle* ParticleHandle = ParticleHandles[TransformIndex])
 				{
 					const int32 Level = (InitialLevels.IsValid() && InitialLevels.IsValidIndex(TransformIndex)) ? InitialLevels[TransformIndex] : INDEX_NONE;
 
@@ -2520,7 +2518,8 @@ namespace
 		using namespace Chaos;
 
 		const int32 InitialRootIndex = PhysicsProxy.GetSimParameters().InitialRootIndex;
-		if (FPBDRigidClusteredParticleHandle* RootHandle = PhysicsProxy.GetParticle_Internal(InitialRootIndex))
+		const TArray<FPBDRigidClusteredParticleHandle*>& ParticleHandles = PhysicsProxy.GetParticles();
+		if (FPBDRigidClusteredParticleHandle* RootHandle = ParticleHandles[InitialRootIndex])
 		{
 			if (RootHandle->Parent() || !RootHandle->Disabled())
 			{
@@ -2642,7 +2641,7 @@ namespace
 		{
 			for (const FGeometryCollectionClusterRep& RepCluster : RepData.Clusters)
 			{
-				if (Chaos::FPBDRigidParticleHandle* Cluster = PhysicsProxy->GetParticle_Internal(RepCluster.ClusterIdx))
+				if (Chaos::FPBDRigidParticleHandle* Cluster = PhysicsProxy->GetParticles()[RepCluster.ClusterIdx])
 				{
 					if (RepCluster.ClusterState.IsInternalCluster())
 					{
@@ -2682,14 +2681,14 @@ namespace
 			const FGeometryCollectionActivatedCluster& ActivatedCluster = RepData.OneOffActivated[OneOffActivatedProcessed];
 
 #if !UE_BUILD_SHIPPING
-			if(PhysicsProxy->GetParticle_Internal(ActivatedCluster.ActivatedIndex) == nullptr)
+			if(!PhysicsProxy->GetParticles().IsValidIndex(ActivatedCluster.ActivatedIndex))
 			{
 				ensureMsgf(false, TEXT("Invalid activated cluster index processing replication data."));
 				continue;
 			}
 #endif
 
-			FPBDRigidParticleHandle* OneOff = PhysicsProxy->GetParticle_Internal(ActivatedCluster.ActivatedIndex);
+			FPBDRigidParticleHandle* OneOff = PhysicsProxy->GetParticles()[ActivatedCluster.ActivatedIndex];
 
 			if (ensure(OneOff))
 			{
@@ -2740,52 +2739,52 @@ namespace
 			return false;
 		}
 
-		const TArray<FPBDRigidClusteredParticleHandle*>& UnorderedParticleHandle = PhysicsProxy->GetUnorderedParticles_Internal();
+		const TArray<FPBDRigidClusteredParticleHandle*>& ParticleHandles = PhysicsProxy->GetParticles();
 
 		// Update the anchored state of the root particle
 		UpdateRootStateFromReplication(*PhysicsProxy, (bool)RepStateData.bIsRootAnchored);
 		
 		
 		// now sync the broken state of the particles
-		if (RepStateData.BrokenState.Num() == PhysicsProxy->GetNumTransforms())
+		if (RepStateData.BrokenState.Num() == ParticleHandles.Num())
 		{
 			FPBDRigidsSolver* Solver = PhysicsProxy->GetSolver<Chaos::FPBDRigidsSolver>();
 			FRigidClustering& RigidClustering = Solver->GetEvolution()->GetRigidClustering();
 
-			for (int32 ParticleIndex = 0; ParticleIndex < UnorderedParticleHandle.Num(); ParticleIndex++)
+			for (int32 TransformIndex = 0; TransformIndex < ParticleHandles.Num(); TransformIndex++)
 			{
-				FPBDRigidClusteredParticleHandle* ParticleHandle = UnorderedParticleHandle[ParticleIndex];
-				check(ParticleHandle != nullptr);
-				const int32 TransformIndex = PhysicsProxy->GetFromParticleToTransformIndex(ParticleIndex);
-				// we only check for when thing goes from unbroken to broken 
-				const bool bWasBroken = (ParticleHandle->Parent() == nullptr);
-				const bool bIsBroken = RepStateData.BrokenState[TransformIndex];
-				if (!bWasBroken && bIsBroken)
+				if (FPBDRigidClusteredParticleHandle* ParticleHandle = ParticleHandles[TransformIndex])
 				{
-					RigidClustering.ForceReleaseChildParticleAndParents(ParticleHandle, /* bTriggerBreakEvents */true);
-
-					if (!ParticleHandle->Disabled())
+					// we only check for when thing goes from unbroken to broken 
+					const bool bWasBroken = (ParticleHandle->Parent() == nullptr);
+					const bool bIsBroken = RepStateData.BrokenState[TransformIndex];
+					if (!bWasBroken && bIsBroken)
 					{
-						// check if we have a release velocity to be applied 
-						const FGeometryCollectionRepStateData::FReleasedData* ReleaseData = RepStateData.ReleasedData.FindByPredicate(
-							[TransformIndex](const FGeometryCollectionRepStateData::FReleasedData& Data)
-							{
-								return Data.TransformIndex == TransformIndex;
-							});
-						if (ReleaseData)
+						RigidClustering.ForceReleaseChildParticleAndParents(ParticleHandle, /* bTriggerBreakEvents */true);
+
+						if (!ParticleHandle->Disabled())
 						{
-							ParticleHandle->SetV(ReleaseData->LinearVelocity);
-							ParticleHandle->SetW(FMath::DegreesToRadians(ReleaseData->AngularVelocityInDegreesPerSecond));
-						}
-						else
-						{
-							// if we are a leaf we can disable this particle right away if there's no release data
-							// because this means the server has already disabled the particle from a removal 
-							if (ParticleHandle->ClusterIds().NumChildren == 0)
+							// check if we have a release velocity to be applied 
+							const FGeometryCollectionRepStateData::FReleasedData* ReleaseData = RepStateData.ReleasedData.FindByPredicate(
+								[TransformIndex](const FGeometryCollectionRepStateData::FReleasedData& Data)
+								{
+									return Data.TransformIndex == TransformIndex;
+								});
+							if (ReleaseData)
 							{
-								// todo we could probably disable all at once later to have only one call 
-								Solver->GetEvolution()->DisableParticle(ParticleHandle);
-								Solver->GetParticles().MarkTransientDirtyParticle(ParticleHandle);
+								ParticleHandle->SetV(ReleaseData->LinearVelocity);
+								ParticleHandle->SetW(FMath::DegreesToRadians(ReleaseData->AngularVelocityInDegreesPerSecond));
+							}
+							else
+							{
+								// if we are a leaf we can disable this particle right away if there's no release data
+								// becuase this means the server has already disabled the particle from a removal 
+								if (ParticleHandle->ClusterIds().NumChildren == 0)
+								{
+									// todo we could probably disable all at once later to have only one call 
+									Solver->GetEvolution()->DisableParticle(ParticleHandle);
+									Solver->GetParticles().MarkTransientDirtyParticle(ParticleHandle);
+								}
 							}
 						}
 					}
@@ -2839,9 +2838,11 @@ namespace
 		if (bReplicateMovement)
 		{
 			FPBDRigidsSolver* Solver = PhysicsProxy->GetSolver<Chaos::FPBDRigidsSolver>();
+			const TArray<FPBDRigidClusteredParticleHandle*>& ParticleHandles = PhysicsProxy->GetParticles();
+
 			for (const FGeometryCollectionRepDynamicData::FClusterData& RepCluster : RepDynamicData.ClusterData)
 			{
-				if (Chaos::FPBDRigidParticleHandle* Cluster = PhysicsProxy->GetParticle_Internal(RepCluster.TransformIndex))
+				if (Chaos::FPBDRigidParticleHandle* Cluster = ParticleHandles[RepCluster.TransformIndex])
 				{
 					if (RepCluster.bIsInternalCluster)
 					{
@@ -2900,7 +2901,7 @@ bool UGeometryCollectionComponent::ProcessRepData(const float DeltaTime, const f
 		{
 			for (const FGeometryCollectionClusterRep& RepCluster : RepData.Clusters)
 			{
-				if (Chaos::FPBDRigidParticleHandle* Cluster = PhysicsProxy->GetParticle_Internal(RepCluster.ClusterIdx))
+				if (Chaos::FPBDRigidParticleHandle* Cluster = PhysicsProxy->GetParticles()[RepCluster.ClusterIdx])
 				{
 					if (RepCluster.ClusterState.IsInternalCluster())
 					{
@@ -3924,13 +3925,15 @@ void UGeometryCollectionComponent::RegisterAndInitializePhysicsProxy()
 						// As we're not in control we make it so our simulated proxy cannot break clusters
 						// We have to set the strain to a high value but be below the max for the data type
 						// so releasing on authority demand works
-						for (Chaos::FPBDRigidClusteredParticleHandle* ParticleHandle : Proxy->GetUnorderedParticles_Internal())
+						for (Chaos::FPBDRigidClusteredParticleHandle* ParticleHandle : Proxy->GetParticles())
 						{
-							check(ParticleHandle);
-							const int32 Level = EnableAbandonAfterLevel ? ComputeParticleLevel(ParticleHandle) : -1;
-							if (Level <= AbandonAfterLevel)	//we only replicate up until level X, but it means we should replicate the breaking event of level X+1 (but not X+1's positions)
+							if (ParticleHandle)
 							{
-								ParticleHandle->SetUnbreakable(true);
+								const int32 Level = EnableAbandonAfterLevel ? ComputeParticleLevel(ParticleHandle) : -1;
+								if (Level <= AbandonAfterLevel)	//we only replicate up until level X, but it means we should replicate the breaking event of level X+1 (but not X+1's positions)
+								{
+									ParticleHandle->SetUnbreakable(true);
+								}
 							}
 						}
 					});
@@ -3980,7 +3983,7 @@ void UGeometryCollectionComponent::UpdateBrokenAndDecayedStates()
 							continue;
 						}
 
-						const Chaos::FPBDRigidParticle* Particle = PhysicsProxy->GetParticleByIndex_External(TransformIdx);
+						const Chaos::FPBDRigidParticle* Particle = PhysicsProxy->GetExternalParticles()[TransformIdx].Get();
 						if (!Particle)
 						{
 							// when no particle we mark it as a decayed one
@@ -4218,7 +4221,7 @@ void UGeometryCollectionComponent::MoveComponentToRootTransform()
 			{
 				const FTransform3f& OriginalComponentSpaceRootTransformOffset = AssetCollection->Transform[RootIndex];
 				DynamicCollection->SetTransform(RootIndex, OriginalComponentSpaceRootTransformOffset);
-				const Chaos::FPBDRigidParticle* RootParticle = PhysicsProxy->GetParticleByIndex_External(RootIndex);
+				const Chaos::FPBDRigidParticle* RootParticle = PhysicsProxy->GetExternalParticles()[RootIndex].Get();
 				const FTransform ParticleWorldPosition(RootParticle->R(), RootParticle->X());
 				const FTransform MassToLocal = MassToLocalAttribute[RootIndex];
 				const FTransform NewRootWorldPosition = MassToLocal.Inverse() * ParticleWorldPosition;
@@ -6990,9 +6993,9 @@ TArray<Chaos::FPhysicsObject*> UGeometryCollectionComponent::GetAllPhysicsObject
 		return {};
 	}
 	TArray<Chaos::FPhysicsObject*> Objects;
-	Objects.Reserve(PhysicsProxy->GetNumTransforms());
+	Objects.Reserve(PhysicsProxy->GetNumParticles());
 	
-	for (int32 Index = 0; Index < PhysicsProxy->GetNumTransforms(); ++Index)
+	for (int32 Index = 0; Index < PhysicsProxy->GetNumParticles(); ++Index)
 	{
 		Objects.Add(GetPhysicsObjectById(Index));
 	}
