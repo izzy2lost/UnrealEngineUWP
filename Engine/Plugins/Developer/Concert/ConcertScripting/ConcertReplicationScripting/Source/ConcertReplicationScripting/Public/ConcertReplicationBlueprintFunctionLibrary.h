@@ -3,6 +3,7 @@
 #pragma once
 
 #include "Kismet/BlueprintFunctionLibrary.h"
+#include "Templates/SubclassOf.h"
 #include "ConcertReplicationBlueprintFunctionLibrary.generated.h"
 
 struct FConcertPropertyChainWrapper;

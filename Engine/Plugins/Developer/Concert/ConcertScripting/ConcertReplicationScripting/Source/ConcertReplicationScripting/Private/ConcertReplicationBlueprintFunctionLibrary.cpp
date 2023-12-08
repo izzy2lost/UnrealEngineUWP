@@ -6,8 +6,6 @@
 #include "ConcertPropertyChainWrapper.h"
 #include "Replication/PropertyChainUtils.h"
 
-#include "Templates/SubclassOf.h"
-
 bool UConcertReplicationBlueprintFunctionLibrary::MakePropertyChainByLiteralPath(const TSubclassOf<UObject>& Class, const TArray<FName>& PathToProperty, FConcertPropertyChainWrapper& Result)
 {
 	if (!Class)
