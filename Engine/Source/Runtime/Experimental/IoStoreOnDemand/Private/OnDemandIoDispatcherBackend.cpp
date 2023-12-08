@@ -1199,6 +1199,8 @@ struct FBackendStatus
 		HttpError					= (1 << 2),
 		HttpBulkOptionalDisabled	= (1 << 3),
 		AbandonCache				= (1 << 4),
+
+		// When adding new values here, remember to update operator<<(FStringBuilderBase& Sb, EFlags StatusFlags) below!
 	};
 
 	bool IsHttpEnabled() const
@@ -1340,6 +1342,7 @@ private:
 		AppendIf(EFlags::HttpEnabled, TEXT("HttpEnabled"));
 		AppendIf(EFlags::HttpError, TEXT("HttpError"));
 		AppendIf(EFlags::HttpBulkOptionalDisabled, TEXT("HttpBulkOptionalDisabled"));
+		AppendIf(EFlags::AbandonCache, TEXT("AbandonCache"));
 
 		return Sb;
 	}
