@@ -160,7 +160,7 @@ public:
 	bool bPreviewUsingActorCopy = true;
 
 	/** Whether to place spline points on the surface of objects in the world */
-	UPROPERTY(EditAnywhere, Category = RaycastTargets, meta = (DisplayName = "World"))
+	UPROPERTY(EditAnywhere, Category = RaycastTargets, meta = (DisplayName = "World Objects"))
 	bool bHitWorld = true;
 
 	/** Whether to place spline points on a custom, user-adjustable plane */
