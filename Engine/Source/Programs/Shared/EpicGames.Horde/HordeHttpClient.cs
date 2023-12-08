@@ -17,6 +17,7 @@ using EpicGames.Horde.Dashboard;
 using EpicGames.Horde.Projects;
 using EpicGames.Horde.Secrets;
 using EpicGames.Horde.Server;
+using EpicGames.Horde.Storage;
 using EpicGames.Horde.Storage.Clients;
 using EpicGames.Horde.Tools;
 using Microsoft.Extensions.DependencyInjection;
@@ -294,9 +295,32 @@ namespace EpicGames.Horde
 		/// <summary>
 		/// Gets a zip stream for a particular deployment
 		/// </summary>
-		public async Task<Stream> GetToolDeploymentZipAsync(ToolId id, ToolDeploymentId deploymentId, CancellationToken cancellationToken = default)
+		public async Task<Stream> GetToolDeploymentZipAsync(ToolId id, ToolDeploymentId? deploymentId, CancellationToken cancellationToken = default)
 		{
-			return await _httpClient.GetStreamAsync($"api/v1/tools/{id}/deployments/{deploymentId}?action=download", cancellationToken);
+			if (deploymentId == null)
+			{
+				return await _httpClient.GetStreamAsync($"api/v1/tools/{id}?action=zip", cancellationToken);
+			}
+			else
+			{
+				return await _httpClient.GetStreamAsync($"api/v1/tools/{id}/deployments/{deploymentId}?action=zip", cancellationToken);
+			}
+		}
+
+		/// <summary>
+		/// Creates a new tool deployment
+		/// </summary>
+		/// <param name="id">Id for the tool</param>
+		/// <param name="version">Version string for the new deployment</param>
+		/// <param name="duration">Duration over which to deploy the tool</param>
+		/// <param name="createPaused">Whether to create the deployment, but do not start rolling it out yet</param>
+		/// <param name="node">Location of a directory node describing the deployment</param>
+		/// <param name="cancellationToken">Cancellation token for the operation</param>
+		public async Task<ToolDeploymentId> CreateToolDeploymentAsync(ToolId id, string? version, double? duration, bool? createPaused, BlobLocator node, CancellationToken cancellationToken = default)
+		{
+			CreateToolDeploymentRequest request = new CreateToolDeploymentRequest(version ?? String.Empty, duration, createPaused, node);
+			CreateToolDeploymentResponse response = await PostAsync<CreateToolDeploymentResponse, CreateToolDeploymentRequest>(_httpClient, $"api/v2/tools/{id}/deployments", request, cancellationToken);
+			return response.Id;
 		}
 
 		#endregion

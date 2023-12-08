@@ -55,13 +55,13 @@ namespace EpicGames.Horde.Tools
 	/// <param name="Duration">Number of minutes over which to do the deployment</param>
 	/// <param name="CreatePaused">Whether to create the deployment in a paused state</param>
 	/// <param name="Node">Handle to the root node</param>
-	public record CreateDeploymentRequest(string Version, double? Duration, bool? CreatePaused, BlobLocator Node);
+	public record CreateToolDeploymentRequest(string Version, double? Duration, bool? CreatePaused, BlobLocator Node);
 
 	/// <summary>
 	/// Response from creating a deployment
 	/// </summary>
 	/// <param name="Id">Identifier for the created deployment</param>
-	public record CreateDeploymentResponse(ToolDeploymentId Id);
+	public record CreateToolDeploymentResponse(ToolDeploymentId Id);
 
 	/// <summary>
 	/// Current state of a tool's deployment

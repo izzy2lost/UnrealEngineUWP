@@ -73,7 +73,7 @@ namespace Horde.Server.Tools
 		/// <returns>Information about the registered agent</returns>
 		[HttpPost]
 		[Route("/api/v1/tools/{id}/deployments")]
-		public async Task<ActionResult<CreateDeploymentResponse>> CreateDeploymentAsync(ToolId id, [FromForm] ToolDeploymentConfig options, [FromForm] IFormFile file, CancellationToken cancellationToken)
+		public async Task<ActionResult<CreateToolDeploymentResponse>> CreateDeploymentAsync(ToolId id, [FromForm] ToolDeploymentConfig options, [FromForm] IFormFile file, CancellationToken cancellationToken)
 		{
 			ITool? tool = await _toolCollection.GetAsync(id, _globalConfig.Value);
 
@@ -95,7 +95,7 @@ namespace Horde.Server.Tools
 				}
 			}
 
-			return new CreateDeploymentResponse(tool.Deployments[^1].Id);
+			return new CreateToolDeploymentResponse(tool.Deployments[^1].Id);
 		}
 
 		/// <summary>
@@ -103,7 +103,7 @@ namespace Horde.Server.Tools
 		/// </summary>
 		[HttpPost]
 		[Route("/api/v2/tools/{id}/deployments")]
-		public async Task<ActionResult<CreateDeploymentResponse>> CreateDeploymentAsync(ToolId id, CreateDeploymentRequest request, CancellationToken cancellationToken)
+		public async Task<ActionResult<CreateToolDeploymentResponse>> CreateDeploymentAsync(ToolId id, CreateToolDeploymentRequest request, CancellationToken cancellationToken)
 		{
 			ITool? tool = await _toolCollection.GetAsync(id, _globalConfig.Value);
 
@@ -124,7 +124,7 @@ namespace Horde.Server.Tools
 				return NotFound(id);
 			}
 
-			return new CreateDeploymentResponse(tool.Deployments[^1].Id);
+			return new CreateToolDeploymentResponse(tool.Deployments[^1].Id);
 		}
 
 		/// <summary>
