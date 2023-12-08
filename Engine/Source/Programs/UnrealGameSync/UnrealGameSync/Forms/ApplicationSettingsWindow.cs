@@ -53,13 +53,13 @@ namespace UnrealGameSync
 			public Guid Id => Definition.Id;
 
 			public int Index { get; }
-			public ToolDefinition Definition { get; }
+			public ToolInfo Definition { get; }
 			public List<ToolItem> RequiresTools { get; } = new List<ToolItem>();
 
 			public bool Enabled { get; set; }
 			public int DependencyRefCount { get; set; }
 
-			public ToolItem(int index, ToolDefinition definition, bool enabled)
+			public ToolItem(int index, ToolInfo definition, bool enabled)
 			{
 				Index = index;
 				Definition = definition;
@@ -150,7 +150,7 @@ namespace UnrealGameSync
 
 			List<ToolItem> toolItems = new List<ToolItem>();
 			Dictionary<Guid, ToolItem> idToToolItem = new Dictionary<Guid, ToolItem>();
-			foreach (ToolDefinition tool in toolUpdateMonitor.Tools.OrderBy(x => x.ToString()))
+			foreach (ToolInfo tool in toolUpdateMonitor.GetTools().OrderBy(x => x.Name))
 			{
 				ToolItem toolItem = new ToolItem(toolItems.Count, tool, settings.EnabledTools.Contains(tool.Id));
 				idToToolItem[tool.Id] = toolItem;
@@ -228,7 +228,7 @@ namespace UnrealGameSync
 			LauncherSettings launcherSettings = new LauncherSettings(originalLauncherSettings);
 
 			launcherSettings.HordeServer = HordeServerTextBox.Text.Trim();
-			if (launcherSettings.HordeServer.Length == 0 || String.Equals(launcherSettings.HordeServer, DeploymentSettings.Instance.HordeUrl, StringComparison.OrdinalIgnoreCase))
+			if (launcherSettings.HordeServer.Length == 0)
 			{
 				launcherSettings.HordeServer = null;
 			}

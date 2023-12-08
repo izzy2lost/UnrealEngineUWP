@@ -56,6 +56,25 @@ namespace EpicGames.Core
 		/// </summary>
 		/// <param name="file">File to read from</param>
 		/// <returns>The data that was read</returns>
+		public static byte[]? ReadAllBytes(FileReference file)
+		{
+			using (Stream? stream = OpenRead(file))
+			{
+				if (stream != null)
+				{
+					byte[] data = new byte[stream.Length];
+					stream.ReadFixedLengthBytes(data);
+					return data;
+				}
+			}
+			return null;
+		}
+
+		/// <summary>
+		/// Reads all data from a file into a byte array
+		/// </summary>
+		/// <param name="file">File to read from</param>
+		/// <returns>The data that was read</returns>
 		public static async Task<byte[]?> ReadAllBytesAsync(FileReference file)
 		{
 			using (Stream? stream = OpenRead(file))

@@ -3325,7 +3325,7 @@ namespace UnrealGameSync
 			SafeProcessStart("p4v.exe", commandLine.ToString());
 		}
 
-		void RunTool(ToolDefinition tool, ToolLink link)
+		void RunTool(ToolInfo tool, ToolLink link)
 		{
 			DirectoryReference? toolDir = _owner.ToolUpdateMonitor.GetToolPath(tool.Name);
 			if (toolDir != null)
@@ -3443,10 +3443,10 @@ namespace UnrealGameSync
 					programsLine.AddText("  |  ");
 				}
 
-				List<ToolDefinition> tools = _owner.ToolUpdateMonitor.Tools;
-				foreach (ToolDefinition tool in tools)
+				IReadOnlyList<ToolInfo> tools = _owner.ToolUpdateMonitor.GetEnabledTools();
+				foreach (ToolInfo tool in tools)
 				{
-					if (tool.Enabled && tool.SafeWhenBusy)
+					if (tool.SafeWhenBusy)
 					{
 						foreach (ToolLink link in tool.StatusPanelLinks)
 						{
@@ -3635,16 +3635,13 @@ namespace UnrealGameSync
 					programsLine.AddText("  |  ");
 				}
 
-				List<ToolDefinition> tools = _owner.ToolUpdateMonitor.Tools;
-				foreach (ToolDefinition tool in tools)
+				IReadOnlyList<ToolInfo> tools = _owner.ToolUpdateMonitor.GetEnabledTools();
+				foreach (ToolInfo tool in tools)
 				{
-					if (tool.Enabled)
+					foreach (ToolLink link in tool.StatusPanelLinks)
 					{
-						foreach (ToolLink link in tool.StatusPanelLinks)
-						{
-							programsLine.AddLink(link.Label, FontStyle.Regular, () => RunTool(tool, link));
-							programsLine.AddText("  |  ");
-						}
+						programsLine.AddLink(link.Label, FontStyle.Regular, () => RunTool(tool, link));
+						programsLine.AddText("  |  ");
 					}
 				}
 

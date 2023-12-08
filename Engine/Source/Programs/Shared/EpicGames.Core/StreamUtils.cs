@@ -39,6 +39,24 @@ namespace EpicGames.Core
 		/// </summary>
 		/// <param name="stream">Stream to read from</param>
 		/// <param name="buffer">Buffer to receive the output data</param>
+		public static void ReadFixedLengthBytes(this Stream stream, Span<byte> buffer)
+		{
+			for (int offset = 0; offset < buffer.Length;)
+			{
+				int readLength = stream.Read(buffer.Slice(offset));
+				if (readLength == 0)
+				{
+					throw new EndOfStreamException($"Unexpected end of stream while trying to read {buffer.Length} bytes.");
+				}
+				offset += readLength;
+			}
+		}
+
+		/// <summary>
+		/// Reads a fixed amount of data from a stream, throwing an exception if the entire buffer cannot be read.
+		/// </summary>
+		/// <param name="stream">Stream to read from</param>
+		/// <param name="buffer">Buffer to receive the output data</param>
 		/// <param name="cancellationToken">Cancellation token for the operation</param>
 		public static async Task ReadFixedLengthBytesAsync(this Stream stream, Memory<byte> buffer, CancellationToken cancellationToken = default)
 		{
