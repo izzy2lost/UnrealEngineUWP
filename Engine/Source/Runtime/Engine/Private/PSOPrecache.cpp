@@ -6,6 +6,7 @@
 
 #include "PSOPrecache.h"
 #include "Misc/App.h"
+#include "HAL/IConsoleManager.h"
 
 static TAutoConsoleVariable<int32> CVarPrecacheGlobalComputeShaders(
 	TEXT("r.PSOPrecache.GlobalComputeShaders"),

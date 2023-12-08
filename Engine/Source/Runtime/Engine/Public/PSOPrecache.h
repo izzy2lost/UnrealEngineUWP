@@ -6,9 +6,8 @@
 
 #pragma once
 
-#include "PSOPrecache.h"
-
 #include "RHIDefinitions.h"
+#include "RHIFeatureLevel.h"
 #include "RHIResources.h"
 #include "Engine/EngineTypes.h"
 #include "PipelineStateCache.h"
