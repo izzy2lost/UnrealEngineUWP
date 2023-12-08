@@ -570,6 +570,8 @@ RENDERCORE_API int32 GetLightFunctionAtlasFormat();
 // Light function atlas project settings triggering shader compilation
 RENDERCORE_API bool GetSingleLayerWaterUsesLightFunctionAtlas();
 RENDERCORE_API bool GetTranslucentUsesLightFunctionAtlas();
+RENDERCORE_API bool GetTranslucentUsesLightRectLights();
+RENDERCORE_API bool GetTranslucentUsesLightIESProfiles();
 
 // LuminanceMax is the amount of light that will cause the sensor to saturate at EV100.
 //  See also https://en.wikipedia.org/wiki/Film_speed and https://en.wikipedia.org/wiki/Exposure_value for more info.

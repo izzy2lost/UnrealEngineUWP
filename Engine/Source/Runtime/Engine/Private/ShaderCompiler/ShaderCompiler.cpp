@@ -8218,9 +8218,13 @@ void GlobalBeginCompileShader(
 	}
 
 	{
-		static IConsoleVariable* CVar = IConsoleManager::Get().FindConsoleVariable(TEXT("r.RectLightAtlas.Translucent"));
-		const bool bSupportRectLlightOnTranslucentSurface = CVar && CVar->GetInt() > 0;
-		SET_SHADER_DEFINE(Input.Environment, SUPPORT_RECTLIGHT_ON_FORWARD_LIT_TRANSLUCENT, bSupportRectLlightOnTranslucentSurface ? 1 : 0);
+		const bool bTranslucentUsesLightRectLights = GetTranslucentUsesLightRectLights();
+		SET_SHADER_DEFINE(Input.Environment, SUPPORT_RECTLIGHT_ON_FORWARD_LIT_TRANSLUCENT, bTranslucentUsesLightRectLights ? 1 : 0);
+	}
+
+	{
+		const bool bTranslucentUsesLightIESProfiles = GetTranslucentUsesLightIESProfiles();
+		SET_SHADER_DEFINE(Input.Environment, SUPPORT_IESPROFILE_ON_FORWARD_LIT_TRANSLUCENT, bTranslucentUsesLightIESProfiles ? 1 : 0);
 	}
 
 	{

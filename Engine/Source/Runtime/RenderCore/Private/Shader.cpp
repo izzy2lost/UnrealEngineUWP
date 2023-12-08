@@ -1992,10 +1992,18 @@ void ShaderMapAppendKeyString(EShaderPlatform Platform, FString& KeyString)
 	}
 
 	{
-		static const auto CVar = IConsoleManager::Get().FindTConsoleVariableDataInt(TEXT("r.RectLightAtlas.Translucent"));
-		if (CVar && CVar->GetValueOnAnyThread() > 0)
+		const bool bTranslucentUsesLightRectLights = GetTranslucentUsesLightRectLights();
+		if (bTranslucentUsesLightRectLights)
 		{
 			KeyString += TEXT("_RECTTRANS");
+		}
+	}
+
+	{
+		const bool bTranslucentUsesLightIESProfiles = GetTranslucentUsesLightIESProfiles();
+		if (bTranslucentUsesLightIESProfiles)
+		{
+			KeyString += TEXT("_IESTRANS");
 		}
 	}
 

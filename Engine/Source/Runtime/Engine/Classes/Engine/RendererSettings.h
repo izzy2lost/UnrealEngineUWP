@@ -928,10 +928,19 @@ class URendererSettings : public UDeveloperSettings
 		uint32 bTranslucentUsesLightFunctionAtlas : 1;
 
 	/**
+		"Enable IES profile evaluation on translucent materials when using the Forward Shading mode."
+		*/
+	UPROPERTY(config, EditAnywhere, Category = Optimizations, meta = (
+		ConsoleVariable = "r.Translucent.UsesIESProfiles", DisplayName = "Support IES profiles On Translucent Materials (When Using ForwardShading)",
+		ToolTip = "Enable IES profile evaluation on translucent materials when using the Forward Shading mode.",
+		ConfigRestartRequired = true))
+	uint32 bSupportIESProfileOnTranslucent : 1;
+
+	/**
 	"Enable rect light evaluation on translucent materials when using the Forward Shading mode."
 	*/
 	UPROPERTY(config, EditAnywhere, Category = Optimizations, meta = (
-		ConsoleVariable = "r.RectLightAtlas.Translucent", DisplayName = "Support Rect Light On Translucent Materials (When Using ForwardShading)",
+		ConsoleVariable = "r.Translucent.UsesRectLights", DisplayName = "Support Rect Light On Translucent Materials (When Using ForwardShading)",
 		ToolTip = "Enable rect light evaluation on translucent materials when using the Forward Shading mode.",
 		ConfigRestartRequired = true))
 		uint32 bSupportRectLightOnTranslucent : 1;

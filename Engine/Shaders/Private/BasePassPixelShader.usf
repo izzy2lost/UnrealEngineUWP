@@ -57,6 +57,11 @@
 #define USE_DBUFFER 0
 #endif
 
+// Enable IES profile evaluation based on project settings
+#if SUPPORT_IESPROFILE_ON_FORWARD_LIT_TRANSLUCENT
+#define USE_IES_PROFILE 1
+#endif
+
 #ifndef COMPUTE_SHADED
 #define COMPUTE_SHADED 0
 #endif

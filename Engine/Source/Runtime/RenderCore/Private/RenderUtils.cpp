@@ -1655,6 +1655,18 @@ static TAutoConsoleVariable<int32> CVarTranslucentUsesLightFunctionAtlas(
 	TEXT("Enable sampling of the light function atlas on translucent materials using forward shading."),
 	ECVF_ReadOnly | ECVF_RenderThreadSafe);
 
+static TAutoConsoleVariable<int32> CVarRectLighTranslucent(
+	TEXT("r.Translucent.UsesRectLights"),
+	0,
+	TEXT("Enable rect light support for translucent surfaces. When enabled, it will add an extrat sampler to the pixel shader (limited to 16 on dx11 based system)"),
+	ECVF_ReadOnly | ECVF_RenderThreadSafe);
+
+static TAutoConsoleVariable<int32> CVarIESProfileTranslucent(
+	TEXT("r.Translucent.UsesIESProfiles"),
+	0,
+	TEXT("Enable IES profiles support for translucent surfaces. When enabled, it will add an extrat sampler to the pixel shader (limited to 16 on dx11 based system)"),
+	ECVF_ReadOnly | ECVF_RenderThreadSafe);
+
 int32 GetLightFunctionAtlasFormat()
 {
 	return CVarLightFunctionAtlasFormat.GetValueOnAnyThread();
@@ -1668,6 +1680,16 @@ bool GetSingleLayerWaterUsesLightFunctionAtlas()
 bool GetTranslucentUsesLightFunctionAtlas()
 {
 	return CVarTranslucentUsesLightFunctionAtlas.GetValueOnAnyThread() > 0;
+}
+
+bool GetTranslucentUsesLightRectLights()
+{
+	return CVarRectLighTranslucent.GetValueOnAnyThread() > 0;
+}
+
+bool GetTranslucentUsesLightIESProfiles()
+{
+	return CVarIESProfileTranslucent.GetValueOnAnyThread() > 0;
 }
 
 ///////////////////////////////////////////////////////////////////////////////////////////////////

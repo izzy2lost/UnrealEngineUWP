@@ -284,6 +284,9 @@ FDeferredLightingSplit GetForwardDirectLightingSplit(
 			LightData.HairTransmittance = EvaluateDualScattering(GBufferData, -CameraVector, LightData.Direction);
 		}
 		#endif
+		#if USE_IES_PROFILE
+		LightData.Color *= ComputeLightProfileMultiplier(TranslatedWorldPosition, LightData.TranslatedWorldPosition, -LightData.Direction, LightData.Tangent, LightData.IESAtlasIndex);
+		#endif
 
 		float DynamicShadowing = dot(PreviewShadowMapChannelMask, DynamicShadowFactors);
 		float4 LightAttenuation = float4(1, 1, DynamicShadowing.x, DynamicShadowing.x);
