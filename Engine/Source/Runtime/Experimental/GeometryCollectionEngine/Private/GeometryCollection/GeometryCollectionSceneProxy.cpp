@@ -993,11 +993,7 @@ FNaniteGeometryCollectionSceneProxy::FNaniteGeometryCollectionSceneProxy(UGeomet
 	// Nanite requires GPUScene
 	checkSlow(UseGPUScene(GMaxRHIShaderPlatform, GetScene().GetFeatureLevel()));
 	checkSlow(DoesPlatformSupportNanite(GMaxRHIShaderPlatform));
-
-	// Should have valid Nanite data at this point.
-	check(GeometryCollection->HasNaniteData());
-	NaniteResourceID = GeometryCollection->GetNaniteResourceID();
-	NaniteHierarchyOffset = GeometryCollection->GetNaniteHierarchyOffset();
+	checkSlow(GeometryCollection->HasNaniteData());
 
 	MaterialRelevance = Component->GetMaterialRelevance(Component->GetScene()->GetFeatureLevel());
 
@@ -1142,6 +1138,14 @@ FNaniteGeometryCollectionSceneProxy::FNaniteGeometryCollectionSceneProxy(UGeomet
 	DynamicData->Transforms = RestTransforms;
 	DynamicData->PrevTransforms = RestTransforms;
 	SetDynamicData_RenderThread(DynamicData, Component->GetRenderMatrix());
+}
+
+void FNaniteGeometryCollectionSceneProxy::CreateRenderThreadResources(FRHICommandListBase& RHICmdList)
+{
+	// Should have valid Nanite data at this point.
+	NaniteResourceID = GeometryCollection->GetNaniteResourceID();
+	NaniteHierarchyOffset = GeometryCollection->GetNaniteHierarchyOffset();
+	check(NaniteResourceID != INDEX_NONE && NaniteHierarchyOffset != INDEX_NONE);
 }
 
 SIZE_T FNaniteGeometryCollectionSceneProxy::GetTypeHash() const
