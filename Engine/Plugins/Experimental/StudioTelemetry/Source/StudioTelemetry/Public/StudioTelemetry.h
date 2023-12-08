@@ -2,7 +2,7 @@
 
 #pragma once
 
-#include "IAnalyticsProviderET.h"
+#include "Interfaces/IAnalyticsProvider.h"
 #include "AnalyticsFlowTracker.h"
 #include "Containers/Array.h"
 #include "Containers/UnrealString.h"
@@ -19,7 +19,7 @@ class FStudioTelemetry : public IModuleInterface
 {
 public:
 
-	using OnEventRecorded = IAnalyticsProviderET::OnEventRecorded;
+	typedef TFunction<void(const FString& EventName, const TArray<FAnalyticsEventAttribute>& Attrs)> OnRecordEvent;
 
 	/** Check whether the module is available*/
 	static STUDIOTELEMETRY_API bool IsAvaliable() { return FModuleManager::Get().IsModuleLoaded("StudioTelemetry"); }
@@ -43,7 +43,7 @@ public:
 	STUDIOTELEMETRY_API void RecordEvent(const FString& ProviderName, const FString& EventName, const TArray<FAnalyticsEventAttribute>& Attributes = {});
 	
 	/** Method for custom recording of telemetry events*/
-	STUDIOTELEMETRY_API void SetOnEventRecordedCallback(OnEventRecorded);
+	STUDIOTELEMETRY_API void SetRecordEventCallback(OnRecordEvent);
 
 private:
 
@@ -60,5 +60,5 @@ private:
 	FCriticalSection						CriticalSection;
 	TSharedPtr<FAnalyticsProviderMulticast>	AnalyticsProvider;
 	TSharedPtr<FAnalyticsFlowTracker>		AnalyticsFlowTracker;
-	OnEventRecorded							OnEventRecordedCallback;
+	OnRecordEvent							RecordEventCallback;
 };

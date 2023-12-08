@@ -34,14 +34,14 @@ FStudioTelemetry& FStudioTelemetry::Get()
 	return StudioTelemetryInstance;
 }
 
-void FStudioTelemetry::SetOnEventRecordedCallback(OnEventRecorded InOnEventRecordedCallback )
+void FStudioTelemetry::SetRecordEventCallback(OnRecordEvent Callback )
 {
-	OnEventRecordedCallback = InOnEventRecordedCallback;
+	RecordEventCallback = Callback;
 
 	// If the provider already exists then set the callback
 	if (AnalyticsProvider.IsValid())
 	{	
-		AnalyticsProvider->SetEventCallback(InOnEventRecordedCallback);	
+		AnalyticsProvider->SetRecordEventCallback(RecordEventCallback);
 	}
 }
 
@@ -103,18 +103,28 @@ void FStudioTelemetry::StartSession()
 		FString ProjectIDString;
 		GConfig->GetString(TEXT("/Script/EngineSettings.GeneralProjectSettings"), TEXT("ProjectID"), ProjectIDString, GGameIni);
 
-		FGuid ProjectID(ProjectIDString);
+		FGuid ProjectID;
 
+		TArray<FString> Elements;
+		if (ProjectIDString.ParseIntoArray(Elements, TEXT("=")) == 5) 
+		{
+			ProjectID = FGuid(FCString::Atoi(*(Elements[1])), FCString::Atoi(*(Elements[2])), FCString::Atoi(*(Elements[3])), FCString::Atoi(*(Elements[4])));
+		}
+
+		FGuid SessionGUID;
+		FPlatformMisc::CreateGuid(SessionGUID);
+		
 		FString SessionLabel;
 		FParse::Value(FCommandLine::Get(), TEXT("SessionLabel="), SessionLabel);
 
 		// Set the default event attributes
-		DefaultEventAttributes.Emplace(TEXT("ProjectName"), ProjectName);
-		DefaultEventAttributes.Emplace(TEXT("ProjectID"), ProjectID);
 		DefaultEventAttributes.Emplace(TEXT("User_ID"), UserID);
 		DefaultEventAttributes.Emplace(TEXT("Application_Commandline"), FCommandLine::Get());
-		DefaultEventAttributes.Emplace(TEXT("ComputerName"), ComputerName.ToLower());
 
+		DefaultEventAttributes.Emplace(TEXT("ProjectName"), ProjectName);
+		DefaultEventAttributes.Emplace(TEXT("ProjectID"), ProjectID);
+
+		DefaultEventAttributes.Emplace(TEXT("Session_ID"), SessionGUID.ToString(EGuidFormats::DigitsWithHyphensInBraces));
 		DefaultEventAttributes.Emplace(TEXT("Session_Label"), SessionLabel);
 		DefaultEventAttributes.Emplace(TEXT("Session_StartUTC"), FDateTime::UtcNow().ToUnixTimestampDecimal());
 
@@ -125,6 +135,8 @@ void FStudioTelemetry::StartSession()
 		DefaultEventAttributes.Emplace(TEXT("Build_BranchName"), FApp::GetBranchName().ToLower());
 		DefaultEventAttributes.Emplace(TEXT("Build_Changelist"), BuildSettings::GetCurrentChangelist());
 
+		DefaultEventAttributes.Emplace(TEXT("Hardware_ComputerName"), ComputerName.ToLower());
+		DefaultEventAttributes.Emplace(TEXT("Hardware_Platform"), FString(FPlatformProperties::IniPlatformName()));
 		DefaultEventAttributes.Emplace(TEXT("Hardware_GPU"), GRHIAdapterName);
 		DefaultEventAttributes.Emplace(TEXT("Hardware_CPU"), FPlatformMisc::GetCPUBrand());
 		DefaultEventAttributes.Emplace(TEXT("Hardware_CPU_Cores_Physical"), FPlatformMisc::NumberOfCores());
@@ -150,11 +162,12 @@ void FStudioTelemetry::StartSession()
 			DefaultEventAttributes.Emplace(TEXT("Horde_BatchID"), FHorde::GetBatchId());
 		}
 #endif
-
+		
 		// Set up the analytics provider
 		AnalyticsProvider->SetUserID(UserID);
+		AnalyticsProvider->SetSessionID(SessionGUID.ToString(EGuidFormats::DigitsWithHyphensInBraces));
 		AnalyticsProvider->SetDefaultEventAttributes(MoveTemp(DefaultEventAttributes));
-		AnalyticsProvider->SetEventCallback(OnEventRecordedCallback);
+		AnalyticsProvider->SetRecordEventCallback(RecordEventCallback);
 		
 		// Start the analytics session
 		AnalyticsProvider->StartSession();
@@ -173,7 +186,7 @@ void FStudioTelemetry::RecordEvent(const FString& EventName, const TArray<FAnaly
 	if (AnalyticsProvider.IsValid())
 	{
 		FScopeLock ScopeLock(&CriticalSection);
-		AnalyticsProvider->RecordEvent(CopyTemp(EventName), Attributes);
+		AnalyticsProvider->RecordEvent(EventName, Attributes);
 	}
 }
 

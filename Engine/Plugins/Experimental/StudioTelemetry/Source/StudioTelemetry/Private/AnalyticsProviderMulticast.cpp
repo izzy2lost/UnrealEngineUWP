@@ -3,7 +3,7 @@
 #include "AnalyticsProviderMulticast.h"
 #include "StudioTelemetryLog.h"
 #include "Analytics.h"
-#include "AnalyticsProviderMulticast.h"
+#include "Interfaces/IAnalyticsProviderModule.h"
 #include "AnalyticsProviderConfigurationDelegate.h"
 #include "Misc/ConfigCacheIni.h"
 #include "HttpModule.h"
@@ -23,10 +23,10 @@ TSharedPtr<FAnalyticsProviderMulticast> FAnalyticsProviderMulticast::CreateAnaly
 	return MakeShared<FAnalyticsProviderMulticast>();
 }
 
-TWeakPtr<IAnalyticsProviderET> FAnalyticsProviderMulticast::GetAnalyticsProvider(const FString& Name)
+TWeakPtr<IAnalyticsProvider> FAnalyticsProviderMulticast::GetAnalyticsProvider(const FString& Name)
 {
-	TSharedPtr<IAnalyticsProviderET>* ProviderPtr = Providers.Find(Name);
-	return ProviderPtr != nullptr ? *ProviderPtr : TSharedPtr<IAnalyticsProviderET>();
+	TSharedPtr<IAnalyticsProvider>* ProviderPtr = Providers.Find(Name);
+	return ProviderPtr != nullptr ? *ProviderPtr : TSharedPtr<IAnalyticsProvider>();
 }
 
 FAnalyticsProviderMulticast::FAnalyticsProviderMulticast()
@@ -73,11 +73,11 @@ FAnalyticsProviderMulticast::FAnalyticsProviderMulticast()
 					continue;
 				}
 
-				FString ProviderType;
+				FString ProviderModuleName;
 
-				if (GConfig->GetString(*ProviderSection, TEXT("ProviderType"), ProviderType, GEngineIni))
+				if (GConfig->GetString(*ProviderSection, TEXT("ProviderModule"), ProviderModuleName, GEngineIni))
 				{
-					TSharedPtr<IAnalyticsProviderET> Provider;
+					TSharedPtr<IAnalyticsProvider> AnalyticsProvider;
 
 					FString Name = GetAnalyticsProviderConfiguration("Name", true);
 
@@ -91,45 +91,26 @@ FAnalyticsProviderMulticast::FAnalyticsProviderMulticast()
 						UE_LOG(LogStudioTelemetry, Warning, TEXT("An analytics provider with name %s already exists."), *Name);
 						continue;
 					}
-					
-					if (ProviderType.Equals(TEXT("FAnalyticsProviderET"), ESearchCase::IgnoreCase))
-					{
-						Provider = FAnalyticsET::Get().CreateAnalyticsProviderET(FAnalyticsProviderConfigurationDelegate::CreateStatic(&GetAnalyticsProviderConfiguration));
-					}
-					
-					if (Provider.IsValid())
-					{
-						UE_LOG(LogStudioTelemetry, Display, TEXT("Created a %s analytics provider %s from configuration %s [%s]"), *ProviderType, *Name, *GEngineIni, *ProviderSection);
 
-						Providers.Add(Name, Provider);
+					// Try to create the analytics provider
+					AnalyticsProvider = FAnalytics::Get().CreateAnalyticsProvider(FName(ProviderModuleName), FAnalyticsProviderConfigurationDelegate::CreateStatic(&GetAnalyticsProviderConfiguration));
+	
+					if (AnalyticsProvider.IsValid())
+					{
+						UE_LOG(LogStudioTelemetry, Display, TEXT("Created an analytics provider %s from module %s configuration %s [%s]"), *Name, *ProviderModuleName, *GEngineIni, *ProviderSection);
+						Providers.Add(Name, AnalyticsProvider);
+					}
+					else
+					{
+						UE_LOG(LogStudioTelemetry, Warning, TEXT("Unable to create an analytics provider %s from module %s configuration %s [%s]"), *Name, *ProviderModuleName, *GEngineIni, *ProviderSection);
 					}
 				}
 				else
 				{
-					UE_LOG(LogStudioTelemetry, Error, TEXT("There must be a valid ProviderType specified for analytics provider %s"), *ProviderSection);
+					UE_LOG(LogStudioTelemetry, Error, TEXT("There must be a valid ProviderModule specified for analytics provider %s"), *ProviderSection);
 				}
 			}
 		}
-	}
-}
-
-void FAnalyticsProviderMulticast::SetAppID(FString&& InAppID)
-{
-	Config.APIKeyET = InAppID;
-
-	for (TProviders::TConstIterator it(Providers); it; ++it)
-	{
-		(*it).Value->SetAppID(CopyTemp(InAppID));
-	}
-}
-
-void FAnalyticsProviderMulticast::SetAppVersion(FString&& InAppVersion)
-{
-	Config.AppVersionET = InAppVersion;
-
-	for (TProviders::TConstIterator it(Providers); it; ++it)
-	{
-		(*it).Value->SetAppVersion(CopyTemp(InAppVersion));
 	}
 }
 
@@ -165,72 +146,6 @@ void FAnalyticsProviderMulticast::SetUserID(const FString& InUserID)
 FString FAnalyticsProviderMulticast::GetUserID() const
 {
 	return UserID;
-}
-
-const FAnalyticsET::Config& FAnalyticsProviderMulticast::GetConfig() const
-{
-	return Config;
-}
-
-void FAnalyticsProviderMulticast::SetURLEndpoint(const FString& UrlEndpoint, const TArray<FString>& AltDomains)
-{
-	for (TProviders::TConstIterator it(Providers); it; ++it)
-	{
-		(*it).Value->SetURLEndpoint(UrlEndpoint, AltDomains);
-	}
-}
-
-void FAnalyticsProviderMulticast::SetHeader(const FString& HeaderName, const FString& HeaderValue)
-{
-	for (TProviders::TConstIterator it(Providers); it; ++it)
-	{
-		(*it).Value->SetHeader(HeaderName, HeaderValue);
-	}
-}
-
-void FAnalyticsProviderMulticast::SetEventCallback(const OnEventRecorded& InCallback)
-{
-	OnEventRecordedCallback = InCallback;
-}
-
-void FAnalyticsProviderMulticast::FlushEvents()
-{
-	for (TProviders::TConstIterator it(Providers); it; ++it)
-	{
-		(*it).Value->FlushEvents();
-	}
-}
-
-void FAnalyticsProviderMulticast::BlockUntilFlushed(float InTimeoutSec)
-{
-	for (TProviders::TConstIterator it(Providers); it; ++it)
-	{
-		(*it).Value->BlockUntilFlushed(InTimeoutSec);
-	}
-}
-
-bool FAnalyticsProviderMulticast::StartSession(FString InSessionID, const TArray<FAnalyticsEventAttribute>& Attributes)
-{
-	SetSessionID(InSessionID);
-
-	bool bResult = true;
-
-	for (TProviders::TConstIterator it(Providers); it; ++it)
-	{
-		bResult &= (*it).Value->StartSession(InSessionID, Attributes);
-	}
-
-	return bResult;
-}
-
-void FAnalyticsProviderMulticast::SetShouldRecordEventFunc(const ShouldRecordEventFunction& InShouldRecordEventFunc)
-{
-	ShouldRecordEventFunc = InShouldRecordEventFunc;
-}
-
-bool FAnalyticsProviderMulticast::ShouldRecordEvent(const FString& EventName) const
-{
-	return ShouldRecordEventFunc ? ShouldRecordEventFunc(*this, EventName) : true;
 }
 
 void FAnalyticsProviderMulticast::SetDefaultEventAttributes(TArray<FAnalyticsEventAttribute>&& Attributes)
@@ -273,7 +188,7 @@ void FAnalyticsProviderMulticast::EndSession()
 {
 	for (TProviders::TConstIterator it(Providers);it;++it)
 	{
-		TSharedPtr<IAnalyticsProviderET> Provider = (*it).Value;
+		TSharedPtr<IAnalyticsProvider> Provider = (*it).Value;
 
 		Provider->EndSession();
 		Provider.Reset();
@@ -282,31 +197,40 @@ void FAnalyticsProviderMulticast::EndSession()
 	Providers.Reset();
 }
 
-void FAnalyticsProviderMulticast::RecordEvent(FString&& EventName, const TArray<FAnalyticsEventAttribute>& Attributes)
+void FAnalyticsProviderMulticast::FlushEvents()
 {
-	if (ShouldRecordEvent(EventName))
+	for (TProviders::TConstIterator it(Providers); it; ++it)
 	{
+		(*it).Value->FlushEvents();
+	}
+}
+
+void FAnalyticsProviderMulticast::SetRecordEventCallback(OnRecordEvent Callback)
+{
+	RecordEventCallback = Callback;
+}
+
+void FAnalyticsProviderMulticast::RecordEvent(const FString& EventName, const TArray<FAnalyticsEventAttribute>& Attributes)
+{
 #if UE_BUILD_DEBUG || UE_BUILD_DEVELOPMENT
-		// Expose events that have duplicate aatibute names. This is is not handled by the analytics backends in any reliable way.
-		for (int32 index0 = 0; index0 < Attributes.Num(); ++index0)
+	// Expose events that have duplicate aatibute names. This is is not handled by the analytics backends in any reliable way.
+	for (int32 index0 = 0; index0 < Attributes.Num(); ++index0)
+	{
+		for (int32 index1 = index0 + 1; index1 < Attributes.Num(); ++index1)
 		{
-			for (int32 index1 = index0 + 1; index1 < Attributes.Num(); ++index1)
-			{
-				checkf(Attributes[index0].GetName() != Attributes[index1].GetName(), TEXT("Duplicate Attributes Found For Event %s %s==%s"), *EventName, *Attributes[index0].GetName(), *Attributes[index1].GetName());
-			}
-		}
-#endif
-
-		for (TProviders::TConstIterator it(Providers); it; ++it)
-		{
-			(*it).Value->RecordEvent(EventName, Attributes);
-		}
-
-		// Notify any callbacks
-		if (OnEventRecordedCallback)
-		{
-			OnEventRecordedCallback(EventName, Attributes, true);
+			checkf(Attributes[index0].GetName() != Attributes[index1].GetName(), TEXT("Duplicate Attributes Found For Event %s %s==%s"), *EventName, *Attributes[index0].GetName(), *Attributes[index1].GetName());
 		}
 	}
+#endif
 
+	for (TProviders::TConstIterator it(Providers); it; ++it)
+	{
+		(*it).Value->RecordEvent(EventName, Attributes);
+	}
+
+	if (RecordEventCallback)
+	{
+		// Notify any callbacks
+		RecordEventCallback(EventName, Attributes);
+	}
 }

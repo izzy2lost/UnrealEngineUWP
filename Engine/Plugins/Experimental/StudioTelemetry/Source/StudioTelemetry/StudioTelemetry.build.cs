@@ -44,6 +44,13 @@ public class StudioTelemetry : ModuleRules
 					"TelemetryUtils"
 				}
 			);
+
+			PublicDependencyModuleNames.AddRange(
+				new string[] {
+					"AnalyticsET",
+					"AnalyticsLog"
+				}
+			);
 		}
 	}
 }
