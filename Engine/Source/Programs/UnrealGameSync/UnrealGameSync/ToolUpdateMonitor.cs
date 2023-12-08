@@ -1,6 +1,7 @@
 // Copyright Epic Games, Inc. All Rights Reserved.
 
 using EpicGames.Core;
+using EpicGames.Horde;
 using EpicGames.Horde.Tools;
 using EpicGames.Perforce;
 using Microsoft.Extensions.DependencyInjection;
@@ -10,6 +11,7 @@ using System.Collections.Generic;
 using System.Diagnostics;
 using System.IO;
 using System.Linq;
+using System.Text;
 using System.Text.Json;
 using System.Threading;
 using System.Threading.Tasks;
@@ -33,17 +35,23 @@ namespace UnrealGameSync
 		}
 	}
 
+	// Settings in the UgsTool.json file in the root of a Horde tool
+	class ToolSettings
+	{
+		public string? InstallCommand { get; set; }
+		public string? UninstallCommand { get; set; }
+		public List<ToolLink> StatusPanelLinks { get; set; } = new List<ToolLink>();
+		public bool SafeWhenBusy { get; set; }
+	}
+
 	[DebuggerDisplay("{Name}")]
 	class ToolInfo
 	{
 		public Guid Id { get; set; }
 		public string Name { get; set; }
 		public string Description { get; set; }
-		public string? InstallCommand { get; set; }
-		public string? UninstallCommand { get; set; }
-		public List<ToolLink> StatusPanelLinks { get; set; } = new List<ToolLink>();
 		public HashSet<Guid> DependsOnToolIds { get; set; } = new HashSet<Guid>();
-		public bool SafeWhenBusy { get; set; }
+		public ToolSettings Settings { get; set; } = new ToolSettings();
 		public string Revision { get; set; }
 
 		public ToolInfo(Guid id, string name, string description, string revision)
@@ -71,6 +79,7 @@ namespace UnrealGameSync
 		readonly ILogger _logger;
 		readonly IAsyncDisposer _asyncDisposer;
 		readonly FileReference _enabledToolsFile;
+		readonly IServiceProvider _serviceProvider;
 
 		bool _readLegacyConfig;
 
@@ -95,6 +104,7 @@ namespace UnrealGameSync
 			Settings = settings;
 			_logger = serviceProvider.GetRequiredService<ILogger<ToolUpdateMonitor>>();
 			_asyncDisposer = serviceProvider.GetRequiredService<IAsyncDisposer>();
+			_serviceProvider = serviceProvider;
 
 			DirectoryReference.CreateDirectory(ToolsDir);
 			_enabledToolsFile = FileReference.Combine(ToolsDir, "tools.json");
@@ -205,7 +215,17 @@ namespace UnrealGameSync
 
 			// Update all the available tools
 			List<ToolInfo> tools = new List<ToolInfo>();
-			await ReadPerforceTools(perforce, tools, cancellationToken);
+			if (!String.IsNullOrEmpty(DeploymentSettings.Instance.ToolsDepotPath))
+			{
+				await ReadPerforceToolsAsync(perforce, tools, cancellationToken);
+			}
+			using (HordeHttpClient? hordeHttpClient = _serviceProvider.GetService<HordeHttpClient>())
+			{
+				if (hordeHttpClient != null)
+				{
+					await ReadHordeToolsAsync(hordeHttpClient, tools, cancellationToken);
+				}
+			}
 			_tools = tools;
 
 			// When upgrading from older UGS versions, read the legacy sync CL from plain-text config files
@@ -266,13 +286,8 @@ namespace UnrealGameSync
 			}
 		}
 
-		async Task ReadPerforceTools(IPerforceConnection perforce, List<ToolInfo> tools, CancellationToken cancellationToken)
+		async Task ReadPerforceToolsAsync(IPerforceConnection perforce, List<ToolInfo> tools, CancellationToken cancellationToken)
 		{
-			if (String.IsNullOrEmpty(DeploymentSettings.Instance.ToolsDepotPath))
-			{
-				return;
-			}
-
 			List<ChangesRecord> changes = await perforce.GetChangesAsync(ChangesOptions.None, 1, ChangeStatus.Submitted, $"{DeploymentSettings.Instance.ToolsDepotPath}/...", cancellationToken);
 			if (changes.Count > 0 && changes[0].Number != _perforceToolsChange)
 			{
@@ -310,7 +325,22 @@ namespace UnrealGameSync
 			tools.AddRange(_perforceTools.Values);
 		}
 
-		async Task<ToolInfo?> ReadToolDefinitionAsync(IPerforceConnection perforce, string iniRevision, string toolRevision, CancellationToken cancellationToken)
+		static async Task ReadHordeToolsAsync(HordeHttpClient hordeHttpClient, List<ToolInfo> tools, CancellationToken cancellationToken)
+		{
+			GetToolsSummaryResponse toolsResponse = await hordeHttpClient.GetToolsAsync(cancellationToken);
+			foreach (GetToolSummaryResponse toolResponse in toolsResponse.Tools)
+			{
+				if (toolResponse.ShowInUgs)
+				{
+					IoHash hash = IoHash.Compute(Encoding.UTF8.GetBytes($"horde:{toolResponse.Id}"));
+					Guid guid = new Guid(hash.ToByteArray().AsSpan(0, 16));
+					ToolInfo toolInfo = new ToolInfo(guid, toolResponse.Name, toolResponse.Description, $"{hordeHttpClient},{toolResponse.Id},{toolResponse.DeploymentId}");
+					tools.Add(toolInfo);
+				}
+			}
+		}
+
+		static async Task<ToolInfo?> ReadToolDefinitionAsync(IPerforceConnection perforce, string iniRevision, string toolRevision, CancellationToken cancellationToken)
 		{
 			PerforceResponse<PrintRecord<string[]>> response = await perforce.TryPrintLinesAsync(iniRevision, cancellationToken);
 			if (!response.Succeeded || response.Data.Contents == null)
@@ -340,9 +370,10 @@ namespace UnrealGameSync
 			string toolDescription = configFile.GetValue("Settings.Description", toolName);
 
 			ToolInfo tool = new ToolInfo(toolId, toolName, toolDescription, revision);
-			tool.InstallCommand = configFile.GetValue("Settings.InstallCommand", null);
-			tool.UninstallCommand = configFile.GetValue("Settings.UninstallCommand", null);
-			tool.SafeWhenBusy = configFile.GetValue("Settings.SafeWhenBusy", false);
+			tool.Settings = new ToolSettings();
+			tool.Settings.InstallCommand = configFile.GetValue("Settings.InstallCommand", null);
+			tool.Settings.UninstallCommand = configFile.GetValue("Settings.UninstallCommand", null);
+			tool.Settings.SafeWhenBusy = configFile.GetValue("Settings.SafeWhenBusy", false);
 
 			foreach (string line in configFile.GetValues("Settings.DependsOnTool", Array.Empty<string>()))
 			{
@@ -365,7 +396,7 @@ namespace UnrealGameSync
 					ToolLink link = new ToolLink(label, fileName);
 					link.Arguments = obj.GetValue("Arguments", null);
 					link.WorkingDir = obj.GetValue("WorkingDir", null);
-					tool.StatusPanelLinks.Add(link);
+					tool.Settings.StatusPanelLinks.Add(link);
 				}
 			}
 
@@ -397,10 +428,10 @@ namespace UnrealGameSync
 				_logger.LogInformation("Removing {ToolName}", tool.Name);
 				DirectoryReference? toolPath = GetToolPath(tool.Name);
 
-				if (!String.IsNullOrEmpty(tool.UninstallCommand))
+				if (!String.IsNullOrEmpty(tool.Settings?.UninstallCommand))
 				{
-					_logger.LogInformation("Running unininstall action: {Command}", tool.UninstallCommand);
-					await RunCommandAsync(tool.Name, tool.UninstallCommand, cancellationToken);
+					_logger.LogInformation("Running unininstall action: {Command}", tool.Settings.UninstallCommand);
+					await RunCommandAsync(tool.Name, tool.Settings.UninstallCommand, cancellationToken);
 				}
 
 				await SetToolRevisionAsync(tool.Name, null, cancellationToken);
@@ -465,24 +496,50 @@ namespace UnrealGameSync
 				DirectoryReference nextToolZipsDir = DirectoryReference.Combine(nextToolDir, ".zips");
 				DirectoryReference.CreateDirectory(nextToolZipsDir);
 
+				FileReference zipFile = FileReference.Combine(nextToolZipsDir, $"{tool.Name}.zip");
 				if (tool.Revision.StartsWith("//", StringComparison.Ordinal))
 				{
 					// Read it from Perforce
-					FileReference zipFile = FileReference.Combine(nextToolZipsDir, $"{tool.Name}.zip");
-
 					PerforceResponseList<PrintRecord> response = await perforce.TryPrintAsync(zipFile.FullName, tool.Revision, cancellationToken);
 					if (!response.Succeeded || !FileReference.Exists(zipFile))
 					{
 						_logger.LogError("Unable to print {DepotFile}", tool.Revision);
 						return false;
 					}
-
 					ArchiveUtils.ExtractFiles(zipFile, nextToolDir, null, new ProgressValue(), _logger);
 				}
 				else
 				{
-					// Unknown format?
-					return false;
+					using HordeHttpClient? hordeHttpClient = _serviceProvider.GetService<HordeHttpClient>();
+					if (hordeHttpClient != null)
+					{
+						string[] fields = tool.Revision.Split(',');
+						if (fields.Length != 3)
+						{
+							_logger.LogError("Unexpected format for Horde revision ('{Revision}')", tool.Revision);
+							return false;
+						}
+
+						using (FileStream stream = FileReference.Open(zipFile, FileMode.Create, FileAccess.Write, FileShare.None))
+						{
+							await using Stream sourceStream = await hordeHttpClient.GetToolDeploymentZipAsync(new ToolId(fields[1]), new ToolDeploymentId(BinaryId.Parse(fields[2])), cancellationToken);
+							await sourceStream.CopyToAsync(stream, cancellationToken);
+						}
+
+						ArchiveUtils.ExtractFiles(zipFile, nextToolDir, null, new ProgressValue(), _logger);
+
+						FileReference settingsFile = FileReference.Combine(nextToolDir, "UgsTool.json");
+						if (FileReference.Exists(settingsFile))
+						{
+							byte[] data = await FileReference.ReadAllBytesAsync(settingsFile, cancellationToken);
+							tool.Settings = JsonSerializer.Deserialize<ToolSettings>(data, new JsonSerializerOptions { PropertyNameCaseInsensitive = true }) ?? tool.Settings;
+						}
+					}
+					else
+					{
+						_logger.LogError("Unknown source for {Revision}", tool.Revision);
+						return false;
+					}
 				}
 
 				DirectoryReference currentToolDir = DirectoryReference.Combine(toolDir, "Current");
@@ -496,10 +553,10 @@ namespace UnrealGameSync
 
 				Directory.Move(nextToolDir.FullName, currentToolDir.FullName);
 
-				if (!String.IsNullOrEmpty(tool.InstallCommand))
+				if (!String.IsNullOrEmpty(tool.Settings?.InstallCommand))
 				{
-					_logger.LogInformation("Running install action: {Command}", tool.InstallCommand);
-					await RunCommandAsync(tool.Name, tool.InstallCommand, cancellationToken);
+					_logger.LogInformation("Running install action: {Command}", tool.Settings.InstallCommand);
+					await RunCommandAsync(tool.Name, tool.Settings.InstallCommand, cancellationToken);
 				}
 
 				await SetToolRevisionAsync(tool.Name, tool, cancellationToken);

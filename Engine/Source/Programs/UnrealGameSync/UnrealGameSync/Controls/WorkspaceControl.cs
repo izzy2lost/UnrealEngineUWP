@@ -3446,9 +3446,9 @@ namespace UnrealGameSync
 				IReadOnlyList<ToolInfo> tools = _owner.ToolUpdateMonitor.GetEnabledTools();
 				foreach (ToolInfo tool in tools)
 				{
-					if (tool.SafeWhenBusy)
+					if (tool.Settings.SafeWhenBusy)
 					{
-						foreach (ToolLink link in tool.StatusPanelLinks)
+						foreach (ToolLink link in tool.Settings.StatusPanelLinks)
 						{
 							programsLine.AddLink(link.Label, FontStyle.Regular, () => RunTool(tool, link));
 							programsLine.AddText("  |  ");
@@ -3638,7 +3638,7 @@ namespace UnrealGameSync
 				IReadOnlyList<ToolInfo> tools = _owner.ToolUpdateMonitor.GetEnabledTools();
 				foreach (ToolInfo tool in tools)
 				{
-					foreach (ToolLink link in tool.StatusPanelLinks)
+					foreach (ToolLink link in tool.Settings.StatusPanelLinks)
 					{
 						programsLine.AddLink(link.Label, FontStyle.Regular, () => RunTool(tool, link));
 						programsLine.AddText("  |  ");

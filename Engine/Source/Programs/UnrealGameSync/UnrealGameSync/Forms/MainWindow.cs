@@ -1526,7 +1526,7 @@ namespace UnrealGameSync
 
 		public void ModifyApplicationSettings()
 		{
-			ApplicationSettingsWindow.Result result = ApplicationSettingsWindow.ShowModal(this, _defaultPerforceSettings, _preview, _originalExecutableFileName, _settings, ToolUpdateMonitor, _serviceProvider.GetRequiredService<ILogger<ApplicationSettingsWindow>>());
+			ApplicationSettingsWindow.Result result = ApplicationSettingsWindow.ShowModal(this, _defaultPerforceSettings, _originalExecutableFileName, _settings, ToolUpdateMonitor, _serviceProvider.GetRequiredService<ILogger<ApplicationSettingsWindow>>());
 			if (result == ApplicationSettingsWindow.Result.Restart)
 			{
 				_updateMonitor.TriggerUpdate(UpdateType.UserInitiated, false);

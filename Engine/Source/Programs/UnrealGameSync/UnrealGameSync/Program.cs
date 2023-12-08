@@ -96,8 +96,14 @@ namespace UnrealGameSync
 
 				using (EventWaitHandle activateEvent = new EventWaitHandle(false, EventResetMode.AutoReset, "ActivateUnrealGameSync"))
 				{
+#if DEBUG
+					bool runUpdateCheck = args.Contains("-UpdateCheck", StringComparer.OrdinalIgnoreCase);
+#else
+					bool runUpdateCheck = !args.Contains("-NoUpdateCheck", StringComparer.OrdinalIgnoreCase);
+#endif
+
 					// Check for a newer version of the application
-					if (!args.Contains("-NoUpdateCheck", StringComparer.OrdinalIgnoreCase) && Launcher.SyncAndRunLatest(instanceMutex, args))
+					if (runUpdateCheck && Launcher.SyncAndRunLatest(instanceMutex, args))
 					{
 						return;
 					}
@@ -111,7 +117,7 @@ namespace UnrealGameSync
 					// Launch the application proper
 					if (firstInstance)
 					{
-						InnerMainAsync(instanceMutex, activateEvent, args).GetAwaiter().GetResult();
+						InnerMainAsync(instanceMutex, activateEvent, args, runUpdateCheck).GetAwaiter().GetResult();
 					}
 					else
 					{
@@ -121,7 +127,7 @@ namespace UnrealGameSync
 			}
 		}
 
-		static async Task InnerMainAsync(Mutex instanceMutex, EventWaitHandle activateEvent, string[] args)
+		static async Task InnerMainAsync(Mutex instanceMutex, EventWaitHandle activateEvent, string[] args, bool runUpdateCheck)
 		{
 			LauncherSettings launcherSettings = new LauncherSettings();
 			launcherSettings.Read();
@@ -189,7 +195,11 @@ namespace UnrealGameSync
 				services.AddSingleton<IAsyncDisposer, AsyncDisposer>();
 				services.AddSingleton(sp => TokenStoreFactory.CreateTokenStore());
 				services.AddSingleton<OidcTokenManager>();
-				services.AddHordeHttpClient(x => x.BaseAddress = new Uri(launcherSettings.HordeServer ?? "http://localhost:5000"));
+
+				if (launcherSettings.HordeServer != null)
+				{
+					services.AddHordeHttpClient(x => x.BaseAddress = new Uri(launcherSettings.HordeServer));
+				}
 
 				await using (ServiceProvider serviceProvider = services.BuildServiceProvider())
 				{
@@ -230,7 +240,7 @@ namespace UnrealGameSync
 
 							ProtocolHandlerUtils.InstallQuiet(logger);
 
-							using (UpdateMonitor updateMonitor = CreateUpdateMonitor(launcherSettings, defaultSettings, updatePath, serviceProvider))
+							await using (UpdateMonitor updateMonitor = CreateUpdateMonitor(launcherSettings, defaultSettings, updatePath, runUpdateCheck, serviceProvider))
 							{
 								using ProgramApplicationContext context = new ProgramApplicationContext(defaultSettings, updateMonitor, DeploymentSettings.Instance.ApiUrl, dataFolder, activateEvent, restoreState, updateSpawn, projectFileName, preview, serviceProvider, uri);
 								Application.Run(context);
@@ -256,9 +266,13 @@ namespace UnrealGameSync
 			}
 		}
 
-		private static UpdateMonitor CreateUpdateMonitor(LauncherSettings launcherSettings, IPerforceSettings defaultSettings, string? updatePath, IServiceProvider serviceProvider)
+		private static UpdateMonitor CreateUpdateMonitor(LauncherSettings launcherSettings, IPerforceSettings defaultSettings, string? updatePath, bool runUpdateCheck, IServiceProvider serviceProvider)
 		{
-			if (launcherSettings.UpdateSource == LauncherUpdateSource.Horde)
+			if (!runUpdateCheck)
+			{
+				return new NullUpdateMonitor();
+			}
+			else if (launcherSettings.UpdateSource == LauncherUpdateSource.Horde)
 			{
 				return new HordeUpdateMonitor(SyncVersion ?? String.Empty, serviceProvider);
 			}

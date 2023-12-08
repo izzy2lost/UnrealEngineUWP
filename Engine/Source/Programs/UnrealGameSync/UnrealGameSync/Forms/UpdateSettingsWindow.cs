@@ -8,7 +8,6 @@ using System.Runtime.InteropServices;
 using System.Threading;
 using System.Threading.Tasks;
 using System.Windows.Forms;
-using UnrealGameSync;
 
 namespace UnrealGameSync
 {
@@ -21,7 +20,7 @@ namespace UnrealGameSync
 
 		const int EmSetcuebanner = 0x1501;
 
-		LauncherSettings _settings;
+		readonly LauncherSettings _settings;
 		string? _logText;
 		readonly SyncAndRunDelegate _syncAndRun;
 

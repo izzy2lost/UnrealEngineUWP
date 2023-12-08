@@ -25,7 +25,7 @@ namespace UnrealGameSync
 		readonly SynchronizationContext _mainThreadSynchronizationContext;
 
 		readonly IPerforceSettings _defaultPerforceSettings;
-		UpdateMonitor _updateMonitor;
+		readonly UpdateMonitor _updateMonitor;
 		readonly string? _apiUrl;
 		readonly DirectoryReference _dataFolder;
 		readonly DirectoryReference _cacheFolder;
@@ -343,12 +343,6 @@ namespace UnrealGameSync
 		protected override void Dispose(bool disposing)
 		{
 			base.Dispose(disposing);
-
-			if(_updateMonitor != null)
-			{
-				_updateMonitor.Dispose();
-				_updateMonitor = null!;
-			}
 
 			if(_activationListener != null)
 			{

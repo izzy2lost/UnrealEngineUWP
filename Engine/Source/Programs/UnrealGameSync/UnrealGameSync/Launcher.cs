@@ -2,9 +2,6 @@
 
 using EpicGames.Core;
 using EpicGames.Horde;
-using EpicGames.Horde.Storage;
-using EpicGames.Horde.Storage.Clients;
-using EpicGames.Horde.Storage.Nodes;
 using EpicGames.Horde.Tools;
 using EpicGames.Perforce;
 using Microsoft.Extensions.DependencyInjection;
@@ -16,14 +13,10 @@ using System.Diagnostics.CodeAnalysis;
 using System.IO;
 using System.IO.Compression;
 using System.Linq;
-using System.Net.Http;
 using System.Reflection;
-using System.Reflection.Metadata;
-using System.Text;
 using System.Threading;
 using System.Threading.Tasks;
 using System.Windows.Forms;
-using UnrealGameSync;
 
 namespace UnrealGameSync
 {
@@ -34,14 +27,6 @@ namespace UnrealGameSync
 			// Figure out if we should sync the unstable build by default
 			bool preview = args.Contains("-unstable", StringComparer.InvariantCultureIgnoreCase) || args.Contains("-preview", StringComparer.InvariantCultureIgnoreCase);
 			bool openSettings = args.Contains("-settings", StringComparer.OrdinalIgnoreCase);
-
-#if DEBUG
-			// For debug builds, just launch into the regular UGS application.
-			if (!openSettings)
-			{
-				return false;
-			}
-#endif
 
 			// Read the settings
 			LauncherSettings launcherSettings = new LauncherSettings();
@@ -325,18 +310,6 @@ namespace UnrealGameSync
 					logger.LogError("{Line}", line);
 				}
 				throw;
-			}
-		}
-
-		static string QuoteArgument(string arg)
-		{
-			if(arg.Contains(' ', StringComparison.Ordinal) && !arg.StartsWith("\"", StringComparison.Ordinal))
-			{
-				return String.Format("\"{0}\"", arg);
-			}
-			else
-			{
-				return arg;
 			}
 		}
 

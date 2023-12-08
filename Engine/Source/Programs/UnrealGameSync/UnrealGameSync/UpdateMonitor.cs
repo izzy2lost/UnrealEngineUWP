@@ -18,7 +18,7 @@ namespace UnrealGameSync
 		UserInitiated,
 	}
 
-	abstract class UpdateMonitor : IDisposable
+	abstract class UpdateMonitor : IAsyncDisposable
 	{
 		public bool IsUpdateAvailable
 		{
@@ -34,7 +34,7 @@ namespace UnrealGameSync
 			private set;
 		}
 
-		public abstract void Dispose();
+		public abstract ValueTask DisposeAsync();
 
 		public void TriggerUpdate(UpdateType updateType, bool openSettings)
 		{
@@ -45,6 +45,11 @@ namespace UnrealGameSync
 				OnUpdateAvailable(updateType);
 			}
 		}
+	}
+
+	class NullUpdateMonitor : UpdateMonitor
+	{
+		public override ValueTask DisposeAsync() => default;
 	}
 
 	class HordeUpdateMonitor : UpdateMonitor
@@ -69,9 +74,9 @@ namespace UnrealGameSync
 			_backgroundTask = BackgroundTask.StartNew(ctx => CheckForUpdatesLoopAsync(ctx));
 		}
 
-		public override void Dispose()
+		public override async ValueTask DisposeAsync()
 		{
-			Task.Run(() => _backgroundTask.DisposeAsync()).Wait();
+			await _backgroundTask.DisposeAsync();
 		}
 
 		public async Task CheckForUpdatesLoopAsync(CancellationToken cancellationToken)
@@ -119,12 +124,10 @@ namespace UnrealGameSync
 		readonly CancellationTokenSource _cancellationSource = new CancellationTokenSource();
 #pragma warning restore CA2213
 		readonly ILogger _logger;
-		readonly IAsyncDisposer _asyncDisposer;
 
 		public PerforceUpdateMonitor(IPerforceSettings perforceSettings, string? watchPath, IServiceProvider serviceProvider)
 		{
 			_logger = serviceProvider.GetRequiredService<ILogger<UpdateMonitor>>();
-			_asyncDisposer = serviceProvider.GetRequiredService<IAsyncDisposer>();
 
 			if(watchPath != null)
 			{
@@ -133,15 +136,18 @@ namespace UnrealGameSync
 			}
 		}
 
-		public override void Dispose()
+		public override async ValueTask DisposeAsync()
 		{
 			OnUpdateAvailable = null;
 
 			if (_workerTask != null)
 			{
 				_cancellationSource.Cancel();
-				_asyncDisposer.Add(_workerTask.ContinueWith(_ => _cancellationSource.Dispose(), TaskScheduler.Default));
+
+				await _workerTask;
 				_workerTask = null;
+
+				_cancellationSource.Dispose();
 			}
 		}
 

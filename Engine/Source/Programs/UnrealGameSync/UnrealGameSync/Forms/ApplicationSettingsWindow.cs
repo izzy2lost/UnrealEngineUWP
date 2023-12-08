@@ -37,7 +37,6 @@ namespace UnrealGameSync
 		}
 
 		readonly string _originalExecutableFileName;
-		readonly IPerforceSettings _defaultPerforceSettings;
 		readonly UserSettings _settings;
 		readonly ILogger _logger;
 
@@ -88,13 +87,12 @@ namespace UnrealGameSync
 			}
 		}
 
-		private ApplicationSettingsWindow(IPerforceSettings defaultPerforceSettings, bool preview, string originalExecutableFileName, UserSettings settings, ToolUpdateMonitor toolUpdateMonitor, ILogger<ApplicationSettingsWindow> logger)
+		private ApplicationSettingsWindow(IPerforceSettings defaultPerforceSettings, string originalExecutableFileName, UserSettings settings, ToolUpdateMonitor toolUpdateMonitor, ILogger<ApplicationSettingsWindow> logger)
 		{
 			InitializeComponent();
 			Font = new System.Drawing.Font("Segoe UI", 8.25F, System.Drawing.FontStyle.Regular, System.Drawing.GraphicsUnit.Point, ((byte)(0)));
 
 			_originalExecutableFileName = originalExecutableFileName;
-			_defaultPerforceSettings = defaultPerforceSettings;
 			_settings = settings;
 			_toolUpdateMonitor = toolUpdateMonitor;
 			_logger = logger;
@@ -191,9 +189,9 @@ namespace UnrealGameSync
 			}
 		}
 
-		public static Result ShowModal(IWin32Window owner, IPerforceSettings defaultPerforceSettings, bool preview, string originalExecutableFileName, UserSettings settings, ToolUpdateMonitor toolUpdateMonitor, ILogger<ApplicationSettingsWindow> logger)
+		public static Result ShowModal(IWin32Window owner, IPerforceSettings defaultPerforceSettings, string originalExecutableFileName, UserSettings settings, ToolUpdateMonitor toolUpdateMonitor, ILogger<ApplicationSettingsWindow> logger)
 		{
-			using ApplicationSettingsWindow applicationSettings = new ApplicationSettingsWindow(defaultPerforceSettings, preview, originalExecutableFileName, settings, toolUpdateMonitor, logger);
+			using ApplicationSettingsWindow applicationSettings = new ApplicationSettingsWindow(defaultPerforceSettings, originalExecutableFileName, settings, toolUpdateMonitor, logger);
 			applicationSettings.ShowDialog(owner);
 			return applicationSettings._result;
 		}
