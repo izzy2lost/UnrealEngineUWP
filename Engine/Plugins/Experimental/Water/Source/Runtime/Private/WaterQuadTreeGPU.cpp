@@ -47,12 +47,13 @@ public:
 	DECLARE_GLOBAL_SHADER(FWaterQuadTreeVS);
 	SHADER_USE_PARAMETER_STRUCT(FWaterQuadTreeVS, FGlobalShader);
 
-	class FApplyJitter : SHADER_PERMUTATION_BOOL("APPLY_JITTER");
-	using FPermutationDomain = TShaderPermutationDomain<FApplyJitter>;
+	class FRasterMode : SHADER_PERMUTATION_SPARSE_INT("RASTER_MODE", 0, 1, 2);
+	using FPermutationDomain = TShaderPermutationDomain<FRasterMode>;
 
 	BEGIN_SHADER_PARAMETER_STRUCT(FParameters, )
 		SHADER_PARAMETER(FMatrix44f, Transform)
 		SHADER_PARAMETER(FVector2f, JitterScale)
+		SHADER_PARAMETER(FVector2f, HalfPixelSize)
 	END_SHADER_PARAMETER_STRUCT()
 
 	static void ModifyCompilationEnvironment(const FGlobalShaderPermutationParameters& Parameters, FShaderCompilerEnvironment& OutEnvironment)
@@ -67,6 +68,9 @@ class FWaterQuadTreePS : public FGlobalShader
 public:
 	DECLARE_GLOBAL_SHADER(FWaterQuadTreePS);
 	SHADER_USE_PARAMETER_STRUCT(FWaterQuadTreePS, FGlobalShader);
+
+	class FClipConservativeTriangle : SHADER_PERMUTATION_BOOL("CLIP_CONSERVATIVE_TRIANGLE");
+	using FPermutationDomain = TShaderPermutationDomain<FClipConservativeTriangle>;
 
 	BEGIN_SHADER_PARAMETER_STRUCT(FParameters, )
 		SHADER_PARAMETER(uint32, WaterBodyRenderDataIndex)
@@ -486,6 +490,28 @@ public:
 TGlobalResource<FVector3AndInstancedVector2VertexDeclaration> GVector3AndInstancedVector2VertexDeclaration;
 
 
+class FVector3AndThreeVector2VertexDeclaration : public FRenderResource
+{
+public:
+	FVertexDeclarationRHIRef VertexDeclarationRHI;
+	virtual void InitRHI(FRHICommandListBase& RHICmdList) override
+	{
+		FVertexDeclarationElementList Elements;
+		Elements.Add(FVertexElement(0, 0, VET_Float3, 0, sizeof(FVector3f)));
+		Elements.Add(FVertexElement(1, 0, VET_Float2, 1, sizeof(FVector2f) * 3));
+		Elements.Add(FVertexElement(1, 8, VET_Float2, 2, sizeof(FVector2f) * 3));
+		Elements.Add(FVertexElement(1, 16, VET_Float2, 3, sizeof(FVector2f) * 3));
+		VertexDeclarationRHI = PipelineStateCache::GetOrCreateVertexDeclaration(Elements);
+	}
+	virtual void ReleaseRHI() override
+	{
+		VertexDeclarationRHI.SafeRelease();
+	}
+};
+
+TGlobalResource<FVector3AndThreeVector2VertexDeclaration> GVector3AndAndThreeVector2VertexDeclaration;
+
+
 void FWaterQuadTreeGPU::Init(FRDGBuilder& GraphBuilder, const FInitParams& Params, TArray<FDraw>& Draws)
 {
 	TRACE_CPUPROFILER_EVENT_SCOPE(FWaterQuadTreeGPU::Init);
@@ -556,10 +582,16 @@ void FWaterQuadTreeGPU::Init(FRDGBuilder& GraphBuilder, const FInitParams& Param
 
 	// Raster water body meshes
 	{
+		enum class ERasterMode { Regular = 0, Jittered = 1, Conservative = 2 };
+		const ERasterMode RasterMode = Params.bUseConservativeRasterization ? ERasterMode::Conservative : NumJitterSamples > 1 ? ERasterMode::Jittered : ERasterMode::Regular;
+
 		FWaterQuadTreeVS::FPermutationDomain VSPermutationDomain;
-		VSPermutationDomain.Set<FWaterQuadTreeVS::FApplyJitter>(NumJitterSamples > 1);
+		VSPermutationDomain.Set<FWaterQuadTreeVS::FRasterMode>(static_cast<int32>(RasterMode));
 		TShaderMapRef<FWaterQuadTreeVS> VertexShader(ShaderMap, VSPermutationDomain);
-		TShaderMapRef<FWaterQuadTreePS> PixelShader(ShaderMap);
+		
+		FWaterQuadTreePS::FPermutationDomain PSPermutationDomain;
+		PSPermutationDomain.Set<FWaterQuadTreePS::FClipConservativeTriangle>(RasterMode == ERasterMode::Conservative);
+		TShaderMapRef<FWaterQuadTreePS> PixelShader(ShaderMap, PSPermutationDomain);
 
 		FWaterQuadTreeParameters* PassParameters = GraphBuilder.AllocParameters<FWaterQuadTreeParameters>();
 		PassParameters->PS.RenderTargets[0] = FRenderTargetBinding(WaterBodyRasterTexture, ERenderTargetLoadAction::EClear);
@@ -569,7 +601,7 @@ void FWaterQuadTreeGPU::Init(FRDGBuilder& GraphBuilder, const FInitParams& Param
 			RDG_EVENT_NAME("WaterQuadTreeRaster"),
 			PassParameters,
 			ERDGPassFlags::Raster,
-			[PassParameters, RasterResolution, NumJitterSamples, bMSAAPattern = Params.bUseMSAAJitterPattern, JitterFootprint = Params.JitterSampleFootprint, Draws = MoveTemp(Draws), VertexShader, PixelShader](FRHICommandList& RHICmdList)
+			[PassParameters, RasterResolution, NumJitterSamples, RasterMode, bMSAAPattern = Params.bUseMSAAJitterPattern, JitterFootprint = Params.JitterSampleFootprint, Draws = MoveTemp(Draws), VertexShader, PixelShader](FRHICommandList& RHICmdList)
 			{
 				RHICmdList.SetViewport(0.0f, 0.0f, 0.0f, RasterResolution.X, RasterResolution.Y, 1.0f);
 
@@ -581,14 +613,21 @@ void FWaterQuadTreeGPU::Init(FRDGBuilder& GraphBuilder, const FInitParams& Param
 					CW_RGBA, BO_Max, BF_One, BF_One, BO_Max, BF_One, BF_One,
 					CW_RGBA, BO_Max, BF_One, BF_One, BO_Max, BF_One, BF_One>::GetRHI(); // MAX blending
 				GraphicsPSOInit.PrimitiveType = PT_TriangleList;
-				GraphicsPSOInit.BoundShaderState.VertexDeclarationRHI = NumJitterSamples > 1 ? GVector3AndInstancedVector2VertexDeclaration.VertexDeclarationRHI : GetVertexDeclarationFVector3();
 				GraphicsPSOInit.BoundShaderState.VertexShaderRHI = VertexShader.GetVertexShader();
 				GraphicsPSOInit.BoundShaderState.PixelShaderRHI = PixelShader.GetPixelShader();
+				switch (RasterMode)
+				{
+				case ERasterMode::Regular: GraphicsPSOInit.BoundShaderState.VertexDeclarationRHI = GetVertexDeclarationFVector3(); break;
+				case ERasterMode::Jittered: GraphicsPSOInit.BoundShaderState.VertexDeclarationRHI = GVector3AndInstancedVector2VertexDeclaration.VertexDeclarationRHI; break;
+				case ERasterMode::Conservative: GraphicsPSOInit.BoundShaderState.VertexDeclarationRHI = GVector3AndAndThreeVector2VertexDeclaration.VertexDeclarationRHI; break;
+				default: checkNoEntry(); break;
+				}
 
 				SetGraphicsPipelineState(RHICmdList, GraphicsPSOInit, 0);
 
+				const FVector2f HalfPixelSize = FVector2f(1.0f / RasterResolution.X, 1.0f / RasterResolution.Y);
 				const FVector2f JitterScale = JitterFootprint * FVector2f(2.0f / RasterResolution.X, 2.0f / RasterResolution.Y);
-				if (NumJitterSamples > 1)
+				if (RasterMode == ERasterMode::Jittered)
 				{
 					const int32 JitterVertexBufferOffset = bMSAAPattern ? FJitterOffsetVertexBuffer::GetMSAADataOffset(NumJitterSamples) : 0;
 					RHICmdList.SetStreamSource(1, GJitterOffsetVertexBuffer.GetRHI(), JitterVertexBufferOffset);
@@ -598,6 +637,7 @@ void FWaterQuadTreeGPU::Init(FRDGBuilder& GraphBuilder, const FInitParams& Param
 				{
 					PassParameters->VS.Transform = Draw.Transform;
 					PassParameters->VS.JitterScale = JitterScale;
+					PassParameters->VS.HalfPixelSize = HalfPixelSize;
 					PassParameters->PS.WaterBodyRenderDataIndex = Draw.WaterBodyRenderDataIndex;
 					PassParameters->PS.Priority = Draw.Priority;
 					PassParameters->PS.WaterBodyMinZ = Draw.MinZ;
@@ -608,7 +648,25 @@ void FWaterQuadTreeGPU::Init(FRDGBuilder& GraphBuilder, const FInitParams& Param
 					SetShaderParameters(RHICmdList, VertexShader, VertexShader.GetVertexShader(), PassParameters->VS);
 					SetShaderParameters(RHICmdList, PixelShader, PixelShader.GetPixelShader(), PassParameters->PS);
 					RHICmdList.SetStreamSource(0, Draw.VertexBuffer, 0);
-					RHICmdList.DrawIndexedPrimitive(Draw.IndexBuffer, Draw.BaseVertexIndex, 0, Draw.NumVertices, Draw.FirstIndex, Draw.NumPrimitives, NumJitterSamples);
+
+					switch (RasterMode)
+					{
+					case ERasterMode::Regular: // Fallthrough
+					case ERasterMode::Jittered:
+					{
+						const uint32 NumInstances = (RasterMode == ERasterMode::Jittered) ? NumJitterSamples : 1;
+						RHICmdList.DrawIndexedPrimitive(Draw.IndexBuffer, Draw.BaseVertexIndex, 0, Draw.NumVertices, Draw.FirstIndex, Draw.NumPrimitives, NumInstances);
+						break;
+					}
+					case ERasterMode::Conservative:
+					{
+						RHICmdList.SetStreamSource(1, Draw.TexCoordBuffer, 0);
+						check((Draw.NumVertices % 3) == 0);
+						RHICmdList.DrawPrimitive(Draw.BaseVertexIndex, Draw.NumVertices / 3, 1);
+						break;
+					}
+					default: checkNoEntry(); break;
+					}
 				}
 			});
 	}

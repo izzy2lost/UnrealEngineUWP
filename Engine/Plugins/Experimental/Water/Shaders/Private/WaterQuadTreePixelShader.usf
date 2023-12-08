@@ -2,6 +2,10 @@
 
 #include "/Engine/Private/Common.ush"
 
+#ifndef CLIP_CONSERVATIVE_TRIANGLE
+#define CLIP_CONSERVATIVE_TRIANGLE 0
+#endif
+
 uint WaterBodyRenderDataIndex;
 uint Priority;
 float WaterBodyMinZ;
@@ -10,10 +14,22 @@ float MaxWaveHeight;
 uint bIsRiver;
 
 void Main(
-	in float4 InPosition : SV_Position, 
+	in float4 InPosition : SV_Position,
+#if CLIP_CONSERVATIVE_TRIANGLE
+	in float4 InClipPosition : CLIP_POSITION,
+	in float4 InTriangleAABB : TRIANGLE_AABB,
+#endif
 	out float4 OutWaterBody : SV_Target0,
 	out float4 OutZBounds : SV_Target1)
 {
+#if CLIP_CONSERVATIVE_TRIANGLE
+	const float2 Pos = InClipPosition.xy / InClipPosition.w;
+	if (any(Pos < InTriangleAABB.xy) || any(Pos > InTriangleAABB.zw))
+	{
+		discard;
+	}
+#endif
+
 	uint PackedPriorityAndWaterBodyRenderDataIndex = 0;
 	PackedPriorityAndWaterBodyRenderDataIndex |= WaterBodyRenderDataIndex & 0x7Fu; // 7bits
 	PackedPriorityAndWaterBodyRenderDataIndex |= min(Priority, 7u) << 7u; // 3bits

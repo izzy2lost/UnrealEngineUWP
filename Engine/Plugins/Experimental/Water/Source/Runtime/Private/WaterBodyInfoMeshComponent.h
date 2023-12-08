@@ -29,6 +29,11 @@ public:
 	UPROPERTY()
 	bool bIsDilatedMesh = false;
 
+	// Whether the water body mesh is compatible with software conservative rasterization used for generating the GPU water quadtree.
+	// This requires three UV channels with 32bit floats storing the vertex position of the previous and next vertex in the triangle.
+	UPROPERTY()
+	bool bIsConservativeRasterCompatible = false;
+
 protected:
 	// Even though we may be still precaching PSOs, we don't want to delay render proxy creation
 	// or fallback to the default material. We're always returning false here so that we decline

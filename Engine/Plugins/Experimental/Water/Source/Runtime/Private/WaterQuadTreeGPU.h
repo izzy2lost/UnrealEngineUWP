@@ -17,6 +17,7 @@ public:
 	{
 		FMatrix44f Transform = FMatrix44f::Identity;
 		FRHIBuffer* VertexBuffer = nullptr;
+		FRHIBuffer* TexCoordBuffer = nullptr; // Stores previous and next vertex in the triangle for every vertex when using conservative rasterization
 		FRHIBuffer* IndexBuffer = nullptr;
 		uint32 FirstIndex = 0;
 		uint32 NumPrimitives = 0;
@@ -54,6 +55,7 @@ public:
 		float JitterSampleFootprint = 1.0f;
 		float CaptureDepthRange = 1.0f;
 		bool bUseMSAAJitterPattern = false;
+		bool bUseConservativeRasterization = false;
 	};
 
 	struct FTraverseParams

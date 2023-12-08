@@ -58,6 +58,11 @@ static TAutoConsoleVariable<float> CVarWaterMeshGPUQuadTreeJitterSampleFootprint
 	TEXT("Pixel footprint of the jitter sample pattern. Values greater than 1.0 can cause the water mesh to raster into neighboring pixels not normally covered by the mesh. Default: 1.5, Min 0.0"),
 	ECVF_RenderThreadSafe);
 
+static TAutoConsoleVariable<int32> CVarWaterMeshGPUQuadTreeConservativeRasterization(
+	TEXT("r.Water.WaterMesh.GPUQuadTree.ConservativeRasterization"), 0,
+	TEXT("Enables software conservative rasterization for rasterizing water body meshes into the water quadtree. Disables jittered draws. Default: 0"),
+	ECVF_RenderThreadSafe);
+
 static TAutoConsoleVariable<int32> CVarWaterMeshOcclusionCullingMaxQueries(
 	TEXT("r.Water.WaterMesh.OcclusionCulling.MaxQueries"), 256,
 	TEXT("Maximum number of occlusion queries for the CPU water quadtree nodes. Using fewer queries than nodes will result in coarser culling."),
@@ -1137,6 +1142,8 @@ void FWaterMeshSceneProxy::BuildGPUQuadTree(FRDGBuilder& GraphBuilder)
 	const FMatrix44f ProjectionMatrix = FMatrix44f(BuildOrthoMatrix(Resolution.X * LeafSize, Resolution.Y * LeafSize, WaterQuadTreeDepthRange));
 	const FMatrix44f ViewProjection = ViewMatrix * ProjectionMatrix;
 
+	bool bAllDrawsAreConservativeRasterCompatible = true;
+
 	// Create array of water body draws
 	TArray<FWaterQuadTreeGPU::FDraw> Draws;
 	{
@@ -1157,6 +1164,7 @@ void FWaterMeshSceneProxy::BuildGPUQuadTree(FRDGBuilder& GraphBuilder)
 					FWaterQuadTreeGPU::FDraw& Draw = Draws.AddDefaulted_GetRef();
 					Draw.Transform = FMatrix44f(LocalToQuadTreeWorld.ToMatrixWithScale()) * ViewProjection;
 					Draw.VertexBuffer = LODResource.VertexBuffers.PositionVertexBuffer.GetRHI();
+					Draw.TexCoordBuffer = LODResource.VertexBuffers.StaticMeshVertexBuffer.TexCoordVertexBuffer.GetRHI();
 					Draw.IndexBuffer = LODResource.IndexBuffer.GetRHI();
 					Draw.FirstIndex = MeshSection.FirstIndex;
 					Draw.NumPrimitives = MeshSection.NumTriangles;
@@ -1168,6 +1176,13 @@ void FWaterMeshSceneProxy::BuildGPUQuadTree(FRDGBuilder& GraphBuilder)
 					Draw.MaxZ = float(WBRenderData.BoundsMaxZ + WBRenderData.MaxWaveHeight - WaterQuadTreeMinHeight) * RcpWaterQuadTreeDepthRange;
 					Draw.MaxWaveHeight = WBRenderData.MaxWaveHeight * RcpWaterQuadTreeDepthRange;
 					Draw.bIsRiver = Info.bIsRiver;
+
+					// Conservative raster mesh has 3 unique vertices per triangle and 3 UV channels with 32bit float UVs.
+					bAllDrawsAreConservativeRasterCompatible = bAllDrawsAreConservativeRasterCompatible
+						&& LODResource.VertexBuffers.PositionVertexBuffer.GetNumVertices() == LODResource.IndexBuffer.GetNumIndices()
+						&& (LODResource.VertexBuffers.PositionVertexBuffer.GetNumVertices() % 3) == 0
+						&& LODResource.VertexBuffers.StaticMeshVertexBuffer.GetNumTexCoords() == 3
+						&& LODResource.VertexBuffers.StaticMeshVertexBuffer.GetUseFullPrecisionUVs();
 				}
 			}
 		}
@@ -1182,6 +1197,7 @@ void FWaterMeshSceneProxy::BuildGPUQuadTree(FRDGBuilder& GraphBuilder)
 	Params.JitterSampleFootprint = FMath::Max(CVarWaterMeshGPUQuadTreeJitterSampleFootprint.GetValueOnRenderThread(), 0.0f);
 	Params.CaptureDepthRange = WaterQuadTreeDepthRange;
 	Params.bUseMSAAJitterPattern = CVarWaterMeshGPUQuadTreeJitterPattern.GetValueOnRenderThread() == 1;
+	Params.bUseConservativeRasterization = bAllDrawsAreConservativeRasterCompatible && CVarWaterMeshGPUQuadTreeConservativeRasterization.GetValueOnRenderThread() != 0;
 
 	QuadTreeGPU.Init(GraphBuilder, Params, Draws);
 }

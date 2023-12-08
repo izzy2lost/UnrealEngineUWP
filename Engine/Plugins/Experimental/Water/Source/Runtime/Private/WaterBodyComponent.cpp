@@ -66,6 +66,11 @@ TAutoConsoleVariable<float> CVarWaterOceanFallbackDepth(
 	TEXT("Depth to report for the ocean when no terrain is found under the query location. Not used when <= 0."),
 	ECVF_Default);
 
+TAutoConsoleVariable<int32> CVarWaterBodyBuildConservativeRasterizationMesh(
+	TEXT("r.Water.BuildConservativeRasterizationMesh"), 1,
+	TEXT("Enables additional data in the UV channels of the water mesh, which is used for software conservative rasterization when creating the GPU water quadtree."),
+	ECVF_ReadOnly);
+
 const FName UWaterBodyComponent::WaterBodyIndexParamName(TEXT("WaterBodyIndex"));
 const FName UWaterBodyComponent::WaterZoneIndexParamName(TEXT("WaterZoneIndex"));
 const FName UWaterBodyComponent::WaterBodyZOffsetParamName(TEXT("WaterBodyZOffset"));
@@ -1486,7 +1491,10 @@ void UWaterBodyComponent::OnPostRegisterAllComponents()
 		}
 	}
 
-	if (GetLinkerCustomVersion(FFortniteMainBranchObjectVersion::GUID) < FFortniteMainBranchObjectVersion::WaterBodyStaticMeshFixup)
+	UWaterBodyInfoMeshComponent* WaterInfoMeshComponent = GetWaterInfoMeshComponent();
+	const bool bHasConservativeRasterMesh = IsValid(WaterInfoMeshComponent) && WaterInfoMeshComponent->bIsConservativeRasterCompatible;
+	const bool bShouldHaveConservativeRastermesh = CVarWaterBodyBuildConservativeRasterizationMesh.GetValueOnGameThread() != 0;
+	if ((bHasConservativeRasterMesh != bShouldHaveConservativeRastermesh) || GetLinkerCustomVersion(FFortniteMainBranchObjectVersion::GUID) < FFortniteMainBranchObjectVersion::WaterBodyStaticMeshFixup)
 	{
 		UpdateWaterBodyRenderData();
 	}
@@ -1942,8 +1950,9 @@ void UWaterBodyComponent::UpdateWaterInfoMeshComponents()
 		return;
 	}
 
+	const bool bShouldBuildConservativeRasterMesh = CVarWaterBodyBuildConservativeRasterizationMesh.GetValueOnGameThread() != 0;
 	FWaterBodyMeshBuilder MeshBuilder;
-	MeshBuilder.BuildWaterInfoMeshes( this, GetWaterInfoMeshComponent(), GetDilatedWaterInfoMeshComponent());
+	MeshBuilder.BuildWaterInfoMeshes( this, GetWaterInfoMeshComponent(), GetDilatedWaterInfoMeshComponent(), bShouldBuildConservativeRasterMesh);
 }
 
 void UWaterBodyComponent::UpdateWaterBodyStaticMeshComponents()
