@@ -74,6 +74,8 @@ public:
 	{ 
 		Lambdas.Reset();
 		Lambdas.AddZeroed(Constraints.Num());
+		LambdasDamping.Reset();
+		LambdasDamping.AddZeroed(Constraints.Num());
 		FPBDBendingConstraintsBase::Init(InParticles);
 	}
 
@@ -128,7 +130,7 @@ public:
 private:
 	template<typename SolverParticlesOrRange>
 	void InitColor(const SolverParticlesOrRange& InParticles);
-	template<typename SolverParticlesOrRange>
+	template<bool bDampingOnly, bool bElasticOnly, typename SolverParticlesOrRange>
 	void ApplyHelper(SolverParticlesOrRange& Particles, const FSolverReal Dt, const int32 ConstraintIndex, const FSolverVec3& ExpStiffnessValues,
 		const FSolverVec3& ExpBucklingStiffnessValues, const FSolverReal DampingRatioValue) const;
 
@@ -183,6 +185,7 @@ private:
 
 	FPBDWeightMap DampingRatio;
 	mutable TArray<FSolverReal> Lambdas;
+	mutable TArray<FSolverReal> LambdasDamping;
 	TArray<int32> ConstraintsPerColorStartIndex; // Constraints are ordered so each batch is contiguous. This is ColorNum + 1 length so it can be used as start and end.
 
 	TArray<FSolverVec3> WarpWeftBiasBaseMultipliers;

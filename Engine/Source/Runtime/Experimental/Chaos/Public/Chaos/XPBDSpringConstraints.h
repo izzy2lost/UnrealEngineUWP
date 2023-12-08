@@ -107,6 +107,8 @@ public:
 	{
 		Lambdas.Reset();
 		Lambdas.SetNumZeroed(Constraints.Num());
+		LambdasDamping.Reset();
+		LambdasDamping.SetNumZeroed(Constraints.Num());
 		InitColor(Particles);
 	}
 
@@ -116,6 +118,8 @@ public:
 	{
 		Lambdas.Reset();
 		Lambdas.SetNumZeroed(Constraints.Num());
+		LambdasDamping.Reset();
+		LambdasDamping.SetNumZeroed(Constraints.Num());
 	}
 
 	// Update stiffness values
@@ -142,14 +146,9 @@ public:
 private:
 	template<typename SolverParticlesOrRange>
 	CHAOS_API void InitColor(const SolverParticlesOrRange& InParticles);
-	template<typename SolverParticlesOrRange>
-	void ApplyHelper(SolverParticlesOrRange& Particles, const FSolverReal Dt, const int32 ConstraintIndex, const FSolverReal StiffnessValue, const FSolverReal DampingRatioValue) const; 
 
-	template<typename SolverParticlesOrRange>
-	FSolverVec3 GetDelta(const SolverParticlesOrRange& Particles, const FSolverReal Dt, const int32 ConstraintIndex, const FSolverReal StiffnessValue, const FSolverReal DampingRatioValue) const
-	{
-		return Spring::GetXPBDSpringDelta(Particles, Dt, Constraints[ConstraintIndex], Dists[ConstraintIndex], Lambdas[ConstraintIndex], StiffnessValue, MinStiffness, DampingRatioValue);
-	}
+	template<bool bDampingBefore, bool bSingleLambda, bool bSeparateStretch, bool bDampingAfter, typename SolverParticlesOrRange >
+	void ApplyHelper(SolverParticlesOrRange& Particles, const FSolverReal Dt, const int32 ConstraintIndex, const FSolverReal StiffnessValue, const FSolverReal DampingRatioValue) const; 
 
 protected:
 	using Base::Constraints;
@@ -161,6 +160,7 @@ protected:
 private:
 	using Base::Dists;
 	mutable TArray<FSolverReal> Lambdas;
+	mutable TArray<FSolverReal> LambdasDamping;
 	TArray<int32> ConstraintsPerColorStartIndex; // Constraints are ordered so each batch is contiguous. This is ColorNum + 1 length so it can be used as start and end.
 };
 

@@ -16,6 +16,7 @@ inline float SafeNormalize(FVector3f &Direction)
 	return (SizeSquared < FLOAT_KINDA_SMALL_NUMBER) ? FLOAT_ZERO : Size;
 }
 
+// Spring without damping
 template <typename StiffnessFloatType>
 inline FVector3f GetXPBDSpringDelta(const FVector3f& P1, const FVector3f& P2, const varying float InvM1, const varying float InvM2,
 	 const uniform float Dt, const varying float Dist, const varying float Lambda, const StiffnessFloatType Stiffness, const uniform float MinStiffness, float& DLambda)
@@ -28,7 +29,7 @@ inline FVector3f GetXPBDSpringDelta(const FVector3f& P1, const FVector3f& P2, co
 	
 	const float CombinedInvMass = InvM2 + InvM1;
 
-	const float ComputedDLambda = (AlphaInv * Offset - Lambda) / (AlphaInv * CombinedInvMass + (uniform float)1.f);
+	const float ComputedDLambda = (-AlphaInv * Offset - Lambda) / (AlphaInv * CombinedInvMass + (uniform float)1.f);
 	DLambda = select(Stiffness < MinStiffness, 0.f, ComputedDLambda);
 
 	const FVector3f ComputedDelta = DLambda * Direction;
@@ -36,27 +37,7 @@ inline FVector3f GetXPBDSpringDelta(const FVector3f& P1, const FVector3f& P2, co
 	return VectorSelect((InvM2 == FLOAT_ZERO && InvM1 == FLOAT_ZERO), FloatZeroVector, ComputedDelta);
 }
 
-template <typename StiffnessFloatType>
-inline FVector3f GetXPBDAxialSpringDelta(const FVector3f& P1, const FVector3f& P2, const FVector3f& P3, const varying float InvM1, const varying float InvM2, const varying float InvM3,
-	 const uniform float Dt, const varying float Bary, const varying float Dist, const varying float Lambda, const StiffnessFloatType Stiffness, const uniform float MinStiffness, float& DLambda)
-{
-	FVector3f P = (P2 - P3) * Bary + P3;
-	FVector3f Direction = P1 - P;
-	const float Distance = SafeNormalize(Direction);
-	const varying float Offset = Distance - Dist;
-	
-	const varying float AlphaInv = Stiffness * Dt * Dt;
-	
-	const float CombinedInvMass = (1.f - Bary) * InvM3 + Bary * InvM2 + InvM1;
-
-	const float ComputedDLambda = (AlphaInv * Offset - Lambda) / (AlphaInv * CombinedInvMass + (uniform float)1.f);
-	DLambda = select(Stiffness < MinStiffness, 0.f, ComputedDLambda);
-
-	const FVector3f ComputedDelta = DLambda * Direction;
-
-	return VectorSelect((CombinedInvMass == FLOAT_ZERO), FloatZeroVector, ComputedDelta);
-}
-
+// This is a following the original XPBD paper using a single lambda for stretch and damping.
 template <typename StiffnessFloatType>
 inline FVector3f GetXPBDSpringDeltaWithDamping(const FVector3f& P1, const FVector3f& P2, const FVector3f& X1, const FVector3f& X2,
 	const varying float InvM1, const varying float InvM2,
@@ -74,14 +55,61 @@ inline FVector3f GetXPBDSpringDeltaWithDamping(const FVector3f& P1, const FVecto
 	const varying float BetaDt = Damping * Dt;
 	const varying FVector3f RelativeVelocityTimesDt = P1 - X1 - P2 + X2;
 
-	const float ComputedDLambda = (AlphaInv * Offset - Lambda + BetaDt * VectorDot(Direction, RelativeVelocityTimesDt)) / ((AlphaInv + BetaDt)*CombinedInvMass + (uniform float)1.f);
+	const float ComputedDLambda = (-AlphaInv * Offset - Lambda - BetaDt * VectorDot(Direction, RelativeVelocityTimesDt)) / ((AlphaInv + BetaDt)*CombinedInvMass + (uniform float)1.f);
 	DLambda = select(Stiffness < MinStiffness, 0.f, ComputedDLambda);
 
 	const FVector3f ComputedDelta = DLambda * Direction;
 
-	return VectorSelect((InvM2 == FLOAT_ZERO && InvM1 == FLOAT_ZERO), FloatZeroVector, ComputedDelta);
+	return VectorSelect(CombinedInvMass < FLOAT_SMALL_NUMBER, FloatZeroVector, ComputedDelta);
 }
 
+// Spring damping constraint (separate from spring stretching)
+template <typename StiffnessFloatType>
+inline FVector3f GetXPBDSpringDampingDelta(const FVector3f& P1, const FVector3f& P2, const FVector3f& X1, const FVector3f& X2,
+	const varying float InvM1, const varying float InvM2,
+	const uniform float Dt, const varying float Dist, const varying float Lambda, const StiffnessFloatType Stiffness, const StiffnessFloatType DampingRatio, const uniform float MinStiffness, float& DLambda)
+{
+	FVector3f Direction = P1 - P2;
+	const float Distance = SafeNormalize(Direction);
+	const varying float Offset = Distance - Dist;
+	const varying float OneOverDist = select(Dist< FLOAT_SMALL_NUMBER, 1.f, 1.f / Dist);
+	
+	const float CombinedInvMass = InvM2 + InvM1;
+	const varying float Damping = (uniform float)2.f * DampingRatio * sqrt(Stiffness / CombinedInvMass) * OneOverDist;
+	const varying float BetaDt = Damping * Dt;
+	const varying FVector3f RelativeVelocityTimesDt = P1 - X1 - P2 + X2;
+
+	const float ComputedDLambda = ( -BetaDt * VectorDot(Direction, RelativeVelocityTimesDt) - Lambda) / (BetaDt * CombinedInvMass + (uniform float)1.f);
+	DLambda = select(Stiffness < MinStiffness, 0.f, ComputedDLambda);
+
+	const FVector3f ComputedDelta = DLambda * Direction;
+
+	return VectorSelect(CombinedInvMass < FLOAT_SMALL_NUMBER, FloatZeroVector, ComputedDelta);
+}
+
+// Spring without damping
+template <typename StiffnessFloatType>
+inline FVector3f GetXPBDAxialSpringDelta(const FVector3f& P1, const FVector3f& P2, const FVector3f& P3, const varying float InvM1, const varying float InvM2, const varying float InvM3,
+	 const uniform float Dt, const varying float Bary, const varying float Dist, const varying float Lambda, const StiffnessFloatType Stiffness, const uniform float MinStiffness, float& DLambda)
+{
+	FVector3f P = (P2 - P3) * Bary + P3;
+	FVector3f Direction = P1 - P;
+	const float Distance = SafeNormalize(Direction);
+	const varying float Offset = Distance - Dist;
+	
+	const varying float AlphaInv = Stiffness * Dt * Dt;
+	
+	const float CombinedInvMass = (1.f - Bary) * InvM3 + Bary * InvM2 + InvM1;
+
+	const float ComputedDLambda = (-AlphaInv * Offset - Lambda) / (AlphaInv * CombinedInvMass + (uniform float)1.f);
+	DLambda = select(Stiffness < MinStiffness, 0.f, ComputedDLambda);
+
+	const FVector3f ComputedDelta = DLambda * Direction;
+
+	return VectorSelect((CombinedInvMass == FLOAT_ZERO), FloatZeroVector, ComputedDelta);
+}
+
+// This is a following the original XPBD paper using a single lambda for stretch and damping.
 template <typename StiffnessFloatType>
 inline FVector3f GetXPBDAxialSpringDeltaWithDamping(const FVector3f& P1, const FVector3f& P2, const FVector3f& P3, 
 	const FVector3f& X1, const FVector3f& X2, const FVector3f& X3,
@@ -93,7 +121,7 @@ inline FVector3f GetXPBDAxialSpringDeltaWithDamping(const FVector3f& P1, const F
 	FVector3f Direction = P1 - P;
 	const float Distance = SafeNormalize(Direction);
 	const varying float Offset = Distance - Dist;
-	const varying float OneOverDist = select(Dist< FLOAT_SMALL_NUMBER, 1.f, 1.f / Dist);
+	const varying float OneOverDist = select(Dist < FLOAT_SMALL_NUMBER, 1.f, 1.f / Dist);
 	
 	const varying float AlphaInv = Stiffness * Dt * Dt;
 	
@@ -102,11 +130,38 @@ inline FVector3f GetXPBDAxialSpringDeltaWithDamping(const FVector3f& P1, const F
 	const varying float BetaDt = Damping * Dt;
 	const varying FVector3f RelativeVelocityTimesDt = P1 - X1 - P2 + X2;
 
-	const float ComputedDLambda = (AlphaInv * Offset - Lambda + BetaDt * VectorDot(Direction, RelativeVelocityTimesDt)) / ((AlphaInv + BetaDt)*CombinedInvMass + (uniform float)1.f);
+	const float ComputedDLambda = (-AlphaInv * Offset - Lambda - BetaDt * VectorDot(Direction, RelativeVelocityTimesDt)) / ((AlphaInv + BetaDt)*CombinedInvMass + (uniform float)1.f);
 	DLambda = select(Stiffness < MinStiffness, 0.f, ComputedDLambda);
 
 	const FVector3f ComputedDelta = DLambda * Direction;
 
-	return VectorSelect((CombinedInvMass == FLOAT_ZERO), FloatZeroVector, ComputedDelta);
+	return VectorSelect((CombinedInvMass < FLOAT_SMALL_NUMBER), FloatZeroVector, ComputedDelta);
+}
+
+// Spring damping constraint (separate from spring stretching)
+template <typename StiffnessFloatType>
+inline FVector3f GetXPBDAxialSpringDampingDelta(const FVector3f& P1, const FVector3f& P2, const FVector3f& P3, 
+	const FVector3f& X1, const FVector3f& X2, const FVector3f& X3,
+	const varying float InvM1, const varying float InvM2, const varying float InvM3,
+	const uniform float Dt, const varying float Bary, const varying float Dist, const varying float Lambda, 
+	const StiffnessFloatType Stiffness, const StiffnessFloatType DampingRatio, const uniform float MinStiffness, float& DLambda)
+{
+	FVector3f P = (P2 - P3) * Bary + P3;
+	FVector3f Direction = P1 - P;
+	const float Distance = SafeNormalize(Direction);
+	const varying float Offset = Distance - Dist;
+	const varying float OneOverDist = select(Dist < FLOAT_SMALL_NUMBER, 1.f, 1.f / Dist);
+	
+	const float CombinedInvMass = (1.f - Bary) * InvM3 + Bary * InvM2 + InvM1;
+	const varying float Damping = (uniform float)2.f * DampingRatio * sqrt(Stiffness / CombinedInvMass) * OneOverDist;
+	const varying float BetaDt = Damping * Dt;
+	const varying FVector3f RelativeVelocityTimesDt = P1 - X1 - P2 + X2;
+
+	const float ComputedDLambda = (- BetaDt * VectorDot(Direction, RelativeVelocityTimesDt) - Lambda ) / (BetaDt*CombinedInvMass + (uniform float)1.f);
+	DLambda = select(Stiffness < MinStiffness, 0.f, ComputedDLambda);
+
+	const FVector3f ComputedDelta = DLambda * Direction;
+
+	return VectorSelect((CombinedInvMass < FLOAT_SMALL_NUMBER), FloatZeroVector, ComputedDelta);
 }
 #endif

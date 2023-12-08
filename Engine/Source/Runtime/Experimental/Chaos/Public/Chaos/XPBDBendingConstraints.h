@@ -63,6 +63,7 @@ public:
 		, XPBDRestAngleTypeIndex(PropertyCollection)
 	{
 		Lambdas.Init((FSolverReal)0., Constraints.Num());
+		LambdasDamping.Init((FSolverReal)0., Constraints.Num());
 		InitColor(InParticles);
 	}
 
@@ -103,6 +104,7 @@ public:
 		, XPBDRestAngleTypeIndex(PropertyCollection)
 	{
 		Lambdas.Init((FSolverReal)0., Constraints.Num());
+		LambdasDamping.Init((FSolverReal)0., Constraints.Num());
 		InitColor(InParticles);
 	}
 
@@ -143,6 +145,7 @@ public:
 		, XPBDRestAngleTypeIndex(PropertyCollection)
 	{
 		Lambdas.Init((FSolverReal)0., Constraints.Num());
+		LambdasDamping.Init((FSolverReal)0., Constraints.Num());
 		InitColor(InParticles);
 	}
 
@@ -179,6 +182,7 @@ public:
 		, XPBDRestAngleTypeIndex(ForceInit)
 	{
 		Lambdas.Init((FSolverReal)0., Constraints.Num());
+		LambdasDamping.Init((FSolverReal)0., Constraints.Num());
 		InitColor(InParticles);
 	}
 
@@ -221,6 +225,7 @@ public:
 		, XPBDRestAngleTypeIndex(ForceInit)
 	{
 		Lambdas.Init((FSolverReal)0., Constraints.Num());
+		LambdasDamping.Init((FSolverReal)0., Constraints.Num());
 		InitColor(InParticles);
 	}
 
@@ -231,6 +236,8 @@ public:
 	{ 
 		Lambdas.Reset();
 		Lambdas.AddZeroed(Constraints.Num());
+		LambdasDamping.Reset();
+		LambdasDamping.AddZeroed(Constraints.Num());
 		FPBDBendingConstraintsBase::Init(InParticles);
 	}
 
@@ -288,7 +295,7 @@ public:
 private:
 	template<typename SolverParticlesOrRange>
 	CHAOS_API void InitColor(const SolverParticlesOrRange& InParticles);
-	template<typename SolverParticlesOrRange>
+	template<bool bDampingOnly, bool bElasticOnly, typename SolverParticlesOrRange>
 	void ApplyHelper(SolverParticlesOrRange& Particles, const FSolverReal Dt, const int32 ConstraintIndex, const FSolverReal ExpStiffnessValue, const FSolverReal ExpBucklingValue, const FSolverReal DampingRatioValue) const;
 
 	TConstArrayView<FRealSingle> GetRestAngleMapFromCollection(
@@ -334,6 +341,7 @@ private:
 
 	FPBDWeightMap DampingRatio;
 	mutable TArray<FSolverReal> Lambdas;
+	mutable TArray<FSolverReal> LambdasDamping;
 	TArray<int32> ConstraintsPerColorStartIndex; // Constraints are ordered so each batch is contiguous. This is ColorNum + 1 length so it can be used as start and end.
 
 	UE_CHAOS_DECLARE_PROPERTYCOLLECTION_NAME(XPBDBendingElementStiffness, float);
@@ -344,6 +352,13 @@ private:
 	UE_CHAOS_DECLARE_PROPERTYCOLLECTION_NAME(XPBDRestAngle, float);
 	UE_CHAOS_DECLARE_PROPERTYCOLLECTION_NAME(XPBDRestAngleType, int32);
 };
+
+// Support split vs shared damping models in non-shipping builds
+#if UE_BUILD_SHIPPING
+const bool bChaos_XPBDBending_SplitLambdaDamping = true;
+#else
+extern bool bChaos_XPBDBending_SplitLambdaDamping;
+#endif
 
 }  // End namespace Chaos::Softs
 

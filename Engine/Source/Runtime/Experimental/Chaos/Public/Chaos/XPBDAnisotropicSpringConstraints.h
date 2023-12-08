@@ -75,6 +75,8 @@ public:
 	{
 		Lambdas.Reset();
 		Lambdas.AddZeroed(Constraints.Num());
+		LambdasDamping.Reset();
+		LambdasDamping.AddZeroed(Constraints.Num());
 	}
 
 	// Update stiffness table, as well as the simulation stiffness exponent
@@ -111,7 +113,7 @@ private:
 
 	CHAOS_API void UpdateDists();
 	
-	template<typename SolverParticlesOrRange>
+	template<bool bDampingBefore, bool bSingleLambda, bool bSeparateStretch, bool bDampingAfter, typename SolverParticlesOrRange>
 	void ApplyHelper(SolverParticlesOrRange& Particles, const FSolverReal Dt, const int32 ConstraintIndex, const FSolverVec3& StiffnessValue, const FSolverReal DampingRatioValue) const;
 
 	using Base::Constraints;
@@ -127,6 +129,7 @@ private:
 	FPBDWeightMap WeftScale;
 
 	mutable TArray<FSolverReal> Lambdas;
+	mutable TArray<FSolverReal> LambdasDamping;
 	TArray<FSolverReal> BaseDists; // Without Warp/Weft Scale applied
 	TArray<FSolverVec3> WarpWeftBiasBaseMultipliers;
 	TArray<FSolverVec2> WarpWeftScaleBaseMultipliers;
@@ -194,6 +197,8 @@ public:
 		{
 			Lambdas.Reset();
 			Lambdas.AddZeroed(Constraints.Num());
+			LambdasDamping.Reset();
+			LambdasDamping.AddZeroed(Constraints.Num());
 		}
 
 		// Update stiffness table, as well as the simulation stiffness exponent
@@ -230,7 +235,7 @@ private:
 
 	CHAOS_API void UpdateDists();
 
-	template<typename SolverParticlesOrRange>
+	template<bool bDampingBefore, bool bSingleLambda, bool bSeparateStretch, bool bDampingAfter, typename SolverParticlesOrRange>
 	void ApplyHelper(SolverParticlesOrRange& Particles, const FSolverReal Dt, const int32 ConstraintIndex, const FSolverVec3& StiffnessValue, const FSolverReal DampingRatioValue) const;
 
 	using Base::Constraints;
@@ -247,6 +252,7 @@ private:
 	FPBDWeightMap WeftScale;
 
 	mutable TArray<FSolverReal> Lambdas;
+	mutable TArray<FSolverReal> LambdasDamping;
 	TArray<FSolverReal> BaseDists; // Without Warp/Weft Scale applied
 	TArray<FSolverVec3> WarpWeftBiasBaseMultipliers;
 	TArray<FSolverVec2> WarpWeftScaleBaseMultipliers;

@@ -1,8 +1,6 @@
 // Copyright Epic Games, Inc. All Rights Reserved.
 #pragma once
-
 #include "Chaos/SoftsEvolutionLinearSystem.h"
-#include "Chaos/SoftsSolverParticlesRange.h"
 
 namespace Chaos::Softs
 {
@@ -10,10 +8,11 @@ namespace Chaos::Softs
 namespace Spring
 {
 
+// Spring without damping
 template<typename SolverParticlesOrRange>
 FSolverVec3 GetXPBDSpringDelta(const SolverParticlesOrRange& Particles, const FSolverReal Dt,
 	const TVec2<int32>& Constraint, const FSolverReal RestLength, FSolverReal& Lambda,
-	const FSolverReal StiffnessValue, const FSolverReal MinStiffness, const FSolverReal DampingRatioValue)
+	const FSolverReal StiffnessValue, const FSolverReal MinStiffness)
 {
 	const int32 Index1 = Constraint[0];
 	const int32 Index2 = Constraint[1];
@@ -24,6 +23,37 @@ FSolverVec3 GetXPBDSpringDelta(const SolverParticlesOrRange& Particles, const FS
 	}
 
 	const FSolverReal CombinedInvMass = Particles.InvM(Index2) + Particles.InvM(Index1);
+
+	const FSolverVec3& P1 = Particles.P(Index1);
+	const FSolverVec3& P2 = Particles.P(Index2);
+	FSolverVec3 Direction = P1 - P2;
+	const FSolverReal Distance = Direction.SafeNormalize();
+	const FSolverReal Offset = Distance - RestLength;
+
+	const FSolverReal AlphaInv = StiffnessValue * Dt * Dt;
+
+	const FSolverReal DLambda = (-AlphaInv * Offset - Lambda) / (AlphaInv * CombinedInvMass + (FSolverReal)1.);
+	const FSolverVec3 Delta = DLambda * Direction;
+	Lambda += DLambda;
+
+	return Delta;
+}
+
+// This is a following the original XPBD paper using a single lambda for stretch and damping.
+template<typename SolverParticlesOrRange>
+FSolverVec3 GetXPBDSpringDeltaWithDamping(const SolverParticlesOrRange& Particles, const FSolverReal Dt,
+	const TVec2<int32>& Constraint, const FSolverReal RestLength, FSolverReal& Lambda,
+	const FSolverReal StiffnessValue, const FSolverReal MinStiffness, const FSolverReal DampingRatioValue)
+{
+	const int32 Index1 = Constraint[0];
+	const int32 Index2 = Constraint[1];
+
+	const FSolverReal CombinedInvMass = Particles.InvM(Index2) + Particles.InvM(Index1);
+	if (StiffnessValue < MinStiffness || CombinedInvMass < UE_SMALL_NUMBER)
+	{
+		return FSolverVec3((FSolverReal)0.);
+	}
+
 	const FSolverReal Damping = DampingRatioValue * 2.f * FMath::Sqrt(StiffnessValue / CombinedInvMass) * (RestLength > UE_SMALL_NUMBER ? (FSolverReal)1. / RestLength : (FSolverReal)1.);
 
 	const FSolverVec3& P1 = Particles.P(Index1);
@@ -40,17 +70,49 @@ FSolverVec3 GetXPBDSpringDelta(const SolverParticlesOrRange& Particles, const FS
 	const FSolverReal AlphaInv = StiffnessValue * Dt * Dt;
 	const FSolverReal BetaDt = Damping * Dt;
 
-	const FSolverReal DLambda = (AlphaInv * Offset - Lambda + BetaDt * FSolverVec3::DotProduct(Direction, RelativeVelocityTimesDt)) / ((AlphaInv + BetaDt) * CombinedInvMass + (FSolverReal)1.);
+	const FSolverReal DLambda = (-AlphaInv * Offset - Lambda - BetaDt * FSolverVec3::DotProduct(Direction, RelativeVelocityTimesDt)) / ((AlphaInv + BetaDt) * CombinedInvMass + (FSolverReal)1.);
 	const FSolverVec3 Delta = DLambda * Direction;
 	Lambda += DLambda;
 
 	return Delta;
 }
 
+// Spring damping constraint (separate from spring stretching)
+template<typename SolverParticlesOrRange>
+FSolverVec3 GetXPBDSpringDampingDelta(const SolverParticlesOrRange& Particles, const FSolverReal Dt,
+	const TVec2<int32>& Constraint, const FSolverReal RestLength, FSolverReal& Lambda,
+	const FSolverReal StiffnessValue, const FSolverReal MinStiffness, const FSolverReal DampingRatioValue)
+{
+	const int32 Index1 = Constraint[0];
+	const int32 Index2 = Constraint[1];
+	const FSolverReal CombinedInvMass = Particles.InvM(Index2) + Particles.InvM(Index1);
+	if (StiffnessValue < MinStiffness || CombinedInvMass < UE_SMALL_NUMBER)
+	{
+		return FSolverVec3((FSolverReal)0.);
+	}
+
+	const FSolverReal Damping = DampingRatioValue * 2.f * FMath::Sqrt(StiffnessValue / CombinedInvMass) * (RestLength > UE_SMALL_NUMBER ? (FSolverReal)1. / RestLength : (FSolverReal)1.);
+
+	const FSolverVec3& P1 = Particles.P(Index1);
+	const FSolverVec3& P2 = Particles.P(Index2);
+	FSolverVec3 Direction = (P1 - P2);
+	Direction.SafeNormalize();
+
+	const FSolverVec3& X1 = Particles.X(Index1);
+	const FSolverVec3& X2 = Particles.X(Index2);
+	const FSolverVec3 RelativeVelocityTimesDt = P1 - X1 - P2 + X2;
+	const FSolverReal BetaDt = Damping * Dt;
+	const FSolverReal DLambda = (-BetaDt * FSolverVec3::DotProduct(Direction, RelativeVelocityTimesDt) - Lambda) / (BetaDt * CombinedInvMass + (FSolverReal)1.);
+	const FSolverVec3 Delta = DLambda * Direction;
+	Lambda += DLambda;
+	return Delta;
+}
+
+// Spring without damping
 template<typename SolverParticlesOrRange>
 FSolverVec3 GetXPBDAxialSpringDelta(const SolverParticlesOrRange& Particles, const FSolverReal Dt,
 	const TVec3<int32>& Constraint, const FSolverReal Bary, const FSolverReal RestLength, FSolverReal& Lambda,
-	const FSolverReal StiffnessValue, const FSolverReal MinStiffness, const FSolverReal DampingRatioValue)
+	const FSolverReal StiffnessValue, const FSolverReal MinStiffness)
 {
 	const int32 Index1 = Constraint[0];
 	const int32 Index2 = Constraint[1];
@@ -63,6 +125,41 @@ FSolverVec3 GetXPBDAxialSpringDelta(const SolverParticlesOrRange& Particles, con
 	}
 
 	const FSolverReal CombinedInvMass = PInvMass + Particles.InvM(Index1);
+
+	const FSolverVec3& P1 = Particles.P(Index1);
+	const FSolverVec3& P2 = Particles.P(Index2);
+	const FSolverVec3& P3 = Particles.P(Index3);
+	const FSolverVec3 P = (P2 - P3) * Bary + P3;
+	FSolverVec3 Direction = P1 - P;
+	const FSolverReal Distance = Direction.SafeNormalize();
+	const FSolverReal Offset = Distance - RestLength;
+
+	const FSolverReal AlphaInv = StiffnessValue * Dt * Dt;
+
+	const FSolverReal DLambda = (-AlphaInv * Offset - Lambda) / (AlphaInv * CombinedInvMass + (FSolverReal)1.);
+	const FSolverVec3 Delta = DLambda * Direction;
+	Lambda += DLambda;
+
+	return Delta;
+}
+
+// This is a following the original XPBD paper using a single lambda for stretch and damping.
+template<typename SolverParticlesOrRange>
+FSolverVec3 GetXPBDAxialSpringDeltaWithDamping(const SolverParticlesOrRange& Particles, const FSolverReal Dt,
+	const TVec3<int32>& Constraint, const FSolverReal Bary, const FSolverReal RestLength, FSolverReal& Lambda,
+	const FSolverReal StiffnessValue, const FSolverReal MinStiffness, const FSolverReal DampingRatioValue)
+{
+	const int32 Index1 = Constraint[0];
+	const int32 Index2 = Constraint[1];
+	const int32 Index3 = Constraint[2];
+
+	const FSolverReal PInvMass = Particles.InvM(Index3) * ((FSolverReal)1. - Bary) + Particles.InvM(Index2) * Bary;
+	const FSolverReal CombinedInvMass = PInvMass + Particles.InvM(Index1);
+	if (StiffnessValue < MinStiffness || CombinedInvMass < UE_SMALL_NUMBER)
+	{
+		return FSolverVec3((FSolverReal)0.);
+	}
+
 	const FSolverReal Damping = DampingRatioValue * 2.f * FMath::Sqrt(StiffnessValue / CombinedInvMass) * (RestLength > UE_SMALL_NUMBER ? (FSolverReal)1. / RestLength : (FSolverReal)1.);
 
 	const FSolverVec3& P1 = Particles.P(Index1);
@@ -83,7 +180,47 @@ FSolverVec3 GetXPBDAxialSpringDelta(const SolverParticlesOrRange& Particles, con
 	const FSolverReal AlphaInv = StiffnessValue * Dt * Dt;
 	const FSolverReal BetaDt = Damping * Dt;
 
-	const FSolverReal DLambda = (AlphaInv * Offset - Lambda + BetaDt * FSolverVec3::DotProduct(Direction, RelativeVelocityTimesDt)) / ((AlphaInv + BetaDt) * CombinedInvMass + (FSolverReal)1.);
+	const FSolverReal DLambda = (-AlphaInv * Offset - Lambda - BetaDt * FSolverVec3::DotProduct(Direction, RelativeVelocityTimesDt)) / ((AlphaInv + BetaDt) * CombinedInvMass + (FSolverReal)1.);
+	const FSolverVec3 Delta = DLambda * Direction;
+	Lambda += DLambda;
+
+	return Delta;
+}
+
+// Spring damping constraint (separate from spring stretching)
+template<typename SolverParticlesOrRange>
+FSolverVec3 GetXPBDAxialSpringDampingDelta(const SolverParticlesOrRange& Particles, const FSolverReal Dt,
+	const TVec3<int32>& Constraint, const FSolverReal Bary, const FSolverReal RestLength, FSolverReal& Lambda,
+	const FSolverReal StiffnessValue, const FSolverReal MinStiffness, const FSolverReal DampingRatioValue)
+{
+	const int32 Index1 = Constraint[0];
+	const int32 Index2 = Constraint[1];
+	const int32 Index3 = Constraint[2];
+
+	const FSolverReal PInvMass = Particles.InvM(Index3) * ((FSolverReal)1. - Bary) + Particles.InvM(Index2) * Bary;
+	const FSolverReal CombinedInvMass = PInvMass + Particles.InvM(Index1);
+	if (StiffnessValue < MinStiffness || CombinedInvMass < UE_SMALL_NUMBER)
+	{
+		return FSolverVec3((FSolverReal)0.);
+	}
+
+	const FSolverReal Damping = DampingRatioValue * 2.f * FMath::Sqrt(StiffnessValue / CombinedInvMass) * (RestLength > UE_SMALL_NUMBER ? (FSolverReal)1. / RestLength : (FSolverReal)1.);
+
+	const FSolverVec3& P1 = Particles.P(Index1);
+	const FSolverVec3& P2 = Particles.P(Index2);
+	const FSolverVec3& P3 = Particles.P(Index3);
+	const FSolverVec3 P = (P2 - P3) * Bary + P3;
+	FSolverVec3 Direction = P1 - P;
+	const FSolverReal Distance = Direction.SafeNormalize();
+	const FSolverReal Offset = Distance - RestLength;
+
+	const FSolverVec3& X1 = Particles.X(Index1);
+	const FSolverVec3& X2 = Particles.X(Index2);
+	const FSolverVec3& X3 = Particles.X(Index3);
+	const FSolverVec3 X = (X2 - X3) * Bary + X3;
+	const FSolverVec3 RelativeVelocityTimesDt = P1 - X1 - P + X;
+	const FSolverReal BetaDt = Damping * Dt;
+	const FSolverReal DLambda = (-BetaDt * FSolverVec3::DotProduct(Direction, RelativeVelocityTimesDt) - Lambda) / (BetaDt * CombinedInvMass + (FSolverReal)1.);
 	const FSolverVec3 Delta = DLambda * Direction;
 	Lambda += DLambda;
 
