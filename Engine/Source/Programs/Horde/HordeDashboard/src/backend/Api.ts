@@ -3419,6 +3419,8 @@ export type GetDeviceUtilizationResponse = {
 
 /** Get response object which describes a device */
 export type GetDeviceResponse = {
+	/** Make this type indexable by property name */
+	[key: string]: any;
 
 	/** The unique id of the device */
 	id: string;
