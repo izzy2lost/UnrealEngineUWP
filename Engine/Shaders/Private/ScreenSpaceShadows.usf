@@ -87,7 +87,7 @@ RWTexture2D<float2> RWShadowFactors;
 Texture2D<uint2> StencilTexture;
 
 // Must match C++ (SceneRenderTargets.h)
-#define STENCIL_MOBILE_CAST_CONTACT_SHADOW_MASK 2
+#define STENCIL_MOBILE_CAST_CONTACT_SHADOW_MASK (1 << 4)
 
 float GetContactShadowOcclusion(float2 HitUV)
 {
