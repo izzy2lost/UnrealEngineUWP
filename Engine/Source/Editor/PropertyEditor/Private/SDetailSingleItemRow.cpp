@@ -1252,71 +1252,105 @@ void SDetailSingleItemRow::OnCopyProperty()
 
 void SDetailSingleItemRow::OnCopyPropertyDisplayName()
 {
-	if (OwnerTreeNode.IsValid())
+	if (!OwnerTreeNode.IsValid())
 	{
-		TSharedPtr<FPropertyNode> PropertyNode = GetPropertyNode();
-		if (PropertyNode.IsValid())
-		{
-			FPropertyEditorClipboard::ClipboardCopy(*PropertyNode->GetDisplayName().ToString());
-		}
+		return;
+	}
+
+	TSharedPtr<FPropertyNode> PropertyNode = GetPropertyNode();
+	if (!PropertyNode.IsValid())
+	{
+		return;
+	}
+
+	if (PropertyNode->IsOptionalValueNode())
+	{
+		FPropertyEditorClipboard::ClipboardCopy(*PropertyNode->GetParentNode()->GetDisplayName().ToString());
+	}
+	else
+	{
+		FPropertyEditorClipboard::ClipboardCopy(*PropertyNode->GetDisplayName().ToString());
 	}
 }
 
 bool SDetailSingleItemRow::CanCopyPropertyDisplayName()
 {
-	if (OwnerTreeNode.IsValid())
+	if (!OwnerTreeNode.IsValid())
 	{
-		TSharedPtr<FPropertyNode> PropertyNode = GetPropertyNode();
-		if (PropertyNode.IsValid())
-		{
-			if (!PropertyNode->GetDisplayName().IsEmpty())
-			{
-				return true;
-			}
-				
-		}
+		return false;
 	}
-	return false;
+
+	TSharedPtr<FPropertyNode> PropertyNode = GetPropertyNode();
+	if (!PropertyNode.IsValid())
+	{
+		return false;
+	}
+
+	if (PropertyNode->IsOptionalValueNode() && PropertyNode->GetParentNode()->GetDisplayName().IsEmpty())
+	{
+		return false;
+	}
+	else if (PropertyNode->GetDisplayName().IsEmpty())
+	{
+		return false;
+	}
+
+	return true;
 }
 
 void SDetailSingleItemRow::OnCopyPropertyInternalName()
 {
-	if (OwnerTreeNode.IsValid())
+	if (!OwnerTreeNode.IsValid())
 	{
-		TSharedPtr<FPropertyNode> PropertyNode = GetPropertyNode();
-		if (PropertyNode.IsValid())
-		{
-			if (const FProperty* Property = PropertyNode->GetProperty())
-			{
-				if (const UStruct* OwnerStruct = Property->GetOwnerStruct())
-				{
-					FPropertyEditorClipboard::ClipboardCopy(*OwnerStruct->GetAuthoredNameForField(Property));
-				}
-			}
-		}
+		return;
+	}
+
+	TSharedPtr<FPropertyNode> PropertyNode = GetPropertyNode();
+	if (!PropertyNode.IsValid())
+	{
+		return;
+	}
+
+	const FProperty* Property = PropertyNode->IsOptionalValueNode() ? PropertyNode->GetParentNode()->GetProperty() : PropertyNode->GetProperty();
+	if (!Property)
+	{
+		return;
+	}
+
+	if (const UStruct* OwnerStruct = Property->GetOwnerStruct())
+	{
+		FPropertyEditorClipboard::ClipboardCopy(*OwnerStruct->GetAuthoredNameForField(Property));
 	}
 }
 
 bool SDetailSingleItemRow::CanCopyPropertyInternalName()
 {
-	if (OwnerTreeNode.IsValid())
+	if (!OwnerTreeNode.IsValid())
 	{
-		TSharedPtr<FPropertyNode> PropertyNode = GetPropertyNode();
-		if (PropertyNode.IsValid())
+		return false;
+	}
+
+	TSharedPtr<FPropertyNode> PropertyNode = GetPropertyNode();
+	if (!PropertyNode.IsValid())
+	{
+		return false;
+	}
+
+	const FProperty* Property = PropertyNode->IsOptionalValueNode() ? PropertyNode->GetParentNode()->GetProperty() : PropertyNode->GetProperty();
+	if (!Property)
+	{
+		return false;
+	}
+
+	if (const UStruct* OwnerStruct = Property->GetOwnerStruct())
+	{
+		if (OwnerStruct->GetAuthoredNameForField(Property).IsEmpty())
 		{
-			if (const FProperty* Property = PropertyNode->GetProperty())
-			{
-				if (const UStruct* OwnerStruct = Property->GetOwnerStruct())
-				{
-					if (!OwnerStruct->GetAuthoredNameForField(Property).IsEmpty())
-					{
-						return true;
-					}
-				}
-			}
+			return false;
 		}
 	}
-	return false;
+
+	return true;
 }
 
 bool SDetailSingleItemRow::CanPasteProperty() const

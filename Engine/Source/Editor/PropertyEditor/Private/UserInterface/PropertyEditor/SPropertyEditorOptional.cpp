@@ -6,6 +6,7 @@
 #include "Internationalization/Internationalization.h"
 #include "Layout/Children.h"
 #include "Presentation/PropertyEditor/PropertyEditor.h"
+#include "PropertyEditorModule.h"
 #include "PropertyNode.h"
 #include "UObject/PropertyOptional.h"
 #include "Widgets/Input/SButton.h"
@@ -39,20 +40,6 @@ void SPropertyEditorOptional::Construct(const FArguments& InArgs, const TSharedR
 				SNew(STextBlock)
 					.Text(*MultiselectOptions[0])
 			];
-	}
-	else if (const TSharedPtr<FPropertyNode> OptionalValueNode = PropertyNode->GetOrCreateOptionalValueNode())
-	{
-		// create the OptionalValue's PropertyEditor
-		TSharedRef<FPropertyEditor> ValuePropertyEditor = FPropertyEditor::Create(OptionalValueNode.ToSharedRef(), InPropertyUtilities);
-		
-		TSharedPtr<SPropertyValueWidget> Widget = SNew(SPropertyValueWidget, ValuePropertyEditor, InPropertyUtilities)
-			.IsEnabled(InArgs._IsEnabled)
-			.ShowPropertyButtons(true);
-
-		 MinDesiredWidth = Widget->GetMinDesiredWidth();
-		 MaxDesiredWidth = Widget->GetMaxDesiredWidth();
-
-		 ValueEditorWidget = Widget;
 	}
 	else
 	{

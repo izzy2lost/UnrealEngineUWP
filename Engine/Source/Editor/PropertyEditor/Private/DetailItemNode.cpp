@@ -482,6 +482,16 @@ void FDetailItemNode::OnItemExpansionChanged( bool bInIsExpanded, bool bShouldSa
 	if( Customization.HasPropertyNode() )
 	{
 		Customization.GetPropertyNode()->SetNodeFlags( EPropertyNodeFlags::Expanded, bInIsExpanded );
+		
+		// This is a hack which was needed for optionals to behave correctly (they did not preserve expanded state between clicking on/off an item).
+		// I tried to find how FPropertyNode save or serialize their `EPropertyNodeFlags::Expanded` flag but couldn't find such functionality... 
+		//  
+		// My assumption was that however stuff is saved relies on the FPropertyNode tree structure which OptionalValues are not a part of...
+		// For now, relying on the parent optional instead creates the expected behaviour.
+		if (Customization.GetPropertyNode()->IsOptionalValueNode())
+		{
+			Customization.GetPropertyNode()->GetParentNode()->SetNodeFlags( EPropertyNodeFlags::Expanded, bInIsExpanded );
+		}
 	}
 
 	if (ParentCategory.IsValid() && bShouldSaveState &&
@@ -498,9 +508,14 @@ bool FDetailItemNode::ShouldBeExpanded() const
 	bool bShouldBeExpanded = bIsExpanded || bShouldBeVisibleDueToChildFiltering;
 	if( Customization.HasPropertyNode() )
 	{
-		FPropertyNode& PropertyNode = *Customization.GetPropertyNode();
-		bShouldBeExpanded = PropertyNode.HasNodeFlags( EPropertyNodeFlags::Expanded ) != 0;
-		bShouldBeExpanded |= PropertyNode.HasNodeFlags( EPropertyNodeFlags::IsSeenDueToChildFiltering ) != 0;
+		FPropertyNode* PropertyNode = Customization.GetPropertyNode().Get();
+		// This is a hack... see comment in FDetailItemNode::OnItemExpansionChanged
+		if (Customization.GetPropertyNode()->IsOptionalValueNode())
+		{
+			PropertyNode = Customization.GetPropertyNode()->GetParentNode();
+		}
+		bShouldBeExpanded = PropertyNode->HasNodeFlags( EPropertyNodeFlags::Expanded ) != 0;
+		bShouldBeExpanded |= PropertyNode->HasNodeFlags( EPropertyNodeFlags::IsSeenDueToChildFiltering ) != 0;
 	}
 	return bShouldBeExpanded;
 }

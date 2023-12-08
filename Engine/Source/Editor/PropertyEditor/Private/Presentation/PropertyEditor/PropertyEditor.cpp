@@ -323,7 +323,13 @@ void FPropertyEditor::OnSetOptionalValue(FProperty* NewValue)
 
 void FPropertyEditor::OnClearOptionalValue()
 {
-	TSharedPtr<IPropertyHandleOptional> OptionalHandle = PropertyHandle->AsOptional();
+	// This func is called by an options value, not the option itself.
+	if (!PropertyNode->IsOptionalValueNode())
+	{
+		return;
+	}
+
+	TSharedPtr<IPropertyHandleOptional> OptionalHandle = PropertyHandle->GetParentHandle()->AsOptional();
 	if (OptionalHandle.IsValid())
 	{
 		OptionalHandle->ClearOptionalValue();

@@ -3458,6 +3458,11 @@ void FPropertyNode::InvalidateCachedState()
 	bUpdateDiffersFromDefault = true;
 	bUpdateEditConstState = true;
 
+	if (OptionalValueNode.IsValid())
+	{
+		OptionalValueNode->InvalidateCachedState();
+	}
+
 	for( TSharedPtr<FPropertyNode>& ChildNode : ChildNodes )
 	{
 		ChildNode->InvalidateCachedState();

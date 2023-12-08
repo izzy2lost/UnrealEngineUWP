@@ -705,17 +705,6 @@ namespace PropertyEditorHelpers
 		}
 
 		//////////////////////////////
-		// Handle an optional property.
-		if (const FOptionalProperty* OptionalProp = CastField<FOptionalProperty>(NodeProperty))
-		{
-			uint8* ValueAddress = nullptr;
-			if (PropertyNode->GetSingleReadAddress(ValueAddress) == FPropertyAccess::Success && OptionalProp->IsSet(ValueAddress))
-			{
-				OutRequiredButtons.Add(EPropertyButton::OptionalClear);
-			}
-		}
-
-		//////////////////////////////
 		// Handle a class property.
 		FClassProperty* ClassProp = CastField<FClassProperty>(NodeProperty);
 		FSoftClassProperty* SoftClassProp = CastField<FSoftClassProperty>(NodeProperty);
@@ -850,6 +839,12 @@ namespace PropertyEditorHelpers
 			}
 		}
 
+		//////////////////////////////
+		// Handle an optional value node.
+		if (PropertyNode->IsOptionalValueNode())
+		{
+			OutRequiredButtons.Add(EPropertyButton::OptionalClear);
+		}
 	}
 	
 	void MakeRequiredPropertyButtons( const TSharedRef<FPropertyNode>& PropertyNode, const TSharedRef<IPropertyUtilities>& PropertyUtilities,  TArray< TSharedRef<SWidget> >& OutButtons, const TArray<EPropertyButton::Type>& ButtonsToIgnore, bool bUsingAssetPicker  )

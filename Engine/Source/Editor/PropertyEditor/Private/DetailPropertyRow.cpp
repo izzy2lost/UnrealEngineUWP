@@ -15,6 +15,8 @@
 #include "Modules/ModuleManager.h"
 #include "Widgets/Layout/SSpacer.h"
 
+#include "UObject/PropertyOptional.h"
+
 #define LOCTEXT_NAMESPACE	"DetailPropertyRow"
 
 FDetailPropertyRow::FDetailPropertyRow(TSharedPtr<FPropertyNode> InPropertyNode, TSharedRef<FDetailCategoryImpl> InParentCategory, TSharedPtr<FComplexPropertyNode> InExternalRootNode)
@@ -26,6 +28,39 @@ FDetailPropertyRow::FDetailPropertyRow(TSharedPtr<FPropertyNode> InPropertyNode,
 	, bForceAutoExpansion( false )
 	, bCachedCustomTypeInterface(false)
 {
+	// Is this a set optional property?
+	if (TSharedPtr<FPropertyNode>& ValueNode = PropertyNode->GetOptionalValueNode())
+	{
+		// If we are selecting multiple options with different states (ie set/unset) dont use the
+		// Value node so optional multi-select logic is displayed (see SPropertyEditorOptional.h).
+		uint8 MixedValues = 0;
+		FProperty* MyProperty = PropertyNode->GetProperty();
+		if (FOptionalProperty* OptionalProperty = CastField<FOptionalProperty>(MyProperty))
+		{
+			void* Optional = NULL;
+			FReadAddressList Addresses;
+			if (PropertyNode->GetReadAddress(Addresses))
+			{
+				for (int i = 0; i < Addresses.Num(); i++)
+				{
+					Optional = Addresses.GetAddress(i);
+					MixedValues |= OptionalProperty->IsSet(Optional) ? 1 : 2;
+					if (MixedValues == 3)
+					{
+						break;
+					}
+				}
+			}
+		}
+
+		if (MixedValues != 3)
+		{
+			// Swap our property node with the value node.
+			// Note: We still use the display name of the option for this row. 
+			PropertyNode = ValueNode;
+		}
+	}
+
 	PropertyHandle = InParentCategory->GetParentLayoutImpl()->GetPropertyHandle(PropertyNode);
 
 	if (PropertyNode.IsValid())
@@ -871,6 +906,17 @@ void FDetailPropertyRow::MakeNameOrKeyWidget( FDetailWidgetRow& Row, const TShar
 				.ShowPropertyButtons(false);
 		}
 
+	}
+	else if (PropertyNode->IsOptionalValueNode())
+	{
+		TSharedRef<FPropertyEditor> ParentEditor = FPropertyEditor::Create(
+			PropertyNode->GetParentNode()->AsShared(), 
+			ParentCategory.Pin()->GetParentLayoutImpl()->GetPropertyUtilities()
+		);
+
+		NameWidget = 
+			SNew( SPropertyNameWidget, ParentEditor )
+			.IsEnabled( IsEnabledAttrib );
 	}
 	else if (InCustomRow.IsValid())
 	{

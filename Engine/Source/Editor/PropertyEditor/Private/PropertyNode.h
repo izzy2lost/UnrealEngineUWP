@@ -1085,12 +1085,19 @@ public:
 	TSharedPtr<FPropertyNode>& GetOptionalValueNode() { return OptionalValueNode; }
 
 	/**
-	 * Interface function for getting a FOptionalProperty's Node's OptionalValueNode (May construct it if needed).
-	 * @return The optionals value OR null if this is not an optional or is an unset optional.
+	 * Interface function for getting an optionals ValueNode (May construct it if needed).
+	 * @return The optional's value OR null if this is a non-optional/unset-optional.
 	 * 
 	 * Note: This is currently the only method by which an optional's Value FPropertyNode is created (If you change this please update this documentation).
 	 */
 	virtual TSharedPtr<FPropertyNode>& GetOrCreateOptionalValueNode() { return OptionalValueNode; }
+
+	virtual bool IsOptionalValueNode() 
+	{ 
+		return ParentNodeWeakPtr.IsValid() 
+			&& ParentNodeWeakPtr.Pin()->GetOptionalValueNode().IsValid()
+			&& ParentNodeWeakPtr.Pin()->GetOptionalValueNode().Get() == this;
+	}
 
 protected:
 	TSharedRef<FEditPropertyChain> BuildPropertyChain( FProperty* PropertyAboutToChange ) const;
