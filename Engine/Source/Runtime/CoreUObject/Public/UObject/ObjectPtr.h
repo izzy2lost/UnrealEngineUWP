@@ -5,6 +5,7 @@
 #include "HAL/Platform.h"
 #include "Serialization/StructuredArchive.h"
 #include "Templates/IsTObjectPtr.h"
+#include "UObject/GarbageCollectionGlobals.h"
 #include "UObject/ObjectHandle.h"
 #include "UObject/UObjectGlobals.h"
 #include "Templates/NonNullPointer.h"
