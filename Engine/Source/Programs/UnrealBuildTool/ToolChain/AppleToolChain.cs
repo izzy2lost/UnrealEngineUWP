@@ -85,6 +85,9 @@ namespace UnrealBuildTool
 
 			// convert to float for easy comparison
 			SDKVersionFloat = Single.Parse(SDKVersion, System.Globalization.CultureInfo.InvariantCulture);
+
+			// Xcode sdk files are not allowed to be transferred over the network, ensure UBA will not do so
+			EpicGames.UBA.Utils.RegisterDisallowedPaths(XcodeDeveloperDir.FullName);
 		}
 
 		/// <summary>
