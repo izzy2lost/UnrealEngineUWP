@@ -63,8 +63,9 @@ public:
 	UPROPERTY(VisibleAnywhere, Category = Nanite, meta = (NoResetToDefault, DisplayName="Enabled"))
 	bool bNaniteEnabled = false;
 
+	// Percentage of triangles kept by Nanite
 	UPROPERTY(VisibleAnywhere, Category = Nanite, meta = (NoResetToDefault))
-	float PercentTriangles = 0.0f;
+	float KeepTrianglePercent = 0.0f;
 
 	UPROPERTY(VisibleAnywhere, Category = Materials, meta = (NoResetToDefault))
 	TArray<FStaticMaterial> Materials;
