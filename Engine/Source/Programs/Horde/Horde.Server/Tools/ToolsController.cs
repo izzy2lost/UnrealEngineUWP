@@ -213,8 +213,8 @@ namespace Horde.Server.Tools
 
 		static GetToolSummaryResponse CreateGetToolSummaryResponse(ITool tool)
 		{
-			string? latestVersion = (tool.Deployments.Count > 0) ? tool.Deployments[^1].Version : null;
-			return new GetToolSummaryResponse(tool.Id, tool.Config.Name, tool.Config.Description, latestVersion);
+			IToolDeployment? deployment = (tool.Deployments.Count == 0) ? null : tool.Deployments[^1];
+			return new GetToolSummaryResponse(tool.Id, tool.Config.Name, tool.Config.Description, deployment?.Version, deployment?.Id);
 		}
 
 		/// <summary>

@@ -23,8 +23,9 @@ namespace EpicGames.Horde.Tools
 	/// <param name="Id">Unique identifier for the tool</param>
 	/// <param name="Name">Name of the tool</param>
 	/// <param name="Description">Description for the tool</param>
-	/// <param name="Version">Version number of the latest deployment of this tool</param>
-	public record class GetToolSummaryResponse(ToolId Id, string Name, string Description, string? Version);
+	/// <param name="Version">Version number of the current deployment of this tool</param>
+	/// <param name="DeploymentId">Identifier for the current deployment</param>
+	public record class GetToolSummaryResponse(ToolId Id, string Name, string Description, string? Version, ToolDeploymentId? DeploymentId);
 
 	/// <summary>
 	/// Response when querying all tools
