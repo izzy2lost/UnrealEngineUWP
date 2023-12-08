@@ -16,12 +16,54 @@ namespace UnrealGameSync
 {
 	public partial class SdkInfoWindow : Form
 	{
+		abstract class SdkAction
+		{
+			public string Name { get; init; }
+
+			public SdkAction(string name)
+			{
+				Name = name;
+			}
+
+			public abstract void Execute();
+		}
+
+		class SdkActionRun : SdkAction
+		{
+			public string Program { get; set; } = "";
+			public string Args    { get; set; } = "";
+
+			public SdkActionRun(string name, string program = "", string args = "")
+				: base(name)
+			{
+				Program = program;
+				Args    = args;
+			}
+
+			public override void Execute()
+			{
+				try
+				{
+					ProcessStartInfo startInfo = new ProcessStartInfo();
+					startInfo.FileName = Program;
+					startInfo.Arguments = Args;
+					startInfo.UseShellExecute = true;
+					Process.Start(startInfo);
+				}
+
+				catch(Exception ex)
+				{
+					MessageBox.Show($"Unable to run '{Program} {Args}': {ex.Message}");
+				}
+			}
+		}
+
 		class SdkItem
 		{
 			public string Category { get; }
 			public string Description { get; }
-			public string? Install { get; set; }
-			public string? Browse { get; set; }
+
+			public List<SdkAction> Actions = new List<SdkAction>();
 
 			public SdkItem(string category, string description)
 			{
@@ -79,27 +121,80 @@ namespace UnrealGameSync
 				string description = obj.GetValue("Description", "");
 				SdkItem item = new SdkItem(category, description);
 
-				item.Install = Utility.ExpandVariables(obj.GetValue("Install", ""), variables);
-				if(item.Install.Contains("$(", StringComparison.Ordinal))
-				{
-					item.Install = null;
-				}
+				List<string> keys = obj.GetKeys().ToList();
 
-				item.Browse = Utility.ExpandVariables(obj.GetValue("Browse", ""), variables);
-				if(item.Browse.Contains("$(", StringComparison.Ordinal))
+				foreach (string key in keys)
 				{
-					item.Browse = null;
-				}
+					string  keyToAdd = key;
+					string? value    = obj.GetValue(keyToAdd, "");
 
-				if(!String.IsNullOrEmpty(item.Install) && String.IsNullOrEmpty(item.Browse))
-				{
-					try
+					if (String.IsNullOrEmpty(value))
 					{
-						item.Browse = Path.GetDirectoryName(item.Install);
+						continue;
 					}
-					catch
+
+					if (!value.StartsWith('('))
 					{
-						item.Browse = null;
+						// Handle the predefined Install and Browse actions.
+
+						if (keyToAdd == "Install")
+						{
+							string? installArgument = Utility.ExpandVariables(value, variables);
+							if (!installArgument.Contains("$(", StringComparison.Ordinal))
+							{
+								item.Actions.Add(new SdkActionRun("Install", installArgument));
+
+								// If Browse is not explicitly defined, generate it automatically from the Installer path.
+								if (!keys.Contains("Browse"))
+								{
+									keyToAdd = "Browse";
+									value = Path.GetDirectoryName(installArgument);
+
+									if (String.IsNullOrEmpty(value))
+									{
+										continue;
+									}
+								}
+							}
+						}
+
+						if (keyToAdd == "Browse")
+						{
+							string? browseArgument = Utility.ExpandVariables(value, variables);
+							if (!browseArgument.Contains("$(", StringComparison.Ordinal))
+							{
+								item.Actions.Add(new SdkActionRun("Browse", "explorer.exe", browseArgument.Replace('/', '\\')));
+							}
+						}
+					}
+					else
+					{
+						// Handle generic actions i.e. ones with custom names which may launch arbitrary executables with additional parameters.
+						// For instance,
+						//		ReleaseNotes=(Program="notepad.exe", Args="notes.txt")
+						// will add a "ReleaseNotes" badge which, when clicked, will open "notes.txt" in the notepad.
+
+						ConfigObject valueObj = new ConfigObject(value);
+
+						string program = valueObj.GetValue("Program", "");
+						string args = valueObj.GetValue("Args", "");
+
+						program = Utility.ExpandVariables(program, variables);
+						if (program.Contains("$(", StringComparison.Ordinal))
+						{
+							continue;
+						}
+
+						args = Utility.ExpandVariables(args, variables);
+						if (args.Contains("$(", StringComparison.Ordinal))
+						{
+							continue;
+						}
+
+						if (!String.IsNullOrEmpty(program))
+						{
+							item.Actions.Add(new SdkActionRun(keyToAdd, program, args));
+						}
 					}
 				}
 
@@ -220,19 +315,12 @@ namespace UnrealGameSync
 
 			SdkItem sdk = (SdkItem)subItem.Tag;
 
-			Action? installAction = null;
-			if(!String.IsNullOrEmpty(sdk.Install))
+			foreach (SdkAction action in sdk.Actions)
 			{
-				installAction = () => { Install(sdk.Install); };
-			}
-			badges.Add(new BadgeInfo(uniqueIdPrefix + "_Install", "Install") { OnClick = installAction });
+				Action clickAction = () => { action.Execute(); };
 
-			Action? browseAction = null;
-			if(!String.IsNullOrEmpty(sdk.Browse))
-			{
-				browseAction = () => { Browse(sdk.Browse); };
+				badges.Add(new BadgeInfo($"{uniqueIdPrefix}_{action.Name}", action.Name) { OnClick = clickAction });
 			}
-			badges.Add(new BadgeInfo(uniqueIdPrefix + "_Browse", "Browse"){ OnClick = browseAction });
 
 			int right = subItem.Bounds.Right - 10;
 			for(int idx = badges.Count - 1; idx >= 0; idx--)
@@ -243,33 +331,6 @@ namespace UnrealGameSync
 			}
 
 			return badges;
-		}
-
-		private static void Browse(string directoryName)
-		{
-			try
-			{
-				Process.Start("explorer.exe", String.Format("\"{0}\"", directoryName));
-			}
-			catch(Exception ex)
-			{
-				MessageBox.Show(String.Format("Unable to open explorer to {0}: {1}", directoryName, ex.Message));
-			}
-		}
-
-		private static void Install(string fileName)
-		{
-			try
-			{
-				ProcessStartInfo startInfo = new ProcessStartInfo();
-				startInfo.FileName = fileName;
-				startInfo.UseShellExecute = true;
-				Process.Start(startInfo);
-			}
-			catch(Exception ex)
-			{
-				MessageBox.Show(String.Format("Unable to run {0}: {1}", fileName, ex.Message));
-			}
 		}
 
 		private Size GetBadgeSize(string badgeText)

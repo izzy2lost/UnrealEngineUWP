@@ -148,6 +148,14 @@ namespace UnrealGameSync
 			return token;
 		}
 
+		public IEnumerable<string> GetKeys()
+		{
+			for (int idx = 0; idx < Pairs.Count; idx++)
+			{
+				yield return Pairs[idx].Key;
+			}
+		}
+
 		[return: NotNullIfNotNull("defaultValue")]
 		public string? GetValue(string key, string? defaultValue = null)
 		{
