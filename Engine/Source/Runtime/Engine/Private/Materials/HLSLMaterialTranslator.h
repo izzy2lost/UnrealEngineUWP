@@ -1389,7 +1389,7 @@ protected:
 	 * Queries the DDC cache for a cached translation.
 	 * @return Whether the speecified key is in the DDC.
 	 */
-	void AsyncQueryDDC(UE::DerivedData::FRequestOwner& DDCRequestOwner, FSharedBuffer& EnvironmentDefinesBuffer, double& SerializeTime);
+	void AsyncQueryDDC(UE::DerivedData::FRequestOwner& DDCRequestOwner, FSharedBuffer& EnvironmentDefinesBuffer);
 
 	/**
 	 * Pushes the final results to the DDC cache.
