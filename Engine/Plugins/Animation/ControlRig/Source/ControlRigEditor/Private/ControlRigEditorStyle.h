@@ -36,6 +36,8 @@ class FControlRigEditorStyle final
 public:
 	FControlRigEditorStyle()
 		: FSlateStyleSet("ControlRigEditorStyle")
+		, ConnectorUserInterfaceColor(0.0, 112.f/255.f, 224.f/255.f)
+		, SocketUserInterfaceColor(0.0, 112.f/255.f, 224.f/255.f)
 	{
 		const FVector2D Icon10x10(10.0f, 10.0f);
 		const FVector2D Icon14x14(14.0f, 14.0f);
@@ -166,6 +168,8 @@ public:
 	}
 
 	FSlateColor SpacePickerSelectColor;
+	FLinearColor ConnectorUserInterfaceColor;
+	FLinearColor SocketUserInterfaceColor;
 };
 
 #undef TTF_FONT

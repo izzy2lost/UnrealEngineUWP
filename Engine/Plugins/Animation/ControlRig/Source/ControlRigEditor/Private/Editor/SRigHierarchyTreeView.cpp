@@ -524,7 +524,9 @@ bool SRigHierarchyTreeView::AddElement(const FRigBaseElement* InElement)
 								TagArguments.Text(FText::FromName(Name));
 								TagArguments.TooltipText(FText::FromName(ConnectorKey.Name));
 								TagArguments.TextColor(FSlateColor(FLinearColor::White));
-								TagArguments.Color(FLinearColor(0.0, 112.f/255.f, 224.f/255.f));
+
+								static const FLinearColor ConnectorColor = FControlRigEditorStyle::Get().ConnectorUserInterfaceColor;
+								TagArguments.Color(ConnectorColor);
 								TagArguments.AllowDragDrop(true);
 								FString Identifier;
 								FRigElementKey::StaticStruct()->ExportText(Identifier, &ConnectorKey, nullptr, nullptr, PPF_None, nullptr);
@@ -742,7 +744,7 @@ void SRigHierarchyTreeView::RefreshTreeView(bool bRebuildContent)
 				bContinue = true;
 			});
 
-			// add all of the connectors. their parent relationship in the tree represents resolval
+			// add all of the connectors. their parent relationship in the tree represents resolve
 			for(FRigConnectorElement* Connector : Connectors)
 			{
 				AddElement(Connector);

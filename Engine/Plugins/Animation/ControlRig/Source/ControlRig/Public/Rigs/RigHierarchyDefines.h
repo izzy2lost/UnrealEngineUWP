@@ -1878,6 +1878,11 @@ public:
 
 	bool IsValid() const;
 
+	const FRigElementKey& GetConnectorKey() const
+	{
+		return Connector;
+	}
+
 	EModularRigResolveState GetState() const
 	{
 		return State;
@@ -1899,7 +1904,10 @@ public:
 	}
 
 private:
-	
+
+	UPROPERTY()
+	FRigElementKey Connector;
+
 	UPROPERTY()
 	TArray<FRigElementResolveResult> Matches;
 

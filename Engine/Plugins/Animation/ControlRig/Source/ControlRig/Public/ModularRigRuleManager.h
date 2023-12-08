@@ -14,13 +14,49 @@ public:
 	GENERATED_BODY()
 
 	/***
-	 * Returns the possible targets for the given connector in the current resolval stage
+	 * Returns the possible targets for the given connector in the current resolve stage
+	 * Note: This method is thread-safe. 
 	 * @param InConnector The connector to resolve
+	 * @param InModule The module the connector belongs to
 	 * @param InResolvedConnectors A redirect map of the already resolved connectors
-	 * @return The resolval result including a list of matches
+	 * @return The resolve result including a list of matches
 	 */
-	FModularRigResolveResult Resolve(
+	FModularRigResolveResult FindMatches(
 		const FRigConnectorElement* InConnector,
+		const FRigModuleInstance* InModule,
+		const FRigElementKeyRedirector& InResolvedConnectors = FRigElementKeyRedirector()
+	) const;
+
+	/***
+	 * Returns the possible targets for the primary connector in the current resolve stage
+	 * Note: This method is thread-safe. 
+	 * @param InModule The module the connector belongs to
+	 * @return The resolve result including a list of matches
+	 */
+	FModularRigResolveResult FindMatchesForPrimaryConnector(
+		const FRigModuleInstance* InModule
+	) const;
+
+	/***
+	 * Returns the possible targets for each secondary connector
+	 * Note: This method is thread-safe. 
+	 * @param InModule The module the secondary connectors belongs to
+	 * @param InResolvedConnectors A redirect map of the already resolved connectors
+	 * @return The resolve result including a list of matches for each connector
+	 */
+	TArray<FModularRigResolveResult> FindMatchesForSecondaryConnectors(
+		const FRigModuleInstance* InModule,
+		const FRigElementKeyRedirector& InResolvedConnectors = FRigElementKeyRedirector()
+	) const;
+
+	/***
+	 * Returns the possible targets for each optional connector
+	 * Note: This method is thread-safe. 
+	 * @param InModule The module the optional connectors belongs to
+	 * @param InResolvedConnectors A redirect map of the already resolved connectors
+	 * @return The resolve result including a list of matches for each connector
+	 */
+	TArray<FModularRigResolveResult> FindMatchesForOptionalConnectors(
 		const FRigModuleInstance* InModule,
 		const FRigElementKeyRedirector& InResolvedConnectors = FRigElementKeyRedirector()
 	) const;
@@ -52,6 +88,7 @@ private:
 	static void FilterIncompatibleTypes(FWorkData& InOutWorkData);
 	static void FilterInvalidNameSpaces(FWorkData& InOutWorkData);
 	static void FilterByConnectorRules(FWorkData& InOutWorkData);
+	static void FilterByConnectorEvent(FWorkData& InOutWorkData);
 
 	TWeakObjectPtr<const URigHierarchy> Hierarchy;
 

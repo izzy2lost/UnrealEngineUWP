@@ -6,12 +6,13 @@
 
 #define LOCTEXT_NAMESPACE "ModularRigRuleManager"
 
-FModularRigResolveResult UModularRigRuleManager::Resolve(
+FModularRigResolveResult UModularRigRuleManager::FindMatches(
 	const FRigConnectorElement* InConnector,
 	const FRigModuleInstance* InModule,
 	const FRigElementKeyRedirector& InResolvedConnectors) const
 {
 	FModularRigResolveResult Result;
+	Result.Connector = InConnector->GetKey();
 	
 	if(!Hierarchy.IsValid())
 	{
@@ -45,6 +46,64 @@ FModularRigResolveResult UModularRigRuleManager::Resolve(
 	return Result;;
 }
 
+FModularRigResolveResult UModularRigRuleManager::FindMatchesForPrimaryConnector(const FRigModuleInstance* InModule) const
+{
+	static const FRigElementKeyRedirector EmptyRedirector;
+	FRigConnectionRuleInput RuleInput;
+	RuleInput.Hierarchy = Hierarchy.Get();
+	RuleInput.Module = InModule;
+	RuleInput.Redirector = &EmptyRedirector;
+
+	FModularRigResolveResult Result;
+	
+	if(const FRigConnectorElement* PrimaryConnector = RuleInput.FindPrimaryConnector(&Result.Message))
+	{
+		Result = FindMatches(PrimaryConnector, InModule, EmptyRedirector);
+	}
+	else
+	{
+		Result.State = EModularRigResolveState::Error;
+	}
+
+	return Result;
+}
+
+TArray<FModularRigResolveResult> UModularRigRuleManager::FindMatchesForSecondaryConnectors(const FRigModuleInstance* InModule, const FRigElementKeyRedirector& InResolvedConnectors) const
+{
+	FRigConnectionRuleInput RuleInput;
+	RuleInput.Hierarchy = Hierarchy.Get();
+	RuleInput.Module = InModule;
+	RuleInput.Redirector = &InResolvedConnectors;
+
+	TArray<FModularRigResolveResult> Results;
+
+	const TArray<const FRigConnectorElement*> SecondaryConnectors = RuleInput.FindSecondaryConnectors(false /* optional */);
+	for(const FRigConnectorElement* SecondaryConnector : SecondaryConnectors)
+	{
+		Results.Add(FindMatches(SecondaryConnector, InModule, InResolvedConnectors));
+	}
+
+	return Results;
+}
+
+TArray<FModularRigResolveResult> UModularRigRuleManager::FindMatchesForOptionalConnectors(const FRigModuleInstance* InModule, const FRigElementKeyRedirector& InResolvedConnectors) const
+{
+	FRigConnectionRuleInput RuleInput;
+	RuleInput.Hierarchy = Hierarchy.Get();
+	RuleInput.Module = InModule;
+	RuleInput.Redirector = &InResolvedConnectors;
+
+	TArray<FModularRigResolveResult> Results;
+
+	const TArray<const FRigConnectorElement*> OptionalConnectors = RuleInput.FindSecondaryConnectors(true /* optional */);
+	for(const FRigConnectorElement* OptionalConnector : OptionalConnectors)
+	{
+		Results.Add(FindMatches(OptionalConnector, InModule, InResolvedConnectors));
+	}
+
+	return Results;
+}
+
 void UModularRigRuleManager::FWorkData::Filter(TFunction<void(FRigElementResolveResult&)> PerMatchFunction)
 {
 	const TArray<FRigElementResolveResult> PreviousMatches = Result->Matches;;
@@ -75,6 +134,7 @@ void UModularRigRuleManager::ResolveConnector(FWorkData& InOutWorkData)
 	FilterIncompatibleTypes(InOutWorkData);
 	FilterInvalidNameSpaces(InOutWorkData);
 	FilterByConnectorRules(InOutWorkData);
+	FilterByConnectorEvent(InOutWorkData);
 
 	if(InOutWorkData.Result->Matches.IsEmpty())
 	{
@@ -141,12 +201,54 @@ void UModularRigRuleManager::FilterByConnectorRules(FWorkData& InOutWorkData)
 		TSharedPtr<FStructOnScope> Storage;
 		const FRigConnectionRule* Rule = Stash.Get(Storage);
 
-		InOutWorkData.Filter([Rule, InOutWorkData](FRigElementResolveResult& Result)
+		FRigConnectionRuleInput RuleInput;
+		RuleInput.Hierarchy = InOutWorkData.Hierarchy;
+		RuleInput.Redirector = InOutWorkData.ResolvedConnectors;
+		RuleInput.Module = InOutWorkData.Module;
+		
+		InOutWorkData.Filter([Rule, RuleInput](FRigElementResolveResult& Result)
 		{
-			const FRigBaseElement* Target = InOutWorkData.Hierarchy->Find(Result.GetKey());
+			const FRigBaseElement* Target = RuleInput.Hierarchy->Find(Result.GetKey());
 			check(Target);
-			Result = Rule->Resolve(Target, InOutWorkData.Hierarchy, InOutWorkData.ResolvedConnectors);
+			Result = Rule->Resolve(Target, RuleInput);
 		});
+	}
+}
+
+void UModularRigRuleManager::FilterByConnectorEvent(FWorkData& InOutWorkData)
+{
+	// this may be null during unit tests
+	if(InOutWorkData.Module == nullptr)
+	{
+		return;
+	}
+	
+	// see if we are nested below a modular rig
+	UModularRig* ModularRig = InOutWorkData.Hierarchy->GetTypedOuter<UModularRig>();
+	if(ModularRig == nullptr)
+	{
+		return;
+	}
+	
+	FModularRigResolveResult* Result = InOutWorkData.Result;
+
+	// todo: run the VM event to perform filtering
+	// ModularRig->ExecuteConnectorEvent(InOutWorkData->Connector->GetKey(), Module, Redirector)
+	
+	// move the default match to the front of the list
+	if(!Result->Matches.IsEmpty())
+	{
+		const int32 DefaultMatchIndex = Result->Matches.IndexOfByPredicate([](const FRigElementResolveResult& ElementResult) -> bool
+		{
+			return ElementResult.State == ERigElementResolveState::DefaultTarget;
+		}) ;
+
+		if(DefaultMatchIndex != INDEX_NONE)
+		{
+			const FRigElementResolveResult DefaultResult = Result->Matches[DefaultMatchIndex];
+			Result->Matches.RemoveAt(DefaultMatchIndex);
+			Result->Matches.Insert(DefaultResult, 0);
+		};
 	}
 }
 

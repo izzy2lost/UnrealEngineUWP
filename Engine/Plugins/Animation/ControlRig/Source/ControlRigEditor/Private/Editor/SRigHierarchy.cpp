@@ -2087,8 +2087,14 @@ void SRigHierarchy::HandleNewItem(ERigElementType InElementType, bool bIsAnimati
 						}
 					}
 
+					const bool bIsPrimary = Hierarchy->GetConnectorKeys(false).Num() == 0;
 					FRigConnectorSettings Settings;
-					Settings.Type = Hierarchy->GetConnectorKeys(false).Num() == 0 ? EConnectorType::Primary : EConnectorType::Secondary;
+					Settings.Type = bIsPrimary ? EConnectorType::Primary : EConnectorType::Secondary;
+						if(!bIsPrimary)
+						{
+							Settings.Rules.Reset();
+							Settings.AddRule(FRigChildOfPrimaryConnectionRule());
+						}
 					NewItemKey = Controller->AddConnector(NewElementName, Settings, true);
 					(void)ResolveConnector(NewItemKey, ParentKey);
 					break;
