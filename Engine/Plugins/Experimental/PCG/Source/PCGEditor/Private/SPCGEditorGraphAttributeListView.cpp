@@ -565,7 +565,7 @@ void SPCGEditorGraphAttributeListView::OnInspectedNodeChanged(UPCGEditorGraphNod
 
 	if (PCGEditorGraphNode.IsValid())
 	{
-		NodeNameTextBlock->SetText(PCGEditorGraphNode->GetNodeTitle(ENodeTitleType::FullTitle));
+		NodeNameTextBlock->SetText(PCGEditorGraphNode->GetNodeTitle(ENodeTitleType::ListView));
 		NodeNameTextBlock->SetToolTipText(PCGEditorGraphNode->GetTooltipText());
 	}
 	else

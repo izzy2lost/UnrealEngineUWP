@@ -580,13 +580,6 @@ void SPCGEditorGraphNode::OnNodeRenameInitiated()
 {
 	if (InlineEditableText.IsValid())
 	{
-		// If titles are flipped, the primary title widget will contain the generated title. Inject
-		// the other title here so the edit action will change the authored title.
-		if (PCGEditorGraphNode->HasFlippedTitleLines())
-		{
-			InlineEditableText->SetText(PCGEditorGraphNode->GetAuthoredTitleLine());
-		}
-
 		InlineEditableText->EnterEditingMode();
 	}
 }

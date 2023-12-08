@@ -279,12 +279,13 @@ UPCGNode* UPCGSubgraphSettings::CreateNode() const
 
 FString UPCGSubgraphSettings::GetAdditionalTitleInformation() const
 {
-	const UPCGNode* Node = Cast<UPCGNode>(GetOuter());
-	if (Node && Node->IsInputPinConnected(PCGPinConstants::DefaultInputLabel))
+#if WITH_EDITOR
+	if (IsPropertyOverriddenByPin(GET_MEMBER_NAME_CHECKED(UPCGSubgraphSettings, SubgraphOverride)))
 	{
-		// If subgraph is dynamic, don't emit any extra info here.
+		// Subgraphs with the subgraph override pin connected should not display any asset path.
 		return FString();
 	}
+#endif
 
 	if (UPCGGraph* TargetSubgraph = GetSubgraph())
 	{
