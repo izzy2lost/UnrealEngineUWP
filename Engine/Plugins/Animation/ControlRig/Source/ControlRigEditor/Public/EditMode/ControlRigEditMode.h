@@ -13,11 +13,7 @@
 #include "UnrealWidgetFwd.h"
 #include "IPersonaEditMode.h"
 #include "Misc/Guid.h"
-#include "Materials/Material.h"
-#include "Materials/MaterialInstanceDynamic.h"
 #include "ControlRigEditMode.generated.h"
-
-
 
 class FEditorViewportClient;
 class FRigVMEditor;
@@ -494,7 +490,6 @@ private:
 	bool bIsConstructionEventRunning;
 	TArray<uint32> LastHierarchyHash;
 	TArray<uint32> LastShapeLibraryHash;
-	TMap<uint32, TStrongObjectPtr<UMaterialInstanceDynamic>> SocketMaterials;
 
 	friend class FControlRigEditorModule;
 	friend class FControlRigEditor;
