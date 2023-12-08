@@ -34,8 +34,9 @@ namespace UnrealBuildTool.Rules
 					"ConcertTransport", // For LogConcert
 				}
 			);
-
-			ShortName = "CrtScEd";
+            
+			// TODO UE-202216: Do proper fix
+			ShortName = "CSE";
 		}
 	}
 }

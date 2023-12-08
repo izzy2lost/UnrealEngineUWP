@@ -27,7 +27,8 @@ namespace UnrealBuildTool.Rules
 				}
 			);
 
-			ShortName = "CrtSc";
+			// TODO UE-202216: Do proper fix
+			ShortName = "CS";
 		}
 	}
 }
