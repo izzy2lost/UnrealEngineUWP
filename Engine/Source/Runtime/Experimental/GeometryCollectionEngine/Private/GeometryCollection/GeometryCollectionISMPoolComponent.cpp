@@ -495,7 +495,7 @@ void FGeometryCollectionISMPool::UpdateAbsoluteTransforms(const FTransform& Base
 		check(GcIsm.MeshInstance.Desc.Position == FVector::ZeroVector);
 		
 		if(UInstancedStaticMeshComponent* Ism = GcIsm.ISMComponent)
-		{ 
+		{
 			if(bReverseCulling)
 			{
 				// As in InitISM we need to apply the inverted X scale for reverse culling.
@@ -504,7 +504,7 @@ void FGeometryCollectionISMPool::UpdateAbsoluteTransforms(const FTransform& Base
 				BaseScale.X = -BaseScale.X;
 				FTransform Flipped = BaseTransform;
 				Flipped.SetScale3D(BaseScale);
-			
+
 				Ism->SetComponentToWorld(Flipped);
 			}
 			else
