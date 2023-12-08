@@ -3,6 +3,7 @@
 #include "FX/SlateFXSubsystem.h"
 
 #include "Engine/Engine.h"
+#include "Engine/EngineTypes.h"
 #include "Engine/GameInstance.h"
 #include "FX/SlateRHIPostBufferProcessor.h"
 #include "SlateRHIRendererSettings.h"
@@ -96,6 +97,11 @@ USlateRHIPostBufferProcessor* USlateFXSubsystem::GetSlatePostProcessor(ESlatePos
 
 void USlateFXSubsystem::OnPreWorldInitialization(UWorld* World, const UWorld::InitializationValues IVS)
 {
+	if (World && World->WorldType == EWorldType::EditorPreview)
+	{
+		return;
+	}
+
 	SlatePostBufferProcessors.Empty();
 	SlatePostBufferProcessorProxies.Empty();
 
@@ -118,6 +124,11 @@ void USlateFXSubsystem::OnPreWorldInitialization(UWorld* World, const UWorld::In
 
 void USlateFXSubsystem::OnPostWorldCleanup(UWorld* World, bool SessionEnded, bool bCleanupResources)
 {
+	if (World && World->WorldType == EWorldType::EditorPreview)
+	{
+		return;
+	}
+
 	SlatePostBufferProcessors.Empty();
 	SlatePostBufferProcessorProxies.Empty();
 }

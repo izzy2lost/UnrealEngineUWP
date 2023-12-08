@@ -160,6 +160,8 @@ void SPostBufferUpdate::PrivateRegisterAttributes(FSlateAttributeInitializer& At
 
 SPostBufferUpdate::SPostBufferUpdate()
 	: bPerformDefaultPostBufferUpdate(true)
+	, BuffersToUpdate({})
+	, PostBufferUpdater(nullptr)
 {
 }
 
@@ -167,6 +169,8 @@ void SPostBufferUpdate::Construct(const FArguments& InArgs)
 {
 #if !UE_SERVER
 	bPerformDefaultPostBufferUpdate = InArgs._bPerformDefaultPostBufferUpdate;
+
+	BuffersToUpdate = {};
 
 	PostBufferUpdater = MakeShared<FPostBufferUpdater>();
 	if (PostBufferUpdater)

@@ -314,6 +314,7 @@ private:
 	bool bTakingAScreenShot;
 	bool bUpdateHDRDisplayInformation;
 	ESlatePostRT bShrinkPostBufferRequested;
+	uint64 LastFramesPostBufferUsed[(uint8)ESlatePostRT::Num];
 	FRenderCommandFence SlatePostRTFences[(uint8)ESlatePostRT::Num];
 	FIntRect ScreenshotRect;
 	FViewportInfo* ScreenshotViewportInfo;

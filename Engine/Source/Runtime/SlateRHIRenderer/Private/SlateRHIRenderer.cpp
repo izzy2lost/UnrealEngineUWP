@@ -244,6 +244,11 @@ FSlateRHIRenderer::FSlateRHIRenderer(TSharedRef<FSlateFontServices> InSlateFontS
 		FPlane(0, 0, 1, 0),
 		FPlane(0, 0, 0, 1));
 
+	for (uint64& LastFramePostBufferUsed : LastFramesPostBufferUsed)
+	{
+		LastFramePostBufferUsed = 0;
+	}
+
 	bTakingAScreenShot = false;
 	OutScreenshotData = NULL;
 	OutHDRScreenshotData = NULL;
@@ -1844,11 +1849,16 @@ void FSlateRHIRenderer::DrawWindows_Private(FSlateDrawBuffer& WindowDrawBuffer)
 								}
 
 								SlatePostRTFences[SlatePostBufferBitIndex].BeginFence();
+								LastFramesPostBufferUsed[SlatePostBufferBitIndex] = GFrameCounter;
 							}
 
 							bShrinkPostBufferRequested &= ~SlatePostBufferBit;
 						}
-						else if (SlatePostBuffer && SlatePostBuffer->GetResource() && SlatePostRTFences[SlatePostBufferBitIndex].IsFenceComplete() && (SlatePostBuffer->SizeX != 1 || SlatePostBuffer->SizeY != 1))
+						else if (SlatePostBuffer 
+							&& SlatePostBuffer->GetResource()
+							&& LastFramesPostBufferUsed[SlatePostBufferBitIndex] < GFrameCounter
+							&& SlatePostRTFences[SlatePostBufferBitIndex].IsFenceComplete() 
+							&& (SlatePostBuffer->SizeX != 1 || SlatePostBuffer->SizeY != 1))
 						{
 							if ((bShrinkPostBufferRequested & SlatePostBufferBit) == ESlatePostRT::None)
 							{
@@ -1933,6 +1943,7 @@ void FSlateRHIRenderer::DrawWindows_Private(FSlateDrawBuffer& WindowDrawBuffer)
 								if (bResourceUpdatedPostBuffer)
 								{
 									SlatePostRTFences[SlatePostBufferBitIndex].BeginFence();
+									LastFramesPostBufferUsed[SlatePostBufferBitIndex] = GFrameCounter;
 									bShrinkPostBufferRequested &= ~SlatePostBufferBit;
 								}
 

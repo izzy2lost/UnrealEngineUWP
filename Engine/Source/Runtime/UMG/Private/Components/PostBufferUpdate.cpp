@@ -34,7 +34,19 @@ TSharedRef<SWidget> UPostBufferUpdate::RebuildWidget()
 	MyPostBufferUpdate = SNew(SPostBufferUpdate)
 		.bPerformDefaultPostBufferUpdate(bPerformDefaultPostBufferUpdate);
 
-	MyPostBufferUpdate->SetBuffersToUpdate(BuffersToUpdate);
+	bool bSetBuffersToUpdate = true;
+
+#if WITH_EDITOR
+	if (IsDesignTime())
+	{
+		bSetBuffersToUpdate = false;
+	}
+#endif // WITH_EDITOR
+
+	if (bSetBuffersToUpdate)
+	{
+		MyPostBufferUpdate->SetBuffersToUpdate(BuffersToUpdate);
+	}
 
 	return MyPostBufferUpdate.ToSharedRef();
 }
@@ -49,7 +61,20 @@ void UPostBufferUpdate::SynchronizeProperties()
 	}
 
 	MyPostBufferUpdate->SetPerformDefaultPostBufferUpdate(bPerformDefaultPostBufferUpdate);
-	MyPostBufferUpdate->SetBuffersToUpdate(BuffersToUpdate);
+
+	bool bSetBuffersToUpdate = true;
+
+#if WITH_EDITOR
+	if (IsDesignTime())
+	{
+		bSetBuffersToUpdate = false;
+	}
+#endif // WITH_EDITOR
+
+	if (bSetBuffersToUpdate)
+	{
+		MyPostBufferUpdate->SetBuffersToUpdate(BuffersToUpdate);
+	}
 }
 
 UMG_API void UPostBufferUpdate::ReleaseSlateResources(bool bReleaseChildren)
