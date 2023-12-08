@@ -2657,6 +2657,12 @@ namespace UnrealBuildTool
 		}
 
 		/// <summary>
+		/// Checks if a plugin should be programmatically allowed in the build
+		/// </summary>
+		/// <returns>true if the plugin is allowed</returns>
+		public virtual bool IgnorePluginDependency(PluginInfo ParentInfo, PluginReferenceDescriptor Descriptor) => false;
+
+		/// <summary>
 		/// Checks if a property has been set with the RequiresUniqueBuildEnvironmentAttribute, and is different from it's base
 		/// </summary>
 		/// <param name="RulesAssembly">Assembly containing the target</param>
@@ -3893,6 +3899,12 @@ namespace UnrealBuildTool
 		{
 			return Inner.OptedInModulePlatforms == null || Inner.OptedInModulePlatforms.Contains(Platform);
 		}
+
+		/// <summary>
+		/// Checks if a plugin should be programmatically allowed in the build
+		/// </summary>
+		/// <returns>true if the plugin is allowed</returns>
+		public bool IgnorePluginDependency(PluginInfo ParentInfo, PluginReferenceDescriptor ChildDescriptor) => Inner.IgnorePluginDependency(ParentInfo, ChildDescriptor);
 
 		/// <summary>
 		/// Determines if the automation tests should be compiled based on the current configuration and optional forced settings.
