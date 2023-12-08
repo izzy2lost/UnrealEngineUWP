@@ -441,20 +441,7 @@ namespace UE
 			Super->SetSuperStruct(UObject::StaticClass());
 		}
 
-#if false // TODO: fix FStructProperty::ConvertFromType to allow converting this struct to the template struct then enable this.
 		const FName ArchetypeName = (TemplateStruct) ? FName(TemplateStruct->GetName() + TEXT("_Archetype")) : FName(TEXT("Archetype"));
-#else
-		FName ArchetypeName;
-		if (StructClass->IsChildOf(UClass::StaticClass()))
-		{
-			ArchetypeName = MakeUniqueObjectName(Outer, StructClass, (TemplateStruct) ? FName(TemplateStruct->GetName() + TEXT("_Archetype")) : FName(TEXT("Archetype")));
-		}
-		else
-		{
-			// struct archetype serialization breaks currently if the name doesn't match.
-			ArchetypeName = (TemplateStruct) ? TemplateStruct->GetFName() : FName(TEXT("Archetype"));
-		}
-#endif
 		UStruct* Result = NewObject<UStruct>(Outer, StructClass, ArchetypeName);
 
 		// Gather "loose" properties for child Struct

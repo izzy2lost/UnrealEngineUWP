@@ -1655,13 +1655,19 @@ void UStruct::SerializeVersionedTaggedProperties(FStructuredArchive::FSlot Slot,
 						{
 							case EConvertFromTypeResult::Converted:
 								bAdvanceProperty = true;
-								if (FPropertyBag* PropertyBag = TryFindPropertyBag())
+								// TODO: ConvertFromType always returns EConvertFromTypeResult::Converted for numeric types. this type check tries to fix
+								// that but we should find a more robust solution
+								if (Tag.Type != PropID)
 								{
-									UnderlyingArchive.Seek(StartOfProperty);
-									FStructuredArchive::FSlot CopySlot = PropertyRecord.EnterField(TEXT("Value"));
-									Tag.Prop = nullptr;
-									PropertyBag->LoadPropertyByTag(SerializeContext->SerializedPropertyPath, Tag, CopySlot, Property->ContainerPtrToValuePtrForDefaults<uint8>(DefaultsStruct, Defaults, Tag.ArrayIndex));
+									if (FPropertyBag* PropertyBag = TryFindPropertyBag())
+                                    {
+                                    	UnderlyingArchive.Seek(StartOfProperty);
+                                    	FStructuredArchive::FSlot CopySlot = PropertyRecord.EnterField(TEXT("Value"));
+                                    	Tag.Prop = nullptr;
+                                    	PropertyBag->LoadPropertyByTag(SerializeContext->SerializedPropertyPath, Tag, CopySlot, Property->ContainerPtrToValuePtrForDefaults<uint8>(DefaultsStruct, Defaults, Tag.ArrayIndex));
+                                    }
 								}
+								
 								break;
 
 							case EConvertFromTypeResult::UseSerializeItem:
