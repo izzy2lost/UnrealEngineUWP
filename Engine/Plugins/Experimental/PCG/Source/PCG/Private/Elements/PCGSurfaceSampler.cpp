@@ -331,8 +331,7 @@ namespace PCGSurfaceSamplerHelpers
 		// If there are no surfaces to sample, early out
 		if (SurfaceInputs.IsEmpty())
 		{
-			PCGE_LOG_C(Warning, GraphAndLog, Context, LOCTEXT("NoSurfaceInputs", "No Surface input was provided."));
-			return EPCGTimeSliceInitResult::AbortExecution;
+			return EPCGTimeSliceInitResult::NoOperation;
 		}
 
 		// Early out on invalid settings
