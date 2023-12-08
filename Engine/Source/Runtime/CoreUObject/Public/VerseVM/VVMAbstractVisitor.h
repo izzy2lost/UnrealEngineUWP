@@ -54,6 +54,7 @@ struct FAbstractVisitor
 		~FReferrerContext();
 
 		FReferrerToken GetReferrer() const { return Referrer; }
+		FReferrerContext* GetPrevious() const { return Previous; }
 
 	private:
 		FAbstractVisitor& Visitor;
