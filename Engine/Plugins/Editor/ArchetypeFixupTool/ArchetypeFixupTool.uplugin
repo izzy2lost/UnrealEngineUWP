@@ -1,0 +1,32 @@
+{
+	"FileVersion" : 3,
+	"Version" : 1,
+	"VersionName" : "1.0",
+	"FriendlyName" : "Archetype Fixup Tool",
+	"Description" : "Editor tool for redirecting loose archetype properties",
+	"Category" : "Editor",
+	"CreatedBy" : "Epic Games, Inc.",
+	"CreatedByURL" : "https://epicgames.com",
+	"DocsURL" : "",
+	"MarketplaceURL" : "",
+	"SupportURL" : "",
+	"EnabledByDefault" : true,
+	"CanContainContent" : false,
+	"IsBetaVersion" : true,
+	"Installed" : false,
+	"Plugins": 
+	[
+		{
+			"Name": "StructUtils",
+			"Enabled": true
+		}
+	],
+	"Modules" :
+	[
+		{
+			"Name" : "ArchetypeFixupTool",
+			"Type" : "Editor",
+			"LoadingPhase" : "Default"
+		}
+	]
+}
