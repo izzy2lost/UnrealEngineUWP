@@ -2,9 +2,7 @@
 
 #pragma once
 
-#if !(WITH_VERSE_VM || defined(__INTELLISENSE__))
-#error In order to use VerseVM, WITH_VERSE_VM must be set
-#endif
+#if WITH_VERSE_VM || defined(__INTELLISENSE__)
 
 #include "verse_heap_page_header_ue.h"
 #include "verse_heap_ue.h"
@@ -31,3 +29,4 @@ struct FHeapPageHeader final
 };
 
 } // namespace Verse
+#endif // WITH_VERSE_VM

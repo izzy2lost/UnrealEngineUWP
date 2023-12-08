@@ -2,9 +2,7 @@
 
 #pragma once
 
-#if !(WITH_VERSE_VM || defined(__INTELLISENSE__))
-#error In order to use VerseVM, WITH_VERSE_VM must be set
-#endif
+#if WITH_VERSE_VM || defined(__INTELLISENSE__)
 
 #include "VerseVM/Inline/VVMIntInline.h"
 #include "VerseVM/Inline/VVMValueInline.h"
@@ -68,3 +66,4 @@ inline bool VValue::Equal(ContextType Context, VValue Left, VValue Right, Handle
 }
 
 } // namespace Verse
+#endif // WITH_VERSE_VM

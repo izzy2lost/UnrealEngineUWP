@@ -2,9 +2,7 @@
 
 #pragma once
 
-#if !(WITH_VERSE_VM || defined(__INTELLISENSE__))
-#error In order to use VerseVM, WITH_VERSE_VM must be set
-#endif
+#if WITH_VERSE_VM || defined(__INTELLISENSE__)
 
 #include "Templates/TypeCompatibleBytes.h"
 #include "VerseVM/VVMCell.h"
@@ -89,3 +87,4 @@ void VCell::VisitReferencesImpl(TVisitor& Visitor)
 
 DEFINE_TRIVIAL_VISIT_REFERENCES(VHeapValue);
 } // namespace Verse
+#endif // WITH_VERSE_VM

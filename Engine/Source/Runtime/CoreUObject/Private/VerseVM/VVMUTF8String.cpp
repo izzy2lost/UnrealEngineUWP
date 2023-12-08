@@ -1,6 +1,7 @@
 // Copyright Epic Games, Inc. All Rights Reserved.
 
 #if WITH_VERSE_VM || defined(__INTELLISENSE__)
+#include "VerseVM/VVMUTF8String.h"
 #include "Async/UniqueLock.h"
 #include "Containers/StringConv.h"
 #include "Containers/StringView.h"

@@ -2,9 +2,7 @@
 
 #pragma once
 
-#if !(WITH_VERSE_VM || defined(__INTELLISENSE__))
-#error In order to use VerseVM, WITH_VERSE_VM must be set
-#endif
+#if WITH_VERSE_VM || defined(__INTELLISENSE__)
 
 #include "Misc/AssertionMacros.h"
 #include "Templates/TypeHash.h"
@@ -312,3 +310,4 @@ inline uint32 FHashableUniqueStringSetKeyFuncs::GetKeyHash(KeyInitType Key)
 }
 
 } // namespace Verse
+#endif // WITH_VERSE_VM

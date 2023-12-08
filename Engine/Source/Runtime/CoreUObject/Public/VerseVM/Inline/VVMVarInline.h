@@ -2,9 +2,7 @@
 
 #pragma once
 
-#if !(WITH_VERSE_VM || defined(__INTELLISENSE__))
-#error In order to use VerseVM, WITH_VERSE_VM must be set
-#endif
+#if WITH_VERSE_VM || defined(__INTELLISENSE__)
 
 #include "VerseVM/VVMTransaction.h"
 #include "VerseVM/VVMVar.h"
@@ -32,3 +30,4 @@ void VVar::Set(FAccessContext Context, VValue NewValue)
 	return Value.SetTransactionally(Context, *this, NewValue);
 }
 } // namespace Verse
+#endif // WITH_VERSE_VM

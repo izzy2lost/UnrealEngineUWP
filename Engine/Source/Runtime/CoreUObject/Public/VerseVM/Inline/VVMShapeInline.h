@@ -1,9 +1,7 @@
 // Copyright Epic Games, Inc. All Rights Reserved.
 #pragma once
 
-#if !(WITH_VERSE_VM || defined(__INTELLISENSE__))
-#error In order to use VerseVM, WITH_VERSE_VM must be set
-#endif
+#if WITH_VERSE_VM || defined(__INTELLISENSE__)
 
 #include "Templates/TypeHash.h"
 #include "VerseVM/Inline/VVMValueInline.h"
@@ -116,3 +114,4 @@ inline uint32 GetTypeHash(const VShape& Shape)
 }
 
 } // namespace Verse
+#endif // WITH_VERSE_VM

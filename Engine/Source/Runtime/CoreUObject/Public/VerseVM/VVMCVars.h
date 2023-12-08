@@ -2,9 +2,7 @@
 
 #pragma once
 
-#if !(WITH_VERSE_VM || defined(__INTELLISENSE__))
-#error In order to use VerseVM, WITH_VERSE_VM must be set
-#endif
+#if WITH_VERSE_VM || defined(__INTELLISENSE__)
 
 #include "HAL/IConsoleManager.h"
 
@@ -14,3 +12,5 @@ extern COREUOBJECT_API TAutoConsoleVariable<bool> CVarTraceExecution;
 extern COREUOBJECT_API TAutoConsoleVariable<bool> CVarSingleStepTraceExecution;
 extern COREUOBJECT_API TAutoConsoleVariable<bool> CVarDumpBytecode;
 } // namespace Verse
+
+#endif // WITH_VERSE_VM

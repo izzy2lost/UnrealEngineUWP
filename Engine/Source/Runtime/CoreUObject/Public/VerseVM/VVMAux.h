@@ -4,9 +4,7 @@
 
 #include "Misc/AssertionMacros.h"
 
-#if !WITH_VERSE_VM
-#error In order to use VerseVM, WITH_VERSE_VM must be set
-#endif
+#if WITH_VERSE_VM || defined(__INTELLISENSE__)
 
 namespace Verse
 {
@@ -52,3 +50,4 @@ template <typename T>
 static constexpr inline bool IsTAux<TAux<T>> = true;
 
 } // namespace Verse
+#endif // WITH_VERSE_VM

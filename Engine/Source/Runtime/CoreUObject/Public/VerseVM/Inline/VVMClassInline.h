@@ -1,9 +1,7 @@
 // Copyright Epic Games, Inc. All Rights Reserved.
 #pragma once
 
-#if !(WITH_VERSE_VM || defined(__INTELLISENSE__))
-#error In order to use VerseVM, WITH_VERSE_VM must be set
-#endif
+#if WITH_VERSE_VM || defined(__INTELLISENSE__)
 
 #include "VerseVM/VVMClass.h"
 #include "VerseVM/VVMEmergentTypeCreator.h"
@@ -69,3 +67,4 @@ inline VClass::VClass(FAllocationContext Context, VConstructor& InConstructor, c
 }
 
 } // namespace Verse
+#endif // WITH_VERSE_VM

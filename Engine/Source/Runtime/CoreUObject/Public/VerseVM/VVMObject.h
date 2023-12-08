@@ -1,9 +1,7 @@
 // Copyright Epic Games, Inc. All Rights Reserved.
 #pragma once
 
-#if !(WITH_VERSE_VM || defined(__INTELLISENSE__))
-#error In order to use VerseVM, WITH_VERSE_VM must be set
-#endif
+#if WITH_VERSE_VM || defined(__INTELLISENSE__)
 
 #include "VerseVM/VVMRestValue.h"
 #include "VerseVM/VVMShape.h"
@@ -70,3 +68,4 @@ private:
 	VRestValue Data[];
 };
 } // namespace Verse
+#endif // WITH_VERSE_VM

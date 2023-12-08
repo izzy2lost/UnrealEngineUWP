@@ -2,9 +2,7 @@
 
 #pragma once
 
-#if !(WITH_VERSE_VM || defined(__INTELLISENSE__))
-#error In order to use VerseVM, WITH_VERSE_VM must be set
-#endif
+#if WITH_VERSE_VM || defined(__INTELLISENSE__)
 
 #include "Containers/StringFwd.h"
 #include "HAL/Platform.h"
@@ -74,3 +72,4 @@ COREUOBJECT_API void ToString(FStringBuilderBase& Builder, FAllocationContext Co
 COREUOBJECT_API void ToString(FStringBuilderBase& Builder, FAllocationContext Context, const FCellFormatter& Formatter, const VRestValue& Value);
 
 } // namespace Verse
+#endif // WITH_VERSE_VM

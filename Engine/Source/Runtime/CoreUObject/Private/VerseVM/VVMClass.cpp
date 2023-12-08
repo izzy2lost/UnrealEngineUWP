@@ -1,6 +1,7 @@
 // Copyright Epic Games, Inc. All Rights Reserved.
 
 #if WITH_VERSE_VM || defined(__INTELLISENSE__)
+#include "VerseVM/VVMClass.h"
 #include "Async/ExternalMutex.h"
 #include "VerseVM/Inline/VVMAbstractVisitorInline.h"
 #include "VerseVM/Inline/VVMClassInline.h"

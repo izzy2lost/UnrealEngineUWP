@@ -2,9 +2,7 @@
 
 #pragma once
 
-#if !(WITH_VERSE_VM || defined(__INTELLISENSE__))
-#error In order to use VerseVM, WITH_VERSE_VM must be set
-#endif
+#if WITH_VERSE_VM || defined(__INTELLISENSE__)
 
 #include "Logging/LogMacros.h"
 #include "VVMUnreachable.h"
@@ -22,3 +20,5 @@ COREUOBJECT_API DECLARE_LOG_CATEGORY_EXTERN(LogVerseGC, Log, All);
 
 #define V_DIE_IF(Expression) UE_CLOG(Expression, LogVerseVM, Fatal, TEXT("Unexpected condition: " #Expression))
 #define V_DIE_UNLESS(Expression) UE_CLOG(!(Expression), LogVerseVM, Fatal, TEXT("Assertion failed: " #Expression))
+
+#endif // WITH_VERSE_VM

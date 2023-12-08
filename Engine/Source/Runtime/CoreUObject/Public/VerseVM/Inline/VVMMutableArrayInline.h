@@ -2,9 +2,7 @@
 
 #pragma once
 
-#if !(WITH_VERSE_VM || defined(__INTELLISENSE__))
-#error In order to use VerseVM, WITH_VERSE_VM must be set
-#endif
+#if WITH_VERSE_VM || defined(__INTELLISENSE__)
 
 #include "VerseVM/Inline/VVMArrayBaseInline.h"
 #include "VerseVM/Inline/VVMValueInline.h"
@@ -56,3 +54,4 @@ inline void VMutableArray::Append(FAllocationContext Context, VArrayBase& Array)
 }
 
 } // namespace Verse
+#endif // WITH_VERSE_VM

@@ -1824,14 +1824,6 @@ namespace UnrealBuildTool
 					{
 						foreach (FileItem CppFile in CppFiles)
 						{
-							// In the Verse VM, we specifically split header files into both inline/non-inline versions, where the inline header
-							// usually includes the non-inline version. Then the .cpp file includes the inline version, which throws up this warning
-							// and the only way around it is to include both headers in the .cpp, which kind of defeats the whole purpose in the first place.
-							// So we disable this check for anything `VerseVM` related.
-							if (CppFile.Directory.Name == "VerseVM")
-							{
-								continue;
-							}
 							string? FirstInclude = ModuleCompileEnvironment.MetadataCache.GetFirstInclude(CppFile);
 							if (FirstInclude != null)
 							{
@@ -1861,7 +1853,6 @@ namespace UnrealBuildTool
 				case "VulkanRHI":
 				case "OpenGLDrv":
 				case "MetalRHI":
-				case "VerseVM":
 					return true;
 			}
 			return false;

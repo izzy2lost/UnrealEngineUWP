@@ -2,9 +2,7 @@
 
 #pragma once
 
-#if !(WITH_VERSE_VM || defined(__INTELLISENSE__))
-#error In order to use VerseVM, WITH_VERSE_VM must be set
-#endif
+#if WITH_VERSE_VM || defined(__INTELLISENSE__)
 
 #include "VVMHeap.h"
 
@@ -31,3 +29,4 @@ private:
 };
 
 } // namespace Verse
+#endif // WITH_VERSE_VM

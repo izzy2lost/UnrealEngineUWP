@@ -1,6 +1,7 @@
 // Copyright Epic Games, Inc. All Rights Reserved.
 
 #if WITH_VERSE_VM || defined(__INTELLISENSE__)
+#include "VerseVM/VVMMapBase.h"
 #include "Async/ExternalMutex.h"
 #include "Async/UniqueLock.h"
 #include "Templates/TypeHash.h"
