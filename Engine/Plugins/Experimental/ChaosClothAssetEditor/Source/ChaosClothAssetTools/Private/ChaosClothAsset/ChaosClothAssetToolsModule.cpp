@@ -48,4 +48,4 @@ namespace UE::Chaos::ClothAsset
 	};
 }
 
-IMPLEMENT_MODULE(UE::Chaos::ClothAsset::FChaosClothAssetToolsModule, ChaosClothAssetToolsModule);
+IMPLEMENT_MODULE(UE::Chaos::ClothAsset::FChaosClothAssetToolsModule, ChaosClothAssetTools);
