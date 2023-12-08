@@ -232,26 +232,31 @@ public:
 
 	TConstArrayView<uint32> GetStrides() const
 	{
+		check(!Strides.IsEmpty());
 		return Strides;
 	}
 
 	TConstArrayView<uint32> GetDilations() const
 	{
+		check(!Dilations.IsEmpty());
 		return Dilations;
 	}
 
 	TConstArrayView<uint32> GetStartPadding()
 	{
+		check(!StartPadding.IsEmpty());
 		return StartPadding;
 	}
 
 	TConstArrayView<uint32> GetEndPadding()
 	{
+		check(!EndPadding.IsEmpty());
 		return EndPadding;
 	}
 
 	TConstArrayView<uint32> GetOutputShape() const
 	{
+		check(!OutputShape.IsEmpty());
 		return OutputShape;
 	}
 
@@ -353,6 +358,10 @@ protected:
 				}
 
 				bHasOutputShape = AttrOutShape != nullptr;
+			}
+			else
+			{
+				OutPadding.Init(0, NumDimensions);
 			}
 
 			if (!Paddings.Init(Attributes, InputShapeRank))

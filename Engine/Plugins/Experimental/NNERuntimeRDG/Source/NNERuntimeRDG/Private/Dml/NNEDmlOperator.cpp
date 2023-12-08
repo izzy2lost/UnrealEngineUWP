@@ -349,7 +349,7 @@ uint64 FTensorDescDml::CalculateBufferSize(uint64 ElemSizeInBytes)
 	}
 
 	// Round up to the nearest 4 bytes
-	MinSizeInBytes = (MinSizeInBytes + 3) & ~3ull;
+	MinSizeInBytes = Util::AlignBufferSize(MinSizeInBytes);
 
 	return MinSizeInBytes;
 }

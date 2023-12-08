@@ -81,6 +81,14 @@ class FTensorDescDml;
 
 namespace Util
 {
+
+// DML requires buffer size to be aligned at 4 byte boundary
+template<typename T>
+inline T AlignBufferSize(T BuffSizeInBytes)
+{
+	static_assert(std::is_integral<T>::value);
+	return (BuffSizeInBytes + 3) & ~3ull;
+}
 	
 template<typename T>
 using FSmallArray = TArray<T, TInlineAllocator<NNE::FTensorShape::MaxRank>>;

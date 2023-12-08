@@ -1083,9 +1083,10 @@ bool FModelInstance::InitCompiledOp()
 					const FTensorRDG&		Tensor = WeightTensorRDGs[WeightIdx];
 					TConstArrayView<uint8>	TensorData = Tensor.GetPreparedData<uint8>();
 
-					FBufferRHIRef WeightBuff;
+					FBufferRHIRef	WeightBuff;
+					const uint32	WeightBuffSize = Util::AlignBufferSize(TensorData.Num());
 					
-					WeightBuff = CreateRHIBuffer(RHICmdList, TensorData.Num(), WeightBuffUsage, WeightBuffAccess, *Tensor.GetName());
+					WeightBuff = CreateRHIBuffer(RHICmdList, WeightBuffSize, WeightBuffUsage, WeightBuffAccess, *Tensor.GetName());
 					check(WeightBuff);
 					WeightBuff->DisableLifetimeExtension();
 					

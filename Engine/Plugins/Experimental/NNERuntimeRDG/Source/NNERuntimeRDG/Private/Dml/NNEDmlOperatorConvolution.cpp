@@ -78,6 +78,7 @@ class FOperatorDmlConv : public FOperatorDml
 
 		TConstArrayView<uint32> GetOutPadding() const
 		{
+			check(!OutPadding.IsEmpty());
 			return MakeArrayView((const uint32*) OutPadding.GetData(), OutPadding.Num());
 		}
 
