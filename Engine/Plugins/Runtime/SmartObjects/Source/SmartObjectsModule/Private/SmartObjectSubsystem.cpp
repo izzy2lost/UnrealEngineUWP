@@ -969,7 +969,7 @@ void USmartObjectSubsystem::BindPropertiesFromStruct(FWorldConditionContextData&
 	// @todo SO: could create a cache of layouts since user data types shouldn't vary much
 	// @todo SO: consider moving this into FWorldConditionContextData
 
-	for (TFieldIterator<FProperty> It(UserData.GetScriptStruct(), EFieldIterationFlags::None); It; ++It)
+	for (TFieldIterator<FProperty> It(UserData.GetScriptStruct()); It; ++It)
 	{
 		const FProperty* Property = *It;
 		if (const FStructProperty* StructProperty = CastField<FStructProperty>(Property))

@@ -1623,7 +1623,7 @@ bool FStateTreeCompiler::GetAndValidateBindings(const FStateTreeBindableStructDe
 	bool bResult = true;
 	
 	// Validate that Input and Context bindings
-	for (TFieldIterator<FProperty> It(TargetStruct.Struct, EFieldIterationFlags::None); It; ++It)
+	for (TFieldIterator<FProperty> It(TargetStruct.Struct); It; ++It)
 	{
 		const FProperty* Property = *It;
 		check(Property);
