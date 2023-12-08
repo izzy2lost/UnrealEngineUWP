@@ -18,6 +18,20 @@
 	<Property Name="MacRequiresCatch2BuildExtraCMakeArgs" Value="False"/>
 	<Property Name="IOSRequiresCatch2BuildExtraCMakeArgs" Value="False"/>
 	<Property Name="AndroidRequiresCatch2BuildExtraCMakeArgs" Value="False"/>
+	<Extend Name="Catch2BuildAppendExtraCMakeArgsPlatform">
+		<Do If="'$(Platform)' == 'Win64'">
+			<Expand Name="Catch2BuildAppendExtraCMakeArgs"
+					ExtraArgValue="-DCOMPILER_EXCEPTION_FLAG:STRING=&quot;/EHsc&quot; -DSET_CONFIG_NO_COLOUR_WIN32=OFF"/>
+		</Do>
+		<Do If="'$(Platform)' == 'Mac' OR '$(Platform)' == 'Linux' OR '$(Platform)' == 'LinuxArm64'">
+			<Expand Name="Catch2BuildAppendExtraCMakeArgs"
+					ExtraArgValue="-DCOMPILER_EXCEPTION_FLAG:STRING=&quot;-fexceptions&quot;"/>
+		</Do>
+		<Do If="'$(Platform)' == 'Linux' OR '$(Platform)' == 'LinuxArm64'">
+			<Expand Name="Catch2BuildAppendExtraCMakeArgs"
+					ExtraArgValue="-DBUILD_WITH_LIBCXX=ON"/>
+		</Do>
+	</Extend>
 	<Macro Name="LinuxArm64DockerSetup" Arguments="AppNameLowercase;AppDir">
 		<!-- Build a linux docker image with arm64 emulator utilities -->
 		<Property Name="AppDirFiles" Value="$(AppDir)/..."/>

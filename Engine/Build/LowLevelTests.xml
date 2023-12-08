@@ -16,7 +16,7 @@
 	<!-- Platform specific macros -->
 	<Macro Name="Catch2BuildAppendExtraCMakeArgsPlatform" Arguments="Platform"/>
 	<Macro Name="Catch2BuildAppendExtraCMakeArgs" Arguments="ExtraArgValue">
-		<Property Name="ExtraCMakeArgs" Value="-CMakeAdditionalArguments=&quot;$(CommonExtraCmakeArgs)$(ExtraArgValue)&quot;"/>
+		<Property Name="CMakeAdditionalArgs" Value="$(CMakeAdditionalArgs) $(ExtraArgValue)"/>
 	</Macro>
 	<Macro Name="SelectAgentType" Arguments="Platform;BuildPlatform"/>
 
@@ -202,34 +202,35 @@
 					<Property Name="Generator" Value="Makefile"/>
 					<Property Name="TargetConfigs" Value="debug+release"/>
 					<Property Name="ExtraCMakeArgs" Value=""/>
+					<Property Name="CMakeAdditionalArgs" Value=""/>
 					<Property Name="TargetPlatform" Value="$(Platform)"/>
 					<Property Name="CommonExtraCmakeArgs" Value=""/>
-					<Property Name="CommonExtraCmakeArgs" Value="$(CommonExtraCmakeArgs) -DCATCH_DEVELOPMENT_BUILD=ON -DBUILD_TESTING=ON -DCATCH_BUILD_EXTRA_TESTS=ON -DCATCH_ENABLE_CONFIGURE_TESTS=ON " If="$(TestCatch2Libs)"/>
+					<Property Name="CommonExtraCmakeArgs" Value="$(CommonExtraCmakeArgs) -DCATCH_DEVELOPMENT_BUILD=ON -DBUILD_TESTING=ON -DCATCH_BUILD_EXTRA_TESTS=ON -DCATCH_ENABLE_CONFIGURE_TESTS=ON" If="$(TestCatch2Libs)"/>
 					<Do If="'$(Platform)' == 'Android'">
-						<Property Name="ExtraCMakeArgs" Value="-TargetArchitecture=arm64"/>
+						<Property Name="ExtraCMakeArgs" Value="$(ExtraCMakeArgs) -TargetArchitecture=arm64"/>
 					</Do>
 					<Do If="'$(Platform)' == 'Linux'">
-						<Property Name="ExtraCMakeArgs" Value="-TargetArchitecture=x86_64-unknown-linux-gnu -CMakeAdditionalArguments=&quot;$(CommonExtraCmakeArgs)-DBUILD_WITH_LIBCXX=ON&quot;"/>
+						<Property Name="ExtraCMakeArgs" Value="$(ExtraCMakeArgs) -TargetArchitecture=x86_64-unknown-linux-gnu"/>
 					</Do>
 					<Do If="'$(Platform)' == 'LinuxArm64'">
 						<Property Name="TargetPlatform" Value="Linux"/>
-						<Property Name="ExtraCMakeArgs" Value="-TargetArchitecture=aarch64-unknown-linux-gnueabi -CMakeAdditionalArguments=&quot;$(CommonExtraCmakeArgs)-DBUILD_WITH_LIBCXX=ON&quot;"/>
+						<Property Name="ExtraCMakeArgs" Value="$(ExtraCMakeArgs) -TargetArchitecture=aarch64-unknown-linux-gnueabi"/>
 					</Do>
 					<Do If="'$(Platform)' == 'Win64'">
 						<Property Name="Generator" Value="VS2019"/>
 						<Do If="'$(Catch2LibVariation)' == 'VS2022'">
 							<Property Name="Generator" Value="VS2022"/>
 						</Do>
-						<Property Name="ExtraCMakeArgs" Value="-TargetArchitecture=x64 -CMakeAdditionalArguments=&quot;$(CommonExtraCmakeArgs)-DSET_CONFIG_NO_COLOUR_WIN32=OFF&quot;"/>
+						<Property Name="ExtraCMakeArgs" Value="$(ExtraCMakeArgs) -TargetArchitecture=x64"/>
 					</Do>
 					<Expand Name="Catch2BuildAppendExtraCMakeArgsPlatform" Platform="$(Platform)"/>
 					<Do If="'$(BuildPlatform)' == 'Mac'">
 						<Property Name="Generator" Value="Xcode"/>
 						<Property Name="TargetConfigs" Value="Debug+Release"/>
-						<Property Name="ExtraCMakeArgs" Value="-CmakeAdditionalArguments=&quot;$(CommonExtraCmakeArgs)-DCMAKE_OSX_DEPLOYMENT_TARGET=10.15 -DCMAKE_OSX_ARCHITECTURES=arm64;x86_64&quot;"/>
+						<Property Name="CMakeAdditionalArgs" Value="$(CMakeAdditionalArgs) -DCMAKE_OSX_DEPLOYMENT_TARGET=10.15 -DCMAKE_OSX_ARCHITECTURES=arm64;x86_64"/>
 					</Do>
 					<Command Name="BuildCMakeLib"
-							 Arguments="-CMakeGenerator=$(Generator) -MakeTarget=Catch2 -TargetLib=Catch2 -TargetLibVersion=$(Catch2VersionBuild) -BinOutputPath=Binaries -LibOutputPath=lib -TargetPlatform=$(TargetPlatform) -TargetConfigs=$(TargetConfigs) -SkipCreateChangelist $(ExtraCMakeArgs)"/>
+							 Arguments="-CMakeGenerator=$(Generator) -MakeTarget=Catch2 -TargetLib=Catch2 -TargetLibVersion=$(Catch2VersionBuild) -BinOutputPath=Binaries -LibOutputPath=lib -TargetPlatform=$(TargetPlatform) -TargetConfigs=$(TargetConfigs) -SkipCreateChangelist $(ExtraCMakeArgs) -CMakeAdditionalArguments=&quot;$(CommonExtraCmakeArgs) $(CMakeAdditionalArgs)&quot;"/>
 				</Node>
 				<Property Name="Catch2BuildNodes" Value="$(Catch2BuildNodes);Catch2 Build Library $(Platform)"/>
 			</Agent>
