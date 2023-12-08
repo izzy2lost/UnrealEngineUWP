@@ -48,6 +48,11 @@ namespace Horde.Server.Tools
 		public bool Public { get; set; }
 
 		/// <summary>
+		/// Whether to show this tool for download in the UGS tools menu
+		/// </summary>
+		public bool ShowInUgs { get; set; }
+
+		/// <summary>
 		/// Default namespace for new deployments of this tool
 		/// </summary>
 		public NamespaceId NamespaceId { get; set; } = Namespace.Tools;
