@@ -5,7 +5,6 @@
 #include "DSP/BufferVectorOperations.h"
 #include "AudioDecompress.h"
 #include "HAL/Platform.h"
-#include "IAudioCodec.h"
 #include "Templates/SharedPointer.h"
 #include "Templates/UniquePtr.h"
 

@@ -4,7 +4,6 @@
 #include "DSP/ConvertDeinterleave.h"
 #include "DSP/MultichannelBuffer.h"
 #include "DSP/MultichannelLinearResampler.h"
-#include "IAudioCodec.h"
 #include "MetasoundBuildError.h"
 #include "MetasoundBuilderInterface.h"
 #include "MetasoundEngineNodesNames.h"

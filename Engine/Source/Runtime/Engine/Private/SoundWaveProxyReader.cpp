@@ -7,6 +7,7 @@
 #include "Containers/ArrayView.h"
 #include "DSP/BufferVectorOperations.h"
 #include "DSP/Dsp.h"
+#include "DSP/FloatArrayMath.h"
 #include "HAL/IConsoleManager.h"
 #include "HAL/LowLevelMemTracker.h"
 #include "HAL/Platform.h"

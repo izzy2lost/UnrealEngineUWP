@@ -6,8 +6,6 @@
 #include "AudioDeviceManager.h"
 #include "ContentStreaming.h"
 #include "DSP/ParamInterpolator.h"
-#include "IAudioCodec.h"
-#include "IAudioCodecRegistry.h"
 #include "MetasoundPrimitives.h"
 #include "MetasoundTrace.h"
 #include "Sound/SoundWave.h"
