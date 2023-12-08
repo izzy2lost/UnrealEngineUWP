@@ -91,7 +91,7 @@ namespace uba
 	class Session
 	{
 	public:
-		ProcessHandle RunProcess(const ProcessStartInfo& startInfo, bool async = true); // Run process. if async is false it will not return until process is done
+		ProcessHandle RunProcess(const ProcessStartInfo& startInfo, bool async = true, bool enableDetour = true); // Run process. if async is false it will not return until process is done
 		void CancelAllProcessesAndWait(bool terminate = true); // Cancel all processes and wait for them to go away
 
 		void PrintSummary(Logger& logger); // Print summary stats of session
@@ -112,7 +112,7 @@ namespace uba
 
 	protected:
 		void ValidateStartInfo(const ProcessStartInfo& startInfo);
-		ProcessHandle InternalRunProcess(const ProcessStartInfo& startInfo, bool async, ProcessImpl* parent);
+		ProcessHandle InternalRunProcess(const ProcessStartInfo& startInfo, bool async, ProcessImpl* parent, bool enableDetour);
 		void ProcessAdded(Process& process, u32 sessionId);
 		void ProcessExited(ProcessImpl& process, u64 executionTime);
 		void FlushDeadProcesses();
@@ -164,7 +164,6 @@ namespace uba
 		static constexpr CasKey CasKeyIsDirectory = { ~u64(0), ~u64(0), ~u32(0) };
 
 		void AddEnvironmentVariableNoLock(const tchar* key, const tchar* value);
-		void AddDetoursEnvironmentVariable();
 		bool WriteDirectoryEntriesInternal(DirectoryTable::Directory& dir, const StringKey& dirKey, const tchar* dirPath, bool isRefresh, u32& outTableOffset);
 		void WriteDirectoryEntriesRecursive(const StringKey& dirKey, tchar* dirPath, u32& outTableOffset);
 		bool CopyImports(Vector<BinaryModule>& out, const tchar* library, tchar* applicationDir, tchar* applicationDirEnd, UnorderedSet<TString>& handledImports);

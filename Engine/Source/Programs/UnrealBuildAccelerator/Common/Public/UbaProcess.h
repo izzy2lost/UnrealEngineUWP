@@ -53,7 +53,7 @@ namespace uba
 		ProcessImpl(Session& session, u32 id, ProcessImpl* parent);
 		~ProcessImpl();
 
-		void Start(const ProcessStartInfo& startInfo, TString&& realApplication, const tchar* realWorkingDir, bool runningRemote, void* environment, bool async);
+		void Start(const ProcessStartInfo& startInfo, TString&& realApplication, const tchar* realWorkingDir, bool runningRemote, void* environment, bool async, bool enableDetour);
 
 		bool IsActive();
 		bool IsCancelled();
@@ -114,6 +114,7 @@ namespace uba
 		bool m_echoOn = true;
 		bool m_gotExitMessage = false;
 		bool m_parentReportedExit = false;
+		bool m_detourEnabled = true;
 		TString m_realApplication;
 		const tchar* m_realWorkingDir = nullptr;
 		TString m_virtualApplication;
@@ -141,5 +142,6 @@ namespace uba
 
 		ProcessImpl(const ProcessImpl&) = delete;
 		void operator=(const ProcessImpl&) = delete;
+		struct PipeReader;
 	};
 }

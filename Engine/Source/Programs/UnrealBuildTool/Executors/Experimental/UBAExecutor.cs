@@ -684,27 +684,11 @@ namespace UnrealBuildTool
 				return null;
 			}
 
-			if (!action.bCanExecuteInUBA || _forcedRetryActions.ContainsKey(action))
-			{
-				return async () =>
-				{
-					uint processId = _session!.BeginExternalProcess(action.StatusDescription + " (External)");
-					ExecuteResults result = await RunAction(action, queue.ProcessGroup, queue.CancellationToken, "(UBA disabled)");
-
-					if (result.ExitCode == 0)
-					{
-						_session!.RegisterNewFiles(action.ProducedItems.Select(x => x.FullName).ToArray());
-					}
-					_session!.EndExternalProcess(processId, (uint)result.ExitCode);
-
-					ActionFinished(queue, result, action, null, null);
-				};
-			}
-
 			return () =>
 			{
+				bool enableDetour = action.bCanExecuteInUBA && !_forcedRetryActions.ContainsKey(action);
 				ProcessStartInfo startInfo = GetActionStartInfo(action, out FileItem? pchItem);
-				using (IProcess process = _session!.RunProcess(startInfo, false, null))
+				using (IProcess process = _session!.RunProcess(startInfo, false, null, enableDetour))
 				{
 					if (process.ExitCode != 0 && UBAConfig.bForcedRetry)
 					{
@@ -713,11 +697,24 @@ namespace UnrealBuildTool
 						queue.RequeueAction(action);
 						return Task.CompletedTask;
 					}
+
+					if (!enableDetour && process.ExitCode == 0)
+					{
+						_session!.RegisterNewFiles(action.ProducedItems.Select(x => x.FullName).ToArray());
+					}
+
 					TimeSpan processorTime = process.TotalProcessorTime;
 					TimeSpan executionTime = process.TotalWallTime;
 					List<string> logLines = process.LogLines;
 					logLines.RemoveAll((line) => line.StartsWith("   Creating library ", StringComparison.OrdinalIgnoreCase) && line.EndsWith(".exp", StringComparison.OrdinalIgnoreCase) || line.EndsWith("file(s) copied.", StringComparison.OrdinalIgnoreCase));
-					ActionFinished(queue, new ExecuteResults(logLines, process.ExitCode, executionTime, processorTime), action, pchItem, process);
+
+					string? additionalDescription = null;
+					if (!enableDetour)
+					{
+						additionalDescription = "(UBA disabled)";
+					}
+
+					ActionFinished(queue, new ExecuteResults(logLines, process.ExitCode, executionTime, processorTime, additionalDescription), action, pchItem, process);
 				}
 				return Task.CompletedTask;
 			};

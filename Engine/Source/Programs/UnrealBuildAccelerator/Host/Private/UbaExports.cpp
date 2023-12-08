@@ -310,9 +310,9 @@ uba::StorageClient* CreateStorageClient(uba::NetworkClient& client, const uba::t
 	{
 		server->RegisterNewFile(filePath);
 	}
-	uba::ProcessHandle* SessionServer_RunProcess(uba::SessionServer* server, uba::ProcessStartInfo& info, bool async)
+	uba::ProcessHandle* SessionServer_RunProcess(uba::SessionServer* server, uba::ProcessStartInfo& info, bool async, bool enableDetour)
 	{
-		return new uba::ProcessHandle(server->RunProcess(info, async));
+		return new uba::ProcessHandle(server->RunProcess(info, async, enableDetour));
 	}
 	uba::ProcessHandle* SessionServer_RunProcessRemote(uba::SessionServer* server, uba::ProcessStartInfo& info, float weight)
 	{

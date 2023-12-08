@@ -179,36 +179,6 @@ namespace uba
 		m_environmentVariables.push_back(0);
 	}
 
-	void Session::AddDetoursEnvironmentVariable()
-	{
-#if !PLATFORM_WINDOWS
-
-		const char* detoursLib = m_detoursLibrary.c_str();
-		if (*detoursLib)
-		{
-			#if PLATFORM_LINUX
-			//if (strchr(detoursLib, ' '))
-			{
-				const char* lastSlash = strrchr(detoursLib, '/');
-				UBA_ASSERT(lastSlash);
-				StringBuffer<> ldLibPath;
-				ldLibPath.Append(detoursLib, lastSlash - detoursLib);
-				AddEnvironmentVariableNoLock("LD_LIBRARY_PATH", ldLibPath.data);
-				detoursLib = lastSlash + 1;
-			}
-			#endif
-		}
-		else
-			detoursLib = "./" UBA_DETOURS_LIBRARY;
-
-		#if PLATFORM_LINUX
-		AddEnvironmentVariableNoLock("LD_PRELOAD", detoursLib);
-		#else
-		AddEnvironmentVariableNoLock("DYLD_INSERT_LIBRARIES", detoursLib);
-		#endif
-#endif
-	}
-
 	bool Session::WriteDirectoryEntriesInternal(DirectoryTable::Directory& dir, const StringKey& dirKey, const tchar* dirPath, bool isRefresh, u32& outTableOffset)
 	{
 		if (dir.tableOffset != InvalidTableOffset && !isRefresh)
@@ -1242,11 +1212,11 @@ namespace uba
 		m_logger.isMuted = false;
 	}
 
-	ProcessHandle Session::RunProcess(const ProcessStartInfo& startInfo, bool async)
+	ProcessHandle Session::RunProcess(const ProcessStartInfo& startInfo, bool async, bool enableDetour)
 	{
 		FlushDeadProcesses();
 		ValidateStartInfo(startInfo);
-		return InternalRunProcess(startInfo, async, nullptr);
+		return InternalRunProcess(startInfo, async, nullptr, enableDetour);
 	}
 
 	void Session::ValidateStartInfo(const ProcessStartInfo& startInfo)
@@ -1256,7 +1226,7 @@ namespace uba
 		UBA_ASSERTF(!TStrchr(startInfo.workingDir, '~'), TC("WorkingDir path must use long name (%s)"), startInfo.workingDir);
 	}
 
-	ProcessHandle Session::InternalRunProcess(const ProcessStartInfo& startInfo, bool async, ProcessImpl* parent)
+	ProcessHandle Session::InternalRunProcess(const ProcessStartInfo& startInfo, bool async, ProcessImpl* parent, bool enableDetour)
 	{
 		StringBuffer<> realApplication(startInfo.application);
 		const tchar* realWorkingDir = startInfo.workingDir;
@@ -1289,7 +1259,7 @@ namespace uba
 		u32 id = ++m_processIdCounter;
 		auto process = new ProcessImpl(*this, id, parent);
 		ProcessHandle h(process);
-		process->Start(startInfo, realApplication.data, realWorkingDir, m_runningRemote, env, async);
+		process->Start(startInfo, realApplication.data, realWorkingDir, m_runningRemote, env, async, enableDetour);
 
 		si.logFile = originalLogFile;
 		return h;
@@ -1638,7 +1608,6 @@ namespace uba
 			AddEnvironmentVariableNoLock("PATH", paths.c_str());
 		}
 		AddEnvironmentVariableNoLock("TMPDIR", m_tempPath.data);
-		AddDetoursEnvironmentVariable();
 #endif
 		m_environmentVariables.push_back(0);
 		return m_environmentVariables.data();

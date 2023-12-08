@@ -93,7 +93,7 @@ namespace EpicGames.UBA
 		static extern void SessionServer_EndExternalProcess(IntPtr server, uint id, uint exitCode);
 
 		[DllImport("UbaHost", CharSet = CharSet.Auto)]
-		static extern IntPtr SessionServer_RunProcess(IntPtr server, IntPtr info, bool async);
+		static extern IntPtr SessionServer_RunProcess(IntPtr server, IntPtr info, bool async, bool enableDetour);
 
 		[DllImport("UbaHost", CharSet = CharSet.Auto)]
 		static extern IntPtr SessionServer_RunProcessRemote(IntPtr server, IntPtr info, float weight);
@@ -157,10 +157,10 @@ namespace EpicGames.UBA
 
 		public event ISessionServer.RemoteProcessReturnedEventHandler? RemoteProcessReturned;
 
-		public IProcess RunProcess(ProcessStartInfo info, bool async, IProcess.ExitedEventHandler? exitedEventHandler)
+		public IProcess RunProcess(ProcessStartInfo info, bool async, IProcess.ExitedEventHandler? exitedEventHandler, bool enableDetour)
 		{
 			IProcessStartInfo startInfo = IProcessStartInfo.CreateProcessStartInfo(info, exitedEventHandler != null);
-			IntPtr processPtr = SessionServer_RunProcess(_handle, startInfo.GetHandle(), async);
+			IntPtr processPtr = SessionServer_RunProcess(_handle, startInfo.GetHandle(), async, enableDetour);
 			IProcess process = IProcess.CreateProcess(processPtr, startInfo, exitedEventHandler, info.UserData);
 			return process;
 		}

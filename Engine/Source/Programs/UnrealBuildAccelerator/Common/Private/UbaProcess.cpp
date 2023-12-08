@@ -13,6 +13,7 @@
 #include <detours/detours.h>
 #else
 #include <wchar.h>
+#include <poll.h>
 #include <stdio.h>
 #include <spawn.h>
 #include <wordexp.h>
@@ -117,8 +118,10 @@ namespace uba
 		}
 	}
 
-	void ProcessImpl::Start(const ProcessStartInfo& startInfo, TString&& realApplication, const tchar* realWorkingDir, bool runningRemote, void* environment, bool async)
+	void ProcessImpl::Start(const ProcessStartInfo& startInfo, TString&& realApplication, const tchar* realWorkingDir, bool runningRemote, void* environment, bool async, bool enableDetour)
 	{
+		m_detourEnabled = enableDetour;
+
 		m_startTime = GetTime();
 
 		m_startInfo = startInfo;
@@ -231,6 +234,11 @@ namespace uba
 
 		if (m_parentProcess && m_parentProcess->m_nativeProcessId != 0) // Can't do wait on grandchildren on Linux.. but since we use PR_SET_CHILD_SUBREAPER we should once parent is gone and child is orphaned
 			return true;
+
+		#if PLATFORM_MAC
+		if (m_parentProcess && m_gotExitMessage) // TODO: We need a timeout here... if child crashes we will never get exit message
+			return false;
+		#endif
 
 		while (true)
 		{
@@ -345,7 +353,7 @@ namespace uba
 		{
 			exitCode = InternalCreateProcess(runningRemote, environment, m_comMemory.handle, m_comMemory.offset);
 
-			bool loop = exitCode == 0;
+			bool loop = exitCode == 0 && m_detourEnabled;
 
 			while (loop && WaitForRead())
 			{
@@ -415,8 +423,8 @@ namespace uba
 		m_session.ProcessExited(*this, m_processStats.wallTime);
 
 		#if PLATFORM_MAC
-		int res = WaitForProcessGroup(getpgrp());
-		UBA_ASSERT(res == 0);
+		//int res = WaitForProcessGroup(getpgrp());
+		//UBA_ASSERT(res == 0);
 		#endif
 
 		// For some reason a parent can exit before a child. Need to figure out repro for this but I've seen it happen on ClangEditor win64
@@ -657,7 +665,7 @@ namespace uba
 					info.logLineUserData = this;
 					info.logLineFunc = [](void* userData, const tchar* line, u32 length, LogEntryType type) { ((ProcessImpl*)userData)->LogLine(false, TString(line, length), type); };
 
-					ProcessHandle h = m_session.InternalRunProcess(info, true, this);
+					ProcessHandle h = m_session.InternalRunProcess(info, true, this, true);
 					m_childProcesses.push_back(h);
 					u32 childProcessId = u32(m_childProcesses.size());
 
@@ -1044,12 +1052,50 @@ namespace uba
 	}
 #endif
 
+	struct ProcessImpl::PipeReader
+	{
+		PipeReader(ProcessImpl& p, LogEntryType lt) : process(p), logType(lt) {}
+		~PipeReader()
+		{
+			if (!currentString.empty())
+				process.LogLine(false, TString(currentString), logType);
+		}
+
+		void ReadData(char* buf, u32 readCount)
+		{
+			char* startPos = buf;
+			while (true)
+			{
+				char* endOfLine = strchr(startPos, '\n');
+				if (!endOfLine)
+				{
+					currentString.append(TString(startPos, startPos + strlen(startPos)));
+					return;
+				}
+				char* newStart = endOfLine + 1;
+				if (endOfLine > buf && endOfLine[-1] == '\r')
+					--endOfLine;
+				currentString.append(TString(startPos, endOfLine));
+				process.LogLine(false, TString(currentString), logType);
+				currentString.clear();
+				startPos = newStart;
+			}
+		}
+
+		ProcessImpl& process;
+		LogEntryType logType;
+		TString currentString;
+	};
+
 	u32 ProcessImpl::InternalCreateProcess(bool runningRemote, void* environment, FileMappingHandle communicationHandle, u64 communicationOffset)
 	{
 		ScopedWriteLock initLock(m_initLock);
 		Logger& logger = m_session.m_logger;
 
 #if PLATFORM_WINDOWS
+
+		HANDLE readPipe = INVALID_HANDLE_VALUE;
+		auto readPipeGuard = MakeGuard([&]() { CloseHandle(readPipe); });
 
 		if (!m_parentProcess)
 		{
@@ -1103,7 +1149,7 @@ namespace uba
 				return ProcessCancelExitCode;
 			}
 
-			bool isDetachedProcess = g_applicationRules[m_rulesIndex].rules->AllowDetach();
+			bool isDetachedProcess = g_applicationRules[m_rulesIndex].rules->AllowDetach() && m_detourEnabled;
 
 			HANDLE hJob = CreateJobObject(nullptr, nullptr);
 			JOBOBJECT_EXTENDED_LIMIT_INFORMATION info = { };
@@ -1128,8 +1174,42 @@ namespace uba
 			while (!IsCancelled())
 			{
 				LPCWSTR workingDir = *m_realWorkingDir ? m_realWorkingDir : NULL;
-				if (DetourCreateProcessWithDlls(NULL, (tchar*)commandLine.c_str(), NULL, NULL, inheritHandles, creationFlags, environment, workingDir, &si, &processInfo, sizeof_array(dlls), dlls, NULL))
-					break;
+
+				if (m_detourEnabled)
+				{
+					if (DetourCreateProcessWithDlls(NULL, (tchar*)commandLine.c_str(), NULL, NULL, inheritHandles, creationFlags, environment, workingDir, &si, &processInfo, sizeof_array(dlls), dlls, NULL))
+						break;
+				}
+				else
+				{
+					SECURITY_ATTRIBUTES saAttr;
+					saAttr.nLength = sizeof(SECURITY_ATTRIBUTES);
+					saAttr.bInheritHandle = TRUE;
+					saAttr.lpSecurityDescriptor = NULL;
+
+					HANDLE writePipe;
+					if (!CreatePipe(&readPipe, &writePipe, &saAttr, 0))
+					{
+						logger.Error(TC("CreatePipe failed"));
+						return UBA_EXIT_CODE(18);
+					}
+
+					auto writePipeGuard = MakeGuard([&]() { CloseHandle(writePipe); });
+
+					if (!SetHandleInformation(readPipe, HANDLE_FLAG_INHERIT, 0))
+					{
+						logger.Error(TC("SetHandleInformation failed"));
+						return UBA_EXIT_CODE(18);
+					}
+
+					si.hStdInput = GetStdHandle(STD_INPUT_HANDLE);
+					si.hStdError = writePipe;
+					si.hStdOutput = writePipe;
+					si.dwFlags |= STARTF_USESTDHANDLES;
+
+					if (CreateProcessW(NULL, (tchar*)commandLine.c_str(), NULL, NULL, TRUE, creationFlags, environment, workingDir, &si, &processInfo))
+						break;
+				}
 
 				DWORD error = GetLastError();
 
@@ -1195,42 +1275,45 @@ namespace uba
 				return UBA_EXIT_CODE(7);
 		}
 
-		HANDLE hostProcess;
-		HANDLE currentProcess = GetCurrentProcess();
-		if (!DuplicateHandle(currentProcess, currentProcess, (HANDLE)m_nativeProcessHandle, &hostProcess, 0, FALSE, DUPLICATE_SAME_ACCESS))
+		if (m_detourEnabled)
 		{
-			if (!IsCancelled())
-				logger.Error(TC("Failed to duplicate host process handle for process"));//% ls."), commandLine.c_str());
-			return UBA_EXIT_CODE(8);
-		}
+			HANDLE hostProcess;
+			HANDLE currentProcess = GetCurrentProcess();
+			if (!DuplicateHandle(currentProcess, currentProcess, (HANDLE)m_nativeProcessHandle, &hostProcess, 0, FALSE, DUPLICATE_SAME_ACCESS))
+			{
+				if (!IsCancelled())
+					logger.Error(TC("Failed to duplicate host process handle for process"));//% ls."), commandLine.c_str());
+				return UBA_EXIT_CODE(8);
+			}
 
-		DetoursPayload payload;
-		payload.processGuid = m_processGuid;
-		payload.hostProcess = hostProcess;
-		payload.cancelEvent = m_cancelEvent.GetHandle();
-		payload.writeEvent = m_writeEvent.GetHandle();
-		payload.readEvent = m_readEvent.GetHandle();
-		payload.communicationHandle = communicationHandle.handle;
-		payload.communicationOffset = communicationOffset;
-		payload.rulesIndex = m_rulesIndex;
-		payload.runningRemote = runningRemote;
-		payload.isChild = m_parentProcess != nullptr;
-		payload.trackInputs = m_startInfo.trackInputs;
-		payload.useCustomAllocator = m_startInfo.useCustomAllocator && g_applicationRules[m_rulesIndex].rules->AllowMiMalloc();
-		payload.isRunningWine = IsRunningWine();
-		payload.uiLanguage = m_startInfo.uiLanguage;
-		if (*m_startInfo.logFile)
-		{
-			#if !UBA_DEBUG_LOG_ENABLED
-			static bool runOnce = [&]() { logger.Warning(TC("Build has log files disabled so no logs will be produced")); return false; }();
-			#endif
-			payload.logFile.Append(m_startInfo.logFile);
-		}
+			DetoursPayload payload;
+			payload.processGuid = m_processGuid;
+			payload.hostProcess = hostProcess;
+			payload.cancelEvent = m_cancelEvent.GetHandle();
+			payload.writeEvent = m_writeEvent.GetHandle();
+			payload.readEvent = m_readEvent.GetHandle();
+			payload.communicationHandle = communicationHandle.handle;
+			payload.communicationOffset = communicationOffset;
+			payload.rulesIndex = m_rulesIndex;
+			payload.runningRemote = runningRemote;
+			payload.isChild = m_parentProcess != nullptr;
+			payload.trackInputs = m_startInfo.trackInputs;
+			payload.useCustomAllocator = m_startInfo.useCustomAllocator && g_applicationRules[m_rulesIndex].rules->AllowMiMalloc();
+			payload.isRunningWine = IsRunningWine();
+			payload.uiLanguage = m_startInfo.uiLanguage;
+			if (*m_startInfo.logFile)
+			{
+				#if !UBA_DEBUG_LOG_ENABLED
+				static bool runOnce = [&]() { logger.Warning(TC("Build has log files disabled so no logs will be produced")); return false; }();
+				#endif
+				payload.logFile.Append(m_startInfo.logFile);
+			}
 
-		if (!DetourCopyPayloadToProcessEx((HANDLE)m_nativeProcessHandle, DetoursPayloadGuid, &payload, sizeof(payload)))
-		{
-			logger.Error(TC("Failed to copy payload to process"));//% ls."), commandLine.c_str());
-			return UBA_EXIT_CODE(9);
+			if (!DetourCopyPayloadToProcessEx((HANDLE)m_nativeProcessHandle, DetoursPayloadGuid, &payload, sizeof(payload)))
+			{
+				logger.Error(TC("Failed to copy payload to process"));//% ls."), commandLine.c_str());
+				return UBA_EXIT_CODE(9);
+			}
 		}
 
 		if (!AlternateGroupAffinity(m_nativeThreadHandle))
@@ -1247,51 +1330,28 @@ namespace uba
 			return UBA_EXIT_CODE(11);
 		}
 
-		//closeThreadHandle.Execute();
-		//closeProcessHandle.Cancel();
+		CloseHandle(m_nativeThreadHandle);
+		m_nativeThreadHandle = 0;
+
+		if (!m_detourEnabled)
+		{
+			PipeReader pipeReader(*this, LogEntryType_Info);
+			TString currentString;
+			while (true)
+			{
+				char buf[4096];
+				DWORD readCount = 0;
+				if (!::ReadFile(readPipe, buf, sizeof(buf) - 1, &readCount, NULL))
+					break;
+				buf[readCount] = 0;
+				pipeReader.ReadData(buf, readCount);
+			}
+		}
+
 #else // #if PLATFORM_WINDOWS
 
 		if (!m_parentProcess)
 		{
-			StringBuffer<128> comIdVar;
-			comIdVar.Append("UBA_COMID=").AppendValue(communicationHandle.uid).Append('+').AppendValue(communicationOffset);
-
-			StringBuffer<512> workingDir;
-			workingDir.Append("UBA_CWD=").Append(m_realWorkingDir);
-
-			StringBuffer<32> rulesStr;
-			rulesStr.Append("UBA_RULES=").AppendValue(m_rulesIndex);
-
-			StringBuffer<512> logFile;
-			if (*m_startInfo.logFile)
-			{
-				#if !UBA_DEBUG_LOG_ENABLED
-				static bool runOnce = [&]() { logger.Warning(TC("Build has log files disabled so no logs will be produced")); return false; }();
-				#endif
-				logFile.Append("UBA_LOGFILE=").Append(m_startInfo.logFile);
-			}
-
-
-			Vector<const char*> envvars;
-
-			const char* it = (const char*)environment;
-			while (*it)
-			{
-				const char* s = it;
-				envvars.push_back(s);
-				it += TStrlen(s) + 1;
-			}
-
-			envvars.push_back(comIdVar.data);
-			envvars.push_back(workingDir.data);
-			envvars.push_back(rulesStr.data);
-			if (runningRemote)
-				envvars.push_back("UBA_REMOTE=1");
-			if (!logFile.IsEmpty())
-				envvars.push_back(logFile.data);
-
-			envvars.push_back(nullptr);
-
 			wordexp_t  w;
 
 			const char* realApplication = m_realApplication.c_str();
@@ -1301,6 +1361,10 @@ namespace uba
 				tempApplication.Append('\"').Append(m_realApplication).Append('\"');
 				realApplication = tempApplication.data;
 			}
+
+			static ReaderWriterLock g_wordexpLock; // wordexp is not thread-safe
+			ScopedWriteLock wordExpLock(g_wordexpLock);
+
 			auto expRes = wordexp(realApplication, &w, 0);
 			if (expRes != 0)
 			{
@@ -1314,6 +1378,10 @@ namespace uba
 				logger.Error("wordexp failed (%i) parsing arguments: %s", expRes, args);
 				return UBA_EXIT_CODE(16);
 			}
+
+			wordExpLock.Leave();
+
+			auto wordExpGuard = MakeGuard([&]() { wordfree(&w); });
 
 			//logger.Info(TC("ARGS: %hs\n", args.c_str());
 			//const char* argv[] = { app.c_str(), args.c_str(), nullptr };
@@ -1341,6 +1409,99 @@ namespace uba
 				#endif
 			}
 
+			StringBuffer<128> comIdVar;
+			StringBuffer<512> workingDir;
+			StringBuffer<32> rulesStr;
+			StringBuffer<512> logFile;
+			StringBuffer<512> ldLibraryPath;
+			StringBuffer<128> detoursVar;
+
+			Vector<const char*> envvars;
+
+			const char* it = (const char*)environment;
+			while (*it)
+			{
+				const char* s = it;
+				envvars.push_back(s);
+				it += TStrlen(s) + 1;
+			}
+
+			int outPipe[2] = { 0 };
+			int errPipe[2] = { 0 };
+			auto pipeGuard0 = MakeGuard([&]() { if (outPipe[0]) close(outPipe[0]); if (errPipe[0]) close(errPipe[0]); });
+			auto pipeGuard1 = MakeGuard([&]() { if (outPipe[1]) close(outPipe[1]); if (errPipe[1]) close(errPipe[1]); });
+
+			if (m_detourEnabled)
+			{
+				const char* detoursLib = m_session.m_detoursLibrary.c_str();
+				if (*detoursLib)
+				{
+#if PLATFORM_LINUX
+					//if (strchr(detoursLib, ' '))
+					{
+						const char* lastSlash = strrchr(detoursLib, '/');
+						UBA_ASSERT(lastSlash);
+						StringBuffer<> ldLibPath;
+						ldLibPath.Append(detoursLib, lastSlash - detoursLib);
+						ldLibraryPath.Append("LD_LIBRARY_PATH=").Append(ldLibPath);
+						detoursLib = lastSlash + 1;
+					}
+#endif
+				}
+				else
+					detoursLib = "./" UBA_DETOURS_LIBRARY;
+
+#if PLATFORM_LINUX
+				detoursVar.Append("LD_PRELOAD=").Append(detoursLib);
+#else
+				detoursVar.Append("DYLD_INSERT_LIBRARIES=").Append(detoursLib);
+#endif
+
+
+				comIdVar.Append("UBA_COMID=").AppendValue(communicationHandle.uid).Append('+').AppendValue(communicationOffset);
+				workingDir.Append("UBA_CWD=").Append(m_realWorkingDir);
+				rulesStr.Append("UBA_RULES=").AppendValue(m_rulesIndex);
+
+				if (*m_startInfo.logFile)
+				{
+#if !UBA_DEBUG_LOG_ENABLED
+					static bool runOnce = [&]() { logger.Warning(TC("Build has log files disabled so no logs will be produced")); return false; }();
+#endif
+					logFile.Append("UBA_LOGFILE=").Append(m_startInfo.logFile);
+				}
+
+				if (ldLibraryPath.count)
+					envvars.push_back(ldLibraryPath.data);
+				envvars.push_back(detoursVar.data);
+				envvars.push_back(comIdVar.data);
+				envvars.push_back(workingDir.data);
+				envvars.push_back(rulesStr.data);
+				if (runningRemote)
+					envvars.push_back("UBA_REMOTE=1");
+				if (!logFile.IsEmpty())
+					envvars.push_back(logFile.data);
+			}
+			else
+			{
+				if (pipe(outPipe) || pipe(errPipe))
+				{
+					logger.Error("pipe failed");
+					return UBA_EXIT_CODE(18);
+				}
+
+				pipeGuard0.Cancel(); // TODO Should this be here? If process fails, will the below actions execute?
+
+				posix_spawn_file_actions_addclose(&fileActions, outPipe[0]);
+				posix_spawn_file_actions_addclose(&fileActions, errPipe[0]);
+				posix_spawn_file_actions_adddup2(&fileActions, outPipe[1], 1);
+				posix_spawn_file_actions_adddup2(&fileActions, errPipe[1], 2);
+
+				posix_spawn_file_actions_addclose(&fileActions, outPipe[1]);
+				posix_spawn_file_actions_addclose(&fileActions, errPipe[1]);
+			}
+
+			envvars.push_back(nullptr);
+
 			pid_t processID;
 			res = posix_spawnp(&processID, m_realApplication.c_str(), &fileActions, &attr, w.we_wordv, (char**)envvars.data());
 
@@ -1352,8 +1513,43 @@ namespace uba
 				logger.Error(TC("posix_spawn failed: %s %s (Working dir: %s) -> %i (%s)"), m_realApplication.c_str(), m_startInfo.arguments, m_realWorkingDir, res, strerror(errno));
 				return UBA_EXIT_CODE(12);
 			}
+
 			m_nativeProcessHandle = (ProcHandle)1;
 			m_nativeProcessId = u32(processID);
+
+			if (!m_detourEnabled)
+			{
+				pipeGuard1.Execute();
+
+				PipeReader outReader(*this, LogEntryType_Info);
+				PipeReader errReader(*this, LogEntryType_Error);
+
+				pollfd plist[] = { {outPipe[0],POLLIN}, {errPipe[0],POLLIN} };
+
+				for (int rval; (rval = poll(plist, sizeof_array(plist), -1)) > 0;)
+				{
+					int fd = 0;
+					PipeReader* pipeReader = nullptr;
+					if (plist[0].revents & POLLIN)
+					{
+						fd = outPipe[0];
+						pipeReader = &outReader;
+					}
+					else if (plist[1].revents & POLLIN)
+					{
+						fd = errPipe[0];
+						pipeReader = &errReader;
+					}
+					else
+						break; // nothing left to read
+
+					char buffer[1024];
+					int bytesRead = read(fd, buffer, sizeof_array(buffer) - 1);
+					UBA_ASSERT(bytesRead > 0);
+					buffer[bytesRead] = 0;
+					pipeReader->ReadData(buffer, bytesRead);
+				}
+			}
 		}
 		else
 		{
@@ -1450,7 +1646,7 @@ namespace uba
 			res = GetExitCodeProcess((HANDLE)handle, (DWORD*)&nativeExitCode);
 			if (!res && GetLastError() == ERROR_INVALID_HANDLE) // Was already terminated
 				return ~0u;
-			if (m_gotExitMessage)
+			if (m_gotExitMessage || !m_detourEnabled)
 				m_nativeProcessExitCode = nativeExitCode;
 		}
 

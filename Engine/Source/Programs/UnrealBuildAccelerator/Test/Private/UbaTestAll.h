@@ -24,12 +24,14 @@ namespace uba
 		UBA_TEST(TestDetouredTouch) \
 		UBA_TEST(TestRemoteDetouredTestApp) \
 		UBA_TEST(TestCustomService) \
+		UBA_TEST(TestMultipleDetouredProcesses) \
+		UBA_TEST(TestLogLines) \
 
 	#define UBA_TEST(x) \
 		logger.Info(TC("Running %hs..."), #x); \
 		if (!x(testLogger, testRootDir)) \
-			return logger.Error(TC("%hs failed"), #x); \
-		logger.Info(TC("%hs success!"), #x);
+			return logger.Error(TC("  %hs failed"), #x); \
+		logger.Info(TC("  %hs success!"), #x);
 
 
 	bool RunAllTests()

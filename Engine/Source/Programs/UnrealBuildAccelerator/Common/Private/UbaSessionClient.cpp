@@ -1011,7 +1011,6 @@ namespace uba
 		AddEnvironmentVariableNoLock(TC("TMP"), m_tempPath.data);
 		#else
 		AddEnvironmentVariableNoLock(TC("TMPDIR"), m_tempPath.data);
-		AddDetoursEnvironmentVariable();
 		#endif
 
 		StringBuffer<> v;
@@ -1507,7 +1506,7 @@ namespace uba
 						session.m_waitToSendEvent.Set();
 					};
 
-					process->Start(startInfo, realApplication.data, m_processWorkingDir.data, true, env, true);
+					process->Start(startInfo, realApplication.data, m_processWorkingDir.data, true, env, true, true);
 				}
 
 				RemoveInactiveProcesses();

@@ -173,8 +173,9 @@ namespace EpicGames.UBA
 		/// <param name="info">Process start info</param>
 		/// <param name="async">If the process should be run async</param>
 		/// <param name="exitedEventHandler">Optional callback when the process exits</param>
+		/// <param name="enableDetour">Should be true unless process does not work being detoured (And in that case we need to manually register file system changes)</param>
 		/// <returns>The process being run</returns>
-		public abstract IProcess RunProcess(ProcessStartInfo info, bool async, IProcess.ExitedEventHandler? exitedEventHandler);
+		public abstract IProcess RunProcess(ProcessStartInfo info, bool async, IProcess.ExitedEventHandler? exitedEventHandler, bool enableDetour);
 
 		/// <summary>
 		/// Run a remote process

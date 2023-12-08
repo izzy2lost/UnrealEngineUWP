@@ -412,7 +412,7 @@ namespace uba
 		}
 		auto g = MakeGuard([&]() { server->StopAll(); });
 
-		auto RunBoxed = [&](const TString& app, const TString& arg, bool trackInputs = false)
+		auto RunLocal = [&](const TString& app, const TString& arg, bool enableDetour, bool trackInputs = false)
 		{
 			u64 start = GetTime();
 			ProcessStartInfo pinfo;
@@ -424,7 +424,7 @@ namespace uba
 			pinfo.logLineFunc = [](void* userData, const tchar* line, u32 length, LogEntryType type) { ((Logger*)userData)->Log(type, line, length); };
 			pinfo.trackInputs = trackInputs;
 			logger.Info(TC("Running %s %s"), app.c_str(), arg.c_str());
-			ProcessHandle process = session->RunProcess(pinfo, false);
+			ProcessHandle process = session->RunProcess(pinfo, false, enableDetour);
 			if (process.GetExitCode() != 0)
 				return logger.Error(TC("Error exit code: %u"), process.GetExitCode());
 			u64 time = GetTime() - start;
@@ -432,33 +432,7 @@ namespace uba
 			return true;
 		};
 
-		auto RunNormal = [&](const TString& app, const TString& arg)
-		{
-			#if PLATFORM_WINDOWS
-			u64 start = GetTime();
-			STARTUPINFOW si;
-			memset(&si, 0, sizeof(si));
-			PROCESS_INFORMATION pi;
-			TString cmdLine = app + TC(" ") + arg;
-			logger.Info(TC("Running %s"), cmdLine.c_str());
-			if (!CreateProcessW(NULL, (tchar*)cmdLine.c_str(), NULL, NULL, false, 0, NULL, workDir.data, &si, &pi))
-				return logger.Error(TC("Failed to run %s (%s)"), cmdLine.c_str(), LastErrorToText().data);
-			::CloseHandle(pi.hThread);
-			WaitForSingleObject(pi.hProcess, INFINITE);
-			DWORD exitCode = 0;
-			GetExitCodeProcess(pi.hProcess, &exitCode);
-			if (exitCode != 0)
-				return logger.Error(TC("Error exit code: %u"), exitCode);
-			::CloseHandle(pi.hProcess);
-			u64 time = GetTime() - start;
-			logger.Info(TC("Normal run took %s"), TimeToText(time).str);
-			return true;
-			#else
-			return logger.Error(TC("Normal run only implement on windows right now"));
-			#endif
-		};
-
-		auto RunBoxedRemote = [&](const TString& app, const TString& arg)
+		auto RunRemote = [&](const TString& app, const TString& arg)
 		{
 			u64 start = GetTime();
 			ProcessStartInfo pinfo;
@@ -484,13 +458,13 @@ namespace uba
 			switch (commandType)
 			{
 			case CommandType_Native:
-				success = RunNormal(application, arguments);
+				success = RunLocal(application, arguments, false);
 				break;
 			case CommandType_Local:
-				success = RunBoxed(application, arguments);
+				success = RunLocal(application, arguments, true);
 				break;
 			case CommandType_Remote:
-				success = RunBoxedRemote(application, arguments);
+				success = RunRemote(application, arguments);
 				break;
 			}
 			if (!success)

@@ -12,7 +12,7 @@ namespace uba
 	using RunProcessFunction = Function<ProcessHandle(const ProcessStartInfo&)>;
 	using TestSessionFunction = Function<bool(LoggerWithWriter& logger, SessionServer& session, const tchar* workingDir, const RunProcessFunction& runProcess)>;
 
-	bool RunLocal(LoggerWithWriter& logger, const StringBufferBase& testRootDir, const TestSessionFunction& testFunc)
+	bool RunLocal(LoggerWithWriter& logger, const StringBufferBase& testRootDir, const TestSessionFunction& testFunc, bool enableDetour = true)
 	{
 		LogWriter& logWriter = logger.m_writer;
 
@@ -42,7 +42,7 @@ namespace uba
 		if (!DeleteAllFiles(logger, workingDir.data, false))
 			return false;
 		workingDir.EnsureEndsWithSlash();
-		return testFunc(logger, session, workingDir.data, [&](const ProcessStartInfo& pi) { return session.RunProcess(pi, false); });
+		return testFunc(logger, session, workingDir.data, [&](const ProcessStartInfo& pi) { return session.RunProcess(pi, true, enableDetour); });
 	}
 
 	bool RunRemote(LoggerWithWriter& logger, const StringBufferBase& testRootDir, const TestSessionFunction& testFunc)
@@ -298,5 +298,60 @@ namespace uba
 					return logger.Error(TC("File time not changed after touch"));
 				return true;
 			});
+	}
+
+	bool TestMultipleDetouredProcesses(LoggerWithWriter& logger, const StringBufferBase& testRootDir)
+	{
+		return RunLocal(logger, testRootDir, [](LoggerWithWriter& logger, SessionServer& session, const tchar* workingDir, const RunProcessFunction& runProcess)
+			{
+				ProcessStartInfo processInfo;
+				processInfo.application = IsWindows ? TC("c:\\windows\\system32\\ping.exe") : TC("/usr/bin/ping");
+				processInfo.workingDir = workingDir;
+				processInfo.arguments = IsWindows ? TC("-n 2 localhost") : TC("-c 2 localhost");
+				Vector<ProcessHandle> processes;
+
+				for (u32 i=0; i!=50; ++i)
+					processes.push_back(runProcess(processInfo));
+
+				for (auto& process : processes)
+				{
+					if (!process.WaitForExit(10000))
+						return logger.Error(TC("UbaTestApp did not exit in 10 seconds"));
+					u32 exitCode = process.GetExitCode();
+					if (exitCode != 0)
+						return false;
+				}
+
+				return true;
+			});
+	}
+
+	bool TestLogLines(LoggerWithWriter& logger, const StringBufferBase& testRootDir)
+	{
+		return RunLocal(logger, testRootDir, [](LoggerWithWriter& logger, SessionServer& session, const tchar* workingDir, const RunProcessFunction& runProcess)
+			{
+				ProcessStartInfo processInfo;
+				processInfo.application = IsWindows ? TC("c:\\windows\\system32\\ping.exe") : TC("/usr/bin/ping");
+				processInfo.workingDir = workingDir;
+				processInfo.arguments = IsWindows ? TC("-n 1 localhost") : TC("-c 1 localhost");
+
+				bool foundPingString = false;
+				processInfo.logLineUserData = &foundPingString;
+				processInfo.logLineFunc = [](void* userData, const tchar* line, u32 length, LogEntryType type)
+					{
+						*(bool*)userData |= Contains(line, IsWindows ? TC("Pinging ") : TC("PING "));
+					};
+
+				ProcessHandle process = runProcess(processInfo);
+
+				if (!process.WaitForExit(10000000))
+					return logger.Error(TC("UbaTestApp did not exit in 10 seconds"));
+				u32 exitCode = process.GetExitCode();
+				if (exitCode != 0)
+					return logger.Error(TC("Got exit code %u"), exitCode);
+				if (!foundPingString)
+					return logger.Error(TC("Did not log ping string"));
+				return true;
+			}, false);
 	}
 }
