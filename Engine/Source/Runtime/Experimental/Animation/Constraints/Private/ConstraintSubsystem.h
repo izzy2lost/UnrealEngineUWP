@@ -51,17 +51,14 @@ public:
 		FConstraintTickFunction* InFunctionToTickBefore,
 		FConstraintTickFunction* InFunctionToTickAfter);
 
-	static void OnWorldInit(UWorld* World, const UWorld::InitializationValues IVS);
-	static void OnWorldCleanup(UWorld* World, bool bSessionEnded, bool bCleanupResources);
-
-public:
-
 	CONSTRAINTS_API TArray<TWeakObjectPtr<UTickableConstraint>> GetConstraints(UWorld* InWorld) const;
 	CONSTRAINTS_API const TArray<TWeakObjectPtr<UTickableConstraint>>& GetConstraintsArray(UWorld* InWorld) const;
 
 	CONSTRAINTS_API void AddConstraint(UWorld* InWorld, UTickableConstraint* InConstraint);
 	CONSTRAINTS_API void RemoveConstraint(UWorld* InWorld, UTickableConstraint* InConstraint, bool bDoNoCompensate);
 	CONSTRAINTS_API bool HasConstraint(UWorld* InWorld, UTickableConstraint* InConstraint);
+	
+	void InvalidateConstraints();
 
 #if WITH_EDITOR
 	virtual void PostEditUndo() override;
@@ -81,11 +78,22 @@ private:
 	
 	//handles for handling world creation init and teardown
 	static FDelegateHandle OnWorldInitHandle;
+	static void OnWorldInit(UWorld* World, const UWorld::InitializationValues IVS);
+	
 	static FDelegateHandle OnWorldCleanupHandle;
+	static void OnWorldCleanup(UWorld* World, bool bSessionEnded, bool bCleanupResources);
+
+	//handle for handling GC
+	static FDelegateHandle OnPostGarbageCollectHandle;
+	static void OnPostGarbageCollect();
+	
 	void RegisterWorldDelegates();
+
+	mutable bool bNeedsCleanup = false;
 
 	const FConstraintsInWorld* ConstraintsInWorldFind(UWorld* InWorld) const;
 	FConstraintsInWorld* ConstraintsInWorldFind(UWorld* InWorld);
 	FConstraintsInWorld& ConstraintsInWorldFindOrAdd(UWorld* InWorld);
 
+	void CleanupInvalidConstraints() const;
 };
