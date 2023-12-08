@@ -1,6 +1,7 @@
 ﻿// Copyright Epic Games, Inc. All Rights Reserved.
 
 using EpicGames.UHT.Utils;
+using Microsoft.Extensions.Logging;
 using System.Collections.Generic;
 
 namespace UnrealBuildTool
@@ -107,10 +108,18 @@ namespace UnrealBuildTool
 				}
 			}
 
-			// https://clang.llvm.org/docs/DiagnosticsReference.html#wshadow
-			if (CompileEnvironment.ShadowVariableWarningLevel != WarningLevel.Off)
+			// Clang 17 suffers from https://github.com/llvm/llvm-project/issues/71976 and should not be used as a preferred version until resolved
+			if (ClangVersion >= new VersionNumber(17))
 			{
-				Arguments.Add("-Wshadow" + ((CompileEnvironment.ShadowVariableWarningLevel == WarningLevel.Error) ? "" : " -Wno-error=shadow"));
+				Arguments.Add("-Wno-shadow");
+			}
+			else
+			{
+				// https://clang.llvm.org/docs/DiagnosticsReference.html#wshadow
+				if (CompileEnvironment.ShadowVariableWarningLevel != WarningLevel.Off)
+				{
+					Arguments.Add("-Wshadow" + ((CompileEnvironment.ShadowVariableWarningLevel == WarningLevel.Error) ? "" : " -Wno-error=shadow"));
+				}
 			}
 
 			// https://clang.llvm.org/docs/DiagnosticsReference.html#wundef
