@@ -100,7 +100,7 @@ public:
 	 * @param OutErrorMessages	Any error messages output.
 	 * @return - True if successful
 	 */
-	bool GetWorkspaceList(const FPerforceConnectionInfo& InConnectionInfo, FOnIsCancelled InOnIsCancelled, TArray<FString>& OutWorkspaceList, TArray<FText>& OutErrorMessages);
+	bool GetWorkspaceList(const FPerforceConnectionInfo& InConnectionInfo, FOnIsCancelled InOnIsCancelled, TArray<FString>& OutWorkspaceList, FSourceControlResultInfo& OutResultInfo);
 
 	/** Returns true if connection is currently active */
 	bool IsValidConnection();
@@ -114,36 +114,36 @@ public:
 	/**
 	 * Runs internal perforce command, catches exceptions, returns results
 	 */
-	bool RunCommand(const FString& InCommand, const TArray<FString>& InParameters, FP4RecordSet& OutRecordSet, TArray<FText>&  OutErrorMessage, FOnIsCancelled InIsCancelled, bool& OutConnectionDropped)
+	bool RunCommand(const FString& InCommand, const TArray<FString>& InParameters, FP4RecordSet& OutRecordSet, FSourceControlResultInfo& OutResultInfo, FOnIsCancelled InIsCancelled, bool& OutConnectionDropped)
 	{
-		return RunCommand(InCommand, InParameters, OutRecordSet, nullptr, OutErrorMessage, InIsCancelled, OutConnectionDropped);
+		return RunCommand(InCommand, InParameters, OutRecordSet, nullptr, OutResultInfo, InIsCancelled, OutConnectionDropped);
 	}
 
 	/**
 	 * Runs internal perforce command, catches exceptions, returns results
 	 */
-	bool RunCommand(const FString& InCommand, const TArray<FString>& InParameters, FP4RecordSet& OutRecordSet, TArray<FSharedBuffer>* OutData, TArray<FText>& OutErrorMessage, FOnIsCancelled InIsCancelled, bool& OutConnectionDropped, ERunCommandFlags RunFlags = ERunCommandFlags::Default);
+	bool RunCommand(const FString& InCommand, const TArray<FString>& InParameters, FP4RecordSet& OutRecordSet, TArray<FSharedBuffer>* OutData, FSourceControlResultInfo& OutResultInfo, FOnIsCancelled InIsCancelled, bool& OutConnectionDropped, ERunCommandFlags RunFlags = ERunCommandFlags::Default);
 
 	/**
 	 * Creates a changelist with the specified description
 	 */
-	int32 CreatePendingChangelist(const FText &Description, const TArray<FString>& InFiles, FOnIsCancelled InIsCancelled, TArray<FText>& OutErrorMessages);
+	int32 CreatePendingChangelist(const FText &Description, const TArray<FString>& InFiles, FOnIsCancelled InIsCancelled, FSourceControlResultInfo& OutResultInfo);
 
 	/**
 	 * Edits a changelist with a new description
 	 */
-	int32 EditPendingChangelist(const FText& NewDescription, int32 ChangelistNumber, FOnIsCancelled InIsCancelled, TArray<FText>& OutErrorMessages);
+	int32 EditPendingChangelist(const FText& NewDescription, int32 ChangelistNumber, FOnIsCancelled InIsCancelled, FSourceControlResultInfo& OutResultInfo);
 
 	/** 
 	 * Creates a workspace based on the spec provided via the WorkspaceSpec.
 	 * 
 	 * @param WorkspaceSpec		The specification of the workspace to create
-	 * @param InIsCancelled		Delegate allowing the cancelling of the command if needed
-	 * @param OutErrorMessages	An array that will be filled with all errors encountered during the command
+	 * @param InIsCancelled		Delegate allowing the canceling of the command if needed
+	 * @param OutResultInfo		Struct that will end up containing info and error messages for the operation
 	 * 
 	 * @return Returns true if no errors were encountered, otherwise false
 	 */
-	bool CreateWorkspace(FStringView WorkspaceSpec, FOnIsCancelled InIsCancelled, TArray<FText>& OutErrorMessages);
+	bool CreateWorkspace(FStringView WorkspaceSpec, FOnIsCancelled InIsCancelled, FSourceControlResultInfo& OutResultInfo);
 
 	/**
 	 * Attempt to login - some servers will require this 

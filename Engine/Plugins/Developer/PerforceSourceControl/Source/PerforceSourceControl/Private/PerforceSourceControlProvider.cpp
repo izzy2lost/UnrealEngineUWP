@@ -313,13 +313,6 @@ ISourceControlProvider::FInitResult FPerforceSourceControlProvider::ParseCommand
 	return Result;
 }
 
-void FPerforceSourceControlProvider::GetWorkspaceList(const FPerforceConnectionInfo& InConnectionInfo, TArray<FString>& OutWorkspaceList, TArray<FText>& OutErrorMessages)
-{
-	//attempt to ask perforce for a list of client specs that belong to this user
-	FPerforceConnection Connection(InConnectionInfo, *this);
-	Connection.GetWorkspaceList(InConnectionInfo, FOnIsCancelled(), OutWorkspaceList, OutErrorMessages);
-}
-
 const FString& FPerforceSourceControlProvider::GetTicket() const
 {
 	return Ticket;
@@ -737,21 +730,20 @@ TArray< TSharedRef<ISourceControlLabel> > FPerforceSourceControlProvider::GetLab
 		FPerforceConnection& Connection = ScopedConnection.GetConnection();
 		FP4RecordSet Records;
 		TArray<FString> Parameters;
-		TArray<FText> ErrorMessages;
+		FSourceControlResultInfo ResultInfo;
 		Parameters.Add(TEXT("-E"));
 		Parameters.Add(InMatchingSpec);
 		bool bConnectionDropped = false;
-		if(Connection.RunCommand(TEXT("labels"), Parameters, Records, ErrorMessages, FOnIsCancelled(), bConnectionDropped))
+		if(Connection.RunCommand(TEXT("labels"), Parameters, Records, ResultInfo, FOnIsCancelled(), bConnectionDropped))
 		{
 			// const_cast to avoid changing the ISourceControlProvider API as it is hard to deprecate without causing derived types to give compiler errors.
 			ParseGetLabelsResults(*const_cast<FPerforceSourceControlProvider*>(this), Records, Labels);
 		}
 		else
 		{
-			// output errors if any
-			for (int32 ErrorIndex = 0; ErrorIndex < ErrorMessages.Num(); ++ErrorIndex)
+			for (const FText& ErrorMsg : ResultInfo.ErrorMessages)
 			{
-				FMessageLog("SourceControl").Warning(FText::Format(LOCTEXT("GetLabelsErrorFormat", "GetLabels Warning: {0}"), ErrorMessages[ErrorIndex]));
+				FMessageLog("SourceControl").Warning(FText::Format(LOCTEXT("GetLabelsErrorFormat", "GetLabels Warning: {0}"), ErrorMsg));
 			}
 		}
 	}
@@ -1055,7 +1047,7 @@ bool FPerforceSourceControlProvider::QueryStateBranchConfig(const FString& Confi
 		FPerforceConnection& Connection = ScopedConnection.GetConnection();
 		FP4RecordSet Records;
 		TArray<FString> Parameters;
-		TArray<FText> ErrorMessages;
+		FSourceControlResultInfo ResultInfo;
 		Parameters.Add(TEXT("-o"));
 		Parameters.Add(*ConfigDest);
 		Parameters.Add(*ConfigSrc);
@@ -1063,7 +1055,7 @@ bool FPerforceSourceControlProvider::QueryStateBranchConfig(const FString& Confi
 		FText GeneralErrorMessage = LOCTEXT("StatusBranchConfigGeneralFailure", "Unable to retrieve status branch configuration from depot");
 
 		bool bConnectionDropped = false;
-		if (Connection.RunCommand(TEXT("print"), Parameters, Records, ErrorMessages, FOnIsCancelled(), bConnectionDropped))
+		if (Connection.RunCommand(TEXT("print"), Parameters, Records, ResultInfo, FOnIsCancelled(), bConnectionDropped))
 		{
 			if (Records.Num() < 1 || Records[0][TEXT("depotFile")] != ConfigSrc)
 			{
@@ -1075,10 +1067,9 @@ bool FPerforceSourceControlProvider::QueryStateBranchConfig(const FString& Confi
 		{
 			FMessageLog("SourceControl").Error(GeneralErrorMessage);
 
-			// output specific errors if any
-			for (int32 ErrorIndex = 0; ErrorIndex < ErrorMessages.Num(); ++ErrorIndex)
+			for (const FText& ErrorMsg : ResultInfo.ErrorMessages)
 			{
-				FMessageLog("SourceControl").Error(ErrorMessages[ErrorIndex]);
+				FMessageLog("SourceControl").Error(ErrorMsg);
 			}
 
 			return false;

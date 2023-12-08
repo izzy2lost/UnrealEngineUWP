@@ -65,15 +65,6 @@ public:
 
 	using ISourceControlProvider::Execute;
 
-	/**
-	 * Gets a list of client spec names from the source control provider
-	 *
-	 * @param	InConnectionInfo	Credentials for connection
-	 * @param	OutWorkspaceList	List of client spec name strings
-	 * @param	OutErrorMessages	List of any error messages that may have occurred
-	 */
-	void GetWorkspaceList(const struct FPerforceConnectionInfo& InConnectionInfo, TArray<FString>& OutWorkspaceList, TArray<FText>& OutErrorMessages);
-
 	/** Get the P4 ticket we will use for connections */
 	const FString& GetTicket() const;
 

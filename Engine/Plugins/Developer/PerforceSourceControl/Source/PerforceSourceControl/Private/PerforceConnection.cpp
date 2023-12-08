@@ -157,11 +157,11 @@ class FP4ClientUser : public ClientUser
 {
 public:
 
-	FP4ClientUser(FP4RecordSet& InRecords, EP4ClientUserFlags InFlags, TArray<FText>& InOutErrorMessages)
+	FP4ClientUser(FP4RecordSet& InRecords, EP4ClientUserFlags InFlags, FSourceControlResultInfo& OutResultInfo)
 		: ClientUser()
 		, Flags(InFlags)
 		, Records(InRecords)
-		, OutErrorMessages(InOutErrorMessages)
+		, ResultInfo(OutResultInfo)
 	{
 
 	}
@@ -185,7 +185,7 @@ public:
 				FText Message = FText::Format(LOCTEXT("P4Client_GatheringUnfinished", "Started gathering depot file '{0}' before the previous file finished!"),
 					FText::FromString(File.GetDepotPath()));
 
-				OutErrorMessages.Add(MoveTemp(Message));
+				ResultInfo.ErrorMessages.Add(MoveTemp(Message));
 			}
 
 			File.Initialize(Record);
@@ -214,7 +214,7 @@ public:
 					File.GetRemainingBytes(),
 					FText::FromString(File.GetDepotPath()));
 
-				OutErrorMessages.Add(MoveTemp(Message));
+				ResultInfo.ErrorMessages.Add(MoveTemp(Message));
 
 				File.Reset();
 			}
@@ -245,7 +245,7 @@ public:
 						File.GetRemainingBytes(),
 						FText::FromString(File.GetDepotPath()));
 
-					OutErrorMessages.Add(MoveTemp(Message));
+					ResultInfo.ErrorMessages.Add(MoveTemp(Message));
 
 					File.Reset();
 				}
@@ -258,7 +258,7 @@ public:
 					File.GetRemainingBytes(),
 					FText::FromString(File.GetDepotPath()));
 
-				OutErrorMessages.Add(MoveTemp(Message));
+				ResultInfo.ErrorMessages.Add(MoveTemp(Message));
 
 				File.Reset();
 			}
@@ -269,12 +269,46 @@ public:
 		}
 	}
 
-	/** Called by P4API when an error message is available. */
+	virtual void Message(Error* err) override
+	{
+		StrBuf Buffer;
+		err->Fmt(Buffer, EF_PLAIN);
+
+		FString Message(TO_TCHAR(Buffer.Text(), IsUnicodeServer()));
+
+		// Previously we used ::HandleError which would have \n at the end of each line.
+		// For now we should add that to maintain compatibility with existing code.
+		if (!Message.EndsWith(TEXT("\n")))
+		{
+			Message.Append(TEXT("\n"));
+		}
+
+		if (err->GetSeverity() <= ErrorSeverity::E_INFO)
+		{
+			ResultInfo.InfoMessages.Add(FText::FromString(MoveTemp(Message)));
+		}
+		else
+		{
+			ResultInfo.ErrorMessages.Add(FText::FromString(MoveTemp(Message)));
+		}
+	}
+
+	virtual void OutputInfo(char Indent, const char* InInfo) override
+	{
+		// Should be caught by ::Message
+		checkNoEntry();
+	}
+
+	virtual void OutputError(const char* errBuf) override
+	{
+		// Should be caught by ::Message
+		checkNoEntry();
+	}
+
 	virtual void HandleError(Error* InError) override
 	{
-		StrBuf ErrorMessage;
-		InError->Fmt(&ErrorMessage);
-		OutErrorMessages.Add(FText::FromString(FString(TO_TCHAR(ErrorMessage.Text(), IsUnicodeServer()))));
+		// Should be caught by ::Message
+		checkNoEntry();
 	}
 
 	inline bool IsUnicodeServer() const
@@ -295,7 +329,7 @@ public:
 
 	EP4ClientUserFlags Flags;
 	FP4RecordSet& Records;
-	TArray<FText>& OutErrorMessages;
+	FSourceControlResultInfo& ResultInfo;
 
 private:
 	TArray<FSharedBuffer> Files;
@@ -307,8 +341,8 @@ private:
 class FP4CreateChangelistClientUser : public FP4ClientUser
 {
 public:
-	FP4CreateChangelistClientUser(FP4RecordSet& InRecords, EP4ClientUserFlags InFlags, TArray<FText>& InOutErrorMessages, const FText& InDescription, const TArray<FString>& InFiles, ClientApi &InP4Client)
-		:	FP4ClientUser(InRecords, InFlags, InOutErrorMessages)
+	FP4CreateChangelistClientUser(FP4RecordSet& InRecords, EP4ClientUserFlags InFlags, FSourceControlResultInfo& OutResultInfo, const FText& InDescription, const TArray<FString>& InFiles, ClientApi &InP4Client)
+		:	FP4ClientUser(InRecords, InFlags, OutResultInfo)
 		,	Description(InDescription)
 		,	ChangelistNumber(0)
 		,	Files(InFiles)
@@ -317,14 +351,26 @@ public:
 	}
 
 	/** Called by P4API when the changelist is created. */
-	virtual void OutputInfo(ANSICHAR Level, const ANSICHAR *Data) override
+	virtual void Message(Error* err) override
 	{
-		const int32 ChangeTextLen = FCString::Strlen(TEXT("Change "));
-		if (FString(TO_TCHAR(Data, IsUnicodeServer())).StartsWith(TEXT("Change ")))
+		if (err->GetSeverity() <= ErrorSeverity::E_INFO)
 		{
-			ChangelistNumber = FCString::Atoi(TO_TCHAR(Data + ChangeTextLen, IsUnicodeServer()));
+			StrBuf Buffer;
+			err->Fmt(Buffer, EF_PLAIN);
+
+			FString Message(TO_TCHAR(Buffer.Text(), IsUnicodeServer()));
+
+			const int32 ChangeTextLen = FCString::Strlen(TEXT("Change "));
+			if (Message.StartsWith(TEXT("Change ")))
+			{
+				ChangelistNumber = FCString::Atoi(*Message + ChangeTextLen);
+			}
 		}
+
+		// Pass the message on as we will still want to record it
+		FP4ClientUser::Message(err);
 	}
+
 
 	/** Called by P4API on "change -i" command. OutBuffer is filled with changelist specification text. */
 	virtual void InputData(StrBuf* OutBuffer, Error* OutError) override
@@ -372,8 +418,8 @@ public:
 class FP4EditChangelistClientUser : public FP4ClientUser
 {
 public:
-	FP4EditChangelistClientUser(FP4RecordSet& OutRecords, EP4ClientUserFlags InFlags, TArray<FText>& InOutErrorMessages, const FText& InDescription, int32 InChangelistNumber, const FP4RecordSet& InRecords, ClientApi& InP4Client)
-		: FP4ClientUser(OutRecords, InFlags, InOutErrorMessages)
+	FP4EditChangelistClientUser(FP4RecordSet& OutRecords, EP4ClientUserFlags InFlags, FSourceControlResultInfo& OutResultInfo, const FText& InDescription, int32 InChangelistNumber, const FP4RecordSet& InRecords, ClientApi& InP4Client)
+		: FP4ClientUser(OutRecords, InFlags, OutResultInfo)
 		, Description(InDescription)
 		, ChangelistNumber(InChangelistNumber)
 		, P4Client(InP4Client)
@@ -382,13 +428,24 @@ public:
 	}
 
 	/** Called by P4API when the changelist is updated. */
-	virtual void OutputInfo(ANSICHAR Level, const ANSICHAR* Data) override
+	virtual void Message(Error* err) override
 	{
-		const int32 ChangeTextLen = FCString::Strlen(TEXT("Change "));
-		if (FString(TO_TCHAR(Data, IsUnicodeServer())).StartsWith(TEXT("Change ")))
+		if (err->GetSeverity() <= ErrorSeverity::E_INFO)
 		{
-			ChangelistNumber = FCString::Atoi(TO_TCHAR(Data + ChangeTextLen, IsUnicodeServer()));
+			StrBuf Buffer;
+			err->Fmt(Buffer, EF_PLAIN);
+
+			FString Message(TO_TCHAR(Buffer.Text(), IsUnicodeServer()));
+
+			const int32 ChangeTextLen = FCString::Strlen(TEXT("Change "));
+			if (Message.StartsWith(TEXT("Change ")))
+			{
+				ChangelistNumber = FCString::Atoi(*Message + ChangeTextLen);
+			}
 		}
+
+		// Pass the message on as we will still want to record it
+		FP4ClientUser::Message(err);
 	}
 
 	/** Called by P4API on "change -i" command. OutBuffer is filled with changelist specification text. */
@@ -463,8 +520,8 @@ public:
 class FP4CommandWithStdInputClientUser : public FP4ClientUser
 {
 public:
-	FP4CommandWithStdInputClientUser(FStringView InStdInput, FP4RecordSet& InRecords, EP4ClientUserFlags InFlags, TArray<FText>& InOutErrorMessages, ClientApi& InP4Client)
-		: FP4ClientUser(InRecords, InFlags, InOutErrorMessages)
+	FP4CommandWithStdInputClientUser(FStringView InStdInput, FP4RecordSet& InRecords, EP4ClientUserFlags InFlags, FSourceControlResultInfo& OutResultInfo, ClientApi& InP4Client)
+		: FP4ClientUser(InRecords, InFlags, OutResultInfo)
 		, P4Client(InP4Client)
 		, StdInput(InStdInput)
 	{
@@ -485,8 +542,8 @@ protected:
 class FP4LoginClientUser : public FP4ClientUser
 {
 public:
-	FP4LoginClientUser(const FString& InPassword, FP4RecordSet& InRecords, EP4ClientUserFlags InFlags, TArray<FText>& InOutErrorMessages)
-		:	FP4ClientUser(InRecords, InFlags, InOutErrorMessages)
+	FP4LoginClientUser(const FString& InPassword, FP4RecordSet& InRecords, EP4ClientUserFlags InFlags, FSourceControlResultInfo& OutResultInfo)
+		:	FP4ClientUser(InRecords, InFlags, OutResultInfo)
 		,	Password(InPassword)
 	{
 	}
@@ -528,14 +585,19 @@ static bool TestLoginConnection(ClientApi& P4Client, bool bIsUnicodeServer, TArr
 {
 	TRACE_CPUPROFILER_EVENT_SCOPE(FPerforce::TestLoginConnection);
 
+	OutErrorMessages.Reset();
+
+	FSourceControlResultInfo ResultInfo;
 	FP4RecordSet Records;
 	EP4ClientUserFlags Flags = bIsUnicodeServer ? EP4ClientUserFlags::UnicodeServer : EP4ClientUserFlags::None;
-	FP4ClientUser User(Records, Flags, OutErrorMessages);
+	FP4ClientUser User(Records, Flags, ResultInfo);
 
 	const char* ArgV[] = { "-s" };
 
 	P4Client.SetArgv(1, const_cast<char* const*>(ArgV));
 	P4Client.Run("login", &User);
+
+	OutErrorMessages = MoveTemp(ResultInfo.ErrorMessages);
 
 	return OutErrorMessages.IsEmpty();
 }
@@ -547,10 +609,13 @@ static bool TestLoginConnection(ClientApi& P4Client, bool bIsUnicodeServer, TArr
 static bool TestClientConnection(ClientApi& P4Client, const FString& ClientSpecName, bool bIsUnicodeServer, TArray<FText>& OutErrorMessages)
 {
 	TRACE_CPUPROFILER_EVENT_SCOPE(FPerforce::TestClientConnection);
+	
+	OutErrorMessages.Reset();
 
+	FSourceControlResultInfo ResultInfo;
 	FP4RecordSet Records;
 	EP4ClientUserFlags Flags = bIsUnicodeServer ? EP4ClientUserFlags::UnicodeServer : EP4ClientUserFlags::None;
-	FP4ClientUser User(Records, Flags, OutErrorMessages);
+	FP4ClientUser User(Records, Flags, ResultInfo);
 
 	UTF8CHAR* ClientSpecUTF8Name = nullptr;
 	if(bIsUnicodeServer)
@@ -573,6 +638,8 @@ static bool TestClientConnection(ClientApi& P4Client, const FString& ClientSpecN
 	// clean up args
 	delete [] ClientSpecUTF8Name;
 
+	OutErrorMessages = MoveTemp(ResultInfo.ErrorMessages);
+
 	// If there are error messages, user name is most likely invalid. Otherwise, make sure workspace actually
 	// exists on server by checking if we have it's update date.
 	bool bConnectionOK = OutErrorMessages.Num() == 0 && Records.Num() > 0 && Records[0].Contains(TEXT("Update"));
@@ -586,10 +653,17 @@ static bool TestClientConnection(ClientApi& P4Client, const FString& ClientSpecN
 
 static bool CheckUnicodeStatus(ClientApi& P4Client, bool& bIsUnicodeServer, TArray<FText>& OutErrorMessages)
 {
+	TRACE_CPUPROFILER_EVENT_SCOPE(FPerforce::CheckUnicodeStatus);
+
+	OutErrorMessages.Reset();
+
+	FSourceControlResultInfo ResultInfo;
 	FP4RecordSet Records;
-	FP4ClientUser User(Records, EP4ClientUserFlags::None, OutErrorMessages);
+	FP4ClientUser User(Records, EP4ClientUserFlags::None, ResultInfo);
 
 	P4Client.Run("info", &User);
+
+	OutErrorMessages = MoveTemp(ResultInfo.ErrorMessages);
 
 	if(Records.Num() > 0)
 	{
@@ -664,9 +738,15 @@ bool FPerforceConnection::AutoDetectWorkspace(const FPerforceConnectionInfo& InC
 {
 	//before even trying to summon the window, try to "smart" connect with the default server/username
 
+	OutErrorMessages.Reset();
+
 	FPerforceConnection Connection(InConnectionInfo, SCCProvider);
 	TArray<FString> ClientSpecList;
-	Connection.GetWorkspaceList(InConnectionInfo, FOnIsCancelled(), ClientSpecList, OutErrorMessages);
+	FSourceControlResultInfo ResultInfo;
+
+	Connection.GetWorkspaceList(InConnectionInfo, FOnIsCancelled(), ClientSpecList, ResultInfo);
+
+	OutErrorMessages = MoveTemp(ResultInfo.ErrorMessages);
 
 	if (!OutErrorMessages.IsEmpty())
 	{
@@ -716,25 +796,25 @@ bool FPerforceConnection::AutoDetectWorkspace(const FPerforceConnectionInfo& InC
 
 bool FPerforceConnection::Login(const FPerforceConnectionInfo& InConnectionInfo)
 {
-	TArray<FText> ErrorMessages;
+	FSourceControlResultInfo ResultInfo;
 
 	FP4RecordSet Records;
-	FP4LoginClientUser User(InConnectionInfo.Password, Records, EP4ClientUserFlags::None, ErrorMessages);
+	FP4LoginClientUser User(InConnectionInfo.Password, Records, EP4ClientUserFlags::None, ResultInfo);
 
 	const char *ArgV[] = { "-a" };
 	P4Client.SetArgv(1, const_cast<char*const*>(ArgV));
 	P4Client.Run("login", &User);
 
-	if(ErrorMessages.Num())
+	if (ResultInfo.HasErrors())
 	{
 		UE_LOG(LogSourceControl, Error, TEXT("Login failed"));
-		for(auto ErrorMessage : ErrorMessages)
+		for (const FText& ErrorMessage : ResultInfo.ErrorMessages)
 		{
 			UE_LOG(LogSourceControl, Error, TEXT("%s"), *ErrorMessage.ToString());
 		}
 	}
 
-	return ErrorMessages.Num() == 0;
+	return !ResultInfo.HasErrors();
 }
 
 bool EnsureValidConnectionInternal(const FPerforceConnectionInfo& InSettings, FPerforceSourceControlProvider& SCCProvider, EConnectionOptions Options,
@@ -894,7 +974,7 @@ bool FPerforceConnection::EnsureValidConnection(const FPerforceConnectionInfo& I
 	return bResult;
 }
 
-bool FPerforceConnection::GetWorkspaceList(const FPerforceConnectionInfo& InConnectionInfo, FOnIsCancelled InOnIsCanceled, TArray<FString>& OutWorkspaceList, TArray<FText>& OutErrorMessages)
+bool FPerforceConnection::GetWorkspaceList(const FPerforceConnectionInfo& InConnectionInfo, FOnIsCancelled InOnIsCanceled, TArray<FString>& OutWorkspaceList, FSourceControlResultInfo& OutResultInfo)
 {
 	TRACE_CPUPROFILER_EVENT_SCOPE(FPerforceConnection::GetWorkspaceList)
 
@@ -907,7 +987,7 @@ bool FPerforceConnection::GetWorkspaceList(const FPerforceConnectionInfo& InConn
 
 		FP4RecordSet Records;
 		bool bConnectionDropped = false;
-		bool bCommandOK = RunCommand(TEXT("clients"), Params, Records, OutErrorMessages, InOnIsCanceled, bConnectionDropped);
+		bool bCommandOK = RunCommand(TEXT("clients"), Params, Records, OutResultInfo, InOnIsCanceled, bConnectionDropped);
 
 		if (bCommandOK)
 		{
@@ -1007,7 +1087,7 @@ double FPerforceConnection::GetLatestCommuncationTime() const
 }
 
 bool FPerforceConnection::RunCommand(	const FString& InCommand, const TArray<FString>& InParameters, FP4RecordSet& OutRecordSet, 
-                                        TArray<FSharedBuffer>* OutData, TArray<FText>& OutErrorMessage, 
+                                        TArray<FSharedBuffer>* OutData, FSourceControlResultInfo& OutResultInfo,
                                         FOnIsCancelled InIsCancelled, bool& OutConnectionDropped, ERunCommandFlags RunFlags)
 {
 	TRACE_CPUPROFILER_EVENT_SCOPE_TEXT(*FString::Printf(TEXT("FPerforceConnection::RunCommand_%s"), *InCommand));
@@ -1063,7 +1143,7 @@ bool FPerforceConnection::RunCommand(	const FString& InCommand, const TArray<FSt
 	ClientUserFlags |= bIsUnicode ? EP4ClientUserFlags::UnicodeServer : EP4ClientUserFlags::None;
 	ClientUserFlags |= OutData != nullptr ? EP4ClientUserFlags::CollectData : EP4ClientUserFlags::None;
 	
-	FP4ClientUser User(OutRecordSet, ClientUserFlags, OutErrorMessage);
+	FP4ClientUser User(OutRecordSet, ClientUserFlags, OutResultInfo);
 	if (EnumHasAllFlags(RunFlags, ERunCommandFlags::Quiet))
 	{
 		User.SetQuiet();
@@ -1092,7 +1172,7 @@ bool FPerforceConnection::RunCommand(	const FString& InCommand, const TArray<FSt
 	// Only report connection related errors to avoid clearing of connection related error messages
 	if (InCommand != TEXT("info"))
 	{
-		SCCProvider.SetLastErrors(OutErrorMessage);
+		SCCProvider.SetLastErrors(OutResultInfo.ErrorMessages);
 	}
 
 	if (bLogCommandDetails)
@@ -1116,7 +1196,7 @@ bool FPerforceConnection::RunCommand(	const FString& InCommand, const TArray<FSt
 	return OutRecordSet.Num() > 0;
 }
 
-int32 FPerforceConnection::CreatePendingChangelist(const FText &Description, const TArray<FString>& Files, FOnIsCancelled InIsCancelled, TArray<FText>& OutErrorMessages)
+int32 FPerforceConnection::CreatePendingChangelist(const FText &Description, const TArray<FString>& Files, FOnIsCancelled InIsCancelled, FSourceControlResultInfo& OutResultInfo)
 {
 	TArray<FString> Params;
 	FP4RecordSet Records;
@@ -1128,7 +1208,7 @@ int32 FPerforceConnection::CreatePendingChangelist(const FText &Description, con
 	FP4KeepAlive KeepAlive(InIsCancelled);
 	P4Client.SetBreak(&KeepAlive);
 
-	FP4CreateChangelistClientUser User(Records, Flags, OutErrorMessages, Description, Files, P4Client);
+	FP4CreateChangelistClientUser User(Records, Flags, OutResultInfo, Description, Files, P4Client);
 	P4Client.Run("change", &User);
 
 	P4Client.SetBreak(nullptr);
@@ -1136,7 +1216,7 @@ int32 FPerforceConnection::CreatePendingChangelist(const FText &Description, con
 	return User.ChangelistNumber;
 }
 
-int32 FPerforceConnection::EditPendingChangelist(const FText& NewDescription, int32 ChangelistNumber, FOnIsCancelled InIsCancelled, TArray<FText>& OutErrorMessages)
+int32 FPerforceConnection::EditPendingChangelist(const FText& NewDescription, int32 ChangelistNumber, FOnIsCancelled InIsCancelled, FSourceControlResultInfo& OutResultInfo)
 {
 	FP4RecordSet PreviousRecords;
 
@@ -1150,7 +1230,7 @@ int32 FPerforceConnection::EditPendingChangelist(const FText& NewDescription, in
 		// TODO : make this work also for default changelist, but should really be a Create
 		Params.Add(FString::Printf(TEXT("%d"), ChangelistNumber));
 
-		if (!RunCommand(TEXT("change"), Params, PreviousRecords, nullptr, OutErrorMessages, InIsCancelled, bConnectionDropped, RunFlags))
+		if (!RunCommand(TEXT("change"), Params, PreviousRecords, nullptr, OutResultInfo, InIsCancelled, bConnectionDropped, RunFlags))
 		{
 			return 0;
 		}
@@ -1168,16 +1248,16 @@ int32 FPerforceConnection::EditPendingChangelist(const FText& NewDescription, in
 		FP4KeepAlive KeepAlive(InIsCancelled);
 		P4Client.SetBreak(&KeepAlive);
 
-		FP4EditChangelistClientUser User(Records, Flags, OutErrorMessages, NewDescription, ChangelistNumber, PreviousRecords, P4Client);
+		FP4EditChangelistClientUser User(Records, Flags, OutResultInfo, NewDescription, ChangelistNumber, PreviousRecords, P4Client);
 		P4Client.Run("change", &User);
 
 		P4Client.SetBreak(nullptr);
 
-		return (OutErrorMessages.Num() == 0 ? User.ChangelistNumber : 0);
+		return (!OutResultInfo.HasErrors() ? User.ChangelistNumber : 0);
 	}
 }
 
-bool FPerforceConnection::CreateWorkspace(FStringView WorkspaceSpec, FOnIsCancelled InIsCancelled, TArray<FText>& OutErrorMessages)
+bool FPerforceConnection::CreateWorkspace(FStringView WorkspaceSpec, FOnIsCancelled InIsCancelled, FSourceControlResultInfo& OutResultInfo)
 {
 	TRACE_CPUPROFILER_EVENT_SCOPE(FPerforceConnection::CreateWorkspace);
 
@@ -1192,7 +1272,7 @@ bool FPerforceConnection::CreateWorkspace(FStringView WorkspaceSpec, FOnIsCancel
 	FP4KeepAlive KeepAlive(InIsCancelled);
 	P4Client.SetBreak(&KeepAlive);
 
-	FP4CommandWithStdInputClientUser User(WorkspaceSpec, Records, Flags, OutErrorMessages, P4Client);
+	FP4CommandWithStdInputClientUser User(WorkspaceSpec, Records, Flags, OutResultInfo, P4Client);
 	User.SetQuiet();	// p4 client does not return tagged output, so any output messages will be
 						// printed to stdout. Setting this will prevent that.
 
@@ -1200,7 +1280,7 @@ bool FPerforceConnection::CreateWorkspace(FStringView WorkspaceSpec, FOnIsCancel
 
 	P4Client.SetBreak(nullptr);
 	
-	return OutErrorMessages.Num() == 0;
+	return !OutResultInfo.HasErrors();
 }
 
 void FPerforceConnection::EstablishConnection(const FPerforceConnectionInfo& InConnectionInfo)
@@ -1251,14 +1331,14 @@ void FPerforceConnection::EstablishConnection(const FPerforceConnectionInfo& InC
 	else
 	{
 		TArray<FString> Params;
-		TArray<FText> ErrorMessages;
+		FSourceControlResultInfo ResultInfo;
 		FP4RecordSet Records;
 		bool bConnectionDropped = false;
 		const ERunCommandFlags RunFlags = ERunCommandFlags::DisableCommandLogging;
 
 		UE_LOG(LogSourceControl, Verbose, TEXT(" ... checking unicode status" ));
 
-		if (RunCommand(TEXT("info"), Params, Records, nullptr, ErrorMessages, FOnIsCancelled(), bConnectionDropped, RunFlags))
+		if (RunCommand(TEXT("info"), Params, Records, nullptr, ResultInfo, FOnIsCancelled(), bConnectionDropped, RunFlags))
 		{
 			// Get character encoding
 			bIsUnicode = Records[0].Find(TEXT("unicode")) != nullptr;
@@ -1291,7 +1371,7 @@ void FPerforceConnection::EstablishConnection(const FPerforceConnectionInfo& InC
 			// Gather the client root
 			UE_LOG(LogSourceControl, Verbose, TEXT(" ... getting info" ));
 			bConnectionDropped = false;
-			if (RunCommand(TEXT("info"), Params, Records, nullptr, ErrorMessages, FOnIsCancelled(), bConnectionDropped, RunFlags))
+			if (RunCommand(TEXT("info"), Params, Records, nullptr, ResultInfo, FOnIsCancelled(), bConnectionDropped, RunFlags))
 			{
 				UE_LOG(LogSourceControl, Verbose, TEXT(" ... getting clientroot" ));
 				ClientRoot = Records[0](TEXT("clientRoot"));
