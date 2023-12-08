@@ -1,17 +1,21 @@
 @echo off
 setlocal
 
-set OPENUSD_VERSION=23.08
+set OPENUSD_VERSION=23.11
 
 rem This path may be adjusted to point to wherever the OpenUSD source is
 rem located. It is typically obtained by either downloading a zip/tarball of
 rem the source code, or more commonly by cloning the GitHub repository, e.g.
 rem for the current engine OpenUSD version:
-rem     git clone --branch v23.08 https://github.com/PixarAnimationStudios/OpenUSD.git OpenUSD_src
+rem     git clone --branch v23.11 https://github.com/PixarAnimationStudios/OpenUSD.git OpenUSD_src
 rem We apply a patch for the usdMtlx plugin to ensure that we do not
 rem bake a hard-coded path to the MaterialX standard data libraries into the
 rem built plugin:
-rem     git apply OpenUSD_v2308_usdMtlx_undef_stdlib_dir.patch
+rem     git apply OpenUSD_v2311_usdMtlx_undef_stdlib_dir.patch
+rem We apply a patch to explicitly declare, define, and export a destructor for
+rem SdfAssetPaths so that allocations of its member strings can be tracked and
+rem deallocated using the correct deallocator:
+rem     git apply OpenUSD_v2311_explicit_SdfAssetPath_dtor.patch
 rem Note also that this path may be emitted as part of OpenUSD error messages,
 rem so it is suggested that it not reveal any sensitive information.
 set OPENUSD_SOURCE_LOCATION=C:\OpenUSD_src
