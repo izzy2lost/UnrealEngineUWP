@@ -1636,6 +1636,10 @@ TSharedRef<SGraphEditor> FBlueprintEditor::CreateGraphEditorWidget(TSharedRef<FT
 			GraphEditorCommands->MapAction( FGraphEditorCommands::Get().CreateComment,
 				FExecuteAction::CreateSP( this, &FBlueprintEditor::OnCreateComment )
 				);
+				
+			GraphEditorCommands->MapAction( FGraphEditorCommands::Get().CreateCustomEvent,
+				FExecuteAction::CreateSP( this, &FBlueprintEditor::OnCreateCustomEvent )
+				);
 
 			GraphEditorCommands->MapAction(FGraphEditorCommands::Get().ShowAllPins,
 				FExecuteAction::CreateSP(this, &FBlueprintEditor::SetPinVisibility, SGraphEditor::Pin_Show)
@@ -10151,6 +10155,27 @@ void FBlueprintEditor::OnCreateComment()
 				{
 					FEdGraphSchemaAction_K2AddComment CommentAction;
 					CommentAction.PerformAction(Graph, nullptr, GraphEditor->GetPasteLocation());
+				}
+			}
+		}
+	}
+}
+
+void FBlueprintEditor::OnCreateCustomEvent()
+{
+	TSharedPtr<SGraphEditor> GraphEditor = FocusedGraphEdPtr.Pin();
+	if (GraphEditor.IsValid())
+	{
+		if (UEdGraph* Graph = GraphEditor->GetCurrentGraph())
+		{
+			if (const UEdGraphSchema* Schema = Graph->GetSchema())
+			{
+				if (Schema->IsA(UEdGraphSchema_K2::StaticClass()))
+				{
+					// BlueprintEventNodeSpawner seems better but we'll use FEdGraphSchemaAction_K2AddCustomEvent
+					FEdGraphSchemaAction_K2AddCustomEvent EventAction;
+					EventAction.NodeTemplate = NewObject<UK2Node_CustomEvent>();
+					EventAction.PerformAction(Graph, nullptr, GraphEditor->GetPasteLocation());
 				}
 			}
 		}

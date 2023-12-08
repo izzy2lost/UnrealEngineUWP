@@ -124,6 +124,9 @@ public:
 
 	//create a comment node
 	TSharedPtr< FUICommandInfo > CreateComment;
+	
+	// Create a custom event node
+	TSharedPtr< FUICommandInfo > CreateCustomEvent;
 
 	// Zoom in and out on the graph editor
 	TSharedPtr< FUICommandInfo > ZoomIn;

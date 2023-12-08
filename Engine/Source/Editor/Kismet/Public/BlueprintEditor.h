@@ -1280,6 +1280,9 @@ protected:
 	
 	/* Create comment node on graph */
 	virtual void OnCreateComment();
+	
+	/** Create custom event node on graph */
+	virtual void OnCreateCustomEvent();
 
 	// Create new graph editor widget for the supplied document container
 	virtual TSharedRef<SGraphEditor> CreateGraphEditorWidget(TSharedRef<class FTabInfo> InTabInfo, class UEdGraph* InGraph);
