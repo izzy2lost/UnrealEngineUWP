@@ -62,11 +62,11 @@ Chaos::FPBDRigidClusteredParticleHandle* UModularVehicleComponent::GetChassisPar
 
 	if (FGeometryCollectionPhysicsProxy* Proxy = GetPhysicsProxy())
 	{
-		const TArray<Chaos::FPBDRigidClusteredParticleHandle*>& Clusters = Proxy->GetSolverClusterHandles();
+		Chaos::FPBDRigidClusteredParticleHandle* Cluster = Proxy->GetSolverClusterHandle_Internal(0);
 
-		if (Clusters.Num() > 0 && !Clusters[0]->Disabled())
+		if (Cluster != nullptr && !Cluster->Disabled())
 		{
-			Particle = Clusters[0];
+			Particle = Cluster;
 		}
 	}
 	return Particle;
@@ -221,8 +221,8 @@ bool UModularVehicleComponent::ProcessRepData(const float DeltaTime, const float
 								check(RewindData);
 								check(!RewindData->IsResim());
 
-								const TArray<Chaos::FPBDRigidClusteredParticleHandle*>& Clusters = Proxy->GetSolverClusterHandles();
-								auto* ChassisHandle = Clusters[ChassisIdx];
+								Chaos::FPBDRigidClusteredParticleHandle* ChassisHandle = Proxy->GetSolverClusterHandle_Internal(ChassisIdx);
+
 								const FGeometryCollectionClusterRep& RepCluster = RepData.Clusters[ChassisIdx];
 
 								// Need the local frame in order to access correct history data

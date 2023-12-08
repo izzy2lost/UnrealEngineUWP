@@ -363,8 +363,7 @@ void FModularVehicleSimulationCU::ApplyDeferredForces(FGeometryCollectionPhysics
 					const TManagedArray<FTransform>& CollectionMassToLocal = Rest->GetGeometryCollection()->GetAttribute<FTransform>(TEXT("MassToLocal"), FTransformCollection::TransformGroup);
 
 					SimModuleTree->AccessDeferredForces().Apply(
-						Proxy->GetSolverParticleHandles(),
-						Proxy->GetSolverClusterHandles(),
+						Proxy,
 						Rest->GetGeometryCollection()->Transform,
 						CollectionMassToLocal,
 						Rest->GetGeometryCollection()->Parent);

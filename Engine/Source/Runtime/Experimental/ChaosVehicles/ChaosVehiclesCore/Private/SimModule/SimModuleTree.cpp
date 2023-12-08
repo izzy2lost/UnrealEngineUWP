@@ -315,15 +315,12 @@ void FSimModuleTree::UpdateModuleVelocites(FGeometryCollectionPhysicsProxy* Phys
 {
 	check(PhysicsProxy);
 
-	const TArray<Chaos::FPBDRigidClusteredParticleHandle*>& Clusters = PhysicsProxy->GetSolverClusterHandles();
-	const TArray<Chaos::FPBDRigidClusteredParticleHandle*>& Particles = PhysicsProxy->GetSolverParticleHandles();
-
 	// capture the velocities at the start of each sim iteration
 	for (int i = 0; i < SimulationModuleTree.Num(); i++)
 	{
 		if (ISimulationModuleBase* Module = SimulationModuleTree[i].SimModule)
 		{
-			if (Chaos::FPBDRigidClusteredParticleHandle* ParentParticle = Clusters[Module->GetTransformIndex()])
+			if (Chaos::FPBDRigidClusteredParticleHandle* ParentParticle = PhysicsProxy->GetSolverClusterHandle_Internal(Module->GetTransformIndex()))
 			{
 				const FTransform BodyTransform(ParentParticle->R(), ParentParticle->X());
 
@@ -332,11 +329,11 @@ void FSimModuleTree::UpdateModuleVelocites(FGeometryCollectionPhysicsProxy* Phys
 					Chaos::FPBDRigidClusteredParticleHandle* Particle = nullptr;
 					if (Module->IsClustered())
 					{
-						Particle = Clusters[Module->GetTransformIndex()];
+						Particle = PhysicsProxy->GetSolverClusterHandle_Internal(Module->GetTransformIndex());
 					}
 					else
 					{
-						Particle = Particles[Module->GetTransformIndex()];				
+						Particle = PhysicsProxy->GetParticle_Internal(Module->GetTransformIndex());
 					}
 
 					if (Particle)

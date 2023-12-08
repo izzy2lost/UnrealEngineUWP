@@ -71,7 +71,7 @@ static void ForEachRootChildParticle(const Chaos::FStrainedProxyAndRoot& ProxyAn
 		{
 			for (int32 RestChildIdx : *RestChildren)
 			{
-				Chaos::FPBDRigidClusteredParticleHandle* ChildHandle = ProxyGC->GetSolverParticleHandles()[RestChildIdx];
+				Chaos::FPBDRigidClusteredParticleHandle* ChildHandle = ProxyGC->GetParticle_Internal(RestChildIdx);
 				if ((ChildHandle == nullptr) || (ChildHandle->Parent() == nullptr)) { continue; }
 
 				Func(ChildHandle);
@@ -86,7 +86,7 @@ int32 Chaos::FStrainedProxyModifier::GetNumRestBreakables() const
 	{
 		return RestChildren->Num();
 	}
-	return 1; // cluser union case
+	return 1; // cluster union case
 }
 
 int32 Chaos::FStrainedProxyModifier::GetNumBreakingStrains(const bool bDoubleCount, const uint8 StrainTypes) const
@@ -228,10 +228,10 @@ Chaos::FStrainedProxyRange::FStrainedProxyRange(Chaos::FRigidClustering& InRigid
 			{
 				FSimulationParameters& Parameters = ProxyGC->GetSimParameters();
 				const int32 RootIndex = Parameters.InitialRootIndex;
-				TArray<Chaos::FPBDRigidClusteredParticleHandle*>& ParticleHandles = ProxyGC->GetSolverParticleHandles();
-				if (ParticleHandles.IsValidIndex(RootIndex))
+				Chaos::FPBDRigidClusteredParticleHandle* ParticleHandle = ProxyGC->GetParticle_Internal(RootIndex);
+				if (ParticleHandle != nullptr)
 				{
-					if (Cluster != ParticleHandles[RootIndex])
+					if (Cluster != ParticleHandle)
 					{
 						return;
 					}
