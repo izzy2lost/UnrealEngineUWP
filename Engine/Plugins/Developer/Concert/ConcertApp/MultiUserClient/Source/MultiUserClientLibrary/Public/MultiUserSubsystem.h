@@ -53,6 +53,19 @@ public:
 	bool IsConnectedToSession() const;
 
 	/**
+	 * If connected to a session, gets the endpoint identifiers of client corresponding to the local editor instance.
+	 * @return Whether OutClientId contains a valid identifiers.
+	 */
+	UFUNCTION(BlueprintPure, Category = "Multi-user")
+	bool GetLocalClientId(FGuid& OutClientId) const;
+	/**
+	 * If connected to a session, gets the endpoint identifiers of all remote clients.
+	 * @return Whether OutRemoteClientIds contains the remote client endpoint identifiers.
+	 */
+	UFUNCTION(BlueprintPure, Category = "Multi-user")
+	bool GetRemoteClientIds(TArray<FGuid>& OutRemoteClientIds);
+
+	/**
 	 * Send a custom event message over multi-user.  If you a not in an active session, this function does nothing and only
 	 * reports and warning to the output log.
 	 *

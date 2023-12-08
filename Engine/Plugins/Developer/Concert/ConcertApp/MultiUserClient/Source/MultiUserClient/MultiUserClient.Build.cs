@@ -37,6 +37,7 @@ namespace UnrealBuildTool.Rules
 					"Concert",
 					"ConcertClient",
 					"ConcertClientSharedSlate",
+					"ConcertReplicationScripting",
 					"ConcertSharedSlate",
 					"ConcertSyncClient",
 					"ConcertSyncCore",

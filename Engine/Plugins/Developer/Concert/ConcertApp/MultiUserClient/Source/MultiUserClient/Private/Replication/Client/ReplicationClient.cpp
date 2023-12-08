@@ -15,6 +15,7 @@ namespace UE::MultiUserClient
 {
 	FReplicationClient::FReplicationClient(
 		const FGuid& EndpointId,
+		FReplicationDiscoveryContainer& InDiscoveryContainer,
 		FGlobalAuthorityCache& InAuthorityCache,
 		UMultiUserReplicationClientPreset& InSessionContent,
 		TUniquePtr<IClientStreamSynchronizer> InStreamSynchronizer,
@@ -30,7 +31,7 @@ namespace UE::MultiUserClient
 		, LocalClientEditModel(CreatePropertySelectionModel(
 			*ClientContentStorage->Stream,
 			ClientContentStorage->Stream->MakeReplicationMapGetterAttribute(),
-			MakeShared<FMultiUserStreamExtender>())
+			MakeShared<FMultiUserStreamExtender>(EndpointId, InDiscoveryContainer))
 			)
 		, LocalClientStreamDiffer(
 			GetStreamSynchronizer(),

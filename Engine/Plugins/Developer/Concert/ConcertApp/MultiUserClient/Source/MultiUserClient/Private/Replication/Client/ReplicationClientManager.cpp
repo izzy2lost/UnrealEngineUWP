@@ -14,18 +14,20 @@
 namespace UE::MultiUserClient
 {
 	FReplicationClientManager::FReplicationClientManager(
-		TSharedRef<IConcertSyncClient> InClient,
-		TSharedRef<IConcertClientSession> InSession
+		const TSharedRef<IConcertSyncClient>& InClient,
+		const TSharedRef<IConcertClientSession>& InSession,
+		FReplicationDiscoveryContainer& InRegisteredExtenders
 		)
 		: SessionContent(NewObject<UMultiUserReplicationSessionPreset>(GetTransientPackage(), NAME_None, RF_Transient))
 		, ConcertClient(InClient)
 		, Session(InSession)
+		, RegisteredExtenders(InRegisteredExtenders)
 		, QueryService(InClient)
 		, AuthorityCache(*this)
 		, LocalClient([this, InClient]()
 		{
 			UMultiUserReplicationClientPreset* ClientPreset = SessionContent->AddClient();
-			return FLocalReplicationClient(AuthorityCache, *ClientPreset, MakeUnique<FStreamSynchronizer_LocalClient>(InClient, ClientPreset->Stream->StreamId), InClient);
+			return FLocalReplicationClient(RegisteredExtenders, AuthorityCache, *ClientPreset, MakeUnique<FStreamSynchronizer_LocalClient>(InClient, ClientPreset->Stream->StreamId), InClient);
 		}())
 		, SubmissionNotifier(*this)
 		, ReassignmentLogic(*this)
@@ -161,7 +163,14 @@ namespace UE::MultiUserClient
 	
 	void FReplicationClientManager::CreateRemoteClient(const FGuid& ClientEndpointId, bool bBroadcastDelegate)
 	{
-		TUniquePtr<FRemoteReplicationClient> RemoteClientPtr = MakeUnique<FRemoteReplicationClient>(ClientEndpointId, ConcertClient->GetConcertClient(), AuthorityCache, *SessionContent->AddClient(), QueryService);
+		TUniquePtr<FRemoteReplicationClient> RemoteClientPtr = MakeUnique<FRemoteReplicationClient>(
+			ClientEndpointId,
+			RegisteredExtenders,
+			ConcertClient->GetConcertClient(),
+			AuthorityCache,
+			*SessionContent->AddClient(),
+			QueryService
+			);
 		FRemoteReplicationClient& RemoteClient = *RemoteClientPtr;
 		RemoteClients.Emplace(
 			MoveTemp(RemoteClientPtr)

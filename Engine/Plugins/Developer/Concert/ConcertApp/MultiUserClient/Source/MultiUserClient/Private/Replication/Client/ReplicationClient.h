@@ -25,6 +25,7 @@ namespace UE::ConcertClientSharedSlate
 
 namespace UE::MultiUserClient
 {
+	class FReplicationDiscoveryContainer;
 	class ISubmissionWorkflow;
 	
 	/**
@@ -35,8 +36,18 @@ namespace UE::MultiUserClient
 	{
 	public:
 		
+		/**
+		 * @param EndpointId The endpoint ID this instance corresponds to.
+		 * @param InDiscoveryContainer Used for auto-discovering properties added to this client's stream. The caller ensures it outlives the constructed instance.
+		 * @param InAuthorityCache Caches authority state of all clients. Passed to subsystems. The caller ensures it outlives the constructed instance.
+		 * @param InSessionContent Object that this client's stream changes are to be written into. The caller ensures it outlives the constructed instance.
+		 * @param InStreamSynchronizer Implementation for obtaining stream registered on server. The constructed instance takes ownership.
+		 * @param InAuthoritySynchronizer Implementation for obtaining the client's authority state on server. The constructed instance takes ownership.
+		 * @param InSubmissionWorkflow Implementation for for changing client streams and authority on the server. The constructed instance takes ownership.
+		 */
 		FReplicationClient(
 			const FGuid& EndpointId,
+			FReplicationDiscoveryContainer& InDiscoveryContainer,
 			FGlobalAuthorityCache& InAuthorityCache,
 			UMultiUserReplicationClientPreset& InSessionContent,
 			TUniquePtr<IClientStreamSynchronizer> InStreamSynchronizer,
@@ -46,6 +57,14 @@ namespace UE::MultiUserClient
 		~FReplicationClient();
 
 		UMultiUserReplicationClientPreset* GetClientContent() const { return ClientContentStorage; }
+		/**
+		 * This is used so the UI can construct the IReplicationStreamEditor.
+		 * @see CreateBaseStreamEditor and FCreateEditorParams.
+		 * 
+		 * @note You must make sure to release this object when this FReplicationClient is destroyed.
+		 * Listen for events on the owning FReplicationClientManager::OnPreRemoteClientRemoved and FMultiUserReplicationManager::OnLeaveSession
+		 * @see FReplicationClientManager and FMultiUserReplicationManager
+		 */
 		TSharedRef<ConcertClientSharedSlate::IEditableReplicationStreamModel> GetClientEditModel() const { return LocalClientEditModel; }
 		IClientStreamSynchronizer& GetStreamSynchronizer() const { return *StreamSynchronizer.Get(); }
 		IClientAuthoritySynchronizer& GetAuthoritySynchronizer() const { return *AuthoritySynchronizer.Get(); }
@@ -99,9 +118,10 @@ namespace UE::MultiUserClient
 		 * Used to detect changes made to the client's config by the local editor.
 		 * Those changes can later be applied to the client.
 		 * 
-		 * The SessionContent UObject must be kept alive as long as this model lives. 
+		 * The SessionContent UObject must be kept alive as long as this model lives.
+		 * 
 		 * It should be noted that the UI keeps a strong reference to this model.
-		 * The UI is destroyed right after this FClientStreamRepository.
+		 * The UI is destroyed right before FReplicationClient, which is guaranteed by FMultiUserReplicationManager.
 		 * @see FMultiUserReplicationManager::OnLeaveSession
 		 */
 		TSharedRef<ConcertClientSharedSlate::IEditableReplicationStreamModel> LocalClientEditModel;

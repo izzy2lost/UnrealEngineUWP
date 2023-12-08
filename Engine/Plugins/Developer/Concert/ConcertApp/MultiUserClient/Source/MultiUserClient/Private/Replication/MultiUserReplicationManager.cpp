@@ -84,7 +84,7 @@ namespace UE::MultiUserClient
 		const bool bSuccess = JoinSessionResult.ErrorCode == EJoinReplicationErrorCode::Success;
 		if (bSuccess)
 		{
-			ConnectedState.Emplace(Client);
+			ConnectedState.Emplace(Client, DiscoveryContainer);
 			SetConnectionStateAndBroadcast(EMultiUserReplicationConnectionState::Connected);
 		}
 		else
@@ -99,7 +99,44 @@ namespace UE::MultiUserClient
 		OnReplicationConnectionStateChangedDelegate.Broadcast(ConnectionState);
 	}
 
-	FMultiUserReplicationManager::FConnectedState::FConnectedState(TSharedRef<IConcertSyncClient> InClient)
-		: ClientManager(InClient, InClient->GetConcertClient()->GetCurrentSession().ToSharedRef())
+	FGuid FMultiUserReplicationManager::GetMultiUserStreamId() const
+	{
+		return UMultiUserReplicationClientPreset::MultiUserStreamID;
+	}
+
+	const FObjectReplicationMap* FMultiUserReplicationManager::FindReplicationMapForClient(const FGuid& ClientId) const
+	{
+		if (ConnectedState)
+		{
+			const FReplicationClient* ReplicationClient = ConnectedState->ClientManager.FindClient(ClientId);
+			return ReplicationClient
+				? &ReplicationClient->GetStreamSynchronizer().GetServerState()
+				: nullptr;
+		}
+		return nullptr;
+	}
+
+	bool FMultiUserReplicationManager::IsReplicatingObject(const FGuid& ClientId, const FSoftObjectPath& ObjectPath) const 
+	{
+		if (ConnectedState)
+		{
+			const FReplicationClient* ReplicationClient = ConnectedState->ClientManager.FindClient(ClientId);
+			return ReplicationClient && ReplicationClient->GetAuthoritySynchronizer().HasAuthorityOver(ObjectPath);
+		}
+		return false;
+	}
+
+	void FMultiUserReplicationManager::RegisterReplicationDiscoverer(TSharedRef<IReplicationDiscoverer> Discoverer)
+	{
+		DiscoveryContainer.AddDiscoverer(Discoverer);
+	}
+
+	void FMultiUserReplicationManager::RemoveReplicationDiscoverer(const TSharedRef<IReplicationDiscoverer>& Discoverer)
+	{
+		DiscoveryContainer.RemoveDiscoverer(Discoverer);
+	}
+
+	FMultiUserReplicationManager::FConnectedState::FConnectedState(TSharedRef<IConcertSyncClient> InClient, FReplicationDiscoveryContainer& InDiscoveryContainer)
+		: ClientManager(InClient, InClient->GetConcertClient()->GetCurrentSession().ToSharedRef(), InDiscoveryContainer)
 	{}
 }

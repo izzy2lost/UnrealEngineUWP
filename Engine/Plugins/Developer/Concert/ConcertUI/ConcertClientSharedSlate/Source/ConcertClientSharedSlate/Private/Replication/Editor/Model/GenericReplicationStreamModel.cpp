@@ -284,13 +284,19 @@ namespace UE::ConcertClientSharedSlate
 				, ObjectsAddedSoFar(ObjectsAddedSoFar)
 			{}
 
-			virtual void AddPropertyTo(UObject& Object, FConcertPropertyChain&& PropertyChain) override
+			virtual void AddPropertyTo(UObject& Object, FConcertPropertyChain PropertyChain) override
 			{
+				UClass* ObjectClass = Object.GetClass();
+				if (!ensure(ObjectClass))
+				{
+					return;
+				}
+				
 				AddAdditionalObject(Object);
 				FReplicatedObjectInfo& ObjectInfo = ReplicationMap.ReplicatedObjects[&Object];
 
 				constexpr bool bLog = false;
-				const FProperty* ResolvedProperty = PropertyChain.ResolveProperty(*Object.GetClass(), bLog);
+				const FProperty* ResolvedProperty = PropertyChain.ResolveProperty(*ObjectClass, bLog);
 				if (!ResolvedProperty || !ConcertSyncCore::PropertyChain::IsReplicatableProperty(*ResolvedProperty))
 				{
 					UE_LOG(LogConcert, Warning, TEXT("Property \"%s\" is not a valid property to assign to object \"%s\"."), *PropertyChain.ToString(), *Object.GetPathName());
@@ -300,8 +306,8 @@ namespace UE::ConcertClientSharedSlate
 				if (!ObjectInfo.PropertySelection.ReplicatedProperties.Contains(PropertyChain))
 				{
 					TArray<FConcertPropertyChain>& Properties = ObjectInfo.PropertySelection.ReplicatedProperties;
+					Private::AddParentProperties(*ObjectClass, PropertyChain, Properties);
 					Properties.Emplace(MoveTemp(PropertyChain));
-					Private::AddParentProperties(*Object.GetClass(), PropertyChain, Properties);
 					// TODO UE-202079: Make sure to append FConcertPropertyChain::InternalContainerPropertyValueName if needed
 				}
 			}

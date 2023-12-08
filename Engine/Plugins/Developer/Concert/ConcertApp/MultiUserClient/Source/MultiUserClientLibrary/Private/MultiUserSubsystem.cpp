@@ -235,6 +235,35 @@ bool UMultiUserSubsystem::IsConnectedToSession() const
 	return false;
 }
 
+bool UMultiUserSubsystem::GetLocalClientId(FGuid& OutClientId) const
+{
+#if WITH_CONCERT
+	using namespace UE::MultiUserSubsystem::Private;
+	if (ConcertManager.IsValid() && ConcertManager->WeakSession.IsValid())
+	{
+		const TSharedPtr<IConcertClientSession> SessionPin = ConcertManager->WeakSession.Pin();
+		OutClientId = SessionPin->GetSessionClientEndpointId();
+		return true;
+	}
+#endif
+	return false;
+}
+
+bool UMultiUserSubsystem::GetRemoteClientIds(TArray<FGuid>& OutRemoteClientIds)
+{
+#if WITH_CONCERT
+	using namespace UE::MultiUserSubsystem::Private;
+	if (ConcertManager.IsValid() && ConcertManager->WeakSession.IsValid())
+	{
+		const TSharedPtr<IConcertClientSession> SessionPin = ConcertManager->WeakSession.Pin();
+		OutRemoteClientIds = SessionPin->GetSessionClientEndpointIds();
+		OutRemoteClientIds.RemoveSingle(SessionPin->GetSessionClientEndpointId());
+		return true;
+	}
+#endif
+	return false;
+}
+
 void UMultiUserSubsystem::SendCustomEvent(const FConcertBlueprintEvent& EventData)
 {
 #if WITH_CONCERT

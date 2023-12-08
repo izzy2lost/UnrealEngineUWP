@@ -7,10 +7,17 @@
 class UObject;
 struct FConcertPropertyChain;
 
-namespace UE::ConcertClientSharedSlate
+namespace UE::MultiUserClient
 {
-	/** Allows IStreamExtender to add default replication settings like properties and adding additional objects. */
-	class CONCERTCLIENTSHAREDSLATE_API IStreamExtensionContext
+	/**
+	 * An interface for discovering replication settings for an object.
+	 *
+	 * This interface is very similar to IStreamExtensionContext but the interfaces serve different purposes.
+	 * IStreamExtensionContext concerns itself with extending general streams. IReplicationDiscoveryContext is specific to Multi User.
+	 * 
+	 * @see IReplicationDiscoverer
+	 */
+	class MULTIUSERCLIENT_API IReplicationDiscoveryContext
 	{
 	public:
 
@@ -32,6 +39,6 @@ namespace UE::ConcertClientSharedSlate
 		 */
 		virtual void AddAdditionalObject(UObject& Object) = 0;
 
-		virtual ~IStreamExtensionContext() = default;
+		virtual ~IReplicationDiscoveryContext() = default;
 	};
 }

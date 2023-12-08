@@ -12,6 +12,7 @@ namespace UE::MultiUserClient
 {
 	FRemoteReplicationClient::FRemoteReplicationClient(
 		const FGuid& InConcertClientId,
+		FReplicationDiscoveryContainer& InDiscoveryContainer,
 		TSharedRef<IConcertClient> InClient,
 		FGlobalAuthorityCache& InAuthorityCache,
 		UMultiUserReplicationClientPreset& InSessionContent,
@@ -19,6 +20,7 @@ namespace UE::MultiUserClient
 		)
 		: FReplicationClient(
 			InConcertClientId,
+			InDiscoveryContainer,
 			InAuthorityCache,
 			InSessionContent,
 			MakeUnique<FStreamSynchronizer_RemoteClient>(InConcertClientId, QueryService),

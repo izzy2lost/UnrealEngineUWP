@@ -117,9 +117,13 @@ bool FConcertPropertyChain::IsDirectChildOf(const FConcertPropertyChain& ParentT
 bool FConcertPropertyChain::MatchesExactly(const FArchiveSerializedPropertyChain* OptionalChain, const FProperty& LeafProperty) const
 {
 	using namespace UE::ConcertSyncCore::PropertyChain;
-	const int32 OptionalChainLength = OptionalChain ? OptionalChain->GetNumProperties() : 0;
+	if (PathToProperty.IsEmpty())
+	{
+		return false;
+	}
 	
-	const bool bLeafPropertiesMatch = !PathToProperty.IsEmpty() && IsInnerContainerProperty(LeafProperty)
+	const int32 OptionalChainLength = OptionalChain ? OptionalChain->GetNumProperties() : 0;
+	const bool bLeafPropertiesMatch = IsInnerContainerProperty(LeafProperty)
 		// The only place FConcertPropertyChain contains inner container properties is at the end; it is named InternalContainerPropertyValueName.
 		// In that case the "real" leaf property is the owning container property.
 		? (OptionalChainLength >= 1 && PathToProperty.Num() > 1) && OptionalChain->GetPropertyFromStack(0)->GetFName() == PathToProperty[PathToProperty.Num() - 2]
@@ -179,7 +183,7 @@ bool FConcertPropertyChain::MatchesExactly(const FArchiveSerializedPropertyChain
 	return bArePathsEqual && bVisitedEveryProperty;
 }
 
-FProperty* FConcertPropertyChain::ResolveProperty(UStruct& Class, bool bLogOnFail)
+FProperty* FConcertPropertyChain::ResolveProperty(UStruct& Class, bool bLogOnFail) const
 {
 	// FConcertPropertyChain::ResolveProperty exists only for visibility to developers since
 	// the class is the first place one would look and not in the utils namespace.

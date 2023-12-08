@@ -5,6 +5,9 @@
 #include "Client/ReplicationClientManager.h"
 
 #include "IConcertSession.h"
+#include "Replication/IMultiUserReplication.h"
+#include "Replication/Stream/Discovery/ReplicationDiscoveryContainer.h"
+
 #include "Misc/Optional.h"
 #include "Templates/SharedPointer.h"
 #include "Templates/UnrealTemplate.h"
@@ -46,11 +49,12 @@ namespace UE::MultiUserClient
 	class FMultiUserReplicationManager
 		: public TSharedFromThis<FMultiUserReplicationManager>
 		, public FNoncopyable
+		, public IMultiUserReplication
 	{
 	public:
 		
 		FMultiUserReplicationManager(TSharedRef<IConcertSyncClient> InClient);
-		~FMultiUserReplicationManager();
+		virtual ~FMultiUserReplicationManager() override;
 
 		/**
 		 * Joins the replication session.
@@ -69,6 +73,14 @@ namespace UE::MultiUserClient
 		DECLARE_MULTICAST_DELEGATE_OneParam(FOnReplicationConnectionStateChanged, EMultiUserReplicationConnectionState /*NewState*/);
 		FOnReplicationConnectionStateChanged& OnReplicationConnectionStateChanged() { return OnReplicationConnectionStateChangedDelegate; }
 		EMultiUserReplicationConnectionState GetConnectionState() const { return ConnectionState; }
+
+		//~ Begin IMultiUserReplication Interface
+		virtual FGuid GetMultiUserStreamId() const override;
+		virtual const FObjectReplicationMap* FindReplicationMapForClient(const FGuid& ClientId) const override;
+		virtual bool IsReplicatingObject(const FGuid& ClientId, const FSoftObjectPath& ObjectPath) const override;
+		virtual void RegisterReplicationDiscoverer(TSharedRef<IReplicationDiscoverer> Discoverer) override;
+		virtual void RemoveReplicationDiscoverer(const TSharedRef<IReplicationDiscoverer>& Discoverer) override;
+		//~ End IMultiUserReplication Interface
 
 	private:
 
@@ -91,10 +103,13 @@ namespace UE::MultiUserClient
 			 */
 			FReplicationClientManager ClientManager;
 			
-			FConnectedState(TSharedRef<IConcertSyncClient> InClient);
+			FConnectedState(TSharedRef<IConcertSyncClient> InClient, FReplicationDiscoveryContainer& InDiscoveryContainer);
 		};
 		/** Set when connected to a replication session. */
 		TOptional<FConnectedState> ConnectedState;
+
+		/** Allows external modules to register discoverers for adding properties, etc. */
+		FReplicationDiscoveryContainer DiscoveryContainer;
 
 		/** Called when ConnectionState changes. */
 		FOnReplicationConnectionStateChanged OnReplicationConnectionStateChangedDelegate;

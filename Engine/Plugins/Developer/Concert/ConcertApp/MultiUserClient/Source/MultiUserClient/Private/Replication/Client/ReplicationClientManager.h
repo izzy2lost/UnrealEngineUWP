@@ -30,12 +30,15 @@ namespace UE::ConcertClientSharedSlate
 namespace UE::MultiUserClient
 {
 	class FRemoteReplicationClient;
+	class FReplicationDiscoveryContainer;
 	class FReplicationClient;
 	class FStreamChangeTracker;
 
 	/**
 	 * Keeps track of connected clients synchronizing their stream data in a UMultiUserReplicationSessionPreset.
-	 * This object only exists for as long as the local client is in a Concert session.
+	 * 
+	 * This class is instantiated only for as long as the local client is in a Concert session and is owned by FMultiUserReplicationManager,
+	 * which drives the lifetime.
 	 */
 	class FReplicationClientManager
 		: public FGCObject
@@ -44,10 +47,15 @@ namespace UE::MultiUserClient
 	public:
 		
 		/**
-		 * @param InClient The local client. Outlives this objects.
-		 * @param InSession The session to observe. Outlives this objects.
+		 * @param InClient The local client. The owning FMultiUserReplicationManager ensures it outlives the constructed instance.
+		 * @param InSession The session to observe. The owning FMultiUserReplicationManager ensures it outlives the constructed instance.
+		 * @param InRegisteredExtenders Used for auto-discovering properties added to this client's stream. Passed to the clients. The owning FMultiUserReplicationManager ensures it outlives the constructed instance.
 		 */
-		FReplicationClientManager(TSharedRef<IConcertSyncClient> InClient, TSharedRef<IConcertClientSession> InSession);
+		FReplicationClientManager(
+			const TSharedRef<IConcertSyncClient>& InClient,
+			const TSharedRef<IConcertClientSession>& InSession,
+			FReplicationDiscoveryContainer& InRegisteredExtenders
+			);
 		virtual ~FReplicationClientManager() override;
 
 		const FLocalReplicationClient& GetLocalClient() const { return LocalClient; }
@@ -107,12 +115,11 @@ namespace UE::MultiUserClient
 		
 	private:
 		
-		/** The state of the server is synched up with this object and displayed in the UI. */
+		/** The state of the server is synchronized up with this object and displayed in the UI. */
 		TObjectPtr<UMultiUserReplicationSessionPreset> SessionContent;
 
 		/** The local Concert client */
 		TSharedRef<IConcertSyncClient> ConcertClient;
-
 		/**
 		 * The session the local client is in.
 		 * 
@@ -120,6 +127,12 @@ namespace UE::MultiUserClient
 		 * when the session shuts down.
 		 */
 		const TWeakPtr<IConcertClientSession> Session;
+
+		/**
+		 * Passed to clients for constructing for the purposes of auto-discovering properties and additional objects when adding properties to the stream.
+		 * The owning FMultiUserReplicationManager ensures it outlives this FReplicationClientManager instance.
+		 */
+		FReplicationDiscoveryContainer& RegisteredExtenders;
 		
 		/**
 		 * Sends FConcertReplication_QueryReplicationInfo_Request in regular intervals.

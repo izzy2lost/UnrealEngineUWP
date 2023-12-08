@@ -9,6 +9,7 @@
 namespace UE::MultiUserClient
 {
 	FLocalReplicationClient::FLocalReplicationClient(
+		FReplicationDiscoveryContainer& InDiscoveryContainer,
 		FGlobalAuthorityCache& InAuthorityCache,
 		UMultiUserReplicationClientPreset& InSessionContent,
 		TUniquePtr<IClientStreamSynchronizer> InStreamSynchronizer,
@@ -16,6 +17,7 @@ namespace UE::MultiUserClient
 		)
 		: FReplicationClient(
 			InClient->GetConcertClient()->GetCurrentSession()->GetSessionClientEndpointId(),
+			InDiscoveryContainer,
 			InAuthorityCache,
 			InSessionContent,
 			MoveTemp(InStreamSynchronizer),

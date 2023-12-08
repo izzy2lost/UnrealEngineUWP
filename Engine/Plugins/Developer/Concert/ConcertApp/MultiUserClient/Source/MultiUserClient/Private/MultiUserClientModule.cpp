@@ -648,6 +648,11 @@ public:
 		return MultiUserClient;
 	}
 
+	virtual UE::MultiUserClient::IMultiUserReplication* GetReplication() const override
+	{
+		return ReplicationManager.Get();
+	}
+
 	/**
 	 * Invokes the Multi-User browser tab
 	 */
