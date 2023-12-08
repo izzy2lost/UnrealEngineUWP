@@ -64,6 +64,12 @@ public:
 	 */
 	virtual bool GetVisible() const override;
 
+	/* 
+	 * Returns whether the gizmo can interact.
+	 * Note that this can be true even if the gizmo is hidden to support indirect manipulation in game mode.
+	 */
+	virtual bool CanInteract() const override;
+
 	/**
  	 * Get current scale type
 	 */

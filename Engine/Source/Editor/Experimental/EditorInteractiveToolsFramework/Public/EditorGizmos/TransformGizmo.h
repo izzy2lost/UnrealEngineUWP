@@ -456,10 +456,16 @@ protected:
 	virtual bool GetRayParamIntersectionWithInteractionPlane(const FInputDeviceRay& InRay, float& OutHitParam);
 
 	/** Update hover state for given part id */
-	virtual void UpdateHoverState(bool bInHover, ETransformGizmoPartIdentifier InPartId);
+	virtual void UpdateHoverState(const bool bInHover, const ETransformGizmoPartIdentifier InPartId);
+
+	/** Reset all hover states related to the transform mode to false */
+	void ResetHoverStates(const EGizmoTransformMode InMode);
 
 	/** Update interacting state for given part id */
-	virtual void UpdateInteractingState(bool bInInteracting, ETransformGizmoPartIdentifier InPartId, const bool bIdOnly = false);
+	virtual void UpdateInteractingState(const bool bInInteracting, const ETransformGizmoPartIdentifier InPartId, const bool bIdOnly = false);
+
+	/** Reset all interacting states related to the transform mode to false */
+	void ResetInteractingStates(const EGizmoTransformMode InMode);
 
 	/** Called at the start of a sequence of gizmo transform edits */
 	virtual void BeginTransformEditSequence();
@@ -672,6 +678,12 @@ protected:
 	// Verify part identifier is within recognized range of transform gizmo part ids
 	virtual bool VerifyPartIdentifier(uint32 InPartIdentifier) const;
 
+	// Returns whether the gizmo is visible in the viewport.
+	bool IsVisible() const;
+
+	// Returns whether the gizmo can interact. Note that this can be true even if the gizmo is not visible to support indirect manipulation.
+	bool CanInteract() const;
+	
 protected:
 
 	/** Materials and colors to be used when drawing the items for each axis */

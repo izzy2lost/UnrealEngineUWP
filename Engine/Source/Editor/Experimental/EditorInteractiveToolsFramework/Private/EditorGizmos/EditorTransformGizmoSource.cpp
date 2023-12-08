@@ -72,7 +72,15 @@ bool UEditorTransformGizmoSource::GetVisible() const
 		{
 			return false;
 		}
-		
+		return CanInteract();
+	}
+	return false;
+}
+
+bool UEditorTransformGizmoSource::CanInteract() const
+{
+	if (const FEditorViewportClient* ViewportClient = GetViewportClient())
+	{
 		const FEditorModeTools& ModeTools = GetModeTools();
 		if (ModeTools.GetShowWidget() && ModeTools.UsesTransformWidget())
 		{
@@ -86,11 +94,9 @@ bool UEditorTransformGizmoSource::GetVisible() const
 					bUseLegacyWidget = UseLegacyWidgetCVar->GetInt() > 0;
 				}
 			}
-
 			return !bUseLegacyWidget;
 		}
 	}
-
 	return false;
 }
 
