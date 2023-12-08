@@ -92,7 +92,7 @@ TConstArrayView<FAnimNextParam> UAnimNextSchedulePort_AnimNextMeshComponentPose:
 	static const FAnimNextParam Params[] =
 	{
 		FAnimNextParam(ComponentParamId.GetName(), FAnimNextParamType::GetType<TObjectPtr<UAnimNextMeshComponent>>()),
-		FAnimNextParam(ReferencePoseParamId.GetName(), FAnimNextParamType::GetType<FAnimNextGraphLODPose>()),
+		FAnimNextParam(ReferencePoseParamId.GetName(), FAnimNextParamType::GetType<FAnimNextGraphReferencePose>()),
 	};
 
 	return Params;
