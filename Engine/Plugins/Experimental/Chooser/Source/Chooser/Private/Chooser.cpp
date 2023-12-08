@@ -200,15 +200,12 @@ void UChooserTable::PostEditChangeProperty(FPropertyChangedEvent& PropertyChange
 	}
 }
 
-void UChooserTable::IterateRecentContextObjects(TFunction<void(const UObject*)> Callback) const
+void UChooserTable::IterateRecentContextObjects(TFunction<void(const FString&)> Callback) const
 {
 	FScopeLock Lock(&DebugLock);
-	for(TWeakObjectPtr<const UObject>& Object : RecentContextObjects)
+	for(const FString& ObjectName : RecentContextObjects)
 	{
-		if (Object.IsValid())
-		{
-			Callback(Object.Get());
-		}
+		Callback(ObjectName);
 	}
 }
 
@@ -224,18 +221,9 @@ void UChooserTable::UpdateDebugging(FChooserEvaluationContext& Context) const
 		{
 			if (UObject* ContextObject = ObjectParam->Object)
 			{
-				RecentContextObjects.Add(MakeWeakObjectPtr(ContextObject));
+				RecentContextObjects.Add(ContextObject->GetName());
 				
-				if (ContextOwner->DebugTarget == nullptr && !DebugTargetName.IsEmpty())
-				{
-					// if the DebugTargetName is set, but not the DebugTarget, it means that PIE has been restarted, so try matching by name
-					if (ContextObject->GetName() == ContextOwner->DebugTargetName)
-					{
-						ContextOwner->DebugTarget = ContextObject;
-					}
-				}
-				
-				if (ContextObject == ContextOwner->DebugTarget) 
+				if (ContextObject->GetName() == ContextOwner->GetDebugTargetName()) 
 				{
 					bDebugTestValuesValid = true;
 					Context.DebuggingInfo.bCurrentDebugTarget = true;

@@ -38,22 +38,14 @@ public:
 	void SetDebugSelectedRow(int32 Index) const { DebugSelectedRow = Index; }
 	int32 GetDebugSelectedRow() const { return DebugSelectedRow; }
 	bool HasDebugTarget() const { return !DebugTargetName.IsEmpty(); }
-	const UObject* GetDebugTarget() const { return DebugTarget.Get(); }
+	
+	void SetDebugTarget(FString Name) { DebugTargetName = Name; }
+	void ResetDebugTarget() { DebugTargetName = ""; }
 	const FString& GetDebugTargetName() const { return DebugTargetName; }
-	void SetDebugTarget(TWeakObjectPtr<const UObject> Target)
-	{
-		DebugTarget = Target;
-		if (const UObject* DebugObject = DebugTarget.Get())
-		{
-			DebugTargetName = DebugObject->GetName();
-		}
-	}
-	void ResetDebugTarget()
-	{
-		DebugTarget.Reset();
-		DebugTargetName = "";
-	}
-	void IterateRecentContextObjects(TFunction<void(const UObject*)> Callback) const;
+	
+
+	void AddRecentContextObject(const FString& ObjectName) const { RecentContextObjects.Add(ObjectName); }
+	void IterateRecentContextObjects(TFunction<void(const FString&)> Callback) const;
 	void UpdateDebugging(FChooserEvaluationContext& Context) const;
 	
 	// enable display of which cells pass/fail based on current TestValue for each column
@@ -69,7 +61,7 @@ private:
 	EObjectChooserResultType CachedPreviousResultType = EObjectChooserResultType::ObjectResult;
 	
 	// objects this chooser has been recently evaluated on
-	mutable TSet<TWeakObjectPtr<const UObject>> RecentContextObjects;
+	mutable TSet<FString> RecentContextObjects;
 	mutable FCriticalSection DebugLock;
 	// reference to the UObject in PIE  which we want to get debug info for
 	mutable TWeakObjectPtr<const UObject> DebugTarget;

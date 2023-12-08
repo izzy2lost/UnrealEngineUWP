@@ -7,7 +7,6 @@
 #include "Editor.h"
 #include "IGameplayProvider.h"
 #include "IRewindDebugger.h"
-#include "ObjectTrace.h"
 #include "Subsystems/AssetEditorSubsystem.h"
 
 #define LOCTEXT_NAMESPACE "ChooserTrack"
@@ -22,11 +21,10 @@ FChooserTrack::FChooserTrack(uint64 InObjectId, uint64 InChooserId) :
 	EventData = MakeShared<SEventTimelineView::FTimelineEventData>();
 	Icon = FSlateIcon("EditorStyle", "Sequencer.Tracks.Event", "Sequencer.Tracks.Event");
 	
-	ChooserTable = FObjectTrace::GetObjectFromId(InChooserId);
-	if (ChooserTable)
-	{
-		TrackName = FText::FromString(ChooserTable->GetName());
-	}
+	const IGameplayProvider* GameplayProvider = IRewindDebugger::Instance()->GetAnalysisSession()->ReadProvider<IGameplayProvider>("GameplayProvider");
+	const FObjectInfo& ChooserInfo = GameplayProvider->GetObjectInfo(InChooserId);
+	TrackName = FText::FromString(ChooserInfo.Name);
+	ChooserTable = FindObject<UChooserTable>(nullptr, ChooserInfo.PathName);
 }
 
 FChooserTrack::~FChooserTrack()
@@ -109,15 +107,14 @@ bool FChooserTrack::HandleDoubleClickInternal()
 		const IGameplayProvider* GameplayProvider = AnalysisSession->ReadProvider<IGameplayProvider>("GameplayProvider");
 		const FObjectInfo& AssetInfo = GameplayProvider->GetObjectInfo(GetChooserId());
 
-		if (UObject* OwnerObject = FObjectTrace::GetObjectFromId(ObjectId))
+		// attach chooser table editor debugging
+		if (ChooserTable)
 		{
-			if (UChooserTable* Chooser = Cast<UChooserTable>(FObjectTrace::GetObjectFromId(GetChooserId())))
-			{
-				// attach chooser table editor debugging
-				Chooser->SetDebugTarget(OwnerObject);
-				Chooser->bEnableDebugTesting = true;
-			}
+			const FObjectInfo& OwnerObjectInfo  = GameplayProvider->GetObjectInfo(ObjectId);
+			ChooserTable->SetDebugTarget(OwnerObjectInfo.Name);
+			ChooserTable->bEnableDebugTesting = true;
 		}
+		
 
 		GEditor->GetEditorSubsystem<UAssetEditorSubsystem>()->OpenEditorForAsset(AssetInfo.PathName);
 

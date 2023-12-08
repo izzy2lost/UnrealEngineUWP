@@ -5,8 +5,9 @@
 #include "RewindDebuggerTrack.h"
 #include "Textures/SlateIcon.h"
 #include "SEventTimelineView.h"
-#include "IDetailsView.h"
 
+class UChooserTable;
+	
 namespace UE::ChooserEditor
 {
 
@@ -32,7 +33,7 @@ private:
 	mutable TSharedPtr<SEventTimelineView::FTimelineEventData> EventData;
 	mutable int EventUpdateRequested = 0;
 
-	UObject* ChooserTable;
+	UChooserTable* ChooserTable = 0;
 	uint64 ObjectId;
 	uint64 ChooserId;
 	FSlateIcon Icon;

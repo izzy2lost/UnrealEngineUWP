@@ -177,28 +177,25 @@ void FChooserTableEditor::MakeDebugTargetMenu(UToolMenu* InToolMenu)
 
 	const UChooserTable* Chooser = GetChooser();
 
-	Chooser->IterateRecentContextObjects([this, InToolMenu](const UObject* Object)
+	Chooser->IterateRecentContextObjects([this, InToolMenu](const FString& ObjectName)
 		{
 			InToolMenu->AddMenuEntry(
 						SectionName,
 						FToolMenuEntry::InitMenuEntry(
-							Object->GetFName(),
-							FText::FromString(Object->GetName()),
+							FName(ObjectName),
+							FText::FromString(ObjectName),
 							LOCTEXT("Select Object ToolTip", "Select this object as the debug target"),
 							FSlateIcon(),
 							FUIAction(
-								FExecuteAction::CreateLambda([this, ObjectPtr = MakeWeakObjectPtr(Object)]()
+								FExecuteAction::CreateLambda([this, ObjectName]()
 								{
-									if(ObjectPtr.IsValid())
+									UChooserTable* Chooser = GetRootChooser();
+									Chooser->SetDebugTarget(ObjectName);
+									Chooser->bDebugTestValuesValid = false;
+									if (!Chooser->bEnableDebugTesting)
 									{
-										UChooserTable* Chooser = GetRootChooser();
-										Chooser->SetDebugTarget(ObjectPtr);
-										Chooser->bDebugTestValuesValid = false;
-										if (!Chooser->bEnableDebugTesting)
-										{
-											Chooser->bEnableDebugTesting = true;
-											UpdateTableColumns();
-										}
+										Chooser->bEnableDebugTesting = true;
+										UpdateTableColumns();
 									}
 								}),
 								FCanExecuteAction()
