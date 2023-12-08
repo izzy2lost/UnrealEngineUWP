@@ -1,7 +1,6 @@
 // Copyright Epic Games, Inc. All Rights Reserved.
 
 using AutomationTool;
-using AutomationUtils;
 using EpicGames.Core;
 using Microsoft.Extensions.Logging;
 using System;
@@ -275,7 +274,7 @@ namespace AutomationTool.Tasks
 
 							if (!LicenseUrlToInfo.TryGetValue(LicenseUrl, out Info.License))
 							{
-								using (HttpClient Client = HttpClientSingleton<NuGetLicenseCheckTask>.Client)
+								using (HttpClient Client = new HttpClient())
 								{
 									using HttpResponseMessage Response = await Client.GetAsync(LicenseUrl);
 									if (!Response.IsSuccessStatusCode)
