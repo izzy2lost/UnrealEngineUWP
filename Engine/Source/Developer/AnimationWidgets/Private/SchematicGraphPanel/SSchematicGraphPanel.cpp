@@ -19,14 +19,14 @@ void FSchematicGraph::Reset()
 	}
 }
 
-bool FSchematicGraph::AddNode(const FString& InName)
+FSchematicGraphNode* FSchematicGraph::AddNode(const FString& InName)
 {
 	if (Nodes.ContainsByPredicate([InName](const FSchematicGraphNode* Node)
 	{
 		return Node->Name == InName;
 	}))
 	{
-		return false;
+		return nullptr;
 	}
 
 	FSchematicGraphNode* NewElement = static_cast<FSchematicGraphNode*>(FMemory::Malloc(sizeof(FSchematicGraphNode)));
@@ -38,7 +38,7 @@ bool FSchematicGraph::AddNode(const FString& InName)
 	{
 		OnNodeAddedDelegate.Broadcast(NewElement);
 	}
-	return true;
+	return NewElement;
 }
 
 bool FSchematicGraph::RenameNode(const FString& InOldName, const FString& InNewName)
@@ -63,27 +63,30 @@ bool FSchematicGraph::RenameNode(const FString& InOldName, const FString& InNewN
 
 bool FSchematicGraph::RemoveNode(const FString& InName)
 {
-	FSchematicGraphNode** FoundNode = Nodes.FindByPredicate([InName](const FSchematicGraphNode* Node)
+	FSchematicGraphNode** FoundNodePtr = Nodes.FindByPredicate([InName](const FSchematicGraphNode* Node)
 	{
 		return Node->Name == InName;
 	});
-	if (FoundNode)
+	if (FoundNodePtr)
 	{
+		FSchematicGraphNode* FoundNode = *FoundNodePtr;
 		if (OnNodeRemovedDelegate.IsBound())
 		{
-			OnNodeRemovedDelegate.Broadcast(*FoundNode);
+			OnNodeRemovedDelegate.Broadcast(FoundNode);
 		}
-		Nodes.Remove(*FoundNode);
-		FMemory::Free(*FoundNode);
+		Nodes.Remove(FoundNode);
+		FMemory::Free(FoundNode);
 		return true;
 	}
 	return false;
 }
 
-TSharedRef<FSchematicGraphNodeDragDropOp> FSchematicGraphNodeDragDropOp::New(const TArray<FString>& InElements)
+TSharedRef<FSchematicGraphNodeDragDropOp> FSchematicGraphNodeDragDropOp::New(TArray<SSchematicGraphNode*> InSchematicGraphNodes, const TArray<FString>& InElements, FSchematicGraphNodeDragDropOp::FOnEndDrag InOnEndDragDelegate)
 {
 	TSharedRef<FSchematicGraphNodeDragDropOp> Operation = MakeShared<FSchematicGraphNodeDragDropOp>();
+	Operation->SchematicGraphNodes = InSchematicGraphNodes;
 	Operation->Elements = InElements;
+	Operation->OnEndDragDelegate = InOnEndDragDelegate;
 	Operation->Construct();
 	return Operation;
 }
@@ -113,6 +116,8 @@ void SSchematicGraphNode::Construct(const FArguments& InArgs)
 {
 	NodeData = InArgs._NodeData;
 	OnClickedDelegate = InArgs._OnClicked;
+	OnBeginDragDelegate = InArgs._OnBeginDrag;
+	OnEndDragDelegate = InArgs._OnEndDrag;
 	OnDropDelegate = InArgs._OnDrop;
 	TEasingAttributeInterpolator<FVector2d>::FSettings Vector2DInterpSettings(EEasingInterpolatorType::BounceEaseInOut, 0.2f);
 	Position = TAnimatedAttribute<FVector2d>::Create(Vector2DInterpSettings, FVector2d::ZeroVector);
@@ -138,13 +143,19 @@ int32 SSchematicGraphNode::OnPaint(const FPaintArgs& Args, const FGeometry& Allo
 	FVector2d SizeOffset = (CurSize-OriginalSize)*-0.5;
 	FVector2d TotalOffset = SizeOffset;
 
+	FLinearColor TintColor = Brush.TintColor.GetSpecifiedColor();
+	if (NodeData->bFade)
+	{
+		TintColor.A = 0.3;
+	}
+
 	FSlateDrawElement::MakeBox(
 				OutDrawElements,
 				NewLayerId,
 				AllottedGeometry.ToPaintGeometry(CurSize, FSlateLayoutTransform(TotalOffset)),
 				&Brush,
 				ESlateDrawEffect::None,
-				Brush.TintColor.GetSpecifiedColor()
+				TintColor
 				);
 	
 	return NewLayerId;
@@ -177,8 +188,25 @@ void SSchematicGraphNode::OnDragLeave(const FDragDropEvent& DragDropEvent)
 
 FReply SSchematicGraphNode::OnDrop(const FGeometry& MyGeometry, const FDragDropEvent& DragDropEvent)
 {
+	// Avoid dropping onto itself
+	TSharedPtr<FSchematicGraphNodeDragDropOp> SchematicDragDropOp = DragDropEvent.GetOperationAs<FSchematicGraphNodeDragDropOp>();
+	if (SchematicDragDropOp)
+	{
+		if (!SchematicDragDropOp->GetElements().IsEmpty())
+		{
+			if (SchematicDragDropOp->GetElements().ContainsByPredicate([this](const FString& Name)
+			{
+				return Name == NodeData->Name;
+			}))
+			{
+				return FReply::Unhandled();
+			}
+		}
+	}
+	
 	SNode::OnDrop(MyGeometry, DragDropEvent);
 	OnDropDelegate.ExecuteIfBound(this, DragDropEvent);
+	OnEndDragDelegate.ExecuteIfBound(this, *DragDropEvent.GetOperation().Get());
 	return FReply::Unhandled();
 }
 
@@ -188,7 +216,8 @@ FReply SSchematicGraphNode::OnDragDetected(const FGeometry& MyGeometry, const FP
 	if (MouseEvent.IsMouseButtonDown(EKeys::LeftMouseButton) && DraggedElements.Num() > 0)
 	{
 		bIsBeingDragged = true;
-		TSharedRef<FSchematicGraphNodeDragDropOp> DragDropOp = FSchematicGraphNodeDragDropOp::New(MoveTemp(DraggedElements));
+		TSharedRef<FSchematicGraphNodeDragDropOp> DragDropOp = FSchematicGraphNodeDragDropOp::New({this}, MoveTemp(DraggedElements), OnEndDragDelegate);
+		OnBeginDragDelegate.ExecuteIfBound(this, DragDropOp.Get());
 		return FReply::Handled().BeginDragDrop(DragDropOp);
 	}
 	
@@ -248,6 +277,8 @@ void SSchematicGraphPanel::Construct(const FArguments& InArgs)
 	PaddingInterNode = InArgs._PaddingInterNode;
 	UpdateNodeWidgetDelegate = InArgs._OnUpdateNodeWidget;
 	OnNodeClickedDelegate = InArgs._OnNodeClicked;
+	OnBeginDragDelegate = InArgs._OnBeginDrag;
+	OnEndDragDelegate = InArgs._OnEndDrag;
 	OnDropDelegate = InArgs._OnDrop;
 
 	TEasingAttributeInterpolator<float>::FSettings FloatInterpSettings(EEasingInterpolatorType::BounceEaseInOut, 0.2f);
@@ -282,6 +313,8 @@ void SSchematicGraphPanel::AddNode(FSchematicGraphNode* NodeToAdd)
 {
 	TSharedRef<SSchematicGraphNode> NewNode = SNew(SSchematicGraphNode)
 														.OnClicked_Raw(this, &SSchematicGraphPanel::OnNodeClicked)
+														.OnBeginDrag_Raw(this, &SSchematicGraphPanel::OnBeginDragEvent)
+														.OnEndDrag_Raw(this, &SSchematicGraphPanel::OnEndDragEvent)
 														.OnDrop_Raw(this, &SSchematicGraphPanel::OnDropEvent)
 														.NodeData(NodeToAdd);
 	SNodePanel::AddGraphNode(NewNode);
@@ -428,10 +461,6 @@ void SSchematicGraphPanel::Tick(float DeltaTime)
 			bIsDragging = true;
 		}
 	}
-	else
-	{
-		bIsDragging = false;
-	}
 	SetFadeBackground(bIsDragging);
 
 	uint16 TopRightNodes = 0;
@@ -490,7 +519,7 @@ void SSchematicGraphPanel::Tick(float DeltaTime)
 				bImmediatePosition = true;
 				
 			}
-			else
+			else if (DeltaTime > 0.f)
 			{
 				SNode->bIsBeingDragged = false;
 			}
@@ -509,6 +538,16 @@ void SSchematicGraphPanel::Tick(const FGeometry& AllottedGeometry, const double 
 void SSchematicGraphPanel::OnNodeClicked(SSchematicGraphNode* Node)
 {
 	OnNodeClickedDelegate.ExecuteIfBound(this, Node);
+}
+
+void SSchematicGraphPanel::OnBeginDragEvent(SSchematicGraphNode* Node, const FDragDropOperation& InDragDropOp)
+{
+	OnBeginDragDelegate.ExecuteIfBound(this, Node, InDragDropOp);
+}
+
+void SSchematicGraphPanel::OnEndDragEvent(SSchematicGraphNode* Node, const FDragDropOperation& InDragDropOp)
+{
+	OnEndDragDelegate.ExecuteIfBound(this, Node, InDragDropOp);
 }
 
 void SSchematicGraphPanel::OnDropEvent(SSchematicGraphNode* Node, const FDragDropEvent& InDragDropEvent)

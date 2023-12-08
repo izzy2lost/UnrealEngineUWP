@@ -161,6 +161,18 @@ bool UModularRigController::ConnectConnectorToElement(const FRigElementKey& InCo
 		return false;
 	}
 
+	if (!InTargetKey.IsValid())
+	{
+		UE_LOG(LogControlRig, Error, TEXT("Invalid target %s in class %s"), *InTargetKey.ToString(), *Module->Class->GetPathName());
+		return false;
+	}
+
+	if (InTargetKey == InConnectorKey)
+	{
+		UE_LOG(LogControlRig, Error, TEXT("Cannot resolve connector %s to itself in class %s"), *InTargetKey.ToString(), *Module->Class->GetPathName());
+		return false;
+	}
+
 	/*
 	FText ErrorMessage;
 	if (!CanConnectConnectorToElement(*ModuleConnector, InTargetKey, ErrorMessage))

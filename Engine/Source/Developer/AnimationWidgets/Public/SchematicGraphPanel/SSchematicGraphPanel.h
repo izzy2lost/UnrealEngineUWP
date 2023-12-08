@@ -20,6 +20,7 @@ struct ANIMATIONWIDGETS_API FSchematicGraphNode
 {
 	FString Name;
 	bool bIsSelected = false;
+	bool bFade = false;
 	ESchematicGraphNodePlacement Placement;
 };
 
@@ -35,7 +36,7 @@ public:
 	TMap<FSchematicGraphNode*, TArray<FSchematicGraphNode*>> Links;
 
 	void Reset();
-	bool AddNode(const FString& InName);
+	FSchematicGraphNode* AddNode(const FString& InName);
 	bool RenameNode(const FString& InOldName, const FString& InNewName);
 	bool RemoveNode(const FString& InName);
 
@@ -49,13 +50,28 @@ public:
 	FOnGraphReset& OnGraphReset() { return OnGraphResetDelegate; }
 };
 
+class SSchematicGraphNode;
+
 class FSchematicGraphNodeDragDropOp : public FDragDropOperation
 {
 public:
 	DRAG_DROP_OPERATOR_TYPE(FSchematicGraphNodeDragDropOp, FDragDropOperation)
 
-	static TSharedRef<FSchematicGraphNodeDragDropOp> New(const TArray<FString>& InElements);
+	DECLARE_DELEGATE_TwoParams(FOnEndDrag, SSchematicGraphNode*, const FDragDropOperation&);
 
+	static TSharedRef<FSchematicGraphNodeDragDropOp> New(TArray<SSchematicGraphNode*> InSchematicGraphNodes, const TArray<FString>& InElements, FOnEndDrag InOnEndDragDelegate);
+
+	~FSchematicGraphNodeDragDropOp()
+	{
+		if (OnEndDragDelegate.IsBound())
+		{
+			for (SSchematicGraphNode* Node : SchematicGraphNodes)
+			{
+				OnEndDragDelegate.Execute(Node, *this);
+			}
+		}
+	}
+	
 	virtual TSharedPtr<SWidget> GetDefaultDecorator() const override;
 
 	/** @return true if this drag operation contains property paths */
@@ -74,19 +90,29 @@ public:
 
 private:
 
+	/** Nodes being dragged */
+	TArray<SSchematicGraphNode*> SchematicGraphNodes;
+
 	/** Data for the property paths this item represents */
 	TArray<FString> Elements;
+
+	/** Delegate to call when this drag operation ends */
+	FOnEndDrag OnEndDragDelegate;
 };
 
 class ANIMATIONWIDGETS_API SSchematicGraphNode : public SNodePanel::SNode
 {
 public:
 	DECLARE_DELEGATE_OneParam(FOnClicked, SSchematicGraphNode*);
+	DECLARE_DELEGATE_TwoParams(FOnBeginDrag, SSchematicGraphNode*, const FDragDropOperation&);
+	DECLARE_DELEGATE_TwoParams(FOnEndDrag, SSchematicGraphNode*, const FDragDropOperation&);
 	DECLARE_DELEGATE_TwoParams(FOnDrop, SSchematicGraphNode*, const FDragDropEvent&);
 
 	SLATE_BEGIN_ARGS(SSchematicGraphNode){}
 	SLATE_ARGUMENT(FSchematicGraphNode*, NodeData)
 	SLATE_EVENT(FOnClicked, OnClicked)
+	SLATE_EVENT(FOnBeginDrag, OnBeginDrag)
+	SLATE_EVENT(FOnEndDrag, OnEndDrag)
 	SLATE_EVENT(FOnDrop, OnDrop)
 	SLATE_END_ARGS()
 
@@ -113,6 +139,8 @@ public:
 	float ScaledDown = 0.75;
 
 	FOnClicked OnClickedDelegate;
+	FOnBeginDrag OnBeginDragDelegate;
+	FOnEndDrag OnEndDragDelegate;
 	FOnDrop OnDropDelegate;
 	FSchematicGraphNode* NodeData;
 	TSharedPtr<TAnimatedAttribute<FVector2d>> Position;
@@ -129,6 +157,8 @@ public:
 	
 	DECLARE_DELEGATE_TwoParams(FUpdateNodeWidget, SSchematicGraphPanel*, TSharedPtr<SSchematicGraphNode>);
 	DECLARE_DELEGATE_TwoParams(FOnNodeClicked, SSchematicGraphPanel*, SSchematicGraphNode*);
+	DECLARE_DELEGATE_ThreeParams(FOnBeginDrag, SSchematicGraphPanel*, SSchematicGraphNode*, const FDragDropOperation&);
+	DECLARE_DELEGATE_ThreeParams(FOnEndDrag, SSchematicGraphPanel*, SSchematicGraphNode*, const FDragDropOperation&);
 	DECLARE_DELEGATE_ThreeParams(FOnDrop, SSchematicGraphPanel*, SSchematicGraphNode*, const FDragDropEvent&);
 	
 	SLATE_BEGIN_ARGS(SSchematicGraphPanel) {}
@@ -141,6 +171,8 @@ public:
 	SLATE_ARGUMENT(int32, PaddingInterNode)
 	SLATE_EVENT(FUpdateNodeWidget, OnUpdateNodeWidget)
 	SLATE_EVENT(FOnNodeClicked, OnNodeClicked)
+	SLATE_EVENT(FOnBeginDrag, OnBeginDrag)
+	SLATE_EVENT(FOnEndDrag, OnEndDrag)
 	SLATE_EVENT(FOnDrop, OnDrop)
 	SLATE_END_ARGS()
 
@@ -173,6 +205,8 @@ public:
 	// End of FTickableEditorObject interface
 
 	void OnNodeClicked(SSchematicGraphNode* Node);
+	void OnBeginDragEvent(SSchematicGraphNode* Node, const FDragDropOperation& InDragDropEvent);
+	void OnEndDragEvent(SSchematicGraphNode* Node, const FDragDropOperation& InDragDropEvent);
 	void OnDropEvent(SSchematicGraphNode* Node, const FDragDropEvent& InDragDropEvent);
 
 	void SetFadeBackground(bool bInFade) { FadeBackgroundAlpha->Set(bInFade ? 0.5f : 0.f); }
@@ -188,6 +222,8 @@ public:
 	FSchematicGraph* GraphData;
 	FUpdateNodeWidget UpdateNodeWidgetDelegate;
 	FOnNodeClicked OnNodeClickedDelegate;
+	FOnBeginDrag OnBeginDragDelegate;
+	FOnEndDrag OnEndDragDelegate;
 	FOnDrop OnDropDelegate;
 };
 

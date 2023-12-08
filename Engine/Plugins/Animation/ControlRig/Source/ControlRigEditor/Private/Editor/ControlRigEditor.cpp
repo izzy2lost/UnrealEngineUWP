@@ -2573,6 +2573,8 @@ void FControlRigEditor::HandleSchematicViewportCreated(const TSharedRef<SSchemat
 {
 	InViewport->UpdateNodeWidgetDelegate.BindRaw(&SchematicModel, &FControlRigSchematicModel::HandleUpdateSchematicNodes);
 	InViewport->OnNodeClickedDelegate.BindRaw(&SchematicModel, &FControlRigSchematicModel::HandleSchematicNodeClicked);
+	InViewport->OnBeginDragDelegate.BindRaw(&SchematicModel, &FControlRigSchematicModel::HandleSchematicBeginDrag);
+	InViewport->OnEndDragDelegate.BindRaw(&SchematicModel, &FControlRigSchematicModel::HandleSchematicEndDrag);
 	InViewport->OnDropDelegate.BindRaw(&SchematicModel, &FControlRigSchematicModel::HandleSchematicDrop);
 }
 

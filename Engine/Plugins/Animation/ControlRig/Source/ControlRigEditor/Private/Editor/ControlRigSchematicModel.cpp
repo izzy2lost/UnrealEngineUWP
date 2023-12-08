@@ -6,6 +6,7 @@
 #include "ControlRigEditor.h"
 #include "ControlRigEditorStyle.h"
 #include "ModularRig.h"
+#include "ModularRigRuleManager.h"
 #include "DragAndDrop/AssetDragDropOp.h"
 #include "Rigs/RigHierarchyController.h"
 
@@ -171,6 +172,106 @@ void FControlRigSchematicModel::HandleSchematicNodeClicked(SSchematicGraphPanel*
 	}
 }
 
+void FControlRigSchematicModel::HandleSchematicBeginDrag(SSchematicGraphPanel* InPanel, SSchematicGraphNode* InNode, const FDragDropOperation& InDragDropOperation)
+{
+	if (!ControlRigBlueprint.IsValid())
+	{
+		return;
+	}
+
+	if (!ControlRigBeingDebuggedPtr.IsValid())
+	{
+		return;
+	}
+
+	URigHierarchy* Hierarchy = ControlRigBeingDebuggedPtr->GetHierarchy();
+	if (!Hierarchy)
+	{
+		return;
+	}
+
+	FRigElementKey DraggedKey(InNode->NodeData->Name);
+	if (!DraggedKey.IsValid())
+	{
+		return;
+	}
+
+	FRigBaseElement* Element = Hierarchy->Find(DraggedKey);
+	if (!Element)
+	{
+		return;
+	}
+	
+	FRigConnectorElement* Connector = Cast<FRigConnectorElement>(Element);
+	if (!Connector)
+	{
+		return;
+	}
+
+	UModularRig* ModularRig = Cast<UModularRig>(ControlRigBeingDebuggedPtr);
+	if (!ModularRig)
+	{
+		return;
+	}
+
+	FString ModulePath = Hierarchy->GetNameMetadata(DraggedKey, URigHierarchy::NameSpaceMetadataName, NAME_None).ToString();
+	ModulePath.RemoveFromEnd(UModularRig::NamespaceSeparator);
+	const FRigModuleInstance* ModuleInstance = ModularRig->FindModule(ModulePath);
+	if (!ModuleInstance)
+	{
+		return;
+	}
+
+	UModularRigRuleManager* RuleManager = Hierarchy->GetRuleManager();
+	FModularRigResolveResult Result = RuleManager->FindMatches(Connector, ModuleInstance, ControlRigBeingDebuggedPtr->GetElementKeyRedirector());
+
+	TArray<FRigElementResolveResult> Matches = Result.GetMatches();
+	TArray<FString> NameMatches;
+	Algo::Transform(Matches, NameMatches, [](const FRigElementResolveResult& Match)
+	{
+		return Match.GetKey().ToString();
+	});
+
+	// Fade all the unmatched nodes
+	for (FSchematicGraphNode* Node : Nodes)
+	{
+		Node->bFade = !NameMatches.ContainsByPredicate([Node](const FString& Match)
+		{
+			return Node->Name == Match;
+		});
+	};
+
+	// Unfade the ones included in the match
+	for (const FString& Match : NameMatches)
+	{
+		bool bExists = Nodes.ContainsByPredicate([Match](const FSchematicGraphNode* Node)
+		{
+			return Match == Node->Name;
+		});
+
+		// Create a temporary node that will be active only while this drag operation exists
+		if (!bExists)
+		{
+			FSchematicGraphNode* NewNode = AddNode(Match);
+			TemporaryNodes.Add(Match);
+		}
+	}
+}
+
+void FControlRigSchematicModel::HandleSchematicEndDrag(SSchematicGraphPanel* InPanel, SSchematicGraphNode* InNode, const FDragDropOperation& InDragDropOperation)
+{
+	for (FString& TempNode : TemporaryNodes)
+	{
+		RemoveNode(TempNode);
+	}
+	TemporaryNodes.Reset();
+
+	for (FSchematicGraphNode* Node : Nodes)
+	{
+		Node->bFade = false;
+	}
+}
+
 void FControlRigSchematicModel::HandleUpdateSchematicNodes(SSchematicGraphPanel* InPanel, TSharedPtr<SSchematicGraphNode> InNode)
 {
 	if (!ControlRigBlueprint.IsValid())
@@ -234,6 +335,15 @@ void FControlRigSchematicModel::HandleUpdateSchematicNodes(SSchematicGraphPanel*
 						}
 					}
 				}
+			}
+			else
+			{
+				Transform = Hierarchy->GetGlobalTransform(ElementKey);
+				FVector2D PixelPos = ControlRigEditor.Pin()->ComputePersonaProjectedScreenPos(Transform.GetLocation());
+				InNode->SetPosition(PixelPos, true);
+
+				InNode->Size->Set(FVector2d(20, 20));
+				InNode->Brush.TintColor = FStyleColors::AccentBlue;
 			}
 		}
 
