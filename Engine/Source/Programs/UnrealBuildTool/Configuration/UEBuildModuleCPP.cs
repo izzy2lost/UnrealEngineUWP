@@ -530,6 +530,7 @@ namespace UnrealBuildTool
 							}
 						}
 					}
+					ModuleCompileEnvironment.FileInlineGenCPPMap = CompileEnvironment.FileInlineGenCPPMap;
 
 					if (Rules.bEnableNonInlinedGenCppWarnings)
 					{
