@@ -129,6 +129,7 @@ void UReplicationBridge::DetachSubObjectInstancesFromRemote(FNetRefHandle OwnerH
 			FNetRefHandleManager::FReplicatedObjectData& SubObjectData = NetRefHandleManager->GetReplicatedObjectDataNoCheck(SubObjectInternalIndex);
 			const FNetRefHandle SubObjectHandle = SubObjectData.RefHandle;
 			SubObjectData.bTearOff = (DestroyReason == EReplicationBridgeDestroyInstanceReason::TearOff);
+			SubObjectData.bPendingEndReplication = 1U;
 
 			EReplicationBridgeDestroyInstanceFlags SubObjectDestroyFlags = DestroyFlags;
 			// The subobject is allowed to be destroyed if both the owner and the subobject allows it.
@@ -150,6 +151,7 @@ void UReplicationBridge::DestroyNetObjectFromRemote(FNetRefHandle Handle, ERepli
 		FInternalNetRefIndex OwnerInternalIndex = NetRefHandleManager->GetInternalIndex(Handle);
 		FNetRefHandleManager::FReplicatedObjectData& ObjectData = NetRefHandleManager->GetReplicatedObjectDataNoCheck(OwnerInternalIndex);
 		ObjectData.bTearOff = (DestroyReason == EReplicationBridgeDestroyInstanceReason::TearOff);
+		ObjectData.bPendingEndReplication = 1U;
 
 		// if the a subobject owner is to be destroyed we want to detach all subobjects before doing so to ensure we execute expected callbacks
 		// We keep tracking them internally
@@ -486,13 +488,15 @@ void UReplicationBridge::InternalDestroySubObjects(FNetRefHandle OwnerHandle, EE
 	{
 		for (FInternalNetRefIndex SubObjectInternalIndex : NetRefHandleManager->GetChildSubObjects(OwnerInternalIndex))
 		{
-			const FNetRefHandleManager::FReplicatedObjectData& SubObjectData = NetRefHandleManager->GetReplicatedObjectData(SubObjectInternalIndex);
+			FNetRefHandleManager::FReplicatedObjectData& SubObjectData = NetRefHandleManager->GetReplicatedObjectDataNoCheck(SubObjectInternalIndex);
+
 			const FNetRefHandle SubObjectHandle = SubObjectData.RefHandle;
 			const bool bDestroySubObjectWithOwner = SubObjectData.bDestroySubObjectWithOwner;
 				
 			// Tag subobject for destroy. The check against the scope is needed since the subobjects array might contain subobjects already pending destroy.
 			if (bDestroySubObjectWithOwner && NetRefHandleManager->IsScopableIndex(SubObjectInternalIndex))
 			{
+				SubObjectData.bPendingEndReplication = 1U;
 				UE_LOG_REPLICATIONBRIDGE(Verbose, TEXT("InternalDestroySubObjects %s - SubObject %s"), *OwnerHandle.ToString(), *SubObjectHandle.ToString());
 				DestroyLocalNetHandle(SubObjectHandle, Flags);
 			}
@@ -502,12 +506,15 @@ void UReplicationBridge::InternalDestroySubObjects(FNetRefHandle OwnerHandle, EE
 
 void UReplicationBridge::EndReplication(FNetRefHandle Handle, EEndReplicationFlags EndReplicationFlags, FEndReplicationParameters* Parameters)
 {
+	using namespace UE::Net::Private;
+
 	if (!IsReplicatedHandle(Handle))
 	{
 		return;
 	}
 
-	if (NetRefHandleManager->IsLocalNetRefHandle(Handle))
+	const FInternalNetRefIndex InternalReplicationIndex = NetRefHandleManager->GetInternalIndex(Handle);
+	if (NetRefHandleManager->IsLocal(InternalReplicationIndex))
 	{
 		if (EnumHasAnyFlags(EndReplicationFlags, EEndReplicationFlags::TearOff))
 		{
@@ -537,11 +544,16 @@ void UReplicationBridge::EndReplication(FNetRefHandle Handle, EEndReplicationFla
 				InternalFlushStateData(Handle);
 			}
 
+			NetRefHandleManager->GetReplicatedObjectDataNoCheck(InternalReplicationIndex).bPendingEndReplication = 1U;
 			DestroyLocalNetHandle(Handle, EndReplicationFlags);	
 		}
 	}
 	else
 	{
+		if (InternalReplicationIndex != FNetRefHandleManager::InvalidInternalIndex && EnumHasAnyFlags(EndReplicationFlags, EEndReplicationFlags::SkipPendingEndReplicationValidation))
+		{
+			NetRefHandleManager->GetReplicatedObjectDataNoCheck(InternalReplicationIndex).bPendingEndReplication = 1U;
+		}
 		// If we get a call to end replication on the client, we need to detach the instance as it might be garbage collected
 		InternalDetachInstanceFromNetRefHandle(Handle);
 	}
@@ -626,6 +638,8 @@ void UReplicationBridge::UpdateHandlesPendingTearOff()
 			// Immediate tear-off or object that no longer are referenced by any connections are destroyed
 			if (NetRefHandleManager->GetNetObjectRefCount(ObjectInternalIndex) == 0U || Info.bIsImmediate)
 			{
+				FNetRefHandleManager::FReplicatedObjectData& ObjectData = NetRefHandleManager->GetReplicatedObjectDataNoCheck(ObjectInternalIndex);
+				ObjectData.bPendingEndReplication = 1U;
 				DestroyLocalNetHandle(Info.Handle, Info.DestroyFlags);
 			}
 			else

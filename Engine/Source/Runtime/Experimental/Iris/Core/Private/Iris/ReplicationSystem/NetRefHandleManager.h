@@ -101,6 +101,7 @@ public:
 				uint32 bAllowDestroyInstanceFromRemote : 1U;
 				uint32 bNeedsFullCopyAndQuantize : 1U;
 				uint32 bWantsFullPoll : 1U;
+				uint32 bPendingEndReplication : 1U;
 			};
 		};
 	
@@ -173,7 +174,10 @@ public:
 	/** Verify a handle against internal handle. A handle is valid if it matches internal storage. */
 	inline bool IsValidNetRefHandle(FNetRefHandle Handle) const;
 
-	/** Returns true if the handle is for a local replicated object. */
+	/** Returns true if the InternaIndex belongs to a replicated object owned by the local peer. */
+	inline bool IsLocal(FInternalNetRefIndex InternalIndex) const;
+
+	/** Returns true if the handle belongs to a replicated object owned by the local peer. */
 	inline bool IsLocalNetRefHandle(FNetRefHandle Handle) const;
 
 	/** Returns true if the handle is for a remote replicated object. */
@@ -448,15 +452,14 @@ bool FNetRefHandleManager::IsValidNetRefHandle(FNetRefHandle Handle) const
 	return RefHandleToInternalIndex.Contains(Handle);
 }
 
+bool FNetRefHandleManager::IsLocal(FInternalNetRefIndex InternalIndex) const
+{
+	return (InternalIndex != InvalidInternalIndex) && (ReplicatedObjectStateBuffers[InternalIndex] != nullptr);
+}
+
 bool FNetRefHandleManager::IsLocalNetRefHandle(FNetRefHandle Handle) const
 {
-	if (const FInternalNetRefIndex InternalIndex = GetInternalIndex(Handle))
-	{
-		// For the time being only replicated objects owned by this peer has a state buffer
-		return ReplicatedObjectStateBuffers[InternalIndex] != nullptr;
-	}
-
-	return false;
+	return IsLocal(GetInternalIndex(Handle));
 }
 
 bool FNetRefHandleManager::IsRemoteNetRefHandle(FNetRefHandle Handle) const

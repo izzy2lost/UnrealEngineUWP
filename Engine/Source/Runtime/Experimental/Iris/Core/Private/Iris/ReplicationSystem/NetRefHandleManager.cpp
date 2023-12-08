@@ -151,6 +151,24 @@ const FReplicationInstanceProtocol* FNetRefHandleManager::DetachInstanceProtocol
 	{
 		FReplicatedObjectData& Data = ReplicatedObjectData[InternalIndex];
 		const FReplicationInstanceProtocol* InstanceProtocol = Data.InstanceProtocol;
+
+		// Detect if someone unexpectedly tries to detach replicated instance
+		const bool bDetachedInstancedIsPendingEndReplication = ReplicatedObjectData[InternalIndex].bPendingEndReplication == 1U;
+		if (!bDetachedInstancedIsPendingEndReplication)
+		{
+			ensureMsgf(false, TEXT("DetachInstanceProtocol for %s (%s) from client"), *Data.RefHandle.ToString(), Data.Protocol->DebugName->Name);
+
+			if (Data.SubObjectRootIndex != InvalidInternalIndex)
+			{
+				FReplicatedObjectData& RootObjectData = ReplicatedObjectData[Data.SubObjectRootIndex];
+				UE_LOG(LogIris, Warning, TEXT("FNetRefHandleManager::DetachInstanceProtocol - DetachInstanceProtocol %s (%s Root:%s) from client"), *Data.RefHandle.ToString(), Data.Protocol->DebugName->Name, RootObjectData.Protocol->DebugName->Name);
+			}
+			else
+			{
+				UE_LOG(LogIris, Warning, TEXT("FNetRefHandleManager::DetachInstanceProtocol - DetachInstanceProtocol %s (%s) from client"), *Data.RefHandle.ToString(), Data.Protocol->DebugName->Name);
+			}
+		}
+		
 		Data.InstanceProtocol = nullptr;
 		ReplicatedInstances[InternalIndex] = nullptr;
 		

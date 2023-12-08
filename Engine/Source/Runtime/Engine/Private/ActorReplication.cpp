@@ -681,7 +681,10 @@ void AActor::RemoveReplicatedComponent(UActorComponent* Component)
 	{
 		ReplicatedComponentsInfo.RemoveAtSwap(Index);
 #if UE_WITH_IRIS
-		Component->EndReplication();
+		if (HasAuthority())
+		{
+			Component->EndReplication();
+		}
 #endif
 	}
 }
@@ -732,7 +735,7 @@ void AActor::RemoveReplicatedSubObject(UObject* SubObject)
 {
 	const bool bWasRemoved = RemoveReplicatedSubObjectFromList(SubObject);
 #if UE_WITH_IRIS
-	if (bWasRemoved)
+	if (bWasRemoved && HasAuthority())
 	{
 		UE::Net::FReplicationSystemUtil::EndReplicationForActorSubObject(this, SubObject);
 	}
@@ -931,7 +934,7 @@ void AActor::RemoveActorComponentReplicatedSubObject(UActorComponent* OwnerCompo
 	const bool bWasRemoved = RemoveActorComponentReplicatedSubObjectFromList(OwnerComponent, SubObject);
 	
 #if UE_WITH_IRIS
-	if (bWasRemoved)
+	if (bWasRemoved && HasAuthority())
 	{
 		UE::Net::FReplicationSystemUtil::EndReplicationForActorComponentSubObject(OwnerComponent, SubObject);
 	}

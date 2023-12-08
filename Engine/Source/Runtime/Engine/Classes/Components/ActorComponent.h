@@ -638,10 +638,10 @@ public:
 	/** Register all replication fragments */
 	ENGINE_API virtual void RegisterReplicationFragments(UE::Net::FFragmentRegistrationContext& Context, UE::Net::EFragmentRegistrationFlags RegistrationFlags) override;
 	
-	/** Called when we want to start replicating this component */
+	/** Called when we want to start replicating this component, should not be called explicitly.*/
 	ENGINE_API virtual void BeginReplication();
 
-	/** Tell component to end replication */
+	/** Tell component to end replication, should not be called explicitly. */
 	ENGINE_API virtual void EndReplication();
 #endif // UE_WITH_IRIS
 

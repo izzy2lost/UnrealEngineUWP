@@ -3347,14 +3347,17 @@ void AActor::UpdateReplicatedComponent(UActorComponent* Component)
 	}
 
 #if UE_WITH_IRIS
-	if (NetCondition != COND_Never && HasActorBegunPlay())
+	if (HasAuthority())
 	{
-		// Begin replication and set NetCondition, if component already is replicated the NetCondition will be updated
-		Component->BeginReplication();
-	}
-	else if (bWasRemovedFromReplicatedComponents || NetCondition == COND_Never)
-	{
-		Component->EndReplication();
+		if (NetCondition != COND_Never && HasActorBegunPlay())
+		{
+			// Begin replication and set NetCondition, if component already is replicated the NetCondition will be updated
+			Component->BeginReplication();
+		}
+		else if (bWasRemovedFromReplicatedComponents || NetCondition == COND_Never)
+		{
+			Component->EndReplication();
+		}
 	}
 #endif // UE_WITH_IRIS
 }
@@ -3370,10 +3373,13 @@ void AActor::UpdateAllReplicatedComponents()
 	{
 		RepComponentInfo.NetCondition = COND_Never;
 #if UE_WITH_IRIS
-		// Need to end replication for all components that should no longer replicate
-		if (RepComponentInfo.Component && !RepComponentInfo.Component->GetIsReplicated())
+		if (HasAuthority())
 		{
-			RepComponentInfo.Component->EndReplication();
+			// Need to end replication for all components that should no longer replicate
+			if (RepComponentInfo.Component && !RepComponentInfo.Component->GetIsReplicated())
+			{
+				RepComponentInfo.Component->EndReplication();
+			}
 		}
 #endif
 	}
@@ -3397,15 +3403,18 @@ void AActor::UpdateAllReplicatedComponents()
 				}
 
 #if UE_WITH_IRIS
-	            if (NetCondition != COND_Never)
+				if (HasAuthority())
 				{
-					// Begin replication and set NetCondition, if component already is replicated the NetCondition will be updated
-					Component->BeginReplication();
+					if (NetCondition != COND_Never)
+					{
+						// Begin replication and set NetCondition, if component already is replicated the NetCondition will be updated
+						Component->BeginReplication();
+					}
+					else
+					{
+						Component->EndReplication();
+					}
 				}
-				else
-				{
-					Component->EndReplication();
-                }
 #endif
 			}
 		}

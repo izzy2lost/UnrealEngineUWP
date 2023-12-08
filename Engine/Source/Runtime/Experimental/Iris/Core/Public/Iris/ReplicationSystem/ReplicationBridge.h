@@ -74,6 +74,8 @@ enum class EEndReplicationFlags : uint32
 	DestroyNetHandle					= Flush << 1U,
 	/** Clear net push ID to prevent this object and its subobjects from being marked as dirty in the networking system. This should only be done if the object should not be replicated by any other replication system. */
 	ClearNetPushId						= DestroyNetHandle << 1U,
+	/** Skip bPendingEndReplication Validation, In some cases we want to allow detaching instance from replicated object on clients, such as when shutting down */
+	SkipPendingEndReplicationValidation = ClearNetPushId << 1U,
 };
 ENUM_CLASS_FLAGS(EEndReplicationFlags);
 

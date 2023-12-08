@@ -1121,6 +1121,13 @@ void UActorComponent::EndPlay(const EEndPlayReason::Type EndPlayReason)
 
 	check(bHasBegunPlay);
 
+#if UE_WITH_IRIS
+	if (EndPlayReason != EEndPlayReason::EndPlayInEditor && EndPlayReason != EEndPlayReason::Quit)
+	{
+		EndReplication();
+	}
+#endif
+
 	// If we're in the process of being garbage collected it is unsafe to call out to blueprints
 	if (!HasAnyFlags(RF_BeginDestroyed) && !IsUnreachable() && (GetClass()->HasAnyClassFlags(CLASS_CompiledFromBlueprint) || !GetClass()->HasAnyClassFlags(CLASS_Native)))
 	{
