@@ -4,6 +4,7 @@ using System;
 using System.Collections.Generic;
 using EpicGames.Horde.Artifacts;
 using EpicGames.Horde.Storage;
+using EpicGames.Horde.Streams;
 using Horde.Server.Acls;
 
 namespace Horde.Server.Artifacts
@@ -22,6 +23,16 @@ namespace Horde.Server.Artifacts
 		/// Type of artifact
 		/// </summary>
 		public ArtifactType Type { get; }
+
+		/// <summary>
+		/// Identifier for the stream that produced the artifact
+		/// </summary>
+		public StreamId StreamId { get; }
+
+		/// <summary>
+		/// Change that the artifact corresponds to
+		/// </summary>
+		public int Change { get; }
 
 		/// <summary>
 		/// Keys used to collate artifacts

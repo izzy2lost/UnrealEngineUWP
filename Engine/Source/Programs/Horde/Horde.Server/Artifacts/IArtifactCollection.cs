@@ -6,6 +6,7 @@ using System.Threading;
 using System.Threading.Tasks;
 using EpicGames.Horde.Artifacts;
 using EpicGames.Horde.Storage;
+using EpicGames.Horde.Streams;
 using Horde.Server.Acls;
 
 namespace Horde.Server.Artifacts
@@ -20,6 +21,8 @@ namespace Horde.Server.Artifacts
 		/// </summary>
 		/// <param name="artifactId">Unique id of the artifact</param>
 		/// <param name="type">Type identifier for the artifact</param>
+		/// <param name="streamId">Stream that the artifact was built from</param>
+		/// <param name="change">Change number that the artifact was built from</param>
 		/// <param name="keys">Keys for the artifact</param>
 		/// <param name="namespaceId">Namespace containing the data</param>
 		/// <param name="refName">Artifact ref name</param>
@@ -27,7 +30,7 @@ namespace Horde.Server.Artifacts
 		/// <param name="scopeName">Inherited scope used for permissions</param>
 		/// <param name="cancellationToken">Cancellation token for the operation</param>
 		/// <returns>The new log file document</returns>
-		Task<IArtifact> AddAsync(ArtifactId artifactId, ArtifactType type, IEnumerable<string> keys, NamespaceId namespaceId, RefName refName, DateTime? expireAtUtc, AclScopeName scopeName, CancellationToken cancellationToken = default);
+		Task<IArtifact> AddAsync(ArtifactId artifactId, ArtifactType type, StreamId streamId, int change, IEnumerable<string> keys, NamespaceId namespaceId, RefName refName, DateTime? expireAtUtc, AclScopeName scopeName, CancellationToken cancellationToken = default);
 
 		/// <summary>
 		/// Deletes artifacts
@@ -48,11 +51,13 @@ namespace Horde.Server.Artifacts
 		/// <summary>
 		/// Finds artifacts with the given keys
 		/// </summary>
-		/// <param name="ids">Ids to search for</param>
+		/// <param name="streamId">Stream to find artifacts for</param>
+		/// <param name="minChange">Minimum changelist number for the artifacts</param>
+		/// <param name="maxChange">Maximum changelist number for the artifacts</param>
 		/// <param name="keys">Keys to search for</param>
 		/// <param name="cancellationToken">Cancellation token for the operation</param>
 		/// <returns>Sequence of artifacts</returns>
-		IAsyncEnumerable<IArtifact> FindAsync(IEnumerable<ArtifactId>? ids = null, IEnumerable<string>? keys = null, CancellationToken cancellationToken = default);
+		IAsyncEnumerable<IArtifact> FindAsync(StreamId streamId, int? minChange = null, int? maxChange = null, IEnumerable<string>? keys = null, CancellationToken cancellationToken = default);
 
 		/// <summary>
 		/// Gets an artifact by ID

@@ -2,6 +2,7 @@
 
 using System.Collections.Generic;
 using EpicGames.Core;
+using EpicGames.Horde.Streams;
 
 #pragma warning disable CA2227
 
@@ -23,6 +24,16 @@ namespace EpicGames.Horde.Artifacts
 		public ArtifactType Type { get; }
 
 		/// <summary>
+		/// Stream that produced the artifact
+		/// </summary>
+		public StreamId StreamId { get; }
+
+		/// <summary>
+		/// Change number
+		/// </summary>
+		public int Change { get; }
+
+		/// <summary>
 		/// Keys used to collate artifacts
 		/// </summary>
 		public IReadOnlyList<string> Keys { get; }
@@ -30,10 +41,12 @@ namespace EpicGames.Horde.Artifacts
 		/// <summary>
 		/// Constructor
 		/// </summary>
-		public GetArtifactResponse(ArtifactId id, ArtifactType type, IReadOnlyList<string> keys)
+		public GetArtifactResponse(ArtifactId id, ArtifactType type, StreamId streamId, int change, IReadOnlyList<string> keys)
 		{
 			Id = id;
 			Type = type;
+			StreamId = streamId;
+			Change = change;
 			Keys = keys;
 		}
 	}
