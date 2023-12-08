@@ -35,6 +35,7 @@
 #include "Net/DataChannel.h"
 #include "Net/Core/Connection/NetCloseResult.h"
 #include "Net/Core/Misc/NetSubObjectRegistry.h"
+#include "Net/Core/Trace/NetDebugName.h"
 #include "Net/NetSubObjectRegistryGetter.h"
 #include "ProfilingDebugging/AssetMetadataTrace.h"
 #include "Templates/Casts.h"
@@ -508,7 +509,7 @@ bool UActorReplicationBridge::WriteCreationHeader(UE::Net::FNetSerializationCont
 		return !Writer->IsOverflown();
 	}
 
-	ensureMsgf(false, TEXT("UActorReplicationBridge::WriteCreationHeader Failed to write creationHeader for NetRefHandle (Id=%u)"), Handle.GetId());
+	ensureMsgf(false, TEXT("UActorReplicationBridge::WriteCreationHeader Failed to write creationHeader for NetRefHandle (Id=%u) %s"), Handle.GetId(), ToCStr(GetReplicationSystem()->GetDebugName(Handle)));
 
 	return false;
 }

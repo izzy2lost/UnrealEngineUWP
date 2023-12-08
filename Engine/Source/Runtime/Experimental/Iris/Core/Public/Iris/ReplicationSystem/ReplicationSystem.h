@@ -39,6 +39,7 @@ namespace UE::Net
 	struct FReplicationView;
 	class FStringTokenStore;
 	class FWorldLocations;
+	struct FNetDebugName;
 	namespace Private
 	{
 		class FReplicationSystemImpl;
@@ -288,6 +289,13 @@ public:
 	 * @return A valid pointer to the protocol if the handle is valid, nullptr if not.
 	 */
 	IRISCORE_API const UE::Net::FReplicationProtocol* GetReplicationProtocol(FNetRefHandle Handle) const;
+
+	/**
+	 * Get the DebugName associated with a handle.
+	 * @param Handle The handle to retrieve the DebugName for
+	 * @return DebugName if the handle is valid, otherwise nullptr.
+	 */
+	IRISCORE_API const UE::Net::FNetDebugName* GetDebugName(FNetRefHandle Handle) const;
 
 	// Groups
 

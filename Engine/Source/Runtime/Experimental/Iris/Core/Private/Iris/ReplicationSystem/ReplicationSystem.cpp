@@ -1025,6 +1025,14 @@ const UE::Net::FReplicationProtocol* UReplicationSystem::GetReplicationProtocol(
 	return NetRefHandleManager.GetReplicatedObjectDataNoCheck(ObjectInternalIndex).Protocol;
 }
 
+const UE::Net::FNetDebugName* UReplicationSystem::GetDebugName(FNetRefHandle Handle) const
+{
+	using namespace UE::Net;
+	
+	const FReplicationProtocol* Protocol = GetReplicationProtocol(Handle);
+	return Protocol ? Protocol->DebugName : nullptr;
+}
+
 void UReplicationSystem::SetOwningNetConnection(FNetRefHandle Handle, uint32 ConnectionId)
 {
 	using namespace UE::Net::Private;
