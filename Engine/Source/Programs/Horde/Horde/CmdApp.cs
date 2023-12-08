@@ -31,7 +31,7 @@ namespace Horde
 				.AddEnvironmentVariables()
 				.Build();
 
-			using ILoggerFactory loggerFactory = CreateLoggerFactory(configuration, arguments.HasOption("-Quiet"));
+			using ILoggerFactory loggerFactory = CreateLoggerFactory(configuration, arguments);
 
 			IServiceCollection services = new ServiceCollection();
 			services.AddCommandsFromAssembly(Assembly.GetExecutingAssembly());
@@ -91,13 +91,13 @@ namespace Horde
 			return GetAppDir();
 		}
 
-		public static ILoggerFactory CreateLoggerFactory(IConfiguration configuration, bool quiet)
+		public static ILoggerFactory CreateLoggerFactory(IConfiguration configuration, CommandLineArguments arguments)
 		{
-			Serilog.ILogger logger = CreateSerilogLogger(configuration, quiet);
+			Serilog.ILogger logger = CreateSerilogLogger(configuration, arguments);
 			return new Serilog.Extensions.Logging.SerilogLoggerFactory(logger, true);
 		}
 
-		static Serilog.ILogger CreateSerilogLogger(IConfiguration configuration, bool quiet)
+		static Serilog.ILogger CreateSerilogLogger(IConfiguration configuration, CommandLineArguments arguments)
 		{
 			DirectoryReference.CreateDirectory(CmdApp.DataDir);
 
@@ -111,8 +111,18 @@ namespace Horde
 				theme = AnsiConsoleTheme.Code;
 			}
 
+			Serilog.Events.LogEventLevel consoleLevel = Serilog.Events.LogEventLevel.Information;
+			if (arguments.HasOption("-quiet"))
+			{
+				consoleLevel = Serilog.Events.LogEventLevel.Warning;
+			}
+			if (arguments.HasOption("-verbose"))
+			{
+				consoleLevel = Serilog.Events.LogEventLevel.Verbose;
+			}
+
 			return new LoggerConfiguration()
-				.WriteTo.Console(restrictedToMinimumLevel: quiet? Serilog.Events.LogEventLevel.Warning : Serilog.Events.LogEventLevel.Verbose, outputTemplate: "[{Timestamp:HH:mm:ss} {Level:w3}] {Indent}{Message:l}{NewLine}{Exception}", theme: theme)
+				.WriteTo.Console(restrictedToMinimumLevel: consoleLevel, outputTemplate: "{Indent}{Message:l}{NewLine}{Exception}", theme: theme)
 				.WriteTo.File(FileReference.Combine(CmdApp.DataDir, "Log-.txt").FullName, fileSizeLimitBytes: 50 * 1024 * 1024, rollingInterval: RollingInterval.Day, rollOnFileSizeLimit: true, retainedFileCountLimit: 10)
 				.WriteTo.File(new JsonFormatter(renderMessage: true), FileReference.Combine(CmdApp.DataDir, "Log-.json").FullName, fileSizeLimitBytes: 50 * 1024 * 1024, rollingInterval: RollingInterval.Day, rollOnFileSizeLimit: true, retainedFileCountLimit: 10)
 				.ReadFrom.Configuration(configuration)

@@ -153,7 +153,7 @@ namespace EpicGames.Horde
 				}
 
 				serverUrl = httpClient.BaseAddress;
-				_logger.LogInformation("Retrieving auth configuration for {Server}", serverUrl);
+				_logger.LogDebug("Retrieving auth configuration for {Server}", serverUrl);
 
 				JsonSerializerOptions jsonOptions = new JsonSerializerOptions();
 				HordeHttpClient.ConfigureJsonSerializer(jsonOptions);
@@ -210,7 +210,7 @@ namespace EpicGames.Horde
 				throw new Exception($"Unable to get access token for {serverUrl}");
 			}
 
-			_logger.LogInformation("Received access token for {Server}", serverUrl);
+			_logger.LogDebug("Received access token for {Server}", serverUrl);
 			return new AuthenticationHeaderValue("Bearer", result.AccessToken);
 		}
 	}
