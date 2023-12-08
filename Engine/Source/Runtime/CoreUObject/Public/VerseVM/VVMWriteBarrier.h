@@ -176,7 +176,7 @@ private:
 			}
 			else if (Value.IsUObject())
 			{
-				if (UE::GC::Private::GIsIncrementalReachabilityPending)
+				if (UE::GC::GIsIncrementalReachabilityPending)
 				{
 					Value.AsUObject()->VerseMarkAsReachable();
 				}

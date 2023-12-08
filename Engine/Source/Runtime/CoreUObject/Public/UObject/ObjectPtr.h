@@ -282,7 +282,7 @@ private:
 #if UE_OBJECT_PTR_GC_BARRIER
 	FORCEINLINE void ConditionallyMarkAsReachable(const FObjectPtr& InPtr) const
 	{
-		if (UE::GC::Private::GIsIncrementalReachabilityPending && InPtr.IsResolved())
+		if (UE::GC::GIsIncrementalReachabilityPending && InPtr.IsResolved())
 		{
 			if (UObject* Obj = UE::CoreUObject::Private::ReadObjectHandlePointerNoCheck(InPtr.GetHandleRef()))
 			{
@@ -292,7 +292,7 @@ private:
 	}
 	FORCEINLINE void ConditionallyMarkAsReachable(const UObject* InObj) const
 	{
-		if (UE::GC::Private::GIsIncrementalReachabilityPending && InObj)
+		if (UE::GC::GIsIncrementalReachabilityPending && InObj)
 		{
 			UE::GC::MarkAsReachable(InObj);
 		}
@@ -1299,7 +1299,7 @@ namespace UE::Core::Private // private facilities; not for direct use
 		static void Close(ViewType& View)
 		{
 #if UE_OBJECT_PTR_GC_BARRIER
-			if (UE::GC::Private::GIsIncrementalReachabilityPending && View)
+			if (UE::GC::GIsIncrementalReachabilityPending && View)
 			{
 				UE::GC::MarkAsReachable(View);
 			}
@@ -1313,7 +1313,7 @@ namespace UE::Core::Private // private facilities; not for direct use
 		static void Close(ViewType& View)
 		{
 #if UE_OBJECT_PTR_GC_BARRIER
-			if (UE::GC::Private::GIsIncrementalReachabilityPending)
+			if (UE::GC::GIsIncrementalReachabilityPending)
 			{
 				const UObject* const* Data = reinterpret_cast<const UObject* const*>(View.GetData());
 				for (int32 Index = 0; Index < View.Num(); ++Index)
@@ -1334,7 +1334,7 @@ namespace UE::Core::Private // private facilities; not for direct use
 		static void Close(ViewType& View)
 		{
 #if UE_OBJECT_PTR_GC_BARRIER
-			if (UE::GC::Private::GIsIncrementalReachabilityPending)
+			if (UE::GC::GIsIncrementalReachabilityPending)
 			{
 				for (const typename ViewType::ElementType& Element : View)
 				{
@@ -1357,7 +1357,7 @@ namespace UE::Core::Private // private facilities; not for direct use
 			static constexpr bool bKeyReference = TIsTObjectPtr_V<K>;
 			static constexpr bool bValueReference = TIsTObjectPtr_V<V>;
 			static_assert(bKeyReference || bValueReference);
-			if (UE::GC::Private::GIsIncrementalReachabilityPending)
+			if (UE::GC::GIsIncrementalReachabilityPending)
 			{
 				for (const typename ViewType::ElementType& Pair : View)
 				{
@@ -1478,7 +1478,7 @@ namespace UE::Core::Private // private facilities; not for direct use
 	private:
 		FORCEINLINE void ConditionallyMarkAsReachable() const
 		{
-			if (const UObject* Obj = Cast<UObject>(Ptr); Obj && UE::GC::Private::GIsIncrementalReachabilityPending)
+			if (const UObject* Obj = Cast<UObject>(Ptr); Obj && UE::GC::GIsIncrementalReachabilityPending)
 			{
 				UE::GC::MarkAsReachable(Obj);
 			}

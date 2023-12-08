@@ -181,6 +181,11 @@ public:
 	/** Returns the external UPackage for this object, if any, NOT THREAD SAFE, used by internal gc reference collecting. */
 	COREUOBJECT_API UPackage* GetExternalPackageInternal() const;
 
+	/**
+	 * Marks the object as Reachable if it's currently marked as MaybeUnreachable by incremental GC.
+	*/
+	COREUOBJECT_API void MarkAsReachable() const;
+
 protected:
 	/**
 	 * Set the object flags directly

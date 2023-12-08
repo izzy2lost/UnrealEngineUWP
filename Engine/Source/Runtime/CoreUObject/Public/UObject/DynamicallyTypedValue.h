@@ -134,7 +134,7 @@ namespace UE
 				}
 			};
 			
-			if (UE::GC::Private::GIsIncrementalReachabilityPending && Type)
+			if (UE::GC::GIsIncrementalReachabilityPending && Type)
 			{
 				// nb: this is done to simulate a write barrier for this type, which
 				//     enables it to behave properly with incremental gc.

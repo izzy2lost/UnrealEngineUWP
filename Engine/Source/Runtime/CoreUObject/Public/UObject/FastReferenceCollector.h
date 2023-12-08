@@ -991,7 +991,7 @@ FORCEINLINE static void CollectReferences(ProcessorType& Processor, UE::GC::FWor
 	using namespace UE::GC;
 	using FastReferenceCollector = TFastReferenceCollector<ProcessorType, CollectorType>;
 	
-	if (IsParallel(ProcessorType::Options) && !UE::GC::Private::GIsIncrementalReachabilityPending)
+	if (IsParallel(ProcessorType::Options) && !UE::GC::GIsIncrementalReachabilityPending)
 	{
 		ProcessAsync([](void* P, FWorkerContext& C) { FastReferenceCollector(*reinterpret_cast<ProcessorType*>(P)).ProcessObjectArray(C); }, &Processor, Context);
 	}

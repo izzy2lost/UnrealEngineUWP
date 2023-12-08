@@ -149,7 +149,12 @@ struct
 		return bIChangedIt;
 	}
 
-	FORCEINLINE bool ThisThreadAtomicallySetFlag(EInternalObjectFlags FlagToSet)
+	/**
+	 * Uses atomics to set the specified flag(s). GC internal version.
+	 * @param FlagToSet
+	 * @return True if this call set the flag, false if it has been set by another thread.
+	 */
+	FORCEINLINE bool ThisThreadAtomicallySetFlag_ForGC(EInternalObjectFlags FlagToSet)
 	{
 		static_assert(sizeof(int32) == sizeof(Flags), "Flags must be 32-bit for atomics.");
 		bool bIChangedIt = false;
@@ -170,6 +175,25 @@ struct
 		return bIChangedIt;
 	}
 
+	/**
+	 * Uses atomics to set the specified flag(s)
+	 * @param FlagToSet
+	 * @return True if this call set the flag, false if it has been set by another thread.
+	 */
+	FORCEINLINE bool ThisThreadAtomicallySetFlag(EInternalObjectFlags FlagToSet)
+	{
+		bool bMarkAsReachable = UE::GC::GIsIncrementalReachabilityPending & !!(FlagToSet & EInternalObjectFlags_RootFlags); //-V792
+		bool bIChangedIt = ThisThreadAtomicallySetFlag_ForGC(FlagToSet);
+		if (bIChangedIt & bMarkAsReachable) //-V792
+		{
+			// Setting any of the root flags on an object during incremental reachability requires a GC barrier
+			// to make sure an object with root flags does not get Garbage Collected
+			checkf(Object, TEXT("Setting an internal object flag on a null object entry"));
+			Object->MarkAsReachable();
+		}
+		return bIChangedIt;
+	}
+
 	FORCEINLINE bool HasAnyFlags(EInternalObjectFlags InFlags) const
 	{
 		return !!(GetFlagsInternal() & int32(InFlags));
@@ -182,11 +206,11 @@ struct
 
 	FORCEINLINE void SetUnreachable()
 	{
-		ThisThreadAtomicallySetFlag(UE::GC::GUnreachableObjectFlag);
+		ThisThreadAtomicallySetFlag_ForGC(UE::GC::GUnreachableObjectFlag);
 	}
 	FORCEINLINE void SetMaybeUnreachable()
 	{
-		ThisThreadAtomicallySetFlag(UE::GC::GMaybeUnreachableObjectFlag);
+		ThisThreadAtomicallySetFlag_ForGC(UE::GC::GMaybeUnreachableObjectFlag);
 	}
 	FORCEINLINE void ClearUnreachable()
 	{
@@ -214,7 +238,7 @@ struct
 	}
 	FORCEINLINE void SetGarbage()
 	{
-		ThisThreadAtomicallySetFlag(EInternalObjectFlags::Garbage);
+		ThisThreadAtomicallySetFlag_ForGC(EInternalObjectFlags::Garbage);
 	}
 	FORCEINLINE void ClearGarbage()
 	{

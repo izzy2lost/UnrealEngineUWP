@@ -15,4 +15,7 @@ namespace UE::GC
 
 	/** Current EInternalObjectFlags value representing a maybe unreachable object */
 	extern COREUOBJECT_API EInternalObjectFlags GMaybeUnreachableObjectFlag;
+
+	/** true if incremental reachability analysis is in progress (global for faster access in low level structs and functions otherwise use IsIncrementalReachabilityAnalisysPending()) */
+	extern COREUOBJECT_API bool GIsIncrementalReachabilityPending;
 }

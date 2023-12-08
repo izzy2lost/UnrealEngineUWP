@@ -241,7 +241,7 @@ void UObjectBase::LowLevelRename(FName NewName,UObject *NewOuter)
 	if (NewOuter)
 	{
 		OuterPrivate = NewOuter;
-		}
+	}
 	HashObject(this);
 }
 

@@ -1,7 +1,7 @@
 // Copyright Epic Games, Inc. All Rights Reserved.
 
 /*=============================================================================
-	UnObjGC.cpp: Unreal object garbage collection code.
+	GarbageCollection.cpp: Unreal object garbage collection code.
 =============================================================================*/
 
 #include "UObject/GarbageCollection.h"
@@ -553,6 +553,8 @@ namespace UE::GC
 
 	/** EInternalObjectFlag value representing a maybe unreachable object */
 	EInternalObjectFlags GMaybeUnreachableObjectFlag = EInternalObjectFlags::ReachabilityFlag1;
+
+	bool GIsIncrementalReachabilityPending = false;
 } // namespace UE::GC
 
 namespace UE::GC::Private
@@ -561,7 +563,6 @@ namespace UE::GC::Private
 	static TExpandingChunkedList<UObject*> GReachableObjects;
 	/** List of FUObjectItems representing cluster root objects marker as reachable by GC barrier (see UObject::MarkAsReachable()) */
 	static TExpandingChunkedList<FUObjectItem*> GReachableClusters;
-	bool GIsIncrementalReachabilityPending = false;
 
 	typedef TThreadedGather<FUObjectItem*> FGatherUnreachableObjectsState;
 	static FGatherUnreachableObjectsState GGatherUnreachableObjectsState;
@@ -1013,7 +1014,7 @@ static bool MarkClusterMutableObjectsAsReachable(FUObjectCluster& Cluster, Conta
 				else if (ReferencedMutableObjectItem->GetOwnerIndex() > 0 && !ReferencedMutableObjectItem->HasAnyFlags(EInternalObjectFlags::ReachableInCluster))
 				{
 					// This is a clustered object that maybe hasn't been processed yet
-					if (ReferencedMutableObjectItem->ThisThreadAtomicallySetFlag(EInternalObjectFlags::ReachableInCluster))
+					if (ReferencedMutableObjectItem->ThisThreadAtomicallySetFlag_ForGC(EInternalObjectFlags::ReachableInCluster))
 					{
 						// Needs doing, we need to get its cluster root and process it too
 						FUObjectItem* ReferencedMutableObjectsClusterRootItem = GUObjectArray.IndexToObjectUnsafeForGC(ReferencedMutableObjectItem->GetOwnerIndex());
@@ -2958,7 +2959,7 @@ public:
 				FUObjectItem* RootObjectItem = GUObjectArray.IndexToObjectUnsafeForGC(Metadata.ObjectItem->GetOwnerIndex());
 				checkSlow(RootObjectItem->HasAnyFlags(EInternalObjectFlags::ClusterRoot));
 
-				if (Metadata.ObjectItem->ThisThreadAtomicallySetFlag(EInternalObjectFlags::ReachableInCluster))
+				if (Metadata.ObjectItem->ThisThreadAtomicallySetFlag_ForGC(EInternalObjectFlags::ReachableInCluster))
 				{
 					if (ClearMaybeUnreachableInterlocked(RootObjectItem->Flags))
 					{
@@ -3916,7 +3917,7 @@ public:
 							GGCObjectsPendingDestructionCount);
 
 					// Objects may still be marked as MaybeUnreachable if we forced a full purge in the middle of incremental GC
-					checkf(UE::GC::Private::GIsIncrementalReachabilityPending || !ObjectItem->IsMaybeUnreachable() || bIsRerun, TEXT("%s"), *Object->GetFullName());
+					checkf(UE::GC::GIsIncrementalReachabilityPending || !ObjectItem->IsMaybeUnreachable() || bIsRerun, TEXT("%s"), *Object->GetFullName());
 
 					// Keep track of how many objects are around.
 					ObjectCountDuringMarkPhase++;
@@ -4031,7 +4032,7 @@ public:
 					bool bNeedsDoing = !ObjectItem->HasAnyFlags(EInternalObjectFlags::ReachableInCluster);
 					if (bNeedsDoing)
 					{
-						ObjectItem->SetFlags(EInternalObjectFlags::ReachableInCluster);
+						ObjectItem->ThisThreadAtomicallySetFlag_ForGC(EInternalObjectFlags::ReachableInCluster);
 						// Make sure cluster root object is reachable too
 						const int32 OwnerIndex = ObjectItem->GetOwnerIndex();
 						FUObjectItem* RootObjectItem = GUObjectArray.IndexToObjectUnsafeForGC(OwnerIndex);
@@ -5610,12 +5611,12 @@ float GetReachabilityAnalysisTimeLimit()
 
 bool IsIncrementalReachabilityAnalysisPending()
 {
-	return UE::GC::Private::GIsIncrementalReachabilityPending;
+	return UE::GC::GIsIncrementalReachabilityPending;
 }
 
 void PerformIncrementalReachabilityAnalysis(double TimeLimit)
 {
-	checkf(UE::GC::Private::GIsIncrementalReachabilityPending, TEXT("Incremental reachability must be pending to perform its next iteration"));
+	checkf(UE::GC::GIsIncrementalReachabilityPending, TEXT("Incremental reachability must be pending to perform its next iteration"));
 	// When performing Reachability Analysis iterations start the internal timer before acquiring GC lock 
 	// so that we don't spend more time than GIncrementalReachabilityTimeLimit on fully completing an iteration
 	const bool bUsingTimeLimit = TimeLimit > 0.0;
@@ -5623,7 +5624,7 @@ void PerformIncrementalReachabilityAnalysis(double TimeLimit)
 	AcquireGCLock();	
 	UE::GC::GReachabilityState.PerformReachabilityAnalysisAndConditionallyPurgeGarbage(bUsingTimeLimit);
 
-	checkf(bUsingTimeLimit || !UE::GC::Private::GIsIncrementalReachabilityPending, TEXT("Incremental Reachability is still pending after completing the previous iteration without time limit."));
+	checkf(bUsingTimeLimit || !UE::GC::GIsIncrementalReachabilityPending, TEXT("Incremental Reachability is still pending after completing the previous iteration without time limit."));
 }
 
 void FinalizeIncrementalReachabilityAnalysis()
@@ -5787,7 +5788,7 @@ bool TryCollectGarbage(EObjectFlags KeepFlags, bool bPerformFullPurge)
 	}
 
 	// No other thread may be performing UObject operations while we're running so try to acquire GC lock
-	if (UE::GC::Private::GIsIncrementalReachabilityPending)
+	if (UE::GC::GIsIncrementalReachabilityPending)
 	{
 		// Since we're already in the middle of a previous GC acquire GC lock even if it means we have to block main thread
 		AcquireGCLock();
@@ -5834,13 +5835,14 @@ bool UObject::IsDestructionThreadSafe() const
 template <bool bIsVerse>
 FORCEINLINE static void MarkObjectItemAsReachable(FUObjectItem* ObjectItem)
 {
+	using namespace UE::GC;
 	using namespace UE::GC::Private;
 
 #if WITH_VERSE_VM || defined(__INTELLISENSE__)
 	if constexpr (bIsVerse)
 	{
 		// When verse VM is enabled, this method is also used to report that a UObject is being referenced inside of a VCell
-		checkf(UE::GC::GIsFrankenGCCollecting, TEXT("%s is marked as MaybeUnreachable but Reachability Analysis is not in progress"), *static_cast<UObject*>(ObjectItem->Object)->GetFullName());
+		checkf(GIsFrankenGCCollecting, TEXT("%s is marked as MaybeUnreachable but Reachability Analysis is not in progress"), *static_cast<UObject*>(ObjectItem->Object)->GetFullName());
 	}
 	else
 #endif
@@ -5863,9 +5865,9 @@ FORCEINLINE static void MarkObjectItemAsReachable(FUObjectItem* ObjectItem)
 }
 
 template <bool bIsVerse>
-FORCEINLINE static void MarkAsReachable(const UObject* Obj)
+FORCEINLINE static void MarkAsReachable(const UObjectBase* Obj)
 {
-	FUObjectItem* ObjectItem = GUObjectArray.ObjectToObjectItem(const_cast<UObject*>(Obj));
+	FUObjectItem* ObjectItem = GUObjectArray.ObjectToObjectItem(Obj);
 	if (ObjectItem->IsMaybeUnreachable())
 	{
 		MarkObjectItemAsReachable<bIsVerse>(ObjectItem);
@@ -5880,7 +5882,7 @@ FORCEINLINE static void MarkAsReachable(const UObject* Obj)
 	}
 }
 
-void UObject::MarkAsReachable() const
+void UObjectBase::MarkAsReachable() const
 {
 	// It is safe to perform mark as reachable in the open - the worst case is that we'll mark an object reachable that
 	// should/would be destroyed, and so in the next GC iteration it will be destroyed instead of in this iteration.
