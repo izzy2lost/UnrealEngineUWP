@@ -60,7 +60,7 @@ private:
 struct FLightFunctionAtlasViewData
 {
 	FLightFunctionAtlasViewData() {}
-	FLightFunctionAtlasViewData(FLightFunctionAtlasSceneData* InSceneData, uint32 ViewIndex) : SceneData(InSceneData), ViewIndex(0) {}
+	FLightFunctionAtlasViewData(FLightFunctionAtlasSceneData* InSceneData, uint32 InViewIndex) : SceneData(InSceneData), ViewIndex(InViewIndex) {}
 
 	FLightFunctionAtlas* GetLightFunctionAtlas()				const { return SceneData ? SceneData->GetLightFunctionAtlas() : nullptr; }
 	bool GetLightFunctionAtlasEnabled()							const { return SceneData ? SceneData->GetLightFunctionAtlasEnabled() : false; }
