@@ -57,6 +57,7 @@ namespace uba
 
 		return (CryptoKey)(u64)keyHandle;
 #else
+		logger.Error(TC("ERROR: Crypto not supported on non-windows platforms"));
 		return InvalidCryptoKey;
 #endif // UBA_CRYPTO_TYPE
 	}
