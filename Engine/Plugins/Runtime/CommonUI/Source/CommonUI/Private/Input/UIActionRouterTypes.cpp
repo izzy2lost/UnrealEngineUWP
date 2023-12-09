@@ -1501,10 +1501,27 @@ void FActivatableTreeRoot::ApplyLeafmostNodeConfig()
 void FActivatableTreeRoot::FocusLeafmostNode()
 {
 	check(LeafmostActiveNode.IsValid());
-
+	if (!LeafmostActiveNode.IsValid())
+	{
+		UE_LOG(LogUIActionRouter, Error, TEXT("Cannot focus leaf most node - invalid LeafmostActiveNode"));
+		return;
+	}
 	FActivatableTreeNodePtr PinnedLeafmostNode = LeafmostActiveNode.Pin();
+
+	check(PinnedLeafmostNode);
+	if (!PinnedLeafmostNode)
+	{
+		UE_LOG(LogUIActionRouter, Error, TEXT("Cannot focus leaf most node - invalid PinnedLeafmostNode"));
+		return;
+	}
+
 	UCommonActivatableWidget* LeafWidget = PinnedLeafmostNode->GetWidget();
 	check(LeafWidget);
+	if (!LeafWidget)
+	{
+		UE_LOG(LogUIActionRouter, Error, TEXT("Cannot focus leaf most node - invalid LeafWidget"));
+		return;
+	}
 
 	const int32 OwnerSlateId = GetOwnerUserIndex();
 	ULocalPlayer& LocalPlayer = *GetActionRouter().GetLocalPlayerChecked();
