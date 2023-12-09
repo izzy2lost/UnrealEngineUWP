@@ -36,6 +36,7 @@ using EpicGames.Horde.Agents.Leases;
 using Horde.Server.Jobs.Bisect;
 using EpicGames.Horde.Agents;
 using EpicGames.Horde.Storage;
+using EpicGames.Horde.Jobs;
 
 namespace Horde.Server.Jobs
 {

@@ -15,6 +15,7 @@ using Microsoft.AspNetCore.Mvc;
 using Microsoft.Extensions.Options;
 using EpicGames.Horde.Users;
 using Horde.Server.Jobs.Bisect;
+using EpicGames.Horde.Jobs;
 
 namespace Horde.Server.Users
 {

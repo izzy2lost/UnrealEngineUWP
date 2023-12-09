@@ -47,6 +47,7 @@ using MongoDB.Driver;
 using EpicGames.Horde;
 using Horde.Server.Agents;
 using EpicGames.Horde.Jobs.Templates;
+using EpicGames.Horde.Jobs;
 
 namespace Horde.Server.Notifications.Sinks
 {

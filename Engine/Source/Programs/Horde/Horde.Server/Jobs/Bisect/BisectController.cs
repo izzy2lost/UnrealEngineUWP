@@ -21,6 +21,7 @@ using EpicGames.Horde.Streams;
 using EpicGames.Horde.Users;
 using OpenTelemetry.Trace;
 using Microsoft.Extensions.Logging;
+using EpicGames.Horde.Jobs;
 
 namespace Horde.Server.Jobs.Bisect
 {

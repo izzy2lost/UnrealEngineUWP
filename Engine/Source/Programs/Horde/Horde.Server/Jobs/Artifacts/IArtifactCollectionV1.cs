@@ -2,6 +2,7 @@
 
 using System.Collections.Generic;
 using System.Threading.Tasks;
+using EpicGames.Horde.Jobs;
 using MongoDB.Bson;
 
 namespace Horde.Server.Jobs.Artifacts

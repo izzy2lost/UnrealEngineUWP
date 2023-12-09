@@ -25,6 +25,7 @@ using HordeCommon.Rpc.Tasks;
 using MongoDB.Bson;
 using MongoDB.Driver;
 using Horde.Server.Jobs.Bisect;
+using EpicGames.Horde.Jobs;
 
 namespace Horde.Server.Jobs
 {

@@ -6,6 +6,7 @@ using System.ComponentModel.DataAnnotations;
 using System.Linq;
 using MongoDB.Bson.Serialization;
 using EpicGames.Horde.Streams;
+using EpicGames.Horde.Jobs;
 
 namespace Horde.Server.Jobs.TestData
 {

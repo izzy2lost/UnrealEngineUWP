@@ -3,10 +3,8 @@
 using System.ComponentModel;
 using EpicGames.Core;
 using EpicGames.Horde;
-using Horde.Server.Utilities;
-using MongoDB.Bson;
 
-namespace Horde.Server.Jobs
+namespace EpicGames.Horde.Jobs
 {
 	/// <summary>
 	/// Identifier for a job
@@ -22,7 +20,7 @@ namespace Horde.Server.Jobs
 		/// </summary>
 		public static JobId Empty { get; } = default;
 
-		/// <inheritdoc cref="ObjectId.Parse(System.String)"/>
+		/// <inheritdoc cref="BinaryId.Parse(System.String)"/>
 		public static JobId Parse(string text) => new JobId(BinaryId.Parse(text));
 
 		/// <inheritdoc/>

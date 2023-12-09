@@ -19,6 +19,7 @@ using Horde.Server.Logs;
 using Microsoft.Extensions.Caching.Memory;
 using Horde.Server.Agents;
 using EpicGames.Horde.Streams;
+using EpicGames.Horde.Jobs;
 
 namespace Horde.Server.Tests
 {

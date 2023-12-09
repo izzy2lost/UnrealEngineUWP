@@ -2,6 +2,7 @@
 
 using System;
 using System.Collections.Generic;
+using EpicGames.Horde.Jobs;
 using Horde.Server.Perforce;
 using Horde.Server.Streams;
 

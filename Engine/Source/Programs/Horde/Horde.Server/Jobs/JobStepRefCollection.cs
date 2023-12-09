@@ -16,6 +16,7 @@ using MongoDB.Driver;
 using EpicGames.Horde.Agents;
 using EpicGames.Horde.Streams;
 using EpicGames.Horde.Jobs.Templates;
+using EpicGames.Horde.Jobs;
 
 namespace Horde.Server.Jobs
 {

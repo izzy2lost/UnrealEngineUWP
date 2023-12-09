@@ -31,6 +31,7 @@ using Microsoft.Extensions.Options;
 using MongoDB.Bson;
 using StackExchange.Redis;
 using JsonSerializer = System.Text.Json.JsonSerializer;
+using EpicGames.Horde.Jobs;
 
 namespace Horde.Server.Notifications
 {

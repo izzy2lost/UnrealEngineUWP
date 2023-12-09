@@ -4,6 +4,7 @@ using System;
 using System.Collections.Generic;
 using System.Threading.Tasks;
 using EpicGames.Horde.Devices;
+using EpicGames.Horde.Jobs;
 using EpicGames.Horde.Users;
 using Horde.Server.Jobs;
 using MongoDB.Bson;

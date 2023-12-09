@@ -115,6 +115,7 @@ using Horde.Server.Aws;
 using StackExchange.Redis;
 using Horde.Server.Telemetry.Sinks;
 using Horde.Server.Telemetry.Metrics;
+using EpicGames.Horde.Jobs;
 
 namespace Horde.Server
 {
@@ -1104,6 +1105,40 @@ namespace Horde.Server
 			public override void Serialize(BsonSerializationContext context, BsonSerializationArgs args, TValue value) => context.Writer.WriteInt32(_converter.ToSubResourceId(value).Value);
 		}
 
+		/// <summary>
+		/// Serializer for subresource ids
+		/// </summary>
+		public class SubResourceIdSerializer : IBsonSerializer<SubResourceId>
+		{
+			/// <inheritdoc/>
+			public Type ValueType => typeof(SubResourceId);
+
+			/// <inheritdoc/>
+			public object Deserialize(BsonDeserializationContext context, BsonDeserializationArgs args)
+			{
+				return new SubResourceId((ushort)context.Reader.ReadInt32());
+			}
+
+			/// <inheritdoc/>
+			public void Serialize(BsonSerializationContext context, BsonSerializationArgs args, object value)
+			{
+				SubResourceId id = (SubResourceId)value;
+				context.Writer.WriteInt32((int)id.Value);
+			}
+
+			/// <inheritdoc/>
+			public void Serialize(BsonSerializationContext context, BsonSerializationArgs args, SubResourceId id)
+			{
+				context.Writer.WriteInt32((int)id.Value);
+			}
+
+			/// <inheritdoc/>
+			SubResourceId IBsonSerializer<SubResourceId>.Deserialize(BsonDeserializationContext context, BsonDeserializationArgs vrgs)
+			{
+				return new SubResourceId((ushort)context.Reader.ReadInt32());
+			}
+		}
+
 		sealed class SubResourceIdBsonSerializationProvider : BsonSerializationProviderBase
 		{
 			/// <inheritdoc/>
@@ -1139,6 +1174,7 @@ namespace Horde.Server
 				BsonSerializer.RegisterSerializer(new AclActionBsonSerializer());
 				BsonSerializer.RegisterSerializer(new AclScopeNameBsonSerializer());
 				BsonSerializer.RegisterSerializer(new ConditionSerializer());
+				BsonSerializer.RegisterSerializer(new SubResourceIdSerializer());
 				BsonSerializer.RegisterSerializationProvider(new BsonSerializationProvider());
 				BsonSerializer.RegisterSerializationProvider(new StringIdBsonSerializationProvider());
 				BsonSerializer.RegisterSerializationProvider(new BinaryIdBsonSerializationProvider());

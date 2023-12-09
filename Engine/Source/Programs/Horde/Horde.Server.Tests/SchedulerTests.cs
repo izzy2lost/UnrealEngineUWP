@@ -20,6 +20,7 @@ using Horde.Server.Perforce;
 using EpicGames.Horde.Jobs.Templates;
 using EpicGames.Horde.Projects;
 using EpicGames.Horde.Streams;
+using EpicGames.Horde.Jobs;
 
 namespace Horde.Server.Tests
 {

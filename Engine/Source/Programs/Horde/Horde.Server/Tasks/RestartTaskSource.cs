@@ -11,6 +11,7 @@ using Horde.Server.Utilities;
 using HordeCommon;
 using HordeCommon.Rpc.Tasks;
 using EpicGames.Horde.Agents.Leases;
+using EpicGames.Horde.Jobs;
 
 namespace Horde.Server.Tasks
 {

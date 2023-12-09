@@ -1,5 +1,6 @@
 // Copyright Epic Games, Inc. All Rights Reserved.
 
+using EpicGames.Horde.Jobs;
 using Horde.Server.Utilities;
 
 namespace Horde.Server.Jobs

@@ -19,6 +19,7 @@ using Microsoft.Extensions.Logging;
 using Microsoft.VisualStudio.TestTools.UnitTesting;
 using EpicGames.Horde.Logs;
 using OpenTelemetry.Trace;
+using EpicGames.Horde.Jobs;
 
 namespace Horde.Server.Tests
 {

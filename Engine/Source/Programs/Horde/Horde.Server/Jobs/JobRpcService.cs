@@ -39,6 +39,7 @@ using Microsoft.Extensions.Options;
 using MongoDB.Bson;
 using MongoDB.Bson.Serialization;
 using EpicGames.Horde;
+using EpicGames.Horde.Jobs;
 
 namespace Horde.Server.Jobs
 {

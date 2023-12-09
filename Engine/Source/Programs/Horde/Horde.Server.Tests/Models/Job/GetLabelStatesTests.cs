@@ -1,6 +1,7 @@
 // Copyright Epic Games, Inc. All Rights Reserved.
 
 using System.Collections.Generic;
+using EpicGames.Horde.Jobs;
 using Horde.Server.Jobs;
 using Horde.Server.Jobs.Graphs;
 using HordeCommon;

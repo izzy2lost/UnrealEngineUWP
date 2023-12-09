@@ -14,6 +14,7 @@ using MongoDB.Bson.Serialization.Attributes;
 using MongoDB.Driver;
 using Horde.Server.Jobs.Bisect;
 using EpicGames.Horde.Users;
+using EpicGames.Horde.Jobs;
 
 namespace Horde.Server.Users
 {

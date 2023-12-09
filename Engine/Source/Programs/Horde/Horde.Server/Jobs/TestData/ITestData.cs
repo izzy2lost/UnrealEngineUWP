@@ -5,6 +5,7 @@ using System;
 using EpicGames.Horde.Jobs.Templates;
 using MongoDB.Bson;
 using EpicGames.Horde.Streams;
+using EpicGames.Horde.Jobs;
 
 namespace Horde.Server.Jobs.TestData
 {

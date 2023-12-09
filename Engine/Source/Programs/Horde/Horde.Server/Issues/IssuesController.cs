@@ -23,6 +23,7 @@ using Microsoft.Extensions.Options;
 using Horde.Server.Server;
 using EpicGames.Horde.Streams;
 using EpicGames.Horde.Users;
+using EpicGames.Horde.Jobs;
 
 namespace Horde.Server.Issues
 {

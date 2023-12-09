@@ -20,6 +20,7 @@ using MongoDB.Bson;
 using Horde.Server.Jobs.Bisect;
 using System.Threading;
 using Horde.Server.Acls;
+using EpicGames.Horde.Jobs;
 
 namespace Horde.Server.Jobs
 {

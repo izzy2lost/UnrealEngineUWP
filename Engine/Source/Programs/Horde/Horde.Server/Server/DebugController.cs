@@ -16,6 +16,7 @@ using System.Web;
 using EpicGames.Core;
 using EpicGames.Horde.Agents.Leases;
 using EpicGames.Horde.Compute;
+using EpicGames.Horde.Jobs;
 using Google.Protobuf;
 using Horde.Common.Rpc;
 using Horde.Server.Acls;

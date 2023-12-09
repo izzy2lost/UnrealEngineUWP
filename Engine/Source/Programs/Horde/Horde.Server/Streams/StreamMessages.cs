@@ -15,6 +15,7 @@ using Horde.Server.Issues;
 using Horde.Server.Perforce;
 using Horde.Server.Projects;
 using Horde.Server.Jobs;
+using EpicGames.Horde.Jobs;
 
 namespace Horde.Server.Streams
 {

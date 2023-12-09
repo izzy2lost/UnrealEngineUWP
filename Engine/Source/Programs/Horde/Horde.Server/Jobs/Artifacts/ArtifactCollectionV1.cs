@@ -11,6 +11,7 @@ using MongoDB.Bson;
 using MongoDB.Bson.Serialization.Attributes;
 using MongoDB.Driver;
 using EpicGames.Horde.Storage;
+using EpicGames.Horde.Jobs;
 
 namespace Horde.Server.Jobs.Artifacts
 {

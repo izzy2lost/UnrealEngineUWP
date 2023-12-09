@@ -14,6 +14,7 @@ using EpicGames.Horde.Issues;
 using EpicGames.Horde.Users;
 using EpicGames.Horde.Streams;
 using EpicGames.Horde.Jobs.Templates;
+using EpicGames.Horde.Jobs;
 
 namespace Horde.Server.Issues
 {

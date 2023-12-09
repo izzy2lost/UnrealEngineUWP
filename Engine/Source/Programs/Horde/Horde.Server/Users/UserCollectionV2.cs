@@ -18,6 +18,7 @@ using EpicGames.Horde.Jobs.Templates;
 using EpicGames.Horde.Streams;
 using EpicGames.Horde.Users;
 using MongoDB.Driver.Linq;
+using EpicGames.Horde.Jobs;
 
 namespace Horde.Server.Users
 {

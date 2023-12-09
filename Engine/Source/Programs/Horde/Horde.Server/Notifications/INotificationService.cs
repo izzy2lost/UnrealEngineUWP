@@ -13,6 +13,7 @@ using Horde.Server.Users;
 using MongoDB.Bson;
 using Horde.Server.Streams;
 using Horde.Server.Agents;
+using EpicGames.Horde.Jobs;
 
 namespace Horde.Server.Notifications
 {

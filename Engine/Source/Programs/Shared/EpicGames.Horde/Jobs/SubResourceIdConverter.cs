@@ -7,7 +7,7 @@ using System.Reflection;
 using System.Text.Json;
 using System.Text.Json.Serialization;
 
-namespace Horde.Server.Jobs
+namespace EpicGames.Horde.Jobs
 {
 	/// <summary>
 	/// Base class for converting to and from types containing a <see cref="SubResourceId"/>. Useful pattern for reducing boilerplate with strongly typed records.

@@ -14,6 +14,7 @@ using EpicGames.Core;
 using Microsoft.Extensions.Options;
 using Horde.Server.Server;
 using EpicGames.Horde.Streams;
+using EpicGames.Horde.Jobs;
 
 namespace Horde.Server.Jobs.TestData
 {

@@ -1,5 +1,6 @@
 // Copyright Epic Games, Inc. All Rights Reserved.
 
+using EpicGames.Horde.Jobs;
 using MongoDB.Bson;
 
 namespace Horde.Server.Jobs.Artifacts

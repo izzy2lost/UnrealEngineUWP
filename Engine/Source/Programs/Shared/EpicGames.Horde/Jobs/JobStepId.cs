@@ -3,7 +3,7 @@
 using System.ComponentModel;
 using EpicGames.Core;
 
-namespace Horde.Server.Jobs
+namespace EpicGames.Horde.Jobs
 {
 	/// <summary>
 	/// Identifier for a jobstep

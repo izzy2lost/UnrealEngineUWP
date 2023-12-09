@@ -22,6 +22,7 @@ using EpicGames.Horde.Jobs.Templates;
 using EpicGames.Horde.Streams;
 using Horde.Server.Jobs.Templates;
 using Moq;
+using EpicGames.Horde.Jobs;
 
 namespace Horde.Server.Tests
 {

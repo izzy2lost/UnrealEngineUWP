@@ -6,6 +6,7 @@ using System.Linq;
 using System.Text.Json;
 using System.Threading.Tasks;
 using EpicGames.Horde.Devices;
+using EpicGames.Horde.Jobs;
 using Horde.Server.Jobs;
 using Horde.Server.Server;
 using Horde.Server.Users;

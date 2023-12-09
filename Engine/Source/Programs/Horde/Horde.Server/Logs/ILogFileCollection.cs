@@ -6,6 +6,7 @@ using System.Threading.Tasks;
 using Horde.Server.Agents.Sessions;
 using Horde.Server.Jobs;
 using EpicGames.Horde.Agents.Leases;
+using EpicGames.Horde.Jobs;
 
 namespace Horde.Server.Logs
 {

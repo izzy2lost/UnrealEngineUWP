@@ -33,6 +33,7 @@ using EpicGames.Horde.Projects;
 using EpicGames.Horde.Users;
 using System.Buffers;
 using EpicGames.Horde.Streams;
+using EpicGames.Horde.Jobs;
 
 namespace Horde.Server.Tests
 {

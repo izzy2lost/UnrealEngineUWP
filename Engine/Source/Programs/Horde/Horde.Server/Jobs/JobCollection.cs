@@ -34,6 +34,7 @@ using MongoDB.Bson.Serialization.Options;
 using MongoDB.Driver;
 using OpenTelemetry.Trace;
 using EpicGames.Horde.Jobs.Templates;
+using EpicGames.Horde.Jobs;
 
 namespace Horde.Server.Jobs
 {

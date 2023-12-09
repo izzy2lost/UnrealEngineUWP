@@ -29,6 +29,7 @@ using Microsoft.Extensions.Options;
 using MongoDB.Bson;
 using MongoDB.Bson.Serialization;
 using OpenTelemetry.Trace;
+using EpicGames.Horde.Jobs;
 
 namespace Horde.Server.Issues
 {

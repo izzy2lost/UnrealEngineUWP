@@ -4,10 +4,8 @@ using System;
 using System.ComponentModel;
 using System.Diagnostics;
 using System.Globalization;
-using MongoDB.Bson.Serialization;
-using MongoDB.Bson.Serialization.Attributes;
 
-namespace Horde.Server.Jobs
+namespace EpicGames.Horde.Jobs
 {
 	/// <summary>
 	/// Identifier for subresources. Assigning unique ids to subresources prevents against race conditions using indices when subresources are added and removed.
@@ -16,7 +14,6 @@ namespace Horde.Server.Jobs
 	/// identifier with more entropy than just incrementing the value but an identical period before repeating, in order to make URL fragments more distinctive.
 	/// </summary>
 	[TypeConverter(typeof(SubResourceIdTypeConverter))]
-	[BsonSerializer(typeof(SubResourceIdSerializer))]
 	public struct SubResourceId : IEquatable<SubResourceId>
 	{
 		/// <summary>
@@ -125,40 +122,6 @@ namespace Horde.Server.Jobs
 		public static SubResourceId ToSubResourceId(this string text)
 		{
 			return new SubResourceId(UInt16.Parse(text, NumberStyles.HexNumber, CultureInfo.InvariantCulture));
-		}
-	}
-
-	/// <summary>
-	/// Serializer for subresource ids
-	/// </summary>
-	public class SubResourceIdSerializer : IBsonSerializer<SubResourceId>
-	{
-		/// <inheritdoc/>
-		public Type ValueType => typeof(SubResourceId);
-
-		/// <inheritdoc/>
-		public object Deserialize(BsonDeserializationContext context, BsonDeserializationArgs args)
-		{
-			return new SubResourceId((ushort)context.Reader.ReadInt32());
-		}
-
-		/// <inheritdoc/>
-		public void Serialize(BsonSerializationContext context, BsonSerializationArgs args, object value)
-		{
-			SubResourceId id = (SubResourceId)value;
-			context.Writer.WriteInt32((int)id.Value);
-		}
-
-		/// <inheritdoc/>
-		public void Serialize(BsonSerializationContext context, BsonSerializationArgs args, SubResourceId id)
-		{
-			context.Writer.WriteInt32((int)id.Value);
-		}
-
-		/// <inheritdoc/>
-		SubResourceId IBsonSerializer<SubResourceId>.Deserialize(BsonDeserializationContext context, BsonDeserializationArgs vrgs)
-		{
-			return new SubResourceId((ushort)context.Reader.ReadInt32());
 		}
 	}
 

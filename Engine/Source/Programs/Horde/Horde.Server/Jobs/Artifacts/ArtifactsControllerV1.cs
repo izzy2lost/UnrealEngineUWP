@@ -8,6 +8,7 @@ using System.IO.Compression;
 using System.Linq;
 using System.Security.Claims;
 using System.Threading.Tasks;
+using EpicGames.Horde.Jobs;
 using Horde.Server.Acls;
 using Horde.Server.Artifacts;
 using Horde.Server.Jobs.Graphs;
