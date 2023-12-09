@@ -187,7 +187,7 @@ namespace Horde.Server.Tests
 			options.Arguments.AddRange(arguments);
 
 			return await JobService.CreateJobAsync(
-				jobId: JobId.GenerateNewId(),
+				jobId: JobIdUtils.GenerateNewId(),
 				streamConfig: fixture!.StreamConfig!,
 				templateRefId: new TemplateId(templateRefId),
 				templateHash: new ContentHash(Encoding.ASCII.GetBytes(templateHash)),

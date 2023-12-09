@@ -298,7 +298,7 @@ namespace Horde.Server.Tests
 			metricConfig.Function = AggregationFunction.Sum;
 			metricConfig.Interval = TimeSpan.FromHours(1.0);
 			metricConfig.Filter = JsonPath.Parse("$[?(@.Payload.EventName == 'Included')]");
-			metricConfig.GroupBy = "$.Payload.groupFacetA, $.Payload.groupFacetB";
+			metricConfig.GroupBy = "$.Payload.groupFacetA, $.Payload.groupFacetB, $.Payload.groupFacetC";
 			metricConfig.Property = JsonPath.Parse("$.Payload.foo");
 
 			GlobalConfig globalConfig = new GlobalConfig();
@@ -315,6 +315,7 @@ namespace Horde.Server.Tests
 				sink.SendEvent(TelemetryRecordMeta.CurrentHordeInstance, new { EventName = "Included", foo = 3, groupFacetA = "groupA", groupFacetB = "groupB" });
 				sink.SendEvent(TelemetryRecordMeta.CurrentHordeInstance, new { EventName = "Included", foo = 4, groupFacetB = "groupB" });
 				sink.SendEvent(TelemetryRecordMeta.CurrentHordeInstance, new { EventName = "Included", foo = 5, groupFacetB = "groupA,groupB" });
+				sink.SendEvent(TelemetryRecordMeta.CurrentHordeInstance, new { EventName = "Included", foo = 6, groupFacetA = "groupA", groupFacetB = "groupB",  groupFacetC = "groupC" });
 				sink.SendEvent(TelemetryRecordMeta.CurrentHordeInstance, new { EventName = "Excluded", foo = 6 });
 				await sink.FlushAsync(CancellationToken.None);
 				await collection.FlushAsync(CancellationToken.None);
@@ -322,23 +323,27 @@ namespace Horde.Server.Tests
 				List<IMetric> metrics = await collection.FindAsync(metricConfig.Id);
 				metrics = metrics.OrderBy(x => x.Group).ToList();
 
-				Assert.AreEqual(4, metrics.Count);
+				Assert.AreEqual(5, metrics.Count);
 
-				Assert.AreEqual(",\"\"\"groupA,groupB\"\"\"", metrics[0].Group);
+				Assert.AreEqual(",\"\"\"groupA,groupB\"\"\",", metrics[0].Group);
 				Assert.AreEqual(1, metrics[0].Count);
 				Assert.AreEqual(5, metrics[0].Value);
 
-				Assert.AreEqual(",groupB", metrics[1].Group);
+				Assert.AreEqual(",groupB,", metrics[1].Group);
 				Assert.AreEqual(1, metrics[1].Count);
 				Assert.AreEqual(4, metrics[1].Value);
 
-				Assert.AreEqual("groupA,", metrics[2].Group);
+				Assert.AreEqual("groupA,,", metrics[2].Group);
 				Assert.AreEqual(2, metrics[2].Count);
 				Assert.AreEqual(3, metrics[2].Value);
 
-				Assert.AreEqual("groupA,groupB", metrics[3].Group);
+				Assert.AreEqual("groupA,groupB,", metrics[3].Group);
 				Assert.AreEqual(1, metrics[3].Count);
 				Assert.AreEqual(3, metrics[3].Value);
+
+				Assert.AreEqual("groupA,groupB,groupC", metrics[4].Group);
+				Assert.AreEqual(1, metrics[4].Count);
+				Assert.AreEqual(6, metrics[4].Value);
 			}
 		}
 	}

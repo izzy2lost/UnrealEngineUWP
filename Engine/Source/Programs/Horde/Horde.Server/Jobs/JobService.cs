@@ -196,7 +196,7 @@ namespace Horde.Server.Jobs
 				span.SetAttribute("JobTriggers.Count", options.JobTriggers.Count);
 			}
 
-			JobId jobIdValue = jobId ?? JobId.GenerateNewId();
+			JobId jobIdValue = jobId ?? JobIdUtils.GenerateNewId();
 			using IDisposable? scope = _logger.BeginScope("CreateJobAsync({JobId})", jobIdValue);
 
 			if (options.PreflightChange != null && ShouldClonePreflightChange(streamConfig.Id))
@@ -1296,7 +1296,7 @@ namespace Horde.Server.Jobs
 			for (; ; )
 			{
 				// Update the job
-				JobId chainedJobId = JobId.GenerateNewId();
+				JobId chainedJobId = JobIdUtils.GenerateNewId();
 
 				IJob? newJob = await _jobs.TryUpdateJobAsync(job, graph, jobTrigger: new KeyValuePair<TemplateId, JobId>(jobTrigger.TemplateRefId, chainedJobId));
 				if(newJob != null)

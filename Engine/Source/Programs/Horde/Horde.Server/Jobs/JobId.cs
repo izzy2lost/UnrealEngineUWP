@@ -2,6 +2,7 @@
 
 using System.ComponentModel;
 using EpicGames.Core;
+using EpicGames.Horde;
 using Horde.Server.Utilities;
 using MongoDB.Bson;
 
@@ -12,36 +13,31 @@ namespace Horde.Server.Jobs
 	/// </summary>
 	/// <param name="Id">Id to construct from</param>
 	[JsonSchemaString]
-	[TypeConverter(typeof(ObjectIdTypeConverter<JobId, JobIdConverter>))]
-	[ObjectIdConverter(typeof(JobIdConverter))]
-	public record struct JobId(ObjectId Id)
+	[TypeConverter(typeof(BinaryIdTypeConverter<JobId, JobIdConverter>))]
+	[BinaryIdConverter(typeof(JobIdConverter))]
+	public record struct JobId(BinaryId Id)
 	{
 		/// <summary>
 		/// Constant value for an empty job id
 		/// </summary>
 		public static JobId Empty { get; } = default;
 
-		/// <summary>
-		/// Creates a new <see cref="JobId"/>
-		/// </summary>
-		public static JobId GenerateNewId() => new JobId(ObjectId.GenerateNewId());
-
 		/// <inheritdoc cref="ObjectId.Parse(System.String)"/>
-		public static JobId Parse(string text) => new JobId(ObjectId.Parse(text));
+		public static JobId Parse(string text) => new JobId(BinaryId.Parse(text));
 
 		/// <inheritdoc/>
 		public override string ToString() => Id.ToString();
 	}
 
 	/// <summary>
-	/// Converter to and from <see cref="ObjectId"/> instances.
+	/// Converter to and from <see cref="BinaryId"/> instances.
 	/// </summary>
-	class JobIdConverter : ObjectIdConverter<JobId>
+	class JobIdConverter : BinaryIdConverter<JobId>
 	{
 		/// <inheritdoc/>
-		public override JobId FromObjectId(ObjectId id) => new JobId(id);
+		public override JobId FromBinaryId(BinaryId id) => new JobId(id);
 
 		/// <inheritdoc/>
-		public override ObjectId ToObjectId(JobId value) => value.Id;
+		public override BinaryId ToBinaryId(JobId value) => value.Id;
 	}
 }

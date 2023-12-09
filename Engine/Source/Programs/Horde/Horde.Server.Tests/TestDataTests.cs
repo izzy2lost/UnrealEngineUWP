@@ -109,7 +109,7 @@ namespace Horde.Server.Tests
 
 		public IJob CreateJob(StreamId streamId, int change, string name, IGraph graph, TimeSpan time = default)
 		{
-			JobId jobId = JobId.GenerateNewId();
+			JobId jobId = JobIdUtils.GenerateNewId();
 
 			List<IJobStepBatch> batches = new List<IJobStepBatch>();
 			for (int groupIdx = 0; groupIdx < graph.Groups.Count; groupIdx++)

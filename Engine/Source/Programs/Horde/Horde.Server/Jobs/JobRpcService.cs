@@ -38,6 +38,7 @@ using Microsoft.Extensions.Logging;
 using Microsoft.Extensions.Options;
 using MongoDB.Bson;
 using MongoDB.Bson.Serialization;
+using EpicGames.Horde;
 
 namespace Horde.Server.Jobs
 {
@@ -258,7 +259,7 @@ namespace Horde.Server.Jobs
 		/// <returns>Information about the new agent</returns>
 		public async Task<RpcGetJobResponse> GetJobAsync(GetJobRequest request, ServerCallContext context)
 		{
-			JobId jobIdValue = new JobId(ObjectId.Parse(request.JobId));
+			JobId jobIdValue = JobId.Parse(request.JobId);
 
 			IJob? job = await _jobService.GetJobAsync(jobIdValue);
 			if (job == null)

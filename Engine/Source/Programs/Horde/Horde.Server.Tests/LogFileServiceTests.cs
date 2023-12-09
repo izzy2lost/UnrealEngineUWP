@@ -80,7 +80,7 @@ namespace Horde.Server.Tests
 		[TestMethod]
         public async Task WriteLogLifecycleOldTestAsync()
         {
-			JobId jobId = JobId.GenerateNewId();
+			JobId jobId = JobIdUtils.GenerateNewId();
             ILogFile logFile = await _logFileService.CreateLogFileAsync(jobId, null, null, LogType.Text, useNewStorageBackend: false, logId: null, cancellationToken: CancellationToken.None);
 
             logFile = (await ((ILogFileService)_logFileService).WriteLogDataAsync(logFile, 0, 0, Encoding.ASCII.GetBytes("hello\n"), true))!;
@@ -150,7 +150,7 @@ namespace Horde.Server.Tests
         
         public async Task WriteLogLifecycleAsync(ILogFileService lfs, int maxChunkLength)
         {
-			JobId jobId = JobId.GenerateNewId();
+			JobId jobId = JobIdUtils.GenerateNewId();
             ILogFile logFile = await lfs.CreateLogFileAsync(jobId, null, null, LogType.Text, useNewStorageBackend: false);
 
             string str1 = "hello\n";
@@ -256,7 +256,7 @@ namespace Horde.Server.Tests
             Assert.AreEqual(0, (await _logFileService.GetLogFilesAsync()).Count);
 
 			// Will implicitly test GetLogFileAsync(), AddCachedLogFile()
-			JobId jobId = JobId.GenerateNewId();
+			JobId jobId = JobIdUtils.GenerateNewId();
             SessionId sessionId = SessionId.GenerateNewId();
             ILogFile a = await _logFileService.CreateLogFileAsync(jobId, null, sessionId, LogType.Text, useNewStorageBackend: false, logId: null, CancellationToken.None);
             ILogFile b = (await _logFileService.GetCachedLogFileAsync(a.Id, CancellationToken.None))!;
@@ -267,14 +267,14 @@ namespace Horde.Server.Tests
             ILogFile? notFound = await _logFileService.GetCachedLogFileAsync(LogId.GenerateNewId(), CancellationToken.None);
             Assert.IsNull(notFound);
 
-            await _logFileService.CreateLogFileAsync(JobId.GenerateNewId(), null, SessionId.GenerateNewId(), LogType.Text, useNewStorageBackend: false, logId: null, cancellationToken: CancellationToken.None);
+            await _logFileService.CreateLogFileAsync(JobIdUtils.GenerateNewId(), null, SessionId.GenerateNewId(), LogType.Text, useNewStorageBackend: false, logId: null, cancellationToken: CancellationToken.None);
             Assert.AreEqual(2, (await _logFileService.GetLogFilesAsync()).Count);
         }
 
         [TestMethod]
         public async Task AuthorizeForSessionAsync()
         {
-			JobId jobId = JobId.GenerateNewId();
+			JobId jobId = JobIdUtils.GenerateNewId();
             SessionId sessionId = SessionId.GenerateNewId();
             ILogFile logFile = await _logFileService.CreateLogFileAsync(jobId, null, sessionId, LogType.Text, useNewStorageBackend: false, logId: null, cancellationToken: CancellationToken.None);
             ILogFile logFileNoSession = await _logFileService.CreateLogFileAsync(jobId, null, null, LogType.Text, useNewStorageBackend: false, logId: null, cancellationToken: CancellationToken.None);
@@ -296,7 +296,7 @@ namespace Horde.Server.Tests
 		[TestMethod]
 		public async Task ChunkSplittingAsync()
 		{
-			JobId jobId = JobId.GenerateNewId();
+			JobId jobId = JobIdUtils.GenerateNewId();
 			ILogFile logFile = await _logFileService.CreateLogFileAsync(jobId, null, null, LogType.Text, useNewStorageBackend: false, logId: null, cancellationToken: CancellationToken.None);
 
 			long offset = 0;

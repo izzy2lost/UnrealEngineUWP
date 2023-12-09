@@ -213,7 +213,7 @@ namespace Horde.Server.Tests
 
 		public IJob CreateJob(StreamId streamId, int change, string name, IGraph graph, TimeSpan time = default, bool promoteByDefault = true, bool updateIssues = true)
 		{
-			JobId jobId = JobId.GenerateNewId();
+			JobId jobId = JobIdUtils.GenerateNewId();
 			DateTime utcNow = DateTime.UtcNow;
 
 			List<IJobStepBatch> batches = new List<IJobStepBatch>();

@@ -127,7 +127,7 @@ namespace Horde.Server.Tests
 			CreateJobOptions options = new CreateJobOptions();
 			options.Arguments.Add("-Target=Step That Depends on Paused Step;Step That Depends on Update Version Files");
 
-			IJob job = await JobCollection.AddAsync(JobId.GenerateNewId(), stream.Id,
+			IJob job = await JobCollection.AddAsync(JobIdUtils.GenerateNewId(), stream.Id,
 				fixture.TemplateRefId1, fixture.Template.Hash, graph, "Test Paused Step Job",
 				1000, 1000, options);
 

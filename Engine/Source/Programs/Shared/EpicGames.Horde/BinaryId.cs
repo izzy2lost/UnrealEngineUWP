@@ -17,7 +17,7 @@ namespace EpicGames.Horde
 	[JsonSchemaString]
 	[JsonConverter(typeof(BinaryIdJsonConverter))]
 	[TypeConverter(typeof(BinaryIdTypeConverter))]
-	public readonly struct BinaryId : IEquatable<BinaryId>
+	public readonly struct BinaryId : IEquatable<BinaryId>, IComparable<BinaryId>
 	{
 		readonly int _a;
 		readonly int _b;
@@ -176,6 +176,21 @@ namespace EpicGames.Horde
 			BinaryPrimitives.WriteInt32LittleEndian(bytes, _a);
 			BinaryPrimitives.WriteInt32LittleEndian(bytes[4..], _b);
 			BinaryPrimitives.WriteInt32LittleEndian(bytes[8..], _c);
+		}
+
+		/// <inheritdoc/>
+		public int CompareTo(BinaryId other)
+		{
+			int result = _a.CompareTo(other._a);
+			if (result == 0)
+			{
+				result = _b.CompareTo(_b);
+				if (result == 0)
+				{
+					result = _c.CompareTo(_c);
+				}
+			}
+			return result;
 		}
 
 		/// <summary>

@@ -64,7 +64,7 @@ namespace Horde.Server.Tests
 		[TestMethod]
 		public async Task IndexTestsAsync()
 		{
-			JobId jobId = JobId.GenerateNewId();
+			JobId jobId = JobIdUtils.GenerateNewId();
 			ILogFile logFile = await _logFileService.CreateLogFileAsync(jobId, null, null, LogType.Text, useNewStorageBackend: false);
 
 			// Write the test data to the log file in blocks
@@ -135,7 +135,7 @@ namespace Horde.Server.Tests
 		[TestMethod]
 		public async Task PartialTokenTestsAsync()
 		{
-			JobId jobId = JobId.GenerateNewId();
+			JobId jobId = JobIdUtils.GenerateNewId();
 			ILogFile logFile = await _logFileService.CreateLogFileAsync(jobId, null, null, LogType.Text, useNewStorageBackend: false);
 
 			string[] lines =
@@ -177,7 +177,7 @@ namespace Horde.Server.Tests
 		[TestMethod]
 		public async Task AppendIndexTestsAsync()
 		{
-			JobId jobId = JobId.GenerateNewId();
+			JobId jobId = JobIdUtils.GenerateNewId();
 			ILogFile logFile = await _logFileService.CreateLogFileAsync(jobId, null, null, LogType.Text, useNewStorageBackend: false);
 
 			logFile = await WriteLogDataAsync(logFile, 0, 0, Encoding.UTF8.GetBytes("abc\n"), true);
