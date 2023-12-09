@@ -1943,7 +1943,7 @@ namespace uba
 			auto memClose = MakeGuard([&](){ UnmapViewOfFile(mem, fileSize); });
 
 			constexpr bool useFileMapForWrite = false;
-			bool useOverlap = fileSize > 1024 * 1024;
+			bool useOverlap = false;// fileSize > 8 * 1024 * 1024;
 
 			u32 attributes = DefaultAttributes();
 			if (useOverlap)

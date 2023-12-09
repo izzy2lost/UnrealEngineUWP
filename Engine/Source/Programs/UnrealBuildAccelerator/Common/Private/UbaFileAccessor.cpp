@@ -211,7 +211,7 @@ namespace uba
 		u8* pos = (u8*)data;
 		while (writeLeft)
 		{
-			u32 toWrite = u32(Min(writeLeft, 1024llu * 1024 * 1024));
+			u32 toWrite = u32(Min(writeLeft, 8llu * 1024 * 1024));
 			u32 toActuallyWrite = toWrite;
 
 #if 0
