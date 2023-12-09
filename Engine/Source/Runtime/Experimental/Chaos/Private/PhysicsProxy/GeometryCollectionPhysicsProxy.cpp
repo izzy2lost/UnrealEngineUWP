@@ -1105,9 +1105,10 @@ Chaos::FPBDRigidClusteredParticleHandle* FGeometryCollectionPhysicsProxy::FindCl
 	else
 	{
 		const int32 TransformIndex = ItemIndex.GetTransformIndex();
-		if (SolverParticleHandles.IsValidIndex(TransformIndex))
+		int32 ParticleIndex = FromTransformToParticleIndex[TransformIndex];
+		if (SolverParticleHandles.IsValidIndex(ParticleIndex))
 		{
-			ResultHandle = SolverParticleHandles[TransformIndex];
+			ResultHandle = SolverParticleHandles[ParticleIndex];
 		}
 	}
 	return ResultHandle;
