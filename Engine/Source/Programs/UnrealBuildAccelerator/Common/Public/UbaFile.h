@@ -2,8 +2,9 @@
 
 #pragma once
 
-#include "UbaPlatform.h"
 #include "UbaLogger.h"
+#include "UbaMemory.h"
+#include "UbaPlatform.h"
 
 namespace uba
 {
@@ -76,4 +77,17 @@ namespace uba
 	u64 GetSystemTimeAsFileTime();
 	u64 GetFileTimeAsSeconds(u64 fileTime);
 	bool GetCurrentDirectoryW(StringBufferBase& out);
+
+
+	class DirectoryCache
+	{
+	public:
+		bool CreateDirectory(Logger& logger, const tchar* dir);
+		void Clear();
+
+	private:
+		ReaderWriterLock m_createdDirsLock;
+		struct CreatedDir { ReaderWriterLock lock; bool handled = false; };
+		UnorderedMap<TString, CreatedDir> m_createdDirs;
+	};
 }

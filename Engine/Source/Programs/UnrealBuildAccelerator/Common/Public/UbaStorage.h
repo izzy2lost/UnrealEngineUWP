@@ -204,9 +204,7 @@ namespace uba
 		UnorderedMap<CasKey, TString> m_deferredCasCreationLookup;
 		UnorderedMap<const tchar*, CasKey, HashString, EqualString> m_deferredCasCreationLookupByName;
 
-		ReaderWriterLock m_createdDirsLock;
-		struct CreatedDir { ReaderWriterLock lock; bool handled = false; };
-		UnorderedMap<TString, CreatedDir> m_createdDirs;
+		DirectoryCache m_dirCache;
 
 		static constexpr u64 BufferSlotSize = 16*1024*1024;
 		static constexpr u64 BufferSlotHalfSize = BufferSlotSize/2; // This must be three times a msg size or more.

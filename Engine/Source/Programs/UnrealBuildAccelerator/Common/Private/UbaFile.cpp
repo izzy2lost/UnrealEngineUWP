@@ -741,4 +741,47 @@ namespace uba
 		return true;
 #endif
 	}
+
+	bool DirectoryCache::CreateDirectory(Logger& logger, const tchar* dir)
+	{
+		u64 dirLen = TStrlen(dir);
+		if (dir[dirLen - 1] == PathSeparator)
+			--dirLen;
+		TString key(dir, dir + dirLen);
+		dir = key.c_str();
+
+		ScopedWriteLock lock(m_createdDirsLock);
+		CreatedDir& cd = m_createdDirs.try_emplace(key).first->second;
+		lock.Leave();
+		ScopedWriteLock dirLock(cd.lock);
+		if (cd.handled)
+			return true;
+		cd.handled = true;
+		if (uba::CreateDirectoryW(dir))
+			return true;
+		u32 lastError = GetLastError();
+		if (lastError == ERROR_ALREADY_EXISTS)
+			return true;
+		if (lastError != ERROR_PATH_NOT_FOUND)
+			return logger.Error(TC("Failed to create directory %s (%s)"), dir, LastErrorToText(lastError).data);
+
+		tchar temp[512];
+		const tchar* lastSep = TStrrchr(dir, PathSeparator);
+		u64 pos = u64(lastSep - dir);
+		memcpy(temp, dir, pos * sizeof(tchar));
+		temp[pos] = 0;
+		if (pos == 2 && temp[1] == ':')
+			return false;
+		if (!CreateDirectory(logger, temp))
+			return false;
+		if (!uba::CreateDirectoryW(dir))
+			return logger.Error(TC("Failed to create directory %s (%s)"), dir, LastErrorToText().data);
+		return true;
+	}
+
+	void DirectoryCache::Clear()
+	{
+		ScopedWriteLock lock(m_createdDirsLock);
+		m_createdDirs.clear();
+	}
 }

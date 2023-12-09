@@ -1505,7 +1505,7 @@ namespace uba
 
 		bool res = DeleteAllFiles(m_logger, m_rootDir.data, false, &deleteCount);
 		m_logger.Info(TC("Deleted %u cas files"), deleteCount);
-		m_createdDirs.clear();
+		m_dirCache.Clear();
 		return res;
 	}
 
@@ -2371,38 +2371,6 @@ namespace uba
 
 	bool StorageImpl::CreateDirectory(const tchar* dir)
 	{
-		u64 dirLen = TStrlen(dir);
-		if (dir[dirLen - 1] == PathSeparator)
-			--dirLen;
-		TString key(dir, dir + dirLen);
-		dir = key.c_str();
-
-		ScopedWriteLock lock(m_createdDirsLock);
-		CreatedDir& cd = m_createdDirs.try_emplace(key).first->second;
-		lock.Leave();
-		ScopedWriteLock dirLock(cd.lock);
-		if (cd.handled)
-			return true;
-		cd.handled = true;
-		if (uba::CreateDirectoryW(dir))
-			return true;
-		u32 lastError = GetLastError();
-		if (lastError == ERROR_ALREADY_EXISTS)
-			return true;
-		if (lastError != ERROR_PATH_NOT_FOUND)
-			return m_logger.Error(TC("Failed to create directory %s (%s)"), dir, LastErrorToText(lastError).data);
-
-		tchar temp[512];
-		const tchar* lastSep = TStrrchr(dir, PathSeparator);
-		u64 pos = u64(lastSep - dir);
-		memcpy(temp, dir, pos*sizeof(tchar));
-		temp[pos] = 0;
-		if (pos == 2 && temp[1] == ':')
-			return false;
-		if (!CreateDirectory(temp))
-			return false;
-		if (!uba::CreateDirectoryW(dir))
-			return m_logger.Error(TC("Failed to create directory %s (%s)"), dir, LastErrorToText().data);
-		return true;
+		return m_dirCache.CreateDirectory(m_logger, dir);
 	}
 }
