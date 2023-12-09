@@ -42,7 +42,7 @@ namespace uba
 		if (IsWindows)
 			ExpandEnvironmentStringsW(TC("%ProgramData%\\Epic\\" UE_APP_NAME), buf, sizeof(buf));
 		else
-			TStrcpy_s(buf, sizeof(buf), TC("~/" UE_APP_NAME));
+			GetFullPathNameW(TC("~/" UE_APP_NAME), sizeof_array(buf), buf, nullptr);
 		return buf;
 	}();
 	u32				DefaultProcessorCount = []() { return GetLogicalProcessorCount(); }();
@@ -58,9 +58,9 @@ namespace uba
 			logger.Error(TC("%s"), message);
 		}
 		logger.Info(TC(""));
-		logger.Info(TC("------------------------"));
+		logger.Info(TC("-------------------------------------------"));
 		logger.Info(TC("   UbaAgent v%hs"), Version);
-		logger.Info(TC("------------------------"));
+		logger.Info(TC("-------------------------------------------"));
 		logger.Info(TC(""));
 		logger.Info(TC("  When started UbaAgent will keep trying to connect to provided host address."));
 		logger.Info(TC("  Once connected it will start helping out. Nothing else is needed :)"));
@@ -283,20 +283,6 @@ namespace uba
 
 			expandedDir.Append(str.data + offset, beginOffset - offset).Append(value);
 			offset = endOffset + 1;
-		}
-		return 0;
-	}
-
-	int FixCommandLinePath(StringBufferBase& str)
-	{
-		if (int res = ExpandEnvironmentVariables(str))
-			return res;
-		if (str[1] != ':')
-		{
-			StringBuffer<> currentDir;
-			GetCurrentDirectoryW(currentDir);
-			currentDir.EnsureEndsWithSlash().Append(str);
-			str.Clear().Append(currentDir);
 		}
 		return 0;
 	}
@@ -526,10 +512,10 @@ namespace uba
 			{
 				if (value.IsEmpty())
 					return PrintHelp(TC("-dir needs a value"));
-				g_rootDir.Clear();
-				g_rootDir.Append(value).Replace('/', PathSeparator);
-				if (int res = FixCommandLinePath(g_rootDir))
+				if (int res = ExpandEnvironmentVariables(value))
 					return res;
+				if ((g_rootDir.count = GetFullPathNameW(value.Replace('\\', PathSeparator).data, g_rootDir.capacity, g_rootDir.data, nullptr)) == 0)
+					return PrintHelp(StringBuffer<>().Appendf(TC("-dir has invalid path %s"), value.data).data);
 			}
 			else if (name.Equals(TC("-name")))
 			{
@@ -578,9 +564,10 @@ namespace uba
 			{
 				if (value.IsEmpty())
 					return PrintHelp(TC("-eventfile needs a value"));
-				eventFile.Append(value);
-				if (int res = FixCommandLinePath(eventFile))
+				if (int res = ExpandEnvironmentVariables(value))
 					return res;
+				if ((eventFile.count = GetFullPathNameW(value.Replace('\\', PathSeparator).data, eventFile.capacity, eventFile.data, nullptr)) == 0)
+					return PrintHelp(StringBuffer<>().Appendf(TC("-eventfile has invalid path %s"), value.data).data);
 			}
 			else if (name.Equals(TC("-killrandom")))
 			{
@@ -684,11 +671,15 @@ namespace uba
 
 
 		// Check if AWS
-		#if defined(UBA_USE_AWS)
+		#if UBA_USE_AWS
 		AWS aws;
-		aws.QueryInformation(logger, extraInfo, g_rootDir.data);
-		if (zone.IsEmpty())
-			zone.Append(aws.GetAvailabilityZone());
+		{
+			DirectoryCache dirCache;
+			dirCache.CreateDirectory(logger, g_rootDir.data);
+			aws.QueryInformation(logger, extraInfo, g_rootDir.data);
+			if (zone.IsEmpty())
+				zone.Append(aws.GetAvailabilityZone());
+		}
 		#endif
 
 		if (zone.count)
@@ -795,7 +786,7 @@ namespace uba
 		StringBuffer<512> terminationReason;
 		u64 terminationTimeMs = 0;
 
-		#if defined(UBA_USE_AWS)
+		#if UBA_USE_AWS
 		if (aws.IsTerminating(logger, terminationReason, terminationTimeMs))
 		{
 			LoggerWithWriter(g_consoleLogWriter, TC("")).Info(TC("%s. Exiting UbaAgent before starting session"), terminationReason.data);
@@ -1064,7 +1055,7 @@ namespace uba
 				{
 					if (IsTerminating(logger, eventFile.data, terminationReason, terminationTimeMs))
 						isTerminating = true;
-					#if defined(UBA_USE_AWS)
+					#if UBA_USE_AWS
 					else if (aws.IsTerminating(logger, terminationReason, terminationTimeMs))
 						isTerminating = true;
 					#endif

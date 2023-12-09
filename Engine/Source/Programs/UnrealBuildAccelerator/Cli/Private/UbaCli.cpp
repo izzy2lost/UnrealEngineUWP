@@ -25,7 +25,7 @@ namespace uba
 		if (IsWindows)
 			ExpandEnvironmentStringsW(TC("%ProgramData%\\Epic\\" UE_APP_NAME), buf, sizeof(buf));
 		else
-			TStrcpy_s(buf, sizeof(buf), TC("~/" UE_APP_NAME));
+			GetFullPathNameW(TC("~/" UE_APP_NAME), sizeof_array(buf), buf, nullptr);
 		return buf;
 		}();
 	u32				DefaultProcessorCount = []() { return GetLogicalProcessorCount(); }();
@@ -39,9 +39,9 @@ namespace uba
 			logger.Error(TC("%s"), message);
 		}
 		logger.Info(TC(""));
-		logger.Info(TC("------------------------"));
+		logger.Info(TC("-------------------------------------------"));
 		logger.Info(TC("   UbaCli v%hs"), Version);
-		logger.Info(TC("------------------------"));
+		logger.Info(TC("-------------------------------------------"));
 		logger.Info(TC(""));
 		logger.Info(TC("  UbaCli.exe [options...] <commandtype> <executable> [arguments...]"));
 		logger.Info(TC(""));
@@ -261,7 +261,8 @@ namespace uba
 			{
 				if (value.IsEmpty())
 					return PrintHelp(TC("-dir needs a value"));
-				g_rootDir.Clear().Append(value);
+				if ((g_rootDir.count = GetFullPathNameW(value.Replace('/', PathSeparator).data, g_rootDir.capacity, g_rootDir.data, nullptr)) == 0)
+					return PrintHelp(StringBuffer<>().Appendf(TC("-dir has invalid path %s"), g_rootDir.data).data);
 			}
 			else if (name.Equals(TC("-?")))
 			{
@@ -312,6 +313,9 @@ namespace uba
 			StringBuffer<> msg;
 			return PrintHelp(errorMsg);
 		}
+
+		if (application.empty())
+			return PrintHelp(TC("No executable provided"));
 
 		StringBuffer<512> currentDir;
 		GetCurrentDirectoryW(currentDir);
