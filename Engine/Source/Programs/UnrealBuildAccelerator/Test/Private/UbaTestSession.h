@@ -300,12 +300,23 @@ namespace uba
 			});
 	}
 
+	const tchar* GetPingApplication()
+	{
+		#if PLATFORM_WINDOWS
+		return TC("c:\\windows\\system32\\ping.exe");
+		#elif PLATFORM_LINUX
+		return TC("/usr/bin/ping");
+		#else
+		return TC("/sbin/ping");
+		#endif
+	}
+
 	bool TestMultipleDetouredProcesses(LoggerWithWriter& logger, const StringBufferBase& testRootDir)
 	{
 		return RunLocal(logger, testRootDir, [](LoggerWithWriter& logger, SessionServer& session, const tchar* workingDir, const RunProcessFunction& runProcess)
 			{
 				ProcessStartInfo processInfo;
-				processInfo.application = IsWindows ? TC("c:\\windows\\system32\\ping.exe") : TC("/usr/bin/ping");
+				processInfo.application = GetPingApplication();
 				processInfo.workingDir = workingDir;
 				processInfo.arguments = IsWindows ? TC("-n 2 localhost") : TC("-c 2 localhost");
 				Vector<ProcessHandle> processes;
@@ -331,7 +342,7 @@ namespace uba
 		return RunLocal(logger, testRootDir, [](LoggerWithWriter& logger, SessionServer& session, const tchar* workingDir, const RunProcessFunction& runProcess)
 			{
 				ProcessStartInfo processInfo;
-				processInfo.application = IsWindows ? TC("c:\\windows\\system32\\ping.exe") : TC("/usr/bin/ping");
+				processInfo.application = GetPingApplication();
 				processInfo.workingDir = workingDir;
 				processInfo.arguments = IsWindows ? TC("-n 1 localhost") : TC("-c 1 localhost");
 

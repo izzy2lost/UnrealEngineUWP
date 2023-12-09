@@ -6,6 +6,7 @@
 
 #include "UbaBinaryReaderWriter.h"
 #include "UbaFileAccessor.h"
+#include "UbaProcess.h"
 #include "UbaPathUtils.h"
 #include "UbaPlatform.h"
 #include "UbaEvent.h"
@@ -15,24 +16,28 @@
 #include "UbaTimer.h"
 #include "UbaDirectoryIterator.h"
 
+#define VA_ARGS(...) , ##__VA_ARGS__
+#define UBA_TEST_CHECK(expr, fmt, ...) if (!(expr)) return logger.Error(TC(fmt) VA_ARGS(__VA_ARGS__));
+
+
 namespace uba
 {
 	bool TestTime(Logger& logger, const StringBufferBase& rootDir)
 	{
-		#if 0
+#if 0
 		LoggerWithWriter consoleLogger(g_consoleLogWriter); (void)consoleLogger;
 		u64 time1 = GetSystemTimeUs();
 		Sleep(1000);
 		u64 time2 = GetSystemTimeUs();
 		u64 ms = (time2 - time1) / 1000;
 		consoleLogger.Info(TC("Slept ms: %llu"), ms);
-		
+
 		time1 = GetTime();
 		Sleep(1000);
 		time2 = GetTime();
 		ms = (time2 * 1000 / GetFrequency()) - (time1 * 1000 / GetFrequency());
 		consoleLogger.Info(TC("Slept ms: %llu"), ms);
-		#endif
+#endif
 
 		return true;
 	}
@@ -67,14 +72,14 @@ namespace uba
 
 	bool TestPaths(Logger& logger, const StringBufferBase& rootDir)
 	{
-		#if PLATFORM_WINDOWS
+#if PLATFORM_WINDOWS
 		const tchar* workingDir = TC("e:\\dev\\");
 		const tchar* filename = TC("\"e:\\temp\"");
 		tchar buffer[1024];
 		u32 lengthResult;
 		if (!FixPath2(filename, workingDir, TStrlen(workingDir), buffer, &lengthResult))
 			return logger.Error(TC("FixPath2 (1) failed"));
-		#endif
+#endif
 		return true;
 	}
 
@@ -184,6 +189,44 @@ namespace uba
 		u64* mem = (u64*)block.Allocate(8, 1, TC("Foo"));
 		*mem = 0x1234;
 		block.Free(mem);
+		return true;
+	}
+
+	bool TestParseArguments(Logger& logger, const StringBufferBase& rootDir)
+	{
+		Vector<TString> arguments;
+		ParseArguments(arguments, TC("foo bar"));
+		UBA_TEST_CHECK(arguments.size() == 2, "ParseAgsuments 1 failed (%llu)", arguments.size());
+
+		Vector<TString> arguments2;
+		ParseArguments(arguments2, TC("\"foo\" bar"));
+		UBA_TEST_CHECK(arguments2.size() == 2, "ParseArguments 2 failed");
+
+		Vector<TString> arguments3;
+		ParseArguments(arguments3, TC("\"foo meh\" bar"));
+		UBA_TEST_CHECK(arguments3.size() == 2, "ParseArguments 3 failed");
+		UBA_TEST_CHECK(Contains(arguments3[0].data(), TC(" ")), "ParseArguments 3 failed");
+
+		Vector<TString> arguments4;
+		ParseArguments(arguments4, TC("\"app\" @\"rsp\""));
+		UBA_TEST_CHECK(arguments4.size() == 2, "ParseArguments 4 failed");
+		UBA_TEST_CHECK(!Contains(arguments4[1].data(), TC("\"")), "ParseArguments 4 failed");
+
+		Vector<TString> arguments5;
+		ParseArguments(arguments5, TC("\"app\" @\"rsp foo\""));
+		UBA_TEST_CHECK(arguments5.size() == 2, "ParseArguments 4 failed");
+		UBA_TEST_CHECK(!Contains(arguments5[1].data(), TC("\"")), "ParseArguments 5 failed");
+		UBA_TEST_CHECK(Contains(arguments5[1].data(), TC(" ")), "ParseArguments 5 failed");
+
+		Vector<TString> arguments6;
+		ParseArguments(arguments6, TC("\"app\"\"1\" @\"rsp foo\""));
+		UBA_TEST_CHECK(arguments6.size() == 2, "ParseArguments 6 failed");
+		UBA_TEST_CHECK(Equals(arguments6[0].data(), TC("app1")), "ParseArguments 6 failed");
+
+		Vector<TString> arguments7;
+		ParseArguments(arguments7, TC("app \" \\\"foo\\\" bar\""));
+		UBA_TEST_CHECK(arguments7.size() == 2, "ParseArguments 7 failed");
+		UBA_TEST_CHECK(Contains(arguments7[1].data(), TC("\"")), "ParseArguments 7 failed");
 		return true;
 	}
 }

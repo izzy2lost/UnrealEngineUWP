@@ -15,6 +15,7 @@ namespace uba
 		UBA_TEST(TestEvents) \
 		UBA_TEST(TestPaths) \
 		UBA_TEST(TestFiles) \
+		UBA_TEST(TestParseArguments) \
 		UBA_TEST(TestSockets) \
 		UBA_TEST(TestClientServer) \
 		UBA_TEST(TestClientServer2) \

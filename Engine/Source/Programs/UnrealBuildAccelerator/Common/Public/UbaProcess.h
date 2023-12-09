@@ -144,4 +144,6 @@ namespace uba
 		void operator=(const ProcessImpl&) = delete;
 		struct PipeReader;
 	};
+
+	bool ParseArguments(Vector<TString>& outArguments, const tchar* argumentString);
 }

@@ -39,6 +39,7 @@ namespace uba
 		UBA_PROCESS_STAT(virtualAllocFailed, 0) \
 		UBA_PROCESS_STAT(log, 0) \
 		UBA_PROCESS_STAT(sendFiles, 0) \
+		UBA_PROCESS_STAT(writeFiles, 19) \
 
 
 		#define UBA_PROCESS_STAT(T, ver) Timer T;

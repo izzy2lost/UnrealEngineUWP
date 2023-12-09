@@ -6,7 +6,9 @@
 #include "UbaNetworkBackend.h"
 #include "UbaStringBuffer.h"
 
-#define UBA_USE_AWS
+#define UBA_USE_AWS 1
+
+#if UBA_USE_AWS
 
 namespace uba
 {
@@ -146,3 +148,5 @@ namespace uba
 		bool m_isAutoscaling = false;
 	};
 }
+
+#endif

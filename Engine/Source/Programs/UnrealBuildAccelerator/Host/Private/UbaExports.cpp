@@ -170,7 +170,7 @@ extern "C"
 	{
 		using namespace uba;
 
-#if defined(UBA_USE_AWS)
+		#if UBA_USE_AWS
 		AWS aws;
 		if (!zone || !*zone)
 		{
@@ -178,7 +178,7 @@ extern "C"
 			if (aws.QueryAvailabilityZone(logger, rootDir))
 				zone = aws.GetAvailabilityZone();
 		}
-#endif
+		#endif
 
 		StorageServerCreateInfo info(server, rootDir, writer);
 		info.casCapacityBytes = casCapacityBytes;

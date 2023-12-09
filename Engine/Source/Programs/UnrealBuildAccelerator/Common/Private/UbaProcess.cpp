@@ -16,7 +16,6 @@
 #include <poll.h>
 #include <stdio.h>
 #include <spawn.h>
-#include <wordexp.h>
 
 // These headers are used for tracking child and beyond
 // processes and making sure they clean up properly
@@ -422,11 +421,6 @@ namespace uba
 
 		m_session.ProcessExited(*this, m_processStats.wallTime);
 
-		#if PLATFORM_MAC
-		//int res = WaitForProcessGroup(getpgrp());
-		//UBA_ASSERT(res == 0);
-		#endif
-
 		// For some reason a parent can exit before a child. Need to figure out repro for this but I've seen it happen on ClangEditor win64
 		for (auto& child : m_childProcesses)
 			while (!((ProcessImpl*)child.m_process)->m_hasExited)
@@ -818,17 +812,9 @@ namespace uba
 
 					m_processStats.Add(stats);
 
-					if (m_parentProcess)
-						m_parentProcess->m_processStats.Add(m_processStats);
-
-					if (m_startInfo.outputStatsThresholdMs && TimeToMs(m_processStats.GetTotalTime()) > m_startInfo.outputStatsThresholdMs)
-					{
-						m_session.PrintProcessStats(m_processStats, logName.data);
-						m_processStats.Print(m_session.m_logger);
-					}
-
 					if (g_applicationRules[m_rulesIndex].rules->IsExitCodeSuccess(m_nativeProcessExitCode) && !IsCancelled())
 					{
+						TimerScope ts(m_processStats.writeFiles);
 						ScopedWriteLock lock(m_writtenFilesLock);
 						for (auto& kv : m_writtenFiles)
 						{
@@ -840,6 +826,16 @@ namespace uba
 									m_messageSuccess = false;
 						}
 					}
+
+					if (m_parentProcess)
+						m_parentProcess->m_processStats.Add(m_processStats);
+
+					if (m_startInfo.outputStatsThresholdMs && TimeToMs(m_processStats.GetTotalTime()) > m_startInfo.outputStatsThresholdMs)
+					{
+						m_session.PrintProcessStats(m_processStats, logName.data);
+						m_processStats.Print(m_session.m_logger);
+					}
+
 					return false;
 				}
 			case MessageType_Custom:
@@ -1000,57 +996,6 @@ namespace uba
 		temp.Appendf(TC("_CHILD%u.log"), u32(m_childProcesses.size()));
 		return temp.data;
 	}
-
-#if PLATFORM_MAC
-	int ProcessImpl::WaitForProcessGroup(pid_t pgid)
-	{
-		int name[] = {CTL_KERN, KERN_PROC, KERN_PROC_PGRP, pgid};
-
-		for (;;) {
-			// Query the list of processes in the group by using sysctl(3).
-			// This is "hard" because we don't know how big that list is, so we
-			// have to first query the size of the output data and then account for
-			// the fact that the size might change by the time we actually issue
-			// the query.
-			struct kinfo_proc *procs = NULL;
-			size_t nprocs = 0;
-			do {
-				size_t len;
-				if (sysctl(name, 4, 0, &len, NULL, 0) == -1) {
-					printf("Something went wrong\n");
-					return -1;
-				}
-				procs = (struct kinfo_proc *)malloc(len);
-				if (sysctl(name, 4, procs, &len, NULL, 0) == -1) {
-					UBA_ASSERT(errno == ENOMEM);
-					free(procs);
-					procs = NULL;
-				} else {
-					nprocs = len / sizeof(struct kinfo_proc);
-				}
-			} while (procs == NULL);
-			UBA_ASSERT(nprocs >= 1);  // Must have found the group leader at least.
-
-			if (nprocs == 1) {
-				// Found only one process, which must be the leader because we have
-				// purposely expect it as a zombie.
-				UBA_ASSERT(procs->kp_proc.p_pid == pgid);
-				free(procs);
-				return 0;
-			}
-
-			// More than one process left in the process group.  Pause a little bit
-			// before retrying to avoid burning CPU.
-			struct timespec ts;
-			ts.tv_sec = 0;
-			ts.tv_nsec = 1000000;
-			if (nanosleep(&ts, NULL) == -1) {
-				UBA_ASSERT(FALSE);
-				return -1;
-			}
-		}
-	}
-#endif
 
 	struct ProcessImpl::PipeReader
 	{
@@ -1352,8 +1297,6 @@ namespace uba
 
 		if (!m_parentProcess)
 		{
-			wordexp_t  w;
-
 			const char* realApplication = m_realApplication.c_str();
 			StringBuffer<> tempApplication;
 			if (m_realApplication.find(' ') != TString::npos)
@@ -1362,30 +1305,19 @@ namespace uba
 				realApplication = tempApplication.data;
 			}
 
-			static ReaderWriterLock g_wordexpLock; // wordexp is not thread-safe
-			ScopedWriteLock wordExpLock(g_wordexpLock);
-
-			auto expRes = wordexp(realApplication, &w, 0);
-			if (expRes != 0)
+			Vector<TString> arguments;
+			if (!ParseArguments(arguments, m_startInfo.arguments))
 			{
-				logger.Error("wordexp failed (%i) parsing application name: %s", expRes, realApplication);
+				logger.Error("Failed to parse arguments: %s", m_startInfo.arguments);
 				return UBA_EXIT_CODE(16);
 			}
-			const char* args = m_startInfo.arguments;
-			expRes = wordexp(args, &w, WRDE_APPEND);
-			if (expRes != 0)
-			{
-				logger.Error("wordexp failed (%i) parsing arguments: %s", expRes, args);
-				return UBA_EXIT_CODE(16);
-			}
-
-			wordExpLock.Leave();
-
-			auto wordExpGuard = MakeGuard([&]() { wordfree(&w); });
-
-			//logger.Info(TC("ARGS: %hs\n", args.c_str());
-			//const char* argv[] = { app.c_str(), args.c_str(), nullptr };
-			//const char* argv[] = { m_realApplication.c_str(), "-o", "code", "Code.cpp", nullptr };
+			Vector<const char*> arguments2;
+			arguments2.reserve(arguments.size() + 2);
+			arguments2.push_back(realApplication);
+			for (auto& s : arguments)
+				arguments2.push_back(s.data());
+			arguments2.push_back(nullptr);
+			auto argsArray = arguments2.data();
 
 			short flags = POSIX_SPAWN_SETPGROUP;
 
@@ -1414,7 +1346,7 @@ namespace uba
 			StringBuffer<32> rulesStr;
 			StringBuffer<512> logFile;
 			StringBuffer<512> ldLibraryPath;
-			StringBuffer<128> detoursVar;
+			StringBuffer<512> detoursVar;
 
 			Vector<const char*> envvars;
 
@@ -1503,7 +1435,7 @@ namespace uba
 			envvars.push_back(nullptr);
 
 			pid_t processID;
-			res = posix_spawnp(&processID, m_realApplication.c_str(), &fileActions, &attr, w.we_wordv, (char**)envvars.data());
+			res = posix_spawnp(&processID, m_realApplication.c_str(), &fileActions, &attr, (char**)argsArray, (char**)envvars.data());
 
 			posix_spawn_file_actions_destroy(&fileActions);
 			posix_spawnattr_destroy(&attr);
@@ -1524,10 +1456,18 @@ namespace uba
 				PipeReader outReader(*this, LogEntryType_Info);
 				PipeReader errReader(*this, LogEntryType_Error);
 
-				pollfd plist[] = { {outPipe[0],POLLIN}, {errPipe[0],POLLIN} };
+				pollfd plist[] = { {outPipe[0],POLLIN, 0}, {errPipe[0],POLLIN, 0} };
 
 				for (int rval; (rval = poll(plist, sizeof_array(plist), -1)) > 0;)
 				{
+					if (plist[0].revents & POLLHUP && plist[1].revents & POLLHUP) // If they both have hung up we hang up
+						break;
+
+					if (plist[0].revents & POLLERR || plist[1].revents & POLLERR) // If there is an error on any of them we hang up
+					{
+						logger.Error(TC("pipe polling error"));
+						break;
+					}
 					int fd = 0;
 					PipeReader* pipeReader = nullptr;
 					if (plist[0].revents & POLLIN)
@@ -1545,7 +1485,6 @@ namespace uba
 
 					char buffer[1024];
 					int bytesRead = read(fd, buffer, sizeof_array(buffer) - 1);
-					UBA_ASSERT(bytesRead > 0);
 					buffer[bytesRead] = 0;
 					pipeReader->ReadData(buffer, bytesRead);
 				}
@@ -1702,5 +1641,62 @@ namespace uba
 			if (pair.second.mappingHandle.IsValid())
 				CloseFileMapping(pair.second.mappingHandle);
 		m_tempFiles.clear();
+	}
+
+	bool ParseArguments(Vector<TString>& outArguments, const tchar* argumentString)
+	{
+		const tchar* argStart = argumentString;
+		bool isInArg = false;
+		bool isInQuotes = false;
+		bool isEnd = *argumentString == 0;
+		tchar lastChar = 0;
+		for (const tchar* it = argumentString; !isEnd; lastChar = *it, ++it)
+		{
+			isEnd = *it == 0;
+			if (*it == ' ' || *it == '\t' || isEnd)
+			{
+				if (isInQuotes || !isInArg)
+					continue;
+
+				TString result(argStart, it);
+				tchar lastChar2 = 0;
+				for (auto i = result.begin(); i != result.end();)
+				{
+					if (*i == '\"')
+					{
+						if (lastChar2 == '\\')
+							i = result.erase(i - 1) + 1;
+						else
+							i = result.erase(i);
+						lastChar2 = 0;
+						continue;
+					}
+					lastChar2 = *i;
+					++i;
+				}
+
+				outArguments.push_back(std::move(result));
+				isInArg = false;
+				continue;
+			}
+
+			if (!isInArg)
+			{
+				isInArg = true;
+				argStart = it;
+				if (*it == '\"')
+					isInQuotes = true;
+				continue;
+			}
+
+			if (*it == '\"')
+			{
+				if (isInQuotes && lastChar == '\\')
+					continue;
+
+				isInQuotes = !isInQuotes;
+			}
+		}
+		return true;
 	}
 }

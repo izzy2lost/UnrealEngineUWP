@@ -49,7 +49,7 @@ namespace uba
 		TraceType_FileStoreLight,
 	};
 
-	static constexpr u32 TraceVersion = 18;
+	static constexpr u32 TraceVersion = 19;
 	static constexpr u32 TraceReadCompatibilityVersion = 6;
 
 	class Trace
