@@ -9,6 +9,7 @@
 #include "Animation/AnimMetaData.h"
 #include "Animation/AnimSequence.h"
 #include "AnimationUtils.h"
+#include "UObject/AssetRegistryTagsContext.h"
 #include "UObject/LinkerLoad.h"
 #include "Animation/BlendSpace.h"
 #include "Animation/PoseAsset.h"
@@ -767,17 +768,24 @@ void UAnimationAsset::PostEditChangeProperty(FPropertyChangedEvent& PropertyChan
 
 void UAnimationAsset::GetAssetRegistryTags(TArray<FAssetRegistryTag>& OutTags) const
 {
+	PRAGMA_DISABLE_DEPRECATION_WARNINGS;
 	Super::GetAssetRegistryTags(OutTags);
+	PRAGMA_ENABLE_DEPRECATION_WARNINGS;
+}
+
+void UAnimationAsset::GetAssetRegistryTags(FAssetRegistryTagsContext Context) const
+{
+	Super::GetAssetRegistryTags(Context);
 	
 	for (const UAssetUserData* UserData : AssetUserData)
 	{
 		if (UserData)
 		{
-			UserData->GetAssetRegistryTags(OutTags);	
+			UserData->GetAssetRegistryTags(Context);
 		}
 	}
 	
-	OutTags.Add( FAssetRegistryTag("HasParentAsset", HasParentAsset() ? TEXT("True") : TEXT("False"), FAssetRegistryTag::TT_Hidden) );
+	Context.AddTag( FAssetRegistryTag("HasParentAsset", HasParentAsset() ? TEXT("True") : TEXT("False"), FAssetRegistryTag::TT_Hidden) );
 }
 
 EDataValidationResult UAnimationAsset::IsDataValid(FDataValidationContext& Context) const

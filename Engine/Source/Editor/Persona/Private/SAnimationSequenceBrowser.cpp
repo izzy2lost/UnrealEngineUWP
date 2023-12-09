@@ -49,6 +49,7 @@
 #include "AnimationSequenceBrowserMenuContexts.h"
 #include "Viewports.h"
 #include "SceneInterface.h"
+#include "UObject/AssetRegistryTagsContext.h"
 
 #define LOCTEXT_NAMESPACE "SequenceBrowser"
 
@@ -1041,11 +1042,12 @@ void SAnimationSequenceBrowser::Construct(const FArguments& InArgs, const TShare
 	Config.OnAssetToolTipClosing = FOnAssetToolTipClosing::CreateSP( this, &SAnimationSequenceBrowser::OnAssetToolTipClosing );
 
 	// hide all asset registry columns by default (we only really want the name and path)
-	TArray<UObject::FAssetRegistryTag> AssetRegistryTags;
-	UAnimSequence::StaticClass()->GetDefaultObject()->GetAssetRegistryTags(AssetRegistryTags);
-	for(UObject::FAssetRegistryTag& AssetRegistryTag : AssetRegistryTags)
+	UObject* AnimSequenceDefaultObject = UAnimSequence::StaticClass()->GetDefaultObject();
+	FAssetRegistryTagsContextData TagsContext(AnimSequenceDefaultObject, EAssetRegistryTagsCaller::Uncategorized);
+	AnimSequenceDefaultObject->GetAssetRegistryTags(TagsContext);
+	for (const TPair<FName,UObject::FAssetRegistryTag>& TagPair : TagsContext.Tags)
 	{
-		Config.HiddenColumnNames.Add(AssetRegistryTag.Name.ToString());
+		Config.HiddenColumnNames.Add(TagPair.Key.ToString());
 	}
 
 	// Also hide the type column by default (but allow users to enable it, so don't use bShowTypeInColumnView)
@@ -1380,14 +1382,17 @@ TSharedRef<SToolTip> SAnimationSequenceBrowser::CreateCustomAssetToolTip(FAssetD
 	TArray<UObject::FAssetRegistryTag> Tags;
 	UClass* AssetClass = FindObject<UClass>(AssetData.AssetClassPath);
 	check(AssetClass);
-	AssetClass->GetDefaultObject()->GetAssetRegistryTags(Tags);
+	UObject* DefaultObject = AssetClass->GetDefaultObject();
+	FAssetRegistryTagsContextData TagsContext(DefaultObject, EAssetRegistryTagsCaller::Uncategorized);
+	DefaultObject->GetAssetRegistryTags(TagsContext);
 
 	TArray<FName> TagsToShow;
-	for(UObject::FAssetRegistryTag& TagEntry : Tags)
+	FName NameSkeleton(TEXT("Skeleton"));
+	for (const TPair<FName, UObject::FAssetRegistryTag>& TagPair : TagsContext.Tags)
 	{
-		if(TagEntry.Name != FName(TEXT("Skeleton")) && TagEntry.Type != UObject::FAssetRegistryTag::TT_Hidden)
+		if(TagPair.Key != NameSkeleton && TagPair.Value.Type != UObject::FAssetRegistryTag::TT_Hidden)
 		{
-			TagsToShow.Add(TagEntry.Name);
+			TagsToShow.Add(TagPair.Key);
 		}
 	}
 

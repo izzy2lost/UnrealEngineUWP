@@ -17,6 +17,7 @@
 #include "Nodes/InterchangeBaseNodeUtilities.h"
 #include "Templates/SharedPointer.h"
 #include "Types/AttributeStorage.h"
+#include "UObject/AssetRegistryTagsContext.h"
 #include "UObject/Class.h"
 #include "UObject/Field.h"
 #include "UObject/NameTypes.h"
@@ -29,6 +30,7 @@
 #include "InterchangeBaseNode.generated.h"
 
 class FArchive;
+class FAssetRegistryTagsContext;
 class UInterchangeBaseNode;
 struct FFrame;
 
@@ -526,9 +528,13 @@ public:
 
 	static INTERCHANGECORE_API void CopyStorage(const UInterchangeBaseNode* SourceNode, UInterchangeBaseNode* DestinationNode);
 	
+	virtual void AppendAssetRegistryTags(FAssetRegistryTagsContext Context) const
+	{
+	}
+
+	UE_DEPRECATED(5.4, "Implement the version that takes FAssetRegistryTagsContext instead.")
 	virtual void AppendAssetRegistryTags(TArray<FAssetRegistryTag>& OutTags) const
 	{
-		return;
 	}
 
 protected:

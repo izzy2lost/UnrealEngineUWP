@@ -118,7 +118,9 @@ public:
 	/**
 	* Extend the default ULevelSequence asset registry tags
 	*/
-	virtual void ExtendAssetRegistryTags(TArray<FAssetRegistryTag>& OutTags) const override;
+	virtual void ExtendAssetRegistryTags(FAssetRegistryTagsContext Context) const override;
+	UE_DEPRECATED(5.4, "Implement the version that takes FAssetRegistryTagsContext instead.")
+	virtual void ExtendAssetRegistryTags(TArray<FAssetRegistryTag>& OutTags) const override {}
 #if WITH_EDITOR
 	virtual void ExtendAssetRegistryTagMetaData(TMap<FName, FAssetRegistryTagMetadata>& OutMetadata) const override;
 #endif

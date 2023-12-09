@@ -569,11 +569,18 @@ void UFbxSceneImportData::FromJson(FString InJsonString)
 
 void UFbxSceneImportData::GetAssetRegistryTags(TArray<FAssetRegistryTag>& OutTags) const
 {
+	PRAGMA_DISABLE_DEPRECATION_WARNINGS;
+	Super::GetAssetRegistryTags(OutTags);
+	PRAGMA_ENABLE_DEPRECATION_WARNINGS;
+}
+
+void UFbxSceneImportData::GetAssetRegistryTags(FAssetRegistryTagsContext Context) const
+{
 	FAssetImportInfo AssetImportInfo;
 	FAssetImportInfo::FSourceFile SourceFile(SourceFbxFile);
 	AssetImportInfo.Insert(SourceFile);
-	OutTags.Add(FAssetRegistryTag(SourceFileTagName(), AssetImportInfo.ToJson(), FAssetRegistryTag::TT_Hidden));
-	Super::GetAssetRegistryTags(OutTags);
+	Context.AddTag(FAssetRegistryTag(SourceFileTagName(), AssetImportInfo.ToJson(), FAssetRegistryTag::TT_Hidden));
+	Super::GetAssetRegistryTags(Context);
 }
 
 void UFbxSceneImportData::Serialize(FArchive& Ar)

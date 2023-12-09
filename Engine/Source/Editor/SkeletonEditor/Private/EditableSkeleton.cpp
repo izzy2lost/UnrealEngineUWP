@@ -5,6 +5,7 @@
 #include "Misc/MessageDialog.h"
 #include "Misc/FeedbackContext.h"
 #include "Modules/ModuleManager.h"
+#include "UObject/AssetRegistryTagsContext.h"
 #include "UObject/UObjectHash.h"
 #include "UObject/UObjectIterator.h"
 #include "AssetRegistry/AssetData.h"
@@ -295,14 +296,10 @@ void FEditableSkeleton::GetAssetsContainingCurves(const FName& InContainerName, 
 				// using the selected name. We only load what we have to here.
 				UObject* Asset = Data.GetAsset();
 				check(Asset);
-				TArray<UObject::FAssetRegistryTag> Tags;
-				Asset->GetAssetRegistryTags(Tags);
+				FAssetRegistryTagsContextData TagsContext(Asset, EAssetRegistryTagsCaller::Uncategorized);
+				Asset->GetAssetRegistryTags(TagsContext);
 
-				UObject::FAssetRegistryTag* CurveTag = Tags.FindByPredicate([](const UObject::FAssetRegistryTag& InTag)
-				{
-					return InTag.Name == USkeleton::CurveNameTag;
-				});
-				
+				UObject::FAssetRegistryTag* CurveTag = TagsContext.Tags.Find(USkeleton::CurveNameTag);
 				if (CurveTag)
 				{
 					CurveData = CurveTag->Value;

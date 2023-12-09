@@ -16,6 +16,7 @@
 #include "Kismet2/CompilerResultsLog.h"
 #include "Binding/PropertyBinding.h"
 #include "Blueprint/WidgetBlueprintGeneratedClass.h"
+#include "UObject/AssetRegistryTagsContext.h"
 #include "UObject/PropertyTag.h"
 #include "WidgetBlueprintCompiler.h"
 #include "UObject/EditorObjectVersion.h"
@@ -41,7 +42,10 @@
 
 #define LOCTEXT_NAMESPACE "UMG"
 
+PRAGMA_DISABLE_DEPRECATION_WARNINGS;
 FWidgetBlueprintDelegates::FGetAssetTags FWidgetBlueprintDelegates::GetAssetTags;
+PRAGMA_ENABLE_DEPRECATION_WARNINGS;
+FWidgetBlueprintDelegates::FGetAssetTagsWithContext FWidgetBlueprintDelegates::GetAssetTagsWithContext;
 
 FEditorPropertyPathSegment::FEditorPropertyPathSegment()
 	: Struct(nullptr)
@@ -720,9 +724,24 @@ void UWidgetBlueprint::PreSave(FObjectPreSaveContext ObjectSaveContext)
 
 void UWidgetBlueprint::GetAssetRegistryTags(TArray<FAssetRegistryTag>& OutTags) const
 {
+	PRAGMA_DISABLE_DEPRECATION_WARNINGS;
 	Super::GetAssetRegistryTags(OutTags);
+	PRAGMA_ENABLE_DEPRECATION_WARNINGS;
+}
 
-	FWidgetBlueprintDelegates::GetAssetTags.Broadcast(this, OutTags);
+void UWidgetBlueprint::GetAssetRegistryTags(FAssetRegistryTagsContext Context) const
+{
+	Super::GetAssetRegistryTags(Context);
+
+	PRAGMA_DISABLE_DEPRECATION_WARNINGS;
+	TArray<UObject::FAssetRegistryTag> DeprecatedFunctionTags;
+	FWidgetBlueprintDelegates::GetAssetTags.Broadcast(this, DeprecatedFunctionTags);
+	for (UObject::FAssetRegistryTag& Tag : DeprecatedFunctionTags)
+	{
+		Context.AddTag(MoveTemp(Tag));
+	}
+	PRAGMA_ENABLE_DEPRECATION_WARNINGS;
+	FWidgetBlueprintDelegates::GetAssetTagsWithContext.Broadcast(this, Context);
 }
 
 void UWidgetBlueprint::NotifyGraphRenamed(class UEdGraph* Graph, FName OldName, FName NewName)

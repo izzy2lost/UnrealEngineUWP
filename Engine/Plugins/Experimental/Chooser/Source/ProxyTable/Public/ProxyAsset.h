@@ -19,7 +19,7 @@ class UProxyAsset : public UObject, public IHasContextClass
 public:
 	UProxyAsset() {}
 
-	virtual void GetAssetRegistryTags(TArray<FAssetRegistryTag>& OutTags) const override;
+	virtual void GetAssetRegistryTags(FAssetRegistryTagsContext Context) const override;
 
 	static PROXYTABLE_API FName TypeTagName;
 

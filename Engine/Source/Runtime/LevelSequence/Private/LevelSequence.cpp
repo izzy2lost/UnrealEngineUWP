@@ -19,6 +19,7 @@
 #include "Engine/Engine.h"
 #include "MovieScene.h"
 #include "MovieSceneCommonHelpers.h"
+#include "UObject/AssetRegistryTagsContext.h"
 #include "UObject/Package.h"
 #include "UObject/UObjectHash.h"
 #include "Animation/AnimInstance.h"
@@ -161,10 +162,17 @@ ETrackSupport ULevelSequence::IsTrackSupported(TSubclassOf<class UMovieSceneTrac
 
 void ULevelSequence::GetAssetRegistryTags(TArray<FAssetRegistryTag>& OutTags) const
 {
+	PRAGMA_DISABLE_DEPRECATION_WARNINGS;
+	Super::GetAssetRegistryTags(OutTags);
+	PRAGMA_ENABLE_DEPRECATION_WARNINGS;
+}
+
+void ULevelSequence::GetAssetRegistryTags(FAssetRegistryTagsContext Context) const
+{
 #if WITH_EDITORONLY_DATA
 	if (DirectorBlueprint)
 	{
-		DirectorBlueprint->GetAssetRegistryTags(OutTags);
+		DirectorBlueprint->GetAssetRegistryTags(Context);
 	}
 #endif
 
@@ -173,11 +181,19 @@ void ULevelSequence::GetAssetRegistryTags(TArray<FAssetRegistryTag>& OutTags) co
 		IMovieSceneMetaDataInterface* MetaDataInterface = Cast<IMovieSceneMetaDataInterface>(MetaData);
 		if (MetaDataInterface)
 		{
-			MetaDataInterface->ExtendAssetRegistryTags(OutTags);
+			PRAGMA_DISABLE_DEPRECATION_WARNINGS;
+			TArray<UObject::FAssetRegistryTag> DeprecatedFunctionTags;
+			MetaDataInterface->ExtendAssetRegistryTags(DeprecatedFunctionTags);
+			for (UObject::FAssetRegistryTag& Tag : DeprecatedFunctionTags)
+			{
+				Context.AddTag(MoveTemp(Tag));
+			}
+			PRAGMA_ENABLE_DEPRECATION_WARNINGS;
+			MetaDataInterface->ExtendAssetRegistryTags(Context);
 		}
 	}
 
-	Super::GetAssetRegistryTags(OutTags);
+	Super::GetAssetRegistryTags(Context);
 }
 
 void ULevelSequence::GetAssetRegistryTagMetadata(TMap<FName, FAssetRegistryTagMetadata>& OutMetadata) const

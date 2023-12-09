@@ -8,6 +8,7 @@
 
 #include "AnimationSequenceCompiler.h"
 #include "Animation/AnimData/AnimDataModel.h"
+#include "UObject/AssetRegistryTagsContext.h"
 #include "UObject/LinkerLoad.h"
 #include "Engine/AssetUserData.h"
 #include "Modules/ModuleManager.h"
@@ -1973,7 +1974,14 @@ void USkeleton::HandleVirtualBoneChanges()
 
 void USkeleton::GetAssetRegistryTags(TArray<FAssetRegistryTag>& OutTags) const
 {
+	PRAGMA_DISABLE_DEPRECATION_WARNINGS;
 	Super::GetAssetRegistryTags(OutTags);
+	PRAGMA_ENABLE_DEPRECATION_WARNINGS;
+}
+
+void USkeleton::GetAssetRegistryTags(FAssetRegistryTagsContext Context) const
+{
+	Super::GetAssetRegistryTags(Context);
 
 	TStringBuilder<256> CompatibleSkeletonsBuilder;
 	
@@ -1984,7 +1992,7 @@ void USkeleton::GetAssetRegistryTags(TArray<FAssetRegistryTag>& OutTags) const
 		CompatibleSkeletonsBuilder.Append(USkeleton::CompatibleSkeletonsTagDelimiter);
 	}
 
-	OutTags.Add(FAssetRegistryTag(USkeleton::CompatibleSkeletonsNameTag, CompatibleSkeletonsBuilder.ToString(), FAssetRegistryTag::TT_Hidden));
+	Context.AddTag(FAssetRegistryTag(USkeleton::CompatibleSkeletonsNameTag, CompatibleSkeletonsBuilder.ToString(), FAssetRegistryTag::TT_Hidden));
 
 	// Output sync notify names we use
 	TStringBuilder<256> NotifiesBuilder;
@@ -1996,7 +2004,7 @@ void USkeleton::GetAssetRegistryTags(TArray<FAssetRegistryTag>& OutTags) const
 		NotifiesBuilder.Append(USkeleton::AnimNotifyTagDelimiter);
 	}
 
-	OutTags.Add(FAssetRegistryTag(USkeleton::AnimNotifyTag, NotifiesBuilder.ToString(), FAssetRegistryTag::TT_Hidden));
+	Context.AddTag(FAssetRegistryTag(USkeleton::AnimNotifyTag, NotifiesBuilder.ToString(), FAssetRegistryTag::TT_Hidden));
 	
 	// Output sync marker names we use
 	TStringBuilder<256> SyncMarkersBuilder;
@@ -2008,14 +2016,14 @@ void USkeleton::GetAssetRegistryTags(TArray<FAssetRegistryTag>& OutTags) const
 		SyncMarkersBuilder.Append(USkeleton::AnimSyncMarkerTagDelimiter);
 	}
 
-	OutTags.Add(FAssetRegistryTag(USkeleton::AnimSyncMarkerTag, SyncMarkersBuilder.ToString(), FAssetRegistryTag::TT_Hidden));
+	Context.AddTag(FAssetRegistryTag(USkeleton::AnimSyncMarkerTag, SyncMarkersBuilder.ToString(), FAssetRegistryTag::TT_Hidden));
 	
 	// Allow asset user data to output tags
 	for(const UAssetUserData* AssetUserDataItem : *GetAssetUserDataArray())
 	{
 		if (AssetUserDataItem)
 		{
-			AssetUserDataItem->GetAssetRegistryTags(OutTags);
+			AssetUserDataItem->GetAssetRegistryTags(Context);
 		}
 	}
 }

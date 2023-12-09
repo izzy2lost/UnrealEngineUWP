@@ -25,8 +25,10 @@ public:
 	virtual void PostLoad() override;
 	virtual void Compile(bool bForce = false) override;
 #if WITH_EDITOR
+	virtual void GetAssetRegistryTags(FAssetRegistryTagsContext Context) const override;
+	UE_DEPRECATED(5.4, "Implement the version that takes FAssetRegistryTagsContext instead.")
 	virtual void GetAssetRegistryTags(TArray<FAssetRegistryTag>& OutTags) const override;
-	
+
 	void OnDependentStructChanged(UUserDefinedStruct* Blueprint) { Compile(true); }
 	void OnDependencyCompiled(UBlueprint* Blueprint) { Compile(true); }
 	virtual void AddCompileDependency(const UStruct* Struct) override;

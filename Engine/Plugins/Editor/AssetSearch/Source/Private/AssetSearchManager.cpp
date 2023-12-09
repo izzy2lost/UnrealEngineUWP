@@ -486,7 +486,7 @@ uint64 FAssetSearchManager::GetTextHash(FStringView PackageRelativeExportPath) c
 	return CityHash64(reinterpret_cast<const char*>(PackageRelativeExportPath.GetData() + 1), (PackageRelativeExportPath.Len() - 1) * sizeof(TCHAR));
 }
 
-void FAssetSearchManager::HandleOnGetExtraObjectTags(FAssetRegistryTagsContext& Context)
+void FAssetSearchManager::HandleOnGetExtraObjectTags(FAssetRegistryTagsContext Context)
 {
 	if (!Context.IsFullUpdate())
 	{

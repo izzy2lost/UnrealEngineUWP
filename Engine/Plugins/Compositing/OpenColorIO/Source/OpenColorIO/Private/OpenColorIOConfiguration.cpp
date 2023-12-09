@@ -17,6 +17,7 @@
 #include "TextureResource.h"
 #include "Widgets/Notifications/SNotificationList.h"
 
+#include "UObject/AssetRegistryTagsContext.h"
 #include "UObject/ObjectSaveContext.h"
 
 #include UE_INLINE_GENERATED_CPP_BY_NAME(OpenColorIOConfiguration)
@@ -553,7 +554,14 @@ void UOpenColorIOConfiguration::PostLoad()
 
 void UOpenColorIOConfiguration::GetAssetRegistryTags(TArray<FAssetRegistryTag>& OutTags) const
 {
+	PRAGMA_DISABLE_DEPRECATION_WARNINGS;
 	Super::GetAssetRegistryTags(OutTags);
+	PRAGMA_ENABLE_DEPRECATION_WARNINGS;
+}
+
+void UOpenColorIOConfiguration::GetAssetRegistryTags(FAssetRegistryTagsContext Context) const
+{
+	Super::GetAssetRegistryTags(Context);
 
 	FString Description;
 	if (ConfigurationFile.FilePath.IsEmpty())
@@ -569,7 +577,7 @@ void UOpenColorIOConfiguration::GetAssetRegistryTags(TArray<FAssetRegistryTag>& 
 		Description = TEXT("Configuration: ") + ConfigurationFile.FilePath;
 	}
 
-	OutTags.Add(FAssetRegistryTag(TEXT("ConfigurationFile"), Description, FAssetRegistryTag::TT_Hidden));
+	Context.AddTag(FAssetRegistryTag(TEXT("ConfigurationFile"), Description, FAssetRegistryTag::TT_Hidden));
 }
 
 #if WITH_EDITORONLY_DATA

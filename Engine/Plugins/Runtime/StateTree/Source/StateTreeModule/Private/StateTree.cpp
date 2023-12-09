@@ -13,6 +13,7 @@
 #include "Misc/DataValidation.h"
 #include "StructUtilsDelegates.h"
 #include "Misc/EnumerateRange.h"
+#include "UObject/AssetRegistryTagsContext.h"
 #if WITH_EDITOR
 #include "Engine/UserDefinedStruct.h"
 #endif
@@ -242,10 +243,17 @@ void UStateTree::BeginDestroy()
 
 void UStateTree::GetAssetRegistryTags(TArray<FAssetRegistryTag>& OutTags) const
 {
-	const FString SchemaClassName = Schema ? Schema->GetClass()->GetPathName() : TEXT("");
-	OutTags.Add(FAssetRegistryTag(UE::StateTree::SchemaTag, SchemaClassName, FAssetRegistryTag::TT_Alphabetical));
-
+	PRAGMA_DISABLE_DEPRECATION_WARNINGS;
 	Super::GetAssetRegistryTags(OutTags);
+	PRAGMA_ENABLE_DEPRECATION_WARNINGS;
+}
+
+void UStateTree::GetAssetRegistryTags(FAssetRegistryTagsContext Context) const
+{
+	const FString SchemaClassName = Schema ? Schema->GetClass()->GetPathName() : TEXT("");
+	Context.AddTag(FAssetRegistryTag(UE::StateTree::SchemaTag, SchemaClassName, FAssetRegistryTag::TT_Alphabetical));
+
+	Super::GetAssetRegistryTags(Context);
 }
 
 void UStateTree::PostLoadAssetRegistryTags(const FAssetData& InAssetData, TArray<FAssetRegistryTag>& OutTagsAndValuesToUpdate) const

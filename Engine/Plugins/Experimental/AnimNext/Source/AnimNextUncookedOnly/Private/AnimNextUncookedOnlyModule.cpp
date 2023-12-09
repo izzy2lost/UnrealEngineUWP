@@ -9,6 +9,7 @@
 #include "Modules/ModuleManager.h"
 #include "Param/AnimNextTag.h"
 #include "Scheduler/AnimNextSchedule.h"
+#include "UObject/AssetRegistryTagsContext.h"
 
 namespace UE::AnimNext::UncookedOnly
 {
@@ -24,19 +25,20 @@ namespace UE::AnimNext::UncookedOnly
 			};
 
 			// TEMP: Bind the asset registry tags function for schedules
-			UAnimNextSchedule::GetAssetRegistryTagsFunction = [](const UAnimNextSchedule* InSchedule, TArray<UObject::FAssetRegistryTag>& OutTags)
+			UAnimNextSchedule::GetAssetRegistryTagsFunction = [](const UAnimNextSchedule* InSchedule, FAssetRegistryTagsContext Context)
 			{
 				FAnimNextParameterProviderAssetRegistryExports Exports;
 				FUtils::GetScheduleParameters(InSchedule, Exports);
 				
 				FString TagValue;
 				FAnimNextParameterProviderAssetRegistryExports::StaticStruct()->ExportText(TagValue, &Exports, nullptr, nullptr, PPF_None, nullptr);
-				OutTags.Add(UObject::FAssetRegistryTag(UE::AnimNext::ExportsAnimNextAssetRegistryTag, TagValue, UObject::FAssetRegistryTag::TT_Hidden));
+				Context.AddTag(UObject::FAssetRegistryTag(UE::AnimNext::ExportsAnimNextAssetRegistryTag, TagValue, UObject::FAssetRegistryTag::TT_Hidden));
 			};
 			
 			// Ensure that any BP components that we care about contribute to the parameter pool
-			OnGetExtraObjectTagsHandle = UObject::FAssetRegistryTag::OnGetExtraObjectTags.AddLambda([](const UObject* InObject, TArray<UObject::FAssetRegistryTag>& OutTags)
+			OnGetExtraObjectTagsHandle = UObject::FAssetRegistryTag::OnGetExtraObjectTagsWithContext.AddLambda([](FAssetRegistryTagsContext Context)
 			{
+				const UObject* InObject = Context.GetObject();
 				if(const UBlueprint* Blueprint = Cast<UBlueprint>(InObject))
 				{
 					FAnimNextParameterProviderAssetRegistryExports Exports;
@@ -44,7 +46,7 @@ namespace UE::AnimNext::UncookedOnly
 
 					FString TagValue;
 					FAnimNextParameterProviderAssetRegistryExports::StaticStruct()->ExportText(TagValue, &Exports, nullptr, nullptr, PPF_None, nullptr);
-					OutTags.Add(UObject::FAssetRegistryTag(UE::AnimNext::ExportsAnimNextAssetRegistryTag, TagValue, UObject::FAssetRegistryTag::TT_Hidden));
+					Context.AddTag(UObject::FAssetRegistryTag(UE::AnimNext::ExportsAnimNextAssetRegistryTag, TagValue, UObject::FAssetRegistryTag::TT_Hidden));
 				}
 			});
 		}
@@ -54,7 +56,7 @@ namespace UE::AnimNext::UncookedOnly
 			UAnimNextSchedule::GetAssetRegistryTagsFunction = nullptr;
 			UAnimNextSchedule::CompileFunction = nullptr;
 
-			UObject::FAssetRegistryTag::OnGetExtraObjectTags.Remove(OnGetExtraObjectTagsHandle);
+			UObject::FAssetRegistryTag::OnGetExtraObjectTagsWithContext.Remove(OnGetExtraObjectTagsHandle);
 		}
 
 		FDelegateHandle OnGetExtraObjectTagsHandle;

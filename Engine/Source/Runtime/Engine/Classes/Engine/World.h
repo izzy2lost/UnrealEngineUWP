@@ -2898,6 +2898,8 @@ public:
 #if WITH_EDITOR
 	virtual EDataValidationResult IsDataValid(FDataValidationContext& Context) const override;
 	virtual bool Rename(const TCHAR* NewName = NULL, UObject* NewOuter = NULL, ERenameFlags Flags = REN_None) override;
+	virtual void GetAssetRegistryTags(FAssetRegistryTagsContext Context) const override;
+	UE_DEPRECATED(5.4, "Implement the version that takes FAssetRegistryTagsContext instead.")
 	virtual void GetAssetRegistryTags(TArray<FAssetRegistryTag>& OutTags) const override;
 	virtual void PostLoadAssetRegistryTags(const FAssetData& InAssetData, TArray<FAssetRegistryTag>& OutTagsAndValuesToUpdate) const;
 	virtual bool IsNameStableForNetworking() const override;
@@ -4148,6 +4150,7 @@ public:
 	DECLARE_MULTICAST_DELEGATE_TwoParams(FOnLevelChanged, ULevel*, UWorld*);
 
 	// delegate for generating world asset registry tags so project/game scope can add additional tags for filtering levels in their UI, etc
+	DECLARE_MULTICAST_DELEGATE_TwoParams(FWorldGetAssetTagsWithContext, const UWorld*, FAssetRegistryTagsContext);
 	DECLARE_MULTICAST_DELEGATE_TwoParams(FWorldGetAssetTags, const UWorld*, TArray<UObject::FAssetRegistryTag>&);
 
 	DECLARE_MULTICAST_DELEGATE_ThreeParams(FOnWorldTickStart, UWorld*, ELevelTick, float);
@@ -4235,6 +4238,8 @@ public:
 	static FLevelTransformEvent		PostApplyLevelTransform;
 
 	// called by UWorld::GetAssetRegistryTags()
+	static FWorldGetAssetTagsWithContext GetAssetTagsWithContext;
+	UE_DEPRECATED(5.4, "Subscribe to GetAssetTagsWithContext instead")
 	static FWorldGetAssetTags GetAssetTags;
 
 #if WITH_EDITOR

@@ -16,6 +16,7 @@
 #include "Components/SkeletalMeshComponent.h"
 #include "Engine/Engine.h"
 #include "Net/Core/PropertyConditions/RepChangedPropertyTracker.h"
+#include "UObject/AssetRegistryTagsContext.h"
 #include "UObject/ObjectSaveContext.h"
 #include "Physics/Experimental/PhysScene_Chaos.h"
 #include "UObject/UE5MainStreamObjectVersion.h"
@@ -495,25 +496,30 @@ void AActor::PreSave(FObjectPreSaveContext ObjectSaveContext)
 #if WITH_EDITOR
 void AActor::GetAssetRegistryTags(TArray<FAssetRegistryTag>& OutTags) const
 {
+	PRAGMA_DISABLE_DEPRECATION_WARNINGS;
 	Super::GetAssetRegistryTags(OutTags);
+	PRAGMA_ENABLE_DEPRECATION_WARNINGS;
+}
+
+void AActor::GetAssetRegistryTags(FAssetRegistryTagsContext Context) const
+{
+	Super::GetAssetRegistryTags(Context);
 
 	if (IsPackageExternal() && !IsChildActor())
 	{
 		if (ActorLabel.Len() > 0)
 		{
 			static FName NAME_ActorLabel(TEXT("ActorLabel"));
-			OutTags.Add(UObject::FAssetRegistryTag(NAME_ActorLabel, ActorLabel, UObject::FAssetRegistryTag::TT_Hidden));
+			Context.AddTag(FAssetRegistryTag(NAME_ActorLabel, ActorLabel, UObject::FAssetRegistryTag::TT_Hidden));
 		}
 	}
-}
 
-void AActor::GetExtendedAssetRegistryTagsForSave(const ITargetPlatform* TargetPlatform, TArray<FAssetRegistryTag>& OutTags) const
-{
-	Super::GetExtendedAssetRegistryTagsForSave(TargetPlatform, OutTags);
-	
-	if (IsPackageExternal() && !IsChildActor())
+	if (Context.IsSaving())
 	{
-		FWorldPartitionActorDescUtils::AppendAssetDataTagsFromActor(this, OutTags);
+		if (IsPackageExternal() && !IsChildActor())
+		{
+			FWorldPartitionActorDescUtils::AppendAssetDataTagsFromActor(this, Context);
+		}
 	}
 }
 

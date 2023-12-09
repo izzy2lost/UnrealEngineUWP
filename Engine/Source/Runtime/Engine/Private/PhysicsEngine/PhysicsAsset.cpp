@@ -12,6 +12,7 @@
 #include "Serialization/ObjectReader.h"
 #include "Components/SkeletalMeshComponent.h"
 #include "PhysicsEngine/PhysicsConstraintTemplate.h"
+#include "UObject/AssetRegistryTagsContext.h"
 #include "UObject/ReleaseObjectVersion.h"
 #include "UObject/UObjectIterator.h"
 #include "UObject/FortniteSeasonBranchObjectVersion.h"
@@ -842,10 +843,17 @@ FString UPhysicsAsset::GetDesc()
 
 void UPhysicsAsset::GetAssetRegistryTags(TArray<FAssetRegistryTag>& OutTags) const
 {
-	OutTags.Add( FAssetRegistryTag("Bodies", FString::FromInt(SkeletalBodySetups.Num()), FAssetRegistryTag::TT_Numerical) );
-	OutTags.Add( FAssetRegistryTag("Constraints", FString::FromInt(ConstraintSetup.Num()), FAssetRegistryTag::TT_Numerical) );
-
+	PRAGMA_DISABLE_DEPRECATION_WARNINGS;
 	Super::GetAssetRegistryTags(OutTags);
+	PRAGMA_ENABLE_DEPRECATION_WARNINGS;
+}
+
+void UPhysicsAsset::GetAssetRegistryTags(FAssetRegistryTagsContext Context) const
+{
+	Context.AddTag( FAssetRegistryTag("Bodies", FString::FromInt(SkeletalBodySetups.Num()), FAssetRegistryTag::TT_Numerical) );
+	Context.AddTag( FAssetRegistryTag("Constraints", FString::FromInt(ConstraintSetup.Num()), FAssetRegistryTag::TT_Numerical) );
+
+	Super::GetAssetRegistryTags(Context);
 }
 
 

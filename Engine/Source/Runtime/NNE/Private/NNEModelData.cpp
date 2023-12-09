@@ -8,6 +8,7 @@
 #include "NNEModelOptimizerInterface.h"
 #include "NNERuntimeFormat.h"
 #include "Serialization/CustomVersion.h"
+#include "UObject/AssetRegistryTagsContext.h"
 #include "UObject/WeakInterfacePtr.h"
 
 #if WITH_EDITOR
@@ -197,8 +198,15 @@ namespace UE::NNE
 
 void UNNEModelData::GetAssetRegistryTags(TArray<FAssetRegistryTag>& OutTags) const
 {
-	OutTags.Add(FAssetRegistryTag("TargetRuntimes", UE::NNE::ModelData::GetRuntimesAsString(GetTargetRuntimes()), FAssetRegistryTag::TT_Alphabetical));
+	PRAGMA_DISABLE_DEPRECATION_WARNINGS;
 	Super::GetAssetRegistryTags(OutTags);
+	PRAGMA_ENABLE_DEPRECATION_WARNINGS;
+}
+
+void UNNEModelData::GetAssetRegistryTags(FAssetRegistryTagsContext Context) const
+{
+	Context.AddTag(FAssetRegistryTag("TargetRuntimes", UE::NNE::ModelData::GetRuntimesAsString(GetTargetRuntimes()), FAssetRegistryTag::TT_Alphabetical));
+	Super::GetAssetRegistryTags(Context);
 }
 
 void UNNEModelData::Serialize(FArchive& Ar)

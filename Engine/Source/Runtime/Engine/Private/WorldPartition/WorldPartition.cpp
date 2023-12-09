@@ -5,6 +5,7 @@
 =============================================================================*/
 #include "WorldPartition/WorldPartition.h"
 #include "Misc/PackageName.h"
+#include "UObject/AssetRegistryTagsContext.h"
 #include "UObject/UObjectIterator.h"
 #include "Misc/Paths.h"
 #include "WorldPartition/WorldPartitionLog.h"
@@ -1948,13 +1949,23 @@ void UWorldPartition::DumpActorDescs(const FString& Path)
 
 void UWorldPartition::AppendAssetRegistryTags(TArray<FAssetRegistryTag>& OutTags) const
 {
+	FAssetRegistryTagsContextData Context(this, EAssetRegistryTagsCaller::Uncategorized);
+	AppendAssetRegistryTags(Context);
+	for (TPair<FName, FAssetRegistryTag>& Pair : Context.Tags)
+	{
+		OutTags.Add(MoveTemp(Pair.Value));
+	}
+}
+
+void UWorldPartition::AppendAssetRegistryTags(FAssetRegistryTagsContext Context) const
+{
 	static const FName NAME_LevelIsPartitioned(TEXT("LevelIsPartitioned"));
-	OutTags.Add(FAssetRegistryTag(NAME_LevelIsPartitioned, TEXT("1"), FAssetRegistryTag::TT_Hidden));
+	Context.AddTag(FAssetRegistryTag(NAME_LevelIsPartitioned, TEXT("1"), FAssetRegistryTag::TT_Hidden));
 
 	if (!IsStreamingEnabled())
 	{
 		static const FName NAME_LevelHasStreamingDisabled(TEXT("LevelHasStreamingDisabled"));
-		OutTags.Add(FAssetRegistryTag(NAME_LevelHasStreamingDisabled, TEXT("1"), FAssetRegistryTag::TT_Hidden));
+		Context.AddTag(FAssetRegistryTag(NAME_LevelHasStreamingDisabled, TEXT("1"), FAssetRegistryTag::TT_Hidden));
 	}
 
 	// Append level script references so we can perform changelists validations without loading the world
@@ -1975,7 +1986,7 @@ void UWorldPartition::AppendAssetRegistryTags(TArray<FAssetRegistryTag>& OutTags
 			StringBuilder.RemoveSuffix(1);
 
 			static const FName NAME_LevelScriptExternalActorsReferences(TEXT("LevelScriptExternalActorsReferences"));
-			OutTags.Add(FAssetRegistryTag(NAME_LevelScriptExternalActorsReferences, StringBuilder.ToString(), FAssetRegistryTag::TT_Hidden));
+			Context.AddTag(FAssetRegistryTag(NAME_LevelScriptExternalActorsReferences, StringBuilder.ToString(), FAssetRegistryTag::TT_Hidden));
 		}
 	}
 }

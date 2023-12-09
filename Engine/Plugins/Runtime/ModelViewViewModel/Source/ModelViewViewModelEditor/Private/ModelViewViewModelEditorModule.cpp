@@ -22,6 +22,7 @@
 #include "Tabs/MVVMPreviewSourceSummoner.h"
 #include "Tabs/MVVMViewModelSummoner.h"
 #include "ToolMenus.h"
+#include "UObject/AssetRegistryTagsContext.h"
 #include "UMGEditorModule.h"
 #include "WidgetBlueprintEditor.h"
 #include "WidgetDrawerConfig.h"
@@ -60,8 +61,8 @@ void FModelViewViewModelEditorModule::StartupModule()
 	}
 
 	FMVVMEditorCommands::Register();
-	FWidgetBlueprintDelegates::GetAssetTags.AddRaw(this, &FModelViewViewModelEditorModule::HandleWidgetBlueprintAssetTags);
-	FWidgetBlueprintGeneratedClassDelegates::GetAssetTags.AddRaw(this, &FModelViewViewModelEditorModule::HandleClassBlueprintAssetTags);
+	FWidgetBlueprintDelegates::GetAssetTagsWithContext.AddRaw(this, &FModelViewViewModelEditorModule::HandleWidgetBlueprintAssetTags);
+	FWidgetBlueprintGeneratedClassDelegates::GetAssetTagsWithContext.AddRaw(this, &FModelViewViewModelEditorModule::HandleClassBlueprintAssetTags);
 
 	UToolMenus::RegisterStartupCallback(FSimpleMulticastDelegate::FDelegate::CreateRaw(this, &FModelViewViewModelEditorModule::HandleRegisterMenus));
 }
@@ -71,8 +72,8 @@ void FModelViewViewModelEditorModule::ShutdownModule()
 {
 	UnregisterMenus();
 
-	FWidgetBlueprintGeneratedClassDelegates::GetAssetTags.RemoveAll(this);
-	FWidgetBlueprintDelegates::GetAssetTags.RemoveAll(this);
+	FWidgetBlueprintGeneratedClassDelegates::GetAssetTagsWithContext.RemoveAll(this);
+	FWidgetBlueprintDelegates::GetAssetTagsWithContext.RemoveAll(this);
 	if (FMessageLogModule* MessageLogModule = FModuleManager::GetModulePtr<FMessageLogModule>("MessageLog"))
 	{
 		MessageLogModule->UnregisterLogListing("Model View Viewmodel");
@@ -207,7 +208,7 @@ void FModelViewViewModelEditorModule::HandleActivateMode(FWidgetBlueprintApplica
 	}
 }
 
-void FModelViewViewModelEditorModule::HandleWidgetBlueprintAssetTags(const UWidgetBlueprint* WidgetBlueprint, TArray<UObject::FAssetRegistryTag>& OutTags)
+void FModelViewViewModelEditorModule::HandleWidgetBlueprintAssetTags(const UWidgetBlueprint* WidgetBlueprint, FAssetRegistryTagsContext Context)
 {
 	if (WidgetBlueprint && GEditor)
 	{
@@ -215,19 +216,19 @@ void FModelViewViewModelEditorModule::HandleWidgetBlueprintAssetTags(const UWidg
 		{
 			if (UMVVMBlueprintView* BlueprintView = Subsystem->GetView(WidgetBlueprint))
 			{
-				BlueprintView->AddAssetTags(OutTags);
+				BlueprintView->AddAssetTags(Context);
 			}
 		}
 	}
 }
 
-void FModelViewViewModelEditorModule::HandleClassBlueprintAssetTags(const UWidgetBlueprintGeneratedClass* GeneratedClass, TArray<UObject::FAssetRegistryTag>& OutTags)
+void FModelViewViewModelEditorModule::HandleClassBlueprintAssetTags(const UWidgetBlueprintGeneratedClass* GeneratedClass, FAssetRegistryTagsContext Context)
 {
 	if (GeneratedClass && GEditor && GeneratedClass->ClassGeneratedBy)
 	{
 		if (UWidgetBlueprint* WidgetBlueprint = Cast<UWidgetBlueprint>(GeneratedClass->ClassGeneratedBy))
 		{
-			HandleWidgetBlueprintAssetTags(WidgetBlueprint, OutTags);
+			HandleWidgetBlueprintAssetTags(WidgetBlueprint, Context);
 		}
 	}
 }

@@ -8,6 +8,7 @@
 #include "AssetViewUtils.h"
 #include "IAssetTypeActions.h"
 #include "ContentBrowserDataUtils.h"
+#include "UObject/AssetRegistryTagsContext.h"
 
 #define LOCTEXT_NAMESPACE "ContentBrowserClassDataSource"
 
@@ -347,15 +348,16 @@ const FClassTagDefinitionMap& GetAvailableClassTags()
 	{
 		FClassTagDefinitionMap ClassTagsTmp;
 
-		TArray<UObject::FAssetRegistryTag> CDOClassTags;
-		GetDefault<UClass>()->GetAssetRegistryTags(CDOClassTags);
+		const UObject* ClassDefault = GetDefault<UClass>();
+		FAssetRegistryTagsContextData TagsContext(ClassDefault, EAssetRegistryTagsCaller::Uncategorized);
+		ClassDefault->GetAssetRegistryTags(TagsContext);
 
-		for (const UObject::FAssetRegistryTag& CDOClassTag : CDOClassTags)
+		for (const TPair<FName,UObject::FAssetRegistryTag>& TagPair : TagsContext.Tags)
 		{
-			FClassTagDefinition& ClassTag = ClassTagsTmp.Add(CDOClassTag.Name);
-			ClassTag.TagType = CDOClassTag.Type;
-			ClassTag.DisplayFlags = CDOClassTag.DisplayFlags;
-			ClassTag.DisplayName = FText::AsCultureInvariant(FName::NameToDisplayString(CDOClassTag.Name.ToString(), /*bIsBool*/false));
+			FClassTagDefinition& ClassTag = ClassTagsTmp.Add(TagPair.Key);
+			ClassTag.TagType = TagPair.Value.Type;
+			ClassTag.DisplayFlags = TagPair.Value.DisplayFlags;
+			ClassTag.DisplayName = FText::AsCultureInvariant(FName::NameToDisplayString(TagPair.Key.ToString(), /*bIsBool*/false));
 		}
 
 		return ClassTagsTmp;

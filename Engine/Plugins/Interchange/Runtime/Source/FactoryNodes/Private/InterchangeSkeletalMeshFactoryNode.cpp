@@ -4,6 +4,7 @@
 
 #include "Engine/SkeletalMesh.h"
 #include "Engine/SkinnedAssetCommon.h"
+#include "UObject/AssetRegistryTagsContext.h"
 
 #include UE_INLINE_GENERATED_CPP_BY_NAME(InterchangeSkeletalMeshFactoryNode)
 
@@ -244,7 +245,14 @@ bool UInterchangeSkeletalMeshFactoryNode::SetCustomImportContentType(const EInte
 
 void UInterchangeSkeletalMeshFactoryNode::AppendAssetRegistryTags(TArray<FAssetRegistryTag>& OutTags) const
 {
+	PRAGMA_DISABLE_DEPRECATION_WARNINGS;
 	Super::AppendAssetRegistryTags(OutTags);
+	PRAGMA_ENABLE_DEPRECATION_WARNINGS;
+}
+
+void UInterchangeSkeletalMeshFactoryNode::AppendAssetRegistryTags(FAssetRegistryTagsContext Context) const
+{
+	Super::AppendAssetRegistryTags(Context);
 #if WITH_EDITORONLY_DATA
 	EInterchangeSkeletalMeshContentType ContentType;
 	if (GetCustomImportContentType(ContentType))
@@ -264,7 +272,7 @@ void UInterchangeSkeletalMeshFactoryNode::AppendAssetRegistryTags(TArray<FAssetR
 		};
 
 		FString EnumString = ImportContentTypeToString(ContentType);
-		OutTags.Add(FAssetRegistryTag(NSSkeletalMeshSourceFileLabels::GetSkeletalMeshLastImportContentTypeMetadataKey(), EnumString, FAssetRegistryTag::TT_Hidden));
+		Context.AddTag(FAssetRegistryTag(NSSkeletalMeshSourceFileLabels::GetSkeletalMeshLastImportContentTypeMetadataKey(), EnumString, FAssetRegistryTag::TT_Hidden));
 	}
 #endif
 }

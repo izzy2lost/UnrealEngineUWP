@@ -6,6 +6,7 @@
 #include "Containers/Map.h"
 #include "Containers/StringView.h"
 #include "Misc/Optional.h"
+#include "Templates/Function.h"
 #include "Templates/UnrealTemplate.h"
 #include "UObject/CookEnums.h"
 #include "UObject/Object.h" // UObject::FAssetRegistryTag
@@ -98,7 +99,7 @@ class FAssetRegistryTagsContext
 public:
 	// This is an implicit constructor to reduce the boilerplate for calling GetAssetRegistryTags
 	COREUOBJECT_API FAssetRegistryTagsContext(FAssetRegistryTagsContextData& InData);
-	COREUOBJECT_API FAssetRegistryTagsContext(FAssetRegistryTagsContext& Other);
+	COREUOBJECT_API FAssetRegistryTagsContext(const FAssetRegistryTagsContext& Other);
 
 	COREUOBJECT_API EAssetRegistryTagsCaller GetCaller() const;
 	COREUOBJECT_API const UObject* GetObject() const;
@@ -155,6 +156,10 @@ public:
 	COREUOBJECT_API bool ContainsTag(FName TagName) const;
 	/** Output function: move the given tag into the results, overwriting previous result if it exists. */
 	COREUOBJECT_API void AddTag(UObject::FAssetRegistryTag TagResult);
+	/** Return the number of tags so far reported to the context, including CookTags. */
+	COREUOBJECT_API int32 GetNumTags() const;
+	/** Pass each tag so far reported to the context into the provided Visitor, including CookTags. */
+	COREUOBJECT_API void EnumerateTags(TFunctionRef<void(const UObject::FAssetRegistryTag&)> Visitor) const;
 
 	/**
 	 * True if the caller wants the FAssetBundleData structure (if present) to be stored as a pointer.

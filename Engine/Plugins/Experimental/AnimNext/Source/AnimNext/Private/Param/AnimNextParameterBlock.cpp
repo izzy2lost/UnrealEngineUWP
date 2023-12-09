@@ -3,6 +3,7 @@
 #include "Param/AnimNextParameterBlock.h"
 #include "RigVMCore/RigVMMemoryStorage.h"
 #include "RigVMRuntimeDataRegistry.h"
+#include "UObject/AssetRegistryTagsContext.h"
 #include "UObject/ObjectSaveContext.h"
 #include "UObject/Package.h"
 #include "Graph/RigUnit_AnimNextBeginExecution.h"
@@ -74,12 +75,19 @@ void UAnimNextParameterBlock::PostLoad()
 
 void UAnimNextParameterBlock::GetAssetRegistryTags(TArray<FAssetRegistryTag>& OutTags) const
 {
+	PRAGMA_DISABLE_DEPRECATION_WARNINGS;
 	Super::GetAssetRegistryTags(OutTags);
+	PRAGMA_ENABLE_DEPRECATION_WARNINGS;
+}
+
+void UAnimNextParameterBlock::GetAssetRegistryTags(FAssetRegistryTagsContext Context) const
+{
+	Super::GetAssetRegistryTags(Context);
 	
 #if WITH_EDITORONLY_DATA
 	if(EditorData)
 	{
-		EditorData->GetAssetRegistryTags(OutTags);
+		EditorData->GetAssetRegistryTags(Context);
 	}
 #endif
 }

@@ -34,6 +34,7 @@
 #include "RenderingThread.h"
 #include "SceneInterface.h"
 #include "ShaderCore.h"
+#include "UObject/AssetRegistryTagsContext.h"
 #include "UObject/Package.h"
 
 // FIXME: We should not be accessing nodes directly.
@@ -3342,7 +3343,14 @@ void UOptimusDeformer::PostRename(UObject* OldOuter, const FName OldName)
 
 void UOptimusDeformer::GetAssetRegistryTags(TArray<FAssetRegistryTag>& OutTags) const
 {
+	PRAGMA_DISABLE_DEPRECATION_WARNINGS;
 	Super::GetAssetRegistryTags(OutTags);
+	PRAGMA_ENABLE_DEPRECATION_WARNINGS;
+}
+
+void UOptimusDeformer::GetAssetRegistryTags(FAssetRegistryTagsContext Context) const
+{
+	Super::GetAssetRegistryTags(Context);
 
 	UClass* BindingClass = nullptr;
 
@@ -3364,7 +3372,7 @@ void UOptimusDeformer::GetAssetRegistryTags(TArray<FAssetRegistryTag>& OutTags) 
 	if (BindingClass != nullptr)
 	{
 		FSoftClassPath ClassPath(BindingClass);
-		OutTags.Add(FAssetRegistryTag(TEXT("PrimaryBindingClass"), *ClassPath.ToString(), FAssetRegistryTag::TT_Hidden));
+		Context.AddTag(FAssetRegistryTag(TEXT("PrimaryBindingClass"), *ClassPath.ToString(), FAssetRegistryTag::TT_Hidden));
 	}
 }
 

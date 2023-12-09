@@ -10,6 +10,7 @@
 
 #include "WidgetBlueprintGeneratedClass.generated.h"
 
+class FAssetRegistryTagsContext;
 class UWidget;
 class UUserWidget;
 class UWidgetAnimation;
@@ -56,9 +57,12 @@ class FWidgetBlueprintGeneratedClassDelegates
 {
 public:
 	// delegate for generating widget asset registry tags.
+	DECLARE_MULTICAST_DELEGATE_TwoParams(FGetAssetTagsWithContext, const UWidgetBlueprintGeneratedClass*, FAssetRegistryTagsContext);
 	DECLARE_MULTICAST_DELEGATE_TwoParams(FGetAssetTags, const UWidgetBlueprintGeneratedClass*, TArray<UObject::FAssetRegistryTag>&);
 
 	// called by UWidgetBlueprintGeneratedClass::GetAssetRegistryTags()
+	static UMG_API FGetAssetTagsWithContext GetAssetTagsWithContext;
+	UE_DEPRECATED(5.4, "Subscribe to GetAssetTagsWithContext instead.")
 	static UMG_API FGetAssetTags GetAssetTags;
 };
 #endif
@@ -152,6 +156,8 @@ public:
 	UMG_API virtual void PostLoad() override;
 	UMG_API virtual bool NeedsLoadForServer() const override;
 #if WITH_EDITOR
+	UMG_API virtual void GetAssetRegistryTags(FAssetRegistryTagsContext Context) const override;
+	UE_DEPRECATED(5.4, "Implement the version that takes FAssetRegistryTagsContext instead.")
 	UMG_API virtual void GetAssetRegistryTags(TArray<FAssetRegistryTag>& OutTags) const override;
 #endif
 	//~ End UObject interface

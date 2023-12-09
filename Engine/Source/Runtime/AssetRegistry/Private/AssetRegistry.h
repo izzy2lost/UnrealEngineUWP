@@ -292,7 +292,7 @@ private:
 	 * Callback for FObject::FAssetRegistryTag::OnGetExtraObjectTags
 	 * If bAddMetaDataTagsToOnGetExtraObjectTags is true, this function will add missing UMetaData tags to cooked assets
 	 */
-	void OnGetExtraObjectTags(FAssetRegistryTagsContext& Context);
+	void OnGetExtraObjectTags(FAssetRegistryTagsContext Context);
 #endif
 
 private:

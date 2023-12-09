@@ -4,10 +4,11 @@
 #include "Tasks/Task.h"
 #include "Async/TaskGraphInterfaces.h"
 #include "EngineLogs.h"
+#include "UObject/AssetRegistryTagsContext.h"
 
 #if WITH_EDITOR
 TUniqueFunction<void(UAnimNextSchedule*)> UAnimNextSchedule::CompileFunction;
-TUniqueFunction<void(const UAnimNextSchedule*, TArray<UObject::FAssetRegistryTag>&)> UAnimNextSchedule::GetAssetRegistryTagsFunction;
+TUniqueFunction<void(const UAnimNextSchedule*, FAssetRegistryTagsContext)> UAnimNextSchedule::GetAssetRegistryTagsFunction;
 #endif
 
 void UAnimNextSchedule::PostLoad()
@@ -44,11 +45,18 @@ void UAnimNextSchedule::CompileSchedule()
 
 void UAnimNextSchedule::GetAssetRegistryTags(TArray<FAssetRegistryTag>& OutTags) const
 {
+	PRAGMA_DISABLE_DEPRECATION_WARNINGS;
 	Super::GetAssetRegistryTags(OutTags);
+	PRAGMA_ENABLE_DEPRECATION_WARNINGS;
+}
+
+void UAnimNextSchedule::GetAssetRegistryTags(FAssetRegistryTagsContext Context) const
+{
+	Super::GetAssetRegistryTags(Context);
 
 	check(GetAssetRegistryTagsFunction);
 
-	GetAssetRegistryTagsFunction(this, OutTags);
+	GetAssetRegistryTagsFunction(this, Context);
 }
 
 #endif // #if WITH_EDITOR

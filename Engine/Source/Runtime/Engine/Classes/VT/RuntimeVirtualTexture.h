@@ -170,6 +170,8 @@ protected:
 	ENGINE_API void InitNullResource();
 
 	//~ Begin UObject Interface.
+	ENGINE_API virtual void GetAssetRegistryTags(FAssetRegistryTagsContext Context) const override;
+	UE_DEPRECATED(5.4, "Implement the version that takes FAssetRegistryTagsContext instead.")
 	ENGINE_API virtual void GetAssetRegistryTags(TArray<FAssetRegistryTag>& OutTags) const override;
 	ENGINE_API virtual void PostLoad() override;
 #if WITH_EDITOR

@@ -23,6 +23,7 @@
 #include "Components/SkeletalMeshComponent.h"
 #include "ComponentReregisterContext.h"
 #include "Math/ScaleRotationTranslationMatrix.h"
+#include "UObject/AssetRegistryTagsContext.h"
 #include "UObject/FrameworkObjectVersion.h"
 #include "PhysicsEngine/SphereElem.h"
 #include "UObject/NiagaraObjectVersion.h"
@@ -3492,6 +3493,13 @@ void USkeletalMesh::RebuildRefSkeletonNameToIndexMap()
 
 void USkeletalMesh::GetAssetRegistryTags(TArray<FAssetRegistryTag>& OutTags) const
 {
+	PRAGMA_DISABLE_DEPRECATION_WARNINGS;
+	Super::GetAssetRegistryTags(OutTags);
+	PRAGMA_ENABLE_DEPRECATION_WARNINGS;
+}
+
+void USkeletalMesh::GetAssetRegistryTags(FAssetRegistryTagsContext Context) const
+{
 #if WITH_EDITOR
 	// Avoid accessing properties being compiled, this function will get called again after compilation is finished.
 	if (IsCompiling())
@@ -3500,9 +3508,9 @@ void USkeletalMesh::GetAssetRegistryTags(TArray<FAssetRegistryTag>& OutTags) con
 		if (AssetRegistry)
 		{
 			FAssetData AssetData = AssetRegistry->GetAssetByObjectPath(FSoftObjectPath(this), true /* bIncludeOnlyOnDiskAssets */);
-			AssetData.EnumerateTags([&OutTags](const TPair<FName, FAssetTagValueRef>& Pair)
+			AssetData.EnumerateTags([&Context](const TPair<FName, FAssetTagValueRef>& Pair)
 				{
-					OutTags.Add(FAssetRegistryTag(Pair.Key, Pair.Value.GetStorageString(), FAssetRegistryTag::TT_Alphabetical));
+					Context.AddTag(FAssetRegistryTag(Pair.Key, Pair.Value.GetStorageString(), FAssetRegistryTag::TT_Alphabetical));
 				});
 		}
 		return;
@@ -3521,19 +3529,27 @@ void USkeletalMesh::GetAssetRegistryTags(TArray<FAssetRegistryTag>& OutTags) con
 	
 	int32 NumLODs = GetLODInfoArray().Num();
 
-	OutTags.Add(FAssetRegistryTag("Vertices", FString::FromInt(NumVertices), FAssetRegistryTag::TT_Numerical));
-	OutTags.Add(FAssetRegistryTag("Triangles", FString::FromInt(NumTriangles), FAssetRegistryTag::TT_Numerical));
-	OutTags.Add(FAssetRegistryTag("LODs", FString::FromInt(NumLODs), FAssetRegistryTag::TT_Numerical));
-	OutTags.Add(FAssetRegistryTag("Bones", FString::FromInt(GetRefSkeleton().GetRawBoneNum()), FAssetRegistryTag::TT_Numerical));
-	OutTags.Add(FAssetRegistryTag("MorphTargets", FString::FromInt(GetMorphTargets().Num()), FAssetRegistryTag::TT_Numerical));
-	OutTags.Add(FAssetRegistryTag("SkinWeightProfiles", FString::FromInt(GetSkinWeightProfiles().Num()), FAssetRegistryTag::TT_Numerical));
+	Context.AddTag(FAssetRegistryTag("Vertices", FString::FromInt(NumVertices), FAssetRegistryTag::TT_Numerical));
+	Context.AddTag(FAssetRegistryTag("Triangles", FString::FromInt(NumTriangles), FAssetRegistryTag::TT_Numerical));
+	Context.AddTag(FAssetRegistryTag("LODs", FString::FromInt(NumLODs), FAssetRegistryTag::TT_Numerical));
+	Context.AddTag(FAssetRegistryTag("Bones", FString::FromInt(GetRefSkeleton().GetRawBoneNum()), FAssetRegistryTag::TT_Numerical));
+	Context.AddTag(FAssetRegistryTag("MorphTargets", FString::FromInt(GetMorphTargets().Num()), FAssetRegistryTag::TT_Numerical));
+	Context.AddTag(FAssetRegistryTag("SkinWeightProfiles", FString::FromInt(GetSkinWeightProfiles().Num()), FAssetRegistryTag::TT_Numerical));
 
 #if WITH_EDITORONLY_DATA
 	if (GetAssetImportData())
 	{
-		OutTags.Add( FAssetRegistryTag(SourceFileTagName(), GetAssetImportData()->GetSourceData().ToJson(), FAssetRegistryTag::TT_Hidden) );
+		Context.AddTag( FAssetRegistryTag(SourceFileTagName(), GetAssetImportData()->GetSourceData().ToJson(), FAssetRegistryTag::TT_Hidden) );
 #if WITH_EDITOR
-		GetAssetImportData()->AppendAssetRegistryTags(OutTags);
+		PRAGMA_DISABLE_DEPRECATION_WARNINGS;
+		TArray<UObject::FAssetRegistryTag> DeprecatedFunctionTags;
+		GetAssetImportData()->AppendAssetRegistryTags(DeprecatedFunctionTags);
+		for (UObject::FAssetRegistryTag& Tag : DeprecatedFunctionTags)
+		{
+			Context.AddTag(MoveTemp(Tag));
+		}
+		PRAGMA_ENABLE_DEPRECATION_WARNINGS;
+		GetAssetImportData()->AppendAssetRegistryTags(Context);
 #endif
 	}
 
@@ -3555,19 +3571,19 @@ void USkeletalMesh::GetAssetRegistryTags(TArray<FAssetRegistryTag>& OutTags) con
 
 	// The tag must be added unconditionally, because some code calls this function on the CDO to find out what
 	// tags are available.
-	OutTags.Add(FAssetRegistryTag("MaxBoneInfluences", MaxBoneInfluencesString, FAssetRegistryTag::TT_Numerical));
+	Context.AddTag(FAssetRegistryTag("MaxBoneInfluences", MaxBoneInfluencesString, FAssetRegistryTag::TT_Numerical));
 
 	// Allow asset user data to output tags
 	for(UAssetUserData* AssetUserDataItem : *GetAssetUserDataArray())
 	{
 		if(AssetUserDataItem)
 		{
-			AssetUserDataItem->GetAssetRegistryTags(OutTags);
+			AssetUserDataItem->GetAssetRegistryTags(Context);
 		}
 	}
 #endif // WITH_EDITORONLY_DATA
 	
-	Super::GetAssetRegistryTags(OutTags);
+	Super::GetAssetRegistryTags(Context);
 }
 
 #if WITH_EDITOR

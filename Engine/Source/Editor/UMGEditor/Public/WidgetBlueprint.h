@@ -33,9 +33,12 @@ class UMGEDITOR_API FWidgetBlueprintDelegates
 {
 public:
 	// delegate for generating widget asset registry tags.
+	DECLARE_MULTICAST_DELEGATE_TwoParams(FGetAssetTagsWithContext, const UWidgetBlueprint*, FAssetRegistryTagsContext);
 	DECLARE_MULTICAST_DELEGATE_TwoParams(FGetAssetTags, const UWidgetBlueprint*, TArray<UObject::FAssetRegistryTag>&);
 
 	// called by UWdgetBlueprint::GetAssetRegistryTags()
+	static FGetAssetTagsWithContext GetAssetTagsWithContext;
+	UE_DEPRECATED(5.4, "Subscribe to GetAssetTagsWithContext instead.")
 	static FGetAssetTags GetAssetTags;
 };
 
@@ -283,6 +286,8 @@ public:
 #endif // WITH_EDITORONLY_DATA
 
 #if WITH_EDITOR
+	virtual void GetAssetRegistryTags(FAssetRegistryTagsContext Context) const override;
+	UE_DEPRECATED(5.4, "Implement the version that takes FAssetRegistryTagsContext instead.")
 	virtual void GetAssetRegistryTags(TArray<FAssetRegistryTag>& OutTags) const override;
 	virtual void NotifyGraphRenamed(class UEdGraph* Graph, FName OldName, FName NewName) override;
 	virtual EDataValidationResult IsDataValid(class FDataValidationContext& Context) const override;

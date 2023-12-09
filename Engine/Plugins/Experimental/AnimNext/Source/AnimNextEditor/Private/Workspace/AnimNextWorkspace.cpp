@@ -1,10 +1,11 @@
-﻿// Copyright Epic Games, Inc. All Rights Reserved.
+// Copyright Epic Games, Inc. All Rights Reserved.
 
 #include "AnimNextWorkspace.h"
 
 #include "Graph/AnimNextGraph.h"
 #include "Param/AnimNextParameterBlock.h"
 #include "Scheduler/AnimNextSchedule.h"
+#include "UObject/AssetRegistryTagsContext.h"
 
 const FName UAnimNextWorkspace::ExportsAssetRegistryTag = TEXT("Exports");
 
@@ -214,7 +215,14 @@ void UAnimNextWorkspace::PostTransacted(const FTransactionObjectEvent& Transacti
 
 void UAnimNextWorkspace::GetAssetRegistryTags(TArray<FAssetRegistryTag>& OutTags) const
 {
+	PRAGMA_DISABLE_DEPRECATION_WARNINGS;
 	Super::GetAssetRegistryTags(OutTags);
+	PRAGMA_ENABLE_DEPRECATION_WARNINGS;
+}
+
+void UAnimNextWorkspace::GetAssetRegistryTags(FAssetRegistryTagsContext Context) const
+{
+	Super::GetAssetRegistryTags(Context);
 
 	FAnimNextWorkspaceAssetRegistryExports Exports;
 	Exports.Assets.Reserve(Assets.Num());
@@ -227,5 +235,5 @@ void UAnimNextWorkspace::GetAssetRegistryTags(TArray<FAssetRegistryTag>& OutTags
 	FString TagValue;
 	FAnimNextWorkspaceAssetRegistryExports::StaticStruct()->ExportText(TagValue, &Exports, nullptr, nullptr, PPF_None, nullptr);
 
-	OutTags.Add(FAssetRegistryTag(ExportsAssetRegistryTag, TagValue, FAssetRegistryTag::TT_Hidden));
+	Context.AddTag(FAssetRegistryTag(ExportsAssetRegistryTag, TagValue, FAssetRegistryTag::TT_Hidden));
 }

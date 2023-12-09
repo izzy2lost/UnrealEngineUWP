@@ -14,6 +14,7 @@
 #include "RigVMModel/RigVMNotifications.h"
 #include "RigVMModel/Nodes/RigVMCollapseNode.h"
 #include "Curves/CurveFloat.h"
+#include "UObject/AssetRegistryTagsContext.h"
 #include "UObject/ObjectSaveContext.h"
 #include "Kismet2/BlueprintEditorUtils.h"
 #include "Graph/AnimNextGraphEntry.h"
@@ -175,7 +176,14 @@ void UAnimNextGraph_EditorData::PostDuplicate(EDuplicateMode::Type DuplicateMode
 #if WITH_EDITOR
 void UAnimNextGraph_EditorData::GetAssetRegistryTags(TArray<FAssetRegistryTag>& OutTags) const
 {
-	UObject::GetAssetRegistryTags(OutTags);
+	PRAGMA_DISABLE_DEPRECATION_WARNINGS;
+	Super::GetAssetRegistryTags(OutTags);
+	PRAGMA_ENABLE_DEPRECATION_WARNINGS;
+}
+
+void UAnimNextGraph_EditorData::GetAssetRegistryTags(FAssetRegistryTagsContext Context) const
+{
+	Super::GetAssetRegistryTags(Context);
 
 	FAnimNextParameterProviderAssetRegistryExports ExportParameters;
 	
@@ -191,7 +199,7 @@ void UAnimNextGraph_EditorData::GetAssetRegistryTags(TArray<FAssetRegistryTag>& 
 	{
 		FString TagValue;	
 		FAnimNextParameterProviderAssetRegistryExports::StaticStruct()->ExportText(TagValue, &ExportParameters, nullptr, nullptr, PPF_None, nullptr);
-		OutTags.Add(FAssetRegistryTag(UE::AnimNext::ExportsAnimNextAssetRegistryTag, TagValue, FAssetRegistryTag::TT_Hidden));	
+		Context.AddTag(FAssetRegistryTag(UE::AnimNext::ExportsAnimNextAssetRegistryTag, TagValue, FAssetRegistryTag::TT_Hidden));	
 	}
 }
 

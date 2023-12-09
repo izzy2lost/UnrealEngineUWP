@@ -29,6 +29,7 @@
 #include "PhysicsEngine/PhysicsAsset.h"
 #include "Serialization/MemoryReader.h"
 #include "Serialization/MemoryWriter.h"
+#include "UObject/AssetRegistryTagsContext.h"
 #include "UObject/ObjectSaveContext.h"
 
 #if WITH_EDITOR
@@ -75,6 +76,13 @@ void UCustomizableObject::UpdateVersionId()
 
 void UCustomizableObject::GetAssetRegistryTags(TArray<FAssetRegistryTag>& OutTags) const
 {
+	PRAGMA_DISABLE_DEPRECATION_WARNINGS;
+	Super::GetAssetRegistryTags(OutTags);
+	PRAGMA_ENABLE_DEPRECATION_WARNINGS;
+}
+
+void UCustomizableObject::GetAssetRegistryTags(FAssetRegistryTagsContext Context) const
+{
 	int32 isRoot = 0;
 #if WITH_EDITOR
 	FCustomizableObjectCompilerBase* Compiler = UCustomizableObjectSystem::GetInstance()->GetNewCompiler();
@@ -85,8 +93,8 @@ void UCustomizableObject::GetAssetRegistryTags(TArray<FAssetRegistryTag>& OutTag
 	}
 #endif
 
-	OutTags.Add(FAssetRegistryTag("IsRoot", FString::FromInt(isRoot), FAssetRegistryTag::TT_Numerical));
-	Super::GetAssetRegistryTags(OutTags);
+	Context.AddTag(FAssetRegistryTag("IsRoot", FString::FromInt(isRoot), FAssetRegistryTag::TT_Numerical));
+	Super::GetAssetRegistryTags(Context);
 }
 
 
@@ -117,7 +125,7 @@ void UCustomizableObject::PreSave(FObjectPreSaveContext ObjectSaveContext)
 		const ITargetPlatform* TargetPlatform = ObjectSaveContext.GetTargetPlatform();
 		if (const FMutableCachedPlatformData* PlatformData = CachedPlatformsData.Find(TargetPlatform->PlatformName()))
 		{
-			// Load cached data before saving
+		// Load cached data before saving
 			FMemoryReaderView MemoryReader(PlatformData->ModelData);
 			LoadCompiledData(MemoryReader, TargetPlatform, true);
 

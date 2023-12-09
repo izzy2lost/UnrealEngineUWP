@@ -132,9 +132,11 @@ static UPackage*			GObjTransientPkg								= NULL;
 		}
 	};
 	static FUObjectAnnotationSparse<FPropagatedEditChangeAnnotation, true> PropagatedEditChangeAnnotation;
+	PRAGMA_DISABLE_DEPRECATION_WARNINGS;
 	UObject::FAssetRegistryTag::FOnGetObjectAssetRegistryTags UObject::FAssetRegistryTag::OnGetExtraObjectTags;
-	UObject::FAssetRegistryTag::FOnGetObjectAssetRegistryTagsWithContext UObject::FAssetRegistryTag::OnGetExtraObjectTagsWithContext;
 	UObject::FAssetRegistryTag::FOnGetExtendedAssetRegistryTagsForSave UObject::FAssetRegistryTag::OnGetExtendedAssetRegistryTagsForSave;
+	PRAGMA_ENABLE_DEPRECATION_WARNINGS;
+	UObject::FAssetRegistryTag::FOnGetObjectAssetRegistryTagsWithContext UObject::FAssetRegistryTag::OnGetExtraObjectTagsWithContext;
 	UObject::FOnGetPreviewPlatform UObject::OnGetPreviewPlatform;
 #endif // WITH_EDITOR
 
@@ -2305,7 +2307,9 @@ void UObject::GetExtendedAssetRegistryTagsForSave(const ITargetPlatform* TargetP
 	// EAssetRegistryTagsCaller::AssetRegistryLoad. Because this function was designed only to be called from SavePackage,
 	// and we have removed SavePackage's dependence on it, we decided not to make that extra effort. Any licensee calling
 	// this function should instead call GetAssetRegistryTags with EAssetRegistryTagsCaller::SavePackage.
+	PRAGMA_DISABLE_DEPRECATION_WARNINGS;
 	FAssetRegistryTag::OnGetExtendedAssetRegistryTagsForSave.Broadcast(this, TargetPlatform, OutTags);
+	PRAGMA_ENABLE_DEPRECATION_WARNINGS;
 }
 #endif // WITH_EDITOR
 

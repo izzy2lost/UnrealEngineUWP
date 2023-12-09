@@ -1780,6 +1780,8 @@ public:
 	ENGINE_API virtual void PostCDOContruct() override;
 #if WITH_EDITORONLY_DATA
 	ENGINE_API static void AppendToClassSchema(FAppendToClassSchemaContext& Context);
+	ENGINE_API virtual void GetAssetRegistryTags(FAssetRegistryTagsContext Context) const override;
+	UE_DEPRECATED(5.4, "Implement the version that takes FAssetRegistryTagsContext instead.")
 	ENGINE_API virtual void GetAssetRegistryTags(TArray<FAssetRegistryTag>& OutTags) const override;
 #endif
 	ENGINE_API virtual bool IsPostLoadThreadSafe() const override;

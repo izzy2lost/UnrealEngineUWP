@@ -28,6 +28,7 @@
 #include "Subsystems/ImportSubsystem.h"
 #include "Templates/Casts.h"
 #include "Templates/SubclassOf.h"
+#include "UObject/AssetRegistryTagsContext.h"
 #include "UObject/Object.h"
 #include "UObject/UObjectGlobals.h"
 #include "Widgets/DeclarativeSyntaxSupport.h"
@@ -80,7 +81,7 @@ void FAnimationModifiersModule::StartupModule()
 	});
 
 	// Register extra asset registry tags for UAnimSequence
-	OnGetExtraObjectTagsHandle = UObject::FAssetRegistryTag::OnGetExtraObjectTags.AddStatic(&UAnimationModifier::GetAssetRegistryTagsForAppliedModifiersFromSkeleton);
+	OnGetExtraObjectTagsHandle = UObject::FAssetRegistryTag::OnGetExtraObjectTagsWithContext.AddStatic(&UAnimationModifier::GetAssetRegistryTagsForAppliedModifiersFromSkeleton);
 }
 
 void FAnimationModifiersModule::ShutdownModule()
@@ -95,7 +96,7 @@ void FAnimationModifiersModule::ShutdownModule()
 	UToolMenus::UnregisterOwner(this);
 	FCoreDelegates::OnPostEngineInit.Remove(DelegateHandle);
 
-	UObject::FAssetRegistryTag::OnGetExtraObjectTags.Remove(OnGetExtraObjectTagsHandle);
+	UObject::FAssetRegistryTag::OnGetExtraObjectTagsWithContext.Remove(OnGetExtraObjectTagsHandle);
 	
 	// Remove extender delegate
 	FWorkflowCentricApplication::GetModeExtenderList().RemoveAll([this](FWorkflowApplicationModeExtender& StoredExtender) { return StoredExtender.GetHandle() == Extender.GetHandle(); });

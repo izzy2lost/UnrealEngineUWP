@@ -7,6 +7,7 @@
 #include "InstallBundleUtils.h"
 #include "Misc/ConfigCacheIni.h"
 #include "Misc/ConfigContext.h"
+#include "UObject/AssetRegistryTagsContext.h"
 #include "UObject/CoreRedirects.h"
 #include "DeviceProfiles/DeviceProfile.h"
 #include "DeviceProfiles/DeviceProfileFragment.h"
@@ -582,7 +583,14 @@ void UGameFeatureData::GetContentBundleGuidsFromAsset(const FAssetData& Asset, T
 
 void UGameFeatureData::GetAssetRegistryTags(TArray<FAssetRegistryTag>& OutTags) const
 {
+	PRAGMA_DISABLE_DEPRECATION_WARNINGS;
 	Super::GetAssetRegistryTags(OutTags);
+	PRAGMA_ENABLE_DEPRECATION_WARNINGS;
+}
+
+void UGameFeatureData::GetAssetRegistryTags(FAssetRegistryTagsContext Context) const
+{
+	Super::GetAssetRegistryTags(Context);
 
 	TArray<FGuid> ContentBundleGuids;
 
@@ -600,7 +608,7 @@ void UGameFeatureData::GetAssetRegistryTags(TArray<FAssetRegistryTag>& OutTags) 
 	if (ContentBundleGuids.Num() > 0)
 	{
 		FString ContentBundleGuidsStr = FString::JoinBy(ContentBundleGuids, TEXT(","), [&](const FGuid& Guid) { return Guid.ToString(); });
-		OutTags.Add(FAssetRegistryTag(GetContentBundleGuidsAssetRegistryTag(), ContentBundleGuidsStr, FAssetRegistryTag::TT_Hidden));
+		Context.AddTag(FAssetRegistryTag(GetContentBundleGuidsAssetRegistryTag(), ContentBundleGuidsStr, FAssetRegistryTag::TT_Hidden));
 	}
 }
 #endif

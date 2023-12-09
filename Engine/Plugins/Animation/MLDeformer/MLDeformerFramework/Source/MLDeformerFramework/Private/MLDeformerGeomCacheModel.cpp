@@ -5,6 +5,7 @@
 #include "MLDeformerComponent.h"
 #include "MLDeformerAsset.h"
 #include "MLDeformerObjectVersion.h"
+#include "UObject/AssetRegistryTagsContext.h"
 #include "UObject/Object.h"
 #include "UObject/UObjectGlobals.h"
 #include "GeometryCache.h"
@@ -58,7 +59,14 @@ void UMLDeformerGeomCacheModel::PostLoad()
 
 void UMLDeformerGeomCacheModel::GetAssetRegistryTags(TArray<FAssetRegistryTag>& OutTags) const
 {
+	PRAGMA_DISABLE_DEPRECATION_WARNINGS;
 	Super::GetAssetRegistryTags(OutTags);
+	PRAGMA_ENABLE_DEPRECATION_WARNINGS;
+}
+
+void UMLDeformerGeomCacheModel::GetAssetRegistryTags(FAssetRegistryTagsContext Context) const
+{
+	Super::GetAssetRegistryTags(Context);
 
 	#if WITH_EDITORONLY_DATA
 		FString AnimInputString;
@@ -73,8 +81,8 @@ void UMLDeformerGeomCacheModel::GetAssetRegistryTags(TArray<FAssetRegistryTag>& 
 		{
 			AnimInputString = TEXT("None");
 		}
-		OutTags.Add(FAssetRegistryTag("MLDeformer.TrainingAnims", AnimInputString, FAssetRegistryTag::TT_Alphabetical));
-		OutTags.Add(FAssetRegistryTag("MLDeformer.NumTrainingAnims", FString::FromInt(TrainingInputAnims.Num()), FAssetRegistryTag::TT_Numerical));
+		Context.AddTag(FAssetRegistryTag("MLDeformer.TrainingAnims", AnimInputString, FAssetRegistryTag::TT_Alphabetical));
+		Context.AddTag(FAssetRegistryTag("MLDeformer.NumTrainingAnims", FString::FromInt(TrainingInputAnims.Num()), FAssetRegistryTag::TT_Numerical));
 	#endif
 }
 

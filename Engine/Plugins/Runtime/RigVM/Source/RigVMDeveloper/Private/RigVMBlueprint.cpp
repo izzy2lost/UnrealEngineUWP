@@ -9,6 +9,7 @@
 #include "EdGraph/RigVMEdGraph.h"
 #include "EdGraph/RigVMEdGraphNode.h"
 #include "EdGraph/RigVMEdGraphSchema.h"
+#include "UObject/AssetRegistryTagsContext.h"
 #include "UObject/ObjectSaveContext.h"
 #include "UObject/UObjectGlobals.h"
 #include "RigVMObjectVersion.h"
@@ -2631,14 +2632,28 @@ void URigVMBlueprint::PostDuplicate(bool bDuplicateForPIE)
 
 void URigVMBlueprint::GetAssetRegistryTags(TArray<FAssetRegistryTag>& OutTags) const
 {
+	PRAGMA_DISABLE_DEPRECATION_WARNINGS;
+	Super::GetAssetRegistryTags(OutTags);
+	PRAGMA_ENABLE_DEPRECATION_WARNINGS;
+}
+
+void URigVMBlueprint::GetAssetRegistryTags(FAssetRegistryTagsContext Context) const
+{
 	if (CachedAssetTags.IsEmpty())
 	{
-		Super::GetAssetRegistryTags(OutTags);
-		CachedAssetTags = OutTags;
+		Super::GetAssetRegistryTags(Context);
+		CachedAssetTags.Reset(Context.GetNumTags());
+		Context.EnumerateTags([this](const FAssetRegistryTag& Tag)
+			{
+				CachedAssetTags.Add(Tag);
+			});
 	}
 	else
 	{
-		OutTags = CachedAssetTags;
+		for (const FAssetRegistryTag& Tag : CachedAssetTags)
+		{
+			Context.AddTag(Tag);
+		}
 	}
 }
 

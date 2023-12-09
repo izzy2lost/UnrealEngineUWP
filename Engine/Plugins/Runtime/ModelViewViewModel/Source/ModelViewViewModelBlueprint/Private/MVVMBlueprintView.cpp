@@ -9,6 +9,7 @@
 #include "MVVMBlueprintViewEvent.h"
 #include "MVVMWidgetBlueprintExtension_View.h"
 #include "WidgetBlueprint.h"
+#include "UObject/AssetRegistryTagsContext.h"
 #include "UObject/FortniteMainBranchObjectVersion.h"
 
 #include UE_INLINE_GENERATED_CPP_BY_NAME(MVVMBlueprintView)
@@ -536,24 +537,28 @@ void UMVVMBlueprintView::PostEditChangeChainProperty(FPropertyChangedChainEvent&
 
 void UMVVMBlueprintView::AddAssetTags(TArray<FAssetRegistryTag>& OutTags) const
 {
+}
+
+void UMVVMBlueprintView::AddAssetTags(FAssetRegistryTagsContext Context) const
+{
 	if (AvailableViewModels.Num() > 0)
 	{
 		TStringBuilder<512> Builder;
-		for (const FMVVMBlueprintViewModelContext& Context : AvailableViewModels)
+		for (const FMVVMBlueprintViewModelContext& ViewModelContext : AvailableViewModels)
 		{
-			if (Context.IsValid())
+			if (ViewModelContext.IsValid())
 			{
 				if (Builder.Len() > 0)
 				{
 					Builder << TEXT(',');
 				}
-				Builder << Context.GetViewModelClass()->GetPathName();
+				Builder << ViewModelContext.GetViewModelClass()->GetPathName();
 			}
 		}
 
 		if (Builder.Len() > 0)
 		{
-			OutTags.Emplace(FName("Viewmodels"), Builder.ToString(), FAssetRegistryTag::TT_Hidden);
+			Context.AddTag(FAssetRegistryTag(FName("Viewmodels"), Builder.ToString(), FAssetRegistryTag::TT_Hidden));
 		}
 	}
 }

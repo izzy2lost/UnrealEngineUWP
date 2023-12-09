@@ -236,6 +236,8 @@ private:
 #if WITH_EDITOR
 	virtual void PostEditChangeProperty(FPropertyChangedEvent& PropertyChangedEvent) override;
 	virtual void PostEditUndo() override;
+	virtual void GetAssetRegistryTags(FAssetRegistryTagsContext Context) const override;
+	UE_DEPRECATED(5.4, "Implement the version that takes FAssetRegistryTagsContext instead.")
 	virtual void GetAssetRegistryTags(TArray<FAssetRegistryTag>& OutTags) const override;
 
 	// Compile the editor data into a compact runtime representation
@@ -247,7 +249,7 @@ private:
 	static TUniqueFunction<void(UAnimNextSchedule*)> CompileFunction;
 
 	// Function hook used to expose to asset registry
-	static TUniqueFunction<void(const UAnimNextSchedule*, TArray<FAssetRegistryTag>&)> GetAssetRegistryTagsFunction;
+	static TUniqueFunction<void(const UAnimNextSchedule*, FAssetRegistryTagsContext)> GetAssetRegistryTagsFunction;
 	
 	// Editor only
 	// TODO: move this into an editor only subobject

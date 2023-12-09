@@ -7,6 +7,7 @@
 #include "Field/FieldSystemTypes.h"
 #include "Misc/MessageDialog.h"
 #include "HLSLTree/HLSLTreeTypes.h"
+#include "UObject/AssetRegistryTagsContext.h"
 #include "UObject/UE5MainStreamObjectVersion.h"
 #include "Internationalization/LocKeyFuncs.h"
 #include "UObject/UE5LWCRenderingStreamObjectVersion.h"
@@ -14479,16 +14480,23 @@ void UMaterialFunctionInterface::DeclareConstructClasses(TArray<FTopLevelAssetPa
 
 void UMaterialFunctionInterface::GetAssetRegistryTags(TArray<FAssetRegistryTag>& OutTags) const
 {
+	PRAGMA_DISABLE_DEPRECATION_WARNINGS;
 	Super::GetAssetRegistryTags(OutTags);
+	PRAGMA_ENABLE_DEPRECATION_WARNINGS;
+}
+
+void UMaterialFunctionInterface::GetAssetRegistryTags(FAssetRegistryTagsContext Context) const
+{
+	Super::GetAssetRegistryTags(Context);
 
 #if WITH_EDITORONLY_DATA
-	for (FAssetRegistryTag& AssetTag : OutTags)
+	for (FName TagName : { GET_MEMBER_NAME_CHECKED(UMaterialFunctionInterface, CombinedInputTypes),
+		GET_MEMBER_NAME_CHECKED(UMaterialFunctionInterface, CombinedOutputTypes)})
 	{
 		// Hide the combined input/output types as they are only needed in code
-		if (AssetTag.Name == GET_MEMBER_NAME_CHECKED(UMaterialFunctionInterface, CombinedInputTypes)
-		|| AssetTag.Name == GET_MEMBER_NAME_CHECKED(UMaterialFunctionInterface, CombinedOutputTypes))
+		if (FAssetRegistryTag* AssetTag = Context.FindTag(TagName); AssetTag)
 		{
-			AssetTag.Type = UObject::FAssetRegistryTag::TT_Hidden;
+			AssetTag->Type = UObject::FAssetRegistryTag::TT_Hidden;
 		}
 	}
 #endif

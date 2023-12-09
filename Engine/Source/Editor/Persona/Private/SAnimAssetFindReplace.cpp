@@ -21,6 +21,7 @@
 #include "Misc/ScopedSlowTask.h"
 #include "ScopedTransaction.h"
 #include "Widgets/Views/SListView.h"
+#include "UObject/AssetRegistryTagsContext.h"
 #include "UObject/AnimPhysObjectVersion.h"
 #include "UObject/ObjectVersion.h"
 #include "Widgets/Input/SHyperlink.h"
@@ -137,15 +138,17 @@ void SAnimAssetFindReplace::Construct(const FArguments& InArgs)
 	}
 	ClassesWithAssetRegistryTags.Append(DerivedClassesWithAssetRegistryTags);
 
-	TArray<UObject::FAssetRegistryTag> AssetRegistryTags;
 	for(UClass* Class : ClassesWithAssetRegistryTags)
 	{
-		Class->GetDefaultObject()->GetAssetRegistryTags(AssetRegistryTags);
-		for(UObject::FAssetRegistryTag& AssetRegistryTag : AssetRegistryTags)
+		UObject* DefaultObject = Class->GetDefaultObject();
+		FAssetRegistryTagsContextData TagsContext(DefaultObject, EAssetRegistryTagsCaller::Uncategorized);
+		DefaultObject->GetAssetRegistryTags(TagsContext);
+
+		for(const TPair<FName,UObject::FAssetRegistryTag>& TagPair : TagsContext.Tags)
 		{
-			if(AssetRegistryTag.Type != UObject::FAssetRegistryTag::TT_Hidden)
+			if(TagPair.Value.Type != UObject::FAssetRegistryTag::TT_Hidden)
 			{
-				AssetPickerConfig.HiddenColumnNames.AddUnique(AssetRegistryTag.Name.ToString());
+				AssetPickerConfig.HiddenColumnNames.AddUnique(TagPair.Key.ToString());
 			}
 		}
 	}

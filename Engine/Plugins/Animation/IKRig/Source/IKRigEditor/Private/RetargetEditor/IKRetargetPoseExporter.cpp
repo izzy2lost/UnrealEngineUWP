@@ -12,6 +12,7 @@
 #include "Framework/Notifications/NotificationManager.h"
 #include "RetargetEditor/IKRetargetAnimInstance.h"
 #include "RetargetEditor/IKRetargetEditorController.h"
+#include "UObject/AssetRegistryTagsContext.h"
 #include "UObject/SavePackage.h"
 #include "Widgets/Input/SComboBox.h"
 #include "Widgets/Notifications/SNotificationList.h"
@@ -311,14 +312,15 @@ void FIKRetargetPoseExporter::HandleImportFromSequenceAsset()
 	AssetPickerConfig.bAllowNullSelection = false;
 
 	// hide all asset registry columns by default (we only really want the name and path)
-	TArray<UObject::FAssetRegistryTag> AssetRegistryTags;
-	UAnimSequence::StaticClass()->GetDefaultObject()->GetAssetRegistryTags(AssetRegistryTags);
+	UObject* AnimSequenceDefaultObject = UAnimSequence::StaticClass()->GetDefaultObject();
+	FAssetRegistryTagsContextData TagsContext(AnimSequenceDefaultObject, EAssetRegistryTagsCaller::Uncategorized);
+	AnimSequenceDefaultObject->GetAssetRegistryTags(TagsContext);
 	FName ColumnToKeep = FName("Number of Frames");
-	for(UObject::FAssetRegistryTag& AssetRegistryTag : AssetRegistryTags)
+	for (const TPair<FName, UObject::FAssetRegistryTag>& TagPair : TagsContext.Tags)
 	{
-		if (AssetRegistryTag.Name != ColumnToKeep)
+		if (TagPair.Key != ColumnToKeep)
 		{
-			AssetPickerConfig.HiddenColumnNames.Add(AssetRegistryTag.Name.ToString());
+			AssetPickerConfig.HiddenColumnNames.Add(TagPair.Key.ToString());
 		}
 	}
 

@@ -3,22 +3,22 @@
 #include "ProxyTableFunctionLibrary.h"
 #include "AssetRegistry/AssetRegistryModule.h"
 #include "ChooserPropertyAccess.h"
+#include "UObject/AssetRegistryTagsContext.h"
 #include "UObject/Package.h"
 #include "LookupProxy.h"
 
 FName UProxyAsset::TypeTagName = "ProxyType";
 
-void UProxyAsset::GetAssetRegistryTags(TArray<FAssetRegistryTag>& OutTags) const
+void UProxyAsset::GetAssetRegistryTags(FAssetRegistryTagsContext Context) const
 {
 	FString ResultTypeName;
 	if (Type)
 	{
 		ResultTypeName = Type.GetName();
 	}
-	OutTags.Add({TypeTagName, ResultTypeName, FAssetRegistryTag::TT_Alphabetical});
+	Context.AddTag(FAssetRegistryTag(TypeTagName, ResultTypeName, FAssetRegistryTag::TT_Alphabetical));
 	
-	
-	UObject::GetAssetRegistryTags(OutTags);
+	Super::GetAssetRegistryTags(Context);
 }
 
 #if WITH_EDITOR

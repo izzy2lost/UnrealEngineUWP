@@ -3,6 +3,7 @@
 #include "Engine/Blueprint.h"
 
 #include "Blueprint/BlueprintSupport.h"
+#include "UObject/AssetRegistryTagsContext.h"
 #include "UObject/BlueprintsObjectVersion.h"
 #include "EngineLogs.h"
 #include "UObject/FrameworkObjectVersion.h"
@@ -936,6 +937,13 @@ bool UBlueprint::CanAlwaysRecompileWhilePlayingInEditor() const
 
 void UBlueprint::GetAssetRegistryTags(TArray<FAssetRegistryTag>& OutTags) const
 {
+	PRAGMA_DISABLE_DEPRECATION_WARNINGS;
+	Super::GetAssetRegistryTags(OutTags);
+	PRAGMA_ENABLE_DEPRECATION_WARNINGS;
+}
+
+void UBlueprint::GetAssetRegistryTags(FAssetRegistryTagsContext Context) const
+{
 	// We use Generated instead of Skeleton because the CDO data is more accurate on Generated
 	UObject* BlueprintCDO = nullptr;
 	if (GeneratedClass)
@@ -943,11 +951,11 @@ void UBlueprint::GetAssetRegistryTags(TArray<FAssetRegistryTag>& OutTags) const
 		BlueprintCDO = GeneratedClass->GetDefaultObject(/*bCreateIfNeeded*/false);
 		if (BlueprintCDO)
 		{
-			BlueprintCDO->GetAssetRegistryTags(OutTags);
+			BlueprintCDO->GetAssetRegistryTags(Context);
 		}
 	}
 
-	Super::GetAssetRegistryTags(OutTags);
+	Super::GetAssetRegistryTags(Context);
 
 	// Output native parent class and generated class as if they were AssetRegistrySearchable
 	FString GeneratedClassVal;
@@ -979,10 +987,10 @@ void UBlueprint::GetAssetRegistryTags(TArray<FAssetRegistryTag>& OutTags) const
 	}
 
 
-	OutTags.Add(FAssetRegistryTag(FBlueprintTags::BlueprintPathWithinPackage, GetPathName(GetOutermost()), FAssetRegistryTag::TT_Hidden));
-	OutTags.Add(FAssetRegistryTag(FBlueprintTags::GeneratedClassPath, GeneratedClassVal, FAssetRegistryTag::TT_Hidden));
-	OutTags.Add(FAssetRegistryTag(FBlueprintTags::ParentClassPath, ParentClassName, FAssetRegistryTag::TT_Alphabetical));
-	OutTags.Add(FAssetRegistryTag(FBlueprintTags::NativeParentClassPath, NativeParentClassName, FAssetRegistryTag::TT_Alphabetical));
+	Context.AddTag(FAssetRegistryTag(FBlueprintTags::BlueprintPathWithinPackage, GetPathName(GetOutermost()), FAssetRegistryTag::TT_Hidden));
+	Context.AddTag(FAssetRegistryTag(FBlueprintTags::GeneratedClassPath, GeneratedClassVal, FAssetRegistryTag::TT_Hidden));
+	Context.AddTag(FAssetRegistryTag(FBlueprintTags::ParentClassPath, ParentClassName, FAssetRegistryTag::TT_Alphabetical));
+	Context.AddTag(FAssetRegistryTag(FBlueprintTags::NativeParentClassPath, NativeParentClassName, FAssetRegistryTag::TT_Alphabetical));
 
 	// BlueprintGeneratedClass is not automatically traversed so we have to manually add NumReplicatedProperties
 	int32 NumReplicatedProperties = 0;
@@ -991,10 +999,10 @@ void UBlueprint::GetAssetRegistryTags(TArray<FAssetRegistryTag>& OutTags) const
 	{
 		NumReplicatedProperties = BlueprintClass->NumReplicatedProperties;
 	}
-	OutTags.Add(FAssetRegistryTag(FBlueprintTags::NumReplicatedProperties, FString::FromInt(NumReplicatedProperties), FAssetRegistryTag::TT_Numerical));
-	OutTags.Add(FAssetRegistryTag(FBlueprintTags::BlueprintDescription, BlueprintDescription, FAssetRegistryTag::TT_Hidden));
-	OutTags.Add(FAssetRegistryTag(FBlueprintTags::BlueprintCategory, BlueprintCategory, FAssetRegistryTag::TT_Hidden));
-	OutTags.Add(FAssetRegistryTag(FBlueprintTags::BlueprintDisplayName, BlueprintDisplayName, FAssetRegistryTag::TT_Hidden));
+	Context.AddTag(FAssetRegistryTag(FBlueprintTags::NumReplicatedProperties, FString::FromInt(NumReplicatedProperties), FAssetRegistryTag::TT_Numerical));
+	Context.AddTag(FAssetRegistryTag(FBlueprintTags::BlueprintDescription, BlueprintDescription, FAssetRegistryTag::TT_Hidden));
+	Context.AddTag(FAssetRegistryTag(FBlueprintTags::BlueprintCategory, BlueprintCategory, FAssetRegistryTag::TT_Hidden));
+	Context.AddTag(FAssetRegistryTag(FBlueprintTags::BlueprintDisplayName, BlueprintDisplayName, FAssetRegistryTag::TT_Hidden));
 
 	uint32 ClassFlagsTagged = 0;
 	if (BlueprintClass)
@@ -1005,9 +1013,9 @@ void UBlueprint::GetAssetRegistryTags(TArray<FAssetRegistryTag>& OutTags) const
 	{
 		ClassFlagsTagged = GetClass()->GetClassFlags();
 	}
-	OutTags.Add( FAssetRegistryTag(FBlueprintTags::ClassFlags, FString::FromInt(ClassFlagsTagged), FAssetRegistryTag::TT_Hidden) );
+	Context.AddTag( FAssetRegistryTag(FBlueprintTags::ClassFlags, FString::FromInt(ClassFlagsTagged), FAssetRegistryTag::TT_Hidden) );
 
-	OutTags.Add( FAssetRegistryTag(FBlueprintTags::IsDataOnly,
+	Context.AddTag( FAssetRegistryTag(FBlueprintTags::IsDataOnly,
 			FBlueprintEditorUtils::IsDataOnlyBlueprint(this) ? TEXT("True") : TEXT("False"),
 			FAssetRegistryTag::TT_Alphabetical ) );
 
@@ -1022,7 +1030,7 @@ void UBlueprint::GetAssetRegistryTags(TArray<FAssetRegistryTag>& OutTags) const
 			Value = SearchData.Value;
 		}
 		
-		OutTags.Add( FAssetRegistryTag(FBlueprintTags::FindInBlueprintsData, Value, FAssetRegistryTag::TT_Hidden) );
+		Context.AddTag( FAssetRegistryTag(FBlueprintTags::FindInBlueprintsData, Value, FAssetRegistryTag::TT_Hidden) );
 	}
 
 	// Only show for strict blueprints (not animation or widget blueprints)
@@ -1044,7 +1052,7 @@ void UBlueprint::GetAssetRegistryTags(TArray<FAssetRegistryTag>& OutTags) const
 				}
 			}
 		}
-		OutTags.Add(FAssetRegistryTag(FBlueprintTags::NumNativeComponents, FString::FromInt(NumNativeComponents), UObject::FAssetRegistryTag::TT_Numerical));
+		Context.AddTag(FAssetRegistryTag(FBlueprintTags::NumNativeComponents, FString::FromInt(NumNativeComponents), UObject::FAssetRegistryTag::TT_Numerical));
 
 		// Determine how many components are added via a SimpleConstructionScript (both newly introduced and inherited from parent BPs)
 		int32 NumAddedComponents = 0;
@@ -1056,45 +1064,44 @@ void UBlueprint::GetAssetRegistryTags(TArray<FAssetRegistryTag>& OutTags) const
 				NumAddedComponents += AssociatedBP->SimpleConstructionScript->GetAllNodes().Num();
 			}
 		}
-		OutTags.Add(FAssetRegistryTag(FBlueprintTags::NumBlueprintComponents, FString::FromInt(NumAddedComponents), UObject::FAssetRegistryTag::TT_Numerical));
+		Context.AddTag(FAssetRegistryTag(FBlueprintTags::NumBlueprintComponents, FString::FromInt(NumAddedComponents), UObject::FAssetRegistryTag::TT_Numerical));
 	}
-}
 
 #if WITH_EDITOR
-void UBlueprint::GetExtendedAssetRegistryTagsForSave(const ITargetPlatform* TargetPlatform, TArray<FAssetRegistryTag>& OutTags) const
-{
-	Super::GetExtendedAssetRegistryTagsForSave(TargetPlatform, OutTags);
-
-	if ( ParentClass && GIsEditor && !GetOutermost()->HasAnyPackageFlags(PKG_ForDiffing) && IsRunningCookCommandlet())
+	if (Context.IsSaving())
 	{
-		if (!TargetPlatform || TargetPlatform->HasEditorOnlyData())
+		if (ParentClass && GIsEditor && !GetOutermost()->HasAnyPackageFlags(PKG_ForDiffing) && IsRunningCookCommandlet())
 		{
-			FString Value;
-			const bool bRebuildSearchData = false;
-			FSearchData SearchData = FFindInBlueprintSearchManager::Get().QuerySingleBlueprint((UBlueprint*)this, bRebuildSearchData);
-			if (SearchData.IsValid())
+			if (!Context.GetTargetPlatform() || Context.GetTargetPlatform()->HasEditorOnlyData())
 			{
-				Value = SearchData.Value;
+				FString Value;
+				const bool bRebuildSearchData = false;
+				FSearchData SearchData = FFindInBlueprintSearchManager::Get().QuerySingleBlueprint((UBlueprint*)this, bRebuildSearchData);
+				if (SearchData.IsValid())
+				{
+					Value = SearchData.Value;
+				}
+
+				Context.AddTag(FAssetRegistryTag(FBlueprintTags::FindInBlueprintsData, Value, FAssetRegistryTag::TT_Hidden));
 			}
-			
-			OutTags.Add( FAssetRegistryTag(FBlueprintTags::FindInBlueprintsData, Value, FAssetRegistryTag::TT_Hidden) );
+		}
+
+		/*
+		 * Restricting these tags to IsSaving because:
+		 *	- UBlueprint is an asset in editor builds only.
+		 *	- UBlueprintGeneratedClass is an asset in cooked builds only.
+		 *	- Extended tags are only present in editor builds.
+		 *
+		 * See UBlueprintGeneratedClass::GetAssetRegistryTags.
+		 */
+		AActor* BlueprintCDOAsActor = Cast<AActor>(BlueprintCDO);
+		if (BlueprintCDOAsActor)
+		{
+			FWorldPartitionActorDescUtils::AppendAssetDataTagsFromActor(BlueprintCDOAsActor, Context);
 		}
 	}
-
-	/*
-	 * Using GetExtendedAssetRegistryTagsForSave here because:
-	 *	- UBlueprint is an asset in editor builds only.
-	 *	- UBlueprintGeneratedClass is an asset in cooked builds only.
-	 *	- Extended tags are only present in editor builds.
-	 *
-	 * See UBlueprintGeneratedClass::GetAssetRegistryTags.
-	 */
-	if (AActor* BlueprintCDO = GeneratedClass ? Cast<AActor>(GeneratedClass->ClassDefaultObject) : nullptr)
-	{
-		FWorldPartitionActorDescUtils::AppendAssetDataTagsFromActor(BlueprintCDO, OutTags);
-	}
-}
 #endif
+}
 
 void UBlueprint::PostLoadAssetRegistryTags(const FAssetData& InAssetData, TArray<FAssetRegistryTag>& OutTagsAndValuesToUpdate) const
 {

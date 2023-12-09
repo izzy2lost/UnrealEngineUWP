@@ -6,6 +6,7 @@
 #include "ControlRigBlueprint.h"
 #include "IContentBrowserSingleton.h"
 #include "Subsystems/AssetEditorSubsystem.h"
+#include "UObject/AssetRegistryTagsContext.h"
 
 #include "ControlRigEditor.h"
 #include "Widgets/Layout/SUniformGridPanel.h"
@@ -52,11 +53,12 @@ void SRigModuleAssetBrowser::RefreshView()
 	AssetPickerConfig.bForceShowEngineContent = true;
 
 	// hide all asset registry columns by default (we only really want the name and path)
-	TArray<UObject::FAssetRegistryTag> AssetRegistryTags;
-	UControlRigBlueprint::StaticClass()->GetDefaultObject()->GetAssetRegistryTags(AssetRegistryTags);
-	for(UObject::FAssetRegistryTag& AssetRegistryTag : AssetRegistryTags)
+	UObject* DefaultControlRigBlueprint = UControlRigBlueprint::StaticClass()->GetDefaultObject();
+	FAssetRegistryTagsContextData Context(DefaultControlRigBlueprint, EAssetRegistryTagsCaller::Uncategorized);
+	DefaultControlRigBlueprint->GetAssetRegistryTags(Context);
+	for (TPair<FName, UObject::FAssetRegistryTag>& AssetRegistryTagPair : Context.Tags)
 	{
-		AssetPickerConfig.HiddenColumnNames.Add(AssetRegistryTag.Name.ToString());
+		AssetPickerConfig.HiddenColumnNames.Add(AssetRegistryTagPair.Value.Name.ToString());
 	}
 
 	// Also hide the type column by default (but allow users to enable it, so don't use bShowTypeInColumnView)

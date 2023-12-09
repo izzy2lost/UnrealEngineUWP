@@ -8,6 +8,7 @@
 #include "Engine/Blueprint.h"
 #include "ChooserIndexArray.h"
 #include "IChooserParameterGameplayTag.h"
+#include "UObject/AssetRegistryTagsContext.h"
 
 #include UE_INLINE_GENERATED_CPP_BY_NAME(Chooser)
 
@@ -92,7 +93,14 @@ void UChooserTable::BeginDestroy()
 
 void UChooserTable::GetAssetRegistryTags(TArray<FAssetRegistryTag>& OutTags) const
 {
+	PRAGMA_DISABLE_DEPRECATION_WARNINGS;
 	Super::GetAssetRegistryTags(OutTags);
+	PRAGMA_ENABLE_DEPRECATION_WARNINGS;
+}
+
+void UChooserTable::GetAssetRegistryTags(FAssetRegistryTagsContext Context) const
+{
+	Super::GetAssetRegistryTags(Context);
 
 	// Output property names we use
 	TStringBuilder<256> PropertyNamesBuilder;
@@ -109,7 +117,7 @@ void UChooserTable::GetAssetRegistryTags(TArray<FAssetRegistryTag>& OutTags) con
 		}
 	}
 
-	OutTags.Add(FAssetRegistryTag(PropertyNamesTag, PropertyNamesBuilder.ToString(), FAssetRegistryTag::TT_Hidden));
+	Context.AddTag(FAssetRegistryTag(PropertyNamesTag, PropertyNamesBuilder.ToString(), FAssetRegistryTag::TT_Hidden));
 }
 
 void UChooserTable::AddCompileDependency(const UStruct* InStructType)

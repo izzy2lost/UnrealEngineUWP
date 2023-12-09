@@ -17,7 +17,7 @@ FAssetRegistryTagsContext::FAssetRegistryTagsContext(FAssetRegistryTagsContextDa
 {
 }
 
-FAssetRegistryTagsContext::FAssetRegistryTagsContext(FAssetRegistryTagsContext& Other)
+FAssetRegistryTagsContext::FAssetRegistryTagsContext(const FAssetRegistryTagsContext& Other)
 	: Data(Other.Data)
 {
 }
@@ -100,6 +100,19 @@ bool FAssetRegistryTagsContext::ContainsTag(FName TagName) const
 void FAssetRegistryTagsContext::AddTag(UObject::FAssetRegistryTag TagResult)
 {
 	AddTagInternal(MoveTemp(TagResult), FStringView());
+}
+
+int32 FAssetRegistryTagsContext::GetNumTags() const
+{
+	return Data.Tags.Num();
+}
+
+void FAssetRegistryTagsContext::EnumerateTags(TFunctionRef<void(const UObject::FAssetRegistryTag&)> Visitor) const
+{
+	for (const TPair<FName, UObject::FAssetRegistryTag>& Pair : Data.Tags)
+	{
+		Visitor(Pair.Value);
+	}
 }
 
 bool FAssetRegistryTagsContext::WantsBundleResult() const

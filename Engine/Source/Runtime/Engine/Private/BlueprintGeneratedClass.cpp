@@ -7,6 +7,7 @@
 #include "HAL/IConsoleManager.h"
 #include "EngineLogs.h"
 #include "Stats/StatsMisc.h"
+#include "UObject/AssetRegistryTagsContext.h"
 #include "UObject/CoreNet.h"
 #include "UObject/CoreRedirects.h"
 #include "UObject/ObjectSaveContext.h"
@@ -523,7 +524,14 @@ void UBlueprintGeneratedClass::InitializeFieldNotifies()
 
 void UBlueprintGeneratedClass::GetAssetRegistryTags(TArray<FAssetRegistryTag>& OutTags) const
 {
+	PRAGMA_DISABLE_DEPRECATION_WARNINGS;
 	Super::GetAssetRegistryTags(OutTags);
+	PRAGMA_ENABLE_DEPRECATION_WARNINGS;
+}
+
+void UBlueprintGeneratedClass::GetAssetRegistryTags(FAssetRegistryTagsContext Context) const
+{
+	Super::GetAssetRegistryTags(Context);
 
 	FString NativeParentClassName;
 	FString ParentClassName;
@@ -545,9 +553,9 @@ void UBlueprintGeneratedClass::GetAssetRegistryTags(TArray<FAssetRegistryTag>& O
 		NativeParentClassName = ParentClassName = TEXT("None");
 	}
 
-	OutTags.Add(FAssetRegistryTag(FBlueprintTags::ParentClassPath, ParentClassName, FAssetRegistryTag::TT_Alphabetical));
-	OutTags.Add(FAssetRegistryTag(FBlueprintTags::NativeParentClassPath, NativeParentClassName, FAssetRegistryTag::TT_Alphabetical));
-	OutTags.Add(FAssetRegistryTag(FBlueprintTags::ClassFlags, FString::FromInt((uint32)GetClassFlags()), FAssetRegistryTag::TT_Hidden));
+	Context.AddTag(FAssetRegistryTag(FBlueprintTags::ParentClassPath, ParentClassName, FAssetRegistryTag::TT_Alphabetical));
+	Context.AddTag(FAssetRegistryTag(FBlueprintTags::NativeParentClassPath, NativeParentClassName, FAssetRegistryTag::TT_Alphabetical));
+	Context.AddTag(FAssetRegistryTag(FBlueprintTags::ClassFlags, FString::FromInt((uint32)GetClassFlags()), FAssetRegistryTag::TT_Hidden));
 
 #if WITH_EDITORONLY_DATA
 	// Get editor-only tags; on a cooked BPGC, those tags are deserialized into CookedEditorTags, otherwise generate them for the BP
@@ -561,7 +569,7 @@ void UBlueprintGeneratedClass::GetAssetRegistryTags(TArray<FAssetRegistryTag>& O
 
 	for (const auto& EditorTag : *EditorTagsToAdd)
 	{
-		OutTags.Add(FAssetRegistryTag(EditorTag.Key, EditorTag.Value, FAssetRegistryTag::TT_Hidden));
+		Context.AddTag(FAssetRegistryTag(EditorTag.Key, EditorTag.Value, FAssetRegistryTag::TT_Hidden));
 	}
 
 	if (const UObject* CDO = GetDefaultObject())
@@ -570,7 +578,7 @@ void UBlueprintGeneratedClass::GetAssetRegistryTags(TArray<FAssetRegistryTag>& O
 		{
 			if (AssetRegistryProvider->ShouldAddCDOTagsToBlueprintClass())
 			{
-				CDO->GetAssetRegistryTags(OutTags);
+				CDO->GetAssetRegistryTags(Context);
 			}
 		}
 	}
@@ -593,7 +601,7 @@ void UBlueprintGeneratedClass::GetAssetRegistryTags(TArray<FAssetRegistryTag>& O
 			{
 				if (!FPackageName::IsTempPackage(BlueprintCDOPackage->GetName()) && !BlueprintCDOPackage->HasAnyPackageFlags(PKG_PlayInEditor))
 				{
-					FWorldPartitionActorDescUtils::AppendAssetDataTagsFromActor(BlueprintCDO, OutTags);
+					FWorldPartitionActorDescUtils::AppendAssetDataTagsFromActor(BlueprintCDO, Context);
 				}
 			}
 		}

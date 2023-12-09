@@ -154,6 +154,8 @@ public:
 	virtual void PostEditChangeProperty(FPropertyChangedEvent& PropertyChangedEvent) override;
 	virtual void PostEditChangeChainProperty(FPropertyChangedChainEvent& PropertyChainEvent) override;
 
+	void AddAssetTags(FAssetRegistryTagsContext Context) const;
+	UE_DEPRECATED(5.4, "Implement the version that takes FAssetRegistryTagsContext instead.")
 	void AddAssetTags(TArray<FAssetRegistryTag>& OutTags) const;
 	void WidgetRenamed(FName OldObjectName, FName NewObjectName);
 #endif

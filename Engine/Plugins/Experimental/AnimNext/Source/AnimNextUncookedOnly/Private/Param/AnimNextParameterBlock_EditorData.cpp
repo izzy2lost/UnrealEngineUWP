@@ -23,6 +23,7 @@
 #include "Param/AnimNextParameterBlockParameter.h"
 #include "Param/RigVMDispatch_GetLayerParameter.h"
 #include "Param/RigVMDispatch_GetParameter.h"
+#include "UObject/AssetRegistryTagsContext.h"
 
 #if WITH_EDITORONLY_DATA
 
@@ -580,7 +581,14 @@ void UAnimNextParameterBlock_EditorData::PostTransacted(const FTransactionObject
 
 void UAnimNextParameterBlock_EditorData::GetAssetRegistryTags(TArray<FAssetRegistryTag>& OutTags) const
 {
+	PRAGMA_DISABLE_DEPRECATION_WARNINGS;
 	Super::GetAssetRegistryTags(OutTags);
+	PRAGMA_ENABLE_DEPRECATION_WARNINGS;
+}
+
+void UAnimNextParameterBlock_EditorData::GetAssetRegistryTags(FAssetRegistryTagsContext Context) const
+{
+	Super::GetAssetRegistryTags(Context);
 
 	FAnimNextParameterProviderAssetRegistryExports ExportParameters;
 	ExportParameters.Parameters.Reserve(Entries.Num());
@@ -603,7 +611,7 @@ void UAnimNextParameterBlock_EditorData::GetAssetRegistryTags(TArray<FAssetRegis
 
 	FString TagValue;
 	FAnimNextParameterProviderAssetRegistryExports::StaticStruct()->ExportText(TagValue, &ExportParameters, nullptr, nullptr, PPF_None, nullptr);
-	OutTags.Add(FAssetRegistryTag(UE::AnimNext::ExportsAnimNextAssetRegistryTag, TagValue, FAssetRegistryTag::TT_Hidden));
+	Context.AddTag(FAssetRegistryTag(UE::AnimNext::ExportsAnimNextAssetRegistryTag, TagValue, FAssetRegistryTag::TT_Hidden));
 }
 
 #if WITH_EDITOR

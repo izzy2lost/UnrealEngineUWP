@@ -580,6 +580,8 @@ private:
 	TSoftObjectPtr<class UDataAsset> AdditionalPreviewSkeletalMeshes;
 
 	/** rig property will be saved separately */
+	ENGINE_API virtual void GetAssetRegistryTags(FAssetRegistryTagsContext Context) const override;
+	UE_DEPRECATED(5.4, "Implement the version that takes FAssetRegistryTagsContext instead.")
 	ENGINE_API virtual void GetAssetRegistryTags(TArray<FAssetRegistryTag>& OutTags) const override;
 
 public:

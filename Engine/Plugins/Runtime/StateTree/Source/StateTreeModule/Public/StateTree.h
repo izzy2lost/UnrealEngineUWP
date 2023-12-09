@@ -189,6 +189,8 @@ protected:
 	void OnUserDefinedStructReinstanced(const UUserDefinedStruct& UserDefinedStruct);
 	virtual void PostInitProperties() override;
 	virtual void BeginDestroy() override;
+	virtual void GetAssetRegistryTags(FAssetRegistryTagsContext Context) const override;
+	UE_DEPRECATED(5.4, "Implement the version that takes FAssetRegistryTagsContext instead.")
 	virtual void GetAssetRegistryTags(TArray<FAssetRegistryTag>& OutTags) const override;
 	virtual void PostLoadAssetRegistryTags(const FAssetData& InAssetData, TArray<FAssetRegistryTag>& OutTagsAndValuesToUpdate) const override;
 	virtual EDataValidationResult IsDataValid(class FDataValidationContext& Context) const override;

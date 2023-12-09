@@ -7031,7 +7031,7 @@ void UAssetRegistryImpl::GetInheritanceContextAfterVerifyingLock(uint64 CurrentG
 }
 
 #if WITH_EDITOR
-void UAssetRegistryImpl::OnGetExtraObjectTags(FAssetRegistryTagsContext& Context)
+void UAssetRegistryImpl::OnGetExtraObjectTags(FAssetRegistryTagsContext Context)
 {
 	if (bAddMetaDataTagsToOnGetExtraObjectTags)
 	{

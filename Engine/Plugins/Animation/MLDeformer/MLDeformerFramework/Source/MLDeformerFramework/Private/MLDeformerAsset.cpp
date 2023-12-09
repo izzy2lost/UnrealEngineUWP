@@ -5,6 +5,7 @@
 #include "MLDeformerModel.h"
 #include "MLDeformerInputInfo.h"
 #include "Engine/SkeletalMesh.h"
+#include "UObject/AssetRegistryTagsContext.h"
 
 void UMLDeformerAsset::Serialize(FArchive& Archive)
 {
@@ -16,9 +17,16 @@ void UMLDeformerAsset::Serialize(FArchive& Archive)
 
 void UMLDeformerAsset::GetAssetRegistryTags(TArray<FAssetRegistryTag>& OutTags) const
 {
+	PRAGMA_DISABLE_DEPRECATION_WARNINGS;
 	Super::GetAssetRegistryTags(OutTags);
+	PRAGMA_ENABLE_DEPRECATION_WARNINGS;
+}
+
+void UMLDeformerAsset::GetAssetRegistryTags(FAssetRegistryTagsContext Context) const
+{
+	Super::GetAssetRegistryTags(Context);
 	if (Model)
 	{
-		Model->GetAssetRegistryTags(OutTags);
+		Model->GetAssetRegistryTags(Context);
 	}
 }

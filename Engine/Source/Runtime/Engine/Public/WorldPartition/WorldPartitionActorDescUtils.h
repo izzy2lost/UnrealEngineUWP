@@ -37,11 +37,13 @@ struct FWorldPartitionActorDescUtils
 	 */
 	static ENGINE_API TUniquePtr<FWorldPartitionActorDesc> GetActorDescriptorFromAssetData(const FAssetData& InAssetData);
 
-	/** 
+	/**
 	 * Appends the actor's actor descriptor data into the provided asset registry tags.
 	 * @param InActor		The actor that will append its actor descriptor.
 	 * @param OutTags		Output tags to output into.
 	 */
+	static ENGINE_API void AppendAssetDataTagsFromActor(const AActor* InActor, FAssetRegistryTagsContext Context);
+	UE_DEPRECATED(5.4, "Call the version that takes FAssetRegistryTagsContext instead.")
 	static ENGINE_API void AppendAssetDataTagsFromActor(const AActor* InActor, TArray<UObject::FAssetRegistryTag>& OutTags);
 
 	/** 

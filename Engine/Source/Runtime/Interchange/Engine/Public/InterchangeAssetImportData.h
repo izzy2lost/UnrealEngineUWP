@@ -6,6 +6,7 @@
 #include "EditorFramework/AssetImportData.h"
 #include "Nodes/InterchangeBaseNode.h"
 #include "Nodes/InterchangeBaseNodeContainer.h"
+#include "UObject/AssetRegistryTagsContext.h"
 #include "UObject/Class.h"
 #include "UObject/Object.h"
 #include "UObject/ObjectMacros.h"
@@ -69,10 +70,18 @@ public:
 
 #if WITH_EDITORONLY_DATA
 #if WITH_EDITOR
+	UE_DEPRECATED(5.4, "Implement the version that takes FAssetRegistryTagsContext instead.")
+	virtual void AppendAssetRegistryTags(TArray<FAssetRegistryTag>& OutTags) override
+	{
+		PRAGMA_DISABLE_DEPRECATION_WARNINGS;
+		Super::AppendAssetRegistryTags(OutTags);
+		PRAGMA_ENABLE_DEPRECATION_WARNINGS;
+	}
+
 	/**
 	 * This function add tags to the asset registry.
 	 */
-	virtual void AppendAssetRegistryTags(TArray<FAssetRegistryTag>& OutTags) override
+	virtual void AppendAssetRegistryTags(FAssetRegistryTagsContext Context) override
 	{
 		if(const UInterchangeBaseNodeContainer* NodeContainerTmp = GetNodeContainer())
 		{
@@ -80,11 +89,19 @@ public:
 			{
 				if (const UInterchangeBaseNode* Node = GetStoredNode(NodeUniqueID))
 				{
-					Node->AppendAssetRegistryTags(OutTags);
+					PRAGMA_DISABLE_DEPRECATION_WARNINGS;
+					TArray<UObject::FAssetRegistryTag> DeprecatedFunctionTags;
+					Node->AppendAssetRegistryTags(DeprecatedFunctionTags);
+					for (UObject::FAssetRegistryTag& Tag : DeprecatedFunctionTags)
+					{
+						Context.AddTag(MoveTemp(Tag));
+					}
+					PRAGMA_ENABLE_DEPRECATION_WARNINGS;
+					Node->AppendAssetRegistryTags(Context);
 				}
 			}
 		}
-		Super::AppendAssetRegistryTags(OutTags);
+		Super::AppendAssetRegistryTags(Context);
 	}
 #endif
 #endif

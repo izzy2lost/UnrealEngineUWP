@@ -20,6 +20,7 @@
 #include "Stats/StatsMisc.h"
 #include "Misc/ScopedSlowTask.h"
 #include "SceneInterface.h"
+#include "UObject/AssetRegistryTagsContext.h"
 #include "UObject/ObjectRedirector.h"
 #include "SceneView.h"
 #include "UObject/ObjectSaveContext.h"
@@ -562,7 +563,10 @@ FWorldDelegates::FOnLevelChanged FWorldDelegates::PreLevelRemovedFromWorld;
 FWorldDelegates::FOnLevelChanged FWorldDelegates::LevelRemovedFromWorld;
 FWorldDelegates::FLevelOffsetEvent FWorldDelegates::PostApplyLevelOffset;
 FWorldDelegates::FLevelTransformEvent FWorldDelegates::PostApplyLevelTransform;
+PRAGMA_DISABLE_DEPRECATION_WARNINGS;
 FWorldDelegates::FWorldGetAssetTags FWorldDelegates::GetAssetTags;
+PRAGMA_ENABLE_DEPRECATION_WARNINGS;
+FWorldDelegates::FWorldGetAssetTagsWithContext FWorldDelegates::GetAssetTagsWithContext;
 FWorldDelegates::FOnWorldTickStart FWorldDelegates::OnWorldTickStart;
 FWorldDelegates::FOnWorldTickEnd FWorldDelegates::OnWorldTickEnd;
 FWorldDelegates::FOnWorldPreActorTick FWorldDelegates::OnWorldPreActorTick;
@@ -9093,19 +9097,26 @@ void UWorld::RestoreScene()
 
 void UWorld::GetAssetRegistryTags(TArray<FAssetRegistryTag>& OutTags) const
 {
+	PRAGMA_DISABLE_DEPRECATION_WARNINGS;
 	Super::GetAssetRegistryTags(OutTags);
+	PRAGMA_ENABLE_DEPRECATION_WARNINGS;
+}
 
-	if(PersistentLevel && PersistentLevel->OwningWorld)
+void UWorld::GetAssetRegistryTags(FAssetRegistryTagsContext Context) const
+{
+	Super::GetAssetRegistryTags(Context);
+
+	if (PersistentLevel && PersistentLevel->OwningWorld)
 	{
 		if (ULevelScriptBlueprint* Blueprint = PersistentLevel->GetLevelScriptBlueprint(true))
 		{
-			Blueprint->GetAssetRegistryTags(OutTags);
+			Blueprint->GetAssetRegistryTags(Context);
 		}
 		// If there are no blueprints FiBData will be empty, the search manager will treat this as indexed
 								
-		if(UWorldPartition* WorldPartition = GetWorldPartition())
+		if (UWorldPartition* WorldPartition = GetWorldPartition())
 		{
-			WorldPartition->AppendAssetRegistryTags(OutTags);
+			WorldPartition->AppendAssetRegistryTags(Context);
 		}
 		else
 		{
@@ -9124,22 +9135,22 @@ void UWorld::GetAssetRegistryTags(TArray<FAssetRegistryTag>& OutTags) const
 			LevelBounds.GetCenterAndExtents(LevelBoundsLocation, LevelBoundsExtent);
 
 			static const FName NAME_LevelBoundsLocation(TEXT("LevelBoundsLocation"));
-			OutTags.Add(FAssetRegistryTag(NAME_LevelBoundsLocation, LevelBoundsLocation.ToCompactString(), FAssetRegistryTag::TT_Hidden));
+			Context.AddTag(FAssetRegistryTag(NAME_LevelBoundsLocation, LevelBoundsLocation.ToCompactString(), FAssetRegistryTag::TT_Hidden));
 
 			static const FName NAME_LevelBoundsExtent(TEXT("LevelBoundsExtent"));
-			OutTags.Add(FAssetRegistryTag(NAME_LevelBoundsExtent, LevelBoundsExtent.ToCompactString(), FAssetRegistryTag::TT_Hidden));
+			Context.AddTag(FAssetRegistryTag(NAME_LevelBoundsExtent, LevelBoundsExtent.ToCompactString(), FAssetRegistryTag::TT_Hidden));
 		}
 	
 		if (PersistentLevel->IsUsingExternalActors())
 		{
 			static const FName NAME_LevelIsUsingExternalActors(TEXT("LevelIsUsingExternalActors"));
-			OutTags.Add(FAssetRegistryTag(NAME_LevelIsUsingExternalActors, TEXT("1"), FAssetRegistryTag::TT_Hidden));
+			Context.AddTag(FAssetRegistryTag(NAME_LevelIsUsingExternalActors, TEXT("1"), FAssetRegistryTag::TT_Hidden));
 		}
 
 		if (PersistentLevel->IsUsingActorFolders())
 		{
 			static const FName NAME_LevelIsUsingActorFolders(TEXT("LevelIsUsingActorFolders"));
-			OutTags.Add(FAssetRegistryTag(NAME_LevelIsUsingActorFolders, TEXT("1"), FAssetRegistryTag::TT_Hidden));
+			Context.AddTag(FAssetRegistryTag(NAME_LevelIsUsingActorFolders, TEXT("1"), FAssetRegistryTag::TT_Hidden));
 		}
 
 		if (AWorldSettings* WorldSettings = GetWorldSettings(/*bCheckStreamingPersistent*/false, /*bChecked*/false))
@@ -9148,7 +9159,7 @@ void UWorld::GetAssetRegistryTags(TArray<FAssetRegistryTag>& OutTags) const
 			if (!LevelInstancePivotOffset.IsNearlyZero())
 			{
 				static const FName NAME_LevelInstancePivotOffset(TEXT("LevelInstancePivotOffset"));
-				OutTags.Add(FAssetRegistryTag(NAME_LevelInstancePivotOffset, LevelInstancePivotOffset.ToCompactString(), FAssetRegistryTag::TT_Hidden));
+				Context.AddTag(FAssetRegistryTag(NAME_LevelInstancePivotOffset, LevelInstancePivotOffset.ToCompactString(), FAssetRegistryTag::TT_Hidden));
 			}
 		}
 	}
@@ -9159,10 +9170,18 @@ void UWorld::GetAssetRegistryTags(TArray<FAssetRegistryTag>& OutTags) const
 	{
 		// Save/Display the modify date. File size is handled generically for all packages
 		FDateTime AssetDateModified = IFileManager::Get().GetTimeStamp(*FullFilePath);
-		OutTags.Add(FAssetRegistryTag("DateModified", AssetDateModified.ToString(), FAssetRegistryTag::TT_Chronological, FAssetRegistryTag::TD_Date));
+		Context.AddTag(FAssetRegistryTag("DateModified", AssetDateModified.ToString(), FAssetRegistryTag::TT_Chronological, FAssetRegistryTag::TD_Date));
 	}
 
-	FWorldDelegates::GetAssetTags.Broadcast(this, OutTags);
+	PRAGMA_DISABLE_DEPRECATION_WARNINGS;
+	TArray<UObject::FAssetRegistryTag> DeprecatedTags;
+	FWorldDelegates::GetAssetTags.Broadcast(this, DeprecatedTags);
+	for (UObject::FAssetRegistryTag& Tag : DeprecatedTags)
+	{
+		Context.AddTag(MoveTemp(Tag));
+	}
+	PRAGMA_ENABLE_DEPRECATION_WARNINGS;
+	FWorldDelegates::GetAssetTagsWithContext.Broadcast(this, Context);
 }
 
 void UWorld::PostLoadAssetRegistryTags(const FAssetData& InAssetData, TArray<FAssetRegistryTag>& OutTagsAndValuesToUpdate) const

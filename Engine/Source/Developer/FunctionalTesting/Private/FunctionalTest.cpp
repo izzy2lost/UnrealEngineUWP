@@ -9,6 +9,7 @@
 #include "Components/BillboardComponent.h"
 #include "HAL/FileManager.h"
 #include "Misc/FileHelper.h"
+#include "UObject/AssetRegistryTagsContext.h"
 #include "UObject/ConstructorHelpers.h"
 #include "ProfilingDebugging/ProfilingHelpers.h"
 #include "Misc/AutomationTest.h"
@@ -595,13 +596,20 @@ void AFunctionalTest::PostEditChangeProperty( struct FPropertyChangedEvent& Prop
 
 void AFunctionalTest::GetAssetRegistryTags(TArray<FAssetRegistryTag>& OutTags) const
 {
+	PRAGMA_DISABLE_DEPRECATION_WARNINGS;
 	Super::GetAssetRegistryTags(OutTags);
+	PRAGMA_ENABLE_DEPRECATION_WARNINGS;
+}
+
+void AFunctionalTest::GetAssetRegistryTags(FAssetRegistryTagsContext Context) const
+{
+	Super::GetAssetRegistryTags(Context);
 
 	if (IsPackageExternal() && IsEnabled())
 	{
 		const FString TestActor = GetActorLabel() + TEXT("|") + GetName();
 		const TCHAR* TestCategory = IsEditorOnlyObject(this) ? TEXT("TestNameEditor") : TEXT("TestName");
-		OutTags.Add(UObject::FAssetRegistryTag(TestCategory, TestActor, UObject::FAssetRegistryTag::TT_Hidden));
+		Context.AddTag(UObject::FAssetRegistryTag(TestCategory, TestActor, UObject::FAssetRegistryTag::TT_Hidden));
 	}
 }
 
