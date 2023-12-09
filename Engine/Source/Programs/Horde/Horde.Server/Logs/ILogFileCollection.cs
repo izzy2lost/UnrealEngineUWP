@@ -4,7 +4,6 @@ using System.Collections.Generic;
 using System.Threading;
 using System.Threading.Tasks;
 using Horde.Server.Agents.Sessions;
-using Horde.Server.Jobs;
 using EpicGames.Horde.Agents.Leases;
 using EpicGames.Horde.Jobs;
 

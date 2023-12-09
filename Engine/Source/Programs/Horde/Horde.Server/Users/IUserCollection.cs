@@ -3,7 +3,6 @@
 using System.Collections.Generic;
 using System.Security.Claims;
 using System.Threading.Tasks;
-using Horde.Server.Jobs;
 using Horde.Server.Utilities;
 using MongoDB.Bson;
 using Horde.Server.Jobs.Bisect;

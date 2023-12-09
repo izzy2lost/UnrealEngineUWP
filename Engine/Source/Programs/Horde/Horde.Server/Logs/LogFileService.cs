@@ -16,7 +16,6 @@ using EpicGames.Horde.Logs;
 using EpicGames.Horde.Storage;
 using Horde.Server.Acls;
 using Horde.Server.Agents.Sessions;
-using Horde.Server.Jobs;
 using Horde.Server.Logs.Data;
 using Horde.Server.Storage;
 using Horde.Server.Utilities;

@@ -5,7 +5,6 @@ using System.Collections.Generic;
 using System.Linq;
 using System.Security.Claims;
 using System.Threading.Tasks;
-using Horde.Server.Jobs;
 using Horde.Server.Server;
 using Horde.Server.Utilities;
 using MongoDB.Bson;

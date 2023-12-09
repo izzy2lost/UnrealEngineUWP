@@ -6,7 +6,6 @@ using System.Linq;
 using System.Threading.Tasks;
 using EpicGames.Horde.Jobs;
 using EpicGames.Horde.Jobs.Templates;
-using Horde.Server.Jobs;
 
 namespace Horde.Server.Streams
 {

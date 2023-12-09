@@ -8,7 +8,6 @@ using EpicGames.Core;
 using Google.Protobuf;
 using Google.Protobuf.WellKnownTypes;
 using Horde.Server.Agents;
-using Horde.Server.Jobs;
 using Horde.Server.Logs;
 using Horde.Server.Server;
 using Horde.Server.Tools;

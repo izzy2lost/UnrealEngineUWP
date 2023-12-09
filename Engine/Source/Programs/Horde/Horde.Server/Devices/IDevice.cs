@@ -7,7 +7,6 @@ using EpicGames.Horde.Jobs;
 using EpicGames.Horde.Projects;
 using EpicGames.Horde.Streams;
 using EpicGames.Horde.Users;
-using Horde.Server.Jobs;
 using MongoDB.Bson;
 using MongoDB.Bson.Serialization.Attributes;
 
