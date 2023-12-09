@@ -208,6 +208,13 @@ namespace EpicGames.Horde
 		/// <param name="right">Second string id</param>
 		/// <returns>True if the two string ids are not equal</returns>
 		public static bool operator !=(BinaryId left, BinaryId right) => !left.Equals(right);
+
+#pragma warning disable CS1591 // Missing XML comment for publicly visible type or member
+		public static bool operator <(BinaryId left, BinaryId right) => left.CompareTo(right) < 0;
+		public static bool operator <=(BinaryId left, BinaryId right) => left.CompareTo(right) <= 0;
+		public static bool operator >(BinaryId left, BinaryId right) => left.CompareTo(right) > 0;
+		public static bool operator >=(BinaryId left, BinaryId right) => left.CompareTo(right) >= 0;
+#pragma warning restore CS1591 // Missing XML comment for publicly visible type or member
 	}
 
 	/// <summary>
