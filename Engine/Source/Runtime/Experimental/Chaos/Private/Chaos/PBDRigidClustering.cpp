@@ -280,6 +280,11 @@ namespace Chaos
 		{
 			NewParticle->SetInternalStrains(NewParticle->GetInternalStrains() / static_cast<FRealSingle>(ChildrenSet.Num()));
 			UpdateTopLevelParticle(NewParticle);
+
+			// NOTE: These property values are only known when we have children. They should be overwritten when 
+			// children are added to an empty cluster, but we also shouldn't set non-default values before then
+			NewParticle->SetSleeping(bClusterIsAsleep);
+			NewParticle->SetOneWayInteraction(bClusterIsOneWayInteraction);
 		}
 
 		if (ForceMassOrientation)
@@ -301,10 +306,6 @@ namespace Chaos
 
 		// Build the convex optimizer if required
 		//FRigidClustering::BuildConvexOptimizer(NewParticle);
-
-		NewParticle->SetSleeping(bClusterIsAsleep);
-
-		NewParticle->SetOneWayInteraction(bClusterIsOneWayInteraction);
 
 		auto AddToClusterUnion = [this](int32 ClusterID, FPBDRigidClusteredParticleHandle* Handle)
 		{

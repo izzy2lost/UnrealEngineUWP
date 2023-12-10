@@ -3542,7 +3542,7 @@ void FGeometryCollectionPhysicsProxy::SetOneWayInteractionLevel_Internal(int32 I
 		Chaos::FPBDRigidClusteredParticleHandle* Handle = SolverParticleHandles[ParticleIndex];
 		if (Handle)
 		{
-			const bool bIsOneWayInteraction = (Parameters.OneWayInteractionLevel >= 0) && (Level[ParticleIndex] >= Parameters.OneWayInteractionLevel);
+			const bool bIsOneWayInteraction = (Parameters.OneWayInteractionLevel >= 0) && (Level[FromParticleToTransformIndex[ParticleIndex]] >= Parameters.OneWayInteractionLevel);
 			Handle->SetOneWayInteraction(bIsOneWayInteraction);
 		}
 	}
