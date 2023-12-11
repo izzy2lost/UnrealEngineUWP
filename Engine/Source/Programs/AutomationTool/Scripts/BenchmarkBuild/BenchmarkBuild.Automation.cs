@@ -325,7 +325,7 @@ namespace AutomationTool.Benchmark
 
 				// parse map args
 				{
-					// master arg that sets all three
+					// primary arg that sets all three
 					var EditorMaps = ParseMapList("editor-maps");
 
 					if (EditorMaps.Any())

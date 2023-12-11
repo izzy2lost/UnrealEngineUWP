@@ -306,7 +306,7 @@ class Localize : BuildCommand
 			AdditionalCommandletArguments = AdditionalCommandletArguments.Trim();
 			if (AdditionalCommandletArguments.StartsWith("\"") && AdditionalCommandletArguments.EndsWith("\""))
 			{
-				// We subtract 2 to nuke the last " character
+				// We subtract 2 to remove the last " character
 				AdditionalCommandletArguments = AdditionalCommandletArguments[1..^1];
 			}
 		}
