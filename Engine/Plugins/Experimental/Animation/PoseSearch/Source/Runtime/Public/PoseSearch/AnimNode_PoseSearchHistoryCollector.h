@@ -20,7 +20,7 @@ public:
 	
 	// how often in seconds poses are collected
 	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = Settings, meta = (ClampMin="0.001"))
-	float SamplingInterval = UE::PoseSearch::FiniteDelta;
+	float SamplingInterval = 0.04f;
 
 	UPROPERTY(EditAnywhere, Category = Settings)
 	TArray<FBoneReference> CollectedBones;
@@ -35,7 +35,7 @@ public:
 
 	// if true pose scales will be cached, otherwise implied to be unitary scales
 	UPROPERTY(EditAnywhere, Category = Settings)
-	bool bStoreScales = true;
+	bool bStoreScales = false;
 
 	// Update Counter for detecting being relevant
 	FGraphTraversalCounter UpdateCounter;
@@ -45,13 +45,34 @@ public:
 	FLinearColor DebugColor = FLinearColor::Red;
 #endif // WITH_EDITORONLY_DATA
 
-	// Trajectory samples for pose search queries in Motion Matching. These are expected to be in the world space of the SkeletalMeshComponent. This is provided with the CharacterMovementTrajectory Component output.
-	UPROPERTY(EditAnywhere, Category = Settings, meta = (PinShownByDefault))
+	// if true Trajectory the pose history node will generate the trajectory using the TrajectoryData parameters instead of relying on the input Trajectory (Experimental)
+	UPROPERTY(EditAnywhere, Category = Settings)
+	bool bGenerateTrajectory = false;
+
+	// input Trajectory samples for pose search queries in Motion Matching. These are expected to be in the world space of the SkeletalMeshComponent.
+	// the trajectory sample with AccumulatedSeconds equals to zero (Trajectory.Samples[i].AccumulatedSeconds) is the sample of the previous frame of simulation (since MM works by matching the previous character pose)
+	UPROPERTY(EditAnywhere, Category = Settings, meta = (PinShownByDefault, EditCondition="!bGenerateTrajectory", EditConditionHides))
 	FPoseSearchQueryTrajectory Trajectory;
 
 	// Input Trajectory velocity will be multiplied by TrajectorySpeedMultiplier: values below 1 will result in selecting animation slower than requested from the original Trajectory
-	UPROPERTY(EditAnywhere, Category = Settings, meta = (PinHiddenByDefault, ClampMin="0"))
+	UPROPERTY(EditAnywhere, Category = Settings, meta = (PinHiddenByDefault, ClampMin="0", EditCondition="!bGenerateTrajectory", EditConditionHides))
 	float TrajectorySpeedMultiplier = 1.f;
+
+	// if bGenerateTrajectory is true, this is the number of trajectory past (collected) samples
+	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = Settings, meta = (ClampMin = "2", EditCondition = "bGenerateTrajectory", EditConditionHides))
+	int32 TrajectoryHistoryCount = 10;
+
+	// if bGenerateTrajectory is true, this is the number of trajectory future (prediction) samples
+	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = Settings, meta = (ClampMin="2", EditCondition="bGenerateTrajectory", EditConditionHides))
+	int32 TrajectoryPredictionCount = 8;
+
+	// if bGenerateTrajectory is true, this is the sampling interval between trajectory future (prediction) samples
+	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = Settings, meta = (ClampMin="0.001", EditCondition="bGenerateTrajectory", EditConditionHides))
+	float PredictionSamplingInterval = 0.4f;
+
+	// if bGenerateTrajectory is true, TrajectoryData contains the tuning parameters to generate the trajectory
+	UPROPERTY(EditAnywhere, Category = Settings, meta=(EditCondition="bGenerateTrajectory", EditConditionHides))
+	FPoseSearchTrajectoryData TrajectoryData;
 
 	// FAnimNode_Base interface
 	virtual void CacheBones_AnyThread(const FAnimationCacheBonesContext& Context) override;
@@ -70,7 +91,7 @@ struct POSESEARCH_API FAnimNode_PoseSearchHistoryCollector : public FAnimNode_Po
 	GENERATED_BODY()
 
 public:
-	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = Links)
+	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = Links, meta = (DisplayPriority = 0))
 	FPoseLink Source;
 
 	// FAnimNode_Base interface
@@ -88,7 +109,7 @@ struct POSESEARCH_API FAnimNode_PoseSearchComponentSpaceHistoryCollector : publi
 	GENERATED_BODY()
 
 public:
-	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = Links)
+	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = Links, meta = (DisplayPriority = 0))
 	FComponentSpacePoseLink Source;
 
 	// FAnimNode_Base interface
