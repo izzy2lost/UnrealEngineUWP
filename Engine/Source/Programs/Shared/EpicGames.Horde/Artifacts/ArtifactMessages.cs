@@ -39,6 +39,11 @@ namespace EpicGames.Horde.Artifacts
 		public ArtifactId Id { get; }
 
 		/// <summary>
+		/// Name of the artifact
+		/// </summary>
+		public ArtifactName Name { get; }
+
+		/// <summary>
 		/// Type of artifact
 		/// </summary>
 		public ArtifactType Type { get; }
@@ -61,9 +66,10 @@ namespace EpicGames.Horde.Artifacts
 		/// <summary>
 		/// Constructor
 		/// </summary>
-		public GetArtifactResponse(ArtifactId id, ArtifactType type, StreamId streamId, int change, IReadOnlyList<string> keys)
+		public GetArtifactResponse(ArtifactId id, ArtifactName name, ArtifactType type, StreamId streamId, int change, IReadOnlyList<string> keys)
 		{
 			Id = id;
+			Name = name;
 			Type = type;
 			StreamId = streamId;
 			Change = change;

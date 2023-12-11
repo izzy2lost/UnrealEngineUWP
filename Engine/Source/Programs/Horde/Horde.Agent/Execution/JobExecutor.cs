@@ -195,7 +195,6 @@ namespace Horde.Agent.Execution
 
 		protected ISession Session { get; }
 		protected HttpStorageClientFactory StorageFactory { get; }
-		private readonly string _token;
 		protected JobOptions JobOptions { get; }
 
 		protected IRpcConnection RpcConnection => Session.RpcConnection;
@@ -212,7 +211,6 @@ namespace Horde.Agent.Execution
 			BatchId = options.BatchId;
 			Batch = options.Batch;
 
-			_token = options.Token;
 			JobOptions = options.JobOptions;
 
 			_envVars[HordeHttpClient.HordeUrlEnvVarName] = options.Session.ServerUrl.ToString();

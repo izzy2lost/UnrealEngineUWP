@@ -4,7 +4,6 @@ using System.Diagnostics;
 using System.Reflection;
 using System.Runtime.InteropServices;
 using EpicGames.Core;
-using EpicGames.Horde.Storage;
 using EpicGames.Horde.Storage.Clients;
 using Google.Protobuf;
 using Grpc.Core;
