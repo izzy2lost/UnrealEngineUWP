@@ -99,7 +99,7 @@ namespace Horde.Server.Agents.Leases
 					}
 
 					Dictionary<string, string>? details = _agentService.GetPayloadDetails(lease.Payload);
-					responses.Add(PropertyFilter.Apply(new GetAgentLeaseResponse(lease, details, agentRate), filter));
+					responses.Add(PropertyFilter.Apply(AgentsController.CreateGetAgentLeaseResponse(lease, details, agentRate), filter));
 				}
 			}
 
@@ -139,7 +139,7 @@ namespace Horde.Server.Agents.Leases
 			}
 
 			Dictionary<string, string>? details = _agentService.GetPayloadDetails(lease.Payload);
-			return new GetAgentLeaseResponse(lease, details, agentRate);
+			return AgentsController.CreateGetAgentLeaseResponse(lease, details, agentRate);
 		}
 
 		/// <summary>

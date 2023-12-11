@@ -21,8 +21,7 @@ public class AgentControllerDbTest : TestSetup
 		Assert.AreEqual(fixture!.Agent1Name.ToUpper(), getRes.Name);
 		Assert.IsNull(getRes.Comment);
 
-		UpdateAgentRequest updateReq = new();
-		updateReq.Comment = "foo bar baz";
+		UpdateAgentRequest updateReq = new(Comment: "foo bar baz");
 		await AgentsController.UpdateAgentAsync(fixtureAgent.Id, updateReq);
 
 		obj = await AgentsController.GetAgentAsync(fixtureAgent.Id);

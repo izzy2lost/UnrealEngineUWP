@@ -15,6 +15,7 @@ using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
 using Microsoft.Extensions.Logging;
 using Microsoft.Extensions.Options;
+using EpicGames.Core;
 using EpicGames.Horde.Agents;
 using EpicGames.Horde.Agents.Leases;
 using EpicGames.Horde.Common;
@@ -120,7 +121,7 @@ namespace Horde.Server.Agents
 				try
 				{
 					Dictionary<string, string>? details = _agentService.GetPayloadDetails(lease.Payload);
-					leases.Add(new GetAgentLeaseResponse(lease, details));
+					leases.Add(CreateGetAgentLeaseResponse(lease, details));
 				}
 				catch (Exception e)
 				{
@@ -128,7 +129,53 @@ namespace Horde.Server.Agents
 				}
 			}
 
-			return new GetAgentResponse(agent, leases, rate).ApplyFilter(filter);
+			return CreateGetAgentResponse(agent, leases, rate).ApplyFilter(filter);
+		}
+
+		internal static GetAgentLeaseResponse CreateGetAgentLeaseResponse(AgentLease lease, Dictionary<string, string>? details)
+		{
+			return new GetAgentLeaseResponse(lease.Id, lease.ParentId, null, null, lease.Name, lease.LogId, lease.StartTime, lease.ExpiryTime, lease.Active, details, null, lease.State);
+		}
+
+		internal static GetAgentLeaseResponse CreateGetAgentLeaseResponse(ILease lease, Dictionary<string, string>? details, double? agentRate)
+		{
+			return new GetAgentLeaseResponse(lease.Id, lease.ParentId, lease.AgentId, agentRate, lease.Name, lease.LogId, lease.StartTime, lease.FinishTime, lease.FinishTime == null, details, lease.Outcome, null);
+		}
+
+		static GetAgentResponse CreateGetAgentResponse(IAgent agent, List<GetAgentLeaseResponse> leases, double? rate)
+		{
+			return new GetAgentResponse(
+				agent.Id,
+				agent.Id.ToString(),
+				agent.Enabled,
+				rate,
+				agent.SessionId,
+				agent.Ephemeral,
+				agent.IsSessionValid(DateTime.UtcNow),
+				agent.Deleted,
+				agent.RequestConform,
+				agent.RequestFullConform,
+				agent.RequestRestart,
+				agent.RequestShutdown,
+				agent.LastShutdownReason ?? "Unknown",
+				agent.LastConformTime,
+				agent.ConformAttemptCount,
+				agent.LastConformTime,
+				agent.Version?.ToString() ?? "Unknown",
+				new List<string>(agent.Properties),
+				new Dictionary<string, int>(agent.Resources),
+				agent.UpdateTime,
+				agent.LastStatusChange,
+				agent.GetPools().Select(x => x.ToString()).ToList(),
+				new { Devices = new[] { new { agent.Properties, agent.Resources } } },
+				leases,
+				agent.Workspaces.ConvertAll(x => CreateGetAgentWorkspaceResponse(x)),
+				agent.Comment);
+		}
+
+		internal static GetAgentWorkspaceResponse CreateGetAgentWorkspaceResponse(AgentWorkspace workspace)
+		{
+			return new GetAgentWorkspaceResponse(workspace.Cluster, workspace.UserName, workspace.Identifier, workspace.Stream, workspace.View, workspace.Incremental, workspace.Method);
 		}
 
 		/// <summary>
@@ -270,7 +317,12 @@ namespace Horde.Server.Agents
 			}
 
 			List<ISession> sessions = await _agentService.FindSessionsAsync(agentId, startTime?.UtcDateTime, finishTime?.UtcDateTime, index, count);
-			return sessions.ConvertAll(x => new GetAgentSessionResponse(x));
+			return sessions.ConvertAll(x => CreateGetAgentSessionResponse(x));
+		}
+
+		static GetAgentSessionResponse CreateGetAgentSessionResponse(ISession session)
+		{
+			return new GetAgentSessionResponse(session.Id, session.StartTime, session.FinishTime, (session.Properties != null) ? new List<string>(session.Properties) : null, session.Version);
 		}
 
 		/// <summary>
@@ -300,7 +352,7 @@ namespace Horde.Server.Agents
 				return NotFound();
 			}
 
-			return new GetAgentSessionResponse(session);
+			return CreateGetAgentSessionResponse(session);
 		}
 
 		/// <summary>
@@ -342,7 +394,7 @@ namespace Horde.Server.Agents
 			foreach(ILease lease in leases)
 			{
 				Dictionary<string, string>? details = _agentService.GetPayloadDetails(lease.Payload);
-				responses.Add(PropertyFilter.Apply(new GetAgentLeaseResponse(lease, details, agentRate), filter));
+				responses.Add(PropertyFilter.Apply(CreateGetAgentLeaseResponse(lease, details, agentRate), filter));
 			}
 
 			return responses;
@@ -382,7 +434,7 @@ namespace Horde.Server.Agents
 			}
 
 			Dictionary<string, string>? details = _agentService.GetPayloadDetails(lease.Payload);
-			return new GetAgentLeaseResponse(lease, details, agentRate);
+			return CreateGetAgentLeaseResponse(lease, details, agentRate);
 		}
 	}
 }
