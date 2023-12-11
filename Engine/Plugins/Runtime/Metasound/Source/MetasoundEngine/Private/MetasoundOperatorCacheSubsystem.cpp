@@ -129,7 +129,7 @@ void UMetaSoundCacheSubsystem::PrecacheMetaSound(UMetaSoundSource* InMetaSound, 
 	TUniquePtr<FOperatorBuildData> Data = MakeUnique<FOperatorBuildData>(
 		  MoveTemp(InitParams.GetValue())
 		, InMetaSound->GetRegistryKey()
-		, FSoftObjectPath(InMetaSound->GetOwningAsset())
+		, InMetaSound->GetAssetPathChecked()
 		, InMetaSound->AssetClassID
 		, InNumInstances
 	);

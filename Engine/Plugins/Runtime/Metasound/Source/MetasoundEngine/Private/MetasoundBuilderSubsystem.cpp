@@ -1062,7 +1062,7 @@ void UMetaSoundSourceBuilder::Audition(UObject* Parent, UAudioComponent* AudioCo
 	RegisterGraphIfOutstandingTransactions(MetaSoundSource);
 
 	// Must be called post register as register ensures cached runtime data passed to transactor is up-to-date
-	MetaSoundSource.SetDynamicGeneratorEnabled(bLiveUpdatesEnabled);
+	MetaSoundSource.SetDynamicGeneratorEnabled(MetaSoundSource.GetAssetPathChecked(), bLiveUpdatesEnabled);
 	MetaSoundSource.ConformObjectDataToInterfaces();
 
 	AudioComponent->SetSound(&MetaSoundSource);

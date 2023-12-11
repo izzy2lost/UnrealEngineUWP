@@ -490,6 +490,11 @@ bool UMetaSoundSource::ConformObjectDataToInterfaces()
 	return bDidAlterObjectData;
 }
 
+FTopLevelAssetPath UMetaSoundSource::GetAssetPathChecked() const
+{
+	return Metasound::FMetaSoundEngineAssetHelper::GetAssetPathChecked(*this);
+}
+
 void UMetaSoundSource::BeginDestroy()
 {
 	UnregisterGraphWithFrontend();
@@ -879,7 +884,7 @@ ISoundGeneratorPtr UMetaSoundSource::CreateSoundGenerator(const FSoundGeneratorI
 		// the base IGraph. 
 		if (ConsoleVariables::bEnableExperimentalRuntimePresetGraphInflation && bIsPresetGraphInflationSupported)
 		{
-			// Get the graph associated with base graph which this preset wraps .
+			// Get the graph associated with base graph which this preset wraps.
 			TSharedPtr<const IGraph> MetasoundGraph = TryGetMetaSoundPresetBaseGraph();
 
 			if (MetasoundGraph.IsValid())
@@ -908,7 +913,7 @@ ISoundGeneratorPtr UMetaSoundSource::CreateSoundGenerator(const FSoundGeneratorI
 
 		if (!Generator.IsValid())
 		{
-			TSharedPtr<const IGraph> MetasoundGraph = GetRegisteredGraph();
+			TSharedPtr<const FGraph> MetasoundGraph = FMetasoundFrontendRegistryContainer::Get()->GetGraph(GetRegistryKey(), GetAssetPathChecked());
 			if (!MetasoundGraph.IsValid())
 			{
 				return ISoundGeneratorPtr(nullptr);
@@ -1520,7 +1525,7 @@ void UMetaSoundSource::OnFinishActiveBuilder()
 	bIsBuilderActive = false;
 }
 
-TSharedPtr<Metasound::DynamicGraph::FDynamicOperatorTransactor> UMetaSoundSource::SetDynamicGeneratorEnabled(bool bInIsEnabled)
+TSharedPtr<Metasound::DynamicGraph::FDynamicOperatorTransactor> UMetaSoundSource::SetDynamicGeneratorEnabled(const FTopLevelAssetPath& InAssetPath, bool bInIsEnabled)
 {
 	using namespace Metasound;
 	using namespace Metasound::DynamicGraph;
@@ -1538,7 +1543,8 @@ TSharedPtr<Metasound::DynamicGraph::FDynamicOperatorTransactor> UMetaSoundSource
 			// graph to see if any FGraph already exists. 
 			if (IsRegistered())
 			{
-				TSharedPtr<const FGraph> CurrentGraph = GetRegisteredGraph();
+				TSharedPtr<const FGraph> CurrentGraph = FMetasoundFrontendRegistryContainer::Get()->GetGraph(GetRegistryKey(), InAssetPath);
+
 				if (CurrentGraph.IsValid())
 				{
 					DynamicTransactor = MakeShared<FDynamicOperatorTransactor>(*CurrentGraph);
@@ -1696,9 +1702,9 @@ TSharedPtr<const Metasound::IGraph> UMetaSoundSource::TryGetMetaSoundPresetBaseG
 		TObjectPtr<const UMetaSoundSource> BaseMetaSoundSource = Cast<const UMetaSoundSource>(BaseGraph);
 		if (BaseMetaSoundSource)
 		{
-			// Get registered graph of base metasound source. 
-			FSoftObjectPath BaseMetaSoundSourcePath(BaseMetaSoundSource->GetOwningAsset());
-			MetasoundGraph = FMetasoundFrontendRegistryContainer::Get()->GetGraph(BaseMetaSoundSource->GetRegistryKey(), FSoftObjectPath(BaseMetaSoundSource->GetOwningAsset()));
+			// Get registered graph of base metasound source.
+			const FTopLevelAssetPath BaseMetaSoundSourcePath = BaseMetaSoundSource->GetAssetPathChecked();
+			MetasoundGraph = FMetasoundFrontendRegistryContainer::Get()->GetGraph(BaseMetaSoundSource->GetRegistryKey(), BaseMetaSoundSourcePath);
 		}
 	}
 	else

@@ -5,9 +5,9 @@
 #include "Algo/MaxElement.h"
 #include "MetasoundFrontend.h"
 #include "MetasoundFrontendDocument.h"
-#include "MetasoundFrontendNodeRegistryPrivate.h"
 #include "MetasoundFrontendQuery.h"
-#include "MetasoundFrontendRegistries.h"
+#include "MetasoundFrontendRegistryContainer.h"
+#include "MetasoundFrontendRegistryContainerImpl.h"
 #include "MetasoundFrontendRegistryTransaction.h"
 #include "MetasoundLog.h"
 

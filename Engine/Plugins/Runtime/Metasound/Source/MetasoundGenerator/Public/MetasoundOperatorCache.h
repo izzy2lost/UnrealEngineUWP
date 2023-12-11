@@ -67,7 +67,7 @@ namespace Metasound
 	{
 		FMetasoundGeneratorInitParams InitParams;
 		Frontend::FNodeRegistryKey RegistryKey;
-		FSoftObjectPath AssetPath;
+		FTopLevelAssetPath AssetPath;
 		FGuid AssetClassID;
 		int32 NumInstances;
 
@@ -75,7 +75,7 @@ namespace Metasound
 		FOperatorBuildData(
 			  FMetasoundGeneratorInitParams&& InInitParams
 			, Frontend::FNodeRegistryKey InRegistryKey
-			, FSoftObjectPath InAssetPath
+			, FTopLevelAssetPath InAssetPath
 			, FGuid InAssetID
 			, int32 InNumInstances = 1
 		);

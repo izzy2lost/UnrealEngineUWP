@@ -63,6 +63,14 @@ namespace Metasound
 #endif // WITH_EDITOR
 
 		template <typename TMetaSoundObject>
+		static FTopLevelAssetPath GetAssetPathChecked(TMetaSoundObject& InMetaSound)
+		{
+			FTopLevelAssetPath Path;
+			ensureAlwaysMsgf(Path.TrySetPath(&InMetaSound), TEXT("Failed to set TopLevelAssetPath from MetaSound '%s'. MetaSound must be highest level object in package."), *InMetaSound.GetPathName());
+			return Path;
+		}
+
+		template <typename TMetaSoundObject>
 		static TArray<FMetasoundAssetBase*> GetReferencedAssets(TMetaSoundObject& InMetaSound)
 		{
 			TArray<FMetasoundAssetBase*> ReferencedAssets;
