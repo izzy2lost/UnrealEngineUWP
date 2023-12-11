@@ -79,11 +79,9 @@ PRAGMA_ENABLE_DEPRECATION_WARNINGS
 					InOutClassPath = FTopLevelAssetPath(RedirectedClassRedirect.ToString());
 				}
 
-				FSoftObjectPath FoundRedirection = GRedirectCollector.GetAssetPathRedirection(FSoftObjectPath(InOutClassPath.ToString()));
-				if (FoundRedirection.IsValid())
-				{
-					InOutClassPath = FoundRedirection.GetAssetPath();
-				}
+				FSoftObjectPath RedirectedClassPath(InOutClassPath.ToString());
+				UAssetRegistryHelpers::FixupRedirectedAssetPath(RedirectedClassPath);
+				InOutClassPath = RedirectedClassPath.GetAssetPath();
 			}
 		};
 

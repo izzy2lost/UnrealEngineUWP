@@ -232,97 +232,27 @@ UAssetRegistryHelpers::FTemporaryCachingModeScope::~FTemporaryCachingModeScope()
 	UAssetRegistryHelpers::GetAssetRegistry()->SetTemporaryCachingMode(PreviousCachingMode);
 }
 
-bool UAssetRegistryHelpers::FixupRedirectedAssetPath(FSoftObjectPath& InOutSoftObjectPath)
+void UAssetRegistryHelpers::FixupRedirectedAssetPath(FSoftObjectPath& InOutSoftObjectPath)
 {
-	if (InOutSoftObjectPath.IsNull())
-	{
-		// Empty path, no redirect
-		return true;
-	}
+	FSoftObjectPath FoundRedirection;
 
 #if WITH_EDITOR
-	// Check GRedirectCollector first for faster fixup
-	FSoftObjectPath FoundRedirection = GRedirectCollector.GetAssetPathRedirection(InOutSoftObjectPath.GetWithoutSubPath());
-	if (!FoundRedirection.IsNull())
+	FoundRedirection = GRedirectCollector.GetAssetPathRedirection(InOutSoftObjectPath);
+	if (FoundRedirection.IsValid())
 	{
-		InOutSoftObjectPath.SetPath(FoundRedirection.GetAssetPath(), InOutSoftObjectPath.GetSubPathString());
-		return true;
+		InOutSoftObjectPath = FoundRedirection;
+		return;
 	}
 #endif
 
-	if (InOutSoftObjectPath.GetAssetName().IsEmpty())
-	{
-		// A package name. No need to ask the asset registry for assets, it wont find any
-		return true;
-	}
-
-	const FAssetData* AssetData;
 	IAssetRegistry& AssetRegistry = IAssetRegistry::GetChecked();
-
-	FTopLevelAssetPath AssetPath = InOutSoftObjectPath.GetAssetPath();
-	TSet<FTopLevelAssetPath> Visited;
-	Visited.Add(AssetPath);
-
-	for (;;)
-	{
-		TArray<FAssetData> Assets;
-		AssetRegistry.ScanFilesSynchronous({ AssetPath.GetPackageName().ToString() }, /*bForceRescan*/false);
-		AssetRegistry.GetAssetsByPackageName(AssetPath.GetPackageName(), Assets, /*bIncludeOnlyOnDiskAssets*/true);
-
-		if (!Assets.Num())
-		{
-			UE_LOG(LogCore, Warning, TEXT("Failed to find assets for asset path '%s'"), *AssetPath.ToString());
-			return false;
-		}
-
-		AssetData = Assets.FindByPredicate([&AssetPath](const FAssetData& AssetData)
-		{
-			return (AssetData.ToSoftObjectPath().GetAssetPath() == AssetPath);
-		});
-
-		if (!AssetData)
-		{
-			UE_LOG(LogCore, Warning, TEXT("Failed to find asset for asset path '%s'"), *AssetPath.ToString());
-			return false;
-		}
-
-		if (!AssetData->IsRedirector())
-		{
-			break;
-		}
-
-		FString DestinationObjectPath;
-		if (!AssetData->GetTagValue(TEXT("DestinationObject"), DestinationObjectPath))
-		{
-			UE_LOG(LogCore, Warning, TEXT("Failed to follow redirector for '%s'"), *AssetPath.ToString());
-			return false;
-		}
-
-		// Update asset path
-		AssetPath = FTopLevelAssetPath(DestinationObjectPath);
-
-		bool bAlreadyVisited = false;
-		Visited.Add(AssetPath, &bAlreadyVisited);
-		if (bAlreadyVisited)
-		{
-			UE_LOG(LogCore, Warning, TEXT("Asset path was already visited '%s'"), *AssetPath.ToString());
-			return false;
-		}
-	}
-
-	InOutSoftObjectPath.SetPath(AssetPath, InOutSoftObjectPath.GetSubPathString());
-
-	return true;
+	FoundRedirection = AssetRegistry.GetRedirectedObjectPath(InOutSoftObjectPath.GetWithoutSubPath());
+	InOutSoftObjectPath = FSoftObjectPath(FoundRedirection.GetAssetPath(), InOutSoftObjectPath.GetSubPathString());
 }
 
-bool UAssetRegistryHelpers::FixupRedirectedAssetPath(FName& InOutAssetPath)
+void UAssetRegistryHelpers::FixupRedirectedAssetPath(FName& InOutAssetPath)
 {
 	FSoftObjectPath SoftObjectPath(InOutAssetPath.ToString());
-	if (FixupRedirectedAssetPath(SoftObjectPath))
-	{
-		InOutAssetPath = FName(*SoftObjectPath.ToString());
-		return true;
-	}
-
-	return false;
+	FixupRedirectedAssetPath(SoftObjectPath);
+	InOutAssetPath = FName(*SoftObjectPath.ToString());
 }

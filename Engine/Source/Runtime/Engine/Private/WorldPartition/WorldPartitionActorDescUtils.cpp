@@ -209,6 +209,7 @@ void FWorldPartitionActorDescUtils::ReplaceActorDescriptorPointerFromActor(const
 
 bool FWorldPartitionActorDescUtils::FixupRedirectedAssetPath(FName& InOutAssetPath)
 {
-	return UAssetRegistryHelpers::FixupRedirectedAssetPath(InOutAssetPath);
+	UAssetRegistryHelpers::FixupRedirectedAssetPath(InOutAssetPath);
+	return true;
 }
 #endif

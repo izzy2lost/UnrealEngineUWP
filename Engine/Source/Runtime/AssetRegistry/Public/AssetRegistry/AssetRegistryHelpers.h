@@ -140,14 +140,12 @@ public:
 	/**
 	 * Resolves the provided asset path using asset redirectors.
 	 * @param	InOutAssetPath	Asset path to resolve [In/Out].
-	 * @return	False if an error occurred while trying to resolve, else true.
 	 */
-	static ASSETREGISTRY_API bool FixupRedirectedAssetPath(FName& InOutAssetPath);
+	static ASSETREGISTRY_API void FixupRedirectedAssetPath(FName& InOutAssetPath);
 	
 	/**
 	 * Resolves the provided soft object asset path using asset redirectors.
 	 * @param	InOutSoftObjectPath	Asset path to resolve [In/Out].
-	 * @return	False if an error occurred while trying to resolve, else true.
 	 */
-	static ASSETREGISTRY_API bool FixupRedirectedAssetPath(FSoftObjectPath& InOutSoftObjectPath);
+	static ASSETREGISTRY_API void FixupRedirectedAssetPath(FSoftObjectPath& InOutSoftObjectPath);
 };

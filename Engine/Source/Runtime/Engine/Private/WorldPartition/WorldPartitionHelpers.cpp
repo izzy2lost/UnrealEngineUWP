@@ -312,12 +312,14 @@ bool FWorldPartitionHelpers::ConvertRuntimePathToEditorPath(const FSoftObjectPat
 
 bool FWorldPartitionHelpers::FixupRedirectedAssetPath(FSoftObjectPath& InOutSoftObjectPath)
 {
-	return UAssetRegistryHelpers::FixupRedirectedAssetPath(InOutSoftObjectPath);
+	UAssetRegistryHelpers::FixupRedirectedAssetPath(InOutSoftObjectPath);
+	return true;
 }
 
 bool FWorldPartitionHelpers::FixupRedirectedAssetPath(FName& InOutAssetPath)
 {
-	return UAssetRegistryHelpers::FixupRedirectedAssetPath(InOutAssetPath);
+	UAssetRegistryHelpers::FixupRedirectedAssetPath(InOutAssetPath);
+	return true;
 }
 
 #endif // #if WITH_EDITOR
