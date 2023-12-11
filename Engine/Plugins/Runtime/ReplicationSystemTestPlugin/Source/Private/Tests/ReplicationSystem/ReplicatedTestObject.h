@@ -109,6 +109,8 @@ class UTestReplicatedIrisPushModelComponentWithObjectReference : public UObject
 public:
 	UTestReplicatedIrisPushModelComponentWithObjectReference();
 
+	void ModifyIntA();
+
 	UPROPERTY(Transient, Replicated)
 	int32 IntA;
 
@@ -541,6 +543,7 @@ protected:
 		uint32 NumIrisComponentsToSpawn;
 		uint32 NumDynamicComponentsToSpawn;
 		uint32 NumConnectionFilteredComponentsToSpawn;
+		uint32 NumObjectReferenceComponentsToSpawn;
 		bool bForceFailCreateRemoteInstance;
 	};
 

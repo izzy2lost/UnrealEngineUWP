@@ -181,7 +181,7 @@ UE_NET_TEST_FIXTURE(FReplicationSystemServerClientTestFixture, GlobalDirtyTracke
 }
 
 /** Test that validates behavior when dirtying other actors inside PreUpdate/PreReplication */
-UE_NET_TEST_FIXTURE(FReplicationSystemServerClientTestFixture, DirtyInsidePreUpdateTest)
+UE_NET_TEST_FIXTURE(FReplicationSystemServerClientTestFixture, ForceOtherObjectDirtyInsidePreUpdateTest)
 {
 	// Add client
 	FReplicationSystemTestClient* Client = CreateClient();
@@ -293,6 +293,46 @@ UE_NET_TEST_FIXTURE(FReplicationSystemServerClientTestFixture, DirtyInsidePreUpd
 
 	Server->DestroyObject(ServerObjectA);
 	Server->DestroyObject(ServerObjectB);
+}
+
+/** Test that validates that a push model enabled object is marked as dirty inside PreUpdate/PreReplication */
+UE_NET_TEST_FIXTURE(FReplicationSystemServerClientTestFixture, PushModelMarkSelfDirtyInsidePreUpdateTest)
+{
+	// Add client
+	FReplicationSystemTestClient* Client = CreateClient();
+
+	// Spawn object with a PreUpdate call
+	TStrongObjectPtr<UTestReplicatedIrisObject> ServerObject = TStrongObjectPtr(NewObject<UTestReplicatedIrisObject>());
+	ServerObject->AddComponents({.ObjectReferenceComponentCount = 1});
+	{
+		UObjectReplicationBridge::FCreateNetRefHandleParams Params;
+		Params.bNeedsPreUpdate = true;
+		Server->ReplicationBridge->BeginReplication(ServerObject.Get(), Params);
+	}
+
+	// Send and deliver packet
+	Server->UpdateAndSend({ Client });
+
+	// Object should have been created on the client
+	UTestReplicatedIrisObject* ClientObject = Cast<UTestReplicatedIrisObject>(Client->GetReplicationBridge()->GetReplicatedObject(ServerObject->NetRefHandle));
+	UE_NET_ASSERT_NE(ClientObject, nullptr);
+
+	auto PreUpdateObject = [&](FNetRefHandle NetHandle, UObject* InObject, const UReplicationBridge* ReplicationBridge)
+	{
+		if (InObject == ServerObject.Get())
+		{
+			ServerObject->ObjectReferenceComponents[0]->ModifyIntA();
+		}
+	};
+
+	// Mark a property dirty during PreUpdate. As the object is polled every frame we expect the property to be updated on the client.
+	Server->GetReplicationBridge()->SetExternalPreUpdateFunctor(PreUpdateObject);
+
+	// Send and deliver packet
+	Server->UpdateAndSend({ Client });
+
+	// The property should be updated on the client
+	UE_NET_ASSERT_EQ(ClientObject->ObjectReferenceComponents[0]->IntA, ServerObject->ObjectReferenceComponents[0]->IntA);
 }
 
 }

@@ -21,6 +21,7 @@
 #include "Templates/SharedPointer.h"
 #include "Containers/Map.h"
 #include "UObject/StrongObjectPtr.h"
+#include "Net/Core/PushModel/PushModel.h"
 #include "Net/UnrealNetwork.h"
 #include "Iris/Serialization/NetBitStreamUtil.h"
 
@@ -107,6 +108,7 @@ bool UReplicatedTestObjectBridge::WriteCreationHeader(UE::Net::FNetSerialization
 	uint16 NumIrisComponentsToSpawn = 0U;
 	uint16 NumDynamicComponentsToSpawn = 0U;
 	uint16 NumConnectionFilteredComponentsToSpawn = 0U;
+	uint16 NumObjectReferenceComponentsToSpawn = 0U;
 	bool bForceFailToInstantiateOnRemote = false;
 
 	const UObject* Object = GetReplicatedObject(Handle);
@@ -120,6 +122,7 @@ bool UReplicatedTestObjectBridge::WriteCreationHeader(UE::Net::FNetSerialization
 		NumIrisComponentsToSpawn = IntCastChecked<uint16>(TestReplicatedIrisObject->IrisComponents.Num());
 		NumDynamicComponentsToSpawn = IntCastChecked<uint16>(TestReplicatedIrisObject->DynamicStateComponents.Num());
 		NumConnectionFilteredComponentsToSpawn = IntCastChecked<uint16>(TestReplicatedIrisObject->ConnectionFilteredComponents.Num());
+		NumObjectReferenceComponentsToSpawn = IntCastChecked<uint16>(TestReplicatedIrisObject->ObjectReferenceComponents.Num());
 	}
 
 	UObject* Archetype = Object->GetArchetype();
@@ -130,6 +133,7 @@ bool UReplicatedTestObjectBridge::WriteCreationHeader(UE::Net::FNetSerialization
 	Writer.WriteBits(NumIrisComponentsToSpawn, 16);
 	Writer.WriteBits(NumDynamicComponentsToSpawn, 16);
 	Writer.WriteBits(NumConnectionFilteredComponentsToSpawn, 16);
+	Writer.WriteBits(NumObjectReferenceComponentsToSpawn, 16);
 	Writer.WriteBool(bForceFailToInstantiateOnRemote);
 
 	return !Writer.IsOverflown();
@@ -148,6 +152,7 @@ UObjectReplicationBridge::FCreationHeader* UReplicatedTestObjectBridge::ReadCrea
 	Header->NumIrisComponentsToSpawn = Reader.ReadBits(16);
 	Header->NumDynamicComponentsToSpawn = Reader.ReadBits(16);
 	Header->NumConnectionFilteredComponentsToSpawn = Reader.ReadBits(16);
+	Header->NumObjectReferenceComponentsToSpawn = Reader.ReadBits(16);
 	Header->bForceFailCreateRemoteInstance = Reader.ReadBool();
 
 	if (Reader.IsOverflown())
@@ -187,6 +192,7 @@ FObjectReplicationBridgeInstantiateResult UReplicatedTestObjectBridge::BeginInst
 		Components.IrisComponentCount = Header->NumIrisComponentsToSpawn;
 		Components.DynamicStateComponentCount = Header->NumDynamicComponentsToSpawn;
 		Components.ConnectionFilteredComponentCount = Header->NumConnectionFilteredComponentsToSpawn;
+		Components.ObjectReferenceComponentCount = Header->NumObjectReferenceComponentsToSpawn;
 
 		CreatedTestObject->AddComponents(Components);
 	}
@@ -277,6 +283,12 @@ void UTestReplicatedIrisPushModelComponentWithObjectReference::GetLifetimeReplic
 	DOREPLIFETIME_WITH_PARAMS(ThisClass, IntA, LifetimeParams);
 	DOREPLIFETIME_WITH_PARAMS(ThisClass, RawObjectPtrRef, LifetimeParams);
 	DOREPLIFETIME_WITH_PARAMS(ThisClass, WeakObjectPtrObjectRef, LifetimeParams);
+}
+
+void UTestReplicatedIrisPushModelComponentWithObjectReference::ModifyIntA()
+{
+	IntA += 1;
+	MARK_PROPERTY_DIRTY_FROM_NAME(ThisClass, IntA, this);
 }
 
 //////////////////////////////////////////////////////////////////////////
