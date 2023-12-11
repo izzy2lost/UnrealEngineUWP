@@ -1708,9 +1708,6 @@ bool UCustomizableInstancePrivateData::DoComponentsNeedUpdate(UCustomizableObjec
 		}
 	}
 
-	// Mark as invalid if all components have empty meshes.
-	bHasInvalidMesh = bHasInvalidMesh || ComponentWithMesh.Find(true) == INDEX_NONE;
-
 	return !bHasInvalidMesh && OutComponentNeedsUpdate.Find(true) != INDEX_NONE;
 }
 
@@ -1747,12 +1744,6 @@ bool UCustomizableInstancePrivateData::UpdateSkeletalMesh_PostBeginUpdate0(UCust
 	SetCOInstanceFlags(CreatingSkeletalMesh);
 
 	TextureReuseCache.Empty(); // Sections may have changed, so invalidate the texture reuse cache because it's indexed by section
-
-	// Reset last mesh IDs.
-	for (FCustomizableInstanceComponentData& ComponentData : ComponentsData)
-	{
-		ComponentData.LastMeshIdPerLOD.Init(MAX_uint64, MAX_MESH_LOD_COUNT);
-	}
 
 	TArray<TObjectPtr<USkeletalMesh>> OldSkeletalMeshes = Public->SkeletalMeshes;
 
@@ -1794,6 +1785,9 @@ bool UCustomizableInstancePrivateData::UpdateSkeletalMesh_PostBeginUpdate0(UCust
 				continue;
 			}
 		}
+
+		// Reset last mesh IDs.
+		ComponentsData[Component.Id].LastMeshIdPerLOD.Init(MAX_uint64, MAX_MESH_LOD_COUNT);
 
 		if (!Component.bGenerated || !Component.Mesh || Component.SurfaceCount == 0)
 		{
