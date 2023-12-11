@@ -93,6 +93,16 @@ enum class ETransformGizmoPartIdentifier
 	Max
 };
 
+namespace EAxisRotateMode
+{
+	enum Type
+	{
+		Pull,
+		Arc
+	};
+}
+
+
 /**
  * UTransformGizmo provides standard Transformation Gizmo interactions,
  * applied to a UTransformProxy target object. By default the Gizmo will be
@@ -549,6 +559,9 @@ protected:
 	/** Handle click press for rotate Z axis */
 	virtual void OnClickPressRotateZAxis(const FInputDeviceRay& InPressPos);
 
+	/** Handle click press for any rotate axis */
+	void OnClickPressRotateAxis(const FInputDeviceRay& InPressPos);
+
 	/** Handle click drag for rotate axis */
 	virtual void OnClickDragRotateAxis(const FInputDeviceRay& InDragPos);
 
@@ -560,6 +573,10 @@ protected:
 
 	/** Compute rotate delta based on screen-space start/end positions */
 	virtual FQuat ComputeAxisRotateDelta(const FVector2D& InStartPos, const FVector2D& InEndPos);
+
+	/** Prepares data for arc rotation. This will return false if this is not possible (the rotate handle is perpendicular to the view) */
+	bool OnClickPressRotateArc( const FInputDeviceRay& InPressPos,
+		const FVector& InPlaneNormal, const FVector& InPlaneAxis1, const FVector& InPlaneAxis2);
 
 	/**
 	 * Screen-space rotate interaction methods
@@ -595,7 +612,7 @@ protected:
 
 	/** */
 	float GetSizeCoefficient() const;
-
+	
 	/**
 	* Scale click-drag handling methods
 	*/
@@ -855,6 +872,8 @@ protected:
 	UPROPERTY()
 	bool bCtrlMiddleDoesY = true;
 
+	TEnumAsByte<EAxisRotateMode::Type> RotateMode = EAxisRotateMode::Pull;
+	
 private:
 	/** Debug attributes to display the pull direction */
 	bool bDebugRotate = false;
