@@ -314,7 +314,7 @@ bool FPCGCreateTargetActorElement::ExecuteInternal(FPCGContext* Context) const
 	check(ParamData && ParamData->Metadata);
 	FPCGMetadataAttribute<FSoftObjectPath>* ActorPathAttribute = ParamData->Metadata->CreateAttribute<FSoftObjectPath>(PCGPointDataConstants::ActorReferenceAttribute, GeneratedActorPath, /*bAllowsInterpolation=*/false, /*bOverrideParent=*/false);
 	check(ActorPathAttribute);
-	ActorPathAttribute->SetValue(ParamData->Metadata->AddEntry(), GeneratedActorPath);	
+	ParamData->Metadata->AddEntry();
 
 	// Add param data to output and we're done
 	Context->OutputData.TaggedData.Emplace_GetRef().Data = ParamData;

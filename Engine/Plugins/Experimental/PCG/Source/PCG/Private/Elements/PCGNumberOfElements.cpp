@@ -101,6 +101,7 @@ bool FPCGNumberOfElementsBaseElement<DataType>::ExecuteInternal(FPCGContext* Con
 		}
 
 		check(OutputParamData && NewAttribute);
+		// Implementation note: since we might have multiple entries, we must set the actual value to a new entry
 		NewAttribute->SetValue(OutputParamData->Metadata->AddEntry(), GetNum(InputData));
 	}
 

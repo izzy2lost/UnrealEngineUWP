@@ -83,7 +83,7 @@ bool FPCGGetLoopIndexElement::ExecuteInternal(FPCGContext* Context) const
 	FPCGMetadataAttribute<int>* LoopIndexAttribute = LoopIndexParamData->Metadata->CreateAttribute<int>(PCGGetLoopIndexConstants::LoopIndexAttributeName, LoopIndex, /*bAllowInterpolation=*/false, /*bOverrideParent=*/false);
 	check(LoopIndexAttribute);
 
-	LoopIndexAttribute->SetValue(LoopIndexParamData->Metadata->AddEntry(), LoopIndex);
+	LoopIndexParamData->Metadata->AddEntry();
 
 	return true;
 }

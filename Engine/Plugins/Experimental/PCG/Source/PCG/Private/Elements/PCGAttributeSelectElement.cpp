@@ -402,8 +402,8 @@ bool FPCGAttributeSelectElement::ExecuteInternal(FPCGContext* Context) const
 
 			if (bSuccess)
 			{
+				OutputParamData->Metadata->AddEntry();
 				NewAttribute->SetDefaultValue(OutputValue);
-				NewAttribute->SetValue(OutputParamData->Metadata->AddEntry(), OutputValue);
 			}
 			else
 			{

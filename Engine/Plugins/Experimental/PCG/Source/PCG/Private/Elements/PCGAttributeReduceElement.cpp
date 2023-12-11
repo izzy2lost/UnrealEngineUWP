@@ -288,6 +288,8 @@ bool FPCGAttributeReduceElement::ExecuteInternal(FPCGContext* Context) const
 
 			if (bSuccess)
 			{
+				// Implementation note: since the default value does not match the value computed here
+				// and because we might have multiple entries, we need to set it in the attribute
 				TypedNewAttribute->SetValue(OutputParams->Metadata->AddEntry(), OutputValue);
 			}
 

@@ -140,7 +140,7 @@ bool FPCGAttributeGetFromPointIndexElement::ExecuteInternal(FPCGContext* Context
 					return false;
 				}
 
-				NewAttribute->SetValue(OutputParamData->Metadata->AddEntry(), Value);
+				OutputParamData->Metadata->AddEntry();
 
 				return true;
 			};

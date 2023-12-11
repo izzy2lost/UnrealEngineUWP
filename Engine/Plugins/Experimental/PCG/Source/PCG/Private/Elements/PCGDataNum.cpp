@@ -65,7 +65,7 @@ bool FPCGDataNumElement::ExecuteInternal(FPCGContext* Context) const
 		return true;
 	}
 
-	NumAttribute->SetValue(OutputParamData->Metadata->AddEntry(), InputDataCount);
+	OutputParamData->Metadata->AddEntry();
 
 	FPCGTaggedData& Output = Context->OutputData.TaggedData.Emplace_GetRef();
 	Output.Data = OutputParamData;

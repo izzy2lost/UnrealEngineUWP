@@ -417,17 +417,6 @@ bool FPCGCreateAttributeElement::ExecuteInternal(FPCGContext* Context) const
 
 					PCGMetadataElementCommon::CopyFromAccessorToAccessor(Params);
 
-					// In case of param data, do some padding at the end if needed
-					if (bIsParamData)
-					{
-						int32 NumInKeys = InputKeys->GetNum();
-						int32 Padding = OutputKeys->GetNum() - NumInKeys;
-						for (int64 Key = 0; Key < Padding; ++Key)
-						{
-							Attribute->SetValueFromValueKey(PCGMetadataEntryKey(NumInKeys + Key), PCGDefaultValueKey);
-						}
-					}
-
 					return Attribute;
 				};
 
@@ -451,16 +440,6 @@ bool FPCGCreateAttributeElement::ExecuteInternal(FPCGContext* Context) const
 			if (Metadata->GetLocalItemCount() == 0)
 			{
 				Metadata->AddEntry();
-			}
-
-			// Also make sure if the attribute has no entries, to map all the metadata entry to the default value key
-			// Very important to do in the case of multi-entry attribute set.
-			if (Attribute->GetNumberOfEntries() == 0)
-			{
-				for (PCGMetadataEntryKey Key = 0; Key < Metadata->GetLocalItemCount(); ++Key)
-				{
-					Attribute->SetValueFromValueKey(Key, PCGDefaultValueKey);
-				}
 			}
 		}
 
