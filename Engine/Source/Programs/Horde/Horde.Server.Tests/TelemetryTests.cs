@@ -363,7 +363,6 @@ namespace Horde.Server.Tests
 						Assert.AreEqual(i == 2 ? 2 : 1, metrics[i].Value);
 					}
 				}
-
 			}
 		}
 	}
