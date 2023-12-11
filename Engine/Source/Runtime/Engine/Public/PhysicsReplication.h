@@ -96,11 +96,22 @@ struct FReplicatedPhysicsTargetAsync
 		, ServerFrame(INDEX_NONE)
 		, ReceiveFrame(INDEX_NONE)
 		, ReceiveInterval(5)
-		, AverageReceiveInterval(5.f)
+		, AverageReceiveInterval(5.0f)
+		PRAGMA_DISABLE_DEPRECATION_WARNINGS
 		, PrevServerFrame(INDEX_NONE)
 		, bWaiting(false)
+		PRAGMA_ENABLE_DEPRECATION_WARNINGS
 		, AccumulatedSleepSeconds(0.0f)
+		, bAllowTargetAltering(false)
+		, WaitForServerFrame(INDEX_NONE)
 	{ }
+	PRAGMA_DISABLE_DEPRECATION_WARNINGS
+	~FReplicatedPhysicsTargetAsync() = default;
+	FReplicatedPhysicsTargetAsync(const FReplicatedPhysicsTargetAsync&) = default;
+	FReplicatedPhysicsTargetAsync(FReplicatedPhysicsTargetAsync&&) = default;
+	FReplicatedPhysicsTargetAsync& operator=(const FReplicatedPhysicsTargetAsync&) = default;
+	FReplicatedPhysicsTargetAsync& operator=(FReplicatedPhysicsTargetAsync&&) = default;
+	PRAGMA_ENABLE_DEPRECATION_WARNINGS
 
 	/** The target state replicated by server */
 	FRigidBodyState TargetState;
@@ -111,10 +122,10 @@ struct FReplicatedPhysicsTargetAsync
 	/** The amount of simulation ticks this target has been used for */
 	int32 TickCount;
 
-	/** ServerFrame this target was replicated on (must be converted to local frame prior to client-side use) */
+	/** ServerFrame this target was replicated on. (LocalFrame = ServerFrame - FrameOffset) */
 	int32 ServerFrame;
 
-	/** The frame offset between local client and server */
+	/** The frame offset between local client and server. (LocalFrame = ServerFrame - FrameOffset) */
 	int32 FrameOffset;
 
 	/** The local client frame when receiving this target from the server */
@@ -132,14 +143,47 @@ struct FReplicatedPhysicsTargetAsync
 	FQuat PrevRotTarget;
 	FVector PrevPos;
 	FVector PrevLinVel;
+
+	UE_DEPRECATED(5.4, "This property is deprecated. PrevServerFrame will no longer be cached.")
 	int32 PrevServerFrame;
+
+	UE_DEPRECATED(5.4, "This property is deprecated. PrevReceiveFrame will no longer be cached.")
 	int32 PrevReceiveFrame;
 
 	/** If this target is waiting for up-to-date data? */
+	UE_DEPRECATED(5.4, "This property is deprecated. Use IsWaiting() and SetWaiting() instead.")
 	bool bWaiting;
 
 	/** Accumulated seconds asleep */
 	float AccumulatedSleepSeconds;
+
+	/** If this target is allowed to be altered, via extrapolation or target alignment via TickCount */
+	bool bAllowTargetAltering;
+
+	/** ServerFrame for the target to wait on, no replication will be performed while waiting for up to date data. */
+	int32 WaitForServerFrame;
+
+public:
+	/** Is this target waiting for up to date data? */
+	const bool IsWaiting() { return WaitForServerFrame > INDEX_NONE; } const
+
+	/** Set target to wait for data newer than @param InWaitForServerFrame */
+	void SetWaiting(int32 InWaitForServerFrame)
+	{
+		WaitForServerFrame = InWaitForServerFrame; 
+		PRAGMA_DISABLE_DEPRECATION_WARNINGS
+		bWaiting = IsWaiting();
+		PRAGMA_ENABLE_DEPRECATION_WARNINGS
+	}
+
+	/** Update waiting status and clear waiting if @param InServerFrame is newer than the frame we are waiting for */
+	void UpdateWaiting(int32 InServerFrame)
+	{
+		if (InServerFrame > WaitForServerFrame)
+		{
+			SetWaiting(INDEX_NONE);
+		}
+	}
 };
 
 class FPhysicsReplicationAsync : public Chaos::TSimCallbackObject<
