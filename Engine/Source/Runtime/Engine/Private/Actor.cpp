@@ -1340,6 +1340,7 @@ AActor* AActor::FindActorInPackage(UPackage* InPackage, bool bEvenIfPendingKill)
 bool AActor::Rename( const TCHAR* InName, UObject* NewOuter, ERenameFlags Flags )
 {
 	const bool bRenameTest = ((Flags & REN_Test) != 0);
+	const bool bPerformComponentRegWork = ((Flags & REN_SkipComponentRegWork) == 0);
 	const bool bChangingOuters = (NewOuter && (NewOuter != GetOuter()));
 
 #if WITH_EDITOR
@@ -1383,7 +1384,11 @@ bool AActor::Rename( const TCHAR* InName, UObject* NewOuter, ERenameFlags Flags 
 	if (!bRenameTest && bChangingOuters)
 	{
 		RegisterAllActorTickFunctions(false, true); // unregister all tick functions
-		UnregisterAllComponents();
+
+		if (bPerformComponentRegWork)
+		{
+			UnregisterAllComponents();
+		}
 
 		if (ULevel* MyLevel = GetLevel())
 		{
@@ -1424,7 +1429,7 @@ bool AActor::Rename( const TCHAR* InName, UObject* NewOuter, ERenameFlags Flags 
 			MyLevel->ActorsForGC.Add(this);
 
 			UWorld* World = MyLevel->GetWorld();
-			if (World && World->bIsWorldInitialized)
+			if (World && World->bIsWorldInitialized && bPerformComponentRegWork)
 			{
 				RegisterAllComponents();
 			}
