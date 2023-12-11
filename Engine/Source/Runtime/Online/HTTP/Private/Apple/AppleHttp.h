@@ -45,9 +45,6 @@ public:
 	virtual bool SetResponseBodyReceiveStream(TSharedRef<FArchive> Stream) override;
 	virtual void SetHeader(const FString& HeaderName, const FString& HeaderValue) override;
 	virtual void AppendToHeader(const FString& HeaderName, const FString& AdditionalHeaderValue) override;
-	virtual void SetTimeout(float InTimeoutSecs) override;
-	virtual void ClearTimeout() override;
-	virtual TOptional<float> GetTimeout() const override;
 	virtual bool ProcessRequest() override;
 	virtual void CancelRequest() override;
 	virtual const FHttpResponsePtr GetResponse() const override;

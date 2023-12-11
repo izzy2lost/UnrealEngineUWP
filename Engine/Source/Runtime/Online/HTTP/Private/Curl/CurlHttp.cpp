@@ -941,10 +941,8 @@ bool FCurlHttpRequest::SetupRequestHttpThread()
 
 		// Set connection timeout in seconds
 		int32 HttpConnectionTimeout = FHttpModule::Get().GetHttpConnectionTimeout();
-		if (HttpConnectionTimeout >= 0)
-		{
-			curl_easy_setopt(EasyHandle, CURLOPT_CONNECTTIMEOUT, HttpConnectionTimeout);
-		}
+		check(HttpConnectionTimeout > 0);
+		curl_easy_setopt(EasyHandle, CURLOPT_CONNECTTIMEOUT, HttpConnectionTimeout);
 
 		if (FCurlHttpManager::CurlRequestOptions.bAllowSeekFunction && bIsRequestPayloadSeekable)
 		{
@@ -1302,9 +1300,13 @@ void FCurlHttpRequest::FinishRequest()
 			switch (CurlCompletionResult)
 			{
 			case CURLE_COULDNT_CONNECT:
+			case CURLE_OPERATION_TIMEDOUT:
 			case CURLE_COULDNT_RESOLVE_PROXY:
 			case CURLE_COULDNT_RESOLVE_HOST:
 			case CURLE_SSL_CONNECT_ERROR:
+#if WITH_CURL_XCURL
+			case CURLE_SEND_ERROR:
+#endif
 				// report these as connection errors (safe to retry)
 				SetFailureReason(EHttpFailureReason::ConnectionError);
 				break;

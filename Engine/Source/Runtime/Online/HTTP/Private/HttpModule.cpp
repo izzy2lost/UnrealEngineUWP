@@ -78,7 +78,7 @@ void FHttpModule::StartupModule()
 
 	MaxReadBufferSize = 256 * 1024;
 	HttpTimeout = 300.0f;
-	HttpConnectionTimeout = -1;
+	HttpConnectionTimeout = 60.0f;
 	HttpReceiveTimeout = HttpConnectionTimeout;
 	HttpSendTimeout = HttpConnectionTimeout;
 	HttpMaxConnectionsPerServer = 16;

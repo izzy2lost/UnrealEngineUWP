@@ -377,7 +377,9 @@ FAppleHttpRequest::FAppleHttpRequest(NSURLSession* InSession)
 {
 	UE_LOG(LogHttp, Verbose, TEXT("FAppleHttpRequest::FAppleHttpRequest()"));
 	Request = [[NSMutableURLRequest alloc] init];
-	Request.timeoutInterval = FHttpModule::Get().GetHttpTimeout();
+	float HttpConnectionTimeout = FHttpModule::Get().GetHttpConnectionTimeout();
+	check(HttpConnectionTimeout > 0.0f);
+	Request.timeoutInterval = HttpConnectionTimeout;
 
 	// Disable cache to mimic WinInet behavior
 	Request.cachePolicy = NSURLRequestReloadIgnoringLocalCacheData;
@@ -630,21 +632,6 @@ void FAppleHttpRequest::SetVerb(const FString& Verb)
 	SCOPED_AUTORELEASE_POOL;
 	UE_LOG(LogHttp, Verbose, TEXT("FAppleHttpRequest::SetVerb() - %s"), *Verb);
 	Request.HTTPMethod = Verb.GetNSString();
-}
-
-void FAppleHttpRequest::SetTimeout(float InTimeoutSecs)
-{
-	Request.timeoutInterval = InTimeoutSecs;
-}
-
-void FAppleHttpRequest::ClearTimeout()
-{
-	Request.timeoutInterval = FHttpModule::Get().GetHttpTimeout();
-}
-
-TOptional<float> FAppleHttpRequest::GetTimeout() const
-{
-	return TOptional<float>(Request.timeoutInterval);
 }
 
 bool FAppleHttpRequest::ProcessRequest()

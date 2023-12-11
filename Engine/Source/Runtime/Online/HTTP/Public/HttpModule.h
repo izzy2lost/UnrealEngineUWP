@@ -315,6 +315,10 @@ public:
 		return AllowedDomains;
 	}
 
+protected:
+	/** timeout in seconds to establish the connection */
+	float HttpConnectionTimeout;
+
 private:
 
 	// IModuleInterface
@@ -351,11 +355,9 @@ private:
 	FHttpManager* HttpManager = nullptr;
 	/** timeout in seconds for the entire http request to complete. 0 is no timeout */
 	float HttpTimeout;
-	/** timeout in seconds to establish the connection. -1 for system defaults, 0 is no timeout */
-	float HttpConnectionTimeout;
-	/** timeout in seconds to receive a response on the connection. -1 for system defaults */
+	/** timeout in seconds to receive a response on the connection */
 	float HttpReceiveTimeout;
-	/** timeout in seconds to send a request on the connection. -1 for system defaults */
+	/** timeout in seconds to send a request on the connection */
 	float HttpSendTimeout;
 	/** total time to delay the request */
 	float HttpDelayTime;

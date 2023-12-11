@@ -3,6 +3,7 @@
 #include "HAL/FileManager.h"
 #include "HAL/IConsoleManager.h"
 #include "HAL/PlatformProcess.h"
+#include "HAL/PlatformTime.h"
 #include "HAL/Runnable.h"
 #include "HAL/RunnableThread.h"
 #include "HttpManager.h"
@@ -32,6 +33,12 @@
 extern TAutoConsoleVariable<bool> CVarHttpInsecureProtocolEnabled;
 extern TAutoConsoleVariable<bool> CVarHttpRetrySystemNonGameThreadSupportEnabled;
 
+class FMockHttpModule : public FHttpModule
+{
+public:
+	using FHttpModule::HttpConnectionTimeout;
+};
+
 class FHttpModuleTestFixture
 {
 public:
@@ -46,7 +53,7 @@ public:
 
 		bRetryEnabled &= CVarHttpRetrySystemNonGameThreadSupportEnabled.GetValueOnAnyThread();
 
-		HttpModule = new FHttpModule();
+		HttpModule = new FMockHttpModule();
 		IModuleInterface* Module = HttpModule;
 		Module->StartupModule();
 
@@ -77,7 +84,7 @@ public:
 		LogHttp.SetVerbosity(ELogVerbosity::Error);
 	}
 
-	const FString UrlWithInvalidPortToTestConnectTimeout() const { return FString::Format(TEXT("http://{0}:{1}"), { *WebServerIp, 8765 }); }
+	const FString UrlWithInvalidPortToTestConnectTimeout() const { return TEXT("http://10.255.255.1:8765"); } // non-routable IP address with a random port
 	const FString UrlBase() const { return FString::Format(TEXT("http://{0}:{1}"), { *WebServerIp, WebServerHttpPort }); }
 	const FString UrlHttpTests() const { return FString::Format(TEXT("{0}/webtests/httptests"), { *UrlBase() }); }
 	const FString UrlToTestMethods() const { return FString::Format(TEXT("{0}/methods"), { *UrlHttpTests() }); }
@@ -85,7 +92,7 @@ public:
 
 	FString WebServerIp;
 	uint32 WebServerHttpPort;
-	FHttpModule* HttpModule;
+	FMockHttpModule* HttpModule;
 
 	bool bRunHeavyTests;
 	bool bRetryEnabled;
@@ -145,7 +152,6 @@ public:
 		if (bRetryEnabled)
 		{
 			HttpRetryManager = MakeShared<FMockRetryManager>(FHttpRetrySystem::FRetryLimitCountSetting(RetryLimitCount), FHttpRetrySystem::FRetryTimeoutRelativeSecondsSetting(/*RetryTimeoutRelativeSeconds*/));
-			HttpRetryManager->RetryTimeoutRelativeSecondsDefault = 2.0f; // Value is set so that retry system will use it at high level, will no longer wait for ever for HTTP code
 		}
 	}
 
@@ -240,26 +246,33 @@ TEST_CASE_METHOD(FWaitUntilCompleteHttpFixture, "Get large response content with
 	HttpRequest->ProcessRequest();
 }
 
-// TODO: Enable this after finding a more reliable way of simulate timeout
-//TEST_CASE_METHOD(FWaitUntilCompleteHttpFixture, "Http request connect timeout", HTTP_TAG)
-//{
-//	TSharedRef<IHttpRequest> HttpRequest = CreateRequest();
-//	HttpRequest->SetURL(UrlWithInvalidPortToTestConnectTimeout());
-//	HttpRequest->SetVerb(TEXT("GET"));
-//	HttpRequest->SetTimeout(7);
-//	FDateTime StartTime = FDateTime::Now();
-//	HttpRequest->OnProcessRequestComplete().BindLambda([StartTime](FHttpRequestPtr HttpRequest, FHttpResponsePtr HttpResponse, bool bSucceeded) {
-//		CHECK(!bSucceeded);
-//		CHECK(HttpResponse == nullptr);
-//		// TODO: For now curl impl is using customized timeout instead of relying on native http timeout, 
-//		// which doesn't get CURLE_COULDNT_CONNECT. Enable this after switching to native http timeout
-//		//CHECK(HttpRequest->GetStatus() == EHttpRequestStatus::Failed_ConnectionError);
-//		FTimespan Timespan = FDateTime::Now() - StartTime;
-//		float DurationInSeconds = Timespan.GetTotalSeconds();
-//		CHECK(FMath::IsNearlyEqual(DurationInSeconds, 7, HTTP_TIME_DIFF_TOLERANCE));
-//	});
-//	HttpRequest->ProcessRequest();
-//}
+TEST_CASE_METHOD(FWaitUntilCompleteHttpFixture, "Http request connect timeout", HTTP_TAG)
+{
+	DisableWarningsInThisTest();
+
+	HttpModule->HttpConnectionTimeout = 15.0f;
+
+	TSharedRef<IHttpRequest> HttpRequest = CreateRequest();
+
+	HttpRequest->SetURL(UrlWithInvalidPortToTestConnectTimeout());
+	HttpRequest->SetVerb(TEXT("GET"));
+
+	const double StartTime = FPlatformTime::Seconds();
+
+	HttpRequest->OnProcessRequestComplete().BindLambda([StartTime](FHttpRequestPtr HttpRequest, FHttpResponsePtr HttpResponse, bool bSucceeded) {
+		CHECK(!bSucceeded);
+		CHECK(HttpResponse == nullptr);
+		CHECK(HttpRequest->GetStatus() == EHttpRequestStatus::Failed);
+		CHECK(HttpRequest->GetFailureReason() == EHttpFailureReason::ConnectionError);
+		const double DurationInSeconds  = FPlatformTime::Seconds() - StartTime;
+		double HttpTimeDiffTolerance = 1.0;
+#if WITH_CURL_XCURL
+		HttpTimeDiffTolerance += 3.0; // It seems xCurl takes up to 3 more seconds for connect timeout
+#endif
+		CHECK(FMath::IsNearlyEqual(DurationInSeconds, 15.0, HttpTimeDiffTolerance));
+	});
+	HttpRequest->ProcessRequest();
+}
 
 TEST_CASE_METHOD(FWaitUntilCompleteHttpFixture, "Streaming http download", HTTP_TAG)
 {
@@ -990,17 +1003,16 @@ TEST_CASE_METHOD(FWaitUntilCompleteHttpFixture, "Cancel http request connect bef
 {
 	DisableWarningsInThisTest();
 
-	TSharedRef<IHttpRequest, ESPMode::ThreadSafe> HttpRequest = CreateRequest();
+	TSharedRef<IHttpRequest> HttpRequest = CreateRequest();
 	HttpRequest->SetURL(UrlWithInvalidPortToTestConnectTimeout());
 	HttpRequest->SetVerb(TEXT("GET"));
 	HttpRequest->SetTimeout(7);
-	FDateTime StartTime = FDateTime::Now();
+	const double StartTime = FPlatformTime::Seconds();
 	HttpRequest->OnProcessRequestComplete().BindLambda([StartTime](FHttpRequestPtr HttpRequest, FHttpResponsePtr HttpResponse, bool bSucceeded) {
 		CHECK(!bSucceeded);
-
-		FTimespan Timespan = FDateTime::Now() - StartTime;
-		float DurationInSeconds = Timespan.GetTotalSeconds();
-		CHECK(DurationInSeconds < 2);
+		const double DurationInSeconds = FPlatformTime::Seconds() - StartTime;
+		CHECK(DurationInSeconds < 2.0);
+		CHECK(HttpRequest->GetFailureReason() == EHttpFailureReason::Cancelled);
 	});
 	HttpRequest->ProcessRequest();
 	FPlatformProcess::Sleep(0.5);
@@ -1067,7 +1079,7 @@ TEST_CASE_METHOD(FWaitUntilCompleteHttpFixture, "Scheme besides http and https c
 	FString Filename = FString(FPlatformProcess::UserSettingsDir()) / TEXT("TestProtocolAllowed.dat");
 	UE::TestHttp::WriteTestFile(Filename, 10/*Bytes*/);
 
-	TSharedRef<IHttpRequest, ESPMode::ThreadSafe> HttpRequest = HttpModule->CreateRequest();
+	TSharedRef<IHttpRequest> HttpRequest = HttpModule->CreateRequest();
 	HttpRequest->SetURL(FString(TEXT("file://")) + Filename.Replace(TEXT(" "), TEXT("%20")));
 	HttpRequest->SetVerb(TEXT("GET"));
 	HttpRequest->OnProcessRequestComplete().BindLambda([Filename, bShouldSucceed](FHttpRequestPtr HttpRequest, FHttpResponsePtr HttpResponse, bool bSucceeded) {
