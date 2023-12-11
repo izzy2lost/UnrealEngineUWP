@@ -51,13 +51,10 @@ bool FPCGMergeElement::ExecuteInternal(FPCGContext* Context) const
 	TArray<FPCGTaggedData> Sources = Context->InputData.GetInputsByPin(PCGPinConstants::DefaultInputLabel);
 	TArray<FPCGTaggedData>& Outputs = Context->OutputData.TaggedData;
 
-	if (Sources.IsEmpty())
-	{
-		return true;
-	}
-
 	UPCGPointData* TargetPointData = nullptr;
 	FPCGTaggedData* TargetTaggedData = nullptr;
+
+	int32 TotalPointCount = 0;
 
 	// Prepare data & metadata
 	// Done in two passes for futureproofing - expecting changes in the metadata attribute creation vs. usage in points
@@ -71,15 +68,29 @@ bool FPCGMergeElement::ExecuteInternal(FPCGContext* Context) const
 			continue;
 		}
 
-		if (!TargetPointData)
+		if (SourcePointData->GetPoints().IsEmpty())
 		{
-			TargetPointData = NewObject<UPCGPointData>();
-			TargetPointData->InitializeFromData(SourcePointData, nullptr, bMergeMetadata);
+			continue;
+		}
 
-			TargetTaggedData = &(Outputs.Emplace_GetRef(Source));
+		TotalPointCount += SourcePointData->GetPoints().Num();
+
+		// First data that's valid - will be the original output so we don't do a copy unless we actually need it
+		if (!TargetTaggedData)
+		{
+			TargetTaggedData = &(Outputs.Add_GetRef(Source));
+		}
+		else if (!TargetPointData)
+		{
+			// Second valid data - we'll create the actual merged data at this point
+			check(TargetTaggedData);
+
+			TargetPointData = NewObject<UPCGPointData>();
+			TargetPointData->InitializeFromData(CastChecked<const UPCGPointData>(TargetTaggedData->Data), nullptr, bMergeMetadata);
 			TargetTaggedData->Data = TargetPointData;
 		}
-		else
+
+		if (TargetPointData)
 		{
 			if (bMergeMetadata)
 			{
@@ -91,14 +102,15 @@ bool FPCGMergeElement::ExecuteInternal(FPCGContext* Context) const
 		}
 	}
 
-	// No valid input types
+	// If there was no valid input or only one, there's nothing to do here
 	if (!TargetPointData)
 	{
 		return true;
 	}
 
 	TArray<FPCGPoint>& TargetPoints = TargetPointData->GetMutablePoints();
-	
+	TargetPoints.Reserve(TotalPointCount);
+
 	for(int32 SourceIndex = 0; SourceIndex < Sources.Num(); ++SourceIndex)
 	{
 		const UPCGPointData* SourcePointData = Cast<const UPCGPointData>(Sources[SourceIndex].Data);
@@ -121,7 +133,7 @@ bool FPCGMergeElement::ExecuteInternal(FPCGContext* Context) const
 
 			if (bMergeMetadata && TargetPointData->Metadata && SourcePointData->Metadata && SourcePointData->Metadata->GetAttributeCount() > 0)
 			{
-				TargetPointData->Metadata->SetPointAttributes(MakeArrayView(SourcePointData->GetPoints()), SourcePointData->Metadata, TargetPointsSubset);
+				TargetPointData->Metadata->SetPointAttributes(MakeArrayView(SourcePointData->GetPoints()), SourcePointData->Metadata, TargetPointsSubset, Context);
 			}
 		}
 	}

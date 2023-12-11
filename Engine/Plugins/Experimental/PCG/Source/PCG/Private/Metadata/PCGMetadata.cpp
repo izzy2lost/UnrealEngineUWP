@@ -2,6 +2,7 @@
 
 #include "Metadata/PCGMetadata.h"
 
+#include "PCGContext.h"
 #include "PCGData.h"
 #include "PCGPoint.h"
 #include "Elements/Metadata/PCGMetadataElementCommon.h"
@@ -9,6 +10,7 @@
 #include "Metadata/PCGAttributePropertySelector.h"
 
 #include "Algo/Transform.h"
+#include "Async/ParallelFor.h"
 
 #include UE_INLINE_GENERATED_CPP_BY_NAME(PCGMetadata)
 
@@ -1178,23 +1180,25 @@ void UPCGMetadata::SetAttributes(PCGMetadataEntryKey InKey, const UPCGMetadata* 
 	AttributeLock.ReadUnlock();
 }
 
-void UPCGMetadata::SetPointAttributes(const TArrayView<const FPCGPoint>& InPoints, const UPCGMetadata* InMetadata, const TArrayView<FPCGPoint>& OutPoints)
+void UPCGMetadata::SetPointAttributes(const TArrayView<const FPCGPoint>& InPoints, const UPCGMetadata* InMetadata, const TArrayView<FPCGPoint>& OutPoints, FPCGContext* OptionalContext)
 {
 	if (!InMetadata || InMetadata->GetAttributeCount() == 0 || GetAttributeCount() == 0)
 	{
 		return;
 	}
 
+	TRACE_CPUPROFILER_EVENT_SCOPE(UPCGMetadata::SetPointAttributes);
+
 	check(InPoints.Num() == OutPoints.Num());
 
 	// Extract the metadata entry keys from the in & out points
-	TArray<PCGMetadataEntryKey> InKeys;
-	TArray<PCGMetadataEntryKey> OutKeys;
+	TArray<PCGMetadataEntryKey, TInlineAllocator<256>> InKeys;
+	TArray<PCGMetadataEntryKey, TInlineAllocator<256>> OutKeys;
 
 	Algo::Transform(InPoints, InKeys, [](const FPCGPoint& Point) { return Point.MetadataEntry; });
 	Algo::Transform(OutPoints, OutKeys, [](const FPCGPoint& Point) { return Point.MetadataEntry; });
 
-	SetAttributes(InKeys, InMetadata, OutKeys);
+	SetAttributes(InKeys, InMetadata, OutKeys, OptionalContext);
 
 	// Write back the keys on the points
 	for (int KeyIndex = 0; KeyIndex < OutKeys.Num(); ++KeyIndex)
@@ -1203,72 +1207,125 @@ void UPCGMetadata::SetPointAttributes(const TArrayView<const FPCGPoint>& InPoint
 	}
 }
 
-void UPCGMetadata::SetAttributes(const TArrayView<PCGMetadataEntryKey>& InKeys, const UPCGMetadata* InMetadata, const TArrayView<PCGMetadataEntryKey>& OutKeys)
+void UPCGMetadata::SetAttributes(const TArrayView<const PCGMetadataEntryKey>& InOriginalKeys, const UPCGMetadata* InMetadata, const TArrayView<PCGMetadataEntryKey>& OutOriginalKeys, FPCGContext* OptionalContext)
 {
 	if (!InMetadata || InMetadata->GetAttributeCount() == 0 || GetAttributeCount() == 0)
 	{
 		return;
 	}
 
-	check(InKeys.Num() == OutKeys.Num());
+	TRACE_CPUPROFILER_EVENT_SCOPE(UPCGMetadata::SetAttributes);
 
-	for (int32 KeyIndex = 0; KeyIndex < InKeys.Num(); ++KeyIndex)
+	check(InOriginalKeys.Num() == OutOriginalKeys.Num());
+
+	// There are a few things we can do to optimize here -
+	// basically, we don't need to set attributes more than once for a given <in, out> pair
+	TArray<PCGMetadataEntryKey, TInlineAllocator<256>> InKeys;
+	TArray<PCGMetadataEntryKey, TInlineAllocator<256>> OutKeys;
+
 	{
-		InitializeOnSet(OutKeys[KeyIndex], InKeys[KeyIndex], InMetadata);
-	}
+		TRACE_CPUPROFILER_EVENT_SCOPE(UPCGMetadata::SetAttributes::CreateDeduplicatedKeys);
+		TMap<TPair<PCGMetadataEntryKey, PCGMetadataEntryKey>, int> PairMapping;
 
-	// Rarely-used convenience array that might be used multiple times, will be kept out of the loop to limit the number of allocations if needed
-	TArray<PCGMetadataValueKey> ValueKeys;
-
-	AttributeLock.ReadLock();
-	for(const TPair<FName, FPCGMetadataAttributeBase*>& AttributePair : Attributes)
-	{
-		const FName& AttributeName = AttributePair.Key;
-		FPCGMetadataAttributeBase* Attribute = AttributePair.Value;
-
-		if (const FPCGMetadataAttributeBase* OtherAttribute = InMetadata->GetConstAttribute(AttributeName))
+		for (int KeyIndex = 0; KeyIndex < InOriginalKeys.Num(); ++KeyIndex)
 		{
-			if (!PCG::Private::IsBroadcastableOrConstructible(OtherAttribute->GetTypeId(), Attribute->GetTypeId()))
-			{
-				UE_LOG(LogPCG, Error, TEXT("Metadata type mismatch with attribute '%s'"), *AttributeName.ToString());
-				continue;
-			}
+			PCGMetadataEntryKey InKey = InOriginalKeys[KeyIndex];
+			PCGMetadataEntryKey& OutKey = OutOriginalKeys[KeyIndex];
 
-			if (Attribute == OtherAttribute)
+			if (int* MatchingPairIndex = PairMapping.Find(TPair<PCGMetadataEntryKey, PCGMetadataEntryKey>(InKey, OutKey)))
 			{
-				ValueKeys.Reset();
-				Attribute->GetValueKeys(InKeys, ValueKeys);
-				Attribute->SetValuesFromValueKeys(OutKeys, ValueKeys);
+				OutKey = *MatchingPairIndex;
 			}
 			else
 			{
-				// Create accessor for the other attribute
-				TUniquePtr<const IPCGAttributeAccessor> OtherAttributeAccessor = PCGAttributeAccessorHelpers::CreateConstAccessor(OtherAttribute, InMetadata);
-				FPCGAttributeAccessorKeysEntries OtherAttributeKeys(InKeys);
+				int NewIndex = InKeys.Add(InKey);
 
-				if (!OtherAttributeAccessor)
-				{
-					continue;
-				}
-
-				auto GetAndSetValues = [Attribute, &OutKeys, &OtherAttributeAccessor, &OtherAttributeKeys](auto Dummy) -> bool
-				{
-					using Type = decltype(Dummy);
-
-					auto SetValues = [Attribute, &OutKeys](const TArrayView<Type>& View, const int32 Start, const int32 Range)
-					{
-						TArrayView<PCGMetadataEntryKey> Keys(OutKeys.GetData() + Start, Range);
-						static_cast<FPCGMetadataAttribute<Type>*>(Attribute)->SetValues(Keys, View);
-					};
-
-					return PCGMetadataElementCommon::ApplyOnAccessorRange<Type>(OtherAttributeKeys, *OtherAttributeAccessor, SetValues, EPCGAttributeAccessorFlags::AllowBroadcast | EPCGAttributeAccessorFlags::AllowConstructible);
-				};
-
-				PCGMetadataAttribute::CallbackWithRightType(Attribute->GetTypeId(), GetAndSetValues);
+				PairMapping.Emplace(TPair<PCGMetadataEntryKey, PCGMetadataEntryKey>(InKey, OutKey), NewIndex);
+				OutKeys.Add(OutKey);
+				OutKey = NewIndex;
 			}
 		}
 	}
+
+	{
+		TRACE_CPUPROFILER_EVENT_SCOPE(UPCGMetadata::SetAttributes::InitializeOnSet);
+
+		for (int32 KeyIndex = 0; KeyIndex < InKeys.Num(); ++KeyIndex)
+		{
+			InitializeOnSet(OutKeys[KeyIndex], InKeys[KeyIndex], InMetadata);
+		}
+	}
+
+	AttributeLock.ReadLock();
+	int32 AttributeOffset = 0;
+	const int32 AttributesPerDispatch = OptionalContext ? FMath::Max(1, OptionalContext->AsyncState.NumAvailableTasks) : 1;
+
+	while (AttributeOffset < Attributes.Num())
+	{
+		TArray<FName> AttributeNames;
+		TArray<EPCGMetadataTypes> AttributeTypes;
+		GetAttributes(AttributeNames, AttributeTypes);
+
+		const int32 AttributeCountInCurrentDispatch = FMath::Min(AttributesPerDispatch, Attributes.Num() - AttributeOffset);
+		ParallelFor(AttributeCountInCurrentDispatch, [this, OptionalContext, AttributeOffset, InMetadata, &AttributeNames, &InKeys, &OutKeys](int32 WorkerIndex)
+		{
+			const FName AttributeName = AttributeNames[AttributeOffset + WorkerIndex];
+			FPCGMetadataAttributeBase* Attribute = Attributes[AttributeName];
+
+			if (const FPCGMetadataAttributeBase* OtherAttribute = InMetadata->GetConstAttribute(AttributeName))
+			{
+				if (!PCG::Private::IsBroadcastableOrConstructible(OtherAttribute->GetTypeId(), Attribute->GetTypeId()))
+				{
+					PCGE_LOG_C(Error, GraphAndLog, OptionalContext, FText::Format(NSLOCTEXT("PCGMetadata", "TypeMismatch", "Metadata type mismatch with attribute '{0}'"), FText::FromName(AttributeName)));
+					return;
+				}
+
+				if (Attribute == OtherAttribute)
+				{
+					TArray<PCGMetadataValueKey> ValueKeys;
+					Attribute->GetValueKeys(InKeys, ValueKeys);
+					Attribute->SetValuesFromValueKeys(OutKeys, ValueKeys);
+				}
+				else
+				{
+					// Create accessor for the other attribute
+					TUniquePtr<const IPCGAttributeAccessor> OtherAttributeAccessor = PCGAttributeAccessorHelpers::CreateConstAccessor(OtherAttribute, InMetadata);
+
+					TArrayView<PCGMetadataEntryKey> InKeysView(InKeys);
+					FPCGAttributeAccessorKeysEntries OtherAttributeKeys(InKeysView);
+
+					if (!OtherAttributeAccessor)
+					{
+						return;
+					}
+
+					auto GetAndSetValues = [Attribute, &OutKeys, &OtherAttributeAccessor, &OtherAttributeKeys](auto Dummy) -> bool
+					{
+						using Type = decltype(Dummy);
+
+						auto SetValues = [Attribute, &OutKeys](const TArrayView<Type>& View, const int32 Start, const int32 Range)
+						{
+							TArrayView<PCGMetadataEntryKey> Keys(OutKeys.GetData() + Start, Range);
+							static_cast<FPCGMetadataAttribute<Type>*>(Attribute)->SetValues(Keys, View);
+						};
+
+						return PCGMetadataElementCommon::ApplyOnAccessorRange<Type>(OtherAttributeKeys, *OtherAttributeAccessor, SetValues, EPCGAttributeAccessorFlags::AllowBroadcast | EPCGAttributeAccessorFlags::AllowConstructible);
+					};
+
+					PCGMetadataAttribute::CallbackWithRightType(Attribute->GetTypeId(), GetAndSetValues);
+				}
+			}
+		});
+
+		AttributeOffset += AttributeCountInCurrentDispatch;
+	}
 	AttributeLock.ReadUnlock();
+
+	// Finally, copy back the actual out keys to the original out keys
+	for (PCGMetadataEntryKey& OutKey : OutOriginalKeys)
+	{
+		OutKey = OutKeys[OutKey];
+	}
 }
 
 void UPCGMetadata::MergeAttributesByKey(int64 KeyA, const UPCGMetadata* MetadataA, int64 KeyB, const UPCGMetadata* MetadataB, int64 TargetKey, EPCGMetadataOp Op, int64& OutKey)

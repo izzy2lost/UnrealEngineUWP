@@ -308,7 +308,7 @@ const UPCGPointData* UPCGUnionData::CreatePointData(FPCGContext* Context) const
 
 					if (OutMetadata && DatumPointMetadata && DatumPointMetadata->GetAttributeCount() > 0)
 					{
-						OutMetadata->SetPointAttributes(MakeArrayView(DatumPointData->GetPoints()), DatumPointMetadata, TargetPointsSubset);
+						OutMetadata->SetPointAttributes(MakeArrayView(DatumPointData->GetPoints()), DatumPointMetadata, TargetPointsSubset, Context);
 					}
 				}
 			}

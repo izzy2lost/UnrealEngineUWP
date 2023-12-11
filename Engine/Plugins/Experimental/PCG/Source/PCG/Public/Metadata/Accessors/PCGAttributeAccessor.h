@@ -69,6 +69,7 @@ public:
 
 		int LastDefaultKeyIndex = INDEX_NONE;
 
+		// Implementation note: this is a stripped down version of UPCGMetadata::InitializeOnSet
 		for(int EntryIndex = 0; EntryIndex < EntryKeys.Num(); ++EntryIndex)
 		{
 			PCGMetadataEntryKey& EntryKey = *EntryKeys[EntryIndex];
@@ -82,6 +83,10 @@ public:
 				{
 					LastDefaultKeyIndex = EntryIndex;
 				}
+			}
+			else if (EntryKey < Metadata->GetItemKeyCountForParent())
+			{
+				EntryKey = Metadata->AddEntry(EntryKey);
 			}
 		}
 

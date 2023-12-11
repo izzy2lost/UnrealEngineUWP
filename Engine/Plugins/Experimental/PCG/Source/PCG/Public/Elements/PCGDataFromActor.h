@@ -92,9 +92,8 @@ public:
 #endif // WITH_EDITORONLY_DATA
 };
 
-class FPCGDataFromActorContext : public FPCGContext
+struct FPCGDataFromActorContext : public FPCGContext
 {
-public:
 	TArray<AActor*> FoundActors;
 	bool bPerformedQuery = false;
 };

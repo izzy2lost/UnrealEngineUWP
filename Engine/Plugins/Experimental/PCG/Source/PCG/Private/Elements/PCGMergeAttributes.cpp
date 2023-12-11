@@ -65,13 +65,19 @@ bool FPCGMergeAttributesElement::ExecuteInternal(FPCGContext* Context) const
 			continue;
 		}
 
+		const UPCGMetadata* SourceMetadata = SourceData->Metadata;
+		const int64 ParamItemCount = SourceData->Metadata->GetLocalItemCount();
+
+		if (ParamItemCount <= 0)
+		{
+			continue;
+		}
+
 		if (!MergedOutput)
 		{
 			MergedOutput = &Outputs.Add_GetRef(Source);
 			continue;
 		}
-
-		const UPCGMetadata* SourceMetadata = SourceData->Metadata;
 		
 		// When we're merging the 2nd element, create the actual merged attribute set
 		if (!MergedAttributeSet)
@@ -87,13 +93,17 @@ bool FPCGMergeAttributesElement::ExecuteInternal(FPCGContext* Context) const
 		MergedAttributeSet->Metadata->AddAttributes(SourceMetadata);
 
 		// - Merge entries
-		const int64 ParamItemCount = SourceData->Metadata->GetLocalItemCount();
-
+		TArray<PCGMetadataEntryKey, TInlineAllocator<256>> SourceEntryKeys;
+		SourceEntryKeys.SetNumUninitialized(ParamItemCount);
 		for (int64 LocalItemKey = 0; LocalItemKey < ParamItemCount; ++LocalItemKey)
 		{
-			PCGMetadataEntryKey MergedItemKey = MergedAttributeSet->Metadata->AddEntry();
-			MergedAttributeSet->Metadata->SetAttributes(LocalItemKey, SourceMetadata, MergedItemKey);
+			SourceEntryKeys[LocalItemKey] = LocalItemKey;
 		}
+
+		TArray<PCGMetadataEntryKey, TInlineAllocator<256>> EntryKeys;
+		EntryKeys.Init(PCGInvalidEntryKey, ParamItemCount);
+
+		MergedAttributeSet->Metadata->SetAttributes(SourceEntryKeys, SourceMetadata, EntryKeys, Context);
 
 		// - Merge tags too (to be in line with the Merge points node)
 		MergedOutput->Tags.Append(Source.Tags);
