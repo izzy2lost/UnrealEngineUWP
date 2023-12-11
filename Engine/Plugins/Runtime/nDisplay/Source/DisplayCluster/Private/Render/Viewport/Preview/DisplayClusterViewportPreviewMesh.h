@@ -11,8 +11,6 @@
 
 #include "Misc/DisplayClusterObjectRef.h"
 
-#include "UObject/GCObject.h"
-
 
 class UDisplayClusterDisplayDeviceBaseComponent;
 class UDisplayClusterCameraComponent;
@@ -46,7 +44,6 @@ ENUM_CLASS_FLAGS(EDisplayClusterViewportPreviewMeshFlags);
 * Manage preview mesh of the viewport
 */
 class FDisplayClusterViewportPreviewMesh
-	: public FGCObject
 {
 public:
 	FDisplayClusterViewportPreviewMesh(const EDisplayClusterDisplayDeviceMeshType InMeshType, const TSharedRef<FDisplayClusterViewportConfiguration, ESPMode::ThreadSafe> InConfiguration)
@@ -80,15 +77,6 @@ public:
 	{
 		return EnumHasAnyFlags(RuntimeFlags, InMeshFlags);
 	}
-
-public:
-	//~ Begin FGCObject interface
-	virtual void AddReferencedObjects(FReferenceCollector& Collector) override;
-	virtual FString GetReferencerName() const override
-	{
-		return TEXT("FDisplayClusterViewportPreviewMesh");
-	}
-	//~ End FGCObject interface
 
 private:
 	/** Returns true if this mesh type is supported by the viewport projection policy and DCRA. */
@@ -124,20 +112,20 @@ private:
 	EDisplayClusterViewportPreviewMeshFlags RuntimeFlags;
 
 	// Mesh component used for preview
-	TObjectPtr<UMeshComponent> MeshComponentPtr;
+	TWeakObjectPtr<UMeshComponent> MeshComponentPtr;
 
 	// This mesh component exists in DCRA and does not need to be deleted.
 	bool bIsRootActorMeshComponent = false;
 
 	// Overlay materials for the mesh can be customized when using preview rendering.
-	TObjectPtr<UMaterialInterface> OrigOverlayMaterial;
+	TWeakObjectPtr<UMaterialInterface> OrigOverlayMaterialPtr;
 
 	// Preview material used on the mesh
-	TObjectPtr<UMaterialInstanceDynamic> MaterialInstancePtr;
+	TWeakObjectPtr<UMaterialInstanceDynamic> MaterialInstancePtr;
 
 	// The current material assigned to the preview mesh
-	TObjectPtr<UMaterial> CurrentMaterialPtr;
+	TWeakObjectPtr<UMaterial> CurrentMaterialPtr;
 
 	// The default material defined in the DisplayDevice
-	TObjectPtr<UMaterial> DefaultMaterialPtr;
+	TWeakObjectPtr<UMaterial> DefaultMaterialPtr;
 };
