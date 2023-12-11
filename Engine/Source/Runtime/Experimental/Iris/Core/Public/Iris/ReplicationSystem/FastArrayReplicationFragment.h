@@ -9,7 +9,10 @@
 #include "Iris/ReplicationState/PropertyReplicationState.h"
 #include "Iris/ReplicationState/ReplicationStateUtil.h"
 #include "Iris/ReplicationState/ReplicationStateDescriptor.h"
+
 #include "Net/Core/NetBitArray.h"
+
+#include "Templates/UnrealTemplate.h"
 
 namespace UE::Net
 {
@@ -184,32 +187,40 @@ bool TFastArrayReplicationFragment<FastArrayItemType, FastArrayType>::PollAllSta
 	FastArrayItemType* DstItems = DstWrappedArray->GetData();
 	FastArrayItemType* SrcItems = SrcWrappedArray->GetData();
 
-	// Iterate over array entries and copy the statedata using internal data if it has changed
-	for (int32 ElementIt = 0, ElementEndIt = ElementCount; ElementIt < ElementEndIt; ++ElementIt)
 	{
-		FastArrayItemType& SrcItem = SrcItems[ElementIt];
-		FastArrayItemType& DstItem = DstItems[ElementIt];
+#if WITH_PUSH_MODEL
+		// Disable push model by temporarily setting the FastArray's RepIndex to none.
+		// This prevents the array from adding itself to the global dirty list via MarkItemDirty while we are polling it.
+		TGuardValue DisablePushModel(SrcArraySerializer->RepIndex, (int32)INDEX_NONE);
+#endif
 
-		const bool bIsWritingOnClient = false;
-		if (SrcArraySerializer->template ShouldWriteFastArrayItem<FastArrayItemType, FastArrayType>(SrcItem, bIsWritingOnClient))
+		// Iterate over array entries and copy the statedata using internal data if it has changed
+		for (int32 ElementIt = 0, ElementEndIt = ElementCount; ElementIt < ElementEndIt; ++ElementIt)
 		{
-			if (SrcItem.ReplicationID == INDEX_NONE)
-			{
-				SrcArraySerializer->MarkItemDirty(SrcItem);
-			}
+			FastArrayItemType& SrcItem = SrcItems[ElementIt];
+			FastArrayItemType& DstItem = DstItems[ElementIt];
 
-			const bool bReplicationKeyChanged = SrcItem.ReplicationKey != DstItem.ReplicationKey || SrcItem.ReplicationID != DstItem.ReplicationID;
-			if (bReplicationKeyChanged || (bForceFullCompare && !InternalCompareArrayElement(ArrayElementDescriptor, &DstItem, &SrcItem)))
+			const bool bIsWritingOnClient = false;
+			if (SrcArraySerializer->template ShouldWriteFastArrayItem<FastArrayItemType, FastArrayType>(SrcItem, bIsWritingOnClient))
 			{
-				InternalCopyArrayElement(ArrayElementDescriptor, &DstItem, &SrcItem);
-				DstItem.ReplicationKey = SrcItem.ReplicationKey;
-
-				// Mark element as dirty and mark array as dirty as well.
-				if (ChangeMaskBitCount)
+				if (SrcItem.ReplicationID == INDEX_NONE)
 				{
-					MemberChangeMask.SetBit((ElementIt % ChangeMaskBitCount) + ChangeMaskBitOffset);
+					SrcArraySerializer->MarkItemDirty(SrcItem);
 				}
-				bMarkArrayDirty = true;
+
+				const bool bReplicationKeyChanged = SrcItem.ReplicationKey != DstItem.ReplicationKey || SrcItem.ReplicationID != DstItem.ReplicationID;
+				if (bReplicationKeyChanged || (bForceFullCompare && !InternalCompareArrayElement(ArrayElementDescriptor, &DstItem, &SrcItem)))
+				{
+					InternalCopyArrayElement(ArrayElementDescriptor, &DstItem, &SrcItem);
+					DstItem.ReplicationKey = SrcItem.ReplicationKey;
+
+					// Mark element as dirty and mark array as dirty as well.
+					if (ChangeMaskBitCount)
+					{
+						MemberChangeMask.SetBit((ElementIt % ChangeMaskBitCount) + ChangeMaskBitOffset);
+					}
+					bMarkArrayDirty = true;
+				}
 			}
 		}
 	}
@@ -221,7 +232,7 @@ bool TFastArrayReplicationFragment<FastArrayItemType, FastArrayType>::PollAllSta
 	if (bMarkArrayDirty && ReplicationState->IsCustomConditionEnabled(FIrisFastArraySerializer::IrisFastArrayPropertyBitIndex))
 	{
 		MemberChangeMask.SetBit(FIrisFastArraySerializer::IrisFastArrayPropertyBitIndex);
-		MarkNetObjectStateDirty(UE::Net::Private::GetReplicationStateHeader(ReplicationState->GetStateBuffer(), ReplicationStateDescriptor));
+		MarkNetObjectStateHeaderDirty(UE::Net::Private::GetReplicationStateHeader(ReplicationState->GetStateBuffer(), ReplicationStateDescriptor));
 	}
 
 	return IsDirty();
@@ -242,7 +253,7 @@ void TFastArrayReplicationFragment<FastArrayItemType, FastArrayType>::MarkDirty(
 	{
 		FNetBitArrayView MemberChangeMask = UE::Net::Private::GetMemberChangeMask(ReplicationState->GetStateBuffer(), ReplicationStateDescriptor);
 		MemberChangeMask.SetBit(FIrisFastArraySerializer::IrisFastArrayPropertyBitIndex);
-		MarkNetObjectStateDirty(UE::Net::Private::GetReplicationStateHeader(ReplicationState->GetStateBuffer(), ReplicationStateDescriptor));
+		MarkNetObjectStateHeaderDirty(UE::Net::Private::GetReplicationStateHeader(ReplicationState->GetStateBuffer(), ReplicationStateDescriptor));
 	}
 }
 

@@ -38,8 +38,14 @@ public:
 
 	void Init(const FDirtyNetObjectTrackerInitParams& Params);
 
+	/** Returns true if this dirty tracker can be used by the replication system */
+	bool IsInit() const { return NetRefHandleManager != nullptr; }
+
 	/** Update dirty objects with the set of globally marked dirty objects. */
 	void UpdateDirtyNetObjects();
+
+	/* Update dirty objects from the global list and then prevent future modifications to that list until it is reset. */
+	void UpdateAndLockDirtyNetObjects();
 
 	/** Add all the current frame dirty objects set into the accumulated list */
 	void UpdateAccumulatedDirtyList();
@@ -72,6 +78,7 @@ private:
 	void Deinit();
 	void MarkNetObjectDirty(FInternalNetRefIndex NetObjectIndex);
 	void ForceNetUpdate(FInternalNetRefIndex NetObjectIndex);
+	void GrabAndApplyGlobalDirtyObjectList();
 
 	/** Can only be accessed via FDirtyObjectsAccessor */
 	FNetBitArrayView GetDirtyNetObjectsThisFrame();
@@ -98,7 +105,7 @@ private:
 	uint32 NetObjectIdRangeEnd = 0;
 	uint32 NetObjectIdCount = 0;
 	
-	bool bHasPolledGlobalDirtyTracker = false;
+	bool bShouldResetPolledGlobalDirtyTracker = false;
 
 #if UE_NET_THREAD_SAFETY_CHECK
 	std::atomic_bool bIsExternalAccessAllowed = false;

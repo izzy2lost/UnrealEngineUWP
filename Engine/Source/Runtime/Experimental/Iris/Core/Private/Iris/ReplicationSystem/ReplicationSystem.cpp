@@ -93,17 +93,19 @@ public:
 
 		const uint32 MaxObjectCount =  NetRefHandleManager.GetMaxActiveObjectCount();
 
-		// $IRIS TODO: Need object ID range. Currently abusing hardcoded values from FNetRefHandleManager
-		FDirtyNetObjectTracker& DirtyNetObjectTracker = ReplicationSystemInternal.GetDirtyNetObjectTracker();
-		FDirtyNetObjectTrackerInitParams DirtyNetObjectTrackerInitParams;
+		// DirtyNetObjectTracking is only needed when object replication is allowed
+		if (Params.bAllowObjectReplication)
 		{
+			// $IRIS TODO: Need object ID range. Currently abusing hardcoded values from FNetRefHandleManager
+			FDirtyNetObjectTrackerInitParams DirtyNetObjectTrackerInitParams;
+
 			DirtyNetObjectTrackerInitParams.NetRefHandleManager = &NetRefHandleManager;
 			DirtyNetObjectTrackerInitParams.ReplicationSystemId = ReplicationSystemId;
 			DirtyNetObjectTrackerInitParams.MaxObjectCount = MaxObjectCount;
 			DirtyNetObjectTrackerInitParams.NetObjectIndexRangeStart = 1;
 			DirtyNetObjectTrackerInitParams.NetObjectIndexRangeEnd = MaxObjectCount - 1U;
 
-			DirtyNetObjectTracker.Init(DirtyNetObjectTrackerInitParams);
+			ReplicationSystemInternal.InitDirtyNetObjectTracker(DirtyNetObjectTrackerInitParams);
 		}
 
 		FReplicationStateStorage& StateStorage = ReplicationSystemInternal.GetReplicationStateStorage();
@@ -779,7 +781,10 @@ void UReplicationSystem::PostSendUpdate()
 	// Most systems are only updated during the normal TickFlush
 	if (Impl->CurrentSendPass == EReplicationSystemSendPass::TickFlush)
 	{
-		Impl->ResetObjectStateDirtiness();
+		if (bAllowObjectReplication)
+		{
+			Impl->ResetObjectStateDirtiness();
+		}
 
 		Impl->EndPostSendUpdate();
 

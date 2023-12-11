@@ -318,6 +318,9 @@ private:
 	/** Call the user function PreUpdate (aka PreReplication) on objects about to be polled. */
 	void PreUpdate(const UE::Net::FNetBitArrayView ObjectsConsideredForPolling);
 
+	/** Find any objects that got set dirty by user code during PreUpdate then lock future modifications to the global dirty list */
+	void FinalizeDirtyObjects();
+
 	/** Find any new subobjects created inside PreUpdate and ensure they will be replicated this frame */
 	void ReconcileNewSubObjects(UE::Net::FNetBitArrayView ObjectsConsideredForPolling);
 

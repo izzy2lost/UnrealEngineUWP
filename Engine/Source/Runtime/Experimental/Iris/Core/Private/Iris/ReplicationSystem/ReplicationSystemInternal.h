@@ -54,7 +54,8 @@ public:
 	FNetRefHandleManager& GetNetRefHandleManager() { return NetRefHandleManager; }
 	const FNetRefHandleManager& GetNetRefHandleManager() const { return NetRefHandleManager; }
 
-	FDirtyNetObjectTracker& GetDirtyNetObjectTracker() { return DirtyNetObjectTracker; }
+	void InitDirtyNetObjectTracker(const struct FDirtyNetObjectTrackerInitParams& Params) { DirtyNetObjectTracker.Init(Params); }
+	FDirtyNetObjectTracker& GetDirtyNetObjectTracker() { checkf(DirtyNetObjectTracker.IsInit(), TEXT("Not allowed to access the DirtyNetObjectTracker unless object replication is enabled.")); return DirtyNetObjectTracker; }
 
 	FReplicationStateDescriptorRegistry& GetReplicationStateDescriptorRegistry() { return ReplicationStateDescriptorRegistry; }
 

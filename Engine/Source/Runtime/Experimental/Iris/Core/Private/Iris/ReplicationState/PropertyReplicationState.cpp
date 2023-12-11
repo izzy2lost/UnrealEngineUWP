@@ -207,7 +207,7 @@ void FPropertyReplicationState::MarkDirty(uint32 Index)
 			Private::FReplicationStateHeaderAccessor::MarkInitStateDirty(Header);
 			if (Header.IsBound())
 			{
-				MarkNetObjectStateDirty(Header);
+				MarkNetObjectStateHeaderDirty(Header);
 			}
 		}
 	}
@@ -248,7 +248,7 @@ void FPropertyReplicationState::MarkArrayDirty(uint32 Index)
 			Private::FReplicationStateHeaderAccessor::MarkInitStateDirty(Header);
 			if (Header.IsBound())
 			{
-				MarkNetObjectStateDirty(Header);
+				MarkNetObjectStateHeaderDirty(Header);
 			}
 		}
 	}

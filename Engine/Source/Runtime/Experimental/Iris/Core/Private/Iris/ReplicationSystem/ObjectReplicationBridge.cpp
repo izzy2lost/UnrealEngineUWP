@@ -791,6 +791,8 @@ void UObjectReplicationBridge::PreSendUpdate()
 
 	PreUpdate(ObjectsConsideredForPolling);
 
+	FinalizeDirtyObjects();
+
 	ReconcileNewSubObjects(ObjectsConsideredForPolling);
 
 	Poll(ObjectsConsideredForPolling);
@@ -985,7 +987,7 @@ void UObjectReplicationBridge::BuildPollList(UE::Net::FNetBitArrayView ObjectsCo
 
 			{
 				FDirtyObjectsAccessor DirtyObjectsAccessor(ReplicationSystemInternal->GetDirtyNetObjectTracker());
-				FNetBitArrayView DirtyObjectsThisFrame = DirtyObjectsAccessor.GetDirtyNetObjects();
+				const FNetBitArrayView DirtyObjectsThisFrame = DirtyObjectsAccessor.GetDirtyNetObjects();
 
 				DirtyAndRelevantObjectsView.Set(DirtyObjectsThisFrame, FNetBitArray::OrOp, ForceNetUpdateObjects);
 				DirtyAndRelevantObjectsView.Combine(RelevantObjects, FNetBitArray::AndOp);
@@ -1050,6 +1052,16 @@ void UObjectReplicationBridge::Poll(const UE::Net::FNetBitArrayView ObjectsConsi
 	// Report stats
 	UE_NET_TRACE_FRAME_STATSCOUNTER(ReplicationSystem->GetId(), ReplicationSystem.PolledObjectCount, Stats.PolledObjectCount, ENetTraceVerbosity::Trace);
 	UE_NET_TRACE_FRAME_STATSCOUNTER(ReplicationSystem->GetId(), ReplicationSystem.PolledReferencesObjectCount, Stats.PolledReferencesObjectCount, ENetTraceVerbosity::Trace);
+}
+
+void UObjectReplicationBridge::FinalizeDirtyObjects()
+{
+	using namespace UE::Net::Private;
+
+	IRIS_PROFILER_SCOPE(UObjectReplicationBridge_FinalizeDirtyObjects);
+
+	// Look for new dirty pushmodel objects and then prevent future modifications to it.
+	GetReplicationSystem()->GetReplicationSystemInternal()->GetDirtyNetObjectTracker().UpdateAndLockDirtyNetObjects();
 }
 
 void UObjectReplicationBridge::ReconcileNewSubObjects(UE::Net::FNetBitArrayView ObjectsConsideredForPolling)

@@ -104,12 +104,8 @@ void FObjectPoller::PollSingleObject(FNetRefHandle Handle)
 
 		FDirtyObjectsAccessor DirtyObjectsAccessor(ReplicationSystemInternal->GetDirtyNetObjectTracker());
 		DirtyObjectsThisFrame = DirtyObjectsAccessor.GetDirtyNetObjects();
-		// From here we call into user code via PreUpdateInstanceFunction, so allow external code to set dirty flags since DirtyObjects is not read anymore.
-		ReplicationSystemInternal->GetDirtyNetObjectTracker().AllowExternalAccess();
 
-		{
-			ForcePollObject(InternalObjectIndex);
-		}
+		ForcePollObject(InternalObjectIndex);
 
 		// Clear ref to locked dirty bit array
 		DirtyObjectsThisFrame = FNetBitArrayView();

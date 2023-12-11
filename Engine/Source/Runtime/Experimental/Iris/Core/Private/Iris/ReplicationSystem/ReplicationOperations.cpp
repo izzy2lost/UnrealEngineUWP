@@ -560,6 +560,7 @@ bool FReplicationInstanceOperations::PollAndRefreshCachedPropertyData(const FRep
 	const uint32 FragmentCount = InstanceProtocol->FragmentCount;
 	for (uint32 StateIt = 0; StateIt < FragmentCount; ++StateIt)
 	{
+		// Only poll fragments with NeedsPoll and none of the ExcludedTraits set.
 		const EReplicationFragmentTraits MaskedFragmentTraits = Fragments[StateIt]->GetTraits() & (EReplicationFragmentTraits::NeedsPoll | ExcludeTraits);
 		if (MaskedFragmentTraits == EReplicationFragmentTraits::NeedsPoll)
 		{

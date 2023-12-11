@@ -70,10 +70,31 @@ void FDirtyNetObjectTracker::Init(const FDirtyNetObjectTrackerInitParams& Params
 void FDirtyNetObjectTracker::Deinit()
 {
 	GlobalDirtyTrackerPollHandle.Destroy();
-	bHasPolledGlobalDirtyTracker = false;
+	bShouldResetPolledGlobalDirtyTracker = false;
 
 	delete[] DirtyNetObjectContainer;
 	DirtyNetObjectContainer = nullptr;
+}
+
+void FDirtyNetObjectTracker::GrabAndApplyGlobalDirtyObjectList()
+{
+	{
+		const TSet<FNetHandle>& GlobalDirtyNetObjects = FGlobalDirtyNetObjectTracker::GetDirtyNetObjects(GlobalDirtyTrackerPollHandle);
+		for (FNetHandle NetHandle : GlobalDirtyNetObjects)
+		{
+			const FInternalNetRefIndex NetObjectIndex = NetRefHandleManager->GetInternalIndexFromNetHandle(NetHandle);
+			if (NetObjectIndex != FNetRefHandleManager::InvalidInternalIndex)
+			{
+				const uint32 BitOffset = NetObjectIndex;
+				const StorageType BitMask = StorageType(1) << (BitOffset & (StorageTypeBitCount - 1));
+				DirtyNetObjectContainer[BitOffset / StorageTypeBitCount] |= BitMask;
+			}
+		}
+	}
+
+	FGlobalDirtyNetObjectTracker::ResetDirtyNetObjectsIfSinglePoller(GlobalDirtyTrackerPollHandle);
+
+	bShouldResetPolledGlobalDirtyTracker = true;
 }
 
 void FDirtyNetObjectTracker::UpdateDirtyNetObjects()
@@ -87,19 +108,9 @@ void FDirtyNetObjectTracker::UpdateDirtyNetObjects()
 
 	LockExternalAccess();
 
-	bHasPolledGlobalDirtyTracker = true;
+	GrabAndApplyGlobalDirtyObjectList();
 
-	const TSet<FNetHandle>& GlobalDirtyNetObjects = FGlobalDirtyNetObjectTracker::GetDirtyNetObjects(GlobalDirtyTrackerPollHandle);
-	for (FNetHandle NetHandle : GlobalDirtyNetObjects)
-	{
-		const FInternalNetRefIndex NetObjectIndex = NetRefHandleManager->GetInternalIndexFromNetHandle(NetHandle);
-		if (NetObjectIndex != FNetRefHandleManager::InvalidInternalIndex)
-		{
-			const uint32 BitOffset = NetObjectIndex;
-			const StorageType BitMask = StorageType(1) << (BitOffset & (StorageTypeBitCount - 1));
-			DirtyNetObjectContainer[BitOffset/StorageTypeBitCount] |= BitMask;
-		}
-	}
+	//$IRIS TODO:  We could look if any objects where actually in the global list and skip the array iteration if not needed.
 
 	const uint32* GlobalScopeListData = NetRefHandleManager->GetCurrentFrameScopableInternalIndices().GetData();
 	uint32* AccumulatedDirtyNetObjectsData = AccumulatedDirtyNetObjects.GetData();
@@ -111,11 +122,23 @@ void FDirtyNetObjectTracker::UpdateDirtyNetObjects()
 		uint32 DirtyObjectWord = DirtyNetObjectContainer[WordIndex] & GlobalScopeListData[WordIndex];
 		DirtyNetObjectContainer[WordIndex] = DirtyObjectWord;
 
-		// Add new dirty objects to the accumulated list
-		AccumulatedDirtyNetObjectsData[WordIndex] = AccumulatedDirtyNetObjectsData[WordIndex] | DirtyObjectWord;
+		// Add the latest dirty objects to the accumulated list and remove no-longer scoped objects that have never been copied.
+		AccumulatedDirtyNetObjectsData[WordIndex] = (AccumulatedDirtyNetObjectsData[WordIndex] | DirtyNetObjectContainer[WordIndex]) & GlobalScopeListData[WordIndex];
 	}
 
 	AllowExternalAccess();
+}
+
+void FDirtyNetObjectTracker::UpdateAndLockDirtyNetObjects()
+{
+	if (!GlobalDirtyTrackerPollHandle.IsValid())
+	{
+		return;
+	}
+	
+	UpdateDirtyNetObjects();
+
+	FGlobalDirtyNetObjectTracker::LockDirtyListUntilReset(GlobalDirtyTrackerPollHandle);
 }
 
 void FDirtyNetObjectTracker::UpdateAccumulatedDirtyList()
@@ -181,9 +204,9 @@ void FDirtyNetObjectTracker::ReconcilePolledList(const FNetBitArrayView& Objects
 {
 	LockExternalAccess();
 
-	if (bHasPolledGlobalDirtyTracker)
+	if (bShouldResetPolledGlobalDirtyTracker)
 	{
-		bHasPolledGlobalDirtyTracker = false;
+		bShouldResetPolledGlobalDirtyTracker = false;
 		FGlobalDirtyNetObjectTracker::ResetDirtyNetObjects(GlobalDirtyTrackerPollHandle);
 	}
 
