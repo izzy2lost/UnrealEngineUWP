@@ -318,10 +318,15 @@ void MainCS(uint3 DispatchThreadId : SV_DispatchThreadID)
 	TPrefix##Buffers_15##TSuffix;
 
 TEMPLATE_BUFFERS(StructuredBuffer<float4> Structured, )
-TEMPLATE_BUFFERS(Buffer<uint> Vertex, )
+TEMPLATE_BUFFERS(Buffer<uint> VertexUInt, )
+TEMPLATE_BUFFERS(Buffer<uint4> VertexUInt4, )
+TEMPLATE_BUFFERS(Buffer<float4> VertexFloat4, )
 
 RWStructuredBuffer<uint> DummyOutput;
 uint DummyValue;
+uint NumVertexUint;
+uint NumVertexUint4;
+uint NumVertexFloat4;
 
 [numthreads(1, 1, 1)]
 void MainCS(uint3 DispatchThreadId : SV_DispatchThreadID)
@@ -329,10 +334,14 @@ void MainCS(uint3 DispatchThreadId : SV_DispatchThreadID)
 	if (DummyValue > 0)
 	{
 		uint Acc = 0;
-	#if PERMUTATION_STRUCTURED_BUFFER
+	#if PERMUTATION_BUFFER_TYPE == 0
 		TEMPLATE_BUFFERS(Acc += Structured, [0].x)
+	#elif PERMUTATION_BUFFER_TYPE == 1
+		TEMPLATE_BUFFERS(Acc += VertexUInt, [0])
+	#elif PERMUTATION_BUFFER_TYPE == 2
+		TEMPLATE_BUFFERS(Acc += VertexUInt4, [0].x)
 	#else
-		TEMPLATE_BUFFERS(Acc += Vertex, [0])
+		TEMPLATE_BUFFERS(Acc += VertexFloat4, [0].x)
 	#endif
 		DummyOutput[0] = Acc;
 	}
