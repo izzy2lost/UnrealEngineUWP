@@ -10,6 +10,7 @@
 #include "ConversationInstance.generated.h"
 
 class UConversationChoiceNode;
+class UConversationDatabase;
 class UConversationInstance;
 class UConversationNodeWithLinks;
 class UConversationParticipantComponent;
@@ -40,11 +41,11 @@ public:
 #if WITH_SERVER_CODE
 	/** Should be called with a copy of the conversation participants before any removals happen, that way clients can properly respond to the end of their respective conversations
 	  * with an accurate account of who was in that conversation. */
-	void ServerRemoveParticipant(FGameplayTag ParticipantID, const FConversationParticipants& PreservedParticipants);
+	void ServerRemoveParticipant(const FGameplayTag& ParticipantID, const FConversationParticipants& PreservedParticipants);
 
-	void ServerAssignParticipant(FGameplayTag ParticipantID, AActor* ParticipantActor);
+	void ServerAssignParticipant(const FGameplayTag& ParticipantID, AActor* ParticipantActor);
 
-	void ServerStartConversation(FGameplayTag EntryPoint);
+	void ServerStartConversation(const FGameplayTag& EntryPoint, const UConversationDatabase* Graph = nullptr);
 
 	void ServerAdvanceConversation(const FAdvanceConversationRequest& InChoicePicked);
 

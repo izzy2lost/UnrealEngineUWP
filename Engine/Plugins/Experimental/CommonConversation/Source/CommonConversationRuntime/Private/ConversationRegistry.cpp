@@ -210,14 +210,14 @@ UConversationNode* UConversationRegistry::GetRuntimeNodeFromGUID(const FGuid& No
 	return nullptr;
 }
 
-TArray<FGuid> UConversationRegistry::GetEntryPointGUIDs(FGameplayTag EntryPoint) const
+TArray<FGuid> UConversationRegistry::GetEntryPointGUIDs(const FGameplayTag& EntryPoint) const
 {
 	const_cast<UConversationRegistry*>(this)->BuildDependenciesGraph();
 
 	return EntryTagToEntryList.FindRef(EntryPoint);
 }
 
-TArray<FGuid> UConversationRegistry::GetOutputLinkGUIDs(FGameplayTag EntryPoint) const
+TArray<FGuid> UConversationRegistry::GetOutputLinkGUIDs(const FGameplayTag& EntryPoint) const
 {
 	TArray<FGuid> SourceGUIDs = GetEntryPointGUIDs(EntryPoint);
 	return GetOutputLinkGUIDs(SourceGUIDs);
@@ -239,13 +239,44 @@ TArray<FGuid> UConversationRegistry::GetOutputLinkGUIDs(const TArray<FGuid>& Sou
 		if (const UConversationDatabase* SourceConversation = GetConversationFromNodeGUID(SourceGUID))
 		{
 			UConversationNode* SourceNode = SourceConversation->ReachableNodeMap.FindRef(SourceGUID);
-			if (ensure(SourceNode))
+			if (SourceNode)
 			{
 				if (UConversationNodeWithLinks* SourceNodeWithLinks = CastChecked<UConversationNodeWithLinks>(SourceNode))
 				{
 					Result.Append(SourceNodeWithLinks->OutputConnections);
 				}
 			}
+		}
+	}
+
+	return Result;
+}
+
+TArray<FGuid> UConversationRegistry::GetOutputLinkGUIDs(const UConversationDatabase* Graph, const FGameplayTag& EntryPoint) const
+{
+	if (Graph == nullptr)
+	{
+		return GetOutputLinkGUIDs(EntryPoint);
+	}
+
+	TArray<FGuid> Result;
+
+	for (const FConversationEntryList& Tag : Graph->EntryTags)
+	{
+		if (Tag.EntryTag == EntryPoint)
+		{
+			for (const FGuid& Destination : Tag.DestinationList)
+			{
+				UConversationNode* SourceNode = Graph->ReachableNodeMap.FindRef(Destination);
+				if (SourceNode)
+				{
+					if (UConversationNodeWithLinks* SourceNodeWithLinks = CastChecked<UConversationNodeWithLinks>(SourceNode))
+					{
+						Result.Append(SourceNodeWithLinks->OutputConnections);
+					}
+				}
+			}
+			break;
 		}
 	}
 

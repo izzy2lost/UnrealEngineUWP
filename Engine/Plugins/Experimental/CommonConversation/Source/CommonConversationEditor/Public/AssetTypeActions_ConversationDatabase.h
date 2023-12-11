@@ -6,7 +6,7 @@
 
 class UConversationDatabase;
 
-class FAssetTypeActions_ConversationDatabase : public FAssetTypeActions_Base
+class COMMONCONVERSATIONEDITOR_API FAssetTypeActions_ConversationDatabase : public FAssetTypeActions_Base
 {
 public:
 	// IAssetTypeActions Implementation

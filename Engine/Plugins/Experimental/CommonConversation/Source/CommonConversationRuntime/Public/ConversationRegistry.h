@@ -83,11 +83,12 @@ public:
 	/** UWorldSubsystem End */
 
 	UConversationNode* GetRuntimeNodeFromGUID(const FGuid& NodeGUID) const;
-	TArray<FGuid> GetEntryPointGUIDs(FGameplayTag EntryPoint) const;
+	TArray<FGuid> GetEntryPointGUIDs(const FGameplayTag& EntryPoint) const;
 
-	TArray<FGuid> GetOutputLinkGUIDs(FGameplayTag EntryPoint) const;
+	TArray<FGuid> GetOutputLinkGUIDs(const FGameplayTag& EntryPoint) const;
 	TArray<FGuid> GetOutputLinkGUIDs(const FGuid& SourceGUID) const;
 	TArray<FGuid> GetOutputLinkGUIDs(const TArray<FGuid>& SourceGUIDs) const;
+	TArray<FGuid> GetOutputLinkGUIDs(const UConversationDatabase* Graph, const FGameplayTag& EntryPoint) const;
 
 	TSharedPtr<FConversationsHandle> LoadConversationsFor(const FGameplayTag& ConversationEntryTag) const;
 	TSharedPtr<FConversationsHandle> LoadConversationsFor(const TArray<FGameplayTag>& ConversationEntryTags) const;

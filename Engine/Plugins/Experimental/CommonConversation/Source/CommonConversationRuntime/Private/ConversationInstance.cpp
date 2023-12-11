@@ -26,7 +26,7 @@ UWorld* UConversationInstance::GetWorld() const
 
 #if WITH_SERVER_CODE
 
-void UConversationInstance::ServerRemoveParticipant(FGameplayTag ParticipantID, const FConversationParticipants& PreservedParticipants)
+void UConversationInstance::ServerRemoveParticipant(const FGameplayTag& ParticipantID, const FConversationParticipants& PreservedParticipants)
 {
 	for (auto It = Participants.List.CreateIterator(); It; ++It)
 	{
@@ -45,7 +45,7 @@ void UConversationInstance::ServerRemoveParticipant(FGameplayTag ParticipantID, 
 	}
 }
 
-void UConversationInstance::ServerAssignParticipant(FGameplayTag ParticipantID, AActor* ParticipantActor)
+void UConversationInstance::ServerAssignParticipant(const FGameplayTag& ParticipantID, AActor* ParticipantActor)
 {
 	if (!ParticipantID.IsValid() || (ParticipantActor == nullptr))
 	{
@@ -73,7 +73,7 @@ void UConversationInstance::ServerAssignParticipant(FGameplayTag ParticipantID, 
 		*GetName(), *ParticipantID.ToString(), *GetPathNameSafe(ParticipantActor));
 }
 
-void UConversationInstance::ServerStartConversation(FGameplayTag EntryPoint)
+void UConversationInstance::ServerStartConversation(const FGameplayTag& EntryPoint, const UConversationDatabase* Graph)
 {
 	UE_LOG(LogCommonConversationRuntime, Verbose, TEXT("Conversation %s starting at %s with %d participants"),
 		*GetName(), *EntryPoint.ToString(), Participants.List.Num());
@@ -83,7 +83,7 @@ void UConversationInstance::ServerStartConversation(FGameplayTag EntryPoint)
 
 	UConversationRegistry* ConversationRegistry = UConversationRegistry::GetFromWorld(GetWorld());
 	
-	TArray<FGuid> PotentialStartingPoints = ConversationRegistry->GetOutputLinkGUIDs(EntryPoint);
+	TArray<FGuid> PotentialStartingPoints = ConversationRegistry->GetOutputLinkGUIDs(Graph, EntryPoint);
 	if (PotentialStartingPoints.Num() == 0)
 	{
 		UE_LOG(LogCommonConversationRuntime, Warning, TEXT("Entry point %s did not exist or had no destination entries; conversation aborted"), *EntryPoint.ToString());
