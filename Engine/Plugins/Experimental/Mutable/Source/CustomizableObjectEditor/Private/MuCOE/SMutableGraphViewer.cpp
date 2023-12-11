@@ -17,6 +17,11 @@
 #include "Widgets/Input/SNumericDropDown.h"
 #include "Widgets/Views/STreeView.h"
 #include "ScopedTransaction.h"
+#include "MuT/NodeObjectGroup.h"
+#include "MuT/NodeObjectNew.h"
+#include "MuT/NodeSurfaceEdit.h"
+#include "MuT/NodeSurfaceSwitch.h"
+#include "MuT/NodeSurfaceVariation.h"
 #include "MuT/Streams.h"
 
 // This is necessary because of problems with rtti information in other platforms. In any case, this part of the debugger is only useful in the standard editor.

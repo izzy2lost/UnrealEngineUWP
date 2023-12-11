@@ -217,11 +217,11 @@ namespace mu
             genErrorLog = gen.m_pErrorLog;
         }
 
-        vector<Ptr<ASTOp>> roots;
-        for( const STATE_COMPILATION_DATA& s: states)
-        {
-            roots.push_back(s.root);
-        }
+        //vector<Ptr<ASTOp>> roots;
+        //for( const STATE_COMPILATION_DATA& s: states)
+        //{
+        //    roots.push_back(s.root);
+        //}
 
         // Slow AST code verification for debugging.
         //ASTOp::FullAssert(roots);

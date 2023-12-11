@@ -3,7 +3,7 @@
 #pragma once
 
 #include "MuR/ModelPrivate.h"
-#include "MuT/ErrorLogPrivate.h"
+#include "MuT/ErrorLog.h"
 #include "MuT/TypeInfo.h"
 #include "UObject/GCObject.h"
 #include "Widgets/SCompoundWidget.h"

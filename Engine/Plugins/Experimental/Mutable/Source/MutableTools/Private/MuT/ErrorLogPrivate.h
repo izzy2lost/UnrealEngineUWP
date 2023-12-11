@@ -12,8 +12,6 @@
 
 namespace mu
 {
-	MUTABLETOOLS_API extern const TCHAR* s_opNames[(int)OP_TYPE::COUNT];
-
 	class ErrorLog::Private : public Base
 	{
 	public:
