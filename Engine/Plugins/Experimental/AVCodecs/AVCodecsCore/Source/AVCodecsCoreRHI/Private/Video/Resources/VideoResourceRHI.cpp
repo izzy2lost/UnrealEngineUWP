@@ -21,6 +21,7 @@
 #endif
 
 #include "Async/Async.h"
+#include "CoreGlobals.h"
 #include "HAL/Event.h"
 #include "RHIStaticStates.h"
 #include "MediaShaders.h"
@@ -30,6 +31,13 @@
 
 REGISTER_TYPEID(FVideoContextRHI);
 REGISTER_TYPEID(FVideoResourceRHI);
+
+#define CFSafeRelease(x)                \
+    if (x != nullptr)                   \
+    {                                   \
+        CFRelease(x);                   \
+        x = nullptr;                    \
+    }
 
 FAVLayout FVideoResourceRHI::GetLayoutFrom(TSharedRef<FAVDevice> const& Device, FTextureRHIRef const& Raw)
 {
@@ -134,14 +142,9 @@ TSharedPtr<FVideoResourceRHI> FVideoResourceRHI::Create(TSharedPtr<FAVDevice> co
 		FRHITextureCreateDesc TextureDesc = FRHITextureCreateDesc::Create2D(TEXT("AVCodecs Resource"), Descriptor.Width, Descriptor.Height, static_cast<EPixelFormat>(Descriptor.Format));
 
 		TextureDesc.SetClearValue(FClearValueBinding::None);
-#if AVCODECS_USE_METAL
-        TextureDesc.SetFlags(ETextureCreateFlags::CPUReadback);
-		TextureDesc.SetInitialState(ERHIAccess::CPURead);
-        TextureDesc.DetermineInititialState();
-#else
     	TextureDesc.SetFlags(ETextureCreateFlags::RenderTargetable);
 		TextureDesc.SetInitialState(ERHIAccess::Present);
-#endif
+
 		TextureDesc.SetNumMips(1);
 
 		if (RHIGetInterfaceType() == ERHIInterfaceType::Vulkan)
@@ -558,12 +561,83 @@ DLLEXPORT FAVResult FAVExtension::TransformResource(TSharedPtr<FVideoResourceMet
 	{
 		if (InResource->GetDevice()->HasContext<FVideoContextMetal>())
 		{		
-			OutResource = MakeShared<FVideoResourceMetal>(
-				InResource->GetDevice(),
-				static_cast<MTL::Texture*>(InResource->GetRaw().Texture->GetNativeResource()),
-				InResource->GetLayout());
+            static CVMetalTextureCacheRef TextureCache = nullptr;
+            
+            if (TextureCache == nullptr)
+            {
+                id<MTLDevice> Device = (__bridge id<MTLDevice>)GDynamicRHI->RHIGetNativeDevice();
+                check(Device);
+                
+                CVReturn Result = CVMetalTextureCacheCreate(kCFAllocatorDefault, nullptr, Device, nullptr, &TextureCache);
+                if (Result != kCVReturnSuccess)
+                {
+                    return FAVResult(EAVResult::Error, TEXT("Failed to create CVMetalTextureCacheRef"), TEXT("RHI"), Result);
+                }
+            }
+            
+            const FVideoDescriptor& Descriptor = InResource->GetDescriptor();
+                        
+            CFMutableDictionaryRef SourceAttributes = CFDictionaryCreateMutable(kCFAllocatorDefault, 1, &kCFTypeDictionaryKeyCallBacks, &kCFTypeDictionaryValueCallBacks);
+            CFDictionarySetValue(SourceAttributes, kCVPixelBufferOpenGLCompatibilityKey, kCFBooleanTrue);
+            CFDictionaryRef IOSurfaceValue = CFDictionaryCreate(kCFAllocatorDefault, nullptr, nullptr, 0, &kCFTypeDictionaryKeyCallBacks, &kCFTypeDictionaryValueCallBacks);
+            CFDictionarySetValue(SourceAttributes, kCVPixelBufferIOSurfacePropertiesKey, IOSurfaceValue);
+            int64 PixelType = kCVPixelFormatType_32BGRA;
+            CFNumberRef PixelFormat = CFNumberCreate(nullptr, kCFNumberLongType, &PixelType);
+            CFDictionarySetValue(SourceAttributes, kCVPixelBufferPixelFormatTypeKey, PixelFormat);
 
-			return OutResource->Validate();
+            CFSafeRelease(IOSurfaceValue);
+            CFSafeRelease(PixelFormat);
+
+            CVPixelBufferRef PixelBuffer;
+            CVReturn Result = CVPixelBufferCreate(kCFAllocatorDefault, Descriptor.Width, Descriptor.Height, kCVPixelFormatType_32BGRA, SourceAttributes, &PixelBuffer);
+            if (Result != kCVReturnSuccess)
+            {
+                return FAVResult(EAVResult::Error, TEXT("Failed to create CVPixelBufferRef"), TEXT("RHI"), Result);
+            }
+            CFSafeRelease(SourceAttributes);
+
+            CVMetalTextureRef TextureRef;
+            Result = CVMetalTextureCacheCreateTextureFromImage(kCFAllocatorDefault, TextureCache, PixelBuffer, nullptr, MTLPixelFormatBGRA8Unorm_sRGB, Descriptor.Width, Descriptor.Height, 0, &TextureRef);
+            if (Result != kCVReturnSuccess)
+            {
+                return FAVResult(EAVResult::Error, TEXT("Failed to create CVMetalTextureRef"), TEXT("RHI"), Result);
+            }
+
+            FGPUFenceRHIRef Fence;
+            FTextureRHIRef Destination;
+            const FRHITextureCreateDesc Desc =
+                FRHITextureCreateDesc::Create2D(TEXT("FAVExtension::TransformResource"), Descriptor.Width, Descriptor.Height, PF_B8G8R8A8)
+                .SetFlags(ETextureCreateFlags::SRGB | ETextureCreateFlags::Dynamic | ETextureCreateFlags::NoTiling | ETextureCreateFlags::ShaderResource)
+                .SetBulkData(new FCVBulkData(TextureRef));
+                        
+            ENQUEUE_RENDER_COMMAND(FAVExtensionTransformResource)(
+                [&Source = InResource->GetRaw().Texture, &Desc, &Fence, &Destination](FRHICommandListImmediate& RHICmdList)
+            {
+                Fence = RHICreateGPUFence(TEXT("FAVExtension::TransformResource"));
+                Destination = RHICreateTexture(Desc);
+                RHICmdList.CopyTexture(Source, Destination, FRHICopyTextureInfo());
+                            
+                RHICmdList.WriteGPUFence(Fence);
+            });
+            
+            while(!Fence || !Fence->Poll())
+            {
+				if(IsEngineExitRequested())
+				{
+					return FAVResult(EAVResult::Error, TEXT("Engine exit requested before texture copy was complete"), TEXT("RHI"));
+				}
+
+                FPlatformProcess::YieldThread();
+            }
+
+            OutResource = MakeShared<FVideoResourceMetal>(InResource->GetDevice(),
+                                                          PixelBuffer,
+                                                          InResource->GetLayout());
+
+            CFSafeRelease(TextureRef);
+            CFSafeRelease(PixelBuffer);
+            
+            return OutResource->Validate();
 		}
 
 		return FAVResult(EAVResult::ErrorMapping, TEXT("No Metal context found"), TEXT("RHI"));

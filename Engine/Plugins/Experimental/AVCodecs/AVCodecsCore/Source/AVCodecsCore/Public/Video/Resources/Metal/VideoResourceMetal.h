@@ -30,15 +30,16 @@ public:
 class AVCODECSCORE_API FVideoResourceMetal : public TVideoResource<FVideoContextMetal>
 {
 private:
-	MTL::Texture* Raw;
+    CVPixelBufferRef Raw;
 
 public:
-	static FVideoDescriptor GetDescriptorFrom(TSharedRef<FAVDevice> const& Device, MTL::Texture* Raw);
+	static FVideoDescriptor GetDescriptorFrom(TSharedRef<FAVDevice> const& Device, CVPixelBufferRef Raw);
 
-	FORCEINLINE MTL::Texture* GetRaw() const { return Raw; }
+	FORCEINLINE CVPixelBufferRef GetRaw() const { return Raw; }
 
-	FVideoResourceMetal(TSharedRef<FAVDevice> const& Device, MTL::Texture* Raw, FAVLayout const& Layout);
-
+	FVideoResourceMetal(TSharedRef<FAVDevice> const& Device, CVPixelBufferRef Raw, FAVLayout const& Layout);
+    virtual ~FVideoResourceMetal() override;
+    
 	virtual FAVResult Validate() const override;
 };
 

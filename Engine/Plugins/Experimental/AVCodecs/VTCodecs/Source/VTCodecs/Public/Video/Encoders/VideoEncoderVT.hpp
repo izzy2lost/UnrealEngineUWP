@@ -218,7 +218,6 @@ FAVResult TVideoEncoderVT<TResource>::SetEncoderBitrate(FVideoEncoderConfigVT co
 template <typename TResource>
 FAVResult TVideoEncoderVT<TResource>::SendFrame(TSharedPtr<FVideoResourceMetal> const& Resource, uint32 Timestamp, bool bForceKeyframe)
 {
-    
     if(IsOpen())
     {
         FVideoEncoderConfigVT& PendingConfig = this->EditPendingConfig();
@@ -232,34 +231,6 @@ FAVResult TVideoEncoderVT<TResource>::SendFrame(TSharedPtr<FVideoResourceMetal> 
 
         if(Resource.IsValid())
         {
-            // Get a pixel buffer from the pool and copy frame data over.
-            CVPixelBufferPoolRef PixelBufferPool = VTCompressionSessionGetPixelBufferPool(Encoder);
-            if(!PixelBufferPool)
-            {
-                return FAVResult(EAVResult::Error, TEXT("Failed to get pixel buffer pool"), TEXT("VT"));
-            }
-
-            CVPixelBufferRef PixelBuffer;
-            CVReturn Result = CVPixelBufferPoolCreatePixelBuffer(nullptr, PixelBufferPool, &PixelBuffer);
-            if(Result != kCVReturnSuccess)
-            {
-                return FAVResult(EAVResult::Error, TEXT("Failed to create pixel buffer"), TEXT("VT"));
-            }
-
-            Result = CVPixelBufferLockBaseAddress(PixelBuffer, 0);
-            if (Result != kCVReturnSuccess) 
-            {
-                return FAVResult(EAVResult::Error, TEXT("Failed to lock base address"), TEXT("VT"));
-            }
-
-            // NOTE (belchy06): GetBytes assumes the raw texture has been created with with TexCreate_CPUReadback
-            MTL::Texture* RawTexture = Resource->GetRaw();
-            uint32_t Width = RawTexture->width();
-            uint32_t Height = RawTexture->height();
-
-            RawTexture->getBytes(reinterpret_cast<uint8*>(CVPixelBufferGetBaseAddressOfPlane(PixelBuffer, 0)), CVPixelBufferGetBytesPerRow(PixelBuffer), MTL::Region(0, 0, Width, Height), 0);
-            CVPixelBufferUnlockBaseAddress(PixelBuffer, 0);
-            
             CMTime PresentationTime = CMTimeMake(Timestamp, 1000);
             CFDictionaryRef FrameProperties = nullptr;
             if (bForceKeyframe) 
@@ -272,16 +243,9 @@ FAVResult TVideoEncoderVT<TResource>::SendFrame(TSharedPtr<FVideoResourceMetal> 
             TUniquePtr<EncodeParams> Params = MakeUnique<EncodeParams>();
             Params.Reset(new EncodeParams(PendingConfig.Codec, PresentationTime));
 
-            OSStatus Status = VTCompressionSessionEncodeFrame(Encoder, PixelBuffer, PresentationTime, kCMTimeInvalid, FrameProperties, (void*)Params.Release(), nullptr);
+            OSStatus Status = VTCompressionSessionEncodeFrame(Encoder, Resource->GetRaw(), PresentationTime, kCMTimeInvalid, FrameProperties, (void*)Params.Release(), nullptr);
 
-            CONDITIONAL_RELEASE(FrameProperties);
-
-            if (PixelBuffer) 
-            {
-                CVPixelBufferRelease(PixelBuffer);
-                PixelBuffer = nullptr;
-            }
-        
+            CONDITIONAL_RELEASE(FrameProperties);        
 
             if(Status != 0)
             {

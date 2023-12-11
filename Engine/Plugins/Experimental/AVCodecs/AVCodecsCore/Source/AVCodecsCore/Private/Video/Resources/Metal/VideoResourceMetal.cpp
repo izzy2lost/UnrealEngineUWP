@@ -7,18 +7,14 @@
 REGISTER_TYPEID(FVideoContextMetal);
 REGISTER_TYPEID(FVideoResourceMetal);
 
-static TAVResult<EVideoFormat> ConvertFormat(MTL::PixelFormat Format)
+static TAVResult<EVideoFormat> ConvertFormat(OSType Format)
 {
 	switch (Format)
 	{
-    case MTL::PixelFormatBGRA8Unorm:
-    case MTL::PixelFormatBGRA8Unorm_sRGB:
+        case kCVPixelFormatType_32BGRA:
 		return EVideoFormat::BGRA;
-	case MTL::PixelFormatRGB10A2Unorm:
+	case kCVPixelFormatType_ARGB2101010LEPacked:
 		return EVideoFormat::ABGR10;
-	case MTL::PixelFormatR8Unorm:
-	case MTL::PixelFormatR8Uint:
-		return EVideoFormat::R8;
 	default:
 		return FAVResult(EAVResult::ErrorUnsupported, FString::Printf(TEXT("MTL::PixelFormat format %d is not supported"), Format), TEXT("Metal"));
 	}
@@ -29,19 +25,32 @@ FVideoContextMetal::FVideoContextMetal(MTL::Device* Device)
 {
 }
 
-FVideoDescriptor FVideoResourceMetal::GetDescriptorFrom(TSharedRef<FAVDevice> const& Device, MTL::Texture* Raw)
+FVideoDescriptor FVideoResourceMetal::GetDescriptorFrom(TSharedRef<FAVDevice> const& Device, CVPixelBufferRef Raw)
 {
-    uint32_t Width = Raw->width();
-    uint32_t Height = Raw->height();
-    TAVResult<EVideoFormat> ConvertedFormat = ConvertFormat(Raw->pixelFormat());
+    uint32_t Width = CVPixelBufferGetWidth(Raw);
+    uint32_t Height = CVPixelBufferGetHeight(Raw);
+    TAVResult<EVideoFormat> ConvertedFormat = ConvertFormat(CVPixelBufferGetPixelFormatType(Raw));
     
 	return FVideoDescriptor(ConvertedFormat, Width, Height);
 }
 
-FVideoResourceMetal::FVideoResourceMetal(TSharedRef<FAVDevice> const& Device, MTL::Texture* Raw, FAVLayout const& Layout)
+FVideoResourceMetal::FVideoResourceMetal(TSharedRef<FAVDevice> const& Device, CVPixelBufferRef Raw, FAVLayout const& Layout)
 	: TVideoResource(Device, Layout, GetDescriptorFrom(Device, Raw))
 	, Raw(Raw)
 {
+    if (Raw)
+    {
+        CFRetain(Raw);
+    }
+}
+
+FVideoResourceMetal::~FVideoResourceMetal()
+{
+    if (Raw)
+    {
+        CFRelease(Raw);
+        Raw = nullptr;
+    }
 }
 
 FAVResult FVideoResourceMetal::Validate() const
