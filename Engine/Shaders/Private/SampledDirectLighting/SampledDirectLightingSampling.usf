@@ -219,10 +219,16 @@ void GenerateSamplesCS(
 				const uint NumLightsInGridCell = min(CulledLightGridData.NumLights, GetMaxLightsPerCell(EyeIndex));
 				const uint NumLocalLights = GetNumLocalLights(EyeIndex);
 
+				// Initialize random variables using spatiotemporal Blue Noise
 				float LightIndexRandom[NUM_SAMPLES_PER_PIXEL_1D];
-				for (uint LightSampleIndex = 0; LightSampleIndex < NUM_SAMPLES_PER_PIXEL_1D; ++LightSampleIndex)
 				{
-					LightIndexRandom[LightSampleIndex] = BlueNoiseScalar(DownsampledScreenCoord * DOWNSAMPLE_FACTOR + LightSampleOffsets[LightSampleIndex], SampledDirectLightingStateFrameIndex);
+					float GoldenRatioConjugate = 0.6180339887f;
+					float RandomScalar = BlueNoiseScalar(DownsampledScreenCoord, SampledDirectLightingStateFrameIndex);
+
+					for (uint LightSampleIndex = 0; LightSampleIndex < NUM_SAMPLES_PER_PIXEL_1D; ++LightSampleIndex)
+					{
+						LightIndexRandom[LightSampleIndex] = frac(RandomScalar + GoldenRatioConjugate * LightSampleIndex);
+					}
 				}
 
 				#if DEBUG_MODE
@@ -258,9 +264,6 @@ void GenerateSamplesCS(
 				}
 				#endif
 
-				// Weighted blue noise sampling
-				float Xi[NUM_SAMPLES_PER_PIXEL_1D] = LightIndexRandom;
-
 	#if CANDIDATE_LIGHT_MASK
 				for (uint MaskIndex = 0; MaskIndex < SHARED_LIGHT_MASK_SIZE; ++MaskIndex)
 				{
@@ -294,19 +297,19 @@ void GenerateSamplesCS(
 
 							for (uint LightSampleIndex = 0; LightSampleIndex < NUM_SAMPLES_PER_PIXEL_1D; ++LightSampleIndex)
 							{
-								if (Xi[LightSampleIndex] < Tau)
+								if (LightIndexRandom[LightSampleIndex] < Tau)
 								{
-									Xi[LightSampleIndex] /= Tau;
+									LightIndexRandom[LightSampleIndex] /= Tau;
 								}
 								else
 								{
 									// Select this sample
-									Xi[LightSampleIndex] = (Xi[LightSampleIndex] - Tau) / (1.0f - Tau);
+									LightIndexRandom[LightSampleIndex] = (LightIndexRandom[LightSampleIndex] - Tau) / (1.0f - Tau);
 									LightSamples[LightSampleIndex].LocalLightIndex = LocalLightIndex;
 									LightSamples[LightSampleIndex].Weight = SampleWeight;
 								}
 
-								Xi[LightSampleIndex] = clamp(Xi[LightSampleIndex], 0, 0.9999f);
+								LightIndexRandom[LightSampleIndex] = clamp(LightIndexRandom[LightSampleIndex], 0, 0.9999f);
 							}
 						}
 					}
@@ -340,19 +343,19 @@ void GenerateSamplesCS(
 
 							for (uint LightSampleIndex = 0; LightSampleIndex < NUM_SAMPLES_PER_PIXEL_1D; ++LightSampleIndex)
 							{
-								if (Xi[LightSampleIndex] < Tau)
+								if (LightIndexRandom[LightSampleIndex] < Tau)
 								{
-									Xi[LightSampleIndex] /= Tau;
+									LightIndexRandom[LightSampleIndex] /= Tau;
 								}
 								else
 								{
 									// Select this sample
-									Xi[LightSampleIndex] = (Xi[LightSampleIndex] - Tau) / (1.0f - Tau);
+									LightIndexRandom[LightSampleIndex] = (LightIndexRandom[LightSampleIndex] - Tau) / (1.0f - Tau);
 									LightSamples[LightSampleIndex].LocalLightIndex = LocalLightIndex;
 									LightSamples[LightSampleIndex].Weight = SampleWeight;
 								}
 
-								Xi[LightSampleIndex] = clamp(Xi[LightSampleIndex], 0, 0.9999f);
+								LightIndexRandom[LightSampleIndex] = clamp(LightIndexRandom[LightSampleIndex], 0, 0.9999f);
 							}
 						}
 					}
