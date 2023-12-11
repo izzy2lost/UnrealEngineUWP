@@ -205,7 +205,7 @@ public:
 class ICacheStoreGraph
 {
 public:
-	virtual ILegacyCacheStore* Create(const TCHAR* Name) = 0;
+	virtual ILegacyCacheStore* FindOrCreate(const TCHAR* Name) = 0;
 };
 
 enum class ECacheStoreStatusCode : uint8

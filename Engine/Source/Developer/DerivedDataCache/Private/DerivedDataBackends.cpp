@@ -916,7 +916,7 @@ private:
 		Hierarchy->LegacyResourceStats(OutStats);
 	}
 
-	ILegacyCacheStore* Create(const TCHAR* Name) final
+	ILegacyCacheStore* FindOrCreate(const TCHAR* Name) final
 	{
 		if (!ActiveParsedNodeMap)
 		{
@@ -926,7 +926,7 @@ private:
 
 		if (const FParsedNode* ParsedNode = ActiveParsedNodeMap->Find(Name))
 		{
-			return nullptr;
+			return *ParsedNode;
 		}
 
 		if (!ParseNode(Name, GEngineIni, *GraphName, *ActiveParsedNodeMap))

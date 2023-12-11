@@ -1536,9 +1536,18 @@ ILegacyCacheStore* FFileSystemCacheStore::TryRedirection(
 				FString TargetName;
 				if (FParse::Value(*RedirectionData, TEXT("Target="), TargetName))
 				{
-					if (ILegacyCacheStore* RedirectedStore = Graph->Create(*TargetName))
+					UE_LOG(LogDerivedDataCache, Log, TEXT("%s: Found redirection to '%s'"),
+						*Params.CachePath, *TargetName);
+					if (ILegacyCacheStore* RedirectedStore = Graph->FindOrCreate(*TargetName))
 					{
+						UE_LOG(LogDerivedDataCache, Log, TEXT("%s: Successfully redirected to '%s'"),
+							*Params.CachePath, *TargetName);
 						return RedirectedStore;
+					}
+					else
+					{
+						UE_LOG(LogDerivedDataCache, Warning, TEXT("%s: Failed to redirect to '%s'"),
+							*Params.CachePath, *TargetName);
 					}
 				}
 			}
