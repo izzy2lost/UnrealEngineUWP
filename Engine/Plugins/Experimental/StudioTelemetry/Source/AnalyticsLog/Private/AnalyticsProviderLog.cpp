@@ -20,7 +20,7 @@ FAnalyticsProviderLog::FAnalyticsProviderLog(const FAnalyticsProviderConfigurati
 	if (PathName.IsEmpty())
 	{
 		// Use default output path
-		PathName = FPaths::EngineSavedDir();
+		PathName = FPaths::ProjectSavedDir() / TEXT("Telemetry");
 	}
 
 	// Create the full output path
@@ -91,32 +91,30 @@ void FAnalyticsProviderLog::EndSession()
 
 	if (FileWriter)
 	{
+		FileWriter->Flush();
 		FileWriter->Close();
 	}
 }
 
 void FAnalyticsProviderLog::RecordEvent(const FString& EventName, const TArray<FAnalyticsEventAttribute>& Attributes)
 {	
-	TStringBuilder<1024> StringBuilder;
-
-	StringBuilder.Appendf(TEXT("{{EventName=%s}"), *EventName);
-
-	// Log the default attributes
-	for (const FAnalyticsEventAttribute& Attribute : DefaultEventAttributes)
-	{
-		StringBuilder.Appendf(TEXT(",{%s=%s}"), *Attribute.GetName(), *Attribute.GetValue());
-	}
-
-	// Log the event attributes
-	for ( const FAnalyticsEventAttribute& Attribute : Attributes )
-	{
-		StringBuilder.Appendf(TEXT("{%s=%s}"), *Attribute.GetName(), *Attribute.GetValue());
-	}
-
-	StringBuilder.Appendf(TEXT("}\n"));
-
 	if (FileWriter)
 	{
-		FileWriter->Serialize(TCHAR_TO_ANSI(StringBuilder.ToString()), StringBuilder.Len());
+		FileWriter->Logf(TEXT("{{EventName=%s}"), *EventName);
+
+		// Log the default attributes
+		for (const FAnalyticsEventAttribute& Attribute : DefaultEventAttributes)
+		{
+			FileWriter->Logf(TEXT(",{%s=%s}"), *Attribute.GetName(), *Attribute.GetValue());
+		}
+
+		// Log the event attributes
+		for ( const FAnalyticsEventAttribute& Attribute : Attributes )
+		{
+			FileWriter->Logf(TEXT(",{%s=%s}"), *Attribute.GetName(), *Attribute.GetValue());
+		}
+
+		FileWriter->Logf(TEXT("}\n"));
+		FileWriter->Flush();
 	}
 }
