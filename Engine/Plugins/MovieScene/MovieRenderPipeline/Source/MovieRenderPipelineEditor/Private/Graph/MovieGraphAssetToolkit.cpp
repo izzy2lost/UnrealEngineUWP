@@ -25,6 +25,7 @@
 #include "Framework/Commands/GenericCommands.h"
 #include "IDetailRootObjectCustomization.h"
 #include "PropertyEditorModule.h"
+#include "Selection.h"
 #include "ToolMenus.h"
 #include "Widgets/Docking/SDockTab.h"
 #include "Widgets/Graph/SMovieGraphConfigPanel.h"
@@ -36,6 +37,73 @@ const FName FMovieGraphAssetToolkit::GraphTabId(TEXT("MovieGraphAssetToolkit"));
 const FName FMovieGraphAssetToolkit::DetailsTabId(TEXT("MovieGraphAssetToolkitDetails"));
 const FName FMovieGraphAssetToolkit::MembersTabId(TEXT("MovieGraphAssetToolkitMembers"));
 const FName FMovieGraphAssetToolkit::ActiveRenderSettingsTabId(TEXT("MovieGraphAssetToolkitActiveRenderSettings"));
+
+void SMovieGraphSyncCollectionToOutlinerButton::Construct(const FArguments& InArgs)
+{
+	SelectedNodesAttribute = InArgs._SelectedNodes;
+
+	ChildSlot
+	[
+		SNew(SButton)
+		.ButtonStyle(&FAppStyle::Get().GetWidgetStyle<FButtonStyle>("SimpleButton"))
+		.ContentPadding(0.f)
+		.ToolTipText(LOCTEXT("PreviewCollectionButton_Tooltip", "Evaluate the collection and select the matched actors in the Outliner."))
+		.Visibility_Lambda([this]()
+		{
+			const TArray<TWeakObjectPtr<UObject>>& SelectedObjects = SelectedNodesAttribute.Get();
+			if ((SelectedObjects.Num() == 1) && SelectedObjects[0].IsValid() && SelectedObjects[0]->IsA<UMovieGraphCollectionNode>())
+			{
+				return EVisibility::Visible;
+			}
+
+			return EVisibility::Hidden;
+		})
+		.OnClicked_Lambda([this]()
+		{
+			EvaluateCollectionAndSelect();
+
+			return FReply::Handled();
+		})
+		[
+			SNew(SImage)
+			.ColorAndOpacity(FSlateColor::UseForeground())
+			.Image(FAppStyle::Get().GetBrush("FoliageEditMode.SelectAll"))
+		]
+	];
+}
+
+void SMovieGraphSyncCollectionToOutlinerButton::EvaluateCollectionAndSelect() const
+{
+	const TArray<TWeakObjectPtr<UObject>>& SelectedObjects = SelectedNodesAttribute.Get();
+	if ((SelectedObjects.Num() != 1) || !SelectedObjects[0].IsValid())
+	{
+		return;
+	}
+			
+	if (const UMovieGraphCollectionNode* CollectionNode = Cast<UMovieGraphCollectionNode>(SelectedObjects[0]))
+	{
+		// Evaluate the collection based on the current editor world
+		TSet<AActor*> EvaluatedActors = CollectionNode->Collection->Evaluate(GEditor->GetEditorWorldContext().World());
+
+		// Select all actors matched by the collection
+		{
+			GEditor->GetSelectedActors()->Modify();
+			GEditor->GetSelectedActors()->BeginBatchSelectOperation();
+			GEditor->GetSelectedActors()->DeselectAll();
+							
+			for (AActor* Actor : EvaluatedActors)
+			{
+				constexpr bool bShouldSelect = true;
+				constexpr bool bNotifyAfterSelect = false;
+				constexpr bool bSelectEvenIfHidden = true;
+				GEditor->SelectActor(Actor, bShouldSelect, bNotifyAfterSelect, bSelectEvenIfHidden);
+			}
+
+			constexpr bool bNotify = false;
+			GEditor->GetSelectedActors()->EndBatchSelectOperation(bNotify);
+		}
+	}
+}
 
 /** Header customization for when multiple objects are displayed in the details panel. */
 class FMovieGraphDetailsRootObjectCustomization final : public IDetailRootObjectCustomization
@@ -289,10 +357,12 @@ TSharedRef<SDockTab> FMovieGraphAssetToolkit::SpawnTab_RenderGraphDetails(const 
 	FPropertyEditorModule& PropertyEditorModule = FModuleManager::Get().LoadModuleChecked<FPropertyEditorModule>("PropertyEditor");
 	FDetailsViewArgs DetailsViewArgs;
 	DetailsViewArgs.bShowPropertyMatrixButton = false;
-	DetailsViewArgs.NameAreaSettings = FDetailsViewArgs::HideNameArea;
+	DetailsViewArgs.bCustomNameAreaLocation = true;
+	DetailsViewArgs.NameAreaSettings = FDetailsViewArgs::ObjectsUseNameArea;
 	DetailsViewArgs.bHideSelectionTip = true;
 	DetailsViewArgs.bAllowMultipleTopLevelObjects = true;
 	DetailsViewArgs.ViewIdentifier = "MovieGraphSettings";
+	DetailsViewArgs.bLockable = false;
 
 	SelectedGraphObjectsDetailsWidget = PropertyEditorModule.CreateDetailView(DetailsViewArgs);
 	SelectedGraphObjectsDetailsWidget->SetRootObjectCustomizationInstance(
@@ -330,11 +400,35 @@ TSharedRef<SDockTab> FMovieGraphAssetToolkit::SpawnTab_RenderGraphDetails(const 
 		UMovieGraphModifierNode::StaticClass(),
 		FOnGetDetailCustomizationInstance::CreateStatic(&FMovieGraphModifiersCustomization::MakeInstance));
 	
+	TSharedRef<SWidget> CustomContent = SAssignNew(NameAreaCustomContent, SHorizontalBox)
+	+ SHorizontalBox::Slot()
+	[
+		SNew(SMovieGraphSyncCollectionToOutlinerButton)
+		.SelectedNodes_Lambda([this]()
+		{
+			return SelectedGraphObjectsDetailsWidget->GetSelectedObjects();
+		})
+	];
+	
+	SelectedGraphObjectsDetailsWidget->SetNameAreaCustomContent(CustomContent);
+
 	return SNew(SDockTab)
 		.TabColorScale(GetTabColorScale())
 		.Label(LOCTEXT("DetailsTab_Title", "Details"))
 		[
-			SelectedGraphObjectsDetailsWidget.ToSharedRef()
+			SNew(SVerticalBox)
+			
+			+ SVerticalBox::Slot()
+			.Padding(10.f, 4.f, 0.f, 0.f)
+			.AutoHeight()
+			[
+				SelectedGraphObjectsDetailsWidget->GetNameAreaWidget().ToSharedRef()
+			]
+
+			+ SVerticalBox::Slot()
+			[
+				SelectedGraphObjectsDetailsWidget.ToSharedRef()
+			]
 		];
 }
 

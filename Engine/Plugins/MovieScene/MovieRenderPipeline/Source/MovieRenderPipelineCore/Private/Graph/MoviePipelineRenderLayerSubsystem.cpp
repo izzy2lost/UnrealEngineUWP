@@ -478,9 +478,15 @@ void UMovieGraphConditionGroupQuery_Actor::Evaluate(const TArray<AActor*>& InAct
 {
 	TRACE_CPUPROFILER_EVENT_SCOPE(UMovieGraphConditionGroupQuery_Actor::Evaluate);
 
-	// Convert the actors in the query to PIE equivalents once, rather than constantly in the loop.
-	TArray<AActor*> ActorsToMatch_Pie;
-	ActorsToMatch_Pie.Reserve(ActorsToMatch.Num());
+#if WITH_EDITOR
+	const bool bIsPIE = GEditor->IsPlaySessionInProgress();
+#else
+	const bool bIsPIE = false;
+#endif
+
+	// Convert the actors in the query to PIE (or editor) equivalents once, rather than constantly in the loop.
+	TArray<AActor*> ActorsToMatch_Converted;
+	ActorsToMatch_Converted.Reserve(ActorsToMatch.Num());
 	for (const TSoftObjectPtr<AActor>& SoftActorToMatch : ActorsToMatch)
 	{
 		if (!SoftActorToMatch.IsValid())
@@ -489,28 +495,53 @@ void UMovieGraphConditionGroupQuery_Actor::Evaluate(const TArray<AActor*>& InAct
 		}
 		
 		AActor* ActorToMatch = SoftActorToMatch.Get();
-
-		// Only do editor -> PIE actor conversion when the actor is from an editor world
 		const UWorld* ActorWorld = ActorToMatch->GetWorld();
-		if (ActorWorld && ActorWorld->IsEditorWorld())
+		const bool bIsEditorActor = ActorWorld && ActorWorld->IsEditorWorld();
+
+		// If a PIE session is NOT in progress, make sure that the actor is the editor equivalent
+		if (!bIsPIE)
 		{
-#if WITH_EDITOR
-			if (AActor* PieActor = EditorUtilities::GetSimWorldCounterpartActor(ActorToMatch))
+			// Only do PIE -> editor actor conversion when the actor is NOT from the editor
+			if (!bIsEditorActor)
 			{
-				ActorsToMatch_Pie.Add(PieActor);
-			}
+#if WITH_EDITOR
+				if (AActor* EditorActor = EditorUtilities::GetEditorWorldCounterpartActor(ActorToMatch))
+				{
+					ActorsToMatch_Converted.Add(EditorActor);
+				}
 #endif
+			}
+			else
+			{
+				// Just use ActorToMatch as-is if it's not from PIE
+				ActorsToMatch_Converted.Add(ActorToMatch);
+			}
 		}
+
+		// If a PIE session IS active, try to get the PIE equivalent of the editor actor
 		else
 		{
-			// Just use ActorToMatch as-is if it's not from an editor actor
-			ActorsToMatch_Pie.Add(ActorToMatch);
+			// Only do editor -> PIE actor conversion when the actor is from an editor world
+			if (bIsEditorActor)
+			{
+#if WITH_EDITOR
+				if (AActor* PieActor = EditorUtilities::GetSimWorldCounterpartActor(ActorToMatch))
+				{
+					ActorsToMatch_Converted.Add(PieActor);
+				}
+#endif
+			}
+			else
+			{
+				// Just use ActorToMatch as-is if it's not from an editor actor
+				ActorsToMatch_Converted.Add(ActorToMatch);
+			}	
 		}
 	}
 	
 	for (AActor* Actor : InActorsToQuery)
 	{
-		if (ActorsToMatch_Pie.Contains(Actor))
+		if (ActorsToMatch_Converted.Contains(Actor))
 		{
 			OutMatchingActors.Add(Actor);
 		}
