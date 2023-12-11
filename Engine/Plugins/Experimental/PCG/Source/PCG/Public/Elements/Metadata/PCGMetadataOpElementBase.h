@@ -273,7 +273,15 @@ namespace NAryOperation
 			using OutType = decltype(OutValue);
 
 			TArray<OutType, TInlineAllocator<DefaultChunkSize>> OutValues;
-			OutValues.SetNum(Range);
+			if constexpr (std::is_trivially_copyable_v<OutType>)
+			{
+				OutValues.SetNumUninitialized(Range);
+			}
+			else
+			{
+				OutValues.SetNum(Range);
+			}
+			
 			OutValues[0] = OutValue;
 
 			for (int32 i = 1; i < Range; ++i)
@@ -333,7 +341,15 @@ namespace NAryOperation
 		bool bSuccess = true;
 
 		TArray<InputType, TInlineAllocator<DefaultChunkSize>> InputValues;
-		InputValues.SetNum(Range);
+		if constexpr (std::is_trivially_copyable_v<InputType>)
+		{
+			InputValues.SetNumUninitialized(Range);
+		}
+		else
+		{
+			InputValues.SetNum(Range);
+		}
+		
 		if (InOptions.bUseDefaultKey)
 		{
 			FPCGAttributeAccessorKeysEntries DefaultAccessorKey(PCGInvalidEntryKey);

@@ -19,26 +19,14 @@
 
 namespace PCGAttributeAccessorHelpers
 {
-	void ExtractMetadataAtribute(UPCGData* InData, FName Name, UPCGMetadata*& OutMetadata, FPCGMetadataAttributeBase*& OutAttribute)
+	/** Retrieves metadata object and the corresponding attribute if any for the provided data. */
+	void ExtractMetadataAttribute(UPCGData* InData, FName Name, UPCGMetadata*& OutMetadata, FPCGMetadataAttributeBase*& OutAttribute)
 	{
-		OutMetadata = nullptr;
-		OutAttribute = nullptr;
-
-		if (UPCGSpatialData* SpatialData = Cast<UPCGSpatialData>(InData))
-		{
-			OutMetadata = SpatialData->Metadata;
-		}
-		else if (UPCGParamData* ParamData = Cast<UPCGParamData>(InData))
-		{
-			OutMetadata = ParamData->Metadata;
-		}
-
-		if (OutMetadata)
-		{
-			OutAttribute = OutMetadata->GetMutableAttribute(Name);
-		}
+		OutMetadata = InData->MutableMetadata();
+		OutAttribute = OutMetadata ? OutMetadata->GetMutableAttribute(Name) : nullptr;
 	}
 
+	// This template creates a const or non-const accessor on an attribute depending on the provided templated type. 
 	template <
 		typename AccessorType,
 		typename = typename std::enable_if_t<
@@ -130,7 +118,7 @@ namespace PCGAttributeAccessorHelpers
 			FPCGMetadataAttributeBase* Attribute = nullptr;
 
 			// It is OK to const_cast here, since we will create a const accessor if the input is const.
-			ExtractMetadataAtribute(const_cast<UPCGData*>(InData), Name, Metadata, Attribute);
+			ExtractMetadataAttribute(const_cast<UPCGData*>(InData), Name, Metadata, Attribute);
 
 			// To simplify the code here & below we'll get a non-const accessor but force readonly if it should be
 			Accessor = CreateAttributeAccessorImpl<std::remove_const_t<AccessorType>>(Attribute, Metadata, /*bForceReadOnly=*/std::is_const_v<AccessorType>);
@@ -193,33 +181,25 @@ namespace PCGAttributeAccessorHelpers
 				return MakeUnique<FPCGAttributeAccessorKeysPoints>(View);
 			}
 		}
-
-		UPCGMetadata* Metadata = nullptr;
-		FPCGMetadataAttributeBase* Attribute = nullptr;
-
-		// It is OK to const_cast here, since we will create const keys if the input is const.
-		ExtractMetadataAtribute(const_cast<UPCGData*>(InData), InSelector.GetName(), Metadata, Attribute);
-
-		if (Attribute)
+		else if (InData) // e.g. is UPCGData and non-null
 		{
 			if constexpr (std::is_const_v<KeysType>)
 			{
-				return MakeUnique<FPCGAttributeAccessorKeysEntries>(static_cast<const FPCGMetadataAttributeBase*>(Attribute));
+				if (const UPCGMetadata* Metadata = InData->ConstMetadata())
+				{
+					return MakeUnique<FPCGAttributeAccessorKeysEntries>(Metadata);
+				}
 			}
 			else
 			{
-				return MakeUnique<FPCGAttributeAccessorKeysEntries>(Attribute);
+				if (UPCGMetadata* Metadata = InData->MutableMetadata())
+				{
+					return MakeUnique<FPCGAttributeAccessorKeysEntries>(Metadata);
+				}
 			}
 		}
-		else if (Metadata && InSelector.GetSelection() == EPCGAttributePropertySelection::ExtraProperty && InSelector.GetExtraProperty() == EPCGExtraProperties::Index)
-		{
-			// Special case for Indexes, we will use the metadata to get the keys
-			return MakeUnique<FPCGAttributeAccessorKeysEntries>(Metadata);
-		}
-		else
-		{
-			return TUniquePtr<KeysType>();
-		}
+
+		return TUniquePtr<KeysType>();
 	}
 
 	TUniquePtr<IPCGAttributeAccessor> CreateChainAccessor(TUniquePtr<IPCGAttributeAccessor> InAccessor, FName Name, bool& bOutSuccess)

@@ -440,6 +440,15 @@ bool FPCGMetadataElementBase::PrepareDataInternal(FPCGContext* Context) const
 					PCGE_LOG(Error, GraphAndLog, FText::Format(LOCTEXT("CantCreateDefaultValue", "Pin '{0}' supports default value but we could not create it."), FText::FromName(CurrentPinLabel)));
 					return EPCGTimeSliceInitResult::AbortExecution;
 				}
+				else
+				{
+					// Need to make sure the param data has at least one entry
+					UPCGMetadata* DefaultParamMetadata = CastChecked<UPCGParamData>(DefaultData.Data)->Metadata;
+					if (DefaultParamMetadata->GetLocalItemCount() == 0)
+					{
+						DefaultParamMetadata->AddEntry();
+					}
+				}
 			}
 
 			if (CurrentPinInputData.IsEmpty())

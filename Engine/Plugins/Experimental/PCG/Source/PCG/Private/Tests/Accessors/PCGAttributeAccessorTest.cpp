@@ -141,7 +141,7 @@ bool FPCGAttributeAccessorSingleGetDefaultTest::RunTest(const FString& Parameter
 bool FPCGAttributeAccessorSingleGetTest::RunTest(const FString& Parameters)
 {
 	FPCGAttributeAccessorTestHelpers::AttributeData AttributeData;
-	FPCGAttributeAccessorKeysEntries Keys(&AttributeData.FloatAttribute);
+	FPCGAttributeAccessorKeysEntries Keys(AttributeData.FloatAttribute.GetMetadata());
 
 	if (!TestEqual("Right number of entries", Keys.GetNum(), FPCGAttributeAccessorTestHelpers::ValuesSize))
 	{
@@ -181,7 +181,7 @@ bool FPCGAttributeAccessorSingleGetTest::RunTest(const FString& Parameters)
 bool FPCGAttributeAccessorSingleGetOutsideRangeTest::RunTest(const FString& Parameters)
 {
 	FPCGAttributeAccessorTestHelpers::AttributeData AttributeData;
-	FPCGAttributeAccessorKeysEntries Keys(&AttributeData.FloatAttribute);
+	FPCGAttributeAccessorKeysEntries Keys(AttributeData.FloatAttribute.GetMetadata());
 
 	float DefaultFloat = 1.0f;
 
@@ -255,7 +255,7 @@ bool FPCGAttributeAccessorGetRangeDefaultTest::RunTest(const FString& Parameters
 bool FPCGAttributeAccessorGetRangeTest::RunTest(const FString& Parameters)
 {
 	FPCGAttributeAccessorTestHelpers::AttributeData AttributeData;
-	FPCGAttributeAccessorKeysEntries Keys(&AttributeData.FloatAttribute);
+	FPCGAttributeAccessorKeysEntries Keys(AttributeData.FloatAttribute.GetMetadata());
 
 	int32 Index = 0;
 
@@ -309,7 +309,7 @@ bool FPCGAttributeAccessorGetRangeTest::RunTest(const FString& Parameters)
 bool FPCGAttributeAccessorGetRangeOutsideRangeTest::RunTest(const FString& Parameters)
 {
 	FPCGAttributeAccessorTestHelpers::AttributeData AttributeData;
-	FPCGAttributeAccessorKeysEntries Keys(&AttributeData.FloatAttribute);
+	FPCGAttributeAccessorKeysEntries Keys(AttributeData.FloatAttribute.GetMetadata());
 
 	int32 OutsideRangeIndex = FPCGAttributeAccessorTestHelpers::ValuesSize;
 
@@ -392,7 +392,7 @@ bool FPCGAttributeAccessorSingleSetDefaultTest::RunTest(const FString& Parameter
 bool FPCGAttributeAccessorSingleSetTest::RunTest(const FString& Parameters)
 {
 	FPCGAttributeAccessorTestHelpers::AttributeData AttributeData;
-	FPCGAttributeAccessorKeysEntries Keys(&AttributeData.FloatAttribute);
+	FPCGAttributeAccessorKeysEntries Keys(const_cast<UPCGMetadata*>(AttributeData.FloatAttribute.GetMetadata()));
 
 	if (!TestTrue("Set float attribute", AttributeData.FloatAccessor->Set(*AttributeData.TempFloats, Keys))
 		|| !TestEqual("float value 0", AttributeData.FloatAttribute.GetValueFromItemKey(0), *AttributeData.TempFloats))
@@ -443,7 +443,7 @@ bool FPCGAttributeAccessorSingleInvalidKeySetTest::RunTest(const FString& Parame
 bool FPCGAttributeAccessorSetRangeTest::RunTest(const FString& Parameters)
 {
 	FPCGAttributeAccessorTestHelpers::AttributeData AttributeData;
-	FPCGAttributeAccessorKeysEntries Keys(&AttributeData.FloatAttribute);
+	FPCGAttributeAccessorKeysEntries Keys(const_cast<UPCGMetadata*>(AttributeData.FloatAttribute.GetMetadata()));
 
 	const int32 Index = 0;
 
@@ -477,7 +477,7 @@ bool FPCGAttributeAccessorSetRangeTest::RunTest(const FString& Parameters)
 bool FPCGAttributeAccessorSetRangeOutsideRangeTest::RunTest(const FString& Parameters)
 {
 	FPCGAttributeAccessorTestHelpers::AttributeData AttributeData;
-	FPCGAttributeAccessorKeysEntries Keys(&AttributeData.FloatAttribute);
+	FPCGAttributeAccessorKeysEntries Keys(AttributeData.FloatAttribute.GetMetadata());
 
 	const int32 Index = 0;
 

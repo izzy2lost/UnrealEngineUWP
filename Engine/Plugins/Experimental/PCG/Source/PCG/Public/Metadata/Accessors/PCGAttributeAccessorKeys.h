@@ -138,13 +138,16 @@ protected:
 class PCG_API FPCGAttributeAccessorKeysEntries : public IPCGAttributeAccessorKeys
 {
 public:
+	UE_DEPRECATED(5.5, "This key accessor is deprecated and replaced by the one taking a const or non-const UPCGMetadata object instead")
 	explicit FPCGAttributeAccessorKeysEntries(const FPCGMetadataAttributeBase* Attribute);
+
 	explicit FPCGAttributeAccessorKeysEntries(PCGMetadataEntryKey EntryKey);
 	explicit FPCGAttributeAccessorKeysEntries(const TArrayView<PCGMetadataEntryKey>& InEntries);
 	explicit FPCGAttributeAccessorKeysEntries(const TArrayView<const PCGMetadataEntryKey>& InEntries);
 
-	// Read-only case where we will just iterate on all the entries in the metadata.
+	// Iterates on all the entries in the metadata.
 	explicit FPCGAttributeAccessorKeysEntries(const UPCGMetadata* Metadata);
+	explicit FPCGAttributeAccessorKeysEntries(UPCGMetadata* Metadata);
 
 	virtual int32 GetNum() const override { return Entries.Num(); }
 

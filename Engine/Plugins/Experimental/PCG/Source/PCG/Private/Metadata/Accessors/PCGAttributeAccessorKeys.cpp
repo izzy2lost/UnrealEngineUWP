@@ -7,32 +7,10 @@
 #include "PCGPoint.h"
 
 //////////////////////////////////////////////////////////////////// 
-
 FPCGAttributeAccessorKeysEntries::FPCGAttributeAccessorKeysEntries(const FPCGMetadataAttributeBase* Attribute)
-	: IPCGAttributeAccessorKeys(/*bInReadOnly=*/ false)
+	: FPCGAttributeAccessorKeysEntries(Attribute->GetMetadata())
 {
-	const FPCGMetadataAttributeBase* Current = Attribute;
-	while (Current)
-	{
-		TArray<PCGMetadataEntryKey> Temp;
-		Current->GetEntryToValueKeyMap_NotThreadSafe().GenerateKeyArray(Temp);
-		ExtractedEntries.Append(Temp);
-		Current = Current->GetParent();
-	}
-
-	// If the attribute doesn't have any entry, re-try with metadata entries.
-	if (Attribute && ExtractedEntries.IsEmpty())
-	{
-		InitializeFromMetadata(Attribute->GetMetadata());
-	}
-
-	// If the attribute still doesn't have any entry, we will always take the default value.
-	if (ExtractedEntries.IsEmpty())
-	{
-		ExtractedEntries.Add(PCGInvalidEntryKey);
-	}
-
-	Entries = TArrayView<PCGMetadataEntryKey>(ExtractedEntries);
+	// Deprecated
 }
 
 FPCGAttributeAccessorKeysEntries::FPCGAttributeAccessorKeysEntries(PCGMetadataEntryKey EntryKey)
@@ -46,6 +24,20 @@ FPCGAttributeAccessorKeysEntries::FPCGAttributeAccessorKeysEntries(const UPCGMet
 	: IPCGAttributeAccessorKeys(/*bInReadOnly=*/ true)
 {
 	InitializeFromMetadata(Metadata);
+	Entries = TArrayView<PCGMetadataEntryKey>(ExtractedEntries);
+}
+
+FPCGAttributeAccessorKeysEntries::FPCGAttributeAccessorKeysEntries(UPCGMetadata* Metadata)
+	: IPCGAttributeAccessorKeys(/*bInReadOnly=*/ false)
+{
+	InitializeFromMetadata(Metadata);
+
+	// If the entries are still empty, we will always take the default value.
+	if (ExtractedEntries.IsEmpty())
+	{
+		ExtractedEntries.Add(PCGInvalidEntryKey);
+	}
+
 	Entries = TArrayView<PCGMetadataEntryKey>(ExtractedEntries);
 }
 
