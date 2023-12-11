@@ -2580,7 +2580,7 @@ namespace UnrealBuildTool
 								return FoundProjects;
 							}
 
-							ModuleDescriptor? CurModuleDescriptor = GameDescriptor.Modules!.FirstOrDefault(x => x.Name == CurModuleFile.GetFileNameWithoutAnyExtensions());
+							ModuleDescriptor? CurModuleDescriptor = GameDescriptor.Modules?.FirstOrDefault(x => x.Name == CurModuleFile.GetFileNameWithoutAnyExtensions());
 
 							// find the project that the module is under, and has a TargetType target (useful with bMakeProjectPerTarget)
 							foreach (KeyValuePair<FileReference, ProjectFile> Pair in ProjectFileMap)
