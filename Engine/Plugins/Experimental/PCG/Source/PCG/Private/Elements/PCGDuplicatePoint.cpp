@@ -49,7 +49,8 @@ bool FPCGDuplicatePointElement::ExecuteInternal(FPCGContext* Context) const
 		const TArray<FPCGPoint>& InputPoints = InputPointData->GetPoints();
 
 		// Determines whether or not to include the source point in data
-		const int DuplicatesPerPoint = Iterations + (Settings->bOutputSourcePoint ? 1 : 0);
+		const bool bKeepSourcePoint = Settings->bOutputSourcePoint;
+		const int DuplicatesPerPoint = Iterations + (bKeepSourcePoint ? 1 : 0);
 		const int NumIterations = DuplicatesPerPoint * InputPoints.Num();
 		const int FirstDuplicateIndex = Settings->bOutputSourcePoint ? 0 : 1;
 
@@ -66,41 +67,65 @@ bool FPCGDuplicatePointElement::ExecuteInternal(FPCGContext* Context) const
 		OutputPoints.SetNumUninitialized(NumIterations);
 		Output.Data = OutPointData;
 
-		auto ProcessPoint = [Settings, FirstDuplicateIndex, OutPointData, InputPointData, &Direction, &InputPoints, &OutputPoints](const int32 ReadIndex, const int32 WriteIndex)
+		const FTransform& SourceDuplicateTransform = Settings->PointTransform;
+
+		if (Settings->bDirectionAppliedInRelativeSpace)
 		{
-			const FPCGPoint& InPoint = InputPoints[ReadIndex % InputPoints.Num()];
-			FPCGPoint& OutputPoint = OutputPoints[WriteIndex];
-			const int DuplicateIndex = FirstDuplicateIndex + ReadIndex / InputPoints.Num();
-
-			if (DuplicateIndex == 0)
+			auto ProcessPoint = [SourceDuplicateTransform, DuplicatesPerPoint, bKeepSourcePoint, &Direction, &InputPoints, &OutputPoints](const int32 ReadIndex, const int32 WriteIndex)
 			{
+				const FPCGPoint& ReadPoint = InputPoints[ReadIndex];
+				TArrayView<FPCGPoint> WritePoints(OutputPoints.GetData() + WriteIndex * DuplicatesPerPoint, DuplicatesPerPoint);
+
+				const FTransform DuplicateAxisTransform = FTransform((ReadPoint.BoundsMax - ReadPoint.BoundsMin) * Direction);
+				const FTransform DuplicateTransform = DuplicateAxisTransform * SourceDuplicateTransform;
+				FTransform CurrentTransform = ReadPoint.Transform;
+
+				int WritePointIndex = 0;
+
+				if (bKeepSourcePoint)
+				{
+					WritePoints[WritePointIndex++] = ReadPoint;
+				}
+
+				while (WritePointIndex < DuplicatesPerPoint)
+				{
+					FPCGPoint& WritePoint = WritePoints[WritePointIndex++];
+					WritePoint = ReadPoint;
+
+					CurrentTransform = DuplicateTransform * CurrentTransform;
+					WritePoint.Transform = CurrentTransform;
+					WritePoint.Seed = PCGHelpers::ComputeSeedFromPosition(CurrentTransform.GetLocation());
+				}
+			};
+
+			FPCGAsync::AsyncProcessingOneToOneEx(&Context->AsyncState, InputPoints.Num(), /*Initialize=*/[]() {}, ProcessPoint, /*bEnableTimeSlicing=*/false);
+		}
+		else
+		{
+			auto ProcessPoint = [SourceDuplicateTransform, FirstDuplicateIndex, OutPointData, InputPointData, &Direction, &InputPoints, &OutputPoints](const int32 ReadIndex, const int32 WriteIndex)
+			{
+				const FPCGPoint& InPoint = InputPoints[ReadIndex % InputPoints.Num()];
+				FPCGPoint& OutputPoint = OutputPoints[WriteIndex];
+				const int DuplicateIndex = FirstDuplicateIndex + ReadIndex / InputPoints.Num();
+
 				OutputPoint = InPoint;
-			}
-			else
-			{
-				const UPCGMetadata* InMetadata = InputPointData->Metadata;
-				UPCGMetadata* OutMetadata = OutPointData->Metadata;
 
-				UPCGMetadataAccessorHelpers::CopyPoint(InPoint, OutputPoint, /*bCopyMetadata=*/true, InMetadata, OutMetadata);
+				if (DuplicateIndex != 0)
+				{
+					const FVector DuplicateLocationOffset = ((OutputPoint.BoundsMax - OutputPoint.BoundsMin) * Direction + SourceDuplicateTransform.GetLocation()) * DuplicateIndex;
+					const FRotator DuplicateRotationOffset = SourceDuplicateTransform.Rotator() * DuplicateIndex;
+					const FVector DuplicateScaleMultiplier = FVector(
+						FMath::Pow(SourceDuplicateTransform.GetScale3D().X, DuplicateIndex), 
+						FMath::Pow(SourceDuplicateTransform.GetScale3D().Y, DuplicateIndex), 
+						FMath::Pow(SourceDuplicateTransform.GetScale3D().Z, DuplicateIndex));
 
-				OutputPoint.Transform = FTransform(InPoint.Transform.GetRotation(), InPoint.Transform.GetLocation(), FVector::One());
-				OutputPoint.BoundsMin *= InPoint.Transform.GetScale3D();
-				OutputPoint.BoundsMax *= InPoint.Transform.GetScale3D();
+					OutputPoint.Transform = FTransform(DuplicateRotationOffset, DuplicateLocationOffset, DuplicateScaleMultiplier) * InPoint.Transform;
+					OutputPoint.Seed = PCGHelpers::ComputeSeedFromPosition(OutputPoint.Transform.GetLocation());
+				}
+			};
 
-				const FVector DuplicateLocationOffset = ((OutputPoint.BoundsMax - OutputPoint.BoundsMin) * Direction + Settings->PointTransform.GetLocation()) * DuplicateIndex;
-				const FRotator DuplicateRotationOffset = Settings->PointTransform.Rotator() * DuplicateIndex;
-				const FVector DuplicateScaleMultiplier = FVector(
-					FMath::Pow(Settings->PointTransform.GetScale3D().X, DuplicateIndex), 
-					FMath::Pow(Settings->PointTransform.GetScale3D().Y, DuplicateIndex), 
-					FMath::Pow(Settings->PointTransform.GetScale3D().Z, DuplicateIndex));
-				const FTransform DuplicateTransformOffset(DuplicateRotationOffset, DuplicateLocationOffset, DuplicateScaleMultiplier);
-
-				OutputPoint.Transform *= DuplicateTransformOffset;
-				OutputPoint.Seed = PCGHelpers::ComputeSeedFromPosition(OutputPoint.Transform.GetLocation());
-			}
-		};
-
-		FPCGAsync::AsyncProcessingOneToOneEx(&Context->AsyncState, NumIterations, /*Initialize=*/[]() {}, ProcessPoint, /*bEnableTimeSlicing=*/false);
+			FPCGAsync::AsyncProcessingOneToOneEx(&Context->AsyncState, NumIterations, /*Initialize=*/[]() {}, ProcessPoint, /*bEnableTimeSlicing=*/false);
+		}
 	}
 
 	return true;

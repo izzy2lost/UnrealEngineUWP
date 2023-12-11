@@ -37,6 +37,10 @@ public:
 	/** Direction to stack point duplicates. */
 	UPROPERTY(BlueprintReadWrite, EditAnywhere, Category = Settings, meta = (ClampMin = "-1.0", ClampMax = "1.0", PCG_Overridable))
 	FVector Direction = FVector(0.0, 0.0, 1.0);
+
+	/** Controls whether the axis displacement will be made in relative space or not */
+	UPROPERTY(BlueprintReadWrite, EditAnywhere, Category = Settings, meta = (PCG_Overridable))
+	bool bDirectionAppliedInRelativeSpace = false;
 	
 	/** Include the source point. */
 	UPROPERTY(BlueprintReadWrite, EditAnywhere, Category = Settings, meta = (PCG_Overridable))
