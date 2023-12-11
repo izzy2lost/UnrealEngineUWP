@@ -1,8 +1,12 @@
 // Copyright Epic Games, Inc. All Rights Reserved.
 
 using EpicGames.Core;
+using EpicGames.Horde.Artifacts;
 using EpicGames.Horde.Storage;
 using EpicGames.Horde.Storage.Nodes;
+using Horde.Agent.Utility;
+using Horde.Common.Rpc;
+using Microsoft.CodeAnalysis.CSharp.Syntax;
 using Microsoft.Extensions.Logging;
 using System.Diagnostics;
 using System.Diagnostics.CodeAnalysis;
@@ -533,49 +537,44 @@ namespace Horde.Storage.Utility
 		/// <summary>
 		/// Gets the ref name for a particular node
 		/// </summary>
-		/// <param name="refPrefix">Prefix for refs in this job</param>
-		/// <param name="nodeName"></param>
-		/// <returns></returns>
-		public static RefName GetRefNameForNode(string refPrefix, string nodeName)
+		/// <param name="name">Name of the node producing the artifact</param>
+		public static ArtifactName GetArtifactNameForNode(string name)
 		{
-			byte[] name = Encoding.UTF8.GetBytes($"{refPrefix}/steps/{nodeName}");
-
-			int outputIdx = 0;
+			StringBuilder builder = new StringBuilder();
 			for (int idx = 0; idx < name.Length; idx++)
 			{
 				if (name[idx] >= 'A' && name[idx] <= 'Z')
 				{
-					name[outputIdx++] = (byte)(name[idx] + 'a' - 'A');
+					builder.Append(name[idx] + 'a' - 'A');
 				}
 				else if ((name[idx] >= 'a' && name[idx] <= 'z') || (name[idx] >= '0' && name[idx] <= '9') || name[idx] == '+')
 				{
-					name[outputIdx++] = name[idx];
+					builder.Append(name[idx]);
 				}
-				else if (name[idx] == '/' && outputIdx > 0)
+				else if (name[idx] == '/' && builder.Length > 0)
 				{
-					name[outputIdx++] = (byte)'/';
+					builder.Append('/');
 				}
 				else if (name.Length > 0 && name[name.Length - 1] != '-')
 				{
-					name[outputIdx++] = (byte)'-';
+					builder.Append('-');
 				}
 			}
-
-			return new RefName(new Utf8String(name.AsMemory(0, outputIdx)));
+			return new ArtifactName(builder.ToString());
 		}
 
 		/// <summary>
 		/// Reads a set of tagged files from disk
 		/// </summary>
-		/// <param name="storageClient">Reader for node data</param>
-		/// <param name="refPrefix">Prefix for ref names</param>
+		/// <param name="jobRpc">The job rpc interface</param>
+		/// <param name="storageClientFactory">Reader for node data</param>
 		/// <param name="nodeName">Name of the node which produced the tag set</param>
 		/// <param name="tagName">Name of the tag, with a '#' prefix</param>
 		/// <param name="manifestDir">The local directory containing manifests</param>
 		/// <param name="logger">Logger for output</param>
 		/// <param name="cancellationToken"></param>
 		/// <returns>The set of files</returns>
-		public static async Task<TempStorageTagManifest> RetrieveTagAsync(IStorageClient storageClient, string refPrefix, string nodeName, string tagName, DirectoryReference manifestDir, ILogger logger, CancellationToken cancellationToken)
+		public static async Task<TempStorageTagManifest> RetrieveTagAsync(IRpcClientRef<JobRpc.JobRpcClient> jobRpc, IStorageClientFactory storageClientFactory, string nodeName, string tagName, DirectoryReference manifestDir, ILogger logger, CancellationToken cancellationToken)
 		{
 			// Try to read the tag set from the local directory
 			FileReference localFileListLocation = GetTagManifestLocation(manifestDir, nodeName, tagName);
@@ -585,10 +584,16 @@ namespace Horde.Storage.Utility
 			}
 			else
 			{
-				RefName refName = GetRefNameForNode(refPrefix, nodeName);
-				logger.LogInformation("Reading node \"{NodeName}\" tag \"{TagName}\" from temp storage (ref: {RefName}, localFile: {LocalFile})", nodeName, tagName, refName, localFileListLocation);
+				ArtifactName artifactName = GetArtifactNameForNode(nodeName);
+				GetJobArtifactResponse artifact = await jobRpc.Client.GetArtifactAsync(new GetJobArtifactRequest { Name = artifactName.ToString(), Type = JobArtifactType.TempStorage }, cancellationToken: cancellationToken);
 
-				DirectoryNode node = await storageClient.ReadRefAsync<DirectoryNode>(refName, cancellationToken: cancellationToken);
+				NamespaceId namespaceId = new NamespaceId(artifact.NamespaceId);
+				RefName refName = new RefName(artifact.RefName);
+
+				logger.LogInformation("Reading node \"{NodeName}\" tag \"{TagName}\" from temp storage (ns: {NamespaceId}, ref: {RefName}, localFile: {LocalFile})", nodeName, tagName, namespaceId, refName, localFileListLocation);
+
+				using IStorageClient storageClient = storageClientFactory.CreateClient(namespaceId);
+				DirectoryNode node = await storageClient.ReadRefAsync<DirectoryNode>(artifact.RefName, cancellationToken: cancellationToken);
 
 				FileEntry fileEntry = node.GetFileEntry(localFileListLocation.GetFileName());
 				DirectoryReference.CreateDirectory(localFileListLocation.Directory);
@@ -680,8 +685,8 @@ namespace Horde.Storage.Utility
 		/// <summary>
 		/// Retrieve an output of the given node. Fetches and decompresses the files from shared storage if necessary, or validates the local files.
 		/// </summary>
-		/// <param name="storageClient">Store to read data from</param>
-		/// <param name="refPrefix">Prefix for ref names</param>
+		/// <param name="jobRpc"></param>
+		/// <param name="storageClientFactory">Store to read data from</param>
 		/// <param name="nodeName">The node which created the storage block</param>
 		/// <param name="blockName">Name of the block to retrieve.</param>
 		/// <param name="rootDir">Local directory for extracting data to</param>
@@ -689,7 +694,7 @@ namespace Horde.Storage.Utility
 		/// <param name="logger">Logger for output</param>
 		/// <param name="cancellationToken"></param>
 		/// <returns>Manifest of the files retrieved</returns>
-		public static async Task<TempStorageBlockManifest> RetrieveBlockAsync(IStorageClient storageClient, string refPrefix, string nodeName, string blockName, DirectoryReference rootDir, DirectoryReference manifestDir, ILogger logger, CancellationToken cancellationToken)
+		public static async Task<TempStorageBlockManifest> RetrieveBlockAsync(IRpcClientRef<JobRpc.JobRpcClient> jobRpc, IStorageClientFactory storageClientFactory, string nodeName, string blockName, DirectoryReference rootDir, DirectoryReference manifestDir, ILogger logger, CancellationToken cancellationToken)
 		{
 			// Get the path to the local manifest
 			FileReference localManifestFile = GetBlockManifestLocation(manifestDir, nodeName, blockName);
@@ -707,9 +712,15 @@ namespace Horde.Storage.Utility
 				string blockDirectoryName = GetBlockDirectoryName(blockName);
 
 				// Read the shared manifest
-				RefName refName = GetRefNameForNode(refPrefix, nodeName);
-				logger.LogInformation("Reading node \"{NodeName}\" block \"{BlockName}\" from temp storage (ref: {RefName}, local: {LocalFile}, blockdir: {BlockDir})", nodeName, blockName, refName, localManifestFile, blockDirectoryName);
+				ArtifactName artifactName = GetArtifactNameForNode(nodeName);
 
+				GetJobArtifactResponse artifact = await jobRpc.Client.GetArtifactAsync(new GetJobArtifactRequest { Name = artifactName.ToString(), Type = JobArtifactType.TempStorage }, cancellationToken: cancellationToken);
+				NamespaceId namespaceId = new NamespaceId(artifact.NamespaceId);
+				RefName refName = new RefName(artifact.RefName);
+
+				logger.LogInformation("Reading node \"{NodeName}\" block \"{BlockName}\" from temp storage (ns: {NamespaceId}, ref: {RefName}, local: {LocalFile}, blockdir: {BlockDir})", nodeName, blockName, namespaceId, refName, localManifestFile, blockDirectoryName);
+
+				using IStorageClient storageClient = storageClientFactory.CreateClient(namespaceId);
 				DirectoryNode node = await storageClient.ReadRefAsync<DirectoryNode>(refName, cancellationToken: cancellationToken);
 
 				DirectoryEntry? rootDirEntry;

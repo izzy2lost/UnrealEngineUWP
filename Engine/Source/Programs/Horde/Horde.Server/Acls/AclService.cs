@@ -13,6 +13,11 @@ using MongoDB.Driver;
 using EpicGames.Horde.Agents;
 using EpicGames.Horde.Agents.Leases;
 using EpicGames.Horde.Agents.Sessions;
+using EpicGames.Horde.Jobs;
+using Horde.Server.Jobs;
+using Horde.Server.Agents.Leases;
+using Google.Protobuf.WellKnownTypes;
+using HordeCommon.Rpc.Tasks;
 
 namespace Horde.Server.Acls
 {
@@ -129,6 +134,36 @@ namespace Horde.Server.Acls
 			{
 				return leaseIdValue;
 			}
+		}
+
+		public static async Task<(IJob, IJobStep)?> GetJobStepFromClaimAsync(this ClaimsPrincipal user, ILeaseCollection leaseCollection, IJobCollection jobCollection)
+		{
+			LeaseId? leaseId = user.GetLeaseClaim();
+			if (leaseId != null)
+			{
+				ILease? lease = await leaseCollection.GetAsync(leaseId.Value);
+				if (lease != null)
+				{
+					Any payload = Any.Parser.ParseFrom(lease.Payload.ToArray());
+					if (payload.TryUnpack(out ExecuteJobTask jobTask))
+					{
+						IJob? job = await jobCollection.GetAsync(JobId.Parse(jobTask.JobId));
+						if (job != null)
+						{
+							IJobStepBatch? batch = job.Batches.FirstOrDefault(x => x.LeaseId == leaseId);
+							if (batch != null && batch.State == JobStepBatchState.Running)
+							{
+								IJobStep? step = batch.Steps.FirstOrDefault(x => x.State == HordeCommon.JobStepState.Running);
+								if (step != null)
+								{
+									return (job, step);
+								}
+							}
+						}
+					}
+				}
+			}
+			return null;
 		}
 
 		public static SessionId? GetSessionClaim(this ClaimsPrincipal user)

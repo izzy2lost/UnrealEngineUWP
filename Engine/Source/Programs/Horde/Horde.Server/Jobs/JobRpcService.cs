@@ -40,6 +40,7 @@ using MongoDB.Bson.Serialization;
 using EpicGames.Horde.Jobs;
 using EpicGames.Horde.Logs;
 using EpicGames.Horde.Agents.Sessions;
+using Horde.Server.Agents.Leases;
 
 namespace Horde.Server.Jobs
 {
@@ -56,6 +57,7 @@ namespace Horde.Server.Jobs
 	public class JobRpcService : JobRpc.JobRpcBase
 	{
 		readonly AclService _aclService;
+		readonly ILeaseCollection _leaseCollection;
 		readonly IJobCollection _jobCollection;
 		readonly IArtifactCollection _artifactCollection;
 		readonly JobRpcCommon _jobRpcCommon;
@@ -64,21 +66,19 @@ namespace Horde.Server.Jobs
 		/// <summary>
 		/// Constructor
 		/// </summary>
-		public JobRpcService(AclService aclService, IJobCollection jobCollection, IArtifactCollection artifactCollection, JobRpcCommon jobRpcCommon, IOptionsSnapshot<GlobalConfig> globalConfig)
+		public JobRpcService(AclService aclService, ILeaseCollection leaseCollection, IJobCollection jobCollection, IArtifactCollection artifactCollection, JobRpcCommon jobRpcCommon, IOptionsSnapshot<GlobalConfig> globalConfig)
 		{
 			_aclService = aclService;
+			_leaseCollection = leaseCollection;
 			_jobCollection = jobCollection;
 			_artifactCollection = artifactCollection;
 			_jobRpcCommon = jobRpcCommon;
 			_globalConfig = globalConfig.Value;
 		}
 
-		/// <inheritdoc/>
-		public override async Task<Common.Rpc.CreateJobArtifactResponse> CreateArtifact(CreateJobArtifactRequest request, ServerCallContext context)
+		static ArtifactType GetNativeArtifactType(JobArtifactType type)
 		{
-			(IJob job, _, IJobStep step) = await AuthorizeAsync(request.JobId, request.StepId, context);
-
-			ArtifactType type = request.Type switch
+			return type switch
 			{
 				JobArtifactType.TempStorage => ArtifactType.StepOutput,
 				JobArtifactType.Saved => ArtifactType.StepSaved,
@@ -86,20 +86,31 @@ namespace Horde.Server.Jobs
 				JobArtifactType.TestData => ArtifactType.StepTestData,
 				_ => throw new StructuredRpcException(StatusCode.InvalidArgument, "Invalid artifact type")
 			};
+		}
+
+		/// <inheritdoc/>
+		public override async Task<Common.Rpc.CreateJobArtifactResponse> CreateArtifact(CreateJobArtifactRequest request, ServerCallContext context)
+		{
+			ClaimsPrincipal principal = context.GetHttpContext().User;
+
+			(IJob, IJobStep)? result = await principal.GetJobStepFromClaimAsync(_leaseCollection, _jobCollection);
+			if (result == null)
+			{
+				throw new StructuredRpcException(StatusCode.PermissionDenied, "Unable to get job/step from claim");
+			}
+
+			(IJob job, IJobStep step) = result.Value;
+
+			ArtifactType type = GetNativeArtifactType(request.Type);
 
 			List<string> keys = new List<string>();
-			keys.Add($"job:{job.Id}");
-			keys.Add($"job:{job.Id}/step:{step.Id}");
+			keys.Add(job.GetArtifactKey());
+			keys.Add(job.GetArtifactKey(step));
 
 			if (!_globalConfig.TryGetTemplate(job.StreamId, job.TemplateId, out TemplateRefConfig? templateConfig))
 			{
 				throw new StructuredRpcException(StatusCode.NotFound, "Couldn't find template {TemplateId} in stream {StreamId}", job.TemplateId, job.StreamId);
 			}
-
-			ArtifactId artifactId = new ArtifactId(BinaryIdUtils.CreateNew());
-
-			NamespaceId namespaceId = String.IsNullOrEmpty(request.NamespaceId)? Namespace.Artifacts : new NamespaceId(request.NamespaceId);
-			RefName refName = new RefName(String.IsNullOrEmpty(request.RefName) ? $"job-{job.Id}/step-{step.Id}/{artifactId}" : request.RefName);
 
 			DateTime? expireAt = null;
 			if (_globalConfig.TryGetArtifactType(type, out ArtifactTypeConfig? typeConfig) && typeConfig.KeepDays != null && typeConfig.KeepDays.Value >= 0)
@@ -107,14 +118,42 @@ namespace Horde.Server.Jobs
 				expireAt = DateTime.UtcNow + TimeSpan.FromDays(typeConfig.KeepDays.Value);
 			}
 			
-			IArtifact artifact = await _artifactCollection.AddAsync(artifactId, type, job.StreamId, job.Change, keys, namespaceId, refName, expireAt, templateConfig.ScopeName, context.CancellationToken);
+			IArtifact artifact = await _artifactCollection.AddAsync(new ArtifactName("default"), type, job.StreamId, job.Change, keys, expireAt, templateConfig.ScopeName, context.CancellationToken);
 
 			List<AclClaimConfig> claims = new List<AclClaimConfig>();
-			claims.Add(new AclClaimConfig(HordeClaimTypes.WriteNamespace, namespaceId.ToString()));
+			claims.Add(new AclClaimConfig(HordeClaimTypes.WriteNamespace, artifact.NamespaceId.ToString()));
 			claims.Add(new AclClaimConfig(HordeClaimTypes.WriteRef, artifact.RefName.ToString()));
 
 			string token = await _aclService.IssueBearerTokenAsync(claims, TimeSpan.FromHours(8.0));
 			return new Common.Rpc.CreateJobArtifactResponse { Id = artifact.Id.ToString(), NamespaceId = artifact.NamespaceId.ToString(), RefName = artifact.RefName.ToString(), Token = token };
+		}
+
+		/// <inheritdoc/>
+		public override async Task<Common.Rpc.GetJobArtifactResponse> GetArtifact(GetJobArtifactRequest request, ServerCallContext context)
+		{
+			ClaimsPrincipal principal = context.GetHttpContext().User;
+
+			(IJob, IJobStep)? result = await principal.GetJobStepFromClaimAsync(_leaseCollection, _jobCollection);
+			if (result == null)
+			{
+				throw new StructuredRpcException(StatusCode.PermissionDenied, "Unable to get job/step from claim");
+			}
+
+			(IJob job, _) = result.Value;
+
+			ArtifactName name = new ArtifactName(request.Name);
+			ArtifactType type = GetNativeArtifactType(request.Type);
+
+			await foreach (IArtifact artifact in _artifactCollection.FindAsync(job.StreamId, job.Change, job.Change, name, type, cancellationToken: context.CancellationToken))
+			{
+				Common.Rpc.GetJobArtifactResponse response = new Common.Rpc.GetJobArtifactResponse();
+				response.Id = artifact.Id.ToString();
+				response.NamespaceId = artifact.NamespaceId.ToString();
+				response.RefName = artifact.RefName.ToString();
+				return response;
+			}
+
+			throw new StructuredRpcException(StatusCode.NotFound, "No artifact {ArtifactName} of type {ArtifactType} was found", name, type);
 		}
 
 		Task<(IJob, IJobStepBatch, IJobStep)> AuthorizeAsync(string jobId, string stepId, ServerCallContext context)

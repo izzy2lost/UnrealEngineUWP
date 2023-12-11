@@ -7,13 +7,21 @@ using System.Linq;
 using System.Threading;
 using System.Threading.Tasks;
 using EpicGames.Core;
+using EpicGames.Horde.Agents.Leases;
 using EpicGames.Horde.Artifacts;
+using EpicGames.Horde.Jobs;
 using EpicGames.Horde.Storage;
 using EpicGames.Horde.Storage.Nodes;
 using EpicGames.Horde.Streams;
+using Google.Protobuf.WellKnownTypes;
+using Horde.Server.Acls;
+using Horde.Server.Agents.Leases;
+using Horde.Server.Jobs;
 using Horde.Server.Server;
 using Horde.Server.Storage;
+using Horde.Server.Streams;
 using Horde.Server.Utilities;
+using HordeCommon.Rpc.Tasks;
 using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Http;
 using Microsoft.AspNetCore.Mvc;
@@ -31,16 +39,101 @@ namespace Horde.Server.Artifacts
 	{
 		readonly IArtifactCollection _artifactCollection;
 		readonly IStorageClientFactory _storageClientFactory;
+		readonly ILeaseCollection _leaseCollection;
+		readonly IJobCollection _jobCollection;
+		readonly AclService _aclService;
 		readonly GlobalConfig _globalConfig;
 
 		/// <summary>
 		/// Constructor
 		/// </summary>
-		public ArtifactsController(IArtifactCollection artifactCollection, IStorageClientFactory storageClientFactory, IOptionsSnapshot<GlobalConfig> globalConfig)
+		public ArtifactsController(IArtifactCollection artifactCollection, IStorageClientFactory storageClientFactory, ILeaseCollection leaseCollection, IJobCollection jobCollection, AclService aclService, IOptionsSnapshot<GlobalConfig> globalConfig)
 		{
 			_artifactCollection = artifactCollection;
 			_storageClientFactory = storageClientFactory;
+			_leaseCollection = leaseCollection;
+			_jobCollection = jobCollection;
+			_aclService = aclService;
 			_globalConfig = globalConfig.Value;
+		}
+
+		/// <summary>
+		/// Creates a new artifact. Actual data for the artifact can be uploaded using a storage client pointed to the blobs endpoint.
+		/// </summary>
+		/// <param name="request">Information about the desired artifact</param>
+		/// <param name="cancellationToken">Cancellation token for the operation</param>
+		/// <returns>The created artifact</returns>
+		[HttpPost]
+		[Route("/api/v2/artifacts")]
+		public async Task<ActionResult<CreateArtifactResponse>> CreateArtifactAsync([FromBody] CreateArtifactRequest request, CancellationToken cancellationToken = default)
+		{
+			StreamConfig? streamConfig;
+			if (request.StreamId != null && request.Change != null && _globalConfig.TryGetStream(request.StreamId.Value, out streamConfig))
+			{
+				if (streamConfig.Authorize(ArtifactAclAction.WriteArtifact, User))
+				{
+					return await CreateArtifactInternalAsync(request.Name, request.Type, request.StreamId.Value, request.Change.Value, request.Keys, AclScopeName.Root, cancellationToken);
+				}
+			}
+
+			LeaseId? leaseId = User.GetLeaseClaim();
+			if (leaseId != null)
+			{
+				ILease? lease = await _leaseCollection.GetAsync(leaseId.Value);
+				if (lease != null)
+				{
+					Any payload = Any.Parser.ParseFrom(lease.Payload.ToArray());
+					if (payload.TryUnpack(out ExecuteJobTask jobTask))
+					{
+						IJob? job = await _jobCollection.GetAsync(JobId.Parse(jobTask.JobId));
+						if (job != null)
+						{
+							IJobStepBatch? batch = job.Batches.FirstOrDefault(x => x.LeaseId == leaseId);
+							if (batch != null && batch.State == JobStepBatchState.Running)
+							{
+								List<string> keys = new List<string>(request.Keys);
+								keys.Add(job.GetArtifactKey());
+
+								IJobStep? step = batch.Steps.FirstOrDefault(x => x.State == HordeCommon.JobStepState.Running);
+								if (step != null)
+								{
+									keys.Add(job.GetArtifactKey(step));
+								}
+
+								StreamId streamId = request.StreamId ?? job.StreamId;
+
+								AclScopeName scopeName = AclScopeName.Root;
+								if (_globalConfig.TryGetTemplate(streamId, job.TemplateId, out TemplateRefConfig? templateRefConfig))
+								{
+									scopeName = templateRefConfig.ScopeName;
+								}
+
+								return await CreateArtifactInternalAsync(request.Name, request.Type, streamId, request.Change ?? job.Change, keys, scopeName, cancellationToken);
+							}
+						}
+					}
+				}
+			}
+
+			return Forbid(ArtifactAclAction.WriteArtifact);
+		}
+
+		async Task<ActionResult<CreateArtifactResponse>> CreateArtifactInternalAsync(ArtifactName name, ArtifactType type, StreamId streamId, int change, List<string> keys, AclScopeName scopeName, CancellationToken cancellationToken)
+		{
+			DateTime? expireAt = null;
+			if (_globalConfig.TryGetArtifactType(type, out ArtifactTypeConfig? typeConfig) && typeConfig.KeepDays != null && typeConfig.KeepDays.Value >= 0)
+			{
+				expireAt = DateTime.UtcNow + TimeSpan.FromDays(typeConfig.KeepDays.Value);
+			}
+
+			IArtifact artifact = await _artifactCollection.AddAsync(name, type, streamId, change, keys, expireAt, scopeName, cancellationToken);
+
+			List<AclClaimConfig> claims = new List<AclClaimConfig>();
+			claims.Add(new AclClaimConfig(HordeClaimTypes.WriteNamespace, artifact.NamespaceId.ToString()));
+			claims.Add(new AclClaimConfig(HordeClaimTypes.WriteRef, artifact.RefName.ToString()));
+
+			string token = await _aclService.IssueBearerTokenAsync(claims, TimeSpan.FromHours(8.0));
+			return new CreateArtifactResponse(artifact.Id, artifact.NamespaceId, artifact.RefName, token);
 		}
 
 		/// <summary>
@@ -345,16 +438,18 @@ namespace Horde.Server.Artifacts
 		/// <param name="streamId">Stream to search</param>
 		/// <param name="minChange">Minimum changelist number for artifacts to return</param>
 		/// <param name="maxChange">Maximum changelist number for artifacts to return</param>
+		/// <param name="name">Artifact name</param>
+		/// <param name="type">Type of the artifact</param>
 		/// <param name="keys">Keys to find</param>
 		/// <param name="filter">Filter for returned values</param>
 		/// <returns>Information about all the artifacts</returns>
 		[HttpGet]
 		[Route("/api/v2/artifacts")]
 		[ProducesResponseType(typeof(FindArtifactsResponse), 200)]
-		public async Task<ActionResult<object>> FindArtifactsAsync(StreamId streamId, [FromQuery] int? minChange = null, [FromQuery] int? maxChange = null, [FromQuery(Name = "key")] IEnumerable<string>? keys = null, [FromQuery] PropertyFilter? filter = null)
+		public async Task<ActionResult<object>> FindArtifactsAsync(StreamId streamId, [FromQuery] int? minChange = null, [FromQuery] int? maxChange = null, [FromQuery(Name = "name")] ArtifactName? name = null, [FromQuery(Name = "type")] ArtifactType? type = null, [FromQuery(Name = "key")] IEnumerable<string>? keys = null, [FromQuery] PropertyFilter? filter = null)
 		{
 			FindArtifactsResponse response = new FindArtifactsResponse();
-			await foreach (IArtifact artifact in _artifactCollection.FindAsync(streamId, minChange, maxChange, keys, HttpContext.RequestAborted))
+			await foreach (IArtifact artifact in _artifactCollection.FindAsync(streamId, minChange, maxChange, name, type, keys, HttpContext.RequestAborted))
 			{
 				if (_globalConfig.Authorize(artifact.AclScope, ArtifactAclAction.ReadArtifact, User))
 				{

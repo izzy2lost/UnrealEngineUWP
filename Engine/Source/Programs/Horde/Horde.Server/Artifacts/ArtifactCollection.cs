@@ -11,6 +11,7 @@ using EpicGames.Horde.Storage;
 using EpicGames.Horde.Streams;
 using Horde.Server.Acls;
 using Horde.Server.Server;
+using Horde.Server.Storage;
 using Horde.Server.Utilities;
 using MongoDB.Bson.Serialization.Attributes;
 using MongoDB.Driver;
@@ -26,6 +27,9 @@ namespace Horde.Server.Artifacts
 		{
 			[BsonRequired, BsonId]
 			public ArtifactId Id { get; set; }
+
+			[BsonElement("nam")]
+			public ArtifactName Name { get; set; }
 
 			[BsonElement("typ")]
 			public ArtifactType Type { get; set; }
@@ -61,9 +65,10 @@ namespace Horde.Server.Artifacts
 			{
 			}
 
-			public Artifact(ArtifactId id, ArtifactType type, StreamId streamId, int change, IEnumerable<string> keys, NamespaceId namespaceId, RefName refName, DateTime? expireAtUtc, AclScopeName scopeName)
+			public Artifact(ArtifactId id, ArtifactName name, ArtifactType type, StreamId streamId, int change, IEnumerable<string> keys, NamespaceId namespaceId, RefName refName, DateTime? expireAtUtc, AclScopeName scopeName)
 			{
 				Id = id;
+				Name = name;
 				Type = type;
 				StreamId = streamId;
 				Change = change;
@@ -86,14 +91,19 @@ namespace Horde.Server.Artifacts
 			List<MongoIndex<Artifact>> indexes = new List<MongoIndex<Artifact>>();
 			indexes.Add(keys => keys.Ascending(x => x.Keys));
 			indexes.Add(keys => keys.Ascending(x => x.ExpireAtUtc), sparse: true);
-			indexes.Add(keys => keys.Ascending(x => x.StreamId).Descending(x => x.Change));
+			indexes.Add(keys => keys.Ascending(x => x.StreamId).Descending(x => x.Change).Ascending(x => x.Name).Descending(x => x.Id));
 			_artifacts = mongoService.GetCollection<Artifact>("ArtifactsV2", indexes);
 		}
 
 		/// <inheritdoc/>
-		public async Task<IArtifact> AddAsync(ArtifactId id, ArtifactType type, StreamId streamId, int change, IEnumerable<string> keys, NamespaceId namespaceId, RefName refName, DateTime? expireAtUtc, AclScopeName scopeName, CancellationToken cancellationToken)
+		public async Task<IArtifact> AddAsync(ArtifactName name, ArtifactType type, StreamId streamId, int change, IEnumerable<string> keys, DateTime? expireAtUtc, AclScopeName scopeName, CancellationToken cancellationToken)
 		{
-			Artifact artifact = new Artifact(id, type, streamId, change, keys, namespaceId, refName, expireAtUtc, scopeName);
+			ArtifactId id = new ArtifactId(BinaryIdUtils.CreateNew());
+
+			NamespaceId namespaceId = Namespace.Artifacts;
+			RefName refName = new RefName($"{streamId}/{change}/{id}");
+
+			Artifact artifact = new Artifact(id, name, type, streamId, change, keys, namespaceId, refName, expireAtUtc, scopeName);
 			await _artifacts.InsertOneAsync(artifact, null, cancellationToken);
 			return artifact;
 		}
@@ -106,7 +116,7 @@ namespace Horde.Server.Artifacts
 		}
 
 		/// <inheritdoc/>
-		public async IAsyncEnumerable<IArtifact> FindAsync(StreamId streamId, int? minChange = null, int? maxChange = null, IEnumerable<string>? keys = null, [EnumeratorCancellation] CancellationToken cancellationToken = default)
+		public async IAsyncEnumerable<IArtifact> FindAsync(StreamId streamId, int? minChange = null, int? maxChange = null, ArtifactName? name = null, ArtifactType? type = null, IEnumerable<string>? keys = null, [EnumeratorCancellation] CancellationToken cancellationToken = default)
 		{
 			FilterDefinition<Artifact> filter = Builders<Artifact>.Filter.Eq(x => x.StreamId, streamId);
 			if (minChange != null)
@@ -117,12 +127,20 @@ namespace Horde.Server.Artifacts
 			{
 				filter = filter & Builders<Artifact>.Filter.Lte(x => x.Change, maxChange.Value);
 			}
+			if (name != null)
+			{
+				filter = filter &= Builders<Artifact>.Filter.Eq(x => x.Name, name.Value);
+			}
+			if (type != null)
+			{
+				filter = filter &= Builders<Artifact>.Filter.Eq(x => x.Type, type.Value);
+			}
 			if (keys != null && keys.Any())
 			{
-				filter = filter & Builders<Artifact>.Filter.AnyIn(x => x.Keys, keys);
+				filter = filter & Builders<Artifact>.Filter.All(x => x.Keys, keys);
 			}
 
-			using (IAsyncCursor<Artifact> cursor = await _artifacts.Find(filter).ToCursorAsync(cancellationToken))
+			using (IAsyncCursor<Artifact> cursor = await _artifacts.Find(filter).SortByDescending(x => x.Change).ThenByDescending(x => x.Id).ToCursorAsync(cancellationToken))
 			{
 				while (await cursor.MoveNextAsync(cancellationToken))
 				{

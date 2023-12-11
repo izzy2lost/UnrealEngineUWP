@@ -8,6 +8,7 @@ using System.Text.Json;
 using System.Text.Json.Serialization;
 using EpicGames.Core;
 using EpicGames.Horde;
+using EpicGames.Horde.Artifacts;
 using EpicGames.Horde.Storage;
 using EpicGames.Horde.Storage.Bundles;
 using EpicGames.Horde.Storage.Clients;
@@ -42,20 +43,16 @@ namespace Horde.Agent.Execution
 		public string JobId { get; }
 		public string BatchId { get; }
 		public BeginBatchResponse Batch { get; }
-		public NamespaceId NamespaceId { get; }
-		public string StoragePrefix { get; }
 		public string Token { get; }
 		public JobOptions JobOptions { get; }
 
-		public JobExecutorOptions(ISession session, HttpStorageClientFactory storageFactory, string jobId, string batchId, BeginBatchResponse batch, NamespaceId namespaceId, string storagePrefix, string token, JobOptions jobOptions)
+		public JobExecutorOptions(ISession session, HttpStorageClientFactory storageFactory, string jobId, string batchId, BeginBatchResponse batch, string token, JobOptions jobOptions)
 		{
 			Session = session;
 			StorageFactory = storageFactory;
 			JobId = jobId;
 			BatchId = batchId;
 			Batch = batch;
-			NamespaceId = namespaceId;
-			StoragePrefix = storagePrefix;
 			Token = token;
 			JobOptions = jobOptions;
 		}
@@ -198,8 +195,6 @@ namespace Horde.Agent.Execution
 
 		protected ISession Session { get; }
 		protected HttpStorageClientFactory StorageFactory { get; }
-		private readonly NamespaceId _namespaceId;
-		private readonly string _storagePrefix;
 		private readonly string _token;
 		protected JobOptions JobOptions { get; }
 
@@ -217,8 +212,6 @@ namespace Horde.Agent.Execution
 			BatchId = options.BatchId;
 			Batch = options.Batch;
 
-			_namespaceId = options.NamespaceId;
-			_storagePrefix = options.StoragePrefix;
 			_token = options.Token;
 			JobOptions = options.JobOptions;
 
@@ -432,11 +425,6 @@ namespace Horde.Agent.Execution
 		const string SetupStepName = "setup";
 		const string BuildGraphTempStorageDir = "BuildGraph";
 
-		IStorageClient CreateStorageClient()
-		{
-			return CreateStorageClient(_namespaceId, _token);
-		}
-
 		IStorageClient CreateStorageClient(NamespaceId namespaceId, string? token)
 		{
 			bool withBackendCache = JobOptions.BundleVersion <= (int)BundleVersion.LatestV1;
@@ -512,14 +500,23 @@ namespace Horde.Agent.Execution
 
 				using (GlobalTracer.Instance.BuildSpan("TempStorage").WithTag("resource", "Write").StartActive())
 				{
-					using IStorageClient storage = CreateStorageClient();
+					// Create the artifact
+					using IRpcClientRef<JobRpc.JobRpcClient> jobRpc = await RpcConnection.GetClientRefAsync<JobRpc.JobRpcClient>(cancellationToken);
+
+					CreateJobArtifactRequest artifactRequest = new CreateJobArtifactRequest();
+					artifactRequest.Name = TempStorage.GetArtifactNameForNode(SetupStepName).ToString();
+					artifactRequest.Type = JobArtifactType.TempStorage;
+
+					CreateJobArtifactResponse artifact = await jobRpc.Client.CreateArtifactAsync(artifactRequest, cancellationToken: cancellationToken);
+					logger.LogInformation("Creating output artifact {ArtifactId} with ref {RefName} in namespace {Namespace}", artifact.Id, artifact.RefName, artifact.NamespaceId);
+
+					// Write the data
+					using IStorageClient storage = CreateStorageClient(new NamespaceId(artifact.NamespaceId), artifact.Token);
 
 					Stopwatch timer = Stopwatch.StartNew();
 
-					RefName refName = TempStorage.GetRefNameForNode(_storagePrefix, SetupStepName);
-
 					NodeRef<DirectoryNode> rootNodeRef;
-					await using (IStorageWriter treeWriter = CreateStorageWriter(storage, refName, logger))
+					await using (IStorageWriter treeWriter = CreateStorageWriter(storage, artifact.RefName, logger))
 					{
 						DirectoryNode buildGraphNode = new DirectoryNode();
 						await buildGraphNode.AddFilesAsync(workspaceDir, buildGraphFiles, new ChunkingOptions(), treeWriter, null, cancellationToken);
@@ -530,22 +527,9 @@ namespace Horde.Agent.Execution
 
 						rootNodeRef = await treeWriter.WriteNodeAsync(rootNode, cancellationToken);
 					}
-					await storage.WriteRefTargetAsync(refName, rootNodeRef.Handle, new RefOptions(), cancellationToken);
+					await storage.WriteRefTargetAsync(artifact.RefName, rootNodeRef.Handle, new RefOptions(), cancellationToken);
 
 					logger.LogInformation("Upload took {Time:n1}s", timer.Elapsed.TotalSeconds);
-
-					// Create the artifact
-					using IRpcClientRef<JobRpc.JobRpcClient> jobRpc = await RpcConnection.GetClientRefAsync<JobRpc.JobRpcClient>(cancellationToken);
-
-					CreateJobArtifactRequest artifactRequest = new CreateJobArtifactRequest();
-					artifactRequest.JobId = JobId;
-					artifactRequest.StepId = step.StepId;
-					artifactRequest.Type = JobArtifactType.TempStorage;
-					artifactRequest.NamespaceId = _namespaceId.ToString();
-					artifactRequest.RefName = refName.ToString();
-
-					CreateJobArtifactResponse artifact = await jobRpc.Client.CreateArtifactAsync(artifactRequest, cancellationToken: cancellationToken);
-					logger.LogInformation("Created output artifact {ArtifactId} with ref {RefName} in namespace {Namespace}", artifact.Id, artifact.RefName, artifact.NamespaceId);
 				}
 			}
 			else
@@ -762,9 +746,15 @@ namespace Horde.Agent.Execution
 
 				if (JobOptions.UseNewTempStorage ?? false)
 				{
-					using IStorageClient storage = CreateStorageClient();
+					ArtifactName artifactName = TempStorage.GetArtifactNameForNode(SetupStepName);
 
-					RefName refName = TempStorage.GetRefNameForNode(_storagePrefix, SetupStepName);
+					using IRpcClientRef<JobRpc.JobRpcClient> jobRpc = await RpcConnection.GetClientRefAsync<JobRpc.JobRpcClient>(cancellationToken);
+					GetJobArtifactResponse artifact = await jobRpc.Client.GetArtifactAsync(new GetJobArtifactRequest { Name = artifactName.ToString(), Type = JobArtifactType.TempStorage }, cancellationToken: cancellationToken);
+
+					NamespaceId namespaceId = new NamespaceId(artifact.NamespaceId);
+					RefName refName = new RefName(artifact.RefName);
+
+					using IStorageClient storage = StorageFactory.CreateClient(namespaceId);
 
 					DirectoryNode node = await storage.ReadRefAsync<DirectoryNode>(refName, cancellationToken: cancellationToken);
 					DirectoryNode? buildGraphDir = await node.TryOpenDirectoryAsync(BuildGraphTempStorageDir, cancellationToken);
@@ -811,11 +801,11 @@ namespace Horde.Agent.Execution
 			}
 		}
 
-		protected async Task CreateArtifactsAsync(string stepId, JobArtifactType type, DirectoryReference baseDir, IEnumerable<(string, FileReference)> files, ILogger logger, CancellationToken cancellationToken)
+		protected async Task CreateArtifactsAsync(string stepId, ArtifactName name, JobArtifactType type, DirectoryReference baseDir, IEnumerable<(string, FileReference)> files, ILogger logger, CancellationToken cancellationToken)
 		{
 			if (JobOptions.UseNewTempStorage ?? false)
 			{
-				await CreateArtifactAsync(stepId, type, baseDir, files.Select(x => x.Item2), logger, cancellationToken);
+				await CreateArtifactAsync(name, type, baseDir, files.Select(x => x.Item2), logger, cancellationToken);
 			}
 			else
 			{
@@ -823,13 +813,13 @@ namespace Horde.Agent.Execution
 			}
 		}
 
-		protected async Task CreateArtifactAsync(string stepId, JobArtifactType type, DirectoryReference baseDir, IEnumerable<FileReference> files, ILogger logger, CancellationToken cancellationToken)
+		protected async Task CreateArtifactAsync(ArtifactName name, JobArtifactType type, DirectoryReference baseDir, IEnumerable<FileReference> files, ILogger logger, CancellationToken cancellationToken)
 		{
 			try
 			{
 				using IRpcClientRef<JobRpc.JobRpcClient> jobRpc = await RpcConnection.GetClientRefAsync<JobRpc.JobRpcClient>(cancellationToken);
 
-				CreateJobArtifactResponse artifact = await jobRpc.Client.CreateArtifactAsync(new CreateJobArtifactRequest { JobId = JobId, StepId = stepId, Type = type }, cancellationToken: cancellationToken);
+				CreateJobArtifactResponse artifact = await jobRpc.Client.CreateArtifactAsync(new CreateJobArtifactRequest { Name = name.ToString(), Type = type }, cancellationToken: cancellationToken);
 				Logger.LogInformation("Created artifact {ArtifactId} with ref {RefName} in ns {Namespace}", artifact.Id, artifact.RefName, artifact.NamespaceId);
 
 				using IStorageClient storage = CreateStorageClient(new NamespaceId(artifact.NamespaceId), artifact.Token);
@@ -863,7 +853,7 @@ namespace Horde.Agent.Execution
 		{
 			DirectoryReference manifestDir = DirectoryReference.Combine(workspaceDir, "Engine", "Saved", "BuildGraph");
 
-			using IStorageClient storage = CreateStorageClient();
+			using IRpcClientRef<JobRpc.JobRpcClient> jobRpc = await RpcConnection.GetClientRefAsync<JobRpc.JobRpcClient>(cancellationToken);
 
 			// Create the mapping of tag names to file sets
 			Dictionary<string, HashSet<FileReference>> tagNameToFileSet = new Dictionary<string, HashSet<FileReference>>();
@@ -882,7 +872,7 @@ namespace Horde.Agent.Execution
 				string nodeName = input.Substring(0, slashIdx);
 				string tagName = input.Substring(slashIdx + 1);
 
-				TempStorageTagManifest fileList = await TempStorage.RetrieveTagAsync(storage, _storagePrefix, nodeName, tagName, manifestDir, logger, cancellationToken);
+				TempStorageTagManifest fileList = await TempStorage.RetrieveTagAsync(jobRpc, StorageFactory, nodeName, tagName, manifestDir, logger, cancellationToken);
 				tagNameToFileSet[tagName] = fileList.ToFileSet(workspaceDir);
 				inputStorageBlocks.UnionWith(fileList.Blocks);
 			}
@@ -895,7 +885,7 @@ namespace Horde.Agent.Execution
 				scope.Span.SetTag("blocks", inputStorageBlocks.Count);
 				foreach (TempStorageBlockRef inputStorageBlock in inputStorageBlocks)
 				{
-					TempStorageBlockManifest manifest = await TempStorage.RetrieveBlockAsync(storage, _storagePrefix, inputStorageBlock.NodeName, inputStorageBlock.OutputName, workspaceDir, manifestDir, logger, cancellationToken);
+					TempStorageBlockManifest manifest = await TempStorage.RetrieveBlockAsync(jobRpc, StorageFactory, inputStorageBlock.NodeName, inputStorageBlock.OutputName, workspaceDir, manifestDir, logger, cancellationToken);
 					inputManifests[inputStorageBlock] = manifest;
 				}
 				scope.Span.SetTag("size", inputManifests.Sum(x => x.Value.GetTotalSize()));
@@ -1022,11 +1012,21 @@ namespace Horde.Agent.Execution
 			// Write all the storage blocks, and update the mapping from file to storage block
 			using (GlobalTracer.Instance.BuildSpan("TempStorage").WithTag("resource", "Write").StartActive())
 			{
+				// Create the artifact
+				CreateJobArtifactRequest artifactRequest = new CreateJobArtifactRequest();
+				artifactRequest.Name = TempStorage.GetArtifactNameForNode(step.Name).ToString();
+				artifactRequest.Type = JobArtifactType.TempStorage;
+
+				CreateJobArtifactResponse artifact = await jobRpc.Client.CreateArtifactAsync(artifactRequest, cancellationToken: cancellationToken);
+				logger.LogInformation("Created output artifact {ArtifactId} with ref {RefName} in namespace {Namespace}", artifact.Id, artifact.RefName, artifact.NamespaceId);
+
+				using IStorageClient storage = CreateStorageClient(new NamespaceId(artifact.NamespaceId), artifact.Token);
+
+				// Upload the data
 				Stopwatch timer = Stopwatch.StartNew();
-				RefName refName = TempStorage.GetRefNameForNode(_storagePrefix, step.Name);
 
 				NodeRef<DirectoryNode> outputNodeRef;
-				await using (IStorageWriter treeWriter = CreateStorageWriter(storage, refName, logger))
+				await using (IStorageWriter treeWriter = CreateStorageWriter(storage, artifact.RefName, logger))
 				{
 					DirectoryNode outputNode = new DirectoryNode();
 
@@ -1066,21 +1066,8 @@ namespace Horde.Agent.Execution
 				}
 
 				// Write the final node
-				await storage.WriteRefTargetAsync(refName, outputNodeRef.Handle, new RefOptions(), cancellationToken: cancellationToken);
+				await storage.WriteRefTargetAsync(artifact.RefName, outputNodeRef.Handle, new RefOptions(), cancellationToken: cancellationToken);
 				logger.LogInformation("Upload took {Time:n1}s", timer.Elapsed.TotalSeconds);
-
-				// Create the artifact
-				using IRpcClientRef<JobRpc.JobRpcClient> jobRpc = await RpcConnection.GetClientRefAsync<JobRpc.JobRpcClient>(cancellationToken);
-
-				CreateJobArtifactRequest artifactRequest = new CreateJobArtifactRequest();
-				artifactRequest.JobId = JobId;
-				artifactRequest.StepId = step.StepId;
-				artifactRequest.Type = JobArtifactType.TempStorage;
-				artifactRequest.NamespaceId = _namespaceId.ToString();
-				artifactRequest.RefName = refName.ToString();
-
-				CreateJobArtifactResponse artifact = await jobRpc.Client.CreateArtifactAsync(artifactRequest, cancellationToken: cancellationToken);
-				logger.LogInformation("Created output artifact {ArtifactId} with ref {RefName} in namespace {Namespace}", artifact.Id, artifact.RefName, artifact.NamespaceId);
 			}
 
 			return true;
@@ -1524,7 +1511,7 @@ namespace Horde.Agent.Execution
 					jobLogger.LogInformation(ex, "Unable to parse/upload telemetry files: {Message}", ex.Message);
 				}
 
-				await CreateArtifactsAsync(step.StepId, JobArtifactType.Trace, workspaceDir, telemetryFiles, jobLogger, cancellationToken);
+				await CreateArtifactsAsync(step.StepId, TempStorage.GetArtifactNameForNode(step.Name), JobArtifactType.Trace, workspaceDir, telemetryFiles, jobLogger, cancellationToken);
 
 				foreach ((_, FileReference telemetryFile) in telemetryFiles)
 				{
@@ -1566,7 +1553,7 @@ namespace Horde.Agent.Execution
 				jobLogger.LogInformation("Found {NumResults} test results", combinedTestData.Count);
 				await UploadTestDataAsync(step.StepId, combinedTestData);
 
-				await CreateArtifactsAsync(step.StepId, JobArtifactType.TestData, workspaceDir, testDataFiles, jobLogger, cancellationToken);
+				await CreateArtifactsAsync(step.StepId, TempStorage.GetArtifactNameForNode(step.Name), JobArtifactType.TestData, workspaceDir, testDataFiles, jobLogger, cancellationToken);
 			}
 
 			if (DirectoryReference.Exists(logDir))
@@ -1574,7 +1561,7 @@ namespace Horde.Agent.Execution
 				List<FileReference> artifactFiles = DirectoryReference.EnumerateFiles(logDir, "*", SearchOption.AllDirectories).ToList();
 				if (JobOptions.UseNewTempStorage ?? false)
 				{
-					await CreateArtifactAsync(step.StepId, JobArtifactType.Saved, workspaceDir, artifactFiles, jobLogger, cancellationToken);
+					await CreateArtifactAsync(TempStorage.GetArtifactNameForNode(step.Name), JobArtifactType.Saved, workspaceDir, artifactFiles, jobLogger, cancellationToken);
 				}
 				else
 				{

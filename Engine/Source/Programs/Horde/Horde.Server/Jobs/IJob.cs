@@ -1574,5 +1574,21 @@ namespace Horde.Server.Jobs
 			response.Arguments.Add(job.Arguments);
 			return response;
 		}
+
+		/// <summary>
+		/// Gets a key attached to all artifacts produced for a job
+		/// </summary>
+		public static string GetArtifactKey(this IJob job)
+		{
+			return $"job:{job.Id}";
+		}
+
+		/// <summary>
+		/// Gets a key attached to all artifacts produced for a job step
+		/// </summary>
+		public static string GetArtifactKey(this IJob job, IJobStep jobStep)
+		{
+			return $"job:{job.Id}/step:{jobStep.Id}";
+		}
 	}
 }

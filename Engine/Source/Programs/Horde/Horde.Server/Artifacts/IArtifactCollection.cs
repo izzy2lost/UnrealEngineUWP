@@ -19,18 +19,16 @@ namespace Horde.Server.Artifacts
 		/// <summary>
 		/// Creates a new artifact
 		/// </summary>
-		/// <param name="artifactId">Unique id of the artifact</param>
+		/// <param name="name">Name of the artifact</param>
 		/// <param name="type">Type identifier for the artifact</param>
 		/// <param name="streamId">Stream that the artifact was built from</param>
 		/// <param name="change">Change number that the artifact was built from</param>
 		/// <param name="keys">Keys for the artifact</param>
-		/// <param name="namespaceId">Namespace containing the data</param>
-		/// <param name="refName">Artifact ref name</param>
 		/// <param name="expireAtUtc">Time at which to expire the artifact</param>
 		/// <param name="scopeName">Inherited scope used for permissions</param>
 		/// <param name="cancellationToken">Cancellation token for the operation</param>
 		/// <returns>The new log file document</returns>
-		Task<IArtifact> AddAsync(ArtifactId artifactId, ArtifactType type, StreamId streamId, int change, IEnumerable<string> keys, NamespaceId namespaceId, RefName refName, DateTime? expireAtUtc, AclScopeName scopeName, CancellationToken cancellationToken = default);
+		Task<IArtifact> AddAsync(ArtifactName name, ArtifactType type, StreamId streamId, int change, IEnumerable<string> keys, DateTime? expireAtUtc, AclScopeName scopeName, CancellationToken cancellationToken = default);
 
 		/// <summary>
 		/// Deletes artifacts
@@ -49,15 +47,17 @@ namespace Horde.Server.Artifacts
 		IAsyncEnumerable<IEnumerable<IArtifact>> FindExpiredAsync(DateTime utcNow, CancellationToken cancellationToken = default);
 
 		/// <summary>
-		/// Finds artifacts with the given keys
+		/// Finds artifacts with the given keys.
 		/// </summary>
 		/// <param name="streamId">Stream to find artifacts for</param>
 		/// <param name="minChange">Minimum changelist number for the artifacts</param>
 		/// <param name="maxChange">Maximum changelist number for the artifacts</param>
-		/// <param name="keys">Keys to search for</param>
+		/// <param name="name">Name of the artifact to search for</param>
+		/// <param name="type">The artifact type</param>
+		/// <param name="keys">Set of keys, all of which must all be present on any returned artifacts</param>
 		/// <param name="cancellationToken">Cancellation token for the operation</param>
-		/// <returns>Sequence of artifacts</returns>
-		IAsyncEnumerable<IArtifact> FindAsync(StreamId streamId, int? minChange = null, int? maxChange = null, IEnumerable<string>? keys = null, CancellationToken cancellationToken = default);
+		/// <returns>Sequence of artifacts. Ordered by descending CL order, then by descending order in which they were created.</returns>
+		IAsyncEnumerable<IArtifact> FindAsync(StreamId streamId, int? minChange = null, int? maxChange = null, ArtifactName? name = null, ArtifactType? type = null, IEnumerable<string>? keys = null, CancellationToken cancellationToken = default);
 
 		/// <summary>
 		/// Gets an artifact by ID

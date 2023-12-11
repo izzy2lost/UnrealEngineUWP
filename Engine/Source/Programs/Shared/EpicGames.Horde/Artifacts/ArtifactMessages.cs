@@ -2,12 +2,32 @@
 
 using System.Collections.Generic;
 using EpicGames.Core;
+using EpicGames.Horde.Storage;
 using EpicGames.Horde.Streams;
 
 #pragma warning disable CA2227
 
 namespace EpicGames.Horde.Artifacts
 {
+	/// <summary>
+	/// Creates a new artifact
+	/// </summary>
+	/// <param name="Name">Name of the artifact</param>
+	/// <param name="Type">Additional search keys tagged on the artifact</param>
+	/// <param name="StreamId">Stream to create the artifact for</param>
+	/// <param name="Change">Change number for the artifact</param>
+	/// <param name="Keys">Keys used to identify the artifact</param>
+	public record CreateArtifactRequest(ArtifactName Name, ArtifactType Type, StreamId? StreamId, int? Change, List<string> Keys);
+
+	/// <summary>
+	/// Information about a created artifact
+	/// </summary>
+	/// <param name="ArtifactId">Identifier for the new artifact</param>
+	/// <param name="NamespaceId">Namespace that should be written to with artifact data</param>
+	/// <param name="RefName">Ref to write to</param>
+	/// <param name="Token">Token which can be used to upload blobs for the artifact</param>
+	public record CreateArtifactResponse(ArtifactId ArtifactId, NamespaceId NamespaceId, RefName RefName, string Token);
+
 	/// <summary>
 	/// Describes an artifact
 	/// </summary>
