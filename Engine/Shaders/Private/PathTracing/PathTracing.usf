@@ -141,6 +141,13 @@ RAY_TRACING_ENTRY_RAYGEN(PathTracingMainRG)
 	}
 
 	const bool KeepGoing = PathTracingKernel(PathState, Bounce);
+	const uint2 TextureIndex = ComputeTextureIndex(uint2(LinearPixelIndex % DispatchDim.x,
+	                                                     LinearPixelIndex / DispatchDim.x));
+	if (Bounce == 0)
+	{
+		// Camera ray must write depth right away because we don't want to have to carry DepthZ in the PackedPathState
+		PathState.WriteDepth(TextureIndex);
+	}
 	if (KeepGoing)
 	{
 		// NOTE: using wave instructions to reduce contention seems to run slightly slower? (tested on RTX-3080)
@@ -153,8 +160,7 @@ RAY_TRACING_ENTRY_RAYGEN(PathTracingMainRG)
 	{
 		// nothing left to do
 		// Accumulate radiance and update pixel variance
-		PathState.WritePixel(ComputeTextureIndex(uint2(LinearPixelIndex % DispatchDim.x,
-			                                           LinearPixelIndex / DispatchDim.x)));
+		PathState.WritePixel(TextureIndex);
 	}
 }
 
@@ -193,7 +199,9 @@ RAY_TRACING_ENTRY_RAYGEN(PathTracingMainRG)
 	}
 
 	// Accumulate radiance and update pixel variance
-	PathState.WritePixel();
+	int2 TextureIndex = ComputeTextureIndex(DispatchIdx);
+	PathState.WritePixel(TextureIndex);
+	PathState.WriteDepth(TextureIndex);
 }
 
 #endif

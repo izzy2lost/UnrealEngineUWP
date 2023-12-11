@@ -92,8 +92,7 @@ struct FPathState
 									// 80 bytes total (see FPathTracingPackedPathState)
 
 	// Temporary parameters not stored				
-	bool DepthResamplingWeight;		
-	int2 PrimaryRayTextureIndex;		// texture index cache to write to the frame buffer for primary ray operation like depth.	
+	float DepthZ;                   // Camera ray depth
 
 	bool HasMadeContributionScatter()
 	{
@@ -196,24 +195,10 @@ struct FPathState
 		NormalTexture[TextureIndex].xyz = lerp(OldNormal.xyz,Normal.xyz, Blend);
 	}
 
-	void WritePixel()
+	void WriteDepth(uint2 TextureIndex)
 	{
-		WritePixel(PrimaryRayTextureIndex);
-	}
-
-	void WriteDepth(FDepthContext DepthContext)
-	{
-		float OldDepth = Iteration > 0 ? NormalTexture[PrimaryRayTextureIndex].w : 0;
-		
-		float Depth = 0;
-		
-		if (DepthContext.HitCount > 0)
-		{
-			const float3 ViewZ = View.ViewToTranslatedWorld[2].xyz;
-			Depth = dot(DepthContext.TranslatedWorldPos, ViewZ);
-		}
-
-		NormalTexture[PrimaryRayTextureIndex].w = lerp(OldDepth, max(OldDepth, ConvertToDeviceZ(Depth)), DepthResamplingWeight);
+		float OldDepth = Iteration > 0 ? NormalTexture[TextureIndex].w : 0;
+		NormalTexture[TextureIndex].w = max(OldDepth, ConvertToDeviceZ(DepthZ));
 	}
 };
 
@@ -413,7 +398,6 @@ FPathTracingPayload TraceTransparentRay(inout FPathState PathState, int Bounce, 
 	float2 RISRandSample = RandomSequence_GenerateSample2D(PathState.RandSequence);
 	FRISContext HitSample = InitRISContext(RISRandSample.x);
 	FRISContext VolSample = InitRISContext(RISRandSample.y);
-	FDepthContext DepthContext = InitDepthContext();
 
 	float3 PayloadThroughput = PathState.PathThroughput;
 	FPathTracingPayload Payload;
@@ -696,9 +680,10 @@ FPathTracingPayload TraceTransparentRay(inout FPathState PathState, int Bounce, 
 			break;
 		}
 
-		if (bIsCameraRay)
+		if (bIsCameraRay && HitPayload.ShouldOutputDepth() && PathState.DepthZ == 0.0)
 		{
-			DepthContext.AddHit(HitPayload);
+			const float3 ViewZ = View.ViewToTranslatedWorld[2].xyz;
+			PathState.DepthZ = dot(HitPayload.TranslatedWorldPos, ViewZ);
 		}
 
 		if (!bLastBounce)
@@ -742,11 +727,6 @@ FPathTracingPayload TraceTransparentRay(inout FPathState PathState, int Bounce, 
 	{
 		PathState.PathThroughput = 0;
 		Payload.SetMiss();
-	}
-
-	if (bIsCameraRay)
-	{
-		PathState.WriteDepth(DepthContext);
 	}
 
 	return Payload;
@@ -1341,7 +1321,7 @@ bool ProcessSubsurfaceRandomWalk(inout FPathTracingPayload Payload, inout float3
 	return false;
 }
 
-FPathState CreatePathState(int2 PixelIndex, int2 PrimaryRayTextureIndex)
+FPathState CreatePathState(int2 PixelIndex, int2 TextureIndex)
 {
 	FPathState Output = (FPathState)0;
 
@@ -1350,7 +1330,7 @@ FPathState CreatePathState(int2 PixelIndex, int2 PrimaryRayTextureIndex)
 #if PATH_TRACER_USE_ADAPTIVE_SAMPLING
 	// initialize progressive sobol sequence based on current index for this pixel
 	// NOTE: Error diffusion sampler cannot be used in this mode
-	int SampleIndex = int(VarianceTexture[PrimaryRayTextureIndex].z);
+	int SampleIndex = int(VarianceTexture[TextureIndex].z);
 	RandomSequence_Initialize(Output.RandSequence, LaunchIndex.x + LaunchIndex.y * 65536, TemporalSeed - Iteration + SampleIndex);
 #else
 	// Initialize random sequence 
@@ -1377,14 +1357,6 @@ FPathState CreatePathState(int2 PixelIndex, int2 PrimaryRayTextureIndex)
 
 		float2 ViewportUV = (LaunchIndex + AAJitter) * View.BufferSizeAndInvSize.zw;
 		Output.Ray = CreatePrimaryRay(ViewportUV);
-
-#if 0
-		// only record the depth within a square.
-		Output.DepthResamplingWeight = all(AAJitter >= 0.0) && all(AAJitter <= 1.0) ? 1 : 0;
-#else
-		// record depth for all rays in the filter footprint (TODO: simplify code that uses this weight instead)
-		Output.DepthResamplingWeight = 1.0;
-#endif
 	}
 
 	if (CameraLensRadius.y > 0)
@@ -1414,7 +1386,6 @@ FPathState CreatePathState(int2 PixelIndex, int2 PrimaryRayTextureIndex)
 	Output.PathRoughness = 0;
 	Output.SigmaT = float3(StartingExtinctionCoefficient[0], StartingExtinctionCoefficient[1], StartingExtinctionCoefficient[2]);
 	Output.FirstScatterType = PATHTRACER_SCATTER_CAMERA;
-	Output.PrimaryRayTextureIndex = PrimaryRayTextureIndex;
 
 	return Output;
 }

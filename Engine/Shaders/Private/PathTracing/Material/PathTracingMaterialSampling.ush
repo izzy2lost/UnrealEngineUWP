@@ -271,49 +271,6 @@ void AccumulateAlbedo(float3 SigmaS, float3 PathThroughput, float PathRoughness,
 
 #endif // SIMPLIFIED_MATERIAL_SHADER
 
-
-#define DEBUG_DEPTH_SAMPLING 0
-
-struct FDepthContext
-{
-	float3 TranslatedWorldPos;
-	uint HitCount;
-
-#if DEBUG_DEPTH_SAMPLING
-	// visualize the depth status for the ith ray hit.
-	int DebugHitCount;
-#endif
-
-	void AddHit(FPathTracingPayload Payload)
-	{
-#if DEBUG_DEPTH_SAMPLING
-		if (DebugHitCount == 0)
-		{
-			return;
-		}
-#endif
-		// 2. Matching depth output to the rasterizer.
-		if (Payload.ShouldOutputDepth() && HitCount == 0)
-		{
-			TranslatedWorldPos = Payload.TranslatedWorldPos;
-			HitCount++;
-		}
-
-#if DEBUG_DEPTH_SAMPLING
-		DebugHitCount--;
-#endif
-	}
-};
-
-FDepthContext InitDepthContext()
-{
-	FDepthContext Context = (FDepthContext)0;
-#if DEBUG_DEPTH_SAMPLING
-	Context.DebugHitCount = View.GeneralPurposeTweak;
-#endif
-	return Context;
-}
-
 // returns an average roughness for the whole material (for the path roughness of shadow rays from this material)
 float GetAverageRoughness(FPathTracingPayload Payload)
 {
@@ -326,7 +283,6 @@ float GetAverageRoughness(FPathTracingPayload Payload)
 		case SHADINGMODELID_SUBSTRATE:
 		case SHADINGMODELID_THIN_TRANSLUCENT:
 		{
-
 			AvgRoughness = max(AvgRoughness, Payload.RoughnessData.y);
 			// Only non-glass slabs contain diffuse
 			float3 DiffuseColor = Payload.HasRefraction() ? 0.0 : Payload.SubsurfaceColor + Payload.DiffuseColor;
