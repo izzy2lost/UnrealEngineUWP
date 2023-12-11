@@ -207,7 +207,7 @@ void ULandscapeSubsystem::UnregisterComponent(ULandscapeComponent* Component)
 
 void ULandscapeSubsystem::RemoveGrassInstances(const TSet<ULandscapeComponent*>* ComponentsToRemoveGrassInstances)
 {
-	TRACE_CPUPROFILER_EVENT_SCOPE(RemoveGrassInstances);
+	TRACE_CPUPROFILER_EVENT_SCOPE(ULandscapeSubsystem::RemoveGrassInstances);
 	for (TWeakObjectPtr<ALandscapeProxy> ProxyPtr : Proxies)
 	{
 		if (ALandscapeProxy* Proxy = ProxyPtr.Get())
@@ -775,6 +775,8 @@ ALandscapeProxy* ULandscapeSubsystem::FindOrAddLandscapeProxy(ULandscapeInfo* La
 
 void ULandscapeSubsystem::DisplayMessages(FCanvas* Canvas, float& XPos, float& YPos)
 {
+	TRACE_CPUPROFILER_EVENT_SCOPE(ULandscapeSubsystem::DisplayMessages);
+
 	const int32 FontSizeY = 20;
 	FCanvasTextItem SmallTextItem(FVector2D(0, 0), FText::GetEmpty(), GEngine->GetSmallFont(), FLinearColor::White);
 	SmallTextItem.EnableShadow(FLinearColor::Black);

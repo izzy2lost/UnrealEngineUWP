@@ -340,7 +340,7 @@ FLandscapeGrassMapsBuilder::FComponentState::FComponentState(ULandscapeComponent
 
 void FLandscapeGrassMapsBuilder::FPendingComponent::UpdatePriorityDistance(const TArray<FVector>&Cameras)
 {
-	TRACE_CPUPROFILER_EVENT_SCOPE(UpdatePriorityDistance);
+	TRACE_CPUPROFILER_EVENT_SCOPE(FLandscapeGrassMapsBuilder::FPendingComponent::UpdatePriorityDistance);
 	ULandscapeComponent* Component = State->Component;
 	FBoxSphereBounds WorldBounds = Component->CalcBounds(Component->GetComponentTransform());
 	double MinSqrDistanceToComponent = UE::Landscape::CalculateMinDistanceToCameras(Cameras, WorldBounds);
@@ -356,6 +356,7 @@ void FAsyncFetchTask::DoWork()
 
 bool FLandscapeGrassMapsBuilder::UpdateTrackedComponents(const TArray<FVector>& Cameras, int32 LocalMaxRendering, int32 MaxExpensiveUpdateChecksToPerform, bool bCancelAndEvictAll)
 {
+	TRACE_CPUPROFILER_EVENT_SCOPE(FLandscapeGrassMapsBuilder::UpdateTrackedComponents);
 	SCOPE_CYCLE_COUNTER(STAT_UpdateComponentGrassMaps);
 
 	bool bChanged = false;
@@ -721,7 +722,7 @@ void FLandscapeGrassMapsBuilder::AmortizedUpdateGrassMaps(
 bool FLandscapeGrassMapsBuilder::BuildGrassMapsNowForComponents(
 	TArrayView<TObjectPtr<ULandscapeComponent>> LandscapeComponents, FScopedSlowTask* SlowTask, bool bMarkDirty)
 {
-	TRACE_CPUPROFILER_EVENT_SCOPE(BuildGrassMapsNowForComponents);
+	TRACE_CPUPROFILER_EVENT_SCOPE(FLandscapeGrassMapsBuilder::BuildGrassMapsNowForComponents);
 	const int32 MaxStreamingRendering = FMath::Max(GGrassMapMaxComponentsForBlockingUpdate, 1);
 
 	if (LandscapeComponents.IsEmpty())
@@ -830,7 +831,7 @@ bool FLandscapeGrassMapsBuilder::BuildGrassMapsNowForComponents(
 
 bool FLandscapeGrassMapsBuilder::CancelAndEvict(FComponentState& State)
 {
-	TRACE_CPUPROFILER_EVENT_SCOPE(CancelAndEvict);
+	TRACE_CPUPROFILER_EVENT_SCOPE(FLandscapeGrassMapsBuilder::CancelAndEvict);
 
 	// handle transitioning from any stage to EComponentState::Pending
 	switch (State.Stage)
@@ -944,7 +945,7 @@ bool FLandscapeGrassMapsBuilder::CancelAndEvict(FComponentState& State)
 
 bool FLandscapeGrassMapsBuilder::StartGrassMapGeneration(FComponentState& State, bool bForceCompileShaders)
 {
-	TRACE_CPUPROFILER_EVENT_SCOPE(StartGrassMapGeneration);
+	TRACE_CPUPROFILER_EVENT_SCOPE(FLandscapeGrassMapsBuilder::StartGrassMapGeneration);
 	check(State.Stage == EComponentStage::Pending);
 
 	ULandscapeComponent* Component = State.Component;
@@ -1058,7 +1059,7 @@ void FLandscapeGrassMapsBuilder::PendingToPopulatedFastPathNoGrass(FComponentSta
 
 void FLandscapeGrassMapsBuilder::PendingToStreaming(FComponentState& State)
 {
-	TRACE_CPUPROFILER_EVENT_SCOPE(PendingToStreaming);
+	TRACE_CPUPROFILER_EVENT_SCOPE(FLandscapeGrassMapsBuilder::PendingToStreaming);
 	ULandscapeComponent* Component = State.Component;
 
 	// determine which textures we need to stream by inspecting the material, kick off streaming requests for them
