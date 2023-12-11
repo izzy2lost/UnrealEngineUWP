@@ -29,6 +29,7 @@ UControlRigEditorSettings::UControlRigEditorSettings(const FObjectInitializer& O
 	BackwardsAndForwardsBorderColor = FLinearColor::Blue;
 	bShowStackedHierarchy = false;
 	MaxStackSize = 16;
+	bLeftMouseDragDoesMarquee = true;
 #endif
 }
 

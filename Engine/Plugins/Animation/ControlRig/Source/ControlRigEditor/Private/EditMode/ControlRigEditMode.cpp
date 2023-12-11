@@ -68,6 +68,9 @@
 #include "Animation/DebugSkelMeshComponent.h"
 #include "Materials/Material.h"
 #include "ControlRigEditorStyle.h"
+#include "DragTool_BoxSelect.h"
+#include "DragTool_FrustumSelect.h"
+#include "AnimationEditorViewportClient.h"
 
 #include UE_INLINE_GENERATED_CPP_BY_NAME(ControlRigEditMode)
 
@@ -762,7 +765,9 @@ TSet<FName> FControlRigEditMode::GetActiveControlsFromSequencer(UControlRig* Con
 
 
 void FControlRigEditMode::Render(const FSceneView* View, FViewport* Viewport, FPrimitiveDrawInterface* PDI)
-{	
+{
+	DragToolHandler.Render3DDragTool(View, PDI);
+
 	const UControlRigEditModeSettings* Settings = GetDefault<UControlRigEditModeSettings>();
 	const bool bIsInGameView = !AreEditingControlRigDirectly() ? (ViewportToGameView.Find(Viewport) && ViewportToGameView[Viewport]) : false;
 	bool bRender = !Settings->bHideControlShapes;
@@ -948,6 +953,12 @@ void FControlRigEditMode::Render(const FSceneView* View, FViewport* Viewport, FP
 	}
 }
 
+void FControlRigEditMode::DrawHUD(FEditorViewportClient* ViewportClient, FViewport* Viewport, const FSceneView* View, FCanvas* Canvas)
+{
+	IPersonaEditMode::DrawHUD(ViewportClient, Viewport, View, Canvas);
+	DragToolHandler.RenderDragTool(View, Canvas);
+}
+
 bool FControlRigEditMode::InputKey(FEditorViewportClient* InViewportClient, FViewport* InViewport, FKey InKey, EInputEvent InEvent)
 {
 	if (InEvent != IE_Released)
@@ -1025,6 +1036,15 @@ bool FControlRigEditMode::EndTracking(FEditorViewportClient* InViewportClient, F
 		return true;
 	}
 
+	if (IsMovingCamera(InViewport))
+	{
+		return true;
+	}
+	if (DragToolHandler.EndTracking(InViewportClient, InViewport))
+	{
+		return true;
+	}
+
 	const bool bWasInteracting = bManipulatorMadeChange && InteractionType != (uint8)EControlRigInteractionType::None;
 	
 	InteractionType = (uint8)EControlRigInteractionType::None;
@@ -1079,6 +1099,17 @@ bool FControlRigEditMode::StartTracking(FEditorViewportClient* InViewportClient,
 	if (IsDragAnimSliderToolPressed(InViewport))
 	{
 		return true;
+	}
+
+	if (IsMovingCamera(InViewport))
+	{
+		InViewportClient->SetCurrentWidgetAxis(EAxisList::None);
+		return true;
+	}
+	if (IsDoingDrag(InViewport))
+	{
+		DragToolHandler.MakeDragTool(InViewportClient);
+		return DragToolHandler.StartTracking(InViewportClient, InViewport);
 	}
 
 	InteractionType = GetInteractionType(InViewportClient);
@@ -1761,10 +1792,117 @@ bool FControlRigEditMode::FrustumSelect(const FConvexVolume& InFrustum, FEditorV
 			}
 		}
 	}
+
+	EWorldType::Type WorldType = InViewportClient->GetWorld()->WorldType;
+	const bool bIsAssetEditor = WorldType == EWorldType::Editor || WorldType == EWorldType::EditorPreview;
+
+	if (bIsAssetEditor)
+	{
+		float BoneRadius = 1;
+		EBoneDrawMode::Type BoneDrawMode = EBoneDrawMode::None;
+		if (const FAnimationViewportClient* AnimViewportClient = static_cast<FAnimationViewportClient*>(InViewportClient))
+		{
+			BoneDrawMode = AnimViewportClient->GetBoneDrawMode();
+			BoneRadius = AnimViewportClient->GetBoneDrawSize();
+		}
+
+		if(BoneDrawMode != EBoneDrawMode::None)
+		{
+			for(TWeakObjectPtr<UControlRig> WeakControlRig : RuntimeControlRigs)
+			{
+				if(UControlRig* ControlRig = WeakControlRig.Get())
+				{
+					if(URigHierarchy* Hierarchy = ControlRig->GetHierarchy())
+					{
+						TArray<FRigBoneElement*> Bones = Hierarchy->GetBones();
+						for(int32 Index = 0; Index < Bones.Num(); Index++)
+						{
+							const int32 BoneIndex = Bones[Index]->GetIndex();
+							const TArray<int32> Children = Hierarchy->GetChildren(BoneIndex);
+
+							const FVector Start = Hierarchy->GetGlobalTransform(BoneIndex).GetLocation();
+
+							if(InFrustum.IntersectSphere(Start, 0.1f * BoneRadius))
+							{
+								bSomethingSelected = true;
+								SetRigElementSelection(ControlRig, ERigElementType::Bone, Bones[Index]->GetFName(), true);
+								continue;
+							}
+
+							bool bSelectedBone = false;
+							for(int32 ChildIndex : Children)
+							{
+								if(Hierarchy->Get(ChildIndex)->GetType() != ERigElementType::Bone)
+								{
+									continue;
+								}
+								
+								const FVector End = Hierarchy->GetGlobalTransform(ChildIndex).GetLocation();
+
+								const float BoneLength = (End - Start).Size();
+								const float Radius = FMath::Max(BoneLength * 0.05f, 0.1f) * BoneRadius;
+								const int32 Steps = FMath::CeilToInt(BoneLength / (Radius * 1.5f) + 0.5);
+								const FVector Step = (End - Start) / FVector::FReal(Steps - 1);
+
+								// intersect segment-wise along the bone
+								FVector Position = Start;
+								for(int32 StepIndex = 0; StepIndex < Steps; StepIndex++)
+								{
+									if(InFrustum.IntersectSphere(Position, Radius))
+									{
+										bSomethingSelected = true;
+										bSelectedBone = true;
+										SetRigElementSelection(ControlRig, ERigElementType::Bone, Bones[Index]->GetFName(), true);
+										break;
+									}
+									Position += Step;
+								}
+
+								if(bSelectedBone)
+								{
+									break;
+								}
+							}
+						}
+					}
+				}
+			}
+		}
+
+		for(TWeakObjectPtr<UControlRig> WeakControlRig : RuntimeControlRigs)
+		{
+			if(UControlRig* ControlRig = WeakControlRig.Get())
+			{
+				if (Settings->bDisplayNulls || ControlRig->IsConstructionModeEnabled())
+				{
+					if(URigHierarchy* Hierarchy = ControlRig->GetHierarchy())
+					{
+						TArray<FRigNullElement*> Nulls = Hierarchy->GetNulls();
+						for(int32 Index = 0; Index < Nulls.Num(); Index++)
+						{
+							const int32 NullIndex = Nulls[Index]->GetIndex();
+
+							const FTransform Transform = Hierarchy->GetGlobalTransform(NullIndex);
+							const FVector Origin = Transform.GetLocation();
+							const float MaxScale = Transform.GetMaximumAxisScale();
+
+							if(InFrustum.IntersectSphere(Origin, MaxScale * Settings->AxisScale))
+							{
+								bSomethingSelected = true;
+								SetRigElementSelection(ControlRig, ERigElementType::Null, Nulls[Index]->GetFName(), true);
+							}
+						}
+					}
+				}
+			}
+		}
+	}
+
 	if (bSomethingSelected == true)
 	{
 		return true;
 	}
+	
 	ScopedTransaction.Cancel();
 	//if only selecting controls return true to stop any more selections
 	if (Settings && Settings->bOnlySelectRigControls)
@@ -1781,22 +1919,29 @@ void FControlRigEditMode::SelectNone()
 	FEdMode::SelectNone();
 }
 
-static bool IsDoingDrag(const TWeakPtr<ISequencer>& WeakSequencer, FViewport* InViewport, EAxisList::Type CurrentAxis)
+bool FControlRigEditMode::IsMovingCamera(FViewport* InViewport) const
 {
-	if (WeakSequencer.IsValid())
-	{
-		ISequencer* Sequencer = WeakSequencer.Pin().Get();
-		const USequencerSettings* SequencerSettings = Sequencer->GetSequencerSettings();
-		const bool LeftMouseButtonDown = InViewport->KeyState(EKeys::LeftMouseButton);
-		const bool bIsCtrlKeyDown = InViewport->KeyState(EKeys::LeftControl) || InViewport->KeyState(EKeys::RightControl);
-		const bool bIsAltKeyDown = InViewport->KeyState(EKeys::LeftAlt) || InViewport->KeyState(EKeys::RightAlt);
-
-		//if shfit is down we still want to drag
-
-		return LeftMouseButtonDown && (CurrentAxis == EAxisList::None) && !bIsCtrlKeyDown && !bIsAltKeyDown && (SequencerSettings ? SequencerSettings->GetLeftMouseDragDoesMarquee() : false);
-	}
-	return false;
+	const bool LeftMouseButtonDown = InViewport->KeyState(EKeys::LeftMouseButton);
+	const bool bIsAltKeyDown = InViewport->KeyState(EKeys::LeftAlt) || InViewport->KeyState(EKeys::RightAlt);
+	return LeftMouseButtonDown && bIsAltKeyDown;
 }
+
+bool FControlRigEditMode::IsDoingDrag(FViewport* InViewport) const
+{
+	if(!UControlRigEditorSettings::Get()->bLeftMouseDragDoesMarquee)
+	{
+		return false;
+	}
+	
+	const bool LeftMouseButtonDown = InViewport->KeyState(EKeys::LeftMouseButton);
+	const bool bIsCtrlKeyDown = InViewport->KeyState(EKeys::LeftControl) || InViewport->KeyState(EKeys::RightControl);
+	const bool bIsAltKeyDown = InViewport->KeyState(EKeys::LeftAlt) || InViewport->KeyState(EKeys::RightAlt);
+	EAxisList::Type CurrentAxis = GetCurrentWidgetAxis();
+	
+	//if shift is down we still want to drag
+	return LeftMouseButtonDown && (CurrentAxis == EAxisList::None) && !bIsCtrlKeyDown && !bIsAltKeyDown;
+}
+
 bool FControlRigEditMode::InputDelta(FEditorViewportClient* InViewportClient, FViewport* InViewport, FVector& InDrag, FRotator& InRot, FVector& InScale)
 {
 	if (IsDragAnimSliderToolPressed(InViewport)) //this is needed to make sure we get all of the processed mouse events, for some reason the above may not return true
@@ -1805,6 +1950,10 @@ bool FControlRigEditMode::InputDelta(FEditorViewportClient* InViewportClient, FV
 		return true;
 	}
 
+	if (IsDoingDrag(InViewport))
+	{
+		return DragToolHandler.InputDelta(InViewportClient, InViewport, InDrag, InRot, InScale);
+	}
 
 	FVector Drag = InDrag;
 	FRotator Rot = InRot;
@@ -4843,6 +4992,96 @@ void FControlRigEditMode::OnEditorClosed()
 {
 	ControlRigShapeActors.Reset();
 	ControlRigsToRecreate.Reset();
+}
+
+FControlRigEditMode::FMarqueeDragTool::FMarqueeDragTool()
+	: bIsDeletingDragTool(false)
+{
+}
+
+bool FControlRigEditMode::FMarqueeDragTool::StartTracking(FEditorViewportClient* InViewportClient, FViewport* InViewport)
+{
+	return (DragTool.IsValid() && InViewportClient->GetCurrentWidgetAxis() == EAxisList::None);
+}
+
+bool FControlRigEditMode::FMarqueeDragTool::EndTracking(FEditorViewportClient* InViewportClient, FViewport* InViewport)
+{
+	if (!bIsDeletingDragTool)
+	{
+		// Ending the drag tool may pop up a modal dialog which can cause unwanted reentrancy - protect against this.
+		TGuardValue<bool> RecursionGuard(bIsDeletingDragTool, true);
+
+		// Delete the drag tool if one exists.
+		if (DragTool.IsValid())
+		{
+			if (DragTool->IsDragging())
+			{
+				DragTool->EndDrag();
+			}
+			DragTool.Reset();
+			return true;
+		}
+	}
+	
+	return false;
+}
+
+void FControlRigEditMode::FMarqueeDragTool::MakeDragTool(FEditorViewportClient* InViewportClient)
+{
+	DragTool.Reset();
+	if (InViewportClient->IsOrtho())
+	{
+		DragTool = MakeShareable( new FDragTool_ActorBoxSelect(InViewportClient) );
+	}
+	else
+	{
+		DragTool = MakeShareable( new FDragTool_ActorFrustumSelect(InViewportClient) );
+	}
+}
+
+bool FControlRigEditMode::FMarqueeDragTool::InputDelta(FEditorViewportClient* InViewportClient, FViewport* InViewport, FVector& InDrag, FRotator& InRot, FVector& InScale)
+{
+	if (DragTool.IsValid() == false || InViewportClient->GetCurrentWidgetAxis() != EAxisList::None)
+	{
+		return false;
+	}
+	if (DragTool->IsDragging() == false)
+	{
+		int32 InX = InViewport->GetMouseX();
+		int32 InY = InViewport->GetMouseY();
+		FVector2D Start(InX, InY);
+
+		DragTool->StartDrag(InViewportClient, GEditor->ClickLocation,Start);
+	}
+	const bool bUsingDragTool = UsingDragTool();
+	if (bUsingDragTool == false)
+	{
+		return false;
+	}
+
+	DragTool->AddDelta(InDrag);
+	return true;
+}
+
+bool FControlRigEditMode::FMarqueeDragTool::UsingDragTool() const
+{
+	return DragTool.IsValid() && DragTool->IsDragging();
+}
+
+void FControlRigEditMode::FMarqueeDragTool::Render3DDragTool(const FSceneView* View, FPrimitiveDrawInterface* PDI)
+{
+	if (DragTool.IsValid())
+	{
+		DragTool->Render3D(View, PDI);
+	}
+}
+
+void FControlRigEditMode::FMarqueeDragTool::RenderDragTool(const FSceneView* View, FCanvas* Canvas)
+{
+	if (DragTool.IsValid())
+	{
+		DragTool->Render(View, Canvas);
+	}
 }
 
 void FControlRigEditMode::DestroyShapesActors(UControlRig* ControlRig)

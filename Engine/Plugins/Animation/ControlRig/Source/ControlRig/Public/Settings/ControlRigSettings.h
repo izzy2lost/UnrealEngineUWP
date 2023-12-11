@@ -122,6 +122,12 @@ public:
 	UPROPERTY(EditAnywhere, config, Category = Hierarchy, meta = (EditCondition = "bShowStackedHierarchy"))
 	int32 MaxStackSize;
 
+	/**
+	 * If turned on we'll offer box / marquee selection in the control rig editor viewport.
+	 */
+	UPROPERTY(EditAnywhere, config, Category = Hierarchy)
+	bool bLeftMouseDragDoesMarquee;
+
 #endif
 
 	static UControlRigEditorSettings * Get() { return GetMutableDefault<UControlRigEditorSettings>(); }

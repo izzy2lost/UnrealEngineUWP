@@ -13,6 +13,7 @@
 #include "UnrealWidgetFwd.h"
 #include "IPersonaEditMode.h"
 #include "Misc/Guid.h"
+#include "EditorDragTools.h"
 #include "ControlRigEditMode.generated.h"
 
 class FEditorViewportClient;
@@ -111,6 +112,7 @@ public:
 	virtual void Exit() override;
 	virtual void Tick(FEditorViewportClient* ViewportClient, float DeltaTime) override;
 	virtual void Render(const FSceneView* View, FViewport* Viewport, FPrimitiveDrawInterface* PDI) override;
+	virtual void DrawHUD(FEditorViewportClient* ViewportClient, FViewport* Viewport, const FSceneView* View, FCanvas* Canvas) override;
 	virtual bool InputKey(FEditorViewportClient* InViewportClient, FViewport* InViewport, FKey InKey, EInputEvent InEvent) override;
 	virtual bool EndTracking(FEditorViewportClient* InViewportClient, FViewport* InViewport) override;
 	virtual bool StartTracking(FEditorViewportClient* InViewportClient, FViewport* InViewport) override;
@@ -467,12 +469,45 @@ private:
 	void NotifyDrivenControls(UControlRig* InControlRig, const FRigElementKey& InKey);
 	void UpdateSelectabilityOnSkeletalMeshes(UControlRig* InControlRig, bool bEnabled);
 
+	bool IsMovingCamera(FViewport* InViewport) const;
+	bool IsDoingDrag(FViewport* InViewport) const;
+
 	// world clean up handlers
 	FDelegateHandle OnWorldCleanupHandle;
 	void OnWorldCleanup(UWorld* World, bool bSessionEnded, bool bCleanupResources);
 	UWorld* WorldPtr = nullptr;
 
 	void OnEditorClosed();
+
+	struct FMarqueeDragTool
+    {
+    	FMarqueeDragTool();
+    	~FMarqueeDragTool() {};
+    
+    	bool StartTracking(FEditorViewportClient* InViewportClient, FViewport* InViewport);
+    	bool EndTracking(FEditorViewportClient* InViewportClient, FViewport* InViewport);
+    	void MakeDragTool(FEditorViewportClient* InViewportClient);
+    	bool InputDelta(FEditorViewportClient* InViewportClient, FViewport* InViewport, FVector& InDrag, FRotator& InRot, FVector& InScale);
+    
+    	bool UsingDragTool() const;
+    	void Render3DDragTool(const FSceneView* View, FPrimitiveDrawInterface* PDI);
+    	void RenderDragTool(const FSceneView* View, FCanvas* Canvas);
+    
+    private:
+    	
+    	/**
+    	 * If there is a dragging tool being used, this will point to it.
+    	 * Gets newed/deleted in StartTracking/EndTracking.
+    	 */
+    	TSharedPtr<FDragTool> DragTool;
+    
+    	/** Tracks whether the drag tool is in the process of being deleted (to protect against reentrancy) */
+    	bool bIsDeletingDragTool = false;
+
+		FControlRigEditMode* EditMode;
+    };
+
+	FMarqueeDragTool DragToolHandler;
 	
 	TArray<TWeakObjectPtr<UControlRig>> RuntimeControlRigs;
 	TMap<UControlRig*,TStrongObjectPtr<UControlRigEditModeDelegateHelper>> DelegateHelpers;
