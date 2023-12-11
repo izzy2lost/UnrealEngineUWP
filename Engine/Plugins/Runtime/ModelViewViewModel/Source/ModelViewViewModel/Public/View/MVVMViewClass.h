@@ -158,7 +158,7 @@ private:
 	EMVVMExecutionMode ExecutionMode = EMVVMExecutionMode::Immediate;
 
 	UPROPERTY(VisibleAnywhere, Category = "View")
-	uint64 SourceBitField;
+	uint64 SourceBitField = 0;
 
 #if WITH_EDITORONLY_DATA
 	UPROPERTY(meta = (IgnoreForMemberInitializationTest))
