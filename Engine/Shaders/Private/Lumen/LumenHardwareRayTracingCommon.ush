@@ -764,7 +764,7 @@ FRayTracedLightingResult TraceAndCalculateRayTracedLighting(
 				bool bTraceNextReflectionRay = false;
 				float3 RayHitTranslatedWorldPosition = Ray.Origin + Ray.Direction * Payload.HitT;
 
-				const float SurfaceCoverage = Payload.GetOpacity();
+				const float SurfaceCoverage = Payload.GetBlendingMode() == RAY_TRACING_BLEND_MODE_OPAQUE ? 1.f :  Payload.GetOpacity();
 
 				// Apply emissive material
 				float3 Radiance = Payload.GetRadiance();
