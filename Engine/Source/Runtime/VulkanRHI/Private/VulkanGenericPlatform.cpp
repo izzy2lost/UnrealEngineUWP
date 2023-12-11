@@ -3,6 +3,7 @@
 #include "VulkanRHIPrivate.h"
 #include "VulkanGenericPlatform.h"
 #include "HAL/FileManager.h"
+#include "Misc/CommandLine.h"
 
 static TAutoConsoleVariable<int32> CVarVulkanUseProfileCheck(
 	TEXT("r.Vulkan.UseProfileCheck"),

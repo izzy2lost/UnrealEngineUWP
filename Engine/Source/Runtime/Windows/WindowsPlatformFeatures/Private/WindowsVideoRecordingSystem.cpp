@@ -1,5 +1,6 @@
 // Copyright Epic Games, Inc. All Rights Reserved.
 #include "WindowsVideoRecordingSystem.h"
+#include "Misc/App.h"
 #include "Modules/ModuleManager.h"
 #include "Engine/GameEngine.h"
 #include "RenderingThread.h"

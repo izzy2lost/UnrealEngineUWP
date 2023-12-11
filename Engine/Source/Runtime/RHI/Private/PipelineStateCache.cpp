@@ -11,7 +11,6 @@ PipelineStateCache.cpp: Pipeline state cache implementation.
 #include "Misc/ScopeRWLock.h"
 #include "Misc/App.h"
 #include "Misc/TimeGuard.h"
-#include "Containers/DiscardableKeyValueCache.h"
 #include "DataDrivenShaderPlatformInfo.h"
 #include "ProfilingDebugging/CsvProfiler.h"
 #include "RHICommandList.h"

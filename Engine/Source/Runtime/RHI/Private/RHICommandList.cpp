@@ -11,7 +11,6 @@
 #include "RHIResourceUpdates.h"
 #include "RHIContext.h"
 #include "RHIFwd.h"
-#include "RHITextureReference.h"
 #include "RHITransition.h"
 #include "Stats/StatsTrace.h"
 

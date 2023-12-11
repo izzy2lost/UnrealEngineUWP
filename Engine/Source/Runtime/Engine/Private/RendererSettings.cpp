@@ -5,6 +5,7 @@
 #include "ColorSpace.h"
 #include "HAL/PlatformFile.h"
 #include "SceneManagement.h"
+#include "Misc/App.h"
 #include "Misc/Paths.h"
 #include "RenderUtils.h"
 #include "UObject/UnrealType.h"

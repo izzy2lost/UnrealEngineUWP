@@ -8,6 +8,7 @@
 #include "VulkanExtensions.h"
 #include "IHeadMountedDisplayModule.h"
 #include "IHeadMountedDisplayVulkanExtensions.h"
+#include "Misc/CommandLine.h"
 
 #if VULKAN_HAS_DEBUGGING_ENABLED
 bool GRenderDocFound = false;

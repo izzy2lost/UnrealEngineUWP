@@ -8,6 +8,7 @@
 #include "VulkanDevice.h"
 #include "VulkanPendingState.h"
 #include "VulkanContext.h"
+#include "Misc/CommandLine.h"
 #include "Misc/Paths.h"
 #include "HAL/FileManager.h"
 #include "Misc/FileHelper.h"

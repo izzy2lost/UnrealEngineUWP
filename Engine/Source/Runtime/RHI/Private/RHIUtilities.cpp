@@ -12,10 +12,11 @@ RHIUtilities.cpp:
 #include "HAL/Runnable.h"
 #include "HAL/RunnableThread.h"
 #include "HAL/PlatformFramePacer.h"
-#include "DataDrivenShaderPlatformInfo.h"
+#include "Misc/CommandLine.h"
 #include "RHIAccess.h"
 #include "RHIFwd.h"
 #include "RHIStrings.h"
+#include "Tasks/Task.h"
 
 #define USE_FRAME_OFFSET_THREAD 1
 

@@ -15,6 +15,7 @@
 #include "Delegates/Delegate.h"
 #include "HAL/PlatformMemory.h"
 #include "Misc/AssertionMacros.h"
+#include "Misc/TVariant.h"
 #include "MultiGPU.h"
 #include "ProfilingDebugging/CpuProfilerTrace.h"
 #include "RHI.h"

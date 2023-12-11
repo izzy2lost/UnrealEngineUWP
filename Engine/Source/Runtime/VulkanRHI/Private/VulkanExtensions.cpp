@@ -5,6 +5,7 @@
 
 #include "IHeadMountedDisplayModule.h"
 #include "IHeadMountedDisplayVulkanExtensions.h"
+#include "Misc/CommandLine.h"
 
 
 // ADDING A NEW EXTENSION:

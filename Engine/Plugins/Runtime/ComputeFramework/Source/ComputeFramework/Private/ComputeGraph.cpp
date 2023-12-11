@@ -16,6 +16,7 @@
 #include "ComputeFramework/ShaderParameterMetadataAllocation.h"
 #include "GameFramework/Actor.h"
 #include "Interfaces/ITargetPlatform.h"
+#include "Misc/App.h"
 #include "ShaderParameterMetadataBuilder.h"
 #include "UObject/Package.h"
 #include "DataDrivenShaderPlatformInfo.h"

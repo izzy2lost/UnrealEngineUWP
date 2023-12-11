@@ -2,6 +2,7 @@
 
 #include "CoreMinimal.h"
 #include "GenericPlatform/GenericPlatformSurvey.h"
+#include "Misc/App.h"
 #include "Modules/ModuleManager.h"
 #include "SynthBenchmark.h"
 #include "RHI.h"

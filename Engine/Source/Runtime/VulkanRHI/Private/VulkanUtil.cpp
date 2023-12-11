@@ -9,6 +9,7 @@
 #include "VulkanPendingState.h"
 #include "VulkanContext.h"
 #include "VulkanMemory.h"
+#include "Misc/App.h"
 #include "Misc/OutputDeviceRedirector.h"
 #include "RHIValidationContext.h"
 #include "HAL/FileManager.h"

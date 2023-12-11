@@ -6,6 +6,7 @@
 #include "Serialization/LargeMemoryData.h"
 #include "RHI.h"
 #include "RHITypes.h"
+#include "Async/TaskGraphInterfaces.h"
 
 struct Rect;
 

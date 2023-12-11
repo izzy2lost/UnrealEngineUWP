@@ -7,6 +7,7 @@
 #include "Interfaces/ITargetPlatform.h"
 #include "IPlatformFileSandboxWrapper.h"
 #include "Misc/AssertionMacros.h"
+#include "Misc/CommandLine.h"
 #include "Misc/ConfigCacheIni.h"
 #include "ShaderCodeLibrary.h"
 

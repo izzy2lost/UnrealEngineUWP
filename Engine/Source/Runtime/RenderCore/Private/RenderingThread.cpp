@@ -9,6 +9,7 @@
 #include "HAL/RunnableThread.h"
 #include "HAL/ExceptionHandling.h" // IWYU pragma: keep
 #include "HAL/PlatformApplicationMisc.h"
+#include "Misc/App.h"
 #include "Misc/CommandLine.h"
 #include "Misc/OutputDeviceRedirector.h"
 #include "Misc/CoreStats.h"

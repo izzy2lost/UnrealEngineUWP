@@ -2,6 +2,7 @@
 
 #include "Commandlets/CookGlobalShadersCommandlet.h"
 #include "Engine/Engine.h"
+#include "Misc/App.h"
 #include "Misc/Paths.h"
 #include "Misc/FileHelper.h"
 #include "Misc/ConfigCacheIni.h"

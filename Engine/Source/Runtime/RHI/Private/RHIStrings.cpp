@@ -2,8 +2,8 @@
 
 #include "RHIStrings.h"
 #include "DataDrivenShaderPlatformInfo.h"
-#include "RHI.h"
 #include "RHIAccess.h"
+#include "RHIGlobals.h"
 #include "RHIShaderFormatDefinitions.inl"
 #include "RHIStaticShaderPlatformNames.h"
 #include "RHIPipeline.h"

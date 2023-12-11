@@ -1,6 +1,7 @@
 // Copyright Epic Games, Inc. All Rights Reserved.
 
 #include "Render/Containers/DisplayClusterRender_Texture.h"
+#include "Misc/App.h"
 #include "RenderingThread.h"
 
 int32 GDisplayClusterRender_TextureCacheEnable = 1;
