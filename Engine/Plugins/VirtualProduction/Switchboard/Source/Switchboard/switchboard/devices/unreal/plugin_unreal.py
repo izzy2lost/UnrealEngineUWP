@@ -1950,8 +1950,8 @@ class DeviceUnreal(Device):
             command_line_args += (
                 '-CONCERTRETRYAUTOCONNECTONERROR '
                 '-CONCERTAUTOCONNECT ')
-
-        command_line_args += (f'-CONCERTSERVER="{CONFIG.MUSERVER_SERVER_NAME.get_value()}" '
+        mu_server = switchboard_application.get_multi_user_server_instance()
+        command_line_args += (f'-CONCERTSERVER="{mu_server.configured_server_name()}" '
                               f'-CONCERTSESSION="{SETTINGS.MUSERVER_SESSION_NAME}" '
                               f'-CONCERTDISPLAYNAME="{self.name}"')
 

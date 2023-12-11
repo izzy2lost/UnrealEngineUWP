@@ -1004,9 +1004,9 @@ class DevicenDisplay(DeviceUnreal):
             args.extend([
                 '-CONCERTRETRYAUTOCONNECTONERROR',
                 '-CONCERTAUTOCONNECT'])
-
+        mu_server = switchboard_application.get_multi_user_server_instance()
         args.extend([
-            f'-CONCERTSERVER="{CONFIG.MUSERVER_SERVER_NAME.get_value()}"',
+            f'-CONCERTSERVER="{mu_server.configured_server_name()}"',
             f'-CONCERTSESSION="{SETTINGS.MUSERVER_SESSION_NAME}"',
             f'-CONCERTDISPLAYNAME="{self.name}"',
             '-CONCERTISHEADLESS',
