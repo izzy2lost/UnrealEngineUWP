@@ -290,17 +290,22 @@ namespace Horde.Server.Tests
 		}
 
 		[TestMethod]
-		public async Task MultiGroupingTestAsync()
+		[DataRow(AggregationFunction.Count)]
+		[DataRow(AggregationFunction.Sum)]
+		public async Task MultiGroupingTestAsync(AggregationFunction function)
 		{
 			Clock.UtcNow = new DateTime(2023, 6, 8, 4, 30, 0, DateTimeKind.Utc);
 
 			MetricConfig metricConfig = new MetricConfig();
 			metricConfig.Id = new MetricId("test-metric");
-			metricConfig.Function = AggregationFunction.Sum;
+			metricConfig.Function = function;
 			metricConfig.Interval = TimeSpan.FromHours(1.0);
 			metricConfig.Filter = JsonPath.Parse("$[?(@.Payload.EventName == 'Included')]");
 			metricConfig.GroupBy = "$.Payload.groupFacetA, $.Payload.groupFacetB, $.Payload.groupFacetC";
-			metricConfig.Property = JsonPath.Parse("$.Payload.foo");
+			if (function == AggregationFunction.Sum)
+			{
+				metricConfig.Property = JsonPath.Parse("$.Payload.foo");
+			}
 
 			GlobalConfig globalConfig = new GlobalConfig();
 			globalConfig.Metrics.Add(metricConfig);
@@ -327,24 +332,38 @@ namespace Horde.Server.Tests
 				Assert.AreEqual(5, metrics.Count);
 
 				Assert.AreEqual(",\"\"\"groupA,groupB\"\"\",", metrics[0].Group);
-				Assert.AreEqual(1, metrics[0].Count);
-				Assert.AreEqual(5, metrics[0].Value);
-
 				Assert.AreEqual(",groupB,", metrics[1].Group);
-				Assert.AreEqual(1, metrics[1].Count);
-				Assert.AreEqual(4, metrics[1].Value);
-
 				Assert.AreEqual("groupA,,", metrics[2].Group);
-				Assert.AreEqual(2, metrics[2].Count);
-				Assert.AreEqual(3, metrics[2].Value);
-
 				Assert.AreEqual("groupA,groupB,", metrics[3].Group);
-				Assert.AreEqual(1, metrics[3].Count);
-				Assert.AreEqual(3, metrics[3].Value);
+				Assert.AreEqual("groupA,groupB,groupC", metrics[4].Group);				
 
-				Assert.AreEqual("groupA,groupB,groupC", metrics[4].Group);
-				Assert.AreEqual(1, metrics[4].Count);
-				Assert.AreEqual(6, metrics[4].Value);
+				if (function == AggregationFunction.Sum)
+				{
+					Assert.AreEqual(1, metrics[0].Count);
+					Assert.AreEqual(5, metrics[0].Value);
+
+					Assert.AreEqual(1, metrics[1].Count);
+					Assert.AreEqual(4, metrics[1].Value);
+
+					Assert.AreEqual(2, metrics[2].Count);
+					Assert.AreEqual(3, metrics[2].Value);
+
+					Assert.AreEqual(1, metrics[3].Count);
+					Assert.AreEqual(3, metrics[3].Value);
+
+					Assert.AreEqual(1, metrics[4].Count);
+					Assert.AreEqual(6, metrics[4].Value);
+				}
+
+				if (function == AggregationFunction.Count)
+				{
+					for (int i = 0; i < 5; i++)
+					{
+						Assert.AreEqual(i == 2 ? 2 : 1, metrics[i].Count);
+						Assert.AreEqual(i == 2 ? 2 : 1, metrics[i].Value);
+					}
+				}
+
 			}
 		}
 	}

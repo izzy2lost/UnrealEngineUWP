@@ -108,12 +108,6 @@ namespace Horde.Server.Telemetry.Metrics
 
 		void AddEvent(MetricConfig metric, JsonNode node, JsonArray array)
 		{
-			if (metric.Property == null)
-			{
-				_logger.LogWarning("Missing property parameter for metric {MetricId}", metric.Id);
-				return;
-			}
-
 			if (metric.Filter != null)
 			{
 				PathResult filterResult = metric.Filter.Evaluate(array);
@@ -128,58 +122,73 @@ namespace Horde.Server.Telemetry.Metrics
 				}
 			}
 
-			PathResult result = metric.Property.Evaluate(node);
-			if (result.Error != null)
+			List<double> values = new List<double>();
+
+			if (metric.Property != null)
 			{
-				_logger.LogWarning("Error evaluating filter for metric {MetricId}: {Message}", metric.Id, result.Error);
-				return;
+				PathResult result = metric.Property.Evaluate(node);
+				if (result.Error != null)
+				{
+					_logger.LogWarning("Error evaluating filter for metric {MetricId}: {Message}", metric.Id, result.Error);
+					return;
+				}
+
+				if (result.Matches != null && result.Matches.Count > 0)
+				{
+
+					foreach (Json.Path.Node match in result.Matches)
+					{
+						JsonValue? value = match.Value as JsonValue;
+						if (value != null && value.TryGetValue(out double doubleValue))
+						{
+							values.Add(doubleValue);
+						}
+					}
+				}
+			}
+			else
+			{
+				if (metric.Function != AggregationFunction.Count)
+				{
+					_logger.LogWarning("Missing property parameter for metric {MetricId}", metric.Id);
+					return;
+				}
+
+				values.Add(1);
 			}
 
-			if (result.Matches != null && result.Matches.Count > 0)
+			if (values.Count > 0)
 			{
-				List<double> values = new List<double>();
-				foreach (Json.Path.Node match in result.Matches)
+				List<string> groupKeys = new List<string>();
+				foreach (JsonPath groupByPath in metric.GroupByPaths)
 				{
-					JsonValue? value = match.Value as JsonValue;
-					if (value != null && value.TryGetValue(out double doubleValue))
+					PathResult groupResult = groupByPath.Evaluate(node);
+
+					string groupKey;
+					if (groupResult.Error != null || groupResult.Matches == null || groupResult.Matches.Count == 0)
 					{
-						values.Add(doubleValue);
+						groupKey = "";
 					}
+					else
+					{
+						groupKey = EscapeCsv(groupResult.Matches.Select(x => x.Value?.ToString() ?? String.Empty));
+					}
+
+					groupKeys.Add(groupKey);
 				}
 
-				if (values.Count > 0)
+				string group = EscapeCsv(groupKeys);
+
+				DateTime utcNow = _clock.UtcNow;
+				DateTime sampleTime = new DateTime(utcNow.Ticks - (utcNow.Ticks % metric.Interval.Ticks), DateTimeKind.Utc);
+
+				SampleKey key = new SampleKey(metric.Id, group.ToString(), sampleTime);
+				lock (_lockObject)
 				{
-					List<string> groupKeys = new List<string>();
-					foreach (JsonPath groupByPath in metric.GroupByPaths)
-					{
-						PathResult groupResult = groupByPath.Evaluate(node);
-
-						string groupKey;
-						if (groupResult.Error != null || groupResult.Matches == null || groupResult.Matches.Count == 0)
-						{
-							groupKey = "";
-						}
-						else
-						{
-							groupKey = EscapeCsv(groupResult.Matches.Select(x => x.Value?.ToString() ?? String.Empty));
-						}
-
-						groupKeys.Add(groupKey);
-					}
-
-					string group = EscapeCsv(groupKeys);
-
-					DateTime utcNow = _clock.UtcNow;
-					DateTime sampleTime = new DateTime(utcNow.Ticks - (utcNow.Ticks % metric.Interval.Ticks), DateTimeKind.Utc);
-
-					SampleKey key = new SampleKey(metric.Id, group.ToString(), sampleTime);
-					lock (_lockObject)
-					{
-						QueueSampleValues(key, values);
-					}
-
-					_newDataEvent.Set();
+					QueueSampleValues(key, values);
 				}
+
+				_newDataEvent.Set();
 			}
 		}
 
