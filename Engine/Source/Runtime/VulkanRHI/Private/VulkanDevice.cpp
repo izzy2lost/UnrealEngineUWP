@@ -537,11 +537,13 @@ void FVulkanDevice::SetupDrawMarkers()
 		}
 	}
 
+#if VULKAN_HAS_DEBUGGING_ENABLED
 	if (bDebugMarkersFound && GRenderDocFound)
 	{
 		// We're running under RenderDoc or other trace tool, so enable capturing mode
 		EnableDrawMarkers();
 	}
+#endif
 #endif
 
 #if VULKAN_ENABLE_DUMP_LAYER
