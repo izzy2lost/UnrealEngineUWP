@@ -1506,6 +1506,7 @@ void UPCGComponent::PostEditChangeProperty(FPropertyChangedEvent& PropertyChange
 {
 	if (!PropertyChangedEvent.Property || !IsValid(this))
 	{
+		Super::PostEditChangeProperty(PropertyChangedEvent);
 		return;
 	}
 
