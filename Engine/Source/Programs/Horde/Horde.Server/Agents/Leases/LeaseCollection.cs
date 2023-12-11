@@ -6,7 +6,6 @@ using System.Linq;
 using System.Threading.Tasks;
 using Horde.Server.Agents.Pools;
 using Horde.Server.Agents.Sessions;
-using Horde.Server.Logs;
 using Horde.Server.Server;
 using Horde.Server.Utilities;
 using HordeCommon;
@@ -15,6 +14,7 @@ using MongoDB.Driver;
 using EpicGames.Horde.Agents.Leases;
 using EpicGames.Horde.Agents;
 using EpicGames.Horde.Streams;
+using EpicGames.Horde.Logs;
 
 namespace Horde.Server.Agents.Leases
 {

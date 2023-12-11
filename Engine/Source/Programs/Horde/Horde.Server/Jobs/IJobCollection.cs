@@ -12,7 +12,6 @@ using EpicGames.Horde.Users;
 using Horde.Server.Agents.Pools;
 using Horde.Server.Agents.Sessions;
 using Horde.Server.Jobs.Graphs;
-using Horde.Server.Logs;
 using Horde.Server.Streams;
 using HordeCommon;
 using HordeCommon.Rpc.Tasks;
@@ -21,6 +20,7 @@ using Horde.Server.Jobs.Bisect;
 using System.Threading;
 using Horde.Server.Acls;
 using EpicGames.Horde.Jobs;
+using EpicGames.Horde.Logs;
 
 namespace Horde.Server.Jobs
 {

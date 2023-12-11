@@ -37,6 +37,7 @@ using Horde.Server.Jobs.Bisect;
 using EpicGames.Horde.Agents;
 using EpicGames.Horde.Storage;
 using EpicGames.Horde.Jobs;
+using EpicGames.Horde.Logs;
 
 namespace Horde.Server.Jobs
 {
@@ -742,7 +743,7 @@ namespace Horde.Server.Jobs
 			DateTime backOffTime = DateTime.UtcNow + TimeSpan.FromMinutes(1.0);
 
 			// Allocate a log ID but hold off creating the actual log file until the lease has been accepted
-			LogId logId = LogId.GenerateNewId();
+			LogId logId = LogIdUtils.GenerateNewId();
 			
 			// Try to update the job with this agent id
 			IJob? newJob = await _jobs.TryAssignLeaseAsync(item._job, item._batchIdx, item._poolId, agent.Id, agent.SessionId!.Value, leaseId, logId);

@@ -458,9 +458,9 @@ namespace Horde.Server.Tests
 			IJob job1 = await JobService.CreateJobAsync(null, config, newTemplateRefId1, newTemplate1.Hash, graphA, "Hello", 1234, 1233, options1);
 			JobStepBatchId batchId1 = job1.Batches[0].Id;
 			JobStepId stepId1 = job1.Batches[0].Steps[0].Id;
-			job1 = Deref(await JobService.UpdateBatchAsync(job1, batchId1, config, LogId.GenerateNewId(), JobStepBatchState.Running));
+			job1 = Deref(await JobService.UpdateBatchAsync(job1, batchId1, config, LogIdUtils.GenerateNewId(), JobStepBatchState.Running));
 			job1 = Deref(await JobService.UpdateStepAsync(job1, batchId1, stepId1, config, JobStepState.Completed, JobStepOutcome.Failure));
-			job1 = Deref(await JobService.UpdateBatchAsync(job1, batchId1, config, LogId.GenerateNewId(), JobStepBatchState.Complete));
+			job1 = Deref(await JobService.UpdateBatchAsync(job1, batchId1, config, LogIdUtils.GenerateNewId(), JobStepBatchState.Complete));
 			Assert.IsNotNull(job1);
 			await GetNewJobsAsync();
 
@@ -478,7 +478,7 @@ namespace Horde.Server.Tests
 			IJob job2 = await JobService.CreateJobAsync(null, config, newTemplateRefId1, newTemplate1.Hash, graphA, "Hello", 1234, 1233, options2);
 			JobStepBatchId batchId2 = job2.Batches[0].Id;
 			JobStepId stepId2 = job2.Batches[0].Steps[0].Id;
-			job2 = Deref(await JobService.UpdateBatchAsync(job2, batchId2, config, LogId.GenerateNewId(), JobStepBatchState.Running));
+			job2 = Deref(await JobService.UpdateBatchAsync(job2, batchId2, config, LogIdUtils.GenerateNewId(), JobStepBatchState.Running));
 			job2 = Deref(await JobService.UpdateStepAsync(job2, batchId2, stepId2, config, JobStepState.Completed, JobStepOutcome.Success));
 			Assert.IsNotNull(job2);
 
@@ -556,13 +556,13 @@ namespace Horde.Server.Tests
 				for (int batchIdx = 0; batchIdx < job1.Batches.Count; batchIdx++)
 				{
 					JobStepBatchId batchId1 = job1.Batches[batchIdx].Id;
-					job1 = Deref(await JobService.UpdateBatchAsync(job1, batchId1, config, LogId.GenerateNewId(), JobStepBatchState.Running));
+					job1 = Deref(await JobService.UpdateBatchAsync(job1, batchId1, config, LogIdUtils.GenerateNewId(), JobStepBatchState.Running));
 					for (int stepIdx = 0; stepIdx < job1.Batches[batchIdx].Steps.Count; stepIdx++)
 					{
 						JobStepId stepId1 = job1.Batches[batchIdx].Steps[stepIdx].Id;
-						job1 = Deref(await JobService.UpdateStepAsync(job1, batchId1, stepId1, config, JobStepState.Completed, JobStepOutcome.Success, newLogId: LogId.GenerateNewId()));
+						job1 = Deref(await JobService.UpdateStepAsync(job1, batchId1, stepId1, config, JobStepState.Completed, JobStepOutcome.Success, newLogId: LogIdUtils.GenerateNewId()));
 					}
-					job1 = Deref(await JobService.UpdateBatchAsync(job1, batchId1, config, LogId.GenerateNewId(), JobStepBatchState.Complete));
+					job1 = Deref(await JobService.UpdateBatchAsync(job1, batchId1, config, LogIdUtils.GenerateNewId(), JobStepBatchState.Complete));
 				}
 			}
 			await GetNewJobsAsync();

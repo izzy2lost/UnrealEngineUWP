@@ -2,6 +2,7 @@
 
 using System.Collections.Generic;
 using System.Threading.Tasks;
+using EpicGames.Horde.Logs;
 using Horde.Server.Logs.Data;
 
 namespace Horde.Server.Logs.Storage

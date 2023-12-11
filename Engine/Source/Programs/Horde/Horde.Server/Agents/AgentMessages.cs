@@ -2,15 +2,11 @@
 
 using System;
 using System.Collections.Generic;
-using System.ComponentModel.DataAnnotations;
-using System.Linq;
-using EpicGames.Core;
 using HordeCommon;
-using Horde.Server.Agents.Leases;
 using EpicGames.Horde.Agents.Leases;
 using EpicGames.Horde.Agents;
-using Horde.Server.Logs;
 using Horde.Server.Agents.Sessions;
+using EpicGames.Horde.Logs;
 
 namespace Horde.Server.Agents
 {

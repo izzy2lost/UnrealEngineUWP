@@ -5,6 +5,7 @@ using System.Collections.Generic;
 using System.Text.RegularExpressions;
 using System.Threading.Tasks;
 using EpicGames.Core;
+using EpicGames.Horde.Logs;
 using EpicGames.Redis;
 using Horde.Server.Logs.Data;
 using Horde.Server.Utilities;

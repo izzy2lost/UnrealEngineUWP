@@ -2,6 +2,7 @@
 
 using System.Collections.Generic;
 using System.Threading.Tasks;
+using EpicGames.Horde.Logs;
 using MongoDB.Bson;
 
 namespace Horde.Server.Logs

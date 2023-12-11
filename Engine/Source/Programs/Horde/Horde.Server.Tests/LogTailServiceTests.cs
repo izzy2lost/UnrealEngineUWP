@@ -6,6 +6,7 @@ using System.Text;
 using System.Threading;
 using System.Threading.Tasks;
 using EpicGames.Core;
+using EpicGames.Horde.Logs;
 using EpicGames.Redis;
 using Horde.Server.Logs;
 using Horde.Server.Server;

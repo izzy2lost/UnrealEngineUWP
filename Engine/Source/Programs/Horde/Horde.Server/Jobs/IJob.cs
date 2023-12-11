@@ -16,7 +16,6 @@ using Horde.Server.Agents.Pools;
 using Horde.Server.Agents.Sessions;
 using Horde.Server.Jobs.Graphs;
 using Horde.Server.Jobs.Timing;
-using Horde.Server.Logs;
 using Horde.Server.Server;
 using Horde.Server.Streams;
 using Horde.Server.Ugs;
@@ -26,6 +25,7 @@ using MongoDB.Bson;
 using MongoDB.Driver;
 using Horde.Server.Jobs.Bisect;
 using EpicGames.Horde.Jobs;
+using EpicGames.Horde.Logs;
 
 namespace Horde.Server.Jobs
 {

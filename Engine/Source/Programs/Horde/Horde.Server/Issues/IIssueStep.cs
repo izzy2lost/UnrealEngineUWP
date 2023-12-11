@@ -2,8 +2,8 @@
 
 using System;
 using EpicGames.Horde.Jobs;
+using EpicGames.Horde.Logs;
 using Horde.Server.Jobs.Graphs;
-using Horde.Server.Logs;
 using MongoDB.Bson;
 
 namespace Horde.Server.Issues

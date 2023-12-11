@@ -6,7 +6,6 @@ using System.Linq;
 using System.Threading;
 using System.Threading.Tasks;
 using Horde.Server.Agents.Pools;
-using Horde.Server.Logs;
 using Horde.Server.Server;
 using Horde.Server.Telemetry;
 using Horde.Server.Utilities;
@@ -17,6 +16,7 @@ using EpicGames.Horde.Agents;
 using EpicGames.Horde.Streams;
 using EpicGames.Horde.Jobs.Templates;
 using EpicGames.Horde.Jobs;
+using EpicGames.Horde.Logs;
 
 namespace Horde.Server.Jobs
 {

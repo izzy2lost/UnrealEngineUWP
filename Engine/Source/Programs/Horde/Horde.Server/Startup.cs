@@ -116,6 +116,7 @@ using StackExchange.Redis;
 using Horde.Server.Telemetry.Sinks;
 using Horde.Server.Telemetry.Metrics;
 using EpicGames.Horde.Jobs;
+using EpicGames.Horde.Logs;
 
 namespace Horde.Server
 {

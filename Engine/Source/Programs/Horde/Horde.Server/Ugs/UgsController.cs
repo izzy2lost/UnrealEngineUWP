@@ -14,6 +14,7 @@ using Microsoft.Extensions.Logging;
 using Microsoft.Extensions.Options;
 using MongoDB.Bson;
 using EpicGames.Horde.Users;
+using EpicGames.Horde.Logs;
 
 namespace Horde.Server.Ugs
 {

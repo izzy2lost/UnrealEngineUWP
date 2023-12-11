@@ -18,6 +18,7 @@ using Microsoft.Extensions.Options;
 using EpicGames.Horde.Agents.Leases;
 using EpicGames.Horde.Tools;
 using EpicGames.Horde.Jobs;
+using EpicGames.Horde.Logs;
 
 namespace Horde.Server.Tasks
 {

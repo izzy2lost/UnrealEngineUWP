@@ -7,6 +7,7 @@ using System.Threading;
 using System.Threading.Tasks;
 using EpicGames.Horde.Agents.Leases;
 using EpicGames.Horde.Jobs;
+using EpicGames.Horde.Logs;
 using EpicGames.Horde.Storage;
 using Horde.Server.Agents.Sessions;
 using Horde.Server.Server;
@@ -95,7 +96,7 @@ namespace Horde.Server.Logs
 
 			public LogFileDocument(JobId jobId, LeaseId? leaseId, SessionId? sessionId, LogType type, bool newStorageBackend, LogId? logId, NamespaceId namespaceId)
 			{
-				Id = logId ?? LogId.GenerateNewId();
+				Id = logId ?? LogIdUtils.GenerateNewId();
 				JobId = jobId;
 				LeaseId = leaseId;
 				SessionId = sessionId;

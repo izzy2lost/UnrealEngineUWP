@@ -2,6 +2,7 @@
 
 using System;
 using System.Threading.Tasks;
+using EpicGames.Horde.Logs;
 using Horde.Server.Logs.Data;
 using Microsoft.Extensions.Caching.Memory;
 

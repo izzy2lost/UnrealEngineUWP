@@ -14,6 +14,7 @@ using HordeCommon;
 using Microsoft.Extensions.Logging;
 using System.Globalization;
 using Microsoft.Extensions.Options;
+using EpicGames.Horde.Logs;
 
 namespace Horde.Server.Logs
 {

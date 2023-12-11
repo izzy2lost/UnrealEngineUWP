@@ -10,6 +10,7 @@ using System.Threading;
 using System.Threading.Tasks;
 using EpicGames.Core;
 using EpicGames.Horde.Jobs;
+using EpicGames.Horde.Logs;
 using EpicGames.Horde.Storage;
 using EpicGames.Horde.Storage.Backends;
 using Horde.Server.Agents.Sessions;
@@ -265,7 +266,7 @@ namespace Horde.Server.Tests
             Assert.AreEqual(a.SessionId, b.SessionId);
             Assert.AreEqual(a.Type, b.Type);
 
-            ILogFile? notFound = await _logFileService.GetCachedLogFileAsync(LogId.GenerateNewId(), CancellationToken.None);
+            ILogFile? notFound = await _logFileService.GetCachedLogFileAsync(LogIdUtils.GenerateNewId(), CancellationToken.None);
             Assert.IsNull(notFound);
 
             await _logFileService.CreateLogFileAsync(JobIdUtils.GenerateNewId(), null, SessionId.GenerateNewId(), LogType.Text, useNewStorageBackend: false, logId: null, cancellationToken: CancellationToken.None);

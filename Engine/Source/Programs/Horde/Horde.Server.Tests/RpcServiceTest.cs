@@ -460,7 +460,7 @@ namespace Horde.Server.Tests
 			// Set the session ID on the job batch to pass auth later
 			Deref(await JobCollection.TryAssignLeaseAsync(fixture.Job1, 0, new PoolId("foo"),
 				new AgentId("test"), sessionId,
-				new LeaseId(BinaryIdUtils.CreateNew()), LogId.GenerateNewId()));
+				new LeaseId(BinaryIdUtils.CreateNew()), LogIdUtils.GenerateNewId()));
 /*
 			TestAsyncStreamReader<UploadArtifactRequest> RequestStream = new TestAsyncStreamReader<UploadArtifactRequest>(Context);
 			Task<UploadArtifactResponse> Call = TestSetup.RpcService.UploadArtifact(RequestStream,  Context);

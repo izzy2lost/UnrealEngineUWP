@@ -10,6 +10,7 @@ using Horde.Server.Storage;
 using Microsoft.Extensions.Logging;
 using System.Threading;
 using System;
+using EpicGames.Horde.Logs;
 
 namespace Horde.Server.Logs
 {

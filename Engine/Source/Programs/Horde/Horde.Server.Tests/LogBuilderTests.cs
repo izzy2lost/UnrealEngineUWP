@@ -4,6 +4,7 @@ using System;
 using System.Collections.Generic;
 using System.Text;
 using System.Threading.Tasks;
+using EpicGames.Horde.Logs;
 using Horde.Server.Logs;
 using Horde.Server.Logs.Builder;
 using Horde.Server.Logs.Data;
@@ -35,7 +36,7 @@ namespace Horde.Server.Tests
 
 		public static async Task TestBuilderAsync(ILogBuilder builder)
 		{
-			LogId logId = LogId.GenerateNewId();
+			LogId logId = LogIdUtils.GenerateNewId();
 
 			const long Offset = 100;
 			Assert.IsTrue(await builder.AppendAsync(logId, Offset, Offset, 0, 1, Encoding.UTF8.GetBytes("hello\n"), LogType.Text));

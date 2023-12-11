@@ -5,11 +5,11 @@ using Google.Protobuf;
 using Google.Protobuf.WellKnownTypes;
 using Horde.Server.Agents.Pools;
 using Horde.Server.Agents.Sessions;
-using Horde.Server.Logs;
 using HordeCommon;
 using EpicGames.Horde.Streams;
 using EpicGames.Horde.Agents;
 using EpicGames.Horde.Agents.Leases;
+using EpicGames.Horde.Logs;
 
 namespace Horde.Server.Agents.Leases
 {

@@ -3,6 +3,7 @@
 using System;
 using System.Threading.Tasks;
 using EpicGames.Core;
+using EpicGames.Horde.Logs;
 using EpicGames.Horde.Storage;
 using Horde.Server.Logs.Data;
 using Horde.Server.Storage;
