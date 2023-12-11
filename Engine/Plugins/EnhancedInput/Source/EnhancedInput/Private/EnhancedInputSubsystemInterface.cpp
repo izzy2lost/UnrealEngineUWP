@@ -108,25 +108,11 @@ void IEnhancedInputSubsystemInterface::InjectInputForPlayerMapping(const FName M
 
 void IEnhancedInputSubsystemInterface::StartContinuousInputInjectionForAction(const UInputAction* Action, FInputActionValue RawValue, const TArray<UInputModifier*>& Modifiers, const TArray<UInputTrigger*>& Triggers)
 {
-	FInjectedInput& Injection = ContinuouslyInjectedInputs.FindOrAdd(Action);
+	FInjectedInput& Injection = GetContinuouslyInjectedInputs().FindOrAdd(Action);
 
 	Injection.RawValue = RawValue;
 	DeepCopyPtrArray<UInputModifier>(Modifiers, Injection.Modifiers);
 	DeepCopyPtrArray<UInputTrigger>(Triggers, Injection.Triggers);
-
-	// ContinuouslyInjectedInputs Map is not managed.
-	// Continuous input injections seem to be getting garbage collected and
-	// crashing in UObject::ProcessEvent when calling ModifyRaw.
-	// Band-aid fix: Adding all these to root set to avoid garbage collection.
-	for (UInputModifier* Modifier : Injection.Modifiers)
-	{
-		Modifier->AddToRoot();
-	}
-
-	for (UInputTrigger* Trigger : Injection.Triggers)
-	{
-		Trigger->AddToRoot();
-	}
 }
 
 void IEnhancedInputSubsystemInterface::StartContinuousInputInjectionForPlayerMapping(const FName MappingName, FInputActionValue RawValue, const TArray<UInputModifier*>& Modifiers, const TArray<UInputTrigger*>& Triggers)
@@ -150,7 +136,7 @@ void IEnhancedInputSubsystemInterface::StartContinuousInputInjectionForPlayerMap
 
 void IEnhancedInputSubsystemInterface::UpdateValueOfContinuousInputInjectionForAction(const UInputAction* Action, FInputActionValue RawValue)
 {
-	FInjectedInput& Injection = ContinuouslyInjectedInputs.FindOrAdd(Action);
+	FInjectedInput& Injection = GetContinuouslyInjectedInputs().FindOrAdd(Action);
 	Injection.RawValue = RawValue;
 
 	// Do NOT update the triggers/modifiers here to preserve their state
@@ -177,22 +163,7 @@ void IEnhancedInputSubsystemInterface::UpdateValueOfContinuousInputInjectionForP
 
 void IEnhancedInputSubsystemInterface::StopContinuousInputInjectionForAction(const UInputAction* Action)
 {
-	// ContinuouslyInjectedInputs Map is not managed.
-	// Continuous input injections seem to be getting garbage collected and
-	// crashing in UObject::ProcessEvent when calling ModifyRaw.
-	// Band-aid fix: Adding all these to root set to avoid garbage collection.
-	if (FInjectedInput* Injection = ContinuouslyInjectedInputs.Find(Action))
-	{
-		for (UInputModifier* Modifier : Injection->Modifiers)
-		{
-			Modifier->RemoveFromRoot();
-		}
-		for (UInputTrigger* Trigger : Injection->Triggers)
-		{
-			Trigger->RemoveFromRoot();
-		}
-	}
-	ContinuouslyInjectedInputs.Remove(Action);
+	GetContinuouslyInjectedInputs().Remove(Action);
 }
 
 void IEnhancedInputSubsystemInterface::StopContinuousInputInjectionForPlayerMapping(const FName MappingName)
@@ -1162,6 +1133,7 @@ void IEnhancedInputSubsystemInterface::TickForcedInput(float DeltaTime)
 	}
 
 	// Any continuous input injection needs to be added each frame until its stopped
+	TMap<TObjectPtr<const UInputAction>, FInjectedInput>& ContinuouslyInjectedInputs = GetContinuouslyInjectedInputs();
 	for (TPair<TObjectPtr<const UInputAction>, FInjectedInput>& ContinuousInjection : ContinuouslyInjectedInputs)
 	{
 		TObjectPtr<const UInputAction>& Action = ContinuousInjection.Key;

@@ -53,6 +53,7 @@ public:
 
 	//~ Begin IEnhancedInputSubsystemInterface Interface
 	virtual UEnhancedPlayerInput* GetPlayerInput() const override;
+	virtual TMap<TObjectPtr<const UInputAction>, FInjectedInput>& GetContinuouslyInjectedInputs() override { return ContinuouslyInjectedInputs; }
 	//~ End IEnhancedInputSubsystemInterface Interface
 
 private:
@@ -69,4 +70,9 @@ private:
 	/** The user settings for this subsystem used to store each user's input related settings */
 	UPROPERTY(Transient)
 	TObjectPtr<UEnhancedInputUserSettings> UserSettings;
+
+protected:
+	// Map of inputs that should be injected every frame. These inputs will be injected when ForcedInput is ticked. 
+	UPROPERTY(Transient) 
+	TMap<TObjectPtr<const UInputAction>, FInjectedInput> ContinuouslyInjectedInputs;
 };

@@ -453,6 +453,13 @@ protected:
 
 	// helper function to display debug about mapping context info
 	void ShowMappingContextDebugInfo(UCanvas* Canvas, const UEnhancedPlayerInput* PlayerInput);
+
+	/**
+	 * Pure-virtual getter for the map of inputs that should be injected every frame. These inputs will be injected when 
+	 * ForcedInput is ticked. Any classes that implement this interface should have this function return a managed map to
+	 * avoid GC and unreachibility issues.
+	 */
+	virtual TMap<TObjectPtr<const UInputAction>, FInjectedInput>& GetContinuouslyInjectedInputs() = 0;
 	
 private:
 
@@ -483,9 +490,6 @@ private:
 
 	TMap<TWeakObjectPtr<const UInputAction>, FInputActionValue> ForcedActions;
 	TMap<FKey, FInputActionValue> ForcedKeys;
-
-	/** A map of inputs that should be injected every frame. This inputs will be injected when ForcedInput is ticked. */
-	TMap<TObjectPtr<const UInputAction>, FInjectedInput> ContinuouslyInjectedInputs;
 
 	/**
 	 * A map of input actions with a Chorded trigger, mapped to the action they are dependent on.
