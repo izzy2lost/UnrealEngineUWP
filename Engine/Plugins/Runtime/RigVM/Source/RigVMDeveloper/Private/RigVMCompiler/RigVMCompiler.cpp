@@ -450,6 +450,26 @@ bool URigVMCompiler::Compile(const FRigVMCompileSettings& InSettings, TArray<URi
 
 	TMap<FString, const FRigVMFunctionCompilationData*> CurrentCompiledFunctions;
 
+#if WITH_EDITOR
+	if (!CurrentCompilationFunction)
+	{
+		if (FunctionLibrary)
+		{
+			TArray<URigVMLibraryNode*> Functions = FunctionLibrary->GetFunctions();
+			for (URigVMLibraryNode* Function : Functions)
+			{
+				if (FunctionLibrary->IsFunctionPublic(Function->GetFName()))
+				{
+					if (FRigVMGraphFunctionData* FunctionData = Function->GetFunctionHeader().GetFunctionData())
+					{
+						CompileFunction(WorkData.Settings, Function, InController, InExternalVariables, &FunctionData->CompilationData, OutVMContext);
+					}
+				}
+			}
+		}
+	}
+#endif
+
 	// Gather function compilation data
 	for(URigVMGraph* Graph : InGraphs)
 	{
