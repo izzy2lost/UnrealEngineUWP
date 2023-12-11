@@ -1794,7 +1794,9 @@ bool FControlRigEditMode::FrustumSelect(const FConvexVolume& InFrustum, FEditorV
 	}
 
 	EWorldType::Type WorldType = InViewportClient->GetWorld()->WorldType;
-	const bool bIsAssetEditor = WorldType == EWorldType::Editor || WorldType == EWorldType::EditorPreview;
+	const bool bIsAssetEditor =
+		(WorldType == EWorldType::Editor || WorldType == EWorldType::EditorPreview) &&
+			!InViewportClient->IsLevelEditorClient();
 
 	if (bIsAssetEditor)
 	{
