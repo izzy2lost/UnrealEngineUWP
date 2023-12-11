@@ -5,6 +5,7 @@ using System.Collections.Generic;
 using System.Linq;
 using System.Text.Json.Serialization;
 using EpicGames.Core;
+using EpicGames.Horde.Telemetry.Metrics;
 using Horde.Server.Utilities;
 using Json.Path;
 

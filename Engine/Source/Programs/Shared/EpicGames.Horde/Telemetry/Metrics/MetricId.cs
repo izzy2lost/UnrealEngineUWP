@@ -2,10 +2,9 @@
 
 using System.ComponentModel;
 using EpicGames.Core;
-using EpicGames.Horde;
 using EpicGames.Serialization;
 
-namespace Horde.Server.Telemetry.Metrics
+namespace EpicGames.Horde.Telemetry.Metrics
 {
 	/// <summary>
 	/// Identifier for a particular metric

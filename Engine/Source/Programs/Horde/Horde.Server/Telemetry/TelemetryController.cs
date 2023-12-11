@@ -6,6 +6,7 @@ using System.ComponentModel.DataAnnotations;
 using System.Text.Json.Nodes;
 using System.Threading;
 using System.Threading.Tasks;
+using EpicGames.Horde.Telemetry.Metrics;
 using Horde.Server.Acls;
 using Horde.Server.Server;
 using Horde.Server.Telemetry.Metrics;
