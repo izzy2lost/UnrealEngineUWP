@@ -1,6 +1,6 @@
-#line 2 "../../../../Source/ThirdParty/hlslcc/hlslcc/src/hlslcc_lib/hlsl_lexer.inl"
+#line 2 "../../../../../Source/ThirdParty/hlslcc/hlslcc/src/hlslcc_lib/hlsl_lexer.inl"
 
-#line 4 "../../../../Source/ThirdParty/hlslcc/hlslcc/src/hlslcc_lib/hlsl_lexer.inl"
+#line 4 "../../../../../Source/ThirdParty/hlslcc/hlslcc/src/hlslcc_lib/hlsl_lexer.inl"
 
 #define  YY_INT_ALIGNED short int
 
@@ -1077,8 +1077,8 @@ static yyconst flex_int16_t yy_chk[1435] =
 #define yymore() yymore_used_but_not_detected
 #define YY_MORE_ADJ 0
 #define YY_RESTORE_YY_MORE_OFFSET
-#line 1 "../../../../Source/ThirdParty/hlslcc/hlslcc/src/hlslcc_lib/hlsl_lexer.ll"
-#line 2 "../../../../Source/ThirdParty/hlslcc/hlslcc/src/hlslcc_lib/hlsl_lexer.ll"
+#line 1 "../../../../../Source/ThirdParty/hlslcc/hlslcc/src/hlslcc_lib/hlsl_lexer.ll"
+#line 2 "../../../../../Source/ThirdParty/hlslcc/hlslcc/src/hlslcc_lib/hlsl_lexer.ll"
 // Copyright Epic Games, Inc. All Rights Reserved.
 
 // This code is modified from that in the Mesa3D Graphics library available at
@@ -1212,7 +1212,7 @@ literal_integer(char *text, int len, struct _mesa_glsl_parse_state *state,
    literal_integer(yytext, yyleng, yyextra, yylval, yylloc, base)
 
 
-#line 1216 "../../../../Source/ThirdParty/hlslcc/hlslcc/src/hlslcc_lib/hlsl_lexer.inl"
+#line 1216 "../../../../../Source/ThirdParty/hlslcc/hlslcc/src/hlslcc_lib/hlsl_lexer.inl"
 
 #define INITIAL 0
 #define PP 1
@@ -1446,10 +1446,10 @@ YY_DECL
 	register int yy_act;
     struct yyguts_t * yyg = (struct yyguts_t*)yyscanner;
 
-#line 151 "../../../../Source/ThirdParty/hlslcc/hlslcc/src/hlslcc_lib/hlsl_lexer.ll"
+#line 151 "../../../../../Source/ThirdParty/hlslcc/hlslcc/src/hlslcc_lib/hlsl_lexer.ll"
 
 
-#line 1453 "../../../../Source/ThirdParty/hlslcc/hlslcc/src/hlslcc_lib/hlsl_lexer.inl"
+#line 1453 "../../../../../Source/ThirdParty/hlslcc/hlslcc/src/hlslcc_lib/hlsl_lexer.inl"
 
     yylval = yylval_param;
 
@@ -1535,7 +1535,7 @@ do_action:	/* This label is used only to access EOF actions. */
 
 case 1:
 YY_RULE_SETUP
-#line 153 "../../../../Source/ThirdParty/hlslcc/hlslcc/src/hlslcc_lib/hlsl_lexer.ll"
+#line 153 "../../../../../Source/ThirdParty/hlslcc/hlslcc/src/hlslcc_lib/hlsl_lexer.ll"
 ;
 	YY_BREAK
 /* Preprocessor tokens. */ 
@@ -1544,7 +1544,7 @@ case 2:
 yyg->yy_c_buf_p = yy_cp -= 1;
 YY_DO_BEFORE_ACTION; /* set up yytext again */
 YY_RULE_SETUP
-#line 156 "../../../../Source/ThirdParty/hlslcc/hlslcc/src/hlslcc_lib/hlsl_lexer.ll"
+#line 156 "../../../../../Source/ThirdParty/hlslcc/hlslcc/src/hlslcc_lib/hlsl_lexer.ll"
 ;
 	YY_BREAK
 case 3:
@@ -1552,7 +1552,7 @@ case 3:
 yyg->yy_c_buf_p = yy_cp -= 1;
 YY_DO_BEFORE_ACTION; /* set up yytext again */
 YY_RULE_SETUP
-#line 157 "../../../../Source/ThirdParty/hlslcc/hlslcc/src/hlslcc_lib/hlsl_lexer.ll"
+#line 157 "../../../../../Source/ThirdParty/hlslcc/hlslcc/src/hlslcc_lib/hlsl_lexer.ll"
 {
 				   /* Eat characters until the first digit is
 					* encountered
@@ -1579,7 +1579,7 @@ case 4:
 yyg->yy_c_buf_p = yy_cp -= 1;
 YY_DO_BEFORE_ACTION; /* set up yytext again */
 YY_RULE_SETUP
-#line 177 "../../../../Source/ThirdParty/hlslcc/hlslcc/src/hlslcc_lib/hlsl_lexer.ll"
+#line 177 "../../../../../Source/ThirdParty/hlslcc/hlslcc/src/hlslcc_lib/hlsl_lexer.ll"
 {
 				   /* Eat characters until the first digit is
 					* encountered
@@ -1594,7 +1594,7 @@ YY_RULE_SETUP
 	YY_BREAK
 case 5:
 YY_RULE_SETUP
-#line 188 "../../../../Source/ThirdParty/hlslcc/hlslcc/src/hlslcc_lib/hlsl_lexer.ll"
+#line 188 "../../../../../Source/ThirdParty/hlslcc/hlslcc/src/hlslcc_lib/hlsl_lexer.ll"
 {
 				  BEGIN PP;
 				  return PRAGMA_DEBUG_ON;
@@ -1602,7 +1602,7 @@ YY_RULE_SETUP
 	YY_BREAK
 case 6:
 YY_RULE_SETUP
-#line 192 "../../../../Source/ThirdParty/hlslcc/hlslcc/src/hlslcc_lib/hlsl_lexer.ll"
+#line 192 "../../../../../Source/ThirdParty/hlslcc/hlslcc/src/hlslcc_lib/hlsl_lexer.ll"
 {
 				  BEGIN PP;
 				  return PRAGMA_DEBUG_OFF;
@@ -1610,7 +1610,7 @@ YY_RULE_SETUP
 	YY_BREAK
 case 7:
 YY_RULE_SETUP
-#line 196 "../../../../Source/ThirdParty/hlslcc/hlslcc/src/hlslcc_lib/hlsl_lexer.ll"
+#line 196 "../../../../../Source/ThirdParty/hlslcc/hlslcc/src/hlslcc_lib/hlsl_lexer.ll"
 {
 				  BEGIN PP;
 				  return PRAGMA_OPTIMIZE_ON;
@@ -1618,7 +1618,7 @@ YY_RULE_SETUP
 	YY_BREAK
 case 8:
 YY_RULE_SETUP
-#line 200 "../../../../Source/ThirdParty/hlslcc/hlslcc/src/hlslcc_lib/hlsl_lexer.ll"
+#line 200 "../../../../../Source/ThirdParty/hlslcc/hlslcc/src/hlslcc_lib/hlsl_lexer.ll"
 {
 				  BEGIN PP;
 				  return PRAGMA_OPTIMIZE_OFF;
@@ -1626,7 +1626,7 @@ YY_RULE_SETUP
 	YY_BREAK
 case 9:
 YY_RULE_SETUP
-#line 204 "../../../../Source/ThirdParty/hlslcc/hlslcc/src/hlslcc_lib/hlsl_lexer.ll"
+#line 204 "../../../../../Source/ThirdParty/hlslcc/hlslcc/src/hlslcc_lib/hlsl_lexer.ll"
 {
 				  BEGIN PP;
 				  return PRAGMA_INVARIANT_ALL;
@@ -1634,38 +1634,38 @@ YY_RULE_SETUP
 	YY_BREAK
 case 10:
 YY_RULE_SETUP
-#line 208 "../../../../Source/ThirdParty/hlslcc/hlslcc/src/hlslcc_lib/hlsl_lexer.ll"
+#line 208 "../../../../../Source/ThirdParty/hlslcc/hlslcc/src/hlslcc_lib/hlsl_lexer.ll"
 { BEGIN PRAGMA; }
 	YY_BREAK
 case 11:
 /* rule 11 can match eol */
 YY_RULE_SETUP
-#line 210 "../../../../Source/ThirdParty/hlslcc/hlslcc/src/hlslcc_lib/hlsl_lexer.ll"
+#line 210 "../../../../../Source/ThirdParty/hlslcc/hlslcc/src/hlslcc_lib/hlsl_lexer.ll"
 { BEGIN 0; yylineno++; yycolumn = 0; }
 	YY_BREAK
 case 12:
 YY_RULE_SETUP
-#line 211 "../../../../Source/ThirdParty/hlslcc/hlslcc/src/hlslcc_lib/hlsl_lexer.ll"
+#line 211 "../../../../../Source/ThirdParty/hlslcc/hlslcc/src/hlslcc_lib/hlsl_lexer.ll"
 { }
 	YY_BREAK
 case 13:
 YY_RULE_SETUP
-#line 213 "../../../../Source/ThirdParty/hlslcc/hlslcc/src/hlslcc_lib/hlsl_lexer.ll"
+#line 213 "../../../../../Source/ThirdParty/hlslcc/hlslcc/src/hlslcc_lib/hlsl_lexer.ll"
 { }
 	YY_BREAK
 case 14:
 YY_RULE_SETUP
-#line 214 "../../../../Source/ThirdParty/hlslcc/hlslcc/src/hlslcc_lib/hlsl_lexer.ll"
+#line 214 "../../../../../Source/ThirdParty/hlslcc/hlslcc/src/hlslcc_lib/hlsl_lexer.ll"
 { }
 	YY_BREAK
 case 15:
 YY_RULE_SETUP
-#line 215 "../../../../Source/ThirdParty/hlslcc/hlslcc/src/hlslcc_lib/hlsl_lexer.ll"
+#line 215 "../../../../../Source/ThirdParty/hlslcc/hlslcc/src/hlslcc_lib/hlsl_lexer.ll"
 return COLON;
 	YY_BREAK
 case 16:
 YY_RULE_SETUP
-#line 216 "../../../../Source/ThirdParty/hlslcc/hlslcc/src/hlslcc_lib/hlsl_lexer.ll"
+#line 216 "../../../../../Source/ThirdParty/hlslcc/hlslcc/src/hlslcc_lib/hlsl_lexer.ll"
 {
 				   yylval->identifier = strdup(yytext);
 				   return IDENTIFIER;
@@ -1673,7 +1673,7 @@ YY_RULE_SETUP
 	YY_BREAK
 case 17:
 YY_RULE_SETUP
-#line 220 "../../../../Source/ThirdParty/hlslcc/hlslcc/src/hlslcc_lib/hlsl_lexer.ll"
+#line 220 "../../../../../Source/ThirdParty/hlslcc/hlslcc/src/hlslcc_lib/hlsl_lexer.ll"
 {
 					yylval->n = strtol(yytext, NULL, 10);
 					return INTCONSTANT;
@@ -1682,589 +1682,589 @@ YY_RULE_SETUP
 case 18:
 /* rule 18 can match eol */
 YY_RULE_SETUP
-#line 224 "../../../../Source/ThirdParty/hlslcc/hlslcc/src/hlslcc_lib/hlsl_lexer.ll"
+#line 224 "../../../../../Source/ThirdParty/hlslcc/hlslcc/src/hlslcc_lib/hlsl_lexer.ll"
 { BEGIN 0; yylineno++; yycolumn = 0; return EOL; }
 	YY_BREAK
 case 19:
 /* rule 19 can match eol */
 YY_RULE_SETUP
-#line 226 "../../../../Source/ThirdParty/hlslcc/hlslcc/src/hlslcc_lib/hlsl_lexer.ll"
+#line 226 "../../../../../Source/ThirdParty/hlslcc/hlslcc/src/hlslcc_lib/hlsl_lexer.ll"
 { yylineno++; yycolumn = 0; }
 	YY_BREAK
 case 20:
 YY_RULE_SETUP
-#line 228 "../../../../Source/ThirdParty/hlslcc/hlslcc/src/hlslcc_lib/hlsl_lexer.ll"
+#line 228 "../../../../../Source/ThirdParty/hlslcc/hlslcc/src/hlslcc_lib/hlsl_lexer.ll"
 return CONST_TOK;
 	YY_BREAK
 case 21:
 YY_RULE_SETUP
-#line 229 "../../../../Source/ThirdParty/hlslcc/hlslcc/src/hlslcc_lib/hlsl_lexer.ll"
+#line 229 "../../../../../Source/ThirdParty/hlslcc/hlslcc/src/hlslcc_lib/hlsl_lexer.ll"
 return BOOL_TOK;
 	YY_BREAK
 case 22:
 YY_RULE_SETUP
-#line 230 "../../../../Source/ThirdParty/hlslcc/hlslcc/src/hlslcc_lib/hlsl_lexer.ll"
+#line 230 "../../../../../Source/ThirdParty/hlslcc/hlslcc/src/hlslcc_lib/hlsl_lexer.ll"
 return FLOAT_TOK;
 	YY_BREAK
 case 23:
 YY_RULE_SETUP
-#line 231 "../../../../Source/ThirdParty/hlslcc/hlslcc/src/hlslcc_lib/hlsl_lexer.ll"
+#line 231 "../../../../../Source/ThirdParty/hlslcc/hlslcc/src/hlslcc_lib/hlsl_lexer.ll"
 return FLOAT_TOK;
 	YY_BREAK
 case 24:
 YY_RULE_SETUP
-#line 232 "../../../../Source/ThirdParty/hlslcc/hlslcc/src/hlslcc_lib/hlsl_lexer.ll"
+#line 232 "../../../../../Source/ThirdParty/hlslcc/hlslcc/src/hlslcc_lib/hlsl_lexer.ll"
 return HALF_TOK;
 	YY_BREAK
 case 25:
 YY_RULE_SETUP
-#line 233 "../../../../Source/ThirdParty/hlslcc/hlslcc/src/hlslcc_lib/hlsl_lexer.ll"
+#line 233 "../../../../../Source/ThirdParty/hlslcc/hlslcc/src/hlslcc_lib/hlsl_lexer.ll"
 return INT_TOK;
 	YY_BREAK
 case 26:
 YY_RULE_SETUP
-#line 234 "../../../../Source/ThirdParty/hlslcc/hlslcc/src/hlslcc_lib/hlsl_lexer.ll"
+#line 234 "../../../../../Source/ThirdParty/hlslcc/hlslcc/src/hlslcc_lib/hlsl_lexer.ll"
 return UINT_TOK;
 	YY_BREAK
 case 27:
 YY_RULE_SETUP
-#line 236 "../../../../Source/ThirdParty/hlslcc/hlslcc/src/hlslcc_lib/hlsl_lexer.ll"
+#line 236 "../../../../../Source/ThirdParty/hlslcc/hlslcc/src/hlslcc_lib/hlsl_lexer.ll"
 return BREAK;
 	YY_BREAK
 case 28:
 YY_RULE_SETUP
-#line 237 "../../../../Source/ThirdParty/hlslcc/hlslcc/src/hlslcc_lib/hlsl_lexer.ll"
+#line 237 "../../../../../Source/ThirdParty/hlslcc/hlslcc/src/hlslcc_lib/hlsl_lexer.ll"
 return CONTINUE;
 	YY_BREAK
 case 29:
 YY_RULE_SETUP
-#line 238 "../../../../Source/ThirdParty/hlslcc/hlslcc/src/hlslcc_lib/hlsl_lexer.ll"
+#line 238 "../../../../../Source/ThirdParty/hlslcc/hlslcc/src/hlslcc_lib/hlsl_lexer.ll"
 return DO;
 	YY_BREAK
 case 30:
 YY_RULE_SETUP
-#line 239 "../../../../Source/ThirdParty/hlslcc/hlslcc/src/hlslcc_lib/hlsl_lexer.ll"
+#line 239 "../../../../../Source/ThirdParty/hlslcc/hlslcc/src/hlslcc_lib/hlsl_lexer.ll"
 return WHILE;
 	YY_BREAK
 case 31:
 YY_RULE_SETUP
-#line 240 "../../../../Source/ThirdParty/hlslcc/hlslcc/src/hlslcc_lib/hlsl_lexer.ll"
+#line 240 "../../../../../Source/ThirdParty/hlslcc/hlslcc/src/hlslcc_lib/hlsl_lexer.ll"
 return ELSE;
 	YY_BREAK
 case 32:
 YY_RULE_SETUP
-#line 241 "../../../../Source/ThirdParty/hlslcc/hlslcc/src/hlslcc_lib/hlsl_lexer.ll"
+#line 241 "../../../../../Source/ThirdParty/hlslcc/hlslcc/src/hlslcc_lib/hlsl_lexer.ll"
 return FOR;
 	YY_BREAK
 case 33:
 YY_RULE_SETUP
-#line 242 "../../../../Source/ThirdParty/hlslcc/hlslcc/src/hlslcc_lib/hlsl_lexer.ll"
+#line 242 "../../../../../Source/ThirdParty/hlslcc/hlslcc/src/hlslcc_lib/hlsl_lexer.ll"
 return IF;
 	YY_BREAK
 case 34:
 YY_RULE_SETUP
-#line 243 "../../../../Source/ThirdParty/hlslcc/hlslcc/src/hlslcc_lib/hlsl_lexer.ll"
+#line 243 "../../../../../Source/ThirdParty/hlslcc/hlslcc/src/hlslcc_lib/hlsl_lexer.ll"
 return DISCARD;
 	YY_BREAK
 case 35:
 YY_RULE_SETUP
-#line 244 "../../../../Source/ThirdParty/hlslcc/hlslcc/src/hlslcc_lib/hlsl_lexer.ll"
+#line 244 "../../../../../Source/ThirdParty/hlslcc/hlslcc/src/hlslcc_lib/hlsl_lexer.ll"
 return RETURN;
 	YY_BREAK
 case 36:
 YY_RULE_SETUP
-#line 246 "../../../../Source/ThirdParty/hlslcc/hlslcc/src/hlslcc_lib/hlsl_lexer.ll"
+#line 246 "../../../../../Source/ThirdParty/hlslcc/hlslcc/src/hlslcc_lib/hlsl_lexer.ll"
 return BVEC2;
 	YY_BREAK
 case 37:
 YY_RULE_SETUP
-#line 247 "../../../../Source/ThirdParty/hlslcc/hlslcc/src/hlslcc_lib/hlsl_lexer.ll"
+#line 247 "../../../../../Source/ThirdParty/hlslcc/hlslcc/src/hlslcc_lib/hlsl_lexer.ll"
 return BVEC3;
 	YY_BREAK
 case 38:
 YY_RULE_SETUP
-#line 248 "../../../../Source/ThirdParty/hlslcc/hlslcc/src/hlslcc_lib/hlsl_lexer.ll"
+#line 248 "../../../../../Source/ThirdParty/hlslcc/hlslcc/src/hlslcc_lib/hlsl_lexer.ll"
 return BVEC4;
 	YY_BREAK
 case 39:
 YY_RULE_SETUP
-#line 249 "../../../../Source/ThirdParty/hlslcc/hlslcc/src/hlslcc_lib/hlsl_lexer.ll"
+#line 249 "../../../../../Source/ThirdParty/hlslcc/hlslcc/src/hlslcc_lib/hlsl_lexer.ll"
 return IVEC2;
 	YY_BREAK
 case 40:
 YY_RULE_SETUP
-#line 250 "../../../../Source/ThirdParty/hlslcc/hlslcc/src/hlslcc_lib/hlsl_lexer.ll"
+#line 250 "../../../../../Source/ThirdParty/hlslcc/hlslcc/src/hlslcc_lib/hlsl_lexer.ll"
 return IVEC3;
 	YY_BREAK
 case 41:
 YY_RULE_SETUP
-#line 251 "../../../../Source/ThirdParty/hlslcc/hlslcc/src/hlslcc_lib/hlsl_lexer.ll"
+#line 251 "../../../../../Source/ThirdParty/hlslcc/hlslcc/src/hlslcc_lib/hlsl_lexer.ll"
 return IVEC4;
 	YY_BREAK
 case 42:
 YY_RULE_SETUP
-#line 252 "../../../../Source/ThirdParty/hlslcc/hlslcc/src/hlslcc_lib/hlsl_lexer.ll"
+#line 252 "../../../../../Source/ThirdParty/hlslcc/hlslcc/src/hlslcc_lib/hlsl_lexer.ll"
 return UVEC2;
 	YY_BREAK
 case 43:
 YY_RULE_SETUP
-#line 253 "../../../../Source/ThirdParty/hlslcc/hlslcc/src/hlslcc_lib/hlsl_lexer.ll"
+#line 253 "../../../../../Source/ThirdParty/hlslcc/hlslcc/src/hlslcc_lib/hlsl_lexer.ll"
 return UVEC3;
 	YY_BREAK
 case 44:
 YY_RULE_SETUP
-#line 254 "../../../../Source/ThirdParty/hlslcc/hlslcc/src/hlslcc_lib/hlsl_lexer.ll"
+#line 254 "../../../../../Source/ThirdParty/hlslcc/hlslcc/src/hlslcc_lib/hlsl_lexer.ll"
 return UVEC4;
 	YY_BREAK
 case 45:
 YY_RULE_SETUP
-#line 255 "../../../../Source/ThirdParty/hlslcc/hlslcc/src/hlslcc_lib/hlsl_lexer.ll"
+#line 255 "../../../../../Source/ThirdParty/hlslcc/hlslcc/src/hlslcc_lib/hlsl_lexer.ll"
 return VEC2;
 	YY_BREAK
 case 46:
 YY_RULE_SETUP
-#line 256 "../../../../Source/ThirdParty/hlslcc/hlslcc/src/hlslcc_lib/hlsl_lexer.ll"
+#line 256 "../../../../../Source/ThirdParty/hlslcc/hlslcc/src/hlslcc_lib/hlsl_lexer.ll"
 return VEC3;
 	YY_BREAK
 case 47:
 YY_RULE_SETUP
-#line 257 "../../../../Source/ThirdParty/hlslcc/hlslcc/src/hlslcc_lib/hlsl_lexer.ll"
+#line 257 "../../../../../Source/ThirdParty/hlslcc/hlslcc/src/hlslcc_lib/hlsl_lexer.ll"
 return VEC4;
 	YY_BREAK
 case 48:
 YY_RULE_SETUP
-#line 258 "../../../../Source/ThirdParty/hlslcc/hlslcc/src/hlslcc_lib/hlsl_lexer.ll"
+#line 258 "../../../../../Source/ThirdParty/hlslcc/hlslcc/src/hlslcc_lib/hlsl_lexer.ll"
 return MAT2X2;
 	YY_BREAK
 case 49:
 YY_RULE_SETUP
-#line 259 "../../../../Source/ThirdParty/hlslcc/hlslcc/src/hlslcc_lib/hlsl_lexer.ll"
+#line 259 "../../../../../Source/ThirdParty/hlslcc/hlslcc/src/hlslcc_lib/hlsl_lexer.ll"
 return MAT2X3;
 	YY_BREAK
 case 50:
 YY_RULE_SETUP
-#line 260 "../../../../Source/ThirdParty/hlslcc/hlslcc/src/hlslcc_lib/hlsl_lexer.ll"
+#line 260 "../../../../../Source/ThirdParty/hlslcc/hlslcc/src/hlslcc_lib/hlsl_lexer.ll"
 return MAT2X4;
 	YY_BREAK
 case 51:
 YY_RULE_SETUP
-#line 261 "../../../../Source/ThirdParty/hlslcc/hlslcc/src/hlslcc_lib/hlsl_lexer.ll"
+#line 261 "../../../../../Source/ThirdParty/hlslcc/hlslcc/src/hlslcc_lib/hlsl_lexer.ll"
 return MAT3X2;
 	YY_BREAK
 case 52:
 YY_RULE_SETUP
-#line 262 "../../../../Source/ThirdParty/hlslcc/hlslcc/src/hlslcc_lib/hlsl_lexer.ll"
+#line 262 "../../../../../Source/ThirdParty/hlslcc/hlslcc/src/hlslcc_lib/hlsl_lexer.ll"
 return MAT3X3;
 	YY_BREAK
 case 53:
 YY_RULE_SETUP
-#line 263 "../../../../Source/ThirdParty/hlslcc/hlslcc/src/hlslcc_lib/hlsl_lexer.ll"
+#line 263 "../../../../../Source/ThirdParty/hlslcc/hlslcc/src/hlslcc_lib/hlsl_lexer.ll"
 return MAT3X4;
 	YY_BREAK
 case 54:
 YY_RULE_SETUP
-#line 264 "../../../../Source/ThirdParty/hlslcc/hlslcc/src/hlslcc_lib/hlsl_lexer.ll"
+#line 264 "../../../../../Source/ThirdParty/hlslcc/hlslcc/src/hlslcc_lib/hlsl_lexer.ll"
 return MAT4X2;
 	YY_BREAK
 case 55:
 YY_RULE_SETUP
-#line 265 "../../../../Source/ThirdParty/hlslcc/hlslcc/src/hlslcc_lib/hlsl_lexer.ll"
+#line 265 "../../../../../Source/ThirdParty/hlslcc/hlslcc/src/hlslcc_lib/hlsl_lexer.ll"
 return MAT4X3;
 	YY_BREAK
 case 56:
 YY_RULE_SETUP
-#line 266 "../../../../Source/ThirdParty/hlslcc/hlslcc/src/hlslcc_lib/hlsl_lexer.ll"
+#line 266 "../../../../../Source/ThirdParty/hlslcc/hlslcc/src/hlslcc_lib/hlsl_lexer.ll"
 return MAT4X4;
 	YY_BREAK
 case 57:
 YY_RULE_SETUP
-#line 268 "../../../../Source/ThirdParty/hlslcc/hlslcc/src/hlslcc_lib/hlsl_lexer.ll"
+#line 268 "../../../../../Source/ThirdParty/hlslcc/hlslcc/src/hlslcc_lib/hlsl_lexer.ll"
 return POINT_TOK;
 	YY_BREAK
 case 58:
 YY_RULE_SETUP
-#line 269 "../../../../Source/ThirdParty/hlslcc/hlslcc/src/hlslcc_lib/hlsl_lexer.ll"
+#line 269 "../../../../../Source/ThirdParty/hlslcc/hlslcc/src/hlslcc_lib/hlsl_lexer.ll"
 return LINE_TOK;
 	YY_BREAK
 case 59:
 YY_RULE_SETUP
-#line 270 "../../../../Source/ThirdParty/hlslcc/hlslcc/src/hlslcc_lib/hlsl_lexer.ll"
+#line 270 "../../../../../Source/ThirdParty/hlslcc/hlslcc/src/hlslcc_lib/hlsl_lexer.ll"
 return TRIANGLE_TOK;
 	YY_BREAK
 case 60:
 YY_RULE_SETUP
-#line 271 "../../../../Source/ThirdParty/hlslcc/hlslcc/src/hlslcc_lib/hlsl_lexer.ll"
+#line 271 "../../../../../Source/ThirdParty/hlslcc/hlslcc/src/hlslcc_lib/hlsl_lexer.ll"
 return LINEADJ_TOK;
 	YY_BREAK
 case 61:
 YY_RULE_SETUP
-#line 272 "../../../../Source/ThirdParty/hlslcc/hlslcc/src/hlslcc_lib/hlsl_lexer.ll"
+#line 272 "../../../../../Source/ThirdParty/hlslcc/hlslcc/src/hlslcc_lib/hlsl_lexer.ll"
 return TRIANGLEADJ_TOK;
 	YY_BREAK
 case 62:
 YY_RULE_SETUP
-#line 273 "../../../../Source/ThirdParty/hlslcc/hlslcc/src/hlslcc_lib/hlsl_lexer.ll"
+#line 273 "../../../../../Source/ThirdParty/hlslcc/hlslcc/src/hlslcc_lib/hlsl_lexer.ll"
 return POINTSTREAM;
 	YY_BREAK
 case 63:
 YY_RULE_SETUP
-#line 274 "../../../../Source/ThirdParty/hlslcc/hlslcc/src/hlslcc_lib/hlsl_lexer.ll"
+#line 274 "../../../../../Source/ThirdParty/hlslcc/hlslcc/src/hlslcc_lib/hlsl_lexer.ll"
 return LINESTREAM;
 	YY_BREAK
 case 64:
 YY_RULE_SETUP
-#line 275 "../../../../Source/ThirdParty/hlslcc/hlslcc/src/hlslcc_lib/hlsl_lexer.ll"
+#line 275 "../../../../../Source/ThirdParty/hlslcc/hlslcc/src/hlslcc_lib/hlsl_lexer.ll"
 return TRIANGLESTREAM;
 	YY_BREAK
 case 65:
 YY_RULE_SETUP
-#line 277 "../../../../Source/ThirdParty/hlslcc/hlslcc/src/hlslcc_lib/hlsl_lexer.ll"
+#line 277 "../../../../../Source/ThirdParty/hlslcc/hlslcc/src/hlslcc_lib/hlsl_lexer.ll"
 return INPUTPATCH;
 	YY_BREAK
 case 66:
 YY_RULE_SETUP
-#line 278 "../../../../Source/ThirdParty/hlslcc/hlslcc/src/hlslcc_lib/hlsl_lexer.ll"
+#line 278 "../../../../../Source/ThirdParty/hlslcc/hlslcc/src/hlslcc_lib/hlsl_lexer.ll"
 return OUTPUTPATCH;
 	YY_BREAK
 case 67:
 YY_RULE_SETUP
-#line 280 "../../../../Source/ThirdParty/hlslcc/hlslcc/src/hlslcc_lib/hlsl_lexer.ll"
+#line 280 "../../../../../Source/ThirdParty/hlslcc/hlslcc/src/hlslcc_lib/hlsl_lexer.ll"
 return IN_TOK;
 	YY_BREAK
 case 68:
 YY_RULE_SETUP
-#line 281 "../../../../Source/ThirdParty/hlslcc/hlslcc/src/hlslcc_lib/hlsl_lexer.ll"
+#line 281 "../../../../../Source/ThirdParty/hlslcc/hlslcc/src/hlslcc_lib/hlsl_lexer.ll"
 return OUT_TOK;
 	YY_BREAK
 case 69:
 YY_RULE_SETUP
-#line 282 "../../../../Source/ThirdParty/hlslcc/hlslcc/src/hlslcc_lib/hlsl_lexer.ll"
+#line 282 "../../../../../Source/ThirdParty/hlslcc/hlslcc/src/hlslcc_lib/hlsl_lexer.ll"
 return INOUT_TOK;
 	YY_BREAK
 case 70:
 YY_RULE_SETUP
-#line 283 "../../../../Source/ThirdParty/hlslcc/hlslcc/src/hlslcc_lib/hlsl_lexer.ll"
+#line 283 "../../../../../Source/ThirdParty/hlslcc/hlslcc/src/hlslcc_lib/hlsl_lexer.ll"
 return UNIFORM;
 	YY_BREAK
 case 71:
 YY_RULE_SETUP
-#line 284 "../../../../Source/ThirdParty/hlslcc/hlslcc/src/hlslcc_lib/hlsl_lexer.ll"
+#line 284 "../../../../../Source/ThirdParty/hlslcc/hlslcc/src/hlslcc_lib/hlsl_lexer.ll"
 return VARYING;
 	YY_BREAK
 case 72:
 YY_RULE_SETUP
-#line 285 "../../../../Source/ThirdParty/hlslcc/hlslcc/src/hlslcc_lib/hlsl_lexer.ll"
+#line 285 "../../../../../Source/ThirdParty/hlslcc/hlslcc/src/hlslcc_lib/hlsl_lexer.ll"
 return CENTROID;
 	YY_BREAK
 case 73:
 YY_RULE_SETUP
-#line 286 "../../../../Source/ThirdParty/hlslcc/hlslcc/src/hlslcc_lib/hlsl_lexer.ll"
+#line 286 "../../../../../Source/ThirdParty/hlslcc/hlslcc/src/hlslcc_lib/hlsl_lexer.ll"
 return INVARIANT;
 	YY_BREAK
 case 74:
 YY_RULE_SETUP
-#line 287 "../../../../Source/ThirdParty/hlslcc/hlslcc/src/hlslcc_lib/hlsl_lexer.ll"
+#line 287 "../../../../../Source/ThirdParty/hlslcc/hlslcc/src/hlslcc_lib/hlsl_lexer.ll"
 return NOINTERPOLATION;
 	YY_BREAK
 case 75:
 YY_RULE_SETUP
-#line 288 "../../../../Source/ThirdParty/hlslcc/hlslcc/src/hlslcc_lib/hlsl_lexer.ll"
+#line 288 "../../../../../Source/ThirdParty/hlslcc/hlslcc/src/hlslcc_lib/hlsl_lexer.ll"
 return LINEAR;
 	YY_BREAK
 case 76:
 YY_RULE_SETUP
-#line 289 "../../../../Source/ThirdParty/hlslcc/hlslcc/src/hlslcc_lib/hlsl_lexer.ll"
+#line 289 "../../../../../Source/ThirdParty/hlslcc/hlslcc/src/hlslcc_lib/hlsl_lexer.ll"
 return NOPERSPECTIVE;
 	YY_BREAK
 case 77:
 YY_RULE_SETUP
-#line 290 "../../../../Source/ThirdParty/hlslcc/hlslcc/src/hlslcc_lib/hlsl_lexer.ll"
+#line 290 "../../../../../Source/ThirdParty/hlslcc/hlslcc/src/hlslcc_lib/hlsl_lexer.ll"
 return GLOBALLYCOHERENT;
 	YY_BREAK
 case 78:
 YY_RULE_SETUP
-#line 291 "../../../../Source/ThirdParty/hlslcc/hlslcc/src/hlslcc_lib/hlsl_lexer.ll"
+#line 291 "../../../../../Source/ThirdParty/hlslcc/hlslcc/src/hlslcc_lib/hlsl_lexer.ll"
 return SHARED;
 	YY_BREAK
 case 79:
 YY_RULE_SETUP
-#line 292 "../../../../Source/ThirdParty/hlslcc/hlslcc/src/hlslcc_lib/hlsl_lexer.ll"
+#line 292 "../../../../../Source/ThirdParty/hlslcc/hlslcc/src/hlslcc_lib/hlsl_lexer.ll"
 return REGISTER;
 	YY_BREAK
 case 80:
 YY_RULE_SETUP
-#line 293 "../../../../Source/ThirdParty/hlslcc/hlslcc/src/hlslcc_lib/hlsl_lexer.ll"
+#line 293 "../../../../../Source/ThirdParty/hlslcc/hlslcc/src/hlslcc_lib/hlsl_lexer.ll"
 return PACKOFFSET;
 	YY_BREAK
 case 81:
 YY_RULE_SETUP
-#line 294 "../../../../Source/ThirdParty/hlslcc/hlslcc/src/hlslcc_lib/hlsl_lexer.ll"
+#line 294 "../../../../../Source/ThirdParty/hlslcc/hlslcc/src/hlslcc_lib/hlsl_lexer.ll"
 return PRECISE;
 	YY_BREAK
 case 82:
 YY_RULE_SETUP
-#line 296 "../../../../Source/ThirdParty/hlslcc/hlslcc/src/hlslcc_lib/hlsl_lexer.ll"
+#line 296 "../../../../../Source/ThirdParty/hlslcc/hlslcc/src/hlslcc_lib/hlsl_lexer.ll"
 return ROW_MAJOR;
 	YY_BREAK
 case 83:
 YY_RULE_SETUP
-#line 297 "../../../../Source/ThirdParty/hlslcc/hlslcc/src/hlslcc_lib/hlsl_lexer.ll"
+#line 297 "../../../../../Source/ThirdParty/hlslcc/hlslcc/src/hlslcc_lib/hlsl_lexer.ll"
 return COLUMN_MAJOR;
 	YY_BREAK
 case 84:
 YY_RULE_SETUP
-#line 299 "../../../../Source/ThirdParty/hlslcc/hlslcc/src/hlslcc_lib/hlsl_lexer.ll"
+#line 299 "../../../../../Source/ThirdParty/hlslcc/hlslcc/src/hlslcc_lib/hlsl_lexer.ll"
 return BUFFER;
 	YY_BREAK
 case 85:
 YY_RULE_SETUP
-#line 300 "../../../../Source/ThirdParty/hlslcc/hlslcc/src/hlslcc_lib/hlsl_lexer.ll"
+#line 300 "../../../../../Source/ThirdParty/hlslcc/hlslcc/src/hlslcc_lib/hlsl_lexer.ll"
 return STRUCTUREDBUFFER;
 	YY_BREAK
 case 86:
 YY_RULE_SETUP
-#line 301 "../../../../Source/ThirdParty/hlslcc/hlslcc/src/hlslcc_lib/hlsl_lexer.ll"
+#line 301 "../../../../../Source/ThirdParty/hlslcc/hlslcc/src/hlslcc_lib/hlsl_lexer.ll"
 return BYTEADDRESSBUFFER;
 	YY_BREAK
 case 87:
 YY_RULE_SETUP
-#line 302 "../../../../Source/ThirdParty/hlslcc/hlslcc/src/hlslcc_lib/hlsl_lexer.ll"
+#line 302 "../../../../../Source/ThirdParty/hlslcc/hlslcc/src/hlslcc_lib/hlsl_lexer.ll"
 return TEXTURE1D;
 	YY_BREAK
 case 88:
 YY_RULE_SETUP
-#line 303 "../../../../Source/ThirdParty/hlslcc/hlslcc/src/hlslcc_lib/hlsl_lexer.ll"
+#line 303 "../../../../../Source/ThirdParty/hlslcc/hlslcc/src/hlslcc_lib/hlsl_lexer.ll"
 return TEXTURE1D_ARRAY;
 	YY_BREAK
 case 89:
 YY_RULE_SETUP
-#line 304 "../../../../Source/ThirdParty/hlslcc/hlslcc/src/hlslcc_lib/hlsl_lexer.ll"
+#line 304 "../../../../../Source/ThirdParty/hlslcc/hlslcc/src/hlslcc_lib/hlsl_lexer.ll"
 return TEXTURE2D;
 	YY_BREAK
 case 90:
 YY_RULE_SETUP
-#line 305 "../../../../Source/ThirdParty/hlslcc/hlslcc/src/hlslcc_lib/hlsl_lexer.ll"
+#line 305 "../../../../../Source/ThirdParty/hlslcc/hlslcc/src/hlslcc_lib/hlsl_lexer.ll"
 return TEXTURE_EXTERNAL;
 	YY_BREAK
 case 91:
 YY_RULE_SETUP
-#line 306 "../../../../Source/ThirdParty/hlslcc/hlslcc/src/hlslcc_lib/hlsl_lexer.ll"
+#line 306 "../../../../../Source/ThirdParty/hlslcc/hlslcc/src/hlslcc_lib/hlsl_lexer.ll"
 return TEXTURE2D_ARRAY;
 	YY_BREAK
 case 92:
 YY_RULE_SETUP
-#line 307 "../../../../Source/ThirdParty/hlslcc/hlslcc/src/hlslcc_lib/hlsl_lexer.ll"
+#line 307 "../../../../../Source/ThirdParty/hlslcc/hlslcc/src/hlslcc_lib/hlsl_lexer.ll"
 return TEXTURE2DMS;
 	YY_BREAK
 case 93:
 YY_RULE_SETUP
-#line 308 "../../../../Source/ThirdParty/hlslcc/hlslcc/src/hlslcc_lib/hlsl_lexer.ll"
+#line 308 "../../../../../Source/ThirdParty/hlslcc/hlslcc/src/hlslcc_lib/hlsl_lexer.ll"
 return TEXTURE2DMS_ARRAY;
 	YY_BREAK
 case 94:
 YY_RULE_SETUP
-#line 309 "../../../../Source/ThirdParty/hlslcc/hlslcc/src/hlslcc_lib/hlsl_lexer.ll"
+#line 309 "../../../../../Source/ThirdParty/hlslcc/hlslcc/src/hlslcc_lib/hlsl_lexer.ll"
 return TEXTURE3D;
 	YY_BREAK
 case 95:
 YY_RULE_SETUP
-#line 310 "../../../../Source/ThirdParty/hlslcc/hlslcc/src/hlslcc_lib/hlsl_lexer.ll"
+#line 310 "../../../../../Source/ThirdParty/hlslcc/hlslcc/src/hlslcc_lib/hlsl_lexer.ll"
 return TEXTURECUBE;
 	YY_BREAK
 case 96:
 YY_RULE_SETUP
-#line 311 "../../../../Source/ThirdParty/hlslcc/hlslcc/src/hlslcc_lib/hlsl_lexer.ll"
+#line 311 "../../../../../Source/ThirdParty/hlslcc/hlslcc/src/hlslcc_lib/hlsl_lexer.ll"
 return TEXTURECUBE_ARRAY;
 	YY_BREAK
 case 97:
 YY_RULE_SETUP
-#line 312 "../../../../Source/ThirdParty/hlslcc/hlslcc/src/hlslcc_lib/hlsl_lexer.ll"
+#line 312 "../../../../../Source/ThirdParty/hlslcc/hlslcc/src/hlslcc_lib/hlsl_lexer.ll"
 return SAMPLERSTATE;
 	YY_BREAK
 case 98:
 YY_RULE_SETUP
-#line 313 "../../../../Source/ThirdParty/hlslcc/hlslcc/src/hlslcc_lib/hlsl_lexer.ll"
+#line 313 "../../../../../Source/ThirdParty/hlslcc/hlslcc/src/hlslcc_lib/hlsl_lexer.ll"
 return SAMPLERSTATE_CMP;
 	YY_BREAK
 case 99:
 YY_RULE_SETUP
-#line 315 "../../../../Source/ThirdParty/hlslcc/hlslcc/src/hlslcc_lib/hlsl_lexer.ll"
+#line 315 "../../../../../Source/ThirdParty/hlslcc/hlslcc/src/hlslcc_lib/hlsl_lexer.ll"
 return RWBUFFER;
 	YY_BREAK
 case 100:
 YY_RULE_SETUP
-#line 316 "../../../../Source/ThirdParty/hlslcc/hlslcc/src/hlslcc_lib/hlsl_lexer.ll"
+#line 316 "../../../../../Source/ThirdParty/hlslcc/hlslcc/src/hlslcc_lib/hlsl_lexer.ll"
 return RWSTRUCTUREDBUFFER;
 	YY_BREAK
 case 101:
 YY_RULE_SETUP
-#line 317 "../../../../Source/ThirdParty/hlslcc/hlslcc/src/hlslcc_lib/hlsl_lexer.ll"
+#line 317 "../../../../../Source/ThirdParty/hlslcc/hlslcc/src/hlslcc_lib/hlsl_lexer.ll"
 return RWBYTEADDRESSBUFFER;
 	YY_BREAK
 case 102:
 YY_RULE_SETUP
-#line 318 "../../../../Source/ThirdParty/hlslcc/hlslcc/src/hlslcc_lib/hlsl_lexer.ll"
+#line 318 "../../../../../Source/ThirdParty/hlslcc/hlslcc/src/hlslcc_lib/hlsl_lexer.ll"
 return RWTEXTURE1D;
 	YY_BREAK
 case 103:
 YY_RULE_SETUP
-#line 319 "../../../../Source/ThirdParty/hlslcc/hlslcc/src/hlslcc_lib/hlsl_lexer.ll"
+#line 319 "../../../../../Source/ThirdParty/hlslcc/hlslcc/src/hlslcc_lib/hlsl_lexer.ll"
 return RWTEXTURE1D_ARRAY;
 	YY_BREAK
 case 104:
 YY_RULE_SETUP
-#line 320 "../../../../Source/ThirdParty/hlslcc/hlslcc/src/hlslcc_lib/hlsl_lexer.ll"
+#line 320 "../../../../../Source/ThirdParty/hlslcc/hlslcc/src/hlslcc_lib/hlsl_lexer.ll"
 return RWTEXTURE2D;
 	YY_BREAK
 case 105:
 YY_RULE_SETUP
-#line 321 "../../../../Source/ThirdParty/hlslcc/hlslcc/src/hlslcc_lib/hlsl_lexer.ll"
+#line 321 "../../../../../Source/ThirdParty/hlslcc/hlslcc/src/hlslcc_lib/hlsl_lexer.ll"
 return RWTEXTURE2D_ARRAY;
 	YY_BREAK
 case 106:
 YY_RULE_SETUP
-#line 322 "../../../../Source/ThirdParty/hlslcc/hlslcc/src/hlslcc_lib/hlsl_lexer.ll"
+#line 322 "../../../../../Source/ThirdParty/hlslcc/hlslcc/src/hlslcc_lib/hlsl_lexer.ll"
 return RWTEXTURE3D;
 	YY_BREAK
 case 107:
 YY_RULE_SETUP
-#line 324 "../../../../Source/ThirdParty/hlslcc/hlslcc/src/hlslcc_lib/hlsl_lexer.ll"
+#line 324 "../../../../../Source/ThirdParty/hlslcc/hlslcc/src/hlslcc_lib/hlsl_lexer.ll"
 return STRUCT;
 	YY_BREAK
 case 108:
 YY_RULE_SETUP
-#line 325 "../../../../Source/ThirdParty/hlslcc/hlslcc/src/hlslcc_lib/hlsl_lexer.ll"
+#line 325 "../../../../../Source/ThirdParty/hlslcc/hlslcc/src/hlslcc_lib/hlsl_lexer.ll"
 return CBUFFER;
 	YY_BREAK
 case 109:
 YY_RULE_SETUP
-#line 326 "../../../../Source/ThirdParty/hlslcc/hlslcc/src/hlslcc_lib/hlsl_lexer.ll"
+#line 326 "../../../../../Source/ThirdParty/hlslcc/hlslcc/src/hlslcc_lib/hlsl_lexer.ll"
 return VOID_TOK;
 	YY_BREAK
 case 110:
 YY_RULE_SETUP
-#line 328 "../../../../Source/ThirdParty/hlslcc/hlslcc/src/hlslcc_lib/hlsl_lexer.ll"
+#line 328 "../../../../../Source/ThirdParty/hlslcc/hlslcc/src/hlslcc_lib/hlsl_lexer.ll"
 return INC_OP;
 	YY_BREAK
 case 111:
 YY_RULE_SETUP
-#line 329 "../../../../Source/ThirdParty/hlslcc/hlslcc/src/hlslcc_lib/hlsl_lexer.ll"
+#line 329 "../../../../../Source/ThirdParty/hlslcc/hlslcc/src/hlslcc_lib/hlsl_lexer.ll"
 return DEC_OP;
 	YY_BREAK
 case 112:
 YY_RULE_SETUP
-#line 330 "../../../../Source/ThirdParty/hlslcc/hlslcc/src/hlslcc_lib/hlsl_lexer.ll"
+#line 330 "../../../../../Source/ThirdParty/hlslcc/hlslcc/src/hlslcc_lib/hlsl_lexer.ll"
 return LE_OP;
 	YY_BREAK
 case 113:
 YY_RULE_SETUP
-#line 331 "../../../../Source/ThirdParty/hlslcc/hlslcc/src/hlslcc_lib/hlsl_lexer.ll"
+#line 331 "../../../../../Source/ThirdParty/hlslcc/hlslcc/src/hlslcc_lib/hlsl_lexer.ll"
 return GE_OP;
 	YY_BREAK
 case 114:
 YY_RULE_SETUP
-#line 332 "../../../../Source/ThirdParty/hlslcc/hlslcc/src/hlslcc_lib/hlsl_lexer.ll"
+#line 332 "../../../../../Source/ThirdParty/hlslcc/hlslcc/src/hlslcc_lib/hlsl_lexer.ll"
 return EQ_OP;
 	YY_BREAK
 case 115:
 YY_RULE_SETUP
-#line 333 "../../../../Source/ThirdParty/hlslcc/hlslcc/src/hlslcc_lib/hlsl_lexer.ll"
+#line 333 "../../../../../Source/ThirdParty/hlslcc/hlslcc/src/hlslcc_lib/hlsl_lexer.ll"
 return NE_OP;
 	YY_BREAK
 case 116:
 YY_RULE_SETUP
-#line 334 "../../../../Source/ThirdParty/hlslcc/hlslcc/src/hlslcc_lib/hlsl_lexer.ll"
+#line 334 "../../../../../Source/ThirdParty/hlslcc/hlslcc/src/hlslcc_lib/hlsl_lexer.ll"
 return AND_OP;
 	YY_BREAK
 case 117:
 YY_RULE_SETUP
-#line 335 "../../../../Source/ThirdParty/hlslcc/hlslcc/src/hlslcc_lib/hlsl_lexer.ll"
+#line 335 "../../../../../Source/ThirdParty/hlslcc/hlslcc/src/hlslcc_lib/hlsl_lexer.ll"
 return OR_OP;
 	YY_BREAK
 case 118:
 YY_RULE_SETUP
-#line 336 "../../../../Source/ThirdParty/hlslcc/hlslcc/src/hlslcc_lib/hlsl_lexer.ll"
+#line 336 "../../../../../Source/ThirdParty/hlslcc/hlslcc/src/hlslcc_lib/hlsl_lexer.ll"
 return LEFT_OP;
 	YY_BREAK
 case 119:
 YY_RULE_SETUP
-#line 337 "../../../../Source/ThirdParty/hlslcc/hlslcc/src/hlslcc_lib/hlsl_lexer.ll"
+#line 337 "../../../../../Source/ThirdParty/hlslcc/hlslcc/src/hlslcc_lib/hlsl_lexer.ll"
 return RIGHT_OP;
 	YY_BREAK
 case 120:
 YY_RULE_SETUP
-#line 339 "../../../../Source/ThirdParty/hlslcc/hlslcc/src/hlslcc_lib/hlsl_lexer.ll"
+#line 339 "../../../../../Source/ThirdParty/hlslcc/hlslcc/src/hlslcc_lib/hlsl_lexer.ll"
 return MUL_ASSIGN;
 	YY_BREAK
 case 121:
 YY_RULE_SETUP
-#line 340 "../../../../Source/ThirdParty/hlslcc/hlslcc/src/hlslcc_lib/hlsl_lexer.ll"
+#line 340 "../../../../../Source/ThirdParty/hlslcc/hlslcc/src/hlslcc_lib/hlsl_lexer.ll"
 return DIV_ASSIGN;
 	YY_BREAK
 case 122:
 YY_RULE_SETUP
-#line 341 "../../../../Source/ThirdParty/hlslcc/hlslcc/src/hlslcc_lib/hlsl_lexer.ll"
+#line 341 "../../../../../Source/ThirdParty/hlslcc/hlslcc/src/hlslcc_lib/hlsl_lexer.ll"
 return ADD_ASSIGN;
 	YY_BREAK
 case 123:
 YY_RULE_SETUP
-#line 342 "../../../../Source/ThirdParty/hlslcc/hlslcc/src/hlslcc_lib/hlsl_lexer.ll"
+#line 342 "../../../../../Source/ThirdParty/hlslcc/hlslcc/src/hlslcc_lib/hlsl_lexer.ll"
 return MOD_ASSIGN;
 	YY_BREAK
 case 124:
 YY_RULE_SETUP
-#line 343 "../../../../Source/ThirdParty/hlslcc/hlslcc/src/hlslcc_lib/hlsl_lexer.ll"
+#line 343 "../../../../../Source/ThirdParty/hlslcc/hlslcc/src/hlslcc_lib/hlsl_lexer.ll"
 return LEFT_ASSIGN;
 	YY_BREAK
 case 125:
 YY_RULE_SETUP
-#line 344 "../../../../Source/ThirdParty/hlslcc/hlslcc/src/hlslcc_lib/hlsl_lexer.ll"
+#line 344 "../../../../../Source/ThirdParty/hlslcc/hlslcc/src/hlslcc_lib/hlsl_lexer.ll"
 return RIGHT_ASSIGN;
 	YY_BREAK
 case 126:
 YY_RULE_SETUP
-#line 345 "../../../../Source/ThirdParty/hlslcc/hlslcc/src/hlslcc_lib/hlsl_lexer.ll"
+#line 345 "../../../../../Source/ThirdParty/hlslcc/hlslcc/src/hlslcc_lib/hlsl_lexer.ll"
 return AND_ASSIGN;
 	YY_BREAK
 case 127:
 YY_RULE_SETUP
-#line 346 "../../../../Source/ThirdParty/hlslcc/hlslcc/src/hlslcc_lib/hlsl_lexer.ll"
+#line 346 "../../../../../Source/ThirdParty/hlslcc/hlslcc/src/hlslcc_lib/hlsl_lexer.ll"
 return XOR_ASSIGN;
 	YY_BREAK
 case 128:
 YY_RULE_SETUP
-#line 347 "../../../../Source/ThirdParty/hlslcc/hlslcc/src/hlslcc_lib/hlsl_lexer.ll"
+#line 347 "../../../../../Source/ThirdParty/hlslcc/hlslcc/src/hlslcc_lib/hlsl_lexer.ll"
 return OR_ASSIGN;
 	YY_BREAK
 case 129:
 YY_RULE_SETUP
-#line 348 "../../../../Source/ThirdParty/hlslcc/hlslcc/src/hlslcc_lib/hlsl_lexer.ll"
+#line 348 "../../../../../Source/ThirdParty/hlslcc/hlslcc/src/hlslcc_lib/hlsl_lexer.ll"
 return SUB_ASSIGN;
 	YY_BREAK
 case 130:
 YY_RULE_SETUP
-#line 350 "../../../../Source/ThirdParty/hlslcc/hlslcc/src/hlslcc_lib/hlsl_lexer.ll"
+#line 350 "../../../../../Source/ThirdParty/hlslcc/hlslcc/src/hlslcc_lib/hlsl_lexer.ll"
 {
 				return LITERAL_INTEGER(10);
 			}
 	YY_BREAK
 case 131:
 YY_RULE_SETUP
-#line 353 "../../../../Source/ThirdParty/hlslcc/hlslcc/src/hlslcc_lib/hlsl_lexer.ll"
+#line 353 "../../../../../Source/ThirdParty/hlslcc/hlslcc/src/hlslcc_lib/hlsl_lexer.ll"
 {
 				return LITERAL_INTEGER(16);
 			}
 	YY_BREAK
 case 132:
 YY_RULE_SETUP
-#line 356 "../../../../Source/ThirdParty/hlslcc/hlslcc/src/hlslcc_lib/hlsl_lexer.ll"
+#line 356 "../../../../../Source/ThirdParty/hlslcc/hlslcc/src/hlslcc_lib/hlsl_lexer.ll"
 {
 				return LITERAL_INTEGER(8);
 			}
 	YY_BREAK
 case 133:
 YY_RULE_SETUP
-#line 360 "../../../../Source/ThirdParty/hlslcc/hlslcc/src/hlslcc_lib/hlsl_lexer.ll"
+#line 360 "../../../../../Source/ThirdParty/hlslcc/hlslcc/src/hlslcc_lib/hlsl_lexer.ll"
 {
 				struct _mesa_glsl_parse_state *state = yyextra;
 				void *ctx = state;	
@@ -2274,7 +2274,7 @@ YY_RULE_SETUP
 	YY_BREAK
 case 134:
 YY_RULE_SETUP
-#line 367 "../../../../Source/ThirdParty/hlslcc/hlslcc/src/hlslcc_lib/hlsl_lexer.ll"
+#line 367 "../../../../../Source/ThirdParty/hlslcc/hlslcc/src/hlslcc_lib/hlsl_lexer.ll"
 {
 				yylval->real = glsl_strtod(yytext, NULL);
 				return FLOATCONSTANT;
@@ -2282,7 +2282,7 @@ YY_RULE_SETUP
 	YY_BREAK
 case 135:
 YY_RULE_SETUP
-#line 371 "../../../../Source/ThirdParty/hlslcc/hlslcc/src/hlslcc_lib/hlsl_lexer.ll"
+#line 371 "../../../../../Source/ThirdParty/hlslcc/hlslcc/src/hlslcc_lib/hlsl_lexer.ll"
 {
 				yylval->real = glsl_strtod(yytext, NULL);
 				return FLOATCONSTANT;
@@ -2290,7 +2290,7 @@ YY_RULE_SETUP
 	YY_BREAK
 case 136:
 YY_RULE_SETUP
-#line 375 "../../../../Source/ThirdParty/hlslcc/hlslcc/src/hlslcc_lib/hlsl_lexer.ll"
+#line 375 "../../../../../Source/ThirdParty/hlslcc/hlslcc/src/hlslcc_lib/hlsl_lexer.ll"
 {
 				yylval->real = glsl_strtod(yytext, NULL);
 				return FLOATCONSTANT;
@@ -2298,7 +2298,7 @@ YY_RULE_SETUP
 	YY_BREAK
 case 137:
 YY_RULE_SETUP
-#line 379 "../../../../Source/ThirdParty/hlslcc/hlslcc/src/hlslcc_lib/hlsl_lexer.ll"
+#line 379 "../../../../../Source/ThirdParty/hlslcc/hlslcc/src/hlslcc_lib/hlsl_lexer.ll"
 {
 				yylval->real = glsl_strtod(yytext, NULL);
 				return FLOATCONSTANT;
@@ -2306,7 +2306,7 @@ YY_RULE_SETUP
 	YY_BREAK
 case 138:
 YY_RULE_SETUP
-#line 383 "../../../../Source/ThirdParty/hlslcc/hlslcc/src/hlslcc_lib/hlsl_lexer.ll"
+#line 383 "../../../../../Source/ThirdParty/hlslcc/hlslcc/src/hlslcc_lib/hlsl_lexer.ll"
 {
 				yylval->real = glsl_strtod(yytext, NULL);
 				return FLOATCONSTANT;
@@ -2314,7 +2314,7 @@ YY_RULE_SETUP
 	YY_BREAK
 case 139:
 YY_RULE_SETUP
-#line 387 "../../../../Source/ThirdParty/hlslcc/hlslcc/src/hlslcc_lib/hlsl_lexer.ll"
+#line 387 "../../../../../Source/ThirdParty/hlslcc/hlslcc/src/hlslcc_lib/hlsl_lexer.ll"
 {
 				uint32_t InfConstant = 0x7F800000; // sign = 0, exponent = all 1s, mantissa = all 0s
 				yylval->real = *((float*)&InfConstant);
@@ -2323,7 +2323,7 @@ YY_RULE_SETUP
 	YY_BREAK
 case 140:
 YY_RULE_SETUP
-#line 393 "../../../../Source/ThirdParty/hlslcc/hlslcc/src/hlslcc_lib/hlsl_lexer.ll"
+#line 393 "../../../../../Source/ThirdParty/hlslcc/hlslcc/src/hlslcc_lib/hlsl_lexer.ll"
 {
 				yylval->n = 1;
 				return BOOLCONSTANT;
@@ -2331,7 +2331,7 @@ YY_RULE_SETUP
 	YY_BREAK
 case 141:
 YY_RULE_SETUP
-#line 397 "../../../../Source/ThirdParty/hlslcc/hlslcc/src/hlslcc_lib/hlsl_lexer.ll"
+#line 397 "../../../../../Source/ThirdParty/hlslcc/hlslcc/src/hlslcc_lib/hlsl_lexer.ll"
 {
 				yylval->n = 0;
 				return BOOLCONSTANT;
@@ -2340,453 +2340,453 @@ YY_RULE_SETUP
 /* Reserved words in GLSL 1.10. */
 case 142:
 YY_RULE_SETUP
-#line 404 "../../../../Source/ThirdParty/hlslcc/hlslcc/src/hlslcc_lib/hlsl_lexer.ll"
+#line 404 "../../../../../Source/ThirdParty/hlslcc/hlslcc/src/hlslcc_lib/hlsl_lexer.ll"
 KEYWORD(110 || ES, 999, ASM);
 	YY_BREAK
 case 143:
 YY_RULE_SETUP
-#line 405 "../../../../Source/ThirdParty/hlslcc/hlslcc/src/hlslcc_lib/hlsl_lexer.ll"
+#line 405 "../../../../../Source/ThirdParty/hlslcc/hlslcc/src/hlslcc_lib/hlsl_lexer.ll"
 KEYWORD(110 || ES, 999, CLASS);
 	YY_BREAK
 case 144:
 YY_RULE_SETUP
-#line 406 "../../../../Source/ThirdParty/hlslcc/hlslcc/src/hlslcc_lib/hlsl_lexer.ll"
+#line 406 "../../../../../Source/ThirdParty/hlslcc/hlslcc/src/hlslcc_lib/hlsl_lexer.ll"
 KEYWORD(110 || ES, 999, UNION);
 	YY_BREAK
 case 145:
 YY_RULE_SETUP
-#line 407 "../../../../Source/ThirdParty/hlslcc/hlslcc/src/hlslcc_lib/hlsl_lexer.ll"
+#line 407 "../../../../../Source/ThirdParty/hlslcc/hlslcc/src/hlslcc_lib/hlsl_lexer.ll"
 KEYWORD(110 || ES, 999, ENUM);
 	YY_BREAK
 case 146:
 YY_RULE_SETUP
-#line 408 "../../../../Source/ThirdParty/hlslcc/hlslcc/src/hlslcc_lib/hlsl_lexer.ll"
+#line 408 "../../../../../Source/ThirdParty/hlslcc/hlslcc/src/hlslcc_lib/hlsl_lexer.ll"
 KEYWORD(110 || ES, 999, TYPEDEF);
 	YY_BREAK
 case 147:
 YY_RULE_SETUP
-#line 409 "../../../../Source/ThirdParty/hlslcc/hlslcc/src/hlslcc_lib/hlsl_lexer.ll"
+#line 409 "../../../../../Source/ThirdParty/hlslcc/hlslcc/src/hlslcc_lib/hlsl_lexer.ll"
 KEYWORD(110 || ES, 999, TEMPLATE);
 	YY_BREAK
 case 148:
 YY_RULE_SETUP
-#line 410 "../../../../Source/ThirdParty/hlslcc/hlslcc/src/hlslcc_lib/hlsl_lexer.ll"
+#line 410 "../../../../../Source/ThirdParty/hlslcc/hlslcc/src/hlslcc_lib/hlsl_lexer.ll"
 KEYWORD(110 || ES, 999, THIS);
 	YY_BREAK
 case 149:
 YY_RULE_SETUP
-#line 411 "../../../../Source/ThirdParty/hlslcc/hlslcc/src/hlslcc_lib/hlsl_lexer.ll"
+#line 411 "../../../../../Source/ThirdParty/hlslcc/hlslcc/src/hlslcc_lib/hlsl_lexer.ll"
 KEYWORD(110 || ES, 999, PACKED_TOK);
 	YY_BREAK
 case 150:
 YY_RULE_SETUP
-#line 412 "../../../../Source/ThirdParty/hlslcc/hlslcc/src/hlslcc_lib/hlsl_lexer.ll"
+#line 412 "../../../../../Source/ThirdParty/hlslcc/hlslcc/src/hlslcc_lib/hlsl_lexer.ll"
 KEYWORD(110 || ES, 999, GOTO);
 	YY_BREAK
 case 151:
 YY_RULE_SETUP
-#line 413 "../../../../Source/ThirdParty/hlslcc/hlslcc/src/hlslcc_lib/hlsl_lexer.ll"
+#line 413 "../../../../../Source/ThirdParty/hlslcc/hlslcc/src/hlslcc_lib/hlsl_lexer.ll"
 KEYWORD(110 || ES, 130, SWITCH);
 	YY_BREAK
 case 152:
 YY_RULE_SETUP
-#line 414 "../../../../Source/ThirdParty/hlslcc/hlslcc/src/hlslcc_lib/hlsl_lexer.ll"
+#line 414 "../../../../../Source/ThirdParty/hlslcc/hlslcc/src/hlslcc_lib/hlsl_lexer.ll"
 KEYWORD(110 || ES, 130, DEFAULT);
 	YY_BREAK
 case 153:
 YY_RULE_SETUP
-#line 415 "../../../../Source/ThirdParty/hlslcc/hlslcc/src/hlslcc_lib/hlsl_lexer.ll"
+#line 415 "../../../../../Source/ThirdParty/hlslcc/hlslcc/src/hlslcc_lib/hlsl_lexer.ll"
 return INLINE_TOK;
 	YY_BREAK
 case 154:
 YY_RULE_SETUP
-#line 416 "../../../../Source/ThirdParty/hlslcc/hlslcc/src/hlslcc_lib/hlsl_lexer.ll"
+#line 416 "../../../../../Source/ThirdParty/hlslcc/hlslcc/src/hlslcc_lib/hlsl_lexer.ll"
 KEYWORD(110 || ES, 999, NOINLINE);
 	YY_BREAK
 case 155:
 YY_RULE_SETUP
-#line 417 "../../../../Source/ThirdParty/hlslcc/hlslcc/src/hlslcc_lib/hlsl_lexer.ll"
+#line 417 "../../../../../Source/ThirdParty/hlslcc/hlslcc/src/hlslcc_lib/hlsl_lexer.ll"
 KEYWORD(110 || ES, 999, VOLATILE);
 	YY_BREAK
 case 156:
 YY_RULE_SETUP
-#line 418 "../../../../Source/ThirdParty/hlslcc/hlslcc/src/hlslcc_lib/hlsl_lexer.ll"
+#line 418 "../../../../../Source/ThirdParty/hlslcc/hlslcc/src/hlslcc_lib/hlsl_lexer.ll"
 KEYWORD(110 || ES, 999, PUBLIC_TOK);
 	YY_BREAK
 case 157:
 YY_RULE_SETUP
-#line 419 "../../../../Source/ThirdParty/hlslcc/hlslcc/src/hlslcc_lib/hlsl_lexer.ll"
+#line 419 "../../../../../Source/ThirdParty/hlslcc/hlslcc/src/hlslcc_lib/hlsl_lexer.ll"
 return STATIC;
 	YY_BREAK
 case 158:
 YY_RULE_SETUP
-#line 420 "../../../../Source/ThirdParty/hlslcc/hlslcc/src/hlslcc_lib/hlsl_lexer.ll"
+#line 420 "../../../../../Source/ThirdParty/hlslcc/hlslcc/src/hlslcc_lib/hlsl_lexer.ll"
 KEYWORD(110 || ES, 999, EXTERN);
 	YY_BREAK
 case 159:
 YY_RULE_SETUP
-#line 421 "../../../../Source/ThirdParty/hlslcc/hlslcc/src/hlslcc_lib/hlsl_lexer.ll"
+#line 421 "../../../../../Source/ThirdParty/hlslcc/hlslcc/src/hlslcc_lib/hlsl_lexer.ll"
 KEYWORD(110 || ES, 999, EXTERNAL);
 	YY_BREAK
 case 160:
 YY_RULE_SETUP
-#line 422 "../../../../Source/ThirdParty/hlslcc/hlslcc/src/hlslcc_lib/hlsl_lexer.ll"
+#line 422 "../../../../../Source/ThirdParty/hlslcc/hlslcc/src/hlslcc_lib/hlsl_lexer.ll"
 KEYWORD(110 || ES, 999, INTERFACE);
 	YY_BREAK
 case 161:
 YY_RULE_SETUP
-#line 423 "../../../../Source/ThirdParty/hlslcc/hlslcc/src/hlslcc_lib/hlsl_lexer.ll"
+#line 423 "../../../../../Source/ThirdParty/hlslcc/hlslcc/src/hlslcc_lib/hlsl_lexer.ll"
 KEYWORD(110 || ES, 999, LONG_TOK);
 	YY_BREAK
 case 162:
 YY_RULE_SETUP
-#line 424 "../../../../Source/ThirdParty/hlslcc/hlslcc/src/hlslcc_lib/hlsl_lexer.ll"
+#line 424 "../../../../../Source/ThirdParty/hlslcc/hlslcc/src/hlslcc_lib/hlsl_lexer.ll"
 KEYWORD(110 || ES, 999, SHORT_TOK);
 	YY_BREAK
 case 163:
 YY_RULE_SETUP
-#line 425 "../../../../Source/ThirdParty/hlslcc/hlslcc/src/hlslcc_lib/hlsl_lexer.ll"
+#line 425 "../../../../../Source/ThirdParty/hlslcc/hlslcc/src/hlslcc_lib/hlsl_lexer.ll"
 KEYWORD(110 || ES, 400, DOUBLE_TOK);
 	YY_BREAK
 case 164:
 YY_RULE_SETUP
-#line 426 "../../../../Source/ThirdParty/hlslcc/hlslcc/src/hlslcc_lib/hlsl_lexer.ll"
+#line 426 "../../../../../Source/ThirdParty/hlslcc/hlslcc/src/hlslcc_lib/hlsl_lexer.ll"
 KEYWORD(110 || ES, 110, FIXED_TOK);
 	YY_BREAK
 case 165:
 YY_RULE_SETUP
-#line 427 "../../../../Source/ThirdParty/hlslcc/hlslcc/src/hlslcc_lib/hlsl_lexer.ll"
+#line 427 "../../../../../Source/ThirdParty/hlslcc/hlslcc/src/hlslcc_lib/hlsl_lexer.ll"
 KEYWORD(110 || ES, 999, UNSIGNED);
 	YY_BREAK
 case 166:
 YY_RULE_SETUP
-#line 428 "../../../../Source/ThirdParty/hlslcc/hlslcc/src/hlslcc_lib/hlsl_lexer.ll"
+#line 428 "../../../../../Source/ThirdParty/hlslcc/hlslcc/src/hlslcc_lib/hlsl_lexer.ll"
 KEYWORD(110 || ES, 150, HVEC2);
 	YY_BREAK
 case 167:
 YY_RULE_SETUP
-#line 429 "../../../../Source/ThirdParty/hlslcc/hlslcc/src/hlslcc_lib/hlsl_lexer.ll"
+#line 429 "../../../../../Source/ThirdParty/hlslcc/hlslcc/src/hlslcc_lib/hlsl_lexer.ll"
 KEYWORD(110 || ES, 150, HVEC3);
 	YY_BREAK
 case 168:
 YY_RULE_SETUP
-#line 430 "../../../../Source/ThirdParty/hlslcc/hlslcc/src/hlslcc_lib/hlsl_lexer.ll"
+#line 430 "../../../../../Source/ThirdParty/hlslcc/hlslcc/src/hlslcc_lib/hlsl_lexer.ll"
 KEYWORD(110 || ES, 150, HVEC4);
 	YY_BREAK
 case 169:
 YY_RULE_SETUP
-#line 431 "../../../../Source/ThirdParty/hlslcc/hlslcc/src/hlslcc_lib/hlsl_lexer.ll"
+#line 431 "../../../../../Source/ThirdParty/hlslcc/hlslcc/src/hlslcc_lib/hlsl_lexer.ll"
 KEYWORD(120, 120, HMAT2X2);
 	YY_BREAK
 case 170:
 YY_RULE_SETUP
-#line 432 "../../../../Source/ThirdParty/hlslcc/hlslcc/src/hlslcc_lib/hlsl_lexer.ll"
+#line 432 "../../../../../Source/ThirdParty/hlslcc/hlslcc/src/hlslcc_lib/hlsl_lexer.ll"
 KEYWORD(120, 120, HMAT2X3);
 	YY_BREAK
 case 171:
 YY_RULE_SETUP
-#line 433 "../../../../Source/ThirdParty/hlslcc/hlslcc/src/hlslcc_lib/hlsl_lexer.ll"
+#line 433 "../../../../../Source/ThirdParty/hlslcc/hlslcc/src/hlslcc_lib/hlsl_lexer.ll"
 KEYWORD(120, 120, HMAT2X4);
 	YY_BREAK
 case 172:
 YY_RULE_SETUP
-#line 434 "../../../../Source/ThirdParty/hlslcc/hlslcc/src/hlslcc_lib/hlsl_lexer.ll"
+#line 434 "../../../../../Source/ThirdParty/hlslcc/hlslcc/src/hlslcc_lib/hlsl_lexer.ll"
 KEYWORD(120, 120, HMAT3X2);
 	YY_BREAK
 case 173:
 YY_RULE_SETUP
-#line 435 "../../../../Source/ThirdParty/hlslcc/hlslcc/src/hlslcc_lib/hlsl_lexer.ll"
+#line 435 "../../../../../Source/ThirdParty/hlslcc/hlslcc/src/hlslcc_lib/hlsl_lexer.ll"
 KEYWORD(120, 120, HMAT3X3);
 	YY_BREAK
 case 174:
 YY_RULE_SETUP
-#line 436 "../../../../Source/ThirdParty/hlslcc/hlslcc/src/hlslcc_lib/hlsl_lexer.ll"
+#line 436 "../../../../../Source/ThirdParty/hlslcc/hlslcc/src/hlslcc_lib/hlsl_lexer.ll"
 KEYWORD(120, 120, HMAT3X4);
 	YY_BREAK
 case 175:
 YY_RULE_SETUP
-#line 437 "../../../../Source/ThirdParty/hlslcc/hlslcc/src/hlslcc_lib/hlsl_lexer.ll"
+#line 437 "../../../../../Source/ThirdParty/hlslcc/hlslcc/src/hlslcc_lib/hlsl_lexer.ll"
 KEYWORD(120, 120, HMAT4X2);
 	YY_BREAK
 case 176:
 YY_RULE_SETUP
-#line 438 "../../../../Source/ThirdParty/hlslcc/hlslcc/src/hlslcc_lib/hlsl_lexer.ll"
+#line 438 "../../../../../Source/ThirdParty/hlslcc/hlslcc/src/hlslcc_lib/hlsl_lexer.ll"
 KEYWORD(120, 120, HMAT4X3);
 	YY_BREAK
 case 177:
 YY_RULE_SETUP
-#line 439 "../../../../Source/ThirdParty/hlslcc/hlslcc/src/hlslcc_lib/hlsl_lexer.ll"
+#line 439 "../../../../../Source/ThirdParty/hlslcc/hlslcc/src/hlslcc_lib/hlsl_lexer.ll"
 KEYWORD(120, 120, HMAT4X4);
 	YY_BREAK
 case 178:
 YY_RULE_SETUP
-#line 440 "../../../../Source/ThirdParty/hlslcc/hlslcc/src/hlslcc_lib/hlsl_lexer.ll"
+#line 440 "../../../../../Source/ThirdParty/hlslcc/hlslcc/src/hlslcc_lib/hlsl_lexer.ll"
 KEYWORD(110 || ES, 400, DVEC2);
 	YY_BREAK
 case 179:
 YY_RULE_SETUP
-#line 441 "../../../../Source/ThirdParty/hlslcc/hlslcc/src/hlslcc_lib/hlsl_lexer.ll"
+#line 441 "../../../../../Source/ThirdParty/hlslcc/hlslcc/src/hlslcc_lib/hlsl_lexer.ll"
 KEYWORD(110 || ES, 400, DVEC3);
 	YY_BREAK
 case 180:
 YY_RULE_SETUP
-#line 442 "../../../../Source/ThirdParty/hlslcc/hlslcc/src/hlslcc_lib/hlsl_lexer.ll"
+#line 442 "../../../../../Source/ThirdParty/hlslcc/hlslcc/src/hlslcc_lib/hlsl_lexer.ll"
 KEYWORD(110 || ES, 400, DVEC4);
 	YY_BREAK
 case 181:
 YY_RULE_SETUP
-#line 443 "../../../../Source/ThirdParty/hlslcc/hlslcc/src/hlslcc_lib/hlsl_lexer.ll"
+#line 443 "../../../../../Source/ThirdParty/hlslcc/hlslcc/src/hlslcc_lib/hlsl_lexer.ll"
 KEYWORD(110 || ES, 110, FVEC2);
 	YY_BREAK
 case 182:
 YY_RULE_SETUP
-#line 444 "../../../../Source/ThirdParty/hlslcc/hlslcc/src/hlslcc_lib/hlsl_lexer.ll"
+#line 444 "../../../../../Source/ThirdParty/hlslcc/hlslcc/src/hlslcc_lib/hlsl_lexer.ll"
 KEYWORD(110 || ES, 110, FVEC3);
 	YY_BREAK
 case 183:
 YY_RULE_SETUP
-#line 445 "../../../../Source/ThirdParty/hlslcc/hlslcc/src/hlslcc_lib/hlsl_lexer.ll"
+#line 445 "../../../../../Source/ThirdParty/hlslcc/hlslcc/src/hlslcc_lib/hlsl_lexer.ll"
 KEYWORD(110 || ES, 110, FVEC4);
 	YY_BREAK
 case 184:
 YY_RULE_SETUP
-#line 446 "../../../../Source/ThirdParty/hlslcc/hlslcc/src/hlslcc_lib/hlsl_lexer.ll"
+#line 446 "../../../../../Source/ThirdParty/hlslcc/hlslcc/src/hlslcc_lib/hlsl_lexer.ll"
 KEYWORD(110 || ES, 110, FMAT2X2);
 	YY_BREAK
 case 185:
 YY_RULE_SETUP
-#line 447 "../../../../Source/ThirdParty/hlslcc/hlslcc/src/hlslcc_lib/hlsl_lexer.ll"
+#line 447 "../../../../../Source/ThirdParty/hlslcc/hlslcc/src/hlslcc_lib/hlsl_lexer.ll"
 KEYWORD(110 || ES, 110, FMAT2X3);
 	YY_BREAK
 case 186:
 YY_RULE_SETUP
-#line 448 "../../../../Source/ThirdParty/hlslcc/hlslcc/src/hlslcc_lib/hlsl_lexer.ll"
+#line 448 "../../../../../Source/ThirdParty/hlslcc/hlslcc/src/hlslcc_lib/hlsl_lexer.ll"
 KEYWORD(110 || ES, 110, FMAT2X4);
 	YY_BREAK
 case 187:
 YY_RULE_SETUP
-#line 449 "../../../../Source/ThirdParty/hlslcc/hlslcc/src/hlslcc_lib/hlsl_lexer.ll"
+#line 449 "../../../../../Source/ThirdParty/hlslcc/hlslcc/src/hlslcc_lib/hlsl_lexer.ll"
 KEYWORD(110 || ES, 110, FMAT3X2);
 	YY_BREAK
 case 188:
 YY_RULE_SETUP
-#line 450 "../../../../Source/ThirdParty/hlslcc/hlslcc/src/hlslcc_lib/hlsl_lexer.ll"
+#line 450 "../../../../../Source/ThirdParty/hlslcc/hlslcc/src/hlslcc_lib/hlsl_lexer.ll"
 KEYWORD(110 || ES, 110, FMAT3X3);
 	YY_BREAK
 case 189:
 YY_RULE_SETUP
-#line 451 "../../../../Source/ThirdParty/hlslcc/hlslcc/src/hlslcc_lib/hlsl_lexer.ll"
+#line 451 "../../../../../Source/ThirdParty/hlslcc/hlslcc/src/hlslcc_lib/hlsl_lexer.ll"
 KEYWORD(110 || ES, 110, FMAT3X4);
 	YY_BREAK
 case 190:
 YY_RULE_SETUP
-#line 452 "../../../../Source/ThirdParty/hlslcc/hlslcc/src/hlslcc_lib/hlsl_lexer.ll"
+#line 452 "../../../../../Source/ThirdParty/hlslcc/hlslcc/src/hlslcc_lib/hlsl_lexer.ll"
 KEYWORD(110 || ES, 110, FMAT4X2);
 	YY_BREAK
 case 191:
 YY_RULE_SETUP
-#line 453 "../../../../Source/ThirdParty/hlslcc/hlslcc/src/hlslcc_lib/hlsl_lexer.ll"
+#line 453 "../../../../../Source/ThirdParty/hlslcc/hlslcc/src/hlslcc_lib/hlsl_lexer.ll"
 KEYWORD(110 || ES, 110, FMAT4X3);
 	YY_BREAK
 case 192:
 YY_RULE_SETUP
-#line 454 "../../../../Source/ThirdParty/hlslcc/hlslcc/src/hlslcc_lib/hlsl_lexer.ll"
+#line 454 "../../../../../Source/ThirdParty/hlslcc/hlslcc/src/hlslcc_lib/hlsl_lexer.ll"
 KEYWORD(110 || ES, 110, FMAT4X4);
 	YY_BREAK
 case 193:
 YY_RULE_SETUP
-#line 455 "../../../../Source/ThirdParty/hlslcc/hlslcc/src/hlslcc_lib/hlsl_lexer.ll"
+#line 455 "../../../../../Source/ThirdParty/hlslcc/hlslcc/src/hlslcc_lib/hlsl_lexer.ll"
 return SAMPLER2DRECT;
 	YY_BREAK
 case 194:
 YY_RULE_SETUP
-#line 456 "../../../../Source/ThirdParty/hlslcc/hlslcc/src/hlslcc_lib/hlsl_lexer.ll"
+#line 456 "../../../../../Source/ThirdParty/hlslcc/hlslcc/src/hlslcc_lib/hlsl_lexer.ll"
 KEYWORD(110 || ES, 999, SAMPLER3DRECT);
 	YY_BREAK
 case 195:
 YY_RULE_SETUP
-#line 457 "../../../../Source/ThirdParty/hlslcc/hlslcc/src/hlslcc_lib/hlsl_lexer.ll"
+#line 457 "../../../../../Source/ThirdParty/hlslcc/hlslcc/src/hlslcc_lib/hlsl_lexer.ll"
 return SAMPLER2DRECTSHADOW;
 	YY_BREAK
 case 196:
 YY_RULE_SETUP
-#line 458 "../../../../Source/ThirdParty/hlslcc/hlslcc/src/hlslcc_lib/hlsl_lexer.ll"
+#line 458 "../../../../../Source/ThirdParty/hlslcc/hlslcc/src/hlslcc_lib/hlsl_lexer.ll"
 KEYWORD(110 || ES, 999, SIZEOF);
 	YY_BREAK
 case 197:
 YY_RULE_SETUP
-#line 459 "../../../../Source/ThirdParty/hlslcc/hlslcc/src/hlslcc_lib/hlsl_lexer.ll"
+#line 459 "../../../../../Source/ThirdParty/hlslcc/hlslcc/src/hlslcc_lib/hlsl_lexer.ll"
 KEYWORD(110 || ES, 999, CAST);
 	YY_BREAK
 case 198:
 YY_RULE_SETUP
-#line 460 "../../../../Source/ThirdParty/hlslcc/hlslcc/src/hlslcc_lib/hlsl_lexer.ll"
+#line 460 "../../../../../Source/ThirdParty/hlslcc/hlslcc/src/hlslcc_lib/hlsl_lexer.ll"
 KEYWORD(110 || ES, 999, NAMESPACE);
 	YY_BREAK
 case 199:
 YY_RULE_SETUP
-#line 461 "../../../../Source/ThirdParty/hlslcc/hlslcc/src/hlslcc_lib/hlsl_lexer.ll"
+#line 461 "../../../../../Source/ThirdParty/hlslcc/hlslcc/src/hlslcc_lib/hlsl_lexer.ll"
 KEYWORD(110 || ES, 999, USING);
 	YY_BREAK
 /* Additional reserved words in GLSL 1.30. */
 case 200:
 YY_RULE_SETUP
-#line 464 "../../../../Source/ThirdParty/hlslcc/hlslcc/src/hlslcc_lib/hlsl_lexer.ll"
+#line 464 "../../../../../Source/ThirdParty/hlslcc/hlslcc/src/hlslcc_lib/hlsl_lexer.ll"
 KEYWORD(130, 130, CASE);
 	YY_BREAK
 case 201:
 YY_RULE_SETUP
-#line 465 "../../../../Source/ThirdParty/hlslcc/hlslcc/src/hlslcc_lib/hlsl_lexer.ll"
+#line 465 "../../../../../Source/ThirdParty/hlslcc/hlslcc/src/hlslcc_lib/hlsl_lexer.ll"
 KEYWORD(130, 999, COMMON);
 	YY_BREAK
 case 202:
 YY_RULE_SETUP
-#line 466 "../../../../Source/ThirdParty/hlslcc/hlslcc/src/hlslcc_lib/hlsl_lexer.ll"
+#line 466 "../../../../../Source/ThirdParty/hlslcc/hlslcc/src/hlslcc_lib/hlsl_lexer.ll"
 KEYWORD(130, 999, PARTITION);
 	YY_BREAK
 case 203:
 YY_RULE_SETUP
-#line 467 "../../../../Source/ThirdParty/hlslcc/hlslcc/src/hlslcc_lib/hlsl_lexer.ll"
+#line 467 "../../../../../Source/ThirdParty/hlslcc/hlslcc/src/hlslcc_lib/hlsl_lexer.ll"
 KEYWORD(130, 999, ACTIVE);
 	YY_BREAK
 case 204:
 YY_RULE_SETUP
-#line 468 "../../../../Source/ThirdParty/hlslcc/hlslcc/src/hlslcc_lib/hlsl_lexer.ll"
+#line 468 "../../../../../Source/ThirdParty/hlslcc/hlslcc/src/hlslcc_lib/hlsl_lexer.ll"
 KEYWORD(130, 140, SAMPLERBUFFER);
 	YY_BREAK
 case 205:
 YY_RULE_SETUP
-#line 469 "../../../../Source/ThirdParty/hlslcc/hlslcc/src/hlslcc_lib/hlsl_lexer.ll"
+#line 469 "../../../../../Source/ThirdParty/hlslcc/hlslcc/src/hlslcc_lib/hlsl_lexer.ll"
 KEYWORD(130, 999, FILTER);
 	YY_BREAK
 case 206:
 YY_RULE_SETUP
-#line 470 "../../../../Source/ThirdParty/hlslcc/hlslcc/src/hlslcc_lib/hlsl_lexer.ll"
+#line 470 "../../../../../Source/ThirdParty/hlslcc/hlslcc/src/hlslcc_lib/hlsl_lexer.ll"
 KEYWORD(130, 999, IMAGE1D);
 	YY_BREAK
 case 207:
 YY_RULE_SETUP
-#line 471 "../../../../Source/ThirdParty/hlslcc/hlslcc/src/hlslcc_lib/hlsl_lexer.ll"
+#line 471 "../../../../../Source/ThirdParty/hlslcc/hlslcc/src/hlslcc_lib/hlsl_lexer.ll"
 KEYWORD(130, 999, IMAGE2D);
 	YY_BREAK
 case 208:
 YY_RULE_SETUP
-#line 472 "../../../../Source/ThirdParty/hlslcc/hlslcc/src/hlslcc_lib/hlsl_lexer.ll"
+#line 472 "../../../../../Source/ThirdParty/hlslcc/hlslcc/src/hlslcc_lib/hlsl_lexer.ll"
 KEYWORD(130, 999, IMAGE3D);
 	YY_BREAK
 case 209:
 YY_RULE_SETUP
-#line 473 "../../../../Source/ThirdParty/hlslcc/hlslcc/src/hlslcc_lib/hlsl_lexer.ll"
+#line 473 "../../../../../Source/ThirdParty/hlslcc/hlslcc/src/hlslcc_lib/hlsl_lexer.ll"
 KEYWORD(130, 999, IMAGECUBE);
 	YY_BREAK
 case 210:
 YY_RULE_SETUP
-#line 474 "../../../../Source/ThirdParty/hlslcc/hlslcc/src/hlslcc_lib/hlsl_lexer.ll"
+#line 474 "../../../../../Source/ThirdParty/hlslcc/hlslcc/src/hlslcc_lib/hlsl_lexer.ll"
 KEYWORD(130, 999, IIMAGE1D);
 	YY_BREAK
 case 211:
 YY_RULE_SETUP
-#line 475 "../../../../Source/ThirdParty/hlslcc/hlslcc/src/hlslcc_lib/hlsl_lexer.ll"
+#line 475 "../../../../../Source/ThirdParty/hlslcc/hlslcc/src/hlslcc_lib/hlsl_lexer.ll"
 KEYWORD(130, 999, IIMAGE2D);
 	YY_BREAK
 case 212:
 YY_RULE_SETUP
-#line 476 "../../../../Source/ThirdParty/hlslcc/hlslcc/src/hlslcc_lib/hlsl_lexer.ll"
+#line 476 "../../../../../Source/ThirdParty/hlslcc/hlslcc/src/hlslcc_lib/hlsl_lexer.ll"
 KEYWORD(130, 999, IIMAGE3D);
 	YY_BREAK
 case 213:
 YY_RULE_SETUP
-#line 477 "../../../../Source/ThirdParty/hlslcc/hlslcc/src/hlslcc_lib/hlsl_lexer.ll"
+#line 477 "../../../../../Source/ThirdParty/hlslcc/hlslcc/src/hlslcc_lib/hlsl_lexer.ll"
 KEYWORD(130, 999, IIMAGECUBE);
 	YY_BREAK
 case 214:
 YY_RULE_SETUP
-#line 478 "../../../../Source/ThirdParty/hlslcc/hlslcc/src/hlslcc_lib/hlsl_lexer.ll"
+#line 478 "../../../../../Source/ThirdParty/hlslcc/hlslcc/src/hlslcc_lib/hlsl_lexer.ll"
 KEYWORD(130, 999, UIMAGE1D);
 	YY_BREAK
 case 215:
 YY_RULE_SETUP
-#line 479 "../../../../Source/ThirdParty/hlslcc/hlslcc/src/hlslcc_lib/hlsl_lexer.ll"
+#line 479 "../../../../../Source/ThirdParty/hlslcc/hlslcc/src/hlslcc_lib/hlsl_lexer.ll"
 KEYWORD(130, 999, UIMAGE2D);
 	YY_BREAK
 case 216:
 YY_RULE_SETUP
-#line 480 "../../../../Source/ThirdParty/hlslcc/hlslcc/src/hlslcc_lib/hlsl_lexer.ll"
+#line 480 "../../../../../Source/ThirdParty/hlslcc/hlslcc/src/hlslcc_lib/hlsl_lexer.ll"
 KEYWORD(130, 999, UIMAGE3D);
 	YY_BREAK
 case 217:
 YY_RULE_SETUP
-#line 481 "../../../../Source/ThirdParty/hlslcc/hlslcc/src/hlslcc_lib/hlsl_lexer.ll"
+#line 481 "../../../../../Source/ThirdParty/hlslcc/hlslcc/src/hlslcc_lib/hlsl_lexer.ll"
 KEYWORD(130, 999, UIMAGECUBE);
 	YY_BREAK
 case 218:
 YY_RULE_SETUP
-#line 482 "../../../../Source/ThirdParty/hlslcc/hlslcc/src/hlslcc_lib/hlsl_lexer.ll"
+#line 482 "../../../../../Source/ThirdParty/hlslcc/hlslcc/src/hlslcc_lib/hlsl_lexer.ll"
 KEYWORD(130, 999, IMAGE1DARRAY);
 	YY_BREAK
 case 219:
 YY_RULE_SETUP
-#line 483 "../../../../Source/ThirdParty/hlslcc/hlslcc/src/hlslcc_lib/hlsl_lexer.ll"
+#line 483 "../../../../../Source/ThirdParty/hlslcc/hlslcc/src/hlslcc_lib/hlsl_lexer.ll"
 KEYWORD(130, 999, IMAGE2DARRAY);
 	YY_BREAK
 case 220:
 YY_RULE_SETUP
-#line 484 "../../../../Source/ThirdParty/hlslcc/hlslcc/src/hlslcc_lib/hlsl_lexer.ll"
+#line 484 "../../../../../Source/ThirdParty/hlslcc/hlslcc/src/hlslcc_lib/hlsl_lexer.ll"
 KEYWORD(130, 999, IIMAGE1DARRAY);
 	YY_BREAK
 case 221:
 YY_RULE_SETUP
-#line 485 "../../../../Source/ThirdParty/hlslcc/hlslcc/src/hlslcc_lib/hlsl_lexer.ll"
+#line 485 "../../../../../Source/ThirdParty/hlslcc/hlslcc/src/hlslcc_lib/hlsl_lexer.ll"
 KEYWORD(130, 999, IIMAGE2DARRAY);
 	YY_BREAK
 case 222:
 YY_RULE_SETUP
-#line 486 "../../../../Source/ThirdParty/hlslcc/hlslcc/src/hlslcc_lib/hlsl_lexer.ll"
+#line 486 "../../../../../Source/ThirdParty/hlslcc/hlslcc/src/hlslcc_lib/hlsl_lexer.ll"
 KEYWORD(130, 999, UIMAGE1DARRAY);
 	YY_BREAK
 case 223:
 YY_RULE_SETUP
-#line 487 "../../../../Source/ThirdParty/hlslcc/hlslcc/src/hlslcc_lib/hlsl_lexer.ll"
+#line 487 "../../../../../Source/ThirdParty/hlslcc/hlslcc/src/hlslcc_lib/hlsl_lexer.ll"
 KEYWORD(130, 999, UIMAGE2DARRAY);
 	YY_BREAK
 case 224:
 YY_RULE_SETUP
-#line 488 "../../../../Source/ThirdParty/hlslcc/hlslcc/src/hlslcc_lib/hlsl_lexer.ll"
+#line 488 "../../../../../Source/ThirdParty/hlslcc/hlslcc/src/hlslcc_lib/hlsl_lexer.ll"
 KEYWORD(130, 999, IMAGE1DSHADOW);
 	YY_BREAK
 case 225:
 YY_RULE_SETUP
-#line 489 "../../../../Source/ThirdParty/hlslcc/hlslcc/src/hlslcc_lib/hlsl_lexer.ll"
+#line 489 "../../../../../Source/ThirdParty/hlslcc/hlslcc/src/hlslcc_lib/hlsl_lexer.ll"
 KEYWORD(130, 999, IMAGE2DSHADOW);
 	YY_BREAK
 case 226:
 YY_RULE_SETUP
-#line 490 "../../../../Source/ThirdParty/hlslcc/hlslcc/src/hlslcc_lib/hlsl_lexer.ll"
+#line 490 "../../../../../Source/ThirdParty/hlslcc/hlslcc/src/hlslcc_lib/hlsl_lexer.ll"
 KEYWORD(130, 999, IMAGE1DARRAYSHADOW);
 	YY_BREAK
 case 227:
 YY_RULE_SETUP
-#line 491 "../../../../Source/ThirdParty/hlslcc/hlslcc/src/hlslcc_lib/hlsl_lexer.ll"
+#line 491 "../../../../../Source/ThirdParty/hlslcc/hlslcc/src/hlslcc_lib/hlsl_lexer.ll"
 KEYWORD(130, 999, IMAGE2DARRAYSHADOW);
 	YY_BREAK
 case 228:
 YY_RULE_SETUP
-#line 492 "../../../../Source/ThirdParty/hlslcc/hlslcc/src/hlslcc_lib/hlsl_lexer.ll"
+#line 492 "../../../../../Source/ThirdParty/hlslcc/hlslcc/src/hlslcc_lib/hlsl_lexer.ll"
 KEYWORD(130, 999, IMAGEBUFFER);
 	YY_BREAK
 case 229:
 YY_RULE_SETUP
-#line 493 "../../../../Source/ThirdParty/hlslcc/hlslcc/src/hlslcc_lib/hlsl_lexer.ll"
+#line 493 "../../../../../Source/ThirdParty/hlslcc/hlslcc/src/hlslcc_lib/hlsl_lexer.ll"
 KEYWORD(130, 999, IIMAGEBUFFER);
 	YY_BREAK
 case 230:
 YY_RULE_SETUP
-#line 494 "../../../../Source/ThirdParty/hlslcc/hlslcc/src/hlslcc_lib/hlsl_lexer.ll"
+#line 494 "../../../../../Source/ThirdParty/hlslcc/hlslcc/src/hlslcc_lib/hlsl_lexer.ll"
 KEYWORD(130, 999, UIMAGEBUFFER);
 	YY_BREAK
 case 231:
 YY_RULE_SETUP
-#line 496 "../../../../Source/ThirdParty/hlslcc/hlslcc/src/hlslcc_lib/hlsl_lexer.ll"
+#line 496 "../../../../../Source/ThirdParty/hlslcc/hlslcc/src/hlslcc_lib/hlsl_lexer.ll"
 {
 				struct _mesa_glsl_parse_state *state = yyextra;
 				void *ctx = state;	
@@ -2796,15 +2796,15 @@ YY_RULE_SETUP
 	YY_BREAK
 case 232:
 YY_RULE_SETUP
-#line 503 "../../../../Source/ThirdParty/hlslcc/hlslcc/src/hlslcc_lib/hlsl_lexer.ll"
+#line 503 "../../../../../Source/ThirdParty/hlslcc/hlslcc/src/hlslcc_lib/hlsl_lexer.ll"
 { return yytext[0]; }
 	YY_BREAK
 case 233:
 YY_RULE_SETUP
-#line 505 "../../../../Source/ThirdParty/hlslcc/hlslcc/src/hlslcc_lib/hlsl_lexer.ll"
+#line 505 "../../../../../Source/ThirdParty/hlslcc/hlslcc/src/hlslcc_lib/hlsl_lexer.ll"
 ECHO;
 	YY_BREAK
-#line 2808 "../../../../Source/ThirdParty/hlslcc/hlslcc/src/hlslcc_lib/hlsl_lexer.inl"
+#line 2808 "../../../../../Source/ThirdParty/hlslcc/hlslcc/src/hlslcc_lib/hlsl_lexer.inl"
 case YY_STATE_EOF(INITIAL):
 case YY_STATE_EOF(PP):
 case YY_STATE_EOF(PRAGMA):
@@ -3947,7 +3947,7 @@ void _mesa_hlsl_free (void * ptr , yyscan_t yyscanner)
 
 #define YYTABLES_NAME "yytables"
 
-#line 505 "../../../../Source/ThirdParty/hlslcc/hlslcc/src/hlslcc_lib/hlsl_lexer.ll"
+#line 505 "../../../../../Source/ThirdParty/hlslcc/hlslcc/src/hlslcc_lib/hlsl_lexer.ll"
 
 
 
