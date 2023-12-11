@@ -5,6 +5,7 @@
 #include "AVContext.h"
 #include "AVExtension.h"
 #include "Video/VideoResource.h"
+#include "Containers/ResourceArray.h"
 #include "RHI.h"
 
 #if AVCODECS_USE_D3D
