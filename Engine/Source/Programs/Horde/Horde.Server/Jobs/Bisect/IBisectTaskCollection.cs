@@ -10,6 +10,7 @@ using EpicGames.Horde.Users;
 using Microsoft.Extensions.Logging;
 using Horde.Server.Jobs.Graphs;
 using EpicGames.Horde.Jobs;
+using EpicGames.Horde.Jobs.Bisect;
 
 namespace Horde.Server.Jobs.Bisect
 {

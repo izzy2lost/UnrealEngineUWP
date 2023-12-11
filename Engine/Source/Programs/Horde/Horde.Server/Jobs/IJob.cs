@@ -21,11 +21,11 @@ using HordeCommon;
 using HordeCommon.Rpc.Tasks;
 using MongoDB.Bson;
 using MongoDB.Driver;
-using Horde.Server.Jobs.Bisect;
 using EpicGames.Horde.Jobs;
 using EpicGames.Horde.Logs;
 using EpicGames.Horde.Agents.Pools;
 using EpicGames.Horde.Agents.Sessions;
+using EpicGames.Horde.Jobs.Bisect;
 
 namespace Horde.Server.Jobs
 {

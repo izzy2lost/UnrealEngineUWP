@@ -5,9 +5,9 @@ using System.Security.Claims;
 using System.Threading.Tasks;
 using Horde.Server.Utilities;
 using MongoDB.Bson;
-using Horde.Server.Jobs.Bisect;
 using EpicGames.Horde.Users;
 using EpicGames.Horde.Jobs;
+using EpicGames.Horde.Jobs.Bisect;
 
 namespace Horde.Server.Users
 {

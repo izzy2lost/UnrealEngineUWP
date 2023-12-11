@@ -14,13 +14,13 @@ using Horde.Server.Streams;
 using HordeCommon;
 using HordeCommon.Rpc.Tasks;
 using MongoDB.Bson;
-using Horde.Server.Jobs.Bisect;
 using System.Threading;
 using Horde.Server.Acls;
 using EpicGames.Horde.Jobs;
 using EpicGames.Horde.Logs;
 using EpicGames.Horde.Agents.Pools;
 using EpicGames.Horde.Agents.Sessions;
+using EpicGames.Horde.Jobs.Bisect;
 
 namespace Horde.Server.Jobs
 {

@@ -12,12 +12,12 @@ using MongoDB.Bson;
 using MongoDB.Bson.Serialization;
 using MongoDB.Bson.Serialization.Attributes;
 using MongoDB.Driver;
-using Horde.Server.Jobs.Bisect;
 using EpicGames.Horde.Jobs.Templates;
 using EpicGames.Horde.Streams;
 using EpicGames.Horde.Users;
 using MongoDB.Driver.Linq;
 using EpicGames.Horde.Jobs;
+using EpicGames.Horde.Jobs.Bisect;
 
 namespace Horde.Server.Users
 {

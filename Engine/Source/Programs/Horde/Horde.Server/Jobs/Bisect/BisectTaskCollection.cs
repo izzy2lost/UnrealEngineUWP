@@ -17,6 +17,7 @@ using EpicGames.Horde.Streams;
 using EpicGames.Horde.Users;
 using OpenTelemetry.Trace;
 using EpicGames.Horde.Jobs;
+using EpicGames.Horde.Jobs.Bisect;
 
 namespace Horde.Server.Jobs.Bisect
 {
@@ -108,7 +109,7 @@ namespace Horde.Server.Jobs.Bisect
 		public async Task<IBisectTask> CreateAsync(IJob job, JobStepBatchId batchId, JobStepId stepId, string nodeName, JobStepOutcome outcome, UserId ownerId, CreateBisectTaskOptions? options, CancellationToken cancellationToken = default)
 		{
 			BisectTaskDoc bisectTaskDoc = new BisectTaskDoc();
-			bisectTaskDoc.Id = BisectTaskId.GenerateNewId();
+			bisectTaskDoc.Id = BisectTaskIdUtils.GenerateNewId();
 			bisectTaskDoc.State = BisectTaskState.Running;
 			bisectTaskDoc.Running = true;
 			bisectTaskDoc.OwnerId = ownerId;
@@ -187,7 +188,6 @@ namespace Horde.Server.Jobs.Bisect
 
 			if (jobId != null)
 			{
-
 				filter &= filterBuilder.Eq(x => x.InitialJobId, jobId);
 			}
 
@@ -198,13 +198,13 @@ namespace Horde.Server.Jobs.Bisect
 
 			if (minCreateTime != null)
 			{
-				BisectTaskId minTime = new BisectTaskId(ObjectId.GenerateNewId(minCreateTime.Value));
+				BisectTaskId minTime = new BisectTaskId(BinaryIdUtils.FromObjectId(ObjectId.GenerateNewId(minCreateTime.Value)));
 				filter &= filterBuilder.Gte(x => x.Id!, minTime);
 
 			}
 			if (maxCreateTime != null)
 			{
-				BisectTaskId maxTime = new BisectTaskId(ObjectId.GenerateNewId(maxCreateTime.Value));
+				BisectTaskId maxTime = new BisectTaskId(BinaryIdUtils.FromObjectId(ObjectId.GenerateNewId(maxCreateTime.Value)));
 				filter &= filterBuilder.Lte(x => x.Id!, maxTime);
 			}
 
