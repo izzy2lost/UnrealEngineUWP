@@ -343,7 +343,7 @@ void UCommonActionWidget::UpdateActionWidget()
 						}
 
 						MyKeyBox->Invalidate(EInvalidateWidget::LayoutAndVolatility);
-						SetVisibility(ESlateVisibility::SelfHitTestInvisible);
+						SetVisibility(IsDesignTime() ? ESlateVisibility::Visible : ESlateVisibility::SelfHitTestInvisible);
 
 						return;
 					}
