@@ -79,12 +79,24 @@ public:
 	void SetHeap(ID3D12Heap* HeapIn, const TCHAR* const InName, bool bTrack = true, bool bForceGetGPUAddress = false);
 
 	void BeginTrackingResidency(uint64 Size);
+	void DisallowTrackingResidency(); // Part of workaround for UE-174791
 
 	void DeferDelete();
 
 	inline FName GetName() const { return HeapName; }
 	inline D3D12_HEAP_DESC GetHeapDesc() const { return HeapDesc; }
-	inline TConstArrayView<FD3D12ResidencyHandle*> GetResidencyHandles() { return MakeArrayView(&ResidencyHandle, 1); }
+	inline TConstArrayView<FD3D12ResidencyHandle*> GetResidencyHandles()
+	{ 
+		if (bRequiresResidencyTracking)
+		{
+			checkf(ResidencyHandle, TEXT("Resource requires residency tracking, but BeginTrackingResidency() was not called."));
+			return MakeArrayView(&ResidencyHandle, 1); 
+		}
+		else
+		{
+			return {};
+		}		
+	}
 	inline D3D12_GPU_VIRTUAL_ADDRESS GetGPUVirtualAddress() const { return GPUVirtualAddress; }
 	inline void SetIsTransient(bool bInIsTransient) { bIsTransient = bInIsTransient; }
 	inline bool GetIsTransient() const { return bIsTransient; }
@@ -100,6 +112,7 @@ private:
 	HeapId TraceHeapId;
 	HeapId TraceParentHeapId;
 	bool bIsTransient = false; // Whether this is a transient heap
+	bool bRequiresResidencyTracking = true;
 };
 
 struct FD3D12ResourceDesc : public D3D12_RESOURCE_DESC
@@ -174,6 +187,7 @@ private:
 	uint16 SubresourceCount{};
 	uint8 PlaneCount;
 	bool bRequiresResourceStateTracking : 1;
+	bool bRequiresResidencyTracking : 1;
 	bool bDepthStencil : 1;
 	bool bDeferDelete : 1;
 	bool bBackBuffer : 1;
@@ -277,7 +291,16 @@ public:
 	bool RequiresResourceStateTracking() const { return bRequiresResourceStateTracking; }
 
 	inline bool IsBackBuffer() const { return bBackBuffer; }
-	inline void SetIsBackBuffer(bool bBackBufferIn) { bBackBuffer = bBackBufferIn; }
+	inline void SetIsBackBuffer(bool bBackBufferIn) 
+	{
+		bBackBuffer = bBackBufferIn;
+
+		if (bBackBuffer)
+		{
+			checkf(ResidencyHandle == nullptr, TEXT("Can't mark a resource as back buffer once residency tracking has started."));
+			bRequiresResidencyTracking = false;
+		}
+	}
 
 	void SetName(const TCHAR* Name)
 	{
@@ -313,9 +336,16 @@ public:
 	bool IsResident() const
 	{
 #if ENABLE_RESIDENCY_MANAGEMENT
+		TConstArrayView<FD3D12ResidencyHandle*> ResidencyHandles = GetResidencyHandles();
+		if (ResidencyHandles.IsEmpty())
+		{
+			// No residency tracking for this resource
+			return true;
+		}
+
 		// Treat resource as resident if at least one backing heap is resident.
 		// Technically we should return a partial residency status.
-		for (FD3D12ResidencyHandle* Handle : GetResidencyHandles())
+		for (FD3D12ResidencyHandle* Handle : ResidencyHandles)
 		{
 			if (Handle->ResidencyStatus == FD3D12ResidencyHandle::RESIDENCY_STATUS::RESIDENT)
 			{
@@ -331,7 +361,11 @@ public:
 	TConstArrayView<FD3D12ResidencyHandle*> GetResidencyHandles() const
 	{
 #if ENABLE_RESIDENCY_MANAGEMENT
-		if (IsPlacedResource())
+		if (!bRequiresResidencyTracking)
+		{
+			return {};
+		}
+		else if (IsPlacedResource())
 		{
 			return Heap->GetResidencyHandles();
 		}
@@ -341,6 +375,7 @@ public:
 		}
 		else
 		{
+			checkf(ResidencyHandle, TEXT("Resource requires residency tracking, but StartTrackingForResidency() was not called."));
 			return MakeArrayView(&ResidencyHandle, 1);
 		}
 #else // ENABLE_RESIDENCY_MANAGEMENT

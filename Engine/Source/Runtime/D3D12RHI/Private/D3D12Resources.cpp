@@ -92,6 +92,7 @@ FD3D12Resource::FD3D12Resource(FD3D12Device* ParentDevice,
 	, HeapType(InHeapType)
 	, PlaneCount(UE::DXGIUtilities::GetPlaneCount(Desc.Format))
 	, bRequiresResourceStateTracking(true)
+	, bRequiresResidencyTracking(true)
 	, bDepthStencil(false)
 	, bDeferDelete(true)
 	, bBackBuffer(false)
@@ -99,6 +100,17 @@ FD3D12Resource::FD3D12Resource(FD3D12Device* ParentDevice,
 #if UE_BUILD_DEBUG
 	FPlatformAtomics::InterlockedIncrement(&TotalResourceCount);
 #endif
+
+	D3D12_HEAP_DESC HeapDesc = {};
+	D3D12_HEAP_PROPERTIES* HeapProps = nullptr;
+	if (InHeap)
+	{
+		HeapDesc = InHeap->GetHeapDesc();
+		HeapProps = &HeapDesc.Properties;
+	}
+
+	// Residency tracking is not used for CPU-accessible resources or back buffers
+	bRequiresResidencyTracking = IsGPUOnly(InHeapType, HeapProps) && !bBackBuffer;
 
 	// On Windows it's sadly enough not possible to get the GPU virtual address from the resource directly
 	if (Resource
@@ -360,6 +372,9 @@ ID3D12Pageable* FD3D12Resource::GetPageable()
 void FD3D12Resource::StartTrackingForResidency()
 {
 #if ENABLE_RESIDENCY_MANAGEMENT
+
+	checkf(bRequiresResidencyTracking, TEXT("Residency tracking is not expected for this resource"));
+
 	if (bBackBuffer)
 	{
 		// Back buffers may be referenced outside of command lists (during presents), however D3DX12Residency.h library 
@@ -441,6 +456,8 @@ void FD3D12Heap::SetHeap(ID3D12Heap* HeapIn, const TCHAR* const InName, bool bIn
 
 	SetName(HeapIn, InName);
 
+	bRequiresResidencyTracking = IsGPUOnly(HeapDesc.Properties.Type, &HeapDesc.Properties);
+
 	// Create a buffer placed resource on the heap to extract the gpu virtual address
 	// if we are tracking all allocations
 	FD3D12Adapter* Adapter = GetParentDevice()->GetParentAdapter();	
@@ -473,9 +490,16 @@ void FD3D12Heap::SetHeap(ID3D12Heap* HeapIn, const TCHAR* const InName, bool bIn
 	}
 }
 
+void FD3D12Heap::DisallowTrackingResidency()
+{
+	checkf(ResidencyHandle == nullptr, TEXT("Can't disallow residency tracking after it has started. Call this function instead of BeginTrackingResidency()."));
+	bRequiresResidencyTracking = false;
+}
+
 void FD3D12Heap::BeginTrackingResidency(uint64 Size)
 {
 #if ENABLE_RESIDENCY_MANAGEMENT
+	checkf(bRequiresResidencyTracking, TEXT("Residency tracking is not expected for this resource"));
 	checkf(!ResidencyHandle, TEXT("Residency tracking is already initialzied for this resource"));
 	ResidencyHandle = new FD3D12ResidencyHandle;
 	D3DX12Residency::Initialize(*ResidencyHandle, Heap.GetReference(), Size, this);

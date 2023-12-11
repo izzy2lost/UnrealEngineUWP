@@ -218,7 +218,6 @@ FD3D12Texture* GetSwapChainSurface(FD3D12Device* Parent, EPixelFormat PixelForma
 			FD3D12Resource* NewResourceWrapper = new FD3D12Resource(Device, FRHIGPUMask::All(), BackBufferResource, InitialState, BackBufferDesc);
 			NewResourceWrapper->SetIsBackBuffer(true);
 			NewResourceWrapper->AddRef();
-			NewResourceWrapper->StartTrackingForResidency();
 			NewTexture->ResourceLocation.AsStandAlone(NewResourceWrapper);
 		}
 		else // If this is not the GPU which will hold the back buffer, create a compatible texture so that it can still render to the viewport.

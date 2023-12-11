@@ -103,6 +103,7 @@ FD3D12TransientHeap::FD3D12TransientHeap(const FInitializer& Initializer, FD3D12
 	// when they're no longer needed. Disabling residency tracking will not fix the underlying bug, but should make it less likely to occur,
 	// and might make the GPU crash data more useful when it does happen.
 	//Heap->BeginTrackingResidency(Desc.SizeInBytes);
+	Heap->DisallowTrackingResidency(); // Remove this when the above workaround is not needed
 
 	SetGpuVirtualAddress(Heap->GetGPUVirtualAddress());
 
