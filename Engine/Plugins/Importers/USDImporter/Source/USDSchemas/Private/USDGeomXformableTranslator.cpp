@@ -679,7 +679,7 @@ void FUsdGeomXformableTranslator::UpdateComponents( USceneComponent* SceneCompon
 			{
 				// Need to make sure the mesh's resources are initialized here as it may have just been built in another thread
 				// Only do this if required though, as this mesh could using these resources currently (e.g. PIE and editor world sharing the mesh)
-				if ( PrimStaticMesh && !PrimStaticMesh->AreRenderingResourcesInitialized() && FApp::CanEverRender() )
+				if (PrimStaticMesh && !PrimStaticMesh->AreRenderingResourcesInitialized() && (FApp::CanEverRender() || !FPlatformProperties::RequiresCookedData()))
 				{
 					PrimStaticMesh->InitResources();
 				}

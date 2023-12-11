@@ -526,7 +526,7 @@ namespace UE::AssetCache::Private
 			// We only need these in the editor: When we're cooking we'll just save the cooked mesh data into the
 			// asset itself, so at runtime there is no need for an additional "build" step that we have to handle here
 
-			if (FApp::CanEverRender())
+			if (FApp::CanEverRender() || !FPlatformProperties::RequiresCookedData())
 			{
 				StaticMesh->SetRenderData(MakeUnique< FStaticMeshRenderData >());
 				ITargetPlatformManagerModule& TargetPlatformManager = GetTargetPlatformManagerRef();

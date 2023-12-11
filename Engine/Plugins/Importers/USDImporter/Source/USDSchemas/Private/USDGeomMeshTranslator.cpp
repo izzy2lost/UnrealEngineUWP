@@ -756,26 +756,24 @@ namespace UsdGeomMeshTranslatorImpl
 		// For runtime builds, the analogue for this stuff is already done from within BuildFromMeshDescriptions
 		TRACE_CPUPROFILER_EVENT_SCOPE(UsdGeomMeshTranslatorImpl::PostBuildStaticMesh);
 
-		if (!FApp::CanEverRender())
+		if (FApp::CanEverRender() || !FPlatformProperties::RequiresCookedData())
 		{
-			return;
-		}
-
-		StaticMesh.InitResources();
+			StaticMesh.InitResources();
 
 #if WITH_EDITOR
-		// Fetch the MeshDescription from the StaticMesh because we'll have moved it away from LODIndexToMeshDescription CreateStaticMesh
-		if (const FMeshDescription* MeshDescription = StaticMesh.GetMeshDescription(0))
-		{
-			StaticMesh.GetRenderData()->Bounds = MeshDescription->GetBounds();
-		}
-		StaticMesh.CalculateExtendedBounds();
-		StaticMesh.ClearMeshDescriptions(); // Clear mesh descriptions to reduce memory usage, they are kept only in bulk data form
+			// Fetch the MeshDescription from the StaticMesh because we'll have moved it away from LODIndexToMeshDescription CreateStaticMesh
+			if (const FMeshDescription* MeshDescription = StaticMesh.GetMeshDescription(0))
+			{
+				StaticMesh.GetRenderData()->Bounds = MeshDescription->GetBounds();
+			}
+			StaticMesh.CalculateExtendedBounds();
+			StaticMesh.ClearMeshDescriptions(); // Clear mesh descriptions to reduce memory usage, they are kept only in bulk data form
 #else
-		// Fetch the MeshDescription from the imported LODIndexToMeshDescription as StaticMesh.GetMeshDescription is editor-only
-		StaticMesh.GetRenderData()->Bounds = LODIndexToMeshDescription[0].GetBounds();
-		StaticMesh.CalculateExtendedBounds();
+			// Fetch the MeshDescription from the imported LODIndexToMeshDescription as StaticMesh.GetMeshDescription is editor-only
+			StaticMesh.GetRenderData()->Bounds = LODIndexToMeshDescription[0].GetBounds();
+			StaticMesh.CalculateExtendedBounds();
 #endif // WITH_EDITOR
+		}
 	}
 }
 
