@@ -13,9 +13,19 @@ namespace Horde.Server.Utilities
 	public static class HordeClaimTypes
 	{
 		/// <summary>
+		/// Version number for auth claims. Can be updated to force a re-login.
+		/// </summary>
+		public const string CurrentVersion = "1";
+
+		/// <summary>
 		/// Base URI for all Horde claims.
 		/// </summary>
 		const string Prefix = "http://epicgames.com/ue/horde/";
+
+		/// <summary>
+		/// Version number for the auth header
+		/// </summary>
+		public const string Version = Prefix + "version";
 
 		/// <summary>
 		/// Claim for a particular role.

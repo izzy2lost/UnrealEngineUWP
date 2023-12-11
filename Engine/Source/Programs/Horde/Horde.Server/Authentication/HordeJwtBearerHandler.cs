@@ -172,6 +172,7 @@ public class HordeJwtBearerHandler
 			return;
 		}
 
+		identity.AddClaim(new Claim(HordeClaimTypes.Version, HordeClaimTypes.CurrentVersion));
 		identity.AddClaim(new Claim(HordeClaimTypes.UserId, user.Id.ToString()));
 		HordeOpenIdConnectHandler.AddUserInfoClaims(_settings, cachedUserInfo, identity);
 	}

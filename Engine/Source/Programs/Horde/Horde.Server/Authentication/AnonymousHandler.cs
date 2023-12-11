@@ -29,6 +29,7 @@ namespace Horde.Server.Authentication
 		protected override Task<AuthenticateResult> HandleAuthenticateAsync()
 		{
 			List<Claim> claims = new List<Claim>();
+			claims.Add(new Claim(HordeClaimTypes.Version, HordeClaimTypes.CurrentVersion));
 			claims.Add(new Claim(ClaimTypes.Name, AuthenticationScheme));
 			claims.Add(new Claim(HordeClaimTypes.UserId, UserId.Anonymous.ToString()));
 			claims.Add(new Claim(HordeClaims.AdminClaim.Type, HordeClaims.AdminClaim.Value));

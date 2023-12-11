@@ -636,6 +636,10 @@ namespace Horde.Server
 				 {
 					 options.Events.OnValidatePrincipal = context =>
 					 {
+						 if (!String.Equals(context.Principal?.FindFirst(HordeClaimTypes.Version)?.Value, HordeClaimTypes.CurrentVersion, StringComparison.Ordinal))
+						 {
+							 context.RejectPrincipal();
+						 }
 						 if (context.Principal?.FindFirst(HordeClaimTypes.UserId) == null)
 						 {
 							 context.RejectPrincipal();
