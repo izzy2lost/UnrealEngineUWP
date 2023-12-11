@@ -4088,6 +4088,12 @@ UPackage* ULevel::CreateActorPackage(UPackage* InLevelPackage, EActorPackagingSc
 
 	UPackage* ActorPackage = CreatePackage(*PackageName);
 	ActorPackage->SetPackageFlags(PKG_EditorOnly | PKG_ContainsMapData | PKG_NewlyCreated);
+
+	// Should be prevented upstream but we propagate the flag to prevent issues in asset enumeration
+	if (!ensureMsgf(!(InLevelPackage->GetPackageFlags() & PKG_PlayInEditor), TEXT("Actor packages should not be created on PlayInEditor levels")))
+	{
+		ActorPackage->SetPackageFlags(PKG_PlayInEditor);
+	}
 	return ActorPackage;
 }
 

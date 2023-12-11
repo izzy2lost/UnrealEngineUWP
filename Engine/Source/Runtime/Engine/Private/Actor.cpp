@@ -1345,6 +1345,7 @@ bool AActor::Rename( const TCHAR* InName, UObject* NewOuter, ERenameFlags Flags 
 #if WITH_EDITOR
 	// if we have an external actor and the actor is changing name/outer, we will want to update its package
 	const bool bExternalActor = IsPackageExternal();
+	const bool bIsPIEPackage = bExternalActor ? !!(GetExternalPackage()->GetPackageFlags() & PKG_PlayInEditor) : false;
 	bool bShouldSetPackageExternal = false;
 	if (!bRenameTest)
 	{
@@ -1403,7 +1404,8 @@ bool AActor::Rename( const TCHAR* InName, UObject* NewOuter, ERenameFlags Flags 
 	const bool bSuccess = Super::Rename( InName, NewOuter, Flags );
 
 #if WITH_EDITOR
-	if (bShouldSetPackageExternal)
+	// Restore external package state, except when in PIE since it's transient and serves no purpose
+	if (bShouldSetPackageExternal && !bIsPIEPackage)
 	{
 		if (ULevel* MyLevel = GetLevel())
 		{
