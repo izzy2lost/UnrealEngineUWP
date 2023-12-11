@@ -114,7 +114,6 @@ namespace uba
 	#define TStrcat_s wcscat_s
 	#define TStrdup _wcsdup
 #else
-	inline constexpr bool CaseInsensitiveFs = false;
 	inline constexpr tchar PathSeparator = '/';
 	inline constexpr u32 MaxPath = 512;
 	#define TStrlen(s) u32(strlen(s))
@@ -132,7 +131,10 @@ namespace uba
 	inline u64 FromTimeSpec(const timespec& ts) { return u64(ts.tv_sec) * 10'000'000ull + u64(ts.tv_nsec/100); }
 	inline timespec ToTimeSpec(u64 time) { timespec ts; ts.tv_sec = time / 10'000'000ull; ts.tv_nsec = (time - (u64(ts.tv_sec) * 10'000'000ull)) * 100; return ts; }
 	#if PLATFORM_LINUX
+	inline constexpr bool CaseInsensitiveFs = false;
 	#define st_mtimespec st_mtim
-	#endif
+	#else
+	inline constexpr bool CaseInsensitiveFs = true;
+#endif
 #endif // PLATFORM_WINDOWS
 }

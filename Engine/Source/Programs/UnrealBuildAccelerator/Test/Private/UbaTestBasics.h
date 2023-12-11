@@ -72,14 +72,38 @@ namespace uba
 
 	bool TestPaths(Logger& logger, const StringBufferBase& rootDir)
 	{
-#if PLATFORM_WINDOWS
-		const tchar* workingDir = TC("e:\\dev\\");
-		const tchar* filename = TC("\"e:\\temp\"");
+		const tchar* workingDir = IsWindows ? TC("e:\\dev\\") : TC("/dev/bar/");
 		tchar buffer[1024];
 		u32 lengthResult;
-		if (!FixPath2(filename, workingDir, TStrlen(workingDir), buffer, &lengthResult))
+
+		auto TestPath = [&](const tchar* path) { return FixPath2(path, workingDir, TStrlen(workingDir), buffer, &lengthResult); };
+
+#if PLATFORM_WINDOWS
+		if (!FixPath2(TC("\"e:\\temp\""), workingDir, TStrlen(workingDir), buffer, &lengthResult))
 			return logger.Error(TC("FixPath2 (1) failed"));
+#else
+
+		if (!TestPath(TC("/..")))
+			return logger.Error(TC("FixPath2 should have failed"));
+		UBA_TEST_CHECK(Equals(buffer, TC("/")), "Should not contain ..");
+
+		if (!FixPath2(TC("/../Foo"), workingDir, TStrlen(workingDir), buffer, &lengthResult))
+			return logger.Error(TC("FixPath2 should have failed"));
+		UBA_TEST_CHECK(Equals(buffer, TC("/Foo")), "Should not contain ..");
 #endif
+
+		if (!FixPath2(TC("../Foo"), workingDir, TStrlen(workingDir), buffer, &lengthResult))
+			return logger.Error(TC("FixPath2 (1) failed"));
+		UBA_TEST_CHECK(!Contains(buffer, TC("..")), "Should not contain ..");
+
+		if (!FixPath2(TC("@../Foo"), workingDir, TStrlen(workingDir), buffer, &lengthResult))
+			return logger.Error(TC("FixPath2 (1) failed"));
+		UBA_TEST_CHECK(Contains(buffer, TC("..")), "Should contain ..");
+
+		if (!FixPath2(TC("..@/Foo"), workingDir, TStrlen(workingDir), buffer, &lengthResult))
+			return logger.Error(TC("FixPath2 (1) failed"));
+		UBA_TEST_CHECK(Contains(buffer, TC("..")), "Should contain ..");
+
 		return true;
 	}
 

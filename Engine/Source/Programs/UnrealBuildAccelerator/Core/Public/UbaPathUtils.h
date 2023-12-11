@@ -141,6 +141,7 @@ namespace uba
 			tchar* folders[128];
 			u32 folderCount = 0;
 
+			tchar lastLastLastChar = 0;
 			lastLastChar = 0;
 			lastChar = 0;
 			while (true)
@@ -149,7 +150,7 @@ namespace uba
 
 				if (c == '\\' || c == 0)
 				{
-					if (lastChar == '.' && lastLastChar == '.')
+					if (lastChar == '.' && lastLastChar == '.' && lastLastLastChar == '\\')
 					{
 						if (folderCount > 1)
 							--folderCount;
@@ -171,6 +172,7 @@ namespace uba
 						break;
 				}
 
+				lastLastLastChar = lastLastChar;
 				lastLastChar = lastChar;
 				lastChar = c;
 
@@ -234,6 +236,7 @@ namespace uba
 			char* folders[128];
 			u32 folderCount = 0;
 
+			char lastLastLastChar = 0;
 			char lastLastChar = 0;
 			char lastChar = 0;
 			while (true)
@@ -242,7 +245,7 @@ namespace uba
 
 				if (c == '/' || c == 0)
 				{
-					if (lastChar == '.' && lastLastChar == '.')
+					if (lastChar == '.' && lastLastChar == '.' && lastLastLastChar == '/')
 					{
 						if (folderCount > 1)
 							--folderCount;
@@ -263,6 +266,7 @@ namespace uba
 						break;
 				}
 
+				lastLastLastChar = lastLastChar;
 				lastLastChar = lastChar;
 				lastChar = c;
 
