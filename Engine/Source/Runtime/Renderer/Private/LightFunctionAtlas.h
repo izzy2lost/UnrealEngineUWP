@@ -65,6 +65,7 @@ struct FLightFunctionAtlasViewData
 	FLightFunctionAtlas* GetLightFunctionAtlas()				const { return SceneData ? SceneData->GetLightFunctionAtlas() : nullptr; }
 	bool GetLightFunctionAtlasEnabled()							const { return SceneData ? SceneData->GetLightFunctionAtlasEnabled() : false; }
 	bool UsesLightFunctionAtlas(ELightFunctionAtlasSystem In)	const { return SceneData ? SceneData->UsesLightFunctionAtlas(In) : false; }
+	uint32 GetViewIndex() 										const { return ViewIndex; }
 
 private:
 	FLightFunctionAtlasSceneData* SceneData = nullptr;
@@ -131,7 +132,7 @@ struct FLightFunctionAtlas
 
 	void ClearEmptySceneFrame(FViewInfo* View = nullptr, uint32 ViewIndex = 0, FLightFunctionAtlasSceneData* LightFunctionAtlasSceneData = nullptr);
 
-	void BeginSceneFrame(FViewFamilyInfo& ViewFamily, TArray<FViewInfo>& Views, FLightFunctionAtlasSceneData& LightFunctionAtlasSceneData, bool bShouldRenderVolumetricFog);
+	void BeginSceneFrame(const FViewFamilyInfo& ViewFamily, TArray<FViewInfo>& Views, FLightFunctionAtlasSceneData& LightFunctionAtlasSceneData, bool bShouldRenderVolumetricFog);
 
 	void UpdateRegisterLightSceneInfo(FLightSceneInfo* LightSceneInfo);
 
@@ -196,7 +197,8 @@ namespace LightFunctionAtlas
 {
 	bool IsEnabled(const FViewInfo& InView, ELightFunctionAtlasSystem In);
 	bool IsEnabled(const FScene& InScene, ELightFunctionAtlasSystem In);
+	void OnRenderBegin(FLightFunctionAtlas& In, FScene& InScene, TArray<FViewInfo>& Views, const FViewFamilyInfo& ViewFamily);
 
-	TRDGUniformBufferRef<FLightFunctionAtlasGlobalParameters> BindGlobalParameters(FRDGBuilder& GraphBuilder, const FViewInfo& View, uint32 ViewIndex);
-	FLightFunctionAtlasGlobalParameters* GetGlobalParametersStruct(FRDGBuilder& GraphBuilder, const FViewInfo& View, uint32 ViewIndex);
+	TRDGUniformBufferRef<FLightFunctionAtlasGlobalParameters> BindGlobalParameters(FRDGBuilder& GraphBuilder, const FViewInfo& View);
+	FLightFunctionAtlasGlobalParameters* GetGlobalParametersStruct(FRDGBuilder& GraphBuilder, const FViewInfo& View);
 }

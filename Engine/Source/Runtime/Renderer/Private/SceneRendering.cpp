@@ -97,6 +97,7 @@
 #include "LocalFogVolumeRendering.h"
 #include "OIT/OIT.h"
 #include "Rendering/CustomRenderPass.h"
+#include "LightFunctionAtlas.h"
 
 /*-----------------------------------------------------------------------------
 	Globals
@@ -3501,6 +3502,8 @@ IVisibilityTaskData* FSceneRenderer::OnRenderBegin(FRDGBuilder& GraphBuilder)
 			}
 		}
 	}
+	
+	LightFunctionAtlas::OnRenderBegin(LightFunctionAtlas, *Scene, Views, ViewFamily);
 
 	FVisualizeTexturePresent::OnStartRender(Views[0]);
 

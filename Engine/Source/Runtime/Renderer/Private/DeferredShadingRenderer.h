@@ -973,8 +973,7 @@ private:
 		FRDGTextureRef ScreenShadowMaskSubPixelTexture,
 		FRDGTextureRef LightingChannelsTexture,
 		const FHairStrandsTransmittanceMaskData& InTransmittanceMaskData,
-		const bool bForwardRendering,
-		TRDGUniformBufferRef<FLightFunctionAtlasGlobalParameters> LightFunctionAtlas);
+		const bool bForwardRendering);
 
 	/** Renders an array of simple lights using standard deferred shading. */
 	void RenderSimpleLightsStandardDeferred(

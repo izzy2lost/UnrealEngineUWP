@@ -654,7 +654,7 @@ void FDeferredShadingSceneRenderer::RenderSampledDirectLighting(FRDGBuilder& Gra
 		SampledDirectLightingParameters.SceneTexturesStruct = SceneTextures.UniformBuffer;
 		SampledDirectLightingParameters.Substrate = Substrate::BindSubstrateGlobalUniformParameters(View);
 		SampledDirectLightingParameters.ForwardLightData = View.ForwardLightingResources.ForwardLightUniformBuffer;
-		SampledDirectLightingParameters.LightFunctionAtlas = LightFunctionAtlas::BindGlobalParameters(GraphBuilder, View, ViewIndex);
+		SampledDirectLightingParameters.LightFunctionAtlas = LightFunctionAtlas::BindGlobalParameters(GraphBuilder, View);
 		SampledDirectLightingParameters.BlueNoise = BlueNoiseUniformBuffer;
 		SampledDirectLightingParameters.PreIntegratedGF = GSystemTextures.PreintegratedGF->GetRHI();
 		SampledDirectLightingParameters.PreIntegratedGFSampler = TStaticSamplerState<SF_Bilinear, AM_Clamp, AM_Clamp, AM_Clamp>::GetRHI();

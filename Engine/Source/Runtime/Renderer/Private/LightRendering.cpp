@@ -548,7 +548,6 @@ static void RenderLight(
 	FRDGTextureRef LightingChannelsTexture,
 	bool bRenderOverlap,
 	bool bCloudShadow,
-	TRDGUniformBufferRef<FLightFunctionAtlasGlobalParameters> LightFunctionAtlasGlobalParameters,
 	TRDGUniformBufferRef<FVirtualShadowMapUniformParameters> VirtualShadowMapUniformBuffer = nullptr,
 	FRDGTextureRef ShadowMaskBits = nullptr,
 	int32 VirtualShadowMapId = INDEX_NONE);
@@ -1124,8 +1123,6 @@ bool FSceneRenderer::AllowSimpleLights() const
 
 void FSceneRenderer::GatherAndSortLights(FSortedLightSetSceneInfo& OutSortedLights, bool bShadowedLightsInClustered)
 {
-	LightFunctionAtlas.BeginSceneFrame(ViewFamily, Views, Scene->LightFunctionAtlasSceneData, ShouldRenderVolumetricFog());
-
 	if (AllowSimpleLights())
 	{
 		GatherSimpleLights(ViewFamily, Views, OutSortedLights.SimpleLights);
@@ -1450,8 +1447,7 @@ void FDeferredShadingSceneRenderer::RenderLights(
 				{
 					// Render the light to the scene color buffer, using a 1x1 white texture as input
 					const FLightSceneInfo* LightSceneInfo = SortedLights[LightIndex].LightSceneInfo;
-					RenderLight(GraphBuilder, Scene, View, SceneTextures, LightSceneInfo, nullptr, LightingChannelsTexture, false /*bRenderOverlap*/, false /*bCloudShadow*/,
-						LightFunctionAtlas::BindGlobalParameters(GraphBuilder, View, ViewIndex));
+					RenderLight(GraphBuilder, Scene, View, SceneTextures, LightSceneInfo, nullptr, LightingChannelsTexture, false /*bRenderOverlap*/, false /*bCloudShadow*/);
 				}
 			}
 
@@ -1469,8 +1465,7 @@ void FDeferredShadingSceneRenderer::RenderLights(
 						{
 							const FLightSceneInfo* LightSceneInfo = SortedLights[LightIndex].LightSceneInfo;
 							RenderLightForHair(GraphBuilder, View, SceneTextures, LightSceneInfo, 
-								NullScreenShadowMaskSubPixelTexture, LightingChannelsTexture, DummyTransmittanceMaskData, false /*bForwardRendering*/,
-								LightFunctionAtlas::BindGlobalParameters(GraphBuilder, View, ViewIndex));
+								NullScreenShadowMaskSubPixelTexture, LightingChannelsTexture, DummyTransmittanceMaskData, false /*bForwardRendering*/);
 						}
 					}
 				}
@@ -2077,7 +2072,6 @@ void FDeferredShadingSceneRenderer::RenderLights(
 						RenderLight(
 							GraphBuilder, Scene, View, SceneTextures, &LightSceneInfo, 
 							VirtualShadowMapId != INDEX_NONE ? nullptr : ScreenShadowMaskTexture, LightingChannelsTexture, false /*bRenderOverlap*/, true /*bCloudShadow*/, 
-							LightFunctionAtlas::BindGlobalParameters(GraphBuilder, View, ViewIndex),
 							VirtualShadowMapArray.GetUniformBuffer(), ShadowSceneRenderer->VirtualShadowMapMaskBits, VirtualShadowMapId);
 					}
 				}
@@ -2108,8 +2102,7 @@ void FDeferredShadingSceneRenderer::RenderLights(
 							// any perf. regression, we disable this light for hair rendering 
 							RenderLightForHair(
 								GraphBuilder, View, SceneTextures, &LightSceneInfo, 
-								HairShadowMask, LightingChannelsTexture, TransmittanceMaskData, false /*bForwardRendering*/, 
-								LightFunctionAtlas::BindGlobalParameters(GraphBuilder, View, ViewIndex));
+								HairShadowMask, LightingChannelsTexture, TransmittanceMaskData, false /*bForwardRendering*/);
 						}
 					}
 				}
@@ -2124,8 +2117,7 @@ static void RenderLightArrayForOverlapViewmode(
 	const TArray<FViewInfo>& Views,
 	const FMinimalSceneTextures& SceneTextures,
 	FRDGTextureRef LightingChannelsTexture,
-	const TSparseArray<FLightSceneInfoCompact, TAlignedSparseArrayAllocator<alignof(FLightSceneInfoCompact)>>& LightArray,
-	TRDGUniformBufferRef<FLightFunctionAtlasGlobalParameters> LightFunctionAtlasGlobalParameters)
+	const TSparseArray<FLightSceneInfoCompact, TAlignedSparseArrayAllocator<alignof(FLightSceneInfoCompact)>>& LightArray)
 {
 	for (auto LightIt = LightArray.CreateConstIterator(); LightIt; ++LightIt)
 	{
@@ -2150,7 +2142,7 @@ static void RenderLightArrayForOverlapViewmode(
 		for (const FViewInfo& View : Views)
 		{
 			SCOPED_GPU_MASK(GraphBuilder.RHICmdList, View.GPUMask);
-			RenderLight(GraphBuilder, Scene, View, SceneTextures, LightSceneInfo, nullptr, LightingChannelsTexture, true /*bRenderOverlap*/, false /*bCloudShadow*/, LightFunctionAtlasGlobalParameters);
+			RenderLight(GraphBuilder, Scene, View, SceneTextures, LightSceneInfo, nullptr, LightingChannelsTexture, true /*bRenderOverlap*/, false /*bCloudShadow*/);
 		}
 	}
 }
@@ -2165,11 +2157,11 @@ void FDeferredShadingSceneRenderer::RenderStationaryLightOverlap(
 		// Clear to discard base pass values in scene color since we didn't skip that, to have valid scene depths
 		AddClearRenderTargetPass(GraphBuilder, SceneTextures.Color.Target, FLinearColor::Black);
 
-		RenderLightArrayForOverlapViewmode(GraphBuilder, Scene, Views, SceneTextures, LightingChannelsTexture, Scene->Lights, LightFunctionAtlas.GetDefaultLightFunctionAtlasGlobalParameters(GraphBuilder));
+		RenderLightArrayForOverlapViewmode(GraphBuilder, Scene, Views, SceneTextures, LightingChannelsTexture, Scene->Lights);
 
 		//Note: making use of FScene::InvisibleLights, which contains lights that haven't been added to the scene in the same way as visible lights
 		// So code called by RenderLightArrayForOverlapViewmode must be careful what it accesses
-		RenderLightArrayForOverlapViewmode(GraphBuilder, Scene, Views, SceneTextures, LightingChannelsTexture, Scene->InvisibleLights, LightFunctionAtlas.GetDefaultLightFunctionAtlasGlobalParameters(GraphBuilder));
+		RenderLightArrayForOverlapViewmode(GraphBuilder, Scene, Views, SceneTextures, LightingChannelsTexture, Scene->InvisibleLights);
 	}
 }
 
@@ -2286,7 +2278,6 @@ static FDeferredLightPS::FParameters GetDeferredLightPSParameters(
 	FRDGTextureRef ShadowMaskTexture,
 	FRDGTextureRef LightingChannelsTexture,
 	bool bCloudShadow,
-	TRDGUniformBufferRef<FLightFunctionAtlasGlobalParameters> LightFunctionAtlasGlobalParameters,
 	TRDGUniformBufferRef<FVirtualShadowMapUniformParameters> VirtualShadowMapUniformBuffer = nullptr,
 	FRDGTextureRef ShadowMaskBits = nullptr,
 	int32 VirtualShadowMapId = INDEX_NONE)
@@ -2326,7 +2317,7 @@ static FDeferredLightPS::FParameters GetDeferredLightPSParameters(
 	Out.ShadowMaskBits = ShadowMaskBits ? ShadowMaskBits : GSystemTextures.GetZeroUIntDummy(GraphBuilder);
 
 	// If the light is not batched, it could be due to shadow, so we still specify light function atlas sampling.
-	Out.LightFunctionAtlas = LightFunctionAtlasGlobalParameters;
+	Out.LightFunctionAtlas = LightFunctionAtlas::BindGlobalParameters(GraphBuilder, View);
 
 	// PS - Render Targets
 	Out.RenderTargets[0] = FRenderTargetBinding(SceneColorTexture, ERenderTargetLoadAction::ELoad);
@@ -2528,7 +2519,6 @@ static void RenderLight(
 	FRDGTextureRef LightingChannelsTexture,
 	bool bRenderOverlap,
 	bool bCloudShadow,
-	TRDGUniformBufferRef<FLightFunctionAtlasGlobalParameters> LightFunctionAtlasGlobalParameters,
 	TRDGUniformBufferRef<FVirtualShadowMapUniformParameters> VirtualShadowMapUniformBuffer,
 	FRDGTextureRef ShadowMaskBits,
 	int32 VirtualShadowMapId)
@@ -2590,7 +2580,7 @@ static void RenderLight(
 		// PS - Generatl parameters
 		PassParameters->PS = GetDeferredLightPSParameters(
 			GraphBuilder, Scene, View, LightSceneInfo, SceneTextures.Color.Target, SceneTextures.Depth.Target, SceneTextures.UniformBuffer, View.HairStrandsViewData.UniformBuffer, 
-			ScreenShadowMaskTexture, LightingChannelsTexture, bCloudShadow, LightFunctionAtlasGlobalParameters, VirtualShadowMapUniformBuffer, ShadowMaskBits, VirtualShadowMapId);
+			ScreenShadowMaskTexture, LightingChannelsTexture, bCloudShadow, VirtualShadowMapUniformBuffer, ShadowMaskBits, VirtualShadowMapId);
 		// VS - General parameters
 		if (bIsRadial)
 		{
@@ -2702,9 +2692,7 @@ void FDeferredShadingSceneRenderer::RenderLightForHair(
 	FRDGTextureRef HairShadowMaskTexture,
 	FRDGTextureRef LightingChannelsTexture,
 	const FHairStrandsTransmittanceMaskData& InTransmittanceMaskData,
-	const bool bForwardRendering,
-	TRDGUniformBufferRef<FLightFunctionAtlasGlobalParameters> LightFunctionAtlasGlobalParameters
-	)
+	const bool bForwardRendering)
 {
 	// Ensure the light is valid for this view
 	const bool bHairRenderingEnabled = HairStrands::HasViewHairStrandsData(View);
@@ -2739,8 +2727,7 @@ void FDeferredShadingSceneRenderer::RenderLightForHair(
 		HairStrands::BindHairStrandsViewUniformParameters(View),
 		HairShadowMaskTexture,
 		LightingChannelsTexture,
-		bCloudShadow,
-		LightFunctionAtlasGlobalParameters);
+		bCloudShadow);
 
 	// PS - Hair parameters
 	const FIntPoint SampleLightingViewportResolution = View.HairStrandsViewData.VisibilityData.SampleLightingViewportResolution;
@@ -2869,8 +2856,7 @@ void FDeferredShadingSceneRenderer::RenderLightsForHair(
 						ScreenShadowMaskSubPixelTexture,
 						LightingChannelsTexture,
 						TransmittanceMaskData,
-						true /*bForwardRendering*/,
-						LightFunctionAtlas::BindGlobalParameters(GraphBuilder, View, ViewIndex));
+						true /*bForwardRendering*/);
 				}
 			}
 		}

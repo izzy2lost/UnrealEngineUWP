@@ -1163,7 +1163,7 @@ static int32 ComputeShadowMaskFromLightAttenuation(
 			SetupLightCloudTransmittanceParameters(GraphBuilder, Scene, View, nullptr, PassParameters->Common.LightCloudTransmittanceParameters);
 			if (bUseLightFunctionAtlas)
 			{
-				PassParameters->LightFunctionAtlas = LightFunctionAtlas::BindGlobalParameters(GraphBuilder, View, ViewIndex);
+				PassParameters->LightFunctionAtlas = LightFunctionAtlas::BindGlobalParameters(GraphBuilder, View);
 			}
 
 			FLumenDirectLightingShadowMaskFromLightAttenuationCS::FPermutationDomain PermutationVector;

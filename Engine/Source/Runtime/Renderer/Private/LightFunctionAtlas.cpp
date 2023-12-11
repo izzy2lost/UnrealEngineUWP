@@ -19,6 +19,7 @@
 #include "CanvasTypes.h"
 #include "Containers/HashTable.h"
 #include "RenderUtils.h"
+#include "VolumetricFog.h"
 
 DECLARE_GPU_STAT(LightFunctionAtlasGeneration);
 
@@ -254,7 +255,7 @@ void FLightFunctionAtlas::ClearEmptySceneFrame(FViewInfo* View, uint32 ViewIndex
 	}
 }
 
-void FLightFunctionAtlas::BeginSceneFrame(FViewFamilyInfo& ViewFamily, TArray<FViewInfo>& Views, FLightFunctionAtlasSceneData& LightFunctionAtlasSceneData, bool bShouldRenderVolumetricFog)
+void FLightFunctionAtlas::BeginSceneFrame(const FViewFamilyInfo& ViewFamily, TArray<FViewInfo>& Views, FLightFunctionAtlasSceneData& LightFunctionAtlasSceneData, bool bShouldRenderVolumetricFog)
 {
 	ClearEmptySceneFrame(nullptr, 0, &LightFunctionAtlasSceneData);
 
@@ -859,16 +860,21 @@ namespace LightFunctionAtlas
 		return InScene.LightFunctionAtlasSceneData.UsesLightFunctionAtlas(In);
 	}
 
-	TRDGUniformBufferRef<FLightFunctionAtlasGlobalParameters> BindGlobalParameters(FRDGBuilder& GraphBuilder, const FViewInfo& InView, uint32 InViewIndex)
+	void OnRenderBegin(FLightFunctionAtlas& In, FScene& InScene, TArray<FViewInfo>& InViews, const FViewFamilyInfo& InViewFamily)
 	{
-		return InView.LightFunctionAtlasViewData.GetLightFunctionAtlas()->GetLightFunctionAtlasGlobalParameters(GraphBuilder, InViewIndex);
+		In.BeginSceneFrame(InViewFamily, InViews, InScene.LightFunctionAtlasSceneData, ShouldRenderVolumetricFog(&InScene, InViewFamily));
 	}
 
-	FLightFunctionAtlasGlobalParameters* GetGlobalParametersStruct(FRDGBuilder& GraphBuilder, const FViewInfo& InView, uint32 InViewIndex)
+	TRDGUniformBufferRef<FLightFunctionAtlasGlobalParameters> BindGlobalParameters(FRDGBuilder& GraphBuilder, const FViewInfo& InView)
+	{
+		return InView.LightFunctionAtlasViewData.GetLightFunctionAtlas()->GetLightFunctionAtlasGlobalParameters(GraphBuilder, InView.LightFunctionAtlasViewData.GetViewIndex());
+	}
+
+	FLightFunctionAtlasGlobalParameters* GetGlobalParametersStruct(FRDGBuilder& GraphBuilder, const FViewInfo& InView)
 	{		
 		if (FLightFunctionAtlas* LightFunctionAtlas = InView.LightFunctionAtlasViewData.GetLightFunctionAtlas())
 		{
-			return LightFunctionAtlas->GetLightFunctionAtlasGlobalParametersStruct(GraphBuilder, InViewIndex);
+			return LightFunctionAtlas->GetLightFunctionAtlasGlobalParametersStruct(GraphBuilder, InView.LightFunctionAtlasViewData.GetViewIndex());
 		}
 		else
 		{
