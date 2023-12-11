@@ -178,10 +178,10 @@ struct FMatrix2D
 	GENERATED_BODY()
 
 	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "USD")
-	FVector2D Row0;
+	FVector2D Row0 = FVector2D(1.0, 0.0);
 
 	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "USD")
-	FVector2D Row1;
+	FVector2D Row1 = FVector2D(0.0, 1.0);
 };
 
 /**
@@ -194,13 +194,13 @@ struct FMatrix3D
 	GENERATED_BODY()
 
 	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "USD")
-	FVector Row0;
+	FVector Row0 = FVector(1.0, 0.0, 0.0);
 
 	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "USD")
-	FVector Row1;
+	FVector Row1 = FVector(0.0, 1.0, 0.0);
 
 	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "USD")
-	FVector Row2;
+	FVector Row2 = FVector(0.0, 0.0, 1.0);
 };
 
 class IUnrealUSDWrapperModule : public IModuleInterface

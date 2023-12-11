@@ -38,7 +38,7 @@ struct USDEXPORTER_API FUsdMetadataExportOptions
 	// When this is true, the "BlockedPrefixFilters" property is inverted, and describes prefixes to *allow*.
 	// In that case, entries are only allowed and exported if they match at least one of the provided prefixes.
 	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Metadata", config, meta = (EditCondition = "bExportAssetMetadata || bExportComponentMetadata"))
-	bool bInvertFilters;
+	bool bInvertFilters = false;
 };
 
 namespace UsdUtils
