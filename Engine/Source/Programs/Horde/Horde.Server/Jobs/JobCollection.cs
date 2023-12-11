@@ -14,7 +14,6 @@ using EpicGames.Horde.Agents.Leases;
 using EpicGames.Horde.Streams;
 using EpicGames.Horde.Users;
 using Horde.Server.Acls;
-using Horde.Server.Agents.Pools;
 using Horde.Server.Agents.Sessions;
 using Horde.Server.Jobs.Graphs;
 using Horde.Server.Jobs.Bisect;
@@ -35,6 +34,7 @@ using OpenTelemetry.Trace;
 using EpicGames.Horde.Jobs.Templates;
 using EpicGames.Horde.Jobs;
 using EpicGames.Horde.Logs;
+using EpicGames.Horde.Agents.Pools;
 
 namespace Horde.Server.Jobs
 {

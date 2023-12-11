@@ -4,11 +4,11 @@ using System;
 using System.Collections.Generic;
 using System.Threading.Tasks;
 using Horde.Server.Agents;
-using Horde.Server.Agents.Pools;
 using Horde.Server.Agents.Sessions;
 using HordeCommon;
 using Microsoft.VisualStudio.TestTools.UnitTesting;
 using EpicGames.Horde.Agents.Leases;
+using EpicGames.Horde.Agents.Pools;
 
 namespace Horde.Server.Tests.Agents;
 

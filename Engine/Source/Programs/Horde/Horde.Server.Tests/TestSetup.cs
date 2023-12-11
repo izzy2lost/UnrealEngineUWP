@@ -65,6 +65,7 @@ using Horde.Server.Dashboard;
 using OpenTelemetry.Trace;
 using Horde.Server.Jobs.Bisect;
 using Horde.Server.Telemetry.Sinks;
+using EpicGames.Horde.Agents.Pools;
 
 namespace Horde.Server.Tests
 {

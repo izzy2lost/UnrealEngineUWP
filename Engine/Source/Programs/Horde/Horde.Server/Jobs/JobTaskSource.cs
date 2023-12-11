@@ -38,6 +38,7 @@ using EpicGames.Horde.Agents;
 using EpicGames.Horde.Storage;
 using EpicGames.Horde.Jobs;
 using EpicGames.Horde.Logs;
+using EpicGames.Horde.Agents.Pools;
 
 namespace Horde.Server.Jobs
 {

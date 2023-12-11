@@ -12,7 +12,6 @@ using EpicGames.Horde;
 using EpicGames.Horde.Common;
 using EpicGames.Horde.Jobs.Templates;
 using Horde.Server.Acls;
-using Horde.Server.Agents.Pools;
 using Horde.Server.Configuration;
 using Horde.Server.Issues;
 using Horde.Server.Jobs.Graphs;
@@ -24,6 +23,7 @@ using HordeCommon;
 using HordeCommon.Rpc.Tasks;
 using System.Diagnostics;
 using EpicGames.Horde.Streams;
+using EpicGames.Horde.Agents.Pools;
 
 namespace Horde.Server.Streams
 {

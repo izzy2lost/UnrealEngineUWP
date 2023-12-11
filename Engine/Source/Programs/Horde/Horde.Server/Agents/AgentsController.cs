@@ -6,7 +6,6 @@ using System.Linq;
 using System.Threading.Tasks;
 using Horde.Server.Acls;
 using Horde.Server.Agents.Leases;
-using Horde.Server.Agents.Pools;
 using Horde.Server.Agents.Sessions;
 using Horde.Server.Auditing;
 using Horde.Server.Server;
@@ -19,6 +18,7 @@ using EpicGames.Core;
 using EpicGames.Horde.Agents;
 using EpicGames.Horde.Agents.Leases;
 using EpicGames.Horde.Common;
+using EpicGames.Horde.Agents.Pools;
 
 namespace Horde.Server.Agents
 {

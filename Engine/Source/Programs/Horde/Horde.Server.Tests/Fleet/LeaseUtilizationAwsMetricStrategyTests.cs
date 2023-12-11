@@ -18,6 +18,7 @@ using Microsoft.VisualStudio.TestTools.UnitTesting;
 using EpicGames.Horde.Agents.Leases;
 using EpicGames.Horde.Streams;
 using Microsoft.Extensions.Logging.Abstractions;
+using EpicGames.Horde.Agents.Pools;
 
 namespace Horde.Server.Tests.Fleet
 {

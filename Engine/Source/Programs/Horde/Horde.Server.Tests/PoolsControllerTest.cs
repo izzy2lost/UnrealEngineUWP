@@ -2,6 +2,7 @@
 
 using System.Collections.Generic;
 using System.Threading.Tasks;
+using EpicGames.Horde.Agents.Pools;
 using Horde.Server.Agents.Fleet;
 using Horde.Server.Agents.Pools;
 using Microsoft.AspNetCore.Mvc;

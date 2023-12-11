@@ -8,6 +8,7 @@ using System.Threading;
 using System.Threading.Tasks;
 using Amazon.AutoScaling;
 using Amazon.AutoScaling.Model;
+using EpicGames.Horde.Agents.Pools;
 using Horde.Server.Agents.Pools;
 using Microsoft.Extensions.Logging;
 using OpenTelemetry.Trace;

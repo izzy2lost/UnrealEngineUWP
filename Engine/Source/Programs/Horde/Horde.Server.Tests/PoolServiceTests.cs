@@ -3,6 +3,7 @@
 using System;
 using System.Collections.Generic;
 using System.Threading.Tasks;
+using EpicGames.Horde.Agents.Pools;
 using Horde.Server.Agents.Pools;
 using Microsoft.VisualStudio.TestTools.UnitTesting;
 

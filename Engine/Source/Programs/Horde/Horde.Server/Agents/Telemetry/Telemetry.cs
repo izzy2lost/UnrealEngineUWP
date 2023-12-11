@@ -2,8 +2,8 @@
 
 using System;
 using System.Collections.Generic;
+using EpicGames.Horde.Agents.Pools;
 using EpicGames.Horde.Streams;
-using Horde.Server.Agents.Pools;
 
 namespace Horde.Server.Agents.Telemetry
 {

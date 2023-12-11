@@ -11,7 +11,6 @@ using Amazon.AutoScaling;
 using Amazon.AutoScaling.Model;
 using Horde.Server.Agents;
 using Horde.Server.Agents.Fleet;
-using Horde.Server.Agents.Pools;
 using Horde.Server.Utilities;
 using HordeCommon;
 using Microsoft.Extensions.DependencyInjection;
@@ -19,6 +18,7 @@ using Microsoft.Extensions.Logging;
 using Microsoft.VisualStudio.TestTools.UnitTesting;
 using Moq;
 using EpicGames.Horde.Agents.Leases;
+using EpicGames.Horde.Agents.Pools;
 
 namespace Horde.Server.Tests.Fleet;
 

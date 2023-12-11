@@ -6,6 +6,7 @@ using System.Linq;
 using System.Threading;
 using System.Threading.Tasks;
 using EpicGames.Horde;
+using EpicGames.Horde.Agents.Pools;
 using Horde.Server.Server;
 using HordeCommon;
 

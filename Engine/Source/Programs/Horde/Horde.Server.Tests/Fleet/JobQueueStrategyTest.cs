@@ -16,6 +16,7 @@ using Horde.Server.Agents;
 using EpicGames.Horde.Jobs.Templates;
 using EpicGames.Horde.Projects;
 using EpicGames.Horde.Streams;
+using EpicGames.Horde.Agents.Pools;
 
 namespace Horde.Server.Tests.Fleet
 {

@@ -12,13 +12,13 @@ using EpicGames.Horde.Users;
 using Horde.Server.Jobs;
 using Horde.Server.Jobs.Graphs;
 using Horde.Server.Logs;
-using Horde.Server.Agents.Pools;
 using Horde.Server.Jobs.Templates;
 using Horde.Server.Utilities;
 using HordeCommon;
 using Microsoft.VisualStudio.TestTools.UnitTesting;
 using Moq;
 using Horde.Server.Agents.Sessions;
+using EpicGames.Horde.Agents.Pools;
 
 namespace Horde.Server.Tests
 {

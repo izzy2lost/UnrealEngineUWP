@@ -12,7 +12,6 @@ using System.Threading.Tasks;
 using Google.Protobuf;
 using Grpc.Core;
 using Horde.Server.Utilities;
-using Horde.Server.Agents.Pools;
 using Horde.Server.Logs;
 using Horde.Server.Server;
 using HordeCommon.Rpc;
@@ -27,6 +26,7 @@ using HordeCommon.Rpc.Messages;
 using Horde.Server.Agents.Sessions;
 using EpicGames.Horde.Agents;
 using EpicGames.Horde.Agents.Leases;
+using EpicGames.Horde.Agents.Pools;
 
 namespace Horde.Server.Tests
 {

@@ -14,6 +14,7 @@ using Horde.Server.Agents;
 using Horde.Server.Agents.Pools;
 using Horde.Server.Streams;
 using EpicGames.Horde.Users;
+using EpicGames.Horde.Agents.Pools;
 
 namespace Horde.Server.Tests
 {

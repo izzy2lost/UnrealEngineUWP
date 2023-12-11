@@ -2,10 +2,9 @@
 
 using System.ComponentModel;
 using EpicGames.Core;
-using EpicGames.Horde;
 using EpicGames.Serialization;
 
-namespace Horde.Server.Agents.Pools
+namespace EpicGames.Horde.Agents.Pools
 {
 	/// <summary>
 	/// Identifier for a pool

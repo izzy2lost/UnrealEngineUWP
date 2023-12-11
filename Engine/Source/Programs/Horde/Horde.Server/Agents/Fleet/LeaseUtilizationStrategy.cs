@@ -14,6 +14,7 @@ using HordeCommon.Rpc.Tasks;
 using Microsoft.Extensions.Caching.Memory;
 using OpenTelemetry.Trace;
 using EpicGames.Horde.Agents;
+using EpicGames.Horde.Agents.Pools;
 
 namespace Horde.Server.Agents.Fleet
 {
