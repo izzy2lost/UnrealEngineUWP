@@ -26,7 +26,7 @@ FRCBehaviourModel::FRCBehaviourModel(URCBehaviour* InBehaviour
 
 	if (BehaviourWeakPtr.IsValid())
 	{
-		const FText BehaviorDisplayName = BehaviourWeakPtr->GetDisplayName().ToUpper();
+		const FText BehaviorDisplayName = BehaviourWeakPtr->GetDisplayName();
 		
 		SAssignNew(BehaviourTitleText, STextBlock)
 			.Text(BehaviorDisplayName)
