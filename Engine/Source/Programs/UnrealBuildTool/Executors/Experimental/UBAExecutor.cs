@@ -478,7 +478,13 @@ namespace UnrealBuildTool
 				}
 				if (FileReference.Exists(tempPath))
 				{
-					System.Diagnostics.Process.Start(tempPath.FullName, "-listen");
+					System.Diagnostics.ProcessStartInfo psi = new(BuildHostPlatform.Current.Shell.FullName, $" /C start \"\" \"{tempPath.FullName}\" -listen")
+					{
+						WorkingDirectory = System.IO.Path.GetTempPath(),
+						WindowStyle = System.Diagnostics.ProcessWindowStyle.Hidden,
+						UseShellExecute = true,
+					};
+					System.Diagnostics.Process.Start(psi);
 				}
 			}
 			catch(Exception)
