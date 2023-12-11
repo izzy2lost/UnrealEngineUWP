@@ -91,8 +91,13 @@ static void ClearCachedWindowRects()
 	CachedWindowRect_EventThread = FAndroidCachedWindowRectParams();
 }
 
-static int32 GSurfaceViewWidth = -1;
-static int32 GSurfaceViewHeight = -1;
+static int32 GSurfaceViewX = 0;
+static int32 GSurfaceViewY = 0;
+int32 GSurfaceViewWidth = -1;
+int32 GSurfaceViewHeight = -1;
+
+void* GAndroidWindowOverride = nullptr;
+static ANativeWindow* GAcquiredWindow = nullptr;
 
 void* FAndroidWindow::NativeWindow = NULL;
 
@@ -155,9 +160,15 @@ JNI_METHOD void Java_com_epicgames_unreal_GameActivity_nativeSetWindowInfo(JNIEn
 
 JNI_METHOD void Java_com_epicgames_unreal_GameActivity_nativeSetSurfaceViewInfo(JNIEnv* jenv, jobject thiz, jint width, jint height)
 {
-	GSurfaceViewWidth = width;
-	GSurfaceViewHeight = height;
-	UE_LOG(LogAndroid, Log, TEXT("nativeSetSurfaceViewInfo width=%d and height=%d"), GSurfaceViewWidth, GSurfaceViewHeight);
+	STANDALONE_DEBUG_LOG( TEXT("nativeSetSurfaceViewInfo prev width=%d and prev height=%d"), GSurfaceViewWidth, GSurfaceViewHeight);
+
+	if (GAndroidWindowOverride != nullptr && (width != GSurfaceViewWidth || height != GSurfaceViewHeight))	
+	{
+		GSurfaceViewWidth = width;
+		GSurfaceViewHeight = height;
+		FAppEventManager::GetInstance()->EnqueueAppEvent(APP_EVENT_STATE_WINDOW_RESIZED, FAppEventData((ANativeWindow*)GAndroidWindowOverride));
+		STANDALONE_DEBUG_LOG(TEXT("nativeSetSurfaceViewInfo width=%d and height=%d"), GSurfaceViewWidth, GSurfaceViewHeight);
+	}
 }
 
 JNI_METHOD void Java_com_epicgames_unreal_GameActivity_nativeSetSafezoneInfo(JNIEnv* jenv, jobject thiz, jboolean bIsPortrait, jfloat left, jfloat top, jfloat right, jfloat bottom)
@@ -181,6 +192,54 @@ JNI_METHOD void Java_com_epicgames_unreal_GameActivity_nativeSetSafezoneInfo(JNI
 #endif
 	UE_LOG(LogAndroid, Log, TEXT("nativeSetSafezoneInfo bIsPortrait=%d, left=%f, top=%f, right=%f, bottom=%f"), bIsPortrait ? 1 : 0, left, top, right, bottom);
 }
+
+#if USE_ANDROID_STANDALONE
+
+extern void GAndroidWindowLock_Lock(FString calledBy);
+extern void GAndroidWindowLock_Unlock(FString calledBy);
+
+JNI_METHOD void Java_com_epicgames_makeaar_GameActivityForMakeAAR_nativeSetSurfaceOverride(JNIEnv* jenv, jobject thiz, jobject surface, jint x, jint y)
+{
+	if (surface != 0)
+	{
+		GSurfaceViewX = x;
+		GSurfaceViewY = y;
+		void* prev = GAndroidWindowOverride;
+		GAndroidWindowOverride = (ANativeWindow*)ANativeWindow_fromSurface(jenv, surface);
+		STANDALONE_DEBUG_LOG(TEXT("nativeSetSurfaceOverride(makeaar) applied: prev to new %p -> %p, (%d, %d)"), prev, GAndroidWindowOverride, GSurfaceViewX, GSurfaceViewY);
+		if (prev != GAndroidWindowOverride)
+		{
+			//GAndroidWindowLock_Unlock("Java_com_epicgames_makeaar_GameActivityForMakeAAR_nativeSetSurfaceOverride");
+		}
+
+		//if (GAndroidWindowOverride != nullptr)
+		//{
+		//	STANDALONE_DEBUG_LOGf(LogAndroid, TEXT("nativeSetSurfaceOverride. FTaskGraphInterface::IsRunning() = %d, GAndroidWindowOverride=%x"), FTaskGraphInterface::IsRunning(), GAndroidWindowOverride);
+
+		//	if (FTaskGraphInterface::IsRunning())
+		//	{
+		//		FSimpleDelegateGraphTask::CreateAndDispatchWhenReady(
+		//			FSimpleDelegateGraphTask::FDelegate::CreateLambda([=]()
+		//				{
+		//					STANDALONE_DEBUG_LOGf(LogAndroid, TEXT("from nativeSetSurfaceOverride, trigger UnlockAndroidWindow. FTaskGraphInterface::IsRunning() = %d, GAndroidWindowOverride=%x"), FTaskGraphInterface::IsRunning(), GAndroidWindowOverride);
+
+		//					FPlatformMisc::UnlockAndroidWindow();
+		//				}), TStatId(), nullptr, ENamedThreads::GameThread);
+		//	}
+		//}
+
+	}
+	else
+	{
+		GAndroidWindowOverride = nullptr;
+		
+		STANDALONE_DEBUG_LOG(TEXT("nativeSetSurfaceOverride(makeaar) setting to null and lock window"));
+		//GAndroidWindowLock_Lock("Java_com_epicgames_makeaar_GameActivityForMakeAAR_nativeSetSurfaceOverride");
+	}
+}
+
+#endif // USE_ANDROID_STANDALONE
+
 #endif
 
 bool FAndroidWindow::bAreCachedNativeDimensionsValid = false;
@@ -210,13 +269,62 @@ void FAndroidWindow::InvalidateCachedScreenRect()
 void FAndroidWindow::AcquireWindowRef(ANativeWindow* InWindow)
 {
 #if USE_ANDROID_JNI
+	STANDALONE_DEBUG_LOG(TEXT("AcquireWindowRef USE_ANDROID_JNI is enabled: InWindow=%p, GAcquiredWindow=%p, GAndroidWindowOverride=%p"), InWindow, GAcquiredWindow, GAndroidWindowOverride);
+
+	if (InWindow == nullptr)
+	{
+		UE_LOG(LogAndroid, Log, TEXT("FAndroidWindow::AcquireWindowRef skipped because InWindow is null."));
+		return;
+	}
+
+	if (GAcquiredWindow == InWindow)
+	{
+		STANDALONE_DEBUG_LOG(TEXT("AcquireWindowRef USE_ANDROID_JNI is enabled: %p and GAcquiredWindow == InWindow"), InWindow);
+		return;
+	}
+
+	if (GAcquiredWindow != nullptr)
+	{
+		STANDALONE_DEBUG_LOG(TEXT("AcquireWindowRef USE_ANDROID_JNI is enabled: %p and GAcquiredWindow != nullptr"), InWindow);
+
+		ReleaseWindowRef(GAcquiredWindow);
+	}
+
+	check(GAcquiredWindow == NULL);
+	STANDALONE_DEBUG_LOG(TEXT("AcquireWindowRef USE_ANDROID_JNI is enabled: %p and ANativeWindow_acquire"), InWindow);
+
 	ANativeWindow_acquire(InWindow);
+
+	// Added logic to store the Acquired window and when calling ReleaseWindowRef, check if the window is the same and only release if it matches
+	// This logic is to deal with the fact Android lifecycles for activities can overlap. ideally we would create a context based container to manage this
+	// but for now this is a useful protection.
+	GAcquiredWindow = InWindow;
+	STANDALONE_DEBUG_LOG(TEXT("FAndroidWindow::AcquireWindowRef overrode window: %p"), GAndroidWindowOverride);
+
+#else
+	STANDALONE_DEBUG_LOG(TEXT("AcquireWindowRef USE_ANDROID_JNI is NOT enabled: %p"), InWindow);
+
 #endif
 }
 
 void FAndroidWindow::ReleaseWindowRef(ANativeWindow* InWindow)
 {
 #if USE_ANDROID_JNI
+	if (GAcquiredWindow == nullptr && InWindow == nullptr)
+	{
+		STANDALONE_DEBUG_LOG(TEXT("ReleaseWindowRef skipped because GAcquiredWindow is null.  Window %p reference will not be released."), InWindow);
+		return;
+	}
+
+	ANativeWindow* ReleaseWindow = GAcquiredWindow;
+	if (InWindow == nullptr || GAcquiredWindow == InWindow)
+	{
+		InWindow = GAcquiredWindow;
+		GAcquiredWindow = nullptr;
+	}
+
+	STANDALONE_DEBUG_LOG(TEXT("ReleaseWindowRef using window: %p"), InWindow);
+
 	ANativeWindow_release(InWindow);
 #endif
 }
@@ -226,11 +334,22 @@ void FAndroidWindow::ReleaseWindowRef(ANativeWindow* InWindow)
 #if USE_ANDROID_EVENTS
 	check(IsInAndroidEventThread());
 #endif
-	NativeWindow = InWindow; //using raw native window handle for now. Could be changed to use AndroidWindow later if needed
+	//using raw native window handle for now. Could be changed to use AndroidWindow later if needed
+	NativeWindow = InWindow; 
 }
 
 void* FAndroidWindow::GetHardwareWindow_EventThread()
 {
+#if USE_ANDROID_STANDALONE
+	if (NativeWindow && GAndroidWindowOverride)
+	{
+		STANDALONE_DEBUG_LOG(TEXT("GetHardwareWindow_EventThread overrode window: %p"), GAndroidWindowOverride);
+		return GAndroidWindowOverride;
+	}
+#endif
+
+	STANDALONE_DEBUG_LOG(TEXT("GetHardwareWindow_EventThread NativeWindow: %p"), NativeWindow);
+
 	return NativeWindow;
 }
 
@@ -279,6 +398,14 @@ void FAndroidWindow::EventManagerUpdateWindowDimensions(int32 Width, int32 Heigh
 {
 	check(bAreCachedNativeDimensionsValid);
 	check(Width >= 0 && Height >= 0);
+
+#if USE_ANDROID_STANDALONE
+	if (GAndroidWindowOverride && GSurfaceViewWidth > 0)
+	{
+		Width = GSurfaceViewWidth;
+		Height = GSurfaceViewHeight;
+	}
+#endif
 
 	bool bChanged = CachedNativeWindowWidth != Width || CachedNativeWindowHeight != Height;
 

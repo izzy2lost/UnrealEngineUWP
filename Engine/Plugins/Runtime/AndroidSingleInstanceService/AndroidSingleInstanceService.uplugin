@@ -1,0 +1,32 @@
+{
+	"FileVersion": 3,
+	"Version": 1,
+	"VersionName": "1.0",
+	"FriendlyName": "AndroidSingleInstanceService",
+	"Description": "Adds support for Unreal Single Instance Service to Android projects.",
+	"Category": "Android",
+	"CreatedBy": "Epic Games, Inc.",
+	"CreatedByURL": "https://epicgames.com",
+	"DocsURL": "",
+	"MarketplaceURL": "",
+	"SupportURL": "",
+	"CanContainContent": false,
+	"IsBetaVersion": false,
+	"EnabledByDefault": false,
+	"Installed": true,
+	"IsExperimentalVersion": true,
+	"Modules": [
+		{
+			"Name": "AndroidSingleInstanceService",
+			"Type": "Runtime",
+			"LoadingPhase": "PreLoadingScreen",
+			"PlatformAllowList": [ "Android", "Win64", "Mac", "Linux" ]
+		},
+		{
+			"Name": "AndroidSingleInstanceServiceEditor",
+			"Type": "Editor",
+			"LoadingPhase": "PostEngineInit",
+			"PlatformAllowList": [ "Win64", "Mac", "Linux" ]
+		}
+	]
+}

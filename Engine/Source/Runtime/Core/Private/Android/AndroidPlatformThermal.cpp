@@ -26,7 +26,7 @@
 #include <android/thermal.h>
 #include "Android/AndroidJava.h"
 
-#if USE_ANDROID_JNI
+#if USE_ANDROID_JNI && !USE_ANDROID_STANDALONE
 namespace UE
 {
 	namespace Android

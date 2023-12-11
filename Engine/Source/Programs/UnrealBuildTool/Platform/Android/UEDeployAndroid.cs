@@ -2665,7 +2665,18 @@ namespace UnrealBuildTool
 
 			StringBuilder Text = new StringBuilder();
 			Text.AppendLine(XML_HEADER);
-			Text.AppendLine("<manifest xmlns:android=\"http://schemas.android.com/apk/res/android\" xmlns:tools=\"http://schemas.android.com/tools\"");
+
+			bool bIsMakeAAREnabled = AndroidPlatform.IsMakeAAREnabled(ProjectFile, Logger);
+			if (bIsMakeAAREnabled)
+			{
+				// Note: dist was added for SingleInstanceService to allow instant module features, but need feedback if this will cause any issues since according to docs (https://developer.android.com/guide/playcore/feature-delivery/instant) An instant-enabled module cannot use background services. Additionally, such a module cannot send notifications when running in the background.
+				
+				Text.AppendLine("<manifest xmlns:android=\"http://schemas.android.com/apk/res/android\" xmlns:dist=\"http://schemas.android.com/apk/distribution\" xmlns:tools=\"http://schemas.android.com/tools\"");
+			}
+			else
+			{
+				Text.AppendLine("<manifest xmlns:android=\"http://schemas.android.com/apk/res/android\" xmlns:tools=\"http://schemas.android.com/tools\"");
+			}
 			//			Text.AppendLine(string.Format("          package=\"{0}\"", PackageName));
 			if (ExtraManifestNodeTags != null)
 			{
@@ -2693,6 +2704,14 @@ namespace UnrealBuildTool
 				Text.AppendLine("\t\t\t<category android:name=\"android.intent.category.BROWSABLE\" />");
 				Text.AppendLine("\t\t\t<data android:scheme=\"https\" />");
 				Text.AppendLine("\t\t</intent>");
+				Text.AppendLine("\t</queries>");
+			}
+
+			if (bIsMakeAAREnabled)
+			{
+				Text.AppendLine("\t<dist:module dist:instant=\"true\" />");
+				Text.AppendLine("\t<queries>");
+				Text.AppendLine(string.Format("\t\t<package android:name=\"{0}\" />", PackageName));
 				Text.AppendLine("\t</queries>");
 			}
 
@@ -4382,6 +4401,7 @@ namespace UnrealBuildTool
 
 			// Initialize UPL contexts for each architecture enabled
 			UPL.Init(NDKArches, bForDistribution, EngineDirectory, IntermediateAndroidPath, ProjectDirectory, Configuration.ToString(), bSkipGradleBuild, bPerArchBuildDir: true, ArchRemapping: ArchRemapping);
+			UPL.SetGlobalContextVariable("AndroidPackageName", PackageName);
 
 			IEnumerable<Tuple<UnrealArch, string>>? BuildList = null;
 

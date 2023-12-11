@@ -1564,6 +1564,17 @@ FEngineLoop::FEngineLoop()
 { }
 
 
+static FString OriginalProjectModuleName;
+static FString ReplacementProjectModuleName;
+
+void FEngineLoop::OverrideProjectModule(const FString& InOriginalProjectModuleName, const FString& InReplacementProjectModuleName)
+{
+	OriginalProjectModuleName = InOriginalProjectModuleName;
+	ReplacementProjectModuleName = InReplacementProjectModuleName;
+	FPlatformMisc::LowLevelOutputDebugStringf(TEXT("OverrideProjectModule : OriginalProjectModuleName=%s, ReplacementProjectModuleName=%s\n"), *OriginalProjectModuleName, *ReplacementProjectModuleName);
+
+}
+
 int32 FEngineLoop::PreInit(int32 ArgC, TCHAR* ArgV[], const TCHAR* AdditionalCommandline)
 {
 	FString CmdLine = FCommandLine::BuildFromArgV(nullptr, ArgC, ArgV, AdditionalCommandline);
@@ -2605,6 +2616,11 @@ int32 FEngineLoop::PreInitPreStartupScreen(const TCHAR* CmdLine)
 		{
 			// Add the enterprise binaries directory if we're an enterprise project
 			FModuleManager::Get().AddBinariesDirectory(*FPaths::Combine(FPaths::EnterpriseDir(), TEXT("Binaries"), FPlatformProcess::GetBinariesSubdirectory()), false);
+		}
+
+		if (!ReplacementProjectModuleName.IsEmpty())
+		{
+			IProjectManager::Get().SubstituteModule(OriginalProjectModuleName, ReplacementProjectModuleName);
 		}
 	}
 

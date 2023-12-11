@@ -8194,8 +8194,11 @@ bool FAsyncArchive::PrecacheInternal(int64 RequestOffset, int64 RequestSize, boo
 			if (ReadRequestPtr->PollCompletion())
 			{
 				CompleteRead();
-				check(RequestOffset >= PrecacheStartPos && RequestOffset + RequestSize <= PrecacheEndPos);
-				bResult = true;
+				if (GetLoadError() == ELoadError::Unknown)
+				{
+					check(RequestOffset >= PrecacheStartPos && RequestOffset + RequestSize <= PrecacheEndPos);
+					bResult = true;
+				}
 			}
 			delete Read;
 			return bResult;

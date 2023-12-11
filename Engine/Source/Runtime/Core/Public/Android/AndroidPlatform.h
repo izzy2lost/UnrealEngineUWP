@@ -101,6 +101,30 @@ typedef FAndroidTypes FPlatformTypes;
 #ifndef USE_ANDROID_EVENTS
 	#define USE_ANDROID_EVENTS						1
 #endif
+#ifndef USE_ANDROID_STANDALONE
+	#define USE_ANDROID_STANDALONE					0
+#endif
+
+
+#if (!USE_ANDROID_STANDALONE && !(UE_BUILD_SHIPPING || UE_BUILD_TEST)) || (USE_ANDROID_STANDALONE && !UE_BUILD_SHIPPING)
+	// M is the scope for the logging such as LogAndroid, STANDALONE_DEBUG_LOGf should be used when using formatted arguments.
+#	define STANDALONE_DEBUG_LOG(M, ...)  FPlatformMisc::LowLevelOutputDebugStringf(TEXT(#M " : "),##__VA_ARGS__);
+#	define STANDALONE_DEBUG_LOGf(M, ...)  FPlatformMisc::LowLevelOutputDebugStringf(TEXT(#M " : ") __VA_ARGS__);
+
+#else
+#	define STANDALONE_DEBUG_LOG(...)  
+#	define STANDALONE_DEBUG_LOGf(...)  
+#endif
+
+#define ANDROID_GAMEACTIVITY_BASE_CLASSPATH			"com/epicgames/unreal/GameActivity"
+
+#if USE_ANDROID_STANDALONE
+#	define ANDROID_GAMEACTIVITY_CLASSPATH	"com/epicgames/makeaar/GameActivityForMakeAAR"
+#else
+#	define ANDROID_GAMEACTIVITY_CLASSPATH	"com/epicgames/unreal/GameActivity"
+#endif
+
+
 
 // Enable to set thread nice values when setting runnable thread priorities
 #ifndef ANDROID_USE_NICE_VALUE_THREADPRIORITY

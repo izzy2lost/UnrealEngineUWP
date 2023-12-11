@@ -73,7 +73,7 @@ void FAppEventManager::Tick()
 	while (!Queue.IsEmpty())
 	{
 		FAppEventPacket Event = DequeueAppEvent();
-		FPlatformMisc::LowLevelOutputDebugStringf(TEXT("FAppEventManager::Tick processing, %d"), int(Event.State));
+		STANDALONE_DEBUG_LOGf(LogAndroidEvents, TEXT("FAppEventManager::Tick processing, %d"), int(Event.State));
 
 		switch (Event.State)
 		{
@@ -97,7 +97,7 @@ void FAppEventManager::Tick()
 			break;
 		case APP_EVENT_STATE_WINDOW_DESTROYED:
 			bHaveWindow = false;
-			FPlatformMisc::LowLevelOutputDebugStringf(TEXT("APP_EVENT_STATE_WINDOW_DESTROYED, %d, %d, %d"), int(bRunning), int(bHaveWindow), int(bHaveGame));
+			STANDALONE_DEBUG_LOGf(LogAndroidEvents, TEXT("APP_EVENT_STATE_WINDOW_DESTROYED, %d, %d, %d"), int(bRunning), int(bHaveWindow), int(bHaveGame));
 			break;
 		case APP_EVENT_STATE_ON_START:
 			//doing nothing here
@@ -105,7 +105,7 @@ void FAppEventManager::Tick()
 		case APP_EVENT_STATE_ON_DESTROY:
 			check(bHaveWindow == false);
 			check(IsEngineExitRequested()); //destroy immediately. Game will shutdown.
-			FPlatformMisc::LowLevelOutputDebugStringf(TEXT("APP_EVENT_STATE_ON_DESTROY"));
+			STANDALONE_DEBUG_LOGf(LogAndroidEvents, TEXT("APP_EVENT_STATE_ON_DESTROY"));
 			break;
 		case APP_EVENT_STATE_ON_STOP:
 			bHaveGame = false;
@@ -134,11 +134,11 @@ void FAppEventManager::Tick()
 		}
 		case APP_EVENT_STATE_APP_ACTIVATED:
 			bRunning = true;
-			FPlatformMisc::LowLevelOutputDebugStringf(TEXT("Execution will be resumed!"));
+			STANDALONE_DEBUG_LOGf(LogAndroidEvents, TEXT("Execution will be resumed!"));
 			break;
 		case APP_EVENT_STATE_APP_SUSPENDED:
 			bRunning = false;
-			FPlatformMisc::LowLevelOutputDebugStringf(TEXT("Execution will be paused..."));
+			STANDALONE_DEBUG_LOGf(LogAndroidEvents, TEXT("Execution will be paused..."));
 			break;
 		case APP_EVENT_STATE_SAFE_ZONE_UPDATED:
 			FCoreDelegates::OnSafeFrameChangedEvent.Broadcast();
@@ -155,7 +155,7 @@ void FAppEventManager::Tick()
 				ExecWindowCreated();
 				bCreateWindow = false;
 				bHaveWindow = true;
-				FPlatformMisc::LowLevelOutputDebugStringf(TEXT("ExecWindowCreated, %d, %d, %d"), int(bRunning), int(bHaveWindow), int(bHaveGame));
+				STANDALONE_DEBUG_LOGf(LogAndroidEvents, TEXT("ExecWindowCreated, %d, %d, %d"), int(bRunning), int(bHaveWindow), int(bHaveGame));
 			}
 		}
 	}
@@ -167,9 +167,9 @@ void FAppEventManager::Tick()
 
 	if (!bRunning)
 	{
-		FPlatformMisc::LowLevelOutputDebugStringf(TEXT("FAppEventManager::Tick EventHandlerEvent Wait "));
+		STANDALONE_DEBUG_LOGf(LogAndroidEvents, TEXT("FAppEventManager::Tick EventHandlerEvent Wait "));
 		EventHandlerEvent->Wait();
-		FPlatformMisc::LowLevelOutputDebugStringf(TEXT("FAppEventManager::Tick EventHandlerEvent DONE Wait "));
+		STANDALONE_DEBUG_LOGf(LogAndroidEvents, TEXT("FAppEventManager::Tick EventHandlerEvent DONE Wait "));
 	}
 }
 
@@ -177,7 +177,7 @@ void FAppEventManager::ReleaseMicrophone(bool shuttingDown)
 {
 	if (FModuleManager::Get().IsModuleLoaded("Voice"))
 	{
-		UE_LOG(LogTemp, Log, TEXT("Android release microphone"));
+		UE_LOG(LogAndroidEvents, Log, TEXT("Android release microphone"));
 		FModuleManager::Get().UnloadModule("Voice", shuttingDown);
 	}
 }
@@ -221,19 +221,34 @@ void FAppEventManager::OnScaleFactorChanged(IConsoleVariable* CVar)
 {
 	if ((CVar->GetFlags() & ECVF_SetByMask) == ECVF_SetByConsole)
 	{
+		STANDALONE_DEBUG_LOGf(LogAndroidEvents, TEXT("FAppEventManager::OnScaleFactorChanged with flags=0x%x"), CVar->GetFlags());
 		FAppEventManager::GetInstance()->ExecWindowResized();
 	}
+	else
+    {
+		STANDALONE_DEBUG_LOGf(LogAndroidEvents, TEXT("NOOP FAppEventManager::OnScaleFactorChanged with flags=0x%x"), CVar->GetFlags());
+    }
+}
+
+static bool IsAppPausedOrSuspended()
+{
+	return FAppEventManager::GetInstance()->IsGamePaused() && !FAppEventManager::GetInstance()->IsGameInFocus();
 }
 
 void FAppEventManager::HandleWindowCreated_EventThread(void* InWindow)
 {
+	if (InWindow == nullptr)
+	{
+		STANDALONE_DEBUG_LOGf(LogAndroidEvents, TEXT("FAppEventManager::HandleWindowCreated_EventThread was given a NULL window so IGNORE."));
+		return;
+	}
+
 	bool AlreadyInited = FirstInitialized;
 
 	// Make sure window will not be deleted until event is processed
 	// Window could be deleted by OS while event queue stuck at game start-up phase
 	FAndroidWindow::AcquireWindowRef((ANativeWindow*)InWindow);
 
-	check(FAndroidWindow::GetHardwareWindow_EventThread() == NULL);
 	FAndroidWindow::SetHardwareWindow_EventThread(InWindow);
 
 	if (!AlreadyInited)
@@ -242,16 +257,29 @@ void FAppEventManager::HandleWindowCreated_EventThread(void* InWindow)
 		FirstInitialized = true;
 	}
 	EnqueueAppEvent(APP_EVENT_STATE_WINDOW_CREATED, FAppEventData((ANativeWindow*)InWindow));
+
+#if USE_ANDROID_STANDALONE
+	FApp::SetHasFocusFunction(&IsAppPausedOrSuspended);
+#endif
 }
 
 void FAppEventManager::HandleWindowClosed_EventThread()
 {
-	check(FAndroidWindow::GetHardwareWindow_EventThread());
+	void* ActiveWindow = FAndroidWindow::GetHardwareWindow_EventThread();
+	
+	if(ActiveWindow == nullptr)
+	{
+		return;
+	}
 
-	FAndroidWindow::ReleaseWindowRef((ANativeWindow*)FAndroidWindow::GetHardwareWindow_EventThread());
 	FAndroidWindow::SetHardwareWindow_EventThread(nullptr);
+	FAndroidWindow::ReleaseWindowRef((ANativeWindow*)ActiveWindow);
 
 	EnqueueAppEvent(APP_EVENT_STATE_WINDOW_DESTROYED);
+
+#if USE_ANDROID_STANDALONE
+	FApp::SetHasFocusFunction(nullptr);
+#endif
 }
 
 
@@ -325,12 +353,12 @@ void FAppEventManager::PauseAudio()
 {
 	if (!GEngine || !GEngine->IsInitialized())
 	{
-		UE_LOG(LogTemp, Log, TEXT("Engine not initialized, not pausing Android audio"));
+		UE_LOG(LogAndroidEvents, Log, TEXT("Engine not initialized, not pausing Android audio"));
 		return;
 	}
 
 	bAudioPaused = true;
-	UE_LOG(LogTemp, Log, TEXT("Android pause audio"));
+	UE_LOG(LogAndroidEvents, Log, TEXT("Android pause audio"));
 
 	FAudioDeviceHandle AudioDevice = GEngine->GetMainAudioDevice();
 	if (AudioDevice)
@@ -348,12 +376,12 @@ void FAppEventManager::ResumeAudio()
 {
 	if (!GEngine || !GEngine->IsInitialized())
 	{
-		UE_LOG(LogTemp, Log, TEXT("Engine not initialized, not resuming Android audio"));
+		UE_LOG(LogAndroidEvents, Log, TEXT("Engine not initialized, not resuming Android audio"));
 		return;
 	}
 
 	bAudioPaused = false;
-	UE_LOG(LogTemp, Log, TEXT("Android resume audio"));
+	UE_LOG(LogAndroidEvents, Log, TEXT("Android resume audio"));
 
 	FAudioDeviceHandle AudioDevice = GEngine->GetMainAudioDevice();
 	if (AudioDevice)
@@ -381,7 +409,7 @@ void FAppEventManager::EnqueueAppEvent(EAppEventState InState, FAppEventData&& I
 	rc = pthread_mutex_unlock(&QueueMutex);
 	check(rc == 0);
 
-	FPlatformMisc::LowLevelOutputDebugStringf(TEXT("LogAndroidEvents::EnqueueAppEvent : %u, [width=%d, height=%d], tid = %d, %s"), InState, InData.WindowWidth, InData.WindowHeight, gettid(), GetAppEventName(InState));
+	STANDALONE_DEBUG_LOGf(LogAndroidEvents, TEXT("LogAndroidEvents::EnqueueAppEvent : %u, [width=%d, height=%d], tid = %d, %s"), InState, InData.WindowWidth, InData.WindowHeight, gettid(), GetAppEventName(InState));
 }
 
 FAppEventPacket FAppEventManager::DequeueAppEvent()
@@ -409,7 +437,11 @@ bool FAppEventManager::IsGamePaused()
 
 bool FAppEventManager::IsGameInFocus()
 {
+#if USE_ANDROID_STANDALONE
+	return (bWindowInFocus && bHaveWindow && bHaveGame);
+#else
 	return (bWindowInFocus && bHaveWindow);
+#endif
 }
 
 
@@ -462,7 +494,5 @@ bool FAppEventManager::WaitForEventInQueue(EAppEventState InState, double Timeou
 
 	return FoundEvent;
 }
-
-extern volatile bool GEventHandlerInitialized;
 
 #endif

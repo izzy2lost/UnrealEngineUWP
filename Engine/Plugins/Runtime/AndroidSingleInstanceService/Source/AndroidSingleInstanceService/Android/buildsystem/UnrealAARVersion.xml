@@ -1,0 +1,10 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+	<!-- ClientId.MajorVersion.MinorVersion -->
+	<!-- ClientId = 05.2.31 for 05 = UE5 main, 02 version 5.2 when code was first integrated, 31 is the revision number from QNX HMI //UE4/Private-QNX-4.25/ that was used as initial dev point for UE5 integration.
+		 MajorVersion = 2 for top level UE5 main
+		 MinorVersion = 31, merge in initial code base and update for UE5 from 01.7.31 and single instance work	
+		 MinorVersion = 34, merge in code changes made in 4.25 qnx-brave (54.8.34) that address early lifecycle issues and focus changes.
+	-->
+	<string name="UnrealEngineAARVersion">05.2.34</string>
+</resources>

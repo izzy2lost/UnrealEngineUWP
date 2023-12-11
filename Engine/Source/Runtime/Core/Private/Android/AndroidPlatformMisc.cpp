@@ -349,7 +349,7 @@ static struct
 	double	TimeOfChange;
 } CurrentVolume;
 
-#if USE_ANDROID_JNI
+#if USE_ANDROID_JNI && !USE_ANDROID_STANDALONE
 extern "C"
 {
 
@@ -397,7 +397,7 @@ extern "C"
 }
 #endif
 
-#if USE_ANDROID_JNI
+#if USE_ANDROID_JNI && !USE_ANDROID_STANDALONE
 
 // Manage Java side OS event receivers.
 static struct
@@ -416,6 +416,8 @@ static struct
 
 void InitializeJavaEventReceivers()
 {
+	UE_LOG(LogAndroid, Log, TEXT("InitializeJavaEventReceivers"));
+
 	// Register natives to receive Volume, Battery, Headphones events
 	JNIEnv* JEnv = AndroidJavaEnv::GetJavaEnv();
 	if (nullptr != JEnv)
@@ -578,7 +580,7 @@ void FAndroidMisc::PlatformInit()
 	}
 #endif
 
-#if USE_ANDROID_JNI
+#if USE_ANDROID_JNI && !USE_ANDROID_STANDALONE
 	InitializeJavaEventReceivers();
 	AndroidOnBackgroundBinding = FCoreDelegates::ApplicationWillEnterBackgroundDelegate.AddStatic(EnableJavaEventReceivers, false);
 	AndroidOnForegroundBinding = FCoreDelegates::ApplicationHasEnteredForegroundDelegate.AddStatic(EnableJavaEventReceivers, true);
@@ -615,7 +617,7 @@ void FAndroidMisc::PlatformTearDown()
 void FAndroidMisc::UpdateDeviceOrientation()
 {
 	QUICK_SCOPE_CYCLE_COUNTER(STAT_FAndroidMisc_UpdateDeviceOrientation);
-#if USE_ANDROID_JNI
+#if USE_ANDROID_JNI && !USE_ANDROID_STANDALONE
 	JNIEnv* JEnv = AndroidJavaEnv::GetJavaEnv();
 	if (JEnv)
 	{
@@ -641,7 +643,7 @@ void FAndroidMisc::UpdateDeviceOrientation()
 
 void FAndroidMisc::PlatformHandleSplashScreen(bool ShowSplashScreen)
 {
-#if USE_ANDROID_JNI
+#if USE_ANDROID_JNI && !USE_ANDROID_STANDALONE
 	if (!ShowSplashScreen)
 	{
 		AndroidThunkCpp_DismissSplashScreen();
@@ -3036,7 +3038,7 @@ int FAndroidMisc::GetMobilePropagateAlphaSetting()
 TArray<int32> FAndroidMisc::GetSupportedNativeDisplayRefreshRates()
 {
 	TArray<int32> Result;
-#if USE_ANDROID_JNI
+#if USE_ANDROID_JNI && !USE_ANDROID_STANDALONE
 	extern TArray<int32> AndroidThunkCpp_GetSupportedNativeDisplayRefreshRates();
 	Result = AndroidThunkCpp_GetSupportedNativeDisplayRefreshRates();
 #else
@@ -3047,7 +3049,7 @@ TArray<int32> FAndroidMisc::GetSupportedNativeDisplayRefreshRates()
 
 bool FAndroidMisc::SetNativeDisplayRefreshRate(int32 RefreshRate)
 {
-#if USE_ANDROID_JNI
+#if USE_ANDROID_JNI && !USE_ANDROID_STANDALONE
 	extern bool AndroidThunkCpp_SetNativeDisplayRefreshRate(int32 RefreshRate);
 	return AndroidThunkCpp_SetNativeDisplayRefreshRate(RefreshRate);
 #else
@@ -3057,7 +3059,7 @@ bool FAndroidMisc::SetNativeDisplayRefreshRate(int32 RefreshRate)
 
 int32 FAndroidMisc::GetNativeDisplayRefreshRate()
 {
-#if USE_ANDROID_JNI
+#if USE_ANDROID_JNI && !USE_ANDROID_STANDALONE
 	extern int32 AndroidThunkCpp_GetNativeDisplayRefreshRate();
 	return AndroidThunkCpp_GetNativeDisplayRefreshRate();
 #else
@@ -3155,12 +3157,12 @@ void FAndroidMisc::SetAllowedDeviceOrientation(EDeviceScreenOrientation NewAllow
 {
 	AllowedDeviceOrientation = NewAllowedDeviceOrientation;
 
-#if USE_ANDROID_JNI
+#if USE_ANDROID_JNI && !USE_ANDROID_STANDALONE
 	AndroidThunkCpp_SetOrientation(GetAndroidScreenOrientation(NewAllowedDeviceOrientation));
 #endif // USE_ANDROID_JNI
 }
 
-#if USE_ANDROID_JNI
+#if USE_ANDROID_JNI && !USE_ANDROID_STANDALONE
 int32 FAndroidMisc::GetAndroidScreenOrientation(EDeviceScreenOrientation ScreenOrientation)
 {
 	EAndroidScreenOrientation AndroidScreenOrientation = EAndroidScreenOrientation::SCREEN_ORIENTATION_UNSPECIFIED;
@@ -3200,7 +3202,7 @@ int32 FAndroidMisc::GetAndroidScreenOrientation(EDeviceScreenOrientation ScreenO
 
 	return static_cast<int32>(AndroidScreenOrientation);
 }
-#endif // USE_ANDROID_JNI
+#endif // USE_ANDROID_JNI && !USE_ANDROID_STANDALONE
 
 extern void AndroidThunkCpp_ShowConsoleWindow();
 void FAndroidMisc::ShowConsoleWindow()

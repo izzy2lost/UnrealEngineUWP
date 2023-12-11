@@ -1,0 +1,202 @@
+<?xml version="1.0" encoding="utf-8"?>
+<root xmlns:android="http://schemas.android.com/apk/res/android" xmlns:dist="http://schemas.android.com/apk/distribution">
+	<init>
+		<log text="AndroidSingleInstanceService Plugin Init"/>
+		<trace enable="true"/>
+		<setBoolFromProperty result="bEnabled" ini="Engine" section="/Script/AndroidSingleInstanceServiceEditor.AndroidSingleInstanceServiceRuntimeSettings" property="bEnablePlugin" default="false"/>
+		<setBoolFromProperty result="bCompileASISProject" ini="Engine" section="/Script/AndroidSingleInstanceServiceEditor.AndroidSingleInstanceServiceRuntimeSettings" property="bCompileASISProject" default="false"/>
+
+		<log text="AndroidSingleInstanceService AndroidPackageName = $S(AndroidPackageName)"/>
+		
+		<!-- create the ASIS project if plugin enabled -->
+		<setBool result="bCreateASISProject" value="$B(bEnabled)"/>
+		
+		<!-- by default embed ASIS in APK if plugin enabled -->
+		<setBool result="bEmbedASIS" value="$B(bEnabled)"/>
+
+		<!-- by default external start of ASIS allowed if plugin enabled -->
+		<setBool result="bExternalStartASIS" value="$B(bEnabled)"/>
+			 
+		<if condition="bEnabled">
+			<false>
+				<setBool result="bCreateASISProject" value="false"/>
+			</false>
+		</if>
+
+
+
+	
+	</init>
+
+	<!-- register the ini keys that modify the packaging -->
+	<registerBuildSettings>
+		<insertValue value="/Script/AndroidSingleInstanceServiceEditor.AndroidSingleInstanceServiceRuntimeSettings[bEnablePlugin]"/>
+		<insertNewline/>
+	</registerBuildSettings>
+
+	<baseBuildGradleAdditions>
+		<if condition="bEnabled">
+			<true>
+				<log text="AndroidSingleInstanceService baseBuildGradleAdditions bEnabled. for BuildDir= $S(BuildDir)"/>
+				<addElements tag="buildscript">
+					<insertValue value="apply from: 'buildsystem/config.gradle'"/>
+					<insertValue value="apply from: 'buildsystem/dependencies.gradle'"/>
+					<insertNewline/>
+				</addElements>
+			</true>
+		</if>
+	</baseBuildGradleAdditions>
+	
+	
+	<buildscriptGradleAdditions>
+	</buildscriptGradleAdditions>
+
+	<androidManifestUpdates>
+		<if condition="bEnabled">
+			<true>
+				<log text="AndroidSingleInstanceService Manifest update application block..."/>
+
+				<log text="AndroidSingleInstanceService Manifest patch application attributes..."/>
+				<addAttribute tag="application" name="android:allowTaskReparenting" value="true" />
+				<addAttribute tag="application" name="android:hasCode" value="true" />
+				
+				<if condition="bEmbedASIS">
+					<true>
+						<log text="AndroidSingleInstanceService Manifest check bExternalStartASIS..."/>
+						<if condition="bExternalStartASIS">
+							<true>
+								<log text="AndroidSingleInstanceService Manifest bExternalStartASIS so add intent filters and service..."/>
+								<addElements tag="application">
+									<service android:name="com.epicgames.makeaar.UnrealSharedInstanceService" android:exported="true" android:process=":unrealSharedInstanceService" >
+									</service>
+								</addElements>
+							</true>
+						</if>
+					</true>
+				</if>
+				
+				<!-- force bExternalFilesDir to true for all builds -->
+				<setBool result="bUpdatedExternal" value="false"/>
+				<loopElements tag="meta-data">
+					<setStringFromAttribute result="metaName" tag="$" name="android:name" />
+					<setBoolIsEqual result="bIsExternal" arg1="$S(metaName)" arg2="com.epicgames.unreal.GameActivity.bUseExternalFilesDir" />
+					<if condition="bIsExternal">
+						<true>
+							<removeAttribute tag="$" name="android:value"/>
+							<addAttribute tag="$" name="android:value" value="true"/>
+							<setBool result="bUpdatedExternal" value="true"/>
+						</true>
+					</if>
+				</loopElements>
+				<if condition="bUpdatedExternal">
+					<false>
+						<addElements tag="application">
+							<meta-data android:name="com.epicgames.unreal.GameActivity.bUseExternalFilesDir" android:value="true"/>
+						</addElements>
+					</false>
+				</if>
+			<log text="AndroidSingleInstanceService Manifest patch done!"/>
+			</true>
+		</if>
+	
+	</androidManifestUpdates>
+
+	<gradleProperties>
+		<if condition="bEnabled">
+			<true>
+			</true>
+		</if>
+	</gradleProperties>
+
+	<resourceCopies>
+		<if condition="bEnabled">
+			<true>
+				<log text="AndroidSingleInstanceService resourceCopies copy service helper files. for BuildDirGradle= $S(BuildDir)/gradle/"/>
+				<copyDir src="$S(PluginDir)/Android/buildsystem" dst="$S(BuildDir)/gradle/buildsystem" />
+				<copyFile src="$S(PluginDir)/Android/src/main/java/com/epicgames/unreal/UEInterfaceHelpers.java" dst="$S(BuildDir)/src/com/epicgames/unreal/UEInterfaceHelpers.java" />
+			</true>
+		</if>
+			
+		<if condition="bEmbedASIS">
+			<true>
+				<log text="AndroidSingleInstanceService resourceCopies copy service class files..."/>
+				<deleteFiles filespec="$S(BuildDir)/src/com/epicgames/makeaar" />
+				<copyDir src="$S(PluginDir)/Android/src/main/java/com/epicgames/makeaar" dst="$S(BuildDir)/src/com/epicgames/makeaar" />
+				<copyFile src="$S(PluginDir)/Android/src/main/java/com/epicgames/makeaar/UnrealSharedInstanceService.java" dst="$S(BuildDir)/src/com/epicgames/makeaar/UnrealSharedInstanceService.java" />
+
+			</true>
+			<false>
+				<log text="AndroidSingleInstanceService resourceCopies bEmbedASIS is false so remove files..."/>
+				<deleteFiles filespec="$S(BuildDir)/src/com/epicgames/makeaar" />
+				<deleteFiles filespec="$S(BuildDir)/src/com/epicgames/makeaar/UnrealSharedInstanceService*.java" />
+			</false>
+		</if>
+	</resourceCopies>
+
+	<gradleCopies>
+		<if condition="bCreateASISProject">
+			<true>
+				<log text="AndroidSingleInstanceService create ASISStub project..."/>
+				<log text="AndroidSingleInstanceService bCreateASISProject, AndroidPackageName = $S(AndroidPackageName)"/>
+			</true>
+		</if>
+	</gradleCopies>
+	
+	<buildGradleAdditions>
+		<if condition="bCompileASISProject">
+			<true>
+				<log text="AndroidSingleInstanceService buildGradleAdditions bCompileASISProject..."/>
+			</true>
+		</if>
+
+		<if condition="bEmbedASIS">
+			<true>
+				<log text="AndroidSingleInstanceService buildGradleAdditions bEmbedASIS. for BuildDir= $S(BuildDir)"/>
+				<insert>
+					<![CDATA[
+
+apply from: '../buildsystem/config.gradle'
+apply from: '../buildsystem/dependencies.gradle'
+
+		android {
+		defaultConfig {
+		buildConfigField "String", "OBB_MODULE_NAME", config.obbModuleName
+		buildConfigField "String", "OBB_FILE_NAME", config.obbFileLocation
+		buildConfigField "String", "AAR_VERSION", config.AAR_VERSION
+		}
+		}
+]]>
+				</insert>
+			</true>
+		</if>
+	</buildGradleAdditions>
+	
+	<settingsGradleAdditions>
+		<if condition="bCreateASISProject">
+			<true>
+			</true>
+		</if>
+	</settingsGradleAdditions>
+
+	<gameActivityImportAdditions>
+		<if condition="bEmbedASIS">
+			<true>
+			</true>
+		</if>
+	</gameActivityImportAdditions>
+
+	<gameActivityClassAdditions>
+		<if condition="bEmbedASIS">
+			<true>
+				<insert>
+				</insert>
+				<insertNewline/>
+				<insert>
+				</insert>
+			</true>
+			<false>
+			</false>
+		</if>
+	</gameActivityClassAdditions>
+
+</root>

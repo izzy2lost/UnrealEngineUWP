@@ -107,6 +107,9 @@ FString GExternalFilePath;
 // External font path base - setup during load
 FString GFontPathBase;
 
+// Last opened OBB comment (set during mounting of OBB)
+FString GLastOBBComment;
+
 // Is the OBB in an APK file or not
 bool GOBBinAPK;
 FString GAPKFilename;
@@ -126,9 +129,15 @@ JNI_METHOD void Java_com_epicgames_unreal_GameActivity_nativeSetObbInfo(JNIEnv* 
 	GAndroidProjectName = FJavaHelper::FStringFromParam(jenv, ProjectName);
 	GPackageName = FJavaHelper::FStringFromParam(jenv, PackageName);
 	GAndroidAppType = FJavaHelper::FStringFromParam(jenv, AppType);
-	
+
 	GAndroidPackageVersion = Version;
 	GAndroidPackagePatchVersion = PatchVersion;
+}
+
+//This function is declared in the Java-defined class, GameActivity.java: "public native String nativeGetObbComment();"
+JNI_METHOD jstring Java_com_epicgames_makeaar_GameActivityForMakeAAR_nativeGetObbComment(JNIEnv* jenv, jobject thiz)
+{
+	return jenv->NewStringUTF(TCHAR_TO_UTF8(*GLastOBBComment));
 }
 
 // Constructs the base path for any files which are not in OBB/pak data
@@ -761,6 +770,17 @@ public:
 		check( DirOffset + DirSize <= FileLength );
 		check( NumEntries > 0 );
 
+		uint16 CommentLength = (Buffer.GetValue<uint16>(EOCDIndex + kEOCDCommentLen));
+		if (CommentLength > 0)
+		{
+			GLastOBBComment = FString(CommentLength, reinterpret_cast<const ANSICHAR*>(Buffer.Data + EOCDIndex + kEOCDCommentStart));
+		}
+		else
+		{
+			GLastOBBComment = FString("");
+		}
+
+
 		/*
 		* Walk through the central directory, adding entries to the hash table.
 		*/
@@ -930,6 +950,8 @@ private:
 	const uint32 kEOCDNumEntries = 8; // offset to #of entries in file
 	const uint32 kEOCDSize = 12; // size of the central directory
 	const uint32 kEOCDFileOffset = 16; // offset to central directory
+	const uint32 kEOCDCommentLen = 20; // offset to comment length (ushort)
+	const uint32 kEOCDCommentStart = 22; // offset to start of optional comment
 
 	const uint32 kMaxCommentLen = 65535; // longest possible in ushort
 	const uint32 kMaxEOCDSearch = (kMaxCommentLen + kEOCDLen);

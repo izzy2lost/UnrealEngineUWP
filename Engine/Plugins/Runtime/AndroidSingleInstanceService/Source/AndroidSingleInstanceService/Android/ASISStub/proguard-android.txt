@@ -1,0 +1,2 @@
+## epicgames wrapper
+-keep class com.epicgames.** { *; }

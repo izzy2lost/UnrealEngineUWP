@@ -292,10 +292,17 @@ void AndroidEGL::CreateEGLRenderSurface(ANativeWindow* InWindow, bool bCreateWnd
 
 		if (FAndroidPlatformRHIFramePacer::CVarAllowFrameTimestamps.GetValueOnAnyThread())
 		{
+			STANDALONE_DEBUG_LOGf(LogAndroid, TEXT("AndroidEGL::CreateEGLRenderSurface(InWindow = %p) using a.allowFrameTimestamps enable EGL_TIMESTAMPS_ANDROID on %p"), InWindow, PImplData->eglSurface);
 			eglSurfaceAttrib(PImplData->eglDisplay, PImplData->eglSurface, EGL_TIMESTAMPS_ANDROID, EGL_TRUE);
 		}
+		else
+		{
+			// HAD to add the false condition so that android attributes reflect current state of CVar.
+			STANDALONE_DEBUG_LOGf(LogAndroid, TEXT("AndroidEGL::CreateEGLRenderSurface(InWindow = %p) using a.allowFrameTimestamps disable EGL_TIMESTAMPS_ANDROID on %p"), InWindow, PImplData->eglSurface);
+			eglSurfaceAttrib(PImplData->eglDisplay, PImplData->eglSurface, EGL_TIMESTAMPS_ANDROID, EGL_FALSE);
+		}
 
-		FPlatformMisc::LowLevelOutputDebugStringf( TEXT("AndroidEGL::CreateEGLRenderSurface() %p" ), PImplData->eglSurface);
+		STANDALONE_DEBUG_LOGf(LogAndroid, TEXT("AndroidEGL::CreateEGLRenderSurface() %p" ), PImplData->eglSurface);
 
 		if(PImplData->eglSurface == EGL_NO_SURFACE )
 		{
@@ -672,12 +679,21 @@ void AndroidEGL::InitRenderSurface(bool bUseSmallSurface, bool bCreateWndSurface
 		if (PImplData->CachedWindowRect.Right > 0 && PImplData->CachedWindowRect.Bottom > 0)
 		{
 			// If we resumed from a lost window reuse the window size, the game thread will update the window dimensions.
-			FPlatformMisc::LowLevelOutputDebugStringf(TEXT("AndroidEGL::InitRenderSurface, Using CachedWindowRect, width: %d, height %d "), PImplData->CachedWindowRect.Right, PImplData->CachedWindowRect.Bottom);
+			FPlatformMisc::LowLevelOutputDebugStringf(TEXT("AndroidEGL::InitRenderSurface, Using CachedWindowRect, left: %d, top: %d, right: %d, bottom: %d "), PImplData->CachedWindowRect.Left, PImplData->CachedWindowRect.Top, PImplData->CachedWindowRect.Right, PImplData->CachedWindowRect.Bottom);
 			WindowSize = PImplData->CachedWindowRect;
 		}
+#if USE_ANDROID_STANDALONE
+		if (WindowSize.Left != 0 || WindowSize.Top != 0)
+		{
+			STANDALONE_DEBUG_LOGf(LogAndroid, TEXT("AndroidEGL::InitRenderSurface, WARNING!!! WindowSize is offset, left: %d, top: %d, right: %d, bottom: %d "), WindowSize.Left, WindowSize.Top, WindowSize.Right, WindowSize.Bottom);
+		}
+		Width = WindowSize.Right - WindowSize.Left;
+		Height = WindowSize.Bottom - WindowSize.Top;
+#else
 
 		Width = WindowSize.Right;
 		Height = WindowSize.Bottom;
+#endif
 
 		FPlatformMisc::LowLevelOutputDebugStringf(TEXT("AndroidEGL::InitRenderSurface, Using width: %d, height %d "), Width, Height);
 		AndroidThunkCpp_SetDesiredViewSize(Width, Height);
@@ -707,12 +723,21 @@ void AndroidEGL::InitSharedSurface(bool bUseSmallSurface)
 		if (PImplData->CachedWindowRect.Right > 0 && PImplData->CachedWindowRect.Bottom > 0)
 		{
 			// If we resumed from a lost window reuse the window size, the game thread will update the window dimensions.
-			FPlatformMisc::LowLevelOutputDebugStringf(TEXT("AndroidEGL::InitSharedSurface, Using CachedWindowRect, width: %d, height %d "), PImplData->CachedWindowRect.Right, PImplData->CachedWindowRect.Bottom);
+			FPlatformMisc::LowLevelOutputDebugStringf(TEXT("AndroidEGL::InitSharedSurface, Using CachedWindowRect, left: %d, top: %d, right: %d, bottom: %d "), PImplData->CachedWindowRect.Left, PImplData->CachedWindowRect.Top, PImplData->CachedWindowRect.Right, PImplData->CachedWindowRect.Bottom);
 			WindowSize = PImplData->CachedWindowRect;
 		}
+#if USE_ANDROID_STANDALONE
+		if (WindowSize.Left != 0 || WindowSize.Top != 0)
+		{
+			STANDALONE_DEBUG_LOGf(LogAndroid, TEXT("AndroidEGL::InitSharedSurface, WARNING!!! WindowSize is offset, left: %d, top: %d, right: %d, bottom: %d "), WindowSize.Left, WindowSize.Top, WindowSize.Right, WindowSize.Bottom);
+		}
+		Width = WindowSize.Right - WindowSize.Left;
+		Height = WindowSize.Bottom - WindowSize.Top;
+#else
 
 		Width = WindowSize.Right;
 		Height = WindowSize.Bottom;
+#endif
 
 		FPlatformMisc::LowLevelOutputDebugStringf(TEXT("AndroidEGL::InitSharedSurface, Using width: %d, height %d "), Width, Height);
 		AndroidThunkCpp_SetDesiredViewSize(Width, Height);
@@ -1202,7 +1227,9 @@ bool AndroidEGL::IsOfflineSurfaceRequired()
 }
 
 ///
-extern FCriticalSection GAndroidWindowLock;
+//extern FCriticalSection GAndroidWindowLock;
+extern void GAndroidWindowLock_Lock(FString calledBy);
+extern void GAndroidWindowLock_Unlock(FString calledBy);
 
 void BlockOnLostWindowRenderCommand(TSharedPtr<FEvent, ESPMode::ThreadSafe> RTBlockedTrigger)
 {
@@ -1232,7 +1259,7 @@ void BlockOnLostWindowRenderCommand(TSharedPtr<FEvent, ESPMode::ThreadSafe> RTBl
 
 		RTBlockedTrigger->Trigger();
 
-		GAndroidWindowLock.Lock();
+		GAndroidWindowLock_Lock("BlockOnLostWindowRenderCommand Vulkan");
 		UE_LOG(LogAndroid, Log, TEXT("RendererBlock acquired window lock"));
 		const auto& OnReinitWindowCallback = FAndroidMisc::GetOnReInitWindowCallback();
 		if (OnReinitWindowCallback)
@@ -1240,17 +1267,17 @@ void BlockOnLostWindowRenderCommand(TSharedPtr<FEvent, ESPMode::ThreadSafe> RTBl
 			OnReinitWindowCallback(FAndroidWindow::GetHardwareWindow_EventThread());
 			UE_LOG(LogAndroid, Log, TEXT("RendererBlock updating window"));
 		}
-		GAndroidWindowLock.Unlock();
+		GAndroidWindowLock_Unlock("BlockOnLostWindowRenderCommand Vulkan");
 	}
 	else
 	{
 		RunOnGLRenderContextThread([&] {
 			RTBlockedTrigger->Trigger();
-			GAndroidWindowLock.Lock();
+			GAndroidWindowLock_Lock("BlockOnLostWindowRenderCommand");
 			UE_LOG(LogAndroid, Log, TEXT("RendererBlock acquired window lock"));
 			AndroidEGL::GetInstance()->SetRenderContextWindowSurface();
 			UE_LOG(LogAndroid, Log, TEXT("RendererBlock updating window"));
-			GAndroidWindowLock.Unlock();
+			GAndroidWindowLock_Unlock("BlockOnLostWindowRenderCommand");
 		}, true);
 	}
 	UE_LOG(LogAndroid, Log, TEXT("RendererBlock released window lock"));
