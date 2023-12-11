@@ -107,6 +107,24 @@ void FHeap::Initialize()
 		}
 
 		CollectorThread = new FThread(TEXT("Verse GC Thread"), CollectorThreadMain, 0, TPri_Normal, FThreadAffinity(), FThread::Forkable);
+
+		// Fetch the FrankenGC mode directly
+		check(GConfig);
+		bool bEnableFrankenGC = true;
+		GConfig->GetBool(TEXT("/Script/Engine.GarbageCollectionSettings"), TEXT("gc.EnableFrankenGC"), bEnableFrankenGC, GEngineIni);
+
+		// Check for some quick command line options
+		if (FParse::Param(FCommandLine::Get(), TEXT("DisableFrankenGC")))
+		{
+			bEnableFrankenGC = false;
+		}
+		else if (FParse::Param(FCommandLine::Get(), TEXT("EnableFrankenGC")))
+		{
+			bEnableFrankenGC = true;
+		}
+
+		// Enable/Disable franken GC before cells are created.
+		UE::GC::EnableFrankenGCMode(bEnableFrankenGC);
 	}
 }
 
