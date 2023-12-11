@@ -36,7 +36,6 @@ DEFINE_LOG_CATEGORY_STATIC(LogAutomationWorker, Log, All);
 
 IMPLEMENT_MODULE(FAutomationWorkerModule, AutomationWorker);
 
-
 /* IModuleInterface interface
  *****************************************************************************/
 
@@ -172,7 +171,10 @@ void FAutomationWorkerModule::ReportNetworkCommandComplete()
 {
 	if (GIsAutomationTesting)
 	{
-		MessageEndpoint->Send(FMessageEndpoint::MakeMessage<FAutomationWorkerRequestNextNetworkCommand>(ExecutionCount), TestRequesterAddress);
+		SendMessage(
+			FMessageEndpoint::MakeMessage<FAutomationWorkerRequestNextNetworkCommand>(ExecutionCount),
+			FAutomationWorkerRequestNextNetworkCommand::StaticStruct(),
+			TestRequesterAddress);
 		if (StopTestEvent.IsBound())
 		{
 			// this is a local test; the message to continue will never arrive, so lets not wait for it
@@ -226,7 +228,7 @@ void FAutomationWorkerModule::ReportTestComplete()
 				HandleTelemetryData(ExecutionInfo.TelemetryStorage, FullTestPath, ExecutionInfo.TelemetryItems);
 			}
 
-			MessageEndpoint->Send(Message, TestRequesterAddress);
+			SendMessage(Message, Message->StaticStruct(), TestRequesterAddress);
 		}
 
 
@@ -252,9 +254,23 @@ void FAutomationWorkerModule::SendTests( const FMessageAddress& ControllerAddres
 
 	UE_LOG(LogAutomationWorker, Log, TEXT("Set %d tests to %s"), TestInfo.Num(), *ControllerAddress.ToString());
 
-	MessageEndpoint->Send(Reply, ControllerAddress);
+	SendMessage(Reply, Reply->StaticStruct(), ControllerAddress);
 }
 
+void FAutomationWorkerModule::SendMessage(FAutomationWorkerMessageBase* Message, UScriptStruct* TypeInfo, const FMessageAddress& ControllerAddress)
+{
+	check(nullptr != Message);
+
+	Message->InstanceId = FApp::GetInstanceId();
+	MessageEndpoint->Send(
+		Message,
+		TypeInfo,
+		EMessageFlags::None,
+		nullptr,
+		TArrayBuilder<FMessageAddress>().Add(ControllerAddress),
+		FTimespan::Zero(),
+		FDateTime::MaxValue());
+}
 
 /* FAutomationWorkerModule callbacks
  *****************************************************************************/
@@ -301,10 +317,9 @@ void FAutomationWorkerModule::SendWorkerFound(const FMessageAddress& ControllerA
 	FString CPUModelString = FPlatformMisc::GetCPUBrand().TrimStart();
 
 	FString DeviceName = DeviceTag.IsEmpty() ? FPlatformProcess::ComputerName() : DeviceTag;
-	FString DeviceId = FPlatformMisc::GetDeviceId().IsEmpty() ? DeviceName : FPlatformMisc::GetDeviceId();
 
 	Response->DeviceName = DeviceName;
-	Response->InstanceName = FString::Printf(TEXT("%s-%s-%s"), *DeviceId, *FApp::GetSessionId().ToString(), *FApp::GetInstanceId().ToString());
+	Response->InstanceName = FApp::GetInstanceName();
 	Response->Platform = FPlatformProperties::PlatformName();
 	Response->SessionId = FApp::GetSessionId();
 	Response->OSVersionName = OSVersionString;
@@ -319,7 +334,7 @@ void FAutomationWorkerModule::SendWorkerFound(const FMessageAddress& ControllerA
 	Response->RenderModeName = TEXT("Unknown");
 #endif
 
-	MessageEndpoint->Send(Response, ControllerAddress);
+	SendMessage(Response, Response->StaticStruct(), ControllerAddress);
 }
 
 
@@ -337,7 +352,7 @@ void FAutomationWorkerModule::HandleNextNetworkCommandReplyMessage( const FAutom
 
 void FAutomationWorkerModule::HandlePingMessage( const FAutomationWorkerPing& Message, const TSharedRef<IMessageContext, ESPMode::ThreadSafe>& Context )
 {
-	MessageEndpoint->Send(FMessageEndpoint::MakeMessage<FAutomationWorkerPong>(), Context->GetSender());
+	SendMessage(FMessageEndpoint::MakeMessage<FAutomationWorkerPong>(), FAutomationWorkerPong::StaticStruct(), Context->GetSender());
 }
 
 
@@ -442,7 +457,7 @@ void FAutomationWorkerModule::HandleScreenShotComparisonReport(const FAutomation
 	Message->ReportApprovedFilePath = Results.ReportApprovedFilePath;
 	Message->ReportIncomingFilePath = Results.ReportIncomingFilePath;
 
-	MessageEndpoint->Send(Message, TestRequesterAddress);
+	SendMessage(Message, Message->StaticStruct(), TestRequesterAddress);
 }
 
 void FAutomationWorkerModule::HandleScreenShotCapturedWithName(const TArray<FColor>& RawImageData, const FAutomationScreenshotData& Data)
@@ -474,7 +489,7 @@ void FAutomationWorkerModule::HandleScreenShotAndTraceCapturedWithName(const TAr
 
 		UE_LOG(LogAutomationWorker, Log, TEXT("Sending screenshot %s to %s"), *Message->ScreenShotName, *TestRequesterAddress.ToString());
 
-		MessageEndpoint->Send(Message, TestRequesterAddress);
+		SendMessage(Message, Message->StaticStruct(), TestRequesterAddress);
 	}
 	else
 	{
@@ -619,7 +634,7 @@ void FAutomationWorkerModule::HandleRunTestsMessage( const FAutomationWorkerRunT
 		OutMessage->State = EAutomationState::Skipped;
 		OutMessage->Entries.Add(FAutomationExecutionEntry(FAutomationEvent(EAutomationEventType::Error, LogMessage)));
 		OutMessage->ErrorTotal = 1;
-		MessageEndpoint->Send(OutMessage, Context->GetSender());
+		SendMessage(OutMessage, OutMessage->StaticStruct(), Context->GetSender());
 
 		return;
 	}
@@ -648,7 +663,7 @@ void FAutomationWorkerModule::HandleRunTestsMessage( const FAutomationWorkerRunT
 		OutMessage->ExecutionCount = Message.ExecutionCount;
 		OutMessage->State = EAutomationState::Skipped;
 		OutMessage->Entries.Add(FAutomationExecutionEntry(FAutomationEvent(EAutomationEventType::Info, FString::Printf(TEXT("Skipping test: %s"), *SkipReason))));
-		MessageEndpoint->Send(OutMessage, Context->GetSender());
+		SendMessage(OutMessage, OutMessage->StaticStruct(), Context->GetSender());
 
 		return;
 	}
@@ -792,7 +807,7 @@ void FAutomationWorkerModule::HandleTelemetryData(const FString& StorageName, co
 
 	UE_LOG(LogAutomationWorker, Log, TEXT("Sending Telemetry Data for %s"), *Message->TestName);
 
-	MessageEndpoint->Send(Message, TestRequesterAddress);
+	SendMessage(Message, Message->StaticStruct(), TestRequesterAddress);
 }
 
 void FAutomationWorkerModule::RecordPerformanceAnalytics( const FAutomationPerformanceSnapshot& PerfSnapshot )

@@ -368,19 +368,19 @@ FText SAutomationTestItem::GetTestToolTip( int32 ClusterIndex ) const
 	else
 	{
 		FFormatNamedArguments Args;
-		Args.Add(TEXT("GameName"), FText::FromString(TestStatus->GetGameInstanceName(ClusterIndex)));
+		Args.Add(TEXT("GameInstance"), FText::FromString(TestStatus->GetGameInstanceName(ClusterIndex)));
 
 		if (TestState == EAutomationState::InProcess)
 		{
-			TestToolTip = FText::Format(LOCTEXT("TestToolTipInProgress", "In progress on: {GameName}"), Args);
+			TestToolTip = FText::Format(LOCTEXT("TestToolTipInProgress", "In progress on: {GameInstance}"), Args);
 		}
 		else if (TestState == EAutomationState::Success)
 		{
-			TestToolTip = FText::Format(LOCTEXT("TestToolTipComplete", "Completed on: {GameName}"), Args);
+			TestToolTip = FText::Format(LOCTEXT("TestToolTipComplete", "Completed on: {GameInstance}"), Args);
 		}
 		else
 		{
-			TestToolTip = FText::Format(LOCTEXT("TestToolTipFailed", "Failed on: {GameName}"), Args);
+			TestToolTip = FText::Format(LOCTEXT("TestToolTipFailed", "Failed on: {GameInstance}"), Args);
 		}
 	}
 	return TestToolTip;
@@ -407,11 +407,13 @@ FSlateColor SAutomationTestItem::IsToBeSkipped_GetColorAndOpacity() const
 	{
 		return FLinearColor(1.0f, 1.0f, 1.0f, 0.4f);
 	}
+
 	// Identify visually if the test is to be skipped on certain condition.
 	if (TestStatus->IsToBeSkippedOnConditions())
 	{
 		return FLinearColor(1.0f, 1.0f, 0.2f, 0.6f);
 	}
+
 	return FLinearColor(1.0f, 1.0f, 1.0f, 1.0f);
 }
 

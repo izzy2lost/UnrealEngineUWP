@@ -23,6 +23,7 @@ struct FAutomationWorkerStartTestSession;
 struct FAutomationWorkerStopTestSession;
 struct FAutomationWorkerRunTests;
 struct FMessageAddress;
+struct FAutomationWorkerMessageBase;
 
 
 /**
@@ -68,6 +69,15 @@ protected:
 	 * @param ControllerAddress The message address of the controller that requested the tests.
 	 */
 	void SendTests(const FMessageAddress& ControllerAddress);
+
+	/**
+	 * Send a message in an unified way with passing correct Instance Id into the message we are going to send.
+	 * 
+	 * @param Message The message to be sent.
+	 * @param TypeInfo The type information about the message to be sent.
+	 * @param ControllerAddress The message address of the receiver.
+	 */
+	void SendMessage(FAutomationWorkerMessageBase* Message, UScriptStruct* TypeInfo, const FMessageAddress& ControllerAddress);
 
 private:
 
