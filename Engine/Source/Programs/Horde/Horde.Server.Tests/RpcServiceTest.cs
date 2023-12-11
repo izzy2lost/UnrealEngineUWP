@@ -27,6 +27,7 @@ using Horde.Server.Agents.Sessions;
 using EpicGames.Horde.Agents;
 using EpicGames.Horde.Agents.Leases;
 using EpicGames.Horde.Agents.Pools;
+using EpicGames.Horde.Agents.Sessions;
 
 namespace Horde.Server.Tests
 {
@@ -437,7 +438,7 @@ namespace Horde.Server.Tests
 		{
 			Fixture fixture = await CreateFixtureAsync();
 
-			SessionId sessionId = SessionId.GenerateNewId();
+			SessionId sessionId = SessionIdUtils.GenerateNewId();
 			ServerCallContext context = new ServerCallContextStub(new ClaimsPrincipal(new ClaimsIdentity(new List<Claim>
 			{
 				HordeClaims.AdminClaim.ToClaim(),

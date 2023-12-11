@@ -59,7 +59,7 @@ public class AgentCollectionTests : TestSetup
 		await AgentCollection.TryAddLeaseAsync(_agent, _lease2); 
 		await UpdateAgentAsync();
 		
-		await AgentCollection.TryStartSessionAsync(_agent, SessionId.GenerateNewId(), DateTime.UtcNow, AgentStatus.Ok, 
+		await AgentCollection.TryStartSessionAsync(_agent, SessionIdUtils.GenerateNewId(), DateTime.UtcNow, AgentStatus.Ok, 
 			new List<string>(), new Dictionary<string, int>(), new List<PoolId>(), new List<PoolId>(), DateTime.UtcNow, null);
 		
 		List<LeaseId> leases = await AgentCollection.FindActiveLeaseIdsAsync();

@@ -4,6 +4,7 @@ using System;
 using System.Collections.Generic;
 using System.Threading.Tasks;
 using EpicGames.Horde.Agents;
+using EpicGames.Horde.Agents.Sessions;
 
 namespace Horde.Server.Agents.Sessions
 {

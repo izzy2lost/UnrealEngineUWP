@@ -4,10 +4,10 @@ using System;
 using System.Collections.Generic;
 using EpicGames.Core;
 using EpicGames.Horde.Agents.Leases;
+using EpicGames.Horde.Agents.Sessions;
 using EpicGames.Horde.Jobs;
 using EpicGames.Horde.Logs;
 using EpicGames.Horde.Storage;
-using Horde.Server.Agents.Sessions;
 
 namespace Horde.Server.Logs
 {

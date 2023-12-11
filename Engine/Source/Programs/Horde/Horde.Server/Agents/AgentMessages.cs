@@ -5,8 +5,8 @@ using System.Collections.Generic;
 using HordeCommon;
 using EpicGames.Horde.Agents.Leases;
 using EpicGames.Horde.Agents;
-using Horde.Server.Agents.Sessions;
 using EpicGames.Horde.Logs;
+using EpicGames.Horde.Agents.Sessions;
 
 namespace Horde.Server.Agents
 {

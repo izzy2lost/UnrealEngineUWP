@@ -19,6 +19,7 @@ using Microsoft.VisualStudio.TestTools.UnitTesting;
 using Moq;
 using Horde.Server.Agents.Sessions;
 using EpicGames.Horde.Agents.Pools;
+using EpicGames.Horde.Agents.Sessions;
 
 namespace Horde.Server.Tests
 {
@@ -229,11 +230,11 @@ namespace Horde.Server.Tests
 		{
 			Fixture fixture = await CreateFixtureAsync();
 
-			SessionId sessionId1 = SessionId.GenerateNewId();
+			SessionId sessionId1 = SessionIdUtils.GenerateNewId();
 			await JobCollection.TryAssignLeaseAsync(fixture.Job1, 0, new PoolId("foo"), fixture.Agent1.Id,
 				sessionId1, new LeaseId(BinaryIdUtils.CreateNew()), LogIdUtils.GenerateNewId());
 			
-			SessionId sessionId2 = SessionId.GenerateNewId();
+			SessionId sessionId2 = SessionIdUtils.GenerateNewId();
 			IJob job = (await JobCollection.GetAsync(fixture.Job1.Id))!;
 			await JobCollection.TryAssignLeaseAsync(job, 0, new PoolId("foo"), fixture.Agent1.Id,
 				sessionId2, new LeaseId(BinaryIdUtils.CreateNew()), LogIdUtils.GenerateNewId());

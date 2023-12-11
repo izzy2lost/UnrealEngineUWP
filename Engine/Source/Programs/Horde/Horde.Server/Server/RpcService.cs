@@ -10,6 +10,7 @@ using System.Security.Claims;
 using System.Threading;
 using System.Threading.Tasks;
 using EpicGames.Horde.Agents;
+using EpicGames.Horde.Agents.Sessions;
 using EpicGames.Horde.Tools;
 using Google.Protobuf;
 using Google.Protobuf.Reflection;

@@ -19,7 +19,6 @@ using EpicGames.Horde.Storage;
 using Google.Protobuf.WellKnownTypes;
 using Grpc.Core;
 using Horde.Server.Acls;
-using Horde.Server.Agents.Sessions;
 using Horde.Server.Artifacts;
 using Horde.Server.Jobs.Artifacts;
 using Horde.Server.Jobs.Graphs;
@@ -40,6 +39,7 @@ using MongoDB.Bson;
 using MongoDB.Bson.Serialization;
 using EpicGames.Horde.Jobs;
 using EpicGames.Horde.Logs;
+using EpicGames.Horde.Agents.Sessions;
 
 namespace Horde.Server.Jobs
 {

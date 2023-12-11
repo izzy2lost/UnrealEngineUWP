@@ -19,6 +19,7 @@ using EpicGames.Horde.Agents;
 using EpicGames.Horde.Agents.Leases;
 using EpicGames.Horde.Common;
 using EpicGames.Horde.Agents.Pools;
+using EpicGames.Horde.Agents.Sessions;
 
 namespace Horde.Server.Agents
 {

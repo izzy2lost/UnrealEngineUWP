@@ -12,6 +12,7 @@ using Microsoft.AspNetCore.Mvc;
 using Microsoft.VisualStudio.TestTools.UnitTesting;
 using EpicGames.Horde.Agents;
 using EpicGames.Horde.Agents.Leases;
+using EpicGames.Horde.Agents.Sessions;
 
 namespace Horde.Server.Tests
 {
@@ -40,7 +41,7 @@ namespace Horde.Server.Tests
 		private async Task<ILease> CreateLeaseAsync(DateTime startTime, TimeSpan duration)
 		{
 			LeaseId id = new LeaseId(BinaryIdUtils.CreateNew());
-			SessionId sessionId = SessionId.GenerateNewId();
+			SessionId sessionId = SessionIdUtils.GenerateNewId();
 			ILease lease = await LeaseCollection.AddAsync(id, null, "myLease", new AgentId("agent-1"), sessionId, null, null, null, startTime, Array.Empty<byte>());
 			await LeaseCollection.TrySetOutcomeAsync(id, startTime + duration, LeaseOutcome.Success, null);
 			return lease;
