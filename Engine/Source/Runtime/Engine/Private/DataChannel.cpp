@@ -24,6 +24,7 @@
 #include "DrawDebugHelpers.h"
 #include "Net/NetworkProfiler.h"
 #include "Net/DataReplication.h"
+#include "Net/NetworkMetricsDefs.h"
 #include "Engine/ActorChannel.h"
 #include "Engine/ControlChannel.h"
 #include "Engine/DemoNetDriver.h"
@@ -3752,7 +3753,7 @@ int64 UActorChannel::ReplicateActor()
 
 	bForceCompareProperties = false;		// Only do this once per frame when set
 	
-	INC_DWORD_STAT_BY(STAT_NumReplicatedActorBytes, (NumBitsWrote + 7) >> 3);
+	Connection->GetDriver()->GetMetrics()->IncrementInt(UE::Net::Metric::NumReplicatedActorBytes, (NumBitsWrote + 7) >> 3);
 	return NumBitsWrote;
 }
 

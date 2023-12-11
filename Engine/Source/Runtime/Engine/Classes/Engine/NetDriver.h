@@ -7,6 +7,7 @@
 #include "CoreMinimal.h"
 #include "Engine/EngineBaseTypes.h"
 #include "Engine/EngineTypes.h"
+#include "Net/NetworkMetricsDatabase.h"
 #include "HAL/IConsoleManager.h"
 #include "Math/RandomStream.h"
 #include "UObject/ObjectMacros.h"
@@ -740,6 +741,21 @@ enum class EProcessRemoteFunctionFlags : uint32
 };
 ENUM_CLASS_FLAGS(EProcessRemoteFunctionFlags);
 
+/** A metrics listener that writes a metric to the 'Replication' CSV category. */
+UCLASS()
+class ENGINE_API UNetworkMetricsCSV_Replication : public UNetworkMetricsCSV
+{
+	GENERATED_BODY()
+
+public:
+	UNetworkMetricsCSV_Replication()
+	{
+		SetCategory("Replication");
+	}
+
+	virtual ~UNetworkMetricsCSV_Replication() = default;
+};
+
 UCLASS(Abstract, customConstructor, transient, MinimalAPI, config=Engine)
 class UNetDriver : public UObject, public FExec
 {
@@ -971,6 +987,23 @@ private:
 
 	/** Cached copy of MaxChannelsOverride from the net driver definition to avoid extra lookups */
 	int32 MaxChannelsOverride;
+
+	/** A metrics database that holds statistics calcluated by the networking system. */
+	UPROPERTY()
+	TObjectPtr<UNetworkMetricsDatabase> NetworkMetricsDatabase;
+
+	/** A cache of UNetworkMetricsBaseListener sub-class instances provided by the *.ini file (one instance per sub-class). */
+	UPROPERTY()
+	TMap<FName, TObjectPtr<UNetworkMetricsBaseListener>> NetworkMetricsListeners;
+
+	/** Register each metric used by the networking system. */
+	void SetupNetworkMetrics();
+
+	/** Register metric listeners provided by the *.ini file. */
+	void SetupNetworkMetricsListeners();
+
+	/** Create an instance of UNetworkMetricsStats that is associated with a given Stat and cached with other listeners in NetworkMetricsListeners. */
+	void RegisterStatsListener(const FName MetricName, const FName StatName);
 
 public:
 	/** Get the value of MaxChannelsOverride cached from the net driver definition */
@@ -1459,6 +1492,8 @@ public:
 	 */
 	ENGINE_API virtual void ProcessRemoteFunction(class AActor* Actor, class UFunction* Function, void* Parameters, struct FOutParmRec* OutParms, struct FFrame* Stack, class UObject* SubObject = nullptr );
 
+	/** Return a reference to the database that holds metrics calcluated by the networking system. */
+	ENGINE_API TObjectPtr<UNetworkMetricsDatabase> GetMetrics() { return NetworkMetricsDatabase; };
 
 	enum ERemoteFunctionSendPolicy
 	{		
