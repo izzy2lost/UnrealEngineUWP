@@ -3598,7 +3598,7 @@ void FD3D12RayTracingScene::BuildAccelerationStructure(FD3D12CommandContext& Com
 			#if ENABLE_RESIDENCY_MANAGEMENT
 				for (FD3D12ResidencyHandle* ResidencyHandle : Resource->GetResidencyHandles())
 				{
-					if (D3DX12Residency::IsInitialized(*ResidencyHandle))
+					if (D3DX12Residency::IsInitialized(ResidencyHandle))
 					{
 						bool bIsAlreadyInSet = false;
 						UniqueResidencyHandles.Add(ResidencyHandle, &bIsAlreadyInSet);
