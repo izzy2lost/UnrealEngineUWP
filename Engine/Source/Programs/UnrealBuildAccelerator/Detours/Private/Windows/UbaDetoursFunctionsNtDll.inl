@@ -467,7 +467,7 @@ NTSTATUS NTAPI Local_NtCreateFile(bool IsCreateFunc, PHANDLE hFileHandle, ACCESS
 		StringBuffer<> b;
 		b.Append(ObjectAttributes->ObjectName->Buffer, ObjectAttributes->ObjectName->Length / 2);
 		if (!b.Contains(L"\\Device\\") && !b.EndsWith(L"\\nul"))
-			Rpc_WriteLogf(L"[%ls] WRITTEN: %ls", g_rulesIndex ? g_applicationRules[g_rulesIndex].app : wcsrchr(g_virtualApplication.data, '\\') + 1, ObjectAttributes->ObjectName->Buffer);
+			Rpc_WriteLogf(L"[%ls] WRITTEN: %ls", g_rulesIndex ? GetApplicationRules()[g_rulesIndex].app : wcsrchr(g_virtualApplication.data, '\\') + 1, ObjectAttributes->ObjectName->Buffer);
 	}
 #endif
 

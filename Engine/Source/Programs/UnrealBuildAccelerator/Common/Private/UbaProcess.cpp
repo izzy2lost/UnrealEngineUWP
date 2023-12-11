@@ -812,7 +812,7 @@ namespace uba
 
 					m_processStats.Add(stats);
 
-					if (g_applicationRules[m_rulesIndex].rules->IsExitCodeSuccess(m_nativeProcessExitCode) && !IsCancelled())
+					if (GetApplicationRules()[m_rulesIndex].rules->IsExitCodeSuccess(m_nativeProcessExitCode) && !IsCancelled())
 					{
 						TimerScope ts(m_processStats.writeFiles);
 						ScopedWriteLock lock(m_writtenFilesLock);
@@ -936,11 +936,13 @@ namespace uba
 		StringBuffer<128> exeName;
 		exeName.Append(m_virtualApplication.c_str() + exeNameStart, exeNameEnd - exeNameStart);
 		
+		auto rules = GetApplicationRules();
+		
 		while (true)
 		{
 			for (u32 i = 1;; ++i)
 			{
-				const tchar* app = g_applicationRules[i].app;
+				const tchar* app = rules[i].app;
 				if (!app)
 					break;
 				if (!exeName.Equals(app))
@@ -1094,7 +1096,7 @@ namespace uba
 				return ProcessCancelExitCode;
 			}
 
-			bool isDetachedProcess = g_applicationRules[m_rulesIndex].rules->AllowDetach() && m_detourEnabled;
+			bool isDetachedProcess = GetApplicationRules()[m_rulesIndex].rules->AllowDetach() && m_detourEnabled;
 
 			HANDLE hJob = CreateJobObject(nullptr, nullptr);
 			JOBOBJECT_EXTENDED_LIMIT_INFORMATION info = { };
@@ -1243,7 +1245,7 @@ namespace uba
 			payload.runningRemote = runningRemote;
 			payload.isChild = m_parentProcess != nullptr;
 			payload.trackInputs = m_startInfo.trackInputs;
-			payload.useCustomAllocator = m_startInfo.useCustomAllocator && g_applicationRules[m_rulesIndex].rules->AllowMiMalloc();
+			payload.useCustomAllocator = m_startInfo.useCustomAllocator && GetApplicationRules()[m_rulesIndex].rules->AllowMiMalloc();
 			payload.isRunningWine = IsRunningWine();
 			payload.uiLanguage = m_startInfo.uiLanguage;
 			if (*m_startInfo.logFile)

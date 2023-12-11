@@ -118,5 +118,5 @@ namespace uba
 
 	struct RulesRec { const tchar* app; ApplicationRules* rules; };
 
-	extern RulesRec g_applicationRules[];
+	const RulesRec* GetApplicationRules();
 }

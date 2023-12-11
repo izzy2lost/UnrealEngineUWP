@@ -337,32 +337,37 @@ namespace uba
 		}
 	};
 
-	RulesRec g_applicationRules[]
+	const RulesRec* GetApplicationRules()
 	{
-		{ TC(""),							new ApplicationRules() },		// Must be index 0
-		{ TC("cl.exe"),						new ApplicationRulesClExe() },	// Must be index 1
-		{ TC("link.exe"),					new ApplicationRulesLinkExe() }, // Must be index 2
-		{ TC("lib.exe"),					new ApplicationRulesLinkExe() },
-		{ TC("cvtres.exe"),					new ApplicationRulesLinkExe() },
-		{ TC("mt.exe"),						new ApplicationRulesLinkExe() },
-		{ TC("rc.exe"),						new ApplicationRulesLinkExe() },
-		{ TC("clang++.exe"),				new ApplicationRulesClangPlusPlusExe() },
-		{ TC("clang-cl.exe"),				new ApplicationRulesClangPlusPlusExe() },
-		{ TC("verse-clang-cl.exe"),			new ApplicationRulesClangPlusPlusExe() },
-		{ TC("ispc.exe"),					new ApplicationRulesISPCExe() },
-		{ TC("orbis-clang.exe"),			new ApplicationRulesOrbisClangPlusPlusExe() },
-		{ TC("orbis-ld.exe"),				new ApplicationRulesOrbisLdExe() },
-		{ TC("orbis-ltop.exe"),				new ApplicationRulesOrbisLdExe() },
-		{ TC("prospero-clang.exe"),			new ApplicationRulesProsperoClangPlusPlusExe() },
-		{ TC("prospero-lld.exe"),			new ApplicationRulesProsperoLldExe() },
-		{ TC("dump_syms.exe"),				new ApplicationRulesDumpSymsExe() },
-		{ TC("ld.lld.exe"),					new ApplicationRulesLdLLdExe() },
-		{ TC("llvm-objcopy.exe"),			new ApplicationRulesLlvmObjCopyExe() },
-		{ TC("UnrealBuildTool.dll"),		new ApplicationRulesUBTDll() },
-		{ TC("PVS-Studio.exe"),				new ApplicationRulesPVSStudio() },
-		//{ L"MSBuild.dll"),				new ApplicationRules() },
-		//{ L"BreakpadSymbolEncoder.exe"),	new ApplicationRulesClang() },
-		//{ L"cmd.exe"),		new ApplicationRules() },
-		{ nullptr, nullptr }
-	};
+		static RulesRec rules[]
+		{
+			{ TC(""),							new ApplicationRules() },		// Must be index 0
+			{ TC("cl.exe"),						new ApplicationRulesClExe() },	// Must be index 1
+			{ TC("link.exe"),					new ApplicationRulesLinkExe() }, // Must be index 2
+			{ TC("lib.exe"),					new ApplicationRulesLinkExe() },
+			{ TC("cvtres.exe"),					new ApplicationRulesLinkExe() },
+			{ TC("mt.exe"),						new ApplicationRulesLinkExe() },
+			{ TC("rc.exe"),						new ApplicationRulesLinkExe() },
+			{ TC("clang++.exe"),				new ApplicationRulesClangPlusPlusExe() },
+			{ TC("clang-cl.exe"),				new ApplicationRulesClangPlusPlusExe() },
+			{ TC("verse-clang-cl.exe"),			new ApplicationRulesClangPlusPlusExe() },
+			{ TC("ispc.exe"),					new ApplicationRulesISPCExe() },
+			{ TC("orbis-clang.exe"),			new ApplicationRulesOrbisClangPlusPlusExe() },
+			{ TC("orbis-ld.exe"),				new ApplicationRulesOrbisLdExe() },
+			{ TC("orbis-ltop.exe"),				new ApplicationRulesOrbisLdExe() },
+			{ TC("prospero-clang.exe"),			new ApplicationRulesProsperoClangPlusPlusExe() },
+			{ TC("prospero-lld.exe"),			new ApplicationRulesProsperoLldExe() },
+			{ TC("dump_syms.exe"),				new ApplicationRulesDumpSymsExe() },
+			{ TC("ld.lld.exe"),					new ApplicationRulesLdLLdExe() },
+			{ TC("llvm-objcopy.exe"),			new ApplicationRulesLlvmObjCopyExe() },
+			{ TC("UnrealBuildTool.dll"),		new ApplicationRulesUBTDll() },
+			{ TC("PVS-Studio.exe"),				new ApplicationRulesPVSStudio() },
+			//{ L"MSBuild.dll"),				new ApplicationRules() },
+			//{ L"BreakpadSymbolEncoder.exe"),	new ApplicationRulesClang() },
+			//{ L"cmd.exe"),		new ApplicationRules() },
+			{ nullptr, nullptr }
+		};
+
+		return rules;
+	}
 }

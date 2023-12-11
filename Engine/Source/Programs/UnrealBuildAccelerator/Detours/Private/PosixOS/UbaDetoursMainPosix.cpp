@@ -54,20 +54,18 @@ static void segfault_sigaction(int signal)
 
 static void __attribute__((constructor(102))) PreInitCtor()
 {
+	using namespace uba;
+	SuppressDetourScope s;
+
 	#if PLATFORM_LINUX
 	prctl(PR_SET_PDEATHSIG, SIGHUP, 0, 0, 0); // We want the process to die if the parent die
 	#endif
 	
+	InitSharedVariables();
+
 	const char* logFile = getenv("UBA_LOGFILE");
 	PreInit(logFile);
 	unsetenv("UBA_LOGFILE");
-}
-
-static void __attribute__((constructor (65535))) InitCtor()
-{
-	using namespace uba;
-
-	SuppressDetourScope s;
 
 	const char* comId = getenv("UBA_COMID");
 	//printf("Starting up %s... (comid: %s) %u\n", __progname, (comId && *comId) ? comId : "NOTSET", getpid());
@@ -125,7 +123,7 @@ static void __attribute__((constructor (65535))) InitCtor()
 	g_runningRemote = getenv("UBA_REMOTE") != nullptr;
 
 	g_rulesIndex = strtoul(getenv("UBA_RULES"), nullptr, 10);
-	g_rules = g_applicationRules[g_rulesIndex].rules;
+	g_rules = GetApplicationRules()[g_rulesIndex].rules;
 	unsetenv("UBA_RULES");
 
 	const char* realCwd = getenv("UBA_CWD");

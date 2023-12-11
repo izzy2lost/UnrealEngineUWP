@@ -2539,7 +2539,7 @@ BOOL Detoured_CreateProcessW(LPCWSTR lpApplicationName, LPWSTR lpCommandLine, LP
 	lpStartupInfo->dwFlags |= STARTF_USESHOWWINDOW;
 	lpStartupInfo->wShowWindow = SW_HIDE;
 
-	if (g_applicationRules[rulesIndex].rules->AllowDetach())
+	if (g_rules->AllowDetach())
 		dwCreationFlags |= DETACHED_PROCESS;
 	else
 		dwCreationFlags |= CREATE_NO_WINDOW;

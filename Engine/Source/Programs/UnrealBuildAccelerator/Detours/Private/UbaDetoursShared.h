@@ -51,23 +51,17 @@ namespace uba
 		#define DEBUG_LOG_PIPE(...) ts.Leave();
 	#endif
 
-	#if PLATFORM_WINDOWS
-	#define EARLY_INIT
-	#else
-	#define EARLY_INIT __attribute__((init_priority(101)))
-	#endif
+	extern StringBuffer<512>& g_virtualApplication;
+	extern StringBuffer<512>& g_virtualApplicationDir;
+	extern StringBuffer<256>& g_logName;
 
-	extern StringBuffer<512> g_virtualApplication;
-	extern StringBuffer<512> g_virtualApplicationDir;
-	extern StringBuffer<256> g_logName;
+	extern StringBuffer<512>& g_virtualWorkingDir;
+	extern StringBuffer<128>& g_systemTemp;
+	extern StringBuffer<128>& g_systemRoot;
 
-	extern StringBuffer<512> g_virtualWorkingDir;
-	extern StringBuffer<128> g_systemTemp;
-	extern StringBuffer<128> g_systemRoot;
-
-	extern ProcessStats g_stats;
+	extern ProcessStats& g_stats;
 	extern bool g_echoOn;
-	extern ReaderWriterLock g_communicationLock;
+	extern ReaderWriterLock& g_communicationLock;
 	extern MemoryBlock& g_memoryBlock;
 	extern DirectoryTable& g_directoryTable;
 	extern MappedFileTable& g_mappedFileTable;
@@ -132,4 +126,9 @@ namespace uba
 	void Shared_WriteConsole(const wchar_t* chars, u32 charCount, bool isError);
 
 	const tchar* Shared_GetFileAttributes(FileAttributes& outAttr, const tchar* fileName, bool checkIfDir = false);
+
+	void InitSharedVariables();
+
+	template<typename T> struct VariableMem { template<typename... Args> void Create(Args&&... args) { new (data) T(args...); }; u64 data[AlignUp(sizeof(T), sizeof(u64)) / sizeof(u64)]; };
+	#define VARIABLE_MEM(type, name) VariableMem<type> name##Mem; type& name = (type&)name##Mem.data;
 }

@@ -10,8 +10,6 @@
 
 namespace uba
 {
-	extern ProcessStats g_stats;
-
 	HANDLE g_hostProcess;
 	HANDLE g_writeEvent;
 	HANDLE g_readEvent;

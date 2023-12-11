@@ -1487,12 +1487,12 @@ namespace uba
 
 	bool Session::IsRarelyRead(ProcessImpl& process, const StringBufferBase& fileName) const
 	{
-		return g_applicationRules[process.m_rulesIndex].rules->IsRarelyRead(fileName);
+		return GetApplicationRules()[process.m_rulesIndex].rules->IsRarelyRead(fileName);
 	}
 
 	bool Session::IsRarelyReadAfterWritten(ProcessImpl& process, const tchar* fileName, u64 fileNameLen) const
 	{
-		return g_applicationRules[process.m_rulesIndex].rules->IsRarelyReadAfterWritten(fileName, fileNameLen);
+		return GetApplicationRules()[process.m_rulesIndex].rules->IsRarelyReadAfterWritten(fileName, fileNameLen);
 	}
 
 	bool Session::ShouldWriteToDisk(const tchar* fileName, u64 fileNameLen)

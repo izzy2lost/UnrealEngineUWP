@@ -22,7 +22,6 @@ namespace uba
 {
 	constexpr bool g_logToScreen = false;
 
-	EARLY_INIT StringBuffer<MaxPath> g_exeDir;
 	bool g_isDetouring;
 	bool g_isInitialized;
 	void Deinit();
@@ -234,9 +233,6 @@ namespace uba
 		return access;
 	}
 
-	extern ReaderWriterLock g_communicationLock;
-	extern ProcessStats g_stats;
-
 	struct FileObject
 	{
 		FileInfo* fileInfo = nullptr;
@@ -254,8 +250,10 @@ namespace uba
 		FileObject* fileObject = nullptr;
 	};
 
-	UnorderedMap<int, DetouredHandle> g_fileHandles;
-	ReaderWriterLock g_fileHandlesLock;
+	using FileHandles = UnorderedMap<int, DetouredHandle>;
+	VARIABLE_MEM(StringBuffer<MaxPath>, g_exeDir);
+	VARIABLE_MEM(FileHandles, g_fileHandles);
+	VARIABLE_MEM(ReaderWriterLock, g_fileHandlesLock);
 }
 
 // Shared functions
@@ -1734,6 +1732,10 @@ namespace uba
 
 	void PreInit(const char* logFile)
 	{
+		g_exeDirMem.Create();
+		g_fileHandlesMem.Create();
+		g_fileHandlesLockMem.Create();
+
 		SuppressDetourScope s;
 
 		g_systemTemp.Append(getenv("TMPDIR"));
@@ -1914,6 +1916,7 @@ namespace uba
 	{
 		int t = errno;
 		TRUE_WRAPPER(write)(g_debugFile, str, strLen);
+		//fsync(g_debugFile);
 		errno = t;
 	}
 	#endif

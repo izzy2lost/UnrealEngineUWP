@@ -692,8 +692,10 @@ void PreInit(const DetoursPayload& payload)
 	mi_option_disable(mi_option_abandoned_page_reset);
 	#endif
 
+	InitSharedVariables();
+
 	g_rulesIndex = payload.rulesIndex;
-	g_rules = g_applicationRules[payload.rulesIndex].rules;
+	g_rules = GetApplicationRules()[payload.rulesIndex].rules;
 	g_useMiMalloc = payload.useCustomAllocator;
 	g_runningRemote = payload.runningRemote;
 	g_isChild = payload.isChild;

@@ -7,50 +7,41 @@
 
 namespace uba
 {
+	VARIABLE_MEM(StringBuffer<512>, g_virtualApplication);
+	VARIABLE_MEM(StringBuffer<512>, g_virtualApplicationDir);
+	VARIABLE_MEM(ProcessStats, g_stats);
+	VARIABLE_MEM(ReaderWriterLock, g_communicationLock);
+	VARIABLE_MEM(StringBuffer<256>, g_logName);
+	VARIABLE_MEM(StringBuffer<512>, g_virtualWorkingDir);
+	VARIABLE_MEM(StringBuffer<128>, g_systemRoot);
+	VARIABLE_MEM(StringBuffer<128>, g_systemTemp);
+	VARIABLE_MEM(MemoryBlock, g_memoryBlock);
+	VARIABLE_MEM(DirectoryTable, g_directoryTable);
+	VARIABLE_MEM(MappedFileTable, g_mappedFileTable);
+	VARIABLE_MEM(ReaderWriterLock, g_consoleStringCs);
 
-	EARLY_INIT StringBuffer<512> g_virtualApplication;
-	EARLY_INIT StringBuffer<512> g_virtualApplicationDir;
-	EARLY_INIT ProcessStats g_stats;
-	EARLY_INIT ReaderWriterLock g_communicationLock;
-	EARLY_INIT StringBuffer<256> g_logName;
-	EARLY_INIT StringBuffer<512> g_virtualWorkingDir;
-	EARLY_INIT StringBuffer<128> g_systemRoot;
-	EARLY_INIT StringBuffer<128> g_systemTemp;
 	bool g_echoOn = true;
-
-	// This is annoyingly complicated but it comes down to initialization ordering. On windows we detour everything at a certain point in time
-	// but on linux everything is detoured from the start. This becomes problematic with these statics and we have to use some party tricks to
-	// make sure they are initialized before detoured functions are called.
-	// (If this doesn't work we will need to resort to Functions returning a static variable)
-
-	static u64 g_memoryBlockMem[sizeof(MemoryBlock)/sizeof(u64)];
-	MemoryBlock& g_memoryBlock = *(MemoryBlock*)g_memoryBlockMem;
-
-	static u64 g_directoryTableMem[sizeof(DirectoryTable)/sizeof(u64)];
-	DirectoryTable& g_directoryTable = *(DirectoryTable*)g_directoryTableMem;
-
-	static u64 g_mappedFileTableMem[sizeof(MappedFileTable)/sizeof(u64)];
-	MappedFileTable& g_mappedFileTable = *(MappedFileTable*)g_mappedFileTableMem;
-
-	void InitStatics()
-	{
-		new (g_memoryBlockMem) MemoryBlock(160 * 1024 * 1024); // Leak this
-		new (g_directoryTableMem) DirectoryTable(&g_memoryBlock); // Leak this to speed up shutdown
-		new (g_mappedFileTableMem) MappedFileTable(g_memoryBlock); // Leak this to speed up shutdown
-	}
-
-
-	#if PLATFORM_WINDOWS
-	static bool g_staticInit = []() { InitStatics(); return true; }();
-	#else
-	static void __attribute__((constructor(102))) CtorInitStatics() { InitStatics(); }
-	#endif
-
-
 	u32 g_rulesIndex;
 	ApplicationRules* g_rules;
 	bool g_runningRemote;
 	bool g_isChild;
+
+	void InitSharedVariables()
+	{
+		g_virtualApplicationMem.Create();
+		g_virtualApplicationDirMem.Create();
+		g_statsMem.Create();
+		g_communicationLockMem.Create();
+		g_logNameMem.Create();
+		g_virtualWorkingDirMem.Create();
+		g_systemRootMem.Create();
+		g_systemTempMem.Create();
+
+		g_memoryBlockMem.Create(160 * 1024 * 1024);
+		g_directoryTableMem.Create(&g_memoryBlock);
+		g_mappedFileTableMem.Create(g_memoryBlock);
+		g_consoleStringCsMem.Create();
+	}
 
 #if UBA_DEBUG_LOG_ENABLED
 	FileHandle g_debugFile = InvalidFileHandle;
@@ -192,7 +183,6 @@ namespace uba
 
 	tchar g_consoleString[4096];
 	u32 g_consoleStringIndex;
-	EARLY_INIT ReaderWriterLock g_consoleStringCs;
 
 	template<typename CharType>
 	void Shared_WriteConsoleT(const CharType* chars, u32 charCount, bool isError)
