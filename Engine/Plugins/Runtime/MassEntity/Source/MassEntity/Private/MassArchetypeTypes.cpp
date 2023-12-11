@@ -31,12 +31,18 @@ FMassArchetypeEntityCollection::FMassArchetypeEntityCollection(const FMassArchet
 	// InEntities has a real chance of not being sorted by AbsoluteIndex. We gotta fix that to optimize how we process the data 
 	TArray<int32> TrueIndices;
 	TrueIndices.AddUninitialized(InEntities.Num());
-	int32 i = 0;
+	int32 NumValidEntities = 0;
 	if (ArchetypeData)
 	{
 		for (const FMassEntityHandle& Entity : InEntities)
 		{
-			TrueIndices[i++] = ArchetypeData->GetInternalIndexForEntity(Entity.Index);
+			if (Entity.IsValid())
+			{
+				if (const int32* TrueIndex = ArchetypeData->GetInternalIndexForEntity(Entity.Index))
+				{
+					TrueIndices[NumValidEntities++] = *TrueIndex;
+				}
+			}
 		}
 	}
 	else
@@ -46,10 +52,14 @@ FMassArchetypeEntityCollection::FMassArchetypeEntityCollection(const FMassArchet
 		// FMassArchetypeEntityCollection as the generic batched API wrapper for entities
 		for (const FMassEntityHandle& Entity : InEntities)
 		{
-			TrueIndices[i++] = Entity.Index;
+			if (Entity.IsValid())
+			{
+				TrueIndices[NumValidEntities++] = Entity.Index;
+			}
 		}
 	}
 
+	TrueIndices.SetNum(NumValidEntities, /*bAllowShrinking=*/false);
 	TrueIndices.Sort();
 
 #if DO_GUARD_SLOW
@@ -203,9 +213,11 @@ void FMassArchetypeEntityCollectionWithPayload::CreateEntityRangesWithPayload(co
 			return ArchetypeIndex == Other.ArchetypeIndex && TrueIndex == Other.TrueIndex;
 		}
 
-		bool operator<(const FEntityInArchetype& Other) const
+		/** @return whether A should come before B in an ordered collection */
+		static bool Compare(const FEntityInArchetype& A, const FEntityInArchetype& B)
 		{
-			return ArchetypeIndex < Other.ArchetypeIndex || (ArchetypeIndex == Other.ArchetypeIndex && TrueIndex < Other.TrueIndex);
+			// using "greater" to ensure INDEX_NONE archetypes end up at the end of the collection
+			return A.ArchetypeIndex > B.ArchetypeIndex || (A.ArchetypeIndex == B.ArchetypeIndex && A.TrueIndex < B.TrueIndex);
 		}
 	};
 
@@ -246,7 +258,7 @@ void FMassArchetypeEntityCollectionWithPayload::CreateEntityRangesWithPayload(co
 				ArchetypeIndex = Archetypes.Add({ ArchetypeHandle, 0 });
 			}
 			++Archetypes[ArchetypeIndex].Count;
-			EntityData[i] = { ArchetypeIndex, ArchetypePtr ? ArchetypePtr->GetInternalIndexForEntity(Entity.Index) : Entity.Index };
+			EntityData[i] = { ArchetypeIndex, ArchetypePtr ? ArchetypePtr->GetInternalIndexForEntityChecked(Entity.Index) : Entity.Index };
 		}
 		else
 		{
@@ -268,7 +280,7 @@ void FMassArchetypeEntityCollectionWithPayload::CreateEntityRangesWithPayload(co
 	UE::Mass::Utils::AbstractSort(Entities.Num(), [&EntityData, &bDuplicatesFound](const int32 LHS, const int32 RHS)
 		{
 			bDuplicatesFound = bDuplicatesFound || (EntityData[LHS] == EntityData[RHS]);
-			return EntityData[LHS] < EntityData[RHS];
+			return FEntityInArchetype::Compare(EntityData[LHS], EntityData[RHS]);
 		}
 		, [&EntityData, &Payload](const int32 A, const int32 B)
 		{
@@ -300,7 +312,13 @@ void FMassArchetypeEntityCollectionWithPayload::CreateEntityRangesWithPayload(co
 		for (int32 EntryIndex = 0; EntryIndex < EntityData.Num() - 1; ++EntryIndex)
 		{	
 			FEntityInArchetype& Entry = EntityData[EntryIndex];
-			if (Entry != EntityData[EntryIndex + 1])
+			if (Entry.ArchetypeIndex == INDEX_NONE)
+			{
+				// we're reached INDEX_NONE archetypes, which are at the end of EntityData
+				// breaking since there's nothing more to process. 
+				break;
+			}
+			else if (Entry != EntityData[EntryIndex + 1])
 			{
 				continue;
 			}
@@ -322,12 +340,10 @@ void FMassArchetypeEntityCollectionWithPayload::CreateEntityRangesWithPayload(co
 	}
 
 	int32 ProcessedEntitiesCount = 0;
-	int32 ArchetypeIndex = 0;
 	for (FArchetypeInfo& ArchetypeInfo : Archetypes)
-	{		
+	{
 		TArrayView<FEntityInArchetype> EntityDataSubset = MakeArrayView(&EntityData[ProcessedEntitiesCount], ArchetypeInfo.Count);
-		ensure(EntityDataSubset[0].ArchetypeIndex == ArchetypeIndex);
-		ensure(EntityDataSubset.Last().ArchetypeIndex == ArchetypeIndex);
+		ensure(EntityDataSubset[0].ArchetypeIndex == EntityDataSubset.Last().ArchetypeIndex);
 		TStridedView<int32> TrueIndices = MakeStridedView(EntityDataSubset, &FEntityInArchetype::TrueIndex);
 
 		FMassGenericPayloadViewSlice PayloadSubView(Payload, ProcessedEntitiesCount, ArchetypeInfo.Count);
@@ -335,7 +351,6 @@ void FMassArchetypeEntityCollectionWithPayload::CreateEntityRangesWithPayload(co
 		OutEntityCollections.Add(FMassArchetypeEntityCollectionWithPayload(ArchetypeInfo.Archetype, TrueIndices, MoveTemp(PayloadSubView)));
 
 		ProcessedEntitiesCount += ArchetypeInfo.Count;
-		++ArchetypeIndex;
 	}
 }
 

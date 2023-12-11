@@ -172,6 +172,85 @@ struct FEntityCollection_CreateWithDuplicates : FEntityCollectionTestBase
 };
 IMPLEMENT_AI_INSTANT_TEST(FEntityCollection_CreateWithDuplicates, "System.Mass.EntityCollection.Create.Duplicates");
 
+struct FEntityCollection_CreateWithInvalidDuplicates : FEntityCollectionTestBase
+{
+	virtual bool InstantTest() override
+	{
+		{
+			TArray<FMassEntityHandle> EntitiesSubSet;
+
+			EntitiesSubSet.Add(FMassEntityHandle());
+			EntitiesSubSet.Add(Entities[0]);
+			EntitiesSubSet.Add(Entities[0]);
+			EntitiesSubSet.Add(FMassEntityHandle());
+
+			FMassArchetypeEntityCollection Collection(FloatsArchetype, EntitiesSubSet, FMassArchetypeEntityCollection::FoldDuplicates);
+
+			// The resulting Collection should have only a single Range consisting of a single entity (matching Entities[0])
+			AITEST_EQUAL(TEXT("We expect only a single resulting range"), Collection.GetRanges().Num(), 1);
+			AITEST_EQUAL(TEXT("We expect only a single entity in the resulting range"), Collection.GetRanges()[0].SubchunkStart, 0);
+			AITEST_EQUAL(TEXT("We expect only a single entity in the resulting range"), Collection.GetRanges()[0].Length, 1);
+		}
+
+		{
+			TArray<FMassEntityHandle> EntitiesSubSet;
+
+			EntitiesSubSet.Add(Entities[4]);
+			EntitiesSubSet.Add(FMassEntityHandle());
+			EntitiesSubSet.Add(FMassEntityHandle()); 
+			EntitiesSubSet.Add(Entities[3]);
+			EntitiesSubSet.Add(FMassEntityHandle());
+			EntitiesSubSet.Add(Entities[1]);
+
+			FMassArchetypeEntityCollection Collection(FloatsArchetype, EntitiesSubSet, FMassArchetypeEntityCollection::FoldDuplicates);
+
+			// The resulting Collection should have two Ranges for a single archetype, one of them with two entities (3, 4).
+			AITEST_EQUAL(TEXT("We expect two resulting range"), Collection.GetRanges().Num(), 2);
+			AITEST_EQUAL(TEXT("We expect the first range to consist of a single entity"), Collection.GetRanges()[0].Length, 1);
+			AITEST_EQUAL(TEXT("We expect the second range to consist of a two entities"), Collection.GetRanges()[1].Length, 2);
+			// the specific composition of resulting ranges is being tested by other tests
+		}
+
+		return true;
+	}
+};
+IMPLEMENT_AI_INSTANT_TEST(FEntityCollection_CreateWithInvalidDuplicates, "System.Mass.EntityCollection.Create.InvalidDuplicates");
+
+struct FEntityCollection_CreateWithInvalidDuplicatesWithPayload : FEntityCollectionTestBase
+{
+	virtual bool InstantTest() override
+	{
+		TArray<FMassEntityHandle> EntitiesSubSet;
+		TArray<FTestFragment_Int> Payload;
+
+		EntitiesSubSet.Add(FMassEntityHandle());
+		Payload.Add(FTestFragment_Int(int32(2)));
+
+		EntitiesSubSet.Add(Entities[0]);
+		Payload.Add(FTestFragment_Int(int32(0)));
+
+		EntitiesSubSet.Add(Entities[0]);
+		Payload.Add(FTestFragment_Int(int32(1)));
+
+		EntitiesSubSet.Add(FMassEntityHandle());
+		Payload.Add(FTestFragment_Int(int32(3)));
+
+		// transform typed payload array into generic one for sorting purposes
+		FStructArrayView PaloadView(Payload);
+		TArray<FMassArchetypeEntityCollectionWithPayload> Result;
+		FMassArchetypeEntityCollectionWithPayload::CreateEntityRangesWithPayload(*EntityManager, EntitiesSubSet, FMassArchetypeEntityCollection::FoldDuplicates
+			, FMassGenericPayloadView(MakeArrayView(&PaloadView, 1)), Result);
+
+		AITEST_EQUAL(TEXT("We expect only a single result"), Result.Num(), 1);
+		AITEST_EQUAL(TEXT("We expect only a single resulting range"), Result[0].GetEntityCollection().GetRanges().Num(), 1);
+		AITEST_EQUAL(TEXT("We expect only a single entity in the resulting range"), Result[0].GetEntityCollection().GetRanges()[0].SubchunkStart, 0);
+		AITEST_EQUAL(TEXT("We expect only a single entity in the resulting range"), Result[0].GetEntityCollection().GetRanges()[0].Length, 1);
+
+		return true;
+	}
+};
+IMPLEMENT_AI_INSTANT_TEST(FEntityCollection_CreateWithInvalidDuplicatesWithPayload, "System.Mass.EntityCollection.Create.InvalidDuplicatesWithPayloadWithPayload");
+
 #if WITH_MASSENTITY_DEBUG
 struct FEntityCollection_WithPayloadBase : FEntityCollectionTestBase
 {
