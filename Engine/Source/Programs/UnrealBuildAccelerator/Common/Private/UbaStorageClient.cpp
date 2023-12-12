@@ -94,7 +94,7 @@ namespace uba
 	bool StorageClient::GetCasFileName(StringBufferBase& out, const CasKey& casKey)
 	{
 		ScopedReadLock tempLock(m_localStorageFilesLock);
-		auto findIt = m_localStorageFiles.find(casKey);
+		auto findIt = m_localStorageFiles.find(AsCompressed(casKey, false));
 		if (findIt != m_localStorageFiles.end())
 		{
 			if (findIt->second.casEntry.mappingHandle.IsValid())

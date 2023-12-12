@@ -288,7 +288,7 @@ namespace uba
 			bool success = storage.CheckCasContent(DefaultProcessorCount);
 			return success ? 0 : -1;
 		}
-
+#if UBA_USE_AWS
 		if (checkAws)
 		{
 			AWS aws;
@@ -306,7 +306,8 @@ namespace uba
 				logger.Info(TC("Seems like we are not running inside aws."));
 			return 0;
 		}
-
+#endif
+		
 		if (commandType == CommandType_NotSet)
 		{
 			const tchar* errorMsg = argc == 1 ? TC("") : TC("\nERROR: First argument must be command type. Options are 'local,remote or native'");

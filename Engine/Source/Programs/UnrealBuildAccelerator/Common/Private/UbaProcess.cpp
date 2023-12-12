@@ -419,14 +419,14 @@ namespace uba
 
 		SystemStats::GetGlobal().Add(m_systemStats);
 
-		m_session.ProcessExited(*this, m_processStats.wallTime);
-
 		// For some reason a parent can exit before a child. Need to figure out repro for this but I've seen it happen on ClangEditor win64
 		for (auto& child : m_childProcesses)
 			while (!((ProcessImpl*)child.m_process)->m_hasExited)
 				Sleep(10);
 
 		UBA_ASSERT(!m_parentProcess || !m_parentProcess->m_hasExited);
+
+		m_session.ProcessExited(*this, m_processStats.wallTime);
 
 		m_hasExited = true;
 
@@ -674,11 +674,13 @@ namespace uba
 					writer.WriteU32(detoursLibLen);
 					writer.WriteBytes(detoursLib, detoursLibLen);
 
+					writer.WriteString(m_realWorkingDir);
+					#if PLATFORM_WINDOWS
 					TString realCommandLine = TC("\"") + process.m_realApplication + TC("\" ") + commandLine;
 					writer.WriteString(realCommandLine);
-					writer.WriteString(m_realWorkingDir);
-
-					#if !PLATFORM_WINDOWS
+					#else
+					writer.WriteString(process.m_realApplication);
+					writer.WriteString(commandLine);
 					writer.WriteU64(process.m_comMemory.handle.uid);
 					writer.WriteU32(process.m_comMemory.offset);
 					writer.WriteString(info.logFile);
@@ -1315,7 +1317,7 @@ namespace uba
 			}
 			Vector<const char*> arguments2;
 			arguments2.reserve(arguments.size() + 2);
-			arguments2.push_back(realApplication);
+			arguments2.push_back(m_virtualApplication.data());
 			for (auto& s : arguments)
 				arguments2.push_back(s.data());
 			arguments2.push_back(nullptr);

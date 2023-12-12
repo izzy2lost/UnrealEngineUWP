@@ -1020,9 +1020,12 @@ namespace uba
 					if (seconds <= info.deleteSessionsOlderThanSeconds)
 						return;
 
-					StringBuffer<> sessionDir(sessionsDir);
-					sessionDir.EnsureEndsWithSlash().Append(e.name);
-					DeleteAllFiles(m_logger, sessionDir.data);
+					if (IsDirectory(e.attributes)) // on macos we get a ".ds_store" file created by the os
+					{
+						StringBuffer<> sessionDir(sessionsDir);
+						sessionDir.EnsureEndsWithSlash().Append(e.name);
+						DeleteAllFiles(m_logger, sessionDir.data);
+					}
 				});
 		}
 

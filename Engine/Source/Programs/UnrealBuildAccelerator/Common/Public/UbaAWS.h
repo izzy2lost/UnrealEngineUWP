@@ -6,7 +6,7 @@
 #include "UbaNetworkBackend.h"
 #include "UbaStringBuffer.h"
 
-#define UBA_USE_AWS 1
+#define UBA_USE_AWS !PLATFORM_MAC
 
 #if UBA_USE_AWS
 

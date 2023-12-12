@@ -484,7 +484,7 @@ namespace uba
 			SetLastError(ERROR_FILE_NOT_FOUND);
 			return false;
 		}
-		UBA_ASSERTF(false, TC("RemoveDirectoryW error handling not implemented (%s)"), strerror(errno));
+		UBA_ASSERTF(false, TC("RemoveDirectoryW error handling not implemented (%s): %s"), strerror(errno), pathName);
 		return false;
 #endif
 	}
@@ -650,7 +650,11 @@ namespace uba
 #if PLATFORM_WINDOWS
 		return ::CreateHardLinkW(newFileName, existingFileName, NULL);
 #else
+#if PLATFORM_MAC
+		int res = symlink(existingFileName, newFileName);
+#else
 		int res = link(existingFileName, newFileName);
+#endif
 		if (res == 0)
 			return true;
 

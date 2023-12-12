@@ -2525,8 +2525,8 @@ BOOL Detoured_CreateProcessW(LPCWSTR lpApplicationName, LPWSTR lpCommandLine, LP
 		reader.ReadBytes(dll, dllNameSize);
 		dll[dllNameSize] = 0;
 
-		commandLine = reader.ReadString();
 		currentDir = reader.ReadString();
+		commandLine = reader.ReadString();
 		DEBUG_LOG_PIPE(L"CreateProcess", L"%ls %ls", lpApplicationName, lpCommandLine ? lpCommandLine : L"");
 	}
 

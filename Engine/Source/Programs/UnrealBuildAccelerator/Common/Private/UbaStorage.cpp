@@ -1977,8 +1977,14 @@ namespace uba
 					#if !PLATFORM_WINDOWS
 					if (fileAttributes & S_IXUSR)
 					{
-						int res = chmod(destination, S_IRUSR | S_IWUSR | S_IXUSR); (void)res;
-						UBA_ASSERT(res == 0);
+						struct stat destStat;
+						int res = stat(destination, &destStat);
+						UBA_ASSERTF(res == 0, TC("stat failed (%s) error: %s"), destination, strerror(errno));
+						if ((destStat.st_mode & S_IXUSR) == 0)
+						{
+							res = chmod(destination, S_IRUSR | S_IWUSR | S_IXUSR); (void)res;
+							UBA_ASSERTF(res == 0, TC("chmod failed (%s) error: %s"), destination, strerror(errno));
+						}
 					}
 					#endif
 					return true;

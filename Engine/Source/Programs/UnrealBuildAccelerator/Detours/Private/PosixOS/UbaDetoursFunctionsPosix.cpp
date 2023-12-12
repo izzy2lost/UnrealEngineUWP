@@ -16,6 +16,8 @@
 
 #if PLATFORM_LINUX
 #include <sys/prctl.h>
+#else
+#include <crt_externs.h>
 #endif
 
 namespace uba
@@ -94,6 +96,7 @@ using namespace uba;
 	DETOURED_FUNCTION(_Exit) \
 	DETOURED_FUNCTION_DEBUG \
 	DETOURED_FUNCTION_LINUX \
+	DETOURED_FUNCTION_MACOS \
 
 #if UBA_DEBUG && PLATFORM_LINUX
 #define DETOURED_FUNCTION_DEBUG \
@@ -103,6 +106,7 @@ using namespace uba;
 #endif
 
 #if PLATFORM_LINUX
+#define DETOURED_FUNCTION_MACOS
 #define DETOURED_FUNCTION_LINUX \
 	DETOURED_FUNCTION(get_current_dir_name) \
 	DETOURED_FUNCTION(fopen64) \
@@ -119,6 +123,9 @@ using namespace uba;
 
 #else
 #define DETOURED_FUNCTION_LINUX
+#define DETOURED_FUNCTION_MACOS \
+	DETOURED_FUNCTION(_NSGetExecutablePath) \
+
 #endif
 
 #if (PLATFORM_MAC)
@@ -623,7 +630,7 @@ int Shared_stat(const char* funcName, const char* file, struct stat* attr, const
 	{
 		struct stat attr2;
 		int res2 = trueStat(file, &attr2);
-		UBA_ASSERTF(res == res2, "stat: return value differs for %s (%i vs %i)", file, res, res2);
+		UBA_ASSERTF(res == res2, "stat: return value differs for %s (%i vs %i) [fixed: %s]", file, res, res2, fixedFile.data);
 		if (res != -1)
 		{
 			bool isDir = S_ISDIR(attr->st_mode);
@@ -647,31 +654,35 @@ int Shared_stat(const char* funcName, const char* file, struct stat* attr, const
 
 
 // Detoured functions
-// #if PLATFORM_MAC
-// extern "C" {
-// char* realpath$DARWIN_EXTSN(const char* path, char* resolved_path);
-// }
-// UBA_EXPORT int UBA_WRAPPER(_NSGetExecutablePath)(char* buf, uint32_t* bufsize)
-// {
-// 	int res = TRUE_WRAPPER(_NSGetExecutablePath)(buf, bufsize);
-// 	return TRUE_WRAPPER(_NSGetExecutablePath)(buf, bufsize);
-// }
+#if PLATFORM_MAC
+//extern "C" {
+//char* realpath$DARWIN_EXTSN(const char* path, char* resolved_path);
+//}
+UBA_EXPORT int UBA_WRAPPER(_NSGetExecutablePath)(char* buf, uint32_t* bufsize)
+{
+	if (!g_isDetouring)
+	{
+		return TRUE_WRAPPER(_NSGetExecutablePath)(buf, bufsize);
+	}
+	memcpy(buf, g_virtualApplication.data, g_virtualApplication.count + 1);
+	return 0;
+}
 
-// UBA_EXPORT int UBA_WRAPPER(_NSGetEnviron)(char* buf, uint32_t* bufsize)
-// {
-// 	int res = TRUE_WRAPPER(_NSGetEnviron)(buf, bufsize);
-// 	printf("%s for %s\n", __func__, buf);
-// 	return TRUE_WRAPPER(_NSGetEnviron)(buf, bufsize);
-// }
-// extern "C" char* UBA_WRAPPER(realpath$DARWIN_EXTSN)(const char* path, char* resolved_path)
-// {
-// 	printf(">>>>>> uba_realpathDARWIN: %s\n", path);
-// 	char* res = TRUE_WRAPPER(realpath$DARWIN_EXTSN)(path, resolved_path);
-// 	printf("<<<<< uba_realpathDARWIN: %s\n", strlen(resolved_path) > 0 ? resolved_path : "(NULL)");
-
-// 	return res;
-// }
-// #endif
+//UBA_EXPORT int UBA_WRAPPER(_NSGetEnviron)(char* buf, uint32_t* bufsize)
+//{
+//int res = TRUE_WRAPPER(_NSGetEnviron)(buf, bufsize);
+//printf("%s for %s\n", __func__, buf);
+//return TRUE_WRAPPER(_NSGetEnviron)(buf, bufsize);
+//}
+//extern "C" char* UBA_WRAPPER(realpath$DARWIN_EXTSN)(const char* path, char* resolved_path)
+//{
+//printf(">>>>>> uba_realpathDARWIN: %s\n", path);
+//char* res = TRUE_WRAPPER(realpath$DARWIN_EXTSN)(path, resolved_path);
+//printf("<<<<< uba_realpathDARWIN: %s\n", strlen(resolved_path) > 0 ? resolved_path : "(NULL)");
+//
+//return res;
+//}
+#endif
 
 
 UBA_EXPORT int UBA_WRAPPER(chdir)(const char* path)
@@ -1122,16 +1133,22 @@ UBA_EXPORT int UBA_WRAPPER(access)(const char* pathname, int mode)
 		return res;
 	}
 
-	//errno = 0;
-	//auto res2 = TRUE_WRAPPER(access)(realName, mode);
-	//int eo = errno;
-
 	int res = attr.lastError == 0 ? 0 : -1;
-	DEBUG_LOG_DETOURED("access", "%s %i (%s) -> %i %s", pathname, mode, realName, res, StrError(res, attr.lastError));
-
-	//UBA_ASSERTF(res2 == res, "MISMATCH OF RESULTS for %s - %i %i", realName, res2, res);
-	//UBA_ASSERTF(eo == attr.lastError, "MISMATCH OF ERRORS for %s - %i %i", realName, eo, attr.lastError);
-
+	
+	#if UBA_DEBUG_VALIDATE
+	if (!g_runningRemote)
+	{
+		//errno = 0;
+		auto res2 = TRUE_WRAPPER(access)(realName, mode);
+		//int eo = errno;
+		
+		DEBUG_LOG_DETOURED("access", "%s %i (%s) -> %i %s", pathname, mode, realName, res, StrError(res, attr.lastError));
+		
+		UBA_ASSERTF(res2 == res, "MISMATCH OF RESULTS for %s - %i %i (err = %s) (exedir %s)", realName, res2, res, StrError(res, attr.lastError), g_exeDir.data);
+		//UBA_ASSERTF(eo == attr.lastError, "MISMATCH OF ERRORS for %s - %i %i", realName, eo, attr.lastError);
+	}
+	#endif
+	
 	errno = attr.lastError;
 	return res;
 }
@@ -1390,7 +1407,8 @@ UBA_EXPORT int UBA_WRAPPER(posix_spawn)(pid_t* pid, const char* path, const posi
 			cmdLine.append(" ");
 		cmdLine.append(argv[i]);
 	}
-
+	
+	TString realApplication;
 	TString commandLine;
 	u32 processId = 0;
 	StringBuffer<512> currentDir;
@@ -1429,10 +1447,11 @@ UBA_EXPORT int UBA_WRAPPER(posix_spawn)(pid_t* pid, const char* path, const posi
 		u32 dllNameSize = reader.ReadU32();
 		reader.Skip(dllNameSize);
 
-		commandLine = reader.ReadString();
-
 		currentDir.Append("UBA_CWD=");
 		reader.ReadString(currentDir);
+
+		realApplication = reader.ReadString();
+		commandLine = reader.ReadString();
 
 		comIdVar.Append("UBA_COMID=").AppendValue(reader.ReadU64()).Append('+').AppendValue(reader.ReadU32());
 
@@ -1443,7 +1462,10 @@ UBA_EXPORT int UBA_WRAPPER(posix_spawn)(pid_t* pid, const char* path, const posi
 	std::vector<const char*> envvars;
 	{
 		for (u32 i = 0; envp[i]; ++i)
-			envvars.push_back(envp[i]);
+		{
+//			if (envp[i][0] == 'D' || envp[i][0] == 'P')
+				envvars.push_back(envp[i]);
+		}
 		envvars.push_back(comIdVar.data);
 		envvars.push_back(currentDir.data);
 		envvars.push_back(rulesStr.data);
@@ -1453,13 +1475,21 @@ UBA_EXPORT int UBA_WRAPPER(posix_spawn)(pid_t* pid, const char* path, const posi
 		envvars.push_back(nullptr);
 	}
 
+//	int i=0;
+//	printf("spawnng %s\n", envvars.data()[i]);
+//	while (envvars.data()[i])
+//	{
+//		printf("env: %s\n", envvars.data()[i]);
+//		i++;
+//	}
+	
 	#if UBA_DEBUG_LOG_ENABLED
-	DEBUG_LOG_TRUE("posix_spawn", "%s", path);
+	DEBUG_LOG_TRUE("posix_spawn", "%s", realApplication.data());
 	for (u32 i = 0; argv[i]; ++i)
 		DEBUG_LOG("            %s", argv[i]);
 	#endif
 
-	int res = TRUE_WRAPPER(posix_spawn)(pid, path, file_actions, attrp, argv, (char**)envvars.data());
+	int res = TRUE_WRAPPER(posix_spawn)(pid, realApplication.data(), file_actions, attrp, argv, (char**)envvars.data());
 	bool success = res == 0;
 
 	{
@@ -1763,6 +1793,7 @@ namespace uba
 		if (g_debugFile != InvalidFileHandle)
 		{
 			char buf[32 * 1024];
+#if PLATFORM_LINUX
 			int fd = TRUE_WRAPPER(open)("/proc/self/cmdline", O_RDONLY);
 			if (fd != -1)
 			{
@@ -1787,6 +1818,16 @@ namespace uba
 					DEBUG_LOG("", it);
 				}
 			}
+#else
+			int ArgC = *_NSGetArgc();
+			char** ArgV = *_NSGetArgv();
+			DEBUG_LOG("Executable: %s", ArgV[0]);
+			for (int Arg = 1; Arg < ArgC; Arg++)
+			{
+				DEBUG_LOG("               %s", ArgV[Arg]);
+			}
+			DEBUG_LOG("");
+#endif
 		}
 		#endif
 

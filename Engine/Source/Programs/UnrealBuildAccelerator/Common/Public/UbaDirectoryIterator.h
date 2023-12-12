@@ -164,7 +164,7 @@ namespace uba
 		DIR* dir = opendir(dirPath2);
 		if (!dir)
 		{
-			if (errno == ENOENT)
+			if (errno == ENOENT || errno == ENOTDIR)
 				return !errorOnNotFound;
 			UBA_ASSERTF(false, "TraverseDir error handling not implemented %s (%s)", dirPath, strerror(errno));
 			return false;
