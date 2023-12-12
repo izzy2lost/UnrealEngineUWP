@@ -190,5 +190,10 @@ S3:
   {{- if $s3.UseMultiPartUpload }}
   UseMultiPartUpload: {{ $s3.UseMultiPartUpload }}
   {{- end }}
+
+  {{- if $s3.UseChunkEncoding }}
+  UseChunkEncoding: {{ $s3.UseChunkEncoding }}
+  {{- end }}
+  
 {{ end }}
 

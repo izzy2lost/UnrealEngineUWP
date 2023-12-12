@@ -183,6 +183,11 @@ namespace Jupiter
 
 		public bool? UseArnRegion { get; set; } = null;
 		public bool UseMultiPartUpload { get; set; } = false;
+
+		/// <summary>
+		/// Allows you to override S3 behavior with chunk encoding, this needs to be set to false for uploads against GCS
+		/// </summary>
+		public bool UseChunkEncoding { get; set; } = true;
 	}
 
 	public class GCSettings

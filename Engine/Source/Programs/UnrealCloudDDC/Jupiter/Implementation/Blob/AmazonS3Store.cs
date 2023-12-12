@@ -266,7 +266,8 @@ namespace Jupiter.Implementation
 				{
 					BucketName = _bucketName,
 					Key = path,
-					InputStream = stream
+					InputStream = stream,
+					UseChunkEncoding = _settings.CurrentValue.UseChunkEncoding
 				};
 
 				try
