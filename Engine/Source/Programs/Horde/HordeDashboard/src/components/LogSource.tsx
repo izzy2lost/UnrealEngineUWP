@@ -526,7 +526,7 @@ export class JobLogSource extends LogSource {
             link: `/stream/${this.stream.id}`
          },
          {
-            text: `${this.clText}: ${data?.name ?? ""}`,
+            text: `${data?.name ?? ""} - ${this.clText}`,
             link: `/job/${data?.id}`
          },
          {
