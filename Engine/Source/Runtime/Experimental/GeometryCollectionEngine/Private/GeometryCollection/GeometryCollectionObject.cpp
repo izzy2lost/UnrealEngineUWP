@@ -967,7 +967,7 @@ void UGeometryCollection::Serialize(FArchive& Ar)
 		DataflowAsset = StrippedDataflowAsset;
 	}
 
-	if (!SizeSpecificData.Num())
+	if (Ar.IsLoading() && !SizeSpecificData.Num())
 	{
 		ValidateSizeSpecificDataDefaults();
 	}
