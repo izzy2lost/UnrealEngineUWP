@@ -1821,7 +1821,7 @@ void FDeferredShadingSceneRenderer::RenderLights(
 						// Inject deep shadow mask if the light supports it
 						if (bUseHairDeepShadow)
 						{
-							RenderHairStrandsDeepShadowMask(GraphBuilder, Views, &LightSceneInfo, ScreenShadowMaskTexture);
+							RenderHairStrandsDeepShadowMask(GraphBuilder, Views, &LightSceneInfo, VisibleLightInfos, ScreenShadowMaskTexture);
 						}
 					}
 					else 
@@ -1954,7 +1954,7 @@ void FDeferredShadingSceneRenderer::RenderLights(
 						// Inject deep shadow mask if the light supports it
 						if (bUseHairDeepShadow)
 						{
-							RenderHairStrandsShadowMask(GraphBuilder, Views, &LightSceneInfo, false /*bForwardShading*/, ScreenShadowMaskTexture);
+							RenderHairStrandsShadowMask(GraphBuilder, Views, &LightSceneInfo, VisibleLightInfos, false /*bForwardShading*/, ScreenShadowMaskTexture);
 						}
 					}
 					else // (OcclusionType == FOcclusionType::Shadowmap)

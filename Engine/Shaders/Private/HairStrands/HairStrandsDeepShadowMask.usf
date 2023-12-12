@@ -9,12 +9,18 @@
 #include "HairStrandsDeepShadowCommon.ush"
 #include "HairStrandsDeepTransmittanceCommon.ush"
 
-float4 WriteShadowMaskOutput(const float InFadedShadow)
+float4 WriteShadowMaskOutput(const float InFadedShadow, uint InEncodingType)
 {
 	// Depending of if the light is direction (i.e., WholeSceneLight) or a local light (Point/Spot/Rect), 
 	// we change the output layout
 	const float EncodedShadow = EncodeLightAttenuation(InFadedShadow);
-	return float4(EncodedShadow, EncodedShadow, EncodedShadow, EncodedShadow);
+	switch (InEncodingType)
+	{
+		/* Default    */case 0: return EncodedShadow;
+		/* WholeLight */case 1: return float4(EncodedShadow, 1.f, 1.f, 1.f);
+		/* LocalLight */case 2: return float4(1.f, 1.f, EncodedShadow, 1.f);
+	}
+	return EncodedShadow;
 }
 
 ////////////////////////////////////////////////////////////////////////////////////////////////
@@ -46,6 +52,8 @@ uint				DeepShadow_KernelType;
 float				DeepShadow_DepthBiasScale;
 float				DeepShadow_DensityScale;
 float4				DeepShadow_LayerDepths;
+float 				FadeAlpha;
+uint				EncodingType;
 
 Texture2D<float>	DeepShadow_FrontDepthTexture;
 Texture2D<float4>	DeepShadow_DomTexture;
@@ -384,7 +392,9 @@ void MainPS(
 		Visibility = IsCloser(FrontDepth + ShadowBias, LightSpacePosition.z) ? 0 : 1;
 	#endif
 	}
-	OutColor = WriteShadowMaskOutput(Visibility);
+
+	const float FadedShadow = lerp(1.0f, Visibility, FadeAlpha);
+	OutColor = WriteShadowMaskOutput(FadedShadow, EncodingType);
 
 }
 #endif // SHADER_SHADOWMASK_DEEPSHADOW
@@ -405,6 +415,8 @@ uint				Voxel_MacroGroupCount;
 uint				Voxel_MacroGroupId;
 uint				Voxel_RandomType;
 Texture2D<float4>	RayMarchMaskTexture;
+float 				FadeAlpha;
+uint				EncodingType;
 
 // The hair shadow mask is rendered by tracing ray/cone through the voxel structure. The traversing is done with 
 // point sampling and jittering to get the smooth aspect, and avoid expensive trilinear sampling in a sparse 
@@ -440,6 +452,8 @@ void MainPS(
 	FScreenVertexOutput Input,
 	out float4 OutColor : SV_Target0)
 {
+	OutColor = 1.f;
+
 	const float2 UV = Input.UV;
 	const uint2 PixelCoord = floor(Input.Position.xy);
 	const float SceneDepth = ConvertFromDeviceZ(SceneDepthTexture.Load(uint3(PixelCoord, 0)).x);
@@ -459,6 +473,7 @@ void MainPS(
 	// PCF or simple point sampler
 	float Visibility = 1;
 	bool bHasValidOutput = false;
+	bool bWriteResult = false;
 	if (bIsValidOpaquePixel)
 	{
 		const float3 TranslatedLightPosition= GetTranslatedLightPosition(Voxel_TranslatedLightPosition_LightDirection, TranslatedWorldPosition);
@@ -473,7 +488,6 @@ void MainPS(
 			NormalizedDepthBias = (VirtualVoxel.DepthBiasScale_Shadow * LightDirection + PositionBiasScale * (Random * 2 - 1));
 		}
 
-		FHairTraversalResult Result = InitHairTraversalResult();
 
 		FVirtualVoxelCommonDesc CommonDesc;
 		CommonDesc.PageCountResolution	= VirtualVoxel.PageCountResolution;
@@ -512,7 +526,7 @@ void MainPS(
 					TraversalSettings.PixelRadius = SceneDepth * VirtualVoxel.HairCoveragePixelRadiusAtDepth1;
 					TraversalSettings.bCastShadow = true;
 
-					Result = ComputeHairCountVirtualVoxel(
+					FHairTraversalResult Result = ComputeHairCountVirtualVoxel(
 						TranslatedWorldPosition + NormalizedDepthBias * NodeDesc.VoxelWorldSize,
 						TranslatedLightPosition,
 						CommonDesc,
@@ -520,8 +534,9 @@ void MainPS(
 						VirtualVoxel.PageIndexBuffer,
 						VirtualVoxel.PageTexture,
 						TraversalSettings);
-
 					Visibility = min(Visibility, saturate(1 - Result.HairCount));
+
+					bWriteResult = bWriteResult || Result.HairCount > 0;
 					bHasValidOutput = true;
 				}
 			}
@@ -532,7 +547,12 @@ void MainPS(
 	{
 		discard;
 	}
-	OutColor = WriteShadowMaskOutput(Visibility);
+
+	if (bWriteResult)
+	{
+		const float FadedShadow = lerp(1.0f, Visibility, FadeAlpha);
+		OutColor = WriteShadowMaskOutput(FadedShadow, EncodingType);
+	}
 }
 
 #endif // SHADER_SHADOWMASK_VOXEL
