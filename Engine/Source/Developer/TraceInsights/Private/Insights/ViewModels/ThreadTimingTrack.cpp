@@ -1117,7 +1117,7 @@ void FThreadTimingTrack::BuildFilteredDrawState(ITimingEventsTrackDrawStateBuild
 					{
 						if (FilterConfigurator->IsKeyUsed(static_cast<int32>(EFilterField::Metadata)))
 						{
-							Params.MaxOccupancy = 0.75; // This filter can be slow so reduce occupancy to avoid starvation.
+							Params.MaxOccupancy = 0.75f; // This filter can be slow so reduce occupancy to avoid starvation.
 						}
 					}
 					Params.IntervalStart = Viewport.GetStartTime();

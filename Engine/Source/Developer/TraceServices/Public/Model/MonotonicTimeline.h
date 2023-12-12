@@ -664,7 +664,7 @@ public:
 		uint32 NumPages = FMath::Max(static_cast<uint32>(LastScopePageIndex - FirstScopePageIndex), 1u);
 		uint32 NumThreads = GThreadPool->GetNumThreads();
 
-		if (EnumerateAsyncParams.MaxOccupancy > 0)
+		if (EnumerateAsyncParams.MaxOccupancy > 0.0f)
 		{
 			NumThreads = FMath::Max(static_cast<uint32>(NumThreads * EnumerateAsyncParams.MaxOccupancy), 1u);
 		}
