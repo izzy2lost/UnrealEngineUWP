@@ -116,7 +116,7 @@ void FDisplayClusterViewportPreviewMesh::Update(FDisplayClusterViewport* InViewp
 	if (UMeshComponent* MeshComponent = GetMeshComponent())
 	{
 		// Update material instance and assign to the  mesh
-		if (!CurrentMaterialPtr.IsValid())
+		if (!MaterialInstancePtr.IsValid())
 		{
 			CurrentMaterialPtr = InMeshMaterial;
 
