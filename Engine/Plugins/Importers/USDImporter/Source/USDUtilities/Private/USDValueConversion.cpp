@@ -3,27 +3,20 @@
 #include "USDValueConversion.h"
 
 #include "USDConversionUtils.h"
-#include "USDErrorUtils.h"
 #include "USDLog.h"
 #include "USDTypesConversion.h"
 
-#include "UsdWrappers/SdfLayer.h"
 #include "UsdWrappers/UsdStage.h"
 #include "UsdWrappers/VtValue.h"
 
-#include "Containers/StringConv.h"
-
 #if USE_USD_SDK
 #include "USDIncludesStart.h"
-	#include "pxr/base/tf/stringUtils.h"
-	#include "pxr/base/vt/value.h"
-	#include "pxr/usd/sdf/path.h"
-	#include "pxr/usd/sdf/types.h"
-	#include "pxr/usd/usd/attribute.h"
-	#include "pxr/usd/usd/stage.h"
-	#include "pxr/usd/usdGeom/tokens.h"
+#include "pxr/base/tf/stringUtils.h"
+#include "pxr/base/vt/value.h"
+#include "pxr/usd/sdf/schema.h"
+#include "pxr/usd/sdf/types.h"
 #include "USDIncludesEnd.h"
-#endif // USE_USD_SDK
+#endif	  // USE_USD_SDK
 
 namespace UE::USDValueConversion::Private
 {
@@ -47,101 +40,113 @@ namespace UsdToUnrealImpl
 	 * []( const USDType& Val ) -> UsdUtils::FConvertedVtValueEntry {}
 	 */
 	template<typename UEType, typename USDType, typename Func>
-	void ConvertInner( const pxr::VtValue& InValue, UsdUtils::FConvertedVtValue& OutValue, Func Function )
+	void ConvertInner(const pxr::VtValue& InValue, UsdUtils::FConvertedVtValue& OutValue, Func Function)
 	{
-		if ( InValue.IsArrayValued() )
+		if (InValue.IsArrayValued())
 		{
-			OutValue.Entries.Reset( InValue.GetArraySize() );
+			OutValue.Entries.Reset(InValue.GetArraySize());
 
-			for ( const USDType& Val : InValue.UncheckedGet<pxr::VtArray<USDType>>() )
+			for (const USDType& Val : InValue.UncheckedGet<pxr::VtArray<USDType>>())
 			{
-				OutValue.Entries.Add( Function( Val ) );
+				OutValue.Entries.Add(Function(Val));
 			}
 		}
 		else
 		{
 			const USDType& Val = InValue.UncheckedGet<USDType>();
 
-			OutValue.Entries = { Function( Val ) };
+			OutValue.Entries = {Function(Val)};
 		}
 	}
 
 	// Bool, Uchar, Int, Uint, Int64, Uint64, Half (can cast to float), Float, Double
 	template<typename UEType, typename USDType>
-	void ConvertSimpleValue( const pxr::VtValue& InValue, UsdUtils::FConvertedVtValue& OutValue )
+	void ConvertSimpleValue(const pxr::VtValue& InValue, UsdUtils::FConvertedVtValue& OutValue)
 	{
-		ConvertInner<UEType, USDType>( InValue, OutValue,
-			[]( const USDType& Val ) -> UsdUtils::FConvertedVtValueEntry
+		ConvertInner<UEType, USDType>(
+			InValue,
+			OutValue,
+			[](const USDType& Val) -> UsdUtils::FConvertedVtValueEntry
 			{
-				return { UsdUtils::FConvertedVtValueComponent( TInPlaceType<UEType>(), static_cast< UEType >( Val ) ) };
+				return {UsdUtils::FConvertedVtValueComponent(TInPlaceType<UEType>(), static_cast<UEType>(Val))};
 			}
 		);
 	}
 
 	// TimeCode
 	template<>
-	void ConvertSimpleValue<double, pxr::SdfTimeCode>( const pxr::VtValue& InValue, UsdUtils::FConvertedVtValue& OutValue )
+	void ConvertSimpleValue<double, pxr::SdfTimeCode>(const pxr::VtValue& InValue, UsdUtils::FConvertedVtValue& OutValue)
 	{
-		ConvertInner<double, pxr::SdfTimeCode>( InValue, OutValue,
-			[]( const pxr::SdfTimeCode& Val ) -> UsdUtils::FConvertedVtValueEntry
+		ConvertInner<double, pxr::SdfTimeCode>(
+			InValue,
+			OutValue,
+			[](const pxr::SdfTimeCode& Val) -> UsdUtils::FConvertedVtValueEntry
 			{
-				return { UsdUtils::FConvertedVtValueComponent( TInPlaceType<double>(), Val.GetValue() ) };
+				return {UsdUtils::FConvertedVtValueComponent(TInPlaceType<double>(), Val.GetValue())};
 			}
 		);
 	}
 
 	// String
 	template<>
-	void ConvertSimpleValue<FString, std::string>( const pxr::VtValue& InValue, UsdUtils::FConvertedVtValue& OutValue )
+	void ConvertSimpleValue<FString, std::string>(const pxr::VtValue& InValue, UsdUtils::FConvertedVtValue& OutValue)
 	{
-		ConvertInner<FString, std::string>( InValue, OutValue,
-			[]( const std::string& Val ) -> UsdUtils::FConvertedVtValueEntry
+		ConvertInner<FString, std::string>(
+			InValue,
+			OutValue,
+			[](const std::string& Val) -> UsdUtils::FConvertedVtValueEntry
 			{
-				return { UsdUtils::FConvertedVtValueComponent( TInPlaceType<FString>(), UsdToUnreal::ConvertString( Val ) ) };
+				return {UsdUtils::FConvertedVtValueComponent(TInPlaceType<FString>(), UsdToUnreal::ConvertString(Val))};
 			}
 		);
 	}
 
 	// Token
 	template<>
-	void ConvertSimpleValue<FString, pxr::TfToken>( const pxr::VtValue& InValue, UsdUtils::FConvertedVtValue& OutValue )
+	void ConvertSimpleValue<FString, pxr::TfToken>(const pxr::VtValue& InValue, UsdUtils::FConvertedVtValue& OutValue)
 	{
-		ConvertInner<FString, pxr::TfToken>( InValue, OutValue,
-			[]( const pxr::TfToken& Val ) -> UsdUtils::FConvertedVtValueEntry
+		ConvertInner<FString, pxr::TfToken>(
+			InValue,
+			OutValue,
+			[](const pxr::TfToken& Val) -> UsdUtils::FConvertedVtValueEntry
 			{
-				return { UsdUtils::FConvertedVtValueComponent( TInPlaceType<FString>(), UsdToUnreal::ConvertToken( Val ) ) };
+				return {UsdUtils::FConvertedVtValueComponent(TInPlaceType<FString>(), UsdToUnreal::ConvertToken(Val))};
 			}
 		);
 	}
 
 	// Asset
 	template<>
-	void ConvertSimpleValue<FString, pxr::SdfAssetPath>( const pxr::VtValue& InValue, UsdUtils::FConvertedVtValue& OutValue )
+	void ConvertSimpleValue<FString, pxr::SdfAssetPath>(const pxr::VtValue& InValue, UsdUtils::FConvertedVtValue& OutValue)
 	{
-		ConvertInner<FString, pxr::SdfAssetPath>( InValue, OutValue,
-			[]( const pxr::SdfAssetPath& Val ) -> UsdUtils::FConvertedVtValueEntry
+		ConvertInner<FString, pxr::SdfAssetPath>(
+			InValue,
+			OutValue,
+			[](const pxr::SdfAssetPath& Val) -> UsdUtils::FConvertedVtValueEntry
 			{
-				return { UsdUtils::FConvertedVtValueComponent( TInPlaceType<FString>(), UsdToUnreal::ConvertString( Val.GetAssetPath() ) ) };
+				return {UsdUtils::FConvertedVtValueComponent(TInPlaceType<FString>(), UsdToUnreal::ConvertString(Val.GetAssetPath()))};
 			}
 		);
 	}
 
 	// Matrix2d, Matrix3d, Matrix4d	(always double)
 	template<typename USDType>
-	void ConvertMatrixValue( const pxr::VtValue& InValue, UsdUtils::FConvertedVtValue& OutValue )
+	void ConvertMatrixValue(const pxr::VtValue& InValue, UsdUtils::FConvertedVtValue& OutValue)
 	{
-		ConvertInner<double, USDType>( InValue, OutValue,
-			[]( const USDType& Val ) -> UsdUtils::FConvertedVtValueEntry
+		ConvertInner<double, USDType>(
+			InValue,
+			OutValue,
+			[](const USDType& Val) -> UsdUtils::FConvertedVtValueEntry
 			{
 				const int32 NumElements = USDType::numRows * USDType::numColumns;
 
 				UsdUtils::FConvertedVtValueEntry Entry;
-				Entry.Reserve( NumElements );
+				Entry.Reserve(NumElements);
 
 				const double* MatrixArray = Val.GetArray();
-				for ( int32 Index = 0; Index < NumElements; ++Index )
+				for (int32 Index = 0; Index < NumElements; ++Index)
 				{
-					Entry.Emplace( TInPlaceType<double>(), MatrixArray[ Index ] );
+					Entry.Emplace(TInPlaceType<double>(), MatrixArray[Index]);
 				}
 
 				return Entry;
@@ -151,21 +156,22 @@ namespace UsdToUnrealImpl
 
 	// Quath, Quatf, Quatd
 	template<typename UEType, typename USDType>
-	void ConvertQuatValue( const pxr::VtValue& InValue, UsdUtils::FConvertedVtValue& OutValue )
+	void ConvertQuatValue(const pxr::VtValue& InValue, UsdUtils::FConvertedVtValue& OutValue)
 	{
-		ConvertInner<UEType, USDType>( InValue, OutValue,
-			[]( const USDType& Val ) -> UsdUtils::FConvertedVtValueEntry
+		ConvertInner<UEType, USDType>(
+			InValue,
+			OutValue,
+			[](const USDType& Val) -> UsdUtils::FConvertedVtValueEntry
 			{
 				// Auto here because this is the vec of the corresponding type (e.g. Quath -> Vec3h)
 				const auto& Img = Val.GetImaginary();
 				double Real = Val.GetReal();
 
-				return
-				{
-					UsdUtils::FConvertedVtValueComponent( TInPlaceType<UEType>(), Img[ 0 ] ),
-					UsdUtils::FConvertedVtValueComponent( TInPlaceType<UEType>(), Img[ 1 ] ),
-					UsdUtils::FConvertedVtValueComponent( TInPlaceType<UEType>(), Img[ 2 ] ),
-					UsdUtils::FConvertedVtValueComponent( TInPlaceType<UEType>(), Real ),
+				return {
+					UsdUtils::FConvertedVtValueComponent(TInPlaceType<UEType>(), Img[0]),
+					UsdUtils::FConvertedVtValueComponent(TInPlaceType<UEType>(), Img[1]),
+					UsdUtils::FConvertedVtValueComponent(TInPlaceType<UEType>(), Img[2]),
+					UsdUtils::FConvertedVtValueComponent(TInPlaceType<UEType>(), Real),
 				};
 			}
 		);
@@ -175,29 +181,31 @@ namespace UsdToUnrealImpl
 	// Double3, Float3, Half3, Int3
 	// Double4, Float4, Half4, Int4
 	template<typename UEType, typename USDType>
-	void ConvertVecValue( const pxr::VtValue& InValue, UsdUtils::FConvertedVtValue& OutValue )
+	void ConvertVecValue(const pxr::VtValue& InValue, UsdUtils::FConvertedVtValue& OutValue)
 	{
-		ConvertInner<UEType, USDType>( InValue, OutValue,
-			[]( const USDType& Val ) -> UsdUtils::FConvertedVtValueEntry
+		ConvertInner<UEType, USDType>(
+			InValue,
+			OutValue,
+			[](const USDType& Val) -> UsdUtils::FConvertedVtValueEntry
 			{
 				UsdUtils::FConvertedVtValueEntry Entry;
-				Entry.Reset( USDType::dimension );
+				Entry.Reset(USDType::dimension);
 
-				for ( int32 Index = 0; Index < USDType::dimension; ++Index )
+				for (int32 Index = 0; Index < USDType::dimension; ++Index)
 				{
-					Entry.Emplace( TInPlaceType<UEType>(), Val[ Index ] );
+					Entry.Emplace(TInPlaceType<UEType>(), Val[Index]);
 				}
 
 				return Entry;
 			}
 		);
 	}
-}
-#endif // USE_USD_SDK
+}	 // namespace UsdToUnrealImpl
+#endif	  // USE_USD_SDK
 
 namespace UsdToUnreal
 {
-	bool ConvertValue( const UE::FVtValue& InValue, UsdUtils::FConvertedVtValue& OutValue )
+	bool ConvertValue(const UE::FVtValue& InValue, UsdUtils::FConvertedVtValue& OutValue)
 	{
 #if USE_USD_SDK
 		using namespace pxr;
@@ -210,7 +218,7 @@ namespace UsdToUnreal
 		OutValue.bIsEmpty = true;
 
 		// We consider a success returning an empty value if our input value was also empty
-		if ( InValue.IsEmpty() )
+		if (InValue.IsEmpty())
 		{
 			return true;
 		}
@@ -224,183 +232,183 @@ namespace UsdToUnreal
 #pragma push_macro("CHECK_TYPE")
 #define CHECK_TYPE(T) UnderlyingType.IsA<T>() || UnderlyingType.IsA<VtArray<T>>()
 
-		if ( CHECK_TYPE(bool) )
+		if (CHECK_TYPE(bool))
 		{
 			OutValue.SourceType = EUsdBasicDataTypes::Bool;
-			ConvertSimpleValue<bool, bool>( UsdValue, OutValue );
+			ConvertSimpleValue<bool, bool>(UsdValue, OutValue);
 		}
-		else if ( CHECK_TYPE(uint8_t) )
+		else if (CHECK_TYPE(uint8_t))
 		{
 			OutValue.SourceType = EUsdBasicDataTypes::Uchar;
-			ConvertSimpleValue<uint8, uint8_t>( UsdValue, OutValue );
+			ConvertSimpleValue<uint8, uint8_t>(UsdValue, OutValue);
 		}
-		else if ( CHECK_TYPE(int32_t) )
+		else if (CHECK_TYPE(int32_t))
 		{
 			OutValue.SourceType = EUsdBasicDataTypes::Int;
-			ConvertSimpleValue<int32, int32_t>( UsdValue, OutValue );
+			ConvertSimpleValue<int32, int32_t>(UsdValue, OutValue);
 		}
-		else if ( CHECK_TYPE(uint32_t) )
+		else if (CHECK_TYPE(uint32_t))
 		{
 			OutValue.SourceType = EUsdBasicDataTypes::Uint;
-			ConvertSimpleValue<uint32, uint32_t>( UsdValue, OutValue );
+			ConvertSimpleValue<uint32, uint32_t>(UsdValue, OutValue);
 		}
-		else if ( CHECK_TYPE(int64_t) )
+		else if (CHECK_TYPE(int64_t))
 		{
 			OutValue.SourceType = EUsdBasicDataTypes::Int64;
-			ConvertSimpleValue<int64, int64_t>( UsdValue, OutValue );
+			ConvertSimpleValue<int64, int64_t>(UsdValue, OutValue);
 		}
-		else if ( CHECK_TYPE(uint64_t) )
+		else if (CHECK_TYPE(uint64_t))
 		{
 			OutValue.SourceType = EUsdBasicDataTypes::Uint64;
-			ConvertSimpleValue<uint64, uint64_t>( UsdValue, OutValue );
+			ConvertSimpleValue<uint64, uint64_t>(UsdValue, OutValue);
 		}
-		else if ( CHECK_TYPE(GfHalf) )
+		else if (CHECK_TYPE(GfHalf))
 		{
 			OutValue.SourceType = EUsdBasicDataTypes::Half;
-			ConvertSimpleValue<float, GfHalf>( UsdValue, OutValue );
+			ConvertSimpleValue<float, GfHalf>(UsdValue, OutValue);
 		}
-		else if ( CHECK_TYPE(float) )
+		else if (CHECK_TYPE(float))
 		{
 			OutValue.SourceType = EUsdBasicDataTypes::Float;
-			ConvertSimpleValue<float, float>( UsdValue, OutValue );
+			ConvertSimpleValue<float, float>(UsdValue, OutValue);
 		}
-		else if ( CHECK_TYPE(double) )
+		else if (CHECK_TYPE(double))
 		{
 			OutValue.SourceType = EUsdBasicDataTypes::Double;
-			ConvertSimpleValue<double, double>( UsdValue, OutValue );
+			ConvertSimpleValue<double, double>(UsdValue, OutValue);
 		}
-		else if ( CHECK_TYPE(SdfTimeCode) )
+		else if (CHECK_TYPE(SdfTimeCode))
 		{
 			OutValue.SourceType = EUsdBasicDataTypes::Timecode;
-			ConvertSimpleValue<double, SdfTimeCode>( UsdValue, OutValue );
+			ConvertSimpleValue<double, SdfTimeCode>(UsdValue, OutValue);
 		}
-		else if ( CHECK_TYPE(std::string) )
+		else if (CHECK_TYPE(std::string))
 		{
 			OutValue.SourceType = EUsdBasicDataTypes::String;
-			ConvertSimpleValue<FString, std::string>( UsdValue, OutValue );
+			ConvertSimpleValue<FString, std::string>(UsdValue, OutValue);
 		}
-		else if ( CHECK_TYPE(TfToken) )
+		else if (CHECK_TYPE(TfToken))
 		{
 			OutValue.SourceType = EUsdBasicDataTypes::Token;
-			ConvertSimpleValue<FString, TfToken>( UsdValue, OutValue );
+			ConvertSimpleValue<FString, TfToken>(UsdValue, OutValue);
 		}
-		else if ( CHECK_TYPE(SdfAssetPath) )
+		else if (CHECK_TYPE(SdfAssetPath))
 		{
 			OutValue.SourceType = EUsdBasicDataTypes::Asset;
-			ConvertSimpleValue<FString, SdfAssetPath>( UsdValue, OutValue );
+			ConvertSimpleValue<FString, SdfAssetPath>(UsdValue, OutValue);
 		}
-		else if ( CHECK_TYPE(GfMatrix2d) )
+		else if (CHECK_TYPE(GfMatrix2d))
 		{
 			OutValue.SourceType = EUsdBasicDataTypes::Matrix2d;
-			ConvertMatrixValue<GfMatrix2d>( UsdValue, OutValue );
+			ConvertMatrixValue<GfMatrix2d>(UsdValue, OutValue);
 		}
-		else if ( CHECK_TYPE(GfMatrix3d) )
+		else if (CHECK_TYPE(GfMatrix3d))
 		{
 			OutValue.SourceType = EUsdBasicDataTypes::Matrix3d;
-			ConvertMatrixValue<GfMatrix3d>( UsdValue, OutValue );
+			ConvertMatrixValue<GfMatrix3d>(UsdValue, OutValue);
 		}
-		else if ( CHECK_TYPE(GfMatrix4d) )
+		else if (CHECK_TYPE(GfMatrix4d))
 		{
 			OutValue.SourceType = EUsdBasicDataTypes::Matrix4d;
-			ConvertMatrixValue<GfMatrix4d>( UsdValue, OutValue );
+			ConvertMatrixValue<GfMatrix4d>(UsdValue, OutValue);
 		}
-		else if ( CHECK_TYPE(GfQuatd) )
+		else if (CHECK_TYPE(GfQuatd))
 		{
 			OutValue.SourceType = EUsdBasicDataTypes::Quatd;
 			ConvertQuatValue<double, GfQuatd>(UsdValue, OutValue);
 		}
-		else if ( CHECK_TYPE(GfQuatf) )
+		else if (CHECK_TYPE(GfQuatf))
 		{
 			OutValue.SourceType = EUsdBasicDataTypes::Quatf;
-			ConvertQuatValue<float, GfQuatf>( UsdValue, OutValue );
+			ConvertQuatValue<float, GfQuatf>(UsdValue, OutValue);
 		}
-		else if ( CHECK_TYPE(GfQuath) )
+		else if (CHECK_TYPE(GfQuath))
 		{
 			OutValue.SourceType = EUsdBasicDataTypes::Quath;
-			ConvertQuatValue<float, GfQuath>( UsdValue, OutValue );
+			ConvertQuatValue<float, GfQuath>(UsdValue, OutValue);
 		}
-		else if ( CHECK_TYPE(GfVec2d) )
+		else if (CHECK_TYPE(GfVec2d))
 		{
 			OutValue.SourceType = EUsdBasicDataTypes::Double2;
-			ConvertVecValue<double, GfVec2d>( UsdValue, OutValue );
+			ConvertVecValue<double, GfVec2d>(UsdValue, OutValue);
 		}
-		else if ( CHECK_TYPE(GfVec2f) )
+		else if (CHECK_TYPE(GfVec2f))
 		{
 			OutValue.SourceType = EUsdBasicDataTypes::Float2;
-			ConvertVecValue<float, GfVec2f>( UsdValue, OutValue );
+			ConvertVecValue<float, GfVec2f>(UsdValue, OutValue);
 		}
-		else if ( CHECK_TYPE(GfVec2h) )
+		else if (CHECK_TYPE(GfVec2h))
 		{
 			OutValue.SourceType = EUsdBasicDataTypes::Half2;
-			ConvertVecValue<float, GfVec2h>( UsdValue, OutValue );
+			ConvertVecValue<float, GfVec2h>(UsdValue, OutValue);
 		}
-		else if ( CHECK_TYPE(GfVec2i) )
+		else if (CHECK_TYPE(GfVec2i))
 		{
 			OutValue.SourceType = EUsdBasicDataTypes::Int2;
-			ConvertVecValue<int32, GfVec2i>( UsdValue, OutValue );
+			ConvertVecValue<int32, GfVec2i>(UsdValue, OutValue);
 		}
-		else if ( CHECK_TYPE(GfVec3d) )
+		else if (CHECK_TYPE(GfVec3d))
 		{
 			OutValue.SourceType = EUsdBasicDataTypes::Double3;
-			ConvertVecValue<double, GfVec3d>( UsdValue, OutValue );
+			ConvertVecValue<double, GfVec3d>(UsdValue, OutValue);
 		}
-		else if ( CHECK_TYPE(GfVec3f) )
+		else if (CHECK_TYPE(GfVec3f))
 		{
 			OutValue.SourceType = EUsdBasicDataTypes::Float3;
-			ConvertVecValue<float, GfVec3f>( UsdValue, OutValue );
+			ConvertVecValue<float, GfVec3f>(UsdValue, OutValue);
 		}
-		else if ( CHECK_TYPE(GfVec3h) )
+		else if (CHECK_TYPE(GfVec3h))
 		{
 			OutValue.SourceType = EUsdBasicDataTypes::Half3;
-			ConvertVecValue<float, GfVec3h>( UsdValue, OutValue );
+			ConvertVecValue<float, GfVec3h>(UsdValue, OutValue);
 		}
-		else if ( CHECK_TYPE(GfVec3i) )
+		else if (CHECK_TYPE(GfVec3i))
 		{
 			OutValue.SourceType = EUsdBasicDataTypes::Int3;
-			ConvertVecValue<int32, GfVec3i>( UsdValue, OutValue );
+			ConvertVecValue<int32, GfVec3i>(UsdValue, OutValue);
 		}
-		else if ( CHECK_TYPE(GfVec4d) )
+		else if (CHECK_TYPE(GfVec4d))
 		{
 			OutValue.SourceType = EUsdBasicDataTypes::Double4;
-			ConvertVecValue<double, GfVec4d>( UsdValue, OutValue );
+			ConvertVecValue<double, GfVec4d>(UsdValue, OutValue);
 		}
-		else if ( CHECK_TYPE(GfVec4f) )
+		else if (CHECK_TYPE(GfVec4f))
 		{
 			OutValue.SourceType = EUsdBasicDataTypes::Float4;
-			ConvertVecValue<float, GfVec4f>( UsdValue, OutValue );
+			ConvertVecValue<float, GfVec4f>(UsdValue, OutValue);
 		}
-		else if ( CHECK_TYPE(GfVec4h) )
+		else if (CHECK_TYPE(GfVec4h))
 		{
 			OutValue.SourceType = EUsdBasicDataTypes::Half4;
-			ConvertVecValue<float, GfVec4h>( UsdValue, OutValue );
+			ConvertVecValue<float, GfVec4h>(UsdValue, OutValue);
 		}
-		else if ( CHECK_TYPE(GfVec4i) )
+		else if (CHECK_TYPE(GfVec4i))
 		{
 			OutValue.SourceType = EUsdBasicDataTypes::Int4;
-			ConvertVecValue<int32, GfVec4i>( UsdValue, OutValue );
+			ConvertVecValue<int32, GfVec4i>(UsdValue, OutValue);
 		}
 		// These types should only appear within metadata, and don't support arrays.
 		// There are more of them (e.g. pxr/usd/usd/crateDataTypes.h), but these are the most common.
 		// Also check pxr/usd/sdf/types.cpp for where these are defined. These are simple enums
-		else if ( UnderlyingType.IsA<SdfPermission>() )
+		else if (UnderlyingType.IsA<SdfPermission>())
 		{
 			OutValue.SourceType = EUsdBasicDataTypes::Int;
-			ConvertSimpleValue<int32, SdfPermission>( UsdValue, OutValue );
+			ConvertSimpleValue<int32, SdfPermission>(UsdValue, OutValue);
 		}
-		else if ( UnderlyingType.IsA<SdfSpecifier>() )
+		else if (UnderlyingType.IsA<SdfSpecifier>())
 		{
 			OutValue.SourceType = EUsdBasicDataTypes::Int;
-			ConvertSimpleValue<int32, SdfSpecifier>( UsdValue, OutValue );
+			ConvertSimpleValue<int32, SdfSpecifier>(UsdValue, OutValue);
 		}
-		else if ( UnderlyingType.IsA<SdfVariability>() )
+		else if (UnderlyingType.IsA<SdfVariability>())
 		{
 			OutValue.SourceType = EUsdBasicDataTypes::Int;
-			ConvertSimpleValue<int32, SdfVariability>( UsdValue, OutValue );
+			ConvertSimpleValue<int32, SdfVariability>(UsdValue, OutValue);
 		}
-		else if ( UnderlyingType.IsA<SdfSpecType>() )
+		else if (UnderlyingType.IsA<SdfSpecType>())
 		{
 			OutValue.SourceType = EUsdBasicDataTypes::Int;
-			ConvertSimpleValue<int32, SdfSpecType>( UsdValue, OutValue );
+			ConvertSimpleValue<int32, SdfSpecType>(UsdValue, OutValue);
 		}
 		else
 		{
@@ -413,9 +421,9 @@ namespace UsdToUnreal
 		return true;
 #else
 		return false;
-#endif // USE_USD_SDK
+#endif	  // USE_USD_SDK
 	}
-}
+}	 // namespace UsdToUnreal
 
 #if USE_USD_SDK
 namespace UnrealToUsdImpl
@@ -426,42 +434,44 @@ namespace UnrealToUsdImpl
 	 * []( const UsdUtils::FConvertedVtValueEntry& Entry ) -> USDElementType {}
 	 */
 	template<typename UEElementType, typename USDElementType, typename Func>
-	void ConvertInner( const UsdUtils::FConvertedVtValue& InValue, pxr::VtValue& OutValue, Func Function )
+	void ConvertInner(const UsdUtils::FConvertedVtValue& InValue, pxr::VtValue& OutValue, Func Function)
 	{
-		if ( InValue.bIsArrayValued )
+		if (InValue.bIsArrayValued)
 		{
 			pxr::VtArray<USDElementType> Array;
-			Array.reserve( InValue.Entries.Num() );
+			Array.reserve(InValue.Entries.Num());
 
-			for ( const UsdUtils::FConvertedVtValueEntry& Entry : InValue.Entries )
+			for (const UsdUtils::FConvertedVtValueEntry& Entry : InValue.Entries)
 			{
-				if ( Entry.Num() > 0 )
+				if (Entry.Num() > 0)
 				{
-					Array.push_back( Function( Entry ) );
+					Array.push_back(Function(Entry));
 				}
 			}
 
 			OutValue = Array;
 		}
-		else if ( InValue.Entries.Num() > 0 )
+		else if (InValue.Entries.Num() > 0)
 		{
 			const UsdUtils::FConvertedVtValueEntry& Entry = InValue.Entries[0];
-			if ( Entry.Num() > 0 )
+			if (Entry.Num() > 0)
 			{
-				OutValue = Function( Entry );
+				OutValue = Function(Entry);
 			}
 		}
 	}
 
 	template<typename UEElementType, typename USDElementType>
-	void ConvertSimpleValue( const UsdUtils::FConvertedVtValue& InValue, pxr::VtValue& OutValue )
+	void ConvertSimpleValue(const UsdUtils::FConvertedVtValue& InValue, pxr::VtValue& OutValue)
 	{
-		ConvertInner< UEElementType, USDElementType >( InValue, OutValue,
-			[]( const UsdUtils::FConvertedVtValueEntry& Entry ) -> USDElementType
+		ConvertInner<UEElementType, USDElementType>(
+			InValue,
+			OutValue,
+			[](const UsdUtils::FConvertedVtValueEntry& Entry) -> USDElementType
 			{
-				if ( const UEElementType* Value = Entry[ 0 ].TryGet<UEElementType>() )
+				if (const UEElementType* Value = Entry[0].TryGet<UEElementType>())
 				{
-					return static_cast< USDElementType >( *Value );
+					return static_cast<USDElementType>(*Value);
 				}
 
 				return USDElementType();
@@ -470,14 +480,16 @@ namespace UnrealToUsdImpl
 	}
 
 	template<>
-	void ConvertSimpleValue<FString, std::string>( const UsdUtils::FConvertedVtValue& InValue, pxr::VtValue& OutValue )
+	void ConvertSimpleValue<FString, std::string>(const UsdUtils::FConvertedVtValue& InValue, pxr::VtValue& OutValue)
 	{
-		ConvertInner< FString, std::string >( InValue, OutValue,
-			[]( const UsdUtils::FConvertedVtValueEntry& Entry ) -> std::string
+		ConvertInner<FString, std::string>(
+			InValue,
+			OutValue,
+			[](const UsdUtils::FConvertedVtValueEntry& Entry) -> std::string
 			{
-				if ( const FString* Value = Entry[ 0 ].TryGet<FString>() )
+				if (const FString* Value = Entry[0].TryGet<FString>())
 				{
-					return UnrealToUsd::ConvertString( **Value ).Get();
+					return UnrealToUsd::ConvertString(**Value).Get();
 				}
 
 				return std::string();
@@ -486,14 +498,16 @@ namespace UnrealToUsdImpl
 	}
 
 	template<>
-	void ConvertSimpleValue<FString, pxr::TfToken>( const UsdUtils::FConvertedVtValue& InValue, pxr::VtValue& OutValue )
+	void ConvertSimpleValue<FString, pxr::TfToken>(const UsdUtils::FConvertedVtValue& InValue, pxr::VtValue& OutValue)
 	{
-		ConvertInner< FString, pxr::TfToken >( InValue, OutValue,
-			[]( const UsdUtils::FConvertedVtValueEntry& Entry ) -> pxr::TfToken
+		ConvertInner<FString, pxr::TfToken>(
+			InValue,
+			OutValue,
+			[](const UsdUtils::FConvertedVtValueEntry& Entry) -> pxr::TfToken
 			{
-				if ( const FString* Value = Entry[ 0 ].TryGet<FString>() )
+				if (const FString* Value = Entry[0].TryGet<FString>())
 				{
-					return UnrealToUsd::ConvertToken( **Value ).Get();
+					return UnrealToUsd::ConvertToken(**Value).Get();
 				}
 
 				return pxr::TfToken();
@@ -502,14 +516,16 @@ namespace UnrealToUsdImpl
 	}
 
 	template<>
-	void ConvertSimpleValue<FString, pxr::SdfAssetPath>( const UsdUtils::FConvertedVtValue& InValue, pxr::VtValue& OutValue )
+	void ConvertSimpleValue<FString, pxr::SdfAssetPath>(const UsdUtils::FConvertedVtValue& InValue, pxr::VtValue& OutValue)
 	{
-		ConvertInner< FString, pxr::SdfAssetPath >( InValue, OutValue,
-			[]( const UsdUtils::FConvertedVtValueEntry& Entry ) -> pxr::SdfAssetPath
+		ConvertInner<FString, pxr::SdfAssetPath>(
+			InValue,
+			OutValue,
+			[](const UsdUtils::FConvertedVtValueEntry& Entry) -> pxr::SdfAssetPath
 			{
-				if ( const FString* Value = Entry[ 0 ].TryGet<FString>() )
+				if (const FString* Value = Entry[0].TryGet<FString>())
 				{
-					return pxr::SdfAssetPath( UnrealToUsd::ConvertString( **Value ).Get() );
+					return pxr::SdfAssetPath(UnrealToUsd::ConvertString(**Value).Get());
 				}
 
 				return pxr::SdfAssetPath();
@@ -519,50 +535,53 @@ namespace UnrealToUsdImpl
 
 	/** We need the USDElementType parameter to do the final float to pxr::GfHalf conversions */
 	template<typename UEElementType, typename USDArrayType, typename USDElementType = UEElementType>
-	void ConvertCompoundValue( const UsdUtils::FConvertedVtValue& InValue, pxr::VtValue& OutValue )
+	void ConvertCompoundValue(const UsdUtils::FConvertedVtValue& InValue, pxr::VtValue& OutValue)
 	{
-		ConvertInner< UEElementType, USDArrayType >( InValue, OutValue,
-			[]( const UsdUtils::FConvertedVtValueEntry& Entry ) -> USDArrayType
+		ConvertInner<UEElementType, USDArrayType>(
+			InValue,
+			OutValue,
+			[](const UsdUtils::FConvertedVtValueEntry& Entry) -> USDArrayType
 			{
-				USDArrayType USDVal( UEElementType( 0 ) );
+				USDArrayType USDVal(UEElementType(0));
 				USDElementType* DataPtr = USDVal.data();
 
-				for ( int32 Index = 0; Index < Entry.Num(); ++Index )
+				for (int32 Index = 0; Index < Entry.Num(); ++Index)
 				{
-					if ( const UEElementType* IndexValue = Entry[ Index ].TryGet<UEElementType>() )
+					if (const UEElementType* IndexValue = Entry[Index].TryGet<UEElementType>())
 					{
-						DataPtr[ Index ] = static_cast< USDElementType >( *IndexValue );
+						DataPtr[Index] = static_cast<USDElementType>(*IndexValue);
 					}
 				}
 				return USDVal;
 			}
 		);
-
 	}
 
 	/** USD quaternions don't have the access operator defined, and the elements need to be reordered */
 	template<typename UEElementType, typename USDQuatType>
-	void ConvertQuatValue( const UsdUtils::FConvertedVtValue& InValue, pxr::VtValue& OutValue )
+	void ConvertQuatValue(const UsdUtils::FConvertedVtValue& InValue, pxr::VtValue& OutValue)
 	{
-		ConvertInner< UEElementType, USDQuatType >( InValue, OutValue,
-			[]( const UsdUtils::FConvertedVtValueEntry& Entry ) -> USDQuatType
+		ConvertInner<UEElementType, USDQuatType>(
+			InValue,
+			OutValue,
+			[](const UsdUtils::FConvertedVtValueEntry& Entry) -> USDQuatType
 			{
-				if ( Entry.Num() == 4 )
+				if (Entry.Num() == 4)
 				{
-					UEElementType QuatValues[ 4 ] = { 0, 0, 0, 1 };
-					for ( int32 Index = 0; Index < 4; ++Index )
+					UEElementType QuatValues[4] = {0, 0, 0, 1};
+					for (int32 Index = 0; Index < 4; ++Index)
 					{
-						if ( const UEElementType* QuatValue = Entry[ Index ].TryGet<UEElementType>() )
+						if (const UEElementType* QuatValue = Entry[Index].TryGet<UEElementType>())
 						{
-							QuatValues[ Index ] = *QuatValue;
+							QuatValues[Index] = *QuatValue;
 						}
 					}
 
 					return USDQuatType(
-						QuatValues[ 3 ],  // Real part comes first for USD
-						QuatValues[ 0 ],
-						QuatValues[ 1 ],
-						QuatValues[ 2 ]
+						QuatValues[3],	  // Real part comes first for USD
+						QuatValues[0],
+						QuatValues[1],
+						QuatValues[2]
 					);
 				}
 
@@ -570,12 +589,12 @@ namespace UnrealToUsdImpl
 			}
 		);
 	}
-}
-#endif // USE_USD_SDK
+}	 // namespace UnrealToUsdImpl
+#endif	  // USE_USD_SDK
 
 namespace UnrealToUsd
 {
-	bool ConvertValue( const UsdUtils::FConvertedVtValue& InValue, UE::FVtValue& OutValue )
+	bool ConvertValue(const UsdUtils::FConvertedVtValue& InValue, UE::FVtValue& OutValue)
 	{
 #if USE_USD_SDK
 		using namespace pxr;
@@ -589,115 +608,115 @@ namespace UnrealToUsd
 
 		VtValue& UsdValue = OutValue.GetUsdValue();
 
-		switch ( InValue.SourceType )
+		switch (InValue.SourceType)
 		{
-		case EUsdBasicDataTypes::Bool:
-			ConvertSimpleValue<bool, bool>( InValue, UsdValue );
-			break;
-		case EUsdBasicDataTypes::Uchar:
-			ConvertSimpleValue<uint8, uint8_t>( InValue, UsdValue );
-			break;
-		case EUsdBasicDataTypes::Int:
-			ConvertSimpleValue<int32, int32_t>( InValue, UsdValue );
-			break;
-		case EUsdBasicDataTypes::Uint:
-			ConvertSimpleValue<uint32, uint32_t>( InValue, UsdValue );
-			break;
-		case EUsdBasicDataTypes::Int64:
-			ConvertSimpleValue<int64, int64_t>( InValue, UsdValue );
-			break;
-		case EUsdBasicDataTypes::Uint64:
-			ConvertSimpleValue<uint64, uint64_t>( InValue, UsdValue );
-			break;
-		case EUsdBasicDataTypes::Half:
-			ConvertSimpleValue<float, GfHalf>( InValue, UsdValue );
-			break;
-		case EUsdBasicDataTypes::Float:
-			ConvertSimpleValue<float, float>( InValue, UsdValue );
-			break;
-		case EUsdBasicDataTypes::Double:
-			ConvertSimpleValue<double, double>( InValue, UsdValue );
-			break;
-		case EUsdBasicDataTypes::Timecode:
-			ConvertSimpleValue<double, SdfTimeCode>( InValue, UsdValue );
-			break;
-		case EUsdBasicDataTypes::String:
-			ConvertSimpleValue<FString, std::string>( InValue, UsdValue );
-			break;
-		case EUsdBasicDataTypes::Token:
-			ConvertSimpleValue<FString, TfToken>( InValue, UsdValue );
-			break;
-		case EUsdBasicDataTypes::Asset:
-			ConvertSimpleValue<FString, SdfAssetPath>( InValue, UsdValue );
-			break;
-		case EUsdBasicDataTypes::Matrix2d:
-			ConvertCompoundValue<double, GfMatrix2d>( InValue, UsdValue );
-			break;
-		case EUsdBasicDataTypes::Matrix3d:
-			ConvertCompoundValue<double, GfMatrix3d>( InValue, UsdValue );
-			break;
-		case EUsdBasicDataTypes::Matrix4d:
-			ConvertCompoundValue<double, GfMatrix4d>( InValue, UsdValue );
-			break;
-		case EUsdBasicDataTypes::Quatd:
-			ConvertQuatValue<double, GfQuatd>( InValue, UsdValue );
-			break;
-		case EUsdBasicDataTypes::Quatf:
-			ConvertQuatValue<float, GfQuatf>( InValue, UsdValue );
-			break;
-		case EUsdBasicDataTypes::Quath:
-			ConvertQuatValue<float, GfQuath>( InValue, UsdValue );
-			break;
-		case EUsdBasicDataTypes::Double2:
-			ConvertCompoundValue<double, GfVec2d>( InValue, UsdValue );
-			break;
-		case EUsdBasicDataTypes::Float2:
-			ConvertCompoundValue<float, GfVec2f>( InValue, UsdValue );
-			break;
-		case EUsdBasicDataTypes::Half2:
-			ConvertCompoundValue<float, GfVec2h, GfHalf>( InValue, UsdValue );
-			break;
-		case EUsdBasicDataTypes::Int2:
-			ConvertCompoundValue<int32, GfVec2i>( InValue, UsdValue );
-			break;
-		case EUsdBasicDataTypes::Double3:
-			ConvertCompoundValue<double, GfVec3d>( InValue, UsdValue );
-			break;
-		case EUsdBasicDataTypes::Float3:
-			ConvertCompoundValue<float, GfVec3f>( InValue, UsdValue );
-			break;
-		case EUsdBasicDataTypes::Half3:
-			ConvertCompoundValue<float, GfVec3h, GfHalf>( InValue, UsdValue );
-			break;
-		case EUsdBasicDataTypes::Int3:
-			ConvertCompoundValue<int32, GfVec3i>( InValue, UsdValue );
-			break;
-		case EUsdBasicDataTypes::Double4:
-			ConvertCompoundValue<double, GfVec4d>( InValue, UsdValue );
-			break;
-		case EUsdBasicDataTypes::Float4:
-			ConvertCompoundValue<float, GfVec4f>( InValue, UsdValue );
-			break;
-		case EUsdBasicDataTypes::Half4:
-			ConvertCompoundValue<float, GfVec4h, GfHalf>( InValue, UsdValue );
-			break;
-		case EUsdBasicDataTypes::Int4:
-			ConvertCompoundValue<int32, GfVec4i>( InValue, UsdValue );
-			break;
-		case EUsdBasicDataTypes::None:
-		default:
-			break;
+			case EUsdBasicDataTypes::Bool:
+				ConvertSimpleValue<bool, bool>(InValue, UsdValue);
+				break;
+			case EUsdBasicDataTypes::Uchar:
+				ConvertSimpleValue<uint8, uint8_t>(InValue, UsdValue);
+				break;
+			case EUsdBasicDataTypes::Int:
+				ConvertSimpleValue<int32, int32_t>(InValue, UsdValue);
+				break;
+			case EUsdBasicDataTypes::Uint:
+				ConvertSimpleValue<uint32, uint32_t>(InValue, UsdValue);
+				break;
+			case EUsdBasicDataTypes::Int64:
+				ConvertSimpleValue<int64, int64_t>(InValue, UsdValue);
+				break;
+			case EUsdBasicDataTypes::Uint64:
+				ConvertSimpleValue<uint64, uint64_t>(InValue, UsdValue);
+				break;
+			case EUsdBasicDataTypes::Half:
+				ConvertSimpleValue<float, GfHalf>(InValue, UsdValue);
+				break;
+			case EUsdBasicDataTypes::Float:
+				ConvertSimpleValue<float, float>(InValue, UsdValue);
+				break;
+			case EUsdBasicDataTypes::Double:
+				ConvertSimpleValue<double, double>(InValue, UsdValue);
+				break;
+			case EUsdBasicDataTypes::Timecode:
+				ConvertSimpleValue<double, SdfTimeCode>(InValue, UsdValue);
+				break;
+			case EUsdBasicDataTypes::String:
+				ConvertSimpleValue<FString, std::string>(InValue, UsdValue);
+				break;
+			case EUsdBasicDataTypes::Token:
+				ConvertSimpleValue<FString, TfToken>(InValue, UsdValue);
+				break;
+			case EUsdBasicDataTypes::Asset:
+				ConvertSimpleValue<FString, SdfAssetPath>(InValue, UsdValue);
+				break;
+			case EUsdBasicDataTypes::Matrix2d:
+				ConvertCompoundValue<double, GfMatrix2d>(InValue, UsdValue);
+				break;
+			case EUsdBasicDataTypes::Matrix3d:
+				ConvertCompoundValue<double, GfMatrix3d>(InValue, UsdValue);
+				break;
+			case EUsdBasicDataTypes::Matrix4d:
+				ConvertCompoundValue<double, GfMatrix4d>(InValue, UsdValue);
+				break;
+			case EUsdBasicDataTypes::Quatd:
+				ConvertQuatValue<double, GfQuatd>(InValue, UsdValue);
+				break;
+			case EUsdBasicDataTypes::Quatf:
+				ConvertQuatValue<float, GfQuatf>(InValue, UsdValue);
+				break;
+			case EUsdBasicDataTypes::Quath:
+				ConvertQuatValue<float, GfQuath>(InValue, UsdValue);
+				break;
+			case EUsdBasicDataTypes::Double2:
+				ConvertCompoundValue<double, GfVec2d>(InValue, UsdValue);
+				break;
+			case EUsdBasicDataTypes::Float2:
+				ConvertCompoundValue<float, GfVec2f>(InValue, UsdValue);
+				break;
+			case EUsdBasicDataTypes::Half2:
+				ConvertCompoundValue<float, GfVec2h, GfHalf>(InValue, UsdValue);
+				break;
+			case EUsdBasicDataTypes::Int2:
+				ConvertCompoundValue<int32, GfVec2i>(InValue, UsdValue);
+				break;
+			case EUsdBasicDataTypes::Double3:
+				ConvertCompoundValue<double, GfVec3d>(InValue, UsdValue);
+				break;
+			case EUsdBasicDataTypes::Float3:
+				ConvertCompoundValue<float, GfVec3f>(InValue, UsdValue);
+				break;
+			case EUsdBasicDataTypes::Half3:
+				ConvertCompoundValue<float, GfVec3h, GfHalf>(InValue, UsdValue);
+				break;
+			case EUsdBasicDataTypes::Int3:
+				ConvertCompoundValue<int32, GfVec3i>(InValue, UsdValue);
+				break;
+			case EUsdBasicDataTypes::Double4:
+				ConvertCompoundValue<double, GfVec4d>(InValue, UsdValue);
+				break;
+			case EUsdBasicDataTypes::Float4:
+				ConvertCompoundValue<float, GfVec4f>(InValue, UsdValue);
+				break;
+			case EUsdBasicDataTypes::Half4:
+				ConvertCompoundValue<float, GfVec4h, GfHalf>(InValue, UsdValue);
+				break;
+			case EUsdBasicDataTypes::Int4:
+				ConvertCompoundValue<int32, GfVec4i>(InValue, UsdValue);
+				break;
+			case EUsdBasicDataTypes::None:
+			default:
+				break;
 		}
 
 		// We consider a success returning an empty value if our input value was also empty
 		return InValue.Entries.Num() == 0 || !OutValue.IsEmpty();
 #else
 		return false;
-#endif // USE_USD_SDK
+#endif	  // USE_USD_SDK
 	}
-}
+}	 // namespace UnrealToUsd
 
-FArchive& operator<<( FArchive& Ar, UsdUtils::FConvertedVtValue& Struct )
+FArchive& operator<<(FArchive& Ar, UsdUtils::FConvertedVtValue& Struct)
 {
 	Ar << Struct.Entries;
 	Ar << Struct.SourceType;
@@ -706,145 +725,145 @@ FArchive& operator<<( FArchive& Ar, UsdUtils::FConvertedVtValue& Struct )
 	return Ar;
 }
 
-FArchive& operator<<( FArchive& Ar, UsdUtils::FConvertedVtValueComponent& Component )
+FArchive& operator<<(FArchive& Ar, UsdUtils::FConvertedVtValueComponent& Component)
 {
-	if ( Ar.IsSaving() )
+	if (Ar.IsSaving())
 	{
 		uint64 TypeIndex = Component.GetIndex();
 		Ar << TypeIndex;
 
-		switch ( TypeIndex )
+		switch (TypeIndex)
 		{
-			case UsdUtils::FConvertedVtValueComponent::IndexOfType<bool>() :
-				if ( bool* Val = Component.TryGet<bool>() )
+			case UsdUtils::FConvertedVtValueComponent::IndexOfType<bool>():
+				if (bool* Val = Component.TryGet<bool>())
 				{
 					Ar << *Val;
 				}
-			break;
-			case UsdUtils::FConvertedVtValueComponent::IndexOfType<uint8>() :
-				if ( uint8* Val = Component.TryGet<uint8>() )
+				break;
+			case UsdUtils::FConvertedVtValueComponent::IndexOfType<uint8>():
+				if (uint8* Val = Component.TryGet<uint8>())
 				{
 					Ar << *Val;
 				}
-			break;
-			case UsdUtils::FConvertedVtValueComponent::IndexOfType<int32>() :
-				if ( int32* Val = Component.TryGet<int32>() )
+				break;
+			case UsdUtils::FConvertedVtValueComponent::IndexOfType<int32>():
+				if (int32* Val = Component.TryGet<int32>())
 				{
 					Ar << *Val;
 				}
-			break;
-			case UsdUtils::FConvertedVtValueComponent::IndexOfType<uint32>() :
-				if ( uint32* Val = Component.TryGet<uint32>() )
+				break;
+			case UsdUtils::FConvertedVtValueComponent::IndexOfType<uint32>():
+				if (uint32* Val = Component.TryGet<uint32>())
 				{
 					Ar << *Val;
 				}
-			break;
-			case UsdUtils::FConvertedVtValueComponent::IndexOfType<int64>() :
-				if ( int64* Val = Component.TryGet<int64>() )
+				break;
+			case UsdUtils::FConvertedVtValueComponent::IndexOfType<int64>():
+				if (int64* Val = Component.TryGet<int64>())
 				{
 					Ar << *Val;
 				}
-			break;
-			case UsdUtils::FConvertedVtValueComponent::IndexOfType<uint64>() :
-				if ( uint64* Val = Component.TryGet<uint64>() )
+				break;
+			case UsdUtils::FConvertedVtValueComponent::IndexOfType<uint64>():
+				if (uint64* Val = Component.TryGet<uint64>())
 				{
 					Ar << *Val;
 				}
-			break;
-			case UsdUtils::FConvertedVtValueComponent::IndexOfType<float>() :
-				if ( float* Val = Component.TryGet<float>() )
+				break;
+			case UsdUtils::FConvertedVtValueComponent::IndexOfType<float>():
+				if (float* Val = Component.TryGet<float>())
 				{
 					Ar << *Val;
 				}
-			break;
-			case UsdUtils::FConvertedVtValueComponent::IndexOfType<double>() :
-				if ( double* Val = Component.TryGet<double>() )
+				break;
+			case UsdUtils::FConvertedVtValueComponent::IndexOfType<double>():
+				if (double* Val = Component.TryGet<double>())
 				{
 					Ar << *Val;
 				}
-			break;
-			case UsdUtils::FConvertedVtValueComponent::IndexOfType<FString>() :
-				if ( FString* Val = Component.TryGet<FString>() )
+				break;
+			case UsdUtils::FConvertedVtValueComponent::IndexOfType<FString>():
+				if (FString* Val = Component.TryGet<FString>())
 				{
 					Ar << *Val;
 				}
-			break;
+				break;
 			default:
 				break;
 		}
 	}
-	else // IsLoading
+	else	// IsLoading
 	{
 		uint64 TypeIndex;
 		Ar << TypeIndex;
 
-		switch ( TypeIndex )
+		switch (TypeIndex)
 		{
-			case UsdUtils::FConvertedVtValueComponent::IndexOfType<bool>() :
+			case UsdUtils::FConvertedVtValueComponent::IndexOfType<bool>():
 			{
 				bool Val;
 				Ar << Val;
-				Component.Set<bool>( Val );
+				Component.Set<bool>(Val);
 				break;
 			}
-			case UsdUtils::FConvertedVtValueComponent::IndexOfType<uint8>() :
+			case UsdUtils::FConvertedVtValueComponent::IndexOfType<uint8>():
 			{
 				uint8 Val;
 				Ar << Val;
-				Component.Set<uint8>( Val );
+				Component.Set<uint8>(Val);
 				break;
 			}
-			case UsdUtils::FConvertedVtValueComponent::IndexOfType<int32>() :
+			case UsdUtils::FConvertedVtValueComponent::IndexOfType<int32>():
 			{
 				int32 Val;
 				Ar << Val;
-				Component.Set<int32>( Val );
+				Component.Set<int32>(Val);
 				break;
 			}
-			case UsdUtils::FConvertedVtValueComponent::IndexOfType<uint32>() :
+			case UsdUtils::FConvertedVtValueComponent::IndexOfType<uint32>():
 			{
 				uint32 Val;
 				Ar << Val;
-				Component.Set<uint32>( Val );
+				Component.Set<uint32>(Val);
 				break;
 			}
-			case UsdUtils::FConvertedVtValueComponent::IndexOfType<int64>() :
+			case UsdUtils::FConvertedVtValueComponent::IndexOfType<int64>():
 			{
 				int64 Val;
 				Ar << Val;
-				Component.Set<int64>( Val );
+				Component.Set<int64>(Val);
 				break;
 			}
-			case UsdUtils::FConvertedVtValueComponent::IndexOfType<uint64>() :
+			case UsdUtils::FConvertedVtValueComponent::IndexOfType<uint64>():
 			{
 				uint64 Val;
 				Ar << Val;
-				Component.Set<uint64>( Val );
+				Component.Set<uint64>(Val);
 				break;
 			}
-			case UsdUtils::FConvertedVtValueComponent::IndexOfType<float>() :
+			case UsdUtils::FConvertedVtValueComponent::IndexOfType<float>():
 			{
 				float Val;
 				Ar << Val;
-				Component.Set<float>( Val );
+				Component.Set<float>(Val);
 				break;
 			}
-			case UsdUtils::FConvertedVtValueComponent::IndexOfType<double>() :
+			case UsdUtils::FConvertedVtValueComponent::IndexOfType<double>():
 			{
 				double Val;
 				Ar << Val;
-				Component.Set<double>( Val );
+				Component.Set<double>(Val);
 				break;
 			}
-			case UsdUtils::FConvertedVtValueComponent::IndexOfType<FString>() :
+			case UsdUtils::FConvertedVtValueComponent::IndexOfType<FString>():
 			{
 				FString Val;
 				Ar << Val;
-				Component.Set<FString>( Val );
+				Component.Set<FString>(Val);
 				break;
 			}
 			default:
-				Component.Set<bool>( false );
+				Component.Set<bool>(false);
 				break;
 		}
 	}
@@ -899,7 +918,6 @@ namespace UsdUtils
 			{
 				Result += FString::Printf(TEXT("'%s', "), *UsdToUnreal::ConvertString(String));
 			}
-
 		}
 		Result.RemoveFromEnd(TEXT(", "));
 		Result += TEXT("]");
@@ -1027,13 +1045,13 @@ namespace UsdUtils
 		using TypeToFuncMap = std::unordered_map<pxr::TfType, TFunction<FString(const pxr::VtValue&)>, pxr::TfHash>;
 
 		static const TypeToFuncMap Stringifiers = {
-			{pxr::TfType::Find<std::string>(), StringifyUsdString},
-			{pxr::TfType::Find<pxr::VtArray<std::string>>(), StringifyUsdStringArray},
-			{pxr::TfType::Find<pxr::TfToken>(), StringifyUsdToken},
-			{pxr::TfType::Find<pxr::VtArray<pxr::TfToken>>(), StringifyUsdTokenArray},
-			{pxr::TfType::Find<pxr::SdfAssetPath>(), StringifyUsdAsset},
-			{pxr::TfType::Find<pxr::VtArray<pxr::SdfAssetPath>>(), StringifyUsdAssetArray},
-			{pxr::TfType::Find<pxr::SdfListOp<pxr::TfToken>>(), StringifyTokenList},
+			{					pxr::TfType::Find<std::string>(),	   StringifyUsdString},
+			{		 pxr::TfType::Find<pxr::VtArray<std::string>>(), StringifyUsdStringArray},
+			{				   pxr::TfType::Find<pxr::TfToken>(),		StringifyUsdToken},
+			{	 pxr::TfType::Find<pxr::VtArray<pxr::TfToken>>(),  StringifyUsdTokenArray},
+			{			  pxr::TfType::Find<pxr::SdfAssetPath>(),		 StringifyUsdAsset},
+			{pxr::TfType::Find<pxr::VtArray<pxr::SdfAssetPath>>(),  StringifyUsdAssetArray},
+			{	 pxr::TfType::Find<pxr::SdfListOp<pxr::TfToken>>(),		StringifyTokenList},
 		};
 
 		TypeToFuncMap::const_iterator FoundStringifier = Stringifiers.find(Value.GetType());
@@ -2162,7 +2180,8 @@ namespace UE::USDValueConversion::Private
 				FlattenedValues[FlattenedIndex + 0],
 				FlattenedValues[FlattenedIndex + 1],
 				FlattenedValues[FlattenedIndex + 2],
-				FlattenedValues[FlattenedIndex + 3]};
+				FlattenedValues[FlattenedIndex + 3]
+			};
 		}
 
 		return true;
@@ -2241,7 +2260,7 @@ namespace UsdUtils
 		using namespace UE::USDValueConversion::Private;
 
 		static const TMap<FString, TFunction<bool(const FString&, pxr::VtValue&)>> Unstringifiers = {
-			// Basic datatypes
+	// Basic datatypes
 			{TEXT("bool"), WrapInVtValue<bool, UnstringifyInner<bool>>},
 			{TEXT("uchar"), WrapInVtValue<uint8_t, UnstringifyInner<uint8_t>>},
 			{TEXT("int"), WrapInVtValue<int32_t, UnstringifyInner<int32_t>>},
@@ -2274,7 +2293,7 @@ namespace UsdUtils
 			{TEXT("half4"), WrapInVtValue<pxr::GfVec4h, UnstringifyVec<pxr::GfVec4h>>},
 			{TEXT("int4"), WrapInVtValue<pxr::GfVec4i, UnstringifyVec<pxr::GfVec4i>>},
 
-			// Array versions of the ones above
+ // Array versions of the ones above
 			{TEXT("bool[]"), WrapInVtValue<pxr::VtArray<bool>, UnstringifyBasicArray<bool>>},
 			{TEXT("uchar[]"), WrapInVtValue<pxr::VtArray<uint8_t>, UnstringifyBasicArray<uint8_t>>},
 			{TEXT("int[]"), WrapInVtValue<pxr::VtArray<int32_t>, UnstringifyBasicArray<int32_t>>},
@@ -2307,8 +2326,9 @@ namespace UsdUtils
 			{TEXT("half4[]"), WrapInVtValue<pxr::VtArray<pxr::GfVec4h>, UnstringifyNumberArray<pxr::GfVec4h, 4>>},
 			{TEXT("int4[]"), WrapInVtValue<pxr::VtArray<pxr::GfVec4i>, UnstringifyNumberArray<pxr::GfVec4i, 4>>},
 
-			// // Exotic types found in some scenarios
-			{TEXT("SdfListOp<TfToken>"), WrapInVtValue<pxr::SdfListOp<pxr::TfToken>, UnstringifyListOpTokens>}, // This is used for apiSchemas metadata
+ // // Exotic types found in some scenarios
+			{TEXT("SdfListOp<TfToken>"), WrapInVtValue<pxr::SdfListOp<pxr::TfToken>, UnstringifyListOpTokens>}, // This is used for apiSchemas
+  // metadata
 		};
 
 		if (const TFunction<bool(const FString&, pxr::VtValue&)>* FoundUnstringifier = Unstringifiers.Find(TypeName))

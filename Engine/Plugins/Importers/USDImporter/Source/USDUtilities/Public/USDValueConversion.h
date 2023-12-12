@@ -13,7 +13,7 @@
 #if USE_USD_SDK
 
 #include "USDIncludesStart.h"
-	#include "pxr/pxr.h"
+#include "pxr/pxr.h"
 #include "USDIncludesEnd.h"
 
 PXR_NAMESPACE_OPEN_SCOPE
@@ -23,10 +23,11 @@ PXR_NAMESPACE_OPEN_SCOPE
 	class VtValue;
 PXR_NAMESPACE_CLOSE_SCOPE
 
-#endif // #if USE_USD_SDK
+#endif	  // #if USE_USD_SDK
 
 struct FMatrix2D;
 struct FMatrix3D;
+
 namespace UE
 {
 	class FVtValue;
@@ -82,33 +83,34 @@ namespace UsdUtils
 
 	// WARNING: Do not change the order of the types in this TVariant declaration, or it will break backwards compatibility with data that
 	// was serialized before the change, due to how `operator<<( FArchive& Ar, FConvertedVtValueComponent& Component )` is implemented
-	using FConvertedVtValueComponent = TVariant< bool, uint8, int32, uint32, int64, uint64, float, double, FString >;
+	using FConvertedVtValueComponent = TVariant<bool, uint8, int32, uint32, int64, uint64, float, double, FString>;
 
 	/** Represents a single non-array value held by a pxr::VtValue object, like a 'float', a 'TfToken' or a 'GfMatrix3d' */
-	using FConvertedVtValueEntry = TArray< FConvertedVtValueComponent >;
+	using FConvertedVtValueEntry = TArray<FConvertedVtValueComponent>;
 
-	/** Corresponds to a value held by a pxr::VtValue converted into UE types. Should handle anything a VtValue can hold, including arrays of values */
+	/** Corresponds to a value held by a pxr::VtValue converted into UE types. Should handle anything a VtValue can hold, including arrays of values
+	 */
 	struct USDUTILITIES_API FConvertedVtValue
 	{
 		TArray<FConvertedVtValueEntry> Entries;
 
 		EUsdBasicDataTypes SourceType = EUsdBasicDataTypes::None;
 		bool bIsArrayValued = false;
-		bool bIsEmpty = false;  // Helps differentiating between empty arrays and having actually no value
+		bool bIsEmpty = false;	  // Helps differentiating between empty arrays and having actually no value
 	};
-}
+}	 // namespace UsdUtils
 
-USDUTILITIES_API FArchive& operator<<( FArchive& Ar, UsdUtils::FConvertedVtValue& Struct );
-USDUTILITIES_API FArchive& operator<<( FArchive& Ar, UsdUtils::FConvertedVtValueComponent& Component );
+USDUTILITIES_API FArchive& operator<<(FArchive& Ar, UsdUtils::FConvertedVtValue& Struct);
+USDUTILITIES_API FArchive& operator<<(FArchive& Ar, UsdUtils::FConvertedVtValueComponent& Component);
 
 namespace UsdToUnreal
 {
-	USDUTILITIES_API bool ConvertValue( const UE::FVtValue& InValue, UsdUtils::FConvertedVtValue& OutValue );
+	USDUTILITIES_API bool ConvertValue(const UE::FVtValue& InValue, UsdUtils::FConvertedVtValue& OutValue);
 }
 
 namespace UnrealToUsd
 {
-	USDUTILITIES_API bool ConvertValue( const UsdUtils::FConvertedVtValue& InValue, UE::FVtValue& OutValue );
+	USDUTILITIES_API bool ConvertValue(const UsdUtils::FConvertedVtValue& InValue, UE::FVtValue& OutValue);
 }
 
 namespace UsdUtils
@@ -204,7 +206,7 @@ namespace UsdUtils
 	 * Example: String is "(1, 0.5, 0.3)" and TypeName "float3" means Output will contain a pxr::GfVec3f(1, 0.5, 0.3) value
 	 */
 	USDUTILITIES_API bool Unstringify(const FString& String, const FString& TypeName, pxr::VtValue& Output);
-#endif // USE_USD_SDK
+#endif	  // USE_USD_SDK
 
 	// c.f. comment above StringifyAsBool
 	USDUTILITIES_API bool UnstringifyAsBool(const FString& String, bool& OutValue);
@@ -277,7 +279,7 @@ namespace UsdUtils
 	 * Template implementation must be hidden on cpp as we can't expose USD implementation on the header files.
 	 */
 	template<typename T>
-	USDUTILITIES_API TOptional<T> GetUnderlyingValue( const UE::FVtValue& InValue );
+	USDUTILITIES_API TOptional<T> GetUnderlyingValue(const UE::FVtValue& InValue);
 
 	/**
 	 * Uses USD to quickly set the underlying value of the wrapped pxr::VtValue for fundamental data types.
@@ -287,7 +289,7 @@ namespace UsdUtils
 	 * Template implementation must be hidden on cpp as we can't expose USD implementation on the header files.
 	 */
 	template<typename T>
-	USDUTILITIES_API bool SetUnderlyingValue( UE::FVtValue& InValue, const T& UnderlyingValue );
+	USDUTILITIES_API bool SetUnderlyingValue(UE::FVtValue& InValue, const T& UnderlyingValue);
 
 	/**
 	 * Returns the name of the SdfValueTypeName object for the type of Value
@@ -296,5 +298,5 @@ namespace UsdUtils
 	 * Note that this may not be the correct SdfValueTypeName for the *attribute*, it's just the implied type of the value (e.g. for an
 	 * attribute with SdfValueTypeName 'normal3d', it's VtValues would have underlying type 'GfVec3d', and so this function would return 'double3')
 	 */
-	USDUTILITIES_API FString GetImpliedTypeName( const UE::FVtValue& Value );
-}
+	USDUTILITIES_API FString GetImpliedTypeName(const UE::FVtValue& Value);
+}	 // namespace UsdUtils

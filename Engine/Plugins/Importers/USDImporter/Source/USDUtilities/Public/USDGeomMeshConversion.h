@@ -5,14 +5,14 @@
 #include "CoreMinimal.h"
 
 #include "UnrealUSDWrapper.h"
-#include "USDClassesModule.h"  // Include this for now so that we can redirect FDisplayColorMaterial to the USDClasses definition
+#include "USDClassesModule.h"	 // Include this for now so that we can redirect FDisplayColorMaterial to the USDClasses definition
 #include "UsdWrappers/ForwardDeclarations.h"
 
 #if USE_USD_SDK
 
 #include "USDIncludesStart.h"
-	#include "pxr/usd/usd/timeCode.h"
-	#include "pxr/usd/usdShade/tokens.h"
+#include "pxr/usd/usd/timeCode.h"
+#include "pxr/usd/usdShade/tokens.h"
 #include "USDIncludesEnd.h"
 
 PXR_NAMESPACE_OPEN_SCOPE
@@ -33,10 +33,12 @@ struct FMeshDescription;
 struct FStaticMeshLODResources;
 struct FUsdCollapsingCache;
 struct FUsdStageInfo;
+
 namespace UsdUtils
 {
 	struct FUsdPrimMaterialAssignmentInfo;
 }
+
 namespace UE
 {
 	class FUsdPrim;
@@ -81,7 +83,7 @@ namespace UsdToUnreal
 		// this mesh, and which UVIndex materials will sample from( e.g.[ "st0", 0 ], [ "myUvSet2", 2 ], etc ).
 		// This is used to pick which primvars will become UV sets.
 		UE_DEPRECATED(5.3, "No longer used, now this information is stored directly on generated Material AssetImportData/AssetUserData")
-		const TMap< FString, TMap<FString, int32> >* MaterialToPrimvarToUVIndex;
+		const TMap<FString, TMap<FString, int32>>* MaterialToPrimvarToUVIndex;
 
 		// Whether to try reusing material slots (both local and the ones already in MaterialAssignments) when
 		// converting the material assignments from the mesh
@@ -187,12 +189,8 @@ namespace UsdToUnreal
 	 * @param OutTransform - The converted transform on the UE coordinate system
 	 * @return Whether the conversion was successful or not.
 	 */
-	USDUTILITIES_API bool ConvertGeomPrimitiveTransform(
-		const pxr::UsdPrim& InPrim,
-		const pxr::UsdTimeCode& InTimeCode,
-		FTransform& OutTransform
-	);
-}
+	USDUTILITIES_API bool ConvertGeomPrimitiveTransform(const pxr::UsdPrim& InPrim, const pxr::UsdTimeCode& InTimeCode, FTransform& OutTransform);
+}	 // namespace UsdToUnreal
 
 namespace UnrealToUsd
 {
@@ -203,12 +201,20 @@ namespace UnrealToUsd
 	 * @param StaticMesh - StaticMesh to convert
 	 * @param UsdPrim - Prim to receive the mesh data or LOD variant set
 	 * @param TimeCode - TimeCode to author the attributes with
-	 * @param StageForMaterialAssignments - Stage to use when authoring material assignments (we use this when we want to export the mesh to a payload layer, but the material assignments to an asset layer)
+	 * @param StageForMaterialAssignments - Stage to use when authoring material assignments (we use this when we want to export the mesh to a payload
+	 * layer, but the material assignments to an asset layer)
 	 * @param LowestMeshLOD - Lowest LOD of the UStaticMesh to export (start of the LOD range)
 	 * @param HighestMeshLOD - Lowest LOD of the UStaticMesh to export (end of the LOD range)
 	 * @return Whether the conversion was successful or not.
 	 */
-	USDUTILITIES_API bool ConvertStaticMesh( const UStaticMesh* StaticMesh, pxr::UsdPrim& UsdPrim, pxr::UsdTimeCode TimeCode = pxr::UsdTimeCode::Default(), UE::FUsdStage* StageForMaterialAssignments = nullptr, int32 LowestMeshLOD = 0, int32 HighestMeshLOD = INT32_MAX );
+	USDUTILITIES_API bool ConvertStaticMesh(
+		const UStaticMesh* StaticMesh,
+		pxr::UsdPrim& UsdPrim,
+		pxr::UsdTimeCode TimeCode = pxr::UsdTimeCode::Default(),
+		UE::FUsdStage* StageForMaterialAssignments = nullptr,
+		int32 LowestMeshLOD = 0,
+		int32 HighestMeshLOD = INT32_MAX
+	);
 
 	/**
 	 * Converts an array of mesh descriptions into mesh data, and places that data within the UsdGeomMesh UsdPrim.
@@ -216,18 +222,28 @@ namespace UnrealToUsd
 	 * If more than one MeshDescription are provided, a 'LOD' variant set will be created for UsdPrim, and LOD0, LOD1, etc. variants will be
 	 * created for each provided LOD index. Within each variant, a single Mesh prim also named LOD0, LOD1, etc. will contain the mesh data.
 	 */
-	USDUTILITIES_API bool ConvertMeshDescriptions( const TArray<FMeshDescription>& LODIndexToMeshDescription, pxr::UsdPrim& UsdPrim, const FMatrix& AdditionalTransform, const pxr::UsdTimeCode TimeCode = pxr::UsdTimeCode::Default() );
+	USDUTILITIES_API bool ConvertMeshDescriptions(
+		const TArray<FMeshDescription>& LODIndexToMeshDescription,
+		pxr::UsdPrim& UsdPrim,
+		const FMatrix& AdditionalTransform,
+		const pxr::UsdTimeCode TimeCode = pxr::UsdTimeCode::Default()
+	);
 
 	/**
-	* Extracts animated mesh data from GeometryCache and places the results in UsdPrim.
-	* @param GeometryCache - GeometryCache to convert
-	* @param UsdPrim - Prim to receive the mesh data or LOD variant set
-	* @param StageForMaterialAssignments - Stage to use when authoring material assignments (we use this when we want to export the mesh to a payload layer, but the material assignments to an asset layer)
-	* @return Whether the conversion was successful or not.
-	*/
-	USDUTILITIES_API bool ConvertGeometryCache(const UGeometryCache* GeometryCache, pxr::UsdPrim& UsdPrim, UE::FUsdStage* StageForMaterialAssignments = nullptr);
+	 * Extracts animated mesh data from GeometryCache and places the results in UsdPrim.
+	 * @param GeometryCache - GeometryCache to convert
+	 * @param UsdPrim - Prim to receive the mesh data or LOD variant set
+	 * @param StageForMaterialAssignments - Stage to use when authoring material assignments (we use this when we want to export the mesh to a payload
+	 * layer, but the material assignments to an asset layer)
+	 * @return Whether the conversion was successful or not.
+	 */
+	USDUTILITIES_API bool ConvertGeometryCache(
+		const UGeometryCache* GeometryCache,
+		pxr::UsdPrim& UsdPrim,
+		UE::FUsdStage* StageForMaterialAssignments = nullptr
+	);
 }
-#endif // USE_USD_SDK
+#endif	  // USE_USD_SDK
 
 namespace UsdUtils
 {
@@ -236,10 +252,10 @@ namespace UsdUtils
 	/** Describes what type of material assignment a FUsdPrimMaterialSlot represents */
 	enum class EPrimAssignmentType : uint8
 	{
-		None,			// There is no assignment for this material slot (or no material override)
-		DisplayColor,	// MaterialSource is a serialized FDisplayColorMaterial (e.g. '!DisplayColor_0_0')
-		MaterialPrim,	// MaterialSource is the USD path to a Material prim on the stage (e.g. '/Root/Materials/Red')
-		UnrealMaterial	// MaterialSource is the package path to an UE material (e.g. '/Game/Materials/Red.Red')
+		None,			  // There is no assignment for this material slot (or no material override)
+		DisplayColor,	  // MaterialSource is a serialized FDisplayColorMaterial (e.g. '!DisplayColor_0_0')
+		MaterialPrim,	  // MaterialSource is the USD path to a Material prim on the stage (e.g. '/Root/Materials/Red')
+		UnrealMaterial	  // MaterialSource is the package path to an UE material (e.g. '/Game/Materials/Red.Red')
 	};
 
 	/**
@@ -259,25 +275,18 @@ namespace UsdUtils
 		EPrimAssignmentType AssignmentType = EPrimAssignmentType::None;
 		bool bMeshIsDoubleSided = false;
 
-		friend bool operator==( const FUsdPrimMaterialSlot& Lhs, const FUsdPrimMaterialSlot& Rhs )
+		friend bool operator==(const FUsdPrimMaterialSlot& Lhs, const FUsdPrimMaterialSlot& Rhs)
 		{
-			return Lhs.AssignmentType == Rhs.AssignmentType &&
-				   Lhs.MaterialSource.Equals( Rhs.MaterialSource, ESearchCase::CaseSensitive ) &&
-				   Lhs.bMeshIsDoubleSided == Rhs.bMeshIsDoubleSided;
+			return Lhs.AssignmentType == Rhs.AssignmentType && Lhs.MaterialSource.Equals(Rhs.MaterialSource, ESearchCase::CaseSensitive)
+				   && Lhs.bMeshIsDoubleSided == Rhs.bMeshIsDoubleSided;
 		}
 
-		friend uint32 GetTypeHash( const FUsdPrimMaterialSlot& Slot )
+		friend uint32 GetTypeHash(const FUsdPrimMaterialSlot& Slot)
 		{
-			return HashCombine(
-				Slot.bMeshIsDoubleSided,
-				HashCombine(
-					GetTypeHash( Slot.MaterialSource ),
-					static_cast<uint32>(Slot.AssignmentType)
-				)
-			);
+			return HashCombine(Slot.bMeshIsDoubleSided, HashCombine(GetTypeHash(Slot.MaterialSource), static_cast<uint32>(Slot.AssignmentType)));
 		}
 
-		friend FArchive& operator<<( FArchive& Ar, FUsdPrimMaterialSlot& Slot )
+		friend FArchive& operator<<(FArchive& Ar, FUsdPrimMaterialSlot& Slot)
 		{
 			Ar << Slot.MaterialSource;
 			Ar << Slot.AssignmentType;
@@ -310,20 +319,27 @@ namespace UsdUtils
 	/** Creates a dynamic material instance using the right reference material depending on the given description */
 	PRAGMA_DISABLE_DEPRECATION_WARNINGS
 	UE_DEPRECATED(5.3, "This has moved to the IUsdClassesModule namespace, from USDClassesModule.h")
-	USDUTILITIES_API UMaterialInstanceDynamic* CreateDisplayColorMaterialInstanceDynamic( const UsdUtils::FDisplayColorMaterial& DisplayColorDescription );
+	USDUTILITIES_API UMaterialInstanceDynamic* CreateDisplayColorMaterialInstanceDynamic(
+		const UsdUtils::FDisplayColorMaterial& DisplayColorDescription
+	);
 	UE_DEPRECATED(5.3, "This has moved to the IUsdClassesModule namespace, from USDClassesModule.h")
-	USDUTILITIES_API UMaterialInstanceConstant* CreateDisplayColorMaterialInstanceConstant( const UsdUtils::FDisplayColorMaterial& DisplayColorDescription );
+	USDUTILITIES_API UMaterialInstanceConstant* CreateDisplayColorMaterialInstanceConstant(
+		const UsdUtils::FDisplayColorMaterial& DisplayColorDescription
+	);
 	PRAGMA_ENABLE_DEPRECATION_WARNINGS
 
 	/**
-	 * Extracts all material assignment data from UsdPrim, including material binding, multiple assignment with GeomSubsets, and the unrealMaterial custom USD attribute.
-	 * Guaranteed to return at least one material slot. If UsdPrim is a UsdGeomMesh, it is also guaranteed to have valid material indices (one for every face).
+	 * Extracts all material assignment data from UsdPrim, including material binding, multiple assignment with GeomSubsets, and the unrealMaterial
+	 * custom USD attribute. Guaranteed to return at least one material slot. If UsdPrim is a UsdGeomMesh, it is also guaranteed to have valid
+	 * material indices (one for every face).
 	 * @param UsdPrim - Prim to extract material assignments from
 	 * @param TimeCode - Instant where the material data is sampled
-	 * @param bProvideMaterialIndices - Whether to fill out the material index information for the assignment info (which can be expensive). If this is false, MaterialIndices on the result Struct will have zero values
+	 * @param bProvideMaterialIndices - Whether to fill out the material index information for the assignment info (which can be expensive). If this
+	 * is false, MaterialIndices on the result Struct will have zero values
 	 * @param RenderContext - Which render context to get the materials for. Defaults to universal.
 	 * @param MaterialPurpose - Which material purpose to use when retrieving material bindings
-	 * @return Struct containing an array of material assignments, and a corresponding array of material indices for all polygons of the prim, matching the ordering of the material assignments.
+	 * @return Struct containing an array of material assignments, and a corresponding array of material indices for all polygons of the prim,
+	 * matching the ordering of the material assignments.
 	 */
 	USDUTILITIES_API FUsdPrimMaterialAssignmentInfo GetPrimMaterialAssignments(
 		const pxr::UsdPrim& UsdPrim,
@@ -334,23 +350,29 @@ namespace UsdUtils
 	);
 
 	/**
-	 * Returns an array of prim paths to prims within MaterialPrim's stage that have a UsdShadeMaterialBindingAPI, and whose computed material binding points to MaterialPrim.
-	 * The user prim's schema is not even checked, so this list will naturally include regular UsdGeomMesh prims, UsdGeomSubset prims, and any other with the UsdShadeMaterialBindingAPI.
+	 * Returns an array of prim paths to prims within MaterialPrim's stage that have a UsdShadeMaterialBindingAPI, and whose computed material binding
+	 * points to MaterialPrim. The user prim's schema is not even checked, so this list will naturally include regular UsdGeomMesh prims,
+	 * UsdGeomSubset prims, and any other with the UsdShadeMaterialBindingAPI.
 	 */
 	UE_DEPRECATED(5.3, "No longer used as the FUsdInfoCache now retrieves and retains this information")
-	USDUTILITIES_API TArray<FString> GetMaterialUsers( const UE::FUsdPrim& MaterialPrim, FName MaterialPurpose = *UnrealIdentifiers::MaterialAllPurpose );
+	USDUTILITIES_API TArray<FString> GetMaterialUsers(
+		const UE::FUsdPrim& MaterialPrim,
+		FName MaterialPurpose = *UnrealIdentifiers::MaterialAllPurpose
+	);
 
-	/** Returns whether this prim can be interpreted as describing a static mesh with multiple LODs (i.e. if the prim holds the LOD variant set itself) */
-	USDUTILITIES_API bool DoesPrimContainMeshLODs( const pxr::UsdPrim& Prim );
+	/** Returns whether this prim can be interpreted as describing a static mesh with multiple LODs (i.e. if the prim holds the LOD variant set
+	 * itself) */
+	USDUTILITIES_API bool DoesPrimContainMeshLODs(const pxr::UsdPrim& Prim);
 
 	/** Returns whether this UsdMesh can be interpreted as a LOD of a mesh with multiple LODs (i.e. if the Mesh prim is inside a LOD variant) */
-	USDUTILITIES_API bool IsGeomMeshALOD( const pxr::UsdPrim& UsdMeshPrim );
+	USDUTILITIES_API bool IsGeomMeshALOD(const pxr::UsdPrim& UsdMeshPrim);
 
 	/** Returns whether this UsdPrim is a custom collision mesh */
 	USDUTILITIES_API bool IsCollisionMesh(const pxr::UsdPrim& UsdPrim);
 
-	/** Returns how many LOD variants the Prim has. Note that this will return 0 if called on one of the LOD meshes themselves, it's meant to be called on its parent */
-	USDUTILITIES_API int32 GetNumberOfLODVariants( const pxr::UsdPrim& Prim );
+	/** Returns how many LOD variants the Prim has. Note that this will return 0 if called on one of the LOD meshes themselves, it's meant to be
+	 * called on its parent */
+	USDUTILITIES_API int32 GetNumberOfLODVariants(const pxr::UsdPrim& Prim);
 
 	/**
 	 * If a prim has a variant set named "LOD", with variants named "LOD0", "LOD1", etc., and each has a single Mesh prim, this function
@@ -359,7 +381,7 @@ namespace UsdUtils
 	 * WARNING: There is no guarantee about LOD index ordering! Func may receive LOD2, followed by LOD0, then LOD1, etc.
 	 * WARNING: This will temporarily mutate the stage, and can invalidate references to children of ParentPrim!
 	 */
-	USDUTILITIES_API bool IterateLODMeshes( const pxr::UsdPrim& ParentPrim, TFunction<bool(const pxr::UsdGeomMesh& LODMesh, int32 LODIndex)> Func);
+	USDUTILITIES_API bool IterateLODMeshes(const pxr::UsdPrim& ParentPrim, TFunction<bool(const pxr::UsdGeomMesh& LODMesh, int32 LODIndex)> Func);
 
 	/**
 	 * Traverses `Stage` and authors material binding attributes for all `unrealMaterials` that were baked into USD material assets.
@@ -379,7 +401,7 @@ namespace UsdUtils
 		bool bIsAssetLayer,
 		bool bUsePayload
 	);
-	UE_DEPRECATED( 5.2, "The bRemoveUnrealMaterials parameter is now deprecated as removing the UE material assignments is no longer needed" )
+	UE_DEPRECATED(5.2, "The bRemoveUnrealMaterials parameter is now deprecated as removing the UE material assignments is no longer needed")
 	USDUTILITIES_API void ReplaceUnrealMaterialsWithBaked(
 		const UE::FUsdStage& Stage,
 		const UE::FSdfLayer& LayerToAuthorIn,
@@ -400,7 +422,13 @@ namespace UsdUtils
 	 * Places in OutInstanceTransforms the UE-space instance transforms for a given point instancer prototype index.
 	 * Returns whether the transforms were successfully retrieved or not.
 	 */
-	USDUTILITIES_API bool GetPointInstancerTransforms( const FUsdStageInfo& StageInfo, const pxr::UsdGeomPointInstancer& PointInstancer, const int32 ProtoIndex, pxr::UsdTimeCode EvalTime, TArray<FTransform>& OutInstanceTransforms );
+	USDUTILITIES_API bool GetPointInstancerTransforms(
+		const FUsdStageInfo& StageInfo,
+		const pxr::UsdGeomPointInstancer& PointInstancer,
+		const int32 ProtoIndex,
+		pxr::UsdTimeCode EvalTime,
+		TArray<FTransform>& OutInstanceTransforms
+	);
 
 	/** Returns true if Prim is a GeomMesh with animated attributes */
 	USDUTILITIES_API bool IsAnimatedMesh(const pxr::UsdPrim& Prim);
@@ -420,6 +448,5 @@ namespace UsdUtils
 
 	USDUTILITIES_API void AuthorIdentityTransformGprimAttributes(const pxr::UsdPrim& Gprim, bool bDefaultValues, bool bTimeSampleValues);
 
-#endif // #if USE_USD_SDK
-}
-
+#endif	  // #if USE_USD_SDK
+}	 // namespace UsdUtils
