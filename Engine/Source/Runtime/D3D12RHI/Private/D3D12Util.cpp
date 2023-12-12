@@ -2061,6 +2061,8 @@ DEFINE_STAT(STAT_D3D12UploadPoolAlignmentWaste);
 DEFINE_STAT(STAT_D3D12UploadPoolPageCount);
 DEFINE_STAT(STAT_D3D12UploadPoolFullPages);
 
+DEFINE_STAT(STAT_D3D12ReservedResourcePhysical);
+
 DEFINE_STAT(STAT_UniqueSamplers);
 
 DEFINE_STAT(STAT_ViewHeapChanged);

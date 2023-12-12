@@ -123,8 +123,6 @@ FD3D12TransientHeap::~FD3D12TransientHeap()
 		MemoryTrace_Free((uint64)Heap->GetHeap(), EMemoryTraceRootHeap::VideoMemory);
 #endif
 
-		// Add a reference to the underlying to heap to be deferred released later.
-		Heap->AddRef();
 		Heap->DeferDelete();
 	}
 }

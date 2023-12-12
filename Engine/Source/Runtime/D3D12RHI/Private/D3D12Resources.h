@@ -200,8 +200,15 @@ private:
 	struct FD3D12ReservedResourceData
 	{
 		TArray<TRefCountPtr<FD3D12Heap>> BackingHeaps;
-		TArray<FD3D12ResidencyHandle*> ResidencyHandles; // Flattened array of residency handles owned by backing heaps, used to support batched GetResidencyHandles()
-		uint64 CommittedSizeInBytes = 0;
+
+		// Flattened array of residency handles owned by backing heaps, used to support batched GetResidencyHandles()
+		TArray<FD3D12ResidencyHandle*> ResidencyHandles;
+
+		// Tiles currently assigned to the resource
+		uint32 NumCommittedTiles = 0;
+
+		// Available tiles at the end of the last backing heap
+		uint32 NumSlackTiles = 0;
 	};
 	TUniquePtr<FD3D12ReservedResourceData> ReservedResourceData;
 

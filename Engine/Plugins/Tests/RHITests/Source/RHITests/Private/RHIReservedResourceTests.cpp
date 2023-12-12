@@ -139,6 +139,51 @@ static void CommitBuffer(FRHICommandListImmediate& RHICmdList, FRHIBuffer* Buffe
 	RHICmdList.EndTransition(Transition);
 }
 
+struct FBufferVerificationRange
+{
+	// Offsets in bytes, uint32-aligned
+	uint32 BeginByteOffset = 0;
+	uint32 EndByteOffset = 0;
+
+	uint32 ExpectedValue = 0;
+};
+
+static bool VerifyBufferRanges(const TCHAR* TestName, FRHICommandListImmediate& RHICmdList, FRHIBuffer* Buffer, TConstArrayView<FBufferVerificationRange> Ranges)
+{
+	return FRHIBufferTests::VerifyBufferContents(TestName, RHICmdList, MakeArrayView(&Buffer, 1),
+		[Ranges](int32 /*BufferIndex*/, void* Ptr, uint32 NumBytes)
+		{
+			const uint32 Stride = sizeof(FBufferVerificationRange::ExpectedValue);
+			const uint32 BufferNumElements = NumBytes / Stride;
+			const uint32* BufferData = reinterpret_cast<const uint32*>(Ptr);
+
+			for (const FBufferVerificationRange& Range : Ranges)
+			{
+				check(Range.BeginByteOffset % Stride == 0);
+				check(Range.EndByteOffset % Stride == 0);
+
+				const uint32 ElemBegin = Range.BeginByteOffset / Stride;
+				const uint32 ElemEnd = Range.EndByteOffset / Stride;
+
+				if (ElemBegin >= BufferNumElements || ElemEnd > BufferNumElements)
+				{
+					return false;
+				}
+
+				for (uint32 i = ElemBegin; i < ElemEnd; ++i)
+				{
+					if (BufferData[i] != Range.ExpectedValue)
+					{
+						return false;
+					}
+				}
+			}
+
+			return true;
+		});
+}
+
+
 bool FRHIReservedResourceTests::Test_ReservedResource_CommitBuffer(FRHICommandListImmediate& RHICmdList)
 {
 	if (!GRHIGlobals.ReservedResources.Supported)
@@ -168,39 +213,100 @@ bool FRHIReservedResourceTests::Test_ReservedResource_CommitBuffer(FRHICommandLi
 	const int32 CommitSizeInBytes = BufferSizeInBytes / 2;
 	CommitBuffer(RHICmdList, Buffer, CommitSizeInBytes, ERHIAccess::UAVCompute, ERHIAccess::UAVCompute);
 
-	RHICmdList.ClearUAVUint(BufferUAV, FUintVector4(~0u));
+	const uint32 ClearValue = ~0u;
+	RHICmdList.ClearUAVUint(BufferUAV, FUintVector4(ClearValue));
 
 	RHICmdList.Transition(FRHITransitionInfo(Buffer, ERHIAccess::UAVCompute, ERHIAccess::CopySrc));
-	
-	FRHIBuffer* Buffers[] = { Buffer.GetReference() };
-	bool bSucceeded = FRHIBufferTests::VerifyBufferContents(TEXT("Test_ReservedResource_CommitBuffer"), RHICmdList, Buffers, 
-		[BufferSizeInBytes, CommitSizeInBytes](int32 BufferIndex, void* Ptr, uint32 NumBytes)
+
+	bool bSucceeded = VerifyBufferRanges(TEXT("Test_ReservedResource_CommitBuffer"), RHICmdList, Buffer,
 		{
-			uint64 ExpectedCommittedValue = ~0ull;
+			{0,                 CommitSizeInBytes, ClearValue}, // First range is committed and expected to contain the value written by ClearUAVUint
+			{CommitSizeInBytes, BufferSizeInBytes, 0u} // We follow the D3D convention for unmapped page access: writes are no-op, reads return 0
+		});
 
-			uint32 CommittedSizeInElements = CommitSizeInBytes / sizeof(ExpectedCommittedValue);
-			uint32 TotalSizeInElements = BufferSizeInBytes / sizeof(ExpectedCommittedValue);
-			const uint64* BufferData = reinterpret_cast<const uint64*>(Ptr);
+	return bSucceeded;
+}
 
-			for (uint32 i = 0; i < CommittedSizeInElements; ++i)
-			{
-				if (BufferData[i] != ExpectedCommittedValue)
-				{
-					return false;
-				}
-			}
+bool FRHIReservedResourceTests::Test_ReservedResource_DecommitBuffer(FRHICommandListImmediate& RHICmdList)
+{
+	if (!GRHIGlobals.ReservedResources.Supported)
+	{
+		return true;
+	}
 
-			// We follow the D3D convention for unmapped page access: writes are no-op, reads return 0
-			const uint64 ExpectedTailValue = 0;
-			for (uint32 i = CommittedSizeInElements; i < TotalSizeInElements; ++i)
-			{
-				if (BufferData[i] != ExpectedTailValue)
-				{
-					return false;
-				}
-			}
+	const int32 TileSizeInBytes = GRHIGlobals.ReservedResources.TileSizeInBytes;
+	const int32 BufferSizeInBytes = TileSizeInBytes * 128;
 
-			return true;
+	FRHIResourceCreateInfo CreateInfo(TEXT("TestReservedBufferExplicitCommit"));
+
+	FBufferRHIRef Buffer = RHICmdList.CreateBuffer(BufferSizeInBytes,
+		BUF_ReservedResource | BUF_UnorderedAccess | BUF_ShaderResource | BUF_SourceCopy,
+		4, ERHIAccess::UAVCompute, CreateInfo);
+
+	FUnorderedAccessViewRHIRef BufferUAV = RHICmdList.CreateUnorderedAccessView(Buffer,
+		FRHIViewDesc::CreateBufferUAV()
+		.SetType(FRHIViewDesc::EBufferType::Typed)
+		.SetFormat(PF_R32_UINT));
+
+	// Commit the entire buffer using N commands (to force multiple backing physical memory allocations) and fill it with ~0u
+
+	CommitBuffer(RHICmdList, Buffer, BufferSizeInBytes / 4, ERHIAccess::UAVCompute, ERHIAccess::UAVCompute);
+	CommitBuffer(RHICmdList, Buffer, BufferSizeInBytes / 2, ERHIAccess::UAVCompute, ERHIAccess::UAVCompute);
+	CommitBuffer(RHICmdList, Buffer, BufferSizeInBytes, ERHIAccess::UAVCompute, ERHIAccess::UAVCompute);
+
+	const uint32 ClearValue = ~0u;
+	RHICmdList.ClearUAVUint(BufferUAV, FUintVector4(ClearValue));
+	RHICmdList.Transition(FRHITransitionInfo(Buffer, ERHIAccess::UAVCompute, ERHIAccess::CopySrc));
+
+	FRHIBuffer* Buffers[] = { Buffer.GetReference() };
+
+	// Check that the clear has fully initialzied the buffer contents
+
+	bool bSucceeded = false;
+
+	bSucceeded = VerifyBufferRanges(TEXT("Test_ReservedResource_DecommitBuffer_Init"), RHICmdList, Buffer,
+		{
+			{0, BufferSizeInBytes, ClearValue}
+		});
+
+	if (!bSucceeded)
+	{
+		return false;
+	}
+
+	// Partially decommit the buffer using multiple operations, leaving only one tile mapped. Reading from decommited regions is expected to return 0.
+	CommitBuffer(RHICmdList, Buffer, BufferSizeInBytes - TileSizeInBytes, ERHIAccess::CopySrc, ERHIAccess::UAVCompute); // shrink
+	CommitBuffer(RHICmdList, Buffer, TileSizeInBytes * 2, ERHIAccess::UAVCompute, ERHIAccess::UAVCompute); // shrink
+	CommitBuffer(RHICmdList, Buffer, TileSizeInBytes * 3, ERHIAccess::UAVCompute, ERHIAccess::UAVCompute); // grow
+	CommitBuffer(RHICmdList, Buffer, TileSizeInBytes, ERHIAccess::UAVCompute, ERHIAccess::UAVCompute); // shrink to final size
+
+	RHICmdList.ClearUAVUint(BufferUAV, FUintVector4(ClearValue)); // Expected to have no effect on contents of the buffer except the first tile
+	RHICmdList.Transition(FRHITransitionInfo(Buffer, ERHIAccess::UAVCompute, ERHIAccess::CopySrc));
+
+	bSucceeded = VerifyBufferRanges(TEXT("Test_ReservedResource_DecommitBuffer_Partial"), RHICmdList, Buffer,
+		{
+			{0,               TileSizeInBytes, ClearValue}, // First tile expected to retain value
+			{TileSizeInBytes, BufferSizeInBytes, 0u} // The rest of the buffer is expected to read 0s
+		});
+
+	if (!bSucceeded)
+	{
+		return false;
+	}
+
+	// Re-commit the buffer and verify that it is fully cleared again
+
+	CommitBuffer(RHICmdList, Buffer, BufferSizeInBytes / 2, ERHIAccess::CopySrc, ERHIAccess::UAVCompute);
+	CommitBuffer(RHICmdList, Buffer, BufferSizeInBytes, ERHIAccess::UAVCompute, ERHIAccess::UAVCompute);
+
+	const uint32 ClearValue2 = 0x11223344;
+
+	RHICmdList.ClearUAVUint(BufferUAV, FUintVector4(ClearValue2));
+	RHICmdList.Transition(FRHITransitionInfo(Buffer, ERHIAccess::UAVCompute, ERHIAccess::CopySrc));
+
+	bSucceeded = VerifyBufferRanges(TEXT("Test_ReservedResource_DecommitBuffer_Init"), RHICmdList, Buffer,
+		{
+			{0, BufferSizeInBytes, ClearValue2}
 		});
 
 	return bSucceeded;

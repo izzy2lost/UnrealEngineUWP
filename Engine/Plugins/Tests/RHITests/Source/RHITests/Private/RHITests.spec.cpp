@@ -144,5 +144,11 @@ void FAutomationRHITest::Define()
 			bool bResult = RunOnRenderThreadSynchronous(FRHIReservedResourceTests::Test_ReservedResource_CommitBuffer);
 			TestEqual("Commit Reserved Buffer failed", bResult, 1);
 		});
+
+		It("Decommit Reserved Buffer", [this]()
+		{
+			bool bResult = RunOnRenderThreadSynchronous(FRHIReservedResourceTests::Test_ReservedResource_DecommitBuffer);
+			TestEqual("Decommit Reserved Buffer failed", bResult, 1);
+		});
 	});
 }
