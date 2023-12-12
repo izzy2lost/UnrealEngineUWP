@@ -4,7 +4,6 @@
 #include "CoreMinimal.h"
 #include "Templates/SubclassOf.h"
 #include "WorldPartition/DataLayer/DataLayerInstance.h"
-#include "WorldPartition/WorldPartitionActorDescView.h"
 #include "WorldPartition/WorldPartitionStreamingSource.h"
 #include "WorldPartition/WorldPartitionActorContainerID.h"
 #include "WorldPartition/WorldPartitionRuntimeCellData.h"
@@ -20,6 +19,7 @@ class UDataLayerAsset;
 class UDataLayerInstance;
 class UWorldPartition;
 class UDataLayerManager;
+class FStreamingGenerationActorDescView;
 struct FHierarchicalLogArchive;
 
 enum class EWorldPartitionDataLayersLogicOperator : uint8;
@@ -241,7 +241,15 @@ class UWorldPartitionRuntimeCell : public UObject, public IWorldPartitionCell
 	virtual TSet<FName> GetActorPackageNames() const override { return TSet<FName>(); }
 	//~End IWorldPartitionCell Interface
 
-	ENGINE_API virtual void AddActorToCell(const FWorldPartitionActorDescView& ActorDescView, const FActorContainerID& InContainerID, const FTransform& InContainerTransform, const UActorDescContainer* InContainer) PURE_VIRTUAL(UWorldPartitionRuntimeCell::AddActorToCell,);
+	ENGINE_API virtual void AddActorToCell(const FStreamingGenerationActorDescView& ActorDescView) PURE_VIRTUAL(UWorldPartitionRuntimeCell::AddActorToCell, );
+	
+	PRAGMA_DISABLE_DEPRECATION_WARNINGS
+
+	UE_DEPRECATED(5.4, "Implement FStreamingGenerationActorDescView version instead")
+	virtual void AddActorToCell(const class FWorldPartitionActorDescView& ActorDescView, const FActorContainerID& InContainerID, const FTransform& InContainerTransform, const UActorDescContainer* InContainer) {}
+
+	PRAGMA_ENABLE_DEPRECATION_WARNINGS
+
 	ENGINE_API virtual void Fixup() PURE_VIRTUAL(UWorldPartitionRuntimeCell::Fixup, );
 	ENGINE_API virtual int32 GetActorCount() const PURE_VIRTUAL(UWorldPartitionRuntimeCell::GetActorCount, return 0;);
 

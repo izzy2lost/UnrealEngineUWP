@@ -1,0 +1,205 @@
+// Copyright Epic Games, Inc. All Rights Reserved.
+
+#pragma once
+
+#include "CoreMinimal.h"
+#include "WorldPartition/WorldPartitionActorDescInstanceInterface.h"
+
+#if WITH_EDITOR
+
+#include "WorldPartition/WorldPartitionActorDesc.h"
+#include "UObject/WeakObjectPtr.h"
+
+class AActor;
+class UActorDescContainerInstance;
+
+#endif // WITH_EDITOR
+
+class FWorldPartitionActorDescInstance : public IWorldPartitionActorDescInstance
+{
+#if WITH_EDITOR
+	friend struct FWorldPartitionHandleImpl;
+	friend struct FWorldPartitionReferenceImpl;
+	friend struct FWorldPartitionActorDescUtils;
+	friend class FWorldPartitionActorDesc;
+	friend class UActorDescContainerInstance;
+	friend class FWorldPartitionLoadingContext;
+	friend struct FWorldPartitionActorDescUnitTestAcccessor;
+	friend class UDataLayerManager;
+	friend class UWorldPartition;
+
+protected:
+	ENGINE_API FWorldPartitionActorDescInstance();
+public:
+	ENGINE_API FWorldPartitionActorDescInstance(UActorDescContainerInstance* InContainerInstance, FWorldPartitionActorDesc* InActorDesc);
+	virtual ~FWorldPartitionActorDescInstance() {}
+
+	//~ Begin IWorldPartitionActorDescInstanceViewInterface
+	virtual const FGuid& GetGuid() const override { return GetActorDesc()->GetGuid(); }
+	virtual FTopLevelAssetPath GetBaseClass() const override { return GetActorDesc()->GetBaseClass(); }
+	virtual FTopLevelAssetPath GetNativeClass() const override { return GetActorDesc()->GetNativeClass(); }
+	virtual UClass* GetActorNativeClass() const override { return GetActorDesc()->GetActorNativeClass(); }
+	
+	virtual FName GetRuntimeGrid() const override { return GetActorDesc()->GetRuntimeGrid(); }
+	virtual bool GetIsSpatiallyLoaded() const override { return !GetForceNonSpatiallyLoaded() && GetActorDesc()->GetIsSpatiallyLoaded(); }
+	virtual bool GetActorIsEditorOnly() const override { return GetActorDesc()->GetActorIsEditorOnly(); }
+	virtual bool GetActorIsRuntimeOnly() const override { return GetActorDesc()->GetActorIsRuntimeOnly(); }
+	ENGINE_API virtual bool IsRuntimeRelevant() const override;
+	ENGINE_API virtual bool IsEditorRelevant() const override;
+
+	virtual bool IsUsingDataLayerAsset() const override { return GetActorDesc()->IsUsingDataLayerAsset(); }
+	virtual const TArray<FName>& GetDataLayers() const override { return GetActorDesc()->GetDataLayers(); }
+
+	virtual bool GetActorIsHLODRelevant() const override { return GetActorDesc()->GetActorIsHLODRelevant(); }
+	virtual FSoftObjectPath GetHLODLayer() const override { return GetActorDesc()->GetHLODLayer(); }
+
+	virtual const TArray<FName>& GetTags() const override { return GetActorDesc()->GetTags(); }
+	virtual FName GetActorPackage() const override { return GetActorDesc()->GetActorPackage(); }
+	ENGINE_API virtual FSoftObjectPath GetActorSoftPath() const override;
+	virtual FName GetActorLabel() const override { return GetActorDesc()->GetActorLabel(); }
+	ENGINE_API virtual FName GetActorName() const override;
+	virtual FName GetFolderPath() const override { return GetActorDesc()->GetFolderPath(); }
+	virtual const FGuid& GetFolderGuid() const override { return GetActorDesc()->GetFolderGuid(); }
+
+	virtual FBox GetEditorBounds() const override { return GetActorDesc()->GetEditorBounds(); }
+	virtual FBox GetRuntimeBounds() const override { return GetActorDesc()->GetRuntimeBounds(); }
+
+	virtual bool GetProperty(FName PropertyName, FName* PropertyValue) const override { return GetActorDesc()->GetProperty(PropertyName, PropertyValue); }
+	virtual bool HasProperty(FName PropertyName) const override { return GetActorDesc()->HasProperty(PropertyName); }
+
+	virtual const TArray<FGuid>& GetReferences() const override { return GetActorDesc()->GetReferences(); }
+	virtual const TArray<FGuid>& GetEditorOnlyReferences() const override { return GetActorDesc()->GetEditorOnlyReferences(); }
+	virtual bool IsEditorOnlyReference(const FGuid& ReferenceGuid) const override { return GetActorDesc()->IsEditorOnlyReference(ReferenceGuid); }
+	
+	virtual const FGuid& GetParentActor() const override { return GetActorDesc()->GetParentActor(); }
+		
+	virtual FGuid GetContentBundleGuid() const override { return GetActorDesc()->GetContentBundleGuid(); }
+
+	virtual bool IsChildContainerInstance() const override { return ChildContainerInstance || GetActorDesc()->IsChildContainerInstance(); }
+	virtual FName GetChildContainerPackage() const override { return GetActorDesc()->GetChildContainerPackage(); }
+	virtual EWorldPartitionActorFilterType GetChildContainerFilterType() const override { return GetActorDesc()->GetChildContainerFilterType(); }
+	virtual const FWorldPartitionActorFilter* GetChildContainerFilter() const override { return GetActorDesc()->GetChildContainerFilter(); }
+	virtual bool GetChildContainerInstance(FWorldPartitionActorDesc::FContainerInstance& OutContainerInstance) const override { return GetActorDesc()->GetChildContainerInstance(this, OutContainerInstance); }
+			
+	virtual bool IsMainWorldOnly() const override { return GetActorDesc()->IsMainWorldOnly(); }
+	virtual bool IsListedInSceneOutliner() const override { return GetActorDesc()->IsListedInSceneOutliner(); }
+	virtual const FGuid& GetSceneOutlinerParent() const override { return GetActorDesc()->GetSceneOutlinerParent(); }
+			
+	ENGINE_API virtual const FWorldPartitionActorDesc* GetActorDesc() const override { check(ActorDesc); return ActorDesc; }
+	
+	virtual bool HasResolvedDataLayerInstanceNames() const override { return ResolvedDataLayerInstanceNames.IsSet(); }
+	ENGINE_API virtual const TArray<FName>& GetDataLayerInstanceNames() const override;
+
+	ENGINE_API virtual bool IsLoaded(bool bEvenIfPendingKill = false) const override;
+	ENGINE_API virtual AActor* GetActor(bool bEvenIfPendingKill = true, bool bEvenIfUnreachable = false) const override;
+	
+	ENGINE_API virtual FString ToString(FWorldPartitionActorDesc::EToStringMode Mode = FWorldPartitionActorDesc::EToStringMode::Compact) const override;
+	
+	virtual UActorDescContainerInstance* GetContainerInstance() const override { return ContainerInstance; }
+	//~ End
+
+	inline UActorDescContainerInstance* GetChildContainerInstance() const { return ChildContainerInstance; }
+	bool GetLoadedChildContainerInstance(FWorldPartitionActorDesc::FLoadedContainerInstance& OutContainerInstance) const { return GetActorDesc()->GetLoadedChildContainerInstance(this, OutContainerInstance); }
+		
+	ENGINE_API virtual TWeakObjectPtr<AActor>* GetActorPtr(bool bEvenIfPendingKill = true, bool bEvenIfUnreachable = false) const;
+	ENGINE_API virtual bool IsValid() const;
+				
+	inline void SetForceNonSpatiallyLoadded(bool bForce) { bIsForcedNonSpatiallyLoaded = bForce; }
+	inline bool GetForceNonSpatiallyLoaded() const { return bIsForcedNonSpatiallyLoaded; }
+
+	inline void SetUnloadedReason(FText* InUnloadedReason) { UnloadedReason = InUnloadedReason; }
+
+	FName GetDisplayClassName() const { return GetActorDesc()->GetDisplayClassName(); }
+	
+	ENGINE_API const FText& GetUnloadedReason() const;
+		
+	ENGINE_API AActor* Load();
+	ENGINE_API void Unload();
+protected:
+	ENGINE_API void UpdateActorDesc(FWorldPartitionActorDesc* InActorDesc);
+	void Invalidate();
+		
+	inline uint32 IncSoftRefCount() const
+	{
+		return ++SoftRefCount;
+	}
+
+	inline uint32 DecSoftRefCount() const
+	{
+		check(SoftRefCount > 0);
+		return --SoftRefCount;
+	}
+
+	inline uint32 IncHardRefCount() const
+	{
+		return ++HardRefCount;
+	}
+
+	inline uint32 DecHardRefCount() const
+	{
+		check(HardRefCount > 0);
+		return --HardRefCount;
+	}
+
+	inline uint32 GetSoftRefCount() const
+	{
+		return SoftRefCount;
+	}
+
+	inline uint32 GetHardRefCount() const
+	{
+		return HardRefCount;
+	}
+
+	inline void SetDataLayerInstanceNames(const TArray<FName>& InDataLayerInstanceNames) { ResolvedDataLayerInstanceNames = InDataLayerInstanceNames; }
+
+	virtual ENGINE_API void RegisterChildContainerInstance();
+	virtual ENGINE_API void UnregisterChildContainerInstance();
+	virtual ENGINE_API void UpdateChildContainerInstance();
+
+protected:
+	TObjectPtr<UActorDescContainerInstance>		ContainerInstance;
+
+	mutable uint32								SoftRefCount;
+	mutable uint32								HardRefCount;
+	TOptional<TArray<FName>>					ResolvedDataLayerInstanceNames;
+	bool										bIsForcedNonSpatiallyLoaded;
+	mutable FText*								UnloadedReason;
+
+	// Instancing Path if set
+	TOptional<FSoftObjectPath>					ActorPath;
+
+	mutable TWeakObjectPtr<AActor>				ActorPtr;
+	FWorldPartitionActorDesc*					ActorDesc;
+
+	TObjectPtr<UActorDescContainerInstance>		ChildContainerInstance;
+
+#if DO_CHECK
+private:
+	struct FRegisteringUnregisteringGuard
+	{
+		FRegisteringUnregisteringGuard(FWorldPartitionActorDescInstance* InActorDescInstance)
+			:ActorDescInstance(InActorDescInstance)
+		{
+			check(!ActorDescInstance->bIsRegisteringOrUnregistering);
+			ActorDescInstance->bIsRegisteringOrUnregistering = true;
+		}
+
+		~FRegisteringUnregisteringGuard()
+		{
+			check(ActorDescInstance->bIsRegisteringOrUnregistering);
+			ActorDescInstance->bIsRegisteringOrUnregistering = false;
+		}
+
+		FRegisteringUnregisteringGuard(const FRegisteringUnregisteringGuard&) = delete;
+		FRegisteringUnregisteringGuard& operator=(const FRegisteringUnregisteringGuard&) = delete;
+
+	private:
+		FWorldPartitionActorDescInstance* ActorDescInstance;
+	};
+	bool bIsRegisteringOrUnregistering = false;
+#endif // DO_CHECK
+
+#endif // WITH_EDITOR
+};
+

@@ -7,6 +7,7 @@
 #include "Folder.h"
 
 class FWorldPartitionActorDesc;
+class FWorldPartitionActorDescInstance;
 class UActorFolder;
 class UWorldPartition;
 
@@ -53,8 +54,14 @@ protected:
 	SCENEOUTLINER_API virtual void OnLoadedActorAdded(AActor& InActor);
 	SCENEOUTLINER_API virtual void OnLoadedActorRemoved(AActor& InActor);
 
-	SCENEOUTLINER_API virtual void OnActorDescAdded(FWorldPartitionActorDesc* ActorDesc);
-	SCENEOUTLINER_API virtual void OnActorDescRemoved(FWorldPartitionActorDesc* ActorDesc);
+	SCENEOUTLINER_API virtual void OnActorDescInstanceAdded(FWorldPartitionActorDescInstance* InActorDescInstance);
+	SCENEOUTLINER_API virtual void OnActorDescInstanceRemoved(FWorldPartitionActorDescInstance* InActorDescInstance);
+
+	UE_DEPRECATED(5.4, "Use OnActorDescInstanceAdded instead")
+	SCENEOUTLINER_API virtual void OnActorDescAdded(FWorldPartitionActorDesc* ActorDesc) {}
+
+	UE_DEPRECATED(5.4, "Use OnActorDescInstanceRemoved instead")
+	SCENEOUTLINER_API virtual void OnActorDescRemoved(FWorldPartitionActorDesc* ActorDesc) {}
 	
 	void OnComponentsUpdated();
 

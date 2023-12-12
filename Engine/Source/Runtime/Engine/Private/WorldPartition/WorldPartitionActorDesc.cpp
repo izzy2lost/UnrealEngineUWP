@@ -16,7 +16,8 @@
 #include "UObject/FortniteSeasonBranchObjectVersion.h"
 #include "UObject/FortniteMainBranchObjectVersion.h"
 #include "WorldPartition/WorldPartitionHelpers.h"
-#include "WorldPartition/WorldPartitionActorDescView.h"
+#include "WorldPartition/WorldPartitionActorDescInstance.h"
+#include "WorldPartition/WorldPartitionActorDescInstanceViewInterface.h"
 #include "WorldPartition/WorldPartitionLog.h"
 #include "WorldPartition/ActorDescContainer.h"
 #include "WorldPartition/HLOD/HLODLayer.h"
@@ -49,13 +50,9 @@ FWorldPartitionActorDesc::FWorldPartitionActorDesc()
 	, bActorIsListedInSceneOutliner(true)
 	, bIsUsingDataLayerAsset(false)
 	, bIsBoundsValid(false)
-	, SoftRefCount(0)
-	, HardRefCount(0)
 	, ActorNativeClass(nullptr)
 	, Container(nullptr)
-	, bIsForcedNonSpatiallyLoaded(false)
 	, bIsDefaultActorDesc(false)
-	, UnloadedReason(nullptr)
 {}
 
 void FWorldPartitionActorDesc::Init(const AActor* InActor)
@@ -137,36 +134,12 @@ void FWorldPartitionActorDesc::Init(const AActor* InActor)
 
 			// Init DataLayers persistent info
 			DataLayers = bIsUsingDataLayerAsset ? MoveTemp(LocalDataLayerAssetPaths) : MoveTemp(LocalDataLayerInstanceNames);
-
-			// Init DataLayers transient info
-			UWorld* ActorOwningWorld = InActor->GetWorld();
-			// In Editor, always use owning world to resolve data layers.
-			// In game (PIE), always use actor's world partition DataLayerManager to resolve data layers.
-			const UDataLayerManager* ResolvingDataLayerManager = !ActorOwningWorld->IsGameWorld() ? ActorOwningWorld->GetDataLayerManager() : ActorWorldPartition->GetDataLayerManager();
-			// The only case where it's normal not to have a valid ResolvingDataLayerManager is if OwningWorld is not game and not partitioned
-			// Also, consider that we don't need the DataLayerManager for any running commandlet except for cook
-			// If Actor's World Partition isn't initialized we don't need to resolve (ex: Disaster Recovery Plugin will save Actor Packages in temp location which will Create a temp ActorDesc)
-			const bool bCanSkipDataLayerManagerValidation = (IsRunningCommandlet() && !IsRunningCookCommandlet()) || (!ActorOwningWorld->IsGameWorld() && (!ActorOwningWorld->IsPartitionedWorld() || !ActorWorldPartition->IsInitialized()));
-			check(ResolvingDataLayerManager || bCanSkipDataLayerManagerValidation);
-			if (ResolvingDataLayerManager)
-			{
-				if (ensure(ResolvingDataLayerManager->CanResolveDataLayers()))
-				{
-					// Here we process a loaded actor, so resolving makes sense as long as the actordesc is not reused as a template
-					ResolvedDataLayerInstanceNames = FDataLayerUtils::ResolvedDataLayerInstanceNames(ResolvingDataLayerManager, this);
-				}
-				else
-				{
-					check(!HasResolvedDataLayerInstanceNames());
-				}
-			}
 		}
 		else
 		{
 			// Possible there is no World Partition for regular OFPA levels that haven't been converted to support Data Layers
 			bIsUsingDataLayerAsset = true;
 			DataLayers.Empty();
-			ResolvedDataLayerInstanceNames = TArray<FName>();
 		}
 	}
 
@@ -219,7 +192,6 @@ void FWorldPartitionActorDesc::Init(const AActor* InActor)
 	}
 
 	Container = nullptr;
-	ActorPtr = const_cast<AActor*>(InActor);
 }
 
 void FWorldPartitionActorDesc::Init(const FWorldPartitionActorDescInitData& DescData)
@@ -364,15 +336,17 @@ bool FWorldPartitionActorDesc::ShouldResave(const FWorldPartitionActorDesc* Othe
 	return (bActorIsHLODRelevant == Other->bActorIsHLODRelevant) || (bActorIsHLODRelevant && !Other->bActorIsHLODRelevant);
 }
 
-void FWorldPartitionActorDesc::SerializeTo(TArray<uint8>& OutData)
+void FWorldPartitionActorDesc::SerializeTo(TArray<uint8>& OutData) const
 {
+	FWorldPartitionActorDesc* MutableThis = const_cast<FWorldPartitionActorDesc*>(this);
+
 	// Serialize to archive and gather custom versions
 	TArray<uint8> PayloadData;
 	FMemoryWriter PayloadAr(PayloadData, true);
-	FActorDescArchive ActorDescAr(PayloadAr, this);
+	FActorDescArchive ActorDescAr(PayloadAr, MutableThis);
 	ActorDescAr.Init();
 
-	Serialize(ActorDescAr);
+	MutableThis->Serialize(ActorDescAr);
 
 	// Serialize custom versions
 	TArray<uint8> HeaderData;
@@ -385,34 +359,15 @@ void FWorldPartitionActorDesc::SerializeTo(TArray<uint8>& OutData)
 	OutData.Append(PayloadData);
 }
 
-const TArray<FName>& FWorldPartitionActorDesc::GetDataLayerInstanceNames() const
-{
-	static TArray<FName> EmptyDataLayers;
-	if (ensure(HasResolvedDataLayerInstanceNames()))
-	{
-		return ResolvedDataLayerInstanceNames.GetValue();
-	}
-	return EmptyDataLayers;
-}
-
 void FWorldPartitionActorDesc::TransferFrom(const FWorldPartitionActorDesc* From)
 {
 	Container = From->Container;
-	SoftRefCount = From->SoftRefCount;
-	HardRefCount = From->HardRefCount;
-	bIsForcedNonSpatiallyLoaded = From->bIsForcedNonSpatiallyLoaded;
 }
 
 void FWorldPartitionActorDesc::RegisterActorDescDeprecator(TSubclassOf<AActor> ActorClass, const FActorDescDeprecator& Deprecator)
 {
 	check(!Deprecators.Contains(ActorClass));
 	Deprecators.Add(ActorClass, Deprecator);
-}
-
-void FWorldPartitionActorDesc::TransformInstance(const FString& From, const FString& To)
-{
-	check(!HardRefCount);
-	ActorPath = *ActorPath.ToString().Replace(*From, *To);
 }
 
 FString FWorldPartitionActorDesc::ToString(EToStringMode Mode) const
@@ -778,11 +733,11 @@ FGuid FWorldPartitionActorDesc::GetContentBundleGuid() const
 	return ContentBundleGuid;
 }
 
-void FWorldPartitionActorDesc::CheckForErrors(IStreamingGenerationErrorHandler* ErrorHandler) const
+void FWorldPartitionActorDesc::CheckForErrors(const IWorldPartitionActorDescInstanceView* InActorDescView, IStreamingGenerationErrorHandler* ErrorHandler) const
 {
 	if (IsResaveNeeded())
 	{
-		ErrorHandler->OnActorNeedsResave(this);
+		ErrorHandler->OnActorNeedsResave(*InActorDescView);
 	}
 }
 
@@ -796,7 +751,7 @@ bool FWorldPartitionActorDesc::IsListedInSceneOutliner() const
 	return bActorIsListedInSceneOutliner;
 }
 
-bool FWorldPartitionActorDesc::IsEditorRelevant() const
+bool FWorldPartitionActorDesc::IsEditorRelevant(const FWorldPartitionActorDescInstance* InActorDescInstance) const
 {
 	if (GetActorIsRuntimeOnly())
 	{
@@ -805,118 +760,15 @@ bool FWorldPartitionActorDesc::IsEditorRelevant() const
 
 	if (IsMainWorldOnly())
 	{
-		return GetContainer() && !GetContainer()->IsTemplateContainer() && GetContainer()->GetWorldPartition()->IsMainWorldPartition();
+		return InActorDescInstance->GetContainerInstance()->GetContainerID().IsMainContainer();
 	}
 
 	return true;
 }
 
-bool FWorldPartitionActorDesc::IsRuntimeRelevant(const FActorContainerID& InContainerID) const
+bool FWorldPartitionActorDesc::IsRuntimeRelevant(const FWorldPartitionActorDescInstance* InActorDescInstance) const
 {
-	return InContainerID.IsMainContainer() || !IsMainWorldOnly();
-}
-
-bool FWorldPartitionActorDesc::IsLoaded(bool bEvenIfPendingKill) const
-{
-	if (ActorPtr.IsExplicitlyNull() || ActorPtr.IsStale())
-	{
-		ActorPtr = FindObject<AActor>(nullptr, *ActorPath.ToString());
-	}
-
-	return ActorPtr.IsValid(bEvenIfPendingKill);
-}
-
-AActor* FWorldPartitionActorDesc::GetActor(bool bEvenIfPendingKill, bool bEvenIfUnreachable) const
-{
-	if (ActorPtr.IsExplicitlyNull() || ActorPtr.IsStale())
-	{
-		ActorPtr = FindObject<AActor>(nullptr, *ActorPath.ToString());
-	}
-
-	return bEvenIfUnreachable ? ActorPtr.GetEvenIfUnreachable() : ActorPtr.Get(bEvenIfPendingKill);
-}
-
-TWeakObjectPtr<AActor>* FWorldPartitionActorDesc::GetActorPtr(bool bEvenIfPendingKill, bool bEvenIfUnreachable) const
-{
-	return GetActor(bEvenIfPendingKill, bEvenIfUnreachable) ? &ActorPtr : nullptr;
-}
-
-const FText& FWorldPartitionActorDesc::GetUnloadedReason() const
-{
-	static FText Unloaded(LOCTEXT("UnloadedReason", "Unloaded"));
-	return UnloadedReason ? *UnloadedReason : Unloaded;
-}
-
-AActor* FWorldPartitionActorDesc::Load() const
-{
-	static FText FailedToLoad(LOCTEXT("FailedToLoadReason", "Failed to load"));
-	UnloadedReason = nullptr;
-
-	if (ActorPtr.IsExplicitlyNull() || ActorPtr.IsStale())
-	{
-		// First, try to find the existing actor which could have been loaded by another actor (through standard serialization)
-		ActorPtr = FindObject<AActor>(nullptr, *ActorPath.ToString());
-	}
-
-	// Then, if the actor isn't loaded, load it
-	if (ActorPtr.IsExplicitlyNull())
-	{
-		const FLinkerInstancingContext* InstancingContext = Container ? Container->GetInstancingContext() : nullptr;
-
-		UPackage* Package = nullptr;
-
-		if (InstancingContext)
-		{
-			FName RemappedPackageName = InstancingContext->RemapPackage(ActorPackage);
-			check(RemappedPackageName != ActorPath.GetLongPackageFName());
-
-			Package = CreatePackage(*RemappedPackageName.ToString());
-		}
-
-		Package = LoadPackage(Package, *ActorPackage.ToString(), LOAD_None, nullptr, InstancingContext);
-
-		if (Package)
-		{
-			ActorPtr = FindObject<AActor>(nullptr, *ActorPath.ToString());
-			if (!ActorPtr.IsValid())
-			{
-				UE_LOG(LogWorldPartition, Warning, TEXT("Can't load actor guid `%s` ('%s') from package '%s'"), *Guid.ToString(), *GetActorName().ToString(), *ActorPackage.ToString());
-				UnloadedReason = &FailedToLoad;
-			}
-		}
-	}
-
-	return ActorPtr.Get();
-}
-
-void FWorldPartitionActorDesc::Unload()
-{
-	if (AActor* Actor = GetActor())
-	{
-		// At this point, it can happen that an actor isn't in an external package:
-		//
-		// PIE travel: 
-		//		in this case, actors referenced by the world package (an example is the level script) will be duplicated as part of the PIE world duplication and will end up
-		//		not being using an external package, which is fine because in that case they are considered as always loaded.
-		//
-		// FWorldPartitionCookPackageSplitter:
-		//		should mark each FWorldPartitionActorDesc as moved, and the splitter should take responsbility for calling ClearFlags on every object in 
-		//		the package when it does the move
-
-		if (Actor->IsPackageExternal())
-		{
-			ForEachObjectWithPackage(Actor->GetPackage(), [](UObject* Object)
-			{
-				if (Object->HasAnyFlags(RF_Public | RF_Standalone))
-				{
-					CastChecked<UMetaData>(Object)->ClearFlags(RF_Public | RF_Standalone);
-				}
-				return true;
-			}, false);
-		}
-
-		ActorPtr = nullptr;
-	}
+	return !IsMainWorldOnly() || InActorDescInstance->GetContainerInstance()->GetContainerID().IsMainContainer();
 }
 
 #undef LOCTEXT_NAMESPACE

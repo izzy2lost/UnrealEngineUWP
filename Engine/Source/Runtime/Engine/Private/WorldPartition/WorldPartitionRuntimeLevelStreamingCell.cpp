@@ -2,14 +2,15 @@
 
 #include "WorldPartition/WorldPartitionRuntimeLevelStreamingCell.h"
 #include "WorldPartition/WorldPartitionLevelStreamingDynamic.h"
-#include "WorldPartition/WorldPartitionActorDescView.h"
 #include "WorldPartition/WorldPartitionLevelStreamingPolicy.h"
 #include "WorldPartition/WorldPartitionDebugHelper.h"
+#include "WorldPartition/WorldPartitionStreamingGenerationContext.h"
 #include "Engine/LevelStreaming.h"
 #include "Engine/Level.h"
 #include "Misc/HierarchicalLogArchive.h"
 #include "Misc/Paths.h"
 #include "AssetRegistry/IAssetRegistry.h"
+#include "UObject/Package.h"
 #include "UObject/AssetRegistryTagsContext.h"
 
 #include UE_INLINE_GENERATED_CPP_BY_NAME(WorldPartitionRuntimeLevelStreamingCell)
@@ -250,24 +251,31 @@ void UWorldPartitionRuntimeLevelStreamingCell::SetIsAlwaysLoaded(bool bInIsAlway
 }
 
 #if WITH_EDITOR
-void UWorldPartitionRuntimeLevelStreamingCell::AddActorToCell(const FWorldPartitionActorDescView& ActorDescView, const FActorContainerID& InContainerID, const FTransform& InContainerTransform, const UActorDescContainer* InContainer)
+void UWorldPartitionRuntimeLevelStreamingCell::AddActorToCell(const FStreamingGenerationActorDescView& ActorDescView)
 {
 	check(!ActorDescView.GetActorIsEditorOnly());
 
+	const UActorDescContainerInstance* ContainerInstance = ActorDescView.GetContainerInstance();
+	check(ContainerInstance);
+
+	const FActorContainerID& ContainerID = ContainerInstance->GetContainerID();
+	const FTransform ContainerTransform = ContainerInstance->GetTransform();
+	const FName ContainerPackage = ContainerInstance->GetContainerPackage();
+
 	for (const FGuid& EditorReferenceGuid : ActorDescView.GetEditorReferences())
 	{
-		const FWorldPartitionActorDesc& ReferenceActorDesc = InContainer->GetActorDescChecked(EditorReferenceGuid);
+		const FWorldPartitionActorDescInstance& ReferenceActorDesc = ContainerInstance->GetActorDescInstanceChecked(EditorReferenceGuid);
 
 		Packages.Emplace(
-			ReferenceActorDesc.GetActorPackage(), 
-			*ReferenceActorDesc.GetActorSoftPath().ToString(), 
+			ReferenceActorDesc.GetActorPackage(),
+			*ReferenceActorDesc.GetActorSoftPath().ToString(),
 			ReferenceActorDesc.GetBaseClass(),
 			ReferenceActorDesc.GetNativeClass(),
-			InContainerID, 
-			InContainerTransform, 
-			InContainer->GetContainerPackage(), 
-			GetWorld()->GetPackage()->GetFName(), 
-			InContainerID.GetActorGuid(ReferenceActorDesc.GetGuid()),
+			ContainerID,
+			ContainerTransform,
+			ContainerPackage,
+			GetWorld()->GetPackage()->GetFName(),
+			ContainerID.GetActorGuid(EditorReferenceGuid),
 			true
 		);
 	}
@@ -277,11 +285,11 @@ void UWorldPartitionRuntimeLevelStreamingCell::AddActorToCell(const FWorldPartit
 		*ActorDescView.GetActorSoftPath().ToString(), 
 		ActorDescView.GetBaseClass(),
 		ActorDescView.GetNativeClass(),
-		InContainerID, 
-		InContainerTransform, 
-		InContainer->GetContainerPackage(), 
+		ContainerID,
+		ContainerTransform,
+		ContainerPackage, 
 		GetWorld()->GetPackage()->GetFName(), 
-		InContainerID.GetActorGuid(ActorDescView.GetGuid()),
+		ContainerID.GetActorGuid(ActorDescView.GetGuid()),
 		false
 	);
 }

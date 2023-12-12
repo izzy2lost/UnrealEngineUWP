@@ -38,6 +38,7 @@ DerivedDataCacheCommandlet.cpp: Commandlet for DDC maintenence
 #include "WorldPartition/WorldPartition.h"
 #include "WorldPartition/WorldPartitionHelpers.h"
 #include "WorldPartition/WorldPartitionSubsystem.h"
+#include "WorldPartition/WorldPartitionActorDescInstance.h"
 DEFINE_LOG_CATEGORY_STATIC(LogDerivedDataCacheCommandlet, Log, All);
 
 class UDerivedDataCacheCommandlet::FObjectReferencer : public FGCObject
@@ -444,9 +445,9 @@ void UDerivedDataCacheCommandlet::CacheWorldPackages(UWorld* World, uint8 Packag
 		UWorldPartition* WorldPartition = World->GetWorldPartition();
 		check(WorldPartition);
 
-		FWorldPartitionHelpers::ForEachActorWithLoading(WorldPartition, [this, PackageFilter, &OutNewProcessedPackages](const FWorldPartitionActorDesc* ActorDesc)
+		FWorldPartitionHelpers::ForEachActorWithLoading(WorldPartition, [this, PackageFilter, &OutNewProcessedPackages](const FWorldPartitionActorDescInstance* ActorDescInstance)
 		{
-			if (AActor* Actor = ActorDesc->GetActor())
+			if (AActor* Actor = ActorDescInstance->GetActor())
 			{
 				UE_LOG(LogDerivedDataCacheCommandlet, Display, TEXT("Loaded actor %s"), *Actor->GetName());
 				CacheLoadedPackages(Actor->GetPackage(), PackageFilter, OutNewProcessedPackages);

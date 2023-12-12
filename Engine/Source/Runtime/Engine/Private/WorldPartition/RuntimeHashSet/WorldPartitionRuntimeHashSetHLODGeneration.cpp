@@ -6,6 +6,7 @@
 #include "WorldPartition/WorldPartition.h"
 #include "WorldPartition/WorldPartitionLog.h"
 #include "WorldPartition/WorldPartitionHelpers.h"
+#include "WorldPartition/WorldPartitionActorDescInstance.h"
 
 #include "WorldPartition/HLOD/HLODLayer.h"
 #include "WorldPartition/HLOD/HLODActor.h"
@@ -35,9 +36,9 @@ public:
 		return WorldBounds;
 	}
 
-	virtual const FActorSetContainer* GetMainWorldContainer() const override
+	virtual const FActorSetContainerInstance* GetMainWorldContainerInstance() const override
 	{
-		return &ActorSetContainer;
+		return &ActorSetContainerInstance;
 	}
 
 	virtual void ForEachActorSetInstance(TFunctionRef<void(const FActorSetInstance&)> Func) const override
@@ -48,13 +49,13 @@ public:
 		}
 	}
 
-	virtual void ForEachActorSetContainer(TFunctionRef<void(const FActorSetContainer&)> Func) const override
+	virtual void ForEachActorSetContainerInstance(TFunctionRef<void(const FActorSetContainerInstance&)> Func) const override
 	{
-		Func(ActorSetContainer);
+		Func(ActorSetContainerInstance);
 	}
 
 	FBox WorldBounds;
-	FActorSetContainer ActorSetContainer;
+	FActorSetContainerInstance ActorSetContainerInstance;
 	FStreamingGenerationActorDescViewMap ActorDescViewMap;
 	FActorSetInstanceList ActorSetInstanceList;
 };
@@ -127,17 +128,17 @@ namespace PrivateUtils
 		}
 	}
 
-	static void DeletePackage(UWorldPartition* WorldPartition, FWorldPartitionActorDesc* ActorDesc, ISourceControlHelper* SourceControlHelper)
+	static void DeletePackage(UWorldPartition* WorldPartition, const FWorldPartitionHandle& Handle, ISourceControlHelper* SourceControlHelper)
 	{
-		if (ActorDesc->IsLoaded())
+		if (Handle.IsLoaded())
 		{
-			DeletePackage(ActorDesc->GetActor()->GetPackage(), SourceControlHelper);
-			WorldPartition->OnPackageDeleted(ActorDesc->GetActor()->GetPackage());
+			DeletePackage(Handle.GetActor()->GetPackage(), SourceControlHelper);
+			WorldPartition->OnPackageDeleted(Handle.GetActor()->GetPackage());
 		}
 		else
 		{
-			DeletePackage(ActorDesc->GetActorPackage().ToString(), SourceControlHelper);
-			WorldPartition->RemoveActor(ActorDesc->GetGuid());
+			DeletePackage(Handle.GetInstance()->GetActorPackage().ToString(), SourceControlHelper);
+			WorldPartition->RemoveActor(Handle.GetInstance()->GetGuid());
 		}
 	}
 }
@@ -165,12 +166,12 @@ bool UWorldPartitionRuntimeHashSet::SetupHLODActors(const IStreamingGenerationCo
 
 	UWorldPartition* WorldPartition = GetOuterUWorldPartition();
 	const UDataLayerManager* DataLayerManager = WorldPartition->GetDataLayerManager();
-	IStreamingGenerationContext::FActorSetContainer* MainActorSetContainer = const_cast<IStreamingGenerationContext::FActorSetContainer*>(StreamingGenerationContext->GetMainWorldContainer());
-	const FStreamingGenerationActorDescCollection* MainContainerCollection = MainActorSetContainer->ActorDescCollection;
+	IStreamingGenerationContext::FActorSetContainerInstance* MainActorSetContainer = const_cast<IStreamingGenerationContext::FActorSetContainerInstance*>(StreamingGenerationContext->GetMainWorldContainerInstance());
+	const FStreamingGenerationContainerInstanceCollection* MainContainerCollection = MainActorSetContainer->ContainerInstanceCollection;
 
 	// Create the HLOD creation context
 	FHLODCreationContext HLODCreationContext;
-	for (FActorDescList::TConstIterator<AWorldPartitionHLOD> HLODIterator(MainContainerCollection->GetMainActorDescContainer()); HLODIterator; ++HLODIterator)
+	for (UActorDescContainerInstance::TConstIterator<AWorldPartitionHLOD> HLODIterator(MainContainerCollection->GetMainContainer()); HLODIterator; ++HLODIterator)
 	{
 		FWorldPartitionHandle HLODActorHandle(WorldPartition, HLODIterator->GetGuid());
 		HLODCreationContext.HLODActorDescs.Emplace(HLODIterator->GetActorName(), MoveTemp(HLODActorHandle));
@@ -272,19 +273,19 @@ bool UWorldPartitionRuntimeHashSet::SetupHLODActors(const IStreamingGenerationCo
 			FHLODStreamingGenerationContext* HLODStreamingGenerationContext = (FHLODStreamingGenerationContext*)CurrentHLODStreamingGenerationContext.Get();
 
 			HLODStreamingGenerationContext->ActorSetInstanceList.Reserve(HLODActorGuids.Num());
-			HLODStreamingGenerationContext->ActorSetContainer.ActorDescViewMap = &HLODStreamingGenerationContext->ActorDescViewMap;
+			HLODStreamingGenerationContext->ActorSetContainerInstance.ActorDescViewMap = &HLODStreamingGenerationContext->ActorDescViewMap;
 
 			UE_LOG(LogWorldPartition, Log, TEXT("Creating HLOD context:"));
 			for (const FGuid& HLODActorGuid : HLODActorGuids)
 			{
-				FWorldPartitionActorDesc* HLODActorDesc = WorldPartition->GetActorDesc(HLODActorGuid);
-				check(HLODActorDesc);
+				FWorldPartitionActorDescInstance* HLODActorDescInstance = WorldPartition->GetActorDescInstance(HLODActorGuid);
+				check(HLODActorDescInstance);
 
-				FStreamingGenerationActorDescView* HLODActorDescView = HLODStreamingGenerationContext->ActorDescViewMap.Emplace(HLODActorDesc);
+				FStreamingGenerationActorDescView* HLODActorDescView = HLODStreamingGenerationContext->ActorDescViewMap.Emplace(HLODActorDescInstance);
 				HLODStreamingGenerationContext->WorldBounds += HLODActorDescView->GetRuntimeBounds();
 			
 				// Create actor set instances
-				IStreamingGenerationContext::FActorSet* ActorSet = HLODStreamingGenerationContext->ActorSetContainer.ActorSets.Emplace_GetRef(MakeUnique<IStreamingGenerationContext::FActorSet>()).Get();
+				IStreamingGenerationContext::FActorSet* ActorSet = HLODStreamingGenerationContext->ActorSetContainerInstance.ActorSets.Emplace_GetRef(MakeUnique<IStreamingGenerationContext::FActorSet>()).Get();
 				ActorSet->Actors.Add(HLODActorDescView->GetGuid());
 
 				IStreamingGenerationContext::FActorSetInstance& ActorSetInstance = HLODStreamingGenerationContext->ActorSetInstanceList.Emplace_GetRef();
@@ -293,20 +294,17 @@ bool UWorldPartitionRuntimeHashSet::SetupHLODActors(const IStreamingGenerationCo
 				ActorSetInstance.RuntimeGrid = HLODActorDescView->GetRuntimeGrid();
 				ActorSetInstance.bIsSpatiallyLoaded = HLODActorDescView->GetIsSpatiallyLoaded();
 				ActorSetInstance.ContentBundleID = MainContainerCollection->GetContentBundleGuid();
-				ActorSetInstance.ContainerInstance = &HLODStreamingGenerationContext->ActorSetContainer;
+				ActorSetInstance.ActorSetContainerInstance = &HLODStreamingGenerationContext->ActorSetContainerInstance;
 				ActorSetInstance.ActorSet = ActorSet;
 
-				TArray<const FWorldPartitionActorDescView*> WorldDataLayerViews;
-				Algo::Transform(MainActorSetContainer->ActorDescViewMap->FindByExactNativeClass<AWorldDataLayers>(), WorldDataLayerViews, [](const FStreamingGenerationActorDescView* ActorDescView) { return ActorDescView; });
-
 				TArray<FName> RuntimeDataLayerInstanceNames;
-				if (FDataLayerUtils::ResolveRuntimeDataLayerInstanceNames(DataLayerManager, *HLODActorDescView, WorldDataLayerViews, RuntimeDataLayerInstanceNames))
+				if (FDataLayerUtils::ResolveRuntimeDataLayerInstanceNames(DataLayerManager, *HLODActorDescView, *MainActorSetContainer->ActorDescViewMap, RuntimeDataLayerInstanceNames))
 				{
 					HLODActorDescView->SetRuntimeDataLayerInstanceNames(RuntimeDataLayerInstanceNames);
 					ActorSetInstance.DataLayers = DataLayerManager->GetRuntimeDataLayerInstances(RuntimeDataLayerInstanceNames);
 				}
 
-				UE_LOG(LogWorldPartition, Log, TEXT("\t- %s"), *HLODActorDesc->ToString());
+				UE_LOG(LogWorldPartition, Log, TEXT("\t- %s"), *HLODActorDescInstance->ToString());
 			}
 
 			HLODLevel++;
@@ -318,10 +316,8 @@ bool UWorldPartitionRuntimeHashSet::SetupHLODActors(const IStreamingGenerationCo
 	{
 		for (const auto& HLODActorPair : HLODCreationContext.HLODActorDescs)
 		{
-			FWorldPartitionActorDesc* HLODActorDesc = HLODActorPair.Value.Get();
-			check(HLODActorDesc);
-
-			PrivateUtils::DeletePackage(WorldPartition, HLODActorDesc, Params.SourceControlHelper);
+			check(HLODActorPair.Value.IsValid());
+			PrivateUtils::DeletePackage(WorldPartition, HLODActorPair.Value, Params.SourceControlHelper);
 		}
 	}
 

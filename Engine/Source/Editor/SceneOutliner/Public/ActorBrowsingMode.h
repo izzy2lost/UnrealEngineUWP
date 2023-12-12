@@ -3,9 +3,11 @@
 #pragma once
 
 #include "ActorModeInteractive.h"
+#include "WorldPartition/WorldPartitionHandle.h"
 
 class UActorBrowsingModeSettings;
 class IWorldPartitionEditorModule;
+class FWorldPartitionActorDescInstance;
 
 class FActorBrowsingMode : public FActorModeInteractive
 {
@@ -69,7 +71,11 @@ public:
 	void OnSelectUnloadedActors(const TArray<FGuid>& ActorGuids);
 	
 	/** Called when an actor desc is removed */
-	void OnActorDescRemoved(FWorldPartitionActorDesc* InActorDesc);
+	UE_DEPRECATED(5.4, "Use OnActorDescInstanceRemoved")
+	void OnActorDescRemoved(FWorldPartitionActorDesc* InActorDesc) {}
+
+	/** Called when an actor desc instance is removed */
+	void OnActorDescInstanceRemoved(FWorldPartitionActorDescInstance* InActorDescInstance);
 
 	/** Called by engine when edit cut actors begins */
 	void OnEditCutActorsBegin();
@@ -159,7 +165,7 @@ private:
 	/** Number of unloaded actors which have passed through all the filters */
 	uint32 FilteredUnloadedActorCount = 0;
 	/** List of unloaded actors which passed through the regular filters and may or may not have passed the search filter */
-	TSet<const FWorldPartitionActorDesc*> ApplicableUnloadedActors;
+	TSet<FWorldPartitionHandle> ApplicableUnloadedActors;
 	/** List of actors which passed the regular filters and may or may not have passed the search filter */
 	TSet<TWeakObjectPtr<AActor>> ApplicableActors;
 

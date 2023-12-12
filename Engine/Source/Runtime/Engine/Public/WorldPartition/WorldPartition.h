@@ -13,20 +13,22 @@
 #include "WorldPartition/WorldPartitionActorDesc.h"
 #include "WorldPartition/WorldPartitionStreamingSource.h"
 #include "WorldPartition/WorldPartitionHandle.h"
-#include "WorldPartition/ActorDescContainerCollection.h"
+#include "WorldPartition/ActorDescContainerInstanceCollection.h"
 #include "WorldPartition/Cook/WorldPartitionCookPackageGenerator.h"
 
 #if WITH_EDITOR
+#include "WorldPartition/ActorDescContainerInstance.h"
+#include "WorldPartition/WorldPartitionActorDescInstance.h"
 #include "WorldPartition/WorldPartitionStreamingGeneration.h"
 #include "WorldPartition/WorldPartitionActorLoaderInterface.h"
 #include "WorldPartition/WorldPartitionEditorLoaderAdapter.h"
 #include "PackageSourceControlHelper.h"
 #include "CookPackageSplitter.h"
+#include "Delegates/DelegateCombinations.h"
 #endif
 
 #include "WorldPartition.generated.h"
 
-class FWorldPartitionActorDesc;
 class UActorDescContainer;
 class UWorldPartitionEditorHash;
 class UWorldPartitionRuntimeCell;
@@ -108,7 +110,7 @@ public:
 #endif
 
 UCLASS(AutoExpandCategories=(WorldPartition), MinimalAPI)
-class UWorldPartition final : public UObject, public FActorDescContainerCollection, public IWorldPartitionCookPackageGenerator
+class UWorldPartition final : public UObject, public FActorDescContainerInstanceCollection, public IWorldPartitionCookPackageGenerator
 {
 	GENERATED_UCLASS_BODY()
 
@@ -119,6 +121,7 @@ class UWorldPartition final : public UObject, public FActorDescContainerCollecti
 	friend class FWorldPartitionDetails;
 	friend class FUnrealEdMisc;
 	friend class UActorDescContainer;
+	friend class UActorDescContainerInstance;
 
 public:
 #if WITH_EDITOR
@@ -157,15 +160,13 @@ private:
 	// WorldDeletegates Events
 	ENGINE_API void OnWorldRenamed(UWorld* RenamedWorld);
 
-	// ActorDescContainer Events
-	ENGINE_API void OnActorDescAdded(FWorldPartitionActorDesc* NewActorDesc);
-	ENGINE_API void OnActorDescRemoved(FWorldPartitionActorDesc* ActorDesc);
-	ENGINE_API void OnActorDescUpdating(FWorldPartitionActorDesc* ActorDesc);
-	ENGINE_API void OnActorDescUpdated(FWorldPartitionActorDesc* ActorDesc);
+	// ActorDescContainerInstance Events
+	void OnActorDescInstanceAdded(FWorldPartitionActorDescInstance* NewActorDescInstance);
+	void OnActorDescInstanceRemoved(FWorldPartitionActorDescInstance* ActorDescInstance);
+	void OnActorDescInstanceUpdating(FWorldPartitionActorDescInstance* ActorDescInstance);
+	void OnActorDescInstanceUpdated(FWorldPartitionActorDescInstance* ActorDescInstance);
 
-	ENGINE_API bool GetInstancingContext(const FLinkerInstancingContext*& OutInstancingContext) const;
-
-	ENGINE_API void InitializeActorDescContainerEditorStreaming(UActorDescContainer* InActorDescContainer, bool bInHashActorDescs);
+	ENGINE_API void InitializeActorDescContainerEditorStreaming(UActorDescContainerInstance* InActorDescContainer, bool bInHashActorDescs);
 #endif
 
 public:
@@ -196,25 +197,34 @@ public:
 	bool CanGenerateStreaming() const { return !StreamingPolicy; }
 
 	UE_DEPRECATED(5.3, "GenerateStreaming is deprecated, use GenerateStreaming with a param struct instead")
-	ENGINE_API bool GenerateStreaming(TArray<FString>* OutPackagesToGenerate = nullptr);
+	ENGINE_API bool GenerateStreaming(TArray<FString>* OutPackagesToGenerate = nullptr) { return false; }
 
 	UE_DEPRECATED(5.3, "GenerateContainerStreaming is deprecated, use GenerateContainerStreaming with a param struct instead")
-	ENGINE_API bool GenerateContainerStreaming(const UActorDescContainer* ActorDescContainer, TArray<FString>* OutPackagesToGenerate = nullptr);
+	ENGINE_API bool GenerateContainerStreaming(const UActorDescContainer* ActorDescContainer, TArray<FString>* OutPackagesToGenerate = nullptr) { return false; }
 
+	PRAGMA_DISABLE_DEPRECATION_WARNINGS
 	struct FGenerateStreamingParams
 	{
-		FGenerateStreamingParams()
+		FGenerateStreamingParams() 
 			: ErrorHandler(nullptr)
 		{}
-
+		
+		UE_DEPRECATED(5.4, "Use ContainerInstanceCollection instead")
 		FStreamingGenerationActorDescCollection ActorDescCollection;
+		
+		FStreamingGenerationContainerInstanceCollection ContainerInstanceCollection;
+
 		TOptional<const FString> OutputLogPath;
 		IStreamingGenerationErrorHandler* ErrorHandler;
 
-		FGenerateStreamingParams& SetActorDescContainer(const UActorDescContainer* InActorDescContainer) { ActorDescCollection.AddContainer(InActorDescContainer); return *this; }
-		FGenerateStreamingParams& SetOutputLogPath(const FString& InOutputLogPath) { OutputLogPath = InOutputLogPath; return *this; }
+		FGenerateStreamingParams& SetActorDescContainerInstance(const UActorDescContainerInstance* InContainerInstance) { ContainerInstanceCollection.AddContainer(InContainerInstance); return *this;	}
 		FGenerateStreamingParams& SetErrorHandler(IStreamingGenerationErrorHandler* InErrorHandler) { ErrorHandler = InErrorHandler; return *this; }
+		FGenerateStreamingParams& SetOutputLogPath(const FString& InOutputLogPath) { OutputLogPath = InOutputLogPath; return *this; }
+
+		UE_DEPRECATED(5.4, "Use SetActorDescContainerInstance instead")
+		FGenerateStreamingParams& SetActorDescContainer(const UActorDescContainer* InActorDescContainer) { return *this; }
 	};
+	PRAGMA_ENABLE_DEPRECATION_WARNINGS
 
 	struct FGenerateStreamingContext
 	{
@@ -292,23 +302,39 @@ public:
 	ENGINE_API void CheckForErrors(IStreamingGenerationErrorHandler* ErrorHandler) const;
 
 	/* Struct of optional parameters passed to check for errors function. */
+	PRAGMA_DISABLE_DEPRECATION_WARNINGS
 	struct FCheckForErrorsParams
 	{
 		ENGINE_API FCheckForErrorsParams();
 
 		IStreamingGenerationErrorHandler* ErrorHandler;
-		const FActorDescContainerCollection* ActorDescContainerCollection;
 		bool bEnableStreaming;
+
+		const FActorDescContainerInstanceCollection* ActorDescContainerInstanceCollection;
+
+		TMap<FGuid, const UActorDescContainerInstance*> ActorGuidsToContainerInstanceMap;
+				
+		FCheckForErrorsParams& SetErrorHandler(IStreamingGenerationErrorHandler* InErrorHandler) { ErrorHandler = InErrorHandler; return *this; }
+		FCheckForErrorsParams& SetActorDescContainerInstanceCollection(const FActorDescContainerInstanceCollection* InActorDescContainerInstanceCollection) { ActorDescContainerInstanceCollection = InActorDescContainerInstanceCollection; return *this; }
+		FCheckForErrorsParams& SetEnableStreaming(bool bInEnableStreaming) { bEnableStreaming = bInEnableStreaming; return *this; }
+		FCheckForErrorsParams& SetActorGuidsToContainerMap(const TMap<FGuid, const UActorDescContainerInstance*>& InActorGuidsToContainerInstanceMap) { ActorGuidsToContainerInstanceMap = InActorGuidsToContainerInstanceMap; return *this; }
+
+
+		UE_DEPRECATED(5.4, "Use ActorDescContainerInstanceCollection instead")
+		const FActorDescContainerCollection* ActorDescContainerCollection = nullptr;
+				
+		UE_DEPRECATED(5.4, "Use ActorGuidsToContainerInstanceMap instead")
 		TMap<FGuid, const UActorDescContainer*> ActorGuidsToContainerMap;
 
-		FCheckForErrorsParams& SetErrorHandler(IStreamingGenerationErrorHandler* InErrorHandler) { ErrorHandler = InErrorHandler; return *this; }
-		FCheckForErrorsParams& SetActorDescContainerCollection(const FActorDescContainerCollection* InActorDescContainerCollection) { ActorDescContainerCollection = InActorDescContainerCollection; return *this; }
-		FCheckForErrorsParams& SetEnableStreaming(bool bInEnableStreaming) { bEnableStreaming = bInEnableStreaming; return *this; }
-		FCheckForErrorsParams& SetActorGuidsToContainerMap(const TMap<FGuid, const UActorDescContainer*>& InActorGuidsToContainerMap) { ActorGuidsToContainerMap = InActorGuidsToContainerMap; return *this; }
+		UE_DEPRECATED(5.4, "Use SetActorDescContainerInstanceCollection instead")
+		FCheckForErrorsParams& SetActorDescContainerCollection(const FActorDescContainerCollection* InActorDescContainerCollection) { return *this; }
+		UE_DEPRECATED(5.4, "Use SetActorGuidsToContainerInstanceMap instead")
+		FCheckForErrorsParams& SetActorGuidsToContainerMap(const TMap<FGuid, const UActorDescContainer*>& InActorGuidsToContainerMap) { return *this; }
 	};
+	PRAGMA_ENABLE_DEPRECATION_WARNINGS
 
 	UE_DEPRECATED(5.2, "CheckForErrors is deprecated, CheckForErrors with FCheckForErrorsParams should be used instead.")
-	static ENGINE_API void CheckForErrors(IStreamingGenerationErrorHandler* ErrorHandler, const UActorDescContainer* ActorDescContainer, bool bEnableStreaming, bool bIsChangelistValidation);
+	static ENGINE_API void CheckForErrors(IStreamingGenerationErrorHandler* ErrorHandler, const UActorDescContainer* ActorDescContainer, bool bEnableStreaming, bool bIsChangelistValidation) {}
 
 	static ENGINE_API void CheckForErrors(const FCheckForErrorsParams& Params);
 
@@ -331,16 +357,35 @@ public:
 		/* Custom filter function used to filter actors descriptors. */
 		TUniqueFunction<bool(const FWorldPartitionActorDesc*)> FilterActorDescFunc;
 	};
-	ENGINE_API UActorDescContainer* RegisterActorDescContainer(const FContainerRegistrationParams& InRegistrationParameters);
-	ENGINE_API bool UnregisterActorDescContainer(UActorDescContainer* Container);
+
+	// Event when world partition was enabled/disabled in the world
+	DECLARE_DELEGATE_TwoParams(FActorDescContainerInstancePreInitializeDelegate, UActorDescContainerInstance::FInitializeParams&, UActorDescContainerInstance*);
+	FActorDescContainerInstancePreInitializeDelegate OnActorDescContainerInstancePreInitialize;
+
+	UE_DEPRECATED(5.4, "Use RegisterActorDescContainerInstance")
+	ENGINE_API UActorDescContainer* RegisterActorDescContainer(const FContainerRegistrationParams& InRegistrationParameters) { return nullptr; }
+
+	UE_DEPRECATED(5.4, "Use UnregisterActorDescContainerInstance")
+	ENGINE_API bool UnregisterActorDescContainer(UActorDescContainer* Container) { return false; }
+
 	ENGINE_API void UninitializeActorDescContainers();
 
 	DECLARE_MULTICAST_DELEGATE_OneParam(FActorDescContainerRegistrationDelegate, UActorDescContainer*);
+
+	UE_DEPRECATED(5.4, "Use OnActorDescContainerInstanceRegistered")
 	FActorDescContainerRegistrationDelegate OnActorDescContainerRegistered;
+	UE_DEPRECATED(5.4, "Use OnActorDescContainerInstanceUnregistered")
 	FActorDescContainerRegistrationDelegate OnActorDescContainerUnregistered;
 
 	UE_DEPRECATED(5.3, "Use RegisterActorDescContainer with FContainerRegistrationParams instead.")
-	UActorDescContainer* RegisterActorDescContainer(const FName& ContainerPackage) { return RegisterActorDescContainer(FContainerRegistrationParams(ContainerPackage)); }
+	UActorDescContainer* RegisterActorDescContainer(const FName& ContainerPackage) { return nullptr; }
+		
+	ENGINE_API UActorDescContainerInstance* RegisterActorDescContainerInstance(const UActorDescContainerInstance::FInitializeParams& InInitializationParams);
+	ENGINE_API bool UnregisterActorDescContainerInstance(UActorDescContainerInstance* InContainerInstance);
+
+	DECLARE_MULTICAST_DELEGATE_OneParam(FActorDescContainerInstanceRegistrationDelegate, UActorDescContainerInstance*);
+	FActorDescContainerInstanceRegistrationDelegate OnActorDescContainerInstanceRegistered;
+	FActorDescContainerInstanceRegistrationDelegate OnActorDescContainerInstanceUnregistered;
 
 	// Actors pinning
 	ENGINE_API void PinActors(const TArray<FGuid>& ActorGuids);
@@ -444,10 +489,12 @@ private:
 #endif
 
 public:
-	UActorDescContainer* GetActorDescContainer() const { return ActorDescContainer; }
-
-	UPROPERTY(Transient)
-	TObjectPtr<UActorDescContainer> ActorDescContainer;
+	UE_DEPRECATED(5.4, "Use GetActorDescContainerInstance")
+	UActorDescContainer* GetActorDescContainer() const { return nullptr; }
+		
+#if WITH_EDITOR
+	UActorDescContainerInstance* GetActorDescContainerInstance() const { return ActorDescContainerInstance; }
+#endif			
 
 	UPROPERTY()
 	TObjectPtr<UWorldPartitionRuntimeHash> RuntimeHash;
@@ -493,6 +540,9 @@ private:
 
 	TSet<FString> GeneratedStreamingPackageNames;
 
+	UPROPERTY(Transient)
+	TObjectPtr<UActorDescContainerInstance> ActorDescContainerInstance;
+
 public:
 	TOptional<bool> bOverrideEnableStreamingInEditor;
 
@@ -515,10 +565,6 @@ private:
 
 	UPROPERTY(Transient)
 	mutable TObjectPtr<UWorldPartitionStreamingPolicy> StreamingPolicy;
-
-#if WITH_EDITORONLY_DATA
-	FLinkerInstancingContext InstancingContext;
-#endif
 
 #if WITH_EDITOR
 	static ENGINE_API int32 LoadingRangeBugItGo;
@@ -549,8 +595,8 @@ private:
 	ENGINE_API void UnregisterDelegates();	
 
 #if WITH_EDITOR
-	ENGINE_API void HashActorDesc(FWorldPartitionActorDesc* ActorDesc);
-	ENGINE_API void UnhashActorDesc(FWorldPartitionActorDesc* ActorDesc);
+	void HashActorDescInstance(FWorldPartitionActorDescInstance* ActorDescInstance);
+	void UnhashActorDescInstance(FWorldPartitionActorDescInstance* ActorDescInstance);
 	void OnContentBundleRemovedContent(const FContentBundleEditor* ContentBundle);
 	ENGINE_API bool IsStreamingEnabledInEditor() const;
 

@@ -20,6 +20,8 @@ class AActor;
 
 class URuntimeHashExternalStreamingObjectBase;
 class UWorldPartitionRuntimeCell;
+class UActorDescContainerInstance;
+class UWorldPartitionActorDescInstance;
 
 class FContentBundleEditor : public FContentBundleBase, IWorldPartitionCookPackageGenerator
 {
@@ -53,7 +55,12 @@ public:
 	ENGINE_API void ReferenceAllActors();
 	ENGINE_API void UnreferenceAllActors();
 
-	const TWeakObjectPtr<UActorDescContainer>& GetActorDescContainer() const { return ActorDescContainer; };
+	UE_DEPRECATED(5.4, "Use GetActorDescContainerInstance instead")
+	TWeakObjectPtr<UActorDescContainer> GetActorDescContainer() const { return nullptr; };
+
+	const TWeakObjectPtr<UActorDescContainerInstance> GetActorDescContainerInstance() const { return ActorDescContainerInstance; }
+
+
 	ENGINE_API void GenerateStreaming(TArray<FString>* OutPackageToGenerate, bool bIsPIE);
 
 	URuntimeHashExternalStreamingObjectBase* GetStreamingObject() const { return ExternalStreamingObject; }
@@ -87,12 +94,12 @@ private:
 	ENGINE_API void RegisterDelegates();
 	ENGINE_API void UnregisterDelegates();
 	
-	ENGINE_API void OnActorDescAdded(FWorldPartitionActorDesc* ActorDesc);
-	ENGINE_API void OnActorDescRemoved(FWorldPartitionActorDesc* ActorDesc);
+	ENGINE_API void OnActorDescInstanceAdded(FWorldPartitionActorDescInstance* ActorDesc);
+	ENGINE_API void OnActorDescInstanceRemoved(FWorldPartitionActorDescInstance* ActorDesc);
 
 	TObjectPtr<class UContentBundleUnsavedActorMonitor> UnsavedActorMonitor;
 
-	TWeakObjectPtr<UActorDescContainer> ActorDescContainer;
+	TWeakObjectPtr<UActorDescContainerInstance> ActorDescContainerInstance;
 	FWorldDataLayersReference WorldDataLayersActorReference;
 
 	TArray<FWorldPartitionReference> ForceLoadedActors;

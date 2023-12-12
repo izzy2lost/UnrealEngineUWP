@@ -23,7 +23,6 @@ class UMaterial;
 class UWorldPartition;
 class UWorldPartitionHLODModifier;
 class FWorldPartitionActorDesc;
-class FWorldPartitionActorDescView;
 
 UENUM()
 enum class EHLODLayerType : uint8

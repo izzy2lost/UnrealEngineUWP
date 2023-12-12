@@ -1,12 +1,12 @@
 // Copyright Epic Games, Inc. All Rights Reserved.
 
 #include "WorldPartition/HLOD/Utilities/WorldPartitionHLODUtilities.h"
-#include "WorldPartition/WorldPartitionActorDescView.h"
 #include "WorldPartition/WorldPartitionStreamingGeneration.h"
 
 #if WITH_EDITOR
 
 #include "WorldPartition/WorldPartition.h"
+#include "WorldPartition/WorldPartitionActorDescInstance.h"
 #include "WorldPartition/ContentBundle/ContentBundleActivationScope.h"
 #include "WorldPartition/DataLayer/DataLayerInstance.h"
 #include "WorldPartition/HLOD/HLODActor.h"
@@ -79,13 +79,18 @@ static uint32 ComputeHLODHash(AWorldPartitionHLOD* InHLODActor, const TArray<UAc
 	return Ar.GetCrc();
 }
 
-void AddSourceActor(const FWorldPartitionActorDescView& ActorDescView, const IStreamingGenerationContext::FActorInstance& ActorInstance, const FName WorldPackageName, TMap<FGuid, FWorldPartitionRuntimeCellObjectMapping>& SourceActors)
+void AddSourceActor(const FStreamingGenerationActorDescView& ActorDescView, const FName WorldPackageName, TMap<FGuid, FWorldPartitionRuntimeCellObjectMapping>& SourceActors)
 {
 	const FName ActorPath = *ActorDescView.GetActorSoftPath().ToString();
 
-	const UActorDescContainer* ActorDescContainer = ActorDescView.GetActorDesc()->GetContainer();
+	const UActorDescContainerInstance* ContainerInstance = ActorDescView.GetContainerInstance();
+	check(ContainerInstance);
 
-	FGuid ActorInstanceGuid = ActorInstance.GetContainerID().GetActorGuid(ActorDescView.GetGuid());	
+	const FActorContainerID& ContainerID = ContainerInstance->GetContainerID();
+	const FTransform ContainerTransform = ContainerInstance->GetTransform();
+	const FName ContainerPackage = ContainerInstance->GetContainerPackage();
+
+	FGuid ActorInstanceGuid = ContainerID.GetActorGuid(ActorDescView.GetGuid());	
 	FWorldPartitionRuntimeCellObjectMapping& ActorMapping = SourceActors.FindOrAdd(ActorInstanceGuid);
 	if (!ActorMapping.ActorInstanceGuid.IsValid())
 	{
@@ -94,26 +99,26 @@ void AddSourceActor(const FWorldPartitionActorDescView& ActorDescView, const ISt
 			*ActorDescView.GetActorSoftPath().ToString(),
 			ActorDescView.GetBaseClass(),
 			ActorDescView.GetNativeClass(),
-			ActorInstance.GetContainerID(),
-			ActorInstance.GetTransform(),
-			ActorDescContainer->GetContainerPackage(),
+			ContainerID,
+			ContainerTransform,
+			ContainerPackage,
 			WorldPackageName,
 			ActorInstanceGuid,
 			false);
 
 		// Add its runtime references, recursively
-		const FStreamingGenerationActorDescViewMap* ActorDescViewMap = ActorInstance.ActorSetInstance->ContainerInstance->ActorDescViewMap;
+		const FStreamingGenerationActorDescViewMap& ActorDescViewMap = ActorDescView.GetActorDescViewMap();
 		for (const FGuid& ReferenceGuid : ActorDescView.GetReferences())
 		{
-			const FWorldPartitionActorDescView& RefActorDescView = ActorDescViewMap->FindByGuidChecked(ReferenceGuid);
-			AddSourceActor(RefActorDescView, ActorInstance, WorldPackageName, SourceActors);
+			const FStreamingGenerationActorDescView& RefActorDescView = ActorDescViewMap.FindByGuidChecked(ReferenceGuid);
+			AddSourceActor(RefActorDescView, WorldPackageName, SourceActors);
 		}
 
 		// Add its editor references
 		for (const FGuid& EditorReferenceGuid : ActorDescView.GetEditorReferences())
 		{
-			const FWorldPartitionActorDesc& ReferenceActorDesc = ActorDescContainer->GetActorDescChecked(EditorReferenceGuid);
-			FGuid EditorRefInstanceGuid = ActorInstance.GetContainerID().GetActorGuid(EditorReferenceGuid);
+			const FWorldPartitionActorDescInstance& ReferenceActorDesc = ContainerInstance->GetActorDescInstanceChecked(EditorReferenceGuid);
+			FGuid EditorRefInstanceGuid = ContainerID.GetActorGuid(EditorReferenceGuid);
 			FWorldPartitionRuntimeCellObjectMapping& EditorRefMapping = SourceActors.FindOrAdd(EditorRefInstanceGuid);
 			if (!EditorRefMapping.ActorInstanceGuid.IsValid())
 			{
@@ -122,9 +127,9 @@ void AddSourceActor(const FWorldPartitionActorDescView& ActorDescView, const ISt
 					*ReferenceActorDesc.GetActorSoftPath().ToString(),
 					ReferenceActorDesc.GetBaseClass(),
 					ReferenceActorDesc.GetNativeClass(),
-					ActorInstance.GetContainerID(),
-					ActorInstance.GetTransform(),
-					ActorDescContainer->GetContainerPackage(),
+					ContainerID,
+					ContainerTransform,
+					ContainerPackage,
 					WorldPackageName,
 					EditorRefInstanceGuid,
 					true
@@ -142,7 +147,7 @@ TArray<AWorldPartitionHLOD*> FWorldPartitionHLODUtilities::CreateHLODActors(FHLO
 
 	for (const IStreamingGenerationContext::FActorInstance& ActorInstance : InActors)
 	{
-		const FWorldPartitionActorDescView& ActorDescView = ActorInstance.GetActorDescView();
+		const FStreamingGenerationActorDescView& ActorDescView = ActorInstance.GetActorDescView();
 
 		if (ActorDescView.GetActorIsHLODRelevant())
 		{
@@ -155,7 +160,7 @@ TArray<AWorldPartitionHLOD*> FWorldPartitionHLODUtilities::CreateHLODActors(FHLO
 			if (UHLODLayer* HLODLayer = Cast<UHLODLayer>(ActorDescView.GetHLODLayer().TryLoad()))
 			{
 				TMap<FGuid, FWorldPartitionRuntimeCellObjectMapping>& SubActors = SourceActorsPerHLODLayer.FindOrAdd(HLODLayer);
-				AddSourceActor(ActorDescView, ActorInstance, WorldPackageName, SubActors);
+				AddSourceActor(ActorDescView, WorldPackageName, SubActors);
 			}
 		}
 	}
@@ -190,7 +195,7 @@ TArray<AWorldPartitionHLOD*> FWorldPartitionHLODUtilities::CreateHLODActors(FHLO
 		if (InCreationContext.HLODActorDescs.RemoveAndCopyValue(HLODActorName, HLODActorHandle))
 		{
 			InCreationContext.ActorReferences.Add(HLODActorHandle.ToReference());
-			HLODActor = CastChecked<AWorldPartitionHLOD>(HLODActorHandle->GetActor());
+			HLODActor = CastChecked<AWorldPartitionHLOD>(HLODActorHandle.GetActor());
 		}
 
 		bool bNewActor = HLODActor == nullptr;

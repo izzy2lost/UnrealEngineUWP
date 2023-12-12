@@ -8,6 +8,7 @@
 #include "WorldPartition/DataLayer/DataLayerEditorContext.h"
 #include "WorldPartition/WorldPartitionSubsystem.h"
 #include "WorldPartition/WorldPartition.h"
+#include "WorldPartition/WorldPartitionActorDescInstance.h"
 #include "EngineUtils.h"
 
 #if WITH_EDITOR
@@ -210,19 +211,20 @@ public:
 		bool bUnloadedActorExists = false;
 		FGuid ContentBundleGuid = UContentBundleEngineSubsystem::Get()->GetEditingContentBundleGuid();
 
-		auto FindActor = [&FoundActor, &bUnloadedActorExists, &ContentBundleGuid, InCellCoord, InActorPartitionId, InGridSize, ThisWorld = World](const FWorldPartitionActorDesc* ActorDesc)
+		auto FindActor = [&FoundActor, &bUnloadedActorExists, &ContentBundleGuid, InCellCoord, InActorPartitionId, InGridSize, ThisWorld = World](const FWorldPartitionActorDescInstance* ActorDescInstance)
 		{
+			const FWorldPartitionActorDesc* ActorDesc = ActorDescInstance->GetActorDesc();
 			check(ActorDesc->GetActorNativeClass()->IsChildOf(InActorPartitionId.GetClass()));
-			FPartitionActorDesc* PartitionActorDesc = (FPartitionActorDesc*)ActorDesc;
+			const FPartitionActorDesc* PartitionActorDesc = (const FPartitionActorDesc*)ActorDesc;
 
 			if ((PartitionActorDesc->GridIndexX == InCellCoord.X) &&
 				(PartitionActorDesc->GridIndexY == InCellCoord.Y) &&
 				(PartitionActorDesc->GridIndexZ == InCellCoord.Z) &&
 				(PartitionActorDesc->GridSize == InGridSize) &&
 				(PartitionActorDesc->GridGuid == InActorPartitionId.GetGridGuid()) &&
-				(FActorPartitionContextHash::Get(PartitionActorDesc->GetContentBundleGuid(), ThisWorld, PartitionActorDesc->GetDataLayerInstanceNames()) == InActorPartitionId.GetContextHash()))
+				(FActorPartitionContextHash::Get(ActorDescInstance->GetContentBundleGuid(), ThisWorld, ActorDescInstance->GetDataLayerInstanceNames()) == InActorPartitionId.GetContextHash()))
 			{
-				AActor* DescActor = ActorDesc->GetActor();
+				AActor* DescActor = ActorDescInstance->GetActor();
 
 				if (!DescActor)
 				{
@@ -246,11 +248,11 @@ public:
 		FBox CellBounds = UActorPartitionSubsystem::FCellCoord::GetCellBounds(InCellCoord, InGridSize);
 		if (bInBoundsSearch)
 		{
-			FWorldPartitionHelpers::ForEachIntersectingActorDesc(WorldPartition, CellBounds, InActorPartitionId.GetClass(), FindActor);
+			FWorldPartitionHelpers::ForEachIntersectingActorDescInstance(WorldPartition, CellBounds, InActorPartitionId.GetClass(), FindActor);
 		}
 		else
 		{
-			FWorldPartitionHelpers::ForEachActorDesc(WorldPartition, InActorPartitionId.GetClass(), FindActor);
+			FWorldPartitionHelpers::ForEachActorDescInstance(WorldPartition, InActorPartitionId.GetClass(), FindActor);
 		}
 				
 		if (bUnloadedActorExists)

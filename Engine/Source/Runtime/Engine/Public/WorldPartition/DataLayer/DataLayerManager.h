@@ -17,6 +17,7 @@ class UDataLayerInstanceWithAsset;
 class UDataLayerInstance;
 class UDataLayerLoadingPolicy;
 class UActorDescContainer;
+class UActorDescContainerInstance;
 class UCanvas;
 class UWorld;
 
@@ -157,13 +158,15 @@ private:
 	ENGINE_API uint32 GetDataLayerEditorContextHash() const;
 	//~ End Editor Context
 
-	//~ Begin ActorDesc
-	ENGINE_API void OnActorDescContainerInitialized(UActorDescContainer* InActorDescContainer) const;
+	//~ Begin WorldPartitionActorDescInstance
 	ENGINE_API bool CanResolveDataLayers() const;
 	ENGINE_API void ResolveActorDescContainersDataLayers() const;
-	ENGINE_API void ResolveActorDescContainerDataLayers(UActorDescContainer* InActorDescContainer) const;
-	ENGINE_API void ResolveActorDescDataLayers(FWorldPartitionActorDesc* InActorDesc) const;
-	ENGINE_API void ResolveActorDescContainerDataLayersInternal(UActorDescContainer* InActorDescContainer, FWorldPartitionActorDesc* InActorDesc) const;
+	
+	void OnActorDescContainerInstanceInitialized(UActorDescContainerInstance* InActorDescContainerInstance);
+	void ResolveActorDescContainerInstanceDataLayers(UActorDescContainerInstance* InActorDescContainerInstance) const;
+	void ResolveActorDescInstanceDataLayers(FWorldPartitionActorDescInstance* InActorDescInstance) const;
+	void ResolveActorDescContainerInstanceDataLayersInternal(UActorDescContainerInstance* InActorDescContainerInstance, FWorldPartitionActorDescInstance* InActorDescInstance) const;
+
 	//~ End
 
 	//~ Begin Editor loading
@@ -201,7 +204,7 @@ private:
 	friend class FActorBrowsingMode;
 	friend class UDataLayerEditorSubsystem;
 	friend class UActorPartitionSubsystem;
-	friend class UActorDescContainer;
+	friend class UActorDescContainerInstance;
 	friend class AWorldSettings;
 	friend class AActor;
 #endif

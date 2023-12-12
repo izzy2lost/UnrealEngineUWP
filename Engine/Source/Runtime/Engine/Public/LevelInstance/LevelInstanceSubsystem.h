@@ -19,7 +19,6 @@ class ULevelInstanceEditorObject;
 class ULevelStreamingLevelInstance;
 class ULevelStreamingLevelInstanceEditor;
 class UWorldPartitionSubsystem;
-class UActorDescContainer;
 class UBlueprint;
 
 /**

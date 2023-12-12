@@ -96,17 +96,14 @@ namespace SceneOutliner
 		return false;
 	}
 
-	bool FActorDescSelector::operator()(const TWeakPtr<ISceneOutlinerTreeItem>& Item, FWorldPartitionActorDesc*& ActorDescPtrOut) const
+	bool FActorHandleSelector::operator()(const TWeakPtr<ISceneOutlinerTreeItem>& Item, FWorldPartitionHandle& ActorHandleOut) const
 	{
 		if (TSharedPtr<ISceneOutlinerTreeItem> ItemPtr = Item.Pin())
 		{
 			if (FActorDescTreeItem* ActorDescItem = ItemPtr->CastTo<FActorDescTreeItem>())
 			{
-				if (FWorldPartitionActorDesc* ActorDesc = ActorDescItem->ActorDescHandle.Get())
-				{
-					ActorDescPtrOut = ActorDesc;
-					return true;
-				}
+				ActorHandleOut = ActorDescItem->ActorDescHandle;
+				return true;
 			}
 		}
 

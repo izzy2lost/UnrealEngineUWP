@@ -33,7 +33,7 @@
 #include "WorldPartition/WorldPartition.h"
 #include "WorldPartition/WorldPartitionLog.h"
 #include "WorldPartition/WorldPartitionActorDesc.h"
-#include "WorldPartition/WorldPartitionActorDescView.h"
+#include "WorldPartition/WorldPartitionActorDescInstance.h"
 #include "WorldPartition/WorldPartitionActorDescUtils.h"
 #include "WorldPartition/WorldPartitionEditorHash.h"
 #include "WorldPartition/WorldPartitionEditorLoaderAdapter.h"
@@ -57,6 +57,73 @@ static FAutoConsoleCommand CVarToggleShowEditorProfilingStats(
 	TEXT("Toggles showing editor profiling stats."),
 	FConsoleCommandDelegate::CreateLambda([] { GShowEditorProfilingStats = !GShowEditorProfilingStats; })
 );
+
+class FEditorGrid2DActorDescInstance : public FWorldPartitionActorDescInstance
+{
+public:
+	FEditorGrid2DActorDescInstance(){}
+	virtual ~FEditorGrid2DActorDescInstance() {}
+
+	virtual FBox GetEditorBounds() const override
+	{
+		if (AActor* Actor = GetActor(false))
+		{
+			return Actor->GetStreamingBounds();
+		}
+
+		return FWorldPartitionActorDescInstance::GetEditorBounds();
+	}
+
+	virtual FName GetActorLabel() const override
+	{
+		FName ActorLabel = FWorldPartitionActorDescInstance::GetActorLabel();
+
+		if (ActorLabel.IsNone())
+		{
+			if (AActor* Actor = GetActor(false))
+			{
+				ActorLabel = *Actor->GetActorLabel(false);
+			}
+		}
+
+		return ActorLabel;
+	}
+};
+
+class FEditorGrid2DUnsavedActorDescInstance : public FEditorGrid2DActorDescInstance
+{
+public:
+	FEditorGrid2DUnsavedActorDescInstance(AActor* InActor)
+	{
+		ActorDescPtr = InActor->CreateActorDesc();
+		ActorDesc = ActorDescPtr.Get();
+	}
+
+	virtual ~FEditorGrid2DUnsavedActorDescInstance() {}
+	
+	// No need for container registration here
+	virtual void RegisterChildContainerInstance() override {}
+	virtual void UnregisterChildContainerInstance() override {}
+
+	TUniquePtr<FWorldPartitionActorDesc> ActorDescPtr;
+};
+
+class FEditorGrid2DDirtyActorDescInstance : public FEditorGrid2DActorDescInstance
+{
+public:
+	FEditorGrid2DDirtyActorDescInstance(const IWorldPartitionActorDescInstance* InActorDescInstance)
+		: ActorDescInstance(InActorDescInstance)
+	{
+	}
+
+	virtual ~FEditorGrid2DDirtyActorDescInstance() {}
+		
+	virtual const FWorldPartitionActorDesc* GetActorDesc() const override { return ActorDescInstance->GetActorDesc(); }
+
+protected:
+	
+	const IWorldPartitionActorDescInstance* ActorDescInstance;
+};
 
 class FWeightedMovingAverageScope
 {
@@ -192,15 +259,15 @@ void ForEachIntersectingLoaderAdapters(UWorldPartition* WorldPartition, const FB
 		}
 	}
 
-	FWorldPartitionHelpers::ForEachIntersectingActorDesc(WorldPartition, SelectBox, [&](const FWorldPartitionActorDesc* ActorDesc)
+	FWorldPartitionHelpers::ForEachIntersectingActorDescInstance(WorldPartition, SelectBox, [&](const FWorldPartitionActorDescInstance* ActorDescInstance)
 	{
-		if (AActor* Actor = ActorDesc->GetActor())
+		if (AActor* Actor = ActorDescInstance->GetActor())
 		{
-			if (ActorDesc->GetActorNativeClass()->ImplementsInterface(UWorldPartitionActorLoaderInterface::StaticClass()))
+			if (ActorDescInstance->GetActorNativeClass()->ImplementsInterface(UWorldPartitionActorLoaderInterface::StaticClass()))
 			{
 				if (IWorldPartitionActorLoaderInterface::ILoaderAdapter* LoaderAdapter = Cast<IWorldPartitionActorLoaderInterface>(Actor)->GetLoaderAdapter())
 				{
-					if (IsBoundsSelected(SelectBox, ActorDesc->GetEditorBounds()))
+					if (IsBoundsSelected(SelectBox, ActorDescInstance->GetEditorBounds()))
 					{
 						Func(Actor);
 					}
@@ -211,50 +278,6 @@ void ForEachIntersectingLoaderAdapters(UWorldPartition* WorldPartition, const FB
 		return true;
 	});
 }
-
-class FWorldPartitionActorDescViewBoundsProxy : public FWorldPartitionActorDescView
-{
-public:
-	FWorldPartitionActorDescViewBoundsProxy(const FWorldPartitionActorDesc* InActorDesc, bool bInUseActor)
-		: FWorldPartitionActorDescView(InActorDesc)
-		, bUseActor(bInUseActor)
-	{}
-
-	virtual FBox GetEditorBounds() const override
-	{
-		if (bUseActor)
-		{
-			if (AActor* Actor = GetActor())
-			{
-				return Actor->GetStreamingBounds();
-			}
-		}
-
-		return ActorDesc->GetEditorBounds();
-	}
-
-	virtual AActor* GetActor() const override
-	{
-		return bUseActor ? ActorDesc->GetActor(false) : nullptr;
-	}
-
-	virtual FName GetActorLabel() const override
-	{
-		FName ActorLabel = ActorDesc->GetActorLabel();
-		
-		if (ActorLabel.IsNone() && bUseActor)
-		{
-			if (AActor* Actor = GetActor())
-			{
-				ActorLabel = *Actor->GetActorLabel(false);
-			}
-		}
-
-		return ActorLabel;
-	}
-
-	bool bUseActor;
-};
 
 SWorldPartitionEditorGrid2D::FEditorCommands::FEditorCommands()
 	: TCommands<FEditorCommands>
@@ -628,7 +651,7 @@ void SWorldPartitionEditorGrid2D::BindCommands()
 	{
 		if (UWorldPartitionSubsystem* WorldPartitionSubsystem = UWorld::GetSubsystem<UWorldPartitionSubsystem>(GetWorld()))
 		{
-			return IsInteractive() && (GEditor->GetSelectedActors()->Num() || WorldPartitionSubsystem->SelectedActorDescs.Num());
+			return IsInteractive() && (GEditor->GetSelectedActors()->Num() || WorldPartitionSubsystem->SelectedActorHandles.Num());
 		}
 
 		return false;
@@ -1272,19 +1295,19 @@ void SWorldPartitionEditorGrid2D::Tick(const FGeometry& AllottedGeometry, const 
 	UWorldPartitionEditorHash::FForEachIntersectingActorParams ForEachIntersectingActorParams = UWorldPartitionEditorHash::FForEachIntersectingActorParams()
 		.SetMinimumBox(FBox(FVector::ZeroVector, FVector(GetSelectionSnap())));
 
-	GetWorldPartition()->EditorHash->ForEachIntersectingActor(ViewRectWorld, [&](FWorldPartitionActorDesc* ActorDesc)
+	GetWorldPartition()->EditorHash->ForEachIntersectingActor(ViewRectWorld, [&](FWorldPartitionActorDescInstance* ActorDescInstance)
 	{
 		if (bShowActors)
 		{
-			if (ActorDesc->IsListedInSceneOutliner() && (!GetWorldPartition()->IsStreamingEnabled() || ActorDesc->GetIsSpatiallyLoaded()))
+			if (ActorDescInstance->IsListedInSceneOutliner() && (!GetWorldPartition()->IsStreamingEnabled() || ActorDescInstance->GetIsSpatiallyLoaded()))
 			{
-				ShownActorGuids.Add(ActorDesc->GetGuid());
+				ShownActorGuids.Add(ActorDescInstance->GetGuid());
 			}
 		}
 
-		if (ActorDesc->GetActorNativeClass()->ImplementsInterface(UWorldPartitionActorLoaderInterface::StaticClass()))
+		if (ActorDescInstance->GetActorNativeClass()->ImplementsInterface(UWorldPartitionActorLoaderInterface::StaticClass()))
 		{
-			if (AActor* Actor = ActorDesc->GetActor())
+			if (AActor* Actor = ActorDescInstance->GetActor())
 			{
 				if (IWorldPartitionActorLoaderInterface::ILoaderAdapter* LoaderAdapter = Cast<IWorldPartitionActorLoaderInterface>(Actor)->GetLoaderAdapter())
 				{
@@ -1294,7 +1317,7 @@ void SWorldPartitionEditorGrid2D::Tick(const FGeometry& AllottedGeometry, const 
 		}
 	}, ForEachIntersectingActorParams);
 
-	// Add dirty actors as an acceleration for FWorldPartitionActorDescViewBoundsProxy constructor
+	// Add dirty actors as an acceleration for FDirtyActorDescView constructor
 	for (auto& [Reference, Actor] : GetWorldPartition()->GetDirtyActors())
 	{
 		DirtyActorGuids.Add(Actor->GetActorGuid());
@@ -1302,7 +1325,7 @@ void SWorldPartitionEditorGrid2D::Tick(const FGeometry& AllottedGeometry, const 
 
 	// Also include transient actor loader adapters that might have been spawned by blutilities, etc. Since these actors can't be saved because they are transient,
 	// they will never get an actor descriptor so they will never appear in the world partition editor. Also include unsaved, newly created actors for convenience.
-	for (FActorDescList::TIterator<> ActorDescIterator(&NewlyAddedUnsavedActorDescs); ActorDescIterator; ++ActorDescIterator)
+	for (FActorDescInstanceList::TIterator<> ActorDescIterator(&NewlyAddedUnsavedActorDescs); ActorDescIterator; ++ActorDescIterator)
 	{
 		if (AActor* NewlyAddedUnsavedActor = ActorDescIterator->GetActor())
 		{
@@ -1401,9 +1424,9 @@ void SWorldPartitionEditorGrid2D::Tick(const FGeometry& AllottedGeometry, const 
 
 	// Include selected actor descriptors
 	UWorldPartitionSubsystem* WorldPartitionSubsystem = UWorld::GetSubsystem<UWorldPartitionSubsystem>(GetWorld());
-	for (FWorldPartitionActorDesc* SelectedActorDesc : WorldPartitionSubsystem->SelectedActorDescs)
+	for (const FWorldPartitionHandle& SelectedActorHandle : WorldPartitionSubsystem->SelectedActorHandles)
 	{
-		ShownActorGuids.Add(SelectedActorDesc->GetGuid());
+		ShownActorGuids.Add(SelectedActorHandle.GetInstance()->GetGuid());
 	}
 }
 
@@ -1414,8 +1437,12 @@ uint32 SWorldPartitionEditorGrid2D::PaintActors(const FGeometry& AllottedGeometr
 	const FBox ViewRectWorld(FVector(WorldViewRect.Min.X, WorldViewRect.Min.Y, -HALF_WORLD_MAX), FVector(WorldViewRect.Max.X, WorldViewRect.Max.Y, HALF_WORLD_MAX));
 	const UWorldPartitionSubsystem* WorldPartitionSubsystem = UWorld::GetSubsystem<UWorldPartitionSubsystem>(GetWorld());
 
-	TArray<FWorldPartitionActorDescViewBoundsProxy> ActorDescList;
-	ActorDescList.Reserve(ShownActorGuids.Num());
+	// Reserve here is done to avoid reallocations so that pointers in the BoundProxies set stay valid
+	TArray<FEditorGrid2DDirtyActorDescInstance> DirtyActorDescInstances;
+	DirtyActorDescInstances.Reserve(DirtyActorGuids.Num());
+	
+	TSet<const IWorldPartitionActorDescInstance*> BoundProxies;
+	BoundProxies.Reserve(ShownActorGuids.Num());
 
 	const IWorldPartitionActorLoaderInterface::ILoaderAdapter* LocalHoveredLoaderAdapter = nullptr;
 	if (IWorldPartitionActorLoaderInterface* HoveredLoaderAdapterInterface = Cast<IWorldPartitionActorLoaderInterface>(HoveredLoaderInterface.Get()))
@@ -1426,13 +1453,20 @@ uint32 SWorldPartitionEditorGrid2D::PaintActors(const FGeometry& AllottedGeometr
 	const UWorldPartition* ThisWorldPartition = GetWorldPartition();
 	for (const FGuid& ActorGuid : ShownActorGuids)
 	{
-		if (const FWorldPartitionActorDesc* ActorDesc = ThisWorldPartition->GetActorDesc(ActorGuid))
+		if (const FWorldPartitionActorDescInstance* ActorDescInstance = ThisWorldPartition->GetActorDescInstance(ActorGuid))
 		{
-			ActorDescList.Emplace(ActorDesc, DirtyActorGuids.Contains(ActorGuid));
+			if (DirtyActorGuids.Contains(ActorGuid))
+			{
+				BoundProxies.Add(&DirtyActorDescInstances.Emplace_GetRef(ActorDescInstance));
+			}
+			else
+			{
+				BoundProxies.Add(ActorDescInstance);
+			}
 		}
-		else if (const FWorldPartitionActorDesc* NewlyAddedUnsavedActorDesc = NewlyAddedUnsavedActorDescs.GetActorDesc(ActorGuid))
+		else if (const FWorldPartitionActorDescInstance* NewlyAddedUnsavedActorDesc = NewlyAddedUnsavedActorDescs.GetActorDescInstance(ActorGuid))
 		{
-			ActorDescList.Emplace(NewlyAddedUnsavedActorDesc, true);
+			BoundProxies.Add(NewlyAddedUnsavedActorDesc);
 		}
 	}
 
@@ -1614,13 +1648,13 @@ uint32 SWorldPartitionEditorGrid2D::PaintActors(const FGeometry& AllottedGeometr
 		}
 	}
 
-	if (ActorDescList.Num())
+	if (BoundProxies.Num())
 	{
 		TArray<FVector2D> LinePoints;
 		LinePoints.SetNum(5);
 
 		bool bIsBoundsEdgeHoveredFound = false;
-		for (const FWorldPartitionActorDescViewBoundsProxy& ActorDescView: ActorDescList)
+		for (const IWorldPartitionActorDescInstance* BoundProxy : BoundProxies)
 		{
 			auto ShowActorBox = [this, &AllottedGeometry, &OutDrawElements, &LayerId, &bIsBoundsEdgeHoveredFound, &DrawActorLabel](const FBox& ActorBounds, bool bIsSelected, bool bIsSpatiallyLoaded, const FName ActorLabel)
 			{
@@ -1688,15 +1722,16 @@ uint32 SWorldPartitionEditorGrid2D::PaintActors(const FGeometry& AllottedGeometr
 					);
 				}
 			};
-
-			const FBox ActorBounds = ActorDescView.GetEditorBounds();
-			const bool bIsSelected = SelectedActorGuids.Contains(ActorDescView.GetGuid()) || WorldPartitionSubsystem->SelectedActorDescs.Contains(ActorDescView.GetActorDesc());
-			const bool bIsSpatiallyLoaded = ActorDescView.GetIsSpatiallyLoaded();
-			const FName ActorLabel = ActorDescView.GetActorLabel();
+			
+			const FWorldPartitionHandle ActorHandle(BoundProxy->GetContainerInstance(), BoundProxy->GetGuid());
+			const FBox ActorBounds = BoundProxy->GetEditorBounds();
+			const bool bIsSelected = SelectedActorGuids.Contains(BoundProxy->GetGuid()) || (ActorHandle.IsValid() && WorldPartitionSubsystem->SelectedActorHandles.Contains(ActorHandle));
+			const bool bIsSpatiallyLoaded = BoundProxy->GetIsSpatiallyLoaded();
+			const FName ActorLabel = BoundProxy->GetActorLabel();
 
 			if (bIsSelected)
 			{
-				const FBox ActorDescBounds = ActorDescView.GetActorDesc()->GetEditorBounds();
+				const FBox ActorDescBounds = BoundProxy->GetActorDesc()->GetEditorBounds();
 				if (!ActorDescBounds.Equals(ActorBounds, 1.0f))
 				{
 					ShowActorBox(ActorDescBounds, false, bIsSpatiallyLoaded, ActorLabel);
@@ -2192,9 +2227,9 @@ void SWorldPartitionEditorGrid2D::FocusSelection()
 	}
 
 	UWorldPartitionSubsystem* WorldPartitionSubsystem = UWorld::GetSubsystem<UWorldPartitionSubsystem>(GetWorld());
-	for (FWorldPartitionActorDesc* SelectedActorDesc : WorldPartitionSubsystem->SelectedActorDescs)
+	for (const FWorldPartitionHandle& SelectedActorHandle : WorldPartitionSubsystem->SelectedActorHandles)
 	{
-		SelectionBox += SelectedActorDesc->GetEditorBounds();
+		SelectionBox += SelectedActorHandle.GetInstance()->GetEditorBounds();
 	}
 
 	if (SelectionBox.IsValid)
@@ -2338,14 +2373,26 @@ void SWorldPartitionEditorGrid2D::ClearSelection()
 
 void SWorldPartitionEditorGrid2D::FNewlyAddedUnsavedActorDescsDescRegistry::OnActorAdded(AActor* Actor)
 {
-	if (TUniquePtr<FWorldPartitionActorDesc>* ExistingActorDesc = GetActorDescriptor(Actor->GetActorGuid()))
+	if (TUniquePtr<FWorldPartitionActorDescInstance>* ExistingActorDescInstance = GetActorDescriptor(Actor->GetActorGuid()))
 	{
-		FWorldPartitionActorDescUtils::UpdateActorDescriptorFromActor(Actor, *ExistingActorDesc);
+		FEditorGrid2DUnsavedActorDescInstance* NewlyAddedActorDescInstance = StaticCast<FEditorGrid2DUnsavedActorDescInstance*>(ExistingActorDescInstance->Get());
+
+		FWorldPartitionActorDescUtils::UpdateActorDescriptorFromActor(Actor, NewlyAddedActorDescInstance->ActorDescPtr);
 	}
 	else
 	{
-		AddActor(Actor);
+		AddActorDescriptor(new FEditorGrid2DUnsavedActorDescInstance(Actor));
 	}
+}
+
+const FWorldPartitionActorDescInstance* SWorldPartitionEditorGrid2D::FNewlyAddedUnsavedActorDescsDescRegistry::GetActorDescInstance(const FGuid& InActorGuid) const
+{
+	if (const TUniquePtr<FWorldPartitionActorDescInstance>* ExistingActorDescInstance = GetActorDescriptor(InActorGuid))
+	{
+		return ExistingActorDescInstance->Get();
+	}
+
+	return nullptr;
 }
 
 #undef LOCTEXT_NAMESPACE

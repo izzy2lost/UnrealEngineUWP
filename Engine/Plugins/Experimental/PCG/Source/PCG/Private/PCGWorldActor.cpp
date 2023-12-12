@@ -18,6 +18,7 @@
 #include "WorldPartition/WorldPartition.h"
 #include "WorldPartition/WorldPartitionHelpers.h"
 #include "WorldPartition/ActorPartition/PartitionActorDesc.h"
+#include "WorldPartition/WorldPartitionActorDescInstance.h"
 #endif
 
 #include UE_INLINE_GENERATED_CPP_BY_NAME(PCGWorldActor)
@@ -51,14 +52,14 @@ void APCGWorldActor::BeginCacheForCookedPlatformData(const ITargetPlatform* Targ
 
 		if (UWorldPartition* WorldPartition = World->GetWorldPartition())
 		{
-			FWorldPartitionHelpers::ForEachActorDesc<ALandscapeProxy>(WorldPartition, [WorldPartition, &ActorRefs](const FWorldPartitionActorDesc* ActorDesc)
+			FWorldPartitionHelpers::ForEachActorDescInstance<ALandscapeProxy>(WorldPartition, [WorldPartition, &ActorRefs](const FWorldPartitionActorDescInstance* ActorDescInstance)
 			{
-				check(ActorDesc);
+				check(ActorDescInstance);
 				// Create WP references only for actors that aren't currently loaded, otherwise we might end up unloading them
 				// if their actor desc ref count isn't setup properly
-				if (!ActorDesc->GetActor())
+				if (!ActorDescInstance->GetActor())
 				{
-					ActorRefs.Add(FWorldPartitionReference(WorldPartition, ActorDesc->GetGuid()));
+					ActorRefs.Add(FWorldPartitionReference(WorldPartition, ActorDescInstance->GetGuid()));
 				}
 				return true;
 			});

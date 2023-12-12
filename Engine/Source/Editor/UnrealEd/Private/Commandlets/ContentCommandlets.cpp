@@ -60,7 +60,7 @@
 #include "UObject/SavePackage.h"
 #include "UObject/UObjectHash.h"
 #include "UObject/UObjectIterator.h"
-#include "WorldPartition/ActorDescContainer.h"
+#include "WorldPartition/WorldPartitionActorDescInstance.h"
 #include "WorldPartition/WorldPartition.h"
 #include "WorldPartition/WorldPartitionHelpers.h"
 #include "Virtualization/VirtualizationSystem.h"
@@ -1926,12 +1926,12 @@ void UResavePackagesCommandlet::PerformAdditionalOperations(class UWorld* World,
 		// Use a default GC frequency for external actors if GarbageCollectionFrequency is 0.
 		TGuardValue<int32> ScopedGCFreq(GarbageCollectionFrequency, GarbageCollectionFrequency ? GarbageCollectionFrequency : DefaultExternalActorGCFreq);
 
-		FWorldPartitionHelpers::ForEachActorDesc(WorldPartition, [this, WorldPartition](const FWorldPartitionActorDesc* ActorDesc)
+		FWorldPartitionHelpers::ForEachActorDescInstance(WorldPartition, [this, WorldPartition](const FWorldPartitionActorDescInstance* ActorDescInstance)
 		{
 			++TotalPackagesForResave;
 			// Load & Register World Partition Actor
-			FWorldPartitionReference LoadedActor(WorldPartition, ActorDesc->GetGuid());
-			AActor* Actor = LoadedActor->GetActor();
+			FWorldPartitionReference LoadedActor(WorldPartition, ActorDescInstance->GetGuid());
+			AActor* Actor = LoadedActor.GetActor();
 			UPackage* Package = Actor ? Actor->GetExternalPackage() : nullptr;
 			if (Package == nullptr)
 			{

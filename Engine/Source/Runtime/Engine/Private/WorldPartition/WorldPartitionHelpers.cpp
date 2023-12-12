@@ -6,6 +6,8 @@
 #include "WorldPartition/WorldPartitionLog.h"
 #include "WorldPartition/WorldPartitionEditorHash.h"
 #include "WorldPartition/WorldPartitionRuntimeCell.h"
+#include "WorldPartition/ActorDescContainerInstance.h"
+#include "WorldPartition/WorldPartitionActorDescInstance.h"
 #include "GameFramework/PlayerController.h"
 #include "Engine/Engine.h"
 #include "Algo/AnyOf.h"
@@ -92,26 +94,26 @@ bool FWorldPartitionHelpers::IsActorDescClassCompatibleWith(const FWorldPartitio
 	return ActorBaseClass->IsChildOf(Class);
 }
 
-void FWorldPartitionHelpers::ForEachIntersectingActorDesc(UWorldPartition* WorldPartition, const FBox& Box, TSubclassOf<AActor> ActorClass, TFunctionRef<bool(const FWorldPartitionActorDesc*)> Func)
+void FWorldPartitionHelpers::ForEachIntersectingActorDescInstance(UWorldPartition* WorldPartition, const FBox& Box, TSubclassOf<AActor> ActorClass, TFunctionRef<bool(const FWorldPartitionActorDescInstance*)> Func)
 {
 	bool bProcessNextActors = true;
 
-	WorldPartition->EditorHash->ForEachIntersectingActor(Box, [&ActorClass, Func, &bProcessNextActors](const FWorldPartitionActorDesc* ActorDesc)
+	WorldPartition->EditorHash->ForEachIntersectingActor(Box, [&ActorClass, Func, &bProcessNextActors](const FWorldPartitionActorDescInstance* ActorDescInstance)
 	{
-		if (bProcessNextActors && IsActorDescClassCompatibleWith(ActorDesc, ActorClass))
+		if (bProcessNextActors && IsActorDescClassCompatibleWith(ActorDescInstance->GetActorDesc(), ActorClass))
 		{
-			bProcessNextActors = Func(ActorDesc);
+			bProcessNextActors = Func(ActorDescInstance);
 		}
 	});
 }
 
-void FWorldPartitionHelpers::ForEachActorDesc(UWorldPartition* WorldPartition, TSubclassOf<AActor> ActorClass, TFunctionRef<bool(const FWorldPartitionActorDesc*)> Func)
+void FWorldPartitionHelpers::ForEachActorDescInstance(UWorldPartition* WorldPartition, TSubclassOf<AActor> ActorClass, TFunctionRef<bool(const FWorldPartitionActorDescInstance*)> Func)
 {
-	for (FActorDescContainerCollection::TConstIterator<> ActorDescIterator(WorldPartition); ActorDescIterator; ++ActorDescIterator)
+	for (FActorDescContainerInstanceCollection::TConstIterator<> Iterator(WorldPartition); Iterator; ++Iterator)
 	{
-		if (IsActorDescClassCompatibleWith(*ActorDescIterator, ActorClass))
+		if (IsActorDescClassCompatibleWith(Iterator->GetActorDesc(), ActorClass))
 		{
-			if (!Func(*ActorDescIterator))
+			if (!Func(*Iterator))
 			{
 				return;
 			}
@@ -128,11 +130,11 @@ namespace WorldPartitionHelpers
 			return;
 		}
 
-		if (const FWorldPartitionActorDesc* ActorDesc = WorldPartition->GetActorDesc(ActorGuid))
+		if (const FWorldPartitionActorDescInstance* ActorDescInstance = WorldPartition->GetActorDescInstance(ActorGuid))
 		{
 			InOutActorReferences.Emplace(ActorGuid);
 
-			for (FGuid ReferenceGuid : ActorDesc->GetReferences())
+			for (FGuid ReferenceGuid : ActorDescInstance->GetReferences())
 			{
 				LoadReferencesInternal(WorldPartition, ReferenceGuid, InOutActorReferences);
 			}
@@ -154,13 +156,13 @@ FWorldPartitionHelpers::FForEachActorWithLoadingParams::FForEachActorWithLoading
 	, ActorClasses({ AActor::StaticClass() })
 {}
 
-void FWorldPartitionHelpers::ForEachActorWithLoading(UWorldPartition* WorldPartition, TFunctionRef<bool(const FWorldPartitionActorDesc*)> Func, const FForEachActorWithLoadingParams& Params)
+void FWorldPartitionHelpers::ForEachActorWithLoading(UWorldPartition* WorldPartition, TFunctionRef<bool(const FWorldPartitionActorDescInstance*)> Func, const FForEachActorWithLoadingParams& Params)
 {
 	FForEachActorWithLoadingResult Result;
 	ForEachActorWithLoading(WorldPartition, Func, Params, Result);
 }
 
-void FWorldPartitionHelpers::ForEachActorWithLoading(UWorldPartition* WorldPartition, TFunctionRef<bool(const FWorldPartitionActorDesc*)> Func, const FForEachActorWithLoadingParams& Params, FForEachActorWithLoadingResult& Result)
+void FWorldPartitionHelpers::ForEachActorWithLoading(UWorldPartition* WorldPartition, TFunctionRef<bool(const FWorldPartitionActorDescInstance*)> Func, const FForEachActorWithLoadingParams& Params, FForEachActorWithLoadingResult& Result)
 {
 	check(Result.ActorReferences.IsEmpty());
 	auto CallGarbageCollect = [&Params, &Result]()
@@ -174,16 +176,16 @@ void FWorldPartitionHelpers::ForEachActorWithLoading(UWorldPartition* WorldParti
 		DoCollectGarbage();
 	};
 
-	auto ForEachActorWithLoadingImpl = [&](const FWorldPartitionActorDesc* ActorDesc)
+	auto ForEachActorWithLoadingImpl = [&](const FWorldPartitionActorDescInstance* ActorDescInstance)
 	{
-		if (Algo::AnyOf(Params.ActorClasses, [ActorDesc](UClass* ActorClass) { return IsActorDescClassCompatibleWith(ActorDesc, ActorClass); }))
+		if (Algo::AnyOf(Params.ActorClasses, [ActorDescInstance](UClass* ActorClass) { return IsActorDescClassCompatibleWith(ActorDescInstance->GetActorDesc(), ActorClass); }))
 		{
-			if (!Params.FilterActorDesc || Params.FilterActorDesc(ActorDesc))
+			if (!Params.FilterActorDesc || Params.FilterActorDesc(ActorDescInstance->GetActorDesc()))
 			{
-				WorldPartitionHelpers::LoadReferences(WorldPartition, ActorDesc->GetGuid(), Result.ActorReferences);
+				WorldPartitionHelpers::LoadReferences(WorldPartition, ActorDescInstance->GetGuid(), Result.ActorReferences);
 
-				FWorldPartitionReference ActorReference(WorldPartition, ActorDesc->GetGuid());
-				if (!Func(ActorReference.Get()))
+				FWorldPartitionReference ActorReference(WorldPartition, ActorDescInstance->GetGuid());
+				if (!Func(ActorReference.GetInstance()))
 				{
 					return false;
 				}
@@ -200,9 +202,9 @@ void FWorldPartitionHelpers::ForEachActorWithLoading(UWorldPartition* WorldParti
 
 	if (Params.ActorGuids.IsEmpty())
 	{
-		for (FActorDescContainerCollection::TConstIterator<> ActorDescIterator(WorldPartition); ActorDescIterator; ++ActorDescIterator)
+		for (FActorDescContainerInstanceCollection::TConstIterator<> ActorDescInstanceIterator(WorldPartition); ActorDescInstanceIterator; ++ActorDescInstanceIterator)
 		{
-			if (const FWorldPartitionActorDesc* ActorDesc = *ActorDescIterator)
+			if (const FWorldPartitionActorDescInstance* ActorDesc = *ActorDescInstanceIterator)
 			{
 				if (!ForEachActorWithLoadingImpl(ActorDesc))
 				{
@@ -216,7 +218,7 @@ void FWorldPartitionHelpers::ForEachActorWithLoading(UWorldPartition* WorldParti
 	{
 		for (const FGuid& ActorGuid : Params.ActorGuids)
 		{
-			if (const FWorldPartitionActorDesc* ActorDesc = WorldPartition->GetActorDesc(ActorGuid))
+			if (const FWorldPartitionActorDescInstance* ActorDesc = WorldPartition->GetActorDescInstance(ActorGuid))
 			{
 				if (!ForEachActorWithLoadingImpl(ActorDesc))
 				{

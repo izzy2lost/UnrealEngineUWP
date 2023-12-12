@@ -16,6 +16,7 @@
 #include "WorldPartition/HLOD/HLODActor.h"
 #include "WorldPartition/HLOD/HLODLayer.h"
 #include "WorldPartition/HLOD/HLODSourceActorsFromCell.h"
+#include "WorldPartition/WorldPartitionActorDescInstance.h"
 
 FHLODActorDesc::FHLODActorDesc()
 	: EditorBounds(ForceInit)
@@ -38,8 +39,8 @@ void FHLODActorDesc::Init(const AActor* InActor)
 		{
 			if (SubActor.ContainerID.IsMainContainer())
 			{
-				const FWorldPartitionActorDesc* SubActorDesc = WorldPartition->GetActorDesc(SubActor.ActorInstanceGuid);
-				if (SubActorDesc && SubActorDesc->GetActorNativeClass()->IsChildOf<AWorldPartitionHLOD>())
+				const FWorldPartitionActorDescInstance* SubActorDescInstance = WorldPartition->GetActorDescInstance(SubActor.ActorInstanceGuid);
+				if (SubActorDescInstance && SubActorDescInstance->GetActorNativeClass()->IsChildOf<AWorldPartitionHLOD>())
 				{
 					ChildHLODActors.Add(SubActor.ActorInstanceGuid);
 				}
@@ -196,6 +197,11 @@ int64 FHLODActorDesc::GetPackageSize(const AWorldPartitionHLOD* InHLODActor)
 {
 	const FString PackageFileName = InHLODActor->GetPackage()->GetLoadedPath().GetLocalFullPath();
 	return ::GetPackageSize(PackageFileName);
+}
+
+bool FHLODActorDesc::IsRuntimeRelevant(const FWorldPartitionActorDescInstance* InActorDescInstance) const
+{
+	return !InActorDescInstance->GetForceNonSpatiallyLoaded();
 }
 
 #endif

@@ -80,7 +80,7 @@ TArray<FName> FDataLayerUtils::ResolvedDataLayerInstanceNames(const UDataLayerMa
 }
 
 // For performance reasons, this function assumes that InActorDesc's DataLayerInstanceNames was already resolved.
-bool FDataLayerUtils::ResolveRuntimeDataLayerInstanceNames(const UDataLayerManager* InDataLayerManager, const FWorldPartitionActorDescView& InActorDescView, const TArray<const FWorldPartitionActorDescView*>& InWorldDataLayerViews, TArray<FName>& OutRuntimeDataLayerInstanceNames)
+bool FDataLayerUtils::ResolveRuntimeDataLayerInstanceNames(const UDataLayerManager* InDataLayerManager, const IWorldPartitionActorDescInstanceView& InActorDescView, const FStreamingGenerationActorDescViewMap& InActorDescViewMap, TArray<FName>& OutRuntimeDataLayerInstanceNames)
 {
 	const TArray<FName>& ActorDescViewDataLayerInstanceNames = InActorDescView.GetDataLayerInstanceNames();
 
@@ -99,7 +99,7 @@ bool FDataLayerUtils::ResolveRuntimeDataLayerInstanceNames(const UDataLayerManag
 	}
 
 	// Fallback on FWorldDataLayersActorDesc
-	TArray<const FWorldDataLayersActorDesc*> WorldDataLayersActorDescs = FindWorldDataLayerActorDescs(InWorldDataLayerViews);
+	TArray<const FWorldDataLayersActorDesc*> WorldDataLayersActorDescs = FindWorldDataLayerActorDescs(InActorDescViewMap);
 	if (WorldDataLayersActorDescs.Num())
 	{
 		check(AreWorldDataLayersActorDescsSane(WorldDataLayersActorDescs));
@@ -146,12 +146,13 @@ const FDataLayerInstanceDesc* FDataLayerUtils::GetDataLayerInstanceDescFromAsset
 	return nullptr;
 }
 
-TArray<const FWorldDataLayersActorDesc*> FDataLayerUtils::FindWorldDataLayerActorDescs(const TArray<const FWorldPartitionActorDescView*>& InWorldDataLayerViews)
+TArray<const FWorldDataLayersActorDesc*> FDataLayerUtils::FindWorldDataLayerActorDescs(const FStreamingGenerationActorDescViewMap& InActorDescViewMap)
 {
 	TArray<const FWorldDataLayersActorDesc*> WorldDataLayersActorDescs;
-	Algo::TransformIf(InWorldDataLayerViews, WorldDataLayersActorDescs, 
-		[](const FWorldPartitionActorDescView* WorldDataLayersActorDescView) { return ((FWorldDataLayersActorDesc*)WorldDataLayersActorDescView->GetActorDesc())->IsValid(); },
-		[](const FWorldPartitionActorDescView* WorldDataLayersActorDescView) { return (FWorldDataLayersActorDesc*)WorldDataLayersActorDescView->GetActorDesc(); });
+	TArray<const FStreamingGenerationActorDescView*> WorldDataLayerViews = InActorDescViewMap.FindByExactNativeClass<AWorldDataLayers>();
+	Algo::TransformIf(WorldDataLayerViews, WorldDataLayersActorDescs,
+		[](const FStreamingGenerationActorDescView* WorldDataLayersActorDescView) { return ((FWorldDataLayersActorDesc*)WorldDataLayersActorDescView->GetActorDesc())->IsValid(); },
+		[](const FStreamingGenerationActorDescView* WorldDataLayersActorDescView) { return (FWorldDataLayersActorDesc*)WorldDataLayersActorDescView->GetActorDesc(); });
 	return WorldDataLayersActorDescs;
 }
 

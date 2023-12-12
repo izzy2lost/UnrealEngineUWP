@@ -23,7 +23,8 @@
 #include "DerivedDataCacheInterface.h"
 
 #include "WorldPartition/DataLayer/DataLayerInstance.h"
-#include "WorldPartition/ActorDescContainer.h"
+#include "WorldPartition/ActorDescContainerInstance.h"
+#include "WorldPartition/WorldPartitionActorDescInstance.h"
 #include "WorldPartition/WorldPartition.h"
 #include "WorldPartition/WorldPartitionHelpers.h"
 #include "WorldPartition/HLOD/HLODActor.h"
@@ -390,10 +391,10 @@ bool UWorldPartitionHLODsBuilder::SetupHLODActors()
 		UE_LOG(LogWorldPartitionHLODsBuilder, Display, TEXT("#### World HLOD actors ####"));
 
 		int32 NumActors = 0;
-		for (FActorDescContainerCollection::TIterator<AWorldPartitionHLOD> HLODIterator(WorldPartition); HLODIterator; ++HLODIterator)
+		for (FActorDescContainerInstanceCollection::TIterator<AWorldPartitionHLOD> HLODIterator(WorldPartition); HLODIterator; ++HLODIterator)
 		{
-			FWorldPartitionActorDesc* HLODActorDesc = *HLODIterator;
-			FString PackageName = HLODActorDesc->GetActorPackage().ToString();
+			FWorldPartitionActorDescInstance* HLODActorDescInstance = *HLODIterator;
+			FString PackageName = HLODActorDescInstance->GetActorPackage().ToString();
 
 			UE_LOG(LogWorldPartitionHLODsBuilder, Display, TEXT("    [%d] %s"), NumActors, *PackageName);
 
@@ -521,9 +522,8 @@ bool UWorldPartitionHLODsBuilder::BuildHLODActors()
 			const FGuid& HLODActorGuid = HLODActorsToBuild[CurrentActor];
 
 			FWorldPartitionReference ActorRef(WorldPartition, HLODActorGuid);
-			FWorldPartitionActorDesc* ActorDesc = ActorRef.Get();
 
-			AWorldPartitionHLOD* HLODActor = CastChecked<AWorldPartitionHLOD>(ActorDesc->GetActor());
+			AWorldPartitionHLOD* HLODActor = CastChecked<AWorldPartitionHLOD>(ActorRef.GetActor());
 
 			UE_LOG(LogWorldPartitionHLODsBuilder, Display, TEXT("[%d / %d] Building HLOD actor %s..."), CurrentActor + 1, HLODActorsToBuild.Num(), *HLODActor->GetActorLabel());
 
@@ -625,11 +625,11 @@ bool UWorldPartitionHLODsBuilder::DeleteHLODActors()
 	};
 
 	TArray<FString> PackagesToDelete;
-	for (FActorDescContainerCollection::TIterator<> ActorDescIterator(WorldPartition); ActorDescIterator; ++ActorDescIterator)
+	for (FActorDescContainerInstanceCollection::TIterator<> Iterator(WorldPartition); Iterator; ++Iterator)
 	{
-		if (HLODActorClasses.FindByPredicate([ActorClass = ActorDescIterator->GetActorNativeClass()](const UClass* HLODClass) { return ActorClass->IsChildOf(HLODClass); }))
+		if (HLODActorClasses.FindByPredicate([ActorClass = Iterator->GetActorNativeClass()](const UClass* HLODClass) { return ActorClass->IsChildOf(HLODClass); }))
 		{
-			FString PackageName = ActorDescIterator->GetActorPackage().ToString();
+			FString PackageName = Iterator->GetActorPackage().ToString();
 			PackagesToDelete.Add(PackageName);
 		}
 	}
@@ -734,21 +734,22 @@ TArray<TArray<FGuid>> UWorldPartitionHLODsBuilder::GetHLODWorkloads(int32 NumWor
 
 	// Build a mapping of 1 HLOD[Level] -> N HLOD[Level - 1]
 	TMap<FGuid, TArray<FGuid>>	HLODParenting;
-	for (FActorDescContainerCollection::TIterator<AWorldPartitionHLOD> HLODIterator(WorldPartition); HLODIterator; ++HLODIterator)
+	for (FActorDescContainerInstanceCollection::TIterator<AWorldPartitionHLOD> HLODIterator(WorldPartition); HLODIterator; ++HLODIterator)
 	{
+		const FHLODActorDesc& HLODActorDesc = *(FHLODActorDesc*)HLODIterator->GetActorDesc();
 		// Filter by HLOD actor
-		if (!HLODActorToBuild.IsNone() && HLODIterator->GetActorLabel() != HLODActorToBuild)
+		if (!HLODActorToBuild.IsNone() && HLODActorDesc.GetActorLabel() != HLODActorToBuild)
 		{
 			continue;
 		}
 
 		// Filter by HLOD layer
-		if (!HLODLayerToBuild.IsNone() && HLODIterator->GetSourceHLODLayer().GetAssetName() != HLODLayerToBuild)
+		if (!HLODLayerToBuild.IsNone() && HLODActorDesc.GetSourceHLODLayer().GetAssetName() != HLODLayerToBuild)
 		{
 			continue;
 		}
 
-		HLODParenting.Add(HLODIterator->GetGuid(), HLODIterator->GetChildHLODActors());
+		HLODParenting.Add(HLODIterator->GetGuid(), HLODActorDesc.GetChildHLODActors());
 	}
 
 	// All child HLODs must be built before their parent HLOD
@@ -820,20 +821,20 @@ bool UWorldPartitionHLODsBuilder::ValidateWorkload(const TArray<FGuid>& Workload
 	// For each HLOD entry in the workload, validate that its children are found before itself
 	for (const FGuid& HLODActorGuid : Workload)
 	{
-		const FWorldPartitionActorDesc* ActorDesc = WorldPartition->GetActorDesc(HLODActorGuid);
-		if(!ActorDesc)
+		const FWorldPartitionActorDescInstance* ActorDescInstance = WorldPartition->GetActorDescInstance(HLODActorGuid);
+		if(!ActorDescInstance)
 		{
 			UE_LOG(LogWorldPartitionHLODsBuilder, Error, TEXT("Unknown actor guid found, your HLOD actors are probably out of date. Run with -SetupHLODs to fix this. Exiting..."));
 			return false;
 		}
 
-		if (!ActorDesc->GetActorNativeClass()->IsChildOf<AWorldPartitionHLOD>())
+		if (!ActorDescInstance->GetActorNativeClass()->IsChildOf<AWorldPartitionHLOD>())
 		{
 			UE_LOG(LogWorldPartitionHLODsBuilder, Error, TEXT("Unexpected actor guid found in HLOD workload, exiting..."));
 			return false;
 		}
 
-		const FHLODActorDesc* HLODActorDesc = static_cast<const FHLODActorDesc*>(ActorDesc);
+		const FHLODActorDesc* HLODActorDesc = static_cast<const FHLODActorDesc*>(ActorDescInstance->GetActorDesc());
 
 		for (const FGuid& ChildHLODActorGuid : HLODActorDesc->GetChildHLODActors())
 		{
@@ -881,13 +882,13 @@ bool UWorldPartitionHLODsBuilder::GenerateBuildManifest(TMap<FString, int32>& Fi
 			if (WorldPartition)
 			{
 				// Track which builder is responsible to handle each actor
-				const FWorldPartitionActorDesc* ActorDesc = WorldPartition->GetActorDesc(ActorGuid);
-				if (!ActorDesc)
+				const FWorldPartitionActorDescInstance* ActorDescInstance = WorldPartition->GetActorDescInstance(ActorGuid);
+				if (!ActorDescInstance)
 				{
 					UE_LOG(LogWorldPartitionHLODsBuilder, Error, TEXT("Invalid actor GUID found while generating the HLOD build manifest, exiting..."));
 					return false;
 				}
-				FString ActorPackageFilename = USourceControlHelpers::PackageFilename(ActorDesc->GetActorPackage().ToString());
+				FString ActorPackageFilename = USourceControlHelpers::PackageFilename(ActorDescInstance->GetActorPackage().ToString());
 				FilesToBuilderMap.Emplace(ActorPackageFilename, BuilderIndex);
 			}
 		}

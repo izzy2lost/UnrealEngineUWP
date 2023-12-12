@@ -15,6 +15,7 @@
 class AActor;
 class FDataLayerMode;
 class FWorldPartitionActorDesc;
+class FWorldPartitionActorDescInstance;
 class UDataLayerInstance;
 class ULevel;
 class UWorld;
@@ -55,8 +56,8 @@ private:
 	void OnLevelRemoved(ULevel* InLevel, UWorld* InWorld);
 	void OnLoadedActorAdded(AActor& InActor);
 	void OnLoadedActorRemoved(AActor& InActor);
-	void OnActorDescAdded(FWorldPartitionActorDesc* InActorDesc);
-	void OnActorDescRemoved(FWorldPartitionActorDesc* InActorDesc);
+	void OnActorDescInstanceAdded(FWorldPartitionActorDescInstance* InActorDescInstance);
+	void OnActorDescInstanceRemoved(FWorldPartitionActorDescInstance* InActorDescInstance);
 	void OnActorDataLayersChanged(const TWeakObjectPtr<AActor>& InActor);
 	void OnDataLayerChanged(const EDataLayerAction Action, const TWeakObjectPtr<const UDataLayerInstance>& ChangedDataLayer, const FName& ChangedProperty);
 	void FullRefreshEvent();

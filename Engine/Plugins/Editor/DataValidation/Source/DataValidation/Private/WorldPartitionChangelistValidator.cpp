@@ -17,7 +17,6 @@
 #include "WorldPartition/DataLayer/DataLayerInstanceWithAsset.h"
 #include "WorldPartition/DataLayer/WorldDataLayers.h"
 #include "WorldPartition/ContentBundle/ContentBundlePaths.h"
-#include "WorldPartition/WorldPartitionActorDescView.h"
 
 #include UE_INLINE_GENERATED_CPP_BY_NAME(WorldPartitionChangelistValidator)
 
@@ -51,7 +50,7 @@ EDataValidationResult UWorldPartitionChangelistValidator::ValidateLoadedAsset_Im
 }
 
 // Extract all Actors/Map from Changelist (in OFPA this should be one Actor per Package, and we'll discard all Actors from non WorldPartition maps)
-// and add them to a Map of World->Files[] so that we can do one validation per world. Once Worlds are identified, we either the UActorDescContainer 
+// and add them to a Map of World->Files[] so that we can do one validation per world. Once Worlds are identified, we either the UActorDescContainerInstance 
 // from memory (if loaded) or request it to be loaded, we then build a Set of objects that interest us from the Actors in the CL 
 void UWorldPartitionChangelistValidator::ValidateActorsAndDataLayersFromChangeList(UDataValidationChangelist* Changelist)
 {
@@ -136,34 +135,34 @@ void UWorldPartitionChangelistValidator::ValidateActorsAndDataLayersFromChangeLi
 		}
 	}
 
-	auto RegisterContainerToValidate = [](UWorld* InWorld, FName InContainerPackageName, FActorDescContainerCollection& OutRegisteredContainers, const FGuid& InContentBundleGuid)
+	auto RegisterContainerToValidate = [](UWorld* InWorld, FName InContainerPackageName, FActorDescContainerInstanceCollection& OutRegisteredContainers, const FGuid& InContentBundleGuid)
 	{
 		if (OutRegisteredContainers.Contains(InContainerPackageName))
 		{
 			return;
 		}
 
-		UActorDescContainer* ActorDescContainer = nullptr;
+		UActorDescContainerInstance* ContainerInstance = nullptr;
 		if (InWorld != nullptr)
 		{
 			// World is Loaded reuse the ActorDescContainer of the Content Bundle
-			ActorDescContainer = InWorld->GetWorldPartition()->FindContainer(InContainerPackageName);
+			ContainerInstance = InWorld->GetWorldPartition()->FindContainer(InContainerPackageName);
 		}
 
 		// Even if world is valid, its world partition is not necessarily initialized
-		if (!ActorDescContainer)
+		if (!ContainerInstance)
 		{
-			// Find in memory failed, load the ActorDescContainer
-			ActorDescContainer = NewObject<UActorDescContainer>();
-			ActorDescContainer->Initialize({ nullptr, InContainerPackageName });
-			ActorDescContainer->SetContentBundleGuid(InContentBundleGuid);
+			// Find in memory failed, load the ActorDescContainerInstance
+			ContainerInstance = NewObject<UActorDescContainerInstance>();
+			ContainerInstance->Initialize({ InContainerPackageName });
+			ContainerInstance->GetContainer()->SetContentBundleGuid(InContentBundleGuid);
 		}
 		else
 		{
-			check(ActorDescContainer->GetContentBundleGuid() == InContentBundleGuid);
+			check(ContainerInstance->GetContentBundleGuid() == InContentBundleGuid);
 		}
 
-		OutRegisteredContainers.AddContainer(ActorDescContainer);
+		OutRegisteredContainers.AddContainer(ContainerInstance);
 	};
 
 	// For Each world 
@@ -177,7 +176,7 @@ void UWorldPartitionChangelistValidator::ValidateActorsAndDataLayersFromChangeLi
 		
 		TGuardValue<UObject*> GuardCurrentAsset(CurrentAsset, World);
 		
-		FActorDescContainerCollection ContainersToValidate;
+		FActorDescContainerInstanceCollection ContainersToValidate;
 
 		// Always register the main world container because content bundle containers can't be validated separately
 		RegisterContainerToValidate(World, MapPath.GetPackageName(), ContainersToValidate, FGuid());
@@ -204,9 +203,9 @@ void UWorldPartitionChangelistValidator::ValidateActorsAndDataLayersFromChangeLi
 		for (const FAssetData& ActorData : ActorsData)
 		{
 			// Get the actor descriptor
-			if (const FWorldPartitionActorDesc* ActorDesc = ContainersToValidate.GetActorDescByPath(ActorData.AssetName.ToString()))
+			if (const FWorldPartitionActorDescInstance* ActorDescInstance = ContainersToValidate.GetActorDescInstanceByPath(ActorData.AssetName.ToString()))
 			{
-				RelevantActorGuids.Add(ActorDesc->GetGuid());
+				RelevantActorGuids.Add(ActorDescInstance->GetGuid());
 			}
 		}
 
@@ -215,21 +214,21 @@ void UWorldPartitionChangelistValidator::ValidateActorsAndDataLayersFromChangeLi
 			.SetErrorHandler(this)
 			.SetEnableStreaming(!ULevel::GetIsStreamingDisabledFromPackage(MapPath.GetPackageName()));
 
-		ContainersToValidate.ForEachActorDescContainer([&Params](const UActorDescContainer* ActorDescContainer)
+		ContainersToValidate.ForEachActorDescContainer([&Params](const UActorDescContainerInstance* ContainerInstance)
 		{
-			for (FActorDescList::TConstIterator<> ActorDescIt(ActorDescContainer); ActorDescIt; ++ActorDescIt)
+			for (UActorDescContainerInstance::TConstIterator<> Iterator(ContainerInstance); Iterator; ++Iterator)
 			{
-				check(!Params.ActorGuidsToContainerMap.Contains(ActorDescIt->GetGuid()));
-				Params.ActorGuidsToContainerMap.Add(ActorDescIt->GetGuid(), ActorDescContainer);
+				check(!Params.ActorGuidsToContainerInstanceMap.Contains(Iterator->GetGuid()));
+				Params.ActorGuidsToContainerInstanceMap.Add(Iterator->GetGuid(), ContainerInstance);
 			}
 		});
 
-		Params.ActorDescContainerCollection = &ContainersToValidate;
+		Params.ActorDescContainerInstanceCollection = &ContainersToValidate;
 		UWorldPartition::CheckForErrors(Params);
 	}
 }
 
-bool UWorldPartitionChangelistValidator::Filter(const FWorldPartitionActorDescView& ActorDescView)
+bool UWorldPartitionChangelistValidator::Filter(const IWorldPartitionActorDescInstanceView& ActorDescView)
 {
 	if (RelevantActorGuids.Find(ActorDescView.GetGuid()))
 	{
@@ -251,7 +250,7 @@ bool UWorldPartitionChangelistValidator::Filter(const UDataLayerInstance* InData
 	return DataLayerWithAsset != nullptr && DataLayerWithAsset->GetAsset() != nullptr && RelevantDataLayerAssets.Contains(DataLayerWithAsset->GetAsset()->GetPathName());
 }
 
-void UWorldPartitionChangelistValidator::OnInvalidRuntimeGrid(const FWorldPartitionActorDescView& ActorDescView, FName GridName)
+void UWorldPartitionChangelistValidator::OnInvalidRuntimeGrid(const IWorldPartitionActorDescInstanceView& ActorDescView, FName GridName)
 {
 	if (Filter(ActorDescView))
 	{
@@ -263,7 +262,7 @@ void UWorldPartitionChangelistValidator::OnInvalidRuntimeGrid(const FWorldPartit
 	}
 }
 
-void UWorldPartitionChangelistValidator::OnInvalidReference(const FWorldPartitionActorDescView& ActorDescView, const FGuid& ReferenceGuid, FWorldPartitionActorDescView* ReferenceActorDescView)
+void UWorldPartitionChangelistValidator::OnInvalidReference(const IWorldPartitionActorDescInstanceView& ActorDescView, const FGuid& ReferenceGuid, IWorldPartitionActorDescInstanceView* ReferenceActorDescView)
 {
 	if (Filter(ActorDescView))
 	{
@@ -275,7 +274,7 @@ void UWorldPartitionChangelistValidator::OnInvalidReference(const FWorldPartitio
 	}
 }
 
-void UWorldPartitionChangelistValidator::OnInvalidReferenceGridPlacement(const FWorldPartitionActorDescView& ActorDescView, const FWorldPartitionActorDescView& ReferenceActorDescView)
+void UWorldPartitionChangelistValidator::OnInvalidReferenceGridPlacement(const IWorldPartitionActorDescInstanceView& ActorDescView, const IWorldPartitionActorDescInstanceView& ReferenceActorDescView)
 {
 	if (Filter(ActorDescView) || Filter(ReferenceActorDescView))
 	{
@@ -296,7 +295,7 @@ void UWorldPartitionChangelistValidator::OnInvalidReferenceGridPlacement(const F
 	}
 }
 
-void UWorldPartitionChangelistValidator::OnInvalidReferenceDataLayers(const FWorldPartitionActorDescView& ActorDescView, const FWorldPartitionActorDescView& ReferenceActorDescView)
+void UWorldPartitionChangelistValidator::OnInvalidReferenceDataLayers(const IWorldPartitionActorDescInstanceView& ActorDescView, const IWorldPartitionActorDescInstanceView& ReferenceActorDescView)
 {	
 	if (Filter(ActorDescView) || Filter(ReferenceActorDescView))
 	{
@@ -308,7 +307,7 @@ void UWorldPartitionChangelistValidator::OnInvalidReferenceDataLayers(const FWor
 	}
 }
 
-void UWorldPartitionChangelistValidator::OnInvalidReferenceRuntimeGrid(const FWorldPartitionActorDescView& ActorDescView, const FWorldPartitionActorDescView& ReferenceActorDescView)
+void UWorldPartitionChangelistValidator::OnInvalidReferenceRuntimeGrid(const IWorldPartitionActorDescInstanceView& ActorDescView, const IWorldPartitionActorDescInstanceView& ReferenceActorDescView)
 {
 	if (Filter(ActorDescView) || Filter(ReferenceActorDescView))
 	{
@@ -320,7 +319,7 @@ void UWorldPartitionChangelistValidator::OnInvalidReferenceRuntimeGrid(const FWo
 	}
 }
 
-void UWorldPartitionChangelistValidator::OnInvalidReferenceLevelScriptStreamed(const FWorldPartitionActorDescView& ActorDescView)
+void UWorldPartitionChangelistValidator::OnInvalidReferenceLevelScriptStreamed(const IWorldPartitionActorDescInstanceView& ActorDescView)
 {
 	if (Filter(ActorDescView))
 	{		
@@ -331,7 +330,7 @@ void UWorldPartitionChangelistValidator::OnInvalidReferenceLevelScriptStreamed(c
 	}
 }
 
-void UWorldPartitionChangelistValidator::OnInvalidReferenceLevelScriptDataLayers(const FWorldPartitionActorDescView& ActorDescView)
+void UWorldPartitionChangelistValidator::OnInvalidReferenceLevelScriptDataLayers(const IWorldPartitionActorDescInstanceView& ActorDescView)
 {
 	if (Filter(ActorDescView))
 	{
@@ -384,12 +383,12 @@ void UWorldPartitionChangelistValidator::OnDataLayerAssetConflict(const UDataLay
 	}
 }
 
-void UWorldPartitionChangelistValidator::OnActorNeedsResave(const FWorldPartitionActorDescView& ActorDescView)
+void UWorldPartitionChangelistValidator::OnActorNeedsResave(const IWorldPartitionActorDescInstanceView& ActorDescView)
 {
 	// Changelist validation already ensures that dirty actors must be part of the changelist
 }
 
-void UWorldPartitionChangelistValidator::OnLevelInstanceInvalidWorldAsset(const FWorldPartitionActorDescView& ActorDescView, FName WorldAsset, ELevelInstanceInvalidReason Reason)
+void UWorldPartitionChangelistValidator::OnLevelInstanceInvalidWorldAsset(const IWorldPartitionActorDescInstanceView& ActorDescView, FName WorldAsset, ELevelInstanceInvalidReason Reason)
 {
 	if (Filter(ActorDescView))
 	{
@@ -422,12 +421,12 @@ void UWorldPartitionChangelistValidator::OnLevelInstanceInvalidWorldAsset(const 
 	}
 }
 
-void UWorldPartitionChangelistValidator::OnInvalidActorFilterReference(const FWorldPartitionActorDescView& ActorDescView, const FWorldPartitionActorDescView& ReferenceActorDescView)
+void UWorldPartitionChangelistValidator::OnInvalidActorFilterReference(const IWorldPartitionActorDescInstanceView& ActorDescView, const IWorldPartitionActorDescInstanceView& ReferenceActorDescView)
 {
 	// Not a validation error
 }
 
-void UWorldPartitionChangelistValidator::OnInvalidHLODLayer(const FWorldPartitionActorDescView& ActorDescView)
+void UWorldPartitionChangelistValidator::OnInvalidHLODLayer(const IWorldPartitionActorDescInstanceView& ActorDescView)
 {
 	if (Filter(ActorDescView))
 	{

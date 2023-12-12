@@ -66,6 +66,8 @@ DEFINE_LOG_CATEGORY(LogIteratePackagesCommandlet);
 // world partition includes
 #include "WorldPartition/WorldPartitionHelpers.h"
 #include "WorldPartition/WorldPartitionActorDesc.h"
+#include "WorldPartition/ActorDescContainerInstance.h"
+#include "WorldPartition/WorldPartitionActorDescInstance.h"
 #include "WorldPartition/LoaderAdapter/LoaderAdapterShape.h"
 #include "UObject/GCObjectScopeGuard.h"
 
@@ -715,13 +717,13 @@ void UBaseIteratePackagesCommandlet::LoadAndSaveOnePackage(const FString& Filena
 
 				UWorldPartition* WorldPartition = World->GetWorldPartition();
 
-				FWorldPartitionHelpers::ForEachActorWithLoading(WorldPartition, [&PackagesToSave, this](const FWorldPartitionActorDesc* ActorDesc)
+				FWorldPartitionHelpers::ForEachActorWithLoading(WorldPartition, [&PackagesToSave, this](const FWorldPartitionActorDescInstance* ActorDescInstance)
 					{
-						AActor* Actor = ActorDesc->GetActor();
+						AActor* Actor = ActorDescInstance->GetActor();
 
 						if (!Actor)
 						{
-							WorldBuilderFailedLoadingActor(ActorDesc);
+							WorldBuilderFailedLoadingActor(ActorDescInstance);
 							return true;
 						}
 

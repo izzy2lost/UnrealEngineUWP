@@ -7,33 +7,34 @@
 #include "Engine/World.h"
 #include "Engine/Level.h"
 #include "WorldPartition/WorldPartition.h"
+#include "WorldPartition/WorldPartitionActorDescInstance.h"
 
 #define LOCTEXT_NAMESPACE "FLoaderAdapterPinnedActors"
 
 namespace LoaderAdapterPinnedActorsUtils
 {
-	static bool SupportsPinning(FWorldPartitionActorDesc* InActorDesc, bool bCheckIsMainWorldPartition)
+	static bool SupportsPinning(FWorldPartitionActorDescInstance* InActorDescInstance, bool bCheckIsMainWorldPartition)
 	{
-		if (!InActorDesc)
+		if (!InActorDescInstance)
 		{
 			return false;
 		}
 
 		// Only Spatially loaded actors can be pinned with the exception of non spatially loaded runtime only actors (ex: HLODs)
-		if (!InActorDesc->GetIsSpatiallyLoaded() && !InActorDesc->GetActorIsRuntimeOnly())
+		if (!InActorDescInstance->GetIsSpatiallyLoaded() && !InActorDescInstance->GetActorIsRuntimeOnly())
 		{
 			return false;
 		}
 
 		// This allows skipping actors that can never be loaded in current context: ex: bActorShouldSkipLevelInstance
-		if (!InActorDesc->IsEditorRelevant() && !InActorDesc->GetActorIsRuntimeOnly())
+		if (!InActorDescInstance->IsEditorRelevant() && !InActorDescInstance->GetActorIsRuntimeOnly())
 		{
 			return false;
 		}
 
-		if (UActorDescContainer* Container = InActorDesc->GetContainer())
+		if (UActorDescContainerInstance* ContainerInstance = InActorDescInstance->GetContainerInstance())
 		{
-			const UWorldPartition* ContainerWorldPartition = Container->GetWorldPartition();
+			const UWorldPartition* ContainerWorldPartition = ContainerInstance->GetWorldPartition();
 			return ContainerWorldPartition && (ContainerWorldPartition->IsMainWorldPartition() || !bCheckIsMainWorldPartition);
 		}
 
@@ -46,16 +47,16 @@ bool FLoaderAdapterPinnedActors::PassActorDescFilter(const FWorldPartitionHandle
 	// We want to be able to pin any type of actors (HLODs, etc).
 	// Allow recursive pinning by setting bCheckIsMainWorldPartition = false
 	const bool bCheckIsMainWorldPartition = false;
-	return ActorHandle.IsValid() && !ActorsToRemove.Contains(ActorHandle) && LoaderAdapterPinnedActorsUtils::SupportsPinning(ActorHandle.Get(), bCheckIsMainWorldPartition);
+	return ActorHandle.IsValid() && !ActorsToRemove.Contains(ActorHandle) && LoaderAdapterPinnedActorsUtils::SupportsPinning(ActorHandle.GetInstance(), bCheckIsMainWorldPartition);
 }
 
 
 
-bool FLoaderAdapterPinnedActors::SupportsPinning(FWorldPartitionActorDesc* InActorDesc)
+bool FLoaderAdapterPinnedActors::SupportsPinning(FWorldPartitionActorDescInstance* InActorDescInstance)
 {
 	// Public api doesn't allow pinning of non main world partition actors
 	const bool bCheckIsMainWorldPartition = true;
-	return LoaderAdapterPinnedActorsUtils::SupportsPinning(InActorDesc, bCheckIsMainWorldPartition);
+	return LoaderAdapterPinnedActorsUtils::SupportsPinning(InActorDescInstance, bCheckIsMainWorldPartition);
 }
 
 bool FLoaderAdapterPinnedActors::SupportsPinning(AActor* InActor)

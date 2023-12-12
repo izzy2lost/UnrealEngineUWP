@@ -50,7 +50,6 @@
 #include "WorldPartition/DataLayer/DeprecatedDataLayerInstance.h"
 #include "WorldPartition/DataLayer/WorldDataLayers.h"
 #include "WorldPartition/DataLayer/DataLayerUtils.h"
-#include "WorldPartition/WorldPartitionActorDescViewProxy.h"
 #include "WorldPartition/WorldPartition.h"
 
 class SWidget;
@@ -1165,12 +1164,24 @@ bool UDataLayerEditorSubsystem::PassDataLayersFilter(UWorld* World, const FWorld
 
 	if (UDataLayerManager* DataLayerManager = UDataLayerManager::GetDataLayerManager(OwningWorld))
 	{
-		FWorldPartitionActorViewProxy ActorDescProxy(*ActorHandle);
-
+		// If Actor is loaded and dirty, use a newly resolved DataLayerInstanceNames array
+		auto GetLatestDataLayerInstanceNames = [DataLayerManager, ActorHandle]() -> TArray<FName>
+		{
+			if(AActor* Actor = ActorHandle.GetInstance()->GetActor(false); Actor && Actor->GetPackage()->IsDirty())
+			{
+				TUniquePtr<FWorldPartitionActorDesc> NewActorDesc = Actor->CreateActorDesc();
+				return FDataLayerUtils::ResolvedDataLayerInstanceNames(DataLayerManager, NewActorDesc.Get());
+			}
+			else
+			{
+				return ActorHandle.GetInstance()->GetDataLayerInstanceNames();
+			}
+		};
+				
 		if (IsRunningCookCommandlet())
 		{
 			// When running cook commandlet, dont allow loading of actors with runtime loaded data layers
-			for (const FName& DataLayerInstanceName : ActorDescProxy.GetDataLayerInstanceNames())
+			for (const FName& DataLayerInstanceName : GetLatestDataLayerInstanceNames())
 			{
 				const UDataLayerInstance* DataLayerInstance = DataLayerManager->GetDataLayerInstance(DataLayerInstanceName);
 				if (DataLayerInstance && DataLayerInstance->IsRuntime())
@@ -1182,7 +1193,7 @@ bool UDataLayerEditorSubsystem::PassDataLayersFilter(UWorld* World, const FWorld
 			return true;
 		}
 
-		return DataLayerManager->ResolveIsLoadedInEditor(ActorDescProxy.GetDataLayerInstanceNames());
+		return DataLayerManager->ResolveIsLoadedInEditor(GetLatestDataLayerInstanceNames());
 	}
 
 	return true;

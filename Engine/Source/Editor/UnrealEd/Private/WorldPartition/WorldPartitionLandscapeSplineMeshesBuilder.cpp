@@ -29,6 +29,7 @@
 #include "WorldPartition/WorldPartition.h"
 #include "WorldPartition/WorldPartitionActorDesc.h"
 #include "WorldPartition/WorldPartitionHelpers.h"
+#include "WorldPartition/WorldPartitionActorDescInstance.h"
 #include "ActorPartition/ActorPartitionSubsystem.h"
 #include "Rendering/ColorVertexBuffer.h"
 #include "EngineUtils.h"
@@ -349,10 +350,10 @@ bool UWorldPartitionLandscapeSplineMeshesBuilder::RunInternal(UWorld* InWorld, c
 	TSet<ALandscapeSplineMeshesActor*> PreviousGeneratedActors;
 
 	// Preload all ALandscapeSplineMeshesActor and ALandscapeSplineActor
-	FWorldPartitionHelpers::ForEachActorWithLoading(WorldPartition, [&ActorReferences, &PreviousGeneratedActors, WorldPartition](const FWorldPartitionActorDesc* ActorDesc)
+	FWorldPartitionHelpers::ForEachActorWithLoading(WorldPartition, [&ActorReferences, &PreviousGeneratedActors, WorldPartition](const FWorldPartitionActorDescInstance* ActorDescInstance)
 	{
-		ActorReferences.Emplace(WorldPartition, ActorDesc->GetGuid());
-		AActor* Actor = ActorDesc->GetActor();
+		ActorReferences.Emplace(WorldPartition, ActorDescInstance->GetGuid());
+		AActor* Actor = ActorDescInstance->GetActor();
 		if (IsValid(Actor))
 		{
 			if (ALandscapeSplineMeshesActor* LandscapeSplineMeshesActor = Cast<ALandscapeSplineMeshesActor>(Actor))

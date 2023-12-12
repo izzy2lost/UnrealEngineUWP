@@ -1,0 +1,565 @@
+// Copyright Epic Games, Inc. All Rights Reserved.
+
+#include "WorldPartition/ActorDescContainerInstance.h"
+
+#include UE_INLINE_GENERATED_CPP_BY_NAME(ActorDescContainerInstance)
+
+#if WITH_EDITOR
+#include "WorldPartition/ActorDescContainerSubsystem.h"
+#include "WorldPartition/WorldPartitionActorDescInstance.h"
+#include "WorldPartition/WorldPartition.h"
+#include "WorldPartition/WorldPartitionActorDesc.h"
+#include "WorldPartition/WorldPartitionActorDescUtils.h"
+#include "WorldPartition/DataLayer/DataLayerManager.h"
+#include "Editor.h"
+#endif
+
+#if WITH_EDITOR
+UActorDescContainerInstance::FActorDescContainerInstanceInitializeDelegate UActorDescContainerInstance::OnActorDescContainerInstanceInitialized;
+
+FName UActorDescContainerInstance::GetContainerPackageNameFromWorld(UWorld* InWorld)
+{
+	check(InWorld);
+
+	// return non instanced package name
+	UPackage* ContainerPackage = InWorld->PersistentLevel->GetOutermost();
+
+	// Duplicated worlds (ex: WorldPartitionRenameDuplicateBuilder) will not have a loaded path 
+	return ContainerPackage->GetLoadedPath().GetPackageFName().IsNone() ? ContainerPackage->GetFName() : ContainerPackage->GetLoadedPath().GetPackageFName();
+}
+
+void UActorDescContainerInstance::RegisterContainer(const FInitializeParams& InParams)
+{
+	UActorDescContainer::FInitializeParams ContainerInitParams(InParams.ContainerPackageName);
+	ContainerInitParams.FilterActorDesc = [&InParams](const FWorldPartitionActorDesc* InActorDesc) -> bool
+	{
+		return !InParams.FilterActorDescFunc || InParams.FilterActorDescFunc(InActorDesc);
+	};
+	SetContainer(UActorDescContainerSubsystem::GetChecked().RegisterContainer(ContainerInitParams));
+}
+
+void UActorDescContainerInstance::UnregisterContainer()
+{
+	if (!IsEngineExitRequested())
+	{
+		UActorDescContainerSubsystem::GetChecked().UnregisterContainer(Container);
+	}
+	Container = nullptr;
+}
+
+void UActorDescContainerInstance::OnContainerUpdated(FName ContainerPackage)
+{
+	if (ChildContainerInstances.Num())
+	{
+		TMap<FGuid, TObjectPtr<UActorDescContainerInstance>> CopyChildContainerInstances(ChildContainerInstances);
+		for (auto& [ContainerGuid, ContainerInstance] : CopyChildContainerInstances)
+		{
+			if (ContainerInstance->GetContainerPackage() == ContainerPackage)
+			{
+				FWorldPartitionActorDescInstance* ContainerDescInstance = GetActorDescInstance(ContainerGuid);
+				check(ContainerDescInstance);
+				ContainerDescInstance->UpdateChildContainerInstance();
+			}
+		}
+	}
+}
+
+void UActorDescContainerInstance::Initialize(const FInitializeParams& InParams)
+{
+	FName OuterWorldContainerPackageName;
+
+	Transform = InParams.Transform;
+	if (InParams.ParentContainerInstance)
+	{
+		ContainerID = FActorContainerID(InParams.ParentContainerInstance->GetContainerID(), InParams.ContainerActorGuid);
+	}
+				
+	// Only consider world if we are outered to a WorldPartition directly
+	UWorld* OuterWorld = HasWorldPartition() ? GetTypedOuter<UWorld>() : nullptr;
+	bool bIsInstanced = false;
+	FString SourceWorldPath, RemappedWorldPath;
+
+	const FString OuterWorldPackageNameStr = OuterWorld ? OuterWorld->GetPackage()->GetFName().ToString() : FString();
+
+	if (OuterWorld)
+	{
+		// World package name can differ from ContainerPackage name as the ContainerPackageName can be a ContentBundle
+		OuterWorldContainerPackageName = GetContainerPackageNameFromWorld(OuterWorld);
+		
+		// Currently known Instancing use cases:
+		//  - Level Instances
+		//  - Runtime Streamed World Partition levels
+		//	- World Partition map template (New Level)
+		//	- PIE World Travel / -game
+		bIsInstanced = OuterWorld->GetSoftObjectPathMapping(SourceWorldPath, RemappedWorldPath);
+
+		if (bIsInstanced)
+		{
+			SourceWorldContainerPath = SourceWorldPath;
+			WorldContainerPath = RemappedWorldPath;
+
+			InstancingContext = FLinkerInstancingContext();
+			InstancingContext->AddPackageMapping(OuterWorldContainerPackageName, OuterWorld->GetPackage()->GetFName());
+
+			// SoftObjectPaths: Specific case for new maps (/Temp/Untitled) where we need to remap the AssetPath and not just the Package name because the World gets renamed (See UWorld::PostLoad)
+			InstancingContext->AddPathMapping(
+				FSoftObjectPath(*FString::Format(TEXT("{0}.{1}"), { OuterWorldContainerPackageName.ToString(), FPackageName::GetShortName(OuterWorldContainerPackageName) })),
+				FSoftObjectPath(OuterWorld)
+			);
+		}
+	}
+		
+	RegisterContainer(InParams);
+	check(Container);
+
+	// Instanced map Invalid Actors
+	if (bIsInstanced)
+	{
+		// If a Valid Actor references an Invalid Actor:
+		// Make sure Invalid Actors do not load their imports (ex: outer non instanced world).
+		for (const FAssetData& InvalidActor : Container->InvalidActors)
+		{
+			InstancingContext->AddPackageMapping(InvalidActor.PackageName, NAME_None);
+		}
+	}
+
+	// Create ActorDescInstances
+	for (FActorDescList::TIterator<> It(Container); It; ++It)
+	{
+		FWorldPartitionActorDescInstance ActorDescInstance(this, *It);
+		if (bIsInstanced)
+		{
+			const FString LongActorPackageName = It->GetActorPackage().ToString();
+			const FString InstancedName = ULevel::GetExternalActorPackageInstanceName(OuterWorldPackageNameStr, LongActorPackageName);
+
+			InstancingContext->AddPackageMapping(*LongActorPackageName, *InstancedName);
+			ActorDescInstance.ActorPath = It->GetActorSoftPath().ToString().Replace(*SourceWorldPath, *RemappedWorldPath);
+		}
+
+		AddActorDescInstance(MoveTemp(ActorDescInstance));
+	}
+
+	OnActorDescContainerInstanceInitialized.Broadcast(this);
+		
+	// If Container Instance is required to create hierarchy go ahead
+	if (InParams.bCreateContainerInstanceHierarchy)
+	{
+		bCreateChildContainerHierarchy = true;
+		for (UActorDescContainerInstance::TIterator<> It(this); It; ++It)
+		{
+			if (It->IsChildContainerInstance())
+			{
+				It->RegisterChildContainerInstance();
+			}
+		}
+	}
+
+	// Register Delegates
+	RegisterDelegates();
+
+	bIsInitialized = true;
+}
+
+void UActorDescContainerInstance::OnRegisterChildContainerInstance(const FGuid& InActorGuid, UActorDescContainerInstance* InChildContainerInstance)
+{
+	check(bCreateChildContainerHierarchy);
+	check(!ChildContainerInstances.Contains(InActorGuid));
+	ChildContainerInstances.Add(InActorGuid, InChildContainerInstance);
+}
+
+void UActorDescContainerInstance::OnUnregisterChildContainerInstance(const FGuid& InActorGuid)
+{
+	check(bCreateChildContainerHierarchy);
+	check(ChildContainerInstances.Contains(InActorGuid));
+	ChildContainerInstances.Remove(InActorGuid);
+}
+
+void UActorDescContainerInstance::Uninitialize()
+{
+	bIsInitialized = false;
+
+	UnregisterDelegates();
+
+	for (TUniquePtr<FWorldPartitionActorDescInstance>& ActorDescInstancePtr : ActorDescList)
+	{
+		if (ActorDescInstancePtr.IsValid())
+		{
+			RemoveActorDescInstance(&ActorDescInstancePtr);
+		}
+	}
+	check(ChildContainerInstances.IsEmpty());
+
+	UnregisterContainer();
+	Container = nullptr;
+}
+
+bool UActorDescContainerInstance::ShouldRegisterDelegates() const
+{
+	// No World Partition means we are a ChildContainerInstance created for StreamingGeneration and need to listen to some events for updates
+	const UWorldPartition* WorldPartition = GetWorldPartition();
+	const UWorld* OwningWorld = WorldPartition ? WorldPartition->GetWorld() : nullptr;
+
+	return !OwningWorld || !OwningWorld->IsGameWorld();
+}
+
+void UActorDescContainerInstance::RegisterDelegates()
+{
+	if (ShouldRegisterDelegates())
+	{
+		check(Container);
+
+		// Containers with an instancing context:
+		// PIE / NewMap : Do not need to listen to Add/Removed/Updated events as they are either not changing (PIE) or don't have valid actor descs yet (NewMap)
+		if (!GetInstancingContext())
+		{
+			Container->OnActorDescAddedEvent.AddUObject(this, &UActorDescContainerInstance::OnActorDescAdded);
+			Container->OnActorDescRemovedEvent.AddUObject(this, &UActorDescContainerInstance::OnActorDescRemoved);
+		}
+
+		// Only listen to Object replaced events on ContainerInstance that have a direct World Partition outer (Loaded Container Instances: Main World or Loaded Level Instances)
+		if (HasWorldPartition())
+		{
+			FCoreUObjectDelegates::OnObjectsReplaced.AddUObject(this, &UActorDescContainerInstance::OnObjectsReplaced);
+		}
+
+		// Only listen to this event if we have registered Child Container Instances
+		if (bCreateChildContainerHierarchy)
+		{
+			UActorDescContainerSubsystem::GetChecked().ContainerUpdated().AddUObject(this, &UActorDescContainerInstance::OnContainerUpdated);
+		}
+
+		// Always listen to Updated event to invalidate FWorldPartitionActorDescInstance Cached ActorDesc & Hash/Unhash if this container is a loaded world
+		Container->OnActorDescUpdatingEvent.AddUObject(this, &UActorDescContainerInstance::OnActorDescUpdating);
+		Container->OnActorDescUpdatedEvent.AddUObject(this, &UActorDescContainerInstance::OnActorDescUpdated);
+	}
+}
+
+void UActorDescContainerInstance::UnregisterDelegates()
+{
+	if (ShouldRegisterDelegates())
+	{
+		FCoreUObjectDelegates::OnObjectsReplaced.RemoveAll(this);
+
+		check(Container);
+		Container->OnActorDescAddedEvent.RemoveAll(this);
+		Container->OnActorDescRemovedEvent.RemoveAll(this);
+		Container->OnActorDescUpdatingEvent.RemoveAll(this);
+		Container->OnActorDescUpdatedEvent.RemoveAll(this);
+
+		if (UActorDescContainerSubsystem* ActorDescContainerSubsystem = UActorDescContainerSubsystem::Get())
+		{
+			ActorDescContainerSubsystem->ContainerUpdated().RemoveAll(this);
+		}
+	}
+}
+
+TUniquePtr<FWorldPartitionActorDescInstance>* UActorDescContainerInstance::GetActorDescInstancePtr(const FGuid& InActorGuid) const
+{
+	if (TUniquePtr<FWorldPartitionActorDescInstance>* const* ActorDescInstancePtr = ActorsByGuid.Find(InActorGuid))
+	{
+		return *ActorDescInstancePtr;
+	}
+
+	return nullptr;
+}
+
+FWorldPartitionActorDescInstance* UActorDescContainerInstance::GetActorDescInstance(const FGuid& InActorGuid) const
+{
+	if (TUniquePtr<FWorldPartitionActorDescInstance>* ActorDescInstancePtr = GetActorDescInstancePtr(InActorGuid))
+	{
+		return ActorDescInstancePtr->Get();
+	}
+
+	return nullptr;
+}
+
+FWorldPartitionActorDescInstance& UActorDescContainerInstance::GetActorDescInstanceChecked(const FGuid& InActorGuid) const
+{
+	FWorldPartitionActorDescInstance* ActorDescInstance = GetActorDescInstance(InActorGuid);
+	check(ActorDescInstance);
+	return *ActorDescInstance;
+}
+
+const FWorldPartitionActorDescInstance* UActorDescContainerInstance::GetActorDescInstanceByPath(const FString& ActorPath) const
+{
+	if (const FWorldPartitionActorDesc* ActorDesc = GetContainer()->GetActorDescByPath(ActorPath))
+	{
+		return GetActorDescInstance(ActorDesc->GetGuid());
+	}
+
+	return nullptr;
+}
+
+const FWorldPartitionActorDescInstance* UActorDescContainerInstance::GetActorDescInstanceByPath(const FSoftObjectPath& ActorPath) const
+{
+	if (const FWorldPartitionActorDesc* ActorDesc = GetContainer()->GetActorDescByPath(ActorPath))
+	{
+		return GetActorDescInstance(ActorDesc->GetGuid());
+	}
+
+	return nullptr;
+}
+
+const FWorldPartitionActorDescInstance* UActorDescContainerInstance::GetActorDescInstanceByName(FName ActorName) const
+{
+	if (const FWorldPartitionActorDesc* ActorDesc = GetContainer()->GetActorDescByName(ActorName))
+	{
+		return GetActorDescInstance(ActorDesc->GetGuid());
+	}
+
+	return nullptr;
+}
+
+bool UActorDescContainerInstance::IsActorDescHandled(const AActor* Actor) const
+{
+	if (Container->IsActorDescHandled(Actor))
+	{
+		return true;
+	}
+
+	// Special case of Newly created maps where the Container might point to a template map but our map path is different
+	if (!Actor->GetContentBundleGuid().IsValid() && GetPackage()->HasAnyPackageFlags(PKG_NewlyCreated) && GetPackage()->GetName() != GetContainerPackage())
+	{
+		const FString ActorPackageName = Actor->GetPackage()->GetName();
+		const FString ExternalActorPath = ULevel::GetExternalActorsPath(GetPackage()->GetName()) / TEXT("");
+		return ActorPackageName.StartsWith(ExternalActorPath);
+	}
+			
+	return false;
+}
+
+FWorldPartitionActorDesc* UActorDescContainerInstance::GetActorDesc(const FGuid& InActorGuid) const
+{
+	return Container->GetActorDesc(InActorGuid);
+}
+
+FWorldPartitionActorDesc* UActorDescContainerInstance::GetActorDescChecked(const FGuid& InActorGuid) const
+{
+	FWorldPartitionActorDesc* ActorDesc = Container->GetActorDesc(InActorGuid);
+	check(ActorDesc);
+	return ActorDesc;
+}
+
+void UActorDescContainerInstance::SetContainerPackage(FName InContainerPackageName)
+{
+	InstancingContext.Reset();
+
+	UActorDescContainerSubsystem::GetChecked().SetContainerPackage(Container, InContainerPackageName);
+}
+
+FName UActorDescContainerInstance::GetContainerPackage() const
+{
+	return Container->GetContainerPackage();
+}
+
+FGuid UActorDescContainerInstance::GetContentBundleGuid() const
+{
+	return Container->GetContentBundleGuid();
+}
+
+FString UActorDescContainerInstance::GetExternalActorPath() const
+{
+	return Container->GetExternalActorPath();
+}
+
+FWorldPartitionActorDescInstance* UActorDescContainerInstance::AddActor(FWorldPartitionActorDesc* InActorDesc)
+{
+	// We don't support adding actors when instanced
+	check(!InstancingContext.IsSet());
+
+	return AddActorDescInstance(FWorldPartitionActorDescInstance(this, InActorDesc));
+}
+
+FWorldPartitionActorDescInstance* UActorDescContainerInstance::AddActorDescInstance(FWorldPartitionActorDescInstance&& InActorDescInstance)
+{
+	check(InActorDescInstance.GetActorDesc());
+	
+	FWorldPartitionActorDescInstance* NewActorDescInstance = new FWorldPartitionActorDescInstance(MoveTemp(InActorDescInstance));
+	check(NewActorDescInstance->IsValid());
+
+	AddActorDescriptor(NewActorDescInstance);
+				
+	return NewActorDescInstance;
+}
+
+void UActorDescContainerInstance::RemoveActor(const FGuid& InActorGuid)
+{
+	check(!InstancingContext.IsSet());
+
+	if (TUniquePtr<FWorldPartitionActorDescInstance>* ActorDescInstance = GetActorDescriptor(InActorGuid))
+	{
+		if (UWorldPartition* WorldPartition = GetWorldPartition())
+		{
+			WorldPartition->OnActorDescInstanceRemoved(ActorDescInstance->Get());
+		}
+
+		OnActorDescInstanceRemovedEvent.Broadcast(ActorDescInstance->Get());
+		RemoveActorDescInstance(ActorDescInstance);
+	}
+}
+
+void UActorDescContainerInstance::RemoveActorDescInstance(TUniquePtr<FWorldPartitionActorDescInstance>* InActorDescInstance)
+{
+	check(InActorDescInstance && InActorDescInstance->IsValid());
+	
+	FWorldPartitionActorDescInstance* ActorDescInstance = InActorDescInstance->Get();
+
+	if (bCreateChildContainerHierarchy && ActorDescInstance->IsChildContainerInstance())
+	{
+		check(ChildContainerInstances.Contains(ActorDescInstance->GetGuid()));
+		ActorDescInstance->UnregisterChildContainerInstance();
+		check(!ChildContainerInstances.Contains(ActorDescInstance->GetGuid()));
+	}
+
+	RemoveActorDescriptor(ActorDescInstance);
+
+	InActorDescInstance->Get()->Invalidate();
+	InActorDescInstance->Reset();
+}
+
+const FLinkerInstancingContext* UActorDescContainerInstance::GetInstancingContext() const
+{
+	return InstancingContext.GetPtrOrNull();
+}
+
+const FTransform& UActorDescContainerInstance::GetTransform() const
+{
+	if (UWorldPartition* WorldPartition = GetWorldPartition())
+	{
+		return GetWorldPartition()->GetInstanceTransform();
+	}
+	
+	return Transform.IsSet() ? Transform.GetValue() : FTransform::Identity;
+}
+
+UWorldPartition* UActorDescContainerInstance::GetWorldPartition() const
+{
+	// Only return a World Partition if we are directly outered to it
+	if (UWorldPartition* OuterWorldPartition = Cast<UWorldPartition>(GetOuter()))
+	{
+		return OuterWorldPartition;
+	}
+
+	return nullptr;
+}
+
+bool UActorDescContainerInstance::HasWorldPartition() const
+{
+	return !!GetWorldPartition();
+}
+
+void UActorDescContainerInstance::LoadAllActors(TArray<FWorldPartitionReference>& OutReferences)
+{
+	FWorldPartitionLoadingContext::FDeferred LoadingContext;
+	OutReferences.Reserve(OutReferences.Num() + ActorsByGuid.Num());
+	for (UActorDescContainerInstance::TIterator<> Iterator(this); Iterator; ++Iterator)
+	{
+		OutReferences.Emplace(this, Iterator->GetGuid());
+	}
+}
+
+void UActorDescContainerInstance::OnObjectsReplaced(const TMap<UObject*, UObject*>& InOldToNewObjectMap)
+{
+	// Patch up Actor pointers in ActorDescInstances
+	for (auto [OldObject, NewObject] : InOldToNewObjectMap)
+	{
+		if (AActor* OldActor = Cast<AActor>(OldObject))
+		{
+			if (Container->ShouldHandleActorEvent(OldActor))
+			{
+				AActor* NewActor = Cast<AActor>(NewObject);
+				if (FWorldPartitionActorDescInstance* ActorDescInstance = GetActorDescInstance(OldActor->GetActorGuid()))
+				{
+					FWorldPartitionActorDescUtils::ReplaceActorDescriptorPointerFromActor(OldActor, NewActor, ActorDescInstance);
+				}
+			}
+		}
+	}
+}
+
+const UDataLayerManager* UActorDescContainerInstance::GetResolvingDataLayerManager() const
+{
+	if (UWorldPartition* WorldPartition = GetWorldPartition())
+	{
+		if (UWorld* OwningWorld = WorldPartition->GetWorld(); OwningWorld && !OwningWorld->IsGameWorld())
+		{
+			if (UWorldPartition* OwningWorldPartition = OwningWorld->GetWorldPartition())
+			{
+				return UDataLayerManager::GetDataLayerManager(OwningWorldPartition);
+			}
+		}
+
+		return UDataLayerManager::GetDataLayerManager(WorldPartition);
+	}
+
+	return nullptr;
+}
+
+void UActorDescContainerInstance::OnActorDescAdded(FWorldPartitionActorDesc* InActorDesc)
+{
+	FWorldPartitionActorDescInstance* NewActorDescInstance = AddActor(InActorDesc);
+
+	if (bCreateChildContainerHierarchy && NewActorDescInstance->IsChildContainerInstance())
+	{
+		NewActorDescInstance->RegisterChildContainerInstance();
+	}
+
+	if (UWorldPartition* WorldPartition = GetWorldPartition())
+	{
+		if (const UDataLayerManager* DataLayerManager = GetResolvingDataLayerManager())
+		{
+			DataLayerManager->ResolveActorDescInstanceDataLayers(NewActorDescInstance);
+		}
+
+		WorldPartition->OnActorDescInstanceAdded(NewActorDescInstance);
+	}
+
+	OnActorDescInstanceAddedEvent.Broadcast(NewActorDescInstance);
+}
+
+void UActorDescContainerInstance::OnActorDescRemoved(FWorldPartitionActorDesc* InActorDesc)
+{
+	RemoveActor(InActorDesc->GetGuid());
+}
+
+void UActorDescContainerInstance::OnActorDescUpdating(FWorldPartitionActorDesc* InActorDesc)
+{
+	TUniquePtr<FWorldPartitionActorDescInstance>* ActorDescInstance = GetActorDescInstancePtr(InActorDesc->GetGuid());
+	check(ActorDescInstance && ActorDescInstance->IsValid());
+		
+	if (UWorldPartition* WorldPartition = GetWorldPartition())
+	{
+		WorldPartition->OnActorDescInstanceUpdating(ActorDescInstance->Get());
+	}
+
+	OnActorDescInstanceUpdatingEvent.Broadcast(ActorDescInstance->Get());
+}
+
+void UActorDescContainerInstance::OnActorDescUpdated(FWorldPartitionActorDesc* InActorDesc)
+{
+	TUniquePtr<FWorldPartitionActorDescInstance>* ActorDescInstance = GetActorDescInstancePtr(InActorDesc->GetGuid());
+	check(ActorDescInstance && ActorDescInstance->IsValid());
+	
+	// Update instance desc
+	(*ActorDescInstance)->UpdateActorDesc(InActorDesc);
+
+	// Re-register container
+	if (bCreateChildContainerHierarchy && ChildContainerInstances.Contains(InActorDesc->GetGuid()))
+	{
+		ActorDescInstance->Get()->UpdateChildContainerInstance();
+	}
+
+	if (UWorldPartition* WorldPartition = GetWorldPartition())
+	{
+		if (const UDataLayerManager* DataLayerManager = GetResolvingDataLayerManager())
+		{
+			DataLayerManager->ResolveActorDescInstanceDataLayers(ActorDescInstance->Get());
+		}
+
+		WorldPartition->OnActorDescInstanceUpdated(ActorDescInstance->Get());
+	}
+
+	OnActorDescInstanceUpdatedEvent.Broadcast(ActorDescInstance->Get());
+}
+
+#endif

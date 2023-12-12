@@ -6,6 +6,7 @@
 #include "UObject/ObjectMacros.h"
 #include "Engine/LevelStreamingAlwaysLoaded.h"
 #include "LevelInstance/LevelInstanceTypes.h"
+#include "WorldPartition/ActorDescContainerInstance.h"
 #include "LevelInstanceEditorLevelStreaming.generated.h"
 
 class ILevelInstanceInterface;
@@ -27,6 +28,7 @@ public:
 protected:
 	void OnLevelActorAdded(AActor* InActor);
 	void OnLoadedActorsAddedToLevelPreEvent(const TArray<AActor*>& InActors);
+	void OnPreInitializeContainerInstance(UActorDescContainerInstance::FInitializeParams& InInitParams, UActorDescContainerInstance* InContainerInstance);
 
 	friend class ULevelInstanceSubsystem;
 

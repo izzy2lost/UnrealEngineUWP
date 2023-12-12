@@ -29,6 +29,7 @@ Level.cpp: Level-related functions
 #include "UObject/MetaData.h"
 #include "UObject/ObjectSaveContext.h"
 #include "UObject/UObjectIterator.h"
+#include "UObject/Package.h"
 #include "GameFramework/PlayerController.h"
 #include "GameFramework/WorldSettings.h"
 #include "Engine/BlueprintGeneratedClass.h"
@@ -69,6 +70,7 @@ Level.cpp: Level-related functions
 #include "WorldPartition/WorldPartition.h"
 #include "WorldPartition/WorldPartitionLog.h"
 #include "WorldPartition/WorldPartitionSubsystem.h"
+#include "WorldPartition/WorldPartitionActorDescInstance.h"
 #include "Engine/LevelStreaming.h"
 #include "LevelUtils.h"
 #include "Components/ModelComponent.h"
@@ -3874,10 +3876,10 @@ TSet<FGuid> ULevel::GetDeletedAndUnreferencedActorFolders() const
 
 	if (UWorldPartition* WorldPartition = GetWorldPartition())
 	{
-		FWorldPartitionHelpers::ForEachActorDesc(WorldPartition, [&FoldersToDelete](const FWorldPartitionActorDesc* ActorDesc)
+		FWorldPartitionHelpers::ForEachActorDescInstance(WorldPartition, [&FoldersToDelete](const FWorldPartitionActorDescInstance* ActorDescInstance)
 		{
-			AActor* Actor = ActorDesc->GetActor();
-			FoldersToDelete.Remove(Actor ? Actor->GetFolderGuid() : ActorDesc->GetFolderGuid());
+			AActor* Actor = ActorDescInstance->GetActor();
+			FoldersToDelete.Remove(Actor ? Actor->GetFolderGuid() : ActorDescInstance->GetFolderGuid());
 			return !FoldersToDelete.IsEmpty();
 		});
 	}

@@ -18,6 +18,7 @@
 #include "WorldPartition/WorldPartition.h"
 #include "WorldPartition/WorldPartitionHelpers.h"
 #include "WorldPartition/ContentBundle/ContentBundleActivationScope.h"
+#include "WorldPartition/WorldPartitionActorDescInstance.h"
 
 #include "UObject/GCObjectScopeGuard.h"
 #include "UObject/SavePackage.h"
@@ -79,17 +80,17 @@ static void DeletePackage(UPackage* Package, ISourceControlHelper* SourceControl
 	}
 }
 
-static void DeletePackage(UWorldPartition* WorldPartition, FWorldPartitionActorDesc* ActorDesc, ISourceControlHelper* SourceControlHelper)
+static void DeletePackage(UWorldPartition* WorldPartition, FWorldPartitionActorDescInstance* ActorDescInstance, ISourceControlHelper* SourceControlHelper)
 {
-	if (ActorDesc->IsLoaded())
+	if (ActorDescInstance->IsLoaded())
 	{
-		DeletePackage(ActorDesc->GetActor()->GetPackage(), SourceControlHelper);
-		WorldPartition->OnPackageDeleted(ActorDesc->GetActor()->GetPackage());
+		DeletePackage(ActorDescInstance->GetActor()->GetPackage(), SourceControlHelper);
+		WorldPartition->OnPackageDeleted(ActorDescInstance->GetActor()->GetPackage());
 	}
 	else
 	{
-		DeletePackage(ActorDesc->GetActorPackage().ToString(), SourceControlHelper);
-		WorldPartition->RemoveActor(ActorDesc->GetGuid());
+		DeletePackage(ActorDescInstance->GetActorPackage().ToString(), SourceControlHelper);
+		WorldPartition->RemoveActor(ActorDescInstance->GetGuid());
 	}
 }
 
@@ -113,7 +114,7 @@ static void GameTick(UWorld* InWorld)
 
 static TArray<FGuid> GenerateHLODActorsForGrid(UWorldPartition* WorldPartition, const IStreamingGenerationContext* StreamingGenerationContext, const UWorldPartition::FSetupHLODActorsParams& Params, const FSpatialHashRuntimeGrid& RuntimeGrid, uint32 HLODLevel, FHLODCreationContext& Context, ISourceControlHelper* SourceControlHelper, const TArray<const IStreamingGenerationContext::FActorSetInstance*>& ActorSetInstances, TArray<FName>& NewActors, TArray<FName>& DirtyActors)
 {
-	const IStreamingGenerationContext::FActorSetContainer* MainActorSetContainer = StreamingGenerationContext->GetMainWorldContainer();
+	const IStreamingGenerationContext::FActorSetContainerInstance* MainActorSetContainer = StreamingGenerationContext->GetMainWorldContainerInstance();
 	const FBox WorldBounds = StreamingGenerationContext->GetWorldBounds();
 
 	const FSquare2DGridHelper PartitionedActors = GetPartitionedActors(WorldBounds, RuntimeGrid, ActorSetInstances);
@@ -272,9 +273,9 @@ static TMap<UHLODLayer*, int32> GatherHLODLayers(const IStreamingGenerationConte
 	// Gather up all HLODLayers referenced by the actors, along with the HLOD level at which it was used
 	TMap<UHLODLayer*, int32> HLODLayersLevel;
 
-	StreamingGenerationContext->ForEachActorSetContainer([&HLODLayersLevel, WorldPartition](const IStreamingGenerationContext::FActorSetContainer& ActorSetContainer)
+	StreamingGenerationContext->ForEachActorSetContainerInstance([&HLODLayersLevel, WorldPartition](const IStreamingGenerationContext::FActorSetContainerInstance& ActorSetContainerInstance)
 	{
-		const FStreamingGenerationActorDescViewMap* ActorDescViewMap = ActorSetContainer.ActorDescViewMap;
+		const FStreamingGenerationActorDescViewMap* ActorDescViewMap = ActorSetContainerInstance.ActorDescViewMap;
 		ActorDescViewMap->ForEachActorDescView([&HLODLayersLevel, WorldPartition](const FStreamingGenerationActorDescView& ActorDescView)
 		{
 			if (!ActorDescView.GetActorNativeClass()->IsChildOf<AWorldPartitionHLOD>())
@@ -352,25 +353,24 @@ static TMap<FName, FSpatialHashRuntimeGrid> CreateHLODGrids(TMap<UHLODLayer*, in
 }
 
 // Create/destroy HLOD grid actors
-static void UpdateHLODGridsActors(UWorld* World, const UActorDescContainer* Container, const TMap<FName, FSpatialHashRuntimeGrid>& HLODGrids, ISourceControlHelper* SourceControlHelper)
+static void UpdateHLODGridsActors(UWorld* World, const UActorDescContainerInstance* ContainerInstance, const TMap<FName, FSpatialHashRuntimeGrid>& HLODGrids, ISourceControlHelper* SourceControlHelper)
 {
 	static const FName HLODGridTag = TEXT("HLOD");
 	static const uint32 HLODGridTagLen = HLODGridTag.ToString().Len();
 
 	// Gather all existing HLOD grid actors, see if some are unused and needs to be deleted
 	TMap<FName, ASpatialHashRuntimeGridInfo*> ExistingGridActors;
-	for (FActorDescList::TConstIterator<> ItActorDesc(Container); ItActorDesc; ++ItActorDesc)
+	for (UActorDescContainerInstance::TConstIterator<> Iterator(ContainerInstance); Iterator; ++Iterator)
 	{
-		if(ItActorDesc->GetActorNativeClass()->IsChildOf<ASpatialHashRuntimeGridInfo>())
+		if(Iterator->GetActorNativeClass()->IsChildOf<ASpatialHashRuntimeGridInfo>())
 		{
-			const FWorldPartitionActorDesc* GridActorDesc = *ItActorDesc;
-			ASpatialHashRuntimeGridInfo* GridActor = CastChecked<ASpatialHashRuntimeGridInfo>(GridActorDesc->GetActor());
+			ASpatialHashRuntimeGridInfo* GridActor = CastChecked<ASpatialHashRuntimeGridInfo>(Iterator->GetActor());
 			if (GridActor->ActorHasTag(HLODGridTag))
 			{
 				const FSpatialHashRuntimeGrid* HLODGrid = HLODGrids.Find(GridActor->GridSettings.GridName);
 				if (HLODGrid && GridActor->GridSettings.Priority && GridActor->GridSettings.HLODLayer)
 				{
-					check(GridActor->GetContentBundleGuid() == Container->GetContentBundleGuid());
+					check(GridActor->GetContentBundleGuid() == ContainerInstance->GetContentBundleGuid());
 
 					ExistingGridActors.Emplace(GridActor->GridSettings.GridName, GridActor);
 				}
@@ -395,7 +395,7 @@ static void UpdateHLODGridsActors(UWorld* World, const UActorDescContainer* Cont
 		ASpatialHashRuntimeGridInfo* GridActor = ExistingGridActors.FindRef(GridName);
 		if (!GridActor)
 		{
-			FContentBundleActivationScope ContentBndleScope(Container->GetContentBundleGuid());
+			FContentBundleActivationScope ContentBndleScope(ContainerInstance->GetContentBundleGuid());
 
 			FActorSpawnParameters SpawnParams;
 			SpawnParams.bCreateActorPackage = true;
@@ -403,7 +403,7 @@ static void UpdateHLODGridsActors(UWorld* World, const UActorDescContainer* Cont
 			GridActor->Tags.Add(HLODGridTag);
 			bDirty = true;
 
-			check(GridActor->GetContentBundleGuid() == Container->GetContentBundleGuid());
+			check(GridActor->GetContentBundleGuid() == ContainerInstance->GetContentBundleGuid());
 		}
 
 		const FString ActorLabel = GridSettings.GridName.ToString();
@@ -448,8 +448,8 @@ bool UWorldPartitionRuntimeSpatialHash::SetupHLODActors(const IStreamingGenerati
 	}
 
 	UWorldPartition* WorldPartition = GetOuterUWorldPartition();
-	IStreamingGenerationContext::FActorSetContainer* MainActorSetContainer = const_cast<IStreamingGenerationContext::FActorSetContainer*>(StreamingGenerationContext->GetMainWorldContainer());
-	const FStreamingGenerationActorDescCollection* MainContainerCollection = MainActorSetContainer->ActorDescCollection;
+	IStreamingGenerationContext::FActorSetContainerInstance* MainActorSetContainer = const_cast<IStreamingGenerationContext::FActorSetContainerInstance*>(StreamingGenerationContext->GetMainWorldContainerInstance());
+	const FStreamingGenerationContainerInstanceCollection* MainContainerCollection = MainActorSetContainer->ContainerInstanceCollection;
 
 	// Find all used HLOD layers
 	TMap<UHLODLayer*, int32> HLODLayersLevels = GatherHLODLayers(StreamingGenerationContext, WorldPartition);
@@ -472,7 +472,7 @@ bool UWorldPartitionRuntimeSpatialHash::SetupHLODActors(const IStreamingGenerati
 
 	// HLOD creation context
 	FHLODCreationContext Context;
-	for (FActorDescList::TConstIterator<AWorldPartitionHLOD> HLODIterator(MainContainerCollection->GetMainActorDescContainer()); HLODIterator; ++HLODIterator)
+	for (UActorDescContainerInstance::TConstIterator<AWorldPartitionHLOD> HLODIterator(MainContainerCollection->GetMainContainer()); HLODIterator; ++HLODIterator)
 	{
 		FWorldPartitionHandle HLODActorHandle(WorldPartition, HLODIterator->GetGuid());
 		Context.HLODActorDescs.Emplace(HLODIterator->GetActorName(), MoveTemp(HLODActorHandle));
@@ -496,11 +496,10 @@ bool UWorldPartitionRuntimeSpatialHash::SetupHLODActors(const IStreamingGenerati
 
 	// Keep track of all valid HLOD actors, along with which runtime grid they live in
 	TMap<FName, TArray<FGuid>> GridsHLODActors;
-	TArray<TUniquePtr<FStreamingGenerationActorDescView>> ActorDescViews;
 
 	const UDataLayerManager* DataLayerManager = WorldPartition->GetDataLayerManager();
 
-	auto GenerateHLODActors = [&GridsHLODActors, &ActorDescViews, &MainActorSetContainer, StreamingGenerationContext, &Params, WorldPartition, DataLayerManager, &Context, SourceControlHelper, &NewActors, &DirtyActors]
+	auto GenerateHLODActors = [&GridsHLODActors, &MainActorSetContainer, StreamingGenerationContext, &Params, WorldPartition, DataLayerManager, &Context, SourceControlHelper, &NewActors, &DirtyActors]
 	(const FSpatialHashRuntimeGrid& RuntimeGrid, uint32 HLODLevel, const TArray<const IStreamingGenerationContext::FActorSetInstance*>& ActorSetInstances)
 	{
 		// Generate HLODs for this grid
@@ -510,23 +509,18 @@ bool UWorldPartitionRuntimeSpatialHash::SetupHLODActors(const IStreamingGenerati
 		{
 			if (!Params.bReportOnly)
 			{
-				FWorldPartitionActorDesc* HLODActorDesc = WorldPartition->GetActorDesc(HLODActorGuid);
-				check(HLODActorDesc);
-				FStreamingGenerationActorDescView* ActorDescView = ActorDescViews.Emplace_GetRef(MakeUnique<FStreamingGenerationActorDescView>(HLODActorDesc)).Get();
+				FWorldPartitionActorDescInstance* HLODActorDescInstance = WorldPartition->GetActorDescInstance(HLODActorGuid);
+				check(HLODActorDescInstance);
+				FStreamingGenerationActorDescViewMap* NonConstActorDescViewMap = const_cast<FStreamingGenerationActorDescViewMap*>(MainActorSetContainer->ActorDescViewMap);
+				FStreamingGenerationActorDescView* ActorDescView = NonConstActorDescViewMap->Emplace(HLODActorDescInstance);
 				
-				TArray<const FWorldPartitionActorDescView*> WorldDataLayerViews;
-				Algo::Transform(MainActorSetContainer->ActorDescViewMap->FindByExactNativeClass<AWorldDataLayers>(), WorldDataLayerViews, [](const FStreamingGenerationActorDescView* ActorDescView) { return ActorDescView; });
-
 				TArray<FName> RuntimeDataLayerInstanceNames;
-				if (FDataLayerUtils::ResolveRuntimeDataLayerInstanceNames(DataLayerManager, *ActorDescView, WorldDataLayerViews, RuntimeDataLayerInstanceNames))
+				if (FDataLayerUtils::ResolveRuntimeDataLayerInstanceNames(DataLayerManager, *ActorDescView, *MainActorSetContainer->ActorDescViewMap, RuntimeDataLayerInstanceNames))
 				{
 					ActorDescView->SetRuntimeDataLayerInstanceNames(RuntimeDataLayerInstanceNames);
 				}
-				FStreamingGenerationActorDescViewMap* NonConstActorDescViewMap = const_cast<FStreamingGenerationActorDescViewMap*>(MainActorSetContainer->ActorDescViewMap);			
-				NonConstActorDescViewMap->Emplace(HLODActorGuid, *ActorDescView);
 
-				const FStreamingGenerationActorDescView& HLODActorDescView = MainActorSetContainer->ActorDescViewMap->FindByGuidChecked(HLODActorGuid);
-				GridsHLODActors.FindOrAdd(HLODActorDescView.GetRuntimeGrid()).Add(HLODActorGuid);
+				GridsHLODActors.FindOrAdd(ActorDescView->GetRuntimeGrid()).Add(HLODActorGuid);
 			}
 		}
 	};
@@ -571,7 +565,7 @@ bool UWorldPartitionRuntimeSpatialHash::SetupHLODActors(const IStreamingGenerati
 				NewHLODActorSetInstance.DataLayers = DataLayerManager->GetRuntimeDataLayerInstances(HLODActorDescView.GetRuntimeDataLayerInstanceNames());
 			}
 			NewHLODActorSetInstance.ContentBundleID = MainContainerCollection->GetContentBundleGuid();
-			NewHLODActorSetInstance.ContainerInstance = MainActorSetContainer;
+			NewHLODActorSetInstance.ActorSetContainerInstance = MainActorSetContainer;
 			NewHLODActorSetInstance.ActorSet = MainActorSetContainer->ActorSets.Add_GetRef(MakeUnique<IStreamingGenerationContext::FActorSet>()).Get();
 			const_cast<IStreamingGenerationContext::FActorSet*>(NewHLODActorSetInstance.ActorSet)->Actors.Add(HLODActorDescView.GetGuid());
 
@@ -585,10 +579,10 @@ bool UWorldPartitionRuntimeSpatialHash::SetupHLODActors(const IStreamingGenerati
 
 	auto DeleteHLODActor = [&SourceControlHelper, WorldPartition](FWorldPartitionHandle ActorHandle)
 	{
-		FWorldPartitionActorDesc* HLODActorDesc = ActorHandle.Get();
-		check(HLODActorDesc);
+		FWorldPartitionActorDescInstance* ActorDescInstance = ActorHandle.GetInstance();
+		check(ActorDescInstance);
 
-		DeletePackage(WorldPartition, HLODActorDesc, SourceControlHelper);
+		DeletePackage(WorldPartition, ActorDescInstance, SourceControlHelper);
 	};
 
 	// Destroy all unreferenced HLOD actors
@@ -605,7 +599,7 @@ bool UWorldPartitionRuntimeSpatialHash::SetupHLODActors(const IStreamingGenerati
 	if (!Params.bReportOnly)
 	{
 		// Create/destroy HLOD grid actors
-		UpdateHLODGridsActors(GetWorld(), MainContainerCollection->GetMainActorDescContainer(), HLODGrids, SourceControlHelper);
+		UpdateHLODGridsActors(GetWorld(), MainContainerCollection->GetMainContainer(), HLODGrids, SourceControlHelper);
 	}
 
 	auto DumpActorsStats = [](const TCHAR* StatType, const TArray<FName>& Actors)

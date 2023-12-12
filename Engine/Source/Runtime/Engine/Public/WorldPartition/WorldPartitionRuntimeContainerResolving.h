@@ -82,6 +82,11 @@ public:
 		return Containers.Add(InContainerPackage);	
 	}
 
+	bool ContainsContainer(FName InContainerPackage)
+	{
+		return Containers.Contains(InContainerPackage);
+	}
+
 	void BuildContainerIDToEditorPathMap();
 	const FString* FindContainerEditorPath(const FActorContainerID& InContainerID) const { return ContainerIDToEditorPath.Find(InContainerID); }
 #endif

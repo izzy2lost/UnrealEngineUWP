@@ -8,6 +8,7 @@
 
 class AActor;
 struct FAssetData;
+class FWorldPartitionActorDescInstance;
 
 struct FWorldPartitionActorDescUtils
 {
@@ -80,9 +81,12 @@ struct FWorldPartitionActorDescUtils
 	 * Replaces the actor descriptor's actor pointer with the provided new actor pointer.
 	 * @param InOldActor	The old actor that the provided actor descriptor was representing.
 	 * @param InNewActor	The new actor that the provided actor descriptor should be representing.
-	 * @param InActorDesc	Actor descriptor that will get its actor pointer updated.
+	 * @param InActorDescInstance	Actor descriptor instance that will get its actor pointer updated.
 	 */
-	static ENGINE_API void ReplaceActorDescriptorPointerFromActor(const AActor* InOldActor, AActor* InNewActor, FWorldPartitionActorDesc* InActorDesc);
+	static ENGINE_API void ReplaceActorDescriptorPointerFromActor(const AActor* InOldActor, AActor* InNewActor, FWorldPartitionActorDescInstance* InActorDescInstance);
+
+	UE_DEPRECATED(5.4, "Use FWorldPartitionActorDescInstance version instead")
+	static ENGINE_API void ReplaceActorDescriptorPointerFromActor(const AActor* InOldActor, AActor* InNewActor, FWorldPartitionActorDesc* InActorDesc) {}
 
 	UE_DEPRECATED(5.3, "Use FWorldPartitionHelpers::FixupRedirectedAssetPath instead")
 	static ENGINE_API bool FixupRedirectedAssetPath(FName& InOutAssetPath);

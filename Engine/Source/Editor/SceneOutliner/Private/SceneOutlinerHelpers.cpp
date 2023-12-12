@@ -8,7 +8,7 @@
 #include "Engine/Blueprint.h"
 #include "Misc/PackageName.h"
 #include "Modules/ModuleManager.h"
-#include "WorldPartition/WorldPartitionActorDesc.h"
+#include "WorldPartition/WorldPartitionActorDescInstance.h"
 #include "UObject/Package.h"
 
 #include "SourceControlHelpers.h"
@@ -40,9 +40,9 @@ namespace SceneOutliner
 		}
 		else if (const FActorDescTreeItem* ActorDescItem = TreeItem.CastTo<FActorDescTreeItem>())
 		{
-			if (const FWorldPartitionActorDesc* ActorDesc = ActorDescItem->ActorDescHandle.Get())
+			if (const FWorldPartitionActorDescInstance* ActorDescInstance = ActorDescItem->ActorDescHandle.GetInstance())
 			{
-				return ActorDesc->GetActorPackage().ToString();
+				return ActorDescInstance->GetActorPackage().ToString();
 			}
 		}
 
@@ -73,9 +73,9 @@ namespace SceneOutliner
 		}
 		else if (const FActorDescTreeItem* ActorDescItem = TreeItem.CastTo<FActorDescTreeItem>())
 		{
-			if (const FWorldPartitionActorDesc* ActorDesc = ActorDescItem->ActorDescHandle.Get())
+			if (const FWorldPartitionActorDescInstance* ActorDescInstance = ActorDescItem->ActorDescHandle.GetInstance())
 			{
-				return FindPackage(nullptr, *ActorDesc->GetActorPackage().ToString());
+				return FindPackage(nullptr, *ActorDescInstance->GetActorPackage().ToString());
 			}
 		}
 

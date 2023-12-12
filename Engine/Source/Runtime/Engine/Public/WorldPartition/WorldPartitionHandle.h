@@ -12,8 +12,15 @@ class FWorldPartitionActorDesc;
 struct FWorldPartitionHandleImpl;
 struct FWorldPartitionReferenceImpl;
 
+class AActor;
+class UActorDescContainerInstance;
+class FWorldPartitionActorDescInstance;
+
 template<class U>
 class TActorDescContainerCollection;
+
+template<class U>
+class TActorDescContainerInstanceCollection;
 
 class FWorldPartitionLoadingContext
 {
@@ -30,8 +37,8 @@ public:
 		ENGINE_API virtual ~IContext();
 
 	private:
-		virtual void RegisterActor(FWorldPartitionActorDesc* ActorDesc) = 0;
-		virtual void UnregisterActor(FWorldPartitionActorDesc* ActorDesc) = 0;
+		virtual void RegisterActor(FWorldPartitionActorDescInstance* InActorDescInstance) = 0;
+		virtual void UnregisterActor(FWorldPartitionActorDescInstance* InActorDescInstance) = 0;
 	};
 
 	/**
@@ -40,8 +47,8 @@ public:
 	class FImmediate : public IContext
 	{
 	private:
-		ENGINE_API virtual void RegisterActor(FWorldPartitionActorDesc* ActorDesc) override;
-		ENGINE_API virtual void UnregisterActor(FWorldPartitionActorDesc* ActorDesc) override;
+		ENGINE_API virtual void RegisterActor(FWorldPartitionActorDescInstance* InActorDescInstance) override;
+		ENGINE_API virtual void UnregisterActor(FWorldPartitionActorDescInstance* InActorDescInstance) override;
 	};
 
 	/**
@@ -59,16 +66,16 @@ public:
 		bool GetNeedsClearTransactions() const { return bNeedsClearTransactions; }
 
 	private:
-		ENGINE_API virtual void RegisterActor(FWorldPartitionActorDesc* ActorDesc) override;
-		ENGINE_API virtual void UnregisterActor(FWorldPartitionActorDesc* ActorDesc) override;
+		ENGINE_API virtual void RegisterActor(FWorldPartitionActorDescInstance* InActorDescInstance) override;
+		ENGINE_API virtual void UnregisterActor(FWorldPartitionActorDescInstance* InActorDescInstance) override;
 
-		struct FContainerOps
+		struct FContainerInstanceOps
 		{
-			TSet<FWorldPartitionActorDesc*> Registrations;
-			TSet<FWorldPartitionActorDesc*> Unregistrations;
+			TSet<FWorldPartitionActorDescInstance*> Registrations;
+			TSet<FWorldPartitionActorDescInstance*> Unregistrations;
 		};
 
-		TMap<UActorDescContainer*, FContainerOps> ContainerOps;
+		TMap<UActorDescContainerInstance*, FContainerInstanceOps> ContainerInstanceOps;
 
 		int32 NumRegistrations = 0;
 		int32 NumUnregistrations = 0;
@@ -81,12 +88,17 @@ public:
 	class FNull : public IContext
 	{
 	private:
-		virtual void RegisterActor(FWorldPartitionActorDesc* ActorDesc) override {}
-		virtual void UnregisterActor(FWorldPartitionActorDesc* ActorDesc) override {}
+		virtual void RegisterActor(FWorldPartitionActorDescInstance* InActorDescInstance) override {}
+		virtual void UnregisterActor(FWorldPartitionActorDescInstance* InActorDescInstance) override {}
 	};
 
-	static ENGINE_API void LoadAndRegisterActor(FWorldPartitionActorDesc* ActorDesc);
-	static ENGINE_API void UnloadAndUnregisterActor(FWorldPartitionActorDesc* ActorDesc);
+	UE_DEPRECATED(5.4, "Use FWorldPartitionActorDescInstance version instead")
+	static ENGINE_API void LoadAndRegisterActor(FWorldPartitionActorDesc* ActorDesc) {}
+	UE_DEPRECATED(5.4, "Use FWorldPartitionActorDescInstance version instead")
+	static ENGINE_API void UnloadAndUnregisterActor(FWorldPartitionActorDesc* ActorDesc) {}
+
+	static ENGINE_API void LoadAndRegisterActor(FWorldPartitionActorDescInstance* ActorDesc);
+	static ENGINE_API void UnloadAndUnregisterActor(FWorldPartitionActorDescInstance* ActorDesc);
 
 private:
 	static FImmediate DefaultContext;
@@ -98,12 +110,13 @@ class TWorldPartitionHandle
 {
 public:
 	FORCEINLINE TWorldPartitionHandle()
-		: ActorDesc(nullptr)
+		: ContainerInstance(nullptr)
+		, ActorDescInstance(nullptr)
 	{}
 
-	FORCEINLINE TWorldPartitionHandle(TUniquePtr<FWorldPartitionActorDesc>* InActorDesc)
-		: Container(Impl::GetActorDescContainer(InActorDesc))
-		, ActorDesc(InActorDesc)
+	FORCEINLINE TWorldPartitionHandle(TUniquePtr<FWorldPartitionActorDescInstance>* InActorDescInstance)
+		: ContainerInstance(Impl::GetActorDescContainerInstance(InActorDescInstance))
+		, ActorDescInstance(InActorDescInstance)
 	{
 		if (IsValid())
 		{
@@ -111,9 +124,24 @@ public:
 		}
 	}
 
-	FORCEINLINE TWorldPartitionHandle(UActorDescContainer* InContainer, const FGuid& ActorGuid)
-		: Container(InContainer)
-		, ActorDesc(Impl::GetActorDesc(InContainer, ActorGuid))
+	FORCEINLINE TWorldPartitionHandle(FWorldPartitionActorDescInstance* InActorDescInstance)
+		: ContainerInstance(Impl::GetActorDescContainerInstance(InActorDescInstance))
+		, ActorDescInstance(nullptr)
+	{
+		if (ContainerInstance != nullptr)
+		{
+			ActorDescInstance = Impl::GetActorDescInstance(ContainerInstance.Get(), Impl::GetActorDescInstanceGuid(InActorDescInstance));
+		}
+
+		if (IsValid())
+		{
+			IncRefCount();
+		}
+	}
+
+	FORCEINLINE TWorldPartitionHandle(UActorDescContainerInstance* InContainerInstance, const FGuid& InActorGuid)
+		: ContainerInstance(InContainerInstance)
+		, ActorDescInstance(Impl::GetActorDescInstance(InContainerInstance, InActorGuid))
 	{
 		if (IsValid())
 		{
@@ -122,13 +150,13 @@ public:
 	}
 
 	template<class U>
-	FORCEINLINE TWorldPartitionHandle(TActorDescContainerCollection<U>* ContainerCollection, const FGuid& ActorGuid)
-		: Container(Impl::GetActorDescContainer(ContainerCollection, ActorGuid))
-		, ActorDesc(nullptr)
+	FORCEINLINE TWorldPartitionHandle(TActorDescContainerInstanceCollection<U>* ContainerCollection, const FGuid& ActorGuid)
+		: ContainerInstance(Impl::GetActorDescContainerInstance(ContainerCollection, ActorGuid))
+		, ActorDescInstance(nullptr)
 	{
-		if (Container != nullptr)
+		if (ContainerInstance != nullptr)
 		{
-			ActorDesc = Impl::GetActorDesc(Container.Get(), ActorGuid);
+			ActorDescInstance = Impl::GetActorDescInstance(ContainerInstance.Get(), ActorGuid);
 		}
 
 		if (IsValid())
@@ -137,16 +165,45 @@ public:
 		}
 	}
 
+	UE_DEPRECATED(5.4, "Use FWorldPartitionActorDescInstance version")
+	FORCEINLINE TWorldPartitionHandle(TUniquePtr<FWorldPartitionActorDesc>* InActorDesc)
+		: ContainerInstance(nullptr)
+		, ActorDescInstance(nullptr)
+	{
+	}
+
+	UE_DEPRECATED(5.4, "Use FActorDescContainerInstance version")
+	FORCEINLINE TWorldPartitionHandle(UActorDescContainer* InContainer, const FGuid& ActorGuid)
+		: ContainerInstance(nullptr)
+		, ActorDescInstance(nullptr)
+	{
+	}
+		
+	template<class U>
+	struct TActorDescContainerCollectionDeprecated
+	{
+		UE_DEPRECATED(5.4, "Use TActorDescContainerInstanceCollection version")
+		static void Deprecated() {}
+	};
+
+	template<class U>
+	FORCEINLINE TWorldPartitionHandle(TActorDescContainerCollection<U>* ContainerCollection, const FGuid& ActorGuid)
+		: ContainerInstance(nullptr)
+		, ActorDescInstance(nullptr)
+	{
+		TActorDescContainerCollectionDeprecated<U>::Deprecated();
+	}
+	
 	FORCEINLINE TWorldPartitionHandle(const TWorldPartitionHandle& Other)
-		: Container(nullptr)
-		, ActorDesc(nullptr)
+		: ContainerInstance(nullptr)
+		, ActorDescInstance(nullptr)
 	{
 		*this = Other;
 	}
 
 	FORCEINLINE TWorldPartitionHandle(TWorldPartitionHandle&& Other)
-		: Container(nullptr)
-		, ActorDesc(nullptr)
+		: ContainerInstance(nullptr)
+		, ActorDescInstance(nullptr)
 	{
 		*this = MoveTemp(Other);
 	}
@@ -163,7 +220,7 @@ public:
 
 	template <typename T>
 	FORCEINLINE TWorldPartitionHandle<Impl>(TWorldPartitionHandle<T>&& Other)
-		: ActorDesc(nullptr)
+		: ActorDescInstance(nullptr)
 	{
 		*this = MoveTemp(Other);
 	}
@@ -185,8 +242,8 @@ public:
 				DecRefCount();
 			}
 
-			Container = Other.Container;
-			ActorDesc = Other.ActorDesc;
+			ContainerInstance = Other.ContainerInstance;
+			ActorDescInstance = Other.ActorDescInstance;
 
 			if (IsValid())
 			{
@@ -206,11 +263,11 @@ public:
 				DecRefCount();
 			}
 
-			Container = Other.Container;
-			ActorDesc = Other.ActorDesc;
+			ContainerInstance = Other.ContainerInstance;
+			ActorDescInstance = Other.ActorDescInstance;
 			
-			Other.Container = nullptr;
-			Other.ActorDesc = nullptr;
+			Other.ContainerInstance = nullptr;
+			Other.ActorDescInstance = nullptr;
 		}
 
 		return *this;
@@ -225,8 +282,8 @@ public:
 			DecRefCount();
 		}
 
-		Container = Other.Container;
-		ActorDesc = Other.ActorDesc;
+		ContainerInstance = Other.ContainerInstance;
+		ActorDescInstance = Other.ActorDescInstance;
 
 		if (IsValid())
 		{
@@ -244,44 +301,71 @@ public:
 			DecRefCount();
 		}
 
-		Container = Other.Container;
-		ActorDesc = Other.ActorDesc;
+		ContainerInstance = Other.ContainerInstance;
+		ActorDescInstance = Other.ActorDescInstance;
 
 		if (IsValid())
 		{
 			IncRefCount();
 			Other.DecRefCount();
 
-			Other.Container = nullptr;
-			Other.ActorDesc = nullptr;
+			Other.ContainerInstance = nullptr;
+			Other.ActorDescInstance = nullptr;
 		}
 
 		return *this;
 	}
 
+	UE_DEPRECATED(5.4, "Use GetInstance instead")
 	FORCEINLINE FWorldPartitionActorDesc* operator->() const
 	{
+		PRAGMA_DISABLE_DEPRECATION_WARNINGS
 		return Get();
+		PRAGMA_ENABLE_DEPRECATION_WARNINGS
 	}
 
+	UE_DEPRECATED(5.4, "Use GetInstance instead")
 	FORCEINLINE FWorldPartitionActorDesc* operator*() const
 	{
+		PRAGMA_DISABLE_DEPRECATION_WARNINGS
 		return Get();
+		PRAGMA_ENABLE_DEPRECATION_WARNINGS
+	}
+
+	FORCEINLINE FWorldPartitionActorDescInstance* GetInstance() const
+	{
+		return IsValid() ? ActorDescInstance->Get() : nullptr;
+	}
+
+	FORCEINLINE UActorDescContainerInstance* GetContainerInstance() const
+	{
+		return IsValid() ? Impl::GetActorDescContainerInstance(ActorDescInstance) : nullptr;
 	}
 
 	FORCEINLINE bool IsValid() const
 	{
-		return Container.IsValid() && ActorDesc && ActorDesc->IsValid();
+		return ContainerInstance.IsValid() && ActorDescInstance && ActorDescInstance->IsValid();
 	}
 
 	FORCEINLINE bool IsLoaded() const
 	{
-		return IsValid() && Impl::IsActorDescLoaded(ActorDesc->Get());
+		return IsValid() && Impl::IsLoaded(ActorDescInstance->Get());
 	}
 
+	FORCEINLINE AActor* GetActor() const
+	{
+		return IsValid() ? Impl::GetActor(ActorDescInstance->Get()) : nullptr;
+	}
+
+	UE_DEPRECATED(5.4, "Use GetInstance instead")
 	FORCEINLINE FWorldPartitionActorDesc* Get() const
 	{
-		return IsValid() ? ActorDesc->Get() : nullptr;
+		if (ContainerInstance.IsValid() && ActorDescInstance && ActorDescInstance->IsValid())
+		{
+			return Impl::GetActorDesc(ActorDescInstance->Get());
+		}
+
+		return nullptr;
 	}
 
 	FORCEINLINE void Reset()
@@ -291,18 +375,18 @@ public:
 			DecRefCount();
 		}
 
-		Container = nullptr;
-		ActorDesc = nullptr;
+		ContainerInstance = nullptr;
+		ActorDescInstance = nullptr;
 	}
 	
 	friend FORCEINLINE uint32 GetTypeHash(const TWorldPartitionHandle<Impl>& HandleBase)
 	{
-		return ::PointerHash(HandleBase.ActorDesc);
+		return ::PointerHash(HandleBase.ActorDescInstance);
 	}
 
 	FORCEINLINE bool operator==(const TWorldPartitionHandle& Other) const
 	{
-		return ActorDesc == Other.ActorDesc;
+		return ActorDescInstance == Other.ActorDescInstance;
 	}
 
 	FORCEINLINE bool operator!=(const TWorldPartitionHandle& Other) const
@@ -314,7 +398,7 @@ public:
 	template <typename T>
 	FORCEINLINE bool operator==(const TWorldPartitionHandle<T>& Other) const
 	{
-		return Get() == *Other;
+		return GetInstance() == Other.GetInstance();
 	}
 
 	template <typename T>
@@ -326,42 +410,74 @@ public:
 public:
 	FORCEINLINE void IncRefCount()
 	{
-		Impl::IncRefCount(ActorDesc->Get());
+		Impl::IncRefCount(ActorDescInstance->Get());
 	}
 
 	FORCEINLINE void DecRefCount()
 	{
-		Impl::DecRefCount(ActorDesc->Get());
+		Impl::DecRefCount(ActorDescInstance->Get());
 	}
 
-	TWeakObjectPtr<UActorDescContainer> Container;
-	TUniquePtr<FWorldPartitionActorDesc>* ActorDesc;
+	TWeakObjectPtr<UActorDescContainerInstance> ContainerInstance;
+	TUniquePtr<FWorldPartitionActorDescInstance>* ActorDescInstance;
 };
 
 struct FWorldPartitionImplBase
 {
-	static ENGINE_API TUniquePtr<FWorldPartitionActorDesc>* GetActorDesc(UActorDescContainer* Container, const FGuid& ActorGuid);
-	static ENGINE_API UActorDescContainer* GetActorDescContainer(TUniquePtr<FWorldPartitionActorDesc>* ActorDesc);
-	static ENGINE_API bool IsActorDescLoaded(FWorldPartitionActorDesc* ActorDesc);
-
+	UE_DEPRECATED(5.4, "Use FWorldPartitionActorDescInstance")
+	static ENGINE_API TUniquePtr<FWorldPartitionActorDesc>* GetActorDesc(UActorDescContainer* Container, const FGuid& ActorGuid) { return nullptr;}
+	UE_DEPRECATED(5.4, "Use FWorldPartitionActorDescInstance")
+	static ENGINE_API UActorDescContainer* GetActorDescContainer(TUniquePtr<FWorldPartitionActorDesc>* ActorDesc) { return nullptr; }
+	UE_DEPRECATED(5.4, "Use FWorldPartitionActorDescInstance")
+	static ENGINE_API bool IsActorDescLoaded(FWorldPartitionActorDesc* ActorDesc) { return false; }
+	UE_DEPRECATED(5.4, "Use FWorldPartitionActorDescInstance")
+	static ENGINE_API AActor* GetActorDescActor(FWorldPartitionActorDesc* ActorDesc) { return nullptr; }
+	
 	template<class U>
 	static UActorDescContainer* GetActorDescContainer(TActorDescContainerCollection<U>* ContainerCollection, const FGuid& ActorGuid)
 	{
-		return ContainerCollection ? ContainerCollection->GetActorDescContainer(ActorGuid) : nullptr;
+		return nullptr;
+	}
+
+	static ENGINE_API bool IsLoaded(FWorldPartitionActorDescInstance* InActorDescInstance);
+	static ENGINE_API UActorDescContainerInstance* GetActorDescContainerInstance(TUniquePtr<FWorldPartitionActorDescInstance>* InActorDescIntance);
+	static ENGINE_API UActorDescContainerInstance* GetActorDescContainerInstance(FWorldPartitionActorDescInstance* InActorDescIntance);
+	static ENGINE_API FGuid GetActorDescInstanceGuid(const FWorldPartitionActorDescInstance* InActorDescIntance);
+	static ENGINE_API TUniquePtr<FWorldPartitionActorDescInstance>* GetActorDescInstance(UActorDescContainerInstance* InContainerInstance, const FGuid& InActorGuid);
+	static ENGINE_API FWorldPartitionActorDesc* GetActorDesc(FWorldPartitionActorDescInstance* InActorDescInstance);
+
+	static ENGINE_API AActor* GetActor(FWorldPartitionActorDescInstance* InActorDescInstance);
+
+	template<class U>
+	static UActorDescContainerInstance* GetActorDescContainerInstance(TActorDescContainerInstanceCollection<U>* ContainerCollection, const FGuid& ActorGuid)
+	{
+		return ContainerCollection ? ContainerCollection->GetActorDescContainerInstance(ActorGuid) : nullptr;
 	}
 };
 
 struct FWorldPartitionHandleImpl : FWorldPartitionImplBase
 {
-	static ENGINE_API void IncRefCount(FWorldPartitionActorDesc* ActorDesc);
-	static ENGINE_API void DecRefCount(FWorldPartitionActorDesc* ActorDesc);
+	UE_DEPRECATED(5.4, "Use FWorldPartitionActorDescInstance")
+	static ENGINE_API void IncRefCount(FWorldPartitionActorDesc* ActorDesc) {}
+	UE_DEPRECATED(5.4, "Use FWorldPartitionActorDescInstance")
+	static ENGINE_API void DecRefCount(FWorldPartitionActorDesc* ActorDesc) {}
+
+	static ENGINE_API void IncRefCount(FWorldPartitionActorDescInstance* InActorDescInstance);
+	static ENGINE_API void DecRefCount(FWorldPartitionActorDescInstance* InActorDescInstance);
+
 	static ENGINE_API TWorldPartitionHandle<FWorldPartitionReferenceImpl> ToReference(const TWorldPartitionHandle<FWorldPartitionHandleImpl>& Source);
 };
 
 struct FWorldPartitionReferenceImpl : FWorldPartitionImplBase
 {
-	static ENGINE_API void IncRefCount(FWorldPartitionActorDesc* ActorDesc);
-	static ENGINE_API void DecRefCount(FWorldPartitionActorDesc* ActorDesc);
+	UE_DEPRECATED(5.4, "Use FWorldPartitionActorDescInstance")
+	static ENGINE_API void IncRefCount(FWorldPartitionActorDesc* ActorDesc) {}
+	UE_DEPRECATED(5.4, "Use FWorldPartitionActorDescInstance")
+	static ENGINE_API void DecRefCount(FWorldPartitionActorDesc* ActorDesc) {}
+
+	static ENGINE_API void IncRefCount(FWorldPartitionActorDescInstance* InActorDescInstance);
+	static ENGINE_API void DecRefCount(FWorldPartitionActorDescInstance* InActorDescInstance);
+
 	static ENGINE_API TWorldPartitionHandle<FWorldPartitionHandleImpl> ToHandle(const TWorldPartitionHandle<FWorldPartitionReferenceImpl>& Source);
 };
 

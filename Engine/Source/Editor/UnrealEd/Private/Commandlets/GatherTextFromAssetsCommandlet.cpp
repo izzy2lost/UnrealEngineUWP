@@ -27,6 +27,7 @@
 #include "WorldPartition/WorldPartition.h"
 #include "WorldPartition/WorldPartitionHelpers.h"
 #include "WorldPartition/WorldPartitionActorDescUtils.h"
+#include "WorldPartition/WorldPartitionActorDescInstance.h"
 #include "Engine/Level.h"
 #include "Engine/World.h"
 #include "Editor.h"
@@ -1125,9 +1126,9 @@ int32 UGatherTextFromAssetsCommandlet::Main(const FString& Params)
 						FWorldPartitionHelpers::FForEachActorWithLoadingParams ForEachActorParams;
 						ForEachActorParams.ActorGuids = PackagePendingGather.ExternalActors.Array();
 
-						FWorldPartitionHelpers::ForEachActorWithLoading(WorldPartition, [&GatherableTextDataArray](const FWorldPartitionActorDesc* ActorDesc)
+						FWorldPartitionHelpers::ForEachActorWithLoading(WorldPartition, [&GatherableTextDataArray](const FWorldPartitionActorDescInstance* ActorDescInstance)
 						{
-							if (const AActor* Actor = ActorDesc->GetActor())
+							if (const AActor* Actor = ActorDescInstance->GetActor())
 							{
 								EPropertyLocalizationGathererResultFlags ActorGatherableTextResultFlags = EPropertyLocalizationGathererResultFlags::Empty;
 								FPropertyLocalizationDataGatherer(GatherableTextDataArray, Actor->GetExternalPackage(), ActorGatherableTextResultFlags);

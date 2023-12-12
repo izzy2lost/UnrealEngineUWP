@@ -23,7 +23,8 @@
 #include "Widgets/Text/STextBlock.h"
 #include "WorldPartition/WorldPartitionActorDesc.h"
 #include "WorldPartition/WorldPartitionHelpers.h"
-#include "WorldPartition/ActorDescContainer.h"
+#include "WorldPartition/ActorDescContainerInstance.h"
+#include "WorldPartition/WorldPartitionActorDescInstance.h"
 
 #define LOCTEXT_NAMESPACE "FActorFolders"
 
@@ -647,34 +648,34 @@ void FActorFolders::ForEachFolderWithRootObject(UWorld& InWorld, const FFolder::
 	GetOrCreateWorldFolders(InWorld).ForEachFolderWithRootObject(FolderRootObject, Operation);
 }
 
-FFolder FActorFolders::GetActorDescFolder(UWorld& InWorld, const FWorldPartitionActorDesc* InActorDesc)
+FFolder FActorFolders::GetActorDescInstanceFolder(UWorld& InWorld, const FWorldPartitionActorDescInstance* InActorDescInstance)
 {
-	if (InActorDesc)
+	if (InActorDescInstance)
 	{
-		UWorld& OuterWorld = InActorDesc->GetContainer() ? *InActorDesc->GetContainer()->GetTypedOuter<UWorld>() : InWorld;
+		UWorld& OuterWorld = InActorDescInstance->GetContainerInstance() ? *InActorDescInstance->GetContainerInstance()->GetTypedOuter<UWorld>() : InWorld;
 		{
 			ULevel* OuterLevel = OuterWorld.PersistentLevel;
 			if (OuterLevel->IsUsingActorFolders())
 			{
-				if (UActorFolder* ActorFolder = OuterLevel->GetActorFolder(InActorDesc->GetFolderGuid()))
+				if (UActorFolder* ActorFolder = OuterLevel->GetActorFolder(InActorDescInstance->GetFolderGuid()))
 				{
 					return ActorFolder->GetFolder();
 				}
 				return FFolder::GetWorldRootFolder(&OuterWorld).GetRootObject();
 			}
-			return FFolder(FFolder::GetWorldRootFolder(&OuterWorld).GetRootObject(), InActorDesc->GetFolderPath());
+			return FFolder(FFolder::GetWorldRootFolder(&OuterWorld).GetRootObject(), InActorDescInstance->GetFolderPath());
 		}
 	}
 	return FFolder::GetInvalidFolder();
 }
 
-void FActorFolders::ForEachActorDescInFolders(UWorld& InWorld, const TSet<FName>& InPaths, TFunctionRef<bool(const FWorldPartitionActorDesc*)> Operation, const FFolder::FRootObject& InFolderRootObject /*= FFolder::GetInvalidRootObject()*/)
+void FActorFolders::ForEachActorDescInstanceInFolders(UWorld& InWorld, const TSet<FName>& InPaths, TFunctionRef<bool(const FWorldPartitionActorDescInstance*)> Operation, const FFolder::FRootObject& InFolderRootObject /*= FFolder::GetInvalidRootObject()*/)
 {
 	if (UWorldPartition* WorldPartition = InWorld.GetWorldPartition())
 	{
-		FWorldPartitionHelpers::ForEachActorDesc(WorldPartition, [&](const FWorldPartitionActorDesc* ActorDesc)
+		FWorldPartitionHelpers::ForEachActorDescInstance(WorldPartition, [&](const FWorldPartitionActorDescInstance* ActorDescInstance)
 		{
-			FFolder ActorDescFolder = GetActorDescFolder(InWorld, ActorDesc);
+			FFolder ActorDescFolder = GetActorDescInstanceFolder(InWorld, ActorDescInstance);
 			if (ActorDescFolder == FFolder::GetInvalidFolder())
 			{
 				return true;
@@ -686,7 +687,7 @@ void FActorFolders::ForEachActorDescInFolders(UWorld& InWorld, const TSet<FName>
 				return true;
 			}
 
-			return Operation(ActorDesc);
+			return Operation(ActorDescInstance);
 		});
 	}
 }

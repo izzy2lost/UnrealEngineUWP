@@ -6,9 +6,9 @@
 #include "WorldPartition/WorldPartitionActorContainerID.h"
 
 class FStreamingGenerationActorDescViewMap;
+class FStreamingGenerationActorDescView;
 class FWorldPartitionStreamingGenerator;
-class FStreamingGenerationActorDescCollection;
-class FWorldPartitionActorDescView;
+class FStreamingGenerationContainerInstanceCollection;
 class UActorDescContainer;
 class UDataLayerInstance;
 struct FWorldPartitionRuntimeContainerResolver;
@@ -28,10 +28,7 @@ public:
 		TArray<FGuid> Actors;
 	};
 
-	/**
-	 * An actor set container represents the list of actor sets in an actor container, e.g. a level instance.
-	 */
-	struct FActorSetContainer
+	struct UE_DEPRECATED(5.4, "Use FActorSetContainerInstance") FActorSetContainer
 	{
 		FActorSetContainer()
 			: ActorDescViewMap(nullptr)
@@ -43,7 +40,26 @@ public:
 		FActorSetContainer& operator=(const FActorSetContainer&) = delete;
 
 		const FStreamingGenerationActorDescViewMap* ActorDescViewMap;
-		const FStreamingGenerationActorDescCollection* ActorDescCollection; // Only used by UWorldPartitionRuntimeSpatialHash::SetupHLODActors
+		const class FStreamingGenerationActorDescCollection* ActorDescCollection; // Only used by UWorldPartitionRuntimeSpatialHash::SetupHLODActors
+		TArray<TUniquePtr<FActorSet>> ActorSets;
+	};
+
+	/**
+	 * An actor set container represents the list of actor sets in an actor container, e.g. a level instance.
+	 */
+	struct FActorSetContainerInstance
+	{
+		FActorSetContainerInstance()
+			: ActorDescViewMap(nullptr)
+			, ContainerInstanceCollection(nullptr)
+		{}
+
+		// Non-copyable
+		FActorSetContainerInstance(const FActorSetContainerInstance&) = delete;
+		FActorSetContainerInstance& operator=(const FActorSetContainerInstance&) = delete;
+
+		const FStreamingGenerationActorDescViewMap* ActorDescViewMap;
+		const FStreamingGenerationContainerInstanceCollection* ContainerInstanceCollection; // Only used by UWorldPartitionRuntimeSpatialHash::SetupHLODActors
 		TArray<TUniquePtr<FActorSet>> ActorSets;
 	};
 
@@ -57,7 +73,16 @@ public:
 		bool bIsSpatiallyLoaded;
 		TArray<const UDataLayerInstance*> DataLayers;
 		FGuid ContentBundleID;
-		const FActorSetContainer* ContainerInstance;
+
+		PRAGMA_DISABLE_DEPRECATION_WARNINGS
+
+		UE_DEPRECATED(5.4, "Use ActorSetContainerInstance instead")
+		const FActorSetContainer* ContainerInstance = nullptr;
+
+		PRAGMA_ENABLE_DEPRECATION_WARNINGS
+
+		const FActorSetContainerInstance* ActorSetContainerInstance = nullptr;
+
 		FActorContainerID ContainerID;
 		FTransform Transform;
 		const FActorSet* ActorSet;
@@ -94,16 +119,27 @@ public:
 		FGuid ActorGuid;
 		const FActorSetInstance* ActorSetInstance;
 
-		ENGINE_API const FWorldPartitionActorDescView& GetActorDescView() const;
+		ENGINE_API const FStreamingGenerationActorDescView& GetActorDescView() const;
 		ENGINE_API const FActorContainerID& GetContainerID() const;
 		ENGINE_API const FTransform& GetTransform() const;
 		ENGINE_API const FBox GetBounds() const;
 	};
 
 	virtual FBox GetWorldBounds() const = 0;
-	virtual const FActorSetContainer* GetMainWorldContainer() const = 0;
+
+	virtual const FActorSetContainerInstance* GetMainWorldContainerInstance() const = 0;
 	virtual void ForEachActorSetInstance(TFunctionRef<void(const FActorSetInstance&)> Func) const = 0;
-	virtual void ForEachActorSetContainer(TFunctionRef<void(const FActorSetContainer&)> Func) const = 0;
+	virtual void ForEachActorSetContainerInstance(TFunctionRef<void(const FActorSetContainerInstance&)> Func) const = 0;
+
+	PRAGMA_DISABLE_DEPRECATION_WARNINGS
+
+	UE_DEPRECATED(5.4, "Implement GetMainWorldContainerInstance instead")
+	virtual const FActorSetContainer* GetMainWorldContainer() const { return nullptr; };
+
+	UE_DEPRECATED(5.4, "Implement ForEachActorSetContainerInstance instead")
+	virtual void ForEachActorSetContainer(TFunctionRef<void(const FActorSetContainer&)> Func) const {};
+
+	PRAGMA_ENABLE_DEPRECATION_WARNINGS
 };
 
 class FStreamingGenerationContextProxy : public IStreamingGenerationContext
@@ -118,9 +154,9 @@ public:
 		return SourceContext->GetWorldBounds();
 	}
 
-	virtual const FActorSetContainer* GetMainWorldContainer() const override
+	virtual const FActorSetContainerInstance* GetMainWorldContainerInstance() const override
 	{
-		return SourceContext->GetMainWorldContainer();
+		return SourceContext->GetMainWorldContainerInstance();
 	}
 
 	virtual void ForEachActorSetInstance(TFunctionRef<void(const FActorSetInstance&)> Func) const override
@@ -128,9 +164,9 @@ public:
 		SourceContext->ForEachActorSetInstance(Func);
 	}
 
-	virtual void ForEachActorSetContainer(TFunctionRef<void(const FActorSetContainer&)> Func) const override
+	virtual void ForEachActorSetContainerInstance(TFunctionRef<void(const FActorSetContainerInstance&)> Func) const override
 	{
-		SourceContext->ForEachActorSetContainer(Func);
+		SourceContext->ForEachActorSetContainerInstance(Func);
 	}
 
 protected:

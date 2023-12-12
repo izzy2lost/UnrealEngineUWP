@@ -17,7 +17,7 @@
 #include "ProfilingDebugging/ScopedTimers.h"
 #include "WorldPartition/DataLayer/DataLayerInstanceWithAsset.h"
 #include "WorldPartition/DataLayer/WorldDataLayers.h"
-#include "WorldPartition/WorldPartitionActorDesc.h"
+#include "WorldPartition/WorldPartitionActorDescInstance.h"
 #include "WorldPartition/WorldPartitionHelpers.h"
 
 DEFINE_LOG_CATEGORY(LogDataLayerToAssetCommandlet);
@@ -481,10 +481,10 @@ bool UDataLayerToAssetCommandlet::RemapActorDataLayersToAssets(TStrongObjectPtr<
 	UE_LOG(LogDataLayerToAssetCommandlet, Log, TEXT("Starting Actor Data Layer Remapping To Data Layer Asset. This can take a while."));
 
 	uint32 ErrorCount = 0;
-	FWorldPartitionHelpers::ForEachActorWithLoading(MainWorld->GetWorldPartition(), [&ErrorCount, &CommandletContext, this, &PackageHelper](const FWorldPartitionActorDesc* ActorDesc)
+	FWorldPartitionHelpers::ForEachActorWithLoading(MainWorld->GetWorldPartition(), [&ErrorCount, &CommandletContext, this, &PackageHelper](const FWorldPartitionActorDescInstance* ActorDescInstance)
 	{
 		uint32 ActorConversionErrors = 0;
-		if (AActor* Actor = ActorDesc->GetActor())
+		if (AActor* Actor = ActorDescInstance->GetActor())
 		{
 			ActorConversionErrors += RemapDataLayersAssetsFromPreviousConversions(CommandletContext, Actor);
 			ActorConversionErrors += RemapActorDataLayers(CommandletContext, Actor);
@@ -507,13 +507,13 @@ bool UDataLayerToAssetCommandlet::RemapActorDataLayersToAssets(TStrongObjectPtr<
 		}
 		else
 		{
-			const TArray<FName>& ActDescDataLayers = ActorDesc->GetDataLayerInstanceNames();
+			const TArray<FName>& ActDescDataLayers = ActorDescInstance->GetDataLayerInstanceNames();
 			if (!ActDescDataLayers.IsEmpty())
 			{
 				FString DataLayerString = FString::JoinBy(ActDescDataLayers, TEXT(", "), [](const FName& DataLayerName) { return DataLayerName.ToString(); });
 
 				UE_LOG(LogDataLayerToAssetCommandlet, Error, TEXT("Actor %s failed to load. Its data layers %s will not be remapped to a data layer asset."),
-					*ActorDesc->GetActorName().ToString(), *DataLayerString);
+					*ActorDescInstance->GetActorName().ToString(), *DataLayerString);
 				if (!bIgnoreActorLoadingErrors)
 				{
 					ActorConversionErrors++;

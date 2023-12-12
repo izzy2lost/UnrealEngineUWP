@@ -19,6 +19,7 @@
 #include "WorldPartition/Cook/WorldPartitionCookPackageContextInterface.h"
 #include "WorldPartition/Cook/WorldPartitionCookPackage.h"
 #include "WorldPartition/WorldPartitionLevelHelper.h"
+#include "WorldPartition/ActorDescContainerInstance.h"
 
 FContentBundleEditor::FContentBundleEditor(TSharedPtr<FContentBundleClient>& InClient, UWorld* InWorld)
 	: FContentBundleBase(InClient, InWorld)
@@ -61,10 +62,10 @@ void FContentBundleEditor::DoInjectContent()
 	if (bCreatedContainerPath)
 	{
 		UWorldPartition* WorldPartition = GetInjectedWorld()->GetWorldPartition();
-		UWorldPartition::FContainerRegistrationParams RegistrationsParams(*ActorDescContainerPackage);
+		UActorDescContainerInstance::FInitializeParams InitParams(*ActorDescContainerPackage);
 		
 		const FTopLevelAssetPath InjectedWorldAssetPath = FSoftObjectPath(GetInjectedWorld()).GetAssetPath();
-		RegistrationsParams.FilterActorDescFunc = [&](const FWorldPartitionActorDesc* ActorDesc)
+		InitParams.FilterActorDescFunc = [&](const FWorldPartitionActorDesc* ActorDesc)
 		{
 			if (ActorDesc->GetActorSoftPath().GetAssetPath() != InjectedWorldAssetPath)
 			{
@@ -79,17 +80,17 @@ void FContentBundleEditor::DoInjectContent()
 			return true;
 		};
 
-		ActorDescContainer = WorldPartition->RegisterActorDescContainer(RegistrationsParams);
-		if (ActorDescContainer.IsValid())
+		ActorDescContainerInstance = WorldPartition->RegisterActorDescContainerInstance(InitParams);
+		if (ActorDescContainerInstance.IsValid() && ActorDescContainerInstance->IsInitialized())
 		{
-			UE_LOG(LogContentBundle, Log, TEXT("%s ExternalActors in %s found. %u actors were injected"), *ContentBundle::Log::MakeDebugInfoString(*this), *ActorDescContainer->GetExternalActorPath(), ActorDescContainer->GetActorDescCount());
+			UE_LOG(LogContentBundle, Log, TEXT("%s ExternalActors in %s found. %u actors were injected"), *ContentBundle::Log::MakeDebugInfoString(*this), *ActorDescContainerInstance->GetExternalActorPath(), ActorDescContainerInstance->GetActorDescInstanceCount());
 
 			check(GetDescriptor()->GetGuid().IsValid());
-			ActorDescContainer->SetContentBundleGuid(GetDescriptor()->GetGuid());
+			ActorDescContainerInstance->GetContainer()->SetContentBundleGuid(GetDescriptor()->GetGuid());
 
-			if (!ActorDescContainer->IsEmpty())
+			if (!ActorDescContainerInstance->GetContainer()->IsEmpty())
 			{
-				WorldDataLayersActorReference = FWorldDataLayersReference(ActorDescContainer.Get(), BuildWorlDataLayersName());
+				WorldDataLayersActorReference = FWorldDataLayersReference(ActorDescContainerInstance.Get(), BuildWorlDataLayersName());
 				SetStatus(EContentBundleStatus::ContentInjected);
 			}
 			else
@@ -136,13 +137,14 @@ void FContentBundleEditor::DoRemoveContent()
 
 	UnsavedActorMonitor->Uninitialize();
 
-	if (ActorDescContainer.IsValid())
+	// Might have been uninitialized by the WorldPartition 
+	if (UActorDescContainerInstance* ContainerInstance = ActorDescContainerInstance.Get(); ContainerInstance && ContainerInstance->IsInitialized())
 	{
 		UnregisterDelegates();
 
-		GetInjectedWorld()->GetWorldPartition()->UnregisterActorDescContainer(ActorDescContainer.Get());
-		ActorDescContainer = nullptr;
+		GetInjectedWorld()->GetWorldPartition()->UnregisterActorDescContainerInstance(ActorDescContainerInstance.Get());
 	}
+	ActorDescContainerInstance = nullptr;
 
 	ExternalStreamingObject = nullptr;
 	CookPackageIdsToCell.Empty();
@@ -187,7 +189,7 @@ bool FContentBundleEditor::AddActor(AActor* InActor)
 	FSetActorContentBundleGuid SetActorContentBundleGuid(InActor, GetDescriptor()->GetGuid());
 
 	// Rename the actor so it is saved in the content bundle location
-	FString ActorPackageNameInContentBundle = ContentBundlePaths::MakeExternalActorPackagePath(ActorDescContainer->GetExternalActorPath(), InActor->GetName());
+	FString ActorPackageNameInContentBundle = ContentBundlePaths::MakeExternalActorPackagePath(ActorDescContainerInstance->GetExternalActorPath(), InActor->GetName());
 	verify(InActor->GetPackage()->Rename(*ActorPackageNameInContentBundle));
 
 	UnsavedActorMonitor->MonitorActor(InActor);
@@ -201,7 +203,7 @@ bool FContentBundleEditor::ContainsActor(const AActor* InActor) const
 {
 	if (InActor != nullptr)
 	{
-		return ActorDescContainer->GetActorDesc(InActor->GetActorGuid()) != nullptr || UnsavedActorMonitor->IsMonitoring(InActor);
+		return ActorDescContainerInstance->GetActorDescInstance(InActor->GetActorGuid()) != nullptr || UnsavedActorMonitor->IsMonitoring(InActor);
 	}
 
 	return false;
@@ -211,9 +213,9 @@ bool FContentBundleEditor::GetActors(TArray<AActor*>& Actors)
 {
 	Actors.Reserve(GetActorCount());
 
-	if (ActorDescContainer.IsValid())
+	if (ActorDescContainerInstance.IsValid())
 	{
-		for (FActorDescList::TIterator<> It(ActorDescContainer.Get()); It; ++It)
+		for (UActorDescContainerInstance::TIterator<> It(ActorDescContainerInstance.Get()); It; ++It)
 		{
 			if (AActor* Actor = It->GetActor())
 			{
@@ -242,7 +244,7 @@ bool FContentBundleEditor::GetActors(TArray<AActor*>& Actors)
 bool FContentBundleEditor::HasUserPlacedActors() const
 {
 	// If there is only one actor in the container its the WorldDataLayer automatically created when injecting base content.
-	bool bActorDescContHasUserPlacedActors = ActorDescContainer.IsValid() && ActorDescContainer->GetActorDescCount() > 1;
+	bool bActorDescContHasUserPlacedActors = ActorDescContainerInstance.IsValid() && ActorDescContainerInstance->GetActorDescInstanceCount() > 1;
 	return (bActorDescContHasUserPlacedActors || UnsavedActorMonitor->IsMonitoringActors());
 }
 
@@ -250,8 +252,8 @@ uint32 FContentBundleEditor::GetActorCount() const
 {
 	if (GetStatus() == EContentBundleStatus::ContentInjected)
 	{
-		uint32 UnsavedWorldDataLayerCount = WorldDataLayersActorReference.IsValid() && ActorDescContainer.IsValid() && ActorDescContainer->IsEmpty() ? 1 : 0;
-		return ActorDescContainer->GetActorDescCount() + UnsavedActorMonitor->GetActorCount() + UnsavedWorldDataLayerCount;
+		uint32 UnsavedWorldDataLayerCount = WorldDataLayersActorReference.IsValid() && ActorDescContainerInstance.IsValid() && ActorDescContainerInstance->IsEmpty() ? 1 : 0;
+		return ActorDescContainerInstance->GetActorDescInstanceCount() + UnsavedActorMonitor->GetActorCount() + UnsavedWorldDataLayerCount;
 	}
 
 	return 0;
@@ -269,9 +271,9 @@ uint32 FContentBundleEditor::GetUnsavedActorAcount() const
 
 void FContentBundleEditor::ReferenceAllActors()
 {
-	if (ActorDescContainer.IsValid())
+	if (ActorDescContainerInstance.IsValid())
 	{
-		ActorDescContainer->LoadAllActors(ForceLoadedActors);
+		ActorDescContainerInstance->LoadAllActors(ForceLoadedActors);
 	}
 }
 
@@ -337,7 +339,7 @@ void FContentBundleEditor::GenerateStreaming(TArray<FString>* OutPackageToGenera
 	}
 
 	UWorldPartition::FGenerateStreamingParams Params = UWorldPartition::FGenerateStreamingParams()
-		.SetActorDescContainer(ActorDescContainer.Get());
+		.SetActorDescContainerInstance(ActorDescContainerInstance.Get());
 
 	UWorldPartition::FGenerateStreamingContext Context = UWorldPartition::FGenerateStreamingContext()
 		.SetPackagesToGenerate(OutPackageToGenerate);
@@ -545,7 +547,7 @@ void FContentBundleEditor::BroadcastChanged()
 
 UPackage* FContentBundleEditor::CreateActorPackage(const FName& ActorName) const
 {
-	FString ActorPackagePath = ULevel::GetActorPackageName(ActorDescContainer->GetExternalActorPath(), EActorPackagingScheme::Reduced, ActorName.ToString());
+	FString ActorPackagePath = ULevel::GetActorPackageName(ActorDescContainerInstance->GetExternalActorPath(), EActorPackagingScheme::Reduced, ActorName.ToString());
 	UPackage* ActorPackage = CreatePackage(*ActorPackagePath);
 
 	ActorPackage->SetDirtyFlag(true);
@@ -560,29 +562,29 @@ FName FContentBundleEditor::BuildWorlDataLayersName() const
 
 void FContentBundleEditor::RegisterDelegates()
 {
-	ActorDescContainer->OnActorDescAddedEvent.AddRaw(this, &FContentBundleEditor::OnActorDescAdded);
-	ActorDescContainer->OnActorDescRemovedEvent.AddRaw(this, &FContentBundleEditor::OnActorDescRemoved);
+	ActorDescContainerInstance->OnActorDescInstanceAddedEvent.AddRaw(this, &FContentBundleEditor::OnActorDescInstanceAdded);
+	ActorDescContainerInstance->OnActorDescInstanceRemovedEvent.AddRaw(this, &FContentBundleEditor::OnActorDescInstanceRemoved);
 }
 
 void FContentBundleEditor::UnregisterDelegates()
 {
-	ActorDescContainer->OnActorDescAddedEvent.RemoveAll(this);
-	ActorDescContainer->OnActorDescRemovedEvent.RemoveAll(this);
+	ActorDescContainerInstance->OnActorDescInstanceAddedEvent.RemoveAll(this);
+	ActorDescContainerInstance->OnActorDescInstanceRemovedEvent.RemoveAll(this);
 }
 
-void FContentBundleEditor::OnActorDescAdded(FWorldPartitionActorDesc* ActorDesc)
+void FContentBundleEditor::OnActorDescInstanceAdded(FWorldPartitionActorDescInstance* ActorDescInstance)
 {
 	UE_LOG(LogContentBundle, Verbose, TEXT("%s Added actor %s to container, ActorCount: %u. Package %s."), 
-		*ContentBundle::Log::MakeDebugInfoString(*this), *ActorDesc->GetActorLabelOrName().ToString(), GetActorCount(), *ActorDesc->GetActorPackage().ToString());
+		*ContentBundle::Log::MakeDebugInfoString(*this), *ActorDescInstance->GetActorLabelOrName().ToString(), GetActorCount(), *ActorDescInstance->GetActorPackage().ToString());
 
-	AActor* Actor = ActorDesc->GetActor();
+	AActor* Actor = ActorDescInstance->GetActor();
 	UnsavedActorMonitor->StopMonitoringActor(Actor);
 }
 
-void FContentBundleEditor::OnActorDescRemoved(FWorldPartitionActorDesc* ActorDesc)
+void FContentBundleEditor::OnActorDescInstanceRemoved(FWorldPartitionActorDescInstance* ActorDescInstance)
 {
 	UE_LOG(LogContentBundle, Verbose, TEXT("%s Removed actor %s from container, ActorCount:  %u. Package %s."), 
-		*ContentBundle::Log::MakeDebugInfoString(*this), *ActorDesc->GetActorLabelOrName().ToString(), GetActorCount(), *ActorDesc->GetActorPackage().ToString());
+		*ContentBundle::Log::MakeDebugInfoString(*this), *ActorDescInstance->GetActorLabelOrName().ToString(), GetActorCount(), *ActorDescInstance->GetActorPackage().ToString());
 
 	if (!HasUserPlacedActors())
 	{
@@ -592,7 +594,7 @@ void FContentBundleEditor::OnActorDescRemoved(FWorldPartitionActorDesc* ActorDes
 		}
 	}
 
-	AActor* ActorInWorld = ActorDesc->GetActor(false, false);
+	AActor* ActorInWorld = ActorDescInstance->GetActor(false, false);
 	check(ActorInWorld == nullptr || !UnsavedActorMonitor->IsMonitoring(ActorInWorld)); // ActorDesc existed is being deleted. Make sure the actor is not present in the unsaved list as it should have been saved for the desc to exist.
 }
 

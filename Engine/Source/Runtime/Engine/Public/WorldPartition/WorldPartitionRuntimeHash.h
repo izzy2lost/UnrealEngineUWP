@@ -188,9 +188,6 @@ protected:
 	TArray<FAlwaysLoadedActorForPIE> AlwaysLoadedActorsForPIE;
 
 	TMap<FString, UWorldPartitionRuntimeCell*> PackagesToGenerateForCook;
-
-public:
-	mutable FActorDescList ModifiedActorDescListForPIE;
 #endif
 
 protected:

@@ -3,6 +3,7 @@
 #include "WorldPartition/LoaderAdapter/LoaderAdapterSpatial.h"
 #include "WorldPartition/WorldPartition.h"
 #include "WorldPartition/WorldPartitionEditorHash.h"
+#include "WorldPartition/WorldPartitionActorDescInstance.h"
 #include "Engine/Level.h"
 #include "Engine/World.h"
 
@@ -19,35 +20,36 @@ void ILoaderAdapterSpatial::ForEachActor(TFunctionRef<void(const FWorldPartition
 	{
 		if (UWorldPartition* WorldPartition = GetWorld()->GetWorldPartition())
 		{
-			HandleIntersectingContainer(WorldPartition, WorldPartition->GetInstanceTransform(), *GetBoundingBox(), InOperation);
+			HandleIntersectingContainer(WorldPartition, *GetBoundingBox(), InOperation);
 		}
 	}
 }
 
-void ILoaderAdapterSpatial::HandleIntersectingContainer(UWorldPartition* InWorldPartition, const FTransform InInstanceTransform, const FBox& InBoundingBox, TFunctionRef<void(const FWorldPartitionHandle&)> InOperation) const
+void ILoaderAdapterSpatial::HandleIntersectingContainer(UWorldPartition* InWorldPartition, const FBox& InBoundingBox, TFunctionRef<void(const FWorldPartitionHandle&)> InOperation) const
 {
 	UWorldPartitionEditorHash::FForEachIntersectingActorParams ForEachIntersectingActorParams = UWorldPartitionEditorHash::FForEachIntersectingActorParams()
 		.SetIncludeSpatiallyLoadedActors(bIncludeSpatiallyLoadedActors)
 		.SetIncludeNonSpatiallyLoadedActors(bIncludeNonSpatiallyLoadedActors);
 
-	const FBox LocalBoundingBox = InBoundingBox.InverseTransformBy(InInstanceTransform);
-	InWorldPartition->EditorHash->ForEachIntersectingActor(LocalBoundingBox, [this, InWorldPartition, &InInstanceTransform, &InOperation](FWorldPartitionActorDesc* ActorDesc)
+	const FTransform InstanceTransform = InWorldPartition->GetInstanceTransform();
+	const FBox LocalBoundingBox = InBoundingBox.InverseTransformBy(InstanceTransform);
+	InWorldPartition->EditorHash->ForEachIntersectingActor(LocalBoundingBox, [this, InWorldPartition, &InstanceTransform, &InOperation](FWorldPartitionActorDescInstance* ActorDescInstance)
 	{
-		const FBox WorldActorEditorBox = ActorDesc->GetEditorBounds().TransformBy(InInstanceTransform);
+		const FBox WorldActorEditorBox = ActorDescInstance->GetEditorBounds().TransformBy(InstanceTransform);
 		if (Intersect(WorldActorEditorBox))
 		{
-			FWorldPartitionHandle ActorHandle(InWorldPartition, ActorDesc->GetGuid());
+			FWorldPartitionHandle ActorHandle(InWorldPartition, ActorDescInstance->GetGuid());
 			InOperation(ActorHandle);
 
-			if (ActorHandle->GetIsSpatiallyLoaded() && ActorHandle->IsContainerInstance())
+			if (ActorDescInstance->GetIsSpatiallyLoaded() && ActorDescInstance->IsChildContainerInstance())
 			{
-				FWorldPartitionActorDesc::FContainerInstance ContainerInstance;
-				if (ActorHandle->GetContainerInstance(ContainerInstance))
+				FWorldPartitionActorDesc::FLoadedContainerInstance ContainerInstance;
+				if (IWorldPartitionActorLoaderInterface::GetLoadedChildContainerInstance(ActorHandle, ContainerInstance))
 				{
 					if (UWorldPartition* ContainerWorldPartition = ContainerInstance.LoadedLevel ? ContainerInstance.LoadedLevel->GetWorldPartition() : nullptr)
 					{
 						const FBox InnerBoundingBox = ContainerInstance.bSupportsPartialEditorLoading ? *GetBoundingBox() : FBox(FVector(-HALF_WORLD_MAX), FVector(HALF_WORLD_MAX));
-						HandleIntersectingContainer(ContainerWorldPartition, ContainerWorldPartition->GetInstanceTransform(), InnerBoundingBox, InOperation);
+						HandleIntersectingContainer(ContainerWorldPartition, InnerBoundingBox, InOperation);
 					}
 				}
 			}

@@ -6,6 +6,7 @@
 #include "UObject/ObjectMacros.h"
 #include "Engine/LevelStreamingDynamic.h"
 #include "LevelInstance/LevelInstanceTypes.h"
+#include "WorldPartition/ActorDescContainerInstance.h"
 #include "LevelInstanceLevelStreaming.generated.h"
 
 class ILevelInstanceInterface;
@@ -44,6 +45,7 @@ private:
 	ENGINE_API virtual void OnLoadedActorsAddedToLevelPostEvent(const TArray<AActor*>& InActors);
 	ENGINE_API virtual void OnLoadedActorsRemovedFromLevelPostEvent(const TArray<AActor*>& InActors);
 	ENGINE_API void OnLevelStreamingStateChanged(UWorld* InWorld, const ULevelStreaming* InLevelStreaming, ULevel* InLevelIfLoaded, ELevelStreamingState InPrevState, ELevelStreamingState InNewState);
+	ENGINE_API void OnPreInitializeContainerInstance(UActorDescContainerInstance::FInitializeParams& InInitParams, UActorDescContainerInstance* InContainerInstance);
 
 	bool IsEditorWorldMode() const;
 

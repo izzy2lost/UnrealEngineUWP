@@ -8,10 +8,10 @@
 #include "WorldPartition/HLOD/HLODActorDesc.h"
 #include "WorldPartition/HLOD/HLODLayer.h"
 
-#include "WorldPartition/ActorDescContainerCollection.h"
+#include "WorldPartition/ActorDescContainerInstanceCollection.h"
 #include "WorldPartition/WorldPartition.h"
 #include "WorldPartition/WorldPartitionHandle.h"
-
+#include "WorldPartition/WorldPartitionActorDescInstance.h"
 
 
 FLoaderAdapterHLOD::FLoaderAdapterHLOD(UWorld* InWorld)
@@ -19,9 +19,9 @@ FLoaderAdapterHLOD::FLoaderAdapterHLOD(UWorld* InWorld)
 {
 	UWorldPartition* WorldPartition = InWorld->GetWorldPartition();
 
-	for (FActorDescContainerCollection::TIterator<AWorldPartitionHLOD> HLODIterator(WorldPartition); HLODIterator; ++HLODIterator)
+	for (FActorDescContainerInstanceCollection::TIterator<AWorldPartitionHLOD> HLODIterator(WorldPartition); HLODIterator; ++HLODIterator)
 	{
-		const FHLODActorDesc& HLODActorDesc = **HLODIterator;
+		const FHLODActorDesc& HLODActorDesc = *(FHLODActorDesc*)HLODIterator->GetActorDesc();
 		if (ShouldLoadHLOD(HLODActorDesc))
 		{
 			Actors.Add(FWorldPartitionHandle(WorldPartition, HLODActorDesc.GetGuid()));

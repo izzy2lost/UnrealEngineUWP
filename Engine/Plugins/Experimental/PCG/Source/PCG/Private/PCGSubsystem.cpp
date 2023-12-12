@@ -28,6 +28,8 @@
 #include "PackageSourceControlHelper.h"
 #include "WorldPartition/WorldPartitionHelpers.h"
 #include "WorldPartition/ActorPartition/PartitionActorDesc.h"
+#include "WorldPartition/WorldPartitionActorDescInstance.h"
+#include "WorldPartition/WorldPartitionHandle.h"
 #include "ObjectTools.h"
 #else
 #include "Engine/Engine.h"
@@ -956,16 +958,16 @@ namespace PCGSubsystem
 					// TODO: Revisit after API review on the WP side, we shouldn't have to load here or get the actor desc directly
 					if (!PCGActor && bSaveActors)
 					{
-						const FWorldPartitionActorDesc* PCGActorDesc = nullptr;
-						auto FindFirst = [&CellCoord, &PCGActorDesc](const FWorldPartitionActorDesc* ActorDesc) {
-							FPartitionActorDesc* PartitionActorDesc = (FPartitionActorDesc*)ActorDesc;
+						const FWorldPartitionActorDescInstance* PCGActorDescInstance = nullptr;
+						auto FindFirst = [&CellCoord, &PCGActorDescInstance](const FWorldPartitionActorDescInstance* ActorDescInstance) {
+							const FPartitionActorDesc* PartitionActorDesc = (FPartitionActorDesc*)ActorDescInstance->GetActorDesc();
 
 							if (PartitionActorDesc &&
 								PartitionActorDesc->GridIndexX == CellCoord.X &&
 								PartitionActorDesc->GridIndexY == CellCoord.Y &&
 								PartitionActorDesc->GridIndexZ == CellCoord.Z)
 							{
-								PCGActorDesc = ActorDesc;
+								PCGActorDescInstance = ActorDescInstance;
 								return false;
 							}
 							else
@@ -974,13 +976,13 @@ namespace PCGSubsystem
 							}
 						};
 
-						FWorldPartitionHelpers::ForEachIntersectingActorDesc<APCGPartitionActor>(World->GetWorldPartition(), CellBounds, FindFirst);
+						FWorldPartitionHelpers::ForEachIntersectingActorDescInstance<APCGPartitionActor>(World->GetWorldPartition(), CellBounds, FindFirst);
 
-						check(!bCreateActor || PCGActorDesc);
-						if (PCGActorDesc)
+						check(!bCreateActor || PCGActorDescInstance);
+						if (PCGActorDescInstance)
 						{
-							ActorReferences->Add(FWorldPartitionReference(World->GetWorldPartition(), PCGActorDesc->GetGuid()));
-							PCGActor = Cast<APCGPartitionActor>(PCGActorDesc->GetActor());
+							ActorReferences->Add(FWorldPartitionReference(World->GetWorldPartition(), PCGActorDescInstance->GetGuid()));
+							PCGActor = Cast<APCGPartitionActor>(PCGActorDescInstance->GetActor());
 						}
 					}
 					// We still need to keep a reference on the PCG actor - note that newly created PCG actors will not have a reference here, but won't be unloaded
@@ -1007,16 +1009,16 @@ namespace PCGSubsystem
 					// We'll need to make sure actors in the bounds are loaded only if we need them.
 					if (bLoadCell)
 					{
-						auto WorldPartitionLoadActorsInBounds = [World, ActorReferences](const FWorldPartitionActorDesc* ActorDesc) {
-							check(ActorDesc);
-							ActorReferences->Add(FWorldPartitionReference(World->GetWorldPartition(), ActorDesc->GetGuid()));
+						auto WorldPartitionLoadActorsInBounds = [World, ActorReferences](const FWorldPartitionActorDescInstance* ActorDescInstance) {
+							check(ActorDescInstance);
+							ActorReferences->Add(FWorldPartitionReference(World->GetWorldPartition(), ActorDescInstance->GetGuid()));
 							// Load actor if not already loaded
-							ActorDesc->GetActor();
+							ActorDescInstance->GetActor();
 							return true;
 						};
 
 						auto LoadActorsTask = [World, IntersectedBounds, WorldPartitionLoadActorsInBounds]() {
-							FWorldPartitionHelpers::ForEachIntersectingActorDesc(World->GetWorldPartition(), IntersectedBounds, WorldPartitionLoadActorsInBounds);
+							FWorldPartitionHelpers::ForEachIntersectingActorDescInstance(World->GetWorldPartition(), IntersectedBounds, WorldPartitionLoadActorsInBounds);
 							return true;
 						};
 
@@ -1343,21 +1345,18 @@ void UPCGSubsystem::DeletePartitionActors(bool bOnlyDeleteUnused, bool bOnlyChil
 		return true;
 	};
 
-	auto GatherAndDestroyActors = [&PackagesToCleanup, &PackagesToDeleteFromSCC, World, &ActorsNotSafeToBeDeleted, &GatherAndDestroyLoadedActors](const FWorldPartitionActorDesc* ActorDesc) {
-		AActor* Actor = ActorDesc->GetActor();
-		if (!Actor)
+	auto GatherAndDestroyActors = [&PackagesToCleanup, &PackagesToDeleteFromSCC, World, &ActorsNotSafeToBeDeleted, &GatherAndDestroyLoadedActors](const FWorldPartitionActorDescInstance* ActorDescInstance) 
+	{
+		FWorldPartitionReference ActorReference(ActorDescInstance->GetContainerInstance(), ActorDescInstance->GetGuid());
+		
+		if (AActor* LoadedActor = ActorReference.GetActor())
 		{
-			Actor = ActorDesc->Load();
-		}
-
-		if (Actor)
-		{
-			GatherAndDestroyLoadedActors(Actor);
+			GatherAndDestroyLoadedActors(LoadedActor);
 		}
 		else // Couldn't load it
 		{
-			PackagesToDeleteFromSCC.Add(ActorDesc->GetActorPackage().ToString());
-			World->GetWorldPartition()->RemoveActor(ActorDesc->GetGuid());
+			PackagesToDeleteFromSCC.Add(ActorDescInstance->GetActorPackage().ToString());
+			World->GetWorldPartition()->RemoveActor(ActorDescInstance->GetGuid());
 		}
 
 		return true;
@@ -1400,7 +1399,7 @@ void UPCGSubsystem::DeletePartitionActors(bool bOnlyDeleteUnused, bool bOnlyChil
 	}
 	else
 	{
-		FWorldPartitionHelpers::ForEachActorDesc<APCGPartitionActor>(World->GetWorldPartition(), GatherAndDestroyActors);
+		FWorldPartitionHelpers::ForEachActorDescInstance<APCGPartitionActor>(World->GetWorldPartition(), GatherAndDestroyActors);
 
 		// Also cleanup the remaining actors that don't have descriptors, if we have a loaded level
 		if (ULevel* Level = World->GetCurrentLevel())

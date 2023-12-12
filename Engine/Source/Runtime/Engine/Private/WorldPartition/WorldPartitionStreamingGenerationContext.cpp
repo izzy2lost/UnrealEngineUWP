@@ -4,9 +4,10 @@
 #include "WorldPartition/WorldPartitionStreamingGeneration.h"
 
 #if WITH_EDITOR
-const FWorldPartitionActorDescView& IStreamingGenerationContext::FActorInstance::GetActorDescView() const
+
+const FStreamingGenerationActorDescView& IStreamingGenerationContext::FActorInstance::GetActorDescView() const
 {
-	return ActorSetInstance->ContainerInstance->ActorDescViewMap->FindByGuidChecked(ActorGuid);
+	return ActorSetInstance->ActorSetContainerInstance->ActorDescViewMap->FindByGuidChecked(ActorGuid);
 }
 
 const FActorContainerID& IStreamingGenerationContext::FActorInstance::GetContainerID() const

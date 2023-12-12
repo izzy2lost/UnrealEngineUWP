@@ -3,6 +3,7 @@
 #pragma once
 
 #include "ISceneOutlinerMode.h"
+#include "WorldPartition/WorldPartitionHandle.h"
 
 namespace SceneOutliner
 {
@@ -18,10 +19,15 @@ namespace SceneOutliner
 		bool operator()(const TWeakPtr<ISceneOutlinerTreeItem>& Item, AActor*& ActorPtrOut) const;
 	};
 
-	/** Functor which can be used to get actor descriptors from a selection  */
-	struct SCENEOUTLINER_API FActorDescSelector
+	struct UE_DEPRECATED(5.4, "Use FActorHandleSelector instead") FActorDescSelector
 	{
-		bool operator()(const TWeakPtr<ISceneOutlinerTreeItem>& Item, FWorldPartitionActorDesc*& ActorDescPtrOut) const;
+		bool operator()(const TWeakPtr<ISceneOutlinerTreeItem>&Item, FWorldPartitionActorDesc * &ActorDescPtrOut) const { return false; }
+	};
+
+	/** Functor which can be used to get actor descriptors from a selection  */
+	struct SCENEOUTLINER_API FActorHandleSelector
+	{
+		bool operator()(const TWeakPtr<ISceneOutlinerTreeItem>& Item, FWorldPartitionHandle& ActorHandleOut) const;
 	};
 }
 

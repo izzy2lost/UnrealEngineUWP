@@ -15,6 +15,7 @@ Landscape.cpp: Terrain rendering
 #include "UObject/ConstructorHelpers.h"
 #include "UObject/DevObjectVersion.h"
 #include "UObject/LinkerLoad.h"
+#include "UObject/Package.h"
 #include "Framework/Application/SlateApplication.h"
 #include "LandscapePrivate.h"
 #include "LandscapeStreamingProxy.h"
@@ -94,6 +95,7 @@ Landscape.cpp: Terrain rendering
 #include "WorldPartition/WorldPartitionHelpers.h"
 #include "WorldPartition/WorldPartitionHandle.h"
 #include "WorldPartition/Landscape/LandscapeActorDesc.h"
+#include "WorldPartition/WorldPartitionActorDescInstance.h"
 #include "Engine/Texture2DArray.h"
 
 #if WITH_EDITOR
@@ -6141,10 +6143,10 @@ FBox ULandscapeInfo::GetCompleteBounds() const
 
 	FBox Bounds(EForceInit::ForceInit);
 
-	FWorldPartitionHelpers::ForEachActorDesc<ALandscapeProxy>(Landscape->GetWorld()->GetWorldPartition(), [this, &Bounds, Landscape](const FWorldPartitionActorDesc* ActorDesc)
+	FWorldPartitionHelpers::ForEachActorDescInstance<ALandscapeProxy>(Landscape->GetWorld()->GetWorldPartition(), [this, &Bounds, Landscape](const FWorldPartitionActorDescInstance* ActorDescInstance)
 	{
-		FLandscapeActorDesc* LandscapeActorDesc = (FLandscapeActorDesc*)ActorDesc;
-		ALandscapeProxy* LandscapeProxy = Cast<ALandscapeProxy>(ActorDesc->GetActor());
+		FLandscapeActorDesc* LandscapeActorDesc = (FLandscapeActorDesc*)ActorDescInstance->GetActorDesc();
+		ALandscapeProxy* LandscapeProxy = Cast<ALandscapeProxy>(ActorDescInstance->GetActor());
 
 		// Prioritize loaded bounds, as the bounds in the actor desc might not be up-to-date
 		if(LandscapeProxy && (LandscapeProxy->GetGridGuid() == LandscapeGuid))
@@ -6153,7 +6155,7 @@ FBox ULandscapeInfo::GetCompleteBounds() const
 		}
 		else if (LandscapeActorDesc->GridGuid == LandscapeGuid)
 		{
-			Bounds += ActorDesc->GetEditorBounds();
+			Bounds += LandscapeActorDesc->GetEditorBounds();
 		}
 
 		return true;

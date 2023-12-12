@@ -23,6 +23,7 @@
 
 #if WITH_EDITOR
 #include "WaterZoneActorDesc.h"
+#include "WorldPartition/WorldPartitionActorDescInstance.h"
 #include "WorldPartition/WorldPartitionHelpers.h"
 extern UNREALED_API UEditorEngine* GEditor;
 #else
@@ -552,15 +553,15 @@ TSoftObjectPtr<AWaterZone> UWaterSubsystem::FindWaterZone(const UWorld* World, c
 	{
 		if (UWorldPartition* WorldPartition = World->GetWorldPartition())
 		{
-			FWorldPartitionHelpers::ForEachActorDesc<AWaterZone>(WorldPartition, [Bounds, &ViableZones](const FWorldPartitionActorDesc* ActorDesc)
+			FWorldPartitionHelpers::ForEachActorDescInstance<AWaterZone>(WorldPartition, [Bounds, &ViableZones](const FWorldPartitionActorDescInstance* ActorDescInstance)
 			{
-				FWaterZoneActorDesc* WaterZoneActorDesc = (FWaterZoneActorDesc*)ActorDesc;
-				const FBox WaterZoneBounds = WaterZoneActorDesc->GetEditorBounds();
+				FWaterZoneActorDesc* WaterZoneActorDesc = (FWaterZoneActorDesc*)ActorDescInstance->GetActorDesc();
+				const FBox WaterZoneBounds = ActorDescInstance->GetEditorBounds();
 				const FBox2D WaterZoneBounds2D(FVector2D(WaterZoneBounds.Min), FVector2D(WaterZoneBounds.Max));
 
 				if (Bounds.Intersect(WaterZoneBounds2D))
 				{
-					ViableZones.Emplace(WaterZoneActorDesc->GetActorSoftPath(), WaterZoneActorDesc->GetOverlapPriority());
+					ViableZones.Emplace(ActorDescInstance->GetActorSoftPath(), WaterZoneActorDesc->GetOverlapPriority());
 				}
 
 				return true;

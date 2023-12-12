@@ -41,6 +41,8 @@
 #include "WorldPartition/WorldPartitionSubsystem.h"
 #include "WorldPartition/DataLayer/DataLayerManager.h"
 #include "WorldPartition/IWorldPartitionEditorModule.h"
+#include "WorldPartition/ActorDescContainerInstance.h"
+#include "WorldPartition/WorldPartitionActorDescInstance.h"
 #include "Subsystems/ActorEditorContextSubsystem.h"
 #include "ISourceControlModule.h"
 #include "ISourceControlProvider.h"
@@ -142,7 +144,7 @@ FActorBrowsingMode::FActorBrowsingMode(SSceneOutliner* InSceneOutliner, TWeakObj
 	FilterInfoMap.Add(TEXT("ShowOnlyCurrentDataLayers"), OnlyCurrentDataLayersInfo);
 
 	// Add a filter for unloaded actors to properly reflect the bShowOnlyActorsInCurrentDataLayers flag.
-	SceneOutliner->AddFilter(MakeShared<FActorDescFilter>(FActorDescTreeItem::FFilterPredicate::CreateLambda([this](const FWorldPartitionActorDesc* ActorDesc)
+	SceneOutliner->AddFilter(MakeShared<FActorDescFilter>(FActorDescTreeItem::FFilterPredicate::CreateLambda([this](const FWorldPartitionActorDescInstance* ActorDescInstance)
 		{
 			FActorBrowsingModeConfig* Settings = GetMutableConfig();
 			if (Settings && Settings->bShowOnlyActorsInCurrentDataLayers)
@@ -153,7 +155,7 @@ FActorBrowsingMode::FActorBrowsingMode(SSceneOutliner* InSceneOutliner, TWeakObj
 					return true;
 				}
 				
-				for(const UDataLayerInstance* const DataLayerInstance : DataLayerManager->GetDataLayerInstances(ActorDesc->GetDataLayerInstanceNames()))
+				for(const UDataLayerInstance* const DataLayerInstance : DataLayerManager->GetDataLayerInstances(ActorDescInstance->GetDataLayerInstanceNames()))
 				{
 					if (DataLayerInstance->IsInActorEditorContext())
 					{
@@ -178,7 +180,7 @@ FActorBrowsingMode::FActorBrowsingMode(SSceneOutliner* InSceneOutliner, TWeakObj
 	FilterInfoMap.Add(TEXT("ShowOnlyCurrentContentBundle"), OnlyCurrentContentBundleInfo);
 
 	// Add a filter for unloaded actors to properly reflect the bShowOnlyActorsInCurrentContentBundle flag.
-	SceneOutliner->AddFilter(MakeShared<FActorDescFilter>(FActorDescTreeItem::FFilterPredicate::CreateLambda([this](const FWorldPartitionActorDesc* ActorDesc)
+	SceneOutliner->AddFilter(MakeShared<FActorDescFilter>(FActorDescTreeItem::FFilterPredicate::CreateLambda([this](const FWorldPartitionActorDescInstance* ActorDescInstance)
 		{
 			FActorBrowsingModeConfig* Settings = GetMutableConfig();
 			if (Settings && Settings->bShowOnlyActorsInCurrentContentBundle)
@@ -188,7 +190,7 @@ FActorBrowsingMode::FActorBrowsingMode(SSceneOutliner* InSceneOutliner, TWeakObj
 					return true;
 				}
 
-				return ActorDesc->GetContentBundleGuid().IsValid() && WorldPartitionEditorModule->IsEditingContentBundle(ActorDesc->GetContentBundleGuid());
+				return ActorDescInstance->GetContentBundleGuid().IsValid() && WorldPartitionEditorModule->IsEditingContentBundle(ActorDescInstance->GetContentBundleGuid());
 			}
 			return true;
 		}), FSceneOutlinerFilter::EDefaultBehaviour::Pass));
@@ -284,7 +286,7 @@ FActorBrowsingMode::~FActorBrowsingMode()
 	{
 		if (UWorldPartition* const WorldPartition = RepresentingWorld->GetWorldPartition())
 		{
-			WorldPartition->OnActorDescRemovedEvent.RemoveAll(this);
+			WorldPartition->OnActorDescInstanceRemovedEvent.RemoveAll(this);
 		}
 	}
 	FSceneOutlinerDelegates::Get().OnComponentsUpdated.RemoveAll(this);
@@ -317,7 +319,7 @@ void FActorBrowsingMode::Rebuild()
 	{
 		if (UWorldPartition* const WorldPartition = RepresentingWorld->GetWorldPartition())
 		{
-			WorldPartition->OnActorDescRemovedEvent.RemoveAll(this);
+			WorldPartition->OnActorDescInstanceRemovedEvent.RemoveAll(this);
 		}
 	}
 
@@ -334,7 +336,7 @@ void FActorBrowsingMode::Rebuild()
 	if (bRepresentingWorldPartitionedWorld)
 	{
 		UWorldPartition* const WorldPartition = RepresentingWorld->GetWorldPartition();
-		WorldPartition->OnActorDescRemovedEvent.AddRaw(this, &FActorBrowsingMode::OnActorDescRemoved);
+		WorldPartition->OnActorDescInstanceRemovedEvent.AddRaw(this, &FActorBrowsingMode::OnActorDescInstanceRemoved);
 	}
 }
 
@@ -633,7 +635,7 @@ TSharedRef<FSceneOutlinerFilter> FActorBrowsingMode::CreateHideComponentsFilter(
 TSharedRef<FSceneOutlinerFilter> FActorBrowsingMode::CreateHideUnloadedActorsFilter()
 {
 	return MakeShareable(new FActorDescFilter(FActorDescTreeItem::FFilterPredicate::CreateStatic(
-		[](const FWorldPartitionActorDesc* ActorDesc) { return false; }), FSceneOutlinerFilter::EDefaultBehaviour::Pass));
+		[](const FWorldPartitionActorDescInstance* ActorDescInstance) { return false; }), FSceneOutlinerFilter::EDefaultBehaviour::Pass));
 }
 
 TSharedRef<FSceneOutlinerFilter> FActorBrowsingMode::CreateHideEmptyFoldersFilter()
@@ -973,9 +975,9 @@ void FActorBrowsingMode::OnSelectUnloadedActors(const TArray<FGuid>& ActorGuids)
 		ItemsToSelect.Reserve(ActorGuids.Num());
 		for (const FGuid& ActorGuid : ActorGuids)
 		{
-			if (FWorldPartitionActorDesc* ActorDesc = WorldPartition->GetActorDesc(ActorGuid))
+			if (FWorldPartitionActorDescInstance* ActorDescInstance = WorldPartition->GetActorDescInstance(ActorGuid))
 			{
-				if (FSceneOutlinerTreeItemPtr ItemPtr = SceneOutliner->GetTreeItem(FActorDescTreeItem::ComputeTreeItemID(ActorDesc->GetGuid(), ActorDesc->GetContainer())))
+				if (FSceneOutlinerTreeItemPtr ItemPtr = SceneOutliner->GetTreeItem(FActorDescTreeItem::ComputeTreeItemID(ActorDescInstance->GetGuid(), ActorDescInstance->GetContainerInstance())))
 				{
 					ItemsToSelect.Add(ItemPtr);
 				}
@@ -995,9 +997,9 @@ void FActorBrowsingMode::OnSelectUnloadedActors(const TArray<FGuid>& ActorGuids)
 	}
 }
 
-void FActorBrowsingMode::OnActorDescRemoved(FWorldPartitionActorDesc* InActorDesc)
+void FActorBrowsingMode::OnActorDescInstanceRemoved(FWorldPartitionActorDescInstance* InActorDescInstance)
 {
-	ApplicableUnloadedActors.Remove(InActorDesc);
+	ApplicableUnloadedActors.Remove(InActorDescInstance);
 }
 
 void FActorBrowsingMode::OnItemSelectionChanged(FSceneOutlinerTreeItemPtr TreeItem, ESelectInfo::Type SelectionType, const FSceneOutlinerItemSelection& Selection)
@@ -1175,7 +1177,7 @@ void FActorBrowsingMode::OnItemPassesFilters(const ISceneOutlinerTreeItem& Item)
 	}
 	else if (const FActorDescTreeItem* const ActorDescItem = Item.CastTo<FActorDescTreeItem>(); ActorDescItem && ActorDescItem->IsValid())
 	{
-		ApplicableUnloadedActors.Add(ActorDescItem->ActorDescHandle.Get());
+		ApplicableUnloadedActors.Add(ActorDescItem->ActorDescHandle);
 	}
 }
 
@@ -1302,9 +1304,9 @@ bool FActorBrowsingMode::HasErrors() const
 		{
 			bool bHasErrors = 0;
 
-			WorldPartition->ForEachActorDescContainer([&bHasErrors](UActorDescContainer* ActorDescContainer)
+			WorldPartition->ForEachActorDescContainer([&bHasErrors](UActorDescContainerInstance* ActorDescContainerInstance)
 			{
-				if (ActorDescContainer->HasInvalidActors())
+				if (ActorDescContainerInstance->GetContainer()->HasInvalidActors())
 				{
 					bHasErrors = true;
 				}
@@ -1332,13 +1334,13 @@ void FActorBrowsingMode::RepairErrors() const
 			ISourceControlProvider& SourceControlProvider = SourceControlModule.GetProvider();
 
 			TArray<FAssetData> InvalidActorAssets;
-			WorldPartition->ForEachActorDescContainer([&InvalidActorAssets](UActorDescContainer* ActorDescContainer)
+			WorldPartition->ForEachActorDescContainer([&InvalidActorAssets](UActorDescContainerInstance* ActorDescContainerInstance)
 			{
-				for (const FAssetData& InvalidActor : ActorDescContainer->GetInvalidActors())
+				for (const FAssetData& InvalidActor : ActorDescContainerInstance->GetContainer()->GetInvalidActors())
 				{
 					InvalidActorAssets.Add(InvalidActor);
 				}
-				ActorDescContainer->ClearInvalidActors();
+				ActorDescContainerInstance->GetContainer()->ClearInvalidActors();
 			});
 
 			TArray<FString> ActorFilesToDelete;
@@ -1416,12 +1418,12 @@ void FActorBrowsingMode::SynchronizeSelectedActorDescs()
 	if (UWorldPartitionSubsystem* WorldPartitionSubsystem = UWorld::GetSubsystem<UWorldPartitionSubsystem>(RepresentingWorld.Get()))
 	{
 		const FSceneOutlinerItemSelection Selection = SceneOutliner->GetSelection();
-		TArray<FWorldPartitionActorDesc*> SelectedActorDescs = Selection.GetData<FWorldPartitionActorDesc*>(SceneOutliner::FActorDescSelector());
+		TArray<FWorldPartitionHandle> SelectedActorHandles = Selection.GetData<FWorldPartitionHandle>(SceneOutliner::FActorHandleSelector());
 
-		WorldPartitionSubsystem->SelectedActorDescs.Empty();
-		for (FWorldPartitionActorDesc* SelectedActorDesc : SelectedActorDescs)
+		WorldPartitionSubsystem->SelectedActorHandles.Empty();
+		for (const FWorldPartitionHandle& ActorHandle : SelectedActorHandles)
 		{
-			WorldPartitionSubsystem->SelectedActorDescs.Add(SelectedActorDesc);
+			WorldPartitionSubsystem->SelectedActorHandles.Add(ActorHandle);
 		}
 	}
 }
@@ -1562,11 +1564,11 @@ namespace ActorBrowsingModeUtils
 		
 		for (const TTuple<UWorld*, TSet<FName>>& Pair : UnloadedActorsFolderPaths)
 		{
-			FActorFolders::ForEachActorDescInFolders(*Pair.Key, Pair.Value, [&List](const FWorldPartitionActorDesc* ActorDesc)
+			FActorFolders::ForEachActorDescInstanceInFolders(*Pair.Key, Pair.Value, [&List](const FWorldPartitionActorDescInstance* ActorDescInstance)
 			{
-				if (!ActorDesc->IsLoaded())
+				if (!ActorDescInstance->IsLoaded())
 				{
-					List.Add(ActorDesc->GetGuid());
+					List.Add(ActorDescInstance->GetGuid());
 				}
 				return true;
 			});
@@ -1646,7 +1648,7 @@ void FActorBrowsingMode::PinItems(const TArray<FSceneOutlinerTreeItemPtr>& InIte
 		{
 			if (FWorldPartitionHandle ActorHandle(WorldPartition, ActorGuid); ActorHandle.IsValid())
 			{
-				if (AActor* PinnedActor = ActorHandle->GetActor())
+				if (AActor* PinnedActor = ActorHandle.GetInstance()->GetActor())
 				{
 					GEditor->SelectActor(PinnedActor, /*bInSelected=*/true, /*bNotify=*/false);
 					LastPinnedActor = PinnedActor;
@@ -1850,10 +1852,10 @@ bool FActorBrowsingMode::CompareItemWithClassName(SceneOutliner::FilterBarType I
 	}
 	else if (const FActorDescTreeItem* ActorDescItem = InItem.CastTo<FActorDescTreeItem>())
 	{
-		if (const FWorldPartitionActorDesc* ActorDesc = ActorDescItem->ActorDescHandle.Get())
+		if (const FWorldPartitionActorDescInstance* ActorDescInstance = ActorDescItem->ActorDescHandle.GetInstance())
 		{
 			// For Unloaded Actors, grab the native class 
-			FTopLevelAssetPath ClassPath = ActorDesc->GetNativeClass();
+			FTopLevelAssetPath ClassPath = ActorDescInstance->GetNativeClass();
 			return AssetClassPaths.Contains(ClassPath);
 		}
 	}

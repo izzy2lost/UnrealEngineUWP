@@ -34,7 +34,6 @@ public:
 	static ENGINE_API int64 GetPackageSize(const AWorldPartitionHLOD* InHLODActor);
 
 	//~ Begin FWorldPartitionActorDesc Interface.
-	virtual bool IsRuntimeRelevant(const FActorContainerID& InContainerID) const override { return !bIsForcedNonSpatiallyLoaded; }
 	virtual bool ShouldValidateRuntimeGrid() const override { return false; }
 	virtual FBox GetEditorBounds() const override { return EditorBounds; }
 	//~ End FWorldPartitionActorDesc Interface.
@@ -47,6 +46,7 @@ protected:
 	ENGINE_API virtual bool Equals(const FWorldPartitionActorDesc* Other) const override;
 	virtual uint32 GetSizeOf() const override { return sizeof(FHLODActorDesc); }
 	ENGINE_API virtual void Serialize(FArchive& Ar) override;
+	virtual bool IsRuntimeRelevant(const FWorldPartitionActorDescInstance* InActorDescInstance) const override;
 	//~ End FWorldPartitionActorDesc Interface.
 
 	TArray<FGuid> ChildHLODActors;

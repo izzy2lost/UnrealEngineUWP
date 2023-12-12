@@ -12,15 +12,17 @@
 #include "WorldPartition/WorldPartitionHelpers.h"
 #include "Engine/Canvas.h"
 #include "Debug/DebugDrawService.h"
+#include "UObject/Package.h"
 
 #if WITH_EDITOR
 #include "WorldPartition/DataLayer/WorldDataLayersActorDesc.h"
 #include "WorldPartition/DataLayer/DataLayerUtils.h"
 #include "WorldPartition/DataLayer/IDataLayerEditorModule.h"
-#include "WorldPartition/ActorDescContainer.h"
+#include "WorldPartition/ActorDescContainerInstance.h"
 #include "WorldPartition/WorldPartitionEditorPerProjectUserSettings.h"
 #include "WorldPartition/WorldPartitionActorLoaderInterface.h"
 #include "WorldPartition/ActorDescList.h"
+#include "WorldPartition/WorldPartitionActorDescInstance.h"
 #include "LevelInstance/LevelInstanceSubsystem.h"
 #include "Modules/ModuleManager.h"
 #include "UObject/UObjectIterator.h"
@@ -156,26 +158,27 @@ void UDataLayerManager::Initialize()
 #if WITH_EDITOR
 	UWorld* OuterWorld = GetTypedOuter<UWorld>();
 	UWorldPartition* OuterWorldPartition = GetOuterUWorldPartition();
-	UActorDescContainer* ActorDescContainer = OuterWorldPartition->GetActorDescContainer();
-
+	UActorDescContainerInstance* ActorDescContainerInstance = OuterWorldPartition->GetActorDescContainerInstance();
+	
 	// Partitioned Level Instance's DataLayerManager will never resolve DataLayers (it's up to its owning WorldPartition DataLayerManager to do the job.
 	ULevelInstanceSubsystem* LevelInstanceSubsystem = !GetWorld()->IsGameWorld() ? UWorld::GetSubsystem<ULevelInstanceSubsystem>(GetWorld()) : nullptr;
 	ILevelInstanceInterface* LevelInstance = LevelInstanceSubsystem ? LevelInstanceSubsystem->GetOwningLevelInstance(OuterWorld->PersistentLevel) : nullptr;
 	bCanResolveDataLayers = (LevelInstance == nullptr);
 
 	// In PIE, main world partition doesn't have an ActorDescContainer and doesn't need it, but instanced world partitions do have one.
-	check(!ActorDescContainer || ActorDescContainer->IsInitialized());
+	check(!ActorDescContainerInstance || ActorDescContainerInstance->IsInitialized());
+
 	AWorldDataLayers* WorldDataLayers = GetWorldDataLayers();
 	if (!WorldDataLayers)
 	{
-		if (ActorDescContainer)
+		if (ActorDescContainerInstance)
 		{
 			// Try to find and load AWorldDataLayers actor
-			for (FActorDescList::TIterator<> ActorDescIterator(ActorDescContainer); ActorDescIterator; ++ActorDescIterator)
+			for (UActorDescContainerInstance::TIterator<> Iterator(ActorDescContainerInstance); Iterator; ++Iterator)
 			{
-				if (ActorDescIterator->GetActorNativeClass()->IsChildOf<AWorldDataLayers>())
+				if (Iterator->GetActorNativeClass()->IsChildOf<AWorldDataLayers>())
 				{
-					WorldDataLayersActor = FWorldPartitionReference(OuterWorldPartition, ActorDescIterator->GetGuid());
+					WorldDataLayersActor = FWorldPartitionReference(ActorDescContainerInstance, Iterator->GetGuid());
 					break;
 				}
 			}
@@ -215,12 +218,12 @@ void UDataLayerManager::Initialize()
 
 	if (CanResolveDataLayers())
 	{
-		UActorDescContainer::OnActorDescContainerInitialized.AddUObject(this, &UDataLayerManager::OnActorDescContainerInitialized);
+		UActorDescContainerInstance::OnActorDescContainerInstanceInitialized.AddUObject(this, &UDataLayerManager::OnActorDescContainerInstanceInitialized);
 
-		// Manually call OnActorDescContainerInitialized on already initialized outer world partition container
-		if (ActorDescContainer)
+		// Manually call OnActorDescContainerInstanceInitialized on already initialized outer world partition container instance
+		if (ActorDescContainerInstance)
 		{
-			OnActorDescContainerInitialized(ActorDescContainer);
+			OnActorDescContainerInstanceInitialized(ActorDescContainerInstance);
 		}
 	}
 
@@ -247,7 +250,7 @@ void UDataLayerManager::DeInitialize()
 	}
 
 #if WITH_EDITOR
-	UActorDescContainer::OnActorDescContainerInitialized.RemoveAll(this);
+	UActorDescContainerInstance::OnActorDescContainerInstanceInitialized.RemoveAll(this);
 
 	WorldDataLayersActor = FWorldPartitionReference();
 #endif
@@ -805,46 +808,45 @@ bool UDataLayerManager::CanResolveDataLayers() const
 	return (GetWorldDataLayers() != nullptr) && bCanResolveDataLayers;
 }
 
-void UDataLayerManager::OnActorDescContainerInitialized(UActorDescContainer* InActorDescContainer) const
+void UDataLayerManager::OnActorDescContainerInstanceInitialized(UActorDescContainerInstance* InActorDescContainerInstance)
 {
-	ResolveActorDescContainerDataLayers(InActorDescContainer);
+	ResolveActorDescContainerInstanceDataLayers(InActorDescContainerInstance);
 }
 
 void UDataLayerManager::ResolveActorDescContainersDataLayers() const
 {
 	check(CanResolveDataLayers());
-	for (TObjectIterator<UActorDescContainer> ContainerIt; ContainerIt; ++ContainerIt)
+	for (TObjectIterator<UActorDescContainerInstance> ContainerIt; ContainerIt; ++ContainerIt)
 	{
-		if (UActorDescContainer* ActorDescContainer = *ContainerIt; ActorDescContainer)
+		if (UActorDescContainerInstance* ContainerInstance = *ContainerIt; ContainerInstance)
 		{
-			ResolveActorDescContainerDataLayers(ActorDescContainer);
+			ResolveActorDescContainerInstanceDataLayers(ContainerInstance);
 		}
 	}
 }
 
-void UDataLayerManager::ResolveActorDescContainerDataLayers(UActorDescContainer* InActorDescContainer) const
+void UDataLayerManager::ResolveActorDescContainerInstanceDataLayers(UActorDescContainerInstance* InActorDescContainerInstance) const
 {
-	ResolveActorDescContainerDataLayersInternal(InActorDescContainer, nullptr);
+	ResolveActorDescContainerInstanceDataLayersInternal(InActorDescContainerInstance, nullptr);
 }
 
-void UDataLayerManager::ResolveActorDescDataLayers(FWorldPartitionActorDesc* InActorDesc) const
+void UDataLayerManager::ResolveActorDescInstanceDataLayers(FWorldPartitionActorDescInstance* InActorDescInstance) const
 {
-	ResolveActorDescContainerDataLayersInternal(InActorDesc->GetContainer(), InActorDesc);
+	ResolveActorDescContainerInstanceDataLayersInternal(InActorDescInstance->GetContainerInstance(), InActorDescInstance);
 }
 
-void UDataLayerManager::ResolveActorDescContainerDataLayersInternal(UActorDescContainer* InActorDescContainer, FWorldPartitionActorDesc* InActorDesc) const
+void UDataLayerManager::ResolveActorDescContainerInstanceDataLayersInternal(UActorDescContainerInstance* InActorDescContainerInstance, FWorldPartitionActorDescInstance* InActorDescInstance) const
 {
-	check(InActorDescContainer);
-	check(!InActorDesc || (InActorDesc->GetContainer() == InActorDescContainer));
-
+	check(InActorDescContainerInstance);
+	check(!InActorDescInstance || (InActorDescInstance->GetContainerInstance() == InActorDescContainerInstance));
+		
+	const UWorldPartition* ContainerOuterWorldPartition = InActorDescContainerInstance->GetWorldPartition();
 	// Skip resolving for template containers (will be done on ActorDescViews)
-	if (InActorDescContainer->IsTemplateContainer())
+	if (!ContainerOuterWorldPartition)
 	{
 		return;
 	}
 
-	// Find owning world partition for this ActorDescContainer
-	const UWorldPartition* ContainerOuterWorldPartition = InActorDescContainer->GetWorldPartition();
 	const ULevelStreaming* ContainerLevelStreaming = FLevelUtils::FindStreamingLevel(ContainerOuterWorldPartition->GetTypedOuter<UWorld>()->PersistentLevel);
 	const UWorld* ContainerLevelStreamingWorld = ContainerLevelStreaming ? ContainerLevelStreaming->GetWorld() : nullptr;
 	const UWorldPartition* ContainerOwningWorldPartition = ContainerLevelStreamingWorld && !ContainerLevelStreamingWorld->IsGameWorld() ? ContainerLevelStreamingWorld->GetWorldPartition() : ContainerOuterWorldPartition;
@@ -855,18 +857,18 @@ void UDataLayerManager::ResolveActorDescContainerDataLayersInternal(UActorDescCo
 	{
 		return;
 	}
-	
+
 	// Resolve ActorDescs DataLayerInstanceNames
 	check(CanResolveDataLayers());
-	if (InActorDesc)
+	if (InActorDescInstance)
 	{
-		InActorDesc->SetDataLayerInstanceNames(FDataLayerUtils::ResolvedDataLayerInstanceNames(this, InActorDesc));
+		InActorDescInstance->SetDataLayerInstanceNames(FDataLayerUtils::ResolvedDataLayerInstanceNames(this, InActorDescInstance->GetActorDesc()));
 	}
 	else
 	{
-		for (FActorDescList::TIterator<> Iterator(InActorDescContainer); Iterator; ++Iterator)
+		for (UActorDescContainerInstance::TIterator<> Iterator(InActorDescContainerInstance); Iterator; ++Iterator)
 		{
-			Iterator->SetDataLayerInstanceNames(FDataLayerUtils::ResolvedDataLayerInstanceNames(this, *Iterator));
+			Iterator->SetDataLayerInstanceNames(FDataLayerUtils::ResolvedDataLayerInstanceNames(this, Iterator->GetActorDesc()));
 		}
 	}
 }

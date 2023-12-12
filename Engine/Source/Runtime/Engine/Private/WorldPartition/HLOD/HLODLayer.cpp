@@ -16,7 +16,6 @@
 #include "WorldPartition/HLOD/IWorldPartitionHLODUtilities.h"
 #include "WorldPartition/HLOD/IWorldPartitionHLODUtilitiesModule.h"
 #include "WorldPartition/WorldPartition.h"
-#include "WorldPartition/WorldPartitionActorDescView.h"
 #endif
 
 #include UE_INLINE_GENERATED_CPP_BY_NAME(HLODLayer)

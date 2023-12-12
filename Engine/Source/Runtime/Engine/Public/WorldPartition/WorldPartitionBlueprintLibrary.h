@@ -9,6 +9,7 @@
 #include "WorldPartitionBlueprintLibrary.generated.h"
 
 class FWorldPartitionActorDesc;
+class FWorldPartitionActorDescInstance;
 class UWorldPartition;
 class UDataLayerManager;
 
@@ -90,10 +91,10 @@ class UWorldPartitionBlueprintLibrary : public UBlueprintFunctionLibrary
 	static FDelegateHandle OnWorldPartitionUninitializedHandle;
 
 	static bool GetActorDescs(const UWorldPartition* WorldPartition, TArray<FActorDesc>& OutActorDescs);
-	static bool GetActorDescs(const UActorDescContainer* InContainer, const FTransform& InTransform, TArray<FActorDesc>& OutActorDescs);
+	static bool GetActorDescs(const UActorDescContainerInstance* InContainer, const FTransform& InTransform, TArray<FActorDesc>& OutActorDescs);
 	static bool GetIntersectingActorDescs(UWorldPartition* WorldPartition, const FBox& InBox, TArray<FActorDesc>& OutActorDescs);
-	static bool GetIntersectingActorDescs(const UActorDescContainer* InContainer, const FBox& InBox, const FTransform& InTransform, TArray<FActorDesc>& OutActorDescs);
-	static bool HandleIntersectingActorDesc(const FWorldPartitionActorDesc* ActorDesc, const FBox& InBox, const FTransform& InTransform, TArray<FActorDesc>& OutActorDescs);
+	static bool GetIntersectingActorDescs(const UActorDescContainerInstance* InContainerInstance, const FBox& InBox, const FTransform& InTransform, TArray<FActorDesc>& OutActorDescs);
+	static bool HandleIntersectingActorDesc(const FWorldPartitionActorDescInstance* ActorDescInstance, const FBox& InBox, const FTransform& InTransform, TArray<FActorDesc>& OutActorDescs);
 #endif
 
 public:

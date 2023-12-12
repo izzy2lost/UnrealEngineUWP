@@ -18,7 +18,7 @@ UWorldPartitionRuntimeHashSet* UWorldPartitionRuntimeHashSet::CreateFrom(const U
 
 	FStreamingGenerationNullErrorHandler NullErrorHandler;
 	UWorldPartition::FGenerateStreamingParams Params = UWorldPartition::FGenerateStreamingParams()
-		.SetActorDescContainer(WorldPartition->GetActorDescContainer())
+		.SetActorDescContainerInstance(WorldPartition->GetActorDescContainerInstance())
 		.SetErrorHandler(&NullErrorHandler);
 
 	UWorldPartition::FGenerateStreamingContext Context;
@@ -38,7 +38,7 @@ UWorldPartitionRuntimeHashSet* UWorldPartitionRuntimeHashSet::CreateFrom(const U
 		{
 			ActorSetInstance.ForEachActor([&GridHLODLayersMap, SpatialHash, DefaultHLODLayer, &ActorSetInstance](const FGuid& ActorGuid)
 			{
-				const FWorldPartitionActorDescView& ActorDescView = ActorSetInstance.ContainerInstance->ActorDescViewMap->FindByGuidChecked(ActorGuid);
+				const IWorldPartitionActorDescInstanceView& ActorDescView = ActorSetInstance.ActorSetContainerInstance->ActorDescViewMap->FindByGuidChecked(ActorGuid);
 
 				if (const UHLODLayer* HLODLayer = ActorDescView.GetHLODLayer().IsValid() ? Cast<UHLODLayer>(ActorDescView.GetHLODLayer().TryLoad()) : DefaultHLODLayer)
 				{

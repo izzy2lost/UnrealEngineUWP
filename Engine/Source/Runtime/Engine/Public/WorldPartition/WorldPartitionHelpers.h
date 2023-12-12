@@ -16,6 +16,7 @@ class UWorldPartition;
 
 #if WITH_EDITOR
 class FWorldPartitionActorDesc;
+class FWorldPartitionActorDescInstance;
 #endif
 
 namespace FWorldPartitionHelpersPrivate
@@ -76,21 +77,49 @@ public:
 private:
 	static ENGINE_API bool IsActorDescClassCompatibleWith(const FWorldPartitionActorDesc* ActorDesc, const UClass* Class);
 
+	template<class ActorClass>
+	class TDeprecated
+	{
+		UE_DEPRECATED(5.4, "Use ForEachIntersectingActorDescInstance instead")
+		static void DeprecatedForEachIntersectingActorDesc() {}
+
+		UE_DEPRECATED(5.4, "Use ForEachActorDescInstance instead")
+		static void DeprecatedForEachActorDesc() {}
+	};
+
 public:
 	template <class ActorClass = AActor>
 	static void ForEachIntersectingActorDesc(UWorldPartition* WorldPartition, const FBox& Box, TFunctionRef<bool(const FWorldPartitionActorDesc*)> Func)
 	{
-		ForEachIntersectingActorDesc(WorldPartition, Box, ActorClass::StaticClass(), Func);
+		TDeprecated<ActorClass>::DeprecatedForEachIntersectingActorDesc();
 	}
 
 	template<class ActorClass = AActor>
 	static void ForEachActorDesc(UWorldPartition* WorldPartition, TFunctionRef<bool(const FWorldPartitionActorDesc*)> Func)
 	{
-		ForEachActorDesc(WorldPartition, ActorClass::StaticClass(), Func);
+		TDeprecated<ActorClass>::DeprecatedForEachActorDesc();
 	}
 
-	static ENGINE_API void ForEachIntersectingActorDesc(UWorldPartition* WorldPartition, const FBox& Box, TSubclassOf<AActor> ActorClass, TFunctionRef<bool(const FWorldPartitionActorDesc*)> Func);
-	static ENGINE_API void ForEachActorDesc(UWorldPartition* WorldPartition, TSubclassOf<AActor> ActorClass, TFunctionRef<bool(const FWorldPartitionActorDesc*)> Func);
+	UE_DEPRECATED(5.4, "Use ForEachIntersectingActorDescInstance")
+	static ENGINE_API void ForEachIntersectingActorDesc(UWorldPartition* WorldPartition, const FBox& Box, TSubclassOf<AActor> ActorClass, TFunctionRef<bool(const FWorldPartitionActorDesc*)> Func) {}
+	UE_DEPRECATED(5.4, "Use ForEachActorDescInstance")
+	static ENGINE_API void ForEachActorDesc(UWorldPartition* WorldPartition, TSubclassOf<AActor> ActorClass, TFunctionRef<bool(const FWorldPartitionActorDesc*)> Func) {}
+
+
+	template <class ActorClass = AActor>
+	static void ForEachIntersectingActorDescInstance(UWorldPartition* WorldPartition, const FBox& Box, TFunctionRef<bool(const FWorldPartitionActorDescInstance*)> Func)
+	{
+		ForEachIntersectingActorDescInstance(WorldPartition, Box, ActorClass::StaticClass(), Func);
+	}
+
+	template<class ActorClass = AActor>
+	static void ForEachActorDescInstance(UWorldPartition* WorldPartition, TFunctionRef<bool(const FWorldPartitionActorDescInstance*)> Func)
+	{
+		ForEachActorDescInstance(WorldPartition, ActorClass::StaticClass(), Func);
+	}
+
+	static ENGINE_API void ForEachIntersectingActorDescInstance(UWorldPartition* WorldPartition, const FBox& Box, TSubclassOf<AActor> ActorClass, TFunctionRef<bool(const FWorldPartitionActorDescInstance*)> Func);
+	static ENGINE_API void ForEachActorDescInstance(UWorldPartition* WorldPartition, TSubclassOf<AActor> ActorClass, TFunctionRef<bool(const FWorldPartitionActorDescInstance*)> Func);
 
 	/* Struct of optional parameters passed to foreach actordesc functions. */
 	struct FForEachActorWithLoadingParams
@@ -123,9 +152,16 @@ public:
 		TMap<FGuid, FWorldPartitionReference> ActorReferences;
 	};
 
-	static ENGINE_API void ForEachActorWithLoading(UWorldPartition* WorldPartition, TFunctionRef<bool(const FWorldPartitionActorDesc*)> Func, const FForEachActorWithLoadingParams& Params = FForEachActorWithLoadingParams());
-	static ENGINE_API void ForEachActorWithLoading(UWorldPartition* WorldPartition, TFunctionRef<bool(const FWorldPartitionActorDesc*)> Func, const FForEachActorWithLoadingParams& Params, FForEachActorWithLoadingResult& Result);
+	UE_DEPRECATED(5.4, "Use ForEachActorWithLoading with FWorldPartitionActorDescInstance")
+	static ENGINE_API void ForEachActorWithLoading(UWorldPartition* WorldPartition, TFunctionRef<bool(const FWorldPartitionActorDesc*)> Func, const FForEachActorWithLoadingParams& Params = FForEachActorWithLoadingParams()) {}
+
+	UE_DEPRECATED(5.4, "Use ForEachActorWithLoading with FWorldPartitionActorDescInstance")
+	static ENGINE_API void ForEachActorWithLoading(UWorldPartition* WorldPartition, TFunctionRef<bool(const FWorldPartitionActorDesc*)> Func, const FForEachActorWithLoadingParams& Params, FForEachActorWithLoadingResult& Result) {}
 	
+	static ENGINE_API void ForEachActorWithLoading(UWorldPartition* WorldPartition, TFunctionRef<bool(const FWorldPartitionActorDescInstance*)> Func, const FForEachActorWithLoadingParams& Params = FForEachActorWithLoadingParams());
+	static ENGINE_API void ForEachActorWithLoading(UWorldPartition* WorldPartition, TFunctionRef<bool(const FWorldPartitionActorDescInstance*)> Func, const FForEachActorWithLoadingParams& Params, FForEachActorWithLoadingResult& Result);
+
+
 	static ENGINE_API bool HasExceededMaxMemory();
 	static ENGINE_API bool ShouldCollectGarbage();
 	static ENGINE_API void DoCollectGarbage();

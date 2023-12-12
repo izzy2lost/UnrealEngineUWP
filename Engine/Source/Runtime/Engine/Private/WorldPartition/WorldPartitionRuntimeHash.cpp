@@ -5,7 +5,6 @@
 #include "Engine/World.h"
 #include "Misc/HierarchicalLogArchive.h"
 #include "WorldPartition/WorldPartition.h"
-#include "WorldPartition/WorldPartitionActorDescView.h"
 #include "WorldPartition/WorldPartitionStreamingSource.h"
 #include "WorldPartition/WorldPartitionRuntimeLevelStreamingCell.h"
 #include "WorldPartition/WorldPartitionLevelStreamingDynamic.h"
@@ -166,8 +165,6 @@ void UWorldPartitionRuntimeHash::OnEndPlay()
 		FWorldPartitionLoadingContext::FDeferred LoadingContext;
 		AlwaysLoadedActorsForPIE.Empty();
 	}
-
-	ModifiedActorDescListForPIE.Empty();
 }
 
 bool UWorldPartitionRuntimeHash::GenerateStreaming(class UWorldPartitionStreamingPolicy* StreamingPolicy, const IStreamingGenerationContext* StreamingGenerationContext, TArray<FString>* OutPackagesToGenerate)
@@ -187,7 +184,7 @@ bool UWorldPartitionRuntimeHash::PopulateCellActorInstances(const TArray<const I
 	// Then, duplication of world for PIE will duplicate only these actors. 
 	// When stopping PIE, WorldPartition will release these FWorldPartitionReferences which 
 	// will unload actors that were not already loaded in the non PIE world.
-	TArray<TPair<FWorldPartitionReference, const FWorldPartitionActorDescView*>> AlwaysLoadedReferences;
+	TArray<TPair<FWorldPartitionReference, const IWorldPartitionActorDescInstanceView*>> AlwaysLoadedReferences;
 	{
 		FWorldPartitionLoadingContext::FDeferred LoadingContext;
 
@@ -198,7 +195,7 @@ bool UWorldPartitionRuntimeHash::PopulateCellActorInstances(const TArray<const I
 			ActorSetInstance->ForEachActor([this, ActorSetInstance, &AlwaysLoadedReferences, &OutCellActorInstances, bForceLoadAlwaysLoadedReferences](const FGuid& ActorGuid)
 			{
 				IStreamingGenerationContext::FActorInstance ActorInstance(ActorGuid, ActorSetInstance);
-				const FWorldPartitionActorDescView& ActorDescView = ActorInstance.GetActorDescView();
+				const IWorldPartitionActorDescInstanceView& ActorDescView = ActorInstance.GetActorDescView();
 
 				// Instanced world partition, ContainerID is the main container, but it's not the main world partition,
 				// so the always loaded actors don't be part of the process of ForceExternalActorLevelReference/AlwaysLoadedActorsForPIE.
@@ -244,10 +241,10 @@ void UWorldPartitionRuntimeHash::PopulateRuntimeCell(UWorldPartitionRuntimeCell*
 	{
 		if (ActorInstance.GetContainerID().IsMainContainer())
 		{
-			const FWorldPartitionActorDescView& ActorDescView = ActorInstance.GetActorDescView();
+			const FStreamingGenerationActorDescView& ActorDescView = ActorInstance.GetActorDescView();
 			if (AActor* Actor = FindObject<AActor>(nullptr, *ActorDescView.GetActorSoftPath().ToString()))
 			{
-				if (ModifiedActorDescListForPIE.GetActorDesc(ActorDescView.GetGuid()))
+				if (ActorDescView.IsUnsaved())
 				{
 					// Create an actor container to make sure duplicated actors will share an outer to properly remap inter-actors references
 					RuntimeCell->UnsavedActorsContainer = NewObject<UActorContainer>(RuntimeCell);
@@ -260,9 +257,8 @@ void UWorldPartitionRuntimeHash::PopulateRuntimeCell(UWorldPartitionRuntimeCell*
 	FBox CellContentBounds(ForceInit);
 	for (const IStreamingGenerationContext::FActorInstance& ActorInstance : ActorInstances)
 	{
-		const FWorldPartitionActorDescView& ActorDescView = ActorInstance.GetActorDescView();
-		const UActorDescContainer* ActorDescContainer = ActorDescView.GetActorDesc()->GetContainer();
-		RuntimeCell->AddActorToCell(ActorDescView, ActorInstance.GetContainerID(), ActorInstance.GetTransform(), ActorDescContainer);
+		const FStreamingGenerationActorDescView& ActorDescView = ActorInstance.GetActorDescView();
+		RuntimeCell->AddActorToCell(ActorDescView);
 		const FBox RuntimeBounds = ActorDescView.GetRuntimeBounds();
 		if (RuntimeBounds.IsValid)
 		{

@@ -10,6 +10,7 @@
 #include "WorldPartitionRuntimeLevelStreamingCell.generated.h"
 
 class UWorld;
+class FStreamingGenerationActorDescView;
 
 UCLASS(MinimalAPI)
 class UWorldPartitionRuntimeLevelStreamingCell : public UWorldPartitionRuntimeCell
@@ -46,7 +47,7 @@ class UWorldPartitionRuntimeLevelStreamingCell : public UWorldPartitionRuntimeCe
 
 #if WITH_EDITOR
 	//~Begin UWorldPartitionRuntimeCell Interface
-	ENGINE_API virtual void AddActorToCell(const FWorldPartitionActorDescView& ActorDescView, const FActorContainerID& InContainerID, const FTransform& InContainerTransform, const UActorDescContainer* InContainer) override;
+	ENGINE_API virtual void AddActorToCell(const FStreamingGenerationActorDescView& ActorDescView) override;
 	ENGINE_API virtual void Fixup() override;
 	ENGINE_API virtual int32 GetActorCount() const override;
 	ENGINE_API virtual void DumpStateLog(FHierarchicalLogArchive& Ar) const override;

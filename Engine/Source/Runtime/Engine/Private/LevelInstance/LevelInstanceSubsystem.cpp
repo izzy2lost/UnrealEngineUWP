@@ -5,7 +5,7 @@
 #include "LevelInstance/LevelInstanceLevelStreaming.h"
 #include "Misc/StringFormatArg.h"
 #include "UObject/UObjectIterator.h"
-#include "WorldPartition/WorldPartitionSubsystem.h"
+#include "UObject/Package.h"
 #include "WorldPartition/DataLayer/WorldDataLayers.h"
 #include "WorldPartition/WorldPartitionLevelStreamingDynamic.h"
 #include "EngineUtils.h"
@@ -23,7 +23,9 @@
 #include "WorldPartition/LevelInstance/LevelInstanceActorDesc.h"
 #include "WorldPartition/WorldPartition.h"
 #include "WorldPartition/WorldPartitionSubsystem.h"
+#include "WorldPartition/ActorDescContainerSubsystem.h"
 #include "WorldPartition/WorldPartitionActorLoaderInterface.h"
+#include "WorldPartition/WorldPartitionActorDescInstance.h"
 #include "WorldPartition/DataLayer/DataLayerManager.h"
 #include "WorldPartition/DataLayer/DataLayerInstanceWithAsset.h"
 #include "WorldPartition/DataLayer/WorldDataLayersActorDesc.h"
@@ -833,9 +835,7 @@ bool ULevelInstanceSubsystem::GetLevelInstanceBounds(const ILevelInstanceInterfa
 
 		FString LevelPackage = LevelInstance->GetWorldAssetPackage();
 
-		UWorldPartitionSubsystem* WorldPartitionSubsystem = GetWorld()->GetSubsystem<UWorldPartitionSubsystem>();
-		check(WorldPartitionSubsystem);
-		if (FBox ContainerBounds = WorldPartitionSubsystem->GetContainerBounds(*LevelPackage); ContainerBounds.IsValid)
+		if (FBox ContainerBounds = UActorDescContainerSubsystem::GetChecked().GetContainerBounds(*LevelPackage); ContainerBounds.IsValid)
 		{
 			FTransform LevelInstancePivotOffsetTransform = FTransform(ULevel::GetLevelInstancePivotOffsetFromPackage(*LevelPackage));
 			FTransform LevelTransform = LevelInstancePivotOffsetTransform * CastChecked<AActor>(LevelInstance)->GetActorTransform();
@@ -2077,10 +2077,10 @@ bool ULevelInstanceSubsystem::EditLevelInstanceInternal(ILevelInstanceInterface*
 			TopLevelInstanceActor = CurrentTopLevelInstanceActor;
 		}
 
-		if (FWorldPartitionActorDesc* TopLevelInstanceActorActorDesc = WorldPartition->GetActorDesc(TopLevelInstanceActor->GetActorGuid()))
+		if (FWorldPartitionActorDescInstance* TopLevelInstanceActorDescInstance = WorldPartition->GetActorDescInstance(TopLevelInstanceActor->GetActorGuid()))
 		{
 			check(!CurrentEditLevelInstanceActor.IsValid());
-			CurrentEditLevelInstanceActor = FWorldPartitionReference(TopLevelInstanceActorActorDesc->GetContainer(), TopLevelInstanceActorActorDesc->GetGuid());
+			CurrentEditLevelInstanceActor = FWorldPartitionReference(TopLevelInstanceActorDescInstance->GetContainerInstance(), TopLevelInstanceActorDescInstance->GetGuid());
 		}
 	}
 
@@ -2215,9 +2215,7 @@ bool ULevelInstanceSubsystem::CommitLevelInstanceInternal(TUniquePtr<FLevelInsta
 	LevelInstance = GetLevelInstance(LevelInstanceID);
 
 	// Update Registered Container Bounds
-	UWorldPartitionSubsystem* WorldPartitionSubsystem = GetWorld()->GetSubsystem<UWorldPartitionSubsystem>();
-	check(WorldPartitionSubsystem);
-	WorldPartitionSubsystem->UpdateContainerBounds(*LevelInstance->GetWorldAssetPackage());
+	UActorDescContainerSubsystem::GetChecked().NotifyContainerUpdated(*LevelInstance->GetWorldAssetPackage());
 	
 	TArray<TPair<ULevelInstanceSubsystem*, FLevelInstanceID>> LevelInstancesToUpdate;
 	// Gather list to update
@@ -2433,9 +2431,9 @@ bool ULevelInstanceSubsystem::CheckForLoop(const ILevelInstanceInterface* LevelI
 	return CheckForLoop(LevelInstance, LevelInstance->GetWorldAsset(), LoopInfo, LoopStart);
 }
 
-bool ULevelInstanceSubsystem::PassLevelInstanceFilter(UWorld* World, const FWorldPartitionHandle& Actor) const
+bool ULevelInstanceSubsystem::PassLevelInstanceFilter(UWorld* World, const FWorldPartitionHandle& ActorHandle) const
 {
-	UWorld* ContainerOuterWorld = Actor->GetContainer()->GetWorldPartition()->GetTypedOuter<UWorld>();
+	UWorld* ContainerOuterWorld = ActorHandle.GetContainerInstance()->GetWorldPartition()->GetTypedOuter<UWorld>();
 	check(ContainerOuterWorld);
 	if (const ILevelInstanceInterface* TopAncestor = GetOwningLevelInstance(ContainerOuterWorld->PersistentLevel))
 	{
@@ -2449,7 +2447,7 @@ bool ULevelInstanceSubsystem::PassLevelInstanceFilter(UWorld* World, const FWorl
 		const TMap<FActorContainerID, TSet<FGuid>>& FilteredActors = TopAncestor->GetFilteredActorsPerContainer();
 		if (const TSet<FGuid>* FilteredActorsForContainer = FilteredActors.Find(ContainerID))
 		{
-			if (FilteredActorsForContainer->Contains(Actor->GetGuid()))
+			if (FilteredActorsForContainer->Contains(ActorHandle.GetInstance()->GetGuid()))
 			{
 				return false;
 			}

@@ -23,7 +23,7 @@
 #include "WorldTreeItem.h"
 #include "WorldPartition/DataLayer/DataLayerInstance.h"
 #include "WorldPartition/DataLayer/WorldDataLayers.h"
-#include "WorldPartition/WorldPartitionActorDesc.h"
+#include "WorldPartition/WorldPartitionActorDescInstance.h"
 #include "Styling/StyleColors.h"
 
 #define LOCTEXT_NAMESPACE "SceneOutlinerActorInfoColumn"
@@ -61,9 +61,9 @@ struct FGetInfo
 		}
 		else if (const FActorDescTreeItem* ActorDescItem = Item.CastTo<FActorDescTreeItem>())
 		{
-			if (const FWorldPartitionActorDesc* ActorDesc = ActorDescItem->ActorDescHandle.Get())
+			if (const FWorldPartitionActorDescInstance* ActorDescInstance = ActorDescItem->ActorDescHandle.GetInstance())
 			{
-				return ActorDesc->GetDisplayClassName().ToString();
+				return ActorDescInstance->GetDisplayClassName().ToString();
 			}
 		}
 
