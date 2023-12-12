@@ -79,7 +79,7 @@ public:
 	void SetHeap(ID3D12Heap* HeapIn, const TCHAR* const InName, bool bTrack = true, bool bForceGetGPUAddress = false);
 
 	void BeginTrackingResidency(uint64 Size);
-	void DisallowTrackingResidency(); // Part of workaround for UE-174791
+	void DisallowTrackingResidency(); // Part of workaround for UE-174791 and UE-202367
 
 	void DeferDelete();
 

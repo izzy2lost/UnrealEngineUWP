@@ -344,7 +344,8 @@ void FD3D12Resource::CommitReservedResource(ID3D12CommandQueue* D3DCommandQueue,
 
 		TRefCountPtr<FD3D12Heap> NewHeap = new FD3D12Heap(GetParentDevice(), GetVisibilityMask());
 		NewHeap->SetHeap(D3DHeap, HeapNameChars, true /*bTrack*/, false /*bForceGetGPUAddress*/);
-		NewHeap->BeginTrackingResidency(ThisHeapSize);
+		//NewHeap->BeginTrackingResidency(ThisHeapSize);
+		NewHeap->DisallowTrackingResidency(); // Workaround for UE-202367: D3DX12Residency library does not track UpdateTileMappings that may be in flight
 
 		ReservedResourceData->ResidencyHandles.Append(NewHeap->GetResidencyHandles());
 		ReservedResourceData->BackingHeaps.Add(MoveTemp(NewHeap));
