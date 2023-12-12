@@ -103,18 +103,8 @@ FMovieRenderPipelineStyle::FMovieRenderPipelineStyle()
 
 	Set("MovieRenderPipeline.TabIcon", new FSlateImageBrush(RootToContentDir(TEXT("TabIcon_24x.png")), Icon16x16));
 
-	Set("MovieRenderGraph.CollectionsTree.Row", FTableRowStyle(FAppStyle::Get().GetWidgetStyle<FTableRowStyle>("SimpleTableView.Row"))
-		.SetEvenRowBackgroundBrush(FSlateColorBrush(FStyleColors::Header))
-		.SetEvenRowBackgroundHoveredBrush(FSlateColorBrush(FStyleColors::Header))
-		.SetOddRowBackgroundBrush(FSlateColorBrush(FStyleColors::Header))
-		.SetOddRowBackgroundHoveredBrush(FSlateColorBrush(FStyleColors::Header))
-		.SetTextColor(FAppStyle::GetSlateColor("DefaultForeground"))
-		.SetSelectedTextColor(FAppStyle::GetSlateColor("DefaultForeground")));
-
-	Set("MovieRenderGraph.CollectionsTree.BottomBorder", new FSlateBorderBrush(NAME_None, FMargin(0, 0, 0, 1.0), FStyleColors::Recessed));
-	Set("MovieRenderGraph.CollectionsTree.TopBottomBorder", new FSlateBorderBrush(NAME_None, FMargin(0, 1.0, 0, 1.0), FStyleColors::Recessed));
-	Set("MovieRenderGraph.CollectionsTree.BottomLeftBorder", new FSlateBorderBrush(NAME_None, FMargin(1.0, 0, 0, 1.0), FStyleColors::Recessed));
-	Set("MovieRenderGraph.CollectionsTree.IndentedRowBackground", new FSlateColorBrush(FAppStyle::Get().GetSlateColor("Colors.Panel")));
+	Set("MovieRenderGraph.CollectionsTree.SmallComboButton", FComboButtonStyle(FAppStyle::Get().GetWidgetStyle<FComboButtonStyle>("SimpleComboButton"))
+		.SetDownArrowPadding(FMargin(0)));
 
 	FSlateStyleRegistry::RegisterSlateStyle(*this);
 }

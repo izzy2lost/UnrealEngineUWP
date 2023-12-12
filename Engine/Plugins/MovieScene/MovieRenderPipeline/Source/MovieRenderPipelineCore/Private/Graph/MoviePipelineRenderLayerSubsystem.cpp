@@ -627,6 +627,7 @@ TSharedRef<SWidget> UMovieGraphConditionGroupQuery_Actor::GetAddMenuContents(con
 			if (ActorPickerWidget.IsValid())
 			{
 				ActorPickerWidget->FullRefresh();
+				ActorsList->Refresh();
 			}
 		}));
 	
@@ -884,6 +885,7 @@ TSharedRef<SWidget> UMovieGraphConditionGroupQuery_ActorType::GetAddMenuContents
 			if (ClassViewerWidget.IsValid())
 			{
 				ClassViewerWidget->Refresh();
+				ActorTypesList->Refresh();
 			}
 		}));
 
@@ -1085,6 +1087,7 @@ TSharedRef<SWidget> UMovieGraphConditionGroupQuery_ComponentType::GetAddMenuCont
 			if (ClassViewerWidget.IsValid())
 			{
 				ClassViewerWidget->Refresh();
+				ComponentTypesList->Refresh();
 			}
 		}));
 
@@ -1112,6 +1115,15 @@ FText UMovieGraphConditionGroupQuery_ComponentType::GetRowText(UClass* InCompone
 UMovieGraphConditionGroup::UMovieGraphConditionGroup()
 	: OpType(EMovieGraphConditionGroupOpType::Add)
 {
+	// The CDO will always have the default GUID
+	if (!HasAllFlags(RF_ClassDefaultObject))
+	{
+		Id = FGuid::NewGuid();
+	}
+	else
+	{
+		Id = FGuid();
+	}
 }
 
 void UMovieGraphConditionGroup::SetOperationType(const EMovieGraphConditionGroupOpType OperationType)
@@ -1266,6 +1278,11 @@ bool UMovieGraphConditionGroup::MoveQueryToIndex(UMovieGraphConditionGroupQueryB
 	InQuery->SetOperationType(EMovieGraphConditionGroupQueryOpType::Add);
 
 	return true;
+}
+
+const FGuid& UMovieGraphConditionGroup::GetId() const
+{
+	return Id;
 }
 
 TSet<AActor*> UMovieGraphCollection::Evaluate(const UWorld* InWorld) const

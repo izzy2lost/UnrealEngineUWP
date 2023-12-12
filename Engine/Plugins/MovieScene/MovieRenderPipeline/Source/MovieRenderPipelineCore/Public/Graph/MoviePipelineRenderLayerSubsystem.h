@@ -413,7 +413,14 @@ public:
 	UFUNCTION(BlueprintCallable, Category = "Settings")
 	bool MoveQueryToIndex(UMovieGraphConditionGroupQueryBase* InQuery, const int32 NewIndex);
 
+	/** Gets a persistent unique identifier for this condition group. */
+	const FGuid& GetId() const;
+
 private:
+	/** A unique identifier for this condition group. Needed in some cases because condition groups do not have names. */
+	UPROPERTY()
+	FGuid Id;
+	
 	/** The operation type that the condition group is using. */
 	UPROPERTY(EditAnywhere, Category="General")
 	EMovieGraphConditionGroupOpType OpType;
