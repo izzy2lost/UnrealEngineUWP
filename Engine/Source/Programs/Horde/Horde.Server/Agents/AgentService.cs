@@ -152,7 +152,7 @@ namespace Horde.Server.Agents
 		/// </summary>
 		/// <param name="payload">The payload data</param>
 		/// <returns>Dictionary of key/value pairs for the payload</returns>
-		public Dictionary<string, string>? GetPayloadDetails(ReadOnlyMemory<byte>? payload)
+		public async ValueTask<Dictionary<string, string>?> GetPayloadDetailsAsync(ReadOnlyMemory<byte>? payload)
 		{
 			Dictionary<string, string>? details = null;
 			if (payload != null)
@@ -163,7 +163,7 @@ namespace Horde.Server.Agents
 					if (basePayload.Is(taskSource.Descriptor))
 					{
 						details = new Dictionary<string, string>();
-						taskSource.GetLeaseDetails(basePayload, details);
+						await taskSource.GetLeaseDetailsAsync(basePayload, details);
 						break;
 					}
 				}

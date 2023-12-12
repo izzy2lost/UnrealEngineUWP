@@ -121,7 +121,7 @@ namespace Horde.Server.Agents
 			{
 				try
 				{
-					Dictionary<string, string>? details = _agentService.GetPayloadDetails(lease.Payload);
+					Dictionary<string, string>? details = await _agentService.GetPayloadDetailsAsync(lease.Payload);
 					leases.Add(CreateGetAgentLeaseResponse(lease, details));
 				}
 				catch (Exception e)
@@ -394,7 +394,7 @@ namespace Horde.Server.Agents
 			List<object> responses = new List<object>();
 			foreach(ILease lease in leases)
 			{
-				Dictionary<string, string>? details = _agentService.GetPayloadDetails(lease.Payload);
+				Dictionary<string, string>? details = await _agentService.GetPayloadDetailsAsync(lease.Payload);
 				responses.Add(PropertyFilter.Apply(CreateGetAgentLeaseResponse(lease, details, agentRate), filter));
 			}
 
@@ -434,7 +434,7 @@ namespace Horde.Server.Agents
 				agentRate = await _agentService.GetRateAsync(agentId);
 			}
 
-			Dictionary<string, string>? details = _agentService.GetPayloadDetails(lease.Payload);
+			Dictionary<string, string>? details = await _agentService.GetPayloadDetailsAsync(lease.Payload);
 			return CreateGetAgentLeaseResponse(lease, details, agentRate);
 		}
 	}

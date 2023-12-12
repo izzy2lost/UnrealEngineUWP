@@ -9,7 +9,9 @@ using System.Threading.Tasks;
 using EpicGames.Horde.Agents;
 using EpicGames.Horde.Agents.Leases;
 using EpicGames.Horde.Compute;
+using Google.Protobuf.WellKnownTypes;
 using Horde.Server.Agents;
+using Horde.Server.Agents.Leases;
 using Horde.Server.Agents.Relay;
 using Horde.Server.Server;
 using Horde.Server.Tasks;
@@ -164,6 +166,7 @@ namespace Horde.Server.Compute
 		public override TaskSourceFlags Flags => TaskSourceFlags.None;
 
 		readonly AgentRelayService _agentRelay;
+		readonly ILeaseCollection _leaseCollection;
 		readonly IOptionsMonitor<GlobalConfig> _globalConfig;
 		readonly ILogger _logger;
 
@@ -173,9 +176,10 @@ namespace Horde.Server.Compute
 		/// <summary>
 		/// Constructor
 		/// </summary>
-		public ComputeTaskSource(AgentRelayService agentRelay, IOptionsMonitor<GlobalConfig> globalConfig, ILogger<ComputeTaskSource> logger)
+		public ComputeTaskSource(AgentRelayService agentRelay, ILeaseCollection leaseCollection, IOptionsMonitor<GlobalConfig> globalConfig, ILogger<ComputeTaskSource> logger)
 		{
 			_agentRelay = agentRelay;
+			_leaseCollection = leaseCollection;
 			_globalConfig = globalConfig;
 			_logger = logger;
 		}
@@ -260,6 +264,26 @@ namespace Horde.Server.Compute
 			}
 
 			return null;
+		}
+
+		/// <inheritdoc/>
+		public override async ValueTask GetLeaseDetailsAsync(Any payload, Dictionary<string, string> details)
+		{
+			await base.GetLeaseDetailsAsync(payload, details);
+
+			string? parentLeaseIdValue;
+			if (details.TryGetValue(nameof(ComputeTask.ParentLeaseId), out parentLeaseIdValue))
+			{
+				LeaseId parentLeaseId;
+				if (LeaseId.TryParse(parentLeaseIdValue, out parentLeaseId))
+				{
+					ILease? lease = await _leaseCollection.GetAsync(parentLeaseId);
+					if (lease != null)
+					{
+						details["parentLogId"] = lease.LogId.ToString() ?? String.Empty;
+					}
+				}
+			}
 		}
 	}
 }

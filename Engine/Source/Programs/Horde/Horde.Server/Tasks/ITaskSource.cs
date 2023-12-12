@@ -118,7 +118,7 @@ namespace Horde.Server.Tasks
 		/// </summary>
 		/// <param name="payload">The lease payload</param>
 		/// <param name="details">Properties for the lease</param>
-		void GetLeaseDetails(Any payload, Dictionary<string, string> details);
+		ValueTask GetLeaseDetailsAsync(Any payload, Dictionary<string, string> details);
 	}
 	
 	/// <summary>
@@ -214,7 +214,7 @@ namespace Horde.Server.Tasks
 		}
 
 		/// <inheritdoc/>
-		public virtual void GetLeaseDetails(Any payload, Dictionary<string, string> details)
+		public virtual ValueTask GetLeaseDetailsAsync(Any payload, Dictionary<string, string> details)
 		{
 			details["type"] = Type;
 
@@ -226,6 +226,8 @@ namespace Horde.Server.Tasks
 					details[name] = getMethod(message)?.ToString() ?? String.Empty;
 				}
 			}
+
+			return default;
 		}
 
         /// <summary>

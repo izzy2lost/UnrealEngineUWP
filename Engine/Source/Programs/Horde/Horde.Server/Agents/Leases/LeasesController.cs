@@ -98,7 +98,7 @@ namespace Horde.Server.Agents.Leases
 						cachedAgentRates.Add(lease.AgentId, agentRate);
 					}
 
-					Dictionary<string, string>? details = _agentService.GetPayloadDetails(lease.Payload);
+					Dictionary<string, string>? details = await _agentService.GetPayloadDetailsAsync(lease.Payload);
 					responses.Add(PropertyFilter.Apply(AgentsController.CreateGetAgentLeaseResponse(lease, details, agentRate), filter));
 				}
 			}
@@ -138,7 +138,7 @@ namespace Horde.Server.Agents.Leases
 				agentRate = await _agentService.GetRateAsync(agent.Id);
 			}
 
-			Dictionary<string, string>? details = _agentService.GetPayloadDetails(lease.Payload);
+			Dictionary<string, string>? details = await _agentService.GetPayloadDetailsAsync(lease.Payload);
 			return AgentsController.CreateGetAgentLeaseResponse(lease, details, agentRate);
 		}
 
