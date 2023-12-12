@@ -91,15 +91,7 @@ namespace Horde.Server.Jobs
 		/// <inheritdoc/>
 		public override async Task<Common.Rpc.CreateJobArtifactResponse> CreateArtifact(CreateJobArtifactRequest request, ServerCallContext context)
 		{
-			ClaimsPrincipal principal = context.GetHttpContext().User;
-
-			(IJob, IJobStep)? result = await principal.GetJobStepFromClaimAsync(_leaseCollection, _jobCollection);
-			if (result == null)
-			{
-				throw new StructuredRpcException(StatusCode.PermissionDenied, "Unable to get job/step from claim");
-			}
-
-			(IJob job, IJobStep step) = result.Value;
+			(IJob job, _, IJobStep step) = await AuthorizeAsync(request.JobId, request.StepId, context);
 
 			ArtifactType type = GetNativeArtifactType(request.Type);
 
@@ -131,15 +123,7 @@ namespace Horde.Server.Jobs
 		/// <inheritdoc/>
 		public override async Task<Common.Rpc.GetJobArtifactResponse> GetArtifact(GetJobArtifactRequest request, ServerCallContext context)
 		{
-			ClaimsPrincipal principal = context.GetHttpContext().User;
-
-			(IJob, IJobStep)? result = await principal.GetJobStepFromClaimAsync(_leaseCollection, _jobCollection);
-			if (result == null)
-			{
-				throw new StructuredRpcException(StatusCode.PermissionDenied, "Unable to get job/step from claim");
-			}
-
-			(IJob job, _) = result.Value;
+			(IJob job, _, IJobStep step) = await AuthorizeAsync(request.JobId, request.StepId, context);
 
 			ArtifactName name = new ArtifactName(request.Name);
 			ArtifactType type = GetNativeArtifactType(request.Type);
