@@ -46,6 +46,13 @@ namespace uba
 
 		NetworkBackend* networkBackend;
 	};
+
+	#if PLATFORM_LINUX
+	void SigsegvHandler(int signo)
+	{
+		UbaAssert("Segmentation fault", "", 0, "", -1);
+	}
+	#endif
 }
 
 extern "C"
@@ -57,6 +64,10 @@ extern "C"
 
 	uba::LogWriter* CreateCallbackLogWriter(uba::CallbackLogWriter::BeginScopeCallback begin, uba::CallbackLogWriter::EndScopeCallback end, uba::CallbackLogWriter::LogCallback log)
 	{
+		#if PLATFORM_LINUX
+		signal(SIGSEGV, uba::SigsegvHandler);
+		#endif
+
 		return new uba::CallbackLogWriter(begin, end, log);
 	}
 
