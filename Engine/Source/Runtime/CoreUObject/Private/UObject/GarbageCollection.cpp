@@ -1022,7 +1022,7 @@ static bool MarkClusterMutableObjectsAsReachable(FUObjectCluster& Cluster, Conta
 				else if (ReferencedMutableObjectItem->GetOwnerIndex() > 0 && !ReferencedMutableObjectItem->HasAnyFlags(EInternalObjectFlags::ReachableInCluster))
 				{
 					// This is a clustered object that maybe hasn't been processed yet
-					if (ReferencedMutableObjectItem->ThisThreadAtomicallySetFlag(EInternalObjectFlags::ReachableInCluster))
+					if (ReferencedMutableObjectItem->ThisThreadAtomicallySetFlag_ForGC(EInternalObjectFlags::ReachableInCluster))
 					{
 						// Needs doing, we need to get its cluster root and process it too
 						FUObjectItem* ReferencedMutableObjectsClusterRootItem = GUObjectArray.IndexToObjectUnsafeForGC(ReferencedMutableObjectItem->GetOwnerIndex());
@@ -2967,7 +2967,7 @@ public:
 				FUObjectItem* RootObjectItem = GUObjectArray.IndexToObjectUnsafeForGC(Metadata.ObjectItem->GetOwnerIndex());
 				checkSlow(RootObjectItem->HasAnyFlags(EInternalObjectFlags::ClusterRoot));
 
-				if (Metadata.ObjectItem->ThisThreadAtomicallySetFlag(EInternalObjectFlags::ReachableInCluster))
+				if (Metadata.ObjectItem->ThisThreadAtomicallySetFlag_ForGC(EInternalObjectFlags::ReachableInCluster))
 				{
 					if (ClearMaybeUnreachableInterlocked(RootObjectItem->Flags))
 					{
@@ -4040,7 +4040,7 @@ public:
 					bool bNeedsDoing = !ObjectItem->HasAnyFlags(EInternalObjectFlags::ReachableInCluster);
 					if (bNeedsDoing)
 					{
-						ObjectItem->SetFlags(EInternalObjectFlags::ReachableInCluster);
+						ObjectItem->ThisThreadAtomicallySetFlag_ForGC(EInternalObjectFlags::ReachableInCluster);
 						// Make sure cluster root object is reachable too
 						const int32 OwnerIndex = ObjectItem->GetOwnerIndex();
 						FUObjectItem* RootObjectItem = GUObjectArray.IndexToObjectUnsafeForGC(OwnerIndex);
@@ -5875,9 +5875,9 @@ FORCEINLINE static void MarkObjectItemAsReachable(FUObjectItem* ObjectItem)
 }
 
 template <bool bIsVerse>
-FORCEINLINE static void MarkAsReachable(const UObject* Obj)
+FORCEINLINE static void MarkAsReachable(const UObjectBase* Obj)
 {
-	FUObjectItem* ObjectItem = GUObjectArray.ObjectToObjectItem(const_cast<UObject*>(Obj));
+	FUObjectItem* ObjectItem = GUObjectArray.ObjectToObjectItem(Obj);
 	if (ObjectItem->IsMaybeUnreachable())
 	{
 		MarkObjectItemAsReachable<bIsVerse>(ObjectItem);
@@ -5892,7 +5892,7 @@ FORCEINLINE static void MarkAsReachable(const UObject* Obj)
 	}
 }
 
-void UObject::MarkAsReachable() const
+void UObjectBase::MarkAsReachable() const
 {
 	// It is safe to perform mark as reachable in the open - the worst case is that we'll mark an object reachable that
 	// should/would be destroyed, and so in the next GC iteration it will be destroyed instead of in this iteration.
