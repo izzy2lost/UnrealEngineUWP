@@ -114,6 +114,9 @@ public:
 	// End normal flow only
 
 
+	/// Add arbitrary mesh constraints besides the boundary/seam constraints that are computed by this op
+	void SetUserSpecifiedConstraints(const FMeshConstraints& Constraints);
+
 	void SetTransform(const FTransformSRT3d& Transform);
 
 	//
@@ -129,6 +132,10 @@ public:
 protected:
 
 	TUniquePtr<FRemesher> CreateRemesher(ERemeshType Type, FDynamicMesh3* TargetMesh);
+
+private:
+
+	FMeshConstraints UserSpecifiedConstraints;
 
 };
 

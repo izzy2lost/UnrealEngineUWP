@@ -718,6 +718,137 @@ namespace UE::Chaos::ClothAsset
 		}
 	}
 
+
+	void FClothGeometryTools::BuildSimMeshFromDynamicMeshes(
+		const TSharedRef<FManagedArrayCollection>& ClothCollection,
+		const UE::Geometry::FDynamicMesh3& Mesh2D,
+		const UE::Geometry::FDynamicMesh3& Mesh3D,
+		int32 PatternIndexLayerID,
+		bool bTransferWeightMaps,
+		bool bTransferSimSkinningData,
+		bool bAppend,
+		TMap<int, int32>& OutDynamicMeshToClothVertexMap)
+	{
+		using namespace UE::Geometry;
+
+		if (!bAppend)
+		{
+			DeleteSimMesh(ClothCollection);
+		}
+		FCollectionClothFacade Cloth(ClothCollection);
+		checkf(Cloth.IsValid(), TEXT("Invalid ClothCollection passed into BuildSimMeshFromDynamicMeshes"));
+
+		check(Mesh2D.HasAttributes());
+		const FDynamicMeshPolygroupAttribute* const PatternLayer = Mesh2D.Attributes()->GetPolygroupLayer((int)PatternIndexLayerID);
+		check(PatternLayer);
+
+		TArray<TArray<int>> PatternIndices;
+		for (int FaceID = 0; FaceID < Mesh2D.MaxTriangleID(); ++FaceID)
+		{
+			const int32 PatternID = PatternLayer->GetValue(FaceID);
+			if (PatternID >= PatternIndices.Num())
+			{
+				PatternIndices.SetNum(PatternID + 1);
+			}
+
+			const FIndex3i Tri = Mesh2D.GetTriangle(FaceID);
+			PatternIndices[PatternID].Add(Tri[0]);
+			PatternIndices[PatternID].Add(Tri[1]);
+			PatternIndices[PatternID].Add(Tri[2]);
+		}
+
+		TMap<int, FIntVector2> MeshVertexToPatternAndVertex;
+
+		for (int32 PatternID = 0; PatternID < PatternIndices.Num(); ++PatternID)
+		{
+			FCollectionClothSimPatternFacade Pattern = Cloth.AddGetSimPattern();
+			const int32 PatternVertexOffset = Pattern.GetSimVertices2DOffset();
+
+			TArray<FVector2f> Positions2D;
+			TArray<FVector3f> Positions3D;
+
+			const TArray<int>& InPatternIndexBuffer = PatternIndices[PatternID];
+			
+			TArray<int> LocalPatternIndexBuffer;
+
+			for (const int VertexIndex : InPatternIndexBuffer)
+			{
+				int32 PatternVertexID;
+
+				if (!MeshVertexToPatternAndVertex.Contains(VertexIndex))
+				{
+					const FVector3d InPosition2D = Mesh2D.GetVertex(VertexIndex);
+					PatternVertexID = Positions2D.Add(FVector2f(InPosition2D[0], InPosition2D[1]));
+
+					const FVector3d InPosition3D = Mesh3D.GetVertex(VertexIndex);
+					Positions3D.Add(FVector3f(InPosition3D));
+
+					MeshVertexToPatternAndVertex.Add({ VertexIndex, FIntVector2{PatternID, PatternVertexID}});
+				}
+				else
+				{
+					check(MeshVertexToPatternAndVertex[VertexIndex][0] == PatternID);
+					PatternVertexID = MeshVertexToPatternAndVertex[VertexIndex][1];
+				}
+
+				LocalPatternIndexBuffer.Add(PatternVertexID);
+			}
+
+			Pattern.Initialize(Positions2D, Positions3D, LocalPatternIndexBuffer);
+		}
+
+		for (int InGlobalVertexIndex = 0; InGlobalVertexIndex < Mesh2D.MaxVertexID(); ++InGlobalVertexIndex)
+		{
+			const int32 PatternID = MeshVertexToPatternAndVertex[InGlobalVertexIndex][0];
+			const int32 VertexID = MeshVertexToPatternAndVertex[InGlobalVertexIndex][1];
+			const int32 ClothGlobalIndex = Cloth.GetSimPattern(PatternID).GetSimVertices2DOffset() + VertexID;
+
+			OutDynamicMeshToClothVertexMap.Add({ InGlobalVertexIndex, ClothGlobalIndex });
+		}
+
+		// Copy skinning data
+		if (bTransferSimSkinningData)
+		{
+			const UE::Geometry::FDynamicMeshVertexSkinWeightsAttribute* const SkinWeights = Mesh2D.Attributes() ? Mesh2D.Attributes()->GetSkinWeightsAttribute(FName("Default")) : nullptr;
+			if (SkinWeights)
+			{
+				TArrayView<TArray<int32>> BoneIndices = Cloth.GetSimBoneIndices();
+				TArrayView<TArray<float>> BoneWeights = Cloth.GetSimBoneWeights();
+				for (int32 MeshVertexIndex : Mesh2D.VertexIndicesItr())
+				{
+					const int32 ClothVertexIndex = OutDynamicMeshToClothVertexMap[MeshVertexIndex];
+					SkinWeights->GetValue(MeshVertexIndex, BoneIndices[ClothVertexIndex], BoneWeights[ClothVertexIndex]);
+				}
+			}
+		}
+
+		// Copy scalar weight maps
+		if (bTransferWeightMaps && Mesh2D.Attributes())
+		{
+			const UE::Geometry::FDynamicMeshAttributeSet* const AttributeSet = Mesh2D.Attributes();
+			for (int32 WeightMapLayerIndex = 0; WeightMapLayerIndex < AttributeSet->NumWeightLayers(); ++WeightMapLayerIndex)
+			{
+				if (const UE::Geometry::FDynamicMeshWeightAttribute* const WeightMapAttribute = AttributeSet->GetWeightLayer(WeightMapLayerIndex))
+				{
+					const FName WeightMapName = WeightMapAttribute->GetName();
+					Cloth.AddWeightMap(WeightMapName);	// Does nothing if weight map already exists
+					TArrayView<float> OutWeightMap = Cloth.GetWeightMap(WeightMapName);
+
+					for (const int32 MeshVertexIndex : Mesh2D.VertexIndicesItr())
+					{
+						float VertexWeight;
+						WeightMapAttribute->GetValue(MeshVertexIndex, &VertexWeight);
+
+						const int32 ClothVertexIndex = OutDynamicMeshToClothVertexMap[MeshVertexIndex];
+						OutWeightMap[ClothVertexIndex] = VertexWeight;
+					}
+				}
+			}
+		}
+
+	}
+
+
 	void FClothGeometryTools::BuildSimMeshFromDynamicMesh(
 		const TSharedRef<FManagedArrayCollection>& ClothCollection,
 		const UE::Geometry::FDynamicMesh3& DynamicMesh, int32 UVChannelIndex, const FVector2f& UVScale, bool bAppend)
@@ -751,6 +882,8 @@ namespace UE::Chaos::ClothAsset
 				FCollectionClothSimPatternFacade Pattern = Cloth.AddGetSimPattern();
 				const int32 VertexOffset = Cloth.GetNumSimVertices3D();
 				Pattern.Initialize(Island.Positions2D, Island.Positions3D, Island.Indices);
+
+				// Copy skinning data
 				if (SkinWeights)
 				{
 					TArrayView<TArray<int32>> BoneIndices = Cloth.GetSimBoneIndices();
@@ -761,6 +894,28 @@ namespace UE::Chaos::ClothAsset
 						SkinWeights->GetValue(Island.PositionToSourceIndex[VertexIndex], BoneIndices[VertexIndex + VertexOffset], BoneWeights[VertexIndex + VertexOffset]);
 					}
 				}
+
+				// Copy scalar weight maps
+				if (AttributeSet)
+				{
+					for (int32 WeightMapLayerIndex = 0; WeightMapLayerIndex < AttributeSet->NumWeightLayers(); ++WeightMapLayerIndex)
+					{
+						if (const UE::Geometry::FDynamicMeshWeightAttribute* const WeightMapAttribute = AttributeSet->GetWeightLayer(WeightMapLayerIndex))
+						{
+							const FName WeightMapName = WeightMapAttribute->GetName();
+							Cloth.AddWeightMap(WeightMapName);	// Does nothing if weight map already exists
+							TArrayView<float> OutWeightMap = Cloth.GetWeightMap(WeightMapName);
+
+							for (int32 VertexIndex = 0; VertexIndex < Island.Positions3D.Num(); ++VertexIndex)
+							{
+								float VertexWeight;
+								WeightMapAttribute->GetValue(Island.PositionToSourceIndex[VertexIndex], &VertexWeight);
+								OutWeightMap[VertexIndex + VertexOffset] = VertexWeight;
+							}
+						}
+					}
+				}
+
 			}
 		}
 

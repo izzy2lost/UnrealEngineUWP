@@ -53,6 +53,29 @@ namespace UE::Chaos::ClothAsset
 			bool bBindSimMesh,
 			bool bBindRenderMesh);
 
+
+		/**
+		* Build (or add to) a ClothCollection Sim Mesh from the given 2D and 3D mesh data. Uses a Polygroup Attribute Layer to specify Pattern topology.
+		* 
+		* @param ClothCollection					The cloth collection whose sim mesh (2D and 3D) will be modified
+		* @param Mesh2D								Input 2D sim mesh data
+		* @param Mesh3D								Input 3D sim mesh data
+		* @param PatternIndexLayerId				Specifies which PolyGroup layer on Mesh2D contains pattern index per triangle information
+		* @param bTransferWeightMaps				Copy any weight map layers from Mesh2D into the ClothCollection sim mesh
+		* @param bTransferSimSkinningData			Copy any skinning weight data from Mesh2D into the ClothCollection sim mesh
+		* @param bAppend							Whether to add the new mesh data to the existing sim mesh, or crete new sim mesh in the collection
+		* @param OutDynamicMeshToClothVertexMap		(Output) Computed map of vertex indices in the input Meshes to vertex indices in the output ClothCollection
+		*/
+		static void BuildSimMeshFromDynamicMeshes(
+			const TSharedRef<FManagedArrayCollection>& ClothCollection,
+			const UE::Geometry::FDynamicMesh3& Mesh2D,
+			const UE::Geometry::FDynamicMesh3& Mesh3D,
+			int32 PatternIndexLayerId,
+			bool bTransferWeightMaps,
+			bool bTransferSimSkinningData,
+			bool bAppend,
+			TMap<int, int32>& OutDynamicMeshToClothVertexMap);
+
 		/**
 		* Unwrap and build SimMesh data from a DynamicMesh
 		*/

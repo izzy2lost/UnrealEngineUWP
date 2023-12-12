@@ -100,7 +100,7 @@ namespace UE::Chaos::ClothAsset
 		//~ Seam Group
 		/** Return the number of seams in this collection. */
 		int32 GetNumSeams() const;
-		/** Return a seam facade for the specified pattern index. */
+		/** Return a seam facade for the specified seam index. */
 		FCollectionClothSeamConstFacade GetSeam(int32 SeamIndex) const;
 
 		//~ Render Vertices Group
