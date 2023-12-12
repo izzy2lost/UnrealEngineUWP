@@ -37,11 +37,11 @@ public:
 	void MergeFrom(APCGWorldActor* OtherWorldActor);
 
 #if WITH_EDITOR
-	virtual bool CanChangeIsSpatiallyLoadedFlag() const { return false; }
+	virtual bool CanChangeIsSpatiallyLoadedFlag() const override { return false; }
 	virtual bool IsUserManaged() const override { return false; }
 	virtual bool ShouldExport() override { return false; }
 	virtual bool ShouldImport(FStringView ActorPropString, bool IsMovingLevel) override { return false; }
-	virtual void BeginCacheForCookedPlatformData(const ITargetPlatform* TargetPlatform);
+	virtual void BeginCacheForCookedPlatformData(const ITargetPlatform* TargetPlatform) override;
 	//~End AActor Interface
 
 	static APCGWorldActor* CreatePCGWorldActor(UWorld* InWorld);
