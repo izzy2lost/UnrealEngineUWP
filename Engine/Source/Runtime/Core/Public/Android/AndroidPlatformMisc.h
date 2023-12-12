@@ -58,7 +58,6 @@ struct FAndroidMisc : public FGenericPlatformMisc
 	static CORE_API EAppReturnType::Type MessageBoxExt( EAppMsgType::Type MsgType, const TCHAR* Text, const TCHAR* Caption );
 	static CORE_API bool UseRenderThread();
 	static CORE_API bool HasPlatformFeature(const TCHAR* FeatureName);
-	static CORE_API bool ShouldDisablePluginAtRuntime(const FString& PluginName);
 	static CORE_API bool SupportsES30();
 
 public:
