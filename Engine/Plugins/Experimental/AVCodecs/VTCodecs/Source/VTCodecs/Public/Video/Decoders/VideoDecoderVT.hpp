@@ -5,6 +5,8 @@
 #include "Video/Resources/Metal/VideoResourceMetal.h"
 #include "Video/Util/NaluRewriter.h"
 
+#include "DynamicRHI.h"
+
 THIRD_PARTY_INCLUDES_START
 #include <VideoToolbox/VideoToolbox.h>
 #include <CoreMedia/CMSync.h>

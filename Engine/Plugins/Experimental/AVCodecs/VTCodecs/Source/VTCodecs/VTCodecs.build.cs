@@ -34,6 +34,7 @@ public class VTCodecs : ModuleRules
         PublicDependencyModuleNames.AddRange(new string[] {
             "RenderCore",
             "Core",
+            "RHI",
         });
 
         PublicFrameworks.AddRange(new string[]{
