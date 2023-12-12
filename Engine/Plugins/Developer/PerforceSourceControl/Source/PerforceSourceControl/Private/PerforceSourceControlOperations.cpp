@@ -182,6 +182,32 @@ static void RemoveRedundantErrors(FPerforceSourceControlCommand& InCommand, cons
 	}
 }
 
+static void RemoveRedundantInfo(FPerforceSourceControlCommand& InCommand, const FString& InFilter, bool bMoveToError = true)
+{
+	bool bFoundRedundantInfo = false;
+
+	if (bMoveToError)
+	{
+		for (const FText& Message : InCommand.ResultInfo.InfoMessages)
+		{
+			// Perforce reports files that are already synced as errors, so copy any errors
+			// we get to the info list in this case
+			if (Message.ToString().Contains(InFilter))
+			{
+				InCommand.ResultInfo.ErrorMessages.Add(Message);
+			}
+		}
+	}
+
+	bFoundRedundantInfo = InCommand.ResultInfo.InfoMessages.RemoveAll(FRemoveRedundantErrors(InFilter)) > 0;
+
+	// If we found info that we moved to be an error we should mark the command as failed.
+	if (bFoundRedundantInfo && bMoveToError)
+	{
+		InCommand.bCommandSuccessful = false;
+	}
+}
+
 /**
  * Occasionally some error messages returned by the server can be a bit misleading depending on the context
  * of the original command. This utility allows us to replace an error that we feel is misleading with a
@@ -852,9 +878,11 @@ bool FPerforceMarkForAddWorker::Execute(FPerforceSourceControlCommand& InCommand
 
 		AppendChangelistParameter(GetSCCProvider(), Parameters);
 		Parameters.Append(InCommand.Files);
-
+	
 		InCommand.bCommandSuccessful = Connection.RunCommand(TEXT("add"), Parameters, Records, InCommand.ResultInfo, FOnIsCancelled::CreateRaw(&InCommand, &FPerforceSourceControlCommand::IsCanceled), InCommand.bConnectionDropped);
 		ParseRecordSetForState(Records, OutResults);
+
+		RemoveRedundantInfo(InCommand, TEXT("- ignored file can't be added."));
 	}
 	return InCommand.bCommandSuccessful;
 }
