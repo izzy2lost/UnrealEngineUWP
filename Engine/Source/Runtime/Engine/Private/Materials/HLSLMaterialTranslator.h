@@ -1419,6 +1419,11 @@ protected:
 	/** Signals when the async DDC query task has completed AND there was a hit */
 	TAtomic<bool> DDCQueryHit;
 
+#ifdef STATS
+	/** When a translation DDC request hits, this is set to the time spent serializing. */
+	double DDCRequestSerializeTime = 0;
+#endif
+
 	friend class FAddUniformExpressionScope;
 };
 
