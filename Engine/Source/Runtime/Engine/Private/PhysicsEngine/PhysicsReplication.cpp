@@ -1757,9 +1757,9 @@ bool FPhysicsReplicationAsync::ResimulationReplication(Chaos::FPBDRigidParticleH
 	}
 	else if (PhysicsReplicationCVars::ResimulationCVars::bRuntimeCorrectionEnabled)
 	{
-		const int32 NumPredictedFrames = RigidsSolver->GetCurrentFrame() - LocalFrame;
+		const int32 NumPredictedFrames = RigidsSolver->GetCurrentFrame() - LocalFrame - Target.TickCount;
 
-		if (NumPredictedFrames > 0)
+		if (Target.TickCount <= NumPredictedFrames)
 		{
 			// Calculate correction to position
 			const float CorrectionAmountX = PhysicsReplicationCVars::ResimulationCVars::PosStabilityMultiplier / NumPredictedFrames; // Same result as (ErrorOffset / NumPredictedFrames) * PosStabilityMultiplier
