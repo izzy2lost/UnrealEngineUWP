@@ -54,6 +54,12 @@ void FChaosClothAssetAddWeightMapNode::Evaluate(Dataflow::FContext& Context, con
 			}
 		}
 		SetValue(Context, MoveTemp(*ClothCollection), &Collection);
+	}
+	else if (Out->IsA<FString>(&Name))
+	{
+		// Make the name a valid attribute name, and replace the value in the UI  // TODO: Remove all mutables from evaluation
+		FWeightMapTools::MakeWeightMapName(Name);
+
 		SetValue(Context, Name, &Name);
 	}
 }

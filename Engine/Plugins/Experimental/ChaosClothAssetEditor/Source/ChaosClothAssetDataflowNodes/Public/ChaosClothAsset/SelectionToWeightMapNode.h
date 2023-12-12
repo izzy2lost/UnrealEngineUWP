@@ -22,7 +22,10 @@ public:
 	UPROPERTY(Meta = (DataflowInput))
 	FString SelectionName;
 
-	/** The name of the weight map attribute that will be added to the collection */
+	/**
+	 * The name of the weight map attribute that will be added to the collection.
+	 * If left empty the same name as the selection name will be used instead.
+	 */
 	UPROPERTY(EditAnywhere, Category = "Selection To Weight Map", Meta = (DataflowOutput))
 	FString WeightMapName;
 
