@@ -1618,6 +1618,8 @@ void FZenCacheStore::Initialize(const FZenCacheStoreParams& Params)
 		ClientParams.Version = EHttpVersion::V2;
 		ClientParams.MaxRequests = RequestPoolSize + RequestPoolOverflowSize;
 		ClientParams.MinRequests = RequestPoolSize;
+		ClientParams.LowSpeedLimit = 30;
+		ClientParams.LowSpeedTime = 60;
 		RequestQueue = FHttpRequestQueue(*ConnectionPool, ClientParams);
 
 		bIsUsable = true;
