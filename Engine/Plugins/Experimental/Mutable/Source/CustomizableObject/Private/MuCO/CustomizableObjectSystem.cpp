@@ -850,6 +850,11 @@ void FinishUpdateGlobal(const TSharedRef<FUpdateContextPrivate>& Context)
 		FFunctionGraphTask::CreateAndDispatchWhenReady( // Calling Benchmark in a task so we make sure we exited all scopes.
 		[Context]()
 		{
+			if (!UCustomizableObjectSystem::IsCreated()) // We are shutting down
+			{
+				return;	
+			}
+			
 			UCustomizableObjectSystem* System = UCustomizableObjectSystem::GetInstance();
 			if (!System)
 			{
