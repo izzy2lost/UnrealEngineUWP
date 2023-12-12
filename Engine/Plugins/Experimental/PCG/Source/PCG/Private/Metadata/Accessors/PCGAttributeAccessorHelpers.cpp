@@ -336,6 +336,14 @@ namespace PCGAttributeAccessorHelpers
 			{
 				return Functor(Signature<FPCGPropertyStructAccessor<FSoftClassPath>>{}, StructProperty);
 			}
+			else if (StructProperty->Struct == TBaseStructure<FLinearColor>::Get())
+			{
+				return Functor(Signature<FPCGLinearColorAccessor>{}, StructProperty);
+			}
+			else if (StructProperty->Struct == TBaseStructure<FColor>::Get())
+			{
+				return Functor(Signature<FPCGColorAccessor>{}, StructProperty);
+			}
 			else if (StructProperty->Struct && StructProperty->Struct->IsChildOf(FPCGAttributePropertySelector::StaticStruct()))
 			{
 				return Functor(Signature<FPCGAttributePropertySelectorAccessor>{}, StructProperty);

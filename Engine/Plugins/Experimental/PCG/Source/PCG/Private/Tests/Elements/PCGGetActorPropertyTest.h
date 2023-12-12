@@ -38,6 +38,24 @@ struct FPCGDummyGetPropertyStruct
 	FPCGDummyGetPropertyLevel2Struct Level2Struct;
 };
 
+USTRUCT(BlueprintType, meta = (Hidden))
+struct FPCGTestMyColorStruct
+{
+	GENERATED_BODY()
+
+	UPROPERTY(BlueprintReadOnly, Category = "")
+	double B = 0;
+
+	UPROPERTY(BlueprintReadOnly, Category = "")
+	double G = 0;
+
+	UPROPERTY(BlueprintReadOnly, Category = "")
+	double R = 0;
+
+	UPROPERTY(BlueprintReadOnly, Category = "")
+	double A = 0;
+};
+
 UCLASS(MinimalAPI, NotBlueprintable, NotPlaceable, NotBlueprintType, Transient, HideDropdown, meta = (Hidden))
 class UPCGDummyGetPropertyTest : public UObject
 {
@@ -115,13 +133,19 @@ public:
 	FColor ColorProperty;
 
 	UPROPERTY(BlueprintReadOnly, Category = "")
+	FLinearColor LinearColorProperty;
+
+	UPROPERTY(BlueprintReadOnly, Category = "")
+	FPCGTestMyColorStruct PCGColorProperty;
+
+	UPROPERTY(BlueprintReadOnly, Category = "")
 	TArray<int32> ArrayOfIntsProperty;
 
 	UPROPERTY(BlueprintReadOnly, Category = "")
 	TArray<FVector> ArrayOfVectorsProperty;
 
 	UPROPERTY(BlueprintReadOnly, Category = "")
-	TArray<FColor> ArrayOfStructsProperty;
+	TArray<FPCGTestMyColorStruct> ArrayOfStructsProperty;
 
 	UPROPERTY(BlueprintReadOnly, Category = "")
 	TArray<TObjectPtr<UPCGDummyGetPropertyTest>> ArrayOfObjectsProperty;

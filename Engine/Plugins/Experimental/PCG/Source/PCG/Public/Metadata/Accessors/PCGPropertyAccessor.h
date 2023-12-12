@@ -7,6 +7,7 @@
 #include "Metadata/PCGAttributePropertySelector.h"
 
 #include "Containers/UnrealString.h" // IWYU pragma: keep
+#include "Math/Color.h" // IWYU pragma: keep
 #include "UObject/SoftObjectPath.h" // IWYU pragma: keep
 #include "UObject/UnrealType.h" // IWYU pragma: keep
 
@@ -87,13 +88,13 @@ namespace PCGPropertyAccessor
 /**
 * Interface for Property chain to factorize ctor, fix the chain and storing the property chain
 */
-class IPCGPropertyChainAccessor
+class IPCGPropertyChain
 {
 public:
-	virtual ~IPCGPropertyChainAccessor() = default;
+	virtual ~IPCGPropertyChain() = default;
 
 protected:
-	IPCGPropertyChainAccessor(const FProperty* Property, TArray<const FProperty*>&& ExtraProperties);
+	IPCGPropertyChain(const FProperty* Property, TArray<const FProperty*>&& ExtraProperties);
 
 	const TArray<const FProperty*>& GetPropertyChain() const { return PropertyChain; }
 
@@ -108,7 +109,7 @@ private:
 * Key supported: Generic object
 */
 template <typename T>
-class FPCGNumericPropertyAccessor : public IPCGAttributeAccessorT<FPCGNumericPropertyAccessor<T>>, IPCGPropertyChainAccessor
+class FPCGNumericPropertyAccessor : public IPCGAttributeAccessorT<FPCGNumericPropertyAccessor<T>>, IPCGPropertyChain
 {
 public:
 	using Type = T;
@@ -116,7 +117,7 @@ public:
 
 	FPCGNumericPropertyAccessor(const FNumericProperty* InProperty, TArray<const FProperty*>&& ExtraProperties = {})
 		: Super(/*bInReadOnly=*/ false)
-		, IPCGPropertyChainAccessor(InProperty, std::forward<TArray<const FProperty*>>(ExtraProperties))
+		, IPCGPropertyChain(InProperty, std::forward<TArray<const FProperty*>>(ExtraProperties))
 		, Property(InProperty)
 	{
 		static_assert(std::is_integral_v<T> || std::is_floating_point_v<T>);
@@ -163,7 +164,7 @@ private:
 * Do not instanciate it manually, use PCGAttributeAccessorHelpers::CreatePropertyAccessor.
 * Key supported: Generic object
 */
-class FPCGEnumPropertyAccessor : public IPCGAttributeAccessorT<FPCGEnumPropertyAccessor>, IPCGPropertyChainAccessor
+class FPCGEnumPropertyAccessor : public IPCGAttributeAccessorT<FPCGEnumPropertyAccessor>, IPCGPropertyChain
 {
 public:
 	using Type = int64;
@@ -171,7 +172,7 @@ public:
 
 	FPCGEnumPropertyAccessor(const FEnumProperty* InProperty, TArray<const FProperty*>&& ExtraProperties = {})
 		: Super(/*bInReadOnly=*/ false)
-		, IPCGPropertyChainAccessor(InProperty, std::forward<TArray<const FProperty*>>(ExtraProperties))
+		, IPCGPropertyChain(InProperty, std::forward<TArray<const FProperty*>>(ExtraProperties))
 		, Property(InProperty)
 	{
 		check(Property);
@@ -192,7 +193,7 @@ private:
 * Key supported: Generic object
 */
 template <typename T>
-class FPCGPropertyStructAccessor : public IPCGAttributeAccessorT<FPCGPropertyStructAccessor<T>>, IPCGPropertyChainAccessor
+class FPCGPropertyStructAccessor : public IPCGAttributeAccessorT<FPCGPropertyStructAccessor<T>>, IPCGPropertyChain
 {
 public:
 	using Type = T;
@@ -200,7 +201,7 @@ public:
 
 	FPCGPropertyStructAccessor(const FStructProperty* InProperty, TArray<const FProperty*>&& ExtraProperties = {})
 		: Super(/*bInReadOnly=*/ false)
-		, IPCGPropertyChainAccessor(InProperty, std::forward<TArray<const FProperty*>>(ExtraProperties))
+		, IPCGPropertyChain(InProperty, std::forward<TArray<const FProperty*>>(ExtraProperties))
 		, Property(InProperty)
 	{
 		static_assert(PCG::Private::IsPCGType<T>());
@@ -234,7 +235,7 @@ private:
 * Key supported: Generic object
 */
 template <typename T, typename PropertyType>
-class FPCGPropertyAccessor : public IPCGAttributeAccessorT<FPCGPropertyAccessor<T, PropertyType>>, IPCGPropertyChainAccessor
+class FPCGPropertyAccessor : public IPCGAttributeAccessorT<FPCGPropertyAccessor<T, PropertyType>>, IPCGPropertyChain
 {
 public:
 	using Type = T;
@@ -242,7 +243,7 @@ public:
 
 	FPCGPropertyAccessor(const PropertyType* InProperty, TArray<const FProperty*>&& ExtraProperties = {})
 		: Super(/*bInReadOnly=*/ false)
-		, IPCGPropertyChainAccessor(InProperty, std::forward<TArray<const FProperty*>>(ExtraProperties))
+		, IPCGPropertyChain(InProperty, std::forward<TArray<const FProperty*>>(ExtraProperties))
 		, Property(InProperty)
 	{
 		static_assert(PCG::Private::IsPCGType<T>());
@@ -276,7 +277,7 @@ private:
 * Key supported: Generic object
 */
 template <typename T>
-class FPCGPropertyPathAccessor : public IPCGAttributeAccessorT<FPCGPropertyPathAccessor<T>>, IPCGPropertyChainAccessor
+class FPCGPropertyPathAccessor : public IPCGAttributeAccessorT<FPCGPropertyPathAccessor<T>>, IPCGPropertyChain
 {
 public:
 	using Type = FString;
@@ -284,7 +285,7 @@ public:
 
 	FPCGPropertyPathAccessor(const FProperty* InProperty, TArray<const FProperty*>&& ExtraProperties = {})
 		: Super(/*bInReadOnly=*/ false)
-		, IPCGPropertyChainAccessor(InProperty, std::forward<TArray<const FProperty*>>(ExtraProperties))
+		, IPCGPropertyChain(InProperty, std::forward<TArray<const FProperty*>>(ExtraProperties))
 		, Property(InProperty)
 	{
 		static_assert(std::is_same_v<FSoftObjectPath, T> || std::is_same_v<FSoftClassPath, T>);
@@ -316,7 +317,7 @@ private:
 * Do not instantiate it manually, use PCGAttributeAccessorHelpers::CreatePropertyAccessor.
 * Key supported: Generic object
 */
-class FPCGPropertySoftObjectPathAccessor : public IPCGAttributeAccessorT<FPCGPropertySoftObjectPathAccessor>, IPCGPropertyChainAccessor
+class FPCGPropertySoftObjectPathAccessor : public IPCGAttributeAccessorT<FPCGPropertySoftObjectPathAccessor>, IPCGPropertyChain
 {
 public:
 	using Type = FSoftObjectPath;
@@ -324,7 +325,7 @@ public:
 
 	FPCGPropertySoftObjectPathAccessor(const FSoftObjectProperty* InProperty, TArray<const FProperty*>&& ExtraProperties = {})
 		: Super(/*bInReadOnly=*/ false)
-		, IPCGPropertyChainAccessor(InProperty, std::forward<TArray<const FProperty*>>(ExtraProperties))
+		, IPCGPropertyChain(InProperty, std::forward<TArray<const FProperty*>>(ExtraProperties))
 		, Property(InProperty)
 	{
 		check(Property);
@@ -355,7 +356,7 @@ private:
 * Do not instantiate it manually, use PCGAttributeAccessorHelpers::CreatePropertyAccessor.
 * Key supported: Generic object
 */
-class FPCGPropertySoftClassPathAccessor : public IPCGAttributeAccessorT<FPCGPropertySoftClassPathAccessor>, IPCGPropertyChainAccessor
+class FPCGPropertySoftClassPathAccessor : public IPCGAttributeAccessorT<FPCGPropertySoftClassPathAccessor>, IPCGPropertyChain
 {
 public:
 	using Type = FSoftClassPath;
@@ -363,7 +364,7 @@ public:
 
 	FPCGPropertySoftClassPathAccessor(const FSoftClassProperty* InProperty, TArray<const FProperty*>&& ExtraProperties = {})
 		: Super(/*bInReadOnly=*/ false)
-		, IPCGPropertyChainAccessor(InProperty, std::forward<TArray<const FProperty*>>(ExtraProperties))
+		, IPCGPropertyChain(InProperty, std::forward<TArray<const FProperty*>>(ExtraProperties))
 		, Property(InProperty)
 	{
 		check(Property);
@@ -396,7 +397,7 @@ private:
 * Key supported: Generic object
 */
 template <typename PropertyType>
-class FPCGPropertyObjectPtrAccessor : public IPCGAttributeAccessorT<FPCGPropertyObjectPtrAccessor<PropertyType>>, IPCGPropertyChainAccessor
+class FPCGPropertyObjectPtrAccessor : public IPCGAttributeAccessorT<FPCGPropertyObjectPtrAccessor<PropertyType>>, IPCGPropertyChain
 {
 public:
 	using Type = std::conditional_t<std::is_same_v<PropertyType, FClassProperty>, FSoftClassPath, FSoftObjectPath>;
@@ -404,7 +405,7 @@ public:
 
 	FPCGPropertyObjectPtrAccessor(const PropertyType* InProperty, TArray<const FProperty*>&& ExtraProperties = {})
 		: Super(/*bInReadOnly=*/ false)
-		, IPCGPropertyChainAccessor(InProperty, std::forward<TArray<const FProperty*>>(ExtraProperties))
+		, IPCGPropertyChain(InProperty, std::forward<TArray<const FProperty*>>(ExtraProperties))
 		, Property(InProperty)
 	{
 		// Making sure it is the right properties.
@@ -434,9 +435,9 @@ private:
 
 /**
 * Special accessor to support attribute selector overrides. Interface with a string.
-* Key supported: All
+* Key supported: Generic object
 */
-class FPCGAttributePropertySelectorAccessor : public IPCGAttributeAccessorT<FPCGAttributePropertySelectorAccessor>, IPCGPropertyChainAccessor
+class FPCGAttributePropertySelectorAccessor : public IPCGAttributeAccessorT<FPCGAttributePropertySelectorAccessor>, IPCGPropertyChain
 {
 public:
 	using Type = FString;
@@ -444,7 +445,7 @@ public:
 
 	FPCGAttributePropertySelectorAccessor(const FStructProperty* InProperty, TArray<const FProperty*>&& ExtraProperties = {})
 		: Super(/*bInReadOnly=*/ false)
-		, IPCGPropertyChainAccessor(InProperty, std::forward<TArray<const FProperty*>>(ExtraProperties))
+		, IPCGPropertyChain(InProperty, std::forward<TArray<const FProperty*>>(ExtraProperties))
 		, Property(InProperty)
 	{
 		ensure(InProperty && InProperty->Struct && InProperty->Struct->IsA(FPCGAttributePropertySelector::StaticStruct()->GetClass()));
@@ -470,3 +471,81 @@ private:
 	const FStructProperty* Property = nullptr;
 };
 
+/**
+* Special accessor to support linear color overrides. Interface with a vector 4. Will be output as RGBA.
+* Key supported: Generic object
+*/
+class FPCGLinearColorAccessor : public IPCGAttributeAccessorT<FPCGLinearColorAccessor>, IPCGPropertyChain
+{
+public:
+	using Type = FVector4;
+	using Super = IPCGAttributeAccessorT<FPCGLinearColorAccessor>;
+
+	FPCGLinearColorAccessor(const FStructProperty* InProperty, TArray<const FProperty*>&& ExtraProperties = {})
+		: Super(/*bInReadOnly=*/ false)
+		, IPCGPropertyChain(InProperty, std::forward<TArray<const FProperty*>>(ExtraProperties))
+		, Property(InProperty)
+	{
+		ensure(InProperty && InProperty->Struct && InProperty->Struct == TBaseStructure<FLinearColor>::Get());
+	}
+
+	bool GetRangeImpl(TArrayView<FVector4> OutValues, int32 Index, const IPCGAttributeAccessorKeys& Keys) const
+	{
+		return PCGPropertyAccessor::IterateGet(GetPropertyChain(), OutValues, Index, Keys, [this](const void* PropertyAddressData) -> FVector4
+		{
+			const FLinearColor* Value = reinterpret_cast<const FLinearColor*>(PropertyAddressData);
+			return FVector4(Value->R, Value->G, Value->B, Value->A);
+		});
+	}
+
+	bool SetRangeImpl(TArrayView<const FVector4> InValues, int32 Index, IPCGAttributeAccessorKeys& Keys, EPCGAttributeAccessorFlags Flags)
+	{
+		return PCGPropertyAccessor::IterateSet(GetPropertyChain(), InValues, Index, Keys, [this](void* PropertyAddressData, const FVector4& Value) -> void
+		{
+			*reinterpret_cast<FLinearColor*>(PropertyAddressData) = FLinearColor(Value);
+		});
+	}
+
+private:
+	const FStructProperty* Property = nullptr;
+};
+
+/**
+* Special accessor to support color overrides. Interface with a vector 4. Will remap [0;255] to [0.0,1.0]
+* Key supported: Generic object
+*/
+class FPCGColorAccessor : public IPCGAttributeAccessorT<FPCGColorAccessor>, IPCGPropertyChain
+{
+public:
+	using Type = FVector4;
+	using Super = IPCGAttributeAccessorT<FPCGColorAccessor>;
+
+	FPCGColorAccessor(const FStructProperty* InProperty, TArray<const FProperty*>&& ExtraProperties = {})
+		: Super(/*bInReadOnly=*/ false)
+		, IPCGPropertyChain(InProperty, std::forward<TArray<const FProperty*>>(ExtraProperties))
+		, Property(InProperty)
+	{
+		ensure(InProperty && InProperty->Struct && InProperty->Struct == TBaseStructure<FColor>::Get());
+	}
+
+	bool GetRangeImpl(TArrayView<FVector4> OutValues, int32 Index, const IPCGAttributeAccessorKeys& Keys) const
+	{
+		return PCGPropertyAccessor::IterateGet(GetPropertyChain(), OutValues, Index, Keys, [this](const void* PropertyAddressData) -> FVector4
+		{
+			constexpr double Inv255 = 1.0 / 255.0;
+			const FColor* Value = reinterpret_cast<const FColor*>(PropertyAddressData);
+			return FVector4(Value->R * Inv255, Value->G * Inv255, Value->B * Inv255, Value->A * Inv255);
+		});
+	}
+
+	bool SetRangeImpl(TArrayView<const FVector4> InValues, int32 Index, IPCGAttributeAccessorKeys& Keys, EPCGAttributeAccessorFlags Flags)
+	{
+		return PCGPropertyAccessor::IterateSet(GetPropertyChain(), InValues, Index, Keys, [this](void* PropertyAddressData, const FVector4& Value) -> void
+		{
+			*reinterpret_cast<FColor*>(PropertyAddressData) = FLinearColor(Value).QuantizeRound();
+		});
+	}
+
+private:
+	const FStructProperty* Property = nullptr;
+};

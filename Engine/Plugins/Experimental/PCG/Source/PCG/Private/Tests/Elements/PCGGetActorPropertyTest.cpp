@@ -215,8 +215,10 @@ bool FPCGPropertyToParamDataPropertyTypeTest::RunTest(const FString& Parameters)
 	const FSoftClassPath SoftClassPathValue{ UPCGDummyGetPropertyTest::StaticClass() };
 
 	const FVector2D Vector2Value = { 1.0, 2.0 };
-	const FColor ColorValue = FColor::Cyan;
-	const FColor SecondColorValue = FColor::Yellow;
+	const FPCGTestMyColorStruct PCGColorValue{ 1.0, 1.0, 0.0, 1.0 };
+	const FPCGTestMyColorStruct SecondPCGColorValue{ 1.0, 0.0, 1.0, 1.0 };
+	const FColor ColorValue = FColor::White;
+	const FLinearColor LinearColorValue = FLinearColor::Blue;
 
 	APCGUnitTestDummyActor* Actor = Cast<APCGUnitTestDummyActor>(TestData.TestActor);
 	Actor->IntProperty = 42;
@@ -238,9 +240,11 @@ bool FPCGPropertyToParamDataPropertyTypeTest::RunTest(const FString& Parameters)
 	Actor->ObjectProperty = ObjectValue;
 	Actor->Vector2Property = Vector2Value;
 	Actor->ColorProperty = ColorValue;
+	Actor->LinearColorProperty = LinearColorValue;
+	Actor->PCGColorProperty = PCGColorValue;
 	Actor->ArrayOfIntsProperty = { 42, 43, 44 };
 	Actor->ArrayOfVectorsProperty = { VectorValue, SecondVectorValue };
-	Actor->ArrayOfStructsProperty = { ColorValue, SecondColorValue };
+	Actor->ArrayOfStructsProperty = { PCGColorValue, SecondPCGColorValue };
 	Actor->ArrayOfObjectsProperty = { ObjectValue, SecondObjectValue };
 	Actor->DummyStruct.FloatProperty = 1.2f;
 	Actor->DummyStruct.IntArrayProperty = { 5, 6, 7 };
@@ -274,10 +278,14 @@ bool FPCGPropertyToParamDataPropertyTypeTest::RunTest(const FString& Parameters)
 	bSuccess &= VerifyAttributeValueValid(this, TestData, GET_MEMBER_NAME_CHECKED(APCGUnitTestDummyActor, ClassProperty), FSoftClassPath(UPCGDummyGetPropertyTest::StaticClass()), ExtraTestWhat);
 	bSuccess &= VerifyAttributeValueValid(this, TestData, GET_MEMBER_NAME_CHECKED(APCGUnitTestDummyActor, ObjectProperty), FSoftObjectPath(ObjectValue->GetPathName()), ExtraTestWhat);
 
-	// Struct Property Extracted - Colors
+	// Colors as Vector 4
+	bSuccess &= VerifyAttributeValueValid(this, TestData, GET_MEMBER_NAME_CHECKED(APCGUnitTestDummyActor, ColorProperty), FVector4(1.0, 1.0, 1.0, 1.0), ExtraTestWhat);
+	bSuccess &= VerifyAttributeValueValid(this, TestData, GET_MEMBER_NAME_CHECKED(APCGUnitTestDummyActor, LinearColorProperty), FVector4(0.0, 0.0, 1.0, 1.0), ExtraTestWhat);
+
+	// Struct Property Extracted - Dummy Color struct
 	// Extracting int will always yield a int64 and extracting floats with yield doubles. Here color is u8, so cast all of them to int64
 	const TArray<FName> ColorPropertyNames = { TEXT("R"), TEXT("G"), TEXT("B"), TEXT("A") };
-	bSuccess &= VerifyAttributeValuesValid(this, TestData, GET_MEMBER_NAME_CHECKED(APCGUnitTestDummyActor, ColorProperty), ColorPropertyNames, ExtraTestWhat, (int64)ColorValue.R, (int64)ColorValue.G, (int64)ColorValue.B, (int64)ColorValue.A);
+	bSuccess &= VerifyAttributeValuesValid(this, TestData, GET_MEMBER_NAME_CHECKED(APCGUnitTestDummyActor, PCGColorProperty), ColorPropertyNames, ExtraTestWhat, PCGColorValue.R, PCGColorValue.G, PCGColorValue.B, PCGColorValue.A);
 
 	// Object Property Extracted - UPCGDummyGetPropertyTest
 	const TArray<FName> ObjectPropertyNames = { GET_MEMBER_NAME_CHECKED(UPCGDummyGetPropertyTest, Int64Property), GET_MEMBER_NAME_CHECKED(UPCGDummyGetPropertyTest, DoubleProperty) };
@@ -290,7 +298,7 @@ bool FPCGPropertyToParamDataPropertyTypeTest::RunTest(const FString& Parameters)
 
 	// Arrays of extracted properties
 	bSuccess &= VerifyAttributeValuesValid(this, TestData, GET_MEMBER_NAME_CHECKED(APCGUnitTestDummyActor, ArrayOfStructsProperty), ColorPropertyNames, ExtraTestWhat, 
-		(int64)ColorValue.R, (int64)ColorValue.G, (int64)ColorValue.B, (int64)ColorValue.A, (int64)SecondColorValue.R, (int64)SecondColorValue.G, (int64)SecondColorValue.B, (int64)SecondColorValue.A);
+		PCGColorValue.R, PCGColorValue.G, PCGColorValue.B, PCGColorValue.A, SecondPCGColorValue.R, SecondPCGColorValue.G, SecondPCGColorValue.B, SecondPCGColorValue.A);
 	bSuccess &= VerifyAttributeValuesValid(this, TestData, GET_MEMBER_NAME_CHECKED(APCGUnitTestDummyActor, ArrayOfObjectsProperty), ObjectPropertyNames, ExtraTestWhat, ObjectValue->Int64Property, ObjectValue->DoubleProperty, SecondObjectValue->Int64Property, SecondObjectValue->DoubleProperty);
 
 	// Extractors

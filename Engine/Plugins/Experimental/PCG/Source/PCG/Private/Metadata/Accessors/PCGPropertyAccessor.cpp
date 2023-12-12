@@ -30,7 +30,7 @@ TArray<void*> PCGPropertyAccessor::GetContainerKeys(int32 Index, int32 Range, IP
 	return ContainerKeys;
 }
 
-IPCGPropertyChainAccessor::IPCGPropertyChainAccessor(const FProperty* Property, TArray<const FProperty*>&& ExtraProperties)
+IPCGPropertyChain::IPCGPropertyChain(const FProperty* Property, TArray<const FProperty*>&& ExtraProperties)
 	: PropertyChain(std::forward<TArray<const FProperty*>>(ExtraProperties))
 {
 	// Fix property chain
