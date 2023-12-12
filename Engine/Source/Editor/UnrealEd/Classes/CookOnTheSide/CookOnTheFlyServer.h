@@ -1497,6 +1497,8 @@ private:
 	bool bCookFilter = false;
 	/** True if commandline arguments specify that packages on commandline should be cooked first. */
 	bool bCookFirst = false;
+	/** True if commandline arguments specify that packages on commandline should be cooked last. */
+	bool bCookLast = false;
 	/** True if experimental optimizations for fast startup should be used. */
 	bool bCookFastStartup = false;
 	/**

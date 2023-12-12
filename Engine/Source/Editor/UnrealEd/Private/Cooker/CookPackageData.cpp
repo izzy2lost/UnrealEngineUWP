@@ -89,7 +89,7 @@ bool FPackagePlatformData::NeedsCooking(const ITargetPlatform* PlatformItBelongs
 
 FPackageData::FPackageData(FPackageDatas& PackageDatas, const FName& InPackageName, const FName& InFileName)
 	: GeneratedOwner(nullptr), PackageName(InPackageName), FileName(InFileName), PackageDatas(PackageDatas)
-	, Instigator(EInstigator::NotYetRequested), bIsUrgent(0)
+	, Instigator(EInstigator::NotYetRequested), bIsUrgent(0), bIsCookLast(0)
 	, bIsVisited(0), bIsPreloadAttempted(0)
 	, bIsPreloaded(0), bHasSaveCache(0), bPrepareSaveFailed(0), bPrepareSaveRequiresGC(0)
 	, bCookedPlatformDataStarted(0), bCookedPlatformDataCalled(0), bCookedPlatformDataComplete(0)
@@ -266,6 +266,25 @@ void FPackageData::AddUrgency(bool bUrgent, bool bAllowUpdateState)
 	{
 		SendToState(GetState(), ESendFlags::QueueAddAndRemove, EStateChangeReason::UrgencyUpdated);
 	}
+}
+
+void FPackageData::SetIsCookLast(bool bValue)
+{
+	bool bWasCookLast = GetIsCookLast();
+	if (bWasCookLast != bValue)
+	{
+		bIsCookLast = static_cast<uint32>(bValue);
+		PackageDatas.GetMonitor().OnCookLastChanged(*this);
+	}
+}
+
+void FPackageData::ClearCookLastUrgency()
+{
+	if (!GetIsCookLast() || !GetIsUrgent())
+	{
+		return;
+	}
+	SetIsUrgent(false);
 }
 
 void FPackageData::SetInstigator(FRequestCluster& Cluster, FInstigator&& InInstigator)
@@ -1798,7 +1817,7 @@ void FGeneratorPackage::PreGarbageCollect(FCookGenerationInfo& Info, TArray<TObj
 	check(Info.PackageData); // Caller validates this is non-null
 	if (Info.GetSaveState() > FCookGenerationInfo::ESaveState::CallPopulate)
 	{
-		if (IsUseInternalReferenceToAvoidGarbageCollect())
+		if (IsUseInternalReferenceToAvoidGarbageCollect() || Info.PackageData->GetIsCookLast())
 		{
 			UPackage* Package = Info.PackageData->GetPackage();
 			if (Package)
@@ -2499,6 +2518,7 @@ void FPendingCookedPlatformDataCancelManager::Release(FPendingCookedPlatformData
 FPackageDataMonitor::FPackageDataMonitor()
 {
 	FMemory::Memset(NumUrgentInState, 0);
+	FMemory::Memset(NumCookLastInState, 0);
 }
 
 int32 FPackageDataMonitor::GetNumUrgent() const
@@ -2513,7 +2533,25 @@ int32 FPackageDataMonitor::GetNumUrgent() const
 	return NumUrgent;
 }
 
+int32 FPackageDataMonitor::GetNumCookLast() const
+{
+	int32 Num = 0;
+	for (EPackageState State = EPackageState::Min;
+		State <= EPackageState::Max;
+		State = static_cast<EPackageState>(static_cast<uint32>(State) + 1))
+	{
+		Num += NumCookLastInState[static_cast<uint32>(State) - static_cast<uint32>(EPackageState::Min)];
+	}
+	return Num;
+}
+
 int32 FPackageDataMonitor::GetNumUrgent(EPackageState InState) const
+{
+	check(EPackageState::Min <= InState && InState <= EPackageState::Max);
+	return NumUrgentInState[static_cast<uint32>(InState) - static_cast<uint32>(EPackageState::Min)];
+}
+
+int32 FPackageDataMonitor::GetNumCookLast(EPackageState InState) const
 {
 	check(EPackageState::Min <= InState && InState <= EPackageState::Max);
 	return NumUrgentInState[static_cast<uint32>(InState) - static_cast<uint32>(EPackageState::Min)];
@@ -2572,6 +2610,12 @@ void FPackageDataMonitor::OnUrgencyChanged(FPackageData& PackageData)
 	TrackUrgentRequests(PackageData.GetState(), Delta);
 }
 
+void FPackageDataMonitor::OnCookLastChanged(FPackageData& PackageData)
+{
+	int32 Delta = PackageData.GetIsCookLast() ? 1 : -1;
+	TrackCookLastRequests(PackageData.GetState(), Delta);
+}
+
 void FPackageDataMonitor::OnStateChanged(FPackageData& PackageData, EPackageState OldState)
 {
 	EPackageState NewState = PackageData.GetState();
@@ -2580,7 +2624,11 @@ void FPackageDataMonitor::OnStateChanged(FPackageData& PackageData, EPackageStat
 		TrackUrgentRequests(OldState, -1);
 		TrackUrgentRequests(NewState, 1);
 	}
-
+	if (PackageData.GetIsCookLast())
+	{
+		TrackCookLastRequests(OldState, -1);
+		TrackCookLastRequests(NewState, 1);
+	}
 	bool bOldStateAssignedToLocal = OldState != EPackageState::Idle && OldState != EPackageState::AssignedToWorker;
 	bool bNewStateAssignedToLocal = NewState != EPackageState::Idle && NewState != EPackageState::AssignedToWorker;
 	if (bOldStateAssignedToLocal != bNewStateAssignedToLocal)
@@ -2594,6 +2642,16 @@ void FPackageDataMonitor::TrackUrgentRequests(EPackageState State, int32 Delta)
 	check(EPackageState::Min <= State && State <= EPackageState::Max);
 	NumUrgentInState[static_cast<uint32>(State) - static_cast<uint32>(EPackageState::Min)] += Delta;
 	check(NumUrgentInState[static_cast<uint32>(State) - static_cast<uint32>(EPackageState::Min)] >= 0);
+}
+
+void FPackageDataMonitor::TrackCookLastRequests(EPackageState State, int32 Delta)
+{
+	check(EPackageState::Min <= State && State <= EPackageState::Max);
+	if (State != EPackageState::Idle)
+	{
+		NumCookLastInState[static_cast<uint32>(State) - static_cast<uint32>(EPackageState::Min)] += Delta;
+		check(NumCookLastInState[static_cast<uint32>(State) - static_cast<uint32>(EPackageState::Min)] >= 0);
+	}
 }
 
 int32 FPackageDataMonitor::GetMPCookAssignedFenceMarker() const

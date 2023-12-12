@@ -382,6 +382,7 @@ public:
 	 * Move it to front of its current container if bAllowUpdateState.
 	 */
 	void AddUrgency(bool bUrgent, bool bAllowUpdateState);
+	void ClearCookLastUrgency();
 
 	/** Accessor for RequestClusters to add reachable platforms directly without modifying dependent data. */
 	void AddReachablePlatforms(FRequestCluster& RequestCluster, TConstArrayView<const ITargetPlatform*> Platforms,
@@ -495,6 +496,10 @@ public:
 	 */
 	void AddCompletionCallback(TConstArrayView<const ITargetPlatform*> TargetPlatforms,
 		FCompletionCallback&& InCompletionCallback);
+
+	/** Get/Set whether the package has been marked for cooking after all other packages, via -cooklast */
+	void SetIsCookLast(bool bValue);
+	bool GetIsCookLast() const { return bIsCookLast != 0;}
 
 	/**
 	 * Get/Set a visited flag used when searching graphs of PackageData. User of the graph is responsible for 
@@ -786,6 +791,7 @@ private:
 	FWorkerId WorkerAssignmentConstraint = FWorkerId::Invalid();
 	uint32 State : int32(EPackageState::BitCount);
 	uint32 bIsUrgent : 1;
+	uint32 bIsCookLast : 1;
 	uint32 bIsVisited : 1;
 	uint32 bIsPreloadAttempted : 1;
 	uint32 bIsPreloaded : 1;
@@ -1103,6 +1109,10 @@ public:
 	 * Used to prioritize scheduler actions.
 	 */
 	int32 GetNumUrgent(EPackageState InState) const;
+	/** Report the number of CookLast packages. */
+	int32 GetNumCookLast() const;
+	/** Report the number of CookLast packages in the given state. */
+	int32 GetNumCookLast(EPackageState InState) const;
 
 	/** Callback called from FPackageData when it transitions to or from inprogress. */
 	void OnInProgressChanged(FPackageData& PackageData, bool bInProgress);
@@ -1113,6 +1123,8 @@ public:
 	void OnLastCookedPlatformRemoved(FPackageData& PackageData);
 	/** Callback called from FPackageData when it has changed its urgency. */
 	void OnUrgencyChanged(FPackageData& PackageData);
+	/** Callback called from FPackageData when it has changed its value of IsCookLast. */
+	void OnCookLastChanged(FPackageData& PackageData);
 	/** Callback called from FPackageData when it has changed its state. */
 	void OnStateChanged(FPackageData& PackageData, EPackageState OldState);
 
@@ -1122,11 +1134,14 @@ public:
 private:
 	/** Increment or decrement the NumUrgent counter for the given state. */
 	void TrackUrgentRequests(EPackageState State, int32 Delta);
+	/** Increment or decrement the NumCookLast counter for the given state. */
+	void TrackCookLastRequests(EPackageState State, int32 Delta);
 
 	int32 NumInProgress = 0;
 	int32 NumCooked[(uint8)ECookResult::Count]{};
 	int32 NumPreloadAllocated = 0;
 	int32 NumUrgentInState[static_cast<uint32>(EPackageState::Count)];
+	int32 NumCookLastInState[static_cast<uint32>(EPackageState::Count)];
 	int32 MPCookAssignedFenceMarker = 0;
 	int32 MPCookRetiredFenceMarker = 0;
 };

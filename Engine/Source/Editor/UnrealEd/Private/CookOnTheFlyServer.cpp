@@ -3648,20 +3648,40 @@ UE::Cook::EPollStatus UCookOnTheFlyServer::PrepareSave(UE::Cook::FPackageData& P
 {
 	using namespace UE::Cook;
 
+	EPollStatus Result = EPollStatus::Incomplete;
 	if (PackageData.GetCookedPlatformDataComplete())
 	{
-		return EPollStatus::Success;
+		Result = EPollStatus::Success;
 	}
-	if (PackageData.HasPrepareSaveFailed())
+	else if (PackageData.HasPrepareSaveFailed())
 	{
-		return EPollStatus::Error;
+		Result = EPollStatus::Error;
 	}
-	UE_SCOPED_HIERARCHICAL_COOKTIMER_AND_DURATION(PrepareSave, DetailedCookStats::TickCookOnTheSidePrepareSaveTimeSec);
-	EPollStatus Result = PrepareSaveInternal(PackageData, Timer, bPrecaching);
-	if (Result == EPollStatus::Error)
+	else
 	{
-		PackageData.SetHasPrepareSaveFailed(true);
+		UE_SCOPED_HIERARCHICAL_COOKTIMER_AND_DURATION(PrepareSave, DetailedCookStats::TickCookOnTheSidePrepareSaveTimeSec);
+		Result = PrepareSaveInternal(PackageData, Timer, bPrecaching);
+		if (Result == EPollStatus::Error)
+		{
+			PackageData.SetHasPrepareSaveFailed(true);
+		}
 	}
+
+	if (Result == EPollStatus::Success && PackageData.GetIsCookLast())
+	{
+		// No longer urgent
+		PackageData.ClearCookLastUrgency();
+		// Mark it as still not ready if there are non-cook-last packages still in progress
+		if (PackageDatas->GetMonitor().GetNumInProgress() - PackageDatas->GetMonitor().GetNumCookLast() > 0)
+		{
+			Result = EPollStatus::Incomplete;
+		}
+		else
+		{
+			UE_LOG(LogCook, Display, TEXT("CookLast: All other packages cooked. Releasing %s."), *PackageData.GetPackageName().ToString());
+		}
+	}
+
 	return Result;
 }
 
@@ -4478,7 +4498,7 @@ void UCookOnTheFlyServer::PumpSaves(UE::Cook::FTickStackData& StackData, uint32 
 					// Poll the results again and check whether we are now done
 					PackageDatas->PollPendingCookedPlatformDatas(true, LastCookableObjectTickTime);
 					PrepareSaveStatus = PrepareSave(PackageData, StackData.Timer, false /* bPrecaching */);
-				} while (!StackData.Timer.IsActionTimeUp() && PrepareSaveStatus == EPollStatus::Incomplete);
+				} while (!StackData.Timer.IsActionTimeUp() && PrepareSaveStatus == EPollStatus::Incomplete && PackageData.GetIsUrgent());
 			}
 			// If we couldn't postpone or wait, then we need to exit and try again later
 			if (PrepareSaveStatus != EPollStatus::Success)
@@ -4517,7 +4537,7 @@ void UCookOnTheFlyServer::PumpSaves(UE::Cook::FTickStackData& StackData, uint32 
 			}
 		}
 
-		FSaveCookedPackageContext Context(*this, PackageData, PlatformsForPackage, StackData);
+ 		FSaveCookedPackageContext Context(*this, PackageData, PlatformsForPackage, StackData);
 		SaveCookedPackage(Context);
 		if (Context.bHasTimeOut)
 		{
@@ -5019,7 +5039,7 @@ static void ConstructSoftGCPackageToObjectList(TArray<UObject*>& PackageToObject
 			if (Index > PreviousPackageStartIndex)
 			{
 				UPackage::SoftGCPackageToObjectList.Add(PreviousPackage,
-																								ObjectPtrWrap(TArrayView<UObject*>(PackageToObjectListBufferPtr + PreviousPackageStartIndex, Index - PreviousPackageStartIndex)));
+					ObjectPtrWrap(TArrayView<UObject*>(PackageToObjectListBufferPtr + PreviousPackageStartIndex, Index - PreviousPackageStartIndex)));
 			}
 			PreviousPackage = Pair.Package;
 			PreviousPackageStartIndex = Index;
@@ -5029,7 +5049,7 @@ static void ConstructSoftGCPackageToObjectList(TArray<UObject*>& PackageToObject
 	if (PackageObjectPairsNum > PreviousPackageStartIndex)
 	{
 		UPackage::SoftGCPackageToObjectList.Add(PreviousPackage,
-																						ObjectPtrWrap(TArrayView<UObject*>(PackageToObjectListBufferPtr + PreviousPackageStartIndex, PackageObjectPairsNum - PreviousPackageStartIndex)));
+			ObjectPtrWrap(TArrayView<UObject*>(PackageToObjectListBufferPtr + PreviousPackageStartIndex, PackageObjectPairsNum - PreviousPackageStartIndex)));
 	}
 }
 
@@ -5072,6 +5092,7 @@ void UCookOnTheFlyServer::PreGarbageCollect()
 	{
 		check(SavingPackageData->GetPackage());
 		GCKeepObjects.Add(SavingPackageData->GetPackage());
+		GCKeepPackageDatas.Add(SavingPackageData);
 	}
 
 
@@ -5093,6 +5114,11 @@ void UCookOnTheFlyServer::PreGarbageCollect()
 			{
 				ReleaseCookedPlatformData(*PackageData, UE::Cook::EStateChangeReason::GeneratorPreGarbageCollected);
 			}
+		}
+		if (PackageData->GetIsCookLast())
+		{
+			GCKeepPackages.Add(PackageData->GetPackage());
+			GCKeepPackageDatas.Add(PackageData);
 		}
 	}
 	
@@ -5293,6 +5319,11 @@ void UCookOnTheFlyServer::PostGarbageCollect()
 	for (FPackageData* PackageData : Demotes)
 	{
 		PackageData->SendToState(EPackageState::Request, ESendFlags::QueueRemove, EStateChangeReason::GarbageCollected);
+		if (PackageData->GetIsCookLast())
+		{
+			// CookLast packages in SaveState have had their urgency removed. Add it back if we need to demote them.
+			PackageData->AddUrgency(true /* bValue */, false /* bAllowUpdateState */);
+		}
 		PackageDatas->GetRequestQueue().AddRequest(PackageData, /* bForceUrgent */ true);
 	}
 
@@ -6846,7 +6877,13 @@ void UCookOnTheFlyServer::SetInitializeConfigSettings(UE::Cook::FInitializeConfi
 	}
 
 	bCookFirst = FParse::Param(FCommandLine::Get(), TEXT("CookFirst"));
-	bRandomizeCookOrder = !bCookFirst && (FParse::Param(FCommandLine::Get(), TEXT("RANDOMPACKAGEORDER")) ||
+	bCookLast = FParse::Param(FCommandLine::Get(), TEXT("CookLast"));
+	if (bCookFirst && bCookLast)
+	{
+		UE_LOG(LogCook, Error, TEXT("-CookFirst and -CookLast are mutually exclusive. Ignoring -CookLast"));
+		bCookLast = false;
+	}
+	bRandomizeCookOrder = !bCookFirst && !bCookLast && (FParse::Param(FCommandLine::Get(), TEXT("RANDOMPACKAGEORDER")) ||
 		(FParse::Param(FCommandLine::Get(), TEXT("DIFFONLY")) && !FParse::Param(FCommandLine::Get(), TEXT("DIFFNORANDCOOK"))));
 
 	ParseCookFilters();
@@ -11534,15 +11571,25 @@ void UCookOnTheFlyServer::GenerateInitialRequests(FBeginCookContext& BeginContex
 		UE_SCOPED_HIERARCHICAL_COOKTIMER(GenerateLongPackageName);
 		GenerateLongPackageNames(FilesInPath, FilesInPathInstigators);
 	}
-	TSet<FName> CookFirstPackages;
-	if (bCookFirst)
+	TSet<FName> CookFirstOrLastPackages;
+	bool bCookFirstOrLast = bCookFirst || bCookLast;
+	if (bCookFirstOrLast)
 	{
 		for (const FString& CookMap : CookMaps)
 		{
 			FString LongPackageName;
 			if (FPackageName::TryConvertFilenameToLongPackageName(CookMap, LongPackageName))
 			{
-				CookFirstPackages.Add(FName(*LongPackageName));
+				FName LongPackageFName(*LongPackageName);
+				CookFirstOrLastPackages.Add(LongPackageFName);
+				if (bCookLast)
+				{
+					UE::Cook::FPackageData* PackageDataToDelay = PackageDatas->TryAddPackageDataByPackageName(LongPackageFName);
+					if (PackageDataToDelay)
+					{
+						PackageDataToDelay->SetIsCookLast(true);
+					}
+				}
 			}
 		}
 	}
@@ -11561,7 +11608,7 @@ void UCookOnTheFlyServer::GenerateInitialRequests(FBeginCookContext& BeginContex
 		if (!PackageFileFName.IsNone())
 		{
 			UE::Cook::FFilePlatformRequest Request(PackageFileFName, MoveTemp(Instigator), TargetPlatforms);
-			Request.SetUrgent(bCookFirst && CookFirstPackages.Contains(PackageName));
+			Request.SetUrgent(bCookFirstOrLast && CookFirstOrLastPackages.Contains(PackageName));
 			WorkerRequests->AddStartCookByTheBookRequest(MoveTemp(Request));
 		}
 		else if (!FLinkerLoad::IsKnownMissingPackage(PackageName))
