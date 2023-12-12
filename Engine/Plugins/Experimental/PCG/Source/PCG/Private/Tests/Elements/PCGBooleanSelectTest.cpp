@@ -2,7 +2,7 @@
 
 #include "PCGContext.h"
 #include "Data/PCGPointData.h"
-#include "Elements/PCGBooleanSelect.h"
+#include "Elements/ControlFlow/PCGBooleanSelect.h"
 #include "Tests/PCGTestsCommon.h"
 
 #if WITH_EDITOR
@@ -27,15 +27,13 @@ protected:
 
 		UTEST_TRUE("Test element created and valid", TestElement.IsValid());
 
-		UPCGPointData* FirstPointData = PCGTestsCommon::CreateEmptyPointData();
 		FPCGTaggedData& FirstTaggedData = TestData.InputData.TaggedData.Emplace_GetRef();
-		FirstTaggedData.Data = FirstPointData;
+		FirstTaggedData.Data = PCGTestsCommon::CreateEmptyPointData();
 		FirstTaggedData.Tags.Emplace(FirstDataTag);
 		FirstTaggedData.Pin = FirstInputPinLabel;
 
-		UPCGPointData* SecondPointData = PCGTestsCommon::CreateEmptyPointData();
 		FPCGTaggedData& SecondTaggedData = TestData.InputData.TaggedData.Emplace_GetRef();
-		SecondTaggedData.Data = SecondPointData;
+		SecondTaggedData.Data = PCGTestsCommon::CreateEmptyPointData();
 		SecondTaggedData.Tags.Emplace(SecondDataTag);
 		SecondTaggedData.Pin = SecondInputPinLabel;
 

@@ -1,6 +1,6 @@
 // Copyright Epic Games, Inc. All Rights Reserved.
 
-#include "Elements/PCGBranch.h"
+#include "Elements/ControlFlow/PCGBranch.h"
 
 #include "PCGCommon.h"
 #include "PCGContext.h"
@@ -65,42 +65,10 @@ FPCGElementPtr UPCGBranchSettings::CreateElement() const
 	return MakeShared<FPCGBranchElement>();
 }
 
-bool UPCGBranchSettings::IsDynamicBranch() const
-{
-	UPCGNode* Node = Cast<UPCGNode>(GetOuter());
-
-	if (!Node && OriginalSettings)
-	{
-		Node = Cast<UPCGNode>(OriginalSettings->GetOuter());
-	}
-
-	if (!Node)
-	{
-		return false;
-	}
-
-	const FName PropertyName = GET_MEMBER_NAME_CHECKED(UPCGBranchSettings, bOutputToB);
-
-	const FPCGSettingsOverridableParam* Param = CachedOverridableParams.FindByPredicate([PropertyName](const FPCGSettingsOverridableParam& ParamToCheck)
-	{
-		return !ParamToCheck.PropertiesNames.IsEmpty() && ParamToCheck.PropertiesNames.Last() == PropertyName;
-	});
-
-	if (Param)
-	{
-		if (const UPCGPin* Pin = Node->GetInputPin(Param->Label))
-		{
-			return Pin->IsConnected();
-		}
-	}
-
-	return false;
-}
-
 bool UPCGBranchSettings::IsPinStaticallyActive(const FName& PinLabel) const
 {
 	// Dynamic branches are never known in advance - assume all branches are active prior to execution.
-	if (IsDynamicBranch())
+	if (IsPropertyOverriddenByPin(GET_MEMBER_NAME_CHECKED(UPCGBranchSettings, bOutputToB)))
 	{
 		return true;
 	}

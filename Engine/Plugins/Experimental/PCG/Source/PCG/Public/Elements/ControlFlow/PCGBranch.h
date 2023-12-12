@@ -8,7 +8,7 @@
 /**
  * Routes input data to one of two outputs, based on a boolean condition.
  */
-UCLASS(BlueprintType, ClassGroup = (Procedural), meta=(Keywords = "if bool branch"))
+UCLASS(BlueprintType, ClassGroup = (Procedural), meta=(Keywords = "if bool switch"))
 class UPCGBranchSettings : public UPCGSettings
 {
 	GENERATED_BODY()
@@ -32,9 +32,6 @@ protected:
 	virtual TArray<FPCGPinProperties> OutputPinProperties() const override;
 	virtual FPCGElementPtr CreateElement() const override;
 	//~End UPCGSettings interface
-
-	/** Branch is dynamic if selection value is overridden / cannot be determined prior to execution. */
-	virtual bool IsDynamicBranch() const;
 
 public:
 	UPROPERTY(BlueprintReadWrite, EditAnywhere, Category=Settings, meta=(PCG_Overridable))

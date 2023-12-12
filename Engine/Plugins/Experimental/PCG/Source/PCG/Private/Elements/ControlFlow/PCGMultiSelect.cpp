@@ -1,6 +1,6 @@
 // Copyright Epic Games, Inc. All Rights Reserved.
 
-#include "Elements/PCGMultiSelect.h"
+#include "Elements/ControlFlow/PCGMultiSelect.h"
 
 #include "PCGContext.h"
 #include "PCGModule.h"
@@ -11,10 +11,6 @@
 namespace PCGMultiSelectConstants
 {
 	const FText NodeTitleBase = LOCTEXT("NodeTitleBase", "Select (Multi)");
-	const FText SubtitleInt = LOCTEXT("SubtitleInt", "Integer Selection");
-	const FText SubtitleEnum = LOCTEXT("SubtitleEnum", "Enum Selection");
-	const FText SubtitleString = LOCTEXT("SubtitleString", "String Selection");
-	const FName DefaultPathPinLabel = TEXT("Default");
 }
 
 void UPCGMultiSelectSettings::PostLoad()
@@ -78,7 +74,7 @@ FString UPCGMultiSelectSettings::GetAdditionalTitleInformation() const
 	{
 		case EPCGControlFlowSelectionMode::Integer:
 		{
-			FString Subtitle = PCGMultiSelectConstants::SubtitleInt.ToString();
+			FString Subtitle = PCGControlFlowConstants::SubtitleInt.ToString();
 			if (!IsPropertyOverriddenByPin(GET_MEMBER_NAME_CHECKED(UPCGMultiSelectSettings, IntegerSelection)))
 			{
 				Subtitle += FString::Format(TEXT(": {0}"), {IntegerSelection});
@@ -90,7 +86,7 @@ FString UPCGMultiSelectSettings::GetAdditionalTitleInformation() const
 		case EPCGControlFlowSelectionMode::Enum:
 			if (EnumSelection.Class)
 			{
-				FString Subtitle = PCGMultiSelectConstants::SubtitleEnum.ToString();
+				FString Subtitle = PCGControlFlowConstants::SubtitleEnum.ToString();
 				if (!IsPropertyOverriddenByPin({GET_MEMBER_NAME_CHECKED(UPCGMultiSelectSettings, EnumSelection), GET_MEMBER_NAME_CHECKED(FEnumSelector, Value)}))
 				{
 					Subtitle += EnumSelection.Class->GetNameStringByValue(EnumSelection.Value);
@@ -102,7 +98,7 @@ FString UPCGMultiSelectSettings::GetAdditionalTitleInformation() const
 
 		case EPCGControlFlowSelectionMode::String:
 			{
-				FString Subtitle = PCGMultiSelectConstants::SubtitleString.ToString();
+				FString Subtitle = PCGControlFlowConstants::SubtitleString.ToString();
 				if (!IsPropertyOverriddenByPin(GET_MEMBER_NAME_CHECKED(UPCGMultiSelectSettings, StringSelection)))
 				{
 					Subtitle += FString::Format(TEXT(": {0}"), {StringSelection});
@@ -157,7 +153,7 @@ TArray<FPCGPinProperties> UPCGMultiSelectSettings::InputPinProperties() const
 			break;
 	}
 
-	PinProperties.Emplace(PCGMultiSelectConstants::DefaultPathPinLabel);
+	PinProperties.Emplace(PCGControlFlowConstants::DefaultPathPinLabel);
 
 	return PinProperties;
 }
@@ -231,7 +227,7 @@ bool UPCGMultiSelectSettings::GetSelectedPinLabel(FName& OutSelectedPinLabel) co
 	}
 	else
 	{
-		OutSelectedPinLabel = PCGMultiSelectConstants::DefaultPathPinLabel;
+		OutSelectedPinLabel = PCGControlFlowConstants::DefaultPathPinLabel;
 
 		return true;
 	}

@@ -2,7 +2,7 @@
 
 #include "PCGContext.h"
 #include "Data/PCGPointData.h"
-#include "Elements/PCGMultiSelect.h"
+#include "Elements/ControlFlow/PCGMultiSelect.h"
 #include "Tests/PCGTestsCommon.h"
 
 #if WITH_EDITOR
@@ -47,18 +47,16 @@ protected:
 		{
 			if (!SelectElementPinProperties[i].bAdvancedPin && SelectElementPinProperties[i].Label != DefaultPathPinLabel)
 			{
-				UPCGPointData* PointData = PCGTestsCommon::CreateEmptyPointData();
 				FPCGTaggedData& TaggedData = TestData.InputData.TaggedData.Emplace_GetRef();
-				TaggedData.Data = PointData;
+				TaggedData.Data = PCGTestsCommon::CreateEmptyPointData();
 				TaggedData.Tags.Emplace(CreateDataTag(i));
 				TaggedData.Pin = SelectElementPinProperties[i].Label;
 			}
 		}
 
 		// Add an input to the default path
-		UPCGPointData* PointData = PCGTestsCommon::CreateEmptyPointData();
 		FPCGTaggedData& TaggedData = TestData.InputData.TaggedData.Emplace_GetRef();
-		TaggedData.Data = PointData;
+		TaggedData.Data = PCGTestsCommon::CreateEmptyPointData();
 		TaggedData.Tags.Emplace(DefaultPathPinDataTag);
 		TaggedData.Pin = DefaultPathPinLabel;
 

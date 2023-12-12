@@ -7,29 +7,14 @@
 #include "Metadata/Accessors/IPCGAttributeAccessor.h"
 #include "Metadata/Accessors/PCGAttributeAccessorHelpers.h"
 #include "Metadata/Accessors/PCGAttributeAccessorKeys.h"
-#include "UObject/UnrealType.h"
 
 #include "UObject/UnrealType.h" // IWYU pragma: keep
-
-#include "PCGPropertyHelpers.generated.h"
 
 enum class EPCGMetadataTypes : uint8;
 
 struct FPCGContext;
 class UPCGData;
 class UPCGParamData;
-
-USTRUCT(BlueprintType, meta = (Hidden))
-struct PCG_API FEnumSelector
-{
-	GENERATED_BODY()
-
-	UPROPERTY(DisplayName="Enum Class", meta=(PCG_NotOverridable))
-	UEnum* Class = nullptr;
-
-	UPROPERTY(DisplayName="Enum Value")
-	int64 Value = 0;
-};
 
 namespace PCGPropertyHelpers
 {

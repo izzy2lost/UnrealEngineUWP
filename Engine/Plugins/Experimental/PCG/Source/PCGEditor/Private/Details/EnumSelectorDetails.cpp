@@ -2,7 +2,7 @@
 
 #include "Details/EnumSelectorDetails.h"
 
-#include "Helpers/PCGPropertyHelpers.h"
+#include "Elements/ControlFlow/PCGControlFlow.h"
 
 #include "DetailLayoutBuilder.h"
 #include "DetailWidgetRow.h"

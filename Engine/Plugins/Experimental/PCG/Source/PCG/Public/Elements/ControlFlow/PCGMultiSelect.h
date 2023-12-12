@@ -3,17 +3,9 @@
 #pragma once
 
 #include "PCGSettings.h"
-#include "Helpers/PCGPropertyHelpers.h"
+#include "PCGControlFlow.h"
 
 #include "PCGMultiSelect.generated.h"
-
-UENUM()
-enum class EPCGControlFlowSelectionMode : uint8
-{
-	Integer,
-	Enum,
-	String
-};
 
 /**
  * Selects data from any number of input pins, based on a static selection criteria (Int/String/Enum) 
