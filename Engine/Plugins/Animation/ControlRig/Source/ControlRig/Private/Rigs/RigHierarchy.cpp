@@ -1233,6 +1233,10 @@ FRigName URigHierarchy::JoinNameSpace(const FRigName& InLeft, const FRigName& In
 
 FString URigHierarchy::JoinNameSpace(const FString& InLeft, const FString& InRight)
 {
+	if(InLeft.EndsWith(UModularRig::NamespaceSeparator))
+	{
+		return InLeft + InRight;
+	}
 	return InLeft + UModularRig::NamespaceSeparator + InRight;
 }
 

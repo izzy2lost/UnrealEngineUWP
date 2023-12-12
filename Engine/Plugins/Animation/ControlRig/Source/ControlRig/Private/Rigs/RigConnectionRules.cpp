@@ -107,7 +107,7 @@ const FRigConnectorElement* FRigConnectionRuleInput::FindPrimaryConnector(FText*
 	check(Hierarchy);
 	check(Module);
 
-	const FName ModuleNameSpace = *Module->GetPath();
+	const FName ModuleNameSpace = *Module->GetNamespace();
 
 	const FRigConnectorElement* PrimaryConnector = nullptr;
 	Hierarchy->ForEach<FRigConnectorElement>(
@@ -143,7 +143,7 @@ TArray<const FRigConnectorElement*> FRigConnectionRuleInput::FindSecondaryConnec
 	check(Hierarchy);
 	check(Module);
 
-	const FName ModuleNameSpace = *Module->GetPath();
+	const FName ModuleNameSpace = *Module->GetNamespace();
 
 	TArray<const FRigConnectorElement*> SecondaryConnectors;
 	Hierarchy->ForEach<FRigConnectorElement>(

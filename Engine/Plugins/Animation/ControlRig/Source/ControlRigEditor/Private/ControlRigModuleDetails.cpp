@@ -705,7 +705,14 @@ void FRigModuleInstanceDetails::OnElementNameChanged(TSharedPtr<FString> InItem,
 				if(const FRigModuleInstance* Module = Info.GetModule())
 				{
 					FRigElementKey NamespacedConnector(*URigHierarchy::JoinNameSpace(Module->GetPath(), Connector.Name.ToString()), ERigElementType::Connector);
-					Controller->ConnectConnectorToElement(NamespacedConnector, *TargetKey);
+					if(!Blueprint->GetDebuggedControlRig()->GetHierarchy()->Contains(*TargetKey))
+					{
+						Controller->DisconnectConnector(NamespacedConnector);
+					}
+					else
+					{
+						Controller->ConnectConnectorToElement(NamespacedConnector, *TargetKey);
+					}
 				}
 			}
 		}
@@ -728,7 +735,14 @@ void FRigModuleInstanceDetails::OnElementTypeChanged(ERigElementType InElementTy
 				if(const FRigModuleInstance* Module = Info.GetModule())
 				{
 					FRigElementKey NamespacedConnector(*URigHierarchy::JoinNameSpace(Module->GetPath(), Connector.Name.ToString()), ERigElementType::Connector);
-					Controller->ConnectConnectorToElement(NamespacedConnector, *TargetKey);
+					if(!Blueprint->GetDebuggedControlRig()->GetHierarchy()->Contains(*TargetKey))
+					{
+						Controller->DisconnectConnector(NamespacedConnector);
+					}
+					else
+					{
+						Controller->ConnectConnectorToElement(NamespacedConnector, *TargetKey);
+					}
 				}
 			}
 		}

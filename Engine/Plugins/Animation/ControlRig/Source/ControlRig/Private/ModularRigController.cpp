@@ -214,6 +214,70 @@ bool UModularRigController::ConnectConnectorToElement(const FRigElementKey& InCo
 	return true;
 }
 
+bool UModularRigController::DisconnectConnector(const FRigElementKey& InConnectorKey, bool bSetupUndo)
+{
+	FString ConnectorParentPath, ConnectorName;
+	if (!InConnectorKey.Name.ToString().Split(UModularRig::NamespaceSeparator, &ConnectorParentPath, &ConnectorName, ESearchCase::CaseSensitive, ESearchDir::FromEnd))
+	{
+		UE_LOG(LogControlRig, Error, TEXT("Connector %s does not contain a namespace"), *InConnectorKey.ToString());
+		return false;
+	}
+	
+	FRigModuleReference* Module = FindModule(ConnectorParentPath);
+	if (!Module)
+	{
+		UE_LOG(LogControlRig, Error, TEXT("Could not find module %s"), *ConnectorParentPath);
+		return false;
+	}
+
+	UControlRig* RigCDO = Module->Class->GetDefaultObject<UControlRig>();
+	if (!RigCDO)
+	{
+		UE_LOG(LogControlRig, Error, TEXT("Invalid rig module class %s"), *Module->Class->GetPathName());
+		return false;
+	}
+
+	const FRigModuleConnector* ModuleConnector = RigCDO->GetRigModuleSettings().ExposedConnectors.FindByPredicate(
+		[ConnectorName](FRigModuleConnector& Connector)
+		{
+			return Connector.Name == ConnectorName;
+		});
+	if (!ModuleConnector)
+	{
+		UE_LOG(LogControlRig, Error, TEXT("Could not find connector %s in class %s"), *ConnectorName, *Module->Class->GetPathName());
+		return false;
+	}
+
+	UBlueprint* Blueprint = Cast<UBlueprint>(GetOuter());
+	const IRigHierarchyProvider* HierarchyProvider = CastChecked<IRigHierarchyProvider>(Blueprint);
+	const FRigConnectorElement* Connector = Cast<FRigConnectorElement>(HierarchyProvider->GetHierarchy()->Find(InConnectorKey));
+	if (!Connector)
+	{
+		UE_LOG(LogControlRig, Error, TEXT("Could not find connector %s"), *InConnectorKey.ToString());
+		return false;
+	}
+
+#if WITH_EDITOR
+	TSharedPtr<FScopedTransaction> TransactionPtr;
+	if (bSetupUndo)
+	{
+		TransactionPtr = MakeShared<FScopedTransaction>(NSLOCTEXT("ModularRigController", "ConnectModuleToElementTransaction", "Connect to Element"));
+		Blueprint->Modify();
+	}
+#endif 
+
+	const FRigElementKey ConnectorKey(*ConnectorName, ERigElementType::Connector);
+	Module->Connections.Remove(ConnectorKey);
+
+	Notify(EModularRigNotification::ConnectionChanged, Module);
+
+#if WITH_EDITOR
+	TransactionPtr.Reset();
+#endif
+	
+	return true;
+}
+
 bool UModularRigController::SetConfigValueInModule(const FString& InModulePath, const FName& InVariableName, const FString& InValue, bool bSetupUndo)
 {
 	FRigModuleReference* Module = FindModule(InModulePath);
@@ -537,7 +601,8 @@ bool UModularRigController::DeleteModule(const FString& InModulePath, bool bSetu
 #endif
 
 	// Unparent children (add them to root)
-	for (FRigModuleReference* Child : Module->CachedChildren)
+	TArray<FRigModuleReference*> PreviousChildren = Module->CachedChildren;
+	for (const FRigModuleReference* Child : PreviousChildren)
 	{
 		ReparentModule(Child->GetPath(), FString(), bSetupUndo);
 	}

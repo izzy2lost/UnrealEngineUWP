@@ -182,7 +182,16 @@ FRigUnit_HierarchyGetChainItemArray_Execute()
 			TArray<FRigElementKey> Keys;
 
 			const FRigTransformElement* StartElement = Cast<FRigTransformElement>(CachedStart.GetElement());
+			if(StartElement && (StartElement->GetType() == ERigElementType::Socket))
+			{
+				StartElement = Cast<FRigTransformElement>(ExecuteContext.Hierarchy->GetFirstParent(StartElement));
+			}
 			const FRigTransformElement* EndElement = Cast<FRigTransformElement>(CachedEnd.GetElement());
+			if(EndElement && (EndElement->GetType() == ERigElementType::Socket))
+			{
+				EndElement = Cast<FRigTransformElement>(ExecuteContext.Hierarchy->GetFirstParent(EndElement));
+			}
+			
 			if(StartElement == nullptr || EndElement == nullptr)
 			{
 				Keys.Reset();

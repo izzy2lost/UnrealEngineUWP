@@ -2571,7 +2571,6 @@ void FControlRigEditor::CacheNameLists()
 
 void FControlRigEditor::HandleSchematicViewportCreated(const TSharedRef<SSchematicGraphPanel>& InViewport)
 {
-	InViewport->UpdateNodeWidgetDelegate.BindRaw(&SchematicModel, &FControlRigSchematicModel::HandleUpdateSchematicNodes);
 	InViewport->OnNodeClickedDelegate.BindRaw(&SchematicModel, &FControlRigSchematicModel::HandleSchematicNodeClicked);
 	InViewport->OnBeginDragDelegate.BindRaw(&SchematicModel, &FControlRigSchematicModel::HandleSchematicBeginDrag);
 	InViewport->OnEndDragDelegate.BindRaw(&SchematicModel, &FControlRigSchematicModel::HandleSchematicEndDrag);

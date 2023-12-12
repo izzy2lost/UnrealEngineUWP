@@ -188,5 +188,5 @@ private:
 	friend class URigHierarchyController;
 	friend class FRigModuleInstanceDetails;
 	friend class UModularRig;
-	friend struct FControlRigSchematicModel;
+	friend class FControlRigSchematicModel;
 };

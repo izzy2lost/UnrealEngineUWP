@@ -1179,7 +1179,6 @@ void UControlRigBlueprint::HandlePackageDone()
 			return true;
 		});
 
-		RefreshModuleConnectors();
 		RecompileModularRig();
 	}
 }
@@ -1587,6 +1586,7 @@ UModularRigController* UControlRigBlueprint::GetModularRigController()
 
 void UControlRigBlueprint::RecompileModularRig()
 {
+	RefreshModuleConnectors();
 	OnModularRigPreCompiled().Broadcast(this);
 	if (const UClass* MyControlRigClass = GeneratedClass)
 	{
@@ -2325,10 +2325,7 @@ void UControlRigBlueprint::RefreshModuleConnectors(const FRigModuleReference* In
 			// setup the module information. this is needed so that newly added
 			// connectors result in the right namespace metadata etc
 			FRigVMExtendedExecuteContext& Context = CDO->GetRigVMExtendedExecuteContext();
-			FRigHierarchyExecuteContextBracket HierarchyContextGuard(Controller->GetHierarchy(), &Context);
 			FControlRigExecuteContext& PublicContext = Context.GetPublicDataSafe<FControlRigExecuteContext>();
-			FControlRigExecuteContextRigModuleGuard RigModuleGuard(PublicContext, InModule->GetNamespace());
-		
 			const UControlRig* ModuleCDO = InModule->Class->GetDefaultObject<UControlRig>();
 			const TArray<FRigModuleConnector>& ExpectedConnectors = ModuleCDO->GetRigModuleSettings().ExposedConnectors;
 
@@ -2348,6 +2345,7 @@ void UControlRigBlueprint::RefreshModuleConnectors(const FRigModuleReference* In
 				if(bRemoveAllConnectors || !bConnectorExpected)
 				{
 					(void)Controller->RemoveElement(Connector);
+					ConnectionMap.Remove(Connector);
 				}
 			}
 
@@ -2357,9 +2355,19 @@ void UControlRigBlueprint::RefreshModuleConnectors(const FRigModuleReference* In
 				for (const FRigModuleConnector& Connector : ExpectedConnectors)
 				{
 					const FName ConnectorName = *Connector.Name;
-					if(!Hierarchy->Contains(FRigElementKey(ConnectorName, ERigElementType::Connector)))
+					const FName ConnectorNameWithNameSpace = *URigHierarchy::JoinNameSpace(InModule->GetNamespace(), Connector.Name);
+					const FRigElementKey ConnectorKeyWithNameSpace(ConnectorNameWithNameSpace, ERigElementType::Connector);
+					if(!Hierarchy->Contains(ConnectorKeyWithNameSpace))
 					{
+						FRigHierarchyExecuteContextBracket HierarchyContextGuard(Hierarchy, &Context);
+						FControlRigExecuteContextRigModuleGuard RigModuleGuard(PublicContext, InModule->GetNamespace());
 						(void)Controller->AddConnector(ConnectorName, Connector.Settings);
+					}
+					else
+					{
+						// copy the connector settings
+						FRigConnectorElement* ExistingConnector = Hierarchy->FindChecked<FRigConnectorElement>(ConnectorKeyWithNameSpace);
+						ExistingConnector->Settings = Connector.Settings;
 					}
 				}
 			}
@@ -2568,11 +2576,30 @@ void UControlRigBlueprint::HandleRigModulesModified(EModularRigNotification InNo
 			Hierarchy->Modify();
 			
 			const FString Namespace = InModule->GetNamespace();
+
+			TArray<FRigElementKey> ConnectionsToRemove;
+			for (TPair<FRigElementKey, FRigElementKey> ExistingConnection : ConnectionMap)
+			{
+				if(ExistingConnection.Key.Name.ToString().StartsWith(Namespace, ESearchCase::CaseSensitive))
+				{
+					if(!InModule->Connections.Contains(ExistingConnection.Key))
+					{
+						ConnectionsToRemove.Add(ExistingConnection.Key);
+					}
+				}
+			}
+				
+			for(const FRigElementKey& ConnectionToRemove : ConnectionsToRemove)
+			{
+				ConnectionMap.Remove(ConnectionToRemove);
+			}
+				
 			for (TPair<FRigElementKey, FRigElementKey> Connection : InModule->Connections)
 			{
 				const FString NamespacedName = FString::Printf(TEXT("%s%s"), *Namespace, *Connection.Key.Name.ToString());
 				ConnectionMap.FindOrAdd(FRigElementKey(*NamespacedName, ERigElementType::Connector)) = Connection.Value;
 			}
+				
 			HierarchyModifiedEvent.Broadcast(ERigHierarchyNotification::HierarchyReset, Hierarchy, nullptr);
 			break;
 		}

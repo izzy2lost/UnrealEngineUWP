@@ -163,7 +163,7 @@ struct CONTROLRIG_API FRigTypeConnectionRule : public FRigConnectionRule
 public:
 
 	FRigTypeConnectionRule()
-		: ElementType(ERigElementType::Connector)
+		: ElementType(ERigElementType::Socket)
 	{}
 
 	FRigTypeConnectionRule(ERigElementType InElementType)

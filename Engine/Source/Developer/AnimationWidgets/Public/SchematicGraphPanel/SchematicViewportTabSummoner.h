@@ -17,7 +17,7 @@ struct ANIMATIONWIDGETS_API FSchematicViewportArgs
 	{}
 
 	/** The model which contains the graph to display */
-	FSchematicGraph* SchematicGraph;
+	FSchematicGraphModel* SchematicGraph;
 	
 	/** Delegate fired when the viewport is created */
 	FOnSchematicViewportCreated OnViewportCreated;
@@ -35,7 +35,7 @@ public:
 	virtual FTabSpawnerEntry& RegisterTabSpawner(TSharedRef<FTabManager> TabManager, const FApplicationMode* CurrentApplicationMode) const;
 	virtual TSharedRef<SWidget> CreateTabBody(const FWorkflowTabSpawnInfo& Info) const override;
 
-	FSchematicGraph* SchematicGraph;
+	FSchematicGraphModel* SchematicGraph;
 	FOnSchematicViewportCreated OnViewportCreated;
 };
 #endif

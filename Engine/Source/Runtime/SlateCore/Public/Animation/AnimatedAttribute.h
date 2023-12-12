@@ -68,12 +68,13 @@ public:
 	 *
 	 * @param  InSettings		The settings for the interpolator
 	 * @param  InGetter			Delegate to bind
+	 * @param  InDefaultValue   The optional default value. If not specified the getter will be used to determine the default
 	 */
 	template< typename InterpolatorSettings >
-	[[nodiscard]] static TSharedRef< TAnimatedAttribute > CreateWithGetter( const InterpolatorSettings& InSettings, const FGetter& InGetter )
+	[[nodiscard]] static TSharedRef< TAnimatedAttribute > CreateWithGetter( const InterpolatorSettings& InSettings, const FGetter& InGetter, const TOptional<NumericType>& InDefaultValue = TOptional<NumericType>() )
 	{
 		TSharedRef< TAnimatedAttribute< NumericType > > Attribute = MakeShared< TAnimatedAttribute< NumericType > >(FPrivateToken{}, InSettings);
-		Attribute->Set(InGetter.Execute());
+		Attribute->Set(InDefaultValue.IsSet() ? InDefaultValue.GetValue() : InGetter.Execute());
 		Attribute->Getter = InGetter;
 		Attribute->Register();
 		return Attribute;
@@ -84,12 +85,13 @@ public:
 	 *
 	 * @param  InSettings		The settings for the interpolator
 	 * @param  InGetter			Delegate to bind
+	 * @param  InDefaultValue   The optional default value. If not specified the getter will be used to determine the default
 	 */
 	template< typename InterpolatorSettings >
-	[[nodiscard]] static TSharedRef< TAnimatedAttribute > CreateWithGetter( const InterpolatorSettings& InSettings, FGetter&& InGetter )
+	[[nodiscard]] static TSharedRef< TAnimatedAttribute > CreateWithGetter( const InterpolatorSettings& InSettings, FGetter&& InGetter, const TOptional<NumericType>& InDefaultValue = TOptional<NumericType>() )
 	{
 		TSharedRef< TAnimatedAttribute< NumericType > > Attribute = MakeShared< TAnimatedAttribute< NumericType > >(FPrivateToken{}, InSettings);
-		Attribute->Set(InGetter.Execute());
+		Attribute->Set(InDefaultValue.IsSet() ? InDefaultValue.GetValue() : InGetter.Execute());
 		Attribute->Getter = MoveTemp(InGetter);
 		Attribute->Register();
 		return Attribute;
