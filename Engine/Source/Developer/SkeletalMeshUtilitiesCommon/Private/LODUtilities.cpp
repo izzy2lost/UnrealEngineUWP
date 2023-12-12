@@ -2638,11 +2638,15 @@ bool FLODUtilities::UpdateAlternateSkinWeights(
 			}
 		}
 	}
-
+	
 	// Check if there are any points that have no weight assignments after all is said and done. Attempt to average across neighbors to reconstruct
 	// those weights. Currently this relies on these points being completely surrounded by at least two points that have weights assigned to them.
-	TBitArray<> UnassignedVertexBitmask(true, ImportDataDest.Points.Num());
-	for (SkeletalMeshImportData::FRawBoneInfluence& Influence: AlternateInfluences)
+	TBitArray<> UnassignedVertexBitmask(false, ImportDataDest.Points.Num());
+	for (const SkeletalMeshImportData::FVertex& Wedge: ImportDataDest.Wedges)
+	{
+		UnassignedVertexBitmask[Wedge.VertexIndex] = true;
+	}
+	for (const SkeletalMeshImportData::FRawBoneInfluence& Influence: AlternateInfluences)
 	{
 		UnassignedVertexBitmask[Influence.VertexIndex] = false;
 	}
