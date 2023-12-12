@@ -1112,6 +1112,14 @@ void FThreadTimingTrack::BuildFilteredDrawState(ITimingEventsTrackDrawStateBuild
 					TArray<FFilterContext> FilterContexts;
 
 					TraceServices::ITimeline<TraceServices::FTimingProfilerEvent>::EnumerateAsyncParams Params;
+					constexpr uint32 LargeTimelineThreshold = 50 * 1000 * 1000;
+					if (Timeline.GetEventCount() > LargeTimelineThreshold)
+					{
+						if (FilterConfigurator->IsKeyUsed(static_cast<int32>(EFilterField::Metadata)))
+						{
+							Params.MaxOccupancy = 0.75; // This filter can be slow so reduce occupancy to avoid starvation.
+						}
+					}
 					Params.IntervalStart = Viewport.GetStartTime();
 					Params.IntervalEnd = Viewport.GetEndTime();
 
@@ -1130,6 +1138,7 @@ void FThreadTimingTrack::BuildFilteredDrawState(ITimingEventsTrackDrawStateBuild
 							Context.AddFilterData<FString>(static_cast<int32>(EFilterField::TrackName), this->GetName());
 							Context.AddFilterData<int64>(static_cast<int32>(EFilterField::TimerId), 0);
 							Context.AddFilterData<int64>(static_cast<int32>(EFilterField::TimerName), 0);
+							Context.AddFilterData<int64>(static_cast<int32>(EFilterField::Metadata), 0);
 						}
 					};
 					Params.Callback = [this, &Builder, TimerReader, &FilteredEvents, &FilterContexts](double StartTime, double EndTime, uint32 Depth, const TraceServices::FTimingProfilerEvent& Event, uint32 TaskIndex)
@@ -1144,6 +1153,7 @@ void FThreadTimingTrack::BuildFilteredDrawState(ITimingEventsTrackDrawStateBuild
 							// The TimerName filter also translates to the numeric Id for performance reasons.
 							Context.SetFilterData<int64>(static_cast<int32>(EFilterField::TimerId), Timer->Id);
 							Context.SetFilterData<int64>(static_cast<int32>(EFilterField::TimerName), Timer->Id);
+							Context.SetFilterData<int64>(static_cast<int32>(EFilterField::Metadata), Event.TimerIndex);
 
 							if (FilterConfigurator->ApplyFilters(Context))
 							{
@@ -1785,6 +1795,7 @@ bool FThreadTimingTrack::FindTimingProfilerEvent(const FTimingEventSearchParamet
 	FilterConfiguratorContext.AddFilterData<FString>(static_cast<int32>(EFilterField::TrackName), this->GetName());
 	FilterConfiguratorContext.AddFilterData<int64>(static_cast<int32>(EFilterField::TimerId), 0);
 	FilterConfiguratorContext.AddFilterData<int64>(static_cast<int32>(EFilterField::TimerName), 0);
+	FilterConfiguratorContext.AddFilterData<int64>(static_cast<int32>(EFilterField::Metadata), 0);
 
 	return TTimingEventSearch<TraceServices::FTimingProfilerEvent>::Search(
 		InParameters,
@@ -1846,8 +1857,8 @@ bool FThreadTimingTrack::FindTimingProfilerEvent(const FTimingEventSearchParamet
 						FilterConfiguratorContext.SetFilterData<double>(static_cast<int32>(EFilterField::EndTime), EventEndTime);
 						FilterConfiguratorContext.SetFilterData<double>(static_cast<int32>(EFilterField::Duration), EventEndTime - EventStartTime);
 						FilterConfiguratorContext.SetFilterData<int64>(static_cast<int32>(EFilterField::TimerId), Timer->Id);
-						// The TimerName filter also translates to the numeric Id for performance reasons.
 						FilterConfiguratorContext.SetFilterData<int64>(static_cast<int32>(EFilterField::TimerName), Timer->Id);
+						FilterConfiguratorContext.SetFilterData<int64>(static_cast<int32>(EFilterField::Metadata), Event.TimerIndex);
 					}
 					return InParameters.FilterExecutor->ApplyFilters(FilterConfiguratorContext);
 				}

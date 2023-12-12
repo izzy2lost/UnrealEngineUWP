@@ -83,6 +83,8 @@ public:
 
 	void Update();
 
+	TSharedPtr<FFilterState> GetSelectedFilterState() { return FilterState; }
+
 private:
 	FFilterConfiguratorNode& operator=(const FFilterConfiguratorNode& Other);
 

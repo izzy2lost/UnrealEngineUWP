@@ -11,6 +11,7 @@
 
 class FSpawnTabArgs;
 class SDockTab;
+class SHorizontalBox;
 class SWidget;
 
 namespace Insights
@@ -195,6 +196,9 @@ public:
 	virtual bool ApplyFilter(const FFilterContext& Context) const;
 
 	virtual void SetFilterValue(FString InTextValue);
+
+	virtual bool HasCustomUI() const { return false; }
+	virtual void AddCustomUI(TSharedRef<SHorizontalBox> LeftBox) {}
 
 protected:
 	TSharedRef<FFilter> Filter;

@@ -4975,6 +4975,7 @@ void STimingView::QuickFind_Execute()
 			FFilterService::Get()->GetIntegerOperators()));
 
 		NewFilterConfigurator->Add(MakeShared<FTimerNameFilter>());
+		NewFilterConfigurator->Add(MakeShared<FMetadataFilter>());
 
 		for (Insights::ITimingViewExtender* Extender : GetExtenders())
 		{

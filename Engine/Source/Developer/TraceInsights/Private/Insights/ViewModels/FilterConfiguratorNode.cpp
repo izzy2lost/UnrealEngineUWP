@@ -109,16 +109,19 @@ void FFilterConfiguratorNode::SetAvailableFilters(TSharedPtr<TArray<TSharedPtr<F
 
 void FFilterConfiguratorNode::SetSelectedFilter(TSharedPtr<FFilter> InSelectedFilter)
 {
-	if (SelectedFilter.Get() != InSelectedFilter.Get())
+	if (SelectedFilter.Get() == InSelectedFilter.Get())
 	{
-		TextBoxValue.Empty();
+		return;
 	}
 
+	TextBoxValue.Empty();
 	SelectedFilter = InSelectedFilter;
-	if (SelectedFilter.IsValid() && SelectedFilter->GetSupportedOperators()->Num() > 0)
-	{
-		FilterState = SelectedFilter->BuildFilterState();
+	check(SelectedFilter.IsValid());
 
+	FilterState = SelectedFilter->BuildFilterState();
+
+	if (SelectedFilter->GetSupportedOperators()->Num() > 0)
+	{
 		SetSelectedFilterOperator(SelectedFilter->GetSupportedOperators()->GetData()[0]);
 
 		AvailableFilterOperators->Empty();
