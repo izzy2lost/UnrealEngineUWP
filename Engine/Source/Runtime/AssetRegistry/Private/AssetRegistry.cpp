@@ -6449,6 +6449,10 @@ void FAssetRegistryImpl::PushProcessLoadedAssetsBatch(Impl::FEventContext& Event
 	// Add or update existing for all of the AssetDatas created by the batch
 	for (FAssetData& NewAssetData : LoadedAssetDatas)
 	{
+		if (ShouldSkipGatheredAsset(NewAssetData))
+		{
+			continue;
+		}
 		FCachedAssetKey Key(NewAssetData);
 		FAssetData** DataFromGather = State.CachedAssets.Find(Key);
 
