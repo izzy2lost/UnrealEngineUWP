@@ -17,17 +17,7 @@
 class SComboButton;
 class SEditableText;
 class IDetailsView;
-
-// Class used for chooser editor details customization
-UCLASS()
-class UChooserRowDetails : public UObject
-{
-	GENERATED_BODY()
-public:
-	UPROPERTY(EditAnywhere, Instanced, Category="Hidden")
-	TObjectPtr<UChooserTable> Chooser;
-	int Row;
-};
+class UChooserRowDetails;
 
 // Class used for chooser editor details customization
 UCLASS()
@@ -43,6 +33,8 @@ public:
 
 namespace UE::ChooserEditor
 {
+	struct FChooserTableRow;
+	
 	class FChooserTableEditor : public FAssetEditorToolkit, public FSelfRegisteringEditorUndoClient, public FNotifyHook
 	{
 	public:
@@ -100,11 +92,7 @@ namespace UE::ChooserEditor
 		/** Can be used to disable the details view making it read-only */
 		void SetPropertyEditingEnabledDelegate(FIsPropertyEditingEnabled InPropertyEditingDelegate);
 	
-		struct FChooserTableRow
-		{
-			FChooserTableRow(int32 i) { RowIndex = i; }
-			int32 RowIndex;
-		};
+
 
 		void UpdateTableRows();
 		void SelectColumn(UChooserTable* Chooser, int Index);
