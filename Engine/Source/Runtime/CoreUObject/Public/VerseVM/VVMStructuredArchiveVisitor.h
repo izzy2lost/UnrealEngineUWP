@@ -5,9 +5,11 @@
 #if WITH_VERSE_VM || defined(__INTELLISENSE__)
 
 #include "CoreTypes.h"
+#include "Serialization/StructuredArchiveSlotBase.h"
+#include "Serialization/StructuredArchiveSlots.h"
 #include "VVMAbstractVisitor.h"
 
-class FStructuredArchiveFormatter;
+class FStructuredArchive;
 
 namespace Verse
 {
@@ -15,9 +17,9 @@ struct VCppClassInfo;
 
 struct FStructuredArchiveVisitor : FAbstractVisitor
 {
-	FStructuredArchiveVisitor(FAllocationContext InContext, FStructuredArchiveFormatter& InFormatter)
+	FStructuredArchiveVisitor(FAllocationContext InContext, FStructuredArchive& InStructuredArchive)
 		: Context(InContext)
-		, Formatter(InFormatter)
+		, StructuredArchive(InStructuredArchive)
 	{
 	}
 
@@ -29,7 +31,7 @@ struct FStructuredArchiveVisitor : FAbstractVisitor
 	virtual void EndSet() override;
 	virtual void BeginMap(const TCHAR* ElementName, uint64& NumElements) override;
 	virtual void EndMap() override;
-	virtual void BeginObject() override;
+	virtual void BeginObject(const TCHAR* ElementName = nullptr) override;
 	virtual void EndObject() override;
 	virtual void VisitNonNull(VCell*& InCell, const TCHAR* ElementName) override;
 	virtual void VisitEmergentType(const VCell* InEmergentType) override;
@@ -80,30 +82,40 @@ private:
 		const VCppClassInfo* CppClassInfo;
 	};
 
-	void PushNesting(ENestingType InType);
-	void PopNesting(ENestingType InExpectedType);
-	void CheckNesting(ENestingType InExpectedType);
-	void BeginElement(const TCHAR* ElementName, ENestingType InType);
-	void EndElement(ENestingType InType);
-
-	// Helper methods to simplify the pairing of push/pop, enter/leave methods
-	template <typename TLambda>
-	void Field(const TCHAR* ElementName, TLambda Lambda);
-	template <typename TLambda>
-	void Element(const TCHAR* ElementName, ENestingType Type, TLambda Lambda);
-
 	// Read/Write the element type description
-	void WriteElementType(FEncodedType EncodedType);
-	FEncodedType ReadElementType();
+	void WriteElementType(FStructuredArchiveRecord Record, FEncodedType EncodedType);
+	FEncodedType ReadElementType(FStructuredArchiveRecord Record);
+
+	// Enter and leaving objects or arrays
+	FStructuredArchiveArray EnterArray(const TCHAR* ElementName, int32& Num, ENestingType Type);
+	void LeaveArray(ENestingType Type);
+	FStructuredArchiveRecord EnterObject(const TCHAR* ElementName);
+	void LeaveObject();
+	FStructuredArchiveSlot Slot(const TCHAR* ElementName);
 
 	// Read/Write a cell while handling null, true, and false types
-	void WriteCellBody(VCell* InCell);
-	VCell* ReadCellBody(FEncodedType EncodedType);
-	void VisitCellBody(VCell*& InOutCell);
+	void WriteCellBody(FStructuredArchiveRecord Record, VCell* InCell);
+	VCell* ReadCellBody(FStructuredArchiveRecord Record, FEncodedType EncodedType);
+	void VisitCellBody(FStructuredArchiveRecord Record, VCell*& InOutCell);
 
-	TArray<ENestingType> NestingInfo;
+	struct NestingEntry
+	{
+		UE::StructuredArchive::Private::FSlotBase Slot;
+		ENestingType Type;
+	};
+	TArray<NestingEntry> NestingInfo;
 	FAllocationContext Context;
-	FStructuredArchiveFormatter& Formatter;
+	FStructuredArchive& StructuredArchive;
+
+	struct ScopedRecord
+	{
+		ScopedRecord(FStructuredArchiveVisitor& InVisitor, const TCHAR* InName);
+		~ScopedRecord();
+
+		FStructuredArchiveVisitor& Visitor;
+		const TCHAR* Name;
+		FStructuredArchiveRecord Record;
+	};
 };
 
 } // namespace Verse

@@ -102,9 +102,9 @@ struct FDefaultCellFormmatterVisitor : FAbstractVisitor
 		Builder.Append(TEXT(")"));
 	}
 
-	virtual void BeginObject() override
+	virtual void BeginObject(const TCHAR* ElementName) override
 	{
-		IncrementIndex();
+		BeginElement(ElementName);
 		PushNesting(ENestingType::Object);
 		Builder.Append(TEXT("("));
 	}
@@ -214,20 +214,14 @@ private:
 	void BeginElement(const TCHAR* ElementName)
 	{
 		check(NestingInfo.Num() > 0);
-		IncrementIndex();
+		if (NestingInfo.Last().Index++ != 0)
+		{
+			Builder.Append(TEXT(", "));
+		}
 		if (NestingInfo.Last().Type == ENestingType::Object)
 		{
 			Builder.Append(ElementName);
 			Builder.Append(TEXT("="));
-		}
-	}
-
-	void IncrementIndex()
-	{
-		check(NestingInfo.Num() > 0);
-		if (NestingInfo.Last().Index++ != 0)
-		{
-			Builder.Append(TEXT(", "));
 		}
 	}
 

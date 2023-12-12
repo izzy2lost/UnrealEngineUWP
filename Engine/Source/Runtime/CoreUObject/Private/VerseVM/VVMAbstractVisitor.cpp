@@ -58,7 +58,7 @@ void FAbstractVisitor::EndMap()
 {
 }
 
-void FAbstractVisitor::BeginObject()
+void FAbstractVisitor::BeginObject(const TCHAR* ElementName)
 {
 }
 

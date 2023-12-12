@@ -94,7 +94,7 @@ struct FAbstractVisitor
 	virtual void EndSet();
 	virtual void BeginMap(const TCHAR* ElementName, uint64& NumElements);
 	virtual void EndMap();
-	virtual void BeginObject();
+	virtual void BeginObject(const TCHAR* ElementName = nullptr);
 	virtual void EndObject();
 
 	virtual bool IsMarked(VCell* InCell, const TCHAR* ElementName) { return true; }
