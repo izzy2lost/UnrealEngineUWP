@@ -48,6 +48,7 @@
 #include "Net/RepLayout.h"
 #include "Net/Core/Misc/NetCVars.h"
 #include "Net/Core/Trace/Private/NetTraceInternal.h"
+#include "Engine/NetworkObjectList.h"
 #include "UObject/UObjectIterator.h"
 #include "DrawDebugHelpers.h"
 #include "Misc/ScopeExit.h"
@@ -125,6 +126,10 @@ static FAutoConsoleVariableRef CVarRepGraphDormantCellsTTLDefault(TEXT("Net.RepG
 int32 CVar_RepGraph_ReplicatedDormantDestructionInfosPerFrame = MAX_int32;
 static FAutoConsoleVariableRef CVarRepGraphReplicatedDormantDestructionInfosPerFrame(TEXT("Net.RepGraph.ReplicatedDormantDestructionInfosPerFrame"), CVar_RepGraph_ReplicatedDormantDestructionInfosPerFrame,
 	TEXT("If CVarRepGraphDormantDynamicActorsDestruction is true, this is the max number of destruction infos sent to a client per frame"), ECVF_Default);
+
+int32 CVar_RepGraph_MarkDormantDestroyedActorsActive = 1;
+static FAutoConsoleVariableRef CVarRepGraphMarkDormantDestroyedActorsActive(TEXT("Net.RepGraph.MarkDormantDestroyedActorsActive"), CVar_RepGraph_MarkDormantDestroyedActorsActive,
+	TEXT("If CVarRepGraphDormantDynamicActorsDestruction is true, mark destroyed dormant actors active to keep their dormancy state with the NetDriver in sync"), ECVF_Default);
 
 float CVar_RepGraph_OutOfRangeDistanceCheckRatio = 0.5f;
 static FAutoConsoleVariableRef CVarRepGraphOutOfRangeDistanceCheckRatio(TEXT("Net.RepGraph.OutOfRangeDistanceCheckRatio"), CVar_RepGraph_OutOfRangeDistanceCheckRatio,
@@ -2842,6 +2847,16 @@ void UNetReplicationGraphConnection::NotifyAddDormantDestructionInfo(AActor* Act
 			Info.Level = Level;
 			Info.ObjOuter = Actor->GetOuter();
 			Info.PathName = Actor->GetName();
+
+			if (CVar_RepGraph_MarkDormantDestroyedActorsActive)
+			{
+				// MarkActive here to get this connection off the actor's DormantConnections list.
+				// Since the actor will be destroyed, it shouldn't be considered dormant anymore.
+				// If FlushNetDormancy is called later for this actor, this prevents the flush
+				// from creating a replicator based on the actor's current state - which wouldn't
+				// work, becuase the client won't have the current state.
+				NetConnection->Driver->GetNetworkObjectList().MarkActive(Actor, NetConnection, NetConnection->Driver);
+			}
 		}
 	}
 #endif // WITH_SERVER_CODE
