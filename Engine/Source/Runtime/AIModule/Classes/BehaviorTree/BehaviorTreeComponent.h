@@ -230,7 +230,7 @@ public:
 	AIMODULE_API uint16 GetActiveInstanceIdx() const;
 
 	/** @return node memory */
-	AIMODULE_API uint8* GetNodeMemory(UBTNode* Node, int32 InstanceIdx) const;
+	AIMODULE_API uint8* GetNodeMemory(const UBTNode* Node, int32 InstanceIdx) const;
 
 	/** @return true if ExecutionRequest is switching to higher priority node */
 	AIMODULE_API bool IsRestartPending() const;

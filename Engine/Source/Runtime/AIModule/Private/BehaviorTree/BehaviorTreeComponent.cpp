@@ -169,6 +169,9 @@ void UBehaviorTreeComponent::PauseLogic(const FString& Reason)
 	{
 		BlackboardComp->PauseObserverNotifications();
 	}
+
+	// Store a debugger execution step so debugger is aware we've been paused.
+	StoreDebuggerExecutionStep(EBTExecutionSnap::Regular);
 }
 
 EAILogicResuming::Type UBehaviorTreeComponent::ResumeLogic(const FString& Reason)
@@ -2874,7 +2877,7 @@ UBTNode* UBehaviorTreeComponent::FindTemplateNode(const UBTNode* Node) const
 	return NULL;
 }
 
-uint8* UBehaviorTreeComponent::GetNodeMemory(UBTNode* Node, int32 InstanceIdx) const
+uint8* UBehaviorTreeComponent::GetNodeMemory(const UBTNode* Node, int32 InstanceIdx) const
 {
 	return InstanceStack.IsValidIndex(InstanceIdx) ? (uint8*)Node->GetNodeMemory<uint8>(InstanceStack[InstanceIdx]) : NULL;
 }
@@ -3194,6 +3197,7 @@ void UBehaviorTreeComponent::StoreDebuggerExecutionStep(EBTExecutionSnap::Type S
 	}
 
 	FBehaviorTreeExecutionStep CurrentStep;
+	CurrentStep.bIsExecutionPaused = bIsPaused;
 	CurrentStep.ExecutionStepId = DebuggerSteps.Num() ? DebuggerSteps.Last().ExecutionStepId + 1 : 0;
 	CurrentStep.TimeStamp = GetWorld()->GetTimeSeconds();
 	CurrentStep.BlackboardValues = SearchStartBlackboard;
@@ -3391,7 +3395,19 @@ void UBehaviorTreeComponent::StoreDebuggerRuntimeValues(TArray<FString>& Runtime
 		uint8* NodeMemory = (uint8*)Node->GetNodeMemory<uint8>(InstanceInfo);
 
 		RuntimeValues.Reset();
-		Node->DescribeRuntimeValues(*this, NodeMemory, EBTDescriptionVerbosity::Basic, RuntimeValues);
+
+		constexpr EBTDescriptionVerbosity::Type DescriptionVerbosity = EBTDescriptionVerbosity::Basic;
+		if (Node->HasInstance())
+		{
+			if (UBTNode* NodeInstance = Node->GetNodeInstance(*this, NodeMemory))
+			{
+				NodeInstance->DescribeRuntimeValues(*this, NodeMemory, DescriptionVerbosity, RuntimeValues);
+			}
+		}
+		else
+		{
+			Node->DescribeRuntimeValues(*this, NodeMemory, DescriptionVerbosity, RuntimeValues);
+		}
 
 		FString ComposedDesc;
 		for (int32 ValueIndex = 0; ValueIndex < RuntimeValues.Num(); ValueIndex++)

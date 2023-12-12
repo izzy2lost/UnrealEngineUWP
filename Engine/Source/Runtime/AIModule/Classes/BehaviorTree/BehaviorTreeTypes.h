@@ -274,6 +274,9 @@ struct FBehaviorTreeExecutionStep
 
 	/** Id of execution step */
 	int32 ExecutionStepId;
+
+	/** If true, the behavior was paused in this execution step. */
+	bool bIsExecutionPaused = false;
 };
 
 /** identifier of subtree instance */

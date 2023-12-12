@@ -11,6 +11,7 @@
 #include "BehaviorTree/BTNode.h"
 #include "BehaviorTree/BTTaskNode.h"
 #include "BehaviorTree/BTAuxiliaryNode.h"
+#include "BehaviorTree/Tasks/BTTask_RunBehaviorDynamic.h"
 #include "BehaviorTreeGraphNode_CompositeDecorator.h"
 #include "BehaviorTreeEditor.h"
 #include "Editor/UnrealEdEngine.h"
@@ -855,6 +856,17 @@ int32 FBehaviorTreeDebugger::GetShownStateIndex() const
 	return 0;
 }
 
+bool FBehaviorTreeDebugger::IsBehaviorExecutionPaused() const
+{
+#if USE_BEHAVIORTREE_DEBUGGER
+	if (TreeInstance.IsValid() && TreeInstance->DebuggerSteps.IsValidIndex(ActiveStepIndex))
+	{
+		return TreeInstance->DebuggerSteps[ActiveStepIndex].bIsExecutionPaused;
+	}
+#endif
+	return false;
+}
+
 void FBehaviorTreeDebugger::StepForwardInto()
 {
 #if USE_BEHAVIORTREE_DEBUGGER
@@ -1195,6 +1207,26 @@ void FBehaviorTreeDebugger::UpdateDebuggerViewOnTick()
 		TreeInstance->StoreDebuggerBlackboard(CurrentValues);
 	}
 #endif
+}
+
+class UBehaviorTree* FBehaviorTreeDebugger::GetDynamicSubtreeTaskBehaviorTree(const UBTTask_RunBehaviorDynamic* Node) const
+{
+	if (UBehaviorTreeComponent* TreeComp = TreeInstance.Get())
+	{
+		if (TreeComp->DebuggerSteps.IsValidIndex(ActiveStepIndex))
+		{
+			const FBehaviorTreeExecutionStep& ActiveStep = TreeComp->DebuggerSteps[ActiveStepIndex];
+			if (ActiveStep.InstanceStack.IsValidIndex(DebuggerInstanceIndex))
+			{
+				const FBehaviorTreeDebuggerInstance& DebugInstance = ActiveStep.InstanceStack[DebuggerInstanceIndex];
+				if (DebugInstance.RuntimeDesc.IsValidIndex(Node->GetExecutionIndex()))
+				{
+					return Node->GetBehaviorAssetFromRuntimeValue(DebugInstance.RuntimeDesc[Node->GetExecutionIndex()]);
+				}
+			}
+		}
+	}
+	return nullptr;
 }
 
 FText FBehaviorTreeDebugger::FindValueForKey(const FName& InKeyName, bool bUseCurrentState) const

@@ -16,6 +16,7 @@
 #include "BehaviorTree/Services/BTService_BlueprintBase.h"
 #include "BehaviorTree/Tasks/BTTask_BlueprintBase.h"
 #include "BehaviorTree/Tasks/BTTask_RunBehavior.h"
+#include "BehaviorTree/Tasks/BTTask_RunBehaviorDynamic.h"
 #include "BehaviorTreeColors.h"
 #include "BehaviorTreeDebugger.h"
 #include "BehaviorTreeDecoratorGraphNode_Logic.h"
@@ -531,6 +532,11 @@ FGraphAppearanceInfo FBehaviorTreeEditor::GetGraphAppearance() const
 	else if (FBehaviorTreeDebugger::IsPlaySessionPaused())
 	{
 		AppearanceInfo.PIENotifyText = LOCTEXT("PausedLabel", "PAUSED");
+	}
+
+	if (Debugger.IsValid() && Debugger->IsBehaviorExecutionPaused())
+	{
+		AppearanceInfo.WarningText = LOCTEXT("BehaviorExecutionPausedLabel", "BEHAVIOR EXECUTION PAUSED");
 	}
 	
 	return AppearanceInfo;
@@ -1249,19 +1255,34 @@ void FBehaviorTreeEditor::OnNodeDoubleClicked(class UEdGraphNode* Node)
 			}
 		}
 	}
-	else if (UBehaviorTreeGraphNode_SubtreeTask* Task = Cast<UBehaviorTreeGraphNode_SubtreeTask>(Node))
+	else if (UBehaviorTreeGraphNode_Task* Task = Cast<UBehaviorTreeGraphNode_Task>(Node))
 	{
-		if (UBTTask_RunBehavior* RunTask = Cast<UBTTask_RunBehavior>(Task->NodeInstance))
+		UBehaviorTree* SubTreeToOpen = nullptr;
+		if (UBTTask_RunBehavior* SubtreeTask = Cast<UBTTask_RunBehavior>(Task->NodeInstance))
 		{
-			if (RunTask->GetSubtreeAsset())
+			SubTreeToOpen = SubtreeTask->GetSubtreeAsset();
+		}
+		else if (UBTTask_RunBehaviorDynamic* DynamicSubTreeTask = Cast<UBTTask_RunBehaviorDynamic>(Task->NodeInstance))
+		{
+			if (Debugger)
 			{
-				GEditor->GetEditorSubsystem<UAssetEditorSubsystem>()->OpenEditorForAsset(RunTask->GetSubtreeAsset());
+				SubTreeToOpen = Debugger->GetDynamicSubtreeTaskBehaviorTree(DynamicSubTreeTask);
+			}
+			
+			if (!SubTreeToOpen)
+			{
+				SubTreeToOpen = DynamicSubTreeTask->GetDefaultBehaviorAsset();
+			}
+		}
 
-				IBehaviorTreeEditor* ChildNodeEditor = static_cast<IBehaviorTreeEditor*>(GEditor->GetEditorSubsystem<UAssetEditorSubsystem>()->FindEditorForAsset(RunTask->GetSubtreeAsset(), true));
-				if (ChildNodeEditor)
-				{
-					ChildNodeEditor->InitializeDebuggerState(Debugger.Get());
-				}
+		if (SubTreeToOpen)
+		{
+			GEditor->GetEditorSubsystem<UAssetEditorSubsystem>()->OpenEditorForAsset(SubTreeToOpen);
+
+			IBehaviorTreeEditor* ChildNodeEditor = static_cast<IBehaviorTreeEditor*>(GEditor->GetEditorSubsystem<UAssetEditorSubsystem>()->FindEditorForAsset(SubTreeToOpen, true));
+			if (ChildNodeEditor)
+			{
+				ChildNodeEditor->InitializeDebuggerState(Debugger.Get());
 			}
 		}
 	}
