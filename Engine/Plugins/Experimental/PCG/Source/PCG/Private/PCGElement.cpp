@@ -8,7 +8,6 @@
 #include "PCGSubsystem.h"
 #include "Data/PCGPointData.h"
 #include "Elements/PCGDebugElement.h"
-#include "Elements/PCGSelfPruning.h"
 
 #include "HAL/IConsoleManager.h"
 #include "Utils/PCGExtraCapture.h"
@@ -145,36 +144,7 @@ void IPCGElement::PreExecute(FPCGContext* Context) const
 	{
 		//Pass-through - no execution
 		DisabledPassThroughData(Context);
-
 		Context->CurrentPhase = EPCGExecutionPhase::PostExecute;
-	}
-	else
-	{
-		// Perform input filtering
-		/** TODO - Placeholder feature */
-		if (!Settings->FilterOnTags.IsEmpty())
-		{
-			// Move any of the inputs that don't have the tags to the outputs as a pass-through
-			// NOTE: this breaks a bit the ordering of inputs, however, there's no obvious way around it
-			TArray<FPCGTaggedData> FilteredTaggedData;
-			for (FPCGTaggedData& TaggedData : Context->InputData.TaggedData)
-			{
-				if (TaggedData.Tags.Intersect(Settings->FilterOnTags).IsEmpty())
-				{
-					if (Settings->bPassThroughFilteredOutInputs)
-					{
-						Context->OutputData.TaggedData.Add(TaggedData);
-					}
-				}
-				else // input has the required tags
-				{
-					FilteredTaggedData.Add(TaggedData);
-				}
-			}
-
-			Context->InputData.TaggedData = MoveTemp(FilteredTaggedData);
-			Context->BypassedOutputCount = Context->OutputData.TaggedData.Num();
-		}
 	}
 }
 
@@ -190,16 +160,6 @@ void IPCGElement::PostExecute(FPCGContext* Context) const
 
 	const UPCGSettingsInterface* SettingsInterface = Context->GetInputSettingsInterface();
 	const UPCGSettings* Settings = SettingsInterface ? SettingsInterface->GetSettings() : nullptr;
-
-	// Apply tags on output
-	/** TODO - Placeholder feature */
-	if (Settings && !Settings->TagsAppliedOnOutput.IsEmpty())
-	{
-		for (int32 TaggedDataIdx = Context->BypassedOutputCount; TaggedDataIdx < Context->OutputData.TaggedData.Num(); ++TaggedDataIdx)
-		{
-			Context->OutputData.TaggedData[TaggedDataIdx].Tags.Append(Settings->TagsAppliedOnOutput);
-		}
-	}
 	
 	// Output data Crc
 	{
@@ -213,24 +173,6 @@ void IPCGElement::PostExecute(FPCGContext* Context) const
 		// Compute Crc from output data
 		Context->OutputData.Crc = Context->OutputData.ComputeCrc(bShouldComputeFullOutputDataCrc);
 	}
-
-	// Additional debug things (check for duplicates),
-#if WITH_EDITOR
-	if (SettingsInterface && SettingsInterface->DebugSettings.bCheckForDuplicates)
-	{
-		FPCGDataCollection ElementInputs = Context->InputData;
-		FPCGDataCollection ElementOutputs = Context->OutputData;
-
-		Context->InputData = ElementOutputs;
-		Context->OutputData = FPCGDataCollection();
-
-		PCGE_LOG(Verbose, LogOnly, LOCTEXT("PerformingDuplicatePointTest", "Performing remove duplicate points test (perf warning)"));
-		PCGSelfPruningElement::Execute(Context, EPCGSelfPruningType::RemoveDuplicates, 0.0f, false);
-
-		Context->InputData = ElementInputs;
-		Context->OutputData = ElementOutputs;
-	}
-#endif
 
 	Context->CurrentPhase = EPCGExecutionPhase::Done;
 }

@@ -36,10 +36,6 @@ public:
 	UPROPERTY(BlueprintReadWrite, EditAnywhere, Category = Debug, meta = (EditCondition = "bDisplayProperties", EditConditionHides, HideEditConditionToggle))
 	TSoftObjectPtr<UMaterialInterface> MaterialOverride;
 
-	/** Warning: enabling this flag will have severe performance impact */
-	UPROPERTY(BlueprintReadWrite, EditAnywhere, Category = Debug, meta = (EditCondition = "bDisplayProperties", EditConditionHides, HideEditConditionToggle))
-	bool bCheckForDuplicates = false;
-
 	TSoftObjectPtr<UMaterialInterface> GetMaterial() const;
 
 #if WITH_EDITORONLY_DATA

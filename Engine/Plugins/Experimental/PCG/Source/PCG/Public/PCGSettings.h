@@ -176,7 +176,7 @@ public:
 	FPCGDebugVisualizationSettings DebugSettings;
 
 	/** If a debugger is attached, triggers a breakpoint inside IPCGElement::Execute(). Editor only. Transient. */
-	UPROPERTY(Transient, DuplicateTransient, EditAnywhere, BlueprintReadWrite, Category = Debug, AdvancedDisplay, meta = (EditCondition = bDisplayDebuggingProperties, EditConditionHides, HideEditConditionToggle))
+	UPROPERTY(Transient, DuplicateTransient, EditAnywhere, BlueprintReadWrite, Category = Debug, AdvancedDisplay, meta = (DisplayName = "Break In Debugger", EditCondition = bDisplayDebuggingProperties, EditConditionHides, HideEditConditionToggle))
 	bool bBreakDebugger = false;
 
 	// This can be set false by inheriting nodes to hide the debugging properties.
@@ -334,23 +334,11 @@ public:
 	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = Settings, meta=(EditCondition=bUseSeed, EditConditionHides, PCG_Overridable))
 	int Seed = 0xC35A9631; // Default seed is a random prime number, but will be overriden for new settings based on the class type name hash, making each settings class have a different default seed.
 
-	/** Warning - this is deprecated and will be removed soon since we have a Filter By Tag node for this specific purpose */
-	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Tags")
-	TSet<FString> FilterOnTags;
-
-	/** Warning - this is deprecated and will be removed soon since we have a Filter By Tag node for this specific purpose */
-	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Tags")
-	bool bPassThroughFilteredOutInputs = true;
-
-	/** Applies the specified tags on the output data. Note - this might be replaced by a dedicated Tagging node */
-	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Tags")
-	TSet<FString> TagsAppliedOnOutput;
-
 #if WITH_EDITORONLY_DATA
 	UPROPERTY()
 	EPCGSettingsExecutionMode ExecutionMode_DEPRECATED = EPCGSettingsExecutionMode::Enabled;
 
-	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = Determinism, meta = (ShowOnlyInnerProperties))
+	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = Debug, AdvancedDisplay, meta = (DisplayName="Determinism", NoResetToDefault))
 	FPCGDeterminismSettings DeterminismSettings;
 #endif
 
