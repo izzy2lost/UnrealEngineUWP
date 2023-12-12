@@ -79,12 +79,6 @@ const FName CustomizableObjectDebuggerAppIdentifier = FName(TEXT("CustomizableOb
 
 #define LOCTEXT_NAMESPACE "MutableSettings"
 
-static TAutoConsoleVariable<bool> CVarMutableOnCookStartEnabled(
-	TEXT("b.OnCookStartEnabled"),
-	true,
-	TEXT("If enabled, Customizable Objects will be compiled before the actual cook starts. Compiled data will be stored on de DDC and cached during BeginCache.\n"),
-	ECVF_Scalability);
-
 /**
  * StaticMesh editor module
  */

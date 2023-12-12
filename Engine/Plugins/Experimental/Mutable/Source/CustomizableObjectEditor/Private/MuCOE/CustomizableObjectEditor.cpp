@@ -748,10 +748,7 @@ void FCustomizableObjectEditor::CompileObjectUserPressedButton()
 	}
 
 	Compiler.ClearAllCompileOnlySelectedOption();
-
-	CustomizableObject->CompileOptions.bCheckChildrenGuids = true;
 	CompileObject();
-	CustomizableObject->CompileOptions.bCheckChildrenGuids = false;
 }
 
 

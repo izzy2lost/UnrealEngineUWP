@@ -365,7 +365,6 @@ void FCustomizableObjectCompiler::ProcessChildObjectsRecursively(UCustomizableOb
 			}
 
 			GenerationContext.GroupIdToExternalNodeMap.Add(Root->ParentObjectGroupId, Root);
-			GenerationContext.CustomizableObjectGuidsInCompilation.Add(ChildObject->GetVersionId());
 
 			TArray<UCustomizableObjectNodeObjectGroup*> GroupNodes;
 			ChildObject->Source->GetNodesOfClass<UCustomizableObjectNodeObjectGroup>(GroupNodes);
@@ -953,25 +952,6 @@ void FCustomizableObjectCompiler::CompileInternal(UCustomizableObject* Object, c
 	}
 	else
 	{
-		if (Options.bCheckChildrenGuids)
-		{
-			// Check if all children are exactly the same as in the last compilation, if not, mark the object as modified and change VersionId to force a cache recompilation in other pcs
-			if ((GenerationContext.CustomizableObjectGuidsInCompilation.Num() != Object->CustomizableObjectGuidsInCompilation.Num()) ||
-				(GenerationContext.CustomizableObjectGuidsInCompilation.Intersect(Object->CustomizableObjectGuidsInCompilation).Num() != GenerationContext.CustomizableObjectGuidsInCompilation.Num()))
-			{
-				if (!ParamNamesToSelectedOptions.Num()) // Don't marked the object as modified because of a partial compilation
-				{
-					Object->CustomizableObjectGuidsInCompilation = GenerationContext.CustomizableObjectGuidsInCompilation;
-
-					if (!Options.bIsCooking)
-					{
-						Object->UpdateVersionId();
-						Object->MarkPackageDirty();
-					}
-				}
-			}
-		}
-
 		// Morph target generated data does not need extra processing so move semantics can be used
 		// to avoid a possibly expensive copy.
 		Object->ContributingMorphTargetsInfo = MoveTemp(GenerationContext.ContributingMorphTargetsInfo);

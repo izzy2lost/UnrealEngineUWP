@@ -719,9 +719,6 @@ struct FMutableGraphGenerationContext
 	TMap<FGraphCycleKey, const UCustomizableObject*> VisitedPins;
 	const UCustomizableObject* CustomizableObjectWithCycle = nullptr;
 
-	// Set of all the guids of all the child CustomizableObjects in the compilation
-	TSet<FGuid> CustomizableObjectGuidsInCompilation;
-
 	/** Stores the physics assets gathered from the SkeletalMesh nodes during compilation, to be used in mesh generation in-game */
 	TMap<FString, TSoftObjectPtr<UPhysicsAsset>> PhysicsAssetMap;
 

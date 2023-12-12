@@ -96,7 +96,7 @@ bool FUnrealMutableModelBulkReader::PrepareStreamingForObject(UCustomizableObjec
 		NewData.Model = TWeakPtr<const mu::Model>(CustomizableObject->GetModel());
 
 #if WITH_EDITOR
-		FString FolderPath = CustomizableObject->GetCompiledDataFolderPath(true);
+		FString FolderPath = CustomizableObject->GetCompiledDataFolderPath();
 		FString FullFileName = FolderPath + CustomizableObject->GetCompiledDataFileName(false, nullptr, true);
 
 		const TSharedPtr<IAsyncReadFileHandle> ReadFileHandle = MakeShareable(FPlatformFileManager::Get().GetPlatformFile().OpenAsyncRead(*FullFileName));

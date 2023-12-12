@@ -91,7 +91,7 @@ void UCustomizableObjectPopulation::BeginCacheForCookedPlatformData(const ITarge
 	{
 		for (int32 i = 0; i < ClassWeights.Num(); ++i)
 		{
-			ClassWeights[i].Class->CustomizableObject->LoadCompiledDataFromDisk(false, TargetPlatform);
+			check(ClassWeights[i].Class->CustomizableObject->IsCompiled());
 		}
 
 		CompilePopulation(Generator);

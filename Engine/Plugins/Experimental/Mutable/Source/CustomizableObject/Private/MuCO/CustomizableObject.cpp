@@ -43,9 +43,6 @@
 
 DEFINE_LOG_CATEGORY(LogMutable);
 
-#if WITH_EDITOR
-static bool bUsesOnCookStart = false;
-#endif
 //-------------------------------------------------------------------------------------------------
 
 UCustomizableObject::UCustomizableObject()
@@ -258,9 +255,7 @@ void UCustomizableObject::Serialize(FArchive& Ar_Asset)
 		
 		if (Ar_Asset.IsLoading())
 		{
-			ITargetPlatformManagerModule& TargetPlatformManager = GetTargetPlatformManagerRef();
-			const ITargetPlatform* RunningPlatform = TargetPlatformManager.GetRunningTargetPlatform();
-			LoadCompiledDataFromDisk(true, RunningPlatform);
+			LoadCompiledDataFromDisk();
 		}
 	}
 #else
@@ -286,74 +281,23 @@ void UCustomizableObject::PostRename(UObject * OldOuter, const FName OldName)
 
 void UCustomizableObject::BeginCacheForCookedPlatformData(const ITargetPlatform* TargetPlatform)
 {
-	bool bIsRelevantForThisTarget =
-		(Relevancy == ECustomizableObjectRelevancy::All)
-		||
-		(TargetPlatform && Relevancy == ECustomizableObjectRelevancy::ClientOnly && !TargetPlatform->IsServerOnly());
-	
-	if (TargetPlatform && bIsRelevantForThisTarget)
+	if (!TargetPlatform)
 	{
-		if (Private->CachedPlatformNames.Find(TargetPlatform->PlatformName()) == INDEX_NONE)
-		{
-			if (!bUsesOnCookStart)
-			{
-				// Compile and save in the CachedPlatformsData map
-				CompileForTargetPlatform(TargetPlatform);
-			}
-			else
-			{
-				// Load from Disk
-				LoadCompiledDataFromDisk(false, TargetPlatform);
-
-				if (!Private->bModelCompiledForCook)
-				{
-					LoadReferencedObjects();
-					Private->bModelCompiledForCook = true;
-				}
-			}
-
-			Private->CachedPlatformNames.Add(TargetPlatform->PlatformName());
-		}
+		return;
 	}
-	else
+
+	if (Private->CachedPlatformNames.Find(TargetPlatform->PlatformName()) == INDEX_NONE)
 	{
-		ClearCompiledData();
-		Private->SetModel(nullptr, FGuid()); // Discard compilation
-		if (TargetPlatform)
-		{
-			Private->CachedPlatformNames.Add(TargetPlatform->PlatformName());
-		}
+		// Compile and save in the CachedPlatformsData map
+		CompileForTargetPlatform(TargetPlatform);
+		Private->CachedPlatformNames.Add(TargetPlatform->PlatformName());
 	}
 }
 
 
 bool UCustomizableObject::IsCachedCookedPlatformDataLoaded( const ITargetPlatform* TargetPlatform ) 
-{ 
-	return Private->CachedPlatformNames.Find(TargetPlatform->PlatformName()) != INDEX_NONE;
-}
-
-// TODO COOK: Remove Hack to add new references to the package
-void UCustomizableObject::LoadReferencedObjects()
 {
-	for (TSoftObjectPtr<UMaterialInterface> r : ReferencedMaterials)
-	{
-		r.LoadSynchronous();
-	}
-
-	for(TPair<FString, TSoftObjectPtr<UPhysicsAsset>>& p : PhysicsAssetsMap)
-	{
-		p.Value.LoadSynchronous();
-	}
-	
-	for (TPair<FString, FParameterUIData>& i : ParameterUIDataMap)
-	{
-		i.Value.LoadResources();
-	}
-
-	for (TPair<FString, FParameterUIData>& s : StateUIDataMap)
-	{
-		s.Value.LoadResources();
-	}
+	return !TargetPlatform || Private->CachedPlatformNames.Find(TargetPlatform->PlatformName()) != INDEX_NONE;
 }
 
 
@@ -729,25 +673,18 @@ void UCustomizableObject::LoadCompiledData(FArchive& MemoryReader, const ITarget
 	UpdateParameterPropertiesFromModel();
 }
 
-void UCustomizableObject::LoadCompiledDataFromDisk(bool bIsEditorData, const ITargetPlatform* InTargetPlatform)
+void UCustomizableObject::LoadCompiledDataFromDisk()
 {
-	FString PlatformName = InTargetPlatform ? InTargetPlatform->PlatformName() : FPlatformProperties::PlatformName();
-
-	if (!bIsEditorData) // Loading cooked data
-	{
-		// If we don't use OnCookStart there's nothing to be loaded. Same case for child objects.
-		if (!bUsesOnCookStart || bIsChildObject) return;
-
-		// Platform Data already cached
-		if (CachedPlatformsData.Contains(PlatformName)) return;
-	}
+	ITargetPlatformManagerModule& TargetPlatformManager = GetTargetPlatformManagerRef();
+	const ITargetPlatform* RunningPlatform = TargetPlatformManager.GetRunningTargetPlatform();
+	check(RunningPlatform);
 
 	// Compose Folder Name
-	const FString FolderPath = GetCompiledDataFolderPath(bIsEditorData);
+	const FString FolderPath = GetCompiledDataFolderPath();
 
 	// Compose File Names
-	FString ModelFileName = FolderPath + GetCompiledDataFileName(true, InTargetPlatform);
-	FString StreamableFileName = FolderPath + GetCompiledDataFileName(false, InTargetPlatform);
+	const FString ModelFileName = FolderPath + GetCompiledDataFileName(true, RunningPlatform);
+	const FString StreamableFileName = FolderPath + GetCompiledDataFileName(false, RunningPlatform);
 
 	IFileManager& FileManager = IFileManager::Get();
 	if (FileManager.FileExists(*ModelFileName) && FileManager.FileExists(*StreamableFileName))
@@ -780,7 +717,7 @@ void UCustomizableObject::LoadCompiledDataFromDisk(bool bIsEditorData, const ITa
 			&&
 			CompiledDataHeader.VersionId == StreamableDataHeader.VersionId)
 		{
-			if ( bIsEditorData && (IsRunningGame() || CompiledDataHeader.VersionId == VersionId) )
+			if (IsRunningGame() || CompiledDataHeader.VersionId == VersionId)
 			{ 
 				int64 CompiledDataSize = CompiledDataFileHandle->Size() - HeaderSize;
 				TArray64<uint8> CompiledDataBytes;
@@ -790,24 +727,7 @@ void UCustomizableObject::LoadCompiledDataFromDisk(bool bIsEditorData, const ITa
 				CompiledDataFileHandle->Read(CompiledDataBytes.GetData(), CompiledDataSize);
 
 				FMemoryReaderView MemoryReader(CompiledDataBytes);
-				LoadCompiledData(MemoryReader, InTargetPlatform);
-			}
-			else if (!bIsEditorData)// Caching Cooked Data
-			{
-				FMutableCachedPlatformData& CachedData = CachedPlatformsData.Add(PlatformName);
-				int64 CompiledDataSize = CompiledDataFileHandle->Size() - HeaderSize;
-				int64 StreamableDataSize = StreamableDataFileHandle->Size() - HeaderSize;
-
-				CachedData.ModelData.SetNumUninitialized(CompiledDataSize);
-				CachedData.StreamableData.SetNumUninitialized(StreamableDataSize);
-
-				// Change the current read position to exclude the header
-				CompiledDataFileHandle->Seek(HeaderSize);
-				StreamableDataFileHandle->Seek(HeaderSize);
-
-				// Read Data
-				CompiledDataFileHandle->Read(CachedData.ModelData.GetData(), CompiledDataSize);
-				StreamableDataFileHandle->Read(CachedData.StreamableData.GetData(), StreamableDataSize);
+				LoadCompiledData(MemoryReader, RunningPlatform);
 			}
 		}
 
@@ -836,10 +756,12 @@ void UCustomizableObject::CachePlatformData(const ITargetPlatform* InTargetPlatf
 }
 
 
-void UCustomizableObject::CompileForTargetPlatform(const ITargetPlatform* TargetPlatform, bool bIsOnCookStart)
+void UCustomizableObject::CompileForTargetPlatform(const ITargetPlatform* TargetPlatform)
 {
-	// TEMP COOK: Remove together with OnCookStart
-	bUsesOnCookStart = bIsOnCookStart;
+	if (!TargetPlatform)
+	{
+		return;
+	}
 
 	FCustomizableObjectCompilerBase* Compiler = UCustomizableObjectSystem::GetInstance()->GetNewCompiler();
 
@@ -848,7 +770,7 @@ void UCustomizableObject::CompileForTargetPlatform(const ITargetPlatform* Target
 	bool bIsRelevantForThisTarget =
 		(Relevancy == ECustomizableObjectRelevancy::All)
 		||
-		(TargetPlatform && Relevancy == ECustomizableObjectRelevancy::ClientOnly && !TargetPlatform->IsServerOnly());
+		(Relevancy == ECustomizableObjectRelevancy::ClientOnly && !TargetPlatform->IsServerOnly());
 
 	// Discard any older compilation
 	Private->SetModel(nullptr, FGuid());
@@ -859,7 +781,6 @@ void UCustomizableObject::CompileForTargetPlatform(const ITargetPlatform* Target
 		Options.OptimizationLevel = 2;	// max optimization when packaging.
 		Options.TextureCompression = ECustomizableObjectTextureCompression::HighQuality;
 		Options.bIsCooking = true;
-		Options.bSaveCookedDataToDisk = bUsesOnCookStart;
 		Options.TargetPlatform = TargetPlatform;
 		Options.CustomizableObjectNumBoneInfluences = ICustomizableObjectModule::Get().GetNumBoneInfluences();
 
@@ -969,10 +890,9 @@ FReply UCustomizableObject::AddNewParameterProfile(FString Name, UCustomizableOb
 }
 
 
-FString UCustomizableObject::GetCompiledDataFolderPath(bool bIsEditorData) const
+FString UCustomizableObject::GetCompiledDataFolderPath() const
 {	
-	const FString FolderName = bIsEditorData ? TEXT("MutableStreamedDataEditor/") : TEXT("MutableStreamedData/");
-	return FPaths::ConvertRelativePathToFull(FPaths::ProjectSavedDir() + FolderName);
+	return FPaths::ConvertRelativePathToFull(FPaths::ProjectSavedDir() + TEXT("MutableStreamedDataEditor/"));
 }
 
 

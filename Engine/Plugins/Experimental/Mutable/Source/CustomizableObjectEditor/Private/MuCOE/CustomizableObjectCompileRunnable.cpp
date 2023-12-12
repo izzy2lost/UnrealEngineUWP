@@ -230,10 +230,10 @@ FCustomizableObjectSaveDDRunnable::FCustomizableObjectSaveDDRunnable(UCustomizab
 	CustomizableObjectHeader.InternalVersion = CustomizableObject->GetCurrentSupportedVersion();
 	CustomizableObjectHeader.VersionId = Options.bIsCooking? FGuid::NewGuid() : CustomizableObject->GetVersionId();
 
-	if (!Options.bIsCooking || Options.bSaveCookedDataToDisk)
+	if (!Options.bIsCooking)
 	{
 		// We will be saving all compilation data in two separate files, write CO Data
-		FolderPath = CustomizableObject->GetCompiledDataFolderPath(!InOptions.bIsCooking);
+		FolderPath = CustomizableObject->GetCompiledDataFolderPath();
 		CompileDataFullFileName = FolderPath + CustomizableObject->GetCompiledDataFileName(true, InOptions.TargetPlatform);
 		StreamableDataFullFileName = FolderPath + CustomizableObject->GetCompiledDataFileName(false, InOptions.TargetPlatform);
 
@@ -248,7 +248,7 @@ uint32 FCustomizableObjectSaveDDRunnable::Run()
 {
 	bool bModelSerialized = Model.Get() != nullptr;
 
-	if (Options.bIsCooking && !Options.bSaveCookedDataToDisk)
+	if (Options.bIsCooking)
 	{
 		// Serialize mu::Model and streamable resources 
 		FMemoryWriter64 ModelMemoryWriter(Bytes, false, true);

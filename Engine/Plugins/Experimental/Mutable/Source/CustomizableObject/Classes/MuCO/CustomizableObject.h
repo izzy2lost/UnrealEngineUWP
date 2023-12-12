@@ -192,14 +192,8 @@ struct FCompilationOptions
 	// Compiling for cook
 	bool bIsCooking = false;
 
-	// Save compilation data for cook on disk 
-	bool bSaveCookedDataToDisk = false;
-
 	// This can be set for additional settings
 	const class ITargetPlatform* TargetPlatform = nullptr;
-
-	// Used to force a check to compare the guids stored in the base object compared to the children to see if any of them has changes and thus mark the object as modified.
-	bool bCheckChildrenGuids = false;
 
 	// Used to prevent the current model from being stored in the editor's streamed data and cache when the compilation finishes
 	bool bDontUpdateStreamedDataAndCache = false;
@@ -1226,10 +1220,6 @@ public:
 	UPROPERTY()
 	FGuid VersionId;
 
-	// Set of all the guids of all the CustomizableObjects in the compilation
-	UPROPERTY()
-	TSet<FGuid> CustomizableObjectGuidsInCompilation;
-
 	/* Map to identify what CustomizableObject owns a parameter. Used to display a tooltip when hovering a parameter
 	   in the Prev. instance panel */
 	UPROPERTY(Transient)
@@ -1409,6 +1399,12 @@ private:
 	// Warning: If while merging code both versions have changed, take the highest+1.
 	static const int32 CurrentSupportedVersion = 414;
 
+	// Compile the object for a specific platform - Compile for Cook Customizable Object
+	void CompileForTargetPlatform(const ITargetPlatform* TargetPlatform);
+
+	// Unless we are packaging there is no need for keeping all the data generated during compilation, this information is stored in the derived data.
+	void ClearCompiledData();
+
 public:
 
 	void AddUncompiledCOWarning(const FString& AdditionalLoggingInfo);
@@ -1429,7 +1425,7 @@ public:
 	int32 GetCurrentSupportedVersion() const { return CurrentSupportedVersion; };
 
 	// Compose folder name where the data is stored
-	FString GetCompiledDataFolderPath(bool bIsEditorData) const;
+	FString GetCompiledDataFolderPath() const;
 
 	// Compose file name 
 	FString GetCompiledDataFileName(bool bIsModel, const ITargetPlatform* InTargetPlatform = nullptr, bool bIsDiskStreamer = false);
@@ -1452,15 +1448,6 @@ public:
 	bool IsCachedCookedPlatformDataLoaded(const ITargetPlatform* TargetPlatform) override;
 	// End UObject interface.
 
-	// To avoid missing resources in packages we load all the resources. Loading the references added in the BeginCacheForCookedPlatformData will help us ensure they are included in the final package
-	void LoadReferencedObjects();
-	
-	// Compile the object for a specific platform - Compile for Cook Customizable Object
-	void CompileForTargetPlatform(const ITargetPlatform* TargetPlatform, bool bIsOnCookStart = false);
-
-	// Unless we are packaging there is no need for keeping all the data generated during compilation, this information is stored in the derived data.
-	void ClearCompiledData();
-
 	// Rebuild HashToStreamableBlocks and ParameterProperties from the current compiled model.
 	void UpdateCompiledDataFromModel();
 	
@@ -1468,8 +1455,8 @@ public:
 	void SaveCompiledData(FArchive& Ar, bool bSkipEditorOnlyData = false);
 	void LoadCompiledData(FArchive& Ar, const ITargetPlatform* InTargetPlatform, bool bSkipEditorOnlyData = false);
 
-	/** Load compiled data from disk, this is used to load Editor Compilations and Cook Compilations (when using OnCookStart) */
-	void LoadCompiledDataFromDisk(bool bIsEditorData = true, const ITargetPlatform* InTargetPlatform = nullptr);
+	/** Load compiled data for the running platform from disk, this is used to load Editor Compilations. */
+	void LoadCompiledDataFromDisk();
 
 	/** Cache platform data for cook */
 	void CachePlatformData(const ITargetPlatform* InTargetPlatform, const TArray64<uint8>& InObjectBytes, const TArray64<uint8>& InBulkBytes);
