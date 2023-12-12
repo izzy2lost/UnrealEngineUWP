@@ -1912,7 +1912,7 @@ bool FControlRigEditMode::FrustumSelect(const FConvexVolume& InFrustum, FEditorV
 	
 	ScopedTransaction.Cancel();
 	//if only selecting controls return true to stop any more selections
-	if (Settings && Settings->bOnlySelectRigControls)
+	if (Settings->bOnlySelectRigControls)
 	{
 		return true;
 	}
