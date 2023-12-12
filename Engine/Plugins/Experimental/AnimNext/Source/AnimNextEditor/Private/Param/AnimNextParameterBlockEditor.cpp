@@ -1,6 +1,7 @@
 ﻿// Copyright Epic Games, Inc. All Rights Reserved.
 
 #include "AnimNextParameterBlockEditor.h"
+
 #include "ParameterBlockEditorMode.h"
 #include "Param/AnimNextParameterBlock.h"
 #include "Param/AnimNextParameterBlock_EditorData.h"
@@ -12,9 +13,7 @@
 #include "RigVMModel/RigVMController.h"
 #include "Kismet2/BlueprintEditorUtils.h"
 #include "ScopedTransaction.h"
-#include "Param/AnimNextParameterBlockEntry.h"
 #include "Param/AnimNextParameterSettings.h"
-#include "ParameterBlockEditorMode.h"
 #include "Param/AnimNextParameterExecuteContext.h"
 #include "Widgets/Docking/SDockTab.h"
 
@@ -383,12 +382,6 @@ void FParameterBlockEditor::GetSaveableObjects(TArray<UObject*>& OutObjects) con
 
 	// Get external objects too
 	FExternalPackageHelper::GetExternalSaveableObjects(EditorData, OutObjects);
-
-	// Get any referenced objects too for convenience 
-	for(UAnimNextParameterBlockEntry* Entry : EditorData->Entries)
-	{
-		Entry->GetEditedObjects(OutObjects);
-	}
 }
 
 void FParameterBlockEditor::HandleSaveGraphState(UEdGraph* InGraph, FVector2D InViewOffset, float InZoomAmount)

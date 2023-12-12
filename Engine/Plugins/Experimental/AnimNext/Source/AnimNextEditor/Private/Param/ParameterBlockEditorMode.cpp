@@ -2,18 +2,17 @@
 
 #include "ParameterBlockEditorMode.h"
 #include "AnimNextParameterBlockEditor.h"
+#include "AnimNextRigVMAssetEntry.h"
+#include "IAnimNextRigVMGraphInterface.h"
 #include "PropertyEditorModule.h"
-#include "Widgets/Docking/SDockTab.h"
+#include "Common/SRigVMAssetView.h"
 #include "EdGraph/EdGraph.h"
 #include "EdGraph/EdGraphSchema.h"
-#include "Widgets/Layout/SSpacer.h"
 #include "Modules/ModuleManager.h"
-#include "SParameterBlockView.h"
 #include "Param/AnimNextParameterBlock_EditorData.h"
 #include "RigVMModel/RigVMGraph.h"
-#include "Param/IAnimNextParameterBlockGraphInterface.h"
-#include "Param/AnimNextParameterBlockEntry.h"
-#include "Param/AnimNextParameterBlockEditor.h"
+#include "Widgets/Docking/SDockTab.h"
+#include "Widgets/Layout/SSpacer.h"
 
 #define LOCTEXT_NAMESPACE "ParameterBlockEditorMode"
 
@@ -229,7 +228,7 @@ public:
 private:
 	virtual TSharedRef<SWidget> CreateTabBody(const FWorkflowTabSpawnInfo& Info) const override
 	{
-		return SNew(SParameterBlockView, StaticCastSharedPtr<FParameterBlockEditor>(HostingApp.Pin())->EditorData)
+		return SNew(SRigVMAssetView, StaticCastSharedPtr<FParameterBlockEditor>(HostingApp.Pin())->EditorData)
 			.OnSelectionChanged(this, &FParameterBlockTabSummoner::HandleSelectionChanged)
 			.OnOpenGraph(this, &FParameterBlockTabSummoner::HandleOpenGraph)
 			.OnDeleteEntries(this, &FParameterBlockTabSummoner::HandleDeleteEntries);
@@ -256,21 +255,18 @@ private:
 		}
 	}
 
-	void HandleDeleteEntries(const TArray<UAnimNextParameterBlockEntry*>& InEntries) const
+	void HandleDeleteEntries(const TArray<UAnimNextRigVMAssetEntry*>& InEntries) const
 	{
 		TSharedPtr<FParameterBlockEditor> ParameterBlockEditor = StaticCastSharedPtr<FParameterBlockEditor>(HostingApp.Pin());
 		UAnimNextParameterBlock_EditorData* EditorData = StaticCastSharedPtr<FParameterBlockEditor>(HostingApp.Pin())->EditorData;
 
-		for(UAnimNextParameterBlockEntry* Entry : InEntries)
+		for(UAnimNextRigVMAssetEntry* Entry : InEntries)
 		{
-			if(IAnimNextParameterBlockGraphInterface* GraphInterface = Cast<IAnimNextParameterBlockGraphInterface>(Entry))
+			if(IAnimNextRigVMGraphInterface* GraphInterface = Cast<IAnimNextRigVMGraphInterface>(Entry))
 			{
-				if(URigVMGraph* RigVMGraph = GraphInterface->GetGraph())
+				if(URigVMEdGraph* EdGraph = GraphInterface->GetEdGraph())
 				{
-					if (UObject* EditorObject = EditorData->GetEditorObjectForRigVMGraph(RigVMGraph))
-					{
-						ParameterBlockEditor->CloseDocumentTab(EditorObject);
-					}
+					ParameterBlockEditor->CloseDocumentTab(EdGraph);
 				}
 			}
 		}

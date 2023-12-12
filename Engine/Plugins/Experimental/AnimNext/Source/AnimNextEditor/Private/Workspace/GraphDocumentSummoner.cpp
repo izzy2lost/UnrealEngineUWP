@@ -7,6 +7,7 @@
 #include "Widgets/Docking/SDockTab.h"
 #include "Widgets/Layout/SSpacer.h"
 #include "EdGraph/EdGraphSchema.h"
+#include "EdGraph/RigVMEdGraph.h"
 #include "Framework/Commands/GenericCommands.h"
 
 #define LOCTEXT_NAMESPACE "AnimNextGraphDocumentSummoner"
@@ -86,7 +87,7 @@ TSharedRef<SWidget> FGraphDocumentSummoner::CreateTabBodyForObject(const FWorkfl
 {
 	SGraphEditor::FGraphEditorEvents Events;
 	Events.OnCreateActionMenu = SGraphEditor::FOnCreateActionMenu::CreateSP(this, &FGraphDocumentSummoner::OnCreateGraphActionMenu);
-	Events.OnSelectionChanged = SGraphEditor::FOnSelectionChanged::CreateSP(HostingAppPtr.Pin().Get(), &FWorkspaceEditor::OnGraphSelectionChanged);
+	Events.OnSelectionChanged = SGraphEditor::FOnSelectionChanged::CreateSP(this, &FGraphDocumentSummoner::OnGraphSelectionChanged, TWeakObjectPtr<UEdGraph>(DocumentID));
 	
 	return SNew(SGraphEditor)
 		.AdditionalCommands(CommandList)
@@ -94,6 +95,38 @@ TSharedRef<SWidget> FGraphDocumentSummoner::CreateTabBodyForObject(const FWorkfl
 		.GraphToEdit(DocumentID)
 		.GraphEvents(Events)
 		.AssetEditorToolkit(HostingAppPtr);
+}
+
+void FGraphDocumentSummoner::OnGraphSelectionChanged(const TSet<UObject*>& NewSelection, TWeakObjectPtr<UEdGraph> InGraph) const
+{
+	URigVMEdGraph* RigVMEdGraph = Cast<URigVMEdGraph>(InGraph.Get());
+	if (RigVMEdGraph == nullptr)
+	{
+		return;
+	}
+
+	if (RigVMEdGraph->bIsSelecting || GIsTransacting)
+	{
+		return;
+	}
+
+	TGuardValue<bool> SelectGuard(RigVMEdGraph->bIsSelecting, true);
+
+	TArray<FName> NodeNamesToSelect;
+	for (UObject* Object : NewSelection)
+	{
+		if (URigVMEdGraphNode* RigVMEdGraphNode = Cast<URigVMEdGraphNode>(Object))
+		{
+			NodeNamesToSelect.Add(RigVMEdGraphNode->GetModelNodeName());
+		}
+		else if(UEdGraphNode* Node = Cast<UEdGraphNode>(Object))
+		{
+			NodeNamesToSelect.Add(Node->GetFName());
+		}
+	}
+	RigVMEdGraph->GetController()->SetNodeSelection(NodeNamesToSelect, true, true);
+
+	HostingAppPtr.Pin()->OnGraphSelectionChanged(NewSelection);
 }
 
 bool FGraphDocumentSummoner::IsPayloadSupported(TSharedRef<FTabPayload> Payload) const

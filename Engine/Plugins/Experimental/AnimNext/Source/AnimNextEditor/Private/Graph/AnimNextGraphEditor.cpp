@@ -60,12 +60,6 @@ void FGraphEditor::InitEditor(const EToolkitMode::Type InMode, const TSharedPtr<
 	ExtendMenu();
 	ExtendToolbar();
 	RegenerateMenusAndToolbars();
-
-	// Open initial document
-	if(AnimNextGraph_EditorData->Graphs.Num() > 0)
-	{
-		DocumentManager->OpenDocument(FTabPayload_UObject::Make(AnimNextGraph_EditorData->Graphs[0]), FDocumentTracker::EOpenDocumentCause::OpenNewDocument);
-	}
 }
 
 void FGraphEditor::BindCommands()

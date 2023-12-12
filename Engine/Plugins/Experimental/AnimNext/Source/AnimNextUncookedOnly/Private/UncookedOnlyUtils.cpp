@@ -14,23 +14,16 @@
 #include "Graph/RigUnit_AnimNextGraphRoot.h"
 #include "Graph/RigUnit_AnimNextGraphEvaluator.h"
 #include "Graph/RigUnit_AnimNextShimRoot.h"
-#include "Graph/AnimNextExecuteContext.h"
 #include "Param/AnimNextParameterBlock.h"
 #include "Param/AnimNextParameterBlock_EditorData.h"
-#include "Param/AnimNextParameterBlock_EdGraph.h"
 #include "Graph/RigDecorator_AnimNextCppDecorator.h"
 #include "Param/RigUnit_AnimNextParameterBeginExecution.h"
 #include "Param/RigVMDispatch_GetParameter.h"
 #include "Param/RigVMDispatch_SetLayerParameter.h"
-#include "Param/AnimNextParameterBlockEntry.h"
-#include "Param/IAnimNextParameterBlockParameterInterface.h"
+#include "IAnimNextRigVMParameterInterface.h"
 #include "DecoratorBase/DecoratorReader.h"
 #include "DecoratorBase/DecoratorWriter.h"
-#include "DecoratorBase/NodeTemplate.h"
 #include "DecoratorBase/NodeTemplateBuilder.h"
-#include "DecoratorBase/NodeTemplateRegistry.h"
-#include "DecoratorBase/NodeDescription.h"
-#include "DecoratorBase/NodeInstance.h"
 #include "DecoratorBase/DecoratorRegistry.h"
 #include "DecoratorBase/Decorator.h"
 #include "Graph/RigUnit_AnimNextBeginExecution.h"
@@ -45,10 +38,12 @@
 #include "RigVMCompiler/RigVMCompiler.h"
 #include "RigVMCore/RigVM.h"
 #include "Param/ExternalParameterRegistry.h"
-#include "Param/ParamUtils.h"
 #include "Scheduler/AnimNextExternalTaskBinding.h"
 #include "Scheduler/AnimNextSchedule.h"
 #include "Scheduler/AnimNextSchedulePort.h"
+#include "AnimNextRigVMAsset.h"
+#include "AnimNextRigVMAssetEditorData.h"
+#include "AnimNextRigVMAssetEntry.h"
 
 namespace UE::AnimNext::UncookedOnly
 {
@@ -404,6 +399,8 @@ void FUtils::Compile(UAnimNextGraph* InGraph)
 
 	TGuardValue<bool> CompilingGuard(EditorData->bIsCompiling, true);
 
+
+	
 	// Before we re-compile a graph, we need to release and live instances since we need the metadata we are about to replace
 	// to call decorator destructors etc
 	InGraph->FreezeGraphInstances();
@@ -423,9 +420,15 @@ void FUtils::Compile(UAnimNextGraph* InGraph)
 	EditorData->CompileLog.Messages.Reset();
 	EditorData->CompileLog.NumErrors = EditorData->CompileLog.NumWarnings = 0;
 
-	// We use a temporary graph model to build our final graph that we'll compile
 	FRigVMClient* VMClient = EditorData->GetRigVMClient();
 	URigVMGraph* VMRootGraph = VMClient->GetDefaultModel();
+
+	if(VMRootGraph == nullptr)
+	{
+		return;
+	}
+	
+	// We use a temporary graph model to build our final graph that we'll compile
 	URigVMGraph* VMTempGraph = CastChecked<URigVMGraph>(StaticDuplicateObject(VMRootGraph, GetTransientPackage(), VMClient->GetUniqueName(TEXT("TempRigVMGraph"))));
 
 	UAnimNextGraph_Controller* TempController = CastChecked<UAnimNextGraph_Controller>(VMClient->GetOrCreateController(VMTempGraph));
@@ -513,7 +516,7 @@ void FUtils::Compile(UAnimNextGraph* InGraph)
 	URigVMCompiler* Compiler = URigVMCompiler::StaticClass()->GetDefaultObject<URigVMCompiler>();
 	EditorData->VMCompileSettings.SetExecuteContextStruct(EditorData->RigVMClient.GetExecuteContextStruct());
 	const FRigVMCompileSettings Settings = (EditorData->bCompileInDebugMode) ? FRigVMCompileSettings::Fast(EditorData->VMCompileSettings.GetExecuteContextStruct()) : EditorData->VMCompileSettings;
-	Compiler->Compile(Settings, { VMTempGraph }, TempController, InGraph->VM, InGraph->ExtendedExecuteContext, InGraph->GetRigVMExternalVariables(), & EditorData->PinToOperandMap);
+	Compiler->Compile(Settings, { VMTempGraph }, TempController, InGraph->VM, InGraph->ExtendedExecuteContext, TArray<FRigVMExternalVariable>(), & EditorData->PinToOperandMap);
 
 	// Initialize right away, in packaged builds we initialize during PostLoad
 	InGraph->VM->Initialize(InGraph->ExtendedExecuteContext);
@@ -715,12 +718,20 @@ void FUtils::CompileVM(UAnimNextParameterBlock* InParameterBlock)
 	EditorData->CompileLog.Messages.Reset();
 	EditorData->CompileLog.NumErrors = EditorData->CompileLog.NumWarnings = 0;
 
+	FRigVMClient* VMClient = EditorData->GetRigVMClient();
+	URigVMGraph* RootGraph = VMClient->GetDefaultModel();
+
+	if(RootGraph == nullptr)
+	{
+		return;
+	}
+
 	URigVMCompiler* Compiler = URigVMCompiler::StaticClass()->GetDefaultObject<URigVMCompiler>();
 	EditorData->VMCompileSettings.SetExecuteContextStruct(EditorData->RigVMClient.GetExecuteContextStruct());
 	FRigVMExtendedExecuteContext& CDOContext = InParameterBlock->GetRigVMExtendedExecuteContext();
 	const FRigVMCompileSettings Settings = (EditorData->bCompileInDebugMode) ? FRigVMCompileSettings::Fast(EditorData->VMCompileSettings.GetExecuteContextStruct()) : EditorData->VMCompileSettings;
-	URigVMController* RootController = EditorData->GetRigVMClient()->GetOrCreateController(EditorData->GetRigVMClient()->GetDefaultModel());
-	Compiler->Compile(Settings, EditorData->GetRigVMClient()->GetAllModels(false, false), RootController, InParameterBlock->VM, CDOContext, InParameterBlock->GetExternalVariables(), &EditorData->PinToOperandMap);
+	URigVMController* RootController = VMClient->GetOrCreateController(RootGraph);
+	Compiler->Compile(Settings, { RootGraph }, RootController, InParameterBlock->VM, CDOContext, InParameterBlock->GetExternalVariables(), &EditorData->PinToOperandMap);
 
 	InParameterBlock->VM->Initialize(CDOContext);
 	InParameterBlock->GenerateUserDefinedDependenciesData(CDOContext);
@@ -766,13 +777,13 @@ void FUtils::CompileStruct(UAnimNextParameterBlock* InParameterBlock)
 	PropertyDescs.Reserve(EditorData->Entries.Num());
 	
 	// Gather all parameters in this block
-	for(const UAnimNextParameterBlockEntry* Entry : EditorData->Entries)
+	for(const UAnimNextRigVMAssetEntry* Entry : EditorData->Entries)
 	{
-		if(const IAnimNextParameterBlockParameterInterface* Binding = Cast<IAnimNextParameterBlockParameterInterface>(Entry))
+		if(const IAnimNextRigVMParameterInterface* Binding = Cast<IAnimNextRigVMParameterInterface>(Entry))
 		{
 			const FAnimNextParamType& Type = Binding->GetParamType();
 			ensure(Type.IsValid());
-			PropertyDescs.Emplace(Binding->GetParameterName(), Type.GetContainerType(), Type.GetValueType(), Type.GetValueTypeObject());
+			PropertyDescs.Emplace(Entry->GetEntryName(), Type.GetContainerType(), Type.GetValueType(), Type.GetValueTypeObject());
 		}
 	}
 
@@ -802,8 +813,6 @@ void FUtils::CompileStruct(UAnimNextParameterBlock* InParameterBlock)
 	{
 		InParameterBlock->PropertyBag.Reset();
 	}
-
-	EditorData->bStructRecompilationRequired = false;
 }
 
 void FUtils::Compile(UAnimNextParameterBlock* InParameterBlock)
@@ -822,6 +831,18 @@ void FUtils::RecreateVM(UAnimNextParameterBlock* InParameterBlock)
 	}
 	InParameterBlock->VM->Reset(InParameterBlock->GetRigVMExtendedExecuteContext());
 	InParameterBlock->RigVM = InParameterBlock->VM; // Local serialization
+}
+
+UAnimNextRigVMAsset* FUtils::GetAsset(UAnimNextRigVMAssetEditorData* InEditorData)
+{
+	check(InEditorData);
+	return CastChecked<UAnimNextRigVMAsset>(InEditorData->GetOuter());
+}
+
+UAnimNextRigVMAssetEditorData* FUtils::GetEditorData(UAnimNextRigVMAsset* InAsset)
+{
+	check(InAsset);
+	return CastChecked<UAnimNextRigVMAssetEditorData>(InAsset->EditorData);
 }
 
 UAnimNextParameterBlock_EditorData* FUtils::GetEditorData(const UAnimNextParameterBlock* InParameterBlock)

@@ -17,8 +17,7 @@ DEFINE_STAT(STAT_AnimNext_ParamBlock_UpdateLayer);
 UAnimNextParameterBlock::UAnimNextParameterBlock(const FObjectInitializer& ObjectInitializer)
 	: Super(ObjectInitializer)
 {
-	BaseRigVMContext.SetContextPublicDataStruct(FAnimNextParameterExecuteContext::StaticStruct());
-	SetRigVMExtendedExecuteContext(&BaseRigVMContext);
+	ExtendedExecuteContext.SetContextPublicDataStruct(FAnimNextParameterExecuteContext::StaticStruct());
 }
 
 void UAnimNextParameterBlock::UpdateLayer(UE::AnimNext::FParamStackLayerHandle& InHandle, float InDeltaTime) const
@@ -44,50 +43,4 @@ void UAnimNextParameterBlock::UpdateLayer(UE::AnimNext::FParamStackLayerHandle& 
 			VM->ExecuteVM(Context, FRigUnit_AnimNextBeginExecution::EventName);
 		}
 	}
-}
-
-void UAnimNextParameterBlock::BeginDestroy()
-{
-	Super::BeginDestroy();
-
-	if (VM)
-	{
-		UE::AnimNext::FRigVMRuntimeDataRegistry::ReleaseAllVMRuntimeData(VM);
-	}
-}
-
-void UAnimNextParameterBlock::PostLoad()
-{
-	Super::PostLoad();
-
-	VM = RigVM;
-
-	// In packaged builds, initialize the VM
-	// In editor, the VM will be recompiled and initialized at UAnimNextParameterBlock_EditorData::HandlePackageDone::RecompileVM
-#if !WITH_EDITOR
-	if(VM != nullptr)
-	{
-		VM->Initialize(BaseRigVMContext);
-		InitializeVM(FRigUnit_AnimNextBeginExecution::EventName);
-	}
-#endif
-}
-
-void UAnimNextParameterBlock::GetAssetRegistryTags(TArray<FAssetRegistryTag>& OutTags) const
-{
-	PRAGMA_DISABLE_DEPRECATION_WARNINGS;
-	Super::GetAssetRegistryTags(OutTags);
-	PRAGMA_ENABLE_DEPRECATION_WARNINGS;
-}
-
-void UAnimNextParameterBlock::GetAssetRegistryTags(FAssetRegistryTagsContext Context) const
-{
-	Super::GetAssetRegistryTags(Context);
-	
-#if WITH_EDITORONLY_DATA
-	if(EditorData)
-	{
-		EditorData->GetAssetRegistryTags(Context);
-	}
-#endif
 }

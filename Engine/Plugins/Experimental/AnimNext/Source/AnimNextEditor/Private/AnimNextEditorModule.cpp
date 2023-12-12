@@ -3,25 +3,26 @@
 #include "AnimNextEditorModule.h"
 
 #include "AnimNextConfig.h"
+#include "ISettingsModule.h"
+#include "ScopedTransaction.h"
+#include "SSimpleButton.h"
+#include "SSimpleComboButton.h"
+#include "UncookedOnlyUtils.h"
+#include "Common/SRigVMAssetView.h"
+#include "Framework/Application/SlateApplication.h"
+#include "Graph/AnimNextGraph.h"
 #include "Graph/AnimNextGraphPanelNodeFactory.h"
-#include "Param/ParamTypePropertyCustomization.h"
+#include "Graph/AnimNextGraph_EdGraphNodeCustomization.h"
+#include "Param/AnimNextParameterBlock.h"
+#include "Param/ParameterBlockParameterCustomization.h"
 #include "Param/ParameterPickerArgs.h"
 #include "Param/ParametersGraphPanelPinFactory.h"
 #include "Param/ParamNamePropertyCustomization.h"
+#include "Param/ParamPropertyCustomization.h"
+#include "Param/ParamTypePropertyCustomization.h"
 #include "Param/SParameterPicker.h"
-#include "ISettingsModule.h"
-#include "UncookedOnlyUtils.h"
-#include "Graph/AnimNextGraph.h"
-#include "Param/AnimNextParameterBlock.h"
-#include "Param/AnimNextParameterBlockEntry.h"
-#include "Param/IAnimNextParameterBlockGraphInterface.h"
-#include "Param/SParameterBlockView.h"
-#include "Graph/SAnimNextGraphView.h"
 #include "Scheduler/AnimNextSchedule.h"
 #include "Workspace/AnimNextWorkspaceEditor.h"
-#include "Param/ParameterBlockParameterCustomization.h"
-#include "Graph/AnimNextGraph_EdGraphNodeCustomization.h"
-#include "Param/ParamPropertyCustomization.h"
 
 #define LOCTEXT_NAMESPACE "AnimNextEditorModule"
 
@@ -72,54 +73,11 @@ class FModule : public IModule
 		{
 			UAnimNextParameterBlock* ParameterBlock = CastChecked<UAnimNextParameterBlock>(InAsset);
 			UAnimNextParameterBlock_EditorData* EditorData = UncookedOnly::FUtils::GetEditorData(ParameterBlock);
-			return SNew(SParameterBlockView, EditorData)
-				.OnSelectionChanged_Lambda([WeakEditor = TWeakPtr<FWorkspaceEditor>(InEditor)](const TArray<UObject*>& InObjects)
-				{
-					if(TSharedPtr<FWorkspaceEditor> Editor = WeakEditor.Pin())
-					{
-						Editor->SetSelectedObjects(InObjects);
-					}
-				})
-				.OnOpenGraph_Lambda([WeakEditor = TWeakPtr<FWorkspaceEditor>(InEditor)](URigVMGraph* InGraph)
-				{
-					if(TSharedPtr<FWorkspaceEditor> Editor = WeakEditor.Pin())
-					{
-						if(IRigVMClientHost* RigVMClientHost = InGraph->GetImplementingOuter<IRigVMClientHost>())
-						{
-							if(UObject* EditorObject = RigVMClientHost->GetEditorObjectForRigVMGraph(InGraph))
-							{
-								Editor->OpenDocument(EditorObject, FDocumentTracker::EOpenDocumentCause::OpenNewDocument);
-							}
-						}
-					}
-				})
-				.OnDeleteEntries_Lambda([WeakEditor = TWeakPtr<FWorkspaceEditor>(InEditor)](const TArray<UAnimNextParameterBlockEntry*>& InEntries)
-				{
-					if(InEntries.Num() > 0)
-					{
-						if(TSharedPtr<FWorkspaceEditor> Editor = WeakEditor.Pin())
-						{
-							if(IRigVMClientHost* RigVMClientHost = InEntries[0]->GetImplementingOuter<IRigVMClientHost>())
-							{
-								for(UAnimNextParameterBlockEntry* Entry : InEntries)
-								{
-									if(IAnimNextParameterBlockGraphInterface* GraphInterface = Cast<IAnimNextParameterBlockGraphInterface>(Entry))
-									{
-										if(URigVMGraph* RigVMGraph = GraphInterface->GetGraph())
-										{
-											if (UObject* EditorObject = RigVMClientHost->GetEditorObjectForRigVMGraph(RigVMGraph))
-											{
-												Editor->CloseDocumentTab(EditorObject);
-											}
-										}
-									}
-								}
-							}
-						}
-					}
-				});
+			return SNew(SRigVMAssetView, EditorData)
+				.OnSelectionChanged(&InEditor.Get(), &FWorkspaceEditor::SetSelectedObjects)
+				.OnOpenGraph(&InEditor.Get(), &FWorkspaceEditor::OnOpenGraph)
+				.OnDeleteEntries(&InEditor.Get(), &FWorkspaceEditor::OnDeleteEntries);
 		});
-
 
 		FWorkspaceEditor::RegisterAssetDocumentWidget(UAnimNextSchedule::StaticClass()->GetFName(), [](TSharedRef<FWorkspaceEditor> InEditor, UObject* InAsset)
 		{
@@ -136,23 +94,101 @@ class FModule : public IModule
 		{
 			UAnimNextGraph* Graph = CastChecked<UAnimNextGraph>(InAsset);
 			UAnimNextGraph_EditorData* EditorData = UncookedOnly::FUtils::GetEditorData(Graph);
-			
-			EditorData->GetRigVMGraphModifiedEvent().RemoveAll(&InEditor.Get());
-			EditorData->GetRigVMGraphModifiedEvent().AddSP(InEditor, &FWorkspaceEditor::OnGraphModified);
 
-			return SNew(SAnimNextGraphView, EditorData)
-				.OnOpenGraph_Lambda([WeakEditor = TWeakPtr<FWorkspaceEditor>(InEditor)](URigVMGraph* InGraph)
+			EditorData->RigVMGraphModifiedEvent.RemoveAll(&InEditor.Get());
+			EditorData->RigVMGraphModifiedEvent.AddSP(InEditor, &FWorkspaceEditor::OnGraphModified);
+
+			return SNew(SRigVMAssetView, EditorData)
+				.OnSelectionChanged(&InEditor.Get(), &FWorkspaceEditor::SetSelectedObjects)
+				.OnOpenGraph(&InEditor.Get(), &FWorkspaceEditor::OnOpenGraph)
+				.OnDeleteEntries(&InEditor.Get(), &FWorkspaceEditor::OnDeleteEntries);
+		});
+
+		SRigVMAssetView::RegisterCategoryFactory("Parameters", [](UAnimNextRigVMAssetEditorData* InEditorData)
+		{
+			UAnimNextParameterBlock_EditorData* EditorData = CastChecked<UAnimNextParameterBlock_EditorData>(InEditorData);
+			return SNew(SSimpleComboButton)
+				.Text(LOCTEXT("AddParameterButton", "Add Parameter"))
+				.Icon(FAppStyle::Get().GetBrush("Icons.Plus"))
+				.HasDownArrow(true)
+				.OnGetMenuContent_Lambda([EditorData]()
 				{
-					if(TSharedPtr<FWorkspaceEditor> Editor = WeakEditor.Pin())
+					FAssetData AssetData(UncookedOnly::FUtils::GetAsset(EditorData));
+					
+					FParameterPickerArgs Args;
+					Args.bMultiSelect = false;
+					Args.bShowBlocks = false;
+					Args.bShowBoundParameters = false;
+					Args.bShowBuiltInParameters = false; // Built-In parameters disabled for MVP
+					Args.OnFilterParameter = FOnFilterParameter::CreateLambda([EditorData, AssetData](const FParameterBindingReference& InParameterBinding)
 					{
-						if(IRigVMClientHost* RigVMClientHost = InGraph->GetImplementingOuter<IRigVMClientHost>())
+						// Skip params that are already bound in this block
+						if(InParameterBinding.Block == AssetData)
 						{
-							if(UObject* EditorObject = RigVMClientHost->GetEditorObjectForRigVMGraph(InGraph))
-							{
-								Editor->OpenDocument(EditorObject, FDocumentTracker::EOpenDocumentCause::OpenNewDocument);
-							}
+							return EFilterParameterResult::Exclude;
 						}
-					}
+						
+						return EFilterParameterResult::Include;
+					});
+
+					Args.OnAddParameter = FOnAddParameter::CreateLambda([EditorData](const FParameterToAdd& ParameterToAdd)
+					{
+						FSlateApplication::Get().DismissAllMenus();
+
+						check(EditorData->FindEntry(ParameterToAdd.Name) == nullptr);
+						FScopedTransaction Transaction(LOCTEXT("AddParameter", "Add parameter"));
+						EditorData->AddParameter(ParameterToAdd.Name, ParameterToAdd.Type);
+					});
+					Args.OnParameterPicked = FOnParameterPicked::CreateLambda([EditorData](const FParameterBindingReference& InParameterBinding)
+					{
+						FSlateApplication::Get().DismissAllMenus();
+
+						if (EditorData->FindEntry(InParameterBinding.Parameter) == nullptr)
+						{
+							const FAnimNextParamType Type = UncookedOnly::FUtils::GetParameterTypeFromName(InParameterBinding.Parameter);
+							if (Type.IsValid())
+							{
+								EditorData->AddParameter(InParameterBinding.Parameter, Type);
+							};
+						}
+					});
+					
+					return SNew(SParameterPicker)
+						.Args(Args);
+				});
+		});
+
+		SRigVMAssetView::RegisterCategoryFactory("Parameter Graphs", [](UAnimNextRigVMAssetEditorData* InEditorData)
+		{
+			UAnimNextParameterBlock_EditorData* EditorData = CastChecked<UAnimNextParameterBlock_EditorData>(InEditorData);
+			return SNew(SSimpleButton)
+				.Text(LOCTEXT("AddGraphButton", "Add Graph"))
+				.Icon(FAppStyle::Get().GetBrush("Icons.Plus"))
+				.OnClicked_Lambda([EditorData]()
+				{
+					FScopedTransaction Transaction(LOCTEXT("AddGraph", "Add Graph"));
+
+					// Create a new entry for the graph
+					EditorData->AddGraph(TEXT("NewGraph"));
+
+					return FReply::Handled();
+				});
+		});
+
+		SRigVMAssetView::RegisterCategoryFactory("Animation Graphs", [](UAnimNextRigVMAssetEditorData* InEditorData)
+		{
+			UAnimNextGraph_EditorData* EditorData = CastChecked<UAnimNextGraph_EditorData>(InEditorData);
+			return SNew(SSimpleButton)
+				.Text(LOCTEXT("AddGraphButton", "Add Graph"))
+				.Icon(FAppStyle::Get().GetBrush("Icons.Plus"))
+				.OnClicked_Lambda([EditorData]()
+				{
+					FScopedTransaction Transaction(LOCTEXT("AddGraph", "Add Graph"));
+
+					// Create a new entry for the graph
+					EditorData->AddGraph(TEXT("NewGraph"));
+
+					return FReply::Handled();
 				});
 		});
 	}
@@ -172,6 +208,13 @@ class FModule : public IModule
 		FEdGraphUtilities::UnregisterVisualNodeFactory(AnimNextGraphPanelNodeFactory);
 
 		FEdGraphUtilities::UnregisterVisualPinFactory(ParametersGraphPanelPinFactory);
+
+		FWorkspaceEditor::UnregisterAssetDocumentWidget(UAnimNextSchedule::StaticClass()->GetFName());
+		FWorkspaceEditor::UnregisterAssetDocumentWidget(UAnimNextParameterBlock::StaticClass()->GetFName());
+		FWorkspaceEditor::UnregisterAssetDocumentWidget(UAnimNextGraph::StaticClass()->GetFName());
+		
+		SRigVMAssetView::UnregisterCategoryFactory("Parameters");
+		SRigVMAssetView::UnregisterCategoryFactory("Parameter Graphs");
 	}
 
 	virtual TSharedRef<SWidget> CreateParameterPicker(const FParameterPickerArgs& InArgs) override

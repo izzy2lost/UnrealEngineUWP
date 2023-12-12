@@ -249,18 +249,12 @@ class SParameterToAdd : public SMultiColumnTableRow<TSharedRef<FParameterToAdd>>
 					{
 						const FString NewString = InNewText.ToString();
 
-						// See if this can be represented as an FName
-						if(!FName::IsValidXName(NewString, INVALID_NAME_CHARACTERS, &OutErrorText))
+						if(!FUtils::IsValidEntryNameString(NewString, OutErrorText))
 						{
 							return false;
 						}
 
 						const FName Name(*NewString);
-						if(!FUtils::IsValidParameterName(Name, OutErrorText))
-						{
-							return false;
-						}
-
 						if(FUtils::DoesParameterNameExist(Name))
 						{
 							OutErrorText = LOCTEXT("Error_NameExists", "This name already exists in the project");

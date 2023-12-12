@@ -11,8 +11,8 @@ class UAnimNextParameterBlock;
 
 namespace UE::AnimNext::Editor
 {
-class SParameterBlockView;
-class SParameterBlockViewRow;
+class SRigVMAssetView;
+class SRigVMAssetViewRow;
 }
 
 namespace UE::AnimNext::UncookedOnly
@@ -30,8 +30,8 @@ class ANIMNEXTUNCOOKEDONLY_API IAnimNextParameterBlockReferenceInterface
 {
 	GENERATED_BODY()
 
-	friend class UE::AnimNext::Editor::SParameterBlockView;
-	friend class UE::AnimNext::Editor::SParameterBlockViewRow;
+	friend class UE::AnimNext::Editor::SRigVMAssetView;
+	friend class UE::AnimNext::Editor::SRigVMAssetViewRow;
 	friend struct UE::AnimNext::UncookedOnly::FUtilsPrivate;
 
 	// Get the block we reference

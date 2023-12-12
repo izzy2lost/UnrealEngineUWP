@@ -3,11 +3,13 @@
 #pragma once
 
 #include "CoreMinimal.h"
+#include "AnimNextRigVMAssetEntry.h"
+#include "IAnimNextRigVMGraphInterface.h"
 #include "AnimNextGraphEntry.generated.h"
 
 class UAnimNextGraph_EditorData;
+class UAnimNextGraph_EdGraph;
 enum class ERigVMGraphNotifType : uint8;
-class URigVMGraph;
 
 namespace UE::AnimNext::Editor
 {
@@ -15,35 +17,31 @@ namespace UE::AnimNext::Editor
 }
 
 /** A single entry in an AnimNext graph asset */
-UCLASS(MinimalAPI, BlueprintType)
-class UAnimNextGraphEntry : public UObject
+UCLASS(MinimalAPI, Category = "Animation Graphs")
+class UAnimNextGraphEntry : public UAnimNextRigVMAssetEntry, public IAnimNextRigVMGraphInterface
 {
 	GENERATED_BODY()
 
 	friend class UAnimNextGraph_EditorData;
-	friend struct UE::AnimNext::Editor::FUtils;
-	
-	void Initialize(UAnimNextGraph_EditorData* InEditorData);
+	friend struct UE::AnimNext::Editor::FUtils;	
 
-	void HandleRigVMGraphModifiedEvent(ERigVMGraphNotifType InNotifType, URigVMGraph* InGraph, UObject* InSubject);
-	
-	// Get the name to be displayed in the UI for this entry
-	virtual FText GetDisplayName() const;
+	// UAnimNextRigVMAssetEntry interface
+	virtual FName GetEntryName() const override;
 
-	// Get the tooltip to be displayed for the name in the UI for this entry
-	virtual FText GetDisplayNameTooltip() const;
-
-	// UObject interface
-	virtual bool IsAsset() const override;
+	// IAnimNextRigVMGraphInterface interface
+	virtual URigVMGraph* GetRigVMGraph() const override;
+	virtual URigVMEdGraph* GetEdGraph() const override;
 
 protected:
-	void BroadcastModified();
-
 	/** The name of the graph */
 	UPROPERTY(VisibleAnywhere, Category = Parameter)
 	FName GraphName;
 
-	/** Graph */
+	/** RigVM graph */
 	UPROPERTY()
 	TObjectPtr<URigVMGraph> Graph;
+
+	/** Editor graph */
+	UPROPERTY()
+	TObjectPtr<UAnimNextGraph_EdGraph> EdGraph;
 };

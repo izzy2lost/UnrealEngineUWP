@@ -36,24 +36,23 @@ void FParameterBlockParameterCustomization::CustomizeDetails(IDetailLayoutBuilde
 	{
 		IDetailCategoryBuilder& ParameterCategory = DetailBuilder.EditCategory(TEXT("Parameter"), FText::GetEmpty(), ECategoryPriority::Important);
 
-
 		IDetailCategoryBuilder& DefaultValueCategory = DetailBuilder.EditCategory(TEXT("DefaultValue"), FText::GetEmpty(), ECategoryPriority::Default);
 
 		TSharedRef< SWidget > ColumnWidget = SNullWidget::NullWidget;
 
 		if (UAnimNextParameterBlock_EditorData* EditorData = Cast<UAnimNextParameterBlock_EditorData>(BlockParam->GetOuter()))
 		{
-			const FName ParameterName = BlockParam->GetParameterName();
-			if (UAnimNextParameterBlockEntry* BlockEntry = EditorData->FindBinding(ParameterName)) // filter non parameter entries
+			const FName ParameterName = BlockParam->GetEntryName();
+			if (UAnimNextRigVMAssetEntry* BlockEntry = EditorData->FindEntry(ParameterName)) 
 			{
 				if (UAnimNextParameterBlock* ReferencedBlock = UE::AnimNext::UncookedOnly::FUtils::GetBlock(EditorData))
 				{
 					FAddPropertyParams AddPropertyParams;
 					TArray<IDetailPropertyRow*> DetailPropertyRows;
 
-					if (ReferencedBlock->GetPropertyBag().FindPropertyDescByName(ParameterName))
+					if (ReferencedBlock->PropertyBag.FindPropertyDescByName(ParameterName))
 					{
-						IDetailPropertyRow* DetailPropertyRow = DefaultValueCategory.AddExternalStructureProperty(MakeShared<FInstancePropertyBagStructureDataProvider>(ReferencedBlock->GetPropertyBag()), ParameterName, EPropertyLocation::Default, AddPropertyParams);
+						IDetailPropertyRow* DetailPropertyRow = DefaultValueCategory.AddExternalStructureProperty(MakeShared<FInstancePropertyBagStructureDataProvider>(ReferencedBlock->PropertyBag), ParameterName, EPropertyLocation::Default, AddPropertyParams);
 						if (TSharedPtr<IPropertyHandle> Handle = DetailPropertyRow->GetPropertyHandle(); Handle.IsValid())
 						{
 							Handle->SetOnChildPropertyValuePreChange(FSimpleDelegate::CreateLambda([this, ReferencedBlock]()
@@ -64,7 +63,7 @@ void FParameterBlockParameterCustomization::CustomizeDetails(IDetailLayoutBuilde
 							{
 								if (UAnimNextParameterBlock_EditorData* EditorData = Cast<UAnimNextParameterBlock_EditorData>(ReferencedBlock->EditorData))
 								{
-									if (UAnimNextParameterBlockEntry* BlockEntry = EditorData->FindBinding(ParameterName))
+									if (UAnimNextRigVMAssetEntry* BlockEntry = EditorData->FindEntry(ParameterName))
 									{
 										BlockEntry->MarkPackageDirty();
 										ReferencedBlock->MarkPackageDirty(); // show the ParameterBlock has changed

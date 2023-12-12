@@ -28,10 +28,4 @@ EAssetCommandResult UAssetDefinition_AnimNextParameterBlock::OpenAssets(const FA
 	return EAssetCommandResult::Handled;
 }
 
-FText UAssetDefinition_AnimNextParameterBlockBinding::GetObjectDisplayNameText(UObject* Object) const
-{
-	UAnimNextParameterBlockBinding* Binding = CastChecked<UAnimNextParameterBlockBinding>(Object);
-	return FText::Format(LOCTEXT("BindingDisplayFormat", "{0} Binding"), FText::FromName(Binding->ParameterName));
-}
-
 #undef LOCTEXT_NAMESPACE

@@ -3,29 +3,30 @@
 #pragma once
 
 #include "CoreMinimal.h"
-#include "AnimNextParameterBlockEntry.h"
-#include "IAnimNextParameterBlockGraphInterface.h"
+#include "AnimNextRigVMAssetEntry.h"
+#include "IAnimNextRigVMGraphInterface.h"
 #include "AnimNextParameterBlockGraph.generated.h"
 
 class UAnimNextParameterLibrary;
 class UAnimNextParameterBlock_EditorData;
-class URigVMGraph;
+class UAnimNextParameterBlock_EdGraph;
 
-UCLASS()
-class UAnimNextParameterBlockGraph : public UAnimNextParameterBlockEntry, public IAnimNextParameterBlockGraphInterface
+UCLASS(Category = "Parameter Graphs")
+class UAnimNextParameterBlockGraph : public UAnimNextRigVMAssetEntry, public IAnimNextRigVMGraphInterface
 {
 	GENERATED_BODY()
 
 	friend class UAnimNextParameterBlock_EditorData;
 
-	// UAnimNextParameterBlockEntry interface
+	// UAnimNextRigVMAssetEntry interface
+	virtual FName GetEntryName() const override { return GraphName; }
+	virtual void SetEntryName(FName InName, bool bSetupUndoRedo = true) override;
 	virtual FText GetDisplayName() const override;
 	virtual FText GetDisplayNameTooltip() const override;
 
-	// IAnimNextParameterBlockGraphInterface interface
-	virtual URigVMGraph* GetGraph() const override { return Graph; }
-	virtual FName GetGraphName() const override { return GraphName; }
-	virtual void SetGraphName(FName InName, bool bSetupUndoRedo = true) override;
+	// IAnimNextRigVMGraphInterface interface
+	virtual URigVMGraph* GetRigVMGraph() const override;
+	virtual URigVMEdGraph* GetEdGraph() const override;
 
 	/** The name of the graph */
 	UPROPERTY(VisibleAnywhere, Category = Parameter)
@@ -34,4 +35,8 @@ class UAnimNextParameterBlockGraph : public UAnimNextParameterBlockEntry, public
 	/** Graph */
 	UPROPERTY()
 	TObjectPtr<URigVMGraph> Graph;
+
+	/** Graph */
+	UPROPERTY()
+	TObjectPtr<UAnimNextParameterBlock_EdGraph> EdGraph;
 };

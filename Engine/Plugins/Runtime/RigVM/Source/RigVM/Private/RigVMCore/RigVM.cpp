@@ -568,8 +568,6 @@ bool URigVM::ValidateBytecode()
 
 const URigVMHost* URigVM::GetHostCDO() const
 {
-	ensure(HasAnyFlags(RF_ClassDefaultObject | RF_DefaultSubObject));
-
 	return GetTypedOuter<const URigVMHost>();
 }
 

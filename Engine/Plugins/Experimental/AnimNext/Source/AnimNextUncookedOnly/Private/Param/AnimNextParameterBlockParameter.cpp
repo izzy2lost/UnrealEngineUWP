@@ -1,6 +1,8 @@
 // Copyright Epic Games, Inc. All Rights Reserved.
 
 #include "Param/AnimNextParameterBlockParameter.h"
+
+#include "Param/AnimNextParameterBlock.h"
 #include "Param/AnimNextParameterBlock_EditorData.h"
 #include "Param/ExternalParameterRegistry.h"
 
@@ -18,7 +20,7 @@ FAnimNextParamType UAnimNextParameterBlockParameter::GetParamType() const
 	return Type;
 }
 
-FName UAnimNextParameterBlockParameter::GetParameterName() const
+FName UAnimNextParameterBlockParameter::GetEntryName() const
 {
 	return ParameterName;
 }
@@ -37,7 +39,15 @@ bool UAnimNextParameterBlockParameter::SetParamType(const FAnimNextParamType& In
 	return true;
 }
 
-void UAnimNextParameterBlockParameter::SetParameterName(FName InName, bool bSetupUndoRedo)
+FInstancedPropertyBag& UAnimNextParameterBlockParameter::GetPropertyBag() const
+{
+	// TODO: move property bag for defaults onto this entry!
+	UAnimNextParameterBlock* Asset = GetTypedOuter<UAnimNextParameterBlock>();
+	check(Asset);
+	return Asset->PropertyBag;
+}
+
+void UAnimNextParameterBlockParameter::SetEntryName(FName InName, bool bSetupUndoRedo)
 {
 	if(bSetupUndoRedo)
 	{

@@ -163,6 +163,7 @@ public:
 		, ActionStack(nullptr)
 		, bSuspendNotifications(false)
 		, bIgnoreModelNotifications(false)
+		, bDefaultModelCanBeRemoved(false)
 		, OuterClientHost(nullptr)
 		, OuterClientPropertyName(NAME_None)
 	{
@@ -178,7 +179,7 @@ public:
 	const URigVMSchema* GetSchema() const { return SchemaPtr; }
 	URigVMSchema* GetOrCreateSchema();
 	URigVMGraph* GetDefaultModel() const;
-	URigVMGraph* GetModel(int32 InIndex) const { return Models[InIndex]; }
+	URigVMGraph* GetModel(int32 InIndex) const { return Models.IsValidIndex(InIndex) ? Models[InIndex] : nullptr; }
 	URigVMGraph* GetModel(const UEdGraph* InEdGraph = nullptr) const;
 	URigVMGraph* GetModel(const FString& InNodePathOrName) const;
 	URigVMGraph* GetModel(const UObject* InEditorSideObject) const;
@@ -311,6 +312,7 @@ private:
 public:
 	bool bSuspendNotifications;
 	bool bIgnoreModelNotifications;
+	bool bDefaultModelCanBeRemoved;
 private:
 	TWeakObjectPtr<UObject> OuterClientHost;
 	FName OuterClientPropertyName;

@@ -7,6 +7,7 @@
 #include "GraphEditor.h"
 #include "WorkflowOrientedApp/WorkflowTabManager.h"
 
+class UAnimNextRigVMAssetEntry;
 enum class ERigVMGraphNotifType : uint8;
 class UAnimNextWorkspace;
 class FDocumentTracker;
@@ -123,7 +124,7 @@ private:
 	
 	bool CanDeleteSelectedNodes();
 
-	void SetSelectedObjects(TArray<UObject*> InObjects);
+	void SetSelectedObjects(const TArray<UObject*>& InObjects);
 
 	void HandleDetailsViewCreated(TSharedRef<IDetailsView> InDetailsView)
 	{
@@ -144,6 +145,10 @@ private:
 	void HandleSaveDocumentState(UObject* InObject);
 
 	void OnGraphModified(ERigVMGraphNotifType Type, URigVMGraph* Graph, UObject* Subject);
+
+	void OnOpenGraph(URigVMGraph* InGraph);
+
+	void OnDeleteEntries(const TArray<UAnimNextRigVMAssetEntry*>& InEntries);
 
 	// The asset we are editing
 	UAnimNextWorkspace* Workspace = nullptr;

@@ -8,26 +8,22 @@
 #include "Param/AnimNextParameterBlock.h"
 #include "PropertyBagDetails.h"
 #include "Graph/AnimNextGraphEntry.h"
-#include "AssetRegistry/AssetRegistryModule.h"
-#include "AssetRegistry/IAssetRegistry.h"
-#include "Param/IAnimNextParameterBlockGraphInterface.h"
-#include "Param/IAnimNextParameterBlockParameterInterface.h"
+#include "IAnimNextRigVMGraphInterface.h"
+#include "IAnimNextRigVMParameterInterface.h"
 #include "Workspace/AnimNextWorkspace.h"
 #include "UncookedOnlyUtils.h"
-#include "Param/RigVMDispatch_GetLayerParameter.h"
 #include "Param/RigVMDispatch_GetParameter.h"
-#include "Param/RigVMDispatch_SetLayerParameter.h"
 
 #define LOCTEXT_NAMESPACE "AnimNextEditorUtils"
 
 namespace UE::AnimNext::Editor
 {
 
-void FUtils::GetAllGraphNames(const UAnimNextGraph_EditorData* InEditorData, TSet<FName>& OutNames)
+void FUtils::GetAllEntryNames(const UAnimNextRigVMAssetEditorData* InEditorData, TSet<FName>& OutNames)
 {
-	for(UAnimNextGraphEntry* Entry : InEditorData->Entries)
+	for(const  UAnimNextRigVMAssetEntry* Entry : InEditorData->GetAllEntries())
 	{
-		OutNames.Add(Entry->GraphName);
+		OutNames.Add(Entry->GetEntryName());
 	}
 }
 
@@ -239,22 +235,6 @@ FAnimNextParamType FUtils::GetParameterTypeFromMetaData(const FStringView& InStr
 	}
 
 	return FAnimNextParamType(); 
-}
-
-
-void FUtils::GetAllEntryNames(const UAnimNextParameterBlock_EditorData* InEditorData, TSet<FName>& OutNames)
-{
-	for(UAnimNextParameterBlockEntry* Entry : InEditorData->Entries)
-	{
-		if(IAnimNextParameterBlockParameterInterface* Parameter = Cast<IAnimNextParameterBlockParameterInterface>(Entry))
-		{
-			OutNames.Add(Parameter->GetParameterName());
-		}
-		else if(IAnimNextParameterBlockGraphInterface* Graph = Cast<IAnimNextParameterBlockGraphInterface>(Entry))
-		{
-			OutNames.Add(Graph->GetGraphName());
-		}
-	}
 }
 
 FName FUtils::ValidateName(const UAnimNextParameterBlock_EditorData* InEditorData, const FString& InName)
@@ -485,13 +465,24 @@ FName FUtils::GetNewParameterName(const TCHAR* InBaseName, TArrayView<FName> InA
 	return NAME_None;
 }
 
-bool FUtils::IsValidParameterName(const FName InName, FText& OutErrorText)
+bool FUtils::IsValidEntryNameString(FStringView InStringView, FText& OutErrorText)
+{
+	// See if this can be represented as an FName
+	if(!FName::IsValidXName(InStringView, INVALID_NAME_CHARACTERS, &OutErrorText))
+	{
+		return false;
+	}
+
+	return IsValidEntryName(FName(InStringView), OutErrorText);
+}
+
+bool FUtils::IsValidEntryName(const FName InName, FText& OutErrorText)
 {
 	const FString NewString = InName.ToString();
 
 	if(NewString.Len() == 0)
 	{
-		OutErrorText = LOCTEXT("Error_EmptyName", "Empty parameter names are not allowed");
+		OutErrorText = LOCTEXT("Error_EmptyName", "Empty names are not allowed");
 		return false;
 	}
 

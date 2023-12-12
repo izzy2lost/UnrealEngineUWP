@@ -2,6 +2,7 @@
 
 #include "AnimNextWorkspaceEditor.h"
 
+#include "AnimNextRigVMAssetEntry.h"
 #include "GraphDocumentSummoner.h"
 #include "AnimNextWorkspaceEditorMode.h"
 #include "AnimNextWorkspace.h"
@@ -27,6 +28,8 @@
 #include "Graph/AnimNextGraph.h"
 #include "Graph/AnimNextGraph_EdGraphNode.h"
 #include "GraphEditAction.h"
+#include "IAnimNextRigVMGraphInterface.h"
+#include "UncookedOnlyUtils.h"
 
 #define LOCTEXT_NAMESPACE "AnimNextWorkspaceEditor"
 
@@ -198,7 +201,7 @@ void FWorkspaceEditor::OpenWorkspaceForAsset(UObject* InAsset, EOpenWorkspaceMet
 	
 	if(WorkspaceEditor)
 	{
-		WorkspaceEditor->OpenDocument(InAsset, FDocumentTracker::OpenNewDocument);
+		WorkspaceEditor->OpenAssets({InAsset});
 	}
 }
 
@@ -252,6 +255,18 @@ void FWorkspaceEditor::OpenAssets(TConstArrayView<FAssetData> InAssets)
 		if(UObject* LoadedAsset = Asset.GetAsset())
 		{
 			OpenDocument(LoadedAsset, FDocumentTracker::EOpenDocumentCause::OpenNewDocument);
+
+			// If its a RigVM asset, open its first graph as well
+			if(UAnimNextRigVMAsset* RigVMAsset = Cast<UAnimNextRigVMAsset>(LoadedAsset))
+			{
+				UAnimNextRigVMAssetEditorData* EditorData = UncookedOnly::FUtils::GetEditorData(RigVMAsset);
+				check(EditorData);
+				EditorData->ForEachEntryOfType<IAnimNextRigVMGraphInterface>([this](IAnimNextRigVMGraphInterface* InEntry)
+				{
+					OpenDocument(InEntry->GetEdGraph(), FDocumentTracker::EOpenDocumentCause::OpenNewDocument);
+					return false;
+				});
+			}
 		}
 	}
 }
@@ -330,6 +345,34 @@ void FWorkspaceEditor::OnGraphModified(ERigVMGraphNotifType Type, URigVMGraph* G
 		if (DetailsView.IsValid())
 		{
 			DetailsView->ForceRefresh();
+		}
+	}
+}
+
+void FWorkspaceEditor::OnOpenGraph(URigVMGraph* InGraph)
+{
+	if(IRigVMClientHost* RigVMClientHost = InGraph->GetImplementingOuter<IRigVMClientHost>())
+	{
+		if(UObject* EditorObject = RigVMClientHost->GetEditorObjectForRigVMGraph(InGraph))
+		{
+			OpenDocument(EditorObject, FDocumentTracker::EOpenDocumentCause::OpenNewDocument);
+		}
+	}
+}
+
+void FWorkspaceEditor::OnDeleteEntries(const TArray<UAnimNextRigVMAssetEntry*>& InEntries)
+{
+	if(InEntries.Num() > 0)
+	{
+		for(UAnimNextRigVMAssetEntry* Entry : InEntries)
+		{
+			if(IAnimNextRigVMGraphInterface* GraphInterface = Cast<IAnimNextRigVMGraphInterface>(Entry))
+			{
+				if(URigVMEdGraph* EdGraph = GraphInterface->GetEdGraph())
+				{
+					CloseDocumentTab(EdGraph);
+				}
+			}
 		}
 	}
 }
@@ -494,7 +537,7 @@ bool FWorkspaceEditor::CanDeleteSelectedNodes()
 	return bCanUserDeleteNode;
 }
 
-void FWorkspaceEditor::SetSelectedObjects(TArray<UObject*> InObjects)
+void FWorkspaceEditor::SetSelectedObjects(const TArray<UObject*>& InObjects)
 {
 	if(DetailsView.IsValid())
 	{
@@ -560,6 +603,8 @@ void FWorkspaceEditor::OnClose()
 		DetailsView->SetObject(nullptr);
 		DetailsView.Reset();
 	}
+
+	FWorkflowCentricApplication::OnClose();
 }
 
 }

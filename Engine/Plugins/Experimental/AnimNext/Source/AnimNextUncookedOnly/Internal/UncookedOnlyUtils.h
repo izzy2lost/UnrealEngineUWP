@@ -5,6 +5,8 @@
 #include "CoreMinimal.h"
 #include "Param/AnimNextParameterBlock_EditorData.h"
 #include "Graph/AnimNextGraph_EditorData.h"
+#include "AnimNextRigVMAssetEditorData.h"
+#include "IAnimNextRigVMGraphInterface.h"
 #include "Param/ParamTypeHandle.h"
 #include "RigVMCore/RigVMTemplate.h"
 
@@ -21,6 +23,8 @@ class UAnimNextParameterBlock;
 class UAnimNextParameterBlock_EditorData;
 class UAnimNextGraph_EdGraph;
 struct FEdGraphPinType;
+class UAnimNextRigVMAsset;
+class UAnimNextRigVMAssetEditorData;
 
 namespace UE
 {
@@ -111,6 +115,10 @@ struct ANIMNEXTUNCOOKEDONLY_API FUtils
 
 	static void RecreateVM(UAnimNextParameterBlock* InParameterBlock);
 
+	static UAnimNextRigVMAsset* GetAsset(UAnimNextRigVMAssetEditorData* InEditorData);
+
+	static UAnimNextRigVMAssetEditorData* GetEditorData(UAnimNextRigVMAsset* InAsset);
+
 	/**
 	 * Get an AnimNext parameter type from an FEdGraphPinType.
 	 * Note that the returned handle may not be valid, so should be checked using IsValid() before use.
@@ -149,30 +157,17 @@ struct ANIMNEXTUNCOOKEDONLY_API FUtils
 
 	/** Returns all nodes in all graphs of the specified class */
 	template<class T>
-	static void GetAllNodesOfClass(const UAnimNextParameterBlock_EditorData* InEditorData, TArray<T*>& OutNodes)
+	static void GetAllNodesOfClass(const UAnimNextRigVMAssetEditorData* InEditorData, TArray<T*>& OutNodes)
 	{
-		for(const UAnimNextParameterBlock_EdGraph* Graph : InEditorData->Graphs)
+		InEditorData->ForEachEntryOfType<IAnimNextRigVMGraphInterface>([&OutNodes](IAnimNextRigVMGraphInterface* InGraphInterface)
 		{
-			check(Graph);
 			TArray<T*> GraphNodes;
-			Graph->GetNodesOfClass<T>(GraphNodes);
+			InGraphInterface->GetEdGraph()->GetNodesOfClass<T>(GraphNodes);
 			OutNodes.Append(GraphNodes);
-		}
+			return true;
+		});
 	}
-
-	/** Returns all nodes in all graphs of the specified class */
-	template<class T>
-	static void GetAllNodesOfClass(const UAnimNextGraph_EditorData* InEditorData, TArray<T*>& OutNodes)
-	{
-		for(const UAnimNextGraph_EdGraph* Graph : InEditorData->Graphs)
-		{
-			check(Graph);
-			TArray<T*> GraphNodes;
-			Graph->GetNodesOfClass<T>(GraphNodes);
-			OutNodes.Append(GraphNodes);
-		}
-	}
-
+	
 	// Gets the parameters that are exported to the asset registry for an asset
 	static bool GetExportedParametersForAsset(const FAssetData& InAsset, FAnimNextParameterProviderAssetRegistryExports& OutExports);
 

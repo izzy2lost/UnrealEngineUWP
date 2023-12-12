@@ -3,12 +3,11 @@
 #pragma once
 
 #include "CoreMinimal.h"
-#include "Param/AnimNextParameterBlockEntry.h"
 #include "Param/ParamType.h"
 #include "EdGraphSchema_K2.h"
 
 class UAnimNextGraph;
-class UAnimNextGraph_EditorData;
+class UAnimNextRigVMAssetEditorData;
 struct FAnimNextParamType;
 class UAnimNextParameterBlock;
 class UAnimNextParameterBlockBinding;
@@ -26,19 +25,19 @@ struct FUtils
 {
 	static FName ValidateName(const UObject* InObject, const FString& InName);
 
-	static void GetAllGraphNames(const UAnimNextGraph_EditorData* InEditorData, TSet<FName>& OutNames);
+	static void GetAllEntryNames(const UAnimNextRigVMAssetEditorData* InEditorData, TSet<FName>& OutNames);
 
 	static FAnimNextParamType GetParameterTypeFromMetaData(const FStringView& InStringView);
 
 	static FName ValidateName(const UAnimNextParameterBlock_EditorData* InEditorData, const FString& InName);
 
-	static void GetAllEntryNames(const UAnimNextParameterBlock_EditorData* InEditorData, TSet<FName>& OutNames);
-
 	static void GetFilteredVariableTypeTree(TArray<TSharedPtr<UEdGraphSchema_K2::FPinTypeTreeInfo>>& TypeTree, ETypeTreeFilter TypeTreeFilter);
 
 	static FName GetNewParameterName(const TCHAR* InBaseName, TArrayView<FName> InAdditionalExistingNames);
 
-	static bool IsValidParameterName(const FName InName, FText& OutErrorText);
+	static bool IsValidEntryNameString(FStringView InStringView, FText& OutErrorText);
+
+	static bool IsValidEntryName(const FName InName, FText& OutErrorText);
 
 	static bool DoesParameterNameExist(const FName InName);
 	

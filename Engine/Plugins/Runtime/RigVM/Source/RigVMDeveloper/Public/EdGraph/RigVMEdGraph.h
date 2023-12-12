@@ -155,6 +155,7 @@ public:
 
 	bool bSuspendModelNotifications;
 	bool bIsTemporaryGraphForCopyPaste;
+	bool bIsSelecting;
 
 	UEdGraphNode* FindNodeForModelNodeName(const FName& InModelNodeName, const bool bCacheIfRequired = true);
 
@@ -185,8 +186,6 @@ protected:
 	virtual void AddNode(UEdGraphNode* NodeToAdd, bool bUserAction = false, bool bSelectNewNode = true) override;
 
 private:
-
-	bool bIsSelecting;
 
 	FRigVMEdGraphNodeClicked OnGraphNodeClicked;
 

@@ -399,6 +399,9 @@ struct FFortniteMainBranchObjectVersion
 		// AnimNode Layers will now start in a Shared Group, instead of being each one on a different group at runtime
 		AnimNodeRootDefaultGroupChange,
 
+		// Move AnimNext graphs to sub-entries of assets
+		AnimNextMoveGraphsToEntries,
+
 		// -----<new versions can be added above this line>-------------------------------------------------
 		VersionPlusOne,
 		LatestVersion = VersionPlusOne - 1

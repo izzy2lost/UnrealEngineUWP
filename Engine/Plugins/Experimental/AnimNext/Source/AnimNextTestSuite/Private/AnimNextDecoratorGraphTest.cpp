@@ -3,12 +3,14 @@
 #include "AnimNextDecoratorGraphTest.h"
 
 #include "AnimNextRuntimeTest.h"
+#include "AnimNextTest.h"
 #include "AssetToolsModule.h"
 #include "Context.h"
 #include "UncookedOnlyUtils.h"
 #include "DecoratorBase/DecoratorRegistry.h"
 #include "DecoratorInterfaces/IEvaluate.h"
 #include "DecoratorInterfaces/IUpdate.h"
+#include "Editor/Transactor.h"
 #include "Graph/AnimNextExecuteContext.h"
 #include "Graph/AnimNextGraph.h"
 #include "Graph/AnimNextGraph_EditorData.h"
@@ -168,6 +170,8 @@ bool FAnimationAnimNextRuntimeTest_GraphAddDecorator::RunTest(const FString& InP
 	UE_RETURN_ON_ERROR(DecoratorPin->GetSubPins()[5]->GetDefaultValue() == TEXT("34.000000"), TEXT("FAnimationAnimNextRuntimeTest_GraphAddDecorator -> Unexpected decorator pin value"));
 	UE_RETURN_ON_ERROR(DecoratorPin->GetSubPins()[5]->IsLazy(), TEXT("FAnimationAnimNextRuntimeTest_GraphAddDecorator -> Expected lazy decorator pin"));
 
+	Tests::FUtils::CleanupAfterTests();
+
 	return true;
 }
 
@@ -279,6 +283,8 @@ bool FAnimationAnimNextRuntimeTest_GraphExecute::RunTest(const FString& InParame
 	GraphInstance.Release();
 
 	FParamStack::DetachFromCurrentThread();
+
+	Tests::FUtils::CleanupAfterTests();
 
 	return true;
 }
@@ -422,6 +428,8 @@ bool FAnimationAnimNextRuntimeTest_GraphExecuteLatent::RunTest(const FString& In
 	GraphInstance.Release();
 
 	FParamStack::DetachFromCurrentThread();
+
+	Tests::FUtils::CleanupAfterTests();
 
 	return true;
 }

@@ -14,7 +14,7 @@ class UAnimNextGraph_EdGraphNode;
 namespace UE::AnimNext::Editor
 {
 
-class ANIMNEXTUNCOOKEDONLY_API FAnimNextGraph_EdGraphNodeCustomization : public IDetailCustomization
+class FAnimNextGraph_EdGraphNodeCustomization : public IDetailCustomization
 {
 private:
 

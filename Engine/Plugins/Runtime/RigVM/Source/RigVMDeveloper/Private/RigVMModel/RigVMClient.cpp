@@ -171,11 +171,6 @@ URigVMGraph* FRigVMClient::GetModel(const UEdGraph* InEdGraph) const
 		return GetDefaultModel();
 	}
 
-	if (InEdGraph->GetOutermost() != GetOuter()->GetOutermost())
-	{
-		return nullptr;
-	}
-
 //#if WITH_EDITORONLY_DATA
 //	if (InEdGraph == FunctionLibraryEdGraph)
 //	{
@@ -556,7 +551,7 @@ bool FRigVMClient::RemoveModel(const FString& InNodePathOrName, bool bSetupUndoR
 {
 	if(URigVMGraph* Model = GetModel(InNodePathOrName))
 	{
-		if(Model == GetDefaultModel())
+		if(Model == GetDefaultModel() && !bDefaultModelCanBeRemoved)
 		{
 #if WITH_EDITOR
 			static constexpr TCHAR Message[] = TEXT("Cannot remove the default model.");

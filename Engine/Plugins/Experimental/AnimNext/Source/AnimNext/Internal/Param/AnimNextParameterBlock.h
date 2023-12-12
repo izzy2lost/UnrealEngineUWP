@@ -3,15 +3,15 @@
 #pragma once
 
 #include "CoreMinimal.h"
+#include "AnimNextRigVMAsset.h"
 #include "PropertyBag.h"
-#include "RigVMCore/RigVMExecuteContext.h"
 #include "Param/IParameterSource.h"
-#include "RigVMHost.h"
 #include "AnimNextParameterBlock.generated.h"
 
 class UEdGraph;
 struct FAnimNextScheduleGraphTask;
 struct FAnimNextScheduleParamScopeTask;
+class UAnimNextParameterBlockParameter;
 
 namespace UE::AnimNext
 {
@@ -29,13 +29,13 @@ namespace UE::AnimNext::Editor
 {
 	class FParametersEditor;
 	struct FUtils;
-	class SParameterBlockViewRow;
+	class SRigVMAssetViewRow;
 	class FParameterBlockParameterCustomization;
 }
 
 /** An asset used to define AnimNext parameters and their bindings */
 UCLASS(MinimalAPI, BlueprintType)
-class UAnimNextParameterBlock : public URigVMHost
+class UAnimNextParameterBlock : public UAnimNextRigVMAsset
 {
 	GENERATED_BODY()
 
@@ -50,31 +50,13 @@ class UAnimNextParameterBlock : public URigVMHost
 	friend struct FAnimNode_AnimNextParameters;
 	friend struct FAnimNextScheduleGraphTask;
 	friend struct FAnimNextScheduleParamScopeEntryTask;
-	friend class UE::AnimNext::Editor::SParameterBlockViewRow;
+	friend class UE::AnimNext::Editor::SRigVMAssetViewRow;
 	friend class UE::AnimNext::Editor::FParameterBlockParameterCustomization;
 	friend struct UE::AnimNext::FParameterBlockProxy;
+	friend class UAnimNextParameterBlockParameter;
 
 	void UpdateLayer(UE::AnimNext::FParamStackLayerHandle& InHandle, float InDeltaTime) const;
 
-	// UObject interface
-	virtual void BeginDestroy() override;
-	virtual void PostLoad() override;
-	virtual void GetAssetRegistryTags(FAssetRegistryTagsContext Context) const override;
-	UE_DEPRECATED(5.4, "Implement the version that takes FAssetRegistryTagsContext instead.")
-	virtual void GetAssetRegistryTags(TArray<FAssetRegistryTag>& OutTags) const override;
-
-	FInstancedPropertyBag& GetPropertyBag() { return PropertyBag; }
-
-	FRigVMExtendedExecuteContext BaseRigVMContext;
-
-	UPROPERTY()
-	TObjectPtr<URigVM> RigVM;
-
 	UPROPERTY()
 	FInstancedPropertyBag PropertyBag;
-
-#if WITH_EDITORONLY_DATA
-	UPROPERTY(VisibleAnywhere, Instanced, Category = "Parameters", meta = (ShowInnerProperties))
-	TObjectPtr<UObject> EditorData;
-#endif
 };

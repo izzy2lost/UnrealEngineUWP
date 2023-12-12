@@ -3,6 +3,7 @@
 #pragma once
 
 #include "CoreMinimal.h"
+#include "AnimNextRigVMAsset.h"
 #include "RigVMCore/RigVM.h"
 #include "DecoratorBase/DecoratorPtr.h"
 #include "DecoratorBase/DecoratorHandle.h"
@@ -51,7 +52,7 @@ namespace UE::AnimNext::Graph
 
 // A user-created graph of logic used to supply data
 UCLASS(BlueprintType)
-class ANIMNEXT_API UAnimNextGraph :  public URigVMHost, public IAnimNextScheduleTermInterface
+class ANIMNEXT_API UAnimNextGraph : public UAnimNextRigVMAsset, public IAnimNextScheduleTermInterface
 {
 	GENERATED_BODY()
 
@@ -80,14 +81,7 @@ public:
 	// Get the parameter to use to access the current LOD
 	UE::AnimNext::FParamId GetCurrentLODParam() const { return CurrentLODId; }
 
-#if WITH_EDITOR
-	virtual void GetAssetRegistryTags(FAssetRegistryTagsContext Context) const override;
-	UE_DEPRECATED(5.4, "Implement the version that takes FAssetRegistryTagsContext instead.")
-	virtual void GetAssetRegistryTags(TArray<FAssetRegistryTag>& OutTags) const override;
-#endif	
 protected:
-	// Support rig VM execution
-	TArray<FRigVMExternalVariable> GetRigVMExternalVariables();
 
 	// Loads the graph data from the provided archive buffer and returns true on success, false otherwise
 	bool LoadFromArchiveBuffer(const TArray<uint8>& SharedDataArchiveBuffer);
@@ -145,17 +139,6 @@ protected:
 	UPROPERTY()
 	TArray<TObjectPtr<UObject>> GraphReferencedObjects;
 
-	// The RigVM object holds the bytecode, literals, etc used by the RigVM internals, there is a single instance along with the UAnimNextGraph (1:1 mapping)
-	UPROPERTY()
-	TObjectPtr<URigVM> RigVM;
-
-	// The ExtendedExecuteContext object holds the common work data used by the RigVM internals. It is populated during the initial VM initialization.
-	// Each instance of an AnimGraph requires a copy of this context and a call to initialize the VM instance with the context copy, 
-	// so the cached memory handles are updated to the correct memory addresses.
-	// This context is used as a reference to copy the common data for all instances created.
-	UPROPERTY(Transient)
-	FRigVMExtendedExecuteContext ExtendedExecuteContext;
-
 	// The parameter to use to access the reference pose
 	UPROPERTY(EditAnywhere, Category = "Graph", meta=(CustomWidget = "ParamName", AllowedParamType = "FAnimNextGraphReferencePose"))
 	FName ReferencePose = DefaultReferencePoseId.GetName();
@@ -176,9 +159,6 @@ protected:
 	TArray<FAnimNextParam> RequiredParameters;
 
 #if WITH_EDITORONLY_DATA
-	UPROPERTY(VisibleAnywhere, Instanced, Category = "Graph", meta = (ShowInnerProperties))
-	TObjectPtr<UObject> EditorData;
-
 	// This buffer holds the output of the FDecoratorWriter post compilation
 	// We serialize it manually and it is discarded at runtime
 	TArray<uint8> SharedDataArchiveBuffer;

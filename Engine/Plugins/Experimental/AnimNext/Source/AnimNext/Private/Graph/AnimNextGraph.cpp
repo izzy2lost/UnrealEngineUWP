@@ -27,7 +27,6 @@ UAnimNextGraph::UAnimNextGraph(const FObjectInitializer& ObjectInitializer)
 	: Super(ObjectInitializer)
 {
 	ExtendedExecuteContext.SetContextPublicDataStruct(FAnimNextExecuteContext::StaticStruct());
-	SetRigVMExtendedExecuteContext(&ExtendedExecuteContext);
 }
 
 void UAnimNextGraph::AllocateInstance(FAnimNextGraphInstancePtr& Instance) const
@@ -88,50 +87,11 @@ void UAnimNextGraph::AllocateInstanceImpl(FAnimNextGraphInstance* ParentGraphIns
 #endif
 }
 
-
-#if WITH_EDITOR
-void UAnimNextGraph::GetAssetRegistryTags(TArray<FAssetRegistryTag>& OutTags) const
-{
-	PRAGMA_DISABLE_DEPRECATION_WARNINGS;
-	Super::GetAssetRegistryTags(OutTags);
-	PRAGMA_ENABLE_DEPRECATION_WARNINGS;
-}
-
-void UAnimNextGraph::GetAssetRegistryTags(FAssetRegistryTagsContext Context) const
-{
-	Super::GetAssetRegistryTags(Context);
-
-	if (EditorData)
-	{		
-		EditorData->GetAssetRegistryTags(Context);
-	}
-}
-#endif
-
-TArray<FRigVMExternalVariable> UAnimNextGraph::GetRigVMExternalVariables()
-{
-	return TArray<FRigVMExternalVariable>(); 
-}
-
 void UAnimNextGraph::PostLoad()
 {
 	using namespace UE::AnimNext;
-	
+
 	Super::PostLoad();
-
-	VM = RigVM;
-
-	ExtendedExecuteContext.InvalidateCachedMemory();
-
-	// In packaged builds, initialize the VM
-	// In editor, the VM will be recompiled and initialized at RecompileVM
-#if !WITH_EDITOR
-	if (VM)
-	{
-		VM->ClearExternalVariables(ExtendedExecuteContext);
-		VM->Initialize(ExtendedExecuteContext);
-	}
-#endif
 
 	ReferencePoseId = FParamId(ReferencePose);
 	CurrentLODId = FParamId(CurrentLOD);

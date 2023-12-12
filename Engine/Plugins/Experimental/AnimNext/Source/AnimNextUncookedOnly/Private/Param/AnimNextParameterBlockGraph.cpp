@@ -1,6 +1,7 @@
 ﻿// Copyright Epic Games, Inc. All Rights Reserved.
 
 #include "Param/AnimNextParameterBlockGraph.h"
+#include "Param/AnimNextParameterBlock_EdGraph.h"
 
 FText UAnimNextParameterBlockGraph::GetDisplayName() const
 {
@@ -12,7 +13,7 @@ FText UAnimNextParameterBlockGraph::GetDisplayNameTooltip() const
 	return FText::FromName(GraphName);
 }
 
-void UAnimNextParameterBlockGraph::SetGraphName(FName InName, bool bSetupUndoRedo)
+void UAnimNextParameterBlockGraph::SetEntryName(FName InName, bool bSetupUndoRedo)
 {
 	if(bSetupUndoRedo)
 	{
@@ -22,4 +23,14 @@ void UAnimNextParameterBlockGraph::SetGraphName(FName InName, bool bSetupUndoRed
 	GraphName = InName;
 
 	BroadcastModified();
+}
+
+URigVMGraph* UAnimNextParameterBlockGraph::GetRigVMGraph() const
+{
+	return Graph;
+}
+
+URigVMEdGraph* UAnimNextParameterBlockGraph::GetEdGraph() const
+{
+	return EdGraph;
 }

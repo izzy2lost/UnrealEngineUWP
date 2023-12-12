@@ -3,8 +3,9 @@
 #pragma once
 
 #include "CoreMinimal.h"
-#include "AnimNextParameterBlockEntry.h"
-#include "IAnimNextParameterBlockParameterInterface.h"
+#include "AnimNextRigVMAssetEntry.h"
+#include "IAnimNextRigVMParameterInterface.h"
+#include "Param/ParamType.h"
 #include "AnimNextParameterBlockParameter.generated.h"
 
 class UAnimNextParameterLibrary;
@@ -15,24 +16,25 @@ namespace UE::AnimNext::Editor
 	class FParameterBlockParameterCustomization;
 }
 
-UCLASS(MinimalAPI)
-class UAnimNextParameterBlockParameter : public UAnimNextParameterBlockEntry, public IAnimNextParameterBlockParameterInterface
+UCLASS(MinimalAPI, Category = "Parameters")
+class UAnimNextParameterBlockParameter : public UAnimNextRigVMAssetEntry, public IAnimNextRigVMParameterInterface
 {
 	GENERATED_BODY()
 
 	friend class UAnimNextParameterBlock_EditorData;
 	friend class FAnimationAnimNextParametersEditorTest_Block;
 	friend class UE::AnimNext::Editor::FParameterBlockParameterCustomization;
-	
-	// UAnimNextParameterBlockEntry interface
+
+	// UAnimNextRigVMAssetEntry interface
+	virtual FName GetEntryName() const override;
+	virtual void SetEntryName(FName InName, bool bSetupUndoRedo = true) override;
 	virtual FText GetDisplayName() const override;
 	virtual FText GetDisplayNameTooltip() const override;
 
-	// IAnimNextParameterBlockParameterInterface interface
+	// IAnimNextRigVMParameterInterface interface
 	virtual FAnimNextParamType GetParamType() const override;
-	virtual void SetParameterName(FName InName, bool bSetupUndoRedo = true) override;
-	virtual FName GetParameterName() const override;
 	virtual bool SetParamType(const FAnimNextParamType& InType, bool bSetupUndoRedo = true) override;
+	virtual FInstancedPropertyBag& GetPropertyBag() const override;
 	
 	/** Parameter name we reference */
 	UPROPERTY(VisibleAnywhere, Category = Parameter)

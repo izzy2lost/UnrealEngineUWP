@@ -45,6 +45,8 @@ private:
 	// Create the context 'action' menu used for graphs
 	virtual FActionMenuContent OnCreateGraphActionMenu(UEdGraph* InGraph, const FVector2D& InNodePosition, const TArray<UEdGraphPin*>& InDraggedPins, bool bAutoExpand, SGraphEditor::FActionMenuClosed InOnMenuClosed) const = 0;
 
+	void OnGraphSelectionChanged(const TSet<UObject*>& NewSelection, TWeakObjectPtr<UEdGraph> InGraph) const;
+	
 	// The hosting app
 	TWeakPtr<FWorkspaceEditor> HostingAppPtr;
 

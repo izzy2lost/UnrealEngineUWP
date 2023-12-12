@@ -3,7 +3,6 @@
 #pragma once
 
 #include "AssetDefinitionDefault.h"
-#include "Param/AnimNextParameterBlockBinding.h"
 #include "Param/AnimNextParameterBlock.h"
 #include "ParametersAssetDefinitions.generated.h"
 
@@ -26,19 +25,6 @@ public:
 		static const auto Categories = { FAssetCategoryPath(EAssetCategoryPaths::Animation, LOCTEXT("AnimNextSubMenu", "AnimNext")) };
 		return Categories;
 	}
-};
-
-UCLASS()
-class UAssetDefinition_AnimNextParameterBlockBinding : public UAssetDefinitionDefault
-{
-	GENERATED_BODY()
-
-public:
-	// UAssetDefinition interface
-	virtual FText GetAssetDisplayName() const override { return LOCTEXT("AnimNextParameterBinding", "AnimNext Parameter Binding"); }
-	virtual FLinearColor GetAssetColor() const override { return FLinearColor(FColor(128,64,64)); }
-	virtual TSoftClassPtr<UObject> GetAssetClass() const override { return UAnimNextParameterBlockBinding::StaticClass(); }
-	virtual FText GetObjectDisplayNameText(UObject* Object) const override;
 };
 
 #undef LOCTEXT_NAMESPACE

@@ -23,17 +23,22 @@ bool UAnimNextGraphFactory::ConfigureProperties()
 
 UObject* UAnimNextGraphFactory::FactoryCreateNew(UClass* Class, UObject* InParent, FName Name, EObjectFlags Flags, UObject* Context, FFeedbackContext* Warn, FName CallingContext)
 {
-	UAnimNextGraph* NewGraph = NewObject<UAnimNextGraph>(InParent, Class, Name, Flags | RF_Public | RF_Standalone | RF_Transactional | RF_LoadCompleted);
+	EObjectFlags FlagsToUse = Flags | RF_Public | RF_Standalone | RF_Transactional | RF_LoadCompleted;
+	if(InParent == GetTransientPackage())
+	{
+		FlagsToUse &= ~RF_Standalone;
+	}
+
+	UAnimNextGraph* NewGraph = NewObject<UAnimNextGraph>(InParent, Class, Name, FlagsToUse);
 
 	// Create internal editor data
-	UAnimNextGraph_EditorData* EditorData = NewObject<UAnimNextGraph_EditorData>(NewGraph, TEXT("EditorData"));
+	UAnimNextGraph_EditorData* EditorData = NewObject<UAnimNextGraph_EditorData>(NewGraph, TEXT("EditorData"), RF_Transactional);
 	NewGraph->EditorData = EditorData;
+	EditorData->Initialize(/*bRecompileVM*/false);
 
 	// Add root graph
-	EditorData->AddGraph(TEXT("Root"));
-	check(EditorData->Graphs.Num() > 0);
-
-	EditorData->Initialize(/*bRecompileVM*/false);
+	EditorData->AddGraph(TEXT("Root"), false);
+	check(EditorData->Entries.Num() > 0);
 
 	// Compile the initial skeleton
 	UE::AnimNext::UncookedOnly::FUtils::Compile(NewGraph);
