@@ -45,7 +45,7 @@ UAnimationAsset* FAnimNode_ChooserPlayer::ChooseAsset(const FAnimationUpdateCont
 						return FObjectChooserBase::EIteratorStatus::Continue;
 					}));
 
-				const UE::Anim::IPoseSearchProvider::FSearchResult SearchResult = PoseSearchProvider->Search(Context, AnimationAssets);
+				const UE::Anim::IPoseSearchProvider::FSearchResult SearchResult = PoseSearchProvider->Search(Context, AnimationAssets, GetAnimAsset(), GetAccumulatedTime());
 				if (SearchResult.AnimationAsset)
 				{
 					Settings.StartTime = SearchResult.TimeOffsetSeconds;

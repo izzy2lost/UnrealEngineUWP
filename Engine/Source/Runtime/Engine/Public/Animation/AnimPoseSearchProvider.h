@@ -34,10 +34,13 @@ public:
 	* 
 	* @param	GraphContext	Graph execution context used to construct a pose search query
 	* @param	AnimationAssets	The animation assets to search for the pose query
+	* @param	PlayingAnimationAsset					The currently playing animation asset, used to bias the score of the eventually found continuing pose
+	* @param	PlayingAnimationAssetAccumulatedTime	The accumulated time of the currently playing animation asset
 	* 
 	* @return	The pose in the AnimationAssets that most closely matches the query
 	*/
-	virtual FSearchResult Search(const FAnimationBaseContext& GraphContext, TConstArrayView<UAnimationAsset*> AnimationAssets) = 0;
+	virtual FSearchResult Search(const FAnimationBaseContext& GraphContext, TConstArrayView<UAnimationAsset*> AnimationAssets, 
+		const UAnimationAsset* PlayingAnimationAsset = nullptr, float PlayingAnimationAssetAccumulatedTime = 0.f) = 0;
 };
 
 } // namespace UE::Anim

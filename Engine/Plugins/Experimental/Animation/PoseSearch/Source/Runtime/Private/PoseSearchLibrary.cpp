@@ -694,11 +694,25 @@ void UPoseSearchLibrary::MotionMatch(
 	}
 }
 
-UE::PoseSearch::FSearchResult UPoseSearchLibrary::MotionMatch(const FAnimationBaseContext& Context, TConstArrayView<UAnimationAsset*> AnimationAssets)
+UE::PoseSearch::FSearchResult UPoseSearchLibrary::MotionMatch(const FAnimationBaseContext& Context, TConstArrayView<UAnimationAsset*> AnimationAssets,
+	const UAnimationAsset* PlayingAnimationAsset, float PlayingAnimationAssetAccumulatedTime)
 {
 	using namespace UE::PoseSearch;
 
 	FSearchResult SearchResult;
+
+	const IPoseHistory* History = nullptr;
+	if (IPoseHistoryProvider* PoseHistoryProvider = Context.GetMessage<IPoseHistoryProvider>())
+	{
+		History = &PoseHistoryProvider->GetPoseHistory();
+	}
+
+	const UAnimInstance* AnimInstance = Cast<const UAnimInstance>(Context.AnimInstanceProxy->GetAnimInstanceObject());
+	check(AnimInstance);
+
+	FMemMark Mark(FMemStack::Get());
+	FSearchResult ReconstructedPreviousSearchResult;
+	FSearchContext SearchContext(AnimInstance, History, TConstArrayView<const UAnimationAsset*>(), 0.f, nullptr, ReconstructedPreviousSearchResult);
 
 	// budgeting some stack allocations for simple use cases. bigger requests of AnimationAssets contining 
 	// UAnimNotifyState_PoseSearchBranchIn referencing multiple datbases will default to slower heap allocations
@@ -709,8 +723,7 @@ UE::PoseSearch::FSearchResult UPoseSearchLibrary::MotionMatch(const FAnimationBa
 	typedef TPair<const UPoseSearchDatabase*, TDbAnims> FPerDbAnimPair;
 	FPerDbAnimMap PerDbAnimMap;
 	
-	// colecting all the UAnimSequenceBase to consider for each database
-	for (const UAnimationAsset* AnimationAsset : AnimationAssets)
+	auto AddToPerDbAnimMap = [](FPerDbAnimMap& PerDbAnimMap, const UAnimationAsset* AnimationAsset)
 	{
 		if (const UAnimSequenceBase* SequenceBase = Cast<const UAnimSequenceBase>(AnimationAsset))
 		{
@@ -729,60 +742,101 @@ UE::PoseSearch::FSearchResult UPoseSearchLibrary::MotionMatch(const FAnimationBa
 				}
 			}
 		}
-	}
+	};
 
-	if (!PerDbAnimMap.IsEmpty())
+	// collecting all the possible continuing pose search (it could be multiple searches, but most likely only one)
+	if (PlayingAnimationAsset)
 	{
-		const IPoseHistory* History = nullptr;
-		if (IPoseHistoryProvider* PoseHistoryProvider = Context.GetMessage<IPoseHistoryProvider>())
+		AddToPerDbAnimMap(PerDbAnimMap, PlayingAnimationAsset);
+		for (const FPerDbAnimPair& PerDbAnimPair : PerDbAnimMap)
 		{
-			History = &PoseHistoryProvider->GetPoseHistory();
+			const UPoseSearchDatabase* Database = PerDbAnimPair.Key;
+			check(Database);
+
+#if WITH_EDITOR
+			if (!FAsyncPoseSearchDatabasesManagement::RequestAsyncBuildIndex(Database, ERequestAsyncBuildFlag::ContinueRequest))
+			{
+				SearchContext.SetAsyncBuildIndexInProgress();
+			}
+			else
+#endif // WITH_EDITOR
+			{
+				const FSearchIndex& SearchIndex = Database->GetSearchIndex();
+				for (int32 AssetIndex = 0; AssetIndex < SearchIndex.Assets.Num(); ++AssetIndex)
+				{
+					const FSearchIndexAsset& SearchIndexAsset = SearchIndex.Assets[AssetIndex];
+					if (const FPoseSearchDatabaseAnimationAssetBase* DatabaseAnimationAssetBase = Database->GetAnimationAssetBase(SearchIndexAsset))
+					{
+						if (PlayingAnimationAsset == DatabaseAnimationAssetBase->GetAnimationAsset())
+						{
+							const float FirstSampleTime = SearchIndexAsset.GetFirstSampleTime(Database->Schema->SampleRate);
+							const float LastSampleTime = SearchIndexAsset.GetLastSampleTime(Database->Schema->SampleRate);
+							if (PlayingAnimationAssetAccumulatedTime >= FirstSampleTime && PlayingAnimationAssetAccumulatedTime <= LastSampleTime)
+							{
+								ReconstructedPreviousSearchResult.Database = Database;
+								ReconstructedPreviousSearchResult.AssetTime = PlayingAnimationAssetAccumulatedTime;
+								ReconstructedPreviousSearchResult.PoseIdx = Database->GetPoseIndexFromTime(PlayingAnimationAssetAccumulatedTime, SearchIndexAsset);
+								SearchContext.UpdateCurrentResultPoseVector();
+
+								SearchResult = Database->SearchContinuingPose(SearchContext);
+								SearchContext.UpdateCurrentBestCost(SearchResult.PoseCost);
+							}
+						}
+					}
+				}
+			}
 		}
 
-		const UAnimInstance* AnimInstance = Cast<const UAnimInstance>(Context.AnimInstanceProxy->GetAnimInstanceObject());
-		check(AnimInstance);
+		PerDbAnimMap.Reset();
+	}
 
-		FMemMark Mark(FMemStack::Get());
-		FSearchContext SearchContext(AnimInstance, History);
+	// collecting all the other databases searches
+	if (!AnimationAssets.IsEmpty())
+	{
+		for (const UAnimationAsset* AnimationAsset : AnimationAssets)
+		{
+			AddToPerDbAnimMap(PerDbAnimMap, AnimationAsset);
+		}
 
 		for (const FPerDbAnimPair& PerDbAnimPair : PerDbAnimMap)
 		{
-			check(PerDbAnimPair.Key);
-			
+			const UPoseSearchDatabase* Database = PerDbAnimPair.Key;
+			check(Database);
+
 			SearchContext.SetAnimationsToConsider(PerDbAnimPair.Value);
 
-			const FSearchResult NewSearchResult = PerDbAnimPair.Key->Search(SearchContext);
+			const FSearchResult NewSearchResult = Database->Search(SearchContext);
 			if (NewSearchResult.PoseCost.GetTotalCost() < SearchResult.PoseCost.GetTotalCost())
 			{
 				SearchResult = NewSearchResult;
 				SearchContext.UpdateCurrentBestCost(SearchResult.PoseCost);
 			}
 		}
+	}
 
 #if ENABLE_DRAW_DEBUG && ENABLE_ANIM_DEBUG
-		if (SearchResult.IsValid())
+	if (SearchResult.IsValid())
+	{
+		if (CVarAnimMotionMatchDrawMatchEnable.GetValueOnAnyThread())
 		{
-			if (CVarAnimMotionMatchDrawMatchEnable.GetValueOnAnyThread())
-			{
-				FDebugDrawParams DrawParams(Context.AnimInstanceProxy, SearchContext.GetWorldBoneTransformAtTime(0.f), SearchResult.Database.Get());
-				DrawParams.DrawFeatureVector(SearchResult.PoseIdx);
-			}
-
-			if (CVarAnimMotionMatchDrawQueryEnable.GetValueOnAnyThread())
-			{
-				FDebugDrawParams DrawParams(Context.AnimInstanceProxy, SearchContext.GetWorldBoneTransformAtTime(0.f), SearchResult.Database.Get(), EDebugDrawFlags::DrawQuery);
-				DrawParams.DrawFeatureVector(SearchContext.GetOrBuildQuery(SearchResult.Database->Schema));
-			}
+			FDebugDrawParams DrawParams(Context.AnimInstanceProxy, SearchContext.GetWorldBoneTransformAtTime(0.f), SearchResult.Database.Get());
+			DrawParams.DrawFeatureVector(SearchResult.PoseIdx);
 		}
+
+		if (CVarAnimMotionMatchDrawQueryEnable.GetValueOnAnyThread())
+		{
+			FDebugDrawParams DrawParams(Context.AnimInstanceProxy, SearchContext.GetWorldBoneTransformAtTime(0.f), SearchResult.Database.Get(), EDebugDrawFlags::DrawQuery);
+			DrawParams.DrawFeatureVector(SearchContext.GetOrBuildQuery(SearchResult.Database->Schema));
+		}
+	}
 #endif // ENABLE_DRAW_DEBUG && ENABLE_ANIM_DEBUG
 
 #if UE_POSE_SEARCH_TRACE_ENABLED
-		const float SearchBestCost = SearchResult.PoseCost.GetTotalCost();
-		const float SearchBruteForceCost = SearchResult.BruteForcePoseCost.GetTotalCost();
-		TraceMotionMatchingState(SearchContext, SearchResult, 0.f, FTransform::Identity, AnimInstance, Context.GetCurrentNodeId(),
-			AnimInstance->GetDeltaSeconds(), true, FObjectTrace::GetWorldElapsedTime(AnimInstance->GetWorld()));
+	const float SearchBestCost = SearchResult.PoseCost.GetTotalCost();
+	const float SearchBruteForceCost = SearchResult.BruteForcePoseCost.GetTotalCost();
+	TraceMotionMatchingState(SearchContext, SearchResult, 0.f, FTransform::Identity, AnimInstance, Context.GetCurrentNodeId(),
+		AnimInstance->GetDeltaSeconds(), true, FObjectTrace::GetWorldElapsedTime(AnimInstance->GetWorld()));
 #endif // UE_POSE_SEARCH_TRACE_ENABLED
-	}
 
 	return SearchResult;
 }

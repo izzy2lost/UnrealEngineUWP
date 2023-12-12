@@ -201,6 +201,7 @@ struct POSESEARCH_API FSearchContext
 
 	TConstArrayView<float> GetCurrentResultPoseVector() const { return CurrentResultPoseVector; }
 
+	void UpdateCurrentResultPoseVector();
 	const FSearchResult& GetCurrentResult() const { return CurrentResult; }
 	const FFloatInterval& GetPoseJumpThresholdTime() const { return PoseJumpThresholdTime; }
 	const FPoseIndicesHistory* GetPoseIndicesHistory() const { return PoseIndicesHistory; }

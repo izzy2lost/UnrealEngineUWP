@@ -373,6 +373,11 @@ FSearchContext::FSearchContext(const UAnimInstance* InAnimInstance, const IPoseH
 , bUseCachedChannelData(bInUseCachedChannelData)
 {
 	check(AnimInstance);
+	UpdateCurrentResultPoseVector();
+}
+
+void FSearchContext::UpdateCurrentResultPoseVector()
+{
 	if (CurrentResult.IsValid())
 	{
 		const FSearchIndex& SearchIndex = CurrentResult.Database->GetSearchIndex();
