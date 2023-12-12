@@ -544,7 +544,7 @@ namespace Horde.Storage.Utility
 			{
 				if (name[idx] >= 'A' && name[idx] <= 'Z')
 				{
-					builder.Append(name[idx] + 'a' - 'A');
+					builder.Append((char)(name[idx] + 'a' - 'A'));
 				}
 				else if ((name[idx] >= 'a' && name[idx] <= 'z') || (name[idx] >= '0' && name[idx] <= '9') || name[idx] == '+')
 				{
@@ -586,19 +586,20 @@ namespace Horde.Storage.Utility
 			else
 			{
 				ArtifactName artifactName = GetArtifactNameForNode(nodeName);
+				ArtifactType artifactType = ArtifactType.StepOutput;
 
 				GetJobArtifactRequest artifactRequest = new GetJobArtifactRequest();
 				artifactRequest.JobId = jobId;
 				artifactRequest.StepId = stepId;
 				artifactRequest.Name = artifactName.ToString();
-				artifactRequest.Type = JobArtifactType.TempStorage;
+				artifactRequest.Type = artifactType.ToString();
 
 				GetJobArtifactResponse artifact = await jobRpc.Client.GetArtifactAsync(artifactRequest, cancellationToken: cancellationToken);
 
 				NamespaceId namespaceId = new NamespaceId(artifact.NamespaceId);
 				RefName refName = new RefName(artifact.RefName);
 
-				logger.LogInformation("Reading node \"{NodeName}\" tag \"{TagName}\" from temp storage (ns: {NamespaceId}, ref: {RefName}, localFile: {LocalFile})", nodeName, tagName, namespaceId, refName, localFileListLocation);
+				logger.LogInformation("Reading node \"{NodeName}\" tag \"{TagName}\" from temp storage (artifact: {ArtifactId} '{ArtifactName}' ({ArtifactType}), ns: {NamespaceId}, ref: {RefName}, localFile: {LocalFile})", nodeName, tagName, artifact.Id, artifactName, artifactType, namespaceId, refName, localFileListLocation);
 
 				using IStorageClient storageClient = storageClientFactory.CreateClient(namespaceId);
 				DirectoryNode node = await storageClient.ReadRefAsync<DirectoryNode>(artifact.RefName, cancellationToken: cancellationToken);
@@ -723,18 +724,19 @@ namespace Horde.Storage.Utility
 
 				// Read the shared manifest
 				ArtifactName artifactName = GetArtifactNameForNode(nodeName);
+				ArtifactType artifactType = ArtifactType.StepOutput;
 
 				GetJobArtifactRequest artifactRequest = new GetJobArtifactRequest();
 				artifactRequest.JobId = jobId;
 				artifactRequest.StepId = stepId;
 				artifactRequest.Name = artifactName.ToString();
-				artifactRequest.Type = JobArtifactType.TempStorage;
+				artifactRequest.Type = artifactType.ToString();
 
 				GetJobArtifactResponse artifact = await jobRpc.Client.GetArtifactAsync(artifactRequest, cancellationToken: cancellationToken);
 				NamespaceId namespaceId = new NamespaceId(artifact.NamespaceId);
 				RefName refName = new RefName(artifact.RefName);
 
-				logger.LogInformation("Reading node \"{NodeName}\" block \"{BlockName}\" from temp storage (ns: {NamespaceId}, ref: {RefName}, local: {LocalFile}, blockdir: {BlockDir})", nodeName, blockName, namespaceId, refName, localManifestFile, blockDirectoryName);
+				logger.LogInformation("Reading node \"{NodeName}\" block \"{BlockName}\" from temp storage (artifact: {ArtifactId} '{ArtifactName}' ({ArtifactType}), ns: {NamespaceId}, ref: {RefName}, local: {LocalFile}, blockdir: {BlockDir})", nodeName, blockName, artifact.Id, artifactName, artifactType, namespaceId, refName, localManifestFile, blockDirectoryName);
 
 				using IStorageClient storageClient = storageClientFactory.CreateClient(namespaceId);
 				DirectoryNode node = await storageClient.ReadRefAsync<DirectoryNode>(refName, cancellationToken: cancellationToken);

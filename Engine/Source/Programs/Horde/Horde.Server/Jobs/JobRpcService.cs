@@ -15,7 +15,6 @@ using System.Threading.Tasks;
 using EpicGames.Core;
 using EpicGames.Horde.Artifacts;
 using EpicGames.Horde.Streams;
-using EpicGames.Horde.Storage;
 using Google.Protobuf.WellKnownTypes;
 using Grpc.Core;
 using Horde.Server.Acls;
@@ -26,7 +25,6 @@ using Horde.Server.Jobs.Templates;
 using Horde.Server.Jobs.TestData;
 using Horde.Server.Logs;
 using Horde.Server.Server;
-using Horde.Server.Storage;
 using Horde.Server.Streams;
 using Horde.Server.Utilities;
 using Horde.Common.Rpc;
@@ -40,7 +38,6 @@ using MongoDB.Bson.Serialization;
 using EpicGames.Horde.Jobs;
 using EpicGames.Horde.Logs;
 using EpicGames.Horde.Agents.Sessions;
-using Horde.Server.Agents.Leases;
 
 namespace Horde.Server.Jobs
 {
@@ -57,7 +54,6 @@ namespace Horde.Server.Jobs
 	public class JobRpcService : JobRpc.JobRpcBase
 	{
 		readonly AclService _aclService;
-		readonly ILeaseCollection _leaseCollection;
 		readonly IJobCollection _jobCollection;
 		readonly IArtifactCollection _artifactCollection;
 		readonly JobRpcCommon _jobRpcCommon;
@@ -66,26 +62,13 @@ namespace Horde.Server.Jobs
 		/// <summary>
 		/// Constructor
 		/// </summary>
-		public JobRpcService(AclService aclService, ILeaseCollection leaseCollection, IJobCollection jobCollection, IArtifactCollection artifactCollection, JobRpcCommon jobRpcCommon, IOptionsSnapshot<GlobalConfig> globalConfig)
+		public JobRpcService(AclService aclService, IJobCollection jobCollection, IArtifactCollection artifactCollection, JobRpcCommon jobRpcCommon, IOptionsSnapshot<GlobalConfig> globalConfig)
 		{
 			_aclService = aclService;
-			_leaseCollection = leaseCollection;
 			_jobCollection = jobCollection;
 			_artifactCollection = artifactCollection;
 			_jobRpcCommon = jobRpcCommon;
 			_globalConfig = globalConfig.Value;
-		}
-
-		static ArtifactType GetNativeArtifactType(JobArtifactType type)
-		{
-			return type switch
-			{
-				JobArtifactType.TempStorage => ArtifactType.StepOutput,
-				JobArtifactType.Saved => ArtifactType.StepSaved,
-				JobArtifactType.Trace => ArtifactType.StepTrace,
-				JobArtifactType.TestData => ArtifactType.StepTestData,
-				_ => throw new StructuredRpcException(StatusCode.InvalidArgument, "Invalid artifact type")
-			};
 		}
 
 		/// <inheritdoc/>
@@ -93,7 +76,7 @@ namespace Horde.Server.Jobs
 		{
 			(IJob job, _, IJobStep step) = await AuthorizeAsync(request.JobId, request.StepId, context);
 
-			ArtifactType type = GetNativeArtifactType(request.Type);
+			ArtifactType type = new ArtifactType(request.Type);
 
 			List<string> keys = new List<string>();
 			keys.Add(job.GetArtifactKey());
@@ -123,10 +106,10 @@ namespace Horde.Server.Jobs
 		/// <inheritdoc/>
 		public override async Task<Common.Rpc.GetJobArtifactResponse> GetArtifact(GetJobArtifactRequest request, ServerCallContext context)
 		{
-			(IJob job, _, IJobStep step) = await AuthorizeAsync(request.JobId, request.StepId, context);
+			(IJob job, _, _) = await AuthorizeAsync(request.JobId, request.StepId, context);
 
 			ArtifactName name = new ArtifactName(request.Name);
-			ArtifactType type = GetNativeArtifactType(request.Type);
+			ArtifactType type = new ArtifactType(request.Type);
 
 			await foreach (IArtifact artifact in _artifactCollection.FindAsync(job.StreamId, job.Change, job.Change, name, type, cancellationToken: context.CancellationToken))
 			{
