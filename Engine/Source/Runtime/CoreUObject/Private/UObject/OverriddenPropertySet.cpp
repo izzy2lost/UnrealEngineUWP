@@ -36,9 +36,13 @@ EOverriddenPropertyOperation FOverridableSerializationLogic::GetOverriddenProper
 	// It does not mean that if we have no record of an overriden operation that a subobject might have one, need to traverse all possible subobjects. 
 	if (const FProperty* CurrentProperty = Property ? Property : (CurrentPropertyChain ? CurrentPropertyChain->GetPropertyFromStack(0) : nullptr) )
 	{
+		if (CurrentProperty->HasAnyPropertyFlags(CPF_ExperimentalAlwaysOverriden))
+		{
+			return EOverriddenPropertyOperation::Replace;
+		}
 		// Here we should just use CurrentProperty->ContainsInstancedObjectProperty() but somehow this CPF_InstanceReference seems to always be there on verse classes
 		// This should probably be fix in verse at some point.
-		if (CurrentProperty->HasAnyPropertyFlags(CPF_PersistentInstance))
+		else if (CurrentProperty->HasAnyPropertyFlags(CPF_PersistentInstance))
 		{
 			return EOverriddenPropertyOperation::Modified;
 		}
