@@ -517,7 +517,7 @@ UPCGNode* UPCGGraph::AddNodeInstance(UPCGSettings* InSettings)
 
 	if (Node)
 	{
-		SettingsInstance->Rename(nullptr, Node);
+		SettingsInstance->Rename(nullptr, Node, REN_ForceNoResetLoaders | REN_DontCreateRedirectors);
 		SettingsInstance->SetFlags(RF_Transactional);
 	}
 
@@ -536,7 +536,7 @@ UPCGNode* UPCGGraph::AddNodeCopy(UPCGSettings* InSettings, UPCGSettings*& Defaul
 
 	if (SettingsCopy)
 	{
-		SettingsCopy->Rename(nullptr, NewNode);
+		SettingsCopy->Rename(nullptr, NewNode, REN_ForceNoResetLoaders | REN_DontCreateRedirectors);
 	}
 
 	DefaultNodeSettings = SettingsCopy;
@@ -674,14 +674,14 @@ void UPCGGraph::AddNodes_Internal(TArrayView<UPCGNode*> InNodes)
 	for (UPCGNode* Node : InNodes)
 	{
 		check(Node);
-		Node->Rename(nullptr, this);
+		Node->Rename(nullptr, this, REN_ForceNoResetLoaders | REN_DontCreateRedirectors);
 
 #if WITH_EDITOR
 		const FName DefaultNodeName = Node->GetSettings()->GetDefaultNodeName();
 		if (DefaultNodeName != NAME_None)
 		{
 			FName NodeName = MakeUniqueObjectName(this, UPCGNode::StaticClass(), DefaultNodeName);
-			Node->Rename(*NodeName.ToString());
+			Node->Rename(*NodeName.ToString(), nullptr, REN_ForceNoResetLoaders | REN_DontCreateRedirectors);
 		}
 #endif
 

@@ -852,7 +852,7 @@ void FPCGRuntimeGenScheduler::CleanupComponent(const FGridGenerationKey& Generat
 			}
 
 #if WITH_EDITOR
-			PartitionActor->Rename(nullptr, PartitionActor->GetOuter(), REN_NonTransactional | REN_DoNotDirty);
+			PartitionActor->Rename(nullptr, PartitionActor->GetOuter(), REN_NonTransactional | REN_DoNotDirty | REN_ForceNoResetLoaders);
 			PartitionActor->SetActorLabel(*PCGRuntimeGenSchedulerConstants::PooledPartitionActorName);
 #endif
 			PartitionActorPool.Push(PartitionActor);
@@ -865,7 +865,7 @@ void FPCGRuntimeGenScheduler::CleanupComponent(const FGridGenerationKey& Generat
 			}
 
 #if WITH_EDITOR
-			PartitionActor->Rename(nullptr, PartitionActor->GetOuter(), REN_NonTransactional | REN_DoNotDirty);
+			PartitionActor->Rename(nullptr, PartitionActor->GetOuter(), REN_NonTransactional | REN_DoNotDirty | REN_ForceNoResetLoaders);
 #endif
 			World->DestroyActor(PartitionActor);
 		}
@@ -1069,7 +1069,7 @@ APCGPartitionActor* FPCGRuntimeGenScheduler::GetPartitionActorFromPool(uint32 Gr
 #if WITH_EDITOR
 	const FName ActorName = *APCGPartitionActor::GetRuntimeGenActorName(GridSize, GridCoords);
 
-	PartitionActor->Rename(*ActorName.ToString(), PartitionActor->GetOuter(), REN_NonTransactional | REN_DoNotDirty);
+	PartitionActor->Rename(*ActorName.ToString(), PartitionActor->GetOuter(), REN_NonTransactional | REN_DoNotDirty | REN_ForceNoResetLoaders);
 	PartitionActor->SetActorLabel(ActorName.ToString());
 #endif
 
@@ -1122,7 +1122,7 @@ void FPCGRuntimeGenScheduler::ResetPartitionActorPoolToSize(uint32 NewPoolSize)
 	for (APCGPartitionActor* PartitionActor : PartitionActorPool)
 	{
 #if WITH_EDITOR
-		PartitionActor->Rename(nullptr, PartitionActor->GetOuter(), REN_NonTransactional | REN_DoNotDirty);
+		PartitionActor->Rename(nullptr, PartitionActor->GetOuter(), REN_NonTransactional | REN_DoNotDirty | REN_ForceNoResetLoaders);
 #endif
 		World->DestroyActor(PartitionActor);
 	}

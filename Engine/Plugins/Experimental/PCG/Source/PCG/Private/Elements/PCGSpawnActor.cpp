@@ -329,7 +329,7 @@ void UPCGSpawnActorSettings::RefreshTemplateActor()
 				Options.bNotifyObjectReplacement = true;
 				UEngine::CopyPropertiesForUnrelatedObjects(TemplateActor, NewTemplateActor, Options);
 
-				TemplateActor->Rename(nullptr, GetTransientPackage(), REN_DontCreateRedirectors|REN_ForceNoResetLoaders);
+				TemplateActor->Rename(nullptr, GetTransientPackage(), REN_DontCreateRedirectors | REN_ForceNoResetLoaders);
 
 				TMap<UObject*, UObject*> OldToNew;
 				OldToNew.Emplace(TemplateActor, NewTemplateActor);
