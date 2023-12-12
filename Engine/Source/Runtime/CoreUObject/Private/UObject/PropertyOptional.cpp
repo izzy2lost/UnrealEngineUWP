@@ -224,6 +224,7 @@ void FOptionalProperty::SerializeItem(FStructuredArchive::FSlot Slot, void* Data
 			switch (GetValueProperty()->ConvertFromType(ValueTag, ValueSlot, static_cast<uint8*>(ValueData), GetOwnerStruct(), static_cast<const uint8*>(ValueDefaults)))
 			{
 				case EConvertFromTypeResult::Converted:
+				case EConvertFromTypeResult::Serialized:
 					bSuccessfullyDeserialized = true;
 					break;
 				case EConvertFromTypeResult::UseSerializeItem:

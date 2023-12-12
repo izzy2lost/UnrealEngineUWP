@@ -124,9 +124,14 @@ namespace EExportedDeclaration
 
 enum class EConvertFromTypeResult
 {
+	/** No conversion was performed. Use SerializeItem to serialize the property value. */
 	UseSerializeItem,
+	/** No conversion was performed. The property value was serialized. Skip SerializeItem. */
+	Serialized,
+	/** No conversion is possible. Skip SerializeItem. */
 	CannotConvert,
-	Converted
+	/** Conversion of the property value was performed. Skip SerializeItem. */
+	Converted,
 };
 
 enum class EPropertyMemoryAccess : uint8
@@ -368,8 +373,9 @@ public:
 	* @param	Defaults	if available, a pointer to the container containing the default value for this property, or null
 	*
 	* @return	A state which tells the tagged property system how the property dealt with the data.
-	*			Converted:        the function has handled the tag.
+	*			Converted:        the function handled conversion.
 	*			CannotConvert:    the tag is not something that the property can convert.
+	*			Serialized:       the function handled serialization without conversion.
 	*			UseSerializeItem: no conversion was done on the property - this can mean that the tag is correct and normal serialization applies or that the tag is incompatible.
 	*/
 	COREUOBJECT_API virtual EConvertFromTypeResult ConvertFromType(const FPropertyTag& Tag, FStructuredArchive::FSlot Slot, uint8* Data, UStruct* DefaultsStruct, const uint8* Defaults);
@@ -1746,37 +1752,38 @@ private:
 public:
 	virtual EConvertFromTypeResult ConvertFromType(const FPropertyTag& Tag, FStructuredArchive::FSlot Slot, uint8* Data, UStruct* DefaultsStruct, const uint8* Defaults) override
 	{
-		if (const EName * TagType = Tag.Type.ToEName())
+		if (const EName* TagType = Tag.Type.ToEName())
 		{
 			switch (*TagType)
 			{
 			case NAME_Int8Property:
 				ConvertFromArithmeticValue<int8>(Slot, Data, Tag);
-				return EConvertFromTypeResult::Converted;
+				return std::is_same_v<TCppType, int8> ? EConvertFromTypeResult::Serialized : EConvertFromTypeResult::Converted;
 
 			case NAME_Int16Property:
 				ConvertFromArithmeticValue<int16>(Slot, Data, Tag);
-				return EConvertFromTypeResult::Converted;
+				return std::is_same_v<TCppType, int16> ? EConvertFromTypeResult::Serialized : EConvertFromTypeResult::Converted;
 
 			case NAME_IntProperty:
 				ConvertFromArithmeticValue<int32>(Slot, Data, Tag);
-				return EConvertFromTypeResult::Converted;
+				return std::is_same_v<TCppType, int32> ? EConvertFromTypeResult::Serialized : EConvertFromTypeResult::Converted;
 
 			case NAME_Int64Property:
 				ConvertFromArithmeticValue<int64>(Slot, Data, Tag);
-				return EConvertFromTypeResult::Converted;
+				return std::is_same_v<TCppType, int64> ? EConvertFromTypeResult::Serialized : EConvertFromTypeResult::Converted;
 
 			case NAME_ByteProperty:
 				if (!Tag.EnumName.IsNone())
 				{
 					int64 PreviousValue = this->ReadEnumAsInt64(Slot, DefaultsStruct, Tag);
 					this->SetPropertyValue_InContainer(Data, (TCppType)PreviousValue, Tag.ArrayIndex);
+					return EConvertFromTypeResult::Converted;
 				}
 				else
 				{
 					ConvertFromArithmeticValue<int8>(Slot, Data, Tag);
+					return std::is_same_v<TCppType, uint8> ? EConvertFromTypeResult::Serialized : EConvertFromTypeResult::Converted;
 				}
-				return EConvertFromTypeResult::Converted;
 
 			case NAME_EnumProperty:
 			{
@@ -1787,27 +1794,27 @@ public:
 
 			case NAME_UInt16Property:
 				ConvertFromArithmeticValue<uint16>(Slot, Data, Tag);
-				return EConvertFromTypeResult::Converted;
+				return std::is_same_v<TCppType, uint16> ? EConvertFromTypeResult::Serialized : EConvertFromTypeResult::Converted;
 
 			case NAME_UInt32Property:
 				ConvertFromArithmeticValue<uint32>(Slot, Data, Tag);
-				return EConvertFromTypeResult::Converted;
+				return std::is_same_v<TCppType, uint32> ? EConvertFromTypeResult::Serialized : EConvertFromTypeResult::Converted;
 
 			case NAME_UInt64Property:
 				ConvertFromArithmeticValue<uint64>(Slot, Data, Tag);
-				return EConvertFromTypeResult::Converted;
+				return std::is_same_v<TCppType, uint64> ? EConvertFromTypeResult::Serialized : EConvertFromTypeResult::Converted;
 
 			case NAME_FloatProperty:
 				ConvertFromArithmeticValue<float>(Slot, Data, Tag);
-				return EConvertFromTypeResult::Converted;
+				return std::is_same_v<TCppType, float> ? EConvertFromTypeResult::Serialized : EConvertFromTypeResult::Converted;
 
 			case NAME_DoubleProperty:
 				ConvertFromArithmeticValue<double>(Slot, Data, Tag);
-				return EConvertFromTypeResult::Converted;
+				return std::is_same_v<TCppType, double> ? EConvertFromTypeResult::Serialized : EConvertFromTypeResult::Converted;
 
 			case NAME_BoolProperty:
 				this->SetPropertyValue_InContainer(Data, (TCppType)Tag.BoolVal, Tag.ArrayIndex);
-				return EConvertFromTypeResult::Converted;
+				return std::is_same_v<TCppType, bool> ? EConvertFromTypeResult::Serialized : EConvertFromTypeResult::Converted;
 
 			default:
 				// We didn't convert it

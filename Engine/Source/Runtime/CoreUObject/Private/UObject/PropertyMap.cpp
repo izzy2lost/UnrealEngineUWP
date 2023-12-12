@@ -1431,11 +1431,9 @@ EConvertFromTypeResult FMapProperty::ConvertFromType(const FPropertyTag& Tag, FS
 			CurrentType->SerializeItem(InnerSlot, DestAddress, nullptr);
 			return true;
 		}
-		else if( CurrentType->ConvertFromType(InTag, InnerSlot, InData, InDefaultsStruct, nullptr) == EConvertFromTypeResult::Converted )
-		{
-			return true;
-		}
-		return false;
+
+		EConvertFromTypeResult ConvertResult = CurrentType->ConvertFromType(InTag, InnerSlot, InData, InDefaultsStruct, nullptr);
+		return ConvertResult == EConvertFromTypeResult::Converted || ConvertResult == EConvertFromTypeResult::Serialized;
 	};
 
 	if (Tag.Type == NAME_MapProperty)
