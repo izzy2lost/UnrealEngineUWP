@@ -12,6 +12,7 @@ COPY Programs/Shared/EpicGames.AspNet/*.csproj ./Programs/Shared/EpicGames.AspNe
 COPY Programs/Shared/EpicGames.Horde/*.csproj ./Programs/Shared/EpicGames.Horde/
 COPY Programs/Shared/EpicGames.IoHash/*.csproj ./Programs/Shared/EpicGames.IoHash/
 COPY Programs/Shared/EpicGames.Oodle/*.csproj ./Programs/Shared/EpicGames.Oodle/
+COPY Programs/Shared/EpicGames.OIDC/*.csproj ./Programs/Shared/EpicGames.OIDC/
 COPY Programs/Shared/EpicGames.Serialization/*.csproj ./Programs/Shared/EpicGames.Serialization/
 COPY Programs/UnrealCloudDDC/Jupiter.Common/*.csproj ./Programs/UnrealCloudDDC/Jupiter.Common/
 COPY Programs/UnrealCloudDDC/Jupiter/*.csproj ./Programs/UnrealCloudDDC/Jupiter/
@@ -29,7 +30,9 @@ RUN dotnet publish -c Release -o out Programs/UnrealCloudDDC/Jupiter/Jupiter.csp
 FROM mcr.microsoft.com/dotnet/aspnet:6.0 AS unreal-cloud-ddc-base
 WORKDIR /app
 COPY --from=build /app/out ./
+COPY Programs/UnrealCloudDDC/ThirdParty/license.txt license.txt
 LABEL org.opencontainers.image.documentation https://github.com/EpicGames/UnrealEngine/blob/ue5-main/Engine/Source/Programs/UnrealCloudDDC/README.md
+LABEL org.opencontainers.image.licenses "MIT"
 
 # create the actual deployable slim image
 FROM unreal-cloud-ddc-base AS unreal-cloud-ddc-slim

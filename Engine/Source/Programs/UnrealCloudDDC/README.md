@@ -9,6 +9,7 @@ Unreal Cloud DDC can signficantly help teams speed up their cook processes in th
 # Table of contents
 - [Introduction](#introduction)
 - [Table of contents](#table-of-contents)
+- [License](#license)
 - [Directories](#directories)
 - [Dependencies](#dependencies)
 - [Other useful things](#other-useful-things)
@@ -33,6 +34,10 @@ Unreal Cloud DDC can signficantly help teams speed up their cook processes in th
   - [Running a local cook against a local instance](#running-a-local-cook-against-a-local-instance)
   - [Add new region](#add-new-region)
   - [Blob replication setup](#blob-replication-setup)
+
+# License
+The source of Unreal Cloud DDC is covered by the regular Unreal Engine source license.
+We do provide container images at https://github.com/orgs/EpicGames/packages/container/package/unreal-cloud-ddc - these containers are provided under MIT.
 
 # Directories 
 
