@@ -81,11 +81,6 @@ namespace Horde.Server.Utilities
 		/// Claim allowing a certain namespace and/or path to be written to. Value may be a namespace name, or a subpath (eg. ns:a/b will only allow blobs and refs with an a/b prefix to be written).
 		/// </summary>
 		public const string WriteNamespace = Prefix + "write-namespace";
-
-		/// <summary>
-		/// Claim allowing a certain ref to be written
-		/// </summary>
-		public const string WriteRef = Prefix + "write-ref";
 	}
 
 	/// <summary>

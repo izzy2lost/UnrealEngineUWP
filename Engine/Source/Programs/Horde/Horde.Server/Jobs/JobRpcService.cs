@@ -97,11 +97,16 @@ namespace Horde.Server.Jobs
 			IArtifact artifact = await _artifactCollection.AddAsync(name, type, job.StreamId, job.Change, keys, expireAt, templateConfig.ScopeName, context.CancellationToken);
 
 			List<AclClaimConfig> claims = new List<AclClaimConfig>();
-			claims.Add(new AclClaimConfig(HordeClaimTypes.WriteNamespace, artifact.NamespaceId.ToString()));
-			claims.Add(new AclClaimConfig(HordeClaimTypes.WriteRef, artifact.RefName.ToString()));
+			claims.Add(new AclClaimConfig(HordeClaimTypes.WriteNamespace, $"{artifact.NamespaceId}:{artifact.RefName}"));
 
 			string token = await _aclService.IssueBearerTokenAsync(claims, TimeSpan.FromHours(8.0));
-			return new Common.Rpc.CreateJobArtifactResponse { Id = artifact.Id.ToString(), NamespaceId = artifact.NamespaceId.ToString(), RefName = artifact.RefName.ToString(), Token = token };
+
+			Common.Rpc.CreateJobArtifactResponse response = new Common.Rpc.CreateJobArtifactResponse();
+			response.Id = artifact.Id.ToString();
+			response.NamespaceId = artifact.NamespaceId.ToString();
+			response.RefName = artifact.RefName.ToString();
+			response.Token = token;
+			return response;
 		}
 
 		/// <inheritdoc/>
@@ -112,16 +117,23 @@ namespace Horde.Server.Jobs
 			ArtifactName name = new ArtifactName(request.Name);
 			ArtifactType type = new ArtifactType(request.Type);
 
-			await foreach (IArtifact artifact in _artifactCollection.FindAsync(job.StreamId, job.Change, job.Change, name, type, cancellationToken: context.CancellationToken))
+			IArtifact? artifact = await _artifactCollection.FindAsync(job.StreamId, job.Change, job.Change, name, type, cancellationToken: context.CancellationToken).FirstOrDefaultAsync(context.CancellationToken);
+			if (artifact == null)
 			{
-				Common.Rpc.GetJobArtifactResponse response = new Common.Rpc.GetJobArtifactResponse();
-				response.Id = artifact.Id.ToString();
-				response.NamespaceId = artifact.NamespaceId.ToString();
-				response.RefName = artifact.RefName.ToString();
-				return response;
+				throw new StructuredRpcException(StatusCode.NotFound, "No artifact {ArtifactName} of type {ArtifactType} was found for {StreamId}@{Change}", name, type, job.StreamId, job.Change);
 			}
 
-			throw new StructuredRpcException(StatusCode.NotFound, "No artifact {ArtifactName} of type {ArtifactType} was found", name, type);
+			List<AclClaimConfig> claims = new List<AclClaimConfig>();
+			claims.Add(new AclClaimConfig(HordeClaimTypes.ReadNamespace, $"{artifact.NamespaceId}:{artifact.RefName}"));
+
+			string token = await _aclService.IssueBearerTokenAsync(claims, TimeSpan.FromHours(8.0));
+
+			Common.Rpc.GetJobArtifactResponse response = new Common.Rpc.GetJobArtifactResponse();
+			response.Id = artifact.Id.ToString();
+			response.NamespaceId = artifact.NamespaceId.ToString();
+			response.RefName = artifact.RefName.ToString();
+			response.Token = token;
+			return response;
 		}
 
 		Task<(IJob, IJobStepBatch, IJobStep)> AuthorizeAsync(string jobId, string stepId, ServerCallContext context)

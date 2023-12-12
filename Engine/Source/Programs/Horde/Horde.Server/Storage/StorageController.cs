@@ -354,7 +354,18 @@ namespace Horde.Server.Storage
 
 		static bool HasPathPrefix(string name, ReadOnlySpan<char> prefix)
 		{
-			return name.Length > prefix.Length && name[prefix.Length] == '/' && name.AsSpan(0, prefix.Length).SequenceEqual(prefix);
+			if (name.Length > prefix.Length)
+			{
+				return name[prefix.Length] == '/' && name.AsSpan(0, prefix.Length).SequenceEqual(prefix);
+			}
+			else if (name.Length == prefix.Length)
+			{
+				return name.AsSpan().SequenceEqual(prefix);
+			}
+			else
+			{
+				return false;
+			}
 		}
 
 		/// <summary>
