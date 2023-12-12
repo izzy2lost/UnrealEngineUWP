@@ -3877,6 +3877,16 @@ namespace UnrealBuildTool
 		public bool WithLowLevelTests => Inner.WithLowLevelTests;
 
 		/// <summary>
+		/// Get the platforms this target supports
+		/// </summary>
+		public IEnumerable<UnrealTargetPlatform> SupportedPlatforms => Inner.GetSupportedPlatforms();
+
+		/// <summary>
+		/// Get the configurations this target supports
+		/// </summary>
+		public IEnumerable<UnrealTargetConfiguration> SupportedConfigurations => Inner.GetSupportedConfigurations();
+
+		/// <summary>
 		/// Checks if current platform is part of a given platform group
 		/// </summary>
 		/// <param name="Group">The platform group to check</param>
