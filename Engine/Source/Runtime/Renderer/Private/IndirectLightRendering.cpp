@@ -545,6 +545,7 @@ void SetupReflectionUniformParameters(FRDGBuilder& GraphBuilder, const FViewInfo
 
 	const bool bApplySkyLight = View.Family->EngineShowFlags.SkyLighting;
 	const FScene* Scene = (const FScene*)View.Family->Scene;
+	ERDGTextureFlags SkyLightTextureFlags = ERDGTextureFlags::None;
 
 	if (Scene
 		&& Scene->SkyLight
@@ -577,6 +578,8 @@ void SetupReflectionUniformParameters(FRDGBuilder& GraphBuilder, const FViewInfo
 					BlendFraction = 0;
 				}
 			}
+			
+			SkyLightTextureFlags = ERDGTextureFlags::SkipTracking;
 		}
 
 		ApplySkyLightMask = 1;
@@ -587,7 +590,7 @@ void SetupReflectionUniformParameters(FRDGBuilder& GraphBuilder, const FViewInfo
 	FRDGTextureRef SkyLightTexture = nullptr;
 	if (SkyLightTextureResource)
 	{
-		 SkyLightTexture = RegisterExternalTexture(GraphBuilder, SkyLightTextureResource, TEXT("SkyLightTexture"));
+		SkyLightTexture = RegisterExternalTexture(GraphBuilder, SkyLightTextureResource, TEXT("SkyLightTexture"), SkyLightTextureFlags);
 	}
 	else
 	{

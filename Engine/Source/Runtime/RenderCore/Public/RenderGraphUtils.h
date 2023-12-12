@@ -268,14 +268,19 @@ inline FRDGBufferRef TryRegisterExternalBuffer(
 	return ExternalPooledBuffer ? GraphBuilder.RegisterExternalBuffer(ExternalPooledBuffer, Flags) : nullptr;
 }
 
-inline FRDGTextureRef RegisterExternalTexture(FRDGBuilder& GraphBuilder, FRHITexture* Texture, const TCHAR* NameIfUnregistered)
+inline FRDGTextureRef RegisterExternalTexture(FRDGBuilder& GraphBuilder, FRHITexture* Texture, const TCHAR* NameIfUnregistered, ERDGTextureFlags Flags)
 {
 	if (FRDGTextureRef FoundTexture = GraphBuilder.FindExternalTexture(Texture))
 	{
 		return FoundTexture;
 	}
 
-	return GraphBuilder.RegisterExternalTexture(CreateRenderTarget(Texture, NameIfUnregistered));
+	return GraphBuilder.RegisterExternalTexture(CreateRenderTarget(Texture, NameIfUnregistered), Flags);
+}
+
+inline FRDGTextureRef RegisterExternalTexture(FRDGBuilder& GraphBuilder, FRHITexture* Texture, const TCHAR* NameIfUnregistered)
+{
+	return RegisterExternalTexture(GraphBuilder, Texture, NameIfUnregistered, ERDGTextureFlags::None);
 }
 
 /** Simple pair of RDG textures used for MSAA. */
