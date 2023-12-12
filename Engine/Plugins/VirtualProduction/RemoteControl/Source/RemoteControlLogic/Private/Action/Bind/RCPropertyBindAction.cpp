@@ -299,6 +299,28 @@ void URCPropertyBindAction::Execute() const
 
 				Handle->SetValue(StringValue);
 			}
+			// Numeric to Vector/Vector2D/Rotator
+			else if (const FStructProperty* TargetStructProperty = CastField<FStructProperty>(RemoteControlProperty))
+			{
+				// FVector
+				if (TargetStructProperty->Struct == TBaseStructure<FVector>::Get())
+				{
+					const FVector VectorValue(NumericValue, NumericValue, NumericValue);
+					Handle->SetValue(VectorValue);
+				}
+				// FVector2D
+				else if (TargetStructProperty->Struct == TBaseStructure<FVector2D>::Get())
+				{
+					const FVector2D Vector2DValue(NumericValue, NumericValue);
+					Handle->SetValue(Vector2DValue);
+				}
+				// FRotator
+				else if (TargetStructProperty->Struct == TBaseStructure<FRotator>::Get())
+				{
+					const FRotator RotatorValue(NumericValue, NumericValue, NumericValue);
+					Handle->SetValue(RotatorValue);
+				} 
+			}
 		}
 		// Boolean Controller
 		else if (ControllerAsProperty->IsA(FBoolProperty::StaticClass()))
