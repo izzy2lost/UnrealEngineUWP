@@ -73,8 +73,8 @@ public:
 	[[nodiscard]] static TSharedRef< TAnimatedAttribute > CreateWithGetter( const InterpolatorSettings& InSettings, const FGetter& InGetter )
 	{
 		TSharedRef< TAnimatedAttribute< NumericType > > Attribute = MakeShared< TAnimatedAttribute< NumericType > >(FPrivateToken{}, InSettings);
+		Attribute->Set(InGetter.Execute());
 		Attribute->Getter = InGetter;
-		Attribute->Set(Attribute->Getter.Execute());
 		Attribute->Register();
 		return Attribute;
 	}
@@ -89,8 +89,8 @@ public:
 	[[nodiscard]] static TSharedRef< TAnimatedAttribute > CreateWithGetter( const InterpolatorSettings& InSettings, FGetter&& InGetter )
 	{
 		TSharedRef< TAnimatedAttribute< NumericType > > Attribute = MakeShared< TAnimatedAttribute< NumericType > >(FPrivateToken{}, InSettings);
+		Attribute->Set(InGetter.Execute());
 		Attribute->Getter = MoveTemp(InGetter);
-		Attribute->Set(Attribute->Getter.Execute());
 		Attribute->Register();
 		return Attribute;
 	}
@@ -152,12 +152,6 @@ public:
 	 */
 	const NumericType& Get() const
 	{
-		// first see if the interpolator has a value
-		if(Interpolator->IsSet())
-		{
-			return Interpolator->Get();
-		}
-		
 		// If we have a getter delegate, then we'll call that to generate the value
 		if( Getter.IsBound() )
 		{
@@ -167,8 +161,20 @@ public:
 			// NOTE: We purposely overwrite our value copy here so that we can return the value by address in
 			// the most common case, which is an attribute that doesn't have a delegate bound to it at all.
 			DesiredValue = Getter.Execute();
+
+			// Update the interpolator
+			if(DesiredValue.IsSet())
+			{
+				Interpolator->SetValue(DesiredValue.GetValue());
+			}
 		}
 
+		// first see if the interpolator has a value
+		if(Interpolator->IsSet())
+		{
+			return Interpolator->Get();
+		}
+		
 		if(DesiredValue.IsSet())
 		{
 			// Return the stored value
@@ -210,6 +216,22 @@ public:
 	void SetTolerance( double Tolerance )
 	{
 		Interpolator->SetTolerance(Tolerance);
+	}
+
+	/**
+	 * Enables (or disables) the interpolator and returns values in interpolated or immediate mode
+	 */
+	void EnableInterpolation(bool bEnabled = true)
+	{
+		Interpolator->SetEnabled(bEnabled);
+	}
+
+	/**
+	 * Disables the interpolator and returns values in immediate mode
+	 */
+	void DisableInterpolation()
+	{
+		EnableInterpolation(false);
 	}
 
 	/**

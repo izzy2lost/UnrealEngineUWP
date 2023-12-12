@@ -27,7 +27,8 @@ public:
 	 * Default constructor
 	 */
 	TAttributeInterpolator()
-	: Tolerance(0.001f)
+	: bEnabled(true)
+	, Tolerance(0.001f)
 	{
 	}
 
@@ -90,6 +91,32 @@ public:
 		}
 	}
 
+	/*
+	 * Returns true if the interpolator is enabled
+	 */
+	bool IsEnabled() const
+	{
+		return bEnabled;
+	}
+
+	/*
+	 * Enables (or disables) the interpolator
+	 */
+	void SetEnabled(bool InEnabled = true)
+	{
+		if(bEnabled != InEnabled)
+		{
+			bEnabled = InEnabled;
+
+			// if we disabled or re-enabled the interpolator set
+			// the interpolated values based on the desired value
+			if(DesiredValue.IsSet())
+			{
+				SetValueAndStop(DesiredValue.GetValue());
+			}
+		}
+	}
+
 	/**
  	 * Set the internal state of the interpolator
  	 * 
@@ -131,12 +158,15 @@ public:
 	/**
 	 * Returns the interpolated value
 	 *
-	 * @param InValue The value to interpolate against
 	 * @return The interpolated value
 	 */
 	const NumericType& Get() const
 	{
 		check(IsSet());
+		if(!IsEnabled())
+		{
+			return DesiredValue.GetValue();
+		}
 		if(InterpolatedValue.IsSet())
 		{
 			return InterpolatedValue.GetValue();
@@ -261,6 +291,7 @@ protected:
 		return Start();
 	}
 
+	bool bEnabled;
 	float Tolerance;
 	mutable TOptional<float> Delay;
 	mutable TOptional<float> OverallDeltaTime;
