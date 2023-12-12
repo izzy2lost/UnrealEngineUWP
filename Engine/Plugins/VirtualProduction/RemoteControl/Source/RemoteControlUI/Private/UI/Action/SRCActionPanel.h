@@ -137,6 +137,9 @@ private:
 	/** Handles click event for Add All button; Adds all possible actions for the active Remote Control Preset*/
 	FReply OnAddAllFields();
 
+	/** Handles click event for Add All Selected button; Adds all selected actions for the active Remote Control Preset*/
+	FReply OnAddAllSelectedFields();
+
 	/** Event invoked when a new remote control field has been added to the Remote Control Preset associated with this Action panel */
 	void OnRemoteControlFieldAdded(const FGuid& GroupId, const FGuid& FieldId, int32 FieldPosition);
 

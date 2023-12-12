@@ -30,6 +30,7 @@
 #include "UI/Behaviour/RCBehaviourModel.h"
 #include "UI/Panels/SRCDockPanel.h"
 #include "UI/RemoteControlPanelStyle.h"
+#include "UI/SRCPanelExposedEntitiesList.h"
 #include "UI/SRemoteControlPanel.h"
 
 #include "Widgets/Input/SButton.h"
@@ -152,7 +153,29 @@ void SRCActionPanel::UpdateWrappedWidget(TSharedPtr<FRCBehaviourModel> InBehavio
 				]
 			];
 
+		// Add All Button
+		const TSharedRef<SWidget> AddAllSelectedActionsButton = SNew(SButton)
+			.AddMetaData<FTagMetaData>(FTagMetaData(TEXT("Add All Selected Fields")))
+			.HAlign(HAlign_Center)
+			.VAlign(VAlign_Center)
+			.ForegroundColor(FSlateColor::UseForeground())
+			.ButtonStyle(&RCPanelStyle->FlatButtonStyle)
+			.ToolTipText(LOCTEXT("RCAddAllSelectedToolTip", "Adds all the selected fields."))
+			.OnClicked(this, &SRCActionPanel::OnAddAllSelectedFields)
+			.Visibility(this, &SRCActionPanel::HandleAddAllButtonVisibility)
+			[
+				SNew(SBox)
+				.WidthOverride(RCPanelStyle->IconSize.X)
+				.HeightOverride(RCPanelStyle->IconSize.Y)
+				[
+					SNew(SImage)
+					.ColorAndOpacity(FSlateColor::UseForeground())
+					.Image(FAppStyle::GetBrush("DataLayerBrowser.AddSelection"))
+				]
+			];
+
 		ActionDockPanel->AddHeaderToolbarItem(EToolbar::Left, AddNewActionButton);
+		ActionDockPanel->AddHeaderToolbarItem(EToolbar::Right, AddAllSelectedActionsButton);
 		ActionDockPanel->AddHeaderToolbarItem(EToolbar::Right, AddAllActionsButton);
 
 		// Header Dock Panel
@@ -437,6 +460,66 @@ FReply SRCActionPanel::OnAddAllFields()
 					if (Behaviour && Behaviour->CanHaveActionForField(RemoteControlField))
 					{
 						AddAction(RemoteControlField.ToSharedRef());
+					}
+				}
+			}
+		}
+	}
+
+	return FReply::Handled();
+}
+
+FReply SRCActionPanel::OnAddAllSelectedFields()
+{
+	if (!SelectedBehaviourItemWeakPtr.IsValid() || !PanelWeakPtr.IsValid())
+	{
+		return FReply::Handled();
+	}
+
+	const TSharedPtr<SRemoteControlPanel> RCPanel = PanelWeakPtr.Pin();
+	if (const TSharedPtr<SRCPanelExposedEntitiesList> RCEntitiesList = RCPanel->GetEntityList())
+	{
+		if (const TSharedPtr<FRCBehaviourModel>& BehaviourItem = SelectedBehaviourItemWeakPtr.Pin())
+		{
+			FScopedTransaction Transaction(LOCTEXT("RCAddAllSelectedActionsTransaction", "Add All Selected Fields"));
+
+			auto AddSelectedActionLambda = [this, BehaviourItem] (const TSharedPtr<SRCPanelTreeNode>& RCEntity)
+			{
+				if (URemoteControlPreset* Preset = GetPreset())
+				{
+					const TWeakPtr<FRemoteControlField> RCWeakField = Preset->GetExposedEntity<FRemoteControlField>(RCEntity->GetRCId());
+					if (const TSharedPtr<FRemoteControlField> RCField = RCWeakField.Pin())
+					{
+						const URCBehaviour* Behaviour = BehaviourItem->GetBehaviour();
+
+						if (Behaviour && Behaviour->CanHaveActionForField(RCField))
+						{
+							AddAction(RCField.ToSharedRef());
+						}
+					}
+				}
+			};
+
+			for (const TSharedPtr<SRCPanelTreeNode>& RCEntity : RCEntitiesList->GetSelectedEntities())
+			{
+				if (RCEntity->GetRCId().IsValid())
+				{
+					AddSelectedActionLambda(RCEntity);
+				}
+				else if (RCEntity->GetRCType() == SRCPanelTreeNode::FieldGroup)
+				{
+					if (const TSharedPtr<SRCPanelExposedEntitiesGroup> RCFieldGroup = StaticCastSharedPtr<SRCPanelExposedEntitiesGroup>(RCEntity))
+					{
+						TArray<TSharedPtr<SRCPanelTreeNode>> RCFieldGroupEntities;
+						RCFieldGroup->GetNodeChildren(RCFieldGroupEntities);
+
+						for (const TSharedPtr<SRCPanelTreeNode>& RCFieldGroupEntity : RCFieldGroupEntities)
+						{
+							if (RCFieldGroupEntity->GetRCId().IsValid())
+							{
+								AddSelectedActionLambda(RCFieldGroupEntity);
+							}
+						}
 					}
 				}
 			}
