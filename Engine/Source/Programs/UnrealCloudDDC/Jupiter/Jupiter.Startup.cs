@@ -297,6 +297,12 @@ namespace Jupiter
 				throw new Exception("Connection string has to be specified");
 			}
 
+			CassandraConnectionStringBuilder cassandraConnectionStringBuilder = new CassandraConnectionStringBuilder(connectionString);
+			if (string.IsNullOrEmpty(cassandraConnectionStringBuilder.DefaultKeyspace))
+			{
+				throw new Exception("Default Keyspace has to be specified");
+			}
+
 			// Configure the builder with your cluster's contact points
 			Builder clusterBuilder = Cluster.Builder()
 				.WithConnectionString(connectionString)
