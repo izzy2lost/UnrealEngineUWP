@@ -396,6 +396,9 @@ struct FFortniteMainBranchObjectVersion
 		// Fix tangents for non-uniform build scales, and add a flag to optionally match the previous (incorrect) tangents
 		FixedTangentTransformForNonuniformBuildScale,
 
+		// AnimNode Layers will now start in a Shared Group, instead of being each one on a different group at runtime
+		AnimNodeRootDefaultGroupChange,
+
 		// -----<new versions can be added above this line>-------------------------------------------------
 		VersionPlusOne,
 		LatestVersion = VersionPlusOne - 1

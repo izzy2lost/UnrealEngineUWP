@@ -18,6 +18,10 @@ class UAnimGraphNode_Root : public UAnimGraphNode_Base
 	UPROPERTY(EditAnywhere, Category=Settings)
 	FAnimNode_Root Node;
 
+	//~ Begin UObject interface
+	ANIMGRAPH_API virtual void Serialize(FArchive& Ar) override;
+	//~ End of UObject interface
+
 	//~ Begin UEdGraphNode Interface.
 	ANIMGRAPH_API virtual FLinearColor GetNodeTitleColor() const override;
 	ANIMGRAPH_API virtual FText GetTooltipText() const override;
