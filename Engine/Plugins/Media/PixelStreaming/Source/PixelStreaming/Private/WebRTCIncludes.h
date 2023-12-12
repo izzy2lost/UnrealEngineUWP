@@ -69,9 +69,7 @@ THIRD_PARTY_INCLUDES_START
 #include "modules/video_coding/codecs/vp8/include/vp8.h"
 #include "modules/video_coding/codecs/vp9/include/vp9.h"
 
-#include "common_video/h264/h264_bitstream_parser.h"
 #include "common_video/h264/h264_common.h"
-#include "common_video/h265/h265_common.h"
 
 #include "media/base/video_broadcaster.h"
 
