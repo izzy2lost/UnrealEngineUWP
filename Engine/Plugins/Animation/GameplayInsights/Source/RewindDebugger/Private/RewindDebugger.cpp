@@ -171,14 +171,13 @@ void FRewindDebugger::OnPIEPaused(bool bSimulating)
 {
 	bPIESimulating = false;
 	ControlState = EControlState::Pause;
-
+	
 	if (bRecording)
 	{
+    #if OBJECT_TRACE_ENABLED
 		UWorld* World = GetWorldToVisualize();
-#if OBJECT_TRACE_ENABLED
-		RecordingDuration.Set(FObjectTrace::GetWorldElapsedTime(World));
-#endif // OBJECT_TRACE_ENABLED
-		SetCurrentScrubTime(RecordingDuration.Get());
+		SetCurrentScrubTime(FObjectTrace::GetWorldElapsedTime(World));
+    #endif // OBJECT_TRACE_ENABLED
 	}
 	
 	if (ShouldAutoEject() && FPlayWorldCommandCallbacks::IsInPIE())
@@ -232,11 +231,10 @@ void FRewindDebugger::OnPIESingleStepped(bool bSimulating)
 
 	if (bRecording)
 	{
+    #if OBJECT_TRACE_ENABLED
 		UWorld* World = GetWorldToVisualize();
-#if OBJECT_TRACE_ENABLED
-		RecordingDuration.Set(FObjectTrace::GetWorldElapsedTime(World));
-#endif // OBJECT_TRACE_ENABLED
-		SetCurrentScrubTime(RecordingDuration.Get());
+		SetCurrentScrubTime(FObjectTrace::GetWorldElapsedTime(World));
+    #endif // OBJECT_TRACE_ENABLED
 	}
 }
 
@@ -248,9 +246,6 @@ void FRewindDebugger::OnPIEStopped(bool bSimulating)
 	MeshComponentsToReset.Empty();
 
 	StopRecording();
-	// clear the current recording (until we support playback in the Editor world on spawned actors)
-	RecordingDuration.Set(0);
-	SetCurrentScrubTime(0);
 }
 
 bool FRewindDebugger::GetTargetActorPosition(FVector& OutPosition) const
@@ -883,6 +878,9 @@ void FRewindDebugger::Tick(float DeltaTime)
 		if (AnimationProvider && GameplayProvider)
 		{
 			TraceServices::FAnalysisSessionReadScope SessionReadScope(*Session);
+
+			RecordingDuration.Set(GameplayProvider->GetRecordingDuration());
+			
 			UWorld* World = GetWorldToVisualize();
 
 			if (bPIESimulating)
@@ -890,16 +888,13 @@ void FRewindDebugger::Tick(float DeltaTime)
 				if (bRecording)
 				{
 					TRACE_CPUPROFILER_EVENT_SCOPE(FRewindDebugger::Tick_UpdateSimulating);
-#if OBJECT_TRACE_ENABLED
-					RecordingDuration.Set(FObjectTrace::GetWorldElapsedTime(World));
-#endif // OBJECT_TRACE_ENABLED
 					SetCurrentScrubTime(RecordingDuration.Get());
 					TrackCursorDelegate.ExecuteIfBound(false);
 				}
 			}
 			else
 			{
-				if (RecordingDuration.Get() > 0)
+				if (RecordingDuration.Get() > 0 && CurrentScrubTime <= RecordingDuration.Get()) 
 				{
 					if (ControlState == EControlState::Play || ControlState == EControlState::PlayReverse)
 					{
@@ -915,6 +910,8 @@ void FRewindDebugger::Tick(float DeltaTime)
 						}
 					}
 
+					SetCurrentScrubTime(CurrentScrubTime);// update trace time
+					
 					const double CurrentTraceTime = TraceTime.Get();
 					if (CurrentTraceTime != PreviousTraceTime)
 					{
