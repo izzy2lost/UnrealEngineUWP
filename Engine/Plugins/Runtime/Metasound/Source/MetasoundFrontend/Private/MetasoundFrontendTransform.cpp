@@ -617,6 +617,7 @@ namespace Metasound
 
 				if (FMetasoundAssetBase* ReferencedMetaSoundAsset = IMetaSoundAssetManager::GetChecked().TryLoadAssetFromKey(RegistryKey))
 				{
+ 					ReferencedMetaSoundAsset->WaitForAsyncGraphRegistration();
 					if (bIsPreset)
 					{
 						PresetReferencedMetaSoundAsset = ReferencedMetaSoundAsset;

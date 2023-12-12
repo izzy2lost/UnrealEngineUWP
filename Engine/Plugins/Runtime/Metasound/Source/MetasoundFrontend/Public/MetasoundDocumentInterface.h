@@ -5,7 +5,6 @@
 #include "MetasoundFrontendDocument.h"
 #include "MetasoundFrontendDocumentModifyDelegates.h"
 #include "Templates/Function.h"
-#include "UObject/TopLevelAssetPath.h"
 
 #include "MetasoundDocumentInterface.generated.h"
 
@@ -28,8 +27,6 @@ class METASOUNDFRONTEND_API IMetaSoundDocumentInterface : public IInterface
 	GENERATED_BODY()
 
 public:
-	virtual FTopLevelAssetPath GetAssetPathChecked() const = 0;
-
 	// Returns read-only reference to the the MetaSoundFrontendDocument
 	// containing all MetaSound runtime & editor data.
 	UE_DEPRECATED(5.4, "Use GetConstDocument instead")
@@ -44,6 +41,7 @@ public:
 
 	// Returns the parent class registered with the MetaSound UObject registry.
 	virtual const UClass& GetBaseMetaSoundUClass() const = 0;
+
 
 private:
 	virtual FMetasoundFrontendDocument& GetDocument() = 0;

@@ -3,7 +3,8 @@
 #include "MetasoundFrontendNodeTemplateRegistry.h"
 
 #include "MetasoundFrontendDocument.h"
-#include "MetasoundFrontendRegistryContainerImpl.h"
+#include "MetasoundFrontendNodeRegistryPrivate.h"
+#include "MetasoundFrontendRegistries.h"
 #include "MetasoundFrontendRegistryTransaction.h"
 #include "MetasoundLog.h"
 #include "MetasoundTrace.h"

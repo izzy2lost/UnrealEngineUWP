@@ -230,8 +230,6 @@ public:
 
 	virtual bool ConformObjectDataToInterfaces() override;
 
-	virtual FTopLevelAssetPath GetAssetPathChecked() const override;
-
 	UObject* GetOwningAsset() override
 	{
 		return this;
@@ -325,7 +323,7 @@ private:
 	 * Note: Disabling the dynamic generator will sever the communication between any active generators
 	 * even if the dynamic generator is re-enabled during the lifetime of the active generators
 	 */
-	TSharedPtr<Metasound::DynamicGraph::FDynamicOperatorTransactor> SetDynamicGeneratorEnabled(const FTopLevelAssetPath& InAssetPath, bool bInIsEnabled);
+	TSharedPtr<Metasound::DynamicGraph::FDynamicOperatorTransactor> SetDynamicGeneratorEnabled(bool bInIsEnabled);
 
 	/** Get dynamic transactor
 	 *

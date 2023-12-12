@@ -7,7 +7,7 @@
 #include "Tasks/Pipe.h"
 
 #include "MetasoundFrontendDataTypeRegistry.h"
-#include "MetasoundFrontendRegistryContainer.h"
+#include "MetasoundFrontendRegistries.h"
 #include "MetasoundFrontendRegistryTransaction.h"
 
 struct FMetasoundFrontendDocument; 
@@ -20,6 +20,11 @@ namespace Metasound
 	namespace Frontend
 	{
 		struct FNodeClassInfo;
+
+		namespace MetasoundFrontendRegistryPrivate
+		{
+			void BuildAndRegisterGraphFromDocument(const FMetasoundFrontendDocument& InDocument, const FProxyDataCache& InProxyDataCache, const FNodeClassInfo& InNodeClassInfo);
+		}
 
 		using FNodeRegistryTransactionBuffer = TTransactionBuffer<FNodeRegistryTransaction>;
 		using FNodeRegistryTransactionStream = TTransactionStream<FNodeRegistryTransaction>; 
@@ -79,22 +84,23 @@ namespace Metasound
 			virtual void RegisterPendingNodes() override;
 
 			// Register a graph from an IMetaSoundDocumentInterface
-			virtual FNodeRegistryKey RegisterGraph(const TScriptInterface<IMetaSoundDocumentInterface>& InDocumentInterface, bool bAsync = true) override;
+			virtual FNodeRegistryKey RegisterGraph(const FSoftObjectPath& InAssetPath, const TScriptInterface<IMetaSoundDocumentInterface>& InDocument, bool bAsync) override;
 			
 			// Wait for async graph registration to complete for a specific graph
-			virtual void WaitForAsyncGraphRegistration(const FNodeRegistryKey& InRegistryKey, const FTopLevelAssetPath& InAssetPath) const override;
-
+			virtual void WaitForAsyncGraphRegistration(const FNodeRegistryKey& InRegistryKey, const FSoftObjectPath& InAssetPath) const override;
+			
 			// Unregister a graph 
-			virtual bool UnregisterGraph(const TScriptInterface<IMetaSoundDocumentInterface>& InDocumentInterface, bool bAsync = true) override;
+			virtual bool UnregisterGraph(const FNodeRegistryKey& InNodeRegistryKey, const FSoftObjectPath& InAssetPath) override;
 
 			// Retrieve a registered graph. 
 			//
 			// If the graph is registered asynchronously, this will wait until the registration task has completed.
-			virtual TSharedPtr<const FGraph> GetGraph(const FNodeRegistryKey& InRegistryKey, const FTopLevelAssetPath& InAssetPath) const override;
+			virtual TSharedPtr<const FGraph> GetGraph(const FNodeRegistryKey& InRegistryKey, const FSoftObjectPath& InAssetPath) const override;
 
 			/** Register external node with the frontend.
 			 *
-			 * @param InEntry - Entry to register.
+			 * @param InCreateNode - Function for creating node from FNodeInitData.
+			 * @param InCreateDescription - Function for creating a FMetasoundFrontendClass.
 			 *
 			 * @return True on success.
 			 */
@@ -102,7 +108,7 @@ namespace Metasound
 
 			virtual bool UnregisterNode(const FNodeRegistryKey& InKey) override;
 			virtual bool IsNodeRegistered(const FNodeRegistryKey& InKey) const override;
-			virtual bool IsGraphRegistered(const FNodeRegistryKey& InKey, const FTopLevelAssetPath& InAssetPath) const override;
+			virtual bool IsGraphRegistered(const FNodeRegistryKey& InKey, const FSoftObjectPath& InAssetPath) const override;
 			virtual bool IsNodeNative(const FNodeRegistryKey& InKey) const override;
 
 			virtual bool RegisterConversionNode(const FConverterNodeRegistryKey& InNodeKey, const FConverterNodeInfo& InNodeInfo) override;
@@ -141,29 +147,14 @@ namespace Metasound
 			TUniquePtr<FNodeRegistryTransactionStream> CreateTransactionStream();
 
 		private:
-			using FGraphRegistryKey = TTuple<FNodeRegistryKey, FTopLevelAssetPath>;
-
-			struct FActiveRegistrationTaskInfo
-			{
-				FNodeRegistryTransaction::ETransactionType TransactionType = FNodeRegistryTransaction::ETransactionType::NodeRegistration;
-				UE::Tasks::FTask Task;
-				FTopLevelAssetPath AssetPath;
-			};
-
-			void BuildAndRegisterGraphFromDocument(TScriptInterface<IMetaSoundDocumentInterface> DocumentInterface, const FProxyDataCache& InProxyDataCache, FNodeClassInfo&& InNodeClassInfo);
-
-			void AddRegistrationTask(const FNodeRegistryKey& InKey, UObject& InObject, FActiveRegistrationTaskInfo&& TaskInfo);
-			void RemoveRegistrationTask(const FNodeRegistryKey& InKey, FNodeRegistryTransaction::ETransactionType TransactionType, const TScriptInterface<IMetaSoundDocumentInterface>& DocumentInterface);
-
-			bool UnregisterNodeInternal(const FNodeRegistryKey& InKey, FNodeClassInfo* OutClassInfo = nullptr);
-			FNodeRegistryKey RegisterNodeInternal(TUniquePtr<INodeRegistryEntry>&& InEntry);
+			friend void MetasoundFrontendRegistryPrivate::BuildAndRegisterGraphFromDocument(const FMetasoundFrontendDocument& InDocument, const FProxyDataCache& InProxyDataCache, const FNodeClassInfo& InNodeClassInfo);
 
 			static FRegistryContainerImpl* LazySingleton;
 
-			void WaitForAsyncRegistrationInternal(const FNodeRegistryKey& InRegistryKey, const FTopLevelAssetPath* InAssetPath) const;
+			using FGraphRegistryKey = TTuple<FNodeRegistryKey, FSoftObjectPath>;
 
-			void RegisterGraphInternal(const FNodeRegistryKey& InKey, const FTopLevelAssetPath& InAssetPath, TSharedPtr<const FGraph> InGraph);
-			bool UnregisterGraphInternal(const FNodeRegistryKey& InKey, const FTopLevelAssetPath& InAssetPath);
+			void WaitForAsyncRegistrationInternal(const FNodeRegistryKey& InRegistryKey, const FSoftObjectPath* InAssetPath) const;
+			void RegisterGraphInternal(const FNodeRegistryKey& InKey, const FSoftObjectPath& InAssetPath, TSharedPtr<const FGraph> InGraph);
 
 			// Access a node entry safely. Node entries can be added/removed asynchronously. Functions passed to this method will be
 			// executed in a manner where access to the node registry entry is safe from threading issues. 
@@ -198,10 +189,17 @@ namespace Metasound
 
 			TSharedRef<FNodeRegistryTransactionBuffer> TransactionBuffer;
 
+			struct FActiveRegistrationTaskInfo
+			{
+				UE::Tasks::FTask Task;
+				FSoftObjectPath AssetPath;
+				TObjectPtr<UObject> OwningObject;
+			};
+
 			mutable FCriticalSection RegistryMapsCriticalSection;
 			mutable FCriticalSection ActiveRegistrationTasksCriticalSection;
 			UE::Tasks::FPipe AsyncRegistrationPipe;
-			TMap<FNodeRegistryKey, TArray<FActiveRegistrationTaskInfo>> ActiveRegistrationTasks;
+			TMap<FNodeRegistryKey, FActiveRegistrationTaskInfo> ActiveRegistrationTasks;
 			TUniquePtr<FMetasoundFrontendRegistryContainer::IObjectReferencer> ObjectReferencer;
 		};
 	}

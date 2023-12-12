@@ -163,7 +163,7 @@ namespace Metasound
 	FOperatorBuildData::FOperatorBuildData(
 		  FMetasoundGeneratorInitParams&& InInitParams
 		, Frontend::FNodeRegistryKey InRegistryKey
-		, FTopLevelAssetPath InAssetPath
+		, FSoftObjectPath InAssetPath
 		, FGuid InAssetClassID
 		, int32 InNumInstances
 	)
@@ -172,8 +172,7 @@ namespace Metasound
 	, AssetPath(InAssetPath)
 	, AssetClassID(InAssetClassID)
 	, NumInstances(InNumInstances)
-	{
-	}
+	{}
 
 
 	FOperatorPool::FOperatorPool(const FOperatorPoolSettings& InSettings)

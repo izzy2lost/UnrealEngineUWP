@@ -86,6 +86,9 @@ public:
 	// Registers the root graph of the given asset with the MetaSound Frontend.
 	virtual void RegisterGraphWithFrontend(Metasound::Frontend::FMetaSoundAssetRegistrationOptions InRegistrationOptions = Metasound::Frontend::FMetaSoundAssetRegistrationOptions());
 
+	// Return the graph registered for this asset. 
+	TSharedPtr<const Metasound::FGraph> GetRegisteredGraph() const;
+
 	// Unregisters the root graph of the given asset with the MetaSound Frontend.
 	void UnregisterGraphWithFrontend();
 
@@ -272,7 +275,11 @@ private:
 	// race conditions with an active builder.
 	virtual bool IsBuilderActive() const = 0;
 
+	// Returns the cached registry key.
+	Metasound::Frontend::FNodeRegistryKey CacheRuntimeData(const TScriptInterface<IMetaSoundDocumentInterface>& InDoc);
+
 	Metasound::Frontend::FNodeRegistryKey RegistryKey;
+	FSoftObjectPath RegisteredGraphAssetPath; // This is cached to avoid reparsing path strings to create FSoftObjectPath from UObject
 
 	TSharedPtr<Metasound::FGraph, ESPMode::ThreadSafe> BuildMetasoundDocument(const FMetasoundFrontendDocument& InPreprocessDoc, const Metasound::Frontend::FProxyDataCache& InProxies) const;
 };

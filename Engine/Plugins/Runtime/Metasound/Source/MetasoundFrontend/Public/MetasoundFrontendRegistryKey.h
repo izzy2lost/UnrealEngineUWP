@@ -9,8 +9,9 @@
 
 namespace Metasound::Frontend
 {
-	/** FNodeClassInfo contains a minimal set of information needed without having to load an asset.
-	  */
+	/** FNodeClassInfo contains a minimal set of information needed to find
+	 * and query asset node classes without loading the asset.
+	 */
 	struct METASOUNDFRONTEND_API FNodeClassInfo
 	{
 		// ClassName of the given class
@@ -23,7 +24,7 @@ namespace Metasound::Frontend
 		FGuid AssetClassID;
 
 		// Path to asset containing graph if external type and references asset class.
-		FTopLevelAssetPath AssetPath;
+		FSoftObjectPath AssetPath;
 
 		// Version of the registered class
 		FMetasoundFrontendVersionNumber Version;
@@ -41,16 +42,11 @@ namespace Metasound::Frontend
 
 		FNodeClassInfo() = default;
 
-		// Constructor used to generate NodeClassInfo from a class' Metadata.
-		// (Does not cache AssetPath and thus may not support loading asset
-		// should the class originate from one).
+		// Constructor used to generate NodeClassInfo from a native class' Metadata.
 		FNodeClassInfo(const FMetasoundFrontendClassMetadata& InMetadata);
 
-		UE_DEPRECATED(5.4, "Use constructor that takes an FTopLevelAssetPath instead.")
-		FNodeClassInfo(const FMetasoundFrontendGraphClass& InClass, const FSoftObjectPath& InAssetPath);
-
 		// Constructor used to generate NodeClassInfo from an asset
-		FNodeClassInfo(const FMetasoundFrontendGraphClass& InClass, const FTopLevelAssetPath& InAssetPath);
+		FNodeClassInfo(const FMetasoundFrontendGraphClass& InClass, const FSoftObjectPath& InAssetPath);
 
 		// Loads the asset from the provided path, ensuring that the class is of type graph.
 		UObject* LoadAsset() const;

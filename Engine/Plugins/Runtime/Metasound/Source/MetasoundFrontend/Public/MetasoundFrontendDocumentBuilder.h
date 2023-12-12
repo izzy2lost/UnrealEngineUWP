@@ -104,9 +104,6 @@ public:
 	// Returns the document
 	virtual const FMetasoundFrontendDocument& GetConstDocument() const override;
 
-	// Returns temp path of builder document
-	virtual FTopLevelAssetPath GetAssetPathChecked() const override;
-
 	// Base MetaSoundClass that document is published to.
 	virtual const UClass& GetBaseMetaSoundUClass() const final override;
 

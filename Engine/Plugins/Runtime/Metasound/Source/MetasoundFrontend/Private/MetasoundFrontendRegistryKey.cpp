@@ -5,11 +5,6 @@
 
 namespace Metasound::Frontend
 {
-	namespace NodeClassInfoPrivate
-	{
-		auto GetVertexTypeName = [](const FMetasoundFrontendVertex& Vertex) { return Vertex.TypeName; };
-	}
-
 	FNodeClassInfo::FNodeClassInfo(const FMetasoundFrontendClassMetadata& InMetadata)
 		: ClassName(InMetadata.GetClassName())
 		, Type(InMetadata.GetType())
@@ -21,48 +16,35 @@ namespace Metasound::Frontend
 		: ClassName(InClass.Metadata.GetClassName())
 		, Type(EMetasoundFrontendClassType::External) // Overridden as it is considered the same as an external class in registries
 		, AssetClassID(FGuid(ClassName.Name.ToString()))
-		, Version(InClass.Metadata.GetVersion())
-	{
-		using namespace NodeClassInfoPrivate;
-
-		ensure(AssetPath.TrySetPath(InAssetPath.ToString()));
-		ensure(!AssetPath.IsNull());
-
-#if WITH_EDITORONLY_DATA
-		Algo::Transform(InClass.Interface.Inputs, InputTypes, GetVertexTypeName);
-		Algo::Transform(InClass.Interface.Outputs, OutputTypes, GetVertexTypeName);
-		bIsPreset = InClass.PresetOptions.bIsPreset;
-#endif // WITH_EDITORONLY_DATA
-	}
-
-	FNodeClassInfo::FNodeClassInfo(const FMetasoundFrontendGraphClass& InClass, const FTopLevelAssetPath& InAssetPath)
-		: ClassName(InClass.Metadata.GetClassName())
-		, Type(EMetasoundFrontendClassType::External) // Overridden as it is considered the same as an external class in registries
-		, AssetClassID(FGuid(ClassName.Name.ToString()))
 		, AssetPath(InAssetPath)
 		, Version(InClass.Metadata.GetVersion())
 	{
-		using namespace NodeClassInfoPrivate;
-
 		ensure(!AssetPath.IsNull());
-
 #if WITH_EDITORONLY_DATA
-		Algo::Transform(InClass.Interface.Inputs, InputTypes, GetVertexTypeName);
-		Algo::Transform(InClass.Interface.Outputs, OutputTypes, GetVertexTypeName);
+		for (const FMetasoundFrontendClassInput& Input : InClass.Interface.Inputs)
+		{
+			InputTypes.Add(Input.TypeName);
+		}
+
+		for (const FMetasoundFrontendClassOutput& Output : InClass.Interface.Outputs)
+		{
+			OutputTypes.Add(Output.TypeName);
+		}
+
 		bIsPreset = InClass.PresetOptions.bIsPreset;
 #endif // WITH_EDITORONLY_DATA
 	}
 
-// 	UObject* FNodeClassInfo::LoadAsset() const
-// 	{
-// 		return nullptr;
-// 		if (ensure(Type == EMetasoundFrontendClassType::External))
-// 		{
-// 			return AssetPath.TryLoad();
-// 		}
-// 
-// 		return nullptr;
-// 	}
+	UObject* FNodeClassInfo::LoadAsset() const
+	{
+		if (ensure(Type == EMetasoundFrontendClassType::External))
+		{
+			FSoftObjectPath SoftObjectPath(AssetPath);
+			return SoftObjectPath.TryLoad();
+		}
+
+		return nullptr;
+	}
 
 	FNodeRegistryKey::FNodeRegistryKey(EMetasoundFrontendClassType InType, const FMetasoundFrontendClassName& InClassName, int32 InMajorVersion, int32 InMinorVersion)
 		: Type(InType)

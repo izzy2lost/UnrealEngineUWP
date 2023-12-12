@@ -154,6 +154,7 @@ const UEdGraph& UMetaSoundPatch::GetGraphChecked() const
 	check(Graph);
 	return *Graph;
 }
+
 FText UMetaSoundPatch::GetDisplayName() const
 {
 	FString TypeName = UMetaSoundPatch::StaticClass()->GetName();
@@ -166,12 +167,6 @@ void UMetaSoundPatch::SetRegistryAssetClassInfo(const Metasound::Frontend::FNode
 	Metasound::FMetaSoundEngineAssetHelper::SetMetaSoundRegistryAssetClassInfo(*this, InNodeInfo);
 }
 #endif // WITH_EDITORONLY_DATA
-
-
-FTopLevelAssetPath UMetaSoundPatch::GetAssetPathChecked() const
-{
-	return Metasound::FMetaSoundEngineAssetHelper::GetAssetPathChecked(*this);
-}
 
 void UMetaSoundPatch::PostLoad() 
 {

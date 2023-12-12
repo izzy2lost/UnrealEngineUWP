@@ -127,9 +127,9 @@ public:
 	{
 		Graph = CastChecked<UMetasoundEditorGraphBase>(InGraph);
 	}
+
 #endif // #if WITH_EDITORONLY_DATA
 
-	virtual FTopLevelAssetPath GetAssetPathChecked() const override;
 	virtual const UClass& GetBaseMetaSoundUClass() const final override;
 	virtual const FMetasoundFrontendDocument& GetConstDocument() const override;
 
