@@ -74,11 +74,11 @@ namespace UE::Interchange::Private
 	}
 
 #if WITH_EDITOR
-	void AdjustTextureForNormalMap(UTexture* Texture, bool bFlipNormalMapGreenChannel)
+	void AdjustTextureForNormalMap(UTexture* Texture, FImageView MipToAnalyze, bool bFlipNormalMapGreenChannel)
 	{
 		if (Texture)
 		{
-			if (UE::NormalMapIdentification::HandleAssetPostImport(Texture))
+			if (UE::NormalMapIdentification::HandleAssetPostImport(Texture, MipToAnalyze))
 			{
 				UE_LOG(LogInterchangePipeline, Display, TEXT("Auto-detected normal map"));
 
@@ -375,8 +375,10 @@ void UInterchangeGenericTexturePipeline::PostImportTextureAssetImport(UObject* C
 
 	// this is run on main thread
 	check(IsInGameThread());
-	//	after texture may have started compiling
 
+	// (Note - as part of the standard interchange import this is called during the object
+	// import iteration, _before_ the iteration to call to PostEditChange which is what starts the texture build via UpdateResource,
+	// so altering properties here should be safe!)
 	if (!bIsAReimport && bDetectNormalMapTexture)
 	{
 		if (UTexture* Texture = Cast<UTexture>(CreatedAsset))
@@ -384,9 +386,22 @@ void UInterchangeGenericTexturePipeline::PostImportTextureAssetImport(UObject* C
 			// if it's already a normal map, no need to run NormalMapIdentification
 			if (!Texture->IsNormalMap())
 			{
- 				check(!FTextureCompilingManager::Get().IsCompilingTexture(Texture));
-				// AdjustTextureForNormalMap does a PostEditChange which triggers a rebuild
-				UE::Interchange::Private::AdjustTextureForNormalMap(Texture, bFlipNormalMapGreenChannel);
+ 				check(!FTextureCompilingManager::Get().IsCompilingTexture(Texture)); // see comment above.
+
+				FTextureSource::FMipLock LockedMip(FTextureSource::ELockState::ReadOnly, &Texture->Source, 0);
+
+				if (LockedMip.IsValid())
+				{
+					// AdjustTextureForNormalMap technically only adjusts properties and doesn't kick a texture build, however
+					// if it guesses it's a normal map it pops a toast notification that can Revert the change, which does a whole
+					// Modify / PostEditChange which theoretically can kick a build before the PostEditChange in the outer interchange
+					// import chain if somehow the UI click chain routes before the outer loop calls PostEditChange.
+					UE::Interchange::Private::AdjustTextureForNormalMap(Texture, LockedMip.Image, bFlipNormalMapGreenChannel);
+				}
+				else
+				{
+					UE_LOG(LogInterchangePipeline, Display, TEXT("PostImport Texture failed to lock mip data, actions (like normal map detection) not performed!"));
+				}
 			}
 		}
 	}

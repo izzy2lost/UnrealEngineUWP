@@ -4284,7 +4284,8 @@ UObject* UTextureFactory::FactoryCreateBinary
 
 	if (!bUsingExistingSettings)
 	{
-		if (UE::NormalMapIdentification::HandleAssetPostImport(Texture))
+		FTextureSource::FMipLock LockedMip(FTextureSource::ELockState::ReadOnly, &Texture->Source, 0);
+		if (LockedMip.IsValid() && UE::NormalMapIdentification::HandleAssetPostImport(Texture, LockedMip.Image))
 		{
 			UE_LOG(LogEditorFactories,Display,TEXT("Auto-detected normal map"));
 

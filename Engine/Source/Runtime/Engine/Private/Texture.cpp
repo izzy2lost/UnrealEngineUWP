@@ -2375,14 +2375,14 @@ FTextureSource::FMipLock::FMipLock(ELockState InLockState,FTextureSource * InTex
 	LayerIndex(InLayerIndex),
 	MipIndex(InMipIndex)
 {
-	void * Locked = TextureSource->LockMipInternal(BlockIndex, LayerIndex, MipIndex, LockState);
-	if ( Locked )
+	FMutableMemoryView Locked = TextureSource->LockMipInternal(BlockIndex, LayerIndex, MipIndex, LockState);
+	if ( !Locked.IsEmpty() )
 	{	
 		FTextureSourceBlock Block;
 		TextureSource->GetBlock(BlockIndex, Block);
 		check(MipIndex < Block.NumMips);
 
-		Image.RawData = Locked;
+		Image.RawData = (uint8*)Locked.GetData();
 		Image.SizeX = FMath::Max(Block.SizeX >> MipIndex, 1);
 		Image.SizeY = FMath::Max(Block.SizeY >> MipIndex, 1);
 		Image.NumSlices = TextureSource->GetMippedNumSlices(Block.NumSlices,MipIndex);
@@ -2391,7 +2391,17 @@ FTextureSource::FMipLock::FMipLock(ELockState InLockState,FTextureSource * InTex
 		
 		const int64 MipSizeBytes = TextureSource->CalcMipSize(BlockIndex, LayerIndex, MipIndex);
 
-		check( Image.GetImageSizeBytes() == MipSizeBytes );		
+		if (Image.GetImageSizeBytes() != Locked.GetSize())
+		{
+			// Don't just check on this one since it's actually potential OOB.
+			UE_LOG(LogTexture, Error, TEXT("Locked mip %d / block %d / layer %d has a format expecting %llu bytes but locked data is %llu, failing to lock!"),
+				InMipIndex, InBlockIndex, InLayerIndex, Image.GetImageSizeBytes(), Locked.GetSize());
+			Image = FImage();
+			LockState = ELockState::None;
+			return;
+		}
+
+		check( Image.GetImageSizeBytes() == MipSizeBytes );
 		check( IsValid() );
 	}
 	else
@@ -2432,21 +2442,21 @@ FTextureSource::FMipLock::~FMipLock()
 
 const uint8* FTextureSource::LockMipReadOnly(int32 BlockIndex, int32 LayerIndex, int32 MipIndex)
 {
-	return LockMipInternal(BlockIndex, LayerIndex, MipIndex, ELockState::ReadOnly);
+	return (const uint8*)LockMipInternal(BlockIndex, LayerIndex, MipIndex, ELockState::ReadOnly).GetData();
 }
 
 uint8* FTextureSource::LockMip(int32 BlockIndex, int32 LayerIndex, int32 MipIndex)
 {
-	return LockMipInternal(BlockIndex, LayerIndex, MipIndex, ELockState::ReadWrite);
+	return (uint8*)LockMipInternal(BlockIndex, LayerIndex, MipIndex, ELockState::ReadWrite).GetData();
 }
 
-uint8* FTextureSource::LockMipInternal(int32 BlockIndex, int32 LayerIndex, int32 MipIndex, ELockState RequestedLockState)
+FMutableMemoryView FTextureSource::LockMipInternal(int32 BlockIndex, int32 LayerIndex, int32 MipIndex, ELockState RequestedLockState)
 {
 	TRACE_CPUPROFILER_EVENT_SCOPE(FTextureSource::LockMip);
 
 	checkf(RequestedLockState != ELockState::None, TEXT("Cannot call FTextureSource::LockMipInternal with a RequestedLockState of type ELockState::None"));
 
-	uint8* MipData = nullptr;
+	FMutableMemoryView MipView;
 
 	if (BlockIndex < GetNumBlocks() && LayerIndex < NumLayers && MipIndex < NumMips)
 	{
@@ -2458,29 +2468,31 @@ uint8* FTextureSource::LockMipInternal(int32 BlockIndex, int32 LayerIndex, int32
 
 		if (RequestedLockState == ELockState::ReadOnly)
 		{
-			MipData = const_cast<uint8*>(static_cast<const uint8*>(LockedMipData.GetDataReadOnly().GetData()));
+			// We cast away the const as the ReadOnly wrapper will put it back.
+			FSharedBuffer ReadOnlyMip = LockedMipData.GetDataReadOnly();
+			MipView = FMutableMemoryView((void*)ReadOnlyMip.GetData(), ReadOnlyMip.GetSize());
 		}
 		else
 		{
-			MipData = LockedMipData.GetDataReadWrite();
+			MipView = LockedMipData.GetDataReadWriteView();
 		}
 
-		if ( MipData == nullptr )
+		if ( MipView.IsEmpty() )
 		{
 			// no data, you did not get the lock, do not call Unlock
-			return nullptr;
+			return MipView;
 		}
 		
 		int64 MipOffset = CalcMipOffset(BlockIndex, LayerIndex, MipIndex);
 		int64 MipSize = CalcMipSize(BlockIndex,LayerIndex,MipIndex);
-		if ( MipOffset + MipSize > LockedMipData.GetSize() )
+
+		MipView.MidInline(MipOffset, MipSize);
+		if (MipView.IsEmpty())
 		{
 			UE_LOG(LogTexture,Error,TEXT("Mip Data is too small : %lld < %lld+%lld"), LockedMipData.GetSize(),MipOffset,MipSize); 
 			LockedMipData.Reset();
-			return nullptr;
+			return MipView;
 		}
-
-		MipData += MipOffset;
 
 		if (NumLockedMips == 0)
 		{
@@ -2494,7 +2506,7 @@ uint8* FTextureSource::LockMipInternal(int32 BlockIndex, int32 LayerIndex, int32
 		++NumLockedMips;
 	}
 
-	return MipData;
+	return MipView;
 }
 
 void FTextureSource::UnlockMip(int32 BlockIndex, int32 LayerIndex, int32 MipIndex)
@@ -4093,14 +4105,14 @@ void FTextureSource::FMipAllocation::Reset()
 	ReadWriteBuffer = nullptr;
 }
 
-uint8* FTextureSource::FMipAllocation::GetDataReadWrite()
+FMutableMemoryView FTextureSource::FMipAllocation::GetDataReadWriteView()
 {
 	if (!ReadWriteBuffer.IsValid())
 	{
 		CreateReadWriteBuffer(ReadOnlyReference.GetData(), ReadOnlyReference.GetSize());
 	}
 
-	return ReadWriteBuffer.Get();
+	return FMutableMemoryView(ReadWriteBuffer.Get(), ReadOnlyReference.GetSize());
 }
 
 FSharedBuffer FTextureSource::FMipAllocation::Release()

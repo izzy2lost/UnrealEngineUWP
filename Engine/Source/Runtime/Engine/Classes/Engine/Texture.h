@@ -414,8 +414,11 @@ struct FTextureSource
 		/** Returns a FSharedBuffer that contains the current texture data but cannot be directly modified */
 		const FSharedBuffer& GetDataReadOnly() const { return ReadOnlyReference; }
 
+		UE_DEPRECATED(5.4, "Use GetDataReadWriteView instead")
+		uint8* GetDataReadWrite() { return (uint8*)GetDataReadWriteView().GetData(); }
+
 		/** Returns a pointer that contains the current texture data and can be written to */
-		uint8* GetDataReadWrite();
+		FMutableMemoryView GetDataReadWriteView();
 
 		/** Returns the internal FSharedBuffer and relinquish ownership, used to transfer the data to virtualized bulkdata */
 		FSharedBuffer Release();
@@ -479,12 +482,14 @@ struct FTextureSource
 	};
 	
 	/**
-	* FMipLock to encapsulate a locked mip
-	*  acquires the lock in construct and unlocks in destruct
+	* FMipLock to encapsulate a locked mip - acquires the lock in construct and unlocks in destruct.
+	* 
+	* Be very careful! Locking as ReadOnly will still get you a mutable ImageView! Altering a read only mip
+	* has consequences!
 	*/
 	struct FMipLock
 	{
-		// constructor locks the mip (can fail, pointer will be null)
+		// constructor locks the mip (can fail, check IsValid())
 		ENGINE_API FMipLock(ELockState InLockState,FTextureSource * InTextureSource,int32 InBlockIndex, int32 InLayerIndex, int32 InMipIndex);
 		ENGINE_API FMipLock(ELockState InLockState,FTextureSource * InTextureSource,int32 InMipIndex);
 		
@@ -567,8 +572,8 @@ private:
 	/** Pointer to locked mip data, if any. */
 	FMipAllocation LockedMipData;
 
-	// Internal implementation for locking the mip data, called by LockMipReadOnly or LockMip */
-	uint8* LockMipInternal(int32 BlockIndex, int32 LayerIndex, int32 MipIndex, ELockState RequestedLockState);
+	// Internal implementation for locking the mip data, called by LockMipReadOnly or LockMip.
+	FMutableMemoryView LockMipInternal(int32 BlockIndex, int32 LayerIndex, int32 MipIndex, ELockState RequestedLockState);
 	
 	/** Returns the source data fully decompressed */
 	// ImageWrapperModule is not used
