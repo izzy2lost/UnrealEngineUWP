@@ -8,6 +8,7 @@
 
 #include "AVContext.h"
 #include "Video/VideoResource.h"
+#include "Containers/ResourceArray.h"
 
 THIRD_PARTY_INCLUDES_START
 #include "MetalInclude.h"
@@ -41,6 +42,43 @@ public:
     virtual ~FVideoResourceMetal() override;
     
 	virtual FAVResult Validate() const override;
+};
+
+/**
+ * Passes a CVPixelBufferRef through to the RHI to wrap in an RHI texture without traversing system memory.
+ */
+class AVCODECSCORE_API FBulkDataMetal : public FResourceBulkDataInterface
+{
+public:
+    FBulkDataMetal(CFTypeRef InImageBuffer)
+        : ImageBuffer(InImageBuffer)
+    {
+        check(ImageBuffer);
+        CFRetain(ImageBuffer);
+    }
+    virtual ~FBulkDataMetal()
+    {
+        CFRelease(ImageBuffer);
+        ImageBuffer = nullptr;
+    }
+public:
+    virtual void Discard() override
+    {
+        delete this;
+    }
+    virtual const void* GetResourceBulkData() const override
+    {
+        return ImageBuffer;
+    }
+    virtual uint32 GetResourceBulkDataSize() const override
+    {
+        return ImageBuffer ? ~0u : 0;
+    }
+    virtual EBulkDataType GetResourceType() const override
+    {
+        return EBulkDataType::MediaTexture;
+    }
+    CFTypeRef ImageBuffer;
 };
 
 DECLARE_TYPEID(FVideoContextMetal, AVCODECSCORE_API);

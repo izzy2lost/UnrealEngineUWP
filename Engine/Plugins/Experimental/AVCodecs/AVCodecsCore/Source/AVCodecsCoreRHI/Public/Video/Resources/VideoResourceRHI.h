@@ -5,7 +5,6 @@
 #include "AVContext.h"
 #include "AVExtension.h"
 #include "Video/VideoResource.h"
-#include "Containers/ResourceArray.h"
 #include "RHI.h"
 
 #if AVCODECS_USE_D3D
@@ -72,45 +71,6 @@ public:
 protected:
 	virtual TSharedPtr<FVideoResourceRHI> TryResolve(TSharedPtr<FAVDevice> const& Device, FVideoDescriptor const& Descriptor) override;
 };
-
-#if AVCODECS_USE_METAL
-/**
- * Passes a CVMetalTextureRef or CVPixelBufferRef through to the RHI to wrap in an RHI texture without traversing system memory.
- */
-class AVCODECSCORERHI_API FCVBulkData : public FResourceBulkDataInterface
-{
-public:
-    FCVBulkData(CFTypeRef InImageBuffer)
-        : ImageBuffer(InImageBuffer)
-    {
-        check(ImageBuffer);
-        CFRetain(ImageBuffer);
-    }
-    virtual ~FCVBulkData()
-    {
-        CFRelease(ImageBuffer);
-        ImageBuffer = nullptr;
-    }
-public:
-    virtual void Discard() override
-    {
-        delete this;
-    }
-    virtual const void* GetResourceBulkData() const override
-    {
-        return ImageBuffer;
-    }
-    virtual uint32 GetResourceBulkDataSize() const override
-    {
-        return ImageBuffer ? ~0u : 0;
-    }
-    virtual EBulkDataType GetResourceType() const override
-    {
-        return EBulkDataType::MediaTexture;
-    }
-    CFTypeRef ImageBuffer;
-};
-#endif
 
 /*
 * Handles pixel format or colorspace transformations

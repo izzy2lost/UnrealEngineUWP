@@ -162,6 +162,11 @@ TSharedPtr<FVideoResourceRHI> FVideoResourceRHI::Create(TSharedPtr<FAVDevice> co
 		}
 
 		TextureDesc.AddFlags(AdditionalFlags);
+        
+        if (Descriptor.BulkData)
+        {
+            TextureDesc.SetBulkData(Descriptor.BulkData);
+        }
 
 		// Unreals support for NV12 asnd P010 is not universally supported so we actually use R8 or G16 under the hood
 		switch (Descriptor.Format)
@@ -608,7 +613,7 @@ DLLEXPORT FAVResult FAVExtension::TransformResource(TSharedPtr<FVideoResourceMet
             const FRHITextureCreateDesc Desc =
                 FRHITextureCreateDesc::Create2D(TEXT("FAVExtension::TransformResource"), Descriptor.Width, Descriptor.Height, PF_B8G8R8A8)
                 .SetFlags(ETextureCreateFlags::SRGB | ETextureCreateFlags::Dynamic | ETextureCreateFlags::NoTiling | ETextureCreateFlags::ShaderResource)
-                .SetBulkData(new FCVBulkData(TextureRef));
+                .SetBulkData(new FBulkDataMetal(TextureRef));
                         
             ENQUEUE_RENDER_COMMAND(FAVExtensionTransformResource)(
                 [&Source = InResource->GetRaw().Texture, &Desc, &Fence, &Destination](FRHICommandListImmediate& RHICmdList)

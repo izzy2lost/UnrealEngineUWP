@@ -49,7 +49,6 @@ template <typename TResource>
 void TVideoDecoderVT<TResource>::Close()
 {
     DestroyDecompressionSession();
-    SetVideoFormat(nullptr);
 
     if(MemoryPool)
     {
@@ -58,63 +57,6 @@ void TVideoDecoderVT<TResource>::Close()
     }
 
     bIsOpen = false;
-}
-
-template <typename TResource>
-void TVideoDecoderVT<TResource>::ResetDecompressionSession()
-{
-    DestroyDecompressionSession();
-
-    if(!VideoFormat)
-    {
-        FAVResult::Log(EAVResult::PendingInput, TEXT("Waiting for VideoFormat"), TEXT("VT"));                   
-        return; 
-    }
-    
-    // Set source image buffer attributes. These attributes will be present on
-    // buffers retrieved from the decoder's pixel buffer pool.
-    const size_t AttributesSize = 3;
-    CFTypeRef Keys[AttributesSize] = 
-    {
-        kCVPixelBufferOpenGLCompatibilityKey,
-        kCVPixelBufferIOSurfacePropertiesKey,
-        kCVPixelBufferPixelFormatTypeKey
-    };
-
-    CFDictionaryRef IOSurfaceValue = CFDictionaryCreate(kCFAllocatorDefault, nullptr, nullptr, 0, &kCFTypeDictionaryKeyCallBacks, &kCFTypeDictionaryValueCallBacks);
-    // TODO (belchy06): This should support more than ARGB8 pixel format
-    int64_t PixelType = kCVPixelFormatType_32BGRA;
-    CFNumberRef PixelFormat = CFNumberCreate(nullptr, kCFNumberLongType, &PixelType);
-
-    CFTypeRef Values[AttributesSize] =
-    { 
-        kCFBooleanTrue, 
-        IOSurfaceValue, 
-        PixelFormat 
-    };
-
-    CFDictionaryRef Attributes = CFDictionaryCreate(kCFAllocatorDefault, Keys, Values, AttributesSize, &kCFTypeDictionaryKeyCallBacks, &kCFTypeDictionaryValueCallBacks);
-
-    CONDITIONAL_RELEASE(IOSurfaceValue);
-    CONDITIONAL_RELEASE(PixelFormat);
-
-    VTDecompressionOutputCallbackRecord Record = 
-    {
-        Internal::VTDecompressionOutputCallback, 
-        this
-    };
-                
-    OSStatus Result = VTDecompressionSessionCreate(kCFAllocatorDefault, VideoFormat, nullptr, Attributes, &Record, &Decoder);
-
-    if(Result != 0)
-    {
-        DestroyDecompressionSession();
-        FAVResult::Log(EAVResult::ErrorCreating, TEXT("Failed to create VTDecompressionSession"), TEXT("VT"), Result);
-    }
-
-    CONDITIONAL_RELEASE(Attributes);
-
-    ConfigureDecompressionSession();
 }
 
 template <typename TResource>
@@ -150,23 +92,48 @@ FAVResult TVideoDecoderVT<TResource>::ApplyConfig()
 		{
 			if (IsInitialized())
 			{
-                if(this->AppliedConfig.Codec == PendingConfig.Codec)
+                // VideoToolbox decoder doesn't support reconfiguration. If any aspect of the config changes,
+                // the entire session must be re-created
+                if (Decoder)
                 {
-                    // TODO (belchy06): Reconfiguration
-                }
-                else
-                {
-                    if (Decoder) 
-                    {
-                        DestroyDecompressionSession();
-                        FAVResult::Log(EAVResult::Success, TEXT("Re-initializing decoding session"), TEXT("VT"));
-                    }
+                    DestroyDecompressionSession();
+                    FAVResult::Log(EAVResult::Success, TEXT("Re-initializing decoding session"), TEXT("VT"));
                 }
 			}
 
 			if (!IsInitialized())
 			{
-                ResetDecompressionSession();
+                // Set source image buffer attributes. These attributes will be present on
+                // buffers retrieved from the decoder's pixel buffer pool.
+                CFMutableDictionaryRef SourceAttributes = CFDictionaryCreateMutable(kCFAllocatorDefault, 1, &kCFTypeDictionaryKeyCallBacks, &kCFTypeDictionaryValueCallBacks);
+                CFDictionarySetValue(SourceAttributes, kCVPixelBufferOpenGLCompatibilityKey, kCFBooleanTrue);
+                CFDictionaryRef IOSurfaceValue = CFDictionaryCreate(kCFAllocatorDefault, nullptr, nullptr, 0, &kCFTypeDictionaryKeyCallBacks, &kCFTypeDictionaryValueCallBacks);
+                CFDictionarySetValue(SourceAttributes, kCVPixelBufferIOSurfacePropertiesKey, IOSurfaceValue);
+                // TODO (belchy06): This should support more than ARGB8 pixel format
+                int64 PixelType = kCVPixelFormatType_32BGRA;
+                CFNumberRef PixelFormat = CFNumberCreate(nullptr, kCFNumberLongType, &PixelType);
+                CFDictionarySetValue(SourceAttributes, kCVPixelBufferPixelFormatTypeKey, PixelFormat);
+
+                CONDITIONAL_RELEASE(IOSurfaceValue);
+                CONDITIONAL_RELEASE(PixelFormat);
+
+                VTDecompressionOutputCallbackRecord Record = 
+                {
+                    Internal::VTDecompressionOutputCallback, 
+                    this
+                };
+
+                OSStatus Result = VTDecompressionSessionCreate(kCFAllocatorDefault, PendingConfig.VideoFormat, nullptr, SourceAttributes, &Record, &Decoder);
+
+                CONDITIONAL_RELEASE(SourceAttributes);
+
+                if(Result != 0)
+                {
+                    DestroyDecompressionSession();
+                    return FAVResult(EAVResult::ErrorCreating, TEXT("Failed to create VTDecompressionSession"), TEXT("VT"), Result);
+                }
+
+                ConfigureDecompressionSession();
 			}
 		}
 
@@ -181,48 +148,42 @@ FAVResult TVideoDecoderVT<TResource>::SendPacket(FVideoPacket const& Packet)
 {
 	if (IsOpen())
 	{
-        // We've received our first call to decode a frame, we can now parse the information from
+        // We've received a call to decode a frame, we can now parse the information from
         // the bitstream, configure our config and initialize the session
-		if(!IsInitialized())
+        FVideoDecoderConfigVT& PendingConfig = this->EditPendingConfig();
+
+        CMVideoFormatDescriptionRef InputFormat = nullptr;
+        if(PendingConfig.Codec == kCMVideoCodecType_H264)
         {
-            // Applying the config must be done before parsing the format as we need to know the codec
-            FAVResult AVResult = ApplyConfig();
-		    if (AVResult.IsNotSuccess())
-		    {
-    			return AVResult;
-		    }
-
-            CMVideoFormatDescriptionRef InputFormat = nullptr;
-            if(this->AppliedConfig.Codec == kCMVideoCodecType_H264)
-            {
-                InputFormat = NaluRewriter::CreateH264VideoFormatDescription(Packet.DataPtr.Get(), Packet.DataSize);
-            }
-            else if(this->AppliedConfig.Codec == kCMVideoCodecType_HEVC)
-            {
-                InputFormat = NaluRewriter::CreateH265VideoFormatDescription(Packet.DataPtr.Get(), Packet.DataSize);
-            }
-            else if (this->AppliedConfig.Codec == kCMVideoCodecType_VP9)
-            {
-                InputFormat = NaluRewriter::CreateVP9VideoFormatDescription(Packet.DataPtr.Get(), Packet.DataSize);
-            }
-            else
-            {
-                return FAVResult(EAVResult::Error, TEXT("Unsupported codec"), TEXT("VT"));
-            }
-
-            if(InputFormat)
-            {
-                if(!CMFormatDescriptionEqual(InputFormat, VideoFormat))
-                {
-                    SetVideoFormat(InputFormat);
-                    ResetDecompressionSession();
-                }
-            }
-
-            CONDITIONAL_RELEASE(InputFormat);
+            InputFormat = NaluRewriter::CreateH264VideoFormatDescription(Packet.DataPtr.Get(), Packet.DataSize);
+        }
+        else if(PendingConfig.Codec == kCMVideoCodecType_HEVC)
+        {
+            InputFormat = NaluRewriter::CreateH265VideoFormatDescription(Packet.DataPtr.Get(), Packet.DataSize);
+        }
+        else if (PendingConfig.Codec == kCMVideoCodecType_VP9)
+        {
+            InputFormat = NaluRewriter::CreateVP9VideoFormatDescription(Packet.DataPtr.Get(), Packet.DataSize);
+        }
+        else
+        {
+            return FAVResult(EAVResult::Error, TEXT("Unsupported codec"), TEXT("VT"));
         }
 
-        if(!VideoFormat)
+        if (InputFormat && !CMFormatDescriptionEqual(InputFormat, this->AppliedConfig.VideoFormat))
+        {
+            PendingConfig.SetVideoFormat(InputFormat);
+        }
+        
+        FAVResult AVResult = ApplyConfig();
+        if (AVResult.IsNotSuccess())
+        {
+            return AVResult;
+        }
+
+        CONDITIONAL_RELEASE(InputFormat);
+
+        if(!this->AppliedConfig.VideoFormat)
         {
             return FAVResult(EAVResult::WarningInvalidState, TEXT("Missing video format. Frame with sps/pps required."), TEXT("VT"));
         }
@@ -230,21 +191,21 @@ FAVResult TVideoDecoderVT<TResource>::SendPacket(FVideoPacket const& Packet)
         CMSampleBufferRef SampleBuffer = nullptr;
         if(this->AppliedConfig.Codec == kCMVideoCodecType_H264)
         {
-            if(!NaluRewriter::H264AnnexBBufferToCMSampleBuffer(Packet.DataPtr.Get(), Packet.DataSize, VideoFormat, &SampleBuffer, MemoryPool))
+            if(!NaluRewriter::H264AnnexBBufferToCMSampleBuffer(Packet.DataPtr.Get(), Packet.DataSize, this->AppliedConfig.VideoFormat, &SampleBuffer, MemoryPool))
             {
                 return FAVResult(EAVResult::Error, TEXT("Failed to get SampleBuffer"), TEXT("VT"));
             }
         }
         else if(this->AppliedConfig.Codec == kCMVideoCodecType_HEVC)
         {
-            if(!NaluRewriter::H265AnnexBBufferToCMSampleBuffer(Packet.DataPtr.Get(), Packet.DataSize, VideoFormat, &SampleBuffer, MemoryPool))
+            if(!NaluRewriter::H265AnnexBBufferToCMSampleBuffer(Packet.DataPtr.Get(), Packet.DataSize, this->AppliedConfig.VideoFormat, &SampleBuffer, MemoryPool))
             {
                 return FAVResult(EAVResult::Error, TEXT("Failed to get SampleBuffer"), TEXT("VT"));
             }
         }
         else if (this->AppliedConfig.Codec == kCMVideoCodecType_VP9)
         {
-            if(!NaluRewriter::VP9BufferToCMSampleBuffer(Packet.DataPtr.Get(), Packet.DataSize, VideoFormat, &SampleBuffer, MemoryPool))
+            if(!NaluRewriter::VP9BufferToCMSampleBuffer(Packet.DataPtr.Get(), Packet.DataSize, this->AppliedConfig.VideoFormat, &SampleBuffer, MemoryPool))
             {
                 return FAVResult(EAVResult::Error, TEXT("Failed to get SampleBuffer"), TEXT("VT"));
             }
@@ -282,27 +243,38 @@ FAVResult TVideoDecoderVT<TResource>::ReceiveFrame(TResolvableVideoResource<TRes
 {
     if(IsOpen())
     {
-        if(TSharedPtr<FFrame> Frame = *Frames.Peek())
+        if(Frames.Peek())
         {
+            TSharedPtr<FFrame> Frame = *Frames.Peek();
             size_t Width = CVPixelBufferGetWidth(Frame->ImageBuffer);
             size_t Height = CVPixelBufferGetHeight(Frame->ImageBuffer);
-
             OSType PixelFormat = CVPixelBufferGetPixelFormatType(Frame->ImageBuffer);
+            
+            static CVMetalTextureCacheRef TextureCache = nullptr;
+            if (TextureCache == nullptr)
+            {
+                id<MTLDevice> Device = (__bridge id<MTLDevice>)GDynamicRHI->RHIGetNativeDevice();
+                check(Device);
+                
+                CVReturn Result = CVMetalTextureCacheCreate(kCFAllocatorDefault, nullptr, Device, nullptr, &TextureCache);
+                if (Result != kCVReturnSuccess)
+                {
+                    return FAVResult(EAVResult::Error, TEXT("Failed to create CVMetalTextureCacheRef"), TEXT("VT"), Result);
+                }
+            }
+            
+            CVMetalTextureRef TextureRef = nullptr;
+            CVReturn Result = CVMetalTextureCacheCreateTextureFromImage(kCFAllocatorDefault, TextureCache, Frame->ImageBuffer, nullptr, MTLPixelFormatBGRA8Unorm_sRGB, Width, Height, 0, &TextureRef);
+            if (Result != kCVReturnSuccess)
+            {
+                return FAVResult(EAVResult::Error, TEXT("Failed to create CVMetalTextureRef"), TEXT("VT"), Result);
+            }
 
-            FVideoDescriptor ResourceDescriptor = FVideoDescriptor(EVideoFormat::BGRA, Width, Height);
+            FVideoDescriptor ResourceDescriptor = FVideoDescriptor(EVideoFormat::BGRA, Width, Height, new FBulkDataMetal(TextureRef));
             if (!InOutResource.Resolve(this->GetDevice(), ResourceDescriptor))
 			{
 				return FAVResult(EAVResult::ErrorResolving, TEXT("Failed to resolve frame resource"), TEXT("VT"));
 			}
-
-            CVPixelBufferLockBaseAddress(Frame->ImageBuffer, kCVPixelBufferLock_ReadOnly);
-
-            void* PixelPtr = CVPixelBufferGetBaseAddress(Frame->ImageBuffer);
-
-            // Do copy into the VideoResource
-//            InOutResource->GetRaw()->replaceRegion(MTL::Region(0, 0, Width, Height), 0, PixelPtr, Width * 4);
-
-            CVPixelBufferUnlockBaseAddress(Frame->ImageBuffer, kCVPixelBufferLock_ReadOnly);
 
             Frames.Pop();
             
@@ -313,23 +285,6 @@ FAVResult TVideoDecoderVT<TResource>::ReceiveFrame(TResolvableVideoResource<TRes
     }
 
 	return FAVResult(EAVResult::ErrorInvalidState, TEXT("Decoder not open"), TEXT("VT"));
-}
-
-template <typename TResource>
-void TVideoDecoderVT<TResource>::SetVideoFormat(CMVideoFormatDescriptionRef Format)
-{
-    if(VideoFormat == Format)
-    {
-        return;
-    }
-
-    CONDITIONAL_RELEASE(VideoFormat);
-
-    VideoFormat = Format;
-    if(VideoFormat)
-    {
-        CFRetain(VideoFormat);
-    }
 }
 
 template <typename TResource>

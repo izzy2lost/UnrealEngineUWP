@@ -20,8 +20,8 @@ template <typename TResource>
 class TVideoDecoderVT : public TVideoDecoder<TResource, FVideoDecoderConfigVT>
 {
 private:
-	VTDecompressionSessionRef Decoder = nullptr;
-    CMVideoFormatDescriptionRef VideoFormat;
+    VTDecompressionSessionRef Decoder = nullptr;
+    CVMetalTextureCacheRef TextureCache = nullptr;
     CMMemoryPoolRef MemoryPool;
 
 	uint8 bInitialized : 1;
@@ -76,7 +76,6 @@ public:
 	virtual bool IsOpen() const override;
 	virtual FAVResult Open(TSharedRef<FAVDevice> const& NewDevice, TSharedRef<FAVInstance> const& NewInstance) override;
 	virtual void Close() override;
-    void ResetDecompressionSession();
     void DestroyDecompressionSession();
     void ConfigureDecompressionSession();
 
@@ -88,8 +87,6 @@ public:
     FAVResult HandleFrame(void* Params, OSStatus Status, VTDecodeInfoFlags InfoFlags, CVImageBufferRef ImageBuffer, CMTime Timestamp, CMTime Duration);
 
 	virtual FAVResult SendPacket(FVideoPacket const& Packet) override;
-
-    void SetVideoFormat(CMVideoFormatDescriptionRef Format);
 };
 
 namespace Internal 

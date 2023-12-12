@@ -25,7 +25,11 @@ void FPixelStreamingVideoSink::OnFrame(const webrtc::VideoFrame& Frame)
             return;
         }
 
-        TSharedPtr<FVideoResourceRHI, ESPMode::ThreadSafe> VideoResource = FrameBuffer->GetVideoResource()->TransformResource(FVideoDescriptor(EVideoFormat::BGRA, SizeX, SizeY));
+        TSharedPtr<FVideoResourceRHI, ESPMode::ThreadSafe> VideoResource = FrameBuffer->GetVideoResource();
+        if (VideoResource->GetFormat() != EVideoFormat::BGRA)
+        {
+            VideoResource = VideoResource->TransformResource(FVideoDescriptor(EVideoFormat::BGRA, SizeX, SizeY));
+        }
 		
         auto& Raw = StaticCastSharedPtr<FVideoResourceRHI>(VideoResource)->GetRaw();
         OnFrame(Raw.Texture);

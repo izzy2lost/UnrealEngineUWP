@@ -17,6 +17,7 @@ public:
 	
 public:
 	CMVideoCodecType Codec;
+    CMVideoFormatDescriptionRef VideoFormat;
 
 	FVideoDecoderConfigVT()
 		: FAVConfig()
@@ -28,6 +29,26 @@ public:
 	{
 		*this = Other;
 	}
+    
+    void SetVideoFormat(CMVideoFormatDescriptionRef Format)
+    {
+        if(VideoFormat == Format)
+        {
+            return;
+        }
+
+        if (VideoFormat)
+        {
+            CFRelease(VideoFormat);
+            VideoFormat = nullptr;
+        }
+
+        VideoFormat = Format;
+        if (VideoFormat)
+        {
+            CFRetain(VideoFormat);
+        }
+    }
 
 	FVideoDecoderConfigVT& operator=(FVideoDecoderConfigVT const& Other)
 	{
@@ -38,7 +59,8 @@ public:
 
 	bool operator==(FVideoDecoderConfigVT const& Other) const
 	{
-        return this->Codec == Other.Codec;
+        return this->Codec == Other.Codec &&
+               CMFormatDescriptionEqual(this->VideoFormat, Other.VideoFormat);
 	}
 
 	bool operator!=(FVideoDecoderConfigVT const& Other) const
