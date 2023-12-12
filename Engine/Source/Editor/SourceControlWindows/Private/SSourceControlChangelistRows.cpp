@@ -169,7 +169,8 @@ FText SChangelistTableRow::GetChangelistDescriptionText() const
 
 FText SChangelistTableRow::GetChangelistDescriptionSingleLineText() const
 {
-	return SSourceControlCommon::GetSingleLineChangelistDescription(TreeItem->GetDescriptionText());
+	using namespace SSourceControlCommon;
+	return GetSingleLineChangelistDescription(TreeItem->GetDescriptionText(), ESingleLineFlags::NewlineConvertToSpace);
 }
 
 FReply SChangelistTableRow::OnDrop(const FGeometry& InGeometry, const FDragDropEvent& InDragDropEvent)

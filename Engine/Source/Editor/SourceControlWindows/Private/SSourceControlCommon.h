@@ -383,10 +383,17 @@ namespace SSourceControlCommon
 	FText GetDefaultUnknownAssetType();
 	FText GetDefaultMultipleAsset();
 
+	enum ESingleLineFlags
+	{
+		NewlineTerminates		=0x0,
+		NewlineConvertToSpace	=0x1,
+		Mask_NewlineBehavior	=0x1,
+	};
+	ENUM_CLASS_FLAGS(ESingleLineFlags);
 	/**
 	 * returns the first non-whitespace line, or an empty FText if InFullDescription is empty or only whitespace
 	 */
-	FText GetSingleLineChangelistDescription(const FText& InFullDescription);
+	FText GetSingleLineChangelistDescription(const FText& InFullDescription, ESingleLineFlags Flags = ESingleLineFlags::NewlineTerminates);
 
 	void ExecuteChangelistOperationWithSlowTaskWrapper(const FText& Message, const TFunction<void()>& ChangelistTask);
 	void ExecuteUncontrolledChangelistOperationWithSlowTaskWrapper(const FText& Message, const TFunction<void()>& UncontrolledChangelistTask);
