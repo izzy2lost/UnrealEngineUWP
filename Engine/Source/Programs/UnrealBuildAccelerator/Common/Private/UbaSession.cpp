@@ -1665,7 +1665,6 @@ namespace uba
 
 			if (m_runningRemote && !fileName.StartsWith(m_tempPath.data))
 			{
-				UBA_ASSERT(!fileName.EndsWith(TC(".o.tmp")) && !fileName.EndsWith(TC(".obj.tmp")));  // clang outputs a .o.tmp that we don'want to send back
 				ScopedWriteLock lock(m_outputFilesLock);
 				auto insres = m_outputFiles.try_emplace(fileName.data);
 				if (insres.second)

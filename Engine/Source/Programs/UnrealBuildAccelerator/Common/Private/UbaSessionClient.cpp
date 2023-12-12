@@ -322,22 +322,9 @@ namespace uba
 		StringKey fileNameKey = msg.fileNameKey;
 
 		if ((msg.access & FileAccess_Write) != 0)
-		{
-			if (fileName.EndsWith(TC(".o.tmp")) || fileName.EndsWith(TC(".obj.tmp"))) // This is clang's temporary object file that is moved into place
-			{
-				#if PLATFORM_WINDOWS
-				out.fileName.Append(m_sessionDir).Append(TC("temp\\")).Append(KeyToString(fileNameKey));
-				#else
-				out.fileName.Append(fileName);
-				#endif
-				return true;
-			}
-
 			return Session::CreateFile(out, msg, virtualApplicationDir);
-		}
 	
 		CasKey casKey;
-
 		if (!GetCasKeyForFile(casKey, msg.process.m_id, fileName, fileNameKey))
 			return false;
 
