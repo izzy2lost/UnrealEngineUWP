@@ -78,6 +78,7 @@ UControlRig::UControlRig(const FObjectInitializer& ObjectInitializer)
 #endif
 	, bCopyHierarchyBeforeConstruction(true)
 	, bResetInitialTransformsBeforeConstruction(true)
+	, bResetCurrentTransformsAfterConstruction(false)
 	, bManipulationEnabled(false)
 	, PreConstructionBracket(0)
 	, PostConstructionBracket(0)
@@ -993,6 +994,13 @@ bool UControlRig::Execute(const FName& InEventName)
 			// disable selection notifications from the hierarchy
 			TGuardValue<bool> DisableSelectionNotifications(GetHierarchy()->GetController(true)->bSuspendSelectionNotifications, true);
 			{
+				FRigPose CurrentPose;
+				// We might want to reset the input pose after construction
+				if (bResetCurrentTransformsAfterConstruction)
+				{
+					CurrentPose = GetHierarchy()->GetPose(false, ERigElementType::ToResetAfterConstructionEvent, FRigElementKeyCollection());
+				}
+				
 				{
 					// Copy the hierarchy from the default object onto this one
 #if WITH_EDITOR
@@ -1046,6 +1054,12 @@ bool UControlRig::Execute(const FName& InEventName)
 				{
 					FControlRigBracketScope BracketScope(PostConstructionBracket);
 					PostConstructionEvent.Broadcast(this, FRigUnit_PrepareForExecution::EventName);
+				}
+
+				// Reset the input pose after construction
+				if (CurrentPose.Num() > 0)
+				{
+					GetHierarchy()->SetPose(CurrentPose, ERigTransformType::CurrentLocal);
 				}
 			}
 			

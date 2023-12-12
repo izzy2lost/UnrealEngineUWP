@@ -575,6 +575,7 @@ private:
 protected:
 	bool bCopyHierarchyBeforeConstruction;
 	bool bResetInitialTransformsBeforeConstruction;
+	bool bResetCurrentTransformsAfterConstruction;
 	bool bManipulationEnabled;
 
 	int32 PreConstructionBracket;

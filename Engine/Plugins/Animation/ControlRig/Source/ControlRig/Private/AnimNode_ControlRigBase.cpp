@@ -456,6 +456,8 @@ void FAnimNode_ControlRigBase::ExecuteControlRig(FPoseContext& InOutput)
 				return;
 			}
 
+			TGuardValue<bool> ResetCurrentTransfromsAfterConstructionGuard(ControlRig->bResetCurrentTransformsAfterConstruction, true);
+
 			if(Hierarchy->IsTracingChanges())
 			{
 				Hierarchy->StorePoseForTrace(TEXT("FAnimNode_ControlRigBase::BeforeEvaluate"));
