@@ -53,7 +53,8 @@ struct SRCPanelTreeNode : public SCompoundWidget, public IHasProtocolExtensibili
 		Field,
 		FieldChild,
 		Actor,
-		Material
+		Material,
+		FieldGroup
 	};
 
 	virtual ~SRCPanelTreeNode() {}

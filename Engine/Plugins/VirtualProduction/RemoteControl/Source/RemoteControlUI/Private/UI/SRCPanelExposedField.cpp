@@ -177,6 +177,11 @@ FName SRCPanelExposedField::GetFieldLabel() const
 	return CachedLabel;
 }
 
+FName SRCPanelExposedField::GetOwnerName() const
+{
+	return CachedOwnerName;
+}
+
 EExposedFieldType SRCPanelExposedField::GetFieldType() const
 {
 	if (TSharedPtr<FRemoteControlField> Field = WeakField.Pin())

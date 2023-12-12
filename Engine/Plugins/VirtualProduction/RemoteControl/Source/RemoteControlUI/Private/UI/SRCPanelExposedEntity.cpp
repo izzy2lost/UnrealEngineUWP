@@ -431,16 +431,20 @@ void SRCPanelExposedEntity::OnLabelCommitted(const FText& InLabel, ETextCommit::
 
 void SRCPanelExposedEntity::OnPropertyIdTextCommitted(const FText& InText, ETextCommit::Type InCommitInfo)
 {
-	if (URemoteControlPreset* RCPreset = Preset.Get())
+	if (const URemoteControlPreset* RCPreset = Preset.Get())
 	{
 		if (const TSharedPtr<FRemoteControlEntity> RCEntity = GetEntity())
 		{
 			if (const TSharedPtr<FRemoteControlField> RCField = StaticCastSharedPtr<FRemoteControlField>(RCEntity))
 			{
-				RCField->PropertyId = FName(InText.ToString());
-				PropertyIdLabel = RCField->PropertyId;
-				RCPreset->UpdateIdentifiedField(RCField.ToSharedRef());
-				OnPropertyIdRenamed().ExecuteIfBound(PropertyIdLabel);
+				const FName NewId = FName(InText.ToString());
+				if (RCField->PropertyId.Compare(NewId) != 0)
+				{
+					RCField->PropertyId = NewId;
+					PropertyIdLabel = NewId;
+					RCPreset->UpdateIdentifiedField(RCField.ToSharedRef());
+					OnPropertyIdRenamed().ExecuteIfBound(NewId);
+				}
 			}
 		}
 	}

@@ -73,6 +73,9 @@ struct SRCPanelExposedField : public SRCPanelExposedEntity
 	/** Returns this widget's underlying objects. */
 	void GetBoundObjects(TSet<UObject*>& OutBoundObjects) const;
 
+	/** Get the owner name of this field */
+	FName GetOwnerName() const;
+
 private:
 	/** Construct a property widget. */
 	TSharedRef<SWidget> ConstructWidget();

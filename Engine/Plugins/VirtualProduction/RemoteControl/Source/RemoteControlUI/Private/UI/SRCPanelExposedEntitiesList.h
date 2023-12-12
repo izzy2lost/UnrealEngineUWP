@@ -5,6 +5,7 @@
 #include "IRemoteControlUIModule.h"
 #include "Misc/TextFilter.h"
 #include "RemoteControlPreset.h"
+#include "SRCPanelExposedEntitiesGroup.h"
 #include "SRCPanelTreeNode.h"
 #include "Widgets/DeclarativeSyntaxSupport.h"
 #include "Widgets/SCompoundWidget.h"
@@ -21,6 +22,7 @@ struct FRemoteControlProperty;
 struct FRemoteControlPresetGroup;
 struct FRemoteControlFunction;
 class ITableRow;
+class SComboButton;
 class SRCHeaderRow;
 class SRCPanelFilter;
 class SRCPanelGroup;
@@ -36,6 +38,14 @@ enum class EEntitiesListMode : uint8
 {
 	Default,
 	Protocols
+};
+
+/** Ordering types while grouping is active */
+enum class ERCGroupOrder
+{
+	None,
+	Ascending,
+	Descending
 };
 
 /** Holds information about a group drag and drop event  */
@@ -172,6 +182,32 @@ private:
 	/** Handle context menu opening on a row. */
 	TSharedPtr<SWidget> OnContextMenuOpening(SRCPanelTreeNode::ENodeType InType);
 
+	TSharedRef<SWidget> GetGroupMenuContentWidget();
+
+	/**
+	 * Called when the group type changed, if the new group type is the same as the current one it will be set to none
+	 * @param InFieldGroupType New grouping type
+	 */
+	void OnCreateFieldGroup(EFieldGroupType InFieldGroupType);
+
+	/** Group fields based on the current group type (PropertyId/Owner) */
+	void CreateFieldGroup();
+
+	/**
+	 * Called when the order type changed, if the new order type is the same as the current one it will be set to none
+	 * @param InGroupOrder New group order
+	 */
+	void OnGroupOrderChanged(ERCGroupOrder InGroupOrder);
+
+	/** Order the groups based on the current order assigned (Ascending/Descending) */
+	void OrderGroups();
+
+	/** Refresh the fields groups and restore the expansion */
+	void RefreshGroupsAndRestoreExpansions();
+
+	/** Calls both the CreateFieldGroup and the OrderGroups */
+	void CreateGroupsAndSort();
+
 	//~ Register and handle preset delegates.
 	void RegisterPresetDelegates();
 	void UnregisterPresetDelegates();
@@ -235,6 +271,16 @@ private:
 	TArray<TSharedPtr<SRCPanelGroup>> FieldGroups;
 	/** Holds all the field entities. */
 	TArray<TSharedPtr<SRCPanelTreeNode>> FieldEntities;
+	/** Cached field entities used to store the original Entities when switching groups. */
+	TArray<TSharedPtr<SRCPanelTreeNode>> CachedFieldEntities;
+	/** Holds all the exposed entities groups. */
+	TArray<TSharedPtr<SRCPanelExposedEntitiesGroup>> ExposedEntitiesGroups;
+	/** Holds the current group type */
+	EFieldGroupType CurrentGroupType = EFieldGroupType::None;
+	/** Holds the current sorting type */
+	ERCGroupOrder CurrentGroupSortType = ERCGroupOrder::None;
+	/** Holds all the entities groups currently in the list */
+	TArray<TSharedPtr<SRCPanelExposedEntitiesGroup>> FieldEntitiesGroups;
 	/** Map of field ids to field widgets. */
 	TMap<FGuid, TSharedPtr<SRCPanelTreeNode>> FieldWidgetMap;
 	/** Whether the panel is in live mode. */
@@ -271,6 +317,8 @@ private:
 	TSharedPtr<SRCPanelFilter> FilterPtr;
 	/** The text box used to search for tags. */
 	TSharedPtr<SSearchBox> SearchBoxPtr;
+	/** Button giving you the possibilities for grouping. */
+	TSharedPtr<SComboButton> ComboButtonGroupButton;
 	/** Text filter for the search text. */
     TSharedPtr<TTextFilter<const SRCPanelTreeNode&>> SearchTextFilter;
     /** Actively searched term. */
@@ -285,6 +333,7 @@ private:
 	FGuid CurrentlySelectedGroup;
 
 	bool bRefreshRequested = false;
+	bool bRefreshEntitiesGroups = false;
 
 	/** When true, widgets of the Exposed Entities List will be refreshed on Tick */
 	bool bNodesRefreshRequested = false;

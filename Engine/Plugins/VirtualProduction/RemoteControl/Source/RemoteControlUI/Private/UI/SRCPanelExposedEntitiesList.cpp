@@ -27,6 +27,7 @@
 #include "ScopedTransaction.h"
 #include "SRCHeaderRow.h"
 #include "SRCModeSwitcher.h"
+#include "SRCPanelExposedEntitiesGroup.h"
 #include "SRCPanelFieldGroup.h"
 #include "SRCPanelExposedField.h"
 #include "SSearchToggleButton.h"
@@ -34,9 +35,11 @@
 #include "UI/Panels/SRCDockPanel.h"
 #include "UObject/Object.h"
 #include "Widgets/Input/SButton.h"
+#include "Widgets/Input/SComboBox.h"
+#include "Widgets/Input/SComboButton.h"
 #include "Widgets/Input/SSearchBox.h"
-#include "Widgets/Layout/SSpacer.h"
 #include "Widgets/Layout/SSeparator.h"
+#include "Widgets/Layout/SSpacer.h"
 #include "Widgets/Layout/SWidgetSwitcher.h"
 #include "Widgets/Views/SListView.h"
 #include "Widgets/Views/STableRow.h"
@@ -162,7 +165,7 @@ private:
 	//~ SWidget Interface
 	virtual FReply OnMouseButtonDoubleClick(const FGeometry& InMyGeometry, const FPointerEvent& InMouseEvent) override
 	{
-		if (Entity.IsValid())
+		if (Entity.IsValid() && Entity->GetRCType() != SRCPanelTreeNode::FieldGroup)
 		{
 			if (const TSharedPtr<SRCPanelExposedEntity> ExposedEntityWidget = StaticCastSharedPtr<SRCPanelExposedEntity>(Entity))
 			{
@@ -486,9 +489,36 @@ void SRCPanelExposedEntitiesList::Construct(const FArguments& InArgs, URemoteCon
 		.OnTextCommitted(this, &SRCPanelExposedEntitiesList::OnSearchTextCommitted)
 		.DelayChangeNotificationsWhileTyping(true);
 
+	// Create grouping button
+	ComboButtonGroupButton = SNew(SComboButton)
+		.ToolTipText(LOCTEXT("RCFieldsGroupingTooltip", "Select grouping type for the fields"))
+		.HAlign(HAlign_Center)
+		.VAlign(VAlign_Center)
+		.ButtonStyle(&RCPanelStyle->FlatButtonStyle)
+		.ForegroundColor(FSlateColor::UseForeground())
+		.CollapseMenuOnParentFocus(true)
+		.HasDownArrow(false)
+		.ContentPadding(FMargin(4.f, 2.f))
+		.ButtonContent()
+		[
+			SNew(SBox)
+			.WidthOverride(RCPanelStyle->IconSize.X)
+			.HeightOverride(RCPanelStyle->IconSize.Y)
+			[
+				SNew(SImage)
+				.ColorAndOpacity(FSlateColor::UseForeground())
+				.Image(FAppStyle::GetBrush("InputBindingEditor.LevelViewport"))
+			]
+		]
+		.MenuContent()
+		[
+			GetGroupMenuContentWidget()
+		];
+
 	// Expose Button
 	ExposeDockPanel->AddHeaderToolbarItem(EToolbar::Center, SearchBoxPtr.ToSharedRef());
 	ExposeDockPanel->AddHeaderToolbarItem(EToolbar::Right, SNew(SSearchToggleButton, SearchBoxPtr.ToSharedRef()));
+	ExposeDockPanel->AddHeaderToolbarItem(EToolbar::Right, ComboButtonGroupButton.ToSharedRef());
 	ExposeDockPanel->AddHeaderToolbarItem(EToolbar::Right, FilterComboButton.ToSharedRef());
 	ExposeDockPanel->AddHeaderToolbarItem(EToolbar::Right, ModeSwitcher.ToSharedRef());
 	ExposeDockPanel->AddHeaderToolbarItem(EToolbar::Left, InArgs._ExposeActorsComboButton.Get().ToSharedRef());
@@ -545,6 +575,12 @@ void SRCPanelExposedEntitiesList::Tick(const FGeometry& AllottedGeometry, const 
 	{
 		ProcessRefresh();
 		bRefreshRequested = false;
+	}
+
+	if (bRefreshEntitiesGroups)
+	{
+		RefreshGroupsAndRestoreExpansions();
+		bRefreshEntitiesGroups = false;
 	}
 
 	ExposedEntitiesNodesRefresh();
@@ -755,6 +791,12 @@ void SRCPanelExposedEntitiesList::OnPropertyIdRenamed(const FName InNewId, TShar
 			}
 		}
 	}
+
+	if (CurrentGroupType == EFieldGroupType::PropertyId)
+	{
+		CreateFieldGroup();
+		OrderGroups();
+	}
 }
 
 void SRCPanelExposedEntitiesList::OnLabelModified(const FName InOldName, const FName InNewName)
@@ -963,6 +1005,7 @@ void SRCPanelExposedEntitiesList::GenerateListWidgets(const FRemoteControlPreset
 	TRACE_CPUPROFILER_EVENT_SCOPE(SRCPanelExposedEntitiesList::GenerateListWidgetsFromGroup);
 
 	FieldEntities.Reset();
+	CachedFieldEntities.Reset();
 
 	if (FieldWidgetMap.IsEmpty())
 	{
@@ -973,11 +1016,13 @@ void SRCPanelExposedEntitiesList::GenerateListWidgets(const FRemoteControlPreset
 
 	if (Preset->Layout.IsDefaultGroup(FromGroup.Id))
 	{
-		FieldWidgetMap.GenerateValueArray(FieldEntities);
+		FieldWidgetMap.GenerateValueArray(CachedFieldEntities);
+		CreateGroupsAndSort();
 	}
 	else if (TSharedPtr<SRCPanelGroup> SRCGroup = FindGroupById(FromGroup.Id))
 	{
-		SRCGroup->GetNodeChildren(FieldEntities);
+		SRCGroup->GetNodeChildren(CachedFieldEntities);
+		CreateGroupsAndSort();
 	}
 
 	FieldsListView->RequestListRefresh();
@@ -1108,7 +1153,8 @@ FReply SRCPanelExposedEntitiesList::OnDropOnGroup(const TSharedPtr<FDragDropOper
 {
 	checkSlow(DragTargetGroup);
 
-	if (DragDropOperation->IsOfType<FExposedEntityDragDrop>())
+	// will be changed, for now as long as you have a grouping type active you will not be able to drag fields to re-order them
+	if (DragDropOperation->IsOfType<FExposedEntityDragDrop>() && CurrentGroupType == EFieldGroupType::None)
 	{
 		if (TSharedPtr<FExposedEntityDragDrop> DragDropOp = StaticCastSharedPtr<FExposedEntityDragDrop>(DragDropOperation))
 		{
@@ -1333,6 +1379,217 @@ TSharedPtr<SWidget> SRCPanelExposedEntitiesList::OnContextMenuOpening(SRCPanelTr
 	}
 	
 	return nullptr;
+}
+
+TSharedRef<SWidget> SRCPanelExposedEntitiesList::GetGroupMenuContentWidget()
+{
+	constexpr bool bShouldCloseWindowAfterMenuSelection = false;
+	FMenuBuilder MenuBuilder(bShouldCloseWindowAfterMenuSelection, nullptr);
+
+	// Grouping type section
+	MenuBuilder.BeginSection(FName(TEXT("RCGroupingType")), LOCTEXT("RCGroupingTypeHeader", "Group by"));
+
+	MenuBuilder.AddMenuEntry(
+		LOCTEXT("RCGroupPropertyIdLabel", "Property Id"),
+		LOCTEXT("RCGroupPropertyIdTooltip", "Group by Property Id"),
+		FSlateIcon(),
+		FUIAction(
+		FExecuteAction::CreateSP(this, &SRCPanelExposedEntitiesList::OnCreateFieldGroup, EFieldGroupType::PropertyId),
+		FCanExecuteAction(),
+		FIsActionChecked::CreateLambda([this]() { return CurrentGroupType == EFieldGroupType::PropertyId; })
+		),
+		NAME_None,
+		EUserInterfaceActionType::RadioButton);
+
+	MenuBuilder.AddMenuEntry(
+		LOCTEXT("RCGroupOwnerLabel", "Owner"),
+		LOCTEXT("RCGroupOwnerTooltip", "Group by Owner"),
+		FSlateIcon(),
+		FUIAction(
+		FExecuteAction::CreateSP(this, &SRCPanelExposedEntitiesList::OnCreateFieldGroup, EFieldGroupType::Owner),
+		FCanExecuteAction(),
+		FIsActionChecked::CreateLambda([this]() { return CurrentGroupType == EFieldGroupType::Owner; })
+		),
+		NAME_None,
+		EUserInterfaceActionType::RadioButton);
+
+	MenuBuilder.EndSection();
+
+	// Ordering type section
+	MenuBuilder.BeginSection(FName(TEXT("RCSortingType")), LOCTEXT("RCSortingTypeHeader", "Sort by"));
+
+	MenuBuilder.AddMenuEntry(
+		LOCTEXT("RCSortAscendingGroupLabel", "Ascending"),
+		LOCTEXT("RCSortAscendingGroupTooltip", "Sort groups ascending"),
+		FSlateIcon(),
+		FUIAction(
+		FExecuteAction::CreateSP(this, &SRCPanelExposedEntitiesList::OnGroupOrderChanged, ERCGroupOrder::Ascending),
+		FCanExecuteAction(),
+		FIsActionChecked::CreateLambda([this] () { return CurrentGroupSortType == ERCGroupOrder::Ascending; })
+		),
+		NAME_None,
+		EUserInterfaceActionType::RadioButton);
+
+	MenuBuilder.AddMenuEntry(
+		LOCTEXT("RCSortDescendingGroupLabel", "Descending"),
+		LOCTEXT("RCSortDescendingGroupTooltip", "Sort groups descending"),
+		FSlateIcon(),
+		FUIAction(
+		FExecuteAction::CreateSP(this, &SRCPanelExposedEntitiesList::OnGroupOrderChanged, ERCGroupOrder::Descending),
+		FCanExecuteAction(),
+		FIsActionChecked::CreateLambda([this]() { return CurrentGroupSortType == ERCGroupOrder::Descending; })
+		),
+		NAME_None,
+		EUserInterfaceActionType::RadioButton);
+
+	MenuBuilder.EndSection();
+
+	return MenuBuilder.MakeWidget();
+}
+
+void SRCPanelExposedEntitiesList::OnCreateFieldGroup(EFieldGroupType InFieldGroupType)
+{
+	CurrentGroupType = CurrentGroupType == InFieldGroupType? EFieldGroupType::None : InFieldGroupType;
+	CreateFieldGroup();
+	OrderGroups();
+}
+
+void SRCPanelExposedEntitiesList::CreateFieldGroup()
+{
+	FieldEntitiesGroups.Reset();
+	TSet<FName> GroupKeys;
+	if (CurrentGroupType == EFieldGroupType::PropertyId)
+	{
+		for (TSharedPtr<SRCPanelTreeNode> Entity : CachedFieldEntities)
+		{
+			if (TSharedPtr<SRCPanelExposedField> ExposedField = StaticCastSharedPtr<SRCPanelExposedField>(Entity))
+			{
+				if (!GroupKeys.Contains(ExposedField->GetPropertyId()))
+				{
+					GroupKeys.Add(ExposedField->GetPropertyId());
+					TSharedRef<SRCPanelExposedEntitiesGroup> GroupWidget = SNew(SRCPanelExposedEntitiesGroup, CurrentGroupType, Preset.Get())
+						.FieldKey(ExposedField->GetPropertyId())
+						.OnGroupPropertyIdChanged(this, &SRCPanelExposedEntitiesList::CreateGroupsAndSort);
+
+					GroupWidget->AssignChildren(CachedFieldEntities);
+					FieldEntitiesGroups.Add(GroupWidget);
+				}
+			}
+		}
+	}
+	else if (CurrentGroupType == EFieldGroupType::Owner)
+	{
+		for (TSharedPtr<SRCPanelTreeNode> Entity : CachedFieldEntities)
+		{
+			if (TSharedPtr<SRCPanelExposedField> ExposedField = StaticCastSharedPtr<SRCPanelExposedField>(Entity))
+			{
+				if (!GroupKeys.Contains(ExposedField->GetOwnerName()))
+				{
+					GroupKeys.Add(ExposedField->GetOwnerName());
+					TSharedRef<SRCPanelExposedEntitiesGroup> GroupWidget = SNew(SRCPanelExposedEntitiesGroup, CurrentGroupType, Preset.Get())
+						.FieldKey(ExposedField->GetOwnerName());
+
+					GroupWidget->AssignChildren(CachedFieldEntities);
+					FieldEntitiesGroups.Add(GroupWidget);
+				}
+			}
+		}
+	}
+
+	if (CurrentGroupType == EFieldGroupType::None)
+	{
+		FieldEntities = CachedFieldEntities;
+		FieldsListView->RequestTreeRefresh();
+	}
+	else if (FieldEntitiesGroups.Num())
+	{
+		FieldEntities.Empty();
+		for (const TSharedPtr<SRCPanelExposedEntitiesGroup>& Group : FieldEntitiesGroups)
+		{
+			FieldEntities.Add(Group);
+		}
+
+		bRefreshEntitiesGroups = true;
+	}
+}
+
+void SRCPanelExposedEntitiesList::OnGroupOrderChanged(ERCGroupOrder InGroupOrder)
+{
+	CurrentGroupSortType = CurrentGroupSortType == InGroupOrder? ERCGroupOrder::None : InGroupOrder;
+	OrderGroups();
+}
+
+void SRCPanelExposedEntitiesList::OrderGroups()
+{
+	if (CurrentGroupType == EFieldGroupType::None)
+	{
+		return;
+	}
+
+	if (CurrentGroupSortType == ERCGroupOrder::Ascending)
+	{
+		FieldEntities.Sort([](const TSharedPtr<SRCPanelTreeNode>& InFirst, const TSharedPtr<SRCPanelTreeNode>& InSecond)
+		{
+			if (const TSharedPtr<SRCPanelExposedEntitiesGroup>& FieldGroupFirst = StaticCastSharedPtr<SRCPanelExposedEntitiesGroup>(InFirst))
+			{
+				if (const TSharedPtr<SRCPanelExposedEntitiesGroup>& FieldGroupSecond = StaticCastSharedPtr<SRCPanelExposedEntitiesGroup>(InSecond))
+				{
+					return FieldGroupFirst->GetFieldKey().Compare(FieldGroupSecond->GetFieldKey()) <= 0;
+				}
+			}
+			return false;
+		});
+	}
+	else if (CurrentGroupSortType == ERCGroupOrder::Descending)
+	{
+		FieldEntities.Sort([](const TSharedPtr<SRCPanelTreeNode>& InFirst, const TSharedPtr<SRCPanelTreeNode>& InSecond)
+		{
+			if (const TSharedPtr<SRCPanelExposedEntitiesGroup>& FieldGroupFirst = StaticCastSharedPtr<SRCPanelExposedEntitiesGroup>(InFirst))
+			{
+				if (const TSharedPtr<SRCPanelExposedEntitiesGroup>& FieldGroupSecond = StaticCastSharedPtr<SRCPanelExposedEntitiesGroup>(InSecond))
+				{
+					return FieldGroupFirst->GetFieldKey().Compare(FieldGroupSecond->GetFieldKey()) > 0;
+				}
+			}
+			return false;
+		});
+	}
+
+	bRefreshEntitiesGroups = true;
+}
+
+void SRCPanelExposedEntitiesList::RefreshGroupsAndRestoreExpansions()
+{
+	TSet<TSharedPtr<SRCPanelTreeNode>> ExpandedItems;
+	FieldsListView->GetExpandedItems(ExpandedItems);
+	FieldsListView->RequestTreeRefresh();
+	for (const TSharedPtr<SRCPanelTreeNode>& ExpandedItem : ExpandedItems)
+	{
+		if (const TSharedPtr<SRCPanelExposedEntitiesGroup>& FieldGroup = StaticCastSharedPtr<SRCPanelExposedEntitiesGroup>(ExpandedItem))
+		{
+			if (FieldGroup->GetGroupType() == CurrentGroupType)
+			{
+				for (const TSharedPtr<SRCPanelExposedEntitiesGroup>& Group : FieldEntitiesGroups)
+				{
+					if (Group->GetFieldKey() == FieldGroup->GetFieldKey())
+					{
+						FieldsListView->SetItemExpansion(Group, true);
+						break;
+					}
+				}
+			}
+		}
+		else
+		{
+			FieldsListView->SetItemExpansion(ExpandedItem, true);
+		}
+	}
+}
+
+void SRCPanelExposedEntitiesList::CreateGroupsAndSort()
+{
+	CreateFieldGroup();
+	OrderGroups();
 }
 
 void SRCPanelExposedEntitiesList::RegisterPresetDelegates()
