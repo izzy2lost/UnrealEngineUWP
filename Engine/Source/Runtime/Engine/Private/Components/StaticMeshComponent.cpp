@@ -2505,14 +2505,14 @@ void UStaticMeshComponent::SetEvaluateWorldPositionOffset(bool NewValue)
 		{
 			// Update render thread data
 			SceneProxy->SetEvaluateWorldPositionOffset_GameThread(NewValue);
+			// We need to trigger bounds updates (see FPrimitiveSceneProxy::SetTransform) and shadow invalidations
+			MarkRenderTransformDirty();
 		}
 	}
 }
 
 void UStaticMeshComponent::SetWorldPositionOffsetDisableDistance(int32 NewValue)
 {
-	
-
 	if (WorldPositionOffsetDisableDistance != NewValue)
 	{
 		// Update game thread data
@@ -2523,6 +2523,8 @@ void UStaticMeshComponent::SetWorldPositionOffsetDisableDistance(int32 NewValue)
 		{
 			// Update render thread data
 			SceneProxy->SetWorldPositionOffsetDisableDistance_GameThread(NewValue);
+			// We need to trigger bounds updates (see FPrimitiveSceneProxy::SetTransform) and shadow invalidations
+			MarkRenderTransformDirty();
 		}
 	}
 }

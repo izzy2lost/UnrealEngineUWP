@@ -568,8 +568,6 @@ public:
 
 	inline FMeshDrawCommandPrimitiveIdInfo GetMDCIdInfo() const { return FMeshDrawCommandPrimitiveIdInfo(PackedIndex, PersistentIndex, InstanceSceneDataOffset);}
 
-	void SetCacheShadowAsStatic(bool bStatic);
-
 	const UPrimitiveComponent* GetComponentForDebugOnly() const;
 	const IPrimitiveComponent* GetComponentInterfaceForDebugOnly() const;
 

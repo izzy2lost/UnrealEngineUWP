@@ -5,7 +5,6 @@
 
 #include "NaniteRasterizationCommon.ush"
 #include "../VirtualShadowMaps/VirtualShadowMapPageAccessCommon.ush"
-#include "../VirtualShadowMaps/VirtualShadowMapStaticCaching.ush"
 #include "../VirtualShadowMaps/VirtualShadowMapPageOverlap.ush"
 #include "NaniteWritePixel.ush"
 #include "NaniteCullingCommon.ush"
@@ -19,7 +18,7 @@
 
 // Update this GUID to bump and recompile all Nanite rasterization material shaders
 // Merge conflicts on this line should be resolved by generating a new GUID
-#pragma message("UESHADERMETADATA_VERSION E5676DB6-A6F1-471F-9A4C-7870A7FCA31D")
+#pragma message("UESHADERMETADATA_VERSION 59798E00-C394-440A-B3BA-E342488CF154")
 
 #if PIXELSHADER
 ALLOW_NO_PS_EXPORT
@@ -217,8 +216,8 @@ FRaster CreateRaster( FNaniteView NaniteView, FInstanceSceneData InstanceData, F
 	}
 
 	// Virtual shadow maps can scatter instances into different physical pages for caching purposes
-	bool bVirtualTargetStaticPage = ShouldCacheInstanceAsStatic( InstanceData, NaniteView );
-	Raster.ArrayIndex = bVirtualTargetStaticPage ? GetVirtualShadowMapStaticArrayIndex() : 0;
+	const bool bCacheAsStatic = (VisibleCluster.Flags & NANITE_CULLING_FLAG_CACHE_AS_STATIC) != 0u;
+	Raster.ArrayIndex = bCacheAsStatic ? GetVirtualShadowMapStaticArrayIndex() : 0;
 
 	if (!Raster.bSinglePage)
 	{
@@ -314,7 +313,8 @@ void ClusterRasterize( uint VisibleIndex, uint GroupThreadIndex )
 #if VIRTUAL_TEXTURE_TARGET && NANITE_LATE_VSM_PAGE_TRANSLATION
 	if (!Raster.bSinglePage)
 	{
-		const uint PageFlagMask = GetPageFlagMaskForRendering(InstanceData, NaniteView, InstanceDynamicData.bHasMoved);
+		const bool bCacheAsStatic = (VisibleCluster.Flags & NANITE_CULLING_FLAG_CACHE_AS_STATIC) != 0u;
+		const uint PageFlagMask = GetPageFlagMaskForRendering(bCacheAsStatic, InstanceDynamicData.bHasMoved);
 
 		UNROLL
 		for (uint Offset = 0; Offset < NANITE_VSM_PAGE_TABLE_CACHE_DIM * NANITE_VSM_PAGE_TABLE_CACHE_DIM; Offset += THREADGROUP_SIZE)
@@ -648,7 +648,8 @@ void PatchRasterize( uint VisibleIndex, uint GroupThreadIndex )
 	#if VIRTUAL_TEXTURE_TARGET && NANITE_LATE_VSM_PAGE_TRANSLATION
 		if (!Raster.bSinglePage)
 		{
-			const uint PageFlagMask = GetPageFlagMaskForRendering(InstanceData, NaniteView, InstanceDynamicData.bHasMoved);
+			const bool bCacheAsStatic = (VisibleCluster.Flags & NANITE_CULLING_FLAG_CACHE_AS_STATIC) != 0u;
+			const uint PageFlagMask = GetPageFlagMaskForRendering(bCacheAsStatic, InstanceDynamicData.bHasMoved);
 
 			UNROLL
 			for (uint Offset = 0; Offset < NANITE_VSM_PAGE_TABLE_CACHE_DIM * NANITE_VSM_PAGE_TABLE_CACHE_DIM; Offset += THREADGROUP_SIZE)
@@ -944,8 +945,8 @@ VSOut CommonRasterizerVS(FNaniteView NaniteView, FPrimitiveSceneData PrimitiveDa
 #endif
 
 #if VIRTUAL_TEXTURE_TARGET
-	const bool bStaticPage = ShouldCacheInstanceAsStatic(InstanceData, NaniteView);
-	const uint ArrayIndex = bStaticPage ? GetVirtualShadowMapStaticArrayIndex() : 0;
+	const bool bCacheAsStatic = (VisibleCluster.Flags & NANITE_CULLING_FLAG_CACHE_AS_STATIC) != 0u;
+	const uint ArrayIndex = bCacheAsStatic ? GetVirtualShadowMapStaticArrayIndex() : 0;
 	Out.PixelValue_ViewId_SwapVW_Mip_ArrayIndex_LevelOffset.y |= (NaniteView.TargetMipLevel << 17) | (ArrayIndex << 22);
 	Out.PixelValue_ViewId_SwapVW_Mip_ArrayIndex_LevelOffset.z = CalcPageTableLevelOffset(NaniteView.TargetLayerIndex, NaniteView.TargetMipLevel).LevelOffset;
 #endif

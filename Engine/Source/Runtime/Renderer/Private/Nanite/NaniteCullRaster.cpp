@@ -405,8 +405,7 @@ BEGIN_SHADER_PARAMETER_STRUCT( FVirtualTargetParameters, )
 	SHADER_PARAMETER_RDG_BUFFER_SRV( StructuredBuffer< uint >,	HZBPageTable )
 	SHADER_PARAMETER_RDG_BUFFER_SRV( StructuredBuffer< uint4 >,	HZBPageRectBounds )
 	SHADER_PARAMETER_RDG_BUFFER_SRV( StructuredBuffer< uint >,	HZBPageFlags )
-	SHADER_PARAMETER_RDG_BUFFER_UAV(RWStructuredBuffer< uint >, OutDirtyPageFlags)
-	SHADER_PARAMETER_RDG_BUFFER_UAV(RWStructuredBuffer< uint >, OutStaticInvalidatingPrimitives)
+	SHADER_PARAMETER_RDG_BUFFER_UAV( RWStructuredBuffer< uint >, OutDirtyPageFlags )
 END_SHADER_PARAMETER_STRUCT()
 
 BEGIN_SHADER_PARAMETER_STRUCT( FInstanceWorkGroupParameters, )
@@ -4278,7 +4277,6 @@ void FRenderer::DrawGeometry(
 		VirtualTargetParameters.HZBPageFlags		= GraphBuilder.CreateSRV( HZBPageFlagsRDG );
 
 		VirtualTargetParameters.OutDirtyPageFlags				= GraphBuilder.CreateUAV(VirtualShadowMapArray->DirtyPageFlagsRDG, ERDGUnorderedAccessViewFlags::SkipBarrier);
-		VirtualTargetParameters.OutStaticInvalidatingPrimitives	= GraphBuilder.CreateUAV(VirtualShadowMapArray->StaticInvalidatingPrimitivesRDG, ERDGUnorderedAccessViewFlags::SkipBarrier);
 	}
 
 	InstanceHierarchyDriver.Init(GraphBuilder, CVarNaniteCullInstanceHierarchy.GetValueOnRenderThread() != 0, Configuration.bTwoPassOcclusion, SharedContext.ShaderMap, SceneInstanceCullingQuery);

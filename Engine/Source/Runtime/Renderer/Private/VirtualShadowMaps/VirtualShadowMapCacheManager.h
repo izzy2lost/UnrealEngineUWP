@@ -12,6 +12,7 @@
 class FRHIGPUBufferReadback;
 class FGPUScene;
 class FVirtualShadowMapPerLightCacheEntry;
+class FInvalidatePagesParameters;
 
 namespace Nanite { struct FPackedViewParams; }
 
@@ -35,7 +36,8 @@ public:
 		FInt64Point PageSpaceLocation,
 		double LevelRadius,
 		double ViewCenterZ,
-		double ViewRadiusZ);
+		double ViewRadiusZ,
+		double WPODistanceDisabledThreshold);
 
 	void SetHZBViewParams(Nanite::FPackedViewParams& OutParams);
 
@@ -56,6 +58,7 @@ public:
 		FInt64Point PageSpaceLocation = FInt64Point(0, 0);
 		double ViewCenterZ = 0.0;
 		double ViewRadiusZ = 0.0;
+		double WPODistanceDisableThresholdSquared = 0.0;
 	};
 	FClipmapInfo Clipmap;
 };
@@ -129,7 +132,6 @@ public:
 	{
 		int32 InstanceSceneDataOffset;
 		int32 NumInstanceSceneDataEntries;
-		bool bInvalidateStaticPage;
 	};
 
 	TArray<FInstanceRange> PrimitiveInstancesToInvalidate;
@@ -218,6 +220,8 @@ public:
 	void FreePhysicalPool(FRDGBuilder& GraphBuilder);
 	TRefCountPtr<IPooledRenderTarget> GetPhysicalPagePool() const { return PhysicalPagePool; }
 	TRefCountPtr<FRDGPooledBuffer> GetPhysicalPageMetaData() const { return PhysicalPageMetaData; }
+	TRefCountPtr<FRDGPooledBuffer> GetCacheInstanceAsStatic() const { return CacheInstanceAsStatic; }
+	TRefCountPtr<FRDGPooledBuffer> GetLastInstanceInvalidatedFrame() const { return LastInstanceInvalidatedFrame; }
 
 	// Called by VirtualShadowMapArray to potentially resize the HZB physical pool
 	TRefCountPtr<IPooledRenderTarget> SetHZBPhysicalPoolSize(FRDGBuilder& GraphBuilder, FIntPoint RequestedSize, const EPixelFormat Format);
@@ -294,11 +298,6 @@ public:
 
 		void Finalize();
 
-		const TBitArray<SceneRenderingAllocator>& GetRemovedPrimitives() const
-		{
-			return RemovedPrimitives;
-		}
-
 		FInstanceGPULoadBalancer Instances;
 
 	private:
@@ -307,11 +306,12 @@ public:
 		FScene& Scene;
 		FGPUScene& GPUScene;
 		FVirtualShadowMapArrayCacheManager& Manager;
-
-		TBitArray<SceneRenderingAllocator> RemovedPrimitives;
 	};
 
-	void ProcessInvalidations(FRDGBuilder& GraphBuilder, FSceneUniformBuffer &SceneUniformBuffer, const FInvalidatingPrimitiveCollector& InvalidatingPrimitiveCollector);
+	void ProcessInvalidations(
+		FRDGBuilder& GraphBuilder,
+		FSceneUniformBuffer &SceneUniformBuffer,
+		const FInvalidatingPrimitiveCollector& InvalidatingPrimitiveCollector);
 
 	/**
 	 * Allow the cache manager to track scene changes, in particular track resizing of primitive tracking data.
@@ -322,9 +322,6 @@ public:
 	 * Handle light removal, need to clear out cache entries as the ID may be reused after this.
 	 */
 	void OnLightRemoved(int32 LightId);
-
-	const FVirtualShadowMapUniformParameters& GetPreviousUniformParameters() const { return PrevUniformParameters; }
-	TRDGUniformBufferRef<FVirtualShadowMapUniformParameters> GetPreviousUniformBuffer(FRDGBuilder& GraphBuilder) const;
 
 	uint64 GetGPUSizeBytes(bool bLogSizes) const;
 
@@ -352,23 +349,26 @@ private:
 	// Invalidate the cache for all shadows, causing any pages to be rerendered
 	void Invalidate(FRDGBuilder& GraphBuilder);
 
-	void ProcessInvalidations(FRDGBuilder& GraphBuilder, FSceneUniformBuffer &SceneUniformBuffer, const FInstanceGPULoadBalancer& Instances) const;
+	struct FInvalidationPassCommon
+	{
+		FVirtualShadowMapUniformParameters* UniformParameters;
+		TRDGUniformBufferRef<FVirtualShadowMapUniformParameters> VirtualShadowMapUniformBuffer;
+		TRDGUniformBufferRef<FSceneUniformParameters> SceneUniformBuffer;
+	};
 
+	FInvalidationPassCommon GetUniformParametersForInvalidation(FRDGBuilder& GraphBuilder, FSceneUniformBuffer &SceneUniformBuffer) const;
+
+	void SetInvalidateInstancePagesParameters(
+		FRDGBuilder& GraphBuilder,
+		const FInvalidationPassCommon& InvalidationPassCommon,
+		FInvalidatePagesParameters* PassParameters) const;
+
+	// Invalidate instances based on CPU instance ranges. This is used for CPU-based updates like object transform changes, etc.
+	void ProcessInvalidations(FRDGBuilder& GraphBuilder, const FInvalidationPassCommon& InvalidationPassCommon, const FInstanceGPULoadBalancer& Instances) const;
+		// Invalidate instances based on a GPU instance list. This is currently used for static<->dynamic cache mode transitions only.
+	void ProcessInvalidations(FRDGBuilder& GraphBuilder, const FInvalidationPassCommon& InvalidationPassCommon, FRDGBufferRef InstanceInvalidationList, uint32 MaxInstanceInvalidations) const;
+	
 	void ExtractStats(FRDGBuilder& GraphBuilder, FVirtualShadowMapArray &VirtualShadowMapArray);
-
-	template<typename Allocator>
-	void UpdateRecentlyRemoved(const TBitArray<Allocator>& Removed)
-	{
-		// Combine into *both* flag arrays
-		RecentlyRemovedPrimitives[0].CombineWithBitwiseOR(Removed, EBitwiseOperatorFlags::MaxSize);
-		RecentlyRemovedPrimitives[1].CombineWithBitwiseOR(Removed, EBitwiseOperatorFlags::MaxSize);
-	}
-
-	bool WasRecentlyRemoved(FPersistentPrimitiveIndex PersistentPrimitiveIndex) const
-	{
-		return RecentlyRemovedPrimitives[RecentlyRemovedReadIndex].Num() > PersistentPrimitiveIndex.Index &&
-			RecentlyRemovedPrimitives[RecentlyRemovedReadIndex][PersistentPrimitiveIndex.Index];
-	}
 
 	// Remove old info used to track logging.
 	void TrimLoggingInfo();
@@ -384,25 +384,18 @@ private:
 	ETextureCreateFlags PhysicalPagePoolCreateFlags = TexCreate_None;
 	TRefCountPtr<FRDGPooledBuffer> PhysicalPageMetaData;
 	uint32 MaxPhysicalPages = 0;
+	// For now these only grow
+	TRefCountPtr<FRDGPooledBuffer> CacheInstanceAsStatic;
+	TRefCountPtr<FRDGPooledBuffer> LastInstanceInvalidatedFrame;
 
 	// Index the Cache entries by the light ID
 	FEntryMap CacheEntries;
-
-	// Tracks primitives (by persistent primitive index) that have been removed recently
-	// This allows us to ignore feedback from previous frames in the case of persistent primitive indices being
-	// reused after being removed. We mark bits in two bitfields, then zero out one of them and switch
-	// to the other each time we loop around the feedback buffers. This is somewhat overly conservative but
-	// relatively lightweight.
-	TBitArray<> RecentlyRemovedPrimitives[2];
-	int32 RecentlyRemovedReadIndex = 0;
-	int32 RecentlyRemovedFrameCounter = 0;
 
 	// Stores stats over frames when activated.
 	TRefCountPtr<FRDGPooledBuffer> AccumulatedStatsBuffer;
 	bool bAccumulatingStats = false;
 	FRHIGPUBufferReadback* GPUBufferReadback = nullptr;
 
-	FVirtualShadowMapFeedback StaticGPUInvalidationsFeedback;
 	GPUMessage::FSocket StatusFeedbackSocket;
 
 	// Current global resolution bias (when enabled) based on feedback from page pressure, etc.

@@ -1107,10 +1107,12 @@ void FProjectedShadowInfo::SetupClipmapProjection(FLightSceneInfo* InLightSceneI
 	MeshPassTargetType = EMeshPass::VSMShadowDepth;
 	MeshSelectionMask = EShadowMeshSelection::VSM;
 
-	const int32 ClipmapLevel = VirtualShadowMapClipmap->GetLevelCount() - 1;
-	FVirtualShadowMapProjectionShaderData Data = VirtualShadowMapClipmap->GetProjectionShaderData(ClipmapLevel);
-	PreShadowTranslation = VirtualShadowMapClipmap->GetPreViewTranslation(ClipmapLevel);
-	const FMatrix CasterMatrix = FMatrix(Data.TranslatedWorldToShadowViewMatrix * Data.ShadowViewToClipMatrix);
+	const int32 ClipmapIndex = VirtualShadowMapClipmap->GetLevelCount() - 1;
+	const FMatrix WorldToLightViewRotationMatrix = VirtualShadowMapClipmap->GetWorldToLightViewRotationMatrix();
+	const FMatrix ViewToClipMatrix = VirtualShadowMapClipmap->GetViewToClipMatrix(ClipmapIndex);
+		
+	PreShadowTranslation = VirtualShadowMapClipmap->GetPreViewTranslation(ClipmapIndex);
+	const FMatrix CasterMatrix = WorldToLightViewRotationMatrix * ViewToClipMatrix;
 	GetViewFrustumBounds(CasterOuterFrustum, CasterMatrix, true);
 	ReceiverInnerFrustum = CasterOuterFrustum;
 
@@ -1130,9 +1132,9 @@ void FProjectedShadowInfo::SetupClipmapProjection(FLightSceneInfo* InLightSceneI
 	// Um... it's checked in IsWholeSceneDirectionalShadow()
 	CascadeSettings.ShadowSplitIndex = 1000;
 
-	ViewToClipInner = FMatrix(Data.ShadowViewToClipMatrix);
-	ViewToClipOuter = FMatrix(Data.ShadowViewToClipMatrix);
-	TranslatedWorldToView = FMatrix(Data.TranslatedWorldToShadowViewMatrix);
+	ViewToClipInner = ViewToClipMatrix;
+	ViewToClipOuter = ViewToClipMatrix;
+	TranslatedWorldToView = WorldToLightViewRotationMatrix;
 	TranslatedWorldToClipInnerMatrix = FMatrix44f(TranslatedWorldToView * ViewToClipInner);
 	TranslatedWorldToClipOuterMatrix = FMatrix44f(TranslatedWorldToView * ViewToClipOuter);
 }

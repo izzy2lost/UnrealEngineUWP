@@ -405,13 +405,12 @@ void GeneratePageFlagsFromPixels(
 		for (uint Index = 0; Index < NumDirectionalLightSmInds; ++Index)
 		{
 			int VirtualShadowMapId = DirectionalLightIds[Index];
-			FVirtualShadowMapProjectionShaderData BaseProjectionData = GetVirtualShadowMapProjectionData(VirtualShadowMapId);
+			FVirtualShadowMapProjectionShaderData ProjectionData = GetVirtualShadowMapProjectionData(VirtualShadowMapId);
 
 			bool bBackfaceCulledGBuffer = false;
 			#if PERMUTATION_INPUT_TYPE != INPUT_TYPE_HAIRSTRANDS
 			// Backface test if requested
-			float3 LightDirection = normalize(-BaseProjectionData.TranslatedWorldToShadowViewMatrix._13_23_33);
-			if (bBackfaceCull && IsBackfaceToDirectionalLight(WorldNormal, LightDirection, BaseProjectionData.LightSourceRadius))
+			if (bBackfaceCull && IsBackfaceToDirectionalLight(WorldNormal, ProjectionData.LightDirection, ProjectionData.LightSourceRadius))
 			{
 				bBackfaceCulledGBuffer = true;
 			}
@@ -419,13 +418,13 @@ void GeneratePageFlagsFromPixels(
 
 			if (!bBackfaceCulledGBuffer)
 			{
-				MarkPageClipmap(BaseProjectionData, bUsePageDilation, PageDilationOffset, Primary.WorldPosition, Primary.TranslatedWorldPosition);
+				MarkPageClipmap(ProjectionData, bUsePageDilation, PageDilationOffset, Primary.WorldPosition, Primary.TranslatedWorldPosition);
 			}
 			
 			#if PERMUTATION_WATER_DEPTH
 			if (bIsWaterDepthValid)
 			{
-				MarkPageClipmap(BaseProjectionData, bUsePageDilation, PageDilationOffset, Water.WorldPosition, Water.TranslatedWorldPosition);
+				MarkPageClipmap(ProjectionData, bUsePageDilation, PageDilationOffset, Water.WorldPosition, Water.TranslatedWorldPosition);
 			}
 			#endif // PERMUTATION_INPUT_TYPE == INPUT_TYPE_GBUFFER_AND_WATER_DEPTH
 
@@ -433,7 +432,7 @@ void GeneratePageFlagsFromPixels(
 			#if PERMUTATION_TRANSLUCENCY_DEPTH
 			if (bIsTranslucencyDepthValid)
 			{
-				MarkPageClipmap(BaseProjectionData, bUsePageDilation, PageDilationOffset, Translucency.WorldPosition, Translucency.TranslatedWorldPosition);
+				MarkPageClipmap(ProjectionData, bUsePageDilation, PageDilationOffset, Translucency.WorldPosition, Translucency.TranslatedWorldPosition);
 			}
 			#endif
 		}

@@ -1,0 +1,43 @@
+// Copyright Epic Games, Inc. All Rights Reserved.
+
+#include "../Common.ush"
+#include "../SceneData.ush"
+#include "VirtualShadowMapPageCacheCommon.ush"
+#include "VirtualShadowMapCacheInvalidation.ush"
+#include "../WaveOpUtil.ush"
+#include "../InstanceCulling/InstanceCullingLoadBalancer.ush"
+
+[numthreads(CS_1D_GROUP_SIZE_X, 1, 1)]
+void InvalidateInstancePagesLoadBalancerCS(
+	uint3 GroupId : SV_GroupID,
+	uint GroupThreadIndex : SV_GroupIndex,
+	uint3 DispatchThreadId : SV_DispatchThreadID)
+{
+	FInstanceWorkSetup WorkSetup = InstanceCullingLoadBalancer_Setup(GroupId, GroupThreadIndex, 0U, true);
+	if (!WorkSetup.bValid)
+	{
+		return;
+	}
+	const uint InstanceId = WorkSetup.Item.InstanceDataOffset + uint(WorkSetup.LocalItemIndex);
+	const uint ShadowMapIndex = WorkSetup.GroupIndexPerBatch;
+
+	if (!IsValidInstanceAndCastShadows(InstanceId))
+	{
+		return;
+	}
+
+	checkSlow(ShadowMapIndex < VirtualShadowMap.NumFullShadowMaps);
+	const int VirtualShadowMapId = VSM_MAX_SINGLE_PAGE_SHADOW_MAPS + ShadowMapIndex;
+
+	if (ShadowMapIndex == 0)
+	{
+		// Mark the instance as having caused an invalidation for future consideration of dynamic/static caching
+		// We want to do this even if it doesn't invalidate any pages this frame, as this is an indicator of an
+		// instance that is "doing things that may cause invalidations", and thus we want it in the dynamic pool.
+		VirtualShadowMapMarkInstanceAsInvalidated(InstanceId);
+
+		// TODO: If we want to change static->dynamic, we should probably just swap it right here
+	}
+
+	InvalidateInstancePages(VirtualShadowMapId, InstanceId, false);
+}

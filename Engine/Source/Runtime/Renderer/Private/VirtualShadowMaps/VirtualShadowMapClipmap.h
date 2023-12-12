@@ -54,6 +54,16 @@ public:
 		return -LevelData[ClipmapIndex].WorldCenter;
 	}
 
+	FMatrix GetViewToClipMatrix(int32 ClipmapIndex) const
+	{
+		return LevelData[ClipmapIndex].ViewToClip;
+	}
+
+	FMatrix GetWorldToLightViewRotationMatrix() const
+	{
+		return WorldToLightViewRotationMatrix;
+	}
+
 	const FLightSceneInfo& GetLightSceneInfo() const
 	{
 		return LightSceneInfo;
@@ -115,6 +125,8 @@ private:
 	* */
 	FVector WorldOrigin;
 
+	FVector LightDirection;
+
 	/** Directional light rotation matrix (no translation) */
 	FMatrix WorldToLightViewRotationMatrix;
 
@@ -130,6 +142,7 @@ private:
 		FInt64Point CornerOffset;
 		//Offset from LastLevel-snapped WorldCenter to clipmap corner, in level radii
 		FIntPoint RelativeCornerOffset;
+		double WPODistanceDisableThresholdSquared;
 	};
 	TArray< FLevelData, TInlineAllocator<32> > LevelData;
 

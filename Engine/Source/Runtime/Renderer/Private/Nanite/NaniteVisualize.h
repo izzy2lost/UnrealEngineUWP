@@ -18,7 +18,8 @@ void AddVisualizationPasses(
 	const FEngineShowFlags& EngineShowFlags,
 	TArrayView<const FViewInfo> Views,
 	TArrayView<Nanite::FRasterResults> Results,
-	FNanitePickingFeedback& PickingFeedback
+	FNanitePickingFeedback& PickingFeedback,
+	FVirtualShadowMapArray&	VirtualShadowMapArray
 );
 
 void DisplayPicking(

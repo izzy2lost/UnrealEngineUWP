@@ -18,6 +18,14 @@ float CalcAbsoluteClipmapLevel(FVirtualShadowMapProjectionShaderData BaseProject
 	return log2(DistanceToClipmapOrigin);
 }
 
+// Optionally apply the resolution bias (rather than greedy sampling highest res data) depending on the global setting
+float CalcBiasedAbsoluteClipmapLevelForSampling(FVirtualShadowMapProjectionShaderData BaseProjectionData, FLWCVector3 WorldPosition)
+{
+	float AbsoluteLevel = CalcAbsoluteClipmapLevel(BaseProjectionData, WorldPosition);
+	AbsoluteLevel += VirtualShadowMap.bClipmapGreedyLevelSelection ? 0.0f : BaseProjectionData.ResolutionLodBias;
+	return AbsoluteLevel;
+}
+
 // Calculate the projected pixel footprint onto a local light, scaled in shadow map texels
 // ShadowTranslatedWorldPosition should already be translated by both the primary view and shadow ProjectionData.PreViewTranslation
 float VirtualShadowMapCalcPixelFootprintLocal(
@@ -354,7 +362,7 @@ FVirtualShadowMapSampleResult SampleVirtualShadowMapDirectional(
 	FVirtualShadowMapProjectionShaderData BaseProjectionData = GetVirtualShadowMapProjectionData(VirtualShadowMapId);
 	checkSlow(BaseProjectionData.LightType == LIGHT_TYPE_DIRECTIONAL);
 	
-	const int ClipmapLevel = int(floor(CalcAbsoluteClipmapLevel(BaseProjectionData, WorldPosition)));
+	const int ClipmapLevel = int(floor(CalcBiasedAbsoluteClipmapLevelForSampling(BaseProjectionData, WorldPosition)));
 	int ClipmapIndex = max(0, ClipmapLevel - BaseProjectionData.ClipmapLevel);
 
 	// Check if sample is within the clipmap range (from camera)

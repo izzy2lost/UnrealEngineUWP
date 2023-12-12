@@ -43,7 +43,7 @@ int GetMappedClipmapId(int VirtualShadowMapId, FLWCVector3 RayOriginWorld)
 {
 	// This is the (unbiased) most detailed clipmap level that we are guaranteed to have a page table entry for
 	const FVirtualShadowMapProjectionShaderData BaseProjectionData = GetVirtualShadowMapProjectionData(VirtualShadowMapId);		
-	float ClipmapLevelFloat = CalcAbsoluteClipmapLevel(BaseProjectionData, RayOriginWorld);
+	float ClipmapLevelFloat = CalcBiasedAbsoluteClipmapLevelForSampling(BaseProjectionData, RayOriginWorld);
 	int ClipmapIndex = max(0, int(floor(ClipmapLevelFloat)) - BaseProjectionData.ClipmapLevel);
 
 	// Clipmap origin should be near shaded samples, so shadow translated world should be regular range

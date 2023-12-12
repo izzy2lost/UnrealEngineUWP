@@ -2520,7 +2520,8 @@ void FDeferredShadingSceneRenderer::Render(FRDGBuilder& GraphBuilder)
 						ViewFamily.EngineShowFlags,
 						Views,
 						NaniteRasterResults,
-						PickingFeedback
+						PickingFeedback,
+						VirtualShadowMapArray
 					);
 
 					OnGetOnScreenMessages.AddLambda([this, PickingFeedback, RenderFlags = NaniteRasterResults[0].RenderFlags, ScenePtr = Scene](FScreenMessageWriter& ScreenMessageWriter)->void

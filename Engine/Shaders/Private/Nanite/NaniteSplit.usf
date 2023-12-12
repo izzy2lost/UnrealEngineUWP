@@ -187,8 +187,9 @@ uint FSplitTask::Run()
 	Cull.GlobalClipPlane();
 
 #if VIRTUAL_TEXTURE_TARGET
+	const bool bCacheAsStatic = (VisibleCluster.Flags & NANITE_CULLING_FLAG_CACHE_AS_STATIC) != 0u;
 	const bool bHasMoved = InstanceDynamicData.bHasMoved || bWPOEnabled;
-	Cull.PageFlagMask = GetPageFlagMaskForRendering(InstanceData, NaniteView, bHasMoved);
+	Cull.PageFlagMask = GetPageFlagMaskForRendering(bCacheAsStatic, bHasMoved);
 #endif
 
 	Cull.FrustumHZB( true );

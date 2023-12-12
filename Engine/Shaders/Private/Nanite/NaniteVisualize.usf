@@ -6,7 +6,7 @@
 #include "../DeferredShadingCommon.ush"
 #include "../ColorMap.ush"
 #include "../Visualization.ush"
-#include "../VirtualShadowMaps/VirtualShadowMapStaticCaching.ush"
+#include "../VirtualShadowMaps/VirtualShadowMapPageCacheCommon.ush"
 #include "../SplineMeshCommon.ush"
 
 #include "NaniteDataDecode.ush"
@@ -450,7 +450,16 @@ void VisualizeCS(uint3 DTID : SV_DispatchThreadID, uint3 GID : SV_GroupID)
 		}
 		else if (VisualizeMode == NANITE_VISUALIZE_VSM_STATIC_CACHING)
 		{
-			Result = ShouldCacheInstanceAsStatic(InstanceData, false) ? float3(1, 1, 0) : float3(0.5, 0.5, 0.5);
+			// TODO: We need to figure out a way to try and better visualize shadow clipmap WPO distances
+			bool bAllowWPO = VirtualShadowMapIsWPOAllowed(PrimitiveData, -1);
+			if (ShouldCacheInstanceAsStatic(VisibleCluster.InstanceId, false, bAllowWPO))
+			{
+				Result = float3(1, 0, 0);	
+			}
+			else
+			{
+				Result = float3(0, 0, 1);
+			}
 		}
 		else if (VisualizeMode == NANITE_VISUALIZE_PICKING)
 		{

@@ -83,36 +83,37 @@ private:
 // as well as cached shadow maps
 struct FVirtualShadowMapProjectionShaderData
 {
-	/**
-	 * Transform from shadow-pre-translated world space to shadow view space, example use: (WorldSpacePos + ShadowPreViewTranslation) * TranslatedWorldToShadowViewMatrix
-	 * TODO: Why don't we call it a rotation and store in a 3x3? Does it ever have translation in?
-	 */
-	FMatrix44f TranslatedWorldToShadowViewMatrix;
 	FMatrix44f ShadowViewToClipMatrix;
 	FMatrix44f TranslatedWorldToShadowUVMatrix;
 	FMatrix44f TranslatedWorldToShadowUVNormalMatrix;
 
-	FVector3f PreViewTranslationLWCTile;
+	FVector3f LightDirection;
 	uint32 LightType = ELightComponentType::LightType_Directional;
+
+	FVector3f PreViewTranslationLWCTile;
+	float LightRadius;
+	
 	FVector3f PreViewTranslationLWCOffset;
-	float LightSourceRadius;						// This should live in shared light structure...
+	// Slightly different meaning for clipmaps (includes camera pixel size scaling stuff) and local lights (raw bias)
+	float ResolutionLodBias = 0.0f;
 	
 	// TODO: There are more local lights than directional
 	// We should move the directional-specific stuff out to its own structure.
 	FVector3f NegativeClipmapWorldOriginLWCOffset;	// Shares the LWCTile with PreViewTranslation
-	// Slightly different meaning for clipmaps (includes camera pixel size scaling stuff) and local lights (raw bias)
-	float ResolutionLodBias = 0.0f;
+	float LightSourceRadius;
 
 	FIntPoint ClipmapCornerRelativeOffset = FIntPoint(0, 0);
-	int32 ClipmapLevel = 0;					// "Absolute" level, can be negative
-	int32 ClipmapLevelCountRemaining = 0;	// Remaining levels, relative to this one
+	int32 ClipmapLevel = MAX_int32;			// "Absolute" level, can be negative. Max_int32 if not a clipmap.
+	int32 ClipmapLevelCountRemaining = -1;	// Remaining levels, relative to this one. Negative if not a clipmap.
 
 	uint32 Flags = 0U;
-	float LightRadius;
+	// This clipmap level should allow WPO if this value is less than InstanceWPODisableDistanceSquared
+	float ClipmapLevelWPODistanceDisableThresholdSquared = 0.0f;
+
 	// Seems the FMatrix forces 16-byte alignment
 	float Padding[2];
 };
-static_assert((sizeof(FVirtualShadowMapProjectionShaderData) % 16) == 0, "FVirtualShadowMapProjectionShaderData size should be a multiple of 16-bytes for alignment.");
+static_assert(sizeof(FVirtualShadowMapProjectionShaderData) == (16*18), "FVirtualShadowMapProjectionShaderData does not match size in shader. See VirtualShadowMapProjectionStructs.ush.");
 
 struct FVirtualShadowMapHZBMetadata
 {
@@ -145,6 +146,7 @@ BEGIN_GLOBAL_SHADER_PARAMETER_STRUCT(FVirtualShadowMapUniformParameters, )
 	// For shadow page age calculations
 	SHADER_PARAMETER(uint32, SceneFrameNumber)
 
+	SHADER_PARAMETER(uint32, bClipmapGreedyLevelSelection)
 	SHADER_PARAMETER(float, GlobalResolutionLodBias)
 
 	SHADER_PARAMETER_RDG_BUFFER_SRV(ByteAddressBuffer, ProjectionData)
@@ -152,6 +154,8 @@ BEGIN_GLOBAL_SHADER_PARAMETER_STRUCT(FVirtualShadowMapUniformParameters, )
 	SHADER_PARAMETER_RDG_BUFFER_SRV(StructuredBuffer<uint>, PageFlags)
 	SHADER_PARAMETER_RDG_BUFFER_SRV(StructuredBuffer<uint4>, PageRectBounds)
 	SHADER_PARAMETER_RDG_TEXTURE(Texture2DArray<uint>, PhysicalPagePool)
+
+	SHADER_PARAMETER_RDG_BUFFER_SRV(StructuredBuffer<uint>, CacheInstanceAsStatic)
 
 	// Light grid with only the lights that have VSMs present
 	// Still references the original indices from the global light grid
@@ -352,6 +356,11 @@ public:
 	 */
 	static float InterpolateResolutionBias(float BiasNonMoving, float BiasMoving, float LightMobilityFactor);
 
+	/**
+	* Helper function to create and clear an indirect args buffer
+	*/
+	static FRDGBufferRef CreateAndInitializeDispatchIndirectArgs1D(FRDGBuilder& GraphBuilder, ERHIFeatureLevel::Type FeatureLevel, const TCHAR* Name);
+
 	// We keep a reference to the cache manager that was used to initialize this frame as it owns some of the buffers
 	FVirtualShadowMapArrayCacheManager* CacheManager = nullptr;
 
@@ -364,6 +373,9 @@ public:
 	TRefCountPtr<IPooledRenderTarget> HZBPhysical = nullptr;
 	FRDGTextureRef HZBPhysicalRDG = nullptr;
 	FRDGBufferRef PhysicalPageMetaDataRDG = nullptr;
+
+	FRDGBufferRef CacheInstanceAsStaticRDG = nullptr;
+	FRDGBufferRef LastInstanceInvalidatedFrameRDG = nullptr;
 
 	// Buffer that serves as the page table for all virtual shadow maps
 	FRDGBufferRef PageTableRDG = nullptr;
@@ -387,8 +399,6 @@ public:
 
 	FRDGBufferRef DirtyPageFlagsRDG = nullptr; // Dirty flags that are cleared after render passes
 	bool bHZBBuiltThisFrame = false;
-
-	FRDGBufferRef StaticInvalidatingPrimitivesRDG = nullptr;
 
 	// See Engine\Shaders\Private\VirtualShadowMaps\VirtualShadowMapStats.ush for definitions of the different stat indexes
 	static constexpr uint32 NumStats = 32;

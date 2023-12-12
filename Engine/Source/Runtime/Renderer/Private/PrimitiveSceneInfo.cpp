@@ -2358,14 +2358,6 @@ FString FPrimitiveSceneInfo::GetOwnerActorNameOrLabelForDebuggingOnly() const
 	
 	return FString(TEXT("Unknown Object"));
 }
-void FPrimitiveSceneInfo::SetCacheShadowAsStatic(bool bStatic)
-{
-	if (bCacheShadowAsStatic != bStatic)
-	{
-		bCacheShadowAsStatic = bStatic;
-		RequestGPUSceneUpdate(EPrimitiveDirtyState::ChangedOther);
-	}
-}
 
 const UPrimitiveComponent* FPrimitiveSceneInfo::GetComponentForDebugOnly() const 
 { 

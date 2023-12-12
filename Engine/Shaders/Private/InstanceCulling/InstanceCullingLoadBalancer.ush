@@ -34,6 +34,7 @@ StructuredBuffer<FPackedInstanceBatch> BatchBuffer;
 StructuredBuffer<FPackedInstanceBatchItem> ItemBuffer;
 uint NumBatches;
 uint NumItems;
+uint NumGroupsPerBatch;
 
 
 struct FInstanceBatch
@@ -155,14 +156,23 @@ struct FInstanceWorkSetup
 	// Work out who I am in expansion of  the item in range [0,WorkItem.Count], may be negative when no work at end of batch
 	int LocalItemIndex;
 	uint WorkItemIndex;
+	uint GroupIndexPerBatch;		// 0..NumGroupsPerBatch if multiple groups per batch are requested
 };
 
 
-FInstanceWorkSetup InstanceCullingLoadBalancer_Setup(uint3 GroupId, uint GroupThreadIndex, uint ItemDataOffset)
+// Set bSupportMultipleBatches to true if this kernel is dispatched with more than 1 group per batch.
+FInstanceWorkSetup InstanceCullingLoadBalancer_Setup(uint3 GroupId, uint GroupThreadIndex, uint ItemDataOffset, bool bSupportMultipleBatches = false)
 {
 	FInstanceWorkSetup  Setup = (FInstanceWorkSetup)0;
 
 	uint BatchIndex = GetUnWrappedDispatchGroupId(GroupId);
+	// Interleave multiple groups per batch if multiple groups per batch are requested
+	if (bSupportMultipleBatches)
+	{
+		Setup.GroupIndexPerBatch = BatchIndex % NumGroupsPerBatch;
+		BatchIndex = BatchIndex / NumGroupsPerBatch;
+	}
+
 	if (BatchIndex >= NumBatches)
 	{
 		return Setup;

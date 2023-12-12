@@ -1012,6 +1012,7 @@ void FInstanceCullingDeferredContext::ProcessBatched(TStaticArray<FBuildInstance
 		PassParameters[Mode]->NumViewIds = ViewIds.Num();
 		PassParameters[Mode]->LoadBalancerParameters.NumBatches = LoadBalancers[Mode].GetBatches().Num();
 		PassParameters[Mode]->LoadBalancerParameters.NumItems = LoadBalancers[Mode].GetItems().Num();
+		PassParameters[Mode]->LoadBalancerParameters.NumGroupsPerBatch = 1;
 
 		const bool bOcclusionCullInstances = PrevHZB != nullptr && FInstanceCullingContext::IsOcclusionCullingEnabled();
 		if (bOcclusionCullInstances)
@@ -1225,6 +1226,7 @@ FInstanceCullingDeferredContext *FInstanceCullingContext::CreateDeferredContext(
 
 		PassParameters[Mode]->LoadBalancerParameters.BatchBuffer = GraphBuilder.CreateSRV(BatchBuffer);
 		PassParameters[Mode]->LoadBalancerParameters.ItemBuffer = GraphBuilder.CreateSRV(ItemBuffer);
+		PassParameters[Mode]->LoadBalancerParameters.NumGroupsPerBatch = 1;
 		PassParameters[Mode]->CurrentBatchProcessingMode = Mode;
 
 		const bool bOcclusionCullInstances = FInstanceCullingContext::IsOcclusionCullingEnabled();

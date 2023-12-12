@@ -801,10 +801,10 @@ FNaniteView GetNaniteView( uint ViewIndex )
 	NaniteView.StreamingPriorityCategory	= 3;
 	NaniteView.Flags						= NANITE_VIEW_FLAG_HZBTEST | NANITE_VIEW_FLAG_NEAR_CLIP;
 	
-	NaniteView.TargetLayerIndex = 0;
+	NaniteView.TargetLayerIndex = -1;		// INDEX_NONE
 	NaniteView.TargetMipLevel = 0;
 	NaniteView.TargetNumMipLevels = 0;
-	NaniteView.TargetPrevLayerIndex	= 0;
+	NaniteView.TargetPrevLayerIndex	= -1;	// INDEX_NONE
 	NaniteView.RangeBasedCullingDistance = 0.0f;
 
 	NaniteView.HZBTestViewRect				= NaniteView.ViewRect;

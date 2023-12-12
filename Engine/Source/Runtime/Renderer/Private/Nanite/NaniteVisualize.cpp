@@ -165,6 +165,7 @@ class FNaniteVisualizeCS : public FNaniteGlobalShader
 		SHADER_PARAMETER(FIntPoint, PickingPixelPos)
 		SHADER_PARAMETER_STRUCT_INCLUDE(FViewShaderParameters, View)
 		SHADER_PARAMETER_RDG_UNIFORM_BUFFER(FSceneUniformParameters, Scene)
+		SHADER_PARAMETER_RDG_UNIFORM_BUFFER(FVirtualShadowMapUniformParameters, VirtualShadowMap)
 		SHADER_PARAMETER_RDG_BUFFER_SRV(ByteAddressBuffer, ClusterPageData)
 		SHADER_PARAMETER_RDG_BUFFER_SRV(ByteAddressBuffer, VisibleClustersSWHW)
 		SHADER_PARAMETER_RDG_BUFFER_SRV(ByteAddressBuffer, ShadingBinData)
@@ -582,7 +583,8 @@ void AddVisualizationPasses(
 	const FEngineShowFlags& EngineShowFlags,
 	TArrayView<const FViewInfo> Views,
 	TArrayView<Nanite::FRasterResults> Results,
-	FNanitePickingFeedback& PickingFeedback
+	FNanitePickingFeedback& PickingFeedback,
+	FVirtualShadowMapArray&	VirtualShadowMapArray
 )
 {
 	checkSlow(DoesPlatformSupportNanite(GMaxRHIShaderPlatform));
@@ -760,6 +762,7 @@ void AddVisualizationPasses(
 
 						PassParameters->View = View.GetShaderParameters();
 						PassParameters->Scene = View.GetSceneUniforms().GetBuffer(GraphBuilder);
+						PassParameters->VirtualShadowMap = VirtualShadowMapArray.GetUniformBuffer();
 						PassParameters->ClusterPageData = Nanite::GStreamingManager.GetClusterPageDataSRV(GraphBuilder);
 						PassParameters->VisualizeConfig = GetVisualizeConfig(Visualization.ModeID, Visualization.bCompositeScene, GNaniteVisualizeEdgeDetect != 0);
 						PassParameters->VisualizeScales = GetVisualizeScales(Visualization.ModeID, ShadingExportCount);

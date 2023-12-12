@@ -214,7 +214,7 @@ struct FShadowPhysicalPage
 	bool bThisLODValid;		// Valid page mapped at this specific level (equivalent to bAnyMipValid && LODOffset == 0)
 };
 
-#define VSM_PHYSICAL_PAGE_ANY_MIP_VALID_FLAG 0x8000000
+#define VSM_PHYSICAL_PAGE_ANY_MIP_VALID_FLAG 0x80000000
 #define VSM_PHYSICAL_PAGE_INVALID 0x00000000
 
 uint ShadowEncodePageTable(uint2 PhysicalAddress)

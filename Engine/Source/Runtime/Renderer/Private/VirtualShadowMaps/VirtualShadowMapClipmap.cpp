@@ -75,6 +75,20 @@ TAutoConsoleVariable<int32> CVarVirtualShadowMapClipmapMinCameraViewportWidth(
 	ECVF_RenderThreadSafe
 );
 
+static TAutoConsoleVariable<int32> CVarClipmapWPODisableDistance(
+	TEXT("r.Shadow.Virtual.Clipmap.WPODisableDistance"),
+	1,
+	TEXT("When enabled, disables WPO animation in clipmap levels based on a primitive's WPO disable distance and r.Shadow.Virtual.Clipmap.WPODisableDistance.LodBias setting."),
+	ECVF_Scalability | ECVF_RenderThreadSafe
+);
+
+static TAutoConsoleVariable<int32> CVarClipmapWPODisableDistanceLodBias(
+	TEXT("r.Shadow.Virtual.Clipmap.WPODisableDistance.LodBias"),
+	3,
+	TEXT("0 to disable"),	// TODO
+	ECVF_Scalability | ECVF_RenderThreadSafe
+);
+
 // "Virtual" clipmap level to clipmap radius
 // NOTE: This is the radius of around the clipmap origin that this level must cover
 // The actual clipmap dimensions will be larger due to snapping and other accomodations
@@ -97,9 +111,8 @@ FVirtualShadowMapClipmap::FVirtualShadowMapClipmap(
 {
 	FVirtualShadowMapArrayCacheManager* VirtualShadowMapArrayCacheManager = VirtualShadowMapArray.CacheManager;
 
-	// This math can obviously be simplified/optimized but not a big deal right now
-	const FVector LightDirection = LightSceneInfo.Proxy->GetDirection();
-	const FMatrix WorldToLightRotationMatrix = FInverseRotationMatrix(LightDirection.GetSafeNormal().Rotation());
+	LightDirection = LightSceneInfo.Proxy->GetDirection().GetSafeNormal();
+	const FMatrix WorldToLightRotationMatrix = FInverseRotationMatrix(LightDirection.Rotation());
 
 	const FMatrix FaceMatrix(
 		FPlane( 0, 0, 1, 0 ),
@@ -172,7 +185,7 @@ FVirtualShadowMapClipmap::FVirtualShadowMapClipmap(
 		FLevelData& Level = LevelData[Index];
 		const int32 AbsoluteLevel = Index + FirstLevel;		// Absolute (virtual) level index
 
-		const float RawLevelRadius = GetLevelRadius(AbsoluteLevel);
+		const double RawLevelRadius = GetLevelRadius(AbsoluteLevel);
 
 		double HalfLevelDim = 2.0 * RawLevelRadius;
 		double SnapSize = RawLevelRadius;
@@ -215,6 +228,29 @@ FVirtualShadowMapClipmap::FVirtualShadowMapClipmap(
 		check((FVirtualShadowMap::Level0DimPagesXY & 1) == 0);
 		FInt64Point PageOffset(CornerOffset * (FVirtualShadowMap::Level0DimPagesXY >> 2));
 
+		// This is the "WPO distance disable" threshold at which we allow WPO animation into this clipmap
+		// See VirtualShadowMapIsWPOAllowed in VirtualShadowMappageCacheCommon.ush
+		// NOTE: We use the ResolutionLodBias here because it is desirable for the shadow WPO distance to not
+		// vary a ton at different scalability settings. In particular, we do not want it to get *closer* to the
+		// caster at higher quality settings, as it otherwise would.
+		// We cannot however easily incorportate the *global* GPU resolution bias as this
+		// decision needs to be constant, otherwise we'd have to track all these variables for invalidations.
+		// As it is, if these variables change we can do full cache invalidation as they are not expected to be
+		// changing on the fly in a game.
+		// We quantize the result to a powers of two (similar to the clipmaps) to avoid continuous invalidation in
+		// cases like window resizes and similar.
+		if (CVarClipmapWPODisableDistance.GetValueOnRenderThread() > 0)
+		{
+			const int32 WPODisableDistanceLodBias = CVarClipmapWPODisableDistanceLodBias.GetValueOnRenderThread();
+			double WPOThresholdCombinedLevel = FMath::CeilToDouble(static_cast<double>(AbsoluteLevel - WPODisableDistanceLodBias) - ResolutionLodBias);
+			// NOTE: Squared
+			Level.WPODistanceDisableThresholdSquared = FMath::Pow(2.0, 2.0 * WPOThresholdCombinedLevel);
+		}
+		else
+		{
+			Level.WPODistanceDisableThresholdSquared = 0.0;
+		}
+
 		ClipmapLevelEntry->UpdateClipmapLevel(
 			VirtualShadowMapArray,
 			*PerLightCacheEntry,
@@ -222,7 +258,8 @@ FVirtualShadowMapClipmap::FVirtualShadowMapClipmap(
 			PageOffset,
 			RawLevelRadius,
 			ViewCenter.Z,
-			ViewRadiusZ);
+			ViewRadiusZ,
+			Level.WPODistanceDisableThresholdSquared);
 
 		// Update min/max Z based on the cached page (if present and valid)
 		// We need to ensure we use a consistent depth range as the camera moves for each level
@@ -302,7 +339,7 @@ FVirtualShadowMapProjectionShaderData FVirtualShadowMapClipmap::ComputeProjectio
 
 	// NOTE: Some shader logic (projection, etc) assumes some of these parameters are constant across all levels in a clipmap
 	FVirtualShadowMapProjectionShaderData Data;
-	Data.TranslatedWorldToShadowViewMatrix = FMatrix44f(WorldToLightViewRotationMatrix);
+	Data.LightDirection = FVector3f(-LightDirection);		// Negative to be consistent with FLightShaderParameters/GetDeferredLightParameters
 	Data.ShadowViewToClipMatrix = FMatrix44f(Level.ViewToClip);
 	Data.TranslatedWorldToShadowUVMatrix = FMatrix44f(CalcTranslatedWorldToShadowUVMatrix(WorldToLightViewRotationMatrix, Level.ViewToClip));
 	Data.TranslatedWorldToShadowUVNormalMatrix = FMatrix44f(CalcTranslatedWorldToShadowUVNormalMatrix(WorldToLightViewRotationMatrix, Level.ViewToClip));
@@ -314,6 +351,7 @@ FVirtualShadowMapProjectionShaderData FVirtualShadowMapClipmap::ComputeProjectio
 	Data.ClipmapLevelCountRemaining = LevelData.Num() - ClipmapIndex;
 	Data.ResolutionLodBias = ResolutionLodBias;
 	Data.ClipmapCornerRelativeOffset = Level.RelativeCornerOffset;
+	Data.ClipmapLevelWPODistanceDisableThresholdSquared = static_cast<float>(Level.WPODistanceDisableThresholdSquared);
 	Data.LightSourceRadius = GetLightSceneInfo().Proxy->GetSourceRadius();
 	Data.Flags = PerLightCacheEntry->IsUncached() ? VSM_PROJ_FLAG_UNCACHED : 0U;
 

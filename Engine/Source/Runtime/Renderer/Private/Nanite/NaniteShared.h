@@ -146,7 +146,7 @@ struct FPackedViewParams
 	float ViewLODDistanceFactor = 1.0f;
 	uint32 Flags = NANITE_VIEW_FLAG_NEAR_CLIP;
 
-	int32 TargetLayerIndex = 0;
+	int32 TargetLayerIndex = INDEX_NONE;
 	int32 PrevTargetLayerIndex = INDEX_NONE;
 	int32 TargetMipLevel = 0;
 	int32 TargetMipCount = 1;
