@@ -1,6 +1,7 @@
 // Copyright Epic Games, Inc. All Rights Reserved.
 
 #include "ConcertClientTransactionBridge.h"
+#include "ConcertClientObjectFactory.h"
 #include "ConcertLogGlobal.h"
 #include "ConcertSyncSettings.h"
 #include "ConcertSyncClientUtil.h"
@@ -343,6 +344,7 @@ void ProcessTransactionEvent(const FConcertTransactionEventBase& InEvent, const 
 	TArray<ConcertSyncClientUtil::FGetObjectResult, TInlineAllocator<32>> TransactionObjects;
 	{
 		TSet<const UObject*> NewlyCreatedObjects;
+		TSortedMap<const UConcertClientObjectFactory*, TArray<UObject*>> ObjectsPendingInitialization;
 
 		// Find or create each object in parent->child order
 		TransactionObjects.AddDefaulted(SortedExportedObjects.Num());
@@ -370,6 +372,12 @@ void ProcessTransactionEvent(const FConcertTransactionEventBase& InEvent, const 
 			{
 				if (TransactionObjectRef.NewlyCreated())
 				{
+					// If this object was created from a factory, then it may need further initialization once every object has been created
+					if (TransactionObjectRef.Factory)
+					{
+						ObjectsPendingInitialization.FindOrAdd(TransactionObjectRef.Factory).Add(TransactionObjectRef.Obj);
+					}
+
 					// If this is a new component then we need to apply its CreationMethod (if present) early, as it could affect the PreEdit behavior
 					if (UActorComponent* Component = Cast<UActorComponent>(TransactionObjectRef.Obj))
 					{
@@ -434,6 +442,12 @@ void ProcessTransactionEvent(const FConcertTransactionEventBase& InEvent, const 
 				}
 #endif
 			}
+		}
+
+		// Run any deferred object factory initialization
+		for (const TTuple<const UConcertClientObjectFactory*, TArray<UObject*>>& ObjectsPendingInitializationPair : ObjectsPendingInitialization)
+		{
+			ObjectsPendingInitializationPair.Key->InitializeObjects(ObjectsPendingInitializationPair.Value);
 		}
 	}
 

@@ -2,6 +2,7 @@
 
 #include "ConcertSyncClientUtil.h"
 #include "ConcertSyncArchives.h"
+#include "ConcertClientObjectFactory.h"
 #include "ConcertTransactionEvents.h"
 #include "ConcertLogGlobal.h"
 #include "ConcertSyncSettings.h"
@@ -124,26 +125,34 @@ void UpdatePendingKillState(UObject* InObj, const bool bIsPendingKill)
 
 	if (bIsPendingKill)
 	{
-		bool bMarkAsGarbage = true;
+		bool bDestructionHandled = false;
 
-		if (AActor* Actor = Cast<AActor>(InObj))
+		if (const UConcertClientObjectFactory* Factory = UConcertClientObjectFactory::FindFactoryForClass(InObj->GetClass()))
 		{
-			if (UWorld* ActorWorld = Actor->GetWorld())
+			bDestructionHandled = Factory->DestroyObject(InObj);
+		}
+
+		if (!bDestructionHandled)
+		{
+			if (AActor* Actor = Cast<AActor>(InObj))
 			{
+				if (UWorld* ActorWorld = Actor->GetWorld())
+				{
 #if WITH_EDITOR
-				if (GIsEditor)
-				{
-					bMarkAsGarbage = !ActorWorld->EditorDestroyActor(Actor, /*bShouldModifyLevel*/false);
-				}
-				else
+					if (GIsEditor)
+					{
+						bDestructionHandled = ActorWorld->EditorDestroyActor(Actor, /*bShouldModifyLevel*/false);
+					}
+					else
 #endif	// WITH_EDITOR
-				{
-					bMarkAsGarbage = !ActorWorld->DestroyActor(Actor, /*bNetForce*/false, /*bShouldModifyLevel*/false);
+					{
+						bDestructionHandled = ActorWorld->DestroyActor(Actor, /*bNetForce*/false, /*bShouldModifyLevel*/false);
+					}
 				}
 			}
 		}
 
-		if (bMarkAsGarbage)
+		if (!bDestructionHandled)
 		{
 			InObj->MarkAsGarbage();
 		}
@@ -347,59 +356,74 @@ FGetObjectResult GetObject(const FConcertObjectId& InObjectId, const FName InNew
 			if (bAllowCreate)
 			{
 				FGetObjectResult ObjectResult;
-				// Create the new object
-				if (ObjectClass->IsChildOf<AActor>())
-				{
-					// Actors should go through SpawnActor where possible
-					if (ULevel* OuterLevel = Cast<ULevel>(NewObjectOuter))
-					{
-						UWorld* OwnerWorld = OuterLevel->GetWorld();
-						if (!OwnerWorld)
-						{
-							OwnerWorld = OuterLevel->GetTypedOuter<UWorld>();
-						}
+				ObjectResult.Factory = UConcertClientObjectFactory::FindFactoryForClass(ObjectClass);
 
-						if (OwnerWorld)
+				// Create the new object
+				bool bFactoryHandledCreation = false;
+				if (ObjectResult.Factory)
+				{
+					bFactoryHandledCreation = ObjectResult.Factory->CreateObject(ObjectResult.Obj, NewObjectOuter, ObjectClass, *ObjectNameToCreate.ToString(), (EObjectFlags)InObjectId.ObjectPersistentFlags);
+				}
+				if (!bFactoryHandledCreation)
+				{
+					if (ObjectClass->IsChildOf<AActor>())
+					{
+						// Actors should go through SpawnActor where possible
+						if (ULevel* OuterLevel = Cast<ULevel>(NewObjectOuter))
 						{
-							UObject* ExistingObjectOfDifferentClass = StaticFindObjectFast(nullptr, OuterLevel, ObjectNameToCreate);
-							if (!ExistingObjectOfDifferentClass)
+							UWorld* OwnerWorld = OuterLevel->GetWorld();
+							if (!OwnerWorld)
 							{
-								FActorSpawnParameters SpawnParams;
-								SpawnParams.Name = ObjectNameToCreate;
-								SpawnParams.OverrideLevel = OuterLevel;
-								SpawnParams.SpawnCollisionHandlingOverride = ESpawnActorCollisionHandlingMethod::AlwaysSpawn;
-								SpawnParams.bNoFail = true;
-								SpawnParams.ObjectFlags = (EObjectFlags)InObjectId.ObjectPersistentFlags;
-								ObjectResult = FGetObjectResult(OwnerWorld->SpawnActor<AActor>(ObjectClass, FVector::ZeroVector, FRotator::ZeroRotator, SpawnParams), EGetObjectResultFlags::NewlyCreated);
+								OwnerWorld = OuterLevel->GetTypedOuter<UWorld>();
+							}
+
+							if (OwnerWorld)
+							{
+								UObject* ExistingObjectOfDifferentClass = StaticFindObjectFast(nullptr, OuterLevel, ObjectNameToCreate);
+								if (!ExistingObjectOfDifferentClass)
+								{
+									FActorSpawnParameters SpawnParams;
+									SpawnParams.Name = ObjectNameToCreate;
+									SpawnParams.OverrideLevel = OuterLevel;
+									SpawnParams.SpawnCollisionHandlingOverride = ESpawnActorCollisionHandlingMethod::AlwaysSpawn;
+									SpawnParams.bNoFail = true;
+									SpawnParams.ObjectFlags = (EObjectFlags)InObjectId.ObjectPersistentFlags;
+									ObjectResult.Obj = OwnerWorld->SpawnActor<AActor>(ObjectClass, FVector::ZeroVector, FRotator::ZeroRotator, SpawnParams);
+								}
+								else
+								{
+									UE_LOG(LogConcert, Warning, TEXT("Actor '%s' already exists! Expected class: '%s'"), *ExistingObjectOfDifferentClass->GetFullName(), *ObjectClass->GetPathName());
+									ensureMsgf(!ExistingObjectOfDifferentClass, TEXT("Actor '%s' already exists! Expected class: '%s'"), *ExistingObjectOfDifferentClass->GetFullName(), *ObjectClass->GetPathName());
+								}
 							}
 							else
 							{
-								UE_LOG(LogConcert, Warning, TEXT("Actor '%s' already exists! Expected class: '%s'"), *ExistingObjectOfDifferentClass->GetFullName(), *ObjectClass->GetPathName()); 
-								ensureMsgf(!ExistingObjectOfDifferentClass, TEXT("Actor '%s' already exists! Expected class: '%s'"), *ExistingObjectOfDifferentClass->GetFullName(), *ObjectClass->GetPathName());
+								UE_LOG(LogConcert, Warning, TEXT("Actor '%s' could not find an owner World! This is unexpected and the Actor will be created via NewObject rather than SpawnActor."), *ObjectNameToCreate.ToString());
 							}
 						}
 						else
 						{
-							UE_LOG(LogConcert, Warning, TEXT("Actor '%s' could not find an owner World! This is unexpected and the Actor will be created via NewObject rather than SpawnActor."), *ObjectNameToCreate.ToString());
+							UE_LOG(LogConcert, Warning, TEXT("Actor '%s' wasn't directly outered to a Level! This is unexpected and the Actor will be created via NewObject rather than SpawnActor."), *ObjectNameToCreate.ToString());
 						}
 					}
 					else
 					{
-						UE_LOG(LogConcert, Warning, TEXT("Actor '%s' wasn't directly outered to a Level! This is unexpected and the Actor will be created via NewObject rather than SpawnActor."), *ObjectNameToCreate.ToString());
-					}
-				}
-				else
-				{
-					ObjectResult = FGetObjectResult(NewObject<UObject>(NewObjectOuter, ObjectClass, *ObjectNameToCreate.ToString(), (EObjectFlags)InObjectId.ObjectPersistentFlags), EGetObjectResultFlags::NewlyCreated);
+						ObjectResult.Obj = NewObject<UObject>(NewObjectOuter, ObjectClass, *ObjectNameToCreate.ToString(), (EObjectFlags)InObjectId.ObjectPersistentFlags);
 
-					if (UActorComponent* NewComponent = Cast<UActorComponent>(ObjectResult.Obj))
-					{
-						NewComponent->RegisterComponent();
+						if (UActorComponent* NewComponent = Cast<UActorComponent>(ObjectResult.Obj))
+						{
+							NewComponent->RegisterComponent();
+						}
 					}
 				}
 				
-				// if we have any package assignment, do it here
-				AssignExternalPackage(ObjectResult.Obj);
+				if (ObjectResult.Obj)
+				{
+					// if we have any package assignment, do it here
+					AssignExternalPackage(ObjectResult.Obj);
+
+					ObjectResult.Flags |= EGetObjectResultFlags::NewlyCreated;
+				}
 
 				return ObjectResult;
 			}
