@@ -26,7 +26,25 @@ namespace EpicGames.Core
 		public static readonly Utf8String ToolName = new Utf8String("ToolName");
 		public static readonly Utf8String ScreenshotTest = new Utf8String("ScreenshotTest");
 		public static readonly Utf8String DepotPath = new Utf8String("DepotPath");
+		public static readonly Utf8String Link = new Utf8String("Link");
 #pragma warning restore CS1591
+	}
+
+	/// <summary>
+	/// Attribute indicating that a type should be tagged in log output
+	/// </summary>
+	[AttributeUsage(AttributeTargets.Class | AttributeTargets.Struct)]
+	public sealed class LogValueTypeAttribute : Attribute
+	{
+		/// <summary>
+		/// Name to use for the type tag
+		/// </summary>
+		public string? Name { get; }
+		
+		/// <summary>
+		/// Constructor
+		/// </summary>
+		public LogValueTypeAttribute(string? name = null) => Name = name;
 	}
 
 	/// <summary>
@@ -67,10 +85,28 @@ namespace EpicGames.Core
 		/// </summary>
 		/// <param name="file">Source file to reference</param>
 		/// <param name="text">Display text for the fiel</param>
-		/// <returns>New log value instance</returns>
 		public static LogValue SourceFile(FileReference file, string text)
 		{
 			return new LogValue(LogValueType.SourceFile, text, new Dictionary<Utf8String, object> { [LogEventPropertyName.File] = file.FullName });
+		}
+
+		/// <summary>
+		/// Constructs a value which contains a hyperlink to an external page
+		/// </summary>
+		/// <param name="target">Target URL</param>
+		public static LogValue Link(Uri target)
+		{
+			return Link(target, target.ToString());
+		}
+
+		/// <summary>
+		/// Constructs a value which contains a hyperlink to an external page
+		/// </summary>
+		/// <param name="target">Target URL</param>
+		/// <param name="text">Text to render for the link</param>
+		public static LogValue Link(Uri target, string text)
+		{
+			return new LogValue(LogValueType.Link, text, new Dictionary<Utf8String, object> { [LogEventPropertyName.Target] = target.ToString() });
 		}
 
 		/// <summary>

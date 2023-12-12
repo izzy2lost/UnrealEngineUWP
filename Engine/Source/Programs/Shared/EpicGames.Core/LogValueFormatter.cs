@@ -312,25 +312,34 @@ namespace EpicGames.Core
 					return formatter;
 				}
 
-				LogValueFormatterAttribute? formatterAttribute = type.GetCustomAttribute<LogValueFormatterAttribute>();
-				if (formatterAttribute != null)
-				{
-					formatter = (ILogValueFormatter)Activator.CreateInstance(formatterAttribute.Type)!;
-				}
-				else if (TryGetEnumerableType(type, out Type? elementType))
-				{
-					formatter = new EnumerableFormatter(GetFormatter(elementType));
-				}
-				else
-				{
-					formatter = s_stringFormatter;
-				}
-
+				formatter = GetFormatterUncached(type);
 				if (s_formatters.TryAdd(type, formatter))
 				{
 					return formatter;
 				}
 			}
+		}
+
+		static ILogValueFormatter GetFormatterUncached(Type type)
+		{
+			LogValueFormatterAttribute? formatterAttribute = type.GetCustomAttribute<LogValueFormatterAttribute>();
+			if (formatterAttribute != null)
+			{
+				return (ILogValueFormatter)Activator.CreateInstance(formatterAttribute.Type)!;
+			}
+
+			LogValueTypeAttribute? typeAttribute = type.GetCustomAttribute<LogValueTypeAttribute>();
+			if (typeAttribute != null)
+			{
+				return new AnnotateTypeFormatter(typeAttribute.Name ?? type.Name);
+			}
+
+			if (TryGetEnumerableType(type, out Type? elementType))
+			{
+				return new EnumerableFormatter(GetFormatter(elementType));
+			}
+
+			return s_stringFormatter;
 		}
 
 		static bool TryGetEnumerableType(Type type, [NotNullWhen(true)] out Type? elementType)
