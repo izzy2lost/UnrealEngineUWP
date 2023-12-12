@@ -55,6 +55,21 @@ struct FPointWeightMap
 #endif
 	{}
 
+	FPointWeightMap(const TConstArrayView<float>& InValues, float Offset, float Scale)
+#if WITH_EDITORONLY_DATA
+		: Name(NAME_None)
+		, CurrentTarget((uint8)EWeightMapTargetCommon::None)
+		, bEnabled(false)
+#endif
+	{
+		const int32 NumPoints = InValues.Num();
+		Values.SetNumUninitialized(NumPoints);
+		for (int32 Index = 0; Index < NumPoints; ++Index)
+		{
+			Values[Index] = Offset + Scale * InValues[Index];
+		}
+	}
+
 	~FPointWeightMap()
 	{}
 
