@@ -1790,13 +1790,14 @@ namespace uba
 		}
 		#endif
 
-		g_exeDir.count = GetProcessExecutablePath(g_exeDir.data, g_exeDir.capacity);
-		if (g_exeDir.count == -1)
-		{
-			UBA_ASSERT(false);
-		}
-		char* lastSlash = strrchr(g_exeDir.data, '/');
-		g_exeDir.Resize(lastSlash - g_exeDir.data);
+		StringBuffer<> exePath;
+		exePath.count = GetProcessExecutablePath(exePath.data, exePath.capacity);
+		UBA_ASSERT(exePath.count > 0);
+		char* lastSlash = strrchr(exePath.data, '/');
+		UBA_ASSERT(lastSlash);
+		exePath.Resize(lastSlash - exePath.data);
+		FixPath(g_exeDir, exePath.data);
+		g_exeDir.EnsureEndsWithSlash();
 	}
 
 	void Init()

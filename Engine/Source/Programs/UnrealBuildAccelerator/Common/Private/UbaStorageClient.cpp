@@ -78,8 +78,10 @@ namespace uba
 		WorkManagerImpl workManager(workerCount);
 		ReaderWriterLock lock;
 		bool success = true;
+		UnorderedSet<u64> seenIds;
+		ReaderWriterLock seenIdsLock;
 		for (auto& dir : directories)
-			success = PopulateCasFromDirsRecursive(dir.c_str(), workManager) && success;
+			success = PopulateCasFromDirsRecursive(dir.c_str(), workManager, seenIds, seenIdsLock) && success;
 		workManager.Wait();
 
 		if (u32 fileCount = u32(m_localStorageFiles.size()))
@@ -1036,7 +1038,7 @@ namespace uba
 		return true;
 	}
 
-	bool StorageClient::PopulateCasFromDirsRecursive(const tchar* dir, WorkManager& workManager)
+	bool StorageClient::PopulateCasFromDirsRecursive(const tchar* dir, WorkManager& workManager, UnorderedSet<u64>& seenIds, ReaderWriterLock& seenIdsLock)
 	{
 		StringBuffer<> fullPath;
 		fullPath.Append(dir).EnsureEndsWithSlash();
@@ -1046,7 +1048,11 @@ namespace uba
 				fullPath.Resize(dirLen).Append(e.name);
 				if (IsDirectory(e.attributes))
 				{
-					PopulateCasFromDirsRecursive(fullPath.data, workManager);
+					ScopedWriteLock lock(seenIdsLock);
+					if (!seenIds.insert(e.id).second)
+						return;
+					lock.Leave();
+					PopulateCasFromDirsRecursive(fullPath.data, workManager, seenIds, seenIdsLock);
 					return;
 				}
 

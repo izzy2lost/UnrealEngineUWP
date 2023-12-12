@@ -654,7 +654,7 @@ namespace uba
 		if (res == 0)
 			return true;
 
-		UBA_ASSERTF(false, TC("CreateHardLinkW %s to %s error handling not implemented %s"), existingFileName, newFileName, strerror(errno));
+		UBA_ASSERTF(false, TC("CreateHardLinkW %s to %s error handling not implemented (%s)"), existingFileName, newFileName, strerror(errno));
 		return false;
 #endif
 	}

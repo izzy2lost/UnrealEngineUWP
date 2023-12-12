@@ -54,7 +54,7 @@ namespace uba
 
 	private:
 		bool SendFile(const CasKey& casKey, const tchar* fileName, u8* sourceMem, u64 sourceSize, const tchar* hint);
-		bool PopulateCasFromDirsRecursive(const tchar* dir, WorkManager& workManager);
+		bool PopulateCasFromDirsRecursive(const tchar* dir, WorkManager& workManager, UnorderedSet<u64>& seenIds, ReaderWriterLock& seenIdsLock);
 
 		NetworkClient& m_client;
 		bool m_sendCompressed;
