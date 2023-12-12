@@ -9,6 +9,7 @@ namespace EpicGames.Horde.Agents.Sessions
 	/// Identifier for a session
 	/// </summary>
 	/// <param name="Id">Id to construct from</param>
+	[LogValueType]
 	[JsonSchemaString]
 	[TypeConverter(typeof(BinaryIdTypeConverter<SessionId, SessionIdConverter>))]
 	[BinaryIdConverter(typeof(SessionIdConverter))]

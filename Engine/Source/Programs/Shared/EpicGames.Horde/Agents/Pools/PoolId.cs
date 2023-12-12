@@ -10,6 +10,7 @@ namespace EpicGames.Horde.Agents.Pools
 	/// Identifier for a pool
 	/// </summary>
 	/// <param name="Id">Id to construct from</param>
+	[LogValueType]
 	[JsonSchemaString]
 	[TypeConverter(typeof(StringIdTypeConverter<PoolId, PoolIdConverter>))]
 	[StringIdConverter(typeof(PoolIdConverter))]

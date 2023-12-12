@@ -10,6 +10,7 @@ namespace EpicGames.Horde.Secrets
 	/// Identifier for a secret
 	/// </summary>
 	/// <param name="Id">Id to construct from</param>
+	[LogValueType]
 	[JsonSchemaString]
 	[TypeConverter(typeof(StringIdTypeConverter<SecretId, SecretIdConverter>))]
 	[StringIdConverter(typeof(SecretIdConverter))]

@@ -10,6 +10,7 @@ namespace EpicGames.Horde.Jobs.Templates
 	/// Identifier for a job template
 	/// </summary>
 	/// <param name="Id">Id to construct from</param>
+	[LogValueType]
 	[JsonSchemaString]
 	[TypeConverter(typeof(StringIdTypeConverter<TemplateId, TemplateIdConverter>))]
 	[StringIdConverter(typeof(TemplateIdConverter))]

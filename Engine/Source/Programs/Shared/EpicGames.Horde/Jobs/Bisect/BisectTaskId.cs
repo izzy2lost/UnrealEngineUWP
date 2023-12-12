@@ -9,6 +9,7 @@ namespace EpicGames.Horde.Jobs.Bisect
 	/// Identifier for a job
 	/// </summary>
 	/// <param name="Id">Id to construct from</param>
+	[LogValueType]
 	[JsonSchemaString]
 	[TypeConverter(typeof(BinaryIdTypeConverter<BisectTaskId, BisectTaskIdConverter>))]
 	[BinaryIdConverter(typeof(BisectTaskIdConverter))]

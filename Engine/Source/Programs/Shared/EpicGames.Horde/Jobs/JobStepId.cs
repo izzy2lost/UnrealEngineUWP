@@ -9,6 +9,7 @@ namespace EpicGames.Horde.Jobs
 	/// Identifier for a jobstep
 	/// </summary>
 	/// <param name="Id">Id to construct from</param>
+	[LogValueType]
 	[JsonSchemaString]
 	[TypeConverter(typeof(SubResourceIdTypeConverter<JobStepId, JobStepIdConverter>))]
 	[SubResourceIdConverter(typeof(JobStepIdConverter))]

@@ -10,6 +10,7 @@ namespace EpicGames.Horde.Tools
 	/// Identifier for a tool
 	/// </summary>
 	/// <param name="Id">Id to construct from</param>
+	[LogValueType]
 	[JsonSchemaString]
 	[TypeConverter(typeof(StringIdTypeConverter<ToolId, ToolIdConverter>))]
 	[StringIdConverter(typeof(ToolIdConverter))]

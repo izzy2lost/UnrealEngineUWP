@@ -9,6 +9,7 @@ namespace EpicGames.Horde.Logs
 	/// Identifier for a log
 	/// </summary>
 	/// <param name="Id">Id to construct from</param>
+	[LogValueType]
 	[JsonSchemaString]
 	[TypeConverter(typeof(BinaryIdTypeConverter<LogId, LogIdConverter>))]
 	[BinaryIdConverter(typeof(LogIdConverter))]

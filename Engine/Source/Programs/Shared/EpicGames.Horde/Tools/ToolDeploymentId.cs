@@ -1,6 +1,7 @@
 // Copyright Epic Games, Inc. All Rights Reserved.
 
 using System.ComponentModel;
+using EpicGames.Core;
 
 namespace EpicGames.Horde.Tools
 {
@@ -8,6 +9,7 @@ namespace EpicGames.Horde.Tools
 	/// Identifier for a tool deployment
 	/// </summary>
 	/// <param name="Id">Identifier for the artifact</param>
+	[LogValueType]
 	[TypeConverter(typeof(BinaryIdTypeConverter<ToolDeploymentId, ToolDeploymentIdConverter>))]
 	[BinaryIdConverter(typeof(ToolDeploymentIdConverter))]
 	public record struct ToolDeploymentId(BinaryId Id)

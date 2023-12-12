@@ -10,6 +10,7 @@ namespace EpicGames.Horde.Telemetry.Metrics
 	/// Identifier for a particular metric
 	/// </summary>
 	/// <param name="Id">Id to construct from</param>
+	[LogValueType]
 	[JsonSchemaString]
 	[TypeConverter(typeof(StringIdTypeConverter<MetricId, MetricIdConverter>))]
 	[StringIdConverter(typeof(MetricIdConverter))]

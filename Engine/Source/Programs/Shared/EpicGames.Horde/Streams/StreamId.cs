@@ -10,6 +10,7 @@ namespace EpicGames.Horde.Streams
 	/// Identifier for a stream
 	/// </summary>
 	/// <param name="Id">Id to construct from</param>
+	[LogValueType]
 	[JsonSchemaString]
 	[TypeConverter(typeof(StringIdTypeConverter<StreamId, StreamIdConverter>))]
 	[StringIdConverter(typeof(StreamIdConverter))]

@@ -1,6 +1,7 @@
 // Copyright Epic Games, Inc. All Rights Reserved.
 
 using System.ComponentModel;
+using EpicGames.Core;
 
 namespace EpicGames.Horde.Artifacts
 {
@@ -8,6 +9,7 @@ namespace EpicGames.Horde.Artifacts
 	/// Unique id for an artifact
 	/// </summary>
 	/// <param name="Id">Identifier for the artifact</param>
+	[LogValueType]
 	[TypeConverter(typeof(BinaryIdTypeConverter<ArtifactId, ArtifactIdConverter>))]
 	[BinaryIdConverter(typeof(ArtifactIdConverter))]
 	public record struct ArtifactId(BinaryId Id)

@@ -9,6 +9,7 @@ namespace EpicGames.Horde.Jobs
 	/// Identifier for a job
 	/// </summary>
 	/// <param name="Id">Id to construct from</param>
+	[LogValueType]
 	[JsonSchemaString]
 	[TypeConverter(typeof(BinaryIdTypeConverter<JobId, JobIdConverter>))]
 	[BinaryIdConverter(typeof(JobIdConverter))]

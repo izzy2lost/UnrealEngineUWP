@@ -1,6 +1,7 @@
 // Copyright Epic Games, Inc. All Rights Reserved.
 
 using System.ComponentModel;
+using EpicGames.Core;
 
 namespace EpicGames.Horde.Storage
 {
@@ -8,6 +9,7 @@ namespace EpicGames.Horde.Storage
 	/// Identifier for a workspace layer
 	/// </summary>
 	/// <param name="Id">Identifier for the layer</param>
+	[LogValueType]
 	[TypeConverter(typeof(StringIdTypeConverter<WorkspaceLayerId, WorkspaceLayerIdConverter>))]
 	[BinaryIdConverter(typeof(WorkspaceLayerIdConverter))]
 	public record struct WorkspaceLayerId(StringId Id)

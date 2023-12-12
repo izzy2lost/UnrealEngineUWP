@@ -9,6 +9,7 @@ namespace EpicGames.Horde.Users
 	/// Identifier for a user
 	/// </summary>
 	/// <param name="Id">Id to construct from</param>
+	[LogValueType]
 	[JsonSchemaString]
 	[TypeConverter(typeof(BinaryIdTypeConverter<UserId, UserIdConverter>))]
 	[BinaryIdConverter(typeof(UserIdConverter))]

@@ -10,6 +10,7 @@ namespace EpicGames.Horde.Devices
 	/// Identifier for a device pool
 	/// </summary>
 	/// <param name="Id">Id to construct from</param>
+	[LogValueType]
 	[JsonSchemaString]
 	[TypeConverter(typeof(StringIdTypeConverter<DevicePoolId, DevicePoolIdConverter>))]
 	[StringIdConverter(typeof(DevicePoolIdConverter))]

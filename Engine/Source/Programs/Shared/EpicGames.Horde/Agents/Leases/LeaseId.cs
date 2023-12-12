@@ -10,10 +10,10 @@ namespace EpicGames.Horde.Agents.Leases
 	/// Identifier for a user
 	/// </summary>
 	/// <param name="Id">Id to construct from</param>
+	[LogValueType]
 	[JsonSchemaString]
 	[TypeConverter(typeof(BinaryIdTypeConverter<LeaseId, LeaseIdConverter>))]
 	[BinaryIdConverter(typeof(LeaseIdConverter))]
-	[LogValueFormatter(typeof(LeaseIdLogFormatter))]
 	public record struct LeaseId(BinaryId Id)
 	{
 		/// <inheritdoc cref="BinaryId.TryParse(System.String, out BinaryId)"/>
@@ -49,20 +49,5 @@ namespace EpicGames.Horde.Agents.Leases
 
 		/// <inheritdoc/>
 		public override BinaryId ToBinaryId(LeaseId value) => value.Id;
-	}
-
-	/// <summary>
-	/// Formats a LeaseId as a typed log value
-	/// </summary>
-	class LeaseIdLogFormatter : ILogValueFormatter
-	{
-		/// <inheritdoc/>
-		public void Format(object value, Utf8JsonWriter writer)
-		{
-			writer.WriteStartObject();
-			writer.WriteString(LogEventPropertyName.Type, "LeaseId");
-			writer.WriteString(LogEventPropertyName.Text, ((LeaseId)value).ToString());
-			writer.WriteEndObject();
-		}
 	}
 }

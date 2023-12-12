@@ -12,9 +12,9 @@ namespace EpicGames.Horde.Agents
 	/// <summary>
 	/// Normalized hostname of an agent
 	/// </summary>
+	[LogValueType]
 	[TypeConverter(typeof(AgentIdTypeConverter))]
 	[JsonConverter(typeof(AgentIdJsonConverter))]
-	[LogValueFormatter(typeof(AgentIdLogFormatter))]
 	public readonly struct AgentId : IEquatable<AgentId>
 	{
 		/// <summary>
@@ -166,20 +166,5 @@ namespace EpicGames.Horde.Agents
 
 		/// <inheritdoc/>
 		public override void Write(Utf8JsonWriter writer, AgentId value, JsonSerializerOptions options) => writer.WriteStringValue(value.ToString());
-	}
-
-	/// <summary>
-	/// Formats an AgentId as a typed log value
-	/// </summary>
-	class AgentIdLogFormatter : ILogValueFormatter
-	{
-		/// <inheritdoc/>
-		public void Format(object value, Utf8JsonWriter writer)
-		{
-			writer.WriteStartObject();
-			writer.WriteString(LogEventPropertyName.Type, "AgentId");
-			writer.WriteString(LogEventPropertyName.Text, ((AgentId)value).ToString());
-			writer.WriteEndObject();
-		}
 	}
 }

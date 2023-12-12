@@ -50,7 +50,7 @@ namespace EpicGames.Core.Tests
 		{
 			FileReference file = new FileReference("foo.txt");
 			string value = RenderLogValue(LogValue.SourceFile(file, "foo"));
-			Assert.AreEqual(value, "{\"$type\":\"SourceFile\",\"$text\":\"foo\",\"file\":\"" + file.FullName.Replace("\\", "\\\\") + "\"}");
+			Assert.AreEqual(value, "{\"$type\":\"SourceFile\",\"$text\":\"foo\",\"file\":\"" + file.FullName.Replace("\\", "\\\\", StringComparison.Ordinal) + "\"}");
 		}
 	}
 }
