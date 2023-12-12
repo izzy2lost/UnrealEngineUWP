@@ -8,7 +8,7 @@
 
 #include "HAL/ThreadSafeCounter.h"
 #include "Containers/LockFreeList.h"
-#include "UObject/GarbageCollectionGlobals.h"
+#include "UObject/ObjectMacros.h"
 #include "UObject/UObjectBase.h"
 
 #if WITH_VERSE_VM || defined(__INTELLISENSE__)
@@ -149,12 +149,7 @@ struct
 		return bIChangedIt;
 	}
 
-	/**
-	 * Uses atomics to set the specified flag(s). GC internal version.
-	 * @param FlagToSet
-	 * @return True if this call set the flag, false if it has been set by another thread.
-	 */
-	FORCEINLINE bool ThisThreadAtomicallySetFlag_ForGC(EInternalObjectFlags FlagToSet)
+	FORCEINLINE bool ThisThreadAtomicallySetFlag(EInternalObjectFlags FlagToSet)
 	{
 		static_assert(sizeof(int32) == sizeof(Flags), "Flags must be 32-bit for atomics.");
 		bool bIChangedIt = false;
@@ -197,11 +192,6 @@ struct
 	FORCEINLINE bool HasAnyFlags(EInternalObjectFlags InFlags) const
 	{
 		return !!(GetFlagsInternal() & int32(InFlags));
-	}
-
-	FORCEINLINE bool HasAllFlags(EInternalObjectFlags InFlags) const
-	{
-		return (GetFlagsInternal() & int32(InFlags)) == int32(InFlags);
 	}
 
 	FORCEINLINE void SetUnreachable()

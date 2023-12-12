@@ -3888,6 +3888,13 @@ enum class EDataValidationResult : uint8
  */
 COREUOBJECT_API EDataValidationResult CombineDataValidationResults(EDataValidationResult Result1, EDataValidationResult Result2);
 
+
+namespace UE::GC::Private
+{
+	/** true if incremental reachability analysis is in progress (global for faster access in low level structs and functions otherwise use IsIncrementalReachabilityAnalisysPending()) */
+	extern COREUOBJECT_API bool GIsIncrementalReachabilityPending;
+}
+
 #if UE_ENABLE_INCLUDE_ORDER_DEPRECATED_IN_5_2
 #include "CoreMinimal.h"
 #endif
