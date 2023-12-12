@@ -60,7 +60,7 @@ void SSourceControlControls::Construct(const FArguments& InArgs)
 					.Text(this, &SSourceControlControls::GetSourceControlCheckInStatusText)
 				]
 			]
-			.OnClicked(InArgs._OnClickedCheckInChanges)
+			.OnClicked(this, &SSourceControlControls::OnSourceControlCheckInChangesClicked)
 		]
 		+SHorizontalBox::Slot() // Check In Kebab Combo button
 		.VAlign(VAlign_Center)
