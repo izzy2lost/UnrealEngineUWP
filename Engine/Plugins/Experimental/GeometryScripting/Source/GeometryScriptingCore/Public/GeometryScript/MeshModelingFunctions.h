@@ -193,16 +193,25 @@ struct GEOMETRYSCRIPTINGCORE_API FGeometryScriptMeshBevelOptions
 {
 	GENERATED_BODY()
 public:
+	/** Distance that each beveled mesh edge is inset from it's initial position*/
 	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = Options)
 	float BevelDistance = 1.0;
 
+	/** If true, when faces on either side of a beveled mesh edges have the same Material ID, beveled edge will be set to that Material ID. Otherwise SetMaterialID is used. */
 	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = Options)
 	bool bInferMaterialID = false;
 
+	/** Material ID to set on the new faces introduced by bevel operation, unless bInferMaterialID=true and non-ambiguous MaterialID can be inferred from adjacent faces */
 	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = Options)
 	int SetMaterialID = 0;
 
+	/** Number of edge loops added along the bevel faces */
+	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = Options)
+	int Subdivisions = 0;
 
+	/** Roundness of the bevel. Ignored if Subdivisions = 0. */
+	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = Options)
+	float RoundWeight = 1.0;
 
 	/**
 	 * If true the set of beveled PolyGroup edges is limited to those that 
@@ -253,14 +262,25 @@ struct GEOMETRYSCRIPTINGCORE_API FGeometryScriptMeshBevelSelectionOptions
 {
 	GENERATED_BODY()
 public:
+	/** Distance that each beveled mesh edge is inset from it's initial position*/
 	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = Options)
 	float BevelDistance = 1.0;
 
+	/** If true, when faces on either side of a beveled mesh edges have the same Material ID, beveled edge will be set to that Material ID. Otherwise SetMaterialID is used. */
 	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = Options)
 	bool bInferMaterialID = false;
 
+	/** Material ID to set on the new faces introduced by bevel operation, unless bInferMaterialID=true and non-ambiguous MaterialID can be inferred from adjacent faces */
 	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = Options)
 	int SetMaterialID = 0;
+
+	/** Number of edge loops added along the bevel faces */
+	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = Options)
+	int Subdivisions = 0;
+
+	/** Roundness of the bevel. Ignored if Subdivisions = 0. */
+	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = Options)
+	float RoundWeight = 1.0;
 };
 
 

@@ -858,6 +858,8 @@ UDynamicMesh* UGeometryScriptLibrary_MeshModelingFunctions::ApplyMeshBevelSelect
 		Bevel.InsetDistance = Options.BevelDistance;
 		Bevel.MaterialIDMode = (Options.bInferMaterialID) ? FMeshBevel::EMaterialIDMode::InferMaterialID : FMeshBevel::EMaterialIDMode::ConstantMaterialID;
 		Bevel.SetConstantMaterialID = Options.SetMaterialID;
+		Bevel.NumSubdivisions = FMath::Clamp(Options.Subdivisions, 0, 9999);
+		Bevel.RoundWeight = FMath::Clamp(Options.RoundWeight, -10.0, 10.0);
 
 		TUniquePtr<FGroupTopology> GroupTopology;
 
@@ -997,6 +999,8 @@ UDynamicMesh* UGeometryScriptLibrary_MeshModelingFunctions::ApplyMeshPolygroupBe
 		Bevel.InsetDistance = Options.BevelDistance;
 		Bevel.MaterialIDMode = (Options.bInferMaterialID) ? FMeshBevel::EMaterialIDMode::InferMaterialID : FMeshBevel::EMaterialIDMode::ConstantMaterialID;
 		Bevel.SetConstantMaterialID = Options.SetMaterialID;
+		Bevel.NumSubdivisions = FMath::Clamp(Options.Subdivisions, 0, 9999);
+		Bevel.RoundWeight = FMath::Clamp(Options.RoundWeight, -10.0, 10.0);
 		if (BevelGroupEdges.Num() > 0)
 		{
 			Bevel.InitializeFromGroupTopologyEdges(EditMesh, Topology, BevelGroupEdges);

@@ -25,8 +25,25 @@ class MESHMODELINGTOOLS_API UPolyEditBevelEdgeProperties : public UInteractiveTo
 	GENERATED_BODY()
 
 public:
+	/** Distance that each beveled mesh edge is inset from it's initial position*/
 	UPROPERTY(EditAnywhere, Category = Bevel)
 	double BevelDistance = 4.0;
+
+	/** Number of edge loops added along the bevel faces */
+	UPROPERTY(EditAnywhere, Category = Bevel, meta=(UIMax="10", ClampMin="0", ClampMax="1000"))
+	int Subdivisions = 0;
+
+	/** Roundness of the bevel. Ignored if Subdivisions = 0. */
+	UPROPERTY(EditAnywhere, Category = Bevel, meta = (UIMin = "-2", UIMax="2"))
+	float RoundWeight = 1.0;
+
+	/** If true, when faces on either side of a beveled mesh edges have the same Material ID, beveled edge will be set to that Material ID. Otherwise SetMaterialID is used. */
+	UPROPERTY(EditAnywhere, Category = Bevel)
+	bool bInferMaterialID = true;
+
+	/** Material ID to set on the new faces introduced by bevel operation, unless bInferMaterialID=true and non-ambiguous MaterialID can be inferred from adjacent faces */
+	UPROPERTY(EditAnywhere, Category = Bevel, meta = (ClampMin="0", NoSpinbox))
+	int SetMaterialID = 0;
 };
 
 
