@@ -469,8 +469,8 @@ private:
 	void NotifyDrivenControls(UControlRig* InControlRig, const FRigElementKey& InKey);
 	void UpdateSelectabilityOnSkeletalMeshes(UControlRig* InControlRig, bool bEnabled);
 
-	bool IsMovingCamera(FViewport* InViewport) const;
-	bool IsDoingDrag(FViewport* InViewport) const;
+	bool IsMovingCamera(const FViewport* InViewport) const;
+	bool IsDoingDrag(const FViewport* InViewport) const;
 
 	// world clean up handlers
 	FDelegateHandle OnWorldCleanupHandle;

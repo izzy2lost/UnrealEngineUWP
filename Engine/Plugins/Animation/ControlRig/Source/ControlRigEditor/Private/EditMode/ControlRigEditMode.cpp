@@ -1926,24 +1926,30 @@ void FControlRigEditMode::SelectNone()
 	FEdMode::SelectNone();
 }
 
-bool FControlRigEditMode::IsMovingCamera(FViewport* InViewport) const
+bool FControlRigEditMode::IsMovingCamera(const FViewport* InViewport) const
 {
 	const bool LeftMouseButtonDown = InViewport->KeyState(EKeys::LeftMouseButton);
 	const bool bIsAltKeyDown = InViewport->KeyState(EKeys::LeftAlt) || InViewport->KeyState(EKeys::RightAlt);
 	return LeftMouseButtonDown && bIsAltKeyDown;
 }
 
-bool FControlRigEditMode::IsDoingDrag(FViewport* InViewport) const
+bool FControlRigEditMode::IsDoingDrag(const FViewport* InViewport) const
 {
 	if(!UControlRigEditorSettings::Get()->bLeftMouseDragDoesMarquee)
 	{
+		return false;
+	}
+
+	if (Owner && Owner->GetInteractiveToolsContext()->InputRouter->HasActiveMouseCapture())
+	{
+		// don't start dragging if the ITF handled tracking event first   
 		return false;
 	}
 	
 	const bool LeftMouseButtonDown = InViewport->KeyState(EKeys::LeftMouseButton);
 	const bool bIsCtrlKeyDown = InViewport->KeyState(EKeys::LeftControl) || InViewport->KeyState(EKeys::RightControl);
 	const bool bIsAltKeyDown = InViewport->KeyState(EKeys::LeftAlt) || InViewport->KeyState(EKeys::RightAlt);
-	EAxisList::Type CurrentAxis = GetCurrentWidgetAxis();
+	const EAxisList::Type CurrentAxis = GetCurrentWidgetAxis();
 	
 	//if shift is down we still want to drag
 	return LeftMouseButtonDown && (CurrentAxis == EAxisList::None) && !bIsCtrlKeyDown && !bIsAltKeyDown;
