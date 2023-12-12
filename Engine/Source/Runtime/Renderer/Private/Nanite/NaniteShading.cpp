@@ -405,7 +405,7 @@ bool HasNoDerivativeOps(FRHIComputeShader* ComputeShaderRHI)
 	}
 }
 
-void BuildShadingCommands(FRDGBuilder& GraphBuilder, FScene& Scene, TArrayView<FViewInfo> Views, ENaniteMeshPass::Type MeshPass, FNaniteShadingCommands& ShadingCommands, bool bForceBuildCommands)
+void BuildShadingCommands(FRDGBuilder& GraphBuilder, FScene& Scene, ENaniteMeshPass::Type MeshPass, FNaniteShadingCommands& ShadingCommands, bool bForceBuildCommands)
 {
 	FNaniteShadingPipelines& ShadingPipelines = Scene.NaniteShadingPipelines[MeshPass];
 	if (ShadingPipelines.bBuildCommands || bForceBuildCommands)
@@ -450,7 +450,7 @@ void BuildShadingCommands(FRDGBuilder& GraphBuilder, FScene& Scene, TArrayView<F
 			}
 		});
 
-		ShadingCommands.BuildCommandsTask = GraphBuilder.AddSetupTask([&Pipelines, &Commands = ShadingCommands.Commands, NumViews = Views.Num()]
+		ShadingCommands.BuildCommandsTask = GraphBuilder.AddSetupTask([&Pipelines, &Commands = ShadingCommands.Commands]
 		{
 			TRACE_CPUPROFILER_EVENT_SCOPE(Nanite::BuildShadingCommandsTask);
 			Commands.Reset();
@@ -462,11 +462,6 @@ void BuildShadingCommands(FRDGBuilder& GraphBuilder, FScene& Scene, TArrayView<F
 				const FNaniteShadingEntry& Entry = Iter.Value;
 				ShadingCommand.Pipeline = Entry.ShadingPipeline;
 				ShadingCommand.ShadingBin = Entry.BinIndex;
-				ShadingCommand.BatchedParameters.SetNum(NumViews);
-				for (FRHIBatchedShaderParameters& Parameters : ShadingCommand.BatchedParameters)
-				{
-					Parameters.Reset();
-				}
 			}
 
 			if (GNaniteComputeMaterialsSort != 0)
@@ -852,7 +847,7 @@ public:
 			ShadingCommand.bVisible = !VisibilityData.IsValid() || VisibilityData->AccessCorrespondingBit(FRelativeBitReference(ShadingCommand.ShadingBin));
 			if (ShadingCommand.bVisible && PrepareShadingCommand(ShadingCommand))
 			{
-				FRHIBatchedShaderParameters& ShadingParameters = ShadingCommand.BatchedParameters[ViewIndex];
+				FRHIBatchedShaderParameters ShadingParameters;
 
 				RecordShadingParameters(
 					ShadingParameters,
@@ -1376,7 +1371,7 @@ void DispatchBasePass(
 					ShadingCommand.bVisible = !VisibilityData.IsValid() || VisibilityData->AccessCorrespondingBit(FRelativeBitReference(ShadingCommand.ShadingBin));
 					if (ShadingCommand.bVisible && PrepareShadingCommand(ShadingCommand))
 					{
-						FRHIBatchedShaderParameters& ShadingParameters = ShadingCommand.BatchedParameters[ViewIndex];
+						FRHIBatchedShaderParameters ShadingParameters;
 						RecordShadingParameters(ShadingParameters, ShadingCommand, DataByteOffset, ViewRect, OutputTargets, OutputTargetsArray);
 						RecordShadingCommand(RHICmdList, IndirectArgsBuffer, IndirectArgStride, ShadingParameters, ShadingCommand);
 					}

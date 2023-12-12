@@ -2208,7 +2208,7 @@ void FDeferredShadingSceneRenderer::Render(FRDGBuilder& GraphBuilder)
 	// Run Nanite compute commands early in the frame to allow some task overlap on the CPU until the base pass runs.
 	if (bNaniteEnabled && RendererOutput == ERendererOutput::FinalSceneColor && !bHasRayTracedOverlay && UseNaniteComputeMaterials())
 	{
-		Nanite::BuildShadingCommands(GraphBuilder, *Scene, Views, ENaniteMeshPass::BasePass, Scene->NaniteShadingCommands[ENaniteMeshPass::BasePass], false);
+		Nanite::BuildShadingCommands(GraphBuilder, *Scene, ENaniteMeshPass::BasePass, Scene->NaniteShadingCommands[ENaniteMeshPass::BasePass], false);
 	}
 
 	FComputeLightGridOutput ComputeLightGridOutput = {};
