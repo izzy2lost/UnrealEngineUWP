@@ -1459,20 +1459,24 @@ int64 FMallocBinned2::GetTotalAllocatedSmallPoolMemory() const
 
 void FMallocBinned2::GetAllocatorStats( FGenericMemoryStats& OutStats )
 {
-#if BINNED2_ALLOCATOR_STATS
+#if PLATFORM_USE_CACHED_SLACK_MEMORY_IN_MEMORY_STATS || BINNED2_ALLOCATOR_STATS
 	NOALLOC_SCOPE_CYCLE_COUNTER(STAT_FMallocBinned2_GetAllocatorStats);
 
+	// Even if we have MB2 stats off, if we want to include cached slack, we need the PageAllocatorFreeCacheSize stat
+	uint64 OSPageAllocatorCachedFreeSize = CachedOSPageAllocator.GetCachedFreeTotal();
+	OutStats.Add(TEXT("PageAllocatorFreeCacheSize"), OSPageAllocatorCachedFreeSize);
+#endif 
+
+#if BINNED2_ALLOCATOR_STATS
 	int64  TotalAllocatedSmallPoolMemory           = GetTotalAllocatedSmallPoolMemory();
 	int64  LocalAllocatedOSSmallPoolMemory         = AllocatedOSSmallPoolMemory.Load(EMemoryOrder::Relaxed);
 	int64  LocalAllocatedLargePoolMemory           = AllocatedLargePoolMemory.Load(EMemoryOrder::Relaxed);
 	int64  LocalAllocatedLargePoolMemoryWAlignment = AllocatedLargePoolMemoryWAlignment.Load(EMemoryOrder::Relaxed);
-	uint64 OSPageAllocatorCachedFreeSize           = CachedOSPageAllocator.GetCachedFreeTotal();
 
 	OutStats.Add(TEXT("AllocatedSmallPoolMemory"), TotalAllocatedSmallPoolMemory);
 	OutStats.Add(TEXT("AllocatedOSSmallPoolMemory"), LocalAllocatedOSSmallPoolMemory);
 	OutStats.Add(TEXT("AllocatedLargePoolMemory"), LocalAllocatedLargePoolMemory);
 	OutStats.Add(TEXT("AllocatedLargePoolMemoryWAlignment"), LocalAllocatedLargePoolMemoryWAlignment);
-	OutStats.Add(TEXT("PageAllocatorFreeCacheSize"), OSPageAllocatorCachedFreeSize);
 
 	uint64 TotalAllocated = TotalAllocatedSmallPoolMemory + LocalAllocatedLargePoolMemory;
 	uint64 TotalOSAllocated = LocalAllocatedOSSmallPoolMemory + LocalAllocatedLargePoolMemoryWAlignment + OSPageAllocatorCachedFreeSize;
@@ -1480,6 +1484,7 @@ void FMallocBinned2::GetAllocatorStats( FGenericMemoryStats& OutStats )
 	OutStats.Add(TEXT("TotalAllocated"), TotalAllocated);
 	OutStats.Add(TEXT("TotalOSAllocated"), TotalOSAllocated);
 #endif
+
 	FMalloc::GetAllocatorStats(OutStats);
 }
 
