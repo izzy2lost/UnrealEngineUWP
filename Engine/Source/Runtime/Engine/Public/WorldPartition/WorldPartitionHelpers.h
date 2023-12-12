@@ -78,7 +78,7 @@ private:
 	static ENGINE_API bool IsActorDescClassCompatibleWith(const FWorldPartitionActorDesc* ActorDesc, const UClass* Class);
 
 	template<class ActorClass>
-	class TDeprecated
+	struct TDeprecated
 	{
 		UE_DEPRECATED(5.4, "Use ForEachIntersectingActorDescInstance instead")
 		static void DeprecatedForEachIntersectingActorDesc() {}
