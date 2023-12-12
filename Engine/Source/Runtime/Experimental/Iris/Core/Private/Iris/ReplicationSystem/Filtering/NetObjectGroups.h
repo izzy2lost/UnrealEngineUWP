@@ -118,7 +118,7 @@ public:
 private:
 	struct FNetObjectGroupMembership
 	{
-		enum { MaxAssignedGroupCount = 4 };
+		enum { MaxAssignedGroupCount = 8 };
 		FNetObjectGroupHandle Groups[MaxAssignedGroupCount];		
 	};
 
