@@ -125,9 +125,9 @@ namespace Jupiter.FunctionalTests.Replication
 
 			Mock<HttpMessageHandler> handler = new Mock<HttpMessageHandler>();
 			string s = JsonSerializer.Serialize(new ReplicationLogEvents(replicationEvents));
-			handler.SetupRequest($"http://localhost/api/v1/replication-log/incremental/{TestNamespace}?lastBucket={lastBucket}&lastEvent={lastEvent}").ReturnsResponse(s, "application/json");
+			handler.SetupRequest($"http://localhost/api/v1/replication-log/incremental/{TestNamespace}?count=1000&lastBucket={lastBucket}&lastEvent={lastEvent}").ReturnsResponse(s, "application/json");
 			// this will get called again with the last event in replication events list as the lastEvent, at which point we should return a empty list as there are no more objects available
-			handler.SetupRequest($"http://localhost/api/v1/replication-log/incremental/{TestNamespace}?lastBucket={replicationEvents.Last().TimeBucket}&lastEvent={replicationEvents.Last().EventId}").ReturnsResponse(JsonSerializer.Serialize(new ReplicationLogEvents(new List<ReplicationLogEvent>())), "application/json");
+			handler.SetupRequest($"http://localhost/api/v1/replication-log/incremental/{TestNamespace}?count=1000&lastBucket={replicationEvents.Last().TimeBucket}&lastEvent={replicationEvents.Last().EventId}").ReturnsResponse(JsonSerializer.Serialize(new ReplicationLogEvents(new List<ReplicationLogEvent>())), "application/json");
 
 			foreach (BlobId blob in blobs.Keys)
 			{
@@ -199,7 +199,7 @@ namespace Jupiter.FunctionalTests.Replication
 			handler.SetupRequest($"http://localhost/api/v1/replication-log/snapshots/{TestNamespace}").ReturnsResponse(s, "application/json");
 
 			// after processing a snapshot it will attempt to incrementally replicate from there, which should be empty
-			handler.SetupRequest($"http://localhost/api/v1/replication-log/incremental/{TestNamespace}?lastBucket={replicationEvents.Last().TimeBucket}&lastEvent={replicationEvents.Last().EventId}").ReturnsResponse(JsonSerializer.Serialize(new ReplicationLogEvents(new List<ReplicationLogEvent>())), "application/json");
+			handler.SetupRequest($"http://localhost/api/v1/replication-log/incremental/{TestNamespace}?count=1000&lastBucket={replicationEvents.Last().TimeBucket}&lastEvent={replicationEvents.Last().EventId}").ReturnsResponse(JsonSerializer.Serialize(new ReplicationLogEvents(new List<ReplicationLogEvent>())), "application/json");
 
 			handler.SetupRequest($"http://localhost/api/v1/blobs/{SnapshotNamespace}/{snapshotBlob}").ReturnsResponse(snapshotContent, "application/octet-stream").Verifiable();
 
@@ -283,10 +283,10 @@ namespace Jupiter.FunctionalTests.Replication
 			handler.SetupRequest($"http://localhost/api/v1/replication-log/snapshots/{TestNamespace}").ReturnsResponse(s, "application/json");
 
 			// when the snapshot has been processed we have a set of incremental events as well
-			handler.SetupRequest($"http://localhost/api/v1/replication-log/incremental/{TestNamespace}?lastBucket={snapshotEvents.Last().TimeBucket}&lastEvent={snapshotEvents.Last().EventId}").ReturnsResponse(JsonSerializer.Serialize(new ReplicationLogEvents(incrementalEvents)), "application/json");
+			handler.SetupRequest($"http://localhost/api/v1/replication-log/incremental/{TestNamespace}?count=1000&lastBucket={snapshotEvents.Last().TimeBucket}&lastEvent={snapshotEvents.Last().EventId}").ReturnsResponse(JsonSerializer.Serialize(new ReplicationLogEvents(incrementalEvents)), "application/json");
 
 			// after processing the incremental events there is nothing more to find
-			handler.SetupRequest($"http://localhost/api/v1/replication-log/incremental/{TestNamespace}?lastBucket={incrementalEvents.Last().TimeBucket}&lastEvent={incrementalEvents.Last().EventId}").ReturnsResponse(JsonSerializer.Serialize(new ReplicationLogEvents(new List<ReplicationLogEvent>())), "application/json");
+			handler.SetupRequest($"http://localhost/api/v1/replication-log/incremental/{TestNamespace}?count=1000&lastBucket={incrementalEvents.Last().TimeBucket}&lastEvent={incrementalEvents.Last().EventId}").ReturnsResponse(JsonSerializer.Serialize(new ReplicationLogEvents(new List<ReplicationLogEvent>())), "application/json");
 
 			handler.SetupRequest($"http://localhost/api/v1/blobs/{SnapshotNamespace}/{snapshotBlob}").ReturnsResponse(snapshotContent, "application/octet-stream").Verifiable();
 
@@ -364,7 +364,7 @@ namespace Jupiter.FunctionalTests.Replication
 			handler.SetupRequest($"http://localhost/api/v1/replication-log/snapshots/{TestNamespace}").ReturnsResponse(s, "application/json");
 
 			// mock a error being generated due to the lastBucket/event being to old
-			handler.SetupRequest($"http://localhost/api/v1/replication-log/incremental/{TestNamespace}?lastBucket={missingBucket}&lastEvent={missingId}").ReturnsResponse(HttpStatusCode.BadRequest, JsonSerializer.Serialize(new ProblemDetails
+			handler.SetupRequest($"http://localhost/api/v1/replication-log/incremental/{TestNamespace}?count=1000&lastBucket={missingBucket}&lastEvent={missingId}").ReturnsResponse(HttpStatusCode.BadRequest, JsonSerializer.Serialize(new ProblemDetails
 			{
 				Title = $"Log file is not available, use snapshot {snapshotBlob} instead",
 				Type = "http://jupiter.epicgames.com/replication/useSnapshot",
@@ -372,7 +372,7 @@ namespace Jupiter.FunctionalTests.Replication
 			}), "application/json");
 
 			// after processing the snapshot we do not replicate anything more
-			handler.SetupRequest($"http://localhost/api/v1/replication-log/incremental/{TestNamespace}?lastBucket={snapshotEvents.Last().TimeBucket}&lastEvent={snapshotEvents.Last().EventId}").ReturnsResponse(JsonSerializer.Serialize(new ReplicationLogEvents(new List<ReplicationLogEvent>())), "application/json");
+			handler.SetupRequest($"http://localhost/api/v1/replication-log/incremental/{TestNamespace}?count=1000&lastBucket={snapshotEvents.Last().TimeBucket}&lastEvent={snapshotEvents.Last().EventId}").ReturnsResponse(JsonSerializer.Serialize(new ReplicationLogEvents(new List<ReplicationLogEvent>())), "application/json");
 
 			handler.SetupRequest($"http://localhost/api/v1/blobs/{SnapshotNamespace}/{snapshotBlob}").ReturnsResponse(snapshotContent, "application/octet-stream").Verifiable();
 

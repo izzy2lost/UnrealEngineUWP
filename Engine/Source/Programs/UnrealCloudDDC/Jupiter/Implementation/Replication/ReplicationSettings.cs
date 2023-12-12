@@ -64,7 +64,7 @@ namespace Jupiter
 		public ReplicatorVersion Version { get; set; } = ReplicatorVersion.Refs;
 
 		/// <summary>
-		/// Max number of replications that can run in parallel, set to -1 to disable the limit and go as wide as possible
+		/// Max number of replications that can run in parallel, set to -1 to for it to be one per CPU (can easily be oversubscribed)
 		/// </summary>
 		public int MaxParallelReplications { get; set; } = 64;
 
@@ -72,6 +72,11 @@ namespace Jupiter
 		/// Do not read in old history using a snapshot, instead just start replicating the new incremental state. Means we will only have partial state but we will also get going quicker on relatively useful blobs.
 		/// </summary>
 		public bool SkipSnapshot { get; set; } = false;
+
+		/// <summary>
+		/// The number of records returned in a single response (page) if available, this needs to be bumped as you increase `MaxParallelReplications`
+		/// </summary>
+		public int PageSize { get; set; } = 1000;
 	}
 
 	public enum ReplicatorVersion

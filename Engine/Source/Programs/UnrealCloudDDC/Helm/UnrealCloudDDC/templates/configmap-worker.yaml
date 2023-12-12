@@ -66,6 +66,7 @@ Replication:
     ConnectionString: {{ required "replication remote connection string has to be specified" .ConnectionString }}
     MaxParallelReplications: {{ default 128  .MaxParallelReplications }} 
     SkipSnapshot: {{ default true  .SkipSnapshot }}
+    PageSize: {{ default 1000  .PageSize }}
 {{- end -}}
 {{- end }}
 

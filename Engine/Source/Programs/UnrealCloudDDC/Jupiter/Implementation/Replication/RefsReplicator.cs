@@ -623,10 +623,15 @@ namespace Jupiter.Implementation
 					throw new Exception($"Failed to find state to resume from after first page of ref events, lastBucket: {lastBucket} lastEvent: {lastEvent}");
 				}
 				StringBuilder url = new StringBuilder($"/api/v1/replication-log/incremental/{ns}");
+				
+				// number of records in a single page (response)
+				int pageSize = _replicatorSettings.PageSize;
+				url.Append($"?count={pageSize}");
+
 				// its okay for last bucket and last event to be null incase we have never run before, but after the first iteration we need them to keep track of where we were
 				if (lastBucket != null)
 				{
-					url.Append($"?lastBucket={lastBucket}");
+					url.Append($"&lastBucket={lastBucket}");
 				}
 
 				if (lastEvent != null)
