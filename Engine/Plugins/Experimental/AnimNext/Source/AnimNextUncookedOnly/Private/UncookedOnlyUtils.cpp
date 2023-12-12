@@ -49,11 +49,17 @@ namespace UE::AnimNext::UncookedOnly
 {
 namespace Private
 {
+	// Represents a decorator entry on a node
 	struct FDecoratorEntryMapping
 	{
-		const URigVMNode* DecoratorStackNode;
-		const URigVMPin* DecoratorEntryPin;
-		const FDecorator* Decorator;
+		// The RigVM node that hosts this RigVM decorator
+		const URigVMNode* DecoratorStackNode = nullptr;
+
+		// The RigVM decorator pin on our host node
+		const URigVMPin* DecoratorEntryPin = nullptr;
+
+		// The AnimNext decorator
+		const FDecorator* Decorator = nullptr;
 
 		FDecoratorEntryMapping(const URigVMNode* InDecoratorStackNode, const URigVMPin* InDecoratorEntryPin, const FDecorator* InDecorator)
 			: DecoratorStackNode(InDecoratorStackNode)
@@ -62,11 +68,16 @@ namespace Private
 		{}
 	};
 
+	// Represents a node that contains a decorator list
 	struct FDecoratorStackMapping
 	{
-		const URigVMNode* DecoratorStackNode;
+		// The RigVM node that hosts the RigVM decorators
+		const URigVMNode* DecoratorStackNode = nullptr;
+
+		// The decorator list on this node
 		TArray<FDecoratorEntryMapping> DecoratorEntries;
 
+		// The node handle assigned to this RigVM node
 		FNodeHandle DecoratorStackNodeHandle;
 
 		explicit FDecoratorStackMapping(const URigVMNode* InDecoratorStackNode)
@@ -137,7 +148,7 @@ namespace Private
 				{
 					// Decorator handle pins don't have a value, just an optional link
 					const TArray<URigVMLink*>& PinLinks = Pin->GetLinks();
-					if (PinLinks.Num() != 0)
+					if (!PinLinks.IsEmpty())
 					{
 						// Something is connected to us, find the corresponding node handle so that we can encode it as our property value
 						check(PinLinks.Num() == 1);
@@ -151,7 +162,12 @@ namespace Private
 						if (SourceDecoratorStack != nullptr)
 						{
 							SourceNodeHandle = SourceDecoratorStack->DecoratorStackNodeHandle;
-							SourceDecoratorIndex = 0;	// We always bind to the first decorator index since we only allow one base decorator per stack for now
+
+							// If the source pin is null, we are a node where the result pin lives on the stack node instead of a decorator sub-pin
+							// If this is the case, we bind to the first decorator index since we only allowed a single base decorator per stack
+							// Otherwise we lookup the decorator index we are linked to
+							const URigVMPin* SourceDecoratorPin = PinLinks[0]->GetSourcePin()->GetParentPin();
+							SourceDecoratorIndex = SourceDecoratorPin != nullptr ? SourceDecoratorStack->DecoratorStackNode->GetDecoratorPins().IndexOfByKey(SourceDecoratorPin) : 0;
 						}
 
 						if (SourceNodeHandle.IsValid())
@@ -235,6 +251,86 @@ namespace Private
 		return nullptr;
 	}
 
+	void AddMissingInputLinks(const URigVMPin* DecoratorPin, UAnimNextGraph_Controller* VMController)
+	{
+		const TArray<URigVMPin*>& Pins = DecoratorPin->GetSubPins();
+		for (URigVMPin* Pin : Pins)
+		{
+			const ERigVMPinDirection PinDirection = Pin->GetDirection();
+			if (PinDirection != ERigVMPinDirection::Input && PinDirection != ERigVMPinDirection::Hidden)
+			{
+				continue;	// We only look for hidden or input pins
+			}
+
+			if (Pin->GetCPPTypeObject() != FAnimNextDecoratorHandle::StaticStruct())
+			{
+				continue;	// We only look for decorator handle pins
+			}
+
+			const TArray<URigVMLink*>& PinLinks = Pin->GetLinks();
+			if (!PinLinks.IsEmpty())
+			{
+				continue;	// This pin already has a link, all good
+			}
+
+			// Add a dummy node that will output a reference pose to ensure every link is valid.
+			// RigVM doesn't let us link two decorators on a same node together or linking a child back to a parent
+			// as this would create a cycle in the RigVM graph. The AnimNext graph decorators do support it
+			// and so perhaps we could have a merging pass later on to remove useless dummy nodes like this.
+
+			URigVMUnitNode* VMReferencePoseNode = VMController->AddUnitNode(FRigUnit_AnimNextDecoratorStack::StaticStruct(), FRigVMStruct::ExecuteName, FVector2D(0.0f, 0.0f), FString(), false);
+			check(VMReferencePoseNode != nullptr);
+
+			const UScriptStruct* CppDecoratorStruct = FRigDecorator_AnimNextCppDecorator::StaticStruct();
+
+			FString DefaultValue;
+			{
+				const UE::AnimNext::FDecoratorUID ReferencePoseDecoratorUID(0xc03d6afc);	// Decorator header is private, reference by UID directly
+				const FDecorator* Decorator = FDecoratorRegistry::Get().Find(ReferencePoseDecoratorUID);
+				check(Decorator != nullptr);
+
+				const FRigDecorator_AnimNextCppDecorator DefaultCppDecoratorStructInstance;
+				FRigDecorator_AnimNextCppDecorator CppDecoratorStructInstance;
+				CppDecoratorStructInstance.DecoratorSharedDataStruct = Decorator->GetDecoratorSharedDataStruct();
+
+				const FProperty* Prop = FAnimNextCppDecoratorWrapper::StaticStruct()->FindPropertyByName(GET_MEMBER_NAME_STRING_CHECKED(FAnimNextCppDecoratorWrapper, CppDecorator));
+				check(Prop != nullptr);
+
+				Prop->ExportText_Direct(DefaultValue, &CppDecoratorStructInstance, &DefaultCppDecoratorStructInstance, nullptr, PPF_None);
+			}
+
+			const FName ReferencePoseDecoratorName = VMController->AddDecorator(VMReferencePoseNode->GetFName(), *CppDecoratorStruct->GetPathName(), TEXT("ReferencePose"), DefaultValue, INDEX_NONE, false, false);
+			check(!ReferencePoseDecoratorName.IsNone());
+
+			URigVMPin* OutputPin = VMReferencePoseNode->FindPin(GET_MEMBER_NAME_STRING_CHECKED(FRigUnit_AnimNextDecoratorStack, Result));
+			check(OutputPin != nullptr);
+
+			ensure(VMController->AddLink(OutputPin, Pin, false));
+		}
+	}
+
+	void AddMissingInputLinks(const URigVMGraph* VMGraph, UAnimNextGraph_Controller* VMController)
+	{
+		const TArray<URigVMNode*> VMNodes = VMGraph->GetNodes();	// Copy since we might add new nodes
+		for (URigVMNode* VMNode : VMNodes)
+		{
+			if (const URigVMUnitNode* VMUnitNode = Cast<URigVMUnitNode>(VMNode))
+			{
+				const UScriptStruct* ScriptStruct = VMUnitNode->GetScriptStruct();
+				if (ScriptStruct != FRigUnit_AnimNextDecoratorStack::StaticStruct())
+				{
+					continue;	// Skip non-decorator nodes
+				}
+
+				ForEachDecoratorInStack(VMNode,
+					[VMController](const URigVMNode* DecoratorStackNode, const URigVMPin* DecoratorPin, const FDecorator* Decorator)
+					{
+						AddMissingInputLinks(DecoratorPin, VMController);
+					});
+			}
+		}
+	}
+
 	TArray<FDecoratorStackMapping> CollectDecoratorStacks(const URigVMGraph* VMGraph, UAnimNextGraph_Controller* VMController)
 	{
 		const TArray<URigVMNode*>& VMNodes = VMGraph->GetNodes();
@@ -247,6 +343,9 @@ namespace Private
 			// Root node wasn't found, add it, we'll need it to compile
 			VMRootNode = VMController->AddUnitNode(FRigUnit_AnimNextGraphRoot::StaticStruct(), FRigUnit_AnimNextGraphRoot::EventName, FVector2D(0.0f, 0.0f), FString(), false);
 		}
+
+		// Make sure we don't have empty input pins
+		AddMissingInputLinks(VMGraph, VMController);
 
 		TArray<const URigVMNode*> NodesToVisit;
 		NodesToVisit.Add(VMRootNode);

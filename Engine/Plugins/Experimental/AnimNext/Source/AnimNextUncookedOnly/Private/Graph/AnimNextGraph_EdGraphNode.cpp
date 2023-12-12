@@ -2,6 +2,7 @@
 
 #include "Graph/AnimNextGraph_EdGraphNode.h"
 
+#include "DecoratorBase/DecoratorHandle.h"
 #include "Graph/RigUnit_AnimNextDecoratorStack.h"
 #include "Graph/RigDecorator_AnimNextCppDecorator.h"
 #include "RigVMModel/RigVMController.h"
@@ -25,6 +26,35 @@ void UAnimNextGraph_EdGraphNode::GetNodeContextMenuActions(UToolMenu* Menu, clas
 			LOCTEXT("AddDecoratorMenu", "Add Decorator"),
 			LOCTEXT("AddDecoratorMenuTooltip", "Add the chosen decorator to currently selected node"),
 			FNewToolMenuDelegate::CreateUObject(NonConstThis, &UAnimNextGraph_EdGraphNode::BuildAddDecoratorContextMenu));
+	}
+}
+
+void UAnimNextGraph_EdGraphNode::ConfigurePin(UEdGraphPin* EdGraphPin, const URigVMPin* ModelPin) const
+{
+	Super::ConfigurePin(EdGraphPin, ModelPin);
+
+	// Decorator handles always remain as a RigVM input pins so that we can still link things to them even if they are hidden
+	// We handle visibility for those explicitly here
+	const bool bIsInputPin = ModelPin->GetDirection() == ERigVMPinDirection::Input;
+	const bool bIsDecoratorHandle = ModelPin->GetCPPTypeObject() == FAnimNextDecoratorHandle::StaticStruct();
+	if (bIsInputPin && bIsDecoratorHandle)
+	{
+		if (const URigVMPin* DecoratorPin = ModelPin->GetParentPin())
+		{
+			if (DecoratorPin->IsDecoratorPin())
+			{
+				check(DecoratorPin->GetScriptStruct() == FRigDecorator_AnimNextCppDecorator::StaticStruct());
+
+				TSharedPtr<FStructOnScope> DecoratorScope = DecoratorPin->GetDecoratorInstance();
+				const FRigDecorator_AnimNextCppDecorator* VMDecorator = (const FRigDecorator_AnimNextCppDecorator*)DecoratorScope->GetStructMemory();
+
+				const UScriptStruct* DecoratorStruct = VMDecorator->GetDecoratorSharedDataStruct();
+				check(DecoratorStruct != nullptr);
+
+				const FProperty* PinProperty = DecoratorStruct->FindPropertyByName(ModelPin->GetFName());
+				EdGraphPin->bHidden = PinProperty->HasMetaData(FRigVMStruct::HiddenMetaName);
+			}
+		}
 	}
 }
 

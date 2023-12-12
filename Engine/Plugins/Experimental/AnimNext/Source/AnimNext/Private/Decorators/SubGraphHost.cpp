@@ -3,7 +3,6 @@
 #include "Decorators/SubGraphHost.h"
 
 #include "DecoratorBase/ExecutionContext.h"
-#include "EvaluationVM/Tasks/PushReferenceKeyframe.h"
 
 namespace UE::AnimNext
 {
@@ -11,7 +10,6 @@ namespace UE::AnimNext
 
 	DEFINE_ANIM_DECORATOR_BEGIN(FSubGraphHostDecorator)
 		DEFINE_ANIM_DECORATOR_IMPLEMENTS_INTERFACE(IDiscreteBlend)
-		DEFINE_ANIM_DECORATOR_IMPLEMENTS_INTERFACE(IEvaluate)
 		DEFINE_ANIM_DECORATOR_IMPLEMENTS_INTERFACE(IGarbageCollection)
 		DEFINE_ANIM_DECORATOR_IMPLEMENTS_INTERFACE(IHierarchy)
 		DEFINE_ANIM_DECORATOR_IMPLEMENTS_INTERFACE(IUpdate)
@@ -22,6 +20,9 @@ namespace UE::AnimNext
 		FDecorator::FInstanceData::Construct(Context, Binding);
 
 		IGarbageCollection::RegisterWithGC(Context, Binding);
+
+		const FSharedData* SharedData = Binding.GetSharedData<FSharedData>();
+		ReferencePoseChildPtr = Context.AllocateNodeInstance(Binding, SharedData->ReferencePoseChild);
 	}
 
 	void FSubGraphHostDecorator::FInstanceData::Destruct(const FExecutionContext& Context, const FDecoratorBinding& Binding)
@@ -34,7 +35,6 @@ namespace UE::AnimNext
 	uint32 FSubGraphHostDecorator::GetNumChildren(const FExecutionContext& Context, const TDecoratorBinding<IHierarchy>& Binding) const
 	{
 		const FInstanceData* InstanceData = Binding.GetInstanceData<FInstanceData>();
-
 		return InstanceData->SubGraphSlots.Num();
 	}
 
@@ -42,24 +42,17 @@ namespace UE::AnimNext
 	{
 		const FInstanceData* InstanceData = Binding.GetInstanceData<FInstanceData>();
 
-		for (const FInstanceData::FSubGraphSlot& SubGraphEntry : InstanceData->SubGraphSlots)
+		for (const FSubGraphSlot& SubGraphEntry : InstanceData->SubGraphSlots)
 		{
-			Children.Add(SubGraphEntry.GraphInstance.GetGraphRootPtr());
-		}
-	}
-
-	void FSubGraphHostDecorator::PostEvaluate(FEvaluateTraversalContext& Context, const TDecoratorBinding<IEvaluate>& Binding) const
-	{
-		const FInstanceData* InstanceData = Binding.GetInstanceData<FInstanceData>();
-
-		if (InstanceData->SubGraphSlots.IsEmpty())
-		{
-			// We have no children, output a non-additive reference pose
-			Context.AppendTask(FAnimNextPushReferenceKeyframeTask::MakeFromSkeleton());
-		}
-		else
-		{
-			// We only have one child or another decorator handles this, do nothing
+			if (SubGraphEntry.State == ESlotState::ActiveWithReferencePose)
+			{
+				Children.Add(InstanceData->ReferencePoseChildPtr);
+			}
+			else
+			{
+				// Even if the slot is inactive, we queue an empty handle
+				Children.Add(SubGraphEntry.GraphInstance.GetGraphRootPtr());
+			}
 		}
 	}
 
@@ -68,27 +61,27 @@ namespace UE::AnimNext
 		const FSharedData* SharedData = Binding.GetSharedData<FSharedData>();
 		FInstanceData* InstanceData = Binding.GetInstanceData<FInstanceData>();
 
+		const bool bHasActiveSubGraph = InstanceData->CurrentlyActiveSubGraphIndex != INDEX_NONE;
+
 		TObjectPtr<const UAnimNextGraph> CurrentActiveSubGraph;
-		if (InstanceData->CurrentlyActiveSubGraphIndex != INDEX_NONE)
+		if (bHasActiveSubGraph)
 		{
 			CurrentActiveSubGraph = InstanceData->SubGraphSlots[InstanceData->CurrentlyActiveSubGraphIndex].SubGraph;
 		}
 
-		const TObjectPtr<const UAnimNextGraph> SubGraph = SharedData->GetSubGraph(Context, Binding);
-		if (CurrentActiveSubGraph != SubGraph)
-		{
-			// We can't blend from a sub-graph to an empty pose right now
-			check(SubGraph);
+		const TObjectPtr<const UAnimNextGraph> DesiredSubGraph = SharedData->GetSubGraph(Context, Binding);
 
+		if (CurrentActiveSubGraph != DesiredSubGraph || !bHasActiveSubGraph)
+		{
 			// Find an empty slot we can use
 			int32 FreeSlotIndex = INDEX_NONE;
 
 			const int32 NumSubGraphSlots = InstanceData->SubGraphSlots.Num();
 			for (int32 SlotIndex = 0; SlotIndex < NumSubGraphSlots; ++SlotIndex)
 			{
-				if (!InstanceData->SubGraphSlots[SlotIndex].GraphInstance.IsValid())
+				if (InstanceData->SubGraphSlots[SlotIndex].State == ESlotState::Inactive)
 				{
-					// This graph instance is invalid, we can re-use it
+					// This slot is inactive, we can re-use it
 					FreeSlotIndex = SlotIndex;
 					break;
 				}
@@ -100,8 +93,9 @@ namespace UE::AnimNext
 				FreeSlotIndex = InstanceData->SubGraphSlots.AddDefaulted();
 			}
 
-			FInstanceData::FSubGraphSlot& SubGraphSlot = InstanceData->SubGraphSlots[FreeSlotIndex];
-			SubGraphSlot.SubGraph = SubGraph;
+			FSubGraphSlot& SubGraphSlot = InstanceData->SubGraphSlots[FreeSlotIndex];
+			SubGraphSlot.SubGraph = DesiredSubGraph;
+			SubGraphSlot.State = DesiredSubGraph ? ESlotState::ActiveWithGraph : ESlotState::ActiveWithReferencePose;
 
 			const int32 OldChildIndex = InstanceData->CurrentlyActiveSubGraphIndex;
 			const int32 NewChildIndex = FreeSlotIndex;
@@ -187,8 +181,12 @@ namespace UE::AnimNext
 		if (InstanceData->SubGraphSlots.IsValidIndex(ChildIndex))
 		{
 			// Allocate our new sub-graph instance
-			FInstanceData::FSubGraphSlot& SubGraphEntry = InstanceData->SubGraphSlots[ChildIndex];
-			SubGraphEntry.SubGraph->AllocateInstance(Context.GetGraphInstance(), SubGraphEntry.GraphInstance);
+			FSubGraphSlot& SubGraphEntry = InstanceData->SubGraphSlots[ChildIndex];
+
+			if (SubGraphEntry.State == ESlotState::ActiveWithGraph)
+			{
+				SubGraphEntry.SubGraph->AllocateInstance(Context.GetGraphInstance(), SubGraphEntry.GraphInstance);
+			}
 		}
 	}
 
@@ -199,7 +197,14 @@ namespace UE::AnimNext
 		if (InstanceData->SubGraphSlots.IsValidIndex(ChildIndex))
 		{
 			// Deallocate our sub-graph instance
-			InstanceData->SubGraphSlots[ChildIndex].GraphInstance.Release();
+			FSubGraphSlot& SubGraphEntry = InstanceData->SubGraphSlots[ChildIndex];
+
+			if (SubGraphEntry.State == ESlotState::ActiveWithGraph)
+			{
+				InstanceData->SubGraphSlots[ChildIndex].GraphInstance.Release();
+			}
+
+			SubGraphEntry.State = ESlotState::Inactive;
 		}
 	}
 
@@ -207,7 +212,7 @@ namespace UE::AnimNext
 	{
 		FInstanceData* InstanceData = Binding.GetInstanceData<FInstanceData>();
 
-		for (FInstanceData::FSubGraphSlot& SubGraphEntry : InstanceData->SubGraphSlots)
+		for (FSubGraphSlot& SubGraphEntry : InstanceData->SubGraphSlots)
 		{
 			Collector.AddPropertyReferencesWithStructARO(FAnimNextGraphInstancePtr::StaticStruct(), &SubGraphEntry.GraphInstance);
 		}

@@ -38,9 +38,12 @@ void FRigDecorator_AnimNextCppDecorator::GetProgrammaticPins(URigVMController* I
 			continue;
 		}
 
-		const bool bIsHidden = PinInfo.Property->HasMetaData(FRigVMStruct::HiddenMetaName);
 		const bool bIsInline = PinInfo.Property->HasMetaData("Inline");
 		const bool bIsDecoratorHandle = PinInfo.Property->GetCPPType() == TEXT("FAnimNextDecoratorHandle");
+
+		// Decorator handle pins are never hidden because we need to still be able to link things to it
+		// UI display will use the hidden property if specified
+		const bool bIsHidden = bIsDecoratorHandle ? false : PinInfo.Property->HasMetaData(FRigVMStruct::HiddenMetaName);
 
 		// Check if the metadata stipulates that we should explicitly hide this property, if not we mark it as an input
 		PinInfo.Direction = bIsHidden ? ERigVMPinDirection::Hidden : ERigVMPinDirection::Input;

@@ -236,27 +236,31 @@ void SAnimNextGraphNode::UpdatePinTreeView()
 		
 		if(UEdGraphPin* InputEdGraphPin = RigGraphNode->FindPin(ModelPin->GetPinPath(), EEdGraphPinDirection::EGPD_Input))
 		{
-			if(const int32* PinIndexPtr = EdGraphPinToInputPin.Find(InputEdGraphPin))
+			// Make sure to handle input pins that we explicitly hide, like decorator handles
+			if (!InputEdGraphPin->bHidden)
 			{
-				PinInfo.InputPinWidget = InputPins[*PinIndexPtr];
-				PinInfo.InputPinWidget->SetVisibility(PinVisibilityAttribute);
-				PinWidgetForExpander = PinInfo.InputPinWidget;
-				bPinWidgetForExpanderLeft = true;
-				bPinInfoIsValid = true;
-				if (Template && !ModelPin->IsExecuteContext())
+				if (const int32* PinIndexPtr = EdGraphPinToInputPin.Find(InputEdGraphPin))
 				{
-					if (URigVMPin* RootPin = ModelPin->GetRootPin())
+					PinInfo.InputPinWidget = InputPins[*PinIndexPtr];
+					PinInfo.InputPinWidget->SetVisibility(PinVisibilityAttribute);
+					PinWidgetForExpander = PinInfo.InputPinWidget;
+					bPinWidgetForExpanderLeft = true;
+					bPinInfoIsValid = true;
+					if (Template && !ModelPin->IsExecuteContext())
 					{
-						FLinearColor PinColorAndOpacity = PinInfo.InputPinWidget->GetColorAndOpacity();
-						if (Template->FindArgument(RootPin->GetFName()) == nullptr && Template->FindExecuteArgument(RootPin->GetFName(), DispatchContext) == nullptr)
+						if (URigVMPin* RootPin = ModelPin->GetRootPin())
 						{
-							PinColorAndOpacity.A = 0.2f;
+							FLinearColor PinColorAndOpacity = PinInfo.InputPinWidget->GetColorAndOpacity();
+							if (Template->FindArgument(RootPin->GetFName()) == nullptr && Template->FindExecuteArgument(RootPin->GetFName(), DispatchContext) == nullptr)
+							{
+								PinColorAndOpacity.A = 0.2f;
+							}
+							else
+							{
+								PinColorAndOpacity.A = 1.0f;
+							}
+							PinInfo.InputPinWidget->SetColorAndOpacity(PinColorAndOpacity);
 						}
-						else
-						{
-							PinColorAndOpacity.A = 1.0f;
-						}
-						PinInfo.InputPinWidget->SetColorAndOpacity(PinColorAndOpacity);
 					}
 				}
 			}

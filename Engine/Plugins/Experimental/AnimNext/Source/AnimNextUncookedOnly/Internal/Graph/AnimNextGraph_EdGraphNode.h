@@ -20,6 +20,10 @@ public:
 	virtual void GetNodeContextMenuActions(class UToolMenu* Menu, class UGraphNodeContextMenuContext* Context) const override;
 
 	//////////////////////////////////////////////////////////////////////////
+	// URigVMEdGraphNode implementation
+	virtual void ConfigurePin(UEdGraphPin* EdGraphPin, const URigVMPin* ModelPin) const override;
+
+	//////////////////////////////////////////////////////////////////////////
 	// Our implementation
 
 	// Returns whether this node is a decorator stack or not

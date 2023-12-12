@@ -1764,7 +1764,7 @@ FEdGraphPinType URigVMEdGraphNode::GetPinTypeForModelPin(const URigVMPin* InMode
 	return PinType;
 }
 
-void URigVMEdGraphNode::ConfigurePin(UEdGraphPin* EdGraphPin, const URigVMPin* ModelPin)
+void URigVMEdGraphNode::ConfigurePin(UEdGraphPin* EdGraphPin, const URigVMPin* ModelPin) const
 {
 	const bool bConnectable =
 		ModelPin->GetDirection() == ERigVMPinDirection::Input ||

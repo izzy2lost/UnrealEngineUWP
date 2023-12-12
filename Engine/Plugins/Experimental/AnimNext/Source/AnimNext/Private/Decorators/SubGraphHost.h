@@ -6,7 +6,6 @@
 
 #include "DecoratorBase/Decorator.h"
 #include "DecoratorInterfaces/IDiscreteBlend.h"
-#include "DecoratorInterfaces/IEvaluate.h"
 #include "DecoratorInterfaces/IGarbageCollection.h"
 #include "DecoratorInterfaces/IHierarchy.h"
 #include "DecoratorInterfaces/IUpdate.h"
@@ -24,6 +23,10 @@ struct FAnimNextSubGraphHostDecoratorSharedData : public FAnimNextDecoratorShare
 	UPROPERTY(EditAnywhere, Category = "Default")
 	TObjectPtr<const UAnimNextGraph> SubGraph;
 
+	/** A dummy child that we can use to output the bind pose. This property is hidden and automatically populated during compilation. */
+	UPROPERTY(meta = (Hidden))
+	FAnimNextDecoratorHandle ReferencePoseChild;
+
 	// Latent pin support boilerplate
 	#define DECORATOR_LATENT_PROPERTIES_ENUMERATOR(GeneratorMacro) \
 		GeneratorMacro(SubGraph) \
@@ -39,9 +42,28 @@ namespace UE::AnimNext
 	 * 
 	 * A decorator that hosts and manages a sub-graph instance.
 	 */
-	struct FSubGraphHostDecorator : FBaseDecorator, IEvaluate, IUpdate, IHierarchy, IDiscreteBlend, IGarbageCollection
+	struct FSubGraphHostDecorator : FBaseDecorator, IUpdate, IHierarchy, IDiscreteBlend, IGarbageCollection
 	{
 		DECLARE_ANIM_DECORATOR(FSubGraphHostDecorator, 0xb0cfe72e, FBaseDecorator)
+
+		enum class ESlotState
+		{
+			ActiveWithGraph,
+			ActiveWithReferencePose,
+			Inactive,
+		};
+
+		struct FSubGraphSlot
+		{
+			// The sub-graph to use
+			TObjectPtr<const UAnimNextGraph> SubGraph;
+
+			// The graph instance
+			FAnimNextGraphInstancePtr GraphInstance;
+
+			// The current slot state
+			ESlotState State = ESlotState::Inactive;
+		};
 
 		using FSharedData = FAnimNextSubGraphHostDecoratorSharedData;
 
@@ -50,25 +72,16 @@ namespace UE::AnimNext
 			void Construct(const FExecutionContext& Context, const FDecoratorBinding& Binding);
 			void Destruct(const FExecutionContext& Context, const FDecoratorBinding& Binding);
 
-			struct FSubGraphSlot
-			{
-				// The sub-graph to use
-				TObjectPtr<const UAnimNextGraph> SubGraph;
-
-				// The graph instance
-				FAnimNextGraphInstancePtr GraphInstance;
-			};
-
 			// List of sub-graph slots
 			TArray<FSubGraphSlot> SubGraphSlots;
 
 			// The index of the currently active sub-graph slot
 			// All other sub-graphs are blending out
 			int32 CurrentlyActiveSubGraphIndex = INDEX_NONE;
-		};
 
-		// IEvaluate impl
-		virtual void PostEvaluate(FEvaluateTraversalContext& Context, const TDecoratorBinding<IEvaluate>& Binding) const override;
+			// Our child node pointer. This child is shared between all slots that have no graph provided.
+			FDecoratorPtr ReferencePoseChildPtr;
+		};
 
 		// IUpdate impl
 		virtual void PreUpdate(FUpdateTraversalContext& Context, const TDecoratorBinding<IUpdate>& Binding, const FDecoratorUpdateState& DecoratorState) const override;

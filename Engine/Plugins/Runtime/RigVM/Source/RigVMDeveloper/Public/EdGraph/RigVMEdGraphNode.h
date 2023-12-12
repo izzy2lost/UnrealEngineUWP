@@ -246,12 +246,12 @@ protected:
 
 	static FEdGraphPinType GetPinTypeForModelPin(const URigVMPin* InModelPin);
 
+	virtual void ConfigurePin(UEdGraphPin* EdGraphPin, const URigVMPin* ModelPin) const;
 private:
 
 	int32 GetNodeTopologyVersion() const { return NodeTopologyVersion; }
 	int32 NodeTopologyVersion;
 
-	static void ConfigurePin(UEdGraphPin* EdGraphPin, const URigVMPin* ModelPin);
 	TArray<URigVMPin*>& PinListForPin(const URigVMPin* InModelPin);
 
 #if WITH_EDITOR
