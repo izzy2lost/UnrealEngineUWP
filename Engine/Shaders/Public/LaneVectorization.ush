@@ -1466,6 +1466,25 @@ struct TLaneVector2D
 
 
 CALL_SITE_DEBUGLOC
+template<uint DestVectorSize, typename ScalarType, uint VectorSize, uint SimdSizeX, uint SimdSizeY>
+TLaneVector2D<ScalarType, DestVectorSize, SimdSizeX, SimdSizeY> ResizeChannels(
+	TLaneVector2D<ScalarType, VectorSize, SimdSizeX, SimdSizeY> A)
+{
+	TLaneVector2D<ScalarType, DestVectorSize, SimdSizeX, SimdSizeY> R;
+	R.SetAllElements(ScalarType(0));
+	UNROLL
+	for (uint ElementIndex = 0; ElementIndex < SimdSizeX * SimdSizeY; ElementIndex++)
+	{
+		UNROLL
+		for (uint ComponentIndex = 0; ComponentIndex < VectorSize; ComponentIndex++)
+		{
+			R.Registers.SetElementComponent(ElementIndex, ComponentIndex, A.Registers.GetElementComponent(ElementIndex, ComponentIndex));
+		}
+	}
+	return R;
+}
+
+CALL_SITE_DEBUGLOC
 template<typename ScalarType, uint VectorSizeA, uint VectorSizeB, uint SimdSizeX, uint SimdSizeY>
 TLaneVector2D<ScalarType, VectorSizeA + VectorSizeB, SimdSizeX, SimdSizeY> Concatenate(
 	TLaneVector2D<ScalarType, VectorSizeA, SimdSizeX, SimdSizeY> A,
