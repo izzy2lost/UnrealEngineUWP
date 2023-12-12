@@ -887,6 +887,21 @@ FReply SOutlinerView::OnKeyDown(const FGeometry& MyGeometry, const FKeyEvent& In
 	return STreeView<TWeakViewModelPtr<IOutlinerExtension>>::OnKeyDown(MyGeometry, InKeyEvent);
 }
 
+void SOutlinerView::Private_UpdateParentHighlights()
+{
+	this->ClearHighlightedItems();
+
+	// For the Outliner, we want to highlight parent items even if the current selection is not visible (i.e collapsed)
+	for (TWeakViewModelPtr<IOutlinerExtension> WeakSelectedItem : GetSelectedItems())
+	{
+		TViewModelPtr<IOutlinerExtension> SelectedItem = WeakSelectedItem.Pin();
+		for (TViewModelPtr<IOutlinerExtension> Parent : SelectedItem.AsModel()->GetAncestorsOfType<IOutlinerExtension>())
+		{
+			Private_SetItemHighlighted(Parent, true);
+		}
+	}
+}
+
 void SOutlinerView::Private_SetItemSelection( TWeakViewModelPtr<IOutlinerExtension> TheItem, bool bShouldBeSelected, bool bWasUserDirected )
 {
 	if (TSharedPtr<FOutlinerSpacer> Spacer = TheItem.ImplicitPin())

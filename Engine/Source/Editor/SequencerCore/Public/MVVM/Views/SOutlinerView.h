@@ -160,6 +160,7 @@ protected:
 	void OnExpansionChanged(TWeakViewModelPtr<IOutlinerExtension> InItem, bool bIsExpanded);
 
 	// Tree selection methods which must be overriden to maintain selection consistency with the rest of sequencer.
+	virtual void Private_UpdateParentHighlights() override;
 	virtual void Private_SetItemSelection( TWeakViewModelPtr<IOutlinerExtension> TheItem, bool bShouldBeSelected, bool bWasUserDirected = false ) override;
 	virtual void Private_ClearSelection() override;
 	virtual void Private_SelectRangeFromCurrentTo( TWeakViewModelPtr<IOutlinerExtension> InRangeSelectionEnd ) override;

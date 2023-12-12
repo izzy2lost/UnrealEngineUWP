@@ -49,22 +49,11 @@ public:
 		}
 
 		// If keys or the track area are selected, highlight this track row
-		if (EnumHasAnyFlags(SelectionState, EOutlinerSelectionState::HasSelectedKeys | EOutlinerSelectionState::HasSelectedTrackAreaItems))
+		if (EnumHasAnyFlags(SelectionState, EOutlinerSelectionState::HasSelectedKeys | EOutlinerSelectionState::HasSelectedTrackAreaItems | EOutlinerSelectionState::DescendentHasSelectedTrackAreaItems | EOutlinerSelectionState::DescendentHasSelectedKeys))
 		{
 			return IsHovered()
 				? (bEvenEntryIndex ? &Style->EvenRowBackgroundHoveredBrush : &Style->OddRowBackgroundHoveredBrush)
 				: &Style->ActiveHighlightedBrush;
-		}
-
-		// If this is collapsed but has any children with selected keys or sections, we report that state on the parent
-		if (!OutlinerItem->IsExpanded())
-		{
-			if (EnumHasAnyFlags(SelectionState, EOutlinerSelectionState::DescendentHasSelectedTrackAreaItems | EOutlinerSelectionState::DescendentHasSelectedKeys))
-			{
-				return IsHovered()
-					? (bEvenEntryIndex ? &Style->EvenRowBackgroundHoveredBrush : &Style->OddRowBackgroundHoveredBrush)
-					: &Style->ActiveHighlightedBrush;
-			}
 		}
 
 		// If this is at the root level, return it as a parent row
