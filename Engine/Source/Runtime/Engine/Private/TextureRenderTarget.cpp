@@ -421,6 +421,8 @@ bool UTextureRenderTarget::UpdateTexture(UTexture* InTexture, EConstructTextureF
 
 UTexture* UTextureRenderTarget::ConstructTexture(UObject* InOuter, const FString& InNewTextureName, EObjectFlags InObjectFlags, EConstructTextureFlags InFlags, const TArray<uint8>* InAlphaOverride, FText* OutErrorMessage)
 {
+	// InFlags = CTF_Default = CTF_Compress | CTF_SRGB,
+
 	FTextureRenderTargetResource* RenderTarget = GameThread_GetRenderTargetResource();
 	if (RenderTarget == nullptr)
 	{
@@ -450,6 +452,8 @@ UTexture* UTextureRenderTarget::ConstructTexture(UObject* InOuter, const FString
 	//		I see SRGB = 1 but Gamma = 1.0
 	//	 see also IsSRGB() which is yet another query that has different ideas
 	//	furthermore, float formats do not support anything but Linear gamma
+	//
+	// InFlags typically starts as Default with CTF_SRGB on, and then it's turned off here :
 	float Gamma = RenderTarget->GetDisplayGamma();
 	if (FMath::Abs(Gamma - 1.0f) < UE_KINDA_SMALL_NUMBER)
 	{
@@ -476,6 +480,8 @@ UTexture* UTextureRenderTarget::ConstructTexture(UObject* InOuter, const FString
 		Result->CompressionNone = true;
 		Result->DeferCompression = false;
 	}
+
+	Result->SetModernSettingsForNewOrChangedTexture();
 
 	if ((InFlags & CTF_SkipPostEdit) == 0)
 	{

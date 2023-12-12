@@ -76,37 +76,31 @@ namespace UE::TextureUtilitiesCommon
 	
 		// things that are done for both fresh import and reimport :
 
-		Texture->UpdateOodleTextureSdkVersionToLatest();
-
 		if ( bIsReimport )
 		{
+			Texture->UpdateOodleTextureSdkVersionToLatest();
+
 			return;
 		}
 
 		// things that are for fresh import only :
+		
+		// SetModern does UpdateOodleTextureSdkVersionToLatest
+		Texture->SetModernSettingsForNewOrChangedTexture();
 
-		// here we can change values that must have different defaults for backwards compatibility
-		// we set them to the new desired value here, the Texture constructor sets the legacy value
-	
 		const UTextureImportSettings* Settings = GetDefault<UTextureImportSettings>();
 
-		if ( Settings->bEnableNormalizeNormals )
+		// cannot check for TC_Normalmap here
+		//	because of the way NormalmapIdentification is delayed in Interchange
+		//	it's harmless to just always turn it on
+		//	it will be ignored if we are not TC_Normalmap
+		//	OutBuildSettings.bNormalizeNormals = Texture.bNormalizeNormals && Texture.IsNormalMap();
+		//if ( Texture->CompressionSettings == TC_Normalmap )
 		{
-			// cannot check for TC_Normalmap here
-			//	because of the way NormalmapIdentification is delayed in Interchange
-			//	it's harmless to just always turn it on
-			//	it will be ignored if we are not TC_Normalmap
-			//	OutBuildSettings.bNormalizeNormals = Texture.bNormalizeNormals && Texture.IsNormalMap();
-			//if ( Texture->CompressionSettings == TC_Normalmap )
-			{
-				Texture->bNormalizeNormals = true;
-			}
+			Texture->bNormalizeNormals = Settings->bEnableNormalizeNormals;
 		}
 
-		if ( Settings->bEnableFastMipFilter )
-		{
-			Texture->bUseNewMipFilter = true;
-		}
+		Texture->bUseNewMipFilter = Settings->bEnableFastMipFilter;
 
 		// the pipeline before here will have set floating point textures to TC_HDR
 		//	could alternatively check Texture->HasHDRSource

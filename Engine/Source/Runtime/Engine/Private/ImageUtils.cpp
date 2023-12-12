@@ -325,9 +325,9 @@ bool FImageUtils::ExportRenderTargetToDDS(TArray64<uint8> & OutData, UTextureRen
 	}
 
 	// some code dupe with GetRenderTargetImage to identify 2d/cube/vol :
-	UTextureRenderTargetCube * TexRTCube = Cast<UTextureRenderTargetCube>(TexRT);
-	bool bIsCube = ( TexRTCube != nullptr );
-	// UTextureRenderTargetCubeArray does not exist at the moment
+	ETextureClass TexRTClass = TexRT->GetRenderTargetTextureClass();
+	check( TexRTClass != ETextureClass::Invalid && TexRTClass != ETextureClass::RenderTarget );
+	bool bIsCube = TexRTClass == ETextureClass::Cube || TexRTClass == ETextureClass::CubeArray;
 	
 	int64 SizeX = FMath::RoundToInt64( TexRT->GetSurfaceWidth() ); // GetSurfaceWidth returns SizeX but as float
 	int64 SizeY = FMath::RoundToInt64( TexRT->GetSurfaceHeight() );
@@ -452,18 +452,11 @@ bool FImageUtils::GetRenderTargetImage(UTextureRenderTarget* TexRT, FImage & Out
 
 	ERawImageFormat::Type ReadFormat = UTextureRenderTarget::GetReadPixelsFormat(RTFormat,false);
 	
-	//UTextureRenderTarget2D * TexRT2D = Cast<UTextureRenderTarget2D>(TexRT);
-	//UTextureRenderTarget2DArray * TexRT2DA = Cast<UTextureRenderTarget2DArray>(TexRT);
-	//UTextureRenderTargetVolume * TexRTVolume = Cast<UTextureRenderTargetVolume>(TexRT);
-
 	// we have to identify cubes because they are treated differently
-	// can't use TexRT->GetTextureClass() because it's always RenderTarget
-	UTextureRenderTargetCube * TexRTCube = Cast<UTextureRenderTargetCube>(TexRT);
-	bool bIsCube = ( TexRTCube != nullptr );
-	// UTextureRenderTargetCubeArray does not exist at the moment
+	ETextureClass TexRTClass = TexRT->GetRenderTargetTextureClass();
+	check( TexRTClass != ETextureClass::Invalid && TexRTClass != ETextureClass::RenderTarget );
+	bool bIsCube = TexRTClass == ETextureClass::Cube || TexRTClass == ETextureClass::CubeArray;
 	
-	// UTextureRenderTarget2DArray does not derive from UTextureRenderTarget2D, so TexRT2D will be null
-
 	int64 TexRT_SizeX = FMath::RoundToInt64( TexRT->GetSurfaceWidth() ); // GetSurfaceWidth returns SizeX but as float
 	int64 TexRT_SizeY = FMath::RoundToInt64( TexRT->GetSurfaceHeight() );
 	int64 TexRT_SizeZ = FMath::RoundToInt64( TexRT->GetSurfaceDepth() );
@@ -886,6 +879,8 @@ UTexture2D* FImageUtils::CreateTexture2D(int32 SrcWidth, int32 SrcHeight, const 
 	}
 
 	Tex2D->VirtualTextureStreaming = InParams.bVirtualTexture;
+	
+	Tex2D->SetModernSettingsForNewOrChangedTexture();
 
 	Tex2D->PostEditChange();
 	return Tex2D;

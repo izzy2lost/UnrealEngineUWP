@@ -247,7 +247,8 @@ struct FTextureSource
 	/** PNG Compresses the source art if possible or tells the bulk data to zlib compress when it saves out to disk. */
 	ENGINE_API void Compress();
 
-	/** Force the GUID to change even if mip data has not been modified. */
+	/** Force the GUID to change even if mip data has not been modified.
+	This should be avoided; typically let the data hash be used as guid to uniquely identify the data. */
 	ENGINE_API void ForceGenerateGuid();
 
 	/** Use FMipLock to encapsulate a locked mip */
@@ -255,7 +256,8 @@ struct FTextureSource
 	/** Lock a mip for reading. */
 	ENGINE_API const uint8* LockMipReadOnly(int32 BlockIndex, int32 LayerIndex, int32 MipIndex);
 
-	/** Lock a mip for editing. */
+	/** Lock a mip for editing.
+	Note that Lock/Unlock for edit automatically does UseHashAsGuid. */
 	ENGINE_API uint8* LockMip(int32 BlockIndex, int32 LayerIndex, int32 MipIndex);
 
 	/** Unlock a mip. */
@@ -333,6 +335,8 @@ struct FTextureSource
 
 	/** Trivial accessors. These will only give values for Block0 so may not be correct for UDIM/multi-block textures, use GetBlock() for this case. */
 	FGuid GetPersistentId() const { return BulkData.GetIdentifier(); }
+	/** GetId() returns a hash of the Id member (data hash) and also the attributes of the Source.
+	( GetId does not just return Id ) **/
 	ENGINE_API FGuid GetId() const;
 	FORCEINLINE int64 GetSizeX() const { return SizeX; }
 	FORCEINLINE int64 GetSizeY() const { return SizeY; }
@@ -601,7 +605,8 @@ private:
 	bool EnsureBlocksAreSorted();
 
 public:
-	/** Uses a hash as the GUID, useful to prevent creating new GUIDs on load for legacy assets. */
+	/** Uses a hash as the GUID, useful to prevent creating new GUIDs on load for legacy assets.
+	This is automatically done by Init() and Mip Lock/Unlock.  New textures should always have the data hash as Id. */
 	ENGINE_API void UseHashAsGuid();
 
 	void ReleaseSourceMemory(); // release the memory from the mips (does almost the same as remove source data except doesn't rebuild the guid)
@@ -612,7 +617,9 @@ private:
 #endif
 
 #if WITH_EDITORONLY_DATA
-	/** GUID used to track changes to the source data. */
+	/** GUID used to track changes to the source data.
+	Typically with UseHashAsGuid , this "Id" is the hash of the BulkData.
+	Note that GetId() is not == Id. */
 	UPROPERTY(VisibleAnywhere, Category=TextureSource)
 	FGuid Id;
 
@@ -1708,6 +1715,13 @@ public:
 	*/
 	ENGINE_API virtual void UpdateOodleTextureSdkVersionToLatest(bool bDoPrePostEditChangeIfChanging = false);
 	
+	/** Set new default settings that are desired for textures.
+	These cannot be set in the constructor automatically to avoid changing old content.
+	When new textures are made, or the texture content changes, call this to update settings.
+	ApplyDefaultsForNewlyImportedTextures calls this, you don't need to call both.
+	*/
+	ENGINE_API virtual void SetModernSettingsForNewOrChangedTexture();
+
 	/** Get TextureFormatName with platform remaps and conditional prefix
 	 *   this is the entry point API for getting the final texture format name
 	 *  OutFormats will be resized to the number of sub-flavors of the platform (typically just 1)
@@ -1760,6 +1774,10 @@ public:
 	//~ Begin AsyncCompilation Interface
 	virtual bool IsCompiling() const override { return IsDefaultTexture(); }
 	//~ End AsyncCompilation Interface
+
+	// if texture is currently in async build action or queue, block until it is done
+	//	note: Modify() and PreEditChange() do this.  You should usually be using PreEdit/PostEdit and not calling this directly.
+	ENGINE_API virtual void BlockOnAnyAsyncBuild();
 
 	//~ Begin UObject Interface.
 	ENGINE_API virtual bool Modify(bool bAlwaysMarkDirty = true) override;

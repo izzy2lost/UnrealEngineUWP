@@ -180,6 +180,7 @@ UTexture::UTexture(const FObjectInitializer& ObjectInitializer)
 	bPadWithBorderColor = false;
 	ResizeDuringBuildX = 0;
 	ResizeDuringBuildY = 0;
+	bChromaKeyTexture = false;
 	ChromaKeyColor = FColorList::Magenta;
 	ChromaKeyThreshold = 1.0f / 255.0f;
 	VirtualTextureStreaming = 0;
@@ -195,6 +196,32 @@ UTexture::UTexture(const FObjectInitializer& ObjectInitializer)
 		TextureReference.BeginInit_GameThread();
 	}
 }
+
+#if WITH_EDITOR
+void UTexture::SetModernSettingsForNewOrChangedTexture()
+{
+	UpdateOodleTextureSdkVersionToLatest();
+
+	// here we can change values that must have different defaults for backwards compatibility
+	// we set them to the new desired value here, the Texture constructor sets the legacy value
+	
+	if ( GetCompositeTexture() == nullptr )
+	{
+		CompositeTextureMode = CTM_Disabled;
+	}
+
+	// set AlphaCoverageThresholds to a better default than zero :
+	if ( bDoScaleMipsForAlphaCoverage == false && AlphaCoverageThresholds == FVector4(0,0,0,0) )
+	{
+		AlphaCoverageThresholds = FVector4(0, 0, 0, 0.75f);
+	}
+
+	// bNormalizeNormals is ignored if we're not a normal map
+	bNormalizeNormals = true;
+	
+	bUseNewMipFilter = true;
+}
+#endif
 
 const FTextureResource* UTexture::GetResource() const
 {
@@ -436,13 +463,13 @@ bool UTexture::IsPostLoadThreadSafe() const
 
 bool UTexture::IsDefaultTexture() const
 {
+	// "IsDefaultTexture" actually means that a temporary default stand-in is being used
+	//	 because the texture is being async built
 	return false;
 }
 
-bool UTexture::Modify(bool bAlwaysMarkDirty)
+void UTexture::BlockOnAnyAsyncBuild()
 {
-	// Before applying any modification to the texture
-	// make sure no compilation is still ongoing.
 	if (!IsAsyncCacheComplete())
 	{
 		FinishCachePlatformData();
@@ -452,6 +479,15 @@ bool UTexture::Modify(bool bAlwaysMarkDirty)
 	{
 		FTextureCompilingManager::Get().FinishCompilation({this});
 	}
+
+	check( ! IsDefaultTexture() ); // this is always true even in failure/error cases
+}
+
+bool UTexture::Modify(bool bAlwaysMarkDirty)
+{
+	// Before applying any modification to the texture
+	// make sure no compilation is still ongoing.
+	BlockOnAnyAsyncBuild();
 
 	return Super::Modify(bAlwaysMarkDirty);
 }
@@ -1968,12 +2004,17 @@ void FTextureSource::InitBlocked(const ETextureSourceFormat* InLayerFormats,
 			{
 				FMemory::Memcpy(DataPtr, InDataPerBlock[i], BlockSize);
 			}
+			else
+			{
+				memset(DataPtr,0,BlockSize);
+			}
 			DataPtr += BlockSize;
 		}
 	}
 
 	BulkData.UpdatePayload(Buffer.MoveToShared(), Owner);
 	BulkData.SetCompressionOptions(UE::Serialization::ECompressionOptions::Default);
+	UseHashAsGuid();
 }
 
 void FTextureSource::InitBlocked(const ETextureSourceFormat* InLayerFormats,
@@ -1986,6 +2027,7 @@ void FTextureSource::InitBlocked(const ETextureSourceFormat* InLayerFormats,
 
 	BulkData.UpdatePayload(MoveTemp(NewData), Owner);
 	BulkData.SetCompressionOptions(UE::Serialization::ECompressionOptions::Default);
+	UseHashAsGuid();
 }
 
 void FTextureSource::InitLayered(
@@ -2020,9 +2062,11 @@ void FTextureSource::InitLayered(
 	else
 	{
 		BulkData.UpdatePayload(FUniqueBuffer::Alloc(TotalBytes).MoveToShared(), Owner);
+		// ?? unitialized ??
 	}
 
 	BulkData.SetCompressionOptions(UE::Serialization::ECompressionOptions::Default);
+	UseHashAsGuid();
 }
 
 void FTextureSource::InitLayered(
@@ -2045,6 +2089,7 @@ void FTextureSource::InitLayered(
 
 	BulkData.UpdatePayload(MoveTemp(NewData), Owner);
 	BulkData.SetCompressionOptions(UE::Serialization::ECompressionOptions::Default);
+	UseHashAsGuid();
 }
 
 void FTextureSource::Init(
@@ -2143,6 +2188,8 @@ void FTextureSource::InitWithCompressedSourceData(
 	{
 		BulkData.SetCompressionOptions(UE::Serialization::ECompressionOptions::Disabled);
 	}
+	
+	UseHashAsGuid();
 }
 
 void FTextureSource::InitWithCompressedSourceData(
@@ -2177,6 +2224,8 @@ void FTextureSource::InitWithCompressedSourceData(
 	{
 		BulkData.SetCompressionOptions(UE::Serialization::ECompressionOptions::Disabled);
 	}
+	
+	UseHashAsGuid();
 }
 
 FTextureSource FTextureSource::CopyTornOff() const
@@ -2270,6 +2319,13 @@ void FTextureSource::Compress()
 	{
 		BulkData.SetCompressionOptions(UE::Serialization::ECompressionOptions::Disabled);
 	}
+
+	// note: we changed BulkData payload here to put PNG data in it
+	//	but we do NOT call UseHashAsGuid
+	//	we try to keep "Id" == to the hash of the BulkData when it was the raw data
+	//	the invariant
+	//	( Id == UE::Serialization::IoHashToGuid(BulkData.GetPayloadId()) )
+	//	is no longer true after this
 }
 
 FSharedBuffer FTextureSource::Decompress(IImageWrapperModule* ) const
@@ -2939,12 +2995,16 @@ void FTextureSource::ForceGenerateGuid()
 
 void FTextureSource::ReleaseSourceMemory()
 {
+	check( LockState == ELockState::None && NumLockedMips == 0 );
+
 	bHasHadBulkDataCleared = true;
 	BulkData.UnloadData();
 }
 
 void FTextureSource::RemoveSourceData()
 {
+	check( LockState == ELockState::None && NumLockedMips == 0 );
+
 	SizeX = 0;
 	SizeY = 0;
 	NumSlices = 0;

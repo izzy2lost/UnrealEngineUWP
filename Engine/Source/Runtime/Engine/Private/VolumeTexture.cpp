@@ -252,17 +252,18 @@ ENGINE_API bool UVolumeTexture::UpdateSourceFromFunction(TFunction<void(int32, i
 		return false;
 	}
 	
-	Modify(true);
+	PreEditChange(nullptr);
 
 	Source2DTexture = nullptr;
 	const int64 FormatDataSize = ERawImageFormat::GetBytesPerPixel(FImageCoreUtils::ConvertToRawImageFormat(Format));
 
 	// Allocate temp buffer used to fill texture
 	uint8* const NewData = (uint8*)FMemory::Malloc(SizeX * SizeY * SizeZ * FormatDataSize);
-	uint8* CurPos = NewData;
+	uint8* DataPtr = NewData;
 
-	// Temporary storage for a single voxel value extracted from the lambda, type depends on Format
-	void* const NewValue = FMemory::Malloc(FormatDataSize);
+	// use PixelDataScratch just in case the function does something like write RGBA32F
+	//	 when our format is actually BGRA8 , to try to avoid crashing
+	uint64 PixelDataScratch[4];
 
 	// Loop over all voxels and fill from our TFunction
 	for (int32 PosZ = 0; PosZ < SizeZ; ++PosZ)
@@ -271,11 +272,12 @@ ENGINE_API bool UVolumeTexture::UpdateSourceFromFunction(TFunction<void(int32, i
 		{
 			for (int32 PosX = 0; PosX < SizeX; ++PosX)
 			{
-				Func(PosX, PosY, PosZ, NewValue);
+				// ?? Func knows our pixel format somehow?
+				//	should have defined this so that Func always writes FLinearColor and we convert
+				Func(PosX, PosY, PosZ, PixelDataScratch);
 
-				FMemory::Memcpy(CurPos, NewValue, FormatDataSize);
-
-				CurPos += FormatDataSize;
+				memcpy(DataPtr,PixelDataScratch,FormatDataSize);
+				DataPtr += FormatDataSize;
 			}
 		}
 	}
@@ -285,14 +287,10 @@ ENGINE_API bool UVolumeTexture::UpdateSourceFromFunction(TFunction<void(int32, i
 	
 	// Free temp buffers
 	FMemory::Free(NewData);
-	FMemory::Free(NewValue);
 
 	SetLightingGuid(); // Because the content has changed, use a new GUID.
 
-	ValidateSettingsAfterImportOrEdit();
-
-	// Make sure to update the texture resource so the results of filling the texture 
-	UpdateResource();
+	PostEditChange();
 
 	bSourceValid = true;
 #endif

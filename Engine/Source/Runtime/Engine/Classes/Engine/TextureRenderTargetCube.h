@@ -98,6 +98,7 @@ class UTextureRenderTargetCube : public UTextureRenderTarget
 	virtual EPixelFormat GetFormat() const override;
 	virtual bool IsSRGB() const override;
 	virtual float GetDisplayGamma() const override;
+	virtual ETextureClass GetRenderTargetTextureClass() const override { return ETextureClass::Cube; }
 	//~ End UTextureRenderTarget Interface
 };
 
