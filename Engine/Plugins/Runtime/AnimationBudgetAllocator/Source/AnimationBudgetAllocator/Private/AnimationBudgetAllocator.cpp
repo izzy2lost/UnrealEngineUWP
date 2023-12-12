@@ -1077,6 +1077,21 @@ void FAnimationBudgetAllocator::SetParameters(const FAnimationBudgetAllocatorPar
 	Parameters = InParameters;
 }
 
+void FAnimationBudgetAllocator::ForceNextTickThisFrame(USkeletalMeshComponentBudgeted* InComponent)
+{
+	if (GAnimationBudgetEnabled && bEnabled)
+	{
+		int32 ManagerHandle = InComponent->GetAnimationBudgetHandle();
+		if (ManagerHandle != INDEX_NONE)
+		{
+			FAnimBudgetAllocatorComponentData& ComponentData = AllComponentData[ManagerHandle];
+
+			// set frameoffset so next tick will be on this frame
+			ComponentData.FrameOffset += (ComponentData.TickRate - ((GFrameCounter + ComponentData.FrameOffset) % ComponentData.TickRate));
+		}
+	}
+}
+
 void FAnimationBudgetAllocator::SetParametersFromCVars()
 {
 	Parameters = GBudgetParameters;

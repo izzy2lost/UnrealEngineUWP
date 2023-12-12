@@ -144,6 +144,7 @@ public:
 	virtual void SetEnabled(bool bInEnabled) override;
 	virtual bool GetEnabled() const override;
 	virtual void SetParameters(const FAnimationBudgetAllocatorParameters& InParameters) override;
+	virtual void ForceNextTickThisFrame(USkeletalMeshComponentBudgeted* Component) override;
 
 	// FGCObject interface
 	virtual void AddReferencedObjects(FReferenceCollector& Collector) override;
