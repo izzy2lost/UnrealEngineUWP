@@ -6,6 +6,8 @@
 #include "PixelShaderUtils.h"
 #include "BasePassRendering.h"
 
+using namespace LightFunctionAtlas;
+
 static TAutoConsoleVariable<int32> CVarSampledDirectLighting(
 	TEXT("r.SampledDirectLighting"),
 	0,

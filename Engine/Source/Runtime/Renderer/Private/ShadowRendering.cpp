@@ -20,6 +20,8 @@
 #include "TranslucentLighting.h"
 #include "MobileBasePassRendering.h"
 
+using namespace LightFunctionAtlas;
+
 ///////////////////////////////////////////////////////////////////////////////////////////////////
 // Directional light
 static TAutoConsoleVariable<float> CVarCSMShadowDepthBias(

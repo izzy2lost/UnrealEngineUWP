@@ -137,9 +137,12 @@ static uint32 GetAtlasEdgeSize()
 	return AtlasEdgeSize;
 }
 
+
+
+namespace LightFunctionAtlas
+{
+
 IMPLEMENT_GLOBAL_SHADER_PARAMETER_STRUCT(FLightFunctionAtlasGlobalParameters, "LightFunctionAtlas");
-
-
 
 //////////////////////////////////////////////////////////////////////////
 
@@ -849,37 +852,36 @@ FScreenPassTexture FLightFunctionAtlas::AddDebugVisualizationPasses(FRDGBuilder&
 	return MoveTemp(ScreenPassSceneColor);
 }
 
-namespace LightFunctionAtlas
+bool IsEnabled(const FViewInfo& InView, ELightFunctionAtlasSystem In)
 {
-	bool IsEnabled(const FViewInfo& InView, ELightFunctionAtlasSystem In)
-	{
-		return InView.LightFunctionAtlasViewData.UsesLightFunctionAtlas(In);
-	}
+	return InView.LightFunctionAtlasViewData.UsesLightFunctionAtlas(In);
+}
 
-	bool IsEnabled(const FScene& InScene, ELightFunctionAtlasSystem In)
-	{
-		return InScene.LightFunctionAtlasSceneData.UsesLightFunctionAtlas(In);
-	}
+bool IsEnabled(const FScene& InScene, ELightFunctionAtlasSystem In)
+{
+	return InScene.LightFunctionAtlasSceneData.UsesLightFunctionAtlas(In);
+}
 
-	void OnRenderBegin(FLightFunctionAtlas& In, FScene& InScene, TArray<FViewInfo>& InViews, const FViewFamilyInfo& InViewFamily)
-	{
-		In.BeginSceneFrame(InViewFamily, InViews, InScene.LightFunctionAtlasSceneData, ShouldRenderVolumetricFog(&InScene, InViewFamily));
-	}
+void OnRenderBegin(FLightFunctionAtlas& In, FScene& InScene, TArray<FViewInfo>& InViews, const FViewFamilyInfo& InViewFamily)
+{
+	In.BeginSceneFrame(InViewFamily, InViews, InScene.LightFunctionAtlasSceneData, ShouldRenderVolumetricFog(&InScene, InViewFamily));
+}
 
-	TRDGUniformBufferRef<FLightFunctionAtlasGlobalParameters> BindGlobalParameters(FRDGBuilder& GraphBuilder, const FViewInfo& InView)
-	{
-		return InView.LightFunctionAtlasViewData.GetLightFunctionAtlas()->GetLightFunctionAtlasGlobalParameters(GraphBuilder, InView.LightFunctionAtlasViewData.GetViewIndex());
-	}
+TRDGUniformBufferRef<FLightFunctionAtlasGlobalParameters> BindGlobalParameters(FRDGBuilder& GraphBuilder, const FViewInfo& InView)
+{
+	return InView.LightFunctionAtlasViewData.GetLightFunctionAtlas()->GetLightFunctionAtlasGlobalParameters(GraphBuilder, InView.LightFunctionAtlasViewData.GetViewIndex());
+}
 
-	FLightFunctionAtlasGlobalParameters* GetGlobalParametersStruct(FRDGBuilder& GraphBuilder, const FViewInfo& InView)
-	{		
-		if (FLightFunctionAtlas* LightFunctionAtlas = InView.LightFunctionAtlasViewData.GetLightFunctionAtlas())
-		{
-			return LightFunctionAtlas->GetLightFunctionAtlasGlobalParametersStruct(GraphBuilder, InView.LightFunctionAtlasViewData.GetViewIndex());
-		}
-		else
-		{
-			return FLightFunctionAtlas::GetDefaultLightFunctionAtlasGlobalParametersStruct(GraphBuilder);
-		}
+FLightFunctionAtlasGlobalParameters* GetGlobalParametersStruct(FRDGBuilder& GraphBuilder, const FViewInfo& InView)
+{
+	if (FLightFunctionAtlas* LightFunctionAtlas = InView.LightFunctionAtlasViewData.GetLightFunctionAtlas())
+	{
+		return LightFunctionAtlas->GetLightFunctionAtlasGlobalParametersStruct(GraphBuilder, InView.LightFunctionAtlasViewData.GetViewIndex());
+	}
+	else
+	{
+		return FLightFunctionAtlas::GetDefaultLightFunctionAtlasGlobalParametersStruct(GraphBuilder);
 	}
 }
+
+} // namespace LightFunctionAtlas

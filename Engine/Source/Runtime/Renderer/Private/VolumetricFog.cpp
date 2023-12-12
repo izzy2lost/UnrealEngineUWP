@@ -29,6 +29,8 @@ VolumetricFog.cpp
 #include "DataDrivenShaderPlatformInfo.h"
 #include "LightFunctionAtlas.h"
 
+using namespace LightFunctionAtlas;
+
 int32 GVolumetricFog = 1;
 FAutoConsoleVariableRef CVarVolumetricFog(
 	TEXT("r.VolumetricFog"),

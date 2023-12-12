@@ -30,6 +30,8 @@
 #include "HairStrands/HairStrandsData.h"
 #include "VariableRateShadingImageManager.h"
 
+using namespace LightFunctionAtlas;
+
 /**
  * A vertex shader for projecting a light function onto the scene.
  */

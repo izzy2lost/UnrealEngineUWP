@@ -41,7 +41,7 @@ static FAutoConsoleVariableRef CVarUseClusteredDeferredShading(
 
 DECLARE_GPU_STAT_NAMED(ClusteredShading, TEXT("Clustered Shading"));
 
-
+using namespace LightFunctionAtlas;
 
 bool FDeferredShadingSceneRenderer::ShouldUseClusteredDeferredShading() const
 {

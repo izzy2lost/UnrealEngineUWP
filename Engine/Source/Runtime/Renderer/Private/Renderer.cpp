@@ -339,8 +339,8 @@ void FRendererModule::DrawTileMesh(FCanvasRenderContext& RenderContext, FMeshPas
 		SetDummyLocalFogVolumeForView(GraphBuilder, View);
 
 		// Create a disabled LightFunctionAtlas to be able to render base pass.
-		FLightFunctionAtlas LightFunctionAtlas;
-		FLightFunctionAtlasSceneData LightFunctionAtlasSceneData;
+		LightFunctionAtlas::FLightFunctionAtlas LightFunctionAtlas;
+		LightFunctionAtlas::FLightFunctionAtlasSceneData LightFunctionAtlasSceneData;
 		LightFunctionAtlas.ClearEmptySceneFrame(&View, 0u, &LightFunctionAtlasSceneData);
 
 		TUniformBufferRef<FReflectionCaptureShaderData> EmptyReflectionCaptureUniformBuffer;

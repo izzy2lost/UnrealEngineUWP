@@ -33,6 +33,8 @@
 #include "SampledDirectLighting/SampledDirectLighting.h"
 #include "LightFunctionAtlas.h"
 
+using namespace LightFunctionAtlas;
+
 // ENABLE_DEBUG_DISCARD_PROP is used to test the lighting code by allowing to discard lights to see how performance scales
 // It ought never to be enabled in a shipping build, and is probably only really useful when woring on the shading code.
 #if !(UE_BUILD_SHIPPING || UE_BUILD_TEST)

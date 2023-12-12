@@ -1368,7 +1368,7 @@ public:
 
 	FHairStrandsViewData HairStrandsViewData;
 
-	FLightFunctionAtlasViewData LightFunctionAtlasViewData;
+	LightFunctionAtlas::FLightFunctionAtlasViewData LightFunctionAtlasViewData;
 
 	/** Parameters for exponential height fog. */
 	FVector4f ExponentialFogParameters;
@@ -2062,7 +2062,7 @@ public:
 	// TODO: Move to deferred scene renderer
 	TUniquePtr<FShadowSceneRenderer> ShadowSceneRenderer;
 
-	FLightFunctionAtlas LightFunctionAtlas;
+	LightFunctionAtlas::FLightFunctionAtlas LightFunctionAtlas;
 
 	/** If a freeze request has been made */
 	bool bHasRequestedToggleFreeze;

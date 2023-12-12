@@ -81,7 +81,7 @@ BEGIN_GLOBAL_SHADER_PARAMETER_STRUCT(FSharedBasePassUniformParameters,)
 	SHADER_PARAMETER_STRUCT(FFogUniformParameters, Fog)
 	SHADER_PARAMETER_STRUCT(FFogUniformParameters, FogISR)
 	SHADER_PARAMETER_STRUCT(FLocalFogVolumeUniformParameters, LFV)
-	SHADER_PARAMETER_STRUCT(FLightFunctionAtlasGlobalParameters, LightFunctionAtlas)
+	SHADER_PARAMETER_STRUCT(LightFunctionAtlas::FLightFunctionAtlasGlobalParameters, LightFunctionAtlas)
 	SHADER_PARAMETER(uint32, UseBasePassSkylight)
 END_GLOBAL_SHADER_PARAMETER_STRUCT()
 

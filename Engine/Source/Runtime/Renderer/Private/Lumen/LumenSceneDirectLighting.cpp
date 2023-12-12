@@ -12,6 +12,8 @@
 #include "VolumetricCloudRendering.h"
 #include "LumenTracingUtils.h"
 
+using namespace LightFunctionAtlas;
+
 static TAutoConsoleVariable<int32> CVarLumenLumenSceneDirectLighting(
 	TEXT("r.LumenScene.DirectLighting"),
 	1,
