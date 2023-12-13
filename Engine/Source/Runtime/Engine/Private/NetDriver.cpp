@@ -123,6 +123,8 @@ DEFINE_STAT(STAT_NetSaturated);
 DEFINE_STAT(STAT_ImportedNetGuids);
 DEFINE_STAT(STAT_PendingOuterNetGuids);
 DEFINE_STAT(STAT_UnmappedReplicators);
+DEFINE_STAT(STAT_OutgoingReliableMessageQueueMaxSize);
+DEFINE_STAT(STAT_IncomingReliableMessageQueueMaxSize);
 
 // Voice specific stats
 DEFINE_STAT(STAT_VoiceBytesSent);
@@ -1735,6 +1737,10 @@ void UNetDriver::SetupNetworkMetrics()
 	GetMetrics()->CreateInt(UE::Net::Metric::PingBucketInt6, 0);
 	GetMetrics()->CreateInt(UE::Net::Metric::PingBucketInt7, 0);
 
+	// The maximum size of the incoming/outgoing reliable message queues across all channels and connections in the last frame.
+	GetMetrics()->CreateInt(UE::Net::Metric::OutgoingReliableMessageQueueMaxSize, 0);
+	GetMetrics()->CreateInt(UE::Net::Metric::IncomingReliableMessageQueueMaxSize, 0);
+
 	GetMetrics()->CreateInt(UE::Net::Metric::ImportedNetGuids, 0);
 	GetMetrics()->CreateInt(UE::Net::Metric::PendingOuterNetGuids, 0);
 	GetMetrics()->CreateInt(UE::Net::Metric::NetInBunchTimeOvershootPercent, 0);
@@ -1833,6 +1839,8 @@ void UNetDriver::SetupNetworkMetricsListeners()
 	RegisterStatsListener(UE::Net::Metric::NetSaturated, GET_STATFNAME(STAT_NetSaturated));
 	RegisterStatsListener(UE::Net::Metric::NetInBunchTimeOvershootPercent, GET_STATFNAME(STAT_NetInBunchTimeOvershootPercent));
 	RegisterStatsListener(UE::Net::Metric::GatherPrioritizeTimeMS, GET_STATFNAME(STAT_NetServerGatherPrioritizeRepActorsTime));
+	RegisterStatsListener(UE::Net::Metric::OutgoingReliableMessageQueueMaxSize, GET_STATFNAME(STAT_OutgoingReliableMessageQueueMaxSize));
+	RegisterStatsListener(UE::Net::Metric::IncomingReliableMessageQueueMaxSize, GET_STATFNAME(STAT_IncomingReliableMessageQueueMaxSize));
 #endif
 }
 
@@ -1962,9 +1970,6 @@ static FAutoConsoleVariableRef CVarLogPendingGuidsOnShutdown(
 /** Shutdown all connections managed by this net driver */
 void UNetDriver::Shutdown()
 {
-	NetworkMetricsDatabase->Reset();
-	NetworkMetricsListeners.Reset();
-
 	// Client closing connection to server
 	if (ServerConnection)
 	{
@@ -2068,6 +2073,9 @@ void UNetDriver::Shutdown()
 	}
 
 	UpdateCrashContext();
+
+	NetworkMetricsDatabase->Reset();
+	NetworkMetricsListeners.Reset();
 }
 
 bool UNetDriver::IsServer() const
@@ -2184,6 +2192,8 @@ void UNetDriver::TickDispatch( float DeltaTime )
 
 	// Checks for standby cheats if enabled	
 	UpdateStandbyCheatStatus();
+
+	ResetNetworkMetrics();
 
 	if (ServerConnection == nullptr)
 	{
@@ -5841,6 +5851,12 @@ void UNetDriver::RegisterStatsListener(const FName MetricName, const FName StatN
 		NetworkMetricsListeners.Add(ListenerKeyName, Listener);
 		GetMetrics()->Register(MetricName, Listener);
 	}
+}
+
+void UNetDriver::ResetNetworkMetrics()
+{
+	GetMetrics()->SetInt(UE::Net::Metric::OutgoingReliableMessageQueueMaxSize, 0);
+	GetMetrics()->SetInt(UE::Net::Metric::IncomingReliableMessageQueueMaxSize, 0);
 }
 
 void UNetDriver::ReleaseToChannelPool(UChannel* Channel)

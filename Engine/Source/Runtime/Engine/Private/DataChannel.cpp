@@ -662,6 +662,7 @@ void UChannel::ReceivedRawBunch( FInBunch & Bunch, bool & bOutSkipAck )
 		New->Next     = *InPtr;
 		*InPtr        = New;
 		NumInRec++;
+		Connection->GetDriver()->GetMetrics()->SetMaxInt(UE::Net::Metric::IncomingReliableMessageQueueMaxSize, NumInRec);
 
 		if ( NumInRec >= RELIABLE_BUFFER )
 		{
@@ -1461,6 +1462,7 @@ FOutBunch* UChannel::PrepBunch(FOutBunch* Bunch, FOutBunch* OutBunch, bool Merge
 			Bunch->Next	= NULL;
 			Bunch->ChSequence = ++Connection->OutReliable[ChIndex];
 			NumOutRec++;
+			Connection->GetDriver()->GetMetrics()->SetMaxInt(UE::Net::Metric::OutgoingReliableMessageQueueMaxSize, NumOutRec);
 			OutBunch = new FOutBunch(*Bunch);
 			FOutBunch** OutLink = &OutRec;
 			while(*OutLink) // This was rewritten from a single-line for loop due to compiler complaining about empty body for loops (-Wempty-body)

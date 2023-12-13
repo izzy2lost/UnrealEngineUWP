@@ -92,6 +92,8 @@ const FName PingBucketInt4("PingBucketInt4");
 const FName PingBucketInt5("PingBucketInt5");
 const FName PingBucketInt6("PingBucketInt6");
 const FName PingBucketInt7("PingBucketInt7");
+const FName OutgoingReliableMessageQueueMaxSize("OutgoingReliableMessageQueueMaxSize");
+const FName IncomingReliableMessageQueueMaxSize("IncomingReliableMessageQueueMaxSize");
 
 }
 

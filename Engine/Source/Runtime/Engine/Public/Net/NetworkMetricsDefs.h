@@ -94,5 +94,7 @@ extern ENGINE_API const FName PingBucketInt4;
 extern ENGINE_API const FName PingBucketInt5;
 extern ENGINE_API const FName PingBucketInt6;
 extern ENGINE_API const FName PingBucketInt7;
+extern ENGINE_API const FName OutgoingReliableMessageQueueMaxSize;
+extern ENGINE_API const FName IncomingReliableMessageQueueMaxSize;
 
 }

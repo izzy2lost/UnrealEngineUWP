@@ -1005,6 +1005,9 @@ private:
 	/** Create an instance of UNetworkMetricsStats that is associated with a given Stat and cached with other listeners in NetworkMetricsListeners. */
 	void RegisterStatsListener(const FName MetricName, const FName StatName);
 
+	/** Reset any network metrics database values at the beginning of a frame. */
+	void ResetNetworkMetrics();
+
 public:
 	/** Get the value of MaxChannelsOverride cached from the net driver definition */
 	int32 GetMaxChannelsOverride() const { return MaxChannelsOverride; }

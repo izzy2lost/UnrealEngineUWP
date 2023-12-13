@@ -43,12 +43,48 @@ void UNetworkMetricsDatabase::SetFloat(const FName MetricName, float Value)
 	}
 }
 
+void UNetworkMetricsDatabase::SetMinFloat(const FName MetricName, float Value)
+{
+	UE::Net::FNetworkMetric<float>* Metric = MetricFloats.Find(MetricName);
+	if (ensureMsgf(Metric, TEXT("Cannot find float metric %s."), *MetricName.ToString()))
+	{
+		Metric->Value = FMath::Min<float>(Value, Metric->Value);
+	}
+}
+
+void UNetworkMetricsDatabase::SetMaxFloat(const FName MetricName, float Value)
+{
+	UE::Net::FNetworkMetric<float>* Metric = MetricFloats.Find(MetricName);
+	if (ensureMsgf(Metric, TEXT("Cannot find float metric %s."), *MetricName.ToString()))
+	{
+		Metric->Value = FMath::Max<float>(Value, Metric->Value);
+	}
+}
+
 void UNetworkMetricsDatabase::SetInt(const FName MetricName, int64 Value)
 {
 	UE::Net::FNetworkMetric<int64>* Metric = MetricInts.Find(MetricName);
 	if (ensureMsgf(Metric, TEXT("Cannot find integer metric %s."), *MetricName.ToString()))
 	{
 		Metric->Value = Value;
+	}
+}
+
+void UNetworkMetricsDatabase::SetMinInt(const FName MetricName, int64 Value)
+{
+	UE::Net::FNetworkMetric<int64>* Metric = MetricInts.Find(MetricName);
+	if (ensureMsgf(Metric, TEXT("Cannot find integer metric %s."), *MetricName.ToString()))
+	{
+		Metric->Value = FMath::Min<int64>(Value, Metric->Value);
+	}
+}
+
+void UNetworkMetricsDatabase::SetMaxInt(const FName MetricName, int64 Value)
+{
+	UE::Net::FNetworkMetric<int64>* Metric = MetricInts.Find(MetricName);
+	if (ensureMsgf(Metric, TEXT("Cannot find integer metric %s."), *MetricName.ToString()))
+	{
+		Metric->Value = FMath::Max<int64>(Value, Metric->Value);
 	}
 }
 
