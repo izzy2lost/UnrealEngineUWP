@@ -153,6 +153,8 @@ private:
 	FReply OnDragDetected(const FGeometry& MyGeometry, const FPointerEvent& MouseEvent);
 	TOptional<EItemDropZone> OnCanAcceptDrop(const FDragDropEvent& DragDropEvent, EItemDropZone DropZone, TSharedPtr<FRigTreeElement> TargetItem);
 	FReply OnAcceptDrop(const FDragDropEvent& DragDropEvent, EItemDropZone DropZone, TSharedPtr<FRigTreeElement> TargetItem);
+	void OnElementKeyTagDragDetected(const FRigElementKey& InDraggedTag);
+	void UpdateConnectorMatchesOnDrag(const TArray<FRigElementKey>& InDraggedKeys);
 
 	static const FName ContextMenuName;
 	static void CreateContextMenu();
@@ -245,6 +247,7 @@ private:
 	bool bIsConstructionEventRunning;
 	uint32 LastHierarchyHash;
 	TArray<FRigElementKey> SelectionBeforeConstruction;
+	TMap<FRigElementKey, FModularRigResolveResult> DragRigResolveResults;
 
 public:
 	FName HandleRenameElement(const FRigElementKey& OldKey, const FString& NewName);

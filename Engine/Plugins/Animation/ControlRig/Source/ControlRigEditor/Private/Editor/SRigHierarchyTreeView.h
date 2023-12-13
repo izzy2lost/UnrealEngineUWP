@@ -99,6 +99,7 @@ struct CONTROLRIGEDITOR_API FRigTreeDelegates
 	FOnRigTreeCompareKeys OnCompareKeys;
 	FOnRigTreeGetResolvedKey OnGetResolvedKey;
 	FOnRigTreeRequestDetailsInspection OnRequestDetailsInspection;
+	FOnRigTreeElementKeyTagDragDetected OnRigTreeElementKeyTagDragDetected;
 
 	FRigTreeDelegates()
 	{
@@ -314,6 +315,7 @@ public:
 	void SetExpansionRecursive(TSharedPtr<FRigTreeElement> InElement, bool bTowardsParent, bool bShouldBeExpanded);
 	TSharedRef<ITableRow> MakeTableRowWidget(TSharedPtr<FRigTreeElement> InItem, const TSharedRef<STableViewBase>& OwnerTable, bool bPinned);
 	void HandleGetChildrenForTree(TSharedPtr<FRigTreeElement> InItem, TArray<TSharedPtr<FRigTreeElement>>& OutChildren);
+	void OnElementKeyTagDragDetected(const FRigElementKey& InDraggedTag);
 
 	TArray<FRigElementKey> GetSelectedKeys() const;
 	const TArray<TSharedPtr<FRigTreeElement>>& GetRootElements() const { return RootElements; }

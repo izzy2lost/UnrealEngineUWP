@@ -119,6 +119,15 @@ FReply SRigHierarchyTagWidget::OnDragDetected(const FGeometry& MyGeometry, const
 		if (MouseEvent.IsMouseButtonDown(EKeys::LeftMouseButton) && !Identifier.Get().IsEmpty())
 		{
 			TSharedRef<FRigHierarchyTagDragDropOp> DragDropOp = FRigHierarchyTagDragDropOp::New(SharedThis(this));
+
+			FRigElementKey DraggedKey;
+			FRigElementKey::StaticStruct()->ImportText(*Identifier.Get(), &DraggedKey, nullptr, EPropertyPortFlags::PPF_None, nullptr, FRigElementKey::StaticStruct()->GetName(), true);
+
+			if(DraggedKey.IsValid())
+			{
+				(void)OnElementKeyDragDetectedDelegate.ExecuteIfBound(DraggedKey);
+			}
+
 			return FReply::Handled().BeginDragDrop(DragDropOp);
 		}
 	}

@@ -191,10 +191,13 @@ void SRigHierarchyItem::Construct(const FArguments& InArgs, const TSharedRef<STa
 
 	for(const SRigHierarchyTagWidget::FArguments& TagArguments : InRigTreeElement->Tags)
 	{
+		TSharedRef<SRigHierarchyTagWidget> TagWidget = SArgumentNew(TagArguments, SRigHierarchyTagWidget);
+		TagWidget->OnElementKeyDragDetected().BindSP(InTreeView.Get(), &SRigHierarchyTreeView::OnElementKeyTagDragDetected);
+		
 		HorizontalBox->AddSlot()
 		.AutoWidth()
 		[
-			SArgumentNew(TagArguments, SRigHierarchyTagWidget)
+			TagWidget
 		];
 	}
 
@@ -859,6 +862,11 @@ void SRigHierarchyTreeView::HandleGetChildrenForTree(TSharedPtr<FRigTreeElement>
 	TArray<TSharedPtr<FRigTreeElement>>& OutChildren)
 {
 	OutChildren = InItem.Get()->Children;
+}
+
+void SRigHierarchyTreeView::OnElementKeyTagDragDetected(const FRigElementKey& InDraggedTag)
+{
+	(void)Delegates.OnRigTreeElementKeyTagDragDetected.ExecuteIfBound(InDraggedTag);
 }
 
 TArray<FRigElementKey> SRigHierarchyTreeView::GetSelectedKeys() const

@@ -390,7 +390,36 @@ void FRigElementResolveResult::SetDefaultTarget(const FText& InMessage)
 	Message = InMessage;
 }
 
+////////////////////////////////////////////////////////////////////////////////
+// FModularRigResolveResult
+////////////////////////////////////////////////////////////////////////////////
+
 bool FModularRigResolveResult::IsValid() const
 {
 	return State == EModularRigResolveState::Success && !Matches.IsEmpty();
+}
+
+bool FModularRigResolveResult::ContainsMatch(const FRigElementKey& InKey, FString* OutErrorMessage) const
+{
+	if(Matches.ContainsByPredicate([InKey](const FRigElementResolveResult& InMatch) -> bool
+	{
+		return InMatch.GetKey() == InKey;
+	}))
+	{
+		return true;
+	}
+
+	if(OutErrorMessage)
+	{
+		if(const FRigElementResolveResult* Mismatch = Excluded.FindByPredicate([InKey](const FRigElementResolveResult& InMatch) -> bool
+		{
+			return InMatch.GetKey() == InKey;
+		}))
+		{
+			*OutErrorMessage = Mismatch->GetMessage().ToString();
+			return true;
+		}
+	}
+	
+	return false;
 }

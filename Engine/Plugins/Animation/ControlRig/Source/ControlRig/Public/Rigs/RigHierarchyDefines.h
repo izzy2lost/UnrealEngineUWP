@@ -1835,6 +1835,14 @@ public:
 	{
 		return Key;
 	}
+	const ERigElementResolveState& GetState() const
+	{
+		return State;
+	}
+	const FText& GetMessage() const
+	{
+		return Message;
+	}
 	void SetInvalidTarget(const FText& InMessage);
 	void SetPossibleTarget(const FText& InMessage = FText());
 	void SetDefaultTarget(const FText& InMessage = FText());
@@ -1902,6 +1910,8 @@ public:
 	{
 		return Excluded;
 	}
+
+	bool ContainsMatch(const FRigElementKey& InKey, FString* OutErrorMessage = nullptr) const;
 
 private:
 

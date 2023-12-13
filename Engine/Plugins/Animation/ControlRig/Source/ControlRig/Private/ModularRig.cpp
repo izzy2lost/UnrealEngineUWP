@@ -668,6 +668,10 @@ void UModularRig::DiscardModuleRig(UControlRig* InControlRig)
 
 const FRigModuleInstance* UModularRig::FindModule(const FString& InPath) const
 {
+	if(InPath.EndsWith(NamespaceSeparator))
+	{
+		return FindModule(InPath.Left(InPath.Len() - 1));
+	}
 	return Modules.FindByPredicate([InPath](const FRigModuleInstance& Module)
 	{
 		return Module.GetPath() == InPath;

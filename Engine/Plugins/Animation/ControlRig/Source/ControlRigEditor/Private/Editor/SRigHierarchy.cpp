@@ -46,6 +46,7 @@
 #include "Widgets/Notifications/SNotificationList.h"
 #include "Styling/AppStyle.h"
 #include "ControlRigSkeletalMeshComponent.h"
+#include "ModularRigRuleManager.h"
 #include "Sequencer/ControlRigLayerInstance.h"
 #include "Algo/MinElement.h"
 #include "Algo/MaxElement.h"
@@ -156,6 +157,7 @@ void SRigHierarchy::Construct(const FArguments& InArgs, TSharedRef<FControlRigEd
 	Delegates.OnDragDetected = FOnDragDetected::CreateSP(this, &SRigHierarchy::OnDragDetected);
 	Delegates.OnGetResolvedKey = FOnRigTreeGetResolvedKey::CreateSP(this, &SRigHierarchy::OnGetResolvedKey);
 	Delegates.OnRequestDetailsInspection = FOnRigTreeRequestDetailsInspection::CreateSP(this, &SRigHierarchy::OnRequestDetailsInspection);
+	Delegates.OnRigTreeElementKeyTagDragDetected = FOnRigTreeRequestDetailsInspection::CreateSP(this, &SRigHierarchy::OnElementKeyTagDragDetected);
 
 	ChildSlot
 	[
@@ -2503,6 +2505,8 @@ FReply SRigHierarchy::OnDragDetected(const FGeometry& MyGeometry, const FPointer
 	{
 		if (ControlRigEditor.IsValid())
 		{
+			UpdateConnectorMatchesOnDrag(DraggedElements);
+			
 			TSharedRef<FRigElementHierarchyDragDropOp> DragDropOp = FRigElementHierarchyDragDropOp::New(MoveTemp(DraggedElements));
 			DragDropOp->OnPerformDropToGraph.BindSP(ControlRigEditor.Pin().Get(), &FControlRigEditor::OnGraphNodeDropToPerform);
 			return FReply::Handled().BeginDragDrop(DragDropOp);
@@ -2553,6 +2557,13 @@ TOptional<EItemDropZone> SRigHierarchy::OnCanAcceptDrop(const FDragDropEvent& Dr
 
 				if(RigDragDropOp->IsDraggingSingleConnector() || RigDragDropOp->IsDraggingSingleSocket())
 				{
+					if(const FModularRigResolveResult* ResolveResult = DragRigResolveResults.Find(DraggedKey))
+					{
+						if(!ResolveResult->ContainsMatch(TargetKey))
+						{
+							return InvalidDropZone;
+						}
+					}
 					if(DropZone != EItemDropZone::OntoItem)
 					{
 						return InvalidDropZone;
@@ -2573,12 +2584,6 @@ TOptional<EItemDropZone> SRigHierarchy::OnCanAcceptDrop(const FDragDropEvent& Dr
 			!(RigDragDropOp->IsDraggingSingleConnector() || RigDragDropOp->IsDraggingSingleSocket()))
 		{
 			return InvalidDropZone;
-		}
-
-		// resolve connector rules
-		if(RigDragDropOp->IsDraggingSingleConnector())
-		{
-			// todo resolve rules
 		}
 
 		switch (TargetKey.Type)
@@ -2656,9 +2661,18 @@ TOptional<EItemDropZone> SRigHierarchy::OnCanAcceptDrop(const FDragDropEvent& Dr
 			FRigElementKey DraggedKey;
 			FRigElementKey::StaticStruct()->ImportText(*TagDragDropOp->GetIdentifier(), &DraggedKey, nullptr, EPropertyPortFlags::PPF_None, nullptr, FRigElementKey::StaticStruct()->GetName(), true);
 
-			if(Hierarchy->Contains(DraggedKey))
+			if(Hierarchy->Contains(DraggedKey) && TargetItem.IsValid())
 			{
-				// todo: apply rules
+				if(DraggedKey.Type == ERigElementType::Connector)
+				{
+					if(const FModularRigResolveResult* ResolveResult = DragRigResolveResults.Find(DraggedKey))
+					{
+						if(!ResolveResult->ContainsMatch(TargetItem->Key))
+						{
+							return InvalidDropZone;
+						}
+					}
+				}
 				ReturnDropZone = DropZone;
 			}
 			else if(!TargetItem.IsValid())
@@ -2856,6 +2870,44 @@ FReply SRigHierarchy::OnAcceptDrop(const FDragDropEvent& DragDropEvent, EItemDro
 	}
 
 	return FReply::Unhandled();
+}
+
+void SRigHierarchy::OnElementKeyTagDragDetected(const FRigElementKey& InDraggedTag)
+{
+	UpdateConnectorMatchesOnDrag({InDraggedTag});
+}
+
+void SRigHierarchy::UpdateConnectorMatchesOnDrag(const TArray<FRigElementKey>& InDraggedKeys)
+{
+	DragRigResolveResults.Reset();
+	if(ControlRigBeingDebuggedPtr.IsValid())
+	{
+		const UModularRig* ControlRig = Cast<UModularRig>(ControlRigBeingDebuggedPtr.Get());
+		if(URigHierarchy* Hierarchy = ControlRig->GetHierarchy())
+		{
+			if(const UModularRigRuleManager* RuleManager = Hierarchy->GetRuleManager())
+			{
+				for(const FRigElementKey& DraggedElement : InDraggedKeys)
+				{
+					if(DraggedElement.Type == ERigElementType::Connector)
+					{
+						if(const FRigConnectorElement* Connector = Hierarchy->Find<FRigConnectorElement>(DraggedElement))
+						{
+							const FName NameSpace = Hierarchy->GetNameMetadata(Connector->GetKey(), URigHierarchy::NameSpaceMetadataName, NAME_None);
+							if(!NameSpace.IsNone())
+							{
+								if(const FRigModuleInstance* Module = ControlRig->FindModule(NameSpace.ToString()))
+								{
+									const FModularRigResolveResult ResolveResult = RuleManager->FindMatches(Connector, Module, ControlRig->ElementKeyRedirector); 
+									DragRigResolveResults.Add(DraggedElement, ResolveResult);
+								}
+							}
+						}
+					}
+				}
+			}
+		}
+	}
 }
 
 FName SRigHierarchy::HandleRenameElement(const FRigElementKey& OldKey, const FString& NewName)
