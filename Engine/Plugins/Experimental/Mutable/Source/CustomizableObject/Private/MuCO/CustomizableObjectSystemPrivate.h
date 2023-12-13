@@ -202,6 +202,8 @@ struct FGeneratedTexture
 
 	UPROPERTY(Category = CustomizableObjectInstance, VisibleAnywhere)
 	TObjectPtr<UTexture> Texture = nullptr;
+
+	bool operator==(const FGeneratedTexture& Other) const = default;
 };
 
 
