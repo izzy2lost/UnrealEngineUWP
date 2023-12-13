@@ -940,11 +940,12 @@ namespace UnitConversion
 				DataSize.Emplace(EUnit::Gigabytes,	1024.0f);
 				DataSize.Emplace(EUnit::Terabytes,	0.0f);
 
-				Time.Emplace(EUnit::Milliseconds,		1000.0f);
-				Time.Emplace(EUnit::Seconds,			60.0f);
-				Time.Emplace(EUnit::Minutes,			60.0f);
+				Time.Emplace(EUnit::Microseconds,	1000.0f);
+				Time.Emplace(EUnit::Milliseconds,	1000.0f);
+				Time.Emplace(EUnit::Seconds,		60.0f);
+				Time.Emplace(EUnit::Minutes,		60.0f);
 				Time.Emplace(EUnit::Hours,			24.0f);
-				Time.Emplace(EUnit::Days,				365.242f / 12.0f);
+				Time.Emplace(EUnit::Days,			365.242f / 12.0f);
 				Time.Emplace(EUnit::Months,			12.0f);
 				Time.Emplace(EUnit::Years,			0.0f);
 
@@ -983,7 +984,7 @@ namespace UnitConversion
 		case EUnit::Bytes: case EUnit::Kilobytes: case EUnit::Megabytes: case EUnit::Gigabytes: case EUnit::Terabytes:
 			return &Bounds.DataSize;
 
-		case EUnit::Milliseconds: case EUnit::Seconds: case EUnit::Minutes: case EUnit::Hours: case EUnit::Days: case EUnit::Months: case EUnit::Years:
+		case EUnit::Microseconds: case EUnit::Milliseconds: case EUnit::Seconds: case EUnit::Minutes: case EUnit::Hours: case EUnit::Days: case EUnit::Months: case EUnit::Years:
 			return &Bounds.Time;
 
 		case EUnit::Pascals: case EUnit::KiloPascals: case EUnit::MegaPascals: case EUnit::GigaPascals:
