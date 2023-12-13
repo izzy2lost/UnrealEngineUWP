@@ -562,9 +562,10 @@ void FSlatePostProcessor::TickPostProcessResources()
 	{
 		for (TArray<FSlatePostProcessResource*>::TIterator It = IntermediateTargetsArray.CreateIterator(); It; ++It)
 		{
-			if (GFrameCounter - (*It)->GetFrameUsed() > GSlateEnableDeleteUnusedPostProcess)
+			FSlatePostProcessResource* SlatePostProcessResource = (*It);
+			if (SlatePostProcessResource != nullptr && (GFrameCounter - SlatePostProcessResource->GetFrameUsed() > GSlateEnableDeleteUnusedPostProcess))
 			{
-				(*It)->CleanUp();
+				SlatePostProcessResource->CleanUp();
 				It.RemoveCurrent();
 			}
 		}
