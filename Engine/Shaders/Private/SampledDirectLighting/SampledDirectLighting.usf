@@ -7,7 +7,6 @@ groupshared uint SharedTileMode[THREADGROUP_SIZE * THREADGROUP_SIZE];
 
 RWStructuredBuffer<uint> RWTileAllocator;
 RWStructuredBuffer<uint> RWTileData;
-RWTexture2D<uint> RWDownsampledTileMask;
 uint TileDataStride;
 uint DownsampledTileDataStride;
 uint2 DownsampledViewSize;
@@ -44,15 +43,15 @@ void TileClassificationCS(
 
 		if (GBuffer.ShadingModelID == SHADINGMODELID_UNLIT)
 		{
-			// Skip mark
+			SharedTileMode[LinearThreadIndex] = 0x1;
 		}
 		else if (GBuffer.ShadingModelID == SHADINGMODELID_DEFAULT_LIT)
 		{
-			SharedTileMode[LinearThreadIndex] = 0x1;
+			SharedTileMode[LinearThreadIndex] = 0x2;
 		}
 		else
 		{
-			SharedTileMode[LinearThreadIndex] = 0x2;
+			SharedTileMode[LinearThreadIndex] = 0x4;
 		}
 	}
 
@@ -109,23 +108,23 @@ void TileClassificationCS(
 
 		uint2 TileCoord = ScreenCoord / TILE_SIZE;
 
-		#if DOWNSAMPLED_CLASSIFICATION
-		{
-			RWDownsampledTileMask[TileCoord] = SharedTileMode[0] != 0 ? 1 : 0;
-		}
-		#endif
-
-		if (SharedTileMode[0] & 0x2)
+		if (SharedTileMode[0] & 0x4)
 		{
 			uint SampledDirectLightingTileIndex = 0;
 			InterlockedAdd(RWTileAllocator[TILE_MODE_COMPLEX_SHADING], 1, SampledDirectLightingTileIndex);
 			RWTileData[DataStride * TILE_MODE_COMPLEX_SHADING + SampledDirectLightingTileIndex] = PackTile(TileCoord);
 		}
-		else if (SharedTileMode[0] & 0x1)
+		else if (SharedTileMode[0] & 0x2)
 		{
 			uint SampledDirectLightingTileIndex = 0;
 			InterlockedAdd(RWTileAllocator[TILE_MODE_SIMPLE_SHADING], 1, SampledDirectLightingTileIndex);
 			RWTileData[DataStride * TILE_MODE_SIMPLE_SHADING + SampledDirectLightingTileIndex] = PackTile(TileCoord);
+		}
+		else if (SharedTileMode[0] == 0x1)
+		{
+			uint SampledDirectLightingTileIndex = 0;
+			InterlockedAdd(RWTileAllocator[TILE_MODE_EMPTY], 1, SampledDirectLightingTileIndex);
+			RWTileData[DataStride * TILE_MODE_EMPTY + SampledDirectLightingTileIndex] = PackTile(TileCoord);
 		}
 	}
 }

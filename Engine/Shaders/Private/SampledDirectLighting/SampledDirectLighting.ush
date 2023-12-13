@@ -38,7 +38,8 @@
 // Keep in sync with SampledDirectLighting::ETileType
 #define TILE_MODE_SIMPLE_SHADING	0
 #define TILE_MODE_COMPLEX_SHADING	1
-#define TILE_MODE_MAX				2
+#define TILE_MODE_EMPTY				2
+#define TILE_MODE_MAX				3
 
 uint PackTile(uint2 TileCoord)
 {

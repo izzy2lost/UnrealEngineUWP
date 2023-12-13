@@ -34,10 +34,8 @@ void InitCompactedTraceTexelIndirectArgsCS(uint3 DispatchThreadId : SV_DispatchT
 	}
 }
 
-uint SampledDirectLightingStateFrameIndes;
 uint2 SampleViewSize;
 uint DebugMode;
-
 float4 HZBUvFactorAndInvFactor;
 float MaxHierarchicalScreenTraceIterations;
 float RelativeDepthThickness;
@@ -45,8 +43,8 @@ float HistoryDepthTestRelativeThickness;
 uint MinimumTracingThreadOccupancy;
 
 Texture2D<uint> LightSamples;
-Texture2D<uint> RWTraceTile;
 
+Texture2D<uint> RWTraceTile;
 RWStructuredBuffer<uint> RWCompactedTraceTexelData;
 RWStructuredBuffer<uint> RWCompactedTraceTexelAllocator;
 
@@ -62,9 +60,6 @@ groupshared uint SharedGlobalTraceTexelStartOffset;
 	groupshared uint SharedTraceTexelAllocator;
 	groupshared uint SharedTraceTexels[THREADGROUP_SIZE * THREADGROUP_SIZE];
 #endif
-
-// Allocated for max size, where we have only 1 sample per pixel
-groupshared uint SharedTileMask[THREADGROUP_SIZE / TILE_SIZE][THREADGROUP_SIZE / TILE_SIZE];
 
 #if COMPILER_SUPPORTS_WAVE_SIZE && WAVE_OPS
 	WAVESIZE(32)
@@ -88,14 +83,6 @@ void CompactLightSampleTracesCS(
 	}
 	#endif
 
-	uint2 LocalTileMaskSize = SampleCoordToDownsampledScreenCoord(THREADGROUP_SIZE) / TILE_SIZE;
-	if (all(GroupThreadId.xy < LocalTileMaskSize))
-	{
-		// Skip unitialized SampleBuffer tiles
-		uint2 DownsampledTileCoord = SampleCoordToDownsampledScreenCoord(GroupId.xy * THREADGROUP_SIZE) / TILE_SIZE + GroupThreadId.xy;
-		SharedTileMask[GroupThreadId.x][GroupThreadId.y] = DownsampledTileMask[DownsampledTileCoord];
-	}
-
 	GroupMemoryBarrierWithGroupSync();
 
 	uint2 SampleCoord = DispatchThreadId.xy;
@@ -103,7 +90,7 @@ void CompactLightSampleTracesCS(
 	uint TraceTexelForThisThread = 0;
 
 	uint2 LocalTileMaskCoord = SampleCoordToDownsampledScreenCoord(SampleCoord - GroupId.xy * THREADGROUP_SIZE) / TILE_SIZE;
-	if (all(SampleCoord < SampleViewSize) && SharedTileMask[LocalTileMaskCoord.x][LocalTileMaskCoord.y] != 0)
+	if (all(SampleCoord < SampleViewSize))
 	{
 		// #sdl_todo: try to preserve z-order here for improved tracing coherency
 		FLightSample LightSample = UnpackLightSample(LightSamples[SampleCoord]);

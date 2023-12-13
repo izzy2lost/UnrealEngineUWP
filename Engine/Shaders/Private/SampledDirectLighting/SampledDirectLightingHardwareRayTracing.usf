@@ -10,7 +10,6 @@
 
 float RayTracingBias;
 float RayTracingNormalBias;
-uint SampledDirectLightingStateFrameIndes;
 uint2 SampleViewSize;
 uint DebugMode;
 uint MaxTraversalIterations;
@@ -28,6 +27,7 @@ RaytracingAccelerationStructure TLAS;
 #endif
 
 RWTexture2D<uint> RWLightSamples;
+
 Texture2D<float> LightSampleRayDistance;
 StructuredBuffer<uint> CompactedTraceTexelData;
 StructuredBuffer<uint> CompactedTraceTexelAllocator;
@@ -118,13 +118,6 @@ RAY_TRACING_ENTRY_RAYGEN_OR_INLINE(HardwareRayTraceLightSamples)
 		}
 		#endif
 
-		if (Payload.IsHit())
-		{
-			LightSample.bCompleted = true;
-			LightSample.bVisible = false;
-			RWLightSamples[SampleCoord] = PackLightSample(LightSample);
-		}
-
 		#if DEBUG_MODE
 		if (bDebug && DebugMode == DEBUG_MODE_VISUALIZE_TRACING)
 		{
@@ -136,8 +129,15 @@ RAY_TRACING_ENTRY_RAYGEN_OR_INLINE(HardwareRayTraceLightSamples)
 			float3 RayEnd = Ray.Origin + Ray.Direction * (Payload.IsHit() ? Payload.HitT : Ray.TMax);
 			float4 RayColor = float4(LightData.Color.xyz / Luminance(LightData.Color.xyz), 1.0f);
 
-			AddLineTWS(Context, RayStart, RayEnd, RayColor);
+			AddLineTWS(Context, RayStart, RayEnd, RayColor);	
 		}
 		#endif
+
+		if (Payload.IsHit())
+		{
+			LightSample.bCompleted = true;
+			LightSample.bVisible = false;
+			RWLightSamples[SampleCoord] = PackLightSample(LightSample);
+		}
 	}
 }

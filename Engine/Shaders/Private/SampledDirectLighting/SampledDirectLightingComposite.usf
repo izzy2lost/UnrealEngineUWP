@@ -113,18 +113,6 @@ void CompositeLightSamplesCS(
 
 	GroupMemoryBarrierWithGroupSync();
 
-	if (View.GeneralPurposeTweak <= 0.5)
-	{
-		// Mark sub-tiles requiring shading tiles
-		if (SharedSampleWeights[GroupThreadId.x + SHARED_TILE_BORDER][GroupThreadId.y + SHARED_TILE_BORDER] > 0.0f)
-		{
-			uint2 ShadingTileOffset = GroupThreadId.xy / 4;
-			SharedShadingTileMask[ShadingTileOffset.x][ShadingTileOffset.y] = 1;
-		}
-	}
-
-	GroupMemoryBarrierWithGroupSync();
-
 	uint2 LocalDownsampledTileCoord = GroupThreadId.xy;
 	uint2 DownsampledScreenCoord = BaseDownsampledScreenCoord + LocalDownsampledTileCoord;
 	uint2 ShadingTileOffset = GroupThreadId.xy;

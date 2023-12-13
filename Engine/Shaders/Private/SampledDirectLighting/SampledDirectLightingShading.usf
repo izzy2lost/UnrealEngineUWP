@@ -4,9 +4,8 @@
 #include "../BlueNoise.ush"
 #include "SampledDirectLighting.ush"
 
-RWTexture2D<float3> RWDiffuseLighting;
-RWTexture2D<float3> RWSpecularLighting;
-RWTexture2D<float4> RWLuminanceMoments;
+RWTexture2D<float3> RWResolvedDiffuseLighting;
+RWTexture2D<float3> RWResolvedSpecularLighting;
 
 Texture2D<float> ShadingTileAtlas;
 Texture2D<uint> ShadingTileGridAllocator;
@@ -54,6 +53,9 @@ void ShadeLightSamplesCS(
 			float2 ScreenUV = (ScreenCoord + 0.5f) * View.BufferSizeAndInvSize.zw;
 			FGBufferData GBuffer = GetGBufferData(ScreenUV);
 
+			float3 DiffuseLighting = 0.0f;
+			float3 SpecularLighting = 0.0f;
+
 			if (GBuffer.Depth > 0.0f)
 			{
 				uint2 ShadingTileCoord = TileCoord;
@@ -84,16 +86,6 @@ void ShadeLightSamplesCS(
 					Print(Context, TEXT("LightId   | Weight    | Diffuse   | Specular"));
 				}
 				#endif
-
-				const float3 N = GBuffer.WorldNormal;
-				const float3 V = normalize(View.TranslatedWorldCameraOrigin - TranslatedWorldPosition);
-				const float NoV = saturate(dot(N, V));
-				const float3 SpecularEnv = EnvBRDF(GBuffer.SpecularColor, GBuffer.Roughness, NoV);
-
-				float3 DiffuseLighting = 0.0f;
-				float3 SpecularLighting = 0.0f;
-				float2 DiffuseLuminanceMoments = 0.0f;
-				float2 SpecularLuminanceMoments = 0.0f;
 
 				for (uint IndexInCell = 0; IndexInCell < NumShadingTilesInCell; ++IndexInCell)
 				{
@@ -148,23 +140,9 @@ void ShadeLightSamplesCS(
 							TranslatedWorldPosition, CameraVector, GBuffer, AmbientOcclusion, GBuffer.ShadingModelID, 
 							LightData, LightAttenuation, Dither, ScreenCoord, 
 							SurfaceShadow);
-		
-						// Apply pre-exposure
-						SplitLighting.DiffuseLighting.xyz *= View.PreExposure;
-						SplitLighting.SpecularLighting.xyz *= View.PreExposure;
-
-						// #sdl_todo: demodulate earlier during BRDF evaluation
-						SplitLighting.DiffuseLighting.xyz = SafeDemodulate(SplitLighting.DiffuseLighting.xyz, GBuffer.DiffuseColor);
-						SplitLighting.SpecularLighting.xyz = SafeDemodulate(SplitLighting.SpecularLighting.xyz, SpecularEnv);
 
 						DiffuseLighting += SplitLighting.DiffuseLighting.xyz * SampleWeight;
 						SpecularLighting += SplitLighting.SpecularLighting.xyz * SampleWeight;
-
-						DiffuseLuminanceMoments.x += Luminance(SplitLighting.DiffuseLighting.xyz) * SampleWeight;
-						DiffuseLuminanceMoments.y += Pow2(Luminance(SplitLighting.DiffuseLighting.xyz)) * SampleWeight;
-
-						SpecularLuminanceMoments.x += Luminance(SplitLighting.SpecularLighting.xyz) * SampleWeight;
-						SpecularLuminanceMoments.y += Pow2(Luminance(SplitLighting.SpecularLighting.xyz)) * SampleWeight;
 
 						#if DEBUG_MODE 
 						if (bDebug)
@@ -176,23 +154,34 @@ void ShadeLightSamplesCS(
 					}
 				}
 
-				#if DEBUG_MODE
-				if (bDebug)
-				{
-					Newline(Context);
-					Print(Context, TEXT("Diffuse: ")); 
-					Print(Context, DiffuseLighting);
-					Newline(Context);
-					Print(Context, TEXT("Specular: ")); 
-					Print(Context, SpecularLighting);
-				}
-				#endif
+				// Apply pre-exposure
+				DiffuseLighting *= View.PreExposure;
+				SpecularLighting *= View.PreExposure;
 
-				// #sdl_todo: can first moment be derived from Diffuse/Specular Lighting?
-				RWDiffuseLighting[ScreenCoord] = DiffuseLighting;
-				RWSpecularLighting[ScreenCoord] = SpecularLighting;
-				RWLuminanceMoments[ScreenCoord] = float4(DiffuseLuminanceMoments, SpecularLuminanceMoments);
+				const float3 N = GBuffer.WorldNormal;
+				const float3 V = normalize(View.TranslatedWorldCameraOrigin - TranslatedWorldPosition);
+				const float NoV = saturate(dot(N, V));
+				const float3 SpecularEnv = EnvBRDF(GBuffer.SpecularColor, GBuffer.Roughness, NoV);
+
+				// #sdl_todo: demodulate earlier during BRDF evaluation
+				DiffuseLighting.xyz = SafeDemodulate(DiffuseLighting.xyz, GBuffer.DiffuseColor);
+				SpecularLighting.xyz = SafeDemodulate(SpecularLighting.xyz, SpecularEnv);
 			}
+
+			#if DEBUG_MODE
+			if (bDebug)
+			{
+				Newline(Context);
+				Print(Context, TEXT("Diffuse: ")); 
+				Print(Context, DiffuseLighting);
+				Newline(Context);
+				Print(Context, TEXT("Specular: ")); 
+				Print(Context, SpecularLighting);
+			}
+			#endif
+
+			RWResolvedDiffuseLighting[ScreenCoord] = DiffuseLighting;
+			RWResolvedSpecularLighting[ScreenCoord] = SpecularLighting;
 		}
 	}
 }

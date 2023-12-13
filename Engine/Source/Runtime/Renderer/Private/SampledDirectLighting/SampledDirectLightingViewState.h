@@ -8,9 +8,8 @@
 class FSampledDirectLightingViewState
 {
 public:
-	TRefCountPtr<IPooledRenderTarget> DiffuseLightingHistory;
-	TRefCountPtr<IPooledRenderTarget> SpecularLightingHistory;
-	TRefCountPtr<IPooledRenderTarget> LuminanceMomentsHistory;
+	TRefCountPtr<IPooledRenderTarget> DiffuseLightingAndSecondMomentHistory;
+	TRefCountPtr<IPooledRenderTarget> SpecularLightingAndSecondMomentHistory;
 	TRefCountPtr<IPooledRenderTarget> SceneDepthHistory;
 	TRefCountPtr<IPooledRenderTarget> NumFramesAccumulatedHistory;
 
@@ -19,9 +18,8 @@ public:
 
 	void SafeRelease()
 	{
-		DiffuseLightingHistory.SafeRelease();
-		SpecularLightingHistory.SafeRelease();
-		LuminanceMomentsHistory.SafeRelease();
+		DiffuseLightingAndSecondMomentHistory.SafeRelease();
+		SpecularLightingAndSecondMomentHistory.SafeRelease();
 		SceneDepthHistory.SafeRelease();
 		NumFramesAccumulatedHistory.SafeRelease();
 	}
