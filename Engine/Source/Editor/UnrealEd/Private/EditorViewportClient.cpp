@@ -1,6 +1,11 @@
 // Copyright Epic Games, Inc. All Rights Reserved.
 
 #include "EditorViewportClient.h"
+
+#include "ActorFactories/ActorFactory.h"
+#include "Elements/Framework/EngineElementsLibrary.h"
+#include "Elements/Framework/TypedElementRegistry.h"
+#include "Elements/Interfaces/TypedElementObjectInterface.h"
 #include "PreviewScene.h"
 #include "HAL/FileManager.h"
 #include "Misc/FileHelper.h"
@@ -5061,6 +5066,29 @@ bool FEditorViewportClient::IsFlightCameraInputModeActive() const
 bool FEditorViewportClient::IsMovingCamera() const
 {
 	return bUsingOrbitCamera || IsFlightCameraActive();
+}
+
+bool FEditorViewportClient::DropObjectsAtCoordinates(int32 MouseX, int32 MouseY, const TArray<UObject*>& DroppedObjects, 
+	TArray<FTypedElementHandle>& OutNewObjects, const FDropObjectOptions& Options)
+{
+	// Forward things to the deprecated overload while it still exists, so that we don't break any
+	// existing derivations of FEditorViewportClient. Once removed, this function will just return false.
+	TArray<AActor*> OutputActors;
+PRAGMA_DISABLE_DEPRECATION_WARNINGS
+	bool bSuccess = DropObjectsAtCoordinates(MouseX, MouseY, DroppedObjects, OutputActors,
+		Options.bOnlyDropOnTarget, Options.bCreateDropPreview, Options.bSelectOutput,
+		Cast<UActorFactory>(Options.FactoryToUse.GetObject()));
+PRAGMA_ENABLE_DEPRECATION_WARNINGS
+
+	TArray<FTypedElementHandle> OutputElements;
+
+	for (const AActor* Actor : OutputActors)
+	{
+		FTypedElementHandle Handle = UEngineElementsLibrary::AcquireEditorActorElementHandle(Actor);
+		OutputElements.Add(Handle);
+	}
+
+	return bSuccess;
 }
 
 /** True if the window is maximized or floating */

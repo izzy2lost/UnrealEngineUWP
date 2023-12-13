@@ -765,7 +765,7 @@ void SLevelViewport::OnDragLeave( const FDragDropEvent& DragDropEvent )
 {
 	if ( LevelViewportClient->HasDropPreviewActors() )
 	{
-		LevelViewportClient->DestroyDropPreviewActors();
+		LevelViewportClient->DestroyDropPreviewElements();
 	}
 
 	TSharedPtr<FDragDropOperation> Operation = DragDropEvent.GetOperation();
@@ -907,7 +907,7 @@ bool SLevelViewport::HandlePlaceDraggedObjects(const FGeometry& MyGeometry, cons
 {
 	bool bAllAssetWereLoaded = false;
 	bool bValidDrop = false;
-	UActorFactory* ActorFactory = nullptr;
+	TScriptInterface<IAssetFactoryInterface> AssetFactory = nullptr;
 
 	TSharedPtr< FDragDropOperation > Operation = DragDropEvent.GetOperation();
 	if (!Operation.IsValid())
@@ -953,7 +953,7 @@ bool SLevelViewport::HandlePlaceDraggedObjects(const FGeometry& MyGeometry, cons
 
 		TSharedPtr<FAssetDragDropOp> DragDropOp = StaticCastSharedPtr<FAssetDragDropOp>( Operation );
 
-		ActorFactory = DragDropOp->GetActorFactory();
+		AssetFactory = DragDropOp->GetAssetFactory();
 
 		bAllAssetWereLoaded = true;
 		for (const FAssetData& AssetData : DragDropOp->GetAssets())
@@ -1033,15 +1033,21 @@ bool SLevelViewport::HandlePlaceDraggedObjects(const FGeometry& MyGeometry, cons
 		bool bDropSuccessful = false;
 
 		// Make sure the drop preview is destroyed
-		LevelViewportClient->DestroyDropPreviewActors();
+		LevelViewportClient->DestroyDropPreviewElements();
 
 		if( !bShowDropContextMenu || !bCreateDropPreview )
 		{
 			// Otherwise just attempt to drop the object(s)
-			TArray< AActor* > TemporaryActors;
+			FLevelEditorViewportClient::FDropObjectOptions DropOptions;
+			DropOptions.FactoryToUse = AssetFactory;
+			DropOptions.bOnlyDropOnTarget = false;
+			DropOptions.bCreateDropPreview = bCreateDropPreview;
 			// Only select actor on drop
-			const bool SelectActor = !bCreateDropPreview;
-			bDropSuccessful = LevelViewportClient->DropObjectsAtCoordinates(CachedOnDropLocalMousePos.X, CachedOnDropLocalMousePos.Y, DroppedObjects, TemporaryActors, false, bCreateDropPreview, SelectActor, ActorFactory);
+			DropOptions.bSelectOutput = !bCreateDropPreview;
+
+			TArray<FTypedElementHandle> Unused;
+			bDropSuccessful = LevelViewportClient->DropObjectsAtCoordinates(CachedOnDropLocalMousePos.X, CachedOnDropLocalMousePos.Y, 
+				DroppedObjects, Unused, DropOptions);
 		}
 		else if ( bAllAssetWereLoaded && DroppedObjects.Num() > 0 )
 		{
