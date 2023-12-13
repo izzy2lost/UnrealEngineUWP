@@ -74,6 +74,9 @@ void UMovieGraphCoreTimeStep::TickProducingFrames()
 
 		// Ensure we've set it in the CurrentTimeStepData so things can fetch from it below.
 		CurrentTimeStepData.EvaluatedConfig = TObjectPtr<UMovieGraphEvaluatedConfig>(CurrentFrameData.EvaluatedConfig.Get());
+		
+		// Get ready to begin tracking relative shot frame count
+		CurrentTimeStepData.ShotOutputFrameNumber = -1;
 
 		// Sets up the render state, etc.
 		GetOwningGraph()->SetupShot(CurrentCameraCut);
@@ -432,6 +435,7 @@ void UMovieGraphCoreTimeStep::TickProducingFrames()
 			if (CurrentCameraCut->ShotInfo.State == EMovieRenderShotState::Rendering)
 			{
 				GetOwningGraph()->GetCustomEngineTimeStep()->SharedTimeStepData.OutputFrameNumber++;
+				CurrentTimeStepData.ShotOutputFrameNumber++;
 			}
 				
 			// If we've rendered the last temporal sub-sample, we've started a new output frame

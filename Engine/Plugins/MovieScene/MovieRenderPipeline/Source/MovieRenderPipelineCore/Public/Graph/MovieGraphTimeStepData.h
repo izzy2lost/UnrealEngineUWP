@@ -34,8 +34,17 @@ public:
 		, bRequiresAccumulator(false)
 	{}
 
+	/*
+	 * Relative to zero for the entire render.
+	 */
 	UPROPERTY(BlueprintReadWrite, EditAnywhere, Category = "Movie Graph")
 	int32 OutputFrameNumber;
+
+	/*
+	 * Relative to zero for the current shot.
+	 */
+	UPROPERTY(BlueprintReadWrite, EditAnywhere, Category = "Movie Graph")
+	int32 ShotOutputFrameNumber;
 
 	UPROPERTY(BlueprintReadWrite, EditAnywhere, Category = "Movie Graph")
 	int32 RenderedFrameNumber;
@@ -113,7 +122,10 @@ public:
 	UPROPERTY(BlueprintReadWrite, EditAnywhere, Category = "Movie Graph")
 	FTimecode RootTimeCode;
 
-	/** The current frame number at the root (sequence) level. */
+	/*
+	 * The current frame number at the root (sequence) level.
+	 * This is the same number as what is shown in sequencer when viewing the sequence.
+	 */
 	UPROPERTY(BlueprintReadWrite, EditAnywhere, Category = "Movie Graph")
 	FFrameNumber RootFrameNumber;
 
@@ -121,7 +133,10 @@ public:
 	UPROPERTY(BlueprintReadWrite, EditAnywhere, Category = "Movie Graph")
 	FTimecode ShotTimeCode;
 
-	/** The current frame number at the shot level. */
+	/*
+	 * The current frame number at the shot level.
+	 * This is the same number as what is shown in sequencer when viewing the shot.
+	 */
 	UPROPERTY(BlueprintReadWrite, EditAnywhere, Category = "Movie Graph")
 	FFrameNumber ShotFrameNumber;
 };

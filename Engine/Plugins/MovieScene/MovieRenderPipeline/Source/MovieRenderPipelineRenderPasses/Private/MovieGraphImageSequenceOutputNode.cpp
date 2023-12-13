@@ -39,10 +39,10 @@ namespace UE::MovieGraph::Private
 
 		FMovieGraphFilenameResolveParams Params = FMovieGraphFilenameResolveParams();
 		Params.RenderDataIdentifier = InRenderId;
-		//Params.RootFrameNumber = InTraversalContext.Time.RootFrameNumber;
-		//Params.ShotFrameNumber = InTraversalContext.Time.ShotFrameNumber;
+		Params.RootFrameNumber = InTraversalContext.Time.RootFrameNumber.Value;
+		Params.ShotFrameNumber = InTraversalContext.Time.ShotFrameNumber.Value;
 		Params.RootFrameNumberRel = InTraversalContext.Time.OutputFrameNumber;
-		//Params.ShotFrameNumberRel = InTraversalContext.Time.ShotFrameNumberRel
+		Params.ShotFrameNumberRel = InTraversalContext.Time.ShotOutputFrameNumber;
 		//Params.FileMetadata = ToDo: Track File Metadata
 		const UMovieGraphGlobalOutputSettingNode* OutputSettingNode = InEvaluatedConfig->GetSettingForBranch<UMovieGraphGlobalOutputSettingNode>(UMovieGraphNode::GlobalsPinName);
 		if (IsValid(OutputSettingNode))
@@ -55,12 +55,12 @@ namespace UE::MovieGraph::Private
 
 		// If time dilation is in effect, RootFrameNumber and ShotFrameNumber will contain duplicates and the files will overwrite each other, 
 		// so we force them into relative mode and then warn users we did that (as their numbers will jump from say 1001 -> 0000).
-		bool bForceRelativeFrameNumbers = true; // TODO: Use relative frame numbers until we track Root vs. Shot frame numbers. (Previously false);
-		//if (FileNameFormatString.Contains(TEXT("{frame")) InTraversalContext.Time.IsTimeDilated() && !FileNameFormatString.Contains(TEXT("_rel}")))
-		//{
-		//	UE_LOG(LogMovieRenderPipeline, Warning, TEXT("Time Dilation was used but output format does not use relative time, forcing relative numbers. Change {frame_number} to {frame_number_rel} (or shot version) to remove this message."));
-		//	bForceRelativeFrameNumbers = true;
-		//}
+		bool bForceRelativeFrameNumbers = false;
+		// if (FileNameFormatString.Contains(TEXT("{frame")) && InTraversalContext.Time.IsTimeDilated() && !FileNameFormatString.Contains(TEXT("_rel}")))
+		// {
+		// 	UE_LOG(LogMovieRenderPipeline, Warning, TEXT("Time Dilation was used but output format does not use relative time, forcing relative numbers. Change {frame_number} to {frame_number_rel} (or shot version) to remove this message."));
+		// 	bForceRelativeFrameNumbers = true;
+		// }
 		Params.bForceRelativeFrameNumbers = bForceRelativeFrameNumbers;
 		Params.bEnsureAbsolutePath = true;
 		Params.FileNameFormatOverrides = InAdditionalFormatArgs;
