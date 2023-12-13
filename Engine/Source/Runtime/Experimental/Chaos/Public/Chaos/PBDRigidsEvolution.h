@@ -590,6 +590,9 @@ public:
 
 	CHAOS_API void SetParticleObjectState(FPBDRigidParticleHandle* Particle, EObjectStateType ObjectState);
 
+	// Wake a dynamic particle and reset sleep counters for its island
+	CHAOS_API void WakeParticle(FPBDRigidParticleHandle* Particle);
+
 	CHAOS_API void SetParticleSleepType(FPBDRigidParticleHandle* Particle, ESleepType InSleepType);
 
 	CHAOS_API void DisableParticles(const TSet<FGeometryParticleHandle*>& InParticles);

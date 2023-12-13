@@ -1099,6 +1099,18 @@ namespace Chaos
 		}
 	}
 
+	void FPBDRigidsEvolutionBase::WakeParticle(FPBDRigidParticleHandle* Particle)
+	{
+		if (Particle->IsDynamic())
+		{
+			SetParticleObjectState(Particle, EObjectStateType::Dynamic);
+
+			// Reset the sleep counters etc in the sleep management system
+			// @todo(chaos): ideally we would just set reset the sleepiness of the particle
+			IslandManager.WakeParticleIsland(Particle);
+		}
+	}
+
 	void FPBDRigidsEvolutionBase::SetParticleSleepType(FPBDRigidParticleHandle* Particle, ESleepType InSleepType)
 	{
 		//ESleepType InitialSleepType = Particle->SleepType();

@@ -667,6 +667,19 @@ namespace Chaos::Private
 		return IslandConstraints;
 	}
 
+	void FPBDIslandManager::WakeParticleIsland(const FGeometryParticleHandle* Particle)
+	{
+		if (FPBDIslandParticle* Node = GetGraphNode(Particle))
+		{
+			if (Node->Island != nullptr)
+			{
+				// When we explicitly wake, we reset sleep counters etc
+				const bool bIsSleepAllowed = false;
+				EnqueueIslandCheckSleep(Node->Island, bIsSleepAllowed);
+			}
+		}
+	}
+
 	void FPBDIslandManager::AddParticle(FGeometryParticleHandle* Particle)
 	{
 	}

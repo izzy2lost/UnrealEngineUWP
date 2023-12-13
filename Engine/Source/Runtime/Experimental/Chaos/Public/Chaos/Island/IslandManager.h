@@ -389,15 +389,16 @@ namespace Chaos::Private
 		// The number of registered constraint containers
 		CHAOS_API int32 GetNumConstraintContainers() const;
 
-		// Add/Remove particles
+		// Particles management
 		int32 GetNumParticles() const { return Nodes.Num(); }
 		CHAOS_API void AddParticle(FGeometryParticleHandle* Particle);
 		CHAOS_API void RemoveParticle(FGeometryParticleHandle* Particle);
 		CHAOS_API int32 ReserveParticles(const int32 InNumParticles);
 		CHAOS_API void UpdateParticleMaterial(FGeometryParticleHandle* Particle);
 		CHAOS_API int32 GetParticleLevel(FGeometryParticleHandle* Particle) const;
+		CHAOS_API void WakeParticleIsland(const FGeometryParticleHandle* Particle);
 
-		// Add/Remove constraints
+		// Constraint management
 		int32 GetNumConstraints() const { return Edges.Num(); }
 		CHAOS_API void AddConstraint(const int32 ContainerId, FConstraintHandle* Constraint, const TVec2<FGeometryParticleHandle*>& ConstrainedParticles);
 		template<typename ConstraintContainerType> void AddContainerConstraints(ConstraintContainerType& ConstraintContainer);
