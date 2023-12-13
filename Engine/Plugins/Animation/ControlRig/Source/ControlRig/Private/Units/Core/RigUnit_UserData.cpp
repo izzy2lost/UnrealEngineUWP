@@ -206,7 +206,7 @@ FRigUnit_SetupShapeLibraryFromUserData_Execute()
 				{
 					if(ExecuteContext.OnAddShapeLibraryDelegate.IsBound())
 					{
-						ExecuteContext.OnAddShapeLibraryDelegate.Execute(&ExecuteContext, LibraryName, (UControlRigShapeLibrary*)UserData->GetMemory(), ReplaceExisting, LogShapeLibraries);
+						ExecuteContext.OnAddShapeLibraryDelegate.Execute(&ExecuteContext, LibraryName, (UControlRigShapeLibrary*)UserData->GetMemory(), LogShapeLibraries);
 					}
 					return;
 				}

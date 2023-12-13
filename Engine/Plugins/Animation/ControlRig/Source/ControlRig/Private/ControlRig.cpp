@@ -220,7 +220,7 @@ void UControlRig::RestoreShapeLibrariesFromCDO()
 	}
 }
 
-void UControlRig::OnAddShapeLibrary(const FControlRigExecuteContext* InContext, const FString& InLibraryName, UControlRigShapeLibrary* InShapeLibrary, bool bReplaceExisting, bool bLogResults)
+void UControlRig::OnAddShapeLibrary(const FControlRigExecuteContext* InContext, const FString& InLibraryName, UControlRigShapeLibrary* InShapeLibrary, bool bLogResults)
 {
 	// don't ever change the CDO
 	if (HasAnyFlags(RF_ClassDefaultObject))
@@ -250,45 +250,9 @@ void UControlRig::OnAddShapeLibrary(const FControlRigExecuteContext* InContext, 
 
 	// if we are supposed to replace the library and the library name is empty
 	FString LibraryName = InLibraryName;
-	if(LibraryName.IsEmpty() && bReplaceExisting)
-	{
-		if(ShapeLibraries.Num() == 1)
-		{
-			LibraryName = ShapeLibraries[0]->GetName();
-		}
-	}
-
 	if(LibraryName.IsEmpty())
 	{
 		LibraryName = InShapeLibrary->GetName();
-	}
-
-	// if we need to replace all existing shape libraries - we'll remove any shape library matching the library
-	// name which doesn't map to something else
-	if(bReplaceExisting)
-	{
-		TArray<FString> KeysToRemove;
-		for(const TPair<FString, FString>& Pair : ShapeLibraryNameMap)
-		{
-			if(Pair.Value.Equals(LibraryName, ESearchCase::CaseSensitive))
-			{
-				KeysToRemove.Add(Pair.Key);
-			}
-		}
-		
-		if(KeysToRemove.IsEmpty())
-		{
-			KeysToRemove.Add(InShapeLibrary->GetName());
-		}
-		
-		for(const FString& KeyToRemove : KeysToRemove)
-		{
-			ShapeLibraryNameMap.Remove(KeyToRemove);
-			ShapeLibraries.RemoveAll([KeyToRemove](const TSoftObjectPtr<UControlRigShapeLibrary>& ShapeLibrary) -> bool
-			{
-				return ShapeLibrary->GetName().Equals(KeyToRemove, ESearchCase::CaseSensitive);
-			});
-		}
 	}
 
 	if(LibraryName != InShapeLibrary->GetName())
@@ -304,6 +268,7 @@ void UControlRig::OnAddShapeLibrary(const FControlRigExecuteContext* InContext, 
 		static constexpr TCHAR LibraryFormat[] = TEXT("Control Rig '%s': Shape Library '%s' uses asset '%s'");
 		static constexpr TCHAR DefaultShapeFormat[] = TEXT("Control Rig '%s': Shape Library '%s' has default shape '%s'");
 		static constexpr TCHAR ShapeFormat[] = TEXT("Control Rig '%s': Shape Library '%s' contains shape %03d: '%s'");
+		static constexpr TCHAR ResolvedShapeFormat[] = TEXT("Control Rig '%s': ShapeName '%s' resolved to '%s.%s'");
 
 		const FString PathName = GetPathName();
 
@@ -313,7 +278,8 @@ void UControlRig::OnAddShapeLibrary(const FControlRigExecuteContext* InContext, 
 		}
 
 		const int32 NumShapeLibraries = ShapeLibraries.Num();
-		
+
+		TMap<FString, const UControlRigShapeLibrary*> ShapeNameToShapeLibrary;
 		for(int32 Index = 0; Index <NumShapeLibraries; Index++)
 		{
 			const TSoftObjectPtr<UControlRigShapeLibrary>& ShapeLibrary = ShapeLibraries[Index];
@@ -332,7 +298,15 @@ void UControlRig::OnAddShapeLibrary(const FControlRigExecuteContext* InContext, 
 			{
 				const FString ShapeName = UControlRigShapeLibrary::GetShapeName(ShapeLibrary.Get(), bUseNameSpace, ShapeLibraryNameMap, ShapeLibrary->Shapes[ShapeIndex]);
 				UE_LOG(LogControlRig, Display, ShapeFormat, *PathName, *ShapeLibrary->GetName(), ShapeIndex, *ShapeName);
+				ShapeNameToShapeLibrary.FindOrAdd(ShapeName, nullptr) = ShapeLibrary.Get();
 			}
+		}
+
+		for(const TPair<FString, const UControlRigShapeLibrary*>& Pair : ShapeNameToShapeLibrary)
+		{
+			FString Left, Right = Pair.Key;
+			(void)Pair.Key.Split(TEXT("."), &Left, &Right, ESearchCase::CaseSensitive, ESearchDir::FromEnd);
+			UE_LOG(LogControlRig, Display, ResolvedShapeFormat, *PathName, *Pair.Key, *Pair.Value->GetName(), *Right);
 		}
 	}
 #endif

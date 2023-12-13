@@ -530,7 +530,7 @@ protected:
 	FRigEventDelegate RigEventDelegate;
 
 	void RestoreShapeLibrariesFromCDO();
-	void OnAddShapeLibrary(const FControlRigExecuteContext* InContext, const FString& InLibraryName, UControlRigShapeLibrary* InShapeLibrary, bool bReplaceExisting, bool bLogResults);
+	void OnAddShapeLibrary(const FControlRigExecuteContext* InContext, const FString& InLibraryName, UControlRigShapeLibrary* InShapeLibrary, bool bLogResults);
 	bool OnShapeExists(const FName& InShapeName) const;
 	virtual void InitializeVMsFromCDO() { Super::InitializeFromCDO(); }
 	virtual void InitializeFromCDO() override;

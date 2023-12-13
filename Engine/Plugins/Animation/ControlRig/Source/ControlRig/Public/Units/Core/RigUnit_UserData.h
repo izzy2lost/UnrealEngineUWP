@@ -48,7 +48,6 @@ struct CONTROLRIG_API FRigUnit_SetupShapeLibraryFromUserData : public FRigUnitMu
 
 	FRigUnit_SetupShapeLibraryFromUserData()
 	{
-		ReplaceExisting = true;
 		LogShapeLibraries = false;
 	}
 
@@ -68,17 +67,9 @@ struct CONTROLRIG_API FRigUnit_SetupShapeLibraryFromUserData : public FRigUnitMu
 	 * Optionally provide the namespace of the shape library to use.
 	 * This is only useful if you have multiple shape libraries and you
 	 * want to override a specific one.
-	 * If this is empty and ReplaceExisting is checked we'll replace the first
-	 * shape library on this rig. 
 	 */
 	UPROPERTY(meta = (Input))
 	FString LibraryName;
-
-	/*
-	 * If true we'll try to replace an existing library.
-	 */
-	UPROPERTY(meta = (Input))
-	bool ReplaceExisting;
 
 	/*
 	 * If this is checked we'll output the resulting shape libraries to the log for debugging.

@@ -148,7 +148,9 @@ const FControlRigShapeDefinition* UControlRigShapeLibrary::GetShapeByName(const 
 
 			if(ShapeLibraryName.Equals(Left) || Left.IsEmpty())
 			{
-				if(const FControlRigShapeDefinition* Shape = ShapeLibrary->GetShapeByName(RightName))
+				// only fall back on the default shape for the very last shape library
+				const bool bUseDefaultShapeIfNotFound = (Pass > 0) && (Index == 0);
+				if(const FControlRigShapeDefinition* Shape = ShapeLibrary->GetShapeByName(RightName, bUseDefaultShapeIfNotFound))
 				{
 					return Shape;
 				}
