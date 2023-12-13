@@ -54,7 +54,6 @@ float3 ReadCardPositionOffset(StructuredBuffer<float4> In, uint InIndex, uint In
 #define HAIR_STRANDS_INSTANCE_PARAMETERS(Prefix) \
 	uint						Prefix##_RegisteredIndex; \
 	uint						Prefix##_bCullingEnable; \
-	uint						Prefix##_bRaytracingGeometry; \
 	uint						Prefix##_RaytracingProceduralSplits; \
 	uint						Prefix##_GroupIndex; \
 	uint						Prefix##_GroupCount; \
@@ -63,7 +62,7 @@ float3 ReadCardPositionOffset(StructuredBuffer<float4> In, uint InIndex, uint In
 	float						Prefix##_TipScale; \
 	float						Prefix##_Length; \
 	float						Prefix##_Density; \
-	uint						Prefix##_bStableRasterization; \
+	uint						Prefix##_Flags; \
 	float3						Prefix##_PositionOffset; \
 	uint						Prefix##_PointCount; \
 	uint						Prefix##_CurveCount; \

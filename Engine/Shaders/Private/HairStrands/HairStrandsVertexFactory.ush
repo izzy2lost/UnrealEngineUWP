@@ -74,12 +74,12 @@
  */
 bool UseStableRasterization()
 {
-	return HairStrandsVF.bStableRasterization > 0;
+	return HasHairFlags(HairStrandsVF.Flags, HAIR_FLAGS_STABLE_RASTER);
 }
 
 bool UseScatterSceneLighting()
 {
-	return HairStrandsVF.bScatterSceneLighting > 0;
+	return HasHairFlags(HairStrandsVF.Flags,HAIR_FLAGS_SCATTER_SCENE_LIGHT);
 }
 
 struct FVertexFactoryInput

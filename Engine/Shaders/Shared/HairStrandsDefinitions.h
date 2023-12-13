@@ -99,3 +99,18 @@
 #define HAIR_RBF_ENTRY_COUNT(InSampleCount)	((InSampleCount)+4u)
 
 #define HAIR_CARDS_MAX_TEXTURE_COUNT 6
+
+// Hair instance flags 
+#define HAIR_FLAGS_SCATTER_SCENE_LIGHT 1u
+#define HAIR_FLAGS_STABLE_RASTER 2u
+#define HAIR_FLAGS_RAYTRACING_GEOMETRY 4u
+#define HAIR_FLAGS_HOLDOUT 8u
+
+#ifndef __cplusplus //HLSL
+bool HasHairFlags(uint In, uint Flags)
+#else
+FORCEINLINE bool HasHairFlags(uint32 In, uint32 Flags)
+#endif
+{
+	return (In & Flags) != 0;
+}

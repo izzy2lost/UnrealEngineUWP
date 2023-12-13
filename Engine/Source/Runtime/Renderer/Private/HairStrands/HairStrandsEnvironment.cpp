@@ -472,17 +472,7 @@ void RenderHairStrandsSceneColorScattering(
 		const FHairStrandsVoxelResources& VoxelResources = View.HairStrandsViewData.VirtualVoxelResources;
 		check(VoxelResources.IsValid());
 
-		bool bNeedScatterSceneLighting = false;
-		for (const FHairStrandsMacroGroupData& MacroGroupData : View.HairStrandsViewData.MacroGroupDatas)
-		{
-			if (MacroGroupData.bNeedScatterSceneLighting)
-			{
-				bNeedScatterSceneLighting = true;
-				break;
-			}
-		}
-
-		if (bNeedScatterSceneLighting)
+		if (HasHairFlags(View.HairStrandsViewData.Flags, HAIR_FLAGS_SCATTER_SCENE_LIGHT))
 		{
 			AddHairStrandsEnvironmentLightingPassPS(GraphBuilder, Scene, View, VisibilityData, VoxelResources, SceneColorTexture, EHairLightingSourceType::SceneColor, nullptr);
 		}

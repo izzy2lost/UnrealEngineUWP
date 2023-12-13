@@ -42,6 +42,7 @@
 #define USE_HAIR_COMPLEX_TRANSMITTANCE 1
 
 #include "../Common.ush"
+#include "/Engine/Shared/HairStrandsDefinitions.h"
 #include "HairStrandsCommon.ush"
 #include "../DeferredShadingCommon.ush"  
 #include "../BRDF.ush"
@@ -855,10 +856,11 @@ void MainPS(
 	const bool bDebugEnabled = false;
 #endif
 
+	const bool bScatterSceneLighting = HasHairFlags(Sample.Flags, HAIR_FLAGS_SCATTER_SCENE_LIGHT);
 #if PERMUTATION_INTEGRATION_TYPE == INTEGRATION_SCENECOLOR
-	if (Sample.bScatterSceneLighting)
+	if (bScatterSceneLighting)
 #else
-	if (!Sample.bScatterSceneLighting)
+	if (!bScatterSceneLighting)
 #endif
 	{
 		const float3 SkyLighting =

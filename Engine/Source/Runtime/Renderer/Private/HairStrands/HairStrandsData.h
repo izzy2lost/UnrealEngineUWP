@@ -306,9 +306,10 @@ struct FHairStrandsMacroGroupData
 	{
 		const FMeshBatch* Mesh = nullptr;
 		const FPrimitiveSceneProxy* PrimitiveSceneProxy = nullptr;
-		uint32 MaterialId;
-		uint32 ResourceId;
-		uint32 GroupIndex;
+		uint32 MaterialId = 0;
+		uint32 ResourceId = 0;
+		uint32 GroupIndex = 0;
+		uint32 Flags = 0; // Hair instance flags
 		FHairGroupPublicData* PublicDataPtr = nullptr;
 		bool IsCullingEnable() const;
 	};
@@ -318,10 +319,10 @@ struct FHairStrandsMacroGroupData
 	TPrimitiveInfos PrimitivesInfos;
 	FBoxSphereBounds Bounds;
 	FIntRect ScreenRect;
-	uint32 MacroGroupId;
+	uint32 MacroGroupId = 0;
+	uint32 Flags = 0; // Aggregated flags for all instances from the group
 
 	bool bSupportVoxelization = false; // true if at least one of the Primitive requires voxelization
-	bool bNeedScatterSceneLighting = false;
 };
 
 ////////////////////////////////////////////////////////////////////////////////////
@@ -447,6 +448,7 @@ struct FHairStrandsViewData
 	FHairStrandsVoxelResources VirtualVoxelResources;
 	FHairStrandsMacroGroupResources MacroGroupResources;
 	FHairStrandsDebugData DebugData;
+	uint32 Flags = 0;
 
 	// Transient: store all light visible in primary view(s)
 	struct FDirectionalLightCullData { const FLightSceneInfo* LightInfo = nullptr; FConvexVolume ViewFrustumInLightSpace; };

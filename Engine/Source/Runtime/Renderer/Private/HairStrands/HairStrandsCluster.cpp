@@ -125,10 +125,8 @@ static void InternalUpdateMacroGroup(FHairStrandsMacroGroupData& MacroGroup, int
 {
 	check(HairData);
 
-	if (HairData->VFInput.Strands.Common.bScatterSceneLighting)
-	{
-		MacroGroup.bNeedScatterSceneLighting = true;
-	}
+	// Track if any instance in the current group needs some features (scatter light scene, holdout, ...)
+	MacroGroup.Flags |= HairData->VFInput.Strands.Common.Flags;
 
 	FHairStrandsMacroGroupData::PrimitiveInfo& PrimitiveInfo = MacroGroup.PrimitivesInfos.AddZeroed_GetRef();
 	PrimitiveInfo.Mesh = Mesh;
@@ -136,6 +134,7 @@ static void InternalUpdateMacroGroup(FHairStrandsMacroGroupData& MacroGroup, int
 	PrimitiveInfo.MaterialId = MaterialId++;
 	PrimitiveInfo.ResourceId = Mesh ? reinterpret_cast<uint64>(Mesh->Elements[0].UserData) : ~0u;
 	PrimitiveInfo.GroupIndex = HairData->GetGroupIndex();
+	PrimitiveInfo.Flags = HairData->VFInput.Strands.Common.Flags;
 	PrimitiveInfo.PublicDataPtr = HairData;
 
 	if (HairData->DoesSupportVoxelization())
@@ -293,6 +292,13 @@ void CreateHairStrandsMacroGroups(
 			AddHairMacroGroupAABBPass(GraphBuilder, View, *Scene->HairStrandsSceneData.TransientResources, MacroGroup, MacroGroupAABBBufferUAV, MacroGroupVoxelSizeBufferUAV);
 		}
 		MacroGroupResources.MacroGroupCount = MacroGroups.Num();
+	}
+
+	// Aggregate flags accross all instances/macrogroups
+	OutHairStrandsViewData.Flags = 0;
+	for (const FHairStrandsMacroGroupData& MacroGroupData : View.HairStrandsViewData.MacroGroupDatas)
+	{			
+		OutHairStrandsViewData.Flags |= MacroGroupData.Flags;
 	}
 }
 

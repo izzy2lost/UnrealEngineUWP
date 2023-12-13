@@ -1,6 +1,7 @@
 // Copyright Epic Games, Inc. All Rights Reserved.
 
 #include "../Common.ush" 
+#include "/Engine/Shared/HairStrandsDefinitions.h"
 #include "../HairShadingCommon.ush"
 #include "../ColorMap.ush"
 
@@ -1208,7 +1209,7 @@ void MainCS(uint InGroupIndex : SV_GroupIndex, uint3 DispatchThreadId : SV_Dispa
 //		Print(Context2,(Sample.LightChannelMask & 0x1) ? 1u : 0u);				Newline(Context2);
 //		Print(Context2,(Sample.LightChannelMask & 0x2) ? 1u : 0u);				Newline(Context2);
 //		Print(Context2,(Sample.LightChannelMask & 0x4) ? 1u : 0u);				Newline(Context2);
-		Print(Context2, Sample.bScatterSceneLighting ? 1u : 0u, FontOrange);		Newline(Context2);
+		Print(Context2, HasHairFlags(Sample.Flags, HAIR_FLAGS_SCATTER_SCENE_LIGHT) ? 1u : 0u, FontOrange); Newline(Context2);
 		Print(Context2, Sample.Depth, FontEmerald);								Newline(Context2);
 		Newline(Context2);
 
@@ -1271,13 +1272,11 @@ struct FInstanceInfo
 	float LengthScale;
 	float CoverageScale;
 	bool Voxel;
-	bool Scatter;
-	bool RTGeometry;
-	bool StableRaster;
 	bool CacheRen;
 	bool CacheSim;
 	bool bHasLODSwitched;
 	bool bAutoLOD;
+	uint Flags;
 
 	// Binding
 	uint UniqueTriangle;
@@ -1346,12 +1345,10 @@ FInstanceInfo ReadInstanceInfo(uint Index)
 
 	Out.bIsVisibleInPrimaryView = Data2.x & 0x1;
 	Out.bIsVisibleInShadowView	= Data2.x & 0x2;
-	Out.Scatter					= Data2.x & 0x4;
-	Out.RTGeometry				= Data2.x & 0x8;
-	Out.StableRaster			= Data2.x & 0x10;
-	Out.Voxel					= Data2.x & 0x20;
-	Out.CacheSim				= Data2.x & 0x40;
-	Out.CacheRen				= Data2.x & 0x80;
+	Out.Voxel					= Data2.x & 0x4;
+	Out.CacheSim				= Data2.x & 0x8;
+	Out.CacheRen				= Data2.x & 0x10;
+	Out.Flags					=(Data2.x>>8) & 0xFF;
 	Out.ScreenSize				= f16tof32((Data2.x>>16) & 0xFFFF);
 	Out.ActivePointCount		= Data2.y;
 	Out.ActiveCurveCount		= Data2.z;
@@ -1591,8 +1588,8 @@ void MainCS(uint GroupIndex : SV_GroupIndex, uint3 DispatchThreadId : SV_Dispatc
 			Print(Context, TEXT("    "));
 
 			PrintBool(Context, Info.Voxel); Print(Context, TEXT("  "));
-			PrintBool(Context, Info.RTGeometry); 
-			PrintBool(Context, Info.Scatter); Print(Context, TEXT("    "));
+			PrintBool(Context, HasHairFlags(Info.Flags, HAIR_FLAGS_RAYTRACING_GEOMETRY)); 
+			PrintBool(Context, HasHairFlags(Info.Flags, HAIR_FLAGS_SCATTER_SCENE_LIGHT)); Print(Context, TEXT("    "));
 			Print(Context, Info.Radius, FontYellow, 5, 3); Print(Context, TEXT("  "));
 			Print(Context, Info.RootScale, FontYellow, 5, 3); Print(Context, TEXT(" "));
 			Print(Context, Info.TipScale, FontYellow, 5, 3); Print(Context, TEXT(" "));

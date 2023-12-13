@@ -34,6 +34,7 @@ uint MaterialPass_MacroGroupId;
 uint MaterialPass_MaterialId;  
 uint MaterialPass_PrimitiveId;
 uint MaterialPass_LightChannelMask;
+uint MaterialPass_Flags;
 float MaterialPass_HairCoverageScale;
 
 #ifndef HAIR_MATERIAL_DEBUG_OUTPUT
@@ -197,7 +198,7 @@ FEvaluateOutput Evaluate(
 	OutSample.ControlPointId	= SampleControlPointId;
 	OutSample.MacroGroupId		= MaterialPass_MacroGroupId;
 	OutSample.LightChannelMask	= MaterialPass_LightChannelMask;
-	OutSample.bScatterSceneLighting = UseScatterSceneLighting();
+	OutSample.Flags 			= MaterialPass_Flags;
 
 	// Material computation
 	{
