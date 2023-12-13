@@ -346,6 +346,11 @@ namespace uba
 		#endif
 	}
 
+	bool ConnectionInfo::ShouldDisconnect() const
+	{
+		return ((NetworkServer::Connection*)internalData)->m_shouldDisconnect;
+	}
+
 	void NetworkServer::Worker::ThreadWorker(NetworkServer& server)
 	{
 		u32 writeMemSize = server.m_sendSize;

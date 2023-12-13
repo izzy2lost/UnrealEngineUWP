@@ -21,6 +21,7 @@ namespace uba
 		const Guid& GetUid() const;
 		u32 GetId() const;
 		bool GetName(StringBufferBase& out) const;
+		bool ShouldDisconnect() const;
 		void* internalData = nullptr;
 	};
 
