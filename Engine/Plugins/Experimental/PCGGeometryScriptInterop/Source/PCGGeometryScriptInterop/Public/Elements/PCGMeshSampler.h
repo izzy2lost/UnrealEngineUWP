@@ -26,7 +26,7 @@ class UPCGPointData;
 class UStaticMesh;
 
 UENUM(BlueprintType)
-enum class EPCGMeshSamplingMethod
+enum class EPCGMeshSamplingMethod : uint8
 {
 	/** Sample one point (at the center) of each triangle of the mesh. */
 	OnePointPerTriangle,
