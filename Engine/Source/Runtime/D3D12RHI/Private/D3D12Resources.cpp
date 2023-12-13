@@ -328,7 +328,14 @@ void FD3D12Resource::CommitReservedResource(ID3D12CommandQueue* D3DCommandQueue,
 				DEC_MEMORY_STAT_BY(STAT_D3D12ReservedResourcePhysical, LastHeap->GetHeapDesc().SizeInBytes);
 				LastHeap->DeferDelete();
 				ReservedResourceData->BackingHeaps.Pop();
-				ReservedResourceData->ResidencyHandles.Pop();
+				int32 NumResidencyHandles = ReservedResourceData->NumResidencyHandlesPerHeap.Last();
+				ReservedResourceData->NumResidencyHandlesPerHeap.Pop();
+				while (NumResidencyHandles != 0)
+				{
+					ReservedResourceData->ResidencyHandles.Pop();
+					--NumResidencyHandles;
+				}
+
 				ReservedResourceData->NumSlackTiles = 0;
 			}
 			else
@@ -411,7 +418,9 @@ void FD3D12Resource::CommitReservedResource(ID3D12CommandQueue* D3DCommandQueue,
 				//NewHeap->BeginTrackingResidency(ThisHeapSize);
 				NewHeap->DisallowTrackingResidency(); // Workaround for UE-202367: D3DX12Residency library does not track UpdateTileMappings that may be in flight
 
-				ReservedResourceData->ResidencyHandles.Append(NewHeap->GetResidencyHandles());
+				TConstArrayView<FD3D12ResidencyHandle*> HeapResidencyHandles = NewHeap->GetResidencyHandles();
+				ReservedResourceData->ResidencyHandles.Append(HeapResidencyHandles);
+				ReservedResourceData->NumResidencyHandlesPerHeap.Add(HeapResidencyHandles.Num());
 				ReservedResourceData->BackingHeaps.Add(MoveTemp(NewHeap));
 			}
 

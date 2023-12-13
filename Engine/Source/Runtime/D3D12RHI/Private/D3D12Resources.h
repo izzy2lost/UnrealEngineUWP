@@ -207,6 +207,7 @@ private:
 
 		// Flattened array of residency handles owned by backing heaps, used to support batched GetResidencyHandles()
 		TArray<FD3D12ResidencyHandle*> ResidencyHandles;
+		TArray<int32> NumResidencyHandlesPerHeap;
 
 		// Tiles currently assigned to the resource
 		uint32 NumCommittedTiles = 0;
