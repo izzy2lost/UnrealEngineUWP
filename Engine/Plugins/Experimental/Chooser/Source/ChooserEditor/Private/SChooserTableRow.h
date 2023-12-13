@@ -46,8 +46,4 @@ private:
 	bool bDropAbove = false;
 };
 
-
-	
 }
-
-#undef LOCTEXT_NAMESPACE

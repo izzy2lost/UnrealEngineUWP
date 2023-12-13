@@ -42,5 +42,3 @@ private:
 };
 
 }
-
-#undef LOCTEXT_NAMESPACE
