@@ -318,7 +318,7 @@ bool FAutomationReport::SetFilter( TSharedPtr< AutomationFilterCollection > InFi
 	{
 		bool ThisChildPassedFilter = ChildReports[ChildIndex]->SetFilter( InFilter, bSelfPassesFilter );
 
-		if( ThisChildPassedFilter || bSelfPassesFilter || ParentPassedFilter )
+		if( ThisChildPassedFilter )
 		{
 			if ( !ChildReports[ChildIndex]->IsParent() || ChildReports[ChildIndex]->GetFilteredChildren().Num() > 0 )
 			{
