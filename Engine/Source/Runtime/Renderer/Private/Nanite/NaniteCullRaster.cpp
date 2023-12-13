@@ -174,6 +174,13 @@ TAutoConsoleVariable<float> CVarNaniteDicingRate(
 	ECVF_RenderThreadSafe
 	);
 
+static TAutoConsoleVariable<int32> CVarNaniteMaxPatchesPerGroup(
+	TEXT("r.Nanite.MaxPatchesPerGroup"),
+	10,
+	TEXT("Maximum number of patches to process per patch rasterizer group."),
+	ECVF_RenderThreadSafe
+);
+
 // 0 : Disabled
 // 1 : Pixel Clear
 // 2 : Tile Clear
@@ -356,6 +363,12 @@ static bool TessellationEnabled()
 {
 	return CVarNaniteTessellation.GetValueOnAnyThread() != 0 && NaniteTessellationSupported();
 }
+
+static uint32 GetMaxPatchesPerGroup()
+{
+	return (uint32)FMath::Max(1, FMath::Min(CVarNaniteMaxPatchesPerGroup.GetValueOnRenderThread(), GRHIMinimumWaveSize / 3));
+}
+
 
 static bool UseAsyncComputeForShadowMaps(const FViewFamilyInfo& ViewFamily)
 {
@@ -928,6 +941,12 @@ class FCalculateSafeRasterizerArgs_CS : public FNaniteGlobalShader
 };
 IMPLEMENT_GLOBAL_SHADER(FCalculateSafeRasterizerArgs_CS, "/Engine/Private/Nanite/NaniteClusterCulling.usf", "CalculateSafeRasterizerArgs", SF_Compute);
 
+BEGIN_SHADER_PARAMETER_STRUCT(FGlobalWorkQueueParameters,)
+	SHADER_PARAMETER_RDG_BUFFER_UAV( RWByteAddressBuffer, DataBuffer )
+	SHADER_PARAMETER_RDG_BUFFER_UAV( RWStructuredBuffer< FWorkQueueState >, StateBuffer )
+	SHADER_PARAMETER( uint32, Size )
+END_SHADER_PARAMETER_STRUCT()
+
 class FInitVisiblePatchesArgsCS : public FNaniteGlobalShader
 {
 	DECLARE_GLOBAL_SHADER( FInitVisiblePatchesArgsCS );
@@ -936,6 +955,12 @@ class FInitVisiblePatchesArgsCS : public FNaniteGlobalShader
 	BEGIN_SHADER_PARAMETER_STRUCT( FParameters, )
 		SHADER_PARAMETER_RDG_BUFFER_UAV( RWBuffer< uint >, RWVisiblePatchesArgs )
 	END_SHADER_PARAMETER_STRUCT()
+
+	static void ModifyCompilationEnvironment(const FGlobalShaderPermutationParameters& Parameters, FShaderCompilerEnvironment& OutEnvironment)
+	{
+		FNaniteGlobalShader::ModifyCompilationEnvironment(Parameters, OutEnvironment);
+		OutEnvironment.SetDefine(TEXT("NANITE_TESSELLATION"), 1);
+	}
 };
 IMPLEMENT_GLOBAL_SHADER(FInitVisiblePatchesArgsCS, "/Engine/Private/Nanite/NaniteRasterBinning.usf", "InitVisiblePatchesArgs", SF_Compute);
 
@@ -968,6 +993,7 @@ class FRasterBinBuild_CS : public FNaniteGlobalShader
 
 		SHADER_PARAMETER_RDG_BUFFER_SRV( ByteAddressBuffer,	VisiblePatches )
 		SHADER_PARAMETER_RDG_BUFFER_SRV( Buffer< uint >,	VisiblePatchesArgs )
+		SHADER_PARAMETER_STRUCT( FGlobalWorkQueueParameters, SplitWorkQueue )
 
 		RDG_BUFFER_ACCESS(IndirectArgs, ERHIAccess::IndirectArgs)
 
@@ -976,7 +1002,20 @@ class FRasterBinBuild_CS : public FNaniteGlobalShader
 		SHADER_PARAMETER(uint32, MaxVisibleClusters)
 		SHADER_PARAMETER(uint32, RegularMaterialRasterBinCount)
 		SHADER_PARAMETER(uint32, bUsePrimOrMeshShader)
+		SHADER_PARAMETER(uint32, MaxPatchesPerGroup)
 	END_SHADER_PARAMETER_STRUCT()
+
+	static bool ShouldCompilePermutation(const FGlobalShaderPermutationParameters& Parameters)
+	{
+		FPermutationDomain PermutationVector(Parameters.PermutationId);
+
+		if (PermutationVector.Get<FPatches>() && !NaniteTessellationSupported())
+		{
+			return false;
+		}
+		
+		return FNaniteGlobalShader::ShouldCompilePermutation(Parameters);
+	}
 };
 IMPLEMENT_GLOBAL_SHADER(FRasterBinBuild_CS, "/Engine/Private/Nanite/NaniteRasterBinning.usf", "RasterBinBuild", SF_Compute);
 
@@ -1025,12 +1064,6 @@ class FRasterBinFinalize_CS : public FNaniteGlobalShader
 	}
 };
 IMPLEMENT_GLOBAL_SHADER(FRasterBinFinalize_CS, "/Engine/Private/Nanite/NaniteRasterBinning.usf", "RasterBinFinalize", SF_Compute);
-
-BEGIN_SHADER_PARAMETER_STRUCT(FGlobalWorkQueueParameters,)
-	SHADER_PARAMETER_RDG_BUFFER_UAV( RWByteAddressBuffer, DataBuffer )
-	SHADER_PARAMETER_RDG_BUFFER_UAV( RWStructuredBuffer< FWorkQueueState >, StateBuffer )
-	SHADER_PARAMETER( uint32, Size )
-END_SHADER_PARAMETER_STRUCT()
 
 class FPatchSplitCS : public FNaniteGlobalShader
 {
@@ -1096,12 +1129,81 @@ class FPatchSplitCS : public FNaniteGlobalShader
 		FNaniteGlobalShader::ModifyCompilationEnvironment(Parameters, OutEnvironment);
 
 		OutEnvironment.SetDefine(TEXT("NANITE_TESSELLATION"), 1);
+		OutEnvironment.SetDefine(TEXT("COHERENT_QUEUE"), 1);
+		OutEnvironment.SetDefine(TEXT("PATCHSPLIT_PASS"), 1);
 		OutEnvironment.CompilerFlags.Add(CFLAG_Wave32);
 
 		FVirtualShadowMapArray::SetShaderDefines(OutEnvironment);
 	}
 };
 IMPLEMENT_GLOBAL_SHADER(FPatchSplitCS, "/Engine/Private/Nanite/NaniteSplit.usf", "PatchSplit", SF_Compute);
+
+class InitClearSplitQueueArgsCS : public FNaniteGlobalShader
+{
+	DECLARE_GLOBAL_SHADER(InitClearSplitQueueArgsCS);
+	SHADER_USE_PARAMETER_STRUCT(InitClearSplitQueueArgsCS, FNaniteGlobalShader);
+
+	BEGIN_SHADER_PARAMETER_STRUCT(FParameters, )
+		SHADER_PARAMETER_STRUCT(FGlobalWorkQueueParameters, SplitWorkQueue)
+		SHADER_PARAMETER_RDG_BUFFER_UAV(RWBuffer< uint >, OutClearQueueArgs)
+	END_SHADER_PARAMETER_STRUCT()
+
+	static bool ShouldCompilePermutation(const FGlobalShaderPermutationParameters& Parameters)
+	{
+		FPermutationDomain PermutationVector(Parameters.PermutationId);
+
+		if (!NaniteTessellationSupported())
+		{
+			return false;
+		}
+
+		return FNaniteGlobalShader::ShouldCompilePermutation(Parameters);
+	}
+
+	static void ModifyCompilationEnvironment(const FGlobalShaderPermutationParameters& Parameters, FShaderCompilerEnvironment& OutEnvironment)
+	{
+		FNaniteGlobalShader::ModifyCompilationEnvironment(Parameters, OutEnvironment);
+
+		OutEnvironment.SetDefine(TEXT("NANITE_TESSELLATION"), 1);
+
+		FVirtualShadowMapArray::SetShaderDefines(OutEnvironment);
+	}
+};
+IMPLEMENT_GLOBAL_SHADER(InitClearSplitQueueArgsCS, "/Engine/Private/Nanite/NaniteSplit.usf", "InitClearQueueArgs", SF_Compute);
+
+
+class ClearSplitQueueCS : public FNaniteGlobalShader
+{
+	DECLARE_GLOBAL_SHADER(ClearSplitQueueCS);
+	SHADER_USE_PARAMETER_STRUCT(ClearSplitQueueCS, FNaniteGlobalShader);
+
+	BEGIN_SHADER_PARAMETER_STRUCT(FParameters, )
+		SHADER_PARAMETER_STRUCT(FGlobalWorkQueueParameters, SplitWorkQueue)
+	END_SHADER_PARAMETER_STRUCT()
+
+	static bool ShouldCompilePermutation(const FGlobalShaderPermutationParameters& Parameters)
+	{
+		FPermutationDomain PermutationVector(Parameters.PermutationId);
+
+		if (!NaniteTessellationSupported())
+		{
+			return false;
+		}
+
+		return FNaniteGlobalShader::ShouldCompilePermutation(Parameters);
+	}
+
+	static void ModifyCompilationEnvironment(const FGlobalShaderPermutationParameters& Parameters, FShaderCompilerEnvironment& OutEnvironment)
+	{
+		FNaniteGlobalShader::ModifyCompilationEnvironment(Parameters, OutEnvironment);
+
+		OutEnvironment.SetDefine(TEXT("NANITE_TESSELLATION"), 1);
+
+		FVirtualShadowMapArray::SetShaderDefines(OutEnvironment);
+	}
+};
+IMPLEMENT_GLOBAL_SHADER(ClearSplitQueueCS, "/Engine/Private/Nanite/NaniteSplit.usf", "ClearQueue", SF_Compute);
+
 
 BEGIN_SHADER_PARAMETER_STRUCT( FRasterizePassParameters, )
 	SHADER_PARAMETER_RDG_UNIFORM_BUFFER( FSceneUniformParameters, Scene )
@@ -1128,6 +1230,7 @@ BEGIN_SHADER_PARAMETER_STRUCT( FRasterizePassParameters, )
 	SHADER_PARAMETER_SRV( ByteAddressBuffer,	TessellationTable_Verts )
 	SHADER_PARAMETER_SRV( ByteAddressBuffer,	TessellationTable_Indexes )
 	SHADER_PARAMETER( float,					InvDiceRate )
+	SHADER_PARAMETER( uint32,					MaxPatchesPerGroup )
 
 	SHADER_PARAMETER_RDG_BUFFER_SRV( ByteAddressBuffer,	VisiblePatches )
 	SHADER_PARAMETER_RDG_BUFFER_SRV( Buffer< uint >,	VisiblePatchesArgs )
@@ -2131,6 +2234,7 @@ private:
 		FRDGBufferRef ClusterOffsetSWHW,
 		FRDGBufferRef VisiblePatches,
 		FRDGBufferRef VisiblePatchesArgs,
+		const FGlobalWorkQueueParameters& SplitWorkQueue,
 		bool bMainPass,
 		bool bUsePrimOrMeshShader,
 		const FRasterBinMetaArray& MetaBufferData );
@@ -2152,6 +2256,8 @@ private:
 		FRDGBufferRef VisiblePatches,
 		FRDGBufferRef VisiblePatchesArgs,
 		uint32 CullingPass );
+
+	void			AddPass_ClearSplitQueue(const FGlobalWorkQueueParameters& SplitWorkQueue);
 
 	void			DrawGeometryMultiPass(
 		FNaniteRasterPipelines& RasterPipelines,
@@ -2918,6 +3024,7 @@ FBinningData FRenderer::AddPass_Binning(
 	FRDGBufferRef ClusterOffsetSWHW,
 	FRDGBufferRef VisiblePatches,
 	FRDGBufferRef VisiblePatchesArgs,
+	const FGlobalWorkQueueParameters& SplitWorkQueue,
 	bool bMainPass,
 	bool bUsePrimOrMeshShader,
 	const FRasterBinMetaArray& MetaBufferData
@@ -2962,8 +3069,9 @@ FBinningData FRenderer::AddPass_Binning(
 
 		if (VisiblePatches)
 		{
-			PassParameters->VisiblePatches = GraphBuilder.CreateSRV(VisiblePatches);
-			PassParameters->VisiblePatchesArgs = GraphBuilder.CreateSRV(VisiblePatchesArgs);
+			PassParameters->VisiblePatches		= GraphBuilder.CreateSRV(VisiblePatches);
+			PassParameters->VisiblePatchesArgs	= GraphBuilder.CreateSRV(VisiblePatchesArgs);
+			PassParameters->SplitWorkQueue		= SplitWorkQueue;
 		}
 
 		PassParameters->PageConstants = PageConstants;
@@ -2971,6 +3079,7 @@ FBinningData FRenderer::AddPass_Binning(
 		PassParameters->MaxVisibleClusters = MaxVisibleClusters;
 		PassParameters->RegularMaterialRasterBinCount = Scene.NaniteRasterPipelines[MeshPass].GetRegularBinCount();
 		PassParameters->bUsePrimOrMeshShader = bUsePrimOrMeshShader;
+		PassParameters->MaxPatchesPerGroup = GetMaxPatchesPerGroup();
 
 		// Count SW & HW Clusters
 		{
@@ -3587,6 +3696,7 @@ FBinningData FRenderer::AddPass_Rasterize(
 		ClusterOffsetSWHW,
 		VisiblePatches,
 		VisiblePatchesArgs,
+		SplitWorkQueue,
 		bMainPass,
 		bUsePrimitiveShader || bUseMeshShader,
 		PassData.MetaBufferData
@@ -3625,13 +3735,14 @@ FBinningData FRenderer::AddPass_Rasterize(
 	RasterPassParameters->TessellationTable_Verts	= GTessellationTable.Verts.SRV;
 	RasterPassParameters->TessellationTable_Indexes	= GTessellationTable.Indexes.SRV;
 	RasterPassParameters->InvDiceRate				= CVarNaniteMaxPixelsPerEdge.GetValueOnRenderThread() / CVarNaniteDicingRate.GetValueOnRenderThread();
+	RasterPassParameters->MaxPatchesPerGroup		= GetMaxPatchesPerGroup();
 
 	if( bPatches )
 	{
 		RasterPassParameters->VisiblePatches		= GraphBuilder.CreateSRV( VisiblePatches );
 		RasterPassParameters->VisiblePatchesArgs	= GraphBuilder.CreateSRV( VisiblePatchesArgs );
 	}
-	else
+	//else
 	{
 		RasterPassParameters->SplitWorkQueue = SplitWorkQueue;
 		CreateSkipBarrierUAV( RasterPassParameters->SplitWorkQueue.DataBuffer );
@@ -3902,6 +4013,45 @@ void FRenderer::AddPass_PatchSplit(
 			ComputeShader,
 			PassParameters,
 			FIntVector( 1, 1, 1 )
+		);
+	}
+}
+
+void FRenderer::AddPass_ClearSplitQueue(const FGlobalWorkQueueParameters& SplitWorkQueue)
+{
+	if (!TessellationEnabled())
+	{
+		return;
+	}
+	
+	FRDGBufferRef IndirectArgs = GraphBuilder.CreateBuffer(FRDGBufferDesc::CreateIndirectDesc(3), TEXT("Nanite.ClearQueueArgs"));
+	{
+		InitClearSplitQueueArgsCS::FParameters* PassParameters = GraphBuilder.AllocParameters< InitClearSplitQueueArgsCS::FParameters >();
+		PassParameters->SplitWorkQueue		= SplitWorkQueue;
+		PassParameters->OutClearQueueArgs	= GraphBuilder.CreateUAV( IndirectArgs );
+
+		auto ComputeShader = SharedContext.ShaderMap->GetShader< InitClearSplitQueueArgsCS >();
+		FComputeShaderUtils::AddPass(
+			GraphBuilder,
+			RDG_EVENT_NAME( "InitClearQueueArgs" ),
+			ComputeShader,
+			PassParameters,
+			FIntVector( 1, 1, 1 )
+		);
+	}
+
+	{
+		ClearSplitQueueCS::FParameters* PassParameters = GraphBuilder.AllocParameters< ClearSplitQueueCS::FParameters >();
+		PassParameters->SplitWorkQueue = SplitWorkQueue;
+
+		auto ComputeShader = SharedContext.ShaderMap->GetShader< ClearSplitQueueCS >();
+		FComputeShaderUtils::AddPass(
+			GraphBuilder,
+			RDG_EVENT_NAME("ClearSplitQueue"),
+			ComputeShader,
+			PassParameters,
+			IndirectArgs,
+			0
 		);
 	}
 }
@@ -4514,6 +4664,10 @@ void FRenderer::DrawGeometry(
 				SplitWorkQueue,
 				true
 			);
+
+		#if NANITE_SEPARATE_SPLIT_QUEUE_CLEAR
+			AddPass_ClearSplitQueue(SplitWorkQueue);
+		#endif
 		}
 	}
 	
@@ -4602,6 +4756,9 @@ void FRenderer::DrawGeometry(
 				SplitWorkQueue,
 				false
 			);
+		#if NANITE_SEPARATE_SPLIT_QUEUE_CLEAR
+			AddPass_ClearSplitQueue(SplitWorkQueue);
+		#endif
 		}
 	}
 

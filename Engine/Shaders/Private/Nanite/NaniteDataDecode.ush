@@ -5,6 +5,7 @@
 #include "../Common.ush"
 #include "../BitPacking.ush"
 #include "../SceneData.ush"
+#include "../WaveOpUtil.ush"
 #include "/Engine/Shared/NaniteDefinitions.h"
 #include "NanitePackedNaniteView.ush"
 
@@ -211,6 +212,17 @@ struct FNaniteFullscreenVSToPS
 	ByteAddressBuffer				HierarchyBuffer;
 	StructuredBuffer<uint>			RayTracingDataBuffer;
 #endif
+
+FInstanceDynamicData WaveReadLaneAt(FInstanceDynamicData In, uint SrcIndex)
+{
+	FInstanceDynamicData Result;
+
+	Result.LocalToTranslatedWorld		= WaveReadLaneAt(In.LocalToTranslatedWorld, SrcIndex);
+	Result.PrevLocalToTranslatedWorld	= WaveReadLaneAt(In.PrevLocalToTranslatedWorld, SrcIndex);
+	Result.bHasMoved					= WaveReadLaneAt(In.bHasMoved, SrcIndex);
+
+	return Result;
+}
 
 // Packs a (PageIndex, ClusterIndex) pair into a flat index based on max clusters per page.
 uint PackPoolClusterRef(uint PageIndex, uint ClusterIndex)

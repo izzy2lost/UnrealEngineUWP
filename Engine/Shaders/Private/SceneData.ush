@@ -4,6 +4,7 @@
 
 #include "LargeWorldCoordinates.ush"
 #include "OctahedralCommon.ush"
+#include "WaveOpUtil.ush"
 #include "/Engine/Shared/LightSceneData.h"
 #include "/Engine/Shared/SceneDefinitions.h"
 
@@ -243,6 +244,48 @@ struct FInstanceSceneData
 	FInstanceSceneEditorData EditorData;
 #endif
 };
+
+#if FEATURE_LEVEL >= FEATURE_LEVEL_SM6 || PLATFORM_SUPPORTS_SM6_0_WAVE_OPERATIONS
+FInstanceSceneData WaveReadLaneAt(FInstanceSceneData In, uint SrcIndex)
+{
+	FInstanceSceneData Result;
+
+	Result.LocalToWorld					= WaveReadLaneAt(In.LocalToWorld, SrcIndex);
+	Result.PrevLocalToWorld				= WaveReadLaneAt(In.PrevLocalToWorld, SrcIndex);
+	Result.WorldToLocal					= WaveReadLaneAt(In.WorldToLocal, SrcIndex);
+	Result.NonUniformScale				= WaveReadLaneAt(In.NonUniformScale, SrcIndex);
+	Result.InvNonUniformScale			= WaveReadLaneAt(In.InvNonUniformScale, SrcIndex);
+	Result.DeterminantSign				= WaveReadLaneAt(In.DeterminantSign, SrcIndex);
+	Result.LocalBoundsCenter			= WaveReadLaneAt(In.LocalBoundsCenter, SrcIndex);
+	Result.PrimitiveId					= WaveReadLaneAt(In.PrimitiveId, SrcIndex);
+	Result.RelativeId					= WaveReadLaneAt(In.RelativeId, SrcIndex);
+	Result.PayloadDataOffset			= WaveReadLaneAt(In.PayloadDataOffset, SrcIndex);
+	Result.PayloadExtensionOffset		= WaveReadLaneAt(In.PayloadExtensionOffset, SrcIndex);
+	Result.PayloadExtensionSize			= WaveReadLaneAt(In.PayloadExtensionSize, SrcIndex);
+	Result.LocalBoundsExtent			= WaveReadLaneAt(In.LocalBoundsExtent, SrcIndex);
+	Result.LocalBoundsCenter			= WaveReadLaneAt(In.LocalBoundsCenter, SrcIndex);
+	Result.PrimitiveId					= WaveReadLaneAt(In.PrimitiveId, SrcIndex);
+	Result.RelativeId					= WaveReadLaneAt(In.RelativeId, SrcIndex);
+	Result.PayloadDataOffset			= WaveReadLaneAt(In.PayloadDataOffset, SrcIndex);
+	Result.PayloadExtensionOffset		= WaveReadLaneAt(In.PayloadExtensionOffset, SrcIndex);
+	Result.PayloadExtensionSize			= WaveReadLaneAt(In.PayloadExtensionSize, SrcIndex);
+	Result.LocalBoundsExtent			= WaveReadLaneAt(In.LocalBoundsExtent, SrcIndex);
+	Result.LastUpdateSceneFrameNumber	= WaveReadLaneAt(In.LastUpdateSceneFrameNumber, SrcIndex);
+	Result.NaniteRuntimeResourceID		= WaveReadLaneAt(In.NaniteRuntimeResourceID, SrcIndex);
+	Result.NaniteHierarchyOffset		= WaveReadLaneAt(In.NaniteHierarchyOffset, SrcIndex);
+	Result.RandomID						= WaveReadLaneAt(In.RandomID, SrcIndex);
+	Result.CustomDataOffset				= WaveReadLaneAt(In.CustomDataOffset, SrcIndex);
+	Result.CustomDataCount				= WaveReadLaneAt(In.CustomDataCount, SrcIndex);
+	Result.LightMapAndShadowMapUVBias	= WaveReadLaneAt(In.LightMapAndShadowMapUVBias, SrcIndex);
+	Result.ValidInstance				= WaveReadLaneAt(In.ValidInstance, SrcIndex);
+	Result.Flags						= WaveReadLaneAt(In.Flags, SrcIndex);
+#if USE_EDITOR_SHADERS
+	//TODO
+#endif
+
+	return Result;
+}
+#endif
 
 #if VF_USE_PRIMITIVE_SCENE_DATA
 

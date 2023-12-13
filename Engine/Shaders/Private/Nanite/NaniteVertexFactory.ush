@@ -265,6 +265,7 @@ struct FNaniteTransformedVert
 	float3 PointWorld_NoOffset;
 	float4 PointClip;
 	half3 NormalPostDeform;
+	float4 NormalClip;
 	FNaniteRawAttributeData RawAttributeData;
 	float SplineDist;
 #if NUM_TEX_COORD_INTERPOLATORS
@@ -317,6 +318,21 @@ FNaniteVertTransforms CalculateNaniteVertexTransforms(FInstanceSceneData Instanc
 	return Transforms;
 }
 
+FNaniteVertTransforms WaveReadLaneAt(FNaniteVertTransforms In, uint SrcIndex)
+{
+	FNaniteVertTransforms Result;
+
+	Result.LocalToTranslatedWorld		= WaveReadLaneAt(In.LocalToTranslatedWorld,		SrcIndex);
+	Result.PrevLocalToTranslatedWorld	= WaveReadLaneAt(In.PrevLocalToTranslatedWorld, SrcIndex);
+	Result.TranslatedWorldToClip		= WaveReadLaneAt(In.TranslatedWorldToClip,		SrcIndex);
+	Result.LocalToWorldNoScale			= WaveReadLaneAt(In.LocalToWorldNoScale,		SrcIndex);
+	Result.PrevLocalToWorldNoScale		= WaveReadLaneAt(In.PrevLocalToWorldNoScale,	SrcIndex);
+	Result.WorldToLocalVector			= WaveReadLaneAt(In.WorldToLocalVector,			SrcIndex);
+	Result.PrevWorldToLocalVector		= WaveReadLaneAt(In.PrevWorldToLocalVector,		SrcIndex);
+
+	return Result;
+}
+
 FNaniteTransformedTri TransformNaniteTriangle(FPrimitiveSceneData PrimitiveData, FInstanceSceneData InstanceData, FNaniteVertTransforms Transforms, FNanitePostDeformVertex InVerts[3], bool bEvaluateWPO)
 {
 	FNaniteTransformedTri Tri = (FNaniteTransformedTri)0;
@@ -349,11 +365,13 @@ FNaniteTransformedTri TransformNaniteTriangle(FPrimitiveSceneData PrimitiveData,
 			const float3 PrevWorldPositionOffset = GetMaterialPreviousWorldPositionOffset(PrevVertexParameters);
 			const float3 LocalOffset = mul(WorldPositionOffset, Transforms.WorldToLocalVector);
 			const float3 PrevLocalOffset = mul(PrevWorldPositionOffset, Transforms.PrevWorldToLocalVector);
+			const float3 NormalWorld = mul(float4(InVerts[i].Normal, 0), Transforms.LocalToTranslatedWorld).xyz;
 
 			Tri.Verts[i].VertIndex				= InVerts[i].VertIndex;
 			Tri.Verts[i].RawAttributeData		= InVerts[i].RawAttributeData;
 			Tri.Verts[i].SplineDist				= InVerts[i].SplineDist;
 			Tri.Verts[i].NormalPostDeform		= InVerts[i].Normal;
+			Tri.Verts[i].NormalClip				= mul(float4(NormalWorld, 0), Transforms.TranslatedWorldToClip);
 			Tri.Verts[i].PointLocal				= InVerts[i].PointLocal;
 			Tri.Verts[i].PointPostDeform		= InVerts[i].Position + LocalOffset;
 			Tri.Verts[i].PrevPointPostDeform	= InVerts[i].Position + PrevLocalOffset;
@@ -373,10 +391,13 @@ FNaniteTransformedTri TransformNaniteTriangle(FPrimitiveSceneData PrimitiveData,
 		UNROLL_N(3)
 		for (int i = 0; i < 3; ++i)
 		{
+			const float3 NormalWorld			= mul(float4(InVerts[i].Normal, 0), Transforms.LocalToTranslatedWorld).xyz;
+
 			Tri.Verts[i].VertIndex				= InVerts[i].VertIndex;
 			Tri.Verts[i].RawAttributeData		= InVerts[i].RawAttributeData;
 			Tri.Verts[i].SplineDist				= InVerts[i].SplineDist;
 			Tri.Verts[i].NormalPostDeform		= InVerts[i].Normal;
+			Tri.Verts[i].NormalClip				= mul(float4(NormalWorld, 0), Transforms.TranslatedWorldToClip);
 			Tri.Verts[i].PointLocal				= InVerts[i].PointLocal;
 			Tri.Verts[i].PointPostDeform		= InVerts[i].Position;
 			Tri.Verts[i].PrevPointPostDeform	= InVerts[i].Position;
@@ -418,6 +439,9 @@ FNaniteTransformedVert TransformNaniteVertex(FPrimitiveSceneData PrimitiveData, 
 	Vert.NormalPostDeform = InVert.Normal;
 	Vert.PointLocal = InVert.PointLocal;
 	Vert.SplineDist = InVert.SplineDist;
+
+	const float3 NormalWorld = mul(float4(InVert.Normal, 0), Transforms.LocalToTranslatedWorld).xyz;
+	Vert.NormalClip = mul(float4(NormalWorld, 0), Transforms.TranslatedWorldToClip);
 
 #if USES_WORLD_POSITION_OFFSET
 	#if ALWAYS_EVALUATE_WORLD_POSITION_OFFSET
@@ -502,6 +526,7 @@ FNaniteTransformedVert WaveReadLaneAt(FNaniteTransformedVert Vert, uint SrcIndex
 	Result.PointClip			= WaveReadLaneAt( Vert.PointClip,			SrcIndex );
 	Result.SplineDist			= WaveReadLaneAt( Vert.SplineDist,			SrcIndex );
 	Result.NormalPostDeform		= WaveReadLaneAt( Vert.NormalPostDeform,	SrcIndex );
+	Result.NormalClip			= WaveReadLaneAt( Vert.NormalClip,			SrcIndex );
 #if NUM_TEX_COORD_INTERPOLATORS
 	UNROLL
 	for (uint i = 0; i < NUM_TEX_COORD_INTERPOLATORS; ++i)

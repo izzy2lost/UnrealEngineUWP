@@ -12,6 +12,7 @@
 #endif
 
 #if NANITE_TESSELLATION
+#if PATCHSPLIT_PASS
 
 // [ Nießner and Loop 2021, "Patch-Based Occlusion Culling for Hardware Tessellation" ]
 // Input cone bounds normalized displacement directions
@@ -42,6 +43,7 @@ struct FSplitTask
 	FTessellatedPatch	TessellatedPatch;
 	
 	uint4		Encoded;
+	uint		QueueOffset;
 
 	void		Init( uint VisibleClusterIndex, uint TriIndex );
 
@@ -70,6 +72,7 @@ template< typename QueueType >
 bool FSplitTask::Load( QueueType WorkQueue, uint Offset )
 {
 	checkSlow( Offset < WorkQueue.Size );
+	QueueOffset = Offset;
 	Encoded = WorkQueue.DataBuffer.Load4( Offset * 16 );
 
 	return
@@ -96,7 +99,8 @@ void FSplitTask::Clear( QueueType WorkQueue, uint Offset )
 {
 	// TODO this could be at if( bIsBoundary ) at end of DistributeWork loop if latency is important.
 	WorkQueue.ReleaseTask();
-	WorkQueue.DataBuffer.Store4( Offset * 16, ~0u );
+	if( QueueOffset != ~0u )
+		WorkQueue.DataBuffer.Store4( Offset * 16, ~0u );
 }
 
 uint FSplitTask::Run()
@@ -220,39 +224,33 @@ uint FSplitTask::Run()
 		}
 	#endif
 	}
-	else if( !bNeedsSplitting )
+	else 
 	{
-		if( Cull.bNeedsClipping )
-			return 0;
-
-		uint WriteOffset;
-		WaveInterlockedAddScalar_( RWVisiblePatchesArgs[3], 1, WriteOffset );
-		if( WriteOffset < VisiblePatchesSize )
+		if( !bNeedsSplitting )
 		{
-			RWVisiblePatches.Store4( WriteOffset * 16, Encoded );
-
-		#if 0
-			uint RasterBin = GetMaterialRasterBin( Cluster, InstanceData.PrimitiveId, Patch.TriIndex, RegularMaterialRasterBinCount, /* secondary bin */ false, MaterialSlotTable );
-			RasterBin = RemapRasterBin(RasterBin, RenderFlags, MaterialFlags);
-
-			// Scalarize atomics
-			while( true )
+			if( Cull.bNeedsClipping )
+				return 0;
+	
+			uint WriteOffset;
+			WaveInterlockedAddScalar_( RWVisiblePatchesArgs[3], 1, WriteOffset );
+			if( WriteOffset < VisiblePatchesSize )
 			{
-				const uint UniformBinIndex = WaveReadLaneFirst( RasterBin );
-				if( UniformBinIndex == RasterBin )
-				{
-					WaveInterlockedAddScalar( OutRasterBinMeta[ UniformBinIndex ].BinSWCount, 1 );
-					break;
-				}
+			#if NANITE_TESSELLATION_PATCH_REFS
+				TessellatedPatch.Init( TessFactors, Encoded.yzw );
+				RWVisiblePatches.Store2( WriteOffset * 8, uint2( QueueOffset, TessellatedPatch.Pattern ) );
+				SplitWorkQueue.DataBuffer.Store4( QueueOffset * 16, Encoded );
+				QueueOffset = ~0u;
+			#else
+				RWVisiblePatches.Store4( WriteOffset * 16, Encoded );
+			#endif
 			}
-		#endif
 		}
-	}
-	else
-	{
-		float3 SplitFactors = min( GetSplitFactors( TessFactors ), 8 );
-		TessellatedPatch.Init( SplitFactors, Encoded.yzw );
-		return TessellatedPatch.GetNumTris();
+		else
+		{
+			float3 SplitFactors = min( GetSplitFactors( TessFactors ), 8 );
+			TessellatedPatch.Init( SplitFactors, Encoded.yzw );
+			return TessellatedPatch.GetNumTris();
+		}
 	}
 
 	return 0;
@@ -308,4 +306,29 @@ void PatchSplit()
 	GlobalTaskLoopVariable< FSplitTask >( SplitWorkQueue );
 }
 
-#endif
+#else	// PATCHSPLIT_PASS
+
+RWBuffer<uint> OutClearQueueArgs;
+
+[numthreads(1, 1, 1)]
+void InitClearQueueArgs()
+{
+	const uint NumElements = min(SplitWorkQueue.StateBuffer[0].WriteOffset, SplitWorkQueue.Size);
+	OutClearQueueArgs[0] = (NumElements + 63) / 64;
+	OutClearQueueArgs[1] = 1;
+	OutClearQueueArgs[2] = 1;
+}
+
+[numthreads(64, 1, 1)]
+void ClearQueue(uint DispatchThreadID : SV_DispatchThreadID)
+{
+	const uint NumElements = min(SplitWorkQueue.StateBuffer[0].WriteOffset, SplitWorkQueue.Size);
+	if (DispatchThreadID < NumElements)
+	{
+		SplitWorkQueue.DataBuffer.Store4(DispatchThreadID * 16, ~0u);
+	}
+}
+
+#endif	// PATCHSPLIT_PASS
+
+#endif	// NANITE_TESSELLATION

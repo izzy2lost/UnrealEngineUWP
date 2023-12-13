@@ -4,10 +4,12 @@
 
 #include "../Common.ush"
 
+#define NANITE_TESSELLATION_PATCH_REFS	1
+#define NANITE_TESSELLATION_NORMALIZE	0
+
 #if NANITE_TESSELLATION
 
-// TODO Change to 65534. Must be even but doesn't have to be pow2.
-static const uint BarycentricMax = (1 << 15);
+static const uint BarycentricMax = (1 << 15);	// Must be pow2
 
 uint EncodeBarycentrics( float3 Barycentrics )
 {
@@ -31,10 +33,11 @@ uint EncodeBarycentrics( float3 Barycentrics )
 float3 DecodeBarycentrics( uint Encoded )
 {
 	float3 Barycentrics;
-	Barycentrics.x = Encoded & 0xffff;
-	Barycentrics.y = Encoded >> 16;
-	Barycentrics.z = BarycentricMax - Barycentrics.x - Barycentrics.y;
-	Barycentrics  /= BarycentricMax;
+
+	Barycentrics.x = float(Encoded & 0xffff) / BarycentricMax;
+	Barycentrics.y = float(Encoded >> 16) / BarycentricMax;
+	Barycentrics.z = 1.0f - Barycentrics.x - Barycentrics.y;
+
 	return Barycentrics;
 }
 
@@ -45,6 +48,7 @@ ByteAddressBuffer TessellationTable_Indexes;
 static const uint TessellationTable_Size = 16;
 
 float InvDiceRate;
+uint MaxPatchesPerGroup;
 
 float3 GetTessFactors( FNaniteView NaniteView, float3 PointView[3] )
 {
@@ -111,7 +115,7 @@ struct FTessellatedPatch
 	uint	Pattern;
 	uint	Swizzle;
 
-	void Init( float3 TessFactors, inout uint3 VertIndexes )
+	void Init( float3 TessFactors, inout uint3 VertData )
 	{
 		TessFactors = ceil( TessFactors );
 		TessFactors = clamp( TessFactors, 1, TessellationTable_Size );
@@ -124,13 +128,13 @@ struct FTessellatedPatch
 		// Rotate patch so TessFactors.x == MaxTessFactor
 		if( TessFactors.y == MaxTessFactor )
 		{
-			VertIndexes = VertIndexes.yzx;
+			VertData = VertData.yzx;
 			TessFactors = TessFactors.yzx;
 			Swizzle = 0b110100;
 		}
 		else if( TessFactors.z == MaxTessFactor )
 		{
-			VertIndexes = VertIndexes.zxy;
+			VertData = VertData.zxy;
 			TessFactors = TessFactors.zxy;
 			Swizzle = 0b101001;
 		}
@@ -139,7 +143,7 @@ struct FTessellatedPatch
 		bool bFlipWinding = false;
 		if( TessFactors.y < TessFactors.z )
 		{
-			VertIndexes.xy = VertIndexes.yx;
+			VertData.xy = VertData.yx;
 			TessFactors.yz = TessFactors.zy;
 			bFlipWinding = true;
 			Swizzle ^= 0b000111;
@@ -164,13 +168,7 @@ struct FTessellatedPatch
 	{
 		uint BarycentricsEncoded = TessellationTable_Verts.Load( 4 * ( TableOffsets.x + VertIndex ) );
 
-		float3 Barycentrics;
-		Barycentrics.x = BarycentricsEncoded & 0xffff;
-		Barycentrics.y = BarycentricsEncoded >> 16;
-		Barycentrics.z = BarycentricMax - Barycentrics.x - Barycentrics.y;
-		Barycentrics  /= BarycentricMax;
-
-		return Barycentrics;
+		return DecodeBarycentrics( BarycentricsEncoded );
 	}
 
 	uint3 GetIndexes( uint TriIndex )
@@ -277,15 +275,36 @@ struct FSplitPatch
 	}
 };
 
+FSplitPatch WaveReadLaneAt(FSplitPatch In, uint SrcIndex)
+{
+	FSplitPatch Result;
+
+	Result.VisibleClusterIndex	= WaveReadLaneAt(In.VisibleClusterIndex, SrcIndex);
+	Result.TriIndex				= WaveReadLaneAt(In.TriIndex, SrcIndex);
+	Result.Barycentrics[0]		= WaveReadLaneAt(In.Barycentrics[0], SrcIndex);
+	Result.Barycentrics[1]		= WaveReadLaneAt(In.Barycentrics[1], SrcIndex);
+	Result.Barycentrics[2]		= WaveReadLaneAt(In.Barycentrics[2], SrcIndex);
+
+	return Result;
+}
+
 
 #define THREADGROUP_SIZE	32
 #include "../WorkDistribution.ush"
 
+#ifdef COHERENT_QUEUE
 RWCoherentByteAddressBuffer						SplitWorkQueue_DataBuffer;
 RWCoherentStructuredBuffer( FWorkQueueState )	SplitWorkQueue_StateBuffer;
 uint											SplitWorkQueue_Size;
 
 static const FGlobalWorkQueue SplitWorkQueue = { SplitWorkQueue_DataBuffer, SplitWorkQueue_StateBuffer, 0, SplitWorkQueue_Size };
+#else
+RWByteAddressBuffer						SplitWorkQueue_DataBuffer;
+RWStructuredBuffer< FWorkQueueState >	SplitWorkQueue_StateBuffer;
+uint									SplitWorkQueue_Size;
+
+static const FOutputQueue SplitWorkQueue = { SplitWorkQueue_DataBuffer, SplitWorkQueue_StateBuffer, 0, SplitWorkQueue_Size };
+#endif
 
 RWByteAddressBuffer						OccludedPatches_DataBuffer;
 RWStructuredBuffer< FWorkQueueState >	OccludedPatches_StateBuffer;

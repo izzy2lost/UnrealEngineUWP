@@ -5,7 +5,12 @@
 #include "../WaveOpUtil.ush"
 #include "../ComputeShaderUtils.ush"
 
+#ifndef NANITE_TESSELLATION
+#define NANITE_TESSELLATION PATCHES
+#endif
+
 #include "NaniteAttributeDecode.ush"
+#include "NaniteTessellation.ush"
 
 #if (RASTER_BIN_PASS == NANITE_RASTER_BIN_COUNT)
 	#define RASTER_BIN_COUNT	1
@@ -305,10 +310,7 @@ void ScalarizeForEachMatching( T Value, FFunction Function )
 	}
 }
 
-ByteAddressBuffer	VisiblePatches;
-Buffer< uint >		VisiblePatchesArgs;
-RWBuffer< uint >	RWVisiblePatchesArgs;
-
+#if NANITE_TESSELLATION
 [numthreads(1, 1, 1)]
 void InitVisiblePatchesArgs() 
 {
@@ -318,6 +320,7 @@ void InitVisiblePatchesArgs()
 	RWVisiblePatchesArgs[1] = 1;
 	RWVisiblePatchesArgs[2] = 1;
 }
+#endif
 
 [numthreads(64, 1, 1)]
 void RasterBinBuild(uint RelativeClusterIndex : SV_DispatchThreadID, uint GroupThreadIndex : SV_GroupIndex)
@@ -328,7 +331,12 @@ void RasterBinBuild(uint RelativeClusterIndex : SV_DispatchThreadID, uint GroupT
 	
 	if( VisibleIndex < NumVisiblePatches )
 	{
-		uint PatchEncoded = VisiblePatches.Load( VisibleIndex * 16 );
+#if NANITE_TESSELLATION_PATCH_REFS
+		const uint PatchIndex = VisiblePatches.Load(VisibleIndex * 8);
+		const uint PatchEncoded = SplitWorkQueue.DataBuffer.Load(PatchIndex * 16);
+#else
+		const uint PatchEncoded = VisiblePatches.Load(VisibleIndex * 16);
+#endif
 
 		uint VisibleClusterIndex	= PatchEncoded.x >> 7;
 		uint TriIndex				= PatchEncoded.x & 0x7F;
@@ -360,7 +368,13 @@ void RasterBinBuild(uint RelativeClusterIndex : SV_DispatchThreadID, uint GroupT
 				#if RASTER_BIN_COUNT
 					WaveInterlockedAddScalar(OutRasterBinMeta[UniformBinIndex].BinSWCount, 1);
 				#elif RASTER_BIN_SCATTER
-					WaveInterlockedAddScalar_( OutRasterBinArgsSWHW[ UniformBinIndex * NANITE_RASTERIZER_ARG_COUNT ], 1, IndexInBin );
+					WaveInterlockedAddScalar_( OutRasterBinArgsSWHW[ UniformBinIndex * NANITE_RASTERIZER_ARG_COUNT + 3 ], 1, IndexInBin );
+					const uint Num = IndexInBin + WaveActiveCountBits(true);
+					if(WaveIsFirstLane())
+					{
+						const uint NumGroups = (Num + MaxPatchesPerGroup - 1) / MaxPatchesPerGroup;	// Slow integer divide. Fix me?
+						InterlockedMax(OutRasterBinArgsSWHW[ UniformBinIndex * NANITE_RASTERIZER_ARG_COUNT + 0 ], NumGroups);
+					}
 				#endif
 					bDone = true;
 				}

@@ -631,3 +631,27 @@ float3 LWCToFloat(FDFVector3 Value) { return DFDemote(Value); }
 float4 LWCToFloat(FDFVector4 Value) { return DFDemote(Value); }
 float4x4 LWCToFloat(FDFMatrix Value) { return DFDemote(Value); }
 float4x4 LWCToFloat(FDFInverseMatrix Value) { return DFDemote(Value); }
+
+#if FEATURE_LEVEL >= FEATURE_LEVEL_SM6 || PLATFORM_SUPPORTS_SM6_0_WAVE_OPERATIONS
+FLWCMatrix WaveReadLaneAt(FLWCMatrix In, uint SrcIndex)
+{
+	FLWCMatrix Result;
+	Result.M[0] = WaveReadLaneAt(In.M[0], SrcIndex);
+	Result.M[1] = WaveReadLaneAt(In.M[1], SrcIndex);
+	Result.M[2] = WaveReadLaneAt(In.M[2], SrcIndex);
+	Result.M[3] = WaveReadLaneAt(In.M[3], SrcIndex);
+	Result.Tile = WaveReadLaneAt(In.Tile, SrcIndex);
+	return Result;
+}
+
+FLWCInverseMatrix WaveReadLaneAt(FLWCInverseMatrix In, uint SrcIndex)
+{
+	FLWCInverseMatrix Result;
+	Result.M[0] = WaveReadLaneAt(In.M[0], SrcIndex);
+	Result.M[1] = WaveReadLaneAt(In.M[1], SrcIndex);
+	Result.M[2] = WaveReadLaneAt(In.M[2], SrcIndex);
+	Result.M[3] = WaveReadLaneAt(In.M[3], SrcIndex);
+	Result.Tile = WaveReadLaneAt(In.Tile, SrcIndex);
+	return Result;
+}
+#endif
