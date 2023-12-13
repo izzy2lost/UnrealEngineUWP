@@ -27,7 +27,7 @@ class UStateTree;
 
 DECLARE_DELEGATE_OneParam(FOnStateTreeDebuggerScrubStateChanged, const UE::StateTreeDebugger::FScrubState& ScrubState);
 DECLARE_DELEGATE_TwoParams(FOnStateTreeDebuggerBreakpointHit, FStateTreeInstanceDebugId InstanceId, const FStateTreeDebuggerBreakpoint Breakpoint);
-DECLARE_DELEGATE_OneParam(FOnStateTreeDebuggerActiveStatesChanges, TConstArrayView<FStateTreeStateHandle> ActiveStates);
+DECLARE_DELEGATE_OneParam(FOnStateTreeDebuggerActiveStatesChanges, const FStateTreeTraceActiveStates& ActiveStates);
 DECLARE_DELEGATE_OneParam(FOnStateTreeDebuggerNewInstance, FStateTreeInstanceDebugId InstanceId);
 DECLARE_DELEGATE(FOnStateTreeDebuggerNewSession);
 DECLARE_DELEGATE(FOnStateTreeDebuggerDebuggedInstanceSet);
@@ -235,7 +235,7 @@ private:
 
 	void SendNotifications();
 
-	void SetActiveStates(const TConstArrayView<FStateTreeStateHandle> NewActiveStates);
+	void SetActiveStates(const FStateTreeTraceActiveStates& NewActiveStates);
 
 	/**
 	 * Request an analysis session on the latest next available live trace.
@@ -294,7 +294,7 @@ private:
 	TArray<FStateTreeDebuggerBreakpoint> Breakpoints;
 
 	/** List of currently active states in the selected instance */
-	TArray<FStateTreeStateHandle> ActiveStates;
+	FStateTreeTraceActiveStates ActiveStates;
 
 	/**
 	 * When auto-connecting on next live session it is possible that a few frames are required for the tracing session to be accessible and connected to.

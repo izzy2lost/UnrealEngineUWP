@@ -181,7 +181,8 @@ void GenerateElementForProperties(const TCHAR* TypeAsText, const TCHAR* ValueAsT
 				// Create Tree element to hold the event
 				const TSharedPtr<FStateTreeDebuggerEventTreeElement> NewChildElement = MakeShareable(new FStateTreeDebuggerEventTreeElement(
 						ParentElement->Frame,
-						FStateTreeTraceEventVariantType(TInPlaceType<FStateTreeTracePropertyEvent>(), PropertyEvent)));
+						FStateTreeTraceEventVariantType(TInPlaceType<FStateTreeTracePropertyEvent>(), PropertyEvent),
+						ParentElement->WeakStateTree.Get()));
 
 				ParentElement->Children.Add(NewChildElement);
 			}
@@ -505,8 +506,7 @@ void SStateTreeDebuggerView::Construct(const FArguments& InArgs, const UStateTre
 	EventsTreeView = SNew(STreeView<TSharedPtr<FStateTreeDebuggerEventTreeElement>>)
 			.OnGenerateRow_Lambda([this](const TSharedPtr<FStateTreeDebuggerEventTreeElement>& InElement, const TSharedRef<STableViewBase>& InOwnerTableView)
 			{
-				check(StateTreeViewModel);
-				return SNew(SStateTreeDebuggerViewRow, InOwnerTableView, InElement, StateTreeViewModel.ToSharedRef());
+				return SNew(SStateTreeDebuggerViewRow, InOwnerTableView, InElement);
 			})
 			.OnGetChildren_Lambda([](const TSharedPtr<const FStateTreeDebuggerEventTreeElement>& InParent, TArray<TSharedPtr<FStateTreeDebuggerEventTreeElement>>& OutChildren)
 			{
@@ -1056,6 +1056,9 @@ void SStateTreeDebuggerView::OnDebuggerScrubStateChanged(const UE::StateTreeDebu
 	const int32 FirstEventIdx = Spans[SpanIdx].EventIdx;
 	const TraceServices::FFrame Frame = Spans[SpanIdx].Frame;
 	const int32 MaxEventIdx = Spans.IsValidIndex(SpanIdx+1) ? Spans[SpanIdx+1].EventIdx : Events.Num();
+
+	const UStateTree* const RootTree = StateTree.Get();
+	const UStateTree* ActiveTree = RootTree;
 	
 	for (int32 EventIdx = FirstEventIdx; EventIdx < MaxEventIdx; EventIdx++)
 	{
@@ -1081,31 +1084,20 @@ void SStateTreeDebuggerView::OnDebuggerScrubStateChanged(const UE::StateTreeDebu
 		{
 			if (PhaseEvent->EventType == EStateTreeTraceEventType::Push)
 			{
-				if (PhaseEvent->Phase != EStateTreeUpdatePhase::Unset)
-				{
-					CustomDescription = UEnum::GetDisplayValueAsText(PhaseEvent->Phase).ToString();
-				}
-
-				if (PhaseEvent->StateHandle.IsValid())
-				{
-					const FCompactStateTreeState* CompactState = StateTree->GetStateFromHandle(PhaseEvent->StateHandle);
-					if (CustomDescription.IsEmpty())
-					{
-						CustomDescription += FString::Printf(TEXT("%s"),
-								CompactState != nullptr ? *CompactState->Name.ToString() : *PhaseEvent->StateHandle.Describe());	
-					}
-					else
-					{
-						CustomDescription += FString::Printf(TEXT(" '%s'"),
-								CompactState != nullptr ? *CompactState->Name.ToString() : *PhaseEvent->StateHandle.Describe());
-					}
-				}
 				bShouldAddToScopeStack = true;
 			}
 			else if (PhaseEvent->EventType == EStateTreeTraceEventType::Pop)
 			{
 				bShouldPopScopeStack = true;
 			}
+		}
+		else if (const FStateTreeTraceInstanceFrameEvent* FrameEvent = Event.TryGet<FStateTreeTraceInstanceFrameEvent>())
+		{
+			ActiveTree = FrameEvent->WeakStateTree.Get();
+			check(ActiveTree);
+
+			// We don't want to create an entry.
+			continue;
 		}
 
 		if (bShouldPopScopeStack)
@@ -1121,7 +1113,7 @@ void SStateTreeDebuggerView::OnDebuggerScrubStateChanged(const UE::StateTreeDebu
 			continue;
 		}
 
-		const TSharedRef<FStateTreeDebuggerEventTreeElement> NewElement = MakeShareable(new FStateTreeDebuggerEventTreeElement(Frame, Event));
+		const TSharedRef<FStateTreeDebuggerEventTreeElement> NewElement = MakeShareable(new FStateTreeDebuggerEventTreeElement(Frame, Event, ActiveTree));
 		NewElement->Description = CustomDescription;
 
 		TArray<TSharedPtr<FStateTreeDebuggerEventTreeElement>>& TreeElements = ScopeStack.IsEmpty() ? EventsTreeElements : ScopeStack.Top()->Children;
@@ -1163,7 +1155,8 @@ void SStateTreeDebuggerView::GenerateElementsForProperties(const FStateTreeTrace
 				// Create Tree element to hold the event
 				const TSharedPtr<FStateTreeDebuggerEventTreeElement> NewChildElement = MakeShareable(new FStateTreeDebuggerEventTreeElement(
 					ParentElement->Frame,
-					FStateTreeTraceEventVariantType(TInPlaceType<FStateTreeTracePropertyEvent>(), PropertyEvent)));
+					FStateTreeTraceEventVariantType(TInPlaceType<FStateTreeTracePropertyEvent>(), PropertyEvent),
+					ParentElement->WeakStateTree.Get()));
 
 				ParentElement->Children.Add(NewChildElement);
 			};

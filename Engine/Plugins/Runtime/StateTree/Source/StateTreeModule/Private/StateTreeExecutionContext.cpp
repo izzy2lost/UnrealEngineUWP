@@ -38,9 +38,12 @@
 		ON_SCOPE_EXIT { TRACE_STATETREE_PHASE_EVENT(ID_NAME, Phase, EStateTreeTraceEventType::Pop, StateHandle) }
 
 	#define STATETREE_TRACE_INSTANCE_EVENT(EventType)						TRACE_STATETREE_INSTANCE_EVENT(GetInstanceDebugId(), GetStateTree(), *GetInstanceDescription(), EventType);
-	#define STATETREE_TRACE_ACTIVE_STATES_EVENT(ActiveStates)				TRACE_STATETREE_ACTIVE_STATES_EVENT(GetInstanceDebugId(), ActiveStates);
+	#define STATETREE_TRACE_INSTANCE_FRAME_EVENT(InstanceDebugId, Frame)	TRACE_STATETREE_INSTANCE_FRAME_EVENT(InstanceDebugId, Frame);
+	#define STATETREE_TRACE_PHASE_BEGIN(Phase)								TRACE_STATETREE_PHASE_EVENT(GetInstanceDebugId(), Phase, EStateTreeTraceEventType::Push, FStateTreeStateHandle::Invalid)
+	#define STATETREE_TRACE_PHASE_END(Phase)								TRACE_STATETREE_PHASE_EVENT(GetInstanceDebugId(), Phase, EStateTreeTraceEventType::Pop, FStateTreeStateHandle::Invalid)
+	#define STATETREE_TRACE_ACTIVE_STATES_EVENT(ActiveFrames)				TRACE_STATETREE_ACTIVE_STATES_EVENT(GetInstanceDebugId(), ActiveFrames);
 	#define STATETREE_TRACE_LOG_EVENT(Format, ...)							TRACE_STATETREE_LOG_EVENT(GetInstanceDebugId(), Format, ##__VA_ARGS__)
-	#define STATETREE_TRACE_STATE_EVENT(StateHandle, EventType)				TRACE_STATETREE_STATE_EVENT(GetInstanceDebugId(), StateHandle, EventType, EStateTreeStateSelectionBehavior::None);
+	#define STATETREE_TRACE_STATE_EVENT(StateHandle, EventType)				TRACE_STATETREE_STATE_EVENT(GetInstanceDebugId(), StateHandle, EventType);
 	#define STATETREE_TRACE_TASK_EVENT(Index, DataView, EventType, Status)	TRACE_STATETREE_TASK_EVENT(GetInstanceDebugId(), FStateTreeIndex16(Index), DataView, EventType, Status);
 	#define STATETREE_TRACE_EVALUATOR_EVENT(Index, DataView, EventType)		TRACE_STATETREE_EVALUATOR_EVENT(GetInstanceDebugId(), FStateTreeIndex16(Index), DataView, EventType);
 	#define STATETREE_TRACE_CONDITION_EVENT(Index, DataView, EventType)		TRACE_STATETREE_CONDITION_EVENT(GetInstanceDebugId(), FStateTreeIndex16(Index), DataView, EventType);	
@@ -50,7 +53,10 @@
 	#define STATETREE_TRACE_SCOPED_STATE(StateHandle)
 	#define STATETREE_TRACE_SCOPED_STATE_PHASE(StateHandle, Phase)
 	#define STATETREE_TRACE_INSTANCE_EVENT(EventType)
-	#define STATETREE_TRACE_ACTIVE_STATES_EVENT(ActiveStates)
+	#define STATETREE_TRACE_INSTANCE_FRAME_EVENT(InstanceDebugId, Frame)
+	#define STATETREE_TRACE_PHASE_BEGIN(Phase)
+	#define STATETREE_TRACE_PHASE_END(Phase)
+	#define STATETREE_TRACE_ACTIVE_STATES_EVENT(ActiveFrames)
 	#define STATETREE_TRACE_LOG_EVENT(Format, ...)
 	#define STATETREE_TRACE_STATE_EVENT(StateHandle, EventType)
 	#define STATETREE_TRACE_TASK_EVENT(Index, DataView, EventType, Status)
@@ -63,6 +69,35 @@ namespace UE::StateTree
 {
 	constexpr int32 DebugIndentSize = 2;	// Debug printing indent for hierarchical data.
 }; // UE::StateTree
+
+
+FStateTreeExecutionContext::FCurrentlyProcessedFrameScope::FCurrentlyProcessedFrameScope(FStateTreeExecutionContext& InContext, const FStateTreeExecutionFrame* CurrentParentFrame, const FStateTreeExecutionFrame& CurrentFrame): Context(InContext)
+{
+	check(CurrentFrame.StateTree);
+	FStateTreeInstanceStorage* SharedInstanceDataStorage = &CurrentFrame.StateTree->GetSharedInstanceData()->GetMutableStorage();
+
+	SavedFrame = Context.CurrentlyProcessedFrame;
+	SavedParentFrame = Context.CurrentlyProcessedParentFrame;
+	SavedSharedInstanceDataStorage = Context.CurrentlyProcessedSharedInstanceStorage;
+	Context.CurrentlyProcessedFrame = &CurrentFrame;
+	Context.CurrentlyProcessedParentFrame = CurrentParentFrame;
+	Context.CurrentlyProcessedSharedInstanceStorage = SharedInstanceDataStorage;
+	
+	STATETREE_TRACE_INSTANCE_FRAME_EVENT(Context.GetInstanceDebugId(), Context.CurrentlyProcessedFrame);
+}
+
+FStateTreeExecutionContext::FCurrentlyProcessedFrameScope::~FCurrentlyProcessedFrameScope()
+{
+	Context.CurrentlyProcessedFrame = SavedFrame;
+	Context.CurrentlyProcessedParentFrame = SavedParentFrame;
+	Context.CurrentlyProcessedSharedInstanceStorage = SavedSharedInstanceDataStorage;
+
+	if (Context.CurrentlyProcessedFrame)
+	{
+		STATETREE_TRACE_INSTANCE_FRAME_EVENT(Context.GetInstanceDebugId(), Context.CurrentlyProcessedFrame);
+	}
+}
+
 
 FStateTreeExecutionContext::FStateTreeExecutionContext(UObject& InOwner, const UStateTree& InStateTree, FStateTreeInstanceData& InInstanceData, const FOnCollectStateTreeExternalData& InCollectExternalDataDelegate)
 	: Owner(InOwner)
@@ -388,7 +423,7 @@ EStateTreeRunStatus FStateTreeExecutionContext::Stop(EStateTreeRunStatus Complet
 	}
 
 	// Trace before resetting the instance data since it is required to provide all the event information
-	STATETREE_TRACE_ACTIVE_STATES_EVENT(FStateTreeActiveStates());
+	STATETREE_TRACE_ACTIVE_STATES_EVENT({});
 	STATETREE_TRACE_INSTANCE_EVENT(EStateTreeTraceEventType::Pop);
 
 	// Destruct all allocated instance data (does not shrink the buffer). This will invalidate Exec too.
@@ -1256,7 +1291,7 @@ EStateTreeRunStatus FStateTreeExecutionContext::EnterState(FStateTreeTransitionR
 	EStateTreeRunStatus Result = EStateTreeRunStatus::Running;
 
 	STATETREE_LOG(Log, TEXT("Enter state '%s' (%d)"), *DebugGetStatePath(Transition.NextActiveFrames), Exec.StateChangeCount);
-	STATETREE_TRACE_SCOPED_PHASE(EStateTreeUpdatePhase::EnterStates);
+	STATETREE_TRACE_PHASE_BEGIN(EStateTreeUpdatePhase::EnterStates);
 
 	// The previous active frames are needed for state enter logic.
 	TArray<FStateTreeExecutionFrame, TConcurrentLinearArrayAllocator<FDefaultBlockAllocationTag>> PreviousActiveFrames;
@@ -1396,18 +1431,9 @@ EStateTreeRunStatus FStateTreeExecutionContext::EnterState(FStateTreeTransitionR
 		}
 	}
 
-#if WITH_STATETREE_DEBUGGER
-	// @todo: implement support for frames in debugger
-	FStateTreeActiveStates AllActiveStates;
-	for (const FStateTreeExecutionFrame& ActiveFrame : Exec.ActiveFrames)
-	{
-		for (const FStateTreeStateHandle StateHandle : ActiveFrame.ActiveStates)
-		{
-			AllActiveStates.Push(StateHandle);	
-		}
-	}
-	STATETREE_TRACE_ACTIVE_STATES_EVENT(AllActiveStates);
-#endif // WITH_STATETREE_DEBUGGER
+	STATETREE_TRACE_PHASE_END(EStateTreeUpdatePhase::EnterStates);
+
+	STATETREE_TRACE_ACTIVE_STATES_EVENT(Exec.ActiveFrames);
 
 	return Result;
 }
@@ -1597,6 +1623,7 @@ void FStateTreeExecutionContext::StateCompleted()
 	}
 
 	STATETREE_LOG(Verbose, TEXT("State Completed %s (%d)"), *UEnum::GetDisplayValueAsText(Exec.LastTickStatus).ToString(), Exec.StateChangeCount);
+	STATETREE_TRACE_SCOPED_PHASE(EStateTreeUpdatePhase::StateCompleted);
 
 	// Call from child towards root to allow to pass results back.
 	// Note: Completed is assumed to be called immediately after tick or enter state, so there's no property copying.
@@ -2948,8 +2975,9 @@ bool FStateTreeExecutionContext::SelectStateInternal(
 	}
 
 	// Check that the state can be entered
-	STATETREE_TRACE_SCOPED_PHASE(EStateTreeUpdatePhase::EnterConditions);
+	STATETREE_TRACE_PHASE_BEGIN(EStateTreeUpdatePhase::EnterConditions);
 	const bool bEnterConditionsPassed = TestAllConditions(CurrentParentFrame, CurrentFrame, NextState.EnterConditionsBegin, NextState.EnterConditionsNum);
+	STATETREE_TRACE_PHASE_END(EStateTreeUpdatePhase::EnterConditions);
 
 	if (bEnterConditionsPassed)
 	{
@@ -3017,7 +3045,7 @@ bool FStateTreeExecutionContext::SelectStateInternal(
 				NewFrame.StateTree = CurrentFrame.StateTree;
 				NewFrame.RootState = NextState.LinkedState;
 				NewFrame.ExternalDataBaseIndex = CurrentFrame.ExternalDataBaseIndex;
-				
+
 				// Check and prevent recursion.
 				const bool bNewFrameAlreadySelected = OutNextActiveFrames.ContainsByPredicate([&NewFrame](const FStateTreeExecutionFrame& Frame) {
 					return Frame.IsSameFrame(NewFrame);
@@ -3168,6 +3196,8 @@ bool FStateTreeExecutionContext::SelectStateInternal(
 		}
 		else if (NextState.SelectionBehavior == EStateTreeStateSelectionBehavior::TryFollowTransitions)
 		{
+			STATETREE_TRACE_SCOPED_STATE_PHASE(NextStateHandle, EStateTreeUpdatePhase::TrySelectBehavior);
+
 			EStateTreeTransitionPriority CurrentPriority = EStateTreeTransitionPriority::None;
 
 			for (uint8 i = 0; i < NextState.TransitionsNum; i++)
@@ -3243,6 +3273,8 @@ bool FStateTreeExecutionContext::SelectStateInternal(
 		{
 			if (NextState.HasChildren())
 			{
+				STATETREE_TRACE_SCOPED_STATE_PHASE(NextStateHandle, EStateTreeUpdatePhase::TrySelectBehavior);
+
 				// If the state has children, proceed to select children.
 				for (uint16 ChildState = NextState.ChildrenBegin; ChildState < NextState.ChildrenEnd; ChildState = CurrentStateTree->States[ChildState].GetNextSibling())
 				{

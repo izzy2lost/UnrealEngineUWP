@@ -26,9 +26,11 @@ enum class EStateTreeUpdatePhase : uint8
 	TickingTasks			UMETA(DisplayName = "Tick Tasks"),
 	TransitionConditions	UMETA(DisplayName = "Transition conditions"),
 	StateSelection			UMETA(DisplayName = "Try Enter"),
+	TrySelectBehavior		UMETA(DisplayName = "Try Select Behavior"),
 	EnterConditions			UMETA(DisplayName = "Enter conditions"),
 	EnterStates				UMETA(DisplayName = "Enter States"),
 	ExitStates				UMETA(DisplayName = "Exit States"),
+	StateCompleted			UMETA(DisplayName = "State(s) Completed")
 };
 
 

@@ -507,7 +507,7 @@ FText FStateTreeDebugger::DescribeInstance(const UE::StateTreeDebugger::FInstanc
 	return FText::FromString(LexToString(InstanceDesc));
 }
 
-void FStateTreeDebugger::SetActiveStates(const TConstArrayView<FStateTreeStateHandle> NewActiveStates)
+void FStateTreeDebugger::SetActiveStates(const FStateTreeTraceActiveStates& NewActiveStates)
 {
 	ActiveStates = NewActiveStates;
 	OnActiveStatesChanged.ExecuteIfBound(ActiveStates);
@@ -515,16 +515,16 @@ void FStateTreeDebugger::SetActiveStates(const TConstArrayView<FStateTreeStateHa
 
 void FStateTreeDebugger::RefreshActiveStates()
 {
-	TArray<FStateTreeStateHandle> NewActiveStates;
-
 	if (ScrubState.IsPointingToValidActiveStates())
 	{
 		const UE::StateTreeDebugger::FInstanceEventCollection& EventCollection = EventCollections[ScrubState.GetEventCollectionIndex()];
 		const int32 EventIndex = EventCollection.ActiveStatesChanges[ScrubState.GetActiveStatesIndex()].EventIndex;
-		NewActiveStates = EventCollection.Events[EventIndex].Get<FStateTreeTraceActiveStatesEvent>().ActiveStates;
+		SetActiveStates(EventCollection.Events[EventIndex].Get<FStateTreeTraceActiveStatesEvent>().ActiveStates);
 	}
-
-	SetActiveStates(NewActiveStates);
+	else
+	{
+		SetActiveStates(FStateTreeTraceActiveStates());	
+	}
 }
 
 bool FStateTreeDebugger::CanStepBackToPreviousStateWithEvents() const

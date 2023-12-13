@@ -580,26 +580,9 @@ protected:
 	/** Helper struct to track currently processed frame. */
 	struct FCurrentlyProcessedFrameScope
 	{
-		FCurrentlyProcessedFrameScope(FStateTreeExecutionContext& InContext, const FStateTreeExecutionFrame* CurrentParentFrame, const FStateTreeExecutionFrame& CurrentFrame)
-			: Context(InContext)
-		{
-			check(CurrentFrame.StateTree);
-			FStateTreeInstanceStorage* SharedInstanceDataStorage = &CurrentFrame.StateTree->GetSharedInstanceData()->GetMutableStorage();
+		FCurrentlyProcessedFrameScope(FStateTreeExecutionContext& InContext, const FStateTreeExecutionFrame* CurrentParentFrame, const FStateTreeExecutionFrame& CurrentFrame);
 
-			SavedFrame = Context.CurrentlyProcessedFrame;
-			SavedParentFrame = Context.CurrentlyProcessedParentFrame;
-			SavedSharedInstanceDataStorage = Context.CurrentlyProcessedSharedInstanceStorage;
-			Context.CurrentlyProcessedFrame = &CurrentFrame;
-			Context.CurrentlyProcessedParentFrame = CurrentParentFrame;
-			Context.CurrentlyProcessedSharedInstanceStorage = SharedInstanceDataStorage;
-		}
-
-		~FCurrentlyProcessedFrameScope()
-		{
-			Context.CurrentlyProcessedFrame = SavedFrame;
-			Context.CurrentlyProcessedParentFrame = SavedParentFrame;
-			Context.CurrentlyProcessedSharedInstanceStorage = SavedSharedInstanceDataStorage;
-		}
+		~FCurrentlyProcessedFrameScope();
 
 	private:
 		FStateTreeExecutionContext& Context;
