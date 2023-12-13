@@ -1179,7 +1179,7 @@ void FPythonScriptPlugin::RunPipInstaller()
 
 	bool bRunOnStartup = GetDefault<UPythonScriptPluginSettings>()->bRunPipInstallOnStartup;
 	bool bCmdLineDisable = FParse::Param(FCommandLine::Get(), TEXT("DisablePipInstall"));
-	if (bCmdLineDisable || !bRunOnStartup)
+	if (bCmdLineDisable || !bRunOnStartup || GIsBuildMachine)
 	{
 		return;
 	}
