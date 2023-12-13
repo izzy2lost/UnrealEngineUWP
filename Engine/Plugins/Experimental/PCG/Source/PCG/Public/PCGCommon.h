@@ -161,7 +161,7 @@ enum class EPCGCoordinateSpace : uint8
 };
 
 /** Describes one or more target execution grids. */
-UENUM(meta = (Bitflags))
+UENUM(meta = (Bitflags, UseEnumValuesAsMaskValuesInEditor = "true"))
 enum class EPCGHiGenGrid : uint32
 {
 	Uninitialized = 0 UMETA(Hidden),

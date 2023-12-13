@@ -3,6 +3,7 @@
 #include "Elements/PCGDataFromActor.h"
 
 #include "PCGComponent.h"
+#include "PCGCustomVersion.h"
 #include "PCGSubsystem.h"
 #include "Data/PCGPointData.h"
 #include "Data/PCGSpatialData.h"
@@ -22,6 +23,107 @@
 namespace PCGDataFromActorConstants
 {
 	static const FName SinglePointPinLabel = TEXT("Single Point");
+	static const FString PCGComponentDataGridSizeTagPrefix = TEXT("PCG_GridSize_");
+}
+
+namespace PCGDataFromActorHelpers
+{
+	/**
+	 * Get the PCG Components associated with an actor. Optionally, also search for any local components associated with components
+	 * on the actor using the 'bGetLocalComponents' flag. By default, gets data on all grids, but alternatively you can provide a
+	 * set of 'AllowedGrids' to match against.
+	 *
+	 * If 'bMustOverlap' is true, it will only collect components which overlap with the given 'OverlappingBounds'. Note that this
+	 * overlap does not include bounds which are only touching, with no overlapping volume.
+	 */
+	static TInlineComponentArray<UPCGComponent*, 1> GetPCGComponentsFromActor(
+		AActor* Actor,
+		UPCGSubsystem* Subsystem,
+		bool bGetLocalComponents = false,
+		bool bGetAllGrids = true,
+		int32 AllowedGrids = (int32)EPCGHiGenGrid::Uninitialized,
+		bool bMustOverlap = false,
+		const FBox& OverlappingBounds = FBox())
+	{
+		TInlineComponentArray<UPCGComponent*, 1> PCGComponents;
+
+		if (!Actor || !Subsystem)
+		{
+			return PCGComponents;
+		}
+
+		Actor->GetComponents(PCGComponents);
+
+		if (bMustOverlap)
+		{
+			// Remove actor components that do not overlap the source bounds.
+			// Note: This assumes that a local component always lies inside the bounds of its original component,
+			// which is true at the time of writing, but may not always be the case (e.g. "truly" unbounded execution).
+			for (int I = PCGComponents.Num() - 1; I >= 0; I--)
+			{
+				const FBox ComponentBounds = PCGComponents[I]->GetGridBounds();
+
+				// We reject overlaps with zero volume instead of simply checking Intersect(...) to avoid bounds which touch but do not overlap.
+				if (OverlappingBounds.Overlap(ComponentBounds).GetVolume() <= 0)
+				{
+					PCGComponents.RemoveAtSwap(I);
+				}
+			}
+		}
+
+		TArray<UPCGComponent*> LocalComponents;
+
+		if (bGetLocalComponents)
+		{
+			// Collect the local components for each actor PCG component.
+			for (UPCGComponent* Component : PCGComponents)
+			{
+				if (Component && Component->IsPartitioned())
+				{
+					Subsystem->ForAllRegisteredLocalComponents(Component, [&LocalComponents, bGetAllGrids, AllowedGrids, bMustOverlap, &OverlappingBounds](UPCGComponent* LocalComponent)
+					{
+						if (bGetAllGrids || (AllowedGrids & (int32)LocalComponent->GetGenerationGrid()))
+						{
+							if (bMustOverlap)
+							{
+								const FBox LocalBounds = LocalComponent->GetGridBounds();
+
+								// We reject overlaps with zero volume instead of simply checking Intersect(...) to avoid bounds which touch but do not overlap.
+								if (OverlappingBounds.Overlap(LocalBounds).GetVolume() > 0)
+								{
+									LocalComponents.Add(LocalComponent);
+								}
+							}
+							else
+							{
+								LocalComponents.Add(LocalComponent);
+							}
+						}
+					});
+				}
+			}
+		}
+
+		// Remove the actor's PCG components if they aren't on an allowed grid size.
+		// Implementation note: We delay removing these components until now because they may have had local components on an allowed grid size.
+		if (!bGetAllGrids)
+		{
+			for (int I = PCGComponents.Num() - 1; I >= 0; I--)
+			{
+				if (!(AllowedGrids & (int32)PCGComponents[I]->GetGenerationGridSize()))
+				{
+					PCGComponents.RemoveAtSwap(I);
+				}
+			}
+		}
+
+		if (bGetLocalComponents)
+		{
+			PCGComponents.Append(LocalComponents);
+		}
+
+		return PCGComponents;
+	}
 }
 
 #if WITH_EDITOR
@@ -34,6 +136,17 @@ void UPCGDataFromActorSettings::GetTrackedActorKeys(FPCGActorSelectionKeyToSetti
 	}
 
 	OutKeysToSettings.FindOrAdd(Key).Emplace(this, bTrackActorsOnlyWithinBounds);
+}
+
+void UPCGDataFromActorSettings::ApplyDeprecation(UPCGNode* InOutNode)
+{
+	if (DataVersion < FPCGCustomVersion::GetPCGComponentDataMustOverlapSourceComponentByDefault)
+	{
+		// Old versions of GetActorData did not require found components to overlap self, but going forward it's a more efficient default.
+		bComponentsMustOverlapSelf = false;
+	}
+
+	Super::ApplyDeprecation(InOutNode);
 }
 
 FText UPCGDataFromActorSettings::GetNodeTooltipText() const
@@ -254,11 +367,27 @@ void FPCGDataFromActorElement::GatherWaitTasks(AActor* FoundActor, FPCGContext* 
 		return;
 	}
 
-	// We will prevent gathering the current execution - this task cannot wait on itself
-	AActor* ThisOwner = ((Context && Context->SourceComponent.IsValid()) ? Context->SourceComponent->GetOwner() : nullptr);
+	const UPCGDataFromActorSettings* Settings = Context->GetInputSettings<UPCGDataFromActorSettings>();
+	check(Settings);
 
-	TInlineComponentArray<UPCGComponent*, 1> PCGComponents;
-	FoundActor->GetComponents(PCGComponents);
+	UPCGComponent* SourceComponent = Context->SourceComponent.IsValid() ? Context->SourceComponent.Get() : nullptr;
+
+	if (!SourceComponent)
+	{
+		return;
+	}
+
+	// We will prevent gathering the current execution - this task cannot wait on itself
+	AActor* ThisOwner = SourceComponent->GetOwner();
+
+	TInlineComponentArray<UPCGComponent*, 1> PCGComponents = PCGDataFromActorHelpers::GetPCGComponentsFromActor(
+		FoundActor,
+		SourceComponent->GetSubsystem(),
+		/*bGetLocalComponents=*/true,
+		Settings->bGetDataOnAllGrids,
+		Settings->AllowedGrids,
+		Settings->bComponentsMustOverlapSelf,
+		(Settings->bComponentsMustOverlapSelf && SourceComponent) ? SourceComponent->GetGridBounds() : FBox());
 
 	for (UPCGComponent* Component : PCGComponents)
 	{
@@ -356,12 +485,14 @@ void FPCGDataFromActorElement::ProcessActor(FPCGContext* Context, const UPCGData
 	check(Context);
 	check(Settings);
 
-	if (!FoundActor || !IsValid(FoundActor))
+	UPCGComponent* SourceComponent = Context->SourceComponent.IsValid() ? Context->SourceComponent.Get() : nullptr;
+
+	if (!FoundActor || !IsValid(FoundActor) || !SourceComponent)
 	{
 		return;
 	}
 
-	AActor* ThisOwner = ((Context && Context->SourceComponent.Get()) ? Context->SourceComponent->GetOwner() : nullptr);
+	AActor* ThisOwner = SourceComponent->GetOwner();
 	TInlineComponentArray<UPCGComponent*, 1> PCGComponents;
 	bool bHasGeneratedPCGData = false;
 	FProperty* FoundProperty = nullptr;
@@ -370,7 +501,14 @@ void FPCGDataFromActorElement::ProcessActor(FPCGContext* Context, const UPCGData
 
 	if (bCanGetDataFromComponent && (Settings->Mode == EPCGGetDataFromActorMode::GetDataFromPCGComponent || Settings->Mode == EPCGGetDataFromActorMode::GetDataFromPCGComponentOrParseComponents))
 	{
-		FoundActor->GetComponents(PCGComponents);
+		PCGComponents = PCGDataFromActorHelpers::GetPCGComponentsFromActor(
+			FoundActor,
+			SourceComponent->GetSubsystem(),
+			/*bGetLocalComponents=*/true,
+			Settings->bGetDataOnAllGrids,
+			Settings->AllowedGrids,
+			Settings->bComponentsMustOverlapSelf,
+			Settings->bComponentsMustOverlapSelf ? SourceComponent->GetGridBounds() : FBox());
 
 		for (UPCGComponent* Component : PCGComponents)
 		{
@@ -419,6 +557,7 @@ void FPCGDataFromActorElement::ProcessActor(FPCGContext* Context, const UPCGData
 			{
 				FPCGTaggedData& DuplicatedTaggedData = Outputs.Add_GetRef(TaggedData);
 				DuplicatedTaggedData.Data = Cast<UPCGData>(StaticDuplicateObject(TaggedData.Data, GetTransientPackage()));
+				DuplicatedTaggedData.Tags.Add(PCGDataFromActorConstants::PCGComponentDataGridSizeTagPrefix + FString::FromInt(PCGHiGenGrid::GridToGridSize(Component->GetGenerationGrid())));
 			}
 			//Outputs.Append(Component->GetGeneratedGraphOutput().TaggedData);
 		}
@@ -452,7 +591,7 @@ void FPCGDataFromActorElement::ProcessActor(FPCGContext* Context, const UPCGData
 	else
 	{
 		const bool bParseActor = (Settings->Mode != EPCGGetDataFromActorMode::GetSinglePoint);
-		FPCGDataCollection Collection = UPCGComponent::CreateActorPCGDataCollection(FoundActor, Context->SourceComponent.Get(), Settings->GetDataFilter(), bParseActor);
+		FPCGDataCollection Collection = UPCGComponent::CreateActorPCGDataCollection(FoundActor, SourceComponent, Settings->GetDataFilter(), bParseActor);
 		Outputs += Collection.TaggedData;
 	}
 
@@ -460,7 +599,7 @@ void FPCGDataFromActorElement::ProcessActor(FPCGContext* Context, const UPCGData
 	if (Settings->bAlsoOutputSinglePointData && (Settings->Mode == EPCGGetDataFromActorMode::GetDataFromPCGComponent || Settings->Mode == EPCGGetDataFromActorMode::GetDataFromPCGComponentOrParseComponents))
 	{
 		const bool bParseActor = false;
-		FPCGDataCollection Collection = UPCGComponent::CreateActorPCGDataCollection(FoundActor, Context->SourceComponent.Get(), EPCGDataType::Any, bParseActor);
+		FPCGDataCollection Collection = UPCGComponent::CreateActorPCGDataCollection(FoundActor, SourceComponent, EPCGDataType::Any, bParseActor);
 		for (const FPCGTaggedData& SinglePointData : Collection.TaggedData)
 		{
 			FPCGTaggedData& OutSinglePoint = Outputs.Add_GetRef(SinglePointData);
@@ -474,11 +613,11 @@ void FPCGDataFromActorElement::GetDependenciesCrc(const FPCGDataCollection& InIn
 	FPCGCrc Crc;
 	IPCGElement::GetDependenciesCrc(InInput, InSettings, InComponent, Crc);
 
-	// If we track self or original, we are dependant on the actor data
+	// If we track self or original, we are dependent on the actor data
 	if (const UPCGDataFromActorSettings* Settings = Cast<const UPCGDataFromActorSettings>(InSettings))
 	{
 		const bool bDependsOnSelfOrHierarchy = (Settings->ActorSelector.ActorFilter == EPCGActorFilter::Self || Settings->ActorSelector.ActorFilter == EPCGActorFilter::Original);
-		const bool bDependsOnSelfBounds = (Settings->ActorSelector.bMustOverlapSelf);
+		const bool bDependsOnSelfBounds = Settings->ActorSelector.bMustOverlapSelf;
 
 		if (InComponent && (bDependsOnSelfOrHierarchy || bDependsOnSelfBounds))
 		{
@@ -488,6 +627,17 @@ void FPCGDataFromActorElement::GetDependenciesCrc(const FPCGDataCollection& InIn
 			if (ActorData)
 			{
 				Crc.Combine(ActorData->GetOrComputeCrc(/*bFullDataCrc=*/false));
+			}
+		}
+
+		const bool bDependsOnComponentData = Settings->Mode == EPCGGetDataFromActorMode::GetDataFromPCGComponent || Settings->Mode == EPCGGetDataFromActorMode::GetDataFromPCGComponentOrParseComponents;
+		const bool bDependsOnLocalComponentBounds = Settings->bComponentsMustOverlapSelf || !Settings->bGetDataOnAllGrids;
+
+		if (InComponent && bDependsOnComponentData && bDependsOnLocalComponentBounds)
+		{
+			if (const UPCGData* LocalActorData = InComponent->GetActorPCGData())
+			{
+				Crc.Combine(LocalActorData->GetOrComputeCrc(/*bFullDataCrc=*/false));
 			}
 		}
 	}

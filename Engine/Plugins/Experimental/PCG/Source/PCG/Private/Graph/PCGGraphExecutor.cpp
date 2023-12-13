@@ -401,24 +401,30 @@ bool FPCGGraphExecutor::IsGraphCurrentlyExecuting(UPCGGraph* InGraph)
 	return bAnyPresent;
 }
 
-FPCGTaskId FPCGGraphExecutor::ScheduleGeneric(TFunction<bool()> InOperation, UPCGComponent* InSourceComponent, const TArray<FPCGTaskId>& TaskDependencies)
+FPCGTaskId FPCGGraphExecutor::ScheduleGeneric(TFunction<bool()> InOperation, UPCGComponent* InSourceComponent, const TArray<FPCGTaskId>& TaskExecutionDependencies)
 {
-	// Since we have no context, the generic task will consume no input
-	constexpr bool bConsumeInputData = false;
+	// Since we have no context, the generic task will consume no input (no data dependencies).
 	return ScheduleGenericWithContext([Operation = MoveTemp(InOperation)](FPCGContext*) -> bool
-		{
+	{
 			return Operation();
-		}, InSourceComponent, TaskDependencies, bConsumeInputData);
+	}, InSourceComponent, TaskExecutionDependencies, /*TaskDataDependencies=*/{});
 }
 
-FPCGTaskId FPCGGraphExecutor::ScheduleGenericWithContext(TFunction<bool(FPCGContext*)> InOperation, UPCGComponent* InSourceComponent, const TArray<FPCGTaskId>& TaskDependencies, bool bConsumeInputData)
+FPCGTaskId FPCGGraphExecutor::ScheduleGenericWithContext(TFunction<bool(FPCGContext*)> InOperation, UPCGComponent* InSourceComponent, const TArray<FPCGTaskId>& TaskDataDependencies, const TArray<FPCGTaskId>& TaskExecutionDependencies)
 {
 	// Build task & element to hold the operation to perform
 	FPCGGraphTask Task;
-	for (FPCGTaskId TaskDependency : TaskDependencies)
+
+	for (FPCGTaskId TaskDependency : TaskExecutionDependencies)
 	{
 		ensure(TaskDependency != InvalidPCGTaskId);
-		Task.Inputs.Emplace(TaskDependency, nullptr, nullptr, bConsumeInputData);
+		Task.Inputs.Emplace(TaskDependency, /*InPin=*/nullptr, /*OutPin=*/nullptr, /*bConsumeInputData=*/false);
+	}
+
+	for (FPCGTaskId TaskDependency : TaskDataDependencies)
+	{
+		ensure(TaskDependency != InvalidPCGTaskId);
+		Task.Inputs.Emplace(TaskDependency, /*InPin=*/nullptr, /*OutPin=*/nullptr, /*bConsumeInputData=*/true);
 	}
 
 	Task.SourceComponent = InSourceComponent;

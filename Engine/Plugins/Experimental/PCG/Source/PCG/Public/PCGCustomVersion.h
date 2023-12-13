@@ -65,6 +65,9 @@ struct PCG_API FPCGCustomVersion
 		// Added 'out' filter pins on filter by tag & by type
 		UpdateFilterNodeOutputPins = 18,
 
+		// Added 'bComponentsMustOverlapSelf' to GetActorData when the mode collects PCG component data
+		GetPCGComponentDataMustOverlapSourceComponentByDefault = 19,
+
 		// -----<new versions can be added above this line>-------------------------------------------------
 		VersionPlusOne,
 		LatestVersion = VersionPlusOne - 1

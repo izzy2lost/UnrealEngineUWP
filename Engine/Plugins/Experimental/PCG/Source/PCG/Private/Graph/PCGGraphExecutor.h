@@ -119,15 +119,15 @@ public:
 	bool IsGraphCurrentlyExecuting(UPCGGraph* InGraph);
 
 	// Back compatibility function. Use ScheduleGenericWithContext
-	FPCGTaskId ScheduleGeneric(TFunction<bool()> InOperation, UPCGComponent* InSourceComponent, const TArray<FPCGTaskId>& TaskDependencies);
+	FPCGTaskId ScheduleGeneric(TFunction<bool()> InOperation, UPCGComponent* InSourceComponent, const TArray<FPCGTaskId>& TaskExecutionDependencies);
 
 	/** General job scheduling
-	*  @param InOperation:       Callback that takes a Context as argument and returns true if the task is done, false otherwise
-	*  @param InSourceComponent: PCG component associated with this task. Can be null.
-	*  @param TaskDependencies:  List of all the dependencies for this task.
-	*  @param bConsumeInputData: If your task need a context, but don't need the input data, set this flag to false. Default is true.
+	*  @param InOperation:               Callback that takes a Context as argument and returns true if the task is done, false otherwise
+	*  @param InSourceComponent:         PCG component associated with this task. Can be null.
+	*  @param TaskExecutionDependencies: Task will wait on these tasks to execute and won't take their output data as input.
+	*  @param TaskDataDependencies:      Task will wait on these tasks to execute and will take their output data as input.
 	*/
-	FPCGTaskId ScheduleGenericWithContext(TFunction<bool(FPCGContext*)> InOperation, UPCGComponent* InSourceComponent, const TArray<FPCGTaskId>& TaskDependencies, bool bConsumeInputData = true);
+	FPCGTaskId ScheduleGenericWithContext(TFunction<bool(FPCGContext*)> InOperation, UPCGComponent* InSourceComponent, const TArray<FPCGTaskId>& TaskExecutionDependencies, const TArray<FPCGTaskId>& TaskDataDependencies);
 
 	/** Gets data in the output results. Returns false if data is not ready. */
 	bool GetOutputData(FPCGTaskId InTaskId, FPCGDataCollection& OutData);

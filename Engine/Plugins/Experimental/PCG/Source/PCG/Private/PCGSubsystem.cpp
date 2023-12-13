@@ -500,7 +500,13 @@ FPCGTaskId UPCGSubsystem::ScheduleComponent(UPCGComponent* PCGComponent, EPCGHiG
 	}
 #endif // WITH_EDITOR
 
-	TArray<FPCGTaskId> AllTasks;
+	// Execution dependencies require a task to finish executing before the dependent task.
+	TArray<FPCGTaskId> ExecutionDependencyTasks;
+
+	// Data dependencies act as execution dependencies, but will also have their output consumed by the waiting task. For a component, this means
+	// it will store the output data into its managed resources, which, for an original component, should not include the local component generation tasks,
+	// since those resources should be managed locally.
+	TArray<FPCGTaskId> DataDependencyTasks;
 
 	// Schedule generation of original component if is is non-partitioned, or if it has nodes that will execute at the Unbounded level.
 	FPCGTaskId OriginalComponentTask = InvalidPCGTaskId;
@@ -522,7 +528,7 @@ FPCGTaskId UPCGSubsystem::ScheduleComponent(UPCGComponent* PCGComponent, EPCGHiG
 		OriginalComponentTask = PCGComponent->CreateGenerateTask(/*bForce=*/bSave, InDependencies);
 		if (OriginalComponentTask != InvalidPCGTaskId)
 		{
-			AllTasks.Add(OriginalComponentTask);
+			DataDependencyTasks.Add(OriginalComponentTask);
 		}
 	}
 
@@ -569,14 +575,15 @@ FPCGTaskId UPCGSubsystem::ScheduleComponent(UPCGComponent* PCGComponent, EPCGHiG
 			return LocalComponent->GenerateInternal(/*bForce=*/bSave, LocalComponent->GetGenerationGrid(), EPCGComponentGenerationTrigger::GenerateOnDemand, Dependencies);
 		};
 
-		AllTasks.Append(ActorAndComponentMapping.DispatchToRegisteredLocalComponents(PCGComponent, LocalGenerateTask));
+		ExecutionDependencyTasks.Append(ActorAndComponentMapping.DispatchToRegisteredLocalComponents(PCGComponent, LocalGenerateTask));
 	}
 
-	if (!AllTasks.IsEmpty())
+	if (!ExecutionDependencyTasks.IsEmpty() || !DataDependencyTasks.IsEmpty())
 	{
 		TWeakObjectPtr<UPCGComponent> ComponentPtr(PCGComponent);
 
-		return GraphExecutor->ScheduleGenericWithContext([ComponentPtr](FPCGContext* Context) {
+		return GraphExecutor->ScheduleGenericWithContext([ComponentPtr](FPCGContext* Context)
+		{
 			if (UPCGComponent* Component = ComponentPtr.Get())
 			{
 				// If the component is not valid anymore, just early out.
@@ -590,7 +597,7 @@ FPCGTaskId UPCGSubsystem::ScheduleComponent(UPCGComponent* PCGComponent, EPCGHiG
 			}
 
 			return true;
-			}, PCGComponent, AllTasks);
+		}, PCGComponent, DataDependencyTasks, ExecutionDependencyTasks);
 	}
 	else
 	{
@@ -727,16 +734,16 @@ TStatId UPCGSubsystem::GetStatId() const
 	RETURN_QUICK_DECLARE_CYCLE_STAT(UPCGSubsystem, STATGROUP_Tickables);
 }
 
-FPCGTaskId UPCGSubsystem::ScheduleGeneric(TFunction<bool()> InOperation, UPCGComponent* Component, const TArray<FPCGTaskId>& TaskDependencies)
+FPCGTaskId UPCGSubsystem::ScheduleGeneric(TFunction<bool()> InOperation, UPCGComponent* SourceComponent, const TArray<FPCGTaskId>& TaskExecutionDependencies)
 {
 	check(GraphExecutor);
-	return GraphExecutor->ScheduleGeneric(InOperation, Component, TaskDependencies);
+	return GraphExecutor->ScheduleGeneric(InOperation, SourceComponent, TaskExecutionDependencies);
 }
 
-FPCGTaskId UPCGSubsystem::ScheduleGenericWithContext(TFunction<bool(FPCGContext*)> InOperation, UPCGComponent* Component, const TArray<FPCGTaskId>& TaskDependencies, bool bConsumeInputData)
+FPCGTaskId UPCGSubsystem::ScheduleGenericWithContext(TFunction<bool(FPCGContext*)> InOperation, UPCGComponent* SourceComponent, const TArray<FPCGTaskId>& TaskExecutionDependencies, const TArray<FPCGTaskId>& TaskDataDependencies)
 {
 	check(GraphExecutor);
-	return GraphExecutor->ScheduleGenericWithContext(InOperation, Component, TaskDependencies, bConsumeInputData);
+	return GraphExecutor->ScheduleGenericWithContext(InOperation, SourceComponent, TaskExecutionDependencies, TaskDataDependencies);
 }
 
 void UPCGSubsystem::CancelGeneration(UPCGComponent* Component)
