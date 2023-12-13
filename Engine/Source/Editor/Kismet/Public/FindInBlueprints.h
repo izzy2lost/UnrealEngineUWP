@@ -75,12 +75,6 @@ namespace FindInBlueprintsHelpers
 		}
 	};
 
-	/** Utility function to find the ancestor class or interface from which a function is inherited. */
-	KISMET_API UClass* GetFunctionOriginClass(const UFunction* Function);
-
-	/** Constructs a search term for a function using Find-in-Blueprints search syntax */
-	KISMET_API bool ConstructSearchTermFromFunction(const UFunction* Function, FString& SearchTerm);
-
 	static uint32 GetTypeHash(const FindInBlueprintsHelpers::FSimpleFTextKeyStorage& InObject)
 	{
 		return GetTypeHash(InObject.Text.BuildSourceString());
@@ -370,14 +364,8 @@ private:
 	/** Callback to return the current asset name during a cache operation */
 	FText GetCacheBarCurrentAssetName() const;
 
-	/** Whether user is allowed to initiate loading and indexing all blueprints with out-of-date metadata */
-	bool CanCacheAllUnindexedBlueprints() const;
-
 	/** Callback to cache all unindexed Blueprints */
 	FReply OnCacheAllUnindexedBlueprints();
-
-	/** Callback to export a list of all blueprints that need reindexing */
-	FReply OnExportUnindexedAssetList();
 
 	/** Callback to cache all Blueprints according to the given options */
 	FReply OnCacheAllBlueprints(const FFindInBlueprintCachingOptions& InOptions);

@@ -262,12 +262,6 @@ public:
 	UPROPERTY(EditAnywhere, AdvancedDisplay, config, Category = Performance, DisplayName = "Node-Template Cache Cap (MB)", meta = (ClampMin = "0", UIMin = "0"))
 	float NodeTemplateCacheCapMB;
 
-	// Find-in-Blueprint Settings
-public:
-	/** Whether to enable the "Index All" button in the Find-in-Blueprints search window when blueprint assets with an out-of-date index (search metadata) are found */
-	UPROPERTY(EditAnywhere, config, Category = FindInBlueprints)
-	bool bAllowIndexAllBlueprints;
-
 public:
 	/** If set we'll show the inherited variables in the My Blueprint view. */
 	UPROPERTY(config)

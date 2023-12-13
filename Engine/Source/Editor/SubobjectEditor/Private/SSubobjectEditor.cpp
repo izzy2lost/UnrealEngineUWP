@@ -2148,23 +2148,7 @@ void SSubobjectEditor::CreateCommandList()
 	);
 
 	CommandList->MapAction(FGraphEditorCommands::Get().GetFindReferences(),
-		FUIAction(FExecuteAction::CreateSP(this, &SSubobjectEditor::OnFindReferences, false, EGetFindReferenceSearchStringFlags::UseSearchSyntax ) )
-	);
-	
-	CommandList->MapAction( FGraphEditorCommands::Get().FindReferencesByNameLocal,
-		FUIAction( FExecuteAction::CreateSP( this, &SSubobjectEditor::OnFindReferences, false, EGetFindReferenceSearchStringFlags::None) )
-	);
-	
-	CommandList->MapAction( FGraphEditorCommands::Get().FindReferencesByNameGlobal,
-		FUIAction( FExecuteAction::CreateSP( this, &SSubobjectEditor::OnFindReferences, true, EGetFindReferenceSearchStringFlags::None) )
-	);
-	
-	CommandList->MapAction( FGraphEditorCommands::Get().FindReferencesByClassMemberLocal,
-		FUIAction( FExecuteAction::CreateSP( this, &SSubobjectEditor::OnFindReferences, false, EGetFindReferenceSearchStringFlags::UseSearchSyntax) )
-	);
-
-	CommandList->MapAction( FGraphEditorCommands::Get().FindReferencesByClassMemberGlobal,
-		FUIAction( FExecuteAction::CreateSP( this, &SSubobjectEditor::OnFindReferences, true, EGetFindReferenceSearchStringFlags::UseSearchSyntax) )
+		FUIAction(FExecuteAction::CreateSP(this, &SSubobjectEditor::OnFindReferences))
 	);
 }
 
@@ -2326,7 +2310,7 @@ void SSubobjectEditor::HandleItemDoubleClicked(FSubobjectEditorTreeNodePtrType I
 	OnItemDoubleClicked.ExecuteIfBound(InItem);
 }
 
-void SSubobjectEditor::OnFindReferences(bool bSearchAllBlueprints, const EGetFindReferenceSearchStringFlags Flags)
+void SSubobjectEditor::OnFindReferences()
 {
 	TArray<FSubobjectEditorTreeNodePtrType> SelectedNodes = TreeWidget->GetSelectedItems();
 	if (SelectedNodes.Num() == 1)
@@ -2339,13 +2323,11 @@ void SSubobjectEditor::OnFindReferences(bool bSearchAllBlueprints, const EGetFin
 
 			FMemberReference MemberReference;
 			MemberReference.SetSelfMember(*VariableName);
-			const FString SearchTerm = EnumHasAnyFlags(Flags, EGetFindReferenceSearchStringFlags::UseSearchSyntax) ? MemberReference.GetReferenceSearchString(GetBlueprint()->SkeletonGeneratedClass) : FString::Printf(TEXT("\"%s\""), *VariableName);
+			const FString SearchTerm = MemberReference.GetReferenceSearchString(GetBlueprint()->SkeletonGeneratedClass);
 
 			TSharedRef<IBlueprintEditor> BlueprintEditor = StaticCastSharedRef<IBlueprintEditor>(
 				FoundAssetEditor.ToSharedRef());
-			
-			const bool bSetFindWithinBlueprint = !bSearchAllBlueprints;
-			BlueprintEditor->SummonSearchUI(bSetFindWithinBlueprint, SearchTerm);
+			BlueprintEditor->SummonSearchUI(true, SearchTerm);
 		}
 	}
 }

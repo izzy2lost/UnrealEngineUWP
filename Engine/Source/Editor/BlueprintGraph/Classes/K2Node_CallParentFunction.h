@@ -26,7 +26,6 @@ class UK2Node_CallParentFunction : public UK2Node_CallFunction
 	virtual void AllocateDefaultPins() override;
 	virtual FLinearColor GetNodeTitleColor() const override;
 	virtual void PostPlacedNewNode() override;
-	virtual void AddSearchMetaDataInfo(TArray<struct FSearchTagDataPair>& OutTaggedMetaData) const override;
 	//~ End EdGraphNode Interface
 
 	virtual void SetFromFunction(const UFunction* Function) override;

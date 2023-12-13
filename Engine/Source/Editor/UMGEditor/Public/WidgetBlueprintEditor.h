@@ -343,7 +343,7 @@ private:
 	bool CanDuplicateSelectedWidgets();
 	void DuplicateSelectedWidgets();
 
-	void OnFindWidgetReferences(bool bSearchAllBlueprints, const EGetFindReferenceSearchStringFlags Flags);
+	void OnFindWidgetReferences();
 	bool CanFindWidgetReferences() const;
 
 	/** Is creating a native base class for the current widget blueprint allowed */

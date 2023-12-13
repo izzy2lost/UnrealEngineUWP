@@ -115,8 +115,6 @@ struct KISMET_API FFindInBlueprintSearchTags
 	static const FText FiB_ParentClass;
 	/** Interfaces tag */
 	static const FText FiB_Interfaces;
-	/** Class that originally defined the function tag */
-	static const FText FiB_FuncOriginClass;
 
 	/** Pin type tags */
 
@@ -154,7 +152,6 @@ enum EFiBVersion : int
 	FIB_VER_BASE = 0, // All Blueprints prior to versioning will automatically be assumed to be at 0 if they have FiB data collected
 	FIB_VER_VARIABLE_REFERENCE, // Variable references (FMemberReference) is collected in FiB
 	FIB_VER_INTERFACE_GRAPHS, // Implemented Interface Graphs is collected in FiB
-	FIB_VER_FUNC_CALL_SITES, // Hidden target pins and function origin class are collected in FiB for improved function call site searchability
 
 	// -----<new versions can be added before this line>-------------------------------------------------
 	FIB_VER_PLUS_ONE,
@@ -617,12 +614,7 @@ public:
 	 * @param InCachingOptions				Options to configure the caching task
 	 */
 	void CacheAllAssets(TWeakPtr< class SFindInBlueprints > InSourceWidget, const FFindInBlueprintCachingOptions& InCachingOptions);
-
-	/**
-	 * Exports a list of all unindexed assets to Saved/FindInBlueprints_OutdatedAssetList.txt
-	 */
-	void ExportOutdatedAssetList();
-
+	
 	/**
 	 * Starts the actual caching process
 	 *

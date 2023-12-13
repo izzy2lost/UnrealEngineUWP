@@ -1750,23 +1750,8 @@ void UEdGraphSchema_K2::GetContextMenuActions(UToolMenu* Menu, UGraphNodeContext
 					Section.AddMenuEntry(FGraphEditorCommands::Get().GoToDefinition);
 				}
 
-				// Show search for references for everyone. Depending on context, it's an action or a submenu.
-				const bool bIsFuncOrVarNode = InGraphNode->IsA<UK2Node_CallFunction>() || InGraphNode->IsA<UK2Node_Event>() || InGraphNode->IsA<UK2Node_FunctionTerminator>() || InGraphNode->IsA<UK2Node_Variable>(); 
-				const bool bExpandFindReferences = bIsFuncOrVarNode;
-				if (!bExpandFindReferences)
-				{
-					Section.AddMenuEntry(FGraphEditorCommands::Get().FindReferences);
-				}
-				else
-				{
-					// Expandable menu: insert sub-menu here
-					Section.AddSubMenu(
-						FName("FindReferenceSubMenu"),
-						LOCTEXT("FindReferences_Label", "Find References"),
-						LOCTEXT("FindReferences_Tooltip", "Options for finding references to class members"),
-						FNewToolMenuChoice(FNewMenuDelegate::CreateStatic(&FGraphEditorCommands::BuildFindReferencesMenu))
-					);
-				}
+				// show search for references for everyone
+				Section.AddMenuEntry(FGraphEditorCommands::Get().FindReferences);
 
 				if (!bIsDebugging)
 				{

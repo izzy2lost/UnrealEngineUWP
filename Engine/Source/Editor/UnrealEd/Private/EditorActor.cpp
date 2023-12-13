@@ -1058,7 +1058,7 @@ bool UUnrealEdEngine::DeleteActors(const TArray<AActor*>& InActorsToDelete, UWor
 
 				for (UK2Node* Node : ReferencedToActorsFromLevelScriptArray)
 				{
-					LevelScriptReferenceString += Node->GetFindReferenceSearchString(EGetFindReferenceSearchStringFlags::None);
+					LevelScriptReferenceString += Node->GetFindReferenceSearchString();
 
 					if (bReferencedByLevelScript && bReferencedByActor)
 					{

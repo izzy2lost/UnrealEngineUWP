@@ -89,7 +89,6 @@ const FText FFindInBlueprintSearchTags::FiB_Comment = LOCTEXT("Comment", "Commen
 const FText FFindInBlueprintSearchTags::FiB_Path = LOCTEXT("Path", "Path");
 const FText FFindInBlueprintSearchTags::FiB_ParentClass = LOCTEXT("ParentClass", "ParentClass");
 const FText FFindInBlueprintSearchTags::FiB_Interfaces = LOCTEXT("Interfaces", "Interfaces");
-const FText FFindInBlueprintSearchTags::FiB_FuncOriginClass = LOCTEXT("FuncOriginClass", "FuncOriginClass");
 
 const FText FFindInBlueprintSearchTags::FiB_Pins = LOCTEXT("Pins", "Pins");
 const FText FFindInBlueprintSearchTags::FiB_PinCategory = LOCTEXT("PinCategory", "PinCategory");
@@ -1090,10 +1089,8 @@ namespace BlueprintSearchMetaDataHelpers
 						InWriter->WriteArrayStart(FFindInBlueprintSearchTags::FiB_Pins);
 						for (const UEdGraphPin* Pin : Node->Pins)
 						{
-							// Hidden pins are not searchable, except for 'self' pins which represent the target type.
-							// Indexing self pins, even if they are hidden, allows searching for BP function library
-							// function calls and nodes that automatically target self like parent function calls.
-							if (Pin->bHidden == false || Pin->PinName == UEdGraphSchema_K2::PN_Self)
+							// Hidden pins are not searchable
+							if (Pin->bHidden == false)
 							{
 								InWriter->WriteObjectStart();
 								{
@@ -3309,9 +3306,25 @@ void FFindInBlueprintSearchManager::CacheAllAssets(TWeakPtr< SFindInBlueprints >
 			FText DialogTitle = LOCTEXT("ConfirmIndexAll_Title", "Indexing All");
 			FFormatNamedArguments Args;
 			Args.Add(TEXT("PackageCount"), UnindexedAssets.Num() + BlueprintsToUpdate.Num());
-			Args.Add(TEXT("UnindexedCount"), UnindexedAssets.Num());
-			Args.Add(TEXT("OutOfDateCount"), BlueprintsToUpdate.Num());
-			const FText DialogDisplayText = FText::Format(LOCTEXT("CacheAllConfirmationMessage_UnindexedAndOutOfDate", "About to load {PackageCount} Blueprints ({UnindexedCount} unindexed/{OutOfDateCount} out-of-date). The editor may become unresponsive while these assets are loaded for indexing. Save your work before initiating this: broken assets and memory usage can affect editor stability. \n\nLoaded assets must be resaved to make this indexing permanent, otherwise their updated searchability is for this editor session only. Select 'Yes' to checkout, load and resave all Blueprints with an outdated index. Select 'No' to load them only."), Args);
+
+			FText DialogDisplayText;
+
+			if (UnindexedAssets.Num() && BlueprintsToUpdate.Num())
+			{
+				Args.Add(TEXT("PackageCount"), UnindexedAssets.Num() + BlueprintsToUpdate.Num());
+				Args.Add(TEXT("UnindexedCount"), UnindexedAssets.Num());
+				Args.Add(TEXT("OutOfDateCount"), BlueprintsToUpdate.Num());
+				DialogDisplayText = FText::Format(LOCTEXT("CacheAllConfirmationMessage_UnindexedAndOutOfDate", "This process can take a long time and the editor may become unresponsive; there are {PackageCount} ({UnindexedCount} Unindexed/{OutOfDateCount} Out-of-Date) Blueprints to load.\n\nWould you like to checkout, load, and save all Blueprints to make this indexing permanent? Otherwise, all Blueprints will still be loaded but you will be required to re-index the next time you start the editor!"), Args);
+			}
+			else if (UnindexedAssets.Num() && BlueprintsToUpdate.Num() == 0)
+			{
+				DialogDisplayText = FText::Format(LOCTEXT("CacheAllConfirmationMessage_UnindexedOnly", "This process can take a long time and the editor may become unresponsive; there are {PackageCount} unindexed Blueprints to load.\n\nWould you like to checkout, load, and save all Blueprints to make this indexing permanent? Otherwise, all Blueprints will still be loaded but you will be required to re-index the next time you start the editor!"), Args);
+			}
+			else if (UnindexedAssets.Num() == 0 && BlueprintsToUpdate.Num())
+			{
+				DialogDisplayText = FText::Format(LOCTEXT("CacheAllConfirmationMessage_OutOfDateOnly", "This process can take a long time and the editor may become unresponsive; there are {PackageCount} out-of-date Blueprints to load.\n\nWould you like to checkout, load, and save all Blueprints to make this indexing permanent? Otherwise, all Blueprints will still be loaded but you will be required to re-index the next time you start the editor!"), Args);
+			}
+
 			const EAppReturnType::Type ReturnValue = FMessageDialog::Open(EAppMsgType::YesNoCancel, DialogDisplayText, DialogTitle);
 
 			// If Yes is chosen, checkout and save all Blueprints, if No is chosen, only load all Blueprints
@@ -3347,60 +3360,6 @@ void FFindInBlueprintSearchManager::CacheAllAssets(TWeakPtr< SFindInBlueprints >
 			}
 		}
 	}
-}
-
-void FFindInBlueprintSearchManager::ExportOutdatedAssetList()
-{
-	// Construct path for output text file
-	const FString FileLocation = FPaths::ConvertRelativePathToFull(FPaths::ProjectSavedDir());
-	const FString FullPath = FString::Printf(TEXT("%s/FindInBlueprints_OutdatedAssetList.txt"), *FileLocation);
-
-	if (FArchive* Ar = IFileManager::Get().CreateFileWriter(*FullPath))
-	{
-		// Write out all asset paths of unindexed blueprints
-		const FString UnindexedHeader = TEXT("Unindexed assets:\n");
-		Ar->Serialize(TCHAR_TO_ANSI(*UnindexedHeader), UnindexedHeader.Len());
-
-		for (const FSoftObjectPath& SoftObjPath : UnindexedAssets)
-		{
-			const FString UnindexedEntry = FString::Printf(TEXT("%s\n"), *SoftObjPath.ToString());
-			Ar->Serialize(TCHAR_TO_ANSI(*UnindexedEntry), UnindexedEntry.Len());
-		}
-
-		// Write out all asset paths of blueprints with out-of-data metadata
-		const FString OutOfDateHeader = TEXT("\nOut-of-date assets:\n");
-		Ar->Serialize(TCHAR_TO_ANSI(*OutOfDateHeader), OutOfDateHeader.Len());
-		for (FSearchData SearchData : SearchArray)
-		{
-			if ((SearchData.Value.Len() != 0 || SearchData.ImaginaryBlueprint.IsValid()) && SearchData.VersionInfo.FiBDataVersion < EFiBVersion::FIB_VER_LATEST)
-			{
-				const FString OutdatedEntry = FString::Printf(TEXT("%s\n"), *SearchData.AssetPath.ToString());
-				Ar->Serialize(TCHAR_TO_ANSI(*OutdatedEntry), OutdatedEntry.Len());
-			}
-		}
-
-		Ar->Close();
-		delete Ar;
-
-		// Log success message
-		FFormatNamedArguments Args;
-		Args.Add(TEXT("OutputPath"), FText::FromString(FullPath));
-		const FText ExportConfirmationText = FText::Format(LOCTEXT("ExportListConfirmationMessage", "Saved list of blueprints with out-of-date metadata to {OutputPath}"), Args);
-
-		UE_LOG(LogFindInBlueprint, Log, TEXT("%s"), *ExportConfirmationText.ToString());
-		FMessageDialog::Open(EAppMsgType::Ok, ExportConfirmationText);
-	}
-	else
-	{
-		// Log failure message
-		FFormatNamedArguments Args;
-		Args.Add(TEXT("OutputPath"), FText::FromString(FullPath));
-		const FText ExportFailureText = LOCTEXT("ExportListFailureMessage", "Failed to write to {OutputPath}");
-
-		UE_LOG(LogFindInBlueprint, Log, TEXT("%s"), *ExportFailureText.ToString());
-		FMessageDialog::Open(EAppMsgType::Ok, ExportFailureText);
-	}
-
 }
 
 void FFindInBlueprintSearchManager::CancelCacheAll(SFindInBlueprints* InFindInBlueprintWidget)

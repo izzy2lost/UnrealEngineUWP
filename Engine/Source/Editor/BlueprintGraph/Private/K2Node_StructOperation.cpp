@@ -159,9 +159,9 @@ FString UK2Node_StructOperation::GetPinMetaData(FName InPinName, FName InKey)
 	return Super::GetPinMetaData(InPinName, InKey);
 }
 
-FString UK2Node_StructOperation::GetFindReferenceSearchString_Impl(EGetFindReferenceSearchStringFlags InFlags) const
+FString UK2Node_StructOperation::GetFindReferenceSearchString() const
 {
-	return UEdGraphNode::GetFindReferenceSearchString_Impl(InFlags);
+	return UEdGraphNode::GetFindReferenceSearchString();
 }
 
 bool UK2Node_StructOperation::IsActionFilteredOut(const FBlueprintActionFilter& Filter)

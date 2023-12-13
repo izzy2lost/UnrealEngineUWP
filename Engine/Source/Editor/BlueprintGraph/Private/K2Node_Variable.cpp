@@ -263,24 +263,22 @@ FLinearColor UK2Node_Variable::GetNodeTitleColor() const
 	return FLinearColor::White;
 }
 
-FString UK2Node_Variable::GetFindReferenceSearchString_Impl(EGetFindReferenceSearchStringFlags InFlags) const
+FString UK2Node_Variable::GetFindReferenceSearchString() const
 {
-	if (EnumHasAnyFlags(InFlags, EGetFindReferenceSearchStringFlags::UseSearchSyntax))
+	FString ResultSearchString;
+	if (VariableReference.IsLocalScope())
 	{
-		if (VariableReference.IsLocalScope())
+		ResultSearchString = VariableReference.GetReferenceSearchString(nullptr);
+	}
+	else
+	{
+		FProperty* VariableProperty = VariableReference.ResolveMember<FProperty>(GetBlueprintClassFromNode());
+		if (VariableProperty)
 		{
-			// Generate local variable search query
-			return VariableReference.GetReferenceSearchString(nullptr);
-		}
-		else if (FProperty* VariableProperty = VariableReference.ResolveMember<FProperty>(GetBlueprintClassFromNode()))
-		{
-			// Generate member variable search query
-			return VariableReference.GetReferenceSearchString(VariableProperty->GetOwnerClass());
+			ResultSearchString = VariableReference.GetReferenceSearchString(VariableProperty->GetOwnerClass());
 		}
 	}
-
-	// Simple query: just search for variable name
-	return VariableReference.GetMemberName().ToString();
+	return ResultSearchString;
 }
 
 UK2Node::ERedirectType UK2Node_Variable::DoPinsMatchForReconstruction(const UEdGraphPin* NewPin, int32 NewPinIndex, const UEdGraphPin* OldPin, int32 OldPinIndex) const 
