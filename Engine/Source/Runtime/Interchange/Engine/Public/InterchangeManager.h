@@ -106,6 +106,12 @@ namespace UE
 
 			/** Overwrite existing assets */
 			bool bReplaceExisting = true;
+
+			/**
+			 * Interchange import task will show a dialog in case user try to override an existing asset and bReplaceExisting is false,
+			 * if this optional is set, it will override or not all existing assets this task try to override.
+			 */
+			TOptional<bool> bReplaceExistingAllDialogAnswer;
 		};
 
 		class FImportResult : protected FGCObject
