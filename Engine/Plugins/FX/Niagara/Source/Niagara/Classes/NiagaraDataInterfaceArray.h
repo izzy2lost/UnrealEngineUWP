@@ -49,9 +49,10 @@ struct INDIArrayProxyBase : public FNiagaraDataInterfaceProxyRW
 	END_SHADER_PARAMETER_STRUCT()
 
 	virtual ~INDIArrayProxyBase() {}
-	virtual void GetFunctions(TArray<FNiagaraFunctionSignature>& OutFunctions) const = 0;
 	virtual void GetVMExternalFunction(const FVMExternalFunctionBindingInfo& BindingInfo, void* InstanceData, FVMExternalFunction &OutFunc) = 0;
 #if WITH_EDITORONLY_DATA
+	virtual void GetFunctions(TArray<FNiagaraFunctionSignature>& OutFunctions) const = 0;
+
 	virtual void GetParameterDefinitionHLSL(const FNiagaraDataInterfaceGPUParamInfo& ParamInfo, FString& OutHLSL) const = 0;
 	virtual bool GetFunctionHLSL(const FNiagaraDataInterfaceGPUParamInfo& ParamInfo, const FNiagaraDataInterfaceGeneratedFunction& FunctionInfo, int FunctionInstanceIndex, FString& OutHLSL) const = 0;
 	virtual bool AppendCompileHash(FNiagaraCompileHashVisitor* InVisitor) const = 0;
@@ -84,7 +85,6 @@ public:
 	//UObject Interface End
 
 	//UNiagaraDataInterface Interface
-	virtual void GetFunctions(TArray<FNiagaraFunctionSignature>& OutFunctions) override { GetProxyAs<INDIArrayProxyBase>()->GetFunctions(OutFunctions); }
 	virtual void GetVMExternalFunction(const FVMExternalFunctionBindingInfo& BindingInfo, void* InstanceData, FVMExternalFunction &OutFunc) override { GetProxyAs<INDIArrayProxyBase>()->GetVMExternalFunction(BindingInfo, InstanceData, OutFunc); }
 #if WITH_EDITORONLY_DATA
 	virtual void GetParameterDefinitionHLSL(const FNiagaraDataInterfaceGPUParamInfo& ParamInfo, FString& OutHLSL) override { GetProxyAs<INDIArrayProxyBase>()->GetParameterDefinitionHLSL(ParamInfo, OutHLSL); }
@@ -121,4 +121,9 @@ public:
 	/** When greater than 0 sets the maximum number of elements the array can hold, only relevant when using operations that modify the array size. */
 	UPROPERTY(EditAnywhere, BlueprintReadOnly, AdvancedDisplay, Category="Array", meta=(ClampMin="0"))
 	int32 MaxElements;
+
+protected:
+#if WITH_EDITORONLY_DATA
+	virtual void GetFunctionsInternal(TArray<FNiagaraFunctionSignature>& OutFunctions) const override { GetProxyAs<INDIArrayProxyBase>()->GetFunctions(OutFunctions); }
+#endif
 };

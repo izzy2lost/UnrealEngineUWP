@@ -869,7 +869,8 @@ bool UNiagaraDataInterfaceUObjectPropertyReader::PerInstanceTick(void* PerInstan
 	return false;
 }
 
-void UNiagaraDataInterfaceUObjectPropertyReader::GetFunctions(TArray<FNiagaraFunctionSignature>& OutFunctions)
+#if WITH_EDITORONLY_DATA
+void UNiagaraDataInterfaceUObjectPropertyReader::GetFunctionsInternal(TArray<FNiagaraFunctionSignature>& OutFunctions) const
 {
 	using namespace NDIUObjectPropertyReaderLocal;
 
@@ -924,6 +925,7 @@ void UNiagaraDataInterfaceUObjectPropertyReader::GetFunctions(TArray<FNiagaraFun
 		NDI_PROPERTY_TYPES
 	#undef NDI_PROPERTY_TYPE
 }
+#endif
 
 void UNiagaraDataInterfaceUObjectPropertyReader::GetVMExternalFunction(const FVMExternalFunctionBindingInfo& BindingInfo, void* PerInstanceData, FVMExternalFunction& OutFunc)
 {

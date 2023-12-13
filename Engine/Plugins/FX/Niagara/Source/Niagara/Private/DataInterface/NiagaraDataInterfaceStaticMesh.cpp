@@ -1941,7 +1941,8 @@ void UNiagaraDataInterfaceStaticMesh::ProvidePerInstanceDataForRenderThread(void
 	}
 }
 
-void UNiagaraDataInterfaceStaticMesh::GetFunctions(TArray<FNiagaraFunctionSignature>& OutFunctions)
+#if WITH_EDITORONLY_DATA
+void UNiagaraDataInterfaceStaticMesh::GetFunctionsInternal(TArray<FNiagaraFunctionSignature>& OutFunctions) const
 {
 	using namespace NDIStaticMeshLocal;
 
@@ -1952,9 +1953,7 @@ void UNiagaraDataInterfaceStaticMesh::GetFunctions(TArray<FNiagaraFunctionSignat
 	BaseSignature.Inputs.Emplace(FNiagaraTypeDefinition(GetClass()), TEXT("StaticMesh"));
 	BaseSignature.bMemberFunction = true;
 	BaseSignature.bRequiresContext = false;
-#if WITH_EDITORONLY_DATA
 	BaseSignature.FunctionVersion = EDIFunctionVersion::LatestVersion;
-#endif
 
 	GetVertexSamplingFunctions(OutFunctions, BaseSignature);
 	GetTriangleSamplingFunctions(OutFunctions, BaseSignature);
@@ -2512,6 +2511,7 @@ void UNiagaraDataInterfaceStaticMesh::GetDeprecatedFunctions(TArray<FNiagaraFunc
 		OutFunctions.Add_GetRef(Sig).Name = Deprecated_GetTriNormalWSName;
 	}
 }
+#endif
 
 bool UNiagaraDataInterfaceStaticMesh::FunctionNeedsCpuAccess(FName InName)
 {

@@ -299,13 +299,12 @@ bool UNiagaraDataInterfaceExport::Equals(const UNiagaraDataInterface* Other) con
 		OtherTyped->GPUAllocationPerParticleSize == GPUAllocationPerParticleSize;
 }
 
-void UNiagaraDataInterfaceExport::GetFunctions(TArray<FNiagaraFunctionSignature>& OutFunctions)
+#if WITH_EDITORONLY_DATA
+void UNiagaraDataInterfaceExport::GetFunctionsInternal(TArray<FNiagaraFunctionSignature>& OutFunctions) const
 {
 	FNiagaraFunctionSignature SigOld;
 	SigOld.Name = NDIExportLocal::StoreDataName_DEPRECATED;
-#if WITH_EDITORONLY_DATA
 	SigOld.Description = NSLOCTEXT("Niagara", "ExportDataFunctionDescription", "This function takes the particle data and stores it to be exported to the registered callback handler after the simulation has ticked.");
-#endif
 	SigOld.bMemberFunction = true;
 	SigOld.bRequiresContext = false;
 	SigOld.bSupportsGPU = true;
@@ -320,9 +319,7 @@ void UNiagaraDataInterfaceExport::GetFunctions(TArray<FNiagaraFunctionSignature>
 
 	FNiagaraFunctionSignature Sig;
 	Sig.Name = NDIExportLocal::ExportDataName;
-#if WITH_EDITORONLY_DATA
 	Sig.Description = NSLOCTEXT("Niagara", "ExportDataFunctionDescription", "This function takes the particle data and stores it to be exported to the registered callback handler after the simulation has ticked.");
-#endif
 	Sig.bMemberFunction = true;
 	Sig.bRequiresContext = false;
 	Sig.bSupportsGPU = true;
@@ -336,7 +333,6 @@ void UNiagaraDataInterfaceExport::GetFunctions(TArray<FNiagaraFunctionSignature>
 	OutFunctions.Add(Sig);
 }
 
-#if WITH_EDITORONLY_DATA
 void UNiagaraDataInterfaceExport::GetParameterDefinitionHLSL(const FNiagaraDataInterfaceGPUParamInfo& ParamInfo, FString& OutHLSL)
 {
 	const TMap<FString, FStringFormatArg> TemplateArgs =

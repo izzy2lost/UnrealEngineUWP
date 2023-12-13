@@ -1009,7 +1009,7 @@ void UNiagaraNodeFunctionCall::UpdatePinTooltips()
 	{
 		UNiagaraDataInterface* CDO = CastChecked<UNiagaraDataInterface>(Signature.Inputs[0].GetType().GetClass()->GetDefaultObject());
 		TArray<FNiagaraFunctionSignature> AllSignatures;
-		CDO->GetFunctions(AllSignatures);
+		CDO->GetFunctionSignatures(AllSignatures);
 		for (const FNiagaraFunctionSignature& DISignature : AllSignatures)
 		{
 			if (Signature.Name != DISignature.Name)
@@ -1726,7 +1726,7 @@ void UNiagaraNodeFunctionCall::RefreshSignature()
 		{
 			UNiagaraDataInterface* CDO = CastChecked<UNiagaraDataInterface>(Signature.Inputs[0].GetType().GetClass()->GetDefaultObject());
 			TArray<FNiagaraFunctionSignature> BaseDIFuncs;
-			CDO->GetFunctions(BaseDIFuncs);
+			CDO->GetFunctionSignatures(BaseDIFuncs);
 			if (FNiagaraFunctionSignature* BaseSig = BaseDIFuncs.FindByPredicate([&](const FNiagaraFunctionSignature& CheckSig) { return Signature.Name == CheckSig.Name; }))
 			{
 				//Revert signature to base and re-add dynamic pins as new inputs and outputs.
@@ -1772,7 +1772,7 @@ bool UNiagaraNodeFunctionCall::IsBaseSignatureOfDataInterfaceFunction(const UEdG
 	{
 		UNiagaraDataInterface* CDO = CastChecked<UNiagaraDataInterface>(Signature.Inputs[0].GetType().GetClass()->GetDefaultObject());
 		TArray<FNiagaraFunctionSignature> BaseDIFuncs;
-		CDO->GetFunctions(BaseDIFuncs);
+		CDO->GetFunctionSignatures(BaseDIFuncs);
 		if (FNiagaraFunctionSignature* BaseSig = BaseDIFuncs.FindByPredicate([&](const FNiagaraFunctionSignature& CheckSig) { return Signature.Name == CheckSig.Name; }))
 		{
 			FPinCollectorArray FoundPins;

@@ -2540,8 +2540,9 @@ bool UNiagaraDataInterfaceChaosDestruction::PerInstanceTick(void* PerInstanceDat
 	return false;
 }
 
+#if WITH_EDITORONLY_DATA
 // Returns the signature of all the functions available in the data interface
-void UNiagaraDataInterfaceChaosDestruction::GetFunctions(TArray<FNiagaraFunctionSignature>& OutFunctions)
+void UNiagaraDataInterfaceChaosDestruction::GetFunctionsInternal(TArray<FNiagaraFunctionSignature>& OutFunctions) const
 {
 	using namespace NDIChaosDestructionLocal;
 	{
@@ -2864,6 +2865,7 @@ void UNiagaraDataInterfaceChaosDestruction::GetFunctions(TArray<FNiagaraFunction
 		OutFunctions.Add(Sig);
 	}
 }
+#endif
 
 DEFINE_NDI_FUNC_BINDER(UNiagaraDataInterfaceChaosDestruction, GetPosition);
 DEFINE_NDI_FUNC_BINDER(UNiagaraDataInterfaceChaosDestruction, GetNormal);

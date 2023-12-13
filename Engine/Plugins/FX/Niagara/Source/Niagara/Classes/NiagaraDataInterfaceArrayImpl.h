@@ -682,6 +682,7 @@ struct FNDIArrayProxyImpl : public INDIArrayProxyBase
 		return ValueOut;
 	}
 
+#if WITH_EDITORONLY_DATA
 	//////////////////////////////////////////////////////////////////////////
 	// INDIArrayProxyBase
 	virtual void GetFunctions(TArray<FNiagaraFunctionSignature>& OutFunctions) const override
@@ -695,16 +696,12 @@ struct FNDIArrayProxyImpl : public INDIArrayProxyBase
 		DefaultImmutableSig.bSupportsCPU = FNDIArrayImplHelper<TArrayType>::bSupportsCPU;
 		DefaultImmutableSig.bSupportsGPU = FNDIArrayImplHelper<TArrayType>::bSupportsGPU;
 		DefaultImmutableSig.Inputs.Emplace(FNiagaraTypeDefinition(TOwnerType::StaticClass()), TEXT("Array interface"));
-#if WITH_EDITORONLY_DATA
 		DefaultImmutableSig.FunctionVersion = FNiagaraDataInterfaceArrayImplHelper::FFunctionVersion::LatestVersion;
-#endif
 		{
 			FNiagaraFunctionSignature& Sig = OutFunctions.Add_GetRef(DefaultImmutableSig);
 			Sig.Name = FNiagaraDataInterfaceArrayImplHelper::Function_LengthName;
 			Sig.Outputs.Emplace(FNiagaraTypeDefinition::GetIntDef(), TEXT("Num"));
-		#if WITH_EDITORONLY_DATA
 			Sig.Description = NSLOCTEXT("Niagara", "Array_LengthDesc", "Gets the number of elements in the array.");
-		#endif
 		}
 
 		{
@@ -712,18 +709,14 @@ struct FNDIArrayProxyImpl : public INDIArrayProxyBase
 			Sig.Name = FNiagaraDataInterfaceArrayImplHelper::Function_IsValidIndexName;
 			Sig.Inputs.Emplace(FNiagaraTypeDefinition::GetIntDef(), TEXT("Index"));
 			Sig.Outputs.Emplace(FNiagaraTypeDefinition::GetBoolDef(), TEXT("Valid"));
-		#if WITH_EDITORONLY_DATA
 			Sig.Description = NSLOCTEXT("Niagara", "Array_IsValidIndexDesc", "Tests to see if the index is valid and exists in the array.");
-		#endif
 		}
 
 		{
 			FNiagaraFunctionSignature& Sig = OutFunctions.Add_GetRef(DefaultImmutableSig);
 			Sig.Name = FNiagaraDataInterfaceArrayImplHelper::Function_LastIndexName;
 			Sig.Outputs.Emplace(FNiagaraTypeDefinition::GetIntDef(), TEXT("Index"));
-		#if WITH_EDITORONLY_DATA
 			Sig.Description = NSLOCTEXT("Niagara", "Array_LastIndexDesc", "Returns the last valid index in the array, will be -1 if no elements.");
-		#endif
 		}
 
 		{
@@ -731,9 +724,7 @@ struct FNDIArrayProxyImpl : public INDIArrayProxyBase
 			Sig.Name = FNiagaraDataInterfaceArrayImplHelper::Function_GetName;
 			Sig.Inputs.Emplace(FNiagaraTypeDefinition::GetIntDef(), TEXT("Index"));
 			Sig.Outputs.Emplace(FNDIArrayImplHelper<TArrayType>::GetTypeDefinition(), TEXT("Value"));
-		#if WITH_EDITORONLY_DATA
 			Sig.Description = NSLOCTEXT("Niagara", "Array_GetDesc", "Gets the value from the array at the given zero based index.");
-		#endif
 		}
 
 		// Mutable functions
@@ -744,9 +735,7 @@ struct FNDIArrayProxyImpl : public INDIArrayProxyBase
 			FNiagaraFunctionSignature& Sig = OutFunctions.Add_GetRef(DefaultMutableSig);
 			Sig.Name = FNiagaraDataInterfaceArrayImplHelper::Function_ClearName;
 			Sig.ModuleUsageBitmask = ENiagaraScriptUsageMask::System | ENiagaraScriptUsageMask::Emitter;
-		#if WITH_EDITORONLY_DATA
 			Sig.Description = NSLOCTEXT("Niagara", "Array_ClearDesc", "Clears the array, removing all elements");
-		#endif
 		}
 
 		{
@@ -754,9 +743,7 @@ struct FNDIArrayProxyImpl : public INDIArrayProxyBase
 			Sig.Name = FNiagaraDataInterfaceArrayImplHelper::Function_ResizeName;
 			Sig.ModuleUsageBitmask = ENiagaraScriptUsageMask::System | ENiagaraScriptUsageMask::Emitter;
 			Sig.Inputs.Emplace(FNiagaraTypeDefinition::GetIntDef(), TEXT("Num"));
-		#if WITH_EDITORONLY_DATA
 			Sig.Description = NSLOCTEXT("Niagara", "Array_ResizeDesc", "Resizes the array to the specified size, initializing new elements with the default value.");
-		#endif
 		}
 
 		{
@@ -765,10 +752,8 @@ struct FNDIArrayProxyImpl : public INDIArrayProxyBase
 			Sig.Inputs.Emplace(FNiagaraTypeDefinition::GetBoolDef(), TEXT("SkipSet"));
 			Sig.Inputs.Emplace(FNiagaraTypeDefinition::GetIntDef(), TEXT("Index"));
 			Sig.Inputs.Emplace(FNDIArrayImplHelper<TArrayType>::GetTypeDefinition(), TEXT("Value"));
-		#if WITH_EDITORONLY_DATA
 			Sig.Description = NSLOCTEXT("Niagara", "Array_SetArrayElemDesc", "Sets the value at the given zero based index (i.e the first element is 0).");
 			Sig.InputDescriptions.Add(Sig.Inputs[1], NSLOCTEXT("Niagara", "Array_SetArrayElemDesc_SkipSet", "When enabled will not set the array value."));
-		#endif
 		}
 
 		{
@@ -776,10 +761,8 @@ struct FNDIArrayProxyImpl : public INDIArrayProxyBase
 			Sig.Name = FNiagaraDataInterfaceArrayImplHelper::Function_AddName;
 			Sig.Inputs.Emplace(FNiagaraTypeDefinition::GetBoolDef(), TEXT("SkipAdd"));
 			Sig.Inputs.Emplace(FNDIArrayImplHelper<TArrayType>::GetTypeDefinition(), TEXT("Value"));
-		#if WITH_EDITORONLY_DATA
 			Sig.Description = NSLOCTEXT("Niagara", "Array_AddDesc", "Optionally add a value onto the end of the array.");
 			Sig.InputDescriptions.Add(Sig.Inputs[1], NSLOCTEXT("Niagara", "Array_AddDesc_SkipAdd", "When enabled we will not add an element to the array."));
-		#endif
 		}
 
 		{
@@ -788,11 +771,9 @@ struct FNDIArrayProxyImpl : public INDIArrayProxyBase
 			Sig.Inputs.Emplace(FNiagaraTypeDefinition::GetBoolDef(), TEXT("SkipRemove"));
 			Sig.Outputs.Emplace(FNDIArrayImplHelper<TArrayType>::GetTypeDefinition(), TEXT("Value"));
 			Sig.Outputs.Emplace(FNiagaraTypeDefinition::GetBoolDef(), TEXT("IsValid"));
-		#if WITH_EDITORONLY_DATA
 			Sig.Description = NSLOCTEXT("Niagara", "Array_RemoveLastElemDesc", "Optionally remove the last element from the array.  Returns the default value if no elements are in the array or you skip the remove.");
 			Sig.InputDescriptions.Add(Sig.Inputs[1], NSLOCTEXT("Niagara", "Array_RemoveLastElemDesc_SkipRemove", "When enabled will not remove a value from the array, the return value will therefore be invalid."));
 			Sig.OutputDescriptions.Add(Sig.Outputs[1], NSLOCTEXT("Niagara", "Array_RemoveLastElemDesc_IsValid", "True if we removed a value from the array, False if no entries or we skipped the remove."));
-		#endif
 		}
 
 		if (FNDIArrayImplHelper<TArrayType>::bSupportsAtomicOps)
@@ -838,6 +819,7 @@ struct FNDIArrayProxyImpl : public INDIArrayProxyBase
 			}
 		}
 	}
+#endif
 
 	template<typename T = FNDIArrayImplHelper<TArrayType>>
 	typename TEnableIf<T::bSupportsCPU>::Type GetVMExternalFunction_Internal(const FVMExternalFunctionBindingInfo& BindingInfo, void* InstanceData, FVMExternalFunction& OutFunc)

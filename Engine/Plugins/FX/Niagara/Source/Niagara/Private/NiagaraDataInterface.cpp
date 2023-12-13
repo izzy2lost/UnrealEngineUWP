@@ -279,10 +279,24 @@ void UNiagaraDataInterface::GetFeedback(UNiagaraDataInterface* DataInterface, TA
 	DataInterface->GetFeedback(Asset, Component, Errors, Warnings, Info);
 }
 
+void UNiagaraDataInterface::GetFunctionSignatures(TArray<FNiagaraFunctionSignature>& OutFunctions) const
+{
+#if WITH_EDITORONLY_DATA
+	// Until we can eliminate GetFunctions() we just call it, and let it's base implementation call
+	// GetFunctionsInternal().  When GetFunctions() is deleted we can just call GetFunctionsInternal()
+	// directly here.
+	//GetFunctionsInternal(OutFunctions);
+
+	PRAGMA_DISABLE_DEPRECATION_WARNINGS // to be removed when GetFunctions is removed
+	const_cast<UNiagaraDataInterface*>(this)->GetFunctions(OutFunctions);
+	PRAGMA_ENABLE_DEPRECATION_WARNINGS // to be removed when GetFunctions is removed
+#endif
+}
+
 void UNiagaraDataInterface::ValidateFunction(const FNiagaraFunctionSignature& Function, TArray<FText>& OutValidationErrors)
 {
 	TArray<FNiagaraFunctionSignature> DIFuncs;
-	GetFunctions(DIFuncs);
+	GetFunctionSignatures(DIFuncs);
 
 	if (!DIFuncs.ContainsByPredicate([&](const FNiagaraFunctionSignature& Sig) { return Sig.EqualsIgnoringSpecifiers(Function); }))
 	{

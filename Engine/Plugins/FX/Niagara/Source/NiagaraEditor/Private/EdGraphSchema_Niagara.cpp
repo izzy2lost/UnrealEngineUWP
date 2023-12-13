@@ -799,7 +799,7 @@ PRAGMA_ENABLE_DEPRECATION_WARNINGS
 		{
 			FText MenuCat = FromPinDataInterface->GetClass()->GetDisplayNameText();
 			TArray<FNiagaraFunctionSignature> Functions;
-			FromPinDataInterface->GetFunctions(Functions);
+			FromPinDataInterface->GetFunctionSignatures(Functions);
 			for (FNiagaraFunctionSignature& Sig : Functions)
 			{
 				if (Sig.bSoftDeprecatedFunction || Sig.bHidden)
@@ -2181,7 +2181,7 @@ TArray<TTuple<FString, FString, FText>> UEdGraphSchema_Niagara::GetDataInterface
 			
 			// No functions, don't add an option
 			TArray<FNiagaraFunctionSignature> FunctionSignatures;
-			DataInterface->GetFunctions(FunctionSignatures);
+			DataInterface->GetFunctionSignatures(FunctionSignatures);
 			if (FunctionSignatures.Num() == 0)
 			{
 				return FunctionPrototypes;

@@ -292,7 +292,7 @@ bool UNiagaraNodeCustomHlsl::CallsImpureDataInterfaceFunctions() const
 			if (UNiagaraDataInterface* DataInterfaceClass = CastChecked<UNiagaraDataInterface>(NiagaraType.GetClass()->ClassDefaultObject))
 			{
 				TArray<FNiagaraFunctionSignature> FunctionSignatures;
-				DataInterfaceClass->GetFunctions(FunctionSignatures);
+				DataInterfaceClass->GetFunctionSignatures(FunctionSignatures);
 
 				for (const FNiagaraFunctionSignature& FunctionSignature : FunctionSignatures)
 				{

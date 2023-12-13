@@ -167,11 +167,12 @@ void UNiagaraDataInterfaceGrid3DCollectionReader::GetEmitterDependencies(UNiagar
 	}
 }
 
-void UNiagaraDataInterfaceGrid3DCollectionReader::GetFunctions(TArray<FNiagaraFunctionSignature>& OutFunctions)
+#if WITH_EDITORONLY_DATA
+void UNiagaraDataInterfaceGrid3DCollectionReader::GetFunctionsInternal(TArray<FNiagaraFunctionSignature>& OutFunctions) const
 {
 	int32 NumFunctionsBefore = OutFunctions.Num();
 
-	Super::GetFunctions(OutFunctions);
+	Super::GetFunctionsInternal(OutFunctions);
 	TSet<FName> FunctionsToRemove = 
 	{
 		ClearCellFunctionName,
@@ -201,6 +202,7 @@ void UNiagaraDataInterfaceGrid3DCollectionReader::GetFunctions(TArray<FNiagaraFu
 		}
 	}	
 }
+#endif
 
 bool UNiagaraDataInterfaceGrid3DCollectionReader::PerInstanceTickPostSimulate(void* PerInstanceData, FNiagaraSystemInstance* SystemInstance, float DeltaSeconds)
 {

@@ -81,7 +81,8 @@ void UNiagaraDataInterfaceMRQ::PostInitProperties()
 	}
 }
 
-void UNiagaraDataInterfaceMRQ::GetFunctions(TArray<FNiagaraFunctionSignature>& OutFunctions)
+#if WITH_EDITORONLY_DATA
+void UNiagaraDataInterfaceMRQ::GetFunctionsInternal(TArray<FNiagaraFunctionSignature>& OutFunctions) const
 {
 	using namespace NDIMRQLocal;
 
@@ -95,6 +96,7 @@ void UNiagaraDataInterfaceMRQ::GetFunctions(TArray<FNiagaraFunctionSignature>& O
 	Sig.AddOutput(FNiagaraVariable(FNiagaraTypeDefinition::GetIntDef(), TEXT("TemporalSampleIndex")), LOCTEXT("TemporalSampleIndexDesc", "Temporal sample we are simulating this frame for"));
 	Sig.AddOutput(FNiagaraVariable(FNiagaraTypeDefinition::GetFloatDef(), TEXT("SequenceFPS")), LOCTEXT("SequenceFPSDesc", "The source sequence frames per second"));
 }
+#endif
 
 void UNiagaraDataInterfaceMRQ::GetVMExternalFunction(const FVMExternalFunctionBindingInfo& BindingInfo, void* InstanceData, FVMExternalFunction& OutFunc)
 {

@@ -900,13 +900,15 @@ bool UNiagaraDataInterfaceDataChannelRead::CopyToInternal(UNiagaraDataInterface*
 	return false;
 }
 
-void UNiagaraDataInterfaceDataChannelRead::GetFunctions(TArray<FNiagaraFunctionSignature>& OutFunctions)
+#if WITH_EDITORONLY_DATA
+void UNiagaraDataInterfaceDataChannelRead::GetFunctionsInternal(TArray<FNiagaraFunctionSignature>& OutFunctions) const
 {
 	OutFunctions.Add(NDIDataChannelReadLocal::GetFunctionSig_Num());
 	OutFunctions.Add(NDIDataChannelReadLocal::GetFunctionSig_Read());
 	OutFunctions.Add(NDIDataChannelReadLocal::GetFunctionSig_Consume());
 	OutFunctions.Add(NDIDataChannelReadLocal::GetFunctionSig_SpawnConditional());
 }
+#endif
 
 void UNiagaraDataInterfaceDataChannelRead::GetVMExternalFunction(const FVMExternalFunctionBindingInfo& BindingInfo, void* InstanceData, FVMExternalFunction& OutFunc)
 {
@@ -1502,7 +1504,7 @@ void UNiagaraDataInterfaceDataChannelRead::GetParameterDefinitionHLSL(FNiagaraDa
 bool UNiagaraDataInterfaceDataChannelRead::UpgradeFunctionCall(FNiagaraFunctionSignature& FunctionSignature)
 {
 	TArray<FNiagaraFunctionSignature> Funcs;
-	GetFunctions(Funcs);
+	GetFunctionsInternal(Funcs);
 
 	for (const FNiagaraFunctionSignature& Func : Funcs)
 	{

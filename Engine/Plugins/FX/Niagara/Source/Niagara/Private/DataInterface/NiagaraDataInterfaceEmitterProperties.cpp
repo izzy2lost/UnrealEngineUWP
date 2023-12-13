@@ -188,7 +188,8 @@ bool UNiagaraDataInterfaceEmitterProperties::PerInstanceTick(void* PerInstanceDa
 	return false;
 }
 
-void UNiagaraDataInterfaceEmitterProperties::GetFunctions(TArray<FNiagaraFunctionSignature>& OutFunctions)
+#if WITH_EDITORONLY_DATA
+void UNiagaraDataInterfaceEmitterProperties::GetFunctionsInternal(TArray<FNiagaraFunctionSignature>& OutFunctions) const
 {
 	using namespace NDIEmitterPropertiesLocal;
 
@@ -246,6 +247,7 @@ void UNiagaraDataInterfaceEmitterProperties::GetFunctions(TArray<FNiagaraFunctio
 #endif
 	}
 }
+#endif
 
 void UNiagaraDataInterfaceEmitterProperties::GetVMExternalFunction(const FVMExternalFunctionBindingInfo& BindingInfo, void* PerInstanceData, FVMExternalFunction& OutFunc)
 {

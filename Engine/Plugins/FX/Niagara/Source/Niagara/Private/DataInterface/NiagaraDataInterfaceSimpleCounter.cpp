@@ -265,7 +265,8 @@ int32 UNiagaraDataInterfaceSimpleCounter::PerInstanceDataSize() const
 	return sizeof(FNDISimpleCounterInstanceData_GameThread);
 }
 
-void UNiagaraDataInterfaceSimpleCounter::GetFunctions(TArray<FNiagaraFunctionSignature>& OutFunctions)
+#if WITH_EDITORONLY_DATA
+void UNiagaraDataInterfaceSimpleCounter::GetFunctionsInternal(TArray<FNiagaraFunctionSignature>& OutFunctions) const
 {
 	using namespace NDISimpleCounterLocal;
 
@@ -351,6 +352,7 @@ void UNiagaraDataInterfaceSimpleCounter::GetFunctions(TArray<FNiagaraFunctionSig
 		Sig.SetDescription(LOCTEXT("DecrementDesc", "Decrements the counter by 1."));
 	}
 }
+#endif
 
 void UNiagaraDataInterfaceSimpleCounter::GetVMExternalFunction(const FVMExternalFunctionBindingInfo& BindingInfo, void* InstanceData, FVMExternalFunction& OutFunc)
 {

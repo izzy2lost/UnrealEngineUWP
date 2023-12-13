@@ -184,9 +184,10 @@ void UNiagaraDataInterfaceAudioOscilloscope::GetNumChannels(FVectorVMExternalFun
 	}
 }
 
-void UNiagaraDataInterfaceAudioOscilloscope::GetFunctions(TArray<FNiagaraFunctionSignature>& OutFunctions)
+#if WITH_EDITORONLY_DATA
+void UNiagaraDataInterfaceAudioOscilloscope::GetFunctionsInternal(TArray<FNiagaraFunctionSignature>& OutFunctions) const
 {
-	Super::GetFunctions(OutFunctions);
+	Super::GetFunctionsInternal(OutFunctions);
 
 	{
 		FNiagaraFunctionSignature SampleAudioBufferSignature;
@@ -212,6 +213,7 @@ void UNiagaraDataInterfaceAudioOscilloscope::GetFunctions(TArray<FNiagaraFunctio
 		OutFunctions.Add(NumChannelsSignature);
 	}
 }
+#endif
 
 DEFINE_NDI_DIRECT_FUNC_BINDER(UNiagaraDataInterfaceAudioOscilloscope, SampleAudio);
 DEFINE_NDI_DIRECT_FUNC_BINDER(UNiagaraDataInterfaceAudioOscilloscope, GetNumChannels);

@@ -649,8 +649,12 @@ public:
 	*/
 	virtual int32 PerInstanceDataSize()const { return 0; }
 
-	/** Gets all the available functions for this data interface. */
-	virtual void GetFunctions(TArray<FNiagaraFunctionSignature>& OutFunctions) {}
+#if WITH_EDITORONLY_DATA
+	/**
+	Gets all the available functions for this data interface.
+	*/
+	NIAGARA_API void GetFunctionSignatures(TArray<FNiagaraFunctionSignature>& OutFunctions) const;
+#endif
 
 	/** Returns the delegate for the passed function signature. */
 	virtual void GetVMExternalFunction(const FVMExternalFunctionBindingInfo& BindingInfo, void* InstanceData, FVMExternalFunction &OutFunc) { };
@@ -819,6 +823,20 @@ public:
 
 protected:
 	virtual void PushToRenderThreadImpl() {}
+
+	// deprecated function for backwards compatibility.  Callers should be using GetFunctionSignatures
+	// and sub classes should be implementing GetFunctionsInternal().
+	UE_DEPRECATED(5.4, "GetFunctions() should be renamed GetFunctionsInternal() and guarded with WITH_EDITORONLY_DATA.")
+	virtual void GetFunctions(TArray<FNiagaraFunctionSignature>& OutFunctions)
+	{
+#if WITH_EDITORONLY_DATA
+		GetFunctionsInternal(OutFunctions);
+#endif
+	}
+
+#if WITH_EDITORONLY_DATA
+	virtual void GetFunctionsInternal(TArray<FNiagaraFunctionSignature>& OutFunctions) const {};
+#endif
 
 public:
 	void PushToRenderThread()

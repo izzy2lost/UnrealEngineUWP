@@ -88,7 +88,8 @@ void UNiagaraDataInterfaceSparseVolumeTexture::Serialize(FArchive& Ar)
 	Super::Serialize(Ar);
 }
 
-void UNiagaraDataInterfaceSparseVolumeTexture::GetFunctions(TArray<FNiagaraFunctionSignature>& OutFunctions)
+#if WITH_EDITORONLY_DATA
+void UNiagaraDataInterfaceSparseVolumeTexture::GetFunctionsInternal(TArray<FNiagaraFunctionSignature>& OutFunctions) const
 {
 	FNiagaraFunctionSignature DefaultGpuSig;
 	DefaultGpuSig.bMemberFunction = true;
@@ -137,6 +138,7 @@ void UNiagaraDataInterfaceSparseVolumeTexture::GetFunctions(TArray<FNiagaraFunct
 		Sig.SetDescription(LOCTEXT("SparseVolumeGetNumMipLevelsDesc", "Get the number of mip levels."));
 	}
 }
+#endif
 
 void UNiagaraDataInterfaceSparseVolumeTexture::GetVMExternalFunction(const FVMExternalFunctionBindingInfo& BindingInfo, void* InstanceData, FVMExternalFunction& OutFunc)
 {

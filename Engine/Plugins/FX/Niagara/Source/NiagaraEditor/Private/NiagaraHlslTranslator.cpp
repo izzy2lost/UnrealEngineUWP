@@ -8135,7 +8135,7 @@ void TNiagaraHlslTranslator<GraphBridge>::ProcessCustomHlsl(const FString& InCus
 			// actual custom hlsl source. If they do, then add them to the function table that we need to map.
 			FNiagaraScriptDataInterfaceCompileInfo& Info = CompilationOutput.ScriptData.DataInterfaceInfo[OwnerIdx];
 			TArray<FNiagaraFunctionSignature> Funcs;
-			CDO->GetFunctions(Funcs);
+			CDO->GetFunctionSignatures(Funcs);
 
 			TArray<FString> SanitizedFunctionNames;
 			SanitizedFunctionNames.Reserve(Funcs.Num());
@@ -8797,7 +8797,7 @@ void TNiagaraHlslTranslator<GraphBridge>::RegisterFunctionCall(ENiagaraScriptUsa
 			if (OutSignature.bMemberFunction)
 			{
 				TArray<FNiagaraFunctionSignature> DataInterfaceFunctions;
-				CDO->GetFunctions(DataInterfaceFunctions);
+				CDO->GetFunctionSignatures(DataInterfaceFunctions);
 
 				const int32 FoundMatch = DataInterfaceFunctions.IndexOfByPredicate([&](const FNiagaraFunctionSignature& Sig) -> bool { return Sig.EqualsIgnoringSpecifiers(OutSignature); });
 				if (FoundMatch < 0)

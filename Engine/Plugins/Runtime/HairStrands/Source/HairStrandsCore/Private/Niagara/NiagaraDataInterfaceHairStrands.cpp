@@ -1049,11 +1049,13 @@ void UNiagaraDataInterfaceHairStrands::PostInitProperties()
 	}
 }
 
+#if WITH_EDITORONLY_DATA
+
 // Codegen optimization degenerates for very long functions like GetFunctions when combined with the invokation of lots of FORCEINLINE methods.
 // We don't need this code to be particularly fast anyway. The other way to improve this code compilation time would be to split it in multiple functions.
 BEGIN_FUNCTION_BUILD_OPTIMIZATION 
 
-void UNiagaraDataInterfaceHairStrands::GetFunctions(TArray<FNiagaraFunctionSignature>& OutFunctions)
+void UNiagaraDataInterfaceHairStrands::GetFunctionsInternal(TArray<FNiagaraFunctionSignature>& OutFunctions) const
 {
 	using namespace NDIHairStrandsLocal;
 	{
@@ -2092,6 +2094,8 @@ void UNiagaraDataInterfaceHairStrands::GetFunctions(TArray<FNiagaraFunctionSigna
 	}
 }
 END_FUNCTION_BUILD_OPTIMIZATION
+
+#endif
 
 DEFINE_NDI_DIRECT_FUNC_BINDER(UNiagaraDataInterfaceHairStrands, GetNumStrands);
 DEFINE_NDI_DIRECT_FUNC_BINDER(UNiagaraDataInterfaceHairStrands, GetStrandSize);

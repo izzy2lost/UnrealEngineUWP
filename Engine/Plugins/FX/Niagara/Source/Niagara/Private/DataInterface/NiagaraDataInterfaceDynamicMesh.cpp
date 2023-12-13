@@ -751,7 +751,8 @@ void UNiagaraDataInterfaceDynamicMesh::PostInitProperties()
 	}
 }
 
-void UNiagaraDataInterfaceDynamicMesh::GetFunctions(TArray<FNiagaraFunctionSignature>& OutFunctions)
+#if WITH_EDITORONLY_DATA
+void UNiagaraDataInterfaceDynamicMesh::GetFunctionsInternal(TArray<FNiagaraFunctionSignature>& OutFunctions) const
 {
 	using namespace NDIDynamicMeshLocal;
 
@@ -1001,6 +1002,7 @@ void UNiagaraDataInterfaceDynamicMesh::GetFunctions(TArray<FNiagaraFunctionSigna
 		Signature.SetDescription(LOCTEXT("AppendTriangleDesc", "Appends a triangle to the section.  This assumes that triangles are stored sequentially in the section, no vertex sharing, etc."));
 	}
 }
+#endif
 
 void UNiagaraDataInterfaceDynamicMesh::GetVMExternalFunction(const FVMExternalFunctionBindingInfo& BindingInfo, void* InstanceData, FVMExternalFunction& OutFunc)
 {

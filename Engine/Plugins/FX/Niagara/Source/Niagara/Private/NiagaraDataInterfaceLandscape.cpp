@@ -1176,7 +1176,8 @@ bool UNiagaraDataInterfaceLandscape::Equals(const UNiagaraDataInterface* Other) 
 		&& OtherLandscape->bVirtualTexturesSupported == bVirtualTexturesSupported;
 }
 
-void UNiagaraDataInterfaceLandscape::GetFunctions(TArray<FNiagaraFunctionSignature>& OutFunctions)
+#if WITH_EDITORONLY_DATA
+void UNiagaraDataInterfaceLandscape::GetFunctionsInternal(TArray<FNiagaraFunctionSignature>& OutFunctions) const
 {
 	{
 		FNiagaraFunctionSignature Sig;
@@ -1238,22 +1239,19 @@ void UNiagaraDataInterfaceLandscape::GetFunctions(TArray<FNiagaraFunctionSignatu
 		OutFunctions.Add(Sig);
 	}
 
-#if WITH_EDITORONLY_DATA
 	for (FNiagaraFunctionSignature& Sig : OutFunctions)
 	{
 		Sig.FunctionVersion = NiagaraDataInterfaceLandscape::LatestVersion;
 	}
-#endif
 }
 
-#if WITH_EDITORONLY_DATA
 bool UNiagaraDataInterfaceLandscape::UpgradeFunctionCall(FNiagaraFunctionSignature& FunctionSignature)
 {
 	// always upgrade to the latest version
 	if (FunctionSignature.FunctionVersion < NiagaraDataInterfaceLandscape::LatestVersion)
 	{
 		TArray<FNiagaraFunctionSignature> AllFunctions;
-		GetFunctions(AllFunctions);
+		GetFunctionsInternal(AllFunctions);
 		for (const FNiagaraFunctionSignature& Sig : AllFunctions)
 		{
 			if (FunctionSignature.Name == Sig.Name)

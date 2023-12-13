@@ -265,7 +265,8 @@ bool UNiagaraDataInterfaceConsoleVariable::PerInstanceTick(void* PerInstanceData
 	return false;
 }
 
-void UNiagaraDataInterfaceConsoleVariable::GetFunctions(TArray<FNiagaraFunctionSignature>& OutFunctions)
+#if WITH_EDITORONLY_DATA
+void UNiagaraDataInterfaceConsoleVariable::GetFunctionsInternal(TArray<FNiagaraFunctionSignature>& OutFunctions) const
 {
 	using namespace NDIConsoleVariableLocal;
 
@@ -295,6 +296,7 @@ void UNiagaraDataInterfaceConsoleVariable::GetFunctions(TArray<FNiagaraFunctionS
 		Sig.Outputs.Emplace(FNiagaraTypeDefinition::GetBoolDef(), TEXT("Value"));
 	}
 }
+#endif
 
 void UNiagaraDataInterfaceConsoleVariable::GetVMExternalFunction(const FVMExternalFunctionBindingInfo& BindingInfo, void* PerInstanceData, FVMExternalFunction& OutFunc)
 {

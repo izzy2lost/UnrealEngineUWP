@@ -2301,10 +2301,10 @@ bool UNiagaraDataInterfaceSkeletalMesh::CanEditChange(const FProperty* InPropert
 
 	return true;
 }
-
 #endif //WITH_EDITOR
 
-void UNiagaraDataInterfaceSkeletalMesh::GetFunctions(TArray<FNiagaraFunctionSignature>& OutFunctions)
+#if WITH_EDITORONLY_DATA
+void UNiagaraDataInterfaceSkeletalMesh::GetFunctionsInternal(TArray<FNiagaraFunctionSignature>& OutFunctions) const
 {
 	const int32 FirstFunction = OutFunctions.Num();
 
@@ -2326,13 +2326,13 @@ void UNiagaraDataInterfaceSkeletalMesh::GetFunctions(TArray<FNiagaraFunctionSign
 	GetVertexSamplingFunctions(OutFunctions);
 	GetSkeletonSamplingFunctions(OutFunctions);
 
-#if WITH_EDITORONLY_DATA
 	for ( int i=FirstFunction; i < OutFunctions.Num(); ++i )
 	{
 		OutFunctions[i].FunctionVersion = FNiagaraSkelMeshDIFunctionVersion::LatestVersion;
 	}
-#endif
 }
+
+#endif //WITH_EDITORONLY_DATA
 
 void UNiagaraDataInterfaceSkeletalMesh::GetVMExternalFunction(const FVMExternalFunctionBindingInfo& BindingInfo, void* InstanceData, FVMExternalFunction &OutFunc)
 {
@@ -2694,7 +2694,7 @@ static const FName GetTriPositionVelocityAndNormalBinormalTangentWSName_DEPRECAT
 void UNiagaraDataInterfaceSkeletalMesh::ValidateFunction(const FNiagaraFunctionSignature& Function, TArray<FText>& OutValidationErrors)
 {
 	TArray<FNiagaraFunctionSignature> DIFuncs;
-	GetFunctions(DIFuncs);
+	GetFunctionsInternal(DIFuncs);
 
 	if (!DIFuncs.Contains(Function))
 	{

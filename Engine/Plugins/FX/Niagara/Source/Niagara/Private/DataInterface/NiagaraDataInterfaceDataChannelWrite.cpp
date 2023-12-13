@@ -714,14 +714,13 @@ bool UNiagaraDataInterfaceDataChannelWrite::CopyToInternal(UNiagaraDataInterface
 	return false;
 }
 
-void UNiagaraDataInterfaceDataChannelWrite::GetFunctions(TArray<FNiagaraFunctionSignature>& OutFunctions)
+#if WITH_EDITORONLY_DATA
+void UNiagaraDataInterfaceDataChannelWrite::GetFunctionsInternal(TArray<FNiagaraFunctionSignature>& OutFunctions) const
 {
 	{
 		FNiagaraFunctionSignature Sig;
 		Sig.Name = NDIDataChannelWriteLocal::NumName;
-#if WITH_EDITORONLY_DATA
 		Sig.Description = LOCTEXT("NumFunctionDescription", "Returns the current number of DataChannel accessible by this interface.");
-#endif
 		Sig.bMemberFunction = true;
 		Sig.bExperimental = true;
 		Sig.AddInput(FNiagaraVariable(FNiagaraTypeDefinition(GetClass()), TEXT("DataChannel interface")));
@@ -735,9 +734,7 @@ void UNiagaraDataInterfaceDataChannelWrite::GetFunctions(TArray<FNiagaraFunction
 	{
 		FNiagaraFunctionSignature Sig;
 		Sig.Name = NDIDataChannelWriteLocal::WriteName;
-#if WITH_EDITORONLY_DATA
 		Sig.Description = LOCTEXT("WriteFunctionDescription", "Writes DataChannel data at a specific index.  Values in the DataChannel that are not written here are set to their defaults. Returns success if an DataChannel was written to.");
-#endif
 		Sig.bMemberFunction = true;
 		Sig.bRequiresExecPin = true;
 		Sig.bExperimental = true;
@@ -751,9 +748,7 @@ void UNiagaraDataInterfaceDataChannelWrite::GetFunctions(TArray<FNiagaraFunction
 	{
 		FNiagaraFunctionSignature Sig;
 		Sig.Name = NDIDataChannelWriteLocal::AppendName;
-#if WITH_EDITORONLY_DATA
 		Sig.Description = LOCTEXT("AppendFunctionDescription", "Appends a new DataChannel to the end of the DataChannel array and writes the specified values. Values in the DataChannel that are not written here are set to their defaults. Returns success if an DataChannel was successfully pushed.");
-#endif
 		Sig.bMemberFunction = true;
 		Sig.bRequiresExecPin = true;
 		Sig.bExperimental = true;
@@ -764,6 +759,7 @@ void UNiagaraDataInterfaceDataChannelWrite::GetFunctions(TArray<FNiagaraFunction
 		OutFunctions.Add(Sig);
 	}
 }
+#endif
 
 void UNiagaraDataInterfaceDataChannelWrite::GetVMExternalFunction(const FVMExternalFunctionBindingInfo& BindingInfo, void* InstanceData, FVMExternalFunction& OutFunc)
 {
