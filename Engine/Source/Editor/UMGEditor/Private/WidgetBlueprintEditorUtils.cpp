@@ -450,7 +450,15 @@ void FWidgetBlueprintEditorUtils::CreateWidgetContextMenu(FMenuBuilder& MenuBuil
 			MenuBuilder.AddMenuEntry(FGenericCommands::Get().Paste);
 			MenuBuilder.AddMenuEntry(FGenericCommands::Get().Duplicate);
 			MenuBuilder.AddMenuEntry(FGenericCommands::Get().Delete);
-			MenuBuilder.AddMenuEntry(FGraphEditorCommands::Get().FindReferences);
+			
+			// Insert "Find References" sub-menu here
+			MenuBuilder.AddSubMenu(
+				LOCTEXT("FindReferences_Label", "Find References"),
+				LOCTEXT("FindReferences_Tooltip", "Options for finding references to class members"),
+				FNewMenuDelegate::CreateStatic(&FGraphEditorCommands::BuildFindReferencesMenu),
+				false,
+				FSlateIcon()
+			);
 		}
 		MenuBuilder.PopCommandList();
 

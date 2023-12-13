@@ -68,6 +68,8 @@ UBlueprintEditorSettings::UBlueprintEditorSettings(const FObjectInitializer& Obj
 	, bShowActionMenuItemSignatures(false)
 	// Perf Settings
 	, NodeTemplateCacheCapMB(20.f)
+	// Find-in-Blueprints Settings
+	, bAllowIndexAllBlueprints(true)
 	// No category
 	, bShowInheritedVariables(false)
 	, bAlwaysShowInterfacesInOverrides(true)

@@ -13,6 +13,7 @@
 #include "Engine/Blueprint.h"
 #include "EngineLogs.h"
 #include "EventEntryHandler.h"
+#include "FindInBlueprints.h"
 #include "GameFramework/Actor.h"
 #include "GraphEditorSettings.h"
 #include "HAL/PlatformCrt.h"
@@ -898,24 +899,27 @@ FSlateIcon UK2Node_Event::GetIconAndTint(FLinearColor& OutColor) const
 	return Icon;
 }
 
-FString UK2Node_Event::GetFindReferenceSearchString() const
+FString UK2Node_Event::GetFindReferenceSearchString_Impl(EGetFindReferenceSearchStringFlags InFlags) const
 {
-	// Behavior modeled after UK2Node_Event::GetNodeTitle but without "Event" prepended
-	if (bOverrideFunction || (CustomFunctionName == NAME_None))
+	// Resolve the function
+	if (const UFunction* Function = FFunctionFromNodeHelper::FunctionFromNode(this))
 	{
-		FString FunctionName = EventReference.GetMemberName().ToString(); // If we fail to find the function, still want to search for its expected name.
-
-		if (const UFunction* Function = EventReference.ResolveMember<UFunction>(GetBlueprintClassFromNode()))
+		// Attempt to construct an advanced search syntax query from the function
+		FString SearchTerm;
+		if (EnumHasAnyFlags(InFlags, EGetFindReferenceSearchStringFlags::UseSearchSyntax) && FindInBlueprintsHelpers::ConstructSearchTermFromFunction(Function, SearchTerm))
 		{
-			FunctionName = UEdGraphSchema_K2::GetFriendlySignatureName(Function).ToString();
+			return SearchTerm;
 		}
-
-		return FunctionName;
+		else
+		{
+			// Fallback behavior: function was found but failed to construct a search term from it
+			// Just search for the function's friendly name
+			return UEdGraphSchema_K2::GetFriendlySignatureName(Function).ToString();
+		}
 	}
-	else
-	{
-		return CustomFunctionName.ToString();
-	}
+	
+	// If we fail to find the function, still want to search for its expected name.
+	return EventReference.GetMemberName().ToString();
 }
 
 void UK2Node_Event::FindDiffs(UEdGraphNode* OtherNode, struct FDiffResults& Results)
@@ -959,6 +963,25 @@ bool UK2Node_Event::HasExternalDependencies(TArray<class UStruct*>* OptionalOutp
 
 	const bool bSuperResult = Super::HasExternalDependencies(OptionalOutput);
 	return bSuperResult || bResult;
+}
+
+void UK2Node_Event::AddSearchMetaDataInfo(TArray<FSearchTagDataPair>& OutTaggedMetaData) const
+{
+	Super::AddSearchMetaDataInfo(OutTaggedMetaData);
+
+	if (const UFunction* Function = FFunctionFromNodeHelper::FunctionFromNode(this))
+	{
+		// Index the native name of the function, this will be used in search queries rather than node title
+		const FString FunctionNativeName = Function->GetName();
+		OutTaggedMetaData.Add(FSearchTagDataPair(FFindInBlueprintSearchTags::FiB_NativeName, FText::FromString(FunctionNativeName)));
+
+		// Index the (ancestor) class or interface from which the function originates, can be self
+		if (const UClass* FuncOriginClass = FindInBlueprintsHelpers::GetFunctionOriginClass(Function))
+		{
+			const FString FuncOriginClassName = FuncOriginClass->GetPathName();
+			OutTaggedMetaData.Add(FSearchTagDataPair(FFindInBlueprintSearchTags::FiB_FuncOriginClass, FText::FromString(FuncOriginClassName)));
+		}
+	}
 }
 
 TSharedPtr<FEdGraphSchemaAction> UK2Node_Event::GetEventNodeAction(const FText& ActionCategory)

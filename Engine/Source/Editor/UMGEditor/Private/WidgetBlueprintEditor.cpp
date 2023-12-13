@@ -205,7 +205,23 @@ void FWidgetBlueprintEditor::InitWidgetBlueprintEditor(const EToolkitMode::Type 
 		);
 
 	DesignerCommandList->MapAction(FGraphEditorCommands::Get().FindReferences,
-		FExecuteAction::CreateSP(this, &FWidgetBlueprintEditor::OnFindWidgetReferences),
+		FExecuteAction::CreateSP(this, &FWidgetBlueprintEditor::OnFindWidgetReferences, false, EGetFindReferenceSearchStringFlags::UseSearchSyntax),
+		FCanExecuteAction::CreateSP(this, &FWidgetBlueprintEditor::CanFindWidgetReferences));
+	
+	DesignerCommandList->MapAction(FGraphEditorCommands::Get().FindReferencesByNameLocal,
+		FExecuteAction::CreateSP(this, &FWidgetBlueprintEditor::OnFindWidgetReferences, false, EGetFindReferenceSearchStringFlags::None),
+		FCanExecuteAction::CreateSP(this, &FWidgetBlueprintEditor::CanFindWidgetReferences));
+
+	DesignerCommandList->MapAction(FGraphEditorCommands::Get().FindReferencesByNameGlobal,
+		FExecuteAction::CreateSP(this, &FWidgetBlueprintEditor::OnFindWidgetReferences, true, EGetFindReferenceSearchStringFlags::None),
+		FCanExecuteAction::CreateSP(this, &FWidgetBlueprintEditor::CanFindWidgetReferences));
+	
+	DesignerCommandList->MapAction(FGraphEditorCommands::Get().FindReferencesByClassMemberLocal,
+		FExecuteAction::CreateSP(this, &FWidgetBlueprintEditor::OnFindWidgetReferences, false, EGetFindReferenceSearchStringFlags::UseSearchSyntax),
+		FCanExecuteAction::CreateSP(this, &FWidgetBlueprintEditor::CanFindWidgetReferences));
+	
+	DesignerCommandList->MapAction(FGraphEditorCommands::Get().FindReferencesByClassMemberGlobal,
+		FExecuteAction::CreateSP(this, &FWidgetBlueprintEditor::OnFindWidgetReferences, true, EGetFindReferenceSearchStringFlags::UseSearchSyntax),
 		FCanExecuteAction::CreateSP(this, &FWidgetBlueprintEditor::CanFindWidgetReferences));
 
 	TSharedPtr<class IToolkitHost> PinnedToolkitHost = ToolkitHost.Pin();
@@ -901,17 +917,19 @@ void FWidgetBlueprintEditor::DuplicateSelectedWidgets()
 	SelectWidgets(DuplicatedWidgetRefs, false);
 }
 
-void FWidgetBlueprintEditor::OnFindWidgetReferences()
+void FWidgetBlueprintEditor::OnFindWidgetReferences(bool bSearchAllBlueprints, const EGetFindReferenceSearchStringFlags Flags)
 {
 	FWidgetReference WidgetReference = *GetSelectedWidgets().CreateConstIterator();
 	const FString VariableName = WidgetReference.GetTemplate()->GetName();
 
 	FMemberReference MemberReference;
 	MemberReference.SetSelfMember(*VariableName);
-	const FString SearchTerm = MemberReference.GetReferenceSearchString(GetBlueprintObj()->SkeletonGeneratedClass);
+	const FString SearchTerm = EnumHasAnyFlags(Flags, EGetFindReferenceSearchStringFlags::UseSearchSyntax) ? MemberReference.GetReferenceSearchString(GetBlueprintObj()->SkeletonGeneratedClass) : FString::Printf(TEXT("\"%s\""), *VariableName);
 
 	SetCurrentMode(FWidgetBlueprintApplicationModes::GraphMode);
-	SummonSearchUI(true, SearchTerm);
+	
+	const bool bSetFindWithinBlueprint = !bSearchAllBlueprints;
+	SummonSearchUI(bSetFindWithinBlueprint, SearchTerm);
 }
 
 bool FWidgetBlueprintEditor::CanFindWidgetReferences() const

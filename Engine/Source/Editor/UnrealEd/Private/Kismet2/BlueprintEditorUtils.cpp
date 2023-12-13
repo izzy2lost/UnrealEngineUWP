@@ -5160,9 +5160,10 @@ void FBlueprintEditorUtils::ChangeMemberVariableType(UBlueprint* Blueprint, cons
 
 							if (FirstVariableNode)
 							{
-								const bool bSetFindWithinBlueprint = false;
-								const bool bSelectFirstResult = false;
-								BlueprintEditor->SummonSearchUI(bSetFindWithinBlueprint, FirstVariableNode->GetFindReferenceSearchString(), bSelectFirstResult);
+								constexpr bool bSetFindWithinBlueprint = false;
+								constexpr bool bSelectFirstResult = false;
+								constexpr EGetFindReferenceSearchStringFlags Flags = EGetFindReferenceSearchStringFlags::UseSearchSyntax;
+								BlueprintEditor->SummonSearchUI(bSetFindWithinBlueprint, FirstVariableNode->GetFindReferenceSearchString(Flags), bSelectFirstResult);
 							}
 						}
 					}
@@ -5673,9 +5674,10 @@ void FBlueprintEditorUtils::ChangeLocalVariableType(UBlueprint* InBlueprint, con
 
 					if (FirstVariableNode)
 					{
-						const bool bSetFindWithinBlueprint = true;
-						const bool bSelectFirstResult = false;
-						BlueprintEditor->SummonSearchUI(bSetFindWithinBlueprint, VariableNodes[0]->GetFindReferenceSearchString(), bSelectFirstResult);
+						constexpr bool bSetFindWithinBlueprint = true;
+						constexpr bool bSelectFirstResult = false;
+						constexpr EGetFindReferenceSearchStringFlags Flags = EGetFindReferenceSearchStringFlags::UseSearchSyntax;
+						BlueprintEditor->SummonSearchUI(bSetFindWithinBlueprint, VariableNodes[0]->GetFindReferenceSearchString(Flags), bSelectFirstResult);
 					}
 				}
 			}

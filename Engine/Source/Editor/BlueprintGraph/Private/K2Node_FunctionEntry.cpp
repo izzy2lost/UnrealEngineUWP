@@ -19,6 +19,8 @@
 #include "Engine/Blueprint.h"
 #include "Engine/MemberReference.h"
 #include "EngineLogs.h"
+#include "FindInBlueprintManager.h"
+#include "FindInBlueprints.h"
 #include "HAL/PlatformCrt.h"
 #include "Internationalization/Internationalization.h"
 #include "K2Node_CallFunction.h"
@@ -889,6 +891,25 @@ void UK2Node_FunctionEntry::PostPasteNode()
 	}
 
 	ReconstructNode();
+}
+
+void UK2Node_FunctionEntry::AddSearchMetaDataInfo(TArray<FSearchTagDataPair>& OutTaggedMetaData) const
+{
+	Super::AddSearchMetaDataInfo(OutTaggedMetaData);
+
+	if (const UFunction* Function = FFunctionFromNodeHelper::FunctionFromNode(this))
+	{
+		// Index the native name of the function, this will be used in search queries rather than node title
+		const FString FunctionNativeName = Function->GetName();
+		OutTaggedMetaData.Add(FSearchTagDataPair(FFindInBlueprintSearchTags::FiB_NativeName, FText::FromString(FunctionNativeName)));
+
+		// Index the (ancestor) class or interface from which the function originates, can be self
+		if (const UClass* FuncOriginClass = FindInBlueprintsHelpers::GetFunctionOriginClass(Function))
+		{
+			const FString FuncOriginClassName = FuncOriginClass->GetPathName();
+			OutTaggedMetaData.Add(FSearchTagDataPair(FFindInBlueprintSearchTags::FiB_FuncOriginClass, FText::FromString(FuncOriginClassName)));
+		}
+	}
 }
 
 int32 UK2Node_FunctionEntry::GetFunctionFlags() const
