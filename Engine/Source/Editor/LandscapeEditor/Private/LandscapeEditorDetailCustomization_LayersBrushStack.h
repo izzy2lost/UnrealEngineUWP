@@ -11,6 +11,7 @@
 #include "Widgets/DeclarativeSyntaxSupport.h"
 #include "Widgets/SWidget.h"
 #include "Widgets/Layout/SBorder.h"
+#include "LandscapeEditorDetailCustomization_Layers.h" // FLandscapeListElementDragDropOp
 #include "LandscapeEdMode.h"
 #include "IDetailCustomNodeBuilder.h"
 #include "IDetailCustomization.h"
@@ -92,4 +93,16 @@ protected:
 	FReply HandleDragDetected(const FGeometry& MyGeometry, const FPointerEvent& MouseEvent, int32 SlotIndex, SVerticalBox::FSlot* Slot);
 	TOptional<SDragAndDropVerticalBox::EItemDropZone> HandleCanAcceptDrop(const FDragDropEvent& DragDropEvent, SDragAndDropVerticalBox::EItemDropZone DropZone, SVerticalBox::FSlot* Slot);
 	FReply HandleAcceptDrop(FDragDropEvent const& DragDropEvent, SDragAndDropVerticalBox::EItemDropZone DropZone, int32 SlotIndex, SVerticalBox::FSlot* Slot);
+};
+
+class FLandscapeBrushDragDropOp : public FLandscapeListElementDragDropOp
+{
+public:
+	DRAG_DROP_OPERATOR_TYPE(FLandscapeBrushDragDropOp, FLandscapeListElementDragDropOp)
+
+	static TSharedRef<FLandscapeBrushDragDropOp> New(int32 InSlotIndexBeingDragged, 
+		SVerticalBox::FSlot* InSlotBeingDragged, TSharedPtr<SWidget> InWidgetToShow);
+
+public:
+	virtual ~FLandscapeBrushDragDropOp() {}
 };

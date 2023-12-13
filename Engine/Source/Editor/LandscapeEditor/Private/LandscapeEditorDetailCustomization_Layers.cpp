@@ -21,6 +21,7 @@
 #include "Widgets/Input/SMultiLineEditableTextBox.h"
 #include "EditorModeManager.h"
 #include "EditorModes.h"
+#include "LandscapeEditorDetailCustomization_LayersBrushStack.h" // FLandscapeBrushDragDropOp
 #include "LandscapeEditorModule.h"
 #include "LandscapeEditorObject.h"
 #include "Landscape.h"
@@ -915,22 +916,61 @@ FReply FLandscapeEditorCustomNodeBuilder_Layers::HandleAcceptDrop(FDragDropEvent
 {
 	TSharedPtr<FLandscapeListElementDragDropOp> DragDropOperation = DragDropEvent.GetOperationAs<FLandscapeListElementDragDropOp>();
 
-	if (DragDropOperation.IsValid())
+	if (!DragDropOperation.IsValid())
 	{
-		FEdModeLandscape* LandscapeEdMode = GetEditorMode();
-		ALandscape* Landscape = LandscapeEdMode ? LandscapeEdMode->GetLandscape() : nullptr;
-		if (Landscape)
+		return FReply::Unhandled();
+	}
+
+	FEdModeLandscape* LandscapeEdMode = GetEditorMode();
+	ALandscape* Landscape = LandscapeEdMode ? LandscapeEdMode->GetLandscape() : nullptr;
+	if (!Landscape)
+	{
+		return FReply::Unhandled();
+	}
+
+	// See if we're actually getting a drag from the blueprint brush list, rather than
+	// from the edit layer list
+	if (DragDropOperation->IsOfType<FLandscapeBrushDragDropOp>())
+	{
+		int32 StartingBrushIndex = DragDropOperation->SlotIndexBeingDragged;
+		int32 StartingLayerIndex = LandscapeEdMode->GetCurrentLayerIndex();
+		int32 DestinationLayerIndex = SlotIndexToLayerIndex(SlotIndex);
+
+		if (StartingLayerIndex == DestinationLayerIndex)
 		{
-			int32 StartingLayerIndex = SlotIndexToLayerIndex(DragDropOperation->SlotIndexBeingDragged);
-			int32 DestinationLayerIndex = SlotIndexToLayerIndex(SlotIndex);
-			const FScopedTransaction Transaction(LOCTEXT("Landscape_Layers_Reorder", "Reorder Layer"));
-			if (Landscape->ReorderLayer(StartingLayerIndex, DestinationLayerIndex))
-			{
-				LandscapeEdMode->SetCurrentLayer(DestinationLayerIndex);
-				LandscapeEdMode->RefreshDetailPanel();
-				return FReply::Handled();
-			}
+			// See comment further below about not returning Handled()
+			return FReply::Unhandled();
 		}
+
+		ALandscapeBlueprintBrushBase* Brush = Landscape->GetBrushForLayer(StartingLayerIndex, StartingBrushIndex);
+		if (!ensure(Brush))
+		{
+			return FReply::Unhandled();
+		}
+
+		const FScopedTransaction Transaction(LOCTEXT("Landscape_LayerBrushes_MoveLayers", "Move Brush to Layer"));
+		Landscape->RemoveBrushFromLayer(StartingLayerIndex, StartingBrushIndex);
+		Landscape->AddBrushToLayer(DestinationLayerIndex, Brush);
+
+		LandscapeEdMode->SetCurrentLayer(DestinationLayerIndex);
+		LandscapeEdMode->RefreshDetailPanel();
+
+		// HACK: We don't return FReply::Handled() here because otherwise, SDragAndDropVerticalBox::OnDrop
+		// will apply UI slot reordering after we return. Properly speaking, we should have a way to signal 
+		// that the operation was handled yet that it is not one that SDragAndDropVerticalBox should deal with.
+		// For now, however, just make sure to return Unhandled.
+		return FReply::Unhandled();
+	}
+
+	// This must be a drag from our own list.
+	int32 StartingLayerIndex = SlotIndexToLayerIndex(DragDropOperation->SlotIndexBeingDragged);
+	int32 DestinationLayerIndex = SlotIndexToLayerIndex(SlotIndex);
+	const FScopedTransaction Transaction(LOCTEXT("Landscape_Layers_Reorder", "Reorder Layer"));
+	if (Landscape->ReorderLayer(StartingLayerIndex, DestinationLayerIndex))
+	{
+		LandscapeEdMode->SetCurrentLayer(DestinationLayerIndex);
+		LandscapeEdMode->RefreshDetailPanel();
+		return FReply::Handled();
 	}
 
 	return FReply::Unhandled();
