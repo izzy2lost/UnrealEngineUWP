@@ -145,14 +145,14 @@ namespace uba
 		virtual void PrintSessionStats(Logger& logger);
 
 		virtual bool GetInitResponse(InitResponse& out, const InitMessage& msg);
-		virtual bool CreateFile(CreateFileResponse& out, const CreateFileMessage& msg, const tchar* virtualApplicationDir);
+		virtual bool CreateFile(CreateFileResponse& out, const CreateFileMessage& msg);
 		virtual bool CloseFile(CloseFileResponse& out, const CloseFileMessage& msg);
 		virtual bool DeleteFile(DeleteFileResponse& out, const DeleteFileMessage& msg);
 		virtual bool CopyFile(CopyFileResponse& out, const CopyFileMessage& msg);
 		virtual bool MoveFile(MoveFileResponse& out, const MoveFileMessage& msg);
 		virtual bool Chmod(ChmodResponse& out, const ChmodMessage& msg);
 		virtual bool CreateDirectory(CreateDirectoryResponse& out, const CreateDirectoryMessage& msg);
-		virtual bool GetFullFileName(GetFullFileNameResponse& out, const GetFullFileNameMessage& msg, const tchar* virtualApplicationDir);
+		virtual bool GetFullFileName(GetFullFileNameResponse& out, const GetFullFileNameMessage& msg);
 		virtual bool GetListDirectoryInfo(ListDirectoryResponse& out, tchar* dirName, const StringKey& dirKey);
 		virtual bool WriteFileToDisk(ProcessImpl& process, WrittenFile& file);
 		virtual bool AllocFailed(Process& process, const tchar* allocType, u32 error);

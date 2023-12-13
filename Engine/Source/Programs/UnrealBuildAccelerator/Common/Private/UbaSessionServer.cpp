@@ -1405,7 +1405,7 @@ namespace uba
 		return true;
 	}
 
-	bool SessionServer::CreateFile(CreateFileResponse& out, const CreateFileMessage& msg, const tchar* virtualApplicationDir)
+	bool SessionServer::CreateFile(CreateFileResponse& out, const CreateFileMessage& msg)
 	{
 		if ((msg.access & FileAccess_Write) == 0)
 		{
@@ -1426,7 +1426,7 @@ namespace uba
 				return true;
 			}
 		}
-		return Session::CreateFile(out, msg, virtualApplicationDir);
+		return Session::CreateFile(out, msg);
 	}
 
 	void SessionServer::FileEntryAdded(StringKey fileNameKey, u64 lastWritten, u64 size)

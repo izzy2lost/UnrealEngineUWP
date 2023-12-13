@@ -44,13 +44,13 @@ namespace uba
 		virtual bool PrepareProcess(const ProcessStartInfo& startInfo, bool isChild, StringBufferBase& outRealApplication, const tchar*& outRealWorkingDir) override;
 		virtual u64 GetMemoryMapAlignment(const tchar* fileName, u64 fileNameLen) const override;
 		virtual void* GetProcessEnvironmentVariables() override;
-		virtual bool CreateFile(CreateFileResponse& out, const CreateFileMessage& msg, const tchar* virtualApplicationDir) override;
+		virtual bool CreateFile(CreateFileResponse& out, const CreateFileMessage& msg) override;
 		virtual bool DeleteFile(DeleteFileResponse& out, const DeleteFileMessage& msg) override;
 		virtual bool CopyFile(CopyFileResponse& out, const CopyFileMessage& msg) override;
 		virtual bool MoveFile(MoveFileResponse& out, const MoveFileMessage& msg) override;
 		virtual bool Chmod(ChmodResponse& out, const ChmodMessage& msg) override;
 		virtual bool CreateDirectory(CreateDirectoryResponse& out, const CreateDirectoryMessage& msg) override;
-		virtual bool GetFullFileName(GetFullFileNameResponse& out, const GetFullFileNameMessage& msg, const tchar* virtualApplicationDir) override;
+		virtual bool GetFullFileName(GetFullFileNameResponse& out, const GetFullFileNameMessage& msg) override;
 		virtual bool GetListDirectoryInfo(ListDirectoryResponse& out, tchar* dirName, const StringKey& dirKey) override;
 		virtual bool WriteFileToDisk(ProcessImpl& process, WrittenFile& file) override;
 		virtual bool AllocFailed(Process& process, const tchar* allocType, u32 error) override;

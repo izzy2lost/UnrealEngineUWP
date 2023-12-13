@@ -504,7 +504,7 @@ namespace uba
 			SetLastError(ERROR_FILE_NOT_FOUND);
 			return false;
 	}
-		UBA_ASSERTF(false, TC("DeleteFileW error handling not implemented %s"), strerror(errno));
+		UBA_ASSERTF(false, TC("DeleteFileW failed on %s - Error handling not implemented (%s)"), fileName, strerror(errno));
 		return false;
 #endif
 	}

@@ -37,22 +37,6 @@ extern char **environ;
 
 namespace uba
 {
-	#if PLATFORM_WINDOWS
-	ReaderWriterLock g_envLock;
-	void* g_env;
-	#endif
-
-	TString GetDirectoryName(const TString& file)
-	{
-		size_t nameIndex = file.find_last_of('\\');
-		size_t lastSlash = file.find_last_of('/', nameIndex + 1);
-		if (lastSlash != -1)
-			nameIndex = lastSlash;
-		if (nameIndex == -1)
-			return TC("");
-		return file.substr(0, nameIndex);
-	}
-
 	void Process::AddRef()
 	{
 		++m_refCount;
@@ -129,21 +113,23 @@ namespace uba
 		m_startInfo.description = m_description.c_str();
 
 		m_virtualApplication = startInfo.application;
-		Replace(m_virtualApplication.data(), '/', PathSeparator);
+		FixPathSeparators(m_virtualApplication.data());
 		m_startInfo.application = m_virtualApplication.c_str();
 
 		m_arguments = startInfo.arguments;
 		m_startInfo.arguments = m_arguments.c_str();
 
 		m_virtualWorkingDir = startInfo.workingDir;
-		Replace(m_virtualWorkingDir.data(), '/', PathSeparator);
+		FixPathSeparators(m_virtualWorkingDir.data());
 		m_startInfo.workingDir = m_virtualWorkingDir.c_str();
 
 		m_logFile = startInfo.logFile;
-		Replace(m_logFile.data(), '/', PathSeparator);
+		FixPathSeparators(m_logFile.data());
 		m_startInfo.logFile = m_logFile.c_str();
 
-		m_virtualApplicationDir = GetDirectoryName(startInfo.application);
+		size_t nameIndex = m_virtualApplication.find_last_of(PathSeparator);
+		if (nameIndex != -1)
+			m_virtualApplicationDir = m_virtualApplication.substr(0, nameIndex);
 
 		m_realApplication = std::move(realApplication);
 		m_realWorkingDir = realWorkingDir;
@@ -481,7 +467,7 @@ namespace uba
 					msg.access = (FileAccess)reader.ReadByte();
 
 					CreateFileResponse response;
-					m_messageSuccess = m_session.CreateFile(response, msg, m_virtualApplicationDir.c_str()) && m_messageSuccess;
+					m_messageSuccess = m_session.CreateFile(response, msg) && m_messageSuccess;
 					writer.WriteString(response.fileName);
 					writer.WriteU64(response.size);
 					writer.WriteU32(response.closeId);
@@ -496,7 +482,7 @@ namespace uba
 					reader.ReadString(msg.fileName);
 					msg.fileNameKey = reader.ReadStringKey();
 					GetFullFileNameResponse response;
-					m_messageSuccess = m_session.GetFullFileName(response, msg, m_virtualApplicationDir.c_str()) && m_messageSuccess;
+					m_messageSuccess = m_session.GetFullFileName(response, msg) && m_messageSuccess;
 					writer.WriteString(response.fileName);
 					writer.WriteString(response.virtualFileName);
 					writer.WriteU32(response.mappedFileTableSize);
@@ -698,7 +684,7 @@ namespace uba
 					u32 lastError = reader.ReadU32();
 					if (!result)
 					{
-						m_session.m_logger.Logf(LogEntryType_Info, TC("DetourCreateProcessWithDllEx for child process failed - %s. %s (Working dir: %s)"), LastErrorToText(lastError).data, process.m_realApplication.c_str(), process.m_realWorkingDir);
+						m_session.m_logger.Logf(LogEntryType_Info, TC("Detoured process failed to start child process - %s. %s (Working dir: %s)"), LastErrorToText(lastError).data, process.m_realApplication.c_str(), process.m_realWorkingDir);
 						process.m_waitForParent.Set();
 						return true;
 					}
@@ -722,7 +708,6 @@ namespace uba
 					u64 nativeThreadHandle = reader.ReadU64();
 					process.m_nativeProcessHandle = (ProcHandle)nativeProcessHandle;
 					process.m_nativeProcessId = nativeProcessId;
-					//m_session.m_logger.Info("Got StartProcess with pid %u", nativeProcessId);
 #endif
 					process.m_waitForParent.Set();
 					return true;

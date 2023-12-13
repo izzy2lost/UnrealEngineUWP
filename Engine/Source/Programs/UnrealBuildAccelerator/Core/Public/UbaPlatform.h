@@ -98,6 +98,7 @@ namespace uba
 #if PLATFORM_WINDOWS
 	inline constexpr bool CaseInsensitiveFs = true;
 	inline constexpr tchar PathSeparator = '\\';
+	inline constexpr tchar NonPathSeparator = '/';
 	inline constexpr u32 MaxPath = 512;
 	inline DWORD ToLow(u64 v) { LARGE_INTEGER li; li.QuadPart = (LONGLONG)v; return li.LowPart; }
 	inline LONG ToHigh(u64 v) { LARGE_INTEGER li; li.QuadPart = (LONGLONG)v; return li.HighPart; }
@@ -115,6 +116,7 @@ namespace uba
 	#define TStrdup _wcsdup
 #else
 	inline constexpr tchar PathSeparator = '/';
+	inline constexpr tchar NonPathSeparator = '\\';
 	inline constexpr u32 MaxPath = 512;
 	#define TStrlen(s) u32(strlen(s))
 	#define TStrchr(a, b) strchr(a, b)

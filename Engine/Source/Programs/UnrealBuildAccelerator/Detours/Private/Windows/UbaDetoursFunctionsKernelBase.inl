@@ -2325,8 +2325,7 @@ HMODULE Shared_LoadLibrary(LPCWSTR lpLibFileName, HANDLE hFile, DWORD dwFlags)
 		return NULL;
 
 	StringBuffer<> path;
-	path.Append(lpLibFileName);
-	Replace(path.data, '/', PathSeparator);
+	path.Append(lpLibFileName).FixPathSeparators();
 
 	bool detourDll = path.EndsWith(L".exe") || path.EndsWith(L".dll");
 	if (detourDll && path.StartsWith(g_systemRoot.data))

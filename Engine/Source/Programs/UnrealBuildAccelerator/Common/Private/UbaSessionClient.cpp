@@ -316,13 +316,13 @@ namespace uba
 		return m_storage.CopyOrLink(casKey, out.data, fileAttributes);
 	}
 
-	bool SessionClient::CreateFile(CreateFileResponse& out, const CreateFileMessage& msg, const tchar* virtualApplicationDir)
+	bool SessionClient::CreateFile(CreateFileResponse& out, const CreateFileMessage& msg)
 	{
 		const StringBufferBase& fileName = msg.fileName;
 		StringKey fileNameKey = msg.fileNameKey;
 
 		if ((msg.access & FileAccess_Write) != 0)
-			return Session::CreateFile(out, msg, virtualApplicationDir);
+			return Session::CreateFile(out, msg);
 	
 		CasKey casKey;
 		if (!GetCasKeyForFile(casKey, msg.process.m_id, fileName, fileNameKey))
@@ -574,7 +574,7 @@ namespace uba
 		writeMsg.fileNameKey = msg.toKey;
 		writeMsg.access = FileAccess_Write;
 		CreateFileResponse writeOut;
-		if (!CreateFile(writeOut, writeMsg, nullptr))
+		if (!CreateFile(writeOut, writeMsg))
 			return false;
 
 		out.toName.Append(writeOut.fileName);
@@ -667,7 +667,7 @@ namespace uba
 		return true;
 	}
 
-	bool SessionClient::GetFullFileName(GetFullFileNameResponse& out, const GetFullFileNameMessage& msg, const tchar* virtualApplicationDir)
+	bool SessionClient::GetFullFileName(GetFullFileNameResponse& out, const GetFullFileNameMessage& msg)
 	{
 		ScopedWriteLock lock(m_nameToNameLookupLock);
 		auto insres = m_nameToNameLookup.try_emplace(msg.fileName.data);
@@ -683,7 +683,8 @@ namespace uba
 		}
 		rec.handled = true;
 
-		if (!EnsureBinaryFile(out.fileName, out.virtualFileName, msg.process.m_id, msg.fileName, msg.fileNameKey, virtualApplicationDir))
+		auto& dir = msg.process.m_virtualApplicationDir;
+		if (!EnsureBinaryFile(out.fileName, out.virtualFileName, msg.process.m_id, msg.fileName, msg.fileNameKey, dir.c_str()))
 			return false;
 
 		rec.name = out.fileName.data;

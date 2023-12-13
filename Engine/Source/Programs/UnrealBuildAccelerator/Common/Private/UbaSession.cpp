@@ -1616,7 +1616,7 @@ namespace uba
 		return m_environmentVariables.data();
 	}
 
-	bool Session::CreateFile(CreateFileResponse& out, const CreateFileMessage& msg, const tchar* virtualApplicationDir)
+	bool Session::CreateFile(CreateFileResponse& out, const CreateFileMessage& msg)
 	{
 		const StringBufferBase& fileName = msg.fileName;
 		const StringKey& fileNameKey = msg.fileNameKey;
@@ -1918,7 +1918,7 @@ namespace uba
 		return true;
 	}
 
-	bool Session::GetFullFileName(GetFullFileNameResponse& out, const GetFullFileNameMessage& msg, const tchar* virtualApplicationDir)
+	bool Session::GetFullFileName(GetFullFileNameResponse& out, const GetFullFileNameMessage& msg)
 	{
 		UBA_ASSERTF(false, TC("SHOULD NOT HAPPEN (only remote)"));
 		return false;

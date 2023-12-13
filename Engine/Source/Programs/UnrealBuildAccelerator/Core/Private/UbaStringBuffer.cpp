@@ -122,6 +122,11 @@ namespace uba
 		}
 	}
 
+	void FixPathSeparators(tchar* str)
+	{
+		Replace(str, NonPathSeparator, PathSeparator);
+	}
+
 	StringBufferBase& StringBufferBase::Append(const tchar* str)
 	{
 		return Append(str, u32(TStrlen(str)));
@@ -270,5 +275,66 @@ namespace uba
 		data[count++] = PathSeparator;
 		data[count] = 0;
 		return *this;
+	}
+
+	StringBufferBase& StringBufferBase::FixPathSeparators()
+	{
+		uba::FixPathSeparators(data);
+		return *this;
+	}
+
+	StringBufferBase& StringBufferBase::MakeLower()
+	{
+		for (tchar* it = data; *it; ++it)
+			*it = ToLower(*it);
+		return *this;
+	}
+
+	bool StringBufferBase::Parse(u64& out)
+	{
+		if (!count)
+			return false;
+
+		#if PLATFORM_WINDOWS
+		out = wcstoull(data, nullptr, 10);
+		#else
+		out = strtoull(data, nullptr, 10);
+		#endif
+		return out != 0 || Equals(TC("0"));
+	}
+
+	bool StringBufferBase::Parse(u32& out)
+	{
+		if (!count)
+			return false;
+		#if PLATFORM_WINDOWS
+		out = wcstoul(data, nullptr, 10);
+		#else
+		out = strtoul(data, nullptr, 10);
+		#endif
+		return out != 0 || Equals(TC("0"));
+	}
+
+	bool StringBufferBase::Parse(u16& out)
+	{
+		u32 temp;
+		if (!Parse(temp))
+			return false;
+		if (temp > 65535)
+			return false;
+		out = u16(temp);
+		return true;
+	}
+
+	bool StringBufferBase::Parse(float& out)
+	{
+		if (!count)
+			return false;
+		#if PLATFORM_WINDOWS
+		out = wcstof(data, nullptr);
+		#else
+		out = strtof(data, nullptr);
+		#endif
+		return out != 0 || Equals(TC("0"));
 	}
 }

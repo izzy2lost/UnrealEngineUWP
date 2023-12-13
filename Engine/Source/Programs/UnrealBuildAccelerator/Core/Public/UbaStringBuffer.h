@@ -12,6 +12,7 @@ namespace uba
 	bool Equals(const tchar* str1, const tchar* str2, bool ignoreCase = true);
 	bool Equals(const tchar* str1, const tchar* str2, u64 count, bool ignoreCase = true);
 	void Replace(tchar* str, tchar from, tchar to);
+	void FixPathSeparators(tchar* str);
 	inline void ToLower(tchar* str) { while (tchar c = *str) { if (c >= 'A' && c <= 'Z') *str = c - 'A' + 'a'; ++str; } }
 	inline tchar ToLower(tchar c) { return (c >= 'A' && c <= 'Z') ? (c - 'A' + 'a') : c;}
 	inline tchar ToUpper(tchar c) { return (c >= 'a' && c <= 'z') ? (c - 'a' + 'A') : c;}
@@ -52,61 +53,13 @@ namespace uba
 		inline StringBufferBase& Replace(tchar from, tchar to) { uba::Replace(data, from, to);  return *this; }
 
 		StringBufferBase& EnsureEndsWithSlash();
+		StringBufferBase& FixPathSeparators();
+		StringBufferBase& MakeLower();
 
-		StringBufferBase& MakeLower()
-		{
-			for (tchar* it = data; *it; ++it)
-				*it = ToLower(*it);
-			return *this;
-		}
-
-		bool Parse(u64& out)
-		{
-			if (!count)
-				return false;
-
-			#if PLATFORM_WINDOWS
-			out = wcstoull(data, nullptr, 10);
-			#else
-			out = strtoull(data, nullptr, 10);
-			#endif
-			return out != 0 || Equals(TC("0"));
-		}
-
-		bool Parse(u32& out)
-		{
-			if (!count)
-				return false;
-			#if PLATFORM_WINDOWS
-			out = wcstoul(data, nullptr, 10);
-			#else
-			out = strtoul(data, nullptr, 10);
-			#endif
-			return out != 0 || Equals(TC("0"));
-		}
-
-		bool Parse(u16& out)
-		{
-			u32 temp;
-			if (!Parse(temp))
-				return false;
-			if (temp > 65535)
-				return false;
-			out = u16(temp);
-			return true;
-		}
-
-		bool Parse(float& out)
-		{
-			if (!count)
-				return false;
-			#if PLATFORM_WINDOWS
-			out = wcstof(data, nullptr);
-			#else
-			out = strtof(data, nullptr);
-			#endif
-			return out != 0 || Equals(TC("0"));
-		}
+		bool Parse(u64& out);
+		bool Parse(u32& out);
+		bool Parse(u16& out);
+		bool Parse(float& out);
 
 		u32 count;
 		u32 capacity;
