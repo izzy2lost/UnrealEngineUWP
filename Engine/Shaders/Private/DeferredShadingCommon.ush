@@ -766,7 +766,7 @@ void MobileFetchGBuffer(in float2 UV, out half4 GBufferA, out half4 GBufferB, ou
 	GBufferD = VulkanSubpassFetch4();
 #endif
 	SceneDepth = ConvertFromDeviceZ(VulkanSubpassDepthFetch());
-#elif METAL_PROFILE
+#elif (METAL_PROFILE && !MAC)
 	GBufferA = SubpassFetchRGBA_1(); 
 	GBufferB = SubpassFetchRGBA_2(); 
 	GBufferC = SubpassFetchRGBA_3(); 
