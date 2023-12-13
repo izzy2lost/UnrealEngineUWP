@@ -269,14 +269,23 @@ struct FHarvestedRealm
 		return ExportNativeObjectDependencies;
 	}
 
-	bool NameExists(const FName& Name) const
+	bool NameExists(FNameEntryId ComparisonId) const
 	{
-		// Normally FName comparisons would be case insensitive and done using the comparisonIndex however 
-		// NamesReferencedFromExportData and NamesReferencedFromPackageHeader contain DisplayIndices and the passed in 'Name' 
-		// comes from memory (rather than disk) where we will not have case-sensitive descrepancies. Using the more restrictive 
-		// case-sensitive search in this case is valid and faster.
-		const FNameEntryId DisplayId = Name.GetDisplayIndex();
-		return NamesReferencedFromExportData.Find(DisplayId) || NamesReferencedFromPackageHeader.Find(DisplayId);
+		for (FNameEntryId DisplayId : NamesReferencedFromExportData)
+		{
+			if (FName::GetComparisonIdFromDisplayId(DisplayId) == ComparisonId)
+			{
+				return true;
+			}
+		}
+		for (FNameEntryId DisplayId : NamesReferencedFromPackageHeader)
+		{
+			if (FName::GetComparisonIdFromDisplayId(DisplayId) == ComparisonId)
+			{
+				return true;
+			}
+		}
+		return false;
 	}
 
 	FLinkerSave* GetLinker() const
@@ -868,9 +877,9 @@ public:
 		return GetHarvestedRealm().GetNativeObjectDependencies();
 	}
 
-	bool NameExists(const FName& Name) const
+	bool NameExists(FNameEntryId ComparisonId) const
 	{
-		return GetHarvestedRealm().NameExists(Name);
+		return GetHarvestedRealm().NameExists(ComparisonId);
 	}
 
 	const FCustomVersionContainer& GetCustomVersions() const

@@ -455,7 +455,7 @@ ESavePackageResult HarvestPackage(FSaveContext& SaveContext)
 	return ReturnSuccessOrCancel();
 }
 
-static const FName NAME_UniqueObjectNameForCooking = FName("UniqueObjectNameForCooking");
+static FNameEntryId NAME_UniqueObjectNameForCookingComparisonIndex = FName("UniqueObjectNameForCooking").GetComparisonIndex();
 
 ESavePackageResult ValidateRealms(FSaveContext& SaveContext)
 {
@@ -630,18 +630,16 @@ ESavePackageResult ValidateExports(FSaveContext& SaveContext)
 	}
 
 	// Cooking checks
-#if WITH_EDITOR && !UE_FNAME_OUTLINE_NUMBER
+#if WITH_EDITOR
 	if (GOutputCookingWarnings)
 	{
-		// check the name list for UniqueObjectNameForCooking cooking. Since check is a fast check for any NAME_UniqueObjectNameForCooking
-		// we can only perform this check when UE_FNAME_OUTLINE_NUMBER=0 as otherwise all prefixed names will have a unique ComparisonIndex
-		if (SaveContext.NameExists(NAME_UniqueObjectNameForCooking))
+		// check the name list for UniqueObjectNameForCooking cooking
+		if (SaveContext.NameExists(NAME_UniqueObjectNameForCookingComparisonIndex))
 		{
-			const FNameEntryId UniqueObjectNameForCookingComparisonId = NAME_UniqueObjectNameForCooking.GetComparisonIndex();
 			for (const FTaggedExport& Export : SaveContext.GetExports())
 			{
-				const FName NameInUse = Export.Obj->GetFName();
-				if (NameInUse.GetComparisonIndex() == UniqueObjectNameForCookingComparisonId)
+				FName NameInUse = Export.Obj->GetFName();
+				if (NameInUse.GetComparisonIndex() == NAME_UniqueObjectNameForCookingComparisonIndex)
 				{
 					UObject* Outer = Export.Obj->GetOuter();
 					UE_LOG(LogSavePackage, Warning, TEXT("Saving object into cooked package %s which was created at cook time, Object Name %s, Full Path %s, Class %s, Outer %s, Outer class %s"), SaveContext.GetFilename(), *NameInUse.ToString(), *Export.Obj->GetFullName(), *Export.Obj->GetClass()->GetName(), Outer ? *Outer->GetName() : TEXT("None"), Outer ? *Outer->GetClass()->GetName() : TEXT("None"));
@@ -814,13 +812,13 @@ ESavePackageResult ValidateImports(FSaveContext& SaveContext)
 	{
 		TObjectPtr<UPackage> ImportPackage = Import.GetPackage();
 		// All names should be properly harvested at this point
-		ensureAlwaysMsgf(SaveContext.NameExists(Import.GetFName())
+		ensureAlwaysMsgf(SaveContext.NameExists(Import.GetFName().GetComparisonIndex())
 			, TEXT("Missing import name %s while saving package %s. Did you rename an import during serialization?"), *Import->GetName(), *PackageName);
-		ensureAlwaysMsgf(SaveContext.NameExists(ImportPackage.GetFName())
+		ensureAlwaysMsgf(SaveContext.NameExists(ImportPackage.GetFName().GetComparisonIndex())
 			, TEXT("Missing import package name %s while saving package %s. Did you rename an import during serialization?"), *ImportPackage->GetName(), *PackageName);
-		ensureAlwaysMsgf(SaveContext.NameExists(Import.GetClass()->GetFName())
+		ensureAlwaysMsgf(SaveContext.NameExists(Import.GetClass()->GetFName().GetComparisonIndex())
 			, TEXT("Missing import class name %s while saving package %s"), *Import->GetClass()->GetName(), *PackageName);
-		ensureAlwaysMsgf(SaveContext.NameExists(Import.GetClass()->GetOuter()->GetFName())
+		ensureAlwaysMsgf(SaveContext.NameExists(Import.GetClass()->GetOuter()->GetFName().GetComparisonIndex())
 			, TEXT("Missing import class package name %s while saving package %s"), *Import.GetClass()->GetOuter()->GetName(), *PackageName);
 
 		// if the import is marked as a prestream package, we dont need to validate further
