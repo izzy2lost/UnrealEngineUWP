@@ -631,6 +631,11 @@ namespace UnrealBuildTool
 							arguments.Add("-Log");
 						}
 
+						if (OperatingSystem.IsMacOS())
+						{
+							arguments.Add("-populateCasFromXcode");
+						}
+
 						logger.LogInformation("Executing child process: {Executable} {Arguments}", executable, CommandLineArguments.Join(arguments));
 
 						ExecuteProcessFlags execFlags = _allowWine ? ExecuteProcessFlags.UseWine : ExecuteProcessFlags.None;
@@ -640,7 +645,7 @@ namespace UnrealBuildTool
 						string? line;
 						while ((line = await process.ReadLineAsync(cancellationToken)) != null)
 						{
-							if (shouldConnect)
+							if (shouldConnect && line.Contains("Listening on")) // This log entry means that the agent is ready for connections.
 							{
 								long totalMs = self.StartTime.ElapsedMilliseconds;
 								logger.LogInformation("Connecting to UbaAgent on {Ip}:{Port} (local agent port {AgentPort}) {Seconds}.{Milliseconds} seconds after assigned", 
