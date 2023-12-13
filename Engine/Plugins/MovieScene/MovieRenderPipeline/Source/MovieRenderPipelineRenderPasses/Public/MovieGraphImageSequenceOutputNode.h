@@ -228,6 +228,7 @@ private:
 	 * with the same resolution.
 	 */
 	void GetFilenameToRenderIDMappings(
+		const UMovieGraphImageSequenceOutputNode_MultiLayerEXR* InParentNode,
 		UMovieGraphPipeline* InPipeline, UE::MovieGraph::FMovieGraphOutputMergerFrame* InRawFrameData,
 		TMap<FString, TArray<FMovieGraphRenderDataIdentifier>>& OutFilenameToRenderIDs,
 		TMap<FString, FMovieGraphResolveArgs>& OutFilenameToResolveArgs) const;
@@ -237,6 +238,7 @@ private:
 	 * Use GetFilenameToRenderIDMappings() to guarantee that the filename respects EXR limitations.
 	 */
 	FString ResolveOutputFilename(
+		const UMovieGraphImageSequenceOutputNode_MultiLayerEXR* InParentNode,
 		const UMovieGraphPipeline* InPipeline, const int32 ResolutionIndex, const UE::MovieGraph::FMovieGraphOutputMergerFrame* InRawFrameData,
 		const FName& InBranchName, FMovieGraphResolveArgs& OutResolveArgs) const;
 };
