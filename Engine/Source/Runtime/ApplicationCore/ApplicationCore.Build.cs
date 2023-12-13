@@ -64,7 +64,7 @@ public class ApplicationCore : ModuleRules
 			);
 
 			// We need FreeType2 and GL for the Splash, but only in the Editor
-			if (Target.Type == TargetType.Editor)
+			if (Target.bCompileAgainstEditor)
 			{
 				AddEngineThirdPartyPrivateStaticDependencies(Target, "FreeType2");
 				AddEngineThirdPartyPrivateStaticDependencies(Target, "OpenGL");
