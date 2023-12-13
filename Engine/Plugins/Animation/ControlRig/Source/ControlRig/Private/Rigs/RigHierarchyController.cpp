@@ -2004,18 +2004,21 @@ bool URigHierarchyController::IsValid() const
 	return WeakHierarchy.IsValid(bPendingKillAcceptable);
 }
 
-FName URigHierarchyController::GetSafeNewName(const FName& InDesiredName, ERigElementType InElementType) const
+FName URigHierarchyController::GetSafeNewName(const FName& InDesiredName, ERigElementType InElementType, bool bAllowNameSpace) const
 {
 	FRigName Name(InDesiredName);
 
 	// remove potential namespaces from it
-	int32 Index = INDEX_NONE;
-	if(Name.GetName().FindLastChar(TEXT(':'), Index))
+	if(!bAllowNameSpace)
 	{
-		Name.SetName(Name.GetName().Mid(Index + 1));
+		int32 Index = INDEX_NONE;
+		if(Name.GetName().FindLastChar(TEXT(':'), Index))
+		{
+			Name.SetName(Name.GetName().Mid(Index + 1));
+		}
 	}
 	
-	return GetHierarchy()->GetSafeNewName(Name, InElementType).GetFName();
+	return GetHierarchy()->GetSafeNewName(Name, InElementType, bAllowNameSpace).GetFName();
 }
 
 int32 URigHierarchyController::AddElement(FRigBaseElement* InElementToAdd, FRigBaseElement* InFirstParent, bool bMaintainGlobalTransform, const FName& InDesiredName)

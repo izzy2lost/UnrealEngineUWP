@@ -1346,6 +1346,10 @@ bool URigHierarchy::IsNameAvailable(const FRigName& InPotentialNewName, ERigElem
 			bAllowNameSpaces = true;
 		}
 	}
+	else
+	{
+		bAllowNameSpaces = true;
+	}
 
 	FRigName SanitizedName = UnsanitizedName;
 	SanitizeName(SanitizedName, bAllowNameSpaces);
@@ -1422,12 +1426,13 @@ bool URigHierarchy::IsDisplayNameAvailable(const FRigElementKey& InParentElement
 	return true;
 }
 
-FRigName URigHierarchy::GetSafeNewName(const FRigName& InPotentialNewName, ERigElementType InType) const
+FRigName URigHierarchy::GetSafeNewName(const FRigName& InPotentialNewName, ERigElementType InType, bool bAllowNameSpace) const
 {
 	FRigName SanitizedName = InPotentialNewName;
-	SanitizeName(SanitizedName, true);
+	SanitizeName(SanitizedName, bAllowNameSpace);
 
-	if(ExecuteContext)
+	bAllowNameSpaceWhenSanitizingName = bAllowNameSpace;
+	if(!bAllowNameSpaceWhenSanitizingName && ExecuteContext)
 	{
 		const FControlRigExecuteContext& CRContext = ExecuteContext->GetPublicData<FControlRigExecuteContext>();
 		if(CRContext.IsRigModule())

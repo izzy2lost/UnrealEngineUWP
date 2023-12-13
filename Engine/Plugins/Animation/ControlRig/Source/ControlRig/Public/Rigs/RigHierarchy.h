@@ -1706,9 +1706,10 @@ public:
 	 * Returns a valid new name for a to-be-added element.
 	 * @param InPotentialNewName The name to be sanitized and adjusted for availability
 	 * @param InType The type of the to-be-added element
+	 * @param bAllowNameSpace If true the name will be allowed to contain namespaces
 	 * @return Returns the name to use for the to-be-added element.
 	 */
-	FRigName GetSafeNewName(const FRigName& InPotentialNewName, ERigElementType InType) const;
+	FRigName GetSafeNewName(const FRigName& InPotentialNewName, ERigElementType InType, bool bAllowNameSpace = false) const;
 
 	/**
 	 * Returns a valid new display name for a control
@@ -4718,7 +4719,6 @@ private:
 	void QueueNotification(ERigHierarchyNotification InNotification, const FRigBaseElement* InElement);
 	void SendQueuedNotifications();
 	void Reset_Impl(bool bResetElements);
-
 #if WITH_EDITOR
 	void ForEachListeningHierarchy(TFunctionRef<void(const FRigHierarchyListener&)> PerListeningHierarchyFunction);
 #endif

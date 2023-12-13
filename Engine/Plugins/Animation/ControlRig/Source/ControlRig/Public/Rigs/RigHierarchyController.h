@@ -651,9 +651,10 @@ private:
 	 * elements with the same short name (for example "MyModuleA:Control" and "MyModuleB:Control").
 	 * @param InDesiredName The name provided by the user
 	 * @param InElementType The kind of element we are about to create
+	 * @param bAllowNameSpace If true the name won't be changed for namespaces
 	 * @return The safe name of the element to create.
 	 */
-	FName GetSafeNewName(const FName& InDesiredName, ERigElementType InElementType) const;
+	FName GetSafeNewName(const FName& InDesiredName, ERigElementType InElementType, bool bAllowNameSpace = true) const;
 	
 	/**
 	 * Adds a new element to the hierarchy
