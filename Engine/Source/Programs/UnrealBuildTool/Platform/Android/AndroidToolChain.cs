@@ -930,7 +930,8 @@ namespace UnrealBuildTool
 			{
 				if (ComboName.Key != Arch)
 				{
-					if (Lib.EndsWith(ComboName.Value))
+					string ArchitectureName = ComboName.Key.ToString();
+					if (Lib.EndsWith(ComboName.Value) || Lib.EndsWith(ArchitectureName))
 					{
 						return true;
 					}
