@@ -36,9 +36,6 @@ uint bHasHoldout;
 Texture2D<float>	HairDOFDepthTexture;
 Texture2D<float4>	HairLightingSampleBuffer;
 
-uint TemporalLayerCount;
-Texture2D HairTemporalAccumulationTexture;
-
 float4 EvaluateVolumetric(float3 WorldPosition, float SceneDepth)
 {
 	const float3 CameraRelative_WorldPosition = WorldPosition - LWCHackToFloat(PrimaryView.WorldCameraOrigin);
@@ -89,15 +86,6 @@ void ComposeSamplePS(
 	
 	const float HairDeviceZ = HairStrands.HairOnlyDepthTexture.Load(PixelCoord).x;
 
-#if PERMUTATION_TEMPORAL == 1
-	OutColor.rgba = HairTemporalAccumulationTexture.Load(PixelCoord);
-
-	// Approximation: convert running temporal average layer coverage (alpha) to average haircount, multiply by number of layers to get haircount sum, then convert haircount sum to final coverage using equation: Coverage = saturate(min(1.0 - pow(2.71828, -HairCount/1000.0), 1.0) / 0.98);
-	float HairCountAverage = (log(1.0 - (OutColor.a * 0.98)) / log(2.71828))*-1000.0;
-	float HairCountSum = HairCountAverage*TemporalLayerCount;
-	OutColor.a = saturate(min(1.0 - pow(2.71828, -HairCountSum/1000.0), 1.0) / 0.98);
-
-#else // PERMUTATION_TEMPORAL
 	const FNodeDesc NodeDesc = DecodeNodeDesc(HairStrands.HairSampleOffset.Load(PixelCoord));
 	if (NodeDesc.Count == 0)
 	{
@@ -138,7 +126,6 @@ void ComposeSamplePS(
 	// If any sample support holdout, then the lighting contribution is set to 0, to mask out the current hair pixel
 	OutColor.rgb *= bHoldout ? 0 : PixelCoverage;
 	OutColor.a = PixelCoverage;
-#endif // PERMUTATION_TEMPORAL
 
 	OutDepth = HairDeviceZ;
 	if (bComposeDofDepth)
