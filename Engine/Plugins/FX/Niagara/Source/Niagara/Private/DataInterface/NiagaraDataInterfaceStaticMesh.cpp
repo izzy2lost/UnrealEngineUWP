@@ -3009,7 +3009,7 @@ void UNiagaraDataInterfaceStaticMesh::GetVMExternalFunction(const FVMExternalFun
 	}
 }
 
-bool UNiagaraDataInterfaceStaticMesh::RequiresDistanceFieldData() const
+bool UNiagaraDataInterfaceStaticMesh::RequiresEarlyViewData() const
 {
 	return GetDefault<UNiagaraSettings>()->NDIStaticMesh_AllowDistanceFields;
 }

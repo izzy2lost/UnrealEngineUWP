@@ -47,7 +47,7 @@ public:
 	NIAGARA_API virtual void GetFunctions(TArray<FNiagaraFunctionSignature>& OutFunctions) override;
 
 	virtual bool CanExecuteOnTarget(ENiagaraSimTarget Target) const override { return Target == ENiagaraSimTarget::GPUComputeSim; }
-	NIAGARA_API virtual bool RequiresDistanceFieldData() const override;
+	NIAGARA_API virtual bool RequiresGlobalDistanceField() const override;
 	NIAGARA_API virtual bool RequiresRayTracingScene() const override;
 
 #if WITH_EDITORONLY_DATA

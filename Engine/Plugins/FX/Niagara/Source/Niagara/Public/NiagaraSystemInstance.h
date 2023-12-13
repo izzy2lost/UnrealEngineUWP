@@ -162,7 +162,7 @@ public:
 	FORCEINLINE FNiagaraEmitterParameters& EditEmitterParameters(int32 EmitterIdx) { return EmitterParameters[EmitterIdx * 2 + GetParameterIndex()]; }
 	
 	NIAGARA_API FNiagaraWorldManager* GetWorldManager()const;
-	NIAGARA_API bool RequiresDistanceFieldData() const;
+	NIAGARA_API bool RequiresGlobalDistanceField() const;
 	NIAGARA_API bool RequiresDepthBuffer() const;
 	NIAGARA_API bool RequiresEarlyViewData() const;
 	NIAGARA_API bool RequiresViewUniformBuffer() const;

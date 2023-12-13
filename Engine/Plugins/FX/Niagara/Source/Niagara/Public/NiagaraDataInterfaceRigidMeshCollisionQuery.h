@@ -242,7 +242,7 @@ public:
 	virtual bool HasTickGroupPrereqs() const override { return true; }
 	virtual ETickingGroup CalculateTickGroup(const void* PerInstanceData) const override;
 
-	virtual bool RequiresDistanceFieldData() const override { return true; }
+	virtual bool RequiresEarlyViewData() const override { return true; }
 
 	/** GPU simulation  functionality */
 #if WITH_EDITORONLY_DATA

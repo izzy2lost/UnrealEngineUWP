@@ -327,9 +327,9 @@ void UNiagaraDataInterfaceAsyncGpuTrace::GetFunctions(TArray<FNiagaraFunctionSig
 	}
 }
 
-bool UNiagaraDataInterfaceAsyncGpuTrace::RequiresDistanceFieldData() const
+bool UNiagaraDataInterfaceAsyncGpuTrace::RequiresGlobalDistanceField() const
 {
-	return FNiagaraAsyncGpuTraceHelper::RequiresDistanceFieldData(TraceProvider);
+	return FNiagaraAsyncGpuTraceHelper::RequiresGlobalDistanceField(TraceProvider);
 }
 
 bool UNiagaraDataInterfaceAsyncGpuTrace::RequiresRayTracingScene() const

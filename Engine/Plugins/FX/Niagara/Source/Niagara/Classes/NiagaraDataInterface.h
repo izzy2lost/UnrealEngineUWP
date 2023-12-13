@@ -683,7 +683,15 @@ public:
 	*/
 	virtual bool PostStageCanOverlapTickGroups() const { return true; }
 
+	UE_DEPRECATED(5.4, "RequiresDistanceFieldData was renamed to RequiresGlobalDistanceField.")
 	virtual bool RequiresDistanceFieldData() const { return false; }
+
+	virtual bool RequiresGlobalDistanceField() const
+	{
+		PRAGMA_DISABLE_DEPRECATION_WARNINGS
+		return RequiresDistanceFieldData();
+		PRAGMA_ENABLE_DEPRECATION_WARNINGS
+	}
 	virtual bool RequiresDepthBuffer() const { return false; }
 	virtual bool RequiresEarlyViewData() const { return false; }
 	virtual bool RequiresRayTracingScene() const { return false; }

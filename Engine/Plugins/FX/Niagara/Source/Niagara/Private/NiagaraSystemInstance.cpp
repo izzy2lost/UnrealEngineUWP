@@ -1223,7 +1223,7 @@ FNiagaraWorldManager* FNiagaraSystemInstance::GetWorldManager() const
 	return FNiagaraWorldManager::Get(World);
 }
 
-bool FNiagaraSystemInstance::RequiresDistanceFieldData() const
+bool FNiagaraSystemInstance::RequiresGlobalDistanceField() const
 {
 	if (!bHasGPUEmitters)
 	{
@@ -1237,7 +1237,7 @@ bool FNiagaraSystemInstance::RequiresDistanceFieldData() const
 		{
 			for (UNiagaraDataInterface* DataInterface : GPUContext->CombinedParamStore.GetDataInterfaces())
 			{
-				if (DataInterface && DataInterface->RequiresDistanceFieldData())
+				if (DataInterface && DataInterface->RequiresGlobalDistanceField())
 				{
 					return true;
 				}

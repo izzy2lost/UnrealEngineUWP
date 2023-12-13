@@ -432,7 +432,7 @@ bool FNiagaraDebuggerClient::UpdateOutliner(float DeltaSeconds)
 					}
 					InstData.LWCTile = Inst->GetLWCTile();
 					InstData.bIsSolo = Inst->IsSolo();
-					InstData.bRequiresDistanceFieldData = Inst->RequiresDistanceFieldData();
+					InstData.bRequiresGlobalDistanceField = Inst->RequiresGlobalDistanceField();
 					InstData.bRequiresDepthBuffer = Inst->RequiresDepthBuffer();
 					InstData.bRequiresEarlyViewData = Inst->RequiresEarlyViewData();
 					InstData.bRequiresViewUniformBuffer = Inst->RequiresViewUniformBuffer();

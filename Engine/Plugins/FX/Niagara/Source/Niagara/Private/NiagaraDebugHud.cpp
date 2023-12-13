@@ -693,9 +693,9 @@ namespace NiagaraDebugLocal
 		if (Settings.SystemDebugVerbosity == ENiagaraDebugHudVerbosity::Verbose)
 		{
 			TStringBuilder<128> GpuFeaturesBuilder;
-			if (SystemInstance->RequiresDistanceFieldData())
+			if (SystemInstance->RequiresGlobalDistanceField())
 			{
-				GpuFeaturesBuilder.Append(TEXT(" DistanceFieldData"));
+				GpuFeaturesBuilder.Append(TEXT(" GlobalDistanceField"));
 			}
 			if (SystemInstance->RequiresDepthBuffer())
 			{

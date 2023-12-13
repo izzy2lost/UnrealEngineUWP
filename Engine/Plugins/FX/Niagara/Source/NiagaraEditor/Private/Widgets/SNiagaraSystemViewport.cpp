@@ -435,9 +435,9 @@ void FNiagaraSystemViewportClient::DrawGpuTickInformation(UNiagaraComponent* Com
 			Canvas->DrawShadowedString(CurrentX + 5.0f, CurrentY, TEXT("No GPU Emitters"), Font, FLinearColor::White);
 			CurrentY += FontHeight;
 		}
-		if (SystemInstance->RequiresDistanceFieldData())
+		if (SystemInstance->RequiresGlobalDistanceField())
 		{
-			Canvas->DrawShadowedString(CurrentX + 5.0f, CurrentY, TEXT("RequiresDistanceFieldData"), Font, FLinearColor::White);
+			Canvas->DrawShadowedString(CurrentX + 5.0f, CurrentY, TEXT("RequiresGlobalDistanceField"), Font, FLinearColor::White);
 			CurrentY += FontHeight;
 		}
 		if (SystemInstance->RequiresDepthBuffer())

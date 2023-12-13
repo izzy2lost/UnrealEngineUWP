@@ -55,7 +55,7 @@ public:
 	NIAGARA_API void PerformQueryAsyncCPU(FVectorVMExternalFunctionContext& Context);
 
 	virtual bool CanExecuteOnTarget(ENiagaraSimTarget Target) const override { return true; }
-	virtual bool RequiresDistanceFieldData() const override { return true; }
+	virtual bool RequiresGlobalDistanceField() const override { return true; }
 	virtual bool RequiresDepthBuffer() const override { return true; }
 
 #if WITH_EDITORONLY_DATA

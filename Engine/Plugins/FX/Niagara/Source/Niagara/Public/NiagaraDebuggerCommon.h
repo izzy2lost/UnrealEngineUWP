@@ -108,7 +108,7 @@ struct FNiagaraOutlinerSystemInstanceData
 	uint32 bIsSolo : 1;
 
 	UPROPERTY(VisibleAnywhere, Category = "Gpu")
-	uint32 bRequiresDistanceFieldData : 1;
+	uint32 bRequiresGlobalDistanceField : 1;
 
 	UPROPERTY(VisibleAnywhere, Category = "Gpu")
 	uint32 bRequiresDepthBuffer : 1;
@@ -128,7 +128,7 @@ struct FNiagaraOutlinerSystemInstanceData
 		, TickGroup(0)
 		, GpuTickStage(ENiagaraGpuComputeTickStage::First)
 		, bIsSolo(false)
-		, bRequiresDistanceFieldData(false)
+		, bRequiresGlobalDistanceField(false)
 		, bRequiresDepthBuffer(false)
 		, bRequiresEarlyViewData(false)
 		, bRequiresViewUniformBuffer(false)
