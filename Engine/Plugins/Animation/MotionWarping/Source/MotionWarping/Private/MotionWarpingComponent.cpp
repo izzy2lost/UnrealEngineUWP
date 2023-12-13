@@ -529,7 +529,7 @@ void UMotionWarpingComponent::AddOrUpdateWarpTargetFromTransform(FName WarpTarge
 	AddOrUpdateWarpTarget(FMotionWarpingTarget(WarpTargetName, TargetTransform));
 }
 
-void UMotionWarpingComponent::AddOrUpdateWarpTargetFromComponent(FName WarpTargetName, const USceneComponent* Component, FName BoneName, bool bFollowComponent)
+void UMotionWarpingComponent::AddOrUpdateWarpTargetFromComponent(FName WarpTargetName, const USceneComponent* Component, FName BoneName, bool bFollowComponent, FVector LocationOffset, FRotator RotationOffset)
 {
 	if (Component == nullptr)
 	{
@@ -537,7 +537,7 @@ void UMotionWarpingComponent::AddOrUpdateWarpTargetFromComponent(FName WarpTarge
 		return;
 	}
 
-	AddOrUpdateWarpTarget(FMotionWarpingTarget(WarpTargetName, Component, BoneName, bFollowComponent));
+	AddOrUpdateWarpTarget(FMotionWarpingTarget(WarpTargetName, Component, BoneName, bFollowComponent, LocationOffset, RotationOffset));
 }
 
 URootMotionModifier* UMotionWarpingComponent::AddModifierFromTemplate(URootMotionModifier* Template, const UAnimSequenceBase* Animation, float StartTime, float EndTime)
