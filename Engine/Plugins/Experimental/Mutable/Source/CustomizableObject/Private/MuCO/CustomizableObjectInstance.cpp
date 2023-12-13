@@ -2432,7 +2432,7 @@ int32 UCustomizableObjectInstance::FindProjectorParameterNameIndex(const FString
 
 void UCustomizableObjectInstance::SetRandomValues()
 {
-	Descriptor.SetRandomValues(FMath::Rand());
+	Descriptor.SetRandomValues();
 }
 
 void UCustomizableObjectInstance::SetRandomValuesFromStream(const FRandomStream& Stream)

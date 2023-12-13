@@ -292,8 +292,10 @@ struct CUSTOMIZABLEOBJECT_API FCustomizableObjectInstanceDescriptor
 	void SetCurrentState(const FString& StateName);
 
 	// ------------------------------------------------------------
+
+	void SetRandomValues();
 	
-	void SetRandomValues(const int32& InRandomizationSeed);
+	void SetRandomValues(int32 InRandomizationSeed);
 
 	void SetRandomValuesFromStream(const FRandomStream& Stream);
 
