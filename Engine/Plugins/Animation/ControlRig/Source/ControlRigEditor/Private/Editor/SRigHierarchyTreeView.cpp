@@ -41,6 +41,7 @@ FRigTreeElement::FRigTreeElement(const FRigElementKey& InKey, TWeakPtr<SRigHiera
 	bIsProcedural = false;
 	bSupportsRename = InSupportsRename;
 	FilterResult = InFilterResult;
+	bFadedOutDuringDragDrop = false;
 
 	if(InTreeView.IsValid())
 	{
@@ -103,6 +104,30 @@ void FRigTreeElement::RefreshDisplaySettings(const URigHierarchy* InHierarchy, c
 		(InHierarchy->IsProcedural(Key) ? FSlateColor(FLinearColor(0.9f, 0.8f, 0.4f) * 0.5f) : FSlateColor(FLinearColor::Gray * 0.5f));
 }
 
+FSlateColor FRigTreeElement::GetIconColor() const
+{
+	if(bFadedOutDuringDragDrop)
+	{
+		if(FSlateApplication::Get().IsDragDropping())
+		{
+			return IconColor.GetColor(FWidgetStyle()) * 0.3f;
+		}
+	}
+	return IconColor;
+}
+
+FSlateColor FRigTreeElement::GetTextColor() const
+{
+	if(bFadedOutDuringDragDrop)
+	{
+		if(FSlateApplication::Get().IsDragDropping())
+		{
+			return TextColor.GetColor(FWidgetStyle()) * 0.3f;
+		}
+	}
+	return TextColor;
+}
+
 //////////////////////////////////////////////////////////////
 /// SRigHierarchyItem
 ///////////////////////////////////////////////////////////
@@ -163,7 +188,7 @@ void SRigHierarchyItem::Construct(const FArguments& InArgs, const TSharedRef<STa
 				{
 					if(WeakRigTreeElement.IsValid())
 					{
-						return WeakRigTreeElement.Pin()->IconColor;
+						return WeakRigTreeElement.Pin()->GetIconColor();
 					}
 					return FSlateColor::UseForeground();
 				})
@@ -182,7 +207,7 @@ void SRigHierarchyItem::Construct(const FArguments& InArgs, const TSharedRef<STa
 				{
 					if(WeakRigTreeElement.IsValid())
 					{
-						return WeakRigTreeElement.Pin()->TextColor;
+						return WeakRigTreeElement.Pin()->GetTextColor();
 					}
 					return FSlateColor::UseForeground();
 				})
@@ -224,6 +249,14 @@ FText SRigHierarchyItem::GetName(bool bUseShortName) const
 
 FText SRigHierarchyItem::GetItemTooltip() const
 {
+	if(Delegates.OnRigTreeGetItemToolTip.IsBound())
+	{
+		const TOptional<FText> ToolTip = Delegates.OnRigTreeGetItemToolTip.Execute(WeakRigTreeElement.Pin()->Key);
+		if(ToolTip.IsSet())
+		{
+			return ToolTip.GetValue();
+		}
+	}
 	const FText FullName = GetName(false);
 	const FText ShortName = GetName(true);
 	if(FullName.EqualTo(ShortName))

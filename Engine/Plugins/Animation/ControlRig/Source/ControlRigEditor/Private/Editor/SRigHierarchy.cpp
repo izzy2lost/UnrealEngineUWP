@@ -158,6 +158,7 @@ void SRigHierarchy::Construct(const FArguments& InArgs, TSharedRef<FControlRigEd
 	Delegates.OnGetResolvedKey = FOnRigTreeGetResolvedKey::CreateSP(this, &SRigHierarchy::OnGetResolvedKey);
 	Delegates.OnRequestDetailsInspection = FOnRigTreeRequestDetailsInspection::CreateSP(this, &SRigHierarchy::OnRequestDetailsInspection);
 	Delegates.OnRigTreeElementKeyTagDragDetected = FOnRigTreeRequestDetailsInspection::CreateSP(this, &SRigHierarchy::OnElementKeyTagDragDetected);
+	Delegates.OnRigTreeGetItemToolTip = FOnRigTreeItemGetToolTip::CreateSP(this, &SRigHierarchy::OnGetItemTooltip);
 
 	ChildSlot
 	[
@@ -1151,6 +1152,28 @@ void SRigHierarchy::OnItemDoubleClicked(TSharedPtr<FRigTreeElement> InItem)
 void SRigHierarchy::OnSetExpansionRecursive(TSharedPtr<FRigTreeElement> InItem, bool bShouldBeExpanded)
 {
 	TreeView->SetExpansionRecursive(InItem, false, bShouldBeExpanded);
+}
+
+TOptional<FText> SRigHierarchy::OnGetItemTooltip(const FRigElementKey& InKey) const
+{
+	if(!DragRigResolveResults.IsEmpty() && FSlateApplication::Get().IsDragDropping())
+	{
+		FString Message;
+		for(const TPair<FRigElementKey, FModularRigResolveResult>& DragRigResolveResult : DragRigResolveResults)
+		{
+			if(DragRigResolveResult.Key != InKey)
+			{
+				if(!DragRigResolveResult.Value.ContainsMatch(InKey, &Message))
+				{
+					if(!Message.IsEmpty())
+					{
+						return FText::FromString(Message);
+					}
+				}
+			}
+		}
+	}
+	return TOptional<FText>();
 }
 
 void SRigHierarchy::CreateDragDropMenu()
@@ -2749,6 +2772,7 @@ FReply SRigHierarchy::OnAcceptDrop(const FDragDropEvent& DragDropEvent, EItemDro
 	bool bSummonDragDropMenu = DragDropEvent.GetModifierKeys().IsAltDown() && DragDropEvent.GetModifierKeys().IsShiftDown(); 
 	bool bMatchTransforms = DragDropEvent.GetModifierKeys().IsAltDown();
 	bool bReparentItems = !bMatchTransforms;
+	UpdateConnectorMatchesOnDrag({});
 
 	TSharedPtr<FRigElementHierarchyDragDropOp> RigDragDropOp = DragDropEvent.GetOperationAs<FRigElementHierarchyDragDropOp>();
 	if (RigDragDropOp.IsValid())
@@ -2880,31 +2904,52 @@ void SRigHierarchy::OnElementKeyTagDragDetected(const FRigElementKey& InDraggedT
 void SRigHierarchy::UpdateConnectorMatchesOnDrag(const TArray<FRigElementKey>& InDraggedKeys)
 {
 	DragRigResolveResults.Reset();
+
+	// fade in all items
+	for(const TPair<FRigElementKey, TSharedPtr<FRigTreeElement>>& Pair : TreeView->ElementMap)
+	{
+		Pair.Value->bFadedOutDuringDragDrop = false;
+	}
+	
 	if(ControlRigBeingDebuggedPtr.IsValid())
 	{
-		const UModularRig* ControlRig = Cast<UModularRig>(ControlRigBeingDebuggedPtr.Get());
-		if(URigHierarchy* Hierarchy = ControlRig->GetHierarchy())
+		if(const UModularRig* ControlRig = Cast<UModularRig>(ControlRigBeingDebuggedPtr.Get()))
 		{
-			if(const UModularRigRuleManager* RuleManager = Hierarchy->GetRuleManager())
+			if(URigHierarchy* Hierarchy = ControlRig->GetHierarchy())
 			{
-				for(const FRigElementKey& DraggedElement : InDraggedKeys)
+				if(const UModularRigRuleManager* RuleManager = Hierarchy->GetRuleManager())
 				{
-					if(DraggedElement.Type == ERigElementType::Connector)
+					for(const FRigElementKey& DraggedElement : InDraggedKeys)
 					{
-						if(const FRigConnectorElement* Connector = Hierarchy->Find<FRigConnectorElement>(DraggedElement))
+						if(DraggedElement.Type == ERigElementType::Connector)
 						{
-							const FName NameSpace = Hierarchy->GetNameMetadata(Connector->GetKey(), URigHierarchy::NameSpaceMetadataName, NAME_None);
-							if(!NameSpace.IsNone())
+							if(const FRigConnectorElement* Connector = Hierarchy->Find<FRigConnectorElement>(DraggedElement))
 							{
-								if(const FRigModuleInstance* Module = ControlRig->FindModule(NameSpace.ToString()))
+								const FName NameSpace = Hierarchy->GetNameMetadata(Connector->GetKey(), URigHierarchy::NameSpaceMetadataName, NAME_None);
+								if(!NameSpace.IsNone())
 								{
-									const FModularRigResolveResult ResolveResult = RuleManager->FindMatches(Connector, Module, ControlRig->ElementKeyRedirector); 
-									DragRigResolveResults.Add(DraggedElement, ResolveResult);
+									if(const FRigModuleInstance* Module = ControlRig->FindModule(NameSpace.ToString()))
+									{
+										const FModularRigResolveResult ResolveResult = RuleManager->FindMatches(Connector, Module, ControlRig->ElementKeyRedirector); 
+										DragRigResolveResults.Add(DraggedElement, ResolveResult);
+									}
 								}
 							}
 						}
 					}
 				}
+			}
+		}
+	}
+
+	// fade out anything that's on an excluded list
+	for(const TPair<FRigElementKey, FModularRigResolveResult>& Pair: DragRigResolveResults)
+	{
+		for(const FRigElementResolveResult& ExcludedElement : Pair.Value.GetExcluded())
+		{
+			if(const TSharedPtr<FRigTreeElement>* TreeElementPtr = TreeView->ElementMap.Find(ExcludedElement.GetKey()))
+			{
+				TreeElementPtr->Get()->bFadedOutDuringDragDrop = true;
 			}
 		}
 	}

@@ -144,6 +144,7 @@ private:
 	void OnItemClicked(TSharedPtr<FRigTreeElement> InItem);
 	void OnItemDoubleClicked(TSharedPtr<FRigTreeElement> InItem);
 	void OnSetExpansionRecursive(TSharedPtr<FRigTreeElement> InItem, bool bShouldBeExpanded);
+	TOptional<FText> OnGetItemTooltip(const FRigElementKey& InKey) const;
 
 	// FEditorUndoClient
 	virtual void PostUndo(bool bSuccess) override;

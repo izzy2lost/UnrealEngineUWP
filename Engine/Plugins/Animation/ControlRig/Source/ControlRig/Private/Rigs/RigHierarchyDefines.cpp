@@ -417,7 +417,6 @@ bool FModularRigResolveResult::ContainsMatch(const FRigElementKey& InKey, FStrin
 		}))
 		{
 			*OutErrorMessage = Mismatch->GetMessage().ToString();
-			return true;
 		}
 	}
 	

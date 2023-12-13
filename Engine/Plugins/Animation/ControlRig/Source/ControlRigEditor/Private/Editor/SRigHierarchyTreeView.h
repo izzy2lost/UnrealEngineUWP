@@ -74,6 +74,7 @@ DECLARE_DELEGATE_RetVal_ThreeParams(bool, FOnRigTreeVerifyElementNameChanged, co
 DECLARE_DELEGATE_RetVal_TwoParams(bool, FOnRigTreeCompareKeys, const FRigElementKey& /*A*/, const FRigElementKey& /*B*/);
 DECLARE_DELEGATE_RetVal_OneParam(FRigElementKey, FOnRigTreeGetResolvedKey, const FRigElementKey&);
 DECLARE_DELEGATE_OneParam(FOnRigTreeRequestDetailsInspection, const FRigElementKey&);
+DECLARE_DELEGATE_RetVal_OneParam(TOptional<FText>, FOnRigTreeItemGetToolTip, const FRigElementKey&);
 
 typedef STableRow<TSharedPtr<FRigTreeElement>>::FOnCanAcceptDrop FOnRigTreeCanAcceptDrop;
 typedef STableRow<TSharedPtr<FRigTreeElement>>::FOnAcceptDrop FOnRigTreeAcceptDrop;
@@ -100,6 +101,7 @@ struct CONTROLRIGEDITOR_API FRigTreeDelegates
 	FOnRigTreeGetResolvedKey OnGetResolvedKey;
 	FOnRigTreeRequestDetailsInspection OnRequestDetailsInspection;
 	FOnRigTreeElementKeyTagDragDetected OnRigTreeElementKeyTagDragDetected;
+	FOnRigTreeItemGetToolTip OnRigTreeGetItemToolTip;
 
 	FRigTreeDelegates()
 	{
@@ -212,6 +214,9 @@ public:
 
 	void RefreshDisplaySettings(const URigHierarchy* InHierarchy, const FRigTreeDisplaySettings& InSettings);
 
+	FSlateColor GetIconColor() const;
+	FSlateColor GetTextColor() const;
+
 	/** Delegate for when the context menu requests a rename */
 	DECLARE_DELEGATE(FOnRenameRequested);
 	FOnRenameRequested OnRenameRequested;
@@ -227,6 +232,9 @@ public:
 
 	/** The color to use when rendering the label text */
 	FSlateColor TextColor;
+
+	/** If true the item is filtered out during a drag */
+	bool bFadedOutDuringDragDrop;
 
 	/** The tag arguments for this element */
 	TArray<SRigHierarchyTagWidget::FArguments> Tags;
