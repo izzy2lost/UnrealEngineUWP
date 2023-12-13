@@ -393,7 +393,7 @@ FLumenMinimalRayResult TraceLumenMinimalRay(
 		const float AvoidSelfIntersectionsDistance = max(LumenHardwareRayTracingUniformBuffer.SkipTwoSidedHitDistance, LumenHardwareRayTracingUniformBuffer.SkipBackFaceHitDistance);
 		if (Ray.TMin < AvoidSelfIntersectionsDistance)
 		{
-			RayFlags = RAY_FLAG_FORCE_NON_OPAQUE;
+			RayFlags |= RAY_FLAG_FORCE_NON_OPAQUE;
 		}
 	}
 	#endif
