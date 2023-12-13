@@ -17,7 +17,7 @@ FString UNNERuntimeIREERdg::GetRuntimeName() const
 	return TEXT("NNERuntimeIREERdg");
 }
 
-bool UNNERuntimeIREERdg::CanCreateModelData(FString FileType, TConstArrayView<uint8> FileData, FGuid FileId, const ITargetPlatform* TargetPlatform) const
+bool UNNERuntimeIREERdg::CanCreateModelData(const FString& FileType, TConstArrayView<uint8> FileData, const TMap<FString, TConstArrayView<uint8>>& AdditionalFileData, const FGuid& FileId, const ITargetPlatform* TargetPlatform) const
 {
 #if WITH_EDITOR
 	return	FileType.Compare(TEXT("mlir"), ESearchCase::IgnoreCase) == 0;
@@ -26,12 +26,12 @@ bool UNNERuntimeIREERdg::CanCreateModelData(FString FileType, TConstArrayView<ui
 #endif // WITH_EDITOR
 }
 
-TSharedPtr<UE::NNE::FSharedModelData> UNNERuntimeIREERdg::CreateModelData(FString FileType, TConstArrayView<uint8> FileData, FGuid FileId, const ITargetPlatform* TargetPlatform)
+TSharedPtr<UE::NNE::FSharedModelData> UNNERuntimeIREERdg::CreateModelData(const FString& FileType, TConstArrayView<uint8> FileData, const TMap<FString, TConstArrayView<uint8>>& AdditionalFileData, const FGuid& FileId, const ITargetPlatform* TargetPlatform)
 {
 	return TSharedPtr<UE::NNE::FSharedModelData>();
 }
 
-FString UNNERuntimeIREERdg::GetModelDataIdentifier(FString FileType, TConstArrayView<uint8> FileData, FGuid FileId, const ITargetPlatform* TargetPlatform)
+FString UNNERuntimeIREERdg::GetModelDataIdentifier(const FString& FileType, TConstArrayView<uint8> FileData, const TMap<FString, TConstArrayView<uint8>>& AdditionalFileData, const FGuid& FileId, const ITargetPlatform* TargetPlatform) const
 {
 	FString PlatformName = TargetPlatform ? TargetPlatform->IniPlatformName() : UGameplayStatics::GetPlatformName();
 	return GetRuntimeName() + "-" + GUID.ToString(EGuidFormats::Digits) + "-" + FString::FromInt(UNNERuntimeIREERdg::Version) + "-" + FileId.ToString(EGuidFormats::Digits) + "-" + PlatformName;
@@ -96,9 +96,9 @@ bool UNNERuntimeIREERdg::IsAvailable() const
 
 FString UNNERuntimeIREERdg::GetRuntimeName() const { return TEXT(""); }
 
-bool UNNERuntimeIREERdg::CanCreateModelData(FString FileType, TConstArrayView<uint8> FileData, FGuid FileId, const ITargetPlatform* TargetPlatform) const { return false; };
-TSharedPtr<UE::NNE::FSharedModelData> UNNERuntimeIREERdg::CreateModelData(FString FileType, TConstArrayView<uint8> FileData, FGuid FileId, const ITargetPlatform* TargetPlatform) { return TSharedPtr<UE::NNE::FSharedModelData>(); };
-FString UNNERuntimeIREERdg::GetModelDataIdentifier(FString FileType, TConstArrayView<uint8> FileData, FGuid FileId, const ITargetPlatform* TargetPlatform) { return ""; };
+bool UNNERuntimeIREERdg::CanCreateModelData(const FString& FileType, TConstArrayView<uint8> FileData, const TMap<FString, TConstArrayView<uint8>>& AdditionalFileData, const FGuid& FileId, const ITargetPlatform* TargetPlatform) const { return false; };
+TSharedPtr<UE::NNE::FSharedModelData> UNNERuntimeIREERdg::CreateModelData(const FString& FileType, TConstArrayView<uint8> FileData, const TMap<FString, TConstArrayView<uint8>>& AdditionalFileData, const FGuid& FileId, const ITargetPlatform* TargetPlatform) { return TSharedPtr<UE::NNE::FSharedModelData>(); };
+FString UNNERuntimeIREERdg::GetModelDataIdentifier(const FString& FileType, TConstArrayView<uint8> FileData, const TMap<FString, TConstArrayView<uint8>>& AdditionalFileData, const FGuid& FileId, const ITargetPlatform* TargetPlatform) const { return ""; };
 
 bool UNNERuntimeIREERdg::CanCreateModelRDG(TObjectPtr<UNNEModelData> ModelData) const { return false; };
 TSharedPtr<UE::NNE::IModelRDG> UNNERuntimeIREERdg::CreateModelRDG(TObjectPtr<UNNEModelData> ModelData) { return TSharedPtr<UE::NNE::IModelRDG>(); };

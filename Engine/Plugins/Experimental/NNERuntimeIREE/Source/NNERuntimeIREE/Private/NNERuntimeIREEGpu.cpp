@@ -30,7 +30,7 @@ FString UNNERuntimeIREEVulkan::GetRuntimeName() const
 	return TEXT("NNERuntimeIREEVulkan");
 }
 
-bool UNNERuntimeIREEGpu::CanCreateModelData(FString FileType, TConstArrayView<uint8> FileData, FGuid FileId, const ITargetPlatform* TargetPlatform) const
+bool UNNERuntimeIREEGpu::CanCreateModelData(const FString& FileType, TConstArrayView<uint8> FileData, const TMap<FString, TConstArrayView<uint8>>& AdditionalFileData, const FGuid& FileId, const ITargetPlatform* TargetPlatform) const
 {
 #if WITH_EDITOR
 	return	FileType.Compare(TEXT("mlir"), ESearchCase::IgnoreCase) == 0;
@@ -39,12 +39,12 @@ bool UNNERuntimeIREEGpu::CanCreateModelData(FString FileType, TConstArrayView<ui
 #endif // WITH_EDITOR
 }
 
-TSharedPtr<UE::NNE::FSharedModelData> UNNERuntimeIREEGpu::CreateModelData(FString FileType, TConstArrayView<uint8> FileData, FGuid FileId, const ITargetPlatform* TargetPlatform)
+TSharedPtr<UE::NNE::FSharedModelData> UNNERuntimeIREEGpu::CreateModelData(const FString& FileType, TConstArrayView<uint8> FileData, const TMap<FString, TConstArrayView<uint8>>& AdditionalFileData, const FGuid& FileId, const ITargetPlatform* TargetPlatform)
 {
 	return TSharedPtr<UE::NNE::FSharedModelData>();
 }
 
-FString UNNERuntimeIREEGpu::GetModelDataIdentifier(FString FileType, TConstArrayView<uint8> FileData, FGuid FileId, const ITargetPlatform* TargetPlatform)
+FString UNNERuntimeIREEGpu::GetModelDataIdentifier(const FString& FileType, TConstArrayView<uint8> FileData, const TMap<FString, TConstArrayView<uint8>>& AdditionalFileData, const FGuid& FileId, const ITargetPlatform* TargetPlatform) const
 {
 	FString PlatformName = TargetPlatform ? TargetPlatform->IniPlatformName() : UGameplayStatics::GetPlatformName();
 	return GetRuntimeName() + "-" + GetGUID().ToString(EGuidFormats::Digits) + "-" + FString::FromInt(GetVersion()) + "-" + FileId.ToString(EGuidFormats::Digits) + "-" + PlatformName;
@@ -153,9 +153,9 @@ FString UNNERuntimeIREEGpu::GetRuntimeName() const { return TEXT(""); }
 FString UNNERuntimeIREECuda::GetRuntimeName() const { return TEXT(""); }
 FString UNNERuntimeIREEVulkan::GetRuntimeName() const { return TEXT(""); }
 
-bool UNNERuntimeIREEGpu::CanCreateModelData(FString FileType, TConstArrayView<uint8> FileData, FGuid FileId, const ITargetPlatform* TargetPlatform) const { return false; };
-TSharedPtr<UE::NNE::FSharedModelData> UNNERuntimeIREEGpu::CreateModelData(FString FileType, TConstArrayView<uint8> FileData, FGuid FileId, const ITargetPlatform* TargetPlatform) { return TSharedPtr<UE::NNE::FSharedModelData>(); };
-FString UNNERuntimeIREEGpu::GetModelDataIdentifier(FString FileType, TConstArrayView<uint8> FileData, FGuid FileId, const ITargetPlatform* TargetPlatform) { return ""; };
+bool UNNERuntimeIREEGpu::CanCreateModelData(const FString& FileType, TConstArrayView<uint8> FileData, const TMap<FString, TConstArrayView<uint8>>& AdditionalFileData, const FGuid& FileId, const ITargetPlatform* TargetPlatform) const { return false; };
+TSharedPtr<UE::NNE::FSharedModelData> UNNERuntimeIREEGpu::CreateModelData(const FString& FileType, TConstArrayView<uint8> FileData, const TMap<FString, TConstArrayView<uint8>>& AdditionalFileData, const FGuid& FileId, const ITargetPlatform* TargetPlatform) { return TSharedPtr<UE::NNE::FSharedModelData>(); };
+FString UNNERuntimeIREEGpu::GetModelDataIdentifier(const FString& FileType, TConstArrayView<uint8> FileData, const TMap<FString, TConstArrayView<uint8>>& AdditionalFileData, const FGuid& FileId, const ITargetPlatform* TargetPlatform) const { return ""; };
 
 bool UNNERuntimeIREEGpu::CanCreateModelGPU(TObjectPtr<UNNEModelData> ModelData) const { return false; };
 TSharedPtr<UE::NNE::IModelGPU> UNNERuntimeIREEGpu::CreateModelGPU(TObjectPtr<UNNEModelData> ModelData) { return TSharedPtr<UE::NNE::IModelGPU>(); };

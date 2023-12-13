@@ -27,6 +27,7 @@ namespace UE::NNE::ModelData
 		V0 = 0, // Initial
 		V1 = 1, // TargetRuntimes and AssetImportData
 		V2 = 2, // Re-arrange fields and store only ModelData in cooked assets
+		V3 = 3, // Adding AdditionalFileData
 		// New versions can be added above this line
 		VersionPlusOne,
 		Latest = VersionPlusOne - 1
@@ -130,14 +131,14 @@ namespace UE::NNE::ModelData
 
 #endif // WITH_EDITOR
 
-	inline TSharedPtr<UE::NNE::FSharedModelData> CreateModelData(const FString& RuntimeName, FString FileType, const TArray<uint8>& FileData, FGuid FileId, const ITargetPlatform* TargetPlatform)
+	inline TSharedPtr<UE::NNE::FSharedModelData> CreateModelData(const FString& RuntimeName, const FString& FileType, const TArray<uint8>& FileData, const TMap<FString, TConstArrayView<uint8>>& AdditionalFileData, const FGuid& FileId, const ITargetPlatform* TargetPlatform)
 	{
 		TWeakInterfacePtr<INNERuntime> NNERuntime = UE::NNE::GetRuntime<INNERuntime>(RuntimeName);
 		if (NNERuntime.IsValid())
 		{
-			if (NNERuntime->CanCreateModelData(FileType, FileData, FileId, TargetPlatform))
+			if (NNERuntime->CanCreateModelData(FileType, FileData, AdditionalFileData, FileId, TargetPlatform))
 			{
-				return NNERuntime->CreateModelData(FileType, FileData, FileId, TargetPlatform);
+				return NNERuntime->CreateModelData(FileType, FileData, AdditionalFileData, FileId, TargetPlatform);
 			}
 		}
 		else
@@ -218,13 +219,15 @@ void UNNEModelData::Serialize(FArchive& Ar)
 		bool bWriteModelData = true;
 		if (Ar.IsCooking())
 		{
-			// Optimize storage: FileData is not required anymore because we have the model and can cook it for every runtime
+			// Optimize storage: FileData and AdditionalFileData are not required anymore because we have the model and can cook it for every runtime
 			TArray<FString> TmpTargetRuntimes;
 			Ar << TmpTargetRuntimes;
 			FString TmpFileType;
 			Ar << TmpFileType;
 			TArray<uint8> TmpFileData;
 			Ar << TmpFileData;
+			int32 NumAdditionalFileDataItems = 0;
+			Ar << NumAdditionalFileDataItems;
 			Ar << FileId;
 
 			// Cooking must recreate all model data but only if file data is still available
@@ -246,6 +249,14 @@ void UNNEModelData::Serialize(FArchive& Ar)
 					CookRuntimeNames.Append(GetTargetRuntimes());
 				}
 
+				TMap<FString, TConstArrayView<uint8>> AdditionalFileDataView;
+				TSet<FString> Keys;
+				AdditionalFileData.GetKeys(Keys);
+				for (auto& Key : Keys)
+				{
+					AdditionalFileDataView[Key] = AdditionalFileData[Key];
+				}
+
 				for (const FString& RuntimeName : CookRuntimeNames)
 				{
 					TSharedPtr<UE::NNE::FSharedModelData> SharedModelData;
@@ -254,7 +265,7 @@ void UNNEModelData::Serialize(FArchive& Ar)
 					FString ModelDataIdentifier;
 					if (NNERuntime.IsValid())
 					{
-						ModelDataIdentifier = NNERuntime->GetModelDataIdentifier(FileType, FileData, FileId, Ar.GetArchiveState().CookingTarget());
+						ModelDataIdentifier = NNERuntime->GetModelDataIdentifier(FileType, FileData, AdditionalFileDataView, FileId, Ar.GetArchiveState().CookingTarget());
 						if (ModelDataIdentifier.Len() > 0)
 						{
 							if (UE::NNE::ConsoleVariables::CVarNNEEditorUseDDC.GetValueOnGameThread() &&
@@ -275,7 +286,7 @@ void UNNEModelData::Serialize(FArchive& Ar)
 #endif //WITH_EDITOR
 					if (!SharedModelData.IsValid() || SharedModelData->GetView().Num() == 0)
 					{
-						SharedModelData = UE::NNE::ModelData::CreateModelData(RuntimeName, FileType, FileData, FileId, Ar.GetArchiveState().CookingTarget());
+						SharedModelData = UE::NNE::ModelData::CreateModelData(RuntimeName, FileType, FileData, AdditionalFileDataView, FileId, Ar.GetArchiveState().CookingTarget());
 #if WITH_EDITOR
 						if (SharedModelData.IsValid() && (SharedModelData->GetView().Num() > 0) && NNERuntime.IsValid() && (ModelDataIdentifier.Len() > 0))
 						{
@@ -296,6 +307,17 @@ void UNNEModelData::Serialize(FArchive& Ar)
 			Ar << TargetRuntimes;
 			Ar << FileType;
 			Ar << FileData;
+
+			int32 NumAdditionalFileDataItems = AdditionalFileData.Num();
+			Ar << NumAdditionalFileDataItems;
+			TSet<FString> Keys;
+			AdditionalFileData.GetKeys(Keys);
+			for (auto& Key : Keys)
+			{
+				Ar << Key;
+				Ar << AdditionalFileData[Key];
+			}
+
 			Ar << FileId;
 
 #if WITH_EDITOR
@@ -334,6 +356,7 @@ void UNNEModelData::Serialize(FArchive& Ar)
 	{
 		TObjectPtr<class UAssetImportData> AssetImportData;
 		int32 NumItems = 0;
+		int32 NumAdditionalFileDataItems = 0;
 		FString Name;
 		uint32 MemoryAlignment = 0;
 		uint64 DataSize = 0;
@@ -395,6 +418,31 @@ void UNNEModelData::Serialize(FArchive& Ar)
 			}
 			break;
 
+		case UE::NNE::ModelData::Version::V3:
+			Ar << TargetRuntimes;
+			Ar << FileType;
+			Ar << FileData;
+			Ar << NumAdditionalFileDataItems;
+			AdditionalFileData.Empty();
+			for (Index = 0; Index < NumItems; Index++)
+			{
+				Ar << Name;
+				Ar << Data;
+				AdditionalFileData.Add(Name, Data);
+			}
+			Ar << FileId;
+			Ar << NumItems;
+			for (Index = 0; Index < NumItems; Index++)
+			{
+				Ar << Name;
+				Ar << MemoryAlignment;
+				Ar << DataSize;
+				RawData = FMemory::Malloc(DataSize, MemoryAlignment);
+				Ar.Serialize(RawData, DataSize);
+				ModelData.Add(Name, MakeShared<UE::NNE::FSharedModelData>(FSharedBuffer::TakeOwnership(RawData, DataSize, FMemory::Free), MemoryAlignment));
+			}
+			break;
+
 		default:
 			UE_LOG(LogNNE, Error, TEXT("UNNEModelData: Unknown asset version %d: Deserialisation failed, please reimport the original model."), Ar.CustomVer(UE::NNE::ModelData::GUID));
 			break;
@@ -402,11 +450,16 @@ void UNNEModelData::Serialize(FArchive& Ar)
 	}
 }
 
-void UNNEModelData::Init(const FString& Type, TConstArrayView<uint8> Buffer)
+void UNNEModelData::Init(const FString& Type, TConstArrayView<uint8> Buffer, const TMap<FString, TConstArrayView<uint8>>& AdditionalBuffers)
 {
 	TargetRuntimes.Empty();
 	FileType = Type;
 	FileData = Buffer;
+	AdditionalFileData.Empty();
+	for (auto& Element : AdditionalBuffers)
+	{
+		AdditionalFileData[Element.Key] = AdditionalBuffers[Element.Key];
+	}
 	FPlatformMisc::CreateGuid(FileId);
 	ModelData.Empty();
 }
@@ -445,10 +498,16 @@ TConstArrayView<uint8> UNNEModelData::GetFileData() const
 	return FileData;
 }
 
+TConstArrayView<uint8> UNNEModelData::GetAdditionalFileData(const FString& Key) const
+{
+	return AdditionalFileData.Contains(Key) ? AdditionalFileData[Key] : TConstArrayView<uint8>();
+}
+
 void UNNEModelData::ClearFileDataAndFileType()
 {
 	FileType = "";
 	FileData.Empty();
+	AdditionalFileData.Empty();
 }
 
 FGuid UNNEModelData::GetFileId() const
@@ -484,6 +543,14 @@ TSharedPtr<UE::NNE::FSharedModelData> UNNEModelData::GetModelData(const FString&
 		return TSharedPtr<UE::NNE::FSharedModelData>();
 	}
 
+	TMap<FString, TConstArrayView<uint8>> AdditionalFileDataView;
+	TSet<FString> Keys;
+	AdditionalFileData.GetKeys(Keys);
+	for (auto& Key : Keys)
+	{
+		AdditionalFileDataView[Key] = AdditionalFileData[Key];
+	}
+
 #if WITH_EDITOR
 	TWeakInterfacePtr<INNERuntime> NNERuntime = UE::NNE::GetRuntime<INNERuntime>(RuntimeName);
 	if (!NNERuntime.IsValid())
@@ -492,7 +559,7 @@ TSharedPtr<UE::NNE::FSharedModelData> UNNEModelData::GetModelData(const FString&
 		return TSharedPtr<UE::NNE::FSharedModelData>();
 	}
 
-	FString ModelDataIdentifier = NNERuntime->GetModelDataIdentifier(FileType, FileData, FileId, nullptr);
+	FString ModelDataIdentifier = NNERuntime->GetModelDataIdentifier(FileType, FileData, AdditionalFileDataView, FileId, nullptr);
 	if (ModelDataIdentifier.Len() == 0)
 	{
 		UE_LOG(LogNNE, Error, TEXT("UNNEModelData: Runtime '%s' returned an empty string as a ModelDataIdentifier. GetModelDataIdentifier should always return a valid identifier."), *RuntimeName);
@@ -512,7 +579,7 @@ TSharedPtr<UE::NNE::FSharedModelData> UNNEModelData::GetModelData(const FString&
 #endif //WITH_EDITOR
 
 	// Try to create the model
-	TSharedPtr<UE::NNE::FSharedModelData> CreatedData = UE::NNE::ModelData::CreateModelData(RuntimeName, FileType, FileData, FileId, nullptr);
+	TSharedPtr<UE::NNE::FSharedModelData> CreatedData = UE::NNE::ModelData::CreateModelData(RuntimeName, FileType, FileData, AdditionalFileDataView, FileId, nullptr);
 	if (!CreatedData.IsValid() || CreatedData->GetView().Num() < 1)
 	{
 		return TSharedPtr<UE::NNE::FSharedModelData>();
