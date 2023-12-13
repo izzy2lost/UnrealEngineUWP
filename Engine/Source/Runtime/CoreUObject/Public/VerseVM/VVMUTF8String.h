@@ -140,6 +140,12 @@ struct VUTF8String : VHeapValue
 
 	static void SerializeImpl(VUTF8String*& This, FAllocationContext Context, FAbstractVisitor& Visitor);
 
+	UTF8CHAR Get(SizeType I) const
+	{
+		checkSlow(I < Num());
+		return Data()[I];
+	}
+
 private:
 	static size_t DataOffset()
 	{

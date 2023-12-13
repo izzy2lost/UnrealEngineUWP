@@ -1117,10 +1117,10 @@ class FInterpreter
 			if (VArrayBase* Array = Callee.DynamicCast<VArrayBase>())
 			{
 				REQUIRE_CONCRETE(Argument);
-				// Bounds check since this index access in Verse is failable.
-				if (Argument.IsInt32() && Argument.AsInt32() >= 0 && Array->IsInBounds(Argument.AsInt32()))
+				// Bounds check since this index access in Verse is fallible.
+				if (Argument.IsUint32() && Array->IsInBounds(Argument.AsUint32()))
 				{
-					DEF(Op.Dest, Array->GetValue(Argument.AsInt32()));
+					DEF(Op.Dest, Array->GetValue(Argument.AsUint32()));
 				}
 				else
 				{
@@ -1134,6 +1134,18 @@ class FInterpreter
 				if (VValue Result = Map->Find(Argument))
 				{
 					DEF(Op.Dest, Result);
+				}
+				else
+				{
+					FAIL();
+				}
+			}
+			else if (VUTF8String* String = Callee.DynamicCast<VUTF8String>())
+			{
+				REQUIRE_CONCRETE(Argument);
+				if (Argument.IsUint32() && Argument.AsUint32() < String->Num())
+				{
+					DEF(Op.Dest, VValue::Char(String->Get(Argument.AsUint32())));
 				}
 				else
 				{

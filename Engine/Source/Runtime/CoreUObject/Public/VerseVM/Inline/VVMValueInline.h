@@ -55,6 +55,16 @@ inline VInt VValue::AsInt() const
 	return VInt(*this);
 }
 
+inline bool VValue::IsUint32() const
+{
+	return IsInt() && AsInt().IsUint32();
+}
+
+inline uint32 VValue::AsUint32() const
+{
+	return AsInt().AsUint32();
+}
+
 inline VValue VValue::FromBool(bool Bool)
 {
 	return Bool ? VValue(*GlobalTruePtr.Get()) : VValue(*GlobalFalsePtr.Get());
@@ -140,6 +150,14 @@ inline uint32 GetTypeHash(VValue Value)
 	else if (Value.IsCell())
 	{
 		return GetTypeHash(Value.AsCell());
+	}
+	else if (Value.IsChar())
+	{
+		return ::GetTypeHash(Value.AsChar());
+	}
+	else if (Value.IsChar32())
+	{
+		return ::GetTypeHash(Value.AsChar32());
 	}
 	else
 	{

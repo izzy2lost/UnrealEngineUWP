@@ -25,6 +25,8 @@ const static FLazyName NAME_VTrue("VTrue");
 const static FLazyName NAME_VFalse("VFalse");
 const static FLazyName NAME_VInt("VInt");
 const static FLazyName NAME_VFloat("VFloat");
+const static FLazyName NAME_VChar("VChar");
+const static FLazyName NAME_VChar32("VChar32");
 const static FLazyName NAME_VNone("VNone");
 const static TCHAR* TypeElementName = TEXT("_type");
 const static TCHAR* CellTypeElementName = TEXT("_cellType");
@@ -66,6 +68,12 @@ void FStructuredArchiveVisitor::WriteElementType(FStructuredArchiveRecord Record
 				break;
 			case EEncodedType::Float:
 				TypeName = NAME_VFloat;
+				break;
+			case EEncodedType::Char:
+				TypeName = NAME_VChar;
+				break;
+			case EEncodedType::Char32:
+				TypeName = NAME_VChar32;
 				break;
 			case EEncodedType::Cell:
 				ensure(EncodedType.CppClassInfo != nullptr);
@@ -123,6 +131,14 @@ FStructuredArchiveVisitor::FEncodedType FStructuredArchiveVisitor::ReadElementTy
 		else if (TypeName == NAME_VFloat)
 		{
 			EncodedType = FEncodedType(EEncodedType::Float);
+		}
+		else if (TypeName == NAME_VChar)
+		{
+			EncodedType = FEncodedType(EEncodedType::Char);
+		}
+		else if (TypeName == NAME_VChar32)
+		{
+			EncodedType = FEncodedType(EEncodedType::Char32);
 		}
 		else
 		{
@@ -216,6 +232,8 @@ VCell* FStructuredArchiveVisitor::ReadCellBody(FStructuredArchiveRecord Record, 
 		case EEncodedType::None:
 		case EEncodedType::Int:
 		case EEncodedType::Float:
+		case EEncodedType::Char:
+		case EEncodedType::Char32:
 		default:
 			V_DIE("Unexpected encoded type");
 	}
@@ -359,15 +377,29 @@ void FStructuredArchiveVisitor::Visit(VValue& Value, const TCHAR* ElementName)
 				break;
 			}
 
-			case EEncodedType::False:
-			case EEncodedType::True:
+			case EEncodedType::Char:
+			{
+				uint8 Char;
+				Record.EnterField(TEXT("Value")) << Char;
+				Value = VValue::Char(Char);
+				break;
+			}
+
+			case EEncodedType::Char32:
+			{
+				uint32 Char32;
+				Record.EnterField(TEXT("Value")) << Char32;
+				Value = VValue::Char32(Char32);
+				break;
+			}
+
 			case EEncodedType::Cell:
 				Value = VValue(*ReadCellBody(Record, EncodedType));
 				break;
 
 			case EEncodedType::Null:
 			default:
-				V_DIE("Unexpected encoded type");
+				V_DIE("Unexpected encoded type %u", static_cast<uint8>(EncodedType.EncodedType));
 		}
 	}
 	else
@@ -400,7 +432,7 @@ void FStructuredArchiveVisitor::Visit(VValue& Value, const TCHAR* ElementName)
 			}
 			else
 			{
-				V_DIE("Arbitrary-precision integers are not yet supported.");
+				V_DIE("Arbitrary-precision integers are handled above in IsCell.");
 			}
 		}
 		else if (Value.IsFloat())
@@ -408,6 +440,18 @@ void FStructuredArchiveVisitor::Visit(VValue& Value, const TCHAR* ElementName)
 			WriteElementType(Record, FEncodedType(EEncodedType::Float));
 			double DoubleValue = Value.AsFloat().AsDouble();
 			Record.EnterField(TEXT("Value")) << DoubleValue;
+		}
+		else if (Value.IsChar())
+		{
+			WriteElementType(Record, FEncodedType(EEncodedType::Char));
+			uint8 Char = Value.AsChar();
+			Record.EnterField(TEXT("Value")) << Char;
+		}
+		else if (Value.IsChar32())
+		{
+			WriteElementType(Record, FEncodedType(EEncodedType::Char32));
+			uint32 Char32 = Value.AsChar32();
+			Record.EnterField(TEXT("Value")) << Char32;
 		}
 		else if (Value.IsUninitialized())
 		{

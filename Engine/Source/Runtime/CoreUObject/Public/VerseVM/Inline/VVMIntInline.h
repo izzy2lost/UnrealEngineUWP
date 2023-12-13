@@ -359,6 +359,23 @@ inline int64 VInt::AsInt64() const
 	}
 }
 
+inline bool VInt::IsUint32() const
+{
+	if (IsInt64())
+	{
+		int64 I64 = AsInt64();
+		return I64 >= 0 && static_cast<uint64>(I64) <= static_cast<uint64>(std::numeric_limits<uint32>::max());
+	}
+
+	return false;
+}
+
+inline uint32 VInt::AsUint32() const
+{
+	checkSlow(IsUint32());
+	return static_cast<uint32>(AsInt64());
+}
+
 inline uint32 GetTypeHash(VInt Int)
 {
 	if (Int.Value.IsInt32())

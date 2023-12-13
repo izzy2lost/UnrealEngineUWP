@@ -65,6 +65,9 @@ struct VInt
 	bool IsInt64() const;
 	int64 AsInt64() const;
 
+	bool IsUint32() const;
+	uint32 AsUint32() const;
+
 	VFloat ConvertToFloat() const;
 
 	static VInt Add(FRunningContext Context, VInt Lhs, VInt Rhs);

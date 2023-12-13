@@ -112,9 +112,15 @@ struct VValue
 	}
 
 	bool IsInt32() const { return (EncodedBits & NumberTagMask) == Int32Tag; }
+	bool IsUint32() const;
+	uint32 AsUint32() const;
 
 	// Returns Value as C++ style int32
-	int32 AsInt32() const { return Bits.Payload; }
+	int32 AsInt32() const
+	{
+		checkSlow(IsInt32());
+		return Bits.Payload;
+	}
 
 	bool IsCell() const { return !(EncodedBits & NonCellTagMask) && EncodedBits != UninitializedValue; }
 	VCell& AsCell() const
@@ -184,6 +190,33 @@ struct VValue
 	FString ToString(FAllocationContext Context, const FCellFormatter& Formatter) const;
 	void ToString(FStringBuilderBase& Builder, FAllocationContext Context, const FCellFormatter& Formatter) const;
 
+	static VValue Char(uint8 V)
+	{
+		VValue R;
+		R.EncodedBits = (static_cast<uint64>(V) << NumLowerEncodingBits) | VValue::CharTag;
+		return R;
+	}
+	static VValue Char32(uint32 V)
+	{
+		VValue R;
+		R.EncodedBits = (static_cast<uint64>(V) << NumLowerEncodingBits) | VValue::Char32Tag;
+		return R;
+	}
+
+	bool IsChar() const { return (EncodedBits & VValue::NonCellTagMask) == VValue::CharTag; }
+	bool IsChar32() const { return (EncodedBits & VValue::NonCellTagMask) == VValue::Char32Tag; }
+
+	uint8 AsChar() const
+	{
+		checkSlow(IsChar());
+		return static_cast<uint8>(EncodedBits >> NumLowerEncodingBits);
+	}
+	uint32 AsChar32() const
+	{
+		checkSlow(IsChar32());
+		return static_cast<uint32>(EncodedBits >> NumLowerEncodingBits);
+	}
+
 private:
 	friend struct VRestValue;
 
@@ -244,7 +277,10 @@ public:
 	// 0b0001... Placeholder
 	// 0b0010... Root
 	// 0b0011... UObject
-	// 0b01XX... unused
+	// 0b0100... char8
+	// 0b0101... char32
+	// 0b0110... unused
+	// 0b0111... unused
 	// 0b1XXX... unused
 
 	// VValue assumes a 48-bit address space for pointers.
@@ -260,10 +296,13 @@ public:
 	static constexpr uint64 MaxFloatTag = 0xfffc'0000'0000'0000ull;
 
 	// Non-number related constants
+	static constexpr uint64 NumLowerEncodingBits = 4;
 	static constexpr uint64 NonCellTagMask = NumberTagMask | 0xfull; // Used for Cell, Placeholder, Root, UObject
 	static constexpr uint64 PlaceholderTag = 0x1ull;
 	static constexpr uint64 RootTag = 0x2ull;
 	static constexpr uint64 UObjectTag = 0x3ull;
+	static constexpr uint64 CharTag = 0x4ull;
+	static constexpr uint64 Char32Tag = 0x5ull;
 };
 
 } // namespace Verse

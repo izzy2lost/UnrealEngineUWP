@@ -68,6 +68,8 @@ private:
 		False,
 		Int,
 		Float,
+		Char,
+		Char32,
 		Cell, // The name will follow this value
 	};
 

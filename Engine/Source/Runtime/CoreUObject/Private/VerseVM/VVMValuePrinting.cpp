@@ -382,6 +382,14 @@ void VValue::ToString(FStringBuilderBase& Builder, FAllocationContext Context, c
 	{
 		Builder.Appendf(TEXT("Root(%u)"), GetSplitDepth());
 	}
+	else if (IsChar())
+	{
+		Builder.Appendf(TEXT("'%c'"), static_cast<char>(AsChar()));
+	}
+	else if (IsChar32())
+	{
+		Builder.Appendf(TEXT("Char32(%u)"), AsChar32());
+	}
 	else if (IsPlaceholder())
 	{
 		VValue Temp = *this; // Don't have printing path compress
