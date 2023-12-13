@@ -140,6 +140,8 @@ public:
 	void ClearOutputLog() const;
 	// automatically generates retarget chains 
 	void AutoGenerateRetargetChains() const;
+	// automatically generates IK setup 
+	void AutoGenerateFBIK() const;
 
 	// return list of those solvers in the stack that are selected by user 
 	void GetSelectedSolvers(TArray<TSharedPtr<FSolverStackElement> >& OutSelectedSolvers) const;

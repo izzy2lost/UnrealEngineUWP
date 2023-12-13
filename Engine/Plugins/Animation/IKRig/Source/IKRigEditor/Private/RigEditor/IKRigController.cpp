@@ -10,6 +10,7 @@
 #include "Engine/SkeletalMesh.h"
 #include "ScopedTransaction.h"
 #include "RigEditor/IKRigAutoCharacterizer.h"
+#include "RigEditor/IKRigAutoFBIK.h"
 
 #include UE_INLINE_GENERATED_CPP_BY_NAME(IKRigController)
 
@@ -18,6 +19,7 @@
 UIKRigController::UIKRigController()
 {
 	AutoCharacterizer = MakeUnique<FAutoCharacterizer>();
+	AutoFBIKCreator = MakeUnique<FAutoFBIKCreator>();
 }
 
 UIKRigController* UIKRigController::GetController(const UIKRigDefinition* InIKRigDefinition)
@@ -443,6 +445,18 @@ void UIKRigController::AutoGenerateRetargetDefinition(FAutoCharacterizeResults& 
 	}
 	
 	AutoCharacterizer.Get()->GenerateRetargetDefinitionFromMesh(Mesh, Results);
+}
+
+void UIKRigController::AutoGenerateFBIK(FAutoFBIKResults& Results)
+{
+	FScopedTransaction Transaction(LOCTEXT("AutoFBIK_Label", "Auto Setup FBIK"));
+	FScopedReinitializeIKRig Reinitialize(this);
+	AutoFBIKCreator.Get()->CreateFBIKSetup(*this, Results);
+}
+
+const FAutoCharacterizer& UIKRigController::GetAutoCharacterizer() const
+{
+	return *AutoCharacterizer.Get();
 }
 
 void UIKRigController::SortRetargetChains() const

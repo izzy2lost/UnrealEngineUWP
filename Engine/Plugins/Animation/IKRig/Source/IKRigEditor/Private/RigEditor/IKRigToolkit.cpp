@@ -113,9 +113,14 @@ void FIKRigEditorToolkit::BindCommands()
 		EUIActionRepeatMode::RepeatDisabled);
 
 	ToolkitCommands->MapAction(
-		Commands.GenerateRetargetChains,
+		Commands.AutoRetargetChains,
 		FExecuteAction::CreateSP(EditorController, &FIKRigEditorController::AutoGenerateRetargetChains),
 		EUIActionRepeatMode::RepeatDisabled);
+	
+	ToolkitCommands->MapAction(
+			Commands.AutoSetupFBIK,
+			FExecuteAction::CreateSP(EditorController, &FIKRigEditorController::AutoGenerateFBIK),
+			EUIActionRepeatMode::RepeatDisabled);
 
 	ToolkitCommands->MapAction(
 		Commands.ShowAssetSettings,
@@ -156,8 +161,17 @@ void FIKRigEditorToolkit::FillToolbar(FToolBarBuilder& ToolbarBuilder)
 			TAttribute<FText>(),
 			FSlateIcon(FAppStyle::Get().GetStyleSetName(),"Icons.Refresh"));
 
+		ToolbarBuilder.AddSeparator();
+
 		ToolbarBuilder.AddToolBarButton(
-			FIKRigCommands::Get().GenerateRetargetChains,
+			FIKRigCommands::Get().AutoRetargetChains,
+			NAME_None,
+			TAttribute<FText>(),
+			TAttribute<FText>(),
+			FSlateIcon(FAppStyle::Get().GetStyleSetName(),"Icons.Edit"));
+
+		ToolbarBuilder.AddToolBarButton(
+			FIKRigCommands::Get().AutoSetupFBIK,
 			NAME_None,
 			TAttribute<FText>(),
 			TAttribute<FText>(),
