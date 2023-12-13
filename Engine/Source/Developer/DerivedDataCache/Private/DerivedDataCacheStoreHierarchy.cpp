@@ -48,6 +48,8 @@ public:
 	void SetFlags(ILegacyCacheStore* CacheStore, ECacheStoreFlags Flags) final;
 	void RemoveNotSafe(ILegacyCacheStore* CacheStore) final;
 
+	bool HasAllFlags(ECacheStoreFlags Flags) const final;
+
 	ICacheStoreStats* CreateStats(ILegacyCacheStore* CacheStore, ECacheStoreFlags Flags, FStringView Type, FStringView Name, FStringView Path) final;
 	void DestroyStats(ICacheStoreStats* Stats) final;
 
@@ -268,10 +270,19 @@ FCacheStoreHierarchy::FCacheStoreHierarchy(ICacheStoreOwner*& OutOwner, TFunctio
 FCacheStoreHierarchy::~FCacheStoreHierarchy()
 {
 	// Delete nodes separately before Nodes is destroyed because destroying stats depends on it.
-	for (FCacheStoreNode& Node : ReverseIterate(Nodes))
+	while (!Nodes.IsEmpty())
 	{
+		const int32 NodeIndex = Nodes.Num() - 1;
+		FCacheStoreNode& Node = Nodes[NodeIndex];
+
 		Node.AsyncCache.Reset();
 		delete Node.Cache;
+
+		if (Nodes.Num() <= NodeIndex)
+		{
+			// The node removed itself in its destructor.
+			continue;
+		}
 
 		if (UNLIKELY(!Node.CacheStats.IsEmpty()))
 		{
@@ -280,6 +291,8 @@ FCacheStoreHierarchy::~FCacheStoreHierarchy()
 				"Leaked stats for {Type} cache store '{Name}' with path '{Path}'.",
 				Stats->Type, Stats->Name, Stats->Path);
 		}
+
+		Nodes.Pop(/*bAllowShrinking*/ false);
 	}
 }
 
@@ -307,8 +320,30 @@ void FCacheStoreHierarchy::RemoveNotSafe(ILegacyCacheStore* CacheStore)
 	FWriteScopeLock Lock(NodesLock);
 	FCacheStoreNode* Node = Algo::FindBy(Nodes, CacheStore, &FCacheStoreNode::Cache);
 	checkf(!!Node, TEXT("Attempting to remove a cache store that is not registered to the hierarchy."));
-	Nodes.RemoveAt(UE_PTRDIFF_TO_INT32(Node - Nodes.GetData()));
+	const int32 NodeIndex = UE_PTRDIFF_TO_INT32(Node - Nodes.GetData());
+	if (UNLIKELY(!Nodes[NodeIndex].CacheStats.IsEmpty()))
+	{
+		FCacheStoreStats* Stats = Nodes[NodeIndex].CacheStats[0];
+		UE_LOGFMT(LogDerivedDataCache, Fatal,
+			"Leaked stats for {Type} cache store '{Name}' with path '{Path}'.",
+			Stats->Type, Stats->Name, Stats->Path);
+	}
+	Nodes.RemoveAt(NodeIndex);
 	UpdateNodeFlags();
+}
+
+bool FCacheStoreHierarchy::HasAllFlags(ECacheStoreFlags Flags) const
+{
+	FReadScopeLock Lock(NodesLock);
+	ECacheStoreFlags CombinedFlags = ECacheStoreFlags::None;
+	for (const FCacheStoreNode& Node : Nodes)
+	{
+		if (Node.Cache != MemoryCache)
+		{
+			CombinedFlags |= Node.CacheFlags;
+		}
+	}
+	return EnumHasAllFlags(CombinedFlags, Flags);
 }
 
 void FCacheStoreHierarchy::UpdateNodeFlags()

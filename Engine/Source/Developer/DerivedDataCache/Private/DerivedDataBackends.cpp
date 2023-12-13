@@ -149,7 +149,7 @@ public:
 			{
 				RootNode = CreateCacheStoreHierarchy(Hierarchy, [this](IMemoryCacheStore*& OutCache) { GetMemoryCache(OutCache); });
 
-				if (!ParseNode(RootName, GEngineIni, *GraphName, ParsedNodes))
+				if (!ParseNode(RootName, GEngineIni, *GraphName, ParsedNodes) || !Hierarchy->HasAllFlags(ECacheStoreFlags::Query | ECacheStoreFlags::Store))
 				{
 					// Destroy any cache stores that have been created.
 					delete RootNode;
@@ -167,7 +167,7 @@ public:
 					bVerifyFound = false;
 					bVerifyFix = false;
 					UE_LOG(LogDerivedDataCache, Warning,
-						TEXT("Unable to create cache graph '%s'. Reverting to the default graph."), *GraphName);
+						TEXT("Unable to create or use cache graph '%s'. Reverting to the default graph."), *GraphName);
 				}
 			}
 
@@ -177,7 +177,7 @@ public:
 				GraphName = FApp::IsEngineInstalled() ? TEXT("InstalledDerivedDataBackendGraph") : TEXT("DerivedDataBackendGraph");
 				RootNode = CreateCacheStoreHierarchy(Hierarchy, [this](IMemoryCacheStore*& OutCache) { GetMemoryCache(OutCache); });
 
-				if (!ParseNode(RootName, GEngineIni, *GraphName, ParsedNodes))
+				if (!ParseNode(RootName, GEngineIni, *GraphName, ParsedNodes) || !Hierarchy->HasAllFlags(ECacheStoreFlags::Query | ECacheStoreFlags::Store))
 				{
 					FString Entry;
 					if (!GConfig->DoesSectionExist(*GraphName, GEngineIni))
@@ -195,8 +195,10 @@ public:
 					else
 					{
 						UE_LOG(LogDerivedDataCache, Fatal,
-							TEXT("Unable to create default cache graph '%s' because no cache store was available."),
-							*GraphName);
+							TEXT("Unable to use default cache graph '%s' because there are no %s nodes available."),
+							*GraphName,
+							Hierarchy->HasAllFlags(ECacheStoreFlags::Query) ? TEXT("writable") :
+							Hierarchy->HasAllFlags(ECacheStoreFlags::Store) ? TEXT("readable") : TEXT("readable or writable"));
 					}
 				}
 			}
@@ -892,6 +894,12 @@ private:
 		{
 			Hierarchy->RemoveNotSafe(CacheStore);
 		}
+	}
+
+	bool HasAllFlags(ECacheStoreFlags Flags) const final
+	{
+		check(Hierarchy);
+		return Hierarchy->HasAllFlags(Flags);
 	}
 
 	ICacheStoreStats* CreateStats(ILegacyCacheStore* CacheStore, ECacheStoreFlags Flags, FStringView Type, FStringView Name, FStringView Path) final

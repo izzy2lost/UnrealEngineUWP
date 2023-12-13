@@ -196,6 +196,9 @@ public:
 	virtual void SetFlags(ILegacyCacheStore* CacheStore, ECacheStoreFlags Flags) = 0;
 	virtual void RemoveNotSafe(ILegacyCacheStore* CacheStore) = 0;
 
+	/** Returns true if the combined flags of the owned cache stores contain all of these flags. */
+	virtual bool HasAllFlags(ECacheStoreFlags Flags) const = 0;
+
 	virtual ICacheStoreStats* CreateStats(ILegacyCacheStore* CacheStore, ECacheStoreFlags Flags, FStringView Type, FStringView Name, FStringView Path = {}) = 0;
 	virtual void DestroyStats(ICacheStoreStats* Stats) = 0;
 
