@@ -497,16 +497,7 @@ void FindStaleClusters(const TArray<FString>& Args)
 			UObject* ClusterRootObject = static_cast<UObject*>(ObjectItem->Object);
 			FReferenceChainSearch SearchRefs(ClusterRootObject, EReferenceChainSearchMode::ExternalOnly);
 			
-			bool bReferenced = false;
-			if (SearchRefs.GetReferenceChains().Num() > 0)
-			{
-				for (const FReferenceChainSearch::FReferenceChain* ReferenceChain : SearchRefs.GetReferenceChains())
-				{
-					bReferenced = true;
-					break;
-				}
-			}
-			if (!bReferenced)
+			if (SearchRefs.GetReferenceChains().Num() == 0)
 			{
 				NumStaleClusters++;
 				UE_LOG(LogObj, Display, TEXT("Cluster %s has no external references:"), *ClusterRootObject->GetFullName());
