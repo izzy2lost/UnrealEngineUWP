@@ -838,6 +838,24 @@ namespace UnrealBuildTool
 					}
 				}
 			}
+			else
+			{
+				foreach (TargetMakefile Makefile in Makefiles)
+				{
+					FileReference TargetInfoFile = FileReference.Combine(Makefile.ProjectIntermediateDirectory, "TargetMetadata.dat");
+					if (FileReference.Exists(TargetInfoFile))
+					{
+						List<string> ArgumentsList = new List<string>()
+						{
+							$"-Input={TargetInfoFile}",
+							$"-Version={WriteMetadataMode.CurrentVersionNumber}"
+						};
+						CommandLineArguments Arguments = new CommandLineArguments(ArgumentsList.ToArray());
+						WriteMetadataMode MetadataMode = new WriteMetadataMode();
+						await MetadataMode.ExecuteAsync(Arguments, Logger);
+					}
+				}
+			}
 		}
 
 		internal static List<FileItem> CreateLinkedActionsFromFileList(TargetDescriptor Target, BuildConfiguration BuildConfiguration, List<FileReference> FileList, List<LinkedAction> Actions, ILogger Logger)
