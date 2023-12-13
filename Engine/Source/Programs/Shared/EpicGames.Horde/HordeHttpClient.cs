@@ -369,7 +369,11 @@ namespace EpicGames.Horde
 		{
 			using (HttpResponseMessage response = await PostAsync<TRequest>(httpClient, relativePath, request, cancellationToken))
 			{
-				response.EnsureSuccessStatusCode();
+				if (!response.IsSuccessStatusCode)
+				{
+					string body = await response.Content.ReadAsStringAsync(cancellationToken);
+					throw new HttpRequestException($"{response.StatusCode} posting to {new Uri(httpClient.BaseAddress!, relativePath)}: {body}", null, response.StatusCode);
+				}
 
 				TResponse? responseValue = await response.Content.ReadFromJsonAsync<TResponse>(s_jsonSerializerOptions, cancellationToken);
 				return responseValue ?? throw new InvalidCastException($"Expected non-null response from POST to {relativePath}");
@@ -404,7 +408,11 @@ namespace EpicGames.Horde
 		{
 			using (HttpResponseMessage response = await httpClient.PutAsJsonAsync<TRequest>(relativePath, request, s_jsonSerializerOptions, cancellationToken))
 			{
-				response.EnsureSuccessStatusCode();
+				if (!response.IsSuccessStatusCode)
+				{
+					string body = await response.Content.ReadAsStringAsync(cancellationToken);
+					throw new HttpRequestException($"{response.StatusCode} put to {new Uri(httpClient.BaseAddress!, relativePath)}: {body}", null, response.StatusCode);
+				}
 
 				TResponse? responseValue = await response.Content.ReadFromJsonAsync<TResponse>(s_jsonSerializerOptions, cancellationToken);
 				return responseValue ?? throw new InvalidCastException($"Expected non-null response from PUT to {relativePath}");
