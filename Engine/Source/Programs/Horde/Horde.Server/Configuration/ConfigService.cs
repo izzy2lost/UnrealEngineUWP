@@ -160,6 +160,15 @@ namespace Horde.Server.Configuration
 			await _ticker.DisposeAsync();
 		}
 
+		/// <summary>
+		/// Wait for the initial config state to be read.
+		/// </summary>
+		public async Task<GlobalConfig> WaitForInitialConfigAsync(CancellationToken cancellationToken = default)
+		{
+			ConfigState state = await _stateTask.WaitAsync(cancellationToken);
+			return state.GlobalConfig;
+		}
+
 		class OverrideConfigFile : IConfigFile
 		{
 			readonly byte[] _data;
@@ -272,6 +281,9 @@ namespace Horde.Server.Configuration
 		/// <inheritdoc/>
 		public async Task StartAsync(CancellationToken cancellationToken)
 		{
+			// Wait for the initial config update to complete
+			await _stateTask;
+
 			if (_serverSettings.IsRunModeActive(RunMode.Worker))
 			{
 				await _ticker.StartAsync();

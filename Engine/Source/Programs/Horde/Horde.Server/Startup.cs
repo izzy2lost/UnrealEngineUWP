@@ -1368,20 +1368,20 @@ namespace Horde.Server
 			serviceCollection.AddSingleton<IHostApplicationLifetime, HostApplicationLifetime>();
 		}
 
-		public static ServiceProvider CreateServiceProvider(IConfiguration configuration)
+		public static ServiceCollection CreateServiceCollection(IConfiguration configuration)
 		{
-			IServiceCollection serviceCollection = new ServiceCollection();
+			ServiceCollection serviceCollection = new ServiceCollection();
 			AddServices(serviceCollection, configuration);
-			return serviceCollection.BuildServiceProvider();
+			return serviceCollection;
 		}
 
-		public static ServiceProvider CreateServiceProvider(IConfiguration configuration, ILoggerProvider loggerProvider)
+		public static ServiceCollection CreateServiceCollection(IConfiguration configuration, ILoggerProvider loggerProvider)
 		{
-			IServiceCollection services = new ServiceCollection();
+			ServiceCollection services = new ServiceCollection();
 			services.AddSingleton(configuration);
 			services.AddSingleton(loggerProvider);
 			AddServices(services, configuration);
-			return services.BuildServiceProvider();
+			return services;
 		}
 	}
 }

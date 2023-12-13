@@ -27,6 +27,7 @@ namespace Horde.Server.Perforce
 	/// </summary>
 	class PerforceReplicationOptions
 	{
+		public bool Clean { get; set; }
 		public bool IncludeContent { get; set; }
 		public BundleOptions TreeOptions { get; set; } = new BundleOptions();
 		public ChunkingOptions ChunkingOptions { get; set; } = new ChunkingOptions();
@@ -185,7 +186,7 @@ namespace Horde.Server.Perforce
 					throw new ReplicationException($"Invalid size for replicated file '{handle._path}'. Expected {handle._size}, got {handle._sizeWritten}.");
 				}
 
-				ChunkedData chunkedData = await handle.FileWriter.FlushAsync(cancellationToken);
+				ChunkedData chunkedData = await handle.FileWriter.CompleteAsync(cancellationToken);
 				byte[] hash = handle.Hash.GetHashAndReset();
 				FileInfo info = new FileInfo(handle._path!, handle._flags, handle._size, hash, chunkedData);
 
@@ -253,7 +254,7 @@ namespace Horde.Server.Perforce
 		/// <param name="change">Changelist to replicate</param>
 		/// <param name="options">Options for replication</param>
 		/// <param name="cancellationToken">Cancellation token for the operation</param>
-		public async Task WriteAsync(StreamConfig streamConfig, int change, PerforceReplicationOptions options, CancellationToken cancellationToken)
+		public async Task WriteAsync(StreamConfig streamConfig, int change, PerforceReplicationOptions options, CancellationToken cancellationToken = default)
 		{
 			using IStorageClient store = _storageService.CreateClient(Namespace.Perforce);
 
@@ -261,22 +262,30 @@ namespace Horde.Server.Perforce
 			RefName refName = GetRefName(streamConfig.Id);
 
 			CommitNode? parent = null;
-			NodeRef<CommitNode>? parentRef = await store.TryReadRefTargetAsync<CommitNode>(refName, cancellationToken: cancellationToken);
-			while (parentRef != null)
+			NodeRef<CommitNode>? parentRef = null;
+			if (!options.Clean)
 			{
-				parent = await parentRef.ExpandAsync(cancellationToken);
-				if (parent.Number < change)
+				parentRef = await store.TryReadRefTargetAsync<CommitNode>(refName, cancellationToken: cancellationToken);
+				while (parentRef != null)
 				{
-					break;
+					parent = await parentRef.ExpandAsync(cancellationToken);
+					if (parent.Number < change)
+					{
+						break;
+					}
+					parentRef = parent.Parent;
 				}
-				parentRef = parent.Parent;
 			}
 
 			int parentChange = parent?.Number ?? 0;
 
 			// Read the current incremental state or create a new node to track the incremental state
 			RefName incRefName = GetIncrementalRefName(streamConfig.Id);
-			SyncNode? syncNode = await store.TryReadRefAsync<SyncNode>(incRefName, cancellationToken: cancellationToken);
+			SyncNode? syncNode = null;
+			if (!options.Clean)
+			{
+				syncNode = await store.TryReadRefAsync<SyncNode>(incRefName, cancellationToken: cancellationToken);
+			}
 			if (syncNode == null || syncNode.Change != change || syncNode.ParentChange != parentChange)
 			{
 				if (parent == null)

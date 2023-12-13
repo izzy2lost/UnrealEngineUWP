@@ -92,15 +92,15 @@ namespace Horde.Server.Server
 		/// </summary>
 		public async ValueTask StopAsync()
 		{
-			if (_process != null)
-			{
-				_process.Dispose();
-				_process = null;
-			}
 			if (_processGroup != null)
 			{
 				_processGroup.Dispose();
 				_processGroup = null;
+			}
+			if (_process != null)
+			{
+				_process.Dispose();
+				_process = null;
 			}
 			if (_relayTask != null)
 			{
