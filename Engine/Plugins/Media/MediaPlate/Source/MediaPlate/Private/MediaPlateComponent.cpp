@@ -1122,6 +1122,8 @@ void UMediaPlateComponent::UpdateTextureLayers()
 {
 	if (AMediaPlate* MediaPlate = GetOwner<AMediaPlate>())
 	{
+		static const FString BaseTextureName = TEXT("MediaTexture");
+
 		if (UMaterialInterface* Material = MediaPlate->GetCurrentMaterial())
 		{
 			UMaterialInstanceDynamic* MID = Cast<UMaterialInstanceDynamic>(Material);
@@ -1129,7 +1131,6 @@ void UMediaPlateComponent::UpdateTextureLayers()
 			{
 				// Go through each layer.
 				int32 MatNumLayers = MediaTextures.Num() / MatNumTexPerLayer;
-				static const FString BaseTextureName = TEXT("MediaTexture");
 				int32 NumLayers = TextureLayers.Num();
 				int32 MaterialLayerIndex = 0;
 				for (int32 LayerIndex = 0; LayerIndex < NumLayers; ++LayerIndex)
@@ -1169,6 +1170,17 @@ void UMediaPlateComponent::UpdateTextureLayers()
 						}
 					}
 				}
+			}
+		}
+
+		UMaterialInterface* OverlayMaterial = MediaPlate->GetCurrentOverlayMaterial();
+		if (OverlayMaterial != nullptr)
+		{
+			UMaterialInstanceDynamic* MID = Cast<UMaterialInstanceDynamic>(OverlayMaterial);
+			if (MID != nullptr && !MediaTextures.IsEmpty())
+			{
+
+				MID->SetTextureParameterValue(FName(*BaseTextureName), MediaTextures[0]);
 			}
 		}
 	}
