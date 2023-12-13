@@ -592,13 +592,21 @@ static int MainFork(int ArgC, char** ArgV, const FOptions& Options)
 			if (uint32 PidToAdd = 0; Options.GetSponsorPid(PidToAdd))
 			{
 				bool bSuccess = false;
-				for (auto& Pid : InstanceInfo->SponsorPids)
+				while (!bSuccess)
 				{
-					uint32 Expected = 0;
-					if (Pid.compare_exchange_strong(Expected, PidToAdd))
+					for (auto& Pid : InstanceInfo->SponsorPids)
 					{
-						bSuccess = true;
-						break;
+						uint32 Expected = 0;
+						if (Pid.compare_exchange_strong(Expected, PidToAdd))
+						{
+							bSuccess = true;
+							break;
+						}
+					}
+					if (!bSuccess)
+					{
+						TS_LOG("Sponsor slots full, relax a second...");
+						Sleep(1000);
 					}
 				}
 
@@ -881,7 +889,7 @@ static int MainDaemon(int ArgC, char** ArgV, const FOptions& Options)
 			break;
 		}
 		LifetimeManager.CheckNewSponsors(InstanceInfo);
-		if (Settings->Sponsored && !LifetimeManager.ShouldKeepAlive())
+		if (!LifetimeManager.ShouldKeepAlive() && Settings->Sponsored)
 		{
 			break;
 		}
@@ -1096,13 +1104,21 @@ static int MainFork(int ArgC, char** ArgV, const FOptions& Options)
 			if (uint32 PidToAdd = 0; Options.GetSponsorPid(PidToAdd))
 			{
 				bool bSuccess = false;
-				for (auto& Pid : InstanceInfo->SponsorPids)
+				while (!bSuccess)
 				{
-					uint32 Expected = 0;
-					if (Pid.compare_exchange_strong(Expected, PidToAdd))
+					for (auto& Pid : InstanceInfo->SponsorPids)
 					{
-						bSuccess = true;
-						break;
+						uint32 Expected = 0;
+						if (Pid.compare_exchange_strong(Expected, PidToAdd))
+						{
+							bSuccess = true;
+							break;
+						}
+					}
+					if (!bSuccess)
+					{
+						TS_LOG("Sponsor slots full, relax a second...");
+						sleep(1);
 					}
 				}
 
@@ -1318,7 +1334,7 @@ static int MainDaemonImpl(int ArgC, char** ArgV, pid_t ParentPid, const FOptions
 		}
 
 		LifetimeManager.CheckNewSponsors(InstanceInfo);
-		if (Settings->Sponsored && !LifetimeManager.ShouldKeepAlive())
+		if (!LifetimeManager.ShouldKeepAlive() && Settings->Sponsored)
 		{
 			break;
 		}

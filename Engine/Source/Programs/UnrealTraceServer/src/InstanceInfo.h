@@ -8,7 +8,7 @@
 struct FInstanceInfo
 {
 public:
-	static constexpr uint32	NumSponsorQueueSlots = 8;
+	static constexpr uint32	NumSponsorQueueSlots = 128;
 	static const uint32	CurrentVersion =
 #if TS_USING(TS_BUILD_DEBUG)
 		0x8000'0000 |
