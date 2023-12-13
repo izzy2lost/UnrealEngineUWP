@@ -179,7 +179,7 @@ public:
 	}
 };
 
-IMPLEMENT_GLOBAL_SHADER(FHairHoldoutPS, "/Engine/Private/HairStrands/HairStrandsVisibilityComposeSubPixelPS.usf", "HoldoutPS", SF_Pixel);
+IMPLEMENT_GLOBAL_SHADER(FHairHoldoutPS, "/Engine/Private/HairStrands/HairStrandsComposition.usf", "HoldoutPS", SF_Pixel);
 
 static void AddHairHoldoutPass(
 	FRDGBuilder& GraphBuilder,
@@ -247,7 +247,7 @@ public:
 	}
 };
 
-IMPLEMENT_GLOBAL_SHADER(FHairVisibilityComposeSamplePS, "/Engine/Private/HairStrands/HairStrandsVisibilityComposeSubPixelPS.usf", "ComposeSamplePS", SF_Pixel);
+IMPLEMENT_GLOBAL_SHADER(FHairVisibilityComposeSamplePS, "/Engine/Private/HairStrands/HairStrandsComposition.usf", "ComposeSamplePS", SF_Pixel);
 
 static void AddHairVisibilityComposeSamplePass(
 	FRDGBuilder& GraphBuilder,
@@ -319,7 +319,7 @@ public:
 	}
 };
 
-IMPLEMENT_GLOBAL_SHADER(FHairDOFDepthPS, "/Engine/Private/HairStrands/HairStrandsVisibilityComposeSubPixelPS.usf", "DOFDepthPS", SF_Pixel);
+IMPLEMENT_GLOBAL_SHADER(FHairDOFDepthPS, "/Engine/Private/HairStrands/HairStrandsComposition.usf", "DOFDepthPS", SF_Pixel);
 
 static FRDGTextureRef AddHairDOFDepthPass(
 	FRDGBuilder& GraphBuilder,
@@ -384,7 +384,7 @@ public:
 	}
 };
 
-IMPLEMENT_GLOBAL_SHADER(FHairVisibilityFastResolveMaskPS, "/Engine/Private/HairStrands/HairStrandsVisibilityComposeSubPixelPS.usf", "FastResolvePS", SF_Pixel);
+IMPLEMENT_GLOBAL_SHADER(FHairVisibilityFastResolveMaskPS, "/Engine/Private/HairStrands/HairStrandsComposition.usf", "FastResolvePS", SF_Pixel);
 
 static void AddHairVisibilityFastResolveMaskPass(
 	FRDGBuilder& GraphBuilder,
@@ -457,10 +457,11 @@ public:
 		FGlobalShader::ModifyCompilationEnvironment(Parameters, OutEnvironment);
 		OutEnvironment.SetRenderTargetOutputFormat(0, PF_B8G8R8A8);
 		OutEnvironment.SetRenderTargetOutputFormat(1, PF_FloatRGBA);
+		OutEnvironment.SetDefine(TEXT("SHADER_WRITE_GBUFFER"), 1);
 	}
 };
 
-IMPLEMENT_GLOBAL_SHADER(FHairVisibilityGBufferWritePS, "/Engine/Private/HairStrands/HairStrandsGBufferWrite.usf", "MainPS", SF_Pixel);
+IMPLEMENT_GLOBAL_SHADER(FHairVisibilityGBufferWritePS, "/Engine/Private/HairStrands/HairStrandsComposition.usf", "MainPS", SF_Pixel);
 
 static void AddHairVisibilityGBufferWritePass(
 	FRDGBuilder& GraphBuilder,
