@@ -1476,7 +1476,7 @@ TLaneVector2D<ScalarType, DestVectorSize, SimdSizeX, SimdSizeY> ResizeChannels(
 	for (uint ElementIndex = 0; ElementIndex < SimdSizeX * SimdSizeY; ElementIndex++)
 	{
 		UNROLL
-		for (uint ComponentIndex = 0; ComponentIndex < VectorSize; ComponentIndex++)
+		for (uint ComponentIndex = 0; ComponentIndex < min(VectorSize, DestVectorSize); ComponentIndex++)
 		{
 			R.Registers.SetElementComponent(ElementIndex, ComponentIndex, A.Registers.GetElementComponent(ElementIndex, ComponentIndex));
 		}
