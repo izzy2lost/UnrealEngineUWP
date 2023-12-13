@@ -6,7 +6,7 @@ using EpicGames.Core;
 using Microsoft.Extensions.Logging;
 using Microsoft.Extensions.Options;
 
-namespace Horde.Server.Commands.Install
+namespace Horde.Server.Commands
 {
 	/// <summary>
 	/// Opens a web browser to the server homepage

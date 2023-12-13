@@ -10,7 +10,7 @@ using Microsoft.Extensions.Logging;
 
 namespace Horde.Server.Commands.Config
 {
-	[Command("config", "schemas", "Writes JSON schemas for server settings")]
+	[Command("generate", "configschemas", "Writes JSON schemas for server settings")]
 	class SchemasCommand : Command
 	{
 		[CommandLine("-OutputDir=")]

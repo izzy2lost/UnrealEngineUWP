@@ -14,7 +14,7 @@ using EpicGames.Horde.Storage.Nodes;
 using Horde.Server.Agents;
 using Microsoft.Extensions.Logging;
 
-namespace Horde.Server.Commands.Install
+namespace Horde.Server.Commands
 {
 	using JsonObject = System.Text.Json.Nodes.JsonObject;
 

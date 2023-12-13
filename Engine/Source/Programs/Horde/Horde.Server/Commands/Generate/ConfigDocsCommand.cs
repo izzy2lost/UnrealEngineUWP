@@ -19,7 +19,7 @@ using Microsoft.Extensions.Logging;
 
 namespace Horde.Server.Commands.Config
 {
-	[Command("config", "docs", "Writes Markdown docs for server settings")]
+	[Command("generate", "configdocs", "Writes Markdown docs for server settings")]
 	class DocsCommand : Command
 	{
 		[CommandLine]
