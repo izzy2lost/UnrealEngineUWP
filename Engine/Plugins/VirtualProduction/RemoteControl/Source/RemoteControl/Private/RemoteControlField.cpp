@@ -260,6 +260,19 @@ FProperty* FRemoteControlProperty::GetProperty() const
 	return nullptr;
 }
 
+void* FRemoteControlProperty::GetFieldContainerAddress() const
+{
+	// Make a copy in order to preserve constness.
+	FRCFieldPathInfo FieldPathCopy = FieldPathInfo;
+	TArray<UObject*> Objects = GetBoundObjects();
+	if (Objects.Num() && FieldPathCopy.Resolve(Objects[0]))
+	{
+		const FRCFieldResolvedData Data = FieldPathCopy.GetResolvedData();
+		return Data.ContainerAddress;
+	}
+	return nullptr;
+}
+
 TSharedPtr<IRemoteControlPropertyHandle> FRemoteControlProperty::GetPropertyHandle() const 
 {
 	TSharedPtr<FRemoteControlProperty> ThisPtr = Owner->GetExposedEntity<FRemoteControlProperty>(GetId()).Pin();

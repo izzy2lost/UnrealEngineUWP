@@ -1406,6 +1406,11 @@ void SRemoteControlPanel::BindRemoteControlCommands()
 		Commands.DuplicateItem,
 		FExecuteAction::CreateSP(this, &SRemoteControlPanel::DuplicateItem_Execute),
 		FCanExecuteAction::CreateSP(this, &SRemoteControlPanel::CanDuplicateItem));
+
+	ActionList.MapAction(
+		Commands.UpdateValue,
+		FExecuteAction::CreateSP(this, &SRemoteControlPanel::UpdateValue_Execute),
+		FCanExecuteAction::CreateSP(this, &SRemoteControlPanel::CanUpdateValue));
 }
 
 void SRemoteControlPanel::RegisterEvents()
@@ -2592,6 +2597,44 @@ bool SRemoteControlPanel::CanDuplicateItem() const
 	if (TSharedPtr<SRCLogicPanelBase> ActiveLogicPanel = GetActiveLogicPanel())
 	{
 		return ActiveLogicPanel->GetSelectedLogicItem().IsValid();
+	}
+
+	return false;
+}
+
+void SRemoteControlPanel::UpdateValue_Execute()
+{
+	if (const TSharedPtr<SRCLogicPanelBase> ActiveLogicPanel = GetActiveLogicPanel())
+	{
+		if (const TSharedPtr<FRCActionModel> RCActionLogicItem = StaticCastSharedPtr<FRCActionModel>(ActiveLogicPanel->GetSelectedLogicItem()))
+		{
+			if (const URCPropertyAction* RCPropertyAction = Cast<URCPropertyAction>(RCActionLogicItem->GetAction()))
+			{
+				RCPropertyAction->UpdateValueBasedOnRCProperty();
+			}
+		}
+	}
+}
+
+bool SRemoteControlPanel::CanUpdateValue() const
+{
+	if (bIsInLiveMode)
+	{
+		return false;
+	}
+	
+	if (const TSharedPtr<SRCLogicPanelBase> ActiveLogicPanel = GetActiveLogicPanel())
+	{
+		if (const TSharedPtr<FRCActionModel> RCActionLogicItem = StaticCastSharedPtr<FRCActionModel>(ActiveLogicPanel->GetSelectedLogicItem()))
+		{
+			if (const URemoteControlPreset* RCPreset = GetPreset())
+			{
+				if (const URCAction* RCAction = RCActionLogicItem->GetAction())
+				{
+					return RCAction->IsA<URCPropertyAction>() && RCPreset->GetExposedEntity(RCAction->ExposedFieldId).IsValid();
+				}
+			}
+		}
 	}
 
 	return false;

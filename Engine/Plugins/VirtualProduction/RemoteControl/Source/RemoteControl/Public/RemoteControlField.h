@@ -197,6 +197,13 @@ public:
 	FProperty* GetProperty() const;
 
 	/**
+ 	 * Get the container address.
+ 	 * @return The container address of the value exposed by this field or nullptr if it couldn't be resolved.
+ 	 * @note This field's binding must be valid to get the container address.
+ 	 */
+	void* GetFieldContainerAddress() const;
+
+	/**
 	 * Get the property handle with ability set and get property value directly.
 	 * @return The property handle for exposed property.
 	 */

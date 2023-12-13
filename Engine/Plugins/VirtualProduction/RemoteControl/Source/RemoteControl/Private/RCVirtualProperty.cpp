@@ -853,6 +853,12 @@ bool URCVirtualPropertySelfContainer::DuplicatePropertyWithCopy(URCVirtualProper
 	return false;
 }
 
+bool URCVirtualPropertySelfContainer::UpdateValueWithProperty(const FProperty* InProperty, const void* InPropertyContainer)
+{
+	const EPropertyBagResult Result = Bag.SetValue(PropertyName, InProperty, InPropertyContainer);
+	return Result == EPropertyBagResult::Success;
+}
+
 void URCVirtualPropertySelfContainer::Reset()
 {
 	PropertyName = NAME_None;

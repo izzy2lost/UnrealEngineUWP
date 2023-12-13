@@ -8,6 +8,7 @@
 #include "IRemoteControlPropertyHandle.h"
 #include "IStructSerializerBackend.h"
 #include "RCVirtualProperty.h"
+#include "RemoteControlField.h"
 #include "RemoteControlPreset.h"
 #include "StructSerializer.h"
 #include "Action/RCAction.h"
@@ -80,6 +81,18 @@ FProperty* URCPropertyAction::GetProperty() const
 	}
 
 	return nullptr;
+}
+
+void URCPropertyAction::UpdateValueBasedOnRCProperty() const
+{
+	if (const TSharedPtr<FRemoteControlProperty> RCExposedProperty = GetRemoteControlProperty())
+	{
+		const FProperty* RCProperty = RCExposedProperty->GetProperty();
+		if (PropertySelfContainer)
+		{
+			PropertySelfContainer->UpdateValueWithProperty(RCProperty, RCExposedProperty->GetFieldContainerAddress());
+		}
+	}
 }
 
 FName URCAction::GetExposedFieldLabel() const

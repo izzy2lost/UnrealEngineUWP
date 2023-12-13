@@ -475,6 +475,7 @@ void FRemoteControlUIModule::UnbindRemoteControlCommands()
 		ActionList.UnmapAction(Commands.CopyItem);
 		ActionList.UnmapAction(Commands.PasteItem);
 		ActionList.UnmapAction(Commands.DuplicateItem);
+		ActionList.UnmapAction(Commands.UpdateValue);
 	}
 
 	FRemoteControlCommands::Unregister();

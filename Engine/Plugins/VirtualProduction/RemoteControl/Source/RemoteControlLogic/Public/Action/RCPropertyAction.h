@@ -27,6 +27,9 @@ public:
 	/* Returns the FProperty underlying this Action */
 	FProperty* GetProperty() const;
 
+	/* Update the value of this Action with the current value of the RC property it is bound to */
+	void UpdateValueBasedOnRCProperty() const;
+
 public:
 	/** Virtual Property Container */
 	UPROPERTY()

@@ -406,6 +406,16 @@ public:
 	 */
 	bool DuplicatePropertyWithCopy(URCVirtualPropertyBase* InVirtualProperty);
 
+	/**
+ 	 * Update property bag value using the property and the container passed.
+ 	 *
+ 	 * @param InProperty Property used to update the bag property value
+ 	 * @param InPropertyContainer Container to take the value using the property
+ 	 *
+ 	 * @return true if SetValue of the bag returned Success otherwise false
+ 	 */
+	bool UpdateValueWithProperty(const FProperty* InProperty, const void* InPropertyContainer);
+
 	/** Resets the property bag instance to empty and remove Virtual Property data */
 	void Reset();
 

@@ -332,6 +332,12 @@ private:
 	/** Called to test if user is able to Duplicate a logic UI item. */
 	bool CanDuplicateItem() const;
 
+	/** Called when user attempts to Update a logic UI item. */
+	void UpdateValue_Execute();
+
+	/** Called to test if user is able to Update a logic UI item. */
+	bool CanUpdateValue() const;
+
 	/** Loads settings from config based on the preset identifier. */
 	void LoadSettings(const FGuid& InInstanceId) const;
 
