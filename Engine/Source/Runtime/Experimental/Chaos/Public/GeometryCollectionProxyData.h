@@ -247,10 +247,11 @@ public:
 	{
 		uint16 DynamicState: 8; // need to fit EObjectStateTypeEnum
 		uint16 DisabledState: 1;
+		uint16 HasDecayed : 1; // particle has been released but disabled right away
 		uint16 HasInternalClusterParent: 1;
 		uint16 DynamicInternalClusterParent: 1;
 		uint16 HasClusterUnionParent: 1;
-		// 4 bits left
+		// 3 bits left
 	};
 
 	struct FStateData

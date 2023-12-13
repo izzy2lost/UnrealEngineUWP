@@ -144,6 +144,12 @@ FAutoConsoleVariableRef CVarGeometryCollectionUseRootBrokenFlag(
 	bGeometryCollectionUseRootBrokenFlag,
 	TEXT("If enabled, check if the root transform is broken in the proxy and disable the GT particle if so. Should be enabled - cvar is a failsafe to revert behaviour"));
 
+bool bPropagateInternalClusterDisableFlagToChildren = true;
+FAutoConsoleVariableRef CVarPropagateInternalClusterDisableFlagToChildren(
+	TEXT("p.GeometryCollection.PropagateInternalClusterDisableFlagToChildren"),
+	bPropagateInternalClusterDisableFlagToChildren,
+	TEXT("If enabled, disabled internal clusters will propagate their disabled flag to their children when buffering instead of implicitly activating the children."));
+	
 bool bGeometryCollectionScaleClusterGeometry = true;
 FAutoConsoleVariableRef CVarGeometryCollectionScaleClusterGeometry(
 	TEXT("p.GeometryCollection.ScaleClusterGeometry"),
@@ -3795,7 +3801,8 @@ void FGeometryCollectionPhysicsProxy::BufferPhysicsResults_Internal(Chaos::FPBDR
 			StateData.TransformIndex = TransformGroupIndex;
 			StateData.HasParent = PhysicsThreadCollection.GetHasParent(TransformGroupIndex);
 			StateData.InternalClusterUniqueIdx = INDEX_NONE;
-			StateData.State.DisabledState = Handle->Disabled();
+			StateData.State.DisabledState = Handle->Disabled(); // this can change if the particle has a cluster union parent 
+			StateData.State.HasDecayed = Handle->Disabled() && (Handle->Parent() == nullptr);
 			StateData.State.HasInternalClusterParent = false;
 			StateData.State.DynamicInternalClusterParent = false;
 			StateData.State.HasClusterUnionParent = false;
@@ -3862,7 +3869,7 @@ void FGeometryCollectionPhysicsProxy::BufferPhysicsResults_Internal(Chaos::FPBDR
 				PositionData.ParticleR = ParticleToWorld.GetRotation();
 				
 				// Indicate that this object needs to be updated and the proxy is active.
-				StateData.State.DisabledState = false;
+				StateData.State.DisabledState = bPropagateInternalClusterDisableFlagToChildren ? ClusterParent->Disabled() : false;
 				StateData.State.HasInternalClusterParent = true;
 				StateData.State.DynamicInternalClusterParent = (ClusterParent->IsDynamic());
 				StateData.State.HasClusterUnionParent = ClusterParent->PhysicsProxy()->GetType() == EPhysicsProxyType::ClusterUnionProxy;
@@ -4131,26 +4138,40 @@ bool FGeometryCollectionPhysicsProxy::PullNonInterpolatableDataFromSinglePhysics
 		}
 
 		const int32 ParticleIndex = FromTransformToParticleIndex[TransformGroupIndex];
+		const bool bIsRootIndex = (Parameters.InitialRootIndex == TransformGroupIndex);
+
+		if (!bIsRootIndex)
+		{
+			CreateChildrenGeometry_External();
+		}
+
 		const bool bIsActive = !StateData.State.DisabledState;
 		if (UpdateValue(GameThreadCollection.Active[TransformGroupIndex], bIsActive))
 		{
-			if (bIsActive && Parameters.InitialRootIndex != TransformGroupIndex)
+			if (GTParticles[ParticleIndex].IsValid())
 			{
-				CreateChildrenGeometry_External();
+				GTParticles[ParticleIndex]->SetDisabled(!bIsActive);
+				bIsCollectionDirty = true;
 			}
-			if (ParticleIndex == INDEX_NONE || GTParticles[ParticleIndex] == nullptr)
-			{
-				continue;
-			}
+		}
 
-			GTParticles[ParticleIndex]->SetDisabled(!bIsActive);
-			bIsCollectionDirty = true;
+		if (StateData.State.HasDecayed)
+		{
+			if (!bIsRootIndex)
+			{
+				if (ParticleIndex != INDEX_NONE && GTParticles[ParticleIndex].IsValid())
+				{
+					GTParticles[ParticleIndex]->SetDisabled(true);
+					bIsCollectionDirty = true;
+				}
+			}
 		}
 
 		if (ParticleIndex == INDEX_NONE || GTParticles[ParticleIndex] == nullptr)
 		{
 			continue;
 		}
+
 		FParticle& GTParticle = *GTParticles[ParticleIndex];
 
 		if (UpdateValue(GameThreadCollection.DynamicState[TransformGroupIndex], static_cast<uint8>(StateData.State.DynamicState)))

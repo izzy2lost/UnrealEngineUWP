@@ -3970,7 +3970,7 @@ void UGeometryCollectionComponent::UpdateBrokenAndDecayedStates()
 		if (RootIndex != INDEX_NONE)
 		{
 			const int32 NumTransforms = DynamicCollection->GetNumTransforms();
-
+			
 			const bool bIsRootBroken = !DynamicCollection->Active[RootIndex];
 			BrokenAndDecayedStates.SetRootIsBroken(bIsRootBroken);
 			// we mark it both broken and decayed
@@ -3998,11 +3998,38 @@ void UGeometryCollectionComponent::UpdateBrokenAndDecayedStates()
 							continue;
 						}
 
-						const bool bInternalClusterParentBrokenOff = DynamicStateFacade.HasDynamicInternalClusterParent(TransformIdx) && !DynamicStateFacade.HasClusterUnionParent(TransformIdx);
-						const bool bSelfBrokenOff = DynamicStateFacade.HasBrokenOff(TransformIdx) && !DynamicStateFacade.HasInternalClusterParent(TransformIdx);
-						if (bSelfBrokenOff || bInternalClusterParentBrokenOff)
+						if (!BrokenAndDecayedStates.GetIsBroken(TransformIdx))
 						{
-							BrokenAndDecayedStates.SetIsBroken(TransformIdx);
+							const bool bInternalClusterParentBrokenOff = DynamicStateFacade.HasDynamicInternalClusterParent(TransformIdx) && !DynamicStateFacade.HasClusterUnionParent(TransformIdx);
+							const bool bSelfBrokenOff = DynamicStateFacade.HasBrokenOff(TransformIdx) && !DynamicStateFacade.HasInternalClusterParent(TransformIdx);
+							if (bSelfBrokenOff || bInternalClusterParentBrokenOff)
+							{
+								BrokenAndDecayedStates.SetIsBroken(TransformIdx);								
+							}
+						}
+
+						if (BrokenAndDecayedStates.GetIsBroken(TransformIdx))
+						{
+							if (Particle->Disabled())
+							{
+								// Todo(chaos) in the future we shoud probably store a bitArray to know if the bone is a simulated leaf
+								bool bHasAnyChildWithValidParticle = false;
+								DynamicCollection->IterateThroughChildren(TransformIdx, 
+									[&bHasAnyChildWithValidParticle, this] (int32 ChildTransformIdx) -> bool
+									{
+										if (PhysicsProxy->GetParticleByIndex_External(ChildTransformIdx))
+										{
+											bHasAnyChildWithValidParticle = true;
+											return false; // do no continue iterating
+										}
+										return true; // continue iterating
+									});
+
+								if (!bHasAnyChildWithValidParticle)
+								{
+									BrokenAndDecayedStates.SetHasDecayed(TransformIdx);
+								}
+							}
 						}
 					}
 				}
@@ -4179,6 +4206,10 @@ void UGeometryCollectionComponent::OnPostPhysicsSync()
 				PrimaryComponentTick.SetTickFunctionEnable(true);
 			}
 		}
+		else
+		{
+			InitializeRemovalDynamicAttributesIfNeeded();
+		}
 
 		UpdateRemovalIfNeeded();
 
@@ -4312,7 +4343,7 @@ void UGeometryCollectionComponent::UpdateRemovalIfNeeded()
 
 	// if removal is enabled, update the dynamic collection transform based on the decay 
 	// todo: we could optimize this using a list of transform to update from when we update the decay values
-	if (DynamicCollection && bAllowRemovalOnBreak && bAllowRemovalOnSleep)
+	if (DynamicCollection && bAllowRemovalOnBreak && bAllowRemovalOnSleep && PhysicsProxy)
 	{
 		FGeometryCollectionDecayDynamicFacade DecayFacade(*DynamicCollection);
 		if (DecayFacade.IsValid())
@@ -4329,11 +4360,27 @@ void UGeometryCollectionComponent::UpdateRemovalIfNeeded()
 				CompSpaceTransform = &ComponentSpaceTransforms.RequestAllTransforms();
 			}
 
+			const int32 RootIndex = RestCollection->GetRootIndex();
+
 			const int32 NumTransforms = DecayFacade.GetDecayAttributeSize();
 			for (int32 TransformIndex = 0; TransformIndex < NumTransforms; ++TransformIndex)
 			{
 				// only update values if the decay has changed 
-				const float Decay = DecayFacade.GetDecay(TransformIndex);
+				float Decay = DecayFacade.GetDecay(TransformIndex);
+
+				// reconcile changes to the decay state with the decay value
+				if (Decay < 1.f && TransformIndex != RootIndex)
+				{
+					if (PhysicsProxy->GetParticleByIndex_External(TransformIndex))
+					{
+						if (BrokenAndDecayedStates.GetHasDecayed(TransformIndex))
+						{
+							Decay = 1.0f;
+							DecayFacade.SetDecay(TransformIndex, Decay);
+						}
+					}
+				}
+
 				if (Decay > 0.f && Decay <= 1.f)
 				{
 					const float Scale = 1.0 - Decay;
