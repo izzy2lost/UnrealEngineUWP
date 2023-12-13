@@ -1,16 +1,11 @@
 #!/bin/sh
 
-OCIO_VERSION="2.3.0"
+OCIO_VERSION="2.3.1"
 OCIO_LIB_NAME="OpenColorIO-$OCIO_VERSION"
 
 SCRIPT_DIR=`cd $(dirname "$BASH_SOURCE"); pwd`
 UE_ENGINE_DIR=`cd $SCRIPT_DIR/../../..; pwd`
 UE_THIRD_PARTY_DIR="$UE_ENGINE_DIR/Source/ThirdParty"
-
-# Using the toolchain downloaded by Engine/Build/BatchFiles/Linux/SetupToolchain.sh
-#pushd "$UE_ENGINE_DIR/Build/BatchFiles/Linux"
-#source "SetupToolchain.sh"
-#popd
 
 cd $SCRIPT_DIR
 
@@ -24,8 +19,6 @@ git clone --depth 1 --branch v$OCIO_VERSION https://github.com/AcademySoftwareFo
 
 cd $OCIO_LIB_NAME
 
-git apply ../ue_ocio_v23.patch
-
 ARCH_NAME=$1
 if [ -z "$ARCH_NAME" ]
 then
@@ -34,7 +27,7 @@ then
 fi
 
 TOOLCHAIN_NAME=v21_clang-15.0.1-centos7
-UE_TOOLCHAIN_LOCATION="$UE_ENGINE_DIR/Extras/ThirdPartyNotUE/SDKs/HostLinux/Linux_x64/$TOOLCHAIN_NAME"
+UE_TOOLCHAIN_LOCATION="$UE_SDKS_ROOT/HostLinux/Linux_x64/$TOOLCHAIN_NAME"
 CXX_FLAGS="-fvisibility=hidden -nostdinc++ -I$UE_THIRD_PARTY_DIR/Unix/LibCxx/include  -I$UE_THIRD_PARTY_DIR/Unix/LibCxx/include/c++/v1"
 LINKER_FLAGS="-nodefaultlibs -L$UE_THIRD_PARTY_DIR/Unix/LibCxx/lib/Unix/$ARCH_NAME/ -lc++ -lc++abi -lm -lc -lgcc_s -lgcc"
 
@@ -92,8 +85,8 @@ cmake -S . -B build \
     -DOCIO_BUILD_DOCS=OFF \
     -DOCIO_BUILD_TESTS=OFF \
     -DOCIO_BUILD_PYTHON=OFF \
-    -DZLIB_LIBRARY="$UE_THIRD_PARTY_DIR/zlib/1.2.13/lib/Unix/$ARCH_NAME/Release/libz.a"\
-    -DZLIB_INCLUDE_DIR="$UE_THIRD_PARTY_DIR/zlib/1.2.13/include"\
+    -DZLIB_LIBRARY="$UE_THIRD_PARTY_DIR/zlib/1.3/lib/Unix/$ARCH_NAME/Release/libz.a"\
+    -DZLIB_INCLUDE_DIR="$UE_THIRD_PARTY_DIR/zlib/1.3/include"\
     -Dexpat_STATIC_LIBRARY=ON \
     -DEXPAT_CXX_FLAGS="$CXX_FLAGS" \
     -Dyaml-cpp_STATIC_LIBRARY=ON \
@@ -109,4 +102,4 @@ cmake --build build --config Release --target install # -- -j $NUM_CPU
 #echo "Copying library build files..."
 target="../../../../Binaries/ThirdParty/OpenColorIO/Unix/$ARCH_NAME"
 mkdir -p $target
-cp build/install/lib/libOpenColorIO.so.2.3.0 $target/libOpenColorIO.so.2.3
+cp build/install/lib/libOpenColorIO.so.2.3.1 $target/libOpenColorIO.so.2.3

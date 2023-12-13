@@ -13,7 +13,7 @@ public class OpenColorIOLib : ModuleRules
 
 		string PlatformDir = Target.Platform.ToString();
 		string BinaryDir = "$(EngineDir)/Binaries/ThirdParty/OpenColorIO";
-		string DeployDir = Path.Combine(ModuleDirectory, "Deploy/OpenColorIO-2.3.0");
+		string DeployDir = Path.Combine(ModuleDirectory, "Deploy/OpenColorIO");
 
 		PublicSystemIncludePaths.Add(Path.Combine(DeployDir, "include"));
 

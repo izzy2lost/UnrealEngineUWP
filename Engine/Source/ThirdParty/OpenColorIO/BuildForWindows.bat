@@ -7,7 +7,7 @@ setlocal
 
 if [%1]==[] goto usage
 
-set OCIO_VERSION=2.3.0
+set OCIO_VERSION=2.3.1
 set OCIO_LIB_NAME=OpenColorIO-%OCIO_VERSION%
 set ENGINE_ROOT=%~dp0..\..\..
 set ARCH_NAME=%1
@@ -20,7 +20,7 @@ if exist .\%OCIO_LIB_NAME% (
 git clone --depth 1 --branch v%OCIO_VERSION% https://github.com/AcademySoftwareFoundation/OpenColorIO.git %OCIO_LIB_NAME%
 
 cd /d .\%OCIO_LIB_NAME%
-set DEPLOY_FOLDER=..\Deploy\%OCIO_LIB_NAME%
+set DEPLOY_FOLDER=..\Deploy\OpenColorIO
 
 git apply ../ue_ocio_v23.patch
 

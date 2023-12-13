@@ -1,6 +1,6 @@
 #!/bin/sh
 
-OCIO_VERSION="2.3.0"
+OCIO_VERSION="2.3.1"
 OCIO_LIB_NAME="OpenColorIO-$OCIO_VERSION"
 
 SCRIPT_DIR=`cd $(dirname "$BASH_SOURCE"); pwd`
@@ -18,8 +18,6 @@ fi
 git clone --depth 1 --branch v$OCIO_VERSION https://github.com/AcademySoftwareFoundation/OpenColorIO.git $OCIO_LIB_NAME
 
 pushd $OCIO_LIB_NAME
-
-git apply ../ue_ocio_v23.patch
 
 UE_C_FLAGS="-mmacosx-version-min=10.9 -arch x86_64 -arch arm64"
 UE_CXX_FLAGS="-mmacosx-version-min=10.9 -arch x86_64 -arch arm64"
@@ -62,8 +60,8 @@ echo "Building Release build..."
 cmake --build build --config Release
 
 echo "Copying library build files..."
-cp build/src/OpenColorIO/libOpenColorIO.2.3.0.dylib $UE_ENGINE_DIR/Binaries/ThirdParty/OpenColorIO/Mac/libOpenColorIO.2.3.dylib
-# cp build/src/OpenColorIO/libOpenColorIO.2.3.0.dylib $UE_ENGINE_DIR/Binaries/ThirdParty/OpenColorIO/Mac/libOpenColorIO.dylib
+cp build/src/OpenColorIO/libOpenColorIO.2.3.1.dylib $UE_ENGINE_DIR/Binaries/ThirdParty/OpenColorIO/Mac/libOpenColorIO.2.3.dylib
+# cp build/src/OpenColorIO/libOpenColorIO.2.3.1.dylib $UE_ENGINE_DIR/Binaries/ThirdParty/OpenColorIO/Mac/libOpenColorIO.dylib
 # install_name_tool -id @rpath/libOpenColorIO.dylib $UE_ENGINE_DIR/Binaries/ThirdParty/OpenColorIO/Mac/libOpenColorIO.dylib
 
 popd
