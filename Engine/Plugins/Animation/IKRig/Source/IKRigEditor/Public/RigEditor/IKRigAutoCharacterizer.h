@@ -4,19 +4,6 @@
 #include "CoreMinimal.h"
 #include "Rig/IKRigDefinition.h"
 
-enum class EPBIKLimitType : uint8;
-
-enum class EPreferredAxis
-{
-	None,
-	PositiveX,
-	NegativeX,
-	PositiveY,
-	NegativeY,
-	PositiveZ,
-	NegativeZ,
-};
-
 // the central ground truth for standardized characterization labels used in Unreal
 struct FCharacterizationStandard
 {
@@ -73,20 +60,6 @@ struct FCharacterizationStandard
 
 	// TODO add support for arbitrary bone chains (ie, 6-legged characters w/ LeftLegA, LeftLegB etc...)
 	// FName GenerateStandardizedName(TArray<FName> BoneNames, LimbType, Side, LimbNum etc...)
-
-	// standard bipedal IK goal names
-	static const FName LeftHandIK;
-	static const FName LeftFootIK;
-	static const FName RightHandIK;
-	static const FName RightFootIK;
-
-	// TODO add support for arbitrary bone chains (ie, 6-legged characters w/ LeftLegA, LeftLegB etc...)
-	// FName GenerateStandardizedIKGoalName(TArray<FName> BoneNames, LimbType, Side, LimbNum etc...)
-
-	// standard bone settings for IK
-	static constexpr float PelvisRotationStiffness = 0.95f;
-	static constexpr float ClavicleRotationStiffness = 0.95f;
-	static constexpr float FootRotationStiffness = 0.85f;
 };
 
 // clean names are used for comparison
@@ -198,43 +171,19 @@ struct FAutoCharacterizeResults
 	int32 NumBonesAddedToNeckChain = 0;
 };
 
-struct FBoneSettingsForIK
-{
-	FName BoneToApplyTo;
-	float RotationStiffness = 0.f;
-	EPreferredAxis PreferredAxis = EPreferredAxis::None;
-	bool bIsHinge = false;
-	bool bExcluded = false;
-
-	FVector GetPreferredAxisAsAngles() const;
-	void LockNonPreferredAxes(EPBIKLimitType& OutX, EPBIKLimitType& OutY, EPBIKLimitType& OutZ) const;
-	
-private:
-	static constexpr float PreferredAngleMagnitude = 90.f;
-};
-
-struct FAllBoneSettingsForIK
-{
-	void SetPreferredAxis(const FName BoneName, const EPreferredAxis PreferredAxis, const bool bTreatAsHinge=true);
-	void SetRotationStiffness(const FName BoneName, const float RotationStiffness);
-	void SetExcluded(const FName BoneName, const bool bExclude);
-	const TArray<FBoneSettingsForIK>& GetBoneSettings() const { return AllBoneSettings; };
-
-private:
-	FBoneSettingsForIK& GetOrAddBoneSettings(const FName BoneName);
-	TArray<FBoneSettingsForIK> AllBoneSettings;
-};
-
 // a hard coded template representing a "known" hierarchy that is used in the world (ie UE5 Mannequin, Fortnite skeleton etc..)
-// contains the recommended retarget definition to use for this template, including the retarget root, retarget chains and bone settings
+// contains the recommended retarget definition to use for this template, including the retarget root and all retarget chains
 struct FTemplateHierarchy
 {
-	FTemplateHierarchy(const FName& InName, const FAbstractHierarchy& InHierarchy) : Name(InName), Hierarchy(InHierarchy){}
+	FTemplateHierarchy(
+		const FName& InName,
+		const FAbstractHierarchy& InHierarchy,
+		const FRetargetDefinition& InRetargetDefinition)
+			: Name(InName), Hierarchy(InHierarchy), RetargetDefinition(InRetargetDefinition){}
 
 	FName Name;
 	FAbstractHierarchy Hierarchy;
 	FRetargetDefinition RetargetDefinition;
-	FAllBoneSettingsForIK BoneSettingsForIK;
 };
 
 // a collection of FTemplateHierarchy to compare against
@@ -252,7 +201,11 @@ struct FKnownTemplateHierarchies
 private:
 
 	// add a template hierarchy
-	FTemplateHierarchy& AddTemplateHierarchy(const FName& Label, const TArray<FName>& BoneNames, const TArray<int32>& ParentIndices);
+	void AddTemplateHierarchy(
+		const FName& Label,
+		const TArray<FName>& BoneNames,
+		const TArray<int32>& ParentIndices,
+		const FRetargetDefinition& RetargetDefinition);
 	
 	TArray<FTemplateHierarchy> KnownHierarchies;
 };
@@ -266,9 +219,6 @@ struct FAutoCharacterizer
 	// call this function with any skeletal mesh to auto-generate a retarget definition for it.
 	// the results includes the retarget definition itself, as well as the scores indicating how closely the skeleton was matched to a known hierarchy
 	void GenerateRetargetDefinitionFromMesh(USkeletalMesh* Mesh, FAutoCharacterizeResults& Results) const;
-
-	// get read-only access to a template by name
-	const FTemplateHierarchy* GetKnownTemplateHierarchy(const FName& TemplateName) const;
 
 private:
 

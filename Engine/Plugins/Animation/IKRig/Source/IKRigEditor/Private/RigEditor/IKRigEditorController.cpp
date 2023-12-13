@@ -20,7 +20,6 @@
 #include "Dialog/SCustomDialog.h"
 #include "ScopedTransaction.h"
 #include "Framework/Notifications/NotificationManager.h"
-#include "RigEditor/IKRigAutoFBIK.h"
 #include "Widgets/Notifications/SNotificationList.h"
 
 #include UE_INLINE_GENERATED_CPP_BY_NAME(IKRigEditorController)
@@ -546,52 +545,6 @@ void FIKRigEditorController::AutoGenerateRetargetChains() const
 		FNotificationInfo Info(LOCTEXT("MissingTemplateCharacterizeSkipped", "No matching skeletal template found. Characterization skipped."));
 		Info.ExpireDuration = 5.0f;
 		FSlateNotificationManager::Get().AddNotification(Info);
-	}
-}
-
-void FIKRigEditorController::AutoGenerateFBIK() const
-{
-	FAutoFBIKResults Results;
-	AssetController->AutoGenerateFBIK(Results);
-
-	switch (Results.Outcome)
-	{
-	case EAutoFBIKResult::AllOk:
-		{
-			FNotificationInfo Info(LOCTEXT("AutoIKSuccess", "Auto FBIK Successfully Setup."));
-			Info.ExpireDuration = 3.0f;
-			FSlateNotificationManager::Get().AddNotification(Info);
-		}
-		break;
-	case EAutoFBIKResult::MissingMesh:
-		{
-			FNotificationInfo Info(LOCTEXT("AutoIKNoMesh", "No mesh to create IK for. Auto FBIK skipped."));
-			Info.ExpireDuration = 3.0f;
-			FSlateNotificationManager::Get().AddNotification(Info);
-		}
-		break;
-	case EAutoFBIKResult::MissingChains:
-		{
-			FNotificationInfo Info(LOCTEXT("AutoIKMissingChains", "Missing retarget chains. Auto FBIK did not find all expected chains. See output."));
-			Info.ExpireDuration = 3.0f;
-			FSlateNotificationManager::Get().AddNotification(Info);
-		}
-		break;
-	case EAutoFBIKResult::UnknownSkeletonType:
-		{
-			FNotificationInfo Info(LOCTEXT("AutoIKUnknownSkeleton", "Unknown skeleton type. Auto FBIK skipped."));
-			Info.ExpireDuration = 3.0f;
-			FSlateNotificationManager::Get().AddNotification(Info);
-		}
-	case EAutoFBIKResult::MissingRootBone:
-		{
-			FNotificationInfo Info(LOCTEXT("AutoIKMissingRootBone", "Auto FBIK setup, but root bone was missing. Please assign a root bone manually."));
-			Info.ExpireDuration = 3.0f;
-			FSlateNotificationManager::Get().AddNotification(Info);
-		}
-		break;
-	default:
-		checkNoEntry();
 	}
 }
 

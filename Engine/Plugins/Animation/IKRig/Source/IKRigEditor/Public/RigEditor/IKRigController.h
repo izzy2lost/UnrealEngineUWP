@@ -9,8 +9,6 @@
 
 struct FAutoCharacterizeResults;
 struct FAutoCharacterizer;
-struct FAutoFBIKCreator;
-struct FAutoFBIKResults;
 struct FRetargetDefinition;
 struct FIKRigInputSkeleton;
 struct FReferenceSkeleton;
@@ -335,12 +333,6 @@ public:
 
 	// Auto generates a retarget definition and returns the results
 	void AutoGenerateRetargetDefinition(FAutoCharacterizeResults& Results) const;
-
-	// Auto generates an FBIK setup for the current skeletal mesh
-	void AutoGenerateFBIK(FAutoFBIKResults& Results);
-
-	// Get read-only access to characterizer
-	const FAutoCharacterizer& GetAutoCharacterizer() const;
 	
 	// Add a Chain with the given BoneChain settings. Returns newly created chain name.
 	FName AddRetargetChainInternal(const FBoneChain& BoneChain) const;
@@ -393,9 +385,6 @@ private:
 
 	// auto characterizer
 	TUniquePtr<FAutoCharacterizer> AutoCharacterizer;
-
-	// auto fbik generator
-	TUniquePtr<FAutoFBIKCreator> AutoFBIKCreator;
 
 	// prevent reinitializing from inner operations
 	mutable int32 ReinitializeScopeCounter = 0;

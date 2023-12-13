@@ -172,11 +172,7 @@ struct IKRIG_API FRetargetDefinition
 	TArray<FBoneChain> BoneChains;
 
 	// add a bone chain from start bone to end bone and store it in this retarget definition
-	void AddBoneChain(
-		const FName ChainName,
-		const FName StartBone,
-		const FName EndBone,
-		const FName GoalName = NAME_None);
+	void AddBoneChain(const FName ChainName, const FName StartBone, const FName EndBone);
 	
 	FBoneChain* GetEditableBoneChainByName(FName ChainName);
 };
