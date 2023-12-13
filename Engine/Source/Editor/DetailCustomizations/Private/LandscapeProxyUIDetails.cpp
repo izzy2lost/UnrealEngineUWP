@@ -461,12 +461,17 @@ void FLandscapeProxyUIDetails::CustomizeDetails( IDetailLayoutBuilder& DetailBui
 				if (PropertyHandle->IsValidHandle())
 				{
 					const FText TooltipText = NSLOCTEXT("Landscape", "OverriddenProperty", "Check this box to override the parent landscape's property.");
-					FString PropertyName = Property->GetName();
+					FName PropertyName = Property->GetFName();
 					IDetailPropertyRow* DetailRow = DetailBuilder.EditDefaultProperty(PropertyHandle);
 					TSharedPtr<SWidget> NameWidget = nullptr;
 					TSharedPtr<SWidget> ValueWidget = nullptr;
 
 					DetailRow->GetDefaultWidgets(NameWidget, ValueWidget);
+
+					TAttribute<bool> EnabledAttribute = TAttribute<bool>::Create([LandscapeStreamingProxy, PropertyName]() -> bool
+					{
+						return LandscapeStreamingProxy->IsSharedPropertyOverridden(PropertyName);
+					});
 
 					DetailRow->CustomWidget(/*bShowChildren = */true)
 					.NameContent()
@@ -525,17 +530,22 @@ void FLandscapeProxyUIDetails::CustomizeDetails( IDetailLayoutBuilder& DetailBui
 						+ SHorizontalBox::Slot()
 						.AutoWidth()
 						[
-							NameWidget->AsShared()
+							SNew(SBox)
+							.IsEnabled(EnabledAttribute)
+							[
+								NameWidget->AsShared()
+							]
 						]
 					]
 					.ValueContent()
 					[
 						SNew(SBox)
-						.IsEnabled_Lambda([LandscapeStreamingProxy, PropertyName]() { return LandscapeStreamingProxy->IsSharedPropertyOverridden(PropertyName); })
+						.IsEnabled(EnabledAttribute)
 						[
 							ValueWidget->AsShared()
 						]
-					];
+					]
+					.IsValueEnabled(EnabledAttribute);
 				}
 			}
 		}

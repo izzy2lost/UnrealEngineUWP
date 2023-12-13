@@ -323,7 +323,7 @@ struct UE_DEPRECATED(5.1, "FLandscapeProxyMaterialOverride is deprecated; please
 
 #if WITH_EDITOR
 // Tracks delayed updates triggered by landscape updates.
-// It's resposible for preventing expensive async operations while the user is still editing the landscape
+// It's responsible for preventing expensive async operations while the user is still editing the landscape
 struct FAsyncWorkMonitor 
 {
 public:
@@ -470,7 +470,7 @@ public:
 
 #if WITH_EDITORONLY_DATA
 	/** LOD level to use when exporting the landscape to obj or FBX */
-	UPROPERTY(EditAnywhere, Category=LOD, AdvancedDisplay)
+	UPROPERTY(EditAnywhere, Category=LOD, AdvancedDisplay, meta = (LandscapeOverridable))
 	int32 ExportLOD;
 
 	/** Display Order of the targets */
@@ -483,8 +483,8 @@ public:
 #endif
 
 	/** LOD level to use when running lightmass (increase to 1 or 2 for large landscapes to stop lightmass crashing) */
-	UPROPERTY(EditAnywhere, Category=Lighting)
-	int32 StaticLightingLOD;
+	UPROPERTY(EditAnywhere, Category=Lighting, meta = (LandscapeOverridable))
+	int32 StaticLightingLOD; 
 
 	/** Default physical material, used when no per-layer values physical materials */
 	UPROPERTY(EditAnywhere, Category=Landscape, meta = (LandscapeOverridable))
@@ -495,7 +495,7 @@ public:
 	 * 1.0 is the default, whereas a higher value increases the streamed-in resolution.
 	 * Value can be < 0 (from legcay content, or code changes)
 	 */
-	UPROPERTY(EditAnywhere, Category=Landscape)
+	UPROPERTY(EditAnywhere, Category=Landscape, meta = (LandscapeOverridable))
 	float StreamingDistanceMultiplier;
 
 	/** Combined material used to render the landscape */
@@ -637,7 +637,7 @@ public:
 	 *  Total resolution would be changed by StaticLightingResolution*StaticLightingResolution
 	 *	Automatically calculate proper value for removing seams
 	 */
-	UPROPERTY(EditAnywhere, Category=Lighting)
+	UPROPERTY(EditAnywhere, Category=Lighting, meta = (LandscapeOverridable))
 	float StaticLightingResolution;
 
 	/** Controls whether the primitive component should cast a shadow or not. */
@@ -653,7 +653,7 @@ public:
 	uint8 bCastStaticShadow : 1;
 
 	/** Control shadow invalidation behavior, in particular with respect to Virtual Shadow Maps and material effects like World Position Offset. */
-	UPROPERTY(EditAnywhere, BlueprintReadOnly, Category=Lighting, AdvancedDisplay, meta=(EditCondition="CastShadow"))
+	UPROPERTY(EditAnywhere, BlueprintReadOnly, Category=Lighting, AdvancedDisplay, meta=(EditCondition="CastShadow", LandscapeOverridable))
 	EShadowCacheInvalidationBehavior ShadowCacheInvalidationBehavior;
 
 	/** Whether the object should cast contact shadows. This flag is only used if CastShadow is true. */
@@ -686,7 +686,7 @@ public:
 	/** Whether to use the landscape material's vertical world position offset when calculating static lighting.
 		Note: Only z (vertical) offset is supported. XY offsets are ignored.
 		Does not work correctly with an XY offset map (mesh collision) */
-	UPROPERTY(EditAnywhere, AdvancedDisplay, Category=Lighting)
+	UPROPERTY(EditAnywhere, AdvancedDisplay, Category=Lighting, meta = (LandscapeInherited))
 	uint32 bUseMaterialPositionOffsetInStaticLighting:1;
 
 	/** If true, the Landscape will be rendered in the CustomDepth pass (usually used for outlines) */
@@ -729,13 +729,13 @@ public:
 	 * @see [Overlap Events](https://docs.unrealengine.com/InteractiveExperiences/Physics/Collision/Overview#overlapandgenerateoverlapevents)
 	 * @see UpdateOverlaps(), BeginComponentOverlap(), EndComponentOverlap()
 	 */
-	UPROPERTY(EditAnywhere, BlueprintReadOnly, Category = Collision)
+	UPROPERTY(EditAnywhere, BlueprintReadOnly, Category = Collision, meta = (LandscapeOverridable))
 	uint32 bGenerateOverlapEvents : 1;
 
 	/** Whether to bake the landscape material's vertical world position offset into the collision heightfield.
 		Note: Only z (vertical) offset is supported. XY offsets are ignored.
 		Does not work with an XY offset map (mesh collision) */
-	UPROPERTY(EditAnywhere, AdvancedDisplay, Category=Collision)
+	UPROPERTY(EditAnywhere, AdvancedDisplay, Category=Collision, meta = (LandscapeInherited))
 	uint32 bBakeMaterialPositionOffsetIntoCollision:1;
 
 #if WITH_EDITORONLY_DATA
@@ -786,27 +786,27 @@ public:
 	int32 NumSubsections;    // Number of subsections in X and Y axis
 
 	/** Hints navigation system whether this landscape will ever be navigated on. true by default, but make sure to set it to false for faraway, background landscapes */
-	UPROPERTY(EditAnywhere, Category=Navigation)
+	UPROPERTY(EditAnywhere, Category=Navigation, meta = (LandscapeOverridable))
 	uint32 bUsedForNavigation:1;
 
 	/** Set to true to prevent navmesh generation under the terrain geometry */
-	UPROPERTY(EditAnywhere, Category = Navigation)
+	UPROPERTY(EditAnywhere, Category = Navigation, meta = (LandscapeOverridable))
 	uint32 bFillCollisionUnderLandscapeForNavmesh:1;
 
-	UPROPERTY(EditAnywhere, Category = Navigation, AdvancedDisplay)
+	UPROPERTY(EditAnywhere, Category = Navigation, AdvancedDisplay, meta = (LandscapeOverridable))
 	ENavDataGatheringMode NavigationGeometryGatheringMode;
 
 	/** When set to true it will generate MaterialInstanceDynamic for each components, so material can be changed at runtime */
-	UPROPERTY(EditAnywhere, Category = Landscape)
+	UPROPERTY(EditAnywhere, Category = Landscape, meta = (LandscapeOverridable))
 	bool bUseDynamicMaterialInstance;
 
 #if WITH_EDITORONLY_DATA
-	UPROPERTY(EditAnywhere, Category=Landscape)
+	UPROPERTY(EditAnywhere, Category=Landscape, meta = (LandscapeOverridable))
 	int32 MaxPaintedLayersPerComponent; // 0 = disabled
 #endif // WITH_EDITORONLY_DATA
 
 	/** Flag whether or not this Landscape's surface can be used for culling hidden triangles **/
-	UPROPERTY(EditAnywhere, Category = HLOD)
+	UPROPERTY(EditAnywhere, Category = HLOD, meta = (LandscapeOverridable))
 	bool bUseLandscapeForCullingInvisibleHLODVertices;
 
 	/** Flag that tell if we have some layers content **/
@@ -1124,10 +1124,10 @@ public:
 	LANDSCAPE_API bool IsPropertyOverridable(const FProperty* InProperty) const;
 	
 	// Returns true if the shared property is overridden by the object.
-	virtual bool IsSharedPropertyOverridden(const FString& InPropertyName) const { return false; }
+	virtual bool IsSharedPropertyOverridden(const FName& InPropertyName) const { return false; }
 
 	// Modifies the override state of the property given as argument.
-	virtual void SetSharedPropertyOverride(const FString& InPropertyName, const bool bIsOverriden) { }
+	virtual void SetSharedPropertyOverride(const FName& InPropertyName, const bool bIsOverriden) { }
 #endif // WITH_EDITOR
 
 	// Get Landscape Material assigned to this Landscape

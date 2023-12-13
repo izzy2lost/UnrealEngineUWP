@@ -526,6 +526,7 @@ void ALandscapeProxy::InvalidateOrUpdateNaniteRepresentation(bool bInCheckConten
 
 FGuid ALandscapeProxy::GetNaniteContentId() const
 {
+	TRACE_CPUPROFILER_EVENT_SCOPE(ALandscapeProxy::GetNaniteContentId);
 	if (!IsNaniteEnabled())
 	{
 		return FGuid();
@@ -4570,7 +4571,7 @@ namespace UE::Landscape::Private
 		return true;
 	}
 
-	static bool CopyPostEditPropertyByName(const TWeakObjectPtr<ALandscapeProxy>& InLandscapeProxy, const TWeakObjectPtr<ALandscape>& InParentLandscape, const FString& InPropertyName)
+	static bool CopyPostEditPropertyByName(const TWeakObjectPtr<ALandscapeProxy>& InLandscapeProxy, const TWeakObjectPtr<ALandscape>& InParentLandscape, const FName& InPropertyName)
 	{
 		if (!InLandscapeProxy.IsValid() || !InParentLandscape.IsValid())
 		{
@@ -4584,7 +4585,7 @@ namespace UE::Landscape::Private
 			return false;
 		}
 
-		FProperty* PropertyToCopy = LandscapeProxyClass->FindPropertyByName(FName(InPropertyName));
+		FProperty* PropertyToCopy = LandscapeProxyClass->FindPropertyByName(InPropertyName);
 
 		if (PropertyToCopy == nullptr)
 		{
@@ -4676,7 +4677,7 @@ TArray<FName> ALandscapeProxy::SynchronizeSharedProperties(ALandscapeProxy* InLa
 		}
 
 		if ((IsPropertyInherited(Property) ||
-			(IsPropertyOverridable(Property) && !IsSharedPropertyOverridden(Property->GetName()))) &&
+			(IsPropertyOverridable(Property) && !IsSharedPropertyOverridden(Property->GetFName()))) &&
 			!Property->Identical_InContainer(this, InLandscape))
 		{
 			SynchronizedProperties.Emplace(Property->GetFName());
@@ -4793,14 +4794,14 @@ UMaterialInterface* ALandscapeStreamingProxy::GetLandscapeHoleMaterial() const
 
 #if WITH_EDITOR
 
-bool ALandscapeStreamingProxy::IsSharedPropertyOverridden(const FString& InPropertyName) const
+bool ALandscapeStreamingProxy::IsSharedPropertyOverridden(const FName& InPropertyName) const
 {
 	return OverriddenSharedProperties.Contains(InPropertyName);
 }
 
-void ALandscapeStreamingProxy::SetSharedPropertyOverride(const FString& InPropertyName, const bool bIsOverridden)
+void ALandscapeStreamingProxy::SetSharedPropertyOverride(const FName& InPropertyName, const bool bIsOverridden)
 {
-	check(IsSharedProperty(FName(InPropertyName)));
+	check(IsSharedProperty(InPropertyName));
 
 	Modify();
 
@@ -4816,7 +4817,7 @@ void ALandscapeStreamingProxy::SetSharedPropertyOverride(const FString& InProper
 		if (!ParentLandscape.IsValid())
 		{
 			UE_LOG(LogLandscape, Warning, TEXT("Unable to retrieve the parent landscape's shared property value (ALandscapeStreamingProxy: %s, Property: %s). The proper value will be fixedup when reloading this proxy."),
-				   *GetFullName(), *InPropertyName);
+				   *GetFullName(), *InPropertyName.ToString());
 		}
 		else
 		{
@@ -4831,9 +4832,9 @@ void ALandscapeStreamingProxy::FixupOverriddenSharedProperties()
 {
 	const UClass* StreamingProxyClass = StaticClass();
 
-	for (const FString& PropertyName : OverriddenSharedProperties)
+	for (const FName& PropertyName : OverriddenSharedProperties)
 	{
-		const FProperty* Property = StreamingProxyClass->FindPropertyByName(FName(PropertyName));
+		const FProperty* Property = StreamingProxyClass->FindPropertyByName(PropertyName);
 		checkf(Property != nullptr, TEXT("An overridden property is referenced but cannot be found. Please check this property hasn't been renamed or deprecated and/or provide the proper adapting mechanism."));
 	}
 }
@@ -4859,18 +4860,18 @@ void ALandscapeProxy::UpgradeSharedProperties(ALandscape* InParentLandscape)
 			SynchronizedProperties.Emplace(Property->GetFName());
 			UE::Landscape::Private::CopyProperty(Property, InParentLandscape, this);
 		}
-		else if (IsPropertyOverridable(Property) && !IsSharedPropertyOverridden(Property->GetName()) && !Property->Identical_InContainer(this, InParentLandscape))
+		else if (IsPropertyOverridable(Property) && !IsSharedPropertyOverridden(Property->GetFName()) && !Property->Identical_InContainer(this, InParentLandscape))
 		{
 			if (CVarSilenceSharedPropertyDeprecationFixup->GetBool())
 			{
-				SetSharedPropertyOverride(Property->GetName(), true);
+				SetSharedPropertyOverride(Property->GetFName(), true);
 			}
 			else
 			{
 				FFormatNamedArguments Arguments;
 				TWeakObjectPtr<ALandscapeProxy> LandscapeProxy = this;
 				TWeakObjectPtr<ALandscape> ParentLandscape = InParentLandscape;
-				const FString PropertyName = Property->GetName();
+				const FName PropertyName = Property->GetFName();
 
 				bOpenMapCheckWindow = true;
 
@@ -4878,7 +4879,7 @@ void ALandscapeProxy::UpgradeSharedProperties(ALandscape* InParentLandscape)
 				Arguments.Add(TEXT("Landscape"), FText::FromString(InParentLandscape->GetActorNameOrLabel()));
 				FMessageLog("MapCheck").Warning()
 					->AddToken(FUObjectToken::Create(this, FText::FromString(GetActorNameOrLabel())))
-					->AddToken(FTextToken::Create(FText::Format(LOCTEXT("MapCheck_Message_LandscapeProxy_UpgradeSharedProperties", "Contains a property ({0}) different from parent's landscape actor. Please select between "), FText::FromString(PropertyName))))
+					->AddToken(FTextToken::Create(FText::Format(LOCTEXT("MapCheck_Message_LandscapeProxy_UpgradeSharedProperties", "Contains a property ({0}) different from parent's landscape actor. Please select between "), FText::FromString(PropertyName.ToString()))))
 					->AddToken(FActionToken::Create(LOCTEXT("MapCheck_OverrideProperty", "Override property"), LOCTEXT("MapCheck_OverrideProperty_Desc", "Keeping the current value and marking the property as overriding the parent landscape's value."),
 						FOnActionTokenExecuted::CreateLambda([LandscapeProxy, PropertyName]()
 							{
