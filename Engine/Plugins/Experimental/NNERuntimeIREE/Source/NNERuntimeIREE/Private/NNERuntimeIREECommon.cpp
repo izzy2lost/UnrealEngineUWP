@@ -149,11 +149,6 @@ namespace UE::NNERuntimeIREE
 		}
 	} // Private
 
-	FString GetTargetPlatformDisplayName(const ITargetPlatform* TargetPlatform)
-	{
-		return TargetPlatform ? TargetPlatform->IniPlatformName() : UGameplayStatics::GetPlatformName();
-	}
-
 	class FIREEInstance
 	{
 	public:
@@ -170,6 +165,8 @@ namespace UE::NNERuntimeIREE
 		TSharedPtr<FIREELibrary> GetLibrary(const FString& Key);
 		void SetLibrary(const FString& Key, TSharedPtr<FIREELibrary> Library);
 
+		TSharedPtr<UE::NNE::FSharedModelData> GetModelData(const FString& DirPath, const FString& VmfbFileName);
+
 	public:
 		static TSharedPtr<FIREEInstance> GetInstance();
 
@@ -178,6 +175,7 @@ namespace UE::NNERuntimeIREE
 		static FCriticalSection CriticalSection;
 		iree_runtime_instance_t* Instance;
 		TMap<FString, TWeakPtr<FIREELibrary>> Libraries;
+		TMap<FString, TWeakPtr<UE::NNE::FSharedModelData>> ModelData;
 	};
 
 	TWeakPtr<FIREEInstance> FIREEInstance::WeakInstancePtr;
@@ -207,7 +205,7 @@ namespace UE::NNERuntimeIREE
 
 	bool FIREEInstance::CreateModule(TConstArrayView<uint8> VmfbDataView, iree_vm_module_t** Module)
 	{
-		check(VmfbDataView.Num() > 0);
+		check(!VmfbDataView.IsEmpty());
 		check(Module);
 
 		iree_status_t Status = iree_ok_status();
@@ -346,7 +344,7 @@ namespace UE::NNERuntimeIREE
 
 	TSharedPtr<FIREELibrary> FIREEInstance::GetLibrary(const FString& Key)
 	{
-		check(Key.Len() > 0);
+		check(!Key.IsEmpty());
 		if (Libraries.Contains(Key))
 		{
 			return Libraries[Key].Pin();
@@ -356,10 +354,42 @@ namespace UE::NNERuntimeIREE
 
 	void FIREEInstance::SetLibrary(const FString& Key, TSharedPtr<FIREELibrary> Library)
 	{
-		check(Key.Len() > 0);
+		check(!Key.IsEmpty());
 		check(Library.IsValid());
 		check(!Libraries.Contains(Key) || !Libraries[Key].IsValid());
 		Libraries.Emplace(Key, Library);
+	}
+
+	TSharedPtr<UE::NNE::FSharedModelData> FIREEInstance::GetModelData(const FString& DirPath, const FString& VmfbFileName)
+	{
+		check(!VmfbFileName.IsEmpty());
+
+		FString FilePath = FPaths::Combine(DirPath, VmfbFileName);
+		if (ModelData.Contains(FilePath) && ModelData[FilePath].IsValid())
+		{
+			return ModelData[FilePath].Pin();
+		}
+
+		TUniquePtr<FArchive> Reader = TUniquePtr<FArchive>(IFileManager::Get().CreateFileReader(*FilePath, 0));
+		if (!Reader)
+		{
+			UE_LOG(LogTemp, Error, TEXT("Failed to open the vmfb data file '%s'"), *FilePath);
+			return TSharedPtr<UE::NNE::FSharedModelData>();
+		}
+		int64 DataSize = Reader->TotalSize();
+		if (DataSize < 1)
+		{
+			UE_LOG(LogTemp, Error, TEXT("Vmfb data file '%s' is empty"), *FilePath);
+			return TSharedPtr<UE::NNE::FSharedModelData>();
+		}
+
+		void* Data = FMemory::Malloc(DataSize, IREE_HAL_HEAP_BUFFER_ALIGNMENT);
+		Reader->Serialize(Data, DataSize);
+
+		TSharedPtr<UE::NNE::FSharedModelData> Result = MakeShared<UE::NNE::FSharedModelData>(FSharedBuffer::TakeOwnership(Data, DataSize, FMemory::Free), IREE_HAL_HEAP_BUFFER_ALIGNMENT);
+		ModelData.Emplace(FilePath, Result);
+
+		return Result;
 	}
 
 	TSharedPtr<FIREEInstance> FIREEInstance::GetInstance()
@@ -419,10 +449,9 @@ namespace UE::NNERuntimeIREE
 		Instance.Reset();
 	}
 
-	TSharedPtr<FIREEModule> FIREEModule::MakeModule(TSharedPtr<UE::NNE::FSharedModelData> SharedModelData, uint32 VmfbDataOffset, UE::NNERuntimeIREE::FModuleMetaData ModuleMetaData)
+	TSharedPtr<FIREEModule> FIREEModule::MakeModule(const FString& DirPath, const FString& VmfbFileName, const UE::NNERuntimeIREE::FModuleMetaData& ModuleMetaData)
 	{
-		check(SharedModelData->GetView().Num() > 0);
-		check(VmfbDataOffset < (uint32)SharedModelData->GetView().Num());
+		check(!VmfbFileName.IsEmpty());
 
 		TSharedPtr<FIREEInstance> Instance = FIREEInstance::GetInstance();
 		if (!Instance.IsValid())
@@ -430,8 +459,14 @@ namespace UE::NNERuntimeIREE
 			return TSharedPtr<FIREEModule>();
 		}
 
+		TSharedPtr<UE::NNE::FSharedModelData> ModelData = Instance->GetModelData(DirPath, VmfbFileName);
+		if (!ModelData.IsValid())
+		{
+			return TSharedPtr<FIREEModule>();
+		}
+
 		iree_vm_module_t* TempModule = nullptr;
-		if (!Instance->CreateModule(TConstArrayView<uint8>(&SharedModelData->GetView()[VmfbDataOffset], SharedModelData->GetView().Num() - VmfbDataOffset), &TempModule))
+		if (!Instance->CreateModule(ModelData->GetView(), &TempModule))
 		{
 			return TSharedPtr<FIREEModule>();
 		}
@@ -527,7 +562,7 @@ namespace UE::NNERuntimeIREE
 
 		TSharedPtr<FIREEModule> Result = MakeShared<FIREEModule>();
 		Result->Instance = Instance;
-		Result->ModelData = SharedModelData;
+		Result->ModelData = ModelData;
 		Result->Module = TempModule;
 		Result->MainFunction = LocalMainFunction;
 		Result->InputTensorDescs = InputTensorDescs;
@@ -630,7 +665,7 @@ namespace UE::NNERuntimeIREE
 		}
 
 		TConstArrayView<UE::NNE::FTensorDesc> InputTensorDescs = IREEModule->GetInputTensorDescs();
-		check(InputTensorDescs.Num() > 0);
+		check(!InputTensorDescs.IsEmpty());
 		bool bAllConcrete = true;
 		for (int32 i = 0; i < InputTensorDescs.Num(); i++)
 		{
@@ -646,7 +681,7 @@ namespace UE::NNERuntimeIREE
 		}
 
 		TConstArrayView<UE::NNE::FTensorDesc> OutputTensorDescs = IREEModule->GetOutputTensorDescs();
-		check(OutputTensorDescs.Num() > 0);
+		check(!OutputTensorDescs.IsEmpty());
 		bAllConcrete = true;
 		for (int32 i = 0; i < OutputTensorDescs.Num(); i++)
 		{
@@ -669,7 +704,7 @@ namespace UE::NNERuntimeIREE
 	int32 FIREESession::SetInputTensorShapes(TConstArrayView<UE::NNE::FTensorShape> InInputShapes)
 	{
 		check(Device.IsValid());
-		check(InInputShapes.Num() > 0);
+		check(!InInputShapes.IsEmpty());
 
 		iree_status_t Status = iree_ok_status();
 		check(iree_status_is_ok(Status));
@@ -735,6 +770,12 @@ namespace UE::NNERuntimeIREE
 		for (int32 i = 0; i < InInputBindings.Num(); i++)
 		{
 			check(InInputBindings[i].SizeInBytes == InputTensorShapes[i].Volume() * Module->GetInputTensorDescs()[i].GetElementByteSize());
+			
+			if (FMath::Modulo<uint64>((uint64)InInputBindings[i].Data, IREE_HAL_HEAP_BUFFER_ALIGNMENT) != 0)
+			{
+				UE_LOG(LogTemp, Error, TEXT("NNERuntimeIREECpu requires input- and output-buffer memory to be aligned with %d bytes"), IREE_HAL_HEAP_BUFFER_ALIGNMENT);
+				return -1;
+			}
 
 			iree_hal_buffer_view_t* TempBufferView;
 			iree_hal_buffer_params_t Params = { 0 };
@@ -915,7 +956,7 @@ namespace UE::NNERuntimeIREE
 
 	TSharedPtr<FIREELibrary> FIREELibrary::MakeLibrary(const FString& LibraryPath, const FString& LibraryName)
 	{
-		check(LibraryName.Len() > 0);
+		check(!LibraryName.IsEmpty());
 
 		TSharedPtr<FIREEInstance> IREEInstance = FIREEInstance::GetInstance();
 		if (!IREEInstance.IsValid())
@@ -964,7 +1005,7 @@ namespace UE::NNERuntimeIREE
 		check(Library.IsValid());
 		check(Library->Instance.IsValid());
 		check(Library->Library);
-		check(LibraryQueryFunctionName.Len() > 0);
+		check(!LibraryQueryFunctionName.IsEmpty());
 
 		if (Library->Devices.Contains(LibraryQueryFunctionName))
 		{

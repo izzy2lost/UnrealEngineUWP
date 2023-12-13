@@ -3,6 +3,7 @@
 #include "NNERuntimeIREERdg.h"
 
 #include "EngineAnalytics.h"
+#include "Interfaces/ITargetPlatform.h"
 #include "Kismet/GameplayStatics.h"
 #include "NNERuntimeIREECommon.h"
 
@@ -32,8 +33,8 @@ TSharedPtr<UE::NNE::FSharedModelData> UNNERuntimeIREERdg::CreateModelData(FStrin
 
 FString UNNERuntimeIREERdg::GetModelDataIdentifier(FString FileType, TConstArrayView<uint8> FileData, FGuid FileId, const ITargetPlatform* TargetPlatform)
 {
-	FString PlatformDisplayName = UE::NNERuntimeIREE::GetTargetPlatformDisplayName(TargetPlatform);
-	return FileId.ToString(EGuidFormats::Digits) + "-" + GUID.ToString(EGuidFormats::Digits) + "-" + FString::FromInt(Version) + "-" + PlatformDisplayName;
+	FString PlatformName = TargetPlatform ? TargetPlatform->IniPlatformName() : UGameplayStatics::GetPlatformName();
+	return GetRuntimeName() + "-" + GUID.ToString(EGuidFormats::Digits) + "-" + FString::FromInt(UNNERuntimeIREERdg::Version) + "-" + FileId.ToString(EGuidFormats::Digits) + "-" + PlatformName;
 }
 
 bool UNNERuntimeIREERdg::CanCreateModelRDG(TObjectPtr<UNNEModelData> ModelData) const

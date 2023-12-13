@@ -2,13 +2,13 @@
 
 #pragma once
 
-#include "CoreMinimal.h"
-#include "Modules/ModuleManager.h"
+#include "Modules/ModuleInterface.h"
 
 #ifdef WITH_NNE_RUNTIME_IREE
 #include "NNERuntimeIREECpu.h"
 #include "NNERuntimeIREEGpu.h"
 #include "NNERuntimeIREERdg.h"
+#include "UObject/WeakObjectPtrTemplates.h"
 #endif // WITH_NNE_RUNTIME_IREE
 
 class FNNERuntimeIREEModule : public IModuleInterface

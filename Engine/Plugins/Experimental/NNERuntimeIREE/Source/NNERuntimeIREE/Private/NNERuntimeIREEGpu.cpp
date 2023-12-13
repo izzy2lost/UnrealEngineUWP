@@ -3,6 +3,7 @@
 #include "NNERuntimeIREEGpu.h"
 
 #include "EngineAnalytics.h"
+#include "Interfaces/ITargetPlatform.h"
 #include "Kismet/GameplayStatics.h"
 #include "NNERuntimeIREECommon.h"
 
@@ -45,8 +46,8 @@ TSharedPtr<UE::NNE::FSharedModelData> UNNERuntimeIREEGpu::CreateModelData(FStrin
 
 FString UNNERuntimeIREEGpu::GetModelDataIdentifier(FString FileType, TConstArrayView<uint8> FileData, FGuid FileId, const ITargetPlatform* TargetPlatform)
 {
-	FString PlatformDisplayName = UE::NNERuntimeIREE::GetTargetPlatformDisplayName(TargetPlatform);
-	return FileId.ToString(EGuidFormats::Digits) + "-" + GetRuntimeName() + "-" + GetGUID().ToString(EGuidFormats::Digits) + "-" + FString::FromInt(GetVersion()) + "-" + PlatformDisplayName;
+	FString PlatformName = TargetPlatform ? TargetPlatform->IniPlatformName() : UGameplayStatics::GetPlatformName();
+	return GetRuntimeName() + "-" + GetGUID().ToString(EGuidFormats::Digits) + "-" + FString::FromInt(GetVersion()) + "-" + FileId.ToString(EGuidFormats::Digits) + "-" + PlatformName;
 }
 
 bool UNNERuntimeIREEGpu::CanCreateModelGPU(TObjectPtr<UNNEModelData> ModelData) const

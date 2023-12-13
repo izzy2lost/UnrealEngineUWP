@@ -4,11 +4,9 @@
 
 #ifdef WITH_NNE_RUNTIME_IREE
 
-#include "CoreMinimal.h"
-#include "NNEModelData.h"
 #include "NNERuntimeCPU.h"
 #include "NNERuntimeIREECommon.h"
-#include "NNETypes.h"
+#include "NNERuntimeIREEMetaData.h"
 
 namespace UE::NNERuntimeIREECpu
 {
@@ -38,7 +36,7 @@ namespace UE::NNERuntimeIREECpu
 		FModel() {};
 		virtual ~FModel() = default;
 
-		bool Init(TSharedPtr<UE::NNE::FSharedModelData> SharedModelData, uint32 VmfbDataOffset, UE::NNERuntimeIREE::FModuleMetaData ModuleMetaData, const FString& LibraryPath, const FString& LibraryName, const FString& LibraryQueryFunctionName);
+		bool Init(const FString& DirPath, const FString& SharedLibraryFileName, const FString& VmfbFileName, const FString& LibraryQueryFunctionName, const UE::NNERuntimeIREE::FModuleMetaData& ModuleMetaData);
 
 		//~ Begin IModelCPU Interface
 		virtual TSharedPtr<UE::NNE::IModelInstanceCPU> CreateModelInstanceCPU() override;

@@ -57,21 +57,20 @@ namespace UE::NNERuntimeIREECpu
 		return Session->RunSyncCPU(InInputBindings, InOutputBindings);
 	}
 
-	bool FModel::Init(TSharedPtr<UE::NNE::FSharedModelData> SharedModelData, uint32 VmfbDataOffset, UE::NNERuntimeIREE::FModuleMetaData ModuleMetaData, const FString& LibraryPath, const FString& LibraryName, const FString& LibraryQueryFunctionName)
+	bool FModel::Init(const FString& DirPath, const FString& SharedLibraryFileName, const FString& VmfbFileName, const FString& LibraryQueryFunctionName, const UE::NNERuntimeIREE::FModuleMetaData& ModuleMetaData)
 	{
 		check(!Module.IsValid());
-		check(SharedModelData.IsValid());
-		check(SharedModelData->GetView().Num() > 0);
-		check(LibraryName.Len() > 0);
-		check(LibraryQueryFunctionName.Len() > 0);
+		check(!SharedLibraryFileName.IsEmpty());
+		check(!VmfbFileName.IsEmpty());
+		check(!LibraryQueryFunctionName.IsEmpty());
 
-		Module = UE::NNERuntimeIREE::FIREEModule::MakeModule(SharedModelData, VmfbDataOffset, ModuleMetaData);
+		Module = UE::NNERuntimeIREE::FIREEModule::MakeModule(DirPath, VmfbFileName, ModuleMetaData);
 		if (!Module.IsValid())
 		{
 			return false;
 		}
 
-		TSharedPtr<UE::NNERuntimeIREE::FIREELibrary> Library = UE::NNERuntimeIREE::FIREELibrary::MakeLibrary(LibraryPath, LibraryName);
+		TSharedPtr<UE::NNERuntimeIREE::FIREELibrary> Library = UE::NNERuntimeIREE::FIREELibrary::MakeLibrary(DirPath, SharedLibraryFileName);
 		if (!Library.IsValid())
 		{
 			Module.Reset();

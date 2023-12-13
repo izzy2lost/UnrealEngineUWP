@@ -5,9 +5,9 @@
 #include "CoreMinimal.h"
 #include "Misc/ConfigCacheIni.h"
 #include "Misc/Guid.h"
-#include "NNEModelData.h"
 #include "NNERuntime.h"
 #include "NNERuntimeCPU.h"
+#include "NNERuntimeIREECpuCompiler.h"
 
 #include "NNERuntimeIREECpu.generated.h"
 
@@ -19,7 +19,6 @@ class UNNERuntimeIREECpu : public UObject, public INNERuntime, public INNERuntim
 public:
 	static FGuid GUID;
 	static int32 Version;
-	static uint32 MemoryAlignment;
 
 	UNNERuntimeIREECpu() {};
 	virtual ~UNNERuntimeIREECpu() = default;
@@ -35,10 +34,6 @@ public:
 	virtual bool CanCreateModelCPU(TObjectPtr<UNNEModelData> ModelData) const override;
 	virtual TSharedPtr<UE::NNE::IModelCPU> CreateModelCPU(TObjectPtr<UNNEModelData> ModelData) override;
 	//~ End INNERuntimeCPU Interface
-
-	static FString GetIntermediateModelDirPath(const FString& PlatformName, const FString& FileIdString);
-	static FString GetCookedModelDirPath(const FString& PlatformName);
-	static FString GetPackagedModelDirPath(const FString& PlatformName);
 
 	static void GetUpdatedPlatformConfig(const FString& PlatformName, FConfigFile& ConfigFile, FString& ConfigFilePath);
 };

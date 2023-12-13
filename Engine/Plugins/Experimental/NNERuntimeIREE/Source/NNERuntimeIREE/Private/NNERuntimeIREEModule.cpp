@@ -2,16 +2,17 @@
 
 #include "NNERuntimeIREEModule.h"
 
+#include "Modules/ModuleManager.h"
+
 #ifdef WITH_NNE_RUNTIME_IREE
 
+#include "CoreMinimal.h"
 #include "NNE.h"
-#include "NNERuntime.h"
 
-#ifdef WITH_EDITOR
-#include "Serialization/Archive.h"
+#if WITH_EDITOR
 #include "HAL/FileManager.h"
-#include "Interfaces/ITargetPlatformManagerModule.h"
 #include "Interfaces/ITargetPlatform.h"
+#include "Interfaces/ITargetPlatformManagerModule.h"
 #include "Misc/ConfigCacheIni.h"
 #endif // WITH_EDITOR
 
@@ -27,7 +28,7 @@ void FNNERuntimeIREEModule::StartupModule()
 		UE::NNE::RegisterRuntime(NNERuntimeIREECpu.Get());
 	}
 
-#ifdef WITH_EDITOR
+#if WITH_EDITOR
 	ITargetPlatformManagerModule* TargetPlatformManagerModule = GetTargetPlatformManager();
 	if (TargetPlatformManagerModule)
 	{

@@ -4,21 +4,21 @@
 
 #ifdef WITH_NNE_RUNTIME_IREE
 
-#include "Interfaces/ITargetPlatform.h"
-#include "Kismet/GameplayStatics.h"
+#include "CoreMinimal.h"
+#include "GenericPlatform/GenericPlatformProcess.h"
+#include "HAL/FileManager.h"
 #include "Misc/Paths.h"
 #include "Misc/ScopeLock.h"
 #include "NNEModelData.h"
-#include "NNERuntimeCPU.h"
+#include "NNERuntimeIREECpu.h"
 #include "NNERuntimeIREEMetaData.h"
 #include "NNETypes.h"
+#include "Serialization/Archive.h"
 
 #include "iree/runtime/api.h"
 
 namespace UE::NNERuntimeIREE
 {
-	FString GetTargetPlatformDisplayName(const ITargetPlatform* TargetPlatform);
-
 	class FIREEInstance;
 	class FIREELibrary;
 
@@ -28,7 +28,7 @@ namespace UE::NNERuntimeIREE
 		FIREEModule();
 		~FIREEModule();
 
-		static TSharedPtr<FIREEModule> MakeModule(TSharedPtr<UE::NNE::FSharedModelData> SharedModelData, uint32 VmfbDataOffset, UE::NNERuntimeIREE::FModuleMetaData ModuleMetaData);
+		static TSharedPtr<FIREEModule> MakeModule(const FString& DirPath, const FString& VmfbFileName, const UE::NNERuntimeIREE::FModuleMetaData& ModuleMetaData);
 		bool AppendToSession(iree_runtime_session_t* Session);
 
 		iree_vm_function_t GetMainFunction();
