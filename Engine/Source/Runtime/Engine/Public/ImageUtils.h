@@ -246,8 +246,23 @@ public:
 	 * this fills a TextureSource , and will then Build a Platform texture from that
 	 * can be used WITH_EDITOR only
 	 * contrast to CreateTexture2DFromImage
+	 *
+	 * Prefer the more modern CreateTexture from FImage.
 	 */
 	ENGINE_API static UTexture2D* CreateTexture2D(int32 SrcWidth, int32 SrcHeight, const TArray<FColor> &SrcData, UObject* Outer, const FString& Name, const EObjectFlags &Flags, const FCreateTexture2DParameters& InParams);
+	
+	/**
+	 * Creates a texture of any type from an Image
+	 * This is the modern preferred way to create a texture.
+	 *
+	 * If you need to change the default settings, then use DoPostEditChange = false, and call PostEditChange() yourself after setting all properties.
+	 * Typically you may want to set LODGroup and CompressionSettings.
+	 *
+	 * this fills the TextureSource , and will then Build a Platform texture from that
+	 * can be used WITH_EDITOR only
+	 *
+	 */
+	ENGINE_API static UTexture * CreateTexture(ETextureClass TextureClass, const FImageView & Image, UObject* Outer, const FString& Name, EObjectFlags Flags = RF_NoFlags, bool DoPostEditChange = true );
 	
 	/**
 	 * Creates a 2D texture from an FImage

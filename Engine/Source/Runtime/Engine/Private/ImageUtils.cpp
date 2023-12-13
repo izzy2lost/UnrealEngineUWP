@@ -885,8 +885,51 @@ UTexture2D* FImageUtils::CreateTexture2D(int32 SrcWidth, int32 SrcHeight, const 
 	Tex2D->PostEditChange();
 	return Tex2D;
 #else
-	UE_LOG(LogImageUtils, Fatal,TEXT("ConstructTexture2D not supported on console."));
-	return NULL;
+	UE_LOG(LogImageUtils, Fatal,TEXT("CreateTexture2D not supported without WITH_EDITOR."));
+	return nullptr;
+#endif
+}
+	
+UTexture * FImageUtils::CreateTexture(ETextureClass TextureClass, const FImageView & Image, UObject* Outer, const FString& Name, EObjectFlags Flags, bool DoPostEditChange )
+{
+#if WITH_EDITOR
+	UTexture * Tex;
+
+	switch(TextureClass)
+	{
+	case ETextureClass::TwoD:
+		Tex = NewObject<UTexture2D>(Outer, FName(*Name), Flags);
+		break;
+	case ETextureClass::Cube:
+		Tex = NewObject<UTextureCube>(Outer, FName(*Name), Flags);
+		break;
+	case ETextureClass::Array:
+		Tex = NewObject<UTexture2DArray>(Outer, FName(*Name), Flags);
+		break;
+	case ETextureClass::CubeArray:
+		Tex = NewObject<UTextureCubeArray>(Outer, FName(*Name), Flags);
+		break;
+	case ETextureClass::Volume:
+		Tex = NewObject<UVolumeTexture>(Outer, FName(*Name), Flags);
+		break;
+	default:
+		UE_LOG(LogImageUtils, Fatal,TEXT("CreateTexture invalid TextureClass."));
+		return nullptr;
+	}
+	
+	Tex->Source.Init(Image);
+	
+	Tex->SetModernSettingsForNewOrChangedTexture();
+
+	if ( DoPostEditChange )
+	{
+		Tex->PostEditChange();
+	}
+
+	return Tex;
+#else
+	UE_LOG(LogImageUtils, Fatal,TEXT("CreateTexture not supported without WITH_EDITOR."));
+	return nullptr;
 #endif
 }
 
