@@ -3315,6 +3315,7 @@ bool StaticAllocateObjectErrorTests( const UClass* InClass, UObject* InOuter, FN
 //@todo UE this is clunky
 static thread_local FRestoreForUObjectOverwrite* ObjectRestoreAfterInitProps = nullptr;
 
+extern const FName NAME_UniqueObjectNameForCooking(TEXT("UniqueObjectNameForCooking"));
 COREUOBJECT_API bool GOutputCookingWarnings = false;
 
 
@@ -3372,7 +3373,6 @@ UObject* StaticAllocateObject
 #if WITH_EDITOR
 		if ( GOutputCookingWarnings && GetTransientPackage() != InOuter->GetOutermost() )
 		{
-			static const FName NAME_UniqueObjectNameForCooking(TEXT("UniqueObjectNameForCooking"));
 			InName = MakeUniqueObjectName(InOuter, InClass, NAME_UniqueObjectNameForCooking);
 		}
 		else
