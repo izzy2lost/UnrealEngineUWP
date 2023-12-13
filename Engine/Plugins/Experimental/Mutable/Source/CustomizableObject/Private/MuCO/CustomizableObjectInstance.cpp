@@ -38,6 +38,7 @@
 #include "RenderingThread.h"
 #include "SkeletalMergingLibrary.h"
 #include "UnrealMutableImageProvider.h"
+#include "UObject/ObjectSaveContext.h"
 #include "UObject/UObjectIterator.h"
 #include "Widgets/Notifications/SNotificationList.h"
 #include "PhysicsEngine/PhysicsConstraintTemplate.h"
@@ -558,10 +559,63 @@ void UCustomizableObjectInstance::PostLoad()
 	BindPostCompileDelegate(GetCustomizableObject());
 #endif
 
-	Descriptor.ReloadParameters();
+	// Skip the cost of ReloadParameters in the cook commandlet; it will be reloaded during PreSave. For cooked runtime
+	// and editor UI, reload on load because it will not otherwise reload unless the CustomizableObject recompiles.
+	if (!IsRunningCookCommandlet())
+	{
+		Descriptor.ReloadParameters();
+	}
 	PrivateData->InitCustomizableObjectData(GetCustomizableObject());
 }
 
+#if WITH_EDITOR
+void UCustomizableObjectInstance::BeginCacheForCookedPlatformData(const ITargetPlatform* TargetPlatform)
+{
+	UCustomizableObject* CustomizableObject = GetCustomizableObject();
+	if (!CustomizableObject)
+	{
+		return;
+	}
+	CustomizableObject->BeginCacheForCookedPlatformData(TargetPlatform);
+}
+
+bool UCustomizableObjectInstance::IsCachedCookedPlatformDataLoaded(const ITargetPlatform* TargetPlatform)
+{
+	UCustomizableObject* CustomizableObject = GetCustomizableObject();
+	if (!CustomizableObject)
+	{
+		return true;
+	}
+
+	return CustomizableObject->IsCachedCookedPlatformDataLoaded(TargetPlatform);
+}
+
+void UCustomizableObjectInstance::PreSave(FObjectPreSaveContext ObjectSaveContext)
+{
+	Super::PreSave(ObjectSaveContext);
+
+	const ITargetPlatform* TargetPlatform = ObjectSaveContext.GetTargetPlatform();
+	if (!TargetPlatform)
+	{
+		return;
+	}
+
+	UCustomizableObject* CustomizableObject = GetCustomizableObject();
+	if (!CustomizableObject)
+	{
+		return;
+	}
+	if (CustomizableObject->TryUpdateIsChildObject() && CustomizableObject->bIsChildObject)
+	{
+		UE_LOG(LogMutable, Error,
+			TEXT("CO Instance [%s] has an invalid dependency on CO that is a child object: [%s]. The instance will be unusable at runtime and may crash."),
+			*GetPathName(), *CustomizableObject->GetPathName());
+	}
+
+	CustomizableObject->TryLoadCompiledCookDataForPlatform(TargetPlatform);
+	Descriptor.ReloadParameters();
+}
+#endif
 
 FString UCustomizableObjectInstance::GetDesc()
 {

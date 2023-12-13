@@ -1461,6 +1461,12 @@ public:
 	/** Cache platform data for cook */
 	void CachePlatformData(const ITargetPlatform* InTargetPlatform, const TArray64<uint8>& InObjectBytes, const TArray64<uint8>& InBulkBytes);
 
+	/**
+	 * Loads data previously compiled in BeginCacheForCookedPlatformData onto the UProperties in *this,
+	 * in preparation for saving the cooked package for *this or for a CustomizableObjectInstance using *this.
+	 * Returns whether the data was successfully loaded.
+	 */
+	bool TryLoadCompiledCookDataForPlatform(const ITargetPlatform* TargetPlatform);
 #if WITH_EDITORONLY_DATA
 
 	/** Map of PlatformName to CachedPlatformData. Only valid while cooking. */
@@ -1471,6 +1477,8 @@ public:
 	void SaveEmbeddedData(FArchive& Ar);
 
 #endif
+	/** Compute bIsChildObject if currently possible to do so. Return whether it was computed. */
+	bool TryUpdateIsChildObject();
 
 	// Data that may be stored in the asset itself, only in packaged builds.
 	void LoadEmbeddedData(FArchive& Ar);

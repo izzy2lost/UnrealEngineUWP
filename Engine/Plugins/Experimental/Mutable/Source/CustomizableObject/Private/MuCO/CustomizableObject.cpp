@@ -100,12 +100,8 @@ void UCustomizableObject::PreSave(FObjectPreSaveContext ObjectSaveContext)
 	Super::PreSave(ObjectSaveContext);
 
 	// Update the derived child object flag
-	FCustomizableObjectCompilerBase* Compiler = UCustomizableObjectSystem::GetInstance()->GetNewCompiler();
-	if (Compiler)
+	if (TryUpdateIsChildObject())
 	{
-		bIsChildObject = !Compiler->IsRootObject(this);
-		delete Compiler;
-
 		if (bIsChildObject)
 		{
 			GetPackage()->SetPackageFlags(PKG_EditorOnly);
@@ -116,16 +112,13 @@ void UCustomizableObject::PreSave(FObjectPreSaveContext ObjectSaveContext)
 		}
 	}
 
-#if WITH_EDITORONLY_DATA
+#if WITH_EDITOR
 	if (ObjectSaveContext.IsCooking() && !bIsChildObject)
 	{
 		const ITargetPlatform* TargetPlatform = ObjectSaveContext.GetTargetPlatform();
-		if (const FMutableCachedPlatformData* PlatformData = CachedPlatformsData.Find(TargetPlatform->PlatformName()))
-		{
 		// Load cached data before saving
-			FMemoryReaderView MemoryReader(PlatformData->ModelData);
-			LoadCompiledData(MemoryReader, TargetPlatform, true);
-
+		if (TryLoadCompiledCookDataForPlatform(TargetPlatform))
+		{
 			// Create an export object to manage the streamable data
 			BulkData = NewObject<UCustomizableObjectBulk>(this);
 			BulkData->Mark(OBJECTMARK_TagExp);
@@ -144,6 +137,36 @@ void UCustomizableObject::PreSave(FObjectPreSaveContext ObjectSaveContext)
 	}
 #endif
 }
+
+bool UCustomizableObject::TryUpdateIsChildObject()
+{
+	FCustomizableObjectCompilerBase* Compiler = UCustomizableObjectSystem::GetInstance()->GetNewCompiler();
+	if (Compiler)
+	{
+		bIsChildObject = !Compiler->IsRootObject(this);
+		delete Compiler;
+		return true;
+	}
+	else
+	{
+		return false;
+	}
+}
+
+#if WITH_EDITOR
+bool UCustomizableObject::TryLoadCompiledCookDataForPlatform(const ITargetPlatform* TargetPlatform)
+{
+	const FMutableCachedPlatformData* PlatformData = CachedPlatformsData.Find(TargetPlatform->PlatformName());
+	if (!PlatformData)
+	{
+		return false;
+	}
+
+	FMemoryReaderView MemoryReader(PlatformData->ModelData);
+	LoadCompiledData(MemoryReader, TargetPlatform, true);
+	return true;
+}
+#endif
 
 #endif // End WITH_EDITOR
 
