@@ -135,10 +135,15 @@ struct FD3D12ResourceDesc : public D3D12_RESOURCE_DESC
 	EPixelFormat UAVPixelFormat{ PF_Unknown };
 
 #if D3D12RHI_NEEDS_VENDOR_EXTENSIONS
-	bool bRequires64BitAtomicSupport{ false };
+	bool bRequires64BitAtomicSupport : 1 = false;
 #endif
 
-	bool bReservedResource { false };
+	bool bReservedResource : 1 = false;
+
+	bool bBackBuffer : 1 = false;
+
+	// External resources are owned by another application or middleware, not the Engine
+	bool bExternal : 1 = false;
 
 	// If we support the new format list casting, use the newer APIs; otherwise, fall back to our UAV Aliasing approach.
 #if D3D12RHI_SUPPORTS_UNCOMPRESSED_UAV
@@ -190,7 +195,6 @@ private:
 	bool bRequiresResidencyTracking : 1;
 	bool bDepthStencil : 1;
 	bool bDeferDelete : 1;
-	bool bBackBuffer : 1;
 
 #if UE_BUILD_DEBUG
 	static int64 TotalResourceCount;
@@ -297,17 +301,7 @@ public:
 #endif
 	bool RequiresResourceStateTracking() const { return bRequiresResourceStateTracking; }
 
-	inline bool IsBackBuffer() const { return bBackBuffer; }
-	inline void SetIsBackBuffer(bool bBackBufferIn) 
-	{
-		bBackBuffer = bBackBufferIn;
-
-		if (bBackBuffer)
-		{
-			checkf(ResidencyHandle == nullptr, TEXT("Can't mark a resource as back buffer once residency tracking has started."));
-			bRequiresResidencyTracking = false;
-		}
-	}
+	inline bool IsBackBuffer() const { return Desc.bBackBuffer; }
 
 	void SetName(const TCHAR* Name)
 	{

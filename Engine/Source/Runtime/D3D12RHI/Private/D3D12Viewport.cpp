@@ -178,7 +178,8 @@ FD3D12Texture* GetSwapChainSurface(FD3D12Device* Parent, EPixelFormat PixelForma
 		Parent->GetDevice()->CreateCommittedResource(&HeapProps, D3D12_HEAP_FLAG_NONE, &TextureDesc, D3D12_RESOURCE_STATE_PRESENT, nullptr, IID_PPV_ARGS(BackBufferResource.GetInitReference()));
 	}
 
-	D3D12_RESOURCE_DESC BackBufferDesc = BackBufferResource->GetDesc();
+	FD3D12ResourceDesc BackBufferDesc = BackBufferResource->GetDesc();
+	BackBufferDesc.bBackBuffer = true;
 
 	FString Name = FString::Printf(TEXT("BackBuffer%d"), BackBufferIndex);
 
@@ -216,7 +217,6 @@ FD3D12Texture* GetSwapChainSurface(FD3D12Device* Parent, EPixelFormat PixelForma
 		if (Device->GetGPUIndex() == Parent->GetGPUIndex())
 		{
 			FD3D12Resource* NewResourceWrapper = new FD3D12Resource(Device, FRHIGPUMask::All(), BackBufferResource, InitialState, BackBufferDesc);
-			NewResourceWrapper->SetIsBackBuffer(true);
 			NewResourceWrapper->AddRef();
 			NewTexture->ResourceLocation.AsStandAlone(NewResourceWrapper);
 		}
@@ -284,8 +284,6 @@ FD3D12Texture* GetSwapChainSurface(FD3D12Device* Parent, EPixelFormat PixelForma
 	});
 
 	SetName(SwapChainTexture->GetResource(), *Name);
-
-	SwapChainTexture->GetResource()->SetIsBackBuffer(true);
 
 	const D3D12_RESOURCE_ALLOCATION_INFO AllocationInfo = Parent->GetDevice()->GetResourceAllocationInfo(0, 1, &SwapChainTexture->GetResource()->GetDesc());
 	SwapChainTexture->ResourceLocation.SetSize(AllocationInfo.SizeInBytes);

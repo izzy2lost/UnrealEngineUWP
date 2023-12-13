@@ -95,7 +95,6 @@ FD3D12Resource::FD3D12Resource(FD3D12Device* ParentDevice,
 	, bRequiresResidencyTracking(true)
 	, bDepthStencil(false)
 	, bDeferDelete(true)
-	, bBackBuffer(false)
 {
 #if UE_BUILD_DEBUG
 	FPlatformAtomics::InterlockedIncrement(&TotalResourceCount);
@@ -109,8 +108,8 @@ FD3D12Resource::FD3D12Resource(FD3D12Device* ParentDevice,
 		HeapProps = &HeapDesc.Properties;
 	}
 
-	// Residency tracking is not used for CPU-accessible resources or back buffers
-	bRequiresResidencyTracking = IsGPUOnly(InHeapType, HeapProps) && !bBackBuffer;
+	// Residency tracking is only used for GPU-only resources owned by the Engine
+	bRequiresResidencyTracking = IsGPUOnly(InHeapType, HeapProps) && !Desc.bExternal && !Desc.bBackBuffer;
 
 	// On Windows it's sadly enough not possible to get the GPU virtual address from the resource directly
 	if (Resource
@@ -155,11 +154,10 @@ FD3D12Resource::~FD3D12Resource()
 	}
 #endif
 
-	if (bBackBuffer)
+	if (Desc.bBackBuffer)
 	{
 		// Don't make the windows association call and release back buffer at the same time (see notes on critical section)
 		FScopeLock Lock(&FD3D12Viewport::DXGIBackBufferLock);
-		bBackBuffer = false;
 		Resource.SafeRelease();
 	}
 }
@@ -457,7 +455,7 @@ void FD3D12Resource::StartTrackingForResidency()
 
 	checkf(bRequiresResidencyTracking, TEXT("Residency tracking is not expected for this resource"));
 
-	if (bBackBuffer)
+	if (Desc.bBackBuffer)
 	{
 		// Back buffers may be referenced outside of command lists (during presents), however D3DX12Residency.h library 
 		// uses fences tied to command lists to detect when it's safe to evict a resource, which is wrong for back buffers.

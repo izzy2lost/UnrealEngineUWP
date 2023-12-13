@@ -2694,7 +2694,8 @@ FD3D12Texture* FD3D12DynamicRHI::CreateTextureFromResource(bool bTextureArray, b
 	check(Resource);
 	FD3D12Adapter* Adapter = &GetAdapter();
 
-	D3D12_RESOURCE_DESC TextureDesc = Resource->GetDesc();
+	FD3D12ResourceDesc TextureDesc = Resource->GetDesc();
+	TextureDesc.bExternal = true;
 	TextureDesc.Alignment = 0;
 
 	uint32 SizeX = TextureDesc.Width;
@@ -2722,6 +2723,7 @@ FD3D12Texture* FD3D12DynamicRHI::CreateTextureFromResource(bool bTextureArray, b
 	FD3D12Device* Device = Adapter->GetDevice(0);
 	FD3D12Resource* TextureResource = new FD3D12Resource(Device, Device->GetGPUMask(), Resource, DestinationState, TextureDesc);
 	TextureResource->AddRef();
+	TextureResource->SetName(TEXT("TextureFromResource"));
 
 	FRHITextureCreateDesc CreateDesc =
 		((SizeZ > 1) ? FRHITextureCreateDesc::Create2DArray(TEXT("TextureFromResource"), FIntPoint(SizeX, SizeY), SizeZ, Format) :
