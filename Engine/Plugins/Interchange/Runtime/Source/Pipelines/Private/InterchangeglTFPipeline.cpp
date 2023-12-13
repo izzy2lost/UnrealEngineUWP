@@ -293,7 +293,7 @@ void UInterchangeGLTFPipeline::ExecutePipeline(UInterchangeBaseNodeContainer* No
 {
 	Super::ExecutePipeline(NodeContainer, InSourceDatas, ContentBasePath);
 
-	if ((FApp::IsGame() || bUseGLTFMaterialInstanceLibrary) && GLTFPipelineSettings)
+	if (GLTFPipelineSettings)
 	{
 		TMap<FString, const UInterchangeShaderGraphNode*> MaterialFactoryNodeUidsToShaderGraphNodes;
 		auto FindGLTFShaderGraphNode = [&MaterialFactoryNodeUidsToShaderGraphNodes, &NodeContainer](const FString& NodeUid, UInterchangeFactoryBaseNode* /*Material or MaterialInstance*/ FactoryNode)
