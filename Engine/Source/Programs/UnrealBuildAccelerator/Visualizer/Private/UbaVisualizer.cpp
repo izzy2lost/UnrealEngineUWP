@@ -1648,7 +1648,8 @@ namespace uba
 						}
 					}
 
-					lastStop = Max(lastStop, processor.processes.rbegin()->stop);
+					if (!processor.processes.empty())
+						lastStop = Max(lastStop, processor.processes.rbegin()->stop);
 
 					posY += stepY;
 					++processorIndex;
