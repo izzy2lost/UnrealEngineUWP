@@ -674,7 +674,7 @@ void FMapProperty::SerializeItem(FStructuredArchive::FSlot Slot, void* Value, co
 
 	if (UnderlyingArchive.IsLoading())
 	{
-		FUObjectSerializeContext* Context = UnderlyingArchive.GetSerializeContext();
+		FUObjectSerializeContext* Context = FUObjectThreadContext::Get().GetSerializeContext();
 
 		// Delete any explicitly-removed elements
 		int32 NumKeysToRemove = 0;

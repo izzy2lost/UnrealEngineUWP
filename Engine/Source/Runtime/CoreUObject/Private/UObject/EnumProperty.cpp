@@ -350,12 +350,9 @@ const TCHAR* FEnumProperty::ImportText_Internal(const TCHAR* InBuffer, void* Con
 			// return null so that the caller of ImportText can generate a more meaningful
 			// warning/error
 			UObject* SerializedObject = nullptr;
-			if (FLinkerLoad* Linker = GetLinker())
+			if (FUObjectSerializeContext* LoadContext = FUObjectThreadContext::Get().GetSerializeContext())
 			{
-				if (FUObjectSerializeContext* LoadContext = Linker->GetSerializeContext())
-				{
-					SerializedObject = LoadContext->SerializedObject;
-				}
+				SerializedObject = LoadContext->SerializedObject;
 			}
 			const bool bIsNativeOrLoaded = (!Enum->HasAnyFlags(RF_WasLoaded) || Enum->HasAnyFlags(RF_LoadCompleted));
 			ErrorText->Logf(ELogVerbosity::Warning, TEXT("FEP: In asset '%s', there is an enum property of type '%s' with an invalid value of '%s' - %s"), 

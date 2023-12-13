@@ -261,7 +261,7 @@ void FSetProperty::SerializeItem(FStructuredArchive::FSlot Slot, void* Value, co
 
 	if (UnderlyingArchive.IsLoading())
 	{
-		FUObjectSerializeContext* Context = UnderlyingArchive.GetSerializeContext();
+		FUObjectSerializeContext* Context = FUObjectThreadContext::Get().GetSerializeContext();
 
 		if (Defaults)
 		{

@@ -1805,7 +1805,7 @@ UPackage* LoadPackageInternal(UPackage* InOuter, const FPackagePath& PackagePath
 
 		auto EndLoadAndCopyLocalizationGatherFlag = [&]
 		{
-			EndLoad(Linker->GetSerializeContext(), &LoadedPackages);
+			EndLoad(LoadContext, &LoadedPackages);
 			// Set package-requires-localization flags from archive after loading. This reinforces flagging of packages that haven't yet been resaved.
 			Result->ThisRequiresLocalizationGather(Linker->RequiresLocalizationGather());
 		};
@@ -1889,7 +1889,7 @@ UPackage* LoadPackageInternal(UPackage* InOuter, const FPackagePath& PackagePath
 			// @todo: remove me when loading can be self-contained (and EndLoad doesn't check for IsInAsyncLoadingThread) or there's just one loading path
 			// If we start a non-async loading during async loading and the serialization context is not associated with any other package and
 			// doesn't come from an async package, queue this package to be async loaded, otherwise we'll end up not loading its exports
-			if (!Linker->AsyncRoot && Linker->GetSerializeContext()->GetBeginLoadCount() == 1 && IsInAsyncLoadingThread())
+			if (!Linker->AsyncRoot && LoadContext->GetBeginLoadCount() == 1 && IsInAsyncLoadingThread())
 			{
 				LoadPackageAsync(Linker->LinkerRoot->GetName());
 			}
@@ -1962,14 +1962,12 @@ UPackage* LoadPackageInternal(UPackage* InOuter, const FPackagePath& PackagePath
 				// Async loading removes delayed linkers on the game thread after streaming has finished
 				else
 				{
-					check(Linker->GetSerializeContext());
-					Linker->GetSerializeContext()->AddDelayedLinkerClosePackage(Linker);
+					LoadContext->AddDelayedLinkerClosePackage(Linker);
 				}
 			}
 			else
 			{
-				check(Linker->GetSerializeContext());
-				Linker->GetSerializeContext()->AddDelayedLinkerClosePackage(Linker);
+				LoadContext->AddDelayedLinkerClosePackage(Linker);
 			}
 		}
 	}

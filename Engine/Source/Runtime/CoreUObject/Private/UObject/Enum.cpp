@@ -716,12 +716,9 @@ int32 UEnum::GetIndexByNameString(const FString& InSearchString, EGetByNameFlags
 	{
 		// None is passed in by blueprints at various points, isn't an error. Any other failed resolve should be fixed
 		UObject* SerializedObject = nullptr;
-		if (FLinkerLoad* Linker = GetLinker())
+		if (FUObjectSerializeContext* LoadContext = FUObjectThreadContext::Get().GetSerializeContext())
 		{
-			if (FUObjectSerializeContext* LoadContext = Linker->GetSerializeContext())
-			{
-				SerializedObject = LoadContext->SerializedObject;
-			}
+			SerializedObject = LoadContext->SerializedObject;
 		}
 		const bool bIsNativeOrLoaded = (!HasAnyFlags(RF_WasLoaded) || HasAnyFlags(RF_LoadCompleted));
 		UE_LOG(LogEnum, Warning, TEXT("UEnum: In asset '%s', there is an enum property of type '%s' with an invalid value of '%s' - %s - %d"), 
