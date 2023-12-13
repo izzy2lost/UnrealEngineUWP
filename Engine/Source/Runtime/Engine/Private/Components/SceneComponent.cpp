@@ -1885,7 +1885,7 @@ USceneComponent* USceneComponent::GetChildComponent(int32 ChildIndex) const
 		return nullptr;
 	}
 
-	const TArray<USceneComponent*>& AttachedChildren = GetAttachChildren();
+	const TArray<TObjectPtr<USceneComponent>>& AttachedChildren = GetAttachChildren();
 	if (ChildIndex >= AttachedChildren.Num())
 	{
 		UE_LOG(LogBlueprint, Log, TEXT("SceneComponent::GetChild called with an out of range ChildIndex: %d; Number of children is %d."), ChildIndex, AttachedChildren.Num());
