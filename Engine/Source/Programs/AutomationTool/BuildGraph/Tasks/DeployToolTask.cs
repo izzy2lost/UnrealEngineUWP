@@ -168,7 +168,7 @@ namespace AutomationTool.Tasks
 				else if (Parameters.Directory != null)
 				{
 					DirectoryInfo directoryInfo = ResolveDirectory(Parameters.Directory).ToDirectoryInfo();
-					await sandbox.CopyFromDirectoryAsync(directoryInfo, new ChunkingOptions(), treeWriter, null);
+					await sandbox.AddFilesAsync(directoryInfo, treeWriter);
 				}
 				else
 				{

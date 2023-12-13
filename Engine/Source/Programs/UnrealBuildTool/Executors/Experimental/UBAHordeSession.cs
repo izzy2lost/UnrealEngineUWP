@@ -303,7 +303,7 @@ namespace UnrealBuildTool
 		{
 			await using IStorageWriter writer = _storage.CreateWriter();
 			DirectoryNode sandbox = new();
-			await sandbox.AddFilesAsync(baseDir, files, new ChunkingOptions(), writer, null, cancellationToken);
+			await sandbox.AddFilesAsync(baseDir, files, writer, cancellationToken: cancellationToken);
 			IBlobHandle handle = await writer.FlushAsync(sandbox, cancellationToken);
 			return handle.GetLocator();
 		}

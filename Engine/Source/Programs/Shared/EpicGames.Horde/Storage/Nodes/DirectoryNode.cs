@@ -487,32 +487,22 @@ namespace EpicGames.Horde.Storage.Nodes
 
 		#endregion
 
-		/// <summary>
-		/// Adds files from a flat list of paths
-		/// </summary>
-		/// <param name="baseDir">Base directory to base paths relative to</param>
-		/// <param name="files">Files to add</param>
-		/// <param name="options">Options for chunking file content</param>
-		/// <param name="writer">Writer for new node data</param>
-		/// <param name="progress">Feedback interface for progress updates</param>
-		/// <param name="cancellationToken">Cancellation token for the operation</param>
-		public static async Task<DirectoryNode> CreateAsync(DirectoryReference baseDir, IReadOnlyList<FileInfo> files, ChunkingOptions options, IStorageWriter writer, IProgress<ICopyStats>? progress, CancellationToken cancellationToken)
+		/// <inheritdoc cref="AddFilesAsync(DirectoryReference, IEnumerable{FileInfo}, IStorageWriter, ChunkingOptions?, IProgress{ICopyStats}?, CancellationToken)"/>
+		public async Task AddFilesAsync(DirectoryInfo directoryInfo, IStorageWriter writer, ChunkingOptions? options = null, IProgress<ICopyStats>? progress = null, CancellationToken cancellationToken = default)
 		{
-			DirectoryNode directoryNode = new DirectoryNode();
-			await directoryNode.AddFilesAsync(baseDir, files, options, writer, progress, cancellationToken);
-			return directoryNode;
+			await AddFilesAsync(new DirectoryReference(directoryInfo), directoryInfo.EnumerateFiles("*", SearchOption.AllDirectories).ToList(), writer, options, progress, cancellationToken);
 		}
 
-		/// <inheritdoc cref="AddFilesAsync(DirectoryReference, IEnumerable{FileInfo}, ChunkingOptions, IStorageWriter, IProgress{ICopyStats}?, CancellationToken)"/>
-		public Task AddFilesAsync(DirectoryReference baseDir, IEnumerable<FileReference> files, ChunkingOptions options, IStorageWriter writer, IProgress<ICopyStats>? progress, CancellationToken cancellationToken)
+		/// <inheritdoc cref="AddFilesAsync(DirectoryReference, IEnumerable{FileInfo}, IStorageWriter, ChunkingOptions?, IProgress{ICopyStats}?, CancellationToken)"/>
+		public Task AddFilesAsync(DirectoryReference baseDir, IEnumerable<FileReference> files, IStorageWriter writer, ChunkingOptions? options = null, IProgress<ICopyStats>? progress = null, CancellationToken cancellationToken = default)
 		{
-			return AddFilesAsync(baseDir, files.Select(x => x.ToFileInfo()).ToList(), options, writer, progress, cancellationToken);
+			return AddFilesAsync(baseDir, files.Select(x => x.ToFileInfo()).ToList(), writer, options, progress, cancellationToken);
 		}
 
-		/// <inheritdoc cref="AddFilesAsync(DirectoryReference, IEnumerable{FileInfo}, ChunkingOptions, IStorageWriter, IProgress{ICopyStats}?, CancellationToken)"/>
-		public Task AddFilesAsync(DirectoryInfo baseDir, IEnumerable<FileInfo> files, ChunkingOptions options, IStorageWriter writer, IProgress<ICopyStats>? progress, CancellationToken cancellationToken)
+		/// <inheritdoc cref="AddFilesAsync(DirectoryReference, IEnumerable{FileInfo}, IStorageWriter, ChunkingOptions?, IProgress{ICopyStats}?, CancellationToken)"/>
+		public Task AddFilesAsync(DirectoryInfo baseDir, IEnumerable<FileInfo> files, IStorageWriter writer, ChunkingOptions? options = null, IProgress<ICopyStats>? progress = null, CancellationToken cancellationToken = default)
 		{
-			return AddFilesAsync(new DirectoryReference(baseDir), files.ToList(), options, writer, progress, cancellationToken);
+			return AddFilesAsync(new DirectoryReference(baseDir), files.ToList(), writer, options, progress, cancellationToken);
 		}
 
 		/// <summary>
@@ -524,8 +514,10 @@ namespace EpicGames.Horde.Storage.Nodes
 		/// <param name="writer">Writer for new node data</param>
 		/// <param name="progress">Feedback interface for progress updates</param>
 		/// <param name="cancellationToken">Cancellation token for the operation</param>
-		public async Task AddFilesAsync(DirectoryReference baseDir, IEnumerable<FileInfo> files, ChunkingOptions options, IStorageWriter writer, IProgress<ICopyStats>? progress, CancellationToken cancellationToken)
+		public async Task AddFilesAsync(DirectoryReference baseDir, IEnumerable<FileInfo> files, IStorageWriter writer, ChunkingOptions? options = null, IProgress<ICopyStats>? progress = null, CancellationToken cancellationToken = default)
 		{
+			options ??= new ChunkingOptions();
+
 			CopyStats? copyStats = null;
 			if (progress != null)
 			{
@@ -745,19 +737,6 @@ namespace EpicGames.Horde.Storage.Nodes
 
 			// Update the tree
 			await UpdateAsync(updates, writer, cancellationToken);
-		}
-
-		/// <summary>
-		/// Adds files from a directory on disk
-		/// </summary>
-		/// <param name="directoryInfo"></param>
-		/// <param name="options">Options for chunking file content</param>
-		/// <param name="writer">Writer for new node data</param>
-		/// <param name="progress">Feedback interface for progress updates</param>
-		/// <param name="cancellationToken">Cancellation token for the operation</param>
-		public async Task CopyFromDirectoryAsync(DirectoryInfo directoryInfo, ChunkingOptions options, IStorageWriter writer, IProgress<ICopyStats>? progress, CancellationToken cancellationToken = default)
-		{
-			await AddFilesAsync(new DirectoryReference(directoryInfo), directoryInfo.EnumerateFiles("*", SearchOption.AllDirectories).ToList(), options, writer, progress, cancellationToken);
 		}
 
 		/// <summary>
@@ -1152,5 +1131,41 @@ namespace EpicGames.Horde.Storage.Nodes
 
 		/// <inheritdoc/>
 		public override void Write(byte[] buffer, int offset, int count) => throw new NotSupportedException();
+	}
+
+	/// <summary>
+	/// Extension methods for writing directory nodes
+	/// </summary>
+	public static class DirectoryNodeExtensions
+	{
+		/// <summary>
+		/// Writes a tree of files to a storage writer
+		/// </summary>
+		public static async Task<HashedNodeRef<DirectoryNode>> WriteFilesAsync(this IStorageWriter writer, DirectoryReference baseDir, ChunkingOptions? options = null, IProgress<ICopyStats>? progress = null, CancellationToken cancellationToken = default)
+		{
+			DirectoryNode outputNode = new DirectoryNode();
+			await outputNode.AddFilesAsync(baseDir, DirectoryReference.EnumerateFiles(baseDir, "*", SearchOption.AllDirectories), writer, options, progress, cancellationToken);
+			return await writer.WriteHashedNodeAsync(outputNode, cancellationToken);
+		}
+
+		/// <summary>
+		/// Writes a tree of files to a storage writer
+		/// </summary>
+		public static async Task<HashedNodeRef<DirectoryNode>> WriteFilesAsync(this IStorageWriter writer, DirectoryInfo baseDir, IReadOnlyList<FileInfo> files, ChunkingOptions? options = null, IProgress<ICopyStats>? progress = null, CancellationToken cancellationToken = default)
+		{
+			DirectoryNode outputNode = new DirectoryNode();
+			await outputNode.AddFilesAsync(baseDir, files, writer, options, progress, cancellationToken);
+			return await writer.WriteHashedNodeAsync(outputNode, cancellationToken);
+		}
+
+		/// <summary>
+		/// Writes a tree of files to a storage writer
+		/// </summary>
+		public static async Task<HashedNodeRef<DirectoryNode>> WriteFilesAsync(this IStorageWriter writer, DirectoryReference baseDir, IReadOnlyList<FileReference> files, ChunkingOptions? options = null, IProgress<ICopyStats>? progress = null, CancellationToken cancellationToken = default)
+		{
+			DirectoryNode outputNode = new DirectoryNode();
+			await outputNode.AddFilesAsync(baseDir, files, writer, options, progress, cancellationToken);
+			return await writer.WriteHashedNodeAsync(outputNode, cancellationToken);
+		}
 	}
 }

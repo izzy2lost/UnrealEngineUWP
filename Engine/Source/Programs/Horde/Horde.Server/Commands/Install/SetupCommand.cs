@@ -67,7 +67,7 @@ namespace Horde.Server.Commands.Install
 					await using (IStorageWriter writer = client.CreateWriter(refName))
 					{
 						DirectoryNode dirNode = new DirectoryNode();
-						await dirNode.CopyFromDirectoryAsync(looseAgentDir.ToDirectoryInfo(), new ChunkingOptions(), writer, null);
+						await dirNode.AddFilesAsync(looseAgentDir.ToDirectoryInfo(), writer);
 						dirNodeRef = await writer.WriteNodeAsync(dirNode);
 					}
 					await client.WriteRefAsync(refName, dirNodeRef.Handle);
@@ -86,7 +86,7 @@ namespace Horde.Server.Commands.Install
 					await using (IStorageWriter writer = client.CreateWriter(refName))
 					{
 						DirectoryNode dirNode = new DirectoryNode();
-						await dirNode.CopyFromDirectoryAsync(looseAgentInstallerDir.ToDirectoryInfo(), new ChunkingOptions(), writer, null);
+						await dirNode.AddFilesAsync(looseAgentInstallerDir.ToDirectoryInfo(), writer);
 						dirNodeRef = await writer.WriteNodeAsync(dirNode);
 					}
 					await client.WriteRefTargetAsync(refName, dirNodeRef);

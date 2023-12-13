@@ -114,12 +114,11 @@ namespace RemoteClient
 				using MemoryStorageClient memoryStorage = new MemoryStorageClient();
 				using BundleStorageClient storage = new BundleStorageClient(memoryStorage, cache, logger);
 
-				await using (IStorageWriter treeWriter = storage.CreateWriter())
+				await using (IStorageWriter writer = storage.CreateWriter())
 				{
-					DirectoryNode sandbox = new DirectoryNode();
-					await sandbox.CopyFromDirectoryAsync(uploadDir.ToDirectoryInfo(), new ChunkingOptions(), treeWriter, null);
-					IBlobHandle handle = await treeWriter.FlushAsync(sandbox);
-					await channel.UploadFilesAsync("", handle.GetLocator(), storage);
+					HashedNodeRef<DirectoryNode> sandbox = await writer.WriteFilesAsync(uploadDir);
+					await writer.FlushAsync();
+					await channel.UploadFilesAsync("", sandbox.Handle.GetLocator(), storage);
 				}
 
 				// Run the task remotely in the background and echo the output to the console

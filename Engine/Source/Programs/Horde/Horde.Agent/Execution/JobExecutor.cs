@@ -522,7 +522,7 @@ namespace Horde.Agent.Execution
 					await using (IStorageWriter treeWriter = CreateStorageWriter(storage, artifact.RefName, logger))
 					{
 						DirectoryNode buildGraphNode = new DirectoryNode();
-						await buildGraphNode.AddFilesAsync(workspaceDir, buildGraphFiles, new ChunkingOptions(), treeWriter, null, cancellationToken);
+						await buildGraphNode.AddFilesAsync(workspaceDir, buildGraphFiles, treeWriter, cancellationToken: cancellationToken);
 						HashedNodeRef<DirectoryNode> outputNodeRef = await treeWriter.WriteHashedNodeAsync(buildGraphNode, cancellationToken);
 
 						DirectoryNode rootNode = new DirectoryNode();
@@ -846,7 +846,7 @@ namespace Horde.Agent.Execution
 					try
 					{
 						DirectoryNode dir = new DirectoryNode();
-						await dir.AddFilesAsync(baseDir, files, new ChunkingOptions(), writer, new CopyStatsLogger(logger), cancellationToken);
+						await dir.AddFilesAsync(baseDir, files, writer, progress: new CopyStatsLogger(logger), cancellationToken: cancellationToken);
 						rootRef = await writer.WriteNodeAsync(dir, cancellationToken);
 					}
 					catch (Exception ex)

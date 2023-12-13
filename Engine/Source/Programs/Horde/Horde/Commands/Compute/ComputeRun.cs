@@ -153,11 +153,10 @@ namespace Horde.Commands.Compute
 		{
 			await using IStorageWriter writer = storage.CreateWriter();
 
-			DirectoryNode sandbox = new DirectoryNode();
-			await sandbox.CopyFromDirectoryAsync(taskFile.Directory.ToDirectoryInfo(), new ChunkingOptions(), writer, null, cancellationToken);
+			HashedNodeRef<DirectoryNode> sandbox = await writer.WriteFilesAsync(taskFile.Directory, cancellationToken: cancellationToken);
+			await writer.FlushAsync(cancellationToken);
 
-			IBlobHandle handle = await writer.FlushAsync(sandbox, cancellationToken);
-			return handle.GetLocator();
+			return sandbox.Handle.GetLocator();
 		}
 	}
 }
