@@ -34,6 +34,7 @@ static_assert(sizeof(FRayTracingGeometryInstance) <= 104,
 // Globals.
 FDynamicRHI* GDynamicRHI = NULL;
 RHIGetGPUUsageType RHIGetGPUUsage = nullptr;
+bool bDriverDenylistMessageShown = false;
 
 static TAutoConsoleVariable<int32> CVarWarnOfBadDrivers(
 	TEXT("r.WarnOfBadDrivers"),
@@ -86,8 +87,14 @@ void InitNullRHI()
 }
 
 #if PLATFORM_WINDOWS || PLATFORM_UNIX
-static void RHIDetectAndWarnOfBadDrivers(bool bHasEditorToken)
+void RHIDetectAndWarnOfBadDrivers(bool bHasEditorToken)
 {
+	// Don't show another prompt if we already did during this session.
+	if (bDriverDenylistMessageShown)
+	{
+		return;
+	}
+
 	if (GRHIVendorId == 0)
 	{
 		UE_LOG(LogRHI, Log, TEXT("Skipping Driver Check, no vendor ID set."));
@@ -262,6 +269,7 @@ static void RHIDetectAndWarnOfBadDrivers(bool bHasEditorToken)
 					TEXT("To prevent this crash, please update drivers."));
 			}
 #endif
+			bDriverDenylistMessageShown = true;
 		}
 		else
 		{
@@ -270,8 +278,14 @@ static void RHIDetectAndWarnOfBadDrivers(bool bHasEditorToken)
 	}
 }
 #elif PLATFORM_MAC
-static void RHIDetectAndWarnOfBadDrivers(bool bHasEditorToken)
+void RHIDetectAndWarnOfBadDrivers(bool bHasEditorToken)
 {
+	// Don't show another prompt if we already did during this session.
+	if (bDriverDenylistMessageShown)
+	{
+		return;
+	}
+
 	int32 CVarValue = CVarWarnOfBadDrivers.GetValueOnGameThread();
 
 	if (!CVarValue || GRHIVendorId == 0 || bHasEditorToken || FApp::IsUnattended())
@@ -294,6 +308,7 @@ static void RHIDetectAndWarnOfBadDrivers(bool bHasEditorToken)
 			TEXT("To prevent this crash, please update macOS."));
 		}
 #endif
+		bDriverDenylistMessageShown = true;
 	}
 }
 #endif // PLATFORM_WINDOWS

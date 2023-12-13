@@ -641,6 +641,9 @@ extern RHI_API void RHIPostInit(const TArray<uint32>& InPixelFormatByteWidth);
 /** Shuts down the RHI. */
 extern RHI_API void RHIExit();
 
+// Detect whether the current driver is denylisted and show a message box
+// prompting to update it if necessary.
+extern RHI_API void RHIDetectAndWarnOfBadDrivers(bool bHasEditorToken);
 
 // Panic delegate is called when when a fatal condition is encountered within RHI function.
 DECLARE_DELEGATE_OneParam(FRHIPanicEvent, const FName&);
