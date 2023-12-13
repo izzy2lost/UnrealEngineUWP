@@ -661,7 +661,39 @@ namespace Horde.Server.Devices
 			IDeviceReservation? existing = await TryFindReserveBlockAsync(job?.Id, stepId);
 			if (existing != null && existing.ProblemDevice == null) 
 			{
-				return (existing, false);
+				// Check the device models match
+				bool modelChange = false;
+
+				List<DeviceDocument> devices = await _devices.Find(x => existing.Devices.Contains(x.Id)).ToListAsync(); 				
+				foreach (DeviceRequestData data in request)
+				{
+					if (modelChange)
+					{
+						break;
+					}
+
+					foreach(DeviceDocument a in devices )
+					{
+						if (data.IncludeModels.Count > 0 && !data.IncludeModels.Contains(a.ModelId ?? "Base"))
+						{
+							modelChange = true;
+						}
+
+						if (data.ExcludeModels.Count > 0 && (data.ExcludeModels.Contains(a.ModelId ?? "Base")))
+						{
+							modelChange = true;
+						}
+					}
+				}
+
+				if (!modelChange)
+				{
+					return (existing, false);
+				}
+				else
+				{
+					_logger.LogWarning("Reservation block model changed on Job:{JobId} Step:{StepId}", job?.Id, stepId);
+				}
 			}
 
 			HashSet<DeviceId> allocated = new HashSet<DeviceId>();
