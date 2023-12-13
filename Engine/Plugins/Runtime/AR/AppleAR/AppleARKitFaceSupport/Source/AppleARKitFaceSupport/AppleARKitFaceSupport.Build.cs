@@ -6,14 +6,6 @@ public class AppleARKitFaceSupport : ModuleRules
 {
 	public AppleARKitFaceSupport(ReadOnlyTargetRules Target) : base(Target)
 	{
-		PrivateIncludePaths.AddRange(
-			new string[] {
-				System.IO.Path.Combine(GetModuleDirectory("AppleARKit"), "Private"),
-				// ... add other private include paths required here ...
-			}
-			);
-			
-		
 		PublicDependencyModuleNames.AddRange(
 			new string[]
 			{

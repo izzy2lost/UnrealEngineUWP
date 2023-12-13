@@ -8,7 +8,6 @@
 #include "UObject/ObjectMacros.h"
 #include "ARSystem.h"
 #include "ARBlueprintLibrary.h"
-#include "AppleARKitModule.h"
 #include "Features/IModularFeatures.h"
 #include "Misc/FileHelper.h"
 
