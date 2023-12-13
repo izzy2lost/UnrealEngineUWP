@@ -378,6 +378,20 @@ namespace mu
 				Ptr<ASTOpImageSwizzle> NewSwizzle = mu::Clone<ASTOpImageSwizzle>(this);
 				ReplaceAllSources(NewSwizzle, NewRaster->image.child());
 				NewRaster->image = NewSwizzle;
+
+				// If we are swapping rgb and alphas, we need to correct some flags
+				{
+					// We should only find these two cases
+					if (SourceChannels[0] == 3 || SourceChannels[1] == 3 || SourceChannels[2] == 3)
+					{
+						NewRaster->bIsRGBFadingEnabled = NewRaster->bIsAlphaFadingEnabled;
+					}
+					else if (Sources[3] && SourceChannels[3] < 3 )
+					{
+						NewRaster->bIsAlphaFadingEnabled = NewRaster->bIsRGBFadingEnabled;
+					}
+				}
+
 				at = NewRaster;
 				break;
 			}
@@ -735,6 +749,19 @@ namespace mu
 					}
 
 					NewRaster->image = NewSwizzle;
+
+					// If we are swapping rgb and alphas, we need to correct some flags
+					{
+						// We should only find these two cases
+						if (SourceChannels[0] == 3 || SourceChannels[1] == 3 || SourceChannels[2] == 3)
+						{
+							NewRaster->bIsRGBFadingEnabled = NewRaster->bIsAlphaFadingEnabled;
+						}
+						else if (Sources[3] && SourceChannels[3] < 3)
+						{
+							NewRaster->bIsAlphaFadingEnabled = NewRaster->bIsRGBFadingEnabled;
+						}
+					}
 
 					at = NewRaster;
 				}
