@@ -552,7 +552,7 @@ public:
 			return FTaskGraphInterface::Get().WaitUntilTaskCompletes(this, CurrentThreadIfKnown);
 		}
 
-		FTaskBase::Wait(UE::FTimeout::Never());
+		FTaskBase::WaitWithNamedThreadsSupport();
 	}
 
 	ENamedThreads::Type GetThreadToExecuteOn() const

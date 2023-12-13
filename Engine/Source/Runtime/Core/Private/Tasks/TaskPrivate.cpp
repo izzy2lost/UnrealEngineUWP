@@ -190,13 +190,27 @@ namespace UE::Tasks
 			TaskTrace::FWaitingScope WaitingScope(GetTraceId());
 			TRACE_CPUPROFILER_EVENT_SCOPE(Tasks::Wait);
 
-			// if we are on a named thread, handle waiting in TaskGraph-specific style
-			// (named threads don't support waiting with timeout)
-			if (Timeout == FTimeout::Never() && TryWaitOnNamedThread(*this))
+			return WaitImpl(Timeout);
+		}
+
+		void FTaskBase::WaitWithNamedThreadsSupport()
+		{
+			if (IsCompleted())
 			{
-				return true;
+				return;
 			}
 
+			TaskTrace::FWaitingScope WaitingScope(GetTraceId());
+			TRACE_CPUPROFILER_EVENT_SCOPE(Tasks::Wait);
+
+			if (!TryWaitOnNamedThread(*this))
+			{
+				WaitImpl(FTimeout::Never());
+			}
+		}
+
+		bool FTaskBase::WaitImpl(FTimeout Timeout)
+		{
 			// ignore the result as we still have to make sure the task is completed upon returning from this function call
 			TryRetractAndExecute(Timeout);
 

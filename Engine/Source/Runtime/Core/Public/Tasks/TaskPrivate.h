@@ -393,6 +393,10 @@ namespace UE::Tasks
 			// @return true if the task is completed
 			CORE_API bool Wait(FTimeout Timeout);
 
+			// mimics the old tasks (TaskGraph) behaviour on named threads: waiting for a task on a named thread pulls other tasks from this
+			// named thread queue and executes them
+			CORE_API void WaitWithNamedThreadsSupport();
+
 			// waits until the task is completed or waiting timed out, while executing other tasks
 			bool BusyWait(FTimeout Timeout)
 			{
@@ -636,6 +640,8 @@ namespace UE::Tasks
 
 			CORE_API void StartPipeExecution();
 			CORE_API void FinishPipeExecution();
+
+			CORE_API bool WaitImpl(FTimeout Timeout);
 
 		private:
 			EExtendedTaskPriority ExtendedPriority; // internal priorities, if any
