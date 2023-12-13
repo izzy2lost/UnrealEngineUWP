@@ -357,6 +357,12 @@ FString FStateTreeTraceActiveStatesEvent::GetTypeString(const UStateTree& StateT
 //----------------------------------------------------------------------//
 // FStateTreeTraceInstanceFrameEvent
 //----------------------------------------------------------------------//
+FStateTreeTraceInstanceFrameEvent::FStateTreeTraceInstanceFrameEvent(const double RecordingWorldTime, const EStateTreeTraceEventType EventType, const UStateTree* StateTree)
+	: FStateTreeTraceBaseEvent(RecordingWorldTime, EventType)
+	, WeakStateTree(StateTree)
+{
+}
+
 FString FStateTreeTraceInstanceFrameEvent::ToFullString(const UStateTree& StateTree) const
 {
 	return FString::Printf(TEXT("%s: %s"), *GetTypeString(StateTree), *GetValueString(StateTree));

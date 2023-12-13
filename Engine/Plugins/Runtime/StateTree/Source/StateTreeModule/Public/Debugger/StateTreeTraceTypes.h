@@ -227,11 +227,7 @@ struct FStateTreeTraceActiveStatesEvent : FStateTreeTraceBaseEvent
 
 struct FStateTreeTraceInstanceFrameEvent : FStateTreeTraceBaseEvent
 {
-	explicit FStateTreeTraceInstanceFrameEvent(const double RecordingWorldTime, const EStateTreeTraceEventType EventType, const UStateTree* StateTree)
-		: FStateTreeTraceBaseEvent(RecordingWorldTime, EventType)
-		, WeakStateTree(StateTree)
-	{
-	}
+	explicit FStateTreeTraceInstanceFrameEvent(const double RecordingWorldTime, const EStateTreeTraceEventType EventType, const UStateTree* StateTree);
 
 	STATETREEMODULE_API FString ToFullString(const UStateTree& StateTree) const;
 	STATETREEMODULE_API FString GetValueString(const UStateTree& StateTree) const;
