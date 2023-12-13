@@ -9,6 +9,10 @@
 #include "HttpManager.h"
 #include "HttpRetrySystem.h"
 #include "Http.h"
+#include "HttpPath.h"
+#include "HttpRouteHandle.h"
+#include "IHttpRouter.h"
+#include "HttpServerModule.h"
 #include "Misc/CommandLine.h"
 #include "TestHarness.h"
 #include "Serialization/JsonSerializerMacros.h"
@@ -175,7 +179,7 @@ public:
 
 	void WaitUntilAllHttpRequestsComplete()
 	{
-		while (OngoingRequests != 0 || (bRetryEnabled && !HttpRetryManager->IsEmpty()) )
+		while (HasOngoingRequest())
 		{
 			HttpModule->GetHttpManager().Tick(TickFrequency);
 			FPlatformProcess::Sleep(TickFrequency);
@@ -184,6 +188,11 @@ public:
 		// In case in http thread the http request complete and set OngoingRequests to 0, http manager never 
 		// had chance to Tick and remove the request
 		HttpModule->GetHttpManager().Tick(TickFrequency);
+	}
+
+	bool HasOngoingRequest() const
+	{
+		return OngoingRequests != 0 || (bRetryEnabled && !HttpRetryManager->IsEmpty());
 	}
 
 	TSharedRef<IHttpRequest> CreateRequest()
@@ -1089,7 +1098,74 @@ TEST_CASE_METHOD(FWaitUntilCompleteHttpFixture, "Scheme besides http and https c
 	HttpRequest->ProcessRequest();
 }
 
-#endif
+class FLocalHttpServerFixture : public FWaitUntilCompleteHttpFixture
+{
+public:
+	FLocalHttpServerFixture()
+	{
+		HttpServerModule = new FHttpServerModule();
+		IModuleInterface* Module = HttpServerModule;
+		Module->StartupModule();
+
+		HttpRouter = HttpServerModule->GetHttpRouter(LocalHttpServerPort);
+		CHECK(HttpRouter.IsValid());
+	}
+
+	void StartServerWithHandler(const FHttpPath& HttpPath, EHttpServerRequestVerbs Verb, FHttpRequestHandler RequestHandler)
+	{
+		CHECK(HttpRouteHandle == nullptr);
+		HttpRouteHandle = HttpRouter->BindRoute(HttpPath, Verb, RequestHandler);
+		HttpServerModule->StartAllListeners();
+	}
+
+	~FLocalHttpServerFixture()
+	{
+		while (HasOngoingRequest())
+		{
+			HttpServerModule->Tick(TickFrequency);
+			HttpModule->GetHttpManager().Tick(TickFrequency);
+			FPlatformProcess::Sleep(TickFrequency);
+		}
+
+		HttpRouter->UnbindRoute(HttpRouteHandle);
+		HttpRouter.Reset();
+
+		IModuleInterface* Module = HttpServerModule;
+		Module->ShutdownModule();
+		delete Module;
+	}
+
+	TSharedPtr<IHttpRouter> HttpRouter;
+	FHttpRouteHandle HttpRouteHandle;
+	FHttpServerModule* HttpServerModule = nullptr;
+	uint32 LocalHttpServerPort = 9000;
+};
+
+TEST_CASE_METHOD(FLocalHttpServerFixture, "Local http server can serve large file", HTTP_TAG)
+{
+	const uint32 FileSize = 100 * 1024 * 1024; // 100 MB seems good enough to repro SE_EWOULDBLOCK or SE_TRY_AGAIN on Mac
+	StartServerWithHandler(FHttpPath(TEXT("/large_file")), EHttpServerRequestVerbs::VERB_GET, FHttpRequestHandler::CreateLambda([FileSize](const FHttpServerRequest& Request, const FHttpResultCallback& OnComplete) {
+		TArray<uint8> ResultData;
+		ResultData.SetNum(FileSize);
+		FMemory::Memset(ResultData.GetData(), 'd', FileSize);
+
+		OnComplete(FHttpServerResponse::Create(MoveTemp(ResultData), TEXT("text/text")));
+		return true;
+	}));
+
+	// Start client request
+	TSharedRef<IHttpRequest> HttpRequest = CreateRequest();
+	HttpRequest->SetURL(TEXT("http://localhost:9000/large_file"));
+	HttpRequest->SetVerb(TEXT("GET"));
+	HttpRequest->OnProcessRequestComplete().BindLambda([FileSize](FHttpRequestPtr HttpRequest, FHttpResponsePtr HttpResponse, bool bSucceeded) {
+		CHECK(bSucceeded);
+		REQUIRE(HttpResponse != nullptr);
+		CHECK(HttpResponse->GetContentLength() == FileSize);
+	});
+	HttpRequest->ProcessRequest();
+}
+
+#endif // (PLATFORM_WINDOWS && !WITH_CURL_XCURL) || PLATFORM_MAC || PLATFORM_UNIX
 
 // TODO: Add cancel test, with multiple cancel calls
 
