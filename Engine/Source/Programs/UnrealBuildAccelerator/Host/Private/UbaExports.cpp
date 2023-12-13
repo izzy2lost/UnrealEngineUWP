@@ -47,10 +47,14 @@ namespace uba
 		NetworkBackend* networkBackend;
 	};
 
-	#if PLATFORM_LINUX
-	void SigsegvHandler(int signo)
+	#define UBA_USE_SIGNALHANDLER PLATFORM_LINUX
+
+	#if UBA_USE_SIGNALHANDLER
+	void SignalHandler(int sig, siginfo_t* si, void* unused)
 	{
-		UbaAssert("Segmentation fault", "", 0, "", -1);
+		StringBuffer<256> desc;
+		desc.Append("Segmentation fault at +0x").AppendHex(u64(si->si_addr));
+		UbaAssert(desc.data, "", 0, "", -1);
 	}
 	#endif
 }
@@ -64,8 +68,14 @@ extern "C"
 
 	uba::LogWriter* CreateCallbackLogWriter(uba::CallbackLogWriter::BeginScopeCallback begin, uba::CallbackLogWriter::EndScopeCallback end, uba::CallbackLogWriter::LogCallback log)
 	{
-		#if PLATFORM_LINUX
-		signal(SIGSEGV, uba::SigsegvHandler);
+		#if UBA_USE_SIGNALHANDLER
+		struct sigaction action;
+		memset(&action, 0, sizeof(action));
+		sigfillset(&action.sa_mask);
+		action.sa_flags = SA_SIGINFO | SA_RESTART | SA_ONSTACK;
+		action.sa_sigaction = uba::SignalHandler;
+		sigaction(SIGSEGV, &action, NULL);
+		//sigaction(SIGABRT, &action, NULL);
 		#endif
 
 		return new uba::CallbackLogWriter(begin, end, log);

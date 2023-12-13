@@ -75,17 +75,20 @@ namespace uba
 		if (directories.empty())
 			return true;
 
+		u64 start = GetTime();
+
 		WorkManagerImpl workManager(workerCount);
 		ReaderWriterLock lock;
 		bool success = true;
 		UnorderedSet<u64> seenIds;
 		ReaderWriterLock seenIdsLock;
+
 		for (auto& dir : directories)
 			success = PopulateCasFromDirsRecursive(dir.c_str(), workManager, seenIds, seenIdsLock) && success;
 		workManager.Wait();
 
 		if (u32 fileCount = u32(m_localStorageFiles.size()))
-			m_logger.Info(TC("Prepopulated %u files to cas"), fileCount);
+			m_logger.Info(TC("Prepopulated %u files to cas in %s"), fileCount, TimeToText(GetTime() - start).str);
 
 		return success;
 	}

@@ -441,13 +441,27 @@ namespace uba
 					break;
 				isFirst = false;
 
-				if (!connection.headerCallback(connection.recvContext, headerData, bodyContext, bodyData, bodySize))
+				auto hc = connection.headerCallback;
+				if (!hc)
+				{
+					m_logger.Error(TC("Header callback not set"));
+					break;
+				}
+
+				if (!hc(connection.recvContext, headerData, bodyContext, bodyData, bodySize))
 					break;
 				if (!bodySize)
 					continue;
 
 				bool success = RecvSocket(m_logger, connection.socket, bodyData, bodySize, connection.recvTimeoutMs, connectionUid, connection.recvHint, TC("Body"), false);
-				if (!connection.bodyCallback(connection.recvContext, !success, headerData, bodyContext, bodyData, bodySize))
+				auto bc = connection.bodyCallback;
+				if (!bc)
+				{
+					m_logger.Error(TC("Body callback not set"));
+					break;
+				}
+
+				if (!bc(connection.recvContext, !success, headerData, bodyContext, bodyData, bodySize))
 					break;
 				if (!success)
 					break;
@@ -462,9 +476,9 @@ namespace uba
 		SOCKET s = connection.socket;
 		connection.socket = INVALID_SOCKET;
 
-		if (connection.disconnectCallback)
+		auto cb = connection.disconnectCallback;
+		if (cb)
 		{
-			auto cb = connection.disconnectCallback;
 			auto context = connection.disconnectContext;
 			connection.disconnectCallback = nullptr;
 			connection.disconnectContext = nullptr;
