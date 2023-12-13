@@ -6,7 +6,8 @@
 #include "EdGraph/RigVMEdGraph.h"
 #include "AnimNextGraph_EdGraph.generated.h"
 
-class UAnimNextGraph_EditorData;
+class UAnimNextGraphEntry;
+class UAnimNextRigVMAssetEditorData;
 
 namespace UE::AnimNext::UncookedOnly
 {
@@ -21,10 +22,14 @@ class UAnimNextGraph_EdGraph : public URigVMEdGraph
 {
 	GENERATED_BODY()
 
+	friend class UAnimNextGraphEntry;
 	friend class UAnimNextGraph_EditorData;
+
+	// UObject interface
+	virtual void PostLoad() override;
 
 	// URigVMEdGraph interface
 	virtual FRigVMClient* GetRigVMClient() const override;
 	
-	void Initialize(UAnimNextGraph_EditorData* InEditorData);
+	void Initialize(UAnimNextRigVMAssetEditorData* InEditorData);
 };

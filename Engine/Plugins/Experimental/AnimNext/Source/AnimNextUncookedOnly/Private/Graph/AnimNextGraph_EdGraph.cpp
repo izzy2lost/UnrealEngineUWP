@@ -3,7 +3,16 @@
 #include "Graph/AnimNextGraph_EdGraph.h"
 #include "Graph/AnimNextGraph_EditorData.h"
 
-void UAnimNextGraph_EdGraph::Initialize(UAnimNextGraph_EditorData* InEditorData)
+void UAnimNextGraph_EdGraph::PostLoad()
+{
+	Super::PostLoad();
+
+	UAnimNextRigVMAssetEditorData* EditorData = GetTypedOuter<UAnimNextRigVMAssetEditorData>();
+	check(EditorData);
+	Initialize(EditorData);
+}
+
+void UAnimNextGraph_EdGraph::Initialize(UAnimNextRigVMAssetEditorData* InEditorData)
 {
 	InEditorData->RigVMGraphModifiedEvent.RemoveAll(this);
 	InEditorData->RigVMGraphModifiedEvent.AddUObject(this, &UAnimNextGraph_EdGraph::HandleModifiedEvent);

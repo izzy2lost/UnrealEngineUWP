@@ -12,6 +12,8 @@
 enum class ERigVMGraphNotifType : uint8;
 class UAnimNextRigVMAssetEntry;
 class UAnimNextRigVMAssetEditorData;
+class UAnimNextParameterBlock_EdGraph;
+class UAnimNextGraph_EdGraph;
 
 namespace UE::AnimNext::UncookedOnly
 {
@@ -69,6 +71,8 @@ protected:
 	friend class UE::AnimNext::Editor::FWorkspaceEditor;
 	friend class UAnimNextRigVMAssetEntry;
 	friend class UAnimNextRigVMAssetLibrary;
+	friend class UAnimNextGraph_EdGraph;
+	friend class UAnimNextParameterBlock_EdGraph;
 
 	// UObject interface
 	virtual void Serialize(FArchive& Ar) override;

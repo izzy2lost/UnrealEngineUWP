@@ -136,7 +136,7 @@ UEdGraph* UAnimNextGraph_EditorData::CreateEdGraph(URigVMGraph* InRigVMGraph, bo
 	FString GraphName = InRigVMGraph->GetName();
 	check(!GraphName.IsEmpty());
 
-	UAnimNextGraph_EdGraph* RigFunctionGraph = NewObject<UAnimNextGraph_EdGraph>(this, MakeEdGraphName(*GraphName), RF_Transactional);
+	UAnimNextGraph_EdGraph* RigFunctionGraph = NewObject<UAnimNextGraph_EdGraph>(Entry, MakeEdGraphName(*GraphName), RF_Transactional);
 	RigFunctionGraph->Schema = UAnimNextGraph_EdGraphSchema::StaticClass();
 	RigFunctionGraph->bAllowDeletion = true;
 	RigFunctionGraph->bIsFunctionDefinition = false;

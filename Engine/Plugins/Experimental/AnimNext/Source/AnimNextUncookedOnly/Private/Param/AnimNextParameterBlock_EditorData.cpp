@@ -250,7 +250,7 @@ UEdGraph* UAnimNextParameterBlock_EditorData::CreateEdGraph(URigVMGraph* InRigVM
 	FString GraphName = InRigVMGraph->GetName();
 	check(!GraphName.IsEmpty());
 
-	UAnimNextParameterBlock_EdGraph* RigFunctionGraph = NewObject<UAnimNextParameterBlock_EdGraph>(this, MakeEdGraphName(*GraphName), RF_Transactional);
+	UAnimNextParameterBlock_EdGraph* RigFunctionGraph = NewObject<UAnimNextParameterBlock_EdGraph>(Entry, MakeEdGraphName(*GraphName), RF_Transactional);
 	RigFunctionGraph->Schema = UAnimNextParameterBlock_EdGraphSchema::StaticClass();
 	RigFunctionGraph->bAllowDeletion = true;
 	RigFunctionGraph->bIsFunctionDefinition = false;
