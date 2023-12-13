@@ -424,7 +424,7 @@ public:
 	FORCEINLINE void *                                 GetUserPtrTable(int32 UserPtrIdx) { check(UserPtrIdx < NumUserPtrs);  return UserPtrTable[UserPtrIdx]; }
 	template<uint32 InstancesPerOp> FORCEINLINE int32  GetNumLoops() const               { static_assert(InstancesPerOp == 4); return NumLoops; };
 
-	FORCEINLINE float* GetNextRegister(int32* OutAdvanceOffset, int32* OutVecIndex)
+	FORCEINLINE float* GetNextRegister(int32* OutAdvanceOffset)
 	{
 		check(RegReadCount < NumRegisters);
 		*OutAdvanceOffset = RegInc[RegReadCount];
