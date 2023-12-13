@@ -80,6 +80,14 @@ void UTypedElementObjectReinstancingManager::HandleOnObjectPreRemoved(const void
 {
 	// This is the chance to record the old object to memento
 	TypedElementRowHandle Memento = MementoSystem->CreateMemento(Database.Get());
+	
+	if (!ensureMsgf(Database->HasColumns(Memento, TConstArrayView<const UScriptStruct*>({FTypedElementMementoTag::StaticStruct()})),
+		TEXT("Memento System should create rows with the MementoTag")))
+	{
+		Database->RemoveRow(Memento);
+		return;
+	}
+	
 	Database->AddOrGetColumn(ObjectRow, FTypedElementMementoOnDelete{ .Memento = Memento });
 	
 	Database->AddOrGetColumn(Memento, FTypedElementsReinstanceableSourceObject{.Object = Object});
@@ -95,7 +103,16 @@ void UTypedElementObjectReinstancingManager::HandleOnObjectsReinstanced(
 		const void* PreDeleteObject = Iter->Key;
 		if (const TypedElementRowHandle* MementoRowPtr = OldObjectToMementoMap.Find(PreDeleteObject))
 		{
+			TypedElementRowHandle Memento = *MementoRowPtr;
+			
 			UObject* NewInstanceObject = Iter->Value;
+			if (NewInstanceObject == nullptr)
+			{
+				// Reinstancing resulted in no target object.  Delete the memento.
+				Database->AddOrGetColumn<FTypedElementMementoReinstanceAborted>(Memento);
+				continue;
+			}
+			
 			TypedElementRowHandle NewObjectRow = DataStorageCompatibility->FindRowWithCompatibleObjectExplicit(NewInstanceObject);
 			// Do the addition only if there's a recorded memento. Having a memento implies the object was previously registered and there's
 			// still an interest in it. Any other objects can therefore be ignored.
@@ -105,11 +122,7 @@ void UTypedElementObjectReinstancingManager::HandleOnObjectsReinstanced(
 			}
 
 			// Kick off re-instantiation of NewObjectRow from the Memento
-			TypedElementRowHandle Memento = *MementoRowPtr;
-			if (ensureMsgf(Database->HasColumns(Memento, TConstArrayView<const UScriptStruct*>({FTypedElementMementoTag::StaticStruct()})), TEXT("Cannot reinstantiate from a non memento row")))
-			{
-				Database->AddOrGetColumn(Memento, FTypedElementMementoReinstanceTarget{ .Target = NewObjectRow });
-			}
+			Database->AddOrGetColumn(Memento, FTypedElementMementoReinstanceTarget{ .Target = NewObjectRow });
 		}
 	}
 }

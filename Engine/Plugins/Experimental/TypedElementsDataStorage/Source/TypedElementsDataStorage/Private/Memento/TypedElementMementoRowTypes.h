@@ -30,3 +30,14 @@ struct FTypedElementMementoReinstanceTarget : public FTypedElementDataStorageCol
 	GENERATED_BODY()
 	TypedElementRowHandle Target;
 };
+
+/**
+ * Tag added to memento row which will cause the memento to be deleted.  It is used
+ * in the case where mementoization was aborted due to a missing target object
+ * from the reinstancing callback
+ */
+USTRUCT()
+struct FTypedElementMementoReinstanceAborted : public FTypedElementDataStorageTag
+{
+	GENERATED_BODY()
+};

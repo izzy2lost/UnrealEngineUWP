@@ -168,21 +168,23 @@ void UTypedElementMementoSystem::RegisterQueries(UTypedElementDatabase& DataStor
 				.Compile());
 		check(QueryHandleForExistence != TypedElementInvalidQueryHandle);
 	}
-
+	
 	/**
-	 * A processor which deletes mementos that were used for rehydrating another row
+	 * A processor which deletes mementos that were used for reinstancing another row
 	 */
 	{
 		const TypedElementQueryHandle QueryHandle = DataStorage.RegisterQuery(
 			Select(
 			TEXT("Delete mementos used for reinstancing"),
 			FProcessor(DSI::EQueryTickPhase::FrameEnd, DataStorage.GetQueryTickGroupName(DSI::EQueryTickGroups::Default)),
-				[](TypedElementDataStorage::IQueryContext& Context, TypedElementRowHandle Row)
+			[](TypedElementDataStorage::IQueryContext& Context, const TypedElementRowHandle* Rows)
 				{
-					Context.RemoveRow(Row);
+					TConstArrayView<TypedElementRowHandle> RowView(Rows, Context.GetRowCount());
+					Context.RemoveRows(RowView);
 				})
-				.ReadOnly<FTypedElementMementoReinstanceTarget>()
-				.Where().All<FTypedElementMementoTag>()
+				.Where()
+					.All<FTypedElementMementoTag>()
+					.Any<FTypedElementMementoReinstanceTarget, FTypedElementMementoReinstanceAborted>()
 				.Compile()
 			);
 		check(QueryHandle != TypedElementInvalidQueryHandle);
