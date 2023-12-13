@@ -19,6 +19,7 @@ using EpicGames.Horde.Secrets;
 using EpicGames.Horde.Server;
 using EpicGames.Horde.Storage;
 using EpicGames.Horde.Storage.Clients;
+using EpicGames.Horde.Streams;
 using EpicGames.Horde.Tools;
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Logging;
@@ -103,6 +104,20 @@ namespace EpicGames.Horde
 		}
 
 		#region Artifacts
+
+		/// <summary>
+		/// Creates a new artifact
+		/// </summary>
+		/// <param name="name">Name of the artifact</param>
+		/// <param name="type">Additional search keys tagged on the artifact</param>
+		/// <param name="streamId">Stream to create the artifact for</param>
+		/// <param name="change">Change number for the artifact</param>
+		/// <param name="keys">Keys used to identify the artifact</param>
+		/// <param name="cancellationToken">Cancellation token for the operation</param>
+		public Task<CreateArtifactResponse> CreateArtifactAsync(ArtifactName name, ArtifactType type, StreamId? streamId = null, int? change = null, List<string>? keys = null, CancellationToken cancellationToken = default)
+		{
+			return PostAsync<CreateArtifactResponse, CreateArtifactRequest>(_httpClient, $"api/v2/artifacts", new CreateArtifactRequest(name, type, streamId, change, keys ?? new List<string>()), cancellationToken);
+		}
 
 		/// <summary>
 		/// Gets metadata about an artifact object
@@ -489,6 +504,12 @@ namespace EpicGames.Horde
 							}
 						}
 					}
+				}
+
+				// Make sure we have a base URL set
+				if (httpClient.BaseAddress == null)
+				{
+					throw new Exception("No Horde server is configured, or can be detected from the environment. Consider specifying a URL when calling AddHordeHttpClient().");
 				}
 			}
 
