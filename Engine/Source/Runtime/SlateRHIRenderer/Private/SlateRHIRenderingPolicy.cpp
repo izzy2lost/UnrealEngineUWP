@@ -1672,11 +1672,6 @@ void FSlateRHIRenderingPolicy::FlushGeneratedResources()
 	PostProcessor->ReleaseRenderTargets();
 }
 
-void FSlateRHIRenderingPolicy::TickPostProcessResources()
-{
-	PostProcessor->TickPostProcessResources();
-}
-
 void FSlateRHIRenderingPolicy::BlurRectExternal(FRHICommandListImmediate& RHICmdList, FRHITexture* BlurSrc, FRHITexture* BlurDst, FIntRect SrcRect, FIntRect DstRect, float BlurStrength) const
 {
 	SLATE_DRAW_EVENT(RHICmdList, PostProcess);
