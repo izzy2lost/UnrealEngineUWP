@@ -6,6 +6,8 @@ namespace UnrealBuildTool.Rules
 	{
 		public AndroidSingleInstanceServiceEditor(ReadOnlyTargetRules Target) : base(Target)
 		{
+			ShortName = "AndSngInstSvcEd";
+
 			PrivateDependencyModuleNames.AddRange(
 				new string[] {
 					"Core",

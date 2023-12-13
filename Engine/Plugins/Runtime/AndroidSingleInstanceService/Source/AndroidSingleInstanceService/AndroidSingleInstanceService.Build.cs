@@ -7,6 +7,8 @@ public class AndroidSingleInstanceService : ModuleRules
 {
 	public AndroidSingleInstanceService(ReadOnlyTargetRules Target) : base(Target)
 	{
+		ShortName = "AndSngInstSvc";
+
 		PCHUsage = ModuleRules.PCHUsageMode.UseExplicitOrSharedPCHs;
 		
 		PublicDependencyModuleNames.AddRange(
