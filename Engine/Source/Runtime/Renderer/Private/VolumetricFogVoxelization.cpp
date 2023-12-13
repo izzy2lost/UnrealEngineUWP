@@ -393,6 +393,8 @@ public:
 		checkf(false, TEXT("Default AddMeshBatch can't be used as rendering requires extra parameters per pass."));
 	}
 
+	virtual void CollectPSOInitializers(const FSceneTexturesConfig& SceneTexturesConfig, const FMaterial& Material, const FPSOPrecacheVertexFactoryData& VertexFactoryData, const FPSOPrecacheParams& PreCacheParams, TArray<FPSOPrecacheData>& PSOInitializers) override final;
+
 private:
 	bool TryAddMeshBatch(
 		const FMeshBatch& RESTRICT MeshBatch,
@@ -415,8 +417,10 @@ private:
 	FMeshPassProcessorRenderState PassDrawRenderState;
 };
 
+static const TCHAR* VoxelizeVolumePassName = TEXT("VoxelizeVolume");
+
 FVoxelizeVolumeMeshProcessor::FVoxelizeVolumeMeshProcessor(const FScene* Scene, ERHIFeatureLevel::Type FeatureLevel, const FViewInfo* InViewIfDynamicMeshCommand, FMeshPassDrawListContext* InDrawListContext)
-	: FMeshPassProcessor(EMeshPass::Num, Scene, FeatureLevel, InViewIfDynamicMeshCommand, InDrawListContext)
+	: FMeshPassProcessor(VoxelizeVolumePassName, Scene, FeatureLevel, InViewIfDynamicMeshCommand, InDrawListContext)
 {
 	PassDrawRenderState.SetBlendState(TStaticBlendState<
 		CW_RGBA, BO_Add, BF_One, BF_One, BO_Add, BF_One, BF_One,
@@ -440,6 +444,51 @@ void FVoxelizeVolumeMeshProcessor::AddMeshBatch(const FMeshBatch& RESTRICT MeshB
 
 		MaterialRenderProxy = MaterialRenderProxy->GetFallback(FeatureLevel);
 	}
+}
+
+static bool GetVoxelizeVolumePassShaders(
+	const FMaterial& Material,
+	const FVertexFactoryType* VertexFactoryType,
+	ERHIFeatureLevel::Type FeatureLevel,
+	bool bUsePrimitiveSphere,
+	TShaderRef<FVoxelizeVolumeVS>& VertexShader,
+	TShaderRef<FVoxelizeVolumeGS>& GeometryShader,
+	TShaderRef<FVoxelizeVolumePS>& PixelShader)
+{
+	FMaterialShaderTypes ShaderTypes;
+	if (bUsePrimitiveSphere)
+	{
+		ShaderTypes.AddShaderType<TVoxelizeVolumeVS<VMode_Primitive_Sphere>>();
+		if (RHISupportsGeometryShaders(GShaderPlatformForFeatureLevel[FeatureLevel]))
+		{
+			ShaderTypes.AddShaderType<TVoxelizeVolumeGS<VMode_Primitive_Sphere>>();
+		}
+		ShaderTypes.AddShaderType<TVoxelizeVolumePS<VMode_Primitive_Sphere>>();
+	}
+	else
+	{
+		ShaderTypes.AddShaderType<TVoxelizeVolumeVS<VMode_Object_Box>>();
+		if (RHISupportsGeometryShaders(GShaderPlatformForFeatureLevel[FeatureLevel]))
+		{
+			ShaderTypes.AddShaderType<TVoxelizeVolumeGS<VMode_Object_Box>>();
+		}
+		ShaderTypes.AddShaderType<TVoxelizeVolumePS<VMode_Object_Box>>();
+	}
+
+	FMaterialShaders Shaders;
+	if (!Material.TryGetShaders(ShaderTypes, VertexFactoryType, Shaders))
+	{
+		return false;
+	}
+
+	Shaders.TryGetVertexShader(VertexShader);
+	if (RHISupportsGeometryShaders(GShaderPlatformForFeatureLevel[FeatureLevel]))
+	{
+		Shaders.TryGetGeometryShader(GeometryShader);
+	}
+	Shaders.TryGetPixelShader(PixelShader);
+
+	return true;
 }
 
 bool FVoxelizeVolumeMeshProcessor::TryAddMeshBatch(
@@ -469,47 +518,24 @@ bool FVoxelizeVolumeMeshProcessor::Process(
 	ERasterizerCullMode MeshCullMode)
 {
 	const FVertexFactory* VertexFactory = MeshBatch.VertexFactory;
+	const bool bUsePrimitiveSphere = VertexFactory != GQuadMeshVertexFactory;
 
 	TMeshProcessorShaders<
 		FVoxelizeVolumeVS,
 		FVoxelizeVolumePS,
 		FVoxelizeVolumeGS> PassShaders;
-
-	const bool bUsePrimitiveSphere = VertexFactory != GQuadMeshVertexFactory;
-
-	FMaterialShaderTypes ShaderTypes;
-	if (bUsePrimitiveSphere)
-	{
-		ShaderTypes.AddShaderType<TVoxelizeVolumeVS<VMode_Primitive_Sphere>>();
-		if (RHISupportsGeometryShaders(GShaderPlatformForFeatureLevel[FeatureLevel]))
-		{
-			ShaderTypes.AddShaderType<TVoxelizeVolumeGS<VMode_Primitive_Sphere>>();
-		}
-		ShaderTypes.AddShaderType<TVoxelizeVolumePS<VMode_Primitive_Sphere>>();
-	}
-	else
-	{
-		ShaderTypes.AddShaderType<TVoxelizeVolumeVS<VMode_Object_Box>>();
-		if (RHISupportsGeometryShaders(GShaderPlatformForFeatureLevel[FeatureLevel]))
-		{
-			ShaderTypes.AddShaderType<TVoxelizeVolumeGS<VMode_Object_Box>>();
-		}
-		ShaderTypes.AddShaderType<TVoxelizeVolumePS<VMode_Object_Box>>();
-	}
-
-	FMaterialShaders Shaders;
-	if (!MaterialResource.TryGetShaders(ShaderTypes, VertexFactory->GetType(), Shaders))
+	if (!GetVoxelizeVolumePassShaders(
+		MaterialResource,
+		VertexFactory->GetType(),
+		FeatureLevel,
+		bUsePrimitiveSphere,
+		PassShaders.VertexShader,
+		PassShaders.GeometryShader,
+		PassShaders.PixelShader))
 	{
 		return false;
 	}
-
-	Shaders.TryGetVertexShader(PassShaders.VertexShader);
-	if (RHISupportsGeometryShaders(GShaderPlatformForFeatureLevel[FeatureLevel]))
-	{
-		Shaders.TryGetGeometryShader(PassShaders.GeometryShader);
-	}
-	Shaders.TryGetPixelShader(PassShaders.PixelShader);
-
+	
 	const FMeshDrawCommandSortKey SortKey = CalculateMeshStaticSortKey(PassShaders.VertexShader, PassShaders.PixelShader);
 
 	for (int32 VoxelizationPassIndex = 0; VoxelizationPassIndex < NumVoxelizationPasses; VoxelizationPassIndex++)
@@ -537,6 +563,77 @@ bool FVoxelizeVolumeMeshProcessor::Process(
 
 	return true;
 }
+
+void FVoxelizeVolumeMeshProcessor::CollectPSOInitializers(
+	const FSceneTexturesConfig& SceneTexturesConfig,
+	const FMaterial& Material,
+	const FPSOPrecacheVertexFactoryData& VertexFactoryData,
+	const FPSOPrecacheParams& PreCacheParams,
+	TArray<FPSOPrecacheData>& PSOInitializers)
+{
+	if (Material.GetMaterialDomain() != MD_Volume)
+	{
+		return;
+	}
+
+	const FMeshDrawingPolicyOverrideSettings OverrideSettings = ComputeMeshOverrideSettings(PreCacheParams);
+	ERasterizerFillMode MeshFillMode = ComputeMeshFillMode(Material, OverrideSettings);
+	ERasterizerCullMode MeshCullMode = CM_None;
+
+	FRDGTextureDesc VolumeDesc = GetVolumetricFogRDGTextureDesc(FIntVector(0));
+
+	FGraphicsPipelineRenderTargetsInfo RenderTargetsInfo;
+	RenderTargetsInfo.NumSamples = 1;
+	AddRenderTargetInfo(VolumeDesc.Format, VolumeDesc.Flags, RenderTargetsInfo);
+
+	static const auto CVarVolumetrixFogEmissive = IConsoleManager::Get().FindConsoleVariable(TEXT("r.VolumetricFog.Emissive"));
+	const bool bUseEmissive = (!CVarVolumetrixFogEmissive) || (CVarVolumetrixFogEmissive->GetInt() > 0);
+	if (bUseEmissive)
+	{
+		AddRenderTargetInfo(VolumeDesc.Format, VolumeDesc.Flags, RenderTargetsInfo);
+	}
+
+	const auto AddPSOInitializer = [&](bool bUsePrimitiveSphere)
+	{
+		TMeshProcessorShaders<
+			FVoxelizeVolumeVS,
+			FVoxelizeVolumePS,
+			FVoxelizeVolumeGS> PassShaders;
+		if (!GetVoxelizeVolumePassShaders(
+			Material,
+			VertexFactoryData.VertexFactoryType,
+			FeatureLevel,
+			bUsePrimitiveSphere,
+			PassShaders.VertexShader,
+			PassShaders.GeometryShader,
+			PassShaders.PixelShader))
+		{
+			return;
+		}
+
+		AddGraphicsPipelineStateInitializer(
+			VertexFactoryData,
+			Material,
+			PassDrawRenderState,
+			RenderTargetsInfo,
+			PassShaders,
+			MeshFillMode,
+			MeshCullMode,
+			(EPrimitiveType)PreCacheParams.PrimitiveType,
+			EMeshPassFeatures::Default,
+			true /*bRequired*/,
+			PSOInitializers);
+	};
+
+	AddPSOInitializer(true /*bUsePrimitiveSphere*/);
+	AddPSOInitializer(false /*bUsePrimitiveSphere*/);	
+}
+
+IPSOCollector* CreatePSOCollectorVoxelizeVolume(ERHIFeatureLevel::Type FeatureLevel)
+{
+	return new FVoxelizeVolumeMeshProcessor(nullptr, FeatureLevel, nullptr, nullptr);
+}
+FRegisterPSOCollectorCreateFunction RegisterPSOCollectorVoxelizeVolume(&CreatePSOCollectorVoxelizeVolume, EShadingPath::Deferred, VoxelizeVolumePassName);
 
 void VoxelizeVolumePrimitive(FVoxelizeVolumeMeshProcessor& PassMeshProcessor,
 	FRHICommandListImmediate& RHICmdList,

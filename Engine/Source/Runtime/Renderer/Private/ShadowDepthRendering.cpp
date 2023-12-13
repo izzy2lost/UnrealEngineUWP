@@ -2299,11 +2299,10 @@ void FShadowDepthPassMeshProcessor::CollectPSOInitializersForEachStreamSetup(
 	{
 		CollectPSOInitializersInternal(VertexFactoryData, MaterialResource, InShadowDepthType, MeshFillMode, MeshCullMode, SupportsPositionAndNormalOnlyStream, bRequired, PSOInitializers);
 	}
-	else
-	{
-		SupportsPositionAndNormalOnlyStream = false;
-		CollectPSOInitializersInternal(VertexFactoryData, MaterialResource, InShadowDepthType, MeshFillMode, MeshCullMode, SupportsPositionAndNormalOnlyStream, bRequired, PSOInitializers);
-	}
+	
+	// Always precache with the default streams (non PositionOnly or PositionAndNormalOnly stream)
+	SupportsPositionAndNormalOnlyStream = false;
+	CollectPSOInitializersInternal(VertexFactoryData, MaterialResource, InShadowDepthType, MeshFillMode, MeshCullMode, SupportsPositionAndNormalOnlyStream, bRequired, PSOInitializers);
 }
 
 FShadowDepthPassMeshProcessor::FShadowDepthPassMeshProcessor(

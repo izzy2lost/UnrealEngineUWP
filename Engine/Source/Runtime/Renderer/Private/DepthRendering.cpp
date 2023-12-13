@@ -897,6 +897,33 @@ void FDepthPassMeshProcessor::CollectPSOInitializersInternal(
 		bPositionOnly ? EMeshPassFeatures::PositionOnly : EMeshPassFeatures::Default,
 		true /*bRequired*/,
 		PSOInitializers);
+
+	// Also cache with project shadow depth stencil state (see FProjectedShadowInfo::SetupMeshDrawCommandsForProjectionStenciling)
+	{
+		// Set stencil to one.
+		DrawRenderState.SetDepthStencilState(
+			TStaticDepthStencilState<
+			false, CF_DepthNearOrEqual,
+			true, CF_Always, SO_Keep, SO_Keep, SO_Replace,
+			false, CF_Always, SO_Keep, SO_Keep, SO_Keep,
+			0xff, 0xff
+			>::GetRHI());
+
+		AddRenderTargetInfo(PF_B8G8R8A8, TexCreate_RenderTargetable | TexCreate_ShaderResource, RenderTargetsInfo);
+
+		AddGraphicsPipelineStateInitializer(
+			VertexFactoryData,
+			MaterialResource,
+			DrawRenderState,
+			RenderTargetsInfo,
+			DepthPassShaders,
+			MeshFillMode,
+			MeshCullMode,
+			PrimitiveType,
+			bPositionOnly ? EMeshPassFeatures::PositionOnly : EMeshPassFeatures::Default,
+			true /*bRequired*/,
+			PSOInitializers);
+	}
 }
 
 bool FDepthPassMeshProcessor::UseDefaultMaterial(const FMaterial& Material, bool bMaterialModifiesMeshPosition, bool bSupportPositionOnlyStream, bool bVFTypeSupportsNullPixelShader, bool& bPositionOnly)

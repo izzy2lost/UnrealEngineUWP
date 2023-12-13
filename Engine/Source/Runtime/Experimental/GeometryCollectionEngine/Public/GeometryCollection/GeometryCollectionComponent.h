@@ -1461,6 +1461,9 @@ protected:
 	UPROPERTY(Transient)
 	TScriptInterface<IGeometryCollectionExternalRenderInterface> CustomRenderer;
 
+	/** Collect all the PSO precache data used by the geometry collection */
+	GEOMETRYCOLLECTIONENGINE_API virtual void CollectPSOPrecacheData(const FPSOPrecacheParams& BasePrecachePSOParams, FComponentPSOPrecacheParamsList& OutParams) override;
+
 	/** Populate the dynamic particle data for the render thread. */
 	GEOMETRYCOLLECTIONENGINE_API FGeometryCollectionDynamicData* InitDynamicData(bool bInitialization);
 

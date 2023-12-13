@@ -14,6 +14,7 @@
 #include "Engine/Engine.h"
 #include "Engine/InstancedStaticMesh.h"
 #include "Engine/StaticMeshSocket.h"
+#include "MaterialDomain.h"
 #include "Field/FieldSystemComponent.h"
 #include "GeometryCollection/Facades/CollectionHierarchyFacade.h"
 #include "GeometryCollection/GeometryCollection.h"
@@ -64,6 +65,7 @@
 #include "Chaos/ChaosGameplayEventDispatcher.h"
 
 #include "Rendering/NaniteResources.h"
+#include "NaniteVertexFactory.h"
 #include "PrimitiveSceneInfo.h"
 #include "GeometryCollection/GeometryCollectionEngineRemoval.h"
 #include "GeometryCollection/Facades/CollectionAnchoringFacade.h"
@@ -6889,6 +6891,12 @@ void UGeometryCollectionComponent::PostLoad()
 {
 	Super::PostLoad();
 
+	// If there is a rest collection and no custom renderer then precache PSOs required to render the mesh
+	if (RestCollection && !CanUseCustomRenderer())
+	{
+		PrecachePSOs();
+	}
+
 	//
 	// The UGeometryCollectionComponent::PhysicalMaterial_DEPRECATED needs
 	// to be transferred to the BodyInstance simple material. Going forward
@@ -6907,6 +6915,47 @@ void UGeometryCollectionComponent::PostLoad()
 		CustomRendererType = UGeometryCollectionISMPoolRenderer::StaticClass();
 		ISMPool_DEPRECATED = nullptr;
 		bAutoAssignISMPool_DEPRECATED = false;
+	}
+}
+
+void UGeometryCollectionComponent::CollectPSOPrecacheData(const FPSOPrecacheParams& BasePrecachePSOParams, FComponentPSOPrecacheParamsList& OutParams)
+{
+	check(RestCollection);
+
+	FPSOPrecacheVertexFactoryDataList VFDataList;
+	const FVertexFactoryType* VFType = nullptr;
+	if (UseNanite(GMaxRHIShaderPlatform) &&
+		RestCollection->EnableNanite &&
+		RestCollection->HasNaniteData() &&
+		GGeometryCollectionNanite != 0)
+	{
+		if (NaniteLegacyMaterialsSupported())
+		{
+			VFDataList.Add(FPSOPrecacheVertexFactoryData(&Nanite::FVertexFactory::StaticType));
+		}
+
+		if (NaniteComputeMaterialsSupported())
+		{
+			VFDataList.Add(FPSOPrecacheVertexFactoryData(&FNaniteVertexFactory::StaticType));
+		}
+	}	
+	else if (RestCollection->HasMeshData())
+	{
+		VFDataList.Add(FPSOPrecacheVertexFactoryData(&FGeometryCollectionVertexFactory::StaticType));
+	}
+
+	const TManagedArray<FGeometryCollectionSection>& SectionsArray = RestCollection->GetGeometryCollection()->Sections;
+	for (int32 SectionIndex = 0; SectionIndex < SectionsArray.Num(); ++SectionIndex)
+	{
+		const FGeometryCollectionSection& MeshSection = SectionsArray[SectionIndex];
+		const bool bValidMeshSection = MeshSection.MaterialID != INDEX_NONE;
+		UMaterialInterface* MaterialInterface = bValidMeshSection ? GetMaterial(MeshSection.MaterialID) : UMaterial::GetDefaultMaterial(MD_Surface);
+
+		FComponentPSOPrecacheParams& ComponentParams = OutParams[OutParams.AddDefaulted()];
+		ComponentParams.Priority = EPSOPrecachePriority::Medium;
+		ComponentParams.MaterialInterface = MaterialInterface;
+		ComponentParams.VertexFactoryDataList = VFDataList;
+		ComponentParams.PSOPrecacheParams = BasePrecachePSOParams;
 	}
 }
 
