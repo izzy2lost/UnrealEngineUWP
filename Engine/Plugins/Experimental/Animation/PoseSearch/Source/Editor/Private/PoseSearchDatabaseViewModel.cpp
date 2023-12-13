@@ -510,13 +510,33 @@ bool FDatabaseViewModel::DeleteFromDatabase(int32 AnimationAssetIndex)
 	{
 		if (const FPoseSearchDatabaseAnimationAssetBase* DatabaseAnimationAssetBase = Database->GetAnimationAssetBase(AnimationAssetIndex))
 		{
-			if (!DatabaseAnimationAssetBase->bSynchronizeWithExternalDependency)
+			if (UAnimSequenceBase* AnimSequenceBase = Cast<UAnimSequenceBase>(DatabaseAnimationAssetBase->GetAnimationAsset()))
 			{
-				Database->AnimationAssets.RemoveAt(AnimationAssetIndex);
-				Database->Modify();
+				bool bModified = false;
+				for (int32 NotifyIndex = AnimSequenceBase->Notifies.Num() - 1; NotifyIndex >= 0; --NotifyIndex)
+				{
+					const FAnimNotifyEvent& NotifyEvent = AnimSequenceBase->Notifies[NotifyIndex];
+					if (const UAnimNotifyState_PoseSearchBranchIn* PoseSearchBranchIn = Cast<UAnimNotifyState_PoseSearchBranchIn>(NotifyEvent.NotifyStateClass))
+					{
+						if (PoseSearchBranchIn->Database == Database)
+						{
+							AnimSequenceBase->Notifies.RemoveAt(NotifyIndex);
+							bModified = true;
+						}
+					}
+				}
 
-				return true;
+				if (bModified)
+				{
+					AnimSequenceBase->RefreshCacheData();	
+					AnimSequenceBase->Modify();
+				}
 			}
+
+			Database->AnimationAssets.RemoveAt(AnimationAssetIndex);
+			Database->Modify();
+
+			return true;
 		}
 	}
 

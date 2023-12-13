@@ -266,16 +266,6 @@ public:
 	}
 };
 
-static inline FFloatInterval GetEffectiveSamplingRange(const UAnimSequenceBase* Sequence, FFloatInterval RequestedSamplingRange)
-{
-	const bool bSampleAll = (RequestedSamplingRange.Min == 0.0f) && (RequestedSamplingRange.Max == 0.0f);
-	const float SequencePlayLength = Sequence->GetPlayLength();
-	FFloatInterval Range;
-	Range.Min = bSampleAll ? 0.0f : RequestedSamplingRange.Min;
-	Range.Max = bSampleAll ? SequencePlayLength : FMath::Min(SequencePlayLength, RequestedSamplingRange.Max);
-	return Range;
-}
-
 static void FindValidSequenceIntervals(const UAnimSequenceBase* SequenceBase, FFloatInterval SamplingRange, bool bIsLooping,
 	const FFloatInterval& ExcludeFromDatabaseParameters, TArray<FFloatRange>& ValidRanges)
 {
@@ -283,7 +273,7 @@ static void FindValidSequenceIntervals(const UAnimSequenceBase* SequenceBase, FF
 
 	const float SequenceLength = SequenceBase->GetPlayLength();
 
-	const FFloatInterval EffectiveSamplingInterval = GetEffectiveSamplingRange(SequenceBase, SamplingRange);
+	const FFloatInterval EffectiveSamplingInterval = FPoseSearchDatabaseAnimationAssetBase::GetEffectiveSamplingRange(SequenceBase, SamplingRange);
 	FFloatRange EffectiveSamplingRange = FFloatRange::Inclusive(EffectiveSamplingInterval.Min, EffectiveSamplingInterval.Max);
 	if (!bIsLooping)
 	{

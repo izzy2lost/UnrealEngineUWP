@@ -65,6 +65,7 @@ struct POSESEARCH_API FPoseSearchDatabaseAnimationAssetBase
 
 	// [0, 0] represents the entire frame range of the original animation.
 	virtual FFloatInterval GetSamplingRange() const { return FFloatInterval(0.f, 0.f); }
+	static FFloatInterval GetEffectiveSamplingRange(const UAnimSequenceBase* Sequence, const FFloatInterval& RequestedSamplingRange);
 
 	virtual int64 GetEditorMemSize() const;
 	virtual int64 GetApproxCookedSize() const { return GetEditorMemSize(); }

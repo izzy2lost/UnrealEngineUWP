@@ -16,6 +16,7 @@ public class PoseSearchEditor : ModuleRules
 				"BlendStack",
 				"AnimGraph",
 				"AnimGraphRuntime",
+				"AnimationBlueprintLibrary",
 				"AnimationCore",
 				"Core",
 				"CoreUObject",

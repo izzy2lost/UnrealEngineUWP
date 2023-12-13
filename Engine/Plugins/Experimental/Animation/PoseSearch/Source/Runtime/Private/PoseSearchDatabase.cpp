@@ -314,6 +314,16 @@ int64 FPoseSearchDatabaseAnimationAssetBase::GetEditorMemSize() const
 	FArchiveCountMem EditorMemCount(GetAnimationAsset());
 	return EditorMemCount.GetNum();
 }
+
+FFloatInterval FPoseSearchDatabaseAnimationAssetBase::GetEffectiveSamplingRange(const UAnimSequenceBase* SequenceBase, const FFloatInterval& RequestedSamplingRange)
+{
+	const bool bSampleAll = (RequestedSamplingRange.Min == 0.0f) && (RequestedSamplingRange.Max == 0.0f);
+	const float SequencePlayLength = SequenceBase->GetPlayLength();
+	FFloatInterval Range;
+	Range.Min = bSampleAll ? 0.0f : RequestedSamplingRange.Min;
+	Range.Max = bSampleAll ? SequencePlayLength : FMath::Min(SequencePlayLength, RequestedSamplingRange.Max);
+	return Range;
+}
 #endif // WITH_EDITORONLY_DATA
 
 //////////////////////////////////////////////////////////////////////////

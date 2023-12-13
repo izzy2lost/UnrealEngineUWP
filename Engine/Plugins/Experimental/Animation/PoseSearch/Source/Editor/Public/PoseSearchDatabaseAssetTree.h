@@ -101,6 +101,8 @@ namespace UE::PoseSearch
 		void OnEnableNodes() { EnableSelectedNodes(true); }
 		void OnDisableNodes() { EnableSelectedNodes(false); }
 
+		void OnConvertToBranchIn();
+
 		friend SDatabaseAssetListItem;
 
 		FDetailColumnSizeData ColumnSizeData;

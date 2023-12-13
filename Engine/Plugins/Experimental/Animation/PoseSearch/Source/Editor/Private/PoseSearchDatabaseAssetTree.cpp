@@ -5,6 +5,7 @@
 #include "Animation/AnimMontage.h"
 #include "Animation/AnimSequence.h"
 #include "Animation/BlendSpace.h"
+#include "AnimationBlueprintLibrary.h"
 #include "AssetSelection.h"
 #include "ClassIconFinder.h"
 #include "DetailColumnSizeData.h"
@@ -13,6 +14,7 @@
 #include "Framework/MultiBox/MultiBoxBuilder.h"
 #include "Misc/FeedbackContext.h"
 #include "Misc/TransactionObjectEvent.h"
+#include "PoseSearch/PoseSearchAnimNotifies.h"
 #include "PoseSearch/PoseSearchDatabase.h"
 #include "PoseSearchDatabaseViewModel.h"
 #include "SPositiveActionButton.h"
@@ -499,8 +501,8 @@ namespace UE::PoseSearch
 		if (!SelectedNodes.IsEmpty())
 		{
 			MenuBuilder.AddMenuEntry(
-				LOCTEXT("DeleteUngroup", "Delete / Remove"),
-				LOCTEXT("DeleteUngroupTooltip", "Deletes groups and ungrouped assets; removes grouped assets from group."),
+				LOCTEXT("Remove", "Remove"),
+				LOCTEXT("RemoveTooltip", "Removes assets from database"),
 				FSlateIcon(),
 				FUIAction(FExecuteAction::CreateSP(this, &SDatabaseAssetTree::OnDeleteNodes)),
 				NAME_None,
@@ -508,9 +510,7 @@ namespace UE::PoseSearch
 
 			MenuBuilder.AddMenuEntry(
 				LOCTEXT("Enable", "Enable"),
-				LOCTEXT(
-					"EnableTooltip",
-					"Sets Assets Enabled."),
+				LOCTEXT("EnableTooltip", "Sets Assets Enabled."),
 				FSlateIcon(),
 				FUIAction(FExecuteAction::CreateSP(this, &SDatabaseAssetTree::OnEnableNodes)),
 				NAME_None,
@@ -518,11 +518,17 @@ namespace UE::PoseSearch
 
 			MenuBuilder.AddMenuEntry(
 				LOCTEXT("Disable", "Disable"),
-				LOCTEXT(
-					"DisableToolTip",
-					"Sets Assets Disabled."),
+				LOCTEXT("DisableToolTip", "Sets Assets Disabled."),
 				FSlateIcon(),
 				FUIAction(FExecuteAction::CreateSP(this, &SDatabaseAssetTree::OnDisableNodes)),
+				NAME_None,
+				EUserInterfaceActionType::Button);
+
+			MenuBuilder.AddMenuEntry(
+				LOCTEXT("ConvertToBranchIn", "ConvertToBranchIn"),
+				LOCTEXT("ConvertToBranchInToolTip", "Creates PoseSearchBranchIn notify state for the asset sampling range"),
+				FSlateIcon(),
+				FUIAction(FExecuteAction::CreateSP(this, &SDatabaseAssetTree::OnConvertToBranchIn)),
 				NAME_None,
 				EUserInterfaceActionType::Button);
 		}
@@ -721,6 +727,47 @@ namespace UE::PoseSearch
 				{
 					ViewModel->SetIsEnabled(SelectedNode->SourceAssetIdx, bIsEnabled);
 				}
+
+				FinalizeTreeChanges();
+			}
+		}
+	}
+
+	void SDatabaseAssetTree::OnConvertToBranchIn()
+	{
+		const TSharedPtr<FDatabaseViewModel> ViewModel = EditorViewModel.Pin();
+		if (UPoseSearchDatabase* PoseSearchDatabase = ViewModel->GetPoseSearchDatabase())
+		{
+			TArray<TSharedPtr<FDatabaseAssetTreeNode>> SelectedNodes = TreeView->GetSelectedItems();
+			if (!SelectedNodes.IsEmpty())
+			{
+				const FScopedTransaction Transaction(LOCTEXT("ConvertToBranchIn", "Create PoseSearchBranchIn notify state for assets in Pose Search Database"));
+
+				for (TSharedPtr<FDatabaseAssetTreeNode> SelectedNode : SelectedNodes)
+				{
+					if (FPoseSearchDatabaseAnimationAssetBase* DatabaseAnimationAssetBase = PoseSearchDatabase->GetMutableAnimationAssetBase(SelectedNode->SourceAssetIdx))
+					{
+						if (UAnimSequenceBase* AnimSequenceBase = Cast<UAnimSequenceBase>(DatabaseAnimationAssetBase->GetAnimationAsset()))
+						{
+							const FFloatInterval SamplingRange = FPoseSearchDatabaseAnimationAssetBase::GetEffectiveSamplingRange(AnimSequenceBase, DatabaseAnimationAssetBase->GetSamplingRange());
+							const float StartTime = SamplingRange.Min;
+							const float Duration = SamplingRange.Max - SamplingRange.Min;
+							FName TrackName = "PoseSearch";
+							
+							if (!UAnimationBlueprintLibrary::IsValidAnimNotifyTrackName(AnimSequenceBase, TrackName))
+							{
+								UAnimationBlueprintLibrary::AddAnimationNotifyTrack(AnimSequenceBase, TrackName, FColor::Turquoise);
+							}
+
+							UAnimNotifyState_PoseSearchBranchIn* PoseSearchBranchIn = CastChecked<UAnimNotifyState_PoseSearchBranchIn>(UAnimationBlueprintLibrary::AddAnimationNotifyStateEvent(AnimSequenceBase, TrackName, StartTime, Duration, UAnimNotifyState_PoseSearchBranchIn::StaticClass()));
+							PoseSearchBranchIn->Database = PoseSearchDatabase;
+							DatabaseAnimationAssetBase->bSynchronizeWithExternalDependency = true;
+							AnimSequenceBase->Modify();
+						}
+					}
+				}
+
+				PoseSearchDatabase->SynchronizeWithExternalDependencies();
 
 				FinalizeTreeChanges();
 			}
