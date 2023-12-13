@@ -95,13 +95,18 @@ namespace Horde.Server.Artifacts
 			_artifacts = mongoService.GetCollection<Artifact>("ArtifactsV2", indexes);
 		}
 
+		/// <summary>
+		/// Gets the base path for a set of artifacts
+		/// </summary>
+		public static string GetArtifactPath(StreamId streamId, ArtifactName name, ArtifactType type) => $"{streamId}/{name}/{type}";
+
 		/// <inheritdoc/>
 		public async Task<IArtifact> AddAsync(ArtifactName name, ArtifactType type, StreamId streamId, int change, IEnumerable<string> keys, DateTime? expireAtUtc, AclScopeName scopeName, CancellationToken cancellationToken)
 		{
 			ArtifactId id = new ArtifactId(BinaryIdUtils.CreateNew());
 
 			NamespaceId namespaceId = Namespace.Artifacts;
-			RefName refName = new RefName($"{streamId}/{change}/{id}");
+			RefName refName = new RefName($"{GetArtifactPath(streamId, name, type)}/{change}/{id}");
 
 			Artifact artifact = new Artifact(id, name, type, streamId, change, keys, namespaceId, refName, expireAtUtc, scopeName);
 			await _artifacts.InsertOneAsync(artifact, null, cancellationToken);
