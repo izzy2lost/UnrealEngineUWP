@@ -13,5 +13,50 @@
 	"CanContainContent": true,
 	"IsBetaVersion": false,
 	"IsExperimentalVersion": true,
-	"Installed": false
+	"Installed": false,
+	"PythonRequirements": [
+		{
+			"Platform": "All",
+			"Requirements": [
+				"numpy==1.20.3",
+				"Pillow==8.4.0",
+				"protobuf==4.24.0",
+				"scipy==1.8.1",
+				"typing-extensions==3.10.0.2"
+			]
+		},
+		{
+			"Platform": "Linux",
+			"ExtraIndexUrls": [
+				"https://download.pytorch.org/whl/"
+			],
+			"Requirements": [
+				"torch==1.9.0+cu111",
+				"torchaudio==0.9.0",
+				"torchvision==0.10.0+cu111"
+			]
+		},
+		{
+			"Platform": "Mac",
+			"ExtraIndexUrls": [
+				"https://download.pytorch.org/whl/"
+			],
+			"Requirements": [
+				"torch==1.9.0",
+				"torchaudio==0.9.0",
+				"torchvision==0.10.0"
+			]
+		},
+		{
+			"Platform": "Win64",
+			"ExtraIndexUrls": [
+				"https://download.pytorch.org/whl/"
+			],
+			"Requirements": [
+				"torch==1.9.0+cu111",
+				"torchaudio==0.9.0",
+				"torchvision==0.10.0+cu111"
+			]
+		}
+	]
 }
