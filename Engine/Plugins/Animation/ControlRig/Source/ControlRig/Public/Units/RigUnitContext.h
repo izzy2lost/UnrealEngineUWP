@@ -70,6 +70,9 @@ struct FRigUnitContext
 	/** The elements being interacted with. */
 	TArray<FRigElementKey> ElementsBeingInteracted;
 
+	/** Acceptable subset of connection matches */
+	FModularRigResolveResult ConnectionResolve;
+
 	/**
 	 * Returns a given data source and cast it to the expected class.
 	 *

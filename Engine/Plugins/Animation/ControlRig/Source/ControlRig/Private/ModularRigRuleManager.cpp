@@ -232,8 +232,7 @@ void UModularRigRuleManager::FilterByConnectorEvent(FWorkData& InOutWorkData)
 	
 	FModularRigResolveResult* Result = InOutWorkData.Result;
 
-	// todo: run the VM event to perform filtering
-	// ModularRig->ExecuteConnectorEvent(InOutWorkData->Connector->GetKey(), Module, Redirector)
+	ModularRig->ExecuteConnectorEvent(InOutWorkData.Connector->GetKey(), InOutWorkData.Module, InOutWorkData.ResolvedConnectors, InOutWorkData.Result->Matches);
 	
 	// move the default match to the front of the list
 	if(!Result->Matches.IsEmpty())

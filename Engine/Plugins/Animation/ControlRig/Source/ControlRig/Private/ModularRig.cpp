@@ -7,6 +7,7 @@
 #include "Rigs/RigHierarchyController.h"
 #include "ControlRigComponent.h"
 #include "RigVMCore/RigVMExecuteContext.h"
+#include "Units/Modules/RigUnit_ConnectorExecution.h"
 
 #define LOCTEXT_NAMESPACE "ModularRig"
 
@@ -296,6 +297,7 @@ void UModularRig::Evaluate_AnyThread()
 void UModularRig::ExecuteQueue()
 {
 	FRigVMExtendedExecuteContext& Context = GetRigVMExtendedExecuteContext();
+	FControlRigExecuteContext& PublicContext = Context.GetPublicDataSafe<FControlRigExecuteContext>();
 	URigHierarchy* Hierarchy = GetHierarchy();
 	
 	while(ExecutionQueue.IsValidIndex(ExecutionQueueFront))
@@ -317,7 +319,6 @@ void UModularRig::ExecuteQueue()
 			// Make sure the hierarchy has the correct execute context with the rig module namespace
 			FRigHierarchyExecuteContextBracket ExecuteContextBracket(Hierarchy, &RigExtendedExecuteContext);
 
-			FControlRigExecuteContext& PublicContext = Context.GetPublicDataSafe<FControlRigExecuteContext>();
 			FControlRigExecuteContext& RigPublicContext = RigExtendedExecuteContext.GetPublicDataSafe<FControlRigExecuteContext>();
 			FRigUnitContext& RigUnitContext = RigPublicContext.UnitContext;
 			RigUnitContext = PublicContext.UnitContext;
@@ -396,6 +397,12 @@ void UModularRig::ExecuteQueue()
 			
 			ModuleRig->Execute_Internal(ExecutionElement.EventName);
 			ExecutionElement.bExecuted = true;
+
+			// Copy result of Connection event to the ModularRig's unit context
+			if (ExecutionElement.EventName == FRigUnit_ConnectorExecution::EventName)
+			{
+				PublicContext.UnitContext.ConnectionResolve = RigPublicContext.UnitContext.ConnectionResolve;
+			}
 		}
 		
 		ExecutionQueueFront++;
@@ -728,6 +735,49 @@ void UModularRig::ForEachModule(TFunctionRef<bool(const FRigModuleInstance*)> Pe
 		}
 		ModuleInstances.Append(ModuleInstances[ModuleIndex]->CachedChildren);
 	}
+}
+
+void UModularRig::ExecuteConnectorEvent(const FRigElementKey& InConnector, const FRigModuleInstance* InModuleInstance, const FRigElementKeyRedirector* InRedirector, TArray<FRigElementResolveResult>& InOutCandidates)
+{
+	if (!InModuleInstance)
+	{
+		InOutCandidates.Reset();
+		return;
+	}
+
+	if (!InRedirector)
+	{
+		InOutCandidates.Reset();
+		return;
+	}
+	
+	FRigModuleInstance* Module = Modules.FindByPredicate([InModuleInstance](FRigModuleInstance& Instance)
+	{
+		return &Instance == InModuleInstance;
+	});
+	if (!Module)
+	{
+		InOutCandidates.Reset();
+		return;
+	}
+
+	TArray<FRigElementResolveResult> Candidates = InOutCandidates;
+	
+	FControlRigExecuteContext& PublicContext = GetRigVMExtendedExecuteContext().GetPublicDataSafe<FControlRigExecuteContext>();
+
+	FString ShortConnectorName = InConnector.Name.ToString();
+	ShortConnectorName.RemoveFromStart(Module->GetNamespace());
+	TGuardValue<FRigElementKey> ConnectorGuard(PublicContext.UnitContext.ConnectionResolve.Connector, FRigElementKey(*ShortConnectorName, InConnector.Type));
+	TGuardValue<TArray<FRigElementResolveResult>> CandidatesGuard(PublicContext.UnitContext.ConnectionResolve.Matches, Candidates);
+	TGuardValue<TArray<FRigElementResolveResult>> MatchesGuard(PublicContext.UnitContext.ConnectionResolve.Excluded, {});
+	
+	FRigModuleExecutionElement ExecutionElement(Module, FRigUnit_ConnectorExecution::EventName);
+	TGuardValue<TArray<FRigModuleExecutionElement>> ExecutionGuard(ExecutionQueue, {ExecutionElement});
+	TGuardValue<int32> ExecutionFrontGuard(ExecutionQueueFront, 0);
+	TGuardValue<FRigElementKeyRedirector> RedirectorGuard(ElementKeyRedirector, *InRedirector);
+	ExecuteQueue();
+
+	InOutCandidates = PublicContext.UnitContext.ConnectionResolve.Matches;
 }
 
 #undef LOCTEXT_NAMESPACE

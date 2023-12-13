@@ -37,6 +37,7 @@
 #include "UObject/UObjectIterator.h"
 #include "RigVMCore/RigVMAssetUserData.h"
 #include "ModularRig.h"
+#include "Units/Modules/RigUnit_ConnectorExecution.h"
 
 #include UE_INLINE_GENERATED_CPP_BY_NAME(ControlRig)
 
@@ -1477,7 +1478,7 @@ bool UControlRig::Execute_Internal(const FName& InEventName)
 		}
 	}
 	
-	if(IsRigModule())
+	if(IsRigModule() && InEventName != FRigUnit_ConnectorExecution::EventName)
 	{
 		FString ConnectorWarning;
 		if(!AllConnectorsAreResolved(&ConnectorWarning))

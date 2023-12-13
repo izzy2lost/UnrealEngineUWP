@@ -6,6 +6,7 @@
 #include "Units/Execution/RigUnit_PrepareForExecution.h"
 #include "Units/Execution/RigUnit_InverseExecution.h"
 #include "Units/Execution/RigUnit_InteractionExecution.h"
+#include "Units/Modules/RigUnit_ConnectorExecution.h"
 
 
 #include UE_INLINE_GENERATED_CPP_BY_NAME(ControlRigGraphSchema)
@@ -54,7 +55,8 @@ bool UControlRigGraphSchema::IsRigVMDefaultEvent(const FName& InEventName) const
 		InEventName == FRigUnit_PostBeginExecution::EventName ||
 		InEventName == FRigUnit_InverseExecution::EventName ||
 		InEventName == FRigUnit_PrepareForExecution::EventName ||
-		InEventName == FRigUnit_InteractionExecution::EventName;
+		InEventName == FRigUnit_InteractionExecution::EventName ||
+		InEventName == FRigUnit_ConnectorExecution::EventName;
 }
 
 #undef LOCTEXT_NAMESPACE

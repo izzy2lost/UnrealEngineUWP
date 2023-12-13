@@ -1931,4 +1931,7 @@ private:
 	FText Message;
 
 	friend class UModularRigRuleManager;
+	friend class UModularRig;
+	friend struct FRigUnit_GetCandidates;
+	friend struct FRigUnit_DiscardMatches;
 };
