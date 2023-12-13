@@ -26,7 +26,13 @@
 
 	<Option Name="SymbolServerPath" DefaultValue="" Description="A shared symbols server for your office, debugging shipped builds."/>
 	
-	<Option Name="RunCookOnTheFlyTest" DefaultValue="false" Description="To run cook on the fly test"/>	
+	<Option Name="RunCookOnTheFlyTest" DefaultValue="false" Description="To run cook on the fly test"/>
+
+	<Option Name="TestOnly" DefaultValue="true" Description="Should we run only the boot test?"/>
+	
+	<Option Name="SourceBuildVersion" DefaultValue="" Description="The source build version for diffing"/>
+
+	<Property Name="BuildDir" Value="P:/Builds/UE5/PackagedBuilds/++Fortnite+Main/$(SourceBuildVersion)" />
 	
 	<!-- Turn off defaults so we can set out own -->
 	<Property Name="WithBATDefaults" Value="false" />
@@ -221,7 +227,27 @@
 	<Aggregate Name="BuildAndTestExtended $(ProjectName)" Requires="$(BuildAndTestExtendedRequirements)" />
 
 
+	<!-- =============================================================================== -->
+	<!-- RUN STANDALONE BOOTTEST  -->
+	<!-- =============================================================================== -->
+	
+	<Property Name="AllStandaloneTests" Value=""/>
+	
+	<Do If="$(TestOnly)">
+		<ForEach Name="TargetPlatform" Values="$(TargetPlatforms)" Separator="+">
+			<Agent Name="StandaloneBootTest" Type="Win64">
+				<ForEach Name="TestConfiguration" Values="$(TestConfigurations)" Separator="+">
+					<Node Name="BootTest $(ProjectName) $(TargetPlatform) $(TestConfiguration)">
+						<Command Name="RunUnreal" Arguments="-project=$(TargetProject) -test=&quot;UE.BootTest&quot; -platform=$(TargetPlatform) -build=&quot;$(BuildDir)&quot; -configuration=$(TestConfiguration) -target=$(TargetName)" />
+					</Node>
+					<Property Name="AllStandaloneTests" Value="$(AllStandaloneTests);BootTest $(ProjectName) $(TargetPlatform) $(TestConfiguration)"/>
+				</ForEach>				
+			</Agent>
+		</ForEach>
+	</Do>
 
+	<Aggregate Name="StandaloneTests $(ProjectName)" Requires="$(AllStandaloneTests)" />
+	
 	<!-- =============================================================================== -->
 	<!-- PGO BUILDS -->
 	<!-- =============================================================================== -->
