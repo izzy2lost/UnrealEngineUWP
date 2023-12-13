@@ -1816,6 +1816,12 @@ void UAssetRegistryImpl::WaitForCompletion()
 			FClassInheritanceContext InheritanceContext;
 			FClassInheritanceBuffer InheritanceBuffer;
 			GetInheritanceContextWithRequiredLock(InterfaceScopeLock, InheritanceContext, InheritanceBuffer);
+			if (IsInGameThread())
+			{
+				// Process any deferred events. Required since deferred events would block sending the FileLoadedEvent
+				EventContext = MoveTemp(DeferredEvents);
+				DeferredEvents.Clear();
+			}
 
 			GuardedData.WaitForGathererIdleIfSynchronous();
 
