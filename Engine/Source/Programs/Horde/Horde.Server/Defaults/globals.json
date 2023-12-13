@@ -7,6 +7,13 @@
 		"showDeviceManager": true,
 		"showTests": true
 	},
+	"projects": [
+		// Uncomment this to enable a default //UE5/Main stream with some simple CI jobs.
+		// {
+		//	"id": "ue5",
+		//	"path": "ue5.project.json"
+		// }
+	],
 	"compute": [
 		{
 			"id": "default",
