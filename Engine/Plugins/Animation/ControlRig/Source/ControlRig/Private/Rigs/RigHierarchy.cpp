@@ -1432,7 +1432,7 @@ FRigName URigHierarchy::GetSafeNewName(const FRigName& InPotentialNewName, ERigE
 	SanitizeName(SanitizedName, bAllowNameSpace);
 
 	bAllowNameSpaceWhenSanitizingName = bAllowNameSpace;
-	if(!bAllowNameSpaceWhenSanitizingName && ExecuteContext)
+	if(ExecuteContext)
 	{
 		const FControlRigExecuteContext& CRContext = ExecuteContext->GetPublicData<FControlRigExecuteContext>();
 		if(CRContext.IsRigModule())
