@@ -1362,7 +1362,7 @@ namespace AutomationScripts
 					if (!bSkipMovies && !SC.DedicatedServer)
 					{
 						List<string> MovieDenyList;
-						PlatformGameConfig.GetArray("/Script/UnrealEd.ProjectPackagingSettings", "MovieBlacklist", out MovieDenyList);
+						PlatformGameConfig.GetArray("/Script/UnrealEd.ProjectPackagingSettings", "MovieDenyList", out MovieDenyList);
 						if (MovieDenyList == null)
 						{
 							// Make an empty list to avoid having to null check below
