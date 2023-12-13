@@ -22,9 +22,7 @@ struct FStateTreeLinker
 {
 	explicit FStateTreeLinker(const UStateTreeSchema* InSchema) : Schema(InSchema) {}
 	
-	/** Sets base index for all external data handles. */
-	void SetExternalDataBaseIndex(const int32 InExternalDataBaseIndex) { ExternalDataBaseIndex = InExternalDataBaseIndex; }
-
+	/** @returns the linking status. */
 	EStateTreeLinkerStatus GetStatus() const { return Status; }
 	
 	/**
@@ -80,21 +78,25 @@ struct FStateTreeLinker
 		
 		const FStateTreeExternalDataDesc Desc(Struct, Requirement);
 		int32 Index = ExternalDataDescs.Find(Desc);
+		
 		if (Index == INDEX_NONE)
 		{
 			Index = ExternalDataDescs.Add(Desc);
-			ExternalDataDescs[Index].Handle.DataHandle = FStateTreeDataHandle(EStateTreeDataSourceType::ContextData, Index + ExternalDataBaseIndex);
+			ExternalDataDescs[Index].Handle.DataHandle = FStateTreeDataHandle(EStateTreeDataSourceType::ExternalData, Index);
 		}
-		Handle.DataHandle = FStateTreeDataHandle(EStateTreeDataSourceType::ContextData, Index + ExternalDataBaseIndex);
+		
+		Handle.DataHandle = ExternalDataDescs[Index].Handle.DataHandle;
 	}
 
 	/** @return linked external data descriptors. */
 	TConstArrayView<FStateTreeExternalDataDesc> GetExternalDataDescs() const { return ExternalDataDescs; }
 
+	UE_DEPRECATED(5.4, "Not used anymore.")
+	void SetExternalDataBaseIndex(const int32 InExternalDataBaseIndex) {}
+
 protected:
 
 	const UStateTreeSchema* Schema = nullptr;
 	EStateTreeLinkerStatus Status = EStateTreeLinkerStatus::Succeeded;
-	int32 ExternalDataBaseIndex = 0;
 	TArray<FStateTreeExternalDataDesc> ExternalDataDescs;
 };

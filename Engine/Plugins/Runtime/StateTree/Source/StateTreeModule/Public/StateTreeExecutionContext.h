@@ -9,7 +9,7 @@
 
 struct FGameplayTag;
 struct FInstancedPropertyBag;
-
+struct FStateTreeExecutionContext;
 struct FStateTreeEvaluatorBase;
 struct FStateTreeTaskBase;
 struct FStateTreeConditionBase;
@@ -18,19 +18,36 @@ struct FStateTreeTransitionRequest;
 struct FStateTreeInstanceDebugId;
 
 /**
- * StateTree Execution Context is a helper that is used to update and access StateTree instance data.
+ * Delegate used by the execution context to collect external data views for a given StateTree asset.
+ * The caller is expected to iterate over the ExternalDataDescs array, find the matching external data,
+ * and store it in the OutDataViews at the same index:
+ *
+ *	for (int32 Index = 0; Index < ExternalDataDescs.Num(); Index++)
+ *	{
+ *		const FStateTreeExternalDataDesc& Desc = ExternalDataDescs[Index];
+ *		// Find data requested by Desc
+ *		OutDataViews[Index] = ...;
+ *	}
+ */
+DECLARE_DELEGATE_RetVal_FourParams(bool, FOnCollectStateTreeExternalData, const FStateTreeExecutionContext& /*Context*/, const UStateTree* /*StateTree*/, TArrayView<const FStateTreeExternalDataDesc> /*ExternalDataDescs*/, TArrayView<FStateTreeDataView> /*OutDataViews*/);
+
+/**
+ * StateTree Execution Context is a helper that is used to update StateTree instance data.
  *
  * The context is meant to be temporary, you should not store a context across multiple frames.
  *
- * The owner is used as the owner of the instantiated UObjects in the instance data and logging, it should have same or greater lifetime as the InstanceData. 
+ * The owner is used as the owner of the instantiated UObjects in the instance data and logging,
+ * it should have same or greater lifetime as the InstanceData. 
  *
- * In common case you can use the constructor or Init() to initialize the context:
+ * In common case you can use the constructor to initialize the context, and us a helper struct
+ * to set up the context data and external data getter:
  *
  *		FStateTreeExecutionContext Context(*GetOwner(), *StateTreeRef.GetStateTree(), InstanceData);
  *		if (SetContextRequirements(Context))
  *		{
  *			Context.Tick(DeltaTime);
  * 		}
+ *
  * 
  *		bool UMyComponent::SetContextRequirements(FStateTreeExecutionContext& Context)
  *		{
@@ -39,13 +56,40 @@ struct FStateTreeInstanceDebugId;
  *				return false;
  *			}
  *			// Setup context data
+ *			Context.SetContextDataByName(...);
+ *			...
+ *
+ *			Context.SetCollectExternalDataCallback(FOnCollectStateTreeExternalData::CreateUObject(this, &UMyComponent::CollectExternalData);
+ *
+ *			return Context.AreContextDataViewsValid();
+ *		}
+ *
+ *		bool UMyComponent::CollectExternalData(const FStateTreeExecutionContext& Context, const UStateTree* StateTree, TArrayView<const FStateTreeExternalDataDesc> ExternalDataDescs, TArrayView<FStateTreeDataView> OutDataViews)
+ *		{
+ *			...
+ *			for (int32 Index = 0; Index < ExternalDataDescs.Num(); Index++)
+ *			{
+ *				const FStateTreeExternalDataDesc& Desc = ExternalDataDescs[Index];
+ *				if (Desc.Struct->IsChildOf(UWorldSubsystem::StaticClass()))
+ *				{
+ *					UWorldSubsystem* Subsystem = World->GetSubsystemBase(Cast<UClass>(const_cast<UStruct*>(Desc.Struct.Get())));
+ *					OutDataViews[Index] = FStateTreeDataView(Subsystem);
+ *				}
+ *				...
+ *			}
  *			return true;
  *		}
+ *
+ * In this example the SetContextRequirements() method is used to set the context defined in the schema,
+ * and the delegate FOnCollectStateTreeExternalData is used to query the external data required by the tasks and conditions.
+ *
+ * In case the State Tree links to other state tree assets, the collect external data might get called
+ * multiple times, once for each asset.
  */
 struct STATETREEMODULE_API FStateTreeExecutionContext
 {
 public:
-	FStateTreeExecutionContext(UObject& InOwner, const UStateTree& InStateTree, FStateTreeInstanceData& InInstanceData);
+	FStateTreeExecutionContext(UObject& InOwner, const UStateTree& InStateTree, FStateTreeInstanceData& InInstanceData, const FOnCollectStateTreeExternalData& CollectExternalDataCallback = {});
 	virtual ~FStateTreeExecutionContext();
 
 	/** Updates data view of the parameters by using the default values defined in the StateTree asset. */
@@ -56,6 +100,9 @@ public:
 	 * Note: caller is responsible to make sure external parameters lifetime matches the context.
 	 */
 	void SetParameters(const FInstancedPropertyBag& Parameters);
+
+	/** Sets callback used to collect external data views during State Tree execution. */
+	void SetCollectExternalDataCallback(const FOnCollectStateTreeExternalData& Callback);
 	
 	/** @return the StateTree asset in use. */
 	const UStateTree* GetStateTree() const { return &RootStateTree; }
@@ -178,6 +225,7 @@ public:
 	}
 
 	/** @return Array view to external data descriptors associated with this context. Note: Init() must be called before calling this method. */
+	UE_DEPRECATED(5.4, "Use CollectStateTreeExternalData delegate instead.")
 	TConstArrayView<FStateTreeExternalDataDesc> GetExternalDataDescs() const
 	{
 		return RootStateTree.ExternalDataDescs;
@@ -189,22 +237,40 @@ public:
 		return RootStateTree.GetContextDataDescs();
 	}
 
-	/** @return True if all required external data pointers are set. */ 
-	bool AreExternalDataViewsValid() const;
-
-	/** @return Handle to external data of type InStruct, or invalid handle if struct not found. */ 
+	/** @return Handle to external data of type InStruct, or invalid handle if struct not found. */
+	UE_DEPRECATED(5.4, "Not supported anymore.")
 	FStateTreeExternalDataHandle GetExternalDataHandleByStruct(const UStruct* InStruct) const
 	{
 		const FStateTreeExternalDataDesc* DataDesc = RootStateTree.ExternalDataDescs.FindByPredicate([InStruct](const FStateTreeExternalDataDesc& Item) { return Item.Struct == InStruct; });
 		return DataDesc != nullptr ? DataDesc->Handle : FStateTreeExternalDataHandle::Invalid;
 	}
 
-	/** Sets external data view value for specific item. */ 
-	void SetExternalData(const FStateTreeExternalDataHandle Handle, FStateTreeDataView DataView)
+	/** Sets context data view value for specific item. */
+	void SetContextData(const FStateTreeExternalDataHandle Handle, FStateTreeDataView DataView)
 	{
 		check(Handle.IsValid());
 		check(Handle.DataHandle.GetSource() == EStateTreeDataSourceType::ContextData);
-		ContextDataViews[Handle.DataHandle.GetIndex()] = DataView;
+		ContextAndExternalDataViews[Handle.DataHandle.GetIndex()] = DataView;
+	}
+
+	/** Sets the context data based on name (name is defined in the schema), returns true if data was found */
+	bool SetContextDataByName(const FName Name, FStateTreeDataView DataView);
+
+	/** @return True if all context data pointers are set. */ 
+	bool AreContextDataViewsValid() const;
+
+	/** @return True if all required external data pointers are set. */ 
+	UE_DEPRECATED(5.4, "Please AreContextDataViewsValid().")
+	bool AreExternalDataViewsValid() const
+	{
+		return AreContextDataViewsValid();
+	}
+
+	/** Sets external data view value for specific item. */
+	UE_DEPRECATED(5.4, "Use SetContextData() for context data, or set SetExternalDataDelegate() to provide external data.")
+	void SetExternalData(const FStateTreeExternalDataHandle Handle, FStateTreeDataView DataView)
+	{
+		SetContextData(Handle, DataView);
 	}
 
 	/**
@@ -216,9 +282,10 @@ public:
 	typename T::DataType& GetExternalData(const T Handle) const
 	{
 		check(Handle.IsValid());
-		check(RootStateTree.ExternalDataDescs[Handle.DataHandle.GetIndex() - RootStateTree.ExternalDataBaseIndex].Requirement != EStateTreeExternalDataRequirement::Optional); // Optionals should query pointer instead.
-		check(Handle.DataHandle.GetSource() == EStateTreeDataSourceType::ContextData);
-		return ContextDataViews[Handle.DataHandle.GetIndex()].template GetMutable<typename T::DataType>();
+		check(Handle.DataHandle.GetSource() == EStateTreeDataSourceType::ExternalData);
+		check(CurrentlyProcessedFrame);
+		check(CurrentlyProcessedFrame->StateTree->ExternalDataDescs[Handle.DataHandle.GetIndex()].Requirement != EStateTreeExternalDataRequirement::Optional); // Optionals should query pointer instead.
+		return ContextAndExternalDataViews[CurrentlyProcessedFrame->ExternalDataBaseIndex.Get() + Handle.DataHandle.GetIndex()].template GetMutable<typename T::DataType>();
 	}
 
 	/**
@@ -231,8 +298,9 @@ public:
 	{
 		if (Handle.IsValid())
 		{
-			check(Handle.DataHandle.GetSource() == EStateTreeDataSourceType::ContextData);
-			return ContextDataViews[Handle.DataHandle.GetIndex()].template GetMutablePtr<typename T::DataType>();
+			check(CurrentlyProcessedFrame);
+			check(Handle.DataHandle.GetSource() == EStateTreeDataSourceType::ExternalData);
+			return ContextAndExternalDataViews[CurrentlyProcessedFrame->ExternalDataBaseIndex.Get() + Handle.DataHandle.GetIndex()].template GetMutablePtr<typename T::DataType>();
 		}
 		return nullptr;
 	}
@@ -241,8 +309,9 @@ public:
 	{
 		if (Handle.IsValid())
 		{
-			check(Handle.DataHandle.GetSource() == EStateTreeDataSourceType::ContextData);
-			return ContextDataViews[Handle.DataHandle.GetIndex()];
+			check(CurrentlyProcessedFrame);
+			check(Handle.DataHandle.GetSource() == EStateTreeDataSourceType::ExternalData);
+			return ContextAndExternalDataViews[CurrentlyProcessedFrame->ExternalDataBaseIndex.Get() + Handle.DataHandle.GetIndex()];
 		}
 		return FStateTreeDataView();
 	}
@@ -455,6 +524,16 @@ protected:
 
 	/** Copies a batch of properties to the data in TargetView. This version validates the data handles and looks up temporary instances. */
 	bool CopyBatchWithValidation(const FStateTreeExecutionFrame* ParentFrame, const FStateTreeExecutionFrame& CurrentFrame, const FStateTreeDataView TargetView, const FStateTreeIndex16 BindingsBatch) const;
+
+	/** Collects external data for all StateTrees in active frames. @return true*/
+	bool CollectActiveExternalData();
+
+	/**
+	 * Collects external data for specific State Tree asset. If the data is already collect, cached index is returned.
+	 * @returns index in ContextAndExternalDataViews for the first external data.
+	 */
+	FStateTreeIndex16 CollectExternalData(const UStateTree* StateTree);
+
 	
 	/** Owner of the instance data. */
 	UObject& Owner;
@@ -469,11 +548,21 @@ protected:
 	FStateTreeInstanceStorage* InstanceDataStorage = nullptr;
 
 	/** Data view of the context data. */
-	TArray<FStateTreeDataView, TConcurrentLinearArrayAllocator<FDefaultBlockAllocationTag>> ContextDataViews;
-	
+	TArray<FStateTreeDataView, TConcurrentLinearArrayAllocator<FDefaultBlockAllocationTag>> ContextAndExternalDataViews;
+
 	/** Events to process in current tick. */
 	TArray<FStateTreeEvent, TConcurrentLinearArrayAllocator<FDefaultBlockAllocationTag>> EventsToProcess;
 
+	FOnCollectStateTreeExternalData CollectExternalDataDelegate;
+
+	struct FCollectedExternalDataCache
+	{
+		const UStateTree* StateTree = nullptr;
+		FStateTreeIndex16 BaseIndex;
+	};
+	TArray<FCollectedExternalDataCache, TConcurrentLinearArrayAllocator<FDefaultBlockAllocationTag>> CollectedExternalCache;
+
+	bool bActiveExternalDataCollected = false;
 	
 	/** Next transition, used by RequestTransition(). */
 	FStateTreeTransitionResult NextTransition;

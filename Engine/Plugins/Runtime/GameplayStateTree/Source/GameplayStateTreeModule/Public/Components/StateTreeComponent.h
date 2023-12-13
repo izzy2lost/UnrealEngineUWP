@@ -86,7 +86,9 @@ protected:
 #endif
 	
 	bool SetContextRequirements(FStateTreeExecutionContext& Context, bool bLogErrors = false);
-
+	
+	bool CollectExternalData(const FStateTreeExecutionContext& Context, const UStateTree* StateTree, TArrayView<const FStateTreeExternalDataDesc> Descs, TArrayView<FStateTreeDataView> OutDataViews) const;
+	
 #if WITH_EDITORONLY_DATA
 	UE_DEPRECATED(5.1, "This property has been deprecated. Use StateTreeReference instead.")
 	UPROPERTY()

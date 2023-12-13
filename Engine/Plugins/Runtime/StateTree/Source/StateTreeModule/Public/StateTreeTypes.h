@@ -237,8 +237,11 @@ enum class EStateTreeDataSourceType : uint8
 	/** Conditions */
 	SharedInstanceDataObject,
 
-	/** Context Data, External Data, Tree Parameters */
+	/** Context Data, Tree Parameters */
 	ContextData,
+
+	/** External Data required by the nodes. */
+	ExternalData,
 
 	/** Global parameters */
 	GlobalParameterData,

@@ -170,6 +170,25 @@ struct STATETREEMODULE_API FStateTreeExternalDataDesc
 #endif
 	{}
 
+	/** @return true if the DataView is compatible with the descriptor. */
+	bool IsCompatibleWith(const FStateTreeDataView& DataView) const
+	{
+		if (DataView.GetStruct()->IsChildOf(Struct))
+		{
+			return true;
+		}
+		
+		if (const UClass* DataDescClass = Cast<UClass>(Struct))
+		{
+			if (const UClass* DataViewClass = Cast<UClass>(DataView.GetStruct()))
+			{
+				return DataViewClass->ImplementsInterface(DataDescClass);
+			}
+		}
+		
+		return false;
+	}
+	
 	bool operator==(const FStateTreeExternalDataDesc& Other) const
 	{
 		return Struct == Other.Struct && Requirement == Other.Requirement;
@@ -528,6 +547,10 @@ struct STATETREEMODULE_API FStateTreeExecutionFrame
 	/** Active states in this frame */
 	UPROPERTY()
 	FStateTreeActiveStates ActiveStates;
+
+	/** First index of the external data for this frame. */
+	UPROPERTY()
+	FStateTreeIndex16 ExternalDataBaseIndex = FStateTreeIndex16::Invalid;
 
 	/** Index within the instance data to the first global instance data (e.g. global tasks) */
 	UPROPERTY()

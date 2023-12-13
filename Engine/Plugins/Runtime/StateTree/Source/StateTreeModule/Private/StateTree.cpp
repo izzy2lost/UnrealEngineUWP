@@ -121,6 +121,30 @@ TSharedPtr<FStateTreeInstanceData> UStateTree::GetSharedInstanceData() const
 	return PerThreadSharedInstanceData[ThreadIndex];
 }
 
+bool UStateTree::HasCompatibleContextData(const UStateTree& Other) const
+{
+	if (ContextDataDescs.Num() != Other.ContextDataDescs.Num())
+	{
+		return false;
+	}
+
+	const int32 Num = ContextDataDescs.Num();
+	for (int32 Index = 0; Index < Num; Index++)
+	{
+		const FStateTreeExternalDataDesc& Desc = ContextDataDescs[Index];
+		const FStateTreeExternalDataDesc& OtherDesc = Other.ContextDataDescs[Index];
+		
+		if (!OtherDesc.Struct 
+			|| !OtherDesc.Struct->IsChildOf(Desc.Struct))
+		{
+			return false;
+		}
+	}
+	
+	return true;
+}
+
+
 #if WITH_EDITOR
 void UStateTree::ResetCompiled()
 {
@@ -379,8 +403,6 @@ void UStateTree::ResetLinked()
 {
 	bIsLinked = false;
 	ExternalDataDescs.Reset();
-	ExternalDataBaseIndex = 0;
-	NumContextDataViews = 0;
 
 	FWriteScopeLock WriteLock(PerThreadSharedInstanceDataLock);
 	PerThreadSharedInstanceData.Reset();
@@ -392,11 +414,8 @@ bool UStateTree::Link()
 	// This data will be used to allocate runtime instance on all StateTree users.
 	ResetLinked();
 
-	ExternalDataBaseIndex = NumContextData;
-
 	// Resolves nodes references to other StateTree data
 	FStateTreeLinker Linker(Schema);
-	Linker.SetExternalDataBaseIndex(ExternalDataBaseIndex);
 
 	for (int32 Index = 0; Index < Nodes.Num(); Index++)
 	{
@@ -413,7 +432,6 @@ bool UStateTree::Link()
 	}
 
 	ExternalDataDescs = Linker.GetExternalDataDescs();
-	NumContextDataViews = ExternalDataBaseIndex + ExternalDataDescs.Num();
 
 	if (States.Num() > 0 && Nodes.Num() > 0)
 	{

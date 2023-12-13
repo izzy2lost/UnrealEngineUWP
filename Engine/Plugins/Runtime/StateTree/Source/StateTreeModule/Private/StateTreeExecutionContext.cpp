@@ -64,15 +64,16 @@ namespace UE::StateTree
 	constexpr int32 DebugIndentSize = 2;	// Debug printing indent for hierarchical data.
 }; // UE::StateTree
 
-FStateTreeExecutionContext::FStateTreeExecutionContext(UObject& InOwner, const UStateTree& InStateTree, FStateTreeInstanceData& InInstanceData)
+FStateTreeExecutionContext::FStateTreeExecutionContext(UObject& InOwner, const UStateTree& InStateTree, FStateTreeInstanceData& InInstanceData, const FOnCollectStateTreeExternalData& InCollectExternalDataDelegate)
 	: Owner(InOwner)
 	, RootStateTree(InStateTree)
 	, InstanceData(InInstanceData)
+	, CollectExternalDataDelegate(InCollectExternalDataDelegate)
 {
 	if (InStateTree.IsReadyToRun())
 	{
 		// Initialize data views for all possible items.
-		ContextDataViews.SetNum(RootStateTree.GetNumContextDataViews());
+		ContextAndExternalDataViews.SetNum(RootStateTree.GetNumContextDataViews());
 		
 		// Set data views associated to the parameters using the default values
 		SetDefaultParameters();
@@ -87,17 +88,24 @@ FStateTreeExecutionContext::FStateTreeExecutionContext(UObject& InOwner, const U
 	}
 }
 
+
 FStateTreeExecutionContext::~FStateTreeExecutionContext()
 {
+	// Mark external data indices as invalid
+	FStateTreeExecutionState& Exec = GetExecState();
+	for (FStateTreeExecutionFrame& Frame : Exec.ActiveFrames)
+	{
+		Frame.ExternalDataBaseIndex = {};
+	}
 }
 
 void FStateTreeExecutionContext::SetDefaultParameters()
 {
-	if (ContextDataViews.IsValidIndex(RootStateTree.ParametersDataHandle.GetIndex()))
+	if (ContextAndExternalDataViews.IsValidIndex(RootStateTree.ParametersDataHandle.GetIndex()))
 	{
 		// @todo: Handle constness correctly.
 		const FConstStructView ConstParameters = RootStateTree.GetDefaultParameters().GetValue();
-		ContextDataViews[RootStateTree.ParametersDataHandle.GetIndex()] = FStateTreeDataView(ConstParameters.GetScriptStruct(), const_cast<uint8*>(ConstParameters.GetMemory()));	
+		ContextAndExternalDataViews[RootStateTree.ParametersDataHandle.GetIndex()] = FStateTreeDataView(ConstParameters.GetScriptStruct(), const_cast<uint8*>(ConstParameters.GetMemory()));	
 	}
 }
 
@@ -105,15 +113,20 @@ void FStateTreeExecutionContext::SetParameters(const FInstancedPropertyBag& Para
 {
 	if (ensureMsgf(RootStateTree.GetDefaultParameters().GetPropertyBagStruct() == Parameters.GetPropertyBagStruct(),
 		TEXT("Parameters must be of the same struct type. Make sure to migrate the provided parameters to the same type as the StateTree default parameters."))
-		&& ContextDataViews.IsValidIndex(RootStateTree.ParametersDataHandle.GetIndex()))
+		&& ContextAndExternalDataViews.IsValidIndex(RootStateTree.ParametersDataHandle.GetIndex()))
 	{
 		// @todo: Handle constness correctly.
 		const FConstStructView ConstParameters = Parameters.GetValue();
-		ContextDataViews[RootStateTree.ParametersDataHandle.GetIndex()] = FStateTreeDataView(ConstParameters.GetScriptStruct(), const_cast<uint8*>(ConstParameters.GetMemory()));	
+		ContextAndExternalDataViews[RootStateTree.ParametersDataHandle.GetIndex()] = FStateTreeDataView(ConstParameters.GetScriptStruct(), const_cast<uint8*>(ConstParameters.GetMemory()));	
 	}
 }
 
-bool FStateTreeExecutionContext::AreExternalDataViewsValid() const
+void FStateTreeExecutionContext::SetCollectExternalDataCallback(const FOnCollectStateTreeExternalData& Callback)
+{
+	CollectExternalDataDelegate = Callback;
+}
+
+bool FStateTreeExecutionContext::AreContextDataViewsValid() const
 {
 	if (!IsValid())
 	{
@@ -121,40 +134,10 @@ bool FStateTreeExecutionContext::AreExternalDataViewsValid() const
 	}
 	
 	bool bResult = true;
-	for (const FStateTreeExternalDataDesc& DataDesc : RootStateTree.ExternalDataDescs)
-	{
-		const FStateTreeDataView& DataView = ContextDataViews[DataDesc.Handle.DataHandle.GetIndex()];
-			
-		auto IsAssignmentValid = [](const FStateTreeExternalDataDesc& DataDesc, const FStateTreeDataView& DataView)
-		{	
-			const UClass* DataDescClass = Cast<UClass>(DataDesc.Struct);
-			const UClass* DataViewClass = Cast<UClass>(DataView.GetStruct());
-			return DataView.GetStruct()->IsChildOf(DataDesc.Struct) || (DataViewClass && DataDescClass && DataViewClass->ImplementsInterface(DataDescClass));
-		};
-
-		if (DataDesc.Requirement == EStateTreeExternalDataRequirement::Required)
-		{
-			// Required items must have valid pointer of the expected type.  
-			if (!DataView.IsValid() || !IsAssignmentValid(DataDesc, DataView))
-			{
-				bResult = false;
-				break;
-			}
-		}
-		else
-		{
-			// Optional items must have same type if they are set.
-			if (DataView.IsValid() && !IsAssignmentValid(DataDesc, DataView))
-			{
-				bResult = false;
-				break;
-			}
-		}
-	}
-
+	
 	for (const FStateTreeExternalDataDesc& DataDesc : RootStateTree.GetContextDataDescs())
 	{
-		const FStateTreeDataView& DataView = ContextDataViews[DataDesc.Handle.DataHandle.GetIndex()];
+		const FStateTreeDataView& DataView = ContextAndExternalDataViews[DataDesc.Handle.DataHandle.GetIndex()];
 
 		// Items must have valid pointer of the expected type.  
 		if (!DataView.IsValid() || !DataView.GetStruct()->IsChildOf(DataDesc.Struct))
@@ -164,6 +147,20 @@ bool FStateTreeExecutionContext::AreExternalDataViewsValid() const
 		}
 	}
 	return bResult;
+}
+
+bool FStateTreeExecutionContext::SetContextDataByName(const FName Name, FStateTreeDataView DataView)
+{
+	const FStateTreeExternalDataDesc* Desc = RootStateTree.GetContextDataDescs().FindByPredicate([&Name](const FStateTreeExternalDataDesc& Desc)
+	{
+		return Desc.Name == Name;
+	});
+	if (Desc)
+	{
+		ContextAndExternalDataViews[Desc->Handle.DataHandle.GetIndex()] = DataView;
+		return true;
+	}
+	return false;
 }
 
 EStateTreeRunStatus FStateTreeExecutionContext::Start()
@@ -209,6 +206,13 @@ EStateTreeRunStatus FStateTreeExecutionContext::Start()
 	if (!InstanceData.IsValid())
 	{
 		STATETREE_LOG(Warning, TEXT("%hs: Failed to initialize instance data on '%s' using StateTree '%s'. Try to recompile the StateTree asset."),
+			__FUNCTION__, *GetNameSafe(&Owner), *GetFullNameSafe(&RootStateTree));
+		return EStateTreeRunStatus::Failed;
+	}
+
+	if (!CollectActiveExternalData())
+	{
+		STATETREE_LOG(Warning, TEXT("%hs: Failed to collect external data ('%s' using StateTree '%s')"),
 			__FUNCTION__, *GetNameSafe(&Owner), *GetFullNameSafe(&RootStateTree));
 		return EStateTreeRunStatus::Failed;
 	}
@@ -321,6 +325,13 @@ EStateTreeRunStatus FStateTreeExecutionContext::Stop(EStateTreeRunStatus Complet
 		return EStateTreeRunStatus::Failed;
 	}
 
+	if (!CollectActiveExternalData())
+	{
+		STATETREE_LOG(Warning, TEXT("%hs: Failed to collect external data ('%s' using StateTree '%s')"),
+			__FUNCTION__, *GetNameSafe(&Owner), *GetFullNameSafe(&RootStateTree));
+		return EStateTreeRunStatus::Failed;
+	}
+
 	// Set scoped phase only for properly initialized context with valid Instance data
 	// since we need it to output the InstanceId 
 	STATETREE_TRACE_SCOPED_PHASE(EStateTreeUpdatePhase::StopTree);
@@ -401,6 +412,13 @@ EStateTreeRunStatus FStateTreeExecutionContext::Tick(const float DeltaTime)
 	if (!InstanceData.IsValid())
 	{
 		STATETREE_LOG(Error, TEXT("%hs: Tick called on %s using StateTree %s with invalid instance data. Start() must be called before Tick()."),
+			__FUNCTION__, *GetNameSafe(&Owner), *GetFullNameSafe(&RootStateTree));
+		return EStateTreeRunStatus::Failed;
+	}
+
+	if (!CollectActiveExternalData())
+	{
+		STATETREE_LOG(Warning, TEXT("%hs: Failed to collect external data ('%s' using StateTree '%s')"),
 			__FUNCTION__, *GetNameSafe(&Owner), *GetFullNameSafe(&RootStateTree));
 		return EStateTreeRunStatus::Failed;
 	}
@@ -903,7 +921,10 @@ FStateTreeDataView FStateTreeExecutionContext::GetDataView(const FStateTreeExecu
 		return CurrentlyProcessedSharedInstanceStorage->GetMutableObject(Handle.GetIndex());
 
 	case EStateTreeDataSourceType::ContextData:
-		return ContextDataViews[Handle.GetIndex()];
+		return ContextAndExternalDataViews[Handle.GetIndex()];
+
+	case EStateTreeDataSourceType::ExternalData:
+		return ContextAndExternalDataViews[CurrentFrame.ExternalDataBaseIndex.Get() + Handle.GetIndex()];
 
 	case EStateTreeDataSourceType::GlobalParameterData:
 		{
@@ -912,7 +933,7 @@ FStateTreeDataView FStateTreeExecutionContext::GetDataView(const FStateTreeExecu
 			{
 				return GetDataView(nullptr, *ParentFrame, CurrentFrame.GlobalParameterDataHandle);
 			}
-			return ContextDataViews[Handle.GetIndex()];
+			return ContextAndExternalDataViews[Handle.GetIndex()];
 		}
 
 	case EStateTreeDataSourceType::SubtreeParameterData:
@@ -968,6 +989,10 @@ bool FStateTreeExecutionContext::IsHandleSourceValid(const FStateTreeExecutionFr
 
 	case EStateTreeDataSourceType::ContextData:
 		return true;
+
+	case EStateTreeDataSourceType::ExternalData:
+		return CurrentFrame.ExternalDataBaseIndex.IsValid()
+			&& ContextAndExternalDataViews.IsValidIndex(CurrentFrame.ExternalDataBaseIndex.Get() + Handle.GetIndex());
 
 	case EStateTreeDataSourceType::GlobalParameterData:
 		return ParentFrame
@@ -1088,6 +1113,119 @@ bool FStateTreeExecutionContext::CopyBatchWithValidation(const FStateTreeExecuti
 		bSucceed &= CurrentFrame.StateTree->PropertyBindings.CopyProperty(Copy, SourceView, TargetView);
 	}
 	return bSucceed;
+}
+
+
+bool FStateTreeExecutionContext::CollectActiveExternalData()
+{
+	if (bActiveExternalDataCollected)
+	{
+		return true;
+	}
+
+	bool bAllExternalDataValid = true;
+	FStateTreeExecutionState& Exec = GetExecState();
+	const FStateTreeExecutionFrame* PrevFrame = nullptr;
+	
+	for (FStateTreeExecutionFrame& Frame : Exec.ActiveFrames)
+	{
+		if (PrevFrame && PrevFrame->StateTree == Frame.StateTree)
+		{
+			Frame.ExternalDataBaseIndex = PrevFrame->ExternalDataBaseIndex;
+		}
+		else
+		{
+			Frame.ExternalDataBaseIndex = CollectExternalData(Frame.StateTree);
+		}
+
+		if (!Frame.ExternalDataBaseIndex.IsValid())
+		{
+			bAllExternalDataValid = false;
+		}
+		
+		PrevFrame = &Frame;
+	}
+
+	if (bAllExternalDataValid)
+	{
+		bActiveExternalDataCollected = true;
+	}
+	
+	return bAllExternalDataValid;
+}
+
+FStateTreeIndex16 FStateTreeExecutionContext::CollectExternalData(const UStateTree* StateTree)
+{
+	if (!StateTree)
+	{
+		return FStateTreeIndex16::Invalid;
+	}
+
+	// If one of the active states share the same state tree, get the external data from there.
+	for (const FCollectedExternalDataCache& Cache : CollectedExternalCache)
+	{
+		if (Cache.StateTree == StateTree)
+		{
+			return Cache.BaseIndex;
+		}
+	}
+	
+	const TConstArrayView<FStateTreeExternalDataDesc> ExternalDataDescs = StateTree->GetExternalDataDescs();
+	const int32 BaseIndex = ContextAndExternalDataViews.Num();
+	const int32 NumDescs = ExternalDataDescs.Num();
+	FStateTreeIndex16 Result(BaseIndex);
+
+	if (NumDescs > 0)
+	{
+		ContextAndExternalDataViews.AddDefaulted(NumDescs);
+		const TArrayView<FStateTreeDataView> DataViews = MakeArrayView(ContextAndExternalDataViews.GetData() + BaseIndex, NumDescs);  
+
+		if (ensureMsgf(CollectExternalDataDelegate.IsBound(), TEXT("The StateTree asset has external data, expecting CollectExternalData delegate to be provided.")))
+		{
+			if (!CollectExternalDataDelegate.Execute(*this, StateTree, StateTree->GetExternalDataDescs(), DataViews))
+			{
+				// The caller is responsible for error reporting. 
+				return FStateTreeIndex16::Invalid;
+			}
+		}
+
+		// Check that the data is valid and present.
+		for (int32 Index = 0; Index < NumDescs; Index++)
+		{
+			const FStateTreeExternalDataDesc& DataDesc = ExternalDataDescs[Index];
+			const FStateTreeDataView& DataView = ContextAndExternalDataViews[BaseIndex + Index];
+
+			if (DataDesc.Requirement == EStateTreeExternalDataRequirement::Required)
+			{
+				// Required items must have valid pointer of the expected type.  
+				if (!DataView.IsValid() || !DataDesc.IsCompatibleWith(DataView))
+				{
+					Result = FStateTreeIndex16::Invalid;
+					break;
+				}
+			}
+			else
+			{
+				// Optional items must have same type if they are set.
+				if (DataView.IsValid() && !DataDesc.IsCompatibleWith(DataView))
+				{
+					Result = FStateTreeIndex16::Invalid;
+					break;
+				}
+			}
+		}
+	}
+
+	if (!Result.IsValid())
+	{
+		// Rollback
+		ContextAndExternalDataViews.SetNum(BaseIndex);
+	}
+
+	// Cached both succeeded and failed attempts.
+	CollectedExternalCache.Add({ StateTree, Result });
+
+	return FStateTreeIndex16(Result);
 }
 
 EStateTreeRunStatus FStateTreeExecutionContext::EnterState(FStateTreeTransitionResult& Transition)
@@ -2878,7 +3016,8 @@ bool FStateTreeExecutionContext::SelectStateInternal(
 				FStateTreeExecutionFrame NewFrame;
 				NewFrame.StateTree = CurrentFrame.StateTree;
 				NewFrame.RootState = NextState.LinkedState;
-
+				NewFrame.ExternalDataBaseIndex = CurrentFrame.ExternalDataBaseIndex;
+				
 				// Check and prevent recursion.
 				const bool bNewFrameAlreadySelected = OutNextActiveFrames.ContainsByPredicate([&NewFrame](const FStateTreeExecutionFrame& Frame) {
 					return Frame.IsSameFrame(NewFrame);
@@ -2939,6 +3078,14 @@ bool FStateTreeExecutionContext::SelectStateInternal(
 					return false;
 				}
 
+				// The linked state tree should have compatible context requirements.
+				if (!RootStateTree.HasCompatibleContextData(*NextState.LinkedAsset))
+				{
+					STATETREE_LOG(Error, TEXT("%hs: The linked State Tree '%s' does not have compatible schema, trying to select state %s from '%s'.  '%s' using StateTree '%s'."),
+						__FUNCTION__, *GetFullNameSafe(NextState.LinkedAsset), *GetSafeStateName(CurrentFrame, NextStateHandle), *GetStateStatusString(Exec), *GetNameSafe(&Owner), *GetFullNameSafe(CurrentFrame.StateTree));
+					return false;
+				}
+				
 				FStateTreeExecutionFrame NewFrame;
 				NewFrame.StateTree = NextState.LinkedAsset;
 				NewFrame.RootState = FStateTreeStateHandle::Root;
@@ -2968,21 +3115,31 @@ bool FStateTreeExecutionContext::SelectStateInternal(
 					NewFrame.GlobalInstanceIndexBase = ExistingFrame->GlobalInstanceIndexBase;
 					NewFrame.StateParameterDataHandle = ExistingFrame->StateParameterDataHandle;
 					NewFrame.GlobalParameterDataHandle = ExistingFrame->GlobalParameterDataHandle;
+					NewFrame.ExternalDataBaseIndex = ExistingFrame->ExternalDataBaseIndex;
 				}
 				else
 				{
 					// Pass the linked state's parameters as global parameters to the linked asset.
 					NewFrame.GlobalParameterDataHandle = NextState.ParameterDataHandle;
 
+					// Collect external data if needed
+					NewFrame.ExternalDataBaseIndex = CollectExternalData(NewFrame.StateTree);
+					if (!NewFrame.ExternalDataBaseIndex.IsValid())
+					{
+						STATETREE_LOG(VeryVerbose, TEXT("%hs: Cannot select state '%s' because failed to collect external data for nested tree '%s'.  '%s' using StateTree '%s'."),
+							__FUNCTION__, *GetSafeStateName(CurrentFrame, NextStateHandle), *GetFullNameSafe(NewFrame.StateTree), *GetNameSafe(&Owner), *GetFullNameSafe(CurrentFrame.StateTree));
+						return false;
+					}
+					
 					// The state parameters will be from the root state.
 					const FCompactStateTreeState& RootState = NewFrame.StateTree->States[NewFrame.RootState.Index];
 					NewFrame.StateParameterDataHandle = RootState.ParameterDataHandle;
 
+					// Start global tasks and evaluators temporarily, so that their data is available already during select.
 					if (StartTemporaryEvaluatorsAndGlobalTasks(nullptr, NewFrame) != EStateTreeRunStatus::Running)
 					{
-						// Do not select disabled state
-						STATETREE_LOG(VeryVerbose, TEXT("%hs: Cannot select state '%s' because cannot start nested tree's global tasks and evaluators.  '%s' using StateTree '%s'."),
-							__FUNCTION__, *GetSafeStateName(CurrentFrame, NextStateHandle), *GetNameSafe(&Owner), *GetFullNameSafe(CurrentFrame.StateTree));
+						STATETREE_LOG(VeryVerbose, TEXT("%hs: Cannot select state '%s' because cannot start nested tree's '%s' global tasks and evaluators.  '%s' using StateTree '%s'."),
+							__FUNCTION__, *GetSafeStateName(CurrentFrame, NextStateHandle), *GetFullNameSafe(NewFrame.StateTree), *GetNameSafe(&Owner), *GetFullNameSafe(CurrentFrame.StateTree));
 						return false;
 					}
 				}

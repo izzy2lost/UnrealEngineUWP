@@ -58,6 +58,52 @@ void UStateTreeComponent::UninitializeComponent()
 {
 }
 
+bool UStateTreeComponent::CollectExternalData(const FStateTreeExecutionContext& Context, const UStateTree* StateTree, TArrayView<const FStateTreeExternalDataDesc> ExternalDataDescs, TArrayView<FStateTreeDataView> OutDataViews) const
+{
+	const UWorld* World = GetWorld();
+	if (World == nullptr)
+	{
+		return false;
+	}
+
+	check(ExternalDataDescs.Num() == OutDataViews.Num());
+	
+	for (int32 Index = 0; Index < ExternalDataDescs.Num(); Index++)
+	{
+		const FStateTreeExternalDataDesc& ItemDesc = ExternalDataDescs[Index];
+		if (ItemDesc.Struct != nullptr)
+		{
+			if (ItemDesc.Struct->IsChildOf(UWorldSubsystem::StaticClass()))
+			{
+				UWorldSubsystem* Subsystem = World->GetSubsystemBase(Cast<UClass>(const_cast<UStruct*>(ItemDesc.Struct.Get())));
+				OutDataViews[Index] = FStateTreeDataView(Subsystem);
+			}
+			else if (ItemDesc.Struct->IsChildOf(UActorComponent::StaticClass()))
+			{
+				UActorComponent* Component = GetOwner()->FindComponentByClass(Cast<UClass>(const_cast<UStruct*>(ItemDesc.Struct.Get())));
+				OutDataViews[Index] = FStateTreeDataView(Component);
+			}
+			else if (ItemDesc.Struct->IsChildOf(APawn::StaticClass()))
+			{
+				APawn* OwnerPawn = (AIOwner != nullptr) ? AIOwner->GetPawn() : Cast<APawn>(GetOwner());
+				OutDataViews[Index] = FStateTreeDataView(OwnerPawn);
+			}
+			else if (ItemDesc.Struct->IsChildOf(AAIController::StaticClass()))
+			{
+				AAIController* OwnerController = (AIOwner != nullptr) ? AIOwner.Get() : Cast<AAIController>(GetOwner());
+				OutDataViews[Index] = FStateTreeDataView(OwnerController);
+			}
+			else if (ItemDesc.Struct->IsChildOf(AActor::StaticClass()))
+			{
+				AActor* OwnerActor = (AIOwner != nullptr) ? AIOwner->GetPawn() : GetOwner();
+				OutDataViews[Index] = FStateTreeDataView(OwnerActor);
+			}
+		}
+	}
+
+	return true;
+}
+
 bool UStateTreeComponent::SetContextRequirements(FStateTreeExecutionContext& Context, bool bLogErrors)
 {
 	if (!Context.IsValid())
@@ -65,44 +111,8 @@ bool UStateTreeComponent::SetContextRequirements(FStateTreeExecutionContext& Con
 		return false;
 	}
 
-	const UWorld* World = GetWorld();
-	if (World == nullptr)
-	{
-		return false;
-	}
-
-	for (const FStateTreeExternalDataDesc& ItemDesc : Context.GetExternalDataDescs())
-	{
-		if (ItemDesc.Struct != nullptr)
-		{
-			if (ItemDesc.Struct->IsChildOf(UWorldSubsystem::StaticClass()))
-			{
-				UWorldSubsystem* Subsystem = World->GetSubsystemBase(Cast<UClass>(const_cast<UStruct*>(ToRawPtr(ItemDesc.Struct))));
-				Context.SetExternalData(ItemDesc.Handle, FStateTreeDataView(Subsystem));
-			}
-			else if (ItemDesc.Struct->IsChildOf(UActorComponent::StaticClass()))
-			{
-				UActorComponent* Component = GetOwner()->FindComponentByClass(Cast<UClass>(const_cast<UStruct*>(ToRawPtr(ItemDesc.Struct))));
-				Context.SetExternalData(ItemDesc.Handle, FStateTreeDataView(Component));
-			}
-			else if (ItemDesc.Struct->IsChildOf(APawn::StaticClass()))
-			{
-				APawn* OwnerPawn = (AIOwner != nullptr) ? AIOwner->GetPawn() : Cast<APawn>(GetOwner());
-				Context.SetExternalData(ItemDesc.Handle, FStateTreeDataView(OwnerPawn));
-			}
-			else if (ItemDesc.Struct->IsChildOf(AAIController::StaticClass()))
-			{
-				AAIController* OwnerController = (AIOwner != nullptr) ? AIOwner.Get() : Cast<AAIController>(GetOwner());
-				Context.SetExternalData(ItemDesc.Handle, FStateTreeDataView(OwnerController));
-			}
-			else if (ItemDesc.Struct->IsChildOf(AActor::StaticClass()))
-			{
-				AActor* OwnerActor = (AIOwner != nullptr) ? AIOwner->GetPawn() : GetOwner();
-				Context.SetExternalData(ItemDesc.Handle, FStateTreeDataView(OwnerActor));
-			}
-		}
-	}
-
+	Context.SetCollectExternalDataCallback(FOnCollectStateTreeExternalData::CreateUObject(this, &UStateTreeComponent::CollectExternalData));
+	
 	// Make sure the actor matches one required.
 	AActor* ContextActor = nullptr;
 	const UStateTreeComponentSchema* Schema = Cast<UStateTreeComponentSchema>(Context.GetStateTree()->GetSchema());
@@ -136,16 +146,9 @@ bool UStateTreeComponent::SetContextRequirements(FStateTreeExecutionContext& Con
 	}
 	
 	const FName ActorName(TEXT("Actor"));
-	for (const FStateTreeExternalDataDesc& ItemDesc : Context.GetContextDataDescs())
-	{
-		if (ItemDesc.Name == ActorName)
-		{
-			Context.SetExternalData(ItemDesc.Handle, FStateTreeDataView(ContextActor));
-		}
-	}
+	Context.SetContextDataByName(ActorName, FStateTreeDataView(ContextActor));
 
-	bool bResult = Context.AreExternalDataViewsValid();
-
+	bool bResult = Context.AreContextDataViewsValid();
 	if (!bResult && bLogErrors)
 	{
 		STATETREE_LOG(Error, TEXT("%s: Missing external data requirements. StateTree will not update."), ANSI_TO_TCHAR(__FUNCTION__));

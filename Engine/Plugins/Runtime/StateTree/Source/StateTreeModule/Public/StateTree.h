@@ -41,6 +41,8 @@ struct STATETREEMODULE_API FStateTreeCustomVersion
 		AddedDataHandlesIds,
 		// Added linked asset state
 		AddedLinkedAssetState,
+		// Change hoe external data is accessed
+		ChangedExternalDataAccess,
 
 		// -----<new versions can be added above this line>-------------------------------------------------
 		VersionPlusOne,
@@ -95,7 +97,7 @@ public:
 	TSharedPtr<FStateTreeInstanceData> GetSharedInstanceData() const;
 
 	/** @return Number of context data views required for StateTree execution (Tree params, context data, External data). */
-	int32 GetNumContextDataViews() const { return NumContextDataViews; }
+	int32 GetNumContextDataViews() const { return NumContextData; }
 
 	/** @return List of external data required by the state tree */
 	TConstArrayView<FStateTreeExternalDataDesc> GetExternalDataDescs() const { return ExternalDataDescs; }
@@ -103,6 +105,9 @@ public:
 	/** @return List of context data enforced by the schema that must be provided through the execution context. */
 	TConstArrayView<FStateTreeExternalDataDesc> GetContextDataDescs() const { return ContextDataDescs; }
 
+	/** @return true if the other StateTree has compatible context data. */
+	bool HasCompatibleContextData(const UStateTree& Other) const;
+	
 	/** @return List of default parameters of the state tree. Default parameter values can be overridden at runtime by the execution context. */
 	const FInstancedPropertyBag& GetDefaultParameters() const { return Parameters; }
 
@@ -268,7 +273,7 @@ private:
 	UPROPERTY()
 	FStateTreeDataHandle ParametersDataHandle = FStateTreeDataHandle::Invalid; 
 
-	/** Number of context data. */
+	/** Number of context data, include parameters and all context data. */
 	UPROPERTY()
 	uint16 NumContextData = 0;
 
@@ -302,14 +307,6 @@ private:
 	UPROPERTY(Transient)
 	TArray<FStateTreeExternalDataDesc> ExternalDataDescs;
 
-	/** Base index of external data, created during linking. */
-	UPROPERTY(Transient)
-	int32 ExternalDataBaseIndex = 0;
-
-	/** Total number of context data views, created during linking. */
-	UPROPERTY(Transient)
-	int32 NumContextDataViews = 0;
-	
 	/** True if the StateTree was linked successfully. */
 	bool bIsLinked = false;
 
