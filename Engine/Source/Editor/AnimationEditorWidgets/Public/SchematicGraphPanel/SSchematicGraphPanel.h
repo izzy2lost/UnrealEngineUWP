@@ -56,7 +56,7 @@ friend T* CastChecked(ClassName* InNode) \
 	return CastChecked<T>((FSchematicGraphNode*) InNode); \
 } \
 
-class ANIMATIONWIDGETS_API FSchematicGraphNode
+class ANIMATIONEDITORWIDGETS_API FSchematicGraphNode
 {
 public:
 	virtual ~FSchematicGraphNode() {}
@@ -146,7 +146,7 @@ DECLARE_EVENT_OneParam(FSchematicGraph, FOnNodeAdded, const FSchematicGraphNode*
 DECLARE_EVENT_OneParam(FSchematicGraph, FOnNodeRemoved, const FSchematicGraphNode*);
 DECLARE_EVENT(FSchematicGraph, FOnGraphReset);
 
-class ANIMATIONWIDGETS_API FSchematicGraphModel
+class ANIMATIONEDITORWIDGETS_API FSchematicGraphModel
 {
 public:
 
@@ -270,7 +270,7 @@ private:
 	FOnEndDrag OnEndDragDelegate;
 };
 
-class ANIMATIONWIDGETS_API SSchematicGraphNode : public SNodePanel::SNode
+class ANIMATIONEDITORWIDGETS_API SSchematicGraphNode : public SNodePanel::SNode
 {
 public:
 
@@ -346,7 +346,7 @@ private:
 
 
 /** Widget allowing editing of a control rig's structure */
-class ANIMATIONWIDGETS_API SSchematicGraphPanel : public SNodePanel, public FTickableEditorObject
+class ANIMATIONEDITORWIDGETS_API SSchematicGraphPanel : public SNodePanel, public FTickableEditorObject
 {
 public:
 

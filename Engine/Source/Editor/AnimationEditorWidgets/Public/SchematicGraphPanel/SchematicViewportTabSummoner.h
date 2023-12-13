@@ -11,7 +11,7 @@
 DECLARE_DELEGATE_OneParam(FOnSchematicViewportCreated, const TSharedRef<class SSchematicGraphPanel>&);
 
 /** Arguments used to create a persona viewport tab */
-struct ANIMATIONWIDGETS_API FSchematicViewportArgs
+struct ANIMATIONEDITORWIDGETS_API FSchematicViewportArgs
 {
 	FSchematicViewportArgs()
 	{}
@@ -24,7 +24,7 @@ struct ANIMATIONWIDGETS_API FSchematicViewportArgs
 };
 
 
-struct ANIMATIONWIDGETS_API FSchematicViewportTabSummoner : public FWorkflowTabFactory
+struct ANIMATIONEDITORWIDGETS_API FSchematicViewportTabSummoner : public FWorkflowTabFactory
 {
 public:
 	static const FName TabID;

@@ -77,6 +77,7 @@ namespace UnrealBuildTool.Rules
 					"AdvancedPreviewScene",
 					"ToolWidgets",
                     "AnimationWidgets",
+                    "AnimationEditorWidgets",
                     "ActorPickerMode",
                     "Constraints",
                     "AnimationEditMode"
