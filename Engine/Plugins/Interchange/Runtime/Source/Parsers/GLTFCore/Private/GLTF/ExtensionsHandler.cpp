@@ -218,6 +218,7 @@ namespace GLTF
 			EExtension::KHR_MaterialsIOR,
 			EExtension::KHR_MaterialsSpecular,
 			EExtension::KHR_MaterialsEmissiveStrength,
+			EExtension::KHR_MaterialsIridescence,
 			EExtension::MSFT_PackingOcclusionRoughnessMetallic,
 			EExtension::MSFT_PackingNormalRoughnessMetallic 
 		};
@@ -367,6 +368,21 @@ namespace GLTF
 						Material.Packing.Flags     = (int)GLTF::FMaterial::EPackingFlags::NormalRoughnessMetallic;
 						Asset->ProcessedExtensions.Add(EExtension::MSFT_PackingNormalRoughnessMetallic);
 					}
+				}
+				break;
+				case EExtension::KHR_MaterialsIridescence:
+				{
+					const FJsonObject& Iridescence = ExtObj;
+
+					Material.Iridescence.bHasIridescence = true;
+
+					Material.Iridescence.Factor = GetScalar(Iridescence, TEXT("iridescenceFactor"), 0.0f);
+					GLTF::SetTextureMap(Iridescence, TEXT("iridescenceTexture"), nullptr, Asset->Textures, Material.Iridescence.Texture, Messages);
+					Material.Iridescence.IOR = GetScalar(Iridescence, TEXT("iridescenceIor"), 1.3f);
+
+					Material.Iridescence.Thickness.Minimum = GetScalar(Iridescence, TEXT("iridescenceThicknessMinimum"), 100.0f);
+					Material.Iridescence.Thickness.Maximum = GetScalar(Iridescence, TEXT("iridescenceThicknessMaximum"), 400.0f);
+					GLTF::SetTextureMap(Iridescence, TEXT("iridescenceThicknessTexture"), nullptr, Asset->Textures, Material.Iridescence.Thickness.Texture, Messages);
 				}
 				break;
 				default:

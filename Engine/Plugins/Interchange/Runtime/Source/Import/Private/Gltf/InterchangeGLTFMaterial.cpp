@@ -412,8 +412,9 @@ namespace UE::Interchange::GLTFMaterials
 			{
 				//BaseColorTexture
 				//BaseColorTexture_OffsetScale
-				//BaseColorTExture_Rotation
-				//BaseColorTExture_TexCoord
+				//BaseColorTexture_Rotation
+				//BaseColorTexture_TexCoord
+				//BaseColorTexture_TilingMethod
 				SetMap(Inputs::BaseColorTexture, GltfMaterial.BaseColor);
 
 				//BaseColorFactor
@@ -426,6 +427,7 @@ namespace UE::Interchange::GLTFMaterials
 				//NormalTexture_OffsetScale
 				//NormalTexture_Rotation
 				//NormalTexture_TexCoord
+				//NormalTexture_TilingMethod
 				SetMap(Inputs::NormalTexture, GltfMaterial.Normal);
 
 				//NormalScale
@@ -438,6 +440,7 @@ namespace UE::Interchange::GLTFMaterials
 				//EmissiveTexture_OffsetScale
 				//EmissiveTexture_Rotation
 				//EmissiveTexture_TexCoord
+				//EmissiveTexture_TilingMethod
 				SetMap(Inputs::EmissiveTexture, GltfMaterial.Emissive);
 
 				//EmissiveFactor
@@ -452,6 +455,7 @@ namespace UE::Interchange::GLTFMaterials
 				//OcclusionTexture_OffsetScale
 				//OcclusionTexture_Rotation
 				//OcclusionTexture_TexCoord
+				//OcclusionTexture_TilingMethod
 				SetMap(Inputs::OcclusionTexture, GltfMaterial.Occlusion);
 
 				//OcclusionStrength
@@ -469,6 +473,7 @@ namespace UE::Interchange::GLTFMaterials
 					//DiffuseTexture_OffsetScale
 					//DiffuseTexture_Rotation
 					//DiffuseTexture_TexCoord
+					//DiffuseTexture_TilingMethod
 					SetMap(Inputs::DiffuseTexture, GltfMaterial.BaseColor);
 
 					//DiffuseFactor
@@ -480,6 +485,7 @@ namespace UE::Interchange::GLTFMaterials
 					//SpecularGlossinessTexture_OffsetScale
 					//SpecularGlossinessTexture_Rotation
 					//SpecularGlossinessTexture_TexCoord
+					//SpecularGlossinessTexture_TilingMethod
 					SetMap(Inputs::SpecularGlossinessTexture, GltfMaterial.SpecularGlossiness.Map);
 
 					//SpecFactor
@@ -499,6 +505,7 @@ namespace UE::Interchange::GLTFMaterials
 					//BaseColorTexture_OffsetScale
 					//BaseColorTexture_Rotation
 					//BaseColorTexture_TexCoord
+					//BaseColorTexture_TilingMethod
 					SetMap(Inputs::BaseColorTexture, GltfMaterial.BaseColor);
 
 					//BaseColorFactor
@@ -510,6 +517,7 @@ namespace UE::Interchange::GLTFMaterials
 					//MetallicRoughnessTexture_OffsetScale
 					//MetallicRoughnessTexture_Rotation
 					//MetallicRoughnessTexture_TexCoord
+					//MetallicRoughnessTexture_TilingMethod
 					SetMap(Inputs::MetallicRoughnessTexture, GltfMaterial.MetallicRoughness.Map);
 
 					//MetallicFactor
@@ -525,10 +533,39 @@ namespace UE::Interchange::GLTFMaterials
 					//SpecularTexture_OffsetScale
 					//SpecularTexture_Rotation
 					//SpecularTexture_TexCoord
+					//SpecularTexture_TilingMethod
 					SetMap(Inputs::SpecularTexture, GltfMaterial.Specular.SpecularMap);
 
 					//SpecularFactor
 					SetScalar(Inputs::SpecularFactor, GltfMaterial.Specular.SpecularFactor, 0.5); //(UE Specular default is 0.5).
+				}
+
+				if (GltfMaterial.Iridescence.bHasIridescence)
+				{
+					//IridescenceIOR
+					SetScalar(Inputs::IridescenceIOR, GltfMaterial.Iridescence.IOR, 1.3f);
+
+					//IridescenceTexture
+					//IridescenceTexture_OffsetScale
+					//IridescenceTexture_Rotation
+					//IridescenceTexture_TexCoord
+					//IridescenceTexture_TilingMethod
+					SetMap(Inputs::IridescenceTexture, GltfMaterial.Iridescence.Texture);
+
+					//IridescenceFactor
+					SetScalar(Inputs::IridescenceFactor, GltfMaterial.Iridescence.Factor, 0.0f);
+
+					//IridescenceThicknessTexture
+					//IridescenceThicknessTexture_OffsetScale
+					//IridescenceThicknessTexture_Rotation
+					//IridescenceThicknessTexture_TexCoord
+					//IridescenceThicknessTexture_TilingMethod
+					SetMap(Inputs::IridescenceThicknessTexture, GltfMaterial.Iridescence.Thickness.Texture);
+
+					//IridescenceThicknessMinimum
+					SetScalar(Inputs::IridescenceThicknessMinimum, GltfMaterial.Iridescence.Thickness.Minimum, 100.0f);
+					//IridescenceThicknessMaximum
+					SetScalar(Inputs::IridescenceThicknessMaximum, GltfMaterial.Iridescence.Thickness.Maximum, 400.0f);
 				}
 			}
 			else
@@ -549,6 +586,7 @@ namespace UE::Interchange::GLTFMaterials
 					//TransmissionTexture_OffsetScale
 					//TransmissionTexture_Rotation
 					//TransmissionTexture_TexCoord
+					//TransmissionTexture_TilingMethod
 					SetMap(Inputs::TransmissionTexture, GltfMaterial.Transmission.TransmissionMap);
 
 					//TransmissionFactor
@@ -565,6 +603,7 @@ namespace UE::Interchange::GLTFMaterials
 					//ClearCoatTexture_OffsetScale
 					//ClearCoatTexture_Rotation
 					//ClearCoatTexture_TexCoord
+					//ClearCoatTexture_TilingMethod
 					SetMap(Inputs::ClearCoatTexture, GltfMaterial.ClearCoat.ClearCoatMap);
 
 					//ClearCoatFactor
@@ -576,6 +615,7 @@ namespace UE::Interchange::GLTFMaterials
 					//ClearCoatRoughnessTexture_OffsetScale
 					//ClearCoatRoughnessTexture_Rotation
 					//ClearCoatRoughnessTexture_TexCoord
+					//ClearCoatRoughnessTexture_TilingMethod
 					SetMap(Inputs::ClearCoatRoughnessTexture, GltfMaterial.ClearCoat.RoughnessMap);
 
 					//ClearCoatRoughnessFactor
@@ -587,6 +627,7 @@ namespace UE::Interchange::GLTFMaterials
 					//ClearCoatNormalTexture_OffsetScale
 					//ClearCoatNormalTexture_Rotation
 					//ClearCoatNormalTexture_TexCoord
+					//ClearCoatNormalTexture_TilingMethod
 					SetMap(Inputs::ClearCoatNormalTexture, GltfMaterial.ClearCoat.NormalMap);
 
 					//ClearCoatNormalFactor
@@ -600,6 +641,7 @@ namespace UE::Interchange::GLTFMaterials
 					//SheenColorTexture_OffsetScale
 					//SheenColorTexture_Rotation
 					//SheenColorTexture_TexCoord
+					//SheenColorTexture_TilingMethod
 					SetMap(Inputs::SheenColorTexture, GltfMaterial.Sheen.SheenColorMap);
 
 					//SheenColorFactor
@@ -610,6 +652,7 @@ namespace UE::Interchange::GLTFMaterials
 					//SheenRoughnessTexture_OffsetScale
 					//SheenRoughnessTexture_Rotation
 					//SheenRoughnessTexture_TexCoord
+					//SheenRoughnessTexture_TilingMethod
 					SetMap(Inputs::SheenRoughnessTexture, GltfMaterial.Sheen.SheenRoughnessMap);
 
 					//SheenRoughnessFactor

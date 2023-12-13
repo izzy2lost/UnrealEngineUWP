@@ -171,6 +171,31 @@ struct GLTFEXPORTER_API FGLTFJsonSpecularGlossinessExtension : IGLTFJsonObject
 	virtual void WriteObject(IGLTFJsonWriter& Writer) const override;
 };
 
+struct GLTFEXPORTER_API FGLTFJsonIridescenceExtension : IGLTFJsonObject
+{
+	float                   IridescenceFactor;
+	FGLTFJsonTextureInfo    IridescenceTexture;
+	float                   IridescenceIOR;
+
+	float                   IridescenceThicknessMinimum;
+	float                   IridescenceThicknessMaximum;
+	FGLTFJsonTextureInfo    IridescenceThicknessTexture;
+
+
+	FGLTFJsonIridescenceExtension()
+		: IridescenceFactor(0.f)
+		, IridescenceIOR(1.3f)
+		, IridescenceThicknessMinimum(100.f)
+		, IridescenceThicknessMaximum(400.f)
+	{
+	}
+
+	bool HasValue() const { return !FMath::IsNearlyEqual(IridescenceFactor, 0.f) || IridescenceTexture.Index != nullptr || !FMath::IsNearlyEqual(IridescenceIOR, 1.3f) || 
+		!FMath::IsNearlyEqual(IridescenceThicknessMinimum, 100.f) || !FMath::IsNearlyEqual(IridescenceThicknessMaximum, 400.f) || IridescenceThicknessTexture.Index != nullptr; }
+
+	virtual void WriteObject(IGLTFJsonWriter& Writer) const override;
+};
+
 struct GLTFEXPORTER_API FGLTFJsonMaterial : IGLTFJsonIndexedObject
 {
 	FString Name;
@@ -197,6 +222,7 @@ struct GLTFEXPORTER_API FGLTFJsonMaterial : IGLTFJsonIndexedObject
 	FGLTFJsonIORExtension          IOR;
 	FGLTFJsonSheenExtension        Sheen;
 	FGLTFJsonTransmissionExtension Transmission;
+	FGLTFJsonIridescenceExtension  Iridescence;
 
 	virtual void WriteObject(IGLTFJsonWriter& Writer) const override;
 

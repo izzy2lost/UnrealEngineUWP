@@ -396,6 +396,8 @@ namespace GLTF
 				return TEXT("KHR_materials_specular");
 			case GLTF::EExtension::KHR_MaterialsEmissiveStrength:
 				return TEXT("KHR_materials_emissive_strength");
+			case GLTF::EExtension::KHR_MaterialsIridescence:
+				return TEXT("KHR_materials_iridescence");
 			case GLTF::EExtension::KHR_TextureTransform:
 				return TEXT("KHR_texture_transform");
 			case GLTF::EExtension::KHR_DracoMeshCompression:

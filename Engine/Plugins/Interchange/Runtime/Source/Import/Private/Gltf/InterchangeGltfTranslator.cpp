@@ -63,6 +63,7 @@ static const TArray<FString> ImporterSupportedExtensions = {
 	GLTF::ToString(GLTF::EExtension::KHR_MaterialsSpecular),
 	GLTF::ToString(GLTF::EExtension::KHR_MaterialsPbrSpecularGlossiness),
 	GLTF::ToString(GLTF::EExtension::KHR_MaterialsEmissiveStrength),
+	GLTF::ToString(GLTF::EExtension::KHR_MaterialsIridescence),
 	GLTF::ToString(GLTF::EExtension::MSFT_PackingOcclusionRoughnessMetallic),
 	GLTF::ToString(GLTF::EExtension::MSFT_PackingNormalRoughnessMetallic),
 	/* Textures */

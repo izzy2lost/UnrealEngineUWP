@@ -113,6 +113,17 @@ namespace UE::Interchange::GLTFMaterials
 		//Transmission specific:
 		DECLARE_INTERCHANGE_GLTF_MI_MAP(Transmission)
 		const FString TransmissionFactor = TEXT("TransmissionFactor");
+
+
+		//Iridescence specific:
+		const FString IridescenceIOR = TEXT("IridescenceIOR");
+		
+		DECLARE_INTERCHANGE_GLTF_MI_MAP(Iridescence)
+		const FString IridescenceFactor = TEXT("IridescenceFactor");
+
+		DECLARE_INTERCHANGE_GLTF_MI_MAP(IridescenceThickness)
+		const FString IridescenceThicknessMinimum = TEXT("IridescenceThicknessMinimum");
+		const FString IridescenceThicknessMaximum = TEXT("IridescenceThicknessMaximum");
 	}
 
 	enum EShadingModel : uint8
