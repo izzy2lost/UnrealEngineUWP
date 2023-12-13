@@ -124,6 +124,9 @@ enum EConsoleVariableFlags
 
 	// Use to set a cvar without calling all cvar sinks. Much faster, but potentially unsafe. Use only if you know the particular cvar/setting does not require a sink call
 	ECVF_Set_NoSinkCall_Unsafe =	0x00010000,
+	
+	// Similar to ECVF_Set_NoSinkCall_Unsafe, but this will do nothing but set the cvar, and push updates to render thread, no changing flags, no sinks, etc
+	ECVF_Set_SetOnly_Unsafe = 		0x00020000,
 
 	// ------------------------------------------------
 
