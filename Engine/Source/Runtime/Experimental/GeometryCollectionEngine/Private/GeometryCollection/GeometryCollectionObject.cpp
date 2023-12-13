@@ -967,8 +967,10 @@ void UGeometryCollection::Serialize(FArchive& Ar)
 		DataflowAsset = StrippedDataflowAsset;
 	}
 
-	if (Ar.IsLoading() && !SizeSpecificData.Num())
+	if ((Ar.IsLoading() || Ar.IsSaving()) && !SizeSpecificData.Num())
 	{
+		// Validation is necessary when loading old version and when saving newly created version
+		// that might not have created the defaults yet; the defaults are used during EnsureDataIsCooked.
 		ValidateSizeSpecificDataDefaults();
 	}
 
