@@ -15,4 +15,4 @@ public:
 };
 
 
-IMPLEMENT_MODULE(FAnimationEditorWidgetsModule, AnimationWidgets);
+IMPLEMENT_MODULE(FAnimationEditorWidgetsModule, AnimationEditorWidgets);
