@@ -359,6 +359,13 @@ struct FNetworkPhysicsDatas
 
 	// Build the datas from the network physics component
 	virtual void BuildDatas(const UActorComponent* NetworkComponent) {}
+	
+	/** Use to decay desired data during resimulation if data is forward predicted.
+	* @param DecayAmount = Total amount of decay as a multiplier. 10% decay = 0.1.
+	* NOTE: Decay is not accumulated, the data will be in its original state each time DecayDatas is called. DecayAmount will increase each time the input is predicted (reused).
+	* EXAMPLE: Use to decay steering inputs to make resimulation not predict too much with a high steering value. Use DecayAmount of 0.1 to turn a steering value of 0.5 into 0.45 for example.
+	*/ 
+	virtual void DecayDatas(float DecayAmount) {}
 
 	friend UNetworkPhysicsComponent;
 };
@@ -437,21 +444,24 @@ public:
 	ENGINE_API bool HasServerWorld() const;
 
 	// Check if the player controller exists and is local
-	UE_DEPRECATED(5.4, "Deprecated, use IsLocallyControlled() which takes both local player controlled and local possession into account.")
+	UE_DEPRECATED(5.4, "Deprecated, use IsLocallyControlled() which takes both local player controlled and local relayed inputs into account.")
 	ENGINE_API bool HasLocalController() const;
 	
-	// Check if this is controlled locally through possession or an existing local player controller
+	// Check if this is controlled locally through relayed inputs or an existing local player controller
 	ENGINE_API bool IsLocallyControlled() const;
 
-	/** Mark this as controlled through local possession rather than controlled as a pawn
-	* Set if NetworkPhysicsComponent is implemented on an AActor instead of APawn and it's currently being fed inputs from the local player */
-	ENGINE_API void SetIsLocallyPossessed(bool bPossess)
+	/** Mark this as controlled through locally relayed inputs rather than controlled as a pawn through a player controller.
+	* Set if NetworkPhysicsComponent is implemented on an AActor instead of APawn and it's currently being fed inputs from the local player / autonomous proxy */
+	ENGINE_API void SetIsRelayingLocalInputs(bool bInRelayingLocalInputs)
 	{
-		bIsLocallyPossessed = bPossess;
+		bIsRelayingLocalInputs = bInRelayingLocalInputs;
 	}
 
-	/** Check if this is controlled locally through possession. It's recommended to use HasLocalController() when checking if this is locally controlled. */
-	ENGINE_API const bool GetIsLocallyPossessed() const { return bIsLocallyPossessed; }
+	/** Check if this is controlled locally through relayed inputs from autonomous proxy. It's recommended to use IsLocallyControlled() when checking if this is locally controlled. */
+	ENGINE_API const bool GetIsRelayingLocalInputs() const { return bIsRelayingLocalInputs; }
+
+	/** Returns the current amount of input decay during resimulation as a magnitude from 0.0 to 1.0. Returns 0 if not currently resimulating. */
+	ENGINE_API const float GetCurrentInputDecay(FNetworkPhysicsDatas* PhysicsDatas);
 
 protected : 
 
@@ -513,8 +523,8 @@ private:
 	// Actor component that will be used to fill the histories
 	TObjectPtr<UActorComponent> ActorComponent;
 
-	// Locally possessed makes this component act as if it's a locally controlled pawn.
-	bool bIsLocallyPossessed = false;
+	// Locally relayed inputs makes this component act as if it's a locally controlled pawn.
+	bool bIsRelayingLocalInputs = false;
 };
 
 template<typename PhysicsTraits>

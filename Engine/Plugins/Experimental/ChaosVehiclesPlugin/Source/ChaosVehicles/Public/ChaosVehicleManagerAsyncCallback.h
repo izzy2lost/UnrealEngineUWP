@@ -128,6 +128,9 @@ struct CHAOSVEHICLES_API FNetworkVehicleInputs : public FNetworkPhysicsDatas
 	/**  Build the datas from the network physics component */
 	virtual void BuildDatas(const UActorComponent* NetworkComponent) override;
 
+	/** Decay input during resimulation */
+	virtual void DecayDatas(float DecayAmount) override;
+
 	/**  Serialize datas function that will be used to transfer the struct across the network */
 	bool NetSerialize(FArchive& Ar, class UPackageMap* Map, bool& bOutSuccess);
 

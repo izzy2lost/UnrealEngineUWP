@@ -1849,7 +1849,7 @@ namespace Chaos
 			{
 				FResimDebugInfo DebugInfo;
 				QUICK_SCOPE_CYCLE_COUNTER(ChaosRewindAndResim);
-				if(MRewindData->RewindToFrame(ResimStep))
+				if (MRewindData->RewindToFrame(ResimStep))
 				{
 #if DEBUG_REWIND_DATA
 					UE_LOG(LogTemp, Warning, TEXT("COMMON | PT | ConditionalApplyRewind_Internal | PERFORMING RESIMULATION | Resim From Frame = %d | Num Steps = %d | To Current Frame: %d"), ResimStep, NumResimSteps, CurrentFrame);
@@ -1857,7 +1857,7 @@ namespace Chaos
 
 					GetEvolution()->SetResim(true);
 					CurrentFrame = ResimStep;
-					
+
 					TArray<FPushPhysicsData*> RecordedPushData = MarshallingManager.StealHistory_Internal(NumResimSteps);
 					bool bFirst = true;
 
@@ -1935,6 +1935,8 @@ namespace Chaos
 				UE_LOG(LogTemp, Log, TEXT("COMMON | PT | ConditionalApplyRewind_Internal | Resimulation failed, invalid rewind frame data | Current Frame = %d | Num Steps = %d | Resim Frame = %d | Last Frame = %d | Rewind History Size = %d"), CurrentFrame, NumResimSteps, ResimStep, LastStep, MarshallingManager.GetNumHistory_Internal());
 			}
 #endif
+			// Clear the ResimFrame no matter if resimulation succeeded or failed (if it failed it's not going to succeed next frame either based on the same ResimFrame)
+			MRewindData->SetResimFrame(INDEX_NONE);
 		}
 	}
 

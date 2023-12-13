@@ -1298,6 +1298,7 @@ public:
 
 	int32 Capacity() const { return Managers.Capacity(); }
 	int32 CurrentFrame() const { return CurFrame; }
+	int32 GetLatestFrame() const { return LatestFrame; }
 	int32 GetFramesSaved() const { return FramesSaved; }
 
 	FReal GetDeltaTimeForFrame(int32 Frame) const

@@ -281,6 +281,18 @@ void FNetworkVehicleInputs::InterpolateDatas(const FNetworkVehicleInputs& MinDat
 	VehicleInputs.TransmissionType = LerpFactor < 0.5 ? MinDatas.VehicleInputs.TransmissionType : MaxDatas.VehicleInputs.TransmissionType;
 }
 
+void FNetworkVehicleInputs::DecayDatas(float DecayAmount)
+{
+	// Local adjustment to DecayAmount for vehicle implementation
+	DecayAmount = FMath::Min(DecayAmount * 2, 1.0f);
+
+	// Apply decay on steering inputs
+	VehicleInputs.PitchInput = FMath::Lerp(VehicleInputs.PitchInput, 0.0f, DecayAmount);
+	VehicleInputs.RollInput = FMath::Lerp(VehicleInputs.RollInput, 0.0f, DecayAmount);
+	VehicleInputs.SteeringInput = FMath::Lerp(VehicleInputs.SteeringInput, 0.0f, DecayAmount);
+	VehicleInputs.YawInput = FMath::Lerp(VehicleInputs.YawInput, 0.0f, DecayAmount);
+}
+
 bool FNetworkVehicleStates::NetSerialize(FArchive& Ar, class UPackageMap* Map, bool& bOutSuccess)
 {
 	FNetworkPhysicsDatas::SerializeFrames(Ar);

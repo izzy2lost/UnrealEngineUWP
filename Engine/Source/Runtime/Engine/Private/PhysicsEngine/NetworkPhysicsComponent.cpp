@@ -179,7 +179,6 @@ int32 FNetworkPhysicsCallback::TriggerRewindIfNeeded_Internal(int32 LatestStepCo
 			UE_LOG(LogChaos, Log, TEXT("CLIENT | PT | TriggerRewindIfNeeded_Internal | Replication Frame = %d"), ReplicationFrame);
 #endif
 			ResimFrame = (ResimFrame == INDEX_NONE) ? ReplicationFrame : (ReplicationFrame == INDEX_NONE) ? ResimFrame : FMath::Min(ReplicationFrame, ResimFrame);
-			RewindData->SetResimFrame(INDEX_NONE);
 		}
 
 		if (ResimFrame != INDEX_NONE)
@@ -728,7 +727,7 @@ void UNetworkPhysicsComponent::OnPreProcessInputsInternal(const int32 PhysicsSte
 	}
 #endif
 
-	if(InputsHistory && StatesHistory && ActorComponent)
+	if (InputsHistory && StatesHistory && ActorComponent)
 	{ 
 		bool bIsSolverReset = false;
 		bool bIsSolverResim = false;
@@ -752,6 +751,13 @@ void UNetworkPhysicsComponent::OnPreProcessInputsInternal(const int32 PhysicsSte
 	#endif
 			if (InputsHistory->ExtractDatas(PhysicsStep, bIsSolverReset, PhysicsDatas))
 			{ 
+				// Calculate input decay if we are resimulating and we don't have up to date inputs
+				if (bIsSolverResim && PhysicsDatas->LocalFrame < PhysicsStep)
+				{
+					const float InputDecay = GetCurrentInputDecay(PhysicsDatas);
+					PhysicsDatas->DecayDatas(InputDecay);
+				}
+
 				PhysicsDatas->ApplyDatas(ActorComponent);
 			}
 		}
@@ -786,7 +792,7 @@ void UNetworkPhysicsComponent::OnPostProcessInputsInternal(const int32 PhysicsSt
 	}
 #endif
 
-	if(InputsHistory && StatesHistory && ActorComponent)
+	if (InputsHistory && StatesHistory && ActorComponent)
 	{
 		if (FPhysScene* PhysScene = GetWorld()->GetPhysicsScene())
 		{
@@ -827,7 +833,7 @@ void UNetworkPhysicsComponent::OnPostProcessInputsInternal(const int32 PhysicsSt
 			int32 InputFrame = INDEX_NONE;
 			{
 				FNetworkPhysicsDatas* PhysicsDatas = InputsDatas.Get();
-				if(InputsHistory->ExtractDatas(PhysicsStep, false, PhysicsDatas, true))
+				if (InputsHistory->ExtractDatas(PhysicsStep, false, PhysicsDatas, true))
 				{
 					InputFrame = PhysicsDatas->InputFrame;
 				}
@@ -850,6 +856,40 @@ void UNetworkPhysicsComponent::OnPostProcessInputsInternal(const int32 PhysicsSt
 	}
 }
 
+const float UNetworkPhysicsComponent::GetCurrentInputDecay(FNetworkPhysicsDatas* PhysicsDatas)
+{
+	if (!PhysicsDatas)
+	{
+		return 0.0f;
+	}
+
+	FPhysScene* PhysScene = GetWorld()->GetPhysicsScene();
+	if (!PhysScene)
+	{
+		return 0.0f;
+	}
+
+	Chaos::FPhysicsSolver* Solver = PhysScene->GetSolver();
+	if (!Solver)
+	{
+		return 0.0f;
+	}
+
+	Chaos::FRewindData* RewindData = Solver->GetRewindData();
+	if (!RewindData)
+	{
+		return 0.0f;
+	}
+	
+	const float NumPredictedInputs = RewindData->CurrentFrame() - PhysicsDatas->LocalFrame; // Number of frames we have used the same PhysicsDatas for during resim
+	const float MaxPredictedInputs = RewindData->GetLatestFrame() - 1 - PhysicsDatas->LocalFrame; // Max number of frames PhysicsDatas registered frame until end of resim
+
+	// Linear decay
+	const float PredictionAlpha = MaxPredictedInputs > 0 ? (NumPredictedInputs / MaxPredictedInputs) : 0.0f;
+
+	return PredictionAlpha;
+}
+
 bool UNetworkPhysicsComponent::HasServerWorld() const
 {
 	return GetWorld()->IsNetMode(NM_DedicatedServer) || GetWorld()->IsNetMode(NM_ListenServer);
@@ -866,7 +906,7 @@ bool UNetworkPhysicsComponent::HasLocalController() const
 
 bool UNetworkPhysicsComponent::IsLocallyControlled() const
 {
-	if (bIsLocallyPossessed && !GetWorld()->IsNetMode(NM_DedicatedServer))
+	if (bIsRelayingLocalInputs && !GetWorld()->IsNetMode(NM_DedicatedServer))
 	{
 		return true;
 	}

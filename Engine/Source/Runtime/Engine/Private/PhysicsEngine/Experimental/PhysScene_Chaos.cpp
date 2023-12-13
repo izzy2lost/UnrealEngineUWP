@@ -138,17 +138,6 @@ public:
 	{
 		using namespace Chaos;
 
-		if (!PendingCommands.IsEmpty())
-		{
-			if (!PendingCommands[0].OwningObject.IsStale())
-			{
-				if (Chaos::FRewindData* RewindData = GetSolver()->GetRewindData())
-				{
-					RewindData->SetResimFrame(INDEX_NONE);
-				}
-			}
-		}
-
 		const UPhysicsSettings* PhysicsSettings = UPhysicsSettings::Get();
 		const bool bAllowResim = PhysicsSettings->PhysicsPrediction.bEnablePhysicsPrediction;
 		const int32 NumFrames = PhysicsSettings->GetPhysicsHistoryCount();

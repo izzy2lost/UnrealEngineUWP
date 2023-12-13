@@ -378,9 +378,10 @@ bool FRewindData::RewindToFrame(int32 Frame)
 	}
 #endif
 
+	ResimFrame = Frame;
 	CurFrame = Frame;
 	bNeedsSave = false;
-	
+
 	return true;
 }
 
