@@ -293,7 +293,7 @@ namespace Horde.Server.Storage.Backends
 			GetObjectResponse? response = null;
 			try
 			{
-				semaLock = await _semaphore.UseWaitAsync(cancellationToken);
+				semaLock = await _semaphore.WaitDisposableAsync(cancellationToken);
 
 				semaphoreSpan = OpenTelemetryTracers.Horde.StartActiveSpan($"{nameof(AwsStorageBackend)}.{nameof(OpenAsync)}.Semaphore");
 				semaphoreSpan.SetAttribute("path", path);
@@ -418,7 +418,7 @@ namespace Horde.Server.Storage.Backends
 			{
 				try
 				{
-					using IDisposable semaLock = await _semaphore.UseWaitAsync(cancellationToken);
+					using IDisposable semaLock = await _semaphore.WaitDisposableAsync(cancellationToken);
 					await WriteInternalAsync(fullPath, inputStream, cancellationToken);
 					_logger.LogDebug("Written data to {Path}", path);
 					break;
