@@ -1472,22 +1472,25 @@ void FOpenXRHMD::UpdateDeviceLocations(bool bUpdateOpenXRExtensionPlugins)
 					// The display time is no longer valid so set the location as invalid as well
 					PipelineState.DeviceLocations[DeviceIndex].locationFlags = 0;
 				}
+				else if (Result != XR_SUCCESS)
+				{
+					PipelineState.DeviceLocations[DeviceIndex].locationFlags = 0;
+					ensureMsgf(XR_SUCCEEDED(Result), TEXT("OpenXR xrLocateSpace failed with result %s.  No pose fetched."), OpenXRResultToString(Result)); \
+				}
 				else
 				{
-					XR_ENSURE(Result);
-				}
-				
-				// Clear the location tracked bits
-				CachedDeviceLocation.locationFlags &= ~(XR_SPACE_LOCATION_POSITION_TRACKED_BIT | XR_SPACE_LOCATION_ORIENTATION_TRACKED_BIT);
-				if (NewDeviceLocation.locationFlags & (XR_SPACE_LOCATION_POSITION_VALID_BIT))
-				{
-					CachedDeviceLocation.pose.position = NewDeviceLocation.pose.position;
-					CachedDeviceLocation.locationFlags |= (NewDeviceLocation.locationFlags & (XR_SPACE_LOCATION_POSITION_TRACKED_BIT | XR_SPACE_LOCATION_POSITION_VALID_BIT));
-				}
-				if (NewDeviceLocation.locationFlags & (XR_SPACE_LOCATION_ORIENTATION_VALID_BIT))
-				{
-					CachedDeviceLocation.pose.orientation = NewDeviceLocation.pose.orientation;
-					CachedDeviceLocation.locationFlags |= (NewDeviceLocation.locationFlags & (XR_SPACE_LOCATION_ORIENTATION_TRACKED_BIT | XR_SPACE_LOCATION_ORIENTATION_VALID_BIT));
+					// Clear the location tracked bits
+					CachedDeviceLocation.locationFlags &= ~(XR_SPACE_LOCATION_POSITION_TRACKED_BIT | XR_SPACE_LOCATION_ORIENTATION_TRACKED_BIT);
+					if (NewDeviceLocation.locationFlags & (XR_SPACE_LOCATION_POSITION_VALID_BIT))
+					{
+						CachedDeviceLocation.pose.position = NewDeviceLocation.pose.position;
+						CachedDeviceLocation.locationFlags |= (NewDeviceLocation.locationFlags & (XR_SPACE_LOCATION_POSITION_TRACKED_BIT | XR_SPACE_LOCATION_POSITION_VALID_BIT));
+					}
+					if (NewDeviceLocation.locationFlags & (XR_SPACE_LOCATION_ORIENTATION_VALID_BIT))
+					{
+						CachedDeviceLocation.pose.orientation = NewDeviceLocation.pose.orientation;
+						CachedDeviceLocation.locationFlags |= (NewDeviceLocation.locationFlags & (XR_SPACE_LOCATION_ORIENTATION_TRACKED_BIT | XR_SPACE_LOCATION_ORIENTATION_VALID_BIT));
+					}
 				}
 			}
 			else
