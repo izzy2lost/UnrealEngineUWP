@@ -73,6 +73,7 @@ namespace uba
 		static constexpr u8 ServiceId = StorageServiceId;
 
 		struct ProxyClient;
+		TString m_lastTestedProxyIp;
 		ReaderWriterLock m_proxyClientLock;
 		ProxyClient* m_proxyClient = nullptr;
 		u64 m_proxyClientKeepAliveTime = 0;

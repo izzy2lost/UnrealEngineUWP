@@ -523,8 +523,10 @@ namespace uba
 		if (!success)
 			return false;
 
-		if (timedOut)
-			*timedOut = true;
+		if (!timedOut)
+			return false;
+
+		*timedOut = true;
 		int connectTimeMs = int(TimeToMs(GetTime() - startTime));
 		int timeoutMs = 2000;
 		if (connectTimeMs < timeoutMs)

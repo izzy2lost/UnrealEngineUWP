@@ -246,6 +246,7 @@ namespace uba
 					{
 						delete m_proxyClient;
 						m_proxyClient = nullptr;
+						m_lastTestedProxyIp.clear();
 					}
 				}
 				wantsProxy = proxy == nullptr && m_startProxyCallback;
@@ -262,7 +263,10 @@ namespace uba
 							{
 								delete proxy;
 								if (proxy == m_proxyClient)
+								{
 									m_proxyClient = nullptr;
+									m_lastTestedProxyIp.clear();
+								}
 							}
 						}
 					}
@@ -313,6 +317,13 @@ namespace uba
 					ScopedWriteLock proxyLock2(m_proxyClientLock);
 					if (m_proxyClient)
 						continue;
+
+					// If we have x processes sitting here with an already closed proxy we would do x connect attempts to that bad proxy
+					// Therefore we keep track of last checked proxy to prevent repetition of already failing proxy
+					// There is a risk we have multiple threads asking for two bad proxies.. but that is low enough for us not to care
+					if (m_lastTestedProxyIp == proxyHost.data)
+						continue;
+					m_lastTestedProxyIp = proxyHost.data;
 
 					NetworkBackendTcp& proxyBackend = m_client.GetTcpBackend();
 					NetworkClientCreateInfo ncci(m_logger.m_writer);
