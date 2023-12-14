@@ -1002,8 +1002,18 @@ void UAssetRegistryImpl::InitializeEvents(UE::AssetRegistry::Impl::FInitializeCo
 		{
 			// The vast majority of directories we are watching are below the Plugin directories. The memory cost per watch
 			// is sufficiently high to want to avoid setting up many granular watches when we can also setup two coarse ones.
-			DirectoryWatchRoots.Add(FPaths::CreateStandardFilename(FPaths::EnginePluginsDir()));
-			DirectoryWatchRoots.Add(FPaths::CreateStandardFilename(FPaths::ProjectPluginsDir()));
+
+			const FString ProjectPluginDir = FPaths::CreateStandardFilename(FPaths::ProjectPluginsDir());
+			if (IPlatformFile::GetPlatformPhysical().DirectoryExists(*ProjectPluginDir))
+			{
+				DirectoryWatchRoots.Add(ProjectPluginDir);
+			}
+			const FString EnginePluginDir = FPaths::CreateStandardFilename(FPaths::EnginePluginsDir());
+			if (IPlatformFile::GetPlatformPhysical().DirectoryExists(*EnginePluginDir))
+			{
+				DirectoryWatchRoots.Add(EnginePluginDir);
+			}
+
 			for (FString& WatchRoot : DirectoryWatchRoots)
 			{
 				FDelegateHandle NewHandle;
