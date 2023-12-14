@@ -37,12 +37,30 @@ class UDataTableFunctionLibrary : public UBlueprintFunctionLibrary
     
 	// Returns whether or not Table contains a row named RowName
   	UFUNCTION(BlueprintCallable, Category = "DataTable")
- 	static ENGINE_API bool DoesDataTableRowExist(UDataTable* Table, FName RowName);
+ 	static ENGINE_API bool DoesDataTableRowExist(const UDataTable* Table, FName RowName);
     
 	UFUNCTION(BlueprintCallable, Category = "DataTable")
-	static ENGINE_API void GetDataTableRowNames(UDataTable* Table, TArray<FName>& OutRowNames);
+	static ENGINE_API void GetDataTableRowNames(const UDataTable* Table, TArray<FName>& OutRowNames);
 
-	/** Export from the DataTable all the row for one column. Export it as string. The row name is not included. */
+	/**
+	 * Get the name of each column in this DataTable.
+	 * @note These are always the raw property names (@see GetDataTableColumnAsString) rather than the friendly export name that would be used in a CSV/JSON export (@see GetDataTableColumnNameFromExportName).
+	 */
+	UFUNCTION(BlueprintCallable, Category = "DataTable")
+	static ENGINE_API void GetDataTableColumnNames(const UDataTable* Table, TArray<FName>& OutColumnNames);
+
+	/**
+	 * Get the raw property name of a data table column from its friendly export name.
+	 * @return True if a column was found for the friendly name, false otherwise.
+	 */
+	UFUNCTION(BlueprintCallable, Category = "DataTable")
+	static ENGINE_API bool GetDataTableColumnNameFromExportName(const UDataTable* Table, const FString& ColumnExportName, FName& OutColumnName);
+
+	/**
+	 * Export from the DataTable all the row for one column. Export it as string. The row name is not included.
+	 * @see GetDataTableColumnNames.
+	 * @see GetDataTableColumnNameFromExportName.
+	 */
 	UFUNCTION(BlueprintCallable, Category = "DataTable")
 	static ENGINE_API TArray<FString> GetDataTableColumnAsString(const UDataTable* DataTable, FName PropertyName);
 

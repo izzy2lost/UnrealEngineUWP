@@ -370,10 +370,10 @@ FText DataTableUtils::GetPropertyValueAsText(const FProperty* InProp, const uint
 	return Result;
 }
 
-TArray<FName> DataTableUtils::GetStructPropertyNames(UStruct* InStruct)
+TArray<FName> DataTableUtils::GetStructPropertyNames(const UStruct* InStruct)
 {
 	TArray<FName> PropNames;
-	for (TFieldIterator<FProperty> It(InStruct); It; ++It)
+	for (TFieldIterator<const FProperty> It(InStruct); It; ++It)
 	{
 		PropNames.Add(It->GetFName());
 	}

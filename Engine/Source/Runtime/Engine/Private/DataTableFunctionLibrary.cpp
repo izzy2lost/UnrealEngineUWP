@@ -34,7 +34,7 @@ void UDataTableFunctionLibrary::EvaluateCurveTableRow(UCurveTable* CurveTable, F
 	}
 }
 
-bool UDataTableFunctionLibrary::DoesDataTableRowExist(UDataTable* Table, FName RowName)
+bool UDataTableFunctionLibrary::DoesDataTableRowExist(const UDataTable* Table, FName RowName)
 {
 	if (!Table)
 	{
@@ -87,7 +87,7 @@ bool UDataTableFunctionLibrary::GetDataTableRowFromName(UDataTable* Table, FName
 	return false;
 }
 
-void UDataTableFunctionLibrary::GetDataTableRowNames(UDataTable* Table, TArray<FName>& OutRowNames)
+void UDataTableFunctionLibrary::GetDataTableRowNames(const UDataTable* Table, TArray<FName>& OutRowNames)
 {
 	if (Table)
 	{
@@ -97,6 +97,36 @@ void UDataTableFunctionLibrary::GetDataTableRowNames(UDataTable* Table, TArray<F
 	{
 		OutRowNames.Empty();
 	}
+}
+
+void UDataTableFunctionLibrary::GetDataTableColumnNames(const UDataTable* Table, TArray<FName>& OutColumnNames)
+{
+	if (Table && Table->GetRowStruct())
+	{
+		OutColumnNames = DataTableUtils::GetStructPropertyNames(Table->GetRowStruct());
+	}
+	else
+	{
+		OutColumnNames.Empty();
+	}
+}
+
+bool UDataTableFunctionLibrary::GetDataTableColumnNameFromExportName(const UDataTable* Table, const FString& ColumnExportName, FName& OutColumnName)
+{
+	if (Table && Table->GetRowStruct())
+	{
+		for (TFieldIterator<const FProperty> It(Table->GetRowStruct()); It; ++It)
+		{
+			const FString PropertyExportName = DataTableUtils::GetPropertyExportName(*It);
+			if (PropertyExportName == ColumnExportName)
+			{
+				OutColumnName = It->GetFName();
+				return true;
+			}
+		}
+	}
+
+	return false;
 }
 
 
