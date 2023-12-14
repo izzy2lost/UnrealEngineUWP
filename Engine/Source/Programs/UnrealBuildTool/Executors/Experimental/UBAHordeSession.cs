@@ -645,6 +645,8 @@ namespace UnrealBuildTool
 						string? line;
 						while ((line = await process.ReadLineAsync(cancellationToken)) != null)
 						{
+							logger.LogInformation("{Line}", line);
+
 							if (shouldConnect && line.Contains("Listening on")) // This log entry means that the agent is ready for connections.
 							{
 								long totalMs = self.StartTime.ElapsedMilliseconds;
@@ -654,8 +656,6 @@ namespace UnrealBuildTool
 								_owner.Server!.AddClient(self.Ip, self.Port.Port, _crypto);
 								shouldConnect = false;
 							}
-
-							logger.LogInformation("{Line}", line);
 						}
 						logger.LogInformation("Shutting down process");
 					}
