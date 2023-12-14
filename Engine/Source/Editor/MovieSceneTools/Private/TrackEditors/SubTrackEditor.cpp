@@ -37,12 +37,6 @@
 #include "IStructureDetailsView.h"
 #include "PropertyEditorModule.h"
 
-namespace SubTrackEditorConstants
-{
-	const float TrackHeight = 50.0f;
-}
-
-
 #define LOCTEXT_NAMESPACE "FSubTrackEditor"
 
 
@@ -64,11 +58,6 @@ public:
 
 	// ISequencerSection interface
 
-	virtual float GetSectionHeight() const override
-	{
-		return SubTrackEditorConstants::TrackHeight;
-	}
-	
 	virtual void BuildSectionContextMenu(FMenuBuilder& MenuBuilder, const FGuid& ObjectBinding) override
 	{
 		ISequencerSection::BuildSectionContextMenu(MenuBuilder, ObjectBinding);
@@ -441,6 +430,24 @@ FReply FSubTrackEditor::OnDrop(const FDragDropEvent& DragDropEvent, const FSeque
 	FMovieSceneTrackEditor::EndKeying();
 
 	return bAnyDropped ? FReply::Handled() : FReply::Unhandled();
+}
+
+bool FSubTrackEditor::IsResizable(UMovieSceneTrack* InTrack) const
+{
+	return true;
+}
+
+void FSubTrackEditor::Resize(float NewSize, UMovieSceneTrack* InTrack)
+{
+	UMovieSceneSubTrack* SubTrack = Cast<UMovieSceneSubTrack>(InTrack);
+	if (SubTrack)
+	{
+		SubTrack->Modify();
+
+		const int32 MaxNumRows = SubTrack->GetMaxRowIndex() + 1;
+		SubTrack->SetRowHeight(FMath::RoundToInt(NewSize) / MaxNumRows);
+		SubTrack->SetRowHeight(NewSize);
+	}
 }
 
 /* FSubTrackEditor

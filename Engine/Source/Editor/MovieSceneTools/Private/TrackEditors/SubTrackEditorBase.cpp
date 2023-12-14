@@ -97,7 +97,11 @@ FSubSectionPainterResult FSubSectionPainterUtil::PaintSection(TSharedPtr<const I
 
     if (!SectionText.IsEmpty())
     {
-        FSlateDrawElement::MakeText(
+		FSlateClippingZone ClippingZone(InPainter.SectionClippingRect.InsetBy(FMargin(1.0f)));
+
+		InPainter.DrawElements.PushClip(ClippingZone);
+		
+		FSlateDrawElement::MakeText(
             InPainter.DrawElements,
             ++LayerId,
             InPainter.SectionGeometry.ToPaintGeometry(
@@ -109,7 +113,9 @@ FSubSectionPainterResult FSubSectionPainterUtil::PaintSection(TSharedPtr<const I
             DrawEffects,
             FColor(200, 200, 200, static_cast<uint8>(255 * InPainter.GhostAlpha))
         );
-    }
+
+		InPainter.DrawElements.PopClip();
+	}
 
     InPainter.LayerId = LayerId;
 

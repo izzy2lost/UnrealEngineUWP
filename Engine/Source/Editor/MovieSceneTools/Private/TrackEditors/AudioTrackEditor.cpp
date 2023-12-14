@@ -1005,12 +1005,7 @@ void FAudioTrackEditor::Resize(float NewSize, UMovieSceneTrack* InTrack)
 	{
 		AudioTrack->Modify();
 
-		int32 MaxNumRows = 1;
-		for (UMovieSceneSection* Section : AudioTrack->GetAllSections())
-		{
-			MaxNumRows = FMath::Max(MaxNumRows, Section->GetRowIndex() + 1);
-		}
-
+		const int32 MaxNumRows = AudioTrack->GetMaxRowIndex() + 1;
 		AudioTrack->SetRowHeight(FMath::RoundToInt(NewSize) / MaxNumRows);
 	}
 }

@@ -18,6 +18,7 @@
 #include "Rendering/DrawElements.h"
 #include "SequencerSectionPainter.h"
 #include "Subsystems/AssetEditorSubsystem.h"
+#include "Tracks/MovieSceneSubTrack.h"
 
 class ISequencer;
 
@@ -289,6 +290,10 @@ TOptional<FFrameTime> TSubSectionMixin<ParentSectionClass>::GetSectionTime(FSequ
 template<typename ParentSectionClass>
 float TSubSectionMixin<ParentSectionClass>::GetSectionHeight() const
 {
+	if (UMovieSceneSubTrack* Track = SubSectionObject.GetTypedOuter<UMovieSceneSubTrack>())
+	{
+		return Track->GetRowHeight();
+	}
 	return TSubSectionMixin<ParentSectionClass>::TrackHeight;
 }
 

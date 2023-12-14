@@ -18,6 +18,7 @@
 #include "Tracks/MovieSceneFloatTrack.h"
 #include "ScopedTransaction.h"
 #include "Tracks/MovieScene3DTransformTrack.h"
+#include "Tracks/MovieSceneSubTrack.h"
 #include "Sections/TemplateSequenceSection.h"
 #include "Tracks/TemplateSequenceTrack.h"
 #include "Widgets/Input/SButton.h"
@@ -443,6 +444,28 @@ UCameraComponent* FTemplateSequenceTrackEditor::AcquireCameraComponentFromObject
 	}
 
 	return nullptr;
+}
+
+bool FTemplateSequenceTrackEditor::IsResizable(UMovieSceneTrack* InTrack) const
+{
+	return true;
+}
+
+void FTemplateSequenceTrackEditor::Resize(float NewSize, UMovieSceneTrack* InTrack)
+{
+	UMovieSceneSubTrack* SubTrack = Cast<UMovieSceneSubTrack>(InTrack);
+	if (SubTrack)
+	{
+		SubTrack->Modify();
+
+		int32 MaxNumRows = 1;
+		for (UMovieSceneSection* Section : SubTrack->GetAllSections())
+		{
+			MaxNumRows = FMath::Max(MaxNumRows, Section->GetRowIndex() + 1);
+		}
+
+		SubTrack->SetRowHeight(FMath::RoundToInt(NewSize) / MaxNumRows);
+	}
 }
 
 FTemplateSequenceSection::FTemplateSequenceSection(TSharedPtr<ISequencer> InSequencer, UTemplateSequenceSection& InSection)

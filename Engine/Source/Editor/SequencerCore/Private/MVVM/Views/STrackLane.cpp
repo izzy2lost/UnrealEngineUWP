@@ -492,7 +492,7 @@ FReply STrackLane::OnMouseButtonDown(const FGeometry& MyGeometry, const FPointer
 				TViewModelPtr<IOutlinerExtension> OutlinerItem = WeakOutlinerItem.Pin();
 				const float OriginalHeight = OutlinerItem ? OutlinerItem->GetOutlinerSizing().GetTotalHeight() : 10.f;
 
-				DragParameters = FDragParameters(OriginalHeight, MouseEvent.GetScreenSpacePosition().Y);
+				DragParameters = FDragParameters(OriginalHeight, LocalPos.Y);
 				return FReply::Handled().CaptureMouse(AsShared());
 			}
 		}
@@ -517,7 +517,9 @@ FReply STrackLane::OnMouseMove(const FGeometry& MyGeometry, const FPointerEvent&
 
 	if (DragParameters.IsSet() && HasMouseCapture() && ResizableExtension)
 	{
-		float NewHeight = DragParameters->OriginalHeight + (MouseEvent.GetScreenSpacePosition().Y - DragParameters->DragStartY);
+		FVector2D LocalPos = MyGeometry.AbsoluteToLocal(MouseEvent.GetScreenSpacePosition());
+
+		float NewHeight = DragParameters->OriginalHeight + (LocalPos.Y - DragParameters->DragStartY);
 
 		if (FMath::RoundToInt(NewHeight) != FMath::RoundToInt(DragParameters->OriginalHeight))
 		{
