@@ -30,6 +30,7 @@
 #include "Templates/UniquePtr.h"
 #include "Templates/UnrealTemplate.h"
 #include "Windows/WindowsPlatformMisc.h"
+#include "Windows/WindowsPlatformProcess.h"
 #include "Windows/WindowsPlatformStackWalk.h"
 #include <atomic>
 #include <signal.h>
@@ -214,14 +215,14 @@ void FWindowsPlatformCrashContext::AddPlatformSpecificProperties() const
 	AddCrashProperty(TEXT("PlatformIsRunningWindows"), 1);
 	AddCrashProperty(TEXT("IsRunningOnBattery"), FPlatformMisc::IsRunningOnBattery());
 	WIDECHAR DriveName = 0;
-	const TCHAR* ProjectDir = FGenericPlatformMisc::ProjectDir();
-	if (ProjectDir && *ProjectDir)
+	const TCHAR* BaseDir = FWindowsPlatformProcess::BaseDir();
+	if (BaseDir && *BaseDir)
 	{
-		FPlatformString::Convert(&DriveName, 1, ProjectDir, 1);
+		FPlatformString::Convert(&DriveName, 1, BaseDir, 1);
 		const FPlatformDriveStats* DriveStats = FWindowsPlatformMisc::GetDriveStats(DriveName);
 		if (DriveStats)
 		{
-			AddCrashProperty(TEXT("DriveStats.Project.Name"), ProjectDir);
+			AddCrashProperty(TEXT("DriveStats.Project.Name"), BaseDir);
 			AddCrashProperty(TEXT("DriveStats.Project.Type"), LexToString(DriveStats->DriveType));
 			AddCrashProperty(TEXT("DriveStats.Project.FreeSpaceKb"), DriveStats->FreeBytes/1024);
 		}

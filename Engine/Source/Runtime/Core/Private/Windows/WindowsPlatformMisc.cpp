@@ -560,7 +560,7 @@ namespace
 			ULONG Returned;
 			IWbemClassObject* StorageWbemObject = nullptr;
 			hres = StorageEnumerator->Next(WBEM_INFINITE, 1, &StorageWbemObject, &Returned);
-			if (Returned == 0 || hres != S_OK)
+			if (Returned == 0 || FAILED(hres))
 			{
 				break;
 			}

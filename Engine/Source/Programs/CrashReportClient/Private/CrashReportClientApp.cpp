@@ -896,6 +896,9 @@ static bool LoadTempCrashContextFromFile(FSharedCrashContext& CrashContext, uint
 	FindAndParseValue(ContextProperties, TEXT("IsInternalBuild"), SessionContext.bIsInternalBuild);
 	FindAndParseValue(ContextProperties, TEXT("IsPerforceBuild"), SessionContext.bIsPerforceBuild);
 	FindAndParseValue(ContextProperties, TEXT("IsSourceDistribution"), SessionContext.bIsSourceDistribution);
+	FindAndCopyValue(ContextProperties, TEXT("EngineVersion"), SessionContext.EngineVersion);
+	FindAndCopyValue(ContextProperties, TEXT("EngineCompatibleVersion"), SessionContext.EngineCompatibleVersion);
+	FindAndCopyValue(ContextProperties, TEXT("BuildVersion"), SessionContext.BuildVersion);
 	FindAndCopyValue(ContextProperties, TEXT("GameName"), SessionContext.GameName);
 	FindAndCopyValue(ContextProperties, TEXT("ExecutableName"), SessionContext.ExecutableName);
 	FindAndCopyValue(ContextProperties, TEXT("GameSessionID"), SessionContext.GameSessionID);
