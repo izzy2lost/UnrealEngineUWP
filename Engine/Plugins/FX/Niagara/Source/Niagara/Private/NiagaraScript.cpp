@@ -1886,15 +1886,10 @@ void UNiagaraScript::Serialize(FArchive& Ar)
 			if (Usage != ENiagaraScriptUsage::ParticleGPUComputeScript)
 			{
 				ExecutableData.BakeScriptLiterals(ExecutableData.ScriptLiterals);
-
-				// we only need the padding info for when we're dealing with GPU scripts (for
-				// FNiagaraScriptInstanceParameterStore::CopyParameterDataToPaddedBuffer())
-				ScriptExecutionParamStore.PaddingInfo.Empty();
 			}
 			else
 			{
 				ExecutableData.ScriptLiterals.Empty();
-				ScriptExecutionParamStore.CoalescePaddingInfo();
 			}
 
 			if (GNiagaraCompressScriptByteCode)
