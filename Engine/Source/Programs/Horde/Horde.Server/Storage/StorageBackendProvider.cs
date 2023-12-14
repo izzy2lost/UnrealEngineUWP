@@ -194,7 +194,7 @@ namespace Horde.Server.Storage
 					{
 #pragma warning disable CA2000 // False positive? (Will be disposed with cache backend wrapper)
 						IStorageBackend backend = new AwsStorageBackend(_serviceProvider.GetRequiredService<IConfiguration>(), config, _serviceProvider.GetRequiredService<ILogger<AwsStorageBackend>>());
-						return _storageBackendCache.CreateWrapper(config.Id.ToString(), backend);
+						return backend;// _storageBackendCache.CreateWrapper(config.Id.ToString(), backend);
 #pragma warning restore CA2000
 					}
 				case StorageBackendType.Memory:
