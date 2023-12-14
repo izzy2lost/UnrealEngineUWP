@@ -582,6 +582,35 @@ TFuture<TIoStatusOr<FCbObject>> FZenStoreHttpClient::GetFiles()
 	});
 }
 
+TFuture<TIoStatusOr<FCbObject>> FZenStoreHttpClient::GetChunkInfos()
+{
+#if WITH_EDITOR
+	EAsyncExecution ThreadPool = EAsyncExecution::LargeThreadPool;
+#else
+	EAsyncExecution ThreadPool = EAsyncExecution::ThreadPool;
+#endif
+	return Async(ThreadPool, [this]
+	{
+		UE::Zen::FZenScopedRequestPtr Request(RequestPool.Get());
+		
+		TStringBuilder<128> Uri;
+		Uri << OplogPath << "/chunkinfos";
+
+		TArray64<uint8> GetBuffer;
+		UE::Zen::FZenHttpRequest::Result Res = Request->PerformBlockingDownload(Uri, &GetBuffer, Zen::EContentType::CbObject);
+
+		if (Res == Zen::FZenHttpRequest::Result::Success && Request->GetResponseCode() == 200)
+		{
+			FCbObjectView Response(GetBuffer.GetData());
+			return TIoStatusOr<FCbObject>(FCbObject::Clone(Response));
+		}
+		else
+		{
+			return TIoStatusOr<FCbObject>(FIoStatus(EIoErrorCode::NotFound));
+		}
+	});
+}
+
 void 
 FZenStoreHttpClient::StartBuildPass()
 {
@@ -699,6 +728,11 @@ TFuture<TIoStatusOr<FCbObject>> FZenStoreHttpClient::GetOplog()
 }
 
 TFuture<TIoStatusOr<FCbObject>> FZenStoreHttpClient::GetFiles()
+{
+	return TFuture<TIoStatusOr<FCbObject>>();
+}
+
+TFuture<TIoStatusOr<FCbObject>> FZenStoreHttpClient::GetChunkInfos()
 {
 	return TFuture<TIoStatusOr<FCbObject>>();
 }

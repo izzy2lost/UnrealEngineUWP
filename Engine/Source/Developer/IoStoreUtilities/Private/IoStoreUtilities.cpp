@@ -835,6 +835,11 @@ public:
 		return ZenStoreClient.IsValid();
 	}
 
+	TFuture<TIoStatusOr<FCbObject>> GetChunkInfos()
+	{
+		return ZenStoreClient->GetChunkInfos();
+	}
+
 	TIoStatusOr<uint64> GetChunkSize(const FIoChunkId& ChunkId)
 	{
 		return ZenStoreClient->GetChunkSize(ChunkId);
@@ -2550,7 +2555,43 @@ void InitializeContainerTargetsAndPackages(
 		return true;
 	};
 
+	struct FChunkListItem
+	{
+		FIoHash RawHash;
+		uint64 RawSize;
+	};
+
+	TMap<FIoChunkId, FChunkListItem> ChunkList;
+	if (Arguments.PackageStore->HasZenStoreClient())
+	{
+		double StartChunkInfoTime = FPlatformTime::Seconds();
+
+		TIoStatusOr<FCbObject> Chunks = Arguments.PackageStore->GetChunkInfos().Get();
+		if (!Chunks.IsOk())
+		{
+			UE_LOG(LogIoStore, Error, TEXT("Failed to retrieve chunk list"));
+			return;
+		}
+
+		FCbObject ChunksObj = Chunks.ConsumeValueOrDie();
+		for (FCbField& ChunkEntry : ChunksObj["chunkinfos"])
+		{
+			FCbObject ChunkObj = ChunkEntry.AsObject();
+			FIoChunkId ChunkId;
+			if (!LoadFromCompactBinary(ChunkObj["id"], ChunkId))
+			{
+				UE_LOG(LogIoStore, Warning, TEXT("Received invalid chunk id, skipping."));
+				continue;
+			}
+			ChunkList.Add(ChunkId, { ChunkObj["rawhash"].AsHash(), ChunkObj["rawsize"].AsUInt64() });
+		}
+
+		UE_LOG(LogIoStore, Display, TEXT("Fetched '%d' chunk infos in %f seconds"), ChunkList.Num(), FPlatformTime::Seconds() - StartChunkInfoTime);
+
+	}
+
 	auto CreateTargetFileFromZen = [
+		&ChunkList,
 		&Arguments,
 		&Packages,
 		&PackageNameMap,
@@ -2581,13 +2622,13 @@ void InitializeContainerTargetsAndPackages(
 			return false;
 		}
 		OutTargetFile.ChunkId = ChunkInfo->ChunkId;
-		TIoStatusOr<uint64> ChunkSize = PackageStore.GetChunkSize(OutTargetFile.ChunkId);
-		if (!ChunkSize.IsOk())
+		FChunkListItem* ChunkListItem = ChunkList.Find(OutTargetFile.ChunkId);
+		if (!ChunkListItem)
 		{
 			UE_LOG(LogIoStore, Warning, TEXT("Chunk size not found for: '%s'"), *SourceFile.NormalizedPath);
 			return false;
 		}
-		OutTargetFile.SourceSize = ChunkSize.ValueOrDie();
+		OutTargetFile.SourceSize = ChunkListItem->RawSize;
 
 		if (ChunkInfo->PackageName.IsNone())
 		{

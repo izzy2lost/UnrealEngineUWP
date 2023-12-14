@@ -61,6 +61,7 @@ public:
 
 	TFuture<TIoStatusOr<FCbObject>> GetOplog();
 	TFuture<TIoStatusOr<FCbObject>> GetFiles();
+	TFuture<TIoStatusOr<FCbObject>> GetChunkInfos();
 
 	static const UTF8CHAR* FindOrAddAttachmentId(FUtf8StringView AttachmentText);
 	static const UTF8CHAR* FindAttachmentId(FUtf8StringView AttachmentText);
