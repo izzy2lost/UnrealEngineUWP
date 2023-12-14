@@ -20,6 +20,16 @@ UBTTask_FindAndUseGameplayBehaviorSmartObject::UBTTask_FindAndUseGameplayBehavio
 	bNotifyTaskFinished = true;
 }
 
+void UBTTask_FindAndUseGameplayBehaviorSmartObject::InitializeMemory(UBehaviorTreeComponent& OwnerComp, uint8* NodeMemory, EBTMemoryInit::Type InitType) const
+{
+	InitializeNodeMemory<FBTUseSOTaskMemory>(NodeMemory, InitType);
+}
+
+void UBTTask_FindAndUseGameplayBehaviorSmartObject::CleanupMemory(UBehaviorTreeComponent& OwnerComp, uint8* NodeMemory, EBTMemoryClear::Type CleanupType) const
+{
+	CleanupNodeMemory<FBTUseSOTaskMemory>(NodeMemory, CleanupType);
+}
+
 EBTNodeResult::Type UBTTask_FindAndUseGameplayBehaviorSmartObject::ExecuteTask(UBehaviorTreeComponent& OwnerComp, uint8* NodeMemory)
 {
 	EBTNodeResult::Type NodeResult = EBTNodeResult::Failed;

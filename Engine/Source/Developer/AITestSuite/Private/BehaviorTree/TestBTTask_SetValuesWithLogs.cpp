@@ -74,6 +74,16 @@ uint16 UTestBTTask_SetValuesWithLogs::GetInstanceMemorySize() const
 	return sizeof(FBTSetValueTaskMemory);
 }
 
+void UTestBTTask_SetValuesWithLogs::InitializeMemory(UBehaviorTreeComponent& OwnerComp, uint8* NodeMemory, EBTMemoryInit::Type InitType) const
+{
+	InitializeNodeMemory<FBTSetValueTaskMemory>(NodeMemory, InitType);
+}
+
+void UTestBTTask_SetValuesWithLogs::CleanupMemory(UBehaviorTreeComponent& OwnerComp, uint8* NodeMemory, EBTMemoryClear::Type CleanupType) const
+{
+	CleanupNodeMemory<FBTSetValueTaskMemory>(NodeMemory, CleanupType);
+}
+
 EBTNodeResult::Type UTestBTTask_SetValuesWithLogs::AbortTask(UBehaviorTreeComponent& OwnerComp, uint8* NodeMemory)
 {
 	if (OnAbortKeyName.IsValid())

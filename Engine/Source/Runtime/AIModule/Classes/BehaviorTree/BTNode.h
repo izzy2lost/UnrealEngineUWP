@@ -47,10 +47,10 @@ class UBTNode : public UObject, public IGameplayTaskOwnerInterface
 	/** initialize any asset related data */
 	AIMODULE_API virtual void InitializeFromAsset(UBehaviorTree& Asset);
 	
-	/** initialize memory block */
+	/** initialize memory block. InitializeNodeMemory template function is provided to help initialize the memory. */
 	AIMODULE_API virtual void InitializeMemory(UBehaviorTreeComponent& OwnerComp, uint8* NodeMemory, EBTMemoryInit::Type InitType) const;
 
-	/** cleanup memory block */
+	/** cleanup memory block. CleanupNodeMemory template function is provided to help cleanup the memory. */
 	AIMODULE_API virtual void CleanupMemory(UBehaviorTreeComponent& OwnerComp, uint8* NodeMemory, EBTMemoryClear::Type CleanupType) const;
 
 	/** gathers description of all runtime parameters */
@@ -81,6 +81,12 @@ class UBTNode : public UObject, public IGameplayTaskOwnerInterface
 	/** @return next node in execution order */
 	AIMODULE_API UBTNode* GetNextNode() const;
 #endif
+
+	template<typename T>
+	T* InitializeNodeMemory(uint8* NodeMemory, EBTMemoryInit::Type InitType) const;
+
+	template <typename T>
+	void CleanupNodeMemory(uint8* NodeMemory, EBTMemoryClear::Type CleanupType) const;
 
 	template<typename T>
 	T* GetNodeMemory(FBehaviorTreeSearchData& SearchData) const;
@@ -298,6 +304,28 @@ FORCEINLINE bool UBTNode::HasInstance() const
 FORCEINLINE bool UBTNode::IsInstanced() const
 {
 	return bIsInstanced;
+}
+
+template<typename T>
+T* UBTNode::InitializeNodeMemory(uint8* NodeMemory, EBTMemoryInit::Type InitType) const
+{
+	if (InitType == EBTMemoryInit::Initialize)
+	{
+		new(NodeMemory) T();
+	}
+	return CastInstanceNodeMemory<T>(NodeMemory);
+}
+
+template <typename T>
+void UBTNode::CleanupNodeMemory(uint8* NodeMemory, EBTMemoryClear::Type CleanupType) const
+{
+	if constexpr (!TIsTriviallyDestructible<T>::Value)
+	{
+		if (CleanupType == EBTMemoryClear::Destroy)
+		{
+			CastInstanceNodeMemory<T>(NodeMemory)->~T();
+		}
+	}
 }
 
 template<typename T>

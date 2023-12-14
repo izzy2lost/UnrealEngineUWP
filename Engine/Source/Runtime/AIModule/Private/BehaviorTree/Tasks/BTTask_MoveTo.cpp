@@ -337,6 +337,16 @@ uint16 UBTTask_MoveTo::GetInstanceMemorySize() const
 	return sizeof(FBTMoveToTaskMemory);
 }
 
+void UBTTask_MoveTo::InitializeMemory(UBehaviorTreeComponent& OwnerComp, uint8* NodeMemory, EBTMemoryInit::Type InitType) const
+{
+	InitializeNodeMemory<FBTMoveToTaskMemory>(NodeMemory, InitType);
+}
+
+void UBTTask_MoveTo::CleanupMemory(UBehaviorTreeComponent& OwnerComp, uint8* NodeMemory, EBTMemoryClear::Type CleanupType) const
+{
+	CleanupNodeMemory<FBTMoveToTaskMemory>(NodeMemory, CleanupType);
+}
+
 void UBTTask_MoveTo::PostLoad()
 {
 	Super::PostLoad();

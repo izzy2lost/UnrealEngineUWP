@@ -704,3 +704,14 @@ uint16 UBTCompositeNode::GetInstanceMemorySize() const
 	return sizeof(FBTCompositeMemory);
 }
 
+void UBTCompositeNode::InitializeMemory(UBehaviorTreeComponent& OwnerComp, uint8* NodeMemory, EBTMemoryInit::Type InitType) const
+{
+	InitializeNodeMemory<FBTCompositeMemory>(NodeMemory, InitType);
+}
+
+void UBTCompositeNode::CleanupMemory(UBehaviorTreeComponent& OwnerComp, uint8* NodeMemory, EBTMemoryClear::Type CleanupType) const
+{
+	CleanupNodeMemory<FBTCompositeMemory>(NodeMemory, CleanupType);
+}
+
+

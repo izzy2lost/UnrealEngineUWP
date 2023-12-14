@@ -28,17 +28,6 @@ bool UBTDecorator_Cooldown::CalculateRawConditionValue(UBehaviorTreeComponent& O
 	return RecalcTime >= DecoratorMemory->LastUseTimestamp;
 }
 
-void UBTDecorator_Cooldown::InitializeMemory(UBehaviorTreeComponent& OwnerComp, uint8* NodeMemory, EBTMemoryInit::Type InitType) const
-{
-	FBTCooldownDecoratorMemory* DecoratorMemory = CastInstanceNodeMemory<FBTCooldownDecoratorMemory>(NodeMemory);
-	if (InitType == EBTMemoryInit::Initialize)
-	{
-		DecoratorMemory->LastUseTimestamp = TNumericLimits<double>::Lowest();
-	}
-
-	DecoratorMemory->bRequestedRestart = false;
-}
-
 void UBTDecorator_Cooldown::OnNodeDeactivation(FBehaviorTreeSearchData& SearchData, EBTNodeResult::Type NodeResult)
 {
 	FBTCooldownDecoratorMemory* DecoratorMemory = GetNodeMemory<FBTCooldownDecoratorMemory>(SearchData);
@@ -85,6 +74,22 @@ void UBTDecorator_Cooldown::DescribeRuntimeValues(const UBehaviorTreeComponent& 
 uint16 UBTDecorator_Cooldown::GetInstanceMemorySize() const
 {
 	return sizeof(FBTCooldownDecoratorMemory);
+}
+
+void UBTDecorator_Cooldown::InitializeMemory(UBehaviorTreeComponent& OwnerComp, uint8* NodeMemory, EBTMemoryInit::Type InitType) const
+{
+	FBTCooldownDecoratorMemory* DecoratorMemory = InitializeNodeMemory<FBTCooldownDecoratorMemory>(NodeMemory, InitType);
+	if (InitType == EBTMemoryInit::Initialize)
+	{
+		DecoratorMemory->LastUseTimestamp = TNumericLimits<double>::Lowest();
+	}
+
+	DecoratorMemory->bRequestedRestart = false; ;
+}
+
+void UBTDecorator_Cooldown::CleanupMemory(UBehaviorTreeComponent& OwnerComp, uint8* NodeMemory, EBTMemoryClear::Type CleanupType) const
+{
+	CleanupNodeMemory<FBTCooldownDecoratorMemory>(NodeMemory, CleanupType);
 }
 
 #if WITH_EDITOR

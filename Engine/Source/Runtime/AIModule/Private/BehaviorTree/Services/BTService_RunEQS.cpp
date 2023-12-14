@@ -148,20 +148,22 @@ void UBTService_RunEQS::OnCeaseRelevant(UBehaviorTreeComponent& OwnerComp, uint8
 
 void UBTService_RunEQS::InitializeMemory(UBehaviorTreeComponent& OwnerComp, uint8* NodeMemory, EBTMemoryInit::Type InitType) const
 {
-	FBTEQSServiceMemory* MyMemory = CastInstanceNodeMemory<FBTEQSServiceMemory>(NodeMemory);
+	FBTEQSServiceMemory* MyMemory = InitializeNodeMemory<FBTEQSServiceMemory>(NodeMemory, InitType);
 	check(MyMemory);
 	MyMemory->RequestID = INDEX_NONE;
 }
 
-#if WITH_EDITOR
-
 void UBTService_RunEQS::CleanupMemory(UBehaviorTreeComponent& OwnerComp, uint8* NodeMemory, EBTMemoryClear::Type CleanupType) const
 {
+#if WITH_EDITOR
 	const FBTEQSServiceMemory* MyMemory = CastInstanceNodeMemory<FBTEQSServiceMemory>(NodeMemory);
 	check(MyMemory);
 	ensure(MyMemory->RequestID == INDEX_NONE);
+#endif // WITH_EDITOR
+	CleanupNodeMemory<FBTEQSServiceMemory>(NodeMemory, CleanupType);
 }
 
+#if WITH_EDITOR
 void UBTService_RunEQS::PostEditChangeProperty(struct FPropertyChangedEvent& PropertyChangedEvent)
 {
 	Super::PostEditChangeProperty(PropertyChangedEvent);
