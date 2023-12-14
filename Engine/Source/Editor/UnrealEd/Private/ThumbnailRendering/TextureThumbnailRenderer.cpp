@@ -16,7 +16,6 @@
 #include "Engine/TextureRenderTargetCube.h"
 
 #include "CubemapUnwrapUtils.h"
-#include "NormalMapPreview.h"
 #include "CanvasItem.h"
 #include "CanvasTypes.h"
 #include "TextureResource.h"
@@ -92,11 +91,15 @@ void UTextureThumbnailRenderer::Draw(UObject* Object, int32 X, int32 Y, uint32 W
 			const bool bIsVirtualTexture = Texture->IsCurrentlyVirtualTextured();
 
 			TRefCountPtr<FBatchedElementParameters> BatchedElementParameters;
+			// BatchedElementParameters is released by the render thread when it was rendered
 
 			if(TextureCube || TextureCubeArray || RTTextureCube)
 			{
-				// is released by the render thread when it was rendered
-				BatchedElementParameters = new FMipLevelBatchedElementParameters((float)0, (float)-1, TextureCubeArray != nullptr, FMatrix44f::Identity, true, false, false);
+				// show LongLat Unwrap
+				float MipLevel = -1.f;
+				float SliceIndex = -1.f;
+				bool bShowLongLatUnwrap = true;
+				BatchedElementParameters = new FMipLevelBatchedElementParameters(MipLevel, SliceIndex, TextureCubeArray != nullptr, FMatrix44f::Identity, bShowLongLatUnwrap, false, false);
 			
 				// If the thumbnail is square then make it 2:1 for cubes.
 				if(Width == Height)
@@ -105,19 +108,35 @@ void UTextureThumbnailRenderer::Draw(UObject* Object, int32 X, int32 Y, uint32 W
 					Y += Height / 2;
 				}
 			}
-			else if (Texture2DArray) 
-			{
-				bool bIsNormalMap = Texture2DArray->IsNormalMap();
-				bool bIsSingleChannel = true;
-				BatchedElementParameters = new FBatchedElementTexture2DPreviewParameters((float)0, (float)0, (float)-1, bIsNormalMap, bIsSingleChannel, false, false, true, false);
-			}
 			else if (TextureLightProfile)
 			{
 				BatchedElementParameters = new FIESLightProfileBatchedElementParameters(TextureLightProfile->Brightness);
 			}
-			else if (Texture2D && Texture2D->IsNormalMap())
+			else if (Texture2D || Texture2DArray)
 			{
-				BatchedElementParameters = new FNormalMapBatchedElementParameters();
+				bool bIsNormalMap = Texture->IsNormalMap();
+				bool bIsSingleChannel = Texture->CompressionSettings == TC_Grayscale || Texture->CompressionSettings == TC_Alpha;
+				bool bSingleVTPhysicalSpace = Texture2D && Texture2D->IsVirtualTexturedWithSinglePhysicalSpace();
+				//bool bIsVirtualTexture = Texture->IsCurrentlyVirtualTextured();
+				float MipLevel = -1.f;
+				float LayerIndex = 0;
+				float SliceIndex = -1.f;
+				bool bIsTextureArray = (Texture2DArray != nullptr);
+				bool bUsePointSampling = false;
+				BatchedElementParameters = new FBatchedElementTexture2DPreviewParameters(MipLevel, LayerIndex, SliceIndex, bIsNormalMap, bIsSingleChannel, bSingleVTPhysicalSpace, bIsVirtualTexture, bIsTextureArray, bUsePointSampling);
+			
+				//FNormalMapBatchedElementParameters is broken, do not use
+				//BatchedElementParameters = new FNormalMapBatchedElementParameters();
+			}
+			else
+			{
+				// BatchedElementParameters is not set
+				// default Canvas will be used, which just shows the texture
+
+				// some UTexture types can hit this
+				// UTextureRenderTarget
+
+				// ?? maybe get rid of this and just always use the Texture2D branch above
 			}
 
 			if (bUseTranslucentBlend)
