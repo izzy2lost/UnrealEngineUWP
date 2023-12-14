@@ -623,17 +623,19 @@ namespace UnrealBuildTool
 						//arguments.Add("-NoStore");
 						//arguments.Add("-KillRandom"); // For debugging
 
+						if (System.OperatingSystem.IsMacOS())
+						{
+							// we need to populate the cas with all known xcodes so we can serve all the ones we have installed
+							string XcodeVersion = Utils.RunLocalProcessAndReturnStdOut("/bin/sh", "-c '/usr/bin/defaults read $(xcode-select -p)/../version.plist ProductBuildVersion");
+							arguments.Add($"-populateCasFromXcodeVersion={XcodeVersion}");
+						}
+
 						arguments.Add("-Dir=%UE_HORDE_SHARED_DIR%\\Uba");
 						arguments.Add("-Eventfile=%UE_HORDE_TERMINATION_SIGNAL_FILE%");
 						arguments.Add("-MaxIdle=15");
 						if (_owner.UBAConfig.bLogEnabled)
 						{
 							arguments.Add("-Log");
-						}
-
-						if (OperatingSystem.IsMacOS())
-						{
-							arguments.Add("-populateCasFromXcode");
 						}
 
 						logger.LogInformation("Executing child process: {Executable} {Arguments}", executable, CommandLineArguments.Join(arguments));
