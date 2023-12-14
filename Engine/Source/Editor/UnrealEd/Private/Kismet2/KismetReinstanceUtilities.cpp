@@ -2174,8 +2174,12 @@ static void ReplaceObjectHelper(UObject*& OldObject, UClass* OldClass, UObject*&
 	Options.bNotifyObjectReplacement = true;
 	Options.bSkipCompilerGeneratedDefaults = true;
 	Options.bOnlyHandleDirectSubObjects = true;
-	Options.bReplaceInternalReferenceUponRead = FOverridableManager::Get().IsEnabled(*OldObject);
 	Options.OptionalReplacementMappings = &OldToNewInstanceMap;
+	if (FOverridableManager::Get().IsEnabled(*OldObject))
+	{
+		Options.bReplaceInternalReferenceUponRead = true;
+		Options.OptionalOldToNewClassMappings = &OldToNewClassMap;
+	}
 	// this currently happens because of some misguided logic in UBlueprintGeneratedClass::FindArchetype that
 	// points us to a mismatched archetype, in which case delta serialization becomes unsafe.. without
 	// that logic we could lose data, so for now i'm disabling delta serialization when we detect that situation
@@ -3056,7 +3060,7 @@ void FBlueprintCompileReinstancer::ReparentChild(UClass* ChildClass)
 	ChildClass->StaticLink(true);
 }
 
-void FBlueprintCompileReinstancer::CopyPropertiesForUnrelatedObjects(UObject* OldObject, UObject* NewObject, bool bClearExternalReferences, bool bForceDeltaSerialization /* = false */, bool bOnlyHandleDirectSubObjects/* = false */, TMap<UObject*, UObject*>* OldToNewInstanceMap /*=nullptr*/)
+void FBlueprintCompileReinstancer::CopyPropertiesForUnrelatedObjects(UObject* OldObject, UObject* NewObject, bool bClearExternalReferences, bool bForceDeltaSerialization /* = false */, bool bOnlyHandleDirectSubObjects/* = false */, TMap<UObject*, UObject*>* OldToNewInstanceMap /*=nullptr*/, const TMap<UClass*,UClass*>* OldToNewClassMap /*=nullptr*/)
 {
 	SCOPED_LOADTIMER_ASSET_TEXT(*WriteToString<256>(TEXT("CopyPropertiesForUnrelatedObjects "), *GetPathNameSafe(NewObject)));
 	UEngine::FCopyPropertiesForUnrelatedObjectsParams Params;
@@ -3069,7 +3073,11 @@ void FBlueprintCompileReinstancer::CopyPropertiesForUnrelatedObjects(UObject* Ol
 	Params.OptionalReplacementMappings = OldToNewInstanceMap;
 	Params.bOnlyHandleDirectSubObjects = bOnlyHandleDirectSubObjects;
 	// Overridable serialization needs this to be able to merge back containers of subobjects.
-	Params.bReplaceInternalReferenceUponRead = FOverridableManager::Get().IsEnabled(*OldObject);
+	if (FOverridableManager::Get().IsEnabled(*OldObject))
+	{
+		Params.bReplaceInternalReferenceUponRead = true;
+		Params.OptionalOldToNewClassMappings = OldToNewClassMap;
+	}
 
 	UEngine::CopyPropertiesForUnrelatedObjects(OldObject, NewObject, Params);
 }
@@ -3079,17 +3087,20 @@ void FBlueprintCompileReinstancer::PreCreateSubObjectsForReinstantiation(const T
 	TSet<UObject*> OldInstancedSubObjects;
 	FReplaceReferenceHelper::GetOwnedSubobjectsRecursive(OldObject, OldInstancedSubObjects);
 
+	// Add the mapping from the old to the new object exists...
+	CreatedInstanceMap.Add(OldObject, NewUObject);
 	PreCreateSubObjectsForReinstantiation_Inner(OldInstancedSubObjects, OldToNewClassMap, OldObject, NewUObject, CreatedInstanceMap, OldToNewInstanceMap);
 }
 
 void FBlueprintCompileReinstancer::PreCreateSubObjectsForReinstantiation_Inner(const TSet<UObject*>& OldInstancedSubObjects, const TMap<UClass*, UClass*>& OldToNewClassMap, UObject* OldObject, UObject* NewUObject, TMap<UObject*, UObject*>& CreatedInstanceMap, const TMap<UObject*, UObject*>* OldToNewInstanceMap/* = nullptr*/)
 {
-	// Add the mapping from the old to the new object exists...
-	CreatedInstanceMap.Add(OldObject, NewUObject);
-
 	// Gather subobjects on old object and pre-create them if needed
 	TArray<UObject*> ContainedOldSubObjects;
 	GetObjectsWithOuter(OldObject, ContainedOldSubObjects, /*bIncludeNestedObjects*/false);
+
+	// Gather subobjects on old object and pre-create them if needed
+	TArray<UObject*> ContainedNewSubObjects;
+	GetObjectsWithOuter(NewUObject, ContainedNewSubObjects, /*bIncludeNestedObjects*/false);
 
 	// Pre-create all non default subobjects to prevent re-instancing them as an old classes 
 	TMap<UObject*, UObject*> ReferenceReplacementMap;
@@ -3113,15 +3124,13 @@ void FBlueprintCompileReinstancer::PreCreateSubObjectsForReinstantiation_Inner(c
 		UObject* Archetype = UObject::GetArchetypeFromRequiredInfo(OldSubObjectClass, OldSubObjectOuter, SubObjectName, SubObjectFlags);
 		if (Archetype->HasAnyFlags(RF_ClassDefaultObject))
 		{
-			UObject* NewSubObjectOuter = CreatedInstanceMap.FindChecked(OldSubObjectOuter);
-
 			// Was it already re-instantiated
 			if (UObject* const* AlreadyCreatedSubObject = OldToNewInstanceMap ? OldToNewInstanceMap->Find(OldSubObject) : nullptr)
 			{
 				int32 AlreadyCreatedSubObjectIndex = ContainedOldSubObjects.Find(*AlreadyCreatedSubObject);
 				checkf(AlreadyCreatedSubObjectIndex > i, TEXT("Expecting the already created subobject to be in the old subobject list after this sub object"));
 				ContainedOldSubObjects.RemoveAt(AlreadyCreatedSubObjectIndex);
-				(*AlreadyCreatedSubObject)->Rename(nullptr, NewSubObjectOuter, REN_DoNotDirty | REN_DontCreateRedirectors | REN_ForceNoResetLoaders | REN_NonTransactional);
+				(*AlreadyCreatedSubObject)->Rename(nullptr, NewUObject, REN_DoNotDirty | REN_DontCreateRedirectors | REN_ForceNoResetLoaders | REN_NonTransactional);
 			}
 			else
 			{
@@ -3142,10 +3151,16 @@ void FBlueprintCompileReinstancer::PreCreateSubObjectsForReinstantiation_Inner(c
 				// Only pre-create object where the class does not have newer version of the it
 				if(!SubObjectClass->HasAnyClassFlags(CLASS_NewerVersionExists))
 				{
-					UObject* NewSubObject = NewObject<UObject>(NewSubObjectOuter, SubObjectClass, SubObjectName, SubObjectFlags);
-					PreCreateSubObjectsForReinstantiation(OldToNewClassMap, OldSubObject, NewSubObject, CreatedInstanceMap, OldToNewInstanceMap);
+					UObject* NewSubObject = NewObject<UObject>(NewUObject, SubObjectClass, SubObjectName, SubObjectFlags);
+					CreatedInstanceMap.Add(OldSubObject, NewSubObject);
+					PreCreateSubObjectsForReinstantiation_Inner(OldInstancedSubObjects, OldToNewClassMap, OldSubObject, NewSubObject, CreatedInstanceMap, OldToNewInstanceMap);
 				}
 			}
+		}
+		// There might be new subobjects attached to the sub object that are particular to this instance, let's traverse it to find them out.
+		else if (UObject** NewSubObject = ContainedNewSubObjects.FindByPredicate([SubObjectName](UObject* SubObject) { return SubObject && SubObject->GetName() == SubObjectName; }))
+		{
+			PreCreateSubObjectsForReinstantiation_Inner(OldInstancedSubObjects, OldToNewClassMap, OldSubObject, *NewSubObject, CreatedInstanceMap, OldToNewInstanceMap);
 		}
 	}
 }

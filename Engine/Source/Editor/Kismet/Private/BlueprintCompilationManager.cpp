@@ -43,6 +43,7 @@
 #include "UObject/UObjectHash.h"
 #include "Kismet2/KismetDebugUtilities.h"
 #include "BlueprintEditorModule.h"
+#include "Algo/TopologicalSort.h"
 #include "Animation/AnimBlueprint.h"
 #include "Stats/StatsHierarchical.h"
 #include "UObject/PropertyBagRepository.h"
@@ -513,11 +514,6 @@ struct FReinstancingJob
 
 	// always set:
 	TPair<UClass*, UClass*> OldToNew;
-
-	// Sorting dependencies
-	TSet<const UClass*> BPClassDependencies;
-	bool DependsOn(const FReinstancingJob& OtherJob) const;
-	void CalculateBPClassDependencies();
 };
 
 FReinstancingJob::FReinstancingJob(TSharedPtr<FBlueprintCompileReinstancer> InReinstancer)
@@ -545,41 +541,6 @@ FReinstancingJob::FReinstancingJob(TPair<UClass*, UClass*> InOldToNew)
 	, Compiler()
 	, OldToNew(InOldToNew)
 {
-}
-
-bool FReinstancingJob::DependsOn(const FReinstancingJob& OtherJob) const
-{
-	return OtherJob.Reinstancer.IsValid() && OtherJob.OldToNew.Key && BPClassDependencies.Contains(OtherJob.OldToNew.Key);
-}
-
-void FReinstancingJob::CalculateBPClassDependencies()
-{
-	if (Reinstancer.IsValid() && OldToNew.Key)
-	{
-		const UObject* OldCDO = OldToNew.Key->ClassDefaultObject;
-
-		// Gather subobjects on old CDO and remember depends BP classes
-		auto GatherDependentBPClasses = [this](const UObject* CDO, const auto& Recurse) -> void
-		{
-			TArray<UObject*> ContainedOldObjects;
-			GetObjectsWithOuter(CDO, ContainedOldObjects);
-			for (const UObject* OldObject : ContainedOldObjects)
-			{
-				const UClass* DependentClass = OldObject->GetClass();
-				while (DependentClass && UBlueprint::GetBlueprintFromClass(DependentClass))
-				{
-					bool bIsAlreadyInSet = false;
-					BPClassDependencies.Add(DependentClass, &bIsAlreadyInSet);
-					if(!bIsAlreadyInSet)
-					{
-						Recurse(DependentClass->ClassDefaultObject, Recurse);
-					}
-					DependentClass = DependentClass->GetSuperClass();
-				}
-			}
-		};
-		GatherDependentBPClasses(OldCDO, GatherDependentBPClasses);
-	}
 }
 
 namespace UE::Kismet::BlueprintCompilationManager::Private
@@ -2393,7 +2354,6 @@ void FBlueprintCompilationManagerImpl::ReinstanceBatch(TArray<FReinstancingJob>&
 			{
 				UBlueprint* CompiledBlueprint = UBlueprint::GetBlueprintFromClass(ReinstancingJob.OldToNew.Value);
 				ReinstancingJob.Reinstancer->UpdateBytecodeReferences(DependentBPs, FieldMappings);
-				ReinstancingJob.CalculateBPClassDependencies();
 			}
 		}
 
@@ -2403,31 +2363,47 @@ void FBlueprintCompilationManagerImpl::ReinstanceBatch(TArray<FReinstancingJob>&
 	// Now we can update templates and archetypes - note that we don't look for direct references to archetypes - doing
 	// so is very expensive and it will be much faster to directly update anything that cares to cache direct references
 	// to an archetype here (e.g. a UClass::ClassDefaultObject member):
-	
-	// 1. Sort classes so that most derived types are updated last - right now the only caller of this function
-	// also sorts, but we don't want to make too many assumptions about caller. We could refine this API so that
-	// we're not taking a raw list of reinstancers:
-	Reinstancers.Sort(
-		[](const FReinstancingJob& ReinstancingDataA, const FReinstancingJob& ReinstancingDataB)
+	TArray<FReinstancingJob*> ReinstancersPtr;
+	ReinstancersPtr.Reset(Reinstancers.Num());
+	for (FReinstancingJob& ReinstancingJob : Reinstancers)
+	{
+		ReinstancersPtr.Add(&ReinstancingJob);
+	}
+
+	Algo::TopologicalSort(ReinstancersPtr, [&Reinstancers](FReinstancingJob* ReinstancingJob)
+	{
+		TArray<FReinstancingJob*> Dependencies;
+		auto AddDependentClass = [&Dependencies,&Reinstancers](UClass* DependentClass)
 		{
-			if(ReinstancingDataA.DependsOn(ReinstancingDataB))
+			if (FReinstancingJob* ReinstancingJob = Reinstancers.FindByPredicate([DependentClass](FReinstancingJob& ReinstancingJob) { return ReinstancingJob.OldToNew.Key == DependentClass;}))
 			{
-				return false;
+				Dependencies.Add(ReinstancingJob);
 			}
-			if(ReinstancingDataB.DependsOn(ReinstancingDataA))
+		};
+
+		if (UClass* OldClass = ReinstancingJob->OldToNew.Key)
+		{
+			AddDependentClass(OldClass->GetSuperClass());
+
+			if (const UObject* CDO = OldClass->ClassDefaultObject)
 			{
-				return true;
+				TArray<UObject*> ContainedOldObjects;
+				GetObjectsWithOuter(CDO, ContainedOldObjects);
+				for (const UObject* OldObject : ContainedOldObjects)
+				{
+					AddDependentClass(OldObject->GetClass());
+				}
 			}
-			return FBlueprintCompileReinstancer::ReinstancerOrderingFunction(
-					ReinstancingDataA.OldToNew.Value, 
-					ReinstancingDataB.OldToNew.Value);
 		}
-	);
+
+		return Dependencies;
+	});
 
 	// 2. Copy defaults from old CDO - CDO may be missing if this class was reinstanced and relinked here,
 	// so use GetDefaultObject(true):
-	for (const FReinstancingJob& ReinstancingJob : Reinstancers)
+	for (const FReinstancingJob* ReinstancingJobPtr : ReinstancersPtr)
 	{
+		const FReinstancingJob& ReinstancingJob = *ReinstancingJobPtr;
 		UObject* OldCDO = nullptr;
 		UClass* OldClass = ReinstancingJob.OldToNew.Key;
 
@@ -2476,7 +2452,7 @@ void FBlueprintCompilationManagerImpl::ReinstanceBatch(TArray<FReinstancingJob>&
 				}
 				for(const auto& Pair : CreatedInstanceMap)
 				{
-					FBlueprintCompileReinstancer::CopyPropertiesForUnrelatedObjects(Pair.Key, Pair.Value, /*bClearExternalReferences*/true, bUseDeltaSerialization, /*bOnlyHandleDirectSubObjects*/true, &OldToNewInstanceMap);
+					FBlueprintCompileReinstancer::CopyPropertiesForUnrelatedObjects(Pair.Key, Pair.Value, /*bClearExternalReferences*/true, bUseDeltaSerialization, /*bOnlyHandleDirectSubObjects*/true, &OldToNewInstanceMap, &InOutOldToNewClassMap);
 				}
 
 				if (OldToNewTemplates && !OldToNewInstanceMap.IsEmpty())
@@ -2544,8 +2520,9 @@ void FBlueprintCompilationManagerImpl::ReinstanceBatch(TArray<FReinstancingJob>&
 		ArchetypeReferencers.Add(GUnrealEd->Trans);
 	}
 
-	for (const FReinstancingJob& ReinstancingJob : Reinstancers)
+	for (const FReinstancingJob* ReinstancingJobPtr : ReinstancersPtr)
 	{
+		const FReinstancingJob& ReinstancingJob = *ReinstancingJobPtr;
 		UClass* OldClass = ReinstancingJob.OldToNew.Key;
 		if(OldClass)
 		{
@@ -2655,8 +2632,9 @@ void FBlueprintCompilationManagerImpl::ReinstanceBatch(TArray<FReinstancingJob>&
 	}
 
 	// This loop finishes the reinstancing of archetypes after the entire Outer hierarchy has been updated with new instances:
-	for (const FReinstancingJob& ReinstancingJob : Reinstancers)
+	for (const FReinstancingJob* ReinstancingJobPtr : ReinstancersPtr)
 	{
+		const FReinstancingJob& ReinstancingJob = *ReinstancingJobPtr;
 		UClass* OldClass = ReinstancingJob.OldToNew.Key;
 		if(OldClass)
 		{
@@ -2687,7 +2665,7 @@ void FBlueprintCompilationManagerImpl::ReinstanceBatch(TArray<FReinstancingJob>&
 					}
 					for (const auto& Pair : CreatedInstanceMap)
 					{
-						FBlueprintCompileReinstancer::CopyPropertiesForUnrelatedObjects(Pair.Key, Pair.Value, /*bClearExternalReferences*/true, bUseDeltaSerialization, /*bOnlyHandleDirectSubObjects*/true, &OldToNewInstanceMap);
+						FBlueprintCompileReinstancer::CopyPropertiesForUnrelatedObjects(Pair.Key, Pair.Value, /*bClearExternalReferences*/true, bUseDeltaSerialization, /*bOnlyHandleDirectSubObjects*/true, &OldToNewInstanceMap, &InOutOldToNewClassMap);
 					}
 
 					if (OldToNewTemplates && !OldToNewInstanceMap.IsEmpty())
@@ -2708,8 +2686,9 @@ void FBlueprintCompilationManagerImpl::ReinstanceBatch(TArray<FReinstancingJob>&
 	// 4. update known references to archetypes (e.g. component templates, WidgetTree). We don't want to run the normal 
 	// reference finder to update these because searching the entire object graph is time consuming. Instead we just replace
 	// all references in our UBlueprint and its generated class:
-	for (const FReinstancingJob& ReinstancingJob : Reinstancers)
+	for (const FReinstancingJob* ReinstancingJobPtr : ReinstancersPtr)
 	{
+		const FReinstancingJob& ReinstancingJob = *ReinstancingJobPtr;
 		ArchetypeReferencers.Add(ReinstancingJob.OldToNew.Value);
 		ArchetypeReferencers.Add(ReinstancingJob.OldToNew.Value->ClassGeneratedBy);
 

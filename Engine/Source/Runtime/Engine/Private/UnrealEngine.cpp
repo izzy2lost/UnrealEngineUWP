@@ -17010,13 +17010,110 @@ private:
 };
 
 /* Responsible for applying the saved property data from a FCPFUOWriter to a specified object */
-struct FCPFUOReader : public FObjectReader, public FCPFUOArchive
+struct FObjectReaderWithReplacement : public FObjectReader
 {
 public:
-	FCPFUOReader(FCPFUOWriter& DataSrc, UObject* DstObject, TMap<UObject*, UObject*>* InReferenceReplacementMap = nullptr)
-		: FObjectReader(DataSrc.SavedPropertyData)
-		, FCPFUOArchive(DataSrc)
+	FObjectReaderWithReplacement(UObject* Obj, const TArray<uint8>& InBytes, bool bIgnoreClassRef = false, bool bIgnoreArchetypeRef = false, const TMap<UObject*, UObject*>* InReferenceReplacementMap = nullptr, const TMap<UClass*, UClass*>* InClassReferenceReplacementMap = nullptr)
+		: FObjectReader(InBytes)
 		, ReferenceReplacementMap(InReferenceReplacementMap)
+		, ClassReferenceReplacementMap(InClassReferenceReplacementMap)
+	{
+		ArIgnoreClassRef = bIgnoreClassRef;
+		ArIgnoreArchetypeRef = bIgnoreArchetypeRef;
+
+#if USE_STABLE_LOCALIZATION_KEYS
+		if (GIsEditor && !(ArPortFlags & (PPF_DuplicateVerbatim | PPF_DuplicateForPIE)))
+		{
+			SetLocalizationNamespace(TextNamespaceUtil::EnsurePackageNamespace(Obj));
+		}
+#endif // USE_STABLE_LOCALIZATION_KEYS
+
+		Obj->Serialize(*this);
+	}
+
+	FObjectReaderWithReplacement(const TArray<uint8>& InBytes, const TMap<UObject*, UObject*>* InReferenceReplacementMap = nullptr, const TMap<UClass*, UClass*>* InClassReferenceReplacementMap = nullptr)
+		: FObjectReader(InBytes)
+		, ReferenceReplacementMap(InReferenceReplacementMap)
+		, ClassReferenceReplacementMap(InClassReferenceReplacementMap)
+	{
+	}
+
+	const TMap<UObject*, UObject*>* ReferenceReplacementMap = nullptr;
+	const TMap<UClass*, UClass*>* ClassReferenceReplacementMap = nullptr;
+
+	template <typename VALUE_TYPE>
+	FORCEINLINE void ReplaceObjectReference(UObject* Object, VALUE_TYPE& Value) const
+	{
+		if(!Object)
+		{
+			return;
+		}
+		if (UObject*const* Reference = ReferenceReplacementMap ? ReferenceReplacementMap->Find(Object) : nullptr)
+		{
+			Value = const_cast<UObject*>(*Reference);
+		}
+		else if(ClassReferenceReplacementMap)
+		{
+			if (UClass* Class = Cast<UClass>(Object))
+			{
+				if (UClass*const* ClassReference = ClassReferenceReplacementMap->Find(Class))
+				{
+					Value = const_cast<UClass*>(*ClassReference);
+				}
+			}
+		}
+	}
+
+	FArchive& operator<<(FWeakObjectPtr& Value) override
+	{
+		FObjectReader::operator<<(Value);
+		ReplaceObjectReference(Value.Get(), Value);
+		return *this;
+	}
+
+	FArchive& operator<<(FSoftObjectPtr& Value) override
+	{
+		FObjectReader::operator<<(Value);
+		ReplaceObjectReference(Value.Get(), Value);
+		return *this;
+	}
+
+	FArchive& operator<<(FSoftObjectPath& Value) override
+	{
+		FObjectReader::operator<<(Value);
+		ReplaceObjectReference(Value.ResolveObject(), Value);
+		return *this;
+	}
+
+	FArchive& operator<<(FLazyObjectPtr& Value) override
+	{
+		FObjectReader::operator<<(Value);
+		ReplaceObjectReference(Value.Get(), Value);
+		return *this;
+	}
+
+	FArchive& operator<<(FObjectPtr& Value) override
+	{
+		FObjectReader::operator<<(Value);
+		ReplaceObjectReference(Value.Get(), Value);
+		return *this;
+	}
+
+	FArchive& operator<<(UObject*& Value) override
+	{
+		FObjectReader::operator<<(Value);
+		ReplaceObjectReference(Value, Value);
+		return *this;
+	}
+};
+
+/* Responsible for applying the saved property data from a FCPFUOWriter to a specified object */
+struct FCPFUOReader : public FObjectReaderWithReplacement, public FCPFUOArchive
+{
+public:
+	FCPFUOReader(FCPFUOWriter& DataSrc, UObject* DstObject, const TMap<UObject*, UObject*>* InReferenceReplacementMap = nullptr, const TMap<UClass*, UClass*>* InClassReferenceReplacementMap = nullptr)
+		: FObjectReaderWithReplacement(DataSrc.SavedPropertyData, InReferenceReplacementMap, InClassReferenceReplacementMap)
+		, FCPFUOArchive(DataSrc)
 	{
 		ArIgnoreArchetypeRef = true;
 		ArIgnoreClassRef = true;
@@ -17036,93 +17133,13 @@ public:
 	{
 		if (IsSerializationEnabled())
 		{
-			FObjectReader::Serialize(Data, Num);
+			FObjectReaderWithReplacement::Serialize(Data, Num);
 		}
 	}
 
 	virtual void MarkScriptSerializationStart(const UObject* Object) override { OpenTaggedDataScope(); }
 	virtual void MarkScriptSerializationEnd(const UObject* Object) override   { CloseTaggedDataScope(); }
 	// ~End FArchive Interface
-
-	TMap<UObject*, UObject*>* ReferenceReplacementMap = nullptr;
-
-	FArchive& operator<<(FWeakObjectPtr& Value) override
-	{
-		FObjectReader::operator<<(Value);
-		if (UObject* Object = Value.Get())
-		{
-			if (UObject** Reference = ReferenceReplacementMap ? ReferenceReplacementMap->Find(Object) : nullptr)
-			{
-				Value = *Reference;
-			}
-		}
-		return *this;
-	}
-
-	FArchive& operator<<(FSoftObjectPtr& Value) override
-	{
-		FObjectReader::operator<<(Value);
-		if (UObject* Object = Value.Get())
-		{
-			if (UObject** Reference = ReferenceReplacementMap ? ReferenceReplacementMap->Find(Object) : nullptr)
-			{
-				Value = *Reference;
-			}
-		}
-		return *this;
-	}
-
-	FArchive& operator<<(FSoftObjectPath& Value) override
-	{
-		FObjectReader::operator<<(Value);
-		if (UObject* Object = Value.ResolveObject())
-		{
-			if (UObject** Reference = ReferenceReplacementMap ? ReferenceReplacementMap->Find(Object) : nullptr)
-			{
-				Value = *Reference;
-			}
-		}
-		return *this;
-	}
-
-	FArchive& operator<<(FLazyObjectPtr& Value) override
-	{
-		FObjectReader::operator<<(Value);
-		if (UObject* Object = Value.Get())
-		{
-			if (UObject** Reference = ReferenceReplacementMap ? ReferenceReplacementMap->Find(Object) : nullptr)
-			{
-				Value = *Reference;
-			}
-		}
-		return *this;
-	}
-
-	FArchive& operator<<(FObjectPtr& Value) override
-	{
-		FObjectReader::operator<<(Value);
-		if (UObject* Object = Value.Get())
-		{
-			if (UObject** Reference = ReferenceReplacementMap ? ReferenceReplacementMap->Find(Object) : nullptr)
-			{
-				Value = *Reference;
-			}
-		}
-		return *this;
-	}
-
-	FArchive& operator<<(UObject*& Value) override
-	{
-		FObjectReader::operator<<(Value);
-		if (UObject* Object = Value)
-		{
-			if (UObject** Reference = ReferenceReplacementMap ? ReferenceReplacementMap->Find(Object) : nullptr)
-			{
-				Value = *Reference;
-			}
-		}
-		return *this;
-	}
 };
 
 PRAGMA_DISABLE_DEPRECATION_WARNINGS
@@ -17141,6 +17158,7 @@ UEngine::FCopyPropertiesForUnrelatedObjectsParams::FCopyPropertiesForUnrelatedOb
 	, bReplaceInternalReferenceUponRead(false)
 	, SourceObjectArchetype(nullptr)
 	, OptionalReplacementMappings(nullptr)
+	, OptionalOldToNewClassMappings(nullptr)
 {}
 UEngine::FCopyPropertiesForUnrelatedObjectsParams::FCopyPropertiesForUnrelatedObjectsParams(const FCopyPropertiesForUnrelatedObjectsParams&) = default;
 PRAGMA_ENABLE_DEPRECATION_WARNINGS
@@ -17371,17 +17389,18 @@ void UEngine::CopyPropertiesForUnrelatedObjects(UObject* OldObject, UObject* New
 			}
 		}
 
+		TMap<UObject*, UObject*>* OptionalReferenceReplacementMap = nullptr;
+		const TMap<UClass*, UClass*>* OptionalClassReferenceReplacementMap = nullptr;
+		if (Params.bReplaceInternalReferenceUponRead)
+		{
+			OptionalReferenceReplacementMap = Params.OptionalReplacementMappings ? Params.OptionalReplacementMappings : &ReferenceReplacementMap;
+			OptionalClassReferenceReplacementMap = Params.OptionalOldToNewClassMappings;
+		}
+
 		// Serialize in the modified properties from the old CDO to the new CDO
 		if (Writer.SavedPropertyData.Num() > 0)
 		{
-			if (Params.bReplaceInternalReferenceUponRead)
-			{
-				FCPFUOReader Reader(Writer, NewObject, Params.OptionalReplacementMappings ? Params.OptionalReplacementMappings : &ReferenceReplacementMap);
-			}
-			else
-			{
-				FCPFUOReader Reader(Writer, NewObject);
-			}
+			FCPFUOReader Reader(Writer, NewObject, OptionalReferenceReplacementMap, OptionalClassReferenceReplacementMap);
 		}
 
 		TArray<UObject*> EditInlineSubobjectsOfComponents;
@@ -17391,7 +17410,7 @@ void UEngine::CopyPropertiesForUnrelatedObjects(UObject* OldObject, UObject* New
 			{
 				// Restore modified properties into the new instance
 				FInstancedObjectRecord& Record = SavedInstances[*pOldInstanceIndex];
-				FObjectReader Reader(NewInstance, Record.SavedProperties, true, true);
+				FObjectReaderWithReplacement Reader(NewInstance, Record.SavedProperties, true, true, OptionalReferenceReplacementMap, OptionalClassReferenceReplacementMap);
 				FFindInstancedReferenceSubobjectHelper::Duplicate(Record.OldInstance, NewInstance, ReferenceReplacementMap, EditInlineSubobjectsOfComponents, Params.OptionalReplacementMappings);
 			}
 		}

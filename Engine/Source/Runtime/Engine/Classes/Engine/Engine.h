@@ -2963,6 +2963,7 @@ public:
 		// In cases where the SourceObject will no longer be able to look up its correct Archetype, it can be supplied
 		UObject* SourceObjectArchetype;
 		TMap<UObject*, UObject*>* OptionalReplacementMappings;
+		const TMap<UClass*, UClass*>* OptionalOldToNewClassMappings; // Will be used along with the bReplaceInternalReferenceUponRead;
 
 		ENGINE_API FCopyPropertiesForUnrelatedObjectsParams();
 		ENGINE_API FCopyPropertiesForUnrelatedObjectsParams(const FCopyPropertiesForUnrelatedObjectsParams&);
