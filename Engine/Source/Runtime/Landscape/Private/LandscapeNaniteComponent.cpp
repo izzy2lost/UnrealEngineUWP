@@ -201,6 +201,7 @@ FGraphEventRef ULandscapeNaniteComponent::InitializeForLandscapeAsync(ALandscape
 
 			const FVector3d Scale = AsyncBuildData->LandscapeWeakRef->GetTransform().GetScale3D();
 			NaniteSettings.PositionPrecision = FMath::Log2(Scale.GetAbsMax() ) + AsyncBuildData->LandscapeWeakRef->GetNanitePositionPrecision();
+			NaniteSettings.MaxEdgeLengthFactor = AsyncBuildData->LandscapeWeakRef->GetNaniteMaxEdgeLengthFactor();
 
 			int32 LOD = AsyncBuildData->LOD;
 			

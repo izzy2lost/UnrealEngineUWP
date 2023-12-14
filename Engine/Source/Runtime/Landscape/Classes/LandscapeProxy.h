@@ -409,7 +409,9 @@ protected:
 	
 	UPROPERTY(EditAnywhere, Category = Nanite, AdvancedDisplay, meta = (EditCondition = "bEnableNanite", LandscapeInherited))
 	int32 NanitePositionPrecision = 0;
-	
+
+	UPROPERTY(EditAnywhere, Category = Nanite, AdvancedDisplay, meta = (EditCondition = "bEnableNanite", LandscapeInherited))
+	float NaniteMaxEdgeLengthFactor = 16.0f;
 #endif // WITH_EDITORONLY_DATA
 
 	/** Disable runtime grass data generation.  If disabled, the grass maps will be serialized at cook time. Do not set directly, use ALandscape::SetDisableRuntimeGrassMapGeneration to ensure it is set on all loaded proxies. */
@@ -916,7 +918,8 @@ public:
 	virtual int32 GetNaniteLODIndex() const { return NaniteLODIndex; }
 	virtual bool IsNaniteSkirtEnabled() const { return bNaniteSkirtEnabled; }
 	virtual float GetNaniteSkirtDepth() const { return NaniteSkirtDepth;  }
-	virtual int32 GetNanitePositionPrecision() const { return NanitePositionPrecision;  }
+	virtual int32 GetNanitePositionPrecision() const { return NanitePositionPrecision; }
+	virtual float GetNaniteMaxEdgeLengthFactor() const { return NaniteMaxEdgeLengthFactor; }
 	virtual UE::Landscape::EOutdatedDataFlags GetOutdatedDataFlags() const;
 
 	void UpdateNaniteSharedPropertiesFromActor();

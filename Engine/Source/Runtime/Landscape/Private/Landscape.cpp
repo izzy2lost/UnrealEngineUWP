@@ -597,13 +597,15 @@ FGuid ALandscapeProxy::GetNaniteContentId() const
 		}
 	}
 
-	// nanite content depends on if the skirt geometry is enabled & the depth.
+	// landscape nanite settings which might affect the resultant Nanite Static Mesh.
 	int32 NaniteSkirtEnabled = bNaniteSkirtEnabled;
 	float NaniteSkirtDepthTest = bNaniteSkirtEnabled ? NaniteSkirtDepth : 0.0f; // The hash should only change if Skirts are enabled.
 	ContentStateAr << NaniteSkirtEnabled;
 	ContentStateAr << NaniteSkirtDepthTest;
-	int32 NanitePositionPrecisionCopy(NanitePositionPrecision);  
+	int32 NanitePositionPrecisionCopy = NanitePositionPrecision;  
 	ContentStateAr << NanitePositionPrecisionCopy;
+	float NaniteMaxEdgeLengthFactorCopy = NaniteMaxEdgeLengthFactor; 
+	ContentStateAr << NaniteMaxEdgeLengthFactorCopy;
 
 	uint32 Hash[5];
 	FSHA1::HashBuffer(ContentStateAr.GetData(), ContentStateAr.Num(), (uint8*)Hash);
