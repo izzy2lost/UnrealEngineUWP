@@ -54,6 +54,7 @@ public:
 	virtual void ExpandShot(const TObjectPtr<UMoviePipelineExecutorShot>& InShot, const int32 InLeftDeltaFrames, const int32 InLeftDeltaFramesUserPoV,
 		const int32 InRightDeltaFrames, const bool bInPrepass) override;
 protected:
+	void OverrideSequencePlaybackRangeFromGlobalOutputSettings(ULevelSequence* InSequence);
 	void CacheLevelSequenceData(ULevelSequence* InSequence);
 	void OnSequenceEvaluated(const UMovieSceneSequencePlayer& Player, FFrameTime CurrentTime, FFrameTime PreviousTime);
 
@@ -63,4 +64,6 @@ protected:
 
 	/** Custom Time Controller for the Sequence Player, used to match Custom TimeStep without any floating point accumulation errors. */
 	TSharedPtr<UE::MovieGraph::FMovieGraphSequenceTimeController> CustomSequenceTimeController;
+
+	TSharedPtr<MoviePipeline::FCameraCutSubSectionHierarchyNode> CachedSequenceHierarchyRoot;
 };

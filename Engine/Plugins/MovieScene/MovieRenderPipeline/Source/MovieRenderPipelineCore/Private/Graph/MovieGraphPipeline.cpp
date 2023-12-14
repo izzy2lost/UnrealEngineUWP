@@ -1114,6 +1114,8 @@ void UMovieGraphPipeline::TransitionToState(const EMovieRenderPipelineState InNe
 
 			OutputNodesDataSentTo.Reset();
 
+			GraphDataSourceInstance->RestoreCachedDataPostJob();
+
 			OnMoviePipelineFinishedImpl();
 			UE_LOG(LogMovieRenderPipeline, Log, TEXT("Movie Graph Render completed. Duration: %s"), *(FDateTime::UtcNow() - GraphInitializationTime).ToString());
 		}

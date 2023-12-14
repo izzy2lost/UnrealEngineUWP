@@ -73,6 +73,12 @@ public:
 	uint8 bOverride_HandleFrameCount : 1;
 
 	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = Overrides, meta = (InlineEditConditionToggle))
+	uint8 bOverride_CustomPlaybackRangeStartFrame : 1;
+
+	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = Overrides, meta = (InlineEditConditionToggle))
+	uint8 bOverride_CustomPlaybackRangeEndFrame : 1;
+
+	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = Overrides, meta = (InlineEditConditionToggle))
 	uint8 bOverride_VersioningSettings : 1;
 
 	/** What directory should all of our output files be relative to. */
@@ -110,6 +116,12 @@ public:
 	*/
 	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Frames", meta = (UIMin = 0, ClampMin = 0, EditCondition = "bOverride_HandleFrameCount"))
 	int32 HandleFrameCount;
+
+	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Frames", meta = (EditCondition = "bOverride_CustomPlaybackRangeStartFrame"))
+	int32 CustomPlaybackRangeStartFrame;
+	
+	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Frames", meta = (EditCondition = "bOverride_CustomPlaybackRangeEndFrame"))
+	int32 CustomPlaybackRangeEndFrame;
 
 	/**
 	 * Determines how versioning should be handled (Auto Version, Version Number, etc.).

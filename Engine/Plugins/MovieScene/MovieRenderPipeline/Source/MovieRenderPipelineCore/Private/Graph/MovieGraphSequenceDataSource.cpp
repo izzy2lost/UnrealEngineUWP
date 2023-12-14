@@ -14,6 +14,7 @@
 #include "CoreGlobals.h"
 #include "EngineUtils.h"
 #include "Engine/GameViewportClient.h"
+#include "Graph/Nodes/MovieGraphGlobalOutputSettingNode.h"
 
 UMovieGraphSequenceDataSource::UMovieGraphSequenceDataSource()
 {
@@ -46,6 +47,9 @@ void UMovieGraphSequenceDataSource::RestoreCachedDataPostJob()
 	{
 		Viewport->bDisableWorldRendering = false;
 	}
+
+	ULevelSequence* RootSequence = Cast<ULevelSequence>(GetOwningGraph()->GetCurrentJob()->Sequence.TryLoad());
+	MoviePipeline::RestoreCompleteSequenceHierarchy(RootSequence, CachedSequenceHierarchyRoot);
 }
 
 void UMovieGraphSequenceDataSource::UpdateShotList()
@@ -55,6 +59,48 @@ void UMovieGraphSequenceDataSource::UpdateShotList()
 	{
 		bool bShotsChanged = false;
 		UMoviePipelineBlueprintLibrary::UpdateJobShotListFromSequence(RootSequence, GetOwningGraph()->GetCurrentJob(), bShotsChanged);
+	}
+}
+
+void UMovieGraphSequenceDataSource::OverrideSequencePlaybackRangeFromGlobalOutputSettings(ULevelSequence* InSequence)
+{
+	FMovieGraphTraversalContext TraversalContext;
+	UMoviePipelineExecutorJob* CurrentJob = GetOwningGraph()->GetCurrentJob();
+	TraversalContext.Job = CurrentJob;
+	FString OutErrorMessage;
+	UMovieGraphEvaluatedConfig* EvaluatedGraph = CurrentJob->GetGraphPreset()->CreateFlattenedGraph(TraversalContext, OutErrorMessage);
+
+	constexpr bool bIncludeCDOs = true;
+	constexpr bool bExactMatch = false;
+	UMovieGraphGlobalOutputSettingNode* OutputSetting =
+		EvaluatedGraph->GetSettingForBranch<UMovieGraphGlobalOutputSettingNode>(UMovieGraphNode::GlobalsPinName, bIncludeCDOs, bExactMatch);
+
+	TRange<FFrameNumber> CurrentPlaybackRange = InSequence->GetMovieScene()->GetPlaybackRange();
+
+	FFrameNumber StartFrameTickResolution = CurrentPlaybackRange.GetLowerBound().GetValue();
+	FFrameNumber EndFrameTickResolution = CurrentPlaybackRange.GetUpperBound().GetValue();
+	
+	if (OutputSetting->bOverride_CustomPlaybackRangeStartFrame)
+	{
+		StartFrameTickResolution = FFrameRate::TransformTime(FFrameTime(FFrameNumber(OutputSetting->CustomPlaybackRangeStartFrame)), InSequence->GetMovieScene()->GetDisplayRate(), InSequence->GetMovieScene()->GetTickResolution()).FloorToFrame();
+	}
+	if (OutputSetting->bOverride_CustomPlaybackRangeEndFrame)
+	{
+		EndFrameTickResolution = FFrameRate::TransformTime(FFrameTime(FFrameNumber(OutputSetting->CustomPlaybackRangeEndFrame)), InSequence->GetMovieScene()->GetDisplayRate(), InSequence->GetMovieScene()->GetTickResolution()).CeilToFrame();
+	}
+
+	TRange<FFrameNumber> NewPlaybackRange = TRange<FFrameNumber>(StartFrameTickResolution, EndFrameTickResolution);
+	
+#if WITH_EDITOR
+	InSequence->GetMovieScene()->SetPlaybackRangeLocked(false);
+	InSequence->GetMovieScene()->SetReadOnly(false);
+#endif
+	InSequence->GetMovieScene()->SetPlaybackRange(NewPlaybackRange);
+
+	// Warn about zero length playback ranges, often happens because they set the Start/End frame to the same frame.
+	if (InSequence->GetMovieScene()->GetPlaybackRange().IsEmpty())
+	{
+		UE_LOG(LogMovieRenderPipeline, Error, TEXT("Playback Range was zero. End Frames are exclusive, did you mean [n, n+1]?"));
 	}
 }
 
@@ -92,6 +138,13 @@ void UMovieGraphSequenceDataSource::CacheLevelSequenceData(ULevelSequence* InSeq
 	LevelSequenceActor->PlaybackSettings.bAutoPlay = false;
 	LevelSequenceActor->PlaybackSettings.bPauseAtEnd = true;
 	LevelSequenceActor->PlaybackSettings.FinishCompletionStateOverride = EMovieSceneCompletionModeOverride::ForceRestoreState;
+
+	// Cache the sequence data to be restored later
+	CachedSequenceHierarchyRoot = MakeShared<MoviePipeline::FCameraCutSubSectionHierarchyNode>();
+	MoviePipeline::CacheCompleteSequenceHierarchy(InSequence, CachedSequenceHierarchyRoot);
+	
+	// Override the frame range on the target sequence if needed first before anyone has a chance to modify it.
+	OverrideSequencePlaybackRangeFromGlobalOutputSettings(InSequence);
 
 	// Ensure the (possibly new) Level Sequence Actor uses our sequence
 	LevelSequenceActor->SetSequence(InSequence);
