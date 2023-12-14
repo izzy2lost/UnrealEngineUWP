@@ -518,6 +518,15 @@ namespace UnrealBuildTool
 			{
 				Writer.WriteValue(Path.FullName);
 			}
+			
+			PlatformProjectGenerator? ProjGenerator = PlatformProjectGenerators.GetPlatformProjectGenerator(Target.Platform, true);
+			if (ProjGenerator != null)
+			{
+				foreach (string Path in ProjGenerator.GetSystemIncludePaths(Target))
+				{
+					Writer.WriteValue(Path);
+				}
+			}
 
 			if (UEBuildPlatform.IsPlatformInGroup(Target.Platform, UnrealPlatformGroup.Windows))
 			{

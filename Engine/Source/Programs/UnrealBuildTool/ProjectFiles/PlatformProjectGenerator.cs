@@ -364,5 +364,15 @@ namespace UnrealBuildTool
 		public virtual void GetVisualStudioTargetsString(UnrealTargetPlatform InPlatform, List<ProjectBuildConfiguration> InPlatformConfigurations, StringBuilder ProjectFileBuilder)
 		{
 		}
+
+		/// <summary>
+		/// Get include paths to system headers (STL, SDK, ...) needed for coding assistance features in IDE
+		/// </summary>
+		/// <param name="InTarget">Target for which include paths shall be returned</param>
+		/// <returns>The list of include paths</returns>
+		public virtual IList<string> GetSystemIncludePaths(UEBuildTarget InTarget)
+		{
+			return new List<string>(0);
+		}
 	}
 }
