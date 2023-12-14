@@ -49,3 +49,7 @@ BuildLibSyms x86_64 Release ""
 BuildLibSyms x86_64 Debug "d"
 BuildLibSyms arm64 Release ""
 BuildLibSyms arm64 Debug "d"
+
+lipo -create ${SYMS_DIR}/lib/Mac/{x86_64,arm64}/libsymsd.a -output ${SYMS_DIR}/lib/Mac/libsymsd.a
+lipo -create ${SYMS_DIR}/lib/Mac/{x86_64,arm64}/libsyms.a  -output ${SYMS_DIR}/lib/Mac/libsyms.a
+rm -rf ${SYMS_DIR}/lib/Mac/{x86_64,arm64}

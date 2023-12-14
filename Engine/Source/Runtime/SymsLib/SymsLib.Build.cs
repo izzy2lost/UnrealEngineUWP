@@ -32,7 +32,7 @@ public class SymsLib : ModuleRules
 		{
 			bool bUseDebug = Target.Configuration == UnrealTargetConfiguration.Debug;
 			string LibName = bUseDebug ? "libsymsd.a" : "libsyms.a";
-			string LibPath = Path.Combine(LibPathBase, "Mac", Target.Architecture.bIsX64 ? "x86_64" : "arm64");
+			string LibPath = Path.Combine(LibPathBase, "Mac");
 
 			PublicAdditionalLibraries.Add(Path.Combine(LibPath, LibName));
 		}
