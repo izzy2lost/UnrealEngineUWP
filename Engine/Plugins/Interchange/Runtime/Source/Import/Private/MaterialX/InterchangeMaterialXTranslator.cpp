@@ -25,7 +25,7 @@ static FAutoConsoleVariableRef CCvarInterchangeEnableMaterialXImport(
 
 EInterchangeTranslatorType UInterchangeMaterialXTranslator::GetTranslatorType() const
 {
-	return EInterchangeTranslatorType::Scenes;
+	return EInterchangeTranslatorType::Assets;
 }
 
 EInterchangeTranslatorAssetType UInterchangeMaterialXTranslator::GetSupportedAssetTypes() const
