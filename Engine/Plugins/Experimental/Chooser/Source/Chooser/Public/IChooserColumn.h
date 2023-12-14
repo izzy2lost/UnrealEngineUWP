@@ -58,6 +58,7 @@ public:
 	virtual void SetNumRows(int32 NumRows) {}
 	virtual void DeleteRows(const TArray<uint32> & RowIndices) {}
 	virtual void MoveRow(int SourceIndex, int TargetIndex) {}
+	virtual void InsertRows(int Index, int Count) {}
 	
 	virtual UScriptStruct* GetInputBaseType() const { return nullptr; };
 	virtual const UScriptStruct* GetInputType() const { return nullptr; };
@@ -70,6 +71,7 @@ public:
 	virtual bool EditorTestFilter(int32 RowIndex) const { return false; }
 #endif
 };
+
 
 #if WITH_EDITOR
 #define CHOOSER_COLUMN_BOILERPLATE2(ParameterType, RowValuesProperty) \
@@ -84,6 +86,14 @@ public:
 		{\
 			while(RowValuesProperty.Num() < NumRows)\
 			RowValuesProperty.Add(DefaultRowValue);\
+		}\
+	}\
+	virtual void InsertRows(int Index, int Count) override\
+	{\
+		RowValuesProperty.InsertUninitialized(Index, Count);\
+		for (int i=0;i<Count;i++)\
+		{\
+			RowValuesProperty[Index + i] = DefaultRowValue;\
 		}\
 	}\
 	virtual void DeleteRows(const TArray<uint32> & RowIndices )\

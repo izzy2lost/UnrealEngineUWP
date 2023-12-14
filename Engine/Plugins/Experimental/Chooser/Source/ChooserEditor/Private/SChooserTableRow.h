@@ -43,6 +43,7 @@ private:
 	FChooserTableEditor* Editor;
 	TSharedPtr<SBorder> CacheBorder;
 	bool bDragActive = false;
+	bool bDropSupported = false;
 	bool bDropAbove = false;
 };
 

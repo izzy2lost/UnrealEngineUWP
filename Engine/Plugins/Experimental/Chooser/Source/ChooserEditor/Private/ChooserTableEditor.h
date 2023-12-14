@@ -92,15 +92,13 @@ namespace UE::ChooserEditor
 		/** Can be used to disable the details view making it read-only */
 		void SetPropertyEditingEnabledDelegate(FIsPropertyEditingEnabled InPropertyEditingDelegate);
 	
-
-
 		void UpdateTableRows();
 		void SelectColumn(UChooserTable* Chooser, int Index);
 		void ClearSelectedColumn();
 		void DeleteColumn(int Index);
 		void AddColumn(const UScriptStruct* ColumnType);
 		int MoveRow(int SourceRowIndex, int TargetIndex);
-		void SelectRow(int32 RowIndex);
+		void SelectRow(int32 RowIndex, bool bClear = true);
 		void ClearSelectedRows(); 
 	private:
 

@@ -582,13 +582,16 @@ int FChooserTableEditor::MoveRow(int SourceRowIndex, int TargetRowIndex)
 	return TargetRowIndex;
 }
 	
-void FChooserTableEditor::SelectRow(int32 RowIndex)
+void FChooserTableEditor::SelectRow(int32 RowIndex, bool bClear)
 {
 	if (TableRows.IsValidIndex(RowIndex))
 	{
 		if (!TableView->IsItemSelected(TableRows[RowIndex]))
 		{
-			TableView->ClearSelection();
+			if (bClear)
+			{
+				TableView->ClearSelection();
+			}
 			TableView->SetItemSelection(TableRows[RowIndex], true, ESelectInfo::OnMouseClick);
 		}
 	}

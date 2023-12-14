@@ -4,16 +4,17 @@
 #include "Chooser.h"
 #include "ChooserEditorStyle.h"
 #include "ChooserTableEditor.h"
+#include "IContentBrowserSingleton.h"
 #include "IObjectChooser.h"
 #include "ObjectChooserWidgetFactories.h"
+#include "ObjectChooser_Asset.h"
 #include "SChooserRowHandle.h"
 #include "ScopedTransaction.h"
+#include "DragAndDrop/AssetDragDropOp.h"
 #include "Widgets/Colors/SColorBlock.h"
 #include "Widgets/Input/SComboButton.h"
 #include "Widgets/Views/STableRow.h"
 #include "Widgets/Layout/SSeparator.h"
-
-
 
 #define LOCTEXT_NAMESPACE "ChooserTableRow"
 
@@ -29,6 +30,46 @@ namespace UE::ChooserEditor
 			FSuperRowType::FArguments(),
 			OwnerTableView
 		);
+
+		if (RowIndex->RowIndex >=0)
+		SetContent(
+				SNew(SOverlay)
+						+ SOverlay::Slot()
+						[
+							Content.Pin().ToSharedRef()
+						]
+						+ SOverlay::Slot().VAlign(VAlign_Bottom)
+						[
+							SNew(SSeparator)
+							.SeparatorImage(FAppStyle::GetBrush("PropertyEditor.HorizontalDottedLine"))
+							.ColorAndOpacity_Lambda([this]() { return FSlateColor(bDropSupported ? EStyleColor::Select : EStyleColor::Error); })
+							.Visibility_Lambda([this]() { return bDragActive && !bDropAbove ? EVisibility::Visible : EVisibility::Hidden; })
+						]
+						+ SOverlay::Slot().VAlign(VAlign_Top)
+						[
+							SNew(SSeparator)
+							.SeparatorImage(FAppStyle::GetBrush("PropertyEditor.HorizontalDottedLine"))
+							.ColorAndOpacity_Lambda([this]() { return FSlateColor(bDropSupported ? EStyleColor::Select : EStyleColor::Error); }) 
+							.Visibility_Lambda([this]() { return bDragActive && bDropAbove ? EVisibility::Visible : EVisibility::Hidden; })
+						]
+			);
+		else if (RowIndex->RowIndex == SpecialIndex_Fallback)
+		{
+			SetContent(
+					SNew(SOverlay)
+							+ SOverlay::Slot()
+							[
+								Content.Pin().ToSharedRef()
+							]
+							+ SOverlay::Slot().VAlign(VAlign_Top)
+							[
+								SNew(SSeparator)
+								.SeparatorImage(FAppStyle::GetBrush("PropertyEditor.HorizontalDottedLine"))
+								.ColorAndOpacity_Lambda([this]() { return FSlateColor(bDropSupported ? EStyleColor::Select : EStyleColor::Error); }) 
+								.Visibility_Lambda([this]() { return bDragActive ? EVisibility::Visible : EVisibility::Hidden; })
+							]
+				);
+		}
 	}
 
 	/** Overridden from SMultiColumnTableRow.  Generates a widget for this column of the list view. */
@@ -59,21 +100,7 @@ namespace UE::ChooserEditor
 				&CacheBorder
 				);
 			
-				return SNew(SOverlay)
-						+ SOverlay::Slot()
-						[
-							ResultWidget.ToSharedRef()
-						]
-						+ SOverlay::Slot().VAlign(VAlign_Bottom)
-						[
-							SNew(SSeparator).SeparatorImage(FCoreStyle::Get().GetBrush("FocusRectangle"))
-							.Visibility_Lambda([this]() { return bDragActive && !bDropAbove ? EVisibility::Visible : EVisibility::Hidden; })
-						]
-						+ SOverlay::Slot().VAlign(VAlign_Top)
-						[
-							SNew(SSeparator).SeparatorImage(FCoreStyle::Get().GetBrush("FocusRectangle"))
-							.Visibility_Lambda([this]() { return bDragActive && bDropAbove ? EVisibility::Visible : EVisibility::Hidden; })
-						];
+				return ResultWidget.ToSharedRef();
 			}
 			else
 			{
@@ -143,16 +170,7 @@ namespace UE::ChooserEditor
 				,FChooserWidgetValueChanged(), LOCTEXT("Fallback Result", "Fallback Result: (None)")
 				);
 				
-				return SNew(SOverlay)
-						+ SOverlay::Slot()
-						[
-							ResultWidget.ToSharedRef()
-						]
-						+ SOverlay::Slot().VAlign(VAlign_Top)
-						[
-							SNew(SSeparator).SeparatorImage(FCoreStyle::Get().GetBrush("FocusRectangle"))
-							.Visibility_Lambda([this]() { return bDragActive  ? EVisibility::Visible : EVisibility::Hidden; })
-						];
+				return ResultWidget.ToSharedRef();
 			}
 			else
 			{
@@ -185,12 +203,50 @@ namespace UE::ChooserEditor
 
 	void SChooserTableRow::OnDragEnter(const FGeometry& MyGeometry, const FDragDropEvent& DragDropEvent)
 	{
+		bDropSupported = false;
 		if (TSharedPtr<FChooserRowDragDropOp> Operation = DragDropEvent.GetOperationAs<FChooserRowDragDropOp>())
 		{
-			bDragActive = true;
-			float Center = MyGeometry.Position.Y + MyGeometry.Size.Y;
-			bDropAbove = DragDropEvent.GetScreenSpacePosition().Y < Center;
+			bDropSupported = true;
 		}
+		else if (TSharedPtr<FAssetDragDropOp> ContentDragDropOp = DragDropEvent.GetOperationAs<FAssetDragDropOp>())
+		{
+			if (Chooser->ResultType == EObjectChooserResultType::ObjectResult)
+			{
+				bDropSupported = true;
+			
+				if (Chooser->OutputObjectType) // if OutputObjectType is null, then any kind of object is supported, don't need to check all of them
+				{
+					for (const FAssetData& Asset : ContentDragDropOp->GetAssets())
+					{
+						const UClass* AssetClass = Asset.GetClass();
+
+						if(AssetClass->IsChildOf(Chooser->OutputObjectType))
+						{
+							bDropSupported = false;
+							break;
+						}
+						
+						if(AssetClass->IsChildOf(UChooserTable::StaticClass()))
+						{
+							const UChooserTable* DraggedChooserTable = Cast<UChooserTable>(Asset.GetAsset());
+
+							// verify dragged chooser result type matches this chooser result type
+							if (DraggedChooserTable->ResultType == EObjectChooserResultType::ClassResult
+							    || DraggedChooserTable->OutputObjectType == nullptr
+							    || !DraggedChooserTable->OutputObjectType->IsChildOf(Chooser->OutputObjectType))
+							{
+								bDropSupported = false;
+								break;
+							}
+						}
+					}
+				}
+			}
+		}
+		
+		float Center = MyGeometry.Position.Y + MyGeometry.Size.Y;
+		bDropAbove = DragDropEvent.GetScreenSpacePosition().Y < Center;
+		bDragActive = true;
 	}
 	void SChooserTableRow::OnDragLeave(const FDragDropEvent& DragDropEvent)
 	{
@@ -199,7 +255,8 @@ namespace UE::ChooserEditor
 
 	FReply SChooserTableRow::OnDragOver(const FGeometry& MyGeometry, const FDragDropEvent& DragDropEvent)
 	{
-		if (TSharedPtr<FChooserRowDragDropOp> Operation = DragDropEvent.GetOperationAs<FChooserRowDragDropOp>())
+		if (DragDropEvent.GetOperationAs<FChooserRowDragDropOp>()
+			|| DragDropEvent.GetOperationAs<FAssetDragDropOp>())
 		{
 			float Center = MyGeometry.AbsolutePosition.Y + MyGeometry.Size.Y/2;
 			bDropAbove = DragDropEvent.GetScreenSpacePosition().Y < Center;
@@ -210,6 +267,13 @@ namespace UE::ChooserEditor
 
 	FReply SChooserTableRow::OnDrop(const FGeometry& MyGeometry, const FDragDropEvent& DragDropEvent)
 	{
+		bDragActive = false;
+		
+		if (!bDropSupported)
+		{
+			return FReply::Unhandled();
+		}
+		
 		if (TSharedPtr<FChooserRowDragDropOp> Operation = DragDropEvent.GetOperationAs<FChooserRowDragDropOp>())
 		{
 			if (Chooser == Operation->ChooserEditor->GetChooser())
@@ -229,11 +293,74 @@ namespace UE::ChooserEditor
 					NewRowIndex = Editor->MoveRow(Operation->RowIndex, RowIndex->RowIndex+1);
 				}
 				Editor->SelectRow(NewRowIndex);
-				
-				return FReply::Handled();		
 			}
 		}
-		return FReply::Unhandled();
+		else if (TSharedPtr<FAssetDragDropOp> ContentDragDropOp = DragDropEvent.GetOperationAs<FAssetDragDropOp>())
+		{
+			
+			FScopedTransaction ScopedTransaction(LOCTEXT("DragDropAssets","Drag and Drop Assets into Chooser"));
+			Chooser->Modify();
+			
+			if (Chooser->ResultType == EObjectChooserResultType::ObjectResult)
+			{
+				int InsertRowIndex = RowIndex->RowIndex;
+				if (!Chooser->ResultsStructs.IsValidIndex(RowIndex->RowIndex))
+				{
+					// for special (negative) indices, move to the end
+					InsertRowIndex = Chooser->ResultsStructs.Num();
+				}
+				else if (!bDropAbove)
+				{
+					InsertRowIndex = RowIndex->RowIndex + 1;
+				}
+				
+				if (bDropSupported)
+				{
+					TArray<FInstancedStruct> NewResults;
+					const TArray<FAssetData>& AssetList = ContentDragDropOp->GetAssets();
+					NewResults.Reserve(AssetList.Num());
+					
+					for (const FAssetData& Asset : AssetList)
+					{
+						const UClass* AssetClass = Asset.GetClass();
+						
+						NewResults.SetNum(NewResults.Num()+1);
+						FInstancedStruct& NewResult = NewResults.Last();
+
+						if(AssetClass->IsChildOf(UChooserTable::StaticClass()))
+						{
+							NewResult.InitializeAs(FEvaluateChooser::StaticStruct());
+							NewResult.GetMutable<FEvaluateChooser>().Chooser = Cast<UChooserTable>(Asset.GetAsset());
+						}
+						else
+						{
+							check(AssetClass->IsChildOf(Chooser->OutputObjectType));
+							NewResult.InitializeAs(FAssetChooser::StaticStruct());
+							NewResult.GetMutable<FAssetChooser>().Asset = Asset.GetAsset();
+						}
+					}
+
+					Chooser->ResultsStructs.Insert(NewResults, InsertRowIndex);
+					
+					// Make sure each column has the same number of row datas as there are results
+					for(FInstancedStruct& ColumnData : Chooser->ColumnsStructs)
+					{
+						FChooserColumnBase& Column = ColumnData.GetMutable<FChooserColumnBase>();
+						Column.InsertRows(InsertRowIndex, NewResults.Num());
+					}
+
+					Editor->RefreshAll();
+					
+					Editor->ClearSelectedRows();
+					for(int Index = InsertRowIndex; Index < InsertRowIndex + NewResults.Num(); Index++)
+					{
+						Editor->SelectRow(Index, false);
+					}
+				}
+			}
+		}
+				
+		return FReply::Handled();		
 	}
 
 }
