@@ -92,6 +92,17 @@ static FAutoConsoleVariableRef CVarActorClusteringEnabled(
 	ECVF_Default
 );
 
+int32 GOptimizeActorRegistration = 1;
+static FAutoConsoleVariableRef CVarOptimizeActorRegistration(
+	TEXT("s.OptimizeActorRegistration"),
+	GOptimizeActorRegistration,
+	TEXT("Enables optimizations to actor component registration functions like PostRegisterAllComponents\n")
+	TEXT(" 0: Disable optimizations for legacy code that depends on redundant calls to registration functions\n")
+	TEXT(" 1: Enables optimizations and assumes the code is working properly\n")
+	TEXT(" 2: Enables optimization logic, but ensures it is working properly in non shipping builds"),
+	ECVF_Default
+);
+
 // RouteActorInit for a single actor generally takes about half the time to complete compared to component initialization
 float GRouteActorInitializationWorkUnitWeighting = 0.5f;
 static FAutoConsoleVariableRef CVarRouteActorInitializationWorkUnitWeighting(
@@ -1711,20 +1722,33 @@ bool ULevel::IncrementalRegisterComponents(bool bPreRegisterComponents, int32 Nu
 		bool bAllComponentsRegistered = true;
 		if (IsValid(Actor))
 		{
-#if PERF_TRACK_DETAILED_ASYNC_STATS
-			FScopeCycleCounterUObject ContextScope(Actor);
-#endif
-			if (bPreRegisterComponents && !bHasCurrentActorCalledPreRegister)
+			if (!Actor->HasActorRegisteredAllComponents() || GOptimizeActorRegistration == 0)
 			{
-				Actor->PreRegisterAllComponents();
-				bHasCurrentActorCalledPreRegister = true;
+#if PERF_TRACK_DETAILED_ASYNC_STATS
+				FScopeCycleCounterUObject ContextScope(Actor);
+#endif
+				if (bPreRegisterComponents && !bHasCurrentActorCalledPreRegister)
+				{
+					Actor->PreRegisterAllComponents();
+					bHasCurrentActorCalledPreRegister = true;
+				}
+				bAllComponentsRegistered = Actor->IncrementalRegisterComponents(NumComponentsToUpdate, Context);
 			}
-			bAllComponentsRegistered = Actor->IncrementalRegisterComponents(NumComponentsToUpdate, Context);
+#if !UE_BUILD_SHIPPING
+			else if (GOptimizeActorRegistration == 2)
+			{
+				// Verify that there aren't any leftover components
+				Actor->ForEachComponent(false, [](UActorComponent* Component)
+				{
+					ensureMsgf(Component->IsRegistered() || !Component->bAutoRegister, TEXT("Component %s should be registered!"), *Component->GetPathName());
+				});
+			}
+#endif
 		}
 
 		if (bAllComponentsRegistered)
 		{
-			// All components have been registered fro this actor, move to a next one
+			// All components have been registered for this actor, move to a next one
 			CurrentActorIndexForIncrementalUpdate++;
 			bHasCurrentActorCalledPreRegister = false;
 		}

@@ -89,6 +89,9 @@ FMakeNoiseDelegate AActor::MakeNoiseDelegate = FMakeNoiseDelegate::CreateStatic(
 /** Selects if actor and actorcomponents will replicate subobjects using the registration list by default. */
 extern bool GDefaultUseSubObjectReplicationList;
 
+/** Enables optimizations to actor and component registration */
+extern int32 GOptimizeActorRegistration;
+
 #if !UE_BUILD_SHIPPING
 FOnProcessEvent AActor::ProcessEventDelegate;
 #endif
@@ -5344,9 +5347,14 @@ void AActor::UnregisterAllComponents(const bool bForReregister)
 		}
 	}
 
-	bHasRegisteredAllComponents = false;
+	if (bHasRegisteredAllComponents || GOptimizeActorRegistration == 0)
+	{
+		// With registration optimizations enabled, we need to make sure it unregisters components that were partially registered during construction,
+		// but we do not want to call PostUnregisterAllComponents if it was only partially registered
+		bHasRegisteredAllComponents = false;
 
-	PostUnregisterAllComponents();
+		PostUnregisterAllComponents();
+	}
 }
 
 void AActor::PostUnregisterAllComponents()
@@ -5358,6 +5366,13 @@ void AActor::PostUnregisterAllComponents()
 
 void AActor::RegisterAllComponents()
 {
+	if (bHasRegisteredAllComponents && GOptimizeActorRegistration > 0)
+	{
+		// Stops it from calling redundant Pre/Post registration functions, should never get here if it was deferred
+		ensureMsgf(!bHasDeferredComponentRegistration, TEXT("Actor %s has both bHasDeferredComponentRegistration and bHasRegisteredAllComponents"), *GetPathName());
+		return;
+	}
+
 	QUICK_SCOPE_CYCLE_COUNTER(STAT_AActor_RegisterAllComponents);
 	
 	PreRegisterAllComponents();
@@ -5365,9 +5380,6 @@ void AActor::RegisterAllComponents()
 	// 0 - means register all components
 	bool bAllRegistered = IncrementalRegisterComponents(0);
 	check(bAllRegistered);
-
-	// Clear this flag as it's no longer deferred
-	bHasDeferredComponentRegistration = false;
 }
 
 // Walks through components hierarchy and returns closest to root parent component that is unregistered
@@ -5477,6 +5489,17 @@ bool AActor::IncrementalRegisterComponents(int32 NumComponentsToRegister, FRegis
 #if PERF_TRACK_DETAILED_ASYNC_STATS
 		QUICK_SCOPE_CYCLE_COUNTER(STAT_AActor_IncrementalRegisterComponents_PostRegisterAllComponents);
 #endif
+
+#if !UE_BUILD_SHIPPING
+		if (GOptimizeActorRegistration == 2)
+		{
+			ensureMsgf(!bHasRegisteredAllComponents, TEXT("PostRegisterAllComponents called twice for %s!"), *GetPathName());
+		}
+#endif
+
+		// Clear this flag as it's no longer deferred
+		bHasDeferredComponentRegistration = false;
+
 		bHasRegisteredAllComponents = true;
 		// Finally, call PostRegisterAllComponents
 		PostRegisterAllComponents();
