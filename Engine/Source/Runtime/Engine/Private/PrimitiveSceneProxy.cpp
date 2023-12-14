@@ -27,6 +27,7 @@
 #include "PrimitiveUniformShaderParametersBuilder.h"
 #include "Components/InstancedStaticMeshComponent.h"
 #include "InstanceDataSceneProxy.h"
+#include "GameFramework/ActorPrimitiveColorHandler.h"
 
 #if WITH_EDITOR
 #include "FoliageHelper.h"
@@ -554,9 +555,9 @@ FPrimitiveSceneProxy::FPrimitiveSceneProxy(const FPrimitiveSceneProxyDesc& InPro
 		}
 
 #if !(UE_BUILD_SHIPPING || UE_BUILD_TEST)
-		if (ULevelStreaming* LevelStreaming = FLevelUtils::FindStreamingLevel(Level))
+		if (AActor* ActorOwner = Cast<AActor>(InProxyDesc.Owner))
 		{
-			SetLevelColor(LevelStreaming->LevelColor);
+			SetPrimitiveColor(FActorPrimitiveColorHandler::Get().GetPrimitiveColor(ActorOwner));
 		}
 #endif
 	}
@@ -844,7 +845,7 @@ void FPrimitiveSceneProxy::BuildUniformShaderParameters(FPrimitiveUniformShaderP
 			.HiddenInSceneCapture(IsHiddenInSceneCapture())
 			.ForceHidden(IsForceHidden())
 			.PrimitiveComponentId(GetPrimitiveComponentId().PrimIDValue)
-			.EditorColors(GetWireframeColor(), GetLevelColor())
+			.EditorColors(GetWireframeColor(), GetPrimitiveColor())
 			.SplineMesh(IsSplineMesh())
 			.HasPixelAnimation(AnyMaterialHasPixelAnimation())
 			.RayTracingFarField(IsRayTracingFarField())
@@ -1355,7 +1356,19 @@ void FPrimitiveSceneProxy::SetSelectionOutlineColorIndex_GameThread(uint8 ColorI
 			SelectionOutlineColorIndex = ColorIndex;
 		});
 }
+#endif
 
+#if !(UE_BUILD_SHIPPING || UE_BUILD_TEST)
+void FPrimitiveSceneProxy::SetPrimitiveColor_GameThread(const FLinearColor& InPrimitiveColor)
+{
+	check(IsInGameThread());
+
+	ENQUEUE_RENDER_COMMAND(SetSelectionOutlineColorIndex)(
+		[this, InPrimitiveColor](FRHICommandListImmediate&)
+		{
+			PrimitiveColor = InPrimitiveColor;
+		});
+}
 #endif
 
 void FPrimitiveSceneProxy::ResetSceneVelocity_GameThread()

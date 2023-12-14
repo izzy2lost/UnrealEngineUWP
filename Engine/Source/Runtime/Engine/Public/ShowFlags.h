@@ -436,7 +436,7 @@ private:
 		SetLightRadius(InitMode == ESFIM_Editor);
 		SetVolumes(InitMode == ESFIM_Editor);
 		SetGame(InitMode != ESFIM_Editor && InitMode != ESFIM_VREditing);
-		SetLevelColoration(false);
+		SetActorColoration(false);
 		SetCollision(false);
 		SetCollisionPawn(false);
 		SetCollisionVisibility(false);

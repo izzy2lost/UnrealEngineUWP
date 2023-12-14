@@ -75,6 +75,7 @@
 #include "HDRHelper.h"
 #include "GlobalRenderResources.h"
 #include "Settings/EditorStyleSettings.h"
+#include "GameFramework/ActorPrimitiveColorHandler.h"
 
 #define LOCTEXT_NAMESPACE "EditorViewportClient"
 
@@ -2664,6 +2665,11 @@ void FEditorViewportClient::HandleToggleShowFlag(FEngineShowFlags::EShowFlag Eng
 	if (EngineShowFlagIndex == FEngineShowFlags::EShowFlag::SF_Collision)
 	{
 		UpdateHiddenCollisionDrawing();
+	}
+	// If changing level coloration flag, always go back to the legacy handler.
+	else if (EngineShowFlagIndex == FEngineShowFlags::EShowFlag::SF_ActorColoration)
+	{
+		FActorPrimitiveColorHandler::Get().SetActivePrimitiveColorHandler(TEXT("LevelColor"), GetWorld());
 	}
 
 	// Invalidate clients which aren't real-time so we see the changes.

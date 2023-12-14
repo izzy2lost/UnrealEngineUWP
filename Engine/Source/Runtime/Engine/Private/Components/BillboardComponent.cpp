@@ -180,14 +180,13 @@ public:
 					{
 						ColorToUse = FColor::Red;
 					}
-					FLinearColor LevelColorToUse = IsSelected() ? ColorToUse : (FLinearColor)GetLevelColor();
+					FLinearColor PrimitiveColorToUse = IsSelected() ? ColorToUse : (FLinearColor)GetPrimitiveColor();
 					FLinearColor PropertyColorToUse = GetPropertyColor();
 
 					ColorToUse.A = 1.0f;
 
-					const FLinearColor& SpriteColor = View->Family->EngineShowFlags.LevelColoration ? LevelColorToUse :
+					const FLinearColor& SpriteColor = View->Family->EngineShowFlags.ActorColoration ? PrimitiveColorToUse :
 						( (View->Family->EngineShowFlags.PropertyColoration) ? PropertyColorToUse : ColorToUse );
-
 
 					Collector.GetPDI(ViewIndex)->DrawSprite(
 						Origin,

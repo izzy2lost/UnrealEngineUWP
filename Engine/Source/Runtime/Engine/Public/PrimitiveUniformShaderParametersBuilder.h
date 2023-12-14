@@ -70,7 +70,7 @@ public:
 
 		// Default colors
 		Parameters.WireframeColor					= FVector3f(1.0f, 1.0f, 1.0f);
-		Parameters.LevelColor						= FVector3f(1.0f, 1.0f, 1.0f);
+		Parameters.PrimitiveColor					= FVector3f(1.0f, 1.0f, 1.0f);
 
 		// Invalid indices
 		Parameters.LightmapDataIndex				= 0;
@@ -230,10 +230,10 @@ public:
 		return *this;
 	}
 
-	inline FPrimitiveUniformShaderParametersBuilder& EditorColors(const FLinearColor& InWireframeColor, const FLinearColor& InLevelColor)
+	inline FPrimitiveUniformShaderParametersBuilder& EditorColors(const FLinearColor& InWireframeColor, const FLinearColor& InPrimitiveColor)
 	{
 		Parameters.WireframeColor = FVector3f(InWireframeColor.R, InWireframeColor.G, InWireframeColor.B);
-		Parameters.LevelColor = FVector3f(InLevelColor.R, InLevelColor.G, InLevelColor.B);
+		Parameters.PrimitiveColor = FVector3f(InPrimitiveColor.R, InPrimitiveColor.G, InPrimitiveColor.B);
 		return *this;
 	}
 

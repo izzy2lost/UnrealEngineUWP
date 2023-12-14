@@ -218,7 +218,7 @@ void FPrimitiveSceneShaderData::Setup(const FPrimitiveUniformShaderParameters& P
 	Store4(OutData, 27, PrimitiveUniformShaderParameters.InstanceLocalBoundsExtent, (PrimitiveUniformShaderParameters.InstancePayloadDataStride & 0x00FFFFFFu) | (PrimitiveUniformShaderParameters.InstancePayloadExtensionSize << 24u));
 	Store4(OutData, 28, PrimitiveUniformShaderParameters.WireframeColor, PrimitiveUniformShaderParameters.PackedNaniteFlags);
 
-	Store4(OutData, 29, PrimitiveUniformShaderParameters.LevelColor, uint32(PrimitiveUniformShaderParameters.PersistentPrimitiveIndex));
+	Store4(OutData, 29, PrimitiveUniformShaderParameters.PrimitiveColor, uint32(PrimitiveUniformShaderParameters.PersistentPrimitiveIndex));
 	Store4(OutData, 30, 
 		PrimitiveUniformShaderParameters.InstanceDrawDistanceMinMaxSquared.X, 
 		PrimitiveUniformShaderParameters.InstanceDrawDistanceMinMaxSquared.Y, 

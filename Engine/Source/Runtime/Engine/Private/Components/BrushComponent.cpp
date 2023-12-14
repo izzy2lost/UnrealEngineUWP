@@ -14,6 +14,7 @@
 #include "Model.h"
 #include "Materials/Material.h"
 #include "Materials/MaterialRenderProxy.h"
+#include "GameFramework/ActorPrimitiveColorHandler.h"
 #include "GameFramework/Volume.h"
 #include "Engine/Polys.h"
 #include "Engine/Engine.h"
@@ -126,17 +127,11 @@ public:
 			// the brush color as the level color.
 			if ( bBuilder )
 			{
-				LevelColor = BrushColor;
+				ActorColor = BrushColor;
 			}
 			else
 			{
-				// Try to find a color for level coloration.
-				ULevel* Level = Owner->GetLevel();
-				ULevelStreaming* LevelStreaming = FLevelUtils::FindStreamingLevel( Level );
-				if ( LevelStreaming )
-				{
-					LevelColor = LevelStreaming->LevelColor;
-				}
+				ActorColor = FActorPrimitiveColorHandler::Get().GetPrimitiveColor(Owner);
 			}
 		}
 
@@ -234,9 +229,9 @@ public:
 					{
 						DrawColor = PropertyColor;
 					}
-					else if(View->Family->EngineShowFlags.LevelColoration)
+					else if(View->Family->EngineShowFlags.ActorColoration)
 					{
-						DrawColor = LevelColor;
+						DrawColor = ActorColor;
 					}
 
 
@@ -411,7 +406,7 @@ private:
 	uint32 bInManipulation : 1;
 
 	FColor BrushColor;
-	FLinearColor LevelColor;
+	FLinearColor ActorColor;
 	FColor PropertyColor;
 
 	/** Collision Response of this component**/

@@ -1542,7 +1542,7 @@ bool IsRichView(const FSceneViewFamily& ViewFamily)
 		ViewFamily.EngineShowFlags.MeshEdges ||
 		ViewFamily.EngineShowFlags.LightInfluences ||
 		ViewFamily.EngineShowFlags.Wireframe ||
-		ViewFamily.EngineShowFlags.LevelColoration ||
+		ViewFamily.EngineShowFlags.ActorColoration ||
 		ViewFamily.EngineShowFlags.LODColoration ||
 		ViewFamily.EngineShowFlags.HLODColoration ||
 		ViewFamily.EngineShowFlags.MassProperties )
@@ -1582,9 +1582,9 @@ void ApplyViewModeOverrides(
 		{
 			BaseColor = PrimitiveSceneProxy->GetPropertyColor();
 		}
-		else if (EngineShowFlags.LevelColoration)
+		else if (EngineShowFlags.ActorColoration)
 		{
-			BaseColor = PrimitiveSceneProxy->GetLevelColor();
+			BaseColor = PrimitiveSceneProxy->GetPrimitiveColor();
 		}
 
 		if (bMaterialModifiesMeshPosition)
@@ -1686,9 +1686,9 @@ void ApplyViewModeOverrides(
 			Mesh.MaterialRenderProxy = PropertyColorationMaterialInstance;
 			Collector.RegisterOneFrameMaterialProxy(PropertyColorationMaterialInstance);
 		}
-		else if (EngineShowFlags.LevelColoration)
+		else if (EngineShowFlags.ActorColoration)
 		{
-			const FLinearColor SelectionColor = GetSelectionColor(PrimitiveSceneProxy->GetLevelColor(), bSelected, PrimitiveSceneProxy->IsHovered());
+			const FLinearColor SelectionColor = GetSelectionColor(PrimitiveSceneProxy->GetPrimitiveColor(), bSelected, PrimitiveSceneProxy->IsHovered());
 			FMaterialRenderProxy* LevelColorationMaterialInstance = nullptr;
 
 			if (bMaterialModifiesMeshPosition)
@@ -1732,7 +1732,7 @@ void ApplyViewModeOverrides(
 		{
 			auto InvalidSettingsMaterialInstance = new FColoredMaterialRenderProxy(
 				GEngine->InvalidLightmapSettingsMaterial->GetRenderProxy(),
-				GetSelectionColor(PrimitiveSceneProxy->GetLevelColor(),bSelected,PrimitiveSceneProxy->IsHovered())
+				GetSelectionColor(PrimitiveSceneProxy->GetPrimitiveColor(),bSelected,PrimitiveSceneProxy->IsHovered())
 				);
 			Mesh.MaterialRenderProxy = InvalidSettingsMaterialInstance;
 			Collector.RegisterOneFrameMaterialProxy(InvalidSettingsMaterialInstance);

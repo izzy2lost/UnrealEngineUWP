@@ -1345,9 +1345,9 @@ void FDeferredShadingSceneRenderer::RenderBasePassInternal(
 	{
 		NaniteDebugViewMode = Nanite::EDebugViewMode::LightmapDensity;
 	}
-	else if (ViewFamily.EngineShowFlags.LevelColoration)
+	else if (ViewFamily.EngineShowFlags.ActorColoration)
 	{
-		NaniteDebugViewMode = Nanite::EDebugViewMode::LevelColor;
+		NaniteDebugViewMode = Nanite::EDebugViewMode::PrimitiveColor;
 	}
 	else if (ViewFamily.UseDebugViewPS())
 	{

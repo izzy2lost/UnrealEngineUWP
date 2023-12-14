@@ -1893,6 +1893,17 @@ void UPrimitiveComponent::PushEditorVisibilityToProxy( uint64 InVisibility )
 	}
 }
 
+#if !(UE_BUILD_SHIPPING || UE_BUILD_TEST)
+void UPrimitiveComponent::PushPrimitiveColorToProxy(const FLinearColor& InPrimitiveColor)
+{
+	//although this should only be called for attached components, some billboard components can get in without valid proxies
+	if (SceneProxy)
+	{
+		SceneProxy->SetPrimitiveColor_GameThread(InPrimitiveColor);
+	}
+}
+#endif
+
 #if WITH_EDITOR
 uint64 UPrimitiveComponent::GetHiddenEditorViews() const
 {

@@ -1203,7 +1203,7 @@ void FViewInfo::UpdatePreExposure()
 		&& !ViewFamily.EngineShowFlags.LightComplexity
 		&& !ViewFamily.EngineShowFlags.LODColoration
 		&& !ViewFamily.EngineShowFlags.HLODColoration
-		&& !ViewFamily.EngineShowFlags.LevelColoration
+		&& !ViewFamily.EngineShowFlags.ActorColoration
 		&& ((!ViewFamily.EngineShowFlags.VisualizeBuffer) || CurrentBufferVisualizationMode != NAME_None) // disable pre-exposure for the buffer visualization modes
 		&& !ViewFamily.EngineShowFlags.RayTracingDebug;
 

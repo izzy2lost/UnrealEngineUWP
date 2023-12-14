@@ -33,7 +33,7 @@ float3 SelectionColor;
 #define DEBUG_VIEW_WIREFRAME 1
 #define DEBUG_VIEW_SHADER_COMPLEXITY 2
 #define DEBUG_VIEW_LIGHTMAP_DENSITY 3
-#define DEBUG_VIEW_LEVEL_COLOR 4
+#define DEBUG_VIEW_PRIMITIVE_COLOR 4
 uint DebugViewMode;
 
 #define SOBEL_WIREFRAME_FILTER_ONLY 0
@@ -185,7 +185,7 @@ void ExportDebugViewPS(
 			{
 				const bool bIsSelected = IsInstanceSelected(InstanceData, VisibleCluster, TriIndex);
 				const float3 WireColor = CondMask(bIsSelected, SelectionColor, PrimitiveData.WireframeColor);
-				//const float3 WireColor = PrimitiveData.LevelColor;
+				//const float3 WireColor = PrimitiveData.PrimitiveColor;
 
 			#if SOBEL_WIREFRAME_FILTER_ONLY
 				const bool bUseSobelFilter = true;
@@ -283,10 +283,10 @@ void ExportDebugViewPS(
 				// Alpha channel needs to be 1 to have decals working where the framebuffer blend is setup to multiply with alpha
 				OutColor = float4(FinalComplexity.xyz, 1.0f);
 			}
-			else if (DebugViewMode == DEBUG_VIEW_LEVEL_COLOR)
+			else if (DebugViewMode == DEBUG_VIEW_PRIMITIVE_COLOR)
 			{
 				const bool bIsSelected = IsInstanceSelected(InstanceData, VisibleCluster, TriIndex);
-				const float3 SolidColor = CondMask(bIsSelected, SelectionColor, PrimitiveData.LevelColor);
+				const float3 SolidColor = CondMask(bIsSelected, SelectionColor, PrimitiveData.PrimitiveColor);
 				OutColor = float4(SolidColor, 1.0f);
 			}
 		#endif

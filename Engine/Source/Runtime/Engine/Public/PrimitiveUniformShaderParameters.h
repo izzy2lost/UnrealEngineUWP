@@ -58,7 +58,7 @@ BEGIN_GLOBAL_SHADER_PARAMETER_STRUCT(FPrimitiveUniformShaderParameters,ENGINE_AP
 	SHADER_PARAMETER(uint32,		InstancePayloadExtensionSize)
 	SHADER_PARAMETER(FVector3f,		WireframeColor)											// Only needed for editor/development
 	SHADER_PARAMETER(uint32,		PackedNaniteFlags)
-	SHADER_PARAMETER(FVector3f,		LevelColor)												// Only needed for editor/development
+	SHADER_PARAMETER(FVector3f,		PrimitiveColor)											// Only needed for editor/development
 	SHADER_PARAMETER(int32,			PersistentPrimitiveIndex)
 	SHADER_PARAMETER(FVector2f,		InstanceDrawDistanceMinMaxSquared)
 	SHADER_PARAMETER(float,			InstanceWPODisableDistanceSquared)

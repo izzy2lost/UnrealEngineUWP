@@ -215,7 +215,6 @@ struct FPrimitiveSceneProxyDesc
 	bool IsOwnerEditorOnly() const { return bIsOwnerEditorOnly; }
 
 #if WITH_EDITOR
-	FLinearColor GetLevelColor() const { return GetLevel() ? GetLevel()->LevelColor : FLinearColor::White; }
 	bool IsHiddenEd() const { return bIsHiddenEd; }
 	uint64 GetHiddenEditorViews() const { return HiddenEditorViews; }
 	bool IsOwnedByFoliage() const { return bIsOwnedByFoliage; }	

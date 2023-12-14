@@ -131,7 +131,7 @@ struct FPrimitiveSceneData
 	float3		InstanceLocalBoundsCenter;
 	float3		InstanceLocalBoundsExtent;
 	float3		WireframeColor; // TODO: Should refactor out all editor data into a separate buffer
-	float3		LevelColor; // TODO: Should refactor out all editor data into a separate buffer
+	float3		PrimitiveColor; // TODO: Should refactor out all editor data into a separate buffer
 	uint		PackedNaniteFlags;
 	float2 		InstanceDrawDistanceMinMaxSquared;
 	float		InstanceWPODisableDistanceSquared;
@@ -183,7 +183,7 @@ FPrimitiveSceneData GetPrimitiveDataFromUniformBuffer()
 	PrimitiveData.InstanceLocalBoundsCenter			= Primitive.InstanceLocalBoundsCenter;
 	PrimitiveData.InstanceLocalBoundsExtent			= Primitive.InstanceLocalBoundsExtent;
 	PrimitiveData.WireframeColor					= Primitive.WireframeColor;
-	PrimitiveData.LevelColor						= Primitive.LevelColor;
+	PrimitiveData.PrimitiveColor					= Primitive.PrimitiveColor;
 	PrimitiveData.PackedNaniteFlags					= Primitive.PackedNaniteFlags;
 	PrimitiveData.InstanceDrawDistanceMinMaxSquared	= Primitive.InstanceDrawDistanceMinMaxSquared;
 	PrimitiveData.InstanceWPODisableDistanceSquared	= Primitive.InstanceWPODisableDistanceSquared;
@@ -413,7 +413,7 @@ FPrimitiveSceneData GetPrimitiveData(uint PrimitiveId)
 	PrimitiveData.InstancePayloadExtensionSize			= asuint(LoadPrimitivePrimitiveSceneDataElement(PrimitiveIndex, 27).w) >> 24;
 	PrimitiveData.WireframeColor						= LoadPrimitivePrimitiveSceneDataElement(PrimitiveIndex, 28).xyz;
 	PrimitiveData.PackedNaniteFlags						= asuint(LoadPrimitivePrimitiveSceneDataElement(PrimitiveIndex, 28).w);
-	PrimitiveData.LevelColor							= LoadPrimitivePrimitiveSceneDataElement(PrimitiveIndex, 29).xyz;
+	PrimitiveData.PrimitiveColor						= LoadPrimitivePrimitiveSceneDataElement(PrimitiveIndex, 29).xyz;
 	PrimitiveData.PersistentPrimitiveIndex				= asint(LoadPrimitivePrimitiveSceneDataElement(PrimitiveIndex, 29).w);
 	PrimitiveData.InstanceDrawDistanceMinMaxSquared		= LoadPrimitivePrimitiveSceneDataElement(PrimitiveIndex, 30).xy;
 	PrimitiveData.InstanceWPODisableDistanceSquared		= LoadPrimitivePrimitiveSceneDataElement(PrimitiveIndex, 30).z;

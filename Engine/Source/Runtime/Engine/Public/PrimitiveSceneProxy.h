@@ -252,6 +252,13 @@ public:
 	 * Enqueue updated selection outline color for the render thread to use.
 	 */
 	void SetSelectionOutlineColorIndex_GameThread(uint8 ColorIndex);
+#endif
+
+#if !(UE_BUILD_SHIPPING || UE_BUILD_TEST)
+	/**
+	 * Enqueue and update for the render thread to notify it that the primitive color changed.
+	 */
+	void SetPrimitiveColor_GameThread(const FLinearColor& InPrimitiveColor);
 #endif	// WITH_EDITOR
 
 	/** Enqueue and update for the render thread to remove the velocity data for this component from the scene. */
@@ -797,17 +804,17 @@ public:
 
 #if !UE_BUILD_TEST
 	inline FLinearColor GetWireframeColor() const { return WireframeColor; }
-	inline FLinearColor GetLevelColor() const { return LevelColor; }
+	inline FLinearColor GetPrimitiveColor() const { return PrimitiveColor; }
 	inline FLinearColor GetPropertyColor() const { return PropertyColor; }
 	inline void SetWireframeColor(const FLinearColor& InWireframeColor) { WireframeColor = InWireframeColor; }
-	inline void SetLevelColor(const FLinearColor& InLevelColor) { LevelColor = InLevelColor; }
+	inline void SetPrimitiveColor(const FLinearColor& InPrimitiveColor) { PrimitiveColor = InPrimitiveColor; }
 	inline void SetPropertyColor(const FLinearColor& InPropertyColor) { PropertyColor = InPropertyColor; }
 #else
 	inline FLinearColor GetWireframeColor() const { return FLinearColor::White; }
-	inline FLinearColor GetLevelColor() const { return FLinearColor::White; }
+	inline FLinearColor GetPrimitiveColor() const { return FLinearColor::White; }
 	inline FLinearColor GetPropertyColor() const { return FLinearColor::White; }
 	inline void SetWireframeColor(const FLinearColor& InWireframeColor) {}
-	inline void SetLevelColor(const FLinearColor& InLevelColor) {}
+	inline void SetPrimitiveColor(const FLinearColor& InPrimitiveColor) {}
 	inline void SetPropertyColor(const FLinearColor& InPropertyColor) {}
 #endif
 
@@ -1110,7 +1117,7 @@ protected:
 private:
 #if !UE_BUILD_TEST
 	FLinearColor WireframeColor;
-	FLinearColor LevelColor;
+	FLinearColor PrimitiveColor;
 	FLinearColor PropertyColor;
 #endif
 

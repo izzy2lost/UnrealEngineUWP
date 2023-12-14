@@ -413,11 +413,11 @@ void FGeometryCacheSceneProxy::GetDynamicMeshElements(const TArray<const FSceneV
 	if (bWireframe)
 	{
 		const FEngineShowFlags& EngineShowFlags = ViewFamily.EngineShowFlags;
-		const bool bLevelColorationEnabled = EngineShowFlags.LevelColoration;
+		const bool bActorColorationEnabled = EngineShowFlags.ActorColoration;
 		const bool bPropertyColorationEnabled = EngineShowFlags.PropertyColoration;
 
 		const FLinearColor WireColor = bOverrideWireframeColor ? WireframeOverrideColor : GetWireframeColor();
-		FLinearColor ViewWireframeColor(bLevelColorationEnabled ? GetLevelColor() : WireColor);
+		FLinearColor ViewWireframeColor(bActorColorationEnabled ? GetPrimitiveColor() : WireColor);
 		if (bPropertyColorationEnabled)
 		{
 			ViewWireframeColor = GetPropertyColor();

@@ -9,6 +9,7 @@
 #include "Modules/ModuleManager.h"
 #include "UObject/LinkerLoad.h"
 #include "UObject/ObjectRedirector.h"
+#include "GameFramework/ActorPrimitiveColorHandler.h"
 #include "GameFramework/PlayerController.h"
 #include "Engine/Engine.h"
 #include "Engine/LevelStreamingAlwaysLoaded.h"
@@ -396,6 +397,23 @@ ULevelStreaming::ULevelStreaming(const FObjectInitializer& ObjectInitializer)
 	bSkipClientUseMakingInvisibleTransactionRequest = false;
 	bSkipClientUseMakingVisibleTransactionRequest = false;
 	bGarbageCollectionClusteringEnabled = true;
+
+#if !(UE_BUILD_SHIPPING || UE_BUILD_TEST)
+	if (HasAnyFlags(RF_ClassDefaultObject) && ExactCast<ULevelStreaming>(this))
+	{
+		FActorPrimitiveColorHandler::Get().RegisterPrimitiveColorHandler(TEXT("LevelColor"), [](const AActor* InActor)
+		{
+			if (ULevel* Level = InActor ? InActor->GetLevel() : nullptr)
+			{
+				if (ULevelStreaming* LevelStreaming = FLevelUtils::FindStreamingLevel(Level))
+				{
+					return LevelStreaming->LevelColor;
+				}
+			}
+			return FLinearColor::White;
+		});
+	}
+#endif
 }
 
 void ULevelStreaming::PostLoad()

@@ -63,7 +63,6 @@
 #include "FoliageHelper.h"
 #include "LevelInstance/LevelInstanceSubsystem.h"
 #include "LevelInstance/LevelInstanceInterface.h"
-#include "Misc/LazySingleton.h"
 #endif
 
 #include "WorldPartition/WorldPartitionLog.h"

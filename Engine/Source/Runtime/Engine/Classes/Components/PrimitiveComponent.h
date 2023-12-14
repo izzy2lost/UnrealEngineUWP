@@ -2533,6 +2533,11 @@ public:
 
 	ENGINE_API virtual void GetPrimitiveStats(FPrimitiveStats& PrimitiveStats) const;
 
+#if !(UE_BUILD_SHIPPING || UE_BUILD_TEST)
+	/** Sends primitive color updates to the render thread */
+	ENGINE_API void PushPrimitiveColorToProxy(const FLinearColor& InPrimitiveColor);
+#endif
+
 #if WITH_EDITOR
 	/** Returns mask that represents in which views this primitive is hidden */
 	ENGINE_API virtual uint64 GetHiddenEditorViews() const;

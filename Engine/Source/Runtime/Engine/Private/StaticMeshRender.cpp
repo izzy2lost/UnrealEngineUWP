@@ -1481,7 +1481,7 @@ void FStaticMeshSceneProxy::GetDynamicMeshElements(const TArray<const FSceneView
 	{
 		// how we should draw the collision for this mesh.
 		const bool bIsWireframeView = EngineShowFlags.Wireframe;
-		const bool bLevelColorationEnabled = EngineShowFlags.LevelColoration;
+		const bool bActorColorationEnabled = EngineShowFlags.ActorColoration;
 		const bool bPropertyColorationEnabled = EngineShowFlags.PropertyColoration;
 		const ERHIFeatureLevel::Type FeatureLevel = ViewFamily.GetFeatureLevel();
 
@@ -1506,7 +1506,7 @@ void FStaticMeshSceneProxy::GetDynamicMeshElements(const TArray<const FSceneView
 							// If any of the materials are mesh-modifying, we can't use the single merged mesh element of GetWireframeMeshElement()
 							&& !ProxyLODInfo.UsesMeshModifyingMaterials())
 						{
-							FLinearColor ViewWireframeColor( bLevelColorationEnabled ? GetLevelColor() : GetWireframeColor() );
+							FLinearColor ViewWireframeColor( bActorColorationEnabled ? GetPrimitiveColor() : GetWireframeColor() );
 							if ( bPropertyColorationEnabled )
 							{
 								ViewWireframeColor = GetPropertyColor();
@@ -1541,7 +1541,7 @@ void FStaticMeshSceneProxy::GetDynamicMeshElements(const TArray<const FSceneView
 						}
 						else
 						{
-							const FLinearColor UtilColor( GetLevelColor() );
+							const FLinearColor UtilColor( GetPrimitiveColor() );
 
 							// Draw the static mesh sections.
 							for (int32 SectionIndex = 0; SectionIndex < LODModel.Sections.Num(); SectionIndex++)

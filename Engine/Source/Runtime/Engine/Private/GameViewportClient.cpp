@@ -3,6 +3,7 @@
 #include "Engine/GameViewportClient.h"
 #include "Engine/GameInstance.h"
 #include "EngineGlobals.h"
+#include "GameFramework/ActorPrimitiveColorHandler.h"
 #include "GameFramework/Pawn.h"
 #include "ImageCore.h"
 #include "Misc/FileHelper.h"
@@ -3260,7 +3261,13 @@ bool UGameViewportClient::HandleShowCommand( const TCHAR* Cmd, FOutputDevice& Ar
 
 	// EngineShowFlags
 	{
-		int32 FlagIndex = FEngineShowFlags::FindIndexByName(Cmd);
+		TArray<FString> ShowFlagsArgs;
+		if (!FString(Cmd).ParseIntoArray(ShowFlagsArgs, TEXT(" ")))
+		{
+			ShowFlagsArgs.Add(Cmd);
+		}
+
+		int32 FlagIndex = FEngineShowFlags::FindIndexByName(*ShowFlagsArgs[0]);
 
 		if(FlagIndex != -1)
 		{
@@ -3268,26 +3275,32 @@ bool UGameViewportClient::HandleShowCommand( const TCHAR* Cmd, FOutputDevice& Ar
 
 			if(GIsEditor)
 			{
-				if(!FEngineShowFlags::CanBeToggledInEditor(Cmd))
+				if(!FEngineShowFlags::CanBeToggledInEditor(*ShowFlagsArgs[0]))
 				{
 					bCanBeToggled = false;
 				}
 			}
 
-			bool bIsACollisionFlag = FEngineShowFlags::IsNameThere(Cmd, TEXT("Collision"));
-
 			if(bCanBeToggled)
 			{
 				bool bOldState = EngineShowFlags.GetSingleFlag(FlagIndex);
 
+				if (FEngineShowFlags::IsNameThere(*ShowFlagsArgs[0], TEXT("ActorColoration")))
+				{
+					if (ShowFlagsArgs.Num() > 1)
+					{
+						bOldState &= !FActorPrimitiveColorHandler::Get().SetActivePrimitiveColorHandler(*ShowFlagsArgs[1], InWorld);
+					}
+				}
+
 				EngineShowFlags.SetSingleFlag(FlagIndex, !bOldState);
 
-				if(FEngineShowFlags::IsNameThere(Cmd, TEXT("Navigation,Cover")))
+				if(FEngineShowFlags::IsNameThere(*ShowFlagsArgs[0], TEXT("Navigation,Cover")))
 				{
 					VerifyPathRenderingComponents();
 				}
 
-				if(FEngineShowFlags::IsNameThere(Cmd, TEXT("Volumes")))
+				if(FEngineShowFlags::IsNameThere(*ShowFlagsArgs[0], TEXT("Volumes")))
 				{
 					// TODO: Investigate why this is doesn't appear to work
 					if (AllowDebugViewmodes())
@@ -3301,7 +3314,7 @@ bool UGameViewportClient::HandleShowCommand( const TCHAR* Cmd, FOutputDevice& Ar
 				}
 			}
 
-			if(bIsACollisionFlag)
+			if(FEngineShowFlags::IsNameThere(*ShowFlagsArgs[0], TEXT("Collision")))
 			{
 				ToggleShowCollision();
 			}
