@@ -512,17 +512,6 @@ public:
 	TArray& operator=(const TArrayView<OtherElementType, OtherSizeType>& Other);
 
 private:
-
-	FORCEINLINE void SlackTrackerNumChanged()
-	{
-#if UE_ENABLE_ARRAY_SLACK_TRACKING
-		if constexpr (TAllocatorTraits<InAllocatorType>::SupportsSlackTracking)
-		{
-			AllocatorInstance.SlackTrackerLogNum(ArrayNum);
-		}
-#endif
-	}
-
 	/**
 	 * Moves or copies array. Depends on the array type traits.
 	 *
@@ -566,9 +555,6 @@ private:
 
 			FromArray.ArrayNum = 0;
 			FromArray.ArrayMax = FromArray.AllocatorInstance.GetInitialCapacity();
-
-			FromArray.SlackTrackerNumChanged();
-			ToArray.SlackTrackerNumChanged();
 		}
 		else
 		{
@@ -1326,11 +1312,6 @@ public:
 		{
 			ResizeGrow((SizeType)OldNum);
 		}
-		else
-		{
-			SlackTrackerNumChanged();
-		}
-
 		return OldNum;
 	}
 	FORCEINLINE SizeType AddUninitialized(SizeType Count)
@@ -1352,11 +1333,6 @@ public:
 		{
 			ResizeGrow((SizeType)OldNum);
 		}
-		else
-		{
-			SlackTrackerNumChanged();
-		}
-
 		return OldNum;
 	}
 
@@ -1373,10 +1349,6 @@ private:
 		if (NewNum > (USizeType)ArrayMax)
 		{
 			ResizeGrow((SizeType)OldNum);
-		}
-		else
-		{
-			SlackTrackerNumChanged();
 		}
 		ElementType* Data = GetData() + Index;
 		RelocateConstructItems<ElementType>(Data + 1, Data, OldNum - Index);
@@ -1403,10 +1375,6 @@ private:
 #endif
 		{
 			ResizeGrow((SizeType)OldNum);
-		}
-		else
-		{
-			SlackTrackerNumChanged();
 		}
 		ElementType* Data = GetData() + Index;
 		RelocateConstructItems<ElementType>(Data + Count, Data, OldNum - Index);
@@ -1566,8 +1534,6 @@ public:
 		RelocateConstructItems<ElementType>(GetData() + InIndex, Items.GetData(), NumNewElements);
 		Items.ArrayNum = 0;
 
-		Items.SlackTrackerNumChanged();
-
 		return InIndex;
 	}
 
@@ -1706,8 +1672,6 @@ private:
 			}
 			ArrayNum -= Count;
 
-			SlackTrackerNumChanged();
-
 			if (bAllowShrinking)
 			{
 				ResizeShrink();
@@ -1765,8 +1729,6 @@ private:
 					);
 			}
 			ArrayNum -= Count;
-
-			SlackTrackerNumChanged();
 
 			if (bAllowShrinking)
 			{
@@ -1828,8 +1790,6 @@ public:
 		{
 			DestructItems(GetData(), ArrayNum);
 			ArrayNum = 0;
-
-			SlackTrackerNumChanged();
 		}
 		else
 		{
@@ -1854,8 +1814,6 @@ public:
 
 		checkSlow(Slack >= 0);
 		ArrayNum = 0;
-
-		SlackTrackerNumChanged();
 
 		if (ArrayMax != Slack)
 		{
@@ -1942,8 +1900,6 @@ public:
 	{
 		checkSlow(NewNum <= Num() && NewNum >= 0);
 		ArrayNum = NewNum;
-
-		SlackTrackerNumChanged();
 	}
 
 	/**
@@ -1995,8 +1951,6 @@ public:
 		SizeType Pos = AddUninitialized(SourceCount);
 		RelocateConstructItems<ElementType>(GetData() + Pos, Source.GetData(), SourceCount);
 		Source.ArrayNum = 0;
-
-		Source.SlackTrackerNumChanged();
 	}
 
 	/**
@@ -2427,8 +2381,6 @@ public:
 		RelocateConstructItems<ElementType>(GetData() + InIndex, Items.GetData(), NumNewElements);
 		Items.ArrayNum = 0;
 
-		Items.SlackTrackerNumChanged();
-
 		return InIndex;
 	}
 
@@ -2561,8 +2513,6 @@ public:
 		// Update the array count
 		--ArrayNum;
 
-		SlackTrackerNumChanged();
-
 		// Removed one item
 		return 1;
 	}
@@ -2630,9 +2580,6 @@ public:
 		} while (ReadIndex < OriginalNum);
 
 		ArrayNum = WriteIndex;
-
-		SlackTrackerNumChanged();
-
 		return OriginalNum - ArrayNum;
 	}
 
@@ -2947,7 +2894,6 @@ private:
 		{
 			AllocatorInstance.ResizeAllocation(CurrentArrayNum, NewArrayMax, sizeof(ElementType));
 		}
-		SlackTrackerNumChanged();
 	}
 
 	SizeType AllocatorCalculateSlackShrink(SizeType CurrentArrayNum, SizeType NewArrayMax)
@@ -3055,15 +3001,13 @@ private:
 		ArrayNum = NewNum;
 		if (OtherNum || PrevMax)
 		{
-			ResizeForCopy(NewNum, PrevMax);
-			ConstructItems<ElementType>(GetData(), OtherData, OtherNum);
+		ResizeForCopy(NewNum, PrevMax);
+		ConstructItems<ElementType>(GetData(), OtherData, OtherNum);
 		}
 		else
 		{
-			ArrayMax = AllocatorInstance.GetInitialCapacity();
+		ArrayMax = AllocatorInstance.GetInitialCapacity();
 		}
-
-		SlackTrackerNumChanged();
 	}
 
 	/**
@@ -3099,8 +3043,6 @@ private:
 		{
 			ArrayMax = AllocatorInstance.GetInitialCapacity();
 		}
-
-		SlackTrackerNumChanged();
 	}
 
 protected:
@@ -3618,8 +3560,6 @@ struct TArrayPrivateFriend
 				Ar << A[i];
 			}
 		}
-
-		A.SlackTrackerNumChanged();
 
 		return Ar;
 	}

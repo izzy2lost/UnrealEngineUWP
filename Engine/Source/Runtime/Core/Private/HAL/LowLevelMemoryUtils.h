@@ -329,10 +329,10 @@ public:
 		return RetValues;
 	}
 
-	TKey Find(const TKey& Key, TValue1& OutValue1, TValue2& OutValue2) const
+	TKey Find(const TKey& Key, TValue1& OutValue1, TValue2& OutValue2)
 	{
 		SizeType KeyHash = Key.GetHashCode();
-		const StripeData& Stripe = MapStripes[GetStripeIndex(KeyHash)];
+		StripeData& Stripe = MapStripes[GetStripeIndex(KeyHash)];
 
 		FScopeLock AllocationScopeLock(&Stripe.CriticalSection);
 

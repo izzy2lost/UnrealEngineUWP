@@ -66,8 +66,6 @@ public:
 			(uint8*)this->GetAllocation() + (Index       )*NumBytesPerElement,
 			                                               (OldNum-Index)*NumBytesPerElement
 		);
-
-		SlackTrackerNumChanged();
 	}
 	int32 Add( int32 Count, int32 NumBytesPerElement, uint32 AlignmentOfElement )
 	{
@@ -80,8 +78,6 @@ public:
 		{
 			ResizeGrow(OldNum, NumBytesPerElement, AlignmentOfElement);
 		}
-
-		SlackTrackerNumChanged();
 
 		return OldNum;
 	}
@@ -120,17 +116,11 @@ public:
 		this->MoveToEmpty(Other);
 		ArrayNum = Other.ArrayNum; Other.ArrayNum = 0;
 		ArrayMax = Other.ArrayMax; Other.ArrayMax = 0;
-
-		this->SlackTrackerNumChanged();
-		Other.SlackTrackerNumChanged();
 	}
 	void Empty( int32 Slack, int32 NumBytesPerElement, uint32 AlignmentOfElement )
 	{
 		checkSlow(Slack>=0);
 		ArrayNum = 0;
-
-		SlackTrackerNumChanged();
-
 		if (Slack != ArrayMax)
 		{
 			ResizeTo(Slack, NumBytesPerElement, AlignmentOfElement);
@@ -141,8 +131,6 @@ public:
 		if (NewSize <= ArrayMax)
 		{
 			ArrayNum = 0;
-
-			SlackTrackerNumChanged();
 		}
 		else
 		{
@@ -200,8 +188,6 @@ public:
 			}
 			ArrayNum -= Count;
 
-			SlackTrackerNumChanged();
-
 			if (bAllowShrinking)
 			{
 				ResizeShrink(NumBytesPerElement, AlignmentOfElement);
@@ -227,8 +213,6 @@ protected:
 			ResizeInit(NumBytesPerElement, AlignmentOfElement);
 		}
 		ArrayNum = InNum;
-
-		SlackTrackerNumChanged();
 	}
 	int32	  ArrayNum;
 	int32	  ArrayMax;
@@ -264,18 +248,6 @@ protected:
 			this->ResizeAllocation(ArrayNum, ArrayMax, NumBytesPerElement, AlignmentOfElement);
 		}
 	}
-
-private:
-	FORCEINLINE void SlackTrackerNumChanged()
-	{
-#if UE_ENABLE_ARRAY_SLACK_TRACKING
-		if constexpr (TAllocatorTraits<AllocatorType>::SupportsSlackTracking)
-		{
-			((typename AllocatorType::ForAnyElementType*)this)->SlackTrackerLogNum(ArrayNum);
-		}
-#endif
-	}
-
 public:
 	// These should really be private, because they shouldn't be called, but there's a bunch of code
 	// that needs to be fixed first.

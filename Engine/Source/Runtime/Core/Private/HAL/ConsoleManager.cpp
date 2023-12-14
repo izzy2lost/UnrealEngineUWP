@@ -3270,12 +3270,6 @@ void CreateConsoleVariables()
 	IConsoleManager::Get().RegisterConsoleCommand(TEXT("GPUDebugCrash"), TEXT("Crash GPU intentionally for debugging."), ECVF_Cheat);
 #endif
 
-#if UE_ENABLE_ARRAY_SLACK_TRACKING
-	IConsoleManager::Get().RegisterConsoleCommand(TEXT("SlackReport"),
-		TEXT("Generate an array slack memory report to Saved/Logs/SlackReport.  TSV format can be loaded as a spreadsheet.\nUage: SlackReport [Filename] [-Stack=N] [-Verbose=0,1]\nIf no filename, writes to a default filename which increments each report.\nStack setting specifies number of stack frames to consider when grouping allocations"),
-		ECVF_Default);
-#endif
-
 #if	!UE_BUILD_SHIPPING
 	IConsoleManager::Get().RegisterConsoleCommand( TEXT( "DumpConsoleCommands" ), TEXT( "Dumps all console vaiables and commands and all exec that can be discovered to the log/console" ), ECVF_Default );
 	IConsoleManager::Get().RegisterConsoleCommand( TEXT( "RedirectToFile" ),

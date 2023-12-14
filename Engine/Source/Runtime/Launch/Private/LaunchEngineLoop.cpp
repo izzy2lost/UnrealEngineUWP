@@ -4466,14 +4466,6 @@ int32 FEngineLoop::PreInitPostStartupScreen(const TCHAR* CmdLine)
 
 int32 FEngineLoop::PreInit(const TCHAR* CmdLine)
 {
-#if UE_ENABLE_ARRAY_SLACK_TRACKING
-	// Any array allocations before this point won't have array slack tracking, although subsequent reallocations of existing arrays
-	// will gain tracking if that occurs.  The goal is to filter out startup constructors which run before Main, which introduce a
-	// ton of noise into slack reports.  Especially the roughly 30,000 static FString constructors in the code base, each with a
-	// unique call stack, and all having a little bit of slack due to malloc bucket size rounding.
-	ArraySlackTrackInit();
-#endif
-
 	const int32 rv1 = PreInitPreStartupScreen(CmdLine);
 	if (rv1 != 0)
 	{
