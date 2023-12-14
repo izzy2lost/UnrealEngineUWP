@@ -1482,6 +1482,7 @@ bool FAssetRegistryState::Save(FArchive& OriginalAr, const FAssetRegistrySeriali
 
 bool FAssetRegistryState::Load(FArchive& OriginalAr, const FAssetRegistryLoadOptions& Options, FAssetRegistryVersion::Type* OutVersion)
 {
+	LLM_SCOPE(ELLMTag::AssetRegistry);
 	FAssetRegistryHeader Header;
 	Header.SerializeHeader(OriginalAr);
 	if (OutVersion != nullptr)
