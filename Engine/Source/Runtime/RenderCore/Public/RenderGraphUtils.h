@@ -430,9 +430,6 @@ namespace FComputeShaderUtils
 
 	inline void ValidateGroupCount(const FIntVector& GroupCount)
 	{
-		ensure(GroupCount.X > 0);
-		ensure(GroupCount.Y > 0);
-		ensure(GroupCount.Z > 0);
 		ensure(GroupCount.X <= GRHIMaxDispatchThreadGroupsPerDimension.X);
 		ensure(GroupCount.Y <= GRHIMaxDispatchThreadGroupsPerDimension.Y);
 		ensure(GroupCount.Z <= GRHIMaxDispatchThreadGroupsPerDimension.Z);
