@@ -43,7 +43,8 @@ public:
 	 * 
 	 * This can be necessary to reassign startup packages such as the GameFeatureData asset.
 	 */
-	GAMEFEATURES_API static void GetChunkForPackage(const FString& PackageName, const int32 DefaultGameChunk, TArray<int32>& OutChunkList);
+	GAMEFEATURES_API static void GetChunkForPackage(const FName PackageName, const int32 DefaultGameChunk, TArray<int32>& OutChunkList);
+	GAMEFEATURES_API static void GetChunkForPackage(const FString& PackageName, const TSet<FPrimaryAssetId>& Managers, const int32 DefaultGameChunk, TArray<int32>& OutChunkList);
 
 	GAMEFEATURES_API static FString GetPluginNameFromChunkID(int32 ChunkID);
 
