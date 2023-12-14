@@ -131,7 +131,7 @@ public:
 	//// Responses ////
 
 	// Reads a response from the remote. Other Read methods can be used to access response data.
-	HORDE_API EAgentMessageType ReadResponse();
+	HORDE_API EAgentMessageType ReadResponse(int32 TimeoutMS = -1);
 
 	// Gets the raw data from a response
 	HORDE_API const void* GetResponseData() const { return ResponseData; }

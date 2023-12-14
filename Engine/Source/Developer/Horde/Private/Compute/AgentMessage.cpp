@@ -153,7 +153,7 @@ void FAgentMessageChannel::Xor(const unsigned char* Data, size_t Length, unsigne
 	FlushMessage();
 }
 
-EAgentMessageType FAgentMessageChannel::ReadResponse()
+EAgentMessageType FAgentMessageChannel::ReadResponse(int32 TimeoutMS)
 {
 	if (ResponseData)
 	{
@@ -162,7 +162,7 @@ EAgentMessageType FAgentMessageChannel::ReadResponse()
 		ResponseLength = 0;
 	}
 
-	const unsigned char* Header = ChannelBuffers->Reader.WaitToRead(MessageHeaderLength);
+	const unsigned char* Header = ChannelBuffers->Reader.WaitToRead(MessageHeaderLength, TimeoutMS);
 	if (Header == nullptr)
 	{
 		return EAgentMessageType::None;
