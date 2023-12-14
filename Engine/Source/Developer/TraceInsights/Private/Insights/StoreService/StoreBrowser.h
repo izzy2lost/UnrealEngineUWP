@@ -101,6 +101,8 @@ public:
 	uint32 GetSettingsChangeSerial() const { check(bSettingsLocked); return SettingsChangeSerial; };
 	const FString& GetHost() const { check(bSettingsLocked); return Host; }
 	const FString& GetVersion() const { check(bSettingsLocked); return Version; }
+	uint32 GetRecorderPort() const {check(bSettingsLocked); return RecorderPort; }
+	uint32 GetStorePort() const { check(bSettingsLocked); return StorePort; }
 	const FString& GetStoreDirectory() const { check(bSettingsLocked); return StoreDirectory; }
 	const TArray<FString>& GetWatchDirectories() const { check(bSettingsLocked); return WatchDirectories; }
 
@@ -139,6 +141,8 @@ private:
 	uint32 SettingsChangeSerial = 0;
 	FString Host;
 	FString Version;
+	uint32 StorePort;
+	uint32 RecorderPort;
 	FString StoreDirectory;
 	TArray<FString> WatchDirectories;
 
