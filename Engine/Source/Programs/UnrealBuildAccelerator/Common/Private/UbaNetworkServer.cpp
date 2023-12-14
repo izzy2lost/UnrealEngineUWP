@@ -899,14 +899,14 @@ namespace uba
 					return true;
 				u32 toAdd = connectionCount - c.connectionCount;
 
-				auto& conn = *(NetworkServer::Connection*)connectionInfo.internalData;
-				auto remoteAddr = conn.m_remoteSockAddr;
+				auto connPtr = (NetworkServer::Connection*)connectionInfo.internalData;
 				ScopedWriteLock lock2(m_addConnectionsLock);
 				for (u32 i = 0; i != toAdd; ++i)
 				{
-					m_addConnections.emplace_back([this, &conn, remoteAddr]()
+					m_addConnections.emplace_back([this, connPtr]()
 						{
-							conn.m_backend.Connect(m_logger, remoteAddr, [this, &conn](void* connection, const sockaddr& remoteSocketAddr, bool* timedOut)
+							auto& conn = *connPtr;
+							conn.m_backend.Connect(m_logger, conn.m_remoteSockAddr, [this, &conn](void* connection, const sockaddr& remoteSocketAddr, bool* timedOut)
 								{
 									CryptoKey cryptoKey = InvalidCryptoKey;
 									if (conn.m_cryptoKey)
