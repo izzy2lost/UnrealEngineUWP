@@ -132,7 +132,7 @@ bool UDataTableFunctionLibrary::GetDataTableColumnNameFromExportName(const UData
 
 
 #if WITH_EDITOR
-bool UDataTableFunctionLibrary::FillDataTableFromCSVString(UDataTable* DataTable, const FString& InString)
+bool UDataTableFunctionLibrary::FillDataTableFromCSVString(UDataTable* DataTable, const FString& InString, UScriptStruct* ImportRowStruct)
 {
 	if (!DataTable)
 	{
@@ -141,6 +141,7 @@ bool UDataTableFunctionLibrary::FillDataTableFromCSVString(UDataTable* DataTable
 	}
 
 	UCSVImportFactory* ImportFactory = NewObject<UCSVImportFactory>();
+	ImportFactory->AutomatedImportSettings.ImportRowStruct = ImportRowStruct;
 
 	bool bWasCancelled = false;
 	const TCHAR* Buffer = *InString;
@@ -158,7 +159,7 @@ bool UDataTableFunctionLibrary::FillDataTableFromCSVString(UDataTable* DataTable
 	return Result != nullptr && !bWasCancelled;
 }
 
-bool UDataTableFunctionLibrary::FillDataTableFromCSVFile(UDataTable* DataTable, const FString& InFilePath)
+bool UDataTableFunctionLibrary::FillDataTableFromCSVFile(UDataTable* DataTable, const FString& InFilePath, UScriptStruct* ImportRowStruct)
 {
 	if (!DataTable)
 	{
@@ -174,10 +175,11 @@ bool UDataTableFunctionLibrary::FillDataTableFromCSVFile(UDataTable* DataTable, 
 
 	DataTable->AssetImportData->Update(InFilePath);
 	UCSVImportFactory* ImportFactory = NewObject<UCSVImportFactory>();
+	ImportFactory->AutomatedImportSettings.ImportRowStruct = ImportRowStruct;
 	return ImportFactory->ReimportCSV(DataTable) == EReimportResult::Succeeded;
 }
 
-bool UDataTableFunctionLibrary::FillDataTableFromJSONString(UDataTable* DataTable, const FString& InString)
+bool UDataTableFunctionLibrary::FillDataTableFromJSONString(UDataTable* DataTable, const FString& InString, UScriptStruct* ImportRowStruct)
 {
 	if (!DataTable)
 	{
@@ -186,6 +188,7 @@ bool UDataTableFunctionLibrary::FillDataTableFromJSONString(UDataTable* DataTabl
 	}
 
 	UCSVImportFactory* ImportFactory = NewObject<UCSVImportFactory>();
+	ImportFactory->AutomatedImportSettings.ImportRowStruct = ImportRowStruct;
 
 	bool bWasCancelled = false;
 	const TCHAR* Buffer = *InString;
