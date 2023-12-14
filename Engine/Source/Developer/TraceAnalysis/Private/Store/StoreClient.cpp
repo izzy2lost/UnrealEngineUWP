@@ -119,6 +119,7 @@ public:
 	bool					GetSessionInfoByTraceGuid(const FGuid& TraceGuid);
 							bool SetStoreDirectories(const TCHAR* StoreDir, const TArray<FString>& AddWatchDirs,
 													const TArray<FString>& RemoveWatchDirs);
+							bool SetSponsored(bool bSponsored);
 
 private:
 	bool					Communicate(const FPayload& Payload);
@@ -422,6 +423,14 @@ bool FStoreCborClient::SetStoreDirectories(const TCHAR* StoreDir, const TArray<F
 	return Communicate(Builder.Done());
 }
 	
+////////////////////////////////////////////////////////////////////////////////
+bool FStoreCborClient::SetSponsored(bool bSponsored)
+{
+	TPayloadBuilder<> Builder("v1/settings/write");
+	Builder.AddInteger("Sponsored", bSponsored ? 1 : 0);
+	return Communicate(Builder.Done());
+}
+	
 } // namespace Trace
 } // namespace UE
 
@@ -441,6 +450,20 @@ uint32 FStoreClient::FStatus::GetRecorderPort() const
 {
 	const auto* Response = (const FResponse*)this;
 	return Response->GetUint32Checked("recorder_port", 0);
+}
+
+////////////////////////////////////////////////////////////////////////////////
+uint32 FStoreClient::FStatus::GetStorePort() const
+{
+	const auto* Response = (const FResponse*)this;
+	return Response->GetUint32Checked("store_port", 0);
+}
+
+////////////////////////////////////////////////////////////////////////////////
+bool FStoreClient::FStatus::GetSponsored() const
+{
+	const auto* Response = (const FResponse*)this;
+	return !!Response->GetInteger("sponsored", 0);
 }
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -683,6 +706,13 @@ bool FStoreClient::SetStoreDirectories(const TCHAR* StoreDir,
 	return Self->SetStoreDirectories(StoreDir, AddWatchDirs, RemoveWatchDirs);
 }
 
+////////////////////////////////////////////////////////////////////////////////
+bool FStoreClient::SetSponsored(bool bSponsored)
+{
+	auto* Self = (FStoreCborClient*) this;
+	return Self->SetSponsored(bSponsored);
+}
+	
 ////////////////////////////////////////////////////////////////////////////////
 uint32 FStoreClient::GetSessionCount() const
 {

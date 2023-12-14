@@ -21,6 +21,8 @@ public:
 	{
 		FUtf8StringView	GetStoreDir() const;
 		uint32			GetRecorderPort() const;
+		uint32			GetStorePort() const;
+		bool			GetSponsored() const;
 		uint32			GetChangeSerial() const;
 		uint32			GetSettingsSerial() const;
 		void			GetWatchDirectories(TArray<FString>& OutDirs) const;
@@ -65,6 +67,7 @@ public:
 	FTraceData			ReadTrace(uint32 Id);
 	bool SetStoreDirectories(const TCHAR* StoreDir, const TArray<FString>& AddWatchDirs,
 							const TArray<FString>& RemoveWatchDirs);
+	bool				SetSponsored(bool bSponsored);
 #if 0
 	template <typename Lambda> uint32 GetTraceInfos(uint32 StartIndex, uint32 Count, Lambda&& Callback) const;
 #endif // 0
