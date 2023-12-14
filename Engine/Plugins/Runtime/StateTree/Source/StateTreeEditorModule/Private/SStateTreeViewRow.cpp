@@ -35,7 +35,7 @@ namespace UE::StateTree::Editor
 	}
 } // UE:StateTree::Editor
 
-void SStateTreeViewRow::Construct(const FArguments& InArgs, const TSharedRef<STableViewBase>& InOwnerTableView, TWeakObjectPtr<UStateTreeState> InState, const TSharedPtr<SScrollBox>& ViewBox, TSharedRef<FStateTreeViewModel> InStateTreeViewModel)
+void SStateTreeViewRow::Construct(const FArguments& InArgs, const TSharedRef<STableViewBase>& InOwnerTableView, TWeakObjectPtr<UStateTreeState> InState, const TSharedPtr<SScrollBox>& ViewBox, TSharedPtr<FStateTreeViewModel> InStateTreeViewModel)
 {
 	StateTreeViewModel = InStateTreeViewModel;
 	WeakState = InState;
@@ -1043,7 +1043,7 @@ FText SStateTreeViewRow::GetTransitionsDesc(const UStateTreeState& State, const 
 		}
 		else
 		{
-			DescItems.Add(LOCTEXT("TransitionActionMissingTransition", "Missing Transition"));
+			DescItems.Add(LOCTEXT("TransitionActionRoot", "[Root]"));
 		}
 	}
 	
@@ -1058,7 +1058,6 @@ FText SStateTreeViewRow::GetTransitionsIcon(const UStateTreeState& State, const 
 		IconRightArrow =	1 << 0,
 		IconDownArrow =		1 << 1,
 		IconLevelUp =		1 << 2,
-		IconWarning =		1 << 3,
 	};
 	uint8 IconType = IconNone;
 	
@@ -1123,14 +1122,8 @@ FText SStateTreeViewRow::GetTransitionsIcon(const UStateTreeState& State, const 
 		&& IconType == IconNone
 		&& EnumHasAnyFlags(Trigger, EStateTreeTransitionTrigger::OnStateCompleted))
 	{
-		if (HasParentTransitionForTrigger(State, Trigger))
-		{
-			IconType = IconLevelUp;
-		}
-		else
-		{
-			IconType = IconWarning;
-		}
+		// Transition is handled on parent state, or implicit Root.
+		IconType = IconLevelUp;
 	}
 
 	switch (IconType)
@@ -1141,8 +1134,6 @@ FText SStateTreeViewRow::GetTransitionsIcon(const UStateTreeState& State, const 
 			return FEditorFontGlyphs::Long_Arrow_Down;
 		case IconLevelUp:
 			return FEditorFontGlyphs::Level_Up;
-		case IconWarning:
-			return FEditorFontGlyphs::Exclamation_Triangle;
 		default:
 			return FText::GetEmpty();
 	}
