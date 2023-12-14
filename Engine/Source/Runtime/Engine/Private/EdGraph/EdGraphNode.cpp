@@ -774,6 +774,11 @@ FString UEdGraphNode::GetFindReferenceSearchString() const
 	return GetNodeTitle(ENodeTitleType::ListView).ToString();
 }
 
+FString UEdGraphNode::GetFindReferenceSearchString(EGetFindReferenceSearchStringFlags InFlags) const
+{
+	return GetFindReferenceSearchString_Impl(InFlags);
+}
+
 UObject* UEdGraphNode::GetJumpTargetForDoubleClick() const
 {
 	return nullptr;

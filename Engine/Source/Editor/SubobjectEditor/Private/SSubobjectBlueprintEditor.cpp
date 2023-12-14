@@ -536,7 +536,12 @@ void SSubobjectBlueprintEditor::PopulateContextMenuImpl(UToolMenu* InMenu, TArra
 	FToolMenuSection& BlueprintSCSSection = InMenu->AddSection("BlueprintSCS");
 	if (InSelectedItems.Num() == 1)
 	{
-		BlueprintSCSSection.AddMenuEntry(FGraphEditorCommands::Get().FindReferences);
+		BlueprintSCSSection.AddSubMenu(
+			FName("FindReferenceSubMenu"),
+			LOCTEXT("FindReferences_Label", "Find References"),
+			LOCTEXT("FindReferences_Tooltip", "Options for finding references to class members"),
+			FNewToolMenuChoice(FNewMenuDelegate::CreateStatic(&FGraphEditorCommands::BuildFindReferencesMenu))
+		);
 	}
 
 	// Create an "Add Event" option in the context menu only if we can edit

@@ -1305,7 +1305,7 @@ private:
 	void NavigateTab(FDocumentTracker::EOpenDocumentCause InCause);
 
 	/** Find all references of the selected node. */
-	void OnFindReferences();
+	void OnFindReferences(bool bSearchAllBlueprints, const EGetFindReferenceSearchStringFlags Flags);
 
 	/** Checks if we can currently find all references of the node selection. */
 	bool CanFindReferences();

@@ -269,6 +269,15 @@ struct FEdGraphNodeDeprecationResponse
 	FText MessageText;
 };
 
+/** Options when getting a Find References search string from a node. */
+enum class EGetFindReferenceSearchStringFlags : int8
+{
+	None = 0,
+	UseSearchSyntax = 1 << 0,
+};
+
+ENUM_CLASS_FLAGS(EGetFindReferenceSearchStringFlags);
+
 UCLASS(MinimalAPI)
 class UEdGraphNode : public UObject
 {
@@ -722,8 +731,24 @@ public:
 	ENGINE_API virtual FText GetNodeTitle(ENodeTitleType::Type TitleType) const;
 
 	/** Gets the search string to find references to this node */
+	UE_DEPRECATED(5.3, "GetFindReferenceSearchString() signature changed. Call the version with flags instead and override the _Impl version.")
 	ENGINE_API virtual FString GetFindReferenceSearchString() const;
 
+	/**
+	 * Gets the search string to find references to this node
+	 * @param InFlags Options for the requested search string, such as whether to use Find-in-Blueprints class member search syntax
+	 */
+	ENGINE_API FString GetFindReferenceSearchString(EGetFindReferenceSearchStringFlags InFlags) const;
+
+protected:
+	virtual FString GetFindReferenceSearchString_Impl(EGetFindReferenceSearchStringFlags InFlags) const
+	{
+		PRAGMA_DISABLE_DEPRECATION_WARNINGS
+		return GetFindReferenceSearchString();
+		PRAGMA_ENABLE_DEPRECATION_WARNINGS
+	}
+
+public:
 	/** 
 	 * Gets the draw color of a node's title bar
 	 */

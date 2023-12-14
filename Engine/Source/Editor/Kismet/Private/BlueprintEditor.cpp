@@ -1654,7 +1654,27 @@ TSharedRef<SGraphEditor> FBlueprintEditor::CreateGraphEditorWidget(TSharedRef<FT
 				);
 
 			GraphEditorCommands->MapAction( FGraphEditorCommands::Get().FindReferences,
-				FExecuteAction::CreateSP( this, &FBlueprintEditor::OnFindReferences ),
+				FExecuteAction::CreateSP( this, &FBlueprintEditor::OnFindReferences, /*bSearchAllBlueprints=*/false, EGetFindReferenceSearchStringFlags::None),
+				FCanExecuteAction::CreateSP( this, &FBlueprintEditor::CanFindReferences )
+				);
+			
+			GraphEditorCommands->MapAction( FGraphEditorCommands::Get().FindReferencesByNameLocal,
+				FExecuteAction::CreateSP( this, &FBlueprintEditor::OnFindReferences, /*bSearchAllBlueprints=*/false, EGetFindReferenceSearchStringFlags::None ),
+				FCanExecuteAction::CreateSP( this, &FBlueprintEditor::CanFindReferences )
+				);
+			
+			GraphEditorCommands->MapAction( FGraphEditorCommands::Get().FindReferencesByNameGlobal,
+				FExecuteAction::CreateSP( this, &FBlueprintEditor::OnFindReferences, /*bSearchAllBlueprints=*/true, EGetFindReferenceSearchStringFlags::None ),
+				FCanExecuteAction::CreateSP( this, &FBlueprintEditor::CanFindReferences )
+				);
+			
+			GraphEditorCommands->MapAction( FGraphEditorCommands::Get().FindReferencesByClassMemberLocal,
+				FExecuteAction::CreateSP( this, &FBlueprintEditor::OnFindReferences, /*bSearchAllBlueprints=*/false, EGetFindReferenceSearchStringFlags::UseSearchSyntax ),
+				FCanExecuteAction::CreateSP( this, &FBlueprintEditor::CanFindReferences )
+				);
+			
+			GraphEditorCommands->MapAction( FGraphEditorCommands::Get().FindReferencesByClassMemberGlobal,
+				FExecuteAction::CreateSP( this, &FBlueprintEditor::OnFindReferences, /*bSearchAllBlueprints=*/true, EGetFindReferenceSearchStringFlags::UseSearchSyntax ),
 				FCanExecuteAction::CreateSP( this, &FBlueprintEditor::CanFindReferences )
 				);
 
@@ -10188,34 +10208,28 @@ void FBlueprintEditor::SetPinVisibility(SGraphEditor::EPinVisibility Visibility)
 	OnSetPinVisibility.Broadcast(PinVisibility);
 }
 
-void FBlueprintEditor::OnFindReferences()
+void FBlueprintEditor::OnFindReferences(bool bSearchAllBlueprints, const EGetFindReferenceSearchStringFlags Flags)
 {
 	TSharedPtr<SGraphEditor> GraphEditor = FocusedGraphEdPtr.Pin();
 	if (GraphEditor.IsValid())
 	{
-		FString SearchTerm;
-
 		const FGraphPanelSelectionSet SelectedNodes = GraphEditor->GetSelectedNodes();
 		for (FGraphPanelSelectionSet::TConstIterator NodeIt(SelectedNodes); NodeIt; ++NodeIt)
 		{
-			UEdGraphNode* SelectedNode = Cast<UEdGraphNode>(*NodeIt);
-			if (SelectedNode != nullptr)
+			if (UEdGraphNode* SelectedNode = Cast<UEdGraphNode>(*NodeIt))
 			{
-				if (UK2Node_CustomEvent* CustomEvent = Cast<UK2Node_CustomEvent>(SelectedNode))
+				FString SearchTerm = SelectedNode->GetFindReferenceSearchString(Flags);
+				if (!SearchTerm.IsEmpty())
 				{
-					SearchTerm =  CustomEvent->CustomFunctionName.ToString();
-					if (!SearchTerm.IsEmpty())
+					// If not using search syntax, surround the search term with quotes
+					if (!EnumHasAnyFlags(Flags, EGetFindReferenceSearchStringFlags::UseSearchSyntax))
 					{
-						SummonSearchUI(true, FString::Printf(TEXT("\"%s\""), *SearchTerm));
+						SearchTerm = FString::Printf(TEXT("\"%s\""), *SearchTerm);
 					}
-				}
-				else
-				{
-					SearchTerm = SelectedNode->GetFindReferenceSearchString();
-					if (!SearchTerm.IsEmpty())
-					{
-						SummonSearchUI(true, SearchTerm);
-					}
+
+					// Start the search
+					const bool bSetFindWithinBlueprint = !bSearchAllBlueprints;
+					SummonSearchUI(bSetFindWithinBlueprint, SearchTerm);
 				}
 			}
 		}
