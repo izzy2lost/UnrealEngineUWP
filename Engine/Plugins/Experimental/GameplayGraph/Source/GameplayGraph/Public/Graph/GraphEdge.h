@@ -16,6 +16,10 @@ struct FSerializedEdgeData
 
 	UPROPERTY(SaveGame)
 	FGraphVertexHandle Node2;
+
+	// Comparison operators
+	friend bool operator==(const FSerializedEdgeData& Lhs, const FSerializedEdgeData& Rhs) = default;
+	friend bool operator!=(const FSerializedEdgeData& Lhs, const FSerializedEdgeData& Rhs) = default;
 };
 
 UCLASS()

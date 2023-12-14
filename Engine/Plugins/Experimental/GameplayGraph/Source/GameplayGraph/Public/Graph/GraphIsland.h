@@ -12,6 +12,10 @@ struct FSerializedIslandData
 
 	UPROPERTY(SaveGame)
 	TArray<FGraphVertexHandle> Vertices;
+
+	// Comparison operators
+	friend bool operator==(const FSerializedIslandData& Lhs, const FSerializedIslandData& Rhs) = default;
+	friend bool operator!=(const FSerializedIslandData& Lhs, const FSerializedIslandData& Rhs) = default;
 };
 
 /**

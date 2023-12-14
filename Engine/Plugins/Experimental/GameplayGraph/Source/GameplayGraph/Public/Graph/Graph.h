@@ -21,6 +21,10 @@ struct FGraphProperties
 
 	UPROPERTY(SaveGame)
 	bool bGenerateIslands = true;
+	
+	// Comparison operators
+	friend bool operator==(const FGraphProperties& Lhs, const FGraphProperties& Rhs) = default;
+	friend bool operator!=(const FGraphProperties& Lhs, const FGraphProperties& Rhs) = default;
 };
 
 DECLARE_MULTICAST_DELEGATE_OneParam(FOnGraphVertexCreated, const FGraphVertexHandle&);
