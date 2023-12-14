@@ -22,9 +22,8 @@
 AScreenshotFunctionalTest::AScreenshotFunctionalTest( const FObjectInitializer& ObjectInitializer )
 	: AScreenshotFunctionalTestBase(ObjectInitializer)
 	, bCameraCutOnScreenshotPrep(true)
-	, bNeedsVariantRestore(false)
-	, bShouldDoBaselineTest(false)
-	, bShouldDoViewRectOffsetVariant(false)
+	, RequestedVariants(false, EVariantType::Num)
+	, bVariantQueued(false)
 {
 }
 
@@ -40,12 +39,32 @@ void AScreenshotFunctionalTest::Serialize(FArchive& Ar)
 	}
 }
 
+bool AScreenshotFunctionalTest::RunTest(const TArray<FString>& Params)
+{
+	// Set up which variants are enabled
+	check(!RequestedVariants.Contains(true));
+
+	if (FAutomationTestFramework::NeedPerformStereoTestVariants())
+	{
+		RequestedVariants[EVariantType::Baseline] = !FAutomationTestFramework::NeedUseLightweightStereoTestVariants(); // Skip baseline if lightweight variants are active
+		RequestedVariants[EVariantType::ViewRectOffset] = true;
+
+	}
+	else
+	{
+		RequestedVariants[EVariantType::Baseline] = true;
+		RequestedVariants[EVariantType::ViewRectOffset] = false;
+	}
+
+	// Set up first variant
+	SetupNextVariant();
+
+	// This will call PrepareTest()
+	return Super::RunTest(); 
+}
+
 void AScreenshotFunctionalTest::PrepareTest()
 {
-	// If variants are enabled and lightweight variants are on, skip the baseline test
-	bShouldDoViewRectOffsetVariant = FAutomationTestFramework::NeedPerformStereoTestVariants();
-	bShouldDoBaselineTest = !(bShouldDoViewRectOffsetVariant && FAutomationTestFramework::NeedUseLightweightStereoTestVariants());
-
 	// Pre-prep flush to allow rendering to temporary targets and other test resources
 	UAutomationBlueprintFunctionLibrary::FinishLoadingBeforeScreenshot();
 
@@ -136,12 +155,10 @@ void AScreenshotFunctionalTest::OnScreenShotCaptured(int32 InSizeX, int32 InSize
 
 	// If variant in use, pass on the name, then restore settings since capture is done
 	Data.VariantName = CurrentVariantName;
-	CurrentVariantName = "";
-
-	if (bNeedsVariantRestore)
+	if (VariantRestoreCommand)
 	{
-		GEngine->Exec(nullptr, *VariantRestoreCommand);
-		bNeedsVariantRestore = false;
+		GEngine->Exec(nullptr, VariantRestoreCommand);
+		VariantRestoreCommand = nullptr;
 	}
 
 	if (GIsAutomationTesting)
@@ -155,64 +172,121 @@ void AScreenshotFunctionalTest::OnScreenShotCaptured(int32 InSizeX, int32 InSize
 #endif
 }
 
-void AScreenshotFunctionalTest::StartTest()
-{
-	if (bShouldDoBaselineTest)
-	{
-		bShouldDoBaselineTest = false;
-	}
-	else if (bShouldDoViewRectOffsetVariant)
-	{
-		bShouldDoViewRectOffsetVariant = false;
-		SetupVariant("ViewRectOffset", "r.Test.ViewRectOffset 5", "r.Test.ViewRectOffset 0");
-	}
-
-	Super::StartTest();
-}
-
 void AScreenshotFunctionalTest::OnScreenshotTakenAndCompared()
 {
 	FAutomationTestBase* CurrentTest = FAutomationTestFramework::Get().GetCurrentTest();
-	bool bSkipDueToError = FAutomationTestFramework::Get().NeedUseLightweightStereoTestVariants() && (!CurrentTest || CurrentTest->HasAnyErrors());
+	bool bSkipRemainingVariants = FAutomationTestFramework::Get().NeedUseLightweightStereoTestVariants() && (!CurrentTest || CurrentTest->HasAnyErrors());
 
-	// If we still need to perform any variants, loop back here
-	if (bShouldDoViewRectOffsetVariant && !bSkipDueToError)
+	// If we aren't skipping further variants due to a failure, and we still have some remaining, queue the next
+	if (!bSkipRemainingVariants && SetupNextVariant())
 	{
-		// Re-prepare test if necessary
-		if (bCameraCutOnScreenshotPrep)
-		{
-			APlayerController* PlayerController = UGameplayStatics::GetPlayerController(GetWorld(), 0);
-
-			if (PlayerController && PlayerController->PlayerCameraManager)
-			{
-				PlayerController->PlayerCameraManager->SetGameCameraCutThisFrame();
-				if (ScreenshotCamera)
-				{
-					ScreenshotCamera->NotifyCameraCut();
-				}
-			}
-		}
-
-		StartTest();
+		ReprepareTest();
 	}
 
+	// Otherwise finish
 	else
 	{
-		// This ends the test and reports results
 		Super::OnScreenshotTakenAndCompared();
 	}
 }
 
-void AScreenshotFunctionalTest::SetupVariant(FString VariantName, FString SetupCommand, FString RestoreCommand)
+bool AScreenshotFunctionalTest::SetupNextVariant()
 {
+	// Find first remaining requested variant
+	int32 Index = RequestedVariants.Find(true);
+
+	if (Index == INDEX_NONE)
+	{
+		return false;
+	}
+	else
+	{
+		// Remove variant from requested variants and set it up
+		RequestedVariants[Index] = false;
+		SetupVariant(static_cast<EVariantType>(Index));
+		return true;
+	}
+}
+
+void AScreenshotFunctionalTest::SetupVariant(EVariantType VariantType)
+{
+	// Get info for requested variant
+	static const TArray<FVariantInfo> VariantInfoArray =
+	{
+		FVariantInfo{ TEXT(""), nullptr, nullptr }, // Baseline
+		FVariantInfo{ TEXT("ViewRectOffset"), TEXT("r.Test.ViewRectOffset 5"), TEXT("r.Test.ViewRectOffset 0") } // ViewRectOffset
+	};
+
+	const FVariantInfo* VariantInfo = &VariantInfoArray[VariantType];
+
 	// Set up variant
-	GEngine->Exec(nullptr, *SetupCommand);
+	if (VariantInfo->SetupCommand)
+	{
+		GEngine->Exec(nullptr, VariantInfo->SetupCommand);
+	}
 
 	// Save variant name and command needed to restore in OnScreenShotCaptured
-	CurrentVariantName = VariantName;
-	if (!RestoreCommand.IsEmpty())
+	CurrentVariantName = VariantInfo->Name;
+	if (VariantInfo->RestoreCommand)
 	{
-		VariantRestoreCommand = RestoreCommand;
-		bNeedsVariantRestore = true;
+		VariantRestoreCommand = VariantInfo->RestoreCommand;
 	}
+}
+
+void AScreenshotFunctionalTest::ReprepareTest()
+{
+	// Required to reset TSR sequences
+	OnTestFinished.Broadcast();
+
+	RestoreViewSettings();
+
+	// Rather than re-use RunFrame/RunTime, use a seprarate set for subsequent variants
+	// A screenshot will be requested once the given delay has elapsed
+	VariantFrame = GFrameNumber;
+	VariantTime = (float)GetWorld()->GetTimeSeconds();
+	bVariantQueued = true;
+
+	PrepareTest();
+}
+
+// TSR sequences override this to rely on an internal blueprint instead, but it will still use our Tick() implementation
+// Because we call OnTestFinished.Broadcast() in ReprepareTest(), the TSR BP frame counter is reset properly
+bool AScreenshotFunctionalTest::IsReady_Implementation()
+{
+	if (bVariantQueued)
+	{
+		if ((GetWorld()->GetTimeSeconds() - VariantTime) > ScreenshotOptions.Delay)
+		{
+			return int32(GFrameNumber - VariantFrame) > ScreenshotOptions.FrameDelay;
+		}
+
+		return false;
+	}
+	else
+	{
+		return Super::IsReady_Implementation();
+	}
+}
+
+void AScreenshotFunctionalTest::Tick(float DeltaSeconds)
+{
+	// This section takes over from the main loop to kick off subsequent variants
+	if (bVariantQueued)
+	{
+		if (IsReady())
+		{
+			bVariantQueued = false;
+			StartTest();
+		}
+
+	}
+	else
+	{
+		if (PreparationTimeLimit > 0.f && TotalTime > PreparationTimeLimit)
+		{
+			OnTimeout();
+		}
+	}
+
+	Super::Tick(DeltaSeconds);
 }
