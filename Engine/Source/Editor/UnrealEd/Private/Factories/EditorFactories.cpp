@@ -4044,6 +4044,8 @@ UObject* UTextureFactory::FactoryCreateBinary
 	if (ExistingTexture2D)
 	{
 		// Update with new settings, which should disable streaming...
+		// -> pretty sure this is unnecessary
+		//	the combination of WaitForPendingInitOrStreaming and PreEditChange do all the waiting necessary
 		ExistingTexture2D->UpdateResource();
 	}
 	if(ExistingTexture)
@@ -4051,11 +4053,8 @@ UObject* UTextureFactory::FactoryCreateBinary
 		// Wait for InitRHI() to complete before the FTextureReferenceReplacer calls ReleaseRHI() to follow the workflow.
 		// Static texture needs to avoid having pending InitRHI() before enqueuing ReleaseRHI() to safely track access of the PlatformData on the renderthread.
 		ExistingTexture->WaitForPendingInitOrStreaming();
-	}
 
-	// Make sure the changes are part of the transaction when reimporting over an existing texture
-	if (ExistingTexture)
-	{
+		// Make sure the changes are part of the transaction when reimporting over an existing texture
 		ExistingTexture->PreEditChange(nullptr);
 	}
 
@@ -4082,7 +4081,7 @@ UObject* UTextureFactory::FactoryCreateBinary
 		if (ExistingTexture)
 		{
 			// We failed to import over the existing texture. Make sure the resource is ready in the existing texture.
-			ExistingTexture->UpdateResource();
+			ExistingTexture->PostEditChange();
 		}
 
 		Warn->Logf(ELogVerbosity::Error, TEXT("Texture import failed") );
@@ -4090,6 +4089,8 @@ UObject* UTextureFactory::FactoryCreateBinary
 		return nullptr;
 	}
 
+	// this is automatic now and redundant;
+	//	Source.Init does UseHashAsGuid
 	if (bUseHashAsGuid)
 	{
 		Texture->Source.UseHashAsGuid();
@@ -4146,6 +4147,7 @@ UObject* UTextureFactory::FactoryCreateBinary
 	Texture->bDoScaleMipsForAlphaCoverage	= bDoScaleMipsForAlphaCoverage;
 	Texture->AlphaCoverageThresholds		= AlphaCoverageThresholds;
 	Texture->bUseNewMipFilter				= bUseNewMipFilter;
+	// these get changed by SetModernSettingsForNewOrChangedTexture anyway
 
 	if(Texture->MipGenSettings == TMGS_FromTextureGroup)
 	{
