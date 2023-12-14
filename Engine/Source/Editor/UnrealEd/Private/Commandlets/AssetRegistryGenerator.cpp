@@ -2551,7 +2551,7 @@ void FAssetRegistryGenerator::GetChunkAssignments(TArray<TSet<FName>>& OutAssign
 void FAssetRegistryGenerator::UpdateAssetRegistryData(FName PackageName, const UPackage* Package,
 	UE::Cook::ECookResult CookResult, FSavePackageResultStruct* SavePackageResult,
 	TOptional<TArray<FAssetData>>&& AssetDatasFromSave, TOptional<FAssetPackageData>&& OverrideAssetPackageData,
-	TOptional<TArray<FAssetDependency>>&& OverridePackageDependencies)
+	TOptional<TArray<FAssetDependency>>&& OverridePackageDependencies, UCookOnTheFlyServer& COTFS)
 {
 	LLM_SCOPE_BYTAG(Cooker_GeneratedAssetRegistry);
 	PreviousPackagesToUpdate.Remove(PackageName);
@@ -2619,7 +2619,7 @@ void FAssetRegistryGenerator::UpdateAssetRegistryData(FName PackageName, const U
 	}
 
 	const bool bUpdated = UpdateAssetPackageFlags(PackageName, NewPackageFlags);
-	UE_CLOG(!bUpdated && bSaveSucceeded, LogAssetRegistryGenerator, Warning,
+	UE_CLOG(!bUpdated && bSaveSucceeded && !COTFS.bSkipSave, LogAssetRegistryGenerator, Warning,
 		TEXT("Trying to update asset package flags in package '%s' that does not exist"), *PackageName.ToString());
 }
 
@@ -2635,7 +2635,7 @@ void FAssetRegistryGenerator::SetOverridePackageDependencies(FName PackageName, 
 }
 
 void FAssetRegistryGenerator::UpdateAssetRegistryData(UE::Cook::FMPCollectorServerMessageContext& Context,
-	UE::Cook::FAssetRegistryPackageMessage&& Message)
+	UE::Cook::FAssetRegistryPackageMessage&& Message, UCookOnTheFlyServer& COTFS)
 {
 	LLM_SCOPE_BYTAG(Cooker_GeneratedAssetRegistry);
 	const FName PackageName = Context.GetPackageName();
@@ -2672,7 +2672,7 @@ FAssetRegistryReporterRemote::FAssetRegistryReporterRemote(FCookWorkerClient& In
 void FAssetRegistryReporterRemote::UpdateAssetRegistryData(FName PackageName, const UPackage* Package,
 	UE::Cook::ECookResult CookResult, FSavePackageResultStruct* SavePackageResult,
 	TOptional<TArray<FAssetData>>&& AssetDatasFromSave, TOptional<FAssetPackageData>&& OverrideAssetPackageData,
-	TOptional<TArray<FAssetDependency>>&& OverridePackageDependencies)
+	TOptional<TArray<FAssetDependency>>&& OverridePackageDependencies, UCookOnTheFlyServer& COTFS)
 {
 	uint32 NewPackageFlags = 0;
 	int64 DiskSize = -1;
@@ -2869,7 +2869,7 @@ void FAssetRegistryMPCollector::ServerReceiveMessage(FMPCollectorServerMessageCo
 	{
 		FAssetRegistryGenerator* RegistryGenerator = COTFS.PlatformManager->GetPlatformData(TargetPlatform)->RegistryGenerator.Get();
 		check(RegistryGenerator); // The TargetPlatform came from OrderedSessionPlatforms, and the RegistryGenerator should exist for any of those platforms
-		RegistryGenerator->UpdateAssetRegistryData(Context, MoveTemp(ARMessage));
+		RegistryGenerator->UpdateAssetRegistryData(Context, MoveTemp(ARMessage), COTFS);
 	}
 }
 

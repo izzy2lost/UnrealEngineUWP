@@ -6305,7 +6305,8 @@ void FSaveCookedPackageContext::FinishPlatform()
 			AssetDatasFromSave.Emplace(MoveTemp(SavePackageResult.SavedAssets));
 		}
 		Reporter.UpdateAssetRegistryData(Package->GetFName(), Package, CookResult, &SavePackageResult,
-			MoveTemp(AssetDatasFromSave), MoveTemp(OverrideAssetPackageData), MoveTemp(OverridePackageDependencies));
+			MoveTemp(AssetDatasFromSave), MoveTemp(OverrideAssetPackageData), MoveTemp(OverridePackageDependencies),
+			COTFS);
 	}
 
 	if (bSuccessful && COTFS.bSkipOnlyEditorOnly)
@@ -6501,7 +6502,8 @@ void UCookOnTheFlyServer::RecordExternalActorDependencies(TConstArrayView<FName>
 				DependencyData->SetPlatformCooked(TargetPlatform, ECookResult::NeverCookPlaceholder);
 				Reporter.UpdateAssetRegistryData(DependencyName, nullptr /* Package */,
 					ECookResult::NeverCookPlaceholder, nullptr /* SavePackageResult */,
-					TOptional<TArray<FAssetData>>(), TOptional<FAssetPackageData>(), TOptional<TArray<FAssetDependency>>());
+					TOptional<TArray<FAssetData>>(), TOptional<FAssetPackageData>(), TOptional<TArray<FAssetDependency>>(),
+					*this);
 			}
 		}
 	}

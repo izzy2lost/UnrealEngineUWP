@@ -254,9 +254,10 @@ public:
 		UE::Cook::ECookResult CookResult, FSavePackageResultStruct* SavePackageResult,
 		TOptional<TArray<FAssetData>>&& AssetDatasFromSave,
 		TOptional<FAssetPackageData>&& OverrideAssetPackageData,
-		TOptional<TArray<FAssetDependency>>&& OverridePackageDependencies);
+		TOptional<TArray<FAssetDependency>>&& OverridePackageDependencies,
+		UCookOnTheFlyServer& COTFS);
 	void UpdateAssetRegistryData(UE::Cook::FMPCollectorServerMessageContext& Context,
-		UE::Cook::FAssetRegistryPackageMessage&& Message);
+		UE::Cook::FAssetRegistryPackageMessage&& Message, UCookOnTheFlyServer& COTFS);
 
 	/**
 	 * Check config to see whether chunk assignments use the AssetManager. If so, run the once-per-process construction
@@ -478,7 +479,8 @@ public:
 	virtual void UpdateAssetRegistryData(FName PackageName, const UPackage* Package, UE::Cook::ECookResult CookResult,
 		FSavePackageResultStruct* SavePackageResult,
 		TOptional<TArray<FAssetData>>&& AssetDatasFromSave, TOptional<FAssetPackageData>&& OverrideAssetPackageData,
-		TOptional<TArray<FAssetDependency>>&& OverridePackageDependencies) = 0;
+		TOptional<TArray<FAssetDependency>>&& OverridePackageDependencies,
+		UCookOnTheFlyServer& COTFS) = 0;
 
 };
 
@@ -493,10 +495,11 @@ public:
 	virtual void UpdateAssetRegistryData(FName PackageName, const UPackage* Package, UE::Cook::ECookResult CookResult,
 		FSavePackageResultStruct* SavePackageResult,
 		TOptional<TArray<FAssetData>>&& AssetDatasFromSave, TOptional<FAssetPackageData>&& OverrideAssetPackageData,
-		TOptional<TArray<FAssetDependency>>&& OverridePackageDependencies) override
+		TOptional<TArray<FAssetDependency>>&& OverridePackageDependencies, UCookOnTheFlyServer& COTFS) override
 	{
 		Generator.UpdateAssetRegistryData(PackageName, Package, CookResult, SavePackageResult,
-			MoveTemp(AssetDatasFromSave), MoveTemp(OverrideAssetPackageData), MoveTemp(OverridePackageDependencies));
+			MoveTemp(AssetDatasFromSave), MoveTemp(OverrideAssetPackageData), MoveTemp(OverridePackageDependencies),
+			COTFS);
 	}
 
 private:
@@ -511,7 +514,7 @@ public:
 	virtual void UpdateAssetRegistryData(FName PackageName, const UPackage* Package, UE::Cook::ECookResult CookResult,
 		FSavePackageResultStruct* SavePackageResult,
 		TOptional<TArray<FAssetData>>&& AssetDatasFromSave, TOptional<FAssetPackageData>&& OverrideAssetPackageData,
-		TOptional<TArray<FAssetDependency>>&& OverridePackageDependencies) override;
+		TOptional<TArray<FAssetDependency>>&& OverridePackageDependencies, UCookOnTheFlyServer& COTFS) override;
 
 private:
 	FCookWorkerClient& Client;
