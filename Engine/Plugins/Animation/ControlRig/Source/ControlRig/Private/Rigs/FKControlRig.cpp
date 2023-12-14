@@ -504,63 +504,74 @@ void UFKControlRig::CreateRigElements(const USkeletalMesh* InReferenceMesh)
 
 void UFKControlRig::SetApplyMode(EControlRigFKRigExecuteMode InMode)
 {
+	if (ApplyMode == InMode)
+	{
+		return;
+	}
+	
 	ApplyMode = InMode;
+
+	if (URigHierarchy* Hierarchy = GetHierarchy())
+	{
+		if (ApplyMode == EControlRigFKRigExecuteMode::Additive)
+		{
+			FRigControlModifiedContext Context;
+			Context.SetKey = EControlRigSetKey::Never;
+			const bool bSetupUndo = false;
+
+			Hierarchy->ForEach<FRigControlElement>([&](FRigControlElement* ControlElement) -> bool
+			{
+				if (ControlElement->Settings.ControlType == ERigControlType::EulerTransform)
+				{
+					SetControlValue<FEulerTransform>(ControlElement->GetFName(), FEulerTransform::Identity, true, Context, bSetupUndo);
+				}
+				else if (ControlElement->Settings.ControlType == ERigControlType::Float)
+				{
+					SetControlValue<float>(ControlElement->GetFName(), 0.f, true, Context, bSetupUndo);
+				}
+
+				return true;
+			});
+		}
+		else
+		{
+			FRigControlModifiedContext Context;
+			Context.SetKey = EControlRigSetKey::Never;
+			const bool bSetupUndo = false;
+
+			Hierarchy->ForEach<FRigControlElement>([&](FRigControlElement* ControlElement) -> bool
+			{
+				if (ControlElement->Settings.ControlType == ERigControlType::EulerTransform)
+				{
+					const FRigControlValue::FEulerTransform_Float InitValue =
+						GetHierarchy()->GetControlValue(ControlElement, ERigControlValueType::Initial).Get<FRigControlValue::FEulerTransform_Float>();
+					SetControlValue<FRigControlValue::FEulerTransform_Float>(ControlElement->GetFName(), InitValue, true, Context, bSetupUndo);
+				}
+				else if (ControlElement->Settings.ControlType == ERigControlType::Float)
+				{
+					const float InitValue = GetHierarchy()->GetControlValue(ControlElement, ERigControlValueType::Initial).Get<float>();
+					SetControlValue<float>(ControlElement->GetFName(), InitValue, true, Context, bSetupUndo);
+				}
+
+				return true;
+			});
+		}
+	}
 }
 
 void UFKControlRig::ToggleApplyMode()
 {
+	EControlRigFKRigExecuteMode ModeToApply = ApplyMode;
 	if (ApplyMode == EControlRigFKRigExecuteMode::Additive)
 	{
-		ApplyMode = CachedToggleApplyMode;
+		ModeToApply = CachedToggleApplyMode;
 	}
 	else
 	{
 		CachedToggleApplyMode = ApplyMode;
-		ApplyMode = EControlRigFKRigExecuteMode::Additive;
+		ModeToApply = EControlRigFKRigExecuteMode::Additive;
 	}
-	if (ApplyMode == EControlRigFKRigExecuteMode::Additive)
-	{
-		FRigControlModifiedContext Context;
-		Context.SetKey = EControlRigSetKey::Never;
-		const bool bSetupUndo = false;
-
-		GetHierarchy()->ForEach<FRigControlElement>([&](FRigControlElement* ControlElement) -> bool
-        {
-            if (ControlElement->Settings.ControlType == ERigControlType::EulerTransform)
-			{
-				SetControlValue<FEulerTransform>(ControlElement->GetFName(), FEulerTransform::Identity, true, Context, bSetupUndo);
-			}
-			else if (ControlElement->Settings.ControlType == ERigControlType::Float)
-			{
-				SetControlValue<float>(ControlElement->GetFName(), 0.f, true, Context, bSetupUndo);
-			}
-
-			return true;
-		});
-	}
-	else
-	{
-		FRigControlModifiedContext Context;
-		Context.SetKey = EControlRigSetKey::Never;
-		const bool bSetupUndo = false;
-
-		GetHierarchy()->ForEach<FRigControlElement>([&](FRigControlElement* ControlElement) -> bool
-        {
-            if (ControlElement->Settings.ControlType == ERigControlType::EulerTransform)
-			{
-				const FRigControlValue::FEulerTransform_Float InitValue =
-					GetHierarchy()->GetControlValue(ControlElement, ERigControlValueType::Initial).Get<FRigControlValue::FEulerTransform_Float>();
-				SetControlValue<FRigControlValue::FEulerTransform_Float>(ControlElement->GetFName(), InitValue, true, Context, bSetupUndo);
-			}
-			else if (ControlElement->Settings.ControlType == ERigControlType::Float)
-			{
-				const float InitValue = GetHierarchy()->GetControlValue(ControlElement, ERigControlValueType::Initial).Get<float>();
-				SetControlValue<float>(ControlElement->GetFName(), InitValue, true, Context, bSetupUndo);
-			}
-
-			return true;
-		});
-	}
+	SetApplyMode(ModeToApply);
 }
 
 #undef LOCTEXT_NAMESPACE

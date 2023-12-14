@@ -1241,6 +1241,16 @@ void FControlRigParameterTrackEditor::BakeInvertedPose(UControlRig* InControlRig
 	ParentSequencer->NotifyMovieSceneDataChanged(EMovieSceneDataChangeType::TrackValueChanged);
 }
 
+bool FControlRigParameterTrackEditor::IsLayered(UMovieSceneControlRigParameterTrack* Track) const
+{
+	UControlRig* ControlRig = Track->GetControlRig();
+	if (!ControlRig)
+	{
+		return false;
+	}
+	return ControlRig->IsAdditive();
+}
+
 void FControlRigParameterTrackEditor::ConvertIsLayered(UMovieSceneControlRigParameterTrack* Track)
 {
 	UControlRig* ControlRig = Track->GetControlRig();
@@ -3925,7 +3935,7 @@ void FControlRigParameterTrackEditor::BuildTrackContextMenu(FMenuBuilder& MenuBu
 				   FUIAction(
 					   FExecuteAction::CreateRaw(this, &FControlRigParameterTrackEditor::ConvertIsLayered, Track),
 					   FCanExecuteAction(),
-					   FIsActionChecked::CreateUObject(Track->GetControlRig(), &UControlRig::IsAdditive)
+					   FIsActionChecked::CreateRaw(this, &FControlRigParameterTrackEditor::IsLayered, Track)
 				   ),
 				   NAME_None,
 				   EUserInterfaceActionType::ToggleButton);
@@ -3946,18 +3956,6 @@ void FControlRigParameterTrackEditor::BuildTrackContextMenu(FMenuBuilder& MenuBu
 				FSlateIcon(),
 				FUIAction(
 					FExecuteAction::CreateRaw(this, &FControlRigParameterTrackEditor::SelectFKBonesToAnimate, AutoRig, Track)));
-
-			MenuBuilder.AddMenuEntry(
-				LOCTEXT("FKRigApplyMode", "Additive"),
-				LOCTEXT("FKRigApplyModeToolTip", "Toggles the apply mode between Replace and Additive"),
-				FSlateIcon(),
-				FUIAction(
-					FExecuteAction::CreateRaw(this, &FControlRigParameterTrackEditor::ToggleFKControlRig, Track, AutoRig),
-					FCanExecuteAction::CreateUObject(AutoRig, &UFKControlRig::CanToggleApplyMode),
-					FIsActionChecked::CreateUObject(AutoRig, &UFKControlRig::IsApplyModeAdditive)
-				),
-				NAME_None,
-				EUserInterfaceActionType::ToggleButton);
 		}
 		MenuBuilder.EndSection();
 
@@ -4050,43 +4048,6 @@ bool FControlRigParameterTrackEditor::HandleAssetAdded(UObject* Asset, const FGu
 
 	return true;
 }
-
-
-void FControlRigParameterTrackEditor::ToggleFKControlRig(UMovieSceneControlRigParameterTrack* Track, UFKControlRig* FKControlRig)
-{
-	FScopedTransaction Transaction(LOCTEXT("ToggleFKControlRig", "Toggle FK Control Rig"));
-	FKControlRig->Modify();
-	Track->Modify();
-	FKControlRig->ToggleApplyMode();
-	if (FKControlRig->GetApplyMode() == EControlRigFKRigExecuteMode::Additive)
-	{
-		const FString LayeredObjectName = Track->GetTrackName().ToString() + TEXT(" (Layered)");
-		Track->SetDisplayName(FText::FromString(LayeredObjectName));
-		Track->SetColorTint(UMovieSceneControlRigParameterTrack::LayeredRigTrackColor);
-	}
-	else
-	{
-		Track->SetDisplayName(FText::FromName(Track->GetTrackName()));
-		Track->SetColorTint(UMovieSceneControlRigParameterTrack::LayeredRigTrackColor);
-		Track->SetColorTint(UMovieSceneControlRigParameterTrack::AbsoluteRigTrackColor);
-	}
-	for (UMovieSceneSection* Section : Track->GetAllSections())
-	{
-		if (Section)
-		{
-			UMovieSceneControlRigParameterSection* CRSection = Cast<UMovieSceneControlRigParameterSection>(Section);
-			if (CRSection)
-			{
-				Section->Modify();
-				CRSection->ClearAllParameters();
-				CRSection->RecreateWithThisControlRig(CRSection->GetControlRig(), true);
-			}
-		}
-	}
-	GetSequencer()->NotifyMovieSceneDataChanged(EMovieSceneDataChangeType::MovieSceneStructureItemsChanged);
-
-}
-
 
 void FControlRigParameterTrackEditor::ImportFBX(UMovieSceneControlRigParameterTrack* InTrack, UMovieSceneControlRigParameterSection* InSection,
 	TArray<FRigControlFBXNodeAndChannels>* NodeAndChannels)

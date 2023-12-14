@@ -187,9 +187,6 @@ private:
 	/** Select Bones to Animate on FK Rig*/
 	void SelectFKBonesToAnimate(UFKControlRig* FKControlRig, UMovieSceneControlRigParameterTrack* Track);
 
-	/** Toggle FK Control Rig*/
-	void ToggleFKControlRig(UMovieSceneControlRigParameterTrack* Track, UFKControlRig* FKControlRig);
-
 	/** Bake To Control Rig Sub Menu*/
 	void BakeToControlRigSubMenu(FMenuBuilder& MenuBuilder, FGuid ObjectBinding, UObject* BoundObject, USkeletalMeshComponent* SkelMeshComp,USkeleton* Skeleton);
 	
@@ -198,6 +195,9 @@ private:
 
 	/** Bake Inersion of Additive Control Rig to Rest Pose*/
 	void BakeInvertedPose(UControlRig* InControlRig, UMovieSceneControlRigParameterTrack* Track);
+
+	/** Return true if the control rig is in layered mode */
+	bool IsLayered(UMovieSceneControlRigParameterTrack* Track) const;
 
 	/** Convert an absolute control rit to a layered control rig */
 	void ConvertIsLayered(UMovieSceneControlRigParameterTrack* Track);

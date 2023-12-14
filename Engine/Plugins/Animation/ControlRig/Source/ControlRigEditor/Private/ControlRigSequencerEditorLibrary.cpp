@@ -3106,11 +3106,18 @@ bool UControlRigSequencerEditorLibrary::SetControlRigLayeredMode(UMovieSceneCont
 	InTrack->Modify();
 	ControlRig->Modify();
 
-	ControlRig->ClearPoseBeforeBackwardsSolve();
-	ControlRig->ResetControlValues();
-	ControlRig->SetIsAdditive(bSetIsLayered);
+	if (UFKControlRig* FKRig = Cast<UFKControlRig>(ControlRig))
+	{
+		FKRig->SetApplyMode(bSetIsLayered ? EControlRigFKRigExecuteMode::Additive : EControlRigFKRigExecuteMode::Replace);
+	}
+	else
+	{
+		ControlRig->ClearPoseBeforeBackwardsSolve();
+		ControlRig->ResetControlValues();
+		ControlRig->SetIsAdditive(bSetIsLayered);
 
-	ControlRig->Evaluate_AnyThread();
+		ControlRig->Evaluate_AnyThread();
+	}
 
 	FString ObjectName = ControlRig->GetClass()->GetName(); //GetDisplayNameText().ToString();
 	ObjectName.RemoveFromEnd(TEXT("_C"));

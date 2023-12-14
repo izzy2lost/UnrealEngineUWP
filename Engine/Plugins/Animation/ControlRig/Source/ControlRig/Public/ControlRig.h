@@ -698,7 +698,7 @@ public:
 
 #endif
 	
-	bool IsAdditive() const { return bIsAdditive; }
+	virtual bool IsAdditive() const { return bIsAdditive; }
 	void SetIsAdditive(const bool bInIsAdditive)
 	{
 		bIsAdditive = bInIsAdditive;
