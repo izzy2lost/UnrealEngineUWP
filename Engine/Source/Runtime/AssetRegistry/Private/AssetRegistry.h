@@ -293,6 +293,12 @@ private:
 	 * If bAddMetaDataTagsToOnGetExtraObjectTags is true, this function will add missing UMetaData tags to cooked assets
 	 */
 	void OnGetExtraObjectTags(FAssetRegistryTagsContext Context);
+
+	/**
+	 * Checks whether the given path is already covered by the general directory watches, or whether we need to setup a
+	 * new directory watcher. The caller must ensure that the Directory parameter is in FPaths::CreateStandardFilename format.
+	 */
+	bool IsDirAlreadyWatchedByRootWatchers(const FString& Directory) const;
 #endif
 
 private:
@@ -305,6 +311,7 @@ private:
 #if WITH_EDITOR
 	/** Handles to all registered OnDirectoryChanged delegates */
 	TMap<FString, FDelegateHandle> OnDirectoryChangedDelegateHandles;
+	TArray<FString> DirectoryWatchRoots;
 #endif
 
 #if WITH_EDITORONLY_DATA
