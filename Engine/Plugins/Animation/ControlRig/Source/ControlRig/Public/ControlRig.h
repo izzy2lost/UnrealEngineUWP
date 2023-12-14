@@ -252,7 +252,7 @@ public:
 	}
 
 	// Returns the value of a Control
-	FRigControlValue GetControlValue(const FName& InControlName)
+	FRigControlValue GetControlValue(const FName& InControlName) const
 	{
 		const FRigElementKey Key(InControlName, ERigElementType::Control);
 		if (FRigBaseElement* Element = DynamicHierarchy->Find(Key))
@@ -265,7 +265,7 @@ public:
 		return DynamicHierarchy->GetControlValue(Key);
 	}
 
-	FRigControlValue GetControlValue(FRigControlElement* InControl, const ERigControlValueType& InValueType);
+	FRigControlValue GetControlValue(FRigControlElement* InControl, const ERigControlValueType& InValueType) const;
 
 	// Sets the relative value of a Control
 	virtual void SetControlValueImpl(const FName& InControlName, const FRigControlValue& InValue, bool bNotify = true,
@@ -289,6 +289,8 @@ public:
 
 	virtual void SetControlLocalTransform(const FName& InControlName, const FTransform& InLocalTransform, bool bNotify = true, const FRigControlModifiedContext& Context = FRigControlModifiedContext(), bool bSetupUndo = true, bool bFixEulerFlips = false);
 	virtual FTransform GetControlLocalTransform(const FName& InControlName) ;
+
+	FVector GetControlSpecifiedEulerAngle(const FRigControlElement* InControlElement, bool bIsInitial = false) const;
 
 	virtual const TArray<TSoftObjectPtr<UControlRigShapeLibrary>>& GetShapeLibraries() const;
 	virtual void CreateRigControlsForCurveContainer();

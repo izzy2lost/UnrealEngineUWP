@@ -3418,7 +3418,7 @@ void FControlRigParameterTrackEditor::GetControlRigKeys(
 			case ERigControlType::EulerTransform:
 			{
 				FVector Translation, Scale(1.0f, 1.0f, 1.0f);
-				FVector Vector = Hierarchy->GetControlSpecifiedEulerAngle(ControlElement);
+				FVector Vector = InControlRig->GetControlSpecifiedEulerAngle(ControlElement);
 				FRotator Rotation = FRotator(Vector.Y, Vector.Z, Vector.X);
 				if (ControlElement->Settings.ControlType == ERigControlType::TransformNoScale)
 				{
@@ -3451,7 +3451,7 @@ void FControlRigParameterTrackEditor::GetControlRigKeys(
 							FVector Angle = Rotation.Euler();
 							//need to wind rotators still
 							ControlElement->PreferredEulerAngles.SetAngles(Angle, false, ControlElement->PreferredEulerAngles.RotationOrder, true);
-							Angle = Hierarchy->GetControlSpecifiedEulerAngle(ControlElement);
+							Angle = InControlRig->GetControlSpecifiedEulerAngle(ControlElement);
 							Rotation = FRotator(Vector.Y, Vector.Z, Vector.X);
 						}
 						else

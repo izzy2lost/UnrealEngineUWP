@@ -2867,8 +2867,11 @@ FRigPose URigHierarchy::GetPose(bool bInitial, ERigElementType InElementType,
 
 			if(FRigControlElement* ControlElement = Cast<FRigControlElement>(Element))
 			{
-				PoseElement.PreferredEulerAngle = GetControlPreferredEulerAngles(ControlElement,
-					GetControlPreferredEulerRotationOrder(ControlElement), bInitial);
+				if (bUsePreferredEulerAngles)
+				{
+					PoseElement.PreferredEulerAngle = GetControlPreferredEulerAngles(ControlElement,
+					   GetControlPreferredEulerRotationOrder(ControlElement), bInitial);
+				}
 
 				if(!bIncludeTransientControls && ControlElement->Settings.bIsTransientControl)
 				{

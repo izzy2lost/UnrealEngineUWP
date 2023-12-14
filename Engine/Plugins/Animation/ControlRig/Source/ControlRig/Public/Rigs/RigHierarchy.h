@@ -2420,7 +2420,7 @@ public:
 
 	bool GetUsePreferredRotationOrder(const FRigControlElement* InControlElement) const
 	{
-		if (InControlElement)
+		if (InControlElement && bUsePreferredEulerAngles)
 		{
 			{
 				return InControlElement->Settings.bUsePreferredRotationOrder;

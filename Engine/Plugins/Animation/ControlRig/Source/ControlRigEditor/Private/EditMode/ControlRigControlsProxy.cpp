@@ -612,7 +612,7 @@ void UControlRigVectorControlProxy::ValueChanged()
 		FVector3f Val = ControlRig.Get()->GetControlValue(ControlElement, ERigControlValueType::Current).Get<FVector3f>();
 		if (ControlElement->Settings.ControlType == ERigControlType::Rotator)
 		{ 
-			FVector DVector = ControlRig->GetHierarchy()->GetControlSpecifiedEulerAngle(ControlElement);
+			FVector DVector = ControlRig->GetControlSpecifiedEulerAngle(ControlElement);
 			Val = FVector3f(DVector.X, DVector.Y, DVector.Z);
 		}
 		Binding.CallFunction<FVector3f>(*this, Val);

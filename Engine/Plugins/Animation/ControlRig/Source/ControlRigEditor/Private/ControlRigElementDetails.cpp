@@ -2024,7 +2024,15 @@ FDetailWidgetRow& FRigTransformElementDetails::CreateEulerTransformValueWidgetRo
 					case ERigControlType::Transform:
 					case ERigControlType::TransformNoScale:
 					{
-						FVector Vector = Hierarchy->GetControlSpecifiedEulerAngle(ControlElement, bInitial);
+						FVector Vector;
+						if(const UControlRig* ControlRig = Hierarchy->GetTypedOuter<UControlRig>())
+						{
+							Vector = ControlRig->GetControlSpecifiedEulerAngle(ControlElement, bInitial);
+						}
+						else
+						{
+							Vector = Hierarchy->GetControlSpecifiedEulerAngle(ControlElement, bInitial);
+						}
 						RelativeTransform.Rotation =  FRotator(Vector.Y, Vector.Z, Vector.X);
 						break;
 					}

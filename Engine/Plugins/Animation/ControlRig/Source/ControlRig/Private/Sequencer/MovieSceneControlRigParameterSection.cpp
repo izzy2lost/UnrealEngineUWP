@@ -635,7 +635,7 @@ struct FParameterTransformChannelEditorData
 					}
 				}
 				
-				FVector Vector = ControlRig->GetHierarchy()->GetControlSpecifiedEulerAngle(ControlElement);
+				FVector Vector = ControlRig->GetControlSpecifiedEulerAngle(ControlElement);
 				FRotator Rotation = FRotator(Vector.Y, Vector.Z, Vector.X);
 				return Rotation;
 			}

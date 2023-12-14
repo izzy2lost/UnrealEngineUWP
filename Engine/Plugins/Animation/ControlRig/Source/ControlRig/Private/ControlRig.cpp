@@ -1965,7 +1965,7 @@ FTransform UControlRig::GetControlGlobalTransform(const FName& InControlName) co
 	return DynamicHierarchy->GetGlobalTransform(FRigElementKey(InControlName, ERigElementType::Control), false);
 }
 
-FRigControlValue UControlRig::GetControlValue(FRigControlElement* InControl, const ERigControlValueType& InValueType)
+FRigControlValue UControlRig::GetControlValue(FRigControlElement* InControl, const ERigControlValueType& InValueType) const
 {
 	if (bIsAdditive && InValueType == ERigControlValueType::Current)
 	{
@@ -2171,6 +2171,21 @@ FTransform UControlRig::GetControlLocalTransform(const FName& InControlName)
 		}
 	}
 	return DynamicHierarchy->GetLocalTransform(FRigElementKey(InControlName, ERigElementType::Control));
+}
+
+FVector UControlRig::GetControlSpecifiedEulerAngle(const FRigControlElement* InControlElement, bool bIsInitial) const
+{
+	if (bIsAdditive)
+	{
+		const ERigControlValueType Type = bIsInitial ? ERigControlValueType::Initial : ERigControlValueType::Current;
+		const FRigControlValue Value = GetControlValue(InControlElement->GetKey().Name);
+		FRotator Rotator = Value.GetAsTransform(InControlElement->Settings.ControlType, InControlElement->Settings.PrimaryAxis).Rotator();
+		return FVector(Rotator.Roll, Rotator.Pitch, Rotator.Yaw);
+	}
+	else
+	{
+		return DynamicHierarchy->GetControlSpecifiedEulerAngle(InControlElement, bIsInitial);
+	}
 }
 
 const TArray<TSoftObjectPtr<UControlRigShapeLibrary>>& UControlRig::GetShapeLibraries() const
