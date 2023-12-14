@@ -261,6 +261,11 @@ void FStructuredArchiveVisitor::Serialize(VCell*& InOutCell)
 	VisitCellBody(ScopedRecord(*this, TEXT("")).Record, InOutCell);
 }
 
+void FStructuredArchiveVisitor::Serialize(VValue& InOutValue)
+{
+	Visit(InOutValue, TEXT(""));
+}
+
 void FStructuredArchiveVisitor::BeginArray(const TCHAR* ElementName, uint64& NumElements)
 {
 	// UE is currently limited to array sizes of MAX_int32.  This needs to be resolved in the

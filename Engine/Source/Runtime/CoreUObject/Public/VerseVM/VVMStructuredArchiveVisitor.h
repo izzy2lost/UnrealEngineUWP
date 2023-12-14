@@ -24,6 +24,7 @@ struct FStructuredArchiveVisitor : FAbstractVisitor
 	}
 
 	void Serialize(VCell*& InOutCell);
+	void Serialize(VValue& InOutValue);
 
 	virtual void BeginArray(const TCHAR* ElementName, uint64& NumElements) override;
 	virtual void EndArray() override;
