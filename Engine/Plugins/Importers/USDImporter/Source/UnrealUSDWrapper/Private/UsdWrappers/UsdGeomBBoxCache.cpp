@@ -2,16 +2,13 @@
 
 #include "UsdWrappers/UsdGeomBBoxCache.h"
 
+#include "UnrealUSDWrapper.h"
 #include "USDMemory.h"
 
-#include "UsdWrappers/UsdPrim.h"
-
 #if USE_USD_SDK
-
 #include "USDIncludesStart.h"
 #include "pxr/usd/usdGeom/bboxCache.h"
 #include "USDIncludesEnd.h"
-
 #endif	  //  #if USE_USD_SDK
 
 namespace UE
@@ -170,7 +167,7 @@ namespace UE
 		FScopedUsdAllocs Allocs;
 		FWriteScopeLock ScopeLock{Lock};
 		Impl->PxrUsdGeomBBoxCache.Clear();
-#endif // #if USE_USD_SDK
+#endif	  // #if USE_USD_SDK
 	}
 
 	void FUsdGeomBBoxCache::SetIncludedPurposes(EUsdPurpose IncludedPurposeFlags)
@@ -199,7 +196,7 @@ namespace UE
 		}
 
 		Impl->PxrUsdGeomBBoxCache.SetIncludedPurposes(TokenVector);
-#endif // #if USE_USD_SDK
+#endif	  // #if USE_USD_SDK
 	}
 
 	EUsdPurpose FUsdGeomBBoxCache::GetIncludedPurposes() const

@@ -9,14 +9,12 @@
 #if USE_USD_SDK
 
 #include "USDIncludesStart.h"
-
 #include "pxr/pxr.h"
-
 #include "USDIncludesEnd.h"
 
 PXR_NAMESPACE_OPEN_SCOPE
-class UsdPrim;
-class UsdGeomBBoxCache;
+	class UsdPrim;
+	class UsdGeomBBoxCache;
 PXR_NAMESPACE_CLOSE_SCOPE
 
 #endif	  // #if USE_USD_SDK
