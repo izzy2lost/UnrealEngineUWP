@@ -642,13 +642,16 @@ void AActor::AddComponentForReplication(UActorComponent* Component)
 		return;
 	}
 
+	const ELifetimeCondition NetCondition = AllowActorComponentToReplicate(Component);
+
+	// Check if the UCS component was built from a template that's not replicated to the client.
 	if (Component->CreationMethod == EComponentCreationMethod::UserConstructionScript && !Component->IsNameStableForNetworking())
 	{
 		ensureMsgf(Component->GetArchetype() == Component->GetClass()->GetDefaultObject(), TEXT("Replicated component %s::%s was added dynamically outside the construction script. This is not well supported and the component on the client will be initialized using the wrong archetype."),
 			*GetName(), *Component->GetName());
 	}
 
-	const ELifetimeCondition NetCondition = AllowActorComponentToReplicate(Component);
+	ensureMsgf(ReplicatedComponents.Find(Component)!=INDEX_NONE, TEXT("AActor::AddComponentForReplication %s::%s but the componenbt was not found in the ReplicatedComponents list."), *GetName(), *Component->GetName());
 
 	FReplicatedComponentInfo* ComponentInfo = ReplicatedComponentsInfo.FindByKey(Component);
 	if (!ComponentInfo)

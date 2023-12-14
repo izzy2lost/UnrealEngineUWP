@@ -5596,7 +5596,7 @@ void AActor::HandleRegisterComponentWithWorld(UActorComponent* Component)
 
 		// The component was finally initialized, it can now be replicated
 		// Note that if this component does not ask to be initialized, it would have started to be replicated inside AddOwnedComponent.
-		if (bOwnerBeginPlayStarted)
+		if (bOwnerBeginPlayStarted && Component->GetIsReplicated())
 		{
 			AddComponentForReplication(Component);
 		}
