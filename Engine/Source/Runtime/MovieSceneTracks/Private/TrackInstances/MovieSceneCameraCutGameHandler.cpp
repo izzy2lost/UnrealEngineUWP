@@ -70,9 +70,11 @@ void FPreAnimatedCameraCutTraits::RestorePreAnimatedValue(
 	APlayerCameraManager* CameraManager = (PC != nullptr) ? PC->PlayerCameraManager : nullptr;
 
 	// Restore previous view target.
-	AActor* PreviousViewTarget = Cast<AActor>(CachedValue.LastViewTarget.ResolveObjectPtr());
-	if (CameraManager && PreviousViewTarget)
+	// If the previous view target is not valid anymore, we still set it on the camera manger. This will by
+	// default fall back to using the player controller as the view target.
+	if (CameraManager)
 	{
+		AActor* PreviousViewTarget = Cast<AActor>(CachedValue.LastViewTarget.ResolveObjectPtr());
 		CameraManager->SetViewTarget(PreviousViewTarget);
 	}
 
