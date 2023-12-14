@@ -57,7 +57,7 @@ public:
 
 	/** What format string should the final files use? Can include folder prefixes, and format string ({shot_name}, etc.) */
 	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "File Output", meta=(EditCondition="bOverride_FileNameFormat"))
-	FString FileNameFormat = "{sequence_name}.{render_layer}.{frame_number}";
+	FString FileNameFormat = "{sequence_name}.{layer_name}.{frame_number}";
 
 protected:
 	virtual void OnReceiveImageDataImpl(UMovieGraphPipeline* InPipeline, UE::MovieGraph::FMovieGraphOutputMergerFrame* InRawFrameData, const TSet<FMovieGraphRenderDataIdentifier>& InMask) {}

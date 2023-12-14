@@ -66,7 +66,7 @@ struct FMovieGraphFilenameResolveParams
 	
 	/**
 	* This is used to fill out tokens related to the render data that the file represents.
-	* Used to fill out the {camera_name}, {render_layer}, {renderer_name}, {renderer_sub_name} tokens.
+	* Used to fill out the {camera_name}, {layer_name}, {renderer_name}, {renderer_sub_name} tokens.
 	*/
 	UPROPERTY(BlueprintReadWrite, EditAnywhere, Category = "Movie Graph")
 	FMovieGraphRenderDataIdentifier RenderDataIdentifier;

@@ -710,7 +710,7 @@ void UMovieGraphImageSequenceOutputNode_MultiLayerEXR::GetFilenameToRenderIDMapp
 	// This two-step process is necessary due to the flexibility in file naming, and the multi-layer nature of EXRs.
 	// For example, if the file name format is "{sequence_name}.{frame_number}", and the second of two branches in the
 	// graph has a differing resolution, only after resolving the output filenames for all outputs is a problem found;
-	// layers of differing resolutions will be written to the same file. Using "{render_layer}.{sequence_name}.{frame_number}"
+	// layers of differing resolutions will be written to the same file. Using "{layer_name}.{sequence_name}.{frame_number}"
 	// as the file name format would prevent the issue, but the two-step process is a generic way of approaching the
 	// problem.
 	for (const TPair<FMovieGraphRenderDataIdentifier, TUniquePtr<FImagePixelData>>& RenderPassData : InRawFrameData->ImageOutputData)
