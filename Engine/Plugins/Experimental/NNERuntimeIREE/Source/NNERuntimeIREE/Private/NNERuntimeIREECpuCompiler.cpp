@@ -206,7 +206,9 @@ namespace UE::NNERuntimeIREECpu::Private
 		IPlatformFile& PlatformFile = FPlatformFileManager::Get().GetPlatformFile();
 		for (int32 i = 0; i < Targets.Num(); i++)
 		{
-			FString IntermediateFilePathNoExt = FPaths::Combine(InIntermediateDir, Targets[i].Architecture, InModelName);
+			FString IntermediateDirPath = FPaths::Combine(InIntermediateDir, Targets[i].Architecture);
+			PlatformFile.CreateDirectoryTree(*IntermediateDirPath);
+			FString IntermediateFilePathNoExt = FPaths::Combine(IntermediateDirPath, InModelName);
 			FString ObjectFilePath = IntermediateFilePathNoExt + ".o";
 			FString VmfbFilePath = IntermediateFilePathNoExt + ".vmfb";
 			FString SharedLibFilePath = IntermediateFilePathNoExt + SharedLibExt;

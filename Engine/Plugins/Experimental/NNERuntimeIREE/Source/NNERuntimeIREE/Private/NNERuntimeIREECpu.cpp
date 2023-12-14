@@ -259,7 +259,7 @@ TSharedPtr<UE::NNE::IModelCPU> UNNERuntimeIREECpu::CreateModelCPU(TObjectPtr<UNN
 	}
 
 	FString CurrentArchitecture = "";
-#ifdef PLATFORM_CPU_X86_FAMILY
+#if PLATFORM_CPU_X86_FAMILY
 	CurrentArchitecture = "x86_64";
 #elif PLATFORM_CPU_ARM_FAMILY
 	CurrentArchitecture = "arm64";
