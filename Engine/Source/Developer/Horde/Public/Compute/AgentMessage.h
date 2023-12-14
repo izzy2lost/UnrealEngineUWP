@@ -134,10 +134,10 @@ public:
 	HORDE_API EAgentMessageType ReadResponse();
 
 	// Gets the raw data from a response
-	HORDE_API const void* GetResponseData() const { return ResponseData + MessageHeaderLength; }
+	HORDE_API const void* GetResponseData() const { return ResponseData; }
 
 	// Gets the size of the response
-	HORDE_API size_t GetResponseSize() const { return ResponseLength - MessageHeaderLength; }
+	HORDE_API size_t GetResponseSize() const { return ResponseLength; }
 
 	// Reads an exception response
 	HORDE_API void ReadException(AgentMessage::FException& Ex);
