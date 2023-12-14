@@ -365,6 +365,12 @@ void FRigVMEditorModule::GetTypeActions(URigVMBlueprint* RigVMBlueprint, FBluepr
 			{
 				PublicFunctionsString = ControlRigAssetData.GetTagValueRef<FString>(PublicFunctionsProperty->GetFName());
 			}
+
+			// For RigVMBlueprintGeneratedClass, the property doesn't exist
+			if (PublicGraphFunctionsString.IsEmpty())
+			{
+				PublicGraphFunctionsString = ControlRigAssetData.GetTagValueRef<FString>(TEXT("PublicGraphFunctions"));
+			}
 			
 			if(PublicFunctionsString.IsEmpty() && PublicGraphFunctionsString.IsEmpty())
 			{
@@ -384,16 +390,36 @@ void FRigVMEditorModule::GetTypeActions(URigVMBlueprint* RigVMBlueprint, FBluepr
 				}
 			}
 
-			if (PublicGraphFunctionsProperty && !PublicGraphFunctionsString.IsEmpty())
+			if (!PublicGraphFunctionsString.IsEmpty())
 			{
-				TArray<FRigVMGraphFunctionHeader> PublicFunctions;
-				PublicGraphFunctionsProperty->ImportText_Direct(*PublicGraphFunctionsString, &PublicFunctions, nullptr, EPropertyPortFlags::PPF_None);
-				for(const FRigVMGraphFunctionHeader& PublicFunction : PublicFunctions)
+				if (PublicGraphFunctionsProperty)
 				{
-					URigVMEdGraphNodeSpawner* NodeSpawner = URigVMEdGraphFunctionRefNodeSpawner::CreateFromAssetData(ControlRigAssetData, PublicFunction);
-					check(NodeSpawner != nullptr);
-					NodeSpawner->SetRelatedBlueprintClass(BlueprintClass);
-					ActionRegistrar.AddBlueprintAction(ActionKey, NodeSpawner);
+					TArray<FRigVMGraphFunctionHeader> PublicFunctions;
+					PublicGraphFunctionsProperty->ImportText_Direct(*PublicGraphFunctionsString, &PublicFunctions, nullptr, EPropertyPortFlags::PPF_None);
+					for(const FRigVMGraphFunctionHeader& PublicFunction : PublicFunctions)
+					{
+						URigVMEdGraphNodeSpawner* NodeSpawner = URigVMEdGraphFunctionRefNodeSpawner::CreateFromAssetData(ControlRigAssetData, PublicFunction);
+						check(NodeSpawner != nullptr);
+						NodeSpawner->SetRelatedBlueprintClass(BlueprintClass);
+						ActionRegistrar.AddBlueprintAction(ActionKey, NodeSpawner);
+					}
+				}
+				else
+				{
+					// extract public function headers from generated class
+					const FString& HeadersString = PublicGraphFunctionsString;
+			
+					FArrayProperty* HeadersArrayProperty = CastField<FArrayProperty>(FRigVMGraphFunctionHeaderArray::StaticStruct()->FindPropertyByName(TEXT("Headers")));
+					TArray<FRigVMGraphFunctionHeader> PublicFunctions;
+					HeadersArrayProperty->ImportText_Direct(*HeadersString, &PublicFunctions, nullptr, EPropertyPortFlags::PPF_None);
+			
+					for(const FRigVMGraphFunctionHeader& PublicFunction : PublicFunctions)
+					{
+						URigVMEdGraphNodeSpawner* NodeSpawner = URigVMEdGraphFunctionRefNodeSpawner::CreateFromAssetData(ControlRigAssetData, PublicFunction);
+						check(NodeSpawner != nullptr);
+						NodeSpawner->SetRelatedBlueprintClass(BlueprintClass);
+						ActionRegistrar.AddBlueprintAction(ActionKey, NodeSpawner);
+					}
 				}
 			}
 		}

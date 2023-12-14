@@ -99,3 +99,21 @@ void URigVMBlueprintGeneratedClass::PostLoad()
 
 	GraphFunctionStore.PostLoad();
 }
+
+void URigVMBlueprintGeneratedClass::GetAssetRegistryTags(TArray<FAssetRegistryTag>& OutTags) const
+{
+	Super::GetAssetRegistryTags(OutTags);
+
+	const FArrayProperty* HeadersProperty = CastField<FArrayProperty>(FRigVMGraphFunctionHeaderArray::StaticStruct()->FindPropertyByName(TEXT("Headers")));
+	FRigVMGraphFunctionHeaderArray HeaderArray;
+	
+	for (const FRigVMGraphFunctionData& FunctionData : GraphFunctionStore.PublicFunctions)
+	{
+		HeaderArray.Headers.Add(FunctionData.Header);
+	}
+
+	FString HeadersString;
+	HeadersProperty->ExportText_Direct(HeadersString, &(HeaderArray.Headers), &(HeaderArray.Headers), nullptr, PPF_None, nullptr);
+
+	OutTags.Add(UObject::FAssetRegistryTag(TEXT("PublicGraphFunctions"), HeadersString, UObject::FAssetRegistryTag::TT_Hidden));
+}

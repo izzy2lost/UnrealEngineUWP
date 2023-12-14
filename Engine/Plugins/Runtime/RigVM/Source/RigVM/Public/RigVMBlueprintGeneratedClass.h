@@ -9,6 +9,15 @@
 #include "RigVMCore/RigVMGraphFunctionHost.h"
 #include "RigVMBlueprintGeneratedClass.generated.h"
 
+USTRUCT()
+struct FRigVMGraphFunctionHeaderArray
+{
+	GENERATED_BODY()
+	
+	UPROPERTY()
+	TArray<FRigVMGraphFunctionHeader> Headers;
+};
+
 UCLASS()
 class RIGVM_API URigVMBlueprintGeneratedClass : public UBlueprintGeneratedClass, public IRigVMGraphFunctionHost
 {
@@ -23,6 +32,7 @@ public:
 	// UObject interface
 	virtual void Serialize(FArchive& Ar) override;
 	virtual void PostLoad() override;
+	virtual void GetAssetRegistryTags(TArray<FAssetRegistryTag>& OutTags) const override;
 
 	// IRigVMGraphFunctionHost interface
 	virtual const FRigVMGraphFunctionStore* GetRigVMGraphFunctionStore() const override { return &GraphFunctionStore; }
