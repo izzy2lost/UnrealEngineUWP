@@ -318,9 +318,16 @@ namespace UnrealBuildTool
 
 		protected virtual void AppendCLArguments_Global(CppCompileEnvironment CompileEnvironment, List<string> Arguments)
 		{
-			// Suppress generation of object code for unreferenced inline functions. Enabling this option is more standards compliant, and causes a big reduction
-			// in object file sizes (and link times) due to the amount of stuff we inline.
-			Arguments.Add("/Zc:inline");
+			if (CompileEnvironment.bVcRemoveUnreferencedComdat)
+			{
+				// Suppress generation of object code for unreferenced inline functions. Enabling this option is more standards compliant, and causes a big reduction
+				// in object file sizes (and link times) due to the amount of stuff we inline.
+				Arguments.Add("/Zc:inline");
+			}
+			else
+			{
+				Arguments.Add("/Zc:inline-");
+			}
 
 			// @todo clang: Clang on Windows doesn't respect "#pragma warning (error: ####)", and we're not passing "/WX", so warnings are not
 			// treated as errors when compiling on Windows using Clang right now.

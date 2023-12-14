@@ -1993,6 +1993,7 @@ namespace UnrealBuildTool
 			Result.bCodeCoverage = Target.bCodeCoverage;
 			Result.bOptimizeCode = ShouldEnableOptimization(Rules.OptimizeCode, Target.Configuration, Rules.bTreatAsEngineModule, Result.bCodeCoverage);
 			Result.bUseRTTI |= Rules.bUseRTTI;
+			Result.bVcRemoveUnreferencedComdat &= Rules.bVcRemoveUnreferencedComdat;
 			Result.bEnableBufferSecurityChecks = Rules.bEnableBufferSecurityChecks;
 			Result.MinSourceFilesForUnityBuildOverride = Rules.MinSourceFilesForUnityBuildOverride;
 			Result.MinFilesUsingPrecompiledHeaderOverride = Rules.MinFilesUsingPrecompiledHeaderOverride;

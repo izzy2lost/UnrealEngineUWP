@@ -245,6 +245,12 @@ namespace UnrealBuildTool
 		public bool bUseRTTI = false;
 
 		/// <summary>
+		/// Whether to direct MSVC to remove unreferenced COMDAT functions and data.
+		/// </summary>
+		/// <seealso href="https://learn.microsoft.com/en-us/cpp/build/reference/zc-inline-remove-unreferenced-comdat">zc-inline-remove-unreferenced-comdat</seealso>
+		public bool bVcRemoveUnreferencedComdat = true;
+
+		/// <summary>
 		/// Use Position Independent Executable (PIE). Has an overhead cost
 		/// </summary>
 		public bool bUsePIE = false;
@@ -724,6 +730,7 @@ namespace UnrealBuildTool
 			PrecompiledHeaderAction = Other.PrecompiledHeaderAction;
 			bUseSharedBuildEnvironment = Other.bUseSharedBuildEnvironment;
 			bUseRTTI = Other.bUseRTTI;
+			bVcRemoveUnreferencedComdat = Other.bVcRemoveUnreferencedComdat;
 			bUsePIE = Other.bUsePIE;
 			bUseStackProtection = Other.bUseStackProtection;
 			bUseInlining = Other.bUseInlining;

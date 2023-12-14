@@ -842,6 +842,12 @@ namespace UnrealBuildTool
 		public bool bUseRTTI = false;
 
 		/// <summary>
+		/// Whether to direct MSVC to remove unreferenced COMDAT functions and data.
+		/// </summary>
+		/// <seealso href="https://learn.microsoft.com/en-us/cpp/build/reference/zc-inline-remove-unreferenced-comdat">zc-inline-remove-unreferenced-comdat</seealso>
+		public bool bVcRemoveUnreferencedComdat = true;
+
+		/// <summary>
 		/// Enable code coverage compilation/linking support.
 		/// </summary>
 		public bool bCodeCoverage = false;
