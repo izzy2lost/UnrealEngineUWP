@@ -104,6 +104,11 @@ public:
 			if (ContainerIterator)
 			{
 				ActorsIterator = MakeUnique<ActDescIteratorType>(*ContainerIterator);
+
+				if (!*ActorsIterator)
+				{
+					AdvanceToRelevantActorInNextContainer();
+				}
 			}
 		}
 
