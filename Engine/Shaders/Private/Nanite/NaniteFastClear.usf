@@ -35,9 +35,18 @@ void VisualizeClearTilesCS(uint2 GroupId : SV_GroupID, uint ThreadIndex : SV_Gro
 	const uint2 TileCoord = PixelPos / 8u;
 	ComputeCMaskIndexAndShift(TileCoord, Index, Shift);
 
+	uint SubTileIndex = ((PixelPos.y & 4) >> 1) + ((PixelPos.x & 4) >> 2);	// Linear layout
+	
+	const uint SubTileOrder = GetSubTileOrder();
+	if (SubTileOrder != 0u)
+	{
+		// Remap to the target CMASK subtile mode (may not be TL, TR, BL, BR)
+		SubTileIndex = BitFieldExtractU32(SubTileOrder, 4, SubTileIndex * 4);
+	}
+
 	const uint BitOffset = (Index & 0x3) * 8u;
-	const uint SubTile = (OutCMaskBuffer.Load(Index) >> (Shift + BitOffset)) & 0xFu;
-	const bool bClearTile = SubTile == 0x0u;
+	const uint SubTileMask = (OutCMaskBuffer.Load(Index) >> (Shift + BitOffset)) & 0xFu;
+	const bool bClearTile = (SubTileMask & (1u << SubTileIndex)) == 0u;
 
 	// We want to accumulate a heat map across multiple MRTs showing how many clears occur for a given tile region
 	uint OriginalValue = OutVisualized[PixelPos];
