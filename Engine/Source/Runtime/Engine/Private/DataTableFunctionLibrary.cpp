@@ -35,6 +35,13 @@ void UDataTableFunctionLibrary::EvaluateCurveTableRow(UCurveTable* CurveTable, F
 	}
 }
 
+const UScriptStruct* UDataTableFunctionLibrary::GetDataTableRowStruct(const UDataTable* Table)
+{
+	return Table
+		? Table->GetRowStruct()
+		: nullptr;
+}
+
 bool UDataTableFunctionLibrary::DoesDataTableRowExist(const UDataTable* Table, FName RowName)
 {
 	if (!Table)
@@ -141,6 +148,7 @@ bool UDataTableFunctionLibrary::FillDataTableFromCSVString(UDataTable* DataTable
 	}
 
 	UCSVImportFactory* ImportFactory = NewObject<UCSVImportFactory>();
+	ImportFactory->AutomatedImportSettings.bForceAutomatedImport = ImportRowStruct != nullptr;
 	ImportFactory->AutomatedImportSettings.ImportRowStruct = ImportRowStruct;
 
 	bool bWasCancelled = false;
@@ -174,8 +182,11 @@ bool UDataTableFunctionLibrary::FillDataTableFromCSVFile(UDataTable* DataTable, 
 	}
 
 	DataTable->AssetImportData->Update(InFilePath);
+
 	UCSVImportFactory* ImportFactory = NewObject<UCSVImportFactory>();
+	ImportFactory->AutomatedImportSettings.bForceAutomatedImport = ImportRowStruct != nullptr;
 	ImportFactory->AutomatedImportSettings.ImportRowStruct = ImportRowStruct;
+	
 	return ImportFactory->ReimportCSV(DataTable) == EReimportResult::Succeeded;
 }
 
@@ -188,6 +199,7 @@ bool UDataTableFunctionLibrary::FillDataTableFromJSONString(UDataTable* DataTabl
 	}
 
 	UCSVImportFactory* ImportFactory = NewObject<UCSVImportFactory>();
+	ImportFactory->AutomatedImportSettings.bForceAutomatedImport = ImportRowStruct != nullptr;
 	ImportFactory->AutomatedImportSettings.ImportRowStruct = ImportRowStruct;
 
 	bool bWasCancelled = false;
@@ -227,8 +239,11 @@ bool UDataTableFunctionLibrary::FillDataTableFromJSONFile(UDataTable* DataTable,
 	}
 
 	DataTable->AssetImportData->Update(InFilePath);
+
 	UCSVImportFactory* ImportFactory = NewObject<UCSVImportFactory>();
+	ImportFactory->AutomatedImportSettings.bForceAutomatedImport = ImportRowStruct != nullptr;
 	ImportFactory->AutomatedImportSettings.ImportRowStruct = ImportRowStruct;
+	
 	return ImportFactory->ReimportCSV(DataTable) == EReimportResult::Succeeded;
 }
 

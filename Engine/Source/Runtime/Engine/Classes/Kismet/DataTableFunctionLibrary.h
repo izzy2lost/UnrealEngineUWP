@@ -35,6 +35,10 @@ class UDataTableFunctionLibrary : public UBlueprintFunctionLibrary
 	UFUNCTION(BlueprintCallable, Category = "DataTable", meta = (ExpandEnumAsExecs="OutResult", DataTablePin="CurveTable"))
 	static ENGINE_API void EvaluateCurveTableRow(UCurveTable* CurveTable, FName RowName, float InXY, TEnumAsByte<EEvaluateCurveTableResult::Type>& OutResult, float& OutXY,const FString& ContextString);
     
+	/** Get the row struct used by the given Data Table, if any */
+	UFUNCTION(BlueprintPure, Category = "DataTable")
+ 	static ENGINE_API const UScriptStruct* GetDataTableRowStruct(const UDataTable* Table);
+
 	// Returns whether or not Table contains a row named RowName
   	UFUNCTION(BlueprintCallable, Category = "DataTable")
  	static ENGINE_API bool DoesDataTableRowExist(const UDataTable* Table, FName RowName);
@@ -43,7 +47,7 @@ class UDataTableFunctionLibrary : public UBlueprintFunctionLibrary
 	static ENGINE_API void GetDataTableRowNames(const UDataTable* Table, TArray<FName>& OutRowNames);
 
 	/**
-	 * Get the name of each column in this DataTable.
+	 * Get the name of each column in this Data Table.
 	 * @note These are always the raw property names (@see GetDataTableColumnAsString) rather than the friendly export name that would be used in a CSV/JSON export (@see GetDataTableColumnNameFromExportName).
 	 */
 	UFUNCTION(BlueprintCallable, Category = "DataTable")
@@ -127,34 +131,38 @@ class UDataTableFunctionLibrary : public UBlueprintFunctionLibrary
 #if WITH_EDITOR
 	/** 
 	 * Empty and fill a Data Table from CSV string.
-	 * @param	CSVString	The Data that representing the contents of a CSV file.
+	 * @param	CSVString			The Data that representing the contents of a CSV file.
+	 * @param	ImportRowStruct		Optional row struct to apply on import. If set will also force the import to run automated (no questions or dialogs).
 	 * @return	True if the operation succeeds, check the log for errors if it didn't succeed.
 	 */
-	UFUNCTION(BlueprintCallable, Category = "Editor Scripting | DataTable", DisplayName="Fill Data Table from CSV String")
+	UFUNCTION(BlueprintCallable, Category = "Editor Scripting | DataTable", DisplayName="Fill Data Table from CSV String", meta=(AdvancedDisplay="ImportRowStruct"))
 	static ENGINE_API bool FillDataTableFromCSVString(UDataTable* DataTable, const FString& CSVString, UScriptStruct* ImportRowStruct = nullptr);
 
 	/** 
 	 * Empty and fill a Data Table from CSV file.
-	 * @param	CSVFilePath	The file path of the CSV file.
+	 * @param	CSVFilePath			The file path of the CSV file.
+	 * @param	ImportRowStruct		Optional row struct to apply on import. If set will also force the import to run automated (no questions or dialogs).
 	 * @return	True if the operation succeeds, check the log for errors if it didn't succeed.
 	 */
-	UFUNCTION(BlueprintCallable, Category = "Editor Scripting | DataTable", DisplayName = "Fill Data Table from CSV File")
+	UFUNCTION(BlueprintCallable, Category = "Editor Scripting | DataTable", DisplayName = "Fill Data Table from CSV File", meta=(AdvancedDisplay="ImportRowStruct"))
 	static ENGINE_API bool FillDataTableFromCSVFile(UDataTable* DataTable, const FString& CSVFilePath, UScriptStruct* ImportRowStruct = nullptr);
 
 	/** 
 	 * Empty and fill a Data Table from JSON string.
-	 * @param	JSONString	The Data that representing the contents of a JSON file.
+	 * @param	JSONString			The Data that representing the contents of a JSON file.
+	 * @param	ImportRowStruct		Optional row struct to apply on import. If set will also force the import to run automated (no questions or dialogs).
 	 * @return	True if the operation succeeds, check the log for errors if it didn't succeed.
 	 */
-	UFUNCTION(BlueprintCallable, Category = "Editor Scripting | DataTable", DisplayName = "Fill Data Table from JSON String")
+	UFUNCTION(BlueprintCallable, Category = "Editor Scripting | DataTable", DisplayName = "Fill Data Table from JSON String", meta=(AdvancedDisplay="ImportRowStruct"))
 	static ENGINE_API bool FillDataTableFromJSONString(UDataTable* DataTable, const FString& JSONString, UScriptStruct* ImportRowStruct = nullptr);
 
 	/** 
 	 * Empty and fill a Data Table from JSON file.
-	 * @param	JSONFilePath	The file path of the JSON file.
+	 * @param	JSONFilePath		The file path of the JSON file.
+	 * @param	ImportRowStruct		Optional row struct to apply on import. If set will also force the import to run automated (no questions or dialogs).
 	 * @return	True if the operation succeeds, check the log for errors if it didn't succeed.
 	 */
-	UFUNCTION(BlueprintCallable, Category = "Editor Scripting | DataTable", DisplayName = "Fill Data Table from JSON File")
+	UFUNCTION(BlueprintCallable, Category = "Editor Scripting | DataTable", DisplayName = "Fill Data Table from JSON File", meta=(AdvancedDisplay="ImportRowStruct"))
 	static ENGINE_API bool FillDataTableFromJSONFile(UDataTable* DataTable, const FString& JSONFilePath, UScriptStruct* ImportRowStruct = nullptr);
 
 	/** 
