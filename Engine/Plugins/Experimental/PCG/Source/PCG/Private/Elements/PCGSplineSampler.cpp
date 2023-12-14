@@ -317,6 +317,10 @@ namespace PCGSplineSampler
 		FTransform LocalTransform;
 		FBox Box = FBox::BuildAABB(FVector::ZeroVector, FVector::OneVector);
 		FVector::FReal Curvature = 0;
+		int SegmentIndex = 0;
+		int SubsegmentIndex = 0;
+		FVector ArriveTangent = FVector::Zero();
+		FVector LeaveTangent = FVector::Zero();
 		FVector::FReal PreviousDeltaAngle = 0;
 		FVector::FReal NextDeltaAngle = 0;
 	};
@@ -351,18 +355,15 @@ namespace PCGSplineSampler
 	struct FStepSampler
 	{
 		FStepSampler(const UPCGPolyLineData* InLineData, const FPCGSplineSamplerParams& Params)
-			: LineData(InLineData), bComputeCurvature(Params.bComputeCurvature)
+			: LineData(InLineData)
+			, bComputeCurvature(Params.bComputeCurvature)
 		{
 			check(LineData);
 			CurrentSegmentIndex = 0;
 		}
 
 		virtual void Step(FSamplerResult& OutSamplerResult) = 0;
-
-		bool IsDone() const
-		{
-			return CurrentSegmentIndex >= LineData->GetNumSegments();
-		}
+		virtual bool IsDone() const = 0;
 
 		const UPCGPolyLineData* LineData = nullptr;
 		int CurrentSegmentIndex = 0;
@@ -373,6 +374,7 @@ namespace PCGSplineSampler
 	{
 		FSubdivisionStepSampler(const UPCGPolyLineData* InLineData, const FPCGSplineSamplerParams& Params)
 			: FStepSampler(InLineData, Params)
+			, bComputeTangents(Params.bComputeTangents)
 		{
 			NumSegments = LineData->GetNumSegments();
 			SubdivisionsPerSegment = Params.SubdivisionsPerSegment;
@@ -383,21 +385,45 @@ namespace PCGSplineSampler
 
 		virtual void Step(FSamplerResult& OutResult) override
 		{
-			const FVector::FReal SegmentLength = LineData->GetSegmentLength(CurrentSegmentIndex);
+			const int PreviousSegmentIndex = (CurrentSegmentIndex > 0 ? CurrentSegmentIndex : NumSegments) - 1;
+
+			// To capture the last key point on the spline, we sample the point at the end of the previous segment.
+			const bool bLastKeyPoint = CurrentSegmentIndex == LineData->GetNumSegments();
+			const int SegmentIndex = bLastKeyPoint ? PreviousSegmentIndex : CurrentSegmentIndex;
+
+			const FVector::FReal SegmentLength = LineData->GetSegmentLength(SegmentIndex);
 			const FVector::FReal SegmentStep = SegmentLength / (SubdivisionsPerSegment + 1);
+			const FVector::FReal DistanceAlongSegment = bLastKeyPoint ? SegmentLength : SubpointIndex * SegmentStep;
 
 			FBox& OutBox = OutResult.Box;
 			FTransform& OutTransform = OutResult.LocalTransform;
-			OutTransform = LineData->GetTransformAtDistance(CurrentSegmentIndex, SubpointIndex * SegmentStep, /*bWorldSpace=*/false, &OutBox);
+			OutTransform = LineData->GetTransformAtDistance(SegmentIndex, DistanceAlongSegment, /*bWorldSpace=*/false, &OutBox);
+			OutResult.SegmentIndex = LineData->IsClosed() ? CurrentSegmentIndex : SegmentIndex;
+			OutResult.SubsegmentIndex = SubpointIndex;
 
 			if (bComputeCurvature)
 			{
-				OutResult.Curvature = LineData->GetCurvatureAtDistance(CurrentSegmentIndex, SubpointIndex * SegmentStep);
+				OutResult.Curvature = LineData->GetCurvatureAtDistance(SegmentIndex, DistanceAlongSegment);
+			}
+
+			if (bComputeTangents)
+			{
+				// Control points have actual Arrive and Leave tangents
+				if (SubpointIndex == 0)
+				{
+					LineData->GetTangentsAtSegmentStart(CurrentSegmentIndex, OutResult.ArriveTangent, OutResult.LeaveTangent);
+				}
+				else
+				{
+					// For a non-control-point, we can get the normalized tangent at least.
+					const FVector Forward = OutTransform.GetRotation().GetForwardVector();
+					OutResult.ArriveTangent = Forward;
+					OutResult.LeaveTangent = Forward;
+				}
 			}
 
 			if (SubpointIndex == 0)
 			{
-				const int PreviousSegmentIndex = (CurrentSegmentIndex > 0 ? CurrentSegmentIndex : NumSegments) - 1;
 				const FVector::FReal PreviousSegmentLength = LineData->GetSegmentLength(PreviousSegmentIndex);
 				FTransform PreviousSegmentEndTransform = LineData->GetTransformAtDistance(PreviousSegmentIndex, PreviousSegmentLength, /*bWorldSpace=*/false);
 
@@ -418,16 +444,24 @@ namespace PCGSplineSampler
 			OutBox.Max.X *= 0.5 * SegmentStep / OutTransform.GetScale3D().X;
 
 			++SubpointIndex;
-			if (SubpointIndex > SubdivisionsPerSegment)
+			if (SubpointIndex > SubdivisionsPerSegment || bLastKeyPoint)
 			{
 				SubpointIndex = 0;
 				++CurrentSegmentIndex;
 			}
 		}
 
+		virtual bool IsDone() const override
+		{
+			// Subdivision Sampler is not done until it captures the final control point, which does not have a valid segment associated unless the spline is a closed loop.
+			const int NumSegmentsWhenDone = ((LineData && LineData->IsClosed()) || NumSegments == 0) ? NumSegments : NumSegments + 1;
+			return CurrentSegmentIndex >= NumSegmentsWhenDone;
+		}
+
 		int NumSegments;
 		int SubdivisionsPerSegment;
 		int SubpointIndex;
+		bool bComputeTangents = false;
 	};
 
 	struct FDistanceStepSampler : public FStepSampler
@@ -445,6 +479,7 @@ namespace PCGSplineSampler
 			FTransform& OutTransform = OutResult.LocalTransform;
 			FBox& OutBox = OutResult.Box;
 			OutTransform = LineData->GetTransformAtDistance(CurrentSegmentIndex, CurrentDistance, /*bWorldSpace=*/false, &OutBox);
+			OutResult.SegmentIndex = CurrentSegmentIndex;
 
 			// Set min/max to half of extent
 			OutBox.Min.X *= 0.5 * DistanceIncrement / OutTransform.GetScale3D().X;
@@ -471,6 +506,13 @@ namespace PCGSplineSampler
 			}
 		}
 
+		virtual bool IsDone() const override
+		{
+			// Distance Sampler is not done until it captures the final control point, which does not have a valid segment associated unless the spline is a closed loop.
+			const int NumSegments = LineData->IsClosed() ? LineData->GetNumSegments() - 1 : LineData->GetNumSegments();
+			return CurrentSegmentIndex >= NumSegments;
+		}
+
 		FVector::FReal DistanceIncrement;
 		FVector::FReal CurrentDistance;
 	};
@@ -487,19 +529,46 @@ namespace PCGSplineSampler
 			ProjectionParams = InProjectionParams;
 
 			// Initialize metadata accessors if needed
-			if (OutPointData && OutPointData->Metadata && (Params.bComputeDirectionDelta || Params.bComputeCurvature))
+			if (OutPointData
+				&& OutPointData->Metadata
+				&& (Params.bComputeDirectionDelta
+					|| Params.bComputeCurvature
+					|| Params.bComputeSegmentIndex
+					|| Params.bComputeSubsegmentIndex
+					|| Params.bComputeTangents))
 			{
 				constexpr double DefaultValue = 0.0;
 				if (Params.bComputeDirectionDelta)
 				{
-					NextDirectionDeltaAttribute = OutPointData->Metadata->FindOrCreateAttribute(Params.NextDirectionDeltaAttribute, DefaultValue);
+					NextDirectionDeltaAttribute = OutPointData->Metadata->FindOrCreateAttribute<double>(Params.NextDirectionDeltaAttribute, DefaultValue);
 					bSetMetadata |= (NextDirectionDeltaAttribute != nullptr);
 				}
 
 				if (Params.bComputeCurvature)
 				{
-					CurvatureAttribute = OutPointData->Metadata->FindOrCreateAttribute(Params.CurvatureAttribute, DefaultValue);
+					CurvatureAttribute = OutPointData->Metadata->FindOrCreateAttribute<double>(Params.CurvatureAttribute, DefaultValue);
 					bSetMetadata |= (CurvatureAttribute != nullptr);
+				}
+
+				if (Params.bComputeSegmentIndex)
+				{
+					SegmentIndexAttribute = OutPointData->Metadata->FindOrCreateAttribute<int>(Params.SegmentIndexAttribute, static_cast<int>(DefaultValue));
+					bSetMetadata |= (SegmentIndexAttribute != nullptr);
+				}
+
+				if (Params.bComputeSubsegmentIndex)
+				{
+					SubsegmentIndexAttribute = OutPointData->Metadata->FindOrCreateAttribute<int>(Params.SubsegmentIndexAttribute, static_cast<int>(DefaultValue));
+					bSetMetadata |= (SubsegmentIndexAttribute != nullptr);
+				}
+
+				if (Params.bComputeTangents)
+				{
+					ArriveTangentAttribute = OutPointData->Metadata->FindOrCreateAttribute<FVector>(Params.ArriveTangentAttribute, FVector::Zero());
+					bSetMetadata |= (ArriveTangentAttribute != nullptr);
+
+					LeaveTangentAttribute = OutPointData->Metadata->FindOrCreateAttribute<FVector>(Params.LeaveTangentAttribute, FVector::Zero());
+					bSetMetadata |= (LeaveTangentAttribute != nullptr);
 				}
 			}
 		}
@@ -521,6 +590,26 @@ namespace PCGSplineSampler
 			if (CurvatureAttribute)
 			{
 				CurvatureAttribute->SetValue(OutPoint.MetadataEntry, InResult.Curvature);
+			}
+
+			if (SegmentIndexAttribute)
+			{
+				SegmentIndexAttribute->SetValue(OutPoint.MetadataEntry, InResult.SegmentIndex);
+			}
+			
+			if (SubsegmentIndexAttribute)
+			{
+				SubsegmentIndexAttribute->SetValue(OutPoint.MetadataEntry, InResult.SubsegmentIndex);
+			}
+
+			if (ArriveTangentAttribute)
+			{
+				ArriveTangentAttribute->SetValue(OutPoint.MetadataEntry, InResult.ArriveTangent);
+			}
+
+			if (LeaveTangentAttribute)
+			{
+				LeaveTangentAttribute->SetValue(OutPoint.MetadataEntry, InResult.LeaveTangent);
 			}
 		}
 
@@ -565,6 +654,10 @@ namespace PCGSplineSampler
 		bool bSetMetadata = false;
 		FPCGMetadataAttribute<double>* NextDirectionDeltaAttribute = nullptr;
 		FPCGMetadataAttribute<double>* CurvatureAttribute = nullptr;
+		FPCGMetadataAttribute<int>* SegmentIndexAttribute = nullptr;
+		FPCGMetadataAttribute<int>* SubsegmentIndexAttribute = nullptr;
+		FPCGMetadataAttribute<FVector>* LeaveTangentAttribute = nullptr;
+		FPCGMetadataAttribute<FVector>* ArriveTangentAttribute = nullptr;
 	};
 
 	/** Samples in a volume surrounding the poly line. */

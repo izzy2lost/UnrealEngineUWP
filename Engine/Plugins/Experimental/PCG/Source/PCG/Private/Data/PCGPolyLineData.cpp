@@ -19,3 +19,9 @@ FBox UPCGPolyLineData::GetBounds() const
 	
 	return Bounds;
 }
+
+void UPCGPolyLineData::GetTangentsAtSegmentStart(int SegmentIndex, FVector& OutArriveTangent, FVector& OutLeaveTangent) const
+{
+	OutArriveTangent = FVector::Zero();
+	OutLeaveTangent = FVector::Zero();
+}

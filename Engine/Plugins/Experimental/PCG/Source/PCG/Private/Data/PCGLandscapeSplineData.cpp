@@ -7,6 +7,7 @@
 #include "Elements/PCGSplineSampler.h"
 #include "Helpers/PCGHelpers.h"
 
+#include "LandscapeSplineControlPoint.h"
 #include "LandscapeSplineSegment.h"
 
 #include UE_INLINE_GENERATED_CPP_BY_NAME(PCGLandscapeSplineData)
@@ -66,7 +67,7 @@ FVector::FReal UPCGLandscapeSplineData::GetSegmentLength(int SegmentIndex) const
 {
 	check(Spline.IsValid());
 	check(SegmentIndex >= 0 && SegmentIndex < Spline->GetSegments().Num());
-	
+
 	const ULandscapeSplineSegment* Segment = Spline->GetSegments()[SegmentIndex];
 	const TArray<FLandscapeSplineInterpPoint>& InterpPoints = Segment->GetPoints();
 	FVector::FReal Length = 0;
@@ -211,6 +212,25 @@ FVector::FReal UPCGLandscapeSplineData::GetCurvatureAtDistance(int SegmentIndex,
 	return 0;
 }
 
+void UPCGLandscapeSplineData::GetTangentsAtSegmentStart(int SegmentIndex, FVector& OutArriveTangent, FVector& OutLeaveTangent) const
+{
+	check(Spline.IsValid());
+
+	const TArray<TObjectPtr<ULandscapeSplineSegment>>& Segments = Spline->GetSegments();
+
+	const TObjectPtr<ULandscapeSplineSegment> PreviousSegment = SegmentIndex > 0 ? Segments[SegmentIndex - 1] : nullptr;
+	const TObjectPtr<ULandscapeSplineSegment> CurrentSegment = SegmentIndex < Segments.Num() ? Segments[SegmentIndex] : nullptr;
+
+	// Arrive tangent lives in the end-point of the previous segment
+	const TObjectPtr<ULandscapeSplineControlPoint> ArrivePoint = PreviousSegment ? PreviousSegment->Connections[1].ControlPoint : nullptr;
+
+	// Leave tangent lives in the start-point of the current segment
+	const TObjectPtr<ULandscapeSplineControlPoint> LeavePoint = CurrentSegment ? CurrentSegment->Connections[0].ControlPoint : nullptr;
+
+	OutArriveTangent = ArrivePoint ? ArrivePoint->Rotation.Vector() * -PreviousSegment->Connections[1].TangentLen : FVector::Zero();
+	OutLeaveTangent = LeavePoint ? LeavePoint->Rotation.Vector() * CurrentSegment->Connections[0].TangentLen : FVector::Zero();
+}
+
 const UPCGPointData* UPCGLandscapeSplineData::CreatePointData(FPCGContext* Context) const
 {
 	check(Spline.IsValid());
@@ -271,7 +291,7 @@ bool UPCGLandscapeSplineData::SamplePoint(const FTransform& InTransform, const F
 	{
 		// Considering the landscape spline always exists on the landscape,
 		// we'll ignore the Z component of the input here for the bounds check.
-		if(!PCGHelpers::IsInsideBoundsXY(Segment->GetBounds(), Position))
+		if (!Segment->GetBounds().IsInsideOrOnXY(Position))
 		{
 			continue;
 		}

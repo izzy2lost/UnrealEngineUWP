@@ -116,6 +116,13 @@ FVector::FReal UPCGSplineData::GetCurvatureAtDistance(int SegmentIndex, FVector:
 	return FMath::Sign(RightVector | CurvatureVector) * Curvature;
 }
 
+void UPCGSplineData::GetTangentsAtSegmentStart(int SegmentIndex, FVector& OutArriveTangent, FVector& OutLeaveTangent) const
+{
+	check(SplineStruct.SplineCurves.Position.Points.IsValidIndex(SegmentIndex));
+	OutArriveTangent = SplineStruct.SplineCurves.Position.Points[SegmentIndex].ArriveTangent;
+	OutLeaveTangent = SplineStruct.SplineCurves.Position.Points[SegmentIndex].LeaveTangent;
+}
+
 const UPCGPointData* UPCGSplineData::CreatePointData(FPCGContext* Context) const
 {
 	TRACE_CPUPROFILER_EVENT_SCOPE(UPCGSplineData::CreatePointData);

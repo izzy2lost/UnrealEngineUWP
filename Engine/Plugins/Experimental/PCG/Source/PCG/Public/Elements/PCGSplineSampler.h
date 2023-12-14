@@ -73,16 +73,41 @@ struct PCG_API FPCGSplineSamplerParams
 	UPROPERTY(BlueprintReadWrite, EditAnywhere, Category = Settings, meta = (InlineEditConditionToggle))
 	bool bComputeDirectionDelta = false;
 
-	/** Attribute that wil contain the delta angle to the next point on the spline w.r.t to the current's point Up vector. */
+	/** Attribute that will contain the delta angle to the next point on the spline w.r.t to the current's point Up vector. */
 	UPROPERTY(BlueprintReadWrite, EditAnywhere, Category = Settings, meta = (EditCondition = "bComputeDirectionDelta"))
-	FName NextDirectionDeltaAttribute = "NextDirectionDelta";
+	FName NextDirectionDeltaAttribute = TEXT("NextDirectionDelta");
 
 	UPROPERTY(BlueprintReadWrite, EditAnywhere, Category = Settings, meta = (InlineEditConditionToggle))
 	bool bComputeCurvature = false;
 
 	/** Attribute that will contain the curvature. Note that the radius of curvature is defined as 1/Curvature, and might need you to scale to world units */
 	UPROPERTY(BlueprintReadWrite, EditAnywhere, Category = Settings, meta = (EditCondition = "bComputeCurvature"))
-	FName CurvatureAttribute = "Curvature";
+	FName CurvatureAttribute = TEXT("Curvature");
+
+	UPROPERTY(BlueprintReadWrite, EditAnywhere, Category = Settings, meta = (InlineEditConditionToggle))
+	bool bComputeSegmentIndex = false;
+
+	/** Attribute that will contain the spline segment index. */
+	UPROPERTY(BlueprintReadWrite, EditAnywhere, Category = Settings, meta = (EditCondition = "bComputeSegmentIndex"))
+	FName SegmentIndexAttribute = TEXT("SegmentIndex");
+
+	UPROPERTY(BlueprintReadWrite, EditAnywhere, Category = Settings, meta = (InlineEditConditionToggle))
+	bool bComputeSubsegmentIndex = false;
+
+	/** Attribute that will contain the sub-segment index of a point on the spline. When the sub-segment index is 0, the point is a control point on the actual spline. Only applies to Subdivision mode. */
+	UPROPERTY(BlueprintReadWrite, EditAnywhere, Category = Settings, meta = (EditCondition = "bComputeSubsegmentIndex"))
+	FName SubsegmentIndexAttribute = TEXT("SubsegmentIndex");
+
+	UPROPERTY(BlueprintReadWrite, EditAnywhere, Category = Settings)
+	bool bComputeTangents = false;
+
+	/** Attribute that will contain the arrive tangent vector. For control points, this will be the actual arrive tangent. For non-control points, this will only be the normalized tangent at this point. Only applies to Subdivision mode. */
+	UPROPERTY(BlueprintReadWrite, EditAnywhere, Category = Settings, meta = (EditCondition = "bComputeTangents"))
+	FName ArriveTangentAttribute = TEXT("ArriveTangent");
+
+	/** Attribute that will contain the leave tangent vector. For control points, this will be the actual leave tangent. For non-control points, this will only be the normalized tangent at this point. Only applies to Subdivision mode. */
+	UPROPERTY(BlueprintReadWrite, EditAnywhere, Category = Settings, meta = (EditCondition = "bComputeTangents"))
+	FName LeaveTangentAttribute = TEXT("LeaveTangent");
 
 	/** If no Bounding Shape input is provided, the actor bounds are used to limit the sample generation domain.
 	* This option allows ignoring the actor bounds and generating over the entire spline. Use with caution as this
@@ -103,11 +128,11 @@ struct PCG_API FPCGSplineSamplerParams
 	UPROPERTY(BlueprintReadWrite, EditAnywhere, Category = Settings, meta = (EditCondition = "Dimension==EPCGSplineSamplingDimension::OnInterior"))
 	bool bTreatSplineAsPolyline = false;
 
-	/** Determines the orientation of interior points */
+	/** Determines the orientation of interior points. */
 	UPROPERTY(BlueprintReadWrite, EditAnywhere, Category = Settings, meta = (EditCondition = "Dimension==EPCGSplineSamplingDimension::OnInterior"))
 	EPCGSplineSamplingInteriorOrientation InteriorOrientation = EPCGSplineSamplingInteriorOrientation::Uniform;
 
-	/** Project sample points onto one possible surface given by the spline boundary */
+	/** Project sample points onto one possible surface given by the spline boundary. */
 	UPROPERTY(EditAnywhere, Category = Settings, meta = (EditCondition = "Dimension==EPCGSplineSamplingDimension::OnInterior"))
 	bool bProjectOntoSurface = false;
 
