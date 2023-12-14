@@ -1224,11 +1224,6 @@ class FInterpreter
 			Container.StaticCast<VMutableArray>().InPlaceMakeImmutable(Context);
 			checkSlow(Container.IsCellOfType<VArray>() && !Container.IsCellOfType<VMutableArray>());
 		}
-		else if (Container.IsCellOfType<VMutableMap>())
-		{
-			Container.StaticCast<VMutableMap>().InPlaceMakeImmutable(Context);
-			checkSlow(Container.IsCellOfType<VMap>() && !Container.IsCellOfType<VMutableMap>());
-		}
 		else
 		{
 			V_DIE("Unimplemented type passed to VM `InPlaceMakeImmutable` operation!");
