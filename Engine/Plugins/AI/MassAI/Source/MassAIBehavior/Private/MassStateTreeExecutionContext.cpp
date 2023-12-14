@@ -7,11 +7,14 @@
 #include "MassSignalSubsystem.h"
 #include "MassEntityView.h"
 #include "Engine/World.h"
+#include "ProfilingDebugging/CsvProfiler.h"
 
 namespace UE::MassBehavior
 {
 bool CollectExternalData(const FStateTreeExecutionContext& Context, const UStateTree* StateTree, TArrayView<const FStateTreeExternalDataDesc> ExternalDataDescs, TArrayView<FStateTreeDataView> OutDataViews)
 {
+	CSV_SCOPED_TIMING_STAT_EXCLUSIVE(StateTreeProcessorCollectExternalData);
+	
 	const FMassStateTreeExecutionContext& MassContext = static_cast<const FMassStateTreeExecutionContext&>(Context); 
 	const FMassEntityManager& EntityManager = MassContext.GetEntityManager();
 	const UWorld* World = MassContext.GetWorld();

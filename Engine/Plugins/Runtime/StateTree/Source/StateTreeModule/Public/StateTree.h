@@ -41,7 +41,7 @@ struct STATETREEMODULE_API FStateTreeCustomVersion
 		AddedDataHandlesIds,
 		// Added linked asset state
 		AddedLinkedAssetState,
-		// Change hoe external data is accessed
+		// Change how external data is accessed
 		ChangedExternalDataAccess,
 
 		// -----<new versions can be added above this line>-------------------------------------------------

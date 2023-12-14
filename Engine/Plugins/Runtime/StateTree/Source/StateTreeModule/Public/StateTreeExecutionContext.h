@@ -525,11 +525,13 @@ protected:
 	/** Copies a batch of properties to the data in TargetView. This version validates the data handles and looks up temporary instances. */
 	bool CopyBatchWithValidation(const FStateTreeExecutionFrame* ParentFrame, const FStateTreeExecutionFrame& CurrentFrame, const FStateTreeDataView TargetView, const FStateTreeIndex16 BindingsBatch) const;
 
-	/** Collects external data for all StateTrees in active frames. @return true*/
+	/**
+	 * Collects external data for all StateTrees in active frames.
+	 * @returns true if all external data are set successfully. */
 	bool CollectActiveExternalData();
 
 	/**
-	 * Collects external data for specific State Tree asset. If the data is already collect, cached index is returned.
+	 * Collects external data for specific State Tree asset. If the data is already collected, cached index is returned.
 	 * @returns index in ContextAndExternalDataViews for the first external data.
 	 */
 	FStateTreeIndex16 CollectExternalData(const UStateTree* StateTree);
