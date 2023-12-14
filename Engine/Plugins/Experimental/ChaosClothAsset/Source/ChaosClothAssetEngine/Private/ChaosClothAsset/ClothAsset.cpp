@@ -172,6 +172,13 @@ void UChaosClothAsset::Serialize(FArchive& Ar)
 			SetResourceForRendering(MakeUnique<FSkeletalMeshRenderData>());
 		}
 		GetResourceForRendering()->Serialize(Ar, this);
+
+		if (!ClothSimulationModel.IsValid())
+		{
+			ClothSimulationModel = MakeShared<FChaosClothSimulationModel>();
+		}
+		UScriptStruct* const Struct = FChaosClothSimulationModel::StaticStruct();
+		Struct->SerializeTaggedProperties(Ar, (uint8*)ClothSimulationModel.Get(), Struct, nullptr);
 	}
 }
 
