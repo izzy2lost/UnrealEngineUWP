@@ -676,10 +676,13 @@ bool FPerforceCheckInWorker::Execute(FPerforceSourceControlCommand& InCommand)
 
 			InCommand.bCommandSuccessful = Connection.RunCommand(TEXT("submit"), SubmitParams, Records, InCommand.ResultInfo, FOnIsCancelled::CreateRaw(&InCommand, &FPerforceSourceControlCommand::IsCanceled), InCommand.bConnectionDropped);
 
-			if (InCommand.ResultInfo.ErrorMessages.Num() > 0)
+			if (InCommand.ResultInfo.HasErrors())
 			{
 				InCommand.bCommandSuccessful = false;
 			}
+
+			const bool bMoveToError = true;
+			RemoveRedundantInfo(InCommand, TEXT("- warning: file not mapped in stream"), bMoveToError);
 
 			if (InCommand.bCommandSuccessful)
 			{
@@ -882,7 +885,8 @@ bool FPerforceMarkForAddWorker::Execute(FPerforceSourceControlCommand& InCommand
 		InCommand.bCommandSuccessful = Connection.RunCommand(TEXT("add"), Parameters, Records, InCommand.ResultInfo, FOnIsCancelled::CreateRaw(&InCommand, &FPerforceSourceControlCommand::IsCanceled), InCommand.bConnectionDropped);
 		ParseRecordSetForState(Records, OutResults);
 
-		RemoveRedundantInfo(InCommand, TEXT("- ignored file can't be added."));
+		const bool bMoveToError = true;
+		RemoveRedundantInfo(InCommand, TEXT("- ignored file can't be added."), bMoveToError);
 	}
 	return InCommand.bCommandSuccessful;
 }
