@@ -28,6 +28,7 @@
 #include "HAL/IConsoleManager.h"
 #include "ProfilingDebugging/CsvProfiler.h"
 #include <algorithm>
+#include <cmath> // std::nextafter
 
 #if UE_NET_ENABLE_REPLICATIONWRITER_LOG
 #	define UE_LOG_REPLICATIONWRITER(Format, ...)  UE_LOG(LogIris, Log, Format, ##__VA_ARGS__)
@@ -847,7 +848,7 @@ void FReplicationWriter::ScheduleDependentObjects(uint32 Index, float ParentPrio
 			if (bReplicateBeforeParent)
 			{
 				// Bump prio of dependent object to be scheduled before its parent.
-				UpdatedPriority = FMath::Max(ParentPriority + DependentObjectPriorityBump, LocalPriorities[DependentInternalIndex]);
+				UpdatedPriority = FMath::Max(std::nextafter(ParentPriority, std::numeric_limits<float>::infinity()), LocalPriorities[DependentInternalIndex]);
 				LocalPriorities[DependentInternalIndex] = UpdatedPriority;
 
 				// Schedule it, it does not matter if we add it to the scheduled list multiple times
