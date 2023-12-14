@@ -5049,9 +5049,10 @@ void FSceneRenderer::ComputeLightVisibility()
 				if (View.IsPerspectiveProjection())
 				{
 					const float DistanceSquared = (BoundingSphere.Center - View.ViewMatrices.GetViewOrigin()).SizeSquared();
-					const float MaxDistSquared = Proxy->GetMaxDrawDistance() * Proxy->GetMaxDrawDistance() * GLightMaxDrawDistanceScale * GLightMaxDrawDistanceScale;
+					const float ProxyMaxDistance = Proxy->GetMaxDrawDistance();
+					const float ScaledMaxDistance = ProxyMaxDistance * GLightMaxDrawDistanceScale;
 					const bool bDrawLight = (FMath::Square(FMath::Min(0.0002f, GMinScreenRadiusForLights / BoundingSphere.W) * View.LODDistanceFactor) * DistanceSquared < 1.0f)
-												&& (MaxDistSquared == 0 || DistanceSquared < MaxDistSquared);
+												&& (ProxyMaxDistance <= 0.0 || DistanceSquared < FMath::Square(ScaledMaxDistance));
 							
 					VisibleLightViewInfo.bInViewFrustum = bDrawLight && bInViewFrustum;
 					VisibleLightViewInfo.bInDrawRange = bDrawLight;
