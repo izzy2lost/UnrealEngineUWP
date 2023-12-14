@@ -1,6 +1,8 @@
 ﻿// Copyright Epic Games, Inc. All Rights Reserved.
 
 #include "RigEditor/IKRigAutoCharacterizer.h"
+
+#include "PBIK_Shared.h"
 #include "Engine/SkeletalMesh.h"
 #include "Algo/LevenshteinDistance.h"
 
@@ -53,6 +55,11 @@ const FName FCharacterizationStandard::RightIndexToe = FName("RightIndexToe");
 const FName FCharacterizationStandard::RightMiddleToe = FName("RightMiddleToe");
 const FName FCharacterizationStandard::RightRingToe = FName("RightRingToe");
 const FName FCharacterizationStandard::RightPinkyToe = FName("RightPinkyToe");
+// ik goal names
+const FName FCharacterizationStandard::LeftHandIK = FName("LeftHandIK");
+const FName FCharacterizationStandard::LeftFootIK = FName("LeftFootIK");
+const FName FCharacterizationStandard::RightHandIK = FName("RightHandIK");
+const FName FCharacterizationStandard::RightFootIK = FName("RightFootIK");
 
 FAbstractHierarchy::FAbstractHierarchy(USkeletalMesh* InMesh)
 {
@@ -351,406 +358,663 @@ FString FAbstractHierarchy::FindLargestCommonPrefix(const TArray<FName>& ArrayOf
 	return CommonPrefix;
 }
 
+FVector FBoneSettingsForIK::GetPreferredAxisAsAngles() const
+{
+	switch (PreferredAxis)
+	{
+	case EPreferredAxis::None: return FVector::ZeroVector;
+	case EPreferredAxis::PositiveX: return FVector::XAxisVector * PreferredAngleMagnitude;
+	case EPreferredAxis::NegativeX: return FVector::XAxisVector * -PreferredAngleMagnitude;
+	case EPreferredAxis::PositiveY: return FVector::YAxisVector * PreferredAngleMagnitude;
+	case EPreferredAxis::NegativeY: return FVector::YAxisVector * -PreferredAngleMagnitude;
+	case EPreferredAxis::PositiveZ: return FVector::ZAxisVector * PreferredAngleMagnitude;
+	case EPreferredAxis::NegativeZ: return FVector::ZAxisVector * -PreferredAngleMagnitude;
+	default:
+		{
+			checkNoEntry();
+			return FVector();
+		}
+	}
+}
+
+void FBoneSettingsForIK::LockNonPreferredAxes(EPBIKLimitType& OutX, EPBIKLimitType& OutY, EPBIKLimitType& OutZ) const
+{
+	if (PreferredAxis == EPreferredAxis::None)
+	{
+		return;
+	}
+
+	if (PreferredAxis == EPreferredAxis::PositiveX || PreferredAxis == EPreferredAxis::NegativeX)
+	{
+		OutY = EPBIKLimitType::Locked;
+		OutZ = EPBIKLimitType::Locked;
+		return;
+	}
+
+	if (PreferredAxis == EPreferredAxis::PositiveY || PreferredAxis == EPreferredAxis::NegativeY)
+	{
+		OutX = EPBIKLimitType::Locked;
+		OutZ = EPBIKLimitType::Locked;
+		return;
+	}
+
+	if (PreferredAxis == EPreferredAxis::PositiveZ || PreferredAxis == EPreferredAxis::NegativeZ)
+	{
+		OutX = EPBIKLimitType::Locked;
+		OutY = EPBIKLimitType::Locked;
+		return;
+	}
+	
+	checkNoEntry();
+}
+
+void FAllBoneSettingsForIK::SetPreferredAxis(const FName BoneName, const EPreferredAxis PreferredAxis, const bool bTreatAsHinge)
+{
+	FBoneSettingsForIK& Settings = GetOrAddBoneSettings(BoneName);
+	Settings.PreferredAxis = PreferredAxis;
+	Settings.bIsHinge = bTreatAsHinge;
+}
+
+void FAllBoneSettingsForIK::SetRotationStiffness(const FName BoneName, const float RotationStiffness)
+{
+	FBoneSettingsForIK& Settings = GetOrAddBoneSettings(BoneName);
+	Settings.RotationStiffness = RotationStiffness;
+}
+
+void FAllBoneSettingsForIK::SetExcluded(const FName BoneName, const bool bExclude)
+{
+	FBoneSettingsForIK& Settings = GetOrAddBoneSettings(BoneName);
+	Settings.bExcluded = bExclude;
+}
+
+FBoneSettingsForIK& FAllBoneSettingsForIK::GetOrAddBoneSettings(const FName BoneName)
+{
+	for (FBoneSettingsForIK& BoneSettings : AllBoneSettings)
+	{
+		if (BoneSettings.BoneToApplyTo == BoneName)
+		{
+			return BoneSettings;
+		}
+	}
+
+	const int32 NewBoneSettingsIndex = AllBoneSettings.Emplace(BoneName);
+	return AllBoneSettings[NewBoneSettingsIndex];
+}
+
 FKnownTemplateHierarchies::FKnownTemplateHierarchies()
 {
 	// TODO in the future we can make templates extensible.
-	
+
 	// UE4 Mannequin
-	static FName UE4_Mannequin = "UE4 Mannequin";
-	static TArray<FName> UE4_Mannequin_Bones = {"root", "pelvis", "spine_01", "spine_02", "spine_03", "clavicle_l", "upperarm_l", "lowerarm_l", "hand_l", "index_01_l", "index_02_l", "index_03_l", "middle_01_l", "middle_02_l", "middle_03_l", "pinky_01_l", "pinky_02_l", "pinky_03_l", "ring_01_l", "ring_02_l", "ring_03_l", "thumb_01_l", "thumb_02_l", "thumb_03_l", "clavicle_r", "upperarm_r", "lowerarm_r", "hand_r", "index_01_r", "index_02_r", "index_03_r", "middle_01_r", "middle_02_r", "middle_03_r", "pinky_01_r", "pinky_02_r", "pinky_03_r", "ring_01_r", "ring_02_r", "ring_03_r", "thumb_01_r", "thumb_02_r", "thumb_03_r", "neck_01", "head", "thigh_l", "calf_l", "foot_l", "ball_l", "thigh_r", "calf_r", "foot_r", "ball_r"};
-	static TArray<int32> UE4_Mannequin_ParentIndices = {-1, 0, 1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 8, 12, 13, 8, 15, 16, 8, 18, 19, 8, 21, 22, 4, 24, 25, 26, 27, 28, 29, 27, 31, 32, 27, 34, 35, 27, 37, 38, 27, 40, 41, 4, 43, 1, 45, 46, 47, 1, 49, 50, 51};
-	FRetargetDefinition UE4_Mannequin_Retarget;
-	// core
-	UE4_Mannequin_Retarget.RootBone = FName("pelvis");
-	UE4_Mannequin_Retarget.AddBoneChain(FCharacterizationStandard::Root, FName("root"), FName("root"));
-	UE4_Mannequin_Retarget.AddBoneChain(FCharacterizationStandard::Spine, FName("spine_01"), FName("spine_02"));
-	UE4_Mannequin_Retarget.AddBoneChain(FCharacterizationStandard::Neck, FName("neck_01"), FName("neck_01"));
-	UE4_Mannequin_Retarget.AddBoneChain(FCharacterizationStandard::Head, FName("head"), FName("head"));
-	// left
-	UE4_Mannequin_Retarget.AddBoneChain(FCharacterizationStandard::LeftLeg, FName("thigh_l"), FName("ball_l"));
-	UE4_Mannequin_Retarget.AddBoneChain(FCharacterizationStandard::LeftClavicle, FName("clavicle_l"), FName("clavicle_l"));
-	UE4_Mannequin_Retarget.AddBoneChain(FCharacterizationStandard::LeftArm, FName("upperarm_l"), FName("hand_l"));
-	UE4_Mannequin_Retarget.AddBoneChain(FCharacterizationStandard::LeftThumb, FName("thumb_01_l"), FName("thumb_03_l"));
-	UE4_Mannequin_Retarget.AddBoneChain(FCharacterizationStandard::LeftIndex, FName("index_01_l"), FName("index_03_l"));
-	UE4_Mannequin_Retarget.AddBoneChain(FCharacterizationStandard::LeftMiddle, FName("middle_01_l"), FName("middle_03_l"));
-	UE4_Mannequin_Retarget.AddBoneChain(FCharacterizationStandard::LeftRing, FName("ring_01_l"), FName("ring_03_l"));
-	UE4_Mannequin_Retarget.AddBoneChain(FCharacterizationStandard::LeftPinky, FName("pinky_01_l"), FName("pinky_03_l"));
-	// right
-	UE4_Mannequin_Retarget.AddBoneChain(FCharacterizationStandard::RightLeg, FName("thigh_r"), FName("ball_r"));
-	UE4_Mannequin_Retarget.AddBoneChain(FCharacterizationStandard::RightClavicle, FName("clavicle_r"), FName("clavicle_r"));
-	UE4_Mannequin_Retarget.AddBoneChain(FCharacterizationStandard::RightArm, FName("upperarm_r"), FName("hand_r"));
-	UE4_Mannequin_Retarget.AddBoneChain(FCharacterizationStandard::RightThumb, FName("thumb_01_r"), FName("thumb_03_r"));
-	UE4_Mannequin_Retarget.AddBoneChain(FCharacterizationStandard::RightIndex, FName("index_01_r"), FName("index_03_r"));
-	UE4_Mannequin_Retarget.AddBoneChain(FCharacterizationStandard::RightMiddle, FName("middle_01_r"), FName("middle_03_r"));
-	UE4_Mannequin_Retarget.AddBoneChain(FCharacterizationStandard::RightRing, FName("ring_01_r"), FName("ring_03_r"));
-	UE4_Mannequin_Retarget.AddBoneChain(FCharacterizationStandard::RightPinky, FName("pinky_01_r"), FName("pinky_03_r"));
-	AddTemplateHierarchy(UE4_Mannequin, UE4_Mannequin_Bones, UE4_Mannequin_ParentIndices, UE4_Mannequin_Retarget);
+	{
+		static FName UE4Name = "UE4 Mannequin";
+		static TArray<FName> UE4Bones = {"root", "pelvis", "spine_01", "spine_02", "spine_03", "clavicle_l", "upperarm_l", "lowerarm_l", "hand_l", "index_01_l", "index_02_l", "index_03_l", "middle_01_l", "middle_02_l", "middle_03_l", "pinky_01_l", "pinky_02_l", "pinky_03_l", "ring_01_l", "ring_02_l", "ring_03_l", "thumb_01_l", "thumb_02_l", "thumb_03_l", "clavicle_r", "upperarm_r", "lowerarm_r", "hand_r", "index_01_r", "index_02_r", "index_03_r", "middle_01_r", "middle_02_r", "middle_03_r", "pinky_01_r", "pinky_02_r", "pinky_03_r", "ring_01_r", "ring_02_r", "ring_03_r", "thumb_01_r", "thumb_02_r", "thumb_03_r", "neck_01", "head", "thigh_l", "calf_l", "foot_l", "ball_l", "thigh_r", "calf_r", "foot_r", "ball_r"};
+		static TArray<int32> UE4ParentIndices = {-1, 0, 1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 8, 12, 13, 8, 15, 16, 8, 18, 19, 8, 21, 22, 4, 24, 25, 26, 27, 28, 29, 27, 31, 32, 27, 34, 35, 27, 37, 38, 27, 40, 41, 4, 43, 1, 45, 46, 47, 1, 49, 50, 51};
+		FTemplateHierarchy& UE4 = AddTemplateHierarchy(UE4Name, UE4Bones, UE4ParentIndices);
+		FRetargetDefinition& UE4Retarget = UE4.RetargetDefinition;
+		// core
+		UE4Retarget.RootBone = FName("pelvis");
+		UE4Retarget.AddBoneChain(FCharacterizationStandard::Root, FName("root"), FName("root"));
+		UE4Retarget.AddBoneChain(FCharacterizationStandard::Spine, FName("spine_01"), FName("spine_02"));
+		UE4Retarget.AddBoneChain(FCharacterizationStandard::Neck, FName("neck_01"), FName("neck_01"));
+		UE4Retarget.AddBoneChain(FCharacterizationStandard::Head, FName("head"), FName("head"));
+		// left
+		UE4Retarget.AddBoneChain(FCharacterizationStandard::LeftLeg, FName("thigh_l"), FName("ball_l"),FCharacterizationStandard::LeftFootIK);
+		UE4Retarget.AddBoneChain(FCharacterizationStandard::LeftClavicle, FName("clavicle_l"), FName("clavicle_l"));
+		UE4Retarget.AddBoneChain(FCharacterizationStandard::LeftArm, FName("upperarm_l"), FName("hand_l"),FCharacterizationStandard::LeftHandIK);
+		UE4Retarget.AddBoneChain(FCharacterizationStandard::LeftThumb, FName("thumb_01_l"), FName("thumb_03_l"));
+		UE4Retarget.AddBoneChain(FCharacterizationStandard::LeftIndex, FName("index_01_l"), FName("index_03_l"));
+		UE4Retarget.AddBoneChain(FCharacterizationStandard::LeftMiddle, FName("middle_01_l"), FName("middle_03_l"));
+		UE4Retarget.AddBoneChain(FCharacterizationStandard::LeftRing, FName("ring_01_l"), FName("ring_03_l"));
+		UE4Retarget.AddBoneChain(FCharacterizationStandard::LeftPinky, FName("pinky_01_l"), FName("pinky_03_l"));
+		// right
+		UE4Retarget.AddBoneChain(FCharacterizationStandard::RightLeg, FName("thigh_r"), FName("ball_r"), FCharacterizationStandard::RightFootIK);
+		UE4Retarget.AddBoneChain(FCharacterizationStandard::RightClavicle, FName("clavicle_r"), FName("clavicle_r"));
+		UE4Retarget.AddBoneChain(FCharacterizationStandard::RightArm, FName("upperarm_r"), FName("hand_r"),FCharacterizationStandard::RightHandIK);
+		UE4Retarget.AddBoneChain(FCharacterizationStandard::RightThumb, FName("thumb_01_r"), FName("thumb_03_r"));
+		UE4Retarget.AddBoneChain(FCharacterizationStandard::RightIndex, FName("index_01_r"), FName("index_03_r"));
+		UE4Retarget.AddBoneChain(FCharacterizationStandard::RightMiddle, FName("middle_01_r"), FName("middle_03_r"));
+		UE4Retarget.AddBoneChain(FCharacterizationStandard::RightRing, FName("ring_01_r"), FName("ring_03_r"));
+		UE4Retarget.AddBoneChain(FCharacterizationStandard::RightPinky, FName("pinky_01_r"), FName("pinky_03_r"));
+		// bone settings for IK
+		UE4.BoneSettingsForIK.SetRotationStiffness(FName("pelvis"), FCharacterizationStandard::PelvisRotationStiffness);
+		UE4.BoneSettingsForIK.SetRotationStiffness(FName("clavicle_l"), FCharacterizationStandard::ClavicleRotationStiffness);
+		UE4.BoneSettingsForIK.SetRotationStiffness(FName("clavicle_r"), FCharacterizationStandard::ClavicleRotationStiffness);
+		UE4.BoneSettingsForIK.SetRotationStiffness(FName("foot_l"), FCharacterizationStandard::FootRotationStiffness);
+		UE4.BoneSettingsForIK.SetRotationStiffness(FName("foot_r"), FCharacterizationStandard::FootRotationStiffness);
+		UE4.BoneSettingsForIK.SetPreferredAxis(FName("calf_l"), EPreferredAxis::PositiveZ);
+		UE4.BoneSettingsForIK.SetPreferredAxis(FName("calf_r"), EPreferredAxis::PositiveZ);
+		UE4.BoneSettingsForIK.SetPreferredAxis(FName("lowerarm_l"), EPreferredAxis::PositiveZ);
+		UE4.BoneSettingsForIK.SetPreferredAxis(FName("lowerarm_r"), EPreferredAxis::PositiveZ);
+		UE4.BoneSettingsForIK.SetExcluded(FName("spine_03"), true);
+	}
 
 	// UE5 Mannequin
-	static FName UE5_Mannequin = "UE5 Mannequin";
-	static TArray<FName> UE5_Mannequin_Bones = {"root", "pelvis", "spine_01", "spine_02", "spine_03", "spine_04", "spine_05", "neck_01", "neck_02", "head", "clavicle_l", "upperarm_l", "lowerarm_l", "hand_l", "index_metacarpal_l", "index_01_l", "index_02_l", "index_03_l", "middle_metacarpal_l", "middle_01_l", "middle_02_l", "middle_03_l", "thumb_01_l", "thumb_02_l", "thumb_03_l", "pinky_metacarpal_l", "pinky_01_l", "pinky_02_l", "pinky_03_l", "ring_metacarpal_l", "ring_01_l", "ring_02_l", "ring_03_l", "clavicle_r", "upperarm_r", "lowerarm_r", "hand_r", "pinky_metacarpal_r", "pinky_01_r", "pinky_02_r", "pinky_03_r", "ring_metacarpal_r", "ring_01_r", "ring_02_r", "ring_03_r", "middle_metacarpal_r", "middle_01_r", "middle_02_r", "middle_03_r", "index_metacarpal_r", "index_01_r", "index_02_r", "index_03_r", "thumb_01_r", "thumb_02_r", "thumb_03_r", "thigh_r", "calf_r", "foot_r", "ball_r", "thigh_l", "calf_l", "foot_l", "ball_l"};
-	static TArray<int32> UE5_Mannequin_ParentIndices = {-1, 0, 1, 2, 3, 4, 5, 6, 7, 8, 6, 10, 11, 12, 13, 14, 15, 16, 13, 18, 19, 20, 13, 22, 23, 13, 25, 26, 27, 13, 29, 30, 31, 6, 33, 34, 35, 36, 37, 38, 39, 36, 41, 42, 43, 36, 45, 46, 47, 36, 49, 50, 51, 36, 53, 54, 1, 56, 57, 58, 1, 60, 61, 62};
-	FRetargetDefinition UE5_Mannequin_Retarget;
-	// core
-	UE5_Mannequin_Retarget.RootBone = FName("pelvis");
-	UE5_Mannequin_Retarget.AddBoneChain(FCharacterizationStandard::Root, FName("root"), FName("root"));
-	UE5_Mannequin_Retarget.AddBoneChain(FCharacterizationStandard::Spine, FName("spine_01"), FName("spine_02"));
-	UE5_Mannequin_Retarget.AddBoneChain(FCharacterizationStandard::Neck, FName("neck_01"), FName("neck_02"));
-	UE5_Mannequin_Retarget.AddBoneChain(FCharacterizationStandard::Head, FName("head"), FName("head"));
-	// left
-	UE5_Mannequin_Retarget.AddBoneChain(FCharacterizationStandard::LeftLeg, FName("thigh_l"), FName("ball_l"));
-	UE5_Mannequin_Retarget.AddBoneChain(FCharacterizationStandard::LeftClavicle, FName("clavicle_l"), FName("clavicle_l"));
-	UE5_Mannequin_Retarget.AddBoneChain(FCharacterizationStandard::LeftArm, FName("upperarm_l"), FName("hand_l"));
-	UE5_Mannequin_Retarget.AddBoneChain(FCharacterizationStandard::LeftIndexMetacarpal, FName("index_metacarpal_l"), FName("index_metacarpal_l"));
-	UE5_Mannequin_Retarget.AddBoneChain(FCharacterizationStandard::LeftMiddleMetacarpal, FName("middle_metacarpal_l"), FName("middle_metacarpal_l"));
-	UE5_Mannequin_Retarget.AddBoneChain(FCharacterizationStandard::LeftRingMetacarpal, FName("ring_metacarpal_l"), FName("ring_metacarpal_l"));
-	UE5_Mannequin_Retarget.AddBoneChain(FCharacterizationStandard::LeftPinkyMetacarpal, FName("pinky_metacarpal_l"), FName("pinky_metacarpal_l"));
-	UE5_Mannequin_Retarget.AddBoneChain(FCharacterizationStandard::LeftThumb, FName("thumb_01_l"), FName("thumb_03_l"));
-	UE5_Mannequin_Retarget.AddBoneChain(FCharacterizationStandard::LeftIndex, FName("index_01_l"), FName("index_03_l"));
-	UE5_Mannequin_Retarget.AddBoneChain(FCharacterizationStandard::LeftMiddle, FName("middle_01_l"), FName("middle_03_l"));
-	UE5_Mannequin_Retarget.AddBoneChain(FCharacterizationStandard::LeftRing, FName("ring_01_l"), FName("ring_03_l"));
-	UE5_Mannequin_Retarget.AddBoneChain(FCharacterizationStandard::LeftPinky, FName("pinky_01_l"), FName("pinky_03_l"));
-	// right
-	UE5_Mannequin_Retarget.AddBoneChain(FCharacterizationStandard::RightLeg, FName("thigh_r"), FName("ball_r"));
-	UE5_Mannequin_Retarget.AddBoneChain(FCharacterizationStandard::RightClavicle, FName("clavicle_r"), FName("clavicle_r"));
-	UE5_Mannequin_Retarget.AddBoneChain(FCharacterizationStandard::RightArm, FName("upperarm_r"), FName("hand_r"));
-	UE5_Mannequin_Retarget.AddBoneChain(FCharacterizationStandard::RightIndexMetacarpal, FName("index_metacarpal_r"), FName("index_metacarpal_r"));
-	UE5_Mannequin_Retarget.AddBoneChain(FCharacterizationStandard::RightMiddleMetacarpal, FName("middle_metacarpal_r"), FName("middle_metacarpal_r"));
-	UE5_Mannequin_Retarget.AddBoneChain(FCharacterizationStandard::RightRingMetacarpal, FName("ring_metacarpal_r"), FName("ring_metacarpal_r"));
-	UE5_Mannequin_Retarget.AddBoneChain(FCharacterizationStandard::RightPinkyMetacarpal, FName("pinky_metacarpal_r"), FName("pinky_metacarpal_r"));
-	UE5_Mannequin_Retarget.AddBoneChain(FCharacterizationStandard::RightThumb, FName("thumb_01_r"), FName("thumb_03_r"));
-	UE5_Mannequin_Retarget.AddBoneChain(FCharacterizationStandard::RightIndex, FName("index_01_r"), FName("index_03_r"));
-	UE5_Mannequin_Retarget.AddBoneChain(FCharacterizationStandard::RightMiddle, FName("middle_01_r"), FName("middle_03_r"));
-	UE5_Mannequin_Retarget.AddBoneChain(FCharacterizationStandard::RightRing, FName("ring_01_r"), FName("ring_03_r"));
-	UE5_Mannequin_Retarget.AddBoneChain(FCharacterizationStandard::RightPinky, FName("pinky_01_r"), FName("pinky_03_r"));
-	AddTemplateHierarchy(UE5_Mannequin, UE5_Mannequin_Bones, UE5_Mannequin_ParentIndices, UE5_Mannequin_Retarget);
+	{
+		static FName UE5Name = "UE5 Mannequin";
+		static TArray<FName> UE5Bones = {"root", "pelvis", "spine_01", "spine_02", "spine_03", "spine_04", "spine_05", "neck_01", "neck_02", "head", "clavicle_l", "upperarm_l", "lowerarm_l", "hand_l", "index_metacarpal_l", "index_01_l", "index_02_l", "index_03_l", "middle_metacarpal_l", "middle_01_l", "middle_02_l", "middle_03_l", "thumb_01_l", "thumb_02_l", "thumb_03_l", "pinky_metacarpal_l", "pinky_01_l", "pinky_02_l", "pinky_03_l", "ring_metacarpal_l", "ring_01_l", "ring_02_l", "ring_03_l", "clavicle_r", "upperarm_r", "lowerarm_r", "hand_r", "pinky_metacarpal_r", "pinky_01_r", "pinky_02_r", "pinky_03_r", "ring_metacarpal_r", "ring_01_r", "ring_02_r", "ring_03_r", "middle_metacarpal_r", "middle_01_r", "middle_02_r", "middle_03_r", "index_metacarpal_r", "index_01_r", "index_02_r", "index_03_r", "thumb_01_r", "thumb_02_r", "thumb_03_r", "thigh_r", "calf_r", "foot_r", "ball_r", "thigh_l", "calf_l", "foot_l", "ball_l"};
+		static TArray<int32> UE5ParentIndices = {-1, 0, 1, 2, 3, 4, 5, 6, 7, 8, 6, 10, 11, 12, 13, 14, 15, 16, 13, 18, 19, 20, 13, 22, 23, 13, 25, 26, 27, 13, 29, 30, 31, 6, 33, 34, 35, 36, 37, 38, 39, 36, 41, 42, 43, 36, 45, 46, 47, 36, 49, 50, 51, 36, 53, 54, 1, 56, 57, 58, 1, 60, 61, 62};
+		FTemplateHierarchy& UE5 = AddTemplateHierarchy(UE5Name, UE5Bones, UE5ParentIndices); 
+		FRetargetDefinition& UE5Retarget = UE5.RetargetDefinition;
+		// core
+		UE5Retarget.RootBone = FName("pelvis");
+		UE5Retarget.AddBoneChain(FCharacterizationStandard::Root, FName("root"), FName("root"));
+		UE5Retarget.AddBoneChain(FCharacterizationStandard::Spine, FName("spine_01"), FName("spine_02"));
+		UE5Retarget.AddBoneChain(FCharacterizationStandard::Neck, FName("neck_01"), FName("neck_02"));
+		UE5Retarget.AddBoneChain(FCharacterizationStandard::Head, FName("head"), FName("head"));
+		// left
+		UE5Retarget.AddBoneChain(FCharacterizationStandard::LeftLeg, FName("thigh_l"), FName("ball_l"),FCharacterizationStandard::LeftFootIK);
+		UE5Retarget.AddBoneChain(FCharacterizationStandard::LeftClavicle, FName("clavicle_l"), FName("clavicle_l"));
+		UE5Retarget.AddBoneChain(FCharacterizationStandard::LeftArm, FName("upperarm_l"), FName("hand_l"),FCharacterizationStandard::LeftHandIK);
+		UE5Retarget.AddBoneChain(FCharacterizationStandard::LeftIndexMetacarpal, FName("index_metacarpal_l"), FName("index_metacarpal_l"));
+		UE5Retarget.AddBoneChain(FCharacterizationStandard::LeftMiddleMetacarpal, FName("middle_metacarpal_l"), FName("middle_metacarpal_l"));
+		UE5Retarget.AddBoneChain(FCharacterizationStandard::LeftRingMetacarpal, FName("ring_metacarpal_l"), FName("ring_metacarpal_l"));
+		UE5Retarget.AddBoneChain(FCharacterizationStandard::LeftPinkyMetacarpal, FName("pinky_metacarpal_l"), FName("pinky_metacarpal_l"));
+		UE5Retarget.AddBoneChain(FCharacterizationStandard::LeftThumb, FName("thumb_01_l"), FName("thumb_03_l"));
+		UE5Retarget.AddBoneChain(FCharacterizationStandard::LeftIndex, FName("index_01_l"), FName("index_03_l"));
+		UE5Retarget.AddBoneChain(FCharacterizationStandard::LeftMiddle, FName("middle_01_l"), FName("middle_03_l"));
+		UE5Retarget.AddBoneChain(FCharacterizationStandard::LeftRing, FName("ring_01_l"), FName("ring_03_l"));
+		UE5Retarget.AddBoneChain(FCharacterizationStandard::LeftPinky, FName("pinky_01_l"), FName("pinky_03_l"));
+		// right
+		UE5Retarget.AddBoneChain(FCharacterizationStandard::RightLeg, FName("thigh_r"), FName("ball_r"),FCharacterizationStandard::RightFootIK);
+		UE5Retarget.AddBoneChain(FCharacterizationStandard::RightClavicle, FName("clavicle_r"), FName("clavicle_r"));
+		UE5Retarget.AddBoneChain(FCharacterizationStandard::RightArm, FName("upperarm_r"), FName("hand_r"),FCharacterizationStandard::RightHandIK);
+		UE5Retarget.AddBoneChain(FCharacterizationStandard::RightIndexMetacarpal, FName("index_metacarpal_r"), FName("index_metacarpal_r"));
+		UE5Retarget.AddBoneChain(FCharacterizationStandard::RightMiddleMetacarpal, FName("middle_metacarpal_r"), FName("middle_metacarpal_r"));
+		UE5Retarget.AddBoneChain(FCharacterizationStandard::RightRingMetacarpal, FName("ring_metacarpal_r"), FName("ring_metacarpal_r"));
+		UE5Retarget.AddBoneChain(FCharacterizationStandard::RightPinkyMetacarpal, FName("pinky_metacarpal_r"), FName("pinky_metacarpal_r"));
+		UE5Retarget.AddBoneChain(FCharacterizationStandard::RightThumb, FName("thumb_01_r"), FName("thumb_03_r"));
+		UE5Retarget.AddBoneChain(FCharacterizationStandard::RightIndex, FName("index_01_r"), FName("index_03_r"));
+		UE5Retarget.AddBoneChain(FCharacterizationStandard::RightMiddle, FName("middle_01_r"), FName("middle_03_r"));
+		UE5Retarget.AddBoneChain(FCharacterizationStandard::RightRing, FName("ring_01_r"), FName("ring_03_r"));
+		UE5Retarget.AddBoneChain(FCharacterizationStandard::RightPinky, FName("pinky_01_r"), FName("pinky_03_r"));
+		// bone settings for IK
+		UE5.BoneSettingsForIK.SetRotationStiffness(FName("pelvis"), FCharacterizationStandard::PelvisRotationStiffness);
+		UE5.BoneSettingsForIK.SetRotationStiffness(FName("clavicle_l"), FCharacterizationStandard::ClavicleRotationStiffness);
+		UE5.BoneSettingsForIK.SetRotationStiffness(FName("clavicle_r"), FCharacterizationStandard::ClavicleRotationStiffness);
+		UE5.BoneSettingsForIK.SetRotationStiffness(FName("foot_l"), FCharacterizationStandard::FootRotationStiffness);
+		UE5.BoneSettingsForIK.SetRotationStiffness(FName("foot_r"), FCharacterizationStandard::FootRotationStiffness);
+		UE5.BoneSettingsForIK.SetPreferredAxis(FName("calf_l"), EPreferredAxis::PositiveZ);
+		UE5.BoneSettingsForIK.SetPreferredAxis(FName("calf_r"), EPreferredAxis::PositiveZ);
+		UE5.BoneSettingsForIK.SetPreferredAxis(FName("lowerarm_l"), EPreferredAxis::PositiveZ);
+		UE5.BoneSettingsForIK.SetPreferredAxis(FName("lowerarm_r"), EPreferredAxis::PositiveZ);
+		UE5.BoneSettingsForIK.SetExcluded(FName("spine_05"), true);
+	}
 	
 	// Daz 3d
-	static FName Daz_3d = "Daz_3d";
-	static TArray<FName> Daz_3d_Bones = {"hip", "pelvis", "lThighBend", "lThighTwist", "lShin", "lFoot", "lMetatarsals", "lToe", "lSmallToe4", "lSmallToe4_2", "lSmallToe3", "lSmallToe3_2", "lSmallToe2", "lSmallToe2_2", "lSmallToe1", "lSmallToe1_2", "lBigToe", "lBigToe_2", "lHeel", "rThighBend", "rThighTwist", "rShin", "rFoot", "rMetatarsals", "rToe", "rSmallToe4", "rSmallToe4_2", "rSmallToe3", "rSmallToe3_2", "rSmallToe2", "rSmallToe2_2", "rSmallToe1", "rSmallToe1_2", "rBigToe", "rBigToe_2", "rHeel", "abdomenLower", "abdomenUpper", "chestLower", "chestUpper", "lCollar", "lShldrBend", "lShldrTwist", "lForearmBend", "lForearmTwist", "lHand", "lThumb1", "lThumb2", "lThumb3", "lCarpal1", "lIndex1", "lIndex2", "lIndex3", "lCarpal2", "lMid1", "lMid2", "lMid3", "lCarpal3", "lRing1", "lRing2", "lRing3", "lCarpal4", "lPinky1", "lPinky2", "lPinky3", "rCollar", "rShldrBend", "rShldrTwist", "rForearmBend", "rForearmTwist", "rHand", "rThumb1", "rThumb2", "rThumb3", "rCarpal1", "rIndex1", "rIndex2", "rIndex3", "rCarpal2", "rMid1", "rMid2", "rMid3", "rCarpal3", "rRing1", "rRing2", "rRing3", "rCarpal4", "rPinky1", "rPinky2", "rPinky3", "neckLower", "neckUpper", "head"};
-	static TArray<int32> Daz_3d_ParentIndices = {-1, 0, 1, 2, 3, 4, 5, 6, 6, 8, 6, 10, 6, 12, 6, 14, 6, 16, 5, 1, 19, 20, 21, 22, 23, 23, 25, 23, 27, 23, 29, 23, 31, 23, 33, 22, 0, 36, 37, 38, 39, 40, 41, 42, 43, 44, 45, 46, 47, 45, 49, 50, 51, 45, 53, 54, 55, 45, 57, 58, 59, 45, 61, 62, 63, 39, 65, 66, 67, 68, 69, 70, 71, 72, 70, 74, 75, 76, 70, 78, 79, 80, 70, 82, 83, 84, 70, 86, 87, 88, 39, 90, 91};
-	FRetargetDefinition Daz_3d_Retarget;
-	// core
-	Daz_3d_Retarget.RootBone = FName("hip");
-	Daz_3d_Retarget.AddBoneChain(FCharacterizationStandard::Spine, FName("abdomenLower"), FName("chestUpper"));
-	Daz_3d_Retarget.AddBoneChain(FCharacterizationStandard::Neck, FName("neckLower"), FName("neckUpper"));
-	Daz_3d_Retarget.AddBoneChain(FCharacterizationStandard::Head, FName("head"), FName("head"));
-	// left
-	Daz_3d_Retarget.AddBoneChain(FCharacterizationStandard::LeftLeg, FName("lThighBend"), FName("lToe"));
-	Daz_3d_Retarget.AddBoneChain(FCharacterizationStandard::LeftClavicle, FName("lCollar"), FName("lCollar"));
-	Daz_3d_Retarget.AddBoneChain(FCharacterizationStandard::LeftArm, FName("lShldrBend"), FName("lHand"));
-	Daz_3d_Retarget.AddBoneChain(FCharacterizationStandard::LeftIndexMetacarpal, FName("lCarpal1"), FName("lCarpal1"));
-	Daz_3d_Retarget.AddBoneChain(FCharacterizationStandard::LeftMiddleMetacarpal, FName("lCarpal2"), FName("lCarpal2"));
-	Daz_3d_Retarget.AddBoneChain(FCharacterizationStandard::LeftRingMetacarpal, FName("lCarpal3"), FName("lCarpal3"));
-	Daz_3d_Retarget.AddBoneChain(FCharacterizationStandard::LeftPinkyMetacarpal, FName("lCarpal4"), FName("lCarpal4"));
-	Daz_3d_Retarget.AddBoneChain(FCharacterizationStandard::LeftThumb, FName("lThumb1"), FName("lThumb3"));
-	Daz_3d_Retarget.AddBoneChain(FCharacterizationStandard::LeftIndex, FName("lIndex1"), FName("lIndex3"));
-	Daz_3d_Retarget.AddBoneChain(FCharacterizationStandard::LeftMiddle, FName("lMid1"), FName("lMid3"));
-	Daz_3d_Retarget.AddBoneChain(FCharacterizationStandard::LeftRing, FName("lRing1"), FName("lRing3"));
-	Daz_3d_Retarget.AddBoneChain(FCharacterizationStandard::LeftPinky, FName("lPinky1"), FName("lPinky3"));
-	Daz_3d_Retarget.AddBoneChain(FCharacterizationStandard::LeftBigToe, FName("lBigToe"), FName("lBigToe_2"));
-	Daz_3d_Retarget.AddBoneChain(FCharacterizationStandard::LeftIndexToe, FName("lSmallToe1"), FName("lSmallToe1_2"));
-	Daz_3d_Retarget.AddBoneChain(FCharacterizationStandard::LeftMiddleToe, FName("lSmallToe2"), FName("lSmallToe2_2"));
-	Daz_3d_Retarget.AddBoneChain(FCharacterizationStandard::LeftRingToe, FName("lSmallToe3"), FName("lSmallToe3_2"));
-	Daz_3d_Retarget.AddBoneChain(FCharacterizationStandard::LeftPinkyToe, FName("lSmallToe4"), FName("lSmallToe4_2"));
-	// right
-	Daz_3d_Retarget.AddBoneChain(FCharacterizationStandard::RightLeg, FName("rThighBend"), FName("rToe"));
-	Daz_3d_Retarget.AddBoneChain(FCharacterizationStandard::RightClavicle, FName("rCollar"), FName("rCollar"));
-	Daz_3d_Retarget.AddBoneChain(FCharacterizationStandard::RightArm, FName("rShldrBend"), FName("rHand"));
-	Daz_3d_Retarget.AddBoneChain(FCharacterizationStandard::RightIndexMetacarpal, FName("rCarpal1"), FName("rCarpal1"));
-	Daz_3d_Retarget.AddBoneChain(FCharacterizationStandard::RightMiddleMetacarpal, FName("rCarpal2"), FName("rCarpal2"));
-	Daz_3d_Retarget.AddBoneChain(FCharacterizationStandard::RightRingMetacarpal, FName("rCarpal3"), FName("rCarpal3"));
-	Daz_3d_Retarget.AddBoneChain(FCharacterizationStandard::RightPinkyMetacarpal, FName("rCarpal4"), FName("rCarpal4"));
-	Daz_3d_Retarget.AddBoneChain(FCharacterizationStandard::RightThumb, FName("rThumb1"), FName("rThumb3"));
-	Daz_3d_Retarget.AddBoneChain(FCharacterizationStandard::RightIndex, FName("rIndex1"), FName("rIndex3"));
-	Daz_3d_Retarget.AddBoneChain(FCharacterizationStandard::RightMiddle, FName("rMid1"), FName("rMid3"));
-	Daz_3d_Retarget.AddBoneChain(FCharacterizationStandard::RightRing, FName("rRing1"), FName("rRing3"));
-	Daz_3d_Retarget.AddBoneChain(FCharacterizationStandard::RightPinky, FName("rPinky1"), FName("rPinky3"));
-	Daz_3d_Retarget.AddBoneChain(FCharacterizationStandard::RightBigToe, FName("rBigToe"), FName("rBigToe_2"));
-	Daz_3d_Retarget.AddBoneChain(FCharacterizationStandard::RightIndexToe, FName("rSmallToe1"), FName("rSmallToe1_2"));
-	Daz_3d_Retarget.AddBoneChain(FCharacterizationStandard::RightMiddleToe, FName("rSmallToe2"), FName("rSmallToe2_2"));
-	Daz_3d_Retarget.AddBoneChain(FCharacterizationStandard::RightRingToe, FName("rSmallToe3"), FName("rSmallToe3_2"));
-	Daz_3d_Retarget.AddBoneChain(FCharacterizationStandard::RightPinkyToe, FName("rSmallToe4"), FName("rSmallToe4_2"));
-	AddTemplateHierarchy(Daz_3d, Daz_3d_Bones, Daz_3d_ParentIndices, Daz_3d_Retarget);
+	{
+		static FName Daz3dName = "Daz_3d";
+		static TArray<FName> Daz3dBones = {"hip", "pelvis", "lThighBend", "lThighTwist", "lShin", "lFoot", "lMetatarsals", "lToe", "lSmallToe4", "lSmallToe4_2", "lSmallToe3", "lSmallToe3_2", "lSmallToe2", "lSmallToe2_2", "lSmallToe1", "lSmallToe1_2", "lBigToe", "lBigToe_2", "lHeel", "rThighBend", "rThighTwist", "rShin", "rFoot", "rMetatarsals", "rToe", "rSmallToe4", "rSmallToe4_2", "rSmallToe3", "rSmallToe3_2", "rSmallToe2", "rSmallToe2_2", "rSmallToe1", "rSmallToe1_2", "rBigToe", "rBigToe_2", "rHeel", "abdomenLower", "abdomenUpper", "chestLower", "chestUpper", "lCollar", "lShldrBend", "lShldrTwist", "lForearmBend", "lForearmTwist", "lHand", "lThumb1", "lThumb2", "lThumb3", "lCarpal1", "lIndex1", "lIndex2", "lIndex3", "lCarpal2", "lMid1", "lMid2", "lMid3", "lCarpal3", "lRing1", "lRing2", "lRing3", "lCarpal4", "lPinky1", "lPinky2", "lPinky3", "rCollar", "rShldrBend", "rShldrTwist", "rForearmBend", "rForearmTwist", "rHand", "rThumb1", "rThumb2", "rThumb3", "rCarpal1", "rIndex1", "rIndex2", "rIndex3", "rCarpal2", "rMid1", "rMid2", "rMid3", "rCarpal3", "rRing1", "rRing2", "rRing3", "rCarpal4", "rPinky1", "rPinky2", "rPinky3", "neckLower", "neckUpper", "head"};
+		static TArray<int32> Daz3dParentIndices = {-1, 0, 1, 2, 3, 4, 5, 6, 6, 8, 6, 10, 6, 12, 6, 14, 6, 16, 5, 1, 19, 20, 21, 22, 23, 23, 25, 23, 27, 23, 29, 23, 31, 23, 33, 22, 0, 36, 37, 38, 39, 40, 41, 42, 43, 44, 45, 46, 47, 45, 49, 50, 51, 45, 53, 54, 55, 45, 57, 58, 59, 45, 61, 62, 63, 39, 65, 66, 67, 68, 69, 70, 71, 72, 70, 74, 75, 76, 70, 78, 79, 80, 70, 82, 83, 84, 70, 86, 87, 88, 39, 90, 91};
+		FTemplateHierarchy& Daz3d = AddTemplateHierarchy(Daz3dName, Daz3dBones, Daz3dParentIndices);
+		FRetargetDefinition& DazRetarget = Daz3d.RetargetDefinition;
+		// core
+		DazRetarget.RootBone = FName("hip");
+		DazRetarget.AddBoneChain(FCharacterizationStandard::Spine, FName("abdomenLower"), FName("chestUpper"));
+		DazRetarget.AddBoneChain(FCharacterizationStandard::Neck, FName("neckLower"), FName("neckUpper"));
+		DazRetarget.AddBoneChain(FCharacterizationStandard::Head, FName("head"), FName("head"));
+		// left
+		DazRetarget.AddBoneChain(FCharacterizationStandard::LeftLeg, FName("lThighBend"), FName("lToe"),FCharacterizationStandard::LeftFootIK);
+		DazRetarget.AddBoneChain(FCharacterizationStandard::LeftClavicle, FName("lCollar"), FName("lCollar"));
+		DazRetarget.AddBoneChain(FCharacterizationStandard::LeftArm, FName("lShldrBend"), FName("lHand"),FCharacterizationStandard::LeftHandIK);
+		DazRetarget.AddBoneChain(FCharacterizationStandard::LeftIndexMetacarpal, FName("lCarpal1"), FName("lCarpal1"));
+		DazRetarget.AddBoneChain(FCharacterizationStandard::LeftMiddleMetacarpal, FName("lCarpal2"), FName("lCarpal2"));
+		DazRetarget.AddBoneChain(FCharacterizationStandard::LeftRingMetacarpal, FName("lCarpal3"), FName("lCarpal3"));
+		DazRetarget.AddBoneChain(FCharacterizationStandard::LeftPinkyMetacarpal, FName("lCarpal4"), FName("lCarpal4"));
+		DazRetarget.AddBoneChain(FCharacterizationStandard::LeftThumb, FName("lThumb1"), FName("lThumb3"));
+		DazRetarget.AddBoneChain(FCharacterizationStandard::LeftIndex, FName("lIndex1"), FName("lIndex3"));
+		DazRetarget.AddBoneChain(FCharacterizationStandard::LeftMiddle, FName("lMid1"), FName("lMid3"));
+		DazRetarget.AddBoneChain(FCharacterizationStandard::LeftRing, FName("lRing1"), FName("lRing3"));
+		DazRetarget.AddBoneChain(FCharacterizationStandard::LeftPinky, FName("lPinky1"), FName("lPinky3"));
+		DazRetarget.AddBoneChain(FCharacterizationStandard::LeftBigToe, FName("lBigToe"), FName("lBigToe_2"));
+		DazRetarget.AddBoneChain(FCharacterizationStandard::LeftIndexToe, FName("lSmallToe1"), FName("lSmallToe1_2"));
+		DazRetarget.AddBoneChain(FCharacterizationStandard::LeftMiddleToe, FName("lSmallToe2"), FName("lSmallToe2_2"));
+		DazRetarget.AddBoneChain(FCharacterizationStandard::LeftRingToe, FName("lSmallToe3"), FName("lSmallToe3_2"));
+		DazRetarget.AddBoneChain(FCharacterizationStandard::LeftPinkyToe, FName("lSmallToe4"), FName("lSmallToe4_2"));
+		// right
+		DazRetarget.AddBoneChain(FCharacterizationStandard::RightLeg, FName("rThighBend"), FName("rToe"),FCharacterizationStandard::RightFootIK);
+		DazRetarget.AddBoneChain(FCharacterizationStandard::RightClavicle, FName("rCollar"), FName("rCollar"));
+		DazRetarget.AddBoneChain(FCharacterizationStandard::RightArm, FName("rShldrBend"), FName("rHand"),FCharacterizationStandard::RightHandIK);
+		DazRetarget.AddBoneChain(FCharacterizationStandard::RightIndexMetacarpal, FName("rCarpal1"), FName("rCarpal1"));
+		DazRetarget.AddBoneChain(FCharacterizationStandard::RightMiddleMetacarpal, FName("rCarpal2"), FName("rCarpal2"));
+		DazRetarget.AddBoneChain(FCharacterizationStandard::RightRingMetacarpal, FName("rCarpal3"), FName("rCarpal3"));
+		DazRetarget.AddBoneChain(FCharacterizationStandard::RightPinkyMetacarpal, FName("rCarpal4"), FName("rCarpal4"));
+		DazRetarget.AddBoneChain(FCharacterizationStandard::RightThumb, FName("rThumb1"), FName("rThumb3"));
+		DazRetarget.AddBoneChain(FCharacterizationStandard::RightIndex, FName("rIndex1"), FName("rIndex3"));
+		DazRetarget.AddBoneChain(FCharacterizationStandard::RightMiddle, FName("rMid1"), FName("rMid3"));
+		DazRetarget.AddBoneChain(FCharacterizationStandard::RightRing, FName("rRing1"), FName("rRing3"));
+		DazRetarget.AddBoneChain(FCharacterizationStandard::RightPinky, FName("rPinky1"), FName("rPinky3"));
+		DazRetarget.AddBoneChain(FCharacterizationStandard::RightBigToe, FName("rBigToe"), FName("rBigToe_2"));
+		DazRetarget.AddBoneChain(FCharacterizationStandard::RightIndexToe, FName("rSmallToe1"), FName("rSmallToe1_2"));
+		DazRetarget.AddBoneChain(FCharacterizationStandard::RightMiddleToe, FName("rSmallToe2"), FName("rSmallToe2_2"));
+		DazRetarget.AddBoneChain(FCharacterizationStandard::RightRingToe, FName("rSmallToe3"), FName("rSmallToe3_2"));
+		DazRetarget.AddBoneChain(FCharacterizationStandard::RightPinkyToe, FName("rSmallToe4"), FName("rSmallToe4_2"));
+		// bone settings for IK
+		Daz3d.BoneSettingsForIK.SetRotationStiffness(FName("hip"), FCharacterizationStandard::PelvisRotationStiffness);
+		Daz3d.BoneSettingsForIK.SetRotationStiffness(FName("lCollar"), FCharacterizationStandard::ClavicleRotationStiffness);
+		Daz3d.BoneSettingsForIK.SetRotationStiffness(FName("rCollar"), FCharacterizationStandard::ClavicleRotationStiffness);
+		Daz3d.BoneSettingsForIK.SetRotationStiffness(FName("lFoot"), FCharacterizationStandard::FootRotationStiffness);
+		Daz3d.BoneSettingsForIK.SetRotationStiffness(FName("rFoot"), FCharacterizationStandard::FootRotationStiffness);
+		Daz3d.BoneSettingsForIK.SetPreferredAxis(FName("lShin"), EPreferredAxis::PositiveX);
+		Daz3d.BoneSettingsForIK.SetPreferredAxis(FName("rShin"), EPreferredAxis::PositiveX);
+		Daz3d.BoneSettingsForIK.SetPreferredAxis(FName("lForearmBend"), EPreferredAxis::PositiveY);
+		Daz3d.BoneSettingsForIK.SetPreferredAxis(FName("rForearmBend"), EPreferredAxis::NegativeY);
+		Daz3d.BoneSettingsForIK.SetExcluded(FName("chestUpper"), true);
+		Daz3d.BoneSettingsForIK.SetExcluded(FName("lShldrTwist"), true);
+		Daz3d.BoneSettingsForIK.SetExcluded(FName("rShldrTwist"), true);
+		Daz3d.BoneSettingsForIK.SetExcluded(FName("lForearmTwist"), true);
+		Daz3d.BoneSettingsForIK.SetExcluded(FName("rForearmTwist"), true);
+		Daz3d.BoneSettingsForIK.SetExcluded(FName("lThighTwist"), true);
+		Daz3d.BoneSettingsForIK.SetExcluded(FName("rThighTwist"), true);
+		Daz3d.BoneSettingsForIK.SetExcluded(FName("lMetatarsals"), true);
+		Daz3d.BoneSettingsForIK.SetExcluded(FName("rMetatarsals"), true);
+		Daz3d.BoneSettingsForIK.SetExcluded(FName("pelvis"), true);
+	}
 
 	// Mixamo
-	static FName Mixamo = "Mixamo";
-	static TArray<FName> Mixamo_Bones = {"Hips", "Spine", "Spine1", "Spine2", "Neck", "Head", "HeadTop_End", "RightShoulder", "RightArm", "RightForeArm", "RightHand", "RightHandThumb1", "RightHandThumb2", "RightHandThumb3", "RightHandThumb4", "RightHandIndex1", "RightHandIndex2", "RightHandIndex3", "RightHandIndex4", "RightHandMiddle1", "RightHandMiddle2", "RightHandMiddle3", "RightHandMiddle4", "RightHandRing1", "RightHandRing2", "RightHandRing3", "RightHandRing4", "RightHandPinky1", "RightHandPinky2", "RightHandPinky3", "RightHandPinky4", "LeftShoulder", "LeftArm", "LeftForeArm", "LeftHand", "LeftHandThumb1", "LeftHandThumb2", "LeftHandThumb3", "LeftHandThumb4", "LeftHandIndex1", "LeftHandIndex2", "LeftHandIndex3", "LeftHandIndex4", "LeftHandMiddle1", "LeftHandMiddle2", "LeftHandMiddle3", "LeftHandMiddle4", "LeftHandRing1", "LeftHandRing2", "LeftHandRing3", "LeftHandRing4", "LeftHandPinky1", "LeftHandPinky2", "LeftHandPinky3", "LeftHandPinky4", "RightUpLeg", "RightLeg", "RightFoot", "RightToeBase", "RightToe_End", "LeftUpLeg", "LeftLeg", "LeftFoot", "LeftToeBase", "LeftToe_End"};
-	static TArray<int32> Mixamo_ParentIndices = {-1, 0, 1, 2, 3, 4, 5, 3, 7, 8, 9, 10, 11, 12, 13, 10, 15, 16, 17, 10, 19, 20, 21, 10, 23, 24, 25, 10, 27, 28, 29, 3, 31, 32, 33, 34, 35, 36, 37, 34, 39, 40, 41, 34, 43, 44, 45, 34, 47, 48, 49, 34, 51, 52, 53, 0, 55, 56, 57, 58, 0, 60, 61, 62, 63};
-	FRetargetDefinition Mixamo_Retarget;
-	// core
-	Mixamo_Retarget.RootBone = FName("Hips");
-	Mixamo_Retarget.AddBoneChain(FCharacterizationStandard::Spine, FName("Spine"), FName("Spine2"));
-	Mixamo_Retarget.AddBoneChain(FCharacterizationStandard::Neck, FName("Neck"), FName("Neck"));
-	Mixamo_Retarget.AddBoneChain(FCharacterizationStandard::Head, FName("Head"), FName("Head"));
-	// left
-	Mixamo_Retarget.AddBoneChain(FCharacterizationStandard::LeftLeg, FName("LeftUpLeg"), FName("LeftToeBase"));
-	Mixamo_Retarget.AddBoneChain(FCharacterizationStandard::LeftClavicle, FName("LeftShoulder"), FName("LeftShoulder"));
-	Mixamo_Retarget.AddBoneChain(FCharacterizationStandard::LeftArm, FName("LeftArm"), FName("LeftHand"));
-	Mixamo_Retarget.AddBoneChain(FCharacterizationStandard::LeftThumb, FName("LeftHandThumb1"), FName("LeftHandThumb3"));
-	Mixamo_Retarget.AddBoneChain(FCharacterizationStandard::LeftIndex, FName("LeftHandIndex1"), FName("LeftHandIndex3"));
-	Mixamo_Retarget.AddBoneChain(FCharacterizationStandard::LeftMiddle, FName("LeftHandMiddle1"), FName("LeftHandMiddle3"));
-	Mixamo_Retarget.AddBoneChain(FCharacterizationStandard::LeftRing, FName("LeftHandRing1"), FName("LeftHandRing3"));
-	Mixamo_Retarget.AddBoneChain(FCharacterizationStandard::LeftPinky, FName("LeftHandPinky1"), FName("LeftHandPinky3"));
-	// right
-	Mixamo_Retarget.AddBoneChain(FCharacterizationStandard::RightLeg, FName("RightUpLeg"), FName("RightToeBase"));
-	Mixamo_Retarget.AddBoneChain(FCharacterizationStandard::RightClavicle, FName("RightShoulder"), FName("RightShoulder"));
-	Mixamo_Retarget.AddBoneChain(FCharacterizationStandard::RightArm, FName("RightArm"), FName("RightHand"));
-	Mixamo_Retarget.AddBoneChain(FCharacterizationStandard::RightThumb, FName("RightHandThumb1"), FName("RightHandThumb3"));
-	Mixamo_Retarget.AddBoneChain(FCharacterizationStandard::RightIndex, FName("RightHandIndex1"), FName("RightHandIndex3"));
-	Mixamo_Retarget.AddBoneChain(FCharacterizationStandard::RightMiddle, FName("RightHandMiddle1"), FName("RightHandMiddle3"));
-	Mixamo_Retarget.AddBoneChain(FCharacterizationStandard::RightRing, FName("RightHandRing1"), FName("RightHandRing3"));
-	Mixamo_Retarget.AddBoneChain(FCharacterizationStandard::RightPinky, FName("RightHandPinky1"), FName("RightHandPinky3"));
-	AddTemplateHierarchy(Mixamo, Mixamo_Bones, Mixamo_ParentIndices, Mixamo_Retarget);
+	{
+		static FName Mixamo_Name = "Mixamo";
+		static TArray<FName> Mixamo_Bones = {"Hips", "Spine", "Spine1", "Spine2", "Neck", "Head", "HeadTop_End", "RightShoulder", "RightArm", "RightForeArm", "RightHand", "RightHandThumb1", "RightHandThumb2", "RightHandThumb3", "RightHandThumb4", "RightHandIndex1", "RightHandIndex2", "RightHandIndex3", "RightHandIndex4", "RightHandMiddle1", "RightHandMiddle2", "RightHandMiddle3", "RightHandMiddle4", "RightHandRing1", "RightHandRing2", "RightHandRing3", "RightHandRing4", "RightHandPinky1", "RightHandPinky2", "RightHandPinky3", "RightHandPinky4", "LeftShoulder", "LeftArm", "LeftForeArm", "LeftHand", "LeftHandThumb1", "LeftHandThumb2", "LeftHandThumb3", "LeftHandThumb4", "LeftHandIndex1", "LeftHandIndex2", "LeftHandIndex3", "LeftHandIndex4", "LeftHandMiddle1", "LeftHandMiddle2", "LeftHandMiddle3", "LeftHandMiddle4", "LeftHandRing1", "LeftHandRing2", "LeftHandRing3", "LeftHandRing4", "LeftHandPinky1", "LeftHandPinky2", "LeftHandPinky3", "LeftHandPinky4", "RightUpLeg", "RightLeg", "RightFoot", "RightToeBase", "RightToe_End", "LeftUpLeg", "LeftLeg", "LeftFoot", "LeftToeBase", "LeftToe_End"};
+		static TArray<int32> Mixamo_ParentIndices = {-1, 0, 1, 2, 3, 4, 5, 3, 7, 8, 9, 10, 11, 12, 13, 10, 15, 16, 17, 10, 19, 20, 21, 10, 23, 24, 25, 10, 27, 28, 29, 3, 31, 32, 33, 34, 35, 36, 37, 34, 39, 40, 41, 34, 43, 44, 45, 34, 47, 48, 49, 34, 51, 52, 53, 0, 55, 56, 57, 58, 0, 60, 61, 62, 63};
+		FTemplateHierarchy& Mixamo = AddTemplateHierarchy(Mixamo_Name, Mixamo_Bones, Mixamo_ParentIndices);
+		FRetargetDefinition& MixamoRetarget = Mixamo.RetargetDefinition;
+		// core
+		MixamoRetarget.RootBone = FName("Hips");
+		MixamoRetarget.AddBoneChain(FCharacterizationStandard::Spine, FName("Spine"), FName("Spine2"));
+		MixamoRetarget.AddBoneChain(FCharacterizationStandard::Neck, FName("Neck"), FName("Neck"));
+		MixamoRetarget.AddBoneChain(FCharacterizationStandard::Head, FName("Head"), FName("Head"));
+		// left
+		MixamoRetarget.AddBoneChain(FCharacterizationStandard::LeftLeg, FName("LeftUpLeg"), FName("LeftToeBase"),FCharacterizationStandard::LeftFootIK);
+		MixamoRetarget.AddBoneChain(FCharacterizationStandard::LeftClavicle, FName("LeftShoulder"), FName("LeftShoulder"));
+		MixamoRetarget.AddBoneChain(FCharacterizationStandard::LeftArm, FName("LeftArm"), FName("LeftHand"),FCharacterizationStandard::LeftHandIK);
+		MixamoRetarget.AddBoneChain(FCharacterizationStandard::LeftThumb, FName("LeftHandThumb1"), FName("LeftHandThumb3"));
+		MixamoRetarget.AddBoneChain(FCharacterizationStandard::LeftIndex, FName("LeftHandIndex1"), FName("LeftHandIndex3"));
+		MixamoRetarget.AddBoneChain(FCharacterizationStandard::LeftMiddle, FName("LeftHandMiddle1"), FName("LeftHandMiddle3"));
+		MixamoRetarget.AddBoneChain(FCharacterizationStandard::LeftRing, FName("LeftHandRing1"), FName("LeftHandRing3"));
+		MixamoRetarget.AddBoneChain(FCharacterizationStandard::LeftPinky, FName("LeftHandPinky1"), FName("LeftHandPinky3"));
+		// right
+		MixamoRetarget.AddBoneChain(FCharacterizationStandard::RightLeg, FName("RightUpLeg"), FName("RightToeBase"),FCharacterizationStandard::RightFootIK);
+		MixamoRetarget.AddBoneChain(FCharacterizationStandard::RightClavicle, FName("RightShoulder"), FName("RightShoulder"));
+		MixamoRetarget.AddBoneChain(FCharacterizationStandard::RightArm, FName("RightArm"), FName("RightHand"),FCharacterizationStandard::RightHandIK);
+		MixamoRetarget.AddBoneChain(FCharacterizationStandard::RightThumb, FName("RightHandThumb1"), FName("RightHandThumb3"));
+		MixamoRetarget.AddBoneChain(FCharacterizationStandard::RightIndex, FName("RightHandIndex1"), FName("RightHandIndex3"));
+		MixamoRetarget.AddBoneChain(FCharacterizationStandard::RightMiddle, FName("RightHandMiddle1"), FName("RightHandMiddle3"));
+		MixamoRetarget.AddBoneChain(FCharacterizationStandard::RightRing, FName("RightHandRing1"), FName("RightHandRing3"));
+		MixamoRetarget.AddBoneChain(FCharacterizationStandard::RightPinky, FName("RightHandPinky1"), FName("RightHandPinky3"));
+		// bone settings for IK
+		Mixamo.BoneSettingsForIK.SetRotationStiffness(FName("Hips"), FCharacterizationStandard::PelvisRotationStiffness);
+		Mixamo.BoneSettingsForIK.SetRotationStiffness(FName("LeftShoulder"), FCharacterizationStandard::ClavicleRotationStiffness);
+		Mixamo.BoneSettingsForIK.SetRotationStiffness(FName("RightShoulder"), FCharacterizationStandard::ClavicleRotationStiffness);
+		Mixamo.BoneSettingsForIK.SetRotationStiffness(FName("LeftFoot"), FCharacterizationStandard::FootRotationStiffness);
+		Mixamo.BoneSettingsForIK.SetRotationStiffness(FName("RightFoot"), FCharacterizationStandard::FootRotationStiffness);
+		Mixamo.BoneSettingsForIK.SetPreferredAxis(FName("LeftLeg"), EPreferredAxis::PositiveX);
+		Mixamo.BoneSettingsForIK.SetPreferredAxis(FName("RightLeg"), EPreferredAxis::PositiveX);
+		Mixamo.BoneSettingsForIK.SetPreferredAxis(FName("LeftForeArm"), EPreferredAxis::PositiveY);
+		Mixamo.BoneSettingsForIK.SetPreferredAxis(FName("RightForeArm"), EPreferredAxis::NegativeY);
+	}
 	
 	// Reallusions Character Creator 4
-	static FName ReallusionCC4 = "Reallusion Character Creator 4";
-	static TArray<FName> ReallusionCC4_Bones = {"BoneRoot", "Hip", "Pelvis", "L_Thigh", "L_Calf", "L_Foot", "L_ToeBase", "L_PinkyToe1", "L_RingToe1", "L_MidToe1", "L_IndexToe1", "L_BigToe1", "L_ThighTwist01", "L_ThighTwist02", "R_Thigh", "R_Calf", "R_Foot", "R_ToeBase", "R_BigToe1", "R_PinkyToe1", "R_RingToe1", "R_IndexToe1", "R_MidToe1", "Waist", "Spine01", "Spine02", "NeckTwist01", "NeckTwist02", "Head", "L_Clavicle", "L_Upperarm", "L_Forearm", "L_Hand", "L_Pinky1", "L_Pinky2", "L_Pinky3", "L_Ring1", "L_Ring2", "L_Ring3", "L_Mid1", "L_Mid2", "L_Mid3", "L_Index1", "L_Index2", "L_Index3", "L_Thumb1", "L_Thumb2", "L_Thumb3", "R_Clavicle", "R_Upperarm", "R_Forearm", "R_Hand", "R_Ring1", "R_Ring2", "R_Ring3", "R_Mid1", "R_Mid2", "R_Mid3", "R_Thumb1", "R_Thumb2", "R_Thumb3", "R_Index1", "R_Index2", "R_Index3", "R_Pinky1", "R_Pinky2", "R_Pinky3"};
-	static TArray<int32> ReallusionCC4_ParentIndices = {-1, 0, 1, 2, 3, 4, 5, 6, 6, 6, 6, 6, 3, 12, 2, 14, 15, 16, 17, 17, 17, 17, 17, 1, 23, 24, 25, 26, 27, 25, 29, 30, 31, 32, 33, 34, 32, 36, 37, 32, 39, 40, 32, 42, 43, 32, 45, 46, 25, 48, 49, 50, 51, 52, 53, 51, 55, 56, 51, 58, 59, 51, 61, 62, 51, 64, 65};
-	FRetargetDefinition ReallusionCC4_Retarget;
-	// core
-	ReallusionCC4_Retarget.RootBone = FName("Hip");
-	ReallusionCC4_Retarget.AddBoneChain(FCharacterizationStandard::Root, FName("BoneRoot"), FName("BoneRoot"));
-	ReallusionCC4_Retarget.AddBoneChain(FCharacterizationStandard::Spine, FName("Waist"), FName("Spine02"));
-	ReallusionCC4_Retarget.AddBoneChain(FCharacterizationStandard::Neck, FName("NeckTwist01"), FName("NeckTwist02"));
-	ReallusionCC4_Retarget.AddBoneChain(FCharacterizationStandard::Head, FName("Head"), FName("Head"));
-	// left
-	ReallusionCC4_Retarget.AddBoneChain(FCharacterizationStandard::LeftLeg, FName("L_Thigh"), FName("L_ToeBase"));
-	ReallusionCC4_Retarget.AddBoneChain(FCharacterizationStandard::LeftClavicle, FName("L_Clavicle"), FName("L_Clavicle"));
-	ReallusionCC4_Retarget.AddBoneChain(FCharacterizationStandard::LeftArm, FName("L_Upperarm"), FName("L_Hand"));
-	ReallusionCC4_Retarget.AddBoneChain(FCharacterizationStandard::LeftThumb, FName("L_Thumb1"), FName("L_Thumb3"));
-	ReallusionCC4_Retarget.AddBoneChain(FCharacterizationStandard::LeftIndex, FName("L_Index1"), FName("L_Index3"));
-	ReallusionCC4_Retarget.AddBoneChain(FCharacterizationStandard::LeftMiddle, FName("L_Mid1"), FName("L_Mid3"));
-	ReallusionCC4_Retarget.AddBoneChain(FCharacterizationStandard::LeftRing, FName("L_Ring1"), FName("L_Ring3"));
-	ReallusionCC4_Retarget.AddBoneChain(FCharacterizationStandard::LeftPinky, FName("L_Pinky1"), FName("L_Pinky3"));
-	ReallusionCC4_Retarget.AddBoneChain(FCharacterizationStandard::LeftBigToe, FName("L_BigToe1"), FName("L_BigToe1"));
-	ReallusionCC4_Retarget.AddBoneChain(FCharacterizationStandard::LeftIndexToe, FName("L_IndexToe1"), FName("L_IndexToe1"));
-	ReallusionCC4_Retarget.AddBoneChain(FCharacterizationStandard::LeftMiddleToe, FName("L_MidToe1"), FName("L_MidToe1"));
-	ReallusionCC4_Retarget.AddBoneChain(FCharacterizationStandard::LeftRingToe, FName("L_RingToe1"), FName("L_RingToe1"));
-	ReallusionCC4_Retarget.AddBoneChain(FCharacterizationStandard::LeftPinkyToe, FName("L_PinkyToe1"), FName("L_PinkyToe1"));
-	// right
-	ReallusionCC4_Retarget.AddBoneChain(FCharacterizationStandard::RightLeg, FName("R_Thigh"), FName("R_ToeBase"));
-	ReallusionCC4_Retarget.AddBoneChain(FCharacterizationStandard::RightClavicle, FName("R_Clavicle"), FName("R_Clavicle"));
-	ReallusionCC4_Retarget.AddBoneChain(FCharacterizationStandard::RightArm, FName("R_Upperarm"), FName("R_Hand"));
-	ReallusionCC4_Retarget.AddBoneChain(FCharacterizationStandard::RightThumb, FName("R_Thumb1"), FName("R_Thumb3"));
-	ReallusionCC4_Retarget.AddBoneChain(FCharacterizationStandard::RightIndex, FName("R_Index1"), FName("R_Index3"));
-	ReallusionCC4_Retarget.AddBoneChain(FCharacterizationStandard::RightMiddle, FName("R_Mid1"), FName("R_Mid3"));
-	ReallusionCC4_Retarget.AddBoneChain(FCharacterizationStandard::RightRing, FName("R_Ring1"), FName("R_Ring3"));
-	ReallusionCC4_Retarget.AddBoneChain(FCharacterizationStandard::RightPinky, FName("R_Pinky1"), FName("R_Pinky3"));
-	ReallusionCC4_Retarget.AddBoneChain(FCharacterizationStandard::RightBigToe, FName("R_BigToe1"), FName("R_BigToe1"));
-	ReallusionCC4_Retarget.AddBoneChain(FCharacterizationStandard::RightIndexToe, FName("R_IndexToe1"), FName("R_IndexToe1"));
-	ReallusionCC4_Retarget.AddBoneChain(FCharacterizationStandard::RightMiddleToe, FName("R_MidToe1"), FName("R_MidToe1"));
-	ReallusionCC4_Retarget.AddBoneChain(FCharacterizationStandard::RightRingToe, FName("R_RingToe1"), FName("R_RingToe1"));
-	ReallusionCC4_Retarget.AddBoneChain(FCharacterizationStandard::RightPinkyToe, FName("R_PinkyToe1"), FName("R_PinkyToe1"));
-	AddTemplateHierarchy(ReallusionCC4, ReallusionCC4_Bones, ReallusionCC4_ParentIndices, ReallusionCC4_Retarget);
+	{
+		static FName CC4Name = "Reallusion Character Creator 4";
+		static TArray<FName> CC4Bones = {"BoneRoot", "Hip", "Pelvis", "L_Thigh", "L_Calf", "L_Foot", "L_ToeBase", "L_PinkyToe1", "L_RingToe1", "L_MidToe1", "L_IndexToe1", "L_BigToe1", "L_ThighTwist01", "L_ThighTwist02", "R_Thigh", "R_Calf", "R_Foot", "R_ToeBase", "R_BigToe1", "R_PinkyToe1", "R_RingToe1", "R_IndexToe1", "R_MidToe1", "Waist", "Spine01", "Spine02", "NeckTwist01", "NeckTwist02", "Head", "L_Clavicle", "L_Upperarm", "L_Forearm", "L_Hand", "L_Pinky1", "L_Pinky2", "L_Pinky3", "L_Ring1", "L_Ring2", "L_Ring3", "L_Mid1", "L_Mid2", "L_Mid3", "L_Index1", "L_Index2", "L_Index3", "L_Thumb1", "L_Thumb2", "L_Thumb3", "R_Clavicle", "R_Upperarm", "R_Forearm", "R_Hand", "R_Ring1", "R_Ring2", "R_Ring3", "R_Mid1", "R_Mid2", "R_Mid3", "R_Thumb1", "R_Thumb2", "R_Thumb3", "R_Index1", "R_Index2", "R_Index3", "R_Pinky1", "R_Pinky2", "R_Pinky3"};
+		static TArray<int32> CC4ParentIndices = {-1, 0, 1, 2, 3, 4, 5, 6, 6, 6, 6, 6, 3, 12, 2, 14, 15, 16, 17, 17, 17, 17, 17, 1, 23, 24, 25, 26, 27, 25, 29, 30, 31, 32, 33, 34, 32, 36, 37, 32, 39, 40, 32, 42, 43, 32, 45, 46, 25, 48, 49, 50, 51, 52, 53, 51, 55, 56, 51, 58, 59, 51, 61, 62, 51, 64, 65};
+		FTemplateHierarchy& CC4 = AddTemplateHierarchy(CC4Name, CC4Bones, CC4ParentIndices);
+		FRetargetDefinition& CC4Retarget = CC4.RetargetDefinition;
+		// core
+		CC4Retarget.RootBone = FName("Hip");
+		CC4Retarget.AddBoneChain(FCharacterizationStandard::Root, FName("BoneRoot"), FName("BoneRoot"));
+		CC4Retarget.AddBoneChain(FCharacterizationStandard::Spine, FName("Waist"), FName("Spine02"));
+		CC4Retarget.AddBoneChain(FCharacterizationStandard::Neck, FName("NeckTwist01"), FName("NeckTwist02"));
+		CC4Retarget.AddBoneChain(FCharacterizationStandard::Head, FName("Head"), FName("Head"));
+		// left
+		CC4Retarget.AddBoneChain(FCharacterizationStandard::LeftLeg, FName("L_Thigh"), FName("L_ToeBase"),FCharacterizationStandard::LeftFootIK);
+		CC4Retarget.AddBoneChain(FCharacterizationStandard::LeftClavicle, FName("L_Clavicle"), FName("L_Clavicle"));
+		CC4Retarget.AddBoneChain(FCharacterizationStandard::LeftArm, FName("L_Upperarm"), FName("L_Hand"),FCharacterizationStandard::LeftHandIK);
+		CC4Retarget.AddBoneChain(FCharacterizationStandard::LeftThumb, FName("L_Thumb1"), FName("L_Thumb3"));
+		CC4Retarget.AddBoneChain(FCharacterizationStandard::LeftIndex, FName("L_Index1"), FName("L_Index3"));
+		CC4Retarget.AddBoneChain(FCharacterizationStandard::LeftMiddle, FName("L_Mid1"), FName("L_Mid3"));
+		CC4Retarget.AddBoneChain(FCharacterizationStandard::LeftRing, FName("L_Ring1"), FName("L_Ring3"));
+		CC4Retarget.AddBoneChain(FCharacterizationStandard::LeftPinky, FName("L_Pinky1"), FName("L_Pinky3"));
+		CC4Retarget.AddBoneChain(FCharacterizationStandard::LeftBigToe, FName("L_BigToe1"), FName("L_BigToe1"));
+		CC4Retarget.AddBoneChain(FCharacterizationStandard::LeftIndexToe, FName("L_IndexToe1"), FName("L_IndexToe1"));
+		CC4Retarget.AddBoneChain(FCharacterizationStandard::LeftMiddleToe, FName("L_MidToe1"), FName("L_MidToe1"));
+		CC4Retarget.AddBoneChain(FCharacterizationStandard::LeftRingToe, FName("L_RingToe1"), FName("L_RingToe1"));
+		CC4Retarget.AddBoneChain(FCharacterizationStandard::LeftPinkyToe, FName("L_PinkyToe1"), FName("L_PinkyToe1"));
+		// right
+		CC4Retarget.AddBoneChain(FCharacterizationStandard::RightLeg, FName("R_Thigh"), FName("R_ToeBase"),FCharacterizationStandard::RightFootIK);
+		CC4Retarget.AddBoneChain(FCharacterizationStandard::RightClavicle, FName("R_Clavicle"), FName("R_Clavicle"));
+		CC4Retarget.AddBoneChain(FCharacterizationStandard::RightArm, FName("R_Upperarm"), FName("R_Hand"),FCharacterizationStandard::RightHandIK);
+		CC4Retarget.AddBoneChain(FCharacterizationStandard::RightThumb, FName("R_Thumb1"), FName("R_Thumb3"));
+		CC4Retarget.AddBoneChain(FCharacterizationStandard::RightIndex, FName("R_Index1"), FName("R_Index3"));
+		CC4Retarget.AddBoneChain(FCharacterizationStandard::RightMiddle, FName("R_Mid1"), FName("R_Mid3"));
+		CC4Retarget.AddBoneChain(FCharacterizationStandard::RightRing, FName("R_Ring1"), FName("R_Ring3"));
+		CC4Retarget.AddBoneChain(FCharacterizationStandard::RightPinky, FName("R_Pinky1"), FName("R_Pinky3"));
+		CC4Retarget.AddBoneChain(FCharacterizationStandard::RightBigToe, FName("R_BigToe1"), FName("R_BigToe1"));
+		CC4Retarget.AddBoneChain(FCharacterizationStandard::RightIndexToe, FName("R_IndexToe1"), FName("R_IndexToe1"));
+		CC4Retarget.AddBoneChain(FCharacterizationStandard::RightMiddleToe, FName("R_MidToe1"), FName("R_MidToe1"));
+		CC4Retarget.AddBoneChain(FCharacterizationStandard::RightRingToe, FName("R_RingToe1"), FName("R_RingToe1"));
+		CC4Retarget.AddBoneChain(FCharacterizationStandard::RightPinkyToe, FName("R_PinkyToe1"), FName("R_PinkyToe1"));
+		// bone settings for IK
+		CC4.BoneSettingsForIK.SetRotationStiffness(FName("Hip"), FCharacterizationStandard::PelvisRotationStiffness);
+		CC4.BoneSettingsForIK.SetRotationStiffness(FName("L_Clavicle"), FCharacterizationStandard::ClavicleRotationStiffness);
+		CC4.BoneSettingsForIK.SetRotationStiffness(FName("R_Clavicle"), FCharacterizationStandard::ClavicleRotationStiffness);
+		CC4.BoneSettingsForIK.SetRotationStiffness(FName("L_Foot"), FCharacterizationStandard::FootRotationStiffness);
+		CC4.BoneSettingsForIK.SetRotationStiffness(FName("R_Foot"), FCharacterizationStandard::FootRotationStiffness);
+		CC4.BoneSettingsForIK.SetPreferredAxis(FName("L_Calf"), EPreferredAxis::NegativeX);
+		CC4.BoneSettingsForIK.SetPreferredAxis(FName("R_Calf"), EPreferredAxis::NegativeX);
+		CC4.BoneSettingsForIK.SetPreferredAxis(FName("L_Forearm"), EPreferredAxis::PositiveX);
+		CC4.BoneSettingsForIK.SetPreferredAxis(FName("R_Forearm"), EPreferredAxis::PositiveX);
+		CC4.BoneSettingsForIK.SetExcluded(FName("Pelvis"), true);
+	}
 
 	// Xsens
-	static FName Xsens = "Xsens";
-	static TArray<FName> Xsens_Bones = {"Reference", "Hips", "RightUpLeg", "RightLeg", "RightFoot", "RightToeBase", "LeftUpLeg", "LeftLeg", "LeftFoot", "LeftToeBase", "Spine", "Spine1", "Spine2", "Spine3", "LeftShoulder", "LeftArm", "LeftForeArm", "LeftHand", "LeftHandThumb1", "LeftHandThumb2", "LeftHandThumb3", "LeftHandIndex1", "LeftHandIndex2", "LeftHandIndex3", "LeftHandMiddle1", "LeftHandMiddle2", "LeftHandMiddle3", "LeftHandRing1", "LeftHandRing2", "LeftHandRing3", "LeftHandPinky1", "LeftHandPinky2", "LeftHandPinky3", "RightShoulder", "RightArm", "RightForeArm", "RightHand", "RightHandThumb1", "RightHandThumb2", "RightHandThumb3", "RightHandIndex1", "RightHandIndex2", "RightHandIndex3", "RightHandMiddle1", "RightHandMiddle2", "RightHandMiddle3", "RightHandRing1", "RightHandRing2", "RightHandRing3", "RightHandPinky1", "RightHandPinky2", "RightHandPinky3", "Neck", "Head"};
-	static TArray<int32> Xsens_ParentIndices = {-1, 0, 1, 2, 3, 4, 1, 6, 7, 8, 1, 10, 11, 12, 13, 14, 15, 16, 17, 18, 19, 17, 21, 22, 17, 24, 25, 17, 27, 28, 17, 30, 31, 13, 33, 34, 35, 36, 37, 38, 36, 40, 41, 36, 43, 44, 36, 46, 47, 36, 49, 50, 13, 52};
-	FRetargetDefinition Xsens_Retarget;
-	// core
-	Xsens_Retarget.RootBone = FName("Hips");
-	Xsens_Retarget.AddBoneChain(FCharacterizationStandard::Root, FName("Reference"), FName("Reference"));
-	Xsens_Retarget.AddBoneChain(FCharacterizationStandard::Spine, FName("Spine"), FName("Spine3"));
-	Xsens_Retarget.AddBoneChain(FCharacterizationStandard::Neck, FName("Neck"), FName("Neck"));
-	Xsens_Retarget.AddBoneChain(FCharacterizationStandard::Head, FName("Head"), FName("Head"));
-	// left
-	Xsens_Retarget.AddBoneChain(FCharacterizationStandard::LeftLeg, FName("LeftUpLeg"), FName("LeftToeBase"));
-	Xsens_Retarget.AddBoneChain(FCharacterizationStandard::LeftClavicle, FName("LeftShoulder"), FName("LeftShoulder"));
-	Xsens_Retarget.AddBoneChain(FCharacterizationStandard::LeftArm, FName("LeftArm"), FName("LeftHand"));
-	Xsens_Retarget.AddBoneChain(FCharacterizationStandard::LeftThumb, FName("LeftHandThumb1"), FName("LeftHandThumb3"));
-	Xsens_Retarget.AddBoneChain(FCharacterizationStandard::LeftIndex, FName("LeftHandIndex1"), FName("LeftHandIndex3"));
-	Xsens_Retarget.AddBoneChain(FCharacterizationStandard::LeftMiddle, FName("LeftHandMiddle1"), FName("LeftHandMiddle3"));
-	Xsens_Retarget.AddBoneChain(FCharacterizationStandard::LeftRing, FName("LeftHandRing1"), FName("LeftHandRing3"));
-	Xsens_Retarget.AddBoneChain(FCharacterizationStandard::LeftPinky, FName("LeftHandPinky1"), FName("LeftHandPinky3"));
-	// right
-	Xsens_Retarget.AddBoneChain(FCharacterizationStandard::RightLeg, FName("RightUpLeg"), FName("RightToeBase"));
-	Xsens_Retarget.AddBoneChain(FCharacterizationStandard::RightClavicle, FName("RightShoulder"), FName("RightShoulder"));
-	Xsens_Retarget.AddBoneChain(FCharacterizationStandard::RightArm, FName("RightArm"), FName("RightHand"));
-	Xsens_Retarget.AddBoneChain(FCharacterizationStandard::RightThumb, FName("RightHandThumb1"), FName("RightHandThumb3"));
-	Xsens_Retarget.AddBoneChain(FCharacterizationStandard::RightIndex, FName("RightHandIndex1"), FName("RightHandIndex3"));
-	Xsens_Retarget.AddBoneChain(FCharacterizationStandard::RightMiddle, FName("RightHandMiddle1"), FName("RightHandMiddle3"));
-	Xsens_Retarget.AddBoneChain(FCharacterizationStandard::RightRing, FName("RightHandRing1"), FName("RightHandRing3"));
-	Xsens_Retarget.AddBoneChain(FCharacterizationStandard::RightPinky, FName("RightHandPinky1"), FName("RightHandPinky3"));
-	AddTemplateHierarchy(Xsens, Xsens_Bones, Xsens_ParentIndices, Xsens_Retarget);
+	{
+		static FName XsensName = "Xsens";
+		static TArray<FName> XsenseBones = {"Reference", "Hips", "RightUpLeg", "RightLeg", "RightFoot", "RightToeBase", "LeftUpLeg", "LeftLeg", "LeftFoot", "LeftToeBase", "Spine", "Spine1", "Spine2", "Spine3", "LeftShoulder", "LeftArm", "LeftForeArm", "LeftHand", "LeftHandThumb1", "LeftHandThumb2", "LeftHandThumb3", "LeftHandIndex1", "LeftHandIndex2", "LeftHandIndex3", "LeftHandMiddle1", "LeftHandMiddle2", "LeftHandMiddle3", "LeftHandRing1", "LeftHandRing2", "LeftHandRing3", "LeftHandPinky1", "LeftHandPinky2", "LeftHandPinky3", "RightShoulder", "RightArm", "RightForeArm", "RightHand", "RightHandThumb1", "RightHandThumb2", "RightHandThumb3", "RightHandIndex1", "RightHandIndex2", "RightHandIndex3", "RightHandMiddle1", "RightHandMiddle2", "RightHandMiddle3", "RightHandRing1", "RightHandRing2", "RightHandRing3", "RightHandPinky1", "RightHandPinky2", "RightHandPinky3", "Neck", "Head"};
+		static TArray<int32> XsensParentIndices = {-1, 0, 1, 2, 3, 4, 1, 6, 7, 8, 1, 10, 11, 12, 13, 14, 15, 16, 17, 18, 19, 17, 21, 22, 17, 24, 25, 17, 27, 28, 17, 30, 31, 13, 33, 34, 35, 36, 37, 38, 36, 40, 41, 36, 43, 44, 36, 46, 47, 36, 49, 50, 13, 52};
+		FTemplateHierarchy& Xsens = AddTemplateHierarchy(XsensName, XsenseBones, XsensParentIndices);
+		FRetargetDefinition& XsensRetarget = Xsens.RetargetDefinition;
+		// core
+		XsensRetarget.RootBone = FName("Hips");
+		XsensRetarget.AddBoneChain(FCharacterizationStandard::Root, FName("Reference"), FName("Reference"));
+		XsensRetarget.AddBoneChain(FCharacterizationStandard::Spine, FName("Spine"), FName("Spine3"));
+		XsensRetarget.AddBoneChain(FCharacterizationStandard::Neck, FName("Neck"), FName("Neck"));
+		XsensRetarget.AddBoneChain(FCharacterizationStandard::Head, FName("Head"), FName("Head"));
+		// left
+		XsensRetarget.AddBoneChain(FCharacterizationStandard::LeftLeg, FName("LeftUpLeg"), FName("LeftToeBase"),FCharacterizationStandard::LeftFootIK);
+		XsensRetarget.AddBoneChain(FCharacterizationStandard::LeftClavicle, FName("LeftShoulder"), FName("LeftShoulder"));
+		XsensRetarget.AddBoneChain(FCharacterizationStandard::LeftArm, FName("LeftArm"), FName("LeftHand"),FCharacterizationStandard::LeftHandIK);
+		XsensRetarget.AddBoneChain(FCharacterizationStandard::LeftThumb, FName("LeftHandThumb1"), FName("LeftHandThumb3"));
+		XsensRetarget.AddBoneChain(FCharacterizationStandard::LeftIndex, FName("LeftHandIndex1"), FName("LeftHandIndex3"));
+		XsensRetarget.AddBoneChain(FCharacterizationStandard::LeftMiddle, FName("LeftHandMiddle1"), FName("LeftHandMiddle3"));
+		XsensRetarget.AddBoneChain(FCharacterizationStandard::LeftRing, FName("LeftHandRing1"), FName("LeftHandRing3"));
+		XsensRetarget.AddBoneChain(FCharacterizationStandard::LeftPinky, FName("LeftHandPinky1"), FName("LeftHandPinky3"));
+		// right
+		XsensRetarget.AddBoneChain(FCharacterizationStandard::RightLeg, FName("RightUpLeg"), FName("RightToeBase"),FCharacterizationStandard::RightFootIK);
+		XsensRetarget.AddBoneChain(FCharacterizationStandard::RightClavicle, FName("RightShoulder"), FName("RightShoulder"));
+		XsensRetarget.AddBoneChain(FCharacterizationStandard::RightArm, FName("RightArm"), FName("RightHand"),FCharacterizationStandard::RightHandIK);
+		XsensRetarget.AddBoneChain(FCharacterizationStandard::RightThumb, FName("RightHandThumb1"), FName("RightHandThumb3"));
+		XsensRetarget.AddBoneChain(FCharacterizationStandard::RightIndex, FName("RightHandIndex1"), FName("RightHandIndex3"));
+		XsensRetarget.AddBoneChain(FCharacterizationStandard::RightMiddle, FName("RightHandMiddle1"), FName("RightHandMiddle3"));
+		XsensRetarget.AddBoneChain(FCharacterizationStandard::RightRing, FName("RightHandRing1"), FName("RightHandRing3"));
+		XsensRetarget.AddBoneChain(FCharacterizationStandard::RightPinky, FName("RightHandPinky1"), FName("RightHandPinky3"));
+		// bone settings for IK
+		Xsens.BoneSettingsForIK.SetRotationStiffness(FName("Hips"), FCharacterizationStandard::PelvisRotationStiffness);
+		Xsens.BoneSettingsForIK.SetRotationStiffness(FName("LeftShoulder"), FCharacterizationStandard::ClavicleRotationStiffness);
+		Xsens.BoneSettingsForIK.SetRotationStiffness(FName("RightShoulder"), FCharacterizationStandard::ClavicleRotationStiffness);
+		Xsens.BoneSettingsForIK.SetRotationStiffness(FName("LeftFoot"), FCharacterizationStandard::FootRotationStiffness);
+		Xsens.BoneSettingsForIK.SetRotationStiffness(FName("RightFoot"), FCharacterizationStandard::FootRotationStiffness);
+		Xsens.BoneSettingsForIK.SetPreferredAxis(FName("LeftLeg"), EPreferredAxis::PositiveX);
+		Xsens.BoneSettingsForIK.SetPreferredAxis(FName("RightLeg"), EPreferredAxis::PositiveX);
+		Xsens.BoneSettingsForIK.SetPreferredAxis(FName("LeftForeArm"), EPreferredAxis::PositiveY);
+		Xsens.BoneSettingsForIK.SetPreferredAxis(FName("RightForeArm"), EPreferredAxis::NegativeY);
+	}
 	
 	// mGear
-	static FName mGear = "mGear";
-	static TArray<FName> mGear_Bones = {"root_C0_0_jnt", "spine_C0_pelvis_jnt", "spine_C0_01_jnt", "spine_C0_02_jnt", "spine_C0_03_jnt", "spine_C0_04_jnt", "spine_C0_05_jnt", "neck_C0_01_jnt", "neck_C0_02_jnt", "neck_C0_head_jnt", "headBendNose_C0_0_jnt", "headBendJaw_C0_0_jnt", "jaw_C0_0_jnt", "shoulder_L0_0_jnt", "arm_L0_upperarm_jnt", "arm_L0_lowerarm_jnt", "arm_L0_hand_jnt", "thumb_L0_0_jnt", "thumb_L0_1_jnt", "thumb_L0_2_jnt", "meta_L0_0_jnt", "finger_L0_0_jnt", "finger_L0_1_jnt", "finger_L0_2_jnt", "meta_L0_1_jnt", "finger_L1_0_jnt", "finger_L1_1_jnt", "finger_L1_2_jnt", "meta_L0_2_jnt", "finger_L2_0_jnt", "finger_L2_1_jnt", "finger_L2_2_jnt", "meta_L0_3_jnt", "finger_L3_0_jnt", "finger_L3_1_jnt", "finger_L3_2_jnt", "shoulder_R0_0_jnt", "arm_R0_upperarm_jnt", "arm_R0_lowerarm_jnt", "arm_R0_hand_jnt", "thumb_R0_0_jnt", "thumb_R0_1_jnt", "thumb_R0_2_jnt", "meta_R0_0_jnt", "finger_R0_0_jnt", "finger_R0_1_jnt", "finger_R0_2_jnt", "meta_R0_1_jnt", "finger_R1_0_jnt", "finger_R1_1_jnt", "finger_R1_2_jnt", "meta_R0_2_jnt", "finger_R2_0_jnt", "finger_R2_1_jnt", "finger_R2_2_jnt", "meta_R0_3_jnt", "finger_R3_0_jnt", "finger_R3_1_jnt", "finger_R3_2_jnt", "leg_L0_thigh_jnt", "leg_L0_calf_jnt", "leg_L0_foot_jnt", "foot_L0_ball_jnt", "leg_R0_thigh_jnt", "leg_R0_calf_jnt", "leg_R0_foot_jnt", "foot_R0_ball_jnt", "ik_hand_root_C0_0_jnt", "ik_hand_gun_C0_0_jnt", "ik_hand_L0_0_jnt", "ik_hand_R0_0_jnt", "ik_foot_root_C0_0_jnt", "ik_foot_L0_0_jnt", "ik_foot_R0_0_jnt"};
-	static TArray<int32> mGear_ParentIndices = {-1, 0, 1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 6, 13, 14, 15, 16, 17, 18, 16, 20, 21, 22, 16, 24, 25, 26, 16, 28, 29, 30, 16, 32, 33, 34, 6, 36, 37, 38, 39, 40, 41, 39, 43, 44, 45, 39, 47, 48, 49, 39, 51, 52, 53, 39, 55, 56, 57, 1, 59, 60, 61, 1, 63, 64, 65, 0, 67, 68, 68, 0, 71, 71};
-	FRetargetDefinition mGear_Retarget;
-	// core
-	mGear_Retarget.RootBone = FName("spine_C0_pelvis_jnt");
-	mGear_Retarget.AddBoneChain(FCharacterizationStandard::Root, FName("Reference"), FName("Reference"));
-	mGear_Retarget.AddBoneChain(FCharacterizationStandard::Spine, FName("spine_C0_01_jnt"), FName("spine_C0_05_jnt"));
-	mGear_Retarget.AddBoneChain(FCharacterizationStandard::Neck, FName("neck_C0_01_jnt"), FName("neck_C0_02_jnt"));
-	mGear_Retarget.AddBoneChain(FCharacterizationStandard::Head, FName("neck_C0_head_jnt"), FName("neck_C0_head_jnt"));
-	// left
-	mGear_Retarget.AddBoneChain(FCharacterizationStandard::LeftLeg, FName("leg_L0_thigh_jnt"), FName("foot_L0_ball_jnt"));
-	mGear_Retarget.AddBoneChain(FCharacterizationStandard::LeftClavicle, FName("shoulder_L0_0_jnt"), FName("shoulder_L0_0_jnt"));
-	mGear_Retarget.AddBoneChain(FCharacterizationStandard::LeftArm, FName("arm_L0_upperarm_jnt"), FName("arm_L0_hand_jnt"));
-	mGear_Retarget.AddBoneChain(FCharacterizationStandard::LeftThumb, FName("thumb_L0_0_jnt"), FName("thumb_L0_2_jnt"));
-	mGear_Retarget.AddBoneChain(FCharacterizationStandard::LeftIndex, FName("finger_L0_0_jnt"), FName("finger_L0_2_jnt"));
-	mGear_Retarget.AddBoneChain(FCharacterizationStandard::LeftMiddle, FName("finger_L1_0_jnt"), FName("finger_L1_2_jnt"));
-	mGear_Retarget.AddBoneChain(FCharacterizationStandard::LeftRing, FName("finger_L2_0_jnt"), FName("finger_L2_2_jnt"));
-	mGear_Retarget.AddBoneChain(FCharacterizationStandard::LeftPinky, FName("finger_L3_0_jnt"), FName("finger_L3_2_jnt"));
-	mGear_Retarget.AddBoneChain(FCharacterizationStandard::LeftIndexMetacarpal, FName("meta_L0_0_jnt"), FName("meta_L0_0_jnt"));
-	mGear_Retarget.AddBoneChain(FCharacterizationStandard::LeftMiddleMetacarpal, FName("meta_L0_1_jnt"), FName("meta_L0_1_jnt"));
-	mGear_Retarget.AddBoneChain(FCharacterizationStandard::LeftRingMetacarpal, FName("meta_L0_2_jnt"), FName("meta_L0_2_jnt"));
-	mGear_Retarget.AddBoneChain(FCharacterizationStandard::LeftPinkyMetacarpal, FName("meta_L0_3_jnt"), FName("meta_L0_3_jnt"));
-	// right
-	mGear_Retarget.AddBoneChain(FCharacterizationStandard::RightLeg, FName("leg_R0_thigh_jnt"), FName("foot_R0_ball_jnt"));
-	mGear_Retarget.AddBoneChain(FCharacterizationStandard::RightClavicle, FName("shoulder_R0_0_jnt"), FName("shoulder_R0_0_jnt"));
-	mGear_Retarget.AddBoneChain(FCharacterizationStandard::RightArm, FName("arm_R0_upperarm_jnt"), FName("arm_R0_hand_jnt"));
-	mGear_Retarget.AddBoneChain(FCharacterizationStandard::RightThumb, FName("thumb_R0_0_jnt"), FName("thumb_R0_2_jnt"));
-	mGear_Retarget.AddBoneChain(FCharacterizationStandard::RightIndex, FName("finger_R0_0_jnt"), FName("finger_R0_2_jnt"));
-	mGear_Retarget.AddBoneChain(FCharacterizationStandard::RightMiddle, FName("finger_R1_0_jnt"), FName("finger_R1_2_jnt"));
-	mGear_Retarget.AddBoneChain(FCharacterizationStandard::RightRing, FName("finger_R2_0_jnt"), FName("finger_R2_2_jnt"));
-	mGear_Retarget.AddBoneChain(FCharacterizationStandard::RightPinky, FName("finger_R3_0_jnt"), FName("finger_R3_2_jnt"));
-	mGear_Retarget.AddBoneChain(FCharacterizationStandard::RightIndexMetacarpal, FName("meta_R0_0_jnt"), FName("meta_R0_0_jnt"));
-	mGear_Retarget.AddBoneChain(FCharacterizationStandard::RightMiddleMetacarpal, FName("meta_R0_1_jnt"), FName("meta_R0_1_jnt"));
-	mGear_Retarget.AddBoneChain(FCharacterizationStandard::RightRingMetacarpal, FName("meta_R0_2_jnt"), FName("meta_R0_2_jnt"));
-	mGear_Retarget.AddBoneChain(FCharacterizationStandard::RightPinkyMetacarpal, FName("meta_R0_3_jnt"), FName("meta_R0_3_jnt"));
-	AddTemplateHierarchy(Xsens, Xsens_Bones, Xsens_ParentIndices, mGear_Retarget);
+	{
+		static FName mGearName = "mGear";
+		static TArray<FName> mGearBones = {"root_C0_0_jnt", "spine_C0_pelvis_jnt", "spine_C0_01_jnt", "spine_C0_02_jnt", "spine_C0_03_jnt", "spine_C0_04_jnt", "spine_C0_05_jnt", "neck_C0_01_jnt", "neck_C0_02_jnt", "neck_C0_head_jnt", "headBendNose_C0_0_jnt", "headBendJaw_C0_0_jnt", "jaw_C0_0_jnt", "shoulder_L0_0_jnt", "arm_L0_upperarm_jnt", "arm_L0_lowerarm_jnt", "arm_L0_hand_jnt", "thumb_L0_0_jnt", "thumb_L0_1_jnt", "thumb_L0_2_jnt", "meta_L0_0_jnt", "finger_L0_0_jnt", "finger_L0_1_jnt", "finger_L0_2_jnt", "meta_L0_1_jnt", "finger_L1_0_jnt", "finger_L1_1_jnt", "finger_L1_2_jnt", "meta_L0_2_jnt", "finger_L2_0_jnt", "finger_L2_1_jnt", "finger_L2_2_jnt", "meta_L0_3_jnt", "finger_L3_0_jnt", "finger_L3_1_jnt", "finger_L3_2_jnt", "shoulder_R0_0_jnt", "arm_R0_upperarm_jnt", "arm_R0_lowerarm_jnt", "arm_R0_hand_jnt", "thumb_R0_0_jnt", "thumb_R0_1_jnt", "thumb_R0_2_jnt", "meta_R0_0_jnt", "finger_R0_0_jnt", "finger_R0_1_jnt", "finger_R0_2_jnt", "meta_R0_1_jnt", "finger_R1_0_jnt", "finger_R1_1_jnt", "finger_R1_2_jnt", "meta_R0_2_jnt", "finger_R2_0_jnt", "finger_R2_1_jnt", "finger_R2_2_jnt", "meta_R0_3_jnt", "finger_R3_0_jnt", "finger_R3_1_jnt", "finger_R3_2_jnt", "leg_L0_thigh_jnt", "leg_L0_calf_jnt", "leg_L0_foot_jnt", "foot_L0_ball_jnt", "leg_R0_thigh_jnt", "leg_R0_calf_jnt", "leg_R0_foot_jnt", "foot_R0_ball_jnt", "ik_hand_root_C0_0_jnt", "ik_hand_gun_C0_0_jnt", "ik_hand_L0_0_jnt", "ik_hand_R0_0_jnt", "ik_foot_root_C0_0_jnt", "ik_foot_L0_0_jnt", "ik_foot_R0_0_jnt"};
+		static TArray<int32> mGearParentIndices = {-1, 0, 1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 6, 13, 14, 15, 16, 17, 18, 16, 20, 21, 22, 16, 24, 25, 26, 16, 28, 29, 30, 16, 32, 33, 34, 6, 36, 37, 38, 39, 40, 41, 39, 43, 44, 45, 39, 47, 48, 49, 39, 51, 52, 53, 39, 55, 56, 57, 1, 59, 60, 61, 1, 63, 64, 65, 0, 67, 68, 68, 0, 71, 71};
+		FTemplateHierarchy& mGear = AddTemplateHierarchy(mGearName, mGearBones, mGearParentIndices);
+		FRetargetDefinition& mGearRetarget = mGear.RetargetDefinition;
+		// core
+		mGearRetarget.RootBone = FName("spine_C0_pelvis_jnt");
+		mGearRetarget.AddBoneChain(FCharacterizationStandard::Root, FName("Reference"), FName("Reference"));
+		mGearRetarget.AddBoneChain(FCharacterizationStandard::Spine, FName("spine_C0_01_jnt"), FName("spine_C0_05_jnt"));
+		mGearRetarget.AddBoneChain(FCharacterizationStandard::Neck, FName("neck_C0_01_jnt"), FName("neck_C0_02_jnt"));
+		mGearRetarget.AddBoneChain(FCharacterizationStandard::Head, FName("neck_C0_head_jnt"), FName("neck_C0_head_jnt"));
+		// left
+		mGearRetarget.AddBoneChain(FCharacterizationStandard::LeftLeg, FName("leg_L0_thigh_jnt"), FName("foot_L0_ball_jnt"),FCharacterizationStandard::LeftFootIK);
+		mGearRetarget.AddBoneChain(FCharacterizationStandard::LeftClavicle, FName("shoulder_L0_0_jnt"), FName("shoulder_L0_0_jnt"));
+		mGearRetarget.AddBoneChain(FCharacterizationStandard::LeftArm, FName("arm_L0_upperarm_jnt"), FName("arm_L0_hand_jnt"),FCharacterizationStandard::LeftHandIK);
+		mGearRetarget.AddBoneChain(FCharacterizationStandard::LeftThumb, FName("thumb_L0_0_jnt"), FName("thumb_L0_2_jnt"));
+		mGearRetarget.AddBoneChain(FCharacterizationStandard::LeftIndex, FName("finger_L0_0_jnt"), FName("finger_L0_2_jnt"));
+		mGearRetarget.AddBoneChain(FCharacterizationStandard::LeftMiddle, FName("finger_L1_0_jnt"), FName("finger_L1_2_jnt"));
+		mGearRetarget.AddBoneChain(FCharacterizationStandard::LeftRing, FName("finger_L2_0_jnt"), FName("finger_L2_2_jnt"));
+		mGearRetarget.AddBoneChain(FCharacterizationStandard::LeftPinky, FName("finger_L3_0_jnt"), FName("finger_L3_2_jnt"));
+		mGearRetarget.AddBoneChain(FCharacterizationStandard::LeftIndexMetacarpal, FName("meta_L0_0_jnt"), FName("meta_L0_0_jnt"));
+		mGearRetarget.AddBoneChain(FCharacterizationStandard::LeftMiddleMetacarpal, FName("meta_L0_1_jnt"), FName("meta_L0_1_jnt"));
+		mGearRetarget.AddBoneChain(FCharacterizationStandard::LeftRingMetacarpal, FName("meta_L0_2_jnt"), FName("meta_L0_2_jnt"));
+		mGearRetarget.AddBoneChain(FCharacterizationStandard::LeftPinkyMetacarpal, FName("meta_L0_3_jnt"), FName("meta_L0_3_jnt"));
+		// right
+		mGearRetarget.AddBoneChain(FCharacterizationStandard::RightLeg, FName("leg_R0_thigh_jnt"), FName("foot_R0_ball_jnt"),FCharacterizationStandard::RightFootIK);
+		mGearRetarget.AddBoneChain(FCharacterizationStandard::RightClavicle, FName("shoulder_R0_0_jnt"), FName("shoulder_R0_0_jnt"));
+		mGearRetarget.AddBoneChain(FCharacterizationStandard::RightArm, FName("arm_R0_upperarm_jnt"), FName("arm_R0_hand_jnt"),FCharacterizationStandard::RightHandIK);
+		mGearRetarget.AddBoneChain(FCharacterizationStandard::RightThumb, FName("thumb_R0_0_jnt"), FName("thumb_R0_2_jnt"));
+		mGearRetarget.AddBoneChain(FCharacterizationStandard::RightIndex, FName("finger_R0_0_jnt"), FName("finger_R0_2_jnt"));
+		mGearRetarget.AddBoneChain(FCharacterizationStandard::RightMiddle, FName("finger_R1_0_jnt"), FName("finger_R1_2_jnt"));
+		mGearRetarget.AddBoneChain(FCharacterizationStandard::RightRing, FName("finger_R2_0_jnt"), FName("finger_R2_2_jnt"));
+		mGearRetarget.AddBoneChain(FCharacterizationStandard::RightPinky, FName("finger_R3_0_jnt"), FName("finger_R3_2_jnt"));
+		mGearRetarget.AddBoneChain(FCharacterizationStandard::RightIndexMetacarpal, FName("meta_R0_0_jnt"), FName("meta_R0_0_jnt"));
+		mGearRetarget.AddBoneChain(FCharacterizationStandard::RightMiddleMetacarpal, FName("meta_R0_1_jnt"), FName("meta_R0_1_jnt"));
+		mGearRetarget.AddBoneChain(FCharacterizationStandard::RightRingMetacarpal, FName("meta_R0_2_jnt"), FName("meta_R0_2_jnt"));
+		mGearRetarget.AddBoneChain(FCharacterizationStandard::RightPinkyMetacarpal, FName("meta_R0_3_jnt"), FName("meta_R0_3_jnt"));
+		// bone settings for IK
+		mGear.BoneSettingsForIK.SetRotationStiffness(FName("spine_C0_pelvis_jnt"), FCharacterizationStandard::PelvisRotationStiffness);
+		mGear.BoneSettingsForIK.SetRotationStiffness(FName("shoulder_L0_0_jnt"), FCharacterizationStandard::ClavicleRotationStiffness);
+		mGear.BoneSettingsForIK.SetRotationStiffness(FName("shoulder_R0_0_jnt"), FCharacterizationStandard::ClavicleRotationStiffness);
+		mGear.BoneSettingsForIK.SetRotationStiffness(FName("leg_L0_foot_jnt"), FCharacterizationStandard::FootRotationStiffness);
+		mGear.BoneSettingsForIK.SetRotationStiffness(FName("leg_R0_foot_jnt"), FCharacterizationStandard::FootRotationStiffness);
+		mGear.BoneSettingsForIK.SetPreferredAxis(FName("leg_L0_calf_jnt"), EPreferredAxis::PositiveZ);
+		mGear.BoneSettingsForIK.SetPreferredAxis(FName("leg_R0_calf_jnt"), EPreferredAxis::PositiveZ);
+		mGear.BoneSettingsForIK.SetPreferredAxis(FName("arm_L0_lowerarm_jnt"), EPreferredAxis::PositiveZ);
+		mGear.BoneSettingsForIK.SetPreferredAxis(FName("arm_R0_lowerarm_jnt"), EPreferredAxis::PositiveZ);
+		mGear.BoneSettingsForIK.SetExcluded(FName("spine_C0_05_jnt"), true);
+	}
 	
 	// Motionbuilder / Human IK
-	static FName HumanIK = "HumanIK / Motionbuilder";
-	static TArray<FName> HumanIK_Bones = {"Hips", "LeftUpLeg", "LeftLeg", "LeftFoot", "LeftToeBase", "Spine", "Spine1", "Spine2", "Spine3", "Neck", "Head", "LeftShoulder", "LeftArm", "LeftForeArm", "LeftHand", "LeftHandThumb1", "LeftHandThumb2", "LeftHandThumb3", "LeftHandAttach", "LeftFingerBase", "LeftHandMiddle1", "LeftHandMiddle2", "LeftHandMiddle3", "LeftHandIndex1", "LeftHandIndex2", "LeftHandIndex3", "LeftHandRing1", "LeftHandRing2", "LeftHandRing3", "LeftHandPinky1", "LeftHandPinky2", "LeftHandPinky3", "RightShoulder", "RightArm", "RightForeArm", "RightHand", "RightHandThumb1", "RightHandThumb2", "RightHandThumb3", "RightHandAttach", "RightFingerBase", "RightHandMiddle1", "RightHandMiddle2", "RightHandMiddle3", "RightHandIndex1", "RightHandIndex2", "RightHandIndex3", "RightHandRing1", "RightHandRing2", "RightHandRing3", "RightHandPinky1", "RightHandPinky2", "RightHandPinky3", "RightUpLeg", "RightLeg", "RightFoot", "RightToeBase"};
-	static TArray<int32> HumanIK_ParentIndices = {-1, 0, 1, 2, 3, 0, 5, 6, 7, 8, 9, 8, 11, 12, 13, 14, 15, 16, 14, 14, 19, 20, 21, 19, 23, 24, 19, 26, 27, 19, 29, 30, 8, 32, 33, 34, 35, 36, 37, 35, 35, 40, 41, 42, 40, 44, 45, 40, 47, 48, 40, 50, 51, 0, 53, 54, 55};
-	FRetargetDefinition HumanIK_Retarget;
-	// core
-	HumanIK_Retarget.RootBone = FName("Hips");
-	HumanIK_Retarget.AddBoneChain(FCharacterizationStandard::Spine, FName("Spine"), FName("Spine3"));
-	HumanIK_Retarget.AddBoneChain(FCharacterizationStandard::Neck, FName("Neck"), FName("Neck1"));
-	HumanIK_Retarget.AddBoneChain(FCharacterizationStandard::Head, FName("Head"), FName("Head"));
-	// left
-	HumanIK_Retarget.AddBoneChain(FCharacterizationStandard::LeftLeg, FName("LeftUpLeg"), FName("LeftToeBase"));
-	HumanIK_Retarget.AddBoneChain(FCharacterizationStandard::LeftClavicle, FName("LeftShoulder"), FName("LeftShoulder"));
-	HumanIK_Retarget.AddBoneChain(FCharacterizationStandard::LeftArm, FName("LeftArm"), FName("LeftHand"));
-	HumanIK_Retarget.AddBoneChain(FCharacterizationStandard::LeftThumb, FName("LeftHandThumb1"), FName("LeftHandThumb3"));
-	HumanIK_Retarget.AddBoneChain(FCharacterizationStandard::LeftIndex, FName("LeftHandIndex1"), FName("LeftHandIndex3"));
-	HumanIK_Retarget.AddBoneChain(FCharacterizationStandard::LeftMiddle, FName("LeftHandMiddle1"), FName("LeftHandMiddle3"));
-	HumanIK_Retarget.AddBoneChain(FCharacterizationStandard::LeftRing, FName("LeftHandRing1"), FName("LeftHandRing3"));
-	HumanIK_Retarget.AddBoneChain(FCharacterizationStandard::LeftPinky, FName("LeftHandPinky1"), FName("LeftHandPinky3"));
-	// right
-	HumanIK_Retarget.AddBoneChain(FCharacterizationStandard::RightLeg, FName("RightUpLeg"), FName("RightToeBase"));
-	HumanIK_Retarget.AddBoneChain(FCharacterizationStandard::RightClavicle, FName("RightShoulder"), FName("RightShoulder"));
-	HumanIK_Retarget.AddBoneChain(FCharacterizationStandard::RightArm, FName("RightArm"), FName("RightHand"));
-	HumanIK_Retarget.AddBoneChain(FCharacterizationStandard::RightThumb, FName("RightHandThumb1"), FName("RightHandThumb3"));
-	HumanIK_Retarget.AddBoneChain(FCharacterizationStandard::RightIndex, FName("RightHandIndex1"), FName("RightHandIndex3"));
-	HumanIK_Retarget.AddBoneChain(FCharacterizationStandard::RightMiddle, FName("RightHandMiddle1"), FName("RightHandMiddle3"));
-	HumanIK_Retarget.AddBoneChain(FCharacterizationStandard::RightRing, FName("RightHandRing1"), FName("RightHandRing3"));
-	HumanIK_Retarget.AddBoneChain(FCharacterizationStandard::RightPinky, FName("RightHandPinky1"), FName("RightHandPinky3"));
-	AddTemplateHierarchy(HumanIK, HumanIK_Bones, HumanIK_ParentIndices, HumanIK_Retarget);
+	{
+		static FName HumanIKName = "HumanIK / Motionbuilder";
+		static TArray<FName> HumanIKBones = {"Hips", "LeftUpLeg", "LeftLeg", "LeftFoot", "LeftToeBase", "Spine", "Spine1", "Spine2", "Spine3", "Neck", "Head", "LeftShoulder", "LeftArm", "LeftForeArm", "LeftHand", "LeftHandThumb1", "LeftHandThumb2", "LeftHandThumb3", "LeftHandAttach", "LeftFingerBase", "LeftHandMiddle1", "LeftHandMiddle2", "LeftHandMiddle3", "LeftHandIndex1", "LeftHandIndex2", "LeftHandIndex3", "LeftHandRing1", "LeftHandRing2", "LeftHandRing3", "LeftHandPinky1", "LeftHandPinky2", "LeftHandPinky3", "RightShoulder", "RightArm", "RightForeArm", "RightHand", "RightHandThumb1", "RightHandThumb2", "RightHandThumb3", "RightHandAttach", "RightFingerBase", "RightHandMiddle1", "RightHandMiddle2", "RightHandMiddle3", "RightHandIndex1", "RightHandIndex2", "RightHandIndex3", "RightHandRing1", "RightHandRing2", "RightHandRing3", "RightHandPinky1", "RightHandPinky2", "RightHandPinky3", "RightUpLeg", "RightLeg", "RightFoot", "RightToeBase"};
+		static TArray<int32> HumanIKParentIndices = {-1, 0, 1, 2, 3, 0, 5, 6, 7, 8, 9, 8, 11, 12, 13, 14, 15, 16, 14, 14, 19, 20, 21, 19, 23, 24, 19, 26, 27, 19, 29, 30, 8, 32, 33, 34, 35, 36, 37, 35, 35, 40, 41, 42, 40, 44, 45, 40, 47, 48, 40, 50, 51, 0, 53, 54, 55};
+		FTemplateHierarchy& HumanIK = AddTemplateHierarchy(HumanIKName, HumanIKBones, HumanIKParentIndices);
+		FRetargetDefinition& HumanIKRetarget = HumanIK.RetargetDefinition;
+		// core
+		HumanIKRetarget.RootBone = FName("Hips");
+		HumanIKRetarget.AddBoneChain(FCharacterizationStandard::Spine, FName("Spine"), FName("Spine3"));
+		HumanIKRetarget.AddBoneChain(FCharacterizationStandard::Neck, FName("Neck"), FName("Neck1"));
+		HumanIKRetarget.AddBoneChain(FCharacterizationStandard::Head, FName("Head"), FName("Head"));
+		// left
+		HumanIKRetarget.AddBoneChain(FCharacterizationStandard::LeftLeg, FName("LeftUpLeg"), FName("LeftToeBase"),FCharacterizationStandard::LeftFootIK);
+		HumanIKRetarget.AddBoneChain(FCharacterizationStandard::LeftClavicle, FName("LeftShoulder"), FName("LeftShoulder"));
+		HumanIKRetarget.AddBoneChain(FCharacterizationStandard::LeftArm, FName("LeftArm"), FName("LeftHand"),FCharacterizationStandard::LeftHandIK);
+		HumanIKRetarget.AddBoneChain(FCharacterizationStandard::LeftThumb, FName("LeftHandThumb1"), FName("LeftHandThumb3"));
+		HumanIKRetarget.AddBoneChain(FCharacterizationStandard::LeftIndex, FName("LeftHandIndex1"), FName("LeftHandIndex3"));
+		HumanIKRetarget.AddBoneChain(FCharacterizationStandard::LeftMiddle, FName("LeftHandMiddle1"), FName("LeftHandMiddle3"));
+		HumanIKRetarget.AddBoneChain(FCharacterizationStandard::LeftRing, FName("LeftHandRing1"), FName("LeftHandRing3"));
+		HumanIKRetarget.AddBoneChain(FCharacterizationStandard::LeftPinky, FName("LeftHandPinky1"), FName("LeftHandPinky3"));
+		// right
+		HumanIKRetarget.AddBoneChain(FCharacterizationStandard::RightLeg, FName("RightUpLeg"), FName("RightToeBase"),FCharacterizationStandard::RightFootIK);
+		HumanIKRetarget.AddBoneChain(FCharacterizationStandard::RightClavicle, FName("RightShoulder"), FName("RightShoulder"));
+		HumanIKRetarget.AddBoneChain(FCharacterizationStandard::RightArm, FName("RightArm"), FName("RightHand"),FCharacterizationStandard::RightHandIK);
+		HumanIKRetarget.AddBoneChain(FCharacterizationStandard::RightThumb, FName("RightHandThumb1"), FName("RightHandThumb3"));
+		HumanIKRetarget.AddBoneChain(FCharacterizationStandard::RightIndex, FName("RightHandIndex1"), FName("RightHandIndex3"));
+		HumanIKRetarget.AddBoneChain(FCharacterizationStandard::RightMiddle, FName("RightHandMiddle1"), FName("RightHandMiddle3"));
+		HumanIKRetarget.AddBoneChain(FCharacterizationStandard::RightRing, FName("RightHandRing1"), FName("RightHandRing3"));
+		HumanIKRetarget.AddBoneChain(FCharacterizationStandard::RightPinky, FName("RightHandPinky1"), FName("RightHandPinky3"));
+		// bone settings for IK
+		HumanIK.BoneSettingsForIK.SetRotationStiffness(FName("Hips"), FCharacterizationStandard::PelvisRotationStiffness);
+		HumanIK.BoneSettingsForIK.SetRotationStiffness(FName("LeftShoulder"), FCharacterizationStandard::ClavicleRotationStiffness);
+		HumanIK.BoneSettingsForIK.SetRotationStiffness(FName("RightShoulder"), FCharacterizationStandard::ClavicleRotationStiffness);
+		HumanIK.BoneSettingsForIK.SetRotationStiffness(FName("LeftFoot"), FCharacterizationStandard::FootRotationStiffness);
+		HumanIK.BoneSettingsForIK.SetRotationStiffness(FName("RightFoot"), FCharacterizationStandard::FootRotationStiffness);
+		HumanIK.BoneSettingsForIK.SetPreferredAxis(FName("LeftLeg"), EPreferredAxis::NegativeY);
+		HumanIK.BoneSettingsForIK.SetPreferredAxis(FName("RightLeg"), EPreferredAxis::NegativeY);
+		HumanIK.BoneSettingsForIK.SetPreferredAxis(FName("LeftForeArm"), EPreferredAxis::PositiveY);
+		HumanIK.BoneSettingsForIK.SetPreferredAxis(FName("RightForeArm"), EPreferredAxis::PositiveY);
+		HumanIK.BoneSettingsForIK.SetExcluded(FName("Spine3"), true);
+	}
 
 	// Vicon
-	static FName Vicon = "Vicon";
-	static TArray<FName> Vicon_Bones = {"Hips", "Spine", "Spine1", "Spine2", "Spine3", "Neck", "Neck1", "Head", "HeadEnd", "RightShoulder", "RightArm", "RightForeArm", "RightHand", "RightHandMiddle1", "RightHandMiddle2", "RightHandMiddle3", "RightHandMiddle4", "RightHandRing", "RightHandRing1", "RightHandRing2", "RightHandRing3", "RightHandRing4", "RightHandPinky", "RightHandPinky1", "RightHandPinky2", "RightHandPinky3", "RightHandPinky4", "RightHandIndex", "RightHandIndex1", "RightHandIndex2", "RightHandIndex3", "RightHandIndex4", "RightHandThumb1", "RightHandThumb2", "RightHandThumb3", "RightHandThumb4", "LeftShoulder", "LeftArm", "LeftForeArm", "LeftHand", "LeftHandMiddle1", "LeftHandMiddle2", "LeftHandMiddle3", "LeftHandMiddle4", "LeftHandRing", "LeftHandRing1", "LeftHandRing2", "LeftHandRing3", "LeftHandRing4", "LeftHandPinky", "LeftHandPinky1", "LeftHandPinky2", "LeftHandPinky3", "LeftHandPinky4", "LeftHandIndex", "LeftHandIndex1", "LeftHandIndex2", "LeftHandIndex3", "LeftHandIndex4", "LeftHandThumb1", "LeftHandThumb2", "LeftHandThumb3", "LeftHandThumb4", "RightUpLeg", "RightLeg", "RightFoot", "RightToeBase", "RightToeBaseEnd", "LeftUpLeg", "LeftLeg", "LeftFoot", "LeftToeBase", "LeftToeBaseEnd"};
-	static TArray<int32> Vicon_ParentIndices = {-1, 0, 1, 2, 3, 4, 5, 6, 7, 4, 9, 10, 11, 12, 13, 14, 15, 12, 17, 18, 19, 20, 17, 22, 23, 24, 25, 12, 27, 28, 29, 30, 27, 32, 33, 34, 4, 36, 37, 38, 39, 40, 41, 42, 39, 44, 45, 46, 47, 44, 49, 50, 51, 52, 39, 54, 55, 56, 57, 54, 59, 60, 61, 0, 63, 64, 65, 66, 0, 68, 69, 70, 71};
-	FRetargetDefinition Vicon_Retarget;
-	// core
-	Vicon_Retarget.RootBone = FName("Hips");
-	Vicon_Retarget.AddBoneChain(FCharacterizationStandard::Spine, FName("Spine"), FName("Spine3"));
-	Vicon_Retarget.AddBoneChain(FCharacterizationStandard::Neck, FName("Neck"), FName("Neck1"));
-	Vicon_Retarget.AddBoneChain(FCharacterizationStandard::Head, FName("Head"), FName("Head"));
-	// left
-	Vicon_Retarget.AddBoneChain(FCharacterizationStandard::LeftLeg, FName("LeftUpLeg"), FName("LeftToeBase"));
-	Vicon_Retarget.AddBoneChain(FCharacterizationStandard::LeftClavicle, FName("LeftShoulder"), FName("LeftShoulder"));
-	Vicon_Retarget.AddBoneChain(FCharacterizationStandard::LeftArm, FName("LeftArm"), FName("LeftHand"));
-	Vicon_Retarget.AddBoneChain(FCharacterizationStandard::LeftThumb, FName("LeftHandThumb1"), FName("LeftHandThumb3"));
-	Vicon_Retarget.AddBoneChain(FCharacterizationStandard::LeftIndex, FName("LeftHandIndex1"), FName("LeftHandIndex3"));
-	Vicon_Retarget.AddBoneChain(FCharacterizationStandard::LeftMiddle, FName("LeftHandMiddle1"), FName("LeftHandMiddle3"));
-	Vicon_Retarget.AddBoneChain(FCharacterizationStandard::LeftRing, FName("LeftHandRing1"), FName("LeftHandRing3"));
-	Vicon_Retarget.AddBoneChain(FCharacterizationStandard::LeftPinky, FName("LeftHandPinky1"), FName("LeftHandPinky3"));
-	Vicon_Retarget.AddBoneChain(FCharacterizationStandard::LeftIndexMetacarpal, FName("LeftHandIndex"), FName("LeftHandIndex"));
-	Vicon_Retarget.AddBoneChain(FCharacterizationStandard::LeftPinkyMetacarpal, FName("LeftHandPinky"), FName("LeftHandPinky"));
-	// right
-	Vicon_Retarget.AddBoneChain(FCharacterizationStandard::RightLeg, FName("RightUpLeg"), FName("RightToeBase"));
-	Vicon_Retarget.AddBoneChain(FCharacterizationStandard::RightClavicle, FName("RightShoulder"), FName("RightShoulder"));
-	Vicon_Retarget.AddBoneChain(FCharacterizationStandard::RightArm, FName("RightArm"), FName("RightHand"));
-	Vicon_Retarget.AddBoneChain(FCharacterizationStandard::RightThumb, FName("RightHandThumb1"), FName("RightHandThumb3"));
-	Vicon_Retarget.AddBoneChain(FCharacterizationStandard::RightIndex, FName("RightHandIndex1"), FName("RightHandIndex3"));
-	Vicon_Retarget.AddBoneChain(FCharacterizationStandard::RightMiddle, FName("RightHandMiddle1"), FName("RightHandMiddle3"));
-	Vicon_Retarget.AddBoneChain(FCharacterizationStandard::RightRing, FName("RightHandRing1"), FName("RightHandRing3"));
-	Vicon_Retarget.AddBoneChain(FCharacterizationStandard::RightPinky, FName("RightHandPinky1"), FName("RightHandPinky3"));
-	Vicon_Retarget.AddBoneChain(FCharacterizationStandard::RightIndexMetacarpal, FName("RightHandIndex"), FName("RightHandIndex"));
-	Vicon_Retarget.AddBoneChain(FCharacterizationStandard::RightPinkyMetacarpal, FName("RightHandPinky"), FName("RightHandPinky"));
-	AddTemplateHierarchy(Vicon, Vicon_Bones, Vicon_ParentIndices, Vicon_Retarget);
+	{
+		static FName ViconName = "Vicon";
+		static TArray<FName> ViconBones = {"Hips", "Spine", "Spine1", "Spine2", "Spine3", "Neck", "Neck1", "Head", "HeadEnd", "RightShoulder", "RightArm", "RightForeArm", "RightHand", "RightHandMiddle1", "RightHandMiddle2", "RightHandMiddle3", "RightHandMiddle4", "RightHandRing", "RightHandRing1", "RightHandRing2", "RightHandRing3", "RightHandRing4", "RightHandPinky", "RightHandPinky1", "RightHandPinky2", "RightHandPinky3", "RightHandPinky4", "RightHandIndex", "RightHandIndex1", "RightHandIndex2", "RightHandIndex3", "RightHandIndex4", "RightHandThumb1", "RightHandThumb2", "RightHandThumb3", "RightHandThumb4", "LeftShoulder", "LeftArm", "LeftForeArm", "LeftHand", "LeftHandMiddle1", "LeftHandMiddle2", "LeftHandMiddle3", "LeftHandMiddle4", "LeftHandRing", "LeftHandRing1", "LeftHandRing2", "LeftHandRing3", "LeftHandRing4", "LeftHandPinky", "LeftHandPinky1", "LeftHandPinky2", "LeftHandPinky3", "LeftHandPinky4", "LeftHandIndex", "LeftHandIndex1", "LeftHandIndex2", "LeftHandIndex3", "LeftHandIndex4", "LeftHandThumb1", "LeftHandThumb2", "LeftHandThumb3", "LeftHandThumb4", "RightUpLeg", "RightLeg", "RightFoot", "RightToeBase", "RightToeBaseEnd", "LeftUpLeg", "LeftLeg", "LeftFoot", "LeftToeBase", "LeftToeBaseEnd"};
+		static TArray<int32> ViconParentIndices = {-1, 0, 1, 2, 3, 4, 5, 6, 7, 4, 9, 10, 11, 12, 13, 14, 15, 12, 17, 18, 19, 20, 17, 22, 23, 24, 25, 12, 27, 28, 29, 30, 27, 32, 33, 34, 4, 36, 37, 38, 39, 40, 41, 42, 39, 44, 45, 46, 47, 44, 49, 50, 51, 52, 39, 54, 55, 56, 57, 54, 59, 60, 61, 0, 63, 64, 65, 66, 0, 68, 69, 70, 71};
+		FTemplateHierarchy& Vicon = AddTemplateHierarchy(ViconName, ViconBones, ViconParentIndices);
+		FRetargetDefinition& ViconRetarget = Vicon.RetargetDefinition;
+		// core
+		ViconRetarget.RootBone = FName("Hips");
+		ViconRetarget.AddBoneChain(FCharacterizationStandard::Spine, FName("Spine"), FName("Spine3"));
+		ViconRetarget.AddBoneChain(FCharacterizationStandard::Neck, FName("Neck"), FName("Neck1"));
+		ViconRetarget.AddBoneChain(FCharacterizationStandard::Head, FName("Head"), FName("Head"));
+		// left
+		ViconRetarget.AddBoneChain(FCharacterizationStandard::LeftLeg, FName("LeftUpLeg"), FName("LeftToeBase"),FCharacterizationStandard::LeftFootIK);
+		ViconRetarget.AddBoneChain(FCharacterizationStandard::LeftClavicle, FName("LeftShoulder"), FName("LeftShoulder"));
+		ViconRetarget.AddBoneChain(FCharacterizationStandard::LeftArm, FName("LeftArm"), FName("LeftHand"),FCharacterizationStandard::LeftHandIK);
+		ViconRetarget.AddBoneChain(FCharacterizationStandard::LeftThumb, FName("LeftHandThumb1"), FName("LeftHandThumb3"));
+		ViconRetarget.AddBoneChain(FCharacterizationStandard::LeftIndex, FName("LeftHandIndex1"), FName("LeftHandIndex3"));
+		ViconRetarget.AddBoneChain(FCharacterizationStandard::LeftMiddle, FName("LeftHandMiddle1"), FName("LeftHandMiddle3"));
+		ViconRetarget.AddBoneChain(FCharacterizationStandard::LeftRing, FName("LeftHandRing1"), FName("LeftHandRing3"));
+		ViconRetarget.AddBoneChain(FCharacterizationStandard::LeftPinky, FName("LeftHandPinky1"), FName("LeftHandPinky3"));
+		ViconRetarget.AddBoneChain(FCharacterizationStandard::LeftIndexMetacarpal, FName("LeftHandIndex"), FName("LeftHandIndex"));
+		ViconRetarget.AddBoneChain(FCharacterizationStandard::LeftPinkyMetacarpal, FName("LeftHandPinky"), FName("LeftHandPinky"));
+		// right
+		ViconRetarget.AddBoneChain(FCharacterizationStandard::RightLeg, FName("RightUpLeg"), FName("RightToeBase"),FCharacterizationStandard::RightFootIK);
+		ViconRetarget.AddBoneChain(FCharacterizationStandard::RightClavicle, FName("RightShoulder"), FName("RightShoulder"));
+		ViconRetarget.AddBoneChain(FCharacterizationStandard::RightArm, FName("RightArm"), FName("RightHand"),FCharacterizationStandard::RightHandIK);
+		ViconRetarget.AddBoneChain(FCharacterizationStandard::RightThumb, FName("RightHandThumb1"), FName("RightHandThumb3"));
+		ViconRetarget.AddBoneChain(FCharacterizationStandard::RightIndex, FName("RightHandIndex1"), FName("RightHandIndex3"));
+		ViconRetarget.AddBoneChain(FCharacterizationStandard::RightMiddle, FName("RightHandMiddle1"), FName("RightHandMiddle3"));
+		ViconRetarget.AddBoneChain(FCharacterizationStandard::RightRing, FName("RightHandRing1"), FName("RightHandRing3"));
+		ViconRetarget.AddBoneChain(FCharacterizationStandard::RightPinky, FName("RightHandPinky1"), FName("RightHandPinky3"));
+		ViconRetarget.AddBoneChain(FCharacterizationStandard::RightIndexMetacarpal, FName("RightHandIndex"), FName("RightHandIndex"));
+		ViconRetarget.AddBoneChain(FCharacterizationStandard::RightPinkyMetacarpal, FName("RightHandPinky"), FName("RightHandPinky"));
+		// bone settings for IK
+		Vicon.BoneSettingsForIK.SetRotationStiffness(FName("Hips"), FCharacterizationStandard::PelvisRotationStiffness);
+		Vicon.BoneSettingsForIK.SetRotationStiffness(FName("LeftShoulder"), FCharacterizationStandard::ClavicleRotationStiffness);
+		Vicon.BoneSettingsForIK.SetRotationStiffness(FName("RightShoulder"), FCharacterizationStandard::ClavicleRotationStiffness);
+		Vicon.BoneSettingsForIK.SetRotationStiffness(FName("LeftHand"), FCharacterizationStandard::FootRotationStiffness);
+		Vicon.BoneSettingsForIK.SetRotationStiffness(FName("RightHand"), FCharacterizationStandard::FootRotationStiffness);
+		Vicon.BoneSettingsForIK.SetPreferredAxis(FName("LeftLeg"), EPreferredAxis::NegativeX);
+		Vicon.BoneSettingsForIK.SetPreferredAxis(FName("RightLeg"), EPreferredAxis::NegativeX);
+		Vicon.BoneSettingsForIK.SetPreferredAxis(FName("LeftForeArm"), EPreferredAxis::NegativeX);
+		Vicon.BoneSettingsForIK.SetPreferredAxis(FName("RightForeArm"), EPreferredAxis::NegativeX);
+		Vicon.BoneSettingsForIK.SetExcluded(FName("Spine3"), true);
+	}
 
 	// Optitrack / Motive
-	static FName Optitrak = "OptiTrack / Motive";
-	static TArray<FName> Optitrak_Bones = {"root", "pelvis", "spine_01", "spine_02", "neck_01", "head", "clavicle_l", "upperarm_l", "lowerarm_l", "hand_l", "clavicle_r", "upperarm_r", "lowerarm_r", "hand_r", "thigh_l", "calf_l", "foot_l", "ball_l", "thigh_r", "calf_r", "foot_r", "ball_r"};
-	static TArray<int32> Optitrak_ParentIndices = {-1, 0, 1, 2, 3, 4, 3, 6, 7, 8, 3, 10, 11, 12, 1, 14, 15, 16, 1, 18, 19, 20};
-	FRetargetDefinition Optitrak_Retarget;
-	// core
-	Optitrak_Retarget.RootBone = FName("pelvis");
-	Xsens_Retarget.AddBoneChain(FCharacterizationStandard::Root, FName("root"), FName("root"));
-	Optitrak_Retarget.AddBoneChain(FCharacterizationStandard::Spine, FName("spine_01"), FName("spine_02"));
-	Optitrak_Retarget.AddBoneChain(FCharacterizationStandard::Neck, FName("neck_01"), FName("neck_01"));
-	Optitrak_Retarget.AddBoneChain(FCharacterizationStandard::Head, FName("head"), FName("head"));
-	// left
-	Optitrak_Retarget.AddBoneChain(FCharacterizationStandard::LeftLeg, FName("thigh_l"), FName("ball_l"));
-	Optitrak_Retarget.AddBoneChain(FCharacterizationStandard::LeftClavicle, FName("clavicle_l"), FName("clavicle_l"));
-	Optitrak_Retarget.AddBoneChain(FCharacterizationStandard::LeftArm, FName("upperarm_l"), FName("hand_l"));
-	// right
-	Optitrak_Retarget.AddBoneChain(FCharacterizationStandard::RightLeg, FName("thigh_r"), FName("ball_r"));
-	Optitrak_Retarget.AddBoneChain(FCharacterizationStandard::RightClavicle, FName("clavicle_r"), FName("clavicle_r"));
-	Optitrak_Retarget.AddBoneChain(FCharacterizationStandard::RightArm, FName("upperarm_r"), FName("hand_r"));
-	AddTemplateHierarchy(Optitrak, Optitrak_Bones, Optitrak_ParentIndices, Optitrak_Retarget);
+	{
+		static FName OptitrakName = "OptiTrack / Motive";
+		static TArray<FName> OptitrakBones = {"root", "pelvis", "spine_01", "spine_02", "neck_01", "head", "clavicle_l", "upperarm_l", "lowerarm_l", "hand_l", "clavicle_r", "upperarm_r", "lowerarm_r", "hand_r", "thigh_l", "calf_l", "foot_l", "ball_l", "thigh_r", "calf_r", "foot_r", "ball_r"};
+		static TArray<int32> OptitrakParentIndices = {-1, 0, 1, 2, 3, 4, 3, 6, 7, 8, 3, 10, 11, 12, 1, 14, 15, 16, 1, 18, 19, 20};
+		FTemplateHierarchy& Optitrak = AddTemplateHierarchy(OptitrakName, OptitrakBones, OptitrakParentIndices);
+		FRetargetDefinition& OptitrakRetarget = Optitrak.RetargetDefinition;
+		// core
+		OptitrakRetarget.RootBone = FName("pelvis");
+		OptitrakRetarget.AddBoneChain(FCharacterizationStandard::Root, FName("root"), FName("root"));
+		OptitrakRetarget.AddBoneChain(FCharacterizationStandard::Spine, FName("spine_01"), FName("spine_02"));
+		OptitrakRetarget.AddBoneChain(FCharacterizationStandard::Neck, FName("neck_01"), FName("neck_01"));
+		OptitrakRetarget.AddBoneChain(FCharacterizationStandard::Head, FName("head"), FName("head"));
+		// left
+		OptitrakRetarget.AddBoneChain(FCharacterizationStandard::LeftLeg, FName("thigh_l"), FName("ball_l"),FCharacterizationStandard::LeftFootIK);
+		OptitrakRetarget.AddBoneChain(FCharacterizationStandard::LeftClavicle, FName("clavicle_l"), FName("clavicle_l"));
+		OptitrakRetarget.AddBoneChain(FCharacterizationStandard::LeftArm, FName("upperarm_l"), FName("hand_l"),FCharacterizationStandard::LeftHandIK);
+		// right
+		OptitrakRetarget.AddBoneChain(FCharacterizationStandard::RightLeg, FName("thigh_r"), FName("ball_r"),FCharacterizationStandard::RightFootIK);
+		OptitrakRetarget.AddBoneChain(FCharacterizationStandard::RightClavicle, FName("clavicle_r"), FName("clavicle_r"));
+		OptitrakRetarget.AddBoneChain(FCharacterizationStandard::RightArm, FName("upperarm_r"), FName("hand_r"),FCharacterizationStandard::RightHandIK);
+		// bone settings for IK
+		Optitrak.BoneSettingsForIK.SetRotationStiffness(FName("pelvis"), FCharacterizationStandard::PelvisRotationStiffness);
+		Optitrak.BoneSettingsForIK.SetRotationStiffness(FName("clavicle_l"), FCharacterizationStandard::ClavicleRotationStiffness);
+		Optitrak.BoneSettingsForIK.SetRotationStiffness(FName("clavicle_r"), FCharacterizationStandard::ClavicleRotationStiffness);
+		Optitrak.BoneSettingsForIK.SetRotationStiffness(FName("foot_l"), FCharacterizationStandard::FootRotationStiffness);
+		Optitrak.BoneSettingsForIK.SetRotationStiffness(FName("foot_r"), FCharacterizationStandard::FootRotationStiffness);
+		Optitrak.BoneSettingsForIK.SetPreferredAxis(FName("calf_l"), EPreferredAxis::NegativeY);
+		Optitrak.BoneSettingsForIK.SetPreferredAxis(FName("calf_r"), EPreferredAxis::NegativeY);
+		Optitrak.BoneSettingsForIK.SetPreferredAxis(FName("lowerarm_l"), EPreferredAxis::PositiveZ);
+		Optitrak.BoneSettingsForIK.SetPreferredAxis(FName("lowerarm_r"), EPreferredAxis::NegativeZ);
+	}
 
 	// Sony Mocopi
-	static FName Mocopi = "Sony Mocopi";
-	static TArray<FName> Mocopi_Bones = {"root", "torso_1", "torso_2", "torso_3", "torso_4", "torso_5", "torso_6", "torso_7", "neck_1", "neck_2", "head", "head_End", "l_shoulder", "l_up_arm", "l_low_arm", "l_hand", "l_hand_End", "r_shoulder", "r_up_arm", "r_low_arm", "r_hand", "r_hand_End", "l_up_leg", "l_low_leg", "l_foot", "l_toes", "l_toes_End", "r_up_leg", "r_low_leg", "r_foot", "r_toes", "r_toes_End"};
-	static TArray<int32> Mocopi_ParentIndices = {-1, 0, 1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 7, 12, 13, 14, 15, 7, 17, 18, 19, 20, 0, 22, 23, 24, 25, 0, 27, 28, 29, 30};
-	FRetargetDefinition Mocopo_Retarget;
-	Mocopo_Retarget.RootBone = FName("root");
-	Mocopo_Retarget.AddBoneChain(FCharacterizationStandard::Spine, FName("torso_1"), FName("torso_7"));
-	Mocopo_Retarget.AddBoneChain(FCharacterizationStandard::Neck, FName("neck_1"), FName("neck_2"));
-	Mocopo_Retarget.AddBoneChain(FCharacterizationStandard::Head, FName("head"), FName("head"));
-	// left
-	Mocopo_Retarget.AddBoneChain(FCharacterizationStandard::LeftLeg, FName("l_up_leg"), FName("l_toes"));
-	Mocopo_Retarget.AddBoneChain(FCharacterizationStandard::LeftClavicle, FName("l_shoulder"), FName("l_shoulder"));
-	Mocopo_Retarget.AddBoneChain(FCharacterizationStandard::LeftArm, FName("l_up_arm"), FName("l_hand"));
-	// right
-	Mocopo_Retarget.AddBoneChain(FCharacterizationStandard::RightLeg, FName("r_up_leg"), FName("r_toes"));
-	Mocopo_Retarget.AddBoneChain(FCharacterizationStandard::RightClavicle, FName("r_shoulder"), FName("r_shoulder"));
-	Mocopo_Retarget.AddBoneChain(FCharacterizationStandard::RightArm, FName("r_up_arm"), FName("r_hand"));
-	AddTemplateHierarchy(Mocopi, Mocopi_Bones, Mocopi_ParentIndices, Mocopo_Retarget);
+	{
+		static FName MocopiName = "Sony Mocopi";
+		static TArray<FName> MocopiBones = {"root", "torso_1", "torso_2", "torso_3", "torso_4", "torso_5", "torso_6", "torso_7", "neck_1", "neck_2", "head", "head_End", "l_shoulder", "l_up_arm", "l_low_arm", "l_hand", "l_hand_End", "r_shoulder", "r_up_arm", "r_low_arm", "r_hand", "r_hand_End", "l_up_leg", "l_low_leg", "l_foot", "l_toes", "l_toes_End", "r_up_leg", "r_low_leg", "r_foot", "r_toes", "r_toes_End"};
+		static TArray<int32> MocopiParentIndices = {-1, 0, 1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 7, 12, 13, 14, 15, 7, 17, 18, 19, 20, 0, 22, 23, 24, 25, 0, 27, 28, 29, 30};
+		FTemplateHierarchy& Mocopi = AddTemplateHierarchy(MocopiName, MocopiBones, MocopiParentIndices);
+		FRetargetDefinition& MocopiRetarget = Mocopi.RetargetDefinition;
+		MocopiRetarget.RootBone = FName("root");
+		MocopiRetarget.AddBoneChain(FCharacterizationStandard::Spine, FName("torso_1"), FName("torso_7"));
+		MocopiRetarget.AddBoneChain(FCharacterizationStandard::Neck, FName("neck_1"), FName("neck_2"));
+		MocopiRetarget.AddBoneChain(FCharacterizationStandard::Head, FName("head"), FName("head"));
+		// left
+		MocopiRetarget.AddBoneChain(FCharacterizationStandard::LeftLeg, FName("l_up_leg"), FName("l_toes"),FCharacterizationStandard::LeftFootIK);
+		MocopiRetarget.AddBoneChain(FCharacterizationStandard::LeftClavicle, FName("l_shoulder"), FName("l_shoulder"));
+		MocopiRetarget.AddBoneChain(FCharacterizationStandard::LeftArm, FName("l_up_arm"), FName("l_hand"),FCharacterizationStandard::LeftHandIK);
+		// right
+		MocopiRetarget.AddBoneChain(FCharacterizationStandard::RightLeg, FName("r_up_leg"), FName("r_toes"),FCharacterizationStandard::RightFootIK);
+		MocopiRetarget.AddBoneChain(FCharacterizationStandard::RightClavicle, FName("r_shoulder"), FName("r_shoulder"));
+		MocopiRetarget.AddBoneChain(FCharacterizationStandard::RightArm, FName("r_up_arm"), FName("r_hand"),FCharacterizationStandard::RightHandIK);
+		// bone settings for IK
+		Mocopi.BoneSettingsForIK.SetRotationStiffness(FName("root"), FCharacterizationStandard::PelvisRotationStiffness);
+		Mocopi.BoneSettingsForIK.SetRotationStiffness(FName("l_shoulder"), FCharacterizationStandard::ClavicleRotationStiffness);
+		Mocopi.BoneSettingsForIK.SetRotationStiffness(FName("r_shoulder"), FCharacterizationStandard::ClavicleRotationStiffness);
+		Mocopi.BoneSettingsForIK.SetRotationStiffness(FName("l_foot"), FCharacterizationStandard::FootRotationStiffness);
+		Mocopi.BoneSettingsForIK.SetRotationStiffness(FName("r_foot"), FCharacterizationStandard::FootRotationStiffness);
+		Mocopi.BoneSettingsForIK.SetPreferredAxis(FName("l_low_leg"), EPreferredAxis::PositiveZ);
+		Mocopi.BoneSettingsForIK.SetPreferredAxis(FName("r_low_leg"), EPreferredAxis::NegativeZ);
+		Mocopi.BoneSettingsForIK.SetPreferredAxis(FName("l_low_arm"), EPreferredAxis::NegativeZ);
+		Mocopi.BoneSettingsForIK.SetPreferredAxis(FName("r_low_arm"), EPreferredAxis::PositiveZ);
+		Mocopi.BoneSettingsForIK.SetExcluded(FName("torso_6"), true);
+		Mocopi.BoneSettingsForIK.SetExcluded(FName("torso_7"), true);
+	}
 	
 	// Advanced skeleton
-	static FName AdvancedSkeleton = "Advanced Skeleton";
-	static TArray<FName> AdvancedSkeleton_Bones = {"Root_M", "Hip_R", "HipPart1_R", "HipPart2_R", "Knee_R", "Ankle_R", "Toes_R", "RootPart1_M", "RootPart2_M", "Spine1_M", "Spine1Part1_M", "Spine1Part2_M", "Chest_M", "Neck_M", "NeckPart1_M", "NeckPart2_M", "Head_M", "Scapula_R", "Shoulder_R", "ShoulderPart1_R", "ShoulderPart2_R", "Elbow_R", "ElbowPart1_R", "ElbowPart2_R", "Wrist_R", "MiddleFinger1_R", "MiddleFinger2_R", "MiddleFinger3_R", "MiddleFinger4_R", "ThumbFinger1_R", "ThumbFinger2_R", "ThumbFinger3_R", "ThumbFinger4_R", "IndexFinger1_R", "IndexFinger2_R", "IndexFinger3_R", "IndexFinger4_R", "Cup_R", "PinkyFinger1_R", "PinkyFinger2_R", "PinkyFinger3_R", "PinkyFinger4_R", "RingFinger1_R", "RingFinger2_R", "RingFinger3_R", "RingFinger4_R", "Scapula_L", "Shoulder_L", "ShoulderPart1_L", "ShoulderPart2_L", "Elbow_L", "ElbowPart1_L", "ElbowPart2_L", "Wrist_L", "MiddleFinger1_L", "MiddleFinger2_L", "MiddleFinger3_L", "MiddleFinger4_L", "ThumbFinger1_L", "ThumbFinger2_L", "ThumbFinger3_L", "ThumbFinger4_L", "IndexFinger1_L", "IndexFinger2_L", "IndexFinger3_L", "IndexFinger4_L", "Cup_L", "PinkyFinger1_L", "PinkyFinger2_L", "PinkyFinger3_L", "PinkyFinger4_L", "RingFinger1_L", "RingFinger2_L", "RingFinger3_L", "RingFinger4_L", "Hip_L", "HipPart1_L", "HipPart2_L", "Knee_L", "Ankle_L", "Toes_L"};
-	static TArray<int32> AdvancedSkeleton_ParentIndices = {-1, 0, 1, 2, 3, 4, 5, 0, 7, 8, 9, 10, 11, 12, 13, 14, 15, 12, 17, 18, 19, 20, 21, 22, 23, 24, 25, 26, 27, 24, 29, 30, 31, 24, 33, 34, 35, 24, 37, 38, 39, 40, 37, 42, 43, 44, 12, 46, 47, 48, 49, 50, 51, 52, 53, 54, 55, 56, 53, 58, 59, 60, 53, 62, 63, 64, 53, 66, 67, 68, 69, 66, 71, 72, 73, 0, 75, 76, 77, 78, 79};
-	FRetargetDefinition AdvSkel_Retarget;
-	// core
-	AdvSkel_Retarget.RootBone = FName("Root_M");
-	AdvSkel_Retarget.AddBoneChain(FCharacterizationStandard::Spine, FName("RootPart1_M"), FName("Chest_M"));
-	AdvSkel_Retarget.AddBoneChain(FCharacterizationStandard::Neck, FName("Neck_M"), FName("NeckPart2_M"));
-	AdvSkel_Retarget.AddBoneChain(FCharacterizationStandard::Head, FName("Head_M"), FName("Head_M"));
-	// left
-	AdvSkel_Retarget.AddBoneChain(FCharacterizationStandard::LeftLeg, FName("Hip_L"), FName("Toes_L"));
-	AdvSkel_Retarget.AddBoneChain(FCharacterizationStandard::LeftClavicle, FName("Scapula_L"), FName("Scapula_L"));
-	AdvSkel_Retarget.AddBoneChain(FCharacterizationStandard::LeftArm, FName("Shoulder_L"), FName("Wrist_L"));
-	AdvSkel_Retarget.AddBoneChain(FCharacterizationStandard::LeftThumb, FName("ThumbFinger2_L"), FName("ThumbFinger4_L"));
-	AdvSkel_Retarget.AddBoneChain(FCharacterizationStandard::LeftIndex, FName("IndexFinger1_L"), FName("IndexFinger3_L"));
-	AdvSkel_Retarget.AddBoneChain(FCharacterizationStandard::LeftMiddle, FName("MiddleFinger1_L"), FName("MiddleFinger3_L"));
-	AdvSkel_Retarget.AddBoneChain(FCharacterizationStandard::LeftRing, FName("RingFinger1_L"), FName("RingFinger3_L"));
-	AdvSkel_Retarget.AddBoneChain(FCharacterizationStandard::LeftPinky, FName("PinkyFinger1_L"), FName("PinkyFinger3_L"));
-	AdvSkel_Retarget.AddBoneChain(FCharacterizationStandard::LeftPinkyMetacarpal, FName("Cup_L"), FName("Cup_L"));
-	// right
-	AdvSkel_Retarget.AddBoneChain(FCharacterizationStandard::RightLeg, FName("Hip_R"), FName("Toes_R"));
-	AdvSkel_Retarget.AddBoneChain(FCharacterizationStandard::RightClavicle, FName("Scapula_R"), FName("Scapula_R"));
-	AdvSkel_Retarget.AddBoneChain(FCharacterizationStandard::RightArm, FName("Shoulder_R"), FName("Wrist_R"));
-	AdvSkel_Retarget.AddBoneChain(FCharacterizationStandard::RightThumb, FName("ThumbFinger2_R"), FName("ThumbFinger4_R"));
-	AdvSkel_Retarget.AddBoneChain(FCharacterizationStandard::RightIndex, FName("IndexFinger1_R"), FName("IndexFinger3_R"));
-	AdvSkel_Retarget.AddBoneChain(FCharacterizationStandard::RightMiddle, FName("MiddleFinger1_R"), FName("MiddleFinger3_R"));
-	AdvSkel_Retarget.AddBoneChain(FCharacterizationStandard::RightRing, FName("RingFinger1_R"), FName("RingFinger3_R"));
-	AdvSkel_Retarget.AddBoneChain(FCharacterizationStandard::RightPinky, FName("PinkyFinger1_R"), FName("PinkyFinger3_R"));
-	AdvSkel_Retarget.AddBoneChain(FCharacterizationStandard::RightPinkyMetacarpal, FName("Cup_R"), FName("Cup_R"));
-	AddTemplateHierarchy(AdvancedSkeleton, AdvancedSkeleton_Bones, AdvancedSkeleton_ParentIndices, AdvSkel_Retarget);
+	{
+		static FName AdvancedSkeletonName = "Advanced Skeleton";
+		static TArray<FName> AdvancedSkeletonBones = {"Root_M", "Hip_R", "HipPart1_R", "HipPart2_R", "Knee_R", "Ankle_R", "Toes_R", "RootPart1_M", "RootPart2_M", "Spine1_M", "Spine1Part1_M", "Spine1Part2_M", "Chest_M", "Neck_M", "NeckPart1_M", "NeckPart2_M", "Head_M", "Scapula_R", "Shoulder_R", "ShoulderPart1_R", "ShoulderPart2_R", "Elbow_R", "ElbowPart1_R", "ElbowPart2_R", "Wrist_R", "MiddleFinger1_R", "MiddleFinger2_R", "MiddleFinger3_R", "MiddleFinger4_R", "ThumbFinger1_R", "ThumbFinger2_R", "ThumbFinger3_R", "ThumbFinger4_R", "IndexFinger1_R", "IndexFinger2_R", "IndexFinger3_R", "IndexFinger4_R", "Cup_R", "PinkyFinger1_R", "PinkyFinger2_R", "PinkyFinger3_R", "PinkyFinger4_R", "RingFinger1_R", "RingFinger2_R", "RingFinger3_R", "RingFinger4_R", "Scapula_L", "Shoulder_L", "ShoulderPart1_L", "ShoulderPart2_L", "Elbow_L", "ElbowPart1_L", "ElbowPart2_L", "Wrist_L", "MiddleFinger1_L", "MiddleFinger2_L", "MiddleFinger3_L", "MiddleFinger4_L", "ThumbFinger1_L", "ThumbFinger2_L", "ThumbFinger3_L", "ThumbFinger4_L", "IndexFinger1_L", "IndexFinger2_L", "IndexFinger3_L", "IndexFinger4_L", "Cup_L", "PinkyFinger1_L", "PinkyFinger2_L", "PinkyFinger3_L", "PinkyFinger4_L", "RingFinger1_L", "RingFinger2_L", "RingFinger3_L", "RingFinger4_L", "Hip_L", "HipPart1_L", "HipPart2_L", "Knee_L", "Ankle_L", "Toes_L"};
+		static TArray<int32> AdvancedSkeletonParentIndices = {-1, 0, 1, 2, 3, 4, 5, 0, 7, 8, 9, 10, 11, 12, 13, 14, 15, 12, 17, 18, 19, 20, 21, 22, 23, 24, 25, 26, 27, 24, 29, 30, 31, 24, 33, 34, 35, 24, 37, 38, 39, 40, 37, 42, 43, 44, 12, 46, 47, 48, 49, 50, 51, 52, 53, 54, 55, 56, 53, 58, 59, 60, 53, 62, 63, 64, 53, 66, 67, 68, 69, 66, 71, 72, 73, 0, 75, 76, 77, 78, 79};
+		FTemplateHierarchy& AdvancedSkeleton = AddTemplateHierarchy(AdvancedSkeletonName, AdvancedSkeletonBones, AdvancedSkeletonParentIndices);
+		FRetargetDefinition& AdvSkelRetarget = AdvancedSkeleton.RetargetDefinition;
+		// core
+		AdvSkelRetarget.RootBone = FName("Root_M");
+		AdvSkelRetarget.AddBoneChain(FCharacterizationStandard::Spine, FName("RootPart1_M"), FName("Chest_M"));
+		AdvSkelRetarget.AddBoneChain(FCharacterizationStandard::Neck, FName("Neck_M"), FName("NeckPart2_M"));
+		AdvSkelRetarget.AddBoneChain(FCharacterizationStandard::Head, FName("Head_M"), FName("Head_M"));
+		// left
+		AdvSkelRetarget.AddBoneChain(FCharacterizationStandard::LeftLeg, FName("Hip_L"), FName("Toes_L"),FCharacterizationStandard::LeftFootIK);
+		AdvSkelRetarget.AddBoneChain(FCharacterizationStandard::LeftClavicle, FName("Scapula_L"), FName("Scapula_L"));
+		AdvSkelRetarget.AddBoneChain(FCharacterizationStandard::LeftArm, FName("Shoulder_L"), FName("Wrist_L"),FCharacterizationStandard::LeftHandIK);
+		AdvSkelRetarget.AddBoneChain(FCharacterizationStandard::LeftThumb, FName("ThumbFinger2_L"), FName("ThumbFinger4_L"));
+		AdvSkelRetarget.AddBoneChain(FCharacterizationStandard::LeftIndex, FName("IndexFinger1_L"), FName("IndexFinger3_L"));
+		AdvSkelRetarget.AddBoneChain(FCharacterizationStandard::LeftMiddle, FName("MiddleFinger1_L"), FName("MiddleFinger3_L"));
+		AdvSkelRetarget.AddBoneChain(FCharacterizationStandard::LeftRing, FName("RingFinger1_L"), FName("RingFinger3_L"));
+		AdvSkelRetarget.AddBoneChain(FCharacterizationStandard::LeftPinky, FName("PinkyFinger1_L"), FName("PinkyFinger3_L"));
+		AdvSkelRetarget.AddBoneChain(FCharacterizationStandard::LeftPinkyMetacarpal, FName("Cup_L"), FName("Cup_L"));
+		// right
+		AdvSkelRetarget.AddBoneChain(FCharacterizationStandard::RightLeg, FName("Hip_R"), FName("Toes_R"),FCharacterizationStandard::RightFootIK);
+		AdvSkelRetarget.AddBoneChain(FCharacterizationStandard::RightClavicle, FName("Scapula_R"), FName("Scapula_R"));
+		AdvSkelRetarget.AddBoneChain(FCharacterizationStandard::RightArm, FName("Shoulder_R"), FName("Wrist_R"),FCharacterizationStandard::RightHandIK);
+		AdvSkelRetarget.AddBoneChain(FCharacterizationStandard::RightThumb, FName("ThumbFinger2_R"), FName("ThumbFinger4_R"));
+		AdvSkelRetarget.AddBoneChain(FCharacterizationStandard::RightIndex, FName("IndexFinger1_R"), FName("IndexFinger3_R"));
+		AdvSkelRetarget.AddBoneChain(FCharacterizationStandard::RightMiddle, FName("MiddleFinger1_R"), FName("MiddleFinger3_R"));
+		AdvSkelRetarget.AddBoneChain(FCharacterizationStandard::RightRing, FName("RingFinger1_R"), FName("RingFinger3_R"));
+		AdvSkelRetarget.AddBoneChain(FCharacterizationStandard::RightPinky, FName("PinkyFinger1_R"), FName("PinkyFinger3_R"));
+		AdvSkelRetarget.AddBoneChain(FCharacterizationStandard::RightPinkyMetacarpal, FName("Cup_R"), FName("Cup_R"));
+		// bone settings for IK
+		AdvancedSkeleton.BoneSettingsForIK.SetRotationStiffness(FName("Root_M"), FCharacterizationStandard::PelvisRotationStiffness);
+		AdvancedSkeleton.BoneSettingsForIK.SetRotationStiffness(FName("Scapula_L"), FCharacterizationStandard::ClavicleRotationStiffness);
+		AdvancedSkeleton.BoneSettingsForIK.SetRotationStiffness(FName("Scapula_R"), FCharacterizationStandard::ClavicleRotationStiffness);
+		AdvancedSkeleton.BoneSettingsForIK.SetRotationStiffness(FName("Ankle_L"), FCharacterizationStandard::FootRotationStiffness);
+		AdvancedSkeleton.BoneSettingsForIK.SetRotationStiffness(FName("Ankle_R"), FCharacterizationStandard::FootRotationStiffness);
+		AdvancedSkeleton.BoneSettingsForIK.SetPreferredAxis(FName("Knee_L"), EPreferredAxis::PositiveZ);
+		AdvancedSkeleton.BoneSettingsForIK.SetPreferredAxis(FName("Knee_R"), EPreferredAxis::PositiveZ);
+		AdvancedSkeleton.BoneSettingsForIK.SetPreferredAxis(FName("Elbow_L"), EPreferredAxis::NegativeZ);
+		AdvancedSkeleton.BoneSettingsForIK.SetPreferredAxis(FName("Elbow_R"), EPreferredAxis::NegativeZ);
+		AdvancedSkeleton.BoneSettingsForIK.SetExcluded(FName("ShoulderPart1_L"), true);
+		AdvancedSkeleton.BoneSettingsForIK.SetExcluded(FName("ShoulderPart2_L"), true);
+		AdvancedSkeleton.BoneSettingsForIK.SetExcluded(FName("ElbowPart1_L"), true);
+		AdvancedSkeleton.BoneSettingsForIK.SetExcluded(FName("ElbowPart2_L"), true);
+		AdvancedSkeleton.BoneSettingsForIK.SetExcluded(FName("HipPart1_L"), true);
+		AdvancedSkeleton.BoneSettingsForIK.SetExcluded(FName("HipPart2_L"), true);
+		AdvancedSkeleton.BoneSettingsForIK.SetExcluded(FName("ShoulderPart1_R"), true);
+		AdvancedSkeleton.BoneSettingsForIK.SetExcluded(FName("ShoulderPart2_R"), true);
+		AdvancedSkeleton.BoneSettingsForIK.SetExcluded(FName("ElbowPart1_R"), true);
+		AdvancedSkeleton.BoneSettingsForIK.SetExcluded(FName("ElbowPart2_R"), true);
+		AdvancedSkeleton.BoneSettingsForIK.SetExcluded(FName("HipPart1_R"), true);
+		AdvancedSkeleton.BoneSettingsForIK.SetExcluded(FName("HipPart2_R"), true);
+	}
 
-	// ToDo skeletons to add:
+	// TODO skeletons to add:
 	// MoveAI 
 	// Fortnite skeleton
 }
@@ -794,13 +1058,10 @@ const FTemplateHierarchy* FKnownTemplateHierarchies::GetKnownHierarchyByName(con
 	return nullptr;
 }
 
-void FKnownTemplateHierarchies::AddTemplateHierarchy(
-	const FName& Label,
-	const TArray<FName>& BoneNames,
-	const TArray<int32>& ParentIndices,
-	const FRetargetDefinition& RetargetDefinition)
+FTemplateHierarchy& FKnownTemplateHierarchies::AddTemplateHierarchy(const FName& Label, const TArray<FName>& BoneNames, const TArray<int32>& ParentIndices)
 {
-	KnownHierarchies.Emplace(Label, FAbstractHierarchy(BoneNames, ParentIndices), RetargetDefinition);
+	const int32 NewTemplateIndex = KnownHierarchies.Emplace(Label, FAbstractHierarchy(BoneNames, ParentIndices));
+	return KnownHierarchies[NewTemplateIndex];
 }
 
 void FAutoCharacterizer::GenerateRetargetDefinitionFromMesh(USkeletalMesh* Mesh, FAutoCharacterizeResults& Results) const
@@ -834,6 +1095,11 @@ void FAutoCharacterizer::GenerateRetargetDefinitionFromMesh(USkeletalMesh* Mesh,
 	// skeleton does not match closely enough to any known skeleton,
 	// so we fall back on analyzing the skeleton and procedurally generating a retarget definition
 	Results.bUsedTemplate = false;
+}
+
+const FTemplateHierarchy* FAutoCharacterizer::GetKnownTemplateHierarchy(const FName& TemplateName) const
+{
+	return KnownHierarchies.GetKnownHierarchyByName(TemplateName);
 }
 
 void FAutoCharacterizer::AdaptTemplateToHierarchy(
@@ -901,11 +1167,10 @@ void FAutoCharacterizer::AdaptTemplateToHierarchy(
 		if (StartBoneIndexInTarget == EndBoneIndexInTarget || bIsEndChildOfStart)
 		{
 			// convert to the full, non-clean name to use for the actual bone chain
-			Results.RetargetDefinition.AddBoneChain(BoneChain.ChainName, StartBoneFullName, EndBoneFullName);
+			Results.RetargetDefinition.AddBoneChain(BoneChain.ChainName, StartBoneFullName, EndBoneFullName, BoneChain.IKGoalName);
 			continue;
 		}
 	}
-
 	
 	// since the templates usually only account for 1-3 neck/spine bones, but some target skeletons have more,
 	// we need to grow these chains or risk leaving some of the bones out of the retarget chain
@@ -926,40 +1191,40 @@ int32 FAutoCharacterizer::ExpandChain(
 		return 0;
 	}
 	
-	// get all bones in spine
-	TArray<FName> FullNamesOfBonesInSpine;
-	Hierarchy.GetBonesInChain(ChainToExpand->StartBone.BoneName, ChainToExpand->EndBone.BoneName, ECleanOrFullName::Full, FullNamesOfBonesInSpine);
+	// get all bones in chain
+	TArray<FName> FullNamesOfAllBonesInChain;
+	Hierarchy.GetBonesInChain(ChainToExpand->StartBone.BoneName, ChainToExpand->EndBone.BoneName, ECleanOrFullName::Full, FullNamesOfAllBonesInChain);
 
 	// convert to clean strings for searching
-	TArray<FName> BonesInSpine;
-	for (const FName& FullName : FullNamesOfBonesInSpine)
+	TArray<FName> BonesInChain;
+	for (const FName& FullName : FullNamesOfAllBonesInChain)
 	{
 		const int32 BoneIndex = Hierarchy.GetBoneIndex(FullName, ECleanOrFullName::Full);
-		BonesInSpine.Add(Hierarchy.GetBoneName(BoneIndex, ECleanOrFullName::Clean));
+		BonesInChain.Add(Hierarchy.GetBoneName(BoneIndex, ECleanOrFullName::Clean));
 	}
 
 	// keep searching down the hierarchy for more joint that belong to this chain
-	FName NewSpineEnd = BonesInSpine.Last();
+	FName NewEndBone = BonesInChain.Last();
 	int32 NumBonesExpanded = 0;
-	while(NewSpineEnd != NAME_None)
+	while(NewEndBone != NAME_None)
 	{
 		TArray<FName> Children;
-		Hierarchy.GetImmediateChildren(NewSpineEnd, ECleanOrFullName::Clean, Children);
+		Hierarchy.GetImmediateChildren(NewEndBone, ECleanOrFullName::Clean, Children);
 		FName BestMatchingName;
 		float Score;
-		FindClosestNameInArray(NewSpineEnd, Children, BestMatchingName, Score);
+		FindClosestNameInArray(NewEndBone, Children, BestMatchingName, Score);
 		constexpr float MinScoreThreshold = 0.9f;
 		if (Score < MinScoreThreshold)
 		{
 			break;
 		}
-		NewSpineEnd = BestMatchingName;
+		NewEndBone = BestMatchingName;
 		++NumBonesExpanded;
 	}
 
 	// assign the new end bone
-	const int32 NewSpineEndIndex = Hierarchy.GetBoneIndex(NewSpineEnd, ECleanOrFullName::Clean);
-	ChainToExpand->EndBone = Hierarchy.GetBoneName(NewSpineEndIndex, ECleanOrFullName::Full);
+	const int32 NewEndIndex = Hierarchy.GetBoneIndex(NewEndBone, ECleanOrFullName::Clean);
+	ChainToExpand->EndBone = Hierarchy.GetBoneName(NewEndIndex, ECleanOrFullName::Full);
 
 	return NumBonesExpanded;
 }

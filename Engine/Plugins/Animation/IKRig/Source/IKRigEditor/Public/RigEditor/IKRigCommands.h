@@ -22,7 +22,10 @@ public:
 	TSharedPtr< FUICommandInfo > Reset;
 
 	// automatically generate retarget chains
-	TSharedPtr< FUICommandInfo > GenerateRetargetChains;
+	TSharedPtr< FUICommandInfo > AutoRetargetChains;
+
+	// automatically setup full body ik
+	TSharedPtr< FUICommandInfo > AutoSetupFBIK;
 
 	// show settings of the asset in the details panel
 	TSharedPtr< FUICommandInfo > ShowAssetSettings;

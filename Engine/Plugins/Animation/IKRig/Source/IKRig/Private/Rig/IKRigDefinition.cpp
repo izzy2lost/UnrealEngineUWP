@@ -255,16 +255,21 @@ void UIKRigEffectorGoal::ResetTransformToDefault(
 
 #endif
 
-void FRetargetDefinition::AddBoneChain(const FName ChainName, const FName StartBone, const FName EndBone)
+void FRetargetDefinition::AddBoneChain(
+	const FName ChainName,
+	const FName StartBone,
+	const FName EndBone,
+	const FName GoalName)
 {
 	if (FBoneChain* Chain = GetEditableBoneChainByName(ChainName))
 	{
 		Chain->StartBone = StartBone;
 		Chain->EndBone = EndBone;
+		Chain->IKGoalName = GoalName;
 	}
 	else
 	{
-		BoneChains.Emplace(ChainName, StartBone, EndBone);
+		BoneChains.Emplace(ChainName, StartBone, EndBone, GoalName);
 	}
 }
 
