@@ -130,6 +130,12 @@ protected:
 
 	virtual void PrintWorkerMemoryUsage() {}
 
+	// Returns a name for this thread instance. Defaults to "ShaderCompilingThread".
+	virtual const TCHAR* GetThreadName() const
+	{
+		return TEXT("ShaderCompilingThread");
+	}
+
 public:
 	FShaderCompileThreadRunnableBase(class FShaderCompilingManager* InManager);
 	virtual ~FShaderCompileThreadRunnableBase()
@@ -280,6 +286,8 @@ private:
 
 	TArray<FString> GetDependencyFilesForJobs(TArray<FShaderCommonCompileJobPtr>& Jobs);
 	void DispatchShaderCompileJobsBatch(TArray<FShaderCommonCompileJobPtr>& JobsToSerialize);
+
+	virtual const TCHAR* GetThreadName() const override;
 };
 
 /** Results for a single compiled and finalized shader map. */

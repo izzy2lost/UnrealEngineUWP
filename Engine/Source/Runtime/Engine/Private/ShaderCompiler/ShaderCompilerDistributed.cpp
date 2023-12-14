@@ -398,3 +398,8 @@ int32 FShaderCompileDistributedThreadRunnable_Interface::CompilingLoop()
 	// Return true if there is more work to be done.
 	return Manager->AllJobs.GetNumOutstandingJobs() > 0;
 }
+
+const TCHAR* FShaderCompileDistributedThreadRunnable_Interface::GetThreadName() const
+{
+	return TEXT("ShaderCompilingThread-Distributed");
+}
