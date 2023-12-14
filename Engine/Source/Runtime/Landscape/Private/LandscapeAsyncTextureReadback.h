@@ -59,6 +59,13 @@ public:
 		return MoveTemp(ReadbackResults);
 	}
 
+	FString ToString()
+	{
+		FString Result;
+		Result.Appendf(TEXT("FLandscapeAsyncTextureReadback { Submit: %d Complete: %d AsyncReadback: %p }"), bAsyncReadbackSubmitOnRenderThread, bAsyncReadbackCompleteOnRenderThread, AsyncReadback.Get());
+		return Result;
+	}
+
 	// once complete, call this to queue deletion of the readback object on the render thread
 	// (this must be deleted on the render thread to avoid other render-thread queued commands from accessing a deallocated pointer)
 	void QueueDeletionFromGameThread();
