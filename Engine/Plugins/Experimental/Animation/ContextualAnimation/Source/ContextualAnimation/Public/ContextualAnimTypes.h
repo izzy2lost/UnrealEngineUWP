@@ -18,6 +18,7 @@ class UContextualAnimSelectionCriterion;
 class UContextualAnimSceneAsset;
 class UContextualAnimSceneActorComponent;
 class UCharacterMovementComponent;
+class UMotionWarpingComponent;
 struct FAnimMontageInstance;
 
 namespace UE 
@@ -343,6 +344,8 @@ struct CONTEXTUALANIMATION_API FContextualAnimSceneBindingContext
 
 	UCharacterMovementComponent* GetCharacterMovementComponent() const;
 
+	UMotionWarpingComponent* GetMotionWarpingComponent() const;
+
 	void SetExternalTransform(const FTransform& InTransform);
 
 	FTransform GetTransform() const;
@@ -376,6 +379,9 @@ private:
 	UPROPERTY(NotReplicated)
 	mutable TWeakObjectPtr<UCharacterMovementComponent> CachedMovementComp = nullptr;
 
+	UPROPERTY(NotReplicated)
+	mutable TWeakObjectPtr<UMotionWarpingComponent> CachedMotionWarpingComp = nullptr;
+
 	TOptional<FTransform> ExternalTransform;
 
 	TOptional<FVector> ExternalVelocity;
@@ -401,6 +407,7 @@ struct CONTEXTUALANIMATION_API FContextualAnimSceneBinding
 	FORCEINLINE USkeletalMeshComponent* GetSkeletalMeshComponent() const { return Context.GetSkeletalMeshComponent(); }
 	FORCEINLINE UContextualAnimSceneActorComponent* GetSceneActorComponent() const { return Context.GetSceneActorComponent(); }
 	FORCEINLINE UCharacterMovementComponent* GetCharacterMovementComponent() const { return Context.GetCharacterMovementComponent(); }
+	FORCEINLINE UMotionWarpingComponent* GetMotionWarpingComponent() const { return Context.GetMotionWarpingComponent(); }
 	FORCEINLINE int32 GetAnimTrackIdx() const { return AnimTrackIdx; }
 	
 	void SetAnimTrack(const FContextualAnimTrack& InAnimTrack);

@@ -12,6 +12,7 @@
 #include "ContextualAnimSceneAsset.h"
 #include "Components/SkeletalMeshComponent.h"
 #include "GameFramework/CharacterMovementComponent.h"
+#include "MotionWarpingComponent.h"
 
 #include UE_INLINE_GENERATED_CPP_BY_NAME(ContextualAnimTypes)
 
@@ -292,6 +293,19 @@ UCharacterMovementComponent* FContextualAnimSceneBindingContext::GetCharacterMov
 	}
 
 	return CachedMovementComp.Get();
+}
+
+UMotionWarpingComponent* FContextualAnimSceneBindingContext::GetMotionWarpingComponent() const
+{
+	if (!CachedMotionWarpingComp.IsValid() || CachedMotionWarpingComp->GetOwner() != GetActor())
+	{
+		if (Actor.IsValid())
+		{
+			CachedMotionWarpingComp = Actor->FindComponentByClass<UMotionWarpingComponent>();
+		}
+	}
+
+	return CachedMotionWarpingComp.Get();
 }
 
 // FContextualAnimSceneBinding
