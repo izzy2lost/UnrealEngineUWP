@@ -310,15 +310,7 @@ FLandscapeGrassMapsBuilder::~FLandscapeGrassMapsBuilder()
 		// if any async fetch tasks are in flight, force completion
 		if (AsyncFetchCount > 0)
 		{
-			for (auto It = ComponentStates.CreateIterator(); It; ++It)
-			{
-				FComponentState* State = It.Value();
-				if (State->Stage == EComponentStage::AsyncFetch)
-				{
-					check(State->AsyncFetchTask.Get());
-					State->AsyncFetchTask->EnsureCompletion(/* bDoWorkOnThisThreadIfNotStarted= */ true, /* bIsLatencySensitive= */ true);
-				}
-			}
+			CompleteAllAsyncTasksNow();
 		}
 
 		Iterations++;
@@ -679,6 +671,9 @@ void FLandscapeGrassMapsBuilder::RegisterComponent(ULandscapeComponent* Componen
 		PendingCount++;
 
 		GRASS_DEBUG_LOG(TEXT("Register %s (%d total)"), *Component->GetName(), ComponentStates.Num());
+
+		// immediately after a new registration, check if fast paths apply
+		TryFastpathsFromPending(*NewState, /* bRecalculateHashes = */ false);
 	}
 }
 
@@ -813,15 +808,20 @@ bool FLandscapeGrassMapsBuilder::BuildGrassMapsNowForComponents(
 			{
 				// Start tracking to kick off the build process
 				constexpr bool bForceCompileShaders = true;
-				if ((AvailableStreamingSlots > 0) && StartGrassMapGeneration(*State, bForceCompileShaders))
+				if (AvailableStreamingSlots > 0)
 				{
-					// modification isn't complete yet, but convenient to dirty the package when starting the process here
-					if (bMarkDirty)
+					StartGrassMapGeneration(*State, bForceCompileShaders);
+					if (State->Stage != EComponentStage::NotReady &&
+						State->Stage != EComponentStage::Pending)
 					{
-						Component->MarkPackageDirty();
+						// modification isn't complete yet, but convenient to dirty the package when starting the process here
+						if (bMarkDirty)
+						{
+							Component->MarkPackageDirty();
+						}
+						AvailableStreamingSlots--;
+						bChanged = true;
 					}
-					AvailableStreamingSlots--;
-					bChanged = true;
 				}
 			}
 			if (State->Stage == EComponentStage::GrassMapsPopulated)
@@ -853,18 +853,36 @@ bool FLandscapeGrassMapsBuilder::BuildGrassMapsNowForComponents(
 			// not sure why this is, something must be getting starved in the non-blocking path.
 			UE::Landscape::SubmitGPUCommands(/* bBlockUntilComplete =  */ true);
 		}
-
+		
 		// If any streaming is in flight, do a blocking texture streaming update.
 		// TODO [chris.tchou] : ideally this would be a non-blocking streaming update tick, so we can react to other updates finishing
 		if (StreamingCount > 0)
 		{
 			TextureStreamingManager.WaitForTextureStreaming();
 		}
+
+		if (AsyncFetchCount > 0)
+		{
+			CompleteAllAsyncTasksNow();
+		}
 	}
 
 	UE_LOG(LogGrass, Verbose, TEXT("BuildGrassMapsNowForComponents() updated %d/%d components in %f seconds"), UpToDateCount, LandscapeComponents.Num(), FPlatformTime::Seconds() - StartTime);
 
 	return (UpToDateCount == LandscapeComponents.Num());
+}
+
+void FLandscapeGrassMapsBuilder::CompleteAllAsyncTasksNow()
+{
+	for (auto It = ComponentStates.CreateIterator(); It; ++It)
+	{
+		FComponentState* State = It.Value();
+		if (State->Stage == EComponentStage::AsyncFetch)
+		{
+			check(State->AsyncFetchTask.Get());
+			State->AsyncFetchTask->EnsureCompletion(/* bDoWorkOnThisThreadIfNotStarted= */ true, /* bIsLatencySensitive= */ true);
+		}
+	}
 }
 
 bool FLandscapeGrassMapsBuilder::CancelAndEvict(FComponentState& State)
@@ -983,11 +1001,9 @@ bool FLandscapeGrassMapsBuilder::CancelAndEvict(FComponentState& State)
 	return true;
 }
 
-bool FLandscapeGrassMapsBuilder::StartGrassMapGeneration(FComponentState& State, bool bForceCompileShaders)
+bool FLandscapeGrassMapsBuilder::TryFastpathsFromPending(FComponentState& State, bool bRecalculateHashes)
 {
-	TRACE_CPUPROFILER_EVENT_SCOPE(FLandscapeGrassMapsBuilder::StartGrassMapGeneration);
 	check(State.Stage == EComponentStage::Pending);
-
 	ULandscapeComponent* Component = State.Component;
 
 	if (World->IsGameWorld()) // including PIE
@@ -997,18 +1013,21 @@ bool FLandscapeGrassMapsBuilder::StartGrassMapGeneration(FComponentState& State,
 		{
 			GRASS_DEBUG_LOG(TEXT("GrassMap Proxy DisableRuntimeGeneration for %s"), *Component->GetName());
 			PendingToNotReady(State);
-			return false;
+			return true;
 		}
 	}
 	else
 	{
 #if WITH_EDITOR
 		// recalculate hashes
-		if (UMaterialInterface* Material = Component->GetLandscapeMaterial())
+		if (bRecalculateHashes)
 		{
-			State.GrassMapGenerationHash = UE::Landscape::ComputeGrassMapGenerationHash(Component, Material);
-			const TArray<TObjectPtr<ULandscapeGrassType>>& GrassTypes = Material->GetCachedExpressionData().GrassTypes;
-			State.GrassInstanceGenerationHash = UE::Landscape::ComputeGrassInstanceGenerationHash(State.GrassMapGenerationHash, GrassTypes);
+			if (UMaterialInterface* Material = Component->GetLandscapeMaterial())
+			{
+				State.GrassMapGenerationHash = UE::Landscape::ComputeGrassMapGenerationHash(Component, Material);
+				const TArray<TObjectPtr<ULandscapeGrassType>>& GrassTypes = Material->GetCachedExpressionData().GrassTypes;
+				State.GrassInstanceGenerationHash = UE::Landscape::ComputeGrassInstanceGenerationHash(State.GrassMapGenerationHash, GrassTypes);
+			}
 		}
 
 		// in editor, if the existing grass data is valid and has a matching hash, then we can skip straight to Populated
@@ -1027,7 +1046,22 @@ bool FLandscapeGrassMapsBuilder::StartGrassMapGeneration(FComponentState& State,
 		PendingToPopulatedFastPathNoGrass(State);
 		return true;
 	}
-	
+
+	return false;
+}
+
+bool FLandscapeGrassMapsBuilder::StartGrassMapGeneration(FComponentState& State, bool bForceCompileShaders)
+{
+	TRACE_CPUPROFILER_EVENT_SCOPE(FLandscapeGrassMapsBuilder::StartGrassMapGeneration);
+	check(State.Stage == EComponentStage::Pending);
+
+	ULandscapeComponent* Component = State.Component;
+
+	if (TryFastpathsFromPending(State, /* bRecalculateHashes = */ true))
+	{
+		return false;
+	}
+
 	// if we can't currently render, it's not ready
 	if (!UE::Landscape::CanRenderGrassMap(Component))
 	{

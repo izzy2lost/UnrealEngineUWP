@@ -1696,8 +1696,12 @@ void ALandscapeProxy::TickGrass(const TArray<FVector>& Cameras, int32& InOutNumC
 #if WITH_EDITORONLY_DATA
 	if (ALandscape* Landscape = GetLandscapeActor())
 	{
-		// Don't allow grass to tick, except in ES3.1 preview mode, since landscape update is not possible there : IsUpToDate might return false and we'll never see grass in the preview mode as a result :
-		bool bAllowGrassTick = Landscape->IsUpToDate() || (GetWorld()->GetFeatureLevel() < ERHIFeatureLevel::SM5);
+		ULandscapeInfo* LandscapeInfo = GetLandscapeInfo();
+		
+		bool bLandscapeUpdateAllowed = (LandscapeInfo != nullptr) && (GetWorld()->GetFeatureLevel() >= ERHIFeatureLevel::SM5) && LandscapeInfo->SupportsLandscapeEditing();
+
+		// Don't allow grass to tick if landscape is not up to date -- unless landscape update is not possible (preview or level instanced modes)
+		bool bAllowGrassTick = Landscape->IsUpToDate() || !bLandscapeUpdateAllowed;
 		if (!bAllowGrassTick || !Landscape->bGrassUpdateEnabled)
 		{
 			return;

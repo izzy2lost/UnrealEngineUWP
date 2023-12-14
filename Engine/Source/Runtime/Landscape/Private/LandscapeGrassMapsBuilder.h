@@ -237,8 +237,11 @@ private:
 	// tries to cancel any in flight operations and transition back to the Pending state
 	bool CancelAndEvict(FComponentState& State);
 
-	// try to kick off the grass map generation pipeline -- returns true if texture streaming was started, false if the shaders are not ready, or if it shortcut to populated because data exists already
+	// try to kick off the grass map generation pipeline -- returns true if it started the amortized update path, false otherwise.
 	bool StartGrassMapGeneration(FComponentState& State, bool bForceCompileShaders);
+
+	// try to apply fast path transitions to a pending component -- returns true if a fastpath was taken, and the component is no longer pending.
+	bool TryFastpathsFromPending(FComponentState& State, bool bRecalculateHashes);
 
 	// once textures are streamed, this kicks off the grass data render, and async GPU readback
 	void KickOffRenderAndReadback(FComponentState& State);
@@ -258,6 +261,8 @@ private:
 	void PendingToPopulatedFastPathNoGrass(FComponentState& State);
 	void PendingToStreaming(FComponentState& State);
 	void RemoveFromPendingComponentHeap(FComponentState* State);
+
+	void CompleteAllAsyncTasksNow();
 
 #if WITH_EDITOR
 	// cached count of how many grass maps are outdated, and the last time we calculated that value
