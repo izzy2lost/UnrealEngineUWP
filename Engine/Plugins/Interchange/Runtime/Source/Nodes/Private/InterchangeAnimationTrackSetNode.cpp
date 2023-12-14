@@ -185,9 +185,19 @@ bool UInterchangeAnimationTrackNode::GetCustomTargetedProperty(int32& AttributeV
 	IMPLEMENT_NODE_ATTRIBUTE_GETTER(TargetedProperty, int32);
 }
 
+bool UInterchangeAnimationTrackNode::GetCustomPropertyTrack(FName& AttributeValue) const
+{
+	IMPLEMENT_NODE_ATTRIBUTE_GETTER(PropertyTrack, FName);
+}
+
 bool UInterchangeAnimationTrackNode::SetCustomTargetedProperty(const int32& AttributeValue)
 {
 	IMPLEMENT_NODE_ATTRIBUTE_SETTER_NODELEGATE(TargetedProperty, int32);
+}
+
+bool UInterchangeAnimationTrackNode::SetCustomPropertyTrack(const FName& AttributeValue)
+{
+	IMPLEMENT_NODE_ATTRIBUTE_SETTER_NODELEGATE(PropertyTrack, FName);
 }
 
 // UInterchangeAnimationTrackSetInstanceNode

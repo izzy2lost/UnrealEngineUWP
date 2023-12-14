@@ -195,6 +195,7 @@ struct INTERCHANGECOMMONPARSER_API FInterchangeStepCurve
 	TArray<float> KeyTimes;
 	TOptional<TArray<float>> FloatKeyValues;
 	TOptional<TArray<bool>> BooleanKeyValues;
+	TOptional<TArray<uint8>> ByteKeyValues;
 	TOptional<TArray<int32>> IntegerKeyValues;
 	TOptional<TArray<FString>> StringKeyValues;
 

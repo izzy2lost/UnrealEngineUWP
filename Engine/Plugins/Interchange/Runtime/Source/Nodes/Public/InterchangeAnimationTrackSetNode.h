@@ -313,14 +313,26 @@ public:
 	/**
 	 * Set the property animated by this track.
 	 */
+	UE_DEPRECATED(5.4, "SetCustomTargetedProperty has been deprecated, please use SetCustomPropertyTrack instead.")
 	UFUNCTION(BlueprintCallable, Category = "Interchange | Node | AnimationTrack")
 	bool SetCustomTargetedProperty(const int32& TargetedProperty);
 
 	/**
-	 * Get the property animated by this track.
+	 * Set the property animated by this track. Usually the name of a UMovieSceneTrack, e.g for UMovieSceneColorTrack -> Color
 	 */
 	UFUNCTION(BlueprintCallable, Category = "Interchange | Node | AnimationTrack")
+	bool SetCustomPropertyTrack(const FName& PropertyTrack);
+
+	/**
+	 * Get the property animated by this track.
+	 */
+	UE_DEPRECATED(5.4, "SetCustomTargetedProperty has been deprecated, please use SetCustomPropertyTrack instead.")
+	UFUNCTION(BlueprintCallable, Category = "Interchange | Node | AnimationTrack")
 	bool GetCustomTargetedProperty(int32& TargetedProperty) const;
+
+
+	UFUNCTION(BlueprintCallable, Category = "Interchange | Node | AnimationTrack")
+	bool GetCustomPropertyTrack(FName& PropertyTrack) const;
 
 	/**
 	 * Set the payload key needed to retrieve the animation for this track.
@@ -352,6 +364,7 @@ private:
 	const UE::Interchange::FAttributeKey Macro_CustomAnimationPayloadTypeKey = UE::Interchange::FAttributeKey(TEXT("AnimationPayloadType"));
 	const UE::Interchange::FAttributeKey Macro_CustomFrameCountKey = UE::Interchange::FAttributeKey(TEXT("FrameCount"));
 	const UE::Interchange::FAttributeKey Macro_CustomTargetedPropertyKey = UE::Interchange::FAttributeKey(TEXT("TargetedProperty"));
+	const UE::Interchange::FAttributeKey Macro_CustomPropertyTrackKey = UE::Interchange::FAttributeKey(TEXT("PropertyTrack"));
 };
 
 /**

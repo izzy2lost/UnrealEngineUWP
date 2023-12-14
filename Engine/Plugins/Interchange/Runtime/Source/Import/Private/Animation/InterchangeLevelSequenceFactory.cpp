@@ -3,31 +3,31 @@
 #include "Animation/InterchangeLevelSequenceFactory.h"
 
 #include "Animation/InterchangeAnimationPayloadInterface.h"
-#include "InterchangeLevelSequenceFactoryNode.h"
+#include "Animation/InterchangeLevelSequenceHelper.h"
 #include "InterchangeAnimationTrackSetNode.h"
+#include "InterchangeAnimationDefinitions.h"
 #include "InterchangeAnimSequenceFactoryNode.h"
 #include "InterchangeImportCommon.h"
-#include "InterchangeImportLog.h"
+#include "InterchangeLevelSequenceFactoryNode.h"
 #include "InterchangeResult.h"
 #include "InterchangeSourceData.h"
 #include "InterchangeTranslatorBase.h"
 #include "Nodes/InterchangeBaseNode.h"
 #include "Nodes/InterchangeBaseNodeContainer.h"
 
-//#include "Algo/Transform.h"
 #include "Channels/MovieSceneBoolChannel.h"
 #include "Channels/MovieSceneChannelProxy.h"
 #include "Channels/MovieSceneDoubleChannel.h"
+#include "Channels/MovieSceneIntegerChannel.h"
+#include "Channels/MovieSceneByteChannel.h"
 #include "LevelSequence.h"
 #include "MovieScene.h"
 #include "MovieSceneSection.h"
 #include "MovieSceneSequence.h"
 #include "Sections/MovieScene3DTransformSection.h"
-#include "Sections/MovieSceneBoolSection.h"
 #include "Sections/MovieSceneSubSection.h"
 #include "Tracks/MovieScene3DTransformTrack.h"
 #include "Tracks/MovieSceneSubTrack.h"
-#include "Tracks/MovieSceneVisibilityTrack.h"
 
 #if WITH_EDITORONLY_DATA
 
@@ -108,21 +108,7 @@ namespace UE::Interchange::Private
 				}
 				else if (const UInterchangeAnimationTrackNode* TrackNode = Cast<UInterchangeAnimationTrackNode>(TranslatedNode))
 				{
-					int32 TargetedProperty;
-					if (!TrackNode->GetCustomTargetedProperty(TargetedProperty))
-					{
-						continue;
-					}
-
-					// Only visibility is supported for the time being
-					if (TargetedProperty != (int32)EInterchangeAnimatedProperty::Visibility)
-					{
-						continue;
-					}
-
-					// Get targeted actor exists
-					AActor* Actor = GetActor(NodeContainer, TrackNode);
-					if (Actor)
+					if (GetActor(NodeContainer, TrackNode))
 					{
 						return true;
 					}
@@ -148,12 +134,13 @@ namespace UE::Interchange::Private
 		void PopulateLevelSequence();
 
 	private:
-		void PopulateTransformTrack(const UInterchangeTransformAnimationTrackNode& TransformTrackNode, int32 TrackIndex);
+		void PopulateTransformTrack(const UInterchangeTransformAnimationTrackNode& TransformTrackNode);
 		void PopulateSubsequenceTrack(const UInterchangeAnimationTrackSetInstanceNode& InstanceNode);
-		void PopulateAnimationTrack(const UInterchangeAnimationTrackNode& AnimationTrackNode, int32 TrackIndex);
+		void PopulateAnimationTrack(const UInterchangeAnimationTrackNode& AnimationTrackNode);
 
 		AActor* GetActor(const UInterchangeAnimationTrackNode& TrackNode);
-		FGuid BindActorToLevelSequence(AActor& Actor, int32 TrackIndex);
+		FGuid BindActorToLevelSequence(AActor* Actor);
+		FGuid BindComponentToLevelSequence(AActor* Actor);
 		void UpdateTransformChannels(TArrayView<FMovieSceneDoubleChannel*>& Channels, int32 IndexOffset, const TArray<FRichCurve>& Curves);
 		
 		template<typename ChannelType, typename ValueType> 
@@ -221,14 +208,13 @@ namespace UE::Interchange::Private
 		TArray<FString> AnimationTrackUids;
 		FactoryNode.GetCustomAnimationTrackUids(AnimationTrackUids);
 
-		int32 TrackIndex = 0;
 		for (const FString& AnimationTrackUid : AnimationTrackUids)
 		{
 			if (const UInterchangeBaseNode* TranslatedNode = NodeContainer.GetNode(AnimationTrackUid))
 			{
 				if (const UInterchangeTransformAnimationTrackNode* TransformTrackNode = Cast<UInterchangeTransformAnimationTrackNode>(TranslatedNode))
 				{
-					PopulateTransformTrack(*TransformTrackNode, TrackIndex);
+					PopulateTransformTrack(*TransformTrackNode);
 				}
 				else if (const UInterchangeAnimationTrackSetInstanceNode* InstanceTrackNode = Cast<UInterchangeAnimationTrackSetInstanceNode>(TranslatedNode))
 				{
@@ -236,10 +222,8 @@ namespace UE::Interchange::Private
 				}
 				else if (const UInterchangeAnimationTrackNode* TrackNode = Cast<UInterchangeAnimationTrackNode>(TranslatedNode))
 				{
-					PopulateAnimationTrack(*TrackNode, TrackIndex);
+					PopulateAnimationTrack(*TrackNode);
 				}
-
-				++TrackIndex;
 			}
 		}
 
@@ -247,7 +231,7 @@ namespace UE::Interchange::Private
 		LevelSequence.MovieScene->SetEvaluationType(EMovieSceneEvaluationType::FrameLocked);
 	}
 
-	void FLevelSequenceHelper::PopulateTransformTrack(const UInterchangeTransformAnimationTrackNode& TransformTrackNode, int32 TrackIndex)
+	void FLevelSequenceHelper::PopulateTransformTrack(const UInterchangeTransformAnimationTrackNode& TransformTrackNode)
 	{
 		// Get targeted actor exists
 		AActor* Actor = GetActor(TransformTrackNode);
@@ -273,7 +257,7 @@ namespace UE::Interchange::Private
 			return;
 		}
 
-		FGuid ObjectBinding = BindActorToLevelSequence(*Actor, TrackIndex);
+		FGuid ObjectBinding = BindActorToLevelSequence(Actor);
 
 		UMovieScene3DTransformTrack* TransformTrack = MovieScene->FindTrack<UMovieScene3DTransformTrack>(ObjectBinding);
 		if (!TransformTrack)
@@ -444,16 +428,10 @@ namespace UE::Interchange::Private
 		ClearSubsequenceTrack = false;
 	}
 
-	void FLevelSequenceHelper::PopulateAnimationTrack(const UInterchangeAnimationTrackNode& AnimationTrackNode, int32 TrackIndex)
+	void FLevelSequenceHelper::PopulateAnimationTrack(const UInterchangeAnimationTrackNode& AnimationTrackNode)
 	{
-		int32 TargetedProperty;
-		if (!AnimationTrackNode.GetCustomTargetedProperty(TargetedProperty))
-		{
-			return;
-		}
-
-		// Only visibility is supported for the time being
-		if (TargetedProperty != (int32)EInterchangeAnimatedProperty::Visibility)
+		FName PropertyTrack;
+		if(!AnimationTrackNode.GetCustomPropertyTrack(PropertyTrack))
 		{
 			return;
 		}
@@ -476,65 +454,119 @@ namespace UE::Interchange::Private
 
 		TFuture<TOptional<UE::Interchange::FAnimationPayloadData>> Result = PayloadInterface.GetAnimationPayloadData(PayloadKey);
 		const TOptional<UE::Interchange::FAnimationPayloadData>& PayloadData = Result.Get();
-		if (!PayloadData.IsSet() || PayloadData->StepCurves.Num() != 1)
+		if (!PayloadData.IsSet() || (PayloadData->StepCurves.IsEmpty() && PayloadData->Curves.IsEmpty()))
 		{
 			UE_LOG(LogInterchangeImport, Warning, TEXT("No payload for animation track %s on actor %s"), *AnimationTrackNode.GetDisplayLabel(), *Actor->GetActorLabel());
 			return;
 		}
 
-		FGuid ObjectBinding = BindActorToLevelSequence(*Actor, TrackIndex);
-
-		UMovieSceneVisibilityTrack* VisibilityTrack = MovieScene->FindTrack<UMovieSceneVisibilityTrack>(ObjectBinding);
-		if (!VisibilityTrack)
+		FGuid ObjectBinding;
+		if(PropertyTrack == UE::Interchange::Animation::PropertyTracks::Visibility)
 		{
-			VisibilityTrack = MovieScene->AddTrack<UMovieSceneVisibilityTrack>(ObjectBinding);
+			ObjectBinding = BindActorToLevelSequence(Actor);
 		}
 		else
 		{
-			VisibilityTrack->RemoveAllAnimationData();
+			ObjectBinding = BindComponentToLevelSequence(Actor);
 		}
 
-		if (!VisibilityTrack)
+		UMovieSceneSection * Section = FInterchangePropertyTracksHelper::GetInstance().GetSection(MovieScene, AnimationTrackNode, ObjectBinding, PropertyTrack);
+
+		if(!Section)
 		{
 			return;
 		}
 
-		bool bSectionAdded = false;
-		UMovieSceneBoolSection* BoolSection = Cast<UMovieSceneBoolSection>(VisibilityTrack->FindOrAddSection(0, bSectionAdded));
-		if (!BoolSection)
-		{
-			return;
-		}
+		const FName DoubleChannelTypeName = FMovieSceneDoubleChannel::StaticStruct()->GetFName();
+		const FName FloatChannelTypeName = FMovieSceneFloatChannel::StaticStruct()->GetFName();
+		const FName IntegerChannelTypeName = FMovieSceneIntegerChannel::StaticStruct()->GetFName();
+		const FName BoolChannelTypeName = FMovieSceneBoolChannel::StaticStruct()->GetFName();
+		const FName EnumChannelTypeName = FMovieSceneByteChannel::StaticStruct()->GetFName();
 
-		if (bSectionAdded)
+		auto CopyToChannel = [this](auto Channel, const FRichCurve& Curve)
 		{
-			int32 CompletionMode;
-			if (AnimationTrackNode.GetCustomCompletionMode(CompletionMode))
+			const FFrameRate& FrameRate = this->MovieScene->GetTickResolution();
+
+			const TArray<FRichCurveKey>& CurveKeys = Curve.GetConstRefOfKeys();
+
+			TArray<FFrameNumber> FrameNumbers;
+			FrameNumbers.Reserve(CurveKeys.Num());
+
+			using FMovieSceneValue = typename std::remove_pointer_t<decltype(Channel)>::ChannelValueType;
+			TArray<FMovieSceneValue> MovieSceneValues;
+			MovieSceneValues.Reserve(CurveKeys.Num());
+
+			for(int32 KeyIndex = 0; KeyIndex < CurveKeys.Num(); ++KeyIndex)
 			{
-				// Make sure EMovieSceneCompletionMode enum value are still between 0 and 2
-				static_assert(0 == (uint32)EMovieSceneCompletionMode::KeepState, "ENUM_VALUE_HAS_CHANGED");
-				static_assert(1 == (uint32)EMovieSceneCompletionMode::RestoreState, "ENUM_VALUE_HAS_CHANGED");
-				static_assert(2 == (uint32)EMovieSceneCompletionMode::ProjectDefault, "ENUM_VALUE_HAS_CHANGED");
+				const FRichCurveKey& CurveKey = CurveKeys[KeyIndex];
 
-				BoolSection->EvalOptions.CompletionMode = (EMovieSceneCompletionMode)CompletionMode;
+				FFrameNumber& FrameNumber = FrameNumbers.Add_GetRef(FrameRate.AsFrameNumber(CurveKey.Time));
+
+				if(FrameNumber < this->MinFrameNumber)
+				{
+					this->MinFrameNumber = FrameNumber;
+				}
+
+				if(FrameNumber > this->MaxFrameNumber)
+				{
+					this->MaxFrameNumber = FrameNumber;
+				}
+
+				FMovieSceneValue& SceneValue = MovieSceneValues.AddDefaulted_GetRef();
+				SceneValue.InterpMode = CurveKey.InterpMode;
+				SceneValue.Value = CurveKey.Value;
 			}
-			// By default the completion mode is EMovieSceneCompletionMode::ProjectDefault
+
+			if(!MovieSceneValues.IsEmpty())
+			{
+				Channel->Set(FrameNumbers, MovieSceneValues);
+			}
 			else
 			{
-				BoolSection->EvalOptions.CompletionMode = EMovieSceneCompletionMode::ProjectDefault;
+				Channel->RemoveDefault();
+			}
+		};
+
+		FMovieSceneChannelProxy& ChannelProxy = Section->GetChannelProxy();
+		TArrayView<const FMovieSceneChannelEntry> ChannelEntries = ChannelProxy.GetAllEntries();
+
+		for(const FMovieSceneChannelEntry& ChannelEntry : ChannelEntries)
+		{
+			const FName ChannelTypeName = ChannelEntry.GetChannelTypeName();
+			if(ChannelTypeName != DoubleChannelTypeName &&
+			   ChannelTypeName != FloatChannelTypeName &&
+			   ChannelTypeName != IntegerChannelTypeName &&
+			   ChannelTypeName != BoolChannelTypeName &&
+			   ChannelTypeName != EnumChannelTypeName)
+			{
+				continue;
 			}
 
-			BoolSection->SetRange(TRange<FFrameNumber>::All());
-		}
-
-		TArrayView<FMovieSceneBoolChannel*> Channels = BoolSection->GetChannelProxy().GetChannels<FMovieSceneBoolChannel>();
-		if (ensure(Channels[0]))
-		{
-			const FInterchangeStepCurve& Curve = PayloadData->StepCurves[0];
-			const TArray<float>& KeyTimes = Curve.KeyTimes;
-			const TArray<bool>& Values = Curve.BooleanKeyValues.GetValue();
-
-			UpdateStepChannel(*(Channels[0]), KeyTimes, Values);
+			TArrayView<FMovieSceneChannel* const> Channels = ChannelEntry.GetChannels();
+			for(int32 Index = 0; Index < Channels.Num(); ++Index)
+			{
+				FMovieSceneChannelHandle Channel = ChannelProxy.MakeHandle(ChannelTypeName, Index);
+				if(ChannelTypeName == FMovieSceneBoolChannel::StaticStruct()->GetFName())
+				{
+					UpdateStepChannel(*(Channel.Cast<FMovieSceneBoolChannel>().Get()), PayloadData->StepCurves[Index].KeyTimes, PayloadData->StepCurves[0].BooleanKeyValues.GetValue());
+				}
+				else if(ChannelTypeName == FMovieSceneByteChannel::StaticStruct()->GetFName())
+				{
+					UpdateStepChannel(*(Channel.Cast<FMovieSceneByteChannel>().Get()), PayloadData->StepCurves[Index].KeyTimes, PayloadData->StepCurves[0].ByteKeyValues.GetValue());
+				}
+				else if(ChannelTypeName == FMovieSceneIntegerChannel::StaticStruct()->GetFName())
+				{
+					UpdateStepChannel(*(Channel.Cast<FMovieSceneBoolChannel>().Get()), PayloadData->StepCurves[Index].KeyTimes, PayloadData->StepCurves[0].BooleanKeyValues.GetValue());
+				}
+				else if(ChannelTypeName == FMovieSceneFloatChannel::StaticStruct()->GetFName())
+				{
+					CopyToChannel(Channel.Cast<FMovieSceneFloatChannel>().Get(), PayloadData->Curves[Index]);
+				}
+				else if(ChannelTypeName == FMovieSceneDoubleChannel::StaticStruct()->GetFName())
+				{
+					CopyToChannel(Channel.Cast<FMovieSceneDoubleChannel>().Get(), PayloadData->Curves[Index]);
+				}
+			}
 		}
 	}
 
@@ -562,44 +594,40 @@ namespace UE::Interchange::Private
 		return Actor;
 	}
 
-	FGuid FLevelSequenceHelper::BindActorToLevelSequence(AActor& Actor, int32 TrackIndex)
+	FGuid FLevelSequenceHelper::BindActorToLevelSequence(AActor* Actor)
 	{
-		// Bind the actor to the level sequence
-		// But first, check if there's already a possessable at the current index
-		FMovieScenePossessable* OldPossessable = nullptr;
-		if (TrackIndex < MovieScene->GetPossessableCount())
+		FGuid ActorBinding = LevelSequence.FindBindingFromObject(Actor, Actor->GetWorld());
+		if(!ActorBinding.IsValid())
 		{
-			OldPossessable = &MovieScene->GetPossessable(TrackIndex);
+			ActorBinding = MovieScene->AddPossessable(Actor->GetActorLabel(), Actor->GetClass());
+			LevelSequence.BindPossessableObject(ActorBinding, *Actor, Actor->GetWorld());
 		}
 
-		FString ActorLabel = Actor.GetActorLabel();
-		FGuid ObjectBinding;
-		if (OldPossessable)
+		return ActorBinding;
+	}
+
+	FGuid FLevelSequenceHelper::BindComponentToLevelSequence(AActor* Actor)
+	{
+		FGuid ActorBinding = BindActorToLevelSequence(Actor);
+		USceneComponent* Component = Actor->GetDefaultAttachComponent();
+		FGuid ComponentBinding = LevelSequence.FindBindingFromObject(Component, Actor);
+		if(!ComponentBinding.IsValid())
 		{
-			// If so, remove any track associated with it and unbind it from the level sequence
-			FGuid OldGuid = OldPossessable->GetGuid();
-			UMovieScene3DTransformTrack* TransformTrack = MovieScene->FindTrack<UMovieScene3DTransformTrack>(OldGuid);
-			if (TransformTrack)
+			ComponentBinding = MovieScene->AddPossessable(Component->GetReadableName(), Component->GetClass());
+
+			if(ActorBinding.IsValid() && ComponentBinding.IsValid())
 			{
-				MovieScene->RemoveTrack(*TransformTrack);
+				if(FMovieScenePossessable* ComponentPossessable = MovieScene->FindPossessable(ComponentBinding))
+				{
+					ComponentPossessable->SetParent(ActorBinding, MovieScene);
+				}
 			}
-			LevelSequence.UnbindPossessableObjects(OldGuid);
 
-			// Replace the old possessable with the new one in the MovieScene
-			FMovieScenePossessable NewPossessable(ActorLabel, Actor.GetClass());
-			MovieScene->ReplacePossessable(OldGuid, NewPossessable);
-			ObjectBinding = NewPossessable.GetGuid();
-		}
-		else
-		{
-			// No previous possessable, so simply add it to the MovieScene
-			ObjectBinding = MovieScene->AddPossessable(ActorLabel, Actor.GetClass());
+			// Bind component
+			LevelSequence.BindPossessableObject(ComponentBinding, *Component, Actor);
 		}
 
-		// Finally, associate the guid with the actor
-		LevelSequence.BindPossessableObject(ObjectBinding, Actor, Actor.GetWorld());
-
-		return ObjectBinding;
+		return ComponentBinding;
 	}
 
 	void FLevelSequenceHelper::UpdateTransformChannels(TArrayView<FMovieSceneDoubleChannel*>& Channels, int32 IndexOffset, const TArray<FRichCurve>& Curves)
