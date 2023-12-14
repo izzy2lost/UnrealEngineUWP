@@ -19,6 +19,8 @@ namespace UE::Chaos::ClothAsset
 class FChaosClothPreviewScene;
 }
 
+DECLARE_EVENT(UChaosClothPreviewSceneDescription, FClothPreviewSceneDescriptionChanged)
+
 ///
 /// The UChaosClothPreviewSceneDescription is a description of the Preview scene contents, intended to be editable in an FAdvancedPreviewSettingsWidget
 /// 
@@ -27,6 +29,8 @@ class CHAOSCLOTHASSETEDITOR_API UChaosClothPreviewSceneDescription : public UObj
 {
 public:
 	GENERATED_BODY()
+
+	FClothPreviewSceneDescriptionChanged ClothPreviewSceneDescriptionChanged;
 
 	UChaosClothPreviewSceneDescription()
 	{

@@ -129,6 +129,8 @@ void UChaosClothPreviewSceneDescription::PostEditChangeProperty(FPropertyChanged
 	{
 		PreviewScene->SceneDescriptionPropertyChanged(PropertyChangedEvent.GetMemberPropertyName());
 	}
+
+	ClothPreviewSceneDescriptionChanged.Broadcast();
 }
 
 void UChaosClothPreviewSceneDescription::PostTransacted(const FTransactionObjectEvent& TransactionEvent)

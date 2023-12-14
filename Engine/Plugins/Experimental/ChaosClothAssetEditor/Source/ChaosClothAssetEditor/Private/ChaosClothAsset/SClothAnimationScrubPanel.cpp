@@ -7,12 +7,26 @@
 #include "Animation/AnimSingleNodeInstance.h"
 #include "Animation/AnimSequence.h"
 #include "Animation/BlendSpace.h"
+#include "Widgets/Input/SButton.h"
+#include "Widgets/Images/SImage.h"
 
 #define LOCTEXT_NAMESPACE "ClothAnimationScrubPanel"
 
 void SClothAnimationScrubPanel::Construct( const SClothAnimationScrubPanel::FArguments& InArgs, const TWeakPtr<UE::Chaos::ClothAsset::FChaosClothPreviewScene> InPreviewScene)
 {
 	PreviewSceneWeakPtr = InPreviewScene;
+
+	// Skip adding the the Loop button so we can add our own
+	TArray<FTransportControlWidget> TransportControlWidgets;
+	for (const ETransportControlWidgetType Type : TEnumRange<ETransportControlWidgetType>())
+	{
+		if ((Type != ETransportControlWidgetType::Custom) && (Type != ETransportControlWidgetType::Loop))
+		{
+			TransportControlWidgets.Add(FTransportControlWidget(Type));
+		}
+	}
+	const FTransportControlWidget NewWidget(FOnMakeTransportWidget::CreateSP(this, &SClothAnimationScrubPanel::OnCreatePreviewPlaybackModeWidget));
+	TransportControlWidgets.Add(NewWidget);
 
 	this->ChildSlot
 	[
@@ -38,16 +52,82 @@ void SClothAnimationScrubPanel::Construct( const SClothAnimationScrubPanel::FArg
 			.OnClickedBackwardPlay(this, &SClothAnimationScrubPanel::OnClick_Backward)
 			.OnClickedBackwardStep(this, &SClothAnimationScrubPanel::OnClick_Backward_Step)
 			.OnClickedBackwardEnd(this, &SClothAnimationScrubPanel::OnClick_Backward_End)
-			.OnClickedToggleLoop(this, &SClothAnimationScrubPanel::OnClick_ToggleLoop)
-			.OnGetLooping(this, &SClothAnimationScrubPanel::IsLoopStatusOn)
+			.OnTickPlayback(this, &SClothAnimationScrubPanel::OnTickPlayback)
 			.OnGetPlaybackMode(this, &SClothAnimationScrubPanel::GetPlaybackMode)
 			.ViewInputMin(InArgs._ViewInputMin)
 			.ViewInputMax(InArgs._ViewInputMax)
 			.bDisplayAnimScrubBarEditing(false)
 			.bAllowZoom(false)
 			.IsRealtimeStreamingMode(false)
+			.TransportControlWidgetsToCreate(TransportControlWidgets)
 		]
 	];
+
+
+	if (const TSharedPtr<UE::Chaos::ClothAsset::FChaosClothPreviewScene> PinnedPreviewScene = PreviewSceneWeakPtr.Pin())
+	{
+		if (UChaosClothPreviewSceneDescription* const SceneDescription = PinnedPreviewScene->GetPreviewSceneDescription())
+		{
+			SceneDescription->ClothPreviewSceneDescriptionChanged.AddSP(this, &SClothAnimationScrubPanel::ApplyPlaybackSettings);
+		}
+	}
+
+	ApplyPlaybackSettings();
+}
+
+
+TSharedRef<SWidget> SClothAnimationScrubPanel::OnCreatePreviewPlaybackModeWidget()
+{
+	PreviewPlaybackModeButton = SNew(SButton)
+		.OnClicked(this, &SClothAnimationScrubPanel::OnClick_PreviewPlaybackMode)
+		.ButtonStyle( FAppStyle::Get(), "Animation.PlayControlsButton" )
+		.IsFocusable(false)
+		.ToolTipText_Lambda([&]()
+		{
+			if (PreviewPlaybackMode == EClothPreviewPlaybackMode::Default)
+			{
+				return LOCTEXT("PlaybackModeDefaultTooltip", "Linear playback");
+			}
+			else if (PreviewPlaybackMode == EClothPreviewPlaybackMode::Looping)
+			{
+				return LOCTEXT("PlaybackModeDefaultTooltip", "Looping playback");
+			}
+			else
+			{
+				return LOCTEXT("PlaybackModeDefaultTooltip", "Ping pong playback");
+			}
+		})
+		.ContentPadding(0.0f);
+
+	TWeakPtr<SButton> WeakButton = PreviewPlaybackModeButton;
+
+	PreviewPlaybackModeButton->SetContent(SNew(SImage)
+		.ColorAndOpacity(FSlateColor::UseSubduedForeground())
+		.Image_Lambda([&, WeakButton]()
+		{
+			if (PreviewPlaybackMode == EClothPreviewPlaybackMode::Default)
+			{
+				return FAppStyle::Get().GetBrush("Animation.Loop.Disabled");
+			}
+			else if (PreviewPlaybackMode == EClothPreviewPlaybackMode::Looping)
+			{
+				return FAppStyle::Get().GetBrush("Animation.Loop.Enabled");
+			}
+			else
+			{
+				return FAppStyle::Get().GetBrush("Animation.Loop.SelectionRange");		// TODO: Replace with a back and forth type icon
+			}
+		})
+	);
+
+	TSharedRef<SHorizontalBox> PreviewPlaybackModeBox = SNew(SHorizontalBox);
+	PreviewPlaybackModeBox->AddSlot()
+	.AutoWidth()
+	[
+		PreviewPlaybackModeButton.ToSharedRef()
+	];
+
+	return PreviewPlaybackModeBox;
 }
 
 FReply SClothAnimationScrubPanel::OnClick_Forward_Step()
@@ -160,20 +240,95 @@ FReply SClothAnimationScrubPanel::OnClick_Backward()
 	return FReply::Handled();
 }
 
-FReply SClothAnimationScrubPanel::OnClick_ToggleLoop()
+FReply SClothAnimationScrubPanel::OnClick_PreviewPlaybackMode()
 {
-	if (UAnimSingleNodeInstance* const PreviewInstance = GetPreviewAnimationInstance())
+	if (PreviewPlaybackMode == EClothPreviewPlaybackMode::Default)
 	{
-		bool bIsLooping = PreviewInstance->IsLooping();
-		PreviewInstance->SetLooping(!bIsLooping);
+		PreviewPlaybackMode = EClothPreviewPlaybackMode::Looping;
+		
+		if (UAnimSingleNodeInstance* const PreviewInstance = GetPreviewAnimationInstance())
+		{
+			// If we paused due to hitting the end point, start playing again when entering loop mode
+			const float CurrentTime = PreviewInstance->GetCurrentTime();
+			const float PlayRate = PreviewInstance->GetPlayRate();
+			const float AssetPlayLength = PreviewInstance->CurrentAsset->GetPlayLength();
+			if (PlayRate < 0.0 && CurrentTime <= 0.0)
+			{
+				PreviewInstance->SetPlaying(true);
+			}
+			else if (PlayRate > 0.0 && CurrentTime >= AssetPlayLength)
+			{
+				PreviewInstance->SetPlaying(true);
+			}
+		}
 	}
+	else if (PreviewPlaybackMode == EClothPreviewPlaybackMode::Looping)
+	{
+		PreviewPlaybackMode = EClothPreviewPlaybackMode::PingPong;
+	}
+	else
+	{
+		PreviewPlaybackMode = EClothPreviewPlaybackMode::Default;
+
+		if (UAnimSingleNodeInstance* const PreviewInstance = GetPreviewAnimationInstance())
+		{
+			// If we're switching to linear playback, set it to forward mode
+			PreviewInstance->SetReverse(false);
+		}
+	}
+
+	ApplyPlaybackSettings();
+
 	return FReply::Handled();
 }
 
-bool SClothAnimationScrubPanel::IsLoopStatusOn() const
+void SClothAnimationScrubPanel::ApplyPlaybackSettings()
 {
-	const UAnimSingleNodeInstance* const PreviewInstance = GetPreviewAnimationInstance();
-	return (PreviewInstance && PreviewInstance->IsLooping());
+	UAnimSingleNodeInstance* const PreviewInstance = GetPreviewAnimationInstance();
+
+	switch (PreviewPlaybackMode)
+	{
+	case EClothPreviewPlaybackMode::Default:
+		if (PreviewInstance)
+		{
+			PreviewInstance->SetLooping(false);
+		}
+		break;
+	case EClothPreviewPlaybackMode::Looping:
+		if (PreviewInstance)
+		{
+			PreviewInstance->SetLooping(true);
+		}
+		break;
+	case EClothPreviewPlaybackMode::PingPong:
+		if (PreviewInstance)
+		{
+			PreviewInstance->SetLooping(false);
+		}
+		break;
+	}
+}
+
+void SClothAnimationScrubPanel::OnTickPlayback(double InCurrentTime, float InDeltaTime)
+{
+	if (UAnimSingleNodeInstance* const PreviewInstance = GetPreviewAnimationInstance())
+	{
+		const float CurrentTime = PreviewInstance->GetCurrentTime();
+		const float PlayRate = PreviewInstance->GetPlayRate();
+		const float AssetPlayLength = PreviewInstance->CurrentAsset->GetPlayLength();
+
+		if (PreviewPlaybackMode == EClothPreviewPlaybackMode::PingPong)
+		{
+			if (PlayRate < 0.0 && CurrentTime <= 0.0)
+			{
+				PreviewInstance->SetReverse(!PreviewInstance->IsReverse());
+			}
+			else if (PlayRate > 0.0 && CurrentTime >= AssetPlayLength)
+			{
+				PreviewInstance->SetReverse(!PreviewInstance->IsReverse());
+			}
+		}
+	}
 }
 
 EPlaybackMode::Type SClothAnimationScrubPanel::GetPlaybackMode() const

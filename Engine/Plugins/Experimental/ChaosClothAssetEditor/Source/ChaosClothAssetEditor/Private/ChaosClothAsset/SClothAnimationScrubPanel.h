@@ -6,6 +6,7 @@
 #include "ITransportControl.h"  // EPlaybackMode::Type
 
 class SScrubControlPanel;
+class SButton;
 class UAnimSingleNodeInstance;
 namespace UE::Chaos::ClothAsset
 {
@@ -19,12 +20,21 @@ class SClothAnimationScrubPanel : public SCompoundWidget
 {
 private:
 
+	enum class EClothPreviewPlaybackMode : int32
+	{
+		Default,
+		Looping,
+		PingPong
+	};
+	
 	SLATE_BEGIN_ARGS(SClothAnimationScrubPanel)	{}
 		SLATE_ATTRIBUTE( float, ViewInputMin )
 		SLATE_ATTRIBUTE( float, ViewInputMax )
 	SLATE_END_ARGS()
 
 	void Construct( const FArguments& InArgs, const TWeakPtr<UE::Chaos::ClothAsset::FChaosClothPreviewScene> InPreviewScene );
+
+	TSharedRef<SWidget> OnCreatePreviewPlaybackModeWidget();
 
 	// notifiers 
 	FReply OnClick_Forward_Step();
@@ -33,13 +43,16 @@ private:
 	FReply OnClick_Backward_End();
 	FReply OnClick_Forward();
 	FReply OnClick_Backward();
-	FReply OnClick_ToggleLoop();
+	FReply OnClick_PreviewPlaybackMode();
+
+	void ApplyPlaybackSettings();
+
+	void OnTickPlayback(double InCurrentTime, float InDeltaTime);
 
 	void OnValueChanged(float NewValue);
 	void OnBeginSliderMovement();
 
 	EPlaybackMode::Type GetPlaybackMode() const;
-	bool IsLoopStatusOn() const;
 	float GetScrubValue() const;
 
 	UAnimSingleNodeInstance* GetPreviewAnimationInstance();
@@ -53,4 +66,7 @@ private:
 	TWeakPtr<UE::Chaos::ClothAsset::FChaosClothPreviewScene> PreviewSceneWeakPtr;
 
 	TSharedPtr<SScrubControlPanel> ScrubControlPanel;
+
+	TSharedPtr<SButton> PreviewPlaybackModeButton;
+	EClothPreviewPlaybackMode PreviewPlaybackMode = EClothPreviewPlaybackMode::Looping;
 };
