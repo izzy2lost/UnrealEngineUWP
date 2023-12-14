@@ -138,15 +138,14 @@ void SWindowTitleBar::MakeTitleBarContentWidgets( TSharedPtr< SWidget >& OutLeft
 				.ContentPadding(0.f)
 				.OnClicked(this, &SWindowTitleBar::MinimizeButton_OnClicked)
 				.Cursor(EMouseCursor::Default)
-				.ButtonStyle(FCoreStyle::Get(), "NoBorder")
+				.ButtonStyle(FAppStyle::Get(), "Window.MinMaxRestoreButtonHover")
 				.AddMetaData(FDriverMetaData::Id("launcher-minimizeWindowButton"))
 				[
 					SNew(SImage)
 						.Image(this, &SWindowTitleBar::GetMinimizeImage)
 						.ColorAndOpacity(this, &SWindowTitleBar::GetWindowTitleContentColor)
 						.AccessibleText(NSLOCTEXT("WindowTitleBar", "Minimize", "Minimize"))
-				]
-			;
+				];
 
 		MaximizeRestoreButton = SNew(SButton)
 				.IsFocusable(false)
@@ -154,15 +153,14 @@ void SWindowTitleBar::MakeTitleBarContentWidgets( TSharedPtr< SWidget >& OutLeft
 				.ContentPadding(0.0f)
 				.OnClicked(this, &SWindowTitleBar::MaximizeRestoreButton_OnClicked)
 				.Cursor(EMouseCursor::Default)
-				.ButtonStyle(FCoreStyle::Get(), "NoBorder")
+				.ButtonStyle(FAppStyle::Get(), "Window.MinMaxRestoreButtonHover")
 				.AddMetaData(FDriverMetaData::Id("launcher-maximizeRestoreWindowButton"))
 				[
 					SNew(SImage)
 						.Image(this, &SWindowTitleBar::GetMaximizeRestoreImage)
 						.ColorAndOpacity(this, &SWindowTitleBar::GetWindowTitleContentColor)
 						.AccessibleText(NSLOCTEXT("WindowTitleBar", "Maximize", "Maximize"))
-				]
-			;
+				];
 
 		CloseButton = SNew(SButton)
 				.IsFocusable(false)
@@ -170,15 +168,14 @@ void SWindowTitleBar::MakeTitleBarContentWidgets( TSharedPtr< SWidget >& OutLeft
 				.ContentPadding(0.0f)
 				.OnClicked(this, &SWindowTitleBar::CloseButton_OnClicked)
 				.Cursor(EMouseCursor::Default)
-				.ButtonStyle(FCoreStyle::Get(), "NoBorder")
+				.ButtonStyle(FAppStyle::Get(), "Window.CloseButtonHover")
 				.AddMetaData(FDriverMetaData::Id("launcher-closeWindowButton"))
 				[
 					SNew(SImage)
 						.Image(this, &SWindowTitleBar::GetCloseImage)
 						.ColorAndOpacity(this, &SWindowTitleBar::GetWindowTitleContentColor)
 						.AccessibleText(NSLOCTEXT("WindowTitleBar", "Close", "Close"))
-				]
-			;
+				];
 	}
 #endif //!PLATFORM_MAC
 

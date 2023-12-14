@@ -251,9 +251,7 @@ TSharedRef<ISlateStyle> FStarshipCoreStyle::Create()
 		Style->Set("NoBorder.Pressed", new FSlateNoResource());
 
 		Style->Set("NoBorder", NoBorder);
-
 	}
-
 
 	// Demo Recording
 	{
@@ -752,8 +750,6 @@ TSharedRef<ISlateStyle> FStarshipCoreStyle::Create()
 		);
 	}
 
-
-
 	// SWindow defaults...
 	{
 #if !PLATFORM_MAC
@@ -778,8 +774,7 @@ TSharedRef<ISlateStyle> FStarshipCoreStyle::Create()
 			.SetPressed(IMAGE_BRUSH_SVG("Starship/CoreWidgets/Window/close", FVector2f(42.0f, 34.0f), FStyleColors::Foreground));
 #endif
 
-		FWindowStyle Window =
-			FWindowStyle()
+		FWindowStyle Window = FWindowStyle()
 #if !PLATFORM_MAC
 			.SetMinimizeButtonStyle(MinimizeButtonStyle)
 			.SetMaximizeButtonStyle(MaximizeButtonStyle)
@@ -797,16 +792,22 @@ TSharedRef<ISlateStyle> FStarshipCoreStyle::Create()
 			.SetCornerRadius(2)
 			.SetBorderPadding(FMargin(3.0f, 3.0f, 3.0f, 3.0f));
 
-
 		Style->Set("Window", Window);
-		
+
+		const FButtonStyle MinMaxRestoreButtonBackgroundStyle = FButtonStyle(NoBorder)
+			.SetHovered(FSlateColorBrush(FColor(255, 255, 255, 40)));
+		const FButtonStyle CloseButtonBackgroundStyle = FButtonStyle(NoBorder)
+			.SetHovered(FSlateColorBrush(FColor(255, 20, 20, 150)));
+
+		Style->Set("Window.MinMaxRestoreButtonHover", MinMaxRestoreButtonBackgroundStyle);
+		Style->Set("Window.CloseButtonHover", CloseButtonBackgroundStyle);
+
 		Window.SetCornerRadius(8.0f);
 
 		Style->Set("NotificationWindow", Window);
 
 		Style->Set("ChildWindow.Background", new FSlateColorBrush(FStyleColors::Recessed));
 	}
-
 
 	// Standard Dialog Settings
 	{
