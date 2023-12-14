@@ -7701,7 +7701,7 @@ void FPakFile::ValidateDirectorySearch(const TSet<FString>& FullFoundFiles, cons
 
 	// TODO: Restore this as an Error once we modify IPlatformFile::IterateDirectoryRecursively to declare its filefilter so we can ignore the spurious
 	// discovered files that are not part of the fully filtered query
-	UE_LOG(LogPakFile, Warning, TEXT("FindPrunedFilesAtPath('%s') for PakFile '%s' found a different list in the FullDirectory than in the PrunedDirectory. ")
+	UE_LOG(LogPakFile, Error, TEXT("FindPrunedFilesAtPath('%s') for PakFile '%s' found a different list in the FullDirectory than in the PrunedDirectory. ")
 		TEXT("Change the calling code or add the files to Engine:[Pak]:WildcardsToKeepInPakStringIndex or Engine:[Pak]:IndexValidationIgnore."),
 		InPath, *PakFilename);
 
