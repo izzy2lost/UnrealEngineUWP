@@ -326,6 +326,19 @@ static void CopyStringToAnsiCharArray(const TCHAR* Text, int32 TextLen, TArray<A
 	*OutData = 0;
 }
 
+// Adds 16 bytes of zeroes at end, to allow SSE reads at the end of the buffer without reading past the end of the heap allocation
+static void CopyStringToAnsiCharArraySSEPadded(const TCHAR* Text, int32 TextLen, TArray<ANSICHAR>& Out)
+{
+	constexpr int32 SSEPadding = 16;
+	Out.SetNumUninitialized(TextLen + SSEPadding);
+	ANSICHAR* OutData = Out.GetData();
+	for (int32 CharIndex = 0; CharIndex < TextLen; CharIndex++, OutData++, Text++)
+	{
+		*OutData = (ANSICHAR)*Text;
+	}
+	FMemory::Memset(OutData, 0, SSEPadding * sizeof(ANSICHAR));
+}
+
 static const ANSICHAR* StbResolveInclude(const ANSICHAR* PathInSource, uint32 PathLen, const ANSICHAR* ParentPathAnsi, void* RawContext)
 {
 	FStbPreprocessContext& Context = *reinterpret_cast<FStbPreprocessContext*>(RawContext);
@@ -533,11 +546,11 @@ static const char* StbCustomMacroBegin(const char* OriginalText, void* RawContex
 	Entry.Hash = CityHash32((const char*)Entry.SourceText.GetCharArray().GetData(), sizeof(FString::ElementType) * Entry.SourceText.Len());
 	Context.TextGlobalCount += Entry.ConvertedText.Len();
 
-	// Generate substitution string
+	// Generate substitution string -- need SSE padding on any text handled by the preprocessor
 	if (Entry.bIsAssert)
 	{
 		const FString HashString = FString::Printf(TEXT("%u"), Entry.Hash);
-		CopyStringToAnsiCharArray(*HashString, HashString.Len(), Context.TextMacroSubstituted);
+		CopyStringToAnsiCharArraySSEPadded(*HashString, HashString.Len(), Context.TextMacroSubstituted);
 	}
 	else
 	{
@@ -545,7 +558,7 @@ static const char* StbCustomMacroBegin(const char* OriginalText, void* RawContex
 		const FString InitHashEnd(TEXT(")"));
 
 		const FString HashText = InitHashBegin + FString::FromInt(EntryIndex) + InitHashEnd;
-		CopyStringToAnsiCharArray(*HashText, HashText.Len(), Context.TextMacroSubstituted);
+		CopyStringToAnsiCharArraySSEPadded(*HashText, HashText.Len(), Context.TextMacroSubstituted);
 	}
 
 	return Context.TextMacroSubstituted.GetData();

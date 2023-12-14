@@ -75,15 +75,15 @@ typedef void (*freefile_callback_func)(const char* filename, const char* loaded_
 // note: returned resolved paths must remain valid for the lifetime of a single preprocessor execution
 typedef const char* (*resolveinclude_callback_func)(const char* path, unsigned int path_len, const char* parent, void* custom_context);
 
-// Callback functions for custom macros.  Custom macros return their own substitution text, which is then further
-// preprocessed.  The text passed to the callback includes the macro identifier and its arguments, with backslashes
-// removed.  A function is called when entering the macro, and again when complete, allowing stateful logic
-// based on whether parsing is inside a certain custom macro.  Any custom macro will automatically be disabled
-// inside itself, with the idea that this allows a singleton buffer for the substitution text, as there's no
-// concern about nested calls.  If text is dynamically allocated, the caller is responsible for freeing it.  It's
-// also valid to return the original text passed in as the substitution text, if you just want to set some state
-// inside the context, and not actually change the macro text -- since the macro is disabled, it will then be
-// echoed as non-macro text.
+// Callback functions for custom macros.  Custom macros return their own substitution text, which is then further preprocessed.
+// The substitution text must include 15 bytes of padding past the null terminator, as the preprocessor uses SSE reads which may
+// read past the null terminator.  The text passed to the callback includes the macro identifier and its arguments, with backslashes
+// removed.  A function is called when entering the macro, and again when complete, allowing stateful logic based on whether
+// parsing is inside a certain custom macro.  Any custom macro will automatically be disabled inside itself, with the idea that
+// this allows a singleton buffer for the substitution text, as there's no concern about nested calls.  If text is dynamically
+// allocated, the caller is responsible for freeing it.  It's also valid to return the original text passed in as the substitution
+// text, if you just want to set some state inside the context, and not actually change the macro text -- since the macro is
+// disabled, it will then be echoed as non-macro text.
 typedef const char* (*custommacro_begin_callback_func)(const char* original_text, void* custom_context);
 typedef void (*custommacro_end_callback_func)(const char* original_text, void* custom_context, const char* substitution_text);
 
