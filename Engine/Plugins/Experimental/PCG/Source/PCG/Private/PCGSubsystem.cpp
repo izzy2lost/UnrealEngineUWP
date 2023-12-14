@@ -812,7 +812,7 @@ void UPCGSubsystem::CancelAllGeneration()
 	}
 }
 
-void UPCGSubsystem::RefreshRuntimeGenComponent(UPCGComponent* RuntimeComponent, bool bRemovePartitionActors)
+void UPCGSubsystem::RefreshRuntimeGenComponent(UPCGComponent* RuntimeComponent, EPCGChangeType ChangeType)
 {
 	if (!ensure(RuntimeComponent && RuntimeComponent->IsManagedByRuntimeGenSystem()))
 	{
@@ -821,6 +821,8 @@ void UPCGSubsystem::RefreshRuntimeGenComponent(UPCGComponent* RuntimeComponent, 
 
 	if (ensure(RuntimeGenScheduler))
 	{
+		// Only need to remove PAs if the grid sizes have changed.
+		const bool bRemovePartitionActors = !!(ChangeType & EPCGChangeType::GenerationGrid);
 		RuntimeGenScheduler->RefreshComponent(RuntimeComponent, bRemovePartitionActors);
 	}
 }
@@ -1103,16 +1105,16 @@ void UPCGSubsystem::CreatePartitionActorsWithinBounds(const FBox& InBounds, cons
 	}
 }
 
-FPCGTaskId UPCGSubsystem::ScheduleRefresh(UPCGComponent* Component, bool bForceRegen)
+FPCGTaskId UPCGSubsystem::ScheduleRefresh(UPCGComponent* Component, bool bForceRegen, bool bForceCleanup)
 {
 	check(Component && !Component->IsManagedByRuntimeGenSystem());
 
 	TWeakObjectPtr<UPCGComponent> ComponentPtr(Component);
 
-	auto RefreshTask = [ComponentPtr, bForceRegen]() {
+	auto RefreshTask = [ComponentPtr, bForceRegen, bForceCleanup]() {
 		if (UPCGComponent* Component = ComponentPtr.Get())
 		{
-			Component->OnRefresh(bForceRegen);
+			Component->OnRefresh(bForceRegen, bForceCleanup);
 		}
 		return true;
 	};

@@ -302,7 +302,7 @@ void FPCGEditor::UpdateDebugAfterComponentSelection(UPCGComponent* InOldComponen
 			if (UPCGSubsystem* Subsystem = GetSubsystem())
 			{
 				// We don't want to do a full cleanup if we're setting the debug object, since full cleanup destroys the component, which is the debug object itself!
-				Subsystem->RefreshRuntimeGenComponent(Component, /*bRemovePartitionActors=*/false);
+				Subsystem->RefreshRuntimeGenComponent(Component);
 			}
 		}
 		else
@@ -461,7 +461,8 @@ void FPCGEditor::PostUndo(bool bSuccess)
 	{
 		if (PCGGraphBeingEdited)
 		{
-			PCGGraphBeingEdited->NotifyGraphChanged(EPCGChangeType::Structural);
+			// Deepest change type to catch all types of change (like redoing adding a grid size node or etc).
+			PCGGraphBeingEdited->NotifyGraphChanged(EPCGChangeType::Structural | EPCGChangeType::GenerationGrid);
 		}
 
 		if (GraphEditorWidget.IsValid())

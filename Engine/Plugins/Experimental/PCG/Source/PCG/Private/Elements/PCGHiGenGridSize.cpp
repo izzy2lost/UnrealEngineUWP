@@ -103,7 +103,7 @@ EPCGChangeType UPCGHiGenGridSizeSettings::GetChangeTypeForProperty(const FName& 
 	if (InPropertyName == GET_MEMBER_NAME_CHECKED(UPCGHiGenGridSizeSettings, bEnabled)
 		|| InPropertyName == GET_MEMBER_NAME_CHECKED(UPCGHiGenGridSizeSettings, HiGenGridSize))
 	{
-		ChangeType |= EPCGChangeType::Structural;
+		ChangeType |= EPCGChangeType::Structural | EPCGChangeType::GenerationGrid;
 	}
 
 	return ChangeType;

@@ -557,71 +557,85 @@ void FPCGRuntimeGenScheduler::TickScheduleGeneration(TMap<FGridGenerationKey, do
 		// If the Grid is unbounded, we have a non-partitioned or unbounded component.
 		if (Grid == EPCGHiGenGrid::Unbounded)
 		{
-			if (ensure(OriginalComponent && !OriginalComponent->bGenerated) && !OriginalComponent->IsGenerating())
+			if (ensure(OriginalComponent) && !OriginalComponent->IsGenerating())
 			{
 				if (PCGRuntimeGenSchedulerHelpers::CVarRuntimeGenerationEnableDebugging.GetValueOnAnyThread() && OriginalComponent->GetOwner())
 				{
 					UE_LOG(LogPCG, Warning, TEXT("[RUNTIMEGEN] GENERATE: '%s' (priority %lf)"), *OriginalComponent->GetOwner()->GetActorNameOrLabel(), Priority);
 				}
 
-				OriginalComponent->GenerateLocal(EPCGComponentGenerationTrigger::GenerateAtRuntime, /*bForce=*/false, Grid);
+				// Force to refresh if the component is already generated.
+				OriginalComponent->GenerateLocal(EPCGComponentGenerationTrigger::GenerateAtRuntime, /*bForce=*/true, Grid);
 			}
 		}
 		// Otherwise we have a local component.
 		else
 		{
-			TObjectPtr<APCGPartitionActor> PartitionActor = nullptr;
+			// Grab local component and PA if they exist already.
+			UPCGComponent* LocalComponent = ActorAndComponentMapping->GetLocalComponent(GridSize, GridCoords, OriginalComponent, /*bRuntimeGenerated=*/true);
+			TObjectPtr<APCGPartitionActor> PartitionActor = LocalComponent ? Cast<APCGPartitionActor>(LocalComponent->GetOwner()) : nullptr;
 
-			if (PCGRuntimeGenSchedulerHelpers::CVarRuntimeGenerationEnablePooling.GetValueOnAnyThread())
+			if (!LocalComponent || !ensure(PartitionActor))
 			{
-				if (PCGRuntimeGenSchedulerHelpers::CVarRuntimeGenerationEnableDebugging.GetValueOnAnyThread())
+				// Local component & PA do not exist, create them.
+				if (PCGRuntimeGenSchedulerHelpers::CVarRuntimeGenerationEnablePooling.GetValueOnAnyThread())
 				{
-					UE_LOG(LogPCG, Warning, TEXT("[RUNTIMEGEN] UNPOOL PARTITION ACTOR: '%s' (priority %lf, %d remaining out of %d)"),
-						*APCGPartitionActor::GetRuntimeGenActorName(GridSize, GridCoords),
-						Priority,
-						PartitionActorPool.Num(),
-						PartitionActorPoolSize);
+					if (PCGRuntimeGenSchedulerHelpers::CVarRuntimeGenerationEnableDebugging.GetValueOnAnyThread())
+					{
+						UE_LOG(LogPCG, Warning, TEXT("[RUNTIMEGEN] UNPOOL PARTITION ACTOR: '%s' (priority %lf, %d remaining out of %d)"),
+							*APCGPartitionActor::GetRuntimeGenActorName(GridSize, GridCoords),
+							Priority,
+							PartitionActorPool.Num(),
+							PartitionActorPoolSize);
+					}
+
+					// Get RuntimeGenPA from pool.
+					PartitionActor = GetPartitionActorFromPool(GridSize, GridCoords);
+				}
+				else
+				{
+					if (PCGRuntimeGenSchedulerHelpers::CVarRuntimeGenerationEnableDebugging.GetValueOnAnyThread())
+					{
+						UE_LOG(LogPCG, Warning, TEXT("[RUNTIMEGEN] CREATE PARTITION ACTOR: '%s' (priority %lf)"),
+							*APCGPartitionActor::GetRuntimeGenActorName(GridSize, GridCoords),
+							Priority);
+					}
+
+					// Find or Create RuntimeGenPA.
+					PartitionActor = FindOrCreatePartitionActor(GridSize, GridCoords);
 				}
 
-				// Get RuntimeGenPA from pool.
-				PartitionActor = GetPartitionActorFromPool(GridSize, GridCoords);
-			}
-			else
-			{
-				if (PCGRuntimeGenSchedulerHelpers::CVarRuntimeGenerationEnableDebugging.GetValueOnAnyThread())
+				if (!ensure(PartitionActor))
 				{
-					UE_LOG(LogPCG, Warning, TEXT("[RUNTIMEGEN] CREATE PARTITION ACTOR: '%s' (priority %lf)"),
-						*APCGPartitionActor::GetRuntimeGenActorName(GridSize, GridCoords),
-						Priority);
+					continue;
 				}
 
-				// Find or Create RuntimeGenPA.
-				PartitionActor = FindOrCreatePartitionActor(GridSize, GridCoords);
-			}
-
-			if (!ensure(PartitionActor))
-			{
-				continue;
-			}
-
-			// Update component mapping for this PA (add local component).
-			{
-				FWriteScopeLock WriteLock(ActorAndComponentMapping->ComponentToRuntimeGenPartitionActorsMapLock);
-				TSet<TObjectPtr<APCGPartitionActor>>* PartitionActorsPtr = ActorAndComponentMapping->ComponentToRuntimeGenPartitionActorsMap.Find(OriginalComponent);
-
-				if (!PartitionActorsPtr)
+				// Update component mapping for this PA (add local component).
 				{
-					PartitionActorsPtr = &ActorAndComponentMapping->ComponentToRuntimeGenPartitionActorsMap.Emplace(OriginalComponent);
+					FWriteScopeLock WriteLock(ActorAndComponentMapping->ComponentToRuntimeGenPartitionActorsMapLock);
+					TSet<TObjectPtr<APCGPartitionActor>>* PartitionActorsPtr = ActorAndComponentMapping->ComponentToRuntimeGenPartitionActorsMap.Find(OriginalComponent);
+
+					if (!PartitionActorsPtr)
+					{
+						PartitionActorsPtr = &ActorAndComponentMapping->ComponentToRuntimeGenPartitionActorsMap.Emplace(OriginalComponent);
+					}
+
+					// Log this original component before setting up the PA, so that we early out from RefreshComponent if it gets called
+					// in the AddGraphInstance call below.
+					OriginalComponentBeingGenerated = OriginalComponent;
+
+					PartitionActor->AddGraphInstance(OriginalComponent);
+
+					OriginalComponentBeingGenerated = nullptr;
+
+					PartitionActorsPtr->Add(PartitionActor);
 				}
 
-				PartitionActor->AddGraphInstance(OriginalComponent);
-				PartitionActorsPtr->Add(PartitionActor);
+				// Generate local component.
+				LocalComponent = PartitionActor->GetLocalComponent(OriginalComponent);
 			}
 
-			// Generate local component.
-			UPCGComponent* LocalComponent = PartitionActor->GetLocalComponent(OriginalComponent);
-
-			if (ensure(LocalComponent && !LocalComponent->IsGenerating()))
+			if (ensure(LocalComponent) && !LocalComponent->IsGenerating())
 			{
 				if (PCGRuntimeGenSchedulerHelpers::CVarRuntimeGenerationEnableDebugging.GetValueOnAnyThread())
 				{
@@ -641,7 +655,8 @@ void FPCGRuntimeGenScheduler::TickScheduleGeneration(TMap<FGridGenerationKey, do
 					}
 				}
 
-				LocalComponent->GenerateLocal(EPCGComponentGenerationTrigger::GenerateAtRuntime, /*bForce=*/false, LocalComponent->GetGenerationGrid(), Dependencies);
+				// Force to refresh if the component is already generated.
+				LocalComponent->GenerateLocal(EPCGComponentGenerationTrigger::GenerateAtRuntime, /*bForce=*/true, LocalComponent->GetGenerationGrid(), Dependencies);
 			}
 		}
 
@@ -881,107 +896,163 @@ void FPCGRuntimeGenScheduler::RefreshComponent(UPCGComponent* InComponent, bool 
 		return;
 	}
 
-	const APCGPartitionActor* PartitionActor = Cast<APCGPartitionActor>(InComponent->GetOwner());
+	APCGPartitionActor* PartitionActor = Cast<APCGPartitionActor>(InComponent->GetOwner());
 	const bool bIsLocalComponent = PartitionActor != nullptr;
-
 	UPCGComponent* OriginalComponent = bIsLocalComponent ? PartitionActor->GetOriginalComponent(InComponent) : InComponent;
 
-	auto RefreshLocalComponent = [this, OriginalComponent, bRemovePartitionActors](UPCGComponent* LocalComponent)
+	// If we are mid way through setting up an original component, early out from this refresh.
+	if (!OriginalComponent || OriginalComponent == OriginalComponentBeingGenerated)
 	{
-		check(LocalComponent);
-		APCGPartitionActor* PartitionActor = CastChecked<APCGPartitionActor>(LocalComponent->GetOwner());
+		return;
+	}
 
-		// Find the specific generation key for this component, if it exists, cleanup and generate.
-		FGridGenerationKey LocalComponentKey(PartitionActor->GetPCGGridSize(), PartitionActor->GetGridCoord(), OriginalComponent);
+	const bool bLoggingEnabled = PCGRuntimeGenSchedulerHelpers::CVarRuntimeGenerationEnableDebugging.GetValueOnAnyThread();
 
-		if (GeneratedComponents.Find(LocalComponentKey))
+	// Useful because we can run into generation order issues if components are left to continue generating.
+	if (InComponent->IsGenerating())
+	{
+		InComponent->CancelGeneration();
+	}
+
+	if (!bRemovePartitionActors)
+	{
+		// Refresh path - mark component dirty and removed generated keys which will cause it to be scheduled for regeneration.
+
+		// Remove from generated component set, component will be regenerated later (and in grid order so that e.g. unbounded
+		// is generated first).
+		if (PartitionActor)
 		{
-			if (PCGRuntimeGenSchedulerHelpers::CVarRuntimeGenerationEnableDebugging.GetValueOnAnyThread())
+			if (bLoggingEnabled)
 			{
-				UE_LOG(LogPCG, Warning, TEXT("[RUNTIMEGEN] REFRESH LOCAL COMPONENT: '%s'"), *PartitionActor->GetActorNameOrLabel());
+				UE_LOG(LogPCG, Warning, TEXT("[RUNTIMEGEN] SHALLOW REFRESH LOCAL COMPONENT: '%s'"), *PartitionActor->GetActorNameOrLabel());
 			}
 
-			if (bRemovePartitionActors)
-			{
-				CleanupComponent(LocalComponentKey, LocalComponent);
-			}
-			else
-			{
-				LocalComponent->CleanupLocalImmediate(/*bRemoveComponents=*/true);
-				LocalComponent->GenerateLocal(EPCGComponentGenerationTrigger::GenerateAtRuntime, /*bForce=*/false, LocalComponent->GetGenerationGrid());
-			}
+			GeneratedComponents.Remove({ PartitionActor->GetPCGGridSize(), PartitionActor->GetGridCoord(), OriginalComponent });
+
+			InComponent->CleanupLocalImmediate(/*bRemoveComponents=*/false);
 		}
-	};
+		else
+		{
+			// Remove original component
+			GeneratedComponents.Remove({ PCGHiGenGrid::UnboundedGridSize(), FIntVector(0), OriginalComponent });
 
-	if (bIsLocalComponent)
-	{
-		RefreshLocalComponent(InComponent);
+			// Remove local components
+			TSet<FGridGenerationKey> KeysToRemove;
+
+			for (const FGridGenerationKey& Key : GeneratedComponents)
+			{
+				if (Key.GetOriginalComponent() == InComponent)
+				{
+					// TODO - clean up local immediate will have a flag in the future to clean up the local components on its own, so this call to CleanupLocalImmediate will not be required
+					UPCGComponent* LocalComponent = ActorAndComponentMapping->GetLocalComponent(
+						Key.GetGridSize(),
+						Key.GetGridCoords(),
+						OriginalComponent,
+						/*bRuntimeGenerated=*/true);
+
+					if (bLoggingEnabled && LocalComponent && LocalComponent->GetOwner())
+					{
+						UE_LOG(LogPCG, Warning, TEXT("[RUNTIMEGEN] SHALLOW REFRESH LOCAL COMPONENT: '%s'"), *LocalComponent->GetOwner()->GetActorNameOrLabel());
+					}
+
+					if (ensure(LocalComponent))
+					{
+						LocalComponent->CleanupLocalImmediate(/*bRemoveComponents=*/false);
+					}
+
+					KeysToRemove.Add(Key);
+				}
+			}
+
+			GeneratedComponents = GeneratedComponents.Difference(KeysToRemove);
+
+			if (bLoggingEnabled && OriginalComponent->GetOwner())
+			{
+				UE_LOG(LogPCG, Warning, TEXT("[RUNTIMEGEN] SHALLOW REFRESH COMPONENT: '%s' PARTITIONED: %d"),
+					*OriginalComponent->GetOwner()->GetActorNameOrLabel(),
+					OriginalComponent->IsPartitioned() ? 1 : 0);
+			}
+
+			InComponent->CleanupLocalImmediate(/*bRemoveComponents=*/false);
+		}
 	}
 	else
 	{
-		// Grid sizes might have changed, so we should defensively create grid guids.
-		CreateGridGuidsForComponent(OriginalComponent);
+		// Full cleanout path - cleanup existing components and return actors to the pool.
 
-		TArray<FGridGenerationKey> GenerationKeys;
-
-		for (FGridGenerationKey GenerationKey : GeneratedComponents)
+		auto RefreshLocalComponent = [this, OriginalComponent, bLoggingEnabled](UPCGComponent* LocalComponent)
 		{
-			if (GenerationKey.GetOriginalComponent() == OriginalComponent)
-			{
-				GenerationKeys.Add(GenerationKey);
-			}
-		}
+			check(LocalComponent);
+			APCGPartitionActor* PartitionActor = CastChecked<APCGPartitionActor>(LocalComponent->GetOwner());
 
-		if (!bRemovePartitionActors)
-		{
-			// Sort GenerationKeys by GridSize to guarantee the largest grid sizes execute first.
-			// This is only necessary if we are not doing a full cleanup, since full cleanup regeneration is already sorted by the scheduler.
-			GenerationKeys.Sort([](const FGridGenerationKey& Lhs, const FGridGenerationKey& Rhs)
-			{
-				return Lhs.GetGridSize() > Rhs.GetGridSize();
-			});
-		}
+			// Find the specific generation key for this component, if it exists, cleanup and generate.
+			FGridGenerationKey LocalComponentKey(PartitionActor->GetPCGGridSize(), PartitionActor->GetGridCoord(), OriginalComponent);
 
-		// Gather all generated components which originated from this original component.
-		for (FGridGenerationKey GenerationKey : GenerationKeys)
-		{
-			const uint32 GridSize = GenerationKey.GetGridSize();
-			const EPCGHiGenGrid Grid = PCGHiGenGrid::GridSizeToGrid(GridSize);
-
-			// If the Grid is unbounded, we have a non-partitioned or unbounded component.
-			if (Grid == EPCGHiGenGrid::Unbounded)
+			if (GeneratedComponents.Find(LocalComponentKey))
 			{
-				if (PCGRuntimeGenSchedulerHelpers::CVarRuntimeGenerationEnableDebugging.GetValueOnAnyThread() && OriginalComponent->GetOwner())
+				if (bLoggingEnabled)
 				{
-					UE_LOG(LogPCG, Warning, TEXT("[RUNTIMEGEN] REFRESH COMPONENT: '%s'"), *OriginalComponent->GetOwner()->GetActorNameOrLabel());
+					UE_LOG(LogPCG, Warning, TEXT("[RUNTIMEGEN] DEEP REFRESH LOCAL COMPONENT: '%s'"), *PartitionActor->GetActorNameOrLabel());
 				}
 
-				if (bRemovePartitionActors)
+				CleanupComponent(LocalComponentKey, LocalComponent);
+			}
+		};
+
+		if (bIsLocalComponent)
+		{
+			RefreshLocalComponent(InComponent);
+		}
+		else
+		{
+			TArray<FGridGenerationKey> GenerationKeys;
+
+			for (FGridGenerationKey GenerationKey : GeneratedComponents)
+			{
+				if (GenerationKey.GetOriginalComponent() == OriginalComponent)
 				{
+					GenerationKeys.Add(GenerationKey);
+				}
+			}
+
+			// Gather all generated components which originated from this original component.
+			for (FGridGenerationKey GenerationKey : GenerationKeys)
+			{
+				const uint32 GridSize = GenerationKey.GetGridSize();
+				const EPCGHiGenGrid Grid = PCGHiGenGrid::GridSizeToGrid(GridSize);
+
+				// If the Grid is unbounded, we have a non-partitioned or unbounded component.
+				if (Grid == EPCGHiGenGrid::Unbounded)
+				{
+					if (bLoggingEnabled && OriginalComponent->GetOwner())
+					{
+						UE_LOG(LogPCG, Warning, TEXT("[RUNTIMEGEN] DEEP REFRESH COMPONENT: '%s' PARTITIONED: %d"),
+							*OriginalComponent->GetOwner()->GetActorNameOrLabel(),
+							OriginalComponent->IsPartitioned() ? 1 : 0);
+					}
+
 					CleanupComponent(GenerationKey, OriginalComponent);
 				}
+				// Otherwise we have a local component.
 				else
 				{
-					OriginalComponent->CleanupLocalImmediate(/*bRemoveComponents=*/true);
-					OriginalComponent->GenerateLocal(EPCGComponentGenerationTrigger::GenerateAtRuntime, /*bForce=*/false, Grid);
-				}
-			}
-			// Otherwise we have a local component.
-			else
-			{
-				const FIntVector GridCoords = GenerationKey.GetGridCoords();
+					const FIntVector GridCoords = GenerationKey.GetGridCoords();
 
-				UPCGComponent* LocalComponent = ActorAndComponentMapping->GetLocalComponent(GridSize, GridCoords, OriginalComponent, /*bRuntimeGenerated=*/true);
-				if (!ensure(LocalComponent))
-				{
-					UE_LOG(LogPCG, Error, TEXT("[RUNTIMEGEN] Generated local component could not be retrieved: %u, %d_%d_%d"), GridSize, GridCoords.X, GridCoords.Y, GridCoords.Z);
-					continue;
-				}
+					UPCGComponent* LocalComponent = ActorAndComponentMapping->GetLocalComponent(GridSize, GridCoords, OriginalComponent, /*bRuntimeGenerated=*/true);
+					if (!ensure(LocalComponent))
+					{
+						UE_LOG(LogPCG, Error, TEXT("[RUNTIMEGEN] Generated local component could not be retrieved: %u, %d_%d_%d"), GridSize, GridCoords.X, GridCoords.Y, GridCoords.Z);
+						continue;
+					}
 
-				RefreshLocalComponent(LocalComponent);
+					RefreshLocalComponent(LocalComponent);
+				}
 			}
 		}
+	}
 
+	if (!bIsLocalComponent)
+	{
 		// When an original/non-partitioned component is refreshed, we need to dirty the state.
 		bAnyRuntimeGenComponentsExistDirty = true;
 	}

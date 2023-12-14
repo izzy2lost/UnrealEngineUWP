@@ -138,7 +138,7 @@ public:
 	void CancelGeneration(UPCGGraph* Graph);
 
 	/** Asks the runtime generation scheduler to refresh a given GenerateAtRuntime component. bRemovePartitionActors will also perform a full cleanup of PAs and local components. */
-	void RefreshRuntimeGenComponent(UPCGComponent* RuntimeComponent, bool bRemovePartitionActors = false);
+	void RefreshRuntimeGenComponent(UPCGComponent* RuntimeComponent, EPCGChangeType ChangeType = EPCGChangeType::None);
 
 	/** Returns true if there are any tasks for this graph currently scheduled or executing. */
 	bool IsGraphCurrentlyExecuting(UPCGGraph* Graph);
@@ -186,7 +186,7 @@ public:
 #if WITH_EDITOR
 public:
 	/** Schedule refresh on the current or next frame */
-	FPCGTaskId ScheduleRefresh(UPCGComponent* SourceComponent, bool bForceRefresh);
+	FPCGTaskId ScheduleRefresh(UPCGComponent* SourceComponent, bool bForceRefresh, bool bForceCleanup);
 
 	/** Schedules an operation to cleanup the graph in the given bounds */
 	FPCGTaskId CleanupGraph(UPCGComponent* Component, const FBox& InBounds, bool bRemoveComponents, bool bSave);

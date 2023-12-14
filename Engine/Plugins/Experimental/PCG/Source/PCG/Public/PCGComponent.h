@@ -272,9 +272,9 @@ public:
 
 #if WITH_EDITOR
 	/** Schedules refresh of the component. If bCancelExistingRefresh is true, any existing refresh is cancelled and a new one is scheduled. */
-	void Refresh(bool bStructural = false, bool bCancelExistingRefresh = false);
+	void Refresh(EPCGChangeType ChangeType = EPCGChangeType::None, bool bCancelExistingRefresh = false);
 
-	void OnRefresh(bool bForceRefresh);
+	void OnRefresh(bool bForceRefresh, bool bForceCleanup);
 
 	void StartGenerationInProgress();
 	void StopGenerationInProgress();
@@ -422,7 +422,7 @@ private:
 	void GetManagedResources(TArray<TObjectPtr<UPCGManagedResource>>& Resources) const;
 	void SetManagedResources(const TArray<TObjectPtr<UPCGManagedResource>>& Resources);
 
-	void RefreshAfterGraphChanged(UPCGGraphInterface* InGraph, bool bIsStructural, bool bDirtyInputs);
+	void RefreshAfterGraphChanged(UPCGGraphInterface* InGraph, EPCGChangeType ChangeType);
 	void OnGraphChanged(UPCGGraphInterface* InGraph, EPCGChangeType ChangeType);
 
 #if WITH_EDITOR

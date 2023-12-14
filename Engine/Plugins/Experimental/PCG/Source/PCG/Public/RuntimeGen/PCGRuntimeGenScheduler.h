@@ -121,4 +121,10 @@ private:
 	/** Track the existence of runtime gen components to avoid unnecessary computation when there is no work to do. */
 	bool bAnyRuntimeGenComponentsExist = false;
 	bool bAnyRuntimeGenComponentsExistDirty = false;
+
+	/** Setting up a PA calls APCGPartitionActor::AddGraphInstance which later calls RefreshComponent, which can create
+	* an infinite refresh loop. To break this loop we write the OC pointer to this variable, and if Refresh gets called for
+	* this OC we early out. Basically we don't respond to refresh calls for a component we are midway through setting up.
+	*/
+	const UPCGComponent* OriginalComponentBeingGenerated = nullptr;
 };

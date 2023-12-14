@@ -241,7 +241,8 @@ FReply FPCGComponentDetails::OnRefreshClicked()
 	{
 		if (Component.IsValid())
 		{
-			Component.Get()->Refresh();
+			// Trigger the deepest refresh - re-initialize the PAs.
+			Component.Get()->Refresh(EPCGChangeType::Structural | EPCGChangeType::GenerationGrid, /*bCancelExistingRefresh=*/true);
 		}
 	}
 

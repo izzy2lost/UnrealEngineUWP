@@ -540,9 +540,17 @@ void UPCGSettings::PostEditChangeProperty(FPropertyChangedEvent& PropertyChanged
 		InitializeCachedOverridableParams(/*bReset=*/true);
 	}
 
-	if (PropertyChangedEvent.GetPropertyName() != GET_MEMBER_NAME_CHECKED(UPCGSettings, DeterminismSettings))
+	const FName PropertyName = PropertyChangedEvent.GetPropertyName();
+	if (PropertyName != GET_MEMBER_NAME_CHECKED(UPCGSettings, DeterminismSettings))
 	{
-		OnSettingsChangedDelegate.Broadcast(this, GetChangeTypeForProperty(PropertyChangedEvent.GetPropertyName()));
+		// If we have a property name then get the change type for that property, otherwise assume deepest change type.
+		EPCGChangeType ChangeType = EPCGChangeType::Structural | EPCGChangeType::GenerationGrid;
+		if (PropertyName != NAME_None)
+		{
+			ChangeType = GetChangeTypeForProperty(PropertyChangedEvent.GetPropertyName());
+		}
+
+		OnSettingsChangedDelegate.Broadcast(this, ChangeType);
 	}
 
 	CacheCrc();

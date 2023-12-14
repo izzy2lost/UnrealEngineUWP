@@ -19,6 +19,8 @@ enum class EPCGChangeType : uint8
 	Edge = 1 << 3,
 	Node = 1 << 4,
 	Structural = 1 << 5,
+	/** Anything related to generation grids - changing grid size or adding/removing grid size nodes. */
+	GenerationGrid = 1 << 6,
 };
 ENUM_CLASS_FLAGS(EPCGChangeType);
 

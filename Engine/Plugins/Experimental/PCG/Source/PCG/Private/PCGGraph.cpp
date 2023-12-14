@@ -551,15 +551,22 @@ void UPCGGraph::OnNodeAdded(UPCGNode* InNode)
 void UPCGGraph::OnNodesAdded(TArrayView<UPCGNode*> InNodes)
 {
 #if WITH_EDITOR
+	EPCGChangeType ChangeType = EPCGChangeType::Structural;
+
 	for (UPCGNode* Node : InNodes)
 	{
 		if (Node)
 		{
 			Node->OnNodeChangedDelegate.AddUObject(this, &UPCGGraph::OnNodeChanged);
+
+			if (Node->GetSettings() && Node->GetSettings()->IsA<UPCGHiGenGridSizeSettings>())
+			{
+				ChangeType |= EPCGChangeType::GenerationGrid;
+			}
 		}
 	}
 
-	NotifyGraphChanged(EPCGChangeType::Structural);
+	NotifyGraphChanged(ChangeType);
 #endif
 }
 
@@ -571,15 +578,19 @@ void UPCGGraph::OnNodeRemoved(UPCGNode* InNode)
 void UPCGGraph::OnNodesRemoved(TArrayView<UPCGNode*> InNodes)
 {
 #if WITH_EDITOR
+	bool bAnyGridSizeNodes = false;
+
 	for (UPCGNode* Node : InNodes)
 	{
 		if (Node)
 		{
 			Node->OnNodeChangedDelegate.RemoveAll(this);
+
+			bAnyGridSizeNodes |= !!Cast<UPCGHiGenGridSizeSettings>(Node->GetSettings());
 		}
 	}
 
-	NotifyGraphChanged(EPCGChangeType::Structural);
+	NotifyGraphChanged(bAnyGridSizeNodes ? (EPCGChangeType::Structural | EPCGChangeType::GenerationGrid) : EPCGChangeType::Structural);
 #endif
 }
 
@@ -869,7 +880,8 @@ bool UPCGGraph::RemoveOutboundEdges(UPCGNode* InNode, const FName& OutboundLabel
 void UPCGGraph::ForceNotificationForEditor()
 {
 	// Queue up the delayed change
-	NotifyGraphChanged(EPCGChangeType::Structural);
+	NotifyGraphChanged(EPCGChangeType::Structural | EPCGChangeType::GenerationGrid);
+
 	if (bUserPausedNotificationsInGraphEditor)
 	{
 		EnableNotificationsForEditor();
@@ -1105,6 +1117,8 @@ void UPCGGraph::OnNodeChanged(UPCGNode* InNode, EPCGChangeType ChangeType)
 		// Update node to grid size map for grid size changes.
 		if (Cast<UPCGHiGenGridSizeSettings>(InNode->GetSettings()))
 		{
+			ChangeType |= EPCGChangeType::GenerationGrid;
+
 			FWriteScopeLock Lock(NodeToGridSizeLock);
 			NodeToGridSize.Reset();
 		}
@@ -1182,7 +1196,7 @@ void UPCGGraph::PostEditChangeProperty(FPropertyChangedEvent& PropertyChangedEve
 		|| PropertyName == GET_MEMBER_NAME_CHECKED(UPCGGraph, bUseHierarchicalGeneration))
 	{
 		// The higen settings change the structure of the graph (presence or absence of links between grid levels).
-		NotifyGraphChanged(EPCGChangeType::Structural);
+		NotifyGraphChanged(EPCGChangeType::Structural | EPCGChangeType::GenerationGrid);
 	}
 
 	NumberOfUserParametersPreEdit = 0;

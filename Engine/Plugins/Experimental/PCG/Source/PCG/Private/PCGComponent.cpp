@@ -141,7 +141,7 @@ void UPCGComponent::SetGraphInterfaceLocal(UPCGGraphInterface* InGraphInterface)
 	if (ensure(GraphInstance))
 	{
 		GraphInstance->SetGraph(InGraphInterface);
-		RefreshAfterGraphChanged(GraphInstance, /*bIsStructural=*/true, /*bDirtyInputs=*/true);
+		RefreshAfterGraphChanged(GraphInstance, EPCGChangeType::Structural | EPCGChangeType::GenerationGrid);
 	}
 }
 
@@ -1415,13 +1415,10 @@ TStructOnScope<FActorComponentInstanceData> UPCGComponent::GetComponentInstanceD
 
 void UPCGComponent::OnGraphChanged(UPCGGraphInterface* InGraph, EPCGChangeType ChangeType)
 {
-	const bool bIsStructural = ((ChangeType & (EPCGChangeType::Edge | EPCGChangeType::Structural)) != EPCGChangeType::None);
-	const bool bDirtyInputs = bIsStructural || ((ChangeType & EPCGChangeType::Input) != EPCGChangeType::None);
-
-	RefreshAfterGraphChanged(InGraph, bIsStructural, bDirtyInputs);
+	RefreshAfterGraphChanged(InGraph, ChangeType);
 }
 
-void UPCGComponent::RefreshAfterGraphChanged(UPCGGraphInterface* InGraph, bool bIsStructural, bool bDirtyInputs)
+void UPCGComponent::RefreshAfterGraphChanged(UPCGGraphInterface* InGraph, EPCGChangeType ChangeType)
 {
 	if (InGraph != GraphInstance)
 	{
@@ -1429,6 +1426,9 @@ void UPCGComponent::RefreshAfterGraphChanged(UPCGGraphInterface* InGraph, bool b
 	}
 
 	const bool bHasGraph = (InGraph && InGraph->GetGraph());
+
+	const bool bIsStructural = ((ChangeType & (EPCGChangeType::Edge | EPCGChangeType::Structural)) != EPCGChangeType::None);
+	const bool bDirtyInputs = bIsStructural || ((ChangeType & EPCGChangeType::Input) != EPCGChangeType::None);
 
 #if WITH_EDITOR
 	// In editor, since we've changed the graph, we might have changed the tracked actor tags as well
@@ -1445,9 +1445,10 @@ void UPCGComponent::RefreshAfterGraphChanged(UPCGGraphInterface* InGraph, bool b
 		}
 
 		DirtyGenerated(bDirtyInputs ? (EPCGComponentDirtyFlag::Actor | EPCGComponentDirtyFlag::Landscape) : EPCGComponentDirtyFlag::None);
+
 		if (bHasGraph)
 		{
-			Refresh(bIsStructural);
+			Refresh(ChangeType);
 		}
 		else
 		{
@@ -1456,6 +1457,7 @@ void UPCGComponent::RefreshAfterGraphChanged(UPCGGraphInterface* InGraph, bool b
 		}
 
 		ClearInspectionData();
+
 		return;
 	}
 #endif
@@ -1464,7 +1466,7 @@ void UPCGComponent::RefreshAfterGraphChanged(UPCGGraphInterface* InGraph, bool b
 	{
 		if (UPCGSubsystem* Subsystem = GetSubsystem())
 		{
-			Subsystem->RefreshRuntimeGenComponent(this, /*bRemovePartitionActors=*/true);
+			Subsystem->RefreshRuntimeGenComponent(this, ChangeType);
 		}
 	}
 	else
@@ -1493,7 +1495,7 @@ void UPCGComponent::PreEditChange(FProperty* PropertyAboutToChange)
 			if (UPCGSubsystem* Subsystem = GetSubsystem())
 			{
 				// When toggling off of GenerateAtRuntime, we should flush the RuntimeGenScheduler state for this component.
-				Subsystem->RefreshRuntimeGenComponent(this, /*bRemovePartitionActors=*/true);
+				Subsystem->RefreshRuntimeGenComponent(this, EPCGChangeType::GenerationGrid);
 			}
 
 			// Reset to the the editing mode we were in before entering GenerateAtRuntime mode.
@@ -1674,7 +1676,7 @@ void UPCGComponent::PostEditUndo()
 		// operation removes the component, a valid refresh task ID is set but the refresh task itself will fail
 		// and leave the valid task ID hanging on the component. Forcing here means if we later retrieve this state
 		// from the undo/redo buffer, the refresh will be forced which will reset the state.
-		Refresh(/*bIsStructural=*/true, /*bCancelExistingRefresh=*/true);
+		Refresh(EPCGChangeType::Structural, /*bCancelExistingRefresh=*/true);
 	}
 
 	Super::PostEditUndo();
@@ -1931,7 +1933,7 @@ bool UPCGComponent::HasNodeProducedData(const UPCGNode* InNode, const FPCGStack&
 	return StacksThatProducedData && StacksThatProducedData->Contains(Stack);
 }
 
-void UPCGComponent::Refresh(bool bStructural, bool bCancelExistingRefresh)
+void UPCGComponent::Refresh(EPCGChangeType ChangeType, bool bCancelExistingRefresh)
 {
 	// Disable auto-refreshing on preview actors until we have something more robust on the execution side.
 	if (GetOwner() && GetOwner()->bIsEditorPreviewActor)
@@ -1944,8 +1946,7 @@ void UPCGComponent::Refresh(bool bStructural, bool bCancelExistingRefresh)
 	{
 		if (UPCGSubsystem* Subsystem = GetSubsystem())
 		{
-			// TODO: We only need to remove PAs if the grid sizes changed. Is there a reliable way to know that?
-			Subsystem->RefreshRuntimeGenComponent(this, /*bRemovePartitionActors=*/true);
+			Subsystem->RefreshRuntimeGenComponent(this, ChangeType);
 		}
 
 		return;
@@ -1979,6 +1980,7 @@ void UPCGComponent::Refresh(bool bStructural, bool bCancelExistingRefresh)
 		// Cancel an already existing generation if either the change is structural in nature (which requires a recompilation, so a full-rescheduling)
 		// or if the generation is already started
 		const bool bGenerationWasInProgress = IsGenerationInProgress();
+		const bool bStructural = !!(ChangeType & EPCGChangeType::Structural);
 		bool bNeedToCancelCurrentTasks = (CurrentGenerationTask != InvalidPCGTaskId && (bStructural || bGenerationWasInProgress));
 
 		// Cancel an already existing refresh if caller allows this
@@ -1998,7 +2000,10 @@ void UPCGComponent::Refresh(bool bStructural, bool bCancelExistingRefresh)
 		// then the bGenerated flag will be false, which will prevent a subsequent update here
 		if (CurrentRefreshTask == InvalidPCGTaskId && CurrentCleanupTask == InvalidPCGTaskId)
 		{
-			CurrentRefreshTask = Subsystem->ScheduleRefresh(this, bGenerationWasInProgress);
+			// Always force a regeneration if generation grids might be affected - refresh is insufficient.
+			const bool bGridChanged = !!(ChangeType & EPCGChangeType::GenerationGrid);
+			const bool bForceRegen = bGenerationWasInProgress || bGridChanged;
+			CurrentRefreshTask = Subsystem->ScheduleRefresh(this, bForceRegen, /*bForceCleanup=*/bGridChanged);
 		}
 	}
 }
@@ -2090,7 +2095,7 @@ bool UPCGComponent::IsObjectTracked(const TSoftObjectPtr<UObject>& InObjectPtr, 
 	return bFound;
 }
 
-void UPCGComponent::OnRefresh(bool bForceRefresh)
+void UPCGComponent::OnRefresh(bool bForceRefresh, bool bForceCleanup)
 {
 	check(!IsManagedByRuntimeGenSystem());
 
@@ -2103,13 +2108,10 @@ void UPCGComponent::OnRefresh(bool bForceRefresh)
 	const bool bWasGenerated = bGenerated;
 	const bool bWasGeneratedOrGenerating = bWasGenerated || bForceRefresh;
 
-	if (IsPartitioned())
+	// If we are partitioned but we have resources, we need to force a cleanup
+	if (bForceCleanup || (IsPartitioned() && !GeneratedResources.IsEmpty()))
 	{
-		// If we are partitioned but we have resources, we need to force a cleanup
-		if (!GeneratedResources.IsEmpty())
-		{
-			CleanupLocalImmediate(/*bRemoveComponents=*/true);
-		}
+		CleanupLocalImmediate(/*bRemoveComponents=*/true);
 	}
 
 	if (Subsystem)
