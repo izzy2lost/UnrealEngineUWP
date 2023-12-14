@@ -23,7 +23,7 @@ namespace PerfReportTool
     class Version
     {
 		// Format: Major.Minor.Bugfix
-        private static string VersionString = "4.225.0";
+        private static string VersionString = "4.226.0";
 
         public static string Get() { return VersionString; }
     };
@@ -201,7 +201,6 @@ namespace PerfReportTool
 			"  -precacheThreads <n> : number of threads to use for the CSV lookahead cache (default 8)\n" +
 			"  -summaryTableCache <dir> : specifies a directory for summary table data to be cached.\n" +
 			"     This avoids processing csvs on subsequent runs when -noDetailedReports is specified\n" +
-			"     Note: Enables -readAllStats implicitly. \n" +
 			"  -summaryTableCacheInvalidate : regenerates summary table disk cache entries (ie write only)\n" +
 			"  -summaryTableCacheReadOnly : only read from the cache, never write\n" +
 			"  -summaryTableCachePurgeInvalid : Purges invalid PRCs from the cache folder\n" +
@@ -473,10 +472,6 @@ namespace PerfReportTool
 			}
 
 			bool writeDetailedReports = !GetBoolArg("noDetailedReports");
-
-			// A csv hash for now can just be a filename/size. Replace with metadata later
-			// Make PerfSummaryCache from: CSV hash + reporttype hash. If the cache is enabled then always -readAllStats
-
 			bool bReadAllStats = GetBoolArg("readAllStats");
 
 			bool bSummaryTableCacheReadonly = GetBoolArg("summaryTableCacheReadOnly");
@@ -584,7 +579,7 @@ namespace PerfReportTool
 							}
 							else
 							{
-								GenerateReport(cachedCsvFile, outputDir, bBulkMode, rowData, bBatchedGraphs, writeDetailedReports, bReadAllStats || bWriteToSummaryTableCache, cachedCsvFile.reportTypeInfo, csvDir);
+								GenerateReport(cachedCsvFile, outputDir, bBulkMode, rowData, bBatchedGraphs, writeDetailedReports, true, cachedCsvFile.reportTypeInfo, csvDir);
 								perfLog.LogTiming("  GenerateReport");
 
 								if ( ( GetBoolArg("dumpVariables") || GetBoolArg("dumpVariablesAll") ) && cachedCsvFile.xmlVariableMappings != null)
@@ -938,7 +933,7 @@ namespace PerfReportTool
 			return csvStats;
 		}
 
-		void GenerateReport(CachedCsvFile csvFile, string outputDir, bool bBulkMode, SummaryTableRowData rowData, bool bBatchedGraphs, bool writeDetailedReport, bool bReadAllStats, ReportTypeInfo reportTypeInfo, string csvDir)
+		void GenerateReport(CachedCsvFile csvFile, string outputDir, bool bBulkMode, SummaryTableRowData rowData, bool bBatchedGraphs, bool writeDetailedReport, bool bReadCsvStats, ReportTypeInfo reportTypeInfo, string csvDir)
 		{
 			PerfLog perfLog = new PerfLog(GetBoolArg("perfLog"));
 			string shortName = ReplaceFileExtension(MakeShortFilename(csvFile.filename), "");
@@ -1183,7 +1178,7 @@ namespace PerfReportTool
 					}
 				}
 
-				if (bReadAllStats)
+				if (bReadCsvStats)
 				{
 					// Add every stat avg value to the metadata
 					foreach (StatSamples stat in csvStats.Stats.Values)

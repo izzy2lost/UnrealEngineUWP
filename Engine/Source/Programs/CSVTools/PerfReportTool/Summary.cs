@@ -96,7 +96,7 @@ namespace PerfSummaries
 			XElement statsElement = element.Element("stats");
 			if (statsElement != null)
 			{
-				stats = statsElement.Value.Split(',').ToList();
+				stats = statsElement.GetValue(vars).Split(',').ToList();
 			}
             foreach (XElement child in element.Elements())
             {
