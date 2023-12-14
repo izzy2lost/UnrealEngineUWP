@@ -254,6 +254,11 @@ FGeometry SGameLayerManager::GetViewportWidgetHostGeometry() const
 	return WidgetHost->GetTickSpaceGeometry();
 }
 
+FGeometry SGameLayerManager::GetViewportWidgetHostPaintGeometry() const
+{
+	return WidgetHost->GetPaintSpaceGeometry();
+}
+
 FGeometry SGameLayerManager::GetPlayerWidgetHostGeometry(ULocalPlayer* Player) const
 {
 	TSharedPtr<FPlayerLayer> PlayerLayer = PlayerLayers.FindRef(Player);
