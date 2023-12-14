@@ -6,7 +6,13 @@
 #include "SceneInterface.h"
 
 FGeometryCacheUsdSceneProxy::FGeometryCacheUsdSceneProxy(UGeometryCacheUsdComponent* Component)
-: FGeometryCacheSceneProxy(Component, [this]() { return new FGeomCacheTrackUsdProxy(GetScene().GetFeatureLevel()); })
+	: FGeometryCacheSceneProxy(
+		Component,
+		[this]()
+		{
+			return new FGeomCacheTrackUsdProxy(GetScene().GetFeatureLevel());
+		}
+	)
 {
 }
 
@@ -62,7 +68,14 @@ const FVisibilitySample& FGeomCacheTrackUsdProxy::GetVisibilitySample(float Time
 	return FVisibilitySample::VisibleSample;
 }
 
-void FGeomCacheTrackUsdProxy::FindSampleIndexesFromTime(float Time, bool bLooping, bool bIsPlayingBackwards, int32 &OutFrameIndex, int32 &OutNextFrameIndex, float &InInterpolationFactor)
+void FGeomCacheTrackUsdProxy::FindSampleIndexesFromTime(
+	float Time,
+	bool bLooping,
+	bool bIsPlayingBackwards,
+	int32& OutFrameIndex,
+	int32& OutNextFrameIndex,
+	float& InInterpolationFactor
+)
 {
 	TRACE_CPUPROFILER_EVENT_SCOPE(FGeomCacheTrackUsdProxy::FindSampleIndexesFromTime);
 

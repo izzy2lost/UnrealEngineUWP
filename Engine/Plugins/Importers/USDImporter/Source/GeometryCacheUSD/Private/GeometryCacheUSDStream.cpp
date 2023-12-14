@@ -16,7 +16,8 @@ static bool GUsdStreamCacheInDDC = true;
 static FAutoConsoleVariableRef CVarUsdStreamCacheInDDC(
 	TEXT("GeometryCache.Streamer.UsdStream.CacheInDDC"),
 	GUsdStreamCacheInDDC,
-	TEXT("Cache the streamed USD mesh data in the DDC"));
+	TEXT("Cache the streamed USD mesh data in the DDC")
+);
 
 static int32 kUsdReadConcurrency = 10;
 
@@ -79,17 +80,19 @@ public:
 };
 
 FGeometryCacheUsdStream::FGeometryCacheUsdStream(UGeometryCacheTrackUsd* InUsdTrack, FReadUsdMeshFunction InReadFunc)
-: FGeometryCacheStreamBase(
-	kUsdReadConcurrency,
-	FGeometryCacheStreamDetails{
-		InUsdTrack->EndFrameIndex - InUsdTrack->StartFrameIndex + 1,
-		float((InUsdTrack->EndFrameIndex - InUsdTrack->StartFrameIndex + 1) / InUsdTrack->FramesPerSecond),
-		float(1.0f / InUsdTrack->FramesPerSecond),
-		InUsdTrack->StartFrameIndex,
-		InUsdTrack->EndFrameIndex})
-, UsdTrack(InUsdTrack)
-, ReadFunc(InReadFunc)
-, bReadyForRead(false)
+	: FGeometryCacheStreamBase(
+		kUsdReadConcurrency,
+		FGeometryCacheStreamDetails{
+			InUsdTrack->EndFrameIndex - InUsdTrack->StartFrameIndex + 1,
+			float((InUsdTrack->EndFrameIndex - InUsdTrack->StartFrameIndex + 1) / InUsdTrack->FramesPerSecond),
+			float(1.0f / InUsdTrack->FramesPerSecond),
+			InUsdTrack->StartFrameIndex,
+			InUsdTrack->EndFrameIndex
+		}
+	)
+	, UsdTrack(InUsdTrack)
+	, ReadFunc(InReadFunc)
+	, bReadyForRead(false)
 {
 }
 
@@ -118,11 +121,11 @@ bool FGeometryCacheUsdStream::GetFrameData(int32 FrameIndex, FGeometryCacheMeshD
 
 void FGeometryCacheUsdStream::UpdateRequestStatus(TArray<int32>& OutFramesCompleted)
 {
-	FGeometryCacheStreamBase::UpdateRequestStatus( OutFramesCompleted );
+	FGeometryCacheStreamBase::UpdateRequestStatus(OutFramesCompleted);
 
 	// We're fully done fetching what we need from USD for now, we can drop the track's strong stage reference so that the stage
 	// can close if needed
-	if ( FramesNeeded.Num() == 0 && FramesRequested.Num() == 0 && UsdTrack && UsdTrack->CurrentStagePinned )
+	if (FramesNeeded.Num() == 0 && FramesRequested.Num() == 0 && UsdTrack && UsdTrack->CurrentStagePinned)
 	{
 		UsdTrack->UnloadUsdStage();
 		bReadyForRead = false;
@@ -164,7 +167,7 @@ void FGeometryCacheUsdStream::GetMeshData(int32 FrameIndex, int32 ConcurrencyInd
 			TArray<uint8> DerivedData;
 			if (GetDerivedDataCacheRef().GetSynchronous(*DerivedDataKey, DerivedData, UsdPrimPath))
 			{
-				FMemoryReader Ar(DerivedData, /*bIsPersistent=*/ true);
+				FMemoryReader Ar(DerivedData, /*bIsPersistent=*/true);
 				Ar << OutMeshData;
 			}
 			else

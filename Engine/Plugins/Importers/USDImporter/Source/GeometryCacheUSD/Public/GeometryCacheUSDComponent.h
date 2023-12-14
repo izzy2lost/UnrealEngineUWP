@@ -7,8 +7,10 @@
 
 #include "GeometryCacheUSDComponent.generated.h"
 
-/** GeometryCacheUSDComponent, encapsulates a transient GeometryCache asset instance that fetches its data from a USD file and implements functionality for rendering and playback */
+/** GeometryCacheUSDComponent, encapsulates a transient GeometryCache asset instance that fetches its data from a USD file and implements
+ * functionality for rendering and playback */
 UCLASS(HideDropDown, ClassGroup = (Rendering), meta = (DisplayName = "USD Geometry Cache"), Experimental, ClassGroup = Experimental)
+
 class GEOMETRYCACHEUSD_API UGeometryCacheUsdComponent : public UGeometryCacheComponent
 {
 	GENERATED_BODY()

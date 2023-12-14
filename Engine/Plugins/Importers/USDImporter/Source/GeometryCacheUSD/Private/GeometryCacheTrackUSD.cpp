@@ -15,13 +15,16 @@ static bool GDisableGeoCacheTracks = false;
 static FAutoConsoleVariableRef CVarDisableGeoCacheTracks(
 	TEXT("USD.DisableGeoCacheTracks"),
 	GDisableGeoCacheTracks,
-	TEXT("Set to true to disable geometry cache tracks in Sequencer and drive them by the Time property instead. The stage must be reloaded after changing this value."));
+	TEXT("Set to true to disable geometry cache tracks in Sequencer and drive them by the Time property instead. The stage must be reloaded after "
+		 "changing this value.")
+);
 
 UGeometryCacheTrackUsd::UGeometryCacheTrackUsd()
 	: FramesPerSecond(24.0)
 	, StartFrameIndex(0)
 	, EndFrameIndex(0)
-{}
+{
+}
 
 void UGeometryCacheTrackUsd::BeginDestroy()
 {
@@ -46,7 +49,12 @@ void UGeometryCacheTrackUsd::GetResourceSizeEx(FResourceSizeEx& CumulativeResour
 	CumulativeResourceSize.AddDedicatedSystemMemoryBytes(SampleInfos.GetAllocatedSize());
 }
 
-const bool UGeometryCacheTrackUsd::UpdateMeshData(const float Time, const bool bLooping, int32& InOutMeshSampleIndex, FGeometryCacheMeshData*& OutMeshData)
+const bool UGeometryCacheTrackUsd::UpdateMeshData(
+	const float Time,
+	const bool bLooping,
+	int32& InOutMeshSampleIndex,
+	FGeometryCacheMeshData*& OutMeshData
+)
 {
 	const int32 SampleIndex = FindSampleIndexFromTime(Time, bLooping);
 
@@ -64,7 +72,13 @@ const bool UGeometryCacheTrackUsd::UpdateMeshData(const float Time, const bool b
 	return false;
 }
 
-const bool UGeometryCacheTrackUsd::UpdateBoundsData(const float Time, const bool bLooping, const bool bIsPlayingBackward, int32& InOutBoundsSampleIndex, FBox& OutBounds)
+const bool UGeometryCacheTrackUsd::UpdateBoundsData(
+	const float Time,
+	const bool bLooping,
+	const bool bIsPlayingBackward,
+	int32& InOutBoundsSampleIndex,
+	FBox& OutBounds
+)
 {
 	const int32 SampleIndex = FindSampleIndexFromTime(Time, bLooping);
 
@@ -197,7 +211,13 @@ bool UGeometryCacheTrackUsd::LoadUsdStage()
 	}
 	else if (!StageRootLayerPath.IsEmpty())
 	{
-		UE_LOG(LogUsd, Warning, TEXT("UGeometryCacheTrackUsd is reopening the stage '%s' to stream in frames for the geometry cache generated for prim '%s'"), *StageRootLayerPath, *PrimPath);
+		UE_LOG(
+			LogUsd,
+			Warning,
+			TEXT("UGeometryCacheTrackUsd is reopening the stage '%s' to stream in frames for the geometry cache generated for prim '%s'"),
+			*StageRootLayerPath,
+			*PrimPath
+		);
 
 		// Reopen the stage. If our weak pointer is no longer valid then nothing cared about keeping that
 		// stage alive anyway, so it's likely not a problem if we start reading frames from the reopened stage
@@ -256,7 +276,7 @@ void UGeometryCacheTrackUsd::Initialize(
 	const UE::FUsdStage& InStage,
 	const FString& InPrimPath,
 	const FName& InRenderContext,
-	const TMap< FString, TMap< FString, int32 > >& InMaterialToPrimvarToUVIndex,
+	const TMap<FString, TMap<FString, int32>>& InMaterialToPrimvarToUVIndex,
 	int32 InStartFrameIndex,
 	int32 InEndFrameIndex,
 	FReadUsdMeshFunction InReadFunc
