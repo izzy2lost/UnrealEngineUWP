@@ -650,7 +650,7 @@ namespace uba
 #if PLATFORM_WINDOWS
 		return ::CreateHardLinkW(newFileName, existingFileName, NULL);
 #else
-#if PLATFORM_MAC
+#if 1//PLATFORM_MAC
 		int res = symlink(existingFileName, newFileName);
 #else
 		int res = link(existingFileName, newFileName);
