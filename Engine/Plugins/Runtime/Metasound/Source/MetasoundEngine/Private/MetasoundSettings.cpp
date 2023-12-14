@@ -41,8 +41,14 @@ namespace MetaSoundSettingsPrivate
 	}
 	static void OnRenameQualitySettings(FMetaSoundQualitySettings& InRenamed)
 	{
+		// Prevent 'None' as an option.
+		if (InRenamed.Name.IsNone())
+		{
+			InRenamed.Name = GenerateNextName(TEXT("New Quality"));
+		}
+		
 		// More than one?
-		if (Algo::Count(UMetaSoundQualityHelper::GetQualityList(), InRenamed.Name) > 1)
+		else if (Algo::Count(UMetaSoundQualityHelper::GetQualityList(), InRenamed.Name) > 1)
 		{
 			// add something unique to the name.
 			InRenamed.Name = GenerateNextName(*InRenamed.Name.ToString());
