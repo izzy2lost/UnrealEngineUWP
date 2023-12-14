@@ -609,7 +609,7 @@ int32 CompileExternalTextureCoordinates(FMaterialCompiler* Compiler, const int32
  * @param SamplerSource           (Optional) Sampler source override
  * @return Index to a new code chunk that samples the texture
  */
-int32 CompileTextureSample(
+ENGINE_API int32 CompileTextureSample(
 	FMaterialCompiler* Compiler,
 	UTexture* Texture,
 	int32 TexCoordCodeIndex,
