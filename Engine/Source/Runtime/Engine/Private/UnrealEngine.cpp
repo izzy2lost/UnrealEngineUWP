@@ -4943,6 +4943,14 @@ bool UEngine::Exec( UWorld* InWorld, const TCHAR* Cmd, FOutputDevice& Ar )
 	}
 #endif
 
+#if UE_ENABLE_ARRAY_SLACK_TRACKING
+	else if (FParse::Command(&Cmd, TEXT("SLACKREPORT")))
+	{
+		ArraySlackTrackGenerateReport(Cmd, Ar);
+		return true;
+	}
+#endif
+
 	else if ( FParse::Command(&Cmd,TEXT("SCALABILITY")) )
 	{
 		Scalability::ProcessCommand(Cmd, Ar);

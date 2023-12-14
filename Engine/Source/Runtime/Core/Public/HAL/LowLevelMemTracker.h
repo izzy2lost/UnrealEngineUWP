@@ -669,6 +669,7 @@ public:
 
 	/** Get the display name for the given ELLMTag. */
 	CORE_API FName FindTagDisplayName(uint64 Tag) const;
+	CORE_API FName FindPtrDisplayName(void* Ptr) const;
 
 	/** Get the display name for the given FTagData. */
 	CORE_API FName GetTagDisplayName(const UE::LLMPrivate::FTagData* TagData) const;
@@ -719,6 +720,11 @@ public:
 
 	CORE_API void OnPreFork();
 
+	FORCEINLINE bool IsInitialized() const
+	{
+		return bFullyInitialised;
+	}
+
 private:
 	CORE_API FLowLevelMemTracker();
 
@@ -739,6 +745,7 @@ private:
 	CORE_API void InitialiseProgramSize();
 
 	CORE_API class UE::LLMPrivate::FLLMTracker* GetTracker(ELLMTracker Tracker);
+	CORE_API const class UE::LLMPrivate::FLLMTracker* GetTracker(ELLMTracker Tracker) const;
 
 	CORE_API void TickInternal();
 	CORE_API void UpdateTags();

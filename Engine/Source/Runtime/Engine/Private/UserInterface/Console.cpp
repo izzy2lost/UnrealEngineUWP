@@ -441,6 +441,14 @@ void UConsole::BuildRuntimeAutoCompleteList(bool bForce)
 					FoundNodeIdx = NodeIdx;
 					Node = NodeList[FoundNodeIdx];
 					NodeList[FoundNodeIdx]->AutoCompleteListIndices.Add(ListIdx);
+#if UE_ENABLE_ARRAY_SLACK_TRACKING
+					// Disable array slack tracking for Console system related allocations.  This needs to be called any time a reallocation occurs,
+					// which in practical terms means any "Add" (although it's cheap if there wasn't a recent reallocation, a couple memory reads).
+					// The auto-complete code (triggered when bringing up a console window to issue the slack report command) generates over a million
+					// allocations, with over 10 MB cumulative slack memory, which ends up at the top of any slack report, and is debug related code
+					// that we don't care about tracking.  If anyone wants to look at it for some reason, just remove these lines.
+					NodeList[FoundNodeIdx]->AutoCompleteListIndices.GetAllocatorInstance().DisableSlackTracking();
+#endif
 					break;
 				}
 			}
@@ -449,6 +457,10 @@ void UConsole::BuildRuntimeAutoCompleteList(bool bForce)
 				FAutoCompleteNode* NewNode = new FAutoCompleteNode(Char);
 				NewNode->AutoCompleteListIndices.Add(ListIdx);
 				Node->ChildNodes.Add(NewNode);
+#if UE_ENABLE_ARRAY_SLACK_TRACKING
+				NewNode->AutoCompleteListIndices.GetAllocatorInstance().DisableSlackTracking();
+				Node->ChildNodes.GetAllocatorInstance().DisableSlackTracking();
+#endif
 				Node = NewNode;
 			}
 		}
