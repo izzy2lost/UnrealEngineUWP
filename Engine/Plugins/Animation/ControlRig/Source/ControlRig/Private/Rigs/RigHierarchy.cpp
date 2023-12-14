@@ -113,6 +113,7 @@ URigHierarchy::URigHierarchy()
 , HierarchyController(nullptr)
 , bIsControllerAvailable(true)
 , ResetPoseHash(INDEX_NONE)
+, bIsCopyingHierarchy(false)
 #if WITH_EDITOR
 , bPropagatingChange(false)
 , bForcePropagation(false)
@@ -480,6 +481,8 @@ void URigHierarchy::ResetToDefault()
 void URigHierarchy::CopyHierarchy(URigHierarchy* InHierarchy)
 {
 	check(InHierarchy);
+
+	const TGuardValue<bool> MarkCopyingHierarchy(bIsCopyingHierarchy, true);
 	
 	LLM_SCOPE_BYNAME(TEXT("Animation/ControlRig"));
 
@@ -654,6 +657,9 @@ void URigHierarchy::CopyHierarchy(URigHierarchy* InHierarchy)
 	}
 
 	EnsureCacheValidity();
+
+	bIsCopyingHierarchy = false;
+	Notify(ERigHierarchyNotification::HierarchyCopied, nullptr);
 }
 
 uint32 URigHierarchy::GetNameHash() const

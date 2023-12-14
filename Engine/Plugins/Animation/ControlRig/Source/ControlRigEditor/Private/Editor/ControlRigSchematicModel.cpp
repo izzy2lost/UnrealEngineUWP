@@ -9,6 +9,7 @@
 #include "ModularRigRuleManager.h"
 #include "DragAndDrop/AssetDragDropOp.h"
 #include "Rigs/RigHierarchyController.h"
+#include "Async/TaskGraphInterfaces.h"
 
 FString FControlRigSchematicRigElementKeyNode::GetDragDropDecoratorLabel() const
 {
@@ -134,6 +135,11 @@ void FControlRigSchematicModel::OnSetObjectBeingDebugged(UObject* InObject)
 
 void FControlRigSchematicModel::OnHierarchyModified(ERigHierarchyNotification InNotif, URigHierarchy* InHierarchy, const FRigBaseElement* InElement)
 {
+	if(InHierarchy->IsCopyingHierarchy())
+	{
+		return;
+	}
+	
 	switch (InNotif)
 	{
 		case ERigHierarchyNotification::ElementAdded:
@@ -180,32 +186,41 @@ void FControlRigSchematicModel::OnHierarchyModified(ERigHierarchyNotification In
 			break;
 		}
 		case ERigHierarchyNotification::HierarchyReset:
+		case ERigHierarchyNotification::HierarchyCopied:
 		{
-			Reset();
-			TArray<FRigSocketElement*> Sockets = InHierarchy->GetElementsOfType<FRigSocketElement>();
+			const TArray<FRigSocketElement*> Sockets = InHierarchy->GetElementsOfType<FRigSocketElement>();
 			for (const FRigSocketElement* Socket : Sockets)
 			{
-				const FString NodeKey = Socket->GetKey().ToString();
-				if(!ContainsElementKeyNode(NodeKey))
+				if(!ContainsElementKeyNode(Socket->GetKey()))
 				{
-					AddElementKeyNode(NodeKey);
+					AddElementKeyNode(Socket->GetKey());
 				}
 			}
-			if (ControlRigBeingDebuggedPtr.IsValid())
+
+			const TArray<FRigConnectorElement*> Connectors = InHierarchy->GetElementsOfType<FRigConnectorElement>();
+			for (const FRigConnectorElement* Connector : Connectors)
 			{
-				const FRigElementKeyRedirector& Redirector = ControlRigBeingDebuggedPtr->GetElementKeyRedirector();
-				TArray<FRigConnectorElement*> Connectors = InHierarchy->GetElementsOfType<FRigConnectorElement>();
-				for (const FRigConnectorElement* Connector : Connectors)
+				if(!ContainsElementKeyNode(Connector->GetKey()))
 				{
-					if (!Redirector.Contains(Connector->GetKey()))
+					AddElementKeyNode(Connector->GetKey());
+				}
+			}
+
+			// remove obsolete nodes
+			TArray<FGuid> GuidsToRemove;
+			for(const TSharedPtr<FSchematicGraphNode>& Node : Nodes)
+			{
+				if(const FControlRigSchematicRigElementKeyNode* ElementKeyNode = Cast<FControlRigSchematicRigElementKeyNode>(Node.Get()))
+				{
+					if(!InHierarchy->Contains(ElementKeyNode->GetKey()))
 					{
-						const FString NodeKey = Connector->GetKey().ToString();
-						if(!ContainsElementKeyNode(NodeKey))
-						{
-							AddElementKeyNode(NodeKey);
-						}
+						GuidsToRemove.Add(ElementKeyNode->GetGuid());
 					}
 				}
+			}
+			for(const FGuid& Guid : GuidsToRemove)
+			{
+				RemoveNode(Guid);
 			}
 			break;
 		}
@@ -222,26 +237,6 @@ void FControlRigSchematicModel::HandleModularRigModified(EModularRigNotification
 	{
 		case EModularRigNotification::ConnectionChanged:
 		{
-			if (InModule && ControlRigBeingDebuggedPtr.IsValid())
-			{
-				for (const TPair<FRigElementKey, FRigElementKey>& Pair : InModule->Connections)
-				{
-					RemoveElementKeyNode(Pair.Key);
-				}
-				
-				TArray<FRigConnectorElement*> Connectors = ControlRigBeingDebuggedPtr->GetHierarchy()->GetElementsOfType<FRigConnectorElement>();
-				for (const FRigConnectorElement* Connector : Connectors)
-				{
-					if (!InModule->Connections.Contains(Connector->GetKey()))
-					{
-						const FString NodeKey = Connector->GetKey().ToString();
-						if(!ContainsElementKeyNode(NodeKey))
-						{
-							AddElementKeyNode(NodeKey);
-						}
-					}
-				}
-			}
 			break;
 		}
 		default:
@@ -255,7 +250,17 @@ FVector2d FControlRigSchematicModel::GetPositionForNode(const FSchematicGraphNod
 {
 	if(const FControlRigSchematicRigElementKeyNode* Node = Cast<FControlRigSchematicRigElementKeyNode>(InNode))
 	{
-		if(Node->GetKey().Type != ERigElementType::Connector)
+		FRigElementKey Key = Node->GetKey();
+		if(Key.Type == ERigElementType::Connector)
+		{
+			FRigElementKey ResolvedKey;
+			if(IsConnectorResolved(Key, &ResolvedKey))
+			{
+				Key = ResolvedKey;
+			}
+		}
+
+		if(Key.IsValid())
 		{
 			if(const TSharedPtr<FControlRigEditor> Editor = ControlRigEditor.Pin())
 			{
@@ -265,7 +270,7 @@ FVector2d FControlRigSchematicModel::GetPositionForNode(const FSchematicGraphNod
 					{
 						if(const URigHierarchy* Hierarchy = ControlRig->GetHierarchy())
 						{
-							const FTransform Transform = Hierarchy->GetGlobalTransform(Node->GetKey());
+							const FTransform Transform = Hierarchy->GetGlobalTransform(Key);
 							return Editor->ComputePersonaProjectedScreenPos(Transform.GetLocation());
 						}
 					}
@@ -357,6 +362,46 @@ const FSlateBrush* FControlRigSchematicModel::GetBrushForNode(const FSchematicGr
 	return FSchematicGraphModel::GetBrushForNode(InNode);
 }
 
+FLinearColor FControlRigSchematicModel::GetColorForNode(const FSchematicGraphNode* InNode) const
+{
+	if(const FControlRigSchematicRigElementKeyNode* ElementKeyNode = Cast<FControlRigSchematicRigElementKeyNode>(InNode))
+	{
+		switch(ElementKeyNode->GetKey().Type)
+		{
+			case ERigElementType::Bone:
+			{
+				return FControlRigEditorStyle::Get().BoneUserInterfaceColor;
+			}
+			case ERigElementType::Null:
+			{
+				return FControlRigEditorStyle::Get().NullUserInterfaceColor;
+			}
+			case ERigElementType::Control:
+			{
+				if (ControlRigBeingDebuggedPtr.IsValid())
+				{
+					if (const URigHierarchy* Hierarchy = ControlRigBeingDebuggedPtr->GetHierarchy())
+					{
+						if(const FRigControlElement* Control = Hierarchy->Find<FRigControlElement>(ElementKeyNode->GetKey()))
+						{
+							return Control->Settings.ShapeColor;
+						}
+					}
+				}
+			}
+			case ERigElementType::Socket:
+			{
+				return FControlRigEditorStyle::Get().SocketUserInterfaceColor;
+			}
+			case ERigElementType::Connector:
+			{
+				return FControlRigEditorStyle::Get().ConnectorUserInterfaceColor;
+			}
+		}
+	}
+	return FSchematicGraphModel::GetColorForNode(InNode);
+}
+
 const FText FControlRigSchematicModel::GetToolTipForNode(const FSchematicGraphNode* InNode) const
 {
 	if(const FControlRigSchematicRigElementKeyNode* Node = Cast<FControlRigSchematicRigElementKeyNode>(InNode))
@@ -397,7 +442,10 @@ ESchematicGraphNodePlacementConstraint FControlRigSchematicModel::GetPlacementFo
 	{
 		if(Node->GetKey().Type == ERigElementType::Connector)
 		{
-			return ESchematicGraphNodePlacementConstraint::BottomRight;
+			if(!IsConnectorResolved(Node->GetKey()))
+			{
+				return ESchematicGraphNodePlacementConstraint::BottomRight;
+			}
 		}
 	}
 	return FSchematicGraphModel::GetPlacementForNode(InNode);
@@ -534,7 +582,7 @@ void FControlRigSchematicModel::HandleSchematicDrop(SSchematicGraphPanel* InPane
 	}
 
 	const FControlRigSchematicRigElementKeyNode* ElementKeyNode =
-	Cast<FControlRigSchematicRigElementKeyNode>(InNode->GetNodeData());
+		Cast<FControlRigSchematicRigElementKeyNode>(InNode->GetNodeData());
 	if(ElementKeyNode == nullptr)
 	{
 		return;
@@ -551,8 +599,9 @@ void FControlRigSchematicModel::HandleSchematicDrop(SSchematicGraphPanel* InPane
 	{
 		return;
 	}
-	
-	FRigBaseElement* Target = Hierarchy->Find(ElementKeyNode->GetKey());
+
+	const FRigElementKey& TargetKey = ElementKeyNode->GetKey();
+	FRigBaseElement* Target = Hierarchy->Find(TargetKey);
 	if (!Target)
 	{
 		return;
@@ -572,55 +621,101 @@ void FControlRigSchematicModel::HandleSchematicDrop(SSchematicGraphPanel* InPane
 
 			if(UControlRigBlueprint* AssetBlueprint = Cast<UControlRigBlueprint>(AssetData.GetAsset()))
 			{
-				if (UModularRigController* Controller = ControlRigBlueprint->GetModularRigController())
+				FFunctionGraphTask::CreateAndDispatchWhenReady([this, AssetBlueprint, TargetKey]()
 				{
-					const FName ModuleName = Controller->GetSafeNewName(FString(), FRigName(AssetBlueprint->RigModuleSettings.Identifier.Name));
-					const FString ModulePath = Controller->AddModule(ModuleName, AssetBlueprint->GetControlRigClass(), FString());
-					if(!ModulePath.IsEmpty())
+					if (UModularRigController* Controller = ControlRigBlueprint->GetModularRigController())
 					{
-						FRigElementKey PrimaryConnectorKey;
-						TArray<FRigConnectorElement*> Connectors = Hierarchy->GetElementsOfType<FRigConnectorElement>();
-						for (FRigConnectorElement* Connector : Connectors)
+						UControlRig* ControlRig = ControlRigBlueprint->GetDebuggedControlRig();
+						if (!ControlRig)
 						{
-							if (Connector->Settings.Type == EConnectorType::Primary)
-							{
-								FString Path, Name;
-								Connector->GetName().Split(UModularRig::NamespaceSeparator, &Path, &Name, ESearchCase::CaseSensitive, ESearchDir::FromEnd);
-								if (Path == ModulePath)
-								{
-									PrimaryConnectorKey = Connector->GetKey();
-									break;
-								}
-							}
+							return;
 						}
 
-						const FName TargetModulePath = Hierarchy->GetNameMetadata(Target->GetKey(), URigHierarchy::NameSpaceMetadataName, NAME_None);
-						if(!TargetModulePath.IsNone())
+						URigHierarchy* Hierarchy = ControlRig->GetHierarchy();
+						if (!Hierarchy)
 						{
-							(void)Controller->ReparentModule(ModulePath, TargetModulePath.ToString());
+							return;
 						}
-						Controller->ConnectConnectorToElement(PrimaryConnectorKey, Target->GetKey());
+
+						const FName ModuleName = Controller->GetSafeNewName(FString(), FRigName(AssetBlueprint->RigModuleSettings.Identifier.Name));
+						const FString ModulePath = Controller->AddModule(ModuleName, AssetBlueprint->GetControlRigClass(), FString());
+						if(!ModulePath.IsEmpty())
+						{
+							FRigElementKey PrimaryConnectorKey;
+							TArray<FRigConnectorElement*> Connectors = Hierarchy->GetElementsOfType<FRigConnectorElement>();
+							for (FRigConnectorElement* Connector : Connectors)
+							{
+								if (Connector->Settings.Type == EConnectorType::Primary)
+								{
+									FString Path, Name;
+									Connector->GetName().Split(UModularRig::NamespaceSeparator, &Path, &Name, ESearchCase::CaseSensitive, ESearchDir::FromEnd);
+									if (Path == ModulePath)
+									{
+										PrimaryConnectorKey = Connector->GetKey();
+										break;
+									}
+								}
+							}
+
+							const FName TargetModulePath = Hierarchy->GetNameMetadata(TargetKey, URigHierarchy::NameSpaceMetadataName, NAME_None);
+							if(!TargetModulePath.IsNone())
+							{
+								(void)Controller->ReparentModule(ModulePath, TargetModulePath.ToString());
+							}
+							Controller->ConnectConnectorToElement(PrimaryConnectorKey, TargetKey);
+						}
 					}
-				}
+				}, TStatId(), NULL, ENamedThreads::GameThread);
 			}
 		}
 	}
 	else if(SchematicDragDropOp.IsValid())
 	{
-		if (UModularRigController* Controller = ControlRigBlueprint->GetModularRigController())
+		const TArray<FGuid> Sources = SchematicDragDropOp->GetElements();
+		FFunctionGraphTask::CreateAndDispatchWhenReady([this, Sources, TargetKey]()
 		{
-			const TArray<FGuid> Sources = SchematicDragDropOp->GetElements();
-			for (const TPair<FRigElementKey, FGuid> Pair : RigElementKeyToGuid)
+			UControlRig* ControlRig = ControlRigBlueprint->GetDebuggedControlRig();
+			if (!ControlRig)
 			{
-				if(Sources.Contains(Pair.Value))
+				return;
+			}
+
+			URigHierarchy* Hierarchy = ControlRig->GetHierarchy();
+			if (!Hierarchy)
+			{
+				return;
+			}
+
+			if (UModularRigController* Controller = ControlRigBlueprint->GetModularRigController())
+			{
+				for (const TPair<FRigElementKey, FGuid> Pair : RigElementKeyToGuid)
 				{
-					if (Hierarchy->Find<FRigConnectorElement>(Pair.Key))
+					if(Sources.Contains(Pair.Value))
 					{
-						Controller->ConnectConnectorToElement(Pair.Key, Target->GetKey());
-						break;
+						if (Hierarchy->Find<FRigConnectorElement>(Pair.Key))
+						{
+							Controller->ConnectConnectorToElement(Pair.Key, TargetKey);
+							break;
+						}
 					}
 				}
 			}
+		}, TStatId(), NULL, ENamedThreads::GameThread);
+	}
+}
+
+bool FControlRigSchematicModel::IsConnectorResolved(const FRigElementKey& InConnectorKey, FRigElementKey* OutKey) const
+{
+	if(ControlRigBlueprint.IsValid())
+	{
+		if(const FRigElementKey* TargetKey = ControlRigBlueprint->ConnectionMap.Find(InConnectorKey))
+		{
+			if(OutKey)
+			{
+				*OutKey = *TargetKey;
+			}
+			return true;
 		}
 	}
+	return false;
 }

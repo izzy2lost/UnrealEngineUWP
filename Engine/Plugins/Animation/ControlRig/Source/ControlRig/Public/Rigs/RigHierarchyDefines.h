@@ -94,6 +94,7 @@ enum class ERigHierarchyNotification : uint8
 	SocketColorChanged,
 	SocketDescriptionChanged,
 	SocketDesiredParentChanged,
+	HierarchyCopied,
 
 	/** MAX - invalid */
 	Max UMETA(Hidden),

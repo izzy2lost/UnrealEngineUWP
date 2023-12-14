@@ -2011,127 +2011,161 @@ void SRigHierarchy::HandleNewItem(ERigElementType InElementType, bool bIsAnimati
 		// unselect current selected item
 		ClearDetailPanel();
 
+		const bool bAllowMultipleItems =
+			InElementType == ERigElementType::Socket ||
+			InElementType == ERigElementType::Null;
+
 		URigHierarchyController* Controller = Hierarchy->GetController(true);
 		check(Controller);
 
 		FScopedTransaction Transaction(LOCTEXT("HierarchyTreeAdded", "Add new item to hierarchy"));
 
-		FRigElementKey ParentKey;
-		FTransform ParentTransform = FTransform::Identity;
-
 		TArray<FRigElementKey> SelectedKeys = GetSelectedKeys();
-		if (SelectedKeys.Num() > 0)
+		if (SelectedKeys.Num() > 1 && !bAllowMultipleItems)
 		{
-			ParentKey = SelectedKeys[0];
-			ParentTransform = Hierarchy->GetGlobalTransform(ParentKey);
+			SelectedKeys = {SelectedKeys[0]};
+		}
+		else if(SelectedKeys.IsEmpty())
+		{
+			SelectedKeys = {FRigElementKey()};
 		}
 
-		// use bone's name as prefix if creating a control
-		FString NewNameTemplate;
-		const bool bIsParentABone = ParentKey.IsValid() && ParentKey.Type == ERigElementType::Bone;
-		if( InElementType == ERigElementType::Control && bIsParentABone )
+		for(const FRigElementKey& SelectedKey : SelectedKeys)
 		{
-			static const FString CtrlSuffix(TEXT("_ctrl"));
-			NewNameTemplate = ParentKey.Name.ToString();
-			NewNameTemplate += CtrlSuffix;
-		}
-		else
-		{
-			NewNameTemplate = FString::Printf(TEXT("New%s"), *StaticEnum<ERigElementType>()->GetNameStringByValue((int64)InElementType));
+			FRigElementKey ParentKey;
+			FTransform ParentTransform = FTransform::Identity;
 
-			if(bIsAnimationChannel)
+			if(SelectedKey.IsValid())
 			{
-				static const FString NewAnimationChannel = TEXT("Channel");
-				NewNameTemplate = NewAnimationChannel;
+				ParentKey = SelectedKey;
+				ParentTransform = Hierarchy->GetGlobalTransform(ParentKey);
 			}
-		}
-		
-		const FName NewElementName = CreateUniqueName(*NewNameTemplate, InElementType);
-		{
-			TGuardValue<bool> GuardRigHierarchyChanges(bIsChangingRigHierarchy, true);
-			switch (InElementType)
+
+			// use bone's name as prefix if creating a control
+			FString NewNameTemplate;
+			if(ParentKey.IsValid() && ParentKey.Type == ERigElementType::Bone)
 			{
-				case ERigElementType::Bone:
+				NewNameTemplate = ParentKey.Name.ToString();
+
+				if(InElementType == ERigElementType::Control)
 				{
-					NewItemKey = Controller->AddBone(NewElementName, ParentKey, ParentTransform, true, ERigBoneType::User, true, true);
-					break;
+					static const FString CtrlSuffix(TEXT("_ctrl"));
+					NewNameTemplate += CtrlSuffix;
 				}
-				case ERigElementType::Control:
+				else if(InElementType == ERigElementType::Null)
 				{
-					FRigControlSettings Settings;
+					static const FString NullSuffix(TEXT("_null"));
+					NewNameTemplate += NullSuffix;
+				}
+				else if(InElementType == ERigElementType::Socket)
+				{
+					static const FString SocketSuffix(TEXT("_socket"));
+					NewNameTemplate += SocketSuffix;
+				}
+				else
+				{
+					NewNameTemplate.Reset();
+				}
+			}
 
-					if(bIsAnimationChannel)
+			if(NewNameTemplate.IsEmpty())
+			{
+				NewNameTemplate = FString::Printf(TEXT("New%s"), *StaticEnum<ERigElementType>()->GetNameStringByValue((int64)InElementType));
+
+				if(bIsAnimationChannel)
+				{
+					static const FString NewAnimationChannel = TEXT("Channel");
+					NewNameTemplate = NewAnimationChannel;
+				}
+			}
+			
+			const FName NewElementName = CreateUniqueName(*NewNameTemplate, InElementType);
+			{
+				TGuardValue<bool> GuardRigHierarchyChanges(bIsChangingRigHierarchy, true);
+				switch (InElementType)
+				{
+					case ERigElementType::Bone:
 					{
-						Settings.AnimationType = ERigControlAnimationType::AnimationChannel;
-						Settings.ControlType = ERigControlType::Float;
-						Settings.MinimumValue = FRigControlValue::Make<float>(0.f);
-						Settings.MaximumValue = FRigControlValue::Make<float>(1.f);
-						Settings.DisplayName = Hierarchy->GetSafeNewDisplayName(ParentKey, FRigName(NewNameTemplate));
-
-						NewItemKey = Controller->AddAnimationChannel(NewElementName, ParentKey, Settings, true, true);
+						NewItemKey = Controller->AddBone(NewElementName, ParentKey, ParentTransform, true, ERigBoneType::User, true, true);
+						break;
 					}
-					else
+					case ERigElementType::Control:
 					{
-						Settings.ControlType = ERigControlType::EulerTransform;
-						FEulerTransform Identity = FEulerTransform::Identity;
-						FRigControlValue ValueToSet = FRigControlValue::Make<FEulerTransform>(Identity);
-						Settings.MinimumValue = ValueToSet;
-						Settings.MaximumValue = ValueToSet;
+						FRigControlSettings Settings;
 
-						NewItemKey = Controller->AddControl(NewElementName, ParentKey, Settings, Settings.GetIdentityValue(), FTransform::Identity, FTransform::Identity, true, true);
-					}
-					break;
-				}
-				case ERigElementType::Null:
-				{
-					NewItemKey = Controller->AddNull(NewElementName, ParentKey, ParentTransform, true, true, true);
-					break;
-				}
-				case ERigElementType::Connector:
-				{
-					FString FailureReason;
-					if(!ControlRigBlueprint->CanTurnIntoControlRigModule(false, &FailureReason))
-					{
-						if(ControlRigBlueprint->Hierarchy->Num(ERigElementType::Connector) == 0)
+						if(bIsAnimationChannel)
 						{
-							static constexpr TCHAR Format[] = TEXT("Connector cannot be created: %s");
-							UE_LOG(LogControlRig, Warning, Format, *FailureReason);
-							FNotificationInfo Info(FText::FromString(FString::Printf(Format, *FailureReason)));
-							Info.bUseSuccessFailIcons = true;
-							Info.Image = FAppStyle::GetBrush(TEXT("MessageLog.Warning"));
-							Info.bFireAndForget = true;
-							Info.bUseThrobber = true;
-							Info.FadeOutDuration = 2.f;
-							Info.ExpireDuration = 8.f;;
-							TSharedPtr<SNotificationItem> NotificationPtr = FSlateNotificationManager::Get().AddNotification(Info);
-							if (NotificationPtr)
+							Settings.AnimationType = ERigControlAnimationType::AnimationChannel;
+							Settings.ControlType = ERigControlType::Float;
+							Settings.MinimumValue = FRigControlValue::Make<float>(0.f);
+							Settings.MaximumValue = FRigControlValue::Make<float>(1.f);
+							Settings.DisplayName = Hierarchy->GetSafeNewDisplayName(ParentKey, FRigName(NewNameTemplate));
+
+							NewItemKey = Controller->AddAnimationChannel(NewElementName, ParentKey, Settings, true, true);
+						}
+						else
+						{
+							Settings.ControlType = ERigControlType::EulerTransform;
+							FEulerTransform Identity = FEulerTransform::Identity;
+							FRigControlValue ValueToSet = FRigControlValue::Make<FEulerTransform>(Identity);
+							Settings.MinimumValue = ValueToSet;
+							Settings.MaximumValue = ValueToSet;
+
+							NewItemKey = Controller->AddControl(NewElementName, ParentKey, Settings, Settings.GetIdentityValue(), FTransform::Identity, FTransform::Identity, true, true);
+						}
+						break;
+					}
+					case ERigElementType::Null:
+					{
+						NewItemKey = Controller->AddNull(NewElementName, ParentKey, ParentTransform, true, true, true);
+						break;
+					}
+					case ERigElementType::Connector:
+					{
+						FString FailureReason;
+						if(!ControlRigBlueprint->CanTurnIntoControlRigModule(false, &FailureReason))
+						{
+							if(ControlRigBlueprint->Hierarchy->Num(ERigElementType::Connector) == 0)
 							{
-								NotificationPtr->SetCompletionState(SNotificationItem::CS_Fail);
+								static constexpr TCHAR Format[] = TEXT("Connector cannot be created: %s");
+								UE_LOG(LogControlRig, Warning, Format, *FailureReason);
+								FNotificationInfo Info(FText::FromString(FString::Printf(Format, *FailureReason)));
+								Info.bUseSuccessFailIcons = true;
+								Info.Image = FAppStyle::GetBrush(TEXT("MessageLog.Warning"));
+								Info.bFireAndForget = true;
+								Info.bUseThrobber = true;
+								Info.FadeOutDuration = 2.f;
+								Info.ExpireDuration = 8.f;;
+								TSharedPtr<SNotificationItem> NotificationPtr = FSlateNotificationManager::Get().AddNotification(Info);
+								if (NotificationPtr)
+								{
+									NotificationPtr->SetCompletionState(SNotificationItem::CS_Fail);
+								}
+								return;
 							}
-							return;
 						}
-					}
 
-					const bool bIsPrimary = Hierarchy->GetConnectorKeys(false).Num() == 0;
-					FRigConnectorSettings Settings;
-					Settings.Type = bIsPrimary ? EConnectorType::Primary : EConnectorType::Secondary;
-						if(!bIsPrimary)
-						{
-							Settings.Rules.Reset();
-							Settings.AddRule(FRigChildOfPrimaryConnectionRule());
-						}
-					NewItemKey = Controller->AddConnector(NewElementName, Settings, true);
-					(void)ResolveConnector(NewItemKey, ParentKey);
-					break;
-				}
-				case ERigElementType::Socket:
-				{
-					NewItemKey = Controller->AddSocket(NewElementName, ParentKey, ParentTransform, true, FRigSocketElement::SocketDefaultColor, FString(), true, true);
-					break;
-				}
-				default:
-				{
-					return;
+						const bool bIsPrimary = Hierarchy->GetConnectorKeys(false).Num() == 0;
+						FRigConnectorSettings Settings;
+						Settings.Type = bIsPrimary ? EConnectorType::Primary : EConnectorType::Secondary;
+							if(!bIsPrimary)
+							{
+								Settings.Rules.Reset();
+								Settings.AddRule(FRigChildOfPrimaryConnectionRule());
+							}
+						NewItemKey = Controller->AddConnector(NewElementName, Settings, true);
+						(void)ResolveConnector(NewItemKey, ParentKey);
+						break;
+					}
+					case ERigElementType::Socket:
+					{
+						NewItemKey = Controller->AddSocket(NewElementName, ParentKey, ParentTransform, true, FRigSocketElement::SocketDefaultColor, FString(), true, true);
+						break;
+					}
+					default:
+					{
+						return;
+					}
 				}
 			}
 		}

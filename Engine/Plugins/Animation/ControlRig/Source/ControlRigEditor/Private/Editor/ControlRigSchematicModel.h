@@ -23,6 +23,7 @@ public:
 	
 	const FRigElementKey& GetKey() const { return Key; }
 	virtual FString GetDragDropDecoratorLabel() const override;
+	virtual bool IsAutoScaleEnabled() const override { return true; }
 	
 protected:
 
@@ -53,6 +54,7 @@ public:
 	virtual FVector2d GetPositionForNode(const FSchematicGraphNode* InNode) const override;
 	virtual bool GetPositionAnimationEnabledForNode(const FSchematicGraphNode* InNode) const override;
 	virtual const FSlateBrush* GetBrushForNode(const FSchematicGraphNode* InNode) const override;
+	virtual FLinearColor GetColorForNode(const FSchematicGraphNode* InNode) const override;
 	virtual const FText GetToolTipForNode(const FSchematicGraphNode* InNode) const override;
 	virtual ESchematicGraphNodePlacementConstraint GetPlacementForNode(const FSchematicGraphNode* InNode) const override;
 
@@ -62,6 +64,7 @@ private:
 	void HandleSchematicBeginDrag(SSchematicGraphPanel* InPanel, SSchematicGraphNode* InNode, const FDragDropOperation& InDragDropOperation);
 	void HandleSchematicEndDrag(SSchematicGraphPanel* InPanel, SSchematicGraphNode* InNode, const FDragDropOperation& InDragDropOperation);
 	void HandleSchematicDrop(SSchematicGraphPanel* InPanel, SSchematicGraphNode* InNode, const FDragDropEvent& InDragDropEvent);
+	bool IsConnectorResolved(const FRigElementKey& InConnectorKey, FRigElementKey* OutKey = nullptr) const;
 	
 	TWeakPtr<FControlRigEditor> ControlRigEditor;
 	TWeakObjectPtr<UControlRigBlueprint> ControlRigBlueprint;

@@ -8,6 +8,8 @@
 #include "TickableEditorObject.h"
 #include "Animation/AnimatedAttribute.h"
 
+class SSchematicGraphPanel;
+
 enum ESchematicGraphNodePlacementConstraint
 {
 	Free,
@@ -117,8 +119,12 @@ public:
 	void SetSelected(bool bSelected = true) { bIsSelected = bSelected; }
 	virtual FVector2d GetPosition() const { return Position; }
 	virtual FVector2d GetPositionOffset() const { return PositionOffset; }
+	virtual void SetPositionOffset(const FVector2d& InPositionOffset) { PositionOffset = InPositionOffset; }
+	virtual float GetScaleOffset() const { return ScaleOffset; }
+	virtual void SetScaleOffset(float InScaleOffset) { ScaleOffset = InScaleOffset; }
 	virtual FLinearColor GetColor() const { return Color; }
 	virtual const FSlateBrush* GetBrush() const { return Brush; }
+	virtual bool IsAutoScaleEnabled() const { return false; }
 	virtual const FText& GetToolTip() const { return ToolTip; }
 	virtual ESchematicGraphNodePlacementConstraint GetPlacement() const { return Placement; }
 	virtual void SetPlacement(ESchematicGraphNodePlacementConstraint InPlacement) { Placement = InPlacement; }
@@ -133,6 +139,7 @@ protected:
 	bool bIsSelected = false;
 	FVector2d Position = FVector2d::ZeroVector;
 	FVector2d PositionOffset = FVector2d::ZeroVector;
+	float ScaleOffset = 1.f;
 	FLinearColor Color = FLinearColor::White;
 	const FSlateBrush* Brush = nullptr;
 	FText ToolTip = FText();
@@ -201,8 +208,12 @@ public:
 	virtual bool GetPositionAnimationEnabledForNode(const FSchematicGraphNode* InNode) const;
 	FVector2d GetSizeForNode(const FGuid& InNodeGuid) const;
 	virtual FVector2d GetSizeForNode(const FSchematicGraphNode* InNode) const;
-	float GetScaleForNode(const FGuid& InNodeGuid) const;
-	virtual float GetScaleForNode(const FSchematicGraphNode* InNode) const;
+	float GetScaleForNode(const FGuid& InNodeGuid, bool bIncludeScaleOffset) const;
+	virtual float GetScaleForNode(const FSchematicGraphNode* InNode, bool bIncludeScaleOffset) const;
+	float GetScaleOffsetForNode(const FGuid& InNodeGuid) const;
+	virtual float GetScaleOffsetForNode(const FSchematicGraphNode* InNode) const;
+	bool IsAutoScaleEnabledForNode(const FGuid& InNodeGuid) const;
+	virtual bool IsAutoScaleEnabledForNode(const FSchematicGraphNode* InNode) const;
 	FLinearColor GetColorForNode(const FGuid& InGuid) const;
 	virtual FLinearColor GetColorForNode(const FSchematicGraphNode* InNode) const;
 	const FSlateBrush* GetBrushForNode(const FGuid& InGuid) const;
@@ -288,6 +299,7 @@ public:
 	SLATE_ARGUMENT(TSharedPtr<FVector2dAttribute>, Position)
 	SLATE_ARGUMENT(TSharedPtr<FVector2dAttribute>, Size)
 	SLATE_ARGUMENT(TSharedPtr<FFloatAttribute>, Scale)
+	SLATE_ATTRIBUTE(bool, EnableAutoScale)
 	SLATE_ARGUMENT(TSharedPtr<FLinearColorAttribute>, Color)
 	SLATE_ATTRIBUTE(const FSlateBrush*, Brush)
 	SLATE_EVENT(FOnClicked, OnClicked)
@@ -310,6 +322,7 @@ public:
 	virtual FReply OnDrop(const FGeometry& MyGeometry, const FDragDropEvent& DragDropEvent) override;
 	virtual FReply OnDragDetected(const FGeometry& MyGeometry, const FPointerEvent& MouseEvent) override;
 
+	virtual EVisibility GetNodeVisibility() const;
 	virtual FVector2d GetPosition() const override;
 	void EnablePositionAnimation(bool bEnabled = true);
 
@@ -325,21 +338,24 @@ private:
 
 	bool bIsBeingDragged = false;
 	FVector2d OriginalSize = FVector2d(50.0,50.0);
-	float ScaledUp = 1.25;
-	float ScaledDown = 0.75;
+	static inline constexpr float ScaledUp = 1.25;
+	static inline constexpr float ScaledDown = 0.75;
 
-	const FSchematicGraphNode* NodeData = nullptr;
+	FSchematicGraphNode* NodeData = nullptr;
 	TSharedPtr<FVector2dAttribute> Position;
 	TOptional<FVector2d> PositionDuringDrag;
 	TOptional<FVector2d> OffsetDuringDrag;
 	TSharedPtr<FVector2dAttribute> Size;
 	TSharedPtr<FFloatAttribute> Scale;
+	TAttribute<bool> EnableAutoScale;
+	TOptional<float> AutoScale;
 	TSharedPtr<FLinearColorAttribute> Color;
 	TAttribute<const FSlateBrush*> Brush;
 	FOnClicked OnClickedDelegate;
 	FOnBeginDrag OnBeginDragDelegate;
 	FOnEndDrag OnEndDragDelegate;
 	FOnDrop OnDropDelegate;
+	SSchematicGraphPanel* SchematicGraphPanel = nullptr;
 
 	friend class SSchematicGraphPanel;
 };
@@ -391,6 +407,7 @@ public:
 	virtual void OnArrangeChildren(const FGeometry& AllottedGeometry, FArrangedChildren& ArrangedChildren) const override;
 	virtual int32 OnPaint(const FPaintArgs& Args, const FGeometry& AllottedGeometry, const FSlateRect& MyCullingRect, FSlateWindowElementList& OutDrawElements, int32 LayerId, const FWidgetStyle& InWidgetStyle, bool bParentEnabled) const override;
 	virtual void RemoveAllNodes() override;
+	virtual FReply OnMouseWheel(const FGeometry& MyGeometry, const FPointerEvent& MouseEvent) override;
 	// End of SNodePanel interface
 	
 	TSharedRef<SSchematicGraphNode> GetChild(int32 ChildIndex) const;
@@ -409,10 +426,14 @@ public:
 
 	virtual FVector2d GetPositionForNode(FGuid InNodeGuid) const;
 	virtual FVector2d GetSizeForNode(FGuid InNodeGuid) const;
-	virtual float GetScaleForNode(FGuid InNodeGuid) const;
+	virtual float GetScaleForNode(FGuid InNodeGuid, bool bIncludeScaleOffset) const;
+	virtual bool IsAutoScaleEnabledForNode(FGuid InNodeGuid) const;
 	virtual FLinearColor GetColorForNode(FGuid InNodeGuid) const;
 	virtual const FSlateBrush* GetBrushForNode(FGuid InNodeGuid) const;
 	virtual FText GetToolTipForNode(FGuid InNodeGuid) const;
+	virtual ESchematicGraphNodeVisibility GetVisibilityForNode(FGuid InNodeGuid) const;
+
+	void UpdateAutoScalingForNodes();
 
 	bool bIsDragDropping = false;
 	bool bIsOverlay;

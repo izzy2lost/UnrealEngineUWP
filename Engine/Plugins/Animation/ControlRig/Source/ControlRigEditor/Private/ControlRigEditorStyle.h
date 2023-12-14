@@ -36,6 +36,8 @@ class FControlRigEditorStyle final
 public:
 	FControlRigEditorStyle()
 		: FSlateStyleSet("ControlRigEditorStyle")
+		, BoneUserInterfaceColor(0.6f, 0.6f, 0.6f)
+		, NullUserInterfaceColor(0.75f, 0.75f, 0.75f)
 		, ConnectorUserInterfaceColor(0.0, 112.f/255.f, 224.f/255.f)
 		, SocketUserInterfaceColor(0.0, 112.f/255.f, 224.f/255.f)
 	{
@@ -171,6 +173,8 @@ public:
 	}
 
 	FSlateColor SpacePickerSelectColor;
+	FLinearColor BoneUserInterfaceColor;
+	FLinearColor NullUserInterfaceColor;
 	FLinearColor ConnectorUserInterfaceColor;
 	FLinearColor SocketUserInterfaceColor;
 };

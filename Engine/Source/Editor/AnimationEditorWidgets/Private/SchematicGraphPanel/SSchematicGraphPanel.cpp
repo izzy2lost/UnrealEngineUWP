@@ -111,18 +111,52 @@ FVector2d FSchematicGraphModel::GetSizeForNode(const FSchematicGraphNode* InNode
 	return DefaultSize;
 }
 
-float FSchematicGraphModel::GetScaleForNode(const FGuid& InNodeGuid) const
+float FSchematicGraphModel::GetScaleForNode(const FGuid& InNodeGuid, bool bIncludeScaleOffset) const
 {
 	if(const FSchematicGraphNode* Node = FindNode(InNodeGuid))
 	{
-		return GetScaleForNode(Node);
+		return GetScaleForNode(Node, bIncludeScaleOffset);
 	}
 	return 1.f;
 }
 
-float FSchematicGraphModel::GetScaleForNode(const FSchematicGraphNode* InNode) const
+float FSchematicGraphModel::GetScaleForNode(const FSchematicGraphNode* InNode, bool bIncludeScaleOffset) const
 {
+	if(bIncludeScaleOffset)
+	{
+		return GetScaleOffsetForNode(InNode);
+	}
 	return 1.f;
+}
+
+float FSchematicGraphModel::GetScaleOffsetForNode(const FGuid& InNodeGuid) const
+{
+	if(const FSchematicGraphNode* Node = FindNode(InNodeGuid))
+	{
+		return GetScaleOffsetForNode(Node);
+	}
+	return 1.f;
+}
+
+float FSchematicGraphModel::GetScaleOffsetForNode(const FSchematicGraphNode* InNode) const
+{
+	check(InNode);
+	return InNode->GetScaleOffset();
+}
+
+bool FSchematicGraphModel::IsAutoScaleEnabledForNode(const FGuid& InNodeGuid) const
+{
+	if(const FSchematicGraphNode* Node = FindNode(InNodeGuid))
+	{
+		return IsAutoScaleEnabledForNode(Node);
+	}
+	return false;
+}
+
+bool FSchematicGraphModel::IsAutoScaleEnabledForNode(const FSchematicGraphNode* InNode) const
+{
+	check(InNode);
+	return InNode->IsAutoScaleEnabled();
 }
 
 FLinearColor FSchematicGraphModel::GetColorForNode(const FGuid& InGuid) const
@@ -257,6 +291,7 @@ FString FSchematicGraphNodeDragDropOp::GetJoinedDecoratorLabels() const
 
 SSchematicGraphNode::FArguments::FArguments()
 : _NodeData(nullptr)
+, _EnableAutoScale(false)
 , _Brush(nullptr)
 {
 	static const FSchematicGraphNode EmptyNodeData;
@@ -269,7 +304,7 @@ void SSchematicGraphNode::Construct(const FArguments& InArgs)
 {
 	if(InArgs._NodeData)
 	{
-		NodeData = InArgs._NodeData;
+		NodeData = const_cast<FSchematicGraphNode*>(InArgs._NodeData);
 	}
 	OnClickedDelegate = InArgs._OnClicked;
 	OnBeginDragDelegate = InArgs._OnBeginDrag;
@@ -279,6 +314,7 @@ void SSchematicGraphNode::Construct(const FArguments& InArgs)
 	Position = InArgs._Position;
 	Size = InArgs._Size;
 	Scale = InArgs._Scale;
+	EnableAutoScale = InArgs._EnableAutoScale;
 	Color = InArgs._Color;
 	if(InArgs._Brush.IsSet() || InArgs._Brush.IsBound())
 	{
@@ -290,6 +326,8 @@ void SSchematicGraphNode::Construct(const FArguments& InArgs)
 	{
 		SetToolTipText(InArgs._ToolTipText);
 	}
+
+	SetVisibility(TAttribute<EVisibility>::CreateSP(this, &SSchematicGraphNode::GetNodeVisibility));
 }
 
 FVector2D SSchematicGraphNode::ComputeDesiredSize(float LayoutScaleMultiplier) const
@@ -324,7 +362,11 @@ void SSchematicGraphNode::OnMouseEnter(const FGeometry& MyGeometry, const FPoint
 		return;
 	}
 	SNode::OnMouseEnter(MyGeometry, MouseEvent);
-	Scale->Set(ScaledUp);
+
+	if(NodeData)
+	{
+		NodeData->SetScaleOffset(ScaledUp);
+	}
 }
 
 void SSchematicGraphNode::OnMouseLeave(const FPointerEvent& MouseEvent)
@@ -334,7 +376,11 @@ void SSchematicGraphNode::OnMouseLeave(const FPointerEvent& MouseEvent)
 		return;
 	}
 	SNode::OnMouseLeave(MouseEvent);
-	Scale->Set(1.f);
+
+	if(NodeData)
+	{
+		NodeData->SetScaleOffset(1.f);
+	}
 }
 
 FReply SSchematicGraphNode::OnDragOver(const FGeometry& MyGeometry, const FDragDropEvent& DragDropEvent)
@@ -344,8 +390,13 @@ FReply SSchematicGraphNode::OnDragOver(const FGeometry& MyGeometry, const FDragD
 		return FReply::Unhandled();
 	}
 	SNode::OnDragOver(MyGeometry, DragDropEvent);
-	Scale->Set(ScaledDown);
+
+	if(NodeData)
+	{
+		NodeData->SetScaleOffset(ScaledDown);
+	}
 	return FReply::Handled();
+	
 }
 
 void SSchematicGraphNode::OnDragLeave(const FDragDropEvent& DragDropEvent)
@@ -355,7 +406,11 @@ void SSchematicGraphNode::OnDragLeave(const FDragDropEvent& DragDropEvent)
 		return;
 	}
 	SNode::OnDragLeave(DragDropEvent);
-	Scale->Set(1.f);
+
+	if(NodeData)
+	{
+		NodeData->SetScaleOffset(1.f);
+	}
 }
 
 FReply SSchematicGraphNode::OnDrop(const FGeometry& MyGeometry, const FDragDropEvent& DragDropEvent)
@@ -404,6 +459,29 @@ FReply SSchematicGraphNode::OnDragDetected(const FGeometry& MyGeometry, const FP
 	}
 	
 	return FReply::Unhandled();
+}
+
+EVisibility SSchematicGraphNode::GetNodeVisibility() const
+{
+	if(SchematicGraphPanel)
+	{
+		ESchematicGraphNodeVisibility Vis = SchematicGraphPanel->GetVisibilityForNode(GetGuid());
+		if(Vis == ESchematicGraphNodeVisibility::Hidden)
+		{
+			return EVisibility::Hidden;
+		}
+		if(Vis == ESchematicGraphNodeVisibility::FadedOut)
+		{
+			return EVisibility::HitTestInvisible;
+		}
+	}
+
+	if(IsBeingDragged())
+	{
+		return EVisibility::HitTestInvisible;
+	}
+
+	return EVisibility::Visible;
 }
 
 FReply SSchematicGraphNode::OnMouseButtonDown(const FGeometry& MyGeometry, const FPointerEvent& MouseEvent)
@@ -511,7 +589,7 @@ void SSchematicGraphPanel::AddNode(const FSchematicGraphNode* InNodeToAdd)
 	const FGuid Guid = InNodeToAdd->GetGuid();
 	const auto Position = FVector2dAttribute::CreateWithGetter(Vector2DInterpSettings, FVector2dAttribute::FGetter::CreateSP(this, &SSchematicGraphPanel::GetPositionForNode, Guid));
 	const auto Size = FVector2dAttribute::CreateWithGetter(Vector2DInterpSettings, FVector2dAttribute::FGetter::CreateSP(this, &SSchematicGraphPanel::GetSizeForNode, Guid));
-	const auto Scale = FFloatAttribute::CreateWithGetter(FloatInterpSettings, FFloatAttribute::FGetter::CreateSP(this, &SSchematicGraphPanel::GetScaleForNode, Guid), 0.f);
+	const auto Scale = FFloatAttribute::CreateWithGetter(FloatInterpSettings, FFloatAttribute::FGetter::CreateSP(this, &SSchematicGraphPanel::GetScaleForNode, Guid, true), 0.f);
 	const auto Color = FLinearColorAttribute::CreateWithGetter(ColorInterpSettings, FLinearColorAttribute::FGetter::CreateSP(this, &SSchematicGraphPanel::GetColorForNode, Guid));
 
 	const TSharedRef<SSchematicGraphNode> NewNode = SNew(SSchematicGraphNode)
@@ -519,6 +597,7 @@ void SSchematicGraphPanel::AddNode(const FSchematicGraphNode* InNodeToAdd)
 														.Size(Size)
 														.Scale(Scale)
 														.Color(Color)
+														.EnableAutoScale(this, &SSchematicGraphPanel::IsAutoScaleEnabledForNode, InNodeToAdd->GetGuid())
 														.Brush(this, &SSchematicGraphPanel::GetBrushForNode, InNodeToAdd->GetGuid())
 														.ToolTipText(this, &SSchematicGraphPanel::GetToolTipForNode, InNodeToAdd->GetGuid())
 														.OnClicked_Raw(this, &SSchematicGraphPanel::OnNodeClicked)
@@ -527,6 +606,7 @@ void SSchematicGraphPanel::AddNode(const FSchematicGraphNode* InNodeToAdd)
 														.OnDrop_Raw(this, &SSchematicGraphPanel::OnDropEvent)
 														.NodeData(InNodeToAdd);
 	SNodePanel::AddGraphNode(NewNode);
+	NewNode->SchematicGraphPanel = this;
 	NodeByGuid.Add(Guid, NewNode.ToSharedPtr());
 }
 
@@ -645,6 +725,12 @@ void SSchematicGraphPanel::RemoveAllNodes()
 	SNodePanel::RemoveAllNodes();
 }
 
+FReply SSchematicGraphPanel::OnMouseWheel(const FGeometry& MyGeometry, const FPointerEvent& MouseEvent)
+{
+	// disable mouse wheel for now
+	return FReply::Unhandled();
+}
+
 TSharedRef<SSchematicGraphNode> SSchematicGraphPanel::GetChild(int32 ChildIndex) const
 {
 	return StaticCastSharedRef<SSchematicGraphNode>(Children[ChildIndex]);
@@ -673,7 +759,8 @@ void SSchematicGraphPanel::Tick(float DeltaTime)
 	NodesBottomLeft.Reset();
 	NodesBottomRight.Reset();
 
-	FVector2D Size = GetCachedGeometry().Size;
+	const FVector2D Size = GetCachedGeometry().Size;
+
 	for (int32 i=0; i<Children.Num(); ++i)
 	{
 		TSharedRef<SSchematicGraphNode> Node = GetChild(i);
@@ -729,6 +816,8 @@ void SSchematicGraphPanel::Tick(float DeltaTime)
 			}
 		}
 	}
+
+	UpdateAutoScalingForNodes();
 }
 
 void SSchematicGraphPanel::Tick(const FGeometry& AllottedGeometry, const double InCurrentTime, const float InDeltaTime)
@@ -785,29 +874,37 @@ FVector2d SSchematicGraphPanel::GetPositionForNode(FGuid InNodeGuid) const
 				case ESchematicGraphNodePlacementConstraint::TopLeft:
 				{
 					const int32 NodeIndexInCorner = NodesTopLeft.IndexOfByKey(InNodeGuid);
-					check(NodeIndexInCorner != INDEX_NONE);
-					Position += FVector2d(PaddingLeft + HalfOriginalSize.X, PaddingTop + HalfOriginalSize.Y + ((OriginalSize.Y + PaddingInterNode) * NodeIndexInCorner));
+					if(NodeIndexInCorner != INDEX_NONE)
+					{
+						Position += FVector2d(PaddingLeft + HalfOriginalSize.X, PaddingTop + HalfOriginalSize.Y + ((OriginalSize.Y + PaddingInterNode) * NodeIndexInCorner));
+					}
 					break;
 				}
 				case ESchematicGraphNodePlacementConstraint::TopRight:
 				{
 					const int32 NodeIndexInCorner = NodesTopRight.IndexOfByKey(InNodeGuid);
-					check(NodeIndexInCorner != INDEX_NONE);
-					Position += FVector2d(Size.X - PaddingRight - HalfOriginalSize.X, PaddingTop + HalfOriginalSize.Y + ((OriginalSize.Y + PaddingInterNode) * NodeIndexInCorner));
+					if(NodeIndexInCorner != INDEX_NONE)
+					{
+						Position += FVector2d(Size.X - PaddingRight - HalfOriginalSize.X, PaddingTop + HalfOriginalSize.Y + ((OriginalSize.Y + PaddingInterNode) * NodeIndexInCorner));
+					}
 					break;
 				}
 				case ESchematicGraphNodePlacementConstraint::BottomLeft:
 				{
 					const int32 NodeIndexInCorner = NodesBottomLeft.IndexOfByKey(InNodeGuid);
-					check(NodeIndexInCorner != INDEX_NONE);
-					Position += FVector2d(PaddingLeft + HalfOriginalSize.X, Size.Y - PaddingBottom - HalfOriginalSize.Y - ((OriginalSize.Y + PaddingInterNode)  * NodeIndexInCorner));
+					if(NodeIndexInCorner != INDEX_NONE)
+					{
+						Position += FVector2d(PaddingLeft + HalfOriginalSize.X, Size.Y - PaddingBottom - HalfOriginalSize.Y - ((OriginalSize.Y + PaddingInterNode)  * NodeIndexInCorner));
+					}
 					break;
 				}
 				case ESchematicGraphNodePlacementConstraint::BottomRight:
 				{
 					const int32 NodeIndexInCorner = NodesBottomRight.IndexOfByKey(InNodeGuid);
-					check(NodeIndexInCorner != INDEX_NONE);
-					Position += FVector2d(Size.X - PaddingRight - HalfOriginalSize.X, Size.Y - PaddingBottom - HalfOriginalSize.Y - ((OriginalSize.Y + PaddingInterNode)  * NodeIndexInCorner));
+					if(NodeIndexInCorner != INDEX_NONE)
+					{
+						Position += FVector2d(Size.X - PaddingRight - HalfOriginalSize.X, Size.Y - PaddingBottom - HalfOriginalSize.Y - ((OriginalSize.Y + PaddingInterNode)  * NodeIndexInCorner));
+					}
 					break;
 				}
 			}
@@ -827,13 +924,36 @@ FVector2d SSchematicGraphPanel::GetSizeForNode(FGuid InNodeGuid) const
 	return DefaultSize;
 }
 
-float SSchematicGraphPanel::GetScaleForNode(FGuid InNodeGuid) const
+float SSchematicGraphPanel::GetScaleForNode(FGuid InNodeGuid, bool bIncludeScaleOffset) const
+{
+	// check if the node may be auto scaled
+	if(const TSharedPtr<SSchematicGraphNode>* NodePtr = NodeByGuid.Find(InNodeGuid))
+	{
+		if(NodePtr->Get()->AutoScale.IsSet())
+		{
+			float ScaleOffset = 1.f;
+			if(GraphData)
+			{
+				ScaleOffset = GraphData->GetScaleOffsetForNode(NodePtr->Get()->GetNodeData());
+			}
+			return NodePtr->Get()->AutoScale.GetValue() * ScaleOffset;
+		}
+	}
+	
+	if(GraphData)
+	{
+		return GraphData->GetScaleForNode(InNodeGuid, bIncludeScaleOffset);
+	}
+	return 1.f;
+}
+
+bool SSchematicGraphPanel::IsAutoScaleEnabledForNode(FGuid InNodeGuid) const
 {
 	if(GraphData)
 	{
-		return GraphData->GetScaleForNode(InNodeGuid);
+		return GraphData->IsAutoScaleEnabledForNode(InNodeGuid);
 	}
-	return 1.f;
+	return false;
 }
 
 FLinearColor SSchematicGraphPanel::GetColorForNode(FGuid InNodeGuid) const
@@ -862,6 +982,100 @@ FText SSchematicGraphPanel::GetToolTipForNode(FGuid InNodeGuid) const
 		return GraphData->GetToolTipForNode(InNodeGuid);
 	}
 	return FText();
+}
+
+ESchematicGraphNodeVisibility SSchematicGraphPanel::GetVisibilityForNode(FGuid InNodeGuid) const
+{
+	if(GraphData)
+	{
+		return GraphData->GetVisibilityForNode(InNodeGuid);
+	}
+	return ESchematicGraphNodeVisibility::Visible;
+}
+
+void SSchematicGraphPanel::UpdateAutoScalingForNodes()
+{
+	TArray<bool> NodeIsAutoScaling;
+	TArray<FVector2d> NodePositions;
+	TArray<double> NodeRadiuses;
+	NodeIsAutoScaling.Reserve(Children.Num());
+	NodePositions.Reserve(Children.Num());
+	NodeRadiuses.Reserve(Children.Num());
+
+	for (int32 i=0; i<Children.Num(); ++i)
+	{
+		TSharedRef<SSchematicGraphNode> Node = GetChild(i);
+
+		NodeIsAutoScaling.Add(!Node->bIsBeingDragged && Node->EnableAutoScale.Get());
+		if(NodeIsAutoScaling.Last())
+		{
+			NodePositions.Add(GetPositionForNode(Node->GetGuid()));
+			const FVector2d NodeSize = GetSizeForNode(Node->GetGuid());
+			// note: this is not necessarily the best way to determine the radius of a node
+			NodeRadiuses.Add(FMath::Min(NodeSize.X, NodeSize.Y) * 0.5);
+		}
+		else
+		{
+			NodePositions.Add(FVector2d::ZeroVector);
+			NodeRadiuses.Add(0);
+		}
+	}
+
+	// for now brute force find all neighbors
+	// and determine how much of the radius we have
+	// to reduce to avoid overlap.
+	// todo: use a faster distance algorithm
+	TArray<double> RadiusReductionPerNode;
+	RadiusReductionPerNode.AddZeroed(Children.Num());
+	
+	for (int32 i=0; i<Children.Num(); ++i)
+	{
+		if(!NodeIsAutoScaling[i])
+		{
+			continue;
+		}
+		
+		const FVector2d& PositionA = NodePositions[i];
+		const double RadiusA = NodeRadiuses[i];
+
+		for (int32 j=i+1; j<Children.Num(); ++j)
+		{
+			if(!NodeIsAutoScaling[j])
+			{
+				continue;
+			}
+
+			const FVector2d& PositionB = NodePositions[j];
+			const double RadiusB = NodeRadiuses[j];
+			static constexpr double AutoScalePadding = 4.0;
+			const double MinDistance = RadiusA + RadiusB + AutoScalePadding;
+
+			const double Distance = (PositionA - PositionB).Size();
+			if(Distance < SMALL_NUMBER || Distance > MinDistance)
+			{
+				continue;
+			}
+
+			const double RadiusReduction = (MinDistance - Distance) * 0.5;
+			RadiusReductionPerNode[i] = FMath::Max(RadiusReductionPerNode[i], RadiusReduction);
+			RadiusReductionPerNode[j] = FMath::Max(RadiusReductionPerNode[j], RadiusReduction);
+		}
+	}
+
+	// mark nodes for auto scaling
+	for (int32 i=0; i<Children.Num(); ++i)
+	{
+		TSharedRef<SSchematicGraphNode> Node = GetChild(i);
+		if(RadiusReductionPerNode[i] > SMALL_NUMBER)
+		{
+			const float Scale = (NodeRadiuses[i] - RadiusReductionPerNode[i]) / NodeRadiuses[i];
+			Node->AutoScale = Scale;
+		}
+		else
+		{
+			Node->AutoScale.Reset();
+		}
+	}
 }
 
 #undef LOCTEXT_NAMESPACE

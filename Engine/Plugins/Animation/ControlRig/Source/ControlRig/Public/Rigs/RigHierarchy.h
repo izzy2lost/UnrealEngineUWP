@@ -206,6 +206,8 @@ public:
 	UFUNCTION(BlueprintCallable, Category = URigHierarchy)
 	void CopyHierarchy(URigHierarchy* InHierarchy);
 
+	bool IsCopyingHierarchy() const { return bIsCopyingHierarchy; }
+
 	/**
 	 * Returns true if the hierarchy currently has an execute context / the rig is running
 	 */
@@ -4301,6 +4303,8 @@ private:
 
 	mutable THierarchyCache<TMap<TTuple<int32, int32>, bool>> ElementDependencyCache;
 	mutable TArray<bool> ElementDependencyVisited;
+
+	bool bIsCopyingHierarchy;
 
 #if WITH_EDITOR
 
