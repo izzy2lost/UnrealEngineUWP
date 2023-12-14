@@ -24,5 +24,8 @@ namespace uba
 		#else
 		u64 m_data[16];
 		#endif
+
+		Event(const Event&) = delete;
+		void operator=(const Event&) = delete;
 	};
 }

@@ -15,6 +15,7 @@ namespace uba
 	,	m_logWriter(info.logWriter)
 	,	m_logger(info.logWriter, SetGetPrefix(name))
 	,	m_isConnected(true)
+	,	m_isOrWasConnected(true)
 	,	m_tcpBackend(new NetworkBackendTcp(info.logWriter))
 	{
 		outCtorSuccess = true;
@@ -124,6 +125,8 @@ namespace uba
 
 		if (!rc.recvEvent.IsSet(timeoutSeconds * 1000))
 			return m_logger.Error(TC("Timed out waiting for connection response from server"));
+
+		m_isOrWasConnected.Set();
 
 		if (rc.error == 1) // Bad version
 			return m_logger.Error(TC("Version mismatch with server"));
@@ -279,6 +282,11 @@ namespace uba
 	bool NetworkClient::IsConnected(u32 waitTimeoutMs)
 	{
 		return m_isConnected.IsSet(waitTimeoutMs);
+	}
+
+	bool NetworkClient::IsOrWasConnected(u32 waitTimeoutMs)
+	{
+		return m_isOrWasConnected.IsSet(waitTimeoutMs);
 	}
 
 	void NetworkClient::PrintSummary(Logger& logger)

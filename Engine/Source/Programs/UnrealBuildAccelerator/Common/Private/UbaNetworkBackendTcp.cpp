@@ -212,7 +212,7 @@ namespace uba
 
 		auto AddAddr = [&](const tchar* addr)
 			{
-				m_listenEntries.push_back({});
+				m_listenEntries.emplace_back();
 				auto& entry = m_listenEntries.back();
 				entry.ip.Append(addr);
 				entry.port = port;

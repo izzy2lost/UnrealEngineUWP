@@ -329,9 +329,11 @@ namespace uba
 
 		struct WorkRec
 		{
+			WorkRec(u32 wc) { workCount = wc; events = new Event[workCount]; }
+			~WorkRec() { delete[] events; }
 			Atomic<u64> refCount;
 			Atomic<u64> compressCounter;
-			Vector<Event> events;
+			Event* events;
 			const u8* uncompressedData = nullptr;
 #if !UBA_USE_SPARSEFILE
 			FileAccessor* destination = nullptr;
@@ -346,9 +348,7 @@ namespace uba
 			bool error = false;
 		};
 
-		WorkRec* rec = new WorkRec();
-		rec->workCount = workCount;
-		rec->events.resize(workCount);
+		WorkRec* rec = new WorkRec(workCount);
 		rec->uncompressedData = uncompressedData;
 		rec->maxUncompressedBlock = maxUncompressedBlock;
 		rec->fileSize = fileSize;
@@ -359,8 +359,8 @@ namespace uba
 		rec->memPos = totalWritten;
 #endif
 
-		for (Event& e : rec->events)
-			e.Create(true);
+		for (u32 i=0; i!=workCount; ++i)
+			rec->events[i].Create(true);
 
 		StorageStats& stats = Stats();
 
@@ -418,7 +418,7 @@ namespace uba
 		rec->refCount = workerCount + 1; // We need to keep refcount up 1 to make sure it is not deleted before we read rec->written
 		m_workManager->AddWork(work, workerCount-1, TC("Compress")); // We are a worker ourselves
 		work();
-		rec->events[rec->events.size() - 1].IsSet();
+		rec->events[rec->workCount - 1].IsSet();
 
 		totalWritten += rec->written;
 		bool error = rec->error;

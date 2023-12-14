@@ -884,7 +884,7 @@ namespace uba
 			{
 				client->StartListen(*networkBackend, port);
 				u64 startTime = GetTime();
-				while (!client->IsConnected(200))
+				while (!client->IsOrWasConnected(200))
 				{
 					if (IsEscapePressed())
 					{

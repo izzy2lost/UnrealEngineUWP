@@ -42,6 +42,7 @@ namespace uba
 		bool SendKeepAlive();
 
 		bool IsConnected(u32 waitTimeoutMs = 0);
+		bool IsOrWasConnected(u32 waitTimeoutMs = 0);
 
 		void PrintSummary(Logger& logger);
 
@@ -94,6 +95,7 @@ namespace uba
 		u32 m_receiveTimeoutSeconds;
 
 		Event m_isConnected;
+		Event m_isOrWasConnected;
 		Atomic<u32> m_connectionCount;
 		ReaderWriterLock m_onConnectedFunctionsLock;
 		Vector<OnConnectedFunction> m_onConnectedFunctions;

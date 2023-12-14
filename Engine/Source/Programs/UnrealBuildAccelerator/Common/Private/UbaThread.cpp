@@ -26,7 +26,6 @@ namespace uba
 	}
 
 	Thread::Thread()
-	:	m_handle(nullptr)
 	{
 	}
 
@@ -37,13 +36,7 @@ namespace uba
 
 	Thread::~Thread()
 	{
-		if (!m_handle)
-			return;
 		Wait();
-
-		#if PLATFORM_WINDOWS
-		CloseHandle(m_handle);
-		#endif
 	}
 
 	void Thread::Start(Function<u32()>&& f)

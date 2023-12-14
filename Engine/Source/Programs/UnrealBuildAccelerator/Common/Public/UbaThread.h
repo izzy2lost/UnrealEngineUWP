@@ -19,8 +19,14 @@ namespace uba
 		bool Wait(u32 milliseconds = ~0u, Event* wakeupEvent = nullptr);
 	private:
 		Function<u32()>	m_func;
-		void* m_handle;
-		Event m_finished; // Only used for non windows
+		void* m_handle = nullptr;
+
+		#if !PLATFORM_WINDOWS
+		Event m_finished;
+		#endif
+
+		Thread(const Thread&) = delete;
+		void operator=(const Thread&) = delete;
 	};
 
 
