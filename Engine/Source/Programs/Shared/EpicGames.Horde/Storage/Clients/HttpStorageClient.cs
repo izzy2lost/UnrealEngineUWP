@@ -320,10 +320,10 @@ namespace EpicGames.Horde.Storage.Clients
 			}
 
 			IStorageBackend backend = new HttpStorageBackend(basePath, CreateClient, _backendLogger);
-//			if (_backendCache != null && withBackendCache)
-//			{
-//				backend = _backendCache.CreateWrapper(basePath, backend);
-//			}
+			if (_backendCache != null && withBackendCache)
+			{
+				backend = _backendCache.CreateWrapper(basePath, backend);
+			}
 
 			HttpStorageClient client = new HttpStorageClient(basePath, CreateClient, backend, _clientLogger);
 			return new BundleStorageClient(client, _bundleCache, _clientLogger);
