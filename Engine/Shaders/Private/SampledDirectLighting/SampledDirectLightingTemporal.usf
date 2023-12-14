@@ -203,27 +203,15 @@ void SampledDirectLightingTemporalAccumulationCS(
 			DiffuseLighting = MakeFinite(DiffuseLighting);
 			SpecularLighting = MakeFinite(SpecularLighting);
 
-			float3 TranslatedWorldPosition = GetTranslatedWorldPositionFromScreenUV(ScreenUV, GBuffer.Depth);
-			const float3 N = GBuffer.WorldNormal;
-			const float3 V = normalize(View.TranslatedWorldCameraOrigin - TranslatedWorldPosition);
-			const float NoV = saturate(dot(N, V));
-
-			// #sdl_todo: handle alpha channel
-			// Reverse demodulation and combine lighting components
-			float3 Irradiance = GBuffer.DiffuseColor * DiffuseLighting + SpecularLighting * EnvBRDF(GBuffer.SpecularColor, GBuffer.Roughness, NoV);
-
-			float DiffuseVariance = abs(DiffuseSecondMoment - Pow2(Luminance(DiffuseLighting)));
-			float SpecularVariance = max(SpecularSecondMoment - Pow2(Luminance(SpecularLighting)), 0.0f);
-
 			#if DEBUG_MODE
 			if (bDebug)
 			{
+				float DiffuseVariance = max(DiffuseSecondMoment - Pow2(Luminance(DiffuseLighting)), 0.0f);
+				float SpecularVariance = max(SpecularSecondMoment - Pow2(Luminance(SpecularLighting)), 0.0f);
+
 				Newline(Context);
 				Print(Context, TEXT("NumFramesAccumulated: "));
 				Print(Context, NumFramesAccumulated);
-				Newline(Context);
-				Print(Context, TEXT("Irradiance: "));
-				Print(Context, Irradiance);
 				Newline(Context);
 				Print(Context, TEXT("DiffuseVariance:  "));
 				Print(Context, DiffuseVariance);

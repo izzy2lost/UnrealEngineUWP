@@ -206,3 +206,15 @@ uint GetShadingTileGridOffset(uint2 ShadingTileCoord, uint IndexInCell)
 {
 	return (ShadingTileCoord.x + ShadingTileCoord.y * ShadingTileGridSize.x) * MaxShadingTilesPerGridCell + IndexInCell;
 }
+
+// Remove texture detail before denoising
+float3 SafeDemodulate(float3 Lighting, float3 Texture)
+{
+	return Lighting / max(Texture, 0.001f);
+}
+
+// Restore texture detail after denoising
+float3 SafeModulate(float3 Lighting, float3 Texture)
+{
+	return Lighting * max(Texture, 0.001f);
+}

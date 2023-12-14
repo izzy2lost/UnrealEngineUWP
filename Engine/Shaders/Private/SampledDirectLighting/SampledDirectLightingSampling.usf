@@ -408,8 +408,12 @@ void GenerateSamplesCS(
 
 				if (LightSample.LocalLightIndex != INVALID_LOCAL_LIGHT_INDEX)
 				{
+					const FLocalLightData LocalLightData = GetLocalLightDataNonStereo(LightSample.LocalLightIndex);
+					const FLightSceneData LightSceneData = GetLightSceneData(LocalLightData.LightSceneId);
+					const bool bCastShadows = UnpackCastShadow(LightSceneData.LightTypeAndShadowMapChannelMaskPacked);
+
 					LightSample.bVisible = true;
-					LightSample.bCompleted = false;
+					LightSample.bCompleted = bCastShadows ? false : true;
 					LightSample.Weight = WeightSum / (NUM_SAMPLES_PER_PIXEL_1D * LightSample.Weight);
 				}
 

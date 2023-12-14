@@ -19,14 +19,6 @@ StructuredBuffer<uint> TileAllocator;
 StructuredBuffer<uint> TileData;
 uint TileDataStride;
 
-float3 SafeDemodulate(float3 L, float3 C)
-{
-	L.x = C.x >= 0.01f ? L.x / C.x : L.x;
-	L.y = C.y >= 0.01f ? L.y / C.y : L.y;
-	L.z = C.z >= 0.01f ? L.z / C.z : L.z;
-	return L;
-}
-
 /**
  * Apply all lights per pixel to affected tiles using sampled weights from upscaled shading tiles
  */
@@ -52,6 +44,9 @@ void ShadeLightSamplesCS(
 
 			float2 ScreenUV = (ScreenCoord + 0.5f) * View.BufferSizeAndInvSize.zw;
 			FGBufferData GBuffer = GetGBufferData(ScreenUV);
+
+			// #sdl_todo: handle this path when shadows are disabled
+			float ScreenSpaceAO = 1.0f;//Texture2DSampleLevel(SceneTexturesStruct.ScreenSpaceAOTexture, SceneTexturesStruct_ScreenSpaceAOTextureSampler, ScreenUV, 0).x;
 
 			float3 DiffuseLighting = 0.0f;
 			float3 SpecularLighting = 0.0f;
@@ -125,7 +120,7 @@ void ShadeLightSamplesCS(
 						float4 LightAttenuation = 1.0f;
 						float Dither = 0.5f;
 						float SurfaceShadow = 1;
-						float AmbientOcclusion = 1.0f;
+						float AmbientOcclusion = ScreenSpaceAO;
 
 						// #sdl_todo: Move more shading models to TILE_MODE_SIMPLE_SHADING
 						#if TILE_TYPE == TILE_MODE_SIMPLE_SHADING
@@ -133,7 +128,6 @@ void ShadeLightSamplesCS(
 							GBuffer.ShadingModelID = SHADINGMODELID_DEFAULT_LIT;
 						}
 						#endif
-						GBuffer.ShadingModelID = SHADINGMODELID_DEFAULT_LIT;
 						LightData.ShadowedBits = 0;
 
 						FDeferredLightingSplit SplitLighting = GetDynamicLightingSplit(
@@ -164,8 +158,8 @@ void ShadeLightSamplesCS(
 				const float3 SpecularEnv = EnvBRDF(GBuffer.SpecularColor, GBuffer.Roughness, NoV);
 
 				// #sdl_todo: demodulate earlier during BRDF evaluation
-				DiffuseLighting.xyz = SafeDemodulate(DiffuseLighting.xyz, GBuffer.DiffuseColor);
-				SpecularLighting.xyz = SafeDemodulate(SpecularLighting.xyz, SpecularEnv);
+				DiffuseLighting = SafeDemodulate(DiffuseLighting, GBuffer.DiffuseColor);
+				SpecularLighting = SafeDemodulate(SpecularLighting, SpecularEnv);
 			}
 
 			#if DEBUG_MODE

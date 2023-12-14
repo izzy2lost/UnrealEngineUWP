@@ -112,10 +112,11 @@ void SampledDirectLightingSpatialCS(
 			const float3 N = GBuffer.WorldNormal;
 			const float3 V = normalize(View.TranslatedWorldCameraOrigin - TranslatedWorldPosition);
 			const float NoV = saturate(dot(N, V));
+			const float3 SpecularEnv = EnvBRDF(GBuffer.SpecularColor, GBuffer.Roughness, NoV);
 
 			// Final pass outputs composites irradiance and outputs it to scene color
-			float3 DiffuseLighting = GBuffer.DiffuseColor * (DiffuseLightingSum / DiffuseLightingWeightSum);
-			float3 SpecularLighting = (SpecularLightingSum / SpecularLightingWeightSum) * EnvBRDF(GBuffer.SpecularColor, GBuffer.Roughness, NoV);
+			float3 DiffuseLighting = SafeModulate(DiffuseLightingSum / DiffuseLightingWeightSum, GBuffer.DiffuseColor);
+			float3 SpecularLighting = SafeModulate(SpecularLightingSum / SpecularLightingWeightSum, SpecularEnv);
 
 			// Composite diffuse and specular into scene color
 			const bool bNeedsSeparateSubsurfaceLightAccumulation = UseSubsurfaceProfile(GBuffer.ShadingModelID);
