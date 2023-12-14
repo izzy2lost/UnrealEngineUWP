@@ -21,6 +21,8 @@ public:
 	static const FString ExtraUrlsFilename;
 	static const FString ParsedRequirementsFilename;
 
+	static bool EnabledOnStartup();
+
 	static FString WritePluginsListing(TArray<TSharedRef<IPlugin>>& OutPythonPlugins);
 	static FString WritePluginDependencies(const TArray<TSharedRef<IPlugin>>& PythonPlugins, TArray<FString>& OutRequirements, TArray<FString>& OutExtraUrls);
 

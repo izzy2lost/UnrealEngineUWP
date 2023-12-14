@@ -3,8 +3,10 @@
 #include "PipInstall.h"
 
 #include "PyUtil.h"
+#include "PythonScriptPluginSettings.h"
 #include "Dom/JsonObject.h"
 #include "HAL/PlatformFileManager.h"
+#include "Misc/CommandLine.h"
 #include "Misc/FeedbackContext.h"
 #include "Misc/FeedbackContextMarkup.h"
 #include "Misc/FileHelper.h"
@@ -26,6 +28,14 @@ const FString FPipInstall::RequirementsInputFilename = TEXT("merged_requirements
 const FString FPipInstall::ExtraUrlsFilename = TEXT("extra_urls.txt");
 const FString FPipInstall::ParsedRequirementsFilename = TEXT("merged_requirements.txt");
 
+
+bool FPipInstall::EnabledOnStartup()
+{
+	bool bRunOnStartup = GetDefault<UPythonScriptPluginSettings>()->bRunPipInstallOnStartup;
+	bool bCmdLineDisable = FParse::Param(FCommandLine::Get(), TEXT("DisablePipInstall"));
+
+	return bRunOnStartup && !bCmdLineDisable;
+}
 
 FString FPipInstall::WritePluginsListing(TArray<TSharedRef<IPlugin>>& OutPythonPlugins)
 {
@@ -116,8 +126,8 @@ FString FPipInstall::WritePluginDependencies(const TArray<TSharedRef<IPlugin>>& 
 		}
 	}
 
-	const FString MergedReqsFile = PipInstallPath / RequirementsInputFilename;
-	const FString ExtraUrlsFile = PipInstallPath / ExtraUrlsFilename;
+	const FString MergedReqsFile = FPaths::ConvertRelativePathToFull(PipInstallPath / RequirementsInputFilename);
+	const FString ExtraUrlsFile = FPaths::ConvertRelativePathToFull(PipInstallPath / ExtraUrlsFilename);
 
 	FFileHelper::SaveStringArrayToFile(OutRequirements, *MergedReqsFile);
 	FFileHelper::SaveStringArrayToFile(OutExtraUrls, *ExtraUrlsFile);

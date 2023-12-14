@@ -1144,30 +1144,32 @@ void FPythonScriptPlugin::InitPipInstaller()
 	TArray<FString> ExtraUrls;
 	const FString ReqsInFile = FPipInstall::WritePluginDependencies(PythonPlugins, ReqInLines, ExtraUrls);
 
-	bool bRunOnStartup = GetDefault<UPythonScriptPluginSettings>()->bRunPipInstallOnStartup;
+	bool EnabledOnStart = FPipInstall::EnabledOnStartup();
 	if (ReqInLines.IsEmpty())
 	{
-		UE_CLOG(bRunOnStartup, LogPython, Display, TEXT("No enabled plugins with python dependencies found, skipping"));
+		UE_CLOG(EnabledOnStart, LogPython, Display, TEXT("No enabled plugins with python dependencies found, skipping"));
 		return;
 	}
 
 	// Just return immediately with warning if some python dependencies exist and pip install is disabled
-	bool bCmdLineDisable = FParse::Param(FCommandLine::Get(), TEXT("DisablePipInstall"));
-	if (bCmdLineDisable || !bRunOnStartup || GIsBuildMachine)
+	if (!EnabledOnStart)
 	{
+		bool bCmdLineDisable = FParse::Param(FCommandLine::Get(), TEXT("DisablePipInstall"));
 		if (bCmdLineDisable || GIsBuildMachine)
 		{
 			// Don't warn if disabled on cmd-line or is build process
 			UE_LOG(LogPython, Display, TEXT("Enabled plugins have python dependencies, install manually to: %s"), *PipSitePackagePath);
-			UE_LOG(LogPython, Display, TEXT("  See package requirements: % s"), *ReqsInFile);
+			UE_LOG(LogPython, Display, TEXT("  See package requirements: %s"), *ReqsInFile);
 		}
 		else
 		{
 			UE_LOG(LogPython, Warning, TEXT("Enabled plugins have python dependencies, enable 'Run Pip Install On Startup' or install manually to: %s"), *PipSitePackagePath);
-			UE_LOG(LogPython, Warning, TEXT("  See package requirements: % s"), *ReqsInFile);
+			UE_LOG(LogPython, Warning, TEXT("  See package requirements: %s"), *ReqsInFile);
 		}
 		return;
 	}
+
+	UE_LOG(LogPython, Display, TEXT("Preparing to install python dependencies into: %s"), *PipSitePackagePath);
 
 	FPipInstall::SetupPipEnv(Context);
 	FPipInstall::ParsePluginDependencies(ReqsInFile, Context);
@@ -1177,9 +1179,7 @@ void FPythonScriptPlugin::RunPipInstaller()
 {
 	TRACE_CPUPROFILER_EVENT_SCOPE(FPythonScriptPlugin::RunPipInstaller);
 
-	bool bRunOnStartup = GetDefault<UPythonScriptPluginSettings>()->bRunPipInstallOnStartup;
-	bool bCmdLineDisable = FParse::Param(FCommandLine::Get(), TEXT("DisablePipInstall"));
-	if (bCmdLineDisable || !bRunOnStartup || GIsBuildMachine)
+	if (!FPipInstall::EnabledOnStartup())
 	{
 		return;
 	}
@@ -1208,6 +1208,7 @@ bool FPythonScriptPlugin::RunUBTPipAction(const FString& Action, const FText& De
 {
 	TRACE_CPUPROFILER_EVENT_SCOPE(FPythonScriptPlugin::RunUBTPipAction);
 
+	// TODO: Convert error codes to specific error messages for pip installer
 	int32 ExitCode;
 	const FString ProjectFileName = IFileManager::Get().ConvertToAbsolutePathForExternalAppForWrite(*FPaths::GetProjectFilePath());
 	const FString Args = FString::Printf(TEXT("%s %s %s -Project=\"%s\" -Mode=PipInstall -PythonInterpreter=\"%s\" -PipAction=%s -Progress")
