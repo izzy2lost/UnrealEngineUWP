@@ -80,15 +80,18 @@ FString UPCGSwitchSettings::GetAdditionalTitleInformation() const
 		{
 			if (EnumSelection.Class)
 			{
-				FString Subtitle = PCGControlFlowConstants::SubtitleEnum.ToString();
+				FString Subtitle = EnumSelection.Class->GetName();
 				if (!IsPropertyOverriddenByPin({GET_MEMBER_NAME_CHECKED(UPCGSwitchSettings, EnumSelection), GET_MEMBER_NAME_CHECKED(FEnumSelector, Value)}))
 				{
-					Subtitle += EnumSelection.Class->GetNameStringByValue(EnumSelection.Value);
+					Subtitle += FString::Format(TEXT(": {0}"), {EnumSelection.Class->GetNameStringByValue(EnumSelection.Value)});
 				}
 
 				return Subtitle;
 			}
-			break;
+			else
+			{
+				return PCGControlFlowConstants::SubtitleEnum.ToString();
+			}
 		}
 
 		case EPCGControlFlowSelectionMode::String:
