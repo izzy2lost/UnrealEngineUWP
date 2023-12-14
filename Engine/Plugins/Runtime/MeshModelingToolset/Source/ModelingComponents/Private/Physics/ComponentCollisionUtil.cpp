@@ -241,6 +241,9 @@ bool UE::Geometry::SetSimpleCollision(
 	}
 	else if (UDynamicMeshComponent* DynamicMeshComponent = Cast<UDynamicMeshComponent>(Component))
 	{
+		DynamicMeshComponent->Modify();
+		UBodySetup* BodySetup = DynamicMeshComponent->GetBodySetup();
+		BodySetup->Modify();
 		DynamicMeshComponent->CollisionType = (ECollisionTraceFlag)CollisionSettings.CollisionTypeFlag;
 		DynamicMeshComponent->SetSimpleCollisionShapes(PhysicsData.AggGeom, true);
 		return true;
@@ -281,6 +284,9 @@ bool UE::Geometry::TransformSimpleCollision(
 	}
 	else if (UDynamicMeshComponent* DynamicMeshComponent = Cast<UDynamicMeshComponent>(Component))
 	{
+		DynamicMeshComponent->Modify();
+		UBodySetup* BodySetup = DynamicMeshComponent->GetBodySetup();
+		BodySetup->Modify();
 		DynamicMeshComponent->SetSimpleCollisionShapes(PhysicsData.AggGeom, true);
 		return true;
 	}
