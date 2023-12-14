@@ -232,6 +232,16 @@ FVirtualShadowMapSampleResult ProjectLight(
 	bool bInLightCone = SpotAttenuationMask(L, -Light.Direction, Light.SpotAngles) > 0.0f;
 
 	bool bInLightRegion = bInLightRadius && bInLightCone;
+
+	const bool bIsRectLight = Light.RectLightBarnLength > -2.0f;
+	if (bIsRectLight)
+	{
+		const bool bIsBehindRectLight = dot(ToLight, Light.Direction) < 0;
+		if (bIsBehindRectLight)
+		{
+			bInLightRegion = false;
+		}
+	}
 #endif // DIRECTIONAL_LIGHT
 
 	FVirtualShadowMapSampleResult Result = InitVirtualShadowMapSampleResult();

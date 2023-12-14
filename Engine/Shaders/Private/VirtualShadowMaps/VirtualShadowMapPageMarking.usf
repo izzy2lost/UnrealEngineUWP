@@ -475,6 +475,19 @@ void GeneratePageFlagsFromPixels(
 				continue;
 			}
 
+			const uint LightTypeAndPackedShadowMapChannelMask = asuint(LightData.LightDirectionAndShadowMask.w);
+			const uint LightType = UnpackLightType(LightTypeAndPackedShadowMapChannelMask);
+			
+			const bool bIsRectLight = LightType == LIGHT_TYPE_RECT;
+			if (bIsRectLight)
+			{
+				const bool bIsBehindRectLight = dot(ToLight, LightData.LightDirectionAndShadowMask.xyz) < 0;
+				if (bIsBehindRectLight)
+				{
+					continue;
+				}
+			}
+
 			// TODO: Precise radius test necessary?
 
 		#if PERMUTATION_INPUT_TYPE != INPUT_TYPE_HAIRSTRANDS
