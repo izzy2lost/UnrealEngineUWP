@@ -870,12 +870,19 @@ FModelInstance::~FModelInstance()
 
 	Signal->Wait();
 	FGenericPlatformProcess::ReturnSynchEventToPool(Signal);
+
+	for (FOperatorDml* Op : Operators)
+	{
+		delete Op;
+	}
+	Operators.Reset();
 }
 
 bool FModelInstance::Init(TConstArrayView<uint8> ModelData, FDmlDeviceContext* InDevCtx)
 {
+	check(Operators.IsEmpty());
 	ConstantCPUTensorIndices.Reset();
-
+	
 	check(ModelData.Num() > 0);
 	FNNERuntimeFormat	Format;
 	int32 GuidSize = FModelInfo::Get()->GetGuidSize();
