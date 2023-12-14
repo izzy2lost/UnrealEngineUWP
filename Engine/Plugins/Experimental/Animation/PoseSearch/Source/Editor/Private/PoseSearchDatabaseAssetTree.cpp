@@ -741,7 +741,7 @@ namespace UE::PoseSearch
 			TArray<TSharedPtr<FDatabaseAssetTreeNode>> SelectedNodes = TreeView->GetSelectedItems();
 			if (!SelectedNodes.IsEmpty())
 			{
-				const FScopedTransaction Transaction(LOCTEXT("ConvertToBranchIn", "Create PoseSearchBranchIn notify state for assets in Pose Search Database"));
+				const FScopedTransaction Transaction(LOCTEXT("ConvertToBranchInTransaction", "Create PoseSearchBranchIn notify state for assets in Pose Search Database"));
 
 				for (TSharedPtr<FDatabaseAssetTreeNode> SelectedNode : SelectedNodes)
 				{
