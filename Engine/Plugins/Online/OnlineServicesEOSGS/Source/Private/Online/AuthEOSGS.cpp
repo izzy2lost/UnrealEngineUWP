@@ -598,7 +598,6 @@ TOnlineAsyncOpHandle<FAuthLogin> FAuthEOSGS::Login(FAuthLogin::Params&& Params)
 			if (!IsOnlineStatus(AccountInfoEOS->LoginStatus))
 			{
 				TPromise<void> Promise;
-				TFuture<void> Future = Promise.GetFuture();
 
 				const FAuthLogin::Params& Params = InAsyncOp.GetParams();
 
@@ -627,8 +626,6 @@ TOnlineAsyncOpHandle<FAuthLogin> FAuthEOSGS::Login(FAuthLogin::Params&& Params)
 
 					Promise.EmplaceValue();
 				});
-
-				return Future;
 			}
 			else
 			{

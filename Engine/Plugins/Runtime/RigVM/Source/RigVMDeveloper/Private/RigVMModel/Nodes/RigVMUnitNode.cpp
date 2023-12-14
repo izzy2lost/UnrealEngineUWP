@@ -284,12 +284,11 @@ FName URigVMUnitNode::GetNextAggregateName(const FName& InLastAggregatePinName) 
 		const FRigVMStruct* StructMemory = (const FRigVMStruct*)StructOnScope->GetStructMemory();
 		return StructMemory->GetNextAggregateName(InLastAggregatePinName);
 	}
-	else
-	{
-		return Super::GetNextAggregateName(InLastAggregatePinName);
-	}
-#endif
+
+	return Super::GetNextAggregateName(InLastAggregatePinName);
+#else
 	return FName();
+#endif
 }
 
 UScriptStruct* URigVMUnitNode::GetScriptStruct() const
