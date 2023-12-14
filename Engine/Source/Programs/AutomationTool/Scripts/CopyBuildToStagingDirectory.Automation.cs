@@ -3115,7 +3115,7 @@ namespace AutomationScripts
 			if (bHasPlatformEngineConfig)
 			{
 				bool bEnabled = false;
-				PlatformEngineConfig.GetBool("MemoryMappedFiles", "MasterEnable", out bEnabled);
+				PlatformEngineConfig.GetBool("MemoryMappedFiles", "Enable", out bEnabled);
 				if (bEnabled)
 				{
 					int Value = 0;
