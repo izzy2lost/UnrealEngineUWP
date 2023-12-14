@@ -137,7 +137,7 @@ public:
 	/**
 	*  Returns true if a non-recoverable error has occurred.
 	*/
-	virtual bool HasError() const { return false; }
+	ENGINE_API virtual bool HasError() const;
 
 protected:
 	/** Internal override implemented by subclasses. */
@@ -170,6 +170,7 @@ public:
 	virtual const FSoundWaveProxyPtr& GetStreamingSoundWave() { return StreamingSoundWave; }
 
 protected:
+	mutable bool bHasError = false;
 	FSoundWaveProxyPtr StreamingSoundWave;
 };
 

@@ -12,9 +12,41 @@
 #include "Stats/StatsTrace.h"
 #include "Sound/StreamedAudioChunkSeekTable.h"
 
+namespace AudioDecompressPrivate
+{
+#ifndef WITH_AUDIO_DECODER_DIAGNOSTICS
+	// Optionally enable this manually with a flag. They use strings, so shouldn't be enabled by default.
+	#define WITH_AUDIO_DECODER_DIAGNOSTICS (0)
+#endif //WITH_AUDIO_DECODER_DIAGNOSTICS
+
+#if WITH_AUDIO_DECODER_DIAGNOSTICS
+	
+	static FString ForceDecoderErrorOnWaveCVar;
+	FAutoConsoleVariableRef CVarForceDecoderErrorOnWave(
+		TEXT("au.debug.force_decoder_error_on_wave"),
+		ForceDecoderErrorOnWaveCVar,
+		TEXT("Force Decoder Error On Any decoding wave matching this string."),
+		ECVF_Default);
+
+	static FString ForceDecoderNegativeSamplesOnWaveCVar;
+	FAutoConsoleVariableRef CVarForceDecoderNegativeSamplesOnWave(
+		TEXT("au.debug.force_decoder_negative_samples_on_wave"),
+		ForceDecoderNegativeSamplesOnWaveCVar,
+		TEXT("Force Negative Samples on Decode call to simulate error" ),
+		ECVF_Default);
+
+	// Macro to string match against the debugging wave of choice.
+	#define DECODER_MATCHES_WAVE(STR)\
+		(!STR.IsEmpty() && StreamingSoundWave.IsValid() && StreamingSoundWave->GetFName().ToString().Contains(STR))
+	
+#else  //WITH_AUDIO_DECODER_DIAGNOSTICS
+	#define DECODER_MATCHES_WAVE(STR) (false)
+#endif //WITH_AUDIO_DECODER_DIAGNOSTICS
+}
+
 IStreamedCompressedInfo::IStreamedCompressedInfo()
 	: bIsStreaming(false)
-	,SrcBufferData(nullptr)
+	, SrcBufferData(nullptr)
 	, SrcBufferDataSize(0)
 	, SrcBufferOffset(0)
 	, AudioDataOffset(0)
@@ -182,7 +214,7 @@ void IStreamedCompressedInfo::ExpandFile(uint8* DstBuffer, struct FSoundQualityI
 
 	while (RawPCMOffset < QualityInfo->SampleDataSize)
 	{
-		int32 DecodedFrames = DecompressToPCMBuffer( /*Unused*/ 0);
+		const int32 DecodedFrames = DecompressToPCMBuffer( /*Unused*/ 0);
 
 		if (DecodedFrames < 0)
 		{
@@ -241,6 +273,11 @@ bool IStreamedCompressedInfo::StreamCompressedInfoInternal(const FSoundWaveProxy
 	}
 
 	return false;
+}
+
+bool ICompressedAudioInfo::HasError() const
+{
+	return bHasError || DECODER_MATCHES_WAVE(AudioDecompressPrivate::ForceDecoderErrorOnWaveCVar);
 }
 
 bool IStreamedCompressedInfo::StreamCompressedData(uint8* Destination, bool bLooping, uint32 BufferSize, int32& OutNumBytesStreamed)
@@ -422,12 +459,15 @@ bool IStreamedCompressedInfo::StreamCompressedData(uint8* Destination, bool bLoo
 	while (RawPCMOffset < BufferSize)
 	{
 		// Decompress the next compression frame of audio (many samples) into the PCM buffer
-		int32 DecodedFrames = DecompressToPCMBuffer(/*Unused*/ 0);
+		const int32 DecodedFrames = DecompressToPCMBuffer(/*Unused*/ 0);
 
 		if (DecodedFrames < 0)
 		{
 			UE_LOG(LogAudioStreamCaching, Warning, TEXT("Zero pad buffer Chunk=%d, Wave=%s, Reason=Decoder returned negative samples."),
 				CurrentChunkIndex, *StreamingSoundWave->GetFName().ToString());
+
+			// Flag that the decoder has an unrecoverable error, so we don't try again.
+			bHasError = true;
 
 			LastPCMByteSize = 0;
 			ZeroBuffer(Destination + RawPCMOffset, BufferSize - RawPCMOffset);
@@ -543,12 +583,18 @@ int32 IStreamedCompressedInfo::DecompressToPCMBuffer(uint16 /*Unused*/ )
 	LastPCMOffset = 0;
 	
 	const FDecodeResult DecodeResult = Decode(SrcPtr, FrameSize, LastDecodedPCM.GetData(), LastDecodedPCM.Num());
-	if (DecodeResult.NumCompressedBytesConsumed != INDEX_NONE )
+	
+	if (DecodeResult.NumCompressedBytesConsumed == INDEX_NONE || DECODER_MATCHES_WAVE(AudioDecompressPrivate::ForceDecoderNegativeSamplesOnWaveCVar))
 	{
-		SrcBufferOffset -= FrameSize;
-		SrcBufferOffset += DecodeResult.NumCompressedBytesConsumed;
+		UE_LOG(LogAudio, Warning, TEXT("Decoder error: Decode call returned INDEX_NONE which indicates an error. : Wave='%s', FrameSize=%d, SrcBufferOffset=%u, SrcBufferDataSize=%u"), 
+			*GetStreamingSoundWave()->GetSoundWaveData()->GetFName().ToString(), FrameSize, SrcBufferOffset, SrcBufferDataSize);
+
+		// Error.
+		return -1;
 	}
 
+	SrcBufferOffset -= FrameSize;
+	SrcBufferOffset += DecodeResult.NumCompressedBytesConsumed;
 	return DecodeResult.NumAudioFramesProduced;
 }
 

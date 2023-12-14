@@ -781,6 +781,11 @@ bool FVorbisAudioInfo::StreamCompressedData(uint8* InDestination, bool bLooping,
 	return( bLooped );
 }
 
+bool FVorbisAudioInfo::HasError() const
+{
+	return Super::HasError() | bHasError;
+}
+
 void LoadVorbisLibraries()
 {
 	static bool bIsInitialized = false;

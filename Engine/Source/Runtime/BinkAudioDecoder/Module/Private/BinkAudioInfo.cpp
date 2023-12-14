@@ -684,7 +684,7 @@ FDecodeResult FBinkAudioInfo::Decode(const uint8* CompressedData, const int32 Co
 
 bool FBinkAudioInfo::HasError() const
 {
-	return bErrorStateLatch;
+	return Super::HasError() || bErrorStateLatch;
 }
 
 class BINKAUDIODECODER_API FBinkAudioDecoderModule : public IModuleInterface
