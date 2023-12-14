@@ -937,8 +937,10 @@ UMovieScenePropertyInstantiatorSystem::FSetupBlenderSystemResult UMovieSceneProp
 		NewBlenderClass = Params.PropertyDefinition->BlenderSystemClass;
 	}
 
-	if (!ensureMsgf(NewBlenderClass, TEXT("No default blender class specified on property, and no custom blender specified on entities. Falling back to double blender.")))
+	if (!NewBlenderClass)
 	{
+		UE_LOG(LogMovieScene, Warning, TEXT("No default blender class specified on property, and no custom blender specified on entities. Falling back to double blender."));
+
 		NewBlenderClass = UMovieScenePiecewiseDoubleBlenderSystem::StaticClass();
 	}
 
