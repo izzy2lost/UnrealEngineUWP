@@ -5,6 +5,7 @@ using System.Collections.Generic;
 using System.Diagnostics.CodeAnalysis;
 using System.IO;
 using System.Linq;
+using System.Text.Json;
 using System.Xml.Serialization;
 using EpicGames.Core;
 using UnrealBuildBase;
@@ -534,7 +535,7 @@ namespace UnrealBuildTool
 			BuildVersion? Version;
 			if (!BuildVersion.TryParse(RawObject.GetObjectField("Version"), out Version))
 			{
-				throw new JsonParseException("Invalid 'Version' field");
+				throw new JsonException("Invalid 'Version' field");
 			}
 
 			// Read the project path

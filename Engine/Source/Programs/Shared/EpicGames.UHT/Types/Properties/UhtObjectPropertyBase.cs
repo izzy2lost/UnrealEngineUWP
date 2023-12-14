@@ -290,9 +290,9 @@ namespace EpicGames.UHT.Types
 		/// <inheritdoc/>
 		protected override bool NeedsGCBarrierWhenPassedToFunctionImpl(UhtFunction function)
 		{
-			var type = this.GetType();
+			Type type = GetType();
 			return type == typeof(UhtObjectProperty)
-				|| (type == typeof(UhtClassProperty) && !this.PropertyFlags.HasFlag(EPropertyFlags.UObjectWrapper));
+				|| (type == typeof(UhtClassProperty) && !PropertyFlags.HasFlag(EPropertyFlags.UObjectWrapper));
 		}
 	}
 }

@@ -19,14 +19,13 @@ namespace EpicGames.Core.Tests
 		private Enemy _validJsonDataSource = null!;
 		private static DirectoryReference s_tempDirectory = null!;
 
-		[ClassInitialize]
-		public static void Setup()
+		public JsonObjectTests()
 		{
-			JsonObjectTests.s_tempDirectory = CreateTempDir();
+			s_tempDirectory = CreateTempDir();
 		}
 
-		[ClassCleanup]
-		public static void TearDown()
+		[TestCleanup]
+		public void RemoveTempDir()
 		{
 			if (Directory.Exists(JsonObjectTests.s_tempDirectory.FullName))
 			{
@@ -47,12 +46,6 @@ namespace EpicGames.Core.Tests
 			_validJsonDataSource = enemy1;
 		}
 
-		[TestCleanup]
-		public void TestCleanup()
-		{
-			
-		}
-
 		[TestMethod]
 		public void ParseValidJsonText()
 		{
@@ -60,16 +53,18 @@ namespace EpicGames.Core.Tests
 		}
 
 		[TestMethod]
+		[ExpectedException(typeof(JsonException), AllowDerivedTypes = true)]
 		public void ParseInvalidJsonText()
 		{
 			MakeTestJsonTextInvalid();
-			Assert.ThrowsException<JsonParseException>(() => JsonObject.Parse(_testJsonText));
+			JsonObject.Parse(_testJsonText);
 		}
 
 		[TestMethod]
+		[ExpectedException(typeof(JsonException), AllowDerivedTypes = true)]
 		public void ParseEmptyText()
 		{
-			Assert.ThrowsException<JsonParseException>(() => JsonObject.Parse(""));
+			JsonObject.Parse("");
 		}
 
 		[TestMethod]
@@ -106,18 +101,20 @@ namespace EpicGames.Core.Tests
 		}
 
 		[TestMethod]
+		[ExpectedException(typeof(JsonException), AllowDerivedTypes = true)]
 		public void ReadInvalidJsonText()
 		{
 			MakeTestJsonTextInvalid();
 			FileReference inputFileReference = CreateTempJsonFile("Invalid.json", _testJsonText);
-			Assert.ThrowsException<JsonParseException>(() => JsonObject.Read(inputFileReference));
+			JsonObject.Read(inputFileReference);
 		}
 
 		[TestMethod]
+		[ExpectedException(typeof(JsonException), AllowDerivedTypes = true)]
 		public void ReadEmptyJsonText()
 		{
 			FileReference inputFileReference = CreateTempJsonFile("Empty.json", "");
-			Assert.ThrowsException<JsonParseException>(() => JsonObject.Read(inputFileReference));
+			JsonObject.Read(inputFileReference);
 		}
 
 		[TestMethod]
@@ -164,7 +161,7 @@ namespace EpicGames.Core.Tests
 		{
 			string fieldName = "Invalid";
 			int correctValue = _validJsonDataSource.Hp;
-			Assert.ThrowsException<JsonParseException>(() => _validTestObject.GetIntegerField(fieldName));
+			Assert.ThrowsException<JsonException>(() => _validTestObject.GetIntegerField(fieldName));
 			int outValue;
 			Assert.IsFalse(_validTestObject.TryGetIntegerField(fieldName, out outValue));
 			Assert.AreNotEqual(correctValue, outValue);
@@ -186,7 +183,7 @@ namespace EpicGames.Core.Tests
 		{
 			string fieldName = "Invalid";
 			string correctValue = _validJsonDataSource.Name;
-			Assert.ThrowsException<JsonParseException>(() => _validTestObject.GetStringField(fieldName));
+			Assert.ThrowsException<JsonException>(() => _validTestObject.GetStringField(fieldName));
 			string? outValue;
 			Assert.IsFalse(_validTestObject.TryGetStringField(fieldName, out outValue));
 			Assert.AreNotEqual(correctValue, outValue);
@@ -208,7 +205,7 @@ namespace EpicGames.Core.Tests
 		public void GetObjectInvalidField()
 		{
 			string fieldName = "Invalid";
-			Assert.ThrowsException<JsonParseException>(() => _validTestObject.GetObjectField(fieldName));
+			Assert.ThrowsException<JsonException>(() => _validTestObject.GetObjectField(fieldName));
 			JsonObject? outValue;
 			Assert.IsFalse(_validTestObject.TryGetObjectField(fieldName, out outValue));
 			Assert.IsNull(outValue);
@@ -230,7 +227,7 @@ namespace EpicGames.Core.Tests
 		public void GetObjectArrayInvalidField()
 		{
 			string fieldName = "Invalid";
-			Assert.ThrowsException<JsonParseException>(() => _validTestObject.GetObjectArrayField(fieldName));
+			Assert.ThrowsException<JsonException>(() => _validTestObject.GetObjectArrayField(fieldName));
 			JsonObject[]? outValue;
 			Assert.IsFalse(_validTestObject.TryGetObjectArrayField(fieldName, out outValue));
 			Assert.IsNull(outValue);
@@ -253,7 +250,7 @@ namespace EpicGames.Core.Tests
 		{
 			string fieldName = "Invalid";
 			string[] correctValue = _validJsonDataSource.Skills.ToArray();
-			Assert.ThrowsException<JsonParseException>(() => _validTestObject.GetStringArrayField(fieldName));
+			Assert.ThrowsException<JsonException>(() => _validTestObject.GetStringArrayField(fieldName));
 			string[]? outValue;
 			Assert.IsFalse(_validTestObject.TryGetStringArrayField(fieldName, out outValue));
 			Assert.IsNull(outValue);
@@ -275,7 +272,7 @@ namespace EpicGames.Core.Tests
 		{
 			string fieldName = "Invalid";
 			StatusEffect correctValue = _validJsonDataSource.CurrentStatusEffect;
-			Assert.ThrowsException<JsonParseException>(() => _validTestObject.GetEnumField<StatusEffect>(fieldName));
+			Assert.ThrowsException<JsonException>(() => _validTestObject.GetEnumField<StatusEffect>(fieldName));
 			StatusEffect outValue;
 			Assert.IsFalse(_validTestObject.TryGetEnumField<StatusEffect>(fieldName, out outValue));
 			Assert.AreEqual(outValue, default);
@@ -317,7 +314,7 @@ namespace EpicGames.Core.Tests
 		public void GetBoolInvalidField()
 		{
 			string fieldName = "Invalid";
-			Assert.ThrowsException<JsonParseException>(() => _validTestObject.GetBoolField(fieldName));
+			Assert.ThrowsException<JsonException>(() => _validTestObject.GetBoolField(fieldName));
 			bool outValue = false;
 			Assert.IsFalse(_validTestObject.TryGetBoolField(fieldName, out outValue));
 			Assert.IsFalse(outValue);

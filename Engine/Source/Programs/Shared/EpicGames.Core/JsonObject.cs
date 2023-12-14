@@ -87,22 +87,6 @@ namespace EpicGames.Core
 	}
 
 	/// <summary>
-	/// Exception thrown for errors parsing JSON files
-	/// </summary>
-	public class JsonParseException : Exception
-	{
-		/// <summary>
-		/// Constructor
-		/// </summary>
-		/// <param name="format">Format string</param>
-		/// <param name="args">Optional arguments</param>
-		public JsonParseException(string format, params object[] args)
-			: base(String.Format(format, args))
-		{
-		}
-	}
-
-	/// <summary>
 	/// Stores a JSON object in memory
 	/// </summary>
 	public class JsonObject
@@ -265,9 +249,13 @@ namespace EpicGames.Core
 			{
 				return Parse(text);
 			}
-			catch(Exception ex)
+			catch (JsonException)
 			{
-				throw new JsonParseException("Unable to parse {0}: {1}", file, ex.Message);
+				throw;
+			}
+			catch (Exception ex)
+			{
+				throw new JsonException($"Unable to parse {file}: {ex.Message}", file.FullName, null, null, ex );
 			}
 		}
 
@@ -301,9 +289,13 @@ namespace EpicGames.Core
 				JsonDocument document = JsonDocument.Parse(text, new JsonDocumentOptions { AllowTrailingCommas = true });
 				return new JsonObject(document.RootElement);
 			}
+			catch (JsonException)
+			{
+				throw;
+			}
 			catch (Exception ex)
 			{
-				throw new JsonParseException("Failed to parse json text '{0}'. {1}", text, ex.Message);
+				throw new JsonException($"Failed to parse json text '{text}'. {ex.Message}", ex);
 			}
 		}
 
@@ -342,7 +334,7 @@ namespace EpicGames.Core
 			string? stringValue;
 			if (!TryGetStringField(fieldName, out stringValue))
 			{
-				throw new JsonParseException("Missing or invalid '{0}' field", fieldName);
+				throw new JsonException($"Missing or invalid '{fieldName}' field");
 			}
 			return stringValue;
 		}
@@ -378,7 +370,7 @@ namespace EpicGames.Core
 			string[]? stringValues;
 			if (!TryGetStringArrayField(fieldName, out stringValues))
 			{
-				throw new JsonParseException("Missing or invalid '{0}' field", fieldName);
+				throw new JsonException($"Missing or invalid '{fieldName}' field");
 			}
 			return stringValues;
 		}
@@ -414,7 +406,7 @@ namespace EpicGames.Core
 			bool boolValue;
 			if (!TryGetBoolField(fieldName, out boolValue))
 			{
-				throw new JsonParseException("Missing or invalid '{0}' field", fieldName);
+				throw new JsonException($"Missing or invalid '{fieldName}' field");
 			}
 			return boolValue;
 		}
@@ -450,7 +442,7 @@ namespace EpicGames.Core
 			int integerValue;
 			if (!TryGetIntegerField(fieldName, out integerValue))
 			{
-				throw new JsonParseException("Missing or invalid '{0}' field", fieldName);
+				throw new JsonException($"Missing or invalid '{fieldName}' field");
 			}
 			return integerValue;
 		}
@@ -499,7 +491,7 @@ namespace EpicGames.Core
 			double doubleValue;
 			if (!TryGetDoubleField(fieldName, out doubleValue))
 			{
-				throw new JsonParseException("Missing or invalid '{0}' field", fieldName);
+				throw new JsonException($"Missing or invalid '{fieldName}' field");
 			}
 			return doubleValue;
 		}
@@ -531,7 +523,7 @@ namespace EpicGames.Core
 			T enumValue;
 			if (!TryGetEnumField(fieldName, out enumValue))
 			{
-				throw new JsonParseException("Missing or invalid '{0}' field", fieldName);
+				throw new JsonException($"Missing or invalid '{fieldName}' field");
 			}
 			return enumValue;
 		}
@@ -592,7 +584,7 @@ namespace EpicGames.Core
 			JsonObject? result;
 			if (!TryGetObjectField(fieldName, out result))
 			{
-				throw new JsonParseException("Missing or invalid '{0}' field", fieldName);
+				throw new JsonException($"Missing or invalid '{fieldName}' field");
 			}
 			return result;
 		}
@@ -628,7 +620,7 @@ namespace EpicGames.Core
 			JsonObject[]? result;
 			if (!TryGetObjectArrayField(fieldName, out result))
 			{
-				throw new JsonParseException("Missing or invalid '{0}' field", fieldName);
+				throw new JsonException($"Missing or invalid '{fieldName}' field");
 			}
 			return result;
 		}

@@ -7,6 +7,7 @@ using System.IO;
 using System.Linq;
 using System.Reflection;
 using System.Text;
+using System.Text.Json;
 using EpicGames.Core;
 using Microsoft.Extensions.Logging;
 using OpenTracing.Util;
@@ -682,6 +683,14 @@ namespace UnrealBuildTool
 			{
 				// BuildExceptions should have nicely formatted messages.
 				Ex.LogException(Logger);
+				return (int)CompilationResult.OtherCompilationError;
+			}
+			catch (JsonException Ex)
+			{
+				FileReference source = new FileReference(Ex.Source ?? "unknown");
+				LogValue FileValue = LogValue.SourceFile(source, source.GetFileName());
+				Logger.LogError(KnownLogEvents.Compiler, "{File}({Line}): error:{Message}", FileValue, Ex.LineNumber ?? 0, ExceptionUtils.FormatException(Ex));
+				Logger.LogDebug(KnownLogEvents.Compiler, "{File}({Line}): error:{Message}", FileValue, Ex.LineNumber ?? 0, ExceptionUtils.FormatExceptionDetails(Ex));
 				return (int)CompilationResult.OtherCompilationError;
 			}
 			catch (BuildException Ex)
