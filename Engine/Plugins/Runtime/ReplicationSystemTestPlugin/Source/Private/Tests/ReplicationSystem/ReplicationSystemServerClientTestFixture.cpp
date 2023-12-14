@@ -100,9 +100,15 @@ uint32 FReplicationSystemTestNode::GetNetTraceId() const
 	return ReplicationSystem ? ReplicationSystem->GetId() : ~0U;
 }
 
-UTestReplicatedIrisObject* FReplicationSystemTestNode::CreateObject(const UObjectReplicationBridge::FCreateNetRefHandleParams& Params)
+UTestReplicatedIrisObject* FReplicationSystemTestNode::CreateObject(const UObjectReplicationBridge::FCreateNetRefHandleParams& Params, UTestReplicatedIrisObject::FComponents* ComponentsToCreate)
 {
 	UTestReplicatedIrisObject* CreatedObject = NewObject<UTestReplicatedIrisObject>();
+
+	if (ComponentsToCreate)
+	{
+		CreatedObject->AddComponents(*ComponentsToCreate);
+	}
+
 	CreatedObjects.Add(TStrongObjectPtr<UObject>(CreatedObject));
 
 	// Add it to the bridge for replication
