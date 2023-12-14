@@ -99,7 +99,6 @@
 #include "HAL/PlatformApplicationMisc.h"
 #include "Kismet2/BlueprintEditorUtils.h"
 #include "Subsystems/AssetEditorSubsystem.h"
-#include "TextureCompiler.h"
 #include "UObject/ReferencerFinder.h"
 #include "Containers/Set.h"
 #include "UObject/StrongObjectPtr.h"
@@ -5183,7 +5182,7 @@ namespace ThumbnailTools
 					OutData.AddUninitialized(OutThumbnail->GetImageWidth() * OutThumbnail->GetImageHeight() * sizeof(FColor));
 
 					// Copy the contents of the remote texture to system memory
-					// NOTE: OutRawImageData must be a preallocated buffer!
+					// prefer GetRenderTargetImage()
 					RenderTargetResource->ReadPixelsPtr((FColor*)OutData.GetData(), FReadSurfaceDataFlags(), InSrcRect);
 				}
 			}
@@ -5209,7 +5208,8 @@ namespace ThumbnailTools
 
 			if ( UTexture* Texture = Cast<UTexture>(InObject) )
 			{
-				FTextureCompilingManager::Get().FinishCompilation({Texture});
+				// SetForceMipLevelsToBeResident ?
+				Texture->BlockOnAnyAsyncBuild();
 				Texture->WaitForStreaming();
 			}
 

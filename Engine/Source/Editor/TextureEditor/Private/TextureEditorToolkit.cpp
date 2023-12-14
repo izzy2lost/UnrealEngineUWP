@@ -43,7 +43,6 @@
 #include "DeviceProfiles/DeviceProfile.h"
 #include "Curves/CurveLinearColorAtlas.h"
 #include "TextureEditorSettings.h"
-#include "TextureCompiler.h"
 #include "Widgets/Input/SSlider.h"
 #include "Widgets/Input/STextComboBox.h"
 #include "Widgets/Layout/SSpacer.h"
@@ -210,7 +209,7 @@ void FTextureEditorToolkit::InitTextureEditor( const EToolkitMode::Type Mode, co
 
 	// The texture being edited might still be compiling, wait till it finishes then.
 	// FinishCompilation is nice enough to provide a progress for us while we're waiting.
-	FTextureCompilingManager::Get().FinishCompilation({Texture});
+	Texture->BlockOnAnyAsyncBuild();
 
 	// Support undo/redo
 	Texture->SetFlags(RF_Transactional);

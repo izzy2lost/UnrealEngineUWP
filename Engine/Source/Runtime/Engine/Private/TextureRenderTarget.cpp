@@ -11,7 +11,6 @@
 #include "EngineModule.h"
 #include "EngineLogs.h"
 #include "RenderUtils.h"
-#include "TextureCompiler.h"
 #include "Logging/MessageLog.h"
 #include "Hash/xxhash.h"
 #include "ImageCoreUtils.h"
@@ -407,13 +406,14 @@ bool UTextureRenderTarget::UpdateTexture(UTexture* InTexture, EConstructTextureF
 	{
 		InOnTextureChangingDelegate(InTexture);
 
-		// Ensure the texture is not being compiled
-		FTextureCompilingManager::Get().FinishCompilation({ InTexture });
+		InTexture->PreEditChange(nullptr);
 
 		// init to the same size as the render target
 		InTexture->Source.Init(ReadImage);
 		InTexture->CompressionSettings = CompressionSettingsForTexture;
 		InTexture->SRGB = ReadImage.GammaSpace == EGammaSpace::sRGB;
+
+		InTexture->PostEditChange();
 	}
 
 	return true;
