@@ -1784,7 +1784,8 @@ void FAudioChunkCache::KickOffAsyncLoad(FCacheElement* CacheElement, const FChun
 			MoveTemp(OnLoadComplete)
 		));
 
-		CacheElement->DDCTask->StartBackgroundTask();
+		// This task may perform a long synchronous DDC request. Using DoNotRunInsideBusyWait prevents potentially delaying foreground tasks.
+		CacheElement->DDCTask->StartBackgroundTask(GThreadPool, EQueuedWorkPriority::Normal, EQueuedWorkFlags::DoNotRunInsideBusyWait);
 	}
 	else
 #endif // #if WITH_EDITORONLY_DATA

@@ -336,7 +336,8 @@ void FStreamingWaveData::BeginPendingRequests(const TArray<uint32>& IndicesToLoa
 					MoveTemp(NullOnLoadCompletedCallback)
 				);
 				PendingAsyncStreamDerivedChunkTasks.Add(Task);
-				Task->StartBackgroundTask();
+				// This task may perform a long synchronous DDC request. Using DoNotRunInsideBusyWait prevents potentially delaying foreground tasks.
+				Task->StartBackgroundTask(GThreadPool, EQueuedWorkPriority::Normal, EQueuedWorkFlags::DoNotRunInsideBusyWait);
 			}
 			else
 #endif // #if WITH_EDITORONLY_DATA
