@@ -34,6 +34,7 @@ import { StepIssueReportTest } from './components/test/IssueStepReport';
 import { preloadFonts } from './styles/Styles';
 import { darkTheme } from './styles/darkTheme';
 import { lightTheme } from './styles/lightTheme';
+import { ThemeTester } from './base/components/ThemeTester/ThemeTester';
 
 let router: any;
 
@@ -127,7 +128,8 @@ const Main: React.FC = () => {
                { path: "debug/lease/:leaseId", element: <DebugView /> },
                { path: "docs", element: <DocView /> },
                { path: "docs/*", element: <DocView /> },
-               { path: "test/stepissuereport", element: <StepIssueReportTest /> }
+               { path: "test/stepissuereport", element: <StepIssueReportTest /> },
+               { path: "test/theme", element: <ThemeTester /> },
             ]
          }
       ];
