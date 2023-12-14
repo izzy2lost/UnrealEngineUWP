@@ -149,7 +149,6 @@ class UDataTableFunctionLibrary : public UBlueprintFunctionLibrary
 	UFUNCTION(BlueprintCallable, Category = "Editor Scripting | DataTable", DisplayName = "Fill Data Table from JSON String")
 	static ENGINE_API bool FillDataTableFromJSONString(UDataTable* DataTable, const FString& JSONString);
 
-
 	/** 
 	 * Empty and fill a Data Table from JSON file.
 	 * @param	JSONFilePath	The file path of the JSON file.
@@ -157,6 +156,38 @@ class UDataTableFunctionLibrary : public UBlueprintFunctionLibrary
 	 */
 	UFUNCTION(BlueprintCallable, Category = "Editor Scripting | DataTable", DisplayName = "Fill Data Table from JSON File")
 	static ENGINE_API bool FillDataTableFromJSONFile(UDataTable* DataTable, const FString& JSONFilePath, UScriptStruct* ImportRowStruct = nullptr);
+
+	/** 
+	 * Export a Data Table to CSV string.
+	 * @param	OutCSVString Output representing the contents of a CSV file.
+	 * @return	True if the operation succeeds, check the log for errors if it didn't succeed.
+	 */
+	UFUNCTION(BlueprintCallable, Category = "Editor Scripting | DataTable", DisplayName="Export Data Table to CSV String")
+	static ENGINE_API bool ExportDataTableToCSVString(const UDataTable* DataTable, FString& OutCSVString);
+
+	/** 
+	 * Export a Data Table to CSV file.
+	 * @param	CSVFilePath	The file path of the CSV file to write (output file is UTF-8).
+	 * @return	True if the operation succeeds, check the log for errors if it didn't succeed.
+	 */
+	UFUNCTION(BlueprintCallable, Category = "Editor Scripting | DataTable", DisplayName = "Export Data Table to CSV File")
+	static ENGINE_API bool ExportDataTableToCSVFile(const UDataTable* DataTable, const FString& CSVFilePath);
+
+	/** 
+	 * Export a Data Table to JSON string.
+	 * @param	OutJSONString Output representing the contents of a JSON file.
+	 * @return	True if the operation succeeds, check the log for errors if it didn't succeed.
+	 */
+	UFUNCTION(BlueprintCallable, Category = "Editor Scripting | DataTable", DisplayName = "Export Data Table to JSON String")
+	static ENGINE_API bool ExportDataTableToJSONString(const UDataTable* DataTable, FString& OutJSONString);
+
+	/** 
+	 * Export a Data Table to JSON file.
+	 * @param	JSONFilePath The file path of the JSON file to write (output file is UTF-8).
+	 * @return	True if the operation succeeds, check the log for errors if it didn't succeed.
+	 */
+	UFUNCTION(BlueprintCallable, Category = "Editor Scripting | DataTable", DisplayName = "Export Data Table to JSON File")
+	static ENGINE_API bool ExportDataTableToJSONFile(const UDataTable* DataTable, const FString& JSONFilePath);
 
 	/** Add a row to a Data Table with the provided name and data. */
     UFUNCTION(BlueprintCallable, CustomThunk, Category = "Editor Scripting | DataTable", meta=(AutoCreateRefTerm="RowName", CustomStructureParam="RowData"))
