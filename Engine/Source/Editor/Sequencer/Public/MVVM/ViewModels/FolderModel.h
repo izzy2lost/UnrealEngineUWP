@@ -18,6 +18,7 @@
 #include "UObject/WeakObjectPtrTemplates.h"
 
 class UMovieSceneFolder;
+class FActorDragDropOp;
 
 namespace UE
 {
@@ -26,6 +27,7 @@ namespace Sequencer
 
 class FLayerBarModel;
 class FSequenceModel;
+class FSequencerOutlinerDragDropOp;
 
 class FFolderModel
 	: public FMuteSoloOutlinerItemModel
@@ -117,6 +119,9 @@ private:
 	void OnColorPickerCancelled(FLinearColor NewFolderColor);
 
 	void RepopulateChildren();
+
+	void PerformDropActors(const FViewModelPtr& TargetModel, TSharedPtr<FActorDragDropOp> ActorDragDropEvent, TSharedPtr<FViewModel> AttachAfter);
+	void PerformDropOutliner(const FViewModelPtr& TargetModel, TSharedPtr<FSequencerOutlinerDragDropOp> OutlinerDragDropEvent, TSharedPtr<FViewModel> AttachAfter);
 
 private:
 
