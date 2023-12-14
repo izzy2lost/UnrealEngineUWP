@@ -93,6 +93,7 @@ namespace uba
 		int res = pthread_join(*(pthread_t*)&m_handle, (void**)&ptr);
 		UBA_ASSERT(res == 0);
 #endif
+		m_func = {};
 		m_handle = nullptr;
 		return true;
 	}

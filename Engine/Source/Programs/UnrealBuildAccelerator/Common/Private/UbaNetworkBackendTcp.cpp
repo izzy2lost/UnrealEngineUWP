@@ -73,6 +73,9 @@ namespace uba
 		CriticalSection shutdownLock;
 
 		Thread recvThread;
+
+		Connection(const Connection&) = delete;
+		void operator=(const Connection&) = delete;
 	};
 
 	bool SetKeepAlive(Logger& logger, SOCKET socket);
@@ -405,7 +408,7 @@ namespace uba
 			ScopedWriteLock lock(m_connectionsLock);
 			auto it = m_connections.emplace(m_connections.end(), clientSocket);
 			auto& conn = *it;
-			conn.recvThread.Start([this, &conn] { ThreadRecv(conn); return 0; });
+			conn.recvThread.Start([this, connPtr = &conn] { ThreadRecv(*connPtr); return 0; });
 			lock.Leave();
 
 			if (!m_connectedFunc(&conn, remoteSockAddr))
@@ -638,7 +641,7 @@ namespace uba
 		ScopedWriteLock lock(m_connectionsLock);
 		auto it = m_connections.emplace(m_connections.end(), socketFd);
 		auto& conn = *it;
-		conn.recvThread.Start([this, &conn] { ThreadRecv(conn); return 0; });
+		conn.recvThread.Start([this, connPtr = &conn] { ThreadRecv(*connPtr); return 0; });
 		lock.Leave();
 
 		if (!connectedFunc(&conn, remoteSocketAddr, timedOut))
