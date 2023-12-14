@@ -642,7 +642,7 @@ void BinShadingQuad(uint2 Coord, uint ThreadIndex)
 		CMaskValue |= WaveLaneSwizzleGCN(CMaskValue, 0x1F, 0x00, 0x08);
 
 		// Write out 4x4 subtile cmask or 8x8 full tile cmask
-		const bool bLaneWrite = ((ThreadIndex & 15) == 0) && select(bSubTileMatch, CMaskValue != 0, popcnt(CMaskValue) == 4);
+		const bool bLaneWrite = ((ThreadIndex & 15) == 0) && select(bSubTileMatch, CMaskValue != 0, countbits(CMaskValue) == 4);
 		if (bLaneWrite)
 		{
 			CMaskExports[Export].InterlockedOr(CMaskIndex, CMaskValue);
