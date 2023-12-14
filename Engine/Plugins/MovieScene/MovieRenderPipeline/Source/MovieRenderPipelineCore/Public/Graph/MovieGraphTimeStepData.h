@@ -20,6 +20,7 @@ struct MOVIERENDERPIPELINECORE_API FMovieGraphTimeStepData
 public:
 	FMovieGraphTimeStepData()
 		: OutputFrameNumber(0)
+		, ShotOutputFrameNumber(0)
 		, RenderedFrameNumber(0)
 		, FrameDeltaTime(0.f)
 		, WorldTimeDilation(0.f)
