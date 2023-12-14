@@ -24,7 +24,7 @@ namespace UE::NNERuntimeRDG::Private::Hlsl
 
 	public:
 
-		virtual int PrepareOutputs(TConstArrayView<NNE::Internal::FTensorRef> InputTensors, TArrayView<NNE::Internal::FTensorRef> OutputTensors) const override
+		virtual int PrepareOutputs(TConstArrayView<NNE::Internal::FTensorRef> InputTensors, TArrayView<NNE::Internal::FTensorRef> OutputTensors) override
 		{
 			check(InputTensors.Num() == 2);
 			check(OutputTensors.Num() == 1);

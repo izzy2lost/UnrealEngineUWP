@@ -19,7 +19,7 @@ namespace UE::NNERuntimeRDG::Private::Hlsl
 		FCast() {}
 		virtual ~FCast() = default;
 
-		virtual int PrepareOutputs(TConstArrayView<NNE::Internal::FTensorRef> InputTensors, TArrayView<NNE::Internal::FTensorRef> OutputTensors) const override
+		virtual int PrepareOutputs(TConstArrayView<NNE::Internal::FTensorRef> InputTensors, TArrayView<NNE::Internal::FTensorRef> OutputTensors) override
 		{
 			check(InputTensors.Num() == 1);
 			check(OutputTensors.Num() == 1);

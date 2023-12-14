@@ -15,6 +15,7 @@ namespace UE::NNERuntimeRDG::Private::Hlsl
 	/**
 	 * Softmax operator implementation
 	 */
+	template< NNEHlslShaders::Internal::ESoftmaxOperatorType SoftmaxOperatorType >
 	class FSoftmax : public FOperatorHlsl
 	{
 
@@ -29,7 +30,7 @@ namespace UE::NNERuntimeRDG::Private::Hlsl
 
 	public:
 
-		virtual int PrepareOutputs(TConstArrayView<NNE::Internal::FTensorRef> InputTensors, TArrayView<NNE::Internal::FTensorRef> OutputTensors) const override
+		virtual int PrepareOutputs(TConstArrayView<NNE::Internal::FTensorRef> InputTensors, TArrayView<NNE::Internal::FTensorRef> OutputTensors) override
 		{
 			check(InputTensors.Num() == 1);
 			check(OutputTensors.Num() == 1);
@@ -113,7 +114,9 @@ namespace UE::NNERuntimeRDG::Private::Hlsl
 			SoftmaxParameters->Input = GraphBuilder.CreateSRV(FRDGBufferSRVDesc(Input.GetBuffer(), PF_R32_FLOAT));
 			SoftmaxParameters->InputSumExp = GraphBuilder.CreateSRV(FRDGBufferSRVDesc(SumExpBuffer, PF_R32_FLOAT));
 			SoftmaxParameters->Output = GraphBuilder.CreateUAV(FRDGBufferUAVDesc(Output.GetBuffer(), PF_R32_FLOAT));
-			TShaderMapRef<TSoftmaxCS> ComputeShader(GetGlobalShaderMap(GMaxRHIFeatureLevel));
+			TSoftmaxCS::FPermutationDomain PermutationVector;
+			PermutationVector.Set<TSoftmaxCS::FSoftmaxType>(SoftmaxOperatorType);
+			TShaderMapRef<TSoftmaxCS> ComputeShader(GetGlobalShaderMap(GMaxRHIFeatureLevel), PermutationVector);
 
 			FComputeShaderUtils::AddPass(
 				GraphBuilder,
@@ -145,12 +148,19 @@ namespace UE::NNERuntimeRDG::Private::Hlsl
 
 	FOperatorHlsl* CreateSoftmaxOperator()
 	{
-		return new FSoftmax();
+		return new FSoftmax<NNEHlslShaders::Internal::ESoftmaxOperatorType::SOFTMAX>();
+	}
+
+	FOperatorHlsl* CreateLogSoftmaxOperator()
+	{
+		return new FSoftmax<NNEHlslShaders::Internal::ESoftmaxOperatorType::LOG_SOFTMAX>();
 	}
 
 	bool RegisterSoftmaxOperator(FOperatorRegistryHlsl& Registry)
 	{
-		Registry.OpAdd({{TEXT("Softmax"), TEXT("Onnx")}}, CreateSoftmaxOperator, ValidateSoftmaxOperator);
+		Registry.OpAdd({ {TEXT("Softmax"), TEXT("Onnx")}, 1 }, CreateSoftmaxOperator, ValidateSoftmaxOperator);
+		Registry.OpAdd({ {TEXT("LogSoftmax"), TEXT("Onnx")}, 1 }, CreateLogSoftmaxOperator, ValidateSoftmaxOperator);
+		
 		return true;
 	}
 } // UE::NNERuntimeRDG::Private::Hlsl

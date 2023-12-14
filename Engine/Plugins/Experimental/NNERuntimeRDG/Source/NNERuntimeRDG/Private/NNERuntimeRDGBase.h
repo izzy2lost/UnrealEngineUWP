@@ -33,7 +33,7 @@ namespace UE::NNERuntimeRDG::Private
 struct IPrepareOperator
 {
 	virtual ~IPrepareOperator() = default;
-	virtual int PrepareOutputs(TConstArrayView<NNE::Internal::FTensorRef> InputTensors, TArrayView<NNE::Internal::FTensorRef> OutputTensors) const = 0;
+	virtual int PrepareOutputs(TConstArrayView<NNE::Internal::FTensorRef> InputTensors, TArrayView<NNE::Internal::FTensorRef> OutputTensors) = 0;
 };
 
 /**

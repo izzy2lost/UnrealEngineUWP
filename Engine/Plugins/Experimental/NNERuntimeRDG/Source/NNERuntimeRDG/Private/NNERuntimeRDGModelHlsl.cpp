@@ -261,7 +261,7 @@ int FModelInstance::PrepareTensorShapesAndData()
 			checkCode(AllInitializedTensors[i] = true);
 		}
 
-		const FOperatorHlsl* Op = Operators[Idx];
+		FOperatorHlsl* Op = Operators[Idx];
 
 		if (Op->PrepareOutputs(InputTensors, OutputTensors) != 0)
 		{

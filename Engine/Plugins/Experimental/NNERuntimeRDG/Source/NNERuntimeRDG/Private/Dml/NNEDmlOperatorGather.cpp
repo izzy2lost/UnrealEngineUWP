@@ -91,7 +91,7 @@ public:
 		return true;
 	}
 
-	virtual int PrepareOutputs(TConstArrayView<NNE::Internal::FTensorRef> InputTensors, TArrayView<NNE::Internal::FTensorRef> OutputTensors) const override
+	virtual int PrepareOutputs(TConstArrayView<NNE::Internal::FTensorRef> InputTensors, TArrayView<NNE::Internal::FTensorRef> OutputTensors) override
 	{
 		const NNE::FTensorShape& InputShape = InputTensors[0]->GetShape();
 		const NNE::FTensorShape& IndicesShape = InputTensors[1]->GetShape();

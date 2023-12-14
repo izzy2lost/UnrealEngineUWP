@@ -10,6 +10,13 @@ namespace UE::NNE::Internal { class FTensor; }
 
 namespace UE::NNEHlslShaders::Internal
 {
+	enum class ESoftmaxOperatorType : uint8
+	{
+		SOFTMAX,
+		LOG_SOFTMAX,
+		MAX
+	};
+
 	class FSoftmaxConstants
 	{
 	public:
@@ -20,6 +27,9 @@ namespace UE::NNEHlslShaders::Internal
 	{
 		DECLARE_GLOBAL_SHADER(TSoftmaxCS);
 		SHADER_USE_PARAMETER_STRUCT(TSoftmaxCS, FHlslShaderBase)
+
+		class FSoftmaxType : SHADER_PERMUTATION_ENUM_CLASS("SOFTMAX_OPERATOR_TYPE", ESoftmaxOperatorType);
+		using FPermutationDomain = TShaderPermutationDomain<FSoftmaxType>;
 
 	public:
 
