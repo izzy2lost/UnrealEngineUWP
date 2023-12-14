@@ -97,8 +97,20 @@ namespace PerfReportTool
 			budget = new Optional<double>(element, "budget", vars);
 			inSummary = element.GetSafeAttribute<bool>(vars, "inSummary", false);
 			isExternal = element.GetSafeAttribute<bool>(vars, "external", false);
-
+			isInline = element.GetSafeAttribute<bool>(vars, "inline", false);
+			parent = element.GetSafeAttribute<string>(vars, "parent");
 			minFilterStatValue = new Optional<double>(element, "minFilterStatValue", vars);
+
+			if (!isInline && parent != null)
+			{
+				throw new Exception("Parent can only be specified for inline graphs (inline='1'): " + element.ToString());
+			}
+
+			if (isInline)
+			{
+				// If this is an inline graph then just load the settings directly
+				settings = new GraphSettings(element, vars);
+			}
 		}
 		public string title;
 		public Optional<double> budget;
@@ -106,42 +118,45 @@ namespace PerfReportTool
 		public bool isExternal;
 		public Optional<double> minFilterStatValue;
 		public GraphSettings settings;
+
+		public bool isInline;
+		public string parent;
 	};
 
 	class GraphSettings
 	{
-		public GraphSettings(XElement element)
+		public GraphSettings(XElement element, XmlVariableMappings vars = null)
 		{
-			smooth = new Optional<bool>(element, "smooth");
-			thickness = new Optional<double>(element, "thickness");
-			miny = new Optional<double>(element, "miny");
-			maxy = new Optional<double>(element, "maxy");
-			maxAutoMaxY = new Optional<double>(element, "maxAutoMaxY");
-			threshold = new Optional<double>(element, "threshold");
-			averageThreshold = new Optional<double>(element, "averageThreshold");
-			minFilterStatValue = new Optional<double>(element, "minFilterStatValue");
-			minFilterStatName = new OptionalString(element, "minFilterStatName");
-			smoothKernelPercent = new Optional<double>(element, "smoothKernelPercent");
-			smoothKernelSize = new Optional<double>(element, "smoothKernelSize");
-			compression = new Optional<double>(element, "compression");
-			width = new Optional<int>(element, "width");
-			height = new Optional<int>(element, "height");
-			stacked = new Optional<bool>(element, "stacked");
-			showAverages = new Optional<bool>(element, "showAverages");
-			filterOutZeros = new Optional<bool>(element, "filterOutZeros");
-			maxHierarchyDepth = new Optional<int>(element, "maxHierarchyDepth");
-			hideStatPrefix = new OptionalString(element, "hideStatPrefix");
-			mainStat = new OptionalString(element, "mainStat");
-			showEvents = new OptionalString(element, "showEvents");
-			requiresDetailedStats = new Optional<bool>(element, "requiresDetailedStats");
-			ignoreStats = new OptionalString(element, "ignoreStats");
+			smooth = new Optional<bool>(element, "smooth", vars);
+			thickness = new Optional<double>(element, "thickness", vars);
+			miny = new Optional<double>(element, "miny", vars);
+			maxy = new Optional<double>(element, "maxy", vars);
+			maxAutoMaxY = new Optional<double>(element, "maxAutoMaxY", vars);
+			threshold = new Optional<double>(element, "threshold", vars);
+			averageThreshold = new Optional<double>(element, "averageThreshold", vars);
+			minFilterStatValue = new Optional<double>(element, "minFilterStatValue", vars);
+			minFilterStatName = new OptionalString(element, "minFilterStatName", false, vars);
+			smoothKernelPercent = new Optional<double>(element, "smoothKernelPercent", vars);
+			smoothKernelSize = new Optional<double>(element, "smoothKernelSize", vars);
+			compression = new Optional<double>(element, "compression", vars);
+			width = new Optional<int>(element, "width", vars);
+			height = new Optional<int>(element, "height", vars);
+			stacked = new Optional<bool>(element, "stacked", vars);
+			showAverages = new Optional<bool>(element, "showAverages", vars);
+			filterOutZeros = new Optional<bool>(element, "filterOutZeros", vars);
+			maxHierarchyDepth = new Optional<int>(element, "maxHierarchyDepth", vars);
+			hideStatPrefix = new OptionalString(element, "hideStatPrefix", false, vars);
+			mainStat = new OptionalString(element, "mainStat", false, vars);
+			showEvents = new OptionalString(element, "showEvents", false, vars);
+			requiresDetailedStats = new Optional<bool>(element, "requiresDetailedStats", vars);
+			ignoreStats = new OptionalString(element, "ignoreStats", false, vars);
 
-			statString = new OptionalString(element, "statString", true);
-			//additionalArgs = new OptionalString(element, "additionalArgs", true);
-			statMultiplier = new	(element, "statMultiplier");
-			legendAverageThreshold = new Optional<double>(element, "legendAverageThreshold");
-			snapToPeaks = new Optional<bool>(element, "snapToPeaks");
-			lineDecimalPlaces = new Optional<int>(element, "lineDecimalPlaces");
+			statString = new OptionalString(element, "statString", true, vars);
+			//additionalArgs = new OptionalString(element, "additionalArgs", true, vars);
+			statMultiplier = new	(element, "statMultiplier", vars);
+			legendAverageThreshold = new Optional<double>(element, "legendAverageThreshold", vars);
+			snapToPeaks = new Optional<bool>(element, "snapToPeaks", vars);
+			lineDecimalPlaces = new Optional<int>(element, "lineDecimalPlaces", vars);
 		}
 		public void InheritFrom(GraphSettings baseSettings)
 		{

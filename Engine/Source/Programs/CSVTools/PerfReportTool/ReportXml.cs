@@ -221,24 +221,18 @@ namespace PerfReportTool
 			}
 
 			graphs = new Dictionary<string, GraphSettings>();
-			foreach (XElement graphGroupElement in graphGroupsElement.Elements())
+			foreach (XElement graphGroupElement in graphGroupsElement.Elements("graphGroup"))
 			{
-				if (graphGroupElement.Name == "graphGroup")
+				// Create the base settings
+				XElement settingsElement = graphGroupElement.Element("baseSettings");
+				GraphSettings groupSettings = new GraphSettings(settingsElement);
+				groupSettings.InheritFrom(baseSettings);
+				foreach (XElement graphElement in graphGroupElement.Elements("graph"))
 				{
-					// Create the base settings
-					XElement settingsElement = graphGroupElement.Element("baseSettings");
-					GraphSettings groupSettings = new GraphSettings(settingsElement);
-					groupSettings.InheritFrom(baseSettings);
-					foreach (XElement graphElement in graphGroupElement.Elements())
-					{
-						if (graphElement.Name == "graph")
-						{
-							string title = graphElement.GetRequiredAttribute<string>("title").ToLower();
-							GraphSettings graphSettings = new GraphSettings(graphElement);
-							graphSettings.InheritFrom(groupSettings);
-							graphs.Add(title, graphSettings);
-						}
-					}
+					string title = graphElement.GetRequiredAttribute<string>("title").ToLower();
+					GraphSettings graphSettings = new GraphSettings(graphElement);
+					graphSettings.InheritFrom(groupSettings);
+					graphs.Add(title, graphSettings);
 				}
 			}
 
@@ -428,14 +422,24 @@ namespace PerfReportTool
 			// Load the graphs
 			foreach (ReportGraph graph in reportTypeInfo.graphs)
 			{
-				string key = graph.title.ToLower();
-				if (graphs.ContainsKey(key))
+				if (graph.isInline)
 				{
-					graph.settings = graphs[key];
+					if (graph.parent != null)
+					{
+						GraphSettings parentSettings = null;
+						if (!graphs.TryGetValue(graph.parent.ToLower(), out parentSettings))
+						{
+							throw new Exception("Parent graph with title \"" + graph.parent + "\" was not found in graphs XML");
+						}
+						graph.settings.InheritFrom(parentSettings);
+					}
 				}
 				else
 				{
-					throw new Exception("Graph with title \"" + graph.title + "\" was not found in graphs XML");
+					if (!graphs.TryGetValue(graph.title.ToLower(), out graph.settings))
+					{
+						throw new Exception("Graph with title \"" + graph.title + "\" was not found in graphs XML");
+					}
 				}
 			}
 

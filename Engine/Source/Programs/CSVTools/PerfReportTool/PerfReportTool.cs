@@ -23,7 +23,7 @@ namespace PerfReportTool
     class Version
     {
 		// Format: Major.Minor.Bugfix
-        private static string VersionString = "4.224.1";
+        private static string VersionString = "4.225.0";
 
         public static string Get() { return VersionString; }
     };
@@ -1008,6 +1008,11 @@ namespace PerfReportTool
 					{
 						svgFilenames.Add(svgFilename);
 						continue;
+					}
+
+					if (graph.settings.statString.isSet == false)
+					{
+						throw new Exception("Graph " + graph.title + " has no <statString> element");
 					}
 					bool bFoundStat = false;
 					foreach (string statString in graph.settings.statString.value.Split(','))
