@@ -296,7 +296,7 @@ void FMapProperty::SerializeItem(FStructuredArchive::FSlot Slot, void* Value, co
 	};
 
 	// If we're doing delta serialization within this property, act as if there are no defaults
-	if (!UnderlyingArchive.DoIntraPropertyDelta())
+	if (!UnderlyingArchive.DoIntraPropertyDelta() && !bExperimentalOverridableLogic)
 	{
 		Defaults = nullptr;
 	}
@@ -318,24 +318,24 @@ void FMapProperty::SerializeItem(FStructuredArchive::FSlot Slot, void* Value, co
 	{
 		checkf(!UnderlyingArchive.ArUseCustomPropertyList, TEXT("Using custom property list is not supported by overridable serialization"));
 
-		auto GetIDFromKey = [&](uint8* KeyData) -> FName
+		auto GetIDFromKey = [&](uint8* KeyData) -> FOverriddenPropertyNodeID
 		{
 			if (FObjectProperty* KeyObjectProperty = CastField<FObjectProperty>(KeyProp))
 			{
 				if (const UObject* Object = KeyObjectProperty->GetObjectPropertyValue(KeyData))
 				{
-					return FName(Object->GetPathName());
+					return FOverriddenPropertyNodeID(*Object);
 				}
 			}
 			else
 			{
 				FString KeyString;
 				KeyProp->ExportTextItem_Direct(KeyString, KeyData, nullptr, nullptr, PPF_None);
-				return FName(KeyString);
+				return FOverriddenPropertyNodeID(FName(KeyString));
 			}
 	
 			checkf(false, TEXT("This case is not handled"))
-			return NAME_None;
+			return FOverriddenPropertyNodeID();
 		};
 
 		if (UnderlyingArchive.IsLoading())
@@ -401,7 +401,7 @@ void FMapProperty::SerializeItem(FStructuredArchive::FSlot Slot, void* Value, co
 						if (FOverriddenPropertyNode* MapOverriddenPropertyNode = OverriddenProperties ? OverriddenProperties->SetOverriddenPropertyOperation(EOverriddenPropertyOperation::Modified, UnderlyingArchive.GetSerializedPropertyChain(), /*Property*/nullptr) : nullptr)
 						{
 							// Rebuild the overridden info
-							FName RemovedKeyID = GetIDFromKey(TempKeyValueStorage);
+							FOverriddenPropertyNodeID RemovedKeyID = GetIDFromKey(TempKeyValueStorage);
 							OverriddenProperties->SetSubPropertyOperation(EOverriddenPropertyOperation::Remove, *MapOverriddenPropertyNode, RemovedKeyID);
 						}
 					}
@@ -471,7 +471,7 @@ void FMapProperty::SerializeItem(FStructuredArchive::FSlot Slot, void* Value, co
 						if (FOverriddenPropertyNode* MapOverriddenPropertyNode = OverriddenProperties ? OverriddenProperties->SetOverriddenPropertyOperation(EOverriddenPropertyOperation::Modified, UnderlyingArchive.GetSerializedPropertyChain(), /*Property*/nullptr) : nullptr)
 						{
 							// Rebuild the overridden info
-							FName AddedKeyID = GetIDFromKey(TempKeyValueStorage);
+							FOverriddenPropertyNodeID AddedKeyID = GetIDFromKey(TempKeyValueStorage);
 							OverriddenProperties->SetSubPropertyOperation(EOverriddenPropertyOperation::Add, *MapOverriddenPropertyNode, AddedKeyID);
 						}
 					}
@@ -480,16 +480,18 @@ void FMapProperty::SerializeItem(FStructuredArchive::FSlot Slot, void* Value, co
 		}
 		else
 		{
-			auto FindKeyInternalIndex = [this](const FName KeyIDToFind, FScriptMapHelper& MapHelper) -> int32
+			auto FindKeyInternalIndex = [this](const FOverriddenPropertyNodeID& KeyIDToFind, FScriptMapHelper& MapHelper) -> int32
 			{
 				if (const FObjectProperty* KeyObjectProperty = CastField<FObjectProperty>(KeyProp))
 				{
 					for (FScriptMapHelper::FIterator It(MapHelper); It; ++It) 
 					{
-						UObject* CurrentObject = KeyObjectProperty->GetObjectPropertyValue(MapHelper.GetKeyPtr(It.GetInternalIndex()));
-						if (FName(CurrentObject->GetPathName()) == KeyIDToFind)
+						if (UObject* CurrentObject = KeyObjectProperty->GetObjectPropertyValue(MapHelper.GetKeyPtr(It.GetInternalIndex())))
 						{
-							return It.GetInternalIndex();
+							if (KeyIDToFind == FOverriddenPropertyNodeID(*CurrentObject))
+							{
+								return It.GetInternalIndex();
+							}
 						}
 					}
 				}

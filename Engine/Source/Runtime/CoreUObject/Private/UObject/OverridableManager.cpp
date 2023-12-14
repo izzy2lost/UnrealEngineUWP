@@ -2,6 +2,7 @@
 
 #include "UObject/OverridableManager.h"
 #include "InstancedReferenceSubobjectHelper.h"
+#include "UObject/UObjectGlobals.h"
 
 /*
  *************************************************************************************
@@ -206,5 +207,24 @@ void FOverridableManager::SerializeOverriddenProperties(UObject& Object, FStruct
 	else if (ArchiveState.IsLoading())
 	{
 		Disable(Object);
+	}
+}
+
+FOverridableManager::FOverridableManager()
+{
+#if WITH_EDITOR
+	FCoreUObjectDelegates::OnObjectsReinstanced.AddRaw(this, &FOverridableManager::HandleObjectsReInstantiated);
+#endif
+}
+
+void FOverridableManager::HandleObjectsReInstantiated(const TMap<UObject*, UObject*>& OldToNewInstanceMap)
+{
+	const TMap<const UObjectBase *, FOverriddenPropertyAnnotation>& AnnotationMap = OverriddenObjectAnnotations.GetAnnotationMap();
+	for (const auto& Pair : AnnotationMap)
+	{
+		if( FOverriddenPropertySet* OverridenProperties = Pair.Value.OverriddenProperties.Get())
+		{
+			OverridenProperties->HandleObjectsReInstantiated(OldToNewInstanceMap);
+		}
 	}
 }

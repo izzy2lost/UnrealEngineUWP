@@ -28,7 +28,7 @@ struct FOverriddenPropertyAnnotation
 /**
  * Global container of overriden object annotations
  */
-class FOverriddenPropertyAnnotations : public FUObjectAnnotationChunked<FOverriddenPropertyAnnotation, true/*bAutoRemove*/>
+class FOverriddenPropertyAnnotations : public FUObjectAnnotationSparse<FOverriddenPropertyAnnotation, true/*bAutoRemove*/>
 {
 public:
 	bool IsEnabled(const UObject& Object)
@@ -202,7 +202,11 @@ public:
 	 */
 	COREUOBJECT_API void SerializeOverriddenProperties(UObject& Object, FStructuredArchive::FRecord ObjectRecord);
 
+	void HandleObjectsReInstantiated(const TMap<UObject*, UObject*>& OldToNewInstanceMap);
+
 protected:
+	FOverridableManager();
+
 	FOverriddenPropertyAnnotations OverriddenObjectAnnotations;
 };
 

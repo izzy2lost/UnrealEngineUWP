@@ -85,6 +85,8 @@ struct FEnableOverridableSerializationScope
 
 protected:
 	bool bOverridableSerializationEnabled = false;
+	bool bWasOverridableSerializationEnabled = false;
+	FOverriddenPropertySet* SavedOverriddenProperties = nullptr;
 };
 
 /*
@@ -100,6 +102,51 @@ enum class EOverriddenPropertyOperation : uint8
 	Remove,		/* this element was removed from the container */
 };
 
+USTRUCT()
+struct FOverriddenPropertyNodeID
+{
+	GENERATED_BODY()
+
+	FOverriddenPropertyNodeID(FName InPath = NAME_None)
+		: Path(InPath)
+		, Object(nullptr)
+	{}
+
+	FOverriddenPropertyNodeID(const UObject& InObject)
+		: Path(FString::Printf(TEXT("%d"), GUObjectArray.ObjectToIndex(&InObject)))
+		, Object(&InObject)
+	{
+	}
+
+	bool operator==(const FOverriddenPropertyNodeID& Other) const
+	{
+		return Path == Other.Path || (Object && Other.Object && Object == Other.Object);
+	}
+
+	FString ToString() const
+	{
+		return Path.ToString();
+	}
+
+	bool IsValid() const
+	{
+		return !Path.IsNone();
+	}
+
+	void HandleObjectsReInstantiated(const TMap<UObject*, UObject*>& Map);
+
+	UPROPERTY()
+	FName Path;
+
+	UPROPERTY()
+	TObjectPtr<const UObject> Object;
+
+	friend uint32 GetTypeHash(const FOverriddenPropertyNodeID& NodeID)
+	{
+		return GetTypeHash(NodeID.Path);
+	}
+};
+
 /*
  *************************************************************************************
  * Overridable serialization is experimental, not supported and use at your own risk *
@@ -112,27 +159,27 @@ struct FOverriddenPropertyNode
 {
 	GENERATED_BODY()
 
-	FOverriddenPropertyNode(FName InPropertyPath = NAME_None)
-		: PropertyPath(InPropertyPath)
+	FOverriddenPropertyNode(FOverriddenPropertyNodeID InNodeID = FOverriddenPropertyNodeID())
+		: NodeID(InNodeID)
 	{}
 
 	UPROPERTY()
-	FName PropertyPath;
+	FOverriddenPropertyNodeID NodeID;
 
 	UPROPERTY()
 	EOverriddenPropertyOperation Operation = EOverriddenPropertyOperation::None;
 
 	UPROPERTY()
-	TMap<FName,FName> SubPropertyNodeKeys;
+	TMap<FOverriddenPropertyNodeID, FOverriddenPropertyNodeID> SubPropertyNodeKeys;
 
 	bool operator==(const FOverriddenPropertyNode& Other) const
 	{
-		return PropertyPath == Other.PropertyPath;
+		return NodeID == Other.NodeID;
 	}
 
 	friend uint32 GetTypeHash(const FOverriddenPropertyNode& Node)
 	{
-		return GetTypeHash(Node.PropertyPath);
+		return GetTypeHash(Node.NodeID);
 	}
 };
 
@@ -196,21 +243,22 @@ public:
 
 	/**
 	 * Retrieve the overridable operation given the property key
-	 * @param PropertyKey that uniquely identify the property within the object 
+	 * @param NodeID that uniquely identify the property within the object 
 	 * @return the current type of override operation on the property */
-	EOverriddenPropertyOperation GetSubPropertyOperation(FName PropertyKey) const;
+	EOverriddenPropertyOperation GetSubPropertyOperation(FOverriddenPropertyNodeID NodeID) const;
 
 	/**
 	 * Set the overridable operation of a sub property of the specified node.
 	 * @param Operation to set for this property
 	 * @param Node from where the sub property is owned by
-	 * @param PropID the ID of the sub property 
+	 * @param NodeID the ID of the sub property 
 	 * @return the node to the sub property */
-	FOverriddenPropertyNode* SetSubPropertyOperation(EOverriddenPropertyOperation Operation, FOverriddenPropertyNode& Node, FName PropID);
+	FOverriddenPropertyNode* SetSubPropertyOperation(EOverriddenPropertyOperation Operation, FOverriddenPropertyNode& Node, FOverriddenPropertyNodeID NodeID);
 
 	/**
 	 * Resets all overrides of the object */
 	void Reset();
+	void HandleObjectsReInstantiated(const TMap<UObject*, UObject*>& Map);
 
 protected:
 
@@ -222,7 +270,7 @@ protected:
 
 	void RemoveOverriddenSubProperties(FOverriddenPropertyNode& PropertyNode);
 
-	FOverriddenPropertyNode& FindOrAddNode(FOverriddenPropertyNode& ParentPropertyNode, FName PropID);
+	FOverriddenPropertyNode& FindOrAddNode(FOverriddenPropertyNode& ParentPropertyNode, FOverriddenPropertyNodeID NodeID);
 
 private:
 	UPROPERTY()
@@ -231,5 +279,5 @@ private:
 	UPROPERTY()
 	TSet<FOverriddenPropertyNode> OverriddenPropertyNodes;
 
-	static inline FName RootNodeName = TEXT("root");
+	static inline FOverriddenPropertyNodeID RootNodeID = FOverriddenPropertyNodeID(FName(TEXT("root")));
 };
