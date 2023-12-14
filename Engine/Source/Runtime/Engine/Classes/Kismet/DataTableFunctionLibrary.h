@@ -54,6 +54,13 @@ class UDataTableFunctionLibrary : public UBlueprintFunctionLibrary
 	static ENGINE_API void GetDataTableColumnNames(const UDataTable* Table, TArray<FName>& OutColumnNames);
 
 	/**
+	 * Get the friendly export name of each column in this Data Table.
+	 * @see GetDataTableColumnNameFromExportName.
+	 */
+	UFUNCTION(BlueprintCallable, Category = "DataTable")
+	static ENGINE_API void GetDataTableColumnExportNames(const UDataTable* Table, TArray<FString>& OutExportColumnNames);
+
+	/**
 	 * Get the raw property name of a data table column from its friendly export name.
 	 * @return True if a column was found for the friendly name, false otherwise.
 	 */

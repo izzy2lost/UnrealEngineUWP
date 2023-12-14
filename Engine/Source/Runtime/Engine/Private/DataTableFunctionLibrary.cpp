@@ -119,6 +119,19 @@ void UDataTableFunctionLibrary::GetDataTableColumnNames(const UDataTable* Table,
 	}
 }
 
+void UDataTableFunctionLibrary::GetDataTableColumnExportNames(const UDataTable* Table, TArray<FString>& OutExportColumnNames)
+{
+	OutExportColumnNames.Empty();
+
+	if (Table && Table->GetRowStruct())
+	{
+		for (TFieldIterator<const FProperty> It(Table->GetRowStruct()); It; ++It)
+		{
+			OutExportColumnNames.Add(DataTableUtils::GetPropertyExportName(*It));
+		}
+	}
+}
+
 bool UDataTableFunctionLibrary::GetDataTableColumnNameFromExportName(const UDataTable* Table, const FString& ColumnExportName, FName& OutColumnName)
 {
 	if (Table && Table->GetRowStruct())
