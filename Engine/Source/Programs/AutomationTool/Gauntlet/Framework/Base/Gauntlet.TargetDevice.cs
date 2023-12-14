@@ -85,17 +85,46 @@ namespace Gauntlet
 		/// <returns></returns>
 		Dictionary<EIntendedBaseCopyDirectory, string> GetPlatformDirectoryMappings();
 
-		void ClearSavedDirectory(UnrealAppConfig AppConfiguration);
-
 		IAppInstall InstallApplication(UnrealAppConfig AppConfiguration);
-
-		void CopyAppConfigurationFiles(UnrealAppConfig AppConfiguration);
 
 		IAppInstance Run(IAppInstall App);
 
-		bool CheckRequiredSettings(List<string> RequiredSettingsList) { return true; }
-			
-		string GetPackagedExecutableLocation() { return null; }
+		/// Begin new flow ///
+
+		/// <summary>
+		/// Fully cleans the device by deleting
+		///	 - Artifacts and other loose files associated with UE processes
+		///	 - Staged/Packaged builds
+		/// </summary>
+		void FullClean();
+
+		/// <summary>
+		/// Deletes artifacts and other loose files associated with UE processes
+		/// </summary>
+		void CleanArtifacts();
+
+		/// <summary>
+		/// Installs a build to the device
+		/// </summary>
+		/// <param name="Build">A reference to the build to install</param>
+		/// <param name="ProjectName">Name of the UE project being installed</param>
+		/// <param name="Sandbox">Which sandbox to install to</param>
+		void InstallApplication(IBuild Build, string ProjectName, string Sandbox);
+
+		/// <summary>
+		/// Create an IAppInstall that is configured by the provided AppConfiguration
+		/// </summary>
+		/// <param name="AppConfiguration">The configuration used to create the IAppInstall</param>
+		/// <returns>An AppInstall handle which can be used to run the process</returns>
+		IAppInstall CreateAppInstall(UnrealAppConfig AppConfiguration);
+
+		/// <summary>
+		/// Copies any additional files to the device
+		/// </summary>
+		/// <param name="FilesToCopy">The collection of files to copy</param>
+		void CopyAdditionalFiles(IEnumerable<UnrealFileToCopy> FilesToCopy);
+
+		/// End new flow ///
 
 		/// <summary>
 		/// Path to the crash dumps on a device
@@ -113,7 +142,6 @@ namespace Gauntlet
 		/// Returns true if there were any crash dumps for the run, and false otherwise
 		/// </summary>
 		bool CopyCrashDumps() { return false; }
-
 	};
 
 	/// <summary>

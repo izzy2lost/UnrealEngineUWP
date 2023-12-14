@@ -464,11 +464,6 @@ namespace Gauntlet
 			}
 		}
 
-		public void ClearSavedDirectory(UnrealAppConfig AppConfiguration)
-		{
-
-		}
-
 		// We need to lock around setting up the IPA
 		static object IPALock = new object();
 		public IAppInstall InstallApplication(UnrealAppConfig AppConfig)
@@ -588,16 +583,31 @@ namespace Gauntlet
 			return IOSApp;
 		}
 
-		public void CopyAppConfigurationFiles(UnrealAppConfig AppConfiguration)
+		public void FullClean()
 		{
 
 		}
 
-		public void FullClean(UnrealAppConfig AppConfiguration)
+		public void CleanArtifacts()
 		{
 
 		}
-		
+
+		public void InstallApplication(IBuild Build, string ProjectName, string Sandbox)
+		{
+
+		}
+
+		public IAppInstall CreateAppInstall(UnrealAppConfig AppConfig)
+		{
+			return null;
+		}
+
+		public void CopyAdditionalFiles(IEnumerable<UnrealFileToCopy> FilesToCopy)
+		{
+
+		}
+
 		public void PopulateDirectoryMappings(string ProjectDir)
 		{
 			LocalDirectoryMappings.Add(EIntendedBaseCopyDirectory.Build, Path.Combine(ProjectDir, "Build"));

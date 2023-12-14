@@ -895,8 +895,6 @@ namespace Gauntlet
 					// todo - should this be elsewhere?
 					AppConfig.Sandbox = Sandbox;
 
-					Device.ClearSavedDirectory(AppConfig);
-
 					IAppInstall Install = null;
 					bool bReinstallPerPass = Globals.Params.ParseParam("ReinstallPerPass");
 					if (RolesToInstalls == null || !RolesToInstalls.ContainsKey(Role) || bReinstallPerPass)
@@ -974,8 +972,6 @@ namespace Gauntlet
 						InstallsToRoles[Install] = Role;
 						Log.Info("Using previous install of {0} on {1}", Install.Name, Install.Device.Name);
 					}
-
-					Device.CopyAppConfigurationFiles(AppConfig);
 				}
 
 				if (InstallSuccess == false)

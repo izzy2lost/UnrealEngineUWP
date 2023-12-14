@@ -151,17 +151,32 @@ namespace Gauntlet
 			return new NullAppInstance(this);
 		}
 
-		public void ClearSavedDirectory(UnrealAppConfig AppConfiguration)
-		{
-
-		}
-
 		public IAppInstall InstallApplication(UnrealAppConfig AppConfig)
 		{
 			return new NullAppInstall(AppConfig.Name, this, AppConfig.CommandLine);
 		}
 
-		public void CopyAppConfigurationFiles(UnrealAppConfig AppConfiguration)
+		public void FullClean()
+		{
+
+		}
+
+		public void CleanArtifacts()
+		{
+
+		}
+
+		public void InstallApplication(IBuild Build, string ProjectName, string Sandbox)
+		{
+
+		}
+
+		public IAppInstall CreateAppInstall(UnrealAppConfig AppConfig)
+		{
+			return null;
+		}
+
+		public void CopyAdditionalFiles(IEnumerable<UnrealFileToCopy> FilesToCopy)
 		{
 
 		}

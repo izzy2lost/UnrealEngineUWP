@@ -6,6 +6,7 @@ using System;
 using System.Collections.Generic;
 using System.IO;
 using System.Threading;
+using System.Linq;
 using UnrealBuildTool;
 
 namespace Gauntlet
@@ -104,9 +105,59 @@ namespace Gauntlet
 			}
 		}
 
-		public virtual void ClearSavedDirectory(UnrealAppConfig AppConfiguration) { }
+		public void FullClean()
+		{
+			
+		}
 
-		public virtual void CopyAppConfigurationFiles(UnrealAppConfig AppConfiguration) { }
+		public void CleanArtifacts()
+		{
+
+		}
+
+		public void InstallApplication(IBuild Build, string ProjectName, string Sandbox)
+		{
+
+		}
+
+		public IAppInstall CreateAppInstall(UnrealAppConfig AppConfig)
+		{
+			return null;
+		}
+
+		public void CopyAdditionalFiles(IEnumerable<UnrealFileToCopy> FilesToCopy)
+		{
+			if (FilesToCopy == null || FilesToCopy.Any())
+			{
+				return;
+			}
+
+			foreach (UnrealFileToCopy FileToCopy in FilesToCopy)
+			{
+				string PathToCopyTo = Path.Combine(LocalDirectoryMappings[FileToCopy.TargetBaseDirectory], FileToCopy.TargetRelativeLocation);
+				if (File.Exists(FileToCopy.SourceFileLocation))
+				{
+					FileInfo SrcInfo = new FileInfo(FileToCopy.SourceFileLocation);
+					SrcInfo.IsReadOnly = false;
+					string DirectoryToCopyTo = Path.GetDirectoryName(PathToCopyTo);
+					if (!Directory.Exists(DirectoryToCopyTo))
+					{
+						Directory.CreateDirectory(DirectoryToCopyTo);
+					}
+					if (File.Exists(PathToCopyTo))
+					{
+						FileInfo ExistingFile = new FileInfo(PathToCopyTo);
+						ExistingFile.IsReadOnly = false;
+					}
+					SrcInfo.CopyTo(PathToCopyTo, true);
+					Log.Info("Copying {0} to {1}", FileToCopy.SourceFileLocation, PathToCopyTo);
+				}
+				else
+				{
+					Log.Warning(KnownLogEvents.Gauntlet_DeviceEvent, "File to copy {File} not found", FileToCopy);
+				}
+			}
+		}
 
 		public abstract IAppInstance Run(IAppInstall Install);
 
@@ -122,38 +173,6 @@ namespace Gauntlet
 			LocalDirectoryMappings.Add(EIntendedBaseCopyDirectory.PersistentDownloadDir, Path.Combine(BaseDirectory, "Saved", "PersistentDownloadDir"));
 			LocalDirectoryMappings.Add(EIntendedBaseCopyDirectory.Profiling, Path.Combine(BaseDirectory, "Saved", "Profiling"));
             LocalDirectoryMappings.Add(EIntendedBaseCopyDirectory.Saved, Path.Combine(BaseDirectory, "Saved"));
-		}
-
-		protected void CopyAdditionalFiles(UnrealAppConfig AppConfig)
-		{
-			if (AppConfig.FilesToCopy != null)
-			{
-				foreach (UnrealFileToCopy FileToCopy in AppConfig.FilesToCopy)
-				{
-					string PathToCopyTo = Path.Combine(LocalDirectoryMappings[FileToCopy.TargetBaseDirectory], FileToCopy.TargetRelativeLocation);
-					if (File.Exists(FileToCopy.SourceFileLocation))
-					{
-						FileInfo SrcInfo = new FileInfo(FileToCopy.SourceFileLocation);
-						SrcInfo.IsReadOnly = false;
-						string DirectoryToCopyTo = Path.GetDirectoryName(PathToCopyTo);
-						if (!Directory.Exists(DirectoryToCopyTo))
-						{
-							Directory.CreateDirectory(DirectoryToCopyTo);
-						}
-						if (File.Exists(PathToCopyTo))
-						{
-							FileInfo ExistingFile = new FileInfo(PathToCopyTo);
-							ExistingFile.IsReadOnly = false;
-						}
-						SrcInfo.CopyTo(PathToCopyTo, true);
-						Log.Info("Copying {0} to {1}", FileToCopy.SourceFileLocation, PathToCopyTo);
-					}
-					else
-					{
-						Log.Warning(KnownLogEvents.Gauntlet_DeviceEvent, "File to copy {File} not found", FileToCopy);
-					}
-				}
-			}
 		}
 
 		// TODO - b.lienau: implement these at desktop level and remove implementations from each desktop

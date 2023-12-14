@@ -44,7 +44,7 @@ namespace Gauntlet.SelfTest
 			}
 
 			// Now delete the file using clear cache
-			TargetDevice.ClearSavedDirectory(AppConfig);
+			TargetDevice.CleanArtifacts();
 
 			// We should see these files and their parent directories are now gone.
 			bool bSavedWasDeleted = !SavedFile.Directory.Exists;
@@ -67,7 +67,7 @@ namespace Gauntlet.SelfTest
 			UnrealFileToCopy File = CreateDummyUnrealFileToCopy();
 			AppConfig.FilesToCopy.Add(File);
 
-			TargetDevice.CopyAppConfigurationFiles(AppConfig);
+			TargetDevice.CopyAdditionalFiles(AppConfig.FilesToCopy);
 
 			string CopyDirectory = Path.Combine(TargetDevice.GetPlatformDirectoryMappings()[EIntendedBaseCopyDirectory.Saved], File.TargetRelativeLocation);
 			FileInfo CopiedFile = new FileInfo(CopyDirectory);

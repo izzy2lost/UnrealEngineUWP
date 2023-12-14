@@ -873,11 +873,6 @@ namespace Gauntlet
 			return true;
 		}
 
-		public void ClearSavedDirectory(UnrealAppConfig AppConfiguration)
-		{
-
-		}
-
 		public IAppInstall InstallApplication(UnrealAppConfig AppConfig)
 		{
 			// todo - pass this through
@@ -1101,12 +1096,27 @@ namespace Gauntlet
 			return AppInstall;
 		}
 
-		public void CopyAppConfigurationFiles(UnrealAppConfig AppConfiguration)
+		public void FullClean()
 		{
 
 		}
-		
-		public void FullClean()
+
+		public void CleanArtifacts()
+		{
+
+		}
+
+		public void InstallApplication(IBuild Build, string ProjectName, string Sandbox)
+		{
+
+		}
+
+		public IAppInstall CreateAppInstall(UnrealAppConfig AppConfig)
+		{
+			return null;
+		}
+
+		public void CopyAdditionalFiles(IEnumerable<UnrealFileToCopy> FilesToCopy)
 		{
 
 		}

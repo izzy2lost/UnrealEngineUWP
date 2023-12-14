@@ -1309,17 +1309,6 @@ namespace Gauntlet
 					NewDevice = Factory.CreateDevice(Def.Address, ClientTempDir, Def.DeviceData);
 				}
 
-				List<string> RequiredSettings = Globals.Params.ParseValues("RequiredSettings");
-				if (RequiredSettings.Count > 0)
-				{
-					Log.Info("Checking required settings for device {0}...", NewDevice.Name);
-					if (!NewDevice.CheckRequiredSettings(RequiredSettings))
-					{
-						Log.Warning("Device settings doesn't meet the requirements, skipping device.");
-						return null;
-					}
-					Log.Info("Device has all required settings, keeping device.");
-				}
 				if (NewDevice.IsAvailable == false)
 				{
 					Log.Info(KnownLogEvents.Gauntlet_DeviceEvent, "Assigned device {Name} reports unavailable. Requesting a forced disconnect", NewDevice);

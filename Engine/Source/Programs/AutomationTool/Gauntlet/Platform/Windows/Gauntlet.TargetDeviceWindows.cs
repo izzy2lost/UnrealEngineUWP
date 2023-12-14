@@ -158,7 +158,7 @@ namespace Gauntlet
 			WinApp.ArtifactPath = Path.Combine(InBuild.BuildPath, AppConfig.ProjectName, @"Saved");
 			WinApp.CleanDeviceArtifacts();
 
-			CopyAdditionalFiles(AppConfig);
+			CopyAdditionalFiles(AppConfig.FilesToCopy);
 
 			return WinApp;
 		}
@@ -213,7 +213,7 @@ namespace Gauntlet
 				PopulateDirectoryMappings(Path.Combine(BuildDir, AppConfig.ProjectName));
 			}
 
-			CopyAdditionalFiles(AppConfig);
+			CopyAdditionalFiles(AppConfig.FilesToCopy);
 
 			if (Path.IsPathRooted(InBuild.ExecutablePath))
 			{
@@ -267,7 +267,7 @@ namespace Gauntlet
 				PopulateDirectoryMappings(AppConfig.ProjectFile.Directory.FullName);
 			}
 
-			CopyAdditionalFiles(AppConfig);
+			CopyAdditionalFiles(AppConfig.FilesToCopy);
 
 			return WinApp;
 		}
@@ -298,7 +298,7 @@ namespace Gauntlet
 				PopulateDirectoryMappings(Path.Combine(BasePath, AppConfig.ProjectName));
 			}
 
-			CopyAdditionalFiles(AppConfig);
+			CopyAdditionalFiles(AppConfig.FilesToCopy);
 			return WinApp;
 		}
 	}

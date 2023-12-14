@@ -108,7 +108,7 @@ namespace Gauntlet
 			LinuxApp.ArtifactPath = Path.Combine(InBuild.BuildPath, AppConfig.ProjectName, @"Saved");
 			LinuxApp.CleanDeviceArtifacts();
 
-			CopyAdditionalFiles(AppConfig);
+			CopyAdditionalFiles(AppConfig.FilesToCopy);
 
 			LinuxApp.ExecutablePath = Path.Combine(InBuild.BuildPath, InBuild.ExecutablePath);
 			LinuxApp.WorkingDirectory = InBuild.BuildPath;
@@ -166,7 +166,7 @@ namespace Gauntlet
 				PopulateDirectoryMappings(Path.Combine(BuildDir, AppConfig.ProjectName));
 			}
 
-			CopyAdditionalFiles(AppConfig);
+			CopyAdditionalFiles(AppConfig.FilesToCopy);
 
 			if (Path.IsPathRooted(InBuild.ExecutablePath))
 			{
@@ -220,7 +220,7 @@ namespace Gauntlet
 				PopulateDirectoryMappings(AppConfig.ProjectFile.Directory.FullName);
 			}
 
-			CopyAdditionalFiles(AppConfig);
+			CopyAdditionalFiles(AppConfig.FilesToCopy);
 
 			return LinuxApp;
 		}
