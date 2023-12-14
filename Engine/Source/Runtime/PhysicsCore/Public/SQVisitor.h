@@ -170,6 +170,26 @@ private:
 			return true;
 		}
 
+		// Detect and fix any dangling handles on the game and physics threads
+		if constexpr (bGTData)
+		{
+			if (!(GeometryParticle->UniqueIdx() == Payload.UniqueIdx()))
+			{
+				UE_LOG(LogChaos, Warning, TEXT("Query Dangling handle detected on game Thread. Payload Id: %d, Particle Id: %d"), Payload.UniqueIdx().Idx, GeometryParticle->UniqueIdx().Idx);
+				ensureMsgf(false, TEXT("Query dangling handle detected on game Thread. Payload Id: %d, Particle Id: %d"), Payload.UniqueIdx().Idx, GeometryParticle->UniqueIdx().Idx);
+				return true;
+			}
+		}
+		else
+		{
+			if (GeometryParticle->GetHandleIdx() == INDEX_NONE || !(GeometryParticle->UniqueIdx() == Payload.UniqueIdx()))
+			{
+				UE_LOG(LogChaos, Warning, TEXT("Query Dangling handle detected on Physics Thread. Payload Id: %d, Particle Id: %d"), Payload.UniqueIdx().Idx, GeometryParticle->UniqueIdx().Idx);
+				ensureMsgf(false, TEXT("Query dangling handle detected on Physics Thread. Payload Id: %d, Particle Id: %d"), Payload.UniqueIdx().Idx, GeometryParticle->UniqueIdx().Idx);
+				return true;
+			}
+		}
+
 		const FShapesArray& Shapes = GeometryParticle->ShapesArray();
 
 		const bool bTestShapeBounds = Shapes.Num() > 1;

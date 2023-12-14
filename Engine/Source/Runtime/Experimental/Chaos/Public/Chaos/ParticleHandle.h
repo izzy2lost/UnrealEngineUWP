@@ -2450,7 +2450,7 @@ public:
 		// This helps to detect dangling handles and associated memory corruptions
 		// Leaking memory deliberately here, so only use this while debugging
 		Handles[UnstableIdx]->~TGeometryParticleHandleImp();
-		Handles[UnstableIdx].Release();
+		(void)Handles[UnstableIdx].Release();
 #endif
 
 		RemoveAtSwapHelper(UnstableIdx);
@@ -2523,7 +2523,10 @@ public:
 		return TUniquePtr< TGeometryParticle<T, d>>(new TGeometryParticle<T, d>(Params));
 	}
 
-	virtual ~TGeometryParticle() {}	//only virtual for easier memory management. Should generally be a static API
+	virtual ~TGeometryParticle() //only virtual for easier memory management. Should generally be a static API
+	{
+		SetUniqueIdx(FUniqueIdx{}, false); // Set to an invalid index for dangling handle detection 
+	}
 
 	TGeometryParticle(const TGeometryParticle&) = delete;
 
