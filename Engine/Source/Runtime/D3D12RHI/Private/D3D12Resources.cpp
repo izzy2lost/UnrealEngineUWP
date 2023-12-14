@@ -162,6 +162,15 @@ FD3D12Resource::~FD3D12Resource()
 	}
 }
 
+struct FD3D12UpdateTileMappingsParams
+{
+	D3D12_TILE_RANGE_FLAGS RangeFlags = D3D12_TILE_RANGE_FLAG_NONE;
+	D3D12_TILED_RESOURCE_COORDINATE Coord = {};
+	D3D12_TILE_REGION_SIZE Size = {};
+	ID3D12Heap* Heap = nullptr;
+	uint32 HeapOffsetInTiles = 0;
+};
+
 void FD3D12Resource::CommitReservedResource(ID3D12CommandQueue* D3DCommandQueue, uint64 RequiredCommitSizeInBytes)
 {
 	TRACE_CPUPROFILER_EVENT_SCOPE(CommitReservedResource);
@@ -206,8 +215,6 @@ void FD3D12Resource::CommitReservedResource(ID3D12CommandQueue* D3DCommandQueue,
 	ReservedResourceData->BackingHeaps.Reserve(NumHeaps);
 
 	const uint32 MaxTilesPerHeap = uint32(MaxHeapSize / TileSizeInBytes);
-
-	const D3D12_TILE_MAPPING_FLAGS MappingFlags = D3D12_TILE_MAPPING_FLAG_NONE;
 
 	// Set high residency priority based on the same heuristics as D3D12 committed resources,
 	// i.e. normal priority unless it's a UAV/RT/DS texture.
@@ -286,6 +293,8 @@ void FD3D12Resource::CommitReservedResource(ID3D12CommandQueue* D3DCommandQueue,
 		return ResourceCoordinate;
 	};
 
+	TArray<FD3D12UpdateTileMappingsParams> MappingParams;
+
 	if (ReservedResourceData->NumCommittedTiles > NumRequiredCommitTiles)
 	{
 		check(!ReservedResourceData->BackingHeaps.IsEmpty());
@@ -312,15 +321,11 @@ void FD3D12Resource::CommitReservedResource(ID3D12CommandQueue* D3DCommandQueue,
 			// Coordinates are in tiles, not pixels
 			D3D12_TILED_RESOURCE_COORDINATE ResourceCoordinate = GetTiledResourceCoordinate(RegionBegin, RegionSize.NumTiles);
 
-			const D3D12_TILE_RANGE_FLAGS RangeFlags = D3D12_TILE_RANGE_FLAG_NULL;
-
-			D3DCommandQueue->UpdateTileMappings(GetResource(), 1 /*NumRegions*/,
-				&ResourceCoordinate, &RegionSize, nullptr /*Heap*/,
-				1 /*NumRanges*/,
-				&RangeFlags,
-				nullptr /*HeapRangeStartOffsets*/,
-				&RegionSize.NumTiles,
-				MappingFlags);
+			FD3D12UpdateTileMappingsParams Params = {};
+			Params.RangeFlags = D3D12_TILE_RANGE_FLAG_NULL;
+			Params.Coord = ResourceCoordinate;
+			Params.Size = RegionSize;
+			MappingParams.Add(Params);
 
 			if (HeapFirstTile == RegionBegin)
 			{
@@ -351,6 +356,8 @@ void FD3D12Resource::CommitReservedResource(ID3D12CommandQueue* D3DCommandQueue,
 	}
 	else
 	{
+		TArray<FD3D12ResidencyHandle*> UsedResidencyHandles;
+
 		while (ReservedResourceData->NumCommittedTiles < NumRequiredCommitTiles)
 		{
 			const uint32 NumRemainingTiles = NumRequiredCommitTiles - ReservedResourceData->NumCommittedTiles;
@@ -376,6 +383,8 @@ void FD3D12Resource::CommitReservedResource(ID3D12CommandQueue* D3DCommandQueue,
 
 				check(RegionSize.NumTiles <= ReservedResourceData->NumSlackTiles);
 				ReservedResourceData->NumSlackTiles -= RegionSize.NumTiles;
+
+				UsedResidencyHandles.Append(LastHeap->GetResidencyHandles());
 			}
 			else
 			{
@@ -415,29 +424,74 @@ void FD3D12Resource::CommitReservedResource(ID3D12CommandQueue* D3DCommandQueue,
 
 				TRefCountPtr<FD3D12Heap> NewHeap = new FD3D12Heap(GetParentDevice(), GetVisibilityMask());
 				NewHeap->SetHeap(D3DHeap, HeapNameChars, true /*bTrack*/, false /*bForceGetGPUAddress*/);
-				//NewHeap->BeginTrackingResidency(ThisHeapSize);
-				NewHeap->DisallowTrackingResidency(); // Workaround for UE-202367: D3DX12Residency library does not track UpdateTileMappings that may be in flight
+				NewHeap->BeginTrackingResidency(ThisHeapSize);
 
 				TConstArrayView<FD3D12ResidencyHandle*> HeapResidencyHandles = NewHeap->GetResidencyHandles();
 				ReservedResourceData->ResidencyHandles.Append(HeapResidencyHandles);
 				ReservedResourceData->NumResidencyHandlesPerHeap.Add(HeapResidencyHandles.Num());
 				ReservedResourceData->BackingHeaps.Add(MoveTemp(NewHeap));
+
+				UsedResidencyHandles.Append(HeapResidencyHandles);
 			}
 
 			// Coordinates are in tiles, not pixels
 			D3D12_TILED_RESOURCE_COORDINATE ResourceCoordinate = GetTiledResourceCoordinate(ReservedResourceData->NumCommittedTiles, RegionSize.NumTiles);
 
-			const D3D12_TILE_RANGE_FLAGS RangeFlags = D3D12_TILE_RANGE_FLAG_NONE;
-
-			D3DCommandQueue->UpdateTileMappings(GetResource(), 1 /*NumRegions*/,
-				&ResourceCoordinate, &RegionSize, D3DHeap,
-				1 /*NumRanges*/,
-				&RangeFlags,
-				&HeapRangeStartOffsetInTiles,
-				&RegionSize.NumTiles,
-				MappingFlags);
+			FD3D12UpdateTileMappingsParams Params = {};
+			Params.RangeFlags = D3D12_TILE_RANGE_FLAG_NULL;
+			Params.Coord = ResourceCoordinate;
+			Params.Size = RegionSize;
+			Params.Heap = D3DHeap;
+			Params.HeapOffsetInTiles = HeapRangeStartOffsetInTiles;
+			Params.RangeFlags = D3D12_TILE_RANGE_FLAG_NONE;
+			MappingParams.Add(Params);
 
 			ReservedResourceData->NumCommittedTiles += RegionSize.NumTiles;
+		}
+
+		FD3D12ResidencyManager& ResidencyManager = GetParentDevice()->GetResidencyManager();
+
+		if (!UsedResidencyHandles.IsEmpty())
+		{
+			HRESULT HR = S_OK;
+
+			FD3D12ResidencySet* ResidencySet = ResidencyManager.CreateResidencySet();
+			HR = ResidencySet->Open();
+			checkf(SUCCEEDED(HR), TEXT("Failed to open residency set. Error code: 0x%08x."), uint32(HR));
+
+			for (FD3D12ResidencyHandle* Handle : UsedResidencyHandles)
+			{
+				if (D3DX12Residency::IsInitialized(Handle))
+				{
+					ResidencySet->Insert(Handle);
+				}
+			}
+
+			HR = ResidencySet->Close();
+			checkf(SUCCEEDED(HR), TEXT("Failed to close residency set. Error code: 0x%08x."), uint32(HR));
+
+			// NOTE: ResidencySet ownership is taken over by the residency manager.
+			// It is destroyed when paging work completes, which may happen async on another thread in some cases.
+			HR = ResidencyManager.MakeResident(D3DCommandQueue, MoveTemp(ResidencySet));
+			checkf(SUCCEEDED(HR), TEXT("Failed to process residency set. Error code: 0x%08x."), uint32(HR));
+		}
+
+		for (const FD3D12UpdateTileMappingsParams& Params : MappingParams)
+		{
+			D3DCommandQueue->UpdateTileMappings(GetResource(), 1 /*NumRegions*/,
+				&Params.Coord, &Params.Size, Params.Heap,
+				1 /*NumRanges*/,
+				&Params.RangeFlags,
+				&Params.HeapOffsetInTiles,
+				&Params.Size.NumTiles,
+				D3D12_TILE_MAPPING_FLAG_NONE);
+		}
+
+		if (!UsedResidencyHandles.IsEmpty())
+		{
+			// Signal the fence for this queue after UpdateTileMappings complete.
+			// This is analogous to executing a command list that references a set of resources.
+			ResidencyManager.SignalFence(D3DCommandQueue);
 		}
 	}
 
