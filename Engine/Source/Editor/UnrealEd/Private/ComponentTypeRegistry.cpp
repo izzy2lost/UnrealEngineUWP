@@ -614,7 +614,12 @@ void FComponentTypeRegistryData::ForceRefreshComponentList()
 		AssetRegistry.GetAssetsByClass(UBlueprint::StaticClass()->GetClassPathName(), Assets, true);
 		for (FAssetData& BPAsset : Assets)
 		{
-			const FTopLevelAssetPath ClassPath(FEditorClassUtils::GetClassPathNameFromAssetTag(BPAsset));
+			FTopLevelAssetPath ClassPath(FEditorClassUtils::GetClassPathNameFromAssetTag(BPAsset));
+			FSoftObjectPath SoftClassPath(ClassPath);
+			if (SoftClassPath.FixupCoreRedirects() && SoftClassPath.GetSubPathString().IsEmpty())
+			{
+				ClassPath = FTopLevelAssetPath(SoftClassPath.GetLongPackageFName(), SoftClassPath.GetAssetFName());
+			}
 			if (!ClassPath.IsNull())
 			{
 				if (!InMemoryClassPaths.Contains(ClassPath) && 

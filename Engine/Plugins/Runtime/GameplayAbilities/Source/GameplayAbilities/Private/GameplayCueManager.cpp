@@ -898,6 +898,11 @@ void UGameplayCueManager::BuildCuesToAddToGlobalSet(const TArray<FAssetData>& As
 				// Add a new NotifyData entry to our flat list for this one
 				FSoftObjectPath StringRef;
 				StringRef.SetPath(FPackageName::ExportTextPathToObjectPath(GeneratedClassTag));
+				bool bFixedUpRef = StringRef.FixupCoreRedirects();
+				if (bFixedUpRef)
+				{
+					ABILITY_LOG(Log, TEXT("GameplayCueManager Redirected: %s -> %s"), *GeneratedClassTag, *StringRef.ToString());
+				}
 
 				OutCuesToAdd.Add(FGameplayCueReferencePair(GameplayCueTag, StringRef));
 
