@@ -290,8 +290,33 @@ void FOptionalProperty::SerializeItem(FStructuredArchive::FSlot Slot, void* Data
 
 bool FOptionalProperty::NetSerializeItem(FArchive& Ar, UPackageMap* Map, void* Data, TArray<uint8>* MetaData /*= nullptr*/) const
 {
-	UE_LOG(LogOptionalProperty, Fatal, TEXT("Unsupported code path"));
-	return true;
+	bool bSuccess = true;
+	bool bIsLoading = Ar.IsLoading();
+
+	uint8 IsSetValue = IsSet(Data);
+	Ar.SerializeBits(&IsSetValue, 1);
+
+	if (IsSetValue > 0)
+	{
+		void* ValueData = bIsLoading
+			? MarkSetAndGetInitializedValuePointerToReplace(Data)
+			: GetValuePointerForReadOrReplace(Data);
+
+		// The NetSerializeItem code path is not supported by all property types and they will not be supported within replicated optionals yet either
+		bSuccess = ValueProperty->NetSerializeItem(Ar, Map, ValueData, MetaData);
+	}
+	
+	if (bIsLoading && (!bSuccess || !IsSetValue))
+	{
+		MarkUnset(Data);
+	}
+
+	return bSuccess;
+}
+
+bool FOptionalProperty::SupportsNetSharedSerialization() const
+{
+	return ValueProperty->SupportsNetSharedSerialization();
 }
 
 void FOptionalProperty::ExportText_Internal(FString& ValueStr, const void* ContainerOrPropertyPtr, EPropertyPointerType PropertyPointerType, const void* DefaultValue, UObject* Parent, int32 PortFlags, UObject* ExportRootScope) const
