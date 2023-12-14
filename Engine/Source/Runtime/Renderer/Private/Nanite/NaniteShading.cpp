@@ -62,6 +62,14 @@ static FAutoConsoleVariableRef CVarNaniteFastTileClear(
 	ECVF_RenderThreadSafe
 );
 
+static int32 GNaniteFastTileClearSubTiles = 1;
+static FAutoConsoleVariableRef CVarNaniteFastTileClearSubTiles(
+	TEXT("r.Nanite.FastTileClear.SubTiles"),
+	GNaniteFastTileClearSubTiles,
+	TEXT("Whether to enable Nanite fast tile clearing (for 4x4 sub tiles)"),
+	ECVF_RenderThreadSafe
+);
+
 static int32 GNaniteFastTileVis = INDEX_NONE;
 static FAutoConsoleVariableRef CVarNaniteFastTileVis(
 	TEXT("r.Nanite.FastTileVis"),
@@ -241,13 +249,17 @@ class FShadingBinBuildCS : public FNaniteGlobalShader
 	: FNaniteGlobalShader(Initializer)
 	{
 		PlatformDataParam.Bind(Initializer.ParameterMap, TEXT("PlatformData"), SPF_Optional);
+		SubTileMatchParam.Bind(Initializer.ParameterMap, TEXT("SubTileMatch"), SPF_Optional);
 		BindForLegacyShaderParameters<FParameters>(this, Initializer.PermutationId, Initializer.ParameterMap);
 	}
 
 	// Shader parameter structs don't have a way to push variable sized data yet. So the we use the old shader parameter API.
-	void SetParameters(FRHIBatchedShaderParameters& BatchedParameters, const void* PlatformDataPtr, uint32 PlatformDataSize)
+	void SetParameters(FRHIBatchedShaderParameters& BatchedParameters, const void* PlatformDataPtr, uint32 PlatformDataSize, bool bSubTileMatch)
 	{
 		BatchedParameters.SetShaderParameter(PlatformDataParam.GetBufferIndex(), PlatformDataParam.GetBaseIndex(), PlatformDataSize, PlatformDataPtr);
+
+		uint32 SubTileMatch = bSubTileMatch ? 1u : 0u;
+		BatchedParameters.SetShaderParameter(SubTileMatchParam.GetBufferIndex(), SubTileMatchParam.GetBaseIndex(), sizeof(SubTileMatch), &SubTileMatch);
 	}
 
 	static bool ShouldCompilePermutation(const FGlobalShaderPermutationParameters& Parameters)
@@ -304,6 +316,7 @@ class FShadingBinBuildCS : public FNaniteGlobalShader
 
 private:
 	LAYOUT_FIELD(FShaderParameter, PlatformDataParam);
+	LAYOUT_FIELD(FShaderParameter, SubTileMatchParam);
 };
 IMPLEMENT_GLOBAL_SHADER(FShadingBinBuildCS, "/Engine/Private/Nanite/NaniteShadeBinning.usf", "ShadingBinBuildCS", SF_Compute);
 
@@ -1622,12 +1635,14 @@ FShadeBinning ShadeBinning(
 			{
 				PassParameters->OutCMaskBuffer[TargetIndex] = GraphBuilder.CreateUAV(FRDGTextureUAVDesc::CreateForMetaData(ValidClearTargets[TargetIndex], ERDGTextureMetaDataAccess::CMask));
 			}
+
+			const bool bWriteSubTiles = GNaniteFastTileClearSubTiles != 0u;
 	
 			GraphBuilder.AddPass(
 				RDG_EVENT_NAME("ShadingCount"),
 				PassParameters,
 				ERDGPassFlags::Compute,
-				[AlignedDispatchDim, ComputeShader, PassParameters](FRHIComputeCommandList& RHICmdList)
+				[AlignedDispatchDim, ComputeShader, PassParameters, TargetCount = ValidClearTargets.Num(), bWriteSubTiles](FRHIComputeCommandList& RHICmdList)
 				{
 					void* PlatformDataPtr = nullptr;
 					uint32 PlatformDataSize = 0;
@@ -1649,8 +1664,49 @@ FShadeBinning ShadeBinning(
 						}
 					}
 
+					check(PlatformDataPtr != nullptr && PlatformDataSize > 0);
+
+					bool bSubTileMatch = bWriteSubTiles;
+
+					// If we want to write 4x4 subtiles, ensure platform specific data matches across all MRTs (tile modes, etc..)
+					if (bWriteSubTiles)
+					{
+						TArray<uint8, TInlineAllocator<8>> Scratch;
+
+						for (int32 TargetIndex = 1; TargetIndex < TargetCount; ++TargetIndex)
+						{
+							void* TestPlatformDataPtr = nullptr;
+							uint32 TestPlatformDataSize = 0;
+
+							// We want to enforce that the platform metadata is bit exact across all MRTs
+							if (PassParameters->OutCMaskBuffer[TargetIndex] != nullptr)
+							{
+								FRHITexture* TargetTextureRHI = PassParameters->OutCMaskBuffer[TargetIndex]->GetParentRHI();
+
+								TargetTextureRHI->GetWriteMaskProperties(TestPlatformDataPtr, TestPlatformDataSize);
+								check(TestPlatformDataSize > 0);
+
+								if (TestPlatformDataPtr == nullptr)
+								{
+									// If the returned pointer was null, the platform RHI wants us to allocate the memory instead.
+									Scratch.SetNumZeroed(TestPlatformDataSize);
+									TestPlatformDataPtr = Scratch.GetData();
+									TargetTextureRHI->GetWriteMaskProperties(TestPlatformDataPtr, TestPlatformDataSize);
+								}
+
+								check(TestPlatformDataPtr != nullptr && TestPlatformDataSize == PlatformDataSize);
+
+								if (FMemory::Memcmp(PlatformDataPtr, TestPlatformDataPtr, PlatformDataSize) != 0)
+								{
+									bSubTileMatch = false;
+									break;
+								}
+							}
+						}
+					}
+
 					SetComputePipelineState(RHICmdList, ComputeShader.GetComputeShader());
-					SetShaderParametersMixedCS(RHICmdList, ComputeShader, *PassParameters, PlatformDataPtr, PlatformDataSize);
+					SetShaderParametersMixedCS(RHICmdList, ComputeShader, *PassParameters, PlatformDataPtr, PlatformDataSize, bSubTileMatch);
 
 					RHICmdList.DispatchComputeShader(AlignedDispatchDim.X, AlignedDispatchDim.Y, AlignedDispatchDim.Z);
 				}

@@ -19,6 +19,7 @@ uint ValidWriteMask;
 uint2 DispatchOffsetTL;
 uint  ShadingBinCount;
 uint  DummyZero;
+uint  SubTileMatch;
 
 #define SHADING_BIN_COUNT		(SHADING_BIN_PASS == NANITE_SHADING_BIN_COUNT)
 #define SHADING_BIN_RESERVE		(SHADING_BIN_PASS == NANITE_SHADING_BIN_RESERVE)
@@ -185,7 +186,6 @@ void UpdateVRSActiveAndWriteMasks(uint4 ShadingBins, uint2 VRSShift, inout uint 
 	if (bHalfX  && ShadingBins.z == ShadingBins.w) { ShadingBins.w = 0xFFFFFFFCu; QuadActiveMask &= ~8u; WriteMasks |= 0x0800; }
 }
 
-
 bool IsFullTile(uint WaveLaneIndex, uint ShadingTileFirstThread, uint PixelCount)
 {
 	BRANCH
@@ -342,7 +342,7 @@ void BinShadingQuad(uint2 Coord, uint ThreadIndex)
 	uint PixelVRSMask = 0xFu;
 
 	BRANCH
-	if(bWavePixelVRS || bWaveQuadVRS)
+	if (bWavePixelVRS || bWaveQuadVRS)
 	{
 		// Mask invalid shading bins with distinct invalid values, so invalid bins don't compare equal to each other.
 		ShadingBins = uint4(
@@ -605,9 +605,16 @@ void BinShadingQuad(uint2 Coord, uint ThreadIndex)
 	uint CMaskShift;
 	ComputeCMaskIndexAndShift(QuadTLCoord / 8u, CMaskIndex, CMaskShift);
 
-	const uint CMaskTileBitIndex = (ThreadIndex >> 2) & 3u;		// 4 threads cover 4x4 CMask tile. Assumes CMask tile order is the same as Morton order: TL, TR, BL, BR
-	const uint CMaskBitIndex = (CMaskIndex & 0x3) * 8u + CMaskShift + CMaskTileBitIndex;
-	const uint CMaskValue4x4 = 1u << CMaskBitIndex;
+	uint CMaskTileBitIndex = (ThreadIndex >> 2) & 3u; // 4 threads cover 4x4 CMask tile.
+
+	const bool bSubTileMatch = (SubTileMatch == 1u);
+	if(bSubTileMatch)
+	{
+		// Remap to the target CMASK subtile mode (may not be TL, TR, BL, BR)
+		CMaskTileBitIndex = BitFieldExtractU32(GetSubTileOrder(), 4, CMaskTileBitIndex * 4);
+	}
+	const uint CMaskBitOffset = (CMaskIndex & 0x3) * 8u + CMaskShift;
+	const uint CMaskValue4x4 = (1u << (CMaskBitOffset + CMaskTileBitIndex));
 
 	// Calculate 4x4 pixel write masks. Set bit means all 4x4 pixels are written
 	const uint WriteMaskQuad = WriteMaskTL & WriteMaskTR & WriteMaskBL & WriteMaskBR;
@@ -629,14 +636,14 @@ void BinShadingQuad(uint2 Coord, uint ThreadIndex)
 		const bool bWriteCMask4x4 = BitFieldExtractU32(WriteMask4x4, 1, MaskIndex) != 0;
 
 		uint CMaskValue = bWriteCMask4x4 ? CMaskValue4x4 : 0u;
-#if COMPILER_SUPPORTS_WAVE_SWIZZLE_GCN
+
 		// Combine CMask bits to form full 8x8 CMask tile to minimize number of atomics
 		CMaskValue |= WaveLaneSwizzleGCN(CMaskValue, 0x1F, 0x00, 0x04);
 		CMaskValue |= WaveLaneSwizzleGCN(CMaskValue, 0x1F, 0x00, 0x08);
-		if (CMaskValue != 0 && (ThreadIndex & 15) == 0)
-#else
-		if (CMaskValue != 0 && (ThreadIndex & 3) == 0)
-#endif
+
+		// Write out 4x4 subtile cmask or 8x8 full tile cmask
+		const bool bLaneWrite = ((ThreadIndex & 15) == 0) && select(bSubTileMatch, CMaskValue != 0, popcnt(CMaskValue) == 4);
+		if (bLaneWrite)
 		{
 			CMaskExports[Export].InterlockedOr(CMaskIndex, CMaskValue);
 		}
