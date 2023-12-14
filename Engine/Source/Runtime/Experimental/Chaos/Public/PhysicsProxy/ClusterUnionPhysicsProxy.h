@@ -82,6 +82,9 @@ namespace Chaos
 		CHAOS_API EObjectStateType GetObjectState_External() const;
 		CHAOS_API void SetObjectState_External(EObjectStateType State);
 
+		// Explicitly wake the physics object. The wakes the physics object if it is sleeping and resets any sleep state (whether awake or sleeping)
+		CHAOS_API void Wake_External();
+
 		// Set GT geometry - this is only for smoothing over any changes until the PT syncs back to the GT.
 		CHAOS_API void SetGeometry_External(const Chaos::FImplicitObjectPtr& Geometry, const TArray<FPBDRigidParticle*>& ShapeParticles);
 

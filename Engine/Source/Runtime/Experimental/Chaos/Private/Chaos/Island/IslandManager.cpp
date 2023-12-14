@@ -59,6 +59,13 @@ namespace Chaos::CVars
 	/** Cvar to override the sleep angular threshold if necessary */
 	FRealSingle ChaosSolverCollisionDefaultAngularSleepThreshold = 0.0087f;  //~1/2 unit mass degree
 	FAutoConsoleVariableRef CVarChaosSolverCollisionDefaultAngularSleepThreshold(TEXT("p.ChaosSolverCollisionDefaultAngularSleepThreshold"), ChaosSolverCollisionDefaultAngularSleepThreshold, TEXT("Default angular threshold for sleeping.[def:0.0087]"));
+
+	/** The size of object for which the angular sleep threshold is defined. Large objects reduce the threshold propertionally. 0 means do not apply size scale. */
+	// E.g., if ChaosSolverCollisionAngularSleepThresholdSize=100, an objects with a bounds of 500 will have 1/5x the sleep threshold.
+	// We are effectively converting the angular threshold into a linear threshold calculated at the object extents.
+	// @todo(chaos): male this a project setting or something
+	FRealSingle ChaosSolverCollisionAngularSleepThresholdSize = 0;
+	FAutoConsoleVariableRef CVarChaosSolverCollisionAngularSleepThresholdSize(TEXT("p.ChaosSolverCollisionAngularSleepThresholdSize"), ChaosSolverCollisionAngularSleepThresholdSize, TEXT("Scales the angular threshold based on size (0 to disable size based scaling)"));
 }
 
 
@@ -153,6 +160,19 @@ namespace Chaos::Private
 				OutSleepLinearThreshold = CVars::ChaosSolverCollisionDefaultLinearSleepThreshold;
 				OutSleepAngularThreshold = CVars::ChaosSolverCollisionDefaultAngularSleepThreshold;
 				OutSleepCounterThreshold = CVars::ChaosSolverCollisionDefaultSleepCounterThreshold;
+			}
+
+			// Adjust angular threshold for size. It is equivalent to converting the angular threshold into a linear
+			// movement threshold at the extreme points on the particle.
+			const FRealSingle AngularSleepThresholdSize = CVars::ChaosSolverCollisionAngularSleepThresholdSize;
+			if ((AngularSleepThresholdSize > 0) && Rigid->HasBounds())
+			{
+				const FRealSingle RigidSize = FRealSingle(Rigid->LocalBounds().Extents().GetMax());
+				if (RigidSize > AngularSleepThresholdSize)
+				{
+					const FRealSingle ThresholdScale = AngularSleepThresholdSize / RigidSize;
+					OutSleepAngularThreshold *= ThresholdScale;
+				}
 			}
 
 			return true;
@@ -667,21 +687,31 @@ namespace Chaos::Private
 		return IslandConstraints;
 	}
 
-	void FPBDIslandManager::WakeParticleIsland(const FGeometryParticleHandle* Particle)
+	void FPBDIslandManager::WakeParticleIsland(FGeometryParticleHandle* Particle)
 	{
+		// When we explicitly wake we reset sleep counters etc
 		if (FPBDIslandParticle* Node = GetGraphNode(Particle))
 		{
+			// If we are in an island flag for sleep reset
 			if (Node->Island != nullptr)
 			{
-				// When we explicitly wake, we reset sleep counters etc
 				const bool bIsSleepAllowed = false;
 				EnqueueIslandCheckSleep(Node->Island, bIsSleepAllowed);
 			}
+		}
+
+		// If we are an isolated particle we keep our own sleep counter
+		// NOTE: We won't even be in the graph if we are dynamic but have no constraints
+		if (FPBDRigidParticleHandle* Rigid = Particle->CastToRigidParticle())
+		{
+			Rigid->SetSleepCounter(0);
 		}
 	}
 
 	void FPBDIslandManager::AddParticle(FGeometryParticleHandle* Particle)
 	{
+		// Particles get auto-added via AddConstraint (see CreateGraphEdge, GetOrCreateGraphNode)
+		// But must be explicitly removed when destroyed.
 	}
 
 	void FPBDIslandManager::RemoveParticle(FGeometryParticleHandle* Particle)

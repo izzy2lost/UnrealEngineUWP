@@ -272,6 +272,27 @@ namespace Chaos
 		);
 	}
 
+	void FClusterUnionPhysicsProxy::Wake_External()
+	{
+		if (!Solver || !ensure(Particle_External))
+		{
+			return;
+		}
+
+		Solver->EnqueueCommandImmediate(
+			[this]() mutable
+			{
+				if (Particle_Internal)
+				{
+					if (FPBDRigidsEvolutionGBF* Evolution = GetEvolution(this))
+					{
+						Evolution->WakeParticle(Particle_Internal);
+					}
+				}
+			}
+		);
+	}
+
 	void FClusterUnionPhysicsProxy::RemoveShapes_External(const TArray<FPBDRigidParticle*>& ShapeParticles)
     {
 		RemoveParticlesFromClusterUnionGeometry(Particle_External.Get(), ShapeParticles, GeometryChildParticles_External);

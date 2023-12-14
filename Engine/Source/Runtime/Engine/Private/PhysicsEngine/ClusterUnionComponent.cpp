@@ -1374,15 +1374,9 @@ void UClusterUnionComponent::SetSimulatePhysics(bool bSimulate)
 
 void UClusterUnionComponent::WakeAllRigidBodies()
 {
-	if (!PhysicsProxy)
+	if (PhysicsProxy)
 	{
-		return;
-	}
-
-	Chaos::EObjectStateType State = PhysicsProxy->GetObjectState_External();
-	if (State == Chaos::EObjectStateType::Sleeping)
-	{
-		SetRigidState(Chaos::EObjectStateType::Dynamic);
+		PhysicsProxy->Wake_External();
 	}
 }
 
