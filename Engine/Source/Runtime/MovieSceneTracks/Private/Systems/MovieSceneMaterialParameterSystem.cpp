@@ -452,9 +452,9 @@ struct TOverlappingMaterialParameterHandler : Mixin
 						Linker->EntityManager.WriteComponentChecked(Input, BuiltInComponents->HierarchicalBlendTarget, BlendTarget);
 					}
 				}
-				else
+				else if (Linker->EntityManager.HasComponent(Input, BuiltInComponents->HierarchicalBlendTarget))
 				{
-					Linker->EntityManager.RemoveComponent(Input, BuiltInComponents->HierarchicalBlendTarget);
+					Linker->EntityManager.AddComponent(Input, BuiltInComponents->Tags.RemoveHierarchicalBlendTarget);
 				}
 
 				// Ensure we have the blender type tag on the inputs.
@@ -466,6 +466,11 @@ struct TOverlappingMaterialParameterHandler : Mixin
 			Linker->EntityManager.RemoveComponent(Inputs[0], BuiltInComponents->BlendChannelInput);
 
 			Mixin::InitializeSoleInput(Linker, BoundMaterial, ParameterInfo, Inputs[0], Output);
+
+			if (Linker->EntityManager.HasComponent(Inputs[0], BuiltInComponents->HierarchicalBlendTarget))
+			{
+				Linker->EntityManager.AddComponent(Inputs[0], BuiltInComponents->Tags.RemoveHierarchicalBlendTarget);
+			}
 		}
 
 		Output->NumContributors = NumContributors;

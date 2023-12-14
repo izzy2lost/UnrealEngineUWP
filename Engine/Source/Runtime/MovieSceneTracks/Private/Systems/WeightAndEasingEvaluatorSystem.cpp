@@ -12,6 +12,7 @@
 #include "EntitySystem/MovieSceneComponentRegistry.h"
 #include "Evaluation/MovieSceneEvaluationTemplateInstance.h"
 #include "Systems/MovieScenePropertyInstantiator.h"
+#include "Systems/MovieSceneMaterialParameterSystem.h"
 #include "EntitySystem/Interrogation/MovieSceneInterrogatedPropertyInstantiator.h"
 #include "Sections/MovieSceneSubSection.h"
 #include "Systems/FloatChannelEvaluatorSystem.h"
@@ -1027,6 +1028,7 @@ UMovieSceneHierarchicalEasingFinalizationSystem::UMovieSceneHierarchicalEasingFi
 	{
 		// Has to come after property instantiation property instantiation so that initial values get created correctly
 		DefineImplicitPrerequisite(UMovieScenePropertyInstantiatorSystem::StaticClass(), GetClass());
+		DefineImplicitPrerequisite(UMovieSceneMaterialParameterInstantiatorSystem::StaticClass(), GetClass());
 		DefineImplicitPrerequisite(UMovieSceneHierarchicalEasingInstantiatorSystem::StaticClass(), GetClass());
 
 		DefineComponentConsumer(GetClass(), FBuiltInComponentTypes::Get()->HierarchicalBlendTarget);
