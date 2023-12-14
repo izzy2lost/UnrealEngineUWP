@@ -46,6 +46,14 @@ void UAbilityTask_PlayAnimAndWait::OnMontageBlendingOut(UAnimMontage* Montage, b
 	}
 }
 
+void UAbilityTask_PlayAnimAndWait::OnMontageBlendedIn(UAnimMontage* Montage)
+{
+	if (ShouldBroadcastAbilityTaskDelegates())
+	{
+		OnBlendIn.Broadcast();
+	}
+}
+
 void UAbilityTask_PlayAnimAndWait::OnMontageInterrupted()
 {
 	if (StopPlayingMontage())
@@ -125,6 +133,9 @@ void UAbilityTask_PlayAnimAndWait::Activate()
 
 				BlendingOutDelegate.BindUObject(this, &UAbilityTask_PlayAnimAndWait::OnMontageBlendingOut);
 				AnimInstance->Montage_SetBlendingOutDelegate(BlendingOutDelegate, NewDynamicMontage);
+
+				BlendedInDelegate.BindUObject(this, &UAbilityTask_PlayAnimAndWait::OnMontageBlendedIn);
+				AnimInstance->Montage_SetBlendedInDelegate(BlendedInDelegate, NewDynamicMontage);
 
 				MontageEndedDelegate.BindUObject(this, &UAbilityTask_PlayAnimAndWait::OnMontageEnded);
 				AnimInstance->Montage_SetEndDelegate(MontageEndedDelegate, NewDynamicMontage);

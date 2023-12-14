@@ -1929,6 +1929,7 @@ void FAnimMontageInstance::UpdateWeight(float DeltaTime)
 	if ( IsValid() )
 	{
 		PreviousWeight = Blend.GetBlendedValue();
+		const bool bWasComplete = Blend.IsComplete();
 
 		// update weight
 		Blend.Update(DeltaTime);
@@ -1936,6 +1937,14 @@ void FAnimMontageInstance::UpdateWeight(float DeltaTime)
 		if (Blend.GetBlendTimeRemaining() < 0.0001f)
 		{
 			ActiveBlendProfile = nullptr;
+		}
+
+		if (!IsStopped() && !bWasComplete && Blend.IsComplete())
+		{
+			if (UAnimInstance* Inst = AnimInstance.Get())
+			{
+				Inst->QueueMontageBlendedInEvent(FQueuedMontageBlendedInEvent(Montage, OnMontageBlendedInEnded));
+			}
 		}
 
 		// Notify weight is max of previous and current as notify could have come

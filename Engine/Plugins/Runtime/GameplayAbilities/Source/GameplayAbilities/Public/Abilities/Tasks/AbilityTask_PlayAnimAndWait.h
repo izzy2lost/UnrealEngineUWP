@@ -24,10 +24,16 @@ public:
 	FPlayAnimWaitSimpleDelegate	OnBlendOut;
 
 	UPROPERTY(BlueprintAssignable)
+	FPlayAnimWaitSimpleDelegate	OnBlendIn;
+
+	UPROPERTY(BlueprintAssignable)
 	FPlayAnimWaitSimpleDelegate	OnInterrupted;
 
 	UPROPERTY(BlueprintAssignable)
 	FPlayAnimWaitSimpleDelegate	OnCancelled;
+
+	UFUNCTION()
+	void OnMontageBlendedIn(UAnimMontage* Montage);
 
 	UFUNCTION()
 	void OnMontageBlendingOut(UAnimMontage* Montage, bool bInterrupted);
@@ -72,6 +78,7 @@ protected:
 	bool StopPlayingMontage();
 
 	FOnMontageBlendingOutStarted BlendingOutDelegate;
+	FOnMontageBlendedInEnded BlendedInDelegate;
 	FOnMontageEnded MontageEndedDelegate;
 	FDelegateHandle InterruptedHandle;
 

@@ -193,6 +193,8 @@ DECLARE_DELEGATE_TwoParams( FOnMontageEnded, class UAnimMontage*, bool /*bInterr
  */
 DECLARE_DELEGATE_TwoParams( FOnMontageBlendingOutStarted, class UAnimMontage*, bool /*bInterrupted*/) 
 
+DECLARE_DELEGATE_OneParam(FOnMontageBlendedInEnded, class UAnimMontage*)
+
 /**
 	Helper struct to sub step through Montages when advancing time.
 	These require stopping at sections and branching points to potential jumps and loops.
@@ -334,6 +336,7 @@ struct FAnimMontageInstance
 	// delegates
 	FOnMontageEnded OnMontageEnded;
 	FOnMontageBlendingOutStarted OnMontageBlendingOutStarted;
+	FOnMontageBlendedInEnded OnMontageBlendedInEnded;
 
 	UPROPERTY()
 	bool bPlaying;

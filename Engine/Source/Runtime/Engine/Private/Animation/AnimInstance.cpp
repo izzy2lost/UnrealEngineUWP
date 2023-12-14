@@ -1899,10 +1899,28 @@ void UAnimInstance::QueueMontageBlendingOutEvent(const FQueuedMontageBlendingOut
 	}
 }
 
+void UAnimInstance::QueueMontageBlendedInEvent(const FQueuedMontageBlendedInEvent& MontageBlendedInEvent)
+{
+	if (bQueueMontageEvents)
+	{
+		QueuedMontageBlendedInEvents.Add(MontageBlendedInEvent);
+	}
+	else
+	{
+		TriggerMontageBlendedInEvent(MontageBlendedInEvent);
+	}
+}
+
 void UAnimInstance::TriggerMontageBlendingOutEvent(const FQueuedMontageBlendingOutEvent& MontageBlendingOutEvent)
 {
 	MontageBlendingOutEvent.Delegate.ExecuteIfBound(MontageBlendingOutEvent.Montage, MontageBlendingOutEvent.bInterrupted);
 	OnMontageBlendingOut.Broadcast(MontageBlendingOutEvent.Montage, MontageBlendingOutEvent.bInterrupted);
+}
+
+void UAnimInstance::TriggerMontageBlendedInEvent(const FQueuedMontageBlendedInEvent& MontageBlendedInEvent)
+{
+	MontageBlendedInEvent.Delegate.ExecuteIfBound(MontageBlendedInEvent.Montage);
+	OnMontageBlendedIn.Broadcast(MontageBlendedInEvent.Montage);
 }
 
 void UAnimInstance::QueueMontageEndedEvent(const FQueuedMontageEndedEvent& MontageEndedEvent)
@@ -1988,6 +2006,15 @@ void UAnimInstance::TriggerQueuedMontageEvents()
 			TriggerMontageBlendingOutEvent(MontageBlendingOutEvent);
 		}
 		QueuedMontageBlendingOutEvents.Reset();
+	}
+
+	if (QueuedMontageBlendedInEvents.Num() > 0)
+	{
+		for (const FQueuedMontageBlendedInEvent& MontageBlendedInEvent : QueuedMontageBlendedInEvents)
+		{
+			TriggerMontageBlendedInEvent(MontageBlendedInEvent);
+		}
+		QueuedMontageBlendedInEvents.Reset();
 	}
 
 	if (QueuedMontageEndedEvents.Num() > 0)
@@ -2578,6 +2605,31 @@ void UAnimInstance::Montage_SetBlendingOutDelegate(FOnMontageBlendingOutStarted&
 			if (MontageInstance && MontageInstance->IsActive())
 			{
 				MontageInstance->OnMontageBlendingOutStarted = InOnMontageBlendingOut;
+			}
+		}
+	}
+}
+
+
+void UAnimInstance::Montage_SetBlendedInDelegate(FOnMontageBlendedInEnded& InOnMontageBlendedIn, UAnimMontage* Montage)
+{
+	if (Montage)
+	{
+		FAnimMontageInstance* MontageInstance = GetActiveInstanceForMontage(Montage);
+		if (MontageInstance)
+		{
+			MontageInstance->OnMontageBlendedInEnded = InOnMontageBlendedIn;
+		}
+	}
+	else
+	{
+		// If no Montage reference, do it on all active ones.
+		for (int32 InstanceIndex = 0; InstanceIndex < MontageInstances.Num(); InstanceIndex++)
+		{
+			FAnimMontageInstance* MontageInstance = MontageInstances[InstanceIndex];
+			if (MontageInstance && MontageInstance->IsActive())
+			{
+				MontageInstance->OnMontageBlendedInEnded = InOnMontageBlendedIn;
 			}
 		}
 	}
@@ -3699,6 +3751,11 @@ void UAnimInstance::AddReferencedObjects(UObject* InThis, FReferenceCollector& C
 	for (int32 I = 0; I < This->QueuedMontageBlendingOutEvents.Num(); ++I)
 	{
 		Collector.AddReferencedObject(This->QueuedMontageBlendingOutEvents[I].Montage);
+	}
+
+	for (int32 I = 0; I < This->QueuedMontageBlendedInEvents.Num(); ++I)
+	{
+		Collector.AddReferencedObject(This->QueuedMontageBlendedInEvents[I].Montage);
 	}
 
 	for (int32 I = 0; I < This->QueuedMontageEndedEvents.Num(); ++I)

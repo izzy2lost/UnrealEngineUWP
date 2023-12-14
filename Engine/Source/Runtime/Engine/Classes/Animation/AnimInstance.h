@@ -81,6 +81,7 @@ enum class EMontagePlayReturnType : uint8
 DECLARE_DELEGATE_OneParam(FOnMontageStarted, UAnimMontage*)
 DECLARE_DELEGATE_TwoParams(FOnMontageEnded, UAnimMontage*, bool /*bInterrupted*/)
 DECLARE_DELEGATE_TwoParams(FOnMontageBlendingOutStarted, UAnimMontage*, bool /*bInterrupted*/)
+DECLARE_DELEGATE_OneParam(FOnMontageBlendedInEnded, UAnimMontage*)
 /**
 * Delegate for when Montage is started
 */
@@ -104,6 +105,9 @@ DECLARE_DYNAMIC_MULTICAST_DELEGATE(FOnAllMontageInstancesEndedMCDelegate);
 * bInterrupted = true if it was not property finished
 */
 DECLARE_DYNAMIC_MULTICAST_DELEGATE_TwoParams(FOnMontageBlendingOutStartedMCDelegate, UAnimMontage*, Montage, bool, bInterrupted);
+
+/** Delegate for when Montage finished blending in */
+DECLARE_DYNAMIC_MULTICAST_DELEGATE_OneParam(FOnMontageBlendedInEndedMCDelegate, UAnimMontage*, Montage);
 
 /** Delegate that native code can hook to to provide additional transition logic */
 DECLARE_DELEGATE_RetVal(bool, FCanTakeTransition);
@@ -201,6 +205,17 @@ struct FQueuedMontageBlendingOutEvent
 	FQueuedMontageBlendingOutEvent(class UAnimMontage* InMontage, bool InbInterrupted, FOnMontageBlendingOutStarted InDelegate)
 		: Montage(InMontage)
 		, bInterrupted(InbInterrupted)
+		, Delegate(InDelegate)
+	{}
+};
+
+struct FQueuedMontageBlendedInEvent
+{
+	TObjectPtr<class UAnimMontage> Montage;
+	FOnMontageBlendedInEnded Delegate;
+
+	FQueuedMontageBlendedInEvent(class UAnimMontage* InMontage, FOnMontageBlendedInEnded InDelegate)
+		: Montage(InMontage)
 		, Delegate(InDelegate)
 	{}
 };
@@ -694,6 +709,10 @@ public:
 	/** Called when a montage starts blending out, whether interrupted or finished */
 	UPROPERTY(BlueprintAssignable)
 	FOnMontageBlendingOutStartedMCDelegate OnMontageBlendingOut;
+
+	/** Called when a montage finishes blending in */
+	UPROPERTY(BlueprintAssignable)
+	FOnMontageBlendedInEndedMCDelegate OnMontageBlendedIn;
 	
 	/** Called when a montage has started */
 	UPROPERTY(BlueprintAssignable)
@@ -717,7 +736,9 @@ public:
 	    If Montage reference is NULL, it will pick the first active montage found.*/
 	ENGINE_API FOnMontageEnded* Montage_GetEndedDelegate(UAnimMontage* Montage = nullptr);
 	
-	ENGINE_API void Montage_SetBlendingOutDelegate(FOnMontageBlendingOutStarted & InOnMontageBlendingOut, UAnimMontage* Montage = NULL);
+	ENGINE_API void Montage_SetBlendingOutDelegate(FOnMontageBlendingOutStarted& InOnMontageBlendingOut, UAnimMontage* Montage = NULL);
+
+	ENGINE_API void Montage_SetBlendedInDelegate(FOnMontageBlendedInEnded& InOnMontageBlendingIn, UAnimMontage* Montage = nullptr);
 	
 	/** Get pointer to BlendingOutStarted delegate for Montage.
 	If Montage reference is NULL, it will pick the first active montage found. */
@@ -894,6 +915,9 @@ public:
 	/** Queue a Montage BlendingOut Event to be triggered. */
 	ENGINE_API void QueueMontageBlendingOutEvent(const FQueuedMontageBlendingOutEvent& MontageBlendingOutEvent);
 
+	/** Queue a Montage BlendedIn Event to be triggered. */
+	ENGINE_API void QueueMontageBlendedInEvent(const FQueuedMontageBlendedInEvent& MontageBlendedInEvent);
+
 	/** Queue a Montage Ended Event to be triggered. */
 	ENGINE_API void QueueMontageEndedEvent(const FQueuedMontageEndedEvent& MontageEndedEvent);
 
@@ -904,11 +928,17 @@ private:
 	/** Queued Montage BlendingOut events. */
 	TArray<FQueuedMontageBlendingOutEvent> QueuedMontageBlendingOutEvents;
 
+	/** Queued Montage BlendedIn events. */
+	TArray<FQueuedMontageBlendedInEvent> QueuedMontageBlendedInEvents;
+
 	/** Queued Montage Ended Events */
 	TArray<FQueuedMontageEndedEvent> QueuedMontageEndedEvents;
 
 	/** Trigger a Montage BlendingOut event */
 	ENGINE_API void TriggerMontageBlendingOutEvent(const FQueuedMontageBlendingOutEvent& MontageBlendingOutEvent);
+
+	/** Trigger a Montage BlendingIn event */
+	ENGINE_API void TriggerMontageBlendedInEvent(const FQueuedMontageBlendedInEvent& MontageBlendedInEvent);
 
 	/** Trigger a Montage Ended event */
 	ENGINE_API void TriggerMontageEndedEvent(const FQueuedMontageEndedEvent& MontageEndedEvent);
