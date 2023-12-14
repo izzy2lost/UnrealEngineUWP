@@ -278,10 +278,12 @@ void FLocalizationTargetDetailCustomization::CustomizeDetails(IDetailLayoutBuild
 		const TSharedRef< FUICommandList > CommandList = MakeShareable(new FUICommandList);
 		// Let the localization service extend this toolbar
 		TSharedRef<FExtender> LocalizationServiceExtender = MakeShareable(new FExtender);
+#if LOCALIZATION_SERVICES_WITH_SLATE
 		if (LocalizationTarget.IsValid() && ILocalizationServiceModule::Get().IsEnabled())
 		{
 			LSP.CustomizeTargetToolbar(LocalizationServiceExtender, LocalizationTarget);
 		}
+#endif
 		FToolBarBuilder ToolBarBuilder(CommandList, FMultiBoxCustomization::AllowCustomization("LocalizationTargetEditor"), LocalizationServiceExtender);
 
 		TAttribute<FText> GatherToolTipTextAttribute = TAttribute<FText>::Create(TAttribute<FText>::FGetter::CreateLambda([this]() -> FText
