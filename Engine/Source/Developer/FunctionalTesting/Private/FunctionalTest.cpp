@@ -1732,7 +1732,7 @@ void FConsoleVariableBPSetter::Set(const FString& Value)
 			OriginalValue = ConsoleVariable->GetString();
 		}
 
-		ConsoleVariable->AsVariable()->SetWithCurrentPriority(Value.GetCharArray().GetData());
+		ConsoleVariable->AsVariable()->SetWithCurrentPriority(*Value);
 	}
 }
 
@@ -1755,7 +1755,7 @@ void FConsoleVariableBPSetter::Restore()
 		IConsoleVariable* ConsoleVariable = IConsoleManager::Get().FindConsoleVariable(*ConsoleVariableName);
 		if (ensure(ConsoleVariable))
 		{
-			ConsoleVariable->AsVariable()->SetWithCurrentPriority(OriginalValue.GetCharArray().GetData());
+			ConsoleVariable->AsVariable()->SetWithCurrentPriority(*OriginalValue);
 		}
 
 		bModified = false;
