@@ -395,6 +395,7 @@ namespace AutomationTool
 			this.GetFile = InParams.GetFile;
 			this.IterativeDeploy = InParams.IterativeDeploy;
 			this.IgnoreCookErrors = InParams.IgnoreCookErrors;
+			this.KeepFileOpenLog = InParams.KeepFileOpenLog;
 			this.FastCook = InParams.FastCook;
 			this.Devices = InParams.Devices;
 			this.DeviceNames = InParams.DeviceNames;
@@ -601,6 +602,7 @@ namespace AutomationTool
 			bool? IterativeDeploy = null,
 			bool? FastCook = null,
 			bool? IgnoreCookErrors = null,
+			bool? KeepFileOpenLog = null,
 			bool? CodeSign = null,
 			bool? TreatNonShippingBinariesAsDebugFiles = null,
 			bool? UseExtraFlavor = null,
@@ -942,6 +944,7 @@ namespace AutomationTool
 			this.IterativeDeploy = GetParamValueIfNotSpecified(Command, IterativeDeploy, this.IterativeDeploy, new string[] {"iterativedeploy", "iterate" } );
 			this.FastCook = GetParamValueIfNotSpecified(Command, FastCook, this.FastCook, "FastCook");
 			this.IgnoreCookErrors = GetParamValueIfNotSpecified(Command, IgnoreCookErrors, this.IgnoreCookErrors, "IgnoreCookErrors");
+			this.KeepFileOpenLog = GetParamValueIfNotSpecified(Command, KeepFileOpenLog, this.KeepFileOpenLog, "KeepFileOpenLog");
 
             string DeviceString = ParseParamValueIfNotSpecified(Command, Device, "device", String.Empty).Trim(new char[] { '\"' });
             if(DeviceString == "")
@@ -1980,6 +1983,12 @@ namespace AutomationTool
 		/// </summary>
 		[Help("IgnoreCookErrors", "Ignores cook errors and continues with packaging etc")]
 		public bool IgnoreCookErrors { private set; get; }
+
+		/// <summary>
+		/// Cook: Commandline: -fileopenlog
+		/// </summary>
+		[Help("KeepFileOpenLog", "Keeps a log of all files opened, commandline: -fileopenlog")]
+		public bool KeepFileOpenLog { private set; get; } = true;
 
 		/// <summary>
 		/// Stage: Commandline: -nodebuginfo
