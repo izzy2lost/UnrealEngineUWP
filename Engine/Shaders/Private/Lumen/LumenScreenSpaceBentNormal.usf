@@ -41,13 +41,6 @@ float GetScreenTraceDepthThresholdScale(float2 ScreenUV)
 	return ScreenTraceNoFallbackThicknessScale;
 }
 
-float3 GetTranslatedWorldPositionFromScreenUV(float2 ScreenUV, float SceneDepth)
-{
-	float2 ScreenPosition = (ScreenUV - View.ScreenPositionScaleBias.wz) / View.ScreenPositionScaleBias.xy;
-	float3 TranslatedWorldPosition = mul(float4(ScreenPosition * SceneDepth, SceneDepth, 1), View.ScreenToTranslatedWorld).xyz;
-	return TranslatedWorldPosition;
-}
-
 [numthreads(THREADGROUP_SIZE, THREADGROUP_SIZE, 1)]
 void ScreenSpaceShortRangeAOCS(
 	uint2 GroupId : SV_GroupID,

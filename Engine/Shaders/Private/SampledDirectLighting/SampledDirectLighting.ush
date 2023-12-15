@@ -18,6 +18,8 @@
 	#include "../ShaderPrint.ush"
 #endif
 
+#include "../Lumen/LumenPosition.ush"
+
 #define DEBUG_MODE_VISUALIZE_SAMPLING 1
 #define DEBUG_MODE_VISUALIZE_TRACING  2
 
@@ -49,39 +51,6 @@ uint PackTile(uint2 TileCoord)
 uint2 UnpackTile(uint PackedTile)
 {
 	return uint2(PackedTile & 0xFFFF, PackedTile >> 16);
-}
-
-float3 GetTranslatedWorldPositionFromScreenUV(float2 ScreenUV, float SceneDepth)
-{
-	float2 ScreenPosition = (ScreenUV - View.ScreenPositionScaleBias.wz) / View.ScreenPositionScaleBias.xy;
-	float3 TranslatedWorldPosition = mul(float4(GetScreenPositionForProjectionType(ScreenPosition, SceneDepth), SceneDepth, 1), View.ScreenToTranslatedWorld).xyz;
-	return TranslatedWorldPosition;
-}	
-
-float3 GetHistoryScreenPosition(float2 ScreenPosition, float2 ScreenUV, float DeviceZ)
-{
-	float3 HistoryScreenPosition = float3(ScreenPosition, DeviceZ);
-	bool bIsDynamicPixel = false;
-
-	{
-		float4 ThisClip = float4(HistoryScreenPosition, 1);
-		float4 PrevClip = mul(ThisClip, View.ClipToPrevClip); //<=== doesn't contain AA offsets
-
-		float3 PrevScreen = PrevClip.xyz / PrevClip.w;
-		float3 Velocity = HistoryScreenPosition - PrevScreen;
-		float4 EncodedVelocity = GBufferVelocityTexture.SampleLevel(GlobalPointClampedSampler, ScreenUV, 0);
-		bIsDynamicPixel = EncodedVelocity.x > 0.0;
-
-		if (bIsDynamicPixel)
-		{
-			// Note: overwriting velocity, this only works if DeviceZ matches what's in the depth buffer
-			Velocity = DecodeVelocityFromTexture(EncodedVelocity);
-		}
-
-		HistoryScreenPosition -= Velocity;
-	}
-
-	return HistoryScreenPosition;
 }
 
 uint2 GetShadingTileAtlasCoord(uint ShadingTileIndex, uint2 CoordInTile)

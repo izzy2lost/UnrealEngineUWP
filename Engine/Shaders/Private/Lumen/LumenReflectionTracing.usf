@@ -161,7 +161,7 @@ void ReflectionTraceScreenTexturesCS(
 				float2 HitScreenPosition = (HitUVz.xy - View.ScreenPositionScaleBias.wz) / View.ScreenPositionScaleBias.xy;
 				float HitDeviceZ = HitTileZ;
 
-				float3 HitHistoryScreenPosition = GetPrevScreenPosition(HitScreenPosition, HitScreenUV, HitDeviceZ);
+				float3 HitHistoryScreenPosition = GetHistoryScreenPosition(HitScreenPosition, HitScreenUV, HitDeviceZ);
 
 				float Vignette = min(ComputeHitVignetteFromScreenPos(HitScreenPosition), ComputeHitVignetteFromScreenPos(HitHistoryScreenPosition.xy));
 				float Noise = InterleavedGradientNoise(ReflectionTracingCoord.Coord + 0.5f, SCREEN_TEMPORAL_INDEX);

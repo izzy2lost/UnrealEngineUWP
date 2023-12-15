@@ -11,17 +11,11 @@
 #include "../RayTracing/RayTracingCommon.ush"
 #include "../RayTracing/RayTracingDeferredShadingCommon.ush"
 #include "LumenHairTracing.ush"
+#include "LumenPosition.ush"
 
 #ifndef THREADGROUP_SIZE
 #define THREADGROUP_SIZE 1
 #endif
-
-float3 GetTranslatedWorldPositionFromScreenUV(float2 ScreenUV, float SceneDepth)
-{
-	float2 ScreenPosition = (ScreenUV - View.ScreenPositionScaleBias.wz) / View.ScreenPositionScaleBias.xy;
-	float3 TranslatedWorldPosition = mul(float4(ScreenPosition * SceneDepth, SceneDepth, 1), View.ScreenToTranslatedWorld).xyz;
-	return TranslatedWorldPosition;
-}
 
 RaytracingAccelerationStructure TLAS;
 RWTexture2DArray<UNORM float4> RWScreenBentNormal;
