@@ -1033,7 +1033,7 @@ bool UInterchangeManager::RegisterImportDataConverter(const UClass* Converter)
 	return true;
 }
 
-bool UInterchangeManager::ConvertImportData(UObject* Object, const FString& Extension)
+bool UInterchangeManager::ConvertImportData(UObject* Object, const FString& Extension) const
 {
 	for (TPair<TObjectPtr<const UClass>, TObjectPtr<UInterchangeAssetImportDataConverterBase>> RegisteredConverter : RegisteredConverters)
 	{
@@ -1041,6 +1041,71 @@ bool UInterchangeManager::ConvertImportData(UObject* Object, const FString& Exte
 		{
 			return true;
 		}
+	}
+	return false;
+}
+
+bool UInterchangeManager::ConvertImportData(const UObject* SourceImportData, FImportAssetParameters& ImportAssetParameters) const
+{
+	UObject* DestinationImportData = nullptr;
+	for (TPair<TObjectPtr<const UClass>, TObjectPtr<UInterchangeAssetImportDataConverterBase>> RegisteredConverter : RegisteredConverters)
+	{
+		if (!RegisteredConverter.Value->ConvertImportData(SourceImportData, &DestinationImportData))
+		{
+			return false;
+		}
+	}
+	if (UInterchangeAssetImportData* AssetImportData = Cast<UInterchangeAssetImportData>(DestinationImportData))
+	{
+		//We can use the default pipeline stack, if it contain a pipeline that match the converted pipeline class
+		bool bUseDefaultPipelineStack = false;
+		TArray<UInterchangePipelineBase*> DuplicateDefaultPipelines;
+		//Get the Interchange Default stack
+		constexpr bool bIsSceneImport = false;
+		const FInterchangeImportSettings& InterchangeImportSettings = FInterchangeProjectSettingsUtils::GetDefaultImportSettings(bIsSceneImport);
+		//Verify if we can use the default stack or not
+		if (AssetImportData->GetNumberOfPipelines() == 1
+			&& InterchangeImportSettings.PipelineStacks.Contains(InterchangeImportSettings.DefaultPipelineStack))
+		{
+			if (UInterchangePipelineBase* ConvertedPipeline = Cast<UInterchangePipelineBase>(AssetImportData->GetPipelines()[0]))
+			{
+				UClass* ConvertedPipelineClass = ConvertedPipeline->GetClass();
+				const FInterchangePipelineStack& PipelineStack = InterchangeImportSettings.PipelineStacks.FindChecked(InterchangeImportSettings.DefaultPipelineStack);
+				for (const FSoftObjectPath& PipelinePath : PipelineStack.Pipelines)
+				{
+					if (UInterchangePipelineBase* GeneratedPipeline = UE::Interchange::GeneratePipelineInstance(PipelinePath, GetTransientPackage()))
+					{
+						GeneratedPipeline->AdjustSettingsForContext(EInterchangePipelineContext::AssetImport, nullptr);
+						if (GeneratedPipeline->IsA(ConvertedPipelineClass))
+						{
+							//We found a match, so we will use the default pipeline stacks
+							bUseDefaultPipelineStack = true;
+							DuplicateDefaultPipelines.Add(ConvertedPipeline);
+						}
+						else
+						{
+							DuplicateDefaultPipelines.Add(GeneratedPipeline);
+						}
+					}
+				}
+			}
+		}
+
+		if (bUseDefaultPipelineStack)
+		{
+			for (UInterchangePipelineBase* Pipeline : DuplicateDefaultPipelines)
+			{
+				ImportAssetParameters.OverridePipelines.Add(Pipeline);
+			}
+		}
+		else
+		{
+			for (UObject* Pipeline : AssetImportData->GetPipelines())
+			{
+				ImportAssetParameters.OverridePipelines.Add(Pipeline);
+			}
+		}
+		return true;
 	}
 	return false;
 }

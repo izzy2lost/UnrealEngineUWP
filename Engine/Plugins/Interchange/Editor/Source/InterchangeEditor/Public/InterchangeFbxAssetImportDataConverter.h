@@ -16,4 +16,5 @@ class INTERCHANGEEDITOR_API UInterchangeFbxAssetImportDataConverter : public UIn
 
 public:
 	virtual bool ConvertImportData(UObject* Object, const FString& ToExtension) const override;
+	virtual bool ConvertImportData(const UObject* SourceImportData, UObject** DestinationImportDataClass) const override;
 };

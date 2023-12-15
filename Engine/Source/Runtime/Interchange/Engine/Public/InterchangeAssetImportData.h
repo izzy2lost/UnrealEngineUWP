@@ -197,4 +197,15 @@ public:
 	{
 		return false;
 	}
+
+	/**
+	 * Convert the asset import data from the source to the destination.
+	 * The function should return true only if it has convert the asset import data, false otherwise.
+	 *
+	 * The system will call all object deriving from this class until one convert the data.
+	 */
+	virtual bool ConvertImportData(const UObject* SourceImportData, UObject** DestinationImportDataClass) const
+	{
+		return false;
+	}
 };

@@ -3588,6 +3588,10 @@ TArray<UObject*> UAssetToolsImpl::ImportAssetsInternal(const TArray<FString>& Fi
 								ImportAssetParameters.OverridePipelines.Add(OverridePipelinePath);
 							}
 						}
+						else
+						{
+							InterchangeManager.ConvertImportData(Params.AssetImportTask->Options, ImportAssetParameters);
+						}
 					}
 					UE::Interchange::FAssetImportResultRef InterchangeResult = (InterchangeManager.ImportAssetAsync(DestinationPath, ScopedSourceData.GetSourceData(), ImportAssetParameters));
 

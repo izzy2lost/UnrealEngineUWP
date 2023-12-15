@@ -493,7 +493,15 @@ public:
 	 * @Param Extension - The file extension we want to import
 	 * @return true if one of the converter has convert the data. False otherwise.
 	 */
-	INTERCHANGEENGINE_API bool ConvertImportData(UObject* Object, const FString& Extension);
+	INTERCHANGEENGINE_API bool ConvertImportData(UObject* Object, const FString& Extension) const;
+
+	/**
+	 * Call all the registered converter, if one converter want
+	 * @Param SourceImportData - The source import data options.
+	 * @Param DestinationImportData - The destination import data options.
+	 * @return true if one of the converter has convert the data. False otherwise.
+	 */
+	INTERCHANGEENGINE_API bool ConvertImportData(const UObject* SourceImportData, FImportAssetParameters& ImportAssetParameters) const;
 
 	/**
 	 * Returns the list of supported formats for a given translator type.
