@@ -586,12 +586,6 @@ namespace uba
 		p.revents = 0;
 		p.events = POLLOUT;
 		int pollRes = WSAPoll(&p, 1, timeoutMs);
-		if (!pollRes)
-		{
-			if (timedOut)
-				*timedOut = true;
-			return false;
-		}
 
 		if (pollRes == SOCKET_ERROR)
 		{
@@ -600,10 +594,10 @@ namespace uba
 			return false;
 		}
 
-		if (p.revents & (POLLHUP))
+		if (!pollRes || p.revents & (POLLHUP)) // Treat hangup as timeout (since we want retry if that happens)
 		{
-			//logger.Info(TC("Connection not ready..."));
-			*timedOut = true;
+			if (timedOut)
+				*timedOut = true;
 			return false;
 		}
 
@@ -624,8 +618,8 @@ namespace uba
 		memset(&junk, 0, sizeof(junk));
 		if (getpeername(socketFd, (struct sockaddr *)&junk, &length) != 0)
 		{
-			//logger.Info(TC("Connection not ready..."));
-			*timedOut = true;
+			if (timedOut)
+				*timedOut = true;
 			return false;
 		}
 

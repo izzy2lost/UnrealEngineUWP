@@ -171,23 +171,19 @@ namespace uba
 	inline void CheckPath(const tchar* fileName)
 	{
 		auto pos = fileName;
-		tchar lastChar = ' ';
-		//bool hasSlash = false;
+		tchar history[3] = { 0 };
 		while (tchar c = *pos++)
 		{
-			UBA_ASSERTF(!CaseInsensitiveFs || c < 'A' || c > 'Z', TC("Path is not valid (%s)"), fileName);
-			UBA_ASSERTF(c != L'.' || lastChar != L'.', TC("Path is not valid (%s)"), fileName);
-
-			#if PLATFORM_WINDOWS
-			UBA_ASSERTF(c != '/', TC("Path is not valid (%s)"), fileName);
-			UBA_ASSERTF(c != '\\' || lastChar != '\\' || TStrstr(fileName, TC("\\\\.\\pipe")), TC("Path is not valid (%s)"), fileName);
-			#else
-			UBA_ASSERTF(c != '\\', TC("Path is not valid (%s)"), fileName);
-			#endif
-			//hasSlash |= c == '\\';
-			lastChar = c;
+			UBA_ASSERTF(!CaseInsensitiveFs || c < 'A' || c > 'Z', TC("Path is not valid (%s)"), fileName); // No upper case characters if case insensitive
+			UBA_ASSERTF(!(c == PathSeparator && history[0] == '.' && history[1] == PathSeparator) || (IsWindows && TStrstr(fileName, TC("\\\\.\\pipe"))), TC("Path is not valid (%s)"), fileName);  //  /./ not allowed
+			UBA_ASSERTF(!(c == PathSeparator && history[0] == '.' && history[1] == '.' && history[2] == PathSeparator), TC("Path is not valid (%s)"), fileName); // /../ not allowed
+			UBA_ASSERTF(c != NonPathSeparator, TC("Path is not valid (%s)"), fileName);
+			UBA_ASSERTF(c != PathSeparator || history[0] != PathSeparator || (IsWindows && TStrstr(fileName, TC("\\\\.\\pipe"))), TC("Path is not valid (%s)"), fileName); // Double backslash
+			history[2] = history[1];
+			history[1] = history[0];
+			history[0] = c;
 		}
-		UBA_ASSERTF(lastChar != ' ' && (lastChar != '\\' || (fileName[1] == ':' && fileName[3] == 0)), TC("Path is not valid (%s)"), fileName);
+		UBA_ASSERTF(history[0] != ' ' && (history[0] != PathSeparator || (fileName[1] == ':' && fileName[3] == 0)), TC("Path is not valid (%s)"), fileName);
 		// Commented out because this asserts on dlls in subfolders on remote machines (example: 2057\clui.dll). Likely related to helper not having some language id as host
 		// UBA_ASSERTF(!hasSlash || fileName[1] == ':', TC("Invalid path: %s"), fileName);
 	}
