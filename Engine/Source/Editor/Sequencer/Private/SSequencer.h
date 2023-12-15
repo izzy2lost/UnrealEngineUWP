@@ -22,6 +22,7 @@
 #include "Widgets/Text/STextBlock.h"
 #include "Sequencer.h"
 #include "SequencerWidgetsDelegates.h"
+#include "STemporarilyFocusedSpinBox.h"
 
 class FActorDragDropOp;
 class FFolderDragDropOp;
@@ -129,30 +130,6 @@ struct FSequencerOutlinerColumnVisibility
 	{}
 };
 
-
-/**
- * A widget that holds a widget that is to be refocused on completion
- */
-template<typename T>
-struct STemporarilyFocusedSpinBox : SSpinBox<T>
-{
-public:
-	void Setup()
-	{
-		PreviousFocusedWidget = FSlateApplication::Get().GetKeyboardFocusedWidget();
-	}
-
-	void Refocus()
-	{
-		if (PreviousFocusedWidget.IsValid())
-		{
-			FSlateApplication::Get().SetKeyboardFocus(PreviousFocusedWidget.Pin());
-		}
-	}
-
-private:
-	TWeakPtr<SWidget> PreviousFocusedWidget;
-};
 
 /**
  * Main sequencer UI widget

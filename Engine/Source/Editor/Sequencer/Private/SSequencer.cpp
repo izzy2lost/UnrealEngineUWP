@@ -61,6 +61,7 @@
 #include "SequencerTimeSliderController.h"
 #include "SequencerToolMenuContext.h"
 #include "SSequencerSectionOverlay.h"
+#include "STemporarilyFocusedSpinBox.h"
 #include "MVVM/Views/STrackAreaView.h"
 #include "MVVM/Views/SSequencerTrackAreaView.h"
 #include "DragAndDrop/AssetDragDropOp.h"

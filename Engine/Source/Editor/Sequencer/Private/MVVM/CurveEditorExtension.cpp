@@ -13,6 +13,7 @@
 #include "SCurveEditorToolProperties.h"
 #include "SCurveKeyDetailPanel.h"
 #include "SSequencerTreeFilterStatusBar.h"
+#include "STemporarilyFocusedSpinBox.h"
 #include "Sequencer.h"
 #include "SequencerCommands.h"
 #include "Toolkits/IToolkitHost.h"
@@ -203,6 +204,8 @@ void FCurveEditorExtension::CreateCurveEditor(const FTimeSliderArgs& TimeSliderA
 	// the Curve Editor time slider controller. We want everything else to just pass through though.
 	TSharedRef<ITimeSliderController> CurveEditorTimeSliderController = MakeShared<FSequencerCurveEditorTimeSliderController>(
 			TimeSliderArgs, Sequencer, CurveEditorModel.ToSharedRef());
+	
+	PlayTimeDisplay = StaticCastSharedRef<STemporarilyFocusedSpinBox<double>>(Sequencer->MakePlayTimeDisplay(TimeSliderArgs.NumericTypeInterface.ToSharedRef()));
 
 	CurveEditorTreeView = SNew(SCurveEditorTree, CurveEditorModel);
 	CurveEditorPanel = SNew(SCurveEditorPanel, CurveEditorModel.ToSharedRef())
@@ -304,7 +307,7 @@ void FCurveEditorExtension::CreateCurveEditor(const FTimeSliderArgs& TimeSliderA
 							SNew(SBorder)
 							.BorderImage(nullptr)
 							[
-								Sequencer->MakePlayTimeDisplay(TimeSliderArgs.NumericTypeInterface.ToSharedRef())
+								PlayTimeDisplay.ToSharedRef()
 							]
 						]
 					]
@@ -325,6 +328,11 @@ void FCurveEditorExtension::CreateCurveEditor(const FTimeSliderArgs& TimeSliderA
 	CurveEditorModel->GetCommands()->MapAction(
 		FSequencerCommands::Get().QuickTreeSearch,
 		FExecuteAction::CreateLambda([this] { FSlateApplication::Get().SetKeyboardFocus(CurveEditorSearchBox, EFocusCause::SetDirectly); })
+	);
+
+	CurveEditorModel->GetCommands()->MapAction(
+		FSequencerCommands::Get().ToggleShowGotoBox,
+		FExecuteAction::CreateLambda([this] { PlayTimeDisplay->Setup(); FSlateApplication::Get().SetKeyboardFocus(PlayTimeDisplay, EFocusCause::SetDirectly); })
 	);
 
 	CurveEditorWidget = SNew(SSequencerCurveEditor, CurveEditorPanel.ToSharedRef(), Sequencer);

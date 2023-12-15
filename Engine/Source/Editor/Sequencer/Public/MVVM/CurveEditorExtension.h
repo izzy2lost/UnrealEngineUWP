@@ -9,6 +9,7 @@
 #include "CurveDataAbstraction.h"
 #include "CurveEditorTypes.h"
 #include "Tree/ICurveEditorTreeItem.h"
+#include "STemporarilyFocusedSpinBox.h"
 
 class ISequencer;
 class IPropertyTypeCustomization;
@@ -84,6 +85,8 @@ private:
 	TSharedPtr<SCurveEditorPanel> CurveEditorPanel;
 	/** Filter Status Bar */
 	TSharedPtr<SCurveEditorTreeFilterStatusBar> CurveEditorTreeFilterStatusBar;
+	/** The current playback time display. */
+	TSharedPtr<STemporarilyFocusedSpinBox<double>> PlayTimeDisplay;
 
 	friend class FCurveEditorIntegrationExtension;
 };
