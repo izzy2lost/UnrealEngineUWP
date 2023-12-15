@@ -53,13 +53,10 @@ bool UNiagaraDataInterfaceGrid2DCollectionReader::InitPerInstanceData(void* PerI
 	FGrid2DCollectionRWInstanceData_GameThread* InstanceData = new (PerInstanceData) FGrid2DCollectionRWInstanceData_GameThread();
 	SystemInstancesToProxyData_GT.Emplace(SystemInstance->GetId(), InstanceData);
 
-	TSharedPtr<FNiagaraEmitterInstance, ESPMode::ThreadSafe> RT_EmitterInstance;
-
-
 	FNiagaraEmitterInstance* EmitterInstanceToUse = nullptr;
-	for (TSharedPtr<FNiagaraEmitterInstance, ESPMode::ThreadSafe> EmitterInstance : SystemInstance->GetEmitters())
+	for (const FNiagaraEmitterInstanceRef& EmitterInstance : SystemInstance->GetEmitters())
 	{
-		UNiagaraEmitter* Emitter = EmitterInstance->GetCachedEmitter().Emitter;
+		const UNiagaraEmitter* Emitter = EmitterInstance->GetEmitter();
 		if (Emitter == nullptr)
 		{
 			continue;
@@ -67,7 +64,7 @@ bool UNiagaraDataInterfaceGrid2DCollectionReader::InitPerInstanceData(void* PerI
 
 		if (EmitterName == Emitter->GetUniqueEmitterName())
 		{
-			EmitterInstanceToUse = EmitterInstance.Get();
+			EmitterInstanceToUse = &EmitterInstance.Get();
 			break;
 		}
 	}

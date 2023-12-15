@@ -549,7 +549,7 @@ void FNiagaraBakerRenderer::RenderParticleAttribute(UTextureRenderTarget2D* Rend
 	
 	for ( const auto& EmitterInstance : SystemInstance->GetEmitters() )
 	{
-		UNiagaraEmitter* NiagaraEmitter = EmitterInstance->GetCachedEmitter().Emitter;
+		const UNiagaraEmitter* NiagaraEmitter = EmitterInstance->GetEmitter();
 		if ( !NiagaraEmitter || (NiagaraEmitter->GetUniqueEmitterName() != EmitterName) )
 		{
 			continue;
@@ -560,7 +560,7 @@ void FNiagaraBakerRenderer::RenderParticleAttribute(UTextureRenderTarget2D* Rend
 			return;
 		}
 	
-		const FNiagaraDataSet& ParticleDataSet = EmitterInstance->GetData();
+		const FNiagaraDataSet& ParticleDataSet = EmitterInstance->GetParticleData();
 		const FNiagaraDataBuffer* ParticleDataBuffer = ParticleDataSet.GetCurrentData();
 		FNiagaraDataSetReaderInt32<int32> UniqueIDAccessor = FNiagaraDataSetAccessor<int32>::CreateReader(ParticleDataSet, FName("UniqueID"));
 		if ( !ParticleDataBuffer || !UniqueIDAccessor.IsValid() )

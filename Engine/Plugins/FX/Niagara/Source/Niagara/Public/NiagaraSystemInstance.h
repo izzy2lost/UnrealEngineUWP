@@ -12,6 +12,7 @@
 #include "NiagaraDataInterface.h"
 
 class FNiagaraWorldManager;
+class FNiagaraEmitterInstanceImpl;
 class FNiagaraSystemInstance;
 class FNiagaraSystemSimulation;
 class FNiagaraGpuComputeDispatchInterface;
@@ -135,6 +136,12 @@ public:
 	NIAGARA_API void BindParameters();
 	NIAGARA_API void UnbindParameters(bool bFromComplete = false);
 
+	// Bindings Override Parameters / Instance Parameters / System Simulation Parameters to the provded parameter store
+	// I.e. binds all relevant parameters from us and parent, does not do children (i.e. emitters)
+	void BindToParameterStore(FNiagaraParameterStore& ParameterStore);
+	// Unbinds the parameters that would be bound via BindToParameterStore
+	void UnbindFromParameterStore(FNiagaraParameterStore& ParameterStore);
+
 	FORCEINLINE FNiagaraParameterStore& GetInstanceParameters() { return InstanceParameters; }
 	NIAGARA_API FNiagaraLWCConverter GetLWCConverter(bool bLocalSpaceEmitter = false) const;
 	NIAGARA_API FTransform GetLWCSimToWorld(bool bLocalSpaceEmitter = false) const;
@@ -231,15 +238,16 @@ public:
 	FORCEINLINE bool IsDisabled()const { return ActualExecutionState == ENiagaraExecutionState::Disabled; }
 
 	/** Gets the simulation for the supplied emitter handle. */
-	NIAGARA_API TSharedPtr<FNiagaraEmitterInstance, ESPMode::ThreadSafe> GetSimulationForHandle(const FNiagaraEmitterHandle& EmitterHandle);
+	NIAGARA_API FNiagaraEmitterInstancePtr GetSimulationForHandle(const FNiagaraEmitterHandle& EmitterHandle) const;
 
 	FORCEINLINE UWorld* GetWorld() const { return World; }
 	FORCEINLINE UNiagaraSystem* GetSystem() const { return System; }
 	FORCEINLINE USceneComponent* GetAttachComponent() { return AttachComponent.Get(); }
 	FORCEINLINE FNiagaraUserRedirectionParameterStore* GetOverrideParameters() { return OverrideParameters; }
 	FORCEINLINE const FNiagaraUserRedirectionParameterStore* GetOverrideParameters() const { return OverrideParameters; }
-	FORCEINLINE TArray<TSharedRef<FNiagaraEmitterInstance, ESPMode::ThreadSafe> > &GetEmitters() { return Emitters; }
-	FORCEINLINE const TArray<TSharedRef<FNiagaraEmitterInstance, ESPMode::ThreadSafe> >& GetEmitters() const { return Emitters; }
+	[[nodiscard]] NIAGARA_API TArrayView<FNiagaraEmitterInstanceRef> GetEmitters() { return Emitters; }
+	[[nodiscard]] NIAGARA_API TConstArrayView<FNiagaraEmitterInstanceRef> GetEmitters() const { return Emitters; }
+
 	FORCEINLINE const FBox& GetLocalBounds() const { return LocalBounds;  }
 	FORCEINLINE const FVector3f& GetLWCTile() const { return LWCTile;  }
 	NIAGARA_API TConstArrayView<FNiagaraEmitterExecutionIndex> GetEmitterExecutionOrder() const;
@@ -505,7 +513,7 @@ private:
 	int32 WarmupTickCount = -1;
 	float WarmupTickDelta = 0;
 	
-	TArray< TSharedRef<FNiagaraEmitterInstance, ESPMode::ThreadSafe> > Emitters;
+	TArray<FNiagaraEmitterInstanceRef> Emitters;
 
 	FOnPostTick OnPostTickDelegate;
 	FOnComplete OnCompleteDelegate;

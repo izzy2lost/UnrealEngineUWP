@@ -2081,6 +2081,8 @@ void FNiagaraGpuComputeDispatch::PostRenderOpaque(FRDGBuilder& GraphBuilder, TCo
 	}
 	bRequiresReadback = false;
 
+	OnPostRenderEvent.Broadcast(GraphBuilder);
+
 	if (FNiagaraGpuComputeDispatchLocal::CsvStatsEnabled())
 	{
 		CSV_CUSTOM_STAT(NiagaraGpuCompute, TotalDispatchesThisFrame, TotalDispatchesThisFrame, ECsvCustomStatOp::Set);
@@ -2171,6 +2173,8 @@ bool FNiagaraGpuComputeDispatch::RequiresRayTracingScene() const
 
 void FNiagaraGpuComputeDispatch::PreRender(FRDGBuilder& GraphBuilder, TConstStridedView<FSceneView> Views, FSceneUniformBuffer &SceneUniformBuffer, bool bAllowGPUParticleUpdate)
 {
+	OnPreRenderEvent.Broadcast(GraphBuilder);
+
 	if (!FNiagaraUtilities::AllowGPUParticles(GetShaderPlatform()))
 	{
 		return;

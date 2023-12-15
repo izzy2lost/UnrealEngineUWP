@@ -9,6 +9,7 @@
 #include "NiagaraDataSetDebugAccessor.h"
 #include "NiagaraDataSetReadback.h"
 #include "NiagaraEmitterInstance.h"
+#include "NiagaraEmitterInstanceImpl.h"
 #include "NiagaraFunctionLibrary.h"
 #include "NiagaraGpuComputeDispatchInterface.h"
 #include "NiagaraMeshRendererProperties.h"
@@ -724,25 +725,24 @@ namespace NiagaraDebugLocal
 		{
 			TStringBuilder<128> GpuLatentBuilder;
 
-			for (const TSharedRef<FNiagaraEmitterInstance, ESPMode::ThreadSafe>& EmitterInstance : SystemInstance->GetEmitters())
+			for (const FNiagaraEmitterInstanceRef& EmitterInstance : SystemInstance->GetEmitters())
 			{
-				FVersionedNiagaraEmitterData* EmitterData = EmitterInstance->GetCachedEmitterData();
-				UNiagaraEmitter* NiagaraEmitter = EmitterInstance->GetCachedEmitter().Emitter;
-				if (EmitterData == nullptr || NiagaraEmitter == nullptr)
+				UNiagaraEmitter* NiagaraEmitter = EmitterInstance->GetEmitter();
+				if (NiagaraEmitter == nullptr)
 				{
 					continue;
 				}
 
 				bool bLowLatencyFailed = false;
-				EmitterData->ForEachEnabledRenderer(
-					[&](UNiagaraRendererProperties* RenderProperties)
+				EmitterInstance->ForEachEnabledRenderer(
+					[&](const UNiagaraRendererProperties* RenderProperties)
 					{
 						ENiagaraRendererGpuTranslucentLatency RequestedLatency = ENiagaraRendererGpuTranslucentLatency::ProjectDefault;
-						if (UNiagaraMeshRendererProperties* MeshRenderProperties = Cast<UNiagaraMeshRendererProperties>(RenderProperties))
+						if (const UNiagaraMeshRendererProperties* MeshRenderProperties = Cast<const UNiagaraMeshRendererProperties>(RenderProperties))
 						{
 							RequestedLatency = MeshRenderProperties->GpuTranslucentLatency;
 						}
-						else if (UNiagaraSpriteRendererProperties* SpriteRendererProperties = Cast<UNiagaraSpriteRendererProperties>(RenderProperties))
+						else if (const UNiagaraSpriteRendererProperties* SpriteRendererProperties = Cast<const UNiagaraSpriteRendererProperties>(RenderProperties))
 						{
 							RequestedLatency = SpriteRendererProperties->GpuTranslucentLatency;
 						}
@@ -1129,9 +1129,9 @@ void FNiagaraDebugHud::GatherSystemInfo()
 			if( NiagaraComponent)
 			{
 				check(SystemInstance);
-				for (const TSharedRef<FNiagaraEmitterInstance, ESPMode::ThreadSafe>& EmitterInstance : SystemInstance->GetEmitters())
+				for (const FNiagaraEmitterInstanceRef& EmitterInstance : SystemInstance->GetEmitters())
 				{
-					UNiagaraEmitter* NiagaraEmitter = EmitterInstance->GetCachedEmitter().Emitter;
+					const UNiagaraEmitter* NiagaraEmitter = EmitterInstance->GetEmitter();
 					if (NiagaraEmitter == nullptr)
 					{
 						continue;
@@ -1256,7 +1256,7 @@ const FNiagaraDataSet* FNiagaraDebugHud::GetParticleDataSet(FNiagaraSystemInstan
 		return nullptr;
 	}
 
-	return &EmitterInstance->GetData();
+	return &EmitterInstance->GetParticleData();
 }
 
 FNiagaraDebugHud::FValidationErrorInfo& FNiagaraDebugHud::GetValidationErrorInfo(UNiagaraComponent* NiagaraComponent)
@@ -2539,7 +2539,7 @@ void FNiagaraDebugHud::DrawValidation(class FNiagaraWorldManager* WorldManager, 
 
 		if (Settings.bValidateParticleDataBuffers)
 		{
-			auto& EmitterHandles = SystemInstance->GetEmitters();
+			TConstArrayView<FNiagaraEmitterInstanceRef> EmitterHandles = SystemInstance->GetEmitters();
 			for ( int32 iEmitter=0; iEmitter < EmitterHandles.Num(); ++iEmitter)
 			{
 				FNiagaraEmitterInstance* EmitterInstance = &EmitterHandles[iEmitter].Get();
@@ -2566,7 +2566,7 @@ void FNiagaraDebugHud::DrawValidation(class FNiagaraWorldManager* WorldManager, 
 					[&](const FNiagaraVariableBase& Variable, int32 InstanceIndex, int32 ComponentIndex)
 					{
 						auto& ValidationError = GetValidationErrorInfo(NiagaraComponent);
-						const FName EmitterName(*EmitterInstance->GetCachedEmitter().Emitter->GetUniqueEmitterName());
+						const FName EmitterName(*EmitterInstance->GetEmitter()->GetUniqueEmitterName());
 						ValidationError.ParticleVariablesWithErrors.FindOrAdd(EmitterName).AddUnique(Variable.GetName());
 					}
 				);
@@ -2761,7 +2761,7 @@ void FNiagaraDebugHud::DrawComponents(FNiagaraWorldManager* WorldManager, UCanva
 				FSceneView* SceneView = Canvas->SceneView;
 
 				const FTransform& SystemTransform = SystemInstance->GetWorldTransform();
-				const bool bParticlesLocalSpace = EmitterInstance->GetCachedEmitterData()->bLocalSpace;
+				const bool bParticlesLocalSpace = EmitterInstance->IsLocalSpace();
 				//const float ClipRadius = Settings.bUseParticleDisplayRadius ? 1.0f : 0.0f;
 				const float ParticleDisplayCenterRadiusSq = Settings.bUseParticleDisplayCenterRadius ? (Settings.ParticleDisplayCenterRadius * Settings.ParticleDisplayCenterRadius) : 0.0f;
 				const float ParticleDisplayClipNearPlane = Settings.bUseParticleDisplayClip ? float(FMath::Max(Settings.ParticleDisplayClip.X, 0.0)) : 0.0f;
@@ -2932,9 +2932,9 @@ void FNiagaraDebugHud::DrawComponents(FNiagaraWorldManager* WorldManager, UCanva
 					int32 ActiveEmitters = 0;
 					int32 TotalEmitters = 0;
 					int32 ActiveParticles = 0;
-					for (const TSharedRef<FNiagaraEmitterInstance, ESPMode::ThreadSafe>& EmitterInstance : SystemInstance->GetEmitters())
+					for (const FNiagaraEmitterInstanceRef& EmitterInstance : SystemInstance->GetEmitters())
 					{
-						UNiagaraEmitter* NiagaraEmitter = EmitterInstance->GetCachedEmitter().Emitter;
+						const UNiagaraEmitter* NiagaraEmitter = EmitterInstance->GetEmitter();
 						if (NiagaraEmitter == nullptr)
 						{
 							continue;
@@ -2998,14 +2998,16 @@ void FNiagaraDebugHud::DrawComponents(FNiagaraWorldManager* WorldManager, UCanva
 							for (const FParameterStoreVariable& ParameterStoreVariable : CachedVariables.ParameterStoreVariables)
 							{
 								FNiagaraParameterStore* ParameterStore = nullptr;
+								//-TODO:Stateless:
+								FNiagaraEmitterInstanceImpl* StatefulEmitter = SystemInstance->Emitters.IsValidIndex(ParameterStoreVariable.EmitterIndex) ? SystemInstance->Emitters[ParameterStoreVariable.EmitterIndex]->AsStateful() : nullptr;
 								switch (ParameterStoreVariable.StoreLocation)
 								{
 									case EParameterStoreLocation::UserOverride:			ParameterStore = SystemInstance->GetOverrideParameters(); break;
 									case EParameterStoreLocation::SystemSpawn:			ParameterStore = &SystemSimulation->GetSpawnExecutionContext()->Parameters; break;
 									case EParameterStoreLocation::SystemUpdate:			ParameterStore = &SystemSimulation->GetUpdateExecutionContext()->Parameters; break;
-									case EParameterStoreLocation::EmitterSpawn:			ParameterStore = &SystemInstance->Emitters[ParameterStoreVariable.EmitterIndex]->GetSpawnExecutionContext().Parameters; break;
-									case EParameterStoreLocation::EmitterUpdate:		ParameterStore = &SystemInstance->Emitters[ParameterStoreVariable.EmitterIndex]->GetUpdateExecutionContext().Parameters; break;
-									case EParameterStoreLocation::EmitterRenderBindings:ParameterStore = &SystemInstance->Emitters[ParameterStoreVariable.EmitterIndex]->GetRendererBoundVariables(); break;
+									case EParameterStoreLocation::EmitterSpawn:			ParameterStore = StatefulEmitter ? &StatefulEmitter->GetSpawnExecutionContext().Parameters : nullptr; break;
+									case EParameterStoreLocation::EmitterUpdate:		ParameterStore = StatefulEmitter ? &StatefulEmitter->GetUpdateExecutionContext().Parameters : nullptr; break;
+									case EParameterStoreLocation::EmitterRenderBindings:ParameterStore = StatefulEmitter ? &StatefulEmitter->GetRendererBoundVariables() : nullptr; break;
 								}
 								if (ParameterStore == nullptr)
 								{
@@ -3079,7 +3081,7 @@ void FNiagaraDebugHud::DrawComponents(FNiagaraWorldManager* WorldManager, UCanva
 									continue;
 								}
 
-								StringBuilder.Appendf(TEXT("Emitter (%s)\n"), *EmitterInstance->GetCachedEmitter().Emitter->GetUniqueEmitterName());
+								StringBuilder.Appendf(TEXT("Emitter (%s)\n"), *EmitterInstance->GetEmitter()->GetUniqueEmitterName());
 								const uint32 NumParticles = Settings.bUseMaxParticlesToDisplay ? FMath::Min((uint32)Settings.MaxParticlesToDisplay, DataBuffer->GetNumInstances()) : DataBuffer->GetNumInstances();
 								for (uint32 iInstance = 0; iInstance < NumParticles; ++iInstance)
 								{

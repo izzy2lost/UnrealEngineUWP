@@ -77,7 +77,7 @@ FNiagaraDynamicDataBase* FNiagaraRendererLights::GenerateDynamicData(const FNiag
 
 	//Bail if we don't have the required attributes to render this emitter.
 	const UNiagaraLightRendererProperties* Properties = CastChecked<const UNiagaraLightRendererProperties>(InProperties);
-	const FNiagaraDataSet& Data = Emitter->GetData();
+	const FNiagaraDataSet& Data = Emitter->GetParticleData();
 	const FNiagaraDataBuffer* DataToRender = Data.GetCurrentData();
 	if (DataToRender == nullptr || Emitter->GetParentSystemInstance() == nullptr)
 	{

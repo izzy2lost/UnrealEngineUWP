@@ -30,13 +30,10 @@ struct FNiagaraDynamicDataBase
 	NIAGARA_API explicit FNiagaraDynamicDataBase(const FNiagaraEmitterInstance* InEmitter);
 	NIAGARA_API virtual ~FNiagaraDynamicDataBase();
 
-	FNiagaraDynamicDataBase() = delete;
-	FNiagaraDynamicDataBase(FNiagaraDynamicDataBase& Other) = delete;
-	FNiagaraDynamicDataBase& operator=(const FNiagaraDynamicDataBase& Other) = delete;
+	UE_NONCOPYABLE(FNiagaraDynamicDataBase);
 
 	NIAGARA_API bool IsGpuLowLatencyTranslucencyEnabled() const;
 	NIAGARA_API FNiagaraDataBuffer* GetParticleDataToRender(bool bIsLowLatencyTranslucent = false) const;
-	FORCEINLINE ENiagaraSimTarget GetSimTarget() const { return SimTarget; }
 	FORCEINLINE FMaterialRelevance GetMaterialRelevance() const { return MaterialRelevance; }
 
 	FORCEINLINE void SetMaterialRelevance(FMaterialRelevance NewRelevance) { MaterialRelevance = NewRelevance; }
@@ -47,7 +44,6 @@ struct FNiagaraDynamicDataBase
 
 protected:
 	FMaterialRelevance MaterialRelevance;
-	ENiagaraSimTarget SimTarget;
 	FNiagaraSystemInstanceID SystemInstanceID;
 
 	FNiagaraDataBufferRef CPUParticleData;

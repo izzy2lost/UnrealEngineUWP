@@ -416,12 +416,12 @@ void UNiagaraRendererProperties::ChangeToPositionBinding(FNiagaraVariableAttribu
 
 bool UNiagaraRendererProperties::UpdateMaterialStaticParameters(const FNiagaraRendererMaterialParameters& MaterialParameters, UMaterialInstanceConstant* MIC)
 {
-	UNiagaraEmitter* NiagaraEmitter = GetTypedOuter<UNiagaraEmitter>();
 	UNiagaraSystem* NiagaraSystem = GetTypedOuter<UNiagaraSystem>();
-	if (NiagaraEmitter == nullptr || NiagaraSystem == nullptr)
+	if (NiagaraSystem == nullptr)
 	{
 		return false;
 	}
+	UNiagaraEmitter* NiagaraEmitter = GetTypedOuter<UNiagaraEmitter>();
 
 	TArray<FMaterialParameterInfo> AllStaticSwitchParameterInfos;
 	{
@@ -444,7 +444,10 @@ bool UNiagaraRendererProperties::UpdateMaterialStaticParameters(const FNiagaraRe
 					}
 
 					FNiagaraVariableBase ResolvedStaticVariable = StaticVariable;
-					ResolvedStaticVariable.ReplaceRootNamespace(NiagaraEmitter->GetUniqueEmitterName(), FNiagaraConstants::EmitterNamespaceString);
+					if (NiagaraEmitter)
+					{
+						ResolvedStaticVariable.ReplaceRootNamespace(NiagaraEmitter->GetUniqueEmitterName(), FNiagaraConstants::EmitterNamespaceString);
+					}
 					if (ResolvedStaticVariable.GetName() != ParameterBinding.StaticVariableName)
 					{
 						continue;

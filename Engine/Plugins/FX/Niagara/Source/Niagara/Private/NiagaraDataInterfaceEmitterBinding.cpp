@@ -15,11 +15,11 @@ FNiagaraEmitterInstance* FNiagaraDataInterfaceEmitterBinding::Resolve(const FNia
 		// If we came from a particle script our outer will be a UNiagaraEmitter
 		if (UNiagaraEmitter* OwnerEmitter = DataInterface->GetTypedOuter<UNiagaraEmitter>())
 		{
-			for (TSharedPtr<FNiagaraEmitterInstance, ESPMode::ThreadSafe> EmitterInstance : SystemInstance->GetEmitters())
+			for (const FNiagaraEmitterInstanceRef& EmitterInstance : SystemInstance->GetEmitters())
 			{
-				if (EmitterInstance->GetCachedEmitter().Emitter == OwnerEmitter)
+				if (EmitterInstance->GetEmitter() == OwnerEmitter)
 				{
-					return EmitterInstance.Get();
+					return &EmitterInstance.Get();
 				}
 			}
 		}
@@ -44,13 +44,13 @@ FNiagaraEmitterInstance* FNiagaraDataInterfaceEmitterBinding::Resolve(const FNia
 
 			if (SourceEmitterName.IsEmpty() == false)
 			{
-				for (TSharedPtr<FNiagaraEmitterInstance, ESPMode::ThreadSafe> EmitterInstance : SystemInstance->GetEmitters())
+				for (const FNiagaraEmitterInstanceRef& EmitterInstance : SystemInstance->GetEmitters())
 				{
-					if (const UNiagaraEmitter* CachedEmitter = EmitterInstance->GetCachedEmitter().Emitter)
+					if (const UNiagaraEmitter* CachedEmitter = EmitterInstance->GetEmitter())
 					{
 						if (CachedEmitter->GetUniqueEmitterName() == SourceEmitterName)
 						{
-							return EmitterInstance.Get();
+							return &EmitterInstance.Get();
 						}
 					}
 				}
@@ -76,14 +76,14 @@ FNiagaraEmitterInstance* FNiagaraDataInterfaceEmitterBinding::Resolve(const FNia
 		EmitterName.ToString(EmitterNameString);
 		FStringView EmitterNameStringView = EmitterNameString.ToView();
 
-		for (TSharedPtr<FNiagaraEmitterInstance, ESPMode::ThreadSafe> EmitterInstance : SystemInstance->GetEmitters())
+		for (const FNiagaraEmitterInstanceRef& EmitterInstance : SystemInstance->GetEmitters())
 		{
-			if (const UNiagaraEmitter* CachedEmitter = EmitterInstance->GetCachedEmitter().Emitter)
+			if (const UNiagaraEmitter* CachedEmitter = EmitterInstance->GetEmitter())
 			{
 				//-TODO: UniqueEmitterName should probably be a FName?
 				if (EmitterNameStringView.Equals(CachedEmitter->GetUniqueEmitterName()) )
 				{
-					return EmitterInstance.Get();
+					return &EmitterInstance.Get();
 				}
 			}
 		}

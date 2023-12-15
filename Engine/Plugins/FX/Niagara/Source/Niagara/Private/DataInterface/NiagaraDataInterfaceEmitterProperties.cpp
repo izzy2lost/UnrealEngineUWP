@@ -123,9 +123,9 @@ bool UNiagaraDataInterfaceEmitterProperties::InitPerInstanceData(void* PerInstan
 
 	FInstanceData_GameThread* InstanceData_GT = new(PerInstanceData) FInstanceData_GameThread();
 	InstanceData_GT->EmitterInstance = EmitterBinding.Resolve(SystemInstance, this);
-	if (InstanceData_GT->EmitterInstance && InstanceData_GT->EmitterInstance->GetCachedEmitterData())
+	if (InstanceData_GT->EmitterInstance)
 	{
-		InstanceData_GT->bLocalSpace = InstanceData_GT->EmitterInstance->GetCachedEmitterData()->bLocalSpace;
+		InstanceData_GT->bLocalSpace = InstanceData_GT->EmitterInstance->IsLocalSpace();
 	}
 
 	if ( IsUsedWithGPUScript() )

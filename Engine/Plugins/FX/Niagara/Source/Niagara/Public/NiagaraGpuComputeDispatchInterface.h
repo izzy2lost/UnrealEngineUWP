@@ -29,6 +29,8 @@ class FNiagaraSystemGpuComputeProxy;
 class FNiagaraGpuComputeDispatchInterface : public FFXSystemInterface
 {
 public:
+	DECLARE_EVENT_OneParam(FNiagaraGpuComputeDispatchInterface, FOnPostPreRenderEvent, FRDGBuilder&);
+
 	static NIAGARA_API FNiagaraGpuComputeDispatchInterface* Get(class UWorld* World);
 	static NIAGARA_API FNiagaraGpuComputeDispatchInterface* Get(class FSceneInterface* Scene);
 	static NIAGARA_API FNiagaraGpuComputeDispatchInterface* Get(class FFXSystemInterface* FXSceneInterface);
@@ -180,6 +182,11 @@ public:
 	FORCEINLINE void MultiGPUResourceModified(FRHICommandList& RHICmdList, FRHITexture* Texture, bool bRequiredForSimulation, bool bRequiredForRendering) const {}
 #endif
 
+	/** Event that broadcast before any rendering work is prepared / executed for Niagara. */
+	FOnPostPreRenderEvent& GetOnPreRenderEvent() { return OnPreRenderEvent; }
+	/** Event that broadcast after all rendering for Niagara is complete. */
+	FOnPostPreRenderEvent& GetOnPostRenderEvent() { return OnPostRenderEvent; }
+
 protected:
 	EShaderPlatform							ShaderPlatform;
 	ERHIFeatureLevel::Type					FeatureLevel;
@@ -199,4 +206,7 @@ protected:
 	bool									bIsOutsideSceneRenderer = false;
 	bool									bIsFirstViewFamily = true;
 	bool									bIsLastViewFamily = true;
+
+	FOnPostPreRenderEvent					OnPreRenderEvent;
+	FOnPostPreRenderEvent					OnPostRenderEvent;
 };

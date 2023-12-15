@@ -16,6 +16,8 @@
 #include "NiagaraDataChannelHandler.h"
 #include "NiagaraDataChannelManager.h"
 
+#include "NiagaraEmitterInstanceImpl.h"
+
 #include "NiagaraRenderer.h"
 #include "NiagaraGPUSystemTick.h"
 
@@ -577,7 +579,11 @@ void UNiagaraDataInterfaceDataChannelRead::PostStageTick(FNDICpuPostStageContext
 					{
 						SpawnInfo.SpawnGroup = i;
 					}
-					TargetEmitter->GetSpawnInfo().Emplace(SpawnInfo);
+					//-TODO:Stateless:
+					if (FNiagaraEmitterInstanceImpl* StatefulEmitter = TargetEmitter->AsStateful())
+					{
+						StatefulEmitter->GetSpawnInfo().Emplace(SpawnInfo);
+					}
 				}
 			}
 		}

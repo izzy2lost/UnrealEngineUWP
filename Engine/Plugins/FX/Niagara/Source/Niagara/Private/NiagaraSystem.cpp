@@ -30,6 +30,7 @@
 #include "NiagaraTrace.h"
 #include "NiagaraTypes.h"
 #include "NiagaraWorldManager.h"
+
 #include "Algo/RemoveIf.h"
 #include "Algo/StableSort.h"
 #include "HAL/LowLevelMemTracker.h"
@@ -385,7 +386,10 @@ TArray<INiagaraParameterDefinitionsSubscriber*> UNiagaraSystem::GetOwnedParamete
 	TArray<INiagaraParameterDefinitionsSubscriber*> OutSubscribers;
 	for (const FNiagaraEmitterHandle& EmitterHandle : GetEmitterHandles())
 	{
-		OutSubscribers.Add(EmitterHandle.GetInstance().Emitter);
+		if ( EmitterHandle.GetInstance().Emitter )
+		{
+			OutSubscribers.Add(EmitterHandle.GetInstance().Emitter);
+		}
 	}
 	return OutSubscribers;
 }
@@ -1958,6 +1962,11 @@ void UNiagaraSystem::ComputeRenderersDrawOrder()
 
 	for (const FNiagaraEmitterHandle& EmitterHandle : EmitterHandles)
 	{
+		if (!EmitterHandle.GetIsEnabled())
+		{
+			continue;
+		}
+
 		if (FVersionedNiagaraEmitterData* EmitterData = EmitterHandle.GetEmitterData())
 		{
 			EmitterData->ForEachEnabledRenderer(
@@ -2009,17 +2018,22 @@ void UNiagaraSystem::CacheFromCompiledData()
 	FNameBuilder ExecutionStateNameBuilder;
 	for (int32 i=0; i < EmitterHandles.Num(); ++i)
 	{
-		FNiagaraEmitterHandle& Handle = EmitterHandles[i];
-		FVersionedNiagaraEmitterData* EmitterData = Handle.GetEmitterData();
-		if (Handle.GetIsEnabled() && EmitterData)
+		FNiagaraEmitterHandle& EmitterHandle = EmitterHandles[i];
+		FNiagaraDataSetAccessor<ENiagaraExecutionState>& EmitterExecutionState = EmitterExecutionStateAccessors.AddDefaulted_GetRef();
+		if (!EmitterHandle.GetIsEnabled())
+		{
+			continue;
+		}
+
+		if (FVersionedNiagaraEmitterData* EmitterData = EmitterHandle.GetEmitterData())
 		{
 			// Cache system instance accessors
 			ExecutionStateNameBuilder.Reset();
-			ExecutionStateNameBuilder << Handle.GetInstance().Emitter->GetUniqueEmitterName();
+			ExecutionStateNameBuilder << EmitterHandle.GetInstance().Emitter->GetUniqueEmitterName();
 			ExecutionStateNameBuilder << TEXT(".ExecutionState");
 			const FName ExecutionStateName(ExecutionStateNameBuilder);
 
-			EmitterExecutionStateAccessors.AddDefaulted_GetRef().Init(SystemDataSet, ExecutionStateName);
+			EmitterExecutionState.Init(SystemDataSet, ExecutionStateName);
 
 			// Cache emitter data set accessors, for things like bounds, etc
 			const FNiagaraDataSetCompiledData* DataSetCompiledData = nullptr;
@@ -2037,10 +2051,10 @@ void UNiagaraSystem::CacheFromCompiledData()
 					MaxDeltaTime = MaxDeltaTime.IsSet() ? FMath::Min(MaxDeltaTime.GetValue(), NiagaraSettings->MaxDeltaTimePerTick) : NiagaraSettings->MaxDeltaTimePerTick;
 				}
 			}
-			Handle.GetInstance().Emitter->ConditionalPostLoad();
-			EmitterData->CacheFromCompiledData(DataSetCompiledData, *Handle.GetInstance().Emitter);
+			EmitterHandle.GetInstance().Emitter->ConditionalPostLoad();
+			EmitterData->CacheFromCompiledData(DataSetCompiledData, *EmitterHandle.GetInstance().Emitter);
 
-			PSOPrecacheEvents.Append(EmitterData->PrecacheComputePSOs(*Handle.GetInstance().Emitter));
+			PSOPrecacheEvents.Append(EmitterData->PrecacheComputePSOs(*EmitterHandle.GetInstance().Emitter));
 
 			// Allow data interfaces to cache static buffers
 			UNiagaraScript* NiagaraEmitterScripts[] =
@@ -2069,16 +2083,12 @@ void UNiagaraSystem::CacheFromCompiledData()
 						{
 							if (DataInterfaceInfo.bIsInternal == false)
 							{
-								DataInterfaceGpuUsage.Add(DataInterfaceInfo.ParameterStoreVariable.GetName());
+								DataInterfaceGpuUsage.Add(DataInterfaceInfo.ParameterStoreVariable.GetName()); 
 							}
 						}
 					}
 				}
 			}
-		}
-		else
-		{
-			EmitterExecutionStateAccessors.AddDefaulted();
 		}
 	}
 
@@ -2987,10 +2997,11 @@ void UNiagaraSystem::PrepareRapidIterationParametersForCompilation()
 	for (int32 i = 0; i < GetEmitterHandles().Num(); i++)
 	{
 		const FNiagaraEmitterHandle& Handle = GetEmitterHandle(i);
-		if (Handle.GetIsEnabled()) // Don't pull in the emitter if it isn't going to be used.
+		FVersionedNiagaraEmitterData* EmitterData = Handle.GetEmitterData();
+		if (Handle.GetIsEnabled() && EmitterData) // Don't pull in the emitter if it isn't going to be used.
 		{
 			TArray<UNiagaraScript*> EmitterScripts;
-			Handle.GetEmitterData()->GetScripts(EmitterScripts, false, true);
+			EmitterData->GetScripts(EmitterScripts, false, true);
 
 			for (int32 ScriptIdx = 0; ScriptIdx < EmitterScripts.Num(); ScriptIdx++)
 			{

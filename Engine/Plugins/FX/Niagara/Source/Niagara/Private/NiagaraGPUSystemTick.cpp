@@ -2,6 +2,7 @@
 
 #include "NiagaraGPUSystemTick.h"
 #include "NiagaraEmitterInstance.h"
+#include "NiagaraEmitterInstanceImpl.h"
 #include "NiagaraSystemInstance.h"
 #include "NiagaraSystem.h"
 
@@ -123,17 +124,20 @@ void FNiagaraGPUSystemTick::Init(FNiagaraSystemInstance* InSystemInstance)
 		const uint32 EmitterIdx = EmiterExecIndex.EmitterIndex;
 		if (FNiagaraEmitterInstance* EmitterInstance = &InSystemInstance->GetEmitters()[EmitterIdx].Get())
 		{
-			if (EmitterInstance->IsComplete() )
+			if ( EmitterInstance->IsComplete() )
 			{
 				continue;
 			}
 
-			const FVersionedNiagaraEmitterData* EmitterData = EmitterInstance->GetCachedEmitterData();
+			//-TODO:Stateless:
+			FNiagaraEmitterInstanceImpl* EmitterInstanceImpl = EmitterInstance->AsStateful();
+			if (!EmitterInstanceImpl)
+			{
+				continue;
+			}
+
 			FNiagaraComputeExecutionContext* GPUContext = EmitterInstance->GetGPUContext();
-
-			check(EmitterData);
-
-			if (!EmitterData || !GPUContext || EmitterData->SimTarget != ENiagaraSimTarget::GPUComputeSim)
+			if (!EmitterInstance->GetEmitter() || !GPUContext || EmitterInstance->GetSimTarget() != ENiagaraSimTarget::GPUComputeSim)
 			{
 				continue;
 			}
@@ -141,7 +145,7 @@ void FNiagaraGPUSystemTick::Init(FNiagaraSystemInstance* InSystemInstance)
 			// Handle edge case where an emitter was set to inactive on the first frame by scalability
 			// In which case it will never have ticked so we should not execute a GPU tick for this until it becomes active
 			// See FNiagaraSystemInstance::Tick_Concurrent for details
-			if (EmitterInstance->HasTicked() == false)
+			if (EmitterInstanceImpl->HasTicked() == false)
 			{
 				ensure((EmitterInstance->GetExecutionState() == ENiagaraExecutionState::Inactive) || (EmitterInstance->GetExecutionState() == ENiagaraExecutionState::InactiveClear));
 				continue;

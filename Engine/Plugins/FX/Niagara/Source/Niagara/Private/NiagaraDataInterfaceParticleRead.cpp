@@ -443,12 +443,11 @@ bool UNiagaraDataInterfaceParticleRead::InitPerInstanceData(void* PerInstanceDat
 
 	if ( UNiagaraEmitter* OwnerEmitter = EmitterBinding.Resolve(this) )
 	{
-		for (TSharedPtr<FNiagaraEmitterInstance, ESPMode::ThreadSafe> EmitterInstance : SystemInstance->GetEmitters())
+		for (const FNiagaraEmitterInstanceRef& EmitterInstance : SystemInstance->GetEmitters())
 		{
-			const FVersionedNiagaraEmitter& CachedEmitter = EmitterInstance->GetCachedEmitter();
-			if (OwnerEmitter == CachedEmitter.Emitter)
+			if (OwnerEmitter == EmitterInstance->GetEmitter())
 			{
-				PIData->EmitterInstance = EmitterInstance.Get();
+				PIData->EmitterInstance = &EmitterInstance.Get();
 				break;
 			}
 		}
@@ -1037,7 +1036,7 @@ void UNiagaraDataInterfaceParticleRead::GetVMExternalFunction(const FVMExternalF
 	TArrayView<const FNiagaraVariableBase> EmitterVariables;
 	if (PIData->EmitterInstance)
 	{
-		EmitterVariables = PIData->EmitterInstance->GetData().GetVariables();
+		EmitterVariables = PIData->EmitterInstance->GetParticleData().GetVariables();
 	}
 
 	const FName AttributeToRead = FunctionSpecifier->Value;
@@ -1185,8 +1184,8 @@ void UNiagaraDataInterfaceParticleRead::GetVMExternalFunction(const FVMExternalF
 
 	if (!bBindSuccessful)
 	{
-		UNiagaraSystem* NiagaraSystem = PIData->SystemInstance ? PIData->SystemInstance->GetSystem() : nullptr;
-		UNiagaraEmitter* NiagaraEmitter = PIData->EmitterInstance ? PIData->EmitterInstance->GetCachedEmitter().Emitter : nullptr;
+		const UNiagaraSystem* NiagaraSystem = PIData->SystemInstance ? PIData->SystemInstance->GetSystem() : nullptr;
+		const UNiagaraEmitter* NiagaraEmitter = PIData->EmitterInstance ? PIData->EmitterInstance->GetEmitter() : nullptr;
 		UE_LOG(LogNiagara, Warning, TEXT("ParticleRead: Failed to '%s' attribute '%s' System '%s' Emitter '%s'! Check that the attribute is named correctly."), *BindingInfo.Name.ToString(), *AttributeToRead.ToString(), *GetNameSafe(NiagaraSystem), *EmitterBinding.ResolveUniqueName(this));
 	}
 }
@@ -1197,8 +1196,7 @@ void UNiagaraDataInterfaceParticleRead::VMGetLocalSpace(FVectorVMExternalFunctio
 	FNDIOutputParam<bool> OutIsLocalSpace(Context);
 
 	const FNiagaraEmitterInstance* EmitterInstance = InstData.Get()->EmitterInstance;
-	FVersionedNiagaraEmitterData* EmitterData = EmitterInstance ? EmitterInstance->GetCachedEmitterData() : nullptr;
-	const bool bIsLocalSpace = EmitterData ? EmitterData->bLocalSpace : false;
+	const bool bIsLocalSpace = EmitterInstance->IsLocalSpace();
 
 	for (int32 InstanceIdx = 0; InstanceIdx < Context.GetNumInstances(); ++InstanceIdx)
 	{
@@ -1212,7 +1210,7 @@ void UNiagaraDataInterfaceParticleRead::GetNumSpawnedParticles(FVectorVMExternal
 	VectorVM::FExternalFuncRegisterHandler<int32> OutNumSpawned(Context);
 
 	const FNiagaraEmitterInstance* EmitterInstance = InstData.Get()->EmitterInstance;
-	const FNiagaraDataBuffer* CurrentData = EmitterInstance ? EmitterInstance->GetData().GetCurrentData() : nullptr;
+	const FNiagaraDataBuffer* CurrentData = EmitterInstance ? EmitterInstance->GetParticleData().GetCurrentData() : nullptr;
 	const int32 NumSpawned = CurrentData ? CurrentData->GetNumSpawnedInstances() : 0;
 
 	for (int32 InstanceIdx = 0; InstanceIdx < Context.GetNumInstances(); ++InstanceIdx)
@@ -1229,7 +1227,7 @@ static const int32* GetSpawnedIDs(FVectorVMExternalFunctionContext& Context, FNi
 		return nullptr;
 	}
 
-	const FNiagaraDataSet& DataSet = EmitterInstance->GetData();
+	const FNiagaraDataSet& DataSet = EmitterInstance->GetParticleData();
 
 #if VECTORVM_SUPPORTS_EXPERIMENTAL && VECTORVM_SUPPORTS_LEGACY
 	if (Context.UsingExperimentalVM)
@@ -1283,7 +1281,7 @@ void UNiagaraDataInterfaceParticleRead::GetSpawnedIDAtIndex(FVectorVMExternalFun
 	int32 NumSpawned = 0;
 	const int32* SpawnedIDs = GetSpawnedIDs(Context, EmitterInstance, NumSpawned);
 
-	int32 IDAcquireTag = EmitterInstance ? EmitterInstance->GetData().GetIDAcquireTag() : 0;
+	int32 IDAcquireTag = EmitterInstance ? EmitterInstance->GetParticleData().GetIDAcquireTag() : 0;
 
 	for (int32 InstanceIdx = 0; InstanceIdx < Context.GetNumInstances(); ++InstanceIdx)
 	{
@@ -1316,7 +1314,7 @@ void UNiagaraDataInterfaceParticleRead::GetNumParticles(FVectorVMExternalFunctio
 	VectorVM::FExternalFuncRegisterHandler<int32> OutNumParticles (Context);
 
 	const FNiagaraEmitterInstance* EmitterInstance = InstData.Get()->EmitterInstance;
-	const FNiagaraDataBuffer* CurrentData = EmitterInstance ? EmitterInstance->GetData().GetCurrentData() : nullptr;
+	const FNiagaraDataBuffer* CurrentData = EmitterInstance ? EmitterInstance->GetParticleData().GetCurrentData() : nullptr;
 	const int32 NumParticles = CurrentData ? CurrentData->GetNumInstances() : 0;
 
 	for (int32 InstanceIdx = 0; InstanceIdx < Context.GetNumInstances(); ++InstanceIdx)
@@ -1333,7 +1331,7 @@ void UNiagaraDataInterfaceParticleRead::GetParticleIndex(FVectorVMExternalFuncti
 	VectorVM::FExternalFuncRegisterHandler<int32> OutIndex(Context);
 
 	const FNiagaraEmitterInstance* EmitterInstance = InstData.Get()->EmitterInstance;
-	const FNiagaraDataBuffer* CurrentData = EmitterInstance ? EmitterInstance->GetData().GetCurrentData() : nullptr;
+	const FNiagaraDataBuffer* CurrentData = EmitterInstance ? EmitterInstance->GetParticleData().GetCurrentData() : nullptr;
 
 	if (!CurrentData)
 	{
@@ -1344,7 +1342,7 @@ void UNiagaraDataInterfaceParticleRead::GetParticleIndex(FVectorVMExternalFuncti
 		return;
 	}
 
-	const auto IDData = FNiagaraDataSetAccessor<FNiagaraID>::CreateReader(EmitterInstance->GetData(), ParticleReadIDName);
+	const auto IDData = FNiagaraDataSetAccessor<FNiagaraID>::CreateReader(EmitterInstance->GetParticleData(), ParticleReadIDName);
 	const TArray<int32>& IDTable = CurrentData->GetIDTable();
 
 	for (int32 InstanceIdx = 0; InstanceIdx < Context.GetNumInstances(); ++InstanceIdx)
@@ -1377,7 +1375,7 @@ void UNiagaraDataInterfaceParticleRead::GetParticleIndexFromIDTable(FVectorVMExt
 	FNDIOutputParam<int32> OutParticleIndex(Context);
 
 	const FNiagaraEmitterInstance* EmitterInstance = InstData.Get()->EmitterInstance;
-	const FNiagaraDataBuffer* CurrentData = EmitterInstance ? EmitterInstance->GetData().GetCurrentData() : nullptr;
+	const FNiagaraDataBuffer* CurrentData = EmitterInstance ? EmitterInstance->GetParticleData().GetCurrentData() : nullptr;
 
 	if ( !CurrentData )
 	{
@@ -1443,7 +1441,7 @@ FORCEINLINE void ReadWithCheck(FVectorVMExternalFunctionContext& Context, FName 
 	bool bWriteDummyData = true;
 	if (FNiagaraEmitterInstance* EmitterInstance = Params.GetEmitterInstance())
 	{
-		const FNiagaraDataBuffer* CurrentData = EmitterInstance->GetData().GetCurrentData();//TODO: We should really be grabbing this in the instance data tick and adding a read ref to it.
+		const FNiagaraDataBuffer* CurrentData = EmitterInstance->GetParticleData().GetCurrentData();//TODO: We should really be grabbing this in the instance data tick and adding a read ref to it.
 		if (CurrentData && EmitterInstance->GetGPUContext() == nullptr)
 		{
 			const TArray<int32>& IDTable = CurrentData->GetIDTable();
@@ -1451,8 +1449,8 @@ FORCEINLINE void ReadWithCheck(FVectorVMExternalFunctionContext& Context, FName 
 
 			if (IDTable.Num() > 0)
 			{
-				const auto ValueData = FNiagaraDataSetAccessor<T>::CreateReader(EmitterInstance->GetData(), AttributeToRead);
-				const auto IDData = FNiagaraDataSetAccessor<FNiagaraID>::CreateReader(EmitterInstance->GetData(), ParticleReadIDName);
+				const auto ValueData = FNiagaraDataSetAccessor<T>::CreateReader(EmitterInstance->GetParticleData(), AttributeToRead);
+				const auto IDData = FNiagaraDataSetAccessor<FNiagaraID>::CreateReader(EmitterInstance->GetParticleData(), ParticleReadIDName);
 
 				if (IDData.IsValid() && ValueData.IsValid())
 				{
@@ -1583,12 +1581,12 @@ FORCEINLINE void ReadByIndexWithCheck(FVectorVMExternalFunctionContext& Context,
 	bool bWriteDummyData = true;
 	if (FNiagaraEmitterInstance* EmitterInstance = Params.GetEmitterInstance())
 	{
-		const FNiagaraDataBuffer* CurrentData = EmitterInstance->GetData().GetCurrentData();//TODO: We should really be grabbing these during instance data tick and adding a read ref. Releasing that on PostTick.
+		const FNiagaraDataBuffer* CurrentData = EmitterInstance->GetParticleData().GetCurrentData();//TODO: We should really be grabbing these during instance data tick and adding a read ref. Releasing that on PostTick.
 		if (CurrentData && CurrentData->GetNumInstances() > 0 && EmitterInstance->GetGPUContext() == nullptr)
 		{
 			int32 NumSourceInstances = (int32)CurrentData->GetNumInstances();
 
-			const auto ValueData = FNiagaraDataSetAccessor<T>::CreateReader(EmitterInstance->GetData(), AttributeToRead);
+			const auto ValueData = FNiagaraDataSetAccessor<T>::CreateReader(EmitterInstance->GetParticleData(), AttributeToRead);
 			if (ValueData.IsValid())
 			{
 				bWriteDummyData = false;

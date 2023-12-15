@@ -154,7 +154,7 @@ FNiagaraDynamicDataBase* FNiagaraRendererVolumes::GenerateDynamicData(const FNia
 			return nullptr;
 		}
 
-		FNiagaraDataBuffer* DataToRender = Emitter->GetData().GetCurrentData();
+		FNiagaraDataBuffer* DataToRender = Emitter->GetParticleData().GetCurrentData();
 		if (!DataToRender || DataToRender->GetNumInstances() == 0)
 		{
 			return nullptr;

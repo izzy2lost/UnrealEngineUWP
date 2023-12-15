@@ -695,7 +695,7 @@ FNiagaraRendererRibbons::FNiagaraRendererRibbons(ERHIFeatureLevel::Type FeatureL
 	const UNiagaraRibbonRendererProperties* Properties = CastChecked<const UNiagaraRibbonRendererProperties>(InProps);
 
 	int32 IgnoredFloatOffset, IgnoredHalfOffset;
-	Emitter->GetData().GetVariableComponentOffsets(Properties->RibbonIdBinding.GetDataSetBindableVariable(), IgnoredFloatOffset, RibbonIDParamDataSetOffset, IgnoredHalfOffset);
+	Emitter->GetParticleData().GetVariableComponentOffsets(Properties->RibbonIdBinding.GetDataSetBindableVariable(), IgnoredFloatOffset, RibbonIDParamDataSetOffset, IgnoredHalfOffset);
 
 	// Check we actually have ribbon id if we claim we do
 	check(!GenerationConfig.HasRibbonIDs() || RibbonIDParamDataSetOffset != INDEX_NONE);
@@ -911,7 +911,7 @@ FNiagaraDynamicDataBase* FNiagaraRendererRibbons::GenerateDynamicData(const FNia
 			return nullptr;
 		}
 
-		FNiagaraDataBuffer* DataToRender = Emitter->GetData().GetCurrentData();		
+		FNiagaraDataBuffer* DataToRender = Emitter->GetParticleData().GetCurrentData();
 		if(SimTarget == ENiagaraSimTarget::GPUComputeSim || (DataToRender != nullptr && DataToRender->GetNumInstances() > 1))
 		{
 			DynamicData = new FNiagaraDynamicDataRibbon(Emitter);
@@ -936,12 +936,16 @@ FNiagaraDynamicDataBase* FNiagaraRendererRibbons::GenerateDynamicData(const FNia
 			
 			DynamicData->bUseGPUInit = bIsGPUSystem || bWantsGPUInit;
 			DynamicData->bIsGPUSystem = bIsGPUSystem;
-			DynamicData->MaxAllocationCount = Emitter->GetData().GetMaxAllocationCount();
-			DynamicData->MaxAllocatedCountEstimate = FMath::Min<uint32>(Emitter->GetCachedEmitterData()->GetMaxParticleCountEstimate(), DynamicData->MaxAllocationCount);
+			DynamicData->MaxAllocationCount = Emitter->GetParticleData().GetMaxAllocationCount();
+			DynamicData->MaxAllocatedCountEstimate = 0;
+			if (FVersionedNiagaraEmitterData* EmitterData = Emitter->GetVersionedEmitter().GetEmitterData())
+			{
+				DynamicData->MaxAllocatedCountEstimate = FMath::Min<uint32>(EmitterData->GetMaxParticleCountEstimate(), DynamicData->MaxAllocatedCountEstimate);
+			}
 			
 			if (!DynamicData->bUseGPUInit)
 			{
-				const FNiagaraGenerationInputDataCPUAccessors CPUData(Properties, Emitter->GetData());
+				const FNiagaraGenerationInputDataCPUAccessors CPUData(Properties, Emitter->GetParticleData());
 				
 				DynamicData->GenerationOutput = MakeShared<FNiagaraRibbonCPUGeneratedVertexData>();
 

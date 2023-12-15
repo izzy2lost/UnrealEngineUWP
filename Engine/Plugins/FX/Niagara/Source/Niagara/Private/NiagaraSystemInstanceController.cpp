@@ -107,31 +107,29 @@ void FNiagaraSystemInstanceController::GetUsedMaterials(TArray<UMaterialInterfac
 		return;
 	}
 
-	for (TSharedRef<FNiagaraEmitterInstance, ESPMode::ThreadSafe> EmitterInst : SystemInstance->GetEmitters())
+	for (const FNiagaraEmitterInstanceRef& EmitterInst : SystemInstance->GetEmitters())
 	{
-		if (FVersionedNiagaraEmitterData* EmitterData = EmitterInst->GetCachedEmitterData())
-		{
-			EmitterData->ForEachEnabledRenderer(
-				[&](UNiagaraRendererProperties* Properties)
-				{
-					TArray<UMaterialInterface*> Mats;
-					Properties->GetUsedMaterials(&EmitterInst.Get(), Mats);
+		EmitterInst->ForEachEnabledRenderer(
+			[&](const UNiagaraRendererProperties* Properties)
+			{
+				bool bCreateMidsForUsedMaterials = Properties->NeedsMIDsForMaterials();
+				TArray<UMaterialInterface*> Mats;
+				Properties->GetUsedMaterials(&EmitterInst.Get(), Mats);
 
-					if (Properties->NeedsMIDsForMaterials())
+				if (Properties->NeedsMIDsForMaterials())
+				{
+					for (const FMaterialOverride& Override : EmitterMaterials)
 					{
-						for (const FMaterialOverride& Override : EmitterMaterials)
+						if (Override.EmitterRendererProperty == Properties && Mats.IsValidIndex(Override.MaterialSubIndex))
 						{
-							if (Override.EmitterRendererProperty == Properties && Mats.IsValidIndex(Override.MaterialSubIndex))
-							{
-								Mats[Override.MaterialSubIndex] = Override.Material;
-							}
+							Mats[Override.MaterialSubIndex] = Override.Material;
 						}
 					}
-
-					OutMaterials.Append(Mats);
 				}
-			);
-		}
+
+				OutMaterials.Append(Mats);
+			}
+		);
 	}
 }
 
@@ -142,51 +140,48 @@ void FNiagaraSystemInstanceController::GetMaterialStreamingInfo(FNiagaraMaterial
 		return;
 	}
 
-	for (const TSharedRef<FNiagaraEmitterInstance, ESPMode::ThreadSafe>& EmitterInst : SystemInstance->GetEmitters())
+	for (const FNiagaraEmitterInstanceRef& EmitterInst : SystemInstance->GetEmitters())
 	{
-		if (FVersionedNiagaraEmitterData* EmitterData = EmitterInst->GetCachedEmitterData())
-		{
-			EmitterData->ForEachEnabledRenderer(
-				[&](UNiagaraRendererProperties* Properties)
+		EmitterInst->ForEachEnabledRenderer(
+			[&](UNiagaraRendererProperties* Properties)
+			{
+				TArray<UMaterialInterface*> UsedMaterials;
+				Properties->GetUsedMaterials(&EmitterInst.Get(), UsedMaterials);
+				if (UsedMaterials.Num() == 0)
 				{
-					TArray<UMaterialInterface*> UsedMaterials;
-					Properties->GetUsedMaterials(&EmitterInst.Get(), UsedMaterials);
-					if (UsedMaterials.Num() == 0)
-					{
-						return;
-					}
+					return;
+				}
 
-					if (Properties->NeedsMIDsForMaterials())
+				if (Properties->NeedsMIDsForMaterials())
+				{
+					for (const FMaterialOverride& Override : EmitterMaterials)
 					{
-						for (const FMaterialOverride& Override : EmitterMaterials)
+						if (Override.EmitterRendererProperty == Properties && UsedMaterials.IsValidIndex(Override.MaterialSubIndex))
 						{
-							if (Override.EmitterRendererProperty == Properties && UsedMaterials.IsValidIndex(Override.MaterialSubIndex))
-							{
-								UsedMaterials[Override.MaterialSubIndex] = Override.Material;
-							}
-						}
-					}
-
-					const float StreamingScale = Properties->GetMaterialStreamingScale();
-					for (UMaterialInterface* UsedMaterial : UsedMaterials)
-					{
-						if (UsedMaterial == nullptr)
-						{
-							continue;
-						}
-
-						if (FNiagaraMaterialAndScale* Existing = OutMaterialAndScales.FindByPredicate([UsedMaterial](const FNiagaraMaterialAndScale& Existing) { return Existing.Material == UsedMaterial; }))
-						{
-							Existing->Scale = FMath::Max(Existing->Scale, StreamingScale);
-						}
-						else
-						{
-							OutMaterialAndScales.Emplace(UsedMaterial, StreamingScale);
+							UsedMaterials[Override.MaterialSubIndex] = Override.Material;
 						}
 					}
 				}
-			);
-		}
+
+				const float StreamingScale = Properties->GetMaterialStreamingScale();
+				for (UMaterialInterface* UsedMaterial : UsedMaterials)
+				{
+					if (UsedMaterial == nullptr)
+					{
+						continue;
+					}
+
+					if (FNiagaraMaterialAndScale* Existing = OutMaterialAndScales.FindByPredicate([UsedMaterial](const FNiagaraMaterialAndScale& Existing) { return Existing.Material == UsedMaterial; }))
+					{
+						Existing->Scale = FMath::Max(Existing->Scale, StreamingScale);
+					}
+					else
+					{
+						OutMaterialAndScales.Emplace(UsedMaterial, StreamingScale);
+					}
+				}
+			}
+		);
 	}
 }
 
@@ -197,15 +192,14 @@ void FNiagaraSystemInstanceController::GetStreamingMeshInfo(const FBoxSphereBoun
 		return;
 	}
 
-	for (TSharedRef<FNiagaraEmitterInstance, ESPMode::ThreadSafe> EmitterInst : SystemInstance->GetEmitters())
+	for (const FNiagaraEmitterInstanceRef& EmitterInst : SystemInstance->GetEmitters())
 	{
-		if (FVersionedNiagaraEmitterData* EmitterData = EmitterInst->GetCachedEmitter().GetEmitterData())
-		{
-			EmitterData->ForEachEnabledRenderer([&](UNiagaraRendererProperties* Properties)
+		EmitterInst->ForEachEnabledRenderer(
+			[&](const UNiagaraRendererProperties* Properties)
 			{
 				Properties->GetStreamingMeshInfo(OwnerBounds, &EmitterInst.Get(), OutStreamingRenderAssets);
-			});
-		}
+			}
+		);
 	}
 }
 
@@ -231,9 +225,9 @@ void FNiagaraSystemInstanceController::DebugDump(bool bFullDump)
 
 		if (!SystemInstance->IsComplete())
 		{
-			for (TSharedRef<FNiagaraEmitterInstance, ESPMode::ThreadSafe> Emitter : SystemInstance->GetEmitters())
+			for (const FNiagaraEmitterInstanceRef& Emitter : SystemInstance->GetEmitters())
 			{
-				if ( Emitter->GetCachedEmitter().Emitter != nullptr )
+				if ( Emitter->GetEmitter() != nullptr )
 				{
 					UE_LOG(LogNiagara, Log, TEXT("\tEmitter '%s' ExecutionState(%s) NumParticles(%d)"), *Emitter->GetEmitterHandle().GetUniqueInstanceName(), *ExecutionStateEnum->GetNameStringByIndex((int32)Emitter->GetExecutionState()), Emitter->GetNumParticles());
 				}
@@ -254,12 +248,9 @@ SIZE_T FNiagaraSystemInstanceController::GetTotalBytesUsed() const
 	SIZE_T Size = 0;
 	if (IsValid())
 	{
-		for (const TSharedRef<FNiagaraEmitterInstance, ESPMode::ThreadSafe>& Emitter : GetSystemInstance_Unsafe()->GetEmitters())
+		for (const FNiagaraEmitterInstanceRef& Emitter : GetSystemInstance_Unsafe()->GetEmitters())
 		{
-			if (Emitter->GetCachedEmitter().Emitter != nullptr)
-			{
-				Size += Emitter->GetTotalBytesUsed();
-			}
+			Size += Emitter->GetTotalBytesUsed();
 		}
 	}
 
@@ -286,55 +277,52 @@ void FNiagaraSystemInstanceController::UpdateEmitterMaterials()
 		for (int32 i = 0; i < SystemInstance->GetEmitters().Num(); i++)
 		{
 			FNiagaraEmitterInstance* EmitterInst = &SystemInstance->GetEmitters()[i].Get();
-			if (FVersionedNiagaraEmitterData* EmitterData = EmitterInst->GetCachedEmitterData())
-			{
-				EmitterData->ForEachEnabledRenderer(
-					[&](UNiagaraRendererProperties* Properties)
+			EmitterInst->ForEachEnabledRenderer(
+				[&](const UNiagaraRendererProperties* Properties)
+				{
+					// Nothing to do if we don't create MIDs for this material
+					if (!Properties->NeedsMIDsForMaterials())
 					{
-						// Nothing to do if we don't create MIDs for this material
-						if (!Properties->NeedsMIDsForMaterials())
-						{
-							return;
-						}
-
-						TArray<UMaterialInterface*> UsedMaterials;
-						Properties->GetUsedMaterials(EmitterInst, UsedMaterials);
-
-						uint32 MaterialIndex = 0;
-						for (UMaterialInterface*& ExistingMaterial : UsedMaterials)
-						{
-							if (ExistingMaterial)
-							{
-								if (UMaterialInstanceDynamic* MID = Cast<UMaterialInstanceDynamic>(ExistingMaterial))
-								{
-									if (EmitterMaterials.FindByPredicate([&](const FMaterialOverride& ExistingOverride) -> bool { return (ExistingOverride.Material == ExistingMaterial) && (ExistingOverride.EmitterRendererProperty == Properties) && (ExistingOverride.MaterialSubIndex == MaterialIndex); }))
-									{
-										// It's a MID we've previously created and are managing. Recreate it by grabbing the parent.
-										// TODO: Are there cases where we don't always have to recreate it?
-										ExistingMaterial = MID->Parent;
-									}
-									else
-									{
-										// If we get here this is an external MID so do not create a new one
-										continue;
-									}
-								}
-
-								// Create a new MID
-								//UE_LOG(LogNiagara, Log, TEXT("Create Dynamic Material for component %s"), *GetPathName());
-								ExistingMaterial = UMaterialInstanceDynamic::Create(ExistingMaterial, nullptr);
-								FMaterialOverride Override;
-								Override.Material = ExistingMaterial;
-								Override.EmitterRendererProperty = Properties;
-								Override.MaterialSubIndex = MaterialIndex;
-
-								NewEmitterMaterials.Add(Override);
-							}
-							++MaterialIndex;
-						}
+						return;
 					}
-				);
-			}
+
+					TArray<UMaterialInterface*> UsedMaterials;
+					Properties->GetUsedMaterials(EmitterInst, UsedMaterials);
+
+					uint32 MaterialIndex = 0;
+					for (UMaterialInterface*& ExistingMaterial : UsedMaterials)
+					{
+						if (ExistingMaterial)
+						{
+							if (UMaterialInstanceDynamic* MID = Cast<UMaterialInstanceDynamic>(ExistingMaterial))
+							{
+								if (EmitterMaterials.FindByPredicate([&](const FMaterialOverride& ExistingOverride) -> bool { return (ExistingOverride.Material == ExistingMaterial) && (ExistingOverride.EmitterRendererProperty == Properties) && (ExistingOverride.MaterialSubIndex == MaterialIndex); }))
+								{
+									// It's a MID we've previously created and are managing. Recreate it by grabbing the parent.
+									// TODO: Are there cases where we don't always have to recreate it?
+									ExistingMaterial = MID->Parent;
+								}
+								else
+								{
+									// If we get here this is an external MID so do not create a new one
+									continue;
+								}
+							}
+
+							// Create a new MID
+							//UE_LOG(LogNiagara, Log, TEXT("Create Dynamic Material for component %s"), *GetPathName());
+							ExistingMaterial = UMaterialInstanceDynamic::Create(ExistingMaterial, nullptr);
+							FMaterialOverride Override;
+							Override.Material = ExistingMaterial;
+							Override.EmitterRendererProperty = Properties;
+							Override.MaterialSubIndex = MaterialIndex;
+
+							NewEmitterMaterials.Add(Override);
+						}
+						++MaterialIndex;
+					}
+				}
+			);
 		}
 	}
 	EmitterMaterials = MoveTemp(NewEmitterMaterials);

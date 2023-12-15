@@ -146,7 +146,7 @@ FNiagaraRendererMeshes::FNiagaraRendererMeshes(ERHIFeatureLevel::Type FeatureLev
 		LockedAxis.Set(0.0f, 0.0f, 1.0f);
 	}
 
-	const FNiagaraDataSet& Data = Emitter->GetData();
+	const FNiagaraDataSet& Data = Emitter->GetParticleData();
 
 	int32 FloatOffset;
 	int32 HalfOffset;
@@ -484,7 +484,7 @@ bool FNiagaraRendererMeshes::CalculateMeshUsed(FParticleMeshRenderData& Particle
 		return true;
 	}
 
-	if (ParticleMeshRenderData.DynamicDataMesh->GetSimTarget() != ENiagaraSimTarget::CPUSim)
+	if (SimTarget != ENiagaraSimTarget::CPUSim)
 	{
 		return true;
 	}
@@ -2032,7 +2032,7 @@ FNiagaraDynamicDataBase* FNiagaraRendererMeshes::GenerateDynamicData(const FNiag
 	}
 
 	
-	FNiagaraDataBuffer* DataToRender = Emitter->GetData().GetCurrentData();
+	FNiagaraDataBuffer* DataToRender = Emitter->GetParticleData().GetCurrentData();
 	if (!DataToRender || 
 		Meshes.Num() == 0 ||
 		(SourceMode == ENiagaraRendererSourceDataMode::Particles && SimTarget != ENiagaraSimTarget::GPUComputeSim && DataToRender->GetNumInstances() == 0))

@@ -2,6 +2,7 @@
 
 #include "NiagaraSystemSimulation.h"
 #include "NiagaraEmitterInstance.h"
+#include "NiagaraEmitterInstanceImpl.h"
 #include "NiagaraModule.h"
 #include "NiagaraTypes.h"
 #include "NiagaraParameterCollection.h"
@@ -1545,21 +1546,25 @@ void FNiagaraSystemSimulation::SimCachePostTick_Concurrent(float DeltaSeconds, c
 	{
 		FNiagaraSystemInstance& SystemInstance = *SystemInstances[iSystemInstance];
 
-		TArray<TSharedRef<FNiagaraEmitterInstance, ESPMode::ThreadSafe>>& Emitters = SystemInstance.GetEmitters();
+		TArrayView<FNiagaraEmitterInstanceRef> Emitters = SystemInstance.GetEmitters();
 		for (int32 iEmitter=0; iEmitter < Emitters.Num(); ++iEmitter)
 		{
 			FNiagaraEmitterInstance& EmitterInstance = Emitters[iEmitter].Get();
-			if ( EmitterInstance.IsComplete() )
+			if (EmitterInstance.IsComplete())
 			{
 				continue;
 			}
 
-			ENiagaraExecutionState State = EmitterExecutionStateAccessors[iEmitter].GetReader(MainDataSet).GetSafe(iSystemInstance, ENiagaraExecutionState::Disabled);
-			EmitterInstance.SetExecutionState(State);
-
 			//DataSetToEmitterSpawnParameters[iEmitter].DataSetToParameterStore(EmitterInstance.GetSpawnExecutionContext().Parameters, MainDataSet, iSystemInstance);
 			//DataSetToEmitterUpdateParameters[iEmitter].DataSetToParameterStore(EmitterInstance.GetUpdateExecutionContext().Parameters, MainDataSet, iSystemInstance);
 			DataSetToEmitterRendererParameters[iEmitter].DataSetToParameterStore(EmitterInstance.GetRendererBoundVariables(), MainDataSet, iSystemInstance);
+
+			//-TODO:Stateless:
+			if ( FNiagaraEmitterInstanceImpl* StatefulEmitter = EmitterInstance.AsStateful() )
+			{
+				const ENiagaraExecutionState State = EmitterExecutionStateAccessors[iEmitter].GetReader(MainDataSet).GetSafe(iSystemInstance, ENiagaraExecutionState::Disabled);
+				StatefulEmitter->SetExecutionState(State);
+			}
 		}
 	}
 }
@@ -1770,17 +1775,16 @@ void FNiagaraSystemSimulation::PrepareForSystemSimulate(FNiagaraSystemSimulation
 			UpdateInstanceParameterToDataSetBinding.ParameterStoreToDataSet(InstParameters, UpdateInstanceParameterDataSet, SystemIndex);
 		}
 
-		FNiagaraConstantBufferToDataSetBinding::CopyToDataSets(
-			Context.System->GetSystemCompiledData(), *Inst, SpawnInstanceParameterDataSet, UpdateInstanceParameterDataSet, SystemIndex);
+		FNiagaraConstantBufferToDataSetBinding::CopyToDataSets(Context.System->GetSystemCompiledData(), *Inst, SpawnInstanceParameterDataSet, UpdateInstanceParameterDataSet, SystemIndex);
 
 		//TODO: Find good way to check that we're not using any instance parameter data interfaces in the system scripts here.
 		//In that case we need to solo and will never get here.
 
-		TArray<TSharedRef<FNiagaraEmitterInstance, ESPMode::ThreadSafe>>& Emitters = Inst->GetEmitters();
+		TArrayView<FNiagaraEmitterInstanceRef> Emitters = Inst->GetEmitters();
 		for (int32 EmitterIdx = 0; EmitterIdx < Emitters.Num(); ++EmitterIdx)
 		{
 			FNiagaraEmitterInstance& EmitterInst = Emitters[EmitterIdx].Get();
-			if ( (EmitterExecutionStateAccessors.Num() > EmitterIdx) )
+			if ( EmitterExecutionStateAccessors.IsValidIndex(EmitterIdx) )
 			{
 				EmitterExecutionStateAccessors[EmitterIdx].GetWriter(Context.DataSet).SetSafe(SystemIndex, EmitterInst.GetExecutionState());
 			}
@@ -1996,65 +2000,69 @@ void FNiagaraSystemSimulation::TransferSystemSimResults(FNiagaraSystemSimulation
 		if (!SystemInst->IsDisabled())
 		{
 			//Now pull data out of the simulation and drive the emitters with it.
-			TArray<TSharedRef<FNiagaraEmitterInstance, ESPMode::ThreadSafe>>& Emitters = SystemInst->GetEmitters();
+			TArrayView<FNiagaraEmitterInstanceRef> Emitters = SystemInst->GetEmitters();
 			for (int32 EmitterIdx = 0; EmitterIdx < Emitters.Num(); ++EmitterIdx)
 			{
-				FNiagaraEmitterInstance& EmitterInst = Emitters[EmitterIdx].Get();
+				FNiagaraEmitterInstance& EmitterInstance = Emitters[EmitterIdx].Get();
 
 				//Early exit before we set the state as if we're complete or disabled we should never let the emitter turn itself back. It needs to be reset/reinited manually.
-				if (EmitterInst.IsComplete())
+				if (EmitterInstance.IsComplete())
 				{
 					continue;
 				}
 
 				check(Emitters.Num() > EmitterIdx);
 
-				ENiagaraExecutionState State = EmitterExecutionStateAccessors[EmitterIdx].GetReader(Context.DataSet).GetSafe(SystemIndex, ENiagaraExecutionState::Disabled);
-				EmitterInst.SetExecutionState(State);
+				DataSetToEmitterRendererParameters[EmitterIdx].DataSetToParameterStore(EmitterInstance.GetRendererBoundVariables(), Context.DataSet, SystemIndex);
 
-				TConstArrayView<FNiagaraDataSetAccessor<FNiagaraSpawnInfo>> EmitterSpawnInfoAccessors = System->GetEmitterSpawnInfoAccessors(EmitterIdx);
-				TArray<FNiagaraSpawnInfo>& EmitterInstSpawnInfos = EmitterInst.GetSpawnInfo();
-				for (int32 SpawnInfoIdx = 0; SpawnInfoIdx < EmitterSpawnInfoAccessors.Num(); ++SpawnInfoIdx)
+				//-TODO:Stateless:
+				if ( FNiagaraEmitterInstanceImpl* StatefulEmitter = EmitterInstance.AsStateful() )
 				{
-					if (SpawnInfoIdx < EmitterInstSpawnInfos.Num())
+					ENiagaraExecutionState State = EmitterExecutionStateAccessors[EmitterIdx].GetReader(Context.DataSet).GetSafe(SystemIndex, ENiagaraExecutionState::Disabled);
+					StatefulEmitter->SetExecutionState(State);
+
+					TConstArrayView<FNiagaraDataSetAccessor<FNiagaraSpawnInfo>> EmitterSpawnInfoAccessors = System->GetEmitterSpawnInfoAccessors(EmitterIdx);
+					TArray<FNiagaraSpawnInfo>& EmitterInstSpawnInfos = StatefulEmitter->GetSpawnInfo();
+					for (int32 SpawnInfoIdx = 0; SpawnInfoIdx < EmitterSpawnInfoAccessors.Num(); ++SpawnInfoIdx)
 					{
-						EmitterInstSpawnInfos[SpawnInfoIdx] = EmitterSpawnInfoAccessors[SpawnInfoIdx].GetReader(Context.DataSet).Get(SystemIndex);
+						if (SpawnInfoIdx < EmitterInstSpawnInfos.Num())
+						{
+							EmitterInstSpawnInfos[SpawnInfoIdx] = EmitterSpawnInfoAccessors[SpawnInfoIdx].GetReader(Context.DataSet).Get(SystemIndex);
+						}
+						else
+						{
+							ensure(SpawnInfoIdx < EmitterInstSpawnInfos.Num());
+						}
 					}
-					else
+
+					//TODO: Any other fixed function stuff like this?
+
+					FNiagaraScriptExecutionContext& SpawnContext = StatefulEmitter->GetSpawnExecutionContext();
+					DataSetToEmitterSpawnParameters[EmitterIdx].DataSetToParameterStore(SpawnContext.Parameters, Context.DataSet, SystemIndex);
+
+					FNiagaraScriptExecutionContext& UpdateContext = StatefulEmitter->GetUpdateExecutionContext();
+					DataSetToEmitterUpdateParameters[EmitterIdx].DataSetToParameterStore(UpdateContext.Parameters, Context.DataSet, SystemIndex);
+
+					FNiagaraComputeExecutionContext* GPUContext = StatefulEmitter->GetGPUContext();
+					if (GPUContext)
 					{
-						ensure(SpawnInfoIdx < EmitterInstSpawnInfos.Num());
+						DataSetToEmitterGPUParameters[EmitterIdx].DataSetToParameterStore(GPUContext->CombinedParamStore, Context.DataSet, SystemIndex);
+					}
+
+					TArrayView<FNiagaraScriptExecutionContext> EventContexts = StatefulEmitter->GetEventExecutionContexts();
+					for (int32 EventIdx = 0; EventIdx < EventContexts.Num(); ++EventIdx)
+					{
+						FNiagaraScriptExecutionContext& EventContext = EventContexts[EventIdx];
+						if (DataSetToEmitterEventParameters[EmitterIdx].Num() > EventIdx)
+						{
+							DataSetToEmitterEventParameters[EmitterIdx][EventIdx].DataSetToParameterStore(EventContext.Parameters, Context.DataSet, SystemIndex);
+						}
+						else
+						{
+							UE_LOG(LogNiagara, Log, TEXT("Skipping DataSetToEmitterEventParameters because EventIdx is out-of-bounds. %d of %d"), EventIdx, DataSetToEmitterEventParameters[EmitterIdx].Num());
+						}
 					}
 				}
-
-				//TODO: Any other fixed function stuff like this?
-
-				FNiagaraScriptExecutionContext& SpawnContext = EmitterInst.GetSpawnExecutionContext();
-				DataSetToEmitterSpawnParameters[EmitterIdx].DataSetToParameterStore(SpawnContext.Parameters, Context.DataSet, SystemIndex);
-
-				FNiagaraScriptExecutionContext& UpdateContext = EmitterInst.GetUpdateExecutionContext();
-				DataSetToEmitterUpdateParameters[EmitterIdx].DataSetToParameterStore(UpdateContext.Parameters, Context.DataSet, SystemIndex);
-
-				FNiagaraComputeExecutionContext* GPUContext = EmitterInst.GetGPUContext();
-				if (GPUContext)
-				{
-					DataSetToEmitterGPUParameters[EmitterIdx].DataSetToParameterStore(GPUContext->CombinedParamStore, Context.DataSet, SystemIndex);
-				}
-
-				TArrayView<FNiagaraScriptExecutionContext> EventContexts = EmitterInst.GetEventExecutionContexts();
-				for (int32 EventIdx = 0; EventIdx < EventContexts.Num(); ++EventIdx)
-				{
-					FNiagaraScriptExecutionContext& EventContext = EventContexts[EventIdx];
-					if (DataSetToEmitterEventParameters[EmitterIdx].Num() > EventIdx)
-					{
-						DataSetToEmitterEventParameters[EmitterIdx][EventIdx].DataSetToParameterStore(EventContext.Parameters, Context.DataSet, SystemIndex);
-					}
-					else
-					{
-						UE_LOG(LogNiagara, Log, TEXT("Skipping DataSetToEmitterEventParameters because EventIdx is out-of-bounds. %d of %d"), EventIdx, DataSetToEmitterEventParameters[EmitterIdx].Num());
-					}
-				}
-
-				DataSetToEmitterRendererParameters[EmitterIdx].DataSetToParameterStore(EmitterInst.GetRendererBoundVariables(), Context.DataSet, SystemIndex);
 			}
 		}
 	}
@@ -2190,7 +2198,7 @@ void FNiagaraSystemSimulation::InitParameterDataSetBindings(FNiagaraSystemInstan
 		SpawnInstanceParameterToDataSetBinding.Init(SpawnInstanceParameterDataSet, SystemInst->GetInstanceParameters());
 		UpdateInstanceParameterToDataSetBinding.Init(UpdateInstanceParameterDataSet, SystemInst->GetInstanceParameters());
 
-		TArray<TSharedRef<FNiagaraEmitterInstance, ESPMode::ThreadSafe>>& Emitters = SystemInst->GetEmitters();
+		TArrayView<FNiagaraEmitterInstanceRef> Emitters = SystemInst->GetEmitters();
 		const int32 EmitterCount = Emitters.Num();
 
 		DataSetToEmitterSpawnParameters.SetNum(EmitterCount);
@@ -2201,34 +2209,38 @@ void FNiagaraSystemSimulation::InitParameterDataSetBindings(FNiagaraSystemInstan
 
 		for (int32 EmitterIdx = 0; EmitterIdx < EmitterCount; ++EmitterIdx)
 		{
-			FNiagaraEmitterInstance& EmitterInst = Emitters[EmitterIdx].Get();
-			if (EmitterInst.IsDisabled())
+			FNiagaraEmitterInstance& EmitterInstance = Emitters[EmitterIdx].Get();
+			if (EmitterInstance.IsDisabled())
 			{
 				continue;
 			}
 
-			FNiagaraScriptExecutionContext& SpawnContext = EmitterInst.GetSpawnExecutionContext();
-			DataSetToEmitterSpawnParameters[EmitterIdx].Init(MainDataSet, SpawnContext.Parameters);
+			DataSetToEmitterRendererParameters[EmitterIdx].Init(MainDataSet, EmitterInstance.GetRendererBoundVariables());
 
-			FNiagaraScriptExecutionContext& UpdateContext = EmitterInst.GetUpdateExecutionContext();
-			DataSetToEmitterUpdateParameters[EmitterIdx].Init(MainDataSet, UpdateContext.Parameters);
-
-			FNiagaraComputeExecutionContext* GPUContext = EmitterInst.GetGPUContext();
-			if (GPUContext)
+			//-TODO:Stateless:
+			if (FNiagaraEmitterInstanceImpl* StatefulEmitter = EmitterInstance.AsStateful())
 			{
-				DataSetToEmitterGPUParameters[EmitterIdx].Init(MainDataSet, GPUContext->CombinedParamStore);
-			}
+				FNiagaraScriptExecutionContext& SpawnContext = StatefulEmitter->GetSpawnExecutionContext();
+				DataSetToEmitterSpawnParameters[EmitterIdx].Init(MainDataSet, SpawnContext.Parameters);
 
-			DataSetToEmitterRendererParameters[EmitterIdx].Init(MainDataSet, EmitterInst.GetRendererBoundVariables());
+				FNiagaraScriptExecutionContext& UpdateContext = StatefulEmitter->GetUpdateExecutionContext();
+				DataSetToEmitterUpdateParameters[EmitterIdx].Init(MainDataSet, UpdateContext.Parameters);
 
-			TArrayView<FNiagaraScriptExecutionContext> EventContexts = EmitterInst.GetEventExecutionContexts();
-			const int32 EventCount = EventContexts.Num();
-			DataSetToEmitterEventParameters[EmitterIdx].SetNum(EventCount);
+				FNiagaraComputeExecutionContext* GPUContext = StatefulEmitter->GetGPUContext();
+				if (GPUContext)
+				{
+					DataSetToEmitterGPUParameters[EmitterIdx].Init(MainDataSet, GPUContext->CombinedParamStore);
+				}
 
-			for (int32 EventIdx = 0; EventIdx < EventCount; ++EventIdx)
-			{
-				FNiagaraScriptExecutionContext& EventContext = EventContexts[EventIdx];
-				DataSetToEmitterEventParameters[EmitterIdx][EventIdx].Init(MainDataSet, EventContext.Parameters);
+				TArrayView<FNiagaraScriptExecutionContext> EventContexts = StatefulEmitter->GetEventExecutionContexts();
+				const int32 EventCount = EventContexts.Num();
+				DataSetToEmitterEventParameters[EmitterIdx].SetNum(EventCount);
+
+				for (int32 EventIdx = 0; EventIdx < EventCount; ++EventIdx)
+				{
+					FNiagaraScriptExecutionContext& EventContext = EventContexts[EventIdx];
+					DataSetToEmitterEventParameters[EmitterIdx][EventIdx].Init(MainDataSet, EventContext.Parameters);
+				}
 			}
 		}
 	}
@@ -2271,8 +2283,9 @@ void FNiagaraConstantBufferToDataSetBinding::CopyToDataSets(
 		ApplyOffsets(CompiledData.UpdateInstanceOwnerBinding, OwnerParameters, UpdateDataSet, DataSestInstanceIndex);
 	}
 
-	const auto& Emitters = SystemInstance.GetEmitters();
-	const int32 EmitterCount = Emitters.Num();
+	//-TODO:Stateless: Remove when we have them inside EmitterHandles
+	TConstArrayView<FNiagaraEmitterInstanceRef> Emitters = SystemInstance.GetEmitters();
+	const int32 EmitterCount = FMath::Min(Emitters.Num(), CompiledData.SpawnInstanceEmitterBindings.Num());
 
 	for (int32 EmitterIdx = 0; EmitterIdx < EmitterCount; ++EmitterIdx)
 	{

@@ -131,7 +131,7 @@ FNiagaraRendererSprites::FNiagaraRendererSprites(ERHIFeatureLevel::Type FeatureL
 	else
 	{
 		int32 FloatOffset, HalfOffset;
-		const FNiagaraDataSet& Data = Emitter->GetData();
+		const FNiagaraDataSet& Data = Emitter->GetParticleData();
 		Data.GetVariableComponentOffsets(Properties->RendererVisibilityTagBinding.GetDataSetBindableVariable(), FloatOffset, RendererVisTagOffset, HalfOffset);
 		bVisTagInParamStore = false;
 		bEnableCulling |= RendererVisTagOffset != INDEX_NONE;
@@ -1206,7 +1206,7 @@ FNiagaraDynamicDataBase *FNiagaraRendererSprites::GenerateDynamicData(const FNia
 			}
 		}
 
-		FNiagaraDataBuffer* DataToRender = Emitter->GetData().GetCurrentData();
+		FNiagaraDataBuffer* DataToRender = Emitter->GetParticleData().GetCurrentData();
 		if(SimTarget == ENiagaraSimTarget::GPUComputeSim || (DataToRender != nullptr &&  (SourceMode == ENiagaraRendererSourceDataMode::Emitter || (SourceMode == ENiagaraRendererSourceDataMode::Particles && DataToRender->GetNumInstances() > 0))))
 		{
 			DynamicData = new FNiagaraDynamicDataSprites(Emitter);

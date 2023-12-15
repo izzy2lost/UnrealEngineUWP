@@ -109,7 +109,7 @@ int32 GetGeometryCacheIndex(TOptional<int32> DefaultCacheIndex, bool bCreateRand
 		return INDEX_NONE;
 	}
 	int32 CacheIndex = DefaultCacheIndex.Get(INDEX_NONE);
-	if (CacheIndex == INDEX_NONE && Emitter->GetCachedEmitterData()->bDeterminism)
+	if (CacheIndex == INDEX_NONE && Emitter->IsDeterministic())
 	{
 		int32 Seed = Properties->bAssignComponentsOnParticleID ? ParticleID : ParticleIndex;
 		FRandomStream RandomStream = FRandomStream(Seed * 907633515U); // multiply the seed, otherwise we get very poor randomness for small seeds
@@ -171,7 +171,7 @@ UGeometryCacheComponent* FNiagaraRendererGeometryCache::CreateOrGetPooledCompone
 			GeometryComponent->SetLooping(Properties->bIsLooping);
 			GeometryComponent->SetManualTick(true); // we want to tick the component with the delta time of the niagara sim
 
-			if (Emitter->GetCachedEmitterData()->bLocalSpace)
+			if (Emitter->IsLocalSpace())
 			{
 				GeometryComponent->SetAbsolute(false, false, false);
 			}
@@ -228,7 +228,7 @@ void FNiagaraRendererGeometryCache::PostSystemTick_GameThread(const UNiagaraRend
 	}
 
 #if WITH_EDITORONLY_DATA
-	if (SystemInstance->GetIsolateEnabled() && !Emitter->GetEmitterHandle().IsIsolated())
+	if (Emitter->IsDisabledFromIsolation())
 	{
 		ResetComponentPool(true);
 		return;
@@ -258,12 +258,12 @@ void FNiagaraRendererGeometryCache::PostSystemTick_GameThread(const UNiagaraRend
 	const float DefaultElapsedTime = ParameterStore.GetParameterValueOrDefault(Properties->ElapsedTimeBinding.GetParamMapBindableVariable(), 0.0f);
 	const float CurrentTime = AttachComponent->GetWorld()->GetRealTimeSeconds();
 
-	const FNiagaraLWCConverter LwcConverter = SystemInstance->GetLWCConverter(Emitter->GetCachedEmitterData()->bLocalSpace);
+	const FNiagaraLWCConverter LwcConverter = SystemInstance->GetLWCConverter(Emitter->IsLocalSpace());
 	const bool bIsRendererEnabled = IsRendererEnabled(InProperties, Emitter);
 
 	if (Properties->SourceMode == ENiagaraRendererSourceDataMode::Particles)
 	{
-		const FNiagaraDataSet& Data = Emitter->GetData();
+		const FNiagaraDataSet& Data = Emitter->GetParticleData();
 		const FNiagaraDataBuffer& ParticleData = Data.GetCurrentDataChecked();
 		FNiagaraDataSetReaderInt32<FNiagaraBool> EnabledReader = Properties->EnabledAccessor.GetReader(Data);
 		FNiagaraDataSetReaderInt32<int32> VisTagReader = Properties->VisTagAccessor.GetReader(Data);

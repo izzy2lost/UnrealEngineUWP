@@ -270,10 +270,10 @@ FNiagaraDynamicDataBase::FNiagaraDynamicDataBase(const FNiagaraEmitterInstance* 
 {
 	check(InEmitter);
 
-	const FNiagaraDataSet& DataSet = InEmitter->GetData();
-	SimTarget = DataSet.GetSimTarget();
 	SystemInstanceID = InEmitter->GetParentSystemInstance()->GetId();
 
+	const FNiagaraDataSet& DataSet = InEmitter->GetParticleData();
+	const ENiagaraSimTarget SimTarget = DataSet.GetSimTarget();
 	if (SimTarget == ENiagaraSimTarget::CPUSim)
 	{
 		//On CPU we pass through direct ptr to the most recent data buffer.
@@ -294,46 +294,28 @@ FNiagaraDynamicDataBase::~FNiagaraDynamicDataBase()
 
 bool FNiagaraDynamicDataBase::IsGpuLowLatencyTranslucencyEnabled() const
 {
-	if (SimTarget == ENiagaraSimTarget::CPUSim)
-	{
-		return false;
-	}
-	else
-	{
-		return GPUExecContext ? GPUExecContext->HasTranslucentDataToRender() : false;
-	}
+	return GPUExecContext ? GPUExecContext->HasTranslucentDataToRender() : false;
 }
 
 FNiagaraDataBuffer* FNiagaraDynamicDataBase::GetParticleDataToRender(bool bIsLowLatencyTranslucent)const
 {
-	FNiagaraDataBuffer* Ret = nullptr;
-
-	if (SimTarget == ENiagaraSimTarget::CPUSim)
-	{
-		Ret = CPUParticleData;
-	}
-	else
-	{
-		Ret = GPUExecContext->GetDataToRender(bIsLowLatencyTranslucent);
-	}
-
+	FNiagaraDataBuffer* Ret = GPUExecContext ? GPUExecContext->GetDataToRender(bIsLowLatencyTranslucent) : CPUParticleData.GetReference();
 	checkSlow(Ret == nullptr || Ret->IsBeingRead());
 	return Ret;
 }
 
 //////////////////////////////////////////////////////////////////////////
-
 FNiagaraRenderer::FNiagaraRenderer(ERHIFeatureLevel::Type InFeatureLevel, const UNiagaraRendererProperties *InProps, const FNiagaraEmitterInstance* Emitter)
 	: DynamicDataRender(nullptr)
-	, bLocalSpace(Emitter->GetCachedEmitterData()->bLocalSpace)
+	, bLocalSpace(Emitter->IsLocalSpace())
 	, bHasLights(false)
 	, bMotionBlurEnabled(InProps ? InProps->MotionVectorSetting != ENiagaraRendererMotionVectorSetting::Disable : false)
-	, SimTarget(Emitter->GetCachedEmitterData()->SimTarget)
+	, SimTarget(Emitter->GetSimTarget())
 	, FeatureLevel(InFeatureLevel)
-{
 #if STATS
-	EmitterStatID = Emitter->GetCachedEmitter().Emitter->GetStatID(false, false);
+	, EmitterStatID(Emitter->GetEmitterStatID(false, false))
 #endif
+{
 }
 
 void FNiagaraRenderer::Initialize(const UNiagaraRendererProperties* InProps, const FNiagaraEmitterInstance* Emitter, const FNiagaraSystemInstanceController& InController)
@@ -346,7 +328,7 @@ void FNiagaraRenderer::Initialize(const UNiagaraRendererProperties* InProps, con
 	bRendersInSecondaryDepthPass = false;
 
 	// Let check if the GPU simulation shader script needed to use the partial depth texture for depth queries.
-	const bool bNeedsPartialDepthTexture = Emitter->GetCachedEmitterData()->NeedsPartialDepthTexture();
+	const bool bNeedsPartialDepthTexture = Emitter->NeedsPartialDepthTexture();
 
 	uint32 Index = 0;
 	for (UMaterialInterface*& Mat : BaseMaterials_GT)

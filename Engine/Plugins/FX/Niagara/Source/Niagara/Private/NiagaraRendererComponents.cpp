@@ -5,6 +5,7 @@
 #include "Components/PrimitiveComponent.h"
 #include "NiagaraDataSet.h"
 #include "NiagaraEmitterInstance.h"
+#include "NiagaraEmitterInstanceImpl.h"
 #include "NiagaraStats.h"
 #include "NiagaraComponentRendererProperties.h"
 #include "NiagaraSystem.h"
@@ -387,7 +388,7 @@ void FNiagaraRendererComponents::PostSystemTick_GameThread(const UNiagaraRendere
 	}
 
 #if WITH_EDITORONLY_DATA
-	if (SystemInstance->GetIsolateEnabled() && !Emitter->GetEmitterHandle().IsIsolated())
+	if (Emitter->IsDisabledFromIsolation())
 	{
 		ResetComponentPool(true);
 		return;
@@ -401,8 +402,16 @@ void FNiagaraRendererComponents::PostSystemTick_GameThread(const UNiagaraRendere
 		return;
 	}
 
+
+	//-TODO:Stateless:
+	const FNiagaraEmitterInstanceImpl* StatefulEmitter = Emitter->AsStateful();
+	if (StatefulEmitter == nullptr)
+	{
+		return;
+	}
+
 	const double CurrentTime = AttachComponent->GetWorld()->GetRealTimeSeconds();
-	const FNiagaraDataSet& Data = Emitter->GetData();
+	const FNiagaraDataSet& Data = Emitter->GetParticleData();
 	const FNiagaraDataBuffer& ParticleData = Data.GetCurrentDataChecked();
 	FNiagaraDataSetReaderInt32<FNiagaraBool> EnabledAccessor = FNiagaraDataSetAccessor<FNiagaraBool>::CreateReader(Data, Properties->EnabledBinding.GetDataSetBindableVariable().GetName());
 	FNiagaraDataSetReaderInt32<int32> VisTagAccessor = FNiagaraDataSetAccessor<int32>::CreateReader(Data, Properties->RendererVisibilityTagBinding.GetDataSetBindableVariable().GetName());
@@ -509,7 +518,7 @@ void FNiagaraRendererComponents::PostSystemTick_GameThread(const UNiagaraRendere
 			if (PoolIndex == -1 && Properties->bCreateComponentFirstParticleFrame)
 			{
 				// Don't allow this particle to acquire a component unless it was just spawned or had a component assigned to it previously
-				bool bIsNewlySpawnedParticle = Emitter->IsParticleComponentActive(ComponentKey, ParticleID) || ParticleIndex >= ParticleData.GetNumInstances() - ParticleData.GetNumSpawnedInstances();
+				bool bIsNewlySpawnedParticle = StatefulEmitter->IsParticleComponentActive(ComponentKey, ParticleID) || ParticleIndex >= ParticleData.GetNumInstances() - ParticleData.GetNumSpawnedInstances();
 				if (!bIsNewlySpawnedParticle)
 				{
 					continue;
@@ -589,7 +598,7 @@ void FNiagaraRendererComponents::PostSystemTick_GameThread(const UNiagaraRendere
 		}
 
 		FComponentPoolEntry& PoolEntry = ComponentPool[PoolIndex];
-		FNiagaraLWCConverter LwcConverter = SystemInstance->GetLWCConverter(Emitter->GetCachedEmitter().GetEmitterData()->bLocalSpace);
+		FNiagaraLWCConverter LwcConverter = SystemInstance->GetLWCConverter(Emitter->IsLocalSpace());
 		TickPropertyBindings(Properties, SceneComponent, Data, ParticleIndex, PoolEntry, LwcConverter);
 
 		// Activate the component.
@@ -612,7 +621,7 @@ void FNiagaraRendererComponents::PostSystemTick_GameThread(const UNiagaraRendere
 		PoolEntry.LastActiveTime = CurrentTime;
 		if (Properties->bCreateComponentFirstParticleFrame)
 		{
-			Emitter->SetParticleComponentActive(ComponentKey, ParticleID);
+			StatefulEmitter->SetParticleComponentActive(ComponentKey, ParticleID);
 		}
 
 		++ComponentCount;
