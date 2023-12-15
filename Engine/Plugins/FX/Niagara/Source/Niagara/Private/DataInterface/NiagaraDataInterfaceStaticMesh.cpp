@@ -747,6 +747,7 @@ namespace NDIStaticMeshLocal
 		void UpdateTransforms(USceneComponent* SceneComponent, FNiagaraSystemInstance* SystemInstance)
 		{
 			SystemInstanceWorldTransform = SystemInstance->GetWorldTransform();
+			LWCTileOffset = FVector(SystemInstance->GetLWCTile()) * -FLargeWorldRenderScalar::GetTileSize();
 
 			FTransform ComponentTransform;
 			if (SceneComponent)
@@ -770,16 +771,16 @@ namespace NDIStaticMeshLocal
 				{
 					ISMTransforms.Empty();
 				}
+
+				OwnerToMeshVector = FVector3f(ComponentTransform.GetLocation() - SystemInstanceWorldTransform.GetLocation());
+				ComponentTransform.AddToTranslation(LWCTileOffset);
 			}
 			else
 			{
 				ISMTransforms.Empty();
 				ComponentTransform = SystemInstanceWorldTransform;
+				OwnerToMeshVector = FVector3f::ZeroVector;
 			}
-
-			OwnerToMeshVector = FVector3f(ComponentTransform.GetLocation() - SystemInstanceWorldTransform.GetLocation());
-			LWCTileOffset = FVector(SystemInstance->GetLWCTile()) * -FLargeWorldRenderScalar::GetTileSize();
-			ComponentTransform.AddToTranslation(LWCTileOffset);
 
 			Transform = ComponentTransform.ToMatrixWithScale();
 			TransformInverseTransposed = ComponentTransform.Inverse().ToMatrixWithScale().GetTransposed();

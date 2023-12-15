@@ -1629,8 +1629,7 @@ bool FNDISkeletalMesh_InstanceData::Init(UNiagaraDataInterfaceSkeletalMesh* Inte
 	bMeshValid = Mesh != nullptr;
 	bComponentValid = SceneComponent.IsValid();
 
-	FTransform ComponentTransform = (bComponentValid ? SceneComponent->GetComponentToWorld() : SystemInstance->GetWorldTransform());
-	ComponentTransform.AddToTranslation(FVector(SystemInstance->GetLWCTile()) * -FLargeWorldRenderScalar::GetTileSize());
+	const FTransform ComponentTransform = CalculateComponentTransform(SystemInstance);
 	Transform = ComponentTransform.ToMatrixWithScale();
 	TransformInverseTransposed = Transform.Inverse().GetTransposed();
 	PrevTransform = Transform;
@@ -2145,8 +2144,7 @@ bool FNDISkeletalMesh_InstanceData::Tick(UNiagaraDataInterfaceSkeletalMesh* Inte
 		DeltaSeconds = InDeltaSeconds;
 
 		PrevTransform = Transform;
-		FTransform ComponentTransform = (SceneComponent.IsValid() ? SceneComponent->GetComponentToWorld() : SystemInstance->GetWorldTransform());
-		ComponentTransform.AddToTranslation(FVector(SystemInstance->GetLWCTile()) * -FLargeWorldRenderScalar::GetTileSize());
+		const FTransform ComponentTransform = CalculateComponentTransform(SystemInstance);
 		Transform = ComponentTransform.ToMatrixWithScale();
 		TransformInverseTransposed = Transform.Inverse().GetTransposed();
 
@@ -2160,6 +2158,20 @@ bool FNDISkeletalMesh_InstanceData::Tick(UNiagaraDataInterfaceSkeletalMesh* Inte
 		}
 
 		return false;
+	}
+}
+
+FTransform FNDISkeletalMesh_InstanceData::CalculateComponentTransform(FNiagaraSystemInstance* SystemInstance) const
+{
+	if (USceneComponent* SceneComp = SceneComponent.Get())
+	{
+		FTransform ComponentTransform = SceneComp->GetComponentToWorld();
+		ComponentTransform.AddToTranslation(FVector(SystemInstance->GetLWCTile()) * -FLargeWorldRenderScalar::GetTileSize());
+		return ComponentTransform;
+	}
+	else
+	{
+		return SystemInstance->GetWorldTransform();
 	}
 }
 

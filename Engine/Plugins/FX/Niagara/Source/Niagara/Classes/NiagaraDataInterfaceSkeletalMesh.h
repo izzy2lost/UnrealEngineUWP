@@ -674,6 +674,7 @@ struct FNDISkeletalMesh_InstanceData
 		return CachedLODData ? &CachedLODData->SkinWeightVertexBuffer : nullptr;
 	}
 
+	FTransform CalculateComponentTransform(FNiagaraSystemInstance* SystemInstance) const;
 	void UpdateFilteredSocketTransforms();
 	TArray<FTransform3f>& GetFilteredSocketsWriteBuffer() { return FilteredSocketTransforms[FilteredSocketTransformsIndex]; }
 	const TArray<FTransform3f>& GetFilteredSocketsCurrBuffer() const { return FilteredSocketTransforms[FilteredSocketTransformsIndex]; }
