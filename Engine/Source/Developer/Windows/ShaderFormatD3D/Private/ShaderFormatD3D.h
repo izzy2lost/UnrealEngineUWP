@@ -27,7 +27,7 @@ bool PreprocessD3DShader(
 
 void CompileD3DShader(
 	const FShaderCompilerInput& Input,
-	const FString& InPreprocessedSource,
+	const FShaderPreprocessOutput& InPreprocessOutput,
 	FShaderCompilerOutput& Output,
 	const FString& WorkingDirectory,
 	ED3DShaderModel ShaderModel);

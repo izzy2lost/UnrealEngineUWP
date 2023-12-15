@@ -3683,10 +3683,10 @@ FShaderCommonCompileJob::FInputHash FShaderCompileJob::GetInputHash()
 
 		PreprocessOutput.VisitDirectivesWithPrefix(TEXT("VERSION"), HashVersion);
 		// const_cast due to serialization API requiring non-const. better than not having const correctness in the API.
-		Hasher << const_cast<FString&>(PreprocessOutput.GetSource());
+		Hasher << PreprocessOutput.EditSource();
 		if (SecondaryPreprocessOutput.IsValid())
 		{
-			Hasher << const_cast<FString&>(SecondaryPreprocessOutput->GetSource());
+			Hasher << SecondaryPreprocessOutput->EditSource();
 		}
 
 		if (Input.RootParametersStructure)
@@ -3974,7 +3974,7 @@ void FShaderCompileJob::SerializeWorkerInput(FArchive& Ar)
 	}
 }
 
-const FString& FShaderCompileJob::GetFinalSource() const
+FStringView FShaderCompileJob::GetFinalSourceView() const
 {
 	 // any modifications to the source done as part of the compile step will be written to the "ModifiedShaderSource" field
 	// always return empty string if source extraction was not requested; this will prevent bloat of material DDC data in the case where debug info is enabled 
@@ -3983,12 +3983,11 @@ const FString& FShaderCompileJob::GetFinalSource() const
 	{
 		// if there are no such modifications, return the "unstripped" version of the source code (with comments & line directives maintained),
 		// otherwise return whatever the final modified source is as input to the compiler by the backend.
-		return Output.ModifiedShaderSource.IsEmpty() ? PreprocessOutput.GetUnstrippedSource() : Output.ModifiedShaderSource;
+		return Output.ModifiedShaderSource.IsEmpty() ? PreprocessOutput.GetUnstrippedSourceView() : FStringView(Output.ModifiedShaderSource);
 	}
 	else
 	{
-		static FString Empty;
-		return Empty;
+		return FStringView();
 	}
 }
 

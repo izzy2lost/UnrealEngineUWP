@@ -1280,7 +1280,7 @@ struct FD3DShaderParameterParserPlatformConfiguration : public FShaderParameterP
 	}
 };
 
-void CompileD3DShader(const FShaderCompilerInput& Input, const FString& InPreprocessedSource, FShaderCompilerOutput& Output, const FString& WorkingDirectory, ED3DShaderModel ShaderModel)
+void CompileD3DShader(const FShaderCompilerInput& Input, const FShaderPreprocessOutput& InPreprocessOutput, FShaderCompilerOutput& Output, const FString& WorkingDirectory, ED3DShaderModel ShaderModel)
 {
 	TRACE_CPUPROFILER_EVENT_SCOPE(CompileD3DShader);
 
@@ -1293,7 +1293,7 @@ void CompileD3DShader(const FShaderCompilerInput& Input, const FString& InPrepro
 	}
 
 	FString EntryPointName = Input.EntryPointName;
-	FString PreprocessedSource = InPreprocessedSource;
+	FString PreprocessedSource(InPreprocessOutput.GetSourceViewWide());
 
 	FD3DShaderParameterParserPlatformConfiguration PlatformConfiguration;
 	FShaderParameterParser ShaderParameterParser(PlatformConfiguration);

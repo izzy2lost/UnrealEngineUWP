@@ -219,14 +219,16 @@ void CullGlobalUniformBuffers(const TMap<FString, FUniformBufferEntry>& UniformB
 	}
 }
 
-static bool IsSpaceOrTabOrEOL(TCHAR Char)
+template <typename CharType>
+static bool IsSpaceOrTabOrEOL(CharType Char)
 {
 	return Char == ' ' || Char == '\t' || Char == '\n' || Char == '\r';
 }
 
-static const TCHAR* FindNextChar(const TCHAR* ReadStart, TCHAR SearchChar)
+template <typename StrCharType, typename SearchCharType>
+static const StrCharType* FindNextChar(const StrCharType* ReadStart, SearchCharType SearchChar)
 {
-	const TCHAR* SearchPtr = ReadStart;
+	const StrCharType* SearchPtr = ReadStart;
 	while (*SearchPtr && *SearchPtr != SearchChar)
 	{
 		SearchPtr++;
@@ -234,7 +236,8 @@ static const TCHAR* FindNextChar(const TCHAR* ReadStart, TCHAR SearchChar)
 	return SearchPtr;
 }
 
-const TCHAR* FindNextWhitespace(const TCHAR* StringPtr)
+template <typename CharType>
+const CharType* FindNextWhitespace(const CharType* StringPtr)
 {
 	while (*StringPtr && !IsSpaceOrTabOrEOL(*StringPtr))
 	{
@@ -251,7 +254,8 @@ const TCHAR* FindNextWhitespace(const TCHAR* StringPtr)
 	}
 }
 
-const TCHAR* FindNextNonWhitespace(const TCHAR* StringPtr)
+template <typename CharType>
+const CharType* FindNextNonWhitespace(const CharType* StringPtr)
 {
 	while (*StringPtr && IsSpaceOrTabOrEOL(*StringPtr))
 	{
@@ -266,7 +270,8 @@ const TCHAR* FindNextNonWhitespace(const TCHAR* StringPtr)
 	return nullptr;
 }
 
-const TCHAR* FindPreviousNonWhitespace(const TCHAR* StringPtr)
+template <typename CharType>
+const CharType* FindPreviousNonWhitespace(const CharType* StringPtr)
 {
 	do
 	{
@@ -281,36 +286,12 @@ const TCHAR* FindPreviousNonWhitespace(const TCHAR* StringPtr)
 	return nullptr;
 }
 
-const TCHAR* FindMatchingBlock(const TCHAR* OpeningCharPtr, char OpenChar, char CloseChar)
-{
-	const TCHAR* SearchPtr = OpeningCharPtr;
-	int32 Depth = 0;
-
-	while (*SearchPtr)
-	{
-		if (*SearchPtr == OpenChar)
-		{
-			Depth++;
-		}
-		else if (*SearchPtr == CloseChar)
-		{
-			if (Depth == 0)
-			{
-				return SearchPtr;
-			}
-
-			Depth--;
-		}
-		SearchPtr++;
-	}
-
-	return nullptr;
-}
-const TCHAR* FindMatchingClosingBrace(const TCHAR* OpeningCharPtr)			{ return FindMatchingBlock(OpeningCharPtr, '{', '}'); };
-const TCHAR* FindMatchingClosingParenthesis(const TCHAR* OpeningCharPtr)	{ return FindMatchingBlock(OpeningCharPtr, '(', ')'); };
+template <typename CharType>
+const CharType* FindMatchingClosingParenthesis(const CharType* OpeningCharPtr)	{ return FindMatchingBlock<CharType>(OpeningCharPtr, '(', ')'); };
 
 // See MSDN HLSL 'Symbol Name Restrictions' doc
-inline bool IsValidHLSLIdentifierCharacter(TCHAR Char)
+template <typename CharType>
+inline bool IsValidHLSLIdentifierCharacter(CharType Char)
 {
 	return (Char >= 'a' && Char <= 'z') ||
 		(Char >= 'A' && Char <= 'Z') ||
@@ -354,23 +335,24 @@ void ParseHLSLTypeName(const TCHAR* SearchString, const TCHAR*& TypeNameStartPtr
 	check(TypeNameEndPtr);
 }
 
-FStringView ParseHLSLSymbolName(const TCHAR* SearchString)
+template<typename CharType, typename ViewType>
+ViewType ParseHLSLSymbolName(const CharType* SearchString)
 {
-	const TCHAR* SymbolNameStartPtr = FindNextNonWhitespace(SearchString);
+	const CharType* SymbolNameStartPtr = FindNextNonWhitespace(SearchString);
 	check(SymbolNameStartPtr);
 
-	const TCHAR* SymbolNameEndPtr = SymbolNameStartPtr;
+	const CharType* SymbolNameEndPtr = SymbolNameStartPtr;
 	while (*SymbolNameEndPtr && IsValidHLSLIdentifierCharacter(*SymbolNameEndPtr))
 	{
 		SymbolNameEndPtr++;
 	}
 
-	return FStringView(SymbolNameStartPtr, SymbolNameEndPtr - SymbolNameStartPtr);
+	return ViewType(SymbolNameStartPtr, SymbolNameEndPtr - SymbolNameStartPtr);
 }
 
 const TCHAR* ParseHLSLSymbolName(const TCHAR* SearchString, FString& SymbolName)
 {
-	FStringView Result = ParseHLSLSymbolName(SearchString);
+	FStringView Result = ParseHLSLSymbolName<TCHAR, FStringView>(SearchString);
 
 	SymbolName = FString(Result);
 
@@ -474,7 +456,7 @@ void UE::ShaderCompilerCommon::ParseRayTracingEntryPoint(const FString& Input, F
 }
 
 
-bool UE::ShaderCompilerCommon::RemoveDeadCode(FString& InOutPreprocessedShaderSource, TConstArrayView<FStringView> RequiredSymbols, TArray<FShaderCompilerError>& OutErrors)
+bool UE::ShaderCompilerCommon::RemoveDeadCode(FShaderSource& InOutPreprocessedShaderSource, TConstArrayView<FStringView> InRequiredSymbols, TArray<FShaderCompilerError>& OutErrors)
 {
 	TRACE_CPUPROFILER_EVENT_SCOPE(RemoveDeadCode);
 
@@ -485,14 +467,14 @@ bool UE::ShaderCompilerCommon::RemoveDeadCode(FString& InOutPreprocessedShaderSo
 	           |  UE::ShaderMinifier::EMinifyShaderFlags::OutputStats;  // Output a comment detailing how many blocks of each type (functions/structs/etc.) were emitted
 #endif
 
-	UE::ShaderMinifier::FMinifiedShader Minified  = UE::ShaderMinifier::Minify(InOutPreprocessedShaderSource, RequiredSymbols,
+	UE::ShaderMinifier::FMinifiedShader Minified = UE::ShaderMinifier::Minify(InOutPreprocessedShaderSource, InRequiredSymbols,
 		  UE::ShaderMinifier::EMinifyShaderFlags::OutputCommentLines // Preserve comments that were left after preprocessing
 		| UE::ShaderMinifier::EMinifyShaderFlags::OutputLines        // Emit #line directives
 		| ExtraFlags);
 
 	if (Minified.Success())
 	{
-		Swap(InOutPreprocessedShaderSource, Minified.Code);
+		InOutPreprocessedShaderSource = MoveTemp(Minified.Code);
 		return true;
 	}
 	else
@@ -502,12 +484,12 @@ bool UE::ShaderCompilerCommon::RemoveDeadCode(FString& InOutPreprocessedShaderSo
 	}
 }
 
-bool UE::ShaderCompilerCommon::RemoveDeadCode(FString& InOutPreprocessedShaderSource, const FString& EntryPoint, TArray<FShaderCompilerError>& OutErrors)
+bool UE::ShaderCompilerCommon::RemoveDeadCode(FShaderSource& InOutPreprocessedShaderSource, const FString& EntryPoint, TArray<FShaderCompilerError>& OutErrors)
 {
 	return UE::ShaderCompilerCommon::RemoveDeadCode(InOutPreprocessedShaderSource, EntryPoint, {}, OutErrors);
 }
 
-bool UE::ShaderCompilerCommon::RemoveDeadCode(FString& InOutPreprocessedShaderSource, const FString& EntryPoint, TConstArrayView<FStringView> InRequiredSymbols, TArray<FShaderCompilerError>& OutErrors)
+bool UE::ShaderCompilerCommon::RemoveDeadCode(FShaderSource& InOutPreprocessedShaderSource, const FString& EntryPoint, TConstArrayView<FStringView> InRequiredSymbols, TArray<FShaderCompilerError>& OutErrors)
 {
 	TArray<FStringView> RequiredSymbols;
 
@@ -785,9 +767,9 @@ struct FUniformBufferInfo
 struct FUniformBufferMemberInfoNew
 {
 	// eg View.WorldToClip
-	FStringView NameAsStructMember;
+	FShaderSource::FViewType NameAsStructMember;
 	// eg View_WorldToClip
-	FStringView GlobalName;
+	FShaderSource::FViewType GlobalName;
 
 	bool operator<(const FUniformBufferMemberInfoNew& Other)
 	{
@@ -811,7 +793,7 @@ struct FUniformBufferMemberView
 
 struct FUniformBufferInfoNew
 {
-	FStringView Name;
+	FShaderSource::FViewType Name;
 	int32 NextWithSameLength;							// Linked list of uniform buffer infos with same name length
 	TArray<FUniformBufferMemberInfoNew> Members;		// Members sorted by length
 	TArray<FUniformBufferMemberView> MembersByLength;	// Offset and count of members of a given length
@@ -826,10 +808,10 @@ struct FUniformBufferSpan
 
 // Compacts spaces out of a compound identifier.  Returns the new end pointer of the compacted identifier.
 // End and result pointers are exclusive (length of the string is End - Start).
-static TCHAR* CompactCompoundIdentifier(TCHAR* Start, TCHAR* End)
+static FShaderSource::CharType* CompactCompoundIdentifier(FShaderSource::CharType* Start, FShaderSource::CharType* End)
 {
 	// Find first whitespace in the identifier, if present
-	TCHAR* ReadChar;
+	FShaderSource::CharType* ReadChar;
 	for (ReadChar = Start; ReadChar < End; ++ReadChar)
 	{
 		if (IsSpaceOrTabOrEOL(*ReadChar))
@@ -845,7 +827,7 @@ static TCHAR* CompactCompoundIdentifier(TCHAR* Start, TCHAR* End)
 
 	// Found some whitespace, so we need to compact the non-whitespace, swapping the whitespace to the end of the range
 	// WriteChar here will be the first whitespace character that we need to compact into.
-	TCHAR* WriteChar = ReadChar;
+	FShaderSource::CharType* WriteChar = ReadChar;
 	for (++ReadChar; ReadChar < End; ++ReadChar)
 	{
 		// If the current read character is non-whitespace, compact it down
@@ -858,32 +840,32 @@ static TCHAR* CompactCompoundIdentifier(TCHAR* Start, TCHAR* End)
 	return WriteChar;
 }
 
-const TCHAR* ParseUniformBufferDefinition(const TCHAR* ReadStart, TArray<FUniformBufferInfoNew>& UniformBufferInfos, uint64 UniformBufferFilter[64], int32 UniformBuffersByLength[64])
+const FShaderSource::CharType* ParseUniformBufferDefinition(const FShaderSource::CharType* ReadStart, TArray<FUniformBufferInfoNew>& UniformBufferInfos, uint64 UniformBufferFilter[64], int32 UniformBuffersByLength[64])
 {
 	// TODO:  should we check for an existing item?  In my testing, there's only one uniform buffer declaration with a given name,
 	// but the original code used a map, theoretically allowing for multiple.
 	int32 InfoIndex = UniformBufferInfos.AddDefaulted();
 	FUniformBufferInfoNew& Info = UniformBufferInfos[InfoIndex];
 
-	Info.Name = ParseHLSLSymbolName(ReadStart);
+	Info.Name = ParseHLSLSymbolName<FShaderSource::CharType, FShaderSource::FViewType>(ReadStart);
 	check(Info.Name.Len() < 64);
 
-	const TCHAR* OpeningBrace = FindNextChar(ReadStart, '{');
-	const TCHAR* ClosingBrace = FindMatchingClosingBrace(OpeningBrace + 1);
+	const FShaderSource::CharType* OpeningBrace = FindNextChar(ReadStart, '{');
+	const FShaderSource::CharType* ClosingBrace = FindMatchingClosingBrace(OpeningBrace + 1);
 
-	const TCHAR* CurrentParseStart = OpeningBrace + 1;
-	const TCHAR* NextSemicolon = FindNextChar(CurrentParseStart, ';');
+	const FShaderSource::CharType* CurrentParseStart = OpeningBrace + 1;
+	const FShaderSource::CharType* NextSemicolon = FindNextChar(CurrentParseStart, ';');
 
 	while (NextSemicolon < ClosingBrace)
 	{
-		const TCHAR* NextSeparator = FindNextChar(CurrentParseStart, '=');
+		const FShaderSource::CharType* NextSeparator = FindNextChar(CurrentParseStart, '=');
 		if (NextSeparator < NextSemicolon)
 		{
-			const TCHAR* StructStart = CurrentParseStart;
-			const TCHAR* StructEnd = NextSeparator - 1;
+			const FShaderSource::CharType* StructStart = CurrentParseStart;
+			const FShaderSource::CharType* StructEnd = NextSeparator - 1;
 
-			const TCHAR* GlobalStart = NextSeparator + 1;
-			const TCHAR* GlobalEnd = NextSemicolon - 1;
+			const FShaderSource::CharType* GlobalStart = NextSeparator + 1;
+			const FShaderSource::CharType* GlobalEnd = NextSemicolon - 1;
 
 			while (IsSpaceOrTabOrEOL(*StructStart))
 			{
@@ -894,14 +876,14 @@ const TCHAR* ParseUniformBufferDefinition(const TCHAR* ReadStart, TArray<FUnifor
 				GlobalStart++;
 			}
 
-			StructEnd = CompactCompoundIdentifier(const_cast<TCHAR*>(StructStart), const_cast<TCHAR*>(StructEnd));
-			GlobalEnd = CompactCompoundIdentifier(const_cast<TCHAR*>(GlobalStart), const_cast<TCHAR*>(GlobalEnd));
+			StructEnd = CompactCompoundIdentifier(const_cast<FShaderSource::CharType*>(StructStart), const_cast<FShaderSource::CharType*>(StructEnd));
+			GlobalEnd = CompactCompoundIdentifier(const_cast<FShaderSource::CharType*>(GlobalStart), const_cast<FShaderSource::CharType*>(GlobalEnd));
 
-			FStringView StructName(StructStart, StructEnd - StructStart);
-			FStringView GlobalName(GlobalStart, GlobalEnd - GlobalStart);
+			FShaderSource::FViewType StructName(StructStart, StructEnd - StructStart);
+			FShaderSource::FViewType GlobalName(GlobalStart, GlobalEnd - GlobalStart);
 
 			// Avoid unnecessary conversions
-			if (StructName.Len() == GlobalName.Len() && FCString::Strncmp(StructName.GetData(), GlobalName.GetData(), StructName.Len()) != 0)
+			if (StructName.Len() == GlobalName.Len() && FShaderSource::FCStringType::Strncmp(StructName.GetData(), GlobalName.GetData(), StructName.Len()) != 0)
 			{
 				FUniformBufferMemberInfoNew NewMemberInfo;
 				NewMemberInfo.NameAsStructMember = StructName;
@@ -918,7 +900,7 @@ const TCHAR* ParseUniformBufferDefinition(const TCHAR* ReadStart, TArray<FUnifor
 		NextSemicolon = FindNextChar(CurrentParseStart, ';');
 	}
 
-	const TCHAR* EndPtr = ClosingBrace;
+	const FShaderSource::CharType* EndPtr = ClosingBrace;
 
 	// Skip to the end of the UniformBuffer
 	while (*EndPtr && *EndPtr != ';')
@@ -994,9 +976,9 @@ static uint8 AsciiFlagTable[256] =
 
 struct FCompoundIdentifierResult
 {
-	const TCHAR* Identifier;			// Start of identifier
-	const TCHAR* IdentifierEnd;			// End of entire identifier
-	const TCHAR* IdentifierRootEnd;		// End of root token of identifier
+	const FShaderSource::CharType* Identifier;			// Start of identifier
+	const FShaderSource::CharType* IdentifierEnd;			// End of entire identifier
+	const FShaderSource::CharType* IdentifierRootEnd;		// End of root token of identifier
 };
 
 // Searches for a "compound identifier" (series of symbol tokens separated by dots) that also passes the "RootIdentifierFilter".
@@ -1004,9 +986,9 @@ struct FCompoundIdentifierResult
 // with letters or underscore, we can store a 64-bit mask representing ASCII characters 64..127, as all valid start characters are
 // in that range.  As an example, if "View" is a valid root identifier, RootIdentifierFilter[4] will have the bit ('V' - 64) set,
 // and any other 4 character identifier that doesn't start with that letter can be skipped, saving overhead in the caller.
-bool FindNextCompoundIdentifier(const TCHAR*& Search, const uint64 RootIdentifierFilter[64], FCompoundIdentifierResult& OutResult)
+bool FindNextCompoundIdentifier(const FShaderSource::CharType*& Search, const uint64 RootIdentifierFilter[64], FCompoundIdentifierResult& OutResult)
 {
-	const TCHAR* SearchChar = Search;
+	const FShaderSource::CharType* SearchChar = Search;
 	uint8 SearchCharFlag = AsciiFlagTable[(uint8)*SearchChar];
 
 	// Scanning loop
@@ -1139,7 +1121,7 @@ bool FindNextCompoundIdentifier(const TCHAR*& Search, const uint64 RootIdentifie
 		{
 			// Quote, skip to next Quote (or maybe end of string if text is malformed), ignoring the quote if it's escaped
 			SearchChar++;
-			while (*SearchChar && (*SearchChar != TEXT('\"') || *(SearchChar - 1) == TEXT('\\')))
+			while (*SearchChar && (*SearchChar != '\"' || *(SearchChar - 1) == '\\'))
 			{
 				SearchChar++;
 			}
@@ -1152,12 +1134,12 @@ bool FindNextCompoundIdentifier(const TCHAR*& Search, const uint64 RootIdentifie
 			SearchCharFlag = AsciiFlagTable[(uint8)*SearchChar];
 		}
 		// Must be null terminator or slash at this point -- we've tested all other possibilities
-		else if (*SearchChar == TEXT('/'))
+		else if (*SearchChar == '/')
 		{
 			// Check if this is a commented out block (typically a commented out uniform declaration) and skip over it.
 			// If the text is bad, there could be a /* right at the end of the string, so we need to check there is at least
 			// one more character.
-			if (SearchChar[1] == TEXT('*') && SearchChar[2] != 0)
+			if (SearchChar[1] == '*' && SearchChar[2] != 0)
 			{
 				// Search for slash (or end of string), starting at SearchChar + 3.  If we find a slash, we'll check the previous
 				// character to see if it's the end of the comment.  Starting at +3 is necessary to avoid matching a slash as the
@@ -1172,7 +1154,7 @@ bool FindNextCompoundIdentifier(const TCHAR*& Search, const uint64 RootIdentifie
 					}
 
 					// Is this the end of the comment?
-					if (*(SearchChar - 1) == TEXT('*'))
+					if (*(SearchChar - 1) == '*')
 					{
 						if (*SearchChar)
 						{
@@ -1211,15 +1193,15 @@ bool FindNextCompoundIdentifier(const TCHAR*& Search, const uint64 RootIdentifie
 	}
 }
 
-TCHAR* FindNextUniformBufferDefinition(TCHAR* SearchPtr, TCHAR* SourceStart, const TCHAR* UniformBufferStructIdentifier, int32 StructIdentifierLen)
+FShaderSource::CharType* FindNextUniformBufferDefinition(FShaderSource::CharType* SearchPtr, FShaderSource::CharType* SourceStart, FShaderSource::FViewType UniformBufferStructIdentifier)
 {
 	while (SearchPtr)
 	{
-		SearchPtr = FCString::Strstr(SearchPtr, UniformBufferStructIdentifier);
+		SearchPtr = FShaderSource::FCStringType::Strstr(SearchPtr, UniformBufferStructIdentifier.GetData());
 
 		if (SearchPtr)
 		{
-			if (SearchPtr > SourceStart && IsSpaceOrTabOrEOL(*(SearchPtr - 1)) && IsSpaceOrTabOrEOL(*(SearchPtr + StructIdentifierLen)))
+			if (SearchPtr > SourceStart && IsSpaceOrTabOrEOL(*(SearchPtr - 1)) && IsSpaceOrTabOrEOL(*(SearchPtr + UniformBufferStructIdentifier.Len())))
 			{
 				break;
 			}
@@ -1232,9 +1214,9 @@ TCHAR* FindNextUniformBufferDefinition(TCHAR* SearchPtr, TCHAR* SourceStart, con
 	return SearchPtr;
 }
 
-const TCHAR* FindPreviousDot(const TCHAR* SearchPtr, const TCHAR* SearchMin)
+const FShaderSource::CharType* FindPreviousDot(const FShaderSource::CharType* SearchPtr, const FShaderSource::CharType* SearchMin)
 {
-	while ((SearchPtr > SearchMin) && (*SearchPtr != TEXT('.')))
+	while ((SearchPtr > SearchMin) && (*SearchPtr != '.'))
 	{
 		SearchPtr--;
 	}
@@ -1243,7 +1225,7 @@ const TCHAR* FindPreviousDot(const TCHAR* SearchPtr, const TCHAR* SearchMin)
 
 // The cross compiler doesn't yet support struct initializers needed to construct static structs for uniform buffers
 // Replace all uniform buffer struct member references (View.WorldToClip) with a flattened name that removes the struct dependency (View_WorldToClip)
-void CleanupUniformBufferCode(const FShaderCompilerEnvironment& Environment, FString& PreprocessedShaderSource)
+void CleanupUniformBufferCode(const FShaderCompilerEnvironment& Environment, FShaderSource& PreprocessedShaderSource)
 {
 	TRACE_CPUPROFILER_EVENT_SCOPE(CleanupUniformBufferCode);
 
@@ -1256,18 +1238,17 @@ void CleanupUniformBufferCode(const FShaderCompilerEnvironment& Environment, FSt
 	UniformBufferSpans.Reserve(Environment.UniformBufferMap.Num());
 	memset(UniformBuffersByLength, 0xff, sizeof(UniformBuffersByLength));
 
-	const TCHAR* UniformBufferStructIdentifier = TEXT("UniformBuffer");
-	const int32 StructIdentifierLen = FCString::Strlen(UniformBufferStructIdentifier);
+	FShaderSource::FViewType UniformBufferStructIdentifier = SHADER_SOURCE_VIEWLITERAL("UniformBuffer");
 
-	TCHAR* SourceStart = &PreprocessedShaderSource[0];
-	TCHAR* SearchPtr = SourceStart;
-	TCHAR* EndOfPreviousUniformBuffer = SourceStart;
+	FShaderSource::CharType* SourceStart = PreprocessedShaderSource.GetData();
+	FShaderSource::CharType* SearchPtr = SourceStart;
+	FShaderSource::CharType* EndOfPreviousUniformBuffer = SourceStart;
 	bool bUniformBufferFound;
 
 	do
 	{
 		// Find the next uniform buffer definition
-		SearchPtr = FindNextUniformBufferDefinition(SearchPtr, SourceStart, UniformBufferStructIdentifier, StructIdentifierLen);
+		SearchPtr = FindNextUniformBufferDefinition(SearchPtr, SourceStart, UniformBufferStructIdentifier);
 
 		if (SearchPtr)
 		{
@@ -1284,27 +1265,27 @@ void CleanupUniformBufferCode(const FShaderCompilerEnvironment& Environment, FSt
 		// were found).  If there are no uniform buffers yet, we don't need to parse anything.
 		if (UniformBufferInfos.Num())
 		{
-			const TCHAR* ParsePtr = EndOfPreviousUniformBuffer;
+			const FShaderSource::CharType* ParsePtr = EndOfPreviousUniformBuffer;
 
 			FCompoundIdentifierResult Result;
 			while (FindNextCompoundIdentifier(ParsePtr, UniformBufferFilter, Result))
 			{
 				// Check if the identifier corresponds to a uniform buffer
-				FStringView IdentifierRoot(Result.Identifier, Result.IdentifierRootEnd - Result.Identifier);
+				FShaderSource::FViewType IdentifierRoot(Result.Identifier, Result.IdentifierRootEnd - Result.Identifier);
 				for (int32 UniformInfoIndex = UniformBuffersByLength[IdentifierRoot.Len()]; UniformInfoIndex != INDEX_NONE; UniformInfoIndex = UniformBufferInfos[UniformInfoIndex].NextWithSameLength)
 				{
 					FUniformBufferInfoNew& Info = UniformBufferInfos[UniformInfoIndex];
 					if (IdentifierRoot.Equals(Info.Name, ESearchCase::CaseSensitive))
 					{
 						// Found the uniform buffer, clean up potential whitespace
-						Result.IdentifierEnd = CompactCompoundIdentifier(const_cast<TCHAR*>(Result.Identifier), const_cast<TCHAR*>(Result.IdentifierEnd));
+						Result.IdentifierEnd = CompactCompoundIdentifier(const_cast<FShaderSource::CharType*>(Result.Identifier), const_cast<FShaderSource::CharType*>(Result.IdentifierEnd));
 
 						// Now try to find a matching member.  We need to check subsets of the full "identifier", to strip away function calls, components, or child structures.
 						bool bMatchFound = false;
 
 						for (; Result.IdentifierEnd > Result.IdentifierRootEnd; Result.IdentifierEnd = FindPreviousDot(Result.IdentifierEnd - 1, Result.IdentifierRootEnd))
 						{
-							FStringView Identifier(Result.Identifier, Result.IdentifierEnd - Result.Identifier);
+							FShaderSource::FViewType Identifier(Result.Identifier, Result.IdentifierEnd - Result.Identifier);
 							if (Identifier.Len() < Info.MembersByLength.Num())
 							{
 								const FUniformBufferMemberView& MemberView = Info.MembersByLength[Identifier.Len()];
@@ -1318,8 +1299,8 @@ void CleanupUniformBufferCode(const FShaderCompilerEnvironment& Environment, FSt
 										const int32 OriginalTextLen = Info.Members[MemberIndex].NameAsStructMember.Len();
 										const int32 ReplacementTextLen = Info.Members[MemberIndex].GlobalName.Len();
 
-										const TCHAR* GlobalNameStart = GetData(Info.Members[MemberIndex].GlobalName);
-										TCHAR* IdentifierStart = const_cast<TCHAR*>(Result.Identifier);
+										const FShaderSource::CharType* GlobalNameStart = GetData(Info.Members[MemberIndex].GlobalName);
+										FShaderSource::CharType* IdentifierStart = const_cast<FShaderSource::CharType*>(Result.Identifier);
 
 										int32 Index = 0;
 										for (; Index < ReplacementTextLen; Index++)
@@ -1353,8 +1334,8 @@ void CleanupUniformBufferCode(const FShaderCompilerEnvironment& Environment, FSt
 			// Unterminate the string (put the first character of the struct identifier back in place) and parse it
 			*SearchPtr = UniformBufferStructIdentifier[0];
 
-			const TCHAR* ConstStructEndPtr = ParseUniformBufferDefinition(SearchPtr + StructIdentifierLen, UniformBufferInfos, UniformBufferFilter, UniformBuffersByLength);
-			TCHAR* StructEndPtr = &PreprocessedShaderSource[ConstStructEndPtr - &PreprocessedShaderSource[0]];
+			const FShaderSource::CharType* ConstStructEndPtr = ParseUniformBufferDefinition(SearchPtr + UniformBufferStructIdentifier.Len(), UniformBufferInfos, UniformBufferFilter, UniformBuffersByLength);
+			FShaderSource::CharType* StructEndPtr = &SourceStart[ConstStructEndPtr - &SourceStart[0]];
 
 			// Comment out the uniform buffer struct and initializer
 			*SearchPtr = '/';
@@ -1374,21 +1355,21 @@ void CleanupUniformBufferCode(const FShaderCompilerEnvironment& Environment, FSt
 	// it's not necessary to add a line directive to fix up line numbers because uniform buffer declarations are always in generated files, and there
 	// will be a line directive already there for the transition from the generated file back to whatever file included it.  The destination offset
 	// for the first move is the start of the first uniform buffer declaration we are overwriting, then advances as characters are copied.
-	int32 DestOffset = UniformBufferSpans.Num() ? UniformBufferSpans[0].Offset : PreprocessedShaderSource.GetCharArray().Num();
+	int32 DestOffset = UniformBufferSpans.Num() ? UniformBufferSpans[0].Offset : PreprocessedShaderSource.Len();
 
 	for (int32 SpanIndex = 0; SpanIndex < UniformBufferSpans.Num(); SpanIndex++)
 	{
-		// The source code we are compacting down is from the end of one span to the start of the next span, or end of the string (plus one so it also
-		// moves the null terminator).
+		// The source code we are compacting down is from the end of one span to the start of the next span, or end of the string.
+		// We do not need to account for null terminator as the ShrinkToLen call below will null terminate for us.
 		int32 SourceOffset = UniformBufferSpans[SpanIndex].Offset + UniformBufferSpans[SpanIndex].Length;
-		int32 MoveCount = (SpanIndex < UniformBufferSpans.Num() - 1 ? UniformBufferSpans[SpanIndex + 1].Offset : PreprocessedShaderSource.Len() + 1) - SourceOffset;
+		int32 MoveCount = (SpanIndex < UniformBufferSpans.Num() - 1 ? UniformBufferSpans[SpanIndex + 1].Offset : PreprocessedShaderSource.Len()) - SourceOffset;
 
-		check(DestOffset >= 0 && DestOffset < SourceOffset && SourceOffset + MoveCount <= PreprocessedShaderSource.GetCharArray().Num());
+		check(DestOffset >= 0 && DestOffset < SourceOffset && SourceOffset + MoveCount <= PreprocessedShaderSource.Len());
 
-		memmove(SourceStart + DestOffset, SourceStart + SourceOffset, MoveCount * sizeof(TCHAR));
+		memmove(SourceStart + DestOffset, SourceStart + SourceOffset, MoveCount * sizeof(FShaderSource::CharType));
 		DestOffset += MoveCount;
 	}
-	PreprocessedShaderSource.GetCharArray().SetNum(DestOffset, false);
+	PreprocessedShaderSource.ShrinkToLen(DestOffset, false);
 }
 
 ///////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////
@@ -1708,24 +1689,23 @@ namespace UE::ShaderCompilerCommon
 		)
 	{
 		TRACE_CPUPROFILER_EVENT_SCOPE(FBaseShaderFormat_PreprocessShader);
-		PreprocessOutput.EditSource().Empty();
 
 		if (EnumHasAnyFlags(Input.DebugInfoFlags, EShaderDebugInfoFlags::CompileFromDebugUSF))
 		{
 			// the "VirtualSourceFilePath" given is actually an absolute path to a dumped debug USF file; load it directly.
 			// this occurs when running SCW in "direct compile" mode; this file will already be preprocessed.
-			bool bSuccess = FFileHelper::LoadFileToString(PreprocessOutput.EditSource(), *Input.VirtualSourceFilePath);
+			FString DebugUSF;
+			bool bSuccess = FFileHelper::LoadFileToString(DebugUSF, *Input.VirtualSourceFilePath);
 
 			if (bSuccess)
 			{
 				// const_cast for compile environment; need to populate a subset of environment parameters from parsing comments in the preprocessed code
-				UE::ShaderCompilerCommon::SerializeEnvironmentFromBase64(const_cast<FShaderCompilerEnvironment&>(Input.Environment), PreprocessOutput.GetSource());
+				UE::ShaderCompilerCommon::SerializeEnvironmentFromBase64(const_cast<FShaderCompilerEnvironment&>(Input.Environment), DebugUSF);
 
 				// strip comments from source when loading from a debug USF. some backends don't handle the comments that the debug dump inserts properly.
-				// this (currently) incurs an extra conversion (TCHAR -> ANSI -> TCHAR), but since this is only used in the debug path the perf hit is irrelevant
 				TArray<ANSICHAR> Stripped;
-				ShaderConvertAndStripComments(PreprocessOutput.GetSource(), Stripped);
-				PreprocessOutput.EditSource() = Stripped.GetData();
+				ShaderConvertAndStripComments(DebugUSF, Stripped);
+				PreprocessOutput.EditSource().Set({ Stripped.GetData(), Stripped.Num() });
 			}
 
 			return bSuccess;
@@ -1769,7 +1749,7 @@ namespace UE::ShaderCompilerCommon
 		DumpExtendedDebugShaderData(Input, PreprocessOutput, Output);
 	}
 
-	void DumpDebugShaderData(const FShaderCompilerInput& Input, const FString& PreprocessedSource, const FDebugShaderDataOptions& Options)
+	void DumpDebugShaderData(const FShaderCompilerInput& Input, FStringView PreprocessedSource, const FDebugShaderDataOptions& Options)
 	{
 		if (!Input.DumpDebugInfoEnabled())
 		{
@@ -1804,14 +1784,19 @@ namespace UE::ShaderCompilerCommon
 			}
 			
 			PrefixedOptions.FilenamePrefix = *StrippedPrefix;
-			FFileHelper::SaveStringToFile(PreprocessOutput.GetSource(), *PrefixedOptions.GetDebugShaderPath(Input));
+			FFileHelper::SaveStringToFile(PreprocessOutput.GetSourceViewWide(), *PrefixedOptions.GetDebugShaderPath(Input));
 
 			PrefixedOptions.FilenamePrefix = *PreprocessedPrefix;
-			FFileHelper::SaveStringToFile(PreprocessOutput.GetUnstrippedSource(), *PrefixedOptions.GetDebugShaderPath(Input));
+			FFileHelper::SaveStringToFile(PreprocessOutput.GetUnstrippedSourceView(), *PrefixedOptions.GetDebugShaderPath(Input));
 		}
-			
-		const FString& SourceToDump = Output.ModifiedShaderSource.IsEmpty() ? PreprocessOutput.GetSource() : Output.ModifiedShaderSource;
-		DumpDebugShaderData(Input, SourceToDump, Options);
+		if (Output.ModifiedShaderSource.IsEmpty())
+		{
+			DumpDebugShaderData(Input, PreprocessOutput.GetSourceViewWide(), Options);
+		}
+		else
+		{
+			DumpDebugShaderData(Input, FStringView(Output.ModifiedShaderSource), Options);
+		}
 		FFileHelper::SaveStringToFile(Output.OutputHash.ToString(), *GetDebugFileName(Input, Options, TEXT("OutputHash.txt")), FFileHelper::EEncodingOptions::ForceAnsi);
 
 		if (EnumHasAnyFlags(Input.DebugInfoFlags, EShaderDebugInfoFlags::Diagnostics))
@@ -1888,7 +1873,7 @@ namespace UE::ShaderCompilerCommon
 		Env.SerializeCompilationDependencies(Ar);
 	}
 
-	FString GetDebugShaderContents(const FShaderCompilerInput& Input, const FString& PreprocessedSource, const FDebugShaderDataOptions& Options)
+	FString GetDebugShaderContents(const FShaderCompilerInput& Input, FStringView PreprocessedSource, const FDebugShaderDataOptions& Options)
 	{
 		// If preprocessed cache is enabled, debug dump occurs in the cook process rather than the workers, and
 		// in that case the env in Input.Environment has not been merged with the shared env. Do so here.
@@ -1898,7 +1883,7 @@ namespace UE::ShaderCompilerCommon
 			MergedEnvironment.Merge(*Input.SharedEnvironment);
 		}
 
-		FString Contents = MergedEnvironment.GetDefinitionsAsCommentedCode();
+		FString Contents = Options.AppendPreSource ? Options.AppendPreSource() : FString();
 
 		if (Options.AppendPreSource)
 		{

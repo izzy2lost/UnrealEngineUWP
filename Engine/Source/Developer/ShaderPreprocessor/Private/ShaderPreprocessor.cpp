@@ -834,8 +834,8 @@ bool PreprocessShader(
 		// Append ShaderPrint generated code at the end of the shader if necessary
 		Context.ShaderPrintGenerate(OutPreprocessedAnsi, &Output.EditDiagnosticDatas());
 
-		// "preprocessor_file_size" includes null terminator, so subtract one for Append call -- passing size saves an expensive strlen in Append
-		Output.EditSource().Append(OutPreprocessedAnsi, preprocessor_file_size(OutPreprocessedAnsi) - 1);
+		// "preprocessor_file_size" includes null terminator, so subtract one when initializing the FShaderSource (which automatically null terminates)
+		Output.EditSource().Set({ OutPreprocessedAnsi, preprocessor_file_size(OutPreprocessedAnsi) - 1 });
 	}
 
 	if (!HasError && !Context.HasIncludedMandatoryHeaders())
@@ -866,7 +866,7 @@ bool PreprocessShader(
 	const FShaderCompilerEnvironment& Environment = ShaderInput.Environment;
 	bool bSucceeded = PreprocessShader(Output, ShaderInput, Environment, AdditionalDefines);
 
-	OutPreprocessedShader = MoveTemp(Output.EditSource());
+	OutPreprocessedShader = FString(Output.GetSourceViewWide());
 
 	Output.MoveDirectives(ShaderOutput.PragmaDirectives);
 	for (FShaderCompilerError& Error : Output.EditErrors())

@@ -264,7 +264,14 @@ public:
 	// Serializes only the subset of data written by ShaderCompiler and read from SCW when using worker processes.
 	RENDERCORE_API void SerializeWorkerInput(FArchive& Ar);
 
-	RENDERCORE_API const FString& GetFinalSource() const;
+	UE_DEPRECATED(5.4, "GetFinalSource is deprecated, GetFinalSourceView returns an FStringView instead.")
+	inline const FString& GetFinalSource() const
+	{
+		static FString Empty;
+		return Empty;
+	}
+
+	RENDERCORE_API FStringView GetFinalSourceView() const;
 
 	FShaderCompileJob() : FShaderCommonCompileJob(Type, 0u, 0u, EShaderCompileJobPriority::Num)
 	{}

@@ -51,7 +51,8 @@ bool CompileVectorVMShader(
 	}
 
 	FVectorVMCodeBackend VVMBackEnd(CCFlags, HlslCompilerTarget, VMCompilationOutput);
-	FVectorVMLanguageSpec VVMLanguageSpec; 
+	FVectorVMLanguageSpec VVMLanguageSpec;
+	FAnsiStringView Source = PreprocessOutput.GetSourceViewAnsi();
 
 	bool bResult = false;
 	{
@@ -62,7 +63,7 @@ bool CompileVectorVMShader(
 			SCOPE_CYCLE_COUNTER(STAT_VectorVM_Compiler_CompileShader_CrossCompilerContextRun);
 
 			bResult = CrossCompilerContext.Run(
-				TCHAR_TO_ANSI(*PreprocessOutput.GetSource()),
+				Source.GetData(),
 				TCHAR_TO_ANSI(*Input.EntryPointName),
 				&VVMBackEnd,
 				&ShaderSource,
@@ -82,16 +83,15 @@ bool CompileVectorVMShader(
 
 		VMCompilationOutput.Errors = Converted.GetData();
 
-		TArray<FString> OutputByLines;
-		PreprocessOutput.GetSource().ParseIntoArrayLines(OutputByLines, false);
-
 		UE_LOG(LogVectorVMShaderCompiler, Warning, TEXT("Warnings while processing %s"), *Input.DebugGroupName);
 
-		FString OutputHlsl;
-		for (int32 i = 0; i < OutputByLines.Num(); i++)
-		{
-			UE_LOG(LogVectorVMShaderCompiler, Display, TEXT("/*%d*/%s"), i, *OutputByLines[i]);
-		}
+		PreprocessOutput.ForEachLine
+		(
+			[](FAnsiStringView Line, int32 LineIndex)
+			{
+				UE_LOG(LogVectorVMShaderCompiler, Display, TEXT("/*%d*/%.*hs"), LineIndex, Line.Len(), Line.GetData());
+			}
+		);
 	}
 	else
 	{

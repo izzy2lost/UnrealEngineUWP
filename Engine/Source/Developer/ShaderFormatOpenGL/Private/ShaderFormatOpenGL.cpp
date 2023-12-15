@@ -20,7 +20,7 @@ extern bool ShouldUseDXC(FShaderCompilerFlags Flags);
 
 extern void CompileOpenGLShader(
 	const FShaderCompilerInput& Input,
-	const FString& InPreprocessedSource,
+	const FShaderPreprocessOutput& InPreprocessOutput,
 	FShaderCompilerOutput& Output,
 	const FString& WorkingDirectory,
 	GLSLVersion Version);
@@ -109,7 +109,7 @@ public:
 	virtual void CompilePreprocessedShader(const FShaderCompilerInput& Input, const FShaderPreprocessOutput& PreprocessOutput, FShaderCompilerOutput& Output, const FString& WorkingDirectory) const override
 	{
 		CheckFormat(Input.ShaderFormat);
-		CompileOpenGLShader(Input, PreprocessOutput.GetSource(), Output, WorkingDirectory, TranslateFormatNameToEnum(Input.ShaderFormat));		
+		CompileOpenGLShader(Input, PreprocessOutput, Output, WorkingDirectory, TranslateFormatNameToEnum(Input.ShaderFormat));		
 	}
 
 	virtual const TCHAR* GetPlatformIncludeDirectory() const override

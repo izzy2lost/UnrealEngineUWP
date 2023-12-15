@@ -11,6 +11,7 @@
 #include "Interfaces/IShaderFormat.h"
 
 class FShaderParameterParser;
+class FShaderSource;
 
 namespace UE::ShaderCompilerCommon
 {
@@ -98,9 +99,16 @@ namespace UE::ShaderCompilerCommon
 	* Any errors encountered during parsing or minification are added to OutErrors.
 	* InOutPreprocessedShaderSource is replaced with the rewritten code on success and is kept intact on failure.
 	*/
-	extern SHADERCOMPILERCOMMON_API bool RemoveDeadCode(FString& InOutPreprocessedShaderSource, const FString& EntryPoint, TArray<FShaderCompilerError>& OutErrors);
-	extern SHADERCOMPILERCOMMON_API bool RemoveDeadCode(FString& InOutPreprocessedShaderSource, const FString& EntryPoint, TConstArrayView<FStringView> RequiredSymbols, TArray<FShaderCompilerError>& OutErrors);
-	extern SHADERCOMPILERCOMMON_API bool RemoveDeadCode(FString& InOutPreprocessedShaderSource, TConstArrayView<FStringView> RequiredSymbols, TArray<FShaderCompilerError>& OutErrors);
+	extern SHADERCOMPILERCOMMON_API bool RemoveDeadCode(FShaderSource& InOutPreprocessedShaderSource, const FString& EntryPoint, TArray<FShaderCompilerError>& OutErrors);
+	extern SHADERCOMPILERCOMMON_API bool RemoveDeadCode(FShaderSource& InOutPreprocessedShaderSource, const FString& EntryPoint, TConstArrayView<FStringView> RequiredSymbols, TArray<FShaderCompilerError>& OutErrors);
+	extern SHADERCOMPILERCOMMON_API bool RemoveDeadCode(FShaderSource& InOutPreprocessedShaderSource, TConstArrayView<FStringView> RequiredSymbols, TArray<FShaderCompilerError>& OutErrors);
+	
+	UE_DEPRECATED(5.4, "Use overload of RemoveDeadCode accepting FShaderSource")
+	inline bool RemoveDeadCode(FString& InOutPreprocessedShaderSource, const FString& EntryPoint, TArray<FShaderCompilerError>& OutErrors) { return false; }
+	UE_DEPRECATED(5.4, "Use overload of RemoveDeadCode accepting FShaderSource")
+	inline bool RemoveDeadCode(FString& InOutPreprocessedShaderSource, const FString& EntryPoint, TConstArrayView<FStringView> RequiredSymbols, TArray<FShaderCompilerError>& OutErrors) { return false; }
+	UE_DEPRECATED(5.4, "Use overload of RemoveDeadCode accepting FShaderSource")
+	inline bool RemoveDeadCode(FString& InOutPreprocessedShaderSource, TConstArrayView<FStringView> RequiredSymbols, TArray<FShaderCompilerError>& OutErrors) { return false; }
 
 	struct FDebugShaderDataOptions
 	{
@@ -174,7 +182,13 @@ namespace UE::ShaderCompilerCommon
 	 * @param	PreprocessedSource The unmodified preprocessed source (used as input to the compilation)
 	 * @param	Options Options which can change behaviour of the debug dump; see above.
 	 */
-	extern SHADERCOMPILERCOMMON_API FString GetDebugShaderContents(const FShaderCompilerInput& Input, const FString& PreprocessedSource, const FDebugShaderDataOptions& Options = FDebugShaderDataOptions());
+	extern SHADERCOMPILERCOMMON_API FString GetDebugShaderContents(const FShaderCompilerInput& Input, FStringView PreprocessedSource, const FDebugShaderDataOptions& Options = FDebugShaderDataOptions());
+	
+	UE_DEPRECATED(5.4, "Use overload of GetDebugShaderContents accepting an FStringView")
+	inline FString GetDebugShaderContents(const FShaderCompilerInput& Input, const FString& PreprocessedSource, const FDebugShaderDataOptions& Options = FDebugShaderDataOptions())
+	{
+		return FString();
+	}
 
 	class FBaseShaderFormat : public IShaderFormat
 	{
@@ -329,12 +343,41 @@ extern SHADERCOMPILERCOMMON_API void AddUnboundShaderParameterError(
 	FShaderCompilerOutput& CompilerOutput);
 
 // Convert generated UniformBuffer code and references into something the shader compilers can use.
-extern SHADERCOMPILERCOMMON_API void CleanupUniformBufferCode(const FShaderCompilerEnvironment& Environment, FString& PreprocessedShaderSource);
+extern SHADERCOMPILERCOMMON_API void CleanupUniformBufferCode(const FShaderCompilerEnvironment& Environment, FShaderSource& PreprocessedShaderSource);
 
 UE_DEPRECATED(5.4, "RemoveUniformBuffersFromSource was renamed CleanupUniformBufferCode")
 inline void RemoveUniformBuffersFromSource(const FShaderCompilerEnvironment& Environment, FString& PreprocessedShaderSource) {}
 
-extern SHADERCOMPILERCOMMON_API const TCHAR* FindMatchingClosingBrace(const TCHAR* OpeningCharPtr);
+template <typename CharType>
+const CharType* FindMatchingBlock(const CharType* OpeningCharPtr, char OpenChar, char CloseChar)
+{
+	const CharType* SearchPtr = OpeningCharPtr;
+	int32 Depth = 0;
+
+	while (*SearchPtr)
+	{
+		if (*SearchPtr == OpenChar)
+		{
+			Depth++;
+		}
+		else if (*SearchPtr == CloseChar)
+		{
+			if (Depth == 0)
+			{
+				return SearchPtr;
+			}
+
+			Depth--;
+		}
+		SearchPtr++;
+	}
+
+	return nullptr;
+}
+
+template <typename CharType>
+const CharType* FindMatchingClosingBrace(const CharType* OpeningCharPtr) { return FindMatchingBlock<CharType>(OpeningCharPtr, '{', '}'); };
+
 extern SHADERCOMPILERCOMMON_API const TCHAR* ParseHLSLSymbolName(const TCHAR* SearchString, FString& SymboName);
 extern SHADERCOMPILERCOMMON_API void ParseHLSLTypeName(const TCHAR* SearchString, const TCHAR*& TypeNameStartPtr, const TCHAR*& TypeNameEndPtr);
 

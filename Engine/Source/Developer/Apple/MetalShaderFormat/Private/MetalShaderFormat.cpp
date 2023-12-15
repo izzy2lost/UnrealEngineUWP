@@ -29,7 +29,7 @@ DEFINE_LOG_CATEGORY(LogMetalShaderCompiler)
 #define CHECK_METAL_COMPILER_TOOLCHAIN_SETUP 0
 
 extern bool PreprocessMetalShader(const FShaderCompilerInput& Input, const FShaderCompilerEnvironment& Environment, FShaderPreprocessOutput& PreprocessOutput);
-extern void CompileMetalShader(const FShaderCompilerInput& Input, const FString& InPreprocessedSource, FShaderCompilerOutput& Output);
+extern void CompileMetalShader(const FShaderCompilerInput& Input, const FShaderPreprocessOutput& InPreprocessOutput, FShaderCompilerOutput& Output);
 extern void OutputMetalDebugData(const FShaderCompilerInput& Input, const FShaderPreprocessOutput& PreprocessOutput, const FShaderCompilerOutput& Output);
 
 extern bool StripShader_Metal(TArray<uint8>& Code, class FString const& DebugPath, bool const bNative);
@@ -135,7 +135,7 @@ public:
 		const FString& WorkingDirectory) const override final
 	{
 		CheckShaderFormat(Input.ShaderFormat);
-		CompileMetalShader(Input, PreprocessOutput.GetSource(), Output);
+		CompileMetalShader(Input, PreprocessOutput, Output);
 	}
 
 	virtual void OutputDebugData(

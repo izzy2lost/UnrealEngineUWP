@@ -2,10 +2,12 @@
 
 #pragma once
 
+#include "Containers/AnsiString.h"
 #include "Containers/Array.h"
 #include "Containers/UnrealString.h"
 #include "ShaderCompilerCore.h"
 #include "ShaderCore.h"
+#include "ShaderSource.h"
 
 struct FShaderCompilerEnvironment;
 struct FShaderCompilerError;
@@ -58,21 +60,63 @@ public:
 	FShaderPreprocessOutput()
 	{
 	}
+	
+	UE_DEPRECATED(5.4, "Use StringView accessors")
 	const FString& GetSource() const
 	{
-		return PreprocessedSource;
+		static FString Empty;
+		return Empty;
 	}
 
+	FAnsiStringView GetSourceViewAnsi() const
+	{
+		if (AnsiSource.IsEmpty())
+		{
+			AnsiSource = FAnsiString(PreprocessedSource.GetView());
+		}
+		return FAnsiStringView(AnsiSource);
+	}
+
+	FStringView GetSourceViewWide() const
+	{
+		return PreprocessedSource.GetView();
+	}
+
+	UE_DEPRECATED(5.4, "Use GetUnstrippedSourceView")
 	const FString& GetUnstrippedSource() const
+	{
+		PRAGMA_DISABLE_DEPRECATION_WARNINGS
+		return GetSource();
+		PRAGMA_ENABLE_DEPRECATION_WARNINGS
+	}
+
+	FStringView GetUnstrippedSourceView() const
 	{
 		// if the unstripped source is requested, check if the "original source" field has been populated
 		// if not then stripping hasn't occurred so there's only one preprocessed source; return it
-		return OriginalPreprocessedSource.IsEmpty() ? PreprocessedSource : OriginalPreprocessedSource;
+		return OriginalPreprocessedSource.IsEmpty() ? PreprocessedSource.GetView() : OriginalPreprocessedSource.GetView();
 	}
 
-	FString& EditSource()
+	FShaderSource& EditSource()
 	{
 		return PreprocessedSource;
+	}
+
+	inline void ForEachLine(TFunction<void(FAnsiStringView Line, int32 LineIndex)> Callback) const
+	{
+		FAnsiStringView Source = GetSourceViewAnsi();
+		int32 EndIndex = 0, LineIndex = 0, StartIndex = 0;
+		while (StartIndex < Source.Len())
+		{
+			EndIndex = Source.Find(ANSITEXTVIEW("\n"), StartIndex);
+			if (EndIndex == INDEX_NONE)
+			{
+				EndIndex = Source.Len();
+			}
+			FAnsiStringView Line(Source.GetData() + StartIndex, EndIndex - StartIndex);
+			StartIndex = EndIndex + 1;
+			Callback(Line, LineIndex++);
+		}
 	}
 
 	inline bool HasDirective(const FString& Directive) const
@@ -186,10 +230,13 @@ private:
 	void RemapErrors(FShaderCompilerOutput& Output) const;
 
 	// Output of preprocessing; should be set by IShaderFormat::PreprocessShader
-	FString PreprocessedSource;
+	FShaderSource PreprocessedSource;
 
 	// Set by Finalize; original preprocessed source as set by IShaderFormat::PreprocessShader
-	FString OriginalPreprocessedSource;
+	FShaderSource OriginalPreprocessedSource;
+
+	// Set when GetSourceViewAnsi is called (if source is wide)
+	mutable FAnsiString AnsiSource;
 
 	// Array of errors encountered in preprocessing; should be populated by IShaderFormat::PreprocessShader
 	TArray<FShaderCompilerError> Errors;

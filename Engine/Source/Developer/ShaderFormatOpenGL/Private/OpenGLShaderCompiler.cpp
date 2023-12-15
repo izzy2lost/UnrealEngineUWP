@@ -3265,10 +3265,10 @@ bool ShouldUseDXC(FShaderCompilerFlags Flags)
  * @param WorkingDirectory - (unused, part of IShaderFormat API)
  * @param Version - Target GLSL version for this compilation
  */
-void CompileOpenGLShader(const FShaderCompilerInput& Input, const FString& InPreprocessedSource, FShaderCompilerOutput& Output, const FString& WorkingDirectory, GLSLVersion Version)
+void CompileOpenGLShader(const FShaderCompilerInput& Input, const FShaderPreprocessOutput& InPreprocessOutput, FShaderCompilerOutput& Output, const FString& WorkingDirectory, GLSLVersion Version)
 {
 	FString EntryPointName = Input.EntryPointName;
-	FString PreprocessedSource = InPreprocessedSource;
+	FString PreprocessedSource(InPreprocessOutput.GetSourceViewWide());
 
 	FShaderParameterParser::FPlatformConfiguration PlatformConfiguration;
 	FShaderParameterParser ShaderParameterParser(PlatformConfiguration);
@@ -3419,7 +3419,7 @@ void FOpenGLFrontend::CompileShader(const FShaderCompilerInput& Input, FShaderCo
 {
 	FShaderPreprocessOutput PreprocessOutput;
 	PreprocessShader(PreprocessOutput, Input, Input.Environment);
-	CompileOpenGLShader(Input, PreprocessOutput.GetSource(), Output, WorkingDirectory, Version);
+	CompileOpenGLShader(Input, PreprocessOutput, Output, WorkingDirectory, Version);
 }
 
 static void FillDeviceCapsOfflineCompilationInternal(struct FDeviceCapabilities& Capabilities, const GLSLVersion ShaderVersion)

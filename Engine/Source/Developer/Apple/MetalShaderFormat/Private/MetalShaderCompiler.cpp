@@ -766,10 +766,10 @@ bool PreprocessMetalShader(const FShaderCompilerInput& Input, const FShaderCompi
 	return UE::ShaderCompilerCommon::ExecuteShaderPreprocessingSteps(PreprocessOutput, Input, Environment);
 }
 
-void CompileMetalShader(const FShaderCompilerInput& Input, const FString& InPreprocessedSource, FShaderCompilerOutput& Output)
+void CompileMetalShader(const FShaderCompilerInput& Input, const FShaderPreprocessOutput& InPreprocessOutput, FShaderCompilerOutput& Output)
 {
 	FString EntryPointName = Input.EntryPointName;
-	FString PreprocessedSource = InPreprocessedSource;
+	FString PreprocessedSource(InPreprocessOutput.GetSourceViewWide());
 
 	FShaderParameterParser::FPlatformConfiguration PlatformConfiguration;
 	FShaderParameterParser ShaderParameterParser(PlatformConfiguration);

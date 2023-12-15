@@ -21,7 +21,7 @@ extern void ModifyVulkanCompilerInput(FShaderCompilerInput& Input);
 
 extern void CompileVulkanShader(
 	const FShaderCompilerInput& Input,
-	const FString& InPreprocessedSource,
+	const FShaderPreprocessOutput& InPreprocessOutput,
 	FShaderCompilerOutput& Output,
 	const FString& WorkingDirectory);
 
@@ -95,7 +95,7 @@ public:
 
 	virtual void CompilePreprocessedShader(const FShaderCompilerInput& Input, const FShaderPreprocessOutput& PreprocessOutput, FShaderCompilerOutput& Output,const FString& WorkingDirectory) const override
 	{
-		CompileVulkanShader(Input, PreprocessOutput.GetSource(), Output, WorkingDirectory);
+		CompileVulkanShader(Input, PreprocessOutput, Output, WorkingDirectory);
 	}
 
 	virtual void OutputDebugData(const FShaderCompilerInput& Input, const FShaderPreprocessOutput& PreprocessOutput, const FShaderCompilerOutput& Output) const override

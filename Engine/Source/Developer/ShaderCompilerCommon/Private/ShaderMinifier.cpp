@@ -24,45 +24,45 @@ DEFINE_LOG_CATEGORY_STATIC(LogShaderMinifier, Log, All);
 namespace UE::ShaderMinifier
 {
 
-static FStringView SubStrView(FStringView S, int32 Start)
+static FShaderSource::FViewType SubStrView(FShaderSource::FViewType S, int32 Start)
 {
 	Start = FMath::Min(Start, S.Len());
 	int32 Len = S.Len() - Start;
-	return FStringView(S.GetData() + Start, Len);
+	return FShaderSource::FViewType(S.GetData() + Start, Len);
 }
 
-static FStringView SubStrView(FStringView S, int32 Start, int32 Len)
+static FShaderSource::FViewType SubStrView(FShaderSource::FViewType S, int32 Start, int32 Len)
 {
 	Start = FMath::Min(Start, S.Len());
 	Len	  = FMath::Min(Len, S.Len() - Start);
-	return FStringView(S.GetData() + Start, Len);
+	return FShaderSource::FViewType(S.GetData() + Start, Len);
 }
 
 template<typename TCondition>
-static FStringView SkipUntil(FStringView Source, TCondition Cond)
+static FShaderSource::FViewType SkipUntil(FShaderSource::FViewType Source, TCondition Cond)
 {
 	int32 Cursor = 0;
 	const int32 SourceLen = Source.Len();
 	while (Cursor < SourceLen)
 	{
-		if (Cond(FStringView(Source.GetData() + Cursor, SourceLen - Cursor)))
+		if (Cond(FShaderSource::FViewType(Source.GetData() + Cursor, SourceLen - Cursor)))
 		{
 			break;
 		}
 		++Cursor;
 	}
-	return FStringView(Source.GetData() + Cursor, SourceLen - Cursor);
+	return FShaderSource::FViewType(Source.GetData() + Cursor, SourceLen - Cursor);
 }
 
-static bool Equals(FStringView A, FStringView B)
+static bool Equals(FShaderSource::FViewType A, FShaderSource::FViewType B)
 {
 	int32 Len = A.Len();
 	if (Len != B.Len())
 	{
 		return false;
 	}
-	const TCHAR* DataA = A.GetData();
-	const TCHAR* DataB = B.GetData();
+	const FShaderSource::CharType* DataA = A.GetData();
+	const FShaderSource::CharType* DataB = B.GetData();
 	for (int32 I = 0; I < Len; ++I)
 	{
 		if (DataA[I] != DataB[I])
@@ -73,7 +73,7 @@ static bool Equals(FStringView A, FStringView B)
 	return true;
 }
 
-static bool StartsWith(FStringView Source, FStringView Prefix)
+static bool StartsWith(FShaderSource::FViewType Source, FShaderSource::FViewType Prefix)
 {
 	const int32 SourceLen = Source.Len();
 	const int32 PrefixLen = Prefix.Len();
@@ -81,7 +81,7 @@ static bool StartsWith(FStringView Source, FStringView Prefix)
 	{
 		return false;
 	}
-	FStringView SourceView(Source.GetData(), PrefixLen);
+	FShaderSource::FViewType SourceView(Source.GetData(), PrefixLen);
 	return Equals(SourceView, Prefix);
 }
 
@@ -132,22 +132,22 @@ struct FCharacterFlags
 		Flags[uint8(')')]  |= Special;
 	}
 
-	bool IsSpace(TCHAR C) const
+	bool IsSpace(FShaderSource::CharType C) const
 	{
 		return (Flags[uint8(C)] & Space) != 0;
 	}
 
-	bool IsNumber(TCHAR C) const
+	bool IsNumber(FShaderSource::CharType C) const
 	{
 		return (Flags[uint8(C)] & Number) != 0;
 	}
 
-	bool IsPossibleIdentifierCharacter(TCHAR C) const
+	bool IsPossibleIdentifierCharacter(FShaderSource::CharType C) const
 	{
 		return (Flags[uint8(C)] & PossibleIdentifierMask) != 0;
 	}
 
-	bool IsSpecial(TCHAR C) const
+	bool IsSpecial(FShaderSource::CharType C) const
 	{
 		return (Flags[uint8(C)] & Special) != 0;
 	}
@@ -157,24 +157,24 @@ struct FCharacterFlags
 
 static const FCharacterFlags GCharacterFlags;
 
-static bool IsSpace(TCHAR C)
+static bool IsSpace(FShaderSource::CharType C)
 {
 	return GCharacterFlags.IsSpace(C);
 }
 
-static bool IsNumber(TCHAR C)
+static bool IsNumber(FShaderSource::CharType C)
 {
 	return GCharacterFlags.IsNumber(C);
 }
 
-static bool IsPossibleIdentifierCharacter(TCHAR C)
+static bool IsPossibleIdentifierCharacter(FShaderSource::CharType C)
 {
 	return GCharacterFlags.IsPossibleIdentifierCharacter(C);
 }
 
-static FStringView ExtractOperator(FStringView Source)
+static FShaderSource::FViewType ExtractOperator(FShaderSource::FViewType Source)
 {
-	FStringView Result;
+	FShaderSource::FViewType Result;
 
 	if (Source.IsEmpty() || IsPossibleIdentifierCharacter(Source[0]))
 	{
@@ -182,53 +182,53 @@ static FStringView ExtractOperator(FStringView Source)
 	}
 
 	// NOTE: array is sorted by length to match complete operator character sequences first
-	static const FStringView SupportedOperators[] =
+	static const FShaderSource::FViewType SupportedOperators[] =
 	{
 		// three-character operators
-		FStringView(TEXT("<<=")),
-		FStringView(TEXT(">>=")),
-		FStringView(TEXT("->*")),
+		SHADER_SOURCE_VIEWLITERAL("<<="),
+		SHADER_SOURCE_VIEWLITERAL(">>="),
+		SHADER_SOURCE_VIEWLITERAL("->*"),
 
 		// two-character operators
-		FStringView(TEXT("+=")),
-		FStringView(TEXT("++")),
-		FStringView(TEXT("-=")),
-		FStringView(TEXT("--")),
-		FStringView(TEXT("->")),
-		FStringView(TEXT("*=")),
-		FStringView(TEXT("/=")),
-		FStringView(TEXT("%=")),
-		FStringView(TEXT("^=")),
-		FStringView(TEXT("&=")),
-		FStringView(TEXT("&&")),
-		FStringView(TEXT("|=")),
-		FStringView(TEXT("||")),
-		FStringView(TEXT("<<")),
-		FStringView(TEXT("<=")),
-		FStringView(TEXT(">>")),
-		FStringView(TEXT(">=")),
-		FStringView(TEXT("==")),
-		FStringView(TEXT("!=")),
-		FStringView(TEXT("()")),
-		FStringView(TEXT("[]")),
+		SHADER_SOURCE_VIEWLITERAL("+="),
+		SHADER_SOURCE_VIEWLITERAL("++"),
+		SHADER_SOURCE_VIEWLITERAL("-="),
+		SHADER_SOURCE_VIEWLITERAL("--"),
+		SHADER_SOURCE_VIEWLITERAL("->"),
+		SHADER_SOURCE_VIEWLITERAL("*="),
+		SHADER_SOURCE_VIEWLITERAL("/="),
+		SHADER_SOURCE_VIEWLITERAL("%="),
+		SHADER_SOURCE_VIEWLITERAL("^="),
+		SHADER_SOURCE_VIEWLITERAL("&="),
+		SHADER_SOURCE_VIEWLITERAL("&&"),
+		SHADER_SOURCE_VIEWLITERAL("|="),
+		SHADER_SOURCE_VIEWLITERAL("||"),
+		SHADER_SOURCE_VIEWLITERAL("<<"),
+		SHADER_SOURCE_VIEWLITERAL("<="),
+		SHADER_SOURCE_VIEWLITERAL(">>"),
+		SHADER_SOURCE_VIEWLITERAL(">="),
+		SHADER_SOURCE_VIEWLITERAL("=="),
+		SHADER_SOURCE_VIEWLITERAL("!="),
+		SHADER_SOURCE_VIEWLITERAL("()"),
+		SHADER_SOURCE_VIEWLITERAL("[]"),
 
 		// single character operators
-		FStringView(TEXT("+")),
-		FStringView(TEXT("-")),
-		FStringView(TEXT("*")),
-		FStringView(TEXT("/")),
-		FStringView(TEXT("%")),
-		FStringView(TEXT("^")),
-		FStringView(TEXT("&")),
-		FStringView(TEXT("|")),
-		FStringView(TEXT("~")),
-		FStringView(TEXT("!")),
-		FStringView(TEXT("=")),
-		FStringView(TEXT("<")),
-		FStringView(TEXT(">")),
+		SHADER_SOURCE_VIEWLITERAL("+"),
+		SHADER_SOURCE_VIEWLITERAL("-"),
+		SHADER_SOURCE_VIEWLITERAL("*"),
+		SHADER_SOURCE_VIEWLITERAL("/"),
+		SHADER_SOURCE_VIEWLITERAL("%"),
+		SHADER_SOURCE_VIEWLITERAL("^"),
+		SHADER_SOURCE_VIEWLITERAL("&"),
+		SHADER_SOURCE_VIEWLITERAL("|"),
+		SHADER_SOURCE_VIEWLITERAL("~"),
+		SHADER_SOURCE_VIEWLITERAL("!"),
+		SHADER_SOURCE_VIEWLITERAL("="),
+		SHADER_SOURCE_VIEWLITERAL("<"),
+		SHADER_SOURCE_VIEWLITERAL(">"),
 	};
 
-	for (FStringView Operator : SupportedOperators)
+	for (FShaderSource::FViewType Operator : SupportedOperators)
 	{
 		if (StartsWith(Source, Operator))
 		{
@@ -240,17 +240,17 @@ static FStringView ExtractOperator(FStringView Source)
 	return Result;
 }
 
-static FStringView SkipUntilNonIdentifierCharacter(FStringView Source)
+static FShaderSource::FViewType SkipUntilNonIdentifierCharacter(FShaderSource::FViewType Source)
 {
 	const int32 SourceLen = Source.Len();
 	int32 Cursor = 0;
-	const TCHAR* SourceData = Source.GetData();
+	const FShaderSource::CharType* SourceData = Source.GetData();
 
 #if UE_SHADER_MINIFIER_SSE
+	if constexpr (sizeof(FShaderSource::CharType) == 2)
 	{
-		const int32 AlignedLen = SourceLen & (~7); // align down to multiple of 8 TCHAR-s
 		const __m128i NeedleVec = _mm_setr_epi16(L'0', L'9', L'a', L'z', L'A', L'Z', L'_', L'_');
-		while (Cursor < AlignedLen)
+		while (Cursor < SourceLen)
 		{
 			__m128i Chunk = _mm_loadu_si128(reinterpret_cast<const __m128i*>(SourceData + Cursor));
 			constexpr int32 Mode = _SIDD_UWORD_OPS | _SIDD_CMP_RANGES | _SIDD_MASKED_NEGATIVE_POLARITY;
@@ -258,29 +258,31 @@ static FStringView SkipUntilNonIdentifierCharacter(FStringView Source)
 			if (CompareResult)
 			{
 				Cursor += _mm_cmpistri(NeedleVec, Chunk, Mode);
-				return FStringView(SourceData + Cursor, SourceLen - Cursor);
+				return FShaderSource::FViewType(SourceData + Cursor, SourceLen - Cursor);
 			}
 			Cursor += 8;
 		}
 	}
+	else
 #endif // UE_SHADER_MINIFIER_SSE
-
-	while (Cursor < SourceLen)
 	{
-		if (!IsPossibleIdentifierCharacter(SourceData[Cursor]))
+		while (Cursor < SourceLen)
 		{
-			break;
+			if (!IsPossibleIdentifierCharacter(SourceData[Cursor]))
+			{
+				break;
+			}
+			++Cursor;
 		}
-		++Cursor;
 	}
-	return FStringView(SourceData + Cursor, SourceLen - Cursor);
+	return FShaderSource::FViewType(SourceData + Cursor, FMath::Max(SourceLen - Cursor, 0));
 }
 
-static FStringView SkipUntilNonNumber(FStringView Source) 
+static FShaderSource::FViewType SkipUntilNonNumber(FShaderSource::FViewType Source) 
 {
 	const int32 SourceLen = Source.Len();
 	int32 Cursor = 0;
-	const TCHAR* SourceData = Source.GetData();
+	const FShaderSource::CharType* SourceData = Source.GetData();
 	while (Cursor < SourceLen)
 	{
 		if (!IsNumber(SourceData[Cursor]))
@@ -289,20 +291,20 @@ static FStringView SkipUntilNonNumber(FStringView Source)
 		}
 		++Cursor;
 	}
-	return FStringView(SourceData + Cursor, SourceLen - Cursor);
+	return FShaderSource::FViewType(SourceData + Cursor, SourceLen - Cursor);
 }
 
-static FStringView SkipSpace(FStringView Source)
+static FShaderSource::FViewType SkipSpace(FShaderSource::FViewType Source)
 {
 	const int32 SourceLen = Source.Len();
 	int32 Cursor = 0;
-	const TCHAR* SourceData = Source.GetData();
+	const FShaderSource::CharType* SourceData = Source.GetData();
 
 #if UE_SHADER_MINIFIER_SSE
+	if constexpr (sizeof(FShaderSource::CharType) == 2)
 	{
-		const int32 AlignedLen = SourceLen & (~7); // align down to multiple of 8 TCHAR-s
 		const __m128i NeedleVec = _mm_setr_epi16(L' ', L'\f', L'\r', L'\n', L'\t', L'\v', 0, 0);
-		while (Cursor < AlignedLen)
+		while (Cursor < SourceLen)
 		{
 			__m128i Chunk = _mm_loadu_si128(reinterpret_cast<const __m128i*>(SourceData + Cursor));
 			constexpr int32 Mode = _SIDD_UWORD_OPS | _SIDD_CMP_EQUAL_ANY | _SIDD_MASKED_NEGATIVE_POLARITY;
@@ -310,25 +312,27 @@ static FStringView SkipSpace(FStringView Source)
 			if (CompareResult)
 			{
 				Cursor += _mm_cmpistri(NeedleVec, Chunk, Mode);
-				return FStringView(SourceData + Cursor, SourceLen - Cursor);
+				return FShaderSource::FViewType(SourceData + Cursor, SourceLen - Cursor);
 			}
 			Cursor += 8;
 		}
 	}
+	else
 #endif // UE_SHADER_MINIFIER_SSE
-
-	while (Cursor < SourceLen)
 	{
-		if (!IsSpace(SourceData[Cursor]))
+		while (Cursor < SourceLen)
 		{
-			break;
+			if (!IsSpace(SourceData[Cursor]))
+			{
+				break;
+			}
+			++Cursor;
 		}
-		++Cursor;
 	}
-	return FStringView(SourceData + Cursor, SourceLen - Cursor);
+	return FShaderSource::FViewType(SourceData + Cursor, FMath::Max(SourceLen - Cursor, 0));
 }
 
-static FStringView TrimSpace(FStringView Source)
+static FShaderSource::FViewType TrimSpace(FShaderSource::FViewType Source)
 {
 	int32 CursorBegin = 0;
 	int32 CursorEnd = Source.Len();
@@ -351,30 +355,30 @@ static FStringView TrimSpace(FStringView Source)
 		--CursorEnd;
 	}
 
-	FStringView Result = SubStrView(Source, CursorBegin, CursorEnd-CursorBegin);
+	FShaderSource::FViewType Result = SubStrView(Source, CursorBegin, CursorEnd-CursorBegin);
 
 	return Result;
 }
 
-static FStringView SkipUntilNextLine(FStringView Source)
+static FShaderSource::FViewType SkipUntilNextLine(FShaderSource::FViewType Source)
 {
 	int32 Index = INDEX_NONE;
 	if (Source.FindChar('\n', Index))
 	{
-		return FStringView(Source.GetData() + Index, Source.Len() - Index);
+		return FShaderSource::FViewType(Source.GetData() + Index, Source.Len() - Index);
 	}
 	else
 	{
-		return FStringView {};
+		return FShaderSource::FViewType {};
 	}
 }
 
-static FStringView SkipUntilStr(FStringView Haystack, FStringView Needle)
+static FShaderSource::FViewType SkipUntilStr(FShaderSource::FViewType Haystack, FShaderSource::FViewType Needle)
 {
-	return SkipUntil(Haystack, [Needle](FStringView  S) { return StartsWith(S, Needle); });
+	return SkipUntil(Haystack, [Needle](FShaderSource::FViewType  S) { return StartsWith(S, Needle); });
 }
 
-static FStringView ExtractBlock(FStringView Source, TCHAR DelimBegin, TCHAR DelimEnd)
+static FShaderSource::FViewType ExtractBlock(FShaderSource::FViewType Source, FShaderSource::CharType DelimBegin, FShaderSource::CharType DelimEnd)
 {
 	// TODO: handle comments
 	// TODO: handle #if 0 blocks
@@ -382,7 +386,7 @@ static FStringView ExtractBlock(FStringView Source, TCHAR DelimBegin, TCHAR Deli
 	int32 PosEnd = INDEX_NONE;
 	int32 Stack  = 0;
 	const int32 SourceLen = Source.Len();
-	const TCHAR* SourceData = Source.GetData();
+	const FShaderSource::CharType* SourceData = Source.GetData();
 
 	int32 Cursor = 0;
 
@@ -396,7 +400,7 @@ static FStringView ExtractBlock(FStringView Source, TCHAR DelimBegin, TCHAR Deli
 
 	auto ProcessCharacter = [&Stack, &PosEnd, SourceData, DelimBegin, DelimEnd](int32 Cursor) -> EStatus
 	{
-		TCHAR C = SourceData[Cursor];
+		FShaderSource::CharType C = SourceData[Cursor];
 
 		if (C == DelimBegin)
 		{
@@ -423,10 +427,10 @@ static FStringView ExtractBlock(FStringView Source, TCHAR DelimBegin, TCHAR Deli
 	};
 
 #if UE_SHADER_MINIFIER_SSE
+	if constexpr (sizeof(FShaderSource::CharType) == 2)
 	{
-		const int32 AlignedLen = SourceLen & (~7); // align down to multiple of 8 TCHAR-s
 		const __m128i NeedleVec = _mm_setr_epi16(DelimBegin, DelimEnd, 0, 0, 0, 0, 0, 0);
-		while (Cursor < AlignedLen && Status != EStatus::Finished)
+		while (Cursor < SourceLen && Status != EStatus::Finished)
 		{
 			__m128i Chunk = _mm_loadu_si128(reinterpret_cast<const __m128i*>(SourceData + Cursor));
 			constexpr int32 Mode = _SIDD_UWORD_OPS | _SIDD_CMP_EQUAL_ANY | _SIDD_MOST_SIGNIFICANT;
@@ -446,21 +450,23 @@ static FStringView ExtractBlock(FStringView Source, TCHAR DelimBegin, TCHAR Deli
 			Cursor += 8;
 		}
 	}
+	else
 #endif // UE_SHADER_MINIFIER_SSE
-
-	while (Cursor < SourceLen && Status != EStatus::Finished)
 	{
-		Status = ProcessCharacter(Cursor);
-		++Cursor;
+		while (Cursor < SourceLen && Status != EStatus::Finished)
+		{
+			Status = ProcessCharacter(Cursor);
+			++Cursor;
+		}
 	}
 
 	if (Stack == 0 && PosEnd != INDEX_NONE)
 	{
-		return FStringView(Source.GetData(), PosEnd + 1);
+		return FShaderSource::FViewType(Source.GetData(), PosEnd + 1);
 	}
 	else
 	{
-		return FStringView{};
+		return FShaderSource::FViewType{};
 	}
 }
 
@@ -485,30 +491,30 @@ enum class EBlockType : uint8 {
 
 struct FCodeBlock
 {
-	const TCHAR* CodePtr = nullptr;
+	const FShaderSource::CharType* CodePtr = nullptr;
 	int32        CodeLen = 0;
 	EBlockType   Type = EBlockType::Unknown;
 	uint8        Padding[3] = {};
 
-	operator FStringView () const
+	operator FShaderSource::FViewType () const
 	{
 		return GetCode();
 	}
 
-	bool operator == (const FStringView S) const
+	bool operator == (const FShaderSource::FViewType S) const
 	{
 		return Equals(GetCode(), S);
 	}
 
-	void SetCode(FStringView Code)
+	void SetCode(FShaderSource::FViewType Code)
 	{
 		CodePtr = Code.GetData();
 		CodeLen = Code.Len();
 	}
 
-	FStringView GetCode() const
+	FShaderSource::FViewType GetCode() const
 	{
-		return FStringView(CodePtr, CodeLen);
+		return FShaderSource::FViewType(CodePtr, CodeLen);
 	}
 };
 
@@ -533,14 +539,14 @@ enum class ECodeChunkType {
 struct FNamespace
 {
 	FNamespace() = default;
-	FNamespace(TConstArrayView<FStringView> InStack)
+	FNamespace(TConstArrayView<FShaderSource::FViewType> InStack)
 	{
 		if (!InStack.IsEmpty())
 		{
-			for (const FStringView& Part : InStack)
+			for (const FShaderSource::FViewType& Part : InStack)
 			{
 				FullName += Part;
-				FullName += TEXT("::");
+				FullName += SHADER_SOURCE_LITERAL("::");
 			}
 			FullName.LeftChopInline(2);
 		}
@@ -548,7 +554,7 @@ struct FNamespace
 	}
 
 	FString FullName; // i.e. Foo::Bar::Baz
-	TArray<FStringView> Stack; // i.e. [Foo, Bar, Baz]
+	TArray<FShaderSource::FViewType> Stack; // i.e. [Foo, Bar, Baz]
 };
 
 using FCodeBlockArray = TArray<FCodeBlock, TInlineAllocator<6>>;
@@ -565,7 +571,7 @@ struct FCodeChunk
 	// The struct type may be referenced, but the variable may be removed. In this case we have to emit the type declaration only.
 	bool bVerbatim = true;
 
-	FStringView FindFirstBlockByType(EBlockType InType) const
+	FShaderSource::FViewType FindFirstBlockByType(EBlockType InType) const
 	{
 		for (const FCodeBlock& Block : Blocks)
 		{
@@ -578,7 +584,7 @@ struct FCodeChunk
 	}
 
 	// String view covering the entire code chunk
-	FStringView GetCode() const
+	FShaderSource::FViewType GetCode() const
 	{
 		if (Blocks.IsEmpty())
 		{
@@ -588,31 +594,31 @@ struct FCodeChunk
 		{
 			const FCodeBlock& FirstBlock = Blocks[0];
 			const FCodeBlock& LastBlock = Blocks[Blocks.Num()-1];
-			const TCHAR* Begin = FirstBlock.CodePtr;
-			const TCHAR* End = LastBlock.CodePtr + LastBlock.CodeLen;
-			return FStringView(Begin, int32(End-Begin));
+			const FShaderSource::CharType* Begin = FirstBlock.CodePtr;
+			const FShaderSource::CharType* End = LastBlock.CodePtr + LastBlock.CodeLen;
+			return FShaderSource::FViewType(Begin, int32(End-Begin));
 		}
 	}
 };
 
 struct FParsedShader
 {
-	FStringView Source;
+	FShaderSource::FViewType Source;
 	TArray<FCodeChunk> Chunks;
 	TArray<FNamespace> Namespaces;
-	TArray<FStringView> LineDirectives;
+	TArray<FShaderSource::FViewType> LineDirectives;
 };
 
 struct FNamespaceTracker
 {
 	TMap<FString, int32> UniqueNamespaceMap;
 	TArray<FNamespace> UniqueNamespaceArray;
-	TArray<FStringView> NamespaceStack;
+	TArray<FShaderSource::FViewType> NamespaceStack;
 	TArray<int32> NamespaceIdStack;
 
 	FNamespaceTracker() = default;
 
-	void Push(FStringView Name)
+	void Push(FShaderSource::FViewType Name)
 	{
 		NamespaceStack.Push(Name);
 		FNamespace NamespaceEntry(NamespaceStack);
@@ -645,22 +651,22 @@ struct FNamespaceTracker
 	}
 };
 
-FStringView ExtractNextIdentifier(FStringView Source)
+FShaderSource::FViewType ExtractNextIdentifier(FShaderSource::FViewType Source)
 {
-	FStringView Remainder = SkipUntilNonIdentifierCharacter(Source);
-	FStringView Identifier = SubStrView(Source, 0, Source.Len() - Remainder.Len());
+	FShaderSource::FViewType Remainder = SkipUntilNonIdentifierCharacter(Source);
+	FShaderSource::FViewType Identifier = SubStrView(Source, 0, Source.Len() - Remainder.Len());
 	return Identifier;
 }
 
-static FParsedShader ParseShader(FStringView InSource, FDiagnostics& Output)
+static FParsedShader ParseShader(FShaderSource::FViewType InSource, FDiagnostics& Output)
 {
 	FParsedShader Result;
 
 	Result.Source = InSource;
 
-	FStringView		   Source = InSource;
-	FCodeBlockArray    PendingBlocks;
-	TArray<FCodeChunk> Chunks;
+	FShaderSource::FViewType	Source = InSource;
+	FCodeBlockArray			PendingBlocks;
+	TArray<FCodeChunk>		Chunks;
 
 	ECodeChunkType ChunkType = ECodeChunkType::Unknown;
 	bool		   bFoundBody = false;
@@ -677,7 +683,7 @@ static FParsedShader ParseShader(FStringView InSource, FDiagnostics& Output)
 	int32 OperatorKeywordBlockIndex = INDEX_NONE;
 
 	FNamespaceTracker NamespaceTracker;
-	FStringView		  PendingNamespace;
+	FShaderSource::FViewType PendingNamespace;
 
 	auto AddDiagnostic = [InSource, &Source](TArray<FDiagnosticMessage>& Output, FStringView Message)
 	{
@@ -691,7 +697,7 @@ static FParsedShader ParseShader(FStringView InSource, FDiagnostics& Output)
 		Output.Add(MoveTemp(Diagnostic));
 	};
 
-	auto AddBlock = [&PendingBlocks](EBlockType Type, FStringView Code)
+	auto AddBlock = [&PendingBlocks](EBlockType Type, FShaderSource::FViewType Code)
 	{
 		FCodeBlock NewBlock;
 		NewBlock.Type = Type;
@@ -748,7 +754,7 @@ static FParsedShader ParseShader(FStringView InSource, FDiagnostics& Output)
 				// i.e. `struct Foo { ... } Blah = { expression };` 
 				if (ExpressionBlockIndex > 0 && NameBlockIndex == INDEX_NONE)
 				{
-					AddDiagnostic(Output.Errors, TEXT("Initialized struct variables must be named"));
+					AddDiagnostic(Output.Errors, TEXTVIEW("Initialized struct variables must be named"));
 					return;
 				}
 			}
@@ -882,20 +888,20 @@ static FParsedShader ParseShader(FStringView InSource, FDiagnostics& Output)
 			break;
 		}
 
-		const TCHAR FirstChar = *Source.GetData();
+		const FShaderSource::CharType FirstChar = *Source.GetData();
 
 		if (GCharacterFlags.IsSpecial(FirstChar))
 		{
 			if (FirstChar == '/')
 			{
-				if (StartsWith(Source, TEXTVIEW("//")))
+				if (StartsWith(Source, SHADER_SOURCE_VIEWLITERAL("//")))
 				{
-					FStringView Remainder = SkipUntilNextLine(Source);
+					FShaderSource::FViewType Remainder = SkipUntilNextLine(Source);
 
 					// Save comment lines that are outside of blocks
 					if (PendingBlocks.IsEmpty())
 					{
-						FStringView Block = SubStrView(Source, 0, Source.Len() - Remainder.Len());
+						FShaderSource::FViewType Block = SubStrView(Source, 0, Source.Len() - Remainder.Len());
 						AddBlock(EBlockType::Unknown, Block);
 						ChunkType = ECodeChunkType::CommentLine;
 						FinalizeChunk();
@@ -905,9 +911,9 @@ static FParsedShader ParseShader(FStringView InSource, FDiagnostics& Output)
 
 					continue;
 				}
-				else if (StartsWith(Source, TEXTVIEW("/*")))
+				else if (StartsWith(Source, SHADER_SOURCE_VIEWLITERAL("/*")))
 				{
-					Source = SkipUntilStr(Source, TEXTVIEW("*/"));
+					Source = SkipUntilStr(Source, SHADER_SOURCE_VIEWLITERAL("*/"));
 					if (Source.Len() >= 2)
 					{
 						Source = SubStrView(Source, 2);
@@ -917,38 +923,38 @@ static FParsedShader ParseShader(FStringView InSource, FDiagnostics& Output)
 			}
 			else if (FirstChar == '#')
 			{
-				if (StartsWith(Source, TEXTVIEW("#line")))
+				if (StartsWith(Source, SHADER_SOURCE_VIEWLITERAL("#line")))
 				{
-					FStringView Remainder = SkipUntilNextLine(Source);
-					FStringView Block = SubStrView(Source, 0, Source.Len() - Remainder.Len());
+					FShaderSource::FViewType Remainder = SkipUntilNextLine(Source);
+					FShaderSource::FViewType Block = SubStrView(Source, 0, Source.Len() - Remainder.Len());
 					Result.LineDirectives.Add(Block);
 					Source = Remainder;
 					continue;
 				}
-				else if (StartsWith(Source, TEXTVIEW("#pragma")))
+				else if (StartsWith(Source, SHADER_SOURCE_VIEWLITERAL("#pragma")))
 				{
-					FStringView Remainder = SkipUntilNextLine(Source);
-					FStringView Block = SubStrView(Source, 0, Source.Len() - Remainder.Len());
+					FShaderSource::FViewType Remainder = SkipUntilNextLine(Source);
+					FShaderSource::FViewType Block = SubStrView(Source, 0, Source.Len() - Remainder.Len());
 					AddBlock(EBlockType::Directive, Block);
 					ChunkType = ECodeChunkType::Pragma;
 					FinalizeChunk();
 					Source = Remainder;
 					continue;
 				}
-				else if (StartsWith(Source, TEXTVIEW("#define")))
+				else if (StartsWith(Source, SHADER_SOURCE_VIEWLITERAL("#define")))
 				{
 					// TODO: handle `\` new lines in defines
-					FStringView Remainder = SkipUntilNextLine(Source);
-					FStringView Block = SubStrView(Source, 0, Source.Len() - Remainder.Len());
+					FShaderSource::FViewType Remainder = SkipUntilNextLine(Source);
+					FShaderSource::FViewType Block = SubStrView(Source, 0, Source.Len() - Remainder.Len());
 					AddBlock(EBlockType::Directive, Block);
 					ChunkType = ECodeChunkType::Define;
 					FinalizeChunk();
 					Source = Remainder;
 					continue;
 				}
-				else if (StartsWith(Source, TEXTVIEW("#if 0")))
+				else if (StartsWith(Source, SHADER_SOURCE_VIEWLITERAL("#if 0")))
 				{
-					Source = SkipUntilStr(Source, TEXTVIEW("#endif"));
+					Source = SkipUntilStr(Source, SHADER_SOURCE_VIEWLITERAL("#endif"));
 					if (Source.Len() >= 6)
 					{
 						Source = SubStrView(Source, 6);
@@ -958,13 +964,13 @@ static FParsedShader ParseShader(FStringView InSource, FDiagnostics& Output)
 			}
 			else if (PendingBlocks.IsEmpty() && (FirstChar == '{' || FirstChar == '}'))
 			{
-				if (StartsWith(Source, TEXTVIEW("{")))
+				if (StartsWith(Source, SHADER_SOURCE_VIEWLITERAL("{")))
 				{
 					if (ChunkType == ECodeChunkType::Namespace)
 					{
 						if (PendingNamespace.IsEmpty())
 						{
-							AddDiagnostic(Output.Errors, TEXT("HLSL does not support anonymous namespaces"));
+							AddDiagnostic(Output.Errors, TEXTVIEW("HLSL does not support anonymous namespaces"));
 							break;
 						}
 						else
@@ -978,11 +984,11 @@ static FParsedShader ParseShader(FStringView InSource, FDiagnostics& Output)
 					}
 					else
 					{
-						AddDiagnostic(Output.Errors, TEXT("Expected token '{'"));
+						AddDiagnostic(Output.Errors, TEXTVIEW("Expected token '{'"));
 					}
 					continue;
 				}
-				else if (StartsWith(Source, TEXTVIEW("}")))
+				else if (StartsWith(Source, SHADER_SOURCE_VIEWLITERAL("}")))
 				{
 					if (NamespaceTracker.Pop())
 					{
@@ -991,7 +997,7 @@ static FParsedShader ParseShader(FStringView InSource, FDiagnostics& Output)
 					}
 					else
 					{
-						AddDiagnostic(Output.Errors, TEXT("Expected token '}'"));
+						AddDiagnostic(Output.Errors, TEXTVIEW("Expected token '}'"));
 						break;
 					}
 				}
@@ -1004,11 +1010,11 @@ static FParsedShader ParseShader(FStringView InSource, FDiagnostics& Output)
 		{
 			// Operator keyword found in the last processed block. Expect to find operator name character sequence next.
 
-			FStringView OperatorName = ExtractOperator(Source);
+			FShaderSource::FViewType OperatorName = ExtractOperator(Source);
 
 			if (OperatorName.IsEmpty())
 			{
-				AddDiagnostic(Output.Errors, TEXT("Unexpected operator overload type"));
+				AddDiagnostic(Output.Errors, TEXTVIEW("Unexpected operator overload type"));
 				break;
 			}
 
@@ -1018,55 +1024,55 @@ static FParsedShader ParseShader(FStringView InSource, FDiagnostics& Output)
 			continue;
 		}
 
-		FStringView Remainder = SkipUntilNonIdentifierCharacter(Source);
-		FStringView Identifier = SubStrView(Source, 0, Source.Len() - Remainder.Len());
+		FShaderSource::FViewType Remainder = SkipUntilNonIdentifierCharacter(Source);
+		FShaderSource::FViewType Identifier = SubStrView(Source, 0, Source.Len() - Remainder.Len());
 
 		if (Identifier.Len())
 		{
 			if (ChunkType == ECodeChunkType::Unknown)
 			{
-				if (Equals(Identifier, TEXTVIEW("struct")))
+				if (Equals(Identifier, SHADER_SOURCE_VIEWLITERAL("struct")))
 				{
 					ChunkType = ECodeChunkType::Struct;
 					StructBlockIndex = PendingBlocks.Num();
 				}
-				else if (Equals(Identifier, TEXTVIEW("cbuffer")) || Equals(Identifier, TEXTVIEW("ConstantBuffer")))
+				else if (Equals(Identifier, SHADER_SOURCE_VIEWLITERAL("cbuffer")) || Equals(Identifier, SHADER_SOURCE_VIEWLITERAL("ConstantBuffer")))
 				{
 					ChunkType = ECodeChunkType::CBuffer;
 					CbufferBlockIndex = PendingBlocks.Num();
 				}
-				else if (Equals(Identifier, TEXTVIEW("enum")))
+				else if (Equals(Identifier, SHADER_SOURCE_VIEWLITERAL("enum")))
 				{
 					ChunkType = ECodeChunkType::Enum;
 					EnumBlockIndex = PendingBlocks.Num();
 				}
-				else if (Equals(Identifier, TEXTVIEW("namespace")))
+				else if (Equals(Identifier, SHADER_SOURCE_VIEWLITERAL("namespace")))
 				{
 					ChunkType = ECodeChunkType::Namespace;
 					Source = Remainder;
 					continue;
 				}
-				else if (Equals(Identifier, TEXTVIEW("using")))
+				else if (Equals(Identifier, SHADER_SOURCE_VIEWLITERAL("using")))
 				{
 					ChunkType = ECodeChunkType::Using;
 					Source = Remainder;
 					AddBlock(EBlockType::Keyword, Identifier);
 					continue;
 				}
-				else if (Equals(Identifier, TEXTVIEW("typedef")))
+				else if (Equals(Identifier, SHADER_SOURCE_VIEWLITERAL("typedef")))
 				{
 					ChunkType = ECodeChunkType::Typedef;
 					Source = Remainder;
 					AddBlock(EBlockType::Keyword, Identifier);
 					continue;
 				}
-				else if (Equals(Identifier, TEXTVIEW("template")))
+				else if (Equals(Identifier, SHADER_SOURCE_VIEWLITERAL("template")))
 				{
 					Source = Remainder;
 					AddBlock(EBlockType::Keyword, Identifier);
 					continue;
 				}
-				else if (Equals(Identifier, TEXTVIEW("operator")))
+				else if (Equals(Identifier, SHADER_SOURCE_VIEWLITERAL("operator")))
 				{
 					ChunkType = ECodeChunkType::Operator;
 					Source = Remainder;
@@ -1106,18 +1112,18 @@ static FParsedShader ParseShader(FStringView InSource, FDiagnostics& Output)
 			continue;
 		}
 
-		FStringView Block;
+		FShaderSource::FViewType Block;
 
-		TCHAR C = Source[0];
+		FShaderSource::CharType C = Source[0];
 
 		EBlockType BlockType = EBlockType::Unknown;
 
-		if (StartsWith(Source, TEXTVIEW("==")))
+		if (StartsWith(Source, SHADER_SOURCE_VIEWLITERAL("==")))
 		{
-			AddDiagnostic(Output.Errors, TEXT("Unexpected sequence '=='"));
+			AddDiagnostic(Output.Errors, TEXTVIEW("Unexpected sequence '=='"));
 			break;
 		}
-		else if (StartsWith(Source, TEXTVIEW("::")))
+		else if (StartsWith(Source, SHADER_SOURCE_VIEWLITERAL("::")))
 		{
 			Block = SubStrView(Source, 0, 2);
 			Source = SubStrView(Source, 2);
@@ -1143,9 +1149,9 @@ static FParsedShader ParseShader(FStringView InSource, FDiagnostics& Output)
 			{
 				int32 Pos = INDEX_NONE;
 
-				if (!Source.FindChar(TCHAR(';'), Pos))
+				if (!Source.FindChar(FShaderSource::CharType(';'), Pos))
 				{
-					AddDiagnostic(Output.Errors, TEXT("Expected semicolon after assignment expression"));
+					AddDiagnostic(Output.Errors, TEXTVIEW("Expected semicolon after assignment expression"));
 					break;
 				}
 
@@ -1238,7 +1244,7 @@ static FParsedShader ParseShader(FStringView InSource, FDiagnostics& Output)
 
 		if (Block.IsEmpty())
 		{
-			AddDiagnostic(Output.Errors, TEXT("Failed to extract code block"));
+			AddDiagnostic(Output.Errors, TEXTVIEW("Failed to extract code block"));
 			break;
 		}
 		else
@@ -1269,7 +1275,7 @@ static FParsedShader ParseShader(FStringView InSource, FDiagnostics& Output)
 }
 
 template<typename CallbackT>
-void FindChunksByIdentifier(TConstArrayView<FCodeChunk> Chunks, FStringView Identifier, CallbackT Callback)
+void FindChunksByIdentifier(TConstArrayView<FCodeChunk> Chunks, FShaderSource::FViewType Identifier, CallbackT Callback)
 {
 	for (const FCodeChunk& Chunk : Chunks)
 	{
@@ -1283,16 +1289,16 @@ void FindChunksByIdentifier(TConstArrayView<FCodeChunk> Chunks, FStringView Iden
 	}
 }
 
-static TArray<FStringView> SplitByChar(FStringView Source, TCHAR Delimiter)
+static TArray<FShaderSource::FViewType> SplitByChar(FShaderSource::FViewType Source, FShaderSource::CharType Delimiter)
 {
-	TArray<FStringView> Result;
+	TArray<FShaderSource::FViewType> Result;
 
 	int32 Start = 0;
 	const int32 SourceLen = Source.Len();
 
 	for (int32 I = 0; I < SourceLen; ++I)
 	{
-		TCHAR C = Source[I];
+		FShaderSource::CharType C = Source[I];
 		if (C == Delimiter)
 		{
 			size_t Len = I - Start;
@@ -1310,26 +1316,26 @@ static TArray<FStringView> SplitByChar(FStringView Source, TCHAR Delimiter)
 	return Result;
 }
 
-static void ExtractIdentifiers(FStringView InSource, TArray<FStringView>& Result)
+static void ExtractIdentifiers(FShaderSource::FViewType InSource, TArray<FShaderSource::FViewType>& Result)
 {
-	FStringView Source = InSource;
+	FShaderSource::FViewType Source = InSource;
 
 	while (!Source.IsEmpty())
 	{
-		TCHAR FirstChar = Source.GetData()[0];
+		FShaderSource::CharType FirstChar = Source.GetData()[0];
 
-		if (FirstChar == L'#')
+		if (FirstChar == '#')
 		{
-			if (StartsWith(Source, TEXTVIEW("#line"))
-				|| StartsWith(Source, TEXTVIEW("#pragma")))
+			if (StartsWith(Source, SHADER_SOURCE_VIEWLITERAL("#line"))
+				|| StartsWith(Source, SHADER_SOURCE_VIEWLITERAL("#pragma")))
 			{
 				Source = SkipUntilNextLine(Source);
 				Source = SkipSpace(Source);
 				continue;
 			}
-			else if (StartsWith(Source, TEXTVIEW("#if 0")))
+			else if (StartsWith(Source, SHADER_SOURCE_VIEWLITERAL("#if 0")))
 			{
-				Source = SkipUntilStr(Source, TEXTVIEW("#endif"));
+				Source = SkipUntilStr(Source, SHADER_SOURCE_VIEWLITERAL("#endif"));
 				if (Source.Len() >= 6)
 				{
 					Source = SubStrView(Source, 6);
@@ -1338,17 +1344,17 @@ static void ExtractIdentifiers(FStringView InSource, TArray<FStringView>& Result
 				continue;
 			}
 		}
-		else if (FirstChar == L'/')
+		else if (FirstChar == '/')
 		{
-			if (StartsWith(Source, TEXTVIEW("//")))
+			if (StartsWith(Source, SHADER_SOURCE_VIEWLITERAL("//")))
 			{
 				Source = SkipUntilNextLine(Source);
 				Source = SkipSpace(Source);
 				continue;
 			}
-			else if (StartsWith(Source, TEXTVIEW("/*")))
+			else if (StartsWith(Source, SHADER_SOURCE_VIEWLITERAL("/*")))
 			{
-				Source = SkipUntilStr(Source, TEXTVIEW("*/"));
+				Source = SkipUntilStr(Source, SHADER_SOURCE_VIEWLITERAL("*/"));
 				if (Source.Len() >= 2)
 				{
 					Source = SubStrView(Source, 2);
@@ -1358,9 +1364,9 @@ static void ExtractIdentifiers(FStringView InSource, TArray<FStringView>& Result
 			}
 		}
 
-		FStringView Remainder = SkipUntilNonIdentifierCharacter(Source);
+		FShaderSource::FViewType Remainder = SkipUntilNonIdentifierCharacter(Source);
 
-		FStringView Identifier = SubStrView(Source, 0, Source.Len() - Remainder.Len());
+		FShaderSource::FViewType Identifier = SubStrView(Source, 0, Source.Len() - Remainder.Len());
 
 		if (Identifier.IsEmpty())
 		{
@@ -1381,7 +1387,7 @@ static void ExtractIdentifiers(FStringView InSource, TArray<FStringView>& Result
 	}
 }
 
-static void ExtractIdentifiers(const FCodeChunk& Chunk, TArray<FStringView>& Result)
+static void ExtractIdentifiers(const FCodeChunk& Chunk, TArray<FShaderSource::FViewType>& Result)
 {
 	for (const FCodeBlock& Block : Chunk.Blocks)
 	{
@@ -1389,7 +1395,7 @@ static void ExtractIdentifiers(const FCodeChunk& Chunk, TArray<FStringView>& Res
 	}
 }
 
-static void OutputChunk(const FCodeChunk& Chunk, FString& OutputStream)
+static void OutputChunk(const FCodeChunk& Chunk, FShaderSource::FStringType& OutputStream)
 {
 	if (Chunk.Blocks.IsEmpty())
 	{
@@ -1408,21 +1414,21 @@ static void OutputChunk(const FCodeChunk& Chunk, FString& OutputStream)
 		{
 			if (Index != 0)
 			{
-				OutputStream.AppendChar(L' ');
+				OutputStream.AppendChar(' ');
 			}
 
 			if (Block.Type == EBlockType::Expression)
 			{
-				OutputStream.Append(TEXTVIEW("= "));
+				OutputStream.Append(SHADER_SOURCE_VIEWLITERAL("= "));
 			}
 			else if (Block.Type == EBlockType::Body)
 			{
-				OutputStream.AppendChar(L'\n');
+				OutputStream.AppendChar('\n');
 			}
 
 			if (Block.Type == EBlockType::Binding || Block.Type == EBlockType::Base)
 			{
-				OutputStream.Append(TEXTVIEW(": "));
+				OutputStream.Append(SHADER_SOURCE_VIEWLITERAL(": "));
 			}
 
 			OutputStream.Append(Block.GetCode());
@@ -1438,69 +1444,72 @@ static void OutputChunk(const FCodeChunk& Chunk, FString& OutputStream)
 		&& Chunk.Type != ECodeChunkType::Define
 		&& Chunk.Type != ECodeChunkType::CommentLine)
 	{
-		OutputStream.AppendChar(L';');
+		OutputStream.AppendChar(';');
 	}
 
-	OutputStream.AppendChar(L'\n');
+	OutputStream.AppendChar('\n');
 }
 
-struct FCasedStringViewKeyFuncs : public DefaultKeyFuncs<FStringView>
+struct FCasedStringViewKeyFuncs : public DefaultKeyFuncs<FShaderSource::FViewType>
 {
-	static FORCEINLINE FStringView GetSetKey(FStringView K) { return K; }
+	static FORCEINLINE FShaderSource::FViewType GetSetKey(FShaderSource::FViewType K) { return K; }
 	template <typename T>
-	static FORCEINLINE FStringView GetSetKey(const TPair<FStringView, T>& P) { return P.Key; }
-	static FORCEINLINE bool Matches(FStringView A, FStringView B) { return Equals(A, B); }
-	static FORCEINLINE uint32 GetKeyHash(FStringView Key)
+	static FORCEINLINE FShaderSource::FViewType GetSetKey(const TPair<FShaderSource::FViewType, T>& P) { return P.Key; }
+	static FORCEINLINE bool Matches(FShaderSource::FViewType A, FShaderSource::FViewType B) { return Equals(A, B); }
+	static FORCEINLINE uint32 GetKeyHash(FShaderSource::FViewType Key)
 	{
 		return FXxHash64::HashBuffer(Key.GetData(), Key.Len() * sizeof(*Key.GetData())).Hash;
 	}
 };
 
-static void BuildLineBreakMap(FStringView Source, TArray<int32>& OutLineBreakMap)
+static void BuildLineBreakMap(FShaderSource::FViewType Source, TArray<int32>& OutLineBreakMap)
 {
 	OutLineBreakMap.Reset();
 
 	OutLineBreakMap.Add(0); // Lines numbers are 1-based, so add a dummy element to make UpperBound later return the line number directly
 
 	const int32 SourceLen = Source.Len();
-	const TCHAR* Chars = Source.GetData(); // avoid bounds check overhead in [] operator
+	const FShaderSource::CharType* Chars = Source.GetData(); // avoid bounds check overhead in [] operator
 
 	int32 Cursor = 0;
 
 #if UE_SHADER_MINIFIER_SSE
-	static_assert(sizeof(*Chars) == 2, "BuildLineBreakMap expects 16 bit characters");
-	const int32 AlignedLen = SourceLen & (~7); // align down to multiple of 8 TCHAR-s
-	const __m128i Needle = _mm_set1_epi16(L'\n');
-	while (Cursor < AlignedLen)
+	if constexpr (sizeof(FShaderSource::CharType) == 2)
 	{
-		__m128i Chunk = _mm_loadu_si128(reinterpret_cast<const __m128i*>(Chars + Cursor));
-		__m128i MaskVec = _mm_cmpeq_epi16(Chunk, Needle);
-		uint32 Mask = _mm_movemask_epi8(MaskVec);
-		while (Mask != 0)
+		const __m128i Needle = _mm_set1_epi16(L'\n');
+		while (Cursor < SourceLen)
 		{
-			// NOTE: 2 bits represent each character
-			const uint32 BitIndex = FMath::CountTrailingZeros(Mask);
-			const uint32 ChunkCharIndex = BitIndex / 2;
-			OutLineBreakMap.Add(Cursor + ChunkCharIndex);
-			Mask &= ~(3 << BitIndex);
+			__m128i Chunk = _mm_loadu_si128(reinterpret_cast<const __m128i*>(Chars + Cursor));
+			__m128i MaskVec = _mm_cmpeq_epi16(Chunk, Needle);
+			uint32 Mask = _mm_movemask_epi8(MaskVec);
+			while (Mask != 0)
+			{
+				// NOTE: 2 bits represent each character
+				const uint32 BitIndex = FMath::CountTrailingZeros(Mask);
+				const uint32 ChunkCharIndex = BitIndex / 2;
+				OutLineBreakMap.Add(Cursor + ChunkCharIndex);
+				Mask &= ~(3 << BitIndex);
+			}
+			Cursor += 8;
 		}
-		Cursor += 8;
 	}
+	else
 #endif //UE_SHADER_MINIFIER_SSE
-
-	while (Cursor < SourceLen)
 	{
-		if (Chars[Cursor] == TCHAR('\n'))
+		while (Cursor < SourceLen)
 		{
-			OutLineBreakMap.Add(Cursor);
+			if (Chars[Cursor] == FShaderSource::CharType('\n'))
+			{
+				OutLineBreakMap.Add(Cursor);
+			}
+			++Cursor;
 		}
-		++Cursor;
 	}
 }
 
-static int32 FindLineDirective(const TArray<FStringView>& LineDirectives, const TCHAR* Ptr)
+static int32 FindLineDirective(const TArray<FShaderSource::FViewType>& LineDirectives, const FShaderSource::CharType* Ptr)
 {
-	int32 FoundIndex = Algo::UpperBoundBy(LineDirectives, Ptr, [](FStringView Item)
+	int32 FoundIndex = Algo::UpperBoundBy(LineDirectives, Ptr, [](FShaderSource::FViewType Item)
 	{
 		return Item.GetData();
 	});
@@ -1514,7 +1523,7 @@ static int32 FindLineDirective(const TArray<FStringView>& LineDirectives, const 
 	return FoundIndex - 1;
 }
 
-static int32 FindLineNumber(FStringView Source, const TArray<int32>& LineBreakMap, const TCHAR* Ptr)
+static int32 FindLineNumber(FShaderSource::FViewType Source, const TArray<int32>& LineBreakMap, const FShaderSource::CharType* Ptr)
 {
 	if (Ptr < Source.GetData() || Ptr >= Source.GetData() + Source.Len())
 	{
@@ -1528,9 +1537,9 @@ static int32 FindLineNumber(FStringView Source, const TArray<int32>& LineBreakMa
 	return FoundLineNumber;
 }
 
-static bool ParseLineDirective(FStringView Input, int32& OutLineNumber, FStringView& OutFileName)
+static bool ParseLineDirective(FShaderSource::FViewType Input, int32& OutLineNumber, FShaderSource::FViewType& OutFileName)
 {
-	if (!StartsWith(Input, TEXTVIEW("#line")))
+	if (!StartsWith(Input, SHADER_SOURCE_VIEWLITERAL("#line")))
 	{
 		return false;
 	}
@@ -1543,14 +1552,14 @@ static bool ParseLineDirective(FStringView Input, int32& OutLineNumber, FStringV
 		return false;
 	}
 
-	OutLineNumber = FCString::Atoi(Input.GetData());
+	OutLineNumber = FShaderSource::FCStringType::Atoi(Input.GetData());
 
 	int32 FileNameBeginIndex = INDEX_NONE;
-	if (Input.FindChar(TCHAR('"'), FileNameBeginIndex))
+	if (Input.FindChar(FShaderSource::CharType('"'), FileNameBeginIndex))
 	{
 		int32 FileNameEndIndex = INDEX_NONE;
 		Input.MidInline(FileNameBeginIndex + 1);
-		if (Input.FindChar(TCHAR('"'), FileNameEndIndex))
+		if (Input.FindChar(FShaderSource::CharType('"'), FileNameEndIndex))
 		{
 			OutFileName = Input.Mid(0, FileNameEndIndex);
 		}
@@ -1563,41 +1572,41 @@ static bool ParseLineDirective(FStringView Input, int32& OutLineNumber, FStringV
 	return true;
 }
 
-static void OpenNamespace(FString& OutputStream, const FNamespace& Namespace)
+static void OpenNamespace(FShaderSource::FStringType& OutputStream, const FNamespace& Namespace)
 {
-	for (const FStringView& Name : Namespace.Stack)
+	for (const FShaderSource::FViewType& Name : Namespace.Stack)
 	{
-		OutputStream.Append(TEXTVIEW("namespace "));
+		OutputStream.Append(SHADER_SOURCE_VIEWLITERAL("namespace "));
 		OutputStream.Append(Name);
-		OutputStream.Append(TEXTVIEW(" { "));
+		OutputStream.Append(SHADER_SOURCE_VIEWLITERAL(" { "));
 	}
 }
 
-static void CloseNamespace(FString& OutputStream, const FNamespace& Namespace)
+static void CloseNamespace(FShaderSource::FStringType& OutputStream, const FNamespace& Namespace)
 {
-	for (const FStringView& Name : Namespace.Stack)
+	for (const FShaderSource::FViewType& Name : Namespace.Stack)
 	{
-		OutputStream.AppendChar(L'}');
+		OutputStream.AppendChar('}');
 	}
 
-	OutputStream.Append(TEXTVIEW(" // namespace "));
+	OutputStream.Append(SHADER_SOURCE_VIEWLITERAL(" // namespace "));
 	OutputStream.Append(Namespace.FullName);
 }
 
-static FString MinifyShader(const FParsedShader& Parsed, TConstArrayView<FStringView> RequiredSymbols, EMinifyShaderFlags Flags, FDiagnostics& Diagnostics)
+static FShaderSource::FStringType MinifyShader(const FParsedShader& Parsed, TConstArrayView<FShaderSource::FViewType> RequiredSymbols, EMinifyShaderFlags Flags, FDiagnostics& Diagnostics)
 {
-	FString OutputStream;
+	FShaderSource::FStringType OutputStream;
 
 	OutputStream.Reserve(Parsed.Source.Len() / 3); // Heuristic pre-allocation based on average measured reduced code size
 
-	TSet<FStringView, FCasedStringViewKeyFuncs, FDefaultSetAllocator> RelevantIdentifiers;
+	TSet<FShaderSource::FViewType, FCasedStringViewKeyFuncs, FDefaultSetAllocator> RelevantIdentifiers;
 
 	TSet<const FCodeChunk*> RelevantChunks;
-	TSet<FStringView, FCasedStringViewKeyFuncs, FDefaultSetAllocator>  ProcessedIdentifiers;
+	TSet<FShaderSource::FViewType, FCasedStringViewKeyFuncs, FDefaultSetAllocator>  ProcessedIdentifiers;
 
 	TArray<const FCodeChunk*> PendingChunks;
 
-	for (FStringView Entry : RequiredSymbols)
+	for (FShaderSource::FViewType Entry : RequiredSymbols)
 	{
 		RelevantIdentifiers.Add(Entry);
 		ProcessedIdentifiers.Add(Entry);
@@ -1611,141 +1620,141 @@ static FString MinifyShader(const FParsedShader& Parsed, TConstArrayView<FString
 
 	{
 		// Some known builtin words to ignore
-		ProcessedIdentifiers.Add(TEXT("asfloat"));
-		ProcessedIdentifiers.Add(TEXT("asint"));
-		ProcessedIdentifiers.Add(TEXT("asuint"));
-		ProcessedIdentifiers.Add(TEXT("bool"));
-		ProcessedIdentifiers.Add(TEXT("bool2"));
-		ProcessedIdentifiers.Add(TEXT("bool3"));
-		ProcessedIdentifiers.Add(TEXT("bool4"));
-		ProcessedIdentifiers.Add(TEXT("break"));
-		ProcessedIdentifiers.Add(TEXT("cbuffer"));
-		ProcessedIdentifiers.Add(TEXT("const"));
-		ProcessedIdentifiers.Add(TEXT("else"));
-		ProcessedIdentifiers.Add(TEXT("extern"));
-		ProcessedIdentifiers.Add(TEXT("false"));
-		ProcessedIdentifiers.Add(TEXT("float"));
-		ProcessedIdentifiers.Add(TEXT("float2"));
-		ProcessedIdentifiers.Add(TEXT("float3"));
-		ProcessedIdentifiers.Add(TEXT("float3x3"));
-		ProcessedIdentifiers.Add(TEXT("float3x4"));
-		ProcessedIdentifiers.Add(TEXT("float4"));
-		ProcessedIdentifiers.Add(TEXT("float4x4"));
-		ProcessedIdentifiers.Add(TEXT("for"));
-		ProcessedIdentifiers.Add(TEXT("groupshared"));
-		ProcessedIdentifiers.Add(TEXT("if"));
-		ProcessedIdentifiers.Add(TEXT("in"));
-		ProcessedIdentifiers.Add(TEXT("inout"));
-		ProcessedIdentifiers.Add(TEXT("int"));
-		ProcessedIdentifiers.Add(TEXT("int2"));
-		ProcessedIdentifiers.Add(TEXT("int3"));
-		ProcessedIdentifiers.Add(TEXT("int4"));
-		ProcessedIdentifiers.Add(TEXT("interface"));
-		ProcessedIdentifiers.Add(TEXT("out"));
-		ProcessedIdentifiers.Add(TEXT("packoffset"));
-		ProcessedIdentifiers.Add(TEXT("precise"));
-		ProcessedIdentifiers.Add(TEXT("register"));
-		ProcessedIdentifiers.Add(TEXT("return"));
-		ProcessedIdentifiers.Add(TEXT("static"));
-		ProcessedIdentifiers.Add(TEXT("struct"));
-		ProcessedIdentifiers.Add(TEXT("switch"));
-		ProcessedIdentifiers.Add(TEXT("tbuffer"));
-		ProcessedIdentifiers.Add(TEXT("true"));
-		ProcessedIdentifiers.Add(TEXT("uint"));
-		ProcessedIdentifiers.Add(TEXT("uint2"));
-		ProcessedIdentifiers.Add(TEXT("uint3"));
-		ProcessedIdentifiers.Add(TEXT("uint4"));
-		ProcessedIdentifiers.Add(TEXT("void"));
-		ProcessedIdentifiers.Add(TEXT("while"));
-		ProcessedIdentifiers.Add(TEXT("typedef"));
-		ProcessedIdentifiers.Add(TEXT("template"));
-		ProcessedIdentifiers.Add(TEXT("operator"));
-		ProcessedIdentifiers.Add(TEXT("enum"));
+		ProcessedIdentifiers.Add(SHADER_SOURCE_LITERAL("asfloat"));
+		ProcessedIdentifiers.Add(SHADER_SOURCE_LITERAL("asint"));
+		ProcessedIdentifiers.Add(SHADER_SOURCE_LITERAL("asuint"));
+		ProcessedIdentifiers.Add(SHADER_SOURCE_LITERAL("bool"));
+		ProcessedIdentifiers.Add(SHADER_SOURCE_LITERAL("bool2"));
+		ProcessedIdentifiers.Add(SHADER_SOURCE_LITERAL("bool3"));
+		ProcessedIdentifiers.Add(SHADER_SOURCE_LITERAL("bool4"));
+		ProcessedIdentifiers.Add(SHADER_SOURCE_LITERAL("break"));
+		ProcessedIdentifiers.Add(SHADER_SOURCE_LITERAL("cbuffer"));
+		ProcessedIdentifiers.Add(SHADER_SOURCE_LITERAL("const"));
+		ProcessedIdentifiers.Add(SHADER_SOURCE_LITERAL("else"));
+		ProcessedIdentifiers.Add(SHADER_SOURCE_LITERAL("extern"));
+		ProcessedIdentifiers.Add(SHADER_SOURCE_LITERAL("false"));
+		ProcessedIdentifiers.Add(SHADER_SOURCE_LITERAL("float"));
+		ProcessedIdentifiers.Add(SHADER_SOURCE_LITERAL("float2"));
+		ProcessedIdentifiers.Add(SHADER_SOURCE_LITERAL("float3"));
+		ProcessedIdentifiers.Add(SHADER_SOURCE_LITERAL("float3x3"));
+		ProcessedIdentifiers.Add(SHADER_SOURCE_LITERAL("float3x4"));
+		ProcessedIdentifiers.Add(SHADER_SOURCE_LITERAL("float4"));
+		ProcessedIdentifiers.Add(SHADER_SOURCE_LITERAL("float4x4"));
+		ProcessedIdentifiers.Add(SHADER_SOURCE_LITERAL("for"));
+		ProcessedIdentifiers.Add(SHADER_SOURCE_LITERAL("groupshared"));
+		ProcessedIdentifiers.Add(SHADER_SOURCE_LITERAL("if"));
+		ProcessedIdentifiers.Add(SHADER_SOURCE_LITERAL("in"));
+		ProcessedIdentifiers.Add(SHADER_SOURCE_LITERAL("inout"));
+		ProcessedIdentifiers.Add(SHADER_SOURCE_LITERAL("int"));
+		ProcessedIdentifiers.Add(SHADER_SOURCE_LITERAL("int2"));
+		ProcessedIdentifiers.Add(SHADER_SOURCE_LITERAL("int3"));
+		ProcessedIdentifiers.Add(SHADER_SOURCE_LITERAL("int4"));
+		ProcessedIdentifiers.Add(SHADER_SOURCE_LITERAL("interface"));
+		ProcessedIdentifiers.Add(SHADER_SOURCE_LITERAL("out"));
+		ProcessedIdentifiers.Add(SHADER_SOURCE_LITERAL("packoffset"));
+		ProcessedIdentifiers.Add(SHADER_SOURCE_LITERAL("precise"));
+		ProcessedIdentifiers.Add(SHADER_SOURCE_LITERAL("register"));
+		ProcessedIdentifiers.Add(SHADER_SOURCE_LITERAL("return"));
+		ProcessedIdentifiers.Add(SHADER_SOURCE_LITERAL("static"));
+		ProcessedIdentifiers.Add(SHADER_SOURCE_LITERAL("struct"));
+		ProcessedIdentifiers.Add(SHADER_SOURCE_LITERAL("switch"));
+		ProcessedIdentifiers.Add(SHADER_SOURCE_LITERAL("tbuffer"));
+		ProcessedIdentifiers.Add(SHADER_SOURCE_LITERAL("true"));
+		ProcessedIdentifiers.Add(SHADER_SOURCE_LITERAL("uint"));
+		ProcessedIdentifiers.Add(SHADER_SOURCE_LITERAL("uint2"));
+		ProcessedIdentifiers.Add(SHADER_SOURCE_LITERAL("uint3"));
+		ProcessedIdentifiers.Add(SHADER_SOURCE_LITERAL("uint4"));
+		ProcessedIdentifiers.Add(SHADER_SOURCE_LITERAL("void"));
+		ProcessedIdentifiers.Add(SHADER_SOURCE_LITERAL("while"));
+		ProcessedIdentifiers.Add(SHADER_SOURCE_LITERAL("typedef"));
+		ProcessedIdentifiers.Add(SHADER_SOURCE_LITERAL("template"));
+		ProcessedIdentifiers.Add(SHADER_SOURCE_LITERAL("operator"));
+		ProcessedIdentifiers.Add(SHADER_SOURCE_LITERAL("enum"));
 
 		// HLSL resource types
-		ProcessedIdentifiers.Add(TEXT("TextureCubeArray"));
-		ProcessedIdentifiers.Add(TEXT("TextureCube"));
-		ProcessedIdentifiers.Add(TEXT("TextureBuffer"));
-		ProcessedIdentifiers.Add(TEXT("Texture3D"));
-		ProcessedIdentifiers.Add(TEXT("Texture2DMSArray"));
-		ProcessedIdentifiers.Add(TEXT("Texture2DMS"));
-		ProcessedIdentifiers.Add(TEXT("Texture2DArray"));
-		ProcessedIdentifiers.Add(TEXT("Texture2D"));
-		ProcessedIdentifiers.Add(TEXT("Texture1DArray"));
-		ProcessedIdentifiers.Add(TEXT("Texture1D"));
-		ProcessedIdentifiers.Add(TEXT("StructuredBuffer"));
-		ProcessedIdentifiers.Add(TEXT("SamplerState"));
-		ProcessedIdentifiers.Add(TEXT("SamplerComparisonState"));
-		ProcessedIdentifiers.Add(TEXT("RWTextureCubeArray"));
-		ProcessedIdentifiers.Add(TEXT("RWTextureCube"));
-		ProcessedIdentifiers.Add(TEXT("RWTexture3D"));
-		ProcessedIdentifiers.Add(TEXT("RWTexture2DMSArray"));
-		ProcessedIdentifiers.Add(TEXT("RWTexture2DMS"));
-		ProcessedIdentifiers.Add(TEXT("RWTexture2DArray"));
-		ProcessedIdentifiers.Add(TEXT("RWTexture2D"));
-		ProcessedIdentifiers.Add(TEXT("RWTexture1DArray"));
-		ProcessedIdentifiers.Add(TEXT("RWTexture1D"));
-		ProcessedIdentifiers.Add(TEXT("RWStructuredBuffer"));
-		ProcessedIdentifiers.Add(TEXT("RWByteAddressBuffer"));
-		ProcessedIdentifiers.Add(TEXT("RWBuffer"));
-		ProcessedIdentifiers.Add(TEXT("RaytracingAccelerationStructure"));
-		ProcessedIdentifiers.Add(TEXT("RasterizerOrderedTexture3D"));
-		ProcessedIdentifiers.Add(TEXT("RasterizerOrderedTexture2DArray"));
-		ProcessedIdentifiers.Add(TEXT("RasterizerOrderedTexture2D"));
-		ProcessedIdentifiers.Add(TEXT("RasterizerOrderedTexture1DArray"));
-		ProcessedIdentifiers.Add(TEXT("RasterizerOrderedTexture1D"));
-		ProcessedIdentifiers.Add(TEXT("RasterizerOrderedStructuredBuffer"));
-		ProcessedIdentifiers.Add(TEXT("RasterizerOrderedByteAddressBuffer"));
-		ProcessedIdentifiers.Add(TEXT("RasterizerOrderedBuffer"));
-		ProcessedIdentifiers.Add(TEXT("FeedbackTexture2DArray"));
-		ProcessedIdentifiers.Add(TEXT("FeedbackTexture2D"));
-		ProcessedIdentifiers.Add(TEXT("ConsumeStructuredBuffer"));
-		ProcessedIdentifiers.Add(TEXT("ConstantBuffer"));
-		ProcessedIdentifiers.Add(TEXT("ByteAddressBuffer"));
-		ProcessedIdentifiers.Add(TEXT("Buffer"));
-		ProcessedIdentifiers.Add(TEXT("AppendStructuredBuffer"));
+		ProcessedIdentifiers.Add(SHADER_SOURCE_LITERAL("TextureCubeArray"));
+		ProcessedIdentifiers.Add(SHADER_SOURCE_LITERAL("TextureCube"));
+		ProcessedIdentifiers.Add(SHADER_SOURCE_LITERAL("TextureBuffer"));
+		ProcessedIdentifiers.Add(SHADER_SOURCE_LITERAL("Texture3D"));
+		ProcessedIdentifiers.Add(SHADER_SOURCE_LITERAL("Texture2DMSArray"));
+		ProcessedIdentifiers.Add(SHADER_SOURCE_LITERAL("Texture2DMS"));
+		ProcessedIdentifiers.Add(SHADER_SOURCE_LITERAL("Texture2DArray"));
+		ProcessedIdentifiers.Add(SHADER_SOURCE_LITERAL("Texture2D"));
+		ProcessedIdentifiers.Add(SHADER_SOURCE_LITERAL("Texture1DArray"));
+		ProcessedIdentifiers.Add(SHADER_SOURCE_LITERAL("Texture1D"));
+		ProcessedIdentifiers.Add(SHADER_SOURCE_LITERAL("StructuredBuffer"));
+		ProcessedIdentifiers.Add(SHADER_SOURCE_LITERAL("SamplerState"));
+		ProcessedIdentifiers.Add(SHADER_SOURCE_LITERAL("SamplerComparisonState"));
+		ProcessedIdentifiers.Add(SHADER_SOURCE_LITERAL("RWTextureCubeArray"));
+		ProcessedIdentifiers.Add(SHADER_SOURCE_LITERAL("RWTextureCube"));
+		ProcessedIdentifiers.Add(SHADER_SOURCE_LITERAL("RWTexture3D"));
+		ProcessedIdentifiers.Add(SHADER_SOURCE_LITERAL("RWTexture2DMSArray"));
+		ProcessedIdentifiers.Add(SHADER_SOURCE_LITERAL("RWTexture2DMS"));
+		ProcessedIdentifiers.Add(SHADER_SOURCE_LITERAL("RWTexture2DArray"));
+		ProcessedIdentifiers.Add(SHADER_SOURCE_LITERAL("RWTexture2D"));
+		ProcessedIdentifiers.Add(SHADER_SOURCE_LITERAL("RWTexture1DArray"));
+		ProcessedIdentifiers.Add(SHADER_SOURCE_LITERAL("RWTexture1D"));
+		ProcessedIdentifiers.Add(SHADER_SOURCE_LITERAL("RWStructuredBuffer"));
+		ProcessedIdentifiers.Add(SHADER_SOURCE_LITERAL("RWByteAddressBuffer"));
+		ProcessedIdentifiers.Add(SHADER_SOURCE_LITERAL("RWBuffer"));
+		ProcessedIdentifiers.Add(SHADER_SOURCE_LITERAL("RaytracingAccelerationStructure"));
+		ProcessedIdentifiers.Add(SHADER_SOURCE_LITERAL("RasterizerOrderedTexture3D"));
+		ProcessedIdentifiers.Add(SHADER_SOURCE_LITERAL("RasterizerOrderedTexture2DArray"));
+		ProcessedIdentifiers.Add(SHADER_SOURCE_LITERAL("RasterizerOrderedTexture2D"));
+		ProcessedIdentifiers.Add(SHADER_SOURCE_LITERAL("RasterizerOrderedTexture1DArray"));
+		ProcessedIdentifiers.Add(SHADER_SOURCE_LITERAL("RasterizerOrderedTexture1D"));
+		ProcessedIdentifiers.Add(SHADER_SOURCE_LITERAL("RasterizerOrderedStructuredBuffer"));
+		ProcessedIdentifiers.Add(SHADER_SOURCE_LITERAL("RasterizerOrderedByteAddressBuffer"));
+		ProcessedIdentifiers.Add(SHADER_SOURCE_LITERAL("RasterizerOrderedBuffer"));
+		ProcessedIdentifiers.Add(SHADER_SOURCE_LITERAL("FeedbackTexture2DArray"));
+		ProcessedIdentifiers.Add(SHADER_SOURCE_LITERAL("FeedbackTexture2D"));
+		ProcessedIdentifiers.Add(SHADER_SOURCE_LITERAL("ConsumeStructuredBuffer"));
+		ProcessedIdentifiers.Add(SHADER_SOURCE_LITERAL("ConstantBuffer"));
+		ProcessedIdentifiers.Add(SHADER_SOURCE_LITERAL("ByteAddressBuffer"));
+		ProcessedIdentifiers.Add(SHADER_SOURCE_LITERAL("Buffer"));
+		ProcessedIdentifiers.Add(SHADER_SOURCE_LITERAL("AppendStructuredBuffer"));
 
 		// Alternative spelling of some resource types
-		ProcessedIdentifiers.Add(TEXT("AppendRegularBuffer"));
-		ProcessedIdentifiers.Add(TEXT("ByteBuffer"));
-		ProcessedIdentifiers.Add(TEXT("ConsumeRegularBuffer"));
-		ProcessedIdentifiers.Add(TEXT("DataBuffer"));
-		ProcessedIdentifiers.Add(TEXT("MS_Texture2D"));
-		ProcessedIdentifiers.Add(TEXT("MS_Texture2D_Array"));
-		ProcessedIdentifiers.Add(TEXT("RegularBuffer"));
-		ProcessedIdentifiers.Add(TEXT("RW_ByteBuffer"));
-		ProcessedIdentifiers.Add(TEXT("RW_DataBuffer"));
-		ProcessedIdentifiers.Add(TEXT("RW_RegularBuffer"));
-		ProcessedIdentifiers.Add(TEXT("RW_Texture1D"));
-		ProcessedIdentifiers.Add(TEXT("RW_Texture1D_Array"));
-		ProcessedIdentifiers.Add(TEXT("RW_Texture2D"));
-		ProcessedIdentifiers.Add(TEXT("RW_Texture2D_Array"));
-		ProcessedIdentifiers.Add(TEXT("RW_Texture3D"));
-		ProcessedIdentifiers.Add(TEXT("RW_TextureCube"));
-		ProcessedIdentifiers.Add(TEXT("Texture1D_Array"));
-		ProcessedIdentifiers.Add(TEXT("Texture2D_Array"));
-		ProcessedIdentifiers.Add(TEXT("TextureBuffer"));
-		ProcessedIdentifiers.Add(TEXT("TextureCube_Array"));
+		ProcessedIdentifiers.Add(SHADER_SOURCE_LITERAL("AppendRegularBuffer"));
+		ProcessedIdentifiers.Add(SHADER_SOURCE_LITERAL("ByteBuffer"));
+		ProcessedIdentifiers.Add(SHADER_SOURCE_LITERAL("ConsumeRegularBuffer"));
+		ProcessedIdentifiers.Add(SHADER_SOURCE_LITERAL("DataBuffer"));
+		ProcessedIdentifiers.Add(SHADER_SOURCE_LITERAL("MS_Texture2D"));
+		ProcessedIdentifiers.Add(SHADER_SOURCE_LITERAL("MS_Texture2D_Array"));
+		ProcessedIdentifiers.Add(SHADER_SOURCE_LITERAL("RegularBuffer"));
+		ProcessedIdentifiers.Add(SHADER_SOURCE_LITERAL("RW_ByteBuffer"));
+		ProcessedIdentifiers.Add(SHADER_SOURCE_LITERAL("RW_DataBuffer"));
+		ProcessedIdentifiers.Add(SHADER_SOURCE_LITERAL("RW_RegularBuffer"));
+		ProcessedIdentifiers.Add(SHADER_SOURCE_LITERAL("RW_Texture1D"));
+		ProcessedIdentifiers.Add(SHADER_SOURCE_LITERAL("RW_Texture1D_Array"));
+		ProcessedIdentifiers.Add(SHADER_SOURCE_LITERAL("RW_Texture2D"));
+		ProcessedIdentifiers.Add(SHADER_SOURCE_LITERAL("RW_Texture2D_Array"));
+		ProcessedIdentifiers.Add(SHADER_SOURCE_LITERAL("RW_Texture3D"));
+		ProcessedIdentifiers.Add(SHADER_SOURCE_LITERAL("RW_TextureCube"));
+		ProcessedIdentifiers.Add(SHADER_SOURCE_LITERAL("Texture1D_Array"));
+		ProcessedIdentifiers.Add(SHADER_SOURCE_LITERAL("Texture2D_Array"));
+		ProcessedIdentifiers.Add(SHADER_SOURCE_LITERAL("TextureBuffer"));
+		ProcessedIdentifiers.Add(SHADER_SOURCE_LITERAL("TextureCube_Array"));
 
 		// Some shaders define template versions of some built-in functions, so we can't trivially ignore them
-		//ProcessedIdentifiers.Add(TEXT("abs"));
-		//ProcessedIdentifiers.Add(TEXT("any"));
-		//ProcessedIdentifiers.Add(TEXT("clamp"));
-		//ProcessedIdentifiers.Add(TEXT("clip"));
-		//ProcessedIdentifiers.Add(TEXT("cos"));
-		//ProcessedIdentifiers.Add(TEXT("cross"));
-		//ProcessedIdentifiers.Add(TEXT("dot"));
-		//ProcessedIdentifiers.Add(TEXT("frac"));
-		//ProcessedIdentifiers.Add(TEXT("lerp"));
-		//ProcessedIdentifiers.Add(TEXT("max"));
-		//ProcessedIdentifiers.Add(TEXT("min"));
-		//ProcessedIdentifiers.Add(TEXT("mul"));
-		//ProcessedIdentifiers.Add(TEXT("normalize"));
-		//ProcessedIdentifiers.Add(TEXT("pow"));
-		//ProcessedIdentifiers.Add(TEXT("saturate"));
-		//ProcessedIdentifiers.Add(TEXT("sign"));
-		//ProcessedIdentifiers.Add(TEXT("sin"));
-		//ProcessedIdentifiers.Add(TEXT("sqrt"));
+		//ProcessedIdentifiers.Add(SHADER_SOURCE_LITERAL("abs"));
+		//ProcessedIdentifiers.Add(SHADER_SOURCE_LITERAL("any"));
+		//ProcessedIdentifiers.Add(SHADER_SOURCE_LITERAL("clamp"));
+		//ProcessedIdentifiers.Add(SHADER_SOURCE_LITERAL("clip"));
+		//ProcessedIdentifiers.Add(SHADER_SOURCE_LITERAL("cos"));
+		//ProcessedIdentifiers.Add(SHADER_SOURCE_LITERAL("cross"));
+		//ProcessedIdentifiers.Add(SHADER_SOURCE_LITERAL("dot"));
+		//ProcessedIdentifiers.Add(SHADER_SOURCE_LITERAL("frac"));
+		//ProcessedIdentifiers.Add(SHADER_SOURCE_LITERAL("lerp"));
+		//ProcessedIdentifiers.Add(SHADER_SOURCE_LITERAL("max"));
+		//ProcessedIdentifiers.Add(SHADER_SOURCE_LITERAL("min"));
+		//ProcessedIdentifiers.Add(SHADER_SOURCE_LITERAL("mul"));
+		//ProcessedIdentifiers.Add(SHADER_SOURCE_LITERAL("normalize"));
+		//ProcessedIdentifiers.Add(SHADER_SOURCE_LITERAL("pow"));
+		//ProcessedIdentifiers.Add(SHADER_SOURCE_LITERAL("saturate"));
+		//ProcessedIdentifiers.Add(SHADER_SOURCE_LITERAL("sign"));
+		//ProcessedIdentifiers.Add(SHADER_SOURCE_LITERAL("sin"));
+		//ProcessedIdentifiers.Add(SHADER_SOURCE_LITERAL("sqrt"));
 	}
 
 	if (PendingChunks.IsEmpty())
@@ -1754,9 +1763,9 @@ static FString MinifyShader(const FParsedShader& Parsed, TConstArrayView<FString
 		return {};
 	}
 
-	TArray<FStringView> TempIdentifiers;
+	TArray<FShaderSource::FViewType> TempIdentifiers;
 
-	TMap<FStringView, TArray<const FCodeChunk*>, FDefaultSetAllocator, FCasedStringViewKeyFuncs> ChunksByIdentifier;
+	TMap<FShaderSource::FViewType, TArray<const FCodeChunk*>, FDefaultSetAllocator, FCasedStringViewKeyFuncs> ChunksByIdentifier;
 	for (const FCodeChunk& Chunk : Parsed.Chunks)
 	{
 		for (const FCodeBlock& Block : Chunk.Blocks)
@@ -1785,7 +1794,7 @@ static FString MinifyShader(const FParsedShader& Parsed, TConstArrayView<FString
 			{
 				TempIdentifiers.Reset();
 				ExtractIdentifiers(Block, TempIdentifiers);
-				for (FStringView Identifier : TempIdentifiers)
+				for (FShaderSource::FViewType Identifier : TempIdentifiers)
 				{
 					ChunksByIdentifier.FindOrAdd(Identifier).Push(&Chunk);
 				}
@@ -1815,7 +1824,7 @@ static FString MinifyShader(const FParsedShader& Parsed, TConstArrayView<FString
 
 		ExtractIdentifiers(*CurrentChunk, TempIdentifiers);
 
-		for (FStringView Identifier : TempIdentifiers)
+		for (FShaderSource::FViewType Identifier : TempIdentifiers)
 		{
 			bool bIdentifierWasAlreadyInSet = false;
 			ProcessedIdentifiers.Add(Identifier, &bIdentifierWasAlreadyInSet);
@@ -1889,35 +1898,35 @@ static FString MinifyShader(const FParsedShader& Parsed, TConstArrayView<FString
 
 	if (EnumHasAnyFlags(Flags, EMinifyShaderFlags::OutputStats))
 	{
-		OutputStream.Append(TEXTVIEW("// Total code chunks: "));
+		OutputStream.Append(SHADER_SOURCE_VIEWLITERAL("// Total code chunks: "));
 		OutputStream.AppendInt(RelevantChunks.Num());
-		OutputStream.AppendChar(L'\n');
+		OutputStream.AppendChar('\n');
 
-		OutputStream.Append(TEXTVIEW("// - Functions: "));
+		OutputStream.Append(SHADER_SOURCE_VIEWLITERAL("// - Functions: "));
 		OutputStream.AppendInt(NumFunctions);
-		OutputStream.AppendChar(L'\n');
+		OutputStream.AppendChar('\n');
 
-		OutputStream.Append(TEXTVIEW("// - Structs: "));
+		OutputStream.Append(SHADER_SOURCE_VIEWLITERAL("// - Structs: "));
 		OutputStream.AppendInt(NumStructs);
-		OutputStream.AppendChar(L'\n');
+		OutputStream.AppendChar('\n');
 
-		OutputStream.Append(TEXTVIEW("// - CBuffers: "));
+		OutputStream.Append(SHADER_SOURCE_VIEWLITERAL("// - CBuffers: "));
 		OutputStream.AppendInt(NumCBuffers);
-		OutputStream.AppendChar(L'\n');
+		OutputStream.AppendChar('\n');
 
-		OutputStream.Append(TEXTVIEW("// - Variables: "));
+		OutputStream.Append(SHADER_SOURCE_VIEWLITERAL("// - Variables: "));
 		OutputStream.AppendInt(NumVariables);
-		OutputStream.AppendChar(L'\n');
+		OutputStream.AppendChar('\n');
 
-		OutputStream.Append(TEXTVIEW("// - Other: "));
+		OutputStream.Append(SHADER_SOURCE_VIEWLITERAL("// - Other: "));
 		OutputStream.AppendInt(NumOtherChunks);
-		OutputStream.AppendChar(L'\n');
+		OutputStream.AppendChar('\n');
 
-		OutputStream.AppendChar(L'\n');
+		OutputStream.AppendChar('\n');
 	}
 
 	TArray<int32> LineBreakMap;
-	const TArray<FStringView>& LineDirectives = Parsed.LineDirectives;
+	const TArray<FShaderSource::FViewType>& LineDirectives = Parsed.LineDirectives;
 	if (EnumHasAnyFlags(Flags, EMinifyShaderFlags::OutputLines))
 	{
 		BuildLineBreakMap(Parsed.Source, LineBreakMap);
@@ -1926,7 +1935,7 @@ static FString MinifyShader(const FParsedShader& Parsed, TConstArrayView<FString
 	const FNamespace* CurrentNamespace = nullptr;
 
 	int32 LastLineNumber = -1;
-	FStringView LastLineFileName;
+	FShaderSource::FViewType LastLineFileName;
 
 	for (const FCodeChunk& Chunk : Parsed.Chunks)
 	{
@@ -1970,13 +1979,13 @@ static FString MinifyShader(const FParsedShader& Parsed, TConstArrayView<FString
 			if (CurrentNamespace)
 			{
 				CloseNamespace(OutputStream, *CurrentNamespace);
-				OutputStream.Append(TEXTVIEW("\n\n"));
+				OutputStream.Append(SHADER_SOURCE_VIEWLITERAL("\n\n"));
 			}
 
 			if (PendingNamespace)
 			{
 				OpenNamespace(OutputStream, *PendingNamespace);
-				OutputStream.Append(TEXTVIEW("\n\n"));
+				OutputStream.Append(SHADER_SOURCE_VIEWLITERAL("\n\n"));
 			}
 
 			CurrentNamespace = PendingNamespace;
@@ -1988,19 +1997,19 @@ static FString MinifyShader(const FParsedShader& Parsed, TConstArrayView<FString
 			if (RequestedBy != nullptr)
 			{
 				const FCodeChunk* RequestedByChunk = *RequestedBy;
-				FStringView  RequestedByName = RequestedByChunk->FindFirstBlockByType(EBlockType::Name);
+				FShaderSource::FViewType  RequestedByName = RequestedByChunk->FindFirstBlockByType(EBlockType::Name);
 				if (!RequestedByName.IsEmpty())
 				{
-					OutputStream.Append(TEXTVIEW("// REASON: "));
+					OutputStream.Append(SHADER_SOURCE_VIEWLITERAL("// REASON: "));
 					OutputStream.Append(RequestedByName);
-					OutputStream.AppendChar(L'\n');
+					OutputStream.AppendChar('\n');
 				}
 			}
 		}
 
 		if (EnumHasAnyFlags(Flags, EMinifyShaderFlags::OutputLines))
 		{
-			const FStringView ChunkCode = Chunk.Blocks[0];
+			const FShaderSource::FViewType ChunkCode = Chunk.Blocks[0];
 			int32 LineDirectiveIndex = FindLineDirective(LineDirectives, ChunkCode.GetData());
 			int32 ChunkLine = FindLineNumber(Parsed.Source, LineBreakMap, ChunkCode.GetData());
 
@@ -2009,13 +2018,13 @@ static FString MinifyShader(const FParsedShader& Parsed, TConstArrayView<FString
 				// There was no valid line directive for this chunk, but we do know the line in the input source, so just emit that.
 				if (ChunkLine > LastLineNumber + 1 || !LastLineFileName.IsEmpty())
 				{
-					OutputStream.Append(TEXTVIEW("#line "));
+					OutputStream.Append(SHADER_SOURCE_VIEWLITERAL("#line "));
 					OutputStream.AppendInt(ChunkLine);
-					OutputStream.AppendChar(L'\n');
+					OutputStream.AppendChar('\n');
 				}
 
 				LastLineNumber = ChunkLine;
-				LastLineFileName = FStringView();
+				LastLineFileName = FShaderSource::FViewType();
 			}
 			else if (ChunkLine != INDEX_NONE && LineDirectiveIndex != INDEX_NONE)
 			{
@@ -2023,10 +2032,10 @@ static FString MinifyShader(const FParsedShader& Parsed, TConstArrayView<FString
 				// Some of the input source code may have been removed, so we need to adjust 
 				// the line number before emitting the line directive.
 
-				FStringView LineDirective = LineDirectives[LineDirectiveIndex];
+				FShaderSource::FViewType LineDirective = LineDirectives[LineDirectiveIndex];
 				int32 LineDirectiveLine = FindLineNumber(Parsed.Source, LineBreakMap, LineDirective.GetData());
 				int32 ParsedLineNumber = INDEX_NONE;
-				FStringView ParsedFileName;
+				FShaderSource::FViewType ParsedFileName;
 				if (LineDirectiveLine != INDEX_NONE && ParseLineDirective(LineDirective, ParsedLineNumber, ParsedFileName))
 				{
 					int32 OffsetFromLineDirective = ChunkLine - (LineDirectiveLine + 1); // Line directive identifies the *next* line, hence +1 when computing the offset
@@ -2037,19 +2046,19 @@ static FString MinifyShader(const FParsedShader& Parsed, TConstArrayView<FString
 						// Separate the next block from the previous one when it starts with a line directive
 						if (OutputStream.Len())
 						{
-							OutputStream.AppendChar(L'\n');
+							OutputStream.AppendChar('\n');
 						}
 
-						OutputStream.Append(TEXTVIEW("#line "));
+						OutputStream.Append(SHADER_SOURCE_VIEWLITERAL("#line "));
 						OutputStream.AppendInt(PatchedLineNumber);
 
 						if (!ParsedFileName.IsEmpty())
 						{
-							OutputStream.Append(TEXTVIEW(" \""));
+							OutputStream.Append(SHADER_SOURCE_VIEWLITERAL(" \""));
 							OutputStream.Append(ParsedFileName);
-							OutputStream.AppendChar(L'\"');
+							OutputStream.AppendChar('\"');
 						}
-						OutputStream.AppendChar(L'\n');
+						OutputStream.AppendChar('\n');
 					}
 
 					LastLineNumber = PatchedLineNumber;
@@ -2064,24 +2073,24 @@ static FString MinifyShader(const FParsedShader& Parsed, TConstArrayView<FString
 	if (CurrentNamespace)
 	{
 		CloseNamespace(OutputStream, *CurrentNamespace);
-		OutputStream.AppendChar(L'\n');
+		OutputStream.AppendChar('\n');
 		CurrentNamespace = nullptr;
 	}
 
 	return OutputStream;
 }
 
-static FString MinifyShader(const FParsedShader& Parsed, FStringView EntryPoint, EMinifyShaderFlags Flags, FDiagnostics& Diagnostics)
+static FShaderSource::FStringType MinifyShader(const FParsedShader& Parsed, FShaderSource::FViewType EntryPoint, EMinifyShaderFlags Flags, FDiagnostics& Diagnostics)
 {
-	TArray<FStringView> RequiredSymbols = SplitByChar(EntryPoint, ';');
+	TArray<FShaderSource::FViewType> RequiredSymbols = SplitByChar(EntryPoint, ';');
 	return MinifyShader(Parsed, RequiredSymbols, Flags, Diagnostics);
 }
 
-FMinifiedShader Minify(const FStringView PreprocessedShader, TConstArrayView<FStringView> RequiredSymbols, EMinifyShaderFlags Flags)
+FMinifiedShader Minify(const FShaderSource& PreprocessedShader, TConstArrayView<FShaderSource::FViewType> RequiredSymbols, EMinifyShaderFlags Flags)
 {
 	FMinifiedShader Result;
 
-	FParsedShader Parsed = ParseShader(PreprocessedShader, Result.Diagnostics);
+	FParsedShader Parsed = ParseShader(PreprocessedShader.GetView(), Result.Diagnostics);
 
 	if (!Parsed.Chunks.IsEmpty())
 	{
@@ -2091,7 +2100,7 @@ FMinifiedShader Minify(const FStringView PreprocessedShader, TConstArrayView<FSt
 	return Result;
 }
 
-FMinifiedShader Minify(const FStringView PreprocessedShader, const FStringView EntryPoint, EMinifyShaderFlags Flags)
+FMinifiedShader Minify(const FShaderSource& PreprocessedShader, const FShaderSource::FViewType EntryPoint, EMinifyShaderFlags Flags)
 {
 	return Minify(PreprocessedShader, MakeArrayView(&EntryPoint, 1), Flags);
 }
@@ -2105,7 +2114,7 @@ IMPLEMENT_SIMPLE_AUTOMATION_TEST(FShaderMinifierParserTest, "System.Shaders.Shad
 namespace UE::ShaderMinifier
 {
 // Convenience wrapper for tests where we don't care about diagnostic messages
-static FParsedShader ParseShader(FStringView InSource)
+static FParsedShader ParseShader(FShaderSource::FViewType InSource)
 {
 	FDiagnostics Diagnostics;
 	return ParseShader(InSource, Diagnostics);
@@ -2117,19 +2126,19 @@ bool FShaderMinifierParserTest::RunTest(const FString& Parameters)
 	using namespace UE::ShaderMinifier;
 
 	TestEqual(TEXT("SkipSpace"), 
-		FString(SkipSpace(TEXT("  \n\r\f \tHello"))), 
-		FString(TEXT("Hello")));
+		FString(SkipSpace(SHADER_SOURCE_LITERAL("  \n\r\f \tHello"))), 
+		FString(SHADER_SOURCE_LITERAL("Hello")));
 
 	TestEqual(TEXT("SkipUntilStr (found)"), 
-		FString(SkipUntilStr(TEXT("Hello World"), TEXT("World"))),
-		FString(TEXT("World")));
+		FString(SkipUntilStr(SHADER_SOURCE_LITERAL("Hello World"), SHADER_SOURCE_LITERAL("World"))),
+		FString(SHADER_SOURCE_LITERAL("World")));
 
 	TestEqual(TEXT("SkipUntilStr (not found)"),
-		FString(SkipUntilStr(TEXT("Hello World"), TEXT("Blah"))),
+		FString(SkipUntilStr(SHADER_SOURCE_LITERAL("Hello World"), SHADER_SOURCE_LITERAL("Blah"))),
 		FString());
 
 	{
-		auto P = ParseShader(TEXT("static const struct { int Blah; } Foo = { 123; };"));
+		auto P = ParseShader(SHADER_SOURCE_LITERAL("static const struct { int Blah; } Foo = { 123; };"));
 		TestEqual(TEXT("Anonymous struct variable with initializer, total chunks"), P.Chunks.Num(), 1);
 		if (P.Chunks.Num() == 1)
 		{
@@ -2138,7 +2147,7 @@ bool FShaderMinifierParserTest::RunTest(const FString& Parameters)
 	}
 
 	{
-		auto P = ParseShader(TEXT("float4 PSMain() : SV_Target { return float4(1,0,0,1); };"));
+		auto P = ParseShader(SHADER_SOURCE_LITERAL("float4 PSMain() : SV_Target { return float4(1,0,0,1); };"));
 		TestEqual(TEXT("Pixel shader entry point, total chunks"), P.Chunks.Num(), 1);
 		if (P.Chunks.Num() == 1)
 		{
@@ -2147,32 +2156,32 @@ bool FShaderMinifierParserTest::RunTest(const FString& Parameters)
 	}
 
 	{
-		TArray<FStringView> R;
-		ExtractIdentifiers(TEXT("Hello[World]; Foo[0];\n"), R);
+		TArray<FShaderSource::FViewType> R;
+		ExtractIdentifiers(SHADER_SOURCE_LITERAL("Hello[World]; Foo[0];\n"), R);
 		if (TestEqual(TEXT("ExtractIdentifiers1: Num"), R.Num(), 3))
 		{
-			TestEqual(TEXT("ExtractIdentifiers1: R[0]"), FString(R[0]), TEXT("Hello"));
-			TestEqual(TEXT("ExtractIdentifiers1: R[1]"), FString(R[1]), TEXT("World"));
-			TestEqual(TEXT("ExtractIdentifiers1: R[2]"), FString(R[2]), TEXT("Foo"));
+			TestEqual(TEXT("ExtractIdentifiers1: R[0]"), FString(R[0]), SHADER_SOURCE_LITERAL("Hello"));
+			TestEqual(TEXT("ExtractIdentifiers1: R[1]"), FString(R[1]), SHADER_SOURCE_LITERAL("World"));
+			TestEqual(TEXT("ExtractIdentifiers1: R[2]"), FString(R[2]), SHADER_SOURCE_LITERAL("Foo"));
 		}
 	}
 
 	{
-		TArray<FStringView> R;
-		ExtractIdentifiers(TEXT("#line 0\nStructuredBuffer<uint4> Blah : register(t0, space123);#line 1\n#pragma foo\n"), R);
+		TArray<FShaderSource::FViewType> R;
+		ExtractIdentifiers(SHADER_SOURCE_LITERAL("#line 0\nStructuredBuffer<uint4> Blah : register(t0, space123);#line 1\n#pragma foo\n"), R);
 		if (TestEqual(TEXT("ExtractIdentifiers2: Num"), R.Num(), 6))
 		{
-			TestEqual(TEXT("ExtractIdentifiers2: R[0]"), FString(R[0]), TEXT("StructuredBuffer"));
-			TestEqual(TEXT("ExtractIdentifiers2: R[1]"), FString(R[1]), TEXT("uint4"));
-			TestEqual(TEXT("ExtractIdentifiers2: R[2]"), FString(R[2]), TEXT("Blah"));
-			TestEqual(TEXT("ExtractIdentifiers2: R[3]"), FString(R[3]), TEXT("register"));
-			TestEqual(TEXT("ExtractIdentifiers2: R[4]"), FString(R[4]), TEXT("t0"));
-			TestEqual(TEXT("ExtractIdentifiers2: R[5]"), FString(R[5]), TEXT("space123"));
+			TestEqual(TEXT("ExtractIdentifiers2: R[0]"), FString(R[0]), SHADER_SOURCE_LITERAL("StructuredBuffer"));
+			TestEqual(TEXT("ExtractIdentifiers2: R[1]"), FString(R[1]), SHADER_SOURCE_LITERAL("uint4"));
+			TestEqual(TEXT("ExtractIdentifiers2: R[2]"), FString(R[2]), SHADER_SOURCE_LITERAL("Blah"));
+			TestEqual(TEXT("ExtractIdentifiers2: R[3]"), FString(R[3]), SHADER_SOURCE_LITERAL("register"));
+			TestEqual(TEXT("ExtractIdentifiers2: R[4]"), FString(R[4]), SHADER_SOURCE_LITERAL("t0"));
+			TestEqual(TEXT("ExtractIdentifiers2: R[5]"), FString(R[5]), SHADER_SOURCE_LITERAL("space123"));
 		}
 	}
 
 	{
-		auto P = ParseShader(TEXT("StructuredBuffer<uint4> Blah : register(t0, space123);"));
+		auto P = ParseShader(SHADER_SOURCE_LITERAL("StructuredBuffer<uint4> Blah : register(t0, space123);"));
 		if (TestEqual(TEXT("ParseShader: structured buffer: num chunks"), P.Chunks.Num(), 1))
 		{
 			TestEqual(TEXT("ParseShader: structured buffer: chunk"), P.Chunks[0].Type, ECodeChunkType::Variable);
@@ -2180,7 +2189,7 @@ bool FShaderMinifierParserTest::RunTest(const FString& Parameters)
 	}
 
 	{
-		auto P = ParseShader(TEXT("const float Foo = 123.45f;"));
+		auto P = ParseShader(SHADER_SOURCE_LITERAL("const float Foo = 123.45f;"));
 		if (TestEqual(TEXT("ParseShader: const float with initializer: num chunks"), P.Chunks.Num(), 1))
 		{
 			TestEqual(TEXT("ParseShader: const float with initializer: chunk type"), P.Chunks[0].Type, ECodeChunkType::Variable);
@@ -2188,7 +2197,7 @@ bool FShaderMinifierParserTest::RunTest(const FString& Parameters)
 	}
 
 	{
-		auto P = ParseShader(TEXT("struct Blah { int A; };"));
+		auto P = ParseShader(SHADER_SOURCE_LITERAL("struct Blah { int A; };"));
 		if (TestEqual(TEXT("ParseShader: struct: num chunks"), P.Chunks.Num(), 1))
 		{
 			TestEqual(TEXT("ParseShader: struct: chunk type"), P.Chunks[0].Type, ECodeChunkType::Struct);
@@ -2196,7 +2205,7 @@ bool FShaderMinifierParserTest::RunTest(const FString& Parameters)
 	}
 
 	{
-		auto P = ParseShader(TEXT("struct Foo { int FooA; }; struct Bar : Foo { int BarA; };"));
+		auto P = ParseShader(SHADER_SOURCE_LITERAL("struct Foo { int FooA; }; struct Bar : Foo { int BarA; };"));
 		if (TestEqual(TEXT("ParseShader: inherited struct: num chunks"), P.Chunks.Num(), 2))
 		{
 			TestEqual(TEXT("ParseShader: inherited struct: chunk 0 type"), P.Chunks[0].Type, ECodeChunkType::Struct);
@@ -2205,7 +2214,7 @@ bool FShaderMinifierParserTest::RunTest(const FString& Parameters)
 	}
 
 	{
-		auto P = ParseShader(TEXT("[numthreads(8,8,1)] void Main() {};"));
+		auto P = ParseShader(SHADER_SOURCE_LITERAL("[numthreads(8,8,1)] void Main() {};"));
 		if (TestEqual(TEXT("ParseShader: compute shader entry point: num chunks"), P.Chunks.Num(), 1))
 		{
 			TestEqual(TEXT("ParseShader: compute shader entry point: chunk type"), P.Chunks[0].Type, ECodeChunkType::Function);
@@ -2218,14 +2227,14 @@ bool FShaderMinifierParserTest::RunTest(const FString& Parameters)
 	}
 
 	{
-		auto P = ParseShader(TEXT("Texture2D Blah : register(t0);"));
+		auto P = ParseShader(SHADER_SOURCE_LITERAL("Texture2D Blah : register(t0);"));
 		if (TestEqual(TEXT("ParseShader: texture with register: num chunks"), P.Chunks.Num(), 1))
 		{
 			TestEqual(TEXT("ParseShader: texture with register: chunk type"), P.Chunks[0].Type, ECodeChunkType::Variable);
 		}
 	}
 	{
-		auto P = ParseShader(TEXT("Texture2D Blah;"));
+		auto P = ParseShader(SHADER_SOURCE_LITERAL("Texture2D Blah;"));
 		if (TestEqual(TEXT("ParseShader: texture: num chunks"), P.Chunks.Num(), 1))
 		{
 			TestEqual(TEXT("ParseShader: texture: chunk type"), P.Chunks[0].Type, ECodeChunkType::Variable);
@@ -2233,7 +2242,7 @@ bool FShaderMinifierParserTest::RunTest(const FString& Parameters)
 	}
 
 	{
-		auto P = ParseShader(TEXT("SamplerState Blah : register(s0, space123);"));
+		auto P = ParseShader(SHADER_SOURCE_LITERAL("SamplerState Blah : register(s0, space123);"));
 		if (TestEqual(TEXT("ParseShader: sampler state with register: num chunks"), P.Chunks.Num(), 1))
 		{
 			TestEqual(TEXT("ParseShader: sampler state with register: chunk type"), P.Chunks[0].Type, ECodeChunkType::Variable);
@@ -2243,13 +2252,13 @@ bool FShaderMinifierParserTest::RunTest(const FString& Parameters)
 #if 0
 	{
 		// TODO: handle function forward declarations
-		auto P = ParseShader(TEXT("Foo Fun(int a);"));
+		auto P = ParseShader(SHADER_SOURCE_LITERAL("Foo Fun(int a);"));
 		TestEqual(TEXT("ParseShader: function forward declaration"), P.Chunks[0].Type, ECodeChunkType::FunctionDecl);
 	}
 #endif
 
 	{
-		auto P = ParseShader(TEXT("void Fun(int a) {};"));
+		auto P = ParseShader(SHADER_SOURCE_LITERAL("void Fun(int a) {};"));
 		if (TestEqual(TEXT("ParseShader: function with trailing semicolon: num chunks"), P.Chunks.Num(), 1))
 		{
 			TestEqual(TEXT("ParseShader: function with trailing semicolon: chunk type"), P.Chunks[0].Type, ECodeChunkType::Function);
@@ -2257,7 +2266,7 @@ bool FShaderMinifierParserTest::RunTest(const FString& Parameters)
 	}
 
 	{
-		auto P = ParseShader(TEXT("void Fun(int a) {}"));
+		auto P = ParseShader(SHADER_SOURCE_LITERAL("void Fun(int a) {}"));
 		if (TestEqual(TEXT("ParseShader: function: num chunks"), P.Chunks.Num(), 1))
 		{
 			TestEqual(TEXT("ParseShader: function: chunk type"), P.Chunks[0].Type, ECodeChunkType::Function);
@@ -2265,7 +2274,7 @@ bool FShaderMinifierParserTest::RunTest(const FString& Parameters)
 	}
 
 	{
-		auto P = ParseShader(TEXT("cbuffer Foo {blah} SamplerState S;"));
+		auto P = ParseShader(SHADER_SOURCE_LITERAL("cbuffer Foo {blah} SamplerState S;"));
 
 		if (TestEqual(TEXT("ParseShader: cbuffer and sampler state: num chunks"), P.Chunks.Num(), 2))
 		{
@@ -2275,7 +2284,7 @@ bool FShaderMinifierParserTest::RunTest(const FString& Parameters)
 	}
 
 	{
-		auto P = ParseShader(TEXT("struct Foo { int a; };"));
+		auto P = ParseShader(SHADER_SOURCE_LITERAL("struct Foo { int a; };"));
 		if (TestEqual(TEXT("ParseShader: struct: num chunks"), P.Chunks.Num(), 1))
 		{
 			TestEqual(TEXT("ParseShader: struct: chunk type"), P.Chunks[0].Type, ECodeChunkType::Struct);
@@ -2283,7 +2292,7 @@ bool FShaderMinifierParserTest::RunTest(const FString& Parameters)
 	}
 
 	{
-		auto P = ParseShader(TEXT("struct { int a; } Foo = { 123; };"));
+		auto P = ParseShader(SHADER_SOURCE_LITERAL("struct { int a; } Foo = { 123; };"));
 		if (TestEqual(TEXT("ParseShader: anonymous struct with variable and initializer: num chunks"), P.Chunks.Num(), 1))
 		{
 			TestEqual(TEXT("ParseShader: anonymous struct with variable and initializer: chunk type [0]"), P.Chunks[0].Type, ECodeChunkType::Variable);
@@ -2293,14 +2302,14 @@ bool FShaderMinifierParserTest::RunTest(const FString& Parameters)
 #if 0
 	{
 		// TODO: handle struct forward declarations
-		auto P = ParseShader(TEXT("struct Foo;"));
+		auto P = ParseShader(SHADER_SOURCE_LITERAL("struct Foo;"));
 	}
 #endif
 
 	{
 		auto P = ParseShader(
-			TEXT("cbuffer MyBuffer : register(b3)")
-			TEXT("{ float4 Element1 : packoffset(c0); float1 Element2 : packoffset(c1); float1 Element3 : packoffset(c1.y); }"));
+			SHADER_SOURCE_LITERAL("cbuffer MyBuffer : register(b3)")
+			SHADER_SOURCE_LITERAL("{ float4 Element1 : packoffset(c0); float1 Element2 : packoffset(c1); float1 Element3 : packoffset(c1.y); }"));
 		if (TestEqual(TEXT("ParseShader: cbuffer with packoffset: num chunks"), P.Chunks.Num(), 1))
 		{
 			TestEqual(TEXT("ParseShader: cbuffer with packoffset: chunk type"), P.Chunks[0].Type, ECodeChunkType::CBuffer);
@@ -2308,7 +2317,7 @@ bool FShaderMinifierParserTest::RunTest(const FString& Parameters)
 	}
 
 	{
-		auto P = ParseShader(TEXT("static const struct { float4 Param; } Foo;"));
+		auto P = ParseShader(SHADER_SOURCE_LITERAL("static const struct { float4 Param; } Foo;"));
 		if (TestEqual(TEXT("ParseShader: static const anonymous struct with variable: num chunks"), P.Chunks.Num(), 1))
 		{
 			TestEqual(TEXT("ParseShader: static const anonymous struct with variable: chunk type"), P.Chunks[0].Type, ECodeChunkType::Variable);
@@ -2316,7 +2325,7 @@ bool FShaderMinifierParserTest::RunTest(const FString& Parameters)
 	}
 
 	{
-		auto P = ParseShader(TEXT("static const struct { float4 Param; } Foo = { FooCB_Param; };"));
+		auto P = ParseShader(SHADER_SOURCE_LITERAL("static const struct { float4 Param; } Foo = { FooCB_Param; };"));
 		if (TestEqual(TEXT("ParseShader: static const anonymous struct with variable and initializer: num chunks"), P.Chunks.Num(), 1))
 		{
 			TestEqual(TEXT("ParseShader: static const anonymous struct with variable and initializer: chunk type"), P.Chunks[0].Type, ECodeChunkType::Variable);
@@ -2324,7 +2333,7 @@ bool FShaderMinifierParserTest::RunTest(const FString& Parameters)
 	}
 
 	{
-		auto P = ParseShader(TEXT("template <typename T> float Fun(T x) { return (float)x; }"));
+		auto P = ParseShader(SHADER_SOURCE_LITERAL("template <typename T> float Fun(T x) { return (float)x; }"));
 		if (TestEqual(TEXT("ParseShader: template function: num chunks"), P.Chunks.Num(), 1))
 		{
 			TestEqual(TEXT("ParseShader: template function: chunk type"), P.Chunks[0].Type, ECodeChunkType::Function);
@@ -2332,7 +2341,7 @@ bool FShaderMinifierParserTest::RunTest(const FString& Parameters)
 	}
 
 	{
-		auto P = ParseShader(TEXT("enum EFoo { A, B = 123 };"));
+		auto P = ParseShader(SHADER_SOURCE_LITERAL("enum EFoo { A, B = 123 };"));
 		if (TestEqual(TEXT("ParseShader: enum: num chunks"), P.Chunks.Num(), 1))
 		{
 			TestEqual(TEXT("ParseShader: enum: chunk type"), P.Chunks[0].Type, ECodeChunkType::Enum);
@@ -2340,7 +2349,7 @@ bool FShaderMinifierParserTest::RunTest(const FString& Parameters)
 	}
 
 	{
-		auto P = ParseShader(TEXT("enum class EFoo { A, B };"));
+		auto P = ParseShader(SHADER_SOURCE_LITERAL("enum class EFoo { A, B };"));
 		if (TestEqual(TEXT("ParseShader: enum class: num chunks"), P.Chunks.Num(), 1))
 		{
 			TestEqual(TEXT("ParseShader: enum class: chunk type"), P.Chunks[0].Type, ECodeChunkType::Enum);
@@ -2348,7 +2357,7 @@ bool FShaderMinifierParserTest::RunTest(const FString& Parameters)
 	}
 
 	{
-		auto P = ParseShader(TEXT("#define Foo 123"));
+		auto P = ParseShader(SHADER_SOURCE_LITERAL("#define Foo 123"));
 		if (TestEqual(TEXT("ParseShader: define: num chunks"), P.Chunks.Num(), 1))
 		{
 			TestEqual(TEXT("ParseShader: define: chunk type"), P.Chunks[0].Type, ECodeChunkType::Define);
@@ -2356,7 +2365,7 @@ bool FShaderMinifierParserTest::RunTest(const FString& Parameters)
 	}
 
 	{
-		auto P = ParseShader(TEXT("#pragma Foo"));
+		auto P = ParseShader(SHADER_SOURCE_LITERAL("#pragma Foo"));
 		if (TestEqual(TEXT("ParseShader: pragma: num chunks"), P.Chunks.Num(), 1))
 		{
 			TestEqual(TEXT("ParseShader: pragma: chunk type"), P.Chunks[0].Type, ECodeChunkType::Pragma);
@@ -2364,7 +2373,7 @@ bool FShaderMinifierParserTest::RunTest(const FString& Parameters)
 	}
 
 	{
-		auto P = ParseShader(TEXT("ConstantBuffer<Foo> CB : register ( b123, space456);"));
+		auto P = ParseShader(SHADER_SOURCE_LITERAL("ConstantBuffer<Foo> CB : register ( b123, space456);"));
 		if (TestEqual(TEXT("ParseShader: ConstantBuffer<Foo>: num chunks"), P.Chunks.Num(), 1))
 		{
 			TestEqual(TEXT("ParseShader: ConstantBuffer<Foo>: chunk type"), P.Chunks[0].Type, ECodeChunkType::Variable);
@@ -2372,7 +2381,7 @@ bool FShaderMinifierParserTest::RunTest(const FString& Parameters)
 	}
 
 	{
-		auto P = ParseShader(TEXT("namespace NS1 { void Fun() {}; } namespace NS2 { void Fun() {}; }"));
+		auto P = ParseShader(SHADER_SOURCE_LITERAL("namespace NS1 { void Fun() {}; } namespace NS2 { void Fun() {}; }"));
 		if (TestEqual(TEXT("ParseShader: namespaces: num chunks"), P.Chunks.Num(), 2)
 			&& TestEqual(TEXT("ParseShader: namespaces: num namespaces"), P.Namespaces.Num(), 2))
 		{
@@ -2382,26 +2391,26 @@ bool FShaderMinifierParserTest::RunTest(const FString& Parameters)
 	}
 
 	{
-		auto P = ParseShader(TEXT("template< typename T > TMyStruct<T> operator + ( TMyStruct<T> A, T B ) { /*...*/ }"));
+		auto P = ParseShader(SHADER_SOURCE_LITERAL("template< typename T > TMyStruct<T> operator + ( TMyStruct<T> A, T B ) { /*...*/ }"));
 		if (TestEqual(TEXT("ParseShader: operators: num chunks"), P.Chunks.Num(), 1))
 		{
 			TestEqual(TEXT("ParseShader: operators: chunk type"), P.Chunks[0].Type, ECodeChunkType::Operator);
 			if (TestEqual(TEXT("ParseShader: operators: chunk 0: num blocks"), P.Chunks[0].Blocks.Num(), 8))
 			{
 				FString Args = FString(P.Chunks[0].FindFirstBlockByType(EBlockType::Args));
-				TestEqual(TEXT("ParseShader: operators: chunk 0: type name"), *Args, TEXT("( TMyStruct<T> A, T B )"));
+				TestEqual(TEXT("ParseShader: operators: chunk 0: type name"), *Args, SHADER_SOURCE_LITERAL("( TMyStruct<T> A, T B )"));
 
 				FString TypeName = FString(P.Chunks[0].FindFirstBlockByType(EBlockType::Type));
-				TestEqual(TEXT("ParseShader: operators: chunk 0: type name"), *TypeName, TEXT("TMyStruct"));
+				TestEqual(TEXT("ParseShader: operators: chunk 0: type name"), *TypeName, SHADER_SOURCE_LITERAL("TMyStruct"));
 
 				FString OperatorName = FString(P.Chunks[0].FindFirstBlockByType(EBlockType::OperatorName));
-				TestEqual(TEXT("ParseShader: operators: chunk 0: operator name"), *OperatorName, TEXT("+"));
+				TestEqual(TEXT("ParseShader: operators: chunk 0: operator name"), *OperatorName, SHADER_SOURCE_LITERAL("+"));
 			}
 		}
 	}
 
 	{
-		auto P = ParseShader(TEXT("typedef Bar Foo;"));
+		auto P = ParseShader(SHADER_SOURCE_LITERAL("typedef Bar Foo;"));
 		if (TestEqual(TEXT("ParseShader: standard typedef: num chunks"), P.Chunks.Num(), 1))
 		{
 			TestEqual(TEXT("ParseShader: standard typedef: chunk type"), P.Chunks[0].Type, ECodeChunkType::Typedef);
@@ -2409,7 +2418,7 @@ bool FShaderMinifierParserTest::RunTest(const FString& Parameters)
 	}
 
 	{
-		auto P = ParseShader(TEXT("typedef Bar Foo; static const Foo = Bar(0);"));
+		auto P = ParseShader(SHADER_SOURCE_LITERAL("typedef Bar Foo; static const Foo = Bar(0);"));
 		if (TestEqual(TEXT("ParseShader: standard typedef: num chunks"), P.Chunks.Num(), 2))
 		{
 			TestEqual(TEXT("ParseShader: standard typedef: chunk type"), P.Chunks[0].Type, ECodeChunkType::Typedef);
@@ -2428,8 +2437,8 @@ bool FShaderMinifierTest::RunTest(const FString& Parameters)
 {
 	using namespace UE::ShaderMinifier;
 
-	FStringView TestShaderCode = 
-		TEXT(R"(// dxc /T cs_6_6 /E MainCS MinifierTest.hlsl 
+	FShaderSource::FViewType TestShaderCode = 
+		SHADER_SOURCE_LITERAL(R"(// dxc /T cs_6_6 /E MainCS MinifierTest.hlsl 
 struct FFoo
 {
 	float X;
@@ -2570,7 +2579,7 @@ void MainCS()
 }
 )");
 
-	auto ChunkPresent = [](const FParsedShader& Parsed, FStringView Name)
+	auto ChunkPresent = [](const FParsedShader& Parsed, FShaderSource::FViewType Name)
 	{
 		for (const FCodeChunk& Chunk : Parsed.Chunks)
 		{
@@ -2589,59 +2598,59 @@ void MainCS()
 
 	{
 		FDiagnostics Diagnostics;
-		FString Minified = MinifyShader(Parsed, TEXT("EmptyFunction"), EMinifyShaderFlags::None, Diagnostics);
+		FShaderSource::FStringType Minified = MinifyShader(Parsed, SHADER_SOURCE_LITERAL("EmptyFunction"), EMinifyShaderFlags::None, Diagnostics);
 		FParsedShader MinifiedParsed = ParseShader(Minified);
 		if (TestEqual(TEXT("MinifyShader: EmptyFunction: num chunks"), MinifiedParsed.Chunks.Num(), 3))
 		{
-			TestEqual(TEXT("MinifyShader: EmptyFunction: pragma"), *FString(MinifiedParsed.Chunks[0].GetCode()), TEXT("#pragma test_pragma"));
-			TestEqual(TEXT("MinifyShader: EmptyFunction: define"), *FString(MinifiedParsed.Chunks[1].GetCode()), TEXT("#define COMPILER_DEFINITION_TEST 123"));
-			TestEqual(TEXT("MinifyShader: EmptyFunction: function"), *FString(MinifiedParsed.Chunks[2].GetCode()), TEXT("void EmptyFunction(){}"));
+			TestEqual(TEXT("MinifyShader: EmptyFunction: pragma"), *FString(MinifiedParsed.Chunks[0].GetCode()), SHADER_SOURCE_LITERAL("#pragma test_pragma"));
+			TestEqual(TEXT("MinifyShader: EmptyFunction: define"), *FString(MinifiedParsed.Chunks[1].GetCode()), SHADER_SOURCE_LITERAL("#define COMPILER_DEFINITION_TEST 123"));
+			TestEqual(TEXT("MinifyShader: EmptyFunction: function"), *FString(MinifiedParsed.Chunks[2].GetCode()), SHADER_SOURCE_LITERAL("void EmptyFunction(){}"));
 		}
 	}
 
 	{
 		FDiagnostics Diagnostics;
-		FString Minified = MinifyShader(Parsed, TEXT("MainCS"), EMinifyShaderFlags::OutputReasons, Diagnostics);
+		FShaderSource::FStringType Minified = MinifyShader(Parsed, SHADER_SOURCE_LITERAL("MainCS"), EMinifyShaderFlags::OutputReasons, Diagnostics);
 		FParsedShader MinifiedParsed = ParseShader(Minified);
 
 		// Expect true:
-		TestTrue(TEXT("MinifyShader: MainCS: contains MainCS"), ChunkPresent(MinifiedParsed, TEXT("MainCS")));
-		TestTrue(TEXT("MinifyShader: MainCS: contains FFoo"), ChunkPresent(MinifiedParsed, TEXT("FFoo")));
-		TestTrue(TEXT("MinifyShader: MainCS: contains FBar"), ChunkPresent(MinifiedParsed, TEXT("FBar")));
-		TestTrue(TEXT("MinifyShader: MainCS: contains Sum"), ChunkPresent(MinifiedParsed, TEXT("Sum")));
-		TestTrue(TEXT("MinifyShader: MainCS: contains FunA"), ChunkPresent(MinifiedParsed, TEXT("FunA")));
-		TestTrue(TEXT("MinifyShader: MainCS: contains FunB"), ChunkPresent(MinifiedParsed, TEXT("FunB")));
-		TestTrue(TEXT("MinifyShader: MainCS: contains GAnonymousStruct"), ChunkPresent(MinifiedParsed, TEXT("GAnonymousStruct")));
-		TestTrue(TEXT("MinifyShader: MainCS: contains GStructA"), ChunkPresent(MinifiedParsed, TEXT("GStructA")));
-		TestTrue(TEXT("MinifyShader: MainCS: contains GStructB"), ChunkPresent(MinifiedParsed, TEXT("GStructB")));
-		TestTrue(TEXT("MinifyShader: MainCS: contains GStructC"), ChunkPresent(MinifiedParsed, TEXT("GStructC")));
-		TestTrue(TEXT("MinifyShader: MainCS: contains GInitializedAnonymousStructA"), ChunkPresent(MinifiedParsed, TEXT("GInitializedAnonymousStructA")));
-		TestTrue(TEXT("MinifyShader: MainCS: contains GInitializedAnonymousStructB"), ChunkPresent(MinifiedParsed, TEXT("GInitializedAnonymousStructB")));
-		TestTrue(TEXT("MinifyShader: MainCS: contains OutputBufferType"), ChunkPresent(MinifiedParsed, TEXT("OutputBufferType")));
-		TestTrue(TEXT("MinifyShader: MainCS: contains OutputBuffer"), ChunkPresent(MinifiedParsed, TEXT("OutputBuffer")));
-		TestTrue(TEXT("MinifyShader: MainCS: contains FTypedefUsedStruct"), ChunkPresent(MinifiedParsed, TEXT("FTypedefUsedStruct")));
-		TestTrue(TEXT("MinifyShader: MainCS: contains FTypedefUsed"), ChunkPresent(MinifiedParsed, TEXT("FTypedefUsed")));
-		TestTrue(TEXT("MinifyShader: MainCS: contains FTypedefUsedChained"), ChunkPresent(MinifiedParsed, TEXT("FTypedefUsedChained")));
-		TestTrue(TEXT("MinifyShader: MainCS: contains TypedefUsedBuffer"), ChunkPresent(MinifiedParsed, TEXT("TypedefUsedBuffer")));
-		TestTrue(TEXT("MinifyShader: MainCS: contains struct TUnusedTemplate"), MinifiedParsed.Source.Contains(TEXT("struct TUsedTemplate")));
-		TestTrue(TEXT("MinifyShader: MainCS: contains TUsedTemplate<T> operator*"), MinifiedParsed.Source.Contains(TEXT("TUsedTemplate<T> operator*")));
-		TestTrue(TEXT("MinifyShader: MainCS: contains EEnumUsed"), MinifiedParsed.Source.Contains(TEXT("EEnumUsed")));
-		TestTrue(TEXT("MinifyShader: MainCS: contains ENUM_USED_PART_1"), MinifiedParsed.Source.Contains(TEXT("ENUM_USED_PART_1")));
-		TestTrue(TEXT("MinifyShader: MainCS: contains ENUM_USED_PART_2"), MinifiedParsed.Source.Contains(TEXT("ENUM_USED_PART_2")));
+		TestTrue(TEXT("MinifyShader: MainCS: contains MainCS"), ChunkPresent(MinifiedParsed, SHADER_SOURCE_LITERAL("MainCS")));
+		TestTrue(TEXT("MinifyShader: MainCS: contains FFoo"), ChunkPresent(MinifiedParsed, SHADER_SOURCE_LITERAL("FFoo")));
+		TestTrue(TEXT("MinifyShader: MainCS: contains FBar"), ChunkPresent(MinifiedParsed, SHADER_SOURCE_LITERAL("FBar")));
+		TestTrue(TEXT("MinifyShader: MainCS: contains Sum"), ChunkPresent(MinifiedParsed, SHADER_SOURCE_LITERAL("Sum")));
+		TestTrue(TEXT("MinifyShader: MainCS: contains FunA"), ChunkPresent(MinifiedParsed, SHADER_SOURCE_LITERAL("FunA")));
+		TestTrue(TEXT("MinifyShader: MainCS: contains FunB"), ChunkPresent(MinifiedParsed, SHADER_SOURCE_LITERAL("FunB")));
+		TestTrue(TEXT("MinifyShader: MainCS: contains GAnonymousStruct"), ChunkPresent(MinifiedParsed, SHADER_SOURCE_LITERAL("GAnonymousStruct")));
+		TestTrue(TEXT("MinifyShader: MainCS: contains GStructA"), ChunkPresent(MinifiedParsed, SHADER_SOURCE_LITERAL("GStructA")));
+		TestTrue(TEXT("MinifyShader: MainCS: contains GStructB"), ChunkPresent(MinifiedParsed, SHADER_SOURCE_LITERAL("GStructB")));
+		TestTrue(TEXT("MinifyShader: MainCS: contains GStructC"), ChunkPresent(MinifiedParsed, SHADER_SOURCE_LITERAL("GStructC")));
+		TestTrue(TEXT("MinifyShader: MainCS: contains GInitializedAnonymousStructA"), ChunkPresent(MinifiedParsed, SHADER_SOURCE_LITERAL("GInitializedAnonymousStructA")));
+		TestTrue(TEXT("MinifyShader: MainCS: contains GInitializedAnonymousStructB"), ChunkPresent(MinifiedParsed, SHADER_SOURCE_LITERAL("GInitializedAnonymousStructB")));
+		TestTrue(TEXT("MinifyShader: MainCS: contains OutputBufferType"), ChunkPresent(MinifiedParsed, SHADER_SOURCE_LITERAL("OutputBufferType")));
+		TestTrue(TEXT("MinifyShader: MainCS: contains OutputBuffer"), ChunkPresent(MinifiedParsed, SHADER_SOURCE_LITERAL("OutputBuffer")));
+		TestTrue(TEXT("MinifyShader: MainCS: contains FTypedefUsedStruct"), ChunkPresent(MinifiedParsed, SHADER_SOURCE_LITERAL("FTypedefUsedStruct")));
+		TestTrue(TEXT("MinifyShader: MainCS: contains FTypedefUsed"), ChunkPresent(MinifiedParsed, SHADER_SOURCE_LITERAL("FTypedefUsed")));
+		TestTrue(TEXT("MinifyShader: MainCS: contains FTypedefUsedChained"), ChunkPresent(MinifiedParsed, SHADER_SOURCE_LITERAL("FTypedefUsedChained")));
+		TestTrue(TEXT("MinifyShader: MainCS: contains TypedefUsedBuffer"), ChunkPresent(MinifiedParsed, SHADER_SOURCE_LITERAL("TypedefUsedBuffer")));
+		TestTrue(TEXT("MinifyShader: MainCS: contains struct TUnusedTemplate"), MinifiedParsed.Source.Contains(SHADER_SOURCE_LITERAL("struct TUsedTemplate")));
+		TestTrue(TEXT("MinifyShader: MainCS: contains TUsedTemplate<T> operator*"), MinifiedParsed.Source.Contains(SHADER_SOURCE_LITERAL("TUsedTemplate<T> operator*")));
+		TestTrue(TEXT("MinifyShader: MainCS: contains EEnumUsed"), MinifiedParsed.Source.Contains(SHADER_SOURCE_LITERAL("EEnumUsed")));
+		TestTrue(TEXT("MinifyShader: MainCS: contains ENUM_USED_PART_1"), MinifiedParsed.Source.Contains(SHADER_SOURCE_LITERAL("ENUM_USED_PART_1")));
+		TestTrue(TEXT("MinifyShader: MainCS: contains ENUM_USED_PART_2"), MinifiedParsed.Source.Contains(SHADER_SOURCE_LITERAL("ENUM_USED_PART_2")));
 
 		// Expect false:
-		TestFalse(TEXT("MinifyShader: MainCS: contains UnreferencedFunction"), ChunkPresent(MinifiedParsed, TEXT("UnreferencedFunction")));
-		TestFalse(TEXT("MinifyShader: MainCS: contains FUnreferencedStruct"), ChunkPresent(MinifiedParsed, TEXT("FUnreferencedStruct")));
-		TestFalse(TEXT("MinifyShader: MainCS: contains GUnreferencedParameter"), ChunkPresent(MinifiedParsed, TEXT("GUnreferencedParameter")));
-		TestFalse(TEXT("MinifyShader: MainCS: contains FTypedefUsedChainedUnused"), ChunkPresent(MinifiedParsed, TEXT("FTypedefUsedChainedUnused")));
-		TestFalse(TEXT("MinifyShader: MainCS: contains FTypedefUnusedStruct"), ChunkPresent(MinifiedParsed, TEXT("FTypedefUnusedStruct")));
-		TestFalse(TEXT("MinifyShader: MainCS: contains FTypedefUnused"), ChunkPresent(MinifiedParsed, TEXT("FTypedefUnused")));
-		TestFalse(TEXT("MinifyShader: MainCS: contains TypedefUnusedBuffer"), ChunkPresent(MinifiedParsed, TEXT("TypedefUnusedBuffer")));
-		TestFalse(TEXT("MinifyShader: MainCS: contains struct TUnusedTemplate"), MinifiedParsed.Source.Contains(TEXT("struct TUnusedTemplate")));
-		TestFalse(TEXT("MinifyShader: MainCS: contains TUnusedTemplate<T> operator%"), MinifiedParsed.Source.Contains(TEXT("TUnusedTemplate<T> operator%")));
-		TestFalse(TEXT("MinifyShader: MainCS: contains EEnumUnused"), MinifiedParsed.Source.Contains(TEXT("EEnumUnused")));
-		TestFalse(TEXT("MinifyShader: MainCS: contains ENUM_UNUSED_PART_1"), MinifiedParsed.Source.Contains(TEXT("ENUM_UNUSED_PART_1")));
-		TestFalse(TEXT("MinifyShader: MainCS: contains ENUM_UNUSED_PART_2"), MinifiedParsed.Source.Contains(TEXT("ENUM_UNUSED_PART_2")));
+		TestFalse(TEXT("MinifyShader: MainCS: contains UnreferencedFunction"), ChunkPresent(MinifiedParsed, SHADER_SOURCE_LITERAL("UnreferencedFunction")));
+		TestFalse(TEXT("MinifyShader: MainCS: contains FUnreferencedStruct"), ChunkPresent(MinifiedParsed, SHADER_SOURCE_LITERAL("FUnreferencedStruct")));
+		TestFalse(TEXT("MinifyShader: MainCS: contains GUnreferencedParameter"), ChunkPresent(MinifiedParsed, SHADER_SOURCE_LITERAL("GUnreferencedParameter")));
+		TestFalse(TEXT("MinifyShader: MainCS: contains FTypedefUsedChainedUnused"), ChunkPresent(MinifiedParsed, SHADER_SOURCE_LITERAL("FTypedefUsedChainedUnused")));
+		TestFalse(TEXT("MinifyShader: MainCS: contains FTypedefUnusedStruct"), ChunkPresent(MinifiedParsed, SHADER_SOURCE_LITERAL("FTypedefUnusedStruct")));
+		TestFalse(TEXT("MinifyShader: MainCS: contains FTypedefUnused"), ChunkPresent(MinifiedParsed, SHADER_SOURCE_LITERAL("FTypedefUnused")));
+		TestFalse(TEXT("MinifyShader: MainCS: contains TypedefUnusedBuffer"), ChunkPresent(MinifiedParsed, SHADER_SOURCE_LITERAL("TypedefUnusedBuffer")));
+		TestFalse(TEXT("MinifyShader: MainCS: contains struct TUnusedTemplate"), MinifiedParsed.Source.Contains(SHADER_SOURCE_LITERAL("struct TUnusedTemplate")));
+		TestFalse(TEXT("MinifyShader: MainCS: contains TUnusedTemplate<T> operator%"), MinifiedParsed.Source.Contains(SHADER_SOURCE_LITERAL("TUnusedTemplate<T> operator%")));
+		TestFalse(TEXT("MinifyShader: MainCS: contains EEnumUnused"), MinifiedParsed.Source.Contains(SHADER_SOURCE_LITERAL("EEnumUnused")));
+		TestFalse(TEXT("MinifyShader: MainCS: contains ENUM_UNUSED_PART_1"), MinifiedParsed.Source.Contains(SHADER_SOURCE_LITERAL("ENUM_UNUSED_PART_1")));
+		TestFalse(TEXT("MinifyShader: MainCS: contains ENUM_UNUSED_PART_2"), MinifiedParsed.Source.Contains(SHADER_SOURCE_LITERAL("ENUM_UNUSED_PART_2")));
 	}
 
 	int32 NumErrors = ExecutionInfo.GetErrorTotal();

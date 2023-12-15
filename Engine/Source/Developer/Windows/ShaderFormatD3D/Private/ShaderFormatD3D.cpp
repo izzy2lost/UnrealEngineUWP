@@ -177,7 +177,7 @@ public:
 		FShaderCompilerOutput& Output,
 		const FString& WorkingDirectory) const
 	{
-		CompileD3DShader(Input, PreprocessOutput.GetSource(), Output, WorkingDirectory, DetermineShaderModel(Input));
+		CompileD3DShader(Input, PreprocessOutput, Output, WorkingDirectory, DetermineShaderModel(Input));
 
 		Output.ShaderDiagnosticDatas = PreprocessOutput.GetDiagnosticDatas();
 	}

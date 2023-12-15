@@ -1850,7 +1850,7 @@ static FString ParseEntrypointDecl(FStringView PreprocessedShader, FStringView E
 
 uint8 ParseWaveSize(
 	const FVulkanShaderCompilerInternalState& InternalState,
-	const FString& PreprocessedShader
+	FStringView PreprocessedShader
 	)
 {
 	uint8 WaveSize = 0;
@@ -1902,7 +1902,7 @@ uint8 ParseWaveSize(
 
 static bool CompileWithShaderConductor(
 	const FVulkanShaderCompilerInternalState& InternalState,
-	const FString&			PreprocessedShader,
+	FStringView PreprocessedShader,
 	VulkanShaderCompilerSerializedOutput& SerializedOutput,
 	FShaderCompilerOutput&	Output
 )
@@ -2282,15 +2282,16 @@ static bool CompileShaderGroup(
 		const bool bIsClosestHit = (HitGroupShaderType == FVulkanShaderCompilerInternalState::EHitGroupShaderType::ClosestHit);
 		FShaderCompilerOutput& PartialOutput = bIsClosestHit ? MergedOutput : TempOutput;
 
-		FString PartialPreprocessedShaderSource = OriginalPreprocessedShaderSource;
+		FStringView OrigSourceView(OriginalPreprocessedShaderSource);
+		FShaderSource PartialPreprocessedShaderSource(OrigSourceView);
 		UE::ShaderCompilerCommon::RemoveDeadCode(PartialPreprocessedShaderSource, InternalState.GetEntryPointName(), PartialOutput.Errors);
 
 		if (InternalState.bDebugDump)
 		{
-			DumpDebugShaderText(InternalState.Input, PartialPreprocessedShaderSource, *FString::Printf(TEXT("%s.hlsl"), PartialFileExtension));
+			DumpDebugShaderText(InternalState.Input, PartialPreprocessedShaderSource.GetView().GetData(), *FString::Printf(TEXT("%s.hlsl"), PartialFileExtension));
 		}
 
-		const bool bPartialSuccess = CompileWithShaderConductor(InternalState, PartialPreprocessedShaderSource, PartialSerializedOutput, PartialOutput);
+		const bool bPartialSuccess = CompileWithShaderConductor(InternalState, PartialPreprocessedShaderSource.GetView(), PartialSerializedOutput, PartialOutput);
 
 		if (!bIsClosestHit)
 		{
@@ -2389,12 +2390,12 @@ struct FPS5ShaderParameterParserPlatformConfiguration : public FShaderParameterP
 	}
 };
 
-void CompileVulkanShader(const FShaderCompilerInput& Input, const FString& InPreprocessedSource, FShaderCompilerOutput& Output, const class FString& WorkingDirectory)
+void CompileVulkanShader(const FShaderCompilerInput& Input, const FShaderPreprocessOutput& InPreprocessOutput, FShaderCompilerOutput& Output, const class FString& WorkingDirectory)
 {
 	check(IsVulkanShaderFormat(Input.ShaderFormat));
 
 	FString EntryPointName = Input.EntryPointName;
-	FString PreprocessedSource = InPreprocessedSource;
+	FString PreprocessedSource(InPreprocessOutput.GetSourceViewWide());
 
 	FPS5ShaderParameterParserPlatformConfiguration PlatformConfiguration(Input);
 	FShaderParameterParser ShaderParameterParser(PlatformConfiguration);
