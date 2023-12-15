@@ -326,7 +326,7 @@ TArray<FSolverCollisionParticlesRange> FEvolution::GetActiveCollisionParticles(u
 void FEvolution::SetSolverProperties(const FCollectionPropertyConstFacade& Properties)
 {
 	bEnableForceBasedSolver = GetEnableForceBasedSolver(Properties, Private::EvolutionSolverDefault::bEnableForceBasedSolver);
-	MaxNumIterations = FMath::Min(GetMaxNumIterations(Properties, Private::EvolutionSolverDefault::MaxNumIterations), Private::EvolutionSolverDefault::MinNumIterations);
+	MaxNumIterations = FMath::Max(GetMaxNumIterations(Properties, Private::EvolutionSolverDefault::MaxNumIterations), Private::EvolutionSolverDefault::MinNumIterations);
 	NumIterations = GetNumIterations(Properties, Private::EvolutionSolverDefault::NumIterations);
 	bDoQuasistatics = GetDoQuasistatics(Properties, Private::EvolutionSolverDefault::bDoQuasistatics);
 	SolverFrequency = GetSolverFrequency(Properties, Private::EvolutionSolverDefault::SolverFrequency);
@@ -345,6 +345,7 @@ void FEvolution::AdvanceOneTimeStep(const FSolverReal Dt, const FSolverReal Time
 	const int32 TimeDependentNumIterations = (bDisableTimeDependentNumIterations || NumIterations == 0) ? NumIterations :
 		FMath::Clamp(FMath::RoundToInt32(SolverFrequency * Dt * TimeDependentIterationMultiplier * (Softs::FSolverReal)NumIterations),
 			Private::EvolutionSolverDefault::MinNumIterations, MaxNumIterations);
+	NumUsedIterations = TimeDependentNumIterations;
 
 	const TArray<uint32> ActiveGroupsArray = ActiveGroups.Array();
 

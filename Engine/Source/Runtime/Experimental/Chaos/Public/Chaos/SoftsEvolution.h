@@ -203,6 +203,7 @@ public:
 	FSolverReal GetTime() const { return Time; }
 	int32 GetIterations() const { return NumIterations; }
 	int32 GetMaxIterations() const { return MaxNumIterations; }
+	int32 GetNumUsedIterations() const { return NumUsedIterations; }
 	bool GetDisableTimeDependentNumIterations() const { return bDisableTimeDependentNumIterations; }
 	bool GetDoQuasistatics() const { return bDoQuasistatics; }
 	void SetDisableTimeDependentNumIterations(bool bDisable) { bDisableTimeDependentNumIterations = bDisable; }
@@ -418,6 +419,7 @@ private:
 	bool bEnableForceBasedSolver = false;
 	int32 MaxNumIterations; // Used for time-dependent iteration counts
 	int32 NumIterations; // PBD iterations
+	int32 NumUsedIterations = 0; // Last actual time-dependent iteration count
 	int32 NumNewtonIterations; // Implicit force-based solve
 	bool bDisableTimeDependentNumIterations = false;
 	bool bDoQuasistatics;

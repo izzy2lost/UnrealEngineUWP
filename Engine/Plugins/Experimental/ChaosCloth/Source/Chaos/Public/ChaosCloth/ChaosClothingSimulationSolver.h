@@ -370,7 +370,7 @@ namespace Chaos
 		/** End PBD - only methods */
 
 		CHAOSCLOTH_API void ApplyPreSimulationTransforms();
-		CHAOSCLOTH_API void PreSubstep(const Softs::FSolverReal InterpolationAlpha);
+		CHAOSCLOTH_API void PreSubstep(const Softs::FSolverReal InterpolationAlpha, bool bDetectSelfCollisions);
 
 		// Update the solver field forces/velocities at the particles location
 		CHAOSCLOTH_API void UpdateSolverField();

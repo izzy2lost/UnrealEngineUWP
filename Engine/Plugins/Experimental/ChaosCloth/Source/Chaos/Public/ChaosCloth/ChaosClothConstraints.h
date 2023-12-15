@@ -57,6 +57,7 @@ PRAGMA_ENABLE_DEPRECATION_WARNINGS
 			int32 InParticleOffset,
 			int32 InNumParticles);
 
+		void SetSkipSelfCollisionInit(bool bValue) { bSkipSelfCollisionInit = bValue; }
 		// ---- End of Solver interface ----
 
 		// ---- Cloth interface ----
@@ -244,6 +245,8 @@ PRAGMA_ENABLE_DEPRECATION_WARNINGS
 		int32 NumConstraintRules;
 		int32 NumPostCollisionConstraintRules;
 		int32 NumPostprocessingConstraintRules;
+
+		bool bSkipSelfCollisionInit = false;
 
 		//~ Begin Force-based solver only fields
 		FPerSolverFieldSystem* PerSolverField;

@@ -83,6 +83,8 @@ namespace ClothingSimulationSolverDefault
 	static const int32 MaxNumIterations = 10;
 	static const int32 NumSubsteps = 1;
 	static const int32 MinNumSubsteps = 1;
+	static const bool bEnableNumSelfCollisionSubsteps = false;
+	static const int32 NumSelfCollisionSubsteps = 1;
 	static const FRealSingle SolverFrequency = 60.f;
 	static const FRealSingle SelfCollisionThickness = 2.f;
 	static const FRealSingle CollisionThickness = 1.2f;
@@ -1683,14 +1685,14 @@ void FClothingSimulationSolver::ApplyPreSimulationTransforms()
 	}
 }
 
-void FClothingSimulationSolver::PreSubstep(const Softs::FSolverReal InterpolationAlpha)
+void FClothingSimulationSolver::PreSubstep( const Softs::FSolverReal InterpolationAlpha, bool bDetectSelfCollisions)
 {
 	TRACE_CPUPROFILER_EVENT_SCOPE(FClothingSimulationSolver_PreSubstep);
 
 	if (Evolution)
 	{
 		const TArray<uint32> ActiveGroups = Evolution->GetActiveGroups().Array();
-		PhysicsParallelFor(ActiveGroups.Num(), [this, &ActiveGroups, InterpolationAlpha](int32 ActiveGroupIndex)
+		PhysicsParallelFor(ActiveGroups.Num(), [this, &ActiveGroups, InterpolationAlpha, bDetectSelfCollisions](int32 ActiveGroupIndex)
 		{
 			const uint32 GroupId = ActiveGroups[ActiveGroupIndex];
 			const TSet<int32>& ActiveSoftBodies = Evolution->GetGroupActiveSoftBodies(GroupId);
@@ -1700,6 +1702,7 @@ void FClothingSimulationSolver::PreSubstep(const Softs::FSolverReal Interpolatio
 				SCOPE_CYCLE_COUNTER(STAT_ChaosClothParticlePreSubstepKinematicInterpolation);
 				Softs::FSolverParticlesRange& Particles = Evolution->GetSoftBodyParticles(SoftBodyId);
 
+				GetClothConstraints(SoftBodyId).SetSkipSelfCollisionInit(!bDetectSelfCollisions);
 #if INTEL_ISPC
 				if (bRealTypeCompatibleWithISPC && bChaos_PreSubstepInterpolation_ISPC_Enabled)  // TODO: Make the ISPC works with both Single and Double depending on the FSolverReal type
 				{
@@ -1747,10 +1750,12 @@ void FClothingSimulationSolver::PreSubstep(const Softs::FSolverReal Interpolatio
 	{
 		const TPBDActiveView<Softs::FSolverParticles>& ParticlesActiveView = PBDEvolution->ParticlesActiveView();
 		ParticlesActiveView.RangeFor(
-			[this, InterpolationAlpha](Softs::FSolverParticles& Particles, int32 Offset, int32 Range)
+			[this, InterpolationAlpha, bDetectSelfCollisions](Softs::FSolverParticles& Particles, int32 Offset, int32 Range)
 		{
 			TRACE_CPUPROFILER_EVENT_SCOPE(FClothingSimulationSolver_ParticlePreSubstepKinematicInterpolation);
 			SCOPE_CYCLE_COUNTER(STAT_ChaosClothParticlePreSubstepKinematicInterpolation);
+
+			GetClothConstraints(Offset).SetSkipSelfCollisionInit(!bDetectSelfCollisions);
 
 			const int32 RangeSize = Range - Offset;
 	
@@ -1935,6 +1940,12 @@ void FClothingSimulationSolver::Update(Softs::FSolverReal InDeltaTime)
 				Properties.GetValue<int32>(TEXT("NumSubsteps"), ClothingSimulationSolverDefault::NumSubsteps),
 				ClothingSimulationSolverDefault::MinNumSubsteps);
 
+			const bool bConfigEnableNumSelfCollisionSubsteps = Properties.GetValue<bool>(TEXT("EnableNumSelfCollisionSubsteps"), ClothingSimulationSolverDefault::bEnableNumSelfCollisionSubsteps);
+
+			const int32 ConfigNumSelfCollisionSubsteps = bConfigEnableNumSelfCollisionSubsteps ? FMath::Clamp(Properties.GetValue<int32>(TEXT("NumSelfCollisionSubsteps"), ClothingSimulationSolverDefault::NumSelfCollisionSubsteps), ClothingSimulationSolverDefault::MinNumSubsteps, ConfigNumSubsteps) : ConfigNumSubsteps;
+
+			const int32 NumSubstepsPerSelfCollisionSubstep = (ConfigNumSubsteps - 1) / ConfigNumSelfCollisionSubsteps + 1;
+
 			if (Evolution)
 			{
 				Evolution->SetSolverProperties(Properties);
@@ -1966,7 +1977,7 @@ void FClothingSimulationSolver::Update(Softs::FSolverReal InDeltaTime)
 	
 			for (int32 i = 0; i < ConfigNumSubsteps; ++i)
 			{
-				PreSubstep(FMath::Clamp((Softs::FSolverReal)(i + 1) / (Softs::FSolverReal)ConfigNumSubsteps, (Softs::FSolverReal)0., (Softs::FSolverReal)1.));
+				PreSubstep(FMath::Clamp((Softs::FSolverReal)(i + 1) / (Softs::FSolverReal)ConfigNumSubsteps, (Softs::FSolverReal)0., (Softs::FSolverReal)1.), i% NumSubstepsPerSelfCollisionSubstep == 0);
 				if (Evolution)
 				{
 					Evolution->AdvanceOneTimeStep(SubstepDeltaTime, (Softs::FSolverReal)ConfigNumSubsteps);
@@ -2048,7 +2059,7 @@ void FClothingSimulationSolver::UpdateFromCache(const TArray<FVector>& CachedPos
 
 int32 FClothingSimulationSolver::GetNumUsedIterations() const
 {
-	return Evolution ? Evolution->GetIterations() : PBDEvolution->GetIterations();
+	return Evolution ? Evolution->GetNumUsedIterations() : PBDEvolution->GetIterations();
 }
 
 int32 FClothingSimulationSolver::GetNumLinearSolverIterations(int32 ParticleRangeId) const

@@ -1606,6 +1606,10 @@ void FClothConstraints::CreateForceBasedRules()
 		RuleCreator.AddPostInitialGuessParallelInitRule(
 			[this](const Softs::FSolverParticlesRange& Particles, const Softs::FSolverReal Dt, const Softs::ESolverMode SolverMode)
 		{
+			if (bSkipSelfCollisionInit)
+			{
+				return;
+			}
 			// Thickness * 2 to account for collision radius for both particles
 			SelfCollisionInit->Init(Particles, SelfCollisionConstraints->GetThickness() * (Softs::FSolverReal)2.f);
 			SelfCollisionConstraints->Init(Particles, SelfCollisionInit->GetSpatialHash(), SelfCollisionInit->GetVertexGIAColors(), SelfCollisionInit->GetTriangleGIAColors());
@@ -1620,6 +1624,10 @@ void FClothConstraints::CreateForceBasedRules()
 		RuleCreator.AddPostInitialGuessParallelInitRule(
 			[this](const Softs::FSolverParticlesRange& Particles, const Softs::FSolverReal Dt, const Softs::ESolverMode SolverMode)
 		{
+			if (bSkipSelfCollisionInit)
+			{
+				return;
+			}
 			SelfCollisionSphereConstraints->Init(Particles);
 		});
 
@@ -1632,12 +1640,20 @@ void FClothConstraints::CreateForceBasedRules()
 		RuleCreator.AddPreSubstepConstraintRule(
 			[this](Softs::FSolverParticlesRange& Particles, const Softs::FSolverReal Dt, const Softs::ESolverMode SolverMode)
 		{
+			if (bSkipSelfCollisionInit)
+			{
+				return;
+			}
 			SelfIntersectionConstraints->Apply(Particles, SelfCollisionInit->GetContourMinimizationIntersections(), Dt);
 		});
 
 		RuleCreator.AddPostSubstepConstraintRule(
 			[this](Softs::FSolverParticlesRange& Particles, const Softs::FSolverReal Dt, const Softs::ESolverMode SolverMode)
 		{
+			if (bSkipSelfCollisionInit)
+			{
+				return;
+			}
 			const int32 NumContourIterations = SelfCollisionInit->GetNumContourMinimizationPostSteps();
 			for (int32 Iter = 0; Iter < NumContourIterations; ++Iter)
 			{
@@ -1996,6 +2012,10 @@ void FClothConstraints::CreatePBDRules()
 		ConstraintInits[ConstraintInitIndex++] =
 			[this](Softs::FSolverParticles& Particles, const Softs::FSolverReal /*Dt*/)
 			{
+				if (bSkipSelfCollisionInit)
+				{
+					return;
+				}
 				// Thickness * 2 to account for collision radius for both particles
 				SelfCollisionInit->Init(Particles, SelfCollisionConstraints->GetThickness() * (Softs::FSolverReal)2.f);
 				SelfCollisionConstraints->Init(Particles, SelfCollisionInit->GetSpatialHash(), SelfCollisionInit->GetVertexGIAColors(), SelfCollisionInit->GetTriangleGIAColors());
@@ -2014,6 +2034,10 @@ void FClothConstraints::CreatePBDRules()
 		ConstraintInits[ConstraintInitIndex++] =
 			[this](Softs::FSolverParticles& Particles, const Softs::FSolverReal /*Dt*/)
 			{
+				if (bSkipSelfCollisionInit)
+				{
+					return;
+				}
 				SelfCollisionSphereConstraints->Init(Particles);
 			};
 
@@ -2033,12 +2057,20 @@ void FClothConstraints::CreatePBDRules()
 		ConstraintInits[ConstraintInitIndex++] =
 			[this](Softs::FSolverParticles& Particles, const Softs::FSolverReal Dt)
 			{
+				if (bSkipSelfCollisionInit)
+				{
+					return;
+				}
 				SelfIntersectionConstraints->Apply(Particles, SelfCollisionInit->GetContourMinimizationIntersections(), Dt);
 			};
 
 		PostprocessingConstraintRules[PostprocessingConstraintRuleIndex++] =
 			[this](Softs::FSolverParticles& Particles, const Softs::FSolverReal Dt)
 		{
+			if (bSkipSelfCollisionInit)
+			{
+				return;
+			}
 			const int32 NumContourIterations = SelfCollisionInit->GetNumContourMinimizationPostSteps();
 			for (int32 Iter = 0; Iter < NumContourIterations; ++Iter)
 			{
