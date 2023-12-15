@@ -81,7 +81,7 @@
 			//Used as a check if the GameActivity has actually been created and had OnCreate called on it or not
 			public static boolean HasOnCreateBeenCalledOnGameActivity()
 			{
-				return (_activity != null);
+				return GameActivity.Get().bOnCreateCalled;
 			}
 
 			//AndroidBackgroundService_UPL -- STOP

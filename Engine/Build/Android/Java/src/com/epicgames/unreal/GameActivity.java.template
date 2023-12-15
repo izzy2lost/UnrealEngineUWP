@@ -347,6 +347,7 @@ public class GameActivity extends $${gameActivitySuperClass}$$ implements Surfac
 	protected SimpleContextWrapper activityContext = null;
 	protected static Bundle _bundle;
 	protected static Bundle _extrasBundle;
+	protected boolean bOnCreateCalled = false;
 
 	private HandlerThread memoryHandlerThread;
 	private Handler memoryHandler;
@@ -2418,6 +2419,7 @@ public class GameActivity extends $${gameActivitySuperClass}$$ implements Surfac
 	public void onCreate(Bundle savedInstanceState)
 	{
 		assert(_gameActivityInstance != null);
+		bOnCreateCalled = true;
 		activityContext = new SimpleContextWrapper(this);
 		InternalFilesDir = getFilesDir().getAbsolutePath() + "/";
 		ExternalFilesDir = getExternalFilesDir(null).getAbsolutePath() + "/";
