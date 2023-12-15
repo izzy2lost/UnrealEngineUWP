@@ -832,66 +832,6 @@ namespace Gauntlet
 						}
 					}
 
-					//Verify the device's OS version, and update if necessary
-					if (Globals.Params.ParseParam("TryFirmwareUpdate") && AppConfig.Platform != null)
-					{
-						List<IPlatformFirmwareHandler> PlatformFirmwareHandlers = Gauntlet.Utils.InterfaceHelpers.FindImplementations<IPlatformFirmwareHandler>(true).ToList();
-
-						PlatformFirmwareHandlers = PlatformFirmwareHandlers.Where(FC => FC.CanSupportPlatform((UnrealTargetPlatform)AppConfig.Platform)
-							&& FC.CanSupportProject(AppConfig.ProjectName)).ToList();
-						if (PlatformFirmwareHandlers.Count > 0)
-						{
-							IPlatformFirmwareHandler SelectedFirmwareHandler = PlatformFirmwareHandlers.First();
-							Log.Verbose("Found IPlatformFirmwareHandler {0}", SelectedFirmwareHandler.GetType().Name);
-							string DesiredFirmware = string.Empty;
-							if (!SelectedFirmwareHandler.GetDesiredVersion((UnrealTargetPlatform)AppConfig.Platform, AppConfig.ProjectName, out DesiredFirmware))
-							{
-								Log.Info("Failed to get desired os version for project {0} for platform {1}, skipping firmware check",
-									AppConfig.ProjectName, AppConfig.Platform);
-							}
-							else
-							{
-								Log.Info("Desired Firmware for project {0} and platform {1}: {2}", AppConfig.ProjectName, AppConfig.Platform, DesiredFirmware);
-
-								string CurrentFirmware = string.Empty;
-								if (!SelectedFirmwareHandler.GetCurrentVersion(Device, out CurrentFirmware))
-								{
-									Log.Info("Failed to get current os version for device {0} for role {1}, skipping firmware check", Device, Role);
-								}
-								else
-								{
-									Log.Info("Current Firmware for device {0}: {1}", Device, CurrentFirmware);
-
-									if(CurrentFirmware.Equals(DesiredFirmware))
-									{
-										Log.Info("Device {0} os version match!  No need to update", Device);
-									}
-									else
-									{
-										Log.Info("Device {0} os version out of date!  Updating to version {1}", Device, DesiredFirmware);
-
-										if(SelectedFirmwareHandler.UpdateDeviceFirmware(Device, DesiredFirmware))
-										{
-											Log.Info("Successfully updated device {0} to os version {1}", Device, DesiredFirmware);
-										}
-										else
-										{
-											Log.Info("Failed to update os of device {0} for role {1}.  Will retry with new device", Device, Role);
-											UnrealDeviceReservation.MarkProblemDevice(Device);
-											InstallSuccess = false;
-											break;
-										}
-									}
-								}
-							}
-						}
-						else
-						{
-							Log.Info("Unable to locate any IPlatformFirmwareCheckers that support Project {0} and platform {1}, skipping firmware check",
-								AppConfig.ProjectName, AppConfig.Platform);
-						}
-					}
-
 					// todo - should this be elsewhere?
 					AppConfig.Sandbox = Sandbox;
 
