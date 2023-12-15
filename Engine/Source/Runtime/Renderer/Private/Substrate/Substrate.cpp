@@ -1062,7 +1062,7 @@ void AddSubstrateInternalClassificationTilePass(
 
 		case ESubstrateTileType::EDecalSingle:						ParametersPS->DebugTileColor = FVector4f(0.0f, 1.0f, 0.0f, 1.0); break;
 		case ESubstrateTileType::EDecalSimple:						ParametersPS->DebugTileColor = FVector4f(1.0f, 1.0f, 0.0f, 1.0); break;
-		case ESubstrateTileType::EDecalComplex:					ParametersPS->DebugTileColor = FVector4f(1.0f, 0.0f, 0.0f, 1.0); break;
+		case ESubstrateTileType::EDecalComplex:						ParametersPS->DebugTileColor = FVector4f(1.0f, 0.0f, 0.0f, 1.0); break;
 		default: check(false);
 		}
 	}

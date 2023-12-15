@@ -1384,7 +1384,17 @@ void AddPostProcessingPasses(
 	{
 		FScreenPassRenderTarget OverrideOutput;
 		PassSequence.AcceptOverrideIfLastPass(EPass::VisualizeSubstrate, OverrideOutput);
-		SceneColor = Substrate::AddSubstrateDebugPasses(GraphBuilder, View, SceneColor);
+
+		FScreenPassTexture DebugColorOutput = Substrate::AddSubstrateDebugPasses(GraphBuilder, View, SceneColor);
+		if (OverrideOutput.IsValid())
+		{
+			AddDrawTexturePass(GraphBuilder, View, DebugColorOutput, OverrideOutput);
+			SceneColor = OverrideOutput;
+		}
+		else
+		{
+			SceneColor = DebugColorOutput;
+		}
 	}
 
 	if (PassSequence.IsEnabled(EPass::VisualizeLightGrid))

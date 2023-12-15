@@ -57,6 +57,8 @@ public:
 
 	ENGINE_API FSubstrateViewMode GetViewMode(const FName& InModeName) const;
 
+	ENGINE_API static uint32 GetViewMode();
+
 	ENGINE_API bool GetModeDefaultComposited(const FName& InModeName) const;
 
 	inline const TModeMap& GetModeMap() const
@@ -80,6 +82,9 @@ private:
 
 	/** Flag indicating if system is initialized. **/
 	bool bIsInitialized;
+
+	/** CVar for handling view modes. **/
+	IConsoleVariable* CVarViewModes = nullptr;
 };
 
 ENGINE_API FSubstrateVisualizationData& GetSubstrateVisualizationData();

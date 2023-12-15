@@ -22,10 +22,17 @@ void AddSubstrateInternalClassificationTilePass(
 	ESubstrateTileType TileMaterialType,
 	const bool bDebug);
 
-static bool SubstrateDebugVisualizationCanRunOnPlatform(EShaderPlatform Platform)
+static bool IsSubstrateDebugVisualizationSupported(EShaderPlatform InPlatform, bool bIsEditorOnly, EShaderPermutationFlags Flags)
 {
-	// On some consoles, this ALU heavy shader (and with optimisation disables for the sake of low compilation time) would spill registers. So only keep it for the editor.
-	return GetMaxSupportedFeatureLevel(Platform) >= ERHIFeatureLevel::SM5 && IsPCPlatform(Platform);
+	return 
+		Substrate::IsSubstrateEnabled() && 
+		GetMaxSupportedFeatureLevel(InPlatform) >= ERHIFeatureLevel::SM5 && 
+		(bIsEditorOnly ? (IsPCPlatform(InPlatform) || EnumHasAllFlags(Flags, EShaderPermutationFlags::HasEditorOnlyData)) : true);
+}
+
+static bool SubstrateDebugVisualizationCanRunOnPlatform(EShaderPlatform InPlatform)
+{
+	return IsSubstrateDebugVisualizationSupported(InPlatform, false, EShaderPermutationFlags::None);
 }
 
 class FMaterialPrintInfoCS : public FGlobalShader
@@ -37,12 +44,18 @@ class FMaterialPrintInfoCS : public FGlobalShader
 
 	BEGIN_SHADER_PARAMETER_STRUCT(FParameters, )
 		SHADER_PARAMETER(uint32, ClosureIndex)
+		SHADER_PARAMETER(uint32, bOverrideCursorPosition)
 		SHADER_PARAMETER_STRUCT_REF(FViewUniformShaderParameters, ViewUniformBuffer)
 		SHADER_PARAMETER_RDG_UNIFORM_BUFFER(FSubstrateGlobalUniformParameters, Substrate)
 		SHADER_PARAMETER_STRUCT_INCLUDE(FSceneTextureParameters, SceneTextures)
 		SHADER_PARAMETER_STRUCT_INCLUDE(ShaderPrint::FShaderParameters, ShaderPrintParameters)
 		SHADER_PARAMETER_RDG_BUFFER_UAV(RWBuffer<uint>, RWPositionOffsetBuffer)
 	END_SHADER_PARAMETER_STRUCT()
+
+	static bool IsSupported(EShaderPlatform InPlatform, EShaderPermutationFlags InFlags=EShaderPermutationFlags::None)
+	{
+		return IsSubstrateDebugVisualizationSupported(InPlatform, false, InFlags);
+	}
 
 	static FPermutationDomain RemapPermutation(FPermutationDomain PermutationVector)
 	{
@@ -51,7 +64,7 @@ class FMaterialPrintInfoCS : public FGlobalShader
 
 	static bool ShouldCompilePermutation(const FGlobalShaderPermutationParameters& Parameters)
 	{
-		return Substrate::IsSubstrateEnabled() && SubstrateDebugVisualizationCanRunOnPlatform(Parameters.Platform) && EnumHasAllFlags(Parameters.Flags, EShaderPermutationFlags::HasEditorOnlyData);
+		return IsSupported(Parameters.Platform, Parameters.Flags);
 	}
 
 	static void ModifyCompilationEnvironment(const FGlobalShaderPermutationParameters& Parameters, FShaderCompilerEnvironment& OutEnvironment)
@@ -74,12 +87,18 @@ class FVisualizeMaterialCountPS : public FGlobalShader
 
 	BEGIN_SHADER_PARAMETER_STRUCT(FParameters, )
 		SHADER_PARAMETER(uint32, ViewMode)
+		SHADER_PARAMETER(uint32, bOverrideCursorPosition)
 		SHADER_PARAMETER_STRUCT_REF(FViewUniformShaderParameters, ViewUniformBuffer)
 		SHADER_PARAMETER_RDG_UNIFORM_BUFFER(FSubstrateGlobalUniformParameters, Substrate)
 		SHADER_PARAMETER_STRUCT_INCLUDE(FSceneTextureParameters, SceneTextures)
 		SHADER_PARAMETER_STRUCT_INCLUDE(ShaderPrint::FShaderParameters, ShaderPrintParameters)
 		RENDER_TARGET_BINDING_SLOTS()
 	END_SHADER_PARAMETER_STRUCT()
+
+	static bool IsSupported(EShaderPlatform InPlatform, EShaderPermutationFlags InFlags=EShaderPermutationFlags::None)
+	{
+		return IsSubstrateDebugVisualizationSupported(InPlatform, false, InFlags);
+	}
 
 	static FPermutationDomain RemapPermutation(FPermutationDomain PermutationVector)
 	{
@@ -88,7 +107,7 @@ class FVisualizeMaterialCountPS : public FGlobalShader
 
 	static bool ShouldCompilePermutation(const FGlobalShaderPermutationParameters& Parameters)
 	{
-		return Substrate::IsSubstrateEnabled() && SubstrateDebugVisualizationCanRunOnPlatform(Parameters.Platform) && EnumHasAllFlags(Parameters.Flags, EShaderPermutationFlags::HasEditorOnlyData);
+		return IsSupported(Parameters.Platform, Parameters.Flags);
 	}
 
 	static void ModifyCompilationEnvironment(const FGlobalShaderPermutationParameters& Parameters, FShaderCompilerEnvironment& OutEnvironment)
@@ -134,14 +153,19 @@ class FSubstrateSystemInfoCS : public FGlobalShader
 		SHADER_PARAMETER_STRUCT_INCLUDE(ShaderPrint::FShaderParameters, ShaderPrintParameters)
 	END_SHADER_PARAMETER_STRUCT()
 
-		static FPermutationDomain RemapPermutation(FPermutationDomain PermutationVector)
+	static bool IsSupported(EShaderPlatform InPlatform, EShaderPermutationFlags InFlags=EShaderPermutationFlags::None)
+	{
+		return IsSubstrateDebugVisualizationSupported(InPlatform, false, InFlags);
+	}
+
+	static FPermutationDomain RemapPermutation(FPermutationDomain PermutationVector)
 	{
 		return PermutationVector;
 	}
 
 	static bool ShouldCompilePermutation(const FGlobalShaderPermutationParameters& Parameters)
 	{
-		return Substrate::IsSubstrateEnabled() && SubstrateDebugVisualizationCanRunOnPlatform(Parameters.Platform) && EnumHasAllFlags(Parameters.Flags, EShaderPermutationFlags::HasEditorOnlyData);
+		return IsSupported(Parameters.Platform, Parameters.Flags);
 	}
 
 	static void ModifyCompilationEnvironment(const FGlobalShaderPermutationParameters& Parameters, FShaderCompilerEnvironment& OutEnvironment)
@@ -163,10 +187,16 @@ class FMaterialDebugSubstrateTreeCS : public FGlobalShader
 	using FPermutationDomain = TShaderPermutationDomain<>;
 
 	BEGIN_SHADER_PARAMETER_STRUCT(FParameters, )
+		SHADER_PARAMETER(uint32, bOverrideCursorPosition)
 		SHADER_PARAMETER_STRUCT_REF(FViewUniformShaderParameters, ViewUniformBuffer)
 		SHADER_PARAMETER_RDG_UNIFORM_BUFFER(FSubstrateGlobalUniformParameters, Substrate)
 		SHADER_PARAMETER_STRUCT_INCLUDE(ShaderPrint::FShaderParameters, ShaderPrintParameters)
 	END_SHADER_PARAMETER_STRUCT()
+
+	static bool IsSupported(EShaderPlatform InPlatform, EShaderPermutationFlags InFlags=EShaderPermutationFlags::None)
+	{
+		return IsSubstrateDebugVisualizationSupported(InPlatform, true, InFlags);
+	}
 
 	static FPermutationDomain RemapPermutation(FPermutationDomain PermutationVector)
 	{
@@ -175,7 +205,7 @@ class FMaterialDebugSubstrateTreeCS : public FGlobalShader
 
 	static bool ShouldCompilePermutation(const FGlobalShaderPermutationParameters& Parameters)
 	{
-		return Substrate::IsSubstrateEnabled() && SubstrateDebugVisualizationCanRunOnPlatform(Parameters.Platform) && EnumHasAllFlags(Parameters.Flags, EShaderPermutationFlags::HasEditorOnlyData);
+		return IsSupported(Parameters.Platform, Parameters.Flags);
 	}
 
 	static void ModifyCompilationEnvironment(const FGlobalShaderPermutationParameters& Parameters, FShaderCompilerEnvironment& OutEnvironment)
@@ -197,6 +227,7 @@ class FMaterialDebugSubstrateTreePS : public FGlobalShader
 	using FPermutationDomain = TShaderPermutationDomain<>;
 
 	BEGIN_SHADER_PARAMETER_STRUCT(FParameters, )
+		SHADER_PARAMETER(uint32, bOverrideCursorPosition)
 		SHADER_PARAMETER_STRUCT_REF(FViewUniformShaderParameters, ViewUniformBuffer)
 		SHADER_PARAMETER_RDG_UNIFORM_BUFFER(FSubstrateGlobalUniformParameters, Substrate)
 		SHADER_PARAMETER_RDG_UNIFORM_BUFFER(FReflectionUniformParameters, ReflectionStruct)
@@ -206,6 +237,11 @@ class FMaterialDebugSubstrateTreePS : public FGlobalShader
 		RENDER_TARGET_BINDING_SLOTS()
 	END_SHADER_PARAMETER_STRUCT()
 
+	static bool IsSupported(EShaderPlatform InPlatform, EShaderPermutationFlags InFlags=EShaderPermutationFlags::None)
+	{
+		return IsSubstrateDebugVisualizationSupported(InPlatform, true, InFlags);
+	}
+	
 	static FPermutationDomain RemapPermutation(FPermutationDomain PermutationVector)
 	{
 		return PermutationVector;
@@ -213,7 +249,7 @@ class FMaterialDebugSubstrateTreePS : public FGlobalShader
 
 	static bool ShouldCompilePermutation(const FGlobalShaderPermutationParameters& Parameters)
 	{
-		return Substrate::IsSubstrateEnabled() && SubstrateDebugVisualizationCanRunOnPlatform(Parameters.Platform) && EnumHasAllFlags(Parameters.Flags, EShaderPermutationFlags::HasEditorOnlyData);
+		return IsSupported(Parameters.Platform, Parameters.Flags);
 	}
 
 	static void ModifyCompilationEnvironment(const FGlobalShaderPermutationParameters& Parameters, FShaderCompilerEnvironment& OutEnvironment)
@@ -229,6 +265,8 @@ IMPLEMENT_GLOBAL_SHADER(FMaterialDebugSubstrateTreePS, "/Engine/Private/Substrat
 
 static void AddVisualizeMaterialPropertiesPasses(FRDGBuilder& GraphBuilder, const FViewInfo& View, FScreenPassTexture& ScreenPassSceneColor, EShaderPlatform Platform)
 {
+	if (!FMaterialPrintInfoCS::IsSupported(Platform)) return;
+
 	// Force ShaderPrint on.
 	ShaderPrint::SetEnabled(true);
 	ShaderPrint::RequestSpaceForLines(1024);
@@ -243,6 +281,7 @@ static void AddVisualizeMaterialPropertiesPasses(FRDGBuilder& GraphBuilder, cons
 	{
 		FMaterialPrintInfoCS::FParameters* PassParameters = GraphBuilder.AllocParameters<FMaterialPrintInfoCS::FParameters>();
 		PassParameters->ClosureIndex = ClosureIndex;
+		PassParameters->bOverrideCursorPosition = WITH_EDITOR ? 0u : 1u;
 		PassParameters->RWPositionOffsetBuffer = PrintOffsetBufferUAV;
 		PassParameters->ViewUniformBuffer = View.ViewUniformBuffer;
 		PassParameters->Substrate = Substrate::BindSubstrateGlobalUniformParameters(View);
@@ -256,6 +295,8 @@ static void AddVisualizeMaterialPropertiesPasses(FRDGBuilder& GraphBuilder, cons
 
 static void AddVisualizeMaterialCountPasses(FRDGBuilder & GraphBuilder, const FViewInfo & View, FScreenPassTexture & ScreenPassSceneColor, EShaderPlatform Platform, uint32 ViewMode)
 {
+	if (!FVisualizeMaterialCountPS::IsSupported(Platform)) return;
+
 	ShaderPrint::SetEnabled(true);
 	ShaderPrint::RequestSpaceForLines(1024);
 	ShaderPrint::RequestSpaceForCharacters(1024);
@@ -266,6 +307,7 @@ static void AddVisualizeMaterialCountPasses(FRDGBuilder & GraphBuilder, const FV
 	FVisualizeMaterialCountPS::FParameters* PassParameters = GraphBuilder.AllocParameters<FVisualizeMaterialCountPS::FParameters>();
 	PassParameters->ViewUniformBuffer = View.ViewUniformBuffer;
 	PassParameters->ViewMode = FMath::Clamp(ViewMode, 2, 3);
+	PassParameters->bOverrideCursorPosition = WITH_EDITOR ? 0u : 1u;
 	PassParameters->Substrate = Substrate::BindSubstrateGlobalUniformParameters(View);
 	PassParameters->SceneTextures = GetSceneTextureParameters(GraphBuilder, View);
 	PassParameters->RenderTargets[0] = FRenderTargetBinding(SceneColorTexture, ERenderTargetLoadAction::ELoad);
@@ -285,6 +327,8 @@ bool Is8bitTileCoordEnabled();
 
 static void AddVisualizeSystemInfoPasses(FRDGBuilder& GraphBuilder, const FViewInfo& View, FScreenPassTexture& ScreenPassSceneColor, EShaderPlatform Platform)
 {
+	if (!FSubstrateSystemInfoCS::IsSupported(Platform)) return;
+
 	// Force ShaderPrint on.
 	ShaderPrint::SetEnabled(true);
 	ShaderPrint::RequestSpaceForLines(1024);
@@ -322,7 +366,9 @@ static void AddVisualizeSystemInfoPasses(FRDGBuilder& GraphBuilder, const FViewI
 // Draw each material layer independently
 static void AddVisualizeAdvancedMaterialPasses(FRDGBuilder& GraphBuilder, const FViewInfo& View, FScreenPassTexture& ScreenPassSceneColor, EShaderPlatform Platform)
 {
-	if (!IsAdvancedVisualizationEnabled())
+	if (!IsAdvancedVisualizationEnabled() ||
+		!FMaterialDebugSubstrateTreeCS::IsSupported(Platform) || 
+		!FMaterialDebugSubstrateTreePS::IsSupported(Platform))
 	{
 		return;
 	}
@@ -337,6 +383,7 @@ static void AddVisualizeAdvancedMaterialPasses(FRDGBuilder& GraphBuilder, const 
 		FMaterialDebugSubstrateTreeCS::FParameters* PassParameters = GraphBuilder.AllocParameters<FMaterialDebugSubstrateTreeCS::FParameters>();
 		PassParameters->ViewUniformBuffer = View.ViewUniformBuffer;
 		PassParameters->Substrate = Substrate::BindSubstrateGlobalUniformParameters(View);
+		PassParameters->bOverrideCursorPosition = WITH_EDITOR ? 0u : 1u;
 		ShaderPrint::SetParameters(GraphBuilder, View.ShaderPrintData, PassParameters->ShaderPrintParameters);
 
 		TShaderMapRef<FMaterialDebugSubstrateTreeCS> ComputeShader(View.ShaderMap);
@@ -347,6 +394,7 @@ static void AddVisualizeAdvancedMaterialPasses(FRDGBuilder& GraphBuilder, const 
 		FMaterialDebugSubstrateTreePS::FParameters* PassParameters = GraphBuilder.AllocParameters<FMaterialDebugSubstrateTreePS::FParameters>();
 		PassParameters->ViewUniformBuffer = View.ViewUniformBuffer;
 		PassParameters->Substrate = Substrate::BindSubstrateGlobalUniformParameters(View);
+		PassParameters->bOverrideCursorPosition = WITH_EDITOR ? 0u : 1u;
 		PassParameters->ReflectionStruct = CreateReflectionUniformBuffer(GraphBuilder, View);
 		PassParameters->ReflectionCapture = View.ReflectionCaptureUniformBuffer;
 		PassParameters->ForwardLightData = View.ForwardLightingResources.ForwardLightUniformBuffer;
@@ -371,9 +419,7 @@ static FSubstrateViewMode GetSubstrateVisualizeMode(const FViewInfo & View)
 	FSubstrateViewMode Out = FSubstrateViewMode::None;
 	if (IsSubstrateEnabled() && SubstrateDebugVisualizationCanRunOnPlatform(View.GetShaderPlatform()))
 	{
-		// Variable defined in SubstrateVisualizationData.h/.cpp
-		static const auto CVar = IConsoleManager::Get().FindConsoleVariable(FSubstrateVisualizationData::GetVisualizeConsoleCommandName());
-		const uint32 ViewMode = CVar && CVar->AsVariableInt() ? CVar->AsVariableInt()->GetValueOnRenderThread() : 0;
+		const uint32 ViewMode = FSubstrateVisualizationData::GetViewMode();
 		switch (ViewMode)
 		{
 			case 1: return FSubstrateViewMode::MaterialProperties;

@@ -18,6 +18,13 @@
 #include "/Engine/Private/ShaderPrint.ush"
 #include "../ColorMap.ush"
 
+uint bOverrideCursorPosition;
+int2 GetCursorPosition()
+{
+	const int2 OverrideCursorPosition = (View.ViewSizeAndInvSize.xy + View.ViewRectMin.xy) / 2;
+	return bOverrideCursorPosition > 0 ? OverrideCursorPosition : View.CursorPosition;	
+}
+
 // This is for the fxc compiler to compile faster.
 #define SUBSTRATE_VIZ_MAX_BSDF 2
 
@@ -642,7 +649,7 @@ float3 GetWorldPositionFromPixelPos(uint2 PixelPos)
 [numthreads(1, 1, 1)]
 void MaterialPrintInfoCS(uint3 DispatchThreadId : SV_DispatchThreadID)
 {
-	const uint2 PixelPos = (float2(View.CursorPosition) * View.ViewResolutionFraction);
+	const uint2 PixelPos = (float2(GetCursorPosition()) * View.ViewResolutionFraction);
 	const float3 WorldPosition = GetWorldPositionFromPixelPos(PixelPos);
 	const float3 V = -normalize(WorldPosition - PrimaryView.TranslatedWorldCameraOrigin);
 
@@ -655,6 +662,14 @@ void MaterialPrintInfoCS(uint3 DispatchThreadId : SV_DispatchThreadID)
 	const float3 dPdx = WorldPositionX - WorldPosition;
 	const float3 dPdy = WorldPositionY - WorldPosition;
 	DrawPixelFootprint(WorldPosition, dPdx, dPdy, PixelPos);
+
+	// When overriding cursor position (on platform without mouse), display a small rect to show the pointing position
+	if (bOverrideCursorPosition)
+	{
+		const uint2 CursorPosition = GetCursorPosition();
+		FShaderPrintContext Ctx = InitShaderPrintContext(true, uint2(0, 0));
+		AddQuadSS(Ctx, float2(CursorPosition) - float2(1, 1), float2(CursorPosition) + float2(1, 1), ColorYellow);
+	}
 }
 #endif // SHADER_MATERIALPRINT
 
@@ -755,7 +770,7 @@ void VisualizeMaterialPS(
 		}
 
 		// Cursor
-		if (all(PixelPosDynRes == ShaderPrintData.CursorCoord))
+		if (all(PixelPosDynRes == GetCursorPosition()))
 		{
 			FShaderPrintContext Context = InitShaderPrintContext(true, uint2(250, 50));
 			Print(Context, MaterialBytePerPixel, InitFontColor(BytePerPixelToColor(MaterialBytePerPixel)), 3, 0); 
@@ -801,7 +816,7 @@ void MaterialDebugSubstrateTreeCS(uint3 DispatchThreadId : SV_DispatchThreadID)
 {
 // UE-194712 - Temporary workaround with Vulkan shader compilation
 #if !COMPILER_VULKAN
-	const uint2 PixelPos = (float2(View.CursorPosition) * View.ViewResolutionFraction);
+	const uint2 PixelPos = (float2(GetCursorPosition()) * View.ViewResolutionFraction);
 
 	FSubstrateAddressing SubstrateAddressing = GetSubstratePixelDataByteOffset(PixelPos, uint2(View.BufferSizeAndInvSize.xy), Substrate.MaxBytesPerPixel);
 	FSubstratePixelHeader Header = UnpackSubstrateHeaderIn(Substrate.MaterialTextureArray, SubstrateAddressing, Substrate.TopLayerTexture);
@@ -1407,7 +1422,7 @@ void MaterialDebugSubstrateTreePS(
 {
 	OutColor = float4(0.0f, 0.0f, 0.0f, 1.0f);
 
-	FSubstrateAddressing SubstrateAddressing = GetSubstratePixelDataByteOffset((float2(View.CursorPosition) * View.ViewResolutionFraction), uint2(View.BufferSizeAndInvSize.xy), Substrate.MaxBytesPerPixel);
+	FSubstrateAddressing SubstrateAddressing = GetSubstratePixelDataByteOffset((float2(GetCursorPosition()) * View.ViewResolutionFraction), uint2(View.BufferSizeAndInvSize.xy), Substrate.MaxBytesPerPixel);
 	FSubstratePixelHeader Header = UnpackSubstrateHeaderIn(Substrate.MaterialTextureArray, SubstrateAddressing, Substrate.TopLayerTexture);
 	if (Header.ClosureCount > 0)
 	{

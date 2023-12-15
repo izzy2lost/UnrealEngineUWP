@@ -10,7 +10,7 @@
 
 static FSubstrateVisualizationData GSubstrateVisualizationData;
 
-static FString ConfigureConsoleCommand(FSubstrateVisualizationData::TModeMap& ModeMap)
+static FString ConfigureConsoleCommand(FSubstrateVisualizationData::TModeMap& ModeMap, IConsoleVariable*& OutCVar)
 {
 	FString AvailableVisualizationModes;
 	for (FSubstrateVisualizationData::TModeMap::TConstIterator It = ModeMap.CreateConstIterator(); It; ++It)
@@ -29,7 +29,7 @@ static FString ConfigureConsoleCommand(FSubstrateVisualizationData::TModeMap& Mo
 	Out = TEXT("When the viewport view-mode is set to 'Substrate Visualization', this command specifies which of the various channels to display. Values entered other than the allowed values shown below will be ignored.");
 	Out += AvailableVisualizationModes;
 
-	IConsoleManager::Get().RegisterConsoleVariable(
+	OutCVar = IConsoleManager::Get().RegisterConsoleVariable(
 		FSubstrateVisualizationData::GetVisualizeConsoleCommandName(),
 		0,
 		*Out,
@@ -149,7 +149,7 @@ void FSubstrateVisualizationData::Initialize()
 			LOCTEXT("None", "None"));
 		
 
-		ConsoleDocumentationVisualizationMode = ConfigureConsoleCommand(AllModeMap);
+		ConsoleDocumentationVisualizationMode = ConfigureConsoleCommand(AllModeMap, CVarViewModes);
 
 		// Now only copy the available modes for the menu to not overload it with useless entries.
 		for (auto& Mode : AllModeMap)
@@ -185,6 +185,16 @@ FSubstrateViewMode FSubstrateVisualizationData::GetViewMode(const FName& InModeN
 	{
 		return FSubstrateViewMode::None;
 	}
+}
+
+uint32 FSubstrateVisualizationData::GetViewMode()
+{
+	uint32 OutViewMode = 0;
+	if (GSubstrateVisualizationData.IsInitialized() && GSubstrateVisualizationData.CVarViewModes && GSubstrateVisualizationData.CVarViewModes->AsVariableInt())
+	{
+		OutViewMode = GSubstrateVisualizationData.CVarViewModes->AsVariableInt()->GetValueOnRenderThread();
+	}
+	return OutViewMode;
 }
 
 bool FSubstrateVisualizationData::GetModeDefaultComposited(const FName& InModeName) const
