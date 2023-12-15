@@ -500,11 +500,11 @@ EPCGSettingsType UPCGBlueprintSettings::GetType() const
 	}
 }
 
-void UPCGBlueprintSettings::GetTrackedActorKeys(FPCGActorSelectionKeyToSettingsMap& OutKeysToSettings, TArray<TObjectPtr<const UPCGGraph>>& OutVisitedGraphs) const
+void UPCGBlueprintSettings::GetTrackedActorKeys(FPCGSelectionKeyToSettingsMap& OutKeysToSettings, TArray<TObjectPtr<const UPCGGraph>>& OutVisitedGraphs) const
 {
 	for (const FName& Tag : TrackedActorTags)
 	{
-		OutKeysToSettings.FindOrAdd(FPCGActorSelectionKey(Tag)).Emplace(this, bTrackActorsOnlyWithinBounds);
+		OutKeysToSettings.FindOrAdd(FPCGSelectionKey(Tag)).Emplace(this, bTrackActorsOnlyWithinBounds);
 	}
 }
 

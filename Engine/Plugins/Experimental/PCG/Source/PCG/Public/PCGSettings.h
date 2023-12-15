@@ -21,7 +21,7 @@ class UPCGNode;
 class UPCGSettings;
 
 using FPCGSettingsAndCulling = TPair<TWeakObjectPtr<const UPCGSettings>, bool>;
-using FPCGActorSelectionKeyToSettingsMap = TMap<FPCGActorSelectionKey, TArray<FPCGSettingsAndCulling>>;
+using FPCGSelectionKeyToSettingsMap = TMap<FPCGSelectionKey, TArray<FPCGSettingsAndCulling>>;
 
 UENUM()
 enum class EPCGSettingsExecutionMode : uint8
@@ -279,7 +279,7 @@ public:
 	virtual bool GetPinExtraIcon(const UPCGPin* InPin, FName& OutExtraIcon, FText& OutTooltip) const;
 
 	/** Derived classes must implement this to communicate dependencies on external actors */
-	virtual void GetTrackedActorKeys(FPCGActorSelectionKeyToSettingsMap& OutKeysToSettings, TArray<TObjectPtr<const UPCGGraph>>& OutVisitedGraphs) const {}
+	virtual void GetTrackedActorKeys(FPCGSelectionKeyToSettingsMap& OutKeysToSettings, TArray<TObjectPtr<const UPCGGraph>>& OutVisitedGraphs) const {}
 
 	/** Override this class to provide an UObject to jump to in case of double click on node
 	 *  ie. returning a blueprint instance will open the given blueprint in its editor.

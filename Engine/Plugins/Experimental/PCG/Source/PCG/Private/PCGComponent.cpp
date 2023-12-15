@@ -1437,7 +1437,7 @@ void UPCGComponent::RefreshAfterGraphChanged(UPCGGraphInterface* InGraph, EPCGCh
 		if (UPCGSubsystem* Subsystem = GetSubsystem())
 		{
 			// Don't update the tracking if nothing changed for the tracking.
-			TArray<FPCGActorSelectionKey> ChangedKeys;
+			TArray<FPCGSelectionKey> ChangedKeys;
 			if (UpdateTrackingCache(&ChangedKeys))
 			{
 				Subsystem->UpdateComponentTracking(this, /*bInShouldDirtyActors=*/ true, &ChangedKeys);
@@ -1573,7 +1573,7 @@ void UPCGComponent::PostEditChangeProperty(FPropertyChangedEvent& PropertyChange
 	{
 		if (UPCGSubsystem* Subsystem = GetSubsystem())
 		{
-			TArray<FPCGActorSelectionKey> ChangedKeys;
+			TArray<FPCGSelectionKey> ChangedKeys;
 			if (UpdateTrackingCache(&ChangedKeys))
 			{
 				Subsystem->UpdateComponentTracking(this, /*bInShouldDirtyActors=*/true, &ChangedKeys);
@@ -1682,7 +1682,7 @@ void UPCGComponent::PostEditUndo()
 	Super::PostEditUndo();
 }
 
-bool UPCGComponent::UpdateTrackingCache(TArray<FPCGActorSelectionKey>* OptionalChangedKeys)
+bool UPCGComponent::UpdateTrackingCache(TArray<FPCGSelectionKey>* OptionalChangedKeys)
 {
 	// Without an owner, it probably means we are in a BP template, so no need to update the tracking cache.
 	// Same for local components, as we will use the cache of the original component.
@@ -1692,7 +1692,7 @@ bool UPCGComponent::UpdateTrackingCache(TArray<FPCGActorSelectionKey>* OptionalC
 	}
 
 	// Store in a temporary map to detect key changes.
-	TMap<FPCGActorSelectionKey, bool> NewTrackedKeysToCulling;
+	TMap<FPCGSelectionKey, bool> NewTrackedKeysToCulling;
 
 	int32 FoundKeys = 0;
 
@@ -1703,7 +1703,7 @@ bool UPCGComponent::UpdateTrackingCache(TArray<FPCGActorSelectionKey>* OptionalC
 		// Also add a key for the landscape, with settings null and always culled, if we should track the landscape
 		if (ShouldTrackLandscape())
 		{
-			FPCGActorSelectionKey LandscapeKey = FPCGActorSelectionKey(ALandscapeProxy::StaticClass());
+			FPCGSelectionKey LandscapeKey = FPCGSelectionKey(ALandscapeProxy::StaticClass());
 			CachedTrackedKeysToSettings.FindOrAdd(LandscapeKey).Emplace(/*Settings*/nullptr, /*bIsCulled*/true);
 		}
 
@@ -1711,9 +1711,9 @@ bool UPCGComponent::UpdateTrackingCache(TArray<FPCGActorSelectionKey>* OptionalC
 		// Note that is only impact the fact that we track (or not) this tag.
 		// If a setting is marked as "should cull", it will only be dirtied (at least by default), if the actor with the
 		// given tag intersect with the component.
-		for (const TPair<FPCGActorSelectionKey, TArray<FPCGSettingsAndCulling>>& It : CachedTrackedKeysToSettings)
+		for (const TPair<FPCGSelectionKey, TArray<FPCGSettingsAndCulling>>& It : CachedTrackedKeysToSettings)
 		{
-			const FPCGActorSelectionKey& Key = It.Key;
+			const FPCGSelectionKey& Key = It.Key;
 
 			// Should cull only if all the settings requires a cull.
 			const bool bShouldCull = Algo::AllOf(It.Value, [](const FPCGSettingsAndCulling& SettingsAndCullingPair) { return SettingsAndCullingPair.Value; });
@@ -1742,7 +1742,7 @@ bool UPCGComponent::UpdateTrackingCache(TArray<FPCGActorSelectionKey>* OptionalC
 		{
 			OptionalChangedKeys->Reserve(OptionalChangedKeys->Num() + CachedTrackedKeysToCulling.Num());
 
-			for (const TPair<FPCGActorSelectionKey, bool>& It : CachedTrackedKeysToCulling)
+			for (const TPair<FPCGSelectionKey, bool>& It : CachedTrackedKeysToCulling)
 			{
 				OptionalChangedKeys->Add(It.Key);
 			}
@@ -2075,7 +2075,7 @@ bool UPCGComponent::IsObjectTracked(const TSoftObjectPtr<UObject>& InObjectPtr, 
 
 	bool bFound = false;
 
-	for (const TPair<FPCGActorSelectionKey, bool>& It : CachedTrackedKeysToCulling)
+	for (const TPair<FPCGSelectionKey, bool>& It : CachedTrackedKeysToCulling)
 	{
 		if (It.Key.IsMatching(InObjectPtr, this))
 		{
@@ -2696,7 +2696,7 @@ TArray<const UPCGSettings*> UPCGComponent::GatherSettingsTracking(const UObject*
 
 	for (const auto& It : CachedTrackedKeysToSettings)
 	{
-		const FPCGActorSelectionKey& Key = It.Key;
+		const FPCGSelectionKey& Key = It.Key;
 
 		const bool bRemovedTagIsTracked = (Key.Selection == EPCGActorSelection::ByTag) && InRemovedTags.Contains(Key.Tag);
 

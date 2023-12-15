@@ -17,14 +17,14 @@ namespace PCGIndirectionSettings
 }
 
 #if WITH_EDITOR
-void UPCGIndirectionSettings::GetTrackedActorKeys(FPCGActorSelectionKeyToSettingsMap& OutKeysToSettings, TArray<TObjectPtr<const UPCGGraph>>& OutVisitedGraphs) const
+void UPCGIndirectionSettings::GetTrackedActorKeys(FPCGSelectionKeyToSettingsMap& OutKeysToSettings, TArray<TObjectPtr<const UPCGGraph>>& OutVisitedGraphs) const
 {
 	if (Settings.IsNull())
 	{
 		return;
 	}
 
-	FPCGActorSelectionKey Key = FPCGActorSelectionKey::CreateFromPath(Settings.ToSoftObjectPath());
+	FPCGSelectionKey Key = FPCGSelectionKey::CreateFromPath(Settings.ToSoftObjectPath());
 
 	OutKeysToSettings.FindOrAdd(Key).Emplace(this, /*bCulling=*/false);
 }

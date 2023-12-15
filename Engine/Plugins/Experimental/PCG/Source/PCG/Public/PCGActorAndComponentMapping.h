@@ -55,7 +55,7 @@ public:
 	void AddDelayedActors();
 
 	void RegisterTracking(UPCGComponent* InComponent);
-	void UpdateTracking(UPCGComponent* InComponent, bool bInShouldDirtyActors, const TArray<FPCGActorSelectionKey>* OptionalChangedKeys = nullptr);
+	void UpdateTracking(UPCGComponent* InComponent, bool bInShouldDirtyActors, const TArray<FPCGSelectionKey>* OptionalChangedKeys = nullptr);
 
 	/** Notify that we exited the Landscape edit mode. */
 	PCG_API void NotifyLandscapeEditModeExited();

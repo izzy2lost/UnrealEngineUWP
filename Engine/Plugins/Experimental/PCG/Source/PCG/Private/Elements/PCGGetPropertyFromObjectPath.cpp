@@ -13,7 +13,7 @@
 #define LOCTEXT_NAMESPACE "PCGGetPropertyFromObjectPathElement"
 
 #if WITH_EDITOR
-void UPCGGetPropertyFromObjectPathSettings::GetTrackedActorKeys(FPCGActorSelectionKeyToSettingsMap& OutKeysToSettings, TArray<TObjectPtr<const UPCGGraph>>& OutVisitedGraphs) const
+void UPCGGetPropertyFromObjectPathSettings::GetTrackedActorKeys(FPCGSelectionKeyToSettingsMap& OutKeysToSettings, TArray<TObjectPtr<const UPCGGraph>>& OutVisitedGraphs) const
 {
 	for (const FSoftObjectPath& ObjectPath : ObjectPathsToExtract)
 	{
@@ -22,7 +22,7 @@ void UPCGGetPropertyFromObjectPathSettings::GetTrackedActorKeys(FPCGActorSelecti
 			continue;
 		}
 
-		FPCGActorSelectionKey Key = FPCGActorSelectionKey::CreateFromPath(ObjectPath);
+		FPCGSelectionKey Key = FPCGSelectionKey::CreateFromPath(ObjectPath);
 
 		OutKeysToSettings.FindOrAdd(Key).Emplace(this, /*bCulling=*/false);
 	}

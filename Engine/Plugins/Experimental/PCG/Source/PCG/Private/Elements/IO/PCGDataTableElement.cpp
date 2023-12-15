@@ -13,14 +13,14 @@
 #define LOCTEXT_NAMESPACE "PCGLoadDataTable"
 
 #if WITH_EDITOR
-void UPCGLoadDataTableSettings::GetTrackedActorKeys(FPCGActorSelectionKeyToSettingsMap& OutKeysToSettings, TArray<TObjectPtr<const UPCGGraph>>& OutVisitedGraphs) const
+void UPCGLoadDataTableSettings::GetTrackedActorKeys(FPCGSelectionKeyToSettingsMap& OutKeysToSettings, TArray<TObjectPtr<const UPCGGraph>>& OutVisitedGraphs) const
 {
 	if (DataTable.IsNull())
 	{
 		return;
 	}
 
-	FPCGActorSelectionKey Key = FPCGActorSelectionKey::CreateFromPath(DataTable.ToSoftObjectPath());
+	FPCGSelectionKey Key = FPCGSelectionKey::CreateFromPath(DataTable.ToSoftObjectPath());
 
 	OutKeysToSettings.FindOrAdd(Key).Emplace(this, /*bCulling=*/false);
 }

@@ -1003,16 +1003,16 @@ void UPCGGraph::RemoveExtraEditorNode(const UObject* InNode)
 	ExtraEditorNodes.Remove(const_cast<UObject*>(InNode));
 }
 
-FPCGActorSelectionKeyToSettingsMap UPCGGraph::GetTrackedActorKeysToSettings() const
+FPCGSelectionKeyToSettingsMap UPCGGraph::GetTrackedActorKeysToSettings() const
 {
-	FPCGActorSelectionKeyToSettingsMap TagsToSettings;
+	FPCGSelectionKeyToSettingsMap TagsToSettings;
 	TArray<TObjectPtr<const UPCGGraph>> VisitedGraphs;
 
 	GetTrackedActorKeysToSettings(TagsToSettings, VisitedGraphs);
 	return TagsToSettings;
 }
 
-void UPCGGraph::GetTrackedActorKeysToSettings(FPCGActorSelectionKeyToSettingsMap& OutTagsToSettings, TArray<TObjectPtr<const UPCGGraph>>& OutVisitedGraphs) const
+void UPCGGraph::GetTrackedActorKeysToSettings(FPCGSelectionKeyToSettingsMap& OutTagsToSettings, TArray<TObjectPtr<const UPCGGraph>>& OutVisitedGraphs) const
 {
 	if (OutVisitedGraphs.Contains(this))
 	{
@@ -1035,7 +1035,7 @@ void UPCGGraph::GetTrackedActorKeysToSettings(FPCGActorSelectionKeyToSettingsMap
 	// We need to loop because we can have multiple keys that have Filter to self or original.
 	for (auto& It : OutTagsToSettings)
 	{
-		const FPCGActorSelectionKey& Key = It.Key;
+		const FPCGSelectionKey& Key = It.Key;
 		TArray<FPCGSettingsAndCulling>& SettingsAndCullingArray = It.Value;
 		if (Key.ActorFilter == EPCGActorFilter::Self || Key.ActorFilter == EPCGActorFilter::Original)
 		{

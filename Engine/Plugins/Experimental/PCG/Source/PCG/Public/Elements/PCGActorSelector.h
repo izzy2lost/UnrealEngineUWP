@@ -40,24 +40,23 @@ enum class EPCGActorFilter : uint8
 /**
 * Structure to specify a selection criteria for an object/actor
 * Object can be selected using the EPCGActorSelection::ByClass or EPCGActorSelection::ByPath
-* Actors have more selection with Self/Parent/Root/Original and also EPCGActorSelection::ByTag
-* TODO: Might want to rename it, since it is not limited to Actors anymore.
+* Actors have more options for selection with Self/Parent/Root/Original and also EPCGActorSelection::ByTag
 */
-struct FPCGActorSelectionKey
+struct FPCGSelectionKey
 {
-	FPCGActorSelectionKey() = default;
+	FPCGSelectionKey() = default;
 
 	// For all filters others than AllWorldActor. For AllWorldActors Filter, use the other constructors.
-	explicit FPCGActorSelectionKey(EPCGActorFilter InFilter);
+	explicit FPCGSelectionKey(EPCGActorFilter InFilter);
 
-	explicit FPCGActorSelectionKey(FName InTag);
-	explicit FPCGActorSelectionKey(TSubclassOf<AActor> InSelectionClass);
+	explicit FPCGSelectionKey(FName InTag);
+	explicit FPCGSelectionKey(TSubclassOf<UObject> InSelectionClass);
 
-	static FPCGActorSelectionKey CreateFromPath(const FSoftObjectPath& InObjectPath);
+	static FPCGSelectionKey CreateFromPath(const FSoftObjectPath& InObjectPath);
 
-	bool operator==(const FPCGActorSelectionKey& InOther) const;
+	bool operator==(const FPCGSelectionKey& InOther) const;
 
-	friend uint32 GetTypeHash(const FPCGActorSelectionKey& In);
+	friend uint32 GetTypeHash(const FPCGSelectionKey& In);
 	bool IsMatching(const TSoftObjectPtr<UObject>& InObjectPtr, const UPCGComponent* InComponent) const;
 
 	void SetExtraDependency(const UClass* InExtraDependency);
@@ -65,7 +64,7 @@ struct FPCGActorSelectionKey
 	EPCGActorFilter ActorFilter = EPCGActorFilter::AllWorldActors;
 	EPCGActorSelection Selection = EPCGActorSelection::Unknown;
 	FName Tag = NAME_None;
-	TSubclassOf<AActor> ActorSelectionClass = nullptr;
+	TSubclassOf<UObject> SelectionClass = nullptr;
 
 	// If the Selection is ByPath, contain the path to select.
 	FSoftObjectPath ObjectPath;
@@ -140,8 +139,8 @@ struct FPCGActorSelectorSettings
 	FName GetTaskName(const FText& Prefix) const;
 #endif
 
-	FPCGActorSelectionKey GetAssociatedKey() const;
-	static FPCGActorSelectorSettings ReconstructFromKey(const FPCGActorSelectionKey& InKey);
+	FPCGSelectionKey GetAssociatedKey() const;
+	static FPCGActorSelectorSettings ReconstructFromKey(const FPCGSelectionKey& InKey);
 };
 
 namespace PCGActorSelector

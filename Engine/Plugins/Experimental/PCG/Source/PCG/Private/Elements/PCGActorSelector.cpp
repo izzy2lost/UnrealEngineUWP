@@ -70,7 +70,7 @@ namespace PCGActorSelector
 			break;
 		}
 
-		return [](AActor* Actor) -> bool { return false; };
+		return {};
 	}
 
 	TArray<AActor*> FindActors(const FPCGActorSelectorSettings& Settings, const UPCGComponent* InComponent, const TFunction<bool(const AActor*)>& BoundsCheck, const TFunction<bool(const AActor*)>& SelfIgnoreCheck)
@@ -99,6 +99,11 @@ namespace PCGActorSelector
 		// We pass FoundActor ref, that will be captured by the FilteringFunction
 		// It will modify the FoundActor pointer to the found actor, if found.
 		TFunction<bool(AActor*)> FilteringFunction = PCGActorSelector::GetFilteringFunction(Settings, BoundsCheck, SelfIgnoreCheck, FoundActors);
+
+		if (!FilteringFunction)
+		{
+			return FoundActors;
+		}
 
 		// In case of iterating over all actors in the world, call our filtering function and get out.
 		if (Settings.ActorFilter == EPCGActorFilter::AllWorldActors)
@@ -204,42 +209,42 @@ namespace PCGActorSelector
 	}
 }
 
-FPCGActorSelectionKey::FPCGActorSelectionKey(EPCGActorFilter InFilter)
+FPCGSelectionKey::FPCGSelectionKey(EPCGActorFilter InFilter)
 {
 	check(InFilter != EPCGActorFilter::AllWorldActors);
 	ActorFilter = InFilter;
 }
 
-FPCGActorSelectionKey::FPCGActorSelectionKey(FName InTag)
+FPCGSelectionKey::FPCGSelectionKey(FName InTag)
 {
 	Selection = EPCGActorSelection::ByTag;
 	Tag = InTag;
 	ActorFilter = EPCGActorFilter::AllWorldActors;
 }
 
-FPCGActorSelectionKey::FPCGActorSelectionKey(TSubclassOf<AActor> InSelectionClass)
+FPCGSelectionKey::FPCGSelectionKey(TSubclassOf<UObject> InSelectionClass)
 {
 	Selection = EPCGActorSelection::ByClass;
-	ActorSelectionClass = InSelectionClass;
+	SelectionClass = InSelectionClass;
 	ActorFilter = EPCGActorFilter::AllWorldActors;
 }
 
-FPCGActorSelectionKey FPCGActorSelectionKey::CreateFromPath(const FSoftObjectPath& InObjectPath)
+FPCGSelectionKey FPCGSelectionKey::CreateFromPath(const FSoftObjectPath& InObjectPath)
 {
-	FPCGActorSelectionKey Res{};
-	Res.Selection = EPCGActorSelection::ByPath;
-	Res.ObjectPath = InObjectPath;
-	Res.ActorFilter = EPCGActorFilter::AllWorldActors;
+	FPCGSelectionKey Key{};
+	Key.Selection = EPCGActorSelection::ByPath;
+	Key.ObjectPath = InObjectPath;
+	Key.ActorFilter = EPCGActorFilter::AllWorldActors;
 
-	return Res;
+	return Key;
 }
 
-void FPCGActorSelectionKey::SetExtraDependency(const UClass* InExtraDependency)
+void FPCGSelectionKey::SetExtraDependency(const UClass* InExtraDependency)
 {
 	OptionalExtraDependency = InExtraDependency;
 }
 
-bool FPCGActorSelectionKey::IsMatching(const TSoftObjectPtr<UObject>& InObjectPtr, const UPCGComponent* InComponent) const
+bool FPCGSelectionKey::IsMatching(const TSoftObjectPtr<UObject>& InObjectPtr, const UPCGComponent* InComponent) const
 {
 	if (InObjectPtr.IsNull())
 	{
@@ -276,7 +281,7 @@ bool FPCGActorSelectionKey::IsMatching(const TSoftObjectPtr<UObject>& InObjectPt
 		return InActor && InActor->ActorHasTag(Tag);
 	}
 	case EPCGActorSelection::ByClass:
-		return InObject && InObject->GetClass()->IsChildOf(ActorSelectionClass);
+		return InObject && InObject->GetClass()->IsChildOf(SelectionClass);
 	case EPCGActorSelection::ByPath:
 		return InObjectPtr.ToSoftObjectPath() == ObjectPath;
 	default:
@@ -284,7 +289,7 @@ bool FPCGActorSelectionKey::IsMatching(const TSoftObjectPtr<UObject>& InObjectPt
 	}
 }
 
-bool FPCGActorSelectionKey::operator==(const FPCGActorSelectionKey& InOther) const
+bool FPCGSelectionKey::operator==(const FPCGSelectionKey& InOther) const
 {
 	if (ActorFilter != InOther.ActorFilter || Selection != InOther.Selection || OptionalExtraDependency != InOther.OptionalExtraDependency)
 	{
@@ -296,7 +301,7 @@ bool FPCGActorSelectionKey::operator==(const FPCGActorSelectionKey& InOther) con
 	case EPCGActorSelection::ByTag:
 		return Tag == InOther.Tag;
 	case EPCGActorSelection::ByClass:
-		return ActorSelectionClass == InOther.ActorSelectionClass;
+		return SelectionClass == InOther.SelectionClass;
 	case EPCGActorSelection::ByPath:
 		return ObjectPath == InOther.ObjectPath;
 	case EPCGActorSelection::Unknown: // Fall-through
@@ -310,11 +315,11 @@ bool FPCGActorSelectionKey::operator==(const FPCGActorSelectionKey& InOther) con
 	}
 }
 
-uint32 GetTypeHash(const FPCGActorSelectionKey& In)
+uint32 GetTypeHash(const FPCGSelectionKey& In)
 {
 	uint32 HashResult = HashCombine(GetTypeHash(In.ActorFilter), GetTypeHash(In.Selection));
 	HashResult = HashCombine(HashResult, GetTypeHash(In.Tag));
-	HashResult = HashCombine(HashResult, GetTypeHash(In.ActorSelectionClass));
+	HashResult = HashCombine(HashResult, GetTypeHash(In.SelectionClass));
 	HashResult = HashCombine(HashResult, GetTypeHash(In.OptionalExtraDependency));
 	HashResult = HashCombine(HashResult, GetTypeHash(In.ObjectPath));
 
@@ -349,31 +354,36 @@ FName FPCGActorSelectorSettings::GetTaskName(const FText& Prefix) const
 }
 #endif // WITH_EDITOR
 
-FPCGActorSelectionKey FPCGActorSelectorSettings::GetAssociatedKey() const
+FPCGSelectionKey FPCGActorSelectorSettings::GetAssociatedKey() const
 {
 	if (ActorFilter != EPCGActorFilter::AllWorldActors)
 	{
-		return FPCGActorSelectionKey(ActorFilter);
+		return FPCGSelectionKey(ActorFilter);
 	}
 
 	switch (ActorSelection)
 	{
 	case EPCGActorSelection::ByTag:
-		return FPCGActorSelectionKey(ActorSelectionTag);
+		return FPCGSelectionKey(ActorSelectionTag);
 	case EPCGActorSelection::ByClass:
-		return FPCGActorSelectionKey(ActorSelectionClass);
+		return FPCGSelectionKey(ActorSelectionClass);
 	default:
-		return FPCGActorSelectionKey();
+		return FPCGSelectionKey();
 	}
 }
 
-FPCGActorSelectorSettings FPCGActorSelectorSettings::ReconstructFromKey(const FPCGActorSelectionKey& InKey)
+FPCGActorSelectorSettings FPCGActorSelectorSettings::ReconstructFromKey(const FPCGSelectionKey& InKey)
 {
+	if (InKey.SelectionClass && !InKey.SelectionClass->IsChildOf<AActor>())
+	{
+		return FPCGActorSelectorSettings{};
+	}
+
 	FPCGActorSelectorSettings Result{};
 	Result.ActorFilter = InKey.ActorFilter;
 	Result.ActorSelection = InKey.Selection;
 	Result.ActorSelectionTag = InKey.Tag;
-	Result.ActorSelectionClass = InKey.ActorSelectionClass;
+	Result.ActorSelectionClass = InKey.SelectionClass;
 
 	return Result;
 }

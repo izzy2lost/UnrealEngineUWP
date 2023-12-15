@@ -435,7 +435,7 @@ private:
 	void SetupCallbacksOnCreation();
 
 	/** Returns true if something changed in the tracking. */
-	bool UpdateTrackingCache(TArray<FPCGActorSelectionKey>* OptionalChangedKeys = nullptr);
+	bool UpdateTrackingCache(TArray<FPCGSelectionKey>* OptionalChangedKeys = nullptr);
 
 	/** Gather all the settings that are tracking the given object. If it is an actor, the settings should cull and there is no intersection, it will not be added to the list.
 	* @param InObject                   The object the component is tracking. Can be an Actor (for culling).
@@ -515,9 +515,9 @@ private:
 #if WITH_EDITOR
 	int32 InspectionCounter = 0;
 	FBox LastGeneratedBoundsPriorToUndo = FBox(EForceInit::ForceInit);
-	FPCGActorSelectionKeyToSettingsMap CachedTrackedKeysToSettings;
+	FPCGSelectionKeyToSettingsMap CachedTrackedKeysToSettings;
 
-	TMap<FPCGActorSelectionKey, bool> CachedTrackedKeysToCulling;
+	TMap<FPCGSelectionKey, bool> CachedTrackedKeysToCulling;
 #endif
 
 #if WITH_EDITORONLY_DATA

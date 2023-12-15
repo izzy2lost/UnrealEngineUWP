@@ -127,9 +127,9 @@ namespace PCGDataFromActorHelpers
 }
 
 #if WITH_EDITOR
-void UPCGDataFromActorSettings::GetTrackedActorKeys(FPCGActorSelectionKeyToSettingsMap& OutKeysToSettings, TArray<TObjectPtr<const UPCGGraph>>& OutVisitedGraphs) const
+void UPCGDataFromActorSettings::GetTrackedActorKeys(FPCGSelectionKeyToSettingsMap& OutKeysToSettings, TArray<TObjectPtr<const UPCGGraph>>& OutVisitedGraphs) const
 {
-	FPCGActorSelectionKey Key = ActorSelector.GetAssociatedKey();
+	FPCGSelectionKey Key = ActorSelector.GetAssociatedKey();
 	if (Mode == EPCGGetDataFromActorMode::GetDataFromPCGComponent || Mode == EPCGGetDataFromActorMode::GetDataFromPCGComponentOrParseComponents)
 	{
 		Key.SetExtraDependency(UPCGComponent::StaticClass());

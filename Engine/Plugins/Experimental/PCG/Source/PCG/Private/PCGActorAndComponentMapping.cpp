@@ -837,7 +837,7 @@ void FPCGActorAndComponentMapping::RegisterTracking(UPCGComponent* InComponent)
 	}
 }
 
-void FPCGActorAndComponentMapping::UpdateTracking(UPCGComponent* InComponent, bool bInShouldDirtyActors, const TArray<FPCGActorSelectionKey>* ChangedKeys)
+void FPCGActorAndComponentMapping::UpdateTracking(UPCGComponent* InComponent, bool bInShouldDirtyActors, const TArray<FPCGSelectionKey>* ChangedKeys)
 {
 	// Discard BP templates, local components and invalid component
 	if (!IsValid(InComponent) || !InComponent->GetOwner() || InComponent->GetOwner()->IsA<APCGPartitionActor>())
@@ -861,7 +861,7 @@ void FPCGActorAndComponentMapping::UpdateTracking(UPCGComponent* InComponent, bo
 	}
 
 	// If no keys are provided, update all tracking keys.
-	TArray<FPCGActorSelectionKey> AllKeys;
+	TArray<FPCGSelectionKey> AllKeys;
 	if (ChangedKeys == nullptr)
 	{
 		InComponent->CachedTrackedKeysToSettings.GenerateKeyArray(AllKeys);
@@ -880,7 +880,7 @@ void FPCGActorAndComponentMapping::UpdateTracking(UPCGComponent* InComponent, bo
 	TSet<TSoftObjectPtr<UObject>> CandidatesForTracking;
 	TSet<TSoftObjectPtr<UObject>> CandidatesForUntracking;
 
-	auto GatherObjects = [this, InComponent, &CandidatesForTracking, &CandidatesForUntracking](const FPCGActorSelectionKey& InKey, bool bInShouldUntrack)
+	auto GatherObjects = [this, InComponent, &CandidatesForTracking, &CandidatesForUntracking](const FPCGSelectionKey& InKey, bool bInShouldUntrack)
 	{
 		if (InKey.Selection == EPCGActorSelection::ByPath)
 		{
@@ -930,7 +930,7 @@ void FPCGActorAndComponentMapping::UpdateTracking(UPCGComponent* InComponent, bo
 		}
 	};
 
-	for (const FPCGActorSelectionKey& Key : *ChangedKeys)
+	for (const FPCGSelectionKey& Key : *ChangedKeys)
 	{
 		const bool bShouldUntrack = !InComponent->CachedTrackedKeysToSettings.Contains(Key);
 		GatherObjects(Key, bShouldUntrack);
