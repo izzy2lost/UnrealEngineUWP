@@ -2,6 +2,7 @@
 
 #include "WorldPartition/WorldPartitionReplay.h"
 #include "Engine/GameInstance.h"
+#include "UObject/Package.h"
 #include "WorldPartition/WorldPartition.h"
 #include "Engine/World.h"
 #include "Net/UnrealNetwork.h"
