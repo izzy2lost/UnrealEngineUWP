@@ -7,6 +7,10 @@
 #include "Subsystems/WorldSubsystem.h"
 #include "Textures/SlateIcon.h"
 
+#if WITH_EDITOR
+#include "ContentBrowserDelegates.h"
+#endif	// WITH_EDITOR
+
 #include "MoviePipelineRenderLayerSubsystem.generated.h"
 
 class SWidget;
@@ -95,9 +99,9 @@ public:
 	UFUNCTION(BlueprintCallable, Category = "Settings")
 	EMovieGraphConditionGroupQueryOpType GetOperationType() const;
 
-	/** Determines which of the provided actors match the query. Matches are added to OutMatchingActors.  */
+	/** Determines which of the provided actors (in the given world) match the query. Matches are added to OutMatchingActors.  */
 	UFUNCTION(BlueprintCallable, Category = "Settings")
-	virtual void Evaluate(const TArray<AActor*>& InActorsToQuery, TSet<AActor*>& OutMatchingActors) const;
+	virtual void Evaluate(const TArray<AActor*>& InActorsToQuery, const UWorld* InWorld, TSet<AActor*>& OutMatchingActors) const;
 
 	/**
 	 * Determines if the public properties on the query class will have their names hidden in the details panel. Returns
@@ -161,7 +165,7 @@ class MOVIERENDERPIPELINECORE_API UMovieGraphConditionGroupQuery_Actor final : p
 	GENERATED_BODY()
 
 public:
-	virtual void Evaluate(const TArray<AActor*>& InActorsToQuery, TSet<AActor*>& OutMatchingActors) const override;
+	virtual void Evaluate(const TArray<AActor*>& InActorsToQuery, const UWorld* InWorld, TSet<AActor*>& OutMatchingActors) const override;
 	virtual const FSlateIcon& GetIcon() const override;
 	virtual const FText& GetDisplayName() const override;
 
@@ -201,7 +205,7 @@ class MOVIERENDERPIPELINECORE_API UMovieGraphConditionGroupQuery_ActorTagName fi
 	GENERATED_BODY()
 
 public:
-	virtual void Evaluate(const TArray<AActor*>& InActorsToQuery, TSet<AActor*>& OutMatchingActors) const override;
+	virtual void Evaluate(const TArray<AActor*>& InActorsToQuery, const UWorld* InWorld, TSet<AActor*>& OutMatchingActors) const override;
 	virtual const FSlateIcon& GetIcon() const override;
 	virtual const FText& GetDisplayName() const override;
 
@@ -234,7 +238,7 @@ class MOVIERENDERPIPELINECORE_API UMovieGraphConditionGroupQuery_ActorName final
 	GENERATED_BODY()
 
 public:
-	virtual void Evaluate(const TArray<AActor*>& InActorsToQuery, TSet<AActor*>& OutMatchingActors) const override;
+	virtual void Evaluate(const TArray<AActor*>& InActorsToQuery, const UWorld* InWorld, TSet<AActor*>& OutMatchingActors) const override;
 	virtual const FSlateIcon& GetIcon() const override;
 	virtual const FText& GetDisplayName() const override;
 
@@ -269,7 +273,7 @@ class MOVIERENDERPIPELINECORE_API UMovieGraphConditionGroupQuery_ActorType final
 	GENERATED_BODY()
 
 public:
-	virtual void Evaluate(const TArray<AActor*>& InActorsToQuery, TSet<AActor*>& OutMatchingActors) const override;
+	virtual void Evaluate(const TArray<AActor*>& InActorsToQuery, const UWorld* InWorld, TSet<AActor*>& OutMatchingActors) const override;
 	virtual const FSlateIcon& GetIcon() const override;
 	virtual const FText& GetDisplayName() const override;
 
@@ -280,6 +284,7 @@ public:
 
 public:
 	/** The type (class) that the actor needs to have in order to be a match. */
+	UPROPERTY(EditAnywhere, Category="General")
 	TArray<UClass*> ActorTypes;
 
 private:
@@ -302,7 +307,7 @@ class MOVIERENDERPIPELINECORE_API UMovieGraphConditionGroupQuery_ComponentTagNam
 	GENERATED_BODY()
 
 public:
-	virtual void Evaluate(const TArray<AActor*>& InActorsToQuery, TSet<AActor*>& OutMatchingActors) const override;
+	virtual void Evaluate(const TArray<AActor*>& InActorsToQuery, const UWorld* InWorld, TSet<AActor*>& OutMatchingActors) const override;
 	virtual const FSlateIcon& GetIcon() const override;
 	virtual const FText& GetDisplayName() const override;
 
@@ -335,7 +340,7 @@ class MOVIERENDERPIPELINECORE_API UMovieGraphConditionGroupQuery_ComponentType f
 	GENERATED_BODY()
 
 public:
-	virtual void Evaluate(const TArray<AActor*>& InActorsToQuery, TSet<AActor*>& OutMatchingActors) const override;
+	virtual void Evaluate(const TArray<AActor*>& InActorsToQuery, const UWorld* InWorld, TSet<AActor*>& OutMatchingActors) const override;
 	virtual const FSlateIcon& GetIcon() const override;
 	virtual const FText& GetDisplayName() const override;
 
@@ -360,6 +365,79 @@ public:
 	/** The actor must have one or more of the component type(s) in order to be a match. */
 	UPROPERTY(EditAnywhere, Category="General")
 	TArray<UClass*> ComponentTypes;
+};
+
+/** Query type which filters actors via the editor folder that they're contained in. */
+UCLASS(BlueprintType)
+class MOVIERENDERPIPELINECORE_API UMovieGraphConditionGroupQuery_EditorFolder final : public UMovieGraphConditionGroupQueryBase
+{
+	GENERATED_BODY()
+
+public:
+	virtual void Evaluate(const TArray<AActor*>& InActorsToQuery, const UWorld* InWorld, TSet<AActor*>& OutMatchingActors) const override;
+	virtual const FSlateIcon& GetIcon() const override;
+	virtual const FText& GetDisplayName() const override;
+	virtual bool IsEditorOnlyQuery() const override;
+
+#if WITH_EDITOR
+	virtual TArray<TSharedRef<SWidget>> GetWidgets() override;
+	virtual TSharedRef<SWidget> GetAddMenuContents(const FMovieGraphConditionGroupQueryContentsChanged& OnAddFinished) override;
+#endif
+
+private:
+#if WITH_EDITOR
+	static const FSlateBrush* GetRowIcon(FName InFolderPath);
+	static FText GetRowText(FName InFolderPath);
+
+	/** Displays the paths of folders which have been chosen. */
+	TSharedPtr<SMovieGraphSimpleList<FName>> FolderPathsList;
+
+	/** The folder browser widget to show in the Add menu. */
+	TSharedPtr<class ISceneOutliner> FolderPickerWidget;
+#endif
+
+public:
+	/** The actor must be in one of the chosen folders in order to be a match. */
+	UPROPERTY(EditAnywhere, Category="General")
+	TArray<FName> FolderPaths;
+};
+
+/** Query type which filters actors via the sublevel that they're contained in. */
+UCLASS(BlueprintType)
+class MOVIERENDERPIPELINECORE_API UMovieGraphConditionGroupQuery_Sublevel final : public UMovieGraphConditionGroupQueryBase
+{
+	GENERATED_BODY()
+
+public:
+	virtual void Evaluate(const TArray<AActor*>& InActorsToQuery, const UWorld* InWorld, TSet<AActor*>& OutMatchingActors) const override;
+	virtual const FSlateIcon& GetIcon() const override;
+	virtual const FText& GetDisplayName() const override;
+
+#if WITH_EDITOR
+	virtual TArray<TSharedRef<SWidget>> GetWidgets() override;
+	virtual TSharedRef<SWidget> GetAddMenuContents(const FMovieGraphConditionGroupQueryContentsChanged& OnAddFinished) override;
+#endif
+
+private:
+#if WITH_EDITOR
+	static const FSlateBrush* GetRowIcon(TSharedPtr<TSoftObjectPtr<UWorld>> InSublevel);
+	static FText GetRowText(TSharedPtr<TSoftObjectPtr<UWorld>> InSublevel);
+
+	/** Displays the names of sublevels which have been chosen. */
+	TSharedPtr<SMovieGraphSimpleList<TSharedPtr<TSoftObjectPtr<UWorld>>>> SublevelsList;
+
+	/** Refreshes the contents of the level picker widget when called. */
+	FRefreshAssetViewDelegate RefreshLevelPicker;
+
+	// Not ideal to store a duplicate of Sublevels, but SListView requires TSharedPtr<...> as the data source, and UPROPERTY does not
+	// support TSharedPtr<...>
+	TArray<TSharedPtr<TSoftObjectPtr<UWorld>>> ListDataSource;
+#endif
+
+public:
+	/** The actor must be in one of the chosen sublevels in order to be a match. */
+	UPROPERTY(EditAnywhere, Category="General")
+	TArray<TSoftObjectPtr<UWorld>> Sublevels;
 };
 
 /** A group of queries which can be added to a collection. */

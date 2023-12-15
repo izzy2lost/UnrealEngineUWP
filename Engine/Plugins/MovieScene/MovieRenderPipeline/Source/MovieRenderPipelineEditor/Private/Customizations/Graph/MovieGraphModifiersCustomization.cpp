@@ -60,7 +60,7 @@ public:
 			.VAlign(VAlign_Fill)
 			[
 				SNew(SWidgetSwitcher)
-				.WidgetIndex(DataSource.IsEmpty() ? 0 : 1)
+				.WidgetIndex_Lambda([this] { return DataSource.IsEmpty() ? 0 : 1; })
 
 				+ SWidgetSwitcher::Slot()
 				.VAlign(VAlign_Center)
