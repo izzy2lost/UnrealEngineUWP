@@ -1637,15 +1637,39 @@ void FRequestCluster::IsRequestCookable(const ITargetPlatform* Platform, FName P
 	// The package is ordinarily cookable and explorable. In some cases we filter out for testing
 	// packages that are ordinarily cookable; set bOutCookable to false if so.
 	bOutExplorable = true;
-	if (InCOTFS.bCookFilter && !InCOTFS.CookFilterIncludedClasses.IsEmpty())
+	if (InCOTFS.bCookFilter)
 	{
-		TOptional<FAssetPackageData> AssetData = IAssetRegistry::GetChecked().GetAssetPackageDataCopy(PackageName);
-		if (AssetData)
+		IAssetRegistry& AssetRegistry = IAssetRegistry::GetChecked();
+		if (!InCOTFS.CookFilterIncludedClasses.IsEmpty())
 		{
+			TOptional<FAssetPackageData> AssetData = AssetRegistry.GetAssetPackageDataCopy(PackageName);
 			bool bIncluded = false;
-			for (FName ClassName : AssetData->ImportedClasses)
+			if (AssetData)
 			{
-				if (InCOTFS.CookFilterIncludedClasses.Contains(ClassName))
+				for (FName ClassName : AssetData->ImportedClasses)
+				{
+					if (InCOTFS.CookFilterIncludedClasses.Contains(ClassName))
+					{
+						bIncluded = true;
+						break;
+					}
+				}
+			}
+			if (!bIncluded)
+			{
+				OutReason = ESuppressCookReason::CookFilter;
+				bOutCookable = false;
+				return;
+			}
+		}
+		if (!InCOTFS.CookFilterIncludedAssetClasses.IsEmpty())
+		{
+			TArray<FAssetData> AssetDatas;
+			AssetRegistry.GetAssetsByPackageName(PackageName, AssetDatas, true /* bIncludeOnlyDiskAssets */);
+			bool bIncluded = false;
+			for (FAssetData& AssetData : AssetDatas)
+			{
+				if (InCOTFS.CookFilterIncludedAssetClasses.Contains(FName(*AssetData.AssetClassPath.ToString())))
 				{
 					bIncluded = true;
 					break;

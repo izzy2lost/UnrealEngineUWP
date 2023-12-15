@@ -6927,14 +6927,22 @@ void UCookOnTheFlyServer::SetInitializeConfigSettings(UE::Cook::FInitializeConfi
 void UCookOnTheFlyServer::ParseCookFilters()
 {
 	CookFilterIncludedClasses.Empty();
+	CookFilterIncludedAssetClasses.Empty();
 	bCookFilter = false;
 	if (!IsCookByTheBookMode() || IsCookingInEditor())
 	{
 		return;
 	}
 
+	ParseCookFilters(TEXT("cookincludeclass"), TEXT("contain an object"), CookFilterIncludedClasses);
+	ParseCookFilters(TEXT("cookincludeassetclass"), TEXT("contain an asset"), CookFilterIncludedAssetClasses);
+}
+
+void UCookOnTheFlyServer::ParseCookFilters(const TCHAR* Parameter, const TCHAR* Message, TSet<FName>& OutFilterClasses)
+{
 	FString IncludeClassesString;
-	if (FParse::Value(FCommandLine::Get(), TEXT("-cookincludeclass="), IncludeClassesString))
+	TStringBuilder<256> FullParameter(InPlace, TEXT("-"), Parameter, TEXT("="));
+	if (FParse::Value(FCommandLine::Get(), *FullParameter, IncludeClassesString))
 	{
 		TArray<FString> IncludeClasses;
 		const TCHAR* Delimiters[] = { TEXT(","), TEXT("+"), TEXT(";")};
@@ -6954,20 +6962,20 @@ void UCookOnTheFlyServer::ParseCookFilters()
 			}
 			if (!ClassPath.IsValid())
 			{
-				UE_LOG(LogCook, Error, TEXT("CookIncludeClass: Could not convert string '%s' into a class path. Ignoring it."),
-					*IncludeClassString);
+				UE_LOG(LogCook, Error, TEXT("%s: Could not convert string '%s' into a class path. Ignoring it."),
+					Parameter, *IncludeClassString);
 				continue;
 			}
 			UClass* IncludedClass = FindObject<UClass>(nullptr, *ClassPath.ToString());
 			if (!IncludedClass)
 			{
-				UE_LOG(LogCook, Error, TEXT("CookIncludeClass: Could not find class with ClassPath '%s'. Ignoring it."),
-					*IncludeClassString);
+				UE_LOG(LogCook, Error, TEXT("%s: Could not find class with ClassPath '%s'. Ignoring it."),
+					Parameter, *IncludeClassString);
 				continue;
 			}
 			FTopLevelAssetPath NormalizedClassPath(IncludedClass);
 			RootNames.Add(NormalizedClassPath);
-			CookFilterIncludedClasses.Add(FName(*NormalizedClassPath.ToString()));
+			OutFilterClasses.Add(FName(*NormalizedClassPath.ToString()));
 		}
 		if (!RootNames.IsEmpty())
 		{
@@ -6976,11 +6984,11 @@ void UCookOnTheFlyServer::ParseCookFilters()
 				DerivedClassNames);
 			for (const FTopLevelAssetPath& NormalizedClassPath : DerivedClassNames)
 			{
-				CookFilterIncludedClasses.Add(FName(*NormalizedClassPath.ToString()));
+				OutFilterClasses.Add(FName(*NormalizedClassPath.ToString()));
 			}
 
-			UE_LOG(LogCook, Display, TEXT("CookIncludeClass: Only cooking packages that contains objects with class in { %s }"),
-				*FString::JoinBy(RootNames, TEXT(", "), [](const FTopLevelAssetPath& P) { return P.ToString(); }));
+			UE_LOG(LogCook, Display, TEXT("%s: Only cooking packages that %s with class in { %s }"),
+				Parameter, Message, *TStringBuilder<256>().Join(RootNames, TEXTVIEW(", ")));
 			bCookFilter = true;
 		}
 	}

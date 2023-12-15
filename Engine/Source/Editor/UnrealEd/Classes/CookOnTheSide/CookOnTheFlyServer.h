@@ -1088,6 +1088,7 @@ private:
 	UNREALED_API void LoadInitializeConfigSettings(const FString& InOutputDirectoryOverride);
 	UNREALED_API void SetInitializeConfigSettings(UE::Cook::FInitializeConfigSettings&& Settings);
 	UNREALED_API void ParseCookFilters();
+	UNREALED_API void ParseCookFilters(const TCHAR* Parameter, const TCHAR* Message, TSet<FName>& OutFilterClasses);
 
 	/** Set parameters that rely on config and CookByTheBook settings. */
 	UNREALED_API void LoadBeginCookConfigSettings(FBeginCookContext& BeginContext);
@@ -1453,6 +1454,8 @@ private:
 	TMap<FName, TArray<FName>> DiscoveredDependencies;
 	/** Classes (and all subclasses) that were listed as the only classes that should be cooked in the filter settings. */
 	TSet<FName> CookFilterIncludedClasses;
+	/** Classes (and all subclasses) that were listed as the only asset classes that should be cooked in the filter settings. */
+	TSet<FName> CookFilterIncludedAssetClasses;
 
 	ELogVerbosity::Type CookerIdleWarningSeverity = ELogVerbosity::Warning;
 	/** True when PumpLoads has detected it is blocked on async work and CookOnTheFlyServer should do work elsewhere. */
