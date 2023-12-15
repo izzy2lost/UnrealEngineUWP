@@ -254,11 +254,7 @@ void FStructuredArchiveVisitor::VisitCellBody(FStructuredArchiveRecord Record, V
 
 void FStructuredArchiveVisitor::Serialize(VCell*& InOutCell)
 {
-	if (!IsLoading() && InOutCell == nullptr)
-	{
-		return; // warning???
-	}
-	VisitCellBody(ScopedRecord(*this, TEXT("")).Record, InOutCell);
+	Visit(InOutCell, TEXT(""));
 }
 
 void FStructuredArchiveVisitor::Serialize(VValue& InOutValue)
