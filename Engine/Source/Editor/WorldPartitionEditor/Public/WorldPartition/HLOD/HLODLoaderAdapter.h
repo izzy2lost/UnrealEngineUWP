@@ -2,17 +2,21 @@
 
 #pragma once
 
-#include "WorldPartition/LoaderAdapter/LoaderAdapterActorList.h"
+#include "WorldPartition/WorldPartitionActorLoaderInterface.h"
 
 class FHLODActorDesc;
 
-class FLoaderAdapterHLOD : public FLoaderAdapterActorList
+class FLoaderAdapterHLOD : public IWorldPartitionActorLoaderInterface::ILoaderAdapter
 {
 public:
 	FLoaderAdapterHLOD(UWorld* InWorld);
 
+protected:
+	//~ Begin ILoaderAdapter interface
+	virtual void ForEachActor(TFunctionRef<void(const FWorldPartitionHandle&)> InOperation) const override;
 	virtual bool PassActorDescFilter(const FWorldPartitionHandle& ActorHandle) const override;
+	//~ End ILoaderAdapter interface
 
 private:
-	bool ShouldLoadHLOD(const FHLODActorDesc& HLODActorDesc);	
+	bool ShouldLoadHLOD(const FHLODActorDesc& HLODActorDesc) const;	
 };

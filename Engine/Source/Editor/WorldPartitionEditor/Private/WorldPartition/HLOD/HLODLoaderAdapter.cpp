@@ -15,20 +15,23 @@
 
 
 FLoaderAdapterHLOD::FLoaderAdapterHLOD(UWorld* InWorld)
-	: FLoaderAdapterActorList(InWorld)
+	: ILoaderAdapter(InWorld)
 {
-	UWorldPartition* WorldPartition = InWorld->GetWorldPartition();
+	Load();
+}
+
+void FLoaderAdapterHLOD::ForEachActor(TFunctionRef<void(const FWorldPartitionHandle&)> InOperation) const
+{
+	UWorldPartition* WorldPartition = GetWorld()->GetWorldPartition();
 
 	for (FActorDescContainerInstanceCollection::TIterator<AWorldPartitionHLOD> HLODIterator(WorldPartition); HLODIterator; ++HLODIterator)
 	{
 		const FHLODActorDesc& HLODActorDesc = *(FHLODActorDesc*)HLODIterator->GetActorDesc();
 		if (ShouldLoadHLOD(HLODActorDesc))
 		{
-			Actors.Add(FWorldPartitionHandle(WorldPartition, HLODActorDesc.GetGuid()));
+			InOperation(FWorldPartitionHandle(WorldPartition, HLODActorDesc.GetGuid()));
 		}
 	}
-
-	RefreshLoadedState();
 }
 
 // TODO - How to choose which HLODs are loaded ?
@@ -38,7 +41,7 @@ FLoaderAdapterHLOD::FLoaderAdapterHLOD(UWorld* InWorld)
 // * HLOD Layer setting?
 //
 // Current solution is to load always loaded HLOD + any HLOD not built from instancing
-bool FLoaderAdapterHLOD::ShouldLoadHLOD(const FHLODActorDesc& HLODActorDesc)
+bool FLoaderAdapterHLOD::ShouldLoadHLOD(const FHLODActorDesc& HLODActorDesc) const
 {
 	FSoftObjectPath HLODLayerPath(HLODActorDesc.GetSourceHLODLayer());
 	if (UHLODLayer* HLODLayer = Cast<UHLODLayer>(HLODLayerPath.TryLoad()))
@@ -54,5 +57,6 @@ bool FLoaderAdapterHLOD::ShouldLoadHLOD(const FHLODActorDesc& HLODActorDesc)
 
 bool FLoaderAdapterHLOD::PassActorDescFilter(const FWorldPartitionHandle& ActorHandle) const
 {
-	return ActorHandle.IsValid() && !ActorsToRemove.Contains(ActorHandle);
+	// Avoid the base class implementation which will skip actors which are not editor relevant
+	return true;
 }

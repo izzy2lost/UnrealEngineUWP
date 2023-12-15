@@ -2,10 +2,10 @@
 
 #pragma once
 
-#include "WorldPartition/LoaderAdapter/LoaderAdapterActorList.h"
-
+#include "WorldPartition/HLOD/HLODLoaderAdapter.h"
 
 class UWorldPartition;
+class UActorDescContainerInstance;
 
 // Represent an HLOD actor in the editor, loaded or not
 struct FHLODSceneNode
@@ -36,9 +36,18 @@ public:
 	void SetHLODLoadingState(bool bInShouldBeLoaded);
 
 private:
+	void OnActorDescContainerInstanceRegistered(UActorDescContainerInstance* InContainerInstance);
+	void OnActorDescContainerInstanceUnregistered(UActorDescContainerInstance* InContainerInstance);
+
+private:
+	struct FContainerInstanceHLODActorData
+	{
+		TMap<FGuid, TUniquePtr<FHLODSceneNode>> HLODActorNodes;
+		TArray<FHLODSceneNode*> TopLevelHLODActorNodes;
+	};
+
 	UWorldPartition* WorldPartition;
-	TMap<FGuid, TUniquePtr<FHLODSceneNode>> HLODActorNodes;
-	TArray<FHLODSceneNode*> TopLevelHLODActorNodes;
-	TUniquePtr<FLoaderAdapterActorList> HLODActorsLoader;
+	TMap<UActorDescContainerInstance*, FContainerInstanceHLODActorData> PerContainerInstanceHLODActorDataMap;
+	TUniquePtr<FLoaderAdapterHLOD> HLODActorsLoader;
 	int32 LastStateUpdate;
 };
