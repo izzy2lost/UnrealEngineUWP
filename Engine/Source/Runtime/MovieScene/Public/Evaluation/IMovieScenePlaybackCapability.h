@@ -42,6 +42,9 @@ protected:
 template<typename T>
 struct TPlaybackCapabilityID : FPlaybackCapabilityID
 {
+public:
+	using CapabilityType = T;
+
 private:
 	// Only T should construct this (to ensure safe construction over DLL boundaries)
 	friend T;

@@ -112,7 +112,7 @@ public:
 	template<typename T>
 	bool HasCapability() const
 	{
-		return Capabilities.HasCapability(T::ID);
+		return Capabilities.HasCapability<T>();
 	}
 
 	/**
@@ -121,7 +121,7 @@ public:
 	template<typename T>
 	T* FindCapability() const
 	{
-		return Capabilities.FindCapability<T>(T::ID);
+		return Capabilities.FindCapability<T>();
 	}
 
 	/**
@@ -130,7 +130,7 @@ public:
 	template<typename T, typename ...ArgTypes>
 	T& AddCapability(ArgTypes&&... InArgs)
 	{
-		T& Cap = Capabilities.AddCapability<T>(T::ID, Forward<ArgTypes>(InArgs)...);
+		T& Cap = Capabilities.AddCapability<T>(Forward<ArgTypes>(InArgs)...);
 		MaybeInitialize(Cap);
 		return Cap;
 	}
@@ -138,10 +138,10 @@ public:
 	/**
 	 * Adds the specified capability on the root sequence as a raw pointer.
 	 */
-	template<typename T, typename ...ArgTypes>
+	template<typename T>
 	T& AddCapabilityRaw(T* InPointer)
 	{
-		T& Cap = Capabilities.AddCapabilityRaw<T>(T::ID, InPointer);
+		T& Cap = Capabilities.AddCapabilityRaw<T>(InPointer);
 		MaybeInitialize(Cap);
 		return Cap;
 	}
@@ -149,12 +149,37 @@ public:
 	/**
 	 * Adds the specified capability on the root sequence as a shared pointer.
 	 */
-	template<typename T, typename ...ArgTypes>
+	template<typename T>
 	T& AddCapabilityShared(TSharedRef<T> InSharedRef)
 	{
-		T& Cap = Capabilities.AddCapabilityShared<T>(T::ID, InSharedRef);
+		T& Cap = Capabilities.AddCapabilityShared<T>(InSharedRef);
 		MaybeInitialize(Cap);
 		return Cap;
+	}
+
+	/**
+	 * Adds the specified capability on the root sequence.
+	 * If the capability already exists, it must be stored inline, and its
+	 * value will be replaced by the new object.
+	 * If the template parameter is a sub-class of the playback capability, the previously
+	 * stored playback capability must not only have been stored inline, but must have 
+	 * been of the same sub-class (or a sub-class with the exact same size and alignment).
+	 */
+	template<typename T, typename ...ArgTypes>
+	T& SetOrAddCapability(ArgTypes&&... InArgs)
+	{
+		if (HasCapability<T>())
+		{
+			T& Cap = Capabilities.OverwriteCapability<T>(Forward<ArgTypes>(InArgs)...);
+			MaybeInitialize(Cap);
+			return Cap;
+		}
+		else
+		{
+			T& Cap = Capabilities.AddCapability<T>(Forward<ArgTypes>(InArgs)...);
+			MaybeInitialize(Cap);
+			return Cap;
+		}
 	}
 
 	/**
@@ -167,13 +192,13 @@ public:
 	{
 		if (HasCapability<T>())
 		{
-			T& Cap = Capabilities.OverwriteCapabilityRaw<T>(T::ID, InPointer);
+			T& Cap = Capabilities.OverwriteCapabilityRaw<T>(InPointer);
 			MaybeInitialize(Cap);
 			return Cap;
 		}
 		else
 		{
-			T& Cap = Capabilities.AddCapabilityRaw<T>(T::ID, InPointer);
+			T& Cap = Capabilities.AddCapabilityRaw<T>(InPointer);
 			MaybeInitialize(Cap);
 			return Cap;
 		}
@@ -189,13 +214,13 @@ public:
 	{
 		if (HasCapability<T>())
 		{
-			T& Cap = Capabilities.OverwriteCapabilityShared<T>(T::ID, InSharedRef);
+			T& Cap = Capabilities.OverwriteCapabilityShared<T>(InSharedRef);
 			MaybeInitialize(Cap);
 			return Cap;
 		}
 		else
 		{
-			T& Cap = Capabilities.AddCapabilityShared<T>(T::ID, InSharedRef);
+			T& Cap = Capabilities.AddCapabilityShared<T>(InSharedRef);
 			MaybeInitialize(Cap);
 			return Cap;
 		}

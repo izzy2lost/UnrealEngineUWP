@@ -492,8 +492,22 @@ protected:
 		// Don't use the header's Resolve method, we don't want to offset the pointer, we want
 		// the actual pointer to the actual stored capability.
 		void* CapabilityPtr = Header.Capability.Resolve(Memory);
+
+		// If we have inline storage, call the destructor on the previous capability.
+		if (Header.StorageMode == EPlaybackCapabilityStorageMode::Inline)
+		{
+			Helpers[Index].Destructor(CapabilityPtr);
+		}
+
+		// Allocate the new capability.
 		StorageType* TypedCapabilityPtr = reinterpret_cast<StorageType*>(CapabilityPtr);
-		*TypedCapabilityPtr = StorageType(Forward<ArgTypes>(InArgs)...);
+		new (TypedCapabilityPtr) StorageType(Forward<ArgTypes>(InArgs)...);
+
+		// If we have inline storage, we could potentially have changed from a stored base-class to
+		// a stored child-class, or vice-versa, or from one child-class to another child-class. In all these
+		// cases, the helper functions (destructor, interface cast, etc) have changed, so let's store the 
+		// new helper functions on the header.
+		Helpers[Index] = TPlaybackCapabilityHelpers<StorageType>::GetHelpers();
 
 		return true;
 	}
@@ -546,16 +560,23 @@ struct FPlaybackCapabilities : FPlaybackCapabilitiesImpl
 	MOVIESCENE_API ~FPlaybackCapabilities();
 
 	/** Checks whether this container has the given capability */
-	bool HasCapability(FPlaybackCapabilityID CapabilityID) const
+	template<typename T>
+	bool HasCapability() const
 	{
-		uint32 CapabilityBit = 1 << CapabilityID.Index;
+		uint32 CapabilityBit = 1 << T::ID.Index;
 		return FPlaybackCapabilitiesImpl::HasCapability(CapabilityBit);
 	}
 
 	/** Finds the specified capability within the container, if present */
 	template<typename T>
-	T* FindCapability(TPlaybackCapabilityID<T> CapabilityID) const
+	T* FindCapability() const
 	{
+		// T must be the base capability type, and not a sub-class, because we are returning a pointer to it,
+		// and we can't check what sort of sub-class we have or not.
+		using CapabilityIDType = decltype(T::ID);
+		static_assert(std::is_same<T, typename CapabilityIDType::CapabilityType>::value, "You must pass the actual playback capability type as a template parameter, not a sub-class.");
+
+		const TPlaybackCapabilityID<T> CapabilityID(T::ID);
 		uint32 CapabilityBit = 1 << CapabilityID.Index;
 		FPlaybackCapabilityPtr Ptr = FPlaybackCapabilitiesImpl::FindCapability(CapabilityBit);
 		return Ptr.ResolveOptional<T>();
@@ -563,33 +584,34 @@ struct FPlaybackCapabilities : FPlaybackCapabilitiesImpl
 
 	/** Returns the specified capability within the container, asserts if not found */
 	template<typename T>
-	T& GetCapabilityChecked(TPlaybackCapabilityID<T> CapabilityID) const
+	T& GetCapabilityChecked() const
 	{
+		// T must be the base capability type, and not a sub-class, because we are returning a reference to it,
+		// and we can't check what sort of sub-class we have or not.
+		using CapabilityIDType = decltype(T::ID);
+		static_assert(std::is_same<T, typename CapabilityIDType::CapabilityType>::value, "You must pass the actual playback capability type as a template parameter, not a sub-class.");
+
+		const TPlaybackCapabilityID<T> CapabilityID(T::ID);
 		uint32 CapabilityBit = 1 << CapabilityID.Index;
 		FPlaybackCapabilityPtr Ptr = FPlaybackCapabilitiesImpl::GetCapabilityChecked(CapabilityBit);
 		return Ptr.ResolveChecked<T>();
 	}
 
 	/**
-	 * Adds the specified capability to the container, using the supplied arguments to construct it
+	 * Adds the specified capability to the container, using the supplied arguments to construct it.
 	 * The capability object will be stored inline and owned by this container. It will be destroyed when the
 	 * container itself is destroyed.
+	 * If the template parameter is a sub-class of the playback capability class, that sub-class will be
+	 * created and stored inline.
 	 */
 	template<typename T, typename ...ArgTypes>
-	T& AddCapability(TPlaybackCapabilityID<T> CapabilityID, ArgTypes&&... InArgs)
+	T& AddCapability(ArgTypes&&... InArgs)
 	{
-		return DoAddCapability<T, T>(CapabilityID, Forward<ArgTypes>(InArgs)...);
-	}
+		using CapabilityIDType = decltype(T::ID);
+		using CapabilityType = typename CapabilityIDType::CapabilityType;
 
-	/**
-	 * Adds the specified capability to the container, using the supplied arguments to construct a sub-class of it 
-	 * The capability object of the specified sub-class will be stored inline and owned by this container. It will
-	 * be destroyed when the container itself is destroyed.
-	 */
-	template<typename Impl, typename T, typename ...ArgTypes>
-	T& AddCapabilityImplementation(TPlaybackCapabilityID<T> CapabilityID, ArgTypes&&... InArgs)
-	{
-		return DoAddCapability<Impl, T>(CapabilityID, Forward<ArgTypes>(InArgs)...);
+		CapabilityType& NewCapability = DoAddCapability<T>(T::ID, Forward<ArgTypes>(InArgs)...);
+		return static_cast<T&>(NewCapability);
 	}
 
 	/**
@@ -598,9 +620,13 @@ struct FPlaybackCapabilities : FPlaybackCapabilitiesImpl
 	 * store a raw pointer.
 	 */
 	template<typename T>
-	T& AddCapabilityRaw(TPlaybackCapabilityID<T> CapabilityID, T* InPointer)
+	T& AddCapabilityRaw(T* InPointer)
 	{
-		return DoAddCapability<T*, T>(CapabilityID, InPointer);
+		using CapabilityIDType = decltype(T::ID);
+		using CapabilityType = typename CapabilityIDType::CapabilityType;
+
+		CapabilityType& NewCapability = DoAddCapability<CapabilityType*>(T::ID, static_cast<CapabilityType*>(InPointer));
+		return static_cast<T&>(NewCapability);
 	}
 	
 	/**
@@ -609,27 +635,58 @@ struct FPlaybackCapabilities : FPlaybackCapabilitiesImpl
 	 * only maintains one such shared pointer until the container is destroyed.
 	 */
 	template<typename T>
-	T& AddCapabilityShared(TPlaybackCapabilityID<T> CapabilityID, TSharedRef<T> InSharedRef)
+	T& AddCapabilityShared(TSharedRef<T> InSharedRef)
 	{
-		return DoAddCapability<TSharedPtr<T>, T>(CapabilityID, InSharedRef);
+		using CapabilityIDType = decltype(T::ID);
+		using CapabilityType = typename CapabilityIDType::CapabilityType;
+
+		CapabilityType& NewCapability = DoAddCapability<TSharedPtr<CapabilityType>>(T::ID, StaticCastSharedRef<CapabilityType>(InSharedRef));
+		return static_cast<T&>(NewCapability);
+	}
+
+	/**
+	 * Overwrites an existing capability, stored inline and owned by this container.
+	 * The previous storage mode of the capability must also be inline.
+	 * If the template parameter is a sub-class of the playback capability, the previously stored playback capability
+	 * must not only have been stored inline, but must have been of the same sub-class (or a sub-class with the exact
+	 * same size and alignment).
+	 */
+	template<typename T, typename ...ArgTypes>
+	T& OverwriteCapability(ArgTypes&&... InArgs)
+	{
+		using CapabilityIDType = decltype(T::ID);
+		using CapabilityType = typename CapabilityIDType::CapabilityType;
+
+		CapabilityType& NewCapability = DoOverwriteCapability<T>(T::ID, Forward<ArgTypes>(InArgs)...);
+		return static_cast<T&>(NewCapability);
 	}
 
 	/**
 	 * Overwrites an existing capability, stored as a raw pointer on the container.
+	 * The previous storage mode of the capability must also be a raw pointer.
 	 */
 	template<typename T>
-	T& OverwriteCapabilityRaw(TPlaybackCapabilityID<T> CapabilityID, T* InPointer)
+	T& OverwriteCapabilityRaw(T* InPointer)
 	{
-		return DoOverwriteCapability<T*, T>(CapabilityID, InPointer);
+		using CapabilityIDType = decltype(T::ID);
+		using CapabilityType = typename CapabilityIDType::CapabilityType;
+
+		CapabilityType& NewCapability = DoOverwriteCapability<CapabilityType*>(T::ID, static_cast<CapabilityType*>(InPointer));
+		return static_cast<T&>(NewCapability);
 	}
 	
 	/**
 	 * Overwrites an existing capability, stored as a shared pointer on the container.
+	 * The previous storage mode of the capability must also be a shared pointer.
 	 */
 	template<typename T>
-	T& OverwriteCapabilityShared(TPlaybackCapabilityID<T> CapabilityID, TSharedRef<T> InSharedRef)
+	T& OverwriteCapabilityShared(TSharedRef<T> InSharedRef)
 	{
-		return DoOverwriteCapability<TSharedPtr<T>, T>(CapabilityID, InSharedRef);
+		using CapabilityIDType = decltype(T::ID);
+		using CapabilityType = typename CapabilityIDType::CapabilityType;
+
+		CapabilityType& NewCapability = DoOverwriteCapability<TSharedPtr<CapabilityType>>(T::ID, StaticCastSharedRef<CapabilityType>(InSharedRef));
+		return static_cast<T&>(NewCapability);
 	}
 
 public:
@@ -678,7 +735,7 @@ private:
 	{
 		uint32 CapabilityBit = 1 << CapabilityID.Index;
 		FPlaybackCapabilitiesImpl::OverwriteCapability<Impl, T>(CapabilityBit, Forward<ArgTypes>(InArgs)...);
-		return GetCapabilityChecked(CapabilityID);
+		return GetCapabilityChecked<T>();
 	}
 
 	void Destroy();

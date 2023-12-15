@@ -102,6 +102,24 @@ struct FTestInvalidatableCapability : IPlaybackCapability
 
 TPlaybackCapabilityID<FTestInvalidatableCapability> FTestInvalidatableCapability::ID = TPlaybackCapabilityID<FTestInvalidatableCapability>::Register();
 
+// Derived version of the simple test capability, but with specific destructor counter
+struct FTestSimpleCapabilityDerived : FTestSimpleCapability
+{
+	static int32 TimesDestroyedDerived;
+
+	FTestSimpleCapabilityDerived()
+	{}
+	FTestSimpleCapabilityDerived(int32 InIntValue, const FString& InStringValue)
+		: FTestSimpleCapability(InIntValue, InStringValue)
+	{}
+	~FTestSimpleCapabilityDerived()
+	{
+		++TimesDestroyedDerived;
+	}
+};
+
+int32 FTestSimpleCapabilityDerived::TimesDestroyedDerived = 0;
+
 // Derived version of the simple test capability, but with interface
 struct FTestSimpleCapabilityDerivedWithInterface : FTestSimpleCapability, IPlaybackCapability
 {
@@ -126,15 +144,15 @@ bool FMovieScenePlaybackCapabilitiesSimpleTest::RunTest(const FString& Parameter
 	FTestSimpleCapability::TimesDestroyed = 0;
 	{
 		FPlaybackCapabilities Caps;
-		UTEST_FALSE("No capability", Caps.HasCapability(FTestSimpleCapability::ID));
+		UTEST_FALSE("No capability", Caps.HasCapability<FTestSimpleCapability>());
 
-		FTestSimpleCapability& SimpleCap = Caps.AddCapability(FTestSimpleCapability::ID, 42, TEXT("Just a test"));
+		FTestSimpleCapability& SimpleCap = Caps.AddCapability<FTestSimpleCapability>(42, TEXT("Just a test"));
 		UTEST_EQUAL("Int value", SimpleCap.IntValue, 42);
 		UTEST_EQUAL("String value", SimpleCap.StringValue, TEXT("Just a test"));
 
-		UTEST_TRUE("Found capability", Caps.HasCapability(FTestSimpleCapability::ID));
+		UTEST_TRUE("Found capability", Caps.HasCapability<FTestSimpleCapability>());
 
-		FTestSimpleCapability* SimpleCap2 = Caps.FindCapability(FTestSimpleCapability::ID);
+		FTestSimpleCapability* SimpleCap2 = Caps.FindCapability<FTestSimpleCapability>();
 		UTEST_NOT_NULL("Retrived test capacity", SimpleCap2);
 		UTEST_EQUAL("Same capacity?", SimpleCap2, &SimpleCap);
 	}
@@ -155,16 +173,15 @@ bool FMovieScenePlaybackCapabilitiesInlineInterfaceTest::RunTest(const FString& 
 	FTestCapabilityDerived::TimesDestroyedDerived = 0;
 	{
 		FPlaybackCapabilities Caps;
-		UTEST_FALSE("No capability", Caps.HasCapability(FTestCapabilityBase::ID));
+		UTEST_FALSE("No capability", Caps.HasCapability<FTestCapabilityBase>());
 
-		FTestCapabilityBase& InterfaceCap = Caps.AddCapabilityImplementation<FTestCapabilityDerived>(
-				FTestCapabilityBase::ID, 42, TEXT("Just a test"));
+		FTestCapabilityBase& InterfaceCap = Caps.AddCapability<FTestCapabilityDerived>(42, TEXT("Just a test"));
 		UTEST_EQUAL("Int value", InterfaceCap.GetIntValue(), 42);
 		UTEST_EQUAL("String value", InterfaceCap.GetStringValue(), TEXT("Just a test"));
 
-		UTEST_TRUE("Found capability", Caps.HasCapability(FTestCapabilityBase::ID));
+		UTEST_TRUE("Found capability", Caps.HasCapability<FTestCapabilityBase>());
 
-		FTestCapabilityBase* InterfaceCap2 = Caps.FindCapability(FTestCapabilityBase::ID);
+		FTestCapabilityBase* InterfaceCap2 = Caps.FindCapability<FTestCapabilityBase>();
 		UTEST_NOT_NULL("Retrived interface capacity", InterfaceCap2);
 		UTEST_EQUAL("Same capacity?", InterfaceCap2, &InterfaceCap);
 	}
@@ -187,12 +204,12 @@ bool FMovieScenePlaybackCapabilitiesRawPointerTest::RunTest(const FString& Param
 		FTestSimpleCapability ActualCap;
 		{
 			FPlaybackCapabilities Caps;
-			UTEST_FALSE("No capability", Caps.HasCapability(FTestSimpleCapability::ID));
+			UTEST_FALSE("No capability", Caps.HasCapability<FTestSimpleCapability>());
 
-			FTestSimpleCapability& PtrCap = Caps.AddCapabilityRaw(FTestSimpleCapability::ID, &ActualCap);
-			UTEST_TRUE("Found capability", Caps.HasCapability(FTestSimpleCapability::ID));
+			FTestSimpleCapability& PtrCap = Caps.AddCapabilityRaw<FTestSimpleCapability>(&ActualCap);
+			UTEST_TRUE("Found capability", Caps.HasCapability<FTestSimpleCapability>());
 
-			FTestSimpleCapability* PtrCap2 = Caps.FindCapability(FTestSimpleCapability::ID);
+			FTestSimpleCapability* PtrCap2 = Caps.FindCapability<FTestSimpleCapability>();
 			UTEST_NOT_NULL("Retrived test capacity", PtrCap2);
 			UTEST_EQUAL("Same capacity?", PtrCap2, &PtrCap);
 			UTEST_EQUAL("Same capacity?", PtrCap2, &ActualCap);
@@ -218,13 +235,13 @@ bool FMovieScenePlaybackCapabilitiesSharedTest::RunTest(const FString& Parameter
 		UTEST_EQUAL("Ref count", ActualCap.GetSharedReferenceCount(), 1);
 		{
 			FPlaybackCapabilities Caps;
-			UTEST_FALSE("No capability", Caps.HasCapability(FTestSimpleCapability::ID));
+			UTEST_FALSE("No capability", Caps.HasCapability<FTestSimpleCapability>());
 
-			FTestSimpleCapability& PtrCap = Caps.AddCapabilityShared(FTestSimpleCapability::ID, ActualCap);
-			UTEST_TRUE("Found capability", Caps.HasCapability(FTestSimpleCapability::ID));
+			FTestSimpleCapability& PtrCap = Caps.AddCapabilityShared<FTestSimpleCapability>(ActualCap);
+			UTEST_TRUE("Found capability", Caps.HasCapability<FTestSimpleCapability>());
 			UTEST_EQUAL("Ref count", ActualCap.GetSharedReferenceCount(), 2);
 
-			FTestSimpleCapability* PtrCap2 = Caps.FindCapability(FTestSimpleCapability::ID);
+			FTestSimpleCapability* PtrCap2 = Caps.FindCapability<FTestSimpleCapability>();
 			UTEST_NOT_NULL("Retrived test capacity", PtrCap2);
 			UTEST_EQUAL("Same capacity?", PtrCap2, &PtrCap);
 			UTEST_EQUAL("Same capacity?", PtrCap2, ActualCap.ToSharedPtr().Get());
@@ -248,7 +265,7 @@ bool FMovieScenePlaybackCapabilitiesInvalidateTest::RunTest(const FString& Param
 	// Test simple inline
 	{
 		FPlaybackCapabilities Caps;
-		FTestInvalidatableCapability& Cap = Caps.AddCapability(FTestInvalidatableCapability::ID);
+		FTestInvalidatableCapability& Cap = Caps.AddCapability<FTestInvalidatableCapability>();
 		UTEST_EQUAL("Not invalidated", Cap.TimesInvalidated, 0);
 		Caps.InvalidateCachedData(nullptr);
 		UTEST_EQUAL("Invalidated", Cap.TimesInvalidated, 1);
@@ -257,7 +274,7 @@ bool FMovieScenePlaybackCapabilitiesInvalidateTest::RunTest(const FString& Param
 	// Test inline subclass implementing interface when base class doesn't
 	{
 		FPlaybackCapabilities Caps;
-		FTestSimpleCapability& Cap = Caps.AddCapabilityImplementation<FTestSimpleCapabilityDerivedWithInterface>(FTestSimpleCapability::ID);
+		FTestSimpleCapability& Cap = Caps.AddCapability<FTestSimpleCapabilityDerivedWithInterface>();
 		FTestSimpleCapabilityDerivedWithInterface* ActualCap = static_cast<FTestSimpleCapabilityDerivedWithInterface*>(&Cap);
 		UTEST_EQUAL("Not invalidated", ActualCap->TimesInvalidated, 0);
 		Caps.InvalidateCachedData(nullptr);
@@ -269,7 +286,7 @@ bool FMovieScenePlaybackCapabilitiesInvalidateTest::RunTest(const FString& Param
 		FTestInvalidatableCapability ActualCap;
 
 		FPlaybackCapabilities Caps;
-		Caps.AddCapabilityRaw(FTestInvalidatableCapability::ID, &ActualCap);
+		Caps.AddCapabilityRaw<FTestInvalidatableCapability>(&ActualCap);
 		UTEST_EQUAL("Not invalidated", ActualCap.TimesInvalidated, 0);
 		Caps.InvalidateCachedData(nullptr);
 		UTEST_EQUAL("Invalidated", ActualCap.TimesInvalidated, 1);
@@ -280,7 +297,7 @@ bool FMovieScenePlaybackCapabilitiesInvalidateTest::RunTest(const FString& Param
 		TSharedRef<FTestInvalidatableCapability> ActualCap = MakeShared<FTestInvalidatableCapability>();
 
 		FPlaybackCapabilities Caps;
-		Caps.AddCapabilityShared(FTestInvalidatableCapability::ID, ActualCap);
+		Caps.AddCapabilityShared<FTestInvalidatableCapability>(ActualCap);
 		UTEST_EQUAL("Not invalidated", ActualCap->TimesInvalidated, 0);
 		Caps.InvalidateCachedData(nullptr);
 		UTEST_EQUAL("Invalidated", ActualCap->TimesInvalidated, 1);
@@ -302,22 +319,21 @@ bool FMovieScenePlaybackCapabilitiesMultipleTest::RunTest(const FString& Paramet
 	{
 		FPlaybackCapabilities Caps;
 
-		Caps.AddCapabilityRaw(FTestOtherSimpleCapability::ID, &RawPtrCap);
-		Caps.AddCapabilityShared(FTestInvalidatableCapability::ID, SharedCap);
+		Caps.AddCapabilityRaw<FTestOtherSimpleCapability>(&RawPtrCap);
+		Caps.AddCapabilityShared<FTestInvalidatableCapability>(SharedCap);
 
-		UTEST_FALSE("Found capability", Caps.HasCapability(FTestSimpleCapability::ID));
-		UTEST_FALSE("Found capability", Caps.HasCapability(FTestCapabilityBase::ID));
-		UTEST_TRUE("Found capability", Caps.HasCapability(FTestOtherSimpleCapability::ID));
-		UTEST_TRUE("Found capability", Caps.HasCapability(FTestInvalidatableCapability::ID));
+		UTEST_FALSE("Found capability", Caps.HasCapability<FTestSimpleCapability>());
+		UTEST_FALSE("Found capability", Caps.HasCapability<FTestCapabilityBase>());
+		UTEST_TRUE("Found capability", Caps.HasCapability<FTestOtherSimpleCapability>());
+		UTEST_TRUE("Found capability", Caps.HasCapability<FTestInvalidatableCapability>());
 
-		Caps.AddCapability(FTestSimpleCapability::ID, 8, TEXT("Other simple test"));
-		Caps.AddCapabilityImplementation<FTestCapabilityDerived>(
-				FTestCapabilityBase::ID, 12, TEXT("Another implementation test"));
+		Caps.AddCapability<FTestSimpleCapability>(8, TEXT("Other simple test"));
+		Caps.AddCapability<FTestCapabilityDerived>(12, TEXT("Another implementation test"));
 
-		UTEST_TRUE("Found capability", Caps.HasCapability(FTestSimpleCapability::ID));
-		UTEST_TRUE("Found capability", Caps.HasCapability(FTestCapabilityBase::ID));
-		UTEST_TRUE("Found capability", Caps.HasCapability(FTestOtherSimpleCapability::ID));
-		UTEST_TRUE("Found capability", Caps.HasCapability(FTestInvalidatableCapability::ID));
+		UTEST_TRUE("Found capability", Caps.HasCapability<FTestSimpleCapability>());
+		UTEST_TRUE("Found capability", Caps.HasCapability<FTestCapabilityBase>());
+		UTEST_TRUE("Found capability", Caps.HasCapability<FTestOtherSimpleCapability>());
+		UTEST_TRUE("Found capability", Caps.HasCapability<FTestInvalidatableCapability>());
 
 		UTEST_EQUAL("Before invalidation", SharedCap->TimesInvalidated, 0);
 		Caps.InvalidateCachedData(nullptr);
@@ -354,10 +370,10 @@ bool FMovieScenePlaybackCapabilitiesInheritanceTest::RunTest(const FString& Para
 	{
 		FPlaybackCapabilities Caps;
 
-		Caps.AddCapabilityRaw(FTestCapabilityBase::ID, &Accessor.GetCapability());
+		Caps.AddCapabilityRaw<FTestCapabilityBase>(&Accessor.GetCapability());
 
-		UTEST_TRUE("Found capability", Caps.HasCapability(FTestCapabilityBase::ID));
-		FTestCapabilityBase* Base = Caps.FindCapability(FTestCapabilityBase::ID);
+		UTEST_TRUE("Found capability", Caps.HasCapability<FTestCapabilityBase>());
+		FTestCapabilityBase* Base = Caps.FindCapability<FTestCapabilityBase>();
 		UTEST_NOT_NULL("Got capability pointer", Base);
 		UTEST_EQUAL("Same capability pointer", Base, static_cast<FTestCapabilityBase*>(&Accessor.Derived));
 		UTEST_EQUAL("Checking IntValue", Base->GetIntValue(), 42);
@@ -381,25 +397,78 @@ bool FMovieScenePlaybackCapabilitiesOverwriteTest::RunTest(const FString& Parame
 	{
 		FPlaybackCapabilities Caps;
 
-		Caps.AddCapabilityRaw(FTestSimpleCapability::ID, &Cap1);
+		Caps.AddCapabilityRaw<FTestSimpleCapability>(&Cap1);
 
-		FTestSimpleCapability* ActualCap = Caps.FindCapability(FTestSimpleCapability::ID);
-		UTEST_TRUE("Found capability", Caps.HasCapability(FTestSimpleCapability::ID));
+		FTestSimpleCapability* ActualCap = Caps.FindCapability<FTestSimpleCapability>();
+		UTEST_TRUE("Found capability", Caps.HasCapability<FTestSimpleCapability>());
 		UTEST_EQUAL("Same capability pointer", ActualCap, &Cap1);
 		UTEST_EQUAL("Checking IntValue", ActualCap->IntValue, 1);
 		UTEST_EQUAL("Checking StringValue", ActualCap->StringValue, TEXT("First"));
 
-		Caps.OverwriteCapabilityRaw(FTestSimpleCapability::ID, &Cap2);
+		Caps.OverwriteCapabilityRaw<FTestSimpleCapability>(&Cap2);
 		
-		ActualCap = Caps.FindCapability(FTestSimpleCapability::ID);
-		UTEST_TRUE("Found capability", Caps.HasCapability(FTestSimpleCapability::ID));
+		ActualCap = Caps.FindCapability<FTestSimpleCapability>();
+		UTEST_TRUE("Found capability", Caps.HasCapability<FTestSimpleCapability>());
 		UTEST_EQUAL("Same capability pointer", ActualCap, &Cap2);
 		UTEST_EQUAL("Checking IntValue", ActualCap->IntValue, 2);
 		UTEST_EQUAL("Checking StringValue", ActualCap->StringValue, TEXT("Second"));
 	}
 
+	FTestSimpleCapability::TimesDestroyed = 0;
+	FTestSimpleCapabilityDerived::TimesDestroyedDerived = 0;
+	{
+		FPlaybackCapabilities Caps;
+
+		// Add the base, overwrite with the derived
+		// (this is only allowed because they both have the same size)
+		Caps.AddCapability<FTestSimpleCapability>(1, TEXT("Base"));
+
+		FTestSimpleCapability* BaseCap = Caps.FindCapability<FTestSimpleCapability>();
+		UTEST_NOT_NULL("Found capabality", BaseCap);
+		UTEST_EQUAL("Checking IntValue", BaseCap->IntValue, 1);
+		UTEST_EQUAL("Checking StringValue", BaseCap->StringValue, TEXT("Base"));
+
+		Caps.OverwriteCapability<FTestSimpleCapabilityDerived>(2, TEXT("Derived"));
+
+		UTEST_EQUAL("Times destroyed", FTestSimpleCapability::TimesDestroyed, 1);
+		UTEST_EQUAL("Times destroyed", FTestSimpleCapabilityDerived::TimesDestroyedDerived, 0);
+
+		FTestSimpleCapability* DerivedCap = Caps.FindCapability<FTestSimpleCapability>();
+		UTEST_NOT_NULL("Found capabality", DerivedCap);
+		UTEST_EQUAL("Checking IntValue", DerivedCap->IntValue, 2);
+		UTEST_EQUAL("Checking StringValue", DerivedCap->StringValue, TEXT("Derived"));
+	}
+	UTEST_EQUAL("Times destroyed", FTestSimpleCapability::TimesDestroyed, 2);
+	UTEST_EQUAL("Times destroyed", FTestSimpleCapabilityDerived::TimesDestroyedDerived, 1);
+
+	FTestSimpleCapability::TimesDestroyed = 0;
+	FTestSimpleCapabilityDerived::TimesDestroyedDerived = 0;
+	{
+		FPlaybackCapabilities Caps;
+
+		// Add the derived, overwrite with the base
+		// (this is only allowed because they both have the same size)
+		Caps.AddCapability<FTestSimpleCapabilityDerived>(2, TEXT("Derived"));
+
+		FTestSimpleCapability* DerivedCap = Caps.FindCapability<FTestSimpleCapability>();
+		UTEST_NOT_NULL("Found capabality", DerivedCap);
+		UTEST_EQUAL("Checking IntValue", DerivedCap->IntValue, 2);
+		UTEST_EQUAL("Checking StringValue", DerivedCap->StringValue, TEXT("Derived"));
+
+		Caps.OverwriteCapability<FTestSimpleCapability>(1, TEXT("Base"));
+
+		UTEST_EQUAL("Times destroyed", FTestSimpleCapability::TimesDestroyed, 1);
+		UTEST_EQUAL("Times destroyed", FTestSimpleCapabilityDerived::TimesDestroyedDerived, 1);
+
+		FTestSimpleCapability* BaseCap = Caps.FindCapability<FTestSimpleCapability>();
+		UTEST_NOT_NULL("Found capabality", BaseCap);
+		UTEST_EQUAL("Checking IntValue", BaseCap->IntValue, 1);
+		UTEST_EQUAL("Checking StringValue", BaseCap->StringValue, TEXT("Base"));
+	}
+	UTEST_EQUAL("Times destroyed", FTestSimpleCapability::TimesDestroyed, 2);
+	UTEST_EQUAL("Times destroyed", FTestSimpleCapabilityDerived::TimesDestroyedDerived, 1);
+
 	return true;
 }
 
 #endif // WITH_DEV_AUTOMATION_TESTS
-
