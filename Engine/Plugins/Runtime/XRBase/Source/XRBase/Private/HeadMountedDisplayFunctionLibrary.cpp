@@ -145,18 +145,6 @@ int32 UHeadMountedDisplayFunctionLibrary::GetNumOfTrackingSensors()
 	return 0;
 }
 
-void UHeadMountedDisplayFunctionLibrary::GetPositionalTrackingCameraParameters(FVector& CameraOrigin, FRotator& CameraRotation, float& HFOV, float& VFOV, float& CameraDistance, float& NearPlane, float& FarPlane)
-{
-	bool isActive;
-	float LeftFOV;
-	float RightFOV;
-	float TopFOV;
-	float BottomFOV;
-	GetTrackingSensorParameters(CameraOrigin, CameraRotation, LeftFOV, RightFOV, TopFOV, BottomFOV, CameraDistance, NearPlane, FarPlane, isActive, 0);
-	HFOV = LeftFOV + RightFOV;
-	VFOV = TopFOV + BottomFOV;
-}
-
 void UHeadMountedDisplayFunctionLibrary::GetTrackingSensorParameters(FVector& Origin, FRotator& Rotation, float& LeftFOV, float& RightFOV, float& TopFOV, float& BottomFOV, float& Distance, float& NearPlane, float& FarPlane, bool& IsActive, int32 Index)
 {
 	IsActive = false;
@@ -476,12 +464,6 @@ void UHeadMountedDisplayFunctionLibrary::GetMotionControllerData(UObject* WorldC
 	{
 		TrackingSys->GetMotionControllerData(WorldContext, Hand, MotionControllerData);
 	}
-}
-
-bool UHeadMountedDisplayFunctionLibrary::ConfigureGestures(const FXRGestureConfig& GestureConfig)
-{
-	// Deprecated in 5.3.
-	return false;
 }
 
 bool UHeadMountedDisplayFunctionLibrary::GetCurrentInteractionProfile(const EControllerHand Hand, FString& InteractionProfile)
