@@ -172,7 +172,7 @@ namespace uba
 	}
 
 	template<typename T>
-	void LogStat(Logger& logger, const char* name, const T&) {}
+	void LogStat(Logger& logger, const char* name, const T&, u64 frequency) {}
 
 	void LogStat(Logger& logger, const char* name, const Timer& timer, u64 frequency)
 	{
@@ -225,7 +225,7 @@ namespace uba
 
 	void SessionSummaryStats::Print(Logger& logger, u64 frequency)
 	{
-		#define UBA_SESSION_SUMMARY_STAT(T, V) LogStat(logger, #V, V);
+		#define UBA_SESSION_SUMMARY_STAT(T, V) LogStat(logger, #V, V, frequency);
 		UBA_SESSION_SUMMARY_STATS
 		#undef UBA_SESSION_SUMMARY_STAT
 		stats.Print(logger, frequency);

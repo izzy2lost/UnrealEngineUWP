@@ -81,7 +81,7 @@ namespace uba
 				{
 					auto& conn = *(Connection*)context;
 					if (auto c = conn.m_client)
-						c->sendBytes += bytes;
+						c->recvBytes += bytes;
 					conn.m_server.m_sendBytes += bytes;
 				});
 
@@ -254,7 +254,7 @@ namespace uba
 				return false;
 			}
 
-			conn.m_client->recvBytes += worker->m_dataSize;
+			conn.m_client->sendBytes += worker->m_dataSize;
 			conn.m_server.m_recvBytes += worker->m_dataSize;
 			++conn.m_server.m_recvCount;
 

@@ -389,6 +389,7 @@ namespace uba
 				}
 				else
 				{
+					TimerScope s(m_stats.storageRetrieve);
 					casKey = AsCompressed(casKey, false);
 					entry.handled = true;
 					Storage::RetrieveResult result;
@@ -960,9 +961,12 @@ namespace uba
 
 		{
 			CasKey detoursBinaryKey = reader.ReadCasKey();
-			Storage::RetrieveResult result;
-			if (!m_storage.RetrieveCasFile(result, AsCompressed(detoursBinaryKey, false), UBA_DETOURS_LIBRARY))
-				return;
+			{
+				TimerScope s(m_stats.storageRetrieve);
+				Storage::RetrieveResult result;
+				if (!m_storage.RetrieveCasFile(result, AsCompressed(detoursBinaryKey, false), UBA_DETOURS_LIBRARY))
+					return;
+			}
 			KeyToString dir(StringKeyZero);
 			StringBuffer<> detoursFile;
 			if (!WriteBinFile(detoursFile, UBA_DETOURS_LIBRARY, detoursBinaryKey, dir, DefaultAttributes()))
