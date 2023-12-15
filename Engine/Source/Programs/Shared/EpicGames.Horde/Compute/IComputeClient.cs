@@ -62,4 +62,15 @@ namespace EpicGames.Horde.Compute
 			return computeClient.TryAssignWorkerAsync(clusterId, requirements, requestId, null, logger, cancellationToken);
 		}
 	}
+	
+	/// <summary>
+	/// Exception from ComputeClient
+	/// </summary>
+	public class ComputeClientException : Exception
+	{
+		/// <inheritdoc/>
+		public ComputeClientException(string? message) : base(message)
+		{
+		}
+	}
 }
