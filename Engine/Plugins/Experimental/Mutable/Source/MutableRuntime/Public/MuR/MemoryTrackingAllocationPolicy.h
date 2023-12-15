@@ -186,6 +186,17 @@ namespace mu
 			{
 				return Base.GetInitialCapacity();
 			}
+
+#if UE_ENABLE_ARRAY_SLACK_TRACKING
+			FORCEINLINE void SlackTrackerLogNum(SizeType NewNumUsed)
+			{
+				if constexpr (TAllocatorTraits<BaseAlloc>::SupportsSlackTracking)
+				{
+					Base.SlackTrackerLogNum(NewNumUsed);
+				}
+			}
+#endif
+
 		private:
 			typename BaseAlloc::ForAnyElementType Base;
 			SSIZE_T AllocSize = 0;
@@ -237,6 +248,7 @@ template<typename BaseAlloc, typename Counter>
 struct TAllocatorTraits<mu::FMemoryTrackingAllocatorWrapper<BaseAlloc, Counter>> : public TAllocatorTraitsBase<mu::FMemoryTrackingAllocatorWrapper<BaseAlloc, Counter>>
 {
 	enum { SupportsElementAlignment = TAllocatorTraits<BaseAlloc>::SupportsElementAlignment };
+	enum { SupportsSlackTracking = TAllocatorTraits<BaseAlloc>::SupportsSlackTracking };
 	enum { SupportsMoveFromOtherAllocator = false };
 };
 
