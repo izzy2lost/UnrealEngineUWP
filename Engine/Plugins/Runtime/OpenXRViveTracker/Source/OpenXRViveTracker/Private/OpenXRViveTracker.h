@@ -12,7 +12,6 @@
 
 #include "IOpenXRExtensionPlugin.h"
 #include "OpenXRCore.h"
-#include "OpenXRHMD.h"
 
 /**
   * OpenXR ViveTracker
@@ -34,7 +33,7 @@ public:
 
 		FViveTracker(XrActionSet InActionSet, FOpenXRPath InRolePath, const char* InName);
 
-		void AddTrackedDevices(class FOpenXRHMD* HMD);
+		void AddTrackedDevices(class IOpenXRHMD* HMD);
 		void GetSuggestedBindings(TArray<XrActionSuggestedBinding>& OutSuggestedBindings);
 	};
 
@@ -90,7 +89,8 @@ private:
 
 	PFN_xrEnumerateViveTrackerPathsHTCX xrEnumerateViveTrackerPathsHTCX = nullptr;
 
-	class FOpenXRHMD* OpenXRHMD = nullptr;
+	class IXRTrackingSystem* XRTrackingSystem = nullptr;
+	class IOpenXRHMD* OpenXRHMD = nullptr;
 
 	TSharedPtr<FGenericApplicationMessageHandler> MessageHandler;
 	int32 DeviceIndex;

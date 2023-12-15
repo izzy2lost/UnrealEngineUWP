@@ -15,6 +15,7 @@
 #include "DefaultSpectatorScreenController.h"
 #include "IHeadMountedDisplayVulkanExtensions.h"
 #include "IOpenXRExtensionPluginDelegates.h"
+#include "IOpenXRHMD.h"
 #include "Misc/EnumClassFlags.h"
 
 #include <openxr/openxr.h>
@@ -40,6 +41,7 @@ class FOpenXRHMD
 	, public FOpenXRAssetManager
 	, public TStereoLayerManager<FOpenXRLayer>
 	, public IOpenXRExtensionPluginDelegates
+	, public IOpenXRHMD
 {
 private:
 
@@ -215,7 +217,7 @@ public:
 
 	virtual bool GetIsTracked(int32 DeviceId);
 	virtual bool GetCurrentPose(int32 DeviceId, FQuat& CurrentOrientation, FVector& CurrentPosition) override;
-	virtual bool GetPoseForTime(int32 DeviceId, FTimespan Timespan, bool& OutTimeWasUsed, FQuat& CurrentOrientation, FVector& CurrentPosition, bool& bProvidedLinearVelocity, FVector& LinearVelocity, bool& bProvidedAngularVelocity, FVector& AngularVelocityAsAxisAndLength, bool& bProvidedLinearAcceleration, FVector& LinearAcceleration, float WorldToMetersScale);
+	virtual bool GetPoseForTime(int32 DeviceId, FTimespan Timespan, bool& OutTimeWasUsed, FQuat& CurrentOrientation, FVector& CurrentPosition, bool& bProvidedLinearVelocity, FVector& LinearVelocity, bool& bProvidedAngularVelocity, FVector& AngularVelocityAsAxisAndLength, bool& bProvidedLinearAcceleration, FVector& LinearAcceleration, float WorldToMetersScale) override;
 	virtual bool GetCurrentInteractionProfile(const EControllerHand Hand, FString& InteractionProfile) override;
 	
 	virtual void SetBaseRotation(const FRotator& InBaseRotation) override;
@@ -311,6 +313,7 @@ public:
 	virtual bool DoesSupportLateProjectionUpdate() const override { return true; }
 	virtual FString GetVersionString() const override;
 	virtual bool HasValidTrackingPosition() override { return IsTracking(HMDDeviceId); }
+	virtual IOpenXRHMD* GetIOpenXRHMD() { return this; }
 
 	/** IHeadMountedDisplay interface */
 	virtual bool IsHMDConnected() override;
@@ -406,22 +409,23 @@ public:
 	void OnBeginRendering_RHIThread(const FPipelinedFrameState& InFrameState, FXRSwapChainPtr ColorSwapchain, FXRSwapChainPtr DepthSwapchain, FXRSwapChainPtr EmulationSwapchain);
 	void OnFinishRendering_RHIThread();
 
+	/** IOpenXRHMD */
 	/** @return	True if the HMD was initialized OK */
-	OPENXRHMD_API bool IsInitialized() const;
-	OPENXRHMD_API bool IsRunning() const;
-	OPENXRHMD_API bool IsFocused() const;
+	bool IsInitialized() const override;
+	bool IsRunning() const override;
+	bool IsFocused() const override;
+	int32 AddTrackedDevice(XrAction Action, XrPath Path) override;
+	void ResetTrackedDevices() override;
+	XrPath GetTrackedDevicePath(const int32 DeviceId) override;
+	XrSpace GetTrackedDeviceSpace(const int32 DeviceId) override;
+	bool IsExtensionEnabled(const FString& Name) const override { return EnabledExtensions.Contains(Name); }
+	XrInstance GetInstance() override { return Instance; }
+	XrSystemId GetSystem() override { return System; }
+	XrSession GetSession() override { return Session; }
+	XrTime GetDisplayTime() const override;
+	XrSpace GetTrackingSpace() const override;
+	IOpenXRExtensionPluginDelegates& GetIOpenXRExtensionPluginDelegates() override { return *this; }
 
-	OPENXRHMD_API int32 AddTrackedDevice(XrAction Action, XrPath Path);
-	OPENXRHMD_API void ResetTrackedDevices();
-	OPENXRHMD_API XrPath GetTrackedDevicePath(const int32 DeviceId);
-	OPENXRHMD_API XrSpace GetTrackedDeviceSpace(const int32 DeviceId);
-
-	OPENXRHMD_API bool IsExtensionEnabled(const FString& Name) const { return EnabledExtensions.Contains(Name); }
-	OPENXRHMD_API XrInstance GetInstance() { return Instance; }
-	OPENXRHMD_API XrSystemId GetSystem() { return System; }
-	OPENXRHMD_API XrSession GetSession() { return Session; }
-	OPENXRHMD_API XrTime GetDisplayTime() const;
-	OPENXRHMD_API XrSpace GetTrackingSpace() const;
 	OPENXRHMD_API TArray<IOpenXRExtensionPlugin*>& GetExtensionPlugins() { return ExtensionPlugins; }
 	OPENXRHMD_API void SetEnvironmentBlendMode(XrEnvironmentBlendMode NewBlendMode);
 

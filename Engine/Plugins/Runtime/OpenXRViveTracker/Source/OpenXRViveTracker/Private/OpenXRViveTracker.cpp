@@ -16,6 +16,8 @@
 #include "Features/IModularFeatures.h"
 #include "HeadMountedDisplayFunctionLibrary.h"
 #include "IOpenXRHMDModule.h"
+#include "IOpenXRHMD.h"
+#include "IOpenXRExtensionPluginDelegates.h"
 
 #define LOCTEXT_NAMESPACE "OpenXRViveTracker"
 
@@ -111,7 +113,7 @@ FOpenXRViveTracker::FViveTracker::FViveTracker(XrActionSet InActionSet, FOpenXRP
 	XR_ENSURE(xrCreateAction(ActionSet, &Info, &VibrationAction));
 }
 
-void FOpenXRViveTracker::FViveTracker::AddTrackedDevices(FOpenXRHMD* HMD)
+void FOpenXRViveTracker::FViveTracker::AddTrackedDevices(IOpenXRHMD* HMD)
 {
 	if (HMD)
 	{
@@ -179,10 +181,10 @@ void FOpenXRViveTracker::PostCreateInstance(XrInstance InInstance)
 
 const void* FOpenXRViveTracker::OnCreateSession(XrInstance InInstance, XrSystemId InSystem, const void* InNext)
 {
-	static FName SystemName(TEXT("OpenXR"));
-	if (GEngine->XRSystem.IsValid() && (GEngine->XRSystem->GetSystemName() == SystemName))
+	if (GEngine && GEngine->XRSystem.IsValid())
 	{
-		OpenXRHMD = (FOpenXRHMD*)GEngine->XRSystem.Get();
+		XRTrackingSystem = GEngine->XRSystem.Get();
+		OpenXRHMD = XRTrackingSystem->GetIOpenXRHMD();
 	}
 
 	if (TrackerActionSet)
@@ -286,7 +288,7 @@ bool FOpenXRViveTracker::GetControllerOrientationAndPosition(const int32 Control
 	if (ControllerIndex == DeviceIndex && MotionSourceToEControllerHandMap.Contains(MotionSource))
 	{
 		FQuat Orientation;
-		bool Success = OpenXRHMD->GetCurrentPose(GetDeviceIDForMotionSource(MotionSource), Orientation, OutPosition);
+		bool Success = XRTrackingSystem->GetCurrentPose(GetDeviceIDForMotionSource(MotionSource), Orientation, OutPosition);
 		OutOrientation = FRotator(Orientation);
 		return Success;
 	}
@@ -464,7 +466,7 @@ void FOpenXRViveTracker::SetHapticFeedbackValues(int32 ControllerId, int32 Hand,
 			FOpenXRExtensionChainStructPtrs ScopedExtensionChainStructs;
 			if (Values.HapticBuffer != nullptr)
 			{
-				OpenXRHMD->GetApplyHapticFeedbackAddChainStructsDelegate().Broadcast(&HapticValue, ScopedExtensionChainStructs, Values.HapticBuffer);
+				OpenXRHMD->GetIOpenXRExtensionPluginDelegates().GetApplyHapticFeedbackAddChainStructsDelegate().Broadcast(&HapticValue, ScopedExtensionChainStructs, Values.HapticBuffer);
 			}
 			XR_ENSURE(xrApplyHapticFeedback(Session, &HapticActionInfo, (const XrHapticBaseHeader*)&HapticValue));
 		}
