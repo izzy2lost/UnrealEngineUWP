@@ -75,6 +75,9 @@ namespace UE::Chaos::ClothAsset
 		/** Find a selection with the given name, or nullptr if no such selection exists. */
 		CHAOSCLOTHASSET_API TSet<int32>* FindSelectionSet(const FName& Name);
 
+		/** Remove the selection with the given name if it exists. */
+		CHAOSCLOTHASSET_API void RemoveSelectionSet(const FName& Name);
+
 		/** 
 		 * Append all sets from an existing collection to this collection.
 		 * Matching sets (i.e., same name and type) will be unioned.

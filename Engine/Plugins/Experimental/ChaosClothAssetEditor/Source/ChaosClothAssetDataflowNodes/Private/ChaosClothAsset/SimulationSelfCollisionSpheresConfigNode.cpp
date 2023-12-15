@@ -7,6 +7,7 @@
 #include "ChaosClothAsset/CollectionClothFacade.h"
 #include "ChaosClothAsset/CollectionClothSelectionFacade.h"
 #include "ChaosClothAsset/ClothCollectionGroup.h"
+#include "ChaosClothAsset/ClothGeometryTools.h"
 
 #include UE_INLINE_GENERATED_CPP_BY_NAME(SimulationSelfCollisionSpheresConfigNode)
 
@@ -19,6 +20,7 @@ FChaosClothAssetSimulationSelfCollisionSpheresConfigNode::FChaosClothAssetSimula
 void FChaosClothAssetSimulationSelfCollisionSpheresConfigNode::AddProperties(Dataflow::FContext& Context, ::Chaos::Softs::FCollectionPropertyMutableFacade& Properties) const
 {
 	UE_CHAOS_CLOTHASSET_SIMULATIONCONFIG_SETPROPERTY(SelfCollisionSphereRadius);
+	UE_CHAOS_CLOTHASSET_SIMULATIONCONFIG_SETPROPERTY(SelfCollisionSphereRadiusCullMultiplier);
 	UE_CHAOS_CLOTHASSET_SIMULATIONCONFIG_SETPROPERTY(SelfCollisionSphereStiffness); 
 }
 
@@ -30,36 +32,14 @@ void FChaosClothAssetSimulationSelfCollisionSpheresConfigNode::EvaluateClothColl
 	if (Cloth.IsValid() && CullDiameterSq > 0.f)
 	{
 		TConstArrayView<FVector3f> SimPositions = Cloth.GetSimPosition3D();
-		TArray<bool> VertexIsValid;
-		VertexIsValid.Init(true, SimPositions.Num());
-
 		TSet<int32> VertexSet;
-		for (int32 Index = 0; Index < SimPositions.Num(); ++Index)
-		{
-			if (!VertexIsValid[Index])
-			{
-				continue;
-			}
-			VertexSet.Add(Index);
 
-			const FVector3f& Pos0 = SimPositions[Index];
-			for (int32 CompareIndex = Index + 1; CompareIndex < SimPositions.Num(); ++CompareIndex)
-			{
-				if (!VertexIsValid[CompareIndex])
-				{
-					continue;
-				}
-				if (FVector3f::DistSquared(Pos0, SimPositions[CompareIndex]) < CullDiameterSq)
-				{
-					VertexIsValid[CompareIndex] = false;
-				}
-			}
-		}
+		FClothGeometryTools::SampleVertices(SimPositions, CullDiameterSq, VertexSet);
 
 		FCollectionClothSelectionFacade Selection(ClothCollection);
 		Selection.DefineSchema();
 
-		static const FName SelectionSetName("_SelfCollisionSpheres");
+		static const FName SelectionSetName(TEXT("_SelfCollisionSpheres"));
 		Selection.FindOrAddSelectionSet(SelectionSetName, ClothCollectionGroup::SimVertices3D) = VertexSet;
 	}
 

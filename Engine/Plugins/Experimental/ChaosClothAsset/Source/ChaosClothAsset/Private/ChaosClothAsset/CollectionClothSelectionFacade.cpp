@@ -129,6 +129,12 @@ namespace UE::Chaos::ClothAsset
 		return Selection ? Selection->GetData() : nullptr;
 	}
 
+	void FCollectionClothSelectionFacade::RemoveSelectionSet(const FName& Name)
+	{
+		check(IsValid());
+		ManagedArrayCollection->RemoveAttribute(Name, Private::SelectionGroup);
+	}
+
 	TSet<int32>& FCollectionClothSelectionFacade::FindOrAddSelectionSet(const FName& Name, const FName& GroupName)
 	{
 		check(IsValid());

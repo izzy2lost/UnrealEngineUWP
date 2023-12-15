@@ -22,6 +22,7 @@ void FChaosClothAssetSimulationLongRangeAttachmentConfigNode::AddProperties(Data
 	UE_CHAOS_CLOTHASSET_SIMULATIONCONFIG_SETPROPERTYWEIGHTED(TetherStiffness);
 	UE_CHAOS_CLOTHASSET_SIMULATIONCONFIG_SETPROPERTYWEIGHTED(TetherScale);
 	UE_CHAOS_CLOTHASSET_SIMULATIONCONFIG_SETPROPERTYBOOL(UseGeodesicTethers);
+	UE_CHAOS_CLOTHASSET_SIMULATIONCONFIG_SETPROPERTYSTRING(FixedEndWeightMap);
 }
 
 void FChaosClothAssetSimulationLongRangeAttachmentConfigNode::EvaluateClothCollection(Dataflow::FContext& Context, const TSharedRef<FManagedArrayCollection>& ClothCollection) const

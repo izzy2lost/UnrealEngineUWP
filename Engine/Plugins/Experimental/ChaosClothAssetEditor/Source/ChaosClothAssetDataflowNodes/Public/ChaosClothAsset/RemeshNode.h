@@ -7,7 +7,7 @@
 #include "RemeshNode.generated.h"
 
 /** Remesh the cloth surface(s) to get the specified mesh resolution(s).
- *  NOTE: Remeshing will invalidate vertex data such as Self Collision Spheres and Long Range Attachment Constraints, however weight maps and skinning data will be resampled to the new mesh topology.
+ *  NOTE: Weight Maps, Skinning Data, Self Collision Spheres, and Long Range Attachment Constraints will be reconstructed on the output mesh, however all other Selections will be removed
  */
 USTRUCT(Meta = (DataflowCloth))
 struct FChaosClothAssetRemeshNode : public FDataflowNode
@@ -50,11 +50,18 @@ public:
 
 private:
 
-	void RemeshSimMesh(TSharedRef<FManagedArrayCollection> ClothCollection,
-		TSharedRef<FManagedArrayCollection> OutClothCollection) const;
+	void EmptySimSelections(const TSharedRef<FManagedArrayCollection>& ClothCollection) const;
 
-	void RemeshRenderPattern(TSharedRef<FManagedArrayCollection> ClothCollection,
+	void RemeshSimMesh(const TSharedRef<const FManagedArrayCollection>& ClothCollection,
+		const TSharedRef<FManagedArrayCollection>& OutClothCollection) const;
+
+	void RebuildTopologyDependentSimData(const TSharedRef<const FManagedArrayCollection>& ClothCollection,
+		const TSharedRef<FManagedArrayCollection>& OutClothCollection) const;
+
+	void EmptyRenderSelections(const TSharedRef<FManagedArrayCollection>& ClothCollection) const;
+
+	void RemeshRenderPattern(const TSharedRef<const FManagedArrayCollection>& ClothCollection,
 		int32 PatternIndex,
-		TSharedRef<FManagedArrayCollection> OutClothCollection) const;
+		const TSharedRef<FManagedArrayCollection>& OutClothCollection) const;
 
 };

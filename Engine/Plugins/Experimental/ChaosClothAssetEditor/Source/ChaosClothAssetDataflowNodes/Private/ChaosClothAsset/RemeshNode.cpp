@@ -4,7 +4,10 @@
 
 #include "ChaosClothAsset/ClothPatternToDynamicMesh.h"
 #include "ChaosClothAsset/CollectionClothFacade.h"
+#include "ChaosClothAsset/CollectionClothSelectionFacade.h"
+#include "ChaosClothAsset/ClothCollectionGroup.h"
 #include "ChaosClothAsset/ClothGeometryTools.h"
+#include "ChaosClothAsset/ClothEngineTools.h"
 #include "Dataflow/DataflowInputOutput.h"
 #include "DynamicMesh/MeshTangents.h"
 #include "DynamicMesh/MeshNormals.h"
@@ -12,6 +15,8 @@
 #include "CleaningOps/RemeshMeshOp.h"
 #include "MeshUVChannelInfo.h"
 #include "MeshBoundaryLoops.h"
+#include "Chaos/CollectionPropertyFacade.h"
+#include "Algo/Find.h"
 
 #include UE_INLINE_GENERATED_CPP_BY_NAME(RemeshNode)
 
@@ -621,7 +626,6 @@ namespace UE::Chaos::ClothAsset::Private
 
 
 		// Set up constraints for Cloth Seam edges
-		// TODO: Add edge or vertex contraints for other cloth sim mesh data (e.g. collision particles, tethers)
 		UE::Geometry::FMeshConstraints Constraints;
 		for (const TArray<FIntVector2>& Seam : Seams)
 		{
@@ -704,8 +708,26 @@ FChaosClothAssetRemeshNode::FChaosClothAssetRemeshNode(const Dataflow::FNodePara
 }
 
 
-void FChaosClothAssetRemeshNode::RemeshSimMesh(TSharedRef<FManagedArrayCollection> ClothCollection,
-	TSharedRef<FManagedArrayCollection> OutClothCollection) const
+void FChaosClothAssetRemeshNode::EmptySimSelections(const TSharedRef<FManagedArrayCollection>& ClothCollection) const
+{
+	using namespace UE::Chaos::ClothAsset;
+
+	FCollectionClothSelectionFacade SelectionFacade(ClothCollection);
+
+	const TArray<FName> SelectionNames = SelectionFacade.GetNames();
+	for (const FName& SelectionName : SelectionNames)
+	{
+		const FName GroupName = SelectionFacade.GetSelectionGroup(SelectionName);
+		if (GroupName == ClothCollectionGroup::SimVertices3D || GroupName == ClothCollectionGroup::SimVertices2D || GroupName == ClothCollectionGroup::SimFaces)
+		{
+			TSet<int32>& SelectionSet = SelectionFacade.GetSelectionSet(SelectionName);
+			SelectionSet.Empty();
+		}
+	}
+}
+
+void FChaosClothAssetRemeshNode::RemeshSimMesh(const TSharedRef<const FManagedArrayCollection>& ClothCollection,
+	const TSharedRef<FManagedArrayCollection>& OutClothCollection) const
 {
 	using namespace UE::Geometry;
 	using namespace UE::Chaos::ClothAsset;
@@ -883,9 +905,7 @@ void FChaosClothAssetRemeshNode::RemeshSimMesh(TSharedRef<FManagedArrayCollectio
 	FClothGeometryTools::BuildSimMeshFromDynamicMeshes(OutClothCollection, Mesh2D, Mesh3D, PatternIndexLayerID, bTransferWeightMaps, bTransferSimSkinningData, bAppendToExistingMesh, DynamicMeshToClothVertexMap);
 
 
-	// Re-apply the seam info from the input sim mesh
-	// TODO: This will create a new Seam for each set of connected stitches. Should it instead be one seam for each pair of patterns?
-	//       E.g. if there are two strips of vertex pairs between a two given patterns, it will generate two seams. Should it just put them all in one seam?
+	// Re-apply the seam info from the input sim mesh. This will create a new Seam for each set of connected stitches
 
 	FCollectionClothFacade OutClothFacade(OutClothCollection);
 	for (int32 SeamIndex = 0; SeamIndex < Seams.Num(); ++SeamIndex)
@@ -912,9 +932,85 @@ void FChaosClothAssetRemeshNode::RemeshSimMesh(TSharedRef<FManagedArrayCollectio
 }
 
 
-void FChaosClothAssetRemeshNode::RemeshRenderPattern(TSharedRef<FManagedArrayCollection> ClothCollection,
+void FChaosClothAssetRemeshNode::RebuildTopologyDependentSimData(const TSharedRef<const FManagedArrayCollection>& InClothCollection,
+	const TSharedRef<FManagedArrayCollection>& OutClothCollection) const
+{
+	using namespace UE::Chaos::ClothAsset;
+	using namespace ::Chaos::Softs;
+
+	FCollectionClothConstFacade InClothFacade(InClothCollection);
+	FCollectionClothFacade OutClothFacade(OutClothCollection);
+
+	// Check that weight maps and skinning info have been interpolated over
+	for (const FName& InWeightMapName : InClothFacade.GetWeightMapNames())
+	{
+		const FName* FoundName = Algo::Find(OutClothFacade.GetWeightMapNames(), InWeightMapName);
+		checkf(FoundName, TEXT("Weight map %s was not copied to the output cloth collection"), *InWeightMapName.ToString());
+	}
+	if (InClothFacade.GetSimBoneIndices().Num() > 0 && OutClothFacade.GetNumSimVertices3D() > 0)
+	{
+		checkf(OutClothFacade.GetSimBoneIndices().Num() > 0, TEXT("Skinning bone indices not copied to the sim mesh of the output cloth collection"));
+	}
+	if (InClothFacade.GetSimBoneWeights().Num() > 0 && OutClothFacade.GetNumSimVertices3D() > 0)
+	{
+		checkf(OutClothFacade.GetSimBoneWeights().Num() > 0, TEXT("Skinning bone weights not copied to the sim mesh of the output cloth collection"));
+	}
+
+	Chaos::Softs::FCollectionPropertyConstFacade InProperties(InClothCollection);
+
+	// Reconstruct collision spheres
+	if (InProperties.GetKeyIndex(TEXT("SelfCollisionSphereStiffness")) != INDEX_NONE)
+	{
+		const float SelfCollisionSphereRadius = InProperties.GetValue<float>(TEXT("SelfCollisionSphereRadius"));
+		const float SelfCollisionSphereRadiusCullMultiplier = InProperties.GetValue<float>(TEXT("SelfCollisionSphereRadiusCullMultiplier"));
+		const float CullDiameterSq = FMath::Square(SelfCollisionSphereRadius * SelfCollisionSphereRadiusCullMultiplier * 2.f);
+
+		if (OutClothFacade.IsValid() && CullDiameterSq > 0.f)
+		{
+			TConstArrayView<FVector3f> SimPositions = OutClothFacade.GetSimPosition3D();
+			TSet<int32> VertexSet;
+			FClothGeometryTools::SampleVertices(SimPositions, CullDiameterSq, VertexSet);
+
+			FCollectionClothSelectionFacade Selection(OutClothCollection);
+			Selection.DefineSchema();
+
+			static const FName SelectionSetName(TEXT("_SelfCollisionSpheres"));
+			Selection.FindOrAddSelectionSet(SelectionSetName, ClothCollectionGroup::SimVertices3D) = VertexSet;
+		}
+	}
+
+	// Reconstruct long-range attachments
+	if (InProperties.GetKeyIndex(TEXT("TetherStiffness")) != INDEX_NONE)
+	{
+		const bool bUseGeodesicTethers = InProperties.GetValue<bool>(TEXT("UseGeodesicTethers"));
+		const FName FixedEndWeightMap(InProperties.GetStringValue(TEXT("FixedEndWeightMap")));
+
+		UE::Chaos::ClothAsset::FClothEngineTools::GenerateTethers(OutClothCollection, FixedEndWeightMap, bUseGeodesicTethers);
+	}
+}
+
+
+void FChaosClothAssetRemeshNode::EmptyRenderSelections(const TSharedRef<FManagedArrayCollection>& ClothCollection) const
+{
+	using namespace UE::Chaos::ClothAsset;
+
+	FCollectionClothSelectionFacade SelectionFacade(ClothCollection);
+
+	const TArray<FName> SelectionNames = SelectionFacade.GetNames();
+	for (const FName& SelectionName : SelectionNames)
+	{
+		const FName GroupName = SelectionFacade.GetSelectionGroup(SelectionName);
+		if (GroupName == ClothCollectionGroup::RenderVertices || GroupName == ClothCollectionGroup::RenderFaces)
+		{
+			TSet<int32>& SelectionSet = SelectionFacade.GetSelectionSet(SelectionName);
+			SelectionSet.Empty();
+		}
+	}
+}
+
+void FChaosClothAssetRemeshNode::RemeshRenderPattern(const TSharedRef<const FManagedArrayCollection>& ClothCollection,
 	int32 PatternIndex,
-	TSharedRef<FManagedArrayCollection> OutClothCollection) const
+	const TSharedRef<FManagedArrayCollection>& OutClothCollection) const
 {
 	using namespace UE::Geometry;
 	using namespace UE::Chaos::ClothAsset;
@@ -1151,12 +1247,15 @@ void FChaosClothAssetRemeshNode::Evaluate(Dataflow::FContext& Context, const FDa
 		{
 			if (bRemeshSim)
 			{
+				EmptySimSelections(OutputClothCollection);
 				RemeshSimMesh(ClothCollection, OutputClothCollection);
+				RebuildTopologyDependentSimData(ClothCollection, OutputClothCollection);
 			}
 
 			if (bRemeshRender)
 			{
-				// TODO: Does it make more sense to do the whole thing at once, or pattern by pattern? It's easier to rebuild the patterns if we do it this way
+				EmptyRenderSelections(OutputClothCollection);
+
 				const int32 NumPatterns = ClothFacade.GetNumRenderPatterns();
 				for (int32 PatternIndex = 0; PatternIndex < NumPatterns; ++PatternIndex)
 				{

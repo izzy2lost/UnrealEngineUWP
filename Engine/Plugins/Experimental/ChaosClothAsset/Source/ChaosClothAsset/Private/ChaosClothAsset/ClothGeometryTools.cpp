@@ -1190,4 +1190,35 @@ namespace UE::Chaos::ClothAsset
 		}
 	}
 
+	void FClothGeometryTools::SampleVertices(const TConstArrayView<FVector3f> VertexPositions, float CullDiameterSq, TSet<int32>& OutVertexSet)
+	{
+		check(CullDiameterSq > 0.0f);
+
+		TArray<bool> VertexIsValid;
+		VertexIsValid.Init(true, VertexPositions.Num());
+
+		for (int32 Index = 0; Index < VertexPositions.Num(); ++Index)
+		{
+			if (!VertexIsValid[Index])
+			{
+				continue;
+			}
+			OutVertexSet.Add(Index);
+
+			const FVector3f& Pos0 = VertexPositions[Index];
+			for (int32 CompareIndex = Index + 1; CompareIndex < VertexPositions.Num(); ++CompareIndex)
+			{
+				if (!VertexIsValid[CompareIndex])
+				{
+					continue;
+				}
+				if (FVector3f::DistSquared(Pos0, VertexPositions[CompareIndex]) < CullDiameterSq)
+				{
+					VertexIsValid[CompareIndex] = false;
+				}
+			}
+		}
+	}
+
+
 }  // End namespace UE::Chaos::ClothAsset

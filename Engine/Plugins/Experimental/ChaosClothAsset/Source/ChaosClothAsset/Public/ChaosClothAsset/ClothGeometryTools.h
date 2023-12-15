@@ -99,5 +99,16 @@ namespace UE::Chaos::ClothAsset
 			const UE::Geometry::FDynamicMesh3& Mesh,
 			TArray<TArray<FIntVector2>>& Seams);
 
+
+		/**
+		 * Use Poisson disk sampling to get a set of evenly-spaced vertices
+		 * 
+		 * @param VertexPositions set of vertex points to sample from
+		 * @param CullDiameterSq squared minimum distance between samples
+		 * @param OutVertexSet indices of the sampled subset of VertexPositions
+		 */
+		static void SampleVertices(const TConstArrayView<FVector3f> VertexPositions, float CullDiameterSq, TSet<int32>& OutVertexSet);
+
+
 	};
 }  // End namespace UE::Chaos::ClothAsset
