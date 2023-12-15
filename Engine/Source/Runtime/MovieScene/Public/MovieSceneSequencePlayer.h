@@ -538,7 +538,6 @@ protected:
 	virtual void GetViewportSettings(TMap<FViewportClient*, EMovieSceneViewportParams>& ViewportParamsMap) const override {}
 	MOVIESCENE_API virtual void ResolveBoundObjects(const FGuid& InBindingId, FMovieSceneSequenceID SequenceID, UMovieSceneSequence& Sequence, UObject* ResolutionContext, TArray<UObject*, TInlineAllocator<1>>& OutObjects) const override;
 	virtual IMovieScenePlaybackClient* GetPlaybackClient() override { return PlaybackClient ? &*PlaybackClient : nullptr; }
-	MOVIESCENE_API virtual bool IsDisablingEventTriggers(FFrameTime& DisabledUntilTime) const override;
 	MOVIESCENE_API virtual bool HasDynamicWeighting() const override;
 	MOVIESCENE_API virtual void PreEvaluation(const FMovieSceneContext& Context) override;
 	MOVIESCENE_API virtual void PostEvaluation(const FMovieSceneContext& Context) override;
@@ -686,9 +685,6 @@ protected:
 
 	/** Play position helper */
 	FMovieScenePlaybackPosition PlayPosition;
-
-	/** Disable event triggers until given time */
-	TOptional<FFrameTime> DisableEventTriggersUntilTime;
 
 	/** Spawn register */
 	TSharedPtr<FMovieSceneSpawnRegister> SpawnRegister;

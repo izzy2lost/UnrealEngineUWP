@@ -241,12 +241,12 @@ public:
 	/**
 	 * Access the event contexts for this movie scene player
 	 */
-	virtual TArray<UObject*> GetEventContexts() const { return TArray<UObject*>(); }
+	MOVIESCENE_API virtual TArray<UObject*> GetEventContexts() const;
 
 	/**
 	 * Returns whether event triggers are disabled and if so, until what time.
 	 */
-	virtual bool IsDisablingEventTriggers(FFrameTime& DisabledUntilTime) const { return false; }
+	MOVIESCENE_API virtual bool IsDisablingEventTriggers(FFrameTime& DisabledUntilTime) const;
 
 	/**
 	 * Test whether this is a preview player or not. As such, playback range becomes insignificant for things like spawnables
@@ -405,7 +405,7 @@ public:
 	 * Initializes a new root sequence instance and its shared playback state.
 	 * This adds all the player's playback capabilities to the given state.
 	 */
-	void InitializeRootInstance(TSharedRef<UE::MovieScene::FSharedPlaybackState> NewSharedPlaybackState);
+	MOVIESCENE_API virtual void InitializeRootInstance(TSharedRef<UE::MovieScene::FSharedPlaybackState> NewSharedPlaybackState);
 
 public:
 

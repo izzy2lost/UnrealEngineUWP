@@ -17,6 +17,7 @@
 #include "EntitySystem/MovieSceneEntitySystemLinker.h"
 #include "EntitySystem/MovieSceneEntitySystemRunner.h"
 #include "Compilation/MovieSceneCompiledDataManager.h"
+#include "Evaluation/EventTriggerControlPlaybackCapability.h"
 #include "Evaluation/MovieSceneSequenceWeights.h"
 #include "UniversalObjectLocatorResolveParams.h"
 #include "GameFramework/PlayerController.h"
@@ -1298,16 +1299,6 @@ bool UMovieSceneSequencePlayer::IsValid() const
 	return RootTemplateInstance.IsValid();
 }
 
-bool UMovieSceneSequencePlayer::IsDisablingEventTriggers(FFrameTime& DisabledUntilTime) const
-{
-	if (DisableEventTriggersUntilTime.IsSet())
-	{
-		DisabledUntilTime = DisableEventTriggersUntilTime.GetValue();
-		return true;
-	}
-	return false;
-}
-
 bool UMovieSceneSequencePlayer::HasDynamicWeighting() const
 {
 	return PlaybackSettings.bDynamicWeighting;
@@ -1852,6 +1843,8 @@ void UMovieSceneSequencePlayer::PostNetReceive()
 
 void UMovieSceneSequencePlayer::UpdateNetworkSync()
 {
+	using namespace UE::MovieScene;
+
 	if (!bUpdateNetSync)
 	{
 		return;
@@ -1950,7 +1943,9 @@ void UMovieSceneSequencePlayer::UpdateNetworkSync()
 
 			// Also skip all events up to the last known position, otherwise if we skipped back in time we
 			// will re-trigger events again.
-			DisableEventTriggersUntilTime = LastPosition;
+			TSharedRef<FSharedPlaybackState> SharedPlaybackState = GetSharedPlaybackState();
+			FEventTriggerControlPlaybackCapability& TriggerControlCapability = SharedPlaybackState->SetOrAddCapability<FEventTriggerControlPlaybackCapability>();
+			TriggerControlCapability.DisableEventTriggersUntilTime = LastPosition;
 		}
 	}
 }

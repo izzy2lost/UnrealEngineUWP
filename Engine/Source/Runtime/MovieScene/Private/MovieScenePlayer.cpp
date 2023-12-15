@@ -2,6 +2,8 @@
 
 #include "CoreMinimal.h"
 #include "IMovieScenePlayer.h"
+#include "Evaluation/EventContextsPlaybackCapability.h"
+#include "Evaluation/EventTriggerControlPlaybackCapability.h"
 #include "Evaluation/MovieSceneEvaluationTemplateInstance.h"
 #include "EntitySystem/MovieSceneSequenceInstance.h"
 #include "EntitySystem/MovieSceneEntitySystemLinker.h"
@@ -136,19 +138,13 @@ void IMovieScenePlayer::InvalidateCachedData()
 
 TSharedPtr<UE::MovieScene::FSharedPlaybackState> IMovieScenePlayer::FindSharedPlaybackState()
 {
-	const UE::MovieScene::FSequenceInstance* RootInstance = GetEvaluationTemplate().GetRootInstance();
-	if (RootInstance)
-	{
-		return RootInstance->GetSharedPlaybackState();
-	}
-	return nullptr;
+	return GetEvaluationTemplate().GetSharedPlaybackState();
 }
 
 TSharedRef<UE::MovieScene::FSharedPlaybackState> IMovieScenePlayer::GetSharedPlaybackState()
 {
-	const UE::MovieScene::FSequenceInstance* RootInstance = GetEvaluationTemplate().GetRootInstance();
-	check(RootInstance);
-	return RootInstance->GetSharedPlaybackState();
+	// ToSharedRef will assert if evaluation template isn't initialized
+	return GetEvaluationTemplate().GetSharedPlaybackState().ToSharedRef();
 }
 
 void IMovieScenePlayer::ResetDirectorInstances()
@@ -159,6 +155,38 @@ void IMovieScenePlayer::ResetDirectorInstances()
 UObject* IMovieScenePlayer::GetOrCreateDirectorInstance(TSharedRef<const UE::MovieScene::FSharedPlaybackState> SharedPlaybackState, FMovieSceneSequenceIDRef SequenceID)
 {
 	return GetEvaluationTemplate().GetOrCreateDirectorInstance(SequenceID, *this);
+}
+
+TArray<UObject*> IMovieScenePlayer::GetEventContexts() const
+{
+	using namespace UE::MovieScene;
+
+	// By default, look for the playback capability, for backwards compatibility.
+	IMovieScenePlayer* This = const_cast<IMovieScenePlayer*>(this);
+	if (TSharedPtr<const FSharedPlaybackState> SharedPlaybackState = This->FindSharedPlaybackState())
+	{
+		if (IEventContextsPlaybackCapability* EventContextsCapability = SharedPlaybackState->FindCapability<IEventContextsPlaybackCapability>())
+		{
+			return EventContextsCapability->GetEventContexts();
+		}
+	}
+	return TArray<UObject*>();
+}
+
+bool IMovieScenePlayer::IsDisablingEventTriggers(FFrameTime& DisabledUntilTime) const
+{
+	using namespace UE::MovieScene;
+
+	// By default, look for the playback capability, for backwards compatibility.
+	IMovieScenePlayer* This = const_cast<IMovieScenePlayer*>(this);
+	if (TSharedPtr<const FSharedPlaybackState> SharedPlaybackState = This->FindSharedPlaybackState())
+	{
+		if (FEventTriggerControlPlaybackCapability* TriggerControlCapability = SharedPlaybackState->FindCapability<FEventTriggerControlPlaybackCapability>())
+		{
+			return TriggerControlCapability->IsDisablingEventTriggers(DisabledUntilTime);
+		}
+	}
+	return false;
 }
 
 void IMovieScenePlayer::InitializeRootInstance(TSharedRef<UE::MovieScene::FSharedPlaybackState> NewSharedPlaybackState)
