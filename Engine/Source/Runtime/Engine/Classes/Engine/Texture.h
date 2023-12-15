@@ -153,6 +153,14 @@ struct FTextureSource
 	* Init and copy in texture bits from Image
 	* 
 	* @param Image -  Image to initialize with
+	*
+	* FImageView has gamma information too that is lost
+	* TextureSource does not store gamma information (it's in the owning Texture)
+	* this function does NOT set Texture->SRGB , you must do so!
+	*
+	* Init() does UseHashAsGuid
+	* Init() must be done inside PreEdit/PostEdit on the owning Texture
+	*
 	*/
 	ENGINE_API void Init(const FImageView & Image);
 

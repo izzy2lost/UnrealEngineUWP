@@ -2110,6 +2110,7 @@ void FTextureSource::Init(const FImageView & Image)
 
 	// FImageView has gamma information too that is lost
 	// TextureSource does not store gamma information (it's in the owning Texture)
+	// this function does NOT set Texture->SRGB , you must do so!
 
 	Init(Image.SizeX,Image.SizeY,Image.NumSlices,1,SourceFormat,(const uint8 *)Image.RawData);
 }
