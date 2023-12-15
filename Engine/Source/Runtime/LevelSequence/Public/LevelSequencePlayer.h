@@ -133,6 +133,7 @@ protected:
 
 	// IMovieScenePlayer interface
 	LEVELSEQUENCE_API virtual void ResolveBoundObjects(const FGuid& InBindingId, FMovieSceneSequenceID SequenceID, UMovieSceneSequence& InSequence, UObject* ResolutionContext, TArray<UObject*, TInlineAllocator<1>>& OutObjects) const override;
+	LEVELSEQUENCE_API virtual void InitializeRootInstance(TSharedRef<UE::MovieScene::FSharedPlaybackState> NewSharedPlaybackState) override;
 
 	//~ UMovieSceneSequencePlayer interface
 	LEVELSEQUENCE_API virtual bool CanPlay() const override;
@@ -160,6 +161,8 @@ public:
 private:
 
 	LEVELSEQUENCE_API void EnableCinematicMode(bool bEnable);
+
+	void InitializeLevelSequenceRootInstance(TSharedRef<UE::MovieScene::FSharedPlaybackState> NewSharedPlaybackState);
 
 private:
 
