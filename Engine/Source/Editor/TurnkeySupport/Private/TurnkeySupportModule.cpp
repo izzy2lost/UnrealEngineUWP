@@ -2575,7 +2575,7 @@ void FTurnkeySupportModule::UpdateSdkInfoForDevices(TArray<FString> PlatformDevi
 				    }
 			    }
 			}
-			else
+			else if (!IsEngineExitRequested())
 			{
 			    for (const FString& Id : PlatformDeviceIds)
 			    {
