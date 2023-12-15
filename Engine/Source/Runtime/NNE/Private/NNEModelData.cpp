@@ -228,7 +228,8 @@ void UNNEModelData::Serialize(FArchive& Ar)
 			Ar << TmpFileData;
 			int32 NumAdditionalFileDataItems = 0;
 			Ar << NumAdditionalFileDataItems;
-			Ar << FileId;
+			FGuid TmpGuid;
+			Ar << TmpGuid;
 
 			// Cooking must recreate all model data but only if file data is still available
 			if (FileData.Num() > 0)
@@ -254,7 +255,7 @@ void UNNEModelData::Serialize(FArchive& Ar)
 				AdditionalFileData.GetKeys(Keys);
 				for (auto& Key : Keys)
 				{
-					AdditionalFileDataView[Key] = AdditionalFileData[Key];
+					AdditionalFileDataView.Emplace(Key, AdditionalFileData[Key]);
 				}
 
 				for (const FString& RuntimeName : CookRuntimeNames)
@@ -458,7 +459,7 @@ void UNNEModelData::Init(const FString& Type, TConstArrayView<uint8> Buffer, con
 	AdditionalFileData.Empty();
 	for (auto& Element : AdditionalBuffers)
 	{
-		AdditionalFileData[Element.Key] = AdditionalBuffers[Element.Key];
+		AdditionalFileData.Emplace(Element.Key, AdditionalBuffers[Element.Key]);
 	}
 	FPlatformMisc::CreateGuid(FileId);
 	ModelData.Empty();
@@ -548,7 +549,7 @@ TSharedPtr<UE::NNE::FSharedModelData> UNNEModelData::GetModelData(const FString&
 	AdditionalFileData.GetKeys(Keys);
 	for (auto& Key : Keys)
 	{
-		AdditionalFileDataView[Key] = AdditionalFileData[Key];
+		AdditionalFileDataView.Emplace(Key, AdditionalFileData[Key]);
 	}
 
 #if WITH_EDITOR

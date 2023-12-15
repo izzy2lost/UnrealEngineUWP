@@ -149,6 +149,7 @@ public:
 	 * Get the FGuid identifying the FileData.
 	 *
 	 * The FileId is created on import of an asset. It can be used to identify the FileData, e.g. when putting corresponding data into the DDC or caching data locally.
+	 * In standalone: An empty FGuid.
 	 *
 	 * @return The FileId.
 	 */
