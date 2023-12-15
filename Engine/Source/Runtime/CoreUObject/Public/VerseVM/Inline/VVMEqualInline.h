@@ -37,7 +37,7 @@ inline bool VValue::Equal(ContextType Context, VValue Left, VValue Right, Handle
 	{
 		return Left.IsLogic() && Right.IsLogic() && Left.AsBool() == Right.AsBool();
 	}
-	else if (Left.IsEnumerator() && Right.IsEnumerator())
+	else if (Left.IsEnumerator() || Right.IsEnumerator())
 	{
 		checkSlow(Left != Right);
 		return false;
