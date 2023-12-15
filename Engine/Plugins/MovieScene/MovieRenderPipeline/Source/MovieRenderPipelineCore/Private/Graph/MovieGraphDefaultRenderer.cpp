@@ -433,13 +433,25 @@ TArray<FMovieGraphImagePreviewData> UMovieGraphDefaultRenderer::GetPreviewData()
 { 
 	TArray<FMovieGraphImagePreviewData> Results;
 
-	TArray<TObjectPtr<UTextureRenderTarget2D>> PooledTargets;
-	PooledViewRenderTargets.GenerateValueArray(PooledTargets);
+	// The evaluated config may not be available when the preview data is first requested
+	FString LayerName;
+	const UMovieGraphTimeStepBase* TimeStepInstance = GetOwningGraph()->GetTimeStepInstance();
+	const UMovieGraphEvaluatedConfig* EvaluatedConfig = TimeStepInstance ? TimeStepInstance->GetCalculatedTimeData().EvaluatedConfig : nullptr;
 
-	for (const TObjectPtr<UTextureRenderTarget2D>& Target : PooledTargets)
+	for (const TPair<UE::MovieGraph::DefaultRenderer::FMovieGraphImagePreviewDataPoolParams, TObjectPtr<UTextureRenderTarget2D>>& RenderTarget : PooledViewRenderTargets)
 	{
+		// Try to determine the layer name
+		if (EvaluatedConfig)
+		{
+			constexpr bool bIncludeCDOs = false;
+			const UMovieGraphRenderLayerNode* RenderLayerNode = EvaluatedConfig->GetSettingForBranch<UMovieGraphRenderLayerNode>(RenderTarget.Key.Identifier.RootBranchName, bIncludeCDOs);
+			LayerName = RenderLayerNode ? RenderLayerNode->GetRenderLayerName() : TEXT("");
+		}
+		
 		FMovieGraphImagePreviewData& Data = Results.AddDefaulted_GetRef();
-		Data.Texture = Target.Get();
+		Data.Identifier = RenderTarget.Key.Identifier;
+		Data.Texture = RenderTarget.Value.Get();
+		Data.LayerName = LayerName;
 	}
 
 	return Results;

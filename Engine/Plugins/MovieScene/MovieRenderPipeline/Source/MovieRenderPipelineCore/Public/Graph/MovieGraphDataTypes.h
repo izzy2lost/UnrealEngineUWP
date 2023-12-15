@@ -43,9 +43,13 @@ struct FMovieGraphImagePreviewData
 	UPROPERTY(BlueprintReadOnly, Category = "Movie Graph")
 	class UTexture* Texture;
 	
-	/** The identifier for the image, containing the render layer name, renderer, etc. */
+	/** The identifier for the image, containing the branch name, renderer, etc. */
 	UPROPERTY(BlueprintReadOnly, Category = "Movie Graph")
 	FMovieGraphRenderDataIdentifier Identifier;
+	
+	/** The layer name associated with the render. */
+	UPROPERTY(BlueprintReadOnly, Category = "Movie Graph")
+	FString LayerName;
 };
 
 USTRUCT(BlueprintType)
