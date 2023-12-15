@@ -1027,11 +1027,11 @@ namespace uba
 			if (hasExited)
 			{
 				LineCountLogger counter;
-				process.processStats.Print(counter);
+				process.processStats.Print(counter, m_traceView.frequency);
 				u32 prevLineCount = counter.lineCount;
-				process.sessionStats.Print(counter);
-				process.storageStats.Print(counter);
-				process.systemStats.Print(counter, false);
+				process.sessionStats.Print(counter, m_traceView.frequency);
+				process.storageStats.Print(counter, m_traceView.frequency);
+				process.systemStats.Print(counter, false, m_traceView.frequency);
 				hasStorageStats = prevLineCount != counter.lineCount;
 				lineCount = 6 + counter.lineCount;
 				if (hasStorageStats)
@@ -1081,18 +1081,18 @@ namespace uba
 			if (process.stop != ~u64(0))
 			{
 				logger.Info(L"  ----------- Process stats -----------");
-				process.processStats.Print(logger);
+				process.processStats.Print(logger, m_traceView.frequency);
 				if (hasStorageStats)
 				{
 					logger.Info(L"");
 					logger.Info(L"  ----------- Session stats -----------");
-					process.sessionStats.Print(logger);
+					process.sessionStats.Print(logger, m_traceView.frequency);
 					logger.Info(L"");
 					logger.Info(L"  ----------- Storage stats -----------");
-					process.storageStats.Print(logger);
+					process.storageStats.Print(logger, m_traceView.frequency);
 					logger.Info(L"");
 					logger.Info(L"  ----------- System stats ------------");
-					process.systemStats.Print(logger, false);
+					process.systemStats.Print(logger, false, m_traceView.frequency);
 				}
 			}
 		}

@@ -820,7 +820,7 @@ namespace uba
 					if (m_startInfo.outputStatsThresholdMs && TimeToMs(m_processStats.GetTotalTime()) > m_startInfo.outputStatsThresholdMs)
 					{
 						m_session.PrintProcessStats(m_processStats, logName.data);
-						m_processStats.Print(m_session.m_logger);
+						m_processStats.Print(m_session.m_logger, GetFrequency());
 					}
 
 					return false;

@@ -57,7 +57,7 @@ namespace uba
 
 		u64 hostTotalTime = 0;
 
-		void Print(Logger& logger);
+		void Print(Logger& logger, u64 frequency = GetFrequency());
 
 		u64 GetTotalTime()
 		{
@@ -147,7 +147,7 @@ namespace uba
 
 		void Read(BinaryReader& reader);
 		void Write(BinaryWriter& writer);
-		void Print(Logger& logger, bool writeHeader);
+		void Print(Logger& logger, bool writeHeader, u64 frequency = GetFrequency());
 		void Add(const SystemStats& other);
 		static SystemStats& GetCurrent();
 		static SystemStats& GetGlobal();

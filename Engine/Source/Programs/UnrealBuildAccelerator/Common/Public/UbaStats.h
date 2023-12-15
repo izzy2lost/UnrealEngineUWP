@@ -40,7 +40,7 @@ namespace uba
 		void Write(BinaryWriter& writer);
 		void Read(BinaryReader& reader);
 		void Add(const StorageStats& other);
-		void Print(Logger& logger);
+		void Print(Logger& logger, u64 frequency = GetFrequency());
 		static StorageStats* GetCurrent();
 	};
 
@@ -74,7 +74,7 @@ namespace uba
 		void Write(BinaryWriter& writer);
 		void Read(BinaryReader& reader, u32 version);
 		void Add(const SessionStats& other);
-		void Print(Logger& logger);
+		void Print(Logger& logger, u64 frequency = GetFrequency());
 		static SessionStats* GetCurrent();
 	};
 
@@ -109,7 +109,7 @@ namespace uba
 		SessionSummaryStats() : waitMemPressure(0), killCount(0) {}
 		void Write(BinaryWriter& writer);
 		void Read(BinaryReader& reader, u32 version);
-		void Print(Logger& logger);
+		void Print(Logger& logger, u64 frequency = GetFrequency());
 	};
 
 }
