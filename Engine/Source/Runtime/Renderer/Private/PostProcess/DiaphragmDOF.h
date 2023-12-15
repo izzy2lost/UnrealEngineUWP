@@ -31,6 +31,12 @@ struct FPhysicalCocModel
 	// Unclamped resolution less background coc radius.
 	float InfinityBackgroundCocRadius;
 
+	/** Indicates whether a dynamic offset dependent on scene depth should be computed for every pixel */
+	bool bEnableDynamicOffset;
+
+	/** When dynamic offset is enabled, this is the coc radius at which objects will be perfectly sharp */
+	float InFocusRadius;
+
 	// Resolution less minimal foreground coc radius < 0.
 	float MinForegroundCocRadius;
 
@@ -59,6 +65,7 @@ struct FPhysicalCocModel
 	/** Returns limit(SceneDepthToCocRadius) for SceneDepth -> Infinity. */
 	FORCEINLINE float ComputeViewMaxBackgroundCocRadius(float HorizontalResolution) const
 	{
+		// Dynamic CoC offset is designed to go to zero at infinite distance, so we don't need to factor it into the max background radius
 		return FMath::Min(FMath::Max(InfinityBackgroundCocRadius, MaxDepthBlurRadius), MaxBackgroundCocRadius) * HorizontalResolution;
 	}
 	
@@ -70,6 +77,10 @@ struct FPhysicalCocModel
 	{
 		return DepthToResCocRadius(GNearClippingPlane, HorizontalResolution);
 	}
+
+private:
+	/** Gets the offset to the circle of confusion to apply for the specified radius */
+	float GetCocOffset(float CocRadius) const;
 };
 
 

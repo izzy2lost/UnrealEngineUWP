@@ -10,6 +10,7 @@
 #include "DisplayClusterConfigurationTypes_ICVFX.h"
 #include "DisplayClusterEditorPropertyReference.h"
 #include "Render/Viewport/Containers/DisplayClusterViewport_CameraMotionBlur.h"
+#include "Render/Viewport/Containers/DisplayClusterViewport_CameraDepthOfField.h"
 
 #include "DisplayClusterICVFXCameraComponent.generated.h"
 
@@ -46,6 +47,9 @@ public:
 
 public:
 	FDisplayClusterViewport_CameraMotionBlur GetMotionBlurParameters();
+
+	/** Gets the depth of field parameters to store on the display cluster viewport */
+	FDisplayClusterViewport_CameraDepthOfField GetDepthOfFieldParameters();
 
 	/**
 	 * Return the actual source camera, e.g. the camera component of the referenced cine camera.
@@ -128,6 +132,10 @@ private:
 
 	UPROPERTY(EditAnywhere, Transient, Category = "In Camera VFX", meta = (PropertyPath = "CameraSettings.CameraMotionBlur"))
 	FDisplayClusterEditorPropertyReference CameraMotionBlurRef;
+
+	/** Exposed reference to the camera's inner depth of field settings */
+	UPROPERTY(EditAnywhere, Transient, Category = "In Camera VFX", meta = (PropertyPath = "CameraSettings.CameraDepthOfField"))
+	FDisplayClusterEditorPropertyReference CameraDepthOfFieldRef;
 
 	UPROPERTY(EditAnywhere, Transient, Category = "In Camera VFX", meta = (PropertyPath = "CameraSettings.CameraHideList"))
 	FDisplayClusterEditorPropertyReference CameraHideListRef;

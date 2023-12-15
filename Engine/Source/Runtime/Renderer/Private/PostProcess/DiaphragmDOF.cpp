@@ -428,6 +428,10 @@ public:
 	static void ModifyCompilationEnvironment(const FGlobalShaderPermutationParameters& Parameters, FShaderCompilerEnvironment& OutEnvironment)
 	{
 		OutEnvironment.SetDefine(TEXT("COC_TILE_SIZE"), kCocTileSize);
+
+		// If on console, don't compile any dynamic CoC offset to avoid performance differences
+		const bool bIsConsole = FDataDrivenShaderPlatformInfo::GetIsConsole(Parameters.Platform);
+		OutEnvironment.SetDefine(TEXT("WITH_DYNAMIC_COC_OFFSET"), bIsConsole ? 0 : 1);
 	}
 
 	FDiaphragmDOFShader() {}
@@ -633,6 +637,8 @@ END_SHADER_PARAMETER_STRUCT()
 
 BEGIN_SHADER_PARAMETER_STRUCT(FDOFCocModelShaderParameters, )
 	SHADER_PARAMETER(float, CocInfinityRadius)
+	SHADER_PARAMETER(float, CocInFocusRadius)
+	SHADER_PARAMETER(uint32, bCocEnableDynamicRadiusOffset)
 	SHADER_PARAMETER(float, CocMinRadius)
 	SHADER_PARAMETER(float, CocMaxRadius)
 	SHADER_PARAMETER(float, CocSqueeze)
@@ -647,6 +653,8 @@ void SetCocModelParameters(
 	float CocRadiusBasis = 1.0f)
 {
 	OutParameters->CocInfinityRadius = CocRadiusBasis * CocModel.InfinityBackgroundCocRadius;
+	OutParameters->CocInFocusRadius = CocRadiusBasis * CocModel.InFocusRadius;
+	OutParameters->bCocEnableDynamicRadiusOffset = CocModel.bEnableDynamicOffset;
 	OutParameters->CocMinRadius = CocRadiusBasis * CocModel.MinForegroundCocRadius;
 	OutParameters->CocMaxRadius = CocRadiusBasis * CocModel.MaxBackgroundCocRadius;
 	OutParameters->CocSqueeze = CocModel.Squeeze;

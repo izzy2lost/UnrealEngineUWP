@@ -566,6 +566,29 @@ public:
 };
 
 USTRUCT(BlueprintType)
+struct DISPLAYCLUSTERCONFIGURATION_API FDisplayClusterConfigurationICVFX_CameraDepthOfField
+{
+	GENERATED_BODY()
+
+public:
+	/** Enables depth of field correction on the wall, which dynamically adjusts the size of the defocus circle of confusion to compensate for the real-world camera blur when shooting the wall */
+	UPROPERTY(BlueprintReadWrite, EditAnywhere, Category = NDisplay)
+	bool bEnableDepthOfFieldCompensation = false;
+
+	/** Allows the ICVFX camera to automatically compute its distance from the stage walls using ray casting every tick */
+	UPROPERTY(BlueprintReadWrite, EditAnywhere, Category = NDisplay)
+	bool bAutomaticallySetDistanceToWall = true;
+
+	/** The distance from the ICVFX camera to the wall it is pointing at */
+	UPROPERTY(BlueprintReadWrite, EditAnywhere, Category = NDisplay, meta=(EditCondition="!bAutomaticallySetDistanceToWall"))
+	float DistanceToWall = 0.0;
+
+	/** An offset applied to DistanceToWall (applied regardless of whether DistanceToWall is automatically set) */
+	UPROPERTY(BlueprintReadWrite, EditAnywhere, Category = NDisplay)
+	float DistanceToWallOffset = 0.0;
+};
+
+USTRUCT(BlueprintType)
 struct DISPLAYCLUSTERCONFIGURATION_API FDisplayClusterConfigurationICVFX_CameraSoftEdge
 {
 	GENERATED_BODY()
@@ -740,6 +763,10 @@ public:
 	/** Render motion blur more accurately by subtracting blur from camera motion and avoiding amplification of blur by the physical camera. */
 	UPROPERTY(BlueprintReadWrite, BlueprintReadWrite, EditAnywhere, Category = "In Camera VFX")
 	FDisplayClusterConfigurationICVFX_CameraMotionBlur CameraMotionBlur;
+
+	/** Settings that control the depth of field blur applied to the ICVFX image */
+	UPROPERTY(BlueprintReadWrite, BlueprintReadWrite, EditAnywhere, Category = "In Camera VFX")
+	FDisplayClusterConfigurationICVFX_CameraDepthOfField CameraDepthOfField;
 
 	/** Configure global render settings for this viewport */
 	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = NDisplay)

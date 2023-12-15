@@ -140,17 +140,33 @@ void DiaphragmDOF::FPhysicalCocModel::Compile(const FViewInfo& View)
 
 		// Convert diameter in mm to resolution less radius on the filmback.
 		InfinityBackgroundCocRadius = DiameterInMM * 0.5f / SensorWidthInMM;
+
+		if (View.InFocusDistance > 0)
+		{
+			// For now, the dynamic CoC offset only handles cases where the in-focus radius is positive (the in-focus distance is further than the focal point)
+			// so clamp the in focus radius to always be positive
+			InFocusRadius = FMath::Max(InfinityBackgroundCocRadius * (1 - FocusDistance / View.InFocusDistance), 0.0f);
+			bEnableDynamicOffset = View.bEnableDynamicCocOffset;
+		}
+		else
+		{
+			InFocusRadius = 0.0;
+			bEnableDynamicOffset = false;
+		}
 	}
 	else
 	{
 		InfinityBackgroundCocRadius = 0.0f;
 		MinForegroundCocRadius = 0.0;
+		InFocusRadius = 0.0;
+		bEnableDynamicOffset = false;
 	}
 }
 
 float DiaphragmDOF::FPhysicalCocModel::DepthToResCocRadius(float SceneDepth, float HorizontalResolution) const
 {
-	float CocRadius = ((SceneDepth - FocusDistance) / SceneDepth) * InfinityBackgroundCocRadius;
+	float InitialCocRadius = ((SceneDepth - FocusDistance) / SceneDepth) * InfinityBackgroundCocRadius;
+	float CocRadius = InitialCocRadius + GetCocOffset(InitialCocRadius);
 
 	// Depth blur based.
 	float DepthBlurAbsRadius = (1.0 - FMath::Exp2(-SceneDepth * DepthBlurExponent)) * MaxDepthBlurRadius;
@@ -162,6 +178,19 @@ float DiaphragmDOF::FPhysicalCocModel::DepthToResCocRadius(float SceneDepth, flo
 		ReturnCoc = -ReturnCoc;
 	}
 	return HorizontalResolution * FMath::Clamp(ReturnCoc, MinForegroundCocRadius, MaxBackgroundCocRadius);
+}
+
+float DiaphragmDOF::FPhysicalCocModel::GetCocOffset(float CocRadius) const
+{
+	float DynamicOffset = 0.0;
+	if (bEnableDynamicOffset)
+	{
+		const float B = 0.467743 + 7.89656 * pow(InFocusRadius, -1.89051);
+		const float V = -(2.57186 + 0.142159 * InFocusRadius);
+		DynamicOffset = -InFocusRadius * (1 - pow(1 + exp(B * (InFocusRadius - CocRadius)), V));
+	}
+
+	return DynamicOffset;
 }
 
 void DiaphragmDOF::FBokehModel::Compile(const FViewInfo& View)

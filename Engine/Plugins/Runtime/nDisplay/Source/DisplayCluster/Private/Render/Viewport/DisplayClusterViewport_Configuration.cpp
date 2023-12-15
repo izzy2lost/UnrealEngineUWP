@@ -100,6 +100,11 @@ void FDisplayClusterViewport::UpdateConfiguration_CameraMotionBlur(const FDispla
 	CameraMotionBlur.BlurSetup = InCameraMotionBlur;
 }
 
+void FDisplayClusterViewport::UpdateConfiguration_CameraDepthOfField(const FDisplayClusterViewport_CameraDepthOfField& InCameraDepthOfField)
+{
+	CameraDepthOfField = InCameraDepthOfField;
+}
+
 void FDisplayClusterViewport::UpdateConfiguration_PostRenderOverride(const FDisplayClusterConfigurationPostRender_Override& InOverride)
 {
 	PostRenderSettings.Replace.TextureRHI.SafeRelease();

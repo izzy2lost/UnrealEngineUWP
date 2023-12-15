@@ -119,6 +119,25 @@ void UDisplayClusterICVFXCameraComponent::TickComponent(float DeltaTime, ELevelT
 	Super::TickComponent(DeltaTime, TickType, ThisTickFunction);
 
 	UpdateOverscanEstimatedFrameSize();
+
+	if (CameraSettings.CameraDepthOfField.bAutomaticallySetDistanceToWall)
+	{
+		TRACE_CPUPROFILER_EVENT_SCOPE_STR("UDisplayClusterICVFXCameraComponent Query Distance To Wall");
+
+		if (ADisplayClusterRootActor* RootActor = Cast<ADisplayClusterRootActor>(GetOwner()))
+		{
+			const FVector CameraLocation = GetComponentLocation();
+			const FVector CameraDirection = GetComponentRotation().RotateVector(FVector::XAxisVector);
+			float DistanceToWall = 0.0;
+
+			// For now, do a single trace from the center of the camera to the stage geometry.
+			// Alternative methods of obtaining wall distance, such as averaging multiple points, can be performed here
+			if (RootActor->GetDistanceToStageGeometry(CameraLocation, CameraDirection, DistanceToWall))
+			{
+				CameraSettings.CameraDepthOfField.DistanceToWall = DistanceToWall;
+			}
+		}
+	}
 }
 
 void UDisplayClusterICVFXCameraComponent::UpdateOverscanEstimatedFrameSize()
@@ -193,6 +212,17 @@ FDisplayClusterViewport_CameraMotionBlur UDisplayClusterICVFXCameraComponent::Ge
 		}
 		break;
 	}
+
+	return OutParameters;
+}
+
+FDisplayClusterViewport_CameraDepthOfField UDisplayClusterICVFXCameraComponent::GetDepthOfFieldParameters()
+{
+	FDisplayClusterViewport_CameraDepthOfField OutParameters;
+
+	OutParameters.bEnableDepthOfFieldCompensation = CameraSettings.CameraDepthOfField.bEnableDepthOfFieldCompensation;
+	OutParameters.DistanceToWall = CameraSettings.CameraDepthOfField.DistanceToWall;
+	OutParameters.DistanceToWallOffset = CameraSettings.CameraDepthOfField.DistanceToWallOffset;
 
 	return OutParameters;
 }

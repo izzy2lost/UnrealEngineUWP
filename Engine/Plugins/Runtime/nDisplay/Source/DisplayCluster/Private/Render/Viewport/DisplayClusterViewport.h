@@ -6,6 +6,7 @@
 #include "Render/Viewport/Configuration/DisplayClusterViewportConfiguration.h"
 
 #include "Render/Viewport/Containers/ImplDisplayClusterViewport_CameraMotionBlur.h"
+#include "Render/Viewport/Containers/DisplayClusterViewport_CameraDepthOfField.h"
 #include "Render/Viewport/Containers/DisplayClusterViewport_CustomFrustumRuntimeSettings.h"
 #include "Render/Viewport/Containers/DisplayClusterViewport_OverscanRuntimeSettings.h"
 #include "Render/Viewport/Containers/DisplayClusterViewportRemap.h"
@@ -317,6 +318,9 @@ public:
 	/** setup CameraMotionBlur configuration for this viewport. */
 	void UpdateConfiguration_CameraMotionBlur(const struct FDisplayClusterViewport_CameraMotionBlur& InCameraMotionBlur);
 
+	/** setup camera depth of field configuration for this viewport. */
+	void UpdateConfiguration_CameraDepthOfField(const class FDisplayClusterViewport_CameraDepthOfField& InCameraDepthOfField);
+
 	/** setup PostRender mips configuration for this viewport. */
 	void UpdateConfiguration_PostRenderGenerateMips(const struct FDisplayClusterConfigurationPostRender_GenerateMips& InGenerateMips);
 
@@ -394,6 +398,9 @@ private:
 
 	// Additional features
 	FImplDisplayClusterViewport_CameraMotionBlur CameraMotionBlur;
+
+	// Depth of field settings
+	FDisplayClusterViewport_CameraDepthOfField CameraDepthOfField;
 
 	// Overscan rendering feature
 	FDisplayClusterViewport_OverscanRuntimeSettings      OverscanRuntimeSettings;

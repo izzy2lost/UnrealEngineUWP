@@ -1554,6 +1554,12 @@ public:
 	FShaderResourceViewRHIRef LandscapeIndirectionBuffer;
 	FShaderResourceViewRHIRef LandscapePerComponentDataBuffer;
 
+	/** Enables a CoC offset whose offset value changes with pixel's scene depth */
+	bool bEnableDynamicCocOffset = false;
+
+	/** When dynamic CoC offset is enabled, this is the distance from camera at which objects will be in perfect focus (when the CoC offset is maximum so that the final CoC is 0) */
+	float InFocusDistance = 0.0;
+
 	/** Feature level for this scene */
 	const ERHIFeatureLevel::Type FeatureLevel;
 
