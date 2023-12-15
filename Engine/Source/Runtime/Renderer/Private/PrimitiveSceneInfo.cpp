@@ -557,7 +557,9 @@ void FPrimitiveSceneInfo::CacheMeshDrawCommands(FScene* Scene, TArrayView<FPrimi
 					PrefixSum = NewPrefixSum;
 				}
 			}
-			SceneInfo->StaticMeshCommandInfos.SetNum(PrefixSum, true);
+
+			SceneInfo->StaticMeshCommandInfos.SetNum(PrefixSum, false);		// bAllowShrinking == false, since we explicitly call Shrink on the next line
+			SceneInfo->StaticMeshCommandInfos.Shrink();
 		}
 	};
 
