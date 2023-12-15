@@ -63,6 +63,12 @@ static TAutoConsoleVariable<int32> CVarSubstrateAllocationMode(
 	TEXT("Substrate resource allocation mode. \n 0: Allocate resources based on view requirement, \n 1: Allocate resources based on view requirement, but can only grow over frame to minimize resources reallocation and hitches, \n 2: Allocate resources based on platform settings."),
 	ECVF_RenderThreadSafe);
 
+static TAutoConsoleVariable<int32> CVarSubstrateTileCoord8Bits(
+	TEXT("r.Substrate.TileCoord8bits"),
+	0,
+	TEXT("Format of tile coord. This variable is read-only."),
+	ECVF_RenderThreadSafe);
+
 IMPLEMENT_GLOBAL_SHADER_PARAMETER_STRUCT(FSubstrateGlobalUniformParameters, "Substrate");
 
 void FSubstrateViewData::Reset()
@@ -149,6 +155,11 @@ FIntPoint GetSubstrateTextureResolution(const FViewInfo& View, const FIntPoint& 
 	return InResolution;
 }
 
+bool Is8bitTileCoordEnabled()
+{
+	return CVarSubstrateTileCoord8Bits.GetValueOnAnyThread() > 0 ? 1 : 0;
+}
+
 bool GetSubstrateUsesComplexSpecialPath(const FViewInfo& View)
 {
 	if (Substrate::IsSubstrateEnabled())
@@ -172,15 +183,9 @@ bool IsClassificationAsync()
 	return CVarSubstrateAsyncClassification.GetValueOnRenderThread() > 0;
 }
 
-static EPixelFormat GetClassificationTileFormat(const FIntPoint& InResolution)
+static EPixelFormat GetClassificationTileFormat(const FIntPoint& InResolution, uint32 InTileEncoding)
 {
-	// For platform which whose resolution is never above 1080p, use 8bit tile format for performance.
-	const bool bRequest8bit = Is8bitTileCoordEnabled();
-	if (bRequest8bit)
-	{
-		check(InResolution.X <= 2048 && InResolution.Y <= 2048);
-	}
-	return bRequest8bit ? PF_R16_UINT : PF_R32_UINT;
+	return InTileEncoding == SUBSTRATE_TILE_ENCODING_16BITS ? PF_R32_UINT : PF_R16_UINT;
 }
 
 static void InitialiseSubstrateViewData(FRDGBuilder& GraphBuilder, FViewInfo& View, const FSceneTexturesConfig& SceneTexturesConfig, bool bNeedClosureOffets, FSubstrateSceneData& SceneData)
@@ -215,6 +220,10 @@ static void InitialiseSubstrateViewData(FRDGBuilder& GraphBuilder, FViewInfo& Vi
 			const uint32 DecalTileCount = IsDBufferPassEnabled(View.GetShaderPlatform()) ? TileResolution.X * TileResolution.Y : 4;
 			const uint32 RegularTileCount = TileResolution.X * TileResolution.Y;
 
+			// For platforms whose resolution is never above 1080p, use 8bit tile format for performance, if possible
+			const bool bRequest8bit = Substrate::Is8bitTileCoordEnabled() && (TileResolution.X <= 256 && TileResolution.Y <= 256);
+			Out.TileEncoding = bRequest8bit ? SUBSTRATE_TILE_ENCODING_8BITS : SUBSTRATE_TILE_ENCODING_16BITS;
+
 			bool bUsesComplexSpecialRenderPath = SceneData.bUsesComplexSpecialRenderPath; // Use the Scene temporally stable bUsesComplexSpecialRenderPath to reduce buffer reallocation.
 
 			Out.ClassificationTileListBufferOffset[ESubstrateTileType::ESimple]							= 0;
@@ -230,7 +239,7 @@ static void InitialiseSubstrateViewData(FRDGBuilder& GraphBuilder, FViewInfo& Vi
 
 			check(TotalTileCount > 0);
 
-			const EPixelFormat ClassificationTileFormat = GetClassificationTileFormat(DynResIndependentViewSize);
+			const EPixelFormat ClassificationTileFormat = GetClassificationTileFormat(DynResIndependentViewSize, Out.TileEncoding);
 			const uint32 FormatBytes = ClassificationTileFormat == PF_R16_UINT ? sizeof(uint16) : sizeof(uint32);
 
 			Out.ClassificationTileListBuffer = GraphBuilder.CreateBuffer(FRDGBufferDesc::CreateBufferDesc(FormatBytes, TotalTileCount), TEXT("Substrate.TileListBuffer"));
@@ -685,6 +694,7 @@ class FSubstrateClosureTilePassCS : public FGlobalShader
 
 		SHADER_PARAMETER_RDG_BUFFER_SRV(Buffer<uint>, TileListBuffer)
 		SHADER_PARAMETER(uint32, TileListBufferOffset)
+		SHADER_PARAMETER(uint32, TileEncoding)
 		RDG_BUFFER_ACCESS(TileIndirectBuffer, ERHIAccess::IndirectArgs)
 	END_SHADER_PARAMETER_STRUCT()
 
@@ -731,6 +741,7 @@ class FSubstrateMaterialTileClassificationPassCS : public FGlobalShader
 		SHADER_PARAMETER(int32, bRectPrimitive)
 		SHADER_PARAMETER(FIntPoint, ViewResolution)
 		SHADER_PARAMETER(uint32, MaxBytesPerPixel)
+		SHADER_PARAMETER(uint32, TileEncoding)
 		SHADER_PARAMETER_ARRAY(FUintVector4, TileListBufferOffsets, [SUBSTRATE_TILE_TYPE_COUNT])
 		SHADER_PARAMETER_RDG_TEXTURE(Texture2D<SUBSTRATE_TOP_LAYER_TYPE>, TopLayerTexture)
 		SHADER_PARAMETER_RDG_TEXTURE(Texture2D, TopLayerCmaskTexture)
@@ -791,6 +802,7 @@ class FSubstrateDBufferPassCS : public FGlobalShader
 		SHADER_PARAMETER_RDG_TEXTURE_UAV(RWTexture2DArray<uint>, MaterialTextureArrayUAV)
 		SHADER_PARAMETER_RDG_BUFFER_SRV(Buffer<uint>, TileListBuffer)
 		SHADER_PARAMETER(uint32, TileListBufferOffset)
+		SHADER_PARAMETER(uint32, TileEncoding)
 		SHADER_PARAMETER_RDG_TEXTURE_SRV(Texture2D<float>, SceneStencilTexture)
 		RDG_BUFFER_ACCESS(TileIndirectBuffer, ERHIAccess::IndirectArgs)
 	END_SHADER_PARAMETER_STRUCT()
@@ -925,6 +937,7 @@ static FSubstrateTileParameter InternalSetTileParameters(FRDGBuilder* GraphBuild
 	{
 		Out.TileListBuffer = View.SubstrateViewData.ClassificationTileListBufferSRV;
 		Out.TileListBufferOffset = View.SubstrateViewData.ClassificationTileListBufferOffset[TileType];
+		Out.TileEncoding = View.SubstrateViewData.TileEncoding;
 		Out.TileIndirectBuffer = View.SubstrateViewData.ClassificationTileDrawIndirectBuffer;
 	}
 	else if (GraphBuilder)
@@ -933,6 +946,7 @@ static FSubstrateTileParameter InternalSetTileParameters(FRDGBuilder* GraphBuild
 		FRDGBufferSRVRef BufferDummySRV = GraphBuilder->CreateSRV(BufferDummy, PF_R32_UINT);
 		Out.TileListBuffer = BufferDummySRV;
 		Out.TileListBufferOffset = 0;
+		Out.TileEncoding = SUBSTRATE_TILE_ENCODING_16BITS;
 		Out.TileIndirectBuffer = BufferDummy;
 	}
 	return Out;
@@ -953,6 +967,7 @@ FSubstrateTilePassVS::FParameters SetTileParameters(
 	Out.ViewScreenToTranslatedWorld = View.CachedViewUniformShaderParameters->ScreenToTranslatedWorld;
 	Out.TileListBuffer = Temp.TileListBuffer;
 	Out.TileListBufferOffset = Temp.TileListBufferOffset;
+	Out.TileEncoding = Temp.TileEncoding;
 	Out.TileIndirectBuffer = Temp.TileIndirectBuffer;
 	return Out;
 }
@@ -973,6 +988,7 @@ FSubstrateTilePassVS::FParameters SetTileParameters(
 	Out.ViewScreenToTranslatedWorld = View.CachedViewUniformShaderParameters->ScreenToTranslatedWorld;
 	Out.TileListBuffer = Temp.TileListBuffer;
 	Out.TileListBufferOffset = Temp.TileListBufferOffset;
+	Out.TileEncoding = Temp.TileEncoding;
 	Out.TileIndirectBuffer = Temp.TileIndirectBuffer;
 	return Out;
 }
@@ -1286,6 +1302,7 @@ void AddSubstrateMaterialClassificationPass(FRDGBuilder& GraphBuilder, const FMi
 			PassParameters->DBuffer = GetDBufferParameters(GraphBuilder, DBufferTextures, Platform);
 			PassParameters->SceneStencilTexture = SceneTextures.Stencil;
 			PassParameters->TileListBufferUAV = SubstrateViewData->ClassificationTileListBufferUAV;
+			PassParameters->TileEncoding = SubstrateViewData->TileEncoding;
 			for (uint32 TileType = 0; TileType < SUBSTRATE_TILE_TYPE_COUNT; ++TileType)
 			{
 				PassParameters->TileListBufferOffsets[TileType] = FUintVector4(SubstrateViewData->ClassificationTileListBufferOffset[TileType], 0, 0, 0);
@@ -1338,6 +1355,7 @@ void AddSubstrateMaterialClassificationPass(FRDGBuilder& GraphBuilder, const FMi
 				PassParameters->MaterialTextureArray = SubstrateSceneData->MaterialTextureArraySRV;
 				PassParameters->TileListBuffer = SubstrateViewData->ClassificationTileListBufferSRV;
 				PassParameters->TileListBufferOffset = SubstrateViewData->ClassificationTileListBufferOffset[TileType];
+				PassParameters->TileEncoding = SubstrateViewData->TileEncoding;
 				PassParameters->TileIndirectBuffer = SubstrateViewData->ClassificationTileDispatchIndirectBuffer;
 
 				PassParameters->RWClosureOffsetTexture = GraphBuilder.CreateUAV(SubstrateSceneData->ClosureOffsetTexture);
@@ -1445,6 +1463,7 @@ void AddSubstrateDBufferPass(FRDGBuilder& GraphBuilder, const FMinimalSceneTextu
 
 			PassParameters->TileListBuffer = SubstrateViewData->ClassificationTileListBufferSRV;
 			PassParameters->TileListBufferOffset = SubstrateViewData->ClassificationTileListBufferOffset[TileType];
+			PassParameters->TileEncoding = SubstrateViewData->TileEncoding;
 			PassParameters->TileIndirectBuffer = SubstrateViewData->ClassificationTileDispatchIndirectBuffer;
 
 			// Dispatch with tile data

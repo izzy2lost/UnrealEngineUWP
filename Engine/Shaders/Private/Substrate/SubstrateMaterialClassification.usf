@@ -23,6 +23,7 @@ Texture2D<uint> TopLayerCmaskTexture;
 #endif
 RWTexture2DArray<uint> MaterialTextureArrayUAV;
 
+uint TileEncoding;
 uint4 TileListBufferOffsets[SUBSTRATE_TILE_TYPE_COUNT];
 uint GetTileListBufferOffsets(uint Type)
 {
@@ -275,7 +276,7 @@ void TileMainCS(uint2 DispatchThreadId : SV_DispatchThreadID, uint LinearIndex :
 
 	if (LinearIndex < 1 && bTileContainsSubstrate)
 	{
-		uint EncodedTile = SubstratePackTile(GroupId.xy);
+		uint EncodedTile = SubstratePackTile(GroupId.xy, TileEncoding);
 
 		if (bTileContainsComplexSpecial)
 		{
@@ -416,6 +417,7 @@ Texture2DArray<uint> MaterialTextureArray;
 
 Buffer<uint> TileListBuffer;
 uint TileListBufferOffset;
+uint TileEncoding;
 
 RWTexture2D<uint> RWClosureOffsetTexture;
 RWBuffer<uint>    RWClosureTileCountBuffer;
@@ -431,7 +433,7 @@ WAVESIZE(64) // PERMUTATION_WAVE_OPS is true only when wave>=64 are available
 [numthreads(SUBSTRATE_TILE_SIZE, SUBSTRATE_TILE_SIZE, 1)]
 void ClosureTileMainCS(uint2 GroupThreadId : SV_GroupThreadID, uint2 GroupId : SV_GroupID, uint LinearIndex : SV_GroupIndex)
 {
-	const uint2 TileCoord = SubstrateUnpackTile(TileListBuffer[TileListBufferOffset + GroupId.x]);
+	const uint2 TileCoord = SubstrateUnpackTile(TileListBuffer[TileListBufferOffset + GroupId.x], TileEncoding);
 	uint2 PixelCoord = TileCoord * SUBSTRATE_TILE_SIZE + GroupThreadId;
 	const bool bIsInViewRect = all(PixelCoord < uint2(View.ViewRectMinAndSize.zw));
 	PixelCoord += View.ViewRectMinAndSize.xy;

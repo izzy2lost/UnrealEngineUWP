@@ -76,6 +76,9 @@
 #define SUBSTRATE_MATERIAL_TYPE_COMPLEX					2
 #define SUBSTRATE_MATERIAL_TYPE_COMPLEX_SPECIAL			3
 
+#define SUBSTRATE_TILE_ENCODING_16BITS 					0
+#define SUBSTRATE_TILE_ENCODING_8BITS  					1
+
 // sizeof(FRHIDrawIndirectParameters) = 4 uints = 16 bytes
 #define GetSubstrateTileTypeDrawIndirectArgOffset_Byte(x)  (x * 16)
 #define GetSubstrateTileTypeDrawIndirectArgOffset_DWord(x) (x * 4)

@@ -79,6 +79,7 @@ uint FirstSliceStoringSubstrateSSSData;
 RWTexture2D<SUBSTRATE_TOP_LAYER_TYPE> TopLayerTexture;
 RWTexture2DArray<uint> MaterialTextureArrayUAV;
 
+uint TileEncoding;
 uint TileListBufferOffset;
 Buffer<uint> TileListBuffer;
 Buffer<uint> TileIndirectBuffer;
@@ -97,7 +98,7 @@ void MainCS(
 	if (View.GeneralPurposeTweak == 0)
 		return;
 
-	const uint2 TileCoord = SubstrateUnpackTile(TileListBuffer[TileListBufferOffset + GroupId.x]);
+	const uint2 TileCoord = SubstrateUnpackTile(TileListBuffer[TileListBufferOffset + GroupId.x], TileEncoding);
 	const uint2 PixelCoord = TileCoord * SUBSTRATE_TILE_SIZE + GroupThreadId;
 	const bool bIsValid = all(PixelCoord < uint2(View.ViewSizeAndInvSize.xy));
 

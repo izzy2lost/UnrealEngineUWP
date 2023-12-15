@@ -51,6 +51,7 @@ END_SHADER_PARAMETER_STRUCT()
 BEGIN_SHADER_PARAMETER_STRUCT(FSubstrateTileParameter, )
 	SHADER_PARAMETER_RDG_BUFFER_SRV(Buffer<uint>, TileListBuffer)
 	SHADER_PARAMETER(uint32, TileListBufferOffset)
+	SHADER_PARAMETER(uint32, TileEncoding)
 	RDG_BUFFER_ACCESS(TileIndirectBuffer, ERHIAccess::IndirectArgs)
 END_SHADER_PARAMETER_STRUCT()
 
@@ -151,6 +152,7 @@ struct FSubstrateViewData
 	bool bUsesComplexSpecialRenderPath = 0;
 
 	FIntPoint TileCount  = FIntPoint(0, 0);
+	uint32    TileEncoding = SUBSTRATE_TILE_ENCODING_16BITS;
 	uint32    LayerCount = 0;
 
 	FRDGBufferRef    ClassificationTileListBuffer = nullptr;
@@ -231,6 +233,7 @@ class FSubstrateTilePassVS : public FGlobalShader
 		SHADER_PARAMETER(FMatrix44f, ViewScreenToTranslatedWorld)
 		SHADER_PARAMETER_RDG_BUFFER_SRV(Buffer<uint>, TileListBuffer)
 		SHADER_PARAMETER(uint32, TileListBufferOffset)
+		SHADER_PARAMETER(uint32, TileEncoding)
 		RDG_BUFFER_ACCESS(TileIndirectBuffer, ERHIAccess::IndirectArgs)
 	END_SHADER_PARAMETER_STRUCT()
 

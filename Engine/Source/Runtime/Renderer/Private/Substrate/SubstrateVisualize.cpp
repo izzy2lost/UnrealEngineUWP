@@ -281,6 +281,7 @@ bool IsClassificationAsync();
 bool SupportsCMask(const FStaticShaderPlatform InPlatform);
 bool UsesSubstrateClosureCountFromMaterialData();
 uint32 GetMaterialBufferAllocationMode();
+bool Is8bitTileCoordEnabled();
 
 static void AddVisualizeSystemInfoPasses(FRDGBuilder& GraphBuilder, const FViewInfo& View, FScreenPassTexture& ScreenPassSceneColor, EShaderPlatform Platform)
 {

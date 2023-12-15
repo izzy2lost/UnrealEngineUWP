@@ -1792,12 +1792,6 @@ static TAutoConsoleVariable<int32> CVarSubstrateDebugAdvancedVisualizationShader
 	TEXT("Enable advanced Substrate material debug visualization shaders. Base pass shaders can output such advanced data."),
 	ECVF_ReadOnly | ECVF_RenderThreadSafe);
 
-static TAutoConsoleVariable<int32> CVarSubstrateTileCoord8Bits(
-	TEXT("r.Substrate.TileCoord8bits"),
-	0,
-	TEXT("Format of tile coord. This variable is read-only."),
-	ECVF_ReadOnly | ECVF_RenderThreadSafe);
-
 namespace Substrate
 {
 	bool IsSubstrateEnabled()
@@ -1928,11 +1922,6 @@ namespace Substrate
 	{
 		static FShaderPlatformCachedIniValue<int32> CVar(TEXT("r.Substrate.SpecularProfile"));
 		return IsSubstrateEnabled() && CVar.Get(InPlatform) > 0;
-	}
-
-	bool Is8bitTileCoordEnabled()
-	{
-		return CVarSubstrateTileCoord8Bits.GetValueOnAnyThread() > 0 ? 1 : 0;
 	}
 
 	uint32 GetSheenQuality()

@@ -8,33 +8,17 @@
 
 #if SUBSTRATE_ENABLED
 
-#ifndef USE_8BIT_TILE_COORD
-#error USE_8BIT_TILE_COORD needs to be defined
-#define USE_8BIT_TILE_COORD 0
-#endif
 ////////////////////////////////////////////////////////////////////////////////////////////////////////////
 // Substrate material type tile
 
-uint2 SubstrateUnpackTile(uint In)
+uint2 SubstrateUnpackTile(uint In, uint InEncoding)
 {
-#if USE_8BIT_TILE_COORD
-	return uint2(In & 0xFF, In >> 8);
-#else
-	return uint2(In & 0xFFFF, In >> 16);
-#endif
+	return InEncoding == SUBSTRATE_TILE_ENCODING_16BITS ? UnpackTileCoord16bits(In) : UnpackTileCoord8bits(In);
 }
 
-uint SubstratePackTile(uint2 TileCoord)
+uint SubstratePackTile(uint2 TileCoord, uint InEncoding)
 {
-#if USE_8BIT_TILE_COORD
-	return TileCoord.x | (TileCoord.y << 8);
-#else
-  #if COMPILER_SUPPORTS_PACK_INTRINSICS
-	return PackUInt2ToUInt(TileCoord.x, TileCoord.y);
-  #else
-	return TileCoord.x | (TileCoord.y << 16); // assumes 16bit is enough to represent a tiled resolution up to 65,535 :)
-  #endif
-#endif
+	return InEncoding == SUBSTRATE_TILE_ENCODING_16BITS ? PackUInt2ToUInt(TileCoord)/*TODO*/ : PackTileCoord8bits(TileCoord);
 }
 
 ////////////////////////////////////////////////////////////////////////////////////////////////////////////
