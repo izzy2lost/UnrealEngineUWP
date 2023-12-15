@@ -18,6 +18,8 @@ class MESHMODELINGTOOLSEXP_API USimpleCollisionEditorToolBuilder : public USingl
 	GENERATED_BODY()
 
 public:
+	virtual bool CanBuildTool(const FToolBuilderState& SceneState) const override;
+
 	virtual USingleSelectionMeshEditingTool* CreateNewTool(const FToolBuilderState& SceneState) const override;
 
 protected:
