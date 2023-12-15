@@ -262,14 +262,16 @@ uba::StorageClient* CreateStorageClient(uba::NetworkClient& client, const uba::t
 		return handle->GetHash();
 	}
 
+	// 100ns ticks
 	uba::u64 ProcessHandle_GetTotalProcessorTime(uba::ProcessHandle* handle)
 	{
-		return handle->GetTotalProcessorTime();
+		return uba::TimeToTick(handle->GetTotalProcessorTime());
 	}
 
+	// 100ns ticks
 	uba::u64 ProcessHandle_GetTotalWallTime(uba::ProcessHandle* handle)
 	{
-		return handle->GetTotalWallTime();
+		return uba::TimeToTick(handle->GetTotalWallTime());
 	}
 
 	void ProcessHandle_Cancel(uba::ProcessHandle* handle, bool terminate)

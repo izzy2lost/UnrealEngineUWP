@@ -10,13 +10,20 @@ namespace uba
 	u64 GetFrequency();						// Number of counts per second. GetTime() / GetFrequency() = seconds
 	u64 GetSystemTimeUs();					// Get time in microseconds since 1 Jan 1970 00:00 UTC
 
-	inline u64 TimeToMs(u64 time, u64 frequency)	{ return time * 1000 / frequency; }
+	inline u64 TimeToTick(u64 time, u64 frequency)	{ return time * 10'000'000 / frequency; }
+	inline u64 TimeToUs(u64 time, u64 frequency)	{ return time * 1'000'000 / frequency; }
+	inline u64 TimeToMs(u64 time, u64 frequency)	{ return time * 1'000 / frequency; }
 	inline float TimeToS(u64 time, u64 frequency)	{ return float(double(time) / double(frequency)); }
 
+	inline u64 TimeToTick(u64 time)					{ return TimeToTick(time, GetFrequency()); }
+	inline u64 TimeToUs(u64 time)					{ return TimeToUs(time, GetFrequency()); }
 	inline u64 TimeToMs(u64 time)					{ return TimeToMs(time, GetFrequency()); }
-	inline u64 UsToTime(u64 us)						{ return us * GetFrequency() / 1'000'000; }
-	inline u64 MsToTime(u64 ms)						{ return ms * GetFrequency() / 1000; }
 	inline float TimeToS(u64 time)					{ return TimeToS(time, GetFrequency()); }
+
+	inline u64 TickToTime(u64 us)					{ return us * GetFrequency() / 10'000'000; }
+	inline u64 UsToTime(u64 us)						{ return us * GetFrequency() / 1'000'000; }
+	inline u64 MsToTime(u64 ms)						{ return ms * GetFrequency() / 1'000; }
+
 
 
 	struct Timer
