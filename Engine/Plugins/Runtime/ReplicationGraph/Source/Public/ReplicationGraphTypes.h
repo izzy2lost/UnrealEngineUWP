@@ -1479,6 +1479,18 @@ private:
 struct FRPCSendPolicyInfo
 {
 	FRPCSendPolicyInfo(const bool bInSendImmediately) : bSendImmediately(bInSendImmediately) { }
+
+	/** 
+	 * When true this will modify the send behavior of an RPC.
+	 * If the RPC is called from inside NetDriver::TickDispatch (aka during packet reception and remote RPC execution) then the RPC will get immediately 
+	 * sent to remote clients at the end of TickDispatch before the regular game tick.
+	 * This reduces latency since normally RPCs are sent alongside normal replicated data at the end of the frame during NetDriver::TickFlush.
+	 * The drawbacks are extra bandwidth cost and higher CPU usage.
+	 * 
+	 * Note that with Unreliable Multicasts, this flag changes their order when executed on the remote client.
+	 * By default only Unreliable Multicasts are executed after replicated properties have been applied on the simulated actor.
+	 * With this flag they get executed before any replicated properties are applied.
+	 */
 	uint8 bSendImmediately:1;
 
 	// Suspect that this will grow over time. Possibly things like "min distance to send immediately" etc
