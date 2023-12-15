@@ -15,7 +15,7 @@ namespace Chaos::Softs
 		static const FName StringValueName("StringValue");  // String value, or weight map name, ...etc.
 		static const FName FlagsName("Flags");  // Whether this property is enabled, animatable, ...etc.
 	}
-	
+
 	FCollectionPropertyConstFacade::FCollectionPropertyConstFacade(const TSharedPtr<const FManagedArrayCollection>& InManagedArrayCollection)
 		: ManagedArrayCollection(InManagedArrayCollection)
 	{
@@ -111,8 +111,8 @@ namespace Chaos::Softs
 	{
 		// Cannot set string dirty without also dirtying the property
 		Flags |= EnumHasAnyFlags(Flags, ECollectionPropertyFlags::StringDirty) ? ECollectionPropertyFlags::Dirty : ECollectionPropertyFlags::None;
-		// Cannot remove the dirty flags
-		Flags |= GetFlagsArray()[KeyIndex] & (ECollectionPropertyFlags::Dirty | ECollectionPropertyFlags::StringDirty);
+		// Cannot remove the Dirty, StringDirty, and Intrinsic flags
+		Flags |= GetFlagsArray()[KeyIndex] & (ECollectionPropertyFlags::Dirty | ECollectionPropertyFlags::StringDirty | ECollectionPropertyFlags::Intrinsic);
 
 		SetValue(KeyIndex, GetFlagsArray(), Flags);
 	}
@@ -191,11 +191,12 @@ namespace Chaos::Softs
 		RebuildKeyIndices();
 	}
 
-	int32 FCollectionPropertyMutableFacade::AddProperty(const FString& Key, bool bEnabled, bool bAnimatable)
+	int32 FCollectionPropertyMutableFacade::AddProperty(const FString& Key, bool bEnabled, bool bAnimatable, bool bIntrinsic)
 	{
 		const ECollectionPropertyFlags Flags =
 			(bEnabled ? ECollectionPropertyFlags::Enabled : ECollectionPropertyFlags::None) |
-			(bAnimatable ? ECollectionPropertyFlags::Animatable : ECollectionPropertyFlags::None);
+			(bAnimatable ? ECollectionPropertyFlags::Animatable : ECollectionPropertyFlags::None) |
+			(bIntrinsic ? ECollectionPropertyFlags::Intrinsic : ECollectionPropertyFlags::None);
 		return AddProperty(Key, Flags);
 	}
 
@@ -217,11 +218,12 @@ namespace Chaos::Softs
 		return Index;
 	}
 
-	int32 FCollectionPropertyMutableFacade::AddProperties(const TArray<FString>& Keys, bool bEnabled, bool bAnimatable)
+	int32 FCollectionPropertyMutableFacade::AddProperties(const TArray<FString>& Keys, bool bEnabled, bool bAnimatable, bool bIntrinsic)
 	{
 		const ECollectionPropertyFlags Flags =
 			(bEnabled ? ECollectionPropertyFlags::Enabled : ECollectionPropertyFlags::None) |
-			(bAnimatable ? ECollectionPropertyFlags::Animatable : ECollectionPropertyFlags::None);
+			(bAnimatable ? ECollectionPropertyFlags::Animatable : ECollectionPropertyFlags::None) |
+			(bIntrinsic ? ECollectionPropertyFlags::Intrinsic : ECollectionPropertyFlags::None);
 
 		return AddProperties(Keys, Flags);
 	}
@@ -365,9 +367,9 @@ PRAGMA_ENABLE_DEPRECATION_WARNINGS
 		}
 	}
 
-	int32 FCollectionPropertyMutableFacade::AddWeightedFloatValue(const FString& Key, const FVector2f& Value, bool bEnabled, bool bAnimatable)
+	int32 FCollectionPropertyMutableFacade::AddWeightedFloatValue(const FString& Key, const FVector2f& Value, bool bEnabled, bool bAnimatable, bool bIntrinsic)
 	{
-		const int32 KeyIndex = AddProperty(Key, bEnabled, bAnimatable);
+		const int32 KeyIndex = AddProperty(Key, bEnabled, bAnimatable, bIntrinsic);
 		SetWeightedFloatValue(KeyIndex, Value);
 		return KeyIndex;
 	}
@@ -379,9 +381,9 @@ PRAGMA_ENABLE_DEPRECATION_WARNINGS
 		return KeyIndex;
 	}
 
-	int32 FCollectionPropertyMutableFacade::AddStringValue(const FString& Key, const FString& Value, bool bEnabled, bool bAnimatable)
+	int32 FCollectionPropertyMutableFacade::AddStringValue(const FString& Key, const FString& Value, bool bEnabled, bool bAnimatable, bool bIntrinsic)
 	{
-		const int32 KeyIndex = AddProperty(Key, bEnabled, bAnimatable);
+		const int32 KeyIndex = AddProperty(Key, bEnabled, bAnimatable, bIntrinsic);
 		SetStringValue(Key, Value);
 		return KeyIndex;
 	}
@@ -392,4 +394,4 @@ PRAGMA_ENABLE_DEPRECATION_WARNINGS
 		SetStringValue(Key, Value);
 		return KeyIndex;
 	}
-}  // End namespace Chaos
+}  // End namespace Chaos::Softs
