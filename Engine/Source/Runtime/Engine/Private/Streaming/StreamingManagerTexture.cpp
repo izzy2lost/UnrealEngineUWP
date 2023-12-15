@@ -81,6 +81,13 @@ static TAutoConsoleVariable<int32> CVarFlushDeferredMipLevelChangeCallbacksBefor
 	TEXT("Whether to flush deferred mip level change callbacks before GC."),
 	ECVF_Default);
 
+// TODO: Remove once these calls have been proven safe in production
+static TAutoConsoleVariable<int32> CVarProcessAddedRenderAssetsAfterAsyncWork(
+	TEXT("r.Streaming.ProcessAddedRenderAssetsAfterAsyncWork"),
+	1,
+	TEXT("Whether to call ProcessAddedRenderAssets in subsqequent UpdateResourceStreaming stages after Async work has completed."),
+	ECVF_Default);
+
 bool TrackRenderAsset( const FString& AssetName );
 bool UntrackRenderAsset( const FString& AssetName );
 void ListTrackedRenderAssets( FOutputDevice& Ar, int32 NumTextures );
@@ -467,7 +474,7 @@ void FRenderAssetStreamingManager::TickFastResponseAssets()
 
 		Asset.UpdateStreamingStatus(false);
 
-		if (Asset.ResidentMips != Asset.RequestedMips && Asset.ResidentMips < Asset.MaxAllowedMips)
+		if (Asset.ResidentMips == Asset.RequestedMips && Asset.ResidentMips < Asset.MaxAllowedMips)
 		{
 			RenderAsset->StreamIn(Asset.MaxAllowedMips, true);
 			RenderAsset->bHasStreamingUpdatePending = true;
@@ -1246,7 +1253,7 @@ void FRenderAssetStreamingManager::UpdateIndividualRenderAsset( UStreamableRende
 	StreamingRenderAsset->StreamWantedMips(*this);
 }
 
-void FRenderAssetStreamingManager::FastForceFullyResident(UStreamableRenderAsset* RenderAsset)
+bool FRenderAssetStreamingManager::FastForceFullyResident(UStreamableRenderAsset* RenderAsset)
 {
 	check(IsInGameThread());
 	TArray<FStreamingRenderAsset>& StreamingRenderAssets = GetStreamingRenderAssetsAsyncSafe();
@@ -1268,8 +1275,10 @@ void FRenderAssetStreamingManager::FastForceFullyResident(UStreamableRenderAsset
 		if (Asset.ResidentMips < Asset.MaxAllowedMips)
 		{
 			FastResponseRenderAssets.Add(Asset.RenderAsset);
+			return true;
 		}
 	}
+	return false;
 }
 
 /**
@@ -1811,6 +1820,13 @@ void FRenderAssetStreamingManager::UpdateResourceStreaming( float DeltaTime, boo
 	{
 		STAT(int32 StartTime = (int32)FPlatformTime::Cycles();)
 
+		if (PendingStreamingRenderAssets.Num() > 0 && CVarProcessAddedRenderAssetsAfterAsyncWork.GetValueOnGameThread() && AsyncWork->IsDone())
+		{
+			// This will add to the StreamingRenderAssets array potentially reallocating it, but if the Async task has completed, that should be safe.
+			// As we're only adding items, existing indicies in InflightRenderAssets etc will still be valid.
+			ProcessAddedRenderAssets();
+		}
+
 		if (ProcessingStage == 1)
 		{
 			SetLastUpdateTime();
@@ -1847,6 +1863,13 @@ void FRenderAssetStreamingManager::UpdateResourceStreaming( float DeltaTime, boo
 	else if (AsyncWork->IsDone())
 	{
 		STAT(GatheredStats.StreamRenderAssetsCycles = -(int32)FPlatformTime::Cycles();)
+
+		if (PendingStreamingRenderAssets.Num() > 0 && CVarProcessAddedRenderAssetsAfterAsyncWork.GetValueOnGameThread())
+		{
+			// This will add to the StreamingRenderAssets array potentially reallocating it, but if the Async task has completed, that should be safe.
+			// As we're only adding items, existing indicies in InflightRenderAssets etc will still be valid.
+			ProcessAddedRenderAssets();
+		}
 
 		// Since this step is lightweight, tick each texture inflight here, to accelerate the state changes.
 		for (int32 TextureIndex : InflightRenderAssets)
