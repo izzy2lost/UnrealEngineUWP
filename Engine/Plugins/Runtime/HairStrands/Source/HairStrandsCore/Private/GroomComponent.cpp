@@ -3121,6 +3121,12 @@ void UGroomComponent::CollectPSOPrecacheData(const FPSOPrecacheParams& BasePreca
 		UMaterialInterface* MaterialInterface = GetMaterial(GetMaterialIndexWithFallback(VFsPerMaterial.MaterialIndex), VFsPerMaterial.HairGeometryType, true);
 		if (MaterialInterface)
 		{
+#if USE_HAIR_TRIANGLE_STRIP
+			PrecachePSOParams.PrimitiveType = VFsPerMaterial.HairGeometryType == EHairGeometryType::Strands ? PT_TriangleStrip : PT_TriangleList;
+#else
+			PrecachePSOParams.PrimitiveType = PT_TriangleList;
+#endif
+
 			FComponentPSOPrecacheParams& ComponentParams = OutParams[OutParams.AddDefaulted()];
 			ComponentParams.MaterialInterface = MaterialInterface;
 			ComponentParams.VertexFactoryDataList = VFsPerMaterial.VertexFactoryDataList;
