@@ -41,11 +41,11 @@ static TAutoConsoleVariable<bool> CVarMotionMatchValidateKNNSearch(TEXT("a.Motio
 #endif
 
 typedef TArray<int32, TInlineAllocator<256>> FSelectableAssetIdx;
-static void PopulateSelectableAssetIdx(FSelectableAssetIdx& SelectableAssetIdx, TConstArrayView<const UAnimationAsset*> AnimationsToConsider, const UPoseSearchDatabase* Database)
+static void PopulateSelectableAssetIdx(FSelectableAssetIdx& SelectableAssetIdx, TConstArrayView<const UObject*> AssetsToConsider, const UPoseSearchDatabase* Database)
 {
 	check(Database);
 	SelectableAssetIdx.Reset();
-	if (!AnimationsToConsider.IsEmpty())
+	if (!AssetsToConsider.IsEmpty())
 	{
 		const FSearchIndex& SearchIndex = Database->GetSearchIndex();
 
@@ -53,7 +53,7 @@ static void PopulateSelectableAssetIdx(FSelectableAssetIdx& SelectableAssetIdx, 
 		{
 			if (const FPoseSearchDatabaseAnimationAssetBase* DatabaseAnimationAssetBase = Database->GetAnimationAssetBase(SearchIndex.Assets[AssetIndex]))
 			{
-				if (AnimationsToConsider.Contains(DatabaseAnimationAssetBase->GetAnimationAsset()))
+				if (AssetsToConsider.Contains(DatabaseAnimationAssetBase->GetAnimationAsset()))
 				{
 					SelectableAssetIdx.Add(AssetIndex);
 				}
@@ -308,6 +308,18 @@ private:
 
 //////////////////////////////////////////////////////////////////////////
 // FPoseSearchDatabaseAnimationAssetBase
+
+float FPoseSearchDatabaseAnimationAssetBase::GetPlayLength() const
+{
+	if (const UAnimationAsset* AnimationAsset = Cast<UAnimationAsset>(GetAnimationAsset()))
+	{
+		return AnimationAsset->GetPlayLength();
+	}
+
+	checkNoEntry();
+	return 0;
+}
+
 #if WITH_EDITORONLY_DATA
 int64 FPoseSearchDatabaseAnimationAssetBase::GetEditorMemSize() const
 {
@@ -328,7 +340,7 @@ FFloatInterval FPoseSearchDatabaseAnimationAssetBase::GetEffectiveSamplingRange(
 
 //////////////////////////////////////////////////////////////////////////
 // FPoseSearchDatabaseSequence
-UAnimationAsset* FPoseSearchDatabaseSequence::GetAnimationAsset() const
+UObject* FPoseSearchDatabaseSequence::GetAnimationAsset() const
 {
 	return Sequence.Get();
 }
@@ -360,7 +372,7 @@ bool FPoseSearchDatabaseSequence::IsRootMotionEnabled() const
 
 //////////////////////////////////////////////////////////////////////////
 // FPoseSearchDatabaseBlendSpace
-UAnimationAsset* FPoseSearchDatabaseBlendSpace::GetAnimationAsset() const
+UObject* FPoseSearchDatabaseBlendSpace::GetAnimationAsset() const
 {
 	return BlendSpace.Get();
 }
@@ -471,7 +483,7 @@ FVector FPoseSearchDatabaseBlendSpace::BlendParameterForSampleRanges(int32 Horiz
 
 //////////////////////////////////////////////////////////////////////////
 // FPoseSearchDatabaseAnimComposite
-UAnimationAsset* FPoseSearchDatabaseAnimComposite::GetAnimationAsset() const
+UObject* FPoseSearchDatabaseAnimComposite::GetAnimationAsset() const
 {
 	return AnimComposite.Get();
 }
@@ -503,7 +515,7 @@ bool FPoseSearchDatabaseAnimComposite::IsRootMotionEnabled() const
 
 //////////////////////////////////////////////////////////////////////////
 // FPoseSearchDatabaseAnimMontage
-UAnimationAsset* FPoseSearchDatabaseAnimMontage::GetAnimationAsset() const
+UObject* FPoseSearchDatabaseAnimMontage::GetAnimationAsset() const
 {
 	return AnimMontage.Get();
 }
@@ -968,7 +980,8 @@ UE::PoseSearch::FSearchResult UPoseSearchDatabase::SearchContinuingPose(UE::Pose
 	const FSearchIndexAsset& SearchIndexAsset = SearchIndex.GetAssetForPose(PoseIdx);
 	const FPoseSearchDatabaseAnimationAssetBase* DatabaseAnimationAssetBase = GetAnimationAssetStruct(SearchIndexAsset).GetPtr<FPoseSearchDatabaseAnimationAssetBase>();
 	check(DatabaseAnimationAssetBase);
-	const FAnimationAssetSampler SequenceBaseSampler(DatabaseAnimationAssetBase->GetAnimationAsset(), SearchIndexAsset.GetBlendParameters());
+	const UAnimationAsset* AnimationAsset = CastChecked<UAnimationAsset>(DatabaseAnimationAssetBase->GetAnimationAsset());
+	const FAnimationAssetSampler SequenceBaseSampler(AnimationAsset, SearchIndexAsset.GetBlendParameters());
 	const float SampleTime = GetRealAssetTime(PoseIdx);
 
 	float UpdatedContinuingPoseCostBias = ContinuingPoseCostBias;
@@ -1043,7 +1056,7 @@ UE::PoseSearch::FSearchResult UPoseSearchDatabase::SearchPCAKDTree(UE::PoseSearc
 		TConstArrayView<float> QueryValues = SearchContext.GetOrBuildQuery(Schema);
 
 		FSelectableAssetIdx SelectableAssetIdx;
-		PopulateSelectableAssetIdx(SelectableAssetIdx, SearchContext.GetAnimationsToConsider(), this);
+		PopulateSelectableAssetIdx(SelectableAssetIdx, SearchContext.GetAssetsToConsider(), this);
 
 		FNonSelectableIdx NonSelectableIdx;
 		PopulateNonSelectableIdx(NonSelectableIdx, SearchContext, this
@@ -1217,7 +1230,7 @@ UE::PoseSearch::FSearchResult UPoseSearchDatabase::SearchVPTree(UE::PoseSearch::
 		TConstArrayView<float> QueryValues = SearchContext.GetOrBuildQuery(Schema);
 
 		FSelectableAssetIdx SelectableAssetIdx;
-		PopulateSelectableAssetIdx(SelectableAssetIdx, SearchContext.GetAnimationsToConsider(), this);
+		PopulateSelectableAssetIdx(SelectableAssetIdx, SearchContext.GetAssetsToConsider(), this);
 
 		// @todo: implement filtering within the VPTree as KDTree does
 		FNonSelectableIdx NonSelectableIdx;
@@ -1304,7 +1317,7 @@ UE::PoseSearch::FSearchResult UPoseSearchDatabase::SearchBruteForce(UE::PoseSear
 		TConstArrayView<float> QueryValues = SearchContext.GetOrBuildQuery(Schema);
 
 		FSelectableAssetIdx SelectableAssetIdx;
-		PopulateSelectableAssetIdx(SelectableAssetIdx, SearchContext.GetAnimationsToConsider(), this);
+		PopulateSelectableAssetIdx(SelectableAssetIdx, SearchContext.GetAssetsToConsider(), this);
 
 		FNonSelectableIdx NonSelectableIdx;
 		PopulateNonSelectableIdx(NonSelectableIdx, SearchContext, this

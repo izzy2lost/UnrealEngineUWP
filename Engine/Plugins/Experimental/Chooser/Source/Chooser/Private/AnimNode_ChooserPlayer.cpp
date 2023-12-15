@@ -35,21 +35,18 @@ UAnimationAsset* FAnimNode_ChooserPlayer::ChooseAsset(const FAnimationUpdateCont
 		{
 			if (UE::Anim::IPoseSearchProvider* PoseSearchProvider = UE::Anim::IPoseSearchProvider::Get())
 			{
-				TArray<UAnimationAsset*, TInlineAllocator<128>> AnimationAssets;
-				ChooserBase.ChooseMulti(ChooserContext, FObjectChooserBase::FObjectChooserIteratorCallback::CreateLambda([&AnimationAssets](UObject* InResult)
+				TArray<UObject*, TInlineAllocator<128>> ChosenAssets;
+				ChooserBase.ChooseMulti(ChooserContext, FObjectChooserBase::FObjectChooserIteratorCallback::CreateLambda([&ChosenAssets](UObject* InResult)
 					{
-						if (UAnimationAsset* AnimationAsset = Cast<UAnimationAsset>(InResult))
-						{
-							AnimationAssets.Add(AnimationAsset);
-						}
+						ChosenAssets.Add(InResult);
 						return FObjectChooserBase::EIteratorStatus::Continue;
 					}));
 
-				const UE::Anim::IPoseSearchProvider::FSearchResult SearchResult = PoseSearchProvider->Search(Context, AnimationAssets, GetAnimAsset(), GetAccumulatedTime());
-				if (SearchResult.AnimationAsset)
+				const UE::Anim::IPoseSearchProvider::FSearchResult SearchResult = PoseSearchProvider->Search(Context, ChosenAssets, GetAnimAsset(), GetAccumulatedTime());
+				if (UAnimationAsset* SelectedAnimationAsset = Cast<UAnimationAsset>(SearchResult.SelectedAsset))
 				{
 					Settings.StartTime = SearchResult.TimeOffsetSeconds;
-					return SearchResult.AnimationAsset;
+					return SelectedAnimationAsset;
 				}
 			}
 		}

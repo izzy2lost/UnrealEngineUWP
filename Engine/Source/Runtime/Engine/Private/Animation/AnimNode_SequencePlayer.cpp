@@ -159,14 +159,13 @@ float FAnimNode_SequencePlayerBase::GetTimeFromEnd(float CurrentNodeTime) const
 float FAnimNode_SequencePlayerBase::GetEffectiveStartPosition(const FAnimationBaseContext& Context) const
 {
 	// Override the start position if pose matching is enabled
-	UAnimationAsset* CurrentSequence = GetSequence();
+	UObject* CurrentSequence = GetSequence();
 	if (CurrentSequence != nullptr && GetStartFromMatchingPose())
 	{
-		UE::Anim::IPoseSearchProvider* PoseSearchProvider = UE::Anim::IPoseSearchProvider::Get();
-		if (PoseSearchProvider)
+		if (const UE::Anim::IPoseSearchProvider* PoseSearchProvider = UE::Anim::IPoseSearchProvider::Get())
 		{
 			UE::Anim::IPoseSearchProvider::FSearchResult Result = PoseSearchProvider->Search(Context, MakeArrayView(&CurrentSequence, 1));
-			if (Result.AnimationAsset != nullptr)
+			if (Result.SelectedAsset != nullptr)
 			{
 				return Result.TimeOffsetSeconds;
 			}

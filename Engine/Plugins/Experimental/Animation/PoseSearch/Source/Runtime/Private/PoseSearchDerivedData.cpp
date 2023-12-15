@@ -787,7 +787,7 @@ static bool IndexDatabase(FSearchIndexBase& SearchIndexBase, const UPoseSearchDa
 	TArray<FAnimationAssetSampler> Samplers;
 	Samplers.Reserve(256);
 	
-	TMap<TPair<const UAnimationAsset*, FVector>, int32> SamplerMap;
+	TMap<TPair<const UObject*, FVector>, int32> SamplerMap;
 	SamplerMap.Reserve(256);
 
 	for (const FInstancedStruct& DatabaseAssetStruct : Database.AnimationAssets)
@@ -816,8 +816,9 @@ static bool IndexDatabase(FSearchIndexBase& SearchIndexBase, const UPoseSearchDa
 		}
 		else if (const FPoseSearchDatabaseAnimationAssetBase* DatabaseAnimationAssetBase = DatabaseAssetStruct.GetPtr<FPoseSearchDatabaseAnimationAssetBase>())
 		{
-			if (const UAnimationAsset* AnimationAsset = DatabaseAnimationAssetBase->GetAnimationAsset())
+			if (const UObject* AnimationAssetObject = DatabaseAnimationAssetBase->GetAnimationAsset())
 			{
+				const UAnimationAsset* AnimationAsset = CastChecked<UAnimationAsset>(AnimationAssetObject);
 				if (!SamplerMap.Contains({ AnimationAsset, FVector::ZeroVector }))
 				{
 					SamplerMap.Add({ AnimationAsset, FVector::ZeroVector }, Samplers.Num());

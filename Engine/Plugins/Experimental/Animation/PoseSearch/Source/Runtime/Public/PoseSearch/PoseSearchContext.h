@@ -169,7 +169,7 @@ struct FCachedChannel
 
 struct POSESEARCH_API FSearchContext
 {
-	FSearchContext(const UAnimInstance* InAnimInstance, const IPoseHistory* InHistory, TConstArrayView<const UAnimationAsset*> InAnimationsToConsider = TConstArrayView<const UAnimationAsset*>(),
+	FSearchContext(const UAnimInstance* InAnimInstance, const IPoseHistory* InHistory, TConstArrayView<const UObject*> InAssetsToConsider = TConstArrayView<const UObject*>(),
 		float InDesiredPermutationTimeOffset = 0.f, const FPoseIndicesHistory* InPoseIndicesHistory = nullptr,
 		const FSearchResult& InCurrentResult = FSearchResult(), const FFloatInterval& InPoseJumpThresholdTime = FFloatInterval(0.f, 0.f), bool bInUseCachedChannelData = false);
 
@@ -209,8 +209,8 @@ struct POSESEARCH_API FSearchContext
 	float GetDesiredPermutationTimeOffset() const { return DesiredPermutationTimeOffset; }
 	const UAnimInstance* GetAnimInstance() const { return AnimInstance; }
 
-	void SetAnimationsToConsider(TConstArrayView<const UAnimationAsset*> InAnimationsToConsider) { AnimationsToConsider = InAnimationsToConsider; }
-	TConstArrayView<const UAnimationAsset*> GetAnimationsToConsider() const { return AnimationsToConsider; }
+	void SetAssetsToConsider(TConstArrayView<const UObject*> InAssetsToConsider) { AssetsToConsider = InAssetsToConsider; }
+	TConstArrayView<const UObject*> GetAssetsToConsider() const { return AssetsToConsider; }
 	
 	// returns the world space transform of the bone SchemaBoneIdx at time SampleTime
 	FTransform GetWorldBoneTransformAtTime(float SampleTime, int8 SchemaBoneIdx = RootSchemaBoneIdx);
@@ -237,8 +237,8 @@ private:
 	const UAnimInstance* AnimInstance = nullptr;
 	const IPoseHistory* History = nullptr;
 
-	// if AnimationsToConsider is not empty, we'll search only for poses from UAnimationAsset(s) that are in the AnimationsToConsider
-	TConstArrayView<const UAnimationAsset*> AnimationsToConsider;
+	// if AssetsToConsider is not empty, we'll search only for poses from UObject(s) that are in the AssetsToConsider
+	TConstArrayView<const UObject*> AssetsToConsider;
 
 	const float DesiredPermutationTimeOffset = 0.f;
 	const FPoseIndicesHistory* PoseIndicesHistory = nullptr;

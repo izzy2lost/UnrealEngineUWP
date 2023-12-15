@@ -95,7 +95,7 @@ bool FSearchResult::CanAdvance(float DeltaTime) const
 		}
 		else if (const FPoseSearchDatabaseAnimationAssetBase* DatabaseAnimationAssetBase = DatabaseAsset.GetPtr<FPoseSearchDatabaseAnimationAssetBase>())
 		{
-			const float AssetLength = DatabaseAnimationAssetBase->GetAnimationAsset()->GetPlayLength();
+			const float AssetLength = DatabaseAnimationAssetBase->GetPlayLength();
 			bCanAdvance = ETAA_Finished != FAnimationRuntime::AdvanceTime(SearchIndexAsset->IsLooping(), DeltaTime, SteppedTime, AssetLength);
 		}
 	}

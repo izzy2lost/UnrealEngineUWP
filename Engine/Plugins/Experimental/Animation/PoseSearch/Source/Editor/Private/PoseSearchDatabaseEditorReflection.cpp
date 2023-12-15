@@ -169,7 +169,7 @@ void UPoseSearchDatabaseStatistics::Initialize(const UPoseSearchDatabase* PoseSe
 			
 		{
 			uint32 SourceAnimAssetsSizeCookedEstimateInBytes = 0;
-			TSet<const UAnimationAsset*> Analyzed;
+			TSet<const UObject*> Analyzed;
 			Analyzed.Reserve(PoseSearchDatabase->AnimationAssets.Num());
 			for (const FInstancedStruct& AnimAsset : PoseSearchDatabase->AnimationAssets)
 			{

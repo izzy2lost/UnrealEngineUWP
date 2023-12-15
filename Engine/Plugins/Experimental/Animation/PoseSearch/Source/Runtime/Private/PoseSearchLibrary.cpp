@@ -387,7 +387,7 @@ void UPoseSearchLibrary::UpdateMotionMatchingState(
 		InOutMotionMatchingState.CurrentSearchResult.Reset();
 	}
 
-	FSearchContext SearchContext(AnimInstance, PoseHistory, TConstArrayView<const UAnimationAsset*>(), 0.f,
+	FSearchContext SearchContext(AnimInstance, PoseHistory, TConstArrayView<const UObject*>(), 0.f,
 		&InOutMotionMatchingState.PoseIndicesHistory, InOutMotionMatchingState.CurrentSearchResult, PoseJumpThresholdTime);
 
 	const bool bCanAdvance = InOutMotionMatchingState.CurrentSearchResult.CanAdvance(DeltaTime);
@@ -650,7 +650,7 @@ void UPoseSearchLibrary::MotionMatch(
 #endif // ENABLE_DRAW_DEBUG && ENABLE_ANIM_DEBUG
 		}
 
-		FSearchContext SearchContext(AnimInstance, ExtendedPoseHistory.IsInitialized() ? &ExtendedPoseHistory : nullptr, TConstArrayView<const UAnimationAsset*>(), TimeToFutureAnimationStart);
+		FSearchContext SearchContext(AnimInstance, ExtendedPoseHistory.IsInitialized() ? &ExtendedPoseHistory : nullptr, TConstArrayView<const UObject*>(), TimeToFutureAnimationStart);
 
 		FSearchResult SearchResult = Database->Search(SearchContext);
 		if (SearchResult.IsValid())
@@ -694,8 +694,8 @@ void UPoseSearchLibrary::MotionMatch(
 	}
 }
 
-UE::PoseSearch::FSearchResult UPoseSearchLibrary::MotionMatch(const FAnimationBaseContext& Context, TConstArrayView<UAnimationAsset*> AnimationAssets,
-	const UAnimationAsset* PlayingAnimationAsset, float PlayingAnimationAssetAccumulatedTime)
+UE::PoseSearch::FSearchResult UPoseSearchLibrary::MotionMatch(const FAnimationBaseContext& Context, 
+	TConstArrayView<UObject*> AssetsToSearch, const UObject* PlayingAsset, float PlayingAssetAccumulatedTime)
 {
 	using namespace UE::PoseSearch;
 
@@ -712,20 +712,21 @@ UE::PoseSearch::FSearchResult UPoseSearchLibrary::MotionMatch(const FAnimationBa
 
 	FMemMark Mark(FMemStack::Get());
 	FSearchResult ReconstructedPreviousSearchResult;
-	FSearchContext SearchContext(AnimInstance, History, TConstArrayView<const UAnimationAsset*>(), 0.f, nullptr, ReconstructedPreviousSearchResult);
+	FSearchContext SearchContext(AnimInstance, History, TConstArrayView<const UObject*>(), 0.f, nullptr, ReconstructedPreviousSearchResult);
 
 	// budgeting some stack allocations for simple use cases. bigger requests of AnimationAssets contining 
 	// UAnimNotifyState_PoseSearchBranchIn referencing multiple datbases will default to slower heap allocations
 	enum { MAX_STACK_ALLOCATED_ANIMATIONS = 16 };
 	enum { MAX_STACK_ALLOCATED_SETS = 2 };
-	typedef	TArray<const UAnimationAsset*, TInlineAllocator<MAX_STACK_ALLOCATED_ANIMATIONS>> TDbAnims;
-	typedef TMap<const UPoseSearchDatabase*, TDbAnims, TInlineSetAllocator<MAX_STACK_ALLOCATED_SETS>> FPerDbAnimMap;
-	typedef TPair<const UPoseSearchDatabase*, TDbAnims> FPerDbAnimPair;
-	FPerDbAnimMap PerDbAnimMap;
+	typedef	TArray<const UObject*, TInlineAllocator<MAX_STACK_ALLOCATED_ANIMATIONS>> TAssetsToSearch;
+	// an empty TAssetsToSearch associated to Database means we need to search ALL the assets
+	typedef TMap<const UPoseSearchDatabase*, TAssetsToSearch, TInlineSetAllocator<MAX_STACK_ALLOCATED_SETS>> TAssetsToSearchPerDatabaseMap;
+	typedef TPair<const UPoseSearchDatabase*, TAssetsToSearch> TAssetsToSearchPerDatabasePair;
+	TAssetsToSearchPerDatabaseMap AssetsToSearchPerDatabaseMap;
 	
-	auto AddToPerDbAnimMap = [](FPerDbAnimMap& PerDbAnimMap, const UAnimationAsset* AnimationAsset)
+	auto AddToSearch = [](TAssetsToSearchPerDatabaseMap& AssetsToSearchPerDatabaseMap, const UObject* AssetToSearch)
 	{
-		if (const UAnimSequenceBase* SequenceBase = Cast<const UAnimSequenceBase>(AnimationAsset))
+		if (const UAnimSequenceBase* SequenceBase = Cast<const UAnimSequenceBase>(AssetToSearch))
 		{
 			for (const FAnimNotifyEvent& NotifyEvent : SequenceBase->Notifies)
 			{
@@ -733,7 +734,18 @@ UE::PoseSearch::FSearchResult UPoseSearchLibrary::MotionMatch(const FAnimationBa
 				{
 					if (PoseSearchBranchIn->Database)
 					{
-						PerDbAnimMap.FindOrAdd(PoseSearchBranchIn->Database).AddUnique(SequenceBase);
+						if (TAssetsToSearch* AssetsToSearch = AssetsToSearchPerDatabaseMap.Find(PoseSearchBranchIn->Database))
+						{
+							// an empty TAssetsToSearch associated to Database means we need to search ALL the assets, so we don't need to add this SequenceBase
+							if (!AssetsToSearch->IsEmpty())
+							{
+								AssetsToSearch->AddUnique(SequenceBase);
+							}
+						}
+						else
+						{
+							AssetsToSearchPerDatabaseMap.Add(PoseSearchBranchIn->Database).AddUnique(SequenceBase);
+						}
 					}
 					else
 					{
@@ -742,16 +754,20 @@ UE::PoseSearch::FSearchResult UPoseSearchLibrary::MotionMatch(const FAnimationBa
 				}
 			}
 		}
+		else if (const UPoseSearchDatabase* Database = Cast<UPoseSearchDatabase>(AssetToSearch))
+		{
+			// an empty TAssetsToSearch associated to Database means we need to search ALL the assets
+			AssetsToSearchPerDatabaseMap.FindOrAdd(Database).Reset();
+		}
 	};
 
 	// collecting all the possible continuing pose search (it could be multiple searches, but most likely only one)
-	if (PlayingAnimationAsset)
+	if (const UAnimationAsset* PlayingAnimationAsset = Cast<UAnimationAsset>(PlayingAsset))
 	{
-		AddToPerDbAnimMap(PerDbAnimMap, PlayingAnimationAsset);
-		for (const FPerDbAnimPair& PerDbAnimPair : PerDbAnimMap)
+		AddToSearch(AssetsToSearchPerDatabaseMap, PlayingAnimationAsset);
+		for (const TAssetsToSearchPerDatabasePair& AssetsToSearchPerDatabasePair : AssetsToSearchPerDatabaseMap)
 		{
-			const UPoseSearchDatabase* Database = PerDbAnimPair.Key;
-			check(Database);
+			const UPoseSearchDatabase* Database = AssetsToSearchPerDatabasePair.Key;
 
 #if WITH_EDITOR
 			if (!FAsyncPoseSearchDatabasesManagement::RequestAsyncBuildIndex(Database, ERequestAsyncBuildFlag::ContinueRequest))
@@ -761,6 +777,8 @@ UE::PoseSearch::FSearchResult UPoseSearchLibrary::MotionMatch(const FAnimationBa
 			else
 #endif // WITH_EDITOR
 			{
+				check(Database);
+
 				const FSearchIndex& SearchIndex = Database->GetSearchIndex();
 				for (int32 AssetIndex = 0; AssetIndex < SearchIndex.Assets.Num(); ++AssetIndex)
 				{
@@ -771,11 +789,11 @@ UE::PoseSearch::FSearchResult UPoseSearchLibrary::MotionMatch(const FAnimationBa
 						{
 							const float FirstSampleTime = SearchIndexAsset.GetFirstSampleTime(Database->Schema->SampleRate);
 							const float LastSampleTime = SearchIndexAsset.GetLastSampleTime(Database->Schema->SampleRate);
-							if (PlayingAnimationAssetAccumulatedTime >= FirstSampleTime && PlayingAnimationAssetAccumulatedTime <= LastSampleTime)
+							if (PlayingAssetAccumulatedTime >= FirstSampleTime && PlayingAssetAccumulatedTime <= LastSampleTime)
 							{
 								ReconstructedPreviousSearchResult.Database = Database;
-								ReconstructedPreviousSearchResult.AssetTime = PlayingAnimationAssetAccumulatedTime;
-								ReconstructedPreviousSearchResult.PoseIdx = Database->GetPoseIndexFromTime(PlayingAnimationAssetAccumulatedTime, SearchIndexAsset);
+								ReconstructedPreviousSearchResult.AssetTime = PlayingAssetAccumulatedTime;
+								ReconstructedPreviousSearchResult.PoseIdx = Database->GetPoseIndexFromTime(PlayingAssetAccumulatedTime, SearchIndexAsset);
 								SearchContext.UpdateCurrentResultPoseVector();
 
 								SearchResult = Database->SearchContinuingPose(SearchContext);
@@ -787,23 +805,23 @@ UE::PoseSearch::FSearchResult UPoseSearchLibrary::MotionMatch(const FAnimationBa
 			}
 		}
 
-		PerDbAnimMap.Reset();
+		AssetsToSearchPerDatabaseMap.Reset();
 	}
 
 	// collecting all the other databases searches
-	if (!AnimationAssets.IsEmpty())
+	if (!AssetsToSearch.IsEmpty())
 	{
-		for (const UAnimationAsset* AnimationAsset : AnimationAssets)
+		for (const UObject* AssetToSearch : AssetsToSearch)
 		{
-			AddToPerDbAnimMap(PerDbAnimMap, AnimationAsset);
+			AddToSearch(AssetsToSearchPerDatabaseMap, AssetToSearch);
 		}
 
-		for (const FPerDbAnimPair& PerDbAnimPair : PerDbAnimMap)
+		for (const TAssetsToSearchPerDatabasePair& AssetsToSearchPerDatabasePair : AssetsToSearchPerDatabaseMap)
 		{
-			const UPoseSearchDatabase* Database = PerDbAnimPair.Key;
+			const UPoseSearchDatabase* Database = AssetsToSearchPerDatabasePair.Key;
 			check(Database);
 
-			SearchContext.SetAnimationsToConsider(PerDbAnimPair.Value);
+			SearchContext.SetAssetsToConsider(AssetsToSearchPerDatabasePair.Value);
 
 			const FSearchResult NewSearchResult = Database->Search(SearchContext);
 			if (NewSearchResult.PoseCost.GetTotalCost() < SearchResult.PoseCost.GetTotalCost())

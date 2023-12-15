@@ -50,7 +50,8 @@ struct POSESEARCH_API FPoseSearchDatabaseAnimationAssetBase
 {
 	GENERATED_BODY()
 	virtual ~FPoseSearchDatabaseAnimationAssetBase() = default;
-	virtual UAnimationAsset* GetAnimationAsset() const { return nullptr; }
+	virtual UObject* GetAnimationAsset() const { return nullptr; }
+	virtual float GetPlayLength() const;
 
 #if WITH_EDITORONLY_DATA
 	virtual bool IsDisableReselection() const { return bDisableReselection; }
@@ -114,7 +115,7 @@ struct POSESEARCH_API FPoseSearchDatabaseSequence : public FPoseSearchDatabaseAn
 	FFloatInterval GetSamplingRange() const override { return SamplingRange; }
 #endif // WITH_EDITORONLY_DATA
 	
-	UAnimationAsset* GetAnimationAsset() const override;
+	UObject* GetAnimationAsset() const override;
 };
 
 /** An blend space entry in a UPoseSearchDatabase. */
@@ -162,7 +163,7 @@ struct POSESEARCH_API FPoseSearchDatabaseBlendSpace : public FPoseSearchDatabase
 	FVector BlendParameterForSampleRanges(int32 HorizontalBlendIndex, int32 VerticalBlendIndex) const;
 #endif // WITH_EDITORONLY_DATA
 
-	UAnimationAsset* GetAnimationAsset() const override;
+	UObject* GetAnimationAsset() const override;
 };
 
 /** An entry in a UPoseSearchDatabase. */
@@ -189,7 +190,7 @@ struct POSESEARCH_API FPoseSearchDatabaseAnimComposite : public FPoseSearchDatab
 	FFloatInterval GetSamplingRange() const override { return SamplingRange; }
 #endif // WITH_EDITORONLY_DATA
 
-	UAnimationAsset* GetAnimationAsset() const override;
+	UObject* GetAnimationAsset() const override;
 };
 
 /** An anim montage entry in a UPoseSearchDatabase. */
@@ -216,7 +217,7 @@ struct POSESEARCH_API FPoseSearchDatabaseAnimMontage : public FPoseSearchDatabas
 	FFloatInterval GetSamplingRange() const override { return SamplingRange; }
 #endif // WITH_EDITORONLY_DATA
 
-	UAnimationAsset* GetAnimationAsset() const override;
+	UObject* GetAnimationAsset() const override;
 };
 
 /** A data asset for indexing a collection of animation sequences. */

@@ -171,7 +171,7 @@ public:
 		float TimeToFutureAnimationStart = 0.f,
 		const int32 DebugSessionUniqueIdentifier = 6174);
 
-	static UE::PoseSearch::FSearchResult MotionMatch(const FAnimationBaseContext& Context, TConstArrayView<UAnimationAsset*> AnimationAssets,
-		const UAnimationAsset* PlayingAnimationAsset = nullptr, float PlayingAnimationAssetAccumulatedTime = 0.f);
+	static UE::PoseSearch::FSearchResult MotionMatch(const FAnimationBaseContext& Context, TConstArrayView<UObject*> AssetsToSearch,
+		const UObject* PlayingAsset = nullptr, float PlayingAssetAccumulatedTime = 0.f);
 };
 

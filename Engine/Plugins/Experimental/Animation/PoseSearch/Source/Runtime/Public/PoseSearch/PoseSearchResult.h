@@ -51,7 +51,7 @@ struct POSESEARCH_API FPoseSearchBlueprintResult
 public:
 
 	UPROPERTY(Transient, VisibleAnywhere, BlueprintReadOnly, Category=State)
-	TObjectPtr<const UAnimationAsset> SelectedAnimation = nullptr;
+	TObjectPtr<const UObject> SelectedAnimation = nullptr;
 	
 	UPROPERTY(Transient, VisibleAnywhere, BlueprintReadOnly, Category=State)
 	float SelectedTime = 0.f;

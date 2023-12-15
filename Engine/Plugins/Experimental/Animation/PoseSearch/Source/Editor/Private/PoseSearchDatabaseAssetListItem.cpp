@@ -123,25 +123,26 @@ namespace UE::PoseSearch
 			{
 				if (UAssetEditorSubsystem* AssetEditorSS = GEditor->GetEditorSubsystem<UAssetEditorSubsystem>())
 				{
-					UAnimationAsset* AnimationAsset = DatabaseAnimationAsset->GetAnimationAsset();
-
-					AssetEditorSS->OpenEditorForAsset(AnimationAsset);
-
-					if (IAssetEditorInstance* Editor = AssetEditorSS->FindEditorForAsset(AnimationAsset, true))
+					if (UObject* AnimationAsset = DatabaseAnimationAsset->GetAnimationAsset())
 					{
-						if (Editor->GetEditorName() == "AnimationEditor")
-						{
-							float AnimationAssetTime = 0.f;
-							FVector AnimationAssetBlendParameters = FVector::ZeroVector;
-							ViewModel->GetAnimationTime(Node->SourceAssetIdx, AnimationAssetTime, AnimationAssetBlendParameters);
-							
-							const IAnimationEditor* AnimationEditor = static_cast<IAnimationEditor*>(Editor);
-							const UDebugSkelMeshComponent* PreviewComponent = AnimationEditor->GetPersonaToolkit()->GetPreviewMeshComponent();
+						AssetEditorSS->OpenEditorForAsset(AnimationAsset);
 
-							// Open asset paused and at specific time as seen on the pose search debugger.
-							PreviewComponent->PreviewInstance->SetPosition(AnimationAssetTime);
-							PreviewComponent->PreviewInstance->SetPlaying(false);
-							PreviewComponent->PreviewInstance->SetBlendSpacePosition(AnimationAssetBlendParameters);
+						if (IAssetEditorInstance* Editor = AssetEditorSS->FindEditorForAsset(AnimationAsset, true))
+						{
+							if (Editor->GetEditorName() == "AnimationEditor")
+							{
+								float AnimationAssetTime = 0.f;
+								FVector AnimationAssetBlendParameters = FVector::ZeroVector;
+								ViewModel->GetAnimationTime(Node->SourceAssetIdx, AnimationAssetTime, AnimationAssetBlendParameters);
+
+								const IAnimationEditor* AnimationEditor = static_cast<IAnimationEditor*>(Editor);
+								const UDebugSkelMeshComponent* PreviewComponent = AnimationEditor->GetPersonaToolkit()->GetPreviewMeshComponent();
+
+								// Open asset paused and at specific time as seen on the pose search debugger.
+								PreviewComponent->PreviewInstance->SetPosition(AnimationAssetTime);
+								PreviewComponent->PreviewInstance->SetPlaying(false);
+								PreviewComponent->PreviewInstance->SetBlendSpacePosition(AnimationAssetBlendParameters);
+							}
 						}
 					}
 				}

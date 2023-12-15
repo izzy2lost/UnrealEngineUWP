@@ -42,7 +42,7 @@ bool FDatabasePreviewActor::SpawnPreviewActor(UWorld* World, const UPoseSearchDa
 	const FSearchIndexAsset& IndexAsset = SearchIndex.Assets[IndexAssetIdx];
 
 	const FPoseSearchDatabaseAnimationAssetBase* DatabaseAnimationAsset = PoseSearchDatabase->GetAnimationAssetBase(IndexAsset.GetSourceAssetIdx());
-	UAnimationAsset* PreviewAsset = DatabaseAnimationAsset->GetAnimationAsset();
+	UAnimationAsset* PreviewAsset = Cast<UAnimationAsset>(DatabaseAnimationAsset->GetAnimationAsset());
 	if (!PreviewAsset)
 	{
 		return false;

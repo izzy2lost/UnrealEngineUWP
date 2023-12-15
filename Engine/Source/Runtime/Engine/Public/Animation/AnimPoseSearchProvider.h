@@ -24,7 +24,7 @@ public:
 	
 	struct FSearchResult
 	{
-		UAnimationAsset* AnimationAsset = nullptr;
+		UObject* SelectedAsset = nullptr;
 		float TimeOffsetSeconds = 0.f;
 		float Dissimilarity = MAX_flt;
 	};
@@ -32,15 +32,15 @@ public:
 	/**
 	* Finds a matching pose in the input Object given the current graph context
 	* 
-	* @param	GraphContext	Graph execution context used to construct a pose search query
-	* @param	AnimationAssets	The animation assets to search for the pose query
-	* @param	PlayingAnimationAsset					The currently playing animation asset, used to bias the score of the eventually found continuing pose
-	* @param	PlayingAnimationAssetAccumulatedTime	The accumulated time of the currently playing animation asset
+	* @param	GraphContext				Graph execution context used to construct a pose search query
+	* @param	AssetsToSearch				The assets to search for the pose query
+	* @param	PlayingAsset				The currently playing asset, used to bias the score of the eventually found continuing pose
+	* @param	PlayingAssetAccumulatedTime	The accumulated time of the currently playing asset
 	* 
-	* @return	The pose in the AnimationAssets that most closely matches the query
+	* @return	FSearchResult				The search result identifying the asset from AssetsToSearch or PlayingAsset that most closely matches the query
 	*/
-	virtual FSearchResult Search(const FAnimationBaseContext& GraphContext, TConstArrayView<UAnimationAsset*> AnimationAssets, 
-		const UAnimationAsset* PlayingAnimationAsset = nullptr, float PlayingAnimationAssetAccumulatedTime = 0.f) = 0;
+	virtual FSearchResult Search(const FAnimationBaseContext& GraphContext, TConstArrayView<UObject*> AssetsToSearch,
+		const UObject* PlayingAsset = nullptr, float PlayingAssetAccumulatedTime = 0.f) const = 0;
 };
 
 } // namespace UE::Anim
