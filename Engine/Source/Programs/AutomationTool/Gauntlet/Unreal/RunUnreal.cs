@@ -458,9 +458,6 @@ namespace Gauntlet
 			DevicePool.Instance.AddLocalDevices(Options.MaxLocalDevices);
 			DevicePool.Instance.AddVirtualDevices(Options.MaxVirtualDevices);
 
-			string EngineDeviceConfigDir = Path.Combine(Globals.UnrealRootDir, "Engine", "Build", "DeviceConfigProfiles");
-			string ProjectDeviceConfigDir = Path.Combine(Options.ProjectPath.Directory.FullName, "Build", "DeviceConfigProfiles");
-
 			foreach (var DeviceWithParams in Options.DeviceList)
 			{
 				UnrealTargetPlatform Platform = DefaultPlatform;

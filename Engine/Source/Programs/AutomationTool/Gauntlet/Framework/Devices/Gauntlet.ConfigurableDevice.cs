@@ -1,23 +1,52 @@
 // Copyright Epic Games, Inc. All Rights Reserved.
 
+using EpicGames.Core;
 using System;
 using System.Collections.Generic;
-using UnrealBuildTool;
-using EpicGames.Core;
-using System.Text.Json;
-using System.Text.Json.Serialization;
-using System.Linq;
-using System.Text;
-using System.Threading.Tasks;
 using System.IO;
+using System.Linq;
+using UnrealBuildTool;
 
 namespace Gauntlet
 {
-	enum EConfigurationNamespace
+	/// <summary>
+	/// ITargetDevice extension for platforms that support configurable settings
+	/// </summary>
+	public interface IConfigurableDevice
 	{
-		Engine,
-		Snapshot,
-		Project
+		/// <summary>
+		/// Returns a configuration profile with the current device settings
+		/// </summary>
+		/// <returns></returns>
+		PlatformConfigurationBase GetCurrentConfigurationSnapshot();
+
+		/// <summary>
+		/// Applies a configuration profile to the device. If required it will reboot the device
+		/// </summary>
+		/// <param name="Configuration"></param>
+		/// <returns>false if applying the config profile fails</returns>
+		bool ApplyConfiguration(PlatformConfigurationBase Configuration);
+	}
+
+	/// <summary>
+	/// Base interface for a platform specific configuration reader
+	/// </summary>
+	public interface IPlatformConfigurationReader
+	{
+		bool SupportsPlatform(UnrealTargetPlatform? Platform);
+
+		/// <summary>
+		/// Returns the supported platform config file extension
+		/// </summary>
+		/// <returns></returns>
+		string ConfigFileExtension();
+
+		/// <summary>
+		/// Reads the configuration from the passed in file location
+		/// </summary>
+		/// <param name="Location">An absolute path the to a file with platform configuration</param>
+		/// <returns></returns>
+		PlatformConfigurationBase ReadConfiguration(FileReference Location);
 	}
 
 	/// <summary>
@@ -44,31 +73,19 @@ namespace Gauntlet
 	}
 
 	/// <summary>
-	/// Base interface for a platform specific configuration reader
-	/// </summary>
-	public interface IPlatformConfigurationReader
-	{
-		bool SupportsPlatform(UnrealTargetPlatform? Platform);
-
-		/// <summary>
-		/// Returns the supported platform config file extension
-		/// </summary>
-		/// <returns></returns>
-		string ConfigFileExtension();
-
-		/// <summary>
-		/// Reads the configuration from the passed in file location
-		/// </summary>
-		/// <param name="Location">An absolute path the to a file with platform configuration</param>
-		/// <returns></returns>
-		PlatformConfigurationBase ReadConfiguration(FileReference Location);
-	}
-
-	/// <summary>
-	/// A singleton class that encapsulates a cache of device config profiles 
+	/// A singleton class that encapsulates a cache of device config profiles
 	/// </summary>
 	public class DeviceConfigurationCache
 	{
+		public static DeviceConfigurationCache Instance { get; private set; } = new();
+
+		private Object LockObject = new Object();
+		private Dictionary<ConfigurationCacheKey, PlatformConfigurationBase> ConfigurationCache = new();
+
+		protected DeviceConfigurationCache()
+		{
+			Instance = this;
+		}
 
 		/// <summary>
 		/// Key by which a configuration profile is identified in the cache.
@@ -109,33 +126,6 @@ namespace Gauntlet
 			}
 		}
 
-		Object LockObject = new Object();
-
-		Dictionary<ConfigurationCacheKey, PlatformConfigurationBase> ConfigurationCache = new();
-
-		private static DeviceConfigurationCache _Instance;
-
-		protected DeviceConfigurationCache()
-		{
-			if (_Instance == null)
-			{
-				_Instance = this;
-			}
-		}
-
-		public static DeviceConfigurationCache Instance
-		{
-			get
-			{
-				if (_Instance == null)
-				{
-					_Instance = new DeviceConfigurationCache();
-				}
-
-				return _Instance;
-			}
-		}
-
 		/// <summary>
 		/// Scans the SettingDir for configuration profiles
 		/// </summary>
@@ -150,7 +140,10 @@ namespace Gauntlet
 				return false;
 			}
 
-			IPlatformConfigurationReader ConfigReader = Gauntlet.Utils.InterfaceHelpers.FindImplementations<IPlatformConfigurationReader>(true).ToList().Find(D => D.SupportsPlatform(Platform));
+			IPlatformConfigurationReader ConfigReader = Utils.InterfaceHelpers.FindImplementations<IPlatformConfigurationReader>(true)
+				.Where(D => D.SupportsPlatform(Platform))
+				.FirstOrDefault();
+
 			if (ConfigReader == null)
 			{
 				Log.Info("Couldn't find a configuration reader for {0}", Platform);
@@ -189,12 +182,17 @@ namespace Gauntlet
 			lock (LockObject)
 			{
 				ConfigurationCacheKey Key = new ConfigurationCacheKey(Configuration.Platform, "Snapshot", Configuration.ProfileName);
-				if (ConfigurationCache.ContainsKey(Key) && !Overwrite)
+				if (ConfigurationCache.ContainsKey(Key))
 				{
-					return;
+					if(Overwrite)
+					{
+						ConfigurationCache[Key] = Configuration;
+					}
 				}
-
-				ConfigurationCache.Add(Key, Configuration);
+				else
+				{
+					ConfigurationCache.Add(Key, Configuration);
+				}
 			}
 		}
 
@@ -209,6 +207,37 @@ namespace Gauntlet
 			{
 				ConfigurationCacheKey Key = new ConfigurationCacheKey(Snapshot);
 				ConfigurationCache.Remove(Key);
+			}
+		}
+
+		public void RevertDeviceConfiguration(ITargetDevice Device)
+		{
+			if (Device is IConfigurableDevice ConfigurableDevice)
+			{
+				var Snapshot = GetConfigurationSnapshot(Device.Platform, Device.Name);
+				if (Snapshot == null)
+				{
+					return;
+				}
+
+				// Connect temporarily to be able to revert the device's configuration
+				// if the device was disconnected entering here disconnect it after this is over
+				bool bNeedsDisconnect = false;
+				if (!Device.IsConnected)
+				{
+					Device.Connect();
+					bNeedsDisconnect = true;
+				}
+
+				if (ConfigurableDevice.ApplyConfiguration(Snapshot))
+				{
+					ClearSnapshot(Snapshot);
+				}
+
+				if (bNeedsDisconnect)
+				{
+					Device.Disconnect();
+				}
 			}
 		}
 

@@ -1052,7 +1052,6 @@ namespace Gauntlet
 					// @todo: device problem reporting, requesting additional devices
 					if (TargetDevice == null)
 					{
-
 						ReportDeviceError(Device.Name, "CreateDeviceError");
 						ReservationStates.MarkProblem(Device);
 
@@ -1138,7 +1137,7 @@ namespace Gauntlet
 				List<ITargetDevice> KeepList = new List<ITargetDevice>();
 				foreach (ITargetDevice Device in DeviceList)
 				{
-					RevertDeviceConfiguration(Device);
+					DeviceConfigurationCache.Instance.RevertDeviceConfiguration(Device);
 
 					if (Device.IsConnected && InitialConnectState[Device] == false)
 					{
@@ -1321,7 +1320,8 @@ namespace Gauntlet
 					}
 				}
 
-				if(!TryValidateDeviceRequirements(NewDevice))
+				// Now validate if the kit meets the necessary requirements
+				if (!TryValidateDeviceRequirements(NewDevice))
 				{
 					Log.Info("\nSkipping device.");
 					return null;
@@ -1351,10 +1351,12 @@ namespace Gauntlet
 		protected bool TryValidateDeviceRequirements(ITargetDevice Device)
 		{
 			IEnumerable<IDeviceValidator> Validators = InterfaceHelpers.FindImplementations<IDeviceValidator>(true).Where(Validator => Validator.bEnabled);
-			if(!Validators.Any())
+			if (!Validators.Any())
 			{
 				return true;
 			}
+
+			bool bInitiallyConnected = Device.IsConnected;
 
 			Log.Info("\nValidating requirements for {Device}...", Device);
 			bool bSucceeded = true;
@@ -1383,6 +1385,13 @@ namespace Gauntlet
 				Log.Info("\nAll validators passed, selecting device {Device}\n", Device);
 			}
 
+			// Most validators require establishing a connection to the device.
+			// If we weren't originally connected, disconnect so the initial connection state can be cached during device reservation
+			if(!bInitiallyConnected && Device.IsConnected)
+			{
+				Device.Disconnect();
+			}
+
 			return bSucceeded;
 		}
 
@@ -1407,7 +1416,6 @@ namespace Gauntlet
 		/// </summary>
 		private void ReleaseReservations()
 		{
-
 			ServiceDeviceInfo.Clear();
 
 			foreach (ITargetDevice Device in ServiceReservations.Keys)
@@ -1437,38 +1445,6 @@ namespace Gauntlet
 					{
 						DeviceService.CleanupDevices();
 					}
-				}
-			}
-		}
-
-		private void RevertDeviceConfiguration(ITargetDevice Device)
-		{
-			IConfigurableDevice ConfigurableDevice = Device as IConfigurableDevice;
-			if (ConfigurableDevice != null)
-			{
-				var Snapshot = DeviceConfigurationCache.Instance.GetConfigurationSnapshot(Device.Platform, Device.Name);
-				if (Snapshot == null)
-				{
-					return;
-				}
-
-				// Connect temporarily to be able to revert the device's configuration
-				// if the device was disconnected entering here disconnect it after this is over
-				bool bNeedsDisconnect = false;
-				if (!Device.IsConnected)
-				{
-					Device.Connect();
-					bNeedsDisconnect = true;
-				}
-
-				if (ConfigurableDevice.ApplyConfiguration(Snapshot))
-				{
-					DeviceConfigurationCache.Instance.ClearSnapshot(Snapshot);
-				}
-
-				if (bNeedsDisconnect)
-				{
-					Device.Disconnect();
 				}
 			}
 		}

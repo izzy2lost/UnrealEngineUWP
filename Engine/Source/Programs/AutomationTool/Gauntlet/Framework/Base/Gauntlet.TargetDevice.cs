@@ -237,23 +237,4 @@ namespace Gauntlet
 
 		public virtual bool NeedBuildDeployed() => true;
 	}
-
-	/// <summary>
-	/// Represents a device that is configurable
-	/// </summary>
-	public interface IConfigurableDevice
-	{
-		/// <summary>
-		/// Returns a configuration profile with the current device settings
-		/// </summary>
-		/// <returns></returns>
-		PlatformConfigurationBase GetCurrentConfigurationSnapshot();
-
-		/// <summary>
-		/// Applies a configuration profile to the device. If required it will reboot the device
-		/// </summary>
-		/// <param name="Configuration"></param>
-		/// <returns>false if applying the config profile fails</returns>
-		bool ApplyConfiguration(PlatformConfigurationBase Configuration);
-	}
 }
