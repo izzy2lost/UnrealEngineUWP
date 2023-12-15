@@ -162,17 +162,16 @@ namespace Metasound
 
 	FOperatorBuildData::FOperatorBuildData(
 		  FMetasoundGeneratorInitParams&& InInitParams
-		, Frontend::FNodeRegistryKey InRegistryKey
-		, FSoftObjectPath InAssetPath
+		, Frontend::FGraphRegistryKey InRegistryKey
 		, FGuid InAssetClassID
 		, int32 InNumInstances
 	)
 	: InitParams(InInitParams)
 	, RegistryKey(InRegistryKey)
-	, AssetPath(InAssetPath)
 	, AssetClassID(InAssetClassID)
 	, NumInstances(InNumInstances)
-	{}
+	{
+	}
 
 
 	FOperatorPool::FOperatorPool(const FOperatorPoolSettings& InSettings)
@@ -256,10 +255,10 @@ namespace Metasound
 		if (bMetasoundPoolSyncGraphRetrieval)
 		{
 			// get the metasound graph and add to init params (might wait for async registration to complete)
-			Graph = FMetasoundFrontendRegistryContainer::Get()->GetGraph(InBuildData->RegistryKey, InBuildData->AssetPath);
+			Graph = FMetasoundFrontendRegistryContainer::Get()->GetGraph(InBuildData->RegistryKey);
 			if (!Graph.IsValid())
 			{
-				UE_LOG(LogMetasoundGenerator, Error, TEXT("Failed to retrieve graph '%s' synchronously when attempting to BuildAndAddOperator to pool"), *InBuildData->AssetPath.ToString());
+				UE_LOG(LogMetasoundGenerator, Error, TEXT("Failed to retrieve graph '%s' synchronously when attempting to BuildAndAddOperator to pool"), *InBuildData->RegistryKey.ToString());
 				return;
 			}
 		}
@@ -290,13 +289,13 @@ namespace Metasound
 				else
 				{
 					// get the metasound graph and add to init params (might wait for async registration to complete)
-					PreCacheData->InitParams.Graph = FMetasoundFrontendRegistryContainer::Get()->GetGraph(PreCacheData->RegistryKey, PreCacheData->AssetPath);
+					PreCacheData->InitParams.Graph = FMetasoundFrontendRegistryContainer::Get()->GetGraph(PreCacheData->RegistryKey);
 				}
 			}
 
 			if (!PreCacheData->InitParams.Graph)
 			{
-				UE_LOG(LogMetasoundGenerator, Error, TEXT("Failed to retrieve graph '%s' async when attempting to BuildAndAddOperator to pool"), *PreCacheData->AssetPath.ToString());
+				UE_LOG(LogMetasoundGenerator, Error, TEXT("Failed to retrieve graph '%s' async when attempting to BuildAndAddOperator to pool"), *PreCacheData->RegistryKey.ToString());
 				return;
 			}
 

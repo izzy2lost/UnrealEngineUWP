@@ -425,14 +425,8 @@ protected:
 				{
 					DocClassName = &ExistingDoc.RootGraph.Metadata.GetClassName();
 				}
-				const FNodeRegistryKey& RegistryKey = MetaSound->GetRegistryKey();
-				if (RegistryKey.IsValid())
-				{
-					if (FMetasoundFrontendRegistryContainer::Get()->IsNodeRegistered(RegistryKey))
-					{
-						MetaSound->UnregisterGraphWithFrontend();
-					}
-				}
+
+				MetaSound->UnregisterGraphWithFrontend();
 			}
 		}
 		else

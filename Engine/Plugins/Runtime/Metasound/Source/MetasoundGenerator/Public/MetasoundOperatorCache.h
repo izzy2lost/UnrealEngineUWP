@@ -66,16 +66,14 @@ namespace Metasound
 	struct METASOUNDGENERATOR_API FOperatorBuildData
 	{
 		FMetasoundGeneratorInitParams InitParams;
-		Frontend::FNodeRegistryKey RegistryKey;
-		FSoftObjectPath AssetPath;
+		Frontend::FGraphRegistryKey RegistryKey;
 		FGuid AssetClassID;
 		int32 NumInstances;
 
 		FOperatorBuildData() = delete;
 		FOperatorBuildData(
 			  FMetasoundGeneratorInitParams&& InInitParams
-			, Frontend::FNodeRegistryKey InRegistryKey
-			, FSoftObjectPath InAssetPath
+			, Frontend::FGraphRegistryKey InRegistryKey
 			, FGuid InAssetID
 			, int32 InNumInstances = 1
 		);

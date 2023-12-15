@@ -588,6 +588,14 @@ UMetaSoundBuilderDocument& UMetaSoundBuilderDocument::Create(const IMetaSoundDoc
 	return *DocObject;
 }
 
+FTopLevelAssetPath UMetaSoundBuilderDocument::GetAssetPathChecked() const
+{
+	FTopLevelAssetPath Path;
+	checkf(Path.TrySetPath(this), TEXT("Failed to set TopLevelAssetPath from transient MetaSound '%s'. MetaSound must be highest level object in package."), *GetPathName());
+	checkf(Path.IsValid(), TEXT("Failed to set TopLevelAssetPath from MetaSound '%s'. This may be caused by calling this function when the asset is being destroyed."), *GetPathName());
+	return Path;
+}
+
 const FMetasoundFrontendDocument& UMetaSoundBuilderDocument::GetConstDocument() const
 {
 	return Document;

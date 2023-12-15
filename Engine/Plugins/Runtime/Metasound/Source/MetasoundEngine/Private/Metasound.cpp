@@ -14,6 +14,8 @@
 #include "MetasoundFrontendQuery.h"
 #include "MetasoundFrontendQuerySteps.h"
 #include "MetasoundFrontendRegistries.h"
+#include "MetasoundFrontendRegistryContainer.h"
+#include "MetasoundFrontendRegistryKey.h"
 #include "MetasoundFrontendSearchEngine.h"
 #include "MetasoundGenerator.h"
 #include "MetasoundLog.h"
@@ -154,7 +156,6 @@ const UEdGraph& UMetaSoundPatch::GetGraphChecked() const
 	check(Graph);
 	return *Graph;
 }
-
 FText UMetaSoundPatch::GetDisplayName() const
 {
 	FString TypeName = UMetaSoundPatch::StaticClass()->GetName();
@@ -167,6 +168,12 @@ void UMetaSoundPatch::SetRegistryAssetClassInfo(const Metasound::Frontend::FNode
 	Metasound::FMetaSoundEngineAssetHelper::SetMetaSoundRegistryAssetClassInfo(*this, InNodeInfo);
 }
 #endif // WITH_EDITORONLY_DATA
+
+
+FTopLevelAssetPath UMetaSoundPatch::GetAssetPathChecked() const
+{
+	return Metasound::FMetaSoundEngineAssetHelper::GetAssetPathChecked(*this);
+}
 
 void UMetaSoundPatch::PostLoad() 
 {
@@ -203,6 +210,8 @@ bool UMetaSoundPatch::IsBuilderActive() const
 
 void UMetaSoundPatch::OnBeginActiveBuilder()
 {
+	using namespace Metasound::Frontend;
+
 	if (bIsBuilderActive)
 	{
 		UE_LOG(LogMetaSound, Error, TEXT("OnBeginActiveBuilder() call while prior builder is still active. This may indicate that multiple builders are attempting to modify the MetaSound %s concurrently."), *GetOwningAssetName())
@@ -213,7 +222,11 @@ void UMetaSoundPatch::OnBeginActiveBuilder()
 	// that lives on this object. We need to make sure that registration task
 	// completes so that the FMetasoundFrontendDocument does not get modified
 	// by a builder while it is also being read by async registration.
-	WaitForAsyncGraphRegistration();
+	const FGraphRegistryKey GraphKey = GetGraphRegistryKey();
+	if (GraphKey.IsValid())
+	{
+		FMetasoundFrontendRegistryContainer::Get()->WaitForAsyncGraphRegistration(GraphKey);
+	}
 
 	bIsBuilderActive = true;
 }

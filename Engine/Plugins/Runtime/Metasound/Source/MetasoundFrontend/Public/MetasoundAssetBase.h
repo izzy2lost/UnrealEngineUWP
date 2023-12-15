@@ -86,9 +86,6 @@ public:
 	// Registers the root graph of the given asset with the MetaSound Frontend.
 	virtual void RegisterGraphWithFrontend(Metasound::Frontend::FMetaSoundAssetRegistrationOptions InRegistrationOptions = Metasound::Frontend::FMetaSoundAssetRegistrationOptions());
 
-	// Return the graph registered for this asset. 
-	TSharedPtr<const Metasound::FGraph> GetRegisteredGraph() const;
-
 	// Unregisters the root graph of the given asset with the MetaSound Frontend.
 	void UnregisterGraphWithFrontend();
 
@@ -159,6 +156,9 @@ public:
 	FMetasoundFrontendDocument& GetDocumentChecked();
 	const FMetasoundFrontendDocument& GetDocumentChecked() const;
 
+	const Metasound::Frontend::FGraphRegistryKey& GetGraphRegistryKey() const;
+
+	UE_DEPRECATED(5.4, "Use GetGraphRegistryKey instead.")
 	const Metasound::Frontend::FNodeRegistryKey& GetRegistryKey() const;
 
 	UE_DEPRECATED(5.3, "AddDefaultInterfaces is included in now applied via FMetaSoundFrontendDocumentBuilder::InitDocument and no longer directly supported via this function.")
@@ -195,8 +195,6 @@ public:
 	virtual const UObject* GetOwningAsset() const = 0;
 
 	FString GetOwningAssetName() const;
-
-	void WaitForAsyncGraphRegistration();
 
 protected:
 #if WITH_EDITOR
@@ -275,11 +273,5 @@ private:
 	// race conditions with an active builder.
 	virtual bool IsBuilderActive() const = 0;
 
-	// Returns the cached registry key.
-	Metasound::Frontend::FNodeRegistryKey CacheRuntimeData(const TScriptInterface<IMetaSoundDocumentInterface>& InDoc);
-
-	Metasound::Frontend::FNodeRegistryKey RegistryKey;
-	FSoftObjectPath RegisteredGraphAssetPath; // This is cached to avoid reparsing path strings to create FSoftObjectPath from UObject
-
-	TSharedPtr<Metasound::FGraph, ESPMode::ThreadSafe> BuildMetasoundDocument(const FMetasoundFrontendDocument& InPreprocessDoc, const Metasound::Frontend::FProxyDataCache& InProxies) const;
+	Metasound::Frontend::FGraphRegistryKey GraphRegistryKey;
 };

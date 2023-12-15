@@ -5,6 +5,11 @@
 
 namespace Metasound::Frontend
 {
+	namespace NodeClassInfoPrivate
+	{
+		auto GetVertexTypeName = [](const FMetasoundFrontendVertex& Vertex) { return Vertex.TypeName; };
+	}
+
 	FNodeClassInfo::FNodeClassInfo(const FMetasoundFrontendClassMetadata& InMetadata)
 		: ClassName(InMetadata.GetClassName())
 		, Type(InMetadata.GetType())
@@ -16,33 +21,40 @@ namespace Metasound::Frontend
 		: ClassName(InClass.Metadata.GetClassName())
 		, Type(EMetasoundFrontendClassType::External) // Overridden as it is considered the same as an external class in registries
 		, AssetClassID(FGuid(ClassName.Name.ToString()))
+		, Version(InClass.Metadata.GetVersion())
+	{
+		using namespace NodeClassInfoPrivate;
+
+		ensure(AssetPath.TrySetPath(InAssetPath.ToString()));
+		ensure(!AssetPath.IsNull());
+
+#if WITH_EDITORONLY_DATA
+		Algo::Transform(InClass.Interface.Inputs, InputTypes, GetVertexTypeName);
+		Algo::Transform(InClass.Interface.Outputs, OutputTypes, GetVertexTypeName);
+		bIsPreset = InClass.PresetOptions.bIsPreset;
+#endif // WITH_EDITORONLY_DATA
+	}
+
+	FNodeClassInfo::FNodeClassInfo(const FMetasoundFrontendGraphClass& InClass, const FTopLevelAssetPath& InAssetPath)
+		: ClassName(InClass.Metadata.GetClassName())
+		, Type(EMetasoundFrontendClassType::External) // Overridden as it is considered the same as an external class in registries
+		, AssetClassID(FGuid(ClassName.Name.ToString()))
 		, AssetPath(InAssetPath)
 		, Version(InClass.Metadata.GetVersion())
 	{
+		using namespace NodeClassInfoPrivate;
+
 		ensure(!AssetPath.IsNull());
+
 #if WITH_EDITORONLY_DATA
-		for (const FMetasoundFrontendClassInput& Input : InClass.Interface.Inputs)
-		{
-			InputTypes.Add(Input.TypeName);
-		}
-
-		for (const FMetasoundFrontendClassOutput& Output : InClass.Interface.Outputs)
-		{
-			OutputTypes.Add(Output.TypeName);
-		}
-
+		Algo::Transform(InClass.Interface.Inputs, InputTypes, GetVertexTypeName);
+		Algo::Transform(InClass.Interface.Outputs, OutputTypes, GetVertexTypeName);
 		bIsPreset = InClass.PresetOptions.bIsPreset;
 #endif // WITH_EDITORONLY_DATA
 	}
 
 	UObject* FNodeClassInfo::LoadAsset() const
 	{
-		if (ensure(Type == EMetasoundFrontendClassType::External))
-		{
-			FSoftObjectPath SoftObjectPath(AssetPath);
-			return SoftObjectPath.TryLoad();
-		}
-
 		return nullptr;
 	}
 
@@ -115,8 +127,6 @@ namespace Metasound::Frontend
 
 	FString FNodeRegistryKey::ToString() const
 	{
-		TRACE_CPUPROFILER_EVENT_SCOPE(Metasound::Frontend::FNodeRegistryKey::ToString);
-
 		TStringBuilder<128> KeyStringBuilder;
 		KeyStringBuilder.Append(LexToString(Type));
 		KeyStringBuilder.AppendChar('_');
@@ -128,10 +138,21 @@ namespace Metasound::Frontend
 		return KeyStringBuilder.ToString();
 	}
 
+	FString FNodeRegistryKey::ToString(const FString& InScopeHeader) const
+	{
+		checkf(InScopeHeader.Len() < 128, TEXT("Scope text is limited to 128 characters"));
+
+		TStringBuilder<256> Builder; // 128 for key and 128 for scope text
+
+		Builder.Append(InScopeHeader);
+		Builder.Append(TEXT(" ["));
+		Builder.Append(ToString());
+		Builder.Append(TEXT(" ]"));
+		return Builder.ToString();
+	}
+
 	bool FNodeRegistryKey::Parse(const FString& InKeyString, FNodeRegistryKey& OutKey)
 	{
-		TRACE_CPUPROFILER_EVENT_SCOPE(Metasound::Frontend::FNodeRegistryKey::Parse);
-
 		TArray<FString> Tokens;
 		InKeyString.ParseIntoArray(Tokens, TEXT("_"));
 		if (Tokens.Num() == 3)
@@ -158,5 +179,31 @@ namespace Metasound::Frontend
 		}
 
 		return false;
+	}
+
+	FString FGraphRegistryKey::ToString() const
+	{
+		TStringBuilder<256> Builder;
+		Builder.Append(NodeKey.ToString());
+		Builder.Append(TEXT(", "));
+		Builder.Append(AssetPath.GetPackageName().ToString());
+		Builder.Append(TEXT("/"));
+		Builder.Append(AssetPath.GetAssetName().ToString());
+		return Builder.ToString();
+	}
+
+	FString FGraphRegistryKey::ToString(const FString& InScopeHeader) const
+	{
+		TStringBuilder<512> Builder;
+		Builder.Append(InScopeHeader);
+		Builder.Append(TEXT(" ["));
+		Builder.Append(ToString());
+		Builder.Append(TEXT(" ]"));
+		return Builder.ToString();
+	}
+
+	bool FGraphRegistryKey::IsValid() const
+	{
+		return NodeKey.IsValid() && AssetPath.IsValid();
 	}
 } // namespace Metasound::Frontend

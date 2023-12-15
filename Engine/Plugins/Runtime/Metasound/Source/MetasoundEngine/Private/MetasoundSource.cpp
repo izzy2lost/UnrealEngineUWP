@@ -490,6 +490,11 @@ bool UMetaSoundSource::ConformObjectDataToInterfaces()
 	return bDidAlterObjectData;
 }
 
+FTopLevelAssetPath UMetaSoundSource::GetAssetPathChecked() const
+{
+	return Metasound::FMetaSoundEngineAssetHelper::GetAssetPathChecked(*this);
+}
+
 void UMetaSoundSource::BeginDestroy()
 {
 	UnregisterGraphWithFrontend();
@@ -879,7 +884,7 @@ ISoundGeneratorPtr UMetaSoundSource::CreateSoundGenerator(const FSoundGeneratorI
 		// the base IGraph. 
 		if (ConsoleVariables::bEnableExperimentalRuntimePresetGraphInflation && bIsPresetGraphInflationSupported)
 		{
-			// Get the graph associated with base graph which this preset wraps .
+			// Get the graph associated with base graph which this preset wraps.
 			TSharedPtr<const IGraph> MetasoundGraph = TryGetMetaSoundPresetBaseGraph();
 
 			if (MetasoundGraph.IsValid())
@@ -908,7 +913,7 @@ ISoundGeneratorPtr UMetaSoundSource::CreateSoundGenerator(const FSoundGeneratorI
 
 		if (!Generator.IsValid())
 		{
-			TSharedPtr<const IGraph> MetasoundGraph = GetRegisteredGraph();
+			TSharedPtr<const FGraph> MetasoundGraph = FMetasoundFrontendRegistryContainer::Get()->GetGraph(GetGraphRegistryKey());
 			if (!MetasoundGraph.IsValid())
 			{
 				return ISoundGeneratorPtr(nullptr);
@@ -1494,6 +1499,8 @@ bool UMetaSoundSource::IsBuilderActive() const
 
 void UMetaSoundSource::OnBeginActiveBuilder()
 {
+	using namespace Metasound::Frontend;
+
 	if (bIsBuilderActive)
 	{
 		UE_LOG(LogMetaSound, Error, TEXT("OnBeginActiveBuilder() call while prior builder is still active. This may indicate that multiple builders are attempting to modify the MetaSound %s concurrently."), *GetOwningAssetName())
@@ -1504,12 +1511,16 @@ void UMetaSoundSource::OnBeginActiveBuilder()
 	// that lives on this object. We need to make sure that registration task
 	// completes so that the FMetasoundFrontendDocument does not get modified
 	// by a builder while it is also being read by async registration.
-	WaitForAsyncGraphRegistration();
+	const FGraphRegistryKey GraphKey = GetGraphRegistryKey();
+	if (GraphKey.IsValid())
+	{
+		FMetasoundFrontendRegistryContainer::Get()->WaitForAsyncGraphRegistration(GraphKey);
+	}
 
 	bIsBuilderActive = true;
 
 	// Currently we do not have information on whether inputs were added or removed
-	// from the document. We invalidate the cached runtime inputs just in case. 
+	// from the document. We invalidate the cached runtime inputs just in case.
 	// MetaSounds which have an active builder should not be using cached runtime
 	// input data until the builder is no longer active. 
 	InvalidateCachedRuntimeInputData();
@@ -1520,7 +1531,7 @@ void UMetaSoundSource::OnFinishActiveBuilder()
 	bIsBuilderActive = false;
 }
 
-TSharedPtr<Metasound::DynamicGraph::FDynamicOperatorTransactor> UMetaSoundSource::SetDynamicGeneratorEnabled(bool bInIsEnabled)
+TSharedPtr<Metasound::DynamicGraph::FDynamicOperatorTransactor> UMetaSoundSource::SetDynamicGeneratorEnabled(const FTopLevelAssetPath& InAssetPath, bool bInIsEnabled)
 {
 	using namespace Metasound;
 	using namespace Metasound::DynamicGraph;
@@ -1538,7 +1549,8 @@ TSharedPtr<Metasound::DynamicGraph::FDynamicOperatorTransactor> UMetaSoundSource
 			// graph to see if any FGraph already exists. 
 			if (IsRegistered())
 			{
-				TSharedPtr<const FGraph> CurrentGraph = GetRegisteredGraph();
+				TSharedPtr<const FGraph> CurrentGraph = FMetasoundFrontendRegistryContainer::Get()->GetGraph(GetGraphRegistryKey());
+
 				if (CurrentGraph.IsValid())
 				{
 					DynamicTransactor = MakeShared<FDynamicOperatorTransactor>(*CurrentGraph);
@@ -1696,9 +1708,8 @@ TSharedPtr<const Metasound::IGraph> UMetaSoundSource::TryGetMetaSoundPresetBaseG
 		TObjectPtr<const UMetaSoundSource> BaseMetaSoundSource = Cast<const UMetaSoundSource>(BaseGraph);
 		if (BaseMetaSoundSource)
 		{
-			// Get registered graph of base metasound source. 
-			FSoftObjectPath BaseMetaSoundSourcePath(BaseMetaSoundSource->GetOwningAsset());
-			MetasoundGraph = FMetasoundFrontendRegistryContainer::Get()->GetGraph(BaseMetaSoundSource->GetRegistryKey(), FSoftObjectPath(BaseMetaSoundSource->GetOwningAsset()));
+			// Get registered graph of base metasound source.
+			MetasoundGraph = FMetasoundFrontendRegistryContainer::Get()->GetGraph(BaseMetaSoundSource->GetGraphRegistryKey());
 		}
 	}
 	else
