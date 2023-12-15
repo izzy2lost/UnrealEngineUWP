@@ -90,11 +90,11 @@ TSharedRef<SWidget> SClothAnimationScrubPanel::OnCreatePreviewPlaybackModeWidget
 			}
 			else if (PreviewPlaybackMode == EClothPreviewPlaybackMode::Looping)
 			{
-				return LOCTEXT("PlaybackModeDefaultTooltip", "Looping playback");
+				return LOCTEXT("PlaybackModeLoopingTooltip", "Looping playback");
 			}
 			else
 			{
-				return LOCTEXT("PlaybackModeDefaultTooltip", "Ping pong playback");
+				return LOCTEXT("PlaybackModePingPongTooltip", "Ping pong playback");
 			}
 		})
 		.ContentPadding(0.0f);
