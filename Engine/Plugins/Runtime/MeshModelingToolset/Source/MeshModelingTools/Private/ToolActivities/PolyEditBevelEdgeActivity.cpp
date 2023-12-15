@@ -147,6 +147,16 @@ void UPolyEditBevelEdgeActivity::Setup(UInteractiveTool* ParentToolIn)
 			ActivityContext->Preview->InvalidateResult();
 		}
 	});
+	BevelProperties->WatchProperty(BevelProperties->bInferMaterialID, [this](bool) {
+		if (bIsRunning) {
+			ActivityContext->Preview->InvalidateResult();
+		}
+	});
+	BevelProperties->WatchProperty(BevelProperties->SetMaterialID, [this](int) {
+		if (bIsRunning) {
+			ActivityContext->Preview->InvalidateResult();
+		}
+	});
 }
 
 void UPolyEditBevelEdgeActivity::Shutdown(EToolShutdownType ShutdownType)

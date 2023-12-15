@@ -129,6 +129,11 @@ bool FQuadGridPatch::InitializeFromQuadPatch(const FDynamicMesh3& Mesh, const TA
 
 			// figure out unique vertices from the quad info, and verify that there are 4 and they are A/B/C/D
 			FIndex2i& QuadTris = QuadTriangles[j][k];
+			if (Mesh.IsTriangle(QuadTris.A) == false || Mesh.IsTriangle(QuadTris.B) == false)
+			{
+				bAllOK = false;
+				break;
+			}
 			FIndex3i TriA = Mesh.GetTriangle(QuadTris.A);
 			FIndex3i TriB = Mesh.GetTriangle(QuadTris.B);
 			TArray<int32, TInlineAllocator<6>> TriVerts({ TriA.A, TriA.B, TriA.C });

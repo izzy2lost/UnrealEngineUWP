@@ -204,6 +204,7 @@ public:
 		int32 WedgeVertex;						// central vertex of this wedge (updated by unlink functions)
 
 		FVector3d NewPosition;					// new calculated position for vertex of this wedge
+		bool bHaveNewPosition = false;			// flag indicating if NewPosition is valid
 	};
 
 	// a FBevelVertex can have various types, depending on the topology of the bevel edge graph and input mesh
@@ -320,7 +321,6 @@ protected:
 	void AppendTerminatorVertexPairQuad_Multi(FDynamicMesh3& Mesh, FBevelVertex& Vertex0, FBevelVertex& Vertex1);
 	void ApplyProfileShape_Round(FDynamicMesh3& Mesh);
 	FInterpCurveVector MakeArcSplineCurve(const FVector3d& PosA, FVector3d& NormalA, const FVector3d& PosB, FVector3d& NormalB) const;
-	void PlanarizeArcNormals(const TArray<FVector3d>& InitialEdgeCurve, bool bIsLoop, int32 Index, FVector3d& NormalA, FVector3d& NormalB, FVector3d& TangentOut, bool& bTangentIsValid) const;
 
 
 	// Normals phase - calculate normals for new geometry
