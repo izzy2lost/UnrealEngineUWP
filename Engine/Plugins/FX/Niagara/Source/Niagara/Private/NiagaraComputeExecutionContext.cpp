@@ -256,34 +256,6 @@ void FNiagaraComputeExecutionContext::SetMultiViewPreviousDataToRender(FNiagaraD
 	MultiViewPreviousDataToRender = InMultiViewPreviousDataToRender;
 }
 
-int32 FNiagaraComputeExecutionContext::GetConstantBufferSize() const
-{
-	return Align(CombinedParamStore.GetExternalParameterSize(), SHADER_PARAMETER_STRUCT_ALIGNMENT);
-}
-
-uint8* FNiagaraComputeExecutionContext::WriteConstantBufferInstanceData(uint8* InTargetBuffer, FNiagaraComputeInstanceData& InstanceData) const
-{
-	const int32 InterpFactor = HasInterpolationParameters ? 2 : 1;
-
-	InstanceData.ExternalParamDataSize = InterpFactor * GetConstantBufferSize();
-	InstanceData.ExternalParamData = InTargetBuffer;
-
-	const TArray<uint8>& ParameterDataArray = CombinedParamStore.GetParameterDataArray();
-	const int32 SourceDataSize = CombinedParamStore.GetExternalParameterSize();
-	const int32 ConstantBufferSize = GetConstantBufferSize();
-
-	check(SourceDataSize <= ParameterDataArray.Num());
-	FMemory::Memcpy(InstanceData.ExternalParamData, ParameterDataArray.GetData(), SourceDataSize);
-
-	if (HasInterpolationParameters)
-	{
-		check(SourceDataSize + SourceDataSize <= ParameterDataArray.Num());
-		FMemory::Memcpy(InstanceData.ExternalParamData + ConstantBufferSize, ParameterDataArray.GetData() + SourceDataSize, SourceDataSize);
-	}
-
-	return InTargetBuffer + InstanceData.ExternalParamDataSize;
-}
-
 bool FNiagaraComputeInstanceData::IsOutputStage(FNiagaraDataInterfaceProxy* DIProxy, uint32 SimulationStageIndex) const
 {
 	return Context->IsOutputStage(DIProxy, SimulationStageIndex);

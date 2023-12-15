@@ -52,6 +52,7 @@ public:
 	/** Call this init function if you are using a Niagara parameter store within a UNiagaraScript.*/
 	void InitFromOwningScript(UNiagaraScript* Script, ENiagaraSimTarget SimTarget, bool bNotifyAsDirty);
 	void AddScriptParams(UNiagaraScript* Script, ENiagaraSimTarget SimTarget, bool bTriggerRebind);
+	void CoalescePaddingInfo();
 #endif
 
 	virtual bool AddParameter(const FNiagaraVariable& Param, bool bInitInterfaces = true, bool bTriggerRebind = true, int32* OutOffset = nullptr) override
@@ -74,6 +75,10 @@ public:
 		else
 		{
 			bAdded = FNiagaraParameterStore::AddParameter(Param, bInitInterfaces, bTriggerRebind, &NewParamOffset);
+		}
+		if (bAdded)
+		{
+			AddPaddedParamSize(Param.GetType(), NewParamOffset);
 		}
 		if (OutOffset)
 		{
@@ -101,6 +106,8 @@ public:
 	{
 		FNiagaraParameterStore::Empty(bClearBindings);
 		ParameterSize = 0;
+		PaddedParameterSize = 0;
+		PaddingInfo.Empty();
 		bInitialized = false;
 	}
 
@@ -108,12 +115,20 @@ public:
 	{
 		FNiagaraParameterStore::Reset(bClearBindings);
 		ParameterSize = 0;
+		PaddedParameterSize = 0;
+		PaddingInfo.Empty();
 		bInitialized = false;
 	}
 
 	/** Size of the parameter data not including prev frame values or internal constants. Allows copying into previous parameter values for interpolated spawn scripts. */
 	UPROPERTY()
 	int32 ParameterSize;
+
+	UPROPERTY()
+	uint32 PaddedParameterSize;
+
+	UPROPERTY()
+	TArray<FNiagaraScriptExecutionPaddingInfo> PaddingInfo;
 
 	UPROPERTY()
 	uint8 bInitialized : 1;
@@ -127,8 +142,13 @@ public:
 		SIZE_T ResourceSize = sizeof(FNiagaraScriptExecutionParameterStore) - sizeof(FNiagaraParameterStore);
 
 		ResourceSize += FNiagaraParameterStore::GetResourceSize();
+		ResourceSize += PaddingInfo.GetAllocatedSize();
 		return ResourceSize;
 	}
+
+protected:
+	void AddPaddedParamSize(const FNiagaraTypeDefinition& InParamType, uint32 InOffset);
+	void AddAlignmentPadding();
 
 private:
 
@@ -187,6 +207,11 @@ public:
 
 	// Just the external parameters, not previous or internal...
 	uint32 GetExternalParameterSize() const;
+
+	uint32 GetPaddedParameterSizeInBytes() const;
+
+	// Helper that converts the data from the base type array internally into the padded out renderer-ready format.
+	void CopyParameterDataToPaddedBuffer(uint8* InTargetBuffer, uint32 InTargetBufferSizeInBytes) const;
 
 #if WITH_EDITORONLY_DATA
 	TArrayView<const uint8> GetScriptLiterals() const;

@@ -1067,7 +1067,7 @@ void FNiagaraHlslTranslator::BuildConstantBuffer(ENiagaraCodeChunkMode ChunkMode
 	for (const FNiagaraVariable& Variable : T::GetVariables())
 	{
 		const FString SymbolName = GetSanitizedSymbolName(Variable.GetName().ToString(), true);
-		AddChunkToConstantBuffer(SymbolName, Variable, ChunkMode);
+		AddUniformChunk(SymbolName, Variable, ChunkMode, false);
 	}
 }
 
@@ -1857,8 +1857,6 @@ FNiagaraTranslateResults TNiagaraHlslTranslator<GraphBridge>::Translate(const FN
 				ParameterMapRegisterExternalConstantNamespaceVariable(SYS_PARAM_ENGINE_SYSTEM_RANDOM_SEED, nullptr, 0, OutputIdx, nullptr);
 			}
 		}
-
-		PackRegisteredUniformChunk(CompilationOutput.ScriptData.Parameters);
 
 		// Generate the Parameter Map HLSL definitions. We don't add to the final HLSL output here. We just build up the strings and tables
 		// that are needed later.
@@ -4461,198 +4459,50 @@ FString FNiagaraHlslTranslator::GeneratedConstantString(FVector4 Constant)
 	return FString::Format(TEXT("float4({0}, {1}, {2}, {3})"), Args);
 }
 
-int32 FNiagaraHlslTranslator::AddChunkToConstantBuffer(const FString& SymbolName, const FNiagaraVariable& InVariable, ENiagaraCodeChunkMode ChunkMode)
+int32 FNiagaraHlslTranslator::AddUniformChunk(FString SymbolName, const FNiagaraVariable& InVariable, ENiagaraCodeChunkMode ChunkMode, bool AddPadding)
 {
-	if (const FUniformVariableInfo* UniformVariableInfo = ParamMapDefinedSystemVars.Find(InVariable.GetName()))
-	{
-		check(UniformVariableInfo->ChunkMode == static_cast<int32>(ChunkMode));
-		check(UniformVariableInfo->Variable == InVariable);
-		return UniformVariableInfo->ChunkIndex;
-	}
-
 	const FNiagaraTypeDefinition& Type = InVariable.GetType();
-	const int32 ChunkModeIndex = static_cast<int32>(ChunkMode);
 
-	check(FNiagaraTypeHelper::IsLWCType(Type) == false);
-	int32 ChunkIndex = CodeChunks.AddDefaulted();
-	FNiagaraCodeChunk& Chunk = CodeChunks[ChunkIndex];
-	Chunk.SymbolName = GetSanitizedSymbolName(SymbolName.Replace(TEXT("."), TEXT("_")));
-	Chunk.Type = Type;
-	Chunk.Original = InVariable;
-	Chunk.Mode = ChunkMode;
-
-	ChunksByMode[ChunkModeIndex].Add(ChunkIndex);
-
-	auto& SystemVar = ParamMapDefinedSystemVars.Add(InVariable.GetName());
-	SystemVar.ChunkIndex = ChunkIndex;
-	SystemVar.ChunkMode = ChunkModeIndex;
-	SystemVar.Variable = InVariable;
-
-	return ChunkIndex;
-}
-
-int32 FNiagaraHlslTranslator::RegisterUniformChunkToPack(const FString& SymbolName, const FNiagaraVariable& InVariable, bool AddPadding, FNiagaraParameters& Parameters, TOptional<FNiagaraVariable>& ConflictingVariable)
-{
-	// we must ensure that there's a one to one relationship between symbol name and parameter.  The generated VM only
-	// knows about the symbols while the parameter stores knows about the parameters, if these mismatch, then we're going
-	// to be incorrectly addressing the constant table
-	int32 ParameterIndex = Parameters.Parameters.IndexOfByKey(InVariable);
-
-	if (ParameterIndex == INDEX_NONE)
+	int32 Ret = CodeChunks.IndexOfByPredicate(
+		[&](const FNiagaraCodeChunk& Chunk)
 	{
-		// add the parameter, but first evaluate whether any of the symbols for existing parameters would conflict
-		const int32 ConflictIndex = Parameters.Parameters.IndexOfByPredicate([&](const FNiagaraVariable& ExistingParameter)
-		{
-			FNameBuilder ExistingParameterName(ExistingParameter.GetName());
-			return GetSanitizedSymbolName(ExistingParameterName).Equals(SymbolName);
-		});
-
-		if (ConflictIndex != INDEX_NONE)
-		{
-			ConflictingVariable = Parameters.Parameters[ConflictIndex];
-			return INDEX_NONE;
-		}
-		else
-		{
-			ParameterIndex = Parameters.Parameters.Add(InVariable);
-		}
+		return Chunk.Mode == ChunkMode && Chunk.SymbolName == SymbolName && Chunk.Type == Type;
 	}
-	
-	int32 ChunkIndex = AddChunkToConstantBuffer(SymbolName, InVariable, ENiagaraCodeChunkMode::Uniform);
+	);
 
-	if (AddPadding)
+	if (Ret == INDEX_NONE)
 	{
-		UniformParametersToPack.Add(ParameterIndex, ChunkIndex);
-	}
+		check(FNiagaraTypeHelper::IsLWCType(Type) == false);
+		Ret = CodeChunks.AddDefaulted();
+		FNiagaraCodeChunk& Chunk = CodeChunks[Ret];
+		Chunk.SymbolName = GetSanitizedSymbolName(SymbolName);
+		Chunk.Type = Type;
+		Chunk.Original = InVariable;
 
-	return ChunkIndex;
-}
-
-void FNiagaraHlslTranslator::PackRegisteredUniformChunk(FNiagaraParameters& Parameters)
-{
-	if (UniformParametersToPack.IsEmpty())
-	{
-		return;
-	}
-
-	// go through the parameters that have been registered, generate a layout that reduces waste and adjust the chunks
-	// that have already been added via RegisterUniformChunkToPack()
-
-	constexpr int32 SlotSizeInBytes = 4;
-	constexpr int32 SlotsPerRow = 4;
-
-	const int32 InitialParameterCount = Parameters.Parameters.Num();
-
-	TArray<int32> OrderedVariableIndices;
-	OrderedVariableIndices.Reserve(InitialParameterCount);
-
-	TArray<int32> SingleIndices;
-	TArray<int32> DoubleIndices;
-	TArray<int32> TripleIndices;
-
-	int32 UniquePaddingIndex = 1;
-
-	for (int32 ParameterIt = 0; ParameterIt < InitialParameterCount; ++ParameterIt)
-	{
-		const FNiagaraVariable& Parameter = Parameters.Parameters[ParameterIt];
-		const int32 ParameterSizeInBytes = Align(Parameter.GetSizeInBytes(), SlotSizeInBytes);
-		const int32 ParameterSizeInSlots = ParameterSizeInBytes / SlotSizeInBytes;
-
-		switch (ParameterSizeInSlots % SlotsPerRow)
+		if (AddPadding)
 		{
-			case 0:			OrderedVariableIndices.Add(ParameterIt);	break;
-			case 1:			SingleIndices.Add(ParameterIt);				break;
-			case 2:			DoubleIndices.Add(ParameterIt);				break;
-			case 3:			TripleIndices.Add(ParameterIt);				break;
-		}
-	}
-
-	auto ConditionalAddSingle = [&]() -> void
-	{
-		static const FName PaddingName = TEXT("Internal.Padding_int32");
-
-		if (SingleIndices.IsEmpty())
-		{
-			// if we're not all done adding elements, then we're going to have to add some padding
-			if (!DoubleIndices.IsEmpty() || !TripleIndices.IsEmpty())
+			if (Type == FNiagaraTypeDefinition::GetVec2Def())
 			{
-				TOptional<FNiagaraVariable> ConflictingVariable;
-
-				FName InstanceName = PaddingName;
-				InstanceName.SetNumber(UniquePaddingIndex++);
-
-				FNameBuilder InstanceNameBuilder(InstanceName);
-
-				FNiagaraVariable PaddingVariable(FNiagaraTypeDefinition::GetIntDef(), InstanceName);
-				FString SymbolName = GetSanitizedSymbolName(InstanceNameBuilder);
-
-				const int32 PaddingVariableIndex = Parameters.Parameters.Num();
-				RegisterUniformChunkToPack(SymbolName, PaddingVariable, true /*AddPadding*/, Parameters, ConflictingVariable);
-				check(!ConflictingVariable.IsSet());
-
-				OrderedVariableIndices.Add(PaddingVariableIndex);
+				Chunk.Type = FNiagaraTypeDefinition::GetVec4Def();
+				Chunk.ComponentMask = TEXT(".xy");
+			}
+			else if (Type == FNiagaraTypeDefinition::GetVec3Def() || Type == FNiagaraTypeDefinition::GetPositionDef())
+			{
+				Chunk.Type = FNiagaraTypeDefinition::GetVec4Def();
+				Chunk.ComponentMask = TEXT(".xyz");
 			}
 		}
-		else
-		{
-			OrderedVariableIndices.Add(SingleIndices.Pop());
-		}
-	};
 
-	while (!TripleIndices.IsEmpty())
-	{
-		OrderedVariableIndices.Add(TripleIndices.Pop());
-		ConditionalAddSingle();
+		Chunk.Mode = ChunkMode;
+
+		ChunksByMode[static_cast<int32>(ChunkMode)].Add(Ret);
+
+		auto& SystemVar = ParamMapDefinedSystemVars.Add(InVariable.GetName());
+		SystemVar.ChunkIndex = Ret;
+		SystemVar.ChunkMode = static_cast<int32>(ChunkMode);
+		SystemVar.Variable = InVariable;
 	}
-
-	while (DoubleIndices.Num() > 1)
-	{
-		OrderedVariableIndices.Add(DoubleIndices.Pop());
-		OrderedVariableIndices.Add(DoubleIndices.Pop());
-	}
-
-	if (!DoubleIndices.IsEmpty())
-	{
-		OrderedVariableIndices.Add(DoubleIndices.Pop());
-		ConditionalAddSingle();
-		ConditionalAddSingle();
-	}
-
-	OrderedVariableIndices.Append(SingleIndices);
-
-	// now we want to reorder the chunks for the uniform expressions based on how we've rearranged the variables here
-	const int32 ChunkModeToSort = static_cast<int32>(ENiagaraCodeChunkMode::Uniform);
-	TArray<int32>& ChunksToSort = ChunksByMode[ChunkModeToSort];
-	const int32 ChunkCount = ChunksToSort.Num();
-
-	// note that chunks that fail IsVariableInUniformBuffer will still be in the ChunksByMode, but won't actually get written
-	// out.  For now we preserve their existence in the ChunksByMode.  Make a copy of the uniform chunks so that we can find
-	// all the ones that need to get added back in
-	TSet<int32> OutstandingChunkIndices(ChunksToSort);
-	ChunksToSort.Reset();
-
-	for (int32 SortedParamIt : OrderedVariableIndices)
-	{
-		const int32 ChunkIndex = UniformParametersToPack.FindRef(SortedParamIt);
-		ChunksToSort.Add(ChunkIndex);
-		OutstandingChunkIndices.Remove(ChunkIndex);
-	}
-
-	// now append in the outstanding chunk indices
-	for (int32 OutstandingChunkIndex : OutstandingChunkIndices)
-	{
-		ChunksToSort.Add(OutstandingChunkIndex);
-	}
-
-	// and finally reorder the Parameters array as well
-	TArray<FNiagaraVariable> OrderedVariables;
-	OrderedVariables.Reserve(OrderedVariableIndices.Num());
-	for (int32 VariableIndex : OrderedVariableIndices)
-	{
-		OrderedVariables.Add(Parameters.Parameters[VariableIndex]);
-	}
-
-	Parameters.Parameters = MoveTemp(OrderedVariables);
+	return Ret;
 }
 
 int32 FNiagaraHlslTranslator::AddSourceChunk(FString SymbolName, const FNiagaraTypeDefinition& Type, bool bSanitize)
@@ -6026,6 +5876,7 @@ bool TNiagaraHlslTranslator<GraphBridge>::ParameterMapRegisterExternalConstantNa
 
 	FString VarName = InVariable.GetName().ToString();
 	FString SymbolName = GetSanitizedSymbolName(VarName);
+	FString FlattenedName = SymbolName.Replace(TEXT("."), TEXT("_"));
 	FString ParameterMapInstanceName = GetParameterMapInstanceName(InParamMapHistoryIdx);
 
 	bool bMissingParameter = false;
@@ -6052,6 +5903,8 @@ bool TNiagaraHlslTranslator<GraphBridge>::ParameterMapRegisterExternalConstantNa
 
 			if (false == ParamMapDefinedSystemVars.Contains(InVariable.GetName()))
 			{
+				FString SymbolNameDefined = FlattenedName;
+
 				if (bIsDataInterface)
 				{
 					UNiagaraDataInterface* DataInterface = nullptr;
@@ -6106,21 +5959,34 @@ bool TNiagaraHlslTranslator<GraphBridge>::ParameterMapRegisterExternalConstantNa
 
 				if (IsVariableInUniformBuffer(InVariable))
 				{
-					TOptional<FNiagaraVariable> ConflictingVariable;
-
-					const bool bApplyPadding = UNiagaraScript::IsGPUScript(CompileOptions.TargetUsage);
-					UniformChunk = RegisterUniformChunkToPack(SymbolName, InVariable, bApplyPadding, CompilationOutput.ScriptData.Parameters, ConflictingVariable);
-
-					if (ConflictingVariable.IsSet())
+					// we must ensure that there's a one to one relationship between symbol name and parameter.  The generated VM only
+					// knows about the symbols while the parameter stores knows about the parameters, if these mismatch, then we're going
+					// to be incorrectly addressing the constant table
+					if (!CompilationOutput.ScriptData.Parameters.FindParameter(InVariable))
 					{
-						Error(FText::Format(LOCTEXT("NonUniqueSymbolNames", "Parameters ('{0}' and '{1}') found which resolve to the same HLSL symbol name '{2}'.  These should be disambiguated."),
-							FText::FromName(InVariable.GetName()), FText::FromName(ConflictingVariable->GetName()), FText::FromString(SymbolName)), InNodeForErrorReporting, InDefaultPin);
+						bool AddParameter = true;
+
+						// add the parameter, but first evaluate whether any of the symbols for existing parameters would conflict
+						for (const FNiagaraVariable& ExistingParameter : CompilationOutput.ScriptData.Parameters.Parameters)
+						{
+							FNameBuilder ExistingParameterName(ExistingParameter.GetName());
+							if (GetSanitizedSymbolName(ExistingParameterName).Equals(SymbolName))
+							{
+								Error(FText::Format(LOCTEXT("NonUniqueSymbolNames", "Parameters ('{0}' and '{1}') found which resolve to the same HLSL symbol name '{2}'.  These should be disambiguated."),
+									FText::FromName(InVariable.GetName()), FText::FromName(ExistingParameter.GetName()), FText::FromString(SymbolName)), InNodeForErrorReporting, InDefaultPin);
+
+								AddParameter = false;
+							}
+						}
+
+						if (AddParameter)
+						{
+							CompilationOutput.ScriptData.Parameters.Parameters.Add(InVariable);
+						}
 					}
 				}
-				else
-				{
-					UniformChunk = AddChunkToConstantBuffer(SymbolName, InVariable, ENiagaraCodeChunkMode::Uniform);
-				}
+
+				UniformChunk = AddUniformChunk(SymbolNameDefined, InVariable, ENiagaraCodeChunkMode::Uniform, UNiagaraScript::IsGPUScript(CompileOptions.TargetUsage));
 			}
 			else
 			{
