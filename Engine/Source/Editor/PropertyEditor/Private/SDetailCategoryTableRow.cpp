@@ -108,7 +108,7 @@ void SDetailCategoryTableRow::Construct(const FArguments& InArgs, TSharedRef<FDe
 	PropertyUpdatedWidgetBuilder = DisplayManager->GetPropertyUpdatedWidget(FExecuteAction::CreateLambda( [this]
 		{
 			UE_LOG(LogTemp, Warning, TEXT("DisplayManager->GetPropertyUpdatedWidget reset"));
-		}), true);
+		}), true, ObjectName );
 	if (PropertyUpdatedWidgetBuilder.IsValid())
 	{
 		TAttribute<bool> IsHovered = TAttribute<bool>::CreateSP( this, &SDetailCategoryTableRow::IsHovered);
@@ -157,34 +157,26 @@ void SDetailCategoryTableRow::Construct(const FArguments& InArgs, TSharedRef<FDe
 			.VAlign(VAlign_Center)
 			.AutoWidth()
 			[
-			DisplayManager.IsValid() ?
-			*FCategoryMenuComboButtonBuilder( DisplayManager.ToSharedRef() )
-				.Set_OnGetContent(FOnGetContent::CreateLambda([this]
-				{
-					const TSharedPtr<SWidget> Menu = DisplayManager->GetCategoryMenu(ObjectName);
-					return Menu.IsValid() ? Menu.ToSharedRef() : SNullWidget::NullWidget;
-				}))
-				.Bind_IsVisible(TAttribute<EVisibility>::CreateLambda([this]
-				{
-					return IsHovered() ? EVisibility::Visible : EVisibility::Collapsed;
-				})) :
-				SNullWidget::NullWidget
+			PropertyUpdatedWidgetBuilder.IsValid() ?
+								PropertyUpdatedWidgetBuilder->Bind_IsVisible(TAttribute<EVisibility>::CreateLambda([this]
+									{
+										return EVisibility::Visible;
+									})).GenerateWidget().ToSharedRef() :
+									SNullWidget::NullWidget
 			]
 			+SHorizontalBox::Slot()
 			.HAlign(HAlign_Right)
 			.VAlign(VAlign_Center)
 			.AutoWidth()
 			[
-				PropertyUpdatedWidgetBuilder.IsValid() ?
-						PropertyUpdatedWidgetBuilder->Bind_IsVisible(TAttribute<EVisibility>::CreateLambda([this]
-							{
-								if (!DisplayManager->GetCategoryHasAnyUpdatedProperties(ObjectName))
-								{
-									return EVisibility::Collapsed;
-								}
-								return EVisibility::Visible;
-							})).GenerateWidget().ToSharedRef() :
-							SNullWidget::NullWidget
+			DisplayManager.IsValid() ?
+				*FCategoryMenuComboButtonBuilder( DisplayManager.ToSharedRef() )
+				.Set_OnGetContent(FOnGetContent::CreateLambda([this]
+				{
+					const TSharedPtr<SWidget> Menu = DisplayManager->GetCategoryMenu(ObjectName);
+					return Menu.IsValid() ? Menu.ToSharedRef() : SNullWidget::NullWidget;
+				})) :
+				SNullWidget::NullWidget
 			]
 			]
 			] 

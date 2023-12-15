@@ -27,7 +27,7 @@ TSharedPtr<SWidget> FCategoryMenuComboButtonBuilder::GenerateWidget()
 	return 	DisplayManager->ShouldShowCategoryMenu()  ?
 		        SNew( SComboButton )
 				.ComboButtonStyle( FAppStyle::Get(), "DetailsView.CategoryComboButton" )
-				.Visibility(IsVisible)
+				.Visibility(EVisibility::Visible)
 				.HasDownArrow(true)
 				.OnGetMenuContent(OnGetContent) :
 		        SNullWidget::NullWidget;

@@ -8,7 +8,7 @@
 #include "Templates/SharedPointer.h"
 
 class FDetailsDisplayManager;
-class FOverridesWidgetStyleKey;
+
 
 DECLARE_DELEGATE_OneParam(FGetIsRowHoveredOver, bool)
 
@@ -34,7 +34,8 @@ public:
 	 */
 	PROPERTYEDITOR_API FOverridesComboButtonBuilder(
 		TSharedRef<FDetailsDisplayManager> InDetailsDisplayManager,
-		bool bInIsCategoryOverridesComboButton);
+		bool bInIsCategoryOverridesComboButton,
+		TWeakObjectPtr<UObject> InObject );
 
 	/**
 	 * Set the OnGetContent for the menu that this button is responsible for
@@ -56,12 +57,17 @@ public:
 	 */
 	TSharedRef<SWidget> operator*();
 
-	/**
-	 * returns the const FOverridesWidgetStyleKey* which points to the proper FOverridesWidgetStyleKey for this
-	 */
-	const FOverridesWidgetStyleKey* GetOverridesStyleKey(bool bIsHoveredOver = false) const;
-
 private:
+	/**
+	 * Returns the visibility of the image that denotes that a Component is fully overridden
+	 */
+	EVisibility GetFullyOverridenVisibility() const;
+
+	/**
+	 * Returns the visibility of the image that denotes a Component is overridden only inside
+	 */
+	EVisibility GetOverridenInsideVisibility() const;
+
 	/**
 	 * The @code DetailsDisplayManager @endcode which provides an API to manage some of the characteristics of the
 	 * details display
@@ -72,4 +78,9 @@ private:
 	 * if true, this is an overrides combo button for a Category 
 	 */
 	bool bIsCategoryOverridesComboButton;
+
+	/**
+	 * The UObject that will be queried for its override state
+	 */
+	TWeakObjectPtr<UObject> Object;
 };

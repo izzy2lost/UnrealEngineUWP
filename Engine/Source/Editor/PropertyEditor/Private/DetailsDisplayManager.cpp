@@ -151,7 +151,7 @@ bool FDetailsDisplayManager::AddEmptyCategoryToDetailLayoutIfNeeded(TSharedRef<F
 }
 
 TSharedPtr<FPropertyUpdatedWidgetBuilder> FDetailsDisplayManager::GetPropertyUpdatedWidget(FResetToDefault ResetToDefault,
-	bool bIsCategoryUpdateWidget)
+	bool bIsCategoryUpdateWidget, FName InCategoryObjectName)
 {
 	return nullptr;
 }
