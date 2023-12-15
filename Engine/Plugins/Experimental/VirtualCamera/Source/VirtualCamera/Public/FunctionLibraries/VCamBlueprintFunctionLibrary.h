@@ -21,6 +21,8 @@ class UVirtualCameraUserSettings;
 class ISequencer;
 #endif
 
+enum class EVCamTargetViewportID : uint8;
+
 UCLASS(config=VirtualCamera, BlueprintType)
 class VIRTUALCAMERA_API UVCamBlueprintFunctionLibrary : public UBlueprintFunctionLibrary
 {
@@ -191,9 +193,13 @@ public:
 	UFUNCTION(BlueprintCallable, Category = "VirtualCamera|Sequencer")
 	static void SetPlaybackSpeed(float Value=1.0);
 
-	/* Convert 2D screen position to World Space 3D position and direction. Returns false if unable to determine value. */
+	/* Convert 2D screen position to World Space 3D position and direction in the active viewport. Returns false if unable to determine value. */
 	UFUNCTION(BlueprintCallable, Category = "VirtualCamera")
 	static bool DeprojectScreenToWorld(const FVector2D& InScreenPosition, FVector& OutWorldPosition, FVector& OutWorldDirection);
+
+	/** Converts 2D screen position to World Space 3D position and direction in the specified viewport. Returns false if unable to determine value. Only works in editor builds. */
+	UFUNCTION(BlueprintCallable, Category = "VirtualCamera")
+	static bool DeprojectScreenToWorldByViewport(const FVector2D& InScreenPosition, EVCamTargetViewportID TargetViewport, FVector& OutWorldPosition, FVector& OutWorldDirection);
 
 private:
 

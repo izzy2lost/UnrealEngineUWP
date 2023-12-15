@@ -4,7 +4,12 @@
 
 #include "Containers/UnrealString.h"
 #include "HAL/Platform.h"
+#include "Templates/SharedPointer.h"
 #include "EVCamTargetViewportID.generated.h"
+
+#if WITH_EDITOR
+class SLevelViewport;
+#endif 
 
 UENUM(BlueprintType, meta=(DisplayName = "VCam Target Viewport ID"))
 enum class EVCamTargetViewportID : uint8
@@ -28,4 +33,9 @@ namespace UE::VCamCore
 	{
 		return FString(TEXT("Viewport ")) + FString::FromInt(ViewportIdToOrdinality(TargetViewport));
 	}
+
+#if WITH_EDITOR
+	/** Gets the level viewport identified by TargetViewport */
+	VCAMCORE_API TSharedPtr<SLevelViewport> GetLevelViewport(EVCamTargetViewportID TargetViewport);
+#endif
 }

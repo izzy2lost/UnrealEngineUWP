@@ -19,6 +19,7 @@
 #include "Editor.h"
 #include "Editor/Transactor.h"
 #include "EditorAssetLibrary.h"
+#include "EVCamTargetViewportID.h"
 #include "ILevelSequenceEditorToolkit.h"
 #include "ISequencer.h"
 #include "ITakeRecorderModule.h"
@@ -493,6 +494,33 @@ void UVCamBlueprintFunctionLibrary::SetOnTakeRecorderSlateChanged(FOnTakeRecorde
 #endif
 }
 
+namespace UE::VirtualCamera::Private
+{
+#if WITH_EDITOR
+	static bool DeprojectScreenToWorld(const TSharedPtr<SLevelViewport>& ActiveLevelViewport, const FVector2D& InScreenPosition, FVector& OutWorldPosition, FVector& OutWorldDirection)
+	{
+		if (ActiveLevelViewport.IsValid() && ActiveLevelViewport->GetActiveViewport())
+		{
+			FViewport* ActiveViewport = ActiveLevelViewport->GetActiveViewport();
+			FLevelEditorViewportClient& LevelViewportClient = ActiveLevelViewport->GetLevelViewportClient();
+			FSceneViewFamilyContext ViewFamily(FSceneViewFamily::ConstructionValues(
+				ActiveViewport,
+				LevelViewportClient.GetScene(),
+				LevelViewportClient.EngineShowFlags)
+				.SetRealtimeUpdate(true));
+			FSceneView* View = LevelViewportClient.CalcSceneView(&ViewFamily);
+
+			const FIntPoint ViewportSize = ActiveViewport->GetSizeXY();
+			const FIntRect ViewRect = FIntRect(0, 0, ViewportSize.X, ViewportSize.Y);
+			const FMatrix InvViewProjectionMatrix = View->ViewMatrices.GetInvViewProjectionMatrix();
+			FSceneView::DeprojectScreenToWorld(InScreenPosition, ViewRect, InvViewProjectionMatrix, OutWorldPosition, OutWorldDirection);
+			return true;
+		}
+		return false;
+	}
+#endif
+}
+
 bool UVCamBlueprintFunctionLibrary::DeprojectScreenToWorld(const FVector2D& InScreenPosition, FVector& OutWorldPosition, FVector& OutWorldDirection)
 {
 	FName LevelEditorName(TEXT("LevelEditor"));
@@ -513,24 +541,8 @@ bool UVCamBlueprintFunctionLibrary::DeprojectScreenToWorld(const FVector2D& InSc
 		else if (Context.WorldType == EWorldType::Editor)
 		{
 			FLevelEditorModule& LevelEditorModule = FModuleManager::GetModuleChecked<FLevelEditorModule>(LevelEditorName);
-			TSharedPtr<SLevelViewport> ActiveLevelViewport = LevelEditorModule.GetFirstActiveLevelViewport();
-			if (ActiveLevelViewport.IsValid() && ActiveLevelViewport->GetActiveViewport())
-			{
-				FViewport* ActiveViewport = ActiveLevelViewport->GetActiveViewport();
-				FLevelEditorViewportClient& LevelViewportClient = ActiveLevelViewport->GetLevelViewportClient();
-				FSceneViewFamilyContext ViewFamily(FSceneViewFamily::ConstructionValues(
-					ActiveViewport,
-					LevelViewportClient.GetScene(),
-					LevelViewportClient.EngineShowFlags)
-					.SetRealtimeUpdate(true));
-				FSceneView* View = LevelViewportClient.CalcSceneView(&ViewFamily);
-
-				const FIntPoint ViewportSize = ActiveViewport->GetSizeXY();
-				const FIntRect ViewRect = FIntRect(0, 0, ViewportSize.X, ViewportSize.Y);
-				const FMatrix InvViewProjectionMatrix = View->ViewMatrices.GetInvViewProjectionMatrix();
-				FSceneView::DeprojectScreenToWorld(InScreenPosition, ViewRect, InvViewProjectionMatrix, OutWorldPosition, OutWorldDirection);
-				bSuccess = true;
-			}
+			const TSharedPtr<SLevelViewport> ActiveLevelViewport = LevelEditorModule.GetFirstActiveLevelViewport();
+			bSuccess = UE::VirtualCamera::Private::DeprojectScreenToWorld(ActiveLevelViewport, InScreenPosition, OutWorldPosition, OutWorldDirection);
 		}
 #endif
 	}
@@ -541,6 +553,23 @@ bool UVCamBlueprintFunctionLibrary::DeprojectScreenToWorld(const FVector2D& InSc
 		OutWorldDirection = FVector::ZeroVector;
 	}
 	return bSuccess;
+}
+
+bool UVCamBlueprintFunctionLibrary::DeprojectScreenToWorldByViewport(const FVector2D& InScreenPosition, EVCamTargetViewportID TargetViewport, FVector& OutWorldPosition, FVector& OutWorldDirection)
+{
+	bool bSuccess = false;
+	
+#if WITH_EDITOR
+	const TSharedPtr<SLevelViewport> Viewport = UE::VCamCore::GetLevelViewport(TargetViewport);
+	bSuccess = UE::VirtualCamera::Private::DeprojectScreenToWorld(Viewport, InScreenPosition, OutWorldPosition, OutWorldDirection);
+#endif
+	
+	if (!bSuccess)
+	{
+		OutWorldPosition = FVector::ZeroVector;
+		OutWorldDirection = FVector::ZeroVector;
+	}
+	return false;
 }
 
 TArray<UObject*> UVCamBlueprintFunctionLibrary::GetBoundObjects(FMovieSceneObjectBindingID CameraBindingID)
