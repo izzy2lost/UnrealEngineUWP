@@ -157,14 +157,9 @@ void ULevelStreamingLevelInstanceEditor::OnPreInitializeContainerInstance(UActor
 	// @todo_ow: Make sure LevelInstance exists (it is created after when creating a new Level Instance). This needs to be fixed properly but for now since the created LI is then unloaded it doesn't matter that the parent isn't set.
 	if (AActor* LevelInstanceActor = Cast<AActor>(GetLevelInstance()))
 	{
-		if (UWorldPartition* OwningWorldPartition = LevelInstanceActor->GetLevel()->GetWorldPartition())
-		{
-			if (FWorldPartitionActorDescInstance* ActorDescInstance = OwningWorldPartition->GetActorDescInstance(LevelInstanceActor->GetActorGuid()); ActorDescInstance && ActorDescInstance->IsChildContainerInstance())
-			{
-				// Add parenting info to init param
-				InInitParams.SetParent(ActorDescInstance->GetContainerInstance(), ActorDescInstance->GetGuid());
-			}
-		}
+		UWorldPartition* OwningWorldPartition = LevelInstanceActor->GetLevel()->GetWorldPartition();
+		// Add parenting info to init param
+		InInitParams.SetParent(OwningWorldPartition ? OwningWorldPartition->GetActorDescContainerInstance() : nullptr, LevelInstanceActor->GetActorGuid());
 	}
 }
 

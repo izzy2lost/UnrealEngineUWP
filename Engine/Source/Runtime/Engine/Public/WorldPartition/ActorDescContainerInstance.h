@@ -46,7 +46,7 @@ public:
 				
 		FInitializeParams& SetParent(const UActorDescContainerInstance* InParentContainerInstance, const FGuid& InContainerActorGuid)
 		{
-			check(InParentContainerInstance && InContainerActorGuid.IsValid());
+			check(InContainerActorGuid.IsValid());
 			ParentContainerInstance = InParentContainerInstance;
 			ContainerActorGuid = InContainerActorGuid;
 			return *this;

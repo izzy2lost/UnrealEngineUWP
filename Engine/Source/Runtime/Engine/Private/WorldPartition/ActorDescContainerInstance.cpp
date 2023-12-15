@@ -69,9 +69,11 @@ void UActorDescContainerInstance::Initialize(const FInitializeParams& InParams)
 	FName OuterWorldContainerPackageName;
 
 	Transform = InParams.Transform;
-	if (InParams.ParentContainerInstance)
+	if (InParams.ContainerActorGuid.IsValid())
 	{
-		ContainerID = FActorContainerID(InParams.ParentContainerInstance->GetContainerID(), InParams.ContainerActorGuid);
+		// It is possible to not have a ParentContainerInstance if we are in a non-WP main world
+		// We want this ContainerInstance to still not have a Main ContainerID to properly handle IsMainWorldOnly() actors
+		ContainerID = FActorContainerID(InParams.ParentContainerInstance ? InParams.ParentContainerInstance->GetContainerID() : FActorContainerID(), InParams.ContainerActorGuid);
 	}
 				
 	// Only consider world if we are outered to a WorldPartition directly
@@ -423,11 +425,20 @@ const FLinkerInstancingContext* UActorDescContainerInstance::GetInstancingContex
 
 const FTransform& UActorDescContainerInstance::GetTransform() const
 {
+	// UActorDescContainerInstance outered to a UWorldPartition
 	if (UWorldPartition* WorldPartition = GetWorldPartition())
 	{
+		// GameWorld: Container instance is necessarly used for Streaming generation. In which case we want to return Identity and Transform of the World Partition will be applied on the LevelStreaming objects.
+		if (GetWorld()->IsGameWorld())
+		{
+			check(GetContainerID().IsMainContainer());
+			return FTransform::Identity;
+		}
+
 		return GetWorldPartition()->GetInstanceTransform();
 	}
 	
+	// Transform is set when this Container Instance is a Child Container Instance created for Streaming Generation
 	return Transform.IsSet() ? Transform.GetValue() : FTransform::Identity;
 }
 
