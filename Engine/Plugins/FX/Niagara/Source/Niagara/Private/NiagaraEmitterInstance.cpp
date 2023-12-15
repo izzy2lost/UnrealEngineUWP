@@ -1544,11 +1544,10 @@ void FNiagaraEmitterInstance::Tick(float DeltaSeconds)
 			GPUExecContext->CombinedParamStore.DumpParameters();
 		}
 
-		int32 ParmSize = GPUExecContext->CombinedParamStore.GetPaddedParameterSizeInBytes();
 		// Because each context is only ran once each frame, the CBuffer layout stays constant for the lifetime duration of the CBuffer (one frame).
 
 		// @todo-threadsafety do this once during init. Should not change during runtime...
-		const uint32 ConstantBufferSize = ParmSize / (GPUExecContext->HasInterpolationParameters ? 2 : 1);
+		const uint32 ConstantBufferSize = GPUExecContext->GetConstantBufferSize();
 		if (GPUExecContext->ExternalCBufferLayoutSize != ConstantBufferSize)
 		{
 			GPUExecContext->ExternalCBufferLayoutSize = ConstantBufferSize;

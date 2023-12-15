@@ -2468,7 +2468,9 @@ void FNiagaraSystemInstance::Tick_Concurrent(bool bEnqueueGPUTickIfNeeded)
 			{
 				if (const FNiagaraComputeExecutionContext* GPUContext = Inst.GetGPUContext())
 				{
-					TotalCombinedParamStoreSize += GPUContext->CombinedParamStore.GetPaddedParameterSizeInBytes();
+					const int32 InterpFactor = GPUContext->HasInterpolationParameters ? 2 : 1;
+
+					TotalCombinedParamStoreSize += InterpFactor * GPUContext->GetConstantBufferSize();
 					GPUParamIncludeInterpolation = GPUContext->HasInterpolationParameters || GPUParamIncludeInterpolation;
 					ActiveGPUEmitterCount++;
 				}

@@ -88,6 +88,9 @@ struct FNiagaraComputeExecutionContext
 		}
 	}
 
+	int32 GetConstantBufferSize() const;
+	uint8* WriteConstantBufferInstanceData(uint8* InTargetBuffer, FNiagaraComputeInstanceData& InstanceData) const;
+
 	struct 
 	{
 		// The offset at which the GPU instance count (see FNiagaraGPUInstanceCountManager()).
