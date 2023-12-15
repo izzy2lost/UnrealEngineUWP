@@ -3,21 +3,21 @@
 
 #include "CoreMinimal.h"
 #include "SEditorViewportToolBarMenu.h"
+#include "SCommonEditorViewportToolbarBase.h"
 
 // ----------------------------------------------------------------------------------
 class SDataflowEditorViewport;
 
-class SDataflowViewportSelectionToolBar : public SViewportToolBar
+class SDataflowViewportSelectionToolBar : public SCommonEditorViewportToolbarBase
 {
 public:
 	SLATE_BEGIN_ARGS(SDataflowViewportSelectionToolBar) {}
-		SLATE_ARGUMENT(TWeakPtr<SDataflowEditorViewport>, EditorViewport)
 	SLATE_END_ARGS()
 
-		/** Constructs this widget with the given parameters */
-		void Construct(const FArguments& InArgs);
+	/** Constructs this widget with the given parameters */
+	void Construct(const FArguments& InArgs, TSharedPtr<SDataflowEditorViewport> InDataflowViewport);
 
-		TSharedRef<SWidget> MakeSelectionModeToolBar();
+	TSharedRef<SWidget> MakeSelectionModeToolBar();
 
 
 private:

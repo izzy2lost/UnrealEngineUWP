@@ -192,44 +192,41 @@ void FDataflowEngineSceneProxy::CreateMeshRenderThreadResources(FRHICommandListB
 		// back to linear. The ToFColor(false) call just scales back into 0-255
 		// space.
 		ParallelFor(Facade.NumTriangles(), [&](int32 i)
-					{
-						const int32 VertexBufferIndex = 3 * i;
-		const int32 IndexBufferIndex = 3 * i;
+		{
+			const int32 VertexBufferIndex = 3 * i;
+			const int32 IndexBufferIndex = 3 * i;
 
-		const auto& P1 = Vertex[Indices[i][0]];
-		const auto& P2 = Vertex[Indices[i][1]];
-		const auto& P3 = Vertex[Indices[i][2]];
+			const auto& P1 = Vertex[Indices[i][0]];
+			const auto& P2 = Vertex[Indices[i][1]];
+			const auto& P3 = Vertex[Indices[i][2]];
 
-		VertexBuffers.PositionVertexBuffer.VertexPosition(VertexBufferIndex + 0) = P1;
-		VertexBuffers.PositionVertexBuffer.VertexPosition(VertexBufferIndex + 1) = P2;
-		VertexBuffers.PositionVertexBuffer.VertexPosition(VertexBufferIndex + 2) = P3;
+			VertexBuffers.PositionVertexBuffer.VertexPosition(VertexBufferIndex + 0) = P1;
+			VertexBuffers.PositionVertexBuffer.VertexPosition(VertexBufferIndex + 1) = P2;
+			VertexBuffers.PositionVertexBuffer.VertexPosition(VertexBufferIndex + 2) = P3;
 
-		FVector3f Tangent1 = (P2 - P1).GetSafeNormal();
-		FVector3f Tangent2 = (P3 - P2).GetSafeNormal();
-		FVector3f Normal = (Tangent2 ^ Tangent1).GetSafeNormal();
+			FVector3f Tangent1 = (P2 - P1).GetSafeNormal();
+			FVector3f Tangent2 = (P3 - P2).GetSafeNormal();
+			FVector3f Normal = (Tangent2 ^ Tangent1).GetSafeNormal();
 
-		VertexBuffers.StaticMeshVertexBuffer.SetVertexTangents(VertexBufferIndex + 0, FVector3f(1, 0, 0), FVector3f(0, 1, 0), Normal);
-		VertexBuffers.StaticMeshVertexBuffer.SetVertexTangents(VertexBufferIndex + 1, FVector3f(1, 0, 0), FVector3f(0, 1, 0), Normal);
-		VertexBuffers.StaticMeshVertexBuffer.SetVertexTangents(VertexBufferIndex + 2, FVector3f(1, 0, 0), FVector3f(0, 1, 0), Normal);
+			VertexBuffers.StaticMeshVertexBuffer.SetVertexTangents(VertexBufferIndex + 0, FVector3f(1, 0, 0), FVector3f(0, 1, 0), Normal);
+			VertexBuffers.StaticMeshVertexBuffer.SetVertexTangents(VertexBufferIndex + 1, FVector3f(1, 0, 0), FVector3f(0, 1, 0), Normal);
+			VertexBuffers.StaticMeshVertexBuffer.SetVertexTangents(VertexBufferIndex + 2, FVector3f(1, 0, 0), FVector3f(0, 1, 0), Normal);
 
-		VertexBuffers.StaticMeshVertexBuffer.SetVertexUV(VertexBufferIndex + 0, 0, FVector2f(0, 0));
-		VertexBuffers.StaticMeshVertexBuffer.SetVertexUV(VertexBufferIndex + 1, 0, FVector2f(0, 0));
-		VertexBuffers.StaticMeshVertexBuffer.SetVertexUV(VertexBufferIndex + 2, 0, FVector2f(0, 0));
+			VertexBuffers.StaticMeshVertexBuffer.SetVertexUV(VertexBufferIndex + 0, 0, FVector2f(0, 0));
+			VertexBuffers.StaticMeshVertexBuffer.SetVertexUV(VertexBufferIndex + 1, 0, FVector2f(0, 0));
+			VertexBuffers.StaticMeshVertexBuffer.SetVertexUV(VertexBufferIndex + 2, 0, FVector2f(0, 0));
 
-		FColor SelectionColor = (State.Mode == FDataflowSelectionState::EMode::DSS_Dataflow_Object) ? IDataflowEnginePlugin::SelectionPrimaryColor : IDataflowEnginePlugin::SelectionLockedPrimaryColor;
-		VertexBuffers.ColorVertexBuffer.VertexColor(VertexBufferIndex + 0) = SelectionArray[GeomIndex[Indices[i][0]]] ? SelectionColor : VertexColor[Indices[i][0]].ToFColor(true);
-		VertexBuffers.ColorVertexBuffer.VertexColor(VertexBufferIndex + 1) = SelectionArray[GeomIndex[Indices[i][1]]] ? SelectionColor : VertexColor[Indices[i][1]].ToFColor(true);
-		VertexBuffers.ColorVertexBuffer.VertexColor(VertexBufferIndex + 2) = SelectionArray[GeomIndex[Indices[i][2]]] ? SelectionColor : VertexColor[Indices[i][2]].ToFColor(true);
+			FColor SelectionColor = (State.Mode == FDataflowSelectionState::EMode::DSS_Dataflow_Object) ? IDataflowEnginePlugin::SelectionPrimaryColor : IDataflowEnginePlugin::SelectionLockedPrimaryColor;
+			VertexBuffers.ColorVertexBuffer.VertexColor(VertexBufferIndex + 0) = SelectionArray[GeomIndex[Indices[i][0]]] ? SelectionColor : VertexColor[Indices[i][0]].ToFColor(true);
+			VertexBuffers.ColorVertexBuffer.VertexColor(VertexBufferIndex + 1) = SelectionArray[GeomIndex[Indices[i][1]]] ? SelectionColor : VertexColor[Indices[i][1]].ToFColor(true);
+			VertexBuffers.ColorVertexBuffer.VertexColor(VertexBufferIndex + 2) = SelectionArray[GeomIndex[Indices[i][2]]] ? SelectionColor : VertexColor[Indices[i][2]].ToFColor(true);
 
-		IndexBuffer.Indices[IndexBufferIndex + 0] = VertexBufferIndex + 0;
-		IndexBuffer.Indices[IndexBufferIndex + 1] = VertexBufferIndex + 1;
-		IndexBuffer.Indices[IndexBufferIndex + 2] = VertexBufferIndex + 2;
-
-					});
-
+			IndexBuffer.Indices[IndexBufferIndex + 0] = VertexBufferIndex + 0;
+			IndexBuffer.Indices[IndexBufferIndex + 1] = VertexBufferIndex + 1;
+			IndexBuffer.Indices[IndexBufferIndex + 2] = VertexBufferIndex + 2;
+		});
 	}
-
-
+	
 	VertexBuffers.PositionVertexBuffer.InitResource(RHICmdList);
 	VertexBuffers.StaticMeshVertexBuffer.InitResource(RHICmdList);
 	VertexBuffers.ColorVertexBuffer.InitResource(RHICmdList);

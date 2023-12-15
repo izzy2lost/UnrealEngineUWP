@@ -46,6 +46,13 @@ public:
 	TSharedPtr< FUICommandInfo > ZoomToFitGraph;
 
 	TMap< FName, TSharedPtr<FUICommandInfo> > CreateNodesMap;
+
+	// Temporary, just to test the editor, will be replace by the selection tool
+	const static FString BeginAttributeEditorToolIdentifier;
+	TSharedPtr<FUICommandInfo> BeginAttributeEditorTool;
+
+	const static FString BeginMeshSelectionToolIdentifier;
+	TSharedPtr<FUICommandInfo> BeginMeshSelectionTool;
 };
 
 class DATAFLOWEDITOR_API FDataflowEditorCommands

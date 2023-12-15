@@ -12,9 +12,9 @@ bool bDataflowPrototypeSelectionMenu = false;
 FAutoConsoleVariableRef CVarDataflowPrototypeSelectionMenu(TEXT("p.Dataflow.prototype.selection"), bDataflowPrototypeSelectionMenu, TEXT("Work in progress development for selection controls in the 3D Viewport.[def:false]"));
 
 
-void SDataflowViewportSelectionToolBar::Construct(const FArguments& InArgs)
+void SDataflowViewportSelectionToolBar::Construct(const FArguments& InArgs, TSharedPtr<SDataflowEditorViewport> InDataflowViewport)
 {
-	EditorViewport = InArgs._EditorViewport;
+	EditorViewport = InDataflowViewport;
 	static const FName DefaultForegroundName("DefaultForeground");
 
 	this->ChildSlot

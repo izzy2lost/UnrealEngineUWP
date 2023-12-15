@@ -31,10 +31,19 @@ namespace UnrealBuildTool.Rules
 					"DataflowNodes",
 					"Engine",
 					"EditorFramework",
+					"EditorInteractiveToolsFramework",
 					"EditorStyle",
 					"GraphEditor",
 					"InputCore",
 					"InteractiveToolsFramework",
+					"MeshModelingToolsEditorOnlyExp",
+					"ModelingComponentsEditorOnly",
+					"ModelingComponents",
+					"GeometryCore",
+					"GeometryFramework",
+					"MeshDescription",
+					"StaticMeshDescription",
+					"MeshConversion",
 					"LevelEditor",
 					"Slate",
 				    "SlateCore",
@@ -47,7 +56,9 @@ namespace UnrealBuildTool.Rules
 					"ToolMenus",
 					"ToolWidgets",
 					"Slate",
-					"XmlParser"
+					"XmlParser",
+					"TypedElementRuntime",
+					"MeshModelingToolsExp"
 				}
 			);
 		}

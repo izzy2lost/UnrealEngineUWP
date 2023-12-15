@@ -6,17 +6,24 @@
 #include "Dataflow/DataflowEditorCommands.h"
 #include "Dataflow/DataflowEditorStyle.h"
 #include "InteractiveToolManager.h"
+#include "MeshAttributePaintTool.h"
 
 #define LOCTEXT_NAMESPACE "FDataflowEditorModeToolkit"
 
 void FDataflowEditorModeToolkit::OnToolStarted(UInteractiveToolManager* Manager, UInteractiveTool* Tool)
 {
-	ensure(Tool == Manager->GetActiveTool(EToolSide::Left));
+	FBaseCharacterFXEditorModeToolkit::OnToolStarted(Manager, Tool);
+}
 
-	ActiveToolName = Tool->GetToolInfo().ToolDisplayName;
-	FString ActiveToolIdentifier = Manager->GetActiveToolName(EToolSide::Mouse);
-	ActiveToolIdentifier.InsertAt(0, ".");
-	ActiveToolIcon = GetActiveToolIcon(ActiveToolIdentifier);
+void FDataflowEditorModeToolkit::BuildToolPalette(FName PaletteIndex, class FToolBarBuilder& ToolbarBuilder)
+{
+	const FDataflowEditorCommandsImpl& Commands = FDataflowEditorCommands::Get();
+	if (PaletteIndex == ToolsTabName)
+	{
+		// @todo(DynamicMeshRendering) : Enable Dynamic Mesh Rendering for dataflow terminals. 
+		//ToolbarBuilder.AddToolBarButton(Commands.BeginAttributeEditorTool);
+		//ToolbarBuilder.AddToolBarButton(Commands.BeginMeshSelectionTool);
+	}
 }
 
 FName FDataflowEditorModeToolkit::GetToolkitFName() const

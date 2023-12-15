@@ -6,6 +6,7 @@
 #include "Styling/SlateStyleRegistry.h"
 #include "Interfaces/IPluginManager.h"
 #include "Misc/Paths.h"
+#include "Dataflow/DataflowEditorCommands.h"
 
 class FDataflowEditorStyle final : public FSlateStyleSet
 {
@@ -33,6 +34,11 @@ public:
 		Set("Dataflow.SelectFace", new FSlateImageBrush(RootToContentDir(TEXT("Slate/Dataflow_SelectFace_40x.png")), Icon40x40));
 		Set("Dataflow.SelectVertex", new FSlateImageBrush(RootToContentDir(TEXT("Slate/Dataflow_SelectVertex_40x.png")), Icon40x40));
 
+		const FString AttributeEditorPropertyName = "DataflowEditor." + FDataflowEditorCommandsImpl::BeginAttributeEditorToolIdentifier;
+		Set(*AttributeEditorPropertyName, new FSlateImageBrush(RootToContentDir(TEXT("Slate/Dataflow_SelectObject20x.png")), Icon20x20));
+
+		const FString MeshSelectionPropertyName = "DataflowEditor." + FDataflowEditorCommandsImpl::BeginMeshSelectionToolIdentifier;
+		Set(*MeshSelectionPropertyName, new FSlateImageBrush(RootToContentDir(TEXT("Slate/Dataflow_SelectVertex20x.png")), Icon20x20));
 
 		FSlateStyleRegistry::RegisterSlateStyle(*this);
 	}

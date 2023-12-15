@@ -15,13 +15,14 @@ class DATAFLOWEDITOR_API FDataflowEditorModeToolkit : public FBaseCharacterFXEdi
 {
 public:
 
+	// FModeToolkit interface
 	virtual void OnToolStarted(UInteractiveToolManager* Manager, UInteractiveTool* Tool) override;
+	virtual void BuildToolPalette(FName PaletteName, class FToolBarBuilder& ToolbarBuilder) override;
 
-
-	// IToolkit
+	// IToolkit interface
 	virtual FName GetToolkitFName() const override;
 	virtual FText GetBaseToolkitName() const override;
+
+	// FBaseCharacterFXEditorModeToolkit interface
 	virtual const FSlateBrush* GetActiveToolIcon(const FString& Identifier) const override;
-
-
 };

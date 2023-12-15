@@ -45,6 +45,10 @@
 		{
 			"Name": "GeometryProcessing",
 			"Enabled": true
+		},
+		{
+			"Name": "MeshModelingToolsetExp",
+			"Enabled": true
 		}
 	]
 }

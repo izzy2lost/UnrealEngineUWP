@@ -6,6 +6,7 @@
 #include "Dataflow/DataflowNodeFactory.h"
 #include "Dataflow/DataflowObject.h"
 #include "Dataflow/DataflowOverrideNode.h"
+#include "Dataflow/DataflowEditorStyle.h"
 #include "EdGraph/EdGraphNode.h"
 #include "IStructureDetailsView.h"
 #include "EdGraphNode_Comment.h"
@@ -16,17 +17,21 @@
 
 #define LOCTEXT_NAMESPACE "DataflowEditorCommands"
 
+const FString FDataflowEditorCommandsImpl::BeginAttributeEditorToolIdentifier = TEXT("BeginAttributeEditorTool");
+const FString FDataflowEditorCommandsImpl::BeginMeshSelectionToolIdentifier = TEXT("BeginMeshSelectionTool");
+
 FDataflowEditorCommandsImpl::FDataflowEditorCommandsImpl()
 	: TBaseCharacterFXEditorCommands<FDataflowEditorCommandsImpl>("DataflowEditor", 
 		LOCTEXT("ContextDescription", "Dataflow Editor"), 
 		NAME_None,
-		FAppStyle::GetAppStyleSetName())
+		FDataflowEditorStyle::Get().GetStyleSetName())
 {
 }
 
-
 void FDataflowEditorCommandsImpl::RegisterCommands()
 {
+	TBaseCharacterFXEditorCommands::RegisterCommands();
+	
 	UI_COMMAND(EvaluateNode, "Evaluate", "Trigger an evaluation of the selected node.", EUserInterfaceActionType::Button, FInputChord());
 	UI_COMMAND(CreateComment, "CreateComment", "Create a Comment node.", EUserInterfaceActionType::None, FInputChord());
 	UI_COMMAND(ToggleEnabledState, "ToggleEnabledState", "Toggle node between Enabled/Disabled state.", EUserInterfaceActionType::Button, FInputChord());
@@ -36,7 +41,9 @@ void FDataflowEditorCommandsImpl::RegisterCommands()
 	UI_COMMAND(AddOptionPin, "AddOptionPin", "Add an option pin to the selected nodes.", EUserInterfaceActionType::Button, FInputChord());
 	UI_COMMAND(RemoveOptionPin, "RemoveOptionPin", "Remove the last option pin from the selected nodes.", EUserInterfaceActionType::Button, FInputChord());
 	UI_COMMAND(ZoomToFitGraph, "ZoomToFitGraph", "Fit the graph in the graph editor viewport.", EUserInterfaceActionType::None, FInputChord(EKeys::F));
-	
+
+	UI_COMMAND(BeginAttributeEditorTool, "AttrEd", "Edit/configure mesh attributes", EUserInterfaceActionType::Button, FInputChord());
+	UI_COMMAND(BeginMeshSelectionTool, "SelVtx", "Select mesh vertices", EUserInterfaceActionType::Button, FInputChord());
 
 	if (Dataflow::FNodeFactory* Factory = Dataflow::FNodeFactory::GetInstance())
 	{
@@ -76,8 +83,6 @@ void FDataflowEditorCommands::Unregister()
 {
 	return FDataflowEditorCommandsImpl::Unregister();
 }
-
-
 
 void FDataflowEditorCommands::EvaluateSelectedNodes(const FGraphPanelSelectionSet& SelectedNodes, FDataflowEditorCommands::FGraphEvaluationCallback Evaluate)
 {

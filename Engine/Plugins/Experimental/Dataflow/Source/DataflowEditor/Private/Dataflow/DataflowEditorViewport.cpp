@@ -8,7 +8,7 @@
 #include "Dataflow/DataflowEditorMode.h"
 #include "Dataflow/DataflowEditorViewportClient.h"
 #include "EditorModeManager.h"
-#include "SViewportToolBar.h"
+#include "Dataflow/DataflowEditorViewportToolbar.h"
 
 #define LOCTEXT_NAMESPACE "SDataflowEditorViewport"
 
@@ -23,6 +23,20 @@ void SDataflowEditorViewport::Construct(const FArguments& InArgs, const FAssetEd
 	ParentArgs._EditorViewportClient = InArgs._ViewportClient;
 	SAssetEditorViewport::Construct(ParentArgs, InViewportConstructionArgs);
 	Client->VisibilityDelegate.BindSP(this, &SDataflowEditorViewport::IsVisible);
+}
+
+TSharedPtr<SWidget> SDataflowEditorViewport::MakeViewportToolbar()
+{
+	return SNew(SDataflowViewportSelectionToolBar, SharedThis(this));
+}
+
+void SDataflowEditorViewport::OnFocusViewportToSelection()
+{
+	if(UDataflowEditorMode* DataflowMode = GetEdMode())
+	{
+		const FBox SceneBoundingBox = DataflowMode->SceneBoundingBox();
+		Client->FocusViewportOnBox(SceneBoundingBox);
+	}
 }
 
 UDataflowEditorMode* SDataflowEditorViewport::GetEdMode() const
@@ -41,7 +55,6 @@ void SDataflowEditorViewport::BindCommands()
 {
 	SAssetEditorViewport::BindCommands();
 }
-
 
 bool SDataflowEditorViewport::IsVisible() const
 {

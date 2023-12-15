@@ -1,23 +1,29 @@
 // Copyright Epic Games, Inc. All Rights Reserved.
 #include "Dataflow/DataflowEditorViewportClient.h"
-
-#include "AdvancedPreviewScene.h"
-#include "Components/DirectionalLightComponent.h"
 #include "Dataflow/DataflowActor.h"
 #include "Dataflow/DataflowEditorToolkit.h"
 #include "Dataflow/DataflowEngineSceneHitProxies.h"
 #include "Dataflow/DataflowXml.h"
+#include "Dataflow/DataflowEditor.h"
+#include "Dataflow/DataflowPreviewScene.h"
+#include "Dataflow/DataflowEditorMode.h"
+#include "Selection.h"
 #include "HAL/PlatformApplicationMisc.h"
 #include "PreviewScene.h"
+#include "EditorModeManager.h"
 
 FDataflowEditorViewportClient::FDataflowEditorViewportClient(FEditorModeTools* InModeTools,
-															 FPreviewScene* InPreviewScene,
-															 const TWeakPtr<SEditorViewport> InEditorViewportWidget)
+                                                             FPreviewScene* InPreviewScene,
+                                                             const TWeakPtr<SEditorViewport> InEditorViewportWidget)
 	: FEditorViewportClient(InModeTools, InPreviewScene, InEditorViewportWidget)
 {
-	// @todo(DataflowMode) : Move this to the Mode as a Component only (see UChaosClothAssetEditorMode)
-	DataflowActor = CastChecked<ADataflowActor>(PreviewScene->GetWorld()->SpawnActor(ADataflowActor::StaticClass()));
-	((FAdvancedPreviewScene*)InPreviewScene)->SetFloorVisibility(false, true);
+	// We want our near clip plane to be quite close so that we can zoom in further.
+	OverrideNearClipPlane(KINDA_SMALL_NUMBER);
+
+	EngineShowFlags.SetSelectionOutline(true);
+	EngineShowFlags.EnableAdvancedFeatures();
+
+	PreviewScene = static_cast<FDataflowPreviewScene*>(InPreviewScene);
 }
 
 void FDataflowEditorViewportClient::SetDataflowEditorToolkit(TWeakPtr<FDataflowEditorToolkit> InDataflowEditorToolkitPtr)
@@ -25,10 +31,9 @@ void FDataflowEditorViewportClient::SetDataflowEditorToolkit(TWeakPtr<FDataflowE
 	DataflowEditorToolkitPtr = InDataflowEditorToolkitPtr;
 }
 
-
 void FDataflowEditorViewportClient::SetSelectionMode(FDataflowSelectionState::EMode InState)
 {
-	FDataflowSelectionState State = DataflowActor->DataflowComponent->GetSelectionState();
+	FDataflowSelectionState State = PreviewScene->GetDataflowComponent()->GetSelectionState();
 
 	if (SelectionMode == InState)
 	{
@@ -40,13 +45,13 @@ void FDataflowEditorViewportClient::SetSelectionMode(FDataflowSelectionState::EM
 	}
 
 	State.Mode = SelectionMode;
-	DataflowActor->DataflowComponent->SetSelectionState(State);
+	PreviewScene->ModifyDataflowComponent()->SetSelectionState(State);
 
 	if (SelectionMode == FDataflowSelectionState::EMode::DSS_Dataflow_None)
 	{
-		if (!DataflowActor->DataflowComponent->GetSelectionState().IsEmpty())
+		if (!PreviewScene->GetDataflowComponent()->GetSelectionState().IsEmpty())
 		{
-			DataflowActor->DataflowComponent->SetSelectionState(FDataflowSelectionState(SelectionMode));
+			PreviewScene->ModifyDataflowComponent()->SetSelectionState(FDataflowSelectionState(SelectionMode));
 		}
 	}
 }
@@ -55,7 +60,8 @@ bool FDataflowEditorViewportClient::CanSetSelectionMode(FDataflowSelectionState:
 	TSharedPtr<FDataflowEditorToolkit> DataflowEditorToolkit = DataflowEditorToolkitPtr.Pin();
 	if (DataflowEditorToolkitPtr.IsValid())
 	{
-		if (const UDataflow* Dataflow = DataflowEditorToolkit->GetDataflow())
+		const FDataflowEditorDatas& DataflowEditorDatas = DataflowEditorToolkit->GetDataflowEditorDatas();
+		if (const UDataflow* Dataflow = DataflowEditorDatas.DataflowAsset)
 		{
 			if (Dataflow->GetRenderTargets().Num())
 			{
@@ -65,7 +71,7 @@ bool FDataflowEditorViewportClient::CanSetSelectionMode(FDataflowSelectionState:
 				}
 
 				if (InState == FDataflowSelectionState::EMode::DSS_Dataflow_Vertex
-					&& !DataflowActor->DataflowComponent->GetSelectionState().Nodes.IsEmpty())
+					&& !PreviewScene->GetDataflowComponent()->GetSelectionState().Nodes.IsEmpty())
 				{
 					return true;
 				}
@@ -96,11 +102,11 @@ bool FDataflowEditorViewportClient::InputKey(const FInputKeyEventArgs& EventArgs
 	FInputEventState InputState(EventArgs.Viewport, EventArgs.Key, EventArgs.Event);
 	if (InputState.IsCtrlButtonPressed() && EventArgs.Key == EKeys::C)
 	{
-		if (DataflowActor->DataflowComponent->GetSelectionState().Vertices.Num())
+		if (PreviewScene->GetDataflowComponent()->GetSelectionState().Vertices.Num())
 		{
 			FString XmlBuffer = FDataflowXmlWrite()
 				.Begin()
-				.MakeVertexSelectionBlock(DataflowActor->DataflowComponent->GetSelectionState().Vertices)
+				.MakeVertexSelectionBlock(PreviewScene->GetDataflowComponent()->GetSelectionState().Vertices)
 				.End()
 				.ToString();
 			FPlatformApplicationMisc::ClipboardCopy(*XmlBuffer);
@@ -119,12 +125,44 @@ bool FDataflowEditorViewportClient::InputKey(const FInputKeyEventArgs& EventArgs
 void FDataflowEditorViewportClient::ProcessClick(FSceneView& View, HHitProxy* HitProxy, FKey Key, EInputEvent Event, uint32 HitX, uint32 HitY)
 {
 	Super::ProcessClick(View, HitProxy, Key, Event, HitX, HitY);
-	if (DataflowActor && DataflowActor->DataflowComponent)
+	if (PreviewScene->GetDataflowComponent())
 	{
 		const bool bIsShiftKeyDown = Viewport->KeyState(EKeys::LeftShift) || Viewport->KeyState(EKeys::RightShift);
 		const bool bIsCtrltKeyDown = Viewport->KeyState(EKeys::LeftControl) || Viewport->KeyState(EKeys::RightControl);
 
-		FDataflowSelectionState SelectionState = DataflowActor->DataflowComponent->GetSelectionState();
+		USelection* SelectedComponents = ModeTools->GetSelectedComponents();
+
+		TArray<UPrimitiveComponent*> PreviouslySelectedComponents;
+		SelectedComponents->GetSelectedObjects<UPrimitiveComponent>(PreviouslySelectedComponents);
+
+		SelectedComponents->Modify();
+		SelectedComponents->BeginBatchSelectOperation();
+
+		SelectedComponents->DeselectAll();
+
+		if (HitProxy && HitProxy->IsA(HActor::StaticGetType()))
+		{
+			const HActor* const ActorProxy = static_cast<HActor*>(HitProxy);
+			if (ActorProxy && ActorProxy->Actor)
+			{
+				const AActor* const Actor = ActorProxy->Actor;
+			
+				Actor->ForEachComponent<UPrimitiveComponent>(true, [&](UPrimitiveComponent* Component)
+				{
+					SelectedComponents->Select(Component);
+					Component->PushSelectionToProxy();
+				});
+			}
+		}
+
+		SelectedComponents->EndBatchSelectOperation();
+
+		for (UPrimitiveComponent* const Component : PreviouslySelectedComponents)
+		{
+			Component->PushSelectionToProxy();
+		}
+
+		FDataflowSelectionState SelectionState = PreviewScene->GetDataflowComponent()->GetSelectionState();
 		FDataflowSelectionState PreState = SelectionState;
 
 		if (SelectionMode == FDataflowSelectionState::EMode::DSS_Dataflow_Object)
@@ -194,7 +232,7 @@ void FDataflowEditorViewportClient::ProcessClick(FSceneView& View, HHitProxy* Hi
 
 		if (PreState != SelectionState)
 		{
-			DataflowActor->DataflowComponent->SetSelectionState(SelectionState);
+			PreviewScene->ModifyDataflowComponent()->SetSelectionState(SelectionState);
 		}
 	}
 }
@@ -203,50 +241,28 @@ void FDataflowEditorViewportClient::Tick(float DeltaSeconds)
 {
 	Super::Tick(DeltaSeconds);
 
-	TSharedPtr<FDataflowEditorToolkit> DataflowEditorToolkit = DataflowEditorToolkitPtr.Pin();
+	const TSharedPtr<FDataflowEditorToolkit> DataflowEditorToolkit = DataflowEditorToolkitPtr.Pin();
 
-	if (DataflowActor && DataflowEditorToolkitPtr.IsValid())
+	if (PreviewScene->GetDataflowComponent())
 	{
-		if (TSharedPtr<Dataflow::FContext> Context = DataflowEditorToolkit->GetContext())
+		const FDataflowEditorDatas& DataflowEditorDatas = PreviewScene->GetDataflowDatas();
+		if (TSharedPtr<Dataflow::FContext> Context = DataflowEditorDatas.DataflowContext)
 		{
-			if (const UDataflow* Dataflow = DataflowEditorToolkit->GetDataflow())
+			if (const UDataflow* Dataflow = DataflowEditorDatas.DataflowAsset)
 			{
-				if (UDataflowComponent* DataflowComponent = DataflowActor->GetDataflowComponent())
+				const Dataflow::FTimestamp SystemTimestamp = LatestTimestamp(Dataflow, Context.Get());
+				if (SystemTimestamp >= LastModifiedTimestamp)
 				{
-					Dataflow::FTimestamp SystemTimestamp = LatestTimestamp(Dataflow, Context.Get());
-					if (SystemTimestamp >= LastModifiedTimestamp)
-					{
-						if (Dataflow->GetRenderTargets().Num())
-						{
-							// Component Object Rendering
-							DataflowComponent->ResetRenderTargets();
-							DataflowComponent->SetDataflow(Dataflow);
-							DataflowComponent->SetContext(Context);
-							for (const UDataflowEdNode* Node : Dataflow->GetRenderTargets())
-							{
-								DataflowComponent->AddRenderTarget(Node);
-							}
-						}
-						else
-						{
-							DataflowComponent->ResetRenderTargets();
-						}
-
-						LastModifiedTimestamp = LatestTimestamp(Dataflow, Context.Get()).Value + 1;
-					}
+					PreviewScene->UpdateDataflowComponent();
+					LastModifiedTimestamp = LatestTimestamp(Dataflow, Context.Get()).Value + 1;
 				}
 			}
 		}
 	}
-
-	// Tick the preview scene world.
-	PreviewScene->GetWorld()->Tick(IsRealtime() ? LEVELTICK_All : LEVELTICK_TimeOnly, DeltaSeconds);
 }
-
 
 void FDataflowEditorViewportClient::AddReferencedObjects(FReferenceCollector& Collector)
 {
 	Super::AddReferencedObjects(Collector);
-	Collector.AddReferencedObject(DataflowActor);
 }
 

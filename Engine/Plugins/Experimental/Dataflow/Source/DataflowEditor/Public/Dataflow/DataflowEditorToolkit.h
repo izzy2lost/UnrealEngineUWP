@@ -22,13 +22,14 @@ class IToolkitHost;
 class UDataflow;
 class USkeletalMesh;
 class SDataflowGraphEditor;
+struct FDataflowEditorDatas;
 
 namespace Dataflow
 {
 	class DATAFLOWEDITOR_API FAssetContext : public TEngineContext<FContextSingle>
 	{
 	public:
-		DATAFLOW_CONTEXT_INTERNAL(TEngineContext<FContextSingle>, FAssetContext);
+		DATAFLOW_CONTEXT_INTERNAL(TEngineContext<FContextSingle>, FAssetContext); 
 
 		FAssetContext(UObject* InOwner, UDataflow* InGraph, FTimestamp InTimestamp)
 			: Super(InOwner, InGraph, InTimestamp)
@@ -38,7 +39,6 @@ namespace Dataflow
 
 class DATAFLOWEDITOR_API FDataflowEditorToolkit final : public FBaseCharacterFXEditorToolkit, public FTickableEditorObject, public FNotifyHook
 {
-
 	using FBaseCharacterFXEditorToolkit::ObjectScene;
 
 public:
@@ -48,141 +48,115 @@ public:
 
 	static bool CanOpenDataflowEditor(UObject* ObjectToEdit);
 	static bool HasDataflowAsset(UObject* ObjectToEdit);
+	static UDataflow* GetDataflowAsset(UObject* ObjectToEdit);
+	static const UDataflow* GetDataflowAsset(const UObject* ObjectToEdit);
 
-	// IToolkit Interface
+	/** Get the const dataflow editor datas */
+	const FDataflowEditorDatas& GetDataflowEditorDatas() const;
+
+	/** Return the dataflow editor datas that could be modified */
+	FDataflowEditorDatas& ModifyDataflowEditorDatas();
+
+	// IToolkit interface
 	virtual FName GetToolkitFName() const override;
 	virtual FText GetToolkitName() const override;
 	virtual FText GetBaseToolkitName() const override;
 	virtual FText GetToolkitToolTipText() const override;
 	virtual FString GetWorldCentricTabPrefix() const override;
 	virtual FLinearColor GetWorldCentricTabColorScale() const override;
-
-	// Tab spawners 
 	virtual void RegisterTabSpawners(const TSharedRef<FTabManager>& TabManager) override;
 	virtual void UnregisterTabSpawners(const TSharedRef<class FTabManager>& TabManager) override;
 
-	TSharedRef<SDockTab> SpawnTab_GraphCanvas(const FSpawnTabArgs& Args);
-	TSharedRef<SDockTab> SpawnTab_AssetDetails(const FSpawnTabArgs& Args);
-	TSharedRef<SDockTab> SpawnTab_NodeDetails(const FSpawnTabArgs& Args);
-	TSharedRef<SDockTab> SpawnTab_Skeletal(const FSpawnTabArgs& Args);
-	TSharedRef<SDockTab> SpawnTab_SelectionView(const FSpawnTabArgs& Args);
-	TSharedRef<SDockTab> SpawnTab_CollectionSpreadSheet(const FSpawnTabArgs& Args);
-
-	// Callbacks for Tab
-	void OnTabClosed(TSharedRef<SDockTab> Tab);
-
-	// Member Access
-	UObject* GetAsset() const;
-
-	UDataflow* GetDataflow() { return Dataflow; }
-	const UDataflow* GetDataflow() const { return Dataflow; }
-
-	TSharedPtr<Dataflow::FEngineContext> GetContext() { return Context; }
-	TSharedPtr<const Dataflow::FEngineContext> GetContext() const { return Context; }
-
-	TSharedPtr<IDetailsView> GetAssetDetailsEditor() {return AssetDetailsEditor;}
-	const TSharedPtr<IDetailsView> GetAssetDetailsEditor() const { return AssetDetailsEditor; }
-
-	TSharedPtr<IStructureDetailsView> GetNodeDetailsEditor() { return NodeDetailsEditor; }
-	const TSharedPtr<IStructureDetailsView> GetNodeDetailsEditor() const { return NodeDetailsEditor; }
-
-	TSharedPtr<SDataflowGraphEditor> GetGraphEditor() { return GraphEditor; }
-	const TSharedPtr<SDataflowGraphEditor> GetGraphEditor() const { return GraphEditor; }
-
 protected:
 
-	//~ Begin DataflowEditorActions
+	// List of dataflow actions callbacks
 	void OnPropertyValueChanged(const FPropertyChangedEvent& PropertyChangedEvent);
 	bool OnNodeVerifyTitleCommit(const FText& NewText, UEdGraphNode* GraphNode, FText& OutErrorMessage);
 	void OnNodeTitleCommitted(const FText& InNewText, ETextCommit::Type InCommitType, UEdGraphNode* GraphNode);
 	void OnNodeSelectionChanged(const TSet<UObject*>& NewSelection);
 	void OnNodeDeleted(const TSet<UObject*>& NewSelection);
 	void OnAssetPropertyValueChanged(const FPropertyChangedEvent& PropertyChangedEvent);
-	//~ End DataflowEditorActions
-
+	
+	// Callback to remove the closed one from the listener views
+	void OnTabClosed(TSharedRef<SDockTab> Tab);
+	
 private:
-
+	
+	// Spawning of all the additional tabs (viewport,details ones are coming from the base asset toolkit)
+	TSharedRef<SDockTab> SpawnTab_GraphCanvas(const FSpawnTabArgs& Args);
+	TSharedRef<SDockTab> SpawnTab_NodeDetails(const FSpawnTabArgs& Args);
+	TSharedRef<SDockTab> SpawnTab_Skeletal(const FSpawnTabArgs& Args);
+	TSharedRef<SDockTab> SpawnTab_SelectionView(const FSpawnTabArgs& Args);
+	TSharedRef<SDockTab> SpawnTab_CollectionSpreadSheet(const FSpawnTabArgs& Args);
+	TSharedRef<SDockTab> SpawnTab_AssetDetails(const FSpawnTabArgs& Args);
+	
 	// FTickableEditorObject interface
 	virtual void Tick(float DeltaTime) override;
 	virtual bool IsTickable() const override { return true; }
 	virtual TStatId GetStatId() const override;
 
-	// FBaseCharacterFXEditorToolkit
+	// FBaseCharacterFXEditorToolkit interface
 	virtual FEditorModeID GetEditorModeId() const override;
 	virtual void InitializeEdMode(UBaseCharacterFXEditorMode* EdMode) override;
 	virtual void CreateEditorModeUILayer() override;
 
-	// FAssetEditorToolkit
+	// FAssetEditorToolkit interface
 	virtual bool OnRequestClose(EAssetEditorCloseReason InCloseReason) override;
 	virtual void PostInitAssetEditor() override;
 	virtual void GetSaveableObjects(TArray<UObject*>& OutObjects) const override;
 
-
-	// FBaseAssetToolkit
+	// FBaseAssetToolkit interface
 	virtual void CreateWidgets() override;
 	virtual AssetEditorViewportFactoryFunction GetViewportDelegate() override;
 	virtual TSharedPtr<FEditorViewportClient> CreateEditorViewportClient() const override;
+	virtual void CreateEditorModeManager() override;
 
-	TObjectPtr<UObject> Asset = nullptr;
-	TObjectPtr<UDataflow> Dataflow = nullptr;
-	FString DataflowTerminalPath = "";
-
-	static const FName ViewportTabId;
-	TSharedPtr<SDataflowEditorViewport> DataflowEditorViewport;
-
-
+	// List of all the tab names ids that will be used to identify the editor widgets
 	static const FName GraphCanvasTabId;
-	TSharedPtr<SDataflowGraphEditor> GraphEditor;
-	TSharedPtr<FUICommandList> GraphEditorCommands;
-	TSharedRef<SDataflowGraphEditor> CreateGraphEditorWidget(UDataflow* ObjectToEdit, TSharedPtr<IStructureDetailsView> PropertiesEditor);
-
-	static const FName AssetDetailsTabId;
-	TSharedPtr<IDetailsView> AssetDetailsEditor;
-	TSharedPtr<IDetailsView> CreateAssetDetailsEditorWidget(UObject* ObjectToEdit);
-
 	static const FName NodeDetailsTabId;
-	TSharedPtr<IStructureDetailsView> NodeDetailsEditor;
-	TSharedPtr<IStructureDetailsView> CreateNodeDetailsEditorWidget(UObject* ObjectToEdit);
-
 	static const FName SkeletalTabId;
-	TObjectPtr<USkeleton> StubSkeleton;
-	TObjectPtr<USkeletalMesh> StubSkeletalMesh;
-	TSharedPtr<class ISkeletonTree> SkeletalEditor;
-	TSharedPtr<ISkeletonTree> CreateSkeletalEditorWidget(UObject* ObjectToEdit);
-
-	TSet<UObject*> PrevNodeSelection;
-
 	static const FName SelectionViewTabId_1;
-	TSharedPtr<FDataflowSelectionView> DataflowSelectionView_1;
-
 	static const FName SelectionViewTabId_2;
-	TSharedPtr<FDataflowSelectionView> DataflowSelectionView_2;
-
 	static const FName SelectionViewTabId_3;
-	TSharedPtr<FDataflowSelectionView> DataflowSelectionView_3;
-
 	static const FName SelectionViewTabId_4;
-	TSharedPtr<FDataflowSelectionView> DataflowSelectionView_4;
-
 	static const FName CollectionSpreadSheetTabId_1;
-	TSharedPtr<FDataflowCollectionSpreadSheet> DataflowCollectionSpreadSheet_1;
-
 	static const FName CollectionSpreadSheetTabId_2;
-	TSharedPtr<FDataflowCollectionSpreadSheet> DataflowCollectionSpreadSheet_2;
-
 	static const FName CollectionSpreadSheetTabId_3;
-	TSharedPtr<FDataflowCollectionSpreadSheet> DataflowCollectionSpreadSheet_3;
-
 	static const FName CollectionSpreadSheetTabId_4;
+
+	// List of all the widgets shared ptr that will be built in the editor
+	TSharedPtr<SDataflowEditorViewport> DataflowEditorViewport;
+	TSharedPtr<SDataflowGraphEditor> GraphEditor;
+	TSharedPtr<IStructureDetailsView> NodeDetailsEditor;
+	TSharedPtr<class ISkeletonTree> SkeletalEditor;
+	TSharedPtr<IDetailsView> AssetDetailsEditor;
+	TSharedPtr<FDataflowSelectionView> DataflowSelectionView_1;
+	TSharedPtr<FDataflowSelectionView> DataflowSelectionView_2;
+	TSharedPtr<FDataflowSelectionView> DataflowSelectionView_3;
+	TSharedPtr<FDataflowSelectionView> DataflowSelectionView_4;
+	TSharedPtr<FDataflowCollectionSpreadSheet> DataflowCollectionSpreadSheet_1;
+	TSharedPtr<FDataflowCollectionSpreadSheet> DataflowCollectionSpreadSheet_2;
+	TSharedPtr<FDataflowCollectionSpreadSheet> DataflowCollectionSpreadSheet_3;
 	TSharedPtr<FDataflowCollectionSpreadSheet> DataflowCollectionSpreadSheet_4;
 
+	// Utility factory functions to build the widgets
+	TSharedRef<SDataflowGraphEditor> CreateGraphEditorWidget(UDataflow* ObjectToEdit, TSharedPtr<IStructureDetailsView> PropertiesEditor);
+    TSharedPtr<IDetailsView> CreateAssetDetailsEditorWidget(UObject* ObjectToEdit);
+    TSharedPtr<IStructureDetailsView> CreateNodeDetailsEditorWidget(UObject* ObjectToEdit);
+    TSharedPtr<ISkeletonTree> CreateSkeletalEditorWidget(UObject* ObjectToEdit);
+
+	// List of editor commands used  for the dataflow asset
+	TSharedPtr<FUICommandList> GraphEditorCommands;
+
+	// List of selection view / collection spreadsheet widgets that are listening to any changed in the graph
 	TArray<IDataflowViewListener*> ViewListeners;
 
-	TSharedPtr<Dataflow::FEngineContext> Context;
-	Dataflow::FTimestamp LastNodeTimestamp = Dataflow::FTimestamp::Invalid;
-
+	// Graph delegates used to update the UI
 	FDelegateHandle OnSelectionChangedMulticastDelegateHandle;
-	FDelegateHandle OnNodeDeletedMulticastDelegateHandle;
-	FDelegateHandle OnFinishedChangingPropertiesDelegateHandle;
-	FDelegateHandle OnFinishedChangingAssetPropertiesDelegateHandle;
+    FDelegateHandle OnNodeDeletedMulticastDelegateHandle;
+    FDelegateHandle OnFinishedChangingPropertiesDelegateHandle;
+    FDelegateHandle OnFinishedChangingAssetPropertiesDelegateHandle;
+
+	// Previous node selection to compare values in delegates
+	TSet<UObject*> PrevNodeSelection;
 };

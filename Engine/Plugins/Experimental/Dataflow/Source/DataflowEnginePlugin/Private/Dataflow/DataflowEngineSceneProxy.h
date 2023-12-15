@@ -37,12 +37,6 @@ public:
 	FDataflowEngineSceneProxy(UDataflowComponent* Component);
 	virtual ~FDataflowEngineSceneProxy();
 
-	/** Create the rendering buffer resources */
-	void InitResources();
-
-	/** Return the rendering buffer resources */
-	void ReleaseResources();
-
 	//~ FPrimitiveSceneProxy
 	virtual FPrimitiveViewRelevance GetViewRelevance(const FSceneView* View) const override;
 	virtual bool CanBeOccluded() const override;
