@@ -36,8 +36,6 @@ namespace UE::PoseSearch
 		const UDebugSkelMeshComponent* GetDebugSkelMeshComponent() const;
 		const UAnimPreviewInstance* GetAnimPreviewInstance() const;
 		const FAnimationAssetSampler& GetSampler() const { return Sampler; }
-		FTransform ExtractRootTransform(float Time) const;
-		void ExtractPose(float Time, FCompactPose& OutPose) const;
 
 		const AActor* GetActor() const { return ActorPtr.Get(); }
 		int32 GetIndexAssetIndex() const { return IndexAssetIndex; }
@@ -62,7 +60,6 @@ namespace UE::PoseSearch
 		FTransform RootBoneTransformCurrentQuantizedTime = FTransform::Identity;
 
 		FAnimationAssetSampler Sampler;
-		FMirrorDataCache MirrorDataCache;
 
 		TArray<FVector> SampledRootMotion;
 		TArray<float> SampledRootMotionSpeed;
