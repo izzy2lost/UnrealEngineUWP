@@ -27,6 +27,12 @@ namespace UE::VCamCore::Private
 		virtual void ShutdownModule() override;
 		//~ End IModuleInterface Interface
 
+		/** Register the module's settings object. */
+		void RegisterSettings();
+
+		/** Unregister the module's settings object. */
+		void UnregisterSettings();
+
 		WidgetSnapshotUtils::Private::FWidgetSnapshotSettings GetSnapshotSettings() const;
 	};
 }

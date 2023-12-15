@@ -21,6 +21,7 @@
 #include "PixelStreamingMediaOutput.h"
 #include "PixelStreamingServers.h"
 #include "PixelStreamingVCamLog.h"
+#include "PixelStreamingVCamModule.h"
 #include "Math/Matrix.h"
 #include "Serialization/MemoryReader.h"
 #include "Slate/SceneViewport.h"
@@ -106,6 +107,8 @@ namespace UE::PixelStreamingVCam::Private
 			// Start streaming here, this will trigger capturer to start
 			MediaOutput->StartStreaming();
 		}
+
+		FPixelStreamingVCamModule::Get().AddActiveSession(WeakThisUObjectPtr);
 	}
 
 	void FVCamPixelStreamingSessionLogic::OnDeactivate(DecoupledOutputProvider::IOutputProviderEvent& Args)
@@ -128,6 +131,9 @@ namespace UE::PixelStreamingVCam::Private
 		UEditorPerformanceSettings* Settings = GetMutableDefault<UEditorPerformanceSettings>();
 		Settings->bThrottleCPUWhenNotForeground = bOldThrottleCPUWhenNotForeground;
 		Settings->PostEditChange();
+
+		const TWeakObjectPtr<UVCamPixelStreamingSession> WeakThisPtr = This;
+		FPixelStreamingVCamModule::Get().AddActiveSession(WeakThisPtr);
 	}
 
 	void FVCamPixelStreamingSessionLogic::StopCapture()

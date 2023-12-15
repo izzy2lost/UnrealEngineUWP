@@ -104,12 +104,17 @@
 		{
 			"Name": "PixelStreaming",
 			"Enabled": true,
-			"PlatformAllowList" : [ "Win64", "Linux", "Mac" ]
+			"PlatformAllowList": [ "Win64", "Linux", "Mac" ]
 		},
 		{
-			"Name" : "PixelCapture",
+			"Name": "PixelCapture",
 			"Enabled": true,
-            "PlatformAllowList" : [ "Win64", "Linux", "Mac" ]
+			"PlatformAllowList": [ "Win64", "Linux", "Mac" ]
+		},
+		{
+			"Name": "DiscoveryBeaconReceiver",
+			"Enabled": true,
+			"PlatformAllowList": [ "Win64", "Linux", "Mac" ]
 		}
 	]
 }

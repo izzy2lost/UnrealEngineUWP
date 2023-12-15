@@ -25,12 +25,14 @@ void FDiscoveryBeaconReceiver::Startup()
 	FIPv4Address DiscoveryAddress;
 	if (!GetDiscoveryAddress(DiscoveryAddress))
 	{
+		UE_LOG(LogDiscoveryBeaconReceiver, Warning, TEXT("No discovery address provided for %s"), *Description);
 		return;
 	}
 
 	const int32 DiscoveryPort = GetDiscoveryPort();
 	if (DiscoveryPort < 0)
 	{
+		UE_LOG(LogDiscoveryBeaconReceiver, Warning, TEXT("No valid discovery port provided for %s (got %d)"), *Description, DiscoveryPort);
 		return;
 	}
 
