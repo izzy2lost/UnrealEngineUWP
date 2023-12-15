@@ -67,10 +67,10 @@ namespace uba
 		bool WriteBinFile(StringBufferBase& out, const tchar* binaryName, const CasKey& casKey, const KeyToString& applicationDir, u32 fileAttributes);
 		bool SendFiles(ProcessImpl& process, Timer& sendFiles);
 		bool SendFile(ProcessImpl& process, WrittenFile& source, const tchar* destination);
-		bool SendUpdateDirectoryTable();
-		bool UpdateDirectoryTableFromServer(BinaryReader& reader);
-		bool SendUpdateNameToHashTable();
-		bool UpdateNameToHashTableFromServer(BinaryReader& reader);
+		bool SendUpdateDirectoryTable(StackBinaryReader<SendMaxSize>& reader); // Note, reader is sent in to save stack space.
+		bool UpdateDirectoryTableFromServer(StackBinaryReader<SendMaxSize>& reader);
+		bool SendUpdateNameToHashTable(StackBinaryReader<SendMaxSize>& reader);
+		bool UpdateNameToHashTableFromServer(StackBinaryReader<SendMaxSize>& reader);
 		void Connect();
 		void BuildEnvironmentVariables(BinaryReader& reader);
 		bool SendProcessAvailable(Vector<InternalProcessStartInfo>& out, float availableWeight, bool& outRemoteExecutionEnabled);

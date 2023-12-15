@@ -883,6 +883,9 @@ namespace uba
 				}
 				fillLock.Leave();
 
+				u32 neededDirectoryTableSize = GetDirectoryTableSize();
+				u32 neededHashTableSize = m_nameToHashLookupLock.ScopedRead([this]() { return u32(m_nameToHashTableMem.writtenSize); });
+
 				ScopedCriticalSection lock(m_remoteProcessAndSessionLock);
 				ClientSession& session = *m_clientSessions[sessionIndex];
 
@@ -915,6 +918,12 @@ namespace uba
 				}
 
 				writer.WriteU32(remoteExecutionEnabled ? SessionProcessAvailableResponse_None : SessionProcessAvailableResponse_RemoteExecutionDisabled);
+
+				
+				// Write in the needed dir and hash table offset to be up-to-date (to potentially avoid additional messages from client
+				writer.WriteU32(neededDirectoryTableSize);
+				writer.WriteU32(neededHashTableSize);
+
 				return true;
 			}
 			case SessionMessageType_ProcessFinished:

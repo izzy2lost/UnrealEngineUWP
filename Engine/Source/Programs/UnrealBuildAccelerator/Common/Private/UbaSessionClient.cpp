@@ -526,14 +526,17 @@ namespace uba
 		NetworkMessage networkMsg(m_client, ServiceId, SessionMessageType_DeleteFile, writer);
 		writer.WriteStringKey(msg.fileNameKey);
 		writer.WriteString(msg.fileName);
-		StackBinaryReader<1024> reader;
+		StackBinaryReader<SendMaxSize> reader;
 		if (!networkMsg.Send(reader, Stats().deleteFileMsg))
 			return false;
 		out.result = reader.ReadBool();
 		out.errorCode = reader.ReadU32();
 		if (out.result)
-			if (!SendUpdateDirectoryTable())
+		{
+			reader.Reset();
+			if (!SendUpdateDirectoryTable(reader))
 				return false;
+		}
 		out.directoryTableSize = GetDirectoryTableSize();
 		return true;
 	}
@@ -552,7 +555,7 @@ namespace uba
 			writer.WriteString(msg.fromName);
 			writer.WriteStringKey(msg.toKey);
 			writer.WriteString(msg.toName);
-			StackBinaryReader<1024> reader;
+			StackBinaryReader<SendMaxSize> reader;
 			if (!networkMsg.Send(reader, Stats().copyFileMsg))
 				return false;
 			out.fromName.Append(msg.fromName);
@@ -560,8 +563,11 @@ namespace uba
 			out.closeId = ~0u;
 			out.errorCode = reader.ReadU32();
 			if (!out.errorCode)
-				if (!SendUpdateDirectoryTable())
+			{
+				reader.Reset();
+				if (!SendUpdateDirectoryTable(reader))
 					return false;
+			}
 			out.directoryTableSize = GetDirectoryTableSize();
 			return true;
 		}
@@ -781,7 +787,7 @@ namespace uba
 		}
 	};
 
-	bool SessionClient::UpdateDirectoryTableFromServer(BinaryReader& reader)
+	bool SessionClient::UpdateDirectoryTableFromServer(StackBinaryReader<SendMaxSize>& reader)
 	{
 		auto& dirTable = m_directoryTable;
 
@@ -790,7 +796,7 @@ namespace uba
 		{
 			if (!isFirst)
 			{
-				reader.SetPosition(0);
+				reader.Reset();
 
 				StackBinaryWriter<1024> writer;
 				NetworkMessage msg(m_client, ServiceId, SessionMessageType_GetDirectoriesFromServer, writer);
@@ -827,7 +833,11 @@ namespace uba
 
 			if (reader.GetPosition() < m_client.GetMessageMaxSize() - m_client.GetMessageReceiveHeaderSize())
 			{
-				dirTable.ParseDirectoryTable(m_directoryTableMemPos);
+				//dirTable.ParseDirectoryTable(m_directoryTableMemPos); // This is not needed.. we never read from the directory table in the client session
+				{
+					ScopedWriteLock lock2(dirTable.m_memoryLock);
+					dirTable.m_memorySize = m_directoryTableMemPos;
+				}
 				ActiveUpdateDirectoryEntry::UpdateReadPosLess(m_firstEmptyWait, m_directoryTableMemPos);
 				break;
 			}
@@ -837,7 +847,7 @@ namespace uba
 		return true;
 	}
 
-	bool SessionClient::UpdateNameToHashTableFromServer(BinaryReader& reader)
+	bool SessionClient::UpdateNameToHashTableFromServer(StackBinaryReader<SendMaxSize>& reader)
 	{
 		u32 serverTableSize = 0;
 		bool isFirst = true;
@@ -858,7 +868,7 @@ namespace uba
 				writer.WriteU32(serverTableSize);
 				writer.WriteU32(localTableSize);
 
-				reader.SetPosition(0);
+				reader.Reset();
 				if (!msg.Send(reader, Stats().getHashesMsg))
 					return false;
 			}
@@ -1066,9 +1076,27 @@ namespace uba
 
 		}
 
+		u32 neededDirectoryTableSize = reader.ReadU32();
+		u32 neededHashTableSize = reader.ReadU32();
+
 		if (!out.empty())
-			if (!SendUpdateDirectoryTable())
+		{
+			if (neededDirectoryTableSize > GetDirectoryTableSize())
+			{
+				reader.Reset();
+				if (!SendUpdateDirectoryTable(reader))
+					return false;
+			}
+		}
+
+		// Always nice to update name-to-hash table since it can reduce number of messages while building.
+		u32 hashTableMemSize = m_nameToHashMemLock.ScopedRead([this]() { return u32(m_nameToHashTableMem.writtenSize); });
+		if (neededHashTableSize > hashTableMemSize)
+		{
+			reader.Reset();
+			if (!SendUpdateNameToHashTable(reader))
 				return false;
+		}
 
 		return true;
 	}
@@ -1084,19 +1112,19 @@ namespace uba
 			return;
 	}
 
-	bool SessionClient::SendUpdateDirectoryTable()
+	bool SessionClient::SendUpdateDirectoryTable(StackBinaryReader<SendMaxSize>& reader)
 	{
+		UBA_ASSERT(reader.GetPosition() == 0);
 		StackBinaryWriter<32> writer;
 		NetworkMessage msg(m_client, ServiceId, SessionMessageType_GetDirectoriesFromServer, writer);
 		writer.WriteU32(m_sessionId);
 		writer.WriteU32(~u32(0));
-		StackBinaryReader<SendMaxSize> reader;
 		if (!msg.Send(reader, Stats().getDirsMsg))
 			return false;
 		return UpdateDirectoryTableFromServer(reader);
 	}
 
-	bool SessionClient::SendUpdateNameToHashTable()
+	bool SessionClient::SendUpdateNameToHashTable(StackBinaryReader<SendMaxSize>& reader)
 	{
 		StackBinaryWriter<32> writer;
 		NetworkMessage msg(m_client, ServiceId, SessionMessageType_GetNameToHashFromServer, writer);
@@ -1105,7 +1133,6 @@ namespace uba
 		ScopedWriteLock lock(m_nameToHashMemLock);
 		writer.WriteU32(u32(m_nameToHashTableMem.writtenSize));
 
-		StackBinaryReader<SendMaxSize> reader;
 		if (!msg.Send(reader, Stats().getHashesMsg))
 			return false;
 		return UpdateNameToHashTableFromServer(reader);
@@ -1315,8 +1342,6 @@ namespace uba
 					waitTimeoutMs = 200;
 				}
 
-				SendUpdateNameToHashTable();
-
 				for (InternalProcessStartInfo& startInfo : startInfos)
 				{
 					startInfo.description = startInfo.descriptionBuf.c_str();
@@ -1505,6 +1530,8 @@ namespace uba
 
 			SendPing(memAvail, memTotal);
 
+			//SendUpdateNameToHashTable(); // It is always nice to populate this at certain cadence since it might speed up running processes queries
+
 			m_waitToSendEvent.IsSet(waitTimeoutMs);
 
 			RemoveInactiveProcesses();
@@ -1606,7 +1633,7 @@ namespace uba
 
 	bool SessionClient::UpdateEnvironment(ProcessImpl& process, const tchar* reason)
 	{
-		StackBinaryWriter<SendMaxSize> writer;
+		StackBinaryWriter<16*1024> writer;
 		NetworkMessage msg(m_client, ServiceId, SessionMessageType_UpdateEnvironment, writer);
 		writer.WriteU32(process.m_id);
 		writer.WriteString(reason);
@@ -1614,9 +1641,10 @@ namespace uba
 		process.m_sessionStats.Write(writer);
 		process.m_storageStats.Write(writer);
 		process.m_systemStats.Write(writer);
-		StackBinaryReader<32> reader;
+		StackBinaryReader<SendMaxSize> reader;
 		if (!msg.Send(reader, m_stats.customMsg))
 			return false;
-		return SendUpdateDirectoryTable();
+		reader.Reset();
+		return SendUpdateDirectoryTable(reader);
 	}
 }

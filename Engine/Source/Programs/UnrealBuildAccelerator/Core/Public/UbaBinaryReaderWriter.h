@@ -76,7 +76,7 @@ namespace uba
 
 		BinaryReader();
 
-	private:
+	protected:
 		inline u64 InternalReadString(tchar* str, u64 charLen);
 		const u8* m_begin;
 		const u8* m_pos;
@@ -87,6 +87,7 @@ namespace uba
 	struct StackBinaryReader : BinaryReader
 	{
 		StackBinaryReader() : BinaryReader(buffer, 0, Capacity) { *buffer = 0; }
+		void Reset() { m_pos = m_begin; m_end = buffer + Capacity; }
 		u8 buffer[Capacity];
 	};
 
