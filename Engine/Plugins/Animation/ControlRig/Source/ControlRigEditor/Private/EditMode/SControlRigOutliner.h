@@ -267,7 +267,8 @@ private:
 	bool bIsChangingRigHierarchy = false;
 	TSharedPtr<SExpandableArea> PickerExpander;
 
-
+	//set of control rigs we are bound too and need to clear delegates from
+	TArray<TWeakObjectPtr<UControlRig>> BoundControlRigs;
 };
 
 
