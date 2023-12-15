@@ -2,14 +2,15 @@
 
 #include "GameFramework/ActorPrimitiveColorHandler.h"
 #include "GameFramework/Actor.h"
-#include "Components/PrimitiveComponent.h"
 #include "Misc/LazySingleton.h"
 #include "EngineUtils.h"
 
+#define LOCTEXT_NAMESPACE "ActorColoration"
+
 FActorPrimitiveColorHandler::FActorPrimitiveColorHandler()
 {
-#if !(UE_BUILD_SHIPPING || UE_BUILD_TEST)
-	RegisterPrimitiveColorHandler(NAME_None, [](const AActor*)
+#if ENABLE_ACTOR_PRIMITIVE_COLOR_HANDLER
+	RegisterPrimitiveColorHandler(NAME_None, LOCTEXT("Disable", "Disable"), [](const UPrimitiveComponent*)
 	{
 		return FLinearColor::White;
 	});
@@ -24,19 +25,18 @@ FActorPrimitiveColorHandler& FActorPrimitiveColorHandler::Get()
 	return TLazySingleton<FActorPrimitiveColorHandler>::Get();
 }
 
-void FActorPrimitiveColorHandler::RegisterPrimitiveColorHandler(FName InHandlerName, const FPrimitiveColorHandler& InHandler)
+void FActorPrimitiveColorHandler::RegisterPrimitiveColorHandler(FName InHandlerName, FText InHandlerText, const FFunc& InHandlerFunc)
 {
-#if !(UE_BUILD_SHIPPING || UE_BUILD_TEST)
+#if ENABLE_ACTOR_PRIMITIVE_COLOR_HANDLER
 	check(!Handlers.Contains(InHandlerName));
-	Handlers.Add(InHandlerName, InHandler);
-	
-	ActivePrimitiveColorHandler = Handlers.Find(ActivePrimitiveColorHandlerName);
+	Handlers.Add(InHandlerName, { InHandlerName, InHandlerText, InHandlerFunc });	
+	ActivePrimitiveColorHandler = &Handlers.FindChecked(ActivePrimitiveColorHandlerName);
 #endif
 }
 
 void FActorPrimitiveColorHandler::UnregisterPrimitiveColorHandler(FName InHandlerName)
 {
-#if !(UE_BUILD_SHIPPING || UE_BUILD_TEST)
+#if ENABLE_ACTOR_PRIMITIVE_COLOR_HANDLER
 	check(!InHandlerName.IsNone());
 	check(Handlers.Contains(InHandlerName));
 	Handlers.Remove(InHandlerName);
@@ -52,12 +52,24 @@ void FActorPrimitiveColorHandler::UnregisterPrimitiveColorHandler(FName InHandle
 
 bool FActorPrimitiveColorHandler::SetActivePrimitiveColorHandler(FName InHandlerName, UWorld* InWorld)
 {
-#if !(UE_BUILD_SHIPPING || UE_BUILD_TEST)
+#if ENABLE_ACTOR_PRIMITIVE_COLOR_HANDLER
 	if (FPrimitiveColorHandler* NewActivePrimitiveColorHandler = Handlers.Find(InHandlerName); NewActivePrimitiveColorHandler && (NewActivePrimitiveColorHandler != ActivePrimitiveColorHandler))
 	{
 		ActivePrimitiveColorHandlerName = InHandlerName;
 		ActivePrimitiveColorHandler = NewActivePrimitiveColorHandler;
+		RefreshPrimitiveColorHandler(InHandlerName, InWorld);
+		return true;
+	}
+#endif
 
+	return false;
+}
+
+void FActorPrimitiveColorHandler::RefreshPrimitiveColorHandler(FName InHandlerName, UWorld* InWorld)
+{
+#if ENABLE_ACTOR_PRIMITIVE_COLOR_HANDLER
+	if (ActivePrimitiveColorHandlerName == InHandlerName)
+	{
 		for (TActorIterator<AActor> It(InWorld); It; ++It)
 		{
 			TInlineComponentArray<UPrimitiveComponent*> PrimitiveComponents;
@@ -67,23 +79,37 @@ bool FActorPrimitiveColorHandler::SetActivePrimitiveColorHandler(FName InHandler
 			{
 				if (PrimitiveComponent->IsRegistered())
 				{
-					PrimitiveComponent->PushPrimitiveColorToProxy(GetPrimitiveColor(*It));
+					PrimitiveComponent->PushPrimitiveColorToProxy(GetPrimitiveColor(PrimitiveComponent));
 				}
 			}
 		}
-
-		return true;
 	}
 #endif
-
-	return false;
 }
 
-FLinearColor FActorPrimitiveColorHandler::GetPrimitiveColor(AActor* InActor)
+FName FActorPrimitiveColorHandler::GetActivePrimitiveColorHandler() const
 {
-#if !(UE_BUILD_SHIPPING || UE_BUILD_TEST)
-	return (*ActivePrimitiveColorHandler)(InActor);
+#if ENABLE_ACTOR_PRIMITIVE_COLOR_HANDLER
+	return ActivePrimitiveColorHandlerName;
+#else
+	return NAME_None;
+#endif
+}
+
+void FActorPrimitiveColorHandler::GetRegisteredPrimitiveColorHandlers(TArray<FPrimitiveColorHandler>& OutPrimitiveColorHandlers) const
+{
+#if ENABLE_ACTOR_PRIMITIVE_COLOR_HANDLER
+	Handlers.GenerateValueArray(OutPrimitiveColorHandlers);
+#endif
+}
+
+FLinearColor FActorPrimitiveColorHandler::GetPrimitiveColor(const UPrimitiveComponent* InPrimitiveComponent) const
+{
+#if ENABLE_ACTOR_PRIMITIVE_COLOR_HANDLER
+	return ActivePrimitiveColorHandler->HandlerFunc(InPrimitiveComponent);
 #else
 	return FLinearColor::White;
 #endif
 }
+
+#undef LOCTEXT_NAMESPACE

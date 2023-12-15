@@ -555,9 +555,9 @@ FPrimitiveSceneProxy::FPrimitiveSceneProxy(const FPrimitiveSceneProxyDesc& InPro
 		}
 
 #if !(UE_BUILD_SHIPPING || UE_BUILD_TEST)
-		if (AActor* ActorOwner = Cast<AActor>(InProxyDesc.Owner))
+		if (UPrimitiveComponent* PrimitiveComponent = Cast<UPrimitiveComponent>(InProxyDesc.Component))
 		{
-			SetPrimitiveColor(FActorPrimitiveColorHandler::Get().GetPrimitiveColor(ActorOwner));
+			SetPrimitiveColor(FActorPrimitiveColorHandler::Get().GetPrimitiveColor(PrimitiveComponent));
 		}
 #endif
 	}

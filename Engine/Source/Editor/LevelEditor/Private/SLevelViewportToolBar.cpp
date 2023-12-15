@@ -17,6 +17,7 @@
 #include "Styling/AppStyle.h"
 #include "Camera/CameraActor.h"
 #include "Misc/ConfigCacheIni.h"
+#include "GameFramework/ActorPrimitiveColorHandler.h"
 #include "GameFramework/WorldSettings.h"
 #include "EngineUtils.h"
 #include "LevelEditor.h"
@@ -1812,47 +1813,141 @@ void SLevelViewportToolBar::FillViewMenu(UToolMenu* Menu)
 	}
 
 	{
+		auto BuildActorColorationMenu = [this](UToolMenu* Menu, SLevelViewportToolBar* Toolbar)
+		{
+			FToolMenuSection& SubMenuSection = Menu->AddSection("LevelViewportActorColoration", LOCTEXT("ActorColorationHeader", "Actor Coloration"));
+
+			TArray<FActorPrimitiveColorHandler::FPrimitiveColorHandler> PrimitiveColorHandlers;
+			FActorPrimitiveColorHandler::Get().GetRegisteredPrimitiveColorHandlers(PrimitiveColorHandlers);
+
+			for (const FActorPrimitiveColorHandler::FPrimitiveColorHandler& PrimitiveColorHandler : PrimitiveColorHandlers)
+			{
+				SubMenuSection.AddMenuEntry(
+					NAME_None,
+					PrimitiveColorHandler.HandlerText,
+					FText(),
+					FSlateIcon(),
+					FUIAction(
+						FExecuteAction::CreateLambda([this, PrimitiveColorHandler]()
+						{
+							if (FLevelEditorViewportClient* ViewportClient = GetLevelViewportClient())
+							{
+								const bool bActorColorationEnabled = ViewportClient->HandleIsShowFlagEnabled(FEngineShowFlags::EShowFlag::SF_ActorColoration);
+
+								if (PrimitiveColorHandler.HandlerName.IsNone())
+								{
+									if (bActorColorationEnabled)
+									{
+										ViewportClient->HandleToggleShowFlag(FEngineShowFlags::EShowFlag::SF_ActorColoration);
+									}
+								}
+								else
+								{
+									if (!bActorColorationEnabled)
+									{
+										ViewportClient->HandleToggleShowFlag(FEngineShowFlags::EShowFlag::SF_ActorColoration);
+									}
+
+									FActorPrimitiveColorHandler::Get().SetActivePrimitiveColorHandler(PrimitiveColorHandler.HandlerName, GWorld);
+								}
+							}
+						}),
+						FCanExecuteAction::CreateLambda([this]()
+						{
+							if (FLevelEditorViewportClient* ViewportClient = GetLevelViewportClient())
+							{
+								return true;
+							}
+							return false;
+						}),
+						FGetActionCheckState::CreateLambda([this, PrimitiveColorHandler]()
+						{
+							if (FLevelEditorViewportClient* ViewportClient = GetLevelViewportClient())
+							{
+								const bool bActorColorationEnabled = ViewportClient->HandleIsShowFlagEnabled(FEngineShowFlags::EShowFlag::SF_ActorColoration);
+
+								if (PrimitiveColorHandler.HandlerName.IsNone())
+								{
+									return bActorColorationEnabled ? ECheckBoxState::Unchecked : ECheckBoxState::Checked;
+								}
+								else
+								{
+									if (bActorColorationEnabled)
+									{
+										return FActorPrimitiveColorHandler::Get().GetActivePrimitiveColorHandler() == PrimitiveColorHandler.HandlerName ? ECheckBoxState::Checked : ECheckBoxState::Unchecked;
+									}
+								}								
+							}
+
+							return ECheckBoxState::Unchecked;
+						})
+					),
+					EUserInterfaceActionType::RadioButton
+				);
+			}
+		};
+
+		FToolMenuSection& Section = Menu->FindOrAddSection("ViewMode");
+		Section.AddSubMenu(
+			"ActorColoration",
+			LOCTEXT("ActorColorationDisplayName", "Actor Coloration"),
+			LOCTEXT("ActorColorationMenu_ToolTip", "Override Actor Coloration mode"),
+			FNewToolMenuDelegate::CreateLambda(BuildActorColorationMenu, this),
+			FUIAction(
+				FExecuteAction(),
+				FCanExecuteAction(),
+				FIsActionChecked::CreateLambda([this]()
+				{
+					if (FLevelEditorViewportClient* ViewportClient = GetLevelViewportClient())
+					{
+						return ViewportClient->HandleIsShowFlagEnabled(FEngineShowFlags::EShowFlag::SF_ActorColoration);
+					}
+					return false;
+				})
+			),
+			EUserInterfaceActionType::RadioButton,
+			/*bInOpenSubMenuOnClick=*/ false,
+			FSlateIcon(FAppStyle::GetAppStyleSetName(), "EditorViewport.LODColorationMode")
+		);
+	}
+
+	{
 		FToolMenuSection& Section = Menu->AddSection("LevelViewportLandscape", LOCTEXT("LandscapeHeader", "Landscape"), InsertPosition);
 
-		struct Local
+		auto BuildLandscapeLODMenu = [](UToolMenu* Menu, SLevelViewportToolBar* Toolbar)
 		{
-			static void BuildLandscapeLODMenu(UToolMenu* Menu, SLevelViewportToolBar* Toolbar)
+			FToolMenuSection& SubMenuSection = Menu->AddSection("LevelViewportLandScapeLOD", LOCTEXT("LandscapeLODHeader", "Landscape LOD"));
+
+			SubMenuSection.AddMenuEntry(
+				"LandscapeLODAuto",
+				LOCTEXT("LandscapeLODAuto", "Auto"),
+				FText(),
+				FSlateIcon(),
+				FUIAction(
+					FExecuteAction::CreateSP(Toolbar, &SLevelViewportToolBar::OnLandscapeLODChanged, -1),
+					FCanExecuteAction(),
+					FIsActionChecked::CreateSP(Toolbar, &SLevelViewportToolBar::IsLandscapeLODSettingChecked, -1)
+				),
+				EUserInterfaceActionType::RadioButton
+			);
+
+			SubMenuSection.AddSeparator("LandscapeLODSeparator");
+
+			static const FText FormatString = LOCTEXT("LandscapeLODFixed", "Fixed at {0}");
+			for (int32 i = 0; i < 8; ++i)
 			{
-				{
-					FToolMenuSection& SubMenuSection = Menu->AddSection("LevelViewportLandScapeLOD", LOCTEXT("LandscapeLODHeader", "Landscape LOD"));
-
-					SubMenuSection.AddMenuEntry(
-						"LandscapeLODAuto",
-						LOCTEXT("LandscapeLODAuto", "Auto"),
-						FText(),
-						FSlateIcon(),
-						FUIAction(
-							FExecuteAction::CreateSP(Toolbar, &SLevelViewportToolBar::OnLandscapeLODChanged, -1),
-							FCanExecuteAction(),
-							FIsActionChecked::CreateSP(Toolbar, &SLevelViewportToolBar::IsLandscapeLODSettingChecked, -1)
-						),
-						EUserInterfaceActionType::RadioButton
-					);
-
-					SubMenuSection.AddSeparator("LandscapeLODSeparator");
-
-					static const FText FormatString = LOCTEXT("LandscapeLODFixed", "Fixed at {0}");
-					for (int32 i = 0; i < 8; ++i)
-					{
-						SubMenuSection.AddMenuEntry(
-							NAME_None,
-							FText::Format(FormatString, FText::AsNumber(i)),
-							FText(),
-							FSlateIcon(),
-							FUIAction(
-								FExecuteAction::CreateSP(Toolbar, &SLevelViewportToolBar::OnLandscapeLODChanged, i),
-								FCanExecuteAction(),
-								FIsActionChecked::CreateSP(Toolbar, &SLevelViewportToolBar::IsLandscapeLODSettingChecked, i)
-							),
-							EUserInterfaceActionType::RadioButton
-						);
-					}
-				}
+				SubMenuSection.AddMenuEntry(
+					NAME_None,
+					FText::Format(FormatString, FText::AsNumber(i)),
+					FText(),
+					FSlateIcon(),
+					FUIAction(
+						FExecuteAction::CreateSP(Toolbar, &SLevelViewportToolBar::OnLandscapeLODChanged, i),
+						FCanExecuteAction(),
+						FIsActionChecked::CreateSP(Toolbar, &SLevelViewportToolBar::IsLandscapeLODSettingChecked, i)
+					),
+					EUserInterfaceActionType::RadioButton
+				);
 			}
 		};
 
@@ -1860,7 +1955,7 @@ void SLevelViewportToolBar::FillViewMenu(UToolMenu* Menu)
 			"LandscapeLOD",
 			LOCTEXT("LandscapeLODDisplayName", "LOD"),
 			LOCTEXT("LandscapeLODMenu_ToolTip", "Override Landscape LOD in this viewport"),
-			FNewToolMenuDelegate::CreateStatic(&Local::BuildLandscapeLODMenu, this),
+			FNewToolMenuDelegate::CreateLambda(BuildLandscapeLODMenu, this),
 			/*bInOpenSubMenuOnClick=*/ false,
 			FSlateIcon(FAppStyle::GetAppStyleSetName(), "EditorViewport.LOD")
 		);

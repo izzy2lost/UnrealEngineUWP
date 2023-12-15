@@ -398,12 +398,12 @@ ULevelStreaming::ULevelStreaming(const FObjectInitializer& ObjectInitializer)
 	bSkipClientUseMakingVisibleTransactionRequest = false;
 	bGarbageCollectionClusteringEnabled = true;
 
-#if !(UE_BUILD_SHIPPING || UE_BUILD_TEST)
+#if ENABLE_ACTOR_PRIMITIVE_COLOR_HANDLER
 	if (HasAnyFlags(RF_ClassDefaultObject) && ExactCast<ULevelStreaming>(this))
 	{
-		FActorPrimitiveColorHandler::Get().RegisterPrimitiveColorHandler(TEXT("LevelColor"), [](const AActor* InActor)
+		FActorPrimitiveColorHandler::Get().RegisterPrimitiveColorHandler(TEXT("LevelColor"), LOCTEXT("LevelColor", "Level Color"), [](const UPrimitiveComponent* InPrimitiveComponent)
 		{
-			if (ULevel* Level = InActor ? InActor->GetLevel() : nullptr)
+			if (ULevel* Level = InPrimitiveComponent ? InPrimitiveComponent->GetComponentLevel() : nullptr)
 			{
 				if (ULevelStreaming* LevelStreaming = FLevelUtils::FindStreamingLevel(Level))
 				{

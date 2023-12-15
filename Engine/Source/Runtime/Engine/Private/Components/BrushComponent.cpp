@@ -131,7 +131,7 @@ public:
 			}
 			else
 			{
-				ActorColor = FActorPrimitiveColorHandler::Get().GetPrimitiveColor(Owner);
+				ActorColor = FActorPrimitiveColorHandler::Get().GetPrimitiveColor(Component);
 			}
 		}
 

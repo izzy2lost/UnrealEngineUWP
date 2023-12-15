@@ -3,9 +3,12 @@
 #pragma once
 
 #include "UObject/ObjectMacros.h"
+#include "Components/PrimitiveComponent.h"
 
-class AActor;
 class UWorld;
+class UPrimitiveComponent;
+
+#define ENABLE_ACTOR_PRIMITIVE_COLOR_HANDLER !(UE_BUILD_SHIPPING || UE_BUILD_TEST)
 
 /**
  * FActorPrimitiveColorHandler is a simple mechanism for custom actor coloration registration. Once an actor color
@@ -13,19 +16,36 @@ class UWorld;
  */
 class ENGINE_API FActorPrimitiveColorHandler
 {
-	using FPrimitiveColorHandler = TFunction<FLinearColor(AActor*)>;
+	using FFunc = TFunction<FLinearColor(const UPrimitiveComponent*)>;
 
 public:
+	struct FPrimitiveColorHandler
+	{
+		FPrimitiveColorHandler(FName InHandlerName, FText InHandlerText, const FFunc& InHandlerFunc)
+			: HandlerName(InHandlerName)
+			, HandlerText(InHandlerText)
+			, HandlerFunc(InHandlerFunc)
+		{}
+
+		FName HandlerName;
+		FText HandlerText;
+		FFunc HandlerFunc;
+	};	
+
 	FActorPrimitiveColorHandler();
 	static FActorPrimitiveColorHandler& Get();
-	void RegisterPrimitiveColorHandler(FName InHandlerName, const FPrimitiveColorHandler& InHandler);
+	void RegisterPrimitiveColorHandler(FName InHandlerName, FText InHandlerText, const FFunc& InHandlerFunc);
 	void UnregisterPrimitiveColorHandler(FName InHandlerName);
 	bool SetActivePrimitiveColorHandler(FName InHandlerName, UWorld* InWorld);
-	FLinearColor GetPrimitiveColor(AActor* InActor);
+	void RefreshPrimitiveColorHandler(FName InHandlerName, UWorld* InWorld);
+	FName GetActivePrimitiveColorHandler() const;
+	void GetRegisteredPrimitiveColorHandlers(TArray<FPrimitiveColorHandler>& OutPrimitiveColorHandlers) const;
+	FLinearColor GetPrimitiveColor(const UPrimitiveComponent* InPrimitiveComponent) const;
 
 private:
-#if !(UE_BUILD_SHIPPING || UE_BUILD_TEST)
+#if ENABLE_ACTOR_PRIMITIVE_COLOR_HANDLER
 	FName ActivePrimitiveColorHandlerName;
+	FText ActivePrimitiveColorHandlerText;
 	FPrimitiveColorHandler* ActivePrimitiveColorHandler;
 	TMap<FName, FPrimitiveColorHandler> Handlers;
 #endif
