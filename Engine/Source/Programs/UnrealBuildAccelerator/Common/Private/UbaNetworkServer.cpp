@@ -225,7 +225,8 @@ namespace uba
 			u8 messageType = serviceIdAndMessageType & 0b111111;
 			u16 messageId = u16(headerData[1] << 8) | u16((*(u32*)(headerData + 2) & 0xff000000) >> 24);
 			u32 messageSize = *(u32*)(headerData + 2) & 0x00ffffff;
-			UBA_ASSERT(messageSize <= SendMaxSize);
+			UBA_ASSERTF(messageSize <= SendMaxSize, TC("Got message size %u which is larger than max %u. Protocol error?"), messageSize, SendMaxSize);
+			UBA_ASSERTF(serviceId < sizeof(NetworkServer::m_workerFunctions), TC("Got message with service id %u which is out of range. Protocol error?"), serviceId);
 
 			//m_logger.Debug(TC("Recv: %u, %u, %u, %u"), serviceId, messageType, id, size);
 			Worker* worker = conn.m_server.PopWorker();

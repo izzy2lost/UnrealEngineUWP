@@ -2233,20 +2233,14 @@ namespace uba
 
 	float Session::UpdateCpuLoad()
 	{
+		u64 idleTime = 0;
+		u64 totalTime = 0;
+
 #if PLATFORM_WINDOWS
-		u64 idleTime, kernelTime, userTime;
+		u64 kernelTime, userTime;
 		if (!GetSystemTimes((FILETIME*)&idleTime, (FILETIME*)&kernelTime, (FILETIME*)&userTime))
 			return m_cpuLoad;
-		u64 totalTime = kernelTime + userTime;
-
-		u64 totalTimeSinceLastTime = totalTime - m_previousTotalCpuTime;
-		u64 idleTimeSinceLastTime = idleTime - m_previousIdleCpuTime;
-
-		float cpuLoad = 1.0f - ((totalTimeSinceLastTime > 0) ? (float(idleTimeSinceLastTime) / float(totalTimeSinceLastTime)) : 0);
-
-		m_previousTotalCpuTime = totalTime;
-		m_previousIdleCpuTime = idleTime;
-
+		totalTime = kernelTime + userTime;
 #elif PLATFORM_LINUX
 		int fd = open("/proc/stat", O_RDONLY);
 		if (fd != -1)
@@ -2283,16 +2277,8 @@ namespace uba
 					if (valueCount > 6)
 					{
 						u64 work = values[0] + values[1] + values[2];
-						u64 idleTime = values[3] + values[4] + values[5] + values[6];
-						u64 totalTime = work + idleTime;
-
-						u64 totalTimeSinceLastTime = totalTime - m_previousTotalCpuTime;
-						u64 idleTimeSinceLastTime = idleTime - m_previousIdleCpuTime;
-
-						float cpuLoad = 1.0f - ((totalTimeSinceLastTime > 0) ? (float(idleTimeSinceLastTime) / float(totalTimeSinceLastTime)) : 0);
-
-						m_previousTotalCpuTime = totalTime;
-						m_previousIdleCpuTime = idleTime;
+						idleTime = values[3] + values[4] + values[5] + values[6];
+						totalTime = work + idleTime;
 					}
 				}
 			}
@@ -2308,7 +2294,7 @@ namespace uba
 
         int res = 0;
         u64 work = 0;
-        u64 idleTime = 0;
+        idleTime = 0;
 
         res = host_processor_info(host, CpuInfoType, &CpuCount, (processor_info_array_t *)&CpuData, &CpuMsgCount);
 		if(res != KERN_SUCCESS)
@@ -2324,7 +2310,8 @@ namespace uba
                 idleTime += CpuData[i].cpu_ticks[CPU_STATE_IDLE];
         }
 
-		u64 totalTime = work + idleTime;
+		totalTime = work + idleTime;
+#endif
 
 		u64 totalTimeSinceLastTime = totalTime - m_previousTotalCpuTime;
 		u64 idleTimeSinceLastTime = idleTime - m_previousIdleCpuTime;
@@ -2334,7 +2321,6 @@ namespace uba
 		m_previousTotalCpuTime = totalTime;
 		m_previousIdleCpuTime = idleTime;
 
-#endif
 		// TODO: This is the wrong solution.. but can't repro the bad values some people get
 		if (cpuLoad >= 0 && cpuLoad <= 1.0f)
 			m_cpuLoad = cpuLoad;

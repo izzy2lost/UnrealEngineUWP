@@ -103,6 +103,7 @@ namespace uba
 		bool m_connected = false;
 		bool m_dedicated = false;
 		bool m_useStorage = true;
+		bool m_shouldSendLogToServer = false;
 		const tchar* m_terminationReason = nullptr;
 		u64 m_terminationTime = ~0ull;
 

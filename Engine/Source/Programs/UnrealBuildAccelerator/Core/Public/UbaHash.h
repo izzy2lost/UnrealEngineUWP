@@ -167,15 +167,15 @@ namespace uba
 		tchar str[41];
 	};
 
-	#ifdef _DEBUG
+	#if UBA_DEBUG
 	inline void CheckPath(const tchar* fileName)
 	{
 		auto pos = fileName;
-		tchar lastChar = L' ';
+		tchar lastChar = ' ';
 		//bool hasSlash = false;
 		while (tchar c = *pos++)
 		{
-			UBA_ASSERTF(c < 'A' || c > 'Z', TC("Path is not valid (%s)"), fileName);
+			UBA_ASSERTF(!CaseInsensitiveFs || c < 'A' || c > 'Z', TC("Path is not valid (%s)"), fileName);
 			UBA_ASSERTF(c != L'.' || lastChar != L'.', TC("Path is not valid (%s)"), fileName);
 
 			#if PLATFORM_WINDOWS

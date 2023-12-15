@@ -301,6 +301,7 @@ uba::StorageClient* CreateStorageClient(uba::NetworkClient& client, const uba::t
 		info->detailedTrace = detailedTrace;
 		info->allowWaitOnMem = allowWaitOnMem;
 		info->allowKillOnMem = allowKillOnMem;
+		//info->remoteLogEnabled = true;
 		return info;
 	}
 

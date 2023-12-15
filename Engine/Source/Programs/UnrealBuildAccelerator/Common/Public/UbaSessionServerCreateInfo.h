@@ -21,5 +21,6 @@ namespace uba
 		bool checkMemory = true;
 		bool allowWaitOnMem = false;
 		bool allowKillOnMem = false;
+		bool remoteLogEnabled = false; // If Uba is built in debug, then the logs will be sent back to server
 	};
 }

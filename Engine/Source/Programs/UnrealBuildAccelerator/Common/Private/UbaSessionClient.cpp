@@ -974,7 +974,9 @@ namespace uba
 		m_sessionId = reader.ReadU32();
 		m_uiLanguage = reader.ReadU32();
 		m_detailedTrace = reader.ReadBool();
-
+		m_shouldSendLogToServer = reader.ReadBool();
+		if (m_shouldSendLogToServer)
+			m_logToFile = true;
 		BuildEnvironmentVariables(reader);
 
 		m_loop = true;
@@ -1379,13 +1381,13 @@ namespace uba
 						ProcessRec* rec = er->rec;
 						delete er;
 
-						#if UBA_DEBUG_LOG_ENABLED
-						if (false)
+						if (session.m_shouldSendLogToServer)
 						{
 							if (const tchar* logFile = h.GetStartInfo().logFile)
 							{
 								WrittenFile f;
 								f.name = logFile;
+								f.attributes = DefaultAttributes();
 								StringBuffer<> dest;
 								if (const tchar* lastSlash = TStrrchr(logFile, PathSeparator))
 									logFile = lastSlash + 1;
@@ -1394,7 +1396,6 @@ namespace uba
 								session.SendFile(*(ProcessImpl*)h.m_process, f, dest.data);
 							}
 						}
-						#endif
 
 						auto decreaseWeight = MakeGuard([&]()
 							{

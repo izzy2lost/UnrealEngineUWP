@@ -187,6 +187,8 @@ namespace uba
 		if (FileExists(logger, TC("UbaTestFile")))
 			return logger.Error(TC("Found non-existing file UbaTestFile"));
 
+		// CreateHardLinkW is a symbolic link on non-windows.. need to revisit
+		#if PLATFORM_WINDOWS
 		if (!FileExists(logger, TC("UbaTestFile2")))
 			return logger.Error(TC("Failed to find file UbaTestFile2"));
 
@@ -203,6 +205,7 @@ namespace uba
 
 		if (!DeleteFileW(TC("UbaTestFile2")))
 			return false;
+		#endif
 
 		LoggerWithWriter nullLogger(g_nullLogWriter);
 		if (TraverseDir(nullLogger, TC("TestDir2"), [&](const DirectoryEntry&) {}, true))

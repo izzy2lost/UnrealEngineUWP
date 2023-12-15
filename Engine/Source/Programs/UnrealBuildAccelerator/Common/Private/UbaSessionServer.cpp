@@ -132,6 +132,7 @@ namespace uba
 		m_remoteExecutionEnabled = info.remoteExecutionEnabled;
 		m_nameToHashTableEnabled = info.nameToHashTableEnabled;
 		m_memKillLoadPercent = info.memKillLoadPercent;
+		m_remoteLogEnabled = info.remoteLogEnabled;
 
 		if (m_resetCas)
 			m_storage.Reset();
@@ -571,6 +572,7 @@ namespace uba
 				writer.WriteU32(sessionId);
 				writer.WriteU32(m_uiLanguage);
 				writer.WriteBool(m_detailedTrace);
+				writer.WriteBool(m_remoteLogEnabled);
 				WriteRemoteEnvironmentVariables(writer);
 
 				m_trace.SessionAdded(sessionId, connectionInfo.GetId(), name.data, info.data); // Must be inside lock for TraceSessionUpdate() to not include

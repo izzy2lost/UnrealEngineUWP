@@ -141,6 +141,7 @@ namespace uba
 		ReaderWriterLock m_waitingProcessesLock;
 		bool m_allowWaitOnMem = false;
 		bool m_allowKillOnMem = false;
+		bool m_remoteLogEnabled = false;
 
 		SessionServer(const SessionServer&) = delete;
 		void operator=(const SessionServer&) = delete;

@@ -20,6 +20,7 @@
 #include <netdb.h>
 #include <arpa/inet.h>
 #include <ifaddrs.h>
+#include <poll.h>
 #define TIMEVAL timeval
 #define SOCKET_ERROR -1
 #define SOCKET int
@@ -32,6 +33,8 @@
 #define FreeAddrInfoW freeaddrinfo
 #define WSAGetLastError() errno
 #define strcpy_s(a, b, c) strcpy(a, c)
+#define WSAPOLLFD pollfd
+#define WSAPoll poll
 #endif
 
 namespace uba
@@ -577,52 +580,31 @@ namespace uba
 			return false;
 
 		int timeoutMs = 2000;
-		TIMEVAL timeval = { 1, 0 };
-		//		timeval.tv_sec = 1;
-		timeval.tv_usec = timeoutMs * 100;
 
-		fd_set write, err;
-		FD_ZERO(&write);
-		FD_ZERO(&err);
-		FD_SET(socketFd, &write);
-		FD_SET(socketFd, &err);
-
-		int maxFds = 0;
-		#if !PLATFORM_WINDOWS
-		maxFds = socketFd + 1;
-		#endif
-		// check if the socket is ready
-		res = select(maxFds, NULL, &write, &err, &timeval);
-		if (res == SOCKET_ERROR)
-			return logger.Error(TC("select failed (%s)"), LastErrorToText(WSAGetLastError()).data);
-
-		if (res == 0)
+		WSAPOLLFD p;
+		p.fd = socketFd;
+		p.revents = 0;
+		p.events = POLLOUT;
+		int pollRes = WSAPoll(&p, 1, timeoutMs);
+		if (!pollRes)
 		{
 			if (timedOut)
 				*timedOut = true;
 			return false;
 		}
 
-		if (FD_ISSET(socketFd, &err))
+		if (pollRes == SOCKET_ERROR)
 		{
-			// When running in wine we end up in this if host is not listening. (it returns immediately instead of 2000ms timeout on select)
-			// "Connection refused") is the response
-			//int resLen = sizeof(res);
-			//getsockopt(s, SOL_SOCKET, SO_ERROR, (void*)&res, &resLen);
-
-			if (timedOut)
-				*timedOut = true;
-			//logger.Info(TC("Error %s"), LastErrorToText(res));
+			int lastError = WSAGetLastError();
+			logger.Warning(TC("WSAPoll returned error %s (%s%s)"), LastErrorToText(lastError).data, nameHint);
 			return false;
 		}
 
-		if (!FD_ISSET(socketFd, &write))
+		if (p.revents & (POLLERR | POLLHUP | POLLNVAL))
 		{
-			if (timedOut)
-				*timedOut = true;
+			logger.Warning(TC("WSAPoll returned successful but with unexpected flags: %u"), p.revents);
 			return false;
 		}
-
 
 
 #if !PLATFORM_WINDOWS
@@ -729,7 +711,7 @@ namespace uba
 			int sent = (int)send(socket, (char*)b, u32(bufferLen), 0);
 			if (sent == SOCKET_ERROR)
 			{
-				#ifdef _DEBUG
+				#if UBA_DEBUG
 				logger.Warning(TC("ERROR sending socket (error: %s)"), LastErrorToText(WSAGetLastError()).data);
 				#endif
 				return false;
@@ -750,7 +732,6 @@ namespace uba
 		u32 recvLeft = bufferLen;
 		while (recvLeft)
 		{
-#if PLATFORM_WINDOWS
 			if (timeoutMs)
 			{
 				WSAPOLLFD p;
@@ -765,7 +746,7 @@ namespace uba
 				}
 				if (res == SOCKET_ERROR)
 				{
-#ifdef _DEBUG
+#if UBA_DEBUG && PLATFORM_WINDOWS
 					// When cancelling all kinds of errors can happen..
 					int lastError = WSAGetLastError();
 					if (lastError != WSAEINTR && lastError != WSAESHUTDOWN && lastError != WSAECONNABORTED && lastError != WSAECONNRESET) // Interrupted by cancel
@@ -773,12 +754,11 @@ namespace uba
 #endif
 				}
 			}
-#endif
 
 			int read = (int)recv(socket, (char*)buffer, recvLeft, 0);
 			if (read == 0)
 			{
-				//#ifdef _DEBUG
+				//#if UBA_DEBUG
 				//logger.Warning(TC("Socket closed while in recv"));
 				//#endif
 				return false;
@@ -787,14 +767,14 @@ namespace uba
 			if (read == SOCKET_ERROR)
 			{
 #if PLATFORM_WINDOWS
-#ifdef _DEBUG
+#if UBA_DEBUG
 				// When cancelling all kinds of errors can happen..
 				int lastError = WSAGetLastError();
 				if (lastError != WSAEINTR && lastError != WSAESHUTDOWN && lastError != WSAECONNABORTED && lastError != WSAECONNRESET) // Interrupted by cancel
 					logger.Warning(TC("ERROR receiving socket: %s (%s%s)"), LastErrorToText(lastError).data, hint1, hint2);
 #endif
 #else
-				if (!isFirstCall || errno != ECONNRESET)
+				if (!isFirstCall && errno != ECONNRESET)
 					logger.Error(TC("ERROR receiving socket %i after %u bytes (%s%s) (%s)"), socket, bufferLen, hint1, hint2, strerror(errno));
 #endif
 				return false;

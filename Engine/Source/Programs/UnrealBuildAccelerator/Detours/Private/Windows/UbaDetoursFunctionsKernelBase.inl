@@ -2812,7 +2812,7 @@ DWORD Detoured_GetFullPathNameA(LPCSTR lpFileName, DWORD nBufferLength, LPSTR lp
 {
 	DETOURED_CALL(GetFullPathNameA);
 	DEBUG_LOG_TRUE(L"GetFullPathNameA", L"");
-	UBA_ASSERT(!g_runningRemote);
+	UBA_ASSERT(!g_runningRemote || g_isRunningWine); // Wine is calling GetFullPathNameW.. need to check so windows is doing that too
 	return True_GetFullPathNameA(lpFileName, nBufferLength, lpBuffer, lpFilePart);
 }
 
@@ -3575,8 +3575,14 @@ HRESULT Detoured_SHCreateStreamOnFileW(LPCWSTR pszFile, DWORD grfMode, IStream**
 
 BOOL Detoured_PathFileExistsW(LPCWSTR pszPath)
 {
-	UBA_ASSERTF(!g_runningRemote, L"%ls", pszPath);
-	return True_PathFileExistsW(pszPath);
+	DEBUG_LOG_DETOURED(L"PathFileExistsW", L"CALLING GetFileAttributesW (%s)", pszPath);
+	DWORD attributes = Detoured_GetFileAttributesW(pszPath);
+	return attributes != INVALID_FILE_ATTRIBUTES;
+
+	//UBA_ASSERTF(!g_runningRemote, L"%ls", pszPath);
+	//auto res = True_PathFileExistsW(pszPath);
+	//DEBUG_LOG_TRUE(L"PathFileExistsW", L"(%ls) -> %ls", pszPath, res);
+	//return res;
 }
 
 #endif // DETOURED_INCLUDE_DEBUG
