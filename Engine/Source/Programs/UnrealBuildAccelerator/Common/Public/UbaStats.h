@@ -48,6 +48,8 @@ namespace uba
 	{
 		StorageStatsScope(StorageStats& stats);
 		~StorageStatsScope();
+		StorageStatsScope(const StorageStatsScope&) = delete;
+		void operator=(const StorageStatsScope&) = delete;
 		StorageStats& stats;
 	};
 
@@ -82,6 +84,8 @@ namespace uba
 	{
 		SessionStatsScope(SessionStats& stats);
 		~SessionStatsScope();
+		SessionStatsScope(const SessionStatsScope&) = delete;
+		void operator=(const SessionStatsScope&) = delete;
 		SessionStats& stats;
 	};
 

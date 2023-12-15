@@ -815,7 +815,12 @@ namespace uba
 					}
 
 					if (m_parentProcess)
+					{
 						m_parentProcess->m_processStats.Add(m_processStats);
+						m_parentProcess->m_sessionStats.Add(m_sessionStats);
+						m_parentProcess->m_storageStats.Add(m_storageStats);
+						m_parentProcess->m_systemStats.Add(m_systemStats);
+					}
 
 					if (m_startInfo.outputStatsThresholdMs && TimeToMs(m_processStats.GetTotalTime()) > m_startInfo.outputStatsThresholdMs)
 					{

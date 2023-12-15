@@ -44,6 +44,8 @@ namespace uba
 		void Cancel() { start = ~u64(0); }
 		Timer& timer;
 		u64 start;
+		TimerScope(const TimerScope&) = delete;
+		void operator=(const TimerScope&) = delete;
 	};
 
 	struct ExtendedTimerScope 
