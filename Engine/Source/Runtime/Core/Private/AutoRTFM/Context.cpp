@@ -9,12 +9,29 @@
 #include "ScopedGuard.h"
 #include "Stats.h"
 #include "TransactionInlines.h"
+#include "AutoRTFM/AutoRTFMMetrics.h"
 
 #include "Templates/UniquePtr.h"
 #include "Containers/StringConv.h"
 
+namespace
+{
+AutoRTFM::FAutoRTFMMetrics GAutoRTFMMetrics;
+}
+
 namespace AutoRTFM
 {
+
+void ResetAutoRTFMMetrics()
+{
+	GAutoRTFMMetrics = FAutoRTFMMetrics{};
+}
+
+// get a snapshot of the current internal metrics
+FAutoRTFMMetrics GetAutoRTFMMetrics()
+{
+	return GAutoRTFMMetrics;
+}
 
 thread_local TUniquePtr<FContext> ContextTls;
 
@@ -76,6 +93,8 @@ bool FContext::StartTransaction()
 	ASSERT(Status == EContextStatus::OnTrack);
 	PushTransaction(NewTransaction);
 
+	GAutoRTFMMetrics.NumTransactionsStarted++;
+
 	return true;
 }
 
@@ -115,11 +134,15 @@ ETransactionResult FContext::CommitTransaction()
 	// Parent transaction is now the current transaction
 	PopTransaction();
 
+	GAutoRTFMMetrics.NumTransactionsCommitted++;
+
 	return Result;
 }
 
 ETransactionResult FContext::AbortTransaction(bool bIsClosed, bool bIsCascading)
 {
+	GAutoRTFMMetrics.NumTransactionsAborted++;
+
 	ETransactionResult Result = ETransactionResult::AbortedByRequest;
 	ASSERT(Status == EContextStatus::OnTrack);
 	Status = bIsCascading ? EContextStatus::AbortedByCascade : EContextStatus::AbortedByRequest;
@@ -396,6 +419,7 @@ ETransactionResult FContext::Transact(void (*Function)(void* Arg), void* Arg)
 void FContext::AbortByRequestAndThrow()
 {
     ASSERT(Status == EContextStatus::OnTrack);
+	GAutoRTFMMetrics.NumTransactionsAbortedByRequest++;
     Status = EContextStatus::AbortedByRequest;
     CurrentTransaction->AbortAndThrow();
 }
@@ -403,6 +427,7 @@ void FContext::AbortByRequestAndThrow()
 void FContext::AbortByRequestWithoutThrowing()
 {
 	ASSERT(Status == EContextStatus::OnTrack);
+	GAutoRTFMMetrics.NumTransactionsAbortedByRequest++;
 	Status = EContextStatus::AbortedByRequest;
 	CurrentTransaction->AbortWithoutThrowing();
 }
@@ -411,6 +436,7 @@ void FContext::AbortByLanguageAndThrow()
 {
 	UE_DEBUG_BREAK();
     ASSERT(Status == EContextStatus::OnTrack);
+	GAutoRTFMMetrics.NumTransactionsAbortedByLanguage++;
     Status = EContextStatus::AbortedByLanguage;
     CurrentTransaction->AbortAndThrow();
 }
