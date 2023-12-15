@@ -50,6 +50,17 @@ namespace UE::AnimNext
 			return AdditiveIndexOrNumAdditive;
 		}
 
+		// Returns the number of latent properties on this decorator
+		uint32 GetNumLatentPropreties() const noexcept { return NumLatentProperties; }
+
+		// Returns the number of latent properties on the decorator sub-stack
+		// Only available on the base decorator of the sub-stack
+		uint32 GetNumSubStackLatentPropreties() const
+		{
+			check(GetMode() == EDecoratorMode::Base);
+			return NumSubStackLatentProperties;
+		}
+
 		// Returns the offset into the shared data where the descriptor begins, relative to the root of the node's shared data
 		uint32 GetNodeSharedOffset() const noexcept { return NodeSharedOffset; }
 
@@ -74,16 +85,28 @@ namespace UE::AnimNext
 			return reinterpret_cast<const FAnimNextDecoratorSharedData*>(reinterpret_cast<const uint8*>(&NodeDescription) + GetNodeSharedOffset());
 		}
 
+		// Returns a reference to the specified decorator latent properties header on the current node
+		FLatentPropertiesHeader& GetDecoratorLatentPropertiesHeader(FNodeDescription& NodeDescription) const noexcept
+		{
+			return *reinterpret_cast<FLatentPropertiesHeader*>(reinterpret_cast<uint8*>(&NodeDescription) + GetNodeSharedLatentPropertyHandlesOffset());
+		}
+
+		// Returns a reference to the specified decorator latent properties header on the current node
+		const FLatentPropertiesHeader& GetDecoratorLatentPropertiesHeader(const FNodeDescription& NodeDescription) const noexcept
+		{
+			return *reinterpret_cast<const FLatentPropertiesHeader*>(reinterpret_cast<const uint8*>(&NodeDescription) + GetNodeSharedLatentPropertyHandlesOffset());
+		}
+
 		// Returns a pointer to the specified decorator latent property handles on the current node
 		FLatentPropertyHandle* GetDecoratorLatentPropertyHandles(FNodeDescription& NodeDescription) const noexcept
 		{
-			return reinterpret_cast<FLatentPropertyHandle*>(reinterpret_cast<uint8*>(&NodeDescription) + GetNodeSharedLatentPropertyHandlesOffset());
+			return reinterpret_cast<FLatentPropertyHandle*>(reinterpret_cast<uint8*>(&NodeDescription) + GetNodeSharedLatentPropertyHandlesOffset() + sizeof(FLatentPropertiesHeader));
 		}
 
 		// Returns a pointer to the specified decorator latent property handles on the current node
 		const FLatentPropertyHandle* GetDecoratorLatentPropertyHandles(const FNodeDescription& NodeDescription) const noexcept
 		{
-			return reinterpret_cast<const FLatentPropertyHandle*>(reinterpret_cast<const uint8*>(&NodeDescription) + GetNodeSharedLatentPropertyHandlesOffset());
+			return reinterpret_cast<const FLatentPropertyHandle*>(reinterpret_cast<const uint8*>(&NodeDescription) + GetNodeSharedLatentPropertyHandlesOffset() + sizeof(FLatentPropertiesHeader));
 		}
 
 		// Returns a pointer to the specified decorator instance on the current node
@@ -110,25 +133,49 @@ namespace UE::AnimNext
 			, RegistryHandle(InRegistryHandle)
 			, Mode(static_cast<uint8>(InMode))
 			, AdditiveIndexOrNumAdditive(InAdditiveIndexOrNumAdditive)
+			, NumLatentProperties(0)
+			, NumSubStackLatentProperties(0)
+			// For shared and instance data, 0 is an invalid offset since the data follows their respective header (FNodeDescription or FNodeInstance)
 			, NodeSharedOffset(0)
 			, NodeSharedLatentPropertyHandlesOffset(0)
-			, NodeInstanceOffset(0)				// For instance data, 0 is an invalid offset since the data follows an instance of FNodeInstance
+			, NodeInstanceOffset(0)
 			, Padding0(0)
 		{}
 
-		FDecoratorUIDRaw			UID;			// decorator globally unique identifier
+		// Decorator globally unique identifier (32 bits)
+		FDecoratorUIDRaw			UID;
 
-		FDecoratorRegistryHandle	RegistryHandle;	// decorator registry handle
-		uint8						Mode;			// the decorator mode (we only need 1 bit)
+		// Cached decorator registry handle (16 bits)
+		FDecoratorRegistryHandle	RegistryHandle;
+
+		// Decorator mode (we only need 1 bit, we could store other flags here)
+		uint8	Mode;
 
 		// For base decorators, this contains the number of additive decorators on top
 		// For additive decorators, this contains its index relative to the base decorator
 		// The first additive decorator has index 1, there is no index 0 (we re-purpose it for the base decorator)
 		uint8	AdditiveIndexOrNumAdditive;
 
+		// For each latent property defined on a decorator, we store a handle in the per node shared data
+		// These handles specify various metadata of the latent property: RigVM memory handle index, whether the property can freeze, instance data offset
+		// The handles of each decorator that lives on a sub-stack (base + additives) are stored contiguously
+		// The base decorator has the root handle offset and the total number as well as its local number of latent properties
+		// Each additive decorator has a handle offset that points into that contiguous list and its local number of latent properties
+
+		// How many latent properties are defined on this decorator (cached value of FDecorator::GetNumLatentPropreties to avoid repeated lookups)
+		// Not serialized, @see FNodeTemplate::Finalize
+		uint16	NumLatentProperties;
+
+		// How many latent properties are defined on this decorator sub-stack (stored on base decorator only)
+		// Not serialized, @see FNodeTemplate::Finalize
+		uint16	NumSubStackLatentProperties;
+
 		// Offsets into the shared read-only and instance data portions of a node
 		// These are not serialized, @see FNodeTemplate::Finalize
 		// These are relative to the root of the node description and instance data, respectively (max 64 KB per node each)
+		// These offsets are fixed in the template meaning each node will have the same memory layout up to the last decorator
+		// Optional data like cached latent properties are stored after this fixed layout ends
+
 		uint16	NodeSharedOffset;						// Start of shared data for this decorator
 		uint16	NodeSharedLatentPropertyHandlesOffset;	// Start of shared latent property handles for this decorator
 		uint16	NodeInstanceOffset;						// Start of instance data for this decorator

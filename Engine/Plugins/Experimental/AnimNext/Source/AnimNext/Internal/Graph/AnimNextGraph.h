@@ -31,6 +31,7 @@ namespace UE::AnimNext
 {
 	struct FContext;
 	struct FExecutionContext;
+	class FModule;
 	struct FTestUtils;
 }
 
@@ -109,6 +110,7 @@ protected:
 	friend UE::AnimNext::FExecutionContext;
 	friend class UAnimNextSchedule;
 	friend struct FAnimNextScheduleGraphTask;
+	friend UE::AnimNext::FModule;
 	
 #if WITH_EDITORONLY_DATA
 	mutable FRWLock GraphInstancesLock;

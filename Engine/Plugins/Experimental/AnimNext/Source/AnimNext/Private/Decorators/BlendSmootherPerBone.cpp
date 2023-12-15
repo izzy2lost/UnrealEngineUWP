@@ -13,11 +13,14 @@ namespace UE::AnimNext
 {
 	AUTO_REGISTER_ANIM_DECORATOR(FBlendSmootherPerBoneDecorator)
 
-	DEFINE_ANIM_DECORATOR_BEGIN(FBlendSmootherPerBoneDecorator)
-		DEFINE_ANIM_DECORATOR_IMPLEMENTS_INTERFACE(IEvaluate)
-		DEFINE_ANIM_DECORATOR_IMPLEMENTS_INTERFACE(IUpdate)
-		DEFINE_ANIM_DECORATOR_IMPLEMENTS_INTERFACE(IDiscreteBlend)
-	DEFINE_ANIM_DECORATOR_END(FBlendSmootherPerBoneDecorator)
+	// Decorator implementation boilerplate
+	#define DECORATOR_INTERFACE_ENUMERATOR(GeneratorMacro) \
+		GeneratorMacro(IDiscreteBlend) \
+		GeneratorMacro(IEvaluate) \
+		GeneratorMacro(IUpdate) \
+
+	GENERATE_ANIM_DECORATOR_IMPLEMENTATION(FBlendSmootherPerBoneDecorator, DECORATOR_INTERFACE_ENUMERATOR)
+	#undef DECORATOR_INTERFACE_ENUMERATOR
 
 	void FBlendSmootherPerBoneDecorator::PostEvaluate(FEvaluateTraversalContext& Context, const TDecoratorBinding<IEvaluate>& Binding) const
 	{

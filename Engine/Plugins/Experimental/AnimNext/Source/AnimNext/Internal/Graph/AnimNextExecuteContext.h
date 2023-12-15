@@ -7,6 +7,11 @@
 #include "Units/RigUnit.h"
 #include "AnimNextExecuteContext.generated.h"
 
+namespace UE::AnimNext
+{
+	struct FLatentPropertyHandle;
+}
+
 USTRUCT(BlueprintType)
 struct FAnimNextExecuteContext : public FRigVMExecuteContext
 {
@@ -14,34 +19,39 @@ struct FAnimNextExecuteContext : public FRigVMExecuteContext
 
 	FAnimNextExecuteContext() = default;
 
-	int32 GetLatentPinIndex() const { return LatentPinIndex; }
-	void* GetDestinationPtr() const { return DestinationPtr; }
+	const TConstArrayView<UE::AnimNext::FLatentPropertyHandle>& GetLatentHandles() const { return LatentHandles; }
+	void* GetDestinationBasePtr() const { return DestinationBasePtr; }
+	bool IsFrozen() const { return bIsFrozen; }
 
 	virtual void Copy(const FRigVMExecuteContext* InOtherContext) override
 	{
 		Super::Copy(InOtherContext);
 
 		const FAnimNextExecuteContext* OtherContext = (const FAnimNextExecuteContext*)InOtherContext;
-		LatentPinIndex = OtherContext->LatentPinIndex;
-		DestinationPtr = OtherContext->DestinationPtr;
+		LatentHandles = OtherContext->LatentHandles;
+		DestinationBasePtr = OtherContext->DestinationBasePtr;
+		bIsFrozen = OtherContext->bIsFrozen;
 	}
 
 private:
-	void SetupForExecution(int32 InLatentPinIndex, void* InDestinationPtr)
+	void SetupForExecution(const TConstArrayView<UE::AnimNext::FLatentPropertyHandle>& InLatentHandles, void* InDestinationBasePtr, bool bInIsFrozen)
 	{
-		LatentPinIndex = InLatentPinIndex;
-		DestinationPtr = InDestinationPtr;
+		LatentHandles = InLatentHandles;
+		DestinationBasePtr = InDestinationBasePtr;
+		bIsFrozen = bInIsFrozen;
 	}
 
 	// Call this to reset the context to its original state to detect stale usage, can't call it Reset due to virtual in base with that name
 	void DebugReset()
 	{
-		LatentPinIndex = INDEX_NONE;
-		DestinationPtr = nullptr;
+		LatentHandles = TConstArrayView<UE::AnimNext::FLatentPropertyHandle>();
+		DestinationBasePtr = nullptr;
+		bIsFrozen = false;
 	}
 
-	int32 LatentPinIndex = INDEX_NONE;
-	void* DestinationPtr = nullptr;
+	TConstArrayView<UE::AnimNext::FLatentPropertyHandle> LatentHandles;
+	void* DestinationBasePtr = nullptr;
+	bool bIsFrozen = false;
 
 	friend struct FAnimNextGraphInstance;
 };

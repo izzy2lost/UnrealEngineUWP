@@ -61,6 +61,9 @@ namespace Private
 		// The AnimNext decorator
 		const FDecorator* Decorator = nullptr;
 
+		// A map from latent property names to their corresponding RigVM memory handle index
+		TMap<FName, uint16> LatentPropertyNameToIndexMap;
+
 		FDecoratorEntryMapping(const URigVMNode* InDecoratorStackNode, const URigVMPin* InDecoratorEntryPin, const FDecorator* InDecorator)
 			: DecoratorStackNode(InDecoratorStackNode)
 			, DecoratorEntryPin(InDecoratorEntryPin)
@@ -132,7 +135,7 @@ namespace Private
 		return DecoratorWriter.RegisterNode(*NodeTemplate);
 	}
 
-	FString GetDecoratorProperty(const FDecoratorStackMapping& DecoratorStack, uint32 DecoratorIndex, const FString& PropertyName, const TArray<FDecoratorStackMapping>& DecoratorStackNodes)
+	FString GetDecoratorProperty(const FDecoratorStackMapping& DecoratorStack, uint32 DecoratorIndex, FName PropertyName, const TArray<FDecoratorStackMapping>& DecoratorStackNodes)
 	{
 		const TArray<URigVMPin*>& Pins = DecoratorStack.DecoratorEntries[DecoratorIndex].DecoratorEntryPin->GetSubPins();
 		for (const URigVMPin* Pin : Pins)
@@ -142,7 +145,7 @@ namespace Private
 				continue;	// We only look for input pins
 			}
 
-			if (Pin->GetName() == PropertyName)
+			if (Pin->GetFName() == PropertyName)
 			{
 				if (Pin->GetCPPTypeObject() == FAnimNextDecoratorHandle::StaticStruct())
 				{
@@ -200,37 +203,27 @@ namespace Private
 		return FString();
 	}
 
-	bool IsDecoratorPropertyLatent(const FDecoratorStackMapping& DecoratorStack, uint32 DecoratorIndex, const FString& PropertyName, const TArray<FDecoratorStackMapping>& DecoratorStackNodes)
+	uint16 GetDecoratorLatentPropertyIndex(const FDecoratorStackMapping& DecoratorStack, uint32 DecoratorIndex, FName PropertyName)
 	{
-		const TArray<URigVMPin*>& Pins = DecoratorStack.DecoratorEntries[DecoratorIndex].DecoratorEntryPin->GetSubPins();
-		for (const URigVMPin* Pin : Pins)
+		const FDecoratorEntryMapping& Entry = DecoratorStack.DecoratorEntries[DecoratorIndex];
+		if (const uint16* RigVMIndex = Entry.LatentPropertyNameToIndexMap.Find(PropertyName))
 		{
-			if (Pin->GetDirection() != ERigVMPinDirection::Input)
-			{
-				continue;	// We only look for input pins
-			}
-
-			if (Pin->GetName() == PropertyName)
-			{
-				// Lazy pins are latent if they are connected to something
-				return Pin->IsLazy() && !Pin->GetLinks().IsEmpty();
-			}
+			return *RigVMIndex;
 		}
 
-		// Unknown property
-		return false;
+		return MAX_uint16;
 	}
 
 	void WriteDecoratorProperties(FDecoratorWriter& DecoratorWriter, const FDecoratorStackMapping& Mapping, const TArray<FDecoratorStackMapping>& DecoratorStackNodes)
 	{
 		DecoratorWriter.WriteNode(Mapping.DecoratorStackNodeHandle,
-			[&Mapping, &DecoratorStackNodes](uint32 DecoratorIndex, const FString& PropertyName)
+			[&Mapping, &DecoratorStackNodes](uint32 DecoratorIndex, FName PropertyName)
 			{
 				return GetDecoratorProperty(Mapping, DecoratorIndex, PropertyName, DecoratorStackNodes);
 			},
-			[&Mapping, &DecoratorStackNodes](uint32 DecoratorIndex, const FString& PropertyName)
+			[&Mapping](uint32 DecoratorIndex, FName PropertyName)
 			{
-				return IsDecoratorPropertyLatent(Mapping, DecoratorIndex, PropertyName, DecoratorStackNodes);
+				return GetDecoratorLatentPropertyIndex(Mapping, DecoratorIndex, PropertyName);
 			});
 	}
 
@@ -413,21 +406,24 @@ namespace Private
 		return DecoratorStackNodes;
 	}
 
-	FRigVMPinInfoArray CollectLatentPins(const TArray<FDecoratorStackMapping>& DecoratorStackNodes, TMap<FName, URigVMPin*>& LatentPinMapping)
+	FRigVMPinInfoArray CollectLatentPins(TArray<FDecoratorStackMapping>& DecoratorStackNodes, TMap<FName, URigVMPin*>& LatentPinMapping)
 	{
 		const FRigVMRegistry& Registry = FRigVMRegistry::Get();
 
 		FRigVMPinInfoArray LatentPins;
 
-		for (const FDecoratorStackMapping& DecoratorStack : DecoratorStackNodes)
+		for (FDecoratorStackMapping& DecoratorStack : DecoratorStackNodes)
 		{
-			for (const FDecoratorEntryMapping& DecoratorEntry : DecoratorStack.DecoratorEntries)
+			for (FDecoratorEntryMapping& DecoratorEntry : DecoratorStack.DecoratorEntries)
 			{
 				for (URigVMPin* Pin : DecoratorEntry.DecoratorEntryPin->GetSubPins())
 				{
 					if (Pin->IsLazy() && !Pin->GetLinks().IsEmpty())
 					{
 						// This pin has something linked to it, it is a latent pin
+						check(LatentPins.Num() < ((1 << 16) - 1));	// We reserve MAX_uint16 as an invalid value and we must fit on 15 bits when packed
+						DecoratorEntry.LatentPropertyNameToIndexMap.Add(Pin->GetFName(), (uint16)LatentPins.Num());
+
 						const FName LatentPinName(TEXT("LatentPin"), LatentPins.Num());	// Create unique latent pin names
 
 						FRigVMPinInfo PinInfo;

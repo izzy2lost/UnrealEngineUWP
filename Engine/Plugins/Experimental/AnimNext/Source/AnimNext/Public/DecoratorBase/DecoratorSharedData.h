@@ -47,14 +47,14 @@
 		static_assert(LatentPropertyIndex > 0, "Property " #PropertyName " isn't latent"); \
 		const UE::AnimNext::FLatentPropertyHandle* LatentPropertyHandles = Binding.GetLatentPropertyHandles(); \
 		const UE::AnimNext::FLatentPropertyHandle LatentPropertyHandle = LatentPropertyHandles[LatentPropertyIndex - 1]; \
-		/* An invalid handle means we are inline, otherwise we are latent */ \
-		if (!LatentPropertyHandle.IsValid()) \
+		/* An invalid offset means we are inline, otherwise we are cached */ \
+		if (!LatentPropertyHandle.IsOffsetValid()) \
 		{ \
 			return PropertyName; \
 		} \
 		else \
 		{ \
-			return Context.EvaluateLatentPin<decltype(PropertyName)>(LatentPropertyHandle); \
+			return *Binding.GetLatentProperty<decltype(PropertyName)>(LatentPropertyHandle); \
 		} \
 	} \
 

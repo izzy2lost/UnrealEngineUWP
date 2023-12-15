@@ -53,15 +53,33 @@ namespace UE::AnimNext
 		// Decrements the reference count and returns true if any references remain
 		bool RemoveReference() { check(ReferenceCount > 0); return ReferenceCount-- != 1; }
 
-		FAnimNextGraphInstance& Owner;		// The graph instance that owns this node instance
+		FAnimNextGraphInstance&		Owner;					// The graph instance that owns this node instance
 
-		uint32		ReferenceCount;			// how many non-weak FDecoratorPtr handles point to us, not thread safe
-		FNodeHandle	NodeHandle;				// relative to root of sub-graph, should this be a pointer?
-
-		// Followed by a list of [FDecoratorInstanceData] instances and optional padding
+		uint32						ReferenceCount;			// how many non-weak FDecoratorPtr handles point to us, not thread safe
+		FNodeHandle					NodeHandle;				// relative to root of sub-graph, should this be a pointer?
 
 		friend struct FDecoratorPtr;
 		friend struct FExecutionContext;
 		friend struct FNodePtr;
+
+		// This structures is the header for a node's instance data. The memory layout is as follows:
+		// 
+		// [FNodeInstance] for the header
+		// [FDecoratorInstanceData] for decorator 1
+		// [FDecoratorInstanceData] for decorator 2
+		// [FDecoratorInstanceData] for decorator 3
+		// [...]
+		// [LatentProperty] for some decorator
+		// [LatentProperty] for some decorator
+		// [...]
+		// 
+		// Each node is thus followed by the decorator instance data contiguously.
+		// Following the decorator instance data, cached latent properties are present
+		// 
+		// Each decorator contains an instance data structure that derives from FDecoratorInstanceData.
+		// That derived structure is what is contained in the actual buffer. As such, sizes and offsets
+		// vary as required. The [FDecoratorTemplate] contains the offsets that map here.
+		// 
+		// Optional padding is inserted as required by alignment constraints.
 	};
 }

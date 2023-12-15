@@ -76,7 +76,7 @@ namespace UE::AnimNext
 		uint32	UID;					// globally unique template identifier or hash
 
 		uint16	NodeSharedDataSize;		// size in bytes of a node shared data (not serialized, @see FNodeTemplate::Finalize)
-		uint16	NodeInstanceDataSize;	// size in bytes of a node instance (not serialized, @see FNodeTemplate::Finalize)
+		uint16	NodeInstanceDataSize;	// size in bytes of a node instance, excludes optional latent properties (not serialized, @see FNodeTemplate::Finalize)
 
 		uint8	NumDecorators;
 		uint8	Padding[3];

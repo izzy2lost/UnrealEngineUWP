@@ -7,11 +7,14 @@ namespace UE::AnimNext
 {
 	AUTO_REGISTER_ANIM_DECORATOR(FSynchronizeUsingGroupsDecorator)
 
-	DEFINE_ANIM_DECORATOR_BEGIN(FSynchronizeUsingGroupsDecorator)
-		DEFINE_ANIM_DECORATOR_IMPLEMENTS_INTERFACE(IUpdate)
-		DEFINE_ANIM_DECORATOR_IMPLEMENTS_INTERFACE(IGroupSynchronization)
-		DEFINE_ANIM_DECORATOR_IMPLEMENTS_INTERFACE(ITimeline)
-	DEFINE_ANIM_DECORATOR_END(FSynchronizeUsingGroupsDecorator)
+	// Decorator implementation boilerplate
+	#define DECORATOR_INTERFACE_ENUMERATOR(GeneratorMacro) \
+		GeneratorMacro(IGroupSynchronization) \
+		GeneratorMacro(ITimeline) \
+		GeneratorMacro(IUpdate) \
+
+	GENERATE_ANIM_DECORATOR_IMPLEMENTATION(FSynchronizeUsingGroupsDecorator, DECORATOR_INTERFACE_ENUMERATOR)
+	#undef DECORATOR_INTERFACE_ENUMERATOR
 
 	void FSynchronizeUsingGroupsDecorator::PreUpdate(FUpdateTraversalContext& Context, const TDecoratorBinding<IUpdate>& Binding, const FDecoratorUpdateState& DecoratorState) const
 	{

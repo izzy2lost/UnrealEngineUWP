@@ -10,12 +10,15 @@ namespace UE::AnimNext
 {
 	AUTO_REGISTER_ANIM_DECORATOR(FBlendTwoWayDecorator)
 
-	DEFINE_ANIM_DECORATOR_BEGIN(FBlendTwoWayDecorator)
-		DEFINE_ANIM_DECORATOR_IMPLEMENTS_INTERFACE(IContinuousBlend)
-		DEFINE_ANIM_DECORATOR_IMPLEMENTS_INTERFACE(IEvaluate)
-		DEFINE_ANIM_DECORATOR_IMPLEMENTS_INTERFACE(IHierarchy)
-		DEFINE_ANIM_DECORATOR_IMPLEMENTS_INTERFACE(IUpdate)
-	DEFINE_ANIM_DECORATOR_END(FBlendTwoWayDecorator)
+	// Decorator implementation boilerplate
+	#define DECORATOR_INTERFACE_ENUMERATOR(GeneratorMacro) \
+		GeneratorMacro(IContinuousBlend) \
+		GeneratorMacro(IEvaluate) \
+		GeneratorMacro(IHierarchy) \
+		GeneratorMacro(IUpdate) \
+
+	GENERATE_ANIM_DECORATOR_IMPLEMENTATION(FBlendTwoWayDecorator, DECORATOR_INTERFACE_ENUMERATOR)
+	#undef DECORATOR_INTERFACE_ENUMERATOR
 
 	void FBlendTwoWayDecorator::PostEvaluate(FEvaluateTraversalContext& Context, const TDecoratorBinding<IEvaluate>& Binding) const
 	{

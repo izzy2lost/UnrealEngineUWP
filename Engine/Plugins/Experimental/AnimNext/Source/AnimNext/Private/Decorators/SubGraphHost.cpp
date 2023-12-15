@@ -8,12 +8,15 @@ namespace UE::AnimNext
 {
 	AUTO_REGISTER_ANIM_DECORATOR(FSubGraphHostDecorator)
 
-	DEFINE_ANIM_DECORATOR_BEGIN(FSubGraphHostDecorator)
-		DEFINE_ANIM_DECORATOR_IMPLEMENTS_INTERFACE(IDiscreteBlend)
-		DEFINE_ANIM_DECORATOR_IMPLEMENTS_INTERFACE(IGarbageCollection)
-		DEFINE_ANIM_DECORATOR_IMPLEMENTS_INTERFACE(IHierarchy)
-		DEFINE_ANIM_DECORATOR_IMPLEMENTS_INTERFACE(IUpdate)
-	DEFINE_ANIM_DECORATOR_END(FSubGraphHostDecorator)
+	// Decorator implementation boilerplate
+	#define DECORATOR_INTERFACE_ENUMERATOR(GeneratorMacro) \
+		GeneratorMacro(IDiscreteBlend) \
+		GeneratorMacro(IGarbageCollection) \
+		GeneratorMacro(IHierarchy) \
+		GeneratorMacro(IUpdate) \
+
+	GENERATE_ANIM_DECORATOR_IMPLEMENTATION(FSubGraphHostDecorator, DECORATOR_INTERFACE_ENUMERATOR)
+	#undef DECORATOR_INTERFACE_ENUMERATOR
 
 	void FSubGraphHostDecorator::FInstanceData::Construct(const FExecutionContext& Context, const FDecoratorBinding& Binding)
 	{

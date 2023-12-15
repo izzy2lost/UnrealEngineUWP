@@ -12,8 +12,52 @@ namespace UE::AnimNext
 		SharedDataStruct->SerializeItem(Ar, &SharedData, nullptr);
 	}
 
+	FDecoratorLatentPropertyMemoryLayout FDecorator::GetLatentPropertyMemoryLayoutImpl(
+		FName PropertyName,
+		uint32 PropertyIndex,
+		TArray<FDecoratorLatentPropertyMemoryLayout>& LatentPropertyMemoryLayouts) const
+	{
+		check(LatentPropertyMemoryLayouts.IsValidIndex(PropertyIndex));
+		if (LatentPropertyMemoryLayouts[PropertyIndex].Size == 0)
+		{
+			// This is a new entry, initialize it
+			// No need for locking, this is a deterministic write
+			const UScriptStruct* SharedDataStruct = GetDecoratorSharedDataStruct();
+			const FProperty* Property = SharedDataStruct->FindPropertyByName(PropertyName);
+			check(Property != nullptr);
+
+			LatentPropertyMemoryLayouts[PropertyIndex].Alignment = Property->GetMinAlignment();
+
+			// Ensure alignment is visible before we write the size to avoid torn reads
+			FPlatformMisc::MemoryBarrier();
+
+			LatentPropertyMemoryLayouts[PropertyIndex].Size = Property->GetSize();
+		}
+		
+		return LatentPropertyMemoryLayouts[PropertyIndex];
+	}
+
+	TArray<FDecoratorInterfaceUID> FDecorator::BuildDecoratorInterfaceList(
+		const TConstArrayView<FDecoratorInterfaceUID>& SuperInterfaces,
+		std::initializer_list<FDecoratorInterfaceUID> InterfaceList)
+	{
+		TArray<FDecoratorInterfaceUID> Result;
+		Result.Reserve(SuperInterfaces.Num() + InterfaceList.size());
+
+		Result.Append(SuperInterfaces);
+
+		for (FDecoratorInterfaceUID InterfaceID : InterfaceList)
+		{
+			Result.AddUnique(InterfaceID);
+		}
+
+		Result.Shrink();
+		Result.Sort();
+		return Result;
+	}
+
 #if WITH_EDITOR
-	void FDecorator::SaveDecoratorSharedData(const TFunction<FString(const FString& PropertyName)>& GetDecoratorProperty, FAnimNextDecoratorSharedData& OutSharedData) const
+	void FDecorator::SaveDecoratorSharedData(const TFunction<FString(FName PropertyName)>& GetDecoratorProperty, FAnimNextDecoratorSharedData& OutSharedData) const
 	{
 		const UScriptStruct* SharedDataStruct = GetDecoratorSharedDataStruct();
 
@@ -28,7 +72,7 @@ namespace UE::AnimNext
 		{
 			// No need to skip editor only properties since serialization will take care of that afterwards
 
-			const FString PropertyValue = GetDecoratorProperty(Property->GetName());
+			const FString PropertyValue = GetDecoratorProperty(Property->GetFName());
 			if (PropertyValue.Len() != 0)
 			{
 				const TCHAR* PropertyValuePtr = *PropertyValue;
@@ -62,7 +106,9 @@ namespace UE::AnimNext
 		}
 	}
 
-	TArray<FLatentPropertyHandle> FDecorator::GetLatentPropertyHandles(bool bFilterEditorOnly, const TFunction<bool(const FString& PropertyName)>& IsDecoratorPropertyLatent, FLatentPropertyHandle& CurrentLatentPropertyHandle) const
+	TArray<FLatentPropertyMetadata> FDecorator::GetLatentPropertyHandles(
+		bool bFilterEditorOnly,
+		const TFunction<uint16(FName PropertyName)>& GetDecoratorLatentPropertyIndex) const
 	{
 		const UStruct* BaseStruct = GetDecoratorSharedDataStruct();
 
@@ -78,12 +124,13 @@ namespace UE::AnimNext
 		}
 		while (BaseStruct != nullptr);
 
-		TArray<FLatentPropertyHandle> LatentPropertyHandles;
+		TArray<FLatentPropertyMetadata> LatentPropertyHandles;
 
 		// Gather our latent properties from base to most derived
 		for (auto It = StructHierarchy.rbegin(); It != StructHierarchy.rend(); ++It)
 		{
-			for (const FField* Field = (*It)->ChildProperties; Field; Field = Field->Next)
+			const UStruct* SharedDataStruct = *It;
+			for (const FField* Field = SharedDataStruct->ChildProperties; Field != nullptr; Field = Field->Next)
 			{
 				const FProperty* Property = CastField<FProperty>(Field);
 
@@ -97,7 +144,8 @@ namespace UE::AnimNext
 				//     - Properties marked as hidden are not visible in the editor and cannot be hooked up manually
 				//     - Properties marked as inline are only visible in the details panel and cannot be hooked up to another node
 				//     - Properties of decorator handle type are never lazy since they just encode graph connectivity
-				const bool bIsPotentiallyLatent = !Property->HasMetaData(TEXT("Hidden")) &&
+				const bool bIsPotentiallyLatent =
+					!Property->HasMetaData(TEXT("Hidden")) &&
 					!Property->HasMetaData(TEXT("Inline")) &&
 					Property->GetCPPType() != TEXT("FAnimNextDecoratorHandle");
 
@@ -106,16 +154,14 @@ namespace UE::AnimNext
 					continue;	// Skip non-latent properties
 				}
 
-				FLatentPropertyHandle LatentHandle;
+				FLatentPropertyMetadata Metadata;
+				Metadata.Name = Property->GetFName();
+				Metadata.RigVMIndex = GetDecoratorLatentPropertyIndex(Property->GetFName());
 
-				if (IsDecoratorPropertyLatent(Property->GetName()))
-				{
-					// This property is marked latent and it has a non-inline value, grab our next latent handle and increment it
-					LatentHandle = CurrentLatentPropertyHandle;
-					CurrentLatentPropertyHandle = CurrentLatentPropertyHandle.GetNextHandle();
-				}
+				// Always false for now, we don't support freezing yet
+				Metadata.bCanFreeze = false;
 
-				LatentPropertyHandles.Add(LatentHandle);
+				LatentPropertyHandles.Add(Metadata);
 			}
 		}
 

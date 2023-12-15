@@ -157,9 +157,12 @@ namespace UE::AnimNext
 		}
 	};
 
-	DEFINE_ANIM_DECORATOR_BEGIN(FDecoratorA_Base)
-		DEFINE_ANIM_DECORATOR_IMPLEMENTS_INTERFACE(IInterfaceA)
-	DEFINE_ANIM_DECORATOR_END(FDecoratorA_Base)
+	// Decorator implementation boilerplate
+	#define DECORATOR_INTERFACE_ENUMERATOR(GeneratorMacro) \
+		GeneratorMacro(IInterfaceA) \
+
+	GENERATE_ANIM_DECORATOR_IMPLEMENTATION(FDecoratorA_Base, DECORATOR_INTERFACE_ENUMERATOR)
+	#undef DECORATOR_INTERFACE_ENUMERATOR
 
 	//////////////////////////////////////////////////////////////////////////
 
@@ -201,10 +204,13 @@ namespace UE::AnimNext
 		}
 	};
 
-	DEFINE_ANIM_DECORATOR_BEGIN(FDecoratorAB_Add)
-		DEFINE_ANIM_DECORATOR_IMPLEMENTS_INTERFACE(IInterfaceA)
-		DEFINE_ANIM_DECORATOR_IMPLEMENTS_INTERFACE(IInterfaceB)
-	DEFINE_ANIM_DECORATOR_END(FDecoratorAB_Add)
+	// Decorator implementation boilerplate
+	#define DECORATOR_INTERFACE_ENUMERATOR(GeneratorMacro) \
+		GeneratorMacro(IInterfaceA) \
+		GeneratorMacro(IInterfaceB) \
+
+	GENERATE_ANIM_DECORATOR_IMPLEMENTATION(FDecoratorAB_Add, DECORATOR_INTERFACE_ENUMERATOR)
+	#undef DECORATOR_INTERFACE_ENUMERATOR
 
 	//////////////////////////////////////////////////////////////////////////
 
@@ -246,10 +252,13 @@ namespace UE::AnimNext
 		}
 	};
 
-	DEFINE_ANIM_DECORATOR_BEGIN(FDecoratorAC_Add)
-		DEFINE_ANIM_DECORATOR_IMPLEMENTS_INTERFACE(IInterfaceA)
-		DEFINE_ANIM_DECORATOR_IMPLEMENTS_INTERFACE(IInterfaceC)
-	DEFINE_ANIM_DECORATOR_END(FDecoratorAC_Add)
+	// Decorator implementation boilerplate
+	#define DECORATOR_INTERFACE_ENUMERATOR(GeneratorMacro) \
+		GeneratorMacro(IInterfaceA) \
+		GeneratorMacro(IInterfaceC) \
+
+	GENERATE_ANIM_DECORATOR_IMPLEMENTATION(FDecoratorAC_Add, DECORATOR_INTERFACE_ENUMERATOR)
+	#undef DECORATOR_INTERFACE_ENUMERATOR
 
 
 	//////////////////////////////////////////////////////////////////////////
@@ -261,9 +270,12 @@ namespace UE::AnimNext
 		using FSharedData = FDecoratorSerialization_BaseSharedData;
 	};
 
-	DEFINE_ANIM_DECORATOR_BEGIN(FDecoratorSerialization_Base)
-		DEFINE_ANIM_DECORATOR_IMPLEMENTS_INTERFACE(IInterfaceA)
-	DEFINE_ANIM_DECORATOR_END(FDecoratorSerialization_Base)
+	// Decorator implementation boilerplate
+	#define DECORATOR_INTERFACE_ENUMERATOR(GeneratorMacro) \
+		GeneratorMacro(IInterfaceA) \
+
+	GENERATE_ANIM_DECORATOR_IMPLEMENTATION(FDecoratorSerialization_Base, DECORATOR_INTERFACE_ENUMERATOR)
+	#undef DECORATOR_INTERFACE_ENUMERATOR
 
 	//////////////////////////////////////////////////////////////////////////
 
@@ -274,9 +286,12 @@ namespace UE::AnimNext
 		using FSharedData = FDecoratorSerialization_AddSharedData;
 	};
 
-	DEFINE_ANIM_DECORATOR_BEGIN(FDecoratorSerialization_Add)
-		DEFINE_ANIM_DECORATOR_IMPLEMENTS_INTERFACE(IInterfaceB)
-	DEFINE_ANIM_DECORATOR_END(FDecoratorSerialization_Add)
+	// Decorator implementation boilerplate
+	#define DECORATOR_INTERFACE_ENUMERATOR(GeneratorMacro) \
+		GeneratorMacro(IInterfaceB) \
+
+	GENERATE_ANIM_DECORATOR_IMPLEMENTATION(FDecoratorSerialization_Add, DECORATOR_INTERFACE_ENUMERATOR)
+	#undef DECORATOR_INTERFACE_ENUMERATOR
 
 	//////////////////////////////////////////////////////////////////////////
 
@@ -287,9 +302,12 @@ namespace UE::AnimNext
 		using FSharedData = FDecoratorNativeSerialization_AddSharedData;
 	};
 
-	DEFINE_ANIM_DECORATOR_BEGIN(FDecoratorNativeSerialization_Add)
-		DEFINE_ANIM_DECORATOR_IMPLEMENTS_INTERFACE(IInterfaceC)
-	DEFINE_ANIM_DECORATOR_END(FDecoratorNativeSerialization_Add)
+	// Decorator implementation boilerplate
+	#define DECORATOR_INTERFACE_ENUMERATOR(GeneratorMacro) \
+		GeneratorMacro(IInterfaceC) \
+
+	GENERATE_ANIM_DECORATOR_IMPLEMENTATION(FDecoratorNativeSerialization_Add, DECORATOR_INTERFACE_ENUMERATOR)
+	#undef DECORATOR_INTERFACE_ENUMERATOR
 }
 
 IMPLEMENT_SIMPLE_AUTOMATION_TEST(FAnimationAnimNextRuntimeTest_DecoratorRegistry, "Animation.AnimNext.Runtime.DecoratorRegistry", EAutomationTestFlags::EditorContext | EAutomationTestFlags::EngineFilter)
@@ -539,22 +557,22 @@ bool FAnimationAnimNextRuntimeTest_NodeLifetime::RunTest(const FString& InParame
 
 			DecoratorWriter.BeginNodeWriting();
 			DecoratorWriter.WriteNode(NodeHandles[0],
-				[](uint32 DecoratorIndex, const FString& PropertyName)
+				[](uint32 DecoratorIndex, FName PropertyName)
 				{
 					return FString();
 				},
-				[](uint32 DecoratorIndex, const FString& PropertyName)
+				[](uint32 DecoratorIndex, FName PropertyName)
 				{
-					return false;
+					return MAX_uint16;
 				});
 			DecoratorWriter.WriteNode(NodeHandles[1],
-				[](uint32 DecoratorIndex, const FString& PropertyName)
+				[](uint32 DecoratorIndex, FName PropertyName)
 				{
 					return FString();
 				},
-				[](uint32 DecoratorIndex, const FString& PropertyName)
+				[](uint32 DecoratorIndex, FName PropertyName)
 				{
-					return false;
+					return MAX_uint16;
 				});
 			DecoratorWriter.EndNodeWriting();
 
@@ -750,13 +768,13 @@ bool FAnimationAnimNextRuntimeTest_GetDecoratorInterface::RunTest(const FString&
 
 			DecoratorWriter.BeginNodeWriting();
 			DecoratorWriter.WriteNode(NodeHandles[0],
-				[](uint32 DecoratorIndex, const FString& PropertyName)
+				[](uint32 DecoratorIndex, FName PropertyName)
 				{
 					return FString();
 				},
-				[](uint32 DecoratorIndex, const FString& PropertyName)
+				[](uint32 DecoratorIndex, FName PropertyName)
 				{
-					return false;
+					return MAX_uint16;
 				});
 			DecoratorWriter.EndNodeWriting();
 
@@ -1023,13 +1041,13 @@ bool FAnimationAnimNextRuntimeTest_GetDecoratorInterfaceSuper::RunTest(const FSt
 
 			DecoratorWriter.BeginNodeWriting();
 			DecoratorWriter.WriteNode(NodeHandles[0],
-				[](uint32 DecoratorIndex, const FString& PropertyName)
+				[](uint32 DecoratorIndex, FName PropertyName)
 				{
 					return FString();
 				},
-				[](uint32 DecoratorIndex, const FString& PropertyName)
+				[](uint32 DecoratorIndex, FName PropertyName)
 				{
-					return false;
+					return MAX_uint16;
 				});
 			DecoratorWriter.EndNodeWriting();
 
@@ -1185,339 +1203,341 @@ bool FAnimationAnimNextRuntimeTest_DecoratorSerialization::RunTest(const FString
 {
 	using namespace UE::AnimNext;
 
-	AUTO_REGISTER_ANIM_DECORATOR(FDecoratorSerialization_Base)
-	AUTO_REGISTER_ANIM_DECORATOR(FDecoratorSerialization_Add)
-	AUTO_REGISTER_ANIM_DECORATOR(FDecoratorNativeSerialization_Add)
-
-	UFactory* GraphFactory = NewObject<UAnimNextGraphFactory>();
-	UAnimNextGraph* AnimNextGraph = CastChecked<UAnimNextGraph>(GraphFactory->FactoryCreateNew(UAnimNextGraph::StaticClass(), GetTransientPackage(), TEXT("TestAnimNextGraph"), RF_Transient, nullptr, nullptr, NAME_None));
-	UE_RETURN_ON_ERROR(AnimNextGraph != nullptr, "FAnimationAnimNextRuntimeTest_DecoratorSerialization -> Failed to create animation graph");
-
-	FScopedClearNodeTemplateRegistry ScopedClearNodeTemplateRegistry;
-	FNodeTemplateRegistry& Registry = FNodeTemplateRegistry::Get();
-
-	TArray<FDecoratorUID> NodeTemplateDecoratorList;
-	NodeTemplateDecoratorList.Add(FDecoratorSerialization_Base::DecoratorUID);
-	NodeTemplateDecoratorList.Add(FDecoratorSerialization_Add::DecoratorUID);
-	NodeTemplateDecoratorList.Add(FDecoratorNativeSerialization_Add::DecoratorUID);
-
-	// Populate our node template registry
-	TArray<uint8> NodeTemplateBuffer0;
-	const FNodeTemplate* NodeTemplate0 = FNodeTemplateBuilder::BuildNodeTemplate(NodeTemplateDecoratorList, NodeTemplateBuffer0);
-
-	FNodeTemplateRegistryHandle TemplateHandle0 = Registry.FindOrAdd(NodeTemplate0);
-	AddErrorIfFalse(TemplateHandle0.IsValid(), "FAnimationAnimNextRuntimeTest_DecoratorSerialization -> Registry should contain our template");
-
-	FDecoratorSerialization_Base::FSharedData DecoratorBaseRef0;
-	DecoratorBaseRef0.Integer = 1651;
-	DecoratorBaseRef0.IntegerArray[0] = 1071;
-	DecoratorBaseRef0.IntegerArray[1] = -158;
-	DecoratorBaseRef0.IntegerArray[2] = 88116;
-	DecoratorBaseRef0.IntegerArray[3] = 0x417;
-	DecoratorBaseRef0.IntegerTArray = { -8162, 88152, 0x8152f };
-	DecoratorBaseRef0.Vector = FVector(0.1917, 12435.1, -18200.1726);
-	DecoratorBaseRef0.VectorArray[0] = FVector(192.1716, -1927.115, 99176.12);
-	DecoratorBaseRef0.VectorArray[1] = FVector(961.811, -18956.117, 81673.44);
-	DecoratorBaseRef0.VectorTArray = { FVector(-1927.8771, 1826.9917, -123.1555), FVector(9177.011, -71.44, -917.88), FVector(123.91, 852.11, -81652.1) };
-	DecoratorBaseRef0.String = TEXT("sample string 123");
-	DecoratorBaseRef0.Name = FName(TEXT("sample name 999178"));
-
-	FDecoratorSerialization_Add::FSharedData DecoratorAddRef0;
-	DecoratorAddRef0.Integer = 16511;
-	DecoratorAddRef0.IntegerArray[0] = 10711;
-	DecoratorAddRef0.IntegerArray[1] = -1581;
-	DecoratorAddRef0.IntegerArray[2] = 881161;
-	DecoratorAddRef0.IntegerArray[3] = 0x4171;
-	DecoratorAddRef0.IntegerTArray = { -81621, 881521, 0x8152f1 };
-	DecoratorAddRef0.Vector = FVector(0.19171, 12435.11, -18200.17261);
-	DecoratorAddRef0.VectorArray[0] = FVector(192.17161, -1927.1151, 99176.121);
-	DecoratorAddRef0.VectorArray[1] = FVector(961.8111, -18956.1171, 81673.441);
-	DecoratorAddRef0.VectorTArray = { FVector(-1927.87711, 1826.99171, -123.15551), FVector(9177.0111, -71.441, -917.881), FVector(123.911, 852.111, -81652.11) };
-	DecoratorAddRef0.String = TEXT("sample string 1231");
-	DecoratorAddRef0.Name = FName(TEXT("sample name 9991781"));
-
-	FDecoratorNativeSerialization_Add::FSharedData DecoratorNativeRef0;
-	DecoratorNativeRef0.Integer = 16514;
-	DecoratorNativeRef0.IntegerArray[0] = 10714;
-	DecoratorNativeRef0.IntegerArray[1] = -1584;
-	DecoratorNativeRef0.IntegerArray[2] = 881164;
-	DecoratorNativeRef0.IntegerArray[3] = 0x4174;
-	DecoratorNativeRef0.IntegerTArray = { -81624, 881524, 0x8152f4 };
-	DecoratorNativeRef0.Vector = FVector(0.19174, 12435.14, -18200.17264);
-	DecoratorNativeRef0.VectorArray[0] = FVector(192.17164, -1927.1154, 99176.124);
-	DecoratorNativeRef0.VectorArray[1] = FVector(961.8114, -18956.1174, 81673.444);
-	DecoratorNativeRef0.VectorTArray = { FVector(-1927.87714, 1826.99174, -123.15554), FVector(9177.0114, -71.444, -917.884), FVector(123.914, 852.114, -81652.14) };
-	DecoratorNativeRef0.String = TEXT("sample string 1234");
-	DecoratorNativeRef0.Name = FName(TEXT("sample name 9991784"));
-
-	FDecoratorSerialization_Base::FSharedData DecoratorBaseRef1;
-	DecoratorBaseRef1.Integer = 16512;
-	DecoratorBaseRef1.IntegerArray[0] = 10712;
-	DecoratorBaseRef1.IntegerArray[1] = -1582;
-	DecoratorBaseRef1.IntegerArray[2] = 881162;
-	DecoratorBaseRef1.IntegerArray[3] = 0x4172;
-	DecoratorBaseRef1.IntegerTArray = { -81622, 881522, 0x8152f2 };
-	DecoratorBaseRef1.Vector = FVector(0.19172, 12435.12, -18200.17262);
-	DecoratorBaseRef1.VectorArray[0] = FVector(192.17162, -1927.1152, 99176.122);
-	DecoratorBaseRef1.VectorArray[1] = FVector(961.8112, -18956.1172, 81673.442);
-	DecoratorBaseRef1.VectorTArray = { FVector(-1927.87712, 1826.99172, -123.15552), FVector(9177.0112, -71.442, -917.882), FVector(123.912, 852.112, -81652.12) };
-	DecoratorBaseRef1.String = TEXT("sample string 1232");
-	DecoratorBaseRef1.Name = FName(TEXT("sample name 9991782"));
-
-	FDecoratorSerialization_Add::FSharedData DecoratorAddRef1;
-	DecoratorAddRef1.Integer = 16513;
-	DecoratorAddRef1.IntegerArray[0] = 10713;
-	DecoratorAddRef1.IntegerArray[1] = -1583;
-	DecoratorAddRef1.IntegerArray[2] = 881163;
-	DecoratorAddRef1.IntegerArray[3] = 0x4173;
-	DecoratorAddRef1.IntegerTArray = { -81623, 881523, 0x8152f3 };
-	DecoratorAddRef1.Vector = FVector(0.19173, 12435.13, -18200.17263);
-	DecoratorAddRef1.VectorArray[0] = FVector(192.17163, -1927.1153, 99176.123);
-	DecoratorAddRef1.VectorArray[1] = FVector(961.8113, -18956.1173, 81673.443);
-	DecoratorAddRef1.VectorTArray = { FVector(-1927.87713, 1826.99173, -123.15553), FVector(9177.0113, -71.443, -917.883), FVector(123.913, 852.113, -81652.13) };
-	DecoratorAddRef1.String = TEXT("sample string 1233");
-	DecoratorAddRef1.Name = FName(TEXT("sample name 9991783"));
-
-	FDecoratorNativeSerialization_Add::FSharedData DecoratorNativeRef1;
-	DecoratorNativeRef1.Integer = 16515;
-	DecoratorNativeRef1.IntegerArray[0] = 10715;
-	DecoratorNativeRef1.IntegerArray[1] = -1585;
-	DecoratorNativeRef1.IntegerArray[2] = 881165;
-	DecoratorNativeRef1.IntegerArray[3] = 0x4175;
-	DecoratorNativeRef1.IntegerTArray = { -81625, 881525, 0x8152f5 };
-	DecoratorNativeRef1.Vector = FVector(0.19175, 12435.15, -18200.17265);
-	DecoratorNativeRef1.VectorArray[0] = FVector(192.17165, -1927.1155, 99176.125);
-	DecoratorNativeRef1.VectorArray[1] = FVector(961.8115, -18956.1175, 81673.445);
-	DecoratorNativeRef1.VectorTArray = { FVector(-1927.87715, 1826.99175, -123.15555), FVector(9177.0115, -71.445, -917.885), FVector(123.915, 852.115, -81652.15) };
-	DecoratorNativeRef1.String = TEXT("sample string 1235");
-	DecoratorNativeRef1.Name = FName(TEXT("sample name 9991785"));
-
-	TArray<FNodeHandle> NodeHandles;
-
-	// Write our graph
-	TArray<uint8> GraphSharedDataArchiveBuffer;
-	TArray<TObjectPtr<UObject>> GraphReferencedObjects;
 	{
-		FDecoratorWriter DecoratorWriter;
+		FScopedClearNodeTemplateRegistry ScopedClearNodeTemplateRegistry;
+		FNodeTemplateRegistry& Registry = FNodeTemplateRegistry::Get();
 
-		NodeHandles.Add(DecoratorWriter.RegisterNode(*NodeTemplate0));
-		NodeHandles.Add(DecoratorWriter.RegisterNode(*NodeTemplate0));
+		AUTO_REGISTER_ANIM_DECORATOR(FDecoratorSerialization_Base)
+		AUTO_REGISTER_ANIM_DECORATOR(FDecoratorSerialization_Add)
+		AUTO_REGISTER_ANIM_DECORATOR(FDecoratorNativeSerialization_Add)
 
-		// We don't have decorator properties
-		TArray<TMap<FString, FString>> DecoratorProperties0;
-		DecoratorProperties0.AddDefaulted(NodeTemplateDecoratorList.Num());
+		UFactory* GraphFactory = NewObject<UAnimNextGraphFactory>();
+		UAnimNextGraph* AnimNextGraph = CastChecked<UAnimNextGraph>(GraphFactory->FactoryCreateNew(UAnimNextGraph::StaticClass(), GetTransientPackage(), TEXT("TestAnimNextGraph"), RF_Transient, nullptr, nullptr, NAME_None));
+		UE_RETURN_ON_ERROR(AnimNextGraph != nullptr, "FAnimationAnimNextRuntimeTest_DecoratorSerialization -> Failed to create animation graph");
 
-		DecoratorProperties0[0].Add(TEXT("Integer"), ToString<FDecoratorSerialization_Base::FSharedData>(TEXT("Integer"), DecoratorBaseRef0.Integer));
-		DecoratorProperties0[0].Add(TEXT("IntegerArray"), ToString<FDecoratorSerialization_Base::FSharedData>(TEXT("IntegerArray"), DecoratorBaseRef0.IntegerArray));
-		DecoratorProperties0[0].Add(TEXT("IntegerTArray"), ToString<FDecoratorSerialization_Base::FSharedData>(TEXT("IntegerTArray"), DecoratorBaseRef0.IntegerTArray));
-		DecoratorProperties0[0].Add(TEXT("Vector"), ToString<FDecoratorSerialization_Base::FSharedData>(TEXT("Vector"), DecoratorBaseRef0.Vector));
-		DecoratorProperties0[0].Add(TEXT("VectorArray"), ToString<FDecoratorSerialization_Base::FSharedData>(TEXT("VectorArray"), DecoratorBaseRef0.VectorArray));
-		DecoratorProperties0[0].Add(TEXT("VectorTArray"), ToString<FDecoratorSerialization_Base::FSharedData>(TEXT("VectorTArray"), DecoratorBaseRef0.VectorTArray));
-		DecoratorProperties0[0].Add(TEXT("String"), ToString<FDecoratorSerialization_Base::FSharedData>(TEXT("String"), DecoratorBaseRef0.String));
-		DecoratorProperties0[0].Add(TEXT("Name"), ToString<FDecoratorSerialization_Base::FSharedData>(TEXT("Name"), DecoratorBaseRef0.Name));
+		TArray<FDecoratorUID> NodeTemplateDecoratorList;
+		NodeTemplateDecoratorList.Add(FDecoratorSerialization_Base::DecoratorUID);
+		NodeTemplateDecoratorList.Add(FDecoratorSerialization_Add::DecoratorUID);
+		NodeTemplateDecoratorList.Add(FDecoratorNativeSerialization_Add::DecoratorUID);
 
-		DecoratorProperties0[1].Add(TEXT("Integer"), ToString<FDecoratorSerialization_Add::FSharedData>(TEXT("Integer"), DecoratorAddRef0.Integer));
-		DecoratorProperties0[1].Add(TEXT("IntegerArray"), ToString<FDecoratorSerialization_Add::FSharedData>(TEXT("IntegerArray"), DecoratorAddRef0.IntegerArray));
-		DecoratorProperties0[1].Add(TEXT("IntegerTArray"), ToString<FDecoratorSerialization_Add::FSharedData>(TEXT("IntegerTArray"), DecoratorAddRef0.IntegerTArray));
-		DecoratorProperties0[1].Add(TEXT("Vector"), ToString<FDecoratorSerialization_Add::FSharedData>(TEXT("Vector"), DecoratorAddRef0.Vector));
-		DecoratorProperties0[1].Add(TEXT("VectorArray"), ToString<FDecoratorSerialization_Add::FSharedData>(TEXT("VectorArray"), DecoratorAddRef0.VectorArray));
-		DecoratorProperties0[1].Add(TEXT("VectorTArray"), ToString<FDecoratorSerialization_Add::FSharedData>(TEXT("VectorTArray"), DecoratorAddRef0.VectorTArray));
-		DecoratorProperties0[1].Add(TEXT("String"), ToString<FDecoratorSerialization_Add::FSharedData>(TEXT("String"), DecoratorAddRef0.String));
-		DecoratorProperties0[1].Add(TEXT("Name"), ToString<FDecoratorSerialization_Add::FSharedData>(TEXT("Name"), DecoratorAddRef0.Name));
+		// Populate our node template registry
+		TArray<uint8> NodeTemplateBuffer0;
+		const FNodeTemplate* NodeTemplate0 = FNodeTemplateBuilder::BuildNodeTemplate(NodeTemplateDecoratorList, NodeTemplateBuffer0);
 
-		DecoratorProperties0[2].Add(TEXT("Integer"), ToString<FDecoratorNativeSerialization_Add::FSharedData>(TEXT("Integer"), DecoratorNativeRef0.Integer));
-		DecoratorProperties0[2].Add(TEXT("IntegerArray"), ToString<FDecoratorNativeSerialization_Add::FSharedData>(TEXT("IntegerArray"), DecoratorNativeRef0.IntegerArray));
-		DecoratorProperties0[2].Add(TEXT("IntegerTArray"), ToString<FDecoratorNativeSerialization_Add::FSharedData>(TEXT("IntegerTArray"), DecoratorNativeRef0.IntegerTArray));
-		DecoratorProperties0[2].Add(TEXT("Vector"), ToString<FDecoratorNativeSerialization_Add::FSharedData>(TEXT("Vector"), DecoratorNativeRef0.Vector));
-		DecoratorProperties0[2].Add(TEXT("VectorArray"), ToString<FDecoratorNativeSerialization_Add::FSharedData>(TEXT("VectorArray"), DecoratorNativeRef0.VectorArray));
-		DecoratorProperties0[2].Add(TEXT("VectorTArray"), ToString<FDecoratorNativeSerialization_Add::FSharedData>(TEXT("VectorTArray"), DecoratorNativeRef0.VectorTArray));
-		DecoratorProperties0[2].Add(TEXT("String"), ToString<FDecoratorNativeSerialization_Add::FSharedData>(TEXT("String"), DecoratorNativeRef0.String));
-		DecoratorProperties0[2].Add(TEXT("Name"), ToString<FDecoratorNativeSerialization_Add::FSharedData>(TEXT("Name"), DecoratorNativeRef0.Name));
+		FNodeTemplateRegistryHandle TemplateHandle0 = Registry.FindOrAdd(NodeTemplate0);
+		AddErrorIfFalse(TemplateHandle0.IsValid(), "FAnimationAnimNextRuntimeTest_DecoratorSerialization -> Registry should contain our template");
 
-		TArray<TMap<FString, FString>> DecoratorProperties1;
-		DecoratorProperties1.AddDefaulted(NodeTemplateDecoratorList.Num());
+		FDecoratorSerialization_Base::FSharedData DecoratorBaseRef0;
+		DecoratorBaseRef0.Integer = 1651;
+		DecoratorBaseRef0.IntegerArray[0] = 1071;
+		DecoratorBaseRef0.IntegerArray[1] = -158;
+		DecoratorBaseRef0.IntegerArray[2] = 88116;
+		DecoratorBaseRef0.IntegerArray[3] = 0x417;
+		DecoratorBaseRef0.IntegerTArray = { -8162, 88152, 0x8152f };
+		DecoratorBaseRef0.Vector = FVector(0.1917, 12435.1, -18200.1726);
+		DecoratorBaseRef0.VectorArray[0] = FVector(192.1716, -1927.115, 99176.12);
+		DecoratorBaseRef0.VectorArray[1] = FVector(961.811, -18956.117, 81673.44);
+		DecoratorBaseRef0.VectorTArray = { FVector(-1927.8771, 1826.9917, -123.1555), FVector(9177.011, -71.44, -917.88), FVector(123.91, 852.11, -81652.1) };
+		DecoratorBaseRef0.String = TEXT("sample string 123");
+		DecoratorBaseRef0.Name = FName(TEXT("sample name 999178"));
 
-		DecoratorProperties1[0].Add(TEXT("Integer"), ToString<FDecoratorSerialization_Base::FSharedData>(TEXT("Integer"), DecoratorBaseRef1.Integer));
-		DecoratorProperties1[0].Add(TEXT("IntegerArray"), ToString<FDecoratorSerialization_Base::FSharedData>(TEXT("IntegerArray"), DecoratorBaseRef1.IntegerArray));
-		DecoratorProperties1[0].Add(TEXT("IntegerTArray"), ToString<FDecoratorSerialization_Base::FSharedData>(TEXT("IntegerTArray"), DecoratorBaseRef1.IntegerTArray));
-		DecoratorProperties1[0].Add(TEXT("Vector"), ToString<FDecoratorSerialization_Base::FSharedData>(TEXT("Vector"), DecoratorBaseRef1.Vector));
-		DecoratorProperties1[0].Add(TEXT("VectorArray"), ToString<FDecoratorSerialization_Base::FSharedData>(TEXT("VectorArray"), DecoratorBaseRef1.VectorArray));
-		DecoratorProperties1[0].Add(TEXT("VectorTArray"), ToString<FDecoratorSerialization_Base::FSharedData>(TEXT("VectorTArray"), DecoratorBaseRef1.VectorTArray));
-		DecoratorProperties1[0].Add(TEXT("String"), ToString<FDecoratorSerialization_Base::FSharedData>(TEXT("String"), DecoratorBaseRef1.String));
-		DecoratorProperties1[0].Add(TEXT("Name"), ToString<FDecoratorSerialization_Base::FSharedData>(TEXT("Name"), DecoratorBaseRef1.Name));
+		FDecoratorSerialization_Add::FSharedData DecoratorAddRef0;
+		DecoratorAddRef0.Integer = 16511;
+		DecoratorAddRef0.IntegerArray[0] = 10711;
+		DecoratorAddRef0.IntegerArray[1] = -1581;
+		DecoratorAddRef0.IntegerArray[2] = 881161;
+		DecoratorAddRef0.IntegerArray[3] = 0x4171;
+		DecoratorAddRef0.IntegerTArray = { -81621, 881521, 0x8152f1 };
+		DecoratorAddRef0.Vector = FVector(0.19171, 12435.11, -18200.17261);
+		DecoratorAddRef0.VectorArray[0] = FVector(192.17161, -1927.1151, 99176.121);
+		DecoratorAddRef0.VectorArray[1] = FVector(961.8111, -18956.1171, 81673.441);
+		DecoratorAddRef0.VectorTArray = { FVector(-1927.87711, 1826.99171, -123.15551), FVector(9177.0111, -71.441, -917.881), FVector(123.911, 852.111, -81652.11) };
+		DecoratorAddRef0.String = TEXT("sample string 1231");
+		DecoratorAddRef0.Name = FName(TEXT("sample name 9991781"));
 
-		DecoratorProperties1[1].Add(TEXT("Integer"), ToString<FDecoratorSerialization_Add::FSharedData>(TEXT("Integer"), DecoratorAddRef1.Integer));
-		DecoratorProperties1[1].Add(TEXT("IntegerArray"), ToString<FDecoratorSerialization_Add::FSharedData>(TEXT("IntegerArray"), DecoratorAddRef1.IntegerArray));
-		DecoratorProperties1[1].Add(TEXT("IntegerTArray"), ToString<FDecoratorSerialization_Add::FSharedData>(TEXT("IntegerTArray"), DecoratorAddRef1.IntegerTArray));
-		DecoratorProperties1[1].Add(TEXT("Vector"), ToString<FDecoratorSerialization_Add::FSharedData>(TEXT("Vector"), DecoratorAddRef1.Vector));
-		DecoratorProperties1[1].Add(TEXT("VectorArray"), ToString<FDecoratorSerialization_Add::FSharedData>(TEXT("VectorArray"), DecoratorAddRef1.VectorArray));
-		DecoratorProperties1[1].Add(TEXT("VectorTArray"), ToString<FDecoratorSerialization_Add::FSharedData>(TEXT("VectorTArray"), DecoratorAddRef1.VectorTArray));
-		DecoratorProperties1[1].Add(TEXT("String"), ToString<FDecoratorSerialization_Add::FSharedData>(TEXT("String"), DecoratorAddRef1.String));
-		DecoratorProperties1[1].Add(TEXT("Name"), ToString<FDecoratorSerialization_Add::FSharedData>(TEXT("Name"), DecoratorAddRef1.Name));
+		FDecoratorNativeSerialization_Add::FSharedData DecoratorNativeRef0;
+		DecoratorNativeRef0.Integer = 16514;
+		DecoratorNativeRef0.IntegerArray[0] = 10714;
+		DecoratorNativeRef0.IntegerArray[1] = -1584;
+		DecoratorNativeRef0.IntegerArray[2] = 881164;
+		DecoratorNativeRef0.IntegerArray[3] = 0x4174;
+		DecoratorNativeRef0.IntegerTArray = { -81624, 881524, 0x8152f4 };
+		DecoratorNativeRef0.Vector = FVector(0.19174, 12435.14, -18200.17264);
+		DecoratorNativeRef0.VectorArray[0] = FVector(192.17164, -1927.1154, 99176.124);
+		DecoratorNativeRef0.VectorArray[1] = FVector(961.8114, -18956.1174, 81673.444);
+		DecoratorNativeRef0.VectorTArray = { FVector(-1927.87714, 1826.99174, -123.15554), FVector(9177.0114, -71.444, -917.884), FVector(123.914, 852.114, -81652.14) };
+		DecoratorNativeRef0.String = TEXT("sample string 1234");
+		DecoratorNativeRef0.Name = FName(TEXT("sample name 9991784"));
 
-		DecoratorProperties1[2].Add(TEXT("Integer"), ToString<FDecoratorNativeSerialization_Add::FSharedData>(TEXT("Integer"), DecoratorNativeRef1.Integer));
-		DecoratorProperties1[2].Add(TEXT("IntegerArray"), ToString<FDecoratorNativeSerialization_Add::FSharedData>(TEXT("IntegerArray"), DecoratorNativeRef1.IntegerArray));
-		DecoratorProperties1[2].Add(TEXT("IntegerTArray"), ToString<FDecoratorNativeSerialization_Add::FSharedData>(TEXT("IntegerTArray"), DecoratorNativeRef1.IntegerTArray));
-		DecoratorProperties1[2].Add(TEXT("Vector"), ToString<FDecoratorNativeSerialization_Add::FSharedData>(TEXT("Vector"), DecoratorNativeRef1.Vector));
-		DecoratorProperties1[2].Add(TEXT("VectorArray"), ToString<FDecoratorNativeSerialization_Add::FSharedData>(TEXT("VectorArray"), DecoratorNativeRef1.VectorArray));
-		DecoratorProperties1[2].Add(TEXT("VectorTArray"), ToString<FDecoratorNativeSerialization_Add::FSharedData>(TEXT("VectorTArray"), DecoratorNativeRef1.VectorTArray));
-		DecoratorProperties1[2].Add(TEXT("String"), ToString<FDecoratorNativeSerialization_Add::FSharedData>(TEXT("String"), DecoratorNativeRef1.String));
-		DecoratorProperties1[2].Add(TEXT("Name"), ToString<FDecoratorNativeSerialization_Add::FSharedData>(TEXT("Name"), DecoratorNativeRef1.Name));
+		FDecoratorSerialization_Base::FSharedData DecoratorBaseRef1;
+		DecoratorBaseRef1.Integer = 16512;
+		DecoratorBaseRef1.IntegerArray[0] = 10712;
+		DecoratorBaseRef1.IntegerArray[1] = -1582;
+		DecoratorBaseRef1.IntegerArray[2] = 881162;
+		DecoratorBaseRef1.IntegerArray[3] = 0x4172;
+		DecoratorBaseRef1.IntegerTArray = { -81622, 881522, 0x8152f2 };
+		DecoratorBaseRef1.Vector = FVector(0.19172, 12435.12, -18200.17262);
+		DecoratorBaseRef1.VectorArray[0] = FVector(192.17162, -1927.1152, 99176.122);
+		DecoratorBaseRef1.VectorArray[1] = FVector(961.8112, -18956.1172, 81673.442);
+		DecoratorBaseRef1.VectorTArray = { FVector(-1927.87712, 1826.99172, -123.15552), FVector(9177.0112, -71.442, -917.882), FVector(123.912, 852.112, -81652.12) };
+		DecoratorBaseRef1.String = TEXT("sample string 1232");
+		DecoratorBaseRef1.Name = FName(TEXT("sample name 9991782"));
 
-		DecoratorWriter.BeginNodeWriting();
-		DecoratorWriter.WriteNode(NodeHandles[0],
-			[&DecoratorProperties0](uint32 DecoratorIndex, const FString& PropertyName)
-			{
-				return DecoratorProperties0[DecoratorIndex][PropertyName];
-			},
-			[](uint32 DecoratorIndex, const FString& PropertyName)
-			{
-				return false;
-			});
-		DecoratorWriter.WriteNode(NodeHandles[1],
-			[&DecoratorProperties1](uint32 DecoratorIndex, const FString& PropertyName)
-			{
-				return DecoratorProperties1[DecoratorIndex][PropertyName];
-			},
-			[](uint32 DecoratorIndex, const FString& PropertyName)
-			{
-				return false;
-			});
-		DecoratorWriter.EndNodeWriting();
+		FDecoratorSerialization_Add::FSharedData DecoratorAddRef1;
+		DecoratorAddRef1.Integer = 16513;
+		DecoratorAddRef1.IntegerArray[0] = 10713;
+		DecoratorAddRef1.IntegerArray[1] = -1583;
+		DecoratorAddRef1.IntegerArray[2] = 881163;
+		DecoratorAddRef1.IntegerArray[3] = 0x4173;
+		DecoratorAddRef1.IntegerTArray = { -81623, 881523, 0x8152f3 };
+		DecoratorAddRef1.Vector = FVector(0.19173, 12435.13, -18200.17263);
+		DecoratorAddRef1.VectorArray[0] = FVector(192.17163, -1927.1153, 99176.123);
+		DecoratorAddRef1.VectorArray[1] = FVector(961.8113, -18956.1173, 81673.443);
+		DecoratorAddRef1.VectorTArray = { FVector(-1927.87713, 1826.99173, -123.15553), FVector(9177.0113, -71.443, -917.883), FVector(123.913, 852.113, -81652.13) };
+		DecoratorAddRef1.String = TEXT("sample string 1233");
+		DecoratorAddRef1.Name = FName(TEXT("sample name 9991783"));
 
-		AddErrorIfFalse(DecoratorWriter.GetErrorState() == FDecoratorWriter::EErrorState::None, "FAnimationAnimNextRuntimeTest_DecoratorSerialization -> Failed to write decorators");
-		GraphSharedDataArchiveBuffer = DecoratorWriter.GetGraphSharedData();
-		GraphReferencedObjects = DecoratorWriter.GetGraphReferencedObjects();
-	}
+		FDecoratorNativeSerialization_Add::FSharedData DecoratorNativeRef1;
+		DecoratorNativeRef1.Integer = 16515;
+		DecoratorNativeRef1.IntegerArray[0] = 10715;
+		DecoratorNativeRef1.IntegerArray[1] = -1585;
+		DecoratorNativeRef1.IntegerArray[2] = 881165;
+		DecoratorNativeRef1.IntegerArray[3] = 0x4175;
+		DecoratorNativeRef1.IntegerTArray = { -81625, 881525, 0x8152f5 };
+		DecoratorNativeRef1.Vector = FVector(0.19175, 12435.15, -18200.17265);
+		DecoratorNativeRef1.VectorArray[0] = FVector(192.17165, -1927.1155, 99176.125);
+		DecoratorNativeRef1.VectorArray[1] = FVector(961.8115, -18956.1175, 81673.445);
+		DecoratorNativeRef1.VectorTArray = { FVector(-1927.87715, 1826.99175, -123.15555), FVector(9177.0115, -71.445, -917.885), FVector(123.915, 852.115, -81652.15) };
+		DecoratorNativeRef1.String = TEXT("sample string 1235");
+		DecoratorNativeRef1.Name = FName(TEXT("sample name 9991785"));
 
-	// Clear out the node template registry to test registration on load
-	{
-		FScopedClearNodeTemplateRegistry ScopedClearNodeTemplateRegistryForLoad;
+		TArray<FNodeHandle> NodeHandles;
 
-		AddErrorIfFalse(Registry.GetNum() == 0, "FAnimationAnimNextRuntimeTest_DecoratorSerialization -> Registry should contain 0 templates");
-
-		// Read our graph
-		FTestUtils::LoadFromArchiveBuffer(*AnimNextGraph, NodeHandles, GraphSharedDataArchiveBuffer);
-
-		FAnimNextGraphInstancePtr GraphInstance;
-		AnimNextGraph->AllocateInstance(GraphInstance);
-
-		FExecutionContext Context(GraphInstance);
-
-		// Validate decorator serialization
+		// Write our graph
+		TArray<uint8> GraphSharedDataArchiveBuffer;
+		TArray<TObjectPtr<UObject>> GraphReferencedObjects;
 		{
-			FDecoratorBinding ParentBinding;								// Empty, no parent
-			FAnimNextDecoratorHandle DecoratorHandle0(NodeHandles[0], 0);	// Point to first node, first base decorator
-			FAnimNextDecoratorHandle DecoratorHandle1(NodeHandles[1], 0);	// Point to second node, first base decorator
+			FDecoratorWriter DecoratorWriter;
 
-			FDecoratorPtr DecoratorPtr0 = Context.AllocateNodeInstance(ParentBinding, DecoratorHandle0);
-			AddErrorIfFalse(DecoratorPtr0.IsValid(), "FAnimationAnimNextRuntimeTest_DecoratorSerialization -> Failed to allocate a node instance");
+			NodeHandles.Add(DecoratorWriter.RegisterNode(*NodeTemplate0));
+			NodeHandles.Add(DecoratorWriter.RegisterNode(*NodeTemplate0));
 
-			FDecoratorPtr DecoratorPtr1 = Context.AllocateNodeInstance(ParentBinding, DecoratorHandle1);
-			AddErrorIfFalse(DecoratorPtr1.IsValid(), "FAnimationAnimNextRuntimeTest_DecoratorSerialization -> Failed to allocate a node instance");
+			// We don't have decorator properties
+			TArray<TMap<FName, FString>> DecoratorProperties0;
+			DecoratorProperties0.AddDefaulted(NodeTemplateDecoratorList.Num());
 
-			// Validate shared data for base decorator on node 0
+			DecoratorProperties0[0].Add(TEXT("Integer"), ToString<FDecoratorSerialization_Base::FSharedData>(TEXT("Integer"), DecoratorBaseRef0.Integer));
+			DecoratorProperties0[0].Add(TEXT("IntegerArray"), ToString<FDecoratorSerialization_Base::FSharedData>(TEXT("IntegerArray"), DecoratorBaseRef0.IntegerArray));
+			DecoratorProperties0[0].Add(TEXT("IntegerTArray"), ToString<FDecoratorSerialization_Base::FSharedData>(TEXT("IntegerTArray"), DecoratorBaseRef0.IntegerTArray));
+			DecoratorProperties0[0].Add(TEXT("Vector"), ToString<FDecoratorSerialization_Base::FSharedData>(TEXT("Vector"), DecoratorBaseRef0.Vector));
+			DecoratorProperties0[0].Add(TEXT("VectorArray"), ToString<FDecoratorSerialization_Base::FSharedData>(TEXT("VectorArray"), DecoratorBaseRef0.VectorArray));
+			DecoratorProperties0[0].Add(TEXT("VectorTArray"), ToString<FDecoratorSerialization_Base::FSharedData>(TEXT("VectorTArray"), DecoratorBaseRef0.VectorTArray));
+			DecoratorProperties0[0].Add(TEXT("String"), ToString<FDecoratorSerialization_Base::FSharedData>(TEXT("String"), DecoratorBaseRef0.String));
+			DecoratorProperties0[0].Add(TEXT("Name"), ToString<FDecoratorSerialization_Base::FSharedData>(TEXT("Name"), DecoratorBaseRef0.Name));
+
+			DecoratorProperties0[1].Add(TEXT("Integer"), ToString<FDecoratorSerialization_Add::FSharedData>(TEXT("Integer"), DecoratorAddRef0.Integer));
+			DecoratorProperties0[1].Add(TEXT("IntegerArray"), ToString<FDecoratorSerialization_Add::FSharedData>(TEXT("IntegerArray"), DecoratorAddRef0.IntegerArray));
+			DecoratorProperties0[1].Add(TEXT("IntegerTArray"), ToString<FDecoratorSerialization_Add::FSharedData>(TEXT("IntegerTArray"), DecoratorAddRef0.IntegerTArray));
+			DecoratorProperties0[1].Add(TEXT("Vector"), ToString<FDecoratorSerialization_Add::FSharedData>(TEXT("Vector"), DecoratorAddRef0.Vector));
+			DecoratorProperties0[1].Add(TEXT("VectorArray"), ToString<FDecoratorSerialization_Add::FSharedData>(TEXT("VectorArray"), DecoratorAddRef0.VectorArray));
+			DecoratorProperties0[1].Add(TEXT("VectorTArray"), ToString<FDecoratorSerialization_Add::FSharedData>(TEXT("VectorTArray"), DecoratorAddRef0.VectorTArray));
+			DecoratorProperties0[1].Add(TEXT("String"), ToString<FDecoratorSerialization_Add::FSharedData>(TEXT("String"), DecoratorAddRef0.String));
+			DecoratorProperties0[1].Add(TEXT("Name"), ToString<FDecoratorSerialization_Add::FSharedData>(TEXT("Name"), DecoratorAddRef0.Name));
+
+			DecoratorProperties0[2].Add(TEXT("Integer"), ToString<FDecoratorNativeSerialization_Add::FSharedData>(TEXT("Integer"), DecoratorNativeRef0.Integer));
+			DecoratorProperties0[2].Add(TEXT("IntegerArray"), ToString<FDecoratorNativeSerialization_Add::FSharedData>(TEXT("IntegerArray"), DecoratorNativeRef0.IntegerArray));
+			DecoratorProperties0[2].Add(TEXT("IntegerTArray"), ToString<FDecoratorNativeSerialization_Add::FSharedData>(TEXT("IntegerTArray"), DecoratorNativeRef0.IntegerTArray));
+			DecoratorProperties0[2].Add(TEXT("Vector"), ToString<FDecoratorNativeSerialization_Add::FSharedData>(TEXT("Vector"), DecoratorNativeRef0.Vector));
+			DecoratorProperties0[2].Add(TEXT("VectorArray"), ToString<FDecoratorNativeSerialization_Add::FSharedData>(TEXT("VectorArray"), DecoratorNativeRef0.VectorArray));
+			DecoratorProperties0[2].Add(TEXT("VectorTArray"), ToString<FDecoratorNativeSerialization_Add::FSharedData>(TEXT("VectorTArray"), DecoratorNativeRef0.VectorTArray));
+			DecoratorProperties0[2].Add(TEXT("String"), ToString<FDecoratorNativeSerialization_Add::FSharedData>(TEXT("String"), DecoratorNativeRef0.String));
+			DecoratorProperties0[2].Add(TEXT("Name"), ToString<FDecoratorNativeSerialization_Add::FSharedData>(TEXT("Name"), DecoratorNativeRef0.Name));
+
+			TArray<TMap<FName, FString>> DecoratorProperties1;
+			DecoratorProperties1.AddDefaulted(NodeTemplateDecoratorList.Num());
+
+			DecoratorProperties1[0].Add(TEXT("Integer"), ToString<FDecoratorSerialization_Base::FSharedData>(TEXT("Integer"), DecoratorBaseRef1.Integer));
+			DecoratorProperties1[0].Add(TEXT("IntegerArray"), ToString<FDecoratorSerialization_Base::FSharedData>(TEXT("IntegerArray"), DecoratorBaseRef1.IntegerArray));
+			DecoratorProperties1[0].Add(TEXT("IntegerTArray"), ToString<FDecoratorSerialization_Base::FSharedData>(TEXT("IntegerTArray"), DecoratorBaseRef1.IntegerTArray));
+			DecoratorProperties1[0].Add(TEXT("Vector"), ToString<FDecoratorSerialization_Base::FSharedData>(TEXT("Vector"), DecoratorBaseRef1.Vector));
+			DecoratorProperties1[0].Add(TEXT("VectorArray"), ToString<FDecoratorSerialization_Base::FSharedData>(TEXT("VectorArray"), DecoratorBaseRef1.VectorArray));
+			DecoratorProperties1[0].Add(TEXT("VectorTArray"), ToString<FDecoratorSerialization_Base::FSharedData>(TEXT("VectorTArray"), DecoratorBaseRef1.VectorTArray));
+			DecoratorProperties1[0].Add(TEXT("String"), ToString<FDecoratorSerialization_Base::FSharedData>(TEXT("String"), DecoratorBaseRef1.String));
+			DecoratorProperties1[0].Add(TEXT("Name"), ToString<FDecoratorSerialization_Base::FSharedData>(TEXT("Name"), DecoratorBaseRef1.Name));
+
+			DecoratorProperties1[1].Add(TEXT("Integer"), ToString<FDecoratorSerialization_Add::FSharedData>(TEXT("Integer"), DecoratorAddRef1.Integer));
+			DecoratorProperties1[1].Add(TEXT("IntegerArray"), ToString<FDecoratorSerialization_Add::FSharedData>(TEXT("IntegerArray"), DecoratorAddRef1.IntegerArray));
+			DecoratorProperties1[1].Add(TEXT("IntegerTArray"), ToString<FDecoratorSerialization_Add::FSharedData>(TEXT("IntegerTArray"), DecoratorAddRef1.IntegerTArray));
+			DecoratorProperties1[1].Add(TEXT("Vector"), ToString<FDecoratorSerialization_Add::FSharedData>(TEXT("Vector"), DecoratorAddRef1.Vector));
+			DecoratorProperties1[1].Add(TEXT("VectorArray"), ToString<FDecoratorSerialization_Add::FSharedData>(TEXT("VectorArray"), DecoratorAddRef1.VectorArray));
+			DecoratorProperties1[1].Add(TEXT("VectorTArray"), ToString<FDecoratorSerialization_Add::FSharedData>(TEXT("VectorTArray"), DecoratorAddRef1.VectorTArray));
+			DecoratorProperties1[1].Add(TEXT("String"), ToString<FDecoratorSerialization_Add::FSharedData>(TEXT("String"), DecoratorAddRef1.String));
+			DecoratorProperties1[1].Add(TEXT("Name"), ToString<FDecoratorSerialization_Add::FSharedData>(TEXT("Name"), DecoratorAddRef1.Name));
+
+			DecoratorProperties1[2].Add(TEXT("Integer"), ToString<FDecoratorNativeSerialization_Add::FSharedData>(TEXT("Integer"), DecoratorNativeRef1.Integer));
+			DecoratorProperties1[2].Add(TEXT("IntegerArray"), ToString<FDecoratorNativeSerialization_Add::FSharedData>(TEXT("IntegerArray"), DecoratorNativeRef1.IntegerArray));
+			DecoratorProperties1[2].Add(TEXT("IntegerTArray"), ToString<FDecoratorNativeSerialization_Add::FSharedData>(TEXT("IntegerTArray"), DecoratorNativeRef1.IntegerTArray));
+			DecoratorProperties1[2].Add(TEXT("Vector"), ToString<FDecoratorNativeSerialization_Add::FSharedData>(TEXT("Vector"), DecoratorNativeRef1.Vector));
+			DecoratorProperties1[2].Add(TEXT("VectorArray"), ToString<FDecoratorNativeSerialization_Add::FSharedData>(TEXT("VectorArray"), DecoratorNativeRef1.VectorArray));
+			DecoratorProperties1[2].Add(TEXT("VectorTArray"), ToString<FDecoratorNativeSerialization_Add::FSharedData>(TEXT("VectorTArray"), DecoratorNativeRef1.VectorTArray));
+			DecoratorProperties1[2].Add(TEXT("String"), ToString<FDecoratorNativeSerialization_Add::FSharedData>(TEXT("String"), DecoratorNativeRef1.String));
+			DecoratorProperties1[2].Add(TEXT("Name"), ToString<FDecoratorNativeSerialization_Add::FSharedData>(TEXT("Name"), DecoratorNativeRef1.Name));
+
+			DecoratorWriter.BeginNodeWriting();
+			DecoratorWriter.WriteNode(NodeHandles[0],
+				[&DecoratorProperties0](uint32 DecoratorIndex, FName PropertyName)
+				{
+					return DecoratorProperties0[DecoratorIndex][PropertyName];
+				},
+				[](uint32 DecoratorIndex, FName PropertyName)
+				{
+					return MAX_uint16;
+				});
+			DecoratorWriter.WriteNode(NodeHandles[1],
+				[&DecoratorProperties1](uint32 DecoratorIndex, FName PropertyName)
+				{
+					return DecoratorProperties1[DecoratorIndex][PropertyName];
+				},
+				[](uint32 DecoratorIndex, FName PropertyName)
+				{
+					return MAX_uint16;
+				});
+			DecoratorWriter.EndNodeWriting();
+
+			AddErrorIfFalse(DecoratorWriter.GetErrorState() == FDecoratorWriter::EErrorState::None, "FAnimationAnimNextRuntimeTest_DecoratorSerialization -> Failed to write decorators");
+			GraphSharedDataArchiveBuffer = DecoratorWriter.GetGraphSharedData();
+			GraphReferencedObjects = DecoratorWriter.GetGraphReferencedObjects();
+		}
+
+		// Clear out the node template registry to test registration on load
+		{
+			FScopedClearNodeTemplateRegistry ScopedClearNodeTemplateRegistryForLoad;
+
+			AddErrorIfFalse(Registry.GetNum() == 0, "FAnimationAnimNextRuntimeTest_DecoratorSerialization -> Registry should contain 0 templates");
+
+			// Read our graph
+			FTestUtils::LoadFromArchiveBuffer(*AnimNextGraph, NodeHandles, GraphSharedDataArchiveBuffer);
+
+			FAnimNextGraphInstancePtr GraphInstance;
+			AnimNextGraph->AllocateInstance(GraphInstance);
+
+			FExecutionContext Context(GraphInstance);
+
+			// Validate decorator serialization
 			{
-				TDecoratorBinding<IInterfaceA> BindingA0;
-				AddErrorIfFalse(Context.GetInterface(DecoratorPtr0, BindingA0), "FAnimationAnimNextRuntimeTest_DecoratorSerialization -> InterfaceA not found");
+				FDecoratorBinding ParentBinding;								// Empty, no parent
+				FAnimNextDecoratorHandle DecoratorHandle0(NodeHandles[0], 0);	// Point to first node, first base decorator
+				FAnimNextDecoratorHandle DecoratorHandle1(NodeHandles[1], 0);	// Point to second node, first base decorator
 
-				const auto* SharedDataA0 = BindingA0.GetSharedData<FDecoratorSerialization_Base::FSharedData>();
+				FDecoratorPtr DecoratorPtr0 = Context.AllocateNodeInstance(ParentBinding, DecoratorHandle0);
+				AddErrorIfFalse(DecoratorPtr0.IsValid(), "FAnimationAnimNextRuntimeTest_DecoratorSerialization -> Failed to allocate a node instance");
 
-				AddErrorIfFalse(SharedDataA0->Integer == DecoratorBaseRef0.Integer, "FAnimationAnimNextRuntimeTest_DecoratorSerialization -> Unexpected serialized value");
-				AddErrorIfFalse(FMemory::Memcmp(SharedDataA0->IntegerArray, DecoratorBaseRef0.IntegerArray, sizeof(DecoratorBaseRef0.IntegerArray)) == 0, "FAnimationAnimNextRuntimeTest_DecoratorSerialization -> Unexpected serialized value");
-				AddErrorIfFalse(SharedDataA0->IntegerTArray == DecoratorBaseRef0.IntegerTArray, "FAnimationAnimNextRuntimeTest_DecoratorSerialization -> Unexpected serialized value");
-				AddErrorIfFalse(SharedDataA0->Vector == DecoratorBaseRef0.Vector, "FAnimationAnimNextRuntimeTest_DecoratorSerialization -> Unexpected serialized value");
-				AddErrorIfFalse(FMemory::Memcmp(SharedDataA0->VectorArray, DecoratorBaseRef0.VectorArray, sizeof(DecoratorBaseRef0.VectorArray)) == 0, "FAnimationAnimNextRuntimeTest_DecoratorSerialization -> Unexpected serialized value");
-				AddErrorIfFalse(SharedDataA0->VectorTArray == DecoratorBaseRef0.VectorTArray, "FAnimationAnimNextRuntimeTest_DecoratorSerialization -> Unexpected serialized value");
-				AddErrorIfFalse(SharedDataA0->String == DecoratorBaseRef0.String, "FAnimationAnimNextRuntimeTest_DecoratorSerialization -> Unexpected serialized value");
-				AddErrorIfFalse(SharedDataA0->Name == DecoratorBaseRef0.Name, "FAnimationAnimNextRuntimeTest_DecoratorSerialization -> Unexpected serialized value");
-			}
+				FDecoratorPtr DecoratorPtr1 = Context.AllocateNodeInstance(ParentBinding, DecoratorHandle1);
+				AddErrorIfFalse(DecoratorPtr1.IsValid(), "FAnimationAnimNextRuntimeTest_DecoratorSerialization -> Failed to allocate a node instance");
 
-			// Validate shared data for additive decorator on node 0
-			{
-				TDecoratorBinding<IInterfaceB> BindingB0;
-				AddErrorIfFalse(Context.GetInterface(DecoratorPtr0, BindingB0), "FAnimationAnimNextRuntimeTest_DecoratorSerialization -> InterfaceB not found");
+				// Validate shared data for base decorator on node 0
+				{
+					TDecoratorBinding<IInterfaceA> BindingA0;
+					AddErrorIfFalse(Context.GetInterface(DecoratorPtr0, BindingA0), "FAnimationAnimNextRuntimeTest_DecoratorSerialization -> InterfaceA not found");
 
-				const auto* SharedDataB0 = BindingB0.GetSharedData<FDecoratorSerialization_Add::FSharedData>();
+					const auto* SharedDataA0 = BindingA0.GetSharedData<FDecoratorSerialization_Base::FSharedData>();
 
-				AddErrorIfFalse(SharedDataB0->Integer == DecoratorAddRef0.Integer, "FAnimationAnimNextRuntimeTest_DecoratorSerialization -> Unexpected serialized value");
-				AddErrorIfFalse(FMemory::Memcmp(SharedDataB0->IntegerArray, DecoratorAddRef0.IntegerArray, sizeof(DecoratorAddRef0.IntegerArray)) == 0, "FAnimationAnimNextRuntimeTest_DecoratorSerialization -> Unexpected serialized value");
-				AddErrorIfFalse(SharedDataB0->IntegerTArray == DecoratorAddRef0.IntegerTArray, "FAnimationAnimNextRuntimeTest_DecoratorSerialization -> Unexpected serialized value");
-				AddErrorIfFalse(SharedDataB0->Vector == DecoratorAddRef0.Vector, "FAnimationAnimNextRuntimeTest_DecoratorSerialization -> Unexpected serialized value");
-				AddErrorIfFalse(FMemory::Memcmp(SharedDataB0->VectorArray, DecoratorAddRef0.VectorArray, sizeof(DecoratorAddRef0.VectorArray)) == 0, "FAnimationAnimNextRuntimeTest_DecoratorSerialization -> Unexpected serialized value");
-				AddErrorIfFalse(SharedDataB0->VectorTArray == DecoratorAddRef0.VectorTArray, "FAnimationAnimNextRuntimeTest_DecoratorSerialization -> Unexpected serialized value");
-				AddErrorIfFalse(SharedDataB0->String == DecoratorAddRef0.String, "FAnimationAnimNextRuntimeTest_DecoratorSerialization -> Unexpected serialized value");
-				AddErrorIfFalse(SharedDataB0->Name == DecoratorAddRef0.Name, "FAnimationAnimNextRuntimeTest_DecoratorSerialization -> Unexpected serialized value");
-			}
+					AddErrorIfFalse(SharedDataA0->Integer == DecoratorBaseRef0.Integer, "FAnimationAnimNextRuntimeTest_DecoratorSerialization -> Unexpected serialized value");
+					AddErrorIfFalse(FMemory::Memcmp(SharedDataA0->IntegerArray, DecoratorBaseRef0.IntegerArray, sizeof(DecoratorBaseRef0.IntegerArray)) == 0, "FAnimationAnimNextRuntimeTest_DecoratorSerialization -> Unexpected serialized value");
+					AddErrorIfFalse(SharedDataA0->IntegerTArray == DecoratorBaseRef0.IntegerTArray, "FAnimationAnimNextRuntimeTest_DecoratorSerialization -> Unexpected serialized value");
+					AddErrorIfFalse(SharedDataA0->Vector == DecoratorBaseRef0.Vector, "FAnimationAnimNextRuntimeTest_DecoratorSerialization -> Unexpected serialized value");
+					AddErrorIfFalse(FMemory::Memcmp(SharedDataA0->VectorArray, DecoratorBaseRef0.VectorArray, sizeof(DecoratorBaseRef0.VectorArray)) == 0, "FAnimationAnimNextRuntimeTest_DecoratorSerialization -> Unexpected serialized value");
+					AddErrorIfFalse(SharedDataA0->VectorTArray == DecoratorBaseRef0.VectorTArray, "FAnimationAnimNextRuntimeTest_DecoratorSerialization -> Unexpected serialized value");
+					AddErrorIfFalse(SharedDataA0->String == DecoratorBaseRef0.String, "FAnimationAnimNextRuntimeTest_DecoratorSerialization -> Unexpected serialized value");
+					AddErrorIfFalse(SharedDataA0->Name == DecoratorBaseRef0.Name, "FAnimationAnimNextRuntimeTest_DecoratorSerialization -> Unexpected serialized value");
+				}
 
-			// Validate shared data for native decorator on node 0
-			{
-				TDecoratorBinding<IInterfaceC> BindingC0;
-				AddErrorIfFalse(Context.GetInterface(DecoratorPtr0, BindingC0), "FAnimationAnimNextRuntimeTest_DecoratorSerialization -> InterfaceC not found");
+				// Validate shared data for additive decorator on node 0
+				{
+					TDecoratorBinding<IInterfaceB> BindingB0;
+					AddErrorIfFalse(Context.GetInterface(DecoratorPtr0, BindingB0), "FAnimationAnimNextRuntimeTest_DecoratorSerialization -> InterfaceB not found");
 
-				const auto* SharedDataC0 = BindingC0.GetSharedData<FDecoratorNativeSerialization_Add::FSharedData>();
+					const auto* SharedDataB0 = BindingB0.GetSharedData<FDecoratorSerialization_Add::FSharedData>();
 
-				AddErrorIfFalse(SharedDataC0->Integer == DecoratorNativeRef0.Integer, "FAnimationAnimNextRuntimeTest_DecoratorSerialization -> Unexpected serialized value");
-				AddErrorIfFalse(FMemory::Memcmp(SharedDataC0->IntegerArray, DecoratorNativeRef0.IntegerArray, sizeof(DecoratorNativeRef0.IntegerArray)) == 0, "FAnimationAnimNextRuntimeTest_DecoratorSerialization -> Unexpected serialized value");
-				AddErrorIfFalse(SharedDataC0->IntegerTArray == DecoratorNativeRef0.IntegerTArray, "FAnimationAnimNextRuntimeTest_DecoratorSerialization -> Unexpected serialized value");
-				AddErrorIfFalse(SharedDataC0->Vector == DecoratorNativeRef0.Vector, "FAnimationAnimNextRuntimeTest_DecoratorSerialization -> Unexpected serialized value");
-				AddErrorIfFalse(FMemory::Memcmp(SharedDataC0->VectorArray, DecoratorNativeRef0.VectorArray, sizeof(DecoratorNativeRef0.VectorArray)) == 0, "FAnimationAnimNextRuntimeTest_DecoratorSerialization -> Unexpected serialized value");
-				AddErrorIfFalse(SharedDataC0->VectorTArray == DecoratorNativeRef0.VectorTArray, "FAnimationAnimNextRuntimeTest_DecoratorSerialization -> Unexpected serialized value");
-				AddErrorIfFalse(SharedDataC0->String == DecoratorNativeRef0.String, "FAnimationAnimNextRuntimeTest_DecoratorSerialization -> Unexpected serialized value");
-				AddErrorIfFalse(SharedDataC0->Name == DecoratorNativeRef0.Name, "FAnimationAnimNextRuntimeTest_DecoratorSerialization -> Unexpected serialized value");
-				AddErrorIfFalse(SharedDataC0->bSerializeCalled, "FAnimationAnimNextRuntimeTest_DecoratorSerialization -> Unexpected serialized value");
-			}
+					AddErrorIfFalse(SharedDataB0->Integer == DecoratorAddRef0.Integer, "FAnimationAnimNextRuntimeTest_DecoratorSerialization -> Unexpected serialized value");
+					AddErrorIfFalse(FMemory::Memcmp(SharedDataB0->IntegerArray, DecoratorAddRef0.IntegerArray, sizeof(DecoratorAddRef0.IntegerArray)) == 0, "FAnimationAnimNextRuntimeTest_DecoratorSerialization -> Unexpected serialized value");
+					AddErrorIfFalse(SharedDataB0->IntegerTArray == DecoratorAddRef0.IntegerTArray, "FAnimationAnimNextRuntimeTest_DecoratorSerialization -> Unexpected serialized value");
+					AddErrorIfFalse(SharedDataB0->Vector == DecoratorAddRef0.Vector, "FAnimationAnimNextRuntimeTest_DecoratorSerialization -> Unexpected serialized value");
+					AddErrorIfFalse(FMemory::Memcmp(SharedDataB0->VectorArray, DecoratorAddRef0.VectorArray, sizeof(DecoratorAddRef0.VectorArray)) == 0, "FAnimationAnimNextRuntimeTest_DecoratorSerialization -> Unexpected serialized value");
+					AddErrorIfFalse(SharedDataB0->VectorTArray == DecoratorAddRef0.VectorTArray, "FAnimationAnimNextRuntimeTest_DecoratorSerialization -> Unexpected serialized value");
+					AddErrorIfFalse(SharedDataB0->String == DecoratorAddRef0.String, "FAnimationAnimNextRuntimeTest_DecoratorSerialization -> Unexpected serialized value");
+					AddErrorIfFalse(SharedDataB0->Name == DecoratorAddRef0.Name, "FAnimationAnimNextRuntimeTest_DecoratorSerialization -> Unexpected serialized value");
+				}
 
-			// Validate shared data for base decorator on node 1
-			{
-				TDecoratorBinding<IInterfaceA> BindingA1;
-				AddErrorIfFalse(Context.GetInterface(DecoratorPtr1, BindingA1), "FAnimationAnimNextRuntimeTest_DecoratorSerialization -> InterfaceA not found");
+				// Validate shared data for native decorator on node 0
+				{
+					TDecoratorBinding<IInterfaceC> BindingC0;
+					AddErrorIfFalse(Context.GetInterface(DecoratorPtr0, BindingC0), "FAnimationAnimNextRuntimeTest_DecoratorSerialization -> InterfaceC not found");
 
-				const auto* SharedDataA1 = BindingA1.GetSharedData<FDecoratorSerialization_Base::FSharedData>();
+					const auto* SharedDataC0 = BindingC0.GetSharedData<FDecoratorNativeSerialization_Add::FSharedData>();
 
-				AddErrorIfFalse(SharedDataA1->Integer == DecoratorBaseRef1.Integer, "FAnimationAnimNextRuntimeTest_DecoratorSerialization -> Unexpected serialized value");
-				AddErrorIfFalse(FMemory::Memcmp(SharedDataA1->IntegerArray, DecoratorBaseRef1.IntegerArray, sizeof(DecoratorBaseRef1.IntegerArray)) == 0, "FAnimationAnimNextRuntimeTest_DecoratorSerialization -> Unexpected serialized value");
-				AddErrorIfFalse(SharedDataA1->IntegerTArray == DecoratorBaseRef1.IntegerTArray, "FAnimationAnimNextRuntimeTest_DecoratorSerialization -> Unexpected serialized value");
-				AddErrorIfFalse(SharedDataA1->Vector == DecoratorBaseRef1.Vector, "FAnimationAnimNextRuntimeTest_DecoratorSerialization -> Unexpected serialized value");
-				AddErrorIfFalse(FMemory::Memcmp(SharedDataA1->VectorArray, DecoratorBaseRef1.VectorArray, sizeof(DecoratorBaseRef1.VectorArray)) == 0, "FAnimationAnimNextRuntimeTest_DecoratorSerialization -> Unexpected serialized value");
-				AddErrorIfFalse(SharedDataA1->VectorTArray == DecoratorBaseRef1.VectorTArray, "FAnimationAnimNextRuntimeTest_DecoratorSerialization -> Unexpected serialized value");
-				AddErrorIfFalse(SharedDataA1->String == DecoratorBaseRef1.String, "FAnimationAnimNextRuntimeTest_DecoratorSerialization -> Unexpected serialized value");
-				AddErrorIfFalse(SharedDataA1->Name == DecoratorBaseRef1.Name, "FAnimationAnimNextRuntimeTest_DecoratorSerialization -> Unexpected serialized value");
-			}
+					AddErrorIfFalse(SharedDataC0->Integer == DecoratorNativeRef0.Integer, "FAnimationAnimNextRuntimeTest_DecoratorSerialization -> Unexpected serialized value");
+					AddErrorIfFalse(FMemory::Memcmp(SharedDataC0->IntegerArray, DecoratorNativeRef0.IntegerArray, sizeof(DecoratorNativeRef0.IntegerArray)) == 0, "FAnimationAnimNextRuntimeTest_DecoratorSerialization -> Unexpected serialized value");
+					AddErrorIfFalse(SharedDataC0->IntegerTArray == DecoratorNativeRef0.IntegerTArray, "FAnimationAnimNextRuntimeTest_DecoratorSerialization -> Unexpected serialized value");
+					AddErrorIfFalse(SharedDataC0->Vector == DecoratorNativeRef0.Vector, "FAnimationAnimNextRuntimeTest_DecoratorSerialization -> Unexpected serialized value");
+					AddErrorIfFalse(FMemory::Memcmp(SharedDataC0->VectorArray, DecoratorNativeRef0.VectorArray, sizeof(DecoratorNativeRef0.VectorArray)) == 0, "FAnimationAnimNextRuntimeTest_DecoratorSerialization -> Unexpected serialized value");
+					AddErrorIfFalse(SharedDataC0->VectorTArray == DecoratorNativeRef0.VectorTArray, "FAnimationAnimNextRuntimeTest_DecoratorSerialization -> Unexpected serialized value");
+					AddErrorIfFalse(SharedDataC0->String == DecoratorNativeRef0.String, "FAnimationAnimNextRuntimeTest_DecoratorSerialization -> Unexpected serialized value");
+					AddErrorIfFalse(SharedDataC0->Name == DecoratorNativeRef0.Name, "FAnimationAnimNextRuntimeTest_DecoratorSerialization -> Unexpected serialized value");
+					AddErrorIfFalse(SharedDataC0->bSerializeCalled, "FAnimationAnimNextRuntimeTest_DecoratorSerialization -> Unexpected serialized value");
+				}
 
-			// Validate shared data for additive decorator on node 1
-			{
-				TDecoratorBinding<IInterfaceB> BindingB1;
-				AddErrorIfFalse(Context.GetInterface(DecoratorPtr1, BindingB1), "FAnimationAnimNextRuntimeTest_DecoratorSerialization -> InterfaceB not found");
+				// Validate shared data for base decorator on node 1
+				{
+					TDecoratorBinding<IInterfaceA> BindingA1;
+					AddErrorIfFalse(Context.GetInterface(DecoratorPtr1, BindingA1), "FAnimationAnimNextRuntimeTest_DecoratorSerialization -> InterfaceA not found");
 
-				const auto* SharedDataB1 = BindingB1.GetSharedData<FDecoratorSerialization_Add::FSharedData>();
+					const auto* SharedDataA1 = BindingA1.GetSharedData<FDecoratorSerialization_Base::FSharedData>();
 
-				AddErrorIfFalse(SharedDataB1->Integer == DecoratorAddRef1.Integer, "FAnimationAnimNextRuntimeTest_DecoratorSerialization -> Unexpected serialized value");
-				AddErrorIfFalse(FMemory::Memcmp(SharedDataB1->IntegerArray, DecoratorAddRef1.IntegerArray, sizeof(DecoratorAddRef1.IntegerArray)) == 0, "FAnimationAnimNextRuntimeTest_DecoratorSerialization -> Unexpected serialized value");
-				AddErrorIfFalse(SharedDataB1->IntegerTArray == DecoratorAddRef1.IntegerTArray, "FAnimationAnimNextRuntimeTest_DecoratorSerialization -> Unexpected serialized value");
-				AddErrorIfFalse(SharedDataB1->Vector == DecoratorAddRef1.Vector, "FAnimationAnimNextRuntimeTest_DecoratorSerialization -> Unexpected serialized value");
-				AddErrorIfFalse(FMemory::Memcmp(SharedDataB1->VectorArray, DecoratorAddRef1.VectorArray, sizeof(DecoratorAddRef1.VectorArray)) == 0, "FAnimationAnimNextRuntimeTest_DecoratorSerialization -> Unexpected serialized value");
-				AddErrorIfFalse(SharedDataB1->VectorTArray == DecoratorAddRef1.VectorTArray, "FAnimationAnimNextRuntimeTest_DecoratorSerialization -> Unexpected serialized value");
-				AddErrorIfFalse(SharedDataB1->String == DecoratorAddRef1.String, "FAnimationAnimNextRuntimeTest_DecoratorSerialization -> Unexpected serialized value");
-				AddErrorIfFalse(SharedDataB1->Name == DecoratorAddRef1.Name, "FAnimationAnimNextRuntimeTest_DecoratorSerialization -> Unexpected serialized value");
-			}
+					AddErrorIfFalse(SharedDataA1->Integer == DecoratorBaseRef1.Integer, "FAnimationAnimNextRuntimeTest_DecoratorSerialization -> Unexpected serialized value");
+					AddErrorIfFalse(FMemory::Memcmp(SharedDataA1->IntegerArray, DecoratorBaseRef1.IntegerArray, sizeof(DecoratorBaseRef1.IntegerArray)) == 0, "FAnimationAnimNextRuntimeTest_DecoratorSerialization -> Unexpected serialized value");
+					AddErrorIfFalse(SharedDataA1->IntegerTArray == DecoratorBaseRef1.IntegerTArray, "FAnimationAnimNextRuntimeTest_DecoratorSerialization -> Unexpected serialized value");
+					AddErrorIfFalse(SharedDataA1->Vector == DecoratorBaseRef1.Vector, "FAnimationAnimNextRuntimeTest_DecoratorSerialization -> Unexpected serialized value");
+					AddErrorIfFalse(FMemory::Memcmp(SharedDataA1->VectorArray, DecoratorBaseRef1.VectorArray, sizeof(DecoratorBaseRef1.VectorArray)) == 0, "FAnimationAnimNextRuntimeTest_DecoratorSerialization -> Unexpected serialized value");
+					AddErrorIfFalse(SharedDataA1->VectorTArray == DecoratorBaseRef1.VectorTArray, "FAnimationAnimNextRuntimeTest_DecoratorSerialization -> Unexpected serialized value");
+					AddErrorIfFalse(SharedDataA1->String == DecoratorBaseRef1.String, "FAnimationAnimNextRuntimeTest_DecoratorSerialization -> Unexpected serialized value");
+					AddErrorIfFalse(SharedDataA1->Name == DecoratorBaseRef1.Name, "FAnimationAnimNextRuntimeTest_DecoratorSerialization -> Unexpected serialized value");
+				}
 
-			// Validate shared data for native decorator on node 1
-			{
-				TDecoratorBinding<IInterfaceC> BindingC1;
-				AddErrorIfFalse(Context.GetInterface(DecoratorPtr1, BindingC1), "FAnimationAnimNextRuntimeTest_DecoratorSerialization -> InterfaceC not found");
+				// Validate shared data for additive decorator on node 1
+				{
+					TDecoratorBinding<IInterfaceB> BindingB1;
+					AddErrorIfFalse(Context.GetInterface(DecoratorPtr1, BindingB1), "FAnimationAnimNextRuntimeTest_DecoratorSerialization -> InterfaceB not found");
 
-				const auto* SharedDataC1 = BindingC1.GetSharedData<FDecoratorNativeSerialization_Add::FSharedData>();
+					const auto* SharedDataB1 = BindingB1.GetSharedData<FDecoratorSerialization_Add::FSharedData>();
 
-				AddErrorIfFalse(SharedDataC1->Integer == DecoratorNativeRef1.Integer, "FAnimationAnimNextRuntimeTest_DecoratorSerialization -> Unexpected serialized value");
-				AddErrorIfFalse(FMemory::Memcmp(SharedDataC1->IntegerArray, DecoratorNativeRef1.IntegerArray, sizeof(DecoratorNativeRef1.IntegerArray)) == 0, "FAnimationAnimNextRuntimeTest_DecoratorSerialization -> Unexpected serialized value");
-				AddErrorIfFalse(SharedDataC1->IntegerTArray == DecoratorNativeRef1.IntegerTArray, "FAnimationAnimNextRuntimeTest_DecoratorSerialization -> Unexpected serialized value");
-				AddErrorIfFalse(SharedDataC1->Vector == DecoratorNativeRef1.Vector, "FAnimationAnimNextRuntimeTest_DecoratorSerialization -> Unexpected serialized value");
-				AddErrorIfFalse(FMemory::Memcmp(SharedDataC1->VectorArray, DecoratorNativeRef1.VectorArray, sizeof(DecoratorNativeRef1.VectorArray)) == 0, "FAnimationAnimNextRuntimeTest_DecoratorSerialization -> Unexpected serialized value");
-				AddErrorIfFalse(SharedDataC1->VectorTArray == DecoratorNativeRef1.VectorTArray, "FAnimationAnimNextRuntimeTest_DecoratorSerialization -> Unexpected serialized value");
-				AddErrorIfFalse(SharedDataC1->String == DecoratorNativeRef1.String, "FAnimationAnimNextRuntimeTest_DecoratorSerialization -> Unexpected serialized value");
-				AddErrorIfFalse(SharedDataC1->Name == DecoratorNativeRef1.Name, "FAnimationAnimNextRuntimeTest_DecoratorSerialization -> Unexpected serialized value");
-				AddErrorIfFalse(SharedDataC1->bSerializeCalled, "FAnimationAnimNextRuntimeTest_DecoratorSerialization -> Unexpected serialized value");
+					AddErrorIfFalse(SharedDataB1->Integer == DecoratorAddRef1.Integer, "FAnimationAnimNextRuntimeTest_DecoratorSerialization -> Unexpected serialized value");
+					AddErrorIfFalse(FMemory::Memcmp(SharedDataB1->IntegerArray, DecoratorAddRef1.IntegerArray, sizeof(DecoratorAddRef1.IntegerArray)) == 0, "FAnimationAnimNextRuntimeTest_DecoratorSerialization -> Unexpected serialized value");
+					AddErrorIfFalse(SharedDataB1->IntegerTArray == DecoratorAddRef1.IntegerTArray, "FAnimationAnimNextRuntimeTest_DecoratorSerialization -> Unexpected serialized value");
+					AddErrorIfFalse(SharedDataB1->Vector == DecoratorAddRef1.Vector, "FAnimationAnimNextRuntimeTest_DecoratorSerialization -> Unexpected serialized value");
+					AddErrorIfFalse(FMemory::Memcmp(SharedDataB1->VectorArray, DecoratorAddRef1.VectorArray, sizeof(DecoratorAddRef1.VectorArray)) == 0, "FAnimationAnimNextRuntimeTest_DecoratorSerialization -> Unexpected serialized value");
+					AddErrorIfFalse(SharedDataB1->VectorTArray == DecoratorAddRef1.VectorTArray, "FAnimationAnimNextRuntimeTest_DecoratorSerialization -> Unexpected serialized value");
+					AddErrorIfFalse(SharedDataB1->String == DecoratorAddRef1.String, "FAnimationAnimNextRuntimeTest_DecoratorSerialization -> Unexpected serialized value");
+					AddErrorIfFalse(SharedDataB1->Name == DecoratorAddRef1.Name, "FAnimationAnimNextRuntimeTest_DecoratorSerialization -> Unexpected serialized value");
+				}
+
+				// Validate shared data for native decorator on node 1
+				{
+					TDecoratorBinding<IInterfaceC> BindingC1;
+					AddErrorIfFalse(Context.GetInterface(DecoratorPtr1, BindingC1), "FAnimationAnimNextRuntimeTest_DecoratorSerialization -> InterfaceC not found");
+
+					const auto* SharedDataC1 = BindingC1.GetSharedData<FDecoratorNativeSerialization_Add::FSharedData>();
+
+					AddErrorIfFalse(SharedDataC1->Integer == DecoratorNativeRef1.Integer, "FAnimationAnimNextRuntimeTest_DecoratorSerialization -> Unexpected serialized value");
+					AddErrorIfFalse(FMemory::Memcmp(SharedDataC1->IntegerArray, DecoratorNativeRef1.IntegerArray, sizeof(DecoratorNativeRef1.IntegerArray)) == 0, "FAnimationAnimNextRuntimeTest_DecoratorSerialization -> Unexpected serialized value");
+					AddErrorIfFalse(SharedDataC1->IntegerTArray == DecoratorNativeRef1.IntegerTArray, "FAnimationAnimNextRuntimeTest_DecoratorSerialization -> Unexpected serialized value");
+					AddErrorIfFalse(SharedDataC1->Vector == DecoratorNativeRef1.Vector, "FAnimationAnimNextRuntimeTest_DecoratorSerialization -> Unexpected serialized value");
+					AddErrorIfFalse(FMemory::Memcmp(SharedDataC1->VectorArray, DecoratorNativeRef1.VectorArray, sizeof(DecoratorNativeRef1.VectorArray)) == 0, "FAnimationAnimNextRuntimeTest_DecoratorSerialization -> Unexpected serialized value");
+					AddErrorIfFalse(SharedDataC1->VectorTArray == DecoratorNativeRef1.VectorTArray, "FAnimationAnimNextRuntimeTest_DecoratorSerialization -> Unexpected serialized value");
+					AddErrorIfFalse(SharedDataC1->String == DecoratorNativeRef1.String, "FAnimationAnimNextRuntimeTest_DecoratorSerialization -> Unexpected serialized value");
+					AddErrorIfFalse(SharedDataC1->Name == DecoratorNativeRef1.Name, "FAnimationAnimNextRuntimeTest_DecoratorSerialization -> Unexpected serialized value");
+					AddErrorIfFalse(SharedDataC1->bSerializeCalled, "FAnimationAnimNextRuntimeTest_DecoratorSerialization -> Unexpected serialized value");
+				}
 			}
 		}
 	}

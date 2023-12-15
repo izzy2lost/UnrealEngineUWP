@@ -90,9 +90,10 @@ namespace UE::AnimNext
 		// there are no more references remaining, reseting the pointer in the process
 		void ReleaseNodeInstance(FDecoratorPtr& NodePtr) const;
 
-		// Evaluates the latent pin with the specified handle
-		template<typename LatentPinType>
-		LatentPinType EvaluateLatentPin(FLatentPropertyHandle LatentPropertyHandle) const;
+		// Takes a snapshot of all latent properties on the provided node sub-stack (all decorators on the sub-stack of the provided one)
+		// Properties can be marked as always updating or as supporting freezing (e.g. when a branch of the graph blends out)
+		// A freezable property does not update when a snapshot is taken of a frozen node
+		void SnapshotLatentProperties(const FWeakDecoratorPtr& DecoratorPtr, bool bIsFrozen) const;
 
 		// Returns a typed graph instance component, creating it lazily the first time it is queried
 		template<class ComponentType>
@@ -115,7 +116,6 @@ namespace UE::AnimNext
 
 		bool GetInterfaceImpl(FDecoratorInterfaceUID InterfaceUID, const FWeakDecoratorPtr& DecoratorPtr, FDecoratorBinding& InterfaceBinding) const;
 		bool GetInterfaceSuperImpl(FDecoratorInterfaceUID InterfaceUID, const FWeakDecoratorPtr& DecoratorPtr, FDecoratorBinding& SuperBinding) const;
-		void EvaluateLatentPinImpl(FLatentPropertyHandle LatentPropertyHandle, void* DestinationPtr) const;
 		FGraphInstanceComponent* TryGetComponent(int32 ComponentNameHash, FName ComponentName) const;
 		FGraphInstanceComponent& AddComponent(int32 ComponentNameHash, FName ComponentName, TSharedPtr<FGraphInstanceComponent>&& Component) const;
 
@@ -164,20 +164,6 @@ namespace UE::AnimNext
 	inline FDecoratorPtr FExecutionContext::AllocateNodeInstance(const FDecoratorBinding& ParentBinding, FAnimNextDecoratorHandle ChildDecoratorHandle) const
 	{
 		return AllocateNodeInstance(ParentBinding.GetDecoratorPtr(), ChildDecoratorHandle);
-	}
-
-	template<typename LatentPinType>
-	inline LatentPinType FExecutionContext::EvaluateLatentPin(FLatentPropertyHandle LatentPropertyHandle) const
-	{
-		LatentPinType Result{};
-
-		// Latent pin handle needs to be valid
-		if (ensure(LatentPropertyHandle.IsValid()))
-		{
-			EvaluateLatentPinImpl(LatentPropertyHandle, &Result);
-		}
-
-		return Result;
 	}
 
 	template<class ComponentType>

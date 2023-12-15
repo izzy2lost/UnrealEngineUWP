@@ -11,7 +11,6 @@
 #include "DecoratorBase/NodeTemplateRegistry.h"
 #include "Graph/AnimNextGraph.h"
 #include "Graph/AnimNextGraphInstance.h"
-#include "RigVMCore/RigVMExecuteContext.h"
 
 namespace UE::AnimNext
 {
@@ -122,7 +121,7 @@ namespace UE::AnimNext
 		// We need to allocate a new node instance
 		const FDecoratorTemplate* DecoratorDescs = NodeTemplate->GetDecorators();
 
-		const uint32 InstanceSize = NodeTemplate->GetNodeInstanceDataSize();
+		const uint32 InstanceSize = NodeDesc.GetNodeInstanceDataSize();
 		uint8* NodeInstanceBuffer = reinterpret_cast<uint8*>(FMemory::Malloc(InstanceSize, 16));
 		FNodeInstance* NodeInstance = new(NodeInstanceBuffer) FNodeInstance(*GraphInstance, ChildNodeHandle);
 
@@ -383,10 +382,48 @@ namespace UE::AnimNext
 		return false;
 	}
 
-	void FExecutionContext::EvaluateLatentPinImpl(FLatentPropertyHandle LatentPropertyHandle, void* DestinationPtr) const
+	void FExecutionContext::SnapshotLatentProperties(const FWeakDecoratorPtr& DecoratorPtr, bool bIsFrozen) const
 	{
-		check(LatentPropertyHandle.IsValid());
-		GraphInstance->ExecuteLatentPin(LatentPropertyHandle.GetLatentPropertyIndex(), DestinationPtr);
+		if (!DecoratorPtr.IsValid())
+		{
+			return;	// Nothing to do
+		}
+
+		FNodeInstance* NodeInstance = DecoratorPtr.GetNodeInstance();
+
+		if (!ensure(IsBoundTo(NodeInstance->GetOwner())))
+		{
+			return;	// The execution context isn't bound to the right graph instance
+		}
+
+		const FNodeDescription& NodeDesc = GetNodeDescription(NodeInstance->GetNodeHandle());
+
+		const FNodeTemplate* NodeTemplate = GetNodeTemplate(NodeDesc);
+		if (!ensure(NodeTemplate != nullptr))
+		{
+			return;	// Node template wasn't found, node descriptor is perhaps corrupted
+		}
+
+		const FDecoratorTemplate* DecoratorDescs = NodeTemplate->GetDecorators();
+
+		// We only snapshot the partial stack the specified decorator lives in
+		const FDecoratorTemplate* CurrentDecoratorDesc = DecoratorDescs + DecoratorPtr.GetDecoratorIndex();
+		const FDecoratorTemplate* BaseDecoratorDesc = CurrentDecoratorDesc->GetMode() == EDecoratorMode::Base ? CurrentDecoratorDesc : (CurrentDecoratorDesc - CurrentDecoratorDesc->GetAdditiveDecoratorIndex());
+
+		const FLatentPropertiesHeader& LatentHeader = BaseDecoratorDesc->GetDecoratorLatentPropertiesHeader(NodeDesc);
+		if (!LatentHeader.bHasValidLatentProperties)
+		{
+			return;	// All latent properties are inline, nothing to snapshot
+		}
+		else if (bIsFrozen && LatentHeader.bCanAllPropertiesFreeze)
+		{
+			return;	// We are frozen and all latent properties support freezing, nothing to snapshot
+		}
+
+		const FLatentPropertyHandle* LatentHandles = BaseDecoratorDesc->GetDecoratorLatentPropertyHandles(NodeDesc);
+		const uint32 NumLatentHandles = BaseDecoratorDesc->GetNumSubStackLatentPropreties();
+
+		GraphInstance->ExecuteLatentPins(TConstArrayView<FLatentPropertyHandle>(LatentHandles, NumLatentHandles), NodeInstance, bIsFrozen);
 	}
 
 	FGraphInstanceComponent* FExecutionContext::TryGetComponent(int32 ComponentNameHash, FName ComponentName) const

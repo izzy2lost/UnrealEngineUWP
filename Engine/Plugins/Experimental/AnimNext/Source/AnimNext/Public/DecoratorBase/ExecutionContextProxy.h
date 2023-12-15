@@ -96,11 +96,12 @@ namespace UE::AnimNext
 			return ExecutionContext.ReleaseNodeInstance(NodePtr);
 		}
 
-		// Evaluates the latent pin with the specified handle
-		template<typename LatentPinType>
-		LatentPinType EvaluateLatentPin(FLatentPropertyHandle LatentPropertyHandle) const
+		// Takes a snapshot of all latent properties on the provided node sub-stack (all decorators on the sub-stack of the provided one)
+		// Properties can be marked as always updating or as supporting freezing (e.g. when a branch of the graph blends out)
+		// A freezable property does not update when a snapshot is taken of a frozen node
+		void SnapshotLatentProperties(const FWeakDecoratorPtr& DecoratorPtr, bool bIsFrozen) const
 		{
-			return ExecutionContext.EvaluateLatentPin<LatentPinType>(LatentPropertyHandle);
+			ExecutionContext.SnapshotLatentProperties(DecoratorPtr, bIsFrozen);
 		}
 
 		// Returns a typed graph instance component, creating it lazily the first time it is queried

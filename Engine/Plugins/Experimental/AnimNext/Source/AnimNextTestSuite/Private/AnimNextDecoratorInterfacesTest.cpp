@@ -84,10 +84,13 @@ namespace UE::AnimNext
 		}
 	};
 
-	DEFINE_ANIM_DECORATOR_BEGIN(FDecoratorWithNoChildren)
-		DEFINE_ANIM_DECORATOR_IMPLEMENTS_INTERFACE(IUpdate)
-		DEFINE_ANIM_DECORATOR_IMPLEMENTS_INTERFACE(IEvaluate)
-	DEFINE_ANIM_DECORATOR_END(FDecoratorWithNoChildren)
+	// Decorator implementation boilerplate
+	#define DECORATOR_INTERFACE_ENUMERATOR(GeneratorMacro) \
+		GeneratorMacro(IEvaluate) \
+		GeneratorMacro(IUpdate) \
+
+	GENERATE_ANIM_DECORATOR_IMPLEMENTATION(FDecoratorWithNoChildren, DECORATOR_INTERFACE_ENUMERATOR)
+	#undef DECORATOR_INTERFACE_ENUMERATOR
 
 	// This decorator does not update or evaluate
 	struct FDecoratorWithOneChild : FBaseDecorator, IHierarchy
@@ -122,9 +125,12 @@ namespace UE::AnimNext
 		}
 	};
 
-	DEFINE_ANIM_DECORATOR_BEGIN(FDecoratorWithOneChild)
-		DEFINE_ANIM_DECORATOR_IMPLEMENTS_INTERFACE(IHierarchy)
-	DEFINE_ANIM_DECORATOR_END(FDecoratorWithOneChild)
+	// Decorator implementation boilerplate
+	#define DECORATOR_INTERFACE_ENUMERATOR(GeneratorMacro) \
+		GeneratorMacro(IHierarchy) \
+
+	GENERATE_ANIM_DECORATOR_IMPLEMENTATION(FDecoratorWithOneChild, DECORATOR_INTERFACE_ENUMERATOR)
+	#undef DECORATOR_INTERFACE_ENUMERATOR
 
 	struct FDecoratorWithChildren : FBaseDecorator, IHierarchy, IUpdate, IEvaluate
 	{
@@ -210,11 +216,14 @@ namespace UE::AnimNext
 		}
 	};
 
-	DEFINE_ANIM_DECORATOR_BEGIN(FDecoratorWithChildren)
-		DEFINE_ANIM_DECORATOR_IMPLEMENTS_INTERFACE(IHierarchy)
-		DEFINE_ANIM_DECORATOR_IMPLEMENTS_INTERFACE(IUpdate)
-		DEFINE_ANIM_DECORATOR_IMPLEMENTS_INTERFACE(IEvaluate)
-	DEFINE_ANIM_DECORATOR_END(FDecoratorWithChildren)
+	// Decorator implementation boilerplate
+	#define DECORATOR_INTERFACE_ENUMERATOR(GeneratorMacro) \
+		GeneratorMacro(IEvaluate) \
+		GeneratorMacro(IHierarchy) \
+		GeneratorMacro(IUpdate) \
+
+	GENERATE_ANIM_DECORATOR_IMPLEMENTATION(FDecoratorWithChildren, DECORATOR_INTERFACE_ENUMERATOR)
+	#undef DECORATOR_INTERFACE_ENUMERATOR
 }
 
 IMPLEMENT_SIMPLE_AUTOMATION_TEST(FAnimationAnimNextRuntimeTest_IHierarchy, "Animation.AnimNext.Runtime.IHierarchy", EAutomationTestFlags::EditorContext | EAutomationTestFlags::EngineFilter)
@@ -280,59 +289,59 @@ bool FAnimationAnimNextRuntimeTest_IHierarchy::RunTest(const FString& InParamete
 			NodeHandles.Add(DecoratorWriter.RegisterNode(*NodeTemplateD));
 
 			// We don't have decorator properties
-			TArray<TMap<FString, FString>> DecoratorPropertiesA;
+			TArray<TMap<FName, FString>> DecoratorPropertiesA;
 			DecoratorPropertiesA.AddDefaulted(NodeTemplateDecoratorListA.Num());
 
-			TArray<TMap<FString, FString>> DecoratorPropertiesB;
+			TArray<TMap<FName, FString>> DecoratorPropertiesB;
 			DecoratorPropertiesB.AddDefaulted(NodeTemplateDecoratorListB.Num());
 			DecoratorPropertiesB[0].Add(TEXT("Child"), ToString<FDecoratorWithOneChild::FSharedData>(TEXT("Child"), FAnimNextDecoratorHandle(NodeHandles[0])));
 
-			TArray<TMap<FString, FString>> DecoratorPropertiesC;
+			TArray<TMap<FName, FString>> DecoratorPropertiesC;
 			DecoratorPropertiesC.AddDefaulted(NodeTemplateDecoratorListC.Num());
 			DecoratorPropertiesC[0].Add(TEXT("Child"), ToString<FDecoratorWithOneChild::FSharedData>(TEXT("Child"), FAnimNextDecoratorHandle(NodeHandles[0])));
 			DecoratorPropertiesC[1].Add(TEXT("Child"), ToString<FDecoratorWithOneChild::FSharedData>(TEXT("Child"), FAnimNextDecoratorHandle(NodeHandles[1])));
 
-			TArray<TMap<FString, FString>> DecoratorPropertiesD;
+			TArray<TMap<FName, FString>> DecoratorPropertiesD;
 			DecoratorPropertiesD.AddDefaulted(NodeTemplateDecoratorListD.Num());
 			FAnimNextDecoratorHandle ChildrenHandlesD[2] = { FAnimNextDecoratorHandle(NodeHandles[0]), FAnimNextDecoratorHandle(NodeHandles[2], 1)};
 			DecoratorPropertiesD[0].Add(TEXT("Children"), ToString<FDecoratorWithChildren::FSharedData>(TEXT("Children"), ChildrenHandlesD));
 
 			DecoratorWriter.BeginNodeWriting();
 			DecoratorWriter.WriteNode(NodeHandles[0],
-				[&DecoratorPropertiesA](uint32 DecoratorIndex, const FString& PropertyName)
+				[&DecoratorPropertiesA](uint32 DecoratorIndex, FName PropertyName)
 				{
 					return DecoratorPropertiesA[DecoratorIndex][PropertyName];
 				},
-				[](uint32 DecoratorIndex, const FString& PropertyName)
+				[](uint32 DecoratorIndex, FName PropertyName)
 				{
-					return false;
+					return MAX_uint16;
 				});
 			DecoratorWriter.WriteNode(NodeHandles[1],
-				[&DecoratorPropertiesB](uint32 DecoratorIndex, const FString& PropertyName)
+				[&DecoratorPropertiesB](uint32 DecoratorIndex, FName PropertyName)
 				{
 					return DecoratorPropertiesB[DecoratorIndex][PropertyName];
 				},
-				[](uint32 DecoratorIndex, const FString& PropertyName)
+				[](uint32 DecoratorIndex, FName PropertyName)
 				{
-					return false;
+					return MAX_uint16;
 				});
 			DecoratorWriter.WriteNode(NodeHandles[2],
-				[&DecoratorPropertiesC](uint32 DecoratorIndex, const FString& PropertyName)
+				[&DecoratorPropertiesC](uint32 DecoratorIndex, FName PropertyName)
 				{
 					return DecoratorPropertiesC[DecoratorIndex][PropertyName];
 				},
-				[](uint32 DecoratorIndex, const FString& PropertyName)
+				[](uint32 DecoratorIndex, FName PropertyName)
 				{
-					return false;
+					return MAX_uint16;
 				});
 			DecoratorWriter.WriteNode(NodeHandles[3],
-				[&DecoratorPropertiesD](uint32 DecoratorIndex, const FString& PropertyName)
+				[&DecoratorPropertiesD](uint32 DecoratorIndex, FName PropertyName)
 				{
 					return DecoratorPropertiesD[DecoratorIndex][PropertyName];
 				},
-				[](uint32 DecoratorIndex, const FString& PropertyName)
+				[](uint32 DecoratorIndex, FName PropertyName)
 				{
-					return false;
+					return MAX_uint16;
 				});
 			DecoratorWriter.EndNodeWriting();
 
@@ -458,45 +467,45 @@ bool FAnimationAnimNextRuntimeTest_IUpdate::RunTest(const FString& InParameters)
 			NodeHandles.Add(DecoratorWriter.RegisterNode(*NodeTemplateB));
 
 			// We don't have decorator properties
-			TArray<TMap<FString, FString>> DecoratorPropertiesA;
+			TArray<TMap<FName, FString>> DecoratorPropertiesA;
 			DecoratorPropertiesA.AddDefaulted(NodeTemplateDecoratorListA.Num());
 
-			TArray<TMap<FString, FString>> DecoratorPropertiesB;
+			TArray<TMap<FName, FString>> DecoratorPropertiesB;
 			DecoratorPropertiesB.AddDefaulted(NodeTemplateDecoratorListB.Num());
 			DecoratorPropertiesB[0].Add(TEXT("Child"), ToString<FDecoratorWithOneChild::FSharedData>(TEXT("Child"), FAnimNextDecoratorHandle(NodeHandles[1])));
 
-			TArray<TMap<FString, FString>> DecoratorPropertiesC;
+			TArray<TMap<FName, FString>> DecoratorPropertiesC;
 			DecoratorPropertiesC.AddDefaulted(NodeTemplateDecoratorListC.Num());
 			FAnimNextDecoratorHandle ChildrenHandlesC[2] = { FAnimNextDecoratorHandle(NodeHandles[1]), FAnimNextDecoratorHandle(NodeHandles[2])};
 			DecoratorPropertiesC[0].Add(TEXT("Children"), ToString<FDecoratorWithChildren::FSharedData>(TEXT("Children"), ChildrenHandlesC));
 
 			DecoratorWriter.BeginNodeWriting();
 			DecoratorWriter.WriteNode(NodeHandles[0],
-				[&DecoratorPropertiesC](uint32 DecoratorIndex, const FString& PropertyName)
+				[&DecoratorPropertiesC](uint32 DecoratorIndex, FName PropertyName)
 				{
 					return DecoratorPropertiesC[DecoratorIndex][PropertyName];
 				},
-				[](uint32 DecoratorIndex, const FString& PropertyName)
+				[](uint32 DecoratorIndex, FName PropertyName)
 				{
-					return false;
+					return MAX_uint16;
 				});
 			DecoratorWriter.WriteNode(NodeHandles[1],
-				[&DecoratorPropertiesA](uint32 DecoratorIndex, const FString& PropertyName)
+				[&DecoratorPropertiesA](uint32 DecoratorIndex, FName PropertyName)
 				{
 					return DecoratorPropertiesA[DecoratorIndex][PropertyName];
 				},
-				[](uint32 DecoratorIndex, const FString& PropertyName)
+				[](uint32 DecoratorIndex, FName PropertyName)
 				{
-					return false;
+					return MAX_uint16;
 				});
 			DecoratorWriter.WriteNode(NodeHandles[2],
-				[&DecoratorPropertiesB](uint32 DecoratorIndex, const FString& PropertyName)
+				[&DecoratorPropertiesB](uint32 DecoratorIndex, FName PropertyName)
 				{
 					return DecoratorPropertiesB[DecoratorIndex][PropertyName];
 				},
-				[](uint32 DecoratorIndex, const FString& PropertyName)
+				[](uint32 DecoratorIndex, FName PropertyName)
 				{
-					return false;
+					return MAX_uint16;
 				});
 			DecoratorWriter.EndNodeWriting();
 
@@ -596,14 +605,14 @@ bool FAnimationAnimNextRuntimeTest_IEvaluate::RunTest(const FString& InParameter
 			NodeHandles.Add(DecoratorWriter.RegisterNode(*NodeTemplateB));
 
 			// We don't have decorator properties
-			TArray<TMap<FString, FString>> DecoratorPropertiesA;
+			TArray<TMap<FName, FString>> DecoratorPropertiesA;
 			DecoratorPropertiesA.AddDefaulted(NodeTemplateDecoratorListA.Num());
 
-			TArray<TMap<FString, FString>> DecoratorPropertiesB;
+			TArray<TMap<FName, FString>> DecoratorPropertiesB;
 			DecoratorPropertiesB.AddDefaulted(NodeTemplateDecoratorListB.Num());
 			DecoratorPropertiesB[0].Add(TEXT("Child"), ToString<FDecoratorWithOneChild::FSharedData>(TEXT("Child"), FAnimNextDecoratorHandle(NodeHandles[1])));
 
-			TArray<TMap<FString, FString>> DecoratorPropertiesC;
+			TArray<TMap<FName, FString>> DecoratorPropertiesC;
 			DecoratorPropertiesC.AddDefaulted(NodeTemplateDecoratorListC.Num());
 
 			FAnimNextDecoratorHandle ChildrenHandlesC[2] = { FAnimNextDecoratorHandle(NodeHandles[1]), FAnimNextDecoratorHandle(NodeHandles[2])};
@@ -611,31 +620,31 @@ bool FAnimationAnimNextRuntimeTest_IEvaluate::RunTest(const FString& InParameter
 
 			DecoratorWriter.BeginNodeWriting();
 			DecoratorWriter.WriteNode(NodeHandles[0],
-				[&DecoratorPropertiesC](uint32 DecoratorIndex, const FString& PropertyName)
+				[&DecoratorPropertiesC](uint32 DecoratorIndex, FName PropertyName)
 				{
 					return DecoratorPropertiesC[DecoratorIndex][PropertyName];
 				},
-				[](uint32 DecoratorIndex, const FString& PropertyName)
+				[](uint32 DecoratorIndex, FName PropertyName)
 				{
-					return false;
+					return MAX_uint16;
 				});
 			DecoratorWriter.WriteNode(NodeHandles[1],
-				[&DecoratorPropertiesA](uint32 DecoratorIndex, const FString& PropertyName)
+				[&DecoratorPropertiesA](uint32 DecoratorIndex, FName PropertyName)
 				{
 					return DecoratorPropertiesA[DecoratorIndex][PropertyName];
 				},
-				[](uint32 DecoratorIndex, const FString& PropertyName)
+				[](uint32 DecoratorIndex, FName PropertyName)
 				{
-					return false;
+					return MAX_uint16;
 				});
 			DecoratorWriter.WriteNode(NodeHandles[2],
-				[&DecoratorPropertiesB](uint32 DecoratorIndex, const FString& PropertyName)
+				[&DecoratorPropertiesB](uint32 DecoratorIndex, FName PropertyName)
 				{
 					return DecoratorPropertiesB[DecoratorIndex][PropertyName];
 				},
-				[](uint32 DecoratorIndex, const FString& PropertyName)
+				[](uint32 DecoratorIndex, FName PropertyName)
 				{
-					return false;
+					return MAX_uint16;
 				});
 			DecoratorWriter.EndNodeWriting();
 

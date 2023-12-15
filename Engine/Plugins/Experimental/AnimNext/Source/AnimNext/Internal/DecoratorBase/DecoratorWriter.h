@@ -50,8 +50,8 @@ namespace UE::AnimNext
 		// Nodes must be written in the same order they were registered in
 		void WriteNode(
 			const FNodeHandle NodeHandle,
-			const TFunction<FString(uint32 DecoratorIndex, const FString& PropertyName)>& GetDecoratorProperty,
-			const TFunction<bool(uint32 DecoratorIndex, const FString& PropertyName)>& IsDecoratorPropertyLatent
+			const TFunction<FString(uint32 DecoratorIndex, FName PropertyName)>& GetDecoratorProperty,
+			const TFunction<uint16(uint32 DecoratorIndex, FName PropertyName)>& GetDecoratorLatentPropertyIndex
 			);
 
 		// Returns the error state
@@ -89,7 +89,6 @@ namespace UE::AnimNext
 		// To track node writing
 		TArray<UObject*> GraphReferencedObjects;
 		uint32 NumNodesWritten;
-		FLatentPropertyHandle CurrentLatentPropertyHandle;
 		bool bIsNodeWriting;
 
 		EErrorState ErrorState;

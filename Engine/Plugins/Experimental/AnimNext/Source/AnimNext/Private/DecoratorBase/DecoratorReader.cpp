@@ -2,6 +2,7 @@
 
 #include "DecoratorBase/DecoratorReader.h"
 
+#include "DecoratorBase/DecoratorRegistry.h"
 #include "DecoratorBase/NodeDescription.h"
 #include "DecoratorBase/NodeInstance.h"
 #include "DecoratorBase/NodeTemplate.h"
@@ -39,6 +40,7 @@ namespace UE::AnimNext
 		TArray<FNodeTemplateRegistryHandle> NodeTemplateHandles;
 		NodeTemplateHandles.Reserve(NumNodeTemplates);
 
+		const FDecoratorRegistry& DecoratorRegistry = FDecoratorRegistry::Get();
 		FNodeTemplateRegistry& NodeTemplateRegistry = FNodeTemplateRegistry::Get();
 
 		{
@@ -81,8 +83,6 @@ namespace UE::AnimNext
 		uint32 SharedDataSize = 0;
 		for (uint32 NodeIndex = 0; NodeIndex < NumNodes; ++NodeIndex)
 		{
-			SharedDataSize = Align(SharedDataSize, alignof(FNodeDescription));	// Make sure we respect our alignment constraints
-
 			if (SharedDataSize > MAXIMUM_GRAPH_SHARED_DATA_SIZE)
 			{
 				// This graph shared data is too large, we won't be able to create handles to this node
@@ -116,23 +116,77 @@ namespace UE::AnimNext
 			FNodeDescription* NodeDesc = reinterpret_cast<FNodeDescription*>(&GraphSharedData[SharedDataOffset]);
 			NodeDesc->Serialize(*this);
 
-			// Serialize our latent property handles
 			const FNodeTemplate* NodeTemplate = NodeTemplateRegistry.Find(NodeDesc->GetTemplateHandle());
+			check(NodeTemplate != nullptr);
 
+			uint32 NodeInstanceDataSize = NodeTemplate->GetNodeInstanceDataSize();
+			uint32 LatentPropertyOffset = NodeInstanceDataSize;
+
+			// Read the latent properties and add them to our instance data (if any)
 			const uint32 NumDecorators = NodeTemplate->GetNumDecorators();
 			const FDecoratorTemplate* DecoratorTemplates = NodeTemplate->GetDecorators();
-
 			for (uint32 DecoratorIndex = 0; DecoratorIndex < NumDecorators; ++DecoratorIndex)
 			{
-				int32 NumLatentHandles = 0;
-				*this << NumLatentHandles;
+				const FDecoratorTemplate& DecoratorTemplate = DecoratorTemplates[DecoratorIndex];
 
-				FLatentPropertyHandle* LatentHandles = DecoratorTemplates[DecoratorIndex].GetDecoratorLatentPropertyHandles(*NodeDesc);
-				for (int32 LatentHandleIndex = 0; LatentHandleIndex < NumLatentHandles; ++LatentHandleIndex)
+				int32 NumLatentProperties = 0;
+				*this << NumLatentProperties;
+				check(NumLatentProperties == DecoratorTemplate.GetNumLatentPropreties());
+
+				if (NumLatentProperties == 0)
 				{
-					*this << LatentHandles[LatentHandleIndex];
+					continue;	// Nothing to do
 				}
+
+				FLatentPropertiesHeader& LatentHeader = DecoratorTemplate.GetDecoratorLatentPropertiesHeader(*NodeDesc);
+				FLatentPropertyHandle* LatentHandles = DecoratorTemplate.GetDecoratorLatentPropertyHandles(*NodeDesc);
+
+				bool bHasValidLatentProperties = false;
+				bool bCanAllPropertiesFreeze = true;
+
+				const FDecoratorRegistryHandle DecoratorHandle = DecoratorTemplate.GetRegistryHandle();
+				const FDecorator* Decorator = DecoratorRegistry.Find(DecoratorHandle);
+
+				for (int32 LatentPropertyIndex = 0; LatentPropertyIndex < NumLatentProperties; ++LatentPropertyIndex)
+				{
+					FLatentPropertyMetadata Metadata;
+					*this << Metadata;
+
+					uint16 RigVMIndex = MAX_uint16;
+					uint32 CurrentLatentPropertyOffset = 0;
+					bool bCanFreeze = true;
+
+					if (Decorator != nullptr)
+					{
+						// If this property is valid, setup out binding for it
+						if (Metadata.RigVMIndex != MAX_uint16)
+						{
+							const FDecoratorLatentPropertyMemoryLayout PropertyMemoryLayout = Decorator->GetLatentPropertyMemoryLayout(Metadata.Name, LatentPropertyIndex);
+
+							// Align our property
+							LatentPropertyOffset = Align(LatentPropertyOffset, PropertyMemoryLayout.Alignment);
+
+							RigVMIndex = Metadata.RigVMIndex;
+							CurrentLatentPropertyOffset = LatentPropertyOffset;
+							bCanFreeze = Metadata.bCanFreeze;
+
+							bHasValidLatentProperties = true;
+							bCanAllPropertiesFreeze &= bCanFreeze;
+
+							// Consume the property size
+							LatentPropertyOffset += PropertyMemoryLayout.Size;
+						}
+					}
+
+					LatentHandles[LatentPropertyIndex] = FLatentPropertyHandle(RigVMIndex, CurrentLatentPropertyOffset, bCanFreeze);
+				}
+
+				LatentHeader.bHasValidLatentProperties = bHasValidLatentProperties;
+				LatentHeader.bCanAllPropertiesFreeze = bCanAllPropertiesFreeze;
 			}
+
+			// Set our final node instance data size that factors in our latent properties
+			NodeDesc->NodeInstanceDataSize = LatentPropertyOffset;
 		}
 
 		return EErrorState::None;

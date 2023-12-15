@@ -61,4 +61,7 @@ namespace UE::AnimNext
 	// Compares for equality and inequality
 	constexpr bool operator==(FDecoratorInterfaceUID LHS, FDecoratorInterfaceUID RHS) { return LHS.GetUID() == RHS.GetUID(); }
 	constexpr bool operator!=(FDecoratorInterfaceUID LHS, FDecoratorInterfaceUID RHS) { return LHS.GetUID() != RHS.GetUID(); }
+
+	// For sorting
+	constexpr bool operator<(FDecoratorInterfaceUID LHS, FDecoratorInterfaceUID RHS) { return LHS.GetUID() < RHS.GetUID(); }
 }

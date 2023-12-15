@@ -75,7 +75,6 @@ namespace UE::AnimNext
 
 		bIsNodeWriting = true;
 		GraphReferencedObjects.Reset();
-		CurrentLatentPropertyHandle = FLatentPropertyHandle::GetFirstHandle();
 
 		// Serialize the node templates
 		TArray<FNodeTemplateRegistryHandle> NodeTemplateHandles;
@@ -124,8 +123,8 @@ namespace UE::AnimNext
 
 	void FDecoratorWriter::WriteNode(
 		const FNodeHandle NodeHandle,
-		const TFunction<FString (uint32 DecoratorIndex, const FString& PropertyName)>& GetDecoratorProperty,
-		const TFunction<bool(uint32 DecoratorIndex, const FString& PropertyName)>& IsDecoratorPropertyLatent)
+		const TFunction<FString (uint32 DecoratorIndex, FName PropertyName)>& GetDecoratorProperty,
+		const TFunction<uint16(uint32 DecoratorIndex, FName PropertyName)>& GetDecoratorLatentPropertyIndex)
 	{
 		ensure(bIsNodeWriting);
 
@@ -168,7 +167,7 @@ namespace UE::AnimNext
 			FAnimNextDecoratorSharedData* SharedData = DecoratorTemplates[DecoratorIndex].GetDecoratorDescription(*NodeDesc);
 
 			// Curry our lambda with the decorator index
-			const auto GetDecoratorPropertyAt = [&GetDecoratorProperty, DecoratorIndex](const FString& PropertyName)
+			const auto GetDecoratorPropertyAt = [&GetDecoratorProperty, DecoratorIndex](FName PropertyName)
 			{
 				return GetDecoratorProperty(DecoratorIndex, PropertyName);
 			};
@@ -180,25 +179,35 @@ namespace UE::AnimNext
 		NodeDesc->Serialize(*this);
 
 		// Append our decorator latent property handles to our archive
+		// We only write out the properties that will be present at runtime
+		// This takes into account editor only latent properties which can be stripped in cooked builds
+		// Other forms of property stripping are not currently supported
+		// The latent property offsets will be computed at runtime on load to support property sizes/alignment
+		// changing between the editor and the runtime platform (e.g. 32 vs 64 bit pointers)
+		// To that end, we serialize the following property metadata:
+		//     * RigVM memory handle index
+		//     * Whether the property supports freezing or not
+		//     * The property name and index for us to look it up at runtime
+
 		for (uint32 DecoratorIndex = 0; DecoratorIndex < NumDecorators; ++DecoratorIndex)
 		{
 			const FDecoratorRegistryHandle DecoratorHandle = DecoratorTemplates[DecoratorIndex].GetRegistryHandle();
 			const FDecorator* Decorator = DecoratorRegistry.Find(DecoratorHandle);
 
 			// Curry our lambda with the decorator index
-			const auto IsDecoratorPropertyLatentAt = [&IsDecoratorPropertyLatent, DecoratorIndex](const FString& PropertyName)
+			const auto GetDecoratorLatentPropertyIndexAt = [&GetDecoratorLatentPropertyIndex, DecoratorIndex](FName PropertyName)
 			{
-				return IsDecoratorPropertyLatent(DecoratorIndex, PropertyName);
+				return GetDecoratorLatentPropertyIndex(DecoratorIndex, PropertyName);
 			};
 
-			const TArray<FLatentPropertyHandle> LatentHandles = Decorator->GetLatentPropertyHandles(IsFilterEditorOnly(), IsDecoratorPropertyLatentAt, CurrentLatentPropertyHandle);
+			TArray<FLatentPropertyMetadata> LatentProperties = Decorator->GetLatentPropertyHandles(IsFilterEditorOnly(), GetDecoratorLatentPropertyIndexAt);
 
-			int32 NumLatentHandles = LatentHandles.Num();
-			*this << NumLatentHandles;
+			int32 NumLatentProperties = LatentProperties.Num();
+			*this << NumLatentProperties;
 
-			for (FLatentPropertyHandle Handle : LatentHandles)
+			for (FLatentPropertyMetadata& Metadata : LatentProperties)
 			{
-				*this << Handle;
+				*this << Metadata;
 			}
 		}
 

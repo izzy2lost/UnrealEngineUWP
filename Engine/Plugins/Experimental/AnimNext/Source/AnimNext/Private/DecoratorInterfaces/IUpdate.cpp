@@ -252,9 +252,15 @@ namespace UE::AnimNext
 
 			if (!Entry->bHasPreUpdated)
 			{
+				// This is the first time we visit this node, time to pre-update
+				// But first, if it has latent pins, we must execute and cache their results
+				// This will ensure that other calls into this node will have a consistent view of
+				// what the node saw when it started to update. We thus take a snapshot.
+				const bool bIsFrozen = false;	// Not yet supported
+				ExecutionContext.SnapshotLatentProperties(EntryDecoratorPtr, bIsFrozen);
+
 				if (ExecutionContext.GetInterface(EntryDecoratorPtr, Entry->UpdateDecorator))
 				{
-					// This is the first time we visit this node, time to pre-update
 					Entry->UpdateDecorator.PreUpdate(TraversalContext, Entry->DecoratorState);
 
 					// Make sure that next time we visit this entry, we'll post-update

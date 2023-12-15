@@ -10,7 +10,7 @@ namespace UE::AnimNext
 	/**
 	  * Node ID
 	  * 
-	  * A node ID fits on 16 bits and is used to encore a node index.
+	  * A node ID fits on 16 bits and is used to encode a node index.
 	  * The zero ID is reserved as an invalid value, this means that the
 	  * node index is 1-based.
 	  * 

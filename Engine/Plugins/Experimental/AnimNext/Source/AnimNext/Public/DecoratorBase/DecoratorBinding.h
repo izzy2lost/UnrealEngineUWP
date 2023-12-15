@@ -73,6 +73,24 @@ namespace UE::AnimNext
 			return DecoratorTemplate->GetDecoratorLatentPropertyHandles(*NodeDescription);
 		}
 
+		// Returns a pointer to the latent property specified by the provided handle or nullptr if the binding/handle are invalid
+		template<typename PropertyType>
+		const PropertyType* GetLatentProperty(FLatentPropertyHandle Handle) const
+		{
+			if (!IsValid())
+			{
+				return nullptr;
+			}
+
+			if (!Handle.IsOffsetValid())
+			{
+				return nullptr;
+			}
+
+			const uint8* NodeInstance = (const uint8*)DecoratorPtr.GetNodeInstance();
+			return (const PropertyType*)(NodeInstance + Handle.GetLatentPropertyOffset());
+		}
+
 		// Returns the decorator pointer we are bound to.
 		FWeakDecoratorPtr GetDecoratorPtr() const { return DecoratorPtr; }
 

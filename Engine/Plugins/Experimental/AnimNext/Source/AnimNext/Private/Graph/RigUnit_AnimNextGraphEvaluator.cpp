@@ -2,6 +2,7 @@
 
 #include "Graph/RigUnit_AnimNextGraphEvaluator.h"
 #include "Context.h"
+#include "DecoratorBase/LatentPropertyHandle.h"
 
 #include UE_INLINE_GENERATED_CPP_BY_NAME(RigUnit_AnimNextGraphEvaluator)
 
@@ -27,31 +28,44 @@ void FRigUnit_AnimNextGraphEvaluator::StaticExecute(FRigVMExtendedExecuteContext
 {
 	const FAnimNextExecuteContext& VMExecuteContext = RigVMExecuteContext.GetPublicData<FAnimNextExecuteContext>();
 
-	const int32 LatentPinIndex = VMExecuteContext.GetLatentPinIndex();
-	if (LatentPinIndex == INDEX_NONE)
+	const TConstArrayView<UE::AnimNext::FLatentPropertyHandle>& LatentHandles = VMExecuteContext.GetLatentHandles();
+	uint8* DestinationBasePtr = (uint8*)VMExecuteContext.GetDestinationBasePtr();
+	const bool bIsFrozen = VMExecuteContext.IsFrozen();
+
+	for (UE::AnimNext::FLatentPropertyHandle Handle : LatentHandles)
 	{
-		return;
+		if (!Handle.IsIndexValid())
+		{
+			// This handle isn't valid
+			continue;
+		}
+
+		if (bIsFrozen && Handle.CanFreeze())
+		{
+			// This handle can freeze and we are frozen, no need to update it
+			continue;
+		}
+
+		FRigVMMemoryHandle& MemoryHandle = RigVMMemoryHandles[Handle.GetLatentPropertyIndex()];
+
+		// This should be an assert. If this triggers, it means that we have a bug in how lazy memory handles
+		// are assigned during compilation. We keep it as an ensure because in this case, we can recover
+		// as even if the memory handle isn't lazy, it remains valid and we can use it. It won't have the
+		// value we expect but it'll work. The ensure will signal that we need to fix the bug.
+		if (ensure(MemoryHandle.IsLazy()))
+		{
+			MemoryHandle.ComputeLazyValueIfNecessary(RigVMExecuteContext, RigVMExecuteContext.GetSlice().GetIndex());
+		}
+
+		const uint8* SourcePtr = MemoryHandle.GetData();
+		uint8* DestinationPtr = DestinationBasePtr + Handle.GetLatentPropertyOffset();
+
+		// Copy from our source into our destination
+		// We assume the source and destination properties are identical
+		URigVMMemoryStorage::CopyProperty(
+			MemoryHandle.GetProperty(), DestinationPtr,
+			MemoryHandle.GetProperty(), SourcePtr);
 	}
-
-	FRigVMMemoryHandle& MemoryHandle = RigVMMemoryHandles[LatentPinIndex];
-
-	// This should be an assert. If this triggers, it means that we have a bug in how lazy memory handles
-	// are assigned during compilation. We keep it as an ensure because in this case, we can recover
-	// as even if the memory handle isn't lazy, it remains valid and we can use it. It won't have the
-	// value we expect but it'll work. The ensure will signal that we need to fix the bug.
-	if (ensure(MemoryHandle.IsLazy()))
-	{
-		MemoryHandle.ComputeLazyValueIfNecessary(RigVMExecuteContext, RigVMExecuteContext.GetSlice().GetIndex());
-	}
-
-	const uint8* SourcePtr = MemoryHandle.GetData();
-	uint8* DestinationPtr = (uint8*)VMExecuteContext.GetDestinationPtr();
-
-	// Copy from our source into our destination
-	// We assume the source and destination properties are identical
-	URigVMMemoryStorage::CopyProperty(
-		MemoryHandle.GetProperty(), DestinationPtr,
-		MemoryHandle.GetProperty(), SourcePtr);
 }
 
 void FRigUnit_AnimNextGraphEvaluator::RegisterExecuteMethod(const FAnimNextGraphEvaluatorExecuteDefinition& ExecuteDefinition)
