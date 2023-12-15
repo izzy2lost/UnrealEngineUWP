@@ -197,6 +197,7 @@ public:
 	
 	/** Retrieves a pointer to the column of the given row or a nullptr if not found or if the column type is a tag. */
 	virtual void* GetColumnData(TypedElementRowHandle Row, const UScriptStruct* ColumnType) = 0;
+	virtual const void* GetColumnData(TypedElementRowHandle Row, const UScriptStruct* ColumnType) const = 0;
 	virtual ColumnDataResult GetColumnData(TypedElementRowHandle Row, FTopLevelAssetPath ColumnName) = 0;
 
 	/** Determines if the provided row contains the collection of columns and tags. */
@@ -348,6 +349,10 @@ public:
 	template<typename ColumnType>
 	ColumnType* GetColumn(TypedElementRowHandle Row);
 
+	/** Returns a pointer to the column of the given row or a nullptr if the type couldn't be found or the row doesn't exist. */
+	template<typename ColumnType>
+	const ColumnType* GetColumn(TypedElementRowHandle Row) const;
+
 	template<typename... ColumnTypes>
 	bool HasColumns(TypedElementRowHandle Row) const;
 
@@ -430,6 +435,12 @@ template<typename ColumnType>
 ColumnType* ITypedElementDataStorageInterface::GetColumn(TypedElementRowHandle Row)
 {
 	return reinterpret_cast<ColumnType*>(GetColumnData(Row, ColumnType::StaticStruct()));
+}
+
+template<typename ColumnType>
+const ColumnType* ITypedElementDataStorageInterface::GetColumn(TypedElementRowHandle Row) const
+{
+	return reinterpret_cast<const ColumnType*>(GetColumnData(Row, ColumnType::StaticStruct()));
 }
 
 template<typename... ColumnType>
