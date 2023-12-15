@@ -8,6 +8,7 @@
 #include "iree/hal/local/loaders/static_library_loader.h"
 #include "iree/modules/hal/types.h"
 #include "iree/vm/bytecode/module.h"
+#undef GetObject // This is needed for unity nopch builds to not throw an error  (one of the above headers include windows.h which has #define GetObject to GetObjectW)
 
 namespace UE::NNERuntimeIREE
 {
