@@ -18,6 +18,8 @@ UWorldFactory::UWorldFactory(const FObjectInitializer& ObjectInitializer)
 	WorldType = EWorldType::Inactive;
 	bInformEngineOfWorld = false;
 	bCreateWorldPartition = false;
+	// default to true to preserve previous behavior
+	bEnableWorldPartitionStreaming = true;
 	FeatureLevel = ERHIFeatureLevel::Num;
 }
 
@@ -37,7 +39,8 @@ UObject* UWorldFactory::FactoryCreateNew(UClass* Class, UObject* InParent, FName
 		.EnableTraceCollision(true)
 		.CreateNavigation(WorldType == EWorldType::Editor)
 		.CreateAISystem(WorldType == EWorldType::Editor)
-		.CreateWorldPartition(bCreateWorldPartition);
+		.CreateWorldPartition(bCreateWorldPartition)
+		.EnableWorldPartitionStreaming(bEnableWorldPartitionStreaming);
 
 	UWorld* NewWorld = UWorld::CreateWorld(WorldType, bInformEngineOfWorld, Name, Cast<UPackage>(InParent), bAddToRoot, FeatureLevel, &InitValues);
 	GEditor->InitBuilderBrush(NewWorld);

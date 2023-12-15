@@ -12,6 +12,10 @@
 #include "WorldPartition/WorldPartitionHandle.h"
 #include "WorldPartition/WorldPartitionActorContainerID.h"
 
+#if WITH_EDITOR
+#include "EditorLevelUtils.h"
+#endif
+
 #include "LevelInstanceSubsystem.generated.h"
 
 class ILevelInstanceInterface;
@@ -151,6 +155,8 @@ private:
 	ENGINE_API void RegisterLoadedLevelStreamingLevelInstance(ULevelStreamingLevelInstance* LevelStreaming);
 
 #if WITH_EDITOR
+	ENGINE_API ULevelStreamingLevelInstanceEditor* CreateNewStreamingLevelForWorld(UWorld& InWorld, const EditorLevelUtils::FCreateNewStreamingLevelForWorldParams& InParams);
+	
 	ENGINE_API FWorldPartitionActorFilter GetLevelInstanceFilterInternal(const FString& LevelPackage, TSet<FString>& VisitedPackages) const;
 
 	ENGINE_API void ResetLoadersForWorldAssetInternal(const FString& WorldAsset);

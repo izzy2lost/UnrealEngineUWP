@@ -881,6 +881,7 @@ struct FWorldInitializationValues
 		, bTransactional(true)
 		, bCreateFXSystem(true)
 		, bCreateWorldPartition(false)
+		, bEnableWorldPartitionStreaming(true)
 	{
 	}
 
@@ -920,6 +921,9 @@ struct FWorldInitializationValues
 	/** Should the world be partitioned */
 	uint32 bCreateWorldPartition:1;
 
+	/** If bCreateWorldPartition is set to true, this flag will init the streaming mode for the WorldPartition object (default to true to preserve previous behavior) */
+	uint32 bEnableWorldPartitionStreaming:1;
+
 	/** The default game mode for this world (if any) */
 	TSubclassOf<class AGameModeBase> DefaultGameMode;
 
@@ -935,6 +939,7 @@ struct FWorldInitializationValues
 	FWorldInitializationValues& SetTransactional(const bool bInTransactional) { bTransactional = bInTransactional; return *this; }
 	FWorldInitializationValues& CreateFXSystem(const bool bCreate) { bCreateFXSystem = bCreate; return *this; }
 	FWorldInitializationValues& CreateWorldPartition(const bool bCreate) { bCreateWorldPartition = bCreate; return *this; }
+	FWorldInitializationValues& EnableWorldPartitionStreaming(const bool bEnableStreaming) { bEnableWorldPartitionStreaming = bEnableStreaming; return *this; }
 	FWorldInitializationValues& SetDefaultGameMode(TSubclassOf<class AGameModeBase> GameMode) { DefaultGameMode = GameMode; return *this; }
 };
 

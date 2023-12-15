@@ -20,15 +20,8 @@
 #include "WorldPartition/WorldPartition.h"
 #endif
 
-#if WITH_EDITOR
-static FLevelInstanceID EditLevelInstanceID;
-#endif
-
 ULevelStreamingLevelInstanceEditor::ULevelStreamingLevelInstanceEditor(const FObjectInitializer& ObjectInitializer)
 	: Super(ObjectInitializer)
-#if WITH_EDITOR
-	, LevelInstanceID(EditLevelInstanceID)
-#endif
 {
 #if WITH_EDITOR
 	SetShouldBeVisibleInEditor(true);
@@ -86,12 +79,26 @@ ULevelStreamingLevelInstanceEditor* ULevelStreamingLevelInstanceEditor::Load(ILe
 		UPackageTools::UnloadPackages({ LevelPackage });
 	}
 
-	TGuardValue<FLevelInstanceID> GuardEditLevelInstanceID(EditLevelInstanceID, LevelInstance->GetLevelInstanceID());
 	ULevelStreamingLevelInstanceEditor* LevelStreaming = nullptr;
+
+	// Set LevelInstanceID early
+	auto OnLevelStreamingCreated = [LevelInstanceID = LevelInstance->GetLevelInstanceID()](ULevelStreaming* InLevelStreaming)
+	{
+		ULevelStreamingLevelInstanceEditor* LevelInstanceLevelStreaming = Cast<ULevelStreamingLevelInstanceEditor>(InLevelStreaming);
+		check(LevelInstanceLevelStreaming);
+		check(!LevelInstanceLevelStreaming->LevelInstanceID.IsValid());
+		LevelInstanceLevelStreaming->LevelInstanceID = LevelInstanceID;
+	};
+
 	// If Asset is null we can create a level here
 	if (LevelInstance->GetWorldAsset().IsNull())
 	{
-		LevelStreaming = Cast<ULevelStreamingLevelInstanceEditor>(EditorLevelUtils::CreateNewStreamingLevelForWorld(*CurrentWorld, ULevelStreamingLevelInstanceEditor::StaticClass(), TEXT(""), false, nullptr, true, TFunction<void(ULevel*)>(), LevelInstanceActor->GetTransform()));
+		EditorLevelUtils::FCreateNewStreamingLevelForWorldParams CreateNewStreamingLevelParams(ULevelStreamingLevelInstanceEditor::StaticClass(), TEXT(""));
+		CreateNewStreamingLevelParams.Transform = LevelInstanceActor->GetTransform();
+		CreateNewStreamingLevelParams.LevelStreamingCreatedCallback = OnLevelStreamingCreated;
+		CreateNewStreamingLevelParams.bCreateWorldPartition = CurrentWorld->IsPartitionedWorld();
+
+		LevelStreaming = LevelInstance->GetLevelInstanceSubsystem()->CreateNewStreamingLevelForWorld(*CurrentWorld, CreateNewStreamingLevelParams);
 		if (LevelStreaming)
 		{
 			LevelInstanceActor->Modify();
@@ -100,7 +107,11 @@ ULevelStreamingLevelInstanceEditor* ULevelStreamingLevelInstanceEditor::Load(ILe
 	}
 	else
 	{
-		LevelStreaming = Cast<ULevelStreamingLevelInstanceEditor>(EditorLevelUtils::AddLevelToWorld(CurrentWorld, *LevelInstance->GetWorldAssetPackage(), ULevelStreamingLevelInstanceEditor::StaticClass(), LevelInstanceActor->GetTransform()));
+		EditorLevelUtils::FAddLevelToWorldParams AddLevelToWorldParams(ULevelStreamingLevelInstanceEditor::StaticClass(), *LevelInstance->GetWorldAssetPackage());
+		AddLevelToWorldParams.Transform = LevelInstanceActor->GetTransform();
+		AddLevelToWorldParams.LevelStreamingCreatedCallback = OnLevelStreamingCreated;
+
+		LevelStreaming = Cast<ULevelStreamingLevelInstanceEditor>(EditorLevelUtils::AddLevelToWorld(CurrentWorld, AddLevelToWorldParams));
 	}
 		
 	if (LevelStreaming)
@@ -154,12 +165,17 @@ void ULevelStreamingLevelInstanceEditor::OnLevelActorAdded(AActor* InActor)
 
 void ULevelStreamingLevelInstanceEditor::OnPreInitializeContainerInstance(UActorDescContainerInstance::FInitializeParams& InInitParams, UActorDescContainerInstance* InContainerInstance)
 {
-	// @todo_ow: Make sure LevelInstance exists (it is created after when creating a new Level Instance). This needs to be fixed properly but for now since the created LI is then unloaded it doesn't matter that the parent isn't set.
 	if (AActor* LevelInstanceActor = Cast<AActor>(GetLevelInstance()))
 	{
 		UWorldPartition* OwningWorldPartition = LevelInstanceActor->GetLevel()->GetWorldPartition();
 		// Add parenting info to init param
 		InInitParams.SetParent(OwningWorldPartition ? OwningWorldPartition->GetActorDescContainerInstance() : nullptr, LevelInstanceActor->GetActorGuid());
+	}
+	else
+	{
+		// When creating a new level instance the Level Instance actor doesn't exist yet
+		check(ParentContainerInstance && ParentContainerGuid.IsValid());
+		InInitParams.SetParent(ParentContainerInstance, ParentContainerGuid);
 	}
 }
 

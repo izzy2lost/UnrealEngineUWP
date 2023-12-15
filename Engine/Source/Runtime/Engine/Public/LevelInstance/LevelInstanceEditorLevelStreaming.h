@@ -38,5 +38,9 @@ protected:
 	virtual void OnLevelLoadedChanged(ULevel* Level) override;
 private:
 	FLevelInstanceID LevelInstanceID;
+
+	// When creating a new LevelInstance initialize UActorDescContainerInstance using those values
+	UActorDescContainerInstance* ParentContainerInstance = nullptr;
+	FGuid ParentContainerGuid;
 #endif
 };

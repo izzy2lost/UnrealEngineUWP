@@ -2366,7 +2366,8 @@ void UWorld::InitializeNewWorld(const InitializationValues IVS, bool bInSkipInit
 		
 		check(!GetStreamingLevels().Num());
 		
-		UWorldPartition::CreateOrRepairWorldPartition(WorldSettings);
+		UWorldPartition* WorldPartition = UWorldPartition::CreateOrRepairWorldPartition(WorldSettings);
+		WorldPartition->bEnableStreaming = IVS.bEnableWorldPartitionStreaming;
 	}
 #endif
 

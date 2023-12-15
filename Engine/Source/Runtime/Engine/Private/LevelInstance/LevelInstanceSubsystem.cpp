@@ -1019,6 +1019,75 @@ bool ULevelInstanceSubsystem::MoveActorsTo(ILevelInstanceInterface* LevelInstanc
 	return MoveActorsToLevel(ActorsToMove, LevelInstanceLevel, OutActors);
 }
 
+ULevelStreamingLevelInstanceEditor* ULevelInstanceSubsystem::CreateNewStreamingLevelForWorld(UWorld& InWorld, const EditorLevelUtils::FCreateNewStreamingLevelForWorldParams& InParams)
+{
+	EditorLevelUtils::FCreateNewStreamingLevelForWorldParams CreateNewStreamingLevelParamsCopy(InParams);
+	check(CreateNewStreamingLevelParamsCopy.LevelStreamingClass && CreateNewStreamingLevelParamsCopy.LevelStreamingClass->IsChildOf<ULevelStreamingLevelInstanceEditor>());
+		
+	CreateNewStreamingLevelParamsCopy.PreSaveLevelCallback = [ActorsToMove = InParams.ActorsToMove, PreSaveLevelCallback = InParams.PreSaveLevelCallback](ULevel* InLevel)
+	{
+		if (InLevel->IsUsingExternalActors())
+		{
+			// UWorldFactory::FactoryCreateNew will modify the default brush to be in global space (see GEditor->InitBuilderBrush(NewWorld)).
+			// The level is about to be saved, it doesn't have a transform and it is not yet added to the world levels.
+			// Since, no logic will remove the transform on the actor, force its transform to identity here.
+			if (ABrush* Brush = InLevel->GetDefaultBrush())
+			{
+				Brush->GetRootComponent()->SetRelativeTransform(FTransform::Identity);
+			}
+		}
+
+		if (UWorldPartition* WorldPartition = InLevel->GetWorldPartition())
+		{
+			// Validations
+			check(InLevel->IsUsingActorFolders());
+
+			// Reset HLOD Layer (no defaults needed for Level Instances)
+			WorldPartition->SetDefaultHLODLayer(nullptr);
+
+			// Make sure new level's AWorldDataLayers contains all the necessary Data Layer Instances before moving actors
+			TSet<TObjectPtr<const UDataLayerAsset>> SourceDataLayerAssets;
+			if (ActorsToMove)
+			{
+				for (AActor* ActorToMove : *ActorsToMove)
+				{
+					if (UDataLayerManager* DataLayerManager = UDataLayerManager::GetDataLayerManager(ActorToMove))
+					{
+						// Use the raw asset list as we don't want parent DataLayers
+						for (const UDataLayerAsset* DataLayerAsset : ActorToMove->GetDataLayerAssets())
+						{
+							if (const UDataLayerInstance* DataLayerInstance = DataLayerManager->GetDataLayerInstanceFromAsset(DataLayerAsset))
+							{
+								// Validate that there's a valid Data Layer Instance for this asset in the source level and that this isn't a private Data Layer
+								if (!DataLayerAsset->IsPrivate())
+								{
+									SourceDataLayerAssets.Add(DataLayerAsset);
+								}
+							}
+						}
+					}
+				}
+			}
+
+			if (!SourceDataLayerAssets.IsEmpty())
+			{
+				AWorldDataLayers* WorldDataLayers = InLevel->GetWorldDataLayers();
+				check(WorldDataLayers);
+				for (const UDataLayerAsset* SourceDataLayerAsset : SourceDataLayerAssets)
+				{
+					WorldDataLayers->CreateDataLayer<UDataLayerInstanceWithAsset>(SourceDataLayerAsset);
+				}
+			}
+		}
+
+		if (PreSaveLevelCallback)
+		{
+			PreSaveLevelCallback(InLevel);
+		}
+	};
+	return Cast<ULevelStreamingLevelInstanceEditor>(EditorLevelUtils::CreateNewStreamingLevelForWorld(*GetWorld(), CreateNewStreamingLevelParamsCopy));
+}
+
 ILevelInstanceInterface* ULevelInstanceSubsystem::CreateLevelInstanceFrom(const TArray<AActor*>& ActorsToMove, const FNewLevelInstanceParams& CreationParams)
 {
 	check(!bIsCreatingLevelInstance);
@@ -1102,82 +1171,28 @@ ILevelInstanceInterface* ULevelInstanceSubsystem::CreateLevelInstanceFrom(const 
 		}
 	}
 
+	// Predetermine New Level Instance Actor Guid here and ContainerInstance so that we can feed them to the LevelStreaming object
+	FGuid LevelInstanceActorGuid = FGuid::NewGuid();
+	UWorldPartition* CurrentWorldPartition = CurrentLevel->GetWorldPartition();
+	UActorDescContainerInstance* ParentContainerInstance = CurrentWorldPartition ? CurrentWorldPartition->GetActorDescContainerInstance() : nullptr;
+
 	ULevelStreamingLevelInstanceEditor* LevelStreaming = nullptr;
 	{
-		const bool bIsPartitioned = GetWorld()->IsPartitionedWorld();
-		const bool bEnableStreaming = CreationParams.bEnableStreaming;
-
-		// We want to properly setup the world partition prior to its initialization
-		FDelegateHandle PreWorldInit = FWorldDelegates::OnPreWorldInitialization.AddLambda([bIsPartitioned, bEnableStreaming](UWorld* World, const UWorld::InitializationValues IVS)
+		EditorLevelUtils::FCreateNewStreamingLevelForWorldParams CreateNewStreamingLevelParams(ULevelStreamingLevelInstanceEditor::StaticClass(), LevelFilename);
+		CreateNewStreamingLevelParams.bUseExternalActors = CreationParams.UseExternalActors();
+		CreateNewStreamingLevelParams.bUseSaveAs = true;
+		CreateNewStreamingLevelParams.bCreateWorldPartition = GetWorld()->IsPartitionedWorld();
+		CreateNewStreamingLevelParams.bEnableWorldPartitionStreaming = CreationParams.bEnableStreaming;
+		CreateNewStreamingLevelParams.ActorsToMove = &ActorsToMove;
+		CreateNewStreamingLevelParams.TemplateWorld = CreationParams.TemplateWorld,
+		CreateNewStreamingLevelParams.LevelStreamingCreatedCallback = [LevelInstanceActorGuid, ParentContainerInstance](ULevelStreaming* InLevelStreaming)
 		{
-			if (bIsPartitioned)
-			{
-				UWorldPartition* WorldPartition = World->GetWorldPartition();
-				if (ensure(WorldPartition))
-				{
-					WorldPartition->bEnableStreaming = bEnableStreaming;
-				}
-			}
-		});
+			ULevelStreamingLevelInstanceEditor* LevelInstanceLevelStreaming = CastChecked<ULevelStreamingLevelInstanceEditor>(InLevelStreaming);
+			LevelInstanceLevelStreaming->ParentContainerInstance = ParentContainerInstance;
+			LevelInstanceLevelStreaming->ParentContainerGuid = LevelInstanceActorGuid;
+		};
 
-		LevelStreaming = StaticCast<ULevelStreamingLevelInstanceEditor*>(EditorLevelUtils::CreateNewStreamingLevelForWorld(
-		*GetWorld(), ULevelStreamingLevelInstanceEditor::StaticClass(), CreationParams.UseExternalActors(), LevelFilename, &ActorsToMove, CreationParams.TemplateWorld, /*bUseSaveAs*/true, bIsPartitioned, [this, bIsPartitioned, bEnableStreaming, &ActorsToMove](ULevel* InLevel)
-		{
-			if (InLevel->IsUsingExternalActors())
-			{
-				// UWorldFactory::FactoryCreateNew will modify the default brush to be in global space (see GEditor->InitBuilderBrush(NewWorld)).
-				// The level is about to be saved, it doesn't have a transform and it is not yet added to the world levels.
-				// Since, no logic will remove the transform on the actor, force its transform to identity here.
-				if (ABrush* Brush = InLevel->GetDefaultBrush())
-				{
-					Brush->GetRootComponent()->SetRelativeTransform(FTransform::Identity);
-				}
-			}
-			if (bIsPartitioned)
-			{
-				UWorldPartition* WorldPartition = InLevel->GetWorldPartition();
-				// Validations
-				check(WorldPartition);
-				check(WorldPartition->IsStreamingEnabled() == bEnableStreaming);
-				check(InLevel->IsUsingActorFolders());
-
-				// Reset HLOD Layer (no defaults needed for Level Instances)
-				WorldPartition->SetDefaultHLODLayer(nullptr);
-
-				// Make sure new level's AWorldDataLayers contains all the necessary Data Layer Instances before moving actors
-				TSet<TObjectPtr<const UDataLayerAsset>> SourceDataLayerAssets;
-				for (AActor* ActorToMove : ActorsToMove)
-				{
-					if (UDataLayerManager* DataLayerManager = UDataLayerManager::GetDataLayerManager(ActorToMove))
-					{
-						// Use the raw asset list as we don't want parent DataLayers
-						for (const UDataLayerAsset* DataLayerAsset : ActorToMove->GetDataLayerAssets())
-						{
-							if (const UDataLayerInstance* DataLayerInstance = DataLayerManager->GetDataLayerInstanceFromAsset(DataLayerAsset))
-							{
-								// Validate that there's a valid Data Layer Instance for this asset in the source level and that this isn't a private Data Layer
-								if (!DataLayerAsset->IsPrivate())
-								{
-									SourceDataLayerAssets.Add(DataLayerAsset);
-								}
-							}
-						}
-					}
-				}
-
-				if (!SourceDataLayerAssets.IsEmpty())
-				{
-					AWorldDataLayers* WorldDataLayers = InLevel->GetWorldDataLayers();
-					check(WorldDataLayers);
-					for (const UDataLayerAsset* SourceDataLayerAsset : SourceDataLayerAssets)
-					{
-						WorldDataLayers->CreateDataLayer<UDataLayerInstanceWithAsset>(SourceDataLayerAsset);
-					}
-				}
-			}
-		}));
-
-		FWorldDelegates::OnPreWorldInitialization.Remove(PreWorldInit);
+		LevelStreaming = CreateNewStreamingLevelForWorld(*GetWorld(), CreateNewStreamingLevelParams);
 	}
 
 	if (!LevelStreaming)
@@ -1199,6 +1214,7 @@ ILevelInstanceInterface* ULevelInstanceSubsystem::CreateLevelInstanceFrom(const 
 	}
 
 	FActorSpawnParameters SpawnParams;
+	SpawnParams.OverrideActorGuid = LevelInstanceActorGuid;
 	SpawnParams.OverrideLevel = CurrentLevel;
 	AActor* NewLevelInstanceActor = nullptr;
 	TSoftObjectPtr<UWorld> WorldPtr(LoadedLevel->GetTypedOuter<UWorld>());
@@ -1249,6 +1265,7 @@ ILevelInstanceInterface* ULevelInstanceSubsystem::CreateLevelInstanceFrom(const 
 	}
 	
 	check(NewLevelInstanceActor);
+	check(NewLevelInstanceActor->GetActorGuid() == LevelInstanceActorGuid);
 
 	ILevelInstanceInterface* NewLevelInstance = CastChecked<ILevelInstanceInterface>(NewLevelInstanceActor);
 	NewLevelInstance->SetWorldAsset(WorldPtr);
