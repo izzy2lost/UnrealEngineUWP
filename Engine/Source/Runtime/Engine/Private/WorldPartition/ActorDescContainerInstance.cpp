@@ -551,10 +551,10 @@ void UActorDescContainerInstance::OnActorDescUpdated(FWorldPartitionActorDesc* I
 	check(ActorDescInstance && ActorDescInstance->IsValid());
 	
 	// Update instance desc
-	(*ActorDescInstance)->UpdateActorDesc(InActorDesc);
+	ActorDescInstance->Get()->UpdateActorDesc(InActorDesc);
 
 	// Re-register container
-	if (bCreateChildContainerHierarchy && ChildContainerInstances.Contains(InActorDesc->GetGuid()))
+	if (bCreateChildContainerHierarchy && ActorDescInstance->Get()->IsChildContainerInstance())
 	{
 		ActorDescInstance->Get()->UpdateChildContainerInstance();
 	}

@@ -210,14 +210,19 @@ void FWorldPartitionActorDescInstance::UnregisterChildContainerInstance()
 
 void FWorldPartitionActorDescInstance::UpdateChildContainerInstance()
 {
-	check(ChildContainerInstance);
-		
-	// Create before unregistering so that we benefit from shared containers
-	UActorDescContainerInstance* NewChildContainerInstance = IsChildContainerInstance() ? GetActorDesc()->CreateChildContainerInstance(this) : nullptr;
-		
-	ContainerInstance->OnUnregisterChildContainerInstance(GetGuid());
-	ChildContainerInstance->Uninitialize();
+	// Create before unregistering so that we benefit from shared containers (use GetActorDesc->IsChildContainerInstance as we want to know if our updated desc should be a Container instance or not)
+	// ChildContainerInstance member might be non null and we don't want IsChildContainerInstance() to return true in this case if the ActorDesc isn't a Container anymore
+	UActorDescContainerInstance* NewChildContainerInstance = GetActorDesc()->IsChildContainerInstance() ? GetActorDesc()->CreateChildContainerInstance(this) : nullptr;
 	
+	// Unregister previous
+	if (ChildContainerInstance)
+	{
+		ContainerInstance->OnUnregisterChildContainerInstance(GetGuid());
+		ChildContainerInstance->Uninitialize();
+		ChildContainerInstance = nullptr;
+	}
+	
+	// Register new if it is valid
 	if (NewChildContainerInstance)
 	{
 		ChildContainerInstance = NewChildContainerInstance;
