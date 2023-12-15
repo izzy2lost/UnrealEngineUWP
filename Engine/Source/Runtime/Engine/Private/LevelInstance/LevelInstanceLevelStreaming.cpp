@@ -315,6 +315,7 @@ ULevelStreamingLevelInstance* ULevelStreamingLevelInstance::LoadInstance(ILevelI
 	if (bOutSuccess)
 	{
 		LevelStreaming->LevelInstanceID = LevelInstance->GetLevelInstanceID();
+		LevelStreaming->LevelColor = FLinearColor::MakeRandomSeededColor(GetTypeHash(LevelInstance->GetLevelInstanceID()));
 
 #if WITH_EDITOR
 		if (!World->IsGameWorld())
