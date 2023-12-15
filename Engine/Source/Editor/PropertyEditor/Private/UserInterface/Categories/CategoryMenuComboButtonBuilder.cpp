@@ -29,6 +29,7 @@ TSharedPtr<SWidget> FCategoryMenuComboButtonBuilder::GenerateWidget()
 				.ComboButtonStyle( FAppStyle::Get(), "DetailsView.CategoryComboButton" )
 				.Visibility(EVisibility::Visible)
 				.HasDownArrow(true)
+				.AddMetaData<FTagMetaData>(FTagMetaData(TEXT("DetailsView.CategoryComboButton")))
 				.OnGetMenuContent(OnGetContent) :
 		        SNullWidget::NullWidget;
 }
