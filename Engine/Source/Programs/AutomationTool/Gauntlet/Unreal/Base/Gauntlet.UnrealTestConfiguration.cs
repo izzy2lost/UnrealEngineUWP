@@ -691,11 +691,6 @@ namespace Gauntlet
 		public bool AllRolesExit { get; set; }
 
 		/// <summary>
-		/// Whether a given role should attempt login to a device platform service
-		/// </summary>
-		public bool VerifyLogin { get; set; }
-
-		/// <summary>
 		/// The collection of options which define heartbeat behavior
 		/// </summary>
 		public UnrealHeartbeatOptions HeartbeatOptions { get; set; }
@@ -1003,11 +998,6 @@ namespace Gauntlet
 				{
 					AppConfig.CommandLineParams.GameMap = MapChoice;
 				}
-			}
-
-			if (ConfigRole.RoleType.IsClient())
-			{
-				VerifyLogin = Globals.Params.ParseParam("VerifyLogin");
 			}
 
 			if (CommandUtils.IsBuildMachine)

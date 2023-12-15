@@ -909,20 +909,10 @@ namespace Gauntlet
 						IDeviceUsageReporter.RecordStart(Device.Name, Device.Platform, IDeviceUsageReporter.EventType.Install, IDeviceUsageReporter.EventState.Success, BuildSource.BuildName);
 						try
 						{
-							if ((Role.Options as UnrealTestConfiguration).VerifyLogin && Device is IOnlineServiceLogin)
-							{
-								Log.Info("\nVerifying device login...");
-								if (!(Device as IOnlineServiceLogin).VerifyLogin())
-								{
-									throw new AutomationException("Unable to secure login to an online platform account!");
-								}
-								Log.Info("Success! User signed-in.\n");
-							}
-
 							Install = Device.InstallApplication(AppConfig);
 							IDeviceUsageReporter.RecordEnd(Device.Name, Device.Platform, IDeviceUsageReporter.EventType.Install, IDeviceUsageReporter.EventState.Success);
 						}
-						catch (System.Exception Ex)
+						catch (Exception Ex)
 						{
 							// Warn, ignore the device, and do not continue
 							string ErrorMessage = string.Format("Encountered error setting up device {0} for role {1}. {2}. Will retry with new device", Device, Role, Ex);
