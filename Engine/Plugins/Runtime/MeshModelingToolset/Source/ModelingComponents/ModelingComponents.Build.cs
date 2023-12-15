@@ -37,6 +37,9 @@ public class ModelingComponents : ModuleRules
 				"SkeletalMeshDescription", // FSkeletalMeshAttributes::DefaultSkinWeightProfileName
 				"SlateCore",
 				"ImageCore",
+				"PlanarCut",
+				"GeometryCollectionEngine",
+				"MeshConversionEngineTypes"
 				// ... add private dependencies that you statically link with here ...
 			}
 		);
