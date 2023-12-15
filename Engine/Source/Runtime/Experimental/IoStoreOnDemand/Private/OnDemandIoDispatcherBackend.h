@@ -11,12 +11,6 @@ struct FAnalyticsEventAttribute;
 namespace UE::IO::IAS
 {
 
-enum class EOnDemandEndpointType
-{
-	CDN = 1,
-	ZEN
-};
-
 struct FDistributedEndpointUrl
 {
 	FString EndpointUrl;
@@ -41,7 +35,6 @@ struct FDistributedEndpointUrl
 
 struct FOnDemandEndpoint
 {
-	EOnDemandEndpointType EndpointType;
 	FString DistributionUrl;
 	FString FallbackUrl;
 

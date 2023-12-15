@@ -2211,8 +2211,6 @@ void FIoStoreOnDemandModule::InitializeInternal()
 
 	FLatencyInjector::Initialize(CommandLine);
 
-	Endpoint.EndpointType = EOnDemandEndpointType::CDN;
-
 	TUniquePtr<IIasCache> Cache;
 	FIasCacheConfig CacheConfig = GetIasCacheConfig(CommandLine);
 	CacheConfig.DropCache = DeferredAbandonCache.Get(CacheConfig.DropCache);
