@@ -1321,6 +1321,12 @@ namespace Gauntlet
 					}
 				}
 
+				if(!TryValidateDeviceRequirements(NewDevice))
+				{
+					Log.Info("\nSkipping device.");
+					return null;
+				}
+
 				lock (LockObject)
 				{
 					if (NewDevice != null)
@@ -1335,6 +1341,49 @@ namespace Gauntlet
 			}
 
 			return NewDevice;
+		}
+
+		/// <summary>
+		/// Verifies if the provided TargetDevice meets requirements such as firmware, login status, settings, etc.
+		/// </summary>
+		/// <param name="Device">The device to validate</param>
+		/// <returns>True if the device matches the required specifications</returns>
+		protected bool TryValidateDeviceRequirements(ITargetDevice Device)
+		{
+			IEnumerable<IDeviceValidator> Validators = InterfaceHelpers.FindImplementations<IDeviceValidator>(true).Where(Validator => Validator.bEnabled);
+			if(!Validators.Any())
+			{
+				return true;
+			}
+
+			Log.Info("\nValidating requirements for {Device}...", Device);
+			bool bSucceeded = true;
+
+			foreach (IDeviceValidator Validator in Validators)
+			{
+				Log.Info("\nStarting validation for {Validator}", Validator);
+
+				if(!Validator.TryValidateDevice(Device))
+				{
+					Log.Warning("Failure! See above for details");
+					bSucceeded = false;
+				}
+				else
+				{
+					Log.Info("Success!");
+				}
+			}
+
+			if(!bSucceeded)
+			{
+				Log.Warning("\nFailed to validate requirements.");
+			}
+			else
+			{
+				Log.Info("\nAll validators passed, selecting device {Device}\n", Device);
+			}
+
+			return bSucceeded;
 		}
 
 		/// <summary>
