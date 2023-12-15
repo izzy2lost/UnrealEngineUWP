@@ -285,18 +285,6 @@ bool UNiagaraDataInterfaceNeighborGrid3D::Equals(const UNiagaraDataInterface* Ot
 	return OtherTyped->MaxNeighborsPerCell == MaxNeighborsPerCell;
 }
 
-#if WITH_EDITOR
-bool UNiagaraDataInterfaceNeighborGrid3D::ShouldCompile(EShaderPlatform ShaderPlatform) const
-{
-	if (!RHISupportsVolumeTextureAtomics(ShaderPlatform))
-	{
-		return false;
-	}
-
-	return UNiagaraDataInterface::ShouldCompile(ShaderPlatform);
-}
-#endif
-
 #if WITH_EDITORONLY_DATA
 bool UNiagaraDataInterfaceNeighborGrid3D::AppendCompileHash(FNiagaraCompileHashVisitor* InVisitor) const
 {
@@ -508,6 +496,11 @@ void UNiagaraDataInterfaceNeighborGrid3D::SetShaderParameters(const FNiagaraData
 
 bool UNiagaraDataInterfaceNeighborGrid3D::InitPerInstanceData(void* PerInstanceData, FNiagaraSystemInstance* SystemInstance)
 {
+	if (UE::PixelFormat::HasCapabilities(EPixelFormat::PF_R32_SINT, EPixelFormatCapabilities::TypedUAVLoad | EPixelFormatCapabilities::TypedUAVStore | EPixelFormatCapabilities::BufferAtomics) == false)
+	{
+		return false;
+	}
+
 	FNDINeighborGrid3DInstanceData_GT* InstanceData = new (PerInstanceData) FNDINeighborGrid3DInstanceData_GT();
 
 	FNiagaraDataInterfaceProxyNeighborGrid3D* RT_Proxy = GetProxyAs<FNiagaraDataInterfaceProxyNeighborGrid3D>();
