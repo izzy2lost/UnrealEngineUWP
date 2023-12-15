@@ -408,6 +408,11 @@ UInterchangeStaticMeshFactoryNode* UInterchangeGenericMeshPipeline::CreateStatic
 	StaticMeshFactoryNode->InitializeStaticMeshNode(StaticMeshUid, DisplayLabel, UStaticMesh::StaticClass()->GetName());
 	BaseNodeContainer->AddNode(StaticMeshFactoryNode);
 
+	if (CommonMeshesProperties->bKeepSectionsSeparate)
+	{
+		StaticMeshFactoryNode->SetCustomKeepSectionsSeparate(CommonMeshesProperties->bKeepSectionsSeparate);
+	}
+
 	AddLodDataToStaticMesh(StaticMeshFactoryNode, MeshUidsPerLodIndex);
 
 	switch (CommonMeshesProperties->VertexColorImportOption)

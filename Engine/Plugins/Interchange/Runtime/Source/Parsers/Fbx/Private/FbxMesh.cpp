@@ -254,6 +254,67 @@ namespace UE::Interchange::Private
 		}
 	}
 
+	void ExtractMeshMaterials(FFbxParser& Parser, FbxMesh* Mesh, FbxNode* MeshNode, TFunction<void(const FString& MaterialName, const FString& MaterialUid, const int32 MeshMaterialIndex)> CollectMaterial)
+	{
+		if (!Mesh || !MeshNode)
+		{
+			return;
+		}
+
+		//Grab all Material indexes use by the mesh
+		TArray<int32> MaterialIndexes;
+		int32 PolygonCount = Mesh->GetPolygonCount();
+		if (FbxGeometryElementMaterial* GeometryElementMaterial = Mesh->GetElementMaterial())
+		{
+			FbxLayerElementArrayTemplate<int32>& IndexArray = GeometryElementMaterial->GetIndexArray();
+			switch (GeometryElementMaterial->GetMappingMode())
+			{
+			case FbxGeometryElement::eByPolygon:
+			{
+				if (IndexArray.GetCount() == PolygonCount)
+				{
+					for (int32 PolygonIndex = 0; PolygonIndex < PolygonCount; ++PolygonIndex)
+					{
+						MaterialIndexes.AddUnique(IndexArray.GetAt(PolygonIndex));
+					}
+				}
+			}
+			break;
+
+			case FbxGeometryElement::eAllSame:
+			{
+				if (IndexArray.GetCount() > 0)
+				{
+					MaterialIndexes.AddUnique(IndexArray.GetAt(0));
+				}
+			}
+			break;
+			}
+		}
+		const int32 MaterialCount = MeshNode->GetMaterialCount();
+		TMap<FbxSurfaceMaterial*, int32> UniqueSlotNames;
+		UniqueSlotNames.Reserve(MaterialCount);
+		bool bAddAllNodeMaterials = (MaterialIndexes.Num() == 0);
+		for (int32 MaterialIndex = 0; MaterialIndex < MaterialCount; ++MaterialIndex)
+		{
+			if (FbxSurfaceMaterial* FbxMaterial = MeshNode->GetMaterial(MaterialIndex))
+			{
+				int32& SlotMaterialCount = UniqueSlotNames.FindOrAdd(FbxMaterial);
+				FString MaterialName = Parser.GetFbxHelper()->GetFbxObjectName(FbxMaterial);
+				FString MaterialUid = TEXT("\\Material\\") + MaterialName;
+				if (bAddAllNodeMaterials || MaterialIndexes.Contains(MaterialIndex))
+				{
+					if (SlotMaterialCount > 0)
+					{
+						MaterialName += TEXT("_Section") + FString::FromInt(SlotMaterialCount);
+					}
+					SlotMaterialCount++;
+					CollectMaterial(MaterialName, MaterialUid, MaterialIndex);
+				}
+			}
+		}
+	}
+
 // Wraps some common code useful for multiple fbx import code path
 struct FFBXUVs
 {
@@ -549,21 +610,27 @@ bool FMeshDescriptionImporter::FillMeshDescriptionFromFbxMesh(FbxMesh* Mesh, con
 	//
 	//Create a material name array in the node order, also fill the Meshdescription PolygonGroup
 	TArray<FName> MaterialNames;
-	int32 MaterialCount = (MeshNode != nullptr) ? MeshNode->GetMaterialCount() : Mesh->GetElementMaterialCount();
+	TArray<int32> MaterialRemap;
+	int32 MaterialCount = (MeshNode != nullptr) ? MeshNode->GetMaterialCount() : 1;
 	if (MeshNode)
 	{
-		MaterialCount = MeshNode->GetMaterialCount();
 		MaterialNames.Reserve(MaterialCount);
+		MaterialRemap.Reserve(MaterialCount);
 		for (int32 MaterialIndex = 0; MaterialIndex < MaterialCount; ++MaterialIndex)
 		{
-			FbxSurfaceMaterial* FbxMaterial = MeshNode->GetMaterial(MaterialIndex);
-			MaterialNames.Add(*Parser.GetFbxHelper()->GetFbxObjectName(FbxMaterial));
+			MaterialRemap.Add(MaterialIndex);
 		}
+
+		ExtractMeshMaterials(Parser, Mesh, MeshNode, [&MaterialNames, &MaterialRemap](const FString& MaterialName, const FString& MaterialUid, const int32 MeshMaterialIndex)
+			{
+				MaterialRemap[MeshMaterialIndex] = MaterialNames.Add(*MaterialName);
+			});
+		MaterialCount = MaterialNames.Num();
 	}
 
 	// Must do this before triangulating the mesh due to an FBX bug in TriangulateMeshAdvance
 	int32 LayerSmoothingCount = Mesh->GetLayerCount(FbxLayerElement::eSmoothing);
-	if (LayerSmoothingCount == 0)
+	if (LayerSmoothingCount == 0 && !GIsAutomationTesting)
 	{
 		UInterchangeResultMeshWarning_Generic* Message = AddMessage<UInterchangeResultMeshWarning_Generic>(Mesh);
 		Message->Text = LOCTEXT("MissingSmoothGroup", "No smoothing group information was found for this mesh '{MeshName}' in the FBX file. Please make sure to enable the 'Export Smoothing Groups' option in the FBX Exporter before exporting the file.");
@@ -844,7 +911,7 @@ bool FMeshDescriptionImporter::FillMeshDescriptionFromFbxMesh(FbxMesh* Mesh, con
 				if (FBXUVs.LayerElementUV[UVLayerIndex] != nullptr)
 				{
 					int32 UVCount = FBXUVs.LayerElementUV[UVLayerIndex]->GetDirectArray().GetCount();
-					if (UVCount == 0)
+					if (UVCount == 0 && !GIsAutomationTesting)
 					{
 						UInterchangeResultMeshWarning_Generic* Message = AddMessage<UInterchangeResultMeshWarning_Generic>(Mesh);
 						Message->Text = LOCTEXT("CreateUVs_UVCorrupted", "Found invalid UVs value when importing mesh '{MeshName}'.");
@@ -1099,12 +1166,12 @@ bool FMeshDescriptionImporter::FillMeshDescriptionFromFbxMesh(FbxMesh* Mesh, con
 							// material index is stored in the IndexArray, not the DirectArray (which is irrelevant with 2009.1)
 							case FbxLayerElement::eAllSame:
 							{
-								MaterialIndex = LayerElementMaterial->GetIndexArray().GetAt(0);
+								MaterialIndex = MaterialRemap[LayerElementMaterial->GetIndexArray().GetAt(0)];
 							}
 							break;
 							case FbxLayerElement::eByPolygon:
 							{
-								MaterialIndex = LayerElementMaterial->GetIndexArray().GetAt(PolygonIndex);
+								MaterialIndex = MaterialRemap[LayerElementMaterial->GetIndexArray().GetAt(PolygonIndex)];
 							}
 							break;
 						}
@@ -1719,55 +1786,12 @@ void FFbxMesh::AddAllMeshes(FbxScene* SDKScene, FbxGeometryConverter* SDKGeometr
 		MeshNode->SetCustomHasVertexColor(bMeshHasVertexColor);
 		const int32 MeshUVCount = Mesh->GetElementUVCount();
 		MeshNode->SetCustomUVCount(MeshUVCount);
-						
-		//Add Material dependencies, we use always the first fbx node that instance the fbx geometry to grab the fbx surface materials.
-		{
-			//Grab all Material indexes use by the mesh
-			TArray<int32> MaterialIndexes;
-			int32 PolygonCount = Mesh->GetPolygonCount();
-			if (FbxGeometryElementMaterial* GeometryElementMaterial = Mesh->GetElementMaterial())
-			{
-				FbxLayerElementArrayTemplate<int32>& IndexArray = GeometryElementMaterial->GetIndexArray();
-				switch (GeometryElementMaterial->GetMappingMode())
-				{
-					case FbxGeometryElement::eByPolygon:
-					{
-						if (IndexArray.GetCount() == PolygonCount)
-						{
-							for (int32 PolygonIndex = 0; PolygonIndex < PolygonCount; ++PolygonIndex)
-							{
-								MaterialIndexes.AddUnique(IndexArray.GetAt(PolygonIndex));
-							}
-						}
-					}
-					break;
 
-					case FbxGeometryElement::eAllSame:
-					{
-						if (IndexArray.GetCount() > 0)
-						{
-							MaterialIndexes.AddUnique(IndexArray.GetAt(0));
-						}
-					}
-					break;
-				}
-			}
-			if (FbxNode* FbxMeshNode = Mesh->GetNode())
+		//Add Material dependencies, we use always the first fbx node that instance the fbx geometry to grab the fbx surface materials.
+		ExtractMeshMaterials(Parser, Mesh, Mesh->GetNode(), [&MeshNode](const FString& MaterialName, const FString& MaterialUid, const int32 MeshMaterialIndex)
 			{
-				bool bAddAllNodeMaterials = (MaterialIndexes.Num() == 0);
-				const int32 MaterialCount = FbxMeshNode->GetMaterialCount();
-				for (int32 MaterialIndex = 0; MaterialIndex < MaterialCount; ++MaterialIndex)
-				{
-					FbxSurfaceMaterial* FbxMaterial = FbxMeshNode->GetMaterial(MaterialIndex);
-					FString MaterialName = Parser.GetFbxHelper()->GetFbxObjectName(FbxMaterial);
-					FString MaterialUid = TEXT("\\Material\\") + MaterialName;
-					if (bAddAllNodeMaterials || MaterialIndexes.Contains(MaterialIndex))
-					{
-						MeshNode->SetSlotMaterialDependencyUid(MaterialName, MaterialUid);
-					}
-				}
-			}
-		}
+				MeshNode->SetSlotMaterialDependencyUid(MaterialName, MaterialUid);
+			});
 
 		FString PayLoadKey = MeshUniqueID;
 		if (ensure(!PayloadContexts.Contains(PayLoadKey)))

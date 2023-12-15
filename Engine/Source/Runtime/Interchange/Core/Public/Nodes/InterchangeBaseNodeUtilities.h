@@ -503,13 +503,19 @@ public:
 				for (int32 Index = 0; Index < KeyCount; Index++)
 				{
 					TAttributeHandle<KeyType> KeyAttribute = AttributesPtr->GetAttributeHandle<KeyType>(GetKeyAttribute(Index));
-					ensure(KeyAttribute.IsValid());
+					if (!ensure(KeyAttribute.IsValid()))
+					{
+						continue;
+					}
 
 					KeyType Key;
 					KeyAttribute.Get(Key);
 
 					TAttributeHandle<ValueType> ValueAttribute = AttributesPtr->GetAttributeHandle<ValueType>(GetValueAttribute(Key));
-					ensure(ValueAttribute.IsValid());
+					if (!ensure(ValueAttribute.IsValid()))
+					{
+						continue;
+					}
 
 					CachedKeysAndValues.Add(Key, TPair<TAttributeHandle<KeyType>, TAttributeHandle<ValueType>>(KeyAttribute, ValueAttribute));
 				}
@@ -587,8 +593,8 @@ private:
 			const FAttributeKey& ValueAttribute = Pair.Value.Value.GetKey();
 			AttributesPtr->UnregisterAttribute(ValueAttribute);
 		}
-
 		CachedKeysAndValues.Empty(NumOfExpectedElements);
+		KeyCountHandle.Set(0);
 	}
 
 	TMap<KeyType, TPair<TAttributeHandle<KeyType>, TAttributeHandle<ValueType>>> CachedKeysAndValues;

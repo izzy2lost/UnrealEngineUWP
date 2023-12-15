@@ -215,9 +215,39 @@ bool UInterchangeMeshFactoryNode::SetCustomVertexColorOverride(const FColor& Att
 	IMPLEMENT_NODE_ATTRIBUTE_SETTER_NODELEGATE(VertexColorOverride, FColor)
 }
 
+bool UInterchangeMeshFactoryNode::GetCustomKeepSectionsSeparate(bool& AttributeValue) const
+{
+	IMPLEMENT_NODE_ATTRIBUTE_GETTER(KeepSectionsSeparate, bool)
+}
+
+bool UInterchangeMeshFactoryNode::SetCustomKeepSectionsSeparate(const bool& AttributeValue)
+{
+	IMPLEMENT_NODE_ATTRIBUTE_SETTER_NODELEGATE(KeepSectionsSeparate, bool)
+}
+
 void UInterchangeMeshFactoryNode::GetSlotMaterialDependencies(TMap<FString, FString>& OutMaterialDependencies) const
 {
-	OutMaterialDependencies = SlotMaterialDependencies.ToMap();
+	bool bKeepSectionsSeparate = false;
+	GetCustomKeepSectionsSeparate(bKeepSectionsSeparate);
+	if (bKeepSectionsSeparate)
+	{
+		OutMaterialDependencies = SlotMaterialDependencies.ToMap();
+	}
+	else
+	{
+		TMap<FString, FString> MaterialDependencies = SlotMaterialDependencies.ToMap();
+		TArray<FString> MaterialUids;
+		MaterialUids.Reserve(MaterialDependencies.Num());
+		OutMaterialDependencies.Empty(MaterialDependencies.Num());
+		for (TPair<FString, FString>& MaterialDependency : MaterialDependencies)
+		{
+			if (MaterialUids.Find(MaterialDependency.Value) == INDEX_NONE)
+			{
+				OutMaterialDependencies.Add(MaterialDependency);
+				MaterialUids.Add(MaterialDependency.Value);
+			}
+		}
+	}
 }
 
 bool UInterchangeMeshFactoryNode::GetSlotMaterialDependencyUid(const FString& SlotName, FString& OutMaterialDependency) const
@@ -238,6 +268,13 @@ bool UInterchangeMeshFactoryNode::RemoveSlotMaterialDependencyUid(const FString&
 		return true;
 	}
 	return false;
+}
+
+bool UInterchangeMeshFactoryNode::ResetSlotMaterialDependencies()
+{
+	SlotMaterialDependencies.Empty();
+	SlotMaterialDependencies.RebuildCache();
+	return true;
 }
 
 bool UInterchangeMeshFactoryNode::GetCustomLODGroup(FName& AttributeValue) const

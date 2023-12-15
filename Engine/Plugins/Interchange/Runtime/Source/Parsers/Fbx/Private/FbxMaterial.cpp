@@ -92,9 +92,12 @@ namespace UE
 				if (TextureFilename.IsEmpty() || !FPaths::FileExists(TextureFilename))
 				{
 					const UInterchangeBaseNode* ShaderGraphNode = NodeContainer.GetNode(ShaderUniqueID);
-					UInterchangeResultTextureWarning_TextureFileDoNotExist* Message = Parser.AddMessage<UInterchangeResultTextureWarning_TextureFileDoNotExist>();
-					Message->TextureName = TextureFilename;
-					Message->MaterialName = ShaderGraphNode ? ShaderGraphNode->GetDisplayLabel() : TEXT("Unknown");
+					if(!GIsAutomationTesting)
+					{
+						UInterchangeResultTextureWarning_TextureFileDoNotExist* Message = Parser.AddMessage<UInterchangeResultTextureWarning_TextureFileDoNotExist>();
+						Message->TextureName = TextureFilename;
+						Message->MaterialName = ShaderGraphNode ? ShaderGraphNode->GetDisplayLabel() : TEXT("Unknown");
+					}
 
 					return TextureSampleShader;
 				}
@@ -201,9 +204,12 @@ namespace UE
 				}
 				else
 				{
-					UInterchangeResultTextureWarning_TextureFileDoNotExist* Message = Parser.AddMessage<UInterchangeResultTextureWarning_TextureFileDoNotExist>();
-					Message->TextureName = FbxTexture ? UTF8_TO_TCHAR(FbxTexture->GetFileName()) : TEXT("Undefined");
-					Message->MaterialName = ShaderGraphNode->GetDisplayLabel();
+					if (!GIsAutomationTesting)
+					{
+						UInterchangeResultTextureWarning_TextureFileDoNotExist* Message = Parser.AddMessage<UInterchangeResultTextureWarning_TextureFileDoNotExist>();
+						Message->TextureName = FbxTexture ? UTF8_TO_TCHAR(FbxTexture->GetFileName()) : TEXT("Undefined");
+						Message->MaterialName = ShaderGraphNode->GetDisplayLabel();
+					}
 
 					return false;
 				}
@@ -454,9 +460,12 @@ namespace UE
 					//Only import texture that exist on disk
 					if (!FPaths::FileExists(TextureFilename))
 					{
-						UInterchangeResultTextureWarning_TextureFileDoNotExist* Message = Parser.AddMessage<UInterchangeResultTextureWarning_TextureFileDoNotExist>();
-						Message->TextureName = TextureFilename;
-						Message->MaterialName.Empty();
+						if (!GIsAutomationTesting)
+						{
+							UInterchangeResultTextureWarning_TextureFileDoNotExist* Message = Parser.AddMessage<UInterchangeResultTextureWarning_TextureFileDoNotExist>();
+							Message->TextureName = TextureFilename;
+							Message->MaterialName.Empty();
+						}
 						continue;
 					}
 					//Create a texture node and make it child of the material node
@@ -472,12 +481,22 @@ namespace UE
 			void FFbxMaterial::AddAllNodeMaterials(UInterchangeSceneNode* SceneNode, FbxNode* ParentFbxNode, UInterchangeBaseNodeContainer& NodeContainer)
 			{
 				int32 MaterialCount = ParentFbxNode->GetMaterialCount();
+				TMap<FbxSurfaceMaterial*, int32> UniqueSlotNames;
+				UniqueSlotNames.Reserve(MaterialCount);
 				for (int32 MaterialIndex = 0; MaterialIndex < MaterialCount; ++MaterialIndex)
 				{
 					if (FbxSurfaceMaterial* SurfaceMaterial = ParentFbxNode->GetMaterial(MaterialIndex))
 					{
 						const UInterchangeShaderGraphNode* ShaderGraphNode = AddShaderGraphNode(SurfaceMaterial, NodeContainer);
-						SceneNode->SetSlotMaterialDependencyUid(Parser.GetFbxHelper()->GetFbxObjectName(SurfaceMaterial), ShaderGraphNode->GetUniqueID());
+						
+						int32& SlotMaterialCount = UniqueSlotNames.FindOrAdd(SurfaceMaterial);
+						FString MaterialSlotName = Parser.GetFbxHelper()->GetFbxObjectName(SurfaceMaterial);
+						if (SlotMaterialCount > 0)
+						{
+							MaterialSlotName += TEXT("_Section") + FString::FromInt(SlotMaterialCount);
+						}
+						SceneNode->SetSlotMaterialDependencyUid(MaterialSlotName, ShaderGraphNode->GetUniqueID());
+						SlotMaterialCount++;
 					}
 				}
 			}

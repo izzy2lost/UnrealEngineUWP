@@ -339,10 +339,25 @@ namespace UE::Interchange::MeshesUtilities
 	template<class T>
 	void ApplySlotMaterialDependencies(T& FactoryNode, const TMap<FString, FString>& SlotMaterialDependencies, const UInterchangeBaseNodeContainer& NodeContainer)
 	{
+		bool bKeepSectionsSeparate = false;
+		FactoryNode.GetCustomKeepSectionsSeparate(bKeepSectionsSeparate);
+		
+		TMap<FString, FString> ExistingSlotMaterialDependencies;
+		if (bKeepSectionsSeparate)
+		{
+			FactoryNode.GetSlotMaterialDependencies(ExistingSlotMaterialDependencies);
+		}
+
 		for (const TPair<FString, FString>& SlotMaterialDependency : SlotMaterialDependencies)
 		{
+			FString NewSlotName = SlotMaterialDependency.Key;
+			if (ExistingSlotMaterialDependencies.Contains(NewSlotName))
+			{
+				NewSlotName += TEXT("_Section") + FString::FromInt(ExistingSlotMaterialDependencies.Num());
+				ExistingSlotMaterialDependencies.Add(NewSlotName, SlotMaterialDependency.Value);
+			}
 			const FString MaterialFactoryNodeUid = UInterchangeBaseMaterialFactoryNode::GetMaterialFactoryNodeUidFromMaterialNodeUid(SlotMaterialDependency.Value);
-			FactoryNode.SetSlotMaterialDependencyUid(SlotMaterialDependency.Key, MaterialFactoryNodeUid);
+			FactoryNode.SetSlotMaterialDependencyUid(NewSlotName, MaterialFactoryNodeUid);
 			if (UInterchangeBaseMaterialFactoryNode* MaterialFactoryNode = Cast<UInterchangeBaseMaterialFactoryNode>(NodeContainer.GetFactoryNode(MaterialFactoryNodeUid)))
 			{
 				bool IsMaterialImportEnabled = true;
@@ -367,11 +382,8 @@ namespace UE::Interchange::MeshesUtilities
 		TMap<FString, FString> SlotMaterialDependencies;
 		FactoryNode.GetSlotMaterialDependencies(SlotMaterialDependencies);
 
-		for (const TPair<FString, FString>& SlotMaterialDependency : SlotMaterialDependencies)
-		{
-			const FString& MaterialName = SlotMaterialDependency.Key;
-			FactoryNode.RemoveSlotMaterialDependencyUid(MaterialName);
-		}
+		//Empty all slot dependencies, they will be added backin the correct order
+		FactoryNode.ResetSlotMaterialDependencies();
 
 		TArray<FString> KeyReorder;
 		KeyReorder.Reserve(SlotMaterialDependencies.Num());

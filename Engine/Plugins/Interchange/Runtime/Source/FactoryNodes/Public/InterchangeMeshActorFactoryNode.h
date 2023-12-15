@@ -66,6 +66,13 @@ public:
 	UFUNCTION(BlueprintCallable, Category = "Interchange | Node | StaticMesh")
 	bool SetCustomGeometricTransform(const FTransform& AttributeValue);
 
+	bool GetCustomKeepSectionsSeparate(bool& AttributeValue) const
+	{
+		//Scene import do not support this options so we set the value to false and return false
+		AttributeValue = false;
+		return false;
+	}
+
 private:
 	UE::Interchange::TMapAttributeHelper<FString, FString> SlotMaterialDependencies;
 

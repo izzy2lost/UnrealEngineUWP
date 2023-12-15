@@ -87,6 +87,14 @@ public:
 	UFUNCTION(BlueprintCallable, Category = "Interchange | FactoryNode | Mesh")
 	bool SetCustomVertexColorOverride(const FColor& AttributeValue);
 
+	/** Query whether sections with matching materials are kept separate and will not get combined. */
+	UFUNCTION(BlueprintCallable, Category = "Interchange | FactoryNode | Mesh")
+	bool GetCustomKeepSectionsSeparate(bool& AttributeValue) const;
+
+	/** Set whether sections with matching materials are kept separate and will not get combined. */
+	UFUNCTION(BlueprintCallable, Category = "Interchange | FactoryNode | Mesh")
+	bool SetCustomKeepSectionsSeparate(const bool& AttributeValue);
+
 	/** Allow to retrieve the correspondence table between slot names and assigned materials for this object. */
 	UFUNCTION(BlueprintCallable, Category = "Interchange | FactoryNode | Mesh")
 	void GetSlotMaterialDependencies(TMap<FString, FString>& OutMaterialDependencies) const;
@@ -102,6 +110,10 @@ public:
 	/** Remove the Material dependency associated with the given slot name from this object. */
 	UFUNCTION(BlueprintCallable, Category = "Interchange | FactoryNode | Mesh")
 	bool RemoveSlotMaterialDependencyUid(const FString& SlotName);
+
+	/** Reset all the material dependencies. */
+	UFUNCTION(BlueprintCallable, Category = "Interchange | FactoryNode | Mesh")
+	bool ResetSlotMaterialDependencies();
 
 	/** Query whether normals in the imported mesh are ignored and recomputed. When normals are recomputed the tangents are also recomputed. */
 	UFUNCTION(BlueprintCallable, Category = "Interchange | FactoryNode | Mesh")
@@ -182,6 +194,7 @@ private:
 	const UE::Interchange::FAttributeKey Macro_CustomVertexColorReplaceKey = UE::Interchange::FAttributeKey(TEXT("VertexColorReplace"));
 	const UE::Interchange::FAttributeKey Macro_CustomVertexColorIgnoreKey = UE::Interchange::FAttributeKey(TEXT("VertexColorIgnore"));
 	const UE::Interchange::FAttributeKey Macro_CustomVertexColorOverrideKey = UE::Interchange::FAttributeKey(TEXT("VertexColorOverride"));
+	const UE::Interchange::FAttributeKey Macro_CustomKeepSectionsSeparateKey = UE::Interchange::FAttributeKey(TEXT("KeepSectionsSeparate"));
 	const UE::Interchange::FAttributeKey Macro_CustomLODGroupKey = UE::Interchange::FAttributeKey(TEXT("LODGroup"));
 	const UE::Interchange::FAttributeKey Macro_CustomRecomputeNormalsKey = UE::Interchange::FAttributeKey(TEXT("RecomputeNormals"));
 	const UE::Interchange::FAttributeKey Macro_CustomRecomputeTangentsKey = UE::Interchange::FAttributeKey(TEXT("RecomputeTangents"));
