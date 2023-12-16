@@ -96,7 +96,7 @@ static bool CanCallFunctionBasedOnParams(const UFunction* TestFunction)
 	{
 		if (UBlueprint* Blueprint = Cast<UBlueprint>(TestFunctionOwnerClass->ClassGeneratedBy))
 		{
-			if (FBlueprintEditorUtils::IsEditorUtilityBlueprint(Blueprint))
+			if (FBlueprintEditorUtils::IsEditorUtilityBlueprint(Blueprint) && Blueprint->BlueprintType == BPTYPE_FunctionLibrary)
 			{
 				using namespace UE::Reflection;
 				return TestFunction->HasMetaData(FBlueprintMetadata::MD_WorldContext) &&
