@@ -113,7 +113,7 @@ namespace Horde.Server.Perforce
 			{
 				try
 				{
-					await RunReplicationAsync(streamConfig, cancellationToken);
+					await _replicator.RunAsync(streamConfig, cancellationToken);
 				}
 				catch (OperationCanceledException) when (cancellationToken.IsCancellationRequested)
 				{
@@ -125,43 +125,6 @@ namespace Horde.Server.Perforce
 				}
 
 				await Task.Delay(TimeSpan.FromSeconds(20.0), cancellationToken);
-			}
-		}
-
-		async Task RunReplicationAsync(StreamConfig streamConfig, CancellationToken cancellationToken)
-		{
-			RefName refName = new RefName(streamConfig.Id.ToString());
-
-			using IStorageClient store = _storageService.CreateClient(Namespace.Perforce);
-
-			CommitNode? lastCommitNode = await store.TryReadRefAsync<CommitNode>(refName, cancellationToken: cancellationToken);
-			ICommitCollection commits = _perforceService.GetCommits(streamConfig);
-
-			PerforceReplicationOptions options = new PerforceReplicationOptions();
-
-			ICommit commit;
-			if (lastCommitNode == null)
-			{
-				int? pendingChange = await PerforceReplicator.GetPendingChangeAsync(store, streamConfig.Id, cancellationToken);
-				if (pendingChange != null)
-				{
-					commit = await commits.GetAsync(pendingChange.Value, cancellationToken);
-				}
-				else
-				{
-					commit = await commits.GetLatestAsync(cancellationToken);
-				}
-			}
-			else
-			{
-				commit = await commits.SubscribeAsync(lastCommitNode.Number, cancellationToken: cancellationToken).FirstAsync(cancellationToken);
-			}
-
-			for (; ; )
-			{
-				_logger.LogInformation("Replicating {StreamId} change {Change}", streamConfig.Id, commit.Number);
-				await _replicator.WriteAsync(streamConfig, commit.Number, options, cancellationToken);
-				commit = await commits.SubscribeAsync(commit.Number, cancellationToken: cancellationToken).FirstAsync(cancellationToken);
 			}
 		}
 	}
