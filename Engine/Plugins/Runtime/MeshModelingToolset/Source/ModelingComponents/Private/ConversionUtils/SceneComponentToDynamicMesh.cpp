@@ -310,13 +310,14 @@ namespace Private::ConversionHelper
 					LODType = EMeshLODType::RenderData;
 				}
 			}
-#else
-			LODType = EMeshLODType::RenderData;
-#endif
 			if (LODType == EMeshLODType::RenderData)
 			{
 				LODIndex = FMath::Clamp(LODIndex, 0, FromStaticMeshAsset->GetNumLODs() - 1);
 			}
+#else
+			LODType = EMeshLODType::RenderData;
+			LODIndex = FMath::Clamp(LODIndex, 0, FromStaticMeshAsset->GetNumLODs() - 1);
+#endif
 		}
 
 		if (LODType == EMeshLODType::RenderData)
