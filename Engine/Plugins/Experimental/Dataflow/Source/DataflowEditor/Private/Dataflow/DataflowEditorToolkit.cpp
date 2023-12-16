@@ -92,7 +92,7 @@ FDataflowEditorToolkit::FDataflowEditorToolkit(UAssetEditor* InOwningAssetEditor
 	FAdvancedPreviewScene::ConstructionValues PreviewSceneArgs;
 	PreviewSceneArgs.bShouldSimulatePhysics = 1;
 	PreviewSceneArgs.bCreatePhysicsScene = 1;
-	ObjectScene = MakeUnique<FDataflowPreviewScene>(PreviewSceneArgs, ModifyDataflowEditorDatas());
+	ObjectScene = MakeUnique<FDataflowPreviewScene>(PreviewSceneArgs, GetDataflowEditorContent());
 }
 
 
@@ -124,7 +124,7 @@ FDataflowEditorToolkit::~FDataflowEditorToolkit()
 void FDataflowEditorToolkit::CreateEditorModeManager()
 {
 	FBaseCharacterFXEditorToolkit::CreateEditorModeManager();
-	static_cast<FDataflowPreviewScene*>(ObjectScene.Get())->ModifyDataflowModeManager()
+	static_cast<FDataflowPreviewScene*>(ObjectScene.Get())->GetDataflowModeManager()
 		= StaticCastSharedPtr<FAssetEditorModeManager>(EditorModeManager);
 }
 
@@ -190,15 +190,16 @@ FEditorModeID FDataflowEditorToolkit::GetEditorModeId() const
 	return UDataflowEditorMode::EM_DataflowEditorModeId;
 }
 
-const FDataflowEditorDatas& FDataflowEditorToolkit::GetDataflowEditorDatas() const
+TObjectPtr<UDataflowEditorContent> FDataflowEditorToolkit::GetDataflowEditorContent()
 {
-	return Cast<UDataflowEditor>(OwningAssetEditor)->DataflowDatas;
+	return Cast<UDataflowEditor>(OwningAssetEditor)->Content;
 }
 
-FDataflowEditorDatas& FDataflowEditorToolkit::ModifyDataflowEditorDatas()
+TObjectPtr<const UDataflowEditorContent> FDataflowEditorToolkit::GetDataflowEditorContent() const
 {
-	return Cast<UDataflowEditor>(OwningAssetEditor)->DataflowDatas;
+	return Cast<UDataflowEditor>(OwningAssetEditor)->Content;
 }
+
 
 bool FDataflowEditorToolkit::OnRequestClose(EAssetEditorCloseReason InCloseReason)
 {
@@ -272,7 +273,7 @@ void FDataflowEditorToolkit::PostInitAssetEditor()
 	TSharedPtr<FDataflowEditorViewportClient> DataflowViewportClient = StaticCastSharedPtr<FDataflowEditorViewportClient>(ViewportClient);
 	DataflowViewportClient->SetDataflowEditorToolkit(StaticCastSharedRef<FDataflowEditorToolkit>(this->AsShared()));
 
-	//SetEditingObject(GetDataflowEditorDatas().DataflowOwner);
+	//SetEditingObject(GetDataflowEditorContent().DataflowOwner);
 
 	// @todo(DataflowMode) : Do this in UDataflowEditorMode::RefocusViewportClient and use the DataflowComponents bounds
 	//		... see ChaosClothAssetEditorMode::RefocusRestSpaceViewportClient() for reference
@@ -303,10 +304,13 @@ void FDataflowEditorToolkit::GetSaveableObjects(TArray<UObject*>& OutObjects) co
 {
 	FBaseCharacterFXEditorToolkit::GetSaveableObjects(OutObjects);
 
-	if (UDataflow* DataflowAsset = GetDataflowEditorDatas().DataflowAsset)
+	if (ensure(GetDataflowEditorContent()))
 	{
-		check(DataflowAsset->IsAsset());
-		OutObjects.Add(DataflowAsset);
+		if (UDataflow* DataflowAsset = GetDataflowEditorContent()->DataflowAsset)
+		{
+			check(DataflowAsset->IsAsset());
+			OutObjects.Add(DataflowAsset);
+		}
 	}
 }
 
@@ -319,13 +323,15 @@ void FDataflowEditorToolkit::CreateWidgets()
 {
 	FBaseCharacterFXEditorToolkit::CreateWidgets();
 
-	const FDataflowEditorDatas& DataflowEditorDatas = GetDataflowEditorDatas();
-	if (UDataflow* DataflowAsset = DataflowEditorDatas.DataflowAsset)
+	if (TObjectPtr<UDataflowEditorContent> Content = GetDataflowEditorContent())
 	{
-		NodeDetailsEditor = CreateNodeDetailsEditorWidget(DataflowEditorDatas.DataflowOwner);
-		AssetDetailsEditor = CreateAssetDetailsEditorWidget(DataflowEditorDatas.DataflowOwner);
-		GraphEditor = CreateGraphEditorWidget(DataflowAsset, NodeDetailsEditor);
-		SkeletalEditor = CreateSkeletalEditorWidget(DataflowEditorDatas.DataflowOwner);
+		if (UDataflow* DataflowAsset = Content->DataflowAsset)
+		{
+			NodeDetailsEditor = CreateNodeDetailsEditorWidget(Content->DataflowOwner);
+			AssetDetailsEditor = CreateAssetDetailsEditorWidget(Content->DataflowOwner);
+			GraphEditor = CreateGraphEditorWidget(DataflowAsset, NodeDetailsEditor);
+			SkeletalEditor = CreateSkeletalEditorWidget(Content->DataflowOwner);
+		}
 	}
 }
 
@@ -359,14 +365,19 @@ TSharedPtr<FEditorViewportClient> FDataflowEditorToolkit::CreateEditorViewportCl
 
 void FDataflowEditorToolkit::OnPropertyValueChanged(const FPropertyChangedEvent& PropertyChangedEvent)
 {
-	FDataflowEditorDatas& DataflowEditorDatas = ModifyDataflowEditorDatas();
-	FDataflowEditorCommands::OnPropertyValueChanged(DataflowEditorDatas.DataflowAsset, DataflowEditorDatas.DataflowContext, DataflowEditorDatas.LastNodeTimestamp, PropertyChangedEvent, PrevNodeSelection);
+	if (TObjectPtr<UDataflowEditorContent> EditorContent = GetDataflowEditorContent())
+	{
+		ensure(EditorContent);
+		FDataflowEditorCommands::OnPropertyValueChanged(EditorContent->DataflowAsset, EditorContent->DataflowContext, EditorContent->LastNodeTimestamp, PropertyChangedEvent, PrevNodeSelection);
+	}
 }
 
 void FDataflowEditorToolkit::OnAssetPropertyValueChanged(const FPropertyChangedEvent& PropertyChangedEvent)
 {
-	FDataflowEditorDatas& DataflowEditorDatas = ModifyDataflowEditorDatas();
-	FDataflowEditorCommands::OnAssetPropertyValueChanged(DataflowEditorDatas.DataflowAsset, DataflowEditorDatas.DataflowContext, DataflowEditorDatas.LastNodeTimestamp, PropertyChangedEvent);
+	if (TObjectPtr<UDataflowEditorContent> EditorContent = GetDataflowEditorContent())
+	{
+		ensure(EditorContent);	FDataflowEditorCommands::OnAssetPropertyValueChanged(EditorContent->DataflowAsset, EditorContent->DataflowContext, EditorContent->LastNodeTimestamp, PropertyChangedEvent);
+	}
 }
 
 bool FDataflowEditorToolkit::OnNodeVerifyTitleCommit(const FText& NewText, UEdGraphNode* GraphNode, FText& OutErrorMessage)
@@ -381,7 +392,7 @@ void FDataflowEditorToolkit::OnNodeTitleCommitted(const FText& InNewText, ETextC
 
 void FDataflowEditorToolkit::OnNodeSelectionChanged(const TSet<UObject*>& NewSelection)
 {
-	if(GetDataflowEditorDatas().DataflowAsset)
+	if (TObjectPtr<UDataflowEditorContent> EditorContent = GetDataflowEditorContent(); EditorContent->DataflowAsset)
 	{
 		// Only keep UDataflowEdNode from NewSelection
 		TSet<UObject*> ValidatedSelection;
@@ -431,7 +442,7 @@ void FDataflowEditorToolkit::OnNodeSelectionChanged(const TSet<UObject*>& NewSel
 				Listener->OnSelectedNodeChanged(nullptr);
 			}
 		}
-		
+
 		PrevNodeSelection = ValidatedSelection;
 	}
 }
@@ -449,16 +460,18 @@ void FDataflowEditorToolkit::OnNodeDeleted(const TSet<UObject*>& NewSelection)
 
 void FDataflowEditorToolkit::Tick(float DeltaTime)
 {
-	FDataflowEditorDatas& DataflowEditorDatas = ModifyDataflowEditorDatas();
-	if(DataflowEditorDatas.IsValid())
+	if (TObjectPtr<UDataflowEditorContent> EditorContent = GetDataflowEditorContent())
 	{
-		if (!DataflowEditorDatas.DataflowContext)
+		if (EditorContent->IsValid())
 		{
-			DataflowEditorDatas.DataflowContext = MakeShared<Dataflow::FEngineContext>(DataflowEditorDatas.DataflowOwner, DataflowEditorDatas.DataflowAsset, Dataflow::FTimestamp::Invalid);
-			DataflowEditorDatas.LastNodeTimestamp = Dataflow::FTimestamp::Invalid;
+			if (!EditorContent->DataflowContext)
+			{
+				EditorContent->DataflowContext = MakeShared<Dataflow::FEngineContext>(EditorContent->DataflowOwner, EditorContent->DataflowAsset, Dataflow::FTimestamp::Invalid);
+				EditorContent->LastNodeTimestamp = Dataflow::FTimestamp::Invalid;
+			}
+			FDataflowEditorCommands::EvaluateTerminalNode(*EditorContent->DataflowContext.Get(), EditorContent->LastNodeTimestamp,
+														  EditorContent->DataflowAsset, nullptr, nullptr, EditorContent->DataflowOwner, EditorContent->DataflowTerminal);
 		}
-		FDataflowEditorCommands::EvaluateTerminalNode(*DataflowEditorDatas.DataflowContext.Get(), DataflowEditorDatas.LastNodeTimestamp,
-			DataflowEditorDatas.DataflowAsset, nullptr, nullptr, DataflowEditorDatas.DataflowOwner, DataflowEditorDatas.DataflowTerminal);
 	}
 }
 
@@ -474,18 +487,20 @@ TSharedRef<SDataflowGraphEditor> FDataflowEditorToolkit::CreateGraphEditorWidget
 
 	FDataflowEditorCommands::FGraphEvaluationCallback Evaluate = [&](FDataflowNode* Node, FDataflowOutput* Out)
 	{
-		FDataflowEditorDatas& DataflowEditorDatas = ModifyDataflowEditorDatas();
-		if(DataflowEditorDatas.IsValid())
+		if (TObjectPtr<UDataflowEditorContent> EditorContent = GetDataflowEditorContent())
 		{
-			if (!DataflowEditorDatas.DataflowContext)
+			if (EditorContent->IsValid())
 			{
-				DataflowEditorDatas.DataflowContext = MakeShared<Dataflow::FEngineContext>(DataflowEditorDatas.DataflowOwner, DataflowEditorDatas.DataflowAsset, Dataflow::FTimestamp::Invalid);
+				if (!EditorContent->DataflowContext)
+				{
+					EditorContent->DataflowContext = MakeShared<Dataflow::FEngineContext>(EditorContent->DataflowOwner, EditorContent->DataflowAsset, Dataflow::FTimestamp::Invalid);
+				}
+				Node->Invalidate();
+				EditorContent->LastNodeTimestamp = Dataflow::FTimestamp::Invalid;
+
+				FDataflowEditorCommands::EvaluateTerminalNode(*EditorContent->DataflowContext.Get(), EditorContent->LastNodeTimestamp,
+															  EditorContent->DataflowAsset, Node, Out, EditorContent->DataflowOwner, EditorContent->DataflowTerminal);
 			}
-			Node->Invalidate();
-			DataflowEditorDatas.LastNodeTimestamp = Dataflow::FTimestamp::Invalid;
-			
-			FDataflowEditorCommands::EvaluateTerminalNode(*DataflowEditorDatas.DataflowContext.Get(), DataflowEditorDatas.LastNodeTimestamp,
-				DataflowEditorDatas.DataflowAsset, Node, Out, DataflowEditorDatas.DataflowOwner, DataflowEditorDatas.DataflowTerminal);
 		}
 	};
 
@@ -562,13 +577,15 @@ TSharedPtr<IDetailsView> FDataflowEditorToolkit::CreateAssetDetailsEditorWidget(
 
 TSharedPtr<ISkeletonTree> FDataflowEditorToolkit::CreateSkeletalEditorWidget(UObject* ObjectToEdit)
 {
-	const FDataflowEditorDatas& DataflowEditorDatas = GetDataflowEditorDatas();
-	if(DataflowEditorDatas.DataflowAsset)
+	if (TObjectPtr<UDataflowEditorContent> EditorContent = GetDataflowEditorContent())
 	{
-		FSkeletonTreeArgs SkeletonTreeArgs;
-		ISkeletonEditorModule& SkeletonEditorModule = FModuleManager::LoadModuleChecked<ISkeletonEditorModule>("SkeletonEditor");
-		TSharedPtr<ISkeletonTree> SkeletonTree = SkeletonEditorModule.CreateSkeletonTree(DataflowEditorDatas.Skeleton, SkeletonTreeArgs);
-		return SkeletonTree;
+		if (EditorContent->DataflowAsset)
+		{
+			FSkeletonTreeArgs SkeletonTreeArgs;
+			ISkeletonEditorModule& SkeletonEditorModule = FModuleManager::LoadModuleChecked<ISkeletonEditorModule>("SkeletonEditor");
+			TSharedPtr<ISkeletonTree> SkeletonTree = SkeletonEditorModule.CreateSkeletonTree(EditorContent->Skeleton, SkeletonTreeArgs);
+			return SkeletonTree;
+		}
 	}
 	return TSharedPtr<ISkeletonTree>(nullptr);
 }
@@ -612,8 +629,10 @@ TSharedRef<SDockTab> FDataflowEditorToolkit::SpawnTab_NodeDetails(const FSpawnTa
 TSharedRef<SDockTab> FDataflowEditorToolkit::SpawnTab_Skeletal(const FSpawnTabArgs& Args)
 {
 	check(Args.GetTabId() == SkeletalTabId);
-	const FDataflowEditorDatas& DataflowEditorDatas = GetDataflowEditorDatas();
-	SkeletalEditor->SetSkeletalMesh(DataflowEditorDatas.SkeletalMesh);
+	if (const TObjectPtr<UDataflowEditorContent> EditorContent = GetDataflowEditorContent())
+	{
+		SkeletalEditor->SetSkeletalMesh(EditorContent->SkeletalMesh);
+	}
 
 	return SNew(SDockTab)
 		.Label(LOCTEXT("DataflowEditor_Skeletal_TabTitle", "Skeletal Hierarchy"))
@@ -624,7 +643,7 @@ TSharedRef<SDockTab> FDataflowEditorToolkit::SpawnTab_Skeletal(const FSpawnTabAr
 
 TSharedRef<SDockTab> FDataflowEditorToolkit::SpawnTab_SelectionView(const FSpawnTabArgs& Args)
 {
-//	check(Args.GetTabId().TabType == SelectionViewTabId_1);
+	//	check(Args.GetTabId().TabType == SelectionViewTabId_1);
 
 	if (Args.GetTabId() == SelectionViewTabId_1)
 	{
@@ -662,51 +681,53 @@ TSharedRef<SDockTab> FDataflowEditorToolkit::SpawnTab_SelectionView(const FSpawn
 	TSharedPtr<SSelectionViewWidget> SelectionViewWidget;
 
 	TSharedRef<SDockTab> DockableTab = SNew(SDockTab)
-	[
-		SAssignNew(SelectionViewWidget, SSelectionViewWidget)
-	];
+		[
+			SAssignNew(SelectionViewWidget, SSelectionViewWidget)
+		];
 
 	if (SelectionViewWidget)
 	{
-		const FDataflowEditorDatas& DataflowEditorDatas = GetDataflowEditorDatas();
-		if (Args.GetTabId() == SelectionViewTabId_1)
+		if (const TObjectPtr<UDataflowEditorContent> EditorContent = GetDataflowEditorContent())
 		{
-			DataflowSelectionView_1->SetSelectionView(SelectionViewWidget);
-
-			// Set the Context on the interface
-			if (TSharedPtr<Dataflow::FContext> CurrentContext = DataflowEditorDatas.DataflowContext)
+			if (Args.GetTabId() == SelectionViewTabId_1)
 			{
-				DataflowSelectionView_1->SetContext(CurrentContext);
+				DataflowSelectionView_1->SetSelectionView(SelectionViewWidget);
+
+				// Set the Context on the interface
+				if (TSharedPtr<Dataflow::FContext> CurrentContext = EditorContent->DataflowContext)
+				{
+					DataflowSelectionView_1->SetContext(CurrentContext);
+				}
 			}
-		}
-		else if (Args.GetTabId() == SelectionViewTabId_2)
-		{
-			DataflowSelectionView_2->SetSelectionView(SelectionViewWidget);
-
-			// Set the Context on the interface
-			if (TSharedPtr<Dataflow::FContext> CurrentContext = DataflowEditorDatas.DataflowContext)
+			else if (Args.GetTabId() == SelectionViewTabId_2)
 			{
-				DataflowSelectionView_2->SetContext(CurrentContext);
+				DataflowSelectionView_2->SetSelectionView(SelectionViewWidget);
+
+				// Set the Context on the interface
+				if (TSharedPtr<Dataflow::FContext> CurrentContext = EditorContent->DataflowContext)
+				{
+					DataflowSelectionView_2->SetContext(CurrentContext);
+				}
 			}
-		}
-		else if (Args.GetTabId() == SelectionViewTabId_3)
-		{
-			DataflowSelectionView_3->SetSelectionView(SelectionViewWidget);
-
-			// Set the Context on the interface
-			if (TSharedPtr<Dataflow::FContext> CurrentContext = DataflowEditorDatas.DataflowContext)
+			else if (Args.GetTabId() == SelectionViewTabId_3)
 			{
-				DataflowSelectionView_3->SetContext(CurrentContext);
+				DataflowSelectionView_3->SetSelectionView(SelectionViewWidget);
+
+				// Set the Context on the interface
+				if (TSharedPtr<Dataflow::FContext> CurrentContext = EditorContent->DataflowContext)
+				{
+					DataflowSelectionView_3->SetContext(CurrentContext);
+				}
 			}
-		}
-		else if (Args.GetTabId() == SelectionViewTabId_4)
-		{
-			DataflowSelectionView_4->SetSelectionView(SelectionViewWidget);
-
-			// Set the Context on the interface
-			if (TSharedPtr<Dataflow::FContext> CurrentContext = DataflowEditorDatas.DataflowContext)
+			else if (Args.GetTabId() == SelectionViewTabId_4)
 			{
-				DataflowSelectionView_4->SetContext(CurrentContext);
+				DataflowSelectionView_4->SetSelectionView(SelectionViewWidget);
+
+				// Set the Context on the interface
+				if (TSharedPtr<Dataflow::FContext> CurrentContext = EditorContent->DataflowContext)
+				{
+					DataflowSelectionView_4->SetContext(CurrentContext);
+				}
 			}
 		}
 	}
@@ -760,45 +781,47 @@ TSharedRef<SDockTab> FDataflowEditorToolkit::SpawnTab_CollectionSpreadSheet(cons
 
 	if (CollectionSpreadSheetWidget)
 	{
-		const FDataflowEditorDatas& DataflowEditorDatas = GetDataflowEditorDatas();
-		if (Args.GetTabId() == CollectionSpreadSheetTabId_1)
+		if (const TObjectPtr<UDataflowEditorContent> EditorContent = GetDataflowEditorContent())
 		{
-			DataflowCollectionSpreadSheet_1->SetCollectionSpreadSheet(CollectionSpreadSheetWidget);
-
-			// Set the Context on the interface
-			if (TSharedPtr<Dataflow::FContext> CurrentContext = DataflowEditorDatas.DataflowContext)
+			if (Args.GetTabId() == CollectionSpreadSheetTabId_1)
 			{
-				DataflowCollectionSpreadSheet_1->SetContext(CurrentContext);
+				DataflowCollectionSpreadSheet_1->SetCollectionSpreadSheet(CollectionSpreadSheetWidget);
+
+				// Set the Context on the interface
+				if (TSharedPtr<Dataflow::FContext> CurrentContext = EditorContent->DataflowContext)
+				{
+					DataflowCollectionSpreadSheet_1->SetContext(CurrentContext);
+				}
 			}
-		}
-		else if (Args.GetTabId() == CollectionSpreadSheetTabId_2)
-		{
-			DataflowCollectionSpreadSheet_2->SetCollectionSpreadSheet(CollectionSpreadSheetWidget);
-
-			// Set the Context on the interface
-			if (TSharedPtr<Dataflow::FContext> CurrentContext = DataflowEditorDatas.DataflowContext)
+			else if (Args.GetTabId() == CollectionSpreadSheetTabId_2)
 			{
-				DataflowCollectionSpreadSheet_2->SetContext(CurrentContext);
+				DataflowCollectionSpreadSheet_2->SetCollectionSpreadSheet(CollectionSpreadSheetWidget);
+
+				// Set the Context on the interface
+				if (TSharedPtr<Dataflow::FContext> CurrentContext = EditorContent->DataflowContext)
+				{
+					DataflowCollectionSpreadSheet_2->SetContext(CurrentContext);
+				}
 			}
-		}
-		else if (Args.GetTabId() == CollectionSpreadSheetTabId_3)
-		{
-			DataflowCollectionSpreadSheet_3->SetCollectionSpreadSheet(CollectionSpreadSheetWidget);
-
-			// Set the Context on the interface
-			if (TSharedPtr<Dataflow::FContext> CurrentContext = DataflowEditorDatas.DataflowContext)
+			else if (Args.GetTabId() == CollectionSpreadSheetTabId_3)
 			{
-				DataflowCollectionSpreadSheet_3->SetContext(CurrentContext);
+				DataflowCollectionSpreadSheet_3->SetCollectionSpreadSheet(CollectionSpreadSheetWidget);
+
+				// Set the Context on the interface
+				if (TSharedPtr<Dataflow::FContext> CurrentContext = EditorContent->DataflowContext)
+				{
+					DataflowCollectionSpreadSheet_3->SetContext(CurrentContext);
+				}
 			}
-		}
-		else if (Args.GetTabId() == CollectionSpreadSheetTabId_4)
-		{
-			DataflowCollectionSpreadSheet_4->SetCollectionSpreadSheet(CollectionSpreadSheetWidget);
-
-			// Set the Context on the interface
-			if (TSharedPtr<Dataflow::FContext> CurrentContext = DataflowEditorDatas.DataflowContext)
+			else if (Args.GetTabId() == CollectionSpreadSheetTabId_4)
 			{
-				DataflowCollectionSpreadSheet_4->SetContext(CurrentContext);
+				DataflowCollectionSpreadSheet_4->SetCollectionSpreadSheet(CollectionSpreadSheetWidget);
+
+				// Set the Context on the interface
+				if (TSharedPtr<Dataflow::FContext> CurrentContext = EditorContent->DataflowContext)
+				{
+					DataflowCollectionSpreadSheet_4->SetContext(CurrentContext);
+				}
 			}
 		}
 	}
@@ -942,14 +965,16 @@ FName FDataflowEditorToolkit::GetToolkitFName() const
 
 FText FDataflowEditorToolkit::GetToolkitName() const
 {
-	const FDataflowEditorDatas& DataflowEditorDatas = GetDataflowEditorDatas();
-	if(DataflowEditorDatas.DataflowOwner)
+	if (TObjectPtr<const UDataflowEditorContent> EditorContent = GetDataflowEditorContent())
 	{
-		return  GetLabelForObject(DataflowEditorDatas.DataflowOwner);
-	}
-	else if(DataflowEditorDatas.DataflowAsset)
-	{
-		return  GetLabelForObject(DataflowEditorDatas.DataflowAsset);
+		if (EditorContent->DataflowOwner)
+		{
+			return  GetLabelForObject(EditorContent->DataflowOwner);
+		}
+		else if (EditorContent->DataflowAsset)
+		{
+			return  GetLabelForObject(EditorContent->DataflowAsset);
+		}
 	}
 	return  LOCTEXT("ToolkitName", "Empty Dataflow Editor");
 }

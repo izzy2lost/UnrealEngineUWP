@@ -4,7 +4,7 @@
 
 #include "AdvancedPreviewScene.h"
 
-struct FDataflowEditorDatas;
+class UDataflowEditorContent;
 class USkeletalMeshComponent;
 class UDynamicMeshComponent;
 class UDataflowComponent;
@@ -12,6 +12,7 @@ class UAnimationAsset;
 class UAnimSingleNodeInstance;
 class UMaterialInterface;
 class FAssetEditorModeManager;
+class ADataflowActor;
 
 namespace UE
 {
@@ -30,30 +31,30 @@ class DATAFLOWEDITOR_API FDataflowPreviewScene : public FAdvancedPreviewScene
 {
 public:
 
-	FDataflowPreviewScene(FPreviewScene::ConstructionValues ConstructionValues, FDataflowEditorDatas& DataflowAssetDatas);
+	FDataflowPreviewScene(FPreviewScene::ConstructionValues ConstructionValues, TObjectPtr<UDataflowEditorContent> InEditorContent);
 	virtual ~FDataflowPreviewScene();
 
 	// FGCObject interface
 	virtual void AddReferencedObjects(FReferenceCollector& Collector) override;
 
 	// Modify/Get the preview anim instance
-	UAnimSingleNodeInstance* ModifyPreviewAnimInstance() { return PreviewAnimInstance; }
+	UAnimSingleNodeInstance* GetPreviewAnimInstance() { return PreviewAnimInstance; }
 	const UAnimSingleNodeInstance* const GetPreviewAnimInstance() const { return PreviewAnimInstance; }
 
 	// Modify/Get the data flow component
-	UDataflowComponent* ModifyDataflowComponent() { return DataflowComponent; }
+	UDataflowComponent* GetDataflowComponent() { return DataflowComponent; }
 	const UDataflowComponent* GetDataflowComponent() const { return DataflowComponent; }
 
 	// Modify/Get the skeletal mesh component
-	USkeletalMeshComponent* ModifySkeletalMeshComponent() { return SkeletalMeshComponent; }
+	USkeletalMeshComponent* GetSkeletalMeshComponent() { return SkeletalMeshComponent; }
 	const USkeletalMeshComponent* GetSkeletalMeshComponent() const { return SkeletalMeshComponent; }
 	
 	// Modify/Get the data flow datas
-	FDataflowEditorDatas& ModifyDataflowDatas() { return DataflowDatas; }
-	const FDataflowEditorDatas& GetDataflowDatas() const { return DataflowDatas; }
+	TObjectPtr<UDataflowEditorContent> GetDataflowEditorContent() { return EditorContent; }
+	const TObjectPtr<UDataflowEditorContent> GetDataflowEditorContent() const { return EditorContent; }
 
 	// Modify/Get the data flow mode manager
-	TSharedPtr<FAssetEditorModeManager>& ModifyDataflowModeManager() { return DataflowModeManager; }
+	TSharedPtr<FAssetEditorModeManager>& GetDataflowModeManager() { return DataflowModeManager; }
 	const TSharedPtr<FAssetEditorModeManager>& GetDataflowModeManager() const { return DataflowModeManager; }
 	
 	/** Reset all the dynamic mesh components */
@@ -77,10 +78,10 @@ private:
 	bool IsComponentSelected(const UPrimitiveComponent* InComponent) const;
 
 	/** Data flows assets datas used to build the scene components */
-	FDataflowEditorDatas& DataflowDatas;
+	TObjectPtr<UDataflowEditorContent> EditorContent = nullptr;
 	
 	/** Dataflow actor */
-	TObjectPtr<AActor> DataflowActor = nullptr;
+	TObjectPtr<ADataflowActor> DataflowActor = nullptr;
 	
 	/** Skeletal mesh actor */
 	TObjectPtr<AActor> SkeletalMeshActor = nullptr;

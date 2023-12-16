@@ -24,8 +24,12 @@ class UAnimationAsset;
 /** 
  * Dataflow datas that will be used within the editor classes to evaluate the graph
  */
-struct DATAFLOWEDITOR_API FDataflowEditorDatas
+UCLASS()
+class UDataflowEditorContent : public UObject
 {
+	GENERATED_BODY()
+
+public:
 	/** Check if the datas flow datas are valid */
 	bool IsValid() const { return DataflowOwner && DataflowAsset;}
 	
@@ -76,6 +80,7 @@ class DATAFLOWEDITOR_API UDataflowEditor : public UBaseCharacterFXEditor
 	GENERATED_BODY()
 
 public:
+	UDataflowEditor();
 
 	// UBaseCharacterFXEditor interface
 	virtual TSharedPtr<FBaseAssetToolkit> CreateToolkit() override;
@@ -89,7 +94,7 @@ private :
 	// is the one holding the dynamic mesh components to be rendered in the viewport
 	// It is why the data flow asset/owner/skelmesh have been added here. Could be added
 	// in the subsystem if necessary
-	FDataflowEditorDatas DataflowDatas;
+	TObjectPtr<UDataflowEditorContent> Content;
 };
 
 DECLARE_LOG_CATEGORY_EXTERN(LogDataflowEditor, Log, All);

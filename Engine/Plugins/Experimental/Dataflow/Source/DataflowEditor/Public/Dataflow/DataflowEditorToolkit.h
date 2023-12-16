@@ -22,7 +22,7 @@ class IToolkitHost;
 class UDataflow;
 class USkeletalMesh;
 class SDataflowGraphEditor;
-struct FDataflowEditorDatas;
+class UDataflowEditorContent;
 
 namespace Dataflow
 {
@@ -51,11 +51,10 @@ public:
 	static UDataflow* GetDataflowAsset(UObject* ObjectToEdit);
 	static const UDataflow* GetDataflowAsset(const UObject* ObjectToEdit);
 
-	/** Get the const dataflow editor datas */
-	const FDataflowEditorDatas& GetDataflowEditorDatas() const;
+	/** Datafloe Editor Content Access */
+	TObjectPtr<const UDataflowEditorContent> GetDataflowEditorContent() const;
+	TObjectPtr<UDataflowEditorContent> GetDataflowEditorContent();
 
-	/** Return the dataflow editor datas that could be modified */
-	FDataflowEditorDatas& ModifyDataflowEditorDatas();
 
 	// IToolkit interface
 	virtual FName GetToolkitFName() const override;

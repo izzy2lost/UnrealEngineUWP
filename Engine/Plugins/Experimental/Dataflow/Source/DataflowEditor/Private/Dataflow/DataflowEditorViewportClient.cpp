@@ -45,13 +45,13 @@ void FDataflowEditorViewportClient::SetSelectionMode(FDataflowSelectionState::EM
 	}
 
 	State.Mode = SelectionMode;
-	PreviewScene->ModifyDataflowComponent()->SetSelectionState(State);
+	PreviewScene->GetDataflowComponent()->SetSelectionState(State);
 
 	if (SelectionMode == FDataflowSelectionState::EMode::DSS_Dataflow_None)
 	{
 		if (!PreviewScene->GetDataflowComponent()->GetSelectionState().IsEmpty())
 		{
-			PreviewScene->ModifyDataflowComponent()->SetSelectionState(FDataflowSelectionState(SelectionMode));
+			PreviewScene->GetDataflowComponent()->SetSelectionState(FDataflowSelectionState(SelectionMode));
 		}
 	}
 }
@@ -60,20 +60,22 @@ bool FDataflowEditorViewportClient::CanSetSelectionMode(FDataflowSelectionState:
 	TSharedPtr<FDataflowEditorToolkit> DataflowEditorToolkit = DataflowEditorToolkitPtr.Pin();
 	if (DataflowEditorToolkitPtr.IsValid())
 	{
-		const FDataflowEditorDatas& DataflowEditorDatas = DataflowEditorToolkit->GetDataflowEditorDatas();
-		if (const UDataflow* Dataflow = DataflowEditorDatas.DataflowAsset)
+		if (TObjectPtr<UDataflowEditorContent> EditorContent = PreviewScene->GetDataflowEditorContent())
 		{
-			if (Dataflow->GetRenderTargets().Num())
+			if (const UDataflow* Dataflow = EditorContent->DataflowAsset)
 			{
-				if (InState == FDataflowSelectionState::EMode::DSS_Dataflow_Object)
+				if (Dataflow->GetRenderTargets().Num())
 				{
-					return true;
-				}
+					if (InState == FDataflowSelectionState::EMode::DSS_Dataflow_Object)
+					{
+						return true;
+					}
 
-				if (InState == FDataflowSelectionState::EMode::DSS_Dataflow_Vertex
-					&& !PreviewScene->GetDataflowComponent()->GetSelectionState().Nodes.IsEmpty())
-				{
-					return true;
+					if (InState == FDataflowSelectionState::EMode::DSS_Dataflow_Vertex
+						&& !PreviewScene->GetDataflowComponent()->GetSelectionState().Nodes.IsEmpty())
+					{
+						return true;
+					}
 				}
 			}
 		}
@@ -81,6 +83,7 @@ bool FDataflowEditorViewportClient::CanSetSelectionMode(FDataflowSelectionState:
 
 	return false;
 }
+
 bool FDataflowEditorViewportClient::IsSelectionModeActive(FDataflowSelectionState::EMode InState)
 {
 	return SelectionMode == InState;
@@ -232,7 +235,7 @@ void FDataflowEditorViewportClient::ProcessClick(FSceneView& View, HHitProxy* Hi
 
 		if (PreState != SelectionState)
 		{
-			PreviewScene->ModifyDataflowComponent()->SetSelectionState(SelectionState);
+			PreviewScene->GetDataflowComponent()->SetSelectionState(SelectionState);
 		}
 	}
 }
@@ -245,16 +248,18 @@ void FDataflowEditorViewportClient::Tick(float DeltaSeconds)
 
 	if (PreviewScene->GetDataflowComponent())
 	{
-		const FDataflowEditorDatas& DataflowEditorDatas = PreviewScene->GetDataflowDatas();
-		if (TSharedPtr<Dataflow::FContext> Context = DataflowEditorDatas.DataflowContext)
+		if (TObjectPtr<UDataflowEditorContent> EditorContent = PreviewScene->GetDataflowEditorContent())
 		{
-			if (const UDataflow* Dataflow = DataflowEditorDatas.DataflowAsset)
+			if (TSharedPtr<Dataflow::FContext> Context = EditorContent->DataflowContext)
 			{
-				const Dataflow::FTimestamp SystemTimestamp = LatestTimestamp(Dataflow, Context.Get());
-				if (SystemTimestamp >= LastModifiedTimestamp)
+				if (const UDataflow* Dataflow = EditorContent->DataflowAsset)
 				{
-					PreviewScene->UpdateDataflowComponent();
-					LastModifiedTimestamp = LatestTimestamp(Dataflow, Context.Get()).Value + 1;
+					const Dataflow::FTimestamp SystemTimestamp = LatestTimestamp(Dataflow, Context.Get());
+					if (SystemTimestamp >= LastModifiedTimestamp)
+					{
+						PreviewScene->UpdateDataflowComponent();
+						LastModifiedTimestamp = LatestTimestamp(Dataflow, Context.Get()).Value + 1;
+					}
 				}
 			}
 		}

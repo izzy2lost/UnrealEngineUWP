@@ -6,18 +6,20 @@
 #include "AssetEditorModeManager.h"
 #include "Components/SkeletalMeshComponent.h"
 #include "Components/DynamicMeshComponent.h"
+#include "Dataflow/DataflowActor.h"
 #include "Dataflow/DataflowComponent.h"
 #include "Dataflow/DataflowEditor.h"
 #include "Elements/Framework/EngineElementsLibrary.h"
 
 #define LOCTEXT_NAMESPACE "FDataflowPreviewScene"
 
-FDataflowPreviewScene::FDataflowPreviewScene(FPreviewScene::ConstructionValues ConstructionValues, FDataflowEditorDatas& DataflowAssetDatas) :
-	FAdvancedPreviewScene(ConstructionValues), DataflowDatas(DataflowAssetDatas)
+FDataflowPreviewScene::FDataflowPreviewScene(FPreviewScene::ConstructionValues ConstructionValues,TObjectPtr<UDataflowEditorContent> InEditorContent) 
+	: FAdvancedPreviewScene(ConstructionValues), EditorContent(InEditorContent)
 {
+	check(EditorContent);
 	SkeletalMeshActor = GetWorld()->SpawnActor<AActor>(AActor::StaticClass());
 
-	if(DataflowDatas.SkeletalMesh && DataflowDatas.bHasValidSkeletalMesh)
+	if(EditorContent->SkeletalMesh && EditorContent->bHasValidSkeletalMesh)
 	{
 		SkeletalMeshComponent = NewObject<USkeletalMeshComponent>(SkeletalMeshActor);
 		SkeletalMeshComponent->SelectionOverrideDelegate = UPrimitiveComponent::FSelectionOverride::CreateRaw(this, &FDataflowPreviewScene::IsComponentSelected);
@@ -25,21 +27,15 @@ FDataflowPreviewScene::FDataflowPreviewScene(FPreviewScene::ConstructionValues C
 		UpdateSkeletalMeshComponent();
 	}
 	
-	DataflowActor = GetWorld()->SpawnActor<AActor>(AActor::StaticClass());
-
-	if(DataflowDatas.DataflowAsset)
-	{
-		DataflowComponent = NewObject<UDataflowComponent>(DataflowActor);
-		//DataflowComponent->SelectionOverrideDelegate = UPrimitiveComponent::FSelectionOverride::CreateRaw(this, &FDataflowPreviewScene::IsComponentSelected);
-		
-		// @todo(DynamicMeshRendering) : Enable Dynamic Mesh Rendering for dataflow terminals. Hide the dataflow
-		//DataflowComponent->SetVisibility(false);
-		UpdateDataflowComponent();
-	}
+	// @todo(DynamicMeshRendering) : Enable Dynamic Mesh Rendering for dataflow terminals. Hide the dataflow 
+	DataflowActor = Cast<ADataflowActor>(GetWorld()->SpawnActor<ADataflowActor>(ADataflowActor::StaticClass()));
+	DataflowComponent = DataflowActor->GetDataflowComponent();
+	//DataflowComponent->SelectionOverrideDelegate = UPrimitiveComponent::FSelectionOverride::CreateRaw(this, &FDataflowPreviewScene::IsComponentSelected);
+	//DataflowComponent->SetVisibility(false);
+	UpdateDataflowComponent();
 	
-	DynamicMeshActor = GetWorld()->SpawnActor<AActor>(AActor::StaticClass());
 
-	
+	DynamicMeshActor = GetWorld()->SpawnActor<AActor>(AActor::StaticClass());	
 	SkeletalMeshActor->RegisterAllComponents();
 	DataflowActor->RegisterAllComponents();
 	DynamicMeshActor->RegisterAllComponents();
@@ -70,6 +66,7 @@ FDataflowPreviewScene::~FDataflowPreviewScene()
 void FDataflowPreviewScene::AddReferencedObjects(FReferenceCollector& Collector)
 {
 	FAdvancedPreviewScene::AddReferencedObjects(Collector);
+	Collector.AddReferencedObject(EditorContent);
 
 	Collector.AddReferencedObject(DataflowComponent);
 	Collector.AddReferencedObject(SkeletalMeshComponent);
@@ -82,26 +79,29 @@ void FDataflowPreviewScene::AddReferencedObjects(FReferenceCollector& Collector)
 
 void FDataflowPreviewScene::UpdateDataflowComponent()
 {
-	DataflowComponent->ResetRenderTargets();
-	
-	DataflowComponent->SetDataflow(DataflowDatas.DataflowAsset);
-	DataflowComponent->SetContext(DataflowDatas.DataflowContext);
-	
-	for (const UDataflowEdNode* const Node : DataflowDatas.DataflowAsset->GetRenderTargets())
+	if (EditorContent->DataflowAsset)
 	{
-		DataflowComponent->AddRenderTarget(Node);
+		DataflowComponent->ResetRenderTargets();
+
+		DataflowComponent->SetDataflow(EditorContent->DataflowAsset);
+		DataflowComponent->SetContext(EditorContent->DataflowContext);
+
+		for (const UDataflowEdNode* const Node : EditorContent->DataflowAsset->GetRenderTargets())
+		{
+			DataflowComponent->AddRenderTarget(Node);
+		}
+		DataflowComponent->UpdateBounds();
 	}
-	DataflowComponent->UpdateBounds();
 }
 
 void FDataflowPreviewScene::UpdateSkeletalMeshComponent()
 {
-	SkeletalMeshComponent->SetSkeletalMeshAsset(DataflowDatas.SkeletalMesh);
+	SkeletalMeshComponent->SetSkeletalMeshAsset(EditorContent->SkeletalMesh);
 
-	if (DataflowDatas.AnimationAsset)
+	if (EditorContent->AnimationAsset)
 	{
 		PreviewAnimInstance = NewObject<UAnimSingleNodeInstance>(SkeletalMeshComponent);
-		PreviewAnimInstance->SetAnimationAsset(DataflowDatas.AnimationAsset);
+		PreviewAnimInstance->SetAnimationAsset(EditorContent->AnimationAsset);
 
 		SkeletalMeshComponent->SetAnimationMode(EAnimationMode::AnimationSingleNode);
 		SkeletalMeshComponent->InitAnim(true);
