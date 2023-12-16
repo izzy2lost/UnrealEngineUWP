@@ -255,7 +255,13 @@ namespace uba
 		#endif
 	}
 
-	ProcessHandle SessionServer::RunProcessRemote(const ProcessStartInfo& startInfo, float weight)
+	ProcessHandle SessionServer::RunProcessRacing(u32 raceAgainstRemoteProcessId)
+	{
+		// TODO: Implement
+		return {};
+	}
+
+	ProcessHandle SessionServer::RunProcessRemote(const ProcessStartInfo& startInfo, float weight, const void* knownInputs, u32 knownInputsSizeBytes)
 	{
 		FlushDeadProcesses();
 		ValidateStartInfo(startInfo);

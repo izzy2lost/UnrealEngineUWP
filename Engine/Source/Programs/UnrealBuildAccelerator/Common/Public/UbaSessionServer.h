@@ -14,25 +14,49 @@ namespace uba
 	class SessionServer final : public Session
 	{
 	public:
+		// Ctor/dtor
 		SessionServer(const SessionServerCreateInfo& info);
 		~SessionServer();
-		
-		ProcessHandle RunProcessRemote(const ProcessStartInfo& startInfo, float weight = 1.0f);
+
+		// Run process remotely.
+		// startInfo contains info about the process to run remotely
+		// weight is the expected core usage of the process. If processes are multithreaded it makes sense to increase weight. As an example, in UnrealBuildTool we see cl.exe as 1.5 and clang.exe as 1.0
+		// knownInputs is a memory block with null terminated strings followed by an empty null terminated string. knownInputSize is the size of the memoryBlock in bytes
+		// knownInputs strings should be of type tchar and a path relative to working dir or absolute. Session will make a copy of knownInputs internally
+		ProcessHandle RunProcessRemote(const ProcessStartInfo& startInfo, float weight = 1.0f, const void* knownInputs = nullptr, u32 knownInputsSizeBytes = 0);
+
+		// Will kick off a local process with the same startInfo as the one provided to start the process with id matching raceAgainstRemoteProcessId
+		// This can be useful if there are free local cores and we know local machine is faster or network connection to remote is slow
+		ProcessHandle RunProcessRacing(u32 raceAgainstRemoteProcessId);
+
+		// Disable remote execution. This will tell all clients to take on new processes and disconnect as soon as their current processes are finished
 		void DisableRemoteExecution();
 
+		// This can be used to set a custom cas key based on a file and its inputs. Can be used for non-deterministic outputs to still be able to use cached cas content on clients
+		// For example, when a pch is built on the host we can use all the input involved to create the pch and use that as the cas key for the resulting huge file
+		// This means that if a remote machine has a pch from an older run where all the input matches, it can reuse the cas content even though the output differs
 		void SetCustomCasKeyFromTrackedInputs(const tchar* fileName, const tchar* workingDir, const u8* trackedInputs, u32 trackedInputsBytes);
 		bool GetCasKeyFromTrackedInputs(CasKey& out, const tchar* fileName, const tchar* workingDir, const u8* data, u32 dataLen);
 
+		// Callback that will be called when a client is asking for processes to run. All remotes frequently ask for processes to run if they have free process slots
 		void SetRemoteProcessSlotAvailableEvent(const Function<void()>& remoteProcessSlotAvailableEvent);
+
+		// Callback that is called when process is returned. This could be because a client unexpectedly disconnected or is running out of memory
 		void SetRemoteProcessReturnedEvent(const Function<void(Process&)>& remoteProcessReturnedEvent);
 
+		// Wait for all queued up/active tasks to finish
 		void WaitOnAllTasks();
 
+		// Can be used to hint the session how many processes (that can run remotely that are left.. session can then start disabling remote execution on clients not needed anymore
 		void SetMaxRemoteProcessCount(u32 count);
 
+		// Report an external process just to get it visible in the trace stream/visualizer. Returns an unique id that should be sent in to EndExternalProcess
 		u32 BeginExternalProcess(const tchar* description);
+
+		// End external process.
 		void EndExternalProcess(u32 id, u32 exitCode);
 
+		// Get the network server used by this session
 		NetworkServer& GetServer();
 
 	protected:

@@ -338,9 +338,13 @@ uba::StorageClient* CreateStorageClient(uba::NetworkClient& client, const uba::t
 	{
 		return new uba::ProcessHandle(server->RunProcess(info, async, enableDetour));
 	}
-	uba::ProcessHandle* SessionServer_RunProcessRemote(uba::SessionServer* server, uba::ProcessStartInfo& info, float weight)
+	uba::ProcessHandle* SessionServer_RunProcessRemote(uba::SessionServer* server, uba::ProcessStartInfo& info, float weight, const void* knownInputs, uba::u32 knownInputsSizeBytes)
 	{
-		return new uba::ProcessHandle(server->RunProcessRemote(info, weight));
+		return new uba::ProcessHandle(server->RunProcessRemote(info, weight, knownInputs, knownInputsSizeBytes));
+	}
+	uba::ProcessHandle* SessionServer_RunProcessRacing(uba::SessionServer* server, uba::u32 raceAgainstRemoteProcessId)
+	{
+		return new uba::ProcessHandle(server->RunProcessRacing(raceAgainstRemoteProcessId));
 	}
 	void SessionServer_SetMaxRemoteProcessCount(uba::SessionServer* server, uba::u32 count)
 	{
