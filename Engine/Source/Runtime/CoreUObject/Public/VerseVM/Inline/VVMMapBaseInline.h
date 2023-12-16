@@ -40,7 +40,7 @@ inline VMapBase::VMapBase(FAllocationContext Context, uint32 MaxNumEntries, cons
 	// Constructing a map in Verse has these semantics:
 	// - If the same key appears more than once, it's as if only the last key was provided.
 	// - The order of the map is based on the textual order a map is written in.
-	// - E.g, map{K1=>V1, K2=>V2} has the order (K1, V1) then (K2, V2). 
+	// - E.g, map{K1=>V1, K2=>V2} has the order (K1, V1) then (K2, V2).
 	//   And map{K1=>V1, K2=>V2, K1=>V3} has the order (K2, V2) then (K1, V3).
 	// The code below achieves these semantics. Surely it can be more optimized than it is now:
 	// - We do repetitive hashing
