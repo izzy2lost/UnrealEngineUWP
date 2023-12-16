@@ -117,6 +117,7 @@ using Horde.Server.Telemetry.Sinks;
 using Horde.Server.Telemetry.Metrics;
 using EpicGames.Horde.Jobs;
 using EpicGames.Horde.Logs;
+using Horde.Server.Replicators;
 
 namespace Horde.Server
 {
@@ -447,6 +448,7 @@ namespace Horde.Server
 			services.AddSingleton<INotificationTriggerCollection, NotificationTriggerCollection>();
 			services.AddSingleton<IPoolCollection, PoolCollection>();
 			services.AddSingleton<IBisectTaskCollection, BisectTaskCollection>();
+			services.AddSingleton<IReplicatorCollection, ReplicatorCollection>();
 			services.AddSingleton<ISessionCollection, SessionCollection>();
 			services.AddSingleton<IServiceAccountCollection, ServiceAccountCollection>();
 			services.AddSingleton<ISubscriptionCollection, SubscriptionCollection>();

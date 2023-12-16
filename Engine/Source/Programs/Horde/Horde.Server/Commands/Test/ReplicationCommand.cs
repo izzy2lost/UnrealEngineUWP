@@ -11,6 +11,7 @@ using Microsoft.Extensions.DependencyInjection;
 using Horde.Server.Streams;
 using EpicGames.Horde.Streams;
 using Horde.Server.Configuration;
+using EpicGames.Horde.Replicators;
 
 namespace Horde.Server.Commands.Test
 {
@@ -19,6 +20,9 @@ namespace Horde.Server.Commands.Test
 	{
 		[CommandLine("-Stream=", Required = true)]
 		public string StreamId { get; set; } = String.Empty;
+
+		[CommandLine("-Replicator=", Required = true)]
+		public string ReplicatorId { get; set; } = String.Empty;
 
 		[CommandLine(Required = true)]
 		public int Change { get; set; }
@@ -52,9 +56,11 @@ namespace Horde.Server.Commands.Test
 				throw new FatalErrorException($"Stream '{StreamId}' not found");
 			}
 
+			ReplicatorId id = new ReplicatorId(new StreamId(StreamId), new StreamReplicatorId(ReplicatorId));
+
 			PerforceReplicationOptions options = new PerforceReplicationOptions();
 			options.Clean = Clean;
-			await replicator.WriteAsync(streamConfig, Change, options, default);
+			await replicator.WriteAsync(id, streamConfig, Change, options, default);
 
 			return 0;
 		}

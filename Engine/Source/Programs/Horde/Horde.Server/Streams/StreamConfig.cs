@@ -24,6 +24,7 @@ using HordeCommon.Rpc.Tasks;
 using System.Diagnostics;
 using EpicGames.Horde.Streams;
 using EpicGames.Horde.Agents.Pools;
+using Horde.Server.Replicators;
 
 namespace Horde.Server.Streams
 {
@@ -216,19 +217,9 @@ namespace Horde.Server.Streams
 		public string? PauseComment { get; set; }
 
 		/// <summary>
-		/// How to replicate data from VCS to Horde Storage.
+		/// Configuration for workers to replicate commit data into Horde Storage.
 		/// </summary>
-		public ContentReplicationMode ReplicationMode { get; set; }
-
-		/// <summary>
-		/// Filter for paths to be replicated to storage, as a Perforce wildcard relative to the root of the workspace.
-		/// </summary>
-		public string? ReplicationFilter { get; set; }
-
-		/// <summary>
-		/// Stream to use for replication, if different to the default.
-		/// </summary>
-		public string? ReplicationStream { get; set; }
+		public List<ReplicatorConfig> Replicators { get; set; } = new List<ReplicatorConfig>();
 
 		/// <summary>
 		/// Workflows for dealing with new issues

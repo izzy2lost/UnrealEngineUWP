@@ -10,12 +10,14 @@ using System.Text;
 using System.Threading;
 using System.Threading.Tasks;
 using EpicGames.Core;
+using EpicGames.Horde.Replicators;
 using EpicGames.Horde.Storage;
 using EpicGames.Horde.Storage.Bundles;
 using EpicGames.Horde.Storage.Clients;
 using EpicGames.Horde.Storage.Nodes;
 using EpicGames.Horde.Streams;
 using EpicGames.Perforce;
+using Horde.Server.Replicators;
 using Horde.Server.Storage;
 using Horde.Server.Streams;
 using Microsoft.Extensions.Logging;
@@ -219,37 +221,40 @@ namespace Horde.Server.Perforce
 
 		readonly IPerforceService _perforceService;
 		readonly StorageService _storageService;
+		readonly IReplicatorCollection _replicatorCollection;
 		readonly ILogger _logger;
 
 		/// <summary>
 		/// Constructor
 		/// </summary>
-		public PerforceReplicator(IPerforceService perforceService, StorageService storageService, ILogger<PerforceReplicator> logger)
+		public PerforceReplicator(IPerforceService perforceService, StorageService storageService, IReplicatorCollection replicatorCollection, ILogger<PerforceReplicator> logger)
 		{
 			Node.RegisterType<SyncNode>();
 
 			_perforceService = perforceService;
 			_storageService = storageService;
+			_replicatorCollection = replicatorCollection;
 			_logger = logger;
 		}
 
 		/// <summary>
 		/// Gets the ref name for a given stream
 		/// </summary>
-		/// <param name="streamId">The stream to get a ref for</param>
+		/// <param name="replicatorId">The stream to get a ref for</param>
 		/// <returns>Ref name for the stream</returns>
-		public static RefName GetRefName(StreamId streamId) => new RefName(streamId.ToString());
+		public static RefName GetRefName(ReplicatorId replicatorId) => new RefName($"{replicatorId.StreamId}/{replicatorId.StreamId}");
 
 		/// <summary>
 		/// Gets the ref name for a given stream
 		/// </summary>
-		/// <param name="streamId">The stream to get a ref for</param>
+		/// <param name="replicatorId">The stream to get a ref for</param>
 		/// <returns>Ref name for the stream</returns>
-		static RefName GetIncrementalRefName(StreamId streamId) => new RefName($"{streamId}/incremental");
+		static RefName GetIncrementalRefName(ReplicatorId replicatorId) => new RefName($"{replicatorId.StreamId}/{replicatorId.StreamId}/incremental");
+
 		/// <summary>
 		/// Runs a replication loop for a stream
 		/// </summary>
-		public async Task RunAsync(StreamConfig streamConfig, CancellationToken cancellationToken = default)
+		public async Task RunAsync(ReplicatorId replicatorId, StreamConfig streamConfig, ReplicatorConfig replicatorConfig, CancellationToken cancellationToken = default)
 		{
 			RefName refName = new RefName(streamConfig.Id.ToString());
 
@@ -263,12 +268,16 @@ namespace Horde.Server.Perforce
 			ICommit commit;
 			if (lastCommitNode == null)
 			{
-				RefName incRefName = GetIncrementalRefName(streamConfig.Id);
+				RefName incRefName = GetIncrementalRefName(replicatorId);
 
 				SyncNode? syncNode = await store.TryReadRefAsync<SyncNode>(incRefName, cancellationToken: cancellationToken);
 				if (syncNode != null)
 				{
 					commit = await commits.GetAsync(syncNode.Change, cancellationToken);
+				}
+				else if (replicatorConfig.MinChange != null)
+				{
+					commit = await commits.SubscribeAsync(replicatorConfig.MinChange.Value, cancellationToken: cancellationToken).FirstAsync(cancellationToken);
 				}
 				else
 				{
@@ -280,10 +289,9 @@ namespace Horde.Server.Perforce
 				commit = await commits.SubscribeAsync(lastCommitNode.Number, cancellationToken: cancellationToken).FirstAsync(cancellationToken);
 			}
 
-			for (; ; )
+			while (replicatorConfig.MaxChange == null || commit.Number <= replicatorConfig.MaxChange)
 			{
-				_logger.LogInformation("Replicating {StreamId} change {Change}", streamConfig.Id, commit.Number);
-				await WriteAsync(streamConfig, commit.Number, options, cancellationToken);
+				await WriteAsync(replicatorId, streamConfig, commit.Number, options, cancellationToken);
 				commit = await commits.SubscribeAsync(commit.Number, cancellationToken: cancellationToken).FirstAsync(cancellationToken);
 			}
 		}
@@ -291,16 +299,43 @@ namespace Horde.Server.Perforce
 		/// <summary>
 		/// Replicates a change to storage
 		/// </summary>
+		/// <param name="replicatorId">Identifier for the replicator</param>
 		/// <param name="streamConfig">Stream to replicate data from</param>
 		/// <param name="change">Changelist to replicate</param>
 		/// <param name="options">Options for replication</param>
 		/// <param name="cancellationToken">Cancellation token for the operation</param>
-		public async Task WriteAsync(StreamConfig streamConfig, int change, PerforceReplicationOptions options, CancellationToken cancellationToken = default)
+		public async Task WriteAsync(ReplicatorId replicatorId, StreamConfig streamConfig, int change, PerforceReplicationOptions options, CancellationToken cancellationToken = default)
+		{
+			_logger.LogInformation("Replicating {StreamId} change {Change}", replicatorId, change);
+
+			IReplicator? replicator = await _replicatorCollection.GetOrAddAsync(replicatorId, cancellationToken: cancellationToken);
+			if (replicator.CurrentChange != change)
+			{
+				replicator = await replicator.TryUpdateAsync(new UpdateReplicatorOptions { NewCurrentChange = change }, cancellationToken);
+				if (replicator == null)
+				{
+					return;
+				}
+			}
+
+			try
+			{
+				await WriteInternalAsync(replicatorId, streamConfig, change, options, cancellationToken);
+				await replicator.TryUpdateAsync(new UpdateReplicatorOptions { NewLastChange = change, NewCurrentChange = 0, NewError = "" }, cancellationToken);
+			}
+			catch (Exception ex)
+			{
+				await replicator.TryUpdateAsync(new UpdateReplicatorOptions { NewError = ex.Message }, cancellationToken);
+				throw;
+			}
+		}
+
+		async Task WriteInternalAsync(ReplicatorId replicatorId, StreamConfig streamConfig, int change, PerforceReplicationOptions options, CancellationToken cancellationToken = default)
 		{
 			using IStorageClient store = _storageService.CreateClient(Namespace.Perforce);
 
 			// Find the parent node
-			RefName refName = GetRefName(streamConfig.Id);
+			RefName refName = GetRefName(replicatorId);
 
 			CommitNode? parent = null;
 			NodeRef<CommitNode>? parentRef = null;
@@ -321,7 +356,8 @@ namespace Horde.Server.Perforce
 			int parentChange = parent?.Number ?? 0;
 
 			// Read the current incremental state or create a new node to track the incremental state
-			RefName incRefName = GetIncrementalRefName(streamConfig.Id);
+			RefName incRefName = GetIncrementalRefName(replicatorId);
+
 			SyncNode? syncNode = null;
 			if (options.Clean)
 			{
@@ -768,7 +804,7 @@ namespace Horde.Server.Perforce
 				newClient.Description = "Created to mirror Perforce content to Horde Storage";
 				newClient.Owner = perforce.Settings.UserName;
 				newClient.Host = serverInfo.ClientHost;
-				newClient.Stream = streamConfig.ReplicationStream ?? streamConfig.Name;
+				newClient.Stream = streamConfig.Name;
 				newClient.Type = "readonly";
 				await perforce.CreateClientAsync(newClient);
 				_logger.LogInformation("Created client {ClientName} for {StreamName}", newClient.Name, streamConfig.Name);

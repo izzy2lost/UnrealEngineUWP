@@ -152,12 +152,13 @@ namespace Horde.Server.Utilities
 		/// <typeparam name="TDocument"></typeparam>
 		/// <param name="collection">Collection to insert into</param>
 		/// <param name="newDocument">The document to insert</param>
+		/// <param name="cancellationToken">Cancellation token for the operation</param>
 		/// <returns>True if the document was inserted, false if it already exists</returns>
-		public static async Task<bool> InsertOneIgnoreDuplicatesAsync<TDocument>(this IMongoCollection<TDocument> collection, TDocument newDocument)
+		public static async Task<bool> InsertOneIgnoreDuplicatesAsync<TDocument>(this IMongoCollection<TDocument> collection, TDocument newDocument, CancellationToken cancellationToken = default)
 		{
 			try
 			{
-				await collection.InsertOneAsync(newDocument);
+				await collection.InsertOneAsync(newDocument, cancellationToken: cancellationToken);
 				return true;
 			}
 			catch (MongoWriteException ex)
