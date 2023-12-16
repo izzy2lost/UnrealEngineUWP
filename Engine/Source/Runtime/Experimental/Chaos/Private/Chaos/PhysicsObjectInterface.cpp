@@ -90,7 +90,7 @@ namespace
 	// Apply an impulse based on an origin,radius and falloff parameters
 	// return the fall off value ( between 0 and 1 )
 	template<typename T>
-	float AddRadialImpulseHelper(T ParticleHandle, const FVector& Origin, const float Radius, const float Strength, const enum ERadialImpulseFalloff Falloff, const float VelocityRatio = 1.0f, bool bInvalidate = true, bool bVelChange = false)
+	float AddRadialImpulseHelper(T ParticleHandle, const FVector& Origin, const float Radius, const float Strength, const enum ERadialImpulseFalloff Falloff, const float VelocityRatio = 1.0f, bool bInvalidate = true, bool bVelChange = false, float MinValue = 0.f, float MaxValue = 1.f)
 	{
 		using namespace Chaos;
 
@@ -125,6 +125,19 @@ namespace
 				{
 					const float Distance = FMath::Sqrt(DistanceSquared);
 					FalloffAlpha = static_cast<float>(1.0f - Distance / Radius);
+
+					if (FalloffAlpha >= 0)
+					{
+						const float PrevFalloffAlpha = FalloffAlpha;
+						// remap the value within MinValue/MaxValue within the radius
+						FalloffAlpha = FMath::Lerp(MinValue, MaxValue, FalloffAlpha);
+						UE_LOG(LogChaos, Warning, TEXT("FalloffAlpha = %f = Lerp(%f, %f, %f)"), FalloffAlpha, MinValue, MaxValue, PrevFalloffAlpha);
+					}
+					else
+					{
+						// outside of the sphere, clamp to 0
+						FalloffAlpha = 0.f;
+					}
 				}
 
 				// if the strength was still strong enough to consider
@@ -935,7 +948,7 @@ namespace Chaos
 	}
 
 	template<EThreadContext Id>
-	void FWritePhysicsObjectInterface<Id>::AddRadialImpulse(TArrayView<const FPhysicsObjectHandle> InObjects, FVector Origin, float Radius, float Strength, enum ERadialImpulseFalloff Falloff, bool bApplyStrain, float Strain, bool bInvalidate, bool bVelChange)
+	void FWritePhysicsObjectInterface<Id>::AddRadialImpulse(TArrayView<const FPhysicsObjectHandle> InObjects, FVector Origin, float Radius, float Strength, enum ERadialImpulseFalloff Falloff, bool bApplyStrain, float Strain, bool bInvalidate, bool bVelChange, float MinValue, float MaxValue)
 	{
 		//TODO: create a PT version of this, plus the damping functions
 		if (Chaos::FPBDRigidsSolver* RigidSolver = Chaos::FPhysicsObjectInterface::GetSolver(InObjects))
@@ -950,7 +963,9 @@ namespace Chaos
 				bApplyStrain,
 				Strain,
 				bInvalidate,
-				bVelChange
+				bVelChange,
+				MinValue,
+				MaxValue
 				]()
 				{
 					using namespace Chaos;
@@ -984,7 +999,7 @@ namespace Chaos
 
 								for (FPBDRigidParticleHandle* ChildHandle : *ChildrenHandles)
 								{
-									const float FalloffAlpha = AddRadialImpulseHelper(ChildHandle, Origin, Radius, Strength, Falloff, VelocityRatio, bInvalidate, bVelChange);
+									const float FalloffAlpha = AddRadialImpulseHelper(ChildHandle, Origin, Radius, Strength, Falloff, VelocityRatio, bInvalidate, bVelChange, MinValue, MaxValue);
 
 									// todo(chaos) : Remove StrainModifier cvar when material system is in place and densities are updated
 									const float StrainToApply =
@@ -1006,8 +1021,8 @@ namespace Chaos
 									RigidSolver->GetEvolution()->SetParticleObjectState(ParticleHandle, Chaos::EObjectStateType::Dynamic);
 									RigidSolver->GetEvolution()->GetParticles().MarkTransientDirtyParticle(ParticleHandle);
 								}
-
-								AddRadialImpulseHelper(ParticleHandle, Origin, Radius, Strength, Falloff, bInvalidate, bVelChange);
+								constexpr float VelocityRatio = 1.f;
+								AddRadialImpulseHelper(ParticleHandle, Origin, Radius, Strength, Falloff, VelocityRatio, bInvalidate, bVelChange, MinValue, MaxValue);
 							}
 						}
 					}
