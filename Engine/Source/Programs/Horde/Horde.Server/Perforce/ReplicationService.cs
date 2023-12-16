@@ -142,7 +142,15 @@ namespace Horde.Server.Perforce
 			ICommit commit;
 			if (lastCommitNode == null)
 			{
-				commit = await commits.GetLatestAsync(cancellationToken);
+				int? pendingChange = await PerforceReplicator.GetPendingChangeAsync(store, streamConfig.Id, cancellationToken);
+				if (pendingChange != null)
+				{
+					commit = await commits.GetAsync(pendingChange.Value, cancellationToken);
+				}
+				else
+				{
+					commit = await commits.GetLatestAsync(cancellationToken);
+				}
 			}
 			else
 			{

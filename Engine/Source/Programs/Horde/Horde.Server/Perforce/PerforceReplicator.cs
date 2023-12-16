@@ -248,6 +248,17 @@ namespace Horde.Server.Perforce
 		static RefName GetIncrementalRefName(StreamId streamId) => new RefName($"{streamId}/incremental");
 
 		/// <summary>
+		/// Gets the change which is currently being written
+		/// </summary>
+		public static async Task<int?> GetPendingChangeAsync(IStorageClient storageClient, StreamId streamId, CancellationToken cancellationToken)
+		{
+			RefName incRefName = GetIncrementalRefName(streamId);
+
+			SyncNode? syncNode = await storageClient.TryReadRefAsync<SyncNode>(incRefName, cancellationToken: cancellationToken);
+			return syncNode?.Change;
+		}
+
+		/// <summary>
 		/// Replicates a change to storage
 		/// </summary>
 		/// <param name="streamConfig">Stream to replicate data from</param>
