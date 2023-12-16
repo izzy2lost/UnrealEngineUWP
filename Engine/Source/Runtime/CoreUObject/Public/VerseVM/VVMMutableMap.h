@@ -6,6 +6,7 @@
 
 #include "VVMGlobalTrivialEmergentTypePtr.h"
 #include "VVMHeap.h"
+#include "VerseVM/Inline/VVMMapBaseInline.h"
 #include "VerseVM/VVMMap.h"
 #include "VerseVM/VVMMapBase.h"
 
@@ -16,13 +17,6 @@ struct VMutableMap : VMapBase
 {
 	DECLARE_DERIVED_VCPPCLASSINFO(COREUOBJECT_API, VMapBase);
 	COREUOBJECT_API static TGlobalTrivialEmergentTypePtr<&StaticCppClassInfo> GlobalTrivialEmergentType;
-
-	void InPlaceMakeImmutable(FAllocationContext Context)
-	{
-		static_assert(std::is_base_of_v<VMapBase, VMap>);
-		static_assert(sizeof(VMap) == sizeof(VMapBase));
-		SetEmergentType(Context, &VMap::GlobalTrivialEmergentType.Get(Context));
-	}
 
 	// TODO: When constructing a map as the result of a for loop, figure out what
 	// to do with duplicate keys. Or can we even have duplicate keys in such a scenario?
@@ -36,15 +30,10 @@ struct VMutableMap : VMapBase
 		return *new (Context.Allocate(Verse::FHeap::DestructorSpace, sizeof(VMutableMap))) VMutableMap(Context, InitialCapacity);
 	}
 
-	static VMutableMap& New(FAllocationContext Context, std::initializer_list<TPair<VValue, VValue>> InitList)
+	template <typename GetEntryByIndex>
+	static VMutableMap& New(FAllocationContext Context, uint32 MaxNumEntries, const GetEntryByIndex& GetEntry)
 	{
-		return *new (Context.Allocate(Verse::FHeap::DestructorSpace, sizeof(VMutableMap))) VMutableMap(Context, InitList);
-	}
-
-	template <typename InitEntryByIndex>
-	static VMutableMap& New(FAllocationContext Context, uint32 NumEntries, InitEntryByIndex&& InitEntryFunc)
-	{
-		return *new (Context.Allocate(Verse::FHeap::DestructorSpace, sizeof(VMutableMap))) VMutableMap(Context, NumEntries, InitEntryFunc);
+		return *new (Context.Allocate(Verse::FHeap::DestructorSpace, sizeof(VMutableMap))) VMutableMap(Context, MaxNumEntries, GetEntry);
 	}
 
 	static void SerializeImpl(VMutableMap*& This, FAllocationContext Context, FAbstractVisitor& Visitor);
@@ -53,12 +42,9 @@ private:
 	VMutableMap(FAllocationContext Context, uint32 InitialCapacity)
 		: VMapBase(Context, InitialCapacity, &GlobalTrivialEmergentType.Get(Context)) {}
 
-	VMutableMap(FAllocationContext Context, std::initializer_list<TPair<VValue, VValue>> InitList)
-		: VMapBase(Context, InitList, &GlobalTrivialEmergentType.Get(Context)) {}
-
-	template <typename InitEntryByIndex>
-	VMutableMap(FAllocationContext Context, uint32 NumEntries, InitEntryByIndex&& InitEntryFunc)
-		: VMapBase(Context, NumEntries, InitEntryFunc, &GlobalTrivialEmergentType.Get(Context)) {}
+	template <typename GetEntryByIndex>
+	VMutableMap(FAllocationContext Context, uint32 MaxNumEntries, const GetEntryByIndex& GetEntry)
+		: VMapBase(Context, MaxNumEntries, GetEntry, &GlobalTrivialEmergentType.Get(Context)) {}
 };
 
 } // namespace Verse

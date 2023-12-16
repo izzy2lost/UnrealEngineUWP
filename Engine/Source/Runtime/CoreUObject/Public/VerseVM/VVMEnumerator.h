@@ -21,6 +21,8 @@ struct VEnumerator : VHeapValue
 	}
 
 private:
+	COREUOBJECT_API uint32 GetTypeHashImpl();
+
 	VEnumerator(FAllocationContext Context)
 		: VHeapValue(Context, &GlobalTrivialEmergentType.Get(Context))
 	{

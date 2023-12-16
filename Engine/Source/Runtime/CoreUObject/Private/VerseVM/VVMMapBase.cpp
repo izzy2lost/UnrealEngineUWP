@@ -92,20 +92,23 @@ bool VMapBase::EqualImpl(FRunningContext Context, VCell* Other, const TFunction<
 	{
 		return false;
 	}
-	// TODO: This should be an ordered compare
-	for (VMapBaseInternal::TConstIterator LhsIt = InternalMap.CreateConstIterator(); LhsIt; ++LhsIt)
-	{
-		const VValue RhsValue = OtherMap.Find(LhsIt.Key().Get());
-		if (!RhsValue)
-		{
-			return false;
-		}
 
-		if (!VValue::Equal(Context, LhsIt.Value().Get(), RhsValue, HandlePlaceholder))
+	auto LhsIter = InternalMap.begin();
+	auto RhsIter = OtherMap.InternalMap.begin();
+	for (; LhsIter != InternalMap.end(); ++LhsIter, ++RhsIter)
+	{
+		VValue LhsKey = LhsIter.Key().Get();
+		VValue RhsKey = RhsIter.Key().Get();
+		VValue LhsValue = LhsIter.Value().Get();
+		VValue RhsValue = RhsIter.Value().Get();
+
+		if (!VValue::Equal(Context, LhsKey, RhsKey, HandlePlaceholder)
+			|| !VValue::Equal(Context, LhsValue, RhsValue, HandlePlaceholder))
 		{
 			return false;
 		}
 	}
+
 	return true;
 }
 

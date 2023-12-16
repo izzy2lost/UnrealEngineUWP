@@ -6,6 +6,7 @@
 
 #include "VVMGlobalTrivialEmergentTypePtr.h"
 #include "VVMHeap.h"
+#include "VerseVM/Inline/VVMMapBaseInline.h"
 #include "VerseVM/VVMMapBase.h"
 
 namespace Verse
@@ -21,15 +22,10 @@ struct VMap : VMapBase
 		return *new (Context.Allocate(Verse::FHeap::DestructorSpace, sizeof(VMap))) VMap(Context, InitialCapacity);
 	}
 
-	static VMap& New(FAllocationContext Context, std::initializer_list<TPair<VValue, VValue>> InitList)
+	template <typename GetEntryByIndex>
+	static VMap& New(FAllocationContext Context, uint32 MaxNumEntries, const GetEntryByIndex& GetEntry)
 	{
-		return *new (Context.Allocate(Verse::FHeap::DestructorSpace, sizeof(VMap))) VMap(Context, InitList);
-	}
-
-	template <typename InitEntryByIndex>
-	static VMap& New(FAllocationContext Context, uint32 NumEntries, InitEntryByIndex&& InitEntryFunc)
-	{
-		return *new (Context.Allocate(Verse::FHeap::DestructorSpace, sizeof(VMap))) VMap(Context, NumEntries, InitEntryFunc);
+		return *new (Context.Allocate(Verse::FHeap::DestructorSpace, sizeof(VMap))) VMap(Context, MaxNumEntries, GetEntry);
 	}
 
 	static void SerializeImpl(VMap*& This, FAllocationContext Context, FAbstractVisitor& Visitor);
@@ -38,12 +34,9 @@ private:
 	VMap(FAllocationContext Context, uint32 InitialCapacity)
 		: VMapBase(Context, InitialCapacity, &GlobalTrivialEmergentType.Get(Context)) {}
 
-	VMap(FAllocationContext Context, std::initializer_list<TPair<VValue, VValue>> InitList)
-		: VMapBase(Context, InitList, &GlobalTrivialEmergentType.Get(Context)) {}
-
-	template <typename InitEntryByIndex>
-	VMap(FAllocationContext Context, uint32 NumEntries, InitEntryByIndex&& InitEntryFunc)
-		: VMapBase(Context, NumEntries, InitEntryFunc, &GlobalTrivialEmergentType.Get(Context)) {}
+	template <typename GetEntryByIndex>
+	VMap(FAllocationContext Context, uint32 MaxNumEntries, const GetEntryByIndex& GetEntry)
+		: VMapBase(Context, MaxNumEntries, GetEntry, &GlobalTrivialEmergentType.Get(Context)) {}
 };
 
 } // namespace Verse

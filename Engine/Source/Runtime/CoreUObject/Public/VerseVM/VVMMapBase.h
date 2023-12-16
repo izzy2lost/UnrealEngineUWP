@@ -61,6 +61,7 @@ struct VMapBase : VHeapValue
 
 protected:
 	// TODO: Create an allocator for this map which uses the GC's Aux allocation so we don't have to count external memory
+	// NB: Right now, we rely on nothing being removed from this map because we look things up by index.
 	VMapBaseInternal InternalMap;
 
 	void Add(FAllocationContext Context, VValue Key, VValue Value);
@@ -72,32 +73,8 @@ protected:
 		FHeap::ReportAllocatedNativeBytes(InternalMap.GetAllocatedSize());
 	}
 
-	// TODO: When constructing with duplicate keys, we should forget the earlier
-	// key ever existed, and it shouldn't change the order.
-	VMapBase(FAllocationContext Context, std::initializer_list<TPair<VValue, VValue>> InitList, VEmergentType* Type)
-		: VHeapValue(Context, Type)
-	{
-		InternalMap.Reserve(static_cast<uint32>(InitList.size()));
-		for (const TPair<VValue, VValue>& Pair : InitList)
-		{
-			Add(Context, Pair.Key, Pair.Value);
-		}
-		FHeap::ReportAllocatedNativeBytes(InternalMap.GetAllocatedSize());
-	}
-
-	template <typename InitEntryByIndex>
-	VMapBase(FAllocationContext Context, uint32 NumEntries, InitEntryByIndex&& InitEntryFunc, VEmergentType* Type)
-		: VHeapValue(Context, Type)
-	{
-		InternalMap.Reserve(NumEntries);
-		for (uint32 Index = 0; Index < NumEntries; ++Index)
-		{
-			TPair<VValue, VValue> Pair = InitEntryFunc(Index);
-			Add(Context, Pair.Key, Pair.Value);
-		}
-		FHeap::ReportAllocatedNativeBytes(InternalMap.GetAllocatedSize());
-	}
-
+	template <typename GetEntryByIndex>
+	VMapBase(FAllocationContext Context, uint32 MaxNumEntries, const GetEntryByIndex& GetEntry, VEmergentType* Type);
 	~VMapBase();
 
 public:

@@ -1258,35 +1258,6 @@ class FInterpreter
 	}
 
 	template <typename OpType>
-	FOpResult NewMutableMapImpl(OpType& Op)
-	{
-		const uint32 NumKeys = Op.Keys.Num();
-		V_DIE_UNLESS(NumKeys == static_cast<uint32>(Op.Values.Num()));
-
-		VMutableMap& NewMap = VMutableMap::New(Context);
-		for (uint32 Index = 0; Index < NumKeys; ++Index)
-		{
-			VValue NewKey = GetOperand(Op.Keys[Index]);
-			VValue NewValue = GetOperand(Op.Values[Index]);
-			NewMap.Add(Context, NewKey, NewValue);
-		}
-		DEF(Op.Dest, NewMap);
-
-		return {FOpResult::Normal};
-	}
-
-	template <typename OpType>
-	FOpResult NewMutableMapWithCapacityImpl(OpType& Op)
-	{
-		const VValue Size = GetOperand(Op.Size);
-		REQUIRE_CONCRETE(Size); // Must be an Int32 (although UInt32 is better)
-		VMutableMap& NewMap = VMutableMap::New(Context, static_cast<uint32>(Size.AsInt32()));
-		DEF(Op.Dest, NewMap);
-
-		return {FOpResult::Normal};
-	}
-
-	template <typename OpType>
 	FOpResult NewClassImpl(OpType& Op)
 	{
 		VConstructor* Constructor = Op.Constructor.Get();
@@ -1730,8 +1701,6 @@ class FInterpreter
 				OP_IMPL_THREAD_EFFECTS(ArrayAdd)
 				OP_IMPL(InPlaceMakeImmutable)
 				OP_IMPL(NewMap)
-				OP_IMPL(NewMutableMap)
-				OP_IMPL(NewMutableMapWithCapacity)
 				OP_IMPL(MapKey)
 				OP_IMPL(MapValue)
 				OP_IMPL(NewClass)

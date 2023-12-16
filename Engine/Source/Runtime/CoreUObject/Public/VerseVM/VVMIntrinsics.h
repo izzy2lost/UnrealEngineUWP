@@ -20,6 +20,7 @@ struct VIntrinsics : VHeapValue
 	TWriteBarrier<VNativeFunction> Abs;
 	TWriteBarrier<VNativeFunction> Ceil;
 	TWriteBarrier<VNativeFunction> Floor;
+	TWriteBarrier<VNativeFunction> ConcatenateMaps;
 
 	static VIntrinsics& New(FAllocationContext Context)
 	{
@@ -30,12 +31,14 @@ private:
 	static FNativeCallResult AbsImpl(FRunningContext Context, VValue Scope, VNativeFunction::Args Arguments);
 	static FNativeCallResult CeilImpl(FRunningContext Context, VValue Scope, VNativeFunction::Args Arguments);
 	static FNativeCallResult FloorImpl(FRunningContext Context, VValue Scope, VNativeFunction::Args Arguments);
+	static FNativeCallResult ConcatenateMapsImpl(FRunningContext Context, VValue Scope, VNativeFunction::Args Arguments);
 
 	VIntrinsics(FAllocationContext Context)
 		: VHeapValue(Context, &GlobalTrivialEmergentType.Get(Context))
 		, Abs(Context, VNativeFunction::New(Context, 1, &AbsImpl))
 		, Ceil(Context, VNativeFunction::New(Context, 1, &CeilImpl))
 		, Floor(Context, VNativeFunction::New(Context, 1, &FloorImpl))
+		, ConcatenateMaps(Context, VNativeFunction::New(Context, 2, &ConcatenateMapsImpl))
 	{
 	}
 };

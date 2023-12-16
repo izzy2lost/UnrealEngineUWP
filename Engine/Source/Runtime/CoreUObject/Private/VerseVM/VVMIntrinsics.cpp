@@ -7,6 +7,7 @@
 #include "VerseVM/VVMCppClassInfo.h"
 #include "VerseVM/VVMFloat.h"
 #include "VerseVM/VVMInt.h"
+#include "VerseVM/VVMMap.h"
 #include "VerseVM/VVMOpResult.h"
 #include "VerseVM/VVMRational.h"
 #include "VerseVM/VVMValue.h"
@@ -42,12 +43,30 @@ FNativeCallResult VIntrinsics::FloorImpl(FRunningContext Context, VValue Scope, 
 	V_RETURN(Argument.Floor(Context));
 }
 
+FNativeCallResult VIntrinsics::ConcatenateMapsImpl(FRunningContext Context, VValue Scope, VNativeFunction::Args Arguments)
+{
+	checkSlow(Arguments.Num() == 2); // The interpreter already checks this
+	V_REQUIRE_CONCRETE(Arguments[0]);
+	V_REQUIRE_CONCRETE(Arguments[1]);
+	VMapBase& Lhs = Arguments[0].StaticCast<VMapBase>();
+	VMapBase& Rhs = Arguments[1].StaticCast<VMapBase>();
+	V_RETURN(VMap::New(Context, Lhs.Num() + Rhs.Num(), [&](uint32 I) {
+		if (I < Lhs.Num())
+		{
+			return TPair<VValue, VValue>{Lhs.GetKey(I), Lhs.GetValue(I)};
+		}
+		checkSlow(I >= Lhs.Num());
+		return TPair<VValue, VValue>{Rhs.GetKey(I - Lhs.Num()), Rhs.GetValue(I - Lhs.Num())};
+	}));
+}
+
 template <typename TVisitor>
 void VIntrinsics::VisitReferencesImpl(TVisitor& Visitor)
 {
 	Visitor.Visit(Abs, TEXT("Abs"));
 	Visitor.Visit(Ceil, TEXT("Ceil"));
 	Visitor.Visit(Floor, TEXT("Floor"));
+	Visitor.Visit(ConcatenateMaps, TEXT("ConcatenateMaps"));
 }
 
 } // namespace Verse
