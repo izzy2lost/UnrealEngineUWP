@@ -139,9 +139,9 @@ void UDataflowEditorMode::BindCommands()
 void UDataflowEditorMode::CreateToolTargets(const TArray<TObjectPtr<UObject>>& AssetsIn)
 {
 	ToolTargets.Reset();
-	for (UObject* Object : AssetsIn)
+	if (TObjectPtr<UDataflowEditorContent> EditorContent = PreviewScene->GetDataflowEditorContent())
 	{
-		if (UToolTarget* Target = GetInteractiveToolsContext()->TargetManager->BuildTarget(Object, GetToolTargetRequirements()))
+		if (UToolTarget* Target = GetInteractiveToolsContext()->TargetManager->BuildTarget(EditorContent.Get(), GetToolTargetRequirements()))
 		{
 			ToolTargets.Add(Target);
 		}
@@ -160,8 +160,6 @@ void UDataflowEditorMode::InitializeTargets(const TArray<TObjectPtr<UObject>>& A
 	PreviewScene->ResetDynamicMeshComponents();
 	for (UToolTarget* Target : ToolTargets)
 	{
-		UE::Geometry::FDynamicMesh3 DynamicMesh = UE::ToolTarget::GetDynamicMeshCopy(Target);
-
 		// @todo(DynamicMeshRendering) : Enable Dynamic Mesh Rendering for dataflow terminals. 
 		//  TObjectPtr<UDynamicMeshComponent>& DynamicMeshComponent =
 		//	PreviewScene->AddDynamicMeshComponent(MoveTemp(DynamicMesh), UE::ToolTarget::GetMaterialSet(Target).Materials);

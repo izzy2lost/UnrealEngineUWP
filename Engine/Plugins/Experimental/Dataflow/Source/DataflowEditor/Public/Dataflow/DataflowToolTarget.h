@@ -3,7 +3,7 @@
 #pragma once
 
 #include "CoreMinimal.h"
-
+#include "Dataflow/DataflowObjectInterface.h"
 #include "TargetInterfaces/DynamicMeshCommitter.h"
 #include "TargetInterfaces/DynamicMeshProvider.h"
 #include "TargetInterfaces/MaterialProvider.h"
@@ -60,6 +60,9 @@ protected:
 
 	// Internal asset pointer
 	TObjectPtr<UObject> Asset = nullptr;
+
+	/**  Engine context to be used for dataflow evaluation */
+	TSharedPtr<Dataflow::FEngineContext> Context = nullptr;
 };
 
 /**
