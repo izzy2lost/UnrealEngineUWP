@@ -163,7 +163,6 @@ UNiagaraSystem::UNiagaraSystem(const FObjectInitializer& ObjectInitializer)
 #if WITH_EDITORONLY_DATA
 , LibraryVisibility(ENiagaraScriptLibraryVisibility::Unexposed)
 , TemplateSpecification(ENiagaraScriptTemplateSpecification::None)
-, bCompileForEdit(false)
 , bBakeOutRapidIteration(false)
 , bBakeOutRapidIterationOnCook(true)
 , bTrimAttributes(false)
@@ -172,6 +171,7 @@ UNiagaraSystem::UNiagaraSystem(const FObjectInitializer& ObjectInitializer)
 , bDisableDebugSwitches(false)
 , bDisableDebugSwitchesOnCook(true)
 , bNeedsRequestCompile(false)
+, bCompileForEdit(false)
 #endif
 , bSupportLargeWorldCoordinates(true)
 , bDisableExperimentalVM(false)
@@ -2518,6 +2518,15 @@ void UNiagaraSystem::ForceGraphToRecompileOnNextCheck()
 			UNiagaraScriptSourceBase* GraphSource = EmitterData->GraphSource;
 			GraphSource->ForceGraphToRecompileOnNextCheck();
 		}
+	}
+}
+
+void UNiagaraSystem::SetCompileForEdit(bool bNewCompileForEdit)
+{
+	if (bNewCompileForEdit != bCompileForEdit)
+	{
+		bCompileForEdit = bNewCompileForEdit;
+		bNeedsRequestCompile = true;
 	}
 }
 

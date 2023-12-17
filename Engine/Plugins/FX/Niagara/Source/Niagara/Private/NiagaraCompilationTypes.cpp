@@ -298,14 +298,21 @@ public:
 		//	parameters just because things are disabled because the editor will forget the settings.
 		constexpr bool bAllowParameterRemoval = false;
 
+		auto GetValidTargetScript = [](UNiagaraScript* Script) -> UNiagaraScript*
+		{
+			return ::IsValid(Script) ? Script : nullptr;
+		};
+
 		for (FNiagaraSystemAsyncCompileResults::FCompileResultMap::TConstIterator ResultIt(CompileResults.CompileResultMap);
 			ResultIt;
 			++ResultIt)
 		{
-			UNiagaraScript* TargetScript = ResultIt->Key;
 			const FNiagaraScriptAsyncCompileData& ScriptCompileData = ResultIt->Value;
 
-			TargetScript->ApplyRapidIterationParameters(ScriptCompileData.RapidIterationParameters, bAllowParameterRemoval);
+			if (UNiagaraScript* TargetScript = GetValidTargetScript(ResultIt->Key))
+			{
+				TargetScript->ApplyRapidIterationParameters(ScriptCompileData.RapidIterationParameters, bAllowParameterRemoval);
+			}
 		}
 
 		// Now that the above code says they are all complete, go ahead and resolve them all at once.
@@ -313,55 +320,51 @@ public:
 			ResultIt;
 			++ResultIt)
 		{
-			UNiagaraScript* TargetScript = ResultIt->Key;
-			const FNiagaraScriptAsyncCompileData& ScriptCompileData = ResultIt->Value;
-
-			// because our compilation process includes the generation of rapid iteration parameters and static
-			// variables we need to generate the ExecutableDataId
-			// if we dirtied any RI parameters then we need to regenerate our CompilationId
-			FNiagaraVMExecutableDataId UpdatedCompileId;
-			TargetScript->ComputeVMCompilationId(UpdatedCompileId, FGuid());
-
-			if (ScriptCompileData.ExeData.IsValid())
+			if (UNiagaraScript* TargetScript = GetValidTargetScript(ResultIt->Key))
 			{
-				TMap<FName, UNiagaraDataInterface*> ObjectNameMap;
+				const FNiagaraScriptAsyncCompileData& ScriptCompileData = ResultIt->Value;
 
-				if (ScriptCompileData.bFromDerivedDataCache)
+				if (ScriptCompileData.ExeData.IsValid())
 				{
-					// if the data was pulled from the DDC then we'll need to generate the map from the source
-					const UNiagaraScriptSourceBase* ScriptSource = TargetScript->GetLatestSource();
-					ObjectNameMap = ScriptSource->ComputeObjectNameMap(*Options.System, TargetScript->GetUsage(), TargetScript->GetUsageId(), ScriptCompileData.UniqueEmitterName);
-				}
-				else
-				{
-					// if we actually generated our data will include a name map that we can use
-					Algo::Transform(ScriptCompileData.NamedDataInterfaces, ObjectNameMap, [](const TMap<FName, TObjectPtr<UNiagaraDataInterface>>::ElementType& Element)
+					// because our compilation process includes the generation of rapid iteration parameters and static
+					// variables we need to generate the ExecutableDataId
+					// if we dirtied any RI parameters then we need to regenerate our CompilationId
+					FNiagaraVMExecutableDataId UpdatedCompileId;
+					TargetScript->ComputeVMCompilationId(UpdatedCompileId, FGuid());
+
+					TMap<FName, UNiagaraDataInterface*> ObjectNameMap;
+
+					// The original implementation would generate DI references from the compilation data (unless things were pulled from
+					// the DDC).  We will always pull the data from the target scripts so that we can avoid any weird caching issues with
+					// our digested graphs, but it also should ensure more consistent behavior (the compilation should only depend on the
+					// aspects of DI that impact compilation, other changes that could have been made by the user shouldn't be erased
+					// when the compilation results are applied.
+					if (const UNiagaraScriptSourceBase* ScriptSource = TargetScript->GetLatestSource())
 					{
-						return TMap<FName, UNiagaraDataInterface*>::ElementType(Element.Key, Element.Value);
-					});
-				}
-
-				constexpr bool bApplyRapidIterationParameters = false;
-				TargetScript->SetVMCompilationResults(
-					UpdatedCompileId,
-					*ScriptCompileData.ExeData,
-					ScriptCompileData.UniqueEmitterName,
-					ObjectNameMap,
-					bApplyRapidIterationParameters);
-
-				if (!ScriptCompileData.CompiledShaders.IsEmpty())
-				{
-					for (const FNiagaraCompiledShaderInfo& ShaderMapInfo : ScriptCompileData.CompiledShaders)
-					{
-						TargetScript->SetComputeCompilationResults(
-							ShaderMapInfo.TargetPlatform,
-							ShaderMapInfo.ShaderPlatform,
-							ShaderMapInfo.FeatureLevel,
-							ScriptCompileData.ExeData->ShaderScriptParametersMetadata,
-							ShaderMapInfo.CompiledShader,
-							ShaderMapInfo.CompilationErrors);
+						ObjectNameMap = ScriptSource->ComputeObjectNameMap(*Options.System, TargetScript->GetUsage(), TargetScript->GetUsageId(), ScriptCompileData.UniqueEmitterName);
 					}
 
+					constexpr bool bApplyRapidIterationParameters = false;
+					TargetScript->SetVMCompilationResults(
+						UpdatedCompileId,
+						*ScriptCompileData.ExeData,
+						ScriptCompileData.UniqueEmitterName,
+						ObjectNameMap,
+						bApplyRapidIterationParameters);
+
+					if (!ScriptCompileData.CompiledShaders.IsEmpty())
+					{
+						for (const FNiagaraCompiledShaderInfo& ShaderMapInfo : ScriptCompileData.CompiledShaders)
+						{
+							TargetScript->SetComputeCompilationResults(
+								ShaderMapInfo.TargetPlatform,
+								ShaderMapInfo.ShaderPlatform,
+								ShaderMapInfo.FeatureLevel,
+								ScriptCompileData.ExeData->ShaderScriptParametersMetadata,
+								ShaderMapInfo.CompiledShader,
+								ShaderMapInfo.CompilationErrors);
+						}
+					}
 				}
 			}
 		}

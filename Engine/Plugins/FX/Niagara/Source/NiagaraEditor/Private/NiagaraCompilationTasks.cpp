@@ -208,7 +208,19 @@ namespace NiagaraCompilationTasksImpl
 		}
 
 		FMemoryReaderView Ar(SharedBuffer.GetView(), true);
+
+		// Read the archive version from the header of the payload so we can setup our reader with the right version
+		FPackageFileVersion ArchiveVersion;
+		Ar << ArchiveVersion;
+
+		if (!ArchiveVersion.IsCompatible(GOldestLoadablePackageFileUEVersion))
+		{
+			UE_LOG(LogNiagaraEditor, Display, TEXT("Failed to validate FNiagaraVMExecutableData received from DDC, rejecting!  Reasons:\nDeprecated object version"));
+			return false;
+		}
+
 		FObjectAndNameAsStringProxyArchive SafeAr(Ar, false);
+		SafeAr.SetUEVer(ArchiveVersion);
 		OutExecData.SerializeData(SafeAr, true);
 
 		FString ValidationErrors;
@@ -237,6 +249,11 @@ namespace NiagaraCompilationTasksImpl
 
 		TArray<uint8> BinaryData;
 		FMemoryWriter Ar(BinaryData, true);
+
+		// include the archive version into the payload since we're using struct serialization for the ExecData
+		FPackageFileVersion ArchiveVersion = GPackageFileUEVersion;
+		Ar << ArchiveVersion;
+
 		FObjectAndNameAsStringProxyArchive SafeAr(Ar, false);
 		InExecData.SerializeData(SafeAr, true);
 
@@ -487,8 +504,15 @@ void FNiagaraSystemCompilationTask::Abort()
 	CompileCompletionEvent.Trigger();
 }
 
-
 const FNiagaraSystemCompilationTask::FEmitterInfo* FNiagaraSystemCompilationTask::FSystemInfo::EmitterInfoBySourceEmitter(int32 InSourceEmitterIndex) const
+{
+	return EmitterInfo.FindByPredicate([InSourceEmitterIndex](const FEmitterInfo& Info) -> bool
+	{
+		return Info.SourceEmitterIndex == InSourceEmitterIndex;
+	});
+}
+
+FNiagaraSystemCompilationTask::FEmitterInfo* FNiagaraSystemCompilationTask::FSystemInfo::EmitterInfoBySourceEmitter(int32 InSourceEmitterIndex)
 {
 	return EmitterInfo.FindByPredicate([InSourceEmitterIndex](const FEmitterInfo& Info) -> bool
 	{
@@ -517,6 +541,8 @@ bool FNiagaraSystemCompilationTask::FCompileGroupInfo::HasOutstandingCompileTask
 
 void FNiagaraSystemCompilationTask::FCompileGroupInfo::InstantiateCompileGraph(const FNiagaraSystemCompilationTask& ParentTask)
 {
+	TRACE_CPUPROFILER_EVENT_SCOPE(NiagaraAsyncTask_InstantiateGraph);
+
 	CompilationCopy = MakeShared<FNiagaraCompilationCopyData, ESPMode::ThreadSafe>();
 	FNiagaraCompilationCopyData& BasePtr = *CompilationCopy.Get();
 
@@ -720,6 +746,8 @@ void FNiagaraSystemCompilationTask::FCompileTaskInfo::CollectNamedDataInterfaces
 
 void FNiagaraSystemCompilationTask::FCompileTaskInfo::Translate(FNiagaraSystemCompilationTask* SystemCompileTask, const FCompileGroupInfo& GroupInfo)
 {
+	TRACE_CPUPROFILER_EVENT_SCOPE(NiagaraAsyncTask_Translate);
+
 	COOK_STAT(NiagaraSystemCookStats::ScriptTranslationCount++);
 
 	const FNiagaraPrecompileData* PrecompileData = nullptr;
@@ -789,7 +817,7 @@ void FNiagaraSystemCompilationTask::FCompileTaskInfo::IssueCompileVm(FNiagaraSys
 	NiagaraCompilationTasksImpl::BuildDebugGroupName(*PrecompileData, CompileOptions, DebugGroupName);
 
 	ScriptCompiler = MakeUnique<FHlslNiagaraCompiler>();
-	ScriptCompilationJobId = ScriptCompiler->CompileScriptVM(DebugGroupName, CompileOptions, TranslateResults, TranslateOutput, TranslatedHlsl);
+	ScriptCompilationJobId = ScriptCompiler->CompileScriptVM(DebugGroupName, CompileOptions, TranslateResults, TranslateOutput, TranslatedHlsl, SystemCompileTask->NiagaraShaderType);
 }
 
 void FNiagaraSystemCompilationTask::FCompileTaskInfo::IssueTranslateGpu(FNiagaraSystemCompilationTask* SystemCompileTask, const FCompileGroupInfo& GroupInfo)
@@ -817,8 +845,11 @@ void FNiagaraSystemCompilationTask::FCompileTaskInfo::IssueCompileGpu(FNiagaraSy
 {
 	COOK_STAT(NiagaraSystemCookStats::GpuScriptCompileCount++);
 
-	// we are going to populate a FNiagaraShaderMap.  This involves it's own little DDC hop as we store
-	// the shader in a separate bucket
+	// if we don't have a valid shader file, then there's no point in issuing a compilation
+	if (!TranslateResults.bHLSLGenSucceeded)
+	{
+		return;
+	}
 
 	const FNiagaraPrecompileData* PrecompileData = nullptr;
 	const FNiagaraCompilationCopyData* CompilationCopyData = nullptr;
@@ -861,6 +892,8 @@ TOptional<FNiagaraCompileResults> FNiagaraSystemCompilationTask::FCompileTaskInf
 /** Returns true if the task has valid results */
 bool FNiagaraSystemCompilationTask::FCompileTaskInfo::RetrieveCompilationResult(bool bWait)
 {
+	TRACE_CPUPROFILER_EVENT_SCOPE(NiagaraAsyncTask_RetrieveResult);
+
 	check(CompileResultsReadyEvent.IsValid() && CompileResultsReadyEvent->IsValid());
 
 	if (CompileResultsReadyEvent->IsCompleted())
@@ -869,7 +902,6 @@ bool FNiagaraSystemCompilationTask::FCompileTaskInfo::RetrieveCompilationResult(
 	}
 	check(!ExeData.IsValid());
 	check(ScriptCompiler.IsValid());
-	check(ScriptCompilationJobId != INDEX_NONE);
 
 	// in cases where asynchronous shader compiling isn't allowed we'll simply block execution here till the task
 	// is complete
@@ -948,11 +980,17 @@ void FNiagaraSystemCompilationTask::FCompileTaskInfo::RetrieveTranslateResult()
 
 bool FNiagaraSystemCompilationTask::FCompileTaskInfo::RetrieveShaderMap(bool bWait)
 {
-	check(ShaderMapCompiler.IsValid());
 	check(CompileResultsReadyEvent.IsValid() && CompileResultsReadyEvent->IsValid());
 
 	if (CompileResultsReadyEvent->IsCompleted())
 	{
+		return true;
+	}
+
+	// if we don't have a shader map compiler, then just return the translation results
+	if (!ShaderMapCompiler.IsValid())
+	{
+		RetrieveTranslateResult();
 		return true;
 	}
 
@@ -969,6 +1007,8 @@ bool FNiagaraSystemCompilationTask::FCompileTaskInfo::RetrieveShaderMap(bool bWa
 
 void FNiagaraSystemCompilationTask::FCompileTaskInfo::GenerateOptimizedVMByteCode(FNiagaraSystemCompilationTask* SystemCompileTask, const FCompileGroupInfo& GroupInfo)
 {
+	TRACE_CPUPROFILER_EVENT_SCOPE(NiagaraAsyncTask_OptimizeVM);
+
 #if VECTORVM_SUPPORTS_LEGACY
 	const bool bExperimentalVMDisabled = CompileOptions.AdditionalDefines.Contains(FNiagaraCompileOptions::ExperimentalVMDisabled);
 
@@ -1024,8 +1064,9 @@ void FNiagaraSystemCompilationTask::FCompileTaskInfo::ProcessCompilation(FNiagar
 	}
 
 	// we need to update our ComputeShaderTasks with the generated shader map so that we can put the data to the DDC
-	if (ScriptCompileType == EScriptCompileType::CompileForGpu)
+	if (ShaderMapCompiler.IsValid())
 	{
+		check(ScriptCompileType == EScriptCompileType::CompileForGpu);
 		for (int32 ComputeShaderTaskIndex : ComputeShaderTaskIndices)
 		{
 			FCompileComputeShaderTaskInfo& ShaderTaskInfo = SystemCompileTask->CompileComputeShaderTasks[ComputeShaderTaskIndex];
@@ -1283,6 +1324,8 @@ void FNiagaraSystemCompilationTask::FDispatchDataCachePutRequests::Launch(FNiaga
 
 void FNiagaraSystemCompilationTask::DigestSystemInfo()
 {
+	TRACE_CPUPROFILER_EVENT_SCOPE(NiagaraAsyncTask_DigestSystem);
+
 	using namespace NiagaraCompilationTasksImpl;
 
 	FNiagaraDigestDatabase& DigestDatabase = FNiagaraDigestDatabase::Get();
@@ -1415,7 +1458,7 @@ void FNiagaraSystemCompilationTask::DigestShaderInfo(const ITargetPlatform* InTa
 	NiagaraShaderType = InShaderType;
 }
 
-void FNiagaraSystemCompilationTask::AddScript(int32 EmitterIndex, UNiagaraScript* Script, const FNiagaraVMExecutableDataId& CompileId, bool bRequiresCompilation, TConstArrayView<FShaderCompileRequest> ShaderRequests)
+void FNiagaraSystemCompilationTask::AddScript(int32 SourceEmitterIndex, UNiagaraScript* Script, const FNiagaraVMExecutableDataId& CompileId, bool bRequiresCompilation, TConstArrayView<FShaderCompileRequest> ShaderRequests)
 {
 	if (!Script)
 	{
@@ -1427,10 +1470,10 @@ void FNiagaraSystemCompilationTask::AddScript(int32 EmitterIndex, UNiagaraScript
 		FVersionedNiagaraScriptData* ScriptData = Script->GetScriptData(CompileId.ScriptVersionID);
 		if (ensure(ScriptData))
 		{
-			FCompileGroupInfo* GroupInfo = GetCompileGroupInfo(EmitterIndex);
+			FCompileGroupInfo* GroupInfo = GetCompileGroupInfo(SourceEmitterIndex);
 			if (!GroupInfo)
 			{
-				GroupInfo = &CompileGroups.Emplace_GetRef(EmitterIndex);
+				GroupInfo = &CompileGroups.Emplace_GetRef(SourceEmitterIndex);
 			}
 
 			TArray<ENiagaraScriptUsage> DuplicateUsages;
@@ -1471,10 +1514,8 @@ void FNiagaraSystemCompilationTask::AddScript(int32 EmitterIndex, UNiagaraScript
 
 			if (TaskInfo.ScriptCompileType == EScriptCompileType::CompileForGpu)
 			{
-				check(SystemInfo.EmitterInfo.IsValidIndex(EmitterIndex));
-				const FEmitterInfo& EmitterInfo = SystemInfo.EmitterInfo[EmitterIndex];
-
-				if (EmitterInfo.Enabled)
+				const FEmitterInfo* EmitterInfo = SystemInfo.EmitterInfoBySourceEmitter(SourceEmitterIndex);
+				if (EmitterInfo && EmitterInfo->Enabled)
 				{
 					TaskInfo.ComputeShaderTaskIndices.Reserve(ShaderRequests.Num());
 					for (const FShaderCompileRequest& ShaderRequest : ShaderRequests)
@@ -1498,9 +1539,9 @@ void FNiagaraSystemCompilationTask::AddScript(int32 EmitterIndex, UNiagaraScript
 
 	FVersionedNiagaraEmitterData* EmitterData = nullptr;
 
-	if (EmitterIndex != INDEX_NONE)
+	if (SourceEmitterIndex != INDEX_NONE)
 	{
-		EmitterData = System_GT->GetEmitterHandle(EmitterIndex).GetEmitterData();
+		EmitterData = System_GT->GetEmitterHandle(SourceEmitterIndex).GetEmitterData();
 	}
 
 	FScriptInfo& Info = DigestedScriptInfo.Add(Script);
@@ -1533,7 +1574,7 @@ void FNiagaraSystemCompilationTask::AddScript(int32 EmitterIndex, UNiagaraScript
 
 	Info.Usage = Script->GetUsage();
 	Info.UsageId = Script->GetUsageId();
-	Info.SourceEmitterIndex = EmitterIndex;
+	Info.SourceEmitterIndex = SourceEmitterIndex;
 	for (UNiagaraScript* DependentScript : NiagaraCompilationTasksImpl::FindDependentScripts(System_GT.Get(), EmitterData, Script))
 	{
 		Info.DependentScripts.AddUnique(DependentScript);
@@ -1707,6 +1748,8 @@ void FNiagaraSystemCompilationTask::WaitTillCachePutCompletion()
 
 void FNiagaraSystemCompilationTask::Precompile()
 {
+	TRACE_CPUPROFILER_EVENT_SCOPE(NiagaraAsyncTask_Precompile);
+
 	SystemPrecompileData = MakeShared<FNiagaraPrecompileData, ESPMode::ThreadSafe>();
 
 	SystemPrecompileData->SharedCompileDataInterfaceData = MakeShared<TArray<FNiagaraPrecompileData::FCompileDataInterfaceData>>();
@@ -1910,6 +1953,7 @@ struct FNiagaraSystemCompilationTask::FCollectStaticVariablesTaskBuilder
 				BuilderTask->CompilationTask = &CompilationTask;
 				BuilderTask->ConstantResolver = EmitterInfo.ConstantResolver;
 				BuilderTask->GraphContext = EmitterGraph;
+				BuilderTask->UniqueEmitterName = EmitterInfo.UniqueEmitterName;
 
 				// the initial static variables needs to come from gathering data from the Emitter
 				// but also what has been calculated in the SystemInfo
@@ -1954,6 +1998,7 @@ struct FNiagaraSystemCompilationTask::FCollectStaticVariablesTaskBuilder
 		const FNiagaraSystemCompilationTask* CompilationTask = nullptr;
 		FNiagaraFixedConstantResolver ConstantResolver;
 		const FNiagaraCompilationGraph* GraphContext = nullptr;
+		FString UniqueEmitterName;
 		TArray<const FNiagaraCompilationNodeOutput*> OutputNodes;
 		TArray<FNiagaraVariable> InitialStaticVariables;
 		TArray<FName> StageNames;
@@ -2292,9 +2337,10 @@ UE::Tasks::FTask FNiagaraSystemCompilationTask::BuildRapidIterationParametersAsy
 			}, CollectStaticVariableTasks.FindRef(EmitterInfo ? EmitterInfo->DigestedEmitterIndex : INDEX_NONE)));
 		}
 
-		// lastly we need a single task to copy over parameters between dependent scripts
+		// We need a single task to copy over parameters between dependent scripts and make sure that the static variable
+		// list is up to date
 		TMap<TObjectKey<UNiagaraScript>, FScriptInfo>* ScriptInfoMapPtr = &DigestedScriptInfo;
-		return Launch(UE_SOURCE_LOCATION, [ScriptInfoMapPtr]
+		return Launch(UE_SOURCE_LOCATION, [ScriptInfoMapPtr, this]
 		{
 			for (TMap<TObjectKey<UNiagaraScript>, FScriptInfo>::ElementType& CurrentIt : *ScriptInfoMapPtr)
 			{
@@ -2303,6 +2349,25 @@ UE::Tasks::FTask FNiagaraSystemCompilationTask::BuildRapidIterationParametersAsy
 				{
 					FScriptInfo& DstScriptInfo = ScriptInfoMapPtr->FindChecked(DependentScriptKey);
 					SrcScriptInfo.RapidIterationParameters.CopyParametersTo(DstScriptInfo.RapidIterationParameters, false, FNiagaraParameterStore::EDataInterfaceCopyMethod::None);
+				}
+
+				// make sure that all rapid iteration parameters on the script have made it to the system/emitter info
+				for (const FNiagaraVariableWithOffset& ScriptRI : SrcScriptInfo.RapidIterationParameters.ReadParameterVariables())
+				{
+					if (ScriptRI.GetType().IsStatic())
+					{
+						FNiagaraVariable StaticVariable = FNiagaraVariable(ScriptRI);
+						StaticVariable.SetData(SrcScriptInfo.RapidIterationParameters.GetParameterData(ScriptRI.Offset));
+
+						if (SrcScriptInfo.SourceEmitterIndex == INDEX_NONE)
+						{
+							SystemInfo.StaticVariableResults.AddUnique(StaticVariable);
+						}
+						else if (FEmitterInfo* EmitterInfo = SystemInfo.EmitterInfoBySourceEmitter(SrcScriptInfo.SourceEmitterIndex))
+						{
+							EmitterInfo->StaticVariableResults.AddUnique(StaticVariable);
+						}
+					}
 				}
 			}
 		}, PendingTasks);
@@ -2359,7 +2424,7 @@ void FNiagaraSystemCompilationTask::IssueCompilationTasks()
 {
 	using namespace UE::Tasks;
 
-	TArray<FTask> IssueCompilationTasks;
+	TArray<FTask> IssuedCompilationTasks;
 	TArray<FTaskEvent> CompilationTasks;
 
 	if (HasOutstandingCompileTasks())
@@ -2391,7 +2456,7 @@ void FNiagaraSystemCompilationTask::IssueCompilationTasks()
 						CompileTask.CompileResultsReadyEvent = MakeUnique<FTaskEvent>(UE_SOURCE_LOCATION);
 						CompileTask.CompileResultsProcessedEvent = MakeUnique<FTaskEvent>(UE_SOURCE_LOCATION);
 
-						IssueCompilationTasks.Add(Launch(UE_SOURCE_LOCATION, [this, &GroupInfo, &CompileTask]
+						IssuedCompilationTasks.Add(Launch(UE_SOURCE_LOCATION, [this, &GroupInfo, &CompileTask]
 						{
 							COOK_STAT(auto Timer = NiagaraSystemCookStats::UsageStats.TimeSyncWork(); Timer.TrackCyclesOnly(););
 
@@ -2442,7 +2507,7 @@ void FNiagaraSystemCompilationTask::IssueCompilationTasks()
 	Launch(UE_SOURCE_LOCATION, [this]
 	{
 		CompilationState = EState::WaitingForProcessing;
-	}, IssueCompilationTasks);
+	}, IssuedCompilationTasks);
 
 	Launch(UE_SOURCE_LOCATION, [this]
 	{
@@ -2465,6 +2530,8 @@ bool FNiagaraSystemCompilationTask::HasOutstandingCompileTasks() const
 
 UE::Tasks::FTask FNiagaraSystemCompilationTask::BeginTasks()
 {
+	TRACE_CPUPROFILER_EVENT_SCOPE(NiagaraAsyncTask_BeginTasks);
+
 	using namespace UE::Tasks;
 
 	COOK_STAT(auto Timer = NiagaraSystemCookStats::UsageStats.TimeSyncWork(); Timer.TrackCyclesOnly(););

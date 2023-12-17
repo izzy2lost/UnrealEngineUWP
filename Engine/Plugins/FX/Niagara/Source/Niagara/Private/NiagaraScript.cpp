@@ -2607,6 +2607,26 @@ void UNiagaraScript::MarkScriptAndSourceDesynchronized(FString Reason, const FGu
 	}
 }
 
+bool UNiagaraScript::IsScriptShaderSynchronized(const FGuid& VersionGuid) const
+{
+	if (!AllowShaderCompiling())
+	{
+		return false;
+	}
+
+	if (!IsGPUScript())
+	{
+		return true;
+	}
+
+	if (!ScriptResource.IsValid() || !ScriptResource->IsShaderMapComplete())
+	{
+		return false;
+	}
+
+	return true;
+}
+
 bool UNiagaraScript::HandleVariableRenames(const TMap<FNiagaraVariable, FNiagaraVariable>& OldToNewVars, const FString& UniqueEmitterName)
 {
 	bool bConvertedAnything = false;

@@ -2778,9 +2778,9 @@ void FNiagaraCompilationNodeFunctionCall::Compile(FTranslator* Translator, TArra
 
 const FNiagaraCompilationInputPin* FNiagaraCompilationNodeFunctionCall::FindStaticSwitchInputPin(FName VariableName) const
 {
-	if (ensure(OwningGraph))
+	if (CalledGraph)
 	{
-		for (const FNiagaraVariableBase& StaticSwitchInput : OwningGraph->StaticSwitchInputs)
+		for (const FNiagaraVariableBase& StaticSwitchInput : CalledGraph->StaticSwitchInputs)
 		{
 			if (StaticSwitchInput.GetName() == VariableName)
 			{

@@ -1240,6 +1240,8 @@ public:
 
 	/** Ensure that the Script and its source graph are marked out of sync.*/
 	NIAGARA_API void MarkScriptAndSourceDesynchronized(FString Reason, const FGuid& VersionGuid);
+
+	NIAGARA_API bool IsScriptShaderSynchronized(const FGuid& VersionGuid = FGuid()) const;
 	
 	/** Request a synchronous compile for the script, possibly forcing it to compile.*/
 	NIAGARA_API void RequestCompile(const FGuid& ScriptVersion, bool bForceCompile = false);

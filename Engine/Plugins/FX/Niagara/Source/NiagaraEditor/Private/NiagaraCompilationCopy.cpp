@@ -425,6 +425,15 @@ void FNiagaraPrecompileData::FinishPrecompile(
 		}
 	}
 
+	{
+		auto VariableLess = [](const FNiagaraVariableBase& Lhs, const FNiagaraVariableBase& Rhs) -> bool
+		{
+			return Lhs.GetName().LexicalLess(Rhs.GetName());
+		};
+
+		StaticVariables.StableSort(VariableLess);
+	}
+
 	if (NumSimStageNodes)
 	{
 		CompileSimStageData.Reserve(NumSimStageNodes);

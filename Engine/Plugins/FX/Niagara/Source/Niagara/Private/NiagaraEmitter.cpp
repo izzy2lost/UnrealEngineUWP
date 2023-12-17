@@ -2161,9 +2161,21 @@ bool FVersionedNiagaraEmitterData::AreAllScriptAndSourcesSynchronized() const
 		}
 	}
 
-	if (SimTarget == ENiagaraSimTarget::GPUComputeSim && GPUComputeScript->IsCompilable() && !GPUComputeScript->AreScriptAndSourceSynchronized())
+	if (SimTarget == ENiagaraSimTarget::GPUComputeSim && GPUComputeScript->IsCompilable())
 	{
-		return false;
+		if (!GPUComputeScript->AreScriptAndSourceSynchronized())
+		{
+			return false;
+		}
+
+		if (UNiagaraScript::AreGpuScriptsCompiledBySystem())
+		{
+			// need to also check if the shader resource is available for the GPUScript
+			if (!GPUComputeScript->IsScriptShaderSynchronized())
+			{
+				return false;
+			}
+		}
 	}
 
 	return true;

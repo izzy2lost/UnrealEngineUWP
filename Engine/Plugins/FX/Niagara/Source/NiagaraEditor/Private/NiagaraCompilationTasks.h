@@ -105,6 +105,7 @@ struct FNiagaraSystemCompilationTask
 		bool bDisableDebugSwitches;
 
 		const FEmitterInfo* EmitterInfoBySourceEmitter(int32 InSourceEmitterIndex) const;
+		FEmitterInfo* EmitterInfoBySourceEmitter(int32 InSourceEmitterIndex);
 	};
 
 	struct FCompileGroupInfo
@@ -231,6 +232,7 @@ struct FNiagaraSystemCompilationTask
 	FNiagaraShaderType* NiagaraShaderType = nullptr;
 
 	int32 TasksAwaitingDDCGetResults = 0;
+	bool bCompileForEdit = false;
 
 	void Tick();
 	bool Poll(FNiagaraSystemAsyncCompileResults& Results) const;
@@ -249,8 +251,6 @@ private:
 	FNiagaraSystemCompilationTask() = delete;
 
 	bool GetStageName(int32 EmitterIndex, const FNiagaraCompilationNodeOutput* OutputNode, FName& OutStageName) const;
-	TArray<FNiagaraVariable> CollectStaticVariables(const FScriptInfo& ScriptInfo, const FNiagaraCompilationGraph& ScriptGraph, TConstArrayView<FNiagaraVariable> InitialStaticVariables) const;
-	void CollectStaticVariables();
 
 	TWeakObjectPtr<UNiagaraSystem> System_GT;
 

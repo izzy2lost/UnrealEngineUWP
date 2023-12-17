@@ -501,6 +501,8 @@ public:
 	NIAGARA_API bool UsesEmitter(const FVersionedNiagaraEmitter& VersionedEmitter) const;
 	NIAGARA_API bool UsesScript(const UNiagaraScript* Script)const; 
 	NIAGARA_API void ForceGraphToRecompileOnNextCheck();
+	NIAGARA_API void SetCompileForEdit(bool bNewCompileForEdit);
+	FORCEINLINE bool GetCompileForEdit() const { return bCompileForEdit; }
 
 	static NIAGARA_API void RequestCompileForEmitter(const FVersionedNiagaraEmitter& InEmitter);
 	static NIAGARA_API void RecomputeExecutionOrderForEmitter(const FVersionedNiagaraEmitter& InEmitter);
@@ -514,10 +516,6 @@ public:
 
 	FORCEINLINE void SetBakeOutRapidIterationOnCook(bool bBakeOut) { bBakeOutRapidIteration = bBakeOut; bBakeOutRapidIterationOnCook = bBakeOut; }
 	FORCEINLINE void SetTrimAttributesOnCook(bool bTrim) { bTrimAttributes = bTrim; bTrimAttributesOnCook = bTrim; }
-
-	/** When enabled we compile for the edit path, which can result in slower system performance but faster editor responsiveness. */
-	UPROPERTY(transient)
-	uint32 bCompileForEdit : 1;
 
 protected:
 	/** When enable constant values are baked into the scripts while editing the system, this will increase iteration times but improve performance. */
@@ -553,6 +551,9 @@ protected:
 
 	/* When set the system needs to compile before it can be activated. */
 	uint32 bNeedsRequestCompile : 1;
+
+	/** When enabled we compile for the edit path, which can result in slower system performance but faster editor responsiveness. */
+	uint32 bCompileForEdit : 1;
 
 public:
 	/** Subscriptions to definitions of parameters. */

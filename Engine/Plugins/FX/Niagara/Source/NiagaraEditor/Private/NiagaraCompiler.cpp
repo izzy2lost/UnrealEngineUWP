@@ -1925,102 +1925,85 @@ int32 FHlslNiagaraCompiler::CompileScript(const FStringView GroupName, const FNi
 	return JobID;
 }
 
-uint32 FHlslNiagaraCompiler::CompileScriptVM(const FStringView GroupName, const FNiagaraCompileOptions& InOptions, const FNiagaraTranslateResults& InTranslateResults, const FNiagaraTranslatorOutput& TranslatorOutput, const FString& TranslatedHLSL)
+uint32 FHlslNiagaraCompiler::CompileScriptVM(const FStringView GroupName, const FNiagaraCompileOptions& InOptions, const FNiagaraTranslateResults& InTranslateResults, const FNiagaraTranslatorOutput& TranslatorOutput, const FString& TranslatedHLSL, FNiagaraShaderType* NiagaraShaderType)
 {
 	check(!InOptions.IsGpuScript() || !UNiagaraScript::IsParticleScript(InOptions.TargetUsage));
 
 	CompileResults.Data = MakeShared<FNiagaraVMExecutableData>();
 
-	CompileResults.Data->LastHlslTranslation = TEXT("");
-
-	FShaderCompilerInput Input;
-	Input.Target = FShaderTarget(SF_Compute, SP_PCD3D_SM5);
-	Input.VirtualSourceFilePath = TEXT("/Plugin/FX/Niagara/Private/NiagaraEmitterInstanceShader.usf");
-	Input.EntryPointName = TEXT("SimulateMain");
-	Input.Environment.SetDefine(TEXT("VM_SIMULATION"), 1);
-	Input.Environment.SetDefine(TEXT("COMPUTESHADER"), 1);
-	Input.Environment.SetDefine(TEXT("PIXELSHADER"), 0);
-	Input.Environment.SetDefine(TEXT("DOMAINSHADER"), 0);
-	Input.Environment.SetDefine(TEXT("HULLSHADER"), 0);
-	Input.Environment.SetDefine(TEXT("VERTEXSHADER"), 0);
-	Input.Environment.SetDefine(TEXT("GEOMETRYSHADER"), 0);
-	Input.Environment.SetDefine(TEXT("MESHSHADER"), 0);
-	Input.Environment.SetDefine(TEXT("AMPLIFICATIONSHADER"), 0);
-	Input.Environment.IncludeVirtualPathToContentsMap.Add(TEXT("/Engine/Generated/NiagaraEmitterInstance.ush"), TranslatedHLSL);
-	Input.DebugInfoFlags = GShaderCompilingManager->GetDumpShaderDebugInfoFlags();
-	Input.DumpDebugInfoRootPath = GShaderCompilingManager->GetAbsoluteShaderDebugInfoDirectory() / TEXT("VM");
-	Input.DebugGroupName = GroupName;
-	Input.DebugExtension.Empty();
-	Input.DumpDebugInfoPath.Empty();
-
-	CompileResults.DumpDebugInfoPath = Input.DumpDebugInfoPath;
-
-	uint32 JobID = FShaderCommonCompileJob::GetNextJobId();
-	CompilationJob = MakeUnique<FNiagaraCompilerJob>();
-	CompilationJob->TranslatorOutput = TranslatorOutput;
-
-	CompileResults.bVMSucceeded = (CompilationJob->TranslatorOutput.Errors.Len() == 0) && (TranslatedHLSL.Len() > 0) && !InTranslateResults.NumErrors;
-
+	CompileResults.bVMSucceeded = (TranslatorOutput.Errors.Len() == 0) && (TranslatedHLSL.Len() > 0) && !InTranslateResults.NumErrors;
 	CompileResults.AppendCompileEvents(MakeArrayView(InTranslateResults.CompileEvents));
 	CompileResults.Data->LastCompileEvents.Append(InTranslateResults.CompileEvents);
 	CompileResults.Data->ExternalDependencies = InTranslateResults.CompileDependencies;
 	CompileResults.Data->CompileTags = InTranslateResults.CompileTags;
 	CompileResults.Data->CompileTagsEditorOnly = InTranslateResults.CompileTagsEditorOnly;
+	CompileResults.Data->LastHlslTranslation = TranslatedHLSL;
+	CompileResults.DumpDebugInfoPath.Reset();
+
+	CompilationJob = MakeUnique<FNiagaraCompilerJob>();
+	CompilationJob->TranslatorOutput = TranslatorOutput;
 	CompilationJob->TranslatorOutput.ScriptData.LastHlslTranslation = TranslatedHLSL;
 	CompilationJob->TranslatorOutput.ScriptData.ExternalDependencies = InTranslateResults.CompileDependencies;
 	CompilationJob->TranslatorOutput.ScriptData.CompileTags = InTranslateResults.CompileTags;
 	CompilationJob->TranslatorOutput.ScriptData.CompileTagsEditorOnly = InTranslateResults.CompileTagsEditorOnly;
-
-	bool bJobScheduled = false;
-	if (CompileResults.bVMSucceeded)
-	{
-		SCOPE_CYCLE_COUNTER(STAT_NiagaraEditor_HlslCompiler_CompileShader_VectorVM);
-		CompilationJob->StartTime = FPlatformTime::Seconds();
-
-		FShaderType* NiagaraShaderType = nullptr;
-		for (TLinkedList<FShaderType*>::TIterator ShaderTypeIt(FShaderType::GetTypeList()); ShaderTypeIt; ShaderTypeIt.Next())
-		{
-			if (FNiagaraShaderType* ShaderType = ShaderTypeIt->GetNiagaraShaderType())
-			{
-				NiagaraShaderType = ShaderType;
-				break;
-			}
-		}
-		if (NiagaraShaderType)
-		{
-			TRefCountPtr<FShaderCompileJob> Job = GShaderCompilingManager->PrepareShaderCompileJob(JobID, FShaderCompileJobKey(NiagaraShaderType), EShaderCompileJobPriority::Normal);
-			if (Job)
-			{
-				TArray<FShaderCommonCompileJobPtr> NewJobs;
-				CompilationJob->ShaderCompileJob = Job;
-				Input.ShaderFormat = FName(TEXT("VVM_1_0"));
-				if (GNiagaraSkipVectorVMBackendOptimizations != 0)
-				{
-					Input.Environment.CompilerFlags.Add(CFLAG_SkipOptimizations);
-				}
-				Job->Input = Input;
-				NewJobs.Add(FShaderCommonCompileJobPtr(Job));
-
-				GShaderCompilingManager->SubmitJobs(NewJobs, FString(), FString());
-			}
-			bJobScheduled = true;
-		}
-	}
-	CompileResults.Data->LastHlslTranslation = TranslatedHLSL;
-
-	if (!bJobScheduled)
-	{
-		CompileResults.Data->ByteCode.Reset();
-		CompileResults.Data->Attributes.Empty();
-		CompileResults.Data->Parameters.Empty();
-		CompileResults.Data->InternalParameters.Empty();
-		CompileResults.Data->DataInterfaceInfo.Empty();
-		CompileResults.Data->UObjectInfos.Empty();
-
-	}
+	CompilationJob->StartTime = FPlatformTime::Seconds();
 	CompilationJob->CompileResults = CompileResults;
 
-	return JobID;
+	if (CompileResults.bVMSucceeded && NiagaraShaderType)
+	{
+		const uint32 JobID = FShaderCommonCompileJob::GetNextJobId();
+		TRefCountPtr<FShaderCompileJob> Job = GShaderCompilingManager->PrepareShaderCompileJob(JobID, FShaderCompileJobKey(NiagaraShaderType), EShaderCompileJobPriority::Normal);
+		if (Job)
+		{
+			Job->Input.Target = FShaderTarget(SF_Compute, SP_PCD3D_SM5);
+			Job->Input.VirtualSourceFilePath = TEXT("/Plugin/FX/Niagara/Private/NiagaraEmitterInstanceShader.usf");
+			Job->Input.EntryPointName = TEXT("SimulateMain");
+			Job->Input.Environment.SetDefine(TEXT("VM_SIMULATION"), 1);
+			Job->Input.Environment.SetDefine(TEXT("COMPUTESHADER"), 1);
+			Job->Input.Environment.SetDefine(TEXT("PIXELSHADER"), 0);
+			Job->Input.Environment.SetDefine(TEXT("DOMAINSHADER"), 0);
+			Job->Input.Environment.SetDefine(TEXT("HULLSHADER"), 0);
+			Job->Input.Environment.SetDefine(TEXT("VERTEXSHADER"), 0);
+			Job->Input.Environment.SetDefine(TEXT("GEOMETRYSHADER"), 0);
+			Job->Input.Environment.SetDefine(TEXT("MESHSHADER"), 0);
+			Job->Input.Environment.SetDefine(TEXT("AMPLIFICATIONSHADER"), 0);
+			Job->Input.Environment.IncludeVirtualPathToContentsMap.Add(TEXT("/Engine/Generated/NiagaraEmitterInstance.ush"), TranslatedHLSL);
+			Job->Input.DebugInfoFlags = GShaderCompilingManager->GetDumpShaderDebugInfoFlags();
+			Job->Input.DumpDebugInfoRootPath = GShaderCompilingManager->GetAbsoluteShaderDebugInfoDirectory() / TEXT("VM");
+			Job->Input.DumpDebugInfoPath = CompileResults.DumpDebugInfoPath;
+			Job->Input.DebugGroupName = GroupName;
+			Job->Input.DebugExtension.Empty();
+			Job->Input.ShaderFormat = FName(TEXT("VVM_1_0"));
+
+			//TODO: This is normally invoked by GlobalBeginCompileShader, which is not called in this path. Should it be?
+			if (const IShaderFormat* VVMShaderFormat = GetTargetPlatformManagerRef().FindShaderFormat(Job->Input.ShaderFormat))
+			{
+				VVMShaderFormat->ModifyShaderCompilerInput(Job->Input);
+			}
+
+			if (GNiagaraSkipVectorVMBackendOptimizations != 0)
+			{
+				Job->Input.Environment.CompilerFlags.Add(CFLAG_SkipOptimizations);
+			}
+
+			if (GShaderCompilingManager->GetDumpShaderDebugInfo() == FShaderCompilingManager::EDumpShaderDebugInfo::Always)
+			{
+				Job->Input.DumpDebugInfoPath = GShaderCompilingManager->CreateShaderDebugInfoPath(Job->Input);
+				CompileResults.DumpDebugInfoPath = Job->Input.DumpDebugInfoPath;
+			}
+
+			CompilationJob->ShaderCompileJob = Job;
+
+			TArray<FShaderCommonCompileJobPtr> NewJobs;
+			NewJobs.Emplace(Job);
+
+			GShaderCompilingManager->SubmitJobs(NewJobs, FString(), FString());
+
+			return JobID;
+		}
+	}
+
+	return INDEX_NONE;
 }
 
 int32 FHlslNiagaraCompiler::CreateShaderIntermediateData(const FStringView GroupName, const FNiagaraCompileOptions& InOptions, const FNiagaraTranslateResults& InTranslateResults, const FNiagaraTranslatorOutput& TranslatorOutput, const FString& TranslatedHLSL)

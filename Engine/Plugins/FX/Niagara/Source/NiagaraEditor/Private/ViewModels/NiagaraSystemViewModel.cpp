@@ -166,7 +166,7 @@ void FNiagaraSystemViewModel::Initialize(UNiagaraSystem& InSystem, FNiagaraSyste
 
 	if (CanImpactCompileForEdit())
 	{
-		System->bCompileForEdit = true;
+		System->SetCompileForEdit(true);
 	}
 	
 	if (bIsForDataProcessingOnly == false)
@@ -262,7 +262,7 @@ void FNiagaraSystemViewModel::Cleanup()
 	{
 		if (CanImpactCompileForEdit())
 		{
-			System->bCompileForEdit = false;
+			System->SetCompileForEdit(false);
 			System->InvalidateActiveCompiles();
 			System->RequestCompile(false);
 		}
@@ -1048,8 +1048,8 @@ void FNiagaraSystemViewModel::NotifyPreSave()
 	// we want to save without compile for edit turned on for best results, but make sure to turn in back on again after save is done
 	if (CanImpactCompileForEdit())
 	{
-		check(System->bCompileForEdit);
-		System->bCompileForEdit = false;
+		check(System->GetCompileForEdit());
+		System->SetCompileForEdit(false);
 		System->RequestCompile(false);
 		System->WaitForCompilationComplete(true);
 	}
@@ -1062,8 +1062,8 @@ void FNiagaraSystemViewModel::NotifyPostSave()
 	// we compile for edit again after having it turned off for PreSave. This should fetch DDC data and must not update the ChangeID
 	if (CanImpactCompileForEdit())
 	{
-		check(!System->bCompileForEdit);
-		System->bCompileForEdit = true;
+		check(!System->GetCompileForEdit());
+		System->SetCompileForEdit(true);
 		System->RequestCompile(false);
 		System->WaitForCompilationComplete(true);
 	}
