@@ -69,6 +69,7 @@ void UInterchangePipelineBase::TransferAdjustSettings(UInterchangePipelineBase* 
 	CachePropertiesStates = SourcePipeline->CachePropertiesStates;
 	bAllowPropertyStatesEdition = SourcePipeline->bAllowPropertyStatesEdition;
 	bIsReimportContext = SourcePipeline->bIsReimportContext;
+	bIsBasicLayout = SourcePipeline->bIsBasicLayout;
 }
 
 const FInterchangePipelinePropertyStates* UInterchangePipelineBase::GetPropertyStates(const FName PropertyPath) const

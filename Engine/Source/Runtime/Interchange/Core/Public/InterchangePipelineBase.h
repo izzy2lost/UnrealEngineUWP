@@ -80,19 +80,44 @@ struct FInterchangePipelinePropertyStates
 	}
 	
 	/** Return true if the property is visible for the specified context. */
-	bool IsPropertyVisible(const bool bIsReimportContext) const
+	bool IsPropertyVisibleInBasicLayout() const
 	{
-		return bIsReimportContext ? ReimportStates.bVisible : ImportStates.bVisible;
+		return BasicLayoutStates.bVisible;
 	}
 
-	void SetPropertyVisible(const bool bIsReimportContext, const bool bVisibleValue)
+	/** Return true if the property is visible for the specified context. */
+	bool IsPropertyVisible(const bool bIsReimportContext, const bool bIsBasicLayout) const
 	{
-		bIsReimportContext ? ReimportStates.bVisible = bVisibleValue : ImportStates.bVisible = bVisibleValue;
+		bool bVisible = bIsReimportContext ? ReimportStates.bVisible : ImportStates.bVisible;
+		if (bVisible)
+		{
+			bVisible = bIsBasicLayout ? BasicLayoutStates.bVisible : true;
+		}
+		return bVisible;
+	}
+
+	void SetPropertyImportVisibility(const bool bVisibleValue)
+	{
+		ImportStates.bVisible = bVisibleValue;
+	}
+
+	void SetPropertyReimportVisibility(const bool bVisibleValue)
+	{
+		ReimportStates.bVisible = bVisibleValue;
+	}
+
+	void SetPropertyBasicLayoutVisibility(const bool bVisibleValue)
+	{
+		BasicLayoutStates.bVisible = bVisibleValue;
 	}
 
 	/** If true, the property is locked. */
 	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Property States")
 	bool bLocked = false;
+
+	/** The property states for the import context */
+	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Context Properties States")
+	FInterchangePipelinePropertyStatePerContext BasicLayoutStates;
 
 	/** The property states for the import context */
 	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Context Properties States")
@@ -257,6 +282,11 @@ public:
 	/** Transfer the source pipeline adjust settings to this pipeline. */
 	INTERCHANGECORE_API void TransferAdjustSettings(UInterchangePipelineBase* SourcePipeline);
 
+	INTERCHANGECORE_API void SetBasicLayoutMode(bool bBasicLayoutModeValue)
+	{
+		bIsBasicLayout = bBasicLayoutModeValue;
+	}
+
 	/**
 	 * This function is called before showing the import dialog it is not called doing a re-import.
 	 */
@@ -361,6 +391,7 @@ public:
 
 	bool CanEditPropertiesStates() { return bAllowPropertyStatesEdition; }
 	bool IsReimportContext() { return bIsReimportContext; }
+	bool IsBasicLayout() { return bIsBasicLayout; }
 
 #if WITH_EDITOR
 	/*
@@ -469,6 +500,14 @@ protected:
 	 * Note: This context must be set by the owner instancing this pipeline. This context will be use to hide or not some properties.
 	 */
 	bool bIsReimportContext = false;
+
+	/**
+	 * If true, this pipeline instance is use for basic layout.
+	 * If false, this pipeline instance is use for normal layout.
+	 *
+	 * Note: This layout must be set by the owner instancing this pipeline. This layout will be use to hide or not some properties.
+	 */
+	bool bIsBasicLayout = false;
 
 	UPROPERTY()
 	TObjectPtr<UInterchangeResultsContainer> Results;

@@ -144,7 +144,13 @@ private:
 		return bFilterOptions ? ECheckBoxState::Checked : ECheckBoxState::Unchecked;
 	}
 
+	ECheckBoxState IsBasicLayoutEnabled() const
+	{
+		return bBasicLayout ? ECheckBoxState::Checked : ECheckBoxState::Unchecked;
+	}
+
 	void OnFilterOptionsChanged(ECheckBoxState CheckState);
+	void OnBasicLayoutChanged(ECheckBoxState CheckState);
 
 	const FSlateBrush* GetImportButtonIcon() const;
 
@@ -159,6 +165,7 @@ private:
 	bool bImportAll = false;
 
 	bool bFilterOptions = false;
+	bool bBasicLayout = false;
 
 	FName CurrentStackName = NAME_None;
 	TObjectPtr<UInterchangePipelineBase> CurrentSelectedPipeline = nullptr;

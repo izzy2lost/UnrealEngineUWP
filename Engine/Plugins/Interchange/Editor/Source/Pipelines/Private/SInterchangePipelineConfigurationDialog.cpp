@@ -245,6 +245,7 @@ TSharedRef<SBox> SInterchangePipelineConfigurationDialog::SpawnPipelineConfigura
 						GeneratedPipeline->LoadSettings(Stack.StackName);
 						GeneratedPipeline->PreDialogCleanup(Stack.StackName);
 					}
+					GeneratedPipeline->SetBasicLayoutMode(bBasicLayout);
 					if (bFilterOptions && BaseNodeContainer.IsValid())
 					{
 						GeneratedPipeline->FilterPropertiesFromTranslatedData(BaseNodeContainer.Get());
@@ -407,6 +408,7 @@ void SInterchangePipelineConfigurationDialog::Construct(const FArguments& InArgs
 	else if(GConfig->DoesSectionExist(TEXT("InterchangeImportDialogOptions"), GEditorPerProjectIni))
 	{
 		GConfig->GetBool(TEXT("InterchangeImportDialogOptions"), TEXT("FilterOptions"), bFilterOptions, GEditorPerProjectIni);
+		GConfig->GetBool(TEXT("InterchangeImportDialogOptions"), TEXT("BasicLayout"), bBasicLayout, GEditorPerProjectIni);
 	}
 
 	this->ChildSlot
@@ -428,6 +430,30 @@ void SInterchangePipelineConfigurationDialog::Construct(const FArguments& InArgs
 				[
 					SNew(STextBlock)
 					.Text(this, &SInterchangePipelineConfigurationDialog::GetSourceDescription)
+				]
+				+SHorizontalBox::Slot()
+				.AutoWidth()
+				.HAlign(HAlign_Right)
+				.Padding(10.0f, 2.0f, 0.0f, 2.0f)
+				[
+					SNew(SHorizontalBox)
+					.ToolTipText(LOCTEXT("SInterchangePipelineConfigurationDialog_BasicLayoutOptions_tooltip", "Basic Layout display only the basic pipelines properties."))
+					+ SHorizontalBox::Slot()
+					.AutoWidth()
+					.HAlign(HAlign_Right)
+					.VAlign(VAlign_Center)
+					.Padding(4.f, 0.f)
+					[
+						SNew(STextBlock)
+						.Text(LOCTEXT("SInterchangePipelineConfigurationDialog_BasicLayoutOptions", "Basic Layout"))
+					]
+					+ SHorizontalBox::Slot()
+					.Padding(4.f, 0.f)
+					[
+						SNew(SCheckBox)
+						.IsChecked(this, &SInterchangePipelineConfigurationDialog::IsBasicLayoutEnabled)
+						.OnCheckStateChanged(this, &SInterchangePipelineConfigurationDialog::OnBasicLayoutChanged)
+					]
 				]
 				+SHorizontalBox::Slot()
 				.AutoWidth()
@@ -663,6 +689,7 @@ FReply SInterchangePipelineConfigurationDialog::OnResetToDefault()
 								if (UInterchangePipelineBase* GeneratedPipeline = UE::Interchange::GeneratePipelineInstanceInSourceAssetPackage(DefaultPipeline))
 								{
 									GeneratedPipeline->TransferAdjustSettings(DefaultPipeline);
+									GeneratedPipeline->SetBasicLayoutMode(bBasicLayout);
 									if(bFilterOptions && BaseNodeContainer.IsValid())
 									{
 										GeneratedPipeline->FilterPropertiesFromTranslatedData(BaseNodeContainer.Get());
@@ -846,6 +873,7 @@ void SInterchangePipelineConfigurationDialog::RefreshStack(bool bStackSelectionC
 						GeneratedPipeline->PreDialogCleanup(Stack.StackName);
 					}
 				}
+				GeneratedPipeline->SetBasicLayoutMode(bBasicLayout);
 				if (bFilterOptions && BaseNodeContainer.IsValid())
 				{
 					GeneratedPipeline->FilterPropertiesFromTranslatedData(BaseNodeContainer.Get());
@@ -930,6 +958,22 @@ void SInterchangePipelineConfigurationDialog::OnFilterOptionsChanged(ECheckBoxSt
 	RefreshStack(bStackSelectionChange);
 
 	GConfig->SetBool(TEXT("InterchangeImportDialogOptions"), TEXT("FilterOptions"), bFilterOptions, GEditorPerProjectIni);
+}
+
+void SInterchangePipelineConfigurationDialog::OnBasicLayoutChanged(ECheckBoxState CheckState)
+{
+	bool bNewCheckValue = CheckState == ECheckBoxState::Checked ? true : false;
+	if (bNewCheckValue == bBasicLayout)
+	{
+		//Check state did not change
+		return;
+	}
+	bBasicLayout = bNewCheckValue;
+	//Refresh the pipeline
+	constexpr bool bStackSelectionChange = false;
+	RefreshStack(bStackSelectionChange);
+
+	GConfig->SetBool(TEXT("InterchangeImportDialogOptions"), TEXT("BasicLayout"), bBasicLayout, GEditorPerProjectIni);
 }
 
 FReply SInterchangePipelineConfigurationDialog::OnPreviewImport() const
