@@ -56,6 +56,12 @@ void UE::Interchange::FTaskPreCompletion::DoTask(ENamedThreads::Type CurrentThre
 
 		const bool bCallPostImportGameThreadCallback = ensure(AsyncHelper->SourceDatas.IsValidIndex(SourceIndex));
 
+		UInterchangeFactoryBase::FSetupObjectParams Arguments;
+		Arguments.SourceData = AsyncHelper->SourceDatas[SourceIndex];
+		Arguments.NodeContainer = AsyncHelper->BaseNodeContainers[SourceIndex].Get();
+		Arguments.Pipelines = AsyncHelper->Pipelines;
+		Arguments.OriginalPipelines = AsyncHelper->OriginalPipelines;
+
 		//First iteration to call SetupObject_GameThread and pipeline ExecutePostFactoryPipeline
 		for (const FImportAsyncHelper::FImportedObjectInfo& ObjectInfo : ImportedObjects)
 		{
@@ -63,16 +69,10 @@ void UE::Interchange::FTaskPreCompletion::DoTask(ENamedThreads::Type CurrentThre
 			//In case Some factory code cannot run outside of the main thread we offer this callback to finish the work before calling post edit change (building the asset)
 			if (bCallPostImportGameThreadCallback && ObjectInfo.Factory)
 			{
-				UInterchangeFactoryBase::FSetupObjectParams Arguments;
 				Arguments.ImportedObject = ImportedObject;
-				Arguments.SourceData = AsyncHelper->SourceDatas[SourceIndex];
-				Arguments.FactoryNode = ObjectInfo.FactoryNode;
 				// Should we assert if there is no factory node?
+				Arguments.FactoryNode = ObjectInfo.FactoryNode;
 				Arguments.NodeUniqueID = ObjectInfo.FactoryNode ? ObjectInfo.FactoryNode->GetUniqueID() : FString();
-				Arguments.NodeContainer = AsyncHelper->BaseNodeContainers[SourceIndex].Get();
-				Arguments.Pipelines = ObjectPtrDecay(AsyncHelper->Pipelines);
-				Arguments.Pipelines = AsyncHelper->Pipelines;
-				Arguments.OriginalPipelines = AsyncHelper->OriginalPipelines;
 				Arguments.bIsReimport = ObjectInfo.bIsReimport;
 				ObjectInfo.Factory->SetupObject_GameThread(Arguments);
 			}
@@ -159,23 +159,6 @@ void UE::Interchange::FTaskPreCompletion::DoTask(ENamedThreads::Type CurrentThre
 			{
 				AsyncHelper->SceneImportResult->AddImportedObject(ImportedObject);
 			}
-
-			//In case Some factory code cannot run outside of the main thread we offer this callback to finish the work after calling post edit change (building the asset)
-			//Its possible the build of the asset to be asynchronous, the factory must handle is own asset correctly
-			if (bCallPostImportGameThreadCallback && ObjectInfo.Factory)
-			{
-				UInterchangeFactoryBase::FSetupObjectParams Arguments;
-				Arguments.ImportedObject = ImportedObject;
-				Arguments.SourceData = AsyncHelper->SourceDatas[SourceIndex];
-				Arguments.FactoryNode = ObjectInfo.FactoryNode;
-				Arguments.NodeUniqueID = ObjectInfo.FactoryNode ? ObjectInfo.FactoryNode->GetUniqueID() : FString();
-				Arguments.NodeContainer = AsyncHelper->BaseNodeContainers[SourceIndex].Get();
-				Arguments.Pipelines = ObjectPtrDecay(AsyncHelper->Pipelines);
-				Arguments.Pipelines = AsyncHelper->Pipelines;
-				Arguments.OriginalPipelines = AsyncHelper->OriginalPipelines;
-				Arguments.bIsReimport = ObjectInfo.bIsReimport;
-				ObjectInfo.Factory->FinalizeObject_GameThread(Arguments);
-			}
 		}
 	};
 
@@ -220,6 +203,8 @@ void UE::Interchange::FTaskCompletion::DoTask(ENamedThreads::Type CurrentThread,
 					//We broadcast this event for both import and reimport.
 					UInterchangeManager::GetInterchangeManager().OnAssetPostImport.Broadcast(Asset);
 				}
+
+				UE_LOG(LogInterchangeEngine, Display, TEXT("Interchange import completed [%s]"), *AsyncHelper->SourceDatas[SourceIndex]->ToDisplayString());
 			});
 	}
 	else
@@ -242,7 +227,7 @@ void UE::Interchange::FTaskCompletion::DoTask(ENamedThreads::Type CurrentThread,
 			});
 
 		//If task is canceled, remove all actors from their world
-		AsyncHelper->IterateImportedSceneObjectsPerSourceIndex([](int32 SourceIndex, const TArray<FImportAsyncHelper::FImportedObjectInfo>& AssetInfos)
+		AsyncHelper->IterateImportedSceneObjectsPerSourceIndex([AsyncHelper](int32 SourceIndex, const TArray<FImportAsyncHelper::FImportedObjectInfo>& AssetInfos)
 			{
 				for (const FImportAsyncHelper::FImportedObjectInfo& SceneObjectInfo : AssetInfos)
 				{
@@ -255,6 +240,8 @@ void UE::Interchange::FTaskCompletion::DoTask(ENamedThreads::Type CurrentThread,
 						}
 					}
 				}
+
+				UE_LOG(LogInterchangeEngine, Display, TEXT("Interchange import cancelled [%s]"), *AsyncHelper->SourceDatas[SourceIndex]->ToDisplayString());
 			});
 	}
 

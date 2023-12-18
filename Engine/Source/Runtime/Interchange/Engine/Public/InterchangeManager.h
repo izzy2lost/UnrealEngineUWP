@@ -229,7 +229,7 @@ namespace UE
 			TArray<FGraphEventRef> TranslatorTasks;
 			TArray<FGraphEventRef> PipelineTasks;
 			FGraphEventRef WaitAssetCompilationTask;
-			TArray<FGraphEventRef> PipelinePostImportTasks;
+			TArray<FGraphEventRef> PostImportTasks;
 			FGraphEventRef ParsingTask;
 			TArray<FGraphEventRef> BeginImportObjectTasks;
 			TArray<FGraphEventRef> ImportObjectTasks;

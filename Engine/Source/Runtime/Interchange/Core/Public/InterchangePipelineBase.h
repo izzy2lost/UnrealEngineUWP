@@ -173,7 +173,7 @@ public:
 	 * ScriptedExecutePostImportPipeline is call after we completely import an asset, PostEditChange is already called.
 	 * This can be useful if you need an asset build data to finish the setup of another asset.
 	 * @example - PhysicsAsset need skeletal mesh render data to be build properly.
-	 * @note - the FTaskPipelinePostImport is calling this function not the virtual one that is call by the default implementation.
+	 * @note - the FTaskPostImport is calling this function not the virtual one that is call by the default implementation.
 	 */
 	UFUNCTION(BlueprintNativeEvent, BlueprintCallable, Category = "Interchange | Pipeline")
 	INTERCHANGECORE_API void ScriptedExecutePostImportPipeline(const UInterchangeBaseNodeContainer* BaseNodeContainer, const FString& FactoryNodeKey, UObject* CreatedAsset, bool bIsAReimport);

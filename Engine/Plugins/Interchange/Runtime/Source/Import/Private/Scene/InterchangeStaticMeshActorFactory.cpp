@@ -87,7 +87,7 @@ UObject* UInterchangeStaticMeshActorFactory::ProcessActor(AActor& SpawnedActor, 
 
 				GeometricTransformMeshComponent->SetupAttachment(StaticMeshComponent);
 
-				StaticMeshActor->ReregisterAllComponents();
+				StaticMeshActor->RegisterAllComponents();
 
 				EComponentMobility::Type MobilityToSet = StaticMeshComponent->Mobility;
 				GeometricTransformMeshComponent->SetMobility(EComponentMobility::Type::Movable); //so that RelativeTransform can be set
@@ -98,10 +98,10 @@ UObject* UInterchangeStaticMeshActorFactory::ProcessActor(AActor& SpawnedActor, 
 			}
 		}
 
-		StaticMeshComponent->UnregisterComponent();		
-
 		if (const UInterchangeFactoryBaseNode* MeshNode = ActorHelper::FindAssetInstanceFactoryNode(&NodeContainer, &FactoryNode))
 		{
+			StaticMeshComponent->UnregisterComponent();
+
 			FSoftObjectPath ReferenceObject;
 			MeshNode->GetCustomReferenceObject(ReferenceObject);
 			if (UStaticMesh* StaticMesh = Cast<UStaticMesh>(ReferenceObject.TryLoad()))
@@ -115,6 +115,8 @@ UObject* UInterchangeStaticMeshActorFactory::ProcessActor(AActor& SpawnedActor, 
 					UE::Interchange::ActorHelper::ApplySlotMaterialDependencies(NodeContainer, *MeshActorFactoryNode, *StaticMeshComponent);
 				}
 			}
+
+			StaticMeshComponent->RegisterComponent();
 		}
 		else
 		{

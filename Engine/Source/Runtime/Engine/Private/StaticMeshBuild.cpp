@@ -96,6 +96,15 @@ bool UStaticMesh::CanBuild() const
 		return false;
 	}
 
+	// Mesh descriptions are unlikely at runtime but UStaticMesh::Build can still be called
+	if (FApp::IsGame())
+	{
+		if (!IsMeshDescriptionValid(0))
+		{
+			return false;
+		}
+	}
+
 	return true;
 }
 

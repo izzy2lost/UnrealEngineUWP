@@ -9,6 +9,7 @@
 #include "InterchangeEngineLogPrivate.h"
 #include "InterchangeManager.h"
 #include "InterchangePipelineBase.h"
+#include "InterchangeFactoryBase.h"
 #include "Interfaces/Interface_AsyncCompilation.h"
 #include "Materials/MaterialInterface.h"
 #include "Nodes/InterchangeBaseNodeContainer.h"
@@ -64,7 +65,7 @@ void UE::Interchange::FTaskWaitAssetCompilation::DoTask(ENamedThreads::Type Curr
 #if INTERCHANGE_TRACE_ASYNCHRONOUS_TASK_ENABLED
 		INTERCHANGE_TRACE_ASYNCHRONOUS_TASK(WaitAssetCompilation)
 #endif
-	
+
 	LLM_SCOPE_BYNAME(TEXT("Interchange"));
 
 #if WITH_EDITOR
@@ -132,13 +133,12 @@ void UE::Interchange::FTaskWaitAssetCompilation::DoTask(ENamedThreads::Type Curr
 				}).Wait();
 			return bCompilationFinish;
 		}, 0.05f);
-
 #endif //WITH_EDITOR
 }
 
-void UE::Interchange::FTaskPipelinePostImport::DoTask(ENamedThreads::Type CurrentThread, const FGraphEventRef& MyCompletionGraphEvent)
+void UE::Interchange::FTaskPostImport::DoTask(ENamedThreads::Type CurrentThread, const FGraphEventRef& MyCompletionGraphEvent)
 {
-	TRACE_CPUPROFILER_EVENT_SCOPE(UE::Interchange::FTaskPipelinePostImport::DoTask)
+	TRACE_CPUPROFILER_EVENT_SCOPE(UE::Interchange::FTaskPostImport::DoTask)
 #if INTERCHANGE_TRACE_ASYNCHRONOUS_TASK_ENABLED
 	INTERCHANGE_TRACE_ASYNCHRONOUS_TASK(PipelinePostImport)
 #endif
@@ -157,26 +157,61 @@ void UE::Interchange::FTaskPipelinePostImport::DoTask(ENamedThreads::Type Curren
 		return;
 	}
 
-	if (!ensure(AsyncHelper->Pipelines.IsValidIndex(PipelineIndex)) || !ensure(AsyncHelper->BaseNodeContainers.IsValidIndex(SourceIndex)))
+	if (!ensure(AsyncHelper->BaseNodeContainers.IsValidIndex(SourceIndex)))
 	{
 		return;
 	}
-	UInterchangePipelineBase* PipelineBase = AsyncHelper->Pipelines[PipelineIndex];
+
+	//Get the Container from the async helper
+	UInterchangeBaseNodeContainer* NodeContainer = AsyncHelper->BaseNodeContainers[SourceIndex].Get();
+	if (!ensure(NodeContainer))
+	{
+		return;
+	}
+
 	TArray<FString> NodeUniqueIDs;
 	TArray<UObject*> ImportedObjects;
 	TArray<bool> IsAssetsReimported;
 
 	auto FillImportedObjectsFromSource =
-		[&NodeUniqueIDs, &ImportedObjects, &IsAssetsReimported, this](const TArray<UE::Interchange::FImportAsyncHelper::FImportedObjectInfo>& ImportedInfos)
+		[&AsyncHelper, &NodeUniqueIDs, &ImportedObjects, &IsAssetsReimported, this](const TArray<UE::Interchange::FImportAsyncHelper::FImportedObjectInfo>& ImportedInfos)
 		{
 			NodeUniqueIDs.Reserve(NodeUniqueIDs.Num() + ImportedInfos.Num());
 			ImportedObjects.Reserve(ImportedObjects.Num() + ImportedInfos.Num());
 			IsAssetsReimported.Reserve(IsAssetsReimported.Num() + ImportedInfos.Num());
-			for (const UE::Interchange::FImportAsyncHelper::FImportedObjectInfo& ImportedInfo : ImportedInfos)
+
+			const bool bCallPostImportGameThreadCallback = ensure(AsyncHelper->SourceDatas.IsValidIndex(SourceIndex));
+
+			//Call the pipeline for each asset created by this import
+			UInterchangeFactoryBase::FSetupObjectParams Arguments;
+			Arguments.SourceData = bCallPostImportGameThreadCallback ? AsyncHelper->SourceDatas[SourceIndex] : nullptr;
+			Arguments.NodeContainer = AsyncHelper->BaseNodeContainers[SourceIndex].Get();
+			Arguments.Pipelines = AsyncHelper->Pipelines;
+			Arguments.OriginalPipelines = AsyncHelper->OriginalPipelines;
+
+			for (const UE::Interchange::FImportAsyncHelper::FImportedObjectInfo& ObjectInfo : ImportedInfos)
 			{
-				NodeUniqueIDs.Add(ImportedInfo.FactoryNode->GetUniqueID());
-				ImportedObjects.Add(ImportedInfo.ImportedObject);
-				IsAssetsReimported.Add(ImportedInfo.bIsReimport);
+				UObject* ImportedObject = ObjectInfo.ImportedObject;
+
+				//In case Some factory code cannot run outside of the main thread we offer this callback to finish the work after calling post edit change (building the asset)
+				//Its possible the build of the asset to be asynchronous, the factory must handle is own asset correctly
+				if (bCallPostImportGameThreadCallback && ObjectInfo.Factory)
+				{
+					Arguments.ImportedObject = ImportedObject;
+					Arguments.FactoryNode = ObjectInfo.FactoryNode;
+					Arguments.NodeUniqueID = ObjectInfo.FactoryNode ? ObjectInfo.FactoryNode->GetUniqueID() : FString();
+					Arguments.bIsReimport = ObjectInfo.bIsReimport;
+					ObjectInfo.Factory->FinalizeObject_GameThread(Arguments);
+				}
+
+				if (!IsValid(ImportedObject))
+				{
+					continue;
+				}
+
+				NodeUniqueIDs.Add(ObjectInfo.FactoryNode->GetUniqueID());
+				ImportedObjects.Add(ObjectInfo.ImportedObject);
+				IsAssetsReimported.Add(ObjectInfo.bIsReimport);
 			}
 		};
 
@@ -189,17 +224,13 @@ void UE::Interchange::FTaskPipelinePostImport::DoTask(ENamedThreads::Type Curren
 		return;
 	}
 
-	//Get the Container from the async helper
-	UInterchangeBaseNodeContainer* NodeContainer = AsyncHelper->BaseNodeContainers[SourceIndex].Get();
-	if (!ensure(NodeContainer))
+	// Execute post-import script on all imported objects for all pipelines
+	for (int32 PipelineIndex = 0; PipelineIndex < AsyncHelper->Pipelines.Num(); ++PipelineIndex)
 	{
-		return;
-	}
-	UInterchangePipelineBase* Pipeline = AsyncHelper->Pipelines[PipelineIndex];
-
-	//Call the pipeline for each asset created by this import
-	for (int32 ObjectIndex = 0; ObjectIndex < ImportedObjects.Num(); ++ObjectIndex)
-	{
-		Pipeline->ScriptedExecutePostImportPipeline(NodeContainer, NodeUniqueIDs[ObjectIndex], ImportedObjects[ObjectIndex], IsAssetsReimported[ObjectIndex]);
+		for (int32 ObjectIndex = 0; ObjectIndex < ImportedObjects.Num(); ++ObjectIndex)
+		{
+			UInterchangePipelineBase* Pipeline = AsyncHelper->Pipelines[PipelineIndex];
+			Pipeline->ScriptedExecutePostImportPipeline(NodeContainer, NodeUniqueIDs[ObjectIndex], ImportedObjects[ObjectIndex], IsAssetsReimported[ObjectIndex]);
+		}
 	}
 }

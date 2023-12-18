@@ -202,7 +202,10 @@ UInterchangeFactoryBase::FImportAssetResult UInterchangeStaticMeshFactory::Begin
 	StaticMesh->CreateBodySetup();
 	
 #if WITH_EDITOR
-	StaticMesh->PreEditChange(nullptr);	
+	if (!FApp::IsGame())
+	{
+		StaticMesh->PreEditChange(nullptr);
+	}
 #endif // WITH_EDITOR
 
 	ImportAssetResult.ImportedObject = StaticMesh;
@@ -482,6 +485,8 @@ UInterchangeFactoryBase::FImportAssetResult UInterchangeStaticMeshFactory::Impor
 	// Getting the file Hash will cache it into the source data
 	Arguments.SourceData->GetFileContentHash();
 
+	BuildFromMeshDescriptions(*StaticMesh);
+
 	ImportAssetResult.ImportedObject = StaticMeshObject;
 	return ImportAssetResult;
 }
@@ -514,6 +519,18 @@ UInterchangeFactoryBase::FImportAssetResult UInterchangeStaticMeshFactory::EndIm
 	if (!ensure(StaticMesh))
 	{
 		UE_LOG(LogInterchangeImport, Error, TEXT("Could not create StaticMesh asset %s"), *Arguments.AssetName);
+		return ImportAssetResult;
+	}
+
+	if (FApp::IsGame())
+	{
+		if (!Arguments.ReimportObject)
+		{
+			// Apply all StaticMeshFactoryNode custom attributes to the static mesh asset
+			StaticMeshFactoryNode->ApplyAllCustomAttributeToObject(StaticMesh);
+		}
+
+		ImportAssetResult.ImportedObject = StaticMesh;
 		return ImportAssetResult;
 	}
 
@@ -620,7 +637,7 @@ UInterchangeFactoryBase::FImportAssetResult UInterchangeStaticMeshFactory::EndIm
 		}
 	}
 
-	CommitMeshDescriptions(*StaticMesh, MoveTemp(ImportAssetObjectData.LodMeshDescriptions));
+	CommitMeshDescriptions(*StaticMesh);
 
 	ImportSockets(Arguments, StaticMesh, StaticMeshFactoryNode);
 
@@ -665,7 +682,7 @@ UInterchangeFactoryBase::FImportAssetResult UInterchangeStaticMeshFactory::EndIm
 	{
 		if (!ImportAssetObjectData.bImportedCustomCollision)
 		{
-			GenerateKDopCollision(Arguments, StaticMesh);
+			GenerateKDopCollision(StaticMesh);
 		}
 #if WITH_EDITORONLY_DATA
 		else
@@ -701,20 +718,36 @@ UInterchangeFactoryBase::FImportAssetResult UInterchangeStaticMeshFactory::EndIm
 	return ImportAssetResult;
 }
 
-void UInterchangeStaticMeshFactory::CommitMeshDescriptions(UStaticMesh& StaticMesh, TArray<FMeshDescription>&& LodMeshDescriptions)
+void UInterchangeStaticMeshFactory::CommitMeshDescriptions(UStaticMesh& StaticMesh)
 {
-#if WITH_EDITOR
+	if (FApp::IsGame())
+	{
+		return;
+	}
+
+	TArray<FMeshDescription> LodMeshDescriptions = MoveTemp(ImportAssetObjectData.LodMeshDescriptions);
+
+	UStaticMesh::FCommitMeshDescriptionParams CommitMeshDescriptionParams;
+	CommitMeshDescriptionParams.bMarkPackageDirty = false; // Marking packages dirty isn't thread-safe
+
 	for (int32 LodIndex = 0; LodIndex < LodMeshDescriptions.Num(); ++LodIndex)
 	{
 		FMeshDescription* StaticMeshDescription = StaticMesh.CreateMeshDescription(LodIndex);
 		check(StaticMeshDescription);
 		*StaticMeshDescription = MoveTemp(LodMeshDescriptions[LodIndex]);
 
-		UStaticMesh::FCommitMeshDescriptionParams CommitMeshDescriptionParams;
-		CommitMeshDescriptionParams.bMarkPackageDirty = false; // Marking packages dirty isn't threadsafe
 		StaticMesh.CommitMeshDescription(LodIndex, CommitMeshDescriptionParams);
 	}
-#else // WITH_EDITOR
+}
+
+void UInterchangeStaticMeshFactory::BuildFromMeshDescriptions(UStaticMesh& StaticMesh)
+{
+	if (!FApp::IsGame())
+	{
+		return;
+	}
+
+	TArray<FMeshDescription> LodMeshDescriptions = MoveTemp(ImportAssetObjectData.LodMeshDescriptions);
 	TArray<const FMeshDescription*> MeshDescriptionPointers;
 	MeshDescriptionPointers.Reserve(LodMeshDescriptions.Num());
 
@@ -725,15 +758,31 @@ void UInterchangeStaticMeshFactory::CommitMeshDescriptions(UStaticMesh& StaticMe
 
 	UStaticMesh::FBuildMeshDescriptionsParams BuildMeshDescriptionsParams;
 	BuildMeshDescriptionsParams.bUseHashAsGuid = true;
-	// Do not mark the package dirty since MarkPackageDirty is not thread safe
 	BuildMeshDescriptionsParams.bMarkPackageDirty = false;
 	BuildMeshDescriptionsParams.bBuildSimpleCollision = false;
 	// Do not commit since we only need the render data and commit is slow
 	BuildMeshDescriptionsParams.bCommitMeshDescription = false;
 	BuildMeshDescriptionsParams.bFastBuild = true;
+	// For the time being at runtime collision is set to complex one
+	// TODO: Revisit pipeline options for collision. bImportCollision is not enough.
+	BuildMeshDescriptionsParams.bAllowCpuAccess = ImportAssetObjectData.bImportCollision;
+	StaticMesh.bAllowCPUAccess = BuildMeshDescriptionsParams.bAllowCpuAccess;
 
 	StaticMesh.BuildFromMeshDescriptions(MeshDescriptionPointers, BuildMeshDescriptionsParams);
-#endif // !WITH_EDITOR
+	
+	// TODO: Expand support for different collision types
+	if (ensure(StaticMesh.GetRenderData()))
+	{
+		if (ImportAssetObjectData.bImportCollision && !ImportAssetObjectData.bImportedCustomCollision)
+		{
+			if (StaticMesh.GetBodySetup() == nullptr)
+			{
+				StaticMesh.CreateBodySetup();
+			}
+
+			StaticMesh.GetBodySetup()->CollisionTraceFlag = ECollisionTraceFlag::CTF_UseComplexAsSimple;
+		}
+	}	
 }
 
 #if WITH_EDITORONLY_DATA
@@ -1031,7 +1080,7 @@ static FVector3f GetTriangleNormal(const FTransform& Transform, TVertexAttribute
 }
 
 
-bool UInterchangeStaticMeshFactory::AddBoxGeomFromTris(const FImportAssetObjectParams& Arguments, const FMeshDescription& MeshDescription, const FTransform& Transform, FKAggregateGeom& AggGeom)
+bool UInterchangeStaticMeshFactory::AddBoxGeomFromTris(const FMeshDescription& MeshDescription, const FTransform& Transform, FKAggregateGeom& AggGeom)
 {
 	// Maintain an array of the planes we have encountered so far.
 	// We are expecting two instances of three unique plane orientations, one for each side of the box.
@@ -1336,7 +1385,7 @@ bool UInterchangeStaticMeshFactory::ImportBoxCollision(const FImportAssetObjectP
 			continue;
 		}
 
-		if (AddBoxGeomFromTris(Arguments, PayloadData->MeshDescription, Transform, AggGeo))
+		if (AddBoxGeomFromTris(PayloadData->MeshDescription, Transform, AggGeo))
 		{
 			bResult = true;
 			FKBoxElem& NewElem = AggGeo.BoxElems.Last();
@@ -1548,7 +1597,7 @@ bool UInterchangeStaticMeshFactory::ImportConvexCollision(const FImportAssetObje
 }
 
 
-bool UInterchangeStaticMeshFactory::GenerateKDopCollision(const FImportAssetObjectParams& Arguments, UStaticMesh* StaticMesh)
+bool UInterchangeStaticMeshFactory::GenerateKDopCollision(UStaticMesh* StaticMesh)
 {
 #if WITH_EDITOR
 

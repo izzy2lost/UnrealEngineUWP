@@ -73,6 +73,7 @@
 #include "Misc/ConfigCacheIni.h"
 #include "Misc/NamePermissionList.h"
 #include "InterchangeManager.h"
+#include "InterchangeSceneImportAsset.h"
 #include "InterchangeProjectSettings.h"
 #include "Engine/World.h"
 #include "Engine/Level.h"
@@ -3520,7 +3521,7 @@ TArray<UObject*> UAssetToolsImpl::ImportAssetsInternal(const TArray<FString>& Fi
 				
 				TFunction<void(UE::Interchange::FImportResult&)> AppendAndBroadcastImportResultIfNeeded =
 					// Note: ImportStatus captured by value so that the lambda keeps the shared ptr alive
-					[ImportStatus, AppendImportResult, bSyncToBrowser, bForceContentBrowserSyncIfOnlyOneMainAsset](UE::Interchange::FImportResult& Result)
+					[bSceneImport = Params.bSceneImport, ImportStatus, AppendImportResult, bSyncToBrowser, bForceContentBrowserSyncIfOnlyOneMainAsset](UE::Interchange::FImportResult& Result)
 					{
 						AppendImportResult(Result);
 
@@ -3530,28 +3531,33 @@ TArray<UObject*> UAssetToolsImpl::ImportAssetsInternal(const TArray<FString>& Fi
 							InterchangeManager.OnBatchImportComplete.Broadcast(ImportStatus->InterchangeResultsContainer);
 
 							TArray<UObject*> MainAssets;
-							for (const TWeakObjectPtr<UObject>& WeakObject : ImportStatus->ImportedObjects)
+							if (bSceneImport)
 							{
-								if (WeakObject.IsValid()
-									&& (WeakObject->IsA<UStaticMesh>()
-										|| WeakObject->IsA<USkeletalMesh>()
-										|| WeakObject->IsA<UAnimSequence>()))
+								for (const TWeakObjectPtr<UObject>& WeakObject : ImportStatus->ImportedObjects)
 								{
-									MainAssets.Add(WeakObject.Get());
+									if (WeakObject.IsValid() && WeakObject->IsA<UInterchangeSceneImportAsset>())
+									{
+										MainAssets.Add(WeakObject.Get());
+										// There should be only one anyway
+										break;
+									}
+								}
+							}
+							else
+							{
+								for (const TWeakObjectPtr<UObject>& WeakObject : ImportStatus->ImportedObjects)
+								{
+									if (WeakObject.IsValid() && WeakObject->IsAsset())
+									{
+										MainAssets.Add(WeakObject.Get());
+									}
 								}
 							}
 
 							//Force browser to sync to the import asset if there is only one asset imported
 							if (bSyncToBrowser || (bForceContentBrowserSyncIfOnlyOneMainAsset && MainAssets.Num() == 1))
 							{
-								TArray<UObject*> ImportedObjects;
-								ImportedObjects.Reserve(ImportStatus->ImportedObjects.Num());
-								for (const TWeakObjectPtr<UObject>& WeakObject : ImportStatus->ImportedObjects)
-								{
-									ImportedObjects.Add(WeakObject.Get());
-								}
-
-								UAssetToolsImpl::Get().SyncBrowserToAssets(bSyncToBrowser ? ImportedObjects : MainAssets);
+								UAssetToolsImpl::Get().SyncBrowserToAssets(MainAssets);
 							}
 						}
 					};

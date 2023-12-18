@@ -31,7 +31,20 @@ UObject* UInterchangeActorFactory::ImportSceneObject_GameThread(const UInterchan
 	{
 		if (UObject* ObjectToUpdate = ProcessActor(*SpawnedActor, *FactoryNode, *CreateSceneObjectsParams.NodeContainer))
 		{
-			ActorHelper::ApplyAllCustomAttributes(CreateSceneObjectsParams, *ObjectToUpdate);
+			if (USceneComponent* RootComponent = SpawnedActor->GetRootComponent())
+			{
+				// Cache mobility value to allow application of transform
+				EComponentMobility::Type CachedMobility = RootComponent->Mobility;
+				RootComponent->SetMobility(EComponentMobility::Type::Movable);
+
+				ActorHelper::ApplyAllCustomAttributes(CreateSceneObjectsParams, *ObjectToUpdate);
+
+				// Restore mobility value
+				if (CachedMobility != EComponentMobility::Type::Movable)
+				{
+					RootComponent->SetMobility(CachedMobility);
+				}
+			}
 		}
 	}
 
