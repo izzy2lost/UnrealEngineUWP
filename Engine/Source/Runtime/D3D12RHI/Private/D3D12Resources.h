@@ -87,12 +87,14 @@ public:
 	inline D3D12_HEAP_DESC GetHeapDesc() const { return HeapDesc; }
 	inline TConstArrayView<FD3D12ResidencyHandle*> GetResidencyHandles()
 	{ 
+#if ENABLE_RESIDENCY_MANAGEMENT
 		if (bRequiresResidencyTracking)
 		{
 			checkf(ResidencyHandle, TEXT("Resource requires residency tracking, but BeginTrackingResidency() was not called."));
 			return MakeArrayView(&ResidencyHandle, 1); 
 		}
 		else
+#endif // ENABLE_RESIDENCY_MANAGEMENT
 		{
 			return {};
 		}		
@@ -112,7 +114,7 @@ private:
 	HeapId TraceHeapId;
 	HeapId TraceParentHeapId;
 	bool bIsTransient = false; // Whether this is a transient heap
-	bool bRequiresResidencyTracking = true;
+	bool bRequiresResidencyTracking = bool(ENABLE_RESIDENCY_MANAGEMENT);
 };
 
 struct FD3D12ResourceDesc : public D3D12_RESOURCE_DESC
