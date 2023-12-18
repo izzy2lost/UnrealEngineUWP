@@ -87,7 +87,7 @@ TSharedPtr< class IXRTrackingSystem, ESPMode::ThreadSafe > FOpenXRHMDModule::Cre
 	auto OpenXRHMD = FSceneViewExtensions::NewExtension<FOpenXRHMD>(Instance, RenderBridge, EnabledExtensions, ExtensionPlugins, ARSystem);
 	if (OpenXRHMD->IsInitialized())
 	{
-		ARModule->SetTrackingSystem(OpenXRHMD);
+		ARModule->SetTrackingSystem(OpenXRHMD.Get());
 		OpenXRHMD->GetARCompositionComponent()->InitializeARSystem();
 		return OpenXRHMD;
 	}

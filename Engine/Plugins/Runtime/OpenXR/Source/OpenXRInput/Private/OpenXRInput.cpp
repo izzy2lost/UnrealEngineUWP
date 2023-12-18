@@ -2,11 +2,13 @@
 
 #include "OpenXRInput.h"
 #include "OpenXRInputSettings.h"
-#include "OpenXRHMD.h"
+#include "IOpenXRHMD.h"
+#include "IXRTrackingSystem.h"
 #include "OpenXRCore.h"
 #include "UObject/UObjectIterator.h"
 #include "GameFramework/InputSettings.h"
 #include "IOpenXRExtensionPlugin.h"
+#include "IOpenXRExtensionPluginDelegates.h"
 #include "HeadMountedDisplayFunctionLibrary.h"
 
 #include "EnhancedInputLibrary.h"
@@ -74,29 +76,17 @@ FOpenXRInputPlugin::~FOpenXRInputPlugin()
 {
 }
 
-FOpenXRHMD* FOpenXRInputPlugin::GetOpenXRHMD() const
-{
-	static FName SystemName(TEXT("OpenXR"));
-	if (GEngine->XRSystem.IsValid() && (GEngine->XRSystem->GetSystemName() == SystemName))
-	{
-		return static_cast<FOpenXRHMD*>(GEngine->XRSystem.Get());
-	}
-
-	return nullptr;
-}
-
 void FOpenXRInputPlugin::StartupModule()
 {
 	IOpenXRInputPlugin::StartupModule();
 
-	FOpenXRHMD* OpenXRHMD = GetOpenXRHMD();
-	// Note: OpenXRHMD may be null, for example in the editor.  But we still need the input device to enumerate sources.
-	InputDevice = MakeShared<FOpenXRInput>(OpenXRHMD);
+	// Note: XRSystem may be null, for example in the editor.  But we still need the input device to enumerate sources.
+	InputDevice = MakeShared<FOpenXRInput>(GEngine->XRSystem.Get());
 }
 
 FOpenXRInputPlugin::FOpenXRAction::FOpenXRAction(XrActionSet InActionSet,
 	XrActionType InActionType, const FName& InName, const FString& InLocalizedName,
-	const TArray<XrPath>& InSubactionPaths, const TObjectPtr<const UInputAction>& InObject, FOpenXRHMD* OpenXRHMD)
+	const TArray<XrPath>& InSubactionPaths, const TObjectPtr<const UInputAction>& InObject, IOpenXRHMD* OpenXRHMD)
 	: FOpenXRAction(InActionSet, InActionType, InName, InLocalizedName, InSubactionPaths, OpenXRHMD)
 {
 	Object = InObject;
@@ -104,7 +94,7 @@ FOpenXRInputPlugin::FOpenXRAction::FOpenXRAction(XrActionSet InActionSet,
 
 FOpenXRInputPlugin::FOpenXRAction::FOpenXRAction(XrActionSet InActionSet,
 	XrActionType InActionType, const FName& InName, const FString& InLocalizedName,
-	const TArray<XrPath>& InSubactionPaths, FOpenXRHMD* OpenXRHMD)
+	const TArray<XrPath>& InSubactionPaths, IOpenXRHMD* OpenXRHMD)
 	: Set(InActionSet)
 	, Type(InActionType)
 	, Name(InName)
@@ -151,14 +141,14 @@ FOpenXRInputPlugin::FOpenXRAction::FOpenXRAction(XrActionSet InActionSet,
 
 FOpenXRInputPlugin::FOpenXRActionSet::FOpenXRActionSet(XrInstance InInstance,
 	const FName& InName, const FString& InLocalizedName, uint32 InPriority,
-	const TObjectPtr<const UInputMappingContext>& InObject, FOpenXRHMD* OpenXRHMD)
+	const TObjectPtr<const UInputMappingContext>& InObject, IOpenXRHMD* OpenXRHMD)
 	: FOpenXRActionSet(InInstance, InName, InLocalizedName, InPriority, OpenXRHMD)
 {
 	Object = InObject;
 }
 
 FOpenXRInputPlugin::FOpenXRActionSet::FOpenXRActionSet(XrInstance InInstance,
-	const FName& InName, const FString& InLocalizedName, uint32 InPriority, FOpenXRHMD* OpenXRHMD)
+	const FName& InName, const FString& InLocalizedName, uint32 InPriority, IOpenXRHMD* OpenXRHMD)
 	: Handle(XR_NULL_HANDLE)
 	, Name(InName)
 	, LocalizedName(InLocalizedName)
@@ -243,7 +233,7 @@ FOpenXRInputPlugin::FOpenXRController::FOpenXRController(XrActionSet InActionSet
 	XR_ENSURE(xrCreateAction(ActionSet, &Info, &VibrationAction));
 }
 
-void FOpenXRInputPlugin::FOpenXRController::AddTrackedDevices(FOpenXRHMD* HMD)
+void FOpenXRInputPlugin::FOpenXRController::AddTrackedDevices(IOpenXRHMD* HMD)
 {
 	if (HMD)
 	{
@@ -260,8 +250,9 @@ FOpenXRInputPlugin::FInteractionProfile::FInteractionProfile(XrPath InProfile, b
 {
 }
 
-FOpenXRInputPlugin::FOpenXRInput::FOpenXRInput(FOpenXRHMD* HMD)
-	: OpenXRHMD(HMD)
+FOpenXRInputPlugin::FOpenXRInput::FOpenXRInput(IXRTrackingSystem* InTrackingSystem)
+	: TrackingSystem(InTrackingSystem)
+	, OpenXRHMD(InTrackingSystem ? InTrackingSystem->GetIOpenXRHMD() : nullptr)
 	, Instance(XR_NULL_HANDLE)
 	, ControllerActionSet()
 	, ActionSets()
@@ -278,7 +269,7 @@ FOpenXRInputPlugin::FOpenXRInput::FOpenXRInput(FOpenXRHMD* HMD)
 	, MessageHandler(new FGenericApplicationMessageHandler())
 {
 	IModularFeatures::Get().RegisterModularFeature(GetModularFeatureName(), this);
-	
+
 	// If there is no HMD then this module is not active, but it still needs to exist so we can EnumerateMotionSources from it.
 	if (OpenXRHMD)
 	{
@@ -1221,7 +1212,7 @@ bool FOpenXRInputPlugin::FOpenXRInput::GetControllerOrientationAndPosition(const
 		if (Result >= XR_SUCCESS && State.isActive)
 		{
 			FQuat Orientation;
-			OpenXRHMD->GetCurrentPose(GetDeviceIDForMotionSource(MotionSource), Orientation, OutPosition);
+			TrackingSystem->GetCurrentPose(GetDeviceIDForMotionSource(MotionSource), Orientation, OutPosition);
 			OutOrientation = FRotator(Orientation);
 			return true;
 		}
@@ -1437,7 +1428,7 @@ void FOpenXRInputPlugin::FOpenXRInput::SetHapticFeedbackValues(int32 ControllerI
 				FOpenXRExtensionChainStructPtrs ScopedExtensionChainStructs;
 				if (Values.HapticBuffer != nullptr)
 				{
-					OpenXRHMD->GetApplyHapticFeedbackAddChainStructsDelegate().Broadcast(&HapticValue, ScopedExtensionChainStructs, Values.HapticBuffer);
+					OpenXRHMD->GetIOpenXRExtensionPluginDelegates().GetApplyHapticFeedbackAddChainStructsDelegate().Broadcast(&HapticValue, ScopedExtensionChainStructs, Values.HapticBuffer);
 				}
 				XR_ENSURE(xrApplyHapticFeedback(Session, &HapticActionInfo, (const XrHapticBaseHeader*)&HapticValue));
 

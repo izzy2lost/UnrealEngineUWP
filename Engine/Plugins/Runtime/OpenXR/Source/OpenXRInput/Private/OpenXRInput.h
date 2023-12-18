@@ -11,7 +11,8 @@
 #include "UObject/ObjectPtr.h"
 #include "UObject/StrongObjectPtr.h"
 
-class FOpenXRHMD;
+class IOpenXRHMD;
+class IXRTrackingSystem;
 class UInputAction;
 class UInputTrigger;
 class UInputModifier;
@@ -44,14 +45,14 @@ public:
 			FString& InLocalizedName,
 			const TArray<XrPath>& InSubactionPaths,
 			const TObjectPtr<const UInputAction>& InObject,
-			FOpenXRHMD* OpenXRHMD = nullptr);
+			IOpenXRHMD* OpenXRHMD = nullptr);
 
 		FOpenXRAction(XrActionSet InActionSet,
 			XrActionType InActionType,
 			const FName& InName,
 			const FString& InLocalizedName,
 			const TArray<XrPath>& InSubactionPaths,
-			FOpenXRHMD* OpenXRHMD = nullptr);
+			IOpenXRHMD* OpenXRHMD = nullptr);
 	};
 
 	struct FOpenXRActionSet
@@ -67,13 +68,13 @@ public:
 			const FString& InLocalizedName,
 			uint32 InPriority,
 			const TObjectPtr<const UInputMappingContext>& InObject,
-			FOpenXRHMD* OpenXRHMD = nullptr);
+			IOpenXRHMD* OpenXRHMD = nullptr);
 
 		FOpenXRActionSet(XrInstance InInstance,
 			const FName& InName,
 			const FString& InLocalizedName,
 			uint32 InPriority,
-			FOpenXRHMD* OpenXRHMD = nullptr);
+			IOpenXRHMD* OpenXRHMD = nullptr);
 	};
 
 	struct FOpenXRController
@@ -92,7 +93,7 @@ public:
 
 		FOpenXRController(XrActionSet InActionSet, XrPath InUserPath, const char* InName);
 
-		void AddTrackedDevices(FOpenXRHMD* HMD);
+		void AddTrackedDevices(IOpenXRHMD* HMD);
 	};
 
 	struct FInteractionProfile
@@ -108,7 +109,7 @@ public:
 	class FOpenXRInput : public IOpenXRInputModule, public IInputDevice, public FXRMotionControllerBase, public IHapticDevice, public TSharedFromThis<FOpenXRInput>
 	{
 	public:
-		FOpenXRInput(FOpenXRHMD* HMD);
+		FOpenXRInput(IXRTrackingSystem* InTrackingSystem);
 		virtual ~FOpenXRInput() {};
 
 		// IOpenXRAdditionalModule overrides
@@ -144,7 +145,8 @@ public:
 		virtual float GetHapticAmplitudeScale() const override;
 
 	private:
-		FOpenXRHMD* OpenXRHMD;
+		IXRTrackingSystem* TrackingSystem;
+		IOpenXRHMD* OpenXRHMD;
 		XrInstance Instance;
 
 		TUniquePtr<FOpenXRActionSet> ControllerActionSet;
@@ -195,9 +197,6 @@ public:
 
 	virtual void StartupModule() override;
 	virtual TSharedPtr< class IInputDevice > CreateInputDevice(const TSharedRef< FGenericApplicationMessageHandler >& InMessageHandler) override;
-
-private:
-	FOpenXRHMD* GetOpenXRHMD() const;
 
 private:
 	TSharedPtr<FOpenXRInput> InputDevice;

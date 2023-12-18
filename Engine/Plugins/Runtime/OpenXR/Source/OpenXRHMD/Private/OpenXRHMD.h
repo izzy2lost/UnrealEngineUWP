@@ -215,7 +215,7 @@ public:
 	virtual void ResetPosition() override;
 	virtual void Recenter(EOrientPositionSelector::Type Selector, float Yaw = 0.f);
 
-	virtual bool GetIsTracked(int32 DeviceId);
+	virtual bool GetIsTracked(int32 DeviceId) override;
 	virtual bool GetCurrentPose(int32 DeviceId, FQuat& CurrentOrientation, FVector& CurrentPosition) override;
 	virtual bool GetPoseForTime(int32 DeviceId, FTimespan Timespan, bool& OutTimeWasUsed, FQuat& CurrentOrientation, FVector& CurrentPosition, bool& bProvidedLinearVelocity, FVector& LinearVelocity, bool& bProvidedAngularVelocity, FVector& AngularVelocityAsAxisAndLength, bool& bProvidedLinearAcceleration, FVector& LinearAcceleration, float WorldToMetersScale) override;
 	virtual bool GetCurrentInteractionProfile(const EControllerHand Hand, FString& InteractionProfile) override;
@@ -397,10 +397,6 @@ public:
 	/** Constructor */
 	FOpenXRHMD(const FAutoRegister&, XrInstance InInstance, TRefCountPtr<FOpenXRRenderBridge>& InRenderBridge, TArray<const char*> InEnabledExtensions, TArray<class IOpenXRExtensionPlugin*> InExtensionPlugins, IARSystemSupport* ARSystemSupport);
 
-	void SetInputModule(IOpenXRInputModule* InInputModule)
-	{
-		InputModule = InInputModule;
-	}
 
 	/** Destructor */
 	virtual ~FOpenXRHMD();
@@ -410,6 +406,10 @@ public:
 	void OnFinishRendering_RHIThread();
 
 	/** IOpenXRHMD */
+	void SetInputModule(IOpenXRInputModule* InInputModule) override
+	{
+		InputModule = InInputModule;
+	}
 	/** @return	True if the HMD was initialized OK */
 	bool IsInitialized() const override;
 	bool IsRunning() const override;
@@ -425,8 +425,8 @@ public:
 	XrTime GetDisplayTime() const override;
 	XrSpace GetTrackingSpace() const override;
 	IOpenXRExtensionPluginDelegates& GetIOpenXRExtensionPluginDelegates() override { return *this; }
-
-	OPENXRHMD_API TArray<IOpenXRExtensionPlugin*>& GetExtensionPlugins() { return ExtensionPlugins; }
+	TArray<IOpenXRExtensionPlugin*>& GetExtensionPlugins() override { return ExtensionPlugins; }
+	
 	OPENXRHMD_API void SetEnvironmentBlendMode(XrEnvironmentBlendMode NewBlendMode);
 
 	/** Returns shader platform the plugin is currently configured for, in the editor it can change due to preview platforms. */

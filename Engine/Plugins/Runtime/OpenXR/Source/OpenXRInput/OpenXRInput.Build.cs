@@ -8,8 +8,6 @@ namespace UnrealBuildTool.Rules
     {
         public OpenXRInput(ReadOnlyTargetRules Target) : base(Target)
         {
-            PrivateIncludePaths.Add(Path.Combine(GetModuleDirectory("OpenXRHMD"), "Private"));
-
             PrivateDependencyModuleNames.AddRange(
                 new string[]
                 {
