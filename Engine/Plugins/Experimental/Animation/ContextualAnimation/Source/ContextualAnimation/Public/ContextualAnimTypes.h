@@ -220,6 +220,12 @@ struct FContextualAnimRoleDefinition
 	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Defaults")
 	bool bIsCharacter = false;
 
+	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Defaults", meta = (EditCondition = "bIsCharacter", EditConditionHides))
+	float PreviewCapsuleHalfHeight = 88.f;
+
+	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Defaults", meta = (EditCondition = "bIsCharacter", EditConditionHides))
+	float PreviewCapsuleRadius = 34.f;
+
 	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Defaults")
 	FTransform MeshToComponent = FTransform(FRotator(0.f, -90.f, 0.f));
 
