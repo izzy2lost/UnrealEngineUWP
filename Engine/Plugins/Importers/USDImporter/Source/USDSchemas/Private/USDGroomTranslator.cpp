@@ -26,20 +26,20 @@
 #include "USDIntegrationUtils.h"
 #include "USDLog.h"
 #include "USDPrimConversion.h"
-#include "USDTypesConversion.h"
 
 #include "USDIncludesStart.h"
-	#include "pxr/base/tf/type.h"
-	#include "pxr/usd/usd/prim.h"
-	#include "pxr/usd/usd/timeCode.h"
-	#include "pxr/usd/usdGeom/basisCurves.h"
-	#include "pxr/usd/usdGeom/curves.h"
-	#include "pxr/usd/usdGeom/imageable.h"
+#include "pxr/usd/usd/prim.h"
+#include "pxr/usd/usd/timeCode.h"
+#include "pxr/usd/usdGeom/basisCurves.h"
+#include "pxr/usd/usdGeom/imageable.h"
 #include "USDIncludesEnd.h"
 
 namespace UE::UsdGroomTranslator::Private
 {
-	UGroomImportOptions* CreateGroomImportOptions(const FHairDescriptionGroups& GroupsDescription, const TArray<FHairGroupsInterpolation>& BuildSettings)
+	UGroomImportOptions* CreateGroomImportOptions(
+		const FHairDescriptionGroups& GroupsDescription,
+		const TArray<FHairGroupsInterpolation>& BuildSettings
+	)
 	{
 		// Create a new groom import options and populate the interpolation settings based on the group count
 		UGroomImportOptions* ImportOptions = NewObject<UGroomImportOptions>();
@@ -107,7 +107,7 @@ namespace UE::UsdGroomTranslator::Private
 			Hash.Update((const uint8*)SHAHash.Hash, sizeof(SHAHash.Hash));
 		}
 	}
-}
+}	 // namespace UE::UsdGroomTranslator::Private
 
 class FUsdGroomCreateAssetsTaskChain : public FUsdSchemaTranslatorTaskChain
 {
@@ -136,7 +136,10 @@ protected:
 	FString PrefixedGroomCacheHash;
 
 protected:
-	UE::FUsdPrim GetPrim() const { return Context->Stage.GetPrimAtPath(PrimPath); }
+	UE::FUsdPrim GetPrim() const
+	{
+		return Context->Stage.GetPrimAtPath(PrimPath);
+	}
 
 protected:
 	void SetupTasks()
@@ -145,24 +148,31 @@ protected:
 
 		// Create hair description (Async)
 		Do(ESchemaTranslationLaunchPolicy::Async,
-			[this]() -> bool
-			{
-				const bool bSuccess = UsdToUnreal::ConvertGroomHierarchy(GetPrim(), pxr::UsdTimeCode::EarliestTime(), FTransform::Identity, HairDescription, &AnimInfo);
+		   [this]() -> bool
+		   {
+			   const bool bSuccess = UsdToUnreal::ConvertGroomHierarchy(
+				   GetPrim(),
+				   pxr::UsdTimeCode::EarliestTime(),
+				   FTransform::Identity,
+				   HairDescription,
+				   &AnimInfo
+			   );
 
-				const double StageTimeCodesPerSecond = Context->Stage.GetTimeCodesPerSecond();
-				AnimInfo.SecondsPerFrame = float(1.0f / StageTimeCodesPerSecond);
+			   const double StageTimeCodesPerSecond = Context->Stage.GetTimeCodesPerSecond();
+			   AnimInfo.SecondsPerFrame = float(1.0f / StageTimeCodesPerSecond);
 
-				if (bSuccess && AnimInfo.IsValid())
-				{
-					AnimInfo.Duration = AnimInfo.NumFrames * AnimInfo.SecondsPerFrame;
-					AnimInfo.StartTime = AnimInfo.StartFrame * AnimInfo.SecondsPerFrame;
-					AnimInfo.EndTime = AnimInfo.EndFrame * AnimInfo.SecondsPerFrame;
-				}
+			   if (bSuccess && AnimInfo.IsValid())
+			   {
+				   AnimInfo.Duration = AnimInfo.NumFrames * AnimInfo.SecondsPerFrame;
+				   AnimInfo.StartTime = AnimInfo.StartFrame * AnimInfo.SecondsPerFrame;
+				   AnimInfo.EndTime = AnimInfo.EndFrame * AnimInfo.SecondsPerFrame;
+			   }
 
-				return bSuccess && HairDescription.IsValid();
-			});
+			   return bSuccess && HairDescription.IsValid();
+		   });
 		// Build groom asset from hair description (Sync)
-		Then(ESchemaTranslationLaunchPolicy::Sync,
+		Then(
+			ESchemaTranslationLaunchPolicy::Sync,
 			[this]()
 			{
 				TRACE_CPUPROFILER_EVENT_SCOPE(FUsdGroomCreateAssetsTaskChain::Build);
@@ -171,7 +181,8 @@ protected:
 				FHairDescriptionGroups GroupsDescription;
 				FGroomBuilder::BuildHairDescriptionGroups(HairDescription, GroupsDescription);
 
-				ImportOptions.Reset(UE::UsdGroomTranslator::Private::CreateGroomImportOptions(GroupsDescription, Context->GroomInterpolationSettings));
+				ImportOptions.Reset(UE::UsdGroomTranslator::Private::CreateGroomImportOptions(GroupsDescription, Context->GroomInterpolationSettings)
+				);
 
 				FSHAHash SHAHash = UE::UsdGroomTranslator::Private::ComputeHairDescriptionHash(HairDescription, ImportOptions->InterpolationSettings);
 
@@ -225,9 +236,11 @@ protected:
 
 				// Next step is to parse the GroomCache data if it was determined that the groom has animated attributes
 				return GroomAsset != nullptr && AnimInfo.IsValid();
-			});
+			}
+		);
 		// Parse GroomCache data into processor (Async)
-		Then(ESchemaTranslationLaunchPolicy::Async,
+		Then(
+			ESchemaTranslationLaunchPolicy::Async,
 			[this]() -> bool
 			{
 				if (!Context->InfoCache)
@@ -235,9 +248,7 @@ protected:
 					return false;
 				}
 
-				UGroomAsset* GroomAsset = Context->InfoCache->GetSingleAssetForPrim<UGroomAsset>(
-					PrimPath
-				);
+				UGroomAsset* GroomAsset = Context->InfoCache->GetSingleAssetForPrim<UGroomAsset>(PrimPath);
 				if (!GroomAsset)
 				{
 					return false;
@@ -245,8 +256,18 @@ protected:
 
 				// Compute GroomCache hash from the first and last frame HairDescription...
 				FSHA1 SHA1;
-				UE::UsdGroomTranslator::Private::ComputeFrameHairDescriptionHash(GetPrim(), ImportOptions->InterpolationSettings, AnimInfo.StartFrame, SHA1);
-				UE::UsdGroomTranslator::Private::ComputeFrameHairDescriptionHash(GetPrim(), ImportOptions->InterpolationSettings, AnimInfo.EndFrame, SHA1);
+				UE::UsdGroomTranslator::Private::ComputeFrameHairDescriptionHash(
+					GetPrim(),
+					ImportOptions->InterpolationSettings,
+					AnimInfo.StartFrame,
+					SHA1
+				);
+				UE::UsdGroomTranslator::Private::ComputeFrameHairDescriptionHash(
+					GetPrim(),
+					ImportOptions->InterpolationSettings,
+					AnimInfo.EndFrame,
+					SHA1
+				);
 
 				// Along with relevant AnimInfo data
 				SHA1.Update((const uint8*)&AnimInfo.NumFrames, sizeof(AnimInfo.NumFrames));
@@ -272,7 +293,12 @@ protected:
 					for (int32 FrameIndex = AnimInfo.StartFrame; FrameIndex < AnimInfo.EndFrame + 1; ++FrameIndex)
 					{
 						FHairDescription FrameHairDescription;
-						bSuccess = UsdToUnreal::ConvertGroomHierarchy(GetPrim(), pxr::UsdTimeCode(FrameIndex), FTransform::Identity, FrameHairDescription);
+						bSuccess = UsdToUnreal::ConvertGroomHierarchy(
+							GetPrim(),
+							pxr::UsdTimeCode(FrameIndex),
+							FTransform::Identity,
+							FrameHairDescription
+						);
 
 						if (!bSuccess)
 						{
@@ -295,7 +321,13 @@ protected:
 						{
 							const FHairDescriptionGroup& HairGroup = HairDescriptionGroups.HairGroups[GroupIndex];
 							FHairDescriptionGroup& HairGroupData = HairGroupsData[GroupIndex];
-							FGroomBuilder::BuildData(HairGroup, GroomAsset->GetHairGroupsInterpolation()[GroupIndex], HairGroupsInfo[GroupIndex], HairGroupData.Strands, HairGroupData.Guides);
+							FGroomBuilder::BuildData(
+								HairGroup,
+								GroomAsset->GetHairGroupsInterpolation()[GroupIndex],
+								HairGroupsInfo[GroupIndex],
+								HairGroupData.Strands,
+								HairGroupData.Guides
+							);
 						}
 
 						// Validate that the GroomCache has the same topology as the static groom
@@ -303,11 +335,19 @@ protected:
 						{
 							for (uint32 GroupIndex = 0; GroupIndex < GroupCount; ++GroupIndex)
 							{
-								if (HairGroupsData[GroupIndex].Strands.GetNumPoints() != GroomHairGroupsData[GroupIndex].Strands.BulkData.GetNumPoints())
+								if (HairGroupsData[GroupIndex].Strands.GetNumPoints()
+									!= GroomHairGroupsData[GroupIndex].Strands.BulkData.GetNumPoints())
 								{
 									bSuccess = false;
-									UE_LOG(LogUsd, Warning, TEXT("GroomCache frame %d does not have the same number of vertices as the static groom (%u instead of %u). Aborting GroomCache import."),
-										FrameIndex, HairGroupsData[GroupIndex].Strands.GetNumPoints(), GroomHairGroupsData[GroupIndex].Strands.BulkData.GetNumPoints());
+									UE_LOG(
+										LogUsd,
+										Warning,
+										TEXT("GroomCache frame %d does not have the same number of vertices as the static groom (%u instead of %u). "
+											 "Aborting GroomCache import."),
+										FrameIndex,
+										HairGroupsData[GroupIndex].Strands.GetNumPoints(),
+										GroomHairGroupsData[GroupIndex].Strands.BulkData.GetNumPoints()
+									);
 									break;
 								}
 							}
@@ -315,8 +355,14 @@ protected:
 						else
 						{
 							bSuccess = false;
-							UE_LOG(LogUsd, Warning, TEXT("GroomCache does not have the same number of groups as the static groom (%d instead of %d). Aborting GroomCache import."),
-								HairGroupsData.Num(), GroomHairGroupsData.Num());
+							UE_LOG(
+								LogUsd,
+								Warning,
+								TEXT("GroomCache does not have the same number of groups as the static groom (%d instead of %d). Aborting GroomCache "
+									 "import."),
+								HairGroupsData.Num(),
+								GroomHairGroupsData.Num()
+							);
 						}
 
 						if (!bSuccess)
@@ -341,9 +387,11 @@ protected:
 
 				// Go to the next step only if it needs to create a GroomCache asset
 				return GroomCache == nullptr && GroomCacheProcessor;
-			});
+			}
+		);
 		// Create GroomCache asset from processor (Sync)
-		Then(ESchemaTranslationLaunchPolicy::Sync,
+		Then(
+			ESchemaTranslationLaunchPolicy::Sync,
 			[this]() -> bool
 			{
 				// TEMP: This is a small trick to prevent two concurrent task chains from running into a hash collision in the asset cache.
@@ -358,7 +406,8 @@ protected:
 				}
 
 				const FString StrandsGroomCachePrimPath = UsdGroomTranslatorUtils::GetStrandsGroomCachePrimPath(PrimPath);
-				FHairImportContext HairImportContext(nullptr, GetTransientPackage(), nullptr, FName(), Context->ObjectFlags | RF_Public | RF_Transient);
+				FHairImportContext
+					HairImportContext(nullptr, GetTransientPackage(), nullptr, FName(), Context->ObjectFlags | RF_Public | RF_Transient);
 				FName UniqueName = MakeUniqueObjectName(
 					GetTransientPackage(),
 					UGroomCache::StaticClass(),
@@ -366,7 +415,8 @@ protected:
 				);
 
 				// Once the processing has completed successfully, the data is transferred to the GroomCache
-				UGroomCache* GroomCache = FGroomCacheImporter::ProcessToGroomCache(*GroomCacheProcessor, AnimInfo, HairImportContext, UniqueName.ToString());
+				UGroomCache*
+					GroomCache = FGroomCacheImporter::ProcessToGroomCache(*GroomCacheProcessor, AnimInfo, HairImportContext, UniqueName.ToString());
 				if (GroomCache)
 				{
 					if (UUsdAssetUserData* UserData = UsdUtils::GetOrCreateAssetUserData(GroomCache))
@@ -390,7 +440,8 @@ protected:
 				}
 
 				return GroomCache != nullptr;
-			});
+			}
+		);
 	}
 };
 
@@ -458,11 +509,9 @@ void FUsdGroomTranslator::UpdateComponents(USceneComponent* SceneComponent)
 			GroomComponent->Modify();
 
 			UGroomAsset* Groom = nullptr;
-			if(Context->InfoCache)
+			if (Context->InfoCache)
 			{
-				Groom = Context->InfoCache->GetSingleAssetForPrim<UGroomAsset>(
-					PrimPath
-				);
+				Groom = Context->InfoCache->GetSingleAssetForPrim<UGroomAsset>(PrimPath);
 			}
 
 			bool bShouldRegister = false;
@@ -569,4 +618,4 @@ TSet<UE::FSdfPath> FUsdGroomTranslator::CollectAuxiliaryPrims() const
 	return Result;
 }
 
-#endif // #if USE_USD_SDK
+#endif	  // #if USE_USD_SDK

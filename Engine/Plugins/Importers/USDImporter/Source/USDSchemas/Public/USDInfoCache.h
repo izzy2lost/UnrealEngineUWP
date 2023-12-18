@@ -138,4 +138,3 @@ public:
 private:
 	TUniquePtr<FUsdInfoCacheImpl> Impl;
 };
-

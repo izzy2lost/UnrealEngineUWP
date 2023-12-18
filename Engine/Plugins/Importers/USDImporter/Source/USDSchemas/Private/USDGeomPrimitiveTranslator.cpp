@@ -5,13 +5,11 @@
 #if USE_USD_SDK
 
 #include "UnrealUSDWrapper.h"
-#include "USDAssetImportData.h"
 #include "USDConversionUtils.h"
 #include "USDDrawModeComponent.h"
 #include "USDGeomMeshConversion.h"
 #include "USDGeomMeshTranslator.h"
 #include "USDInfoCache.h"
-#include "USDLog.h"
 #include "USDTypesConversion.h"
 
 #include "UsdWrappers/SdfPath.h"
@@ -24,7 +22,7 @@
 #include "StaticMeshAttributes.h"
 
 #include "USDIncludesStart.h"
-	#include "pxr/usd/usd/prim.h"
+#include "pxr/usd/usd/prim.h"
 #include "USDIncludesEnd.h"
 
 namespace UsdGeomPrimitiveTranslatorImpl
@@ -97,12 +95,7 @@ namespace UsdGeomPrimitiveTranslatorImpl
 				   Options.bMergeIdenticalMaterialSlots = Context->bMergeIdenticalMaterialSlots;
 				   Options.SubdivisionLevel = Context->SubdivisionLevel;
 
-				   UsdGeomPrimitiveTranslatorImpl::LoadMeshDescriptions(
-					   GetPrim(),
-					   LODIndexToMeshDescription,
-					   LODIndexToMaterialInfo,
-					   Options
-				   );
+				   UsdGeomPrimitiveTranslatorImpl::LoadMeshDescriptions(GetPrim(), LODIndexToMeshDescription, LODIndexToMaterialInfo, Options);
 
 				   // If we have at least one valid LOD, we should keep going
 				   for (const FMeshDescription& MeshDescription : LODIndexToMeshDescription)
@@ -159,9 +152,7 @@ USceneComponent* FUsdGeomPrimitiveTranslator::CreateComponents()
 	{
 		if (Context->InfoCache)
 		{
-			if (UStaticMesh* StaticMesh = Context->InfoCache->GetSingleAssetForPrim<UStaticMesh>(
-				PrimPath
-			))
+			if (UStaticMesh* StaticMesh = Context->InfoCache->GetSingleAssetForPrim<UStaticMesh>(PrimPath))
 			{
 				TArray<UMaterialInterface*> ExistingAssignments;
 				for (FStaticMaterial& StaticMaterial : StaticMesh->GetStaticMaterials())

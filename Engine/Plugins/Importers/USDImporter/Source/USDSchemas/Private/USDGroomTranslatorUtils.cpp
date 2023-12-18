@@ -1,9 +1,16 @@
 // Copyright Epic Games, Inc. All Rights Reserved.
 
 #include "USDGroomTranslatorUtils.h"
-#include "UObject/Package.h"
 
 #if USE_USD_SDK && WITH_EDITOR
+
+#include "UnrealUSDWrapper.h"
+#include "USDAssetCache2.h"
+#include "USDClassesModule.h"
+#include "USDInfoCache.h"
+#include "USDIntegrationUtils.h"
+#include "USDTypesConversion.h"
+#include "UsdWrappers/SdfPath.h"
 
 #include "Engine/SkeletalMesh.h"
 #include "GeometryCache.h"
@@ -11,31 +18,23 @@
 #include "GroomBindingAsset.h"
 #include "GroomComponent.h"
 #include "Misc/SecureHash.h"
+#include "UObject/Package.h"
 #include "UObject/UObjectGlobals.h"
-
-#include "UnrealUSDWrapper.h"
-#include "USDAssetCache.h"
-#include "USDClassesModule.h"
-#include "USDGeomXformableTranslator.h"
-#include "USDInfoCache.h"
-#include "USDIntegrationUtils.h"
-#include "USDSchemaTranslator.h"
-#include "USDTypesConversion.h"
-#include "UsdWrappers/SdfPath.h"
+#include "USDConversionUtils.h"
 
 #include "USDIncludesStart.h"
-	#include "pxr/usd/usd/prim.h"
-	#include "pxr/usd/usd/relationship.h"
-	#include "pxr/usd/usdGeom/mesh.h"
-	#include "pxr/usd/usdSkel/root.h"
-	#include "pxr/usd/usdSkel/skeleton.h"
+#include "pxr/usd/usd/prim.h"
+#include "pxr/usd/usd/relationship.h"
+#include "pxr/usd/usdGeom/mesh.h"
+#include "pxr/usd/usdSkel/root.h"
+#include "pxr/usd/usdSkel/skeleton.h"
 #include "USDIncludesEnd.h"
 
 namespace UE::UsdGroomTranslatorUtils::Private
 {
 	struct FGroomBindingBuildSettings : public FGCObject
 	{
-		virtual void AddReferencedObjects(FReferenceCollector& Collector)  override
+		virtual void AddReferencedObjects(FReferenceCollector& Collector) override
 		{
 			Collector.AddReferencedObject(Groom);
 			Collector.AddReferencedObject(SourceMesh);
@@ -185,7 +184,7 @@ namespace UE::UsdGroomTranslatorUtils::Private
 		}
 		return nullptr;
 	}
-}
+}	 // namespace UE::UsdGroomTranslatorUtils::Private
 
 namespace UsdGroomTranslatorUtils
 {
@@ -210,9 +209,7 @@ namespace UsdGroomTranslatorUtils
 		}
 
 		// The GroomAsset should already be processed and cached by the USDGroomTranslator
-		UGroomAsset* GroomAsset = InfoCache.GetSingleAssetForPrim<UGroomAsset>(
-			UE::FSdfPath{*GroomPrimPath}
-		);
+		UGroomAsset* GroomAsset = InfoCache.GetSingleAssetForPrim<UGroomAsset>(UE::FSdfPath{*GroomPrimPath});
 		if (!GroomAsset)
 		{
 			return;
@@ -275,9 +272,7 @@ namespace UsdGroomTranslatorUtils
 			return;
 		}
 
-		UGroomAsset* GroomAsset = InfoCache.GetSingleAssetForPrim<UGroomAsset>(
-			UE::FSdfPath{*GroomPrimPath}
-		);
+		UGroomAsset* GroomAsset = InfoCache.GetSingleAssetForPrim<UGroomAsset>(UE::FSdfPath{*GroomPrimPath});
 		if (!GroomAsset)
 		{
 			return;
@@ -285,9 +280,7 @@ namespace UsdGroomTranslatorUtils
 
 		const FString PrimPath(UsdToUnreal::ConvertPath(Prim.GetPath()));
 		const FString GroomBindingPath = FString::Printf(TEXT("%s_groombinding"), *PrimPath);
-		UGroomBindingAsset* GroomBinding = InfoCache.GetSingleAssetForPrim<UGroomBindingAsset>(
-			UE::FSdfPath{*GroomBindingPath}
-		);
+		UGroomBindingAsset* GroomBinding = InfoCache.GetSingleAssetForPrim<UGroomBindingAsset>(UE::FSdfPath{*GroomBindingPath});
 
 		// Set the GroomAsset and GroomBindingAsset on the child GroomComponent of SceneComponent that was set up in the translator
 		TArray<USceneComponent*> Children;
@@ -310,6 +303,6 @@ namespace UsdGroomTranslatorUtils
 	{
 		return FString::Printf(TEXT("%s_strands_cache"), *PrimPath.GetString());
 	}
-}
+}	 // namespace UsdGroomTranslatorUtils
 
-#endif // #if USE_USD_SDK && WITH_EDITOR
+#endif	  // #if USE_USD_SDK && WITH_EDITOR

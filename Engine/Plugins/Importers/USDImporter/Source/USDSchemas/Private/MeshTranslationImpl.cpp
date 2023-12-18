@@ -38,7 +38,10 @@
 
 #define UNUSED_UV_INDEX USD_PREVIEW_SURFACE_MAX_UV_SETS
 
-static_assert(USD_PREVIEW_SURFACE_MAX_UV_SETS <= MAX_MESH_TEXTURE_COORDS_MD, "UsdPreviewSurface materials can only have up to as many UV sets as MeshDescription supports!");
+static_assert(
+	USD_PREVIEW_SURFACE_MAX_UV_SETS <= MAX_MESH_TEXTURE_COORDS_MD,
+	"UsdPreviewSurface materials can only have up to as many UV sets as MeshDescription supports!"
+);
 
 namespace UE::MeshTranslationImplInternal::Private
 {
@@ -86,8 +89,11 @@ namespace UE::MeshTranslationImplInternal::Private
 		// Just create an instance of the TwoSided version of the same reference material and copy parameter values.
 		if (GIsEditor && MIC && ReferenceMaterialTwoSided)
 		{
-			UMaterialInstanceConstant* TwoSidedMIC =
-				NewObject<UMaterialInstanceConstant>(GetTransientPackage(), NewInstanceName, OneSidedMat->GetFlags());
+			UMaterialInstanceConstant* TwoSidedMIC = NewObject<UMaterialInstanceConstant>(
+				GetTransientPackage(),
+				NewInstanceName,
+				OneSidedMat->GetFlags()
+			);
 
 			TwoSidedMIC->SetParentEditorOnly(ReferenceMaterialTwoSided);
 			TwoSidedMIC->CopyMaterialUniformParametersEditorOnly(OneSidedMat);
@@ -116,28 +122,28 @@ namespace UE::MeshTranslationImplInternal::Private
 		}
 
 		else
-#endif // WITH_EDITOR
+#endif	  // WITH_EDITOR
 
-		// At runtime all we can do is create another instance of our two-sided reference materials, we cannot set
-		// another override
-		if (MID && ReferenceMaterialTwoSided)
-		{
-			UMaterialInstanceDynamic* TwoSidedMID = UMaterialInstanceDynamic::Create(
-				ReferenceMaterialTwoSided,
-				GetTransientPackage(),
-				NewInstanceName
-			);
-			if (!ensure(TwoSidedMID))
+			// At runtime all we can do is create another instance of our two-sided reference materials, we cannot set
+			// another override
+			if (MID && ReferenceMaterialTwoSided)
 			{
-				return nullptr;
+				UMaterialInstanceDynamic* TwoSidedMID = UMaterialInstanceDynamic::Create(
+					ReferenceMaterialTwoSided,
+					GetTransientPackage(),
+					NewInstanceName
+				);
+				if (!ensure(TwoSidedMID))
+				{
+					return nullptr;
+				}
+
+				TwoSidedMID->CopyParameterOverrides(MID);
+
+				TwoSidedMat = TwoSidedMID;
 			}
 
-			TwoSidedMID->CopyParameterOverrides(MID);
-
-			TwoSidedMat = TwoSidedMID;
-		}
-
-		if(TwoSidedMat)
+		if (TwoSidedMat)
 		{
 			UUsdMaterialAssetUserData* UserData = DuplicateObject(OneSidedUserData, TwoSidedMat, TEXT("USDAssetUserData"));
 			TwoSidedMat->AddAssetUserData(UserData);
@@ -162,12 +168,20 @@ namespace UE::MeshTranslationImplInternal::Private
 	)
 	{
 		UUsdMaterialAssetUserData* MaterialAssetUserData = Material.GetAssetUserData<UUsdMaterialAssetUserData>();
-		if (!ensureMsgf(MaterialAssetUserData, TEXT("Expected material '%s' to have an UUsdMaterialAssetUserData at this point!"), *Material.GetPathName()))
+		if (!ensureMsgf(
+				MaterialAssetUserData,
+				TEXT("Expected material '%s' to have an UUsdMaterialAssetUserData at this point!"),
+				*Material.GetPathName()
+			))
 		{
 			return nullptr;
 		}
 
-		UE_LOG(LogUsd, Verbose, TEXT("Getting compatible material based on Material '%s' (Parameter to primvar: %s, primvar to UV index: %s) matching mesh primvar to UV index mapping '%s'"),
+		UE_LOG(
+			LogUsd,
+			Verbose,
+			TEXT("Getting compatible material based on Material '%s' (Parameter to primvar: %s, primvar to UV index: %s) matching mesh primvar to UV "
+				 "index mapping '%s'"),
 			*Material.GetPathName(),
 			*UsdUtils::StringifyMap(MaterialAssetUserData->ParameterToPrimvar),
 			*UsdUtils::StringifyMap(MaterialAssetUserData->PrimvarToUVIndex),
@@ -204,7 +218,10 @@ namespace UE::MeshTranslationImplInternal::Private
 			}
 			else
 			{
-				UE_LOG(LogUsd, Log, TEXT("Failed to find primvar '%s' needed by material '%s' on its assigned mesh. Available primvars and UV indices: %s"),
+				UE_LOG(
+					LogUsd,
+					Log,
+					TEXT("Failed to find primvar '%s' needed by material '%s' on its assigned mesh. Available primvars and UV indices: %s"),
 					*MaterialPrimvar,
 					*Material.GetPathName(),
 					*UsdUtils::StringifyMap(MeshPrimvarToUVIndex)
@@ -225,9 +242,7 @@ namespace UE::MeshTranslationImplInternal::Private
 		}
 		if (bCompatible)
 		{
-			UE_LOG(LogUsd, Verbose, TEXT("Material '%s' is compatible with provided primvar to UV index mapping"),
-				*Material.GetPathName()
-			);
+			UE_LOG(LogUsd, Verbose, TEXT("Material '%s' is compatible with provided primvar to UV index mapping"), *Material.GetPathName());
 			return &Material;
 		}
 
@@ -321,13 +336,12 @@ namespace UE::MeshTranslationImplInternal::Private
 				CompatiblePrimvarToUVIndex.Add(Pair);
 			}
 
-			const FName NewInstanceName = MakeUniqueObjectName(
-				GetTransientPackage(),
-				UMaterialInstance::StaticClass(),
-				Material.GetFName()
-			);
+			const FName NewInstanceName = MakeUniqueObjectName(GetTransientPackage(), UMaterialInstance::StaticClass(), Material.GetFName());
 
-			UE_LOG(LogUsd, Verbose, TEXT("Generating compatible version of Material '%s' (Parameter to primvar: %s, primvar to UV index: %s) with hash '%s'"),
+			UE_LOG(
+				LogUsd,
+				Verbose,
+				TEXT("Generating compatible version of Material '%s' (Parameter to primvar: %s, primvar to UV index: %s) with hash '%s'"),
 				*Material.GetPathName(),
 				*UsdUtils::StringifyMap(MaterialAssetUserData->ParameterToPrimvar),
 				*UsdUtils::StringifyMap(CompatiblePrimvarToUVIndex),
@@ -348,22 +362,14 @@ namespace UE::MeshTranslationImplInternal::Private
 				CompatibleMaterial = CompatibleMIC;
 			}
 			else
-#endif // WITH_EDITOR
+#endif	  // WITH_EDITOR
 			{
-				UMaterialInstanceDynamic* CompatibleMID = UMaterialInstanceDynamic::Create(
-					&Material,
-					GetTransientPackage(),
-					NewInstanceName
-				);
+				UMaterialInstanceDynamic* CompatibleMID = UMaterialInstanceDynamic::Create(&Material, GetTransientPackage(), NewInstanceName);
 
 				CompatibleMaterial = CompatibleMID;
 			}
 
-			UUsdMaterialAssetUserData* CompatibleUserData = DuplicateObject(
-				MaterialAssetUserData,
-				CompatibleMaterial,
-				TEXT("USDAssetUserData")
-			);
+			UUsdMaterialAssetUserData* CompatibleUserData = DuplicateObject(MaterialAssetUserData, CompatibleMaterial, TEXT("USDAssetUserData"));
 			CompatibleUserData->PrimvarToUVIndex = CompatiblePrimvarToUVIndex;
 			CompatibleMaterial->AddAssetUserData(CompatibleUserData);
 
@@ -381,11 +387,7 @@ namespace UE::MeshTranslationImplInternal::Private
 						// used to sample it with
 						if (*UVIndex == UNUSED_UV_INDEX)
 						{
-							UsdUtils::SetScalarParameterValue(
-								*CompatibleInstance,
-								*FString::Printf(TEXT("Use%sTexture"), *Parameter),
-								0.0f
-							);
+							UsdUtils::SetScalarParameterValue(*CompatibleInstance, *FString::Printf(TEXT("Use%sTexture"), *Parameter), 0.0f);
 						}
 						else
 						{
@@ -400,7 +402,7 @@ namespace UE::MeshTranslationImplInternal::Private
 
 #if WITH_EDITOR
 				CompatibleInstance->PostEditChange();
-#endif // WITH_EDITOR
+#endif	  // WITH_EDITOR
 			}
 		}
 
@@ -422,7 +424,7 @@ namespace UE::MeshTranslationImplInternal::Private
 
 		return CompatibleMaterial;
 	}
-};
+};	  // namespace UE::MeshTranslationImplInternal::Private
 
 TMap<const UsdUtils::FUsdPrimMaterialSlot*, UMaterialInterface*> MeshTranslationImpl::ResolveMaterialAssignmentInfo(
 	const pxr::UsdPrim& UsdPrim,
@@ -436,7 +438,7 @@ TMap<const UsdUtils::FUsdPrimMaterialSlot*, UMaterialInterface*> MeshTranslation
 	FScopedUnrealAllocs Allocs;
 
 	TMap<const UsdUtils::FUsdPrimMaterialSlot*, UMaterialInterface*> ResolvedMaterials;
-	if(AssignmentInfo.Num() == 0)
+	if (AssignmentInfo.Num() == 0)
 	{
 		return ResolvedMaterials;
 	}
@@ -450,7 +452,7 @@ TMap<const UsdUtils::FUsdPrimMaterialSlot*, UMaterialInterface*> MeshTranslation
 	uint32 GlobalResolvedMaterialIndex = 0;
 	for (int32 InfoIndex = 0; InfoIndex < AssignmentInfo.Num(); ++InfoIndex)
 	{
-		const TArray< UsdUtils::FUsdPrimMaterialSlot >& Slots = AssignmentInfo[InfoIndex].Slots;
+		const TArray<UsdUtils::FUsdPrimMaterialSlot>& Slots = AssignmentInfo[InfoIndex].Slots;
 
 		for (int32 SlotIndex = 0; SlotIndex < Slots.Num(); ++SlotIndex, ++GlobalResolvedMaterialIndex)
 		{
@@ -459,220 +461,228 @@ TMap<const UsdUtils::FUsdPrimMaterialSlot*, UMaterialInterface*> MeshTranslation
 
 			switch (Slot.AssignmentType)
 			{
-			case UsdUtils::EPrimAssignmentType::DisplayColor:
-			{
-				const FString PrefixedHash = UsdUtils::GetAssetHashPrefix(UsdPrim, bReuseIdenticalAssets) + Slot.MaterialSource;
-
-				// Try reusing an already created DisplayColor material
-				if (UMaterialInterface* ExistingMaterial = Cast<UMaterialInterface>(AssetCache.GetCachedAsset(PrefixedHash)))
+				case UsdUtils::EPrimAssignmentType::DisplayColor:
 				{
-					Material = ExistingMaterial;
-				}
+					const FString PrefixedHash = UsdUtils::GetAssetHashPrefix(UsdPrim, bReuseIdenticalAssets) + Slot.MaterialSource;
 
-				// Need to create a new DisplayColor material
-				if (Material == nullptr)
-				{
-					if (TOptional<IUsdClassesModule::FDisplayColorMaterial> DisplayColorDesc = IUsdClassesModule::FDisplayColorMaterial::FromString(
-							Slot.MaterialSource
-						))
-					{
-						UMaterialInstance* MaterialInstance = nullptr;
-
-						if (GIsEditor)  // Editor, PIE => true; Standlone, packaged => false
-						{
-							MaterialInstance = IUsdClassesModule::CreateDisplayColorMaterialInstanceConstant(DisplayColorDesc.GetValue());
-						}
-						else
-						{
-							MaterialInstance = IUsdClassesModule::CreateDisplayColorMaterialInstanceDynamic(DisplayColorDesc.GetValue());
-						}
-
-						if(MaterialInstance)
-						{
-							// Leave PrimPath as empty as it likely will be reused by many prims
-							UUsdAssetUserData* UserData = NewObject<UUsdAssetUserData>(MaterialInstance, TEXT("USDAssetUserData"));
-							MaterialInstance->AddAssetUserData(UserData);
-						}
-
-						// We can only cache transient assets
-						MaterialInstance->SetFlags(RF_Transient);
-
-						AssetCache.CacheAsset(PrefixedHash, MaterialInstance);
-						Material = MaterialInstance;
-					}
-				}
-
-				break;
-			}
-			case UsdUtils::EPrimAssignmentType::MaterialPrim:
-			{
-				UMaterialInterface* OneSidedMat = nullptr;
-				bool bOneSidedMatIsInstanceOfReferencePreviewSurface = false;
-
-				UE::FSdfPath MaterialPrimPath{*Slot.MaterialSource};
-
-				TArray<UMaterialInterface*> ExistingMaterials = InfoCache.GetAssetsForPrim<UMaterialInterface>(MaterialPrimPath);
-
-				for (UMaterialInterface* ExistingMaterial : ExistingMaterials)
-				{
-					const bool bExistingIsTwoSided = ExistingMaterial->IsTwoSided();
-
-					if (!bExistingIsTwoSided)
-					{
-						// Prefer sticking with a material instance that has as parent one of our reference materials.
-						// The idea here being that we have two approaches when making TwoSided and compatible
-						// materials: A) Make the material compatible first, and then a TwoSided version of the
-						// compatible; B) Make the material TwoSided first, and then a compatible version of the
-						// TwoSided; We're going to chose B), for the reason that at runtime we can only make a material
-						// TwoSided if it is an instance of our reference materials (as we can't manually change the
-						// material base property overrides at runtime)
-						UMaterialInstance* ExistingInstance = Cast<UMaterialInstance>(ExistingMaterial);
-						const bool bExistingIsInstanceOfReferencePreviewSurface =
-							ExistingInstance
-							&& MeshTranslationImpl::IsReferencePreviewSurfaceMaterial(ExistingInstance->Parent);
-						if (!OneSidedMat
-							|| (!bOneSidedMatIsInstanceOfReferencePreviewSurface
-								&& bExistingIsInstanceOfReferencePreviewSurface))
-						{
-							OneSidedMat = ExistingMaterial;
-							bOneSidedMatIsInstanceOfReferencePreviewSurface = bExistingIsInstanceOfReferencePreviewSurface;
-						}
-					}
-
-					if (Slot.bMeshIsDoubleSided == bExistingIsTwoSided)
+					// Try reusing an already created DisplayColor material
+					if (UMaterialInterface* ExistingMaterial = Cast<UMaterialInterface>(AssetCache.GetCachedAsset(PrefixedHash)))
 					{
 						Material = ExistingMaterial;
 					}
-				}
 
-				FString PrefixedMaterialHash = Material ? AssetCache.GetHashForAsset(Material) : FString{};
-				FString HashPrefix = UsdUtils::GetAssetHashPrefix(UsdPrim.GetStage()->GetPrimAtPath(MaterialPrimPath), bReuseIdenticalAssets);
-
-				// Need to create a two-sided material on-demand, *before* we make it compatible:
-				// This because at runtime we can't just set the base property overrides, and just instead create a new
-				// MIC based on the TwoSided reference material, and the compatible material should be a MIC of that MIC
-				if (Slot.bMeshIsDoubleSided && !Material)
-				{
-					// By now we parsed all materials so we must have the single-sided version of this material
-					if (!OneSidedMat)
+					// Need to create a new DisplayColor material
+					if (Material == nullptr)
 					{
-						UE_LOG(
-							LogUsd,
-							Warning,
-							TEXT("Failed to generate a two-sided material from the material prim at path '%s' as no "
-								 "single-sided material was generated for it."),
-							*Slot.MaterialSource
-						);
-						continue;
-					}
-
-					const FString PrefixedOneSidedHash = AssetCache.GetHashForAsset(OneSidedMat);
-					const FString PrefixedTwoSidedHash = PrefixedOneSidedHash + UnrealIdentifiers::TwoSidedMaterialSuffix;
-
-					// Check if for some reason we already have a two-sided material ready due to a complex scenario
-					// related to the global cache
-					UMaterialInterface* TwoSidedMat = Cast<UMaterialInterface>(AssetCache.GetCachedAsset(PrefixedTwoSidedHash));
-					if (!TwoSidedMat)
-					{
-						TwoSidedMat =
-							UE::MeshTranslationImplInternal::Private::CreateTwoSidedVersionOfMaterial(OneSidedMat);
-					}
-
-					if (TwoSidedMat)
-					{
-						TwoSidedMat->SetFlags(RF_Transient);
-						Material = TwoSidedMat;
-						PrefixedMaterialHash = PrefixedTwoSidedHash;
-					}
-					else
-					{
-						UE_LOG(
-							LogUsd,
-							Warning,
-							TEXT("Failed to generate a two-sided material from the material prim at path '%s'. Falling "
-								 "back to using the single-sided material '%s' instead."),
-							*Slot.MaterialSource,
-							*OneSidedMat->GetPathName()
-						);
-						Material = OneSidedMat;
-						PrefixedMaterialHash = PrefixedOneSidedHash;
-					}
-				}
-
-				if (Material)
-				{
-					// Cache the material to "ping it" as active, but also register two sided materials for the
-					// first time
-					AssetCache.CacheAsset(PrefixedMaterialHash, Material);
-					InfoCache.LinkAssetToPrim(UE::FSdfPath{*Slot.MaterialSource}, Material);
-
-					// Finally, try to make our generated material primvar-compatible. We do this last because this will
-					// create another instance with the non-compatible material as reference material, which means we also
-					// need that reference to be cached and linked for the asset cache to be able to handle dependencies
-					// properly
-					if (UMaterialInterface* AlreadyHandledMaterial = MaterialToCompatibleMaterial.FindRef(Material))
-					{
-						Material = AlreadyHandledMaterial;
-
-						AssetCache.TouchAsset(Material);
-						InfoCache.LinkAssetToPrim(UE::FSdfPath{*Slot.MaterialSource}, Material);
-					}
-					else
-					{
-						UMaterialInterface* CompatibleMaterial =
-							UE::MeshTranslationImplInternal::Private::CreatePrimvarCompatibleVersionOfMaterial(
-								*Material,
-								MeshPrimvarToUVIndex,
-								&AssetCache,
-								&InfoCache,
-								HashPrefix,
-								bReuseIdenticalAssets
-							);
-
-						if (CompatibleMaterial)
+						if (TOptional<IUsdClassesModule::FDisplayColorMaterial>
+								DisplayColorDesc = IUsdClassesModule::FDisplayColorMaterial::FromString(Slot.MaterialSource))
 						{
-							MaterialToCompatibleMaterial.Add(Material, CompatibleMaterial);
-							Material = CompatibleMaterial;
+							UMaterialInstance* MaterialInstance = nullptr;
+
+							if (GIsEditor)	  // Editor, PIE => true; Standlone, packaged => false
+							{
+								MaterialInstance = IUsdClassesModule::CreateDisplayColorMaterialInstanceConstant(DisplayColorDesc.GetValue());
+							}
+							else
+							{
+								MaterialInstance = IUsdClassesModule::CreateDisplayColorMaterialInstanceDynamic(DisplayColorDesc.GetValue());
+							}
+
+							if (MaterialInstance)
+							{
+								// Leave PrimPath as empty as it likely will be reused by many prims
+								UUsdAssetUserData* UserData = NewObject<UUsdAssetUserData>(MaterialInstance, TEXT("USDAssetUserData"));
+								MaterialInstance->AddAssetUserData(UserData);
+							}
+
+							// We can only cache transient assets
+							MaterialInstance->SetFlags(RF_Transient);
+
+							AssetCache.CacheAsset(PrefixedHash, MaterialInstance);
+							Material = MaterialInstance;
 						}
 					}
-				}
 
-				break;
-			}
-			case UsdUtils::EPrimAssignmentType::UnrealMaterial:
-			{
-				UObject* Object = FSoftObjectPath(Slot.MaterialSource).TryLoad();
-				Material = Cast< UMaterialInterface >(Object);
-				if (!Object)
-				{
-					UE_LOG(LogUsd, Warning, TEXT("UE material '%s' for prim '%s' could not be loaded or was not found."),
-						*Slot.MaterialSource,
-						*UsdToUnreal::ConvertPath(UsdPrim.GetPrimPath()));
+					break;
 				}
-				else if (!Material)
+				case UsdUtils::EPrimAssignmentType::MaterialPrim:
 				{
-					UE_LOG(LogUsd, Warning, TEXT("Object '%s' assigned as an Unreal Material for prim '%s' is not actually a material (but instead a '%s') and will not be used"),
-						*Slot.MaterialSource,
-						*UsdToUnreal::ConvertPath(UsdPrim.GetPrimPath()),
-						*Object->GetClass()->GetName()
-					);
-				}
-				else if (!Material->IsTwoSided() && Slot.bMeshIsDoubleSided)
-				{
-					UE_LOG(LogUsd, Warning, TEXT("Using one-sided UE material '%s' for doubleSided prim '%s'"),
-						*Slot.MaterialSource,
-						*UsdToUnreal::ConvertPath(UsdPrim.GetPrimPath())
-					);
-				}
+					UMaterialInterface* OneSidedMat = nullptr;
+					bool bOneSidedMatIsInstanceOfReferencePreviewSurface = false;
 
-				break;
-			}
-			case UsdUtils::EPrimAssignmentType::None:
-			default:
-			{
-				ensure(false);
-				break;
-			}
+					UE::FSdfPath MaterialPrimPath{*Slot.MaterialSource};
+
+					TArray<UMaterialInterface*> ExistingMaterials = InfoCache.GetAssetsForPrim<UMaterialInterface>(MaterialPrimPath);
+
+					for (UMaterialInterface* ExistingMaterial : ExistingMaterials)
+					{
+						const bool bExistingIsTwoSided = ExistingMaterial->IsTwoSided();
+
+						if (!bExistingIsTwoSided)
+						{
+							// Prefer sticking with a material instance that has as parent one of our reference materials.
+							// The idea here being that we have two approaches when making TwoSided and compatible
+							// materials: A) Make the material compatible first, and then a TwoSided version of the
+							// compatible; B) Make the material TwoSided first, and then a compatible version of the
+							// TwoSided; We're going to chose B), for the reason that at runtime we can only make a material
+							// TwoSided if it is an instance of our reference materials (as we can't manually change the
+							// material base property overrides at runtime)
+							UMaterialInstance* ExistingInstance = Cast<UMaterialInstance>(ExistingMaterial);
+							const bool bExistingIsInstanceOfReferencePreviewSurface = ExistingInstance
+																					  && MeshTranslationImpl::IsReferencePreviewSurfaceMaterial(
+																						  ExistingInstance->Parent
+																					  );
+							if (!OneSidedMat || (!bOneSidedMatIsInstanceOfReferencePreviewSurface && bExistingIsInstanceOfReferencePreviewSurface))
+							{
+								OneSidedMat = ExistingMaterial;
+								bOneSidedMatIsInstanceOfReferencePreviewSurface = bExistingIsInstanceOfReferencePreviewSurface;
+							}
+						}
+
+						if (Slot.bMeshIsDoubleSided == bExistingIsTwoSided)
+						{
+							Material = ExistingMaterial;
+						}
+					}
+
+					FString PrefixedMaterialHash = Material ? AssetCache.GetHashForAsset(Material) : FString{};
+					FString HashPrefix = UsdUtils::GetAssetHashPrefix(UsdPrim.GetStage()->GetPrimAtPath(MaterialPrimPath), bReuseIdenticalAssets);
+
+					// Need to create a two-sided material on-demand, *before* we make it compatible:
+					// This because at runtime we can't just set the base property overrides, and just instead create a new
+					// MIC based on the TwoSided reference material, and the compatible material should be a MIC of that MIC
+					if (Slot.bMeshIsDoubleSided && !Material)
+					{
+						// By now we parsed all materials so we must have the single-sided version of this material
+						if (!OneSidedMat)
+						{
+							UE_LOG(
+								LogUsd,
+								Warning,
+								TEXT("Failed to generate a two-sided material from the material prim at path '%s' as no "
+									 "single-sided material was generated for it."),
+								*Slot.MaterialSource
+							);
+							continue;
+						}
+
+						const FString PrefixedOneSidedHash = AssetCache.GetHashForAsset(OneSidedMat);
+						const FString PrefixedTwoSidedHash = PrefixedOneSidedHash + UnrealIdentifiers::TwoSidedMaterialSuffix;
+
+						// Check if for some reason we already have a two-sided material ready due to a complex scenario
+						// related to the global cache
+						UMaterialInterface* TwoSidedMat = Cast<UMaterialInterface>(AssetCache.GetCachedAsset(PrefixedTwoSidedHash));
+						if (!TwoSidedMat)
+						{
+							TwoSidedMat = UE::MeshTranslationImplInternal::Private::CreateTwoSidedVersionOfMaterial(OneSidedMat);
+						}
+
+						if (TwoSidedMat)
+						{
+							TwoSidedMat->SetFlags(RF_Transient);
+							Material = TwoSidedMat;
+							PrefixedMaterialHash = PrefixedTwoSidedHash;
+						}
+						else
+						{
+							UE_LOG(
+								LogUsd,
+								Warning,
+								TEXT("Failed to generate a two-sided material from the material prim at path '%s'. Falling "
+									 "back to using the single-sided material '%s' instead."),
+								*Slot.MaterialSource,
+								*OneSidedMat->GetPathName()
+							);
+							Material = OneSidedMat;
+							PrefixedMaterialHash = PrefixedOneSidedHash;
+						}
+					}
+
+					if (Material)
+					{
+						// Cache the material to "ping it" as active, but also register two sided materials for the
+						// first time
+						AssetCache.CacheAsset(PrefixedMaterialHash, Material);
+						InfoCache.LinkAssetToPrim(UE::FSdfPath{*Slot.MaterialSource}, Material);
+
+						// Finally, try to make our generated material primvar-compatible. We do this last because this will
+						// create another instance with the non-compatible material as reference material, which means we also
+						// need that reference to be cached and linked for the asset cache to be able to handle dependencies
+						// properly
+						if (UMaterialInterface* AlreadyHandledMaterial = MaterialToCompatibleMaterial.FindRef(Material))
+						{
+							Material = AlreadyHandledMaterial;
+
+							AssetCache.TouchAsset(Material);
+							InfoCache.LinkAssetToPrim(UE::FSdfPath{*Slot.MaterialSource}, Material);
+						}
+						else
+						{
+							UMaterialInterface*
+								CompatibleMaterial = UE::MeshTranslationImplInternal::Private::CreatePrimvarCompatibleVersionOfMaterial(
+									*Material,
+									MeshPrimvarToUVIndex,
+									&AssetCache,
+									&InfoCache,
+									HashPrefix,
+									bReuseIdenticalAssets
+								);
+
+							if (CompatibleMaterial)
+							{
+								MaterialToCompatibleMaterial.Add(Material, CompatibleMaterial);
+								Material = CompatibleMaterial;
+							}
+						}
+					}
+
+					break;
+				}
+				case UsdUtils::EPrimAssignmentType::UnrealMaterial:
+				{
+					UObject* Object = FSoftObjectPath(Slot.MaterialSource).TryLoad();
+					Material = Cast<UMaterialInterface>(Object);
+					if (!Object)
+					{
+						UE_LOG(
+							LogUsd,
+							Warning,
+							TEXT("UE material '%s' for prim '%s' could not be loaded or was not found."),
+							*Slot.MaterialSource,
+							*UsdToUnreal::ConvertPath(UsdPrim.GetPrimPath())
+						);
+					}
+					else if (!Material)
+					{
+						UE_LOG(
+							LogUsd,
+							Warning,
+							TEXT("Object '%s' assigned as an Unreal Material for prim '%s' is not actually a material (but instead a '%s') and will "
+								 "not be used"),
+							*Slot.MaterialSource,
+							*UsdToUnreal::ConvertPath(UsdPrim.GetPrimPath()),
+							*Object->GetClass()->GetName()
+						);
+					}
+					else if (!Material->IsTwoSided() && Slot.bMeshIsDoubleSided)
+					{
+						UE_LOG(
+							LogUsd,
+							Warning,
+							TEXT("Using one-sided UE material '%s' for doubleSided prim '%s'"),
+							*Slot.MaterialSource,
+							*UsdToUnreal::ConvertPath(UsdPrim.GetPrimPath())
+						);
+					}
+
+					break;
+				}
+				case UsdUtils::EPrimAssignmentType::None:
+				default:
+				{
+					ensure(false);
+					break;
+				}
 			}
 
 			ResolvedMaterials.Add(&Slot, Material);
@@ -714,7 +724,7 @@ void MeshTranslationImpl::SetMaterialOverrides(
 	}
 
 	TArray<UsdUtils::FUsdPrimMaterialAssignmentInfo> LODIndexToAssignments;
-	const bool bProvideMaterialIndices = false; // We have no use for material indices and it can be slow to retrieve, as it will iterate all faces
+	const bool bProvideMaterialIndices = false;	   // We have no use for material indices and it can be slow to retrieve, as it will iterate all faces
 
 	// Extract material assignment info from prim if it is a LOD mesh
 	bool bInterpretedLODs = false;
@@ -771,15 +781,13 @@ void MeshTranslationImpl::SetMaterialOverrides(
 		}
 		else
 		{
-			LODIndexToAssignments = {
-				UsdUtils::GetPrimMaterialAssignments(
-					ValidPrim,
-					pxr::UsdTimeCode(Time),
-					bProvideMaterialIndices,
-					RenderContextToken,
-					MaterialPurposeToken
-				)
-			};
+			LODIndexToAssignments = {UsdUtils::GetPrimMaterialAssignments(
+				ValidPrim,
+				pxr::UsdTimeCode(Time),
+				bProvideMaterialIndices,
+				RenderContextToken,
+				MaterialPurposeToken
+			)};
 		}
 	}
 
@@ -809,18 +817,22 @@ void MeshTranslationImpl::SetMaterialOverrides(
 	}
 	else
 	{
-		ensureMsgf(false, TEXT("Unexpected component class '%s' encountered when setting material overrides for prim '%s'!"),
+		ensureMsgf(
+			false,
+			TEXT("Unexpected component class '%s' encountered when setting material overrides for prim '%s'!"),
 			*MeshComponent.GetClass()->GetName(),
 			*UsdToUnreal::ConvertPath(Prim.GetPrimPath())
 		);
 	}
 
-	ensureMsgf(UserData, TEXT("Mesh assigned to component '%s' generated for prim '%s' should have an UUsdMeshAssetUserData at this point!"),
+	ensureMsgf(
+		UserData,
+		TEXT("Mesh assigned to component '%s' generated for prim '%s' should have an UUsdMeshAssetUserData at this point!"),
 		*MeshComponent.GetPathName(),
 		*UsdToUnreal::ConvertPath(Prim.GetPrimPath())
 	);
 
-	if(UserData && LODIndexToAssignments.Num() > 0)
+	if (UserData && LODIndexToAssignments.Num() > 0)
 	{
 		// Stash our PrimvarToUVIndex in here, as that's where ResolveMaterialAssignmentInfo will look for it
 		LODIndexToAssignments[0].PrimvarToUVIndex = UserData->PrimvarToUVIndex;
@@ -839,7 +851,7 @@ void MeshTranslationImpl::SetMaterialOverrides(
 	uint32 StaticMeshSlotIndex = 0;
 	for (int32 LODIndex = 0; LODIndex < LODIndexToAssignments.Num(); ++LODIndex)
 	{
-		const TArray< UsdUtils::FUsdPrimMaterialSlot >& LODSlots = LODIndexToAssignments[LODIndex].Slots;
+		const TArray<UsdUtils::FUsdPrimMaterialSlot>& LODSlots = LODIndexToAssignments[LODIndex].Slots;
 		for (int32 LODSlotIndex = 0; LODSlotIndex < LODSlots.Num(); ++LODSlotIndex, ++StaticMeshSlotIndex)
 		{
 			// If we don't even have as many existing assignments as we have overrides just stop here.
@@ -862,7 +874,14 @@ void MeshTranslationImpl::SetMaterialOverrides(
 			}
 			else
 			{
-				UE_LOG(LogUsd, Error, TEXT("Lost track of resolved material for slot '%d' of LOD '%d' for mesh '%s'"), LODSlotIndex, LODIndex, *UsdToUnreal::ConvertPath(Prim.GetPath()));
+				UE_LOG(
+					LogUsd,
+					Error,
+					TEXT("Lost track of resolved material for slot '%d' of LOD '%d' for mesh '%s'"),
+					LODSlotIndex,
+					LODIndex,
+					*UsdToUnreal::ConvertPath(Prim.GetPath())
+				);
 				continue;
 			}
 
@@ -971,7 +990,7 @@ UMaterialInterface* MeshTranslationImpl::GetReferencePreviewSurfaceMaterial(EUsd
 		return nullptr;
 	}
 
-	return Cast< UMaterialInterface >(TargetMaterialPath->TryLoad());
+	return Cast<UMaterialInterface>(TargetMaterialPath->TryLoad());
 }
 
 UMaterialInterface* MeshTranslationImpl::GetVTVersionOfReferencePreviewSurfaceMaterial(UMaterialInterface* ReferenceMaterial)
@@ -994,19 +1013,19 @@ UMaterialInterface* MeshTranslationImpl::GetVTVersionOfReferencePreviewSurfaceMa
 	}
 	else if (PathName == Settings->ReferencePreviewSurfaceMaterial)
 	{
-		return Cast< UMaterialInterface >(Settings->ReferencePreviewSurfaceVTMaterial.TryLoad());
+		return Cast<UMaterialInterface>(Settings->ReferencePreviewSurfaceVTMaterial.TryLoad());
 	}
 	else if (PathName == Settings->ReferencePreviewSurfaceTwoSidedMaterial)
 	{
-		return Cast< UMaterialInterface >(Settings->ReferencePreviewSurfaceTwoSidedVTMaterial.TryLoad());
+		return Cast<UMaterialInterface>(Settings->ReferencePreviewSurfaceTwoSidedVTMaterial.TryLoad());
 	}
 	else if (PathName == Settings->ReferencePreviewSurfaceTranslucentMaterial)
 	{
-		return Cast< UMaterialInterface >(Settings->ReferencePreviewSurfaceTranslucentVTMaterial.TryLoad());
+		return Cast<UMaterialInterface>(Settings->ReferencePreviewSurfaceTranslucentVTMaterial.TryLoad());
 	}
 	else if (PathName == Settings->ReferencePreviewSurfaceTranslucentTwoSidedMaterial)
 	{
-		return Cast< UMaterialInterface >(Settings->ReferencePreviewSurfaceTranslucentTwoSidedVTMaterial.TryLoad());
+		return Cast<UMaterialInterface>(Settings->ReferencePreviewSurfaceTranslucentTwoSidedVTMaterial.TryLoad());
 	}
 
 	// We should only ever call this function with a ReferenceMaterial that matches one of the above paths
@@ -1034,19 +1053,19 @@ UMaterialInterface* MeshTranslationImpl::GetTwoSidedVersionOfReferencePreviewSur
 	}
 	else if (PathName == Settings->ReferencePreviewSurfaceMaterial)
 	{
-		return Cast< UMaterialInterface >(Settings->ReferencePreviewSurfaceTwoSidedMaterial.TryLoad());
+		return Cast<UMaterialInterface>(Settings->ReferencePreviewSurfaceTwoSidedMaterial.TryLoad());
 	}
 	else if (PathName == Settings->ReferencePreviewSurfaceTranslucentMaterial)
 	{
-		return Cast< UMaterialInterface >(Settings->ReferencePreviewSurfaceTranslucentTwoSidedMaterial.TryLoad());
+		return Cast<UMaterialInterface>(Settings->ReferencePreviewSurfaceTranslucentTwoSidedMaterial.TryLoad());
 	}
 	else if (PathName == Settings->ReferencePreviewSurfaceVTMaterial)
 	{
-		return Cast< UMaterialInterface >(Settings->ReferencePreviewSurfaceTwoSidedVTMaterial.TryLoad());
+		return Cast<UMaterialInterface>(Settings->ReferencePreviewSurfaceTwoSidedVTMaterial.TryLoad());
 	}
 	else if (PathName == Settings->ReferencePreviewSurfaceTranslucentVTMaterial)
 	{
-		return Cast< UMaterialInterface >(Settings->ReferencePreviewSurfaceTranslucentTwoSidedVTMaterial.TryLoad());
+		return Cast<UMaterialInterface>(Settings->ReferencePreviewSurfaceTranslucentTwoSidedVTMaterial.TryLoad());
 	}
 
 	// We should only ever call this function with a ReferenceMaterial that matches one of the above paths
@@ -1077,10 +1096,9 @@ bool MeshTranslationImpl::IsReferencePreviewSurfaceMaterial(UMaterialInterface* 
 		Settings->ReferencePreviewSurfaceVTMaterial,
 		Settings->ReferencePreviewSurfaceTranslucentVTMaterial,
 		Settings->ReferencePreviewSurfaceTwoSidedVTMaterial,
-		Settings->ReferencePreviewSurfaceTranslucentTwoSidedVTMaterial
-	};
+		Settings->ReferencePreviewSurfaceTranslucentTwoSidedVTMaterial};
 
 	return ReferenceMaterials.Contains(PathName);
 }
 
-#endif // #if USE_USD_SDK
+#endif	  // #if USE_USD_SDK

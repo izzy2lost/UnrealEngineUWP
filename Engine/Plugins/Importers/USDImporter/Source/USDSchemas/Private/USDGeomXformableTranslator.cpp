@@ -4,12 +4,10 @@
 
 #include "MeshTranslationImpl.h"
 #include "UnrealUSDWrapper.h"
-#include "USDAssetCache.h"
 #include "USDAssetUserData.h"
-#include "USDDrawModeComponent.h"
 #include "USDClassesModule.h"
 #include "USDConversionUtils.h"
-#include "USDErrorUtils.h"
+#include "USDDrawModeComponent.h"
 #include "USDGeomMeshConversion.h"
 #include "USDGeomMeshTranslator.h"
 #include "USDIntegrationUtils.h"
@@ -20,7 +18,6 @@
 #include "USDShadeConversion.h"
 #include "USDTypesConversion.h"
 
-#include "Components/HierarchicalInstancedStaticMeshComponent.h"
 #include "Components/LightComponentBase.h"
 #include "Components/SceneComponent.h"
 #include "Components/SkeletalMeshComponent.h"
@@ -35,7 +32,6 @@
 #include "Modules/ModuleManager.h"
 #include "PhysicsEngine/BodySetup.h"
 #include "Roles/LiveLinkTransformRole.h"
-#include "StaticMeshAttributes.h"
 
 #include "UsdWrappers/SdfPath.h"
 #include "UsdWrappers/UsdGeomBBoxCache.h"
@@ -46,49 +42,45 @@
 #if USE_USD_SDK
 
 #include "USDIncludesStart.h"
-	#include "pxr/usd/kind/registry.h"
-	#include "pxr/usd/usd/modelAPI.h"
-	#include "pxr/usd/usd/prim.h"
-	#include "pxr/usd/usd/primRange.h"
-	#include "pxr/usd/usd/variantSets.h"
-	#include "pxr/usd/usdGeom/mesh.h"
-	#include "pxr/usd/usdGeom/modelAPI.h"
-	#include "pxr/usd/usdGeom/pointInstancer.h"
-	#include "pxr/usd/usdGeom/subset.h"
-	#include "pxr/usd/usdGeom/xformable.h"
-	#include "pxr/usd/usdShade/materialBindingAPI.h"
-	#include "pxr/usd/usdSkel/root.h"
+#include "pxr/usd/usd/modelAPI.h"
+#include "pxr/usd/usd/prim.h"
+#include "pxr/usd/usdGeom/modelAPI.h"
+#include "pxr/usd/usdGeom/pointInstancer.h"
+#include "pxr/usd/usdGeom/xformable.h"
+#include "pxr/usd/usdSkel/root.h"
 #include "USDIncludesEnd.h"
 
 static bool GCollapsePrimsWithoutKind = true;
 static FAutoConsoleVariableRef CVarCollapsePrimsWithoutKind(
-	TEXT( "USD.CollapsePrimsWithoutKind" ),
+	TEXT("USD.CollapsePrimsWithoutKind"),
 	GCollapsePrimsWithoutKind,
-	TEXT( "Allow collapsing prims that have no authored 'Kind' value" ) );
+	TEXT("Allow collapsing prims that have no authored 'Kind' value")
+);
 
 static bool GEnableCollision = true;
 static FAutoConsoleVariableRef CVarEnableCollision(
-	TEXT( "USD.EnableCollision" ),
+	TEXT("USD.EnableCollision"),
 	GEnableCollision,
-	TEXT( "Whether to have collision enabled for spawned components and generated meshes" ) );
+	TEXT("Whether to have collision enabled for spawned components and generated meshes")
+);
 
 namespace UE::UsdXformableTranslatorImpl::Private
 {
-	void SetUpSceneComponentForLiveLink( const FUsdSchemaTranslationContext& Context, USceneComponent* Component, const pxr::UsdPrim& Prim )
+	void SetUpSceneComponentForLiveLink(const FUsdSchemaTranslationContext& Context, USceneComponent* Component, const pxr::UsdPrim& Prim)
 	{
-		if ( !Component || !Prim )
+		if (!Component || !Prim)
 		{
 			return;
 		}
 
 		AActor* Parent = Component->GetOwner();
-		if ( !Parent )
+		if (!Parent)
 		{
 			return;
 		}
 
 		USceneComponent* RootComponent = Parent->GetRootComponent();
-		if ( !RootComponent )
+		if (!RootComponent)
 		{
 			return;
 		}
@@ -99,7 +91,7 @@ namespace UE::UsdXformableTranslatorImpl::Private
 			// or not, so this just helps us make that a little bit faster. Its important because UpdateComponents (which calls us)
 			// is the main function that is called to animate components, so it can be spammed in case this prim has animations
 			static TMap<TWeakObjectPtr<USceneComponent>, TWeakObjectPtr<ULiveLinkComponentController>> LiveLinkEnabledComponents;
-			if ( ULiveLinkComponentController* ExistingController = LiveLinkEnabledComponents.FindRef( Component ).Get() )
+			if (ULiveLinkComponentController* ExistingController = LiveLinkEnabledComponents.FindRef(Component).Get())
 			{
 				// We found an existing controller we created to track this component, so use that
 				Controller = ExistingController;
@@ -108,11 +100,11 @@ namespace UE::UsdXformableTranslatorImpl::Private
 			else
 			{
 				TArray<ULiveLinkComponentController*> LiveLinkComponents;
-				Parent->GetComponents( LiveLinkComponents );
+				Parent->GetComponents(LiveLinkComponents);
 
-				for ( ULiveLinkComponentController* LiveLinkComponent : LiveLinkComponents )
+				for (ULiveLinkComponentController* LiveLinkComponent : LiveLinkComponents)
 				{
-					if ( LiveLinkComponent->GetControlledComponent( ULiveLinkTransformRole::StaticClass() ) == Component )
+					if (LiveLinkComponent->GetControlledComponent(ULiveLinkTransformRole::StaticClass()) == Component)
 					{
 						// We found some other controller handling this component somehow, use that
 						Controller = LiveLinkComponent;
@@ -120,54 +112,55 @@ namespace UE::UsdXformableTranslatorImpl::Private
 					}
 				}
 
-				if ( !Controller )
+				if (!Controller)
 				{
 					// We'll get a warning from the live link controller component in case the component its controlling is not movable
 					Component->Mobility = EComponentMobility::Movable;
 
-					Controller = NewObject<ULiveLinkComponentController>( Parent, NAME_None, Context.ObjectFlags );
+					Controller = NewObject<ULiveLinkComponentController>(Parent, NAME_None, Context.ObjectFlags);
 					Controller->bUpdateInEditor = true;
 
 					// Important because of how ULiveLinkComponentController::TickComponent also checks for the sequencer
 					// tag to try and guess if the controlled component is a spawnable
 					Controller->bDisableEvaluateLiveLinkWhenSpawnable = false;
 
-					Parent->AddInstanceComponent( Controller );
+					Parent->AddInstanceComponent(Controller);
 					Controller->RegisterComponent();
 				}
 
-				if ( Controller )
+				if (Controller)
 				{
-					LiveLinkEnabledComponents.Add( Component, Controller );
+					LiveLinkEnabledComponents.Add(Component, Controller);
 				}
 			}
 		}
 
 		// Configure controller with our desired parameters
-		if ( Controller )
+		if (Controller)
 		{
 			FScopedUsdAllocs Allocs;
 
 			FLiveLinkSubjectRepresentation SubjectRepresentation;
 			SubjectRepresentation.Role = ULiveLinkTransformRole::StaticClass();
 
-			if ( pxr::UsdAttribute Attr = Prim.GetAttribute( UnrealIdentifiers::UnrealLiveLinkSubjectName ) )
+			if (pxr::UsdAttribute Attr = Prim.GetAttribute(UnrealIdentifiers::UnrealLiveLinkSubjectName))
 			{
 				std::string SubjectName;
-				if ( Attr.Get( &SubjectName ) )
+				if (Attr.Get(&SubjectName))
 				{
-					SubjectRepresentation.Subject = FName{ *UsdToUnreal::ConvertString( SubjectName ) };
+					SubjectRepresentation.Subject = FName{*UsdToUnreal::ConvertString(SubjectName)};
 				}
 			}
-			Controller->SetSubjectRepresentation( SubjectRepresentation );
+			Controller->SetSubjectRepresentation(SubjectRepresentation);
 
-			// This should be done after setting the subject representation to ensure that the LiveLink component's ControllerMap has a transform controller
-			Controller->SetControlledComponent( ULiveLinkTransformRole::StaticClass(), Component );
+			// This should be done after setting the subject representation to ensure that the LiveLink component's ControllerMap has a transform
+			// controller
+			Controller->SetControlledComponent(ULiveLinkTransformRole::StaticClass(), Component);
 
-			if ( pxr::UsdAttribute Attr = Prim.GetAttribute( UnrealIdentifiers::UnrealLiveLinkEnabled ) )
+			if (pxr::UsdAttribute Attr = Prim.GetAttribute(UnrealIdentifiers::UnrealLiveLinkEnabled))
 			{
 				bool bEnabled = true;
-				if ( Attr.Get( &bEnabled ) )
+				if (Attr.Get(&bEnabled))
 				{
 					Controller->bEvaluateLiveLink = bEnabled;
 				}
@@ -175,39 +168,39 @@ namespace UE::UsdXformableTranslatorImpl::Private
 		}
 	}
 
-	void RemoveLiveLinkFromComponent( USceneComponent* Component )
+	void RemoveLiveLinkFromComponent(USceneComponent* Component)
 	{
-		if ( !Component )
+		if (!Component)
 		{
 			return;
 		}
 
 		AActor* Parent = Component->GetOwner();
-		if ( !Parent )
+		if (!Parent)
 		{
 			return;
 		}
 
 		TArray<ULiveLinkComponentController*> LiveLinkComponents;
-		Parent->GetComponents( LiveLinkComponents );
+		Parent->GetComponents(LiveLinkComponents);
 
-		for ( ULiveLinkComponentController* LiveLinkComponent : LiveLinkComponents )
+		for (ULiveLinkComponentController* LiveLinkComponent : LiveLinkComponents)
 		{
-			if ( LiveLinkComponent->GetControlledComponent( ULiveLinkTransformRole::StaticClass() ) == Component )
+			if (LiveLinkComponent->GetControlledComponent(ULiveLinkTransformRole::StaticClass()) == Component)
 			{
-				LiveLinkComponent->SetControlledComponent( ULiveLinkTransformRole::StaticClass(), nullptr );
-				Parent->RemoveInstanceComponent( LiveLinkComponent );
+				LiveLinkComponent->SetControlledComponent(ULiveLinkTransformRole::StaticClass(), nullptr);
+				Parent->RemoveInstanceComponent(LiveLinkComponent);
 				break;
 			}
 		}
 	}
-}
+}	 // namespace UE::UsdXformableTranslatorImpl::Private
 
 class FUsdGeomXformableCreateAssetsTaskChain : public FBuildStaticMeshTaskChain
 {
 public:
-	explicit FUsdGeomXformableCreateAssetsTaskChain( const TSharedRef< FUsdSchemaTranslationContext >& InContext, const UE::FSdfPath& InPrimPath )
-		: FBuildStaticMeshTaskChain( InContext, InPrimPath )
+	explicit FUsdGeomXformableCreateAssetsTaskChain(const TSharedRef<FUsdSchemaTranslationContext>& InContext, const UE::FSdfPath& InPrimPath)
+		: FBuildStaticMeshTaskChain(InContext, InPrimPath)
 	{
 		SetupTasks();
 	}
@@ -221,58 +214,53 @@ void FUsdGeomXformableCreateAssetsTaskChain::SetupTasks()
 	FScopedUnrealAllocs UnrealAllocs;
 
 	// Create mesh description (Async)
-	Do( ESchemaTranslationLaunchPolicy::Async,
-		[ this ]() -> bool
-		{
-			// We will never have multiple LODs of meshes that were collapsed together, as LOD'd meshes don't collapse. So just parse the mesh we get as LOD0
-			LODIndexToMeshDescription.Reset(1);
-			LODIndexToMaterialInfo.Reset(1);
+	Do(ESchemaTranslationLaunchPolicy::Async,
+	   [this]() -> bool
+	   {
+		   // We will never have multiple LODs of meshes that were collapsed together, as LOD'd meshes don't collapse. So just parse the mesh we get
+		   // as LOD0
+		   LODIndexToMeshDescription.Reset(1);
+		   LODIndexToMaterialInfo.Reset(1);
 
-			FMeshDescription& AddedMeshDescription = LODIndexToMeshDescription.Emplace_GetRef();
-			UsdUtils::FUsdPrimMaterialAssignmentInfo& AssignmentInfo = LODIndexToMaterialInfo.Emplace_GetRef();
+		   FMeshDescription& AddedMeshDescription = LODIndexToMeshDescription.Emplace_GetRef();
+		   UsdUtils::FUsdPrimMaterialAssignmentInfo& AssignmentInfo = LODIndexToMaterialInfo.Emplace_GetRef();
 
-			pxr::TfToken RenderContextToken = pxr::UsdShadeTokens->universalRenderContext;
-			if ( !Context->RenderContext.IsNone() )
-			{
-				RenderContextToken = UnrealToUsd::ConvertToken( *Context->RenderContext.ToString() ).Get();
-			}
+		   pxr::TfToken RenderContextToken = pxr::UsdShadeTokens->universalRenderContext;
+		   if (!Context->RenderContext.IsNone())
+		   {
+			   RenderContextToken = UnrealToUsd::ConvertToken(*Context->RenderContext.ToString()).Get();
+		   }
 
-			pxr::TfToken MaterialPurposeToken = pxr::UsdShadeTokens->allPurpose;
-			if (!Context->MaterialPurpose.IsNone())
-			{
-				MaterialPurposeToken = UnrealToUsd::ConvertToken(*Context->MaterialPurpose.ToString()).Get();
-			}
+		   pxr::TfToken MaterialPurposeToken = pxr::UsdShadeTokens->allPurpose;
+		   if (!Context->MaterialPurpose.IsNone())
+		   {
+			   MaterialPurposeToken = UnrealToUsd::ConvertToken(*Context->MaterialPurpose.ToString()).Get();
+		   }
 
-			// We're going to put Prim's transform and visibility on the component, so we don't need to bake it into the combined mesh
-			const bool bSkipRootPrimTransformAndVis = true;
+		   // We're going to put Prim's transform and visibility on the component, so we don't need to bake it into the combined mesh
+		   const bool bSkipRootPrimTransformAndVis = true;
 
-			UsdToUnreal::FUsdMeshConversionOptions Options;
-			Options.TimeCode = Context->Time;
-			Options.PurposesToLoad = Context->PurposesToLoad;
-			Options.RenderContext = RenderContextToken;
-			Options.MaterialPurpose = MaterialPurposeToken;
-			Options.bMergeIdenticalMaterialSlots = Context->bMergeIdenticalMaterialSlots;
-			Options.SubdivisionLevel = Context->SubdivisionLevel;
+		   UsdToUnreal::FUsdMeshConversionOptions Options;
+		   Options.TimeCode = Context->Time;
+		   Options.PurposesToLoad = Context->PurposesToLoad;
+		   Options.RenderContext = RenderContextToken;
+		   Options.MaterialPurpose = MaterialPurposeToken;
+		   Options.bMergeIdenticalMaterialSlots = Context->bMergeIdenticalMaterialSlots;
+		   Options.SubdivisionLevel = Context->SubdivisionLevel;
 
-			UsdToUnreal::ConvertGeomMeshHierarchy(
-				GetPrim(),
-				AddedMeshDescription,
-				AssignmentInfo,
-				Options,
-				bSkipRootPrimTransformAndVis
-			);
+		   UsdToUnreal::ConvertGeomMeshHierarchy(GetPrim(), AddedMeshDescription, AssignmentInfo, Options, bSkipRootPrimTransformAndVis);
 
-			return !AddedMeshDescription.IsEmpty();
-		} );
+		   return !AddedMeshDescription.IsEmpty();
+	   });
 
 	FBuildStaticMeshTaskChain::SetupTasks();
 }
 
 void FUsdGeomXformableTranslator::CreateAssets()
 {
-	TRACE_CPUPROFILER_EVENT_SCOPE( FUsdGeomMeshTranslator::CreateAssets );
+	TRACE_CPUPROFILER_EVENT_SCOPE(FUsdGeomMeshTranslator::CreateAssets);
 
-	if ( !CollapsesChildren( ECollapsingType::Assets ) )
+	if (!CollapsesChildren(ECollapsingType::Assets))
 	{
 		// We only have to create assets when our children are collapsed together
 		return;
@@ -286,12 +274,16 @@ void FUsdGeomXformableTranslator::CreateAssets()
 		return;
 	}
 
-	Context->TranslatorTasks.Add( MakeShared< FUsdGeomXformableCreateAssetsTaskChain >( Context, PrimPath ) );
+	Context->TranslatorTasks.Add(MakeShared<FUsdGeomXformableCreateAssetsTaskChain>(Context, PrimPath));
 }
 
-FUsdGeomXformableTranslator::FUsdGeomXformableTranslator( TSubclassOf< USceneComponent > InComponentTypeOverride, TSharedRef< FUsdSchemaTranslationContext > InContext, const UE::FUsdTyped& InSchema )
-	: FUsdSchemaTranslator( InContext, InSchema )
-	, ComponentTypeOverride( InComponentTypeOverride )
+FUsdGeomXformableTranslator::FUsdGeomXformableTranslator(
+	TSubclassOf<USceneComponent> InComponentTypeOverride,
+	TSharedRef<FUsdSchemaTranslationContext> InContext,
+	const UE::FUsdTyped& InSchema
+)
+	: FUsdSchemaTranslator(InContext, InSchema)
+	, ComponentTypeOverride(InComponentTypeOverride)
 {
 }
 
@@ -322,9 +314,7 @@ USceneComponent* FUsdGeomXformableTranslator::CreateComponents()
 	{
 		if (Context->InfoCache)
 		{
-			if (UStaticMesh* StaticMesh = Context->InfoCache->GetSingleAssetForPrim<UStaticMesh>(
-				PrimPath
-			))
+			if (UStaticMesh* StaticMesh = Context->InfoCache->GetSingleAssetForPrim<UStaticMesh>(PrimPath))
 			{
 				TArray<UMaterialInterface*> ExistingAssignments;
 				for (FStaticMaterial& StaticMaterial : StaticMesh->GetStaticMaterials())
@@ -352,36 +342,36 @@ USceneComponent* FUsdGeomXformableTranslator::CreateComponents()
 	return SceneComponent;
 }
 
-USceneComponent* FUsdGeomXformableTranslator::CreateComponentsEx( TOptional< TSubclassOf< USceneComponent > > ComponentType, TOptional< bool > bNeedsActor )
+USceneComponent* FUsdGeomXformableTranslator::CreateComponentsEx(TOptional<TSubclassOf<USceneComponent>> ComponentType, TOptional<bool> bNeedsActor)
 {
-	TRACE_CPUPROFILER_EVENT_SCOPE( FUsdGeomXformableTranslator::CreateComponentsEx );
+	TRACE_CPUPROFILER_EVENT_SCOPE(FUsdGeomXformableTranslator::CreateComponentsEx);
 
-	if ( !Context->IsValid() )
+	if (!Context->IsValid())
 	{
 		return nullptr;
 	}
 
 	UE::FUsdPrim Prim = GetPrim();
-	if ( !Prim )
+	if (!Prim)
 	{
 		return nullptr;
 	}
 
 	FScopedUnrealAllocs UnrealAllocs;
 
-	if ( !bNeedsActor.IsSet() )
+	if (!bNeedsActor.IsSet())
 	{
 		// Don't add components to the AUsdStageActor or the USDStageImport 'scene actor'
 		UE::FUsdPrim ParentPrim = Prim.GetParent();
 		bool bIsTopLevelPrim = ParentPrim.IsValid() && ParentPrim.IsPseudoRoot();
 
 		// If we don't have any parent prim with a type that generates a component, we are still technically a top-level prim
-		if ( !bIsTopLevelPrim )
+		if (!bIsTopLevelPrim)
 		{
 			bool bHasParentComponent = false;
-			while ( ParentPrim.IsValid() )
+			while (ParentPrim.IsValid())
 			{
-				if ( UE::FUsdGeomXformable( ParentPrim ) )
+				if (UE::FUsdGeomXformable(ParentPrim))
 				{
 					bHasParentComponent = true;
 					break;
@@ -389,14 +379,15 @@ USceneComponent* FUsdGeomXformableTranslator::CreateComponentsEx( TOptional< TSu
 
 				ParentPrim = ParentPrim.GetParent();
 			}
-			if ( !bHasParentComponent )
+			if (!bHasParentComponent)
 			{
 				bIsTopLevelPrim = true;
 			}
 		}
 
-		auto PrimNeedsActor = []( const UE::FUsdPrim& UsdPrim ) -> bool
+		auto PrimNeedsActor = [](const UE::FUsdPrim& UsdPrim) -> bool
 		{
+			// clang-format off
 			return  UsdPrim.IsPseudoRoot() ||
 					UsdPrim.IsModel() ||
 					UsdPrim.IsGroup() ||
@@ -408,29 +399,25 @@ USceneComponent* FUsdGeomXformableTranslator::CreateComponentsEx( TOptional< TSu
 					UsdPrim.IsA(TEXT("SkelRoot"));  // Now that we use the UsdSkelSkeletonTranslator, UsdSkelRoots will be handled like regular
 													// Xforms. We likely always want then to show up on the outliner though, as they are important
 													// prims
+			// clang-format on
 		};
 
-		bNeedsActor =
-		(
-			bIsTopLevelPrim ||
-			Context->ParentComponent == nullptr ||
-			PrimNeedsActor( Prim )
-		);
+		bNeedsActor = (bIsTopLevelPrim || Context->ParentComponent == nullptr || PrimNeedsActor(Prim));
 
 		// We don't want to start a component hierarchy if one of our child will break it by being an actor
-		if ( !bNeedsActor.GetValue() )
+		if (!bNeedsActor.GetValue())
 		{
-			TFunction< bool( const UE::FUsdPrim& ) > RecursiveChildPrimsNeedsActor;
-			RecursiveChildPrimsNeedsActor = [ PrimNeedsActor, &RecursiveChildPrimsNeedsActor ]( const UE::FUsdPrim& UsdPrim ) -> bool
+			TFunction<bool(const UE::FUsdPrim&)> RecursiveChildPrimsNeedsActor;
+			RecursiveChildPrimsNeedsActor = [PrimNeedsActor, &RecursiveChildPrimsNeedsActor](const UE::FUsdPrim& UsdPrim) -> bool
 			{
 				const bool bTraverseInstanceProxies = true;
-				for ( const pxr::UsdPrim& Child : UsdPrim.GetFilteredChildren( bTraverseInstanceProxies ) )
+				for (const pxr::UsdPrim& Child : UsdPrim.GetFilteredChildren(bTraverseInstanceProxies))
 				{
-					if ( PrimNeedsActor( UE::FUsdPrim( Child ) ) )
+					if (PrimNeedsActor(UE::FUsdPrim(Child)))
 					{
 						return true;
 					}
-					else if ( RecursiveChildPrimsNeedsActor( UE::FUsdPrim( Child ) ) )
+					else if (RecursiveChildPrimsNeedsActor(UE::FUsdPrim(Child)))
 					{
 						return true;
 					}
@@ -439,7 +426,7 @@ USceneComponent* FUsdGeomXformableTranslator::CreateComponentsEx( TOptional< TSu
 				return false;
 			};
 
-			bNeedsActor = RecursiveChildPrimsNeedsActor( UE::FUsdPrim( Prim ) );
+			bNeedsActor = RecursiveChildPrimsNeedsActor(UE::FUsdPrim(Prim));
 		}
 	}
 
@@ -454,14 +441,14 @@ USceneComponent* FUsdGeomXformableTranslator::CreateComponentsEx( TOptional< TSu
 	const EObjectFlags PreComponentFlags = Context->ObjectFlags & ~(RF_Standalone | RF_Public | RF_Transient);
 	const EObjectFlags PostComponentFlags = Context->ObjectFlags & RF_Transient;
 
-	if ( bNeedsActor.GetValue() )
+	if (bNeedsActor.GetValue())
 	{
 		// Spawn actor
 		FActorSpawnParameters SpawnParameters;
 		SpawnParameters.ObjectFlags = PreComponentFlags;
-		SpawnParameters.OverrideLevel =  Context->Level;
+		SpawnParameters.OverrideLevel = Context->Level;
 		SpawnParameters.Name = Prim.GetName();
-		SpawnParameters.NameMode = FActorSpawnParameters::ESpawnActorNameMode::Requested; // Will generate a unique name in case of a conflict
+		SpawnParameters.NameMode = FActorSpawnParameters::ESpawnActorNameMode::Requested;	 // Will generate a unique name in case of a conflict
 
 		UClass* ActorClass = nullptr;
 		if (ComponentType.Get({}) == UUsdDrawModeComponent::StaticClass())
@@ -475,26 +462,26 @@ USceneComponent* FUsdGeomXformableTranslator::CreateComponentsEx( TOptional< TSu
 			ActorClass = UsdUtils::GetActorTypeForPrim(Prim);
 		}
 
-		AActor* SpawnedActor = Context->Level->GetWorld()->SpawnActor( ActorClass, nullptr, SpawnParameters );
+		AActor* SpawnedActor = Context->Level->GetWorld()->SpawnActor(ActorClass, nullptr, SpawnParameters);
 
-		if ( SpawnedActor )
+		if (SpawnedActor)
 		{
 			SpawnedActor->SetFlags(PostComponentFlags);
 
 #if WITH_EDITOR
 			const bool bMarkDirty = false;
-			SpawnedActor->SetActorLabel( Prim.GetName().ToString(), bMarkDirty );
+			SpawnedActor->SetActorLabel(Prim.GetName().ToString(), bMarkDirty);
 
 			// If our AUsdStageActor is in a hidden level/layer and we spawn actors, they should also be hidden
-			if ( Context->ParentComponent )
+			if (Context->ParentComponent)
 			{
-				if ( AActor* ParentActor = Context->ParentComponent->GetOwner() )
+				if (AActor* ParentActor = Context->ParentComponent->GetOwner())
 				{
 					SpawnedActor->bHiddenEdLevel = ParentActor->bHiddenEdLevel;
 					SpawnedActor->bHiddenEdLayer = ParentActor->bHiddenEdLayer;
 				}
 			}
-#endif // WITH_EDITOR
+#endif	  // WITH_EDITOR
 
 			SceneComponent = SpawnedActor->GetRootComponent();
 
@@ -506,45 +493,44 @@ USceneComponent* FUsdGeomXformableTranslator::CreateComponentsEx( TOptional< TSu
 		ComponentOuter = Context->ParentComponent;
 	}
 
-	if ( !ComponentOuter )
+	if (!ComponentOuter)
 	{
-		UE_LOG( LogUsd, Warning, TEXT("Invalid outer when trying to create SceneComponent for prim (%s)"), *PrimPath.GetString() );
+		UE_LOG(LogUsd, Warning, TEXT("Invalid outer when trying to create SceneComponent for prim (%s)"), *PrimPath.GetString());
 		return nullptr;
 	}
 
-	if ( !SceneComponent )
+	if (!SceneComponent)
 	{
-		if ( !ComponentType.IsSet() )
+		if (!ComponentType.IsSet())
 		{
-			if ( ComponentTypeOverride.IsSet() )
+			if (ComponentTypeOverride.IsSet())
 			{
 				ComponentType = ComponentTypeOverride.GetValue();
 			}
 			else
 			{
-				ComponentType = UsdUtils::GetComponentTypeForPrim( Prim );
+				ComponentType = UsdUtils::GetComponentTypeForPrim(Prim);
 
-				// For now only upgrade actual scene components to static mesh components (important because skeletal mesh components will also fit this
-				// criteria but we don't want to use a static mesh component for those)
-				if ( CollapsesChildren( ECollapsingType::Assets ) && ComponentType.IsSet() && ComponentType.GetValue() == USceneComponent::StaticClass() )
+				// For now only upgrade actual scene components to static mesh components (important because skeletal mesh components will also fit
+				// this criteria but we don't want to use a static mesh component for those)
+				if (CollapsesChildren(ECollapsingType::Assets) && ComponentType.IsSet() && ComponentType.GetValue() == USceneComponent::StaticClass())
 				{
-					// If we're a type that collapses assets, we should probably be a static mesh component as we only really collapse static meshes together right now.
-					// We can't just check if there's a static mesh for this prim on the cache, because the prims with meshes could be potentially invisible (and so
-					// we don't have parsed their meshes yet), so here we traverse our child hierarchy and if we have any chance of ever generating a Mesh, we go
-					// for a static mesh component
-					TArray< UE::FUsdPrim > ChildGprims = UsdUtils::GetAllPrimsOfType( Prim, TEXT( "UsdGeomGprim" ) );
-					if ( ChildGprims.Num() > 0 )
+					// If we're a type that collapses assets, we should probably be a static mesh component as we only really collapse static meshes
+					// together right now. We can't just check if there's a static mesh for this prim on the cache, because the prims with meshes
+					// could be potentially invisible (and so we don't have parsed their meshes yet), so here we traverse our child hierarchy and if
+					// we have any chance of ever generating a Mesh, we go for a static mesh component
+					TArray<UE::FUsdPrim> ChildGprims = UsdUtils::GetAllPrimsOfType(Prim, TEXT("UsdGeomGprim"));
+					if (ChildGprims.Num() > 0)
 					{
 						ComponentType = UStaticMeshComponent::StaticClass();
 					}
 				}
 				// If this is a component for a point instancer that just collapsed itself into a static mesh, just make
 				// a static mesh component that can receive it
-				else if ( pxr::UsdPrim{ Prim }.IsA<pxr::UsdGeomPointInstancer>() )
+				else if (pxr::UsdPrim{Prim}.IsA<pxr::UsdGeomPointInstancer>())
 				{
-					static IConsoleVariable* CollapseCvar =
-						IConsoleManager::Get().FindConsoleVariable( TEXT( "USD.CollapseTopLevelPointInstancers" ) );
-					if ( CollapseCvar && CollapseCvar->GetBool() )
+					static IConsoleVariable* CollapseCvar = IConsoleManager::Get().FindConsoleVariable(TEXT("USD.CollapseTopLevelPointInstancers"));
+					if (CollapseCvar && CollapseCvar->GetBool())
 					{
 						ComponentType = UStaticMeshComponent::StaticClass();
 					}
@@ -552,19 +538,19 @@ USceneComponent* FUsdGeomXformableTranslator::CreateComponentsEx( TOptional< TSu
 			}
 		}
 
-		if ( ComponentType.IsSet() && ComponentType.GetValue() != nullptr )
+		if (ComponentType.IsSet() && ComponentType.GetValue() != nullptr)
 		{
 			const FName ComponentName = MakeUniqueObjectName(
 				ComponentOuter,
 				ComponentType.GetValue(),
 				*IUsdClassesModule::SanitizeObjectName(Prim.GetName().ToString())
 			);
-			SceneComponent = NewObject< USceneComponent >( ComponentOuter, ComponentType.GetValue(), ComponentName, PreComponentFlags );
+			SceneComponent = NewObject<USceneComponent>(ComponentOuter, ComponentType.GetValue(), ComponentName, PreComponentFlags);
 			SceneComponent->SetFlags(PostComponentFlags);
 
-			if ( AActor* Owner = SceneComponent->GetOwner() )
+			if (AActor* Owner = SceneComponent->GetOwner())
 			{
-				Owner->AddInstanceComponent( SceneComponent );
+				Owner->AddInstanceComponent(SceneComponent);
 			}
 		}
 	}
@@ -588,23 +574,23 @@ USceneComponent* FUsdGeomXformableTranslator::CreateComponentsEx( TOptional< TSu
 		);
 	}
 
-	if ( SceneComponent )
+	if (SceneComponent)
 	{
-		if ( !GEnableCollision )
+		if (!GEnableCollision)
 		{
 			// In most cases this will have no benefit memory-wise, as regular UStaticMeshComponents build their physics meshes anyway
 			// when registering, regardless of these. HISM components will *not* build them though, so disabling the cvar may lead
 			// to some memory savings
-			if ( UPrimitiveComponent* PrimComp = Cast<UPrimitiveComponent>( SceneComponent ) )
+			if (UPrimitiveComponent* PrimComp = Cast<UPrimitiveComponent>(SceneComponent))
 			{
-				PrimComp->SetCollisionEnabled( ECollisionEnabled::NoCollision );
-				PrimComp->SetCollisionProfileName( UCollisionProfile::NoCollision_ProfileName );
+				PrimComp->SetCollisionEnabled(ECollisionEnabled::NoCollision);
+				PrimComp->SetCollisionProfileName(UCollisionProfile::NoCollision_ProfileName);
 			}
 		}
 
-		if ( !SceneComponent->GetOwner()->GetRootComponent() )
+		if (!SceneComponent->GetOwner()->GetRootComponent())
 		{
-			SceneComponent->GetOwner()->SetRootComponent( SceneComponent );
+			SceneComponent->GetOwner()->SetRootComponent(SceneComponent);
 		}
 
 		// If we're spawning into a level that is being streamed in, our construction scripts will be rerun, and may want to set the scene component
@@ -633,9 +619,9 @@ USceneComponent* FUsdGeomXformableTranslator::CreateComponentsEx( TOptional< TSu
 		// Do this before UpdatingComponents as we may need to use the parent transform to set a world transform directly
 		// (in case of resetXformStack). Besides, this is more consistent anyway as during stage updates we'll call
 		// UpdateComponents with all the components already attached
-		SceneComponent->AttachToComponent( Context->ParentComponent, FAttachmentTransformRules::KeepRelativeTransform );
+		SceneComponent->AttachToComponent(Context->ParentComponent, FAttachmentTransformRules::KeepRelativeTransform);
 
-		if ( !SceneComponent->IsRegistered() )
+		if (!SceneComponent->IsRegistered())
 		{
 			SceneComponent->RegisterComponent();
 		}
@@ -644,9 +630,9 @@ USceneComponent* FUsdGeomXformableTranslator::CreateComponentsEx( TOptional< TSu
 	return SceneComponent;
 }
 
-void FUsdGeomXformableTranslator::UpdateComponents( USceneComponent* SceneComponent )
+void FUsdGeomXformableTranslator::UpdateComponents(USceneComponent* SceneComponent)
 {
-	TRACE_CPUPROFILER_EVENT_SCOPE( FUsdGeomXformableTranslator::UpdateComponents );
+	TRACE_CPUPROFILER_EVENT_SCOPE(FUsdGeomXformableTranslator::UpdateComponents);
 
 	if (SceneComponent && Context->InfoCache)
 	{
@@ -664,32 +650,31 @@ void FUsdGeomXformableTranslator::UpdateComponents( USceneComponent* SceneCompon
 		// If the user modified a mesh parameter (e.g. vertex color), the hash will be different and it will become a separate asset
 		// so we must check for this and assign the new StaticMesh
 		bool bHasMultipleLODs = false;
-		if ( UStaticMeshComponent* StaticMeshComponent = Cast< UStaticMeshComponent >( SceneComponent ) )
+		if (UStaticMeshComponent* StaticMeshComponent = Cast<UStaticMeshComponent>(SceneComponent))
 		{
-			UStaticMesh* PrimStaticMesh = Context->InfoCache->GetSingleAssetForPrim<UStaticMesh>(
-				PrimPath
-			);
+			UStaticMesh* PrimStaticMesh = Context->InfoCache->GetSingleAssetForPrim<UStaticMesh>(PrimPath);
 
-			if ( PrimStaticMesh )
+			if (PrimStaticMesh)
 			{
 				bHasMultipleLODs = PrimStaticMesh->GetNumLODs() > 1;
 			}
 
-			if ( PrimStaticMesh != StaticMeshComponent->GetStaticMesh() )
+			if (PrimStaticMesh != StaticMeshComponent->GetStaticMesh())
 			{
 				// Need to make sure the mesh's resources are initialized here as it may have just been built in another thread
 				// Only do this if required though, as this mesh could using these resources currently (e.g. PIE and editor world sharing the mesh)
-				if (PrimStaticMesh && !PrimStaticMesh->AreRenderingResourcesInitialized() && (FApp::CanEverRender() || !FPlatformProperties::RequiresCookedData()))
+				if (PrimStaticMesh && !PrimStaticMesh->AreRenderingResourcesInitialized()
+					&& (FApp::CanEverRender() || !FPlatformProperties::RequiresCookedData()))
 				{
 					PrimStaticMesh->InitResources();
 				}
 
-				if ( StaticMeshComponent->IsRegistered() )
+				if (StaticMeshComponent->IsRegistered())
 				{
 					StaticMeshComponent->UnregisterComponent();
 				}
 
-				StaticMeshComponent->SetStaticMesh( PrimStaticMesh );
+				StaticMeshComponent->SetStaticMesh(PrimStaticMesh);
 
 				// We can't register yet, as UsdToUnreal::ConvertXformable below us may want to move the component.
 				// We'll always re-register when needed below, though.
@@ -718,19 +703,19 @@ void FUsdGeomXformableTranslator::UpdateComponents( USceneComponent* SceneCompon
 		// skeletal version of the LiveLink configuration, we only handle setting up LiveLink for simple transforms
 		if (!Prim.IsA(TEXT("SkelRoot")) && !Prim.IsA(TEXT("Skeleton")))
 		{
-			if ( UsdUtils::PrimHasSchema( Prim, UnrealIdentifiers::LiveLinkAPI ) )
+			if (UsdUtils::PrimHasSchema(Prim, UnrealIdentifiers::LiveLinkAPI))
 			{
-				UE::UsdXformableTranslatorImpl::Private::SetUpSceneComponentForLiveLink( Context.Get(), SceneComponent, Prim );
+				UE::UsdXformableTranslatorImpl::Private::SetUpSceneComponentForLiveLink(Context.Get(), SceneComponent, Prim);
 			}
 			else
 			{
-				UE::UsdXformableTranslatorImpl::Private::RemoveLiveLinkFromComponent( SceneComponent );
+				UE::UsdXformableTranslatorImpl::Private::RemoveLiveLinkFromComponent(SceneComponent);
 			}
 		}
 
 		// Only put the transform into the component if we haven't parsed LODs for our static mesh: The Mesh transforms will already be baked
 		// into the mesh at that case, as each LOD could technically have a separate transform
-		if ( !Context->bAllowInterpretingLODs || !bHasMultipleLODs )
+		if (!Context->bAllowInterpretingLODs || !bHasMultipleLODs)
 		{
 			// Don't update the component's transform if this is already factored in as root motion within the AnimSequence
 			bool bConvertTransform = true;
@@ -759,13 +744,13 @@ void FUsdGeomXformableTranslator::UpdateComponents( USceneComponent* SceneCompon
 				}
 			}
 
-			UsdToUnreal::ConvertXformable( Context->Stage, pxr::UsdGeomXformable( Prim ), *SceneComponent, Context->Time, bConvertTransform );
+			UsdToUnreal::ConvertXformable(Context->Stage, pxr::UsdGeomXformable(Prim), *SceneComponent, Context->Time, bConvertTransform);
 		}
 
 		// Note how we should only register if we unregistered ourselves: If we did this every time we would
 		// register too early during the process of duplicating into PIE, and that would prevent a future RegisterComponent
 		// call from naturally creating the required render state
-		if ( !SceneComponent->IsRegistered() )
+		if (!SceneComponent->IsRegistered())
 		{
 			SceneComponent->RegisterComponent();
 		}
@@ -774,7 +759,12 @@ void FUsdGeomXformableTranslator::UpdateComponents( USceneComponent* SceneCompon
 
 namespace UE::UsdXformableTranslatorImpl::Private
 {
-	void AssignBoundsComponentTextures(UE::FUsdPrim Prim, UUsdDrawModeComponent* BoundsComponent, UUsdAssetCache2& AssetCache, FUsdInfoCache& InfoCache)
+	void AssignBoundsComponentTextures(
+		UE::FUsdPrim Prim,
+		UUsdDrawModeComponent* BoundsComponent,
+		UUsdAssetCache2& AssetCache,
+		FUsdInfoCache& InfoCache
+	)
 	{
 		if (!Prim)
 		{
@@ -893,7 +883,7 @@ USceneComponent* FUsdGeomXformableTranslator::CreateAlternativeDrawModeComponent
 		case EUsdDrawMode::Cards:
 		{
 			UUsdDrawModeComponent* Component = Cast<UUsdDrawModeComponent>(CreateComponentsEx({UUsdDrawModeComponent::StaticClass()}, bNeedsActor));
-			if(ensure(Component) && Context->AssetCache && Context->InfoCache)
+			if (ensure(Component) && Context->AssetCache && Context->InfoCache)
 			{
 				// For now we only assign textures when creating components, not when updating. Maybe in the future we can
 				// add support for "texture animations"
@@ -1000,7 +990,7 @@ void FUsdGeomXformableTranslator::CreateAlternativeDrawModeAssets(EUsdDrawMode D
 
 bool FUsdGeomXformableTranslator::CollapsesChildren(ECollapsingType CollapsingType) const
 {
-	TRACE_CPUPROFILER_EVENT_SCOPE( FUsdGeomXformableTranslator::CollapsesChildren );
+	TRACE_CPUPROFILER_EVENT_SCOPE(FUsdGeomXformableTranslator::CollapsesChildren);
 
 	if (!Context->bIsBuildingInfoCache)
 	{
@@ -1020,7 +1010,7 @@ bool FUsdGeomXformableTranslator::CollapsesChildren(ECollapsingType CollapsingTy
 	FScopedUsdAllocs UsdAllocs;
 
 	pxr::UsdPrim Prim = GetPrim();
-	pxr::UsdModelAPI Model{ pxr::UsdTyped( Prim ) };
+	pxr::UsdModelAPI Model{pxr::UsdTyped(Prim)};
 
 	// Now that we use UsdSkelSkeletonTranslator the SkelRoots will be handled by the FUsdGeomXformableTranslator (here).
 	// SkelRoots are likely going to end up with SkeletalMeshes though, so we can assume we won't be collapsing them just from that
@@ -1029,42 +1019,43 @@ bool FUsdGeomXformableTranslator::CollapsesChildren(ECollapsingType CollapsingTy
 		return false;
 	}
 
-	if ( Model )
+	if (Model)
 	{
-		EUsdDefaultKind PrimKind = UsdUtils::GetDefaultKind( Prim );
+		EUsdDefaultKind PrimKind = UsdUtils::GetDefaultKind(Prim);
 
 		// Note that this is false if PrimKind is None
-		const bool bPrimKindShouldCollapse = EnumHasAnyFlags( Context->KindsToCollapse, PrimKind );
+		const bool bPrimKindShouldCollapse = EnumHasAnyFlags(Context->KindsToCollapse, PrimKind);
 
-		bCollapsesChildren = Context->KindsToCollapse != EUsdDefaultKind::None &&
-			( bPrimKindShouldCollapse || ( PrimKind == EUsdDefaultKind::None && GCollapsePrimsWithoutKind ) );
+		bCollapsesChildren = Context->KindsToCollapse != EUsdDefaultKind::None
+							 && (bPrimKindShouldCollapse || (PrimKind == EUsdDefaultKind::None && GCollapsePrimsWithoutKind));
 
-		if ( !bCollapsesChildren )
+		if (!bCollapsesChildren)
 		{
 			// Temp support for the prop kind
-			bCollapsesChildren = Model.IsKind( pxr::TfToken( "prop" ), pxr::UsdModelAPI::KindValidationNone );
+			bCollapsesChildren = Model.IsKind(pxr::TfToken("prop"), pxr::UsdModelAPI::KindValidationNone);
 		}
 
-		if ( bCollapsesChildren )
+		if (bCollapsesChildren)
 		{
-			IUsdSchemasModule& UsdSchemasModule = FModuleManager::Get().LoadModuleChecked< IUsdSchemasModule >( TEXT("USDSchemas") );
+			IUsdSchemasModule& UsdSchemasModule = FModuleManager::Get().LoadModuleChecked<IUsdSchemasModule>(TEXT("USDSchemas"));
 
-			// TODO: This can be optimized in order to make FUsdInfoCache::RebuildCacheForSubtree faster: If we have a child prim that we know doesn't collapse,
-			// any of our parents should be able to know they can't collapse *us* either.
-			// This is somewhat niche though: Realistically to waste time here a prim and its children need to have a kind that allows collapsing, and also not be able to collapse.
-			// Also, if any of these prims *does* manage to collapse, FUsdInfoCache will already not actually query the subtree children if they can collapse or not anymore,
-			// and just consider them collapsed by the parent
-			TArray< TUsdStore< pxr::UsdPrim > > ChildXformPrims = UsdUtils::GetAllPrimsOfType( Prim, pxr::TfType::Find< pxr::UsdGeomXformable >() );
-			for ( const TUsdStore< pxr::UsdPrim >& ChildXformPrim : ChildXformPrims )
+			// TODO: This can be optimized in order to make FUsdInfoCache::RebuildCacheForSubtree faster: If we have a child prim that we know doesn't
+			// collapse, any of our parents should be able to know they can't collapse *us* either. This is somewhat niche though: Realistically to
+			// waste time here a prim and its children need to have a kind that allows collapsing, and also not be able to collapse. Also, if any of
+			// these prims *does* manage to collapse, FUsdInfoCache will already not actually query the subtree children if they can collapse or not
+			// anymore, and just consider them collapsed by the parent
+			TArray<TUsdStore<pxr::UsdPrim>> ChildXformPrims = UsdUtils::GetAllPrimsOfType(Prim, pxr::TfType::Find<pxr::UsdGeomXformable>());
+			for (const TUsdStore<pxr::UsdPrim>& ChildXformPrim : ChildXformPrims)
 			{
 				if (ChildXformPrim.Get().IsA<pxr::UsdSkelRoot>())
 				{
 					return false;
 				}
 
-				if ( TSharedPtr< FUsdSchemaTranslator > SchemaTranslator = UsdSchemasModule.GetTranslatorRegistry().CreateTranslatorForSchema( Context, UE::FUsdTyped( ChildXformPrim.Get() ) ) )
+				if (TSharedPtr<FUsdSchemaTranslator> SchemaTranslator = UsdSchemasModule.GetTranslatorRegistry()
+																			.CreateTranslatorForSchema(Context, UE::FUsdTyped(ChildXformPrim.Get())))
 				{
-					if ( !SchemaTranslator->CanBeCollapsed( CollapsingType ) )
+					if (!SchemaTranslator->CanBeCollapsed(CollapsingType))
 					{
 						return false;
 					}
@@ -1076,21 +1067,18 @@ bool FUsdGeomXformableTranslator::CollapsesChildren(ECollapsingType CollapsingTy
 	return bCollapsesChildren;
 }
 
-bool FUsdGeomXformableTranslator::CanBeCollapsed( ECollapsingType CollapsingType ) const
+bool FUsdGeomXformableTranslator::CanBeCollapsed(ECollapsingType CollapsingType) const
 {
 	FScopedUsdAllocs UsdAllocs;
 
-	pxr::UsdPrim UsdPrim{ GetPrim() };
-	if ( !UsdPrim )
+	pxr::UsdPrim UsdPrim{GetPrim()};
+	if (!UsdPrim)
 	{
 		return false;
 	}
 
-	if (UsdUtils::IsAnimated(UsdPrim) ||
-		UsdUtils::PrimHasSchema(UsdPrim, UnrealIdentifiers::LiveLinkAPI) ||
-		UsdPrim.IsA<pxr::UsdSkelRoot>() ||
-		(Context->bAllowInterpretingLODs && UsdUtils::DoesPrimContainMeshLODs(UsdPrim))
-	)
+	if (UsdUtils::IsAnimated(UsdPrim) || UsdUtils::PrimHasSchema(UsdPrim, UnrealIdentifiers::LiveLinkAPI) || UsdPrim.IsA<pxr::UsdSkelRoot>()
+		|| (Context->bAllowInterpretingLODs && UsdUtils::DoesPrimContainMeshLODs(UsdPrim)))
 	{
 		return false;
 	}
@@ -1121,10 +1109,7 @@ TSet<UE::FSdfPath> FUsdGeomXformableTranslator::CollectAuxiliaryPrims() const
 
 		// We check imageable because that is the most basal schema that is still relevant for collapsed meshes (it
 		// holds the visibility attribute)
-		TArray<TUsdStore<pxr::UsdPrim>> ChildPrims = UsdUtils::GetAllPrimsOfType(
-			Prim,
-			pxr::TfType::Find<pxr::UsdGeomImageable>()
-		);
+		TArray<TUsdStore<pxr::UsdPrim>> ChildPrims = UsdUtils::GetAllPrimsOfType(Prim, pxr::TfType::Find<pxr::UsdGeomImageable>());
 
 		Result.Reserve(ChildPrims.Num());
 		for (const TUsdStore<pxr::UsdPrim>& ChildPrim : ChildPrims)
@@ -1135,4 +1120,4 @@ TSet<UE::FSdfPath> FUsdGeomXformableTranslator::CollectAuxiliaryPrims() const
 	return Result;
 }
 
-#endif // #if USE_USD_SDK
+#endif	  // #if USE_USD_SDK

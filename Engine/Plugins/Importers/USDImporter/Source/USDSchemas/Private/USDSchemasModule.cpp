@@ -6,26 +6,25 @@
 
 #if WITH_EDITOR
 #include "MDLImporterModule.h"
-#endif // #if WITH_EDITOR
+#endif	  // #if WITH_EDITOR
 
 #include "Modules/ModuleManager.h"
-#include "Misc/Paths.h"
 
 #if USE_USD_SDK
+#include "Custom/MaterialXUSDShadeMaterialTranslator.h"
+#include "Custom/MDLUSDShadeMaterialTranslator.h"
 #include "USDGeomCameraTranslator.h"
 #include "USDGeometryCacheTranslator.h"
 #include "USDGeomMeshTranslator.h"
 #include "USDGeomPointInstancerTranslator.h"
+#include "USDGeomPrimitiveTranslator.h"
 #include "USDGeomXformableTranslator.h"
 #include "USDGroomTranslator.h"
-#include "USDGeomPrimitiveTranslator.h"
 #include "USDLuxLightTranslator.h"
 #include "USDMemory.h"
 #include "USDShadeMaterialTranslator.h"
 #include "USDSkelSkeletonTranslator.h"
-#include "Custom/MaterialXUSDShadeMaterialTranslator.h"
-#include "Custom/MDLUSDShadeMaterialTranslator.h"
-#endif // #if USE_USD_SDK
+#endif	  // #if USE_USD_SDK
 
 class FUsdSchemasModule : public IUsdSchemasModule
 {
@@ -76,9 +75,9 @@ public:
 				TranslatorHandles.Add(Registry.Register<FMdlUsdShadeMaterialTranslator>(TEXT("UsdShadeMaterial")));
 			}
 		}
-#endif // WITH_EDITOR
+#endif	  // WITH_EDITOR
 
-#endif // #if USE_USD_SDK
+#endif	  // #if USE_USD_SDK
 	}
 
 	virtual void ShutdownModule() override
@@ -94,7 +93,7 @@ public:
 #if USE_USD_SDK && WITH_EDITOR
 		ShaderRegistry.Unregister(FMdlUsdShadeMaterialTranslator::MdlRenderContext);
 		ShaderRegistry.Unregister(FMaterialXUsdShadeMaterialTranslator::MaterialXRenderContext);
-#endif // WITH_EDITOR
+#endif	  // WITH_EDITOR
 	}
 
 	virtual FUsdSchemaTranslatorRegistry& GetTranslatorRegistry() override
@@ -111,7 +110,7 @@ protected:
 	FUsdSchemaTranslatorRegistry UsdSchemaTranslatorRegistry;
 	FUsdRenderContextRegistry UsdRenderContextRegistry;
 
-	TArray< FRegisteredSchemaTranslatorHandle > TranslatorHandles;
+	TArray<FRegisteredSchemaTranslatorHandle> TranslatorHandles;
 };
 
-IMPLEMENT_MODULE_USD( FUsdSchemasModule, USDSchemas );
+IMPLEMENT_MODULE_USD(FUsdSchemasModule, USDSchemas);

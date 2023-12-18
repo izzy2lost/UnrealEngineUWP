@@ -15,7 +15,7 @@ public:
 
 	virtual void CreateAssets() override;
 	virtual USceneComponent* CreateComponents() override;
-	virtual void UpdateComponents( USceneComponent* SceneComponent ) override;
+	virtual void UpdateComponents(USceneComponent* SceneComponent) override;
 
 	virtual bool CollapsesChildren(ECollapsingType CollapsingType) const override;
 	virtual bool CanBeCollapsed(ECollapsingType CollapsingType) const override;
@@ -23,4 +23,4 @@ public:
 	virtual TSet<UE::FSdfPath> CollectAuxiliaryPrims() const override;
 };
 
-#endif //#if USE_USD_SDK
+#endif	  // #if USE_USD_SDK
