@@ -472,29 +472,35 @@ bool UCameraLensDistortionAlgoPoints::GetLensDistortion(
 	ECalibrationFlags SolverFlags = ECalibrationFlags::None;
 	EnumAddFlags(SolverFlags, ECalibrationFlags::UseIntrinsicGuess);
 
-	TArray<float> DistortionCoefficients;
+	UClass* SolverClass = LensDistortionTool->GetSolverClass();
+	ULensDistortionSolver* Solver = NewObject<ULensDistortionSolver>(this, SolverClass);
 
-	OutError = FCameraCalibrationSolver::CalibrateCamera(
-		LensFile->LensInfo.LensModel,
+	FDistortionCalibrationResult Result = Solver->Solve(
 		Samples3d,
 		Samples2d,
 		ImageSize,
 		FocalLength,
 		ImageCenter,
-		DistortionCoefficients,
 		CameraPoses,
+		LensFile->LensInfo.LensModel,
 		PixelAspect,
 		SolverFlags
 	);
 
+	if (!Result.ErrorMessage.IsEmpty())
+	{
+		OutErrorMessage = Result.ErrorMessage;
+		return false;
+	}
+
 	const TSharedPtr<FLensDistortionPointsRowData>& FirstRow = CalibrationRows[0];
 
 	OutLensModel = LensFile->LensInfo.LensModel;
-	OutDistortionInfo.Parameters = DistortionCoefficients;
+	OutDistortionInfo.Parameters = Result.Parameters.Parameters;
 
-	OutFocalLengthInfo.FxFy = FVector2D(FocalLength / ImageSize);
+	OutFocalLengthInfo.FxFy = FVector2D(Result.FocalLength.FxFy / ImageSize);
 
-	OutImageCenterInfo.PrincipalPoint = FVector2D(ImageCenter / ImageSize);
+	OutImageCenterInfo.PrincipalPoint = FVector2D(Result.ImageCenter.PrincipalPoint / ImageSize);
 
 	// FZ inputs to LUT
 	OutFocus = FirstRow->CameraData.InputFocus;

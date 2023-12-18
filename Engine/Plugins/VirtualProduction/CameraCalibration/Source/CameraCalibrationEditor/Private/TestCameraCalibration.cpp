@@ -6,6 +6,7 @@
 #include "CoreMinimal.h"
 
 #include "Calibrators/CameraCalibrationSolver.h"
+#include "CameraCalibrationTypes.h"
 #include "CameraCalibrationUtilsPrivate.h"
 #include "Dialog/SCustomDialog.h"
 #include "Engine/Engine.h"
@@ -255,15 +256,16 @@ namespace UE::Private::CameraCalibration::AutomatedTests
 		FVector2D CalibratedImageCenter = ImageCenter;
 		TArray<float> CalibratedDistortionParameters;
 
-		const double Error = FCameraCalibrationSolver::CalibrateCamera(
-			USphericalLensModel::StaticClass(),
+		ULensDistortionSolverOpenCV* TestSolver = NewObject<ULensDistortionSolverOpenCV>();
+
+		FDistortionCalibrationResult Result = TestSolver->Solve(
 			NoisyObjectPoints,
 			NoisyImagePoints,
 			ImageSize,
 			CalibratedFxFy,
 			CalibratedImageCenter,
-			CalibratedDistortionParameters,
 			EstimatedCameraPoses,
+			USphericalLensModel::StaticClass(),
 			PixelAspect,
 			SolverFlags
 		);
@@ -287,48 +289,20 @@ namespace UE::Private::CameraCalibration::AutomatedTests
 		Test.AddInfo(FString::Printf(TEXT("\t\tP1: %f"), SphericalParams.P1));
 		Test.AddInfo(FString::Printf(TEXT("\t\tP2: %f"), SphericalParams.P2));
 
-		Test.AddInfo(TEXT("Ground-Truth Camera Poses:"));
-		for (int32 PoseIndex = 0; PoseIndex < TrueCameraPoses.Num(); ++PoseIndex)
-		{
-			const FTransform& Pose = TrueCameraPoses[PoseIndex];
-
-			Test.AddInfo(FString::Printf(TEXT("\t\tPose %d"), PoseIndex));
-
-			const FVector Translation = Pose.GetTranslation();
-			const FRotator Rotator = Pose.GetRotation().Rotator();
-
-			Test.AddInfo(FString::Printf(TEXT("\t\t\t\tTranslation: (%lf, %lf, %lf)"), Translation.X, Translation.Y, Translation.Z));
-			Test.AddInfo(FString::Printf(TEXT("\t\t\t\tRotation:    (%lf, %lf, %lf)"), Rotator.Roll, Rotator.Pitch, Rotator.Yaw));
-		}
-
 		Test.AddInfo(TEXT("\n"));
- 		Test.AddInfo(FString::Printf(TEXT("Result RMS Error: %lf"), Error));
+ 		Test.AddInfo(FString::Printf(TEXT("Result RMS Error: %lf"), Result.ReprojectionError));
 		Test.AddInfo(TEXT("\n"));
 
 		Test.AddInfo(TEXT("Calibrated Camera Intrinsics:"));
- 		Test.AddInfo(FString::Printf(TEXT("\t\tFocal Length: %lf mm (%lf pixels)"), (CalibratedFxFy.X / ImageSize.X)* SensorWidth, CalibratedFxFy.X));
-		Test.AddInfo(FString::Printf(TEXT("\t\tImage Center: (%lf, %lf)"), CalibratedImageCenter.X, CalibratedImageCenter.Y));
+ 		Test.AddInfo(FString::Printf(TEXT("\t\tFocal Length: %lf mm (%lf pixels)"), (Result.FocalLength.FxFy.X / ImageSize.X)* SensorWidth, Result.FocalLength.FxFy.X));
+		Test.AddInfo(FString::Printf(TEXT("\t\tImage Center: (%lf, %lf)"), Result.ImageCenter.PrincipalPoint.X, Result.ImageCenter.PrincipalPoint.Y));
 
  		Test.AddInfo(TEXT("Calibrated Distortion Coefficients:"));
-		Test.AddInfo(FString::Printf(TEXT("\t\tK1: %f"), CalibratedDistortionParameters[0]));
-		Test.AddInfo(FString::Printf(TEXT("\t\tK2: %f"), CalibratedDistortionParameters[1]));
-		Test.AddInfo(FString::Printf(TEXT("\t\tK3: %f"), CalibratedDistortionParameters[2]));
-		Test.AddInfo(FString::Printf(TEXT("\t\tP1: %f"), CalibratedDistortionParameters[3]));
-		Test.AddInfo(FString::Printf(TEXT("\t\tP2: %f"), CalibratedDistortionParameters[4]));
-
-		Test.AddInfo(TEXT("Calibrated Camera Poses:"));
-		for (int32 PoseIndex = 0; PoseIndex < EstimatedCameraPoses.Num(); ++PoseIndex)
-		{
-			const FTransform& Pose = EstimatedCameraPoses[PoseIndex];
-
-			Test.AddInfo(FString::Printf(TEXT("\t\tPose %d"), PoseIndex));
-
-			const FVector Translation = Pose.GetTranslation();
-			const FRotator Rotator = Pose.GetRotation().Rotator();
-
-			Test.AddInfo(FString::Printf(TEXT("\t\t\t\tTranslation: (%lf, %lf, %lf)"), Translation.X, Translation.Y, Translation.Z));
-			Test.AddInfo(FString::Printf(TEXT("\t\t\t\tRotation:    (%lf, %lf, %lf)"), Rotator.Roll, Rotator.Pitch, Rotator.Yaw));
-		}
+		Test.AddInfo(FString::Printf(TEXT("\t\tK1: %f"), Result.Parameters.Parameters[0]));
+		Test.AddInfo(FString::Printf(TEXT("\t\tK2: %f"), Result.Parameters.Parameters[1]));
+		Test.AddInfo(FString::Printf(TEXT("\t\tK3: %f"), Result.Parameters.Parameters[2]));
+		Test.AddInfo(FString::Printf(TEXT("\t\tP1: %f"), Result.Parameters.Parameters[3]));
+		Test.AddInfo(FString::Printf(TEXT("\t\tP2: %f"), Result.Parameters.Parameters[4]));
 	}
 
 	void TestNodalOffsetCalibration(FAutomationTestBase& Test)

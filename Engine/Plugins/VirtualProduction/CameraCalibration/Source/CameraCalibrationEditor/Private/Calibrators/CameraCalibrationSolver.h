@@ -2,6 +2,7 @@
 
 #pragma once
 
+#include "CameraCalibrationTypes.h"
 #include "Models/LensModel.h"
 #include "Templates/SubclassOf.h"
 
@@ -43,28 +44,10 @@ struct FImagePoints
 	TArray<FVector2D> Points;
 };
 
-/** 
- * Base lens distortion solver class that can be inherited from in Blueprints or Python 
- */
-UCLASS(Blueprintable)
-class ULensDistortionSolver : public UObject
-{
-	GENERATED_BODY()
-
-public:
-	/** Calibrate camera intrinsics and distortion from a set of input 3D-2D point correspondences and initial camera intrinsics guess. */
-	UFUNCTION(BlueprintImplementableEvent, Category = "Calibration")
-	FDistortionCalibrationResult Solve(
-		const TArray<FObjectPoints>& ObjectPointArray,
-		const TArray<FImagePoints>& ImagePointArray,
-		const FIntPoint ImageSize,
-		const FVector2D& FocalLength,
-		const FVector2D& ImageCenter) const;
-};
-
 /**
   * Flags used to modify the execution of the calibration solver
   */
+UENUM()
 enum class ECalibrationFlags : uint32
 {
 	None = 0,
@@ -77,41 +60,77 @@ enum class ECalibrationFlags : uint32
 };
 
 /** 
+ * Base lens distortion solver class that can be inherited from in Blueprints or Python 
+ */
+UCLASS(Abstract, Blueprintable)
+class ULensDistortionSolver : public UObject
+{
+	GENERATED_BODY()
+
+public:
+	/** Calibrate camera intrinsics and distortion from a set of input 3D-2D point correspondences and initial camera intrinsics guess. */
+	UFUNCTION(BlueprintNativeEvent, Category = "Calibration")
+	FDistortionCalibrationResult Solve(
+		const TArray<FObjectPoints>& ObjectPointArray,
+		const TArray<FImagePoints>& ImagePointArray,
+		const FIntPoint ImageSize,
+		const FVector2D& FocalLength,
+		const FVector2D& ImageCenter,
+		const TArray<FTransform>& CameraPoses,
+		TSubclassOf<ULensModel> LensModel,
+		double PixelAspect,
+		ECalibrationFlags SolverFlags);
+
+	/** Get the name of this solver class for displaying in the editor UI */
+	UFUNCTION(BlueprintNativeEvent, Category = "Calibration")
+	FText GetDisplayName() const;
+
+	virtual FDistortionCalibrationResult Solve_Implementation(
+		const TArray<FObjectPoints>& ObjectPointArray,
+		const TArray<FImagePoints>& ImagePointArray,
+		const FIntPoint ImageSize,
+		const FVector2D& FocalLength,
+		const FVector2D& ImageCenter,
+		const TArray<FTransform>& CameraPoses,
+		TSubclassOf<ULensModel> LensModel,
+		double PixelAspect,
+		ECalibrationFlags SolverFlags) PURE_VIRTUAL(ULensDistortionSolver::Solve_Implementation, return FDistortionCalibrationResult(););
+
+	virtual FText GetDisplayName_Implementation() const PURE_VIRTUAL(ULensDistortionSolver::GetDisplayName_Implementation, return FText::GetEmpty(););
+};
+
+/** 
   * Lens Distortion Solver class, supporting anamorphic and spherical models 
   * The implementation is largely based on the implementation of calibrateCamera from OpenCV: https://github.com/opencv/opencv
   */
-class FCameraCalibrationSolver
+
+UCLASS()
+class ULensDistortionSolverOpenCV : public ULensDistortionSolver
 {
+	GENERATED_BODY()
+
 public:
 	/** 
 	  * Calibrate camera intrinsics and distortion parameters using a set of input 3D and 2D point correspondences
 	  * Returns the root mean reprojection error between the input image points and the projection of the input object points
 	  */
-	static double CalibrateCamera(
-		const TSubclassOf<ULensModel> LensModel,
-		const TArray<FObjectPoints>& InObjectPointsArray,
-		const TArray<FImagePoints>& InImagePointsArray,
+	virtual FDistortionCalibrationResult Solve_Implementation(
+		const TArray<FObjectPoints>& ObjectPointArray,
+		const TArray<FImagePoints>& ImagePointArray,
 		const FIntPoint ImageSize,
-		FVector2D& InOutFocalLength,
-		FVector2D& InOutImageCenter,
-		TArray<float>& OutDistCoeffs,
-		TArray<FTransform>& InOutCameraPoses,
-		double PixelAspect = 1.0,
-		ECalibrationFlags SolverFlags = ECalibrationFlags::None);
+		const FVector2D& FocalLength,
+		const FVector2D& ImageCenter,
+		const TArray<FTransform>& CameraPoses,
+		TSubclassOf<ULensModel> LensModel,
+		double PixelAspect,
+		ECalibrationFlags SolverFlags) override;
 
-	/** Optimize the input nodal offset transform by running a downhill solver that attempts to minimize the reprojection error of the input points */
-	static double OptimizeNodalOffset(
-		const TArray<TArray<FVector>>& InObjectPoints, 
-		const TArray<TArray<FVector2f>>& InImagePoints, 
-		const FVector2D& InFocalLength,
-		const FVector2D& InImageCenter,
-		const TArray<FTransform>& InCameraPoses,
-		FTransform& InOutNodalOffset);
+	virtual FText GetDisplayName_Implementation() const override;
 
 #if WITH_OPENCV
 private:
 	/** Initialize the camera matrix of intrinsic parameters using linear algebra techniques */
-	static void InitCameraIntrinsics(
+	void InitCameraIntrinsics(
 		const cv::Mat& ObjectPoints,
 		const cv::Mat& ImagePoints,
 		const cv::Mat& NumPoints,
@@ -119,7 +138,7 @@ private:
 		cv::Mat& CameraMatrix);
 
 	/** Initialize the camera extrinsics (rotation and translation vectors) for each image using linear algebra techniques */
-	static void InitCameraExtrinsics(
+	void InitCameraExtrinsics(
 		const TSubclassOf<ULensModel> LensModel,
 		const cv::Mat& ObjectPoints,
 		const cv::Mat& ImagePoints,
@@ -131,7 +150,7 @@ private:
 		const ECalibrationFlags SolverFlags);
 
 	/** Project the input object points to 2D using the input camera intrinsics, extrinsics, and distortion parameters */
-	static void ProjectPoints(
+	void ProjectPoints(
 		const TSubclassOf<ULensModel> LensModel,
 		const cv::Mat& ObjectPoints,
 		const cv::Mat& Rotation,
@@ -142,7 +161,7 @@ private:
 		cv::Mat& ProjectedPoints);
 
 	/** Project the input object points to 2D using the input camera intrinsics, extrinsics, and distortion parameters */
-	static void ProjectPoints(
+	void ProjectPoints(
 		const TSubclassOf<ULensModel> LensModel,
 		const cv::Mat& ObjectPoints,
 		const cv::Mat& Rotation,
@@ -155,7 +174,7 @@ private:
 		ECalibrationFlags SolverFlags);
 
 	/** Project the input object points to 2D using the input camera intrinsics, extrinsics, and anamorphic distortion parameters */
-	static void ProjectPointsAnamorphic(
+	void ProjectPointsAnamorphic(
 		const cv::Mat& ObjectPoints,
 		const cv::Mat& Rotation,
 		const cv::Mat& Translation,
@@ -167,7 +186,7 @@ private:
 		ECalibrationFlags SolverFlags);
 
 	/** Project the input object points to 2D using the input camera intrinsics, extrinsics, and spherical distortion parameters */
-	static void ProjectPointsSpherical(
+	void ProjectPointsSpherical(
 		const cv::Mat& ObjectPoints,
 		const cv::Mat& Rotation,
 		const cv::Mat& Translation,
@@ -178,14 +197,14 @@ private:
 		ECalibrationFlags SolverFlags);
 
 	/** Copy the input 3D and 2D points to OpenCV matrices for ease of use with the solver */
-	static void GatherPoints(
+	void GatherPoints(
 		const TArray<FObjectPoints>& InObjectPointsArray,
 		const TArray<FImagePoints>& InImagePointsArray,
 		cv::Mat& ObjectPointsMat,
 		cv::Mat& ImagePointsMat);
 
 	/** Divide large jacobian matrix into smaller views for each of the parameter groups the solver will solve */
-	static void SubdivideJacobian(
+	void SubdivideJacobian(
 		const cv::Mat& Jacobian,
 		cv::Mat& JacRotation,
 		cv::Mat& JacTranslation,
@@ -195,6 +214,20 @@ private:
 		ECalibrationFlags SolverFlags);
 
 #endif	// WITH_OPENCV
+};
+
+class FCameraCalibrationSolver
+{
+public:
+
+	/** Optimize the input nodal offset transform by running a downhill solver that attempts to minimize the reprojection error of the input points */
+	static double OptimizeNodalOffset(
+		const TArray<TArray<FVector>>& InObjectPoints,
+		const TArray<TArray<FVector2f>>& InImagePoints,
+		const FVector2D& InFocalLength,
+		const FVector2D& InImageCenter,
+		const TArray<FTransform>& InCameraPoses,
+		FTransform& InOutNodalOffset);
 };
 
 #if WITH_OPENCV

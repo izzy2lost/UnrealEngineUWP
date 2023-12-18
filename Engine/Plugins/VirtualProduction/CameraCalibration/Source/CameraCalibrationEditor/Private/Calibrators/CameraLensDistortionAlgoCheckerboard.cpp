@@ -41,7 +41,6 @@ static TAutoConsoleVariable<bool> CVarUseIntrinsicsGuess(TEXT("LensDistortionChe
 static TAutoConsoleVariable<bool> CVarFixExtrinsics(TEXT("LensDistortionCheckerboard.FixExtrinsics"), false, TEXT("If true, the solver will fix the camera extrinsics to the user-provided camera poses"));
 static TAutoConsoleVariable<bool> CVarFixZeroDistortion(TEXT("LensDistortionCheckerboard.FixZeroDistortion"), false, TEXT("If true, the solver will fix all distortion values to always be 0"));
 static TAutoConsoleVariable<bool> CVarUseExtrinsicsGuess(TEXT("LensDistortionCheckerboard.UseExtrinsicsGuess"), false, TEXT("If true, the actual checkerboard and camera poses will be used when running the solver"));
-static TAutoConsoleVariable<bool> CVarUseNeuralNetSolver(TEXT("LensDistortionCheckerboard.UseNeuralNetSolver"), false, TEXT("If true, the neural network based solver will solver for distortion and camera intrinsics. Otherwise, the traditional OpenCV solver will be used."));
 #endif
 
 const int UCameraLensDistortionAlgoCheckerboard::DATASET_VERSION = 1;
@@ -702,99 +701,68 @@ FDistortionCalibrationTask UCameraLensDistortionAlgoCheckerboard::BeginCalibrati
 		CameraPoses.Add(Row->CameraData.Pose);
 	}
 
-	const bool bUseNeuralNetSolver = CVarUseNeuralNetSolver.GetValueOnAnyThread();
+	ECalibrationFlags SolverFlags = ECalibrationFlags::None;
 
-	if (!bUseNeuralNetSolver)
+	if (CVarUseExtrinsicsGuess.GetValueOnGameThread())
 	{
-		ECalibrationFlags SolverFlags = ECalibrationFlags::None;
-
-		if (CVarUseExtrinsicsGuess.GetValueOnGameThread())
-		{
-			EnumAddFlags(SolverFlags, ECalibrationFlags::UseExtrinsicGuess);
-		}
-
-		if (CVarUseIntrinsicsGuess.GetValueOnGameThread())
-		{
-			EnumAddFlags(SolverFlags, ECalibrationFlags::UseIntrinsicGuess);
-		}
-
-		if (CVarFixExtrinsics.GetValueOnGameThread())
-		{
-			EnumAddFlags(SolverFlags, ECalibrationFlags::FixExtrinsics);
-		}
-
-		if (CVarFixZeroDistortion.GetValueOnGameThread())
-		{
-			EnumAddFlags(SolverFlags, ECalibrationFlags::FixZeroDistortion);
-		}
-
-		if (bFixFocalLength)
-		{
-			EnumAddFlags(SolverFlags, ECalibrationFlags::FixFocalLength);
-		}
-
-		if (bFixImageCenter)
-		{
-			EnumAddFlags(SolverFlags, ECalibrationFlags::FixPrincipalPoint);
-		}
-
-		const TSubclassOf<ULensModel> Model = LensFile->LensInfo.LensModel;
-
-		CalibrationTask = UE::Tasks::Launch(UE_SOURCE_LOCATION, [Model, Samples3d, Samples2d, ImageSize, FocalLength, ImageCenter, CameraPoses, PixelAspect, SolverFlags, Focus, Zoom]() mutable
-			{
-				FDistortionCalibrationResult Result;
-
-				Result.ReprojectionError = FCameraCalibrationSolver::CalibrateCamera(
-					Model,
-					Samples3d,
-					Samples2d,
-					ImageSize,
-					FocalLength,
-					ImageCenter,
-					Result.Parameters.Parameters,
-					CameraPoses,
-					PixelAspect,
-					SolverFlags
-				);
-
-				// CalibrateCamera() returns focal length and image center in pixels, but the result is expected to be normalized by the image size
-				Result.FocalLength.FxFy = FocalLength / ImageSize;
-				Result.ImageCenter.PrincipalPoint = ImageCenter / ImageSize;
-
-				// FZ inputs to LUT
-				Result.EvaluatedFocus = Focus;
-				Result.EvaluatedZoom = Zoom;
-
-				return Result;
-			});
+		EnumAddFlags(SolverFlags, ECalibrationFlags::UseExtrinsicGuess);
 	}
-	else
+
+	if (CVarUseIntrinsicsGuess.GetValueOnGameThread())
 	{
-		// ULensDistortionSolver is the base class for the python implementation of the neural network solver.
-		// The intent is for there to be only one derived class, but to be sure, the name is checked to match
-		// the derived class that is expected to be found.
-		TArray<UClass*> DerivedSolverClasses;
-		GetDerivedClasses(ULensDistortionSolver::StaticClass(), DerivedSolverClasses);
-
-		if (DerivedSolverClasses.Num() == 0)
-		{
-			UE_LOG(LogCameraCalibrationEditor, Error, TEXT("Could not initiate distortion calibration. No solver class was found."));
-			return CalibrationTask;
-		}
-
-		ULensDistortionSolver* TestSolver = Cast<ULensDistortionSolver>(DerivedSolverClasses.Last()->GetDefaultObject());
-
-		CalibrationTask = UE::Tasks::Launch(UE_SOURCE_LOCATION, [TestSolver, Samples3d, Samples2d, ImageSize, FocalLength, ImageCenter, Focus, Zoom]()
-			{ 
-				FDistortionCalibrationResult Result = TestSolver->Solve(Samples3d, Samples2d, ImageSize, FocalLength, ImageCenter);
-
-				// FZ inputs to LUT
-				Result.EvaluatedFocus = Focus;
-				Result.EvaluatedFocus = Zoom;
-
-				return Result;
-			});
+		EnumAddFlags(SolverFlags, ECalibrationFlags::UseIntrinsicGuess);
 	}
+
+	if (CVarFixExtrinsics.GetValueOnGameThread())
+	{
+		EnumAddFlags(SolverFlags, ECalibrationFlags::FixExtrinsics);
+	}
+
+	if (CVarFixZeroDistortion.GetValueOnGameThread())
+	{
+		EnumAddFlags(SolverFlags, ECalibrationFlags::FixZeroDistortion);
+	}
+
+	if (bFixFocalLength)
+	{
+		EnumAddFlags(SolverFlags, ECalibrationFlags::FixFocalLength);
+	}
+
+	if (bFixImageCenter)
+	{
+		EnumAddFlags(SolverFlags, ECalibrationFlags::FixPrincipalPoint);
+	}
+
+	const TSubclassOf<ULensModel> Model = LensFile->LensInfo.LensModel;
+	
+	UClass* SolverClass = Tool->GetSolverClass();
+
+	CalibrationTask = UE::Tasks::Launch(UE_SOURCE_LOCATION, [SolverClass, Model, Samples3d, Samples2d, ImageSize, FocalLength, ImageCenter, CameraPoses, PixelAspect, SolverFlags, Focus, Zoom]() mutable
+		{
+			ULensDistortionSolver* Solver = NewObject<ULensDistortionSolver>(GetTransientPackage(), SolverClass);
+
+			FDistortionCalibrationResult Result = Solver->Solve(
+				Samples3d,
+				Samples2d,
+				ImageSize,
+				FocalLength,
+				ImageCenter,
+				CameraPoses,
+				Model,
+				PixelAspect,
+				SolverFlags
+			);
+
+			// CalibrateCamera() returns focal length and image center in pixels, but the result is expected to be normalized by the image size
+			Result.FocalLength.FxFy = Result.FocalLength.FxFy / ImageSize;
+			Result.ImageCenter.PrincipalPoint = Result.ImageCenter.PrincipalPoint / ImageSize;
+
+			// FZ inputs to LUT
+			Result.EvaluatedFocus = Focus;
+			Result.EvaluatedZoom = Zoom;
+
+			return Result;
+		});
 
 	return CalibrationTask;
 }

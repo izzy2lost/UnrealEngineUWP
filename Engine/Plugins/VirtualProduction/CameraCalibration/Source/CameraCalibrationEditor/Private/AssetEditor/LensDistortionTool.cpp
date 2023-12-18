@@ -3,6 +3,7 @@
 #include "LensDistortionTool.h"
 
 #include "AssetToolsModule.h"
+#include "Calibrators/CameraCalibrationSolver.h"
 #include "CameraCalibrationEditorLog.h"
 #include "CameraCalibrationSettings.h"
 #include "CameraCalibrationStepsController.h"
@@ -37,6 +38,15 @@ namespace UE::CameraCalibration::Private::LensDistortionTool
 void ULensDistortionTool::Initialize(TWeakPtr<FCameraCalibrationStepsController> InCameraCalibrationStepController)
 {
 	CameraCalibrationStepsController = InCameraCalibrationStepController;
+
+	// Find available solver classes
+
+	TArray<UClass*> DerivedSolverClasses;
+	GetDerivedClasses(ULensDistortionSolver::StaticClass(), DerivedSolverClasses);
+
+	check(!DerivedSolverClasses.IsEmpty());
+
+	SetSolverClass(DerivedSolverClasses[0]);
 
 	// Find available algos
 
@@ -248,6 +258,16 @@ void ULensDistortionTool::Activate()
 void ULensDistortionTool::Deactivate()
 {
 	bIsActive = false;
+}
+
+UClass* ULensDistortionTool::GetSolverClass()
+{
+	return SolverClass;
+}
+
+void ULensDistortionTool::SetSolverClass(UClass* InSolverClass)
+{
+	SolverClass = InSolverClass;
 }
 
 void ULensDistortionTool::ResetAlgo()

@@ -38,7 +38,6 @@
 static TAutoConsoleVariable<bool> CVarFixExtrinsicsAruco(TEXT("LensDistortionAruco.FixExtrinsics"), false, TEXT("If true, the solver will fix the camera extrinsics to the user-provided camera poses"));
 static TAutoConsoleVariable<bool> CVarFixZeroDistortionAruco(TEXT("LensDistortionAruco.FixZeroDistortion"), false, TEXT("If true, the solver will fix all distortion values to always be 0"));
 static TAutoConsoleVariable<bool> CVarUseExtrinsicsGuessAruco(TEXT("LensDistortionAruco.UseExtrinsicsGuess"), false, TEXT("If true, the actual calibrator and camera poses will be used when running the solver"));
-static TAutoConsoleVariable<bool> CVarUseNeuralNetSolverAruco(TEXT("LensDistortionAruco.UseNeuralNetSolver"), false, TEXT("If true, the neural network based solver will solver for distortion and camera intrinsics. Otherwise, the traditional OpenCV solver will be used."));
 #endif
 
 const int UCameraLensDistortionAlgoAruco::DATASET_VERSION = 1;
@@ -367,101 +366,68 @@ FDistortionCalibrationTask UCameraLensDistortionAlgoAruco::BeginCalibration()
 		CameraPoses.Add(Row->CameraPose);
 	}
 
-	const bool bUseNeuralNetSolver = CVarUseNeuralNetSolverAruco.GetValueOnAnyThread();
+	ECalibrationFlags SolverFlags = ECalibrationFlags::None;
 
-	if (!bUseNeuralNetSolver)
+	// Aruco markers may be detected anywhere in the image, and there is no guarantee that they will be coplanar. 
+	// The solver's initialization for focal length assumes all points in an image are coplanar. 
+	// Therefore, we must provide an intrinsics guess to skip this initialization step in the solver. 
+	EnumAddFlags(SolverFlags, ECalibrationFlags::UseIntrinsicGuess);
+
+	if (CVarUseExtrinsicsGuessAruco.GetValueOnGameThread())
 	{
-		ECalibrationFlags SolverFlags = ECalibrationFlags::None;
-
-		// Aruco markers may be detected anywhere in the image, and there is no guarantee that they will be coplanar. 
-		// The solver's initialization for focal length assumes all points in an image are coplanar. 
-		// Therefore, we must provide an intrinsics guess to skip this initialization step in the solver. 
-		EnumAddFlags(SolverFlags, ECalibrationFlags::UseIntrinsicGuess);
-
-		if (CVarUseExtrinsicsGuessAruco.GetValueOnGameThread())
-		{
-			EnumAddFlags(SolverFlags, ECalibrationFlags::UseExtrinsicGuess);
-		}
-
-		if (CVarFixExtrinsicsAruco.GetValueOnAnyThread())
-		{
-			EnumAddFlags(SolverFlags, ECalibrationFlags::FixExtrinsics);
-		}
-
-		if (CVarFixZeroDistortionAruco.GetValueOnAnyThread())
-		{
-			EnumAddFlags(SolverFlags, ECalibrationFlags::FixZeroDistortion);
-		}
-
-		if (bFixFocalLength)
-		{
-			EnumAddFlags(SolverFlags, ECalibrationFlags::FixFocalLength);
-		}
-
-		if (bFixImageCenter)
-		{
-			EnumAddFlags(SolverFlags, ECalibrationFlags::FixPrincipalPoint);
-		}
-
-		const TSubclassOf<ULensModel> Model = LensFile->LensInfo.LensModel;
-
-		TArray<float> DistortionCoefficients;
-
-		CalibrationTask = UE::Tasks::Launch(UE_SOURCE_LOCATION, [Model, Samples3d, Samples2d, ImageSize, FocalLength, ImageCenter, CameraPoses, PixelAspect, SolverFlags, Focus, Zoom]() mutable
-			{
-				FDistortionCalibrationResult Result;
-
-				Result.ReprojectionError = FCameraCalibrationSolver::CalibrateCamera(
-					Model,
-					Samples3d,
-					Samples2d,
-					ImageSize,
-					FocalLength,
-					ImageCenter,
-					Result.Parameters.Parameters,
-					CameraPoses,
-					PixelAspect,
-					SolverFlags
-				);
-
-				// CalibrateCamera() returns focal length and image center in pixels, but the result is expected to be normalized by the image size
-				Result.FocalLength.FxFy = FocalLength / ImageSize;
-				Result.ImageCenter.PrincipalPoint = ImageCenter / ImageSize;
-
-				// FZ inputs to LUT
-				Result.EvaluatedFocus = Focus;
-				Result.EvaluatedZoom = Zoom;
-
-				return Result;
-			});
+		EnumAddFlags(SolverFlags, ECalibrationFlags::UseExtrinsicGuess);
 	}
-	else
+
+	if (CVarFixExtrinsicsAruco.GetValueOnAnyThread())
 	{
-		// ULensDistortionSolver is the base class for the python implementation of the neural network solver.
-		// The intent is for there to be only one derived class, but to be sure, the name is checked to match
-		// the derived class that is expected to be found.
-		TArray<UClass*> DerivedSolverClasses;
-		GetDerivedClasses(ULensDistortionSolver::StaticClass(), DerivedSolverClasses);
-
-		if (DerivedSolverClasses.Num() == 0)
-		{
-			UE_LOG(LogCameraCalibrationEditor, Error, TEXT("Could not initiate distortion calibration. No solver class was found."));
-			return CalibrationTask;
-		}
-
-		ULensDistortionSolver* TestSolver = Cast<ULensDistortionSolver>(DerivedSolverClasses.Last()->GetDefaultObject());
-
-		CalibrationTask = UE::Tasks::Launch(UE_SOURCE_LOCATION, [TestSolver, Samples3d, Samples2d, ImageSize, FocalLength, ImageCenter, Focus, Zoom]()
-			{
-				FDistortionCalibrationResult Result = TestSolver->Solve(Samples3d, Samples2d, ImageSize, FocalLength, ImageCenter);
-
-				// FZ inputs to LUT
-				Result.EvaluatedFocus = Focus;
-				Result.EvaluatedFocus = Zoom;
-
-				return Result;
-			});
+		EnumAddFlags(SolverFlags, ECalibrationFlags::FixExtrinsics);
 	}
+
+	if (CVarFixZeroDistortionAruco.GetValueOnAnyThread())
+	{
+		EnumAddFlags(SolverFlags, ECalibrationFlags::FixZeroDistortion);
+	}
+
+	if (bFixFocalLength)
+	{
+		EnumAddFlags(SolverFlags, ECalibrationFlags::FixFocalLength);
+	}
+
+	if (bFixImageCenter)
+	{
+		EnumAddFlags(SolverFlags, ECalibrationFlags::FixPrincipalPoint);
+	}
+
+	const TSubclassOf<ULensModel> Model = LensFile->LensInfo.LensModel;
+
+	UClass* SolverClass = LensDistortionTool->GetSolverClass();
+
+	CalibrationTask = UE::Tasks::Launch(UE_SOURCE_LOCATION, [SolverClass, Model, Samples3d, Samples2d, ImageSize, FocalLength, ImageCenter, CameraPoses, PixelAspect, SolverFlags, Focus, Zoom]() mutable
+		{
+			ULensDistortionSolver* Solver = NewObject<ULensDistortionSolver>(GetTransientPackage(), SolverClass);
+
+			FDistortionCalibrationResult Result = Solver->Solve(
+				Samples3d,
+				Samples2d,
+				ImageSize,
+				FocalLength,
+				ImageCenter,
+				CameraPoses,
+				Model,
+				PixelAspect,
+				SolverFlags
+			);
+
+			// CalibrateCamera() returns focal length and image center in pixels, but the result is expected to be normalized by the image size
+			Result.FocalLength.FxFy = Result.FocalLength.FxFy / ImageSize;
+			Result.ImageCenter.PrincipalPoint = Result.ImageCenter.PrincipalPoint / ImageSize;
+
+			// FZ inputs to LUT
+			Result.EvaluatedFocus = Focus;
+			Result.EvaluatedZoom = Zoom;
+
+			return Result;
+		});
 
 	return CalibrationTask;
 }

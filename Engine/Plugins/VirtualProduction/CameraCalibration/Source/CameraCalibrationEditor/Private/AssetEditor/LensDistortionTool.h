@@ -60,6 +60,12 @@ public:
 	virtual bool IsOverlayEnabled() const override;
 	//~ End UCameraCalibrationStep interface
 
+	/** Get the currently selected lens distortion solver class */
+	UClass* GetSolverClass();
+
+	/** Set the lens distortion solver class to use */
+	void SetSolverClass(UClass* InSolverClass);
+
 	/** Selects the algorithm by name */
 	void SetAlgo(const FName& AlgoName);
 
@@ -133,6 +139,9 @@ private:
 	/** The currently selected algorithm */
 	UPROPERTY(Transient)
 	TObjectPtr<UCameraLensDistortionAlgo> CurrentAlgo;
+
+	/** The solver class that will be used by the algos when creating a solver to calibrate for distortion */
+	TObjectPtr<UClass> SolverClass;
 
 	/** Holds the registered camera lens distortion algos */
 	UPROPERTY(Transient)
