@@ -153,7 +153,11 @@ public class Core : ModuleRules
 				PublicDefinitions.Add("UE_MEMORY_TRACE_AVAILABLE=1");
 				PublicDefinitions.Add("UE_MEMORY_TAGS_TRACE_ENABLED=1");
 				PublicDefinitions.Add("UE_CALLSTACK_TRACE_ENABLED=1");
-				PublicDefinitions.Add("UE_CALLSTACK_TRACE_ANDROID_USE_STACK_FRAMES_WALKING=1");
+				PrivateDefinitions.Add("UE_CALLSTACK_TRACE_ANDROID_USE_STACK_FRAMES_WALKING=1");
+
+				// Support for memory tracing libc.so malloc
+				PrivateIncludePaths.Add(Path.Combine(EngineDirectory, "Build", "Android", "Prebuilt", "ScudoMemoryTrace"));
+				PrivateDefinitions.Add("UE_MEMORY_TRACE_ANDROID_ENABLE_SCUDO_TRACING_SUPPORT=1");
 			}
 		}
 		else if (Target.IsInPlatformGroup(UnrealPlatformGroup.Unix))

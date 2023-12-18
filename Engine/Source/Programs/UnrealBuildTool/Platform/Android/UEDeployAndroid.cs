@@ -87,6 +87,12 @@ namespace UnrealBuildTool
 		[CommandLine("-ForceDontBundleLibrariesInAPK=")]
 		public bool? ForceDontBundleLibrariesInAPK;
 
+		/// <summary>
+		/// Adds LD_PRELOAD'ed .so to capture all malloc/free/etc calls to libc.so and route them to our memory tracing.
+		/// </summary>
+		[CommandLine("-ScudoMemoryTracing", Value = "true")]
+		public bool bEnableScudoMemoryTracing = false;
+
 		public UEDeployAndroid(FileReference? InProjectFile, bool InForcePackageData, ILogger InLogger)
 			: base(InLogger)
 		{
@@ -1558,6 +1564,57 @@ namespace UnrealBuildTool
 			}
 		}
 
+		void CopyScudoMemoryTracerLib(string UnrealBuildPath, UnrealArch UnrealArch, string NDKArch, string PackageName)
+		{
+			if (UnrealArch != UnrealArch.Arm64 && UnrealArch != UnrealArch.X64)
+			{
+				throw new BuildException("ScudoMemoryTrace not supported for arch {0}", UnrealArch.ToString());
+			}
+
+			string ScudoMemoryTraceLib = Path.Combine(Unreal.EngineDirectory.ToString(), "Build", "Android", "Prebuilt", "ScudoMemoryTrace", NDKArch, "libScudoMemoryTrace.so");
+
+			string WrapSh = Path.Combine(Unreal.EngineDirectory.ToString(), "Build", "Android", "Prebuilt", "ScudoMemoryTrace", "wrap.sh");
+
+			if (File.Exists(ScudoMemoryTraceLib) && File.Exists(WrapSh))
+			{
+				string LibDestDir = Path.Combine(UnrealBuildPath, "libs", NDKArch);
+				string LibDest = Path.Combine(LibDestDir, "libScudoMemoryTrace.so");
+				Directory.CreateDirectory(LibDestDir);
+				if (!CopyIfDifferent(ScudoMemoryTraceLib, LibDest, true, false))
+				{
+					Logger.LogInformation("{LibDest} is up to date", LibDest);
+				}
+
+				string WrapDestDir = Path.Combine(UnrealBuildPath, "resources", "lib", NDKArch);
+				Directory.CreateDirectory(WrapDestDir);
+				string WrapDestFilePath = Path.Combine(WrapDestDir, "wrap.sh");
+
+				Dictionary<string, string> Replacements = new Dictionary<string, string>
+				{
+					{ "${PACKAGE_NAME}", PackageName },
+				};
+				string WrapShText = File.ReadAllText(WrapSh);
+				foreach (KeyValuePair<string, string> KVP in Replacements)
+				{
+					WrapShText = WrapShText.Replace(KVP.Key, KVP.Value);
+				}
+
+				if (!File.Exists(WrapDestFilePath) || File.ReadAllText(WrapDestFilePath) != WrapShText)
+				{
+					Logger.LogInformation("Writing {WrapDestFilePath}", WrapDestFilePath);
+					File.WriteAllText(WrapDestFilePath, WrapShText);
+				}
+				else
+				{
+					Logger.LogInformation("{WrapDestFilePath} is up to date", WrapDestFilePath);
+				}
+			}
+			else
+			{
+				throw new BuildException("No ScudoMemoryTrace found in {0} or wrap.sh in {1}", ScudoMemoryTraceLib, WrapSh);
+			}
+		}
+
 		private static int RunCommandLineProgramAndReturnResult(string WorkingDirectory, string Command, string Params, ILogger Logger, string? OverrideDesc = null, bool bUseShellExecute = false)
 		{
 			// Process Arguments follow windows conventions in .NET Core
@@ -2720,7 +2777,7 @@ namespace UnrealBuildTool
 			Text.AppendLine("\t             android:icon=\"@drawable/icon\"");
 
 			AndroidToolChain.ClangSanitizer Sanitizer = ToolChain.BuildWithSanitizer();
-			if ((Sanitizer != AndroidToolChain.ClangSanitizer.None && Sanitizer != AndroidToolChain.ClangSanitizer.HwAddress))
+			if ((Sanitizer != AndroidToolChain.ClangSanitizer.None && Sanitizer != AndroidToolChain.ClangSanitizer.HwAddress) || bEnableScudoMemoryTracing)
 			{
 				bExtractNativeLibs = true;
 			}
@@ -3847,7 +3904,7 @@ namespace UnrealBuildTool
 			bool bExtractNativeLibs = true;
 			Ini.GetBool("/Script/AndroidRuntimeSettings.AndroidRuntimeSettings", "bExtractNativeLibs", out bExtractNativeLibs);
 			AndroidToolChain.ClangSanitizer Sanitizer = ToolChain.BuildWithSanitizer();
-			if ((Sanitizer != AndroidToolChain.ClangSanitizer.None && Sanitizer != AndroidToolChain.ClangSanitizer.HwAddress))
+			if ((Sanitizer != AndroidToolChain.ClangSanitizer.None && Sanitizer != AndroidToolChain.ClangSanitizer.HwAddress) || bEnableScudoMemoryTracing)
 			{
 				bExtractNativeLibs = true;
 			}
@@ -4151,6 +4208,10 @@ namespace UnrealBuildTool
 			if (Sanitizer != AndroidToolChain.ClangSanitizer.None && Sanitizer != AndroidToolChain.ClangSanitizer.HwAddress)
 			{
 				BuildTypeID += Sanitizer.ToString() + "Sanitizer";
+			}
+			else if (bEnableScudoMemoryTracing)
+			{
+				BuildTypeID += Sanitizer.ToString() + "ScudoMemoryTrace";
 			}
 			if (File.Exists(BuildTypeFilename))
 			{
@@ -4961,6 +5022,15 @@ popd
 				if (Sanitizer != AndroidToolChain.ClangSanitizer.None)
 				{
 					CopyClangSanitizerLib(UnrealBuildPath, Arch, NDKArch, Sanitizer);
+
+					if (bEnableScudoMemoryTracing)
+					{
+						throw new BuildException("ScudoMemoryTrace not supported with sanitizer enabled");
+					}
+				}
+				else if (bEnableScudoMemoryTracing)
+				{
+					CopyScudoMemoryTracerLib(UnrealBuildPath, Arch, NDKArch, PackageName);
 				}
 
 				// copy postbuild plugin files
@@ -5023,7 +5093,7 @@ popd
 
 				CleanCopyDirectory(Path.Combine(UnrealBuildPath, "jni"), Path.Combine(UnrealBuildGradleMainPath, "jniLibs"), Excludes);  // has debug symbols
 				CleanCopyDirectory(Path.Combine(UnrealBuildPath, "libs"), Path.Combine(UnrealBuildGradleMainPath, "libs"), Excludes);
-				if (Sanitizer != AndroidToolChain.ClangSanitizer.None && Sanitizer != AndroidToolChain.ClangSanitizer.HwAddress)
+				if ((Sanitizer != AndroidToolChain.ClangSanitizer.None && Sanitizer != AndroidToolChain.ClangSanitizer.HwAddress) || bEnableScudoMemoryTracing)
 				{
 					CleanCopyDirectory(Path.Combine(UnrealBuildPath, "resources"), Path.Combine(UnrealBuildGradleMainPath, "resources"), Excludes);
 				}

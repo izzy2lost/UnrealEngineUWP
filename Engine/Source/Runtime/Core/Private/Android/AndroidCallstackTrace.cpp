@@ -1,5 +1,6 @@
 ﻿// Copyright Epic Games, Inc. All Rights Reserved.
 
+#include "AndroidCallstackTrace.h"
 #include "ProfilingDebugging/CallstackTrace.h"
 
 #if UE_CALLSTACK_TRACE_ENABLED
@@ -20,6 +21,7 @@ public:
 	FBacktracer(FMalloc* InMalloc);
 	~FBacktracer();
 	static FBacktracer*	Get();
+	FORCEINLINE uint32 GetBacktraceId(uint64* StackFrames, uint32 NumStackFrames);
 	FORCEINLINE uint32 GetBacktraceId(void* ReturnAddress);
 
 private:
@@ -51,7 +53,37 @@ FBacktracer* FBacktracer::Get()
 }
 
 ////////////////////////////////////////////////////////////////////////////////
+FORCEINLINE uint32 FBacktracer::GetBacktraceId(uint64* StackFrames, uint32 NumStackFrames)
+{
+#if !UE_BUILD_SHIPPING
+	if (NumStackFrames == 0)
+	{
+		return 0;
+	}
 
+	FCallstackTracer::FBacktraceEntry BacktraceEntry;
+	uint64 BacktraceId = 0;
+	for (int32 Index = 0; Index < NumStackFrames; Index++)
+	{
+		// This is a simple order-dependent LCG. Should be sufficient enough
+		BacktraceId += StackFrames[Index];
+		BacktraceId *= 0x30be8efa499c249dull;
+	}
+
+	// Save the collected id
+	BacktraceEntry.Hash = BacktraceId;
+	BacktraceEntry.FrameCount = NumStackFrames;
+	BacktraceEntry.Frames = StackFrames;
+
+	// Add to queue to be processed. This might block until there is room in the
+	// queue (i.e. the processing thread has caught up processing).
+	return CallstackTracer.AddCallstack(BacktraceEntry);
+#endif
+
+	return 0;
+}
+
+////////////////////////////////////////////////////////////////////////////////
 FORCEINLINE uint32 FBacktracer::GetBacktraceId(void* ReturnAddress)
 {
 #if !UE_BUILD_SHIPPING
@@ -65,39 +97,18 @@ FORCEINLINE uint32 FBacktracer::GetBacktraceId(void* ReturnAddress)
 
 	if (NumStackFrames > 0)
 	{
-		FCallstackTracer::FBacktraceEntry BacktraceEntry;
-		uint64 BacktraceId = 0;
-		uint32 FrameIdx = 0;
-		bool bUseAddress = false;
+		// Skip until we find ReturnAddress in the stack, otherwise start from the beginning.
+		uint32 StartFromIndex = 0;
 		for (int32 Index = 0; Index < NumStackFrames; Index++)
 		{
-			if (!bUseAddress)
+			if (StackFrames[Index] == (uint64)ReturnAddress)
 			{
-				// start using backtrace only after ReturnAddress
-				if (StackFrames[Index] == (uint64)ReturnAddress)
-				{
-					bUseAddress = true;
-				}
-			}
-			if (bUseAddress || NumStackFrames == 1)
-			{
-				uint64 RetAddr = StackFrames[Index];
-				StackFrames[FrameIdx++] = RetAddr;
-
-				// This is a simple order-dependent LCG. Should be sufficient enough
-				BacktraceId += RetAddr;
-				BacktraceId *= 0x30be8efa499c249dull;
+				StartFromIndex = Index;
+				break;
 			}
 		}
 
-		// Save the collected id
-		BacktraceEntry.Hash = BacktraceId;
-		BacktraceEntry.FrameCount = FrameIdx;
-		BacktraceEntry.Frames = StackFrames;
-
-		// Add to queue to be processed. This might block until there is room in the
-		// queue (i.e. the processing thread has caught up processing).
-		return CallstackTracer.AddCallstack(BacktraceEntry);
+		return GetBacktraceId(StackFrames + StartFromIndex, NumStackFrames - StartFromIndex);
 	}
 #endif
 
@@ -138,6 +149,17 @@ uint32 CallstackTrace_GetCurrentId()
 	if (FBacktracer* Instance = FBacktracer::Get())
 	{
 		return Instance->GetBacktraceId(ReturnAddress);
+	}
+
+	return 0;
+}
+
+////////////////////////////////////////////////////////////////////////////////
+uint32 CallstackTrace_GetExternalCallstackId(uint64* Frames, uint32 Count)
+{
+	if (FBacktracer* Instance = FBacktracer::Get())
+	{
+		return Instance->GetBacktraceId(Frames, Count);
 	}
 
 	return 0;

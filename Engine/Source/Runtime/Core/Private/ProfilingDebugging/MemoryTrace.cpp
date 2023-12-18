@@ -430,7 +430,7 @@ void MemoryTrace_UpdateInternal()
 }
 
 ////////////////////////////////////////////////////////////////////////////////
-void MemoryTrace_Alloc(uint64 Address, uint64 Size, uint32 Alignment, HeapId RootHeap)
+void MemoryTrace_Alloc(uint64 Address, uint64 Size, uint32 Alignment, HeapId RootHeap, uint32 ExternalCallstackId)
 {
 	if (!GTraceAllowed)
 	{
@@ -441,7 +441,7 @@ void MemoryTrace_Alloc(uint64 Address, uint64 Size, uint32 Alignment, HeapId Roo
 
 	const uint32 AlignmentPow2 = uint32(FPlatformMath::CountTrailingZeros(Alignment));
 	const uint32 Alignment_SizeLower = (AlignmentPow2 << SizeShift) | uint32(Size & ((1 << SizeShift) - 1));
-	const uint32 CallstackId = GDoNotAllocateInTrace ? 0 : CallstackTrace_GetCurrentId();
+	const uint32 CallstackId = ExternalCallstackId ? ExternalCallstackId : GDoNotAllocateInTrace ? 0 : CallstackTrace_GetCurrentId();
 
 	switch (RootHeap)
 	{
@@ -481,7 +481,7 @@ void MemoryTrace_Alloc(uint64 Address, uint64 Size, uint32 Alignment, HeapId Roo
 }
 
 ////////////////////////////////////////////////////////////////////////////////
-void MemoryTrace_Free(uint64 Address, HeapId RootHeap)
+void MemoryTrace_Free(uint64 Address, HeapId RootHeap, uint32 ExternalCallstackId)
 {
 	if (!GTraceAllowed)
 	{
@@ -490,7 +490,7 @@ void MemoryTrace_Free(uint64 Address, HeapId RootHeap)
 
 	checkSlow(RootHeap < 16);
 
-	const uint32 CallstackId = GDoNotAllocateInTrace ? 0 : CallstackTrace_GetCurrentId();
+	const uint32 CallstackId = ExternalCallstackId ? ExternalCallstackId : GDoNotAllocateInTrace ? 0 : CallstackTrace_GetCurrentId();
 
 	switch (RootHeap)
 	{
@@ -522,7 +522,7 @@ void MemoryTrace_Free(uint64 Address, HeapId RootHeap)
 }
 
 ////////////////////////////////////////////////////////////////////////////////
-void MemoryTrace_ReallocAlloc(uint64 Address, uint64 Size, uint32 Alignment, HeapId RootHeap)
+void MemoryTrace_ReallocAlloc(uint64 Address, uint64 Size, uint32 Alignment, HeapId RootHeap, uint32 ExternalCallstackId)
 {
 	if (!GTraceAllowed)
 	{
@@ -533,7 +533,7 @@ void MemoryTrace_ReallocAlloc(uint64 Address, uint64 Size, uint32 Alignment, Hea
 
 	const uint32 AlignmentPow2 = uint32(FPlatformMath::CountTrailingZeros(Alignment));
 	const uint32 Alignment_SizeLower = (AlignmentPow2 << SizeShift) | uint32(Size & ((1 << SizeShift) - 1));
-	const uint32 CallstackId = GDoNotAllocateInTrace ? 0 : CallstackTrace_GetCurrentId();
+	const uint32 CallstackId = ExternalCallstackId ? ExternalCallstackId : GDoNotAllocateInTrace ? 0 : CallstackTrace_GetCurrentId();
 
 	switch (RootHeap)
 	{
@@ -563,7 +563,7 @@ void MemoryTrace_ReallocAlloc(uint64 Address, uint64 Size, uint32 Alignment, Hea
 }
 
 ////////////////////////////////////////////////////////////////////////////////
-void MemoryTrace_ReallocFree(uint64 Address, HeapId RootHeap)
+void MemoryTrace_ReallocFree(uint64 Address, HeapId RootHeap, uint32 ExternalCallstackId)
 {
 	if (!GTraceAllowed)
 	{
@@ -572,7 +572,7 @@ void MemoryTrace_ReallocFree(uint64 Address, HeapId RootHeap)
 
 	checkSlow(RootHeap < 16);
 
-	const uint32 CallstackId = GDoNotAllocateInTrace ? 0 : CallstackTrace_GetCurrentId();
+	const uint32 CallstackId = ExternalCallstackId ? ExternalCallstackId : GDoNotAllocateInTrace ? 0 : CallstackTrace_GetCurrentId();
 
 	switch (RootHeap)
 	{
@@ -645,14 +645,14 @@ HeapId MemoryTrace_RootHeapSpec(const TCHAR* Name, EMemoryTraceHeapFlags Flags)
 }
 
 ////////////////////////////////////////////////////////////////////////////////
-void MemoryTrace_MarkAllocAsHeap(uint64 Address, HeapId Heap, EMemoryTraceHeapAllocationFlags Flags)
+void MemoryTrace_MarkAllocAsHeap(uint64 Address, HeapId Heap, EMemoryTraceHeapAllocationFlags Flags, uint32 ExternalCallstackId)
 {
 	if (!GTraceAllowed)
 	{
 		return;
 	}
 
-	const uint32 CallstackId = GDoNotAllocateInTrace ? 0 : CallstackTrace_GetCurrentId();
+	const uint32 CallstackId = ExternalCallstackId ? ExternalCallstackId : GDoNotAllocateInTrace ? 0 : CallstackTrace_GetCurrentId();
 
 	UE_TRACE_LOG(Memory, HeapMarkAlloc, MemAllocChannel)
 		<< HeapMarkAlloc.Address(uint64(Address))
@@ -662,14 +662,14 @@ void MemoryTrace_MarkAllocAsHeap(uint64 Address, HeapId Heap, EMemoryTraceHeapAl
 }
 
 ////////////////////////////////////////////////////////////////////////////////
-void MemoryTrace_UnmarkAllocAsHeap(uint64 Address, HeapId Heap)
+void MemoryTrace_UnmarkAllocAsHeap(uint64 Address, HeapId Heap, uint32 ExternalCallstackId)
 {
 	if (!GTraceAllowed)
 	{
 		return;
 	}
 
-	const uint32 CallstackId = GDoNotAllocateInTrace ? 0 : CallstackTrace_GetCurrentId();
+	const uint32 CallstackId = ExternalCallstackId ? ExternalCallstackId : GDoNotAllocateInTrace ? 0 : CallstackTrace_GetCurrentId();
 
 	// Sets all flags to zero
 	UE_TRACE_LOG(Memory, HeapUnmarkAlloc, MemAllocChannel)

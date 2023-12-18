@@ -48,6 +48,7 @@
 
 #include "Android/AndroidPlatformStackWalk.h"
 #include "Android/AndroidSignals.h"
+#include "AndroidScudoMemoryTrace.h"
 
 #include "Misc/OutputDevice.h"
 #include "Logging/LogMacros.h"
@@ -589,8 +590,9 @@ void FAndroidMisc::PlatformInit()
 	AndroidThunkJava_AddNetworkListener();
 #endif
 
-
 	InitCpuThermalSensor();
+
+	AndroidScudoMemoryTrace::Init();
 }
 
 extern void AndroidThunkCpp_DismissSplashScreen();
