@@ -733,10 +733,13 @@ FCollectionCycleRequest FHeap::RequestCollectionCycle(uint64 DesiredRequestCompl
 
 void FHeap::LiveBytesTriggerCallback()
 {
-	UE_LOG(LogVerseGC, Verbose, TEXT("Trigger callback called with live bytes %zu, trigger %zu"),
-		verse_heap_live_bytes,
-		verse_heap_live_bytes_trigger_threshold);
-	StartCollectingIfNotCollecting();
+	if (!bIsExternallyControlled)
+	{
+		UE_LOG(LogVerseGC, Verbose, TEXT("Trigger callback called with live bytes %zu, trigger %zu"),
+			verse_heap_live_bytes,
+			verse_heap_live_bytes_trigger_threshold);
+		StartCollectingIfNotCollecting();
+	}
 }
 
 void FHeap::CensusCallback(void* Object, void* Arg)
@@ -757,7 +760,10 @@ void FHeap::EnableExternalControl(FIOContext Context)
 	TUniqueLock Lock(Mutex);
 	V_DIE_IF(bIsExternallyControlled);
 	NormalizeWithoutThreadingAtCollectionStart();
-	while (bIsMarking)
+	// Spin on the cycle version to allow for calls to IsGCStartPendingExternalSignal to
+	// provide reliable results after enabling.  Spinning on bIsMarking results in a small
+	// window of time where bIsMarking goes false prior to the cycle count updating.
+	while (RequestedCycleVersion > CompletedCycleVersion)
 	{
 		ConditionVariable.Wait(Mutex);
 	}

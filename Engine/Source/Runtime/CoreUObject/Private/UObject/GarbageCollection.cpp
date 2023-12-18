@@ -3750,6 +3750,7 @@ namespace UE::GC
 {
 #if WITH_VERSE_VM || defined(__INTELLISENSE__)
 bool GIsFrankenGCCollecting = false;
+static bool bInFrankenGCStartStop = false; // This just tracks if we are in a StartVersGC/StopVerseGC call pair
 static bool bFrankenGCEnabled = false;
 static Verse::FCollectionCycleRequest VerseCycleRequest;
 
@@ -3764,6 +3765,8 @@ static bool UpdateFrankenGCMode()
 			Verse::FIOContext::Create([](Verse::FIOContext Context) {
 				Verse::FHeap::EnableExternalControl(Context);
 				});
+			// If this trips, then the collection thread was still active after external control was enabled
+			ensure(!Verse::FHeap::IsGCStartPendingExternalSignal());
 		}
 		else
 		{
@@ -3781,9 +3784,13 @@ void EnableFrankenGCMode(bool bEnable)
 
 static FORCEINLINE void StartVerseGC()
 {
+	ensure(!bInFrankenGCStartStop && !GIsFrankenGCCollecting);
+	bInFrankenGCStartStop = true;
 	GIsFrankenGCCollecting = UpdateFrankenGCMode();
 	if (GIsFrankenGCCollecting)
 	{
+		// If this triggers, then someone is kicking off a Verse GC outside of FrankenGC which is a problem
+		ensure(!Verse::FHeap::IsGCStartPendingExternalSignal());
 		Verse::FIOContext::Create([](Verse::FIOContext Context) { 
 			Verse::FHeap::ExternallySynchronouslyStartGC(Context);
 			VerseCycleRequest = Verse::FHeap::StartCollectingIfNotCollecting();
@@ -3793,6 +3800,8 @@ static FORCEINLINE void StartVerseGC()
 
 static FORCEINLINE void StopVerseGC()
 {
+	ensure(bInFrankenGCStartStop);
+	bInFrankenGCStartStop = false;
 	if (GIsFrankenGCCollecting)
 	{
 		GIsFrankenGCCollecting = false;
@@ -3800,6 +3809,8 @@ static FORCEINLINE void StopVerseGC()
 			Verse::FHeap::ExternallySynchronouslyTerminateGC(Context);
 			VerseCycleRequest.Wait(Context);
 		});
+		// If this trips, then something went wrong with waiting for the previous cycle to complete.
+		ensure(!Verse::FHeap::IsGCStartPendingExternalSignal());
 	}
 }
 #else
