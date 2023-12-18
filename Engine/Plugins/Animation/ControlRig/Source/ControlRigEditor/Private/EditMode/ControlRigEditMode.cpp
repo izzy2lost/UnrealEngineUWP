@@ -5108,6 +5108,7 @@ void FControlRigEditMode::DestroyShapesActors(UControlRig* ControlRig)
 				UWorld* World = ShapeActor->GetWorld();
 				if (World)
 				{
+					ShapeActor->UnregisterAllComponents();
 					if (ShapeActor->GetAttachParentActor())
 					{
 						ShapeActor->DetachFromActor(FDetachmentTransformRules::KeepRelativeTransform);
