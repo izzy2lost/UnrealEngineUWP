@@ -131,10 +131,16 @@ namespace uba
 			shmFd = shm_open(uidName.data, oflags, S_IRUSR | S_IWUSR);
 			if (shmFd != -1)
 				break;
+
+			shm_unlink(uidName.data);
+			shmFd = shm_open(uidName.data, oflags, S_IRUSR | S_IWUSR);
+			if (shmFd != -1)
+				break;
+
 			remove(lockFile.data);
 			close(lockFd);
 			SetLastError(errno);
-			UBA_ASSERTF(false, "This should not happen.. someone created shm %s without lock-file %s (%s)", uidName.data, lockFile.data, strerror(errno));
+			UBA_ASSERTF(false, "Failed to create shm %s after getting lock-file %s (%s)", uidName.data, lockFile.data, strerror(errno));
 			return {};
 		}
 
