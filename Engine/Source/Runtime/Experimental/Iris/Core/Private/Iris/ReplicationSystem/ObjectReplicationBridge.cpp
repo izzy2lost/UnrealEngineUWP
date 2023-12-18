@@ -1973,13 +1973,13 @@ void UObjectReplicationBridge::OnErrorWithNetRefHandleReported(uint32 ErrorType,
 	// Ensure at the end so the log contains all the relevant information
 	ON_SCOPE_EXIT
 	{
-		ensureMsgf(false, TEXT("NetRefHandle error(%u) reported. Look at the log for important information on the object tied to the handle."), ErrorType);
+		ensureMsgf(false, TEXT("NetRefHandle error: %u reported. Look at the log for important information on the object tied to the handle."), ErrorType);
 	};
 
 	const FInternalNetRefIndex ObjectInternalIndex = NetRefHandleManager->GetInternalIndex(RefHandle);
 	if (ObjectInternalIndex == FNetRefHandleManager::InvalidInternalIndex)
 	{
-		UE_LOG(LogIris, Warning, TEXT("OnErrorWithNetRefHandleReported(%u) from Connection:%u for %s but object has no InternalIndex."), ErrorType, ConnectionId, *RefHandle.ToString());
+		UE_LOG(LogIris, Warning, TEXT("OnErrorWithNetRefHandleReported: %u from Connection:%u for %s but object has no InternalIndex."), ErrorType, ConnectionId, *RefHandle.ToString());
 		return;
 	}
 
@@ -1991,17 +1991,17 @@ void UObjectReplicationBridge::OnErrorWithNetRefHandleReported(uint32 ErrorType,
 		UObject* RootObjInstance = NetRefHandleManager->GetReplicatedObjectInstance(ObjData.SubObjectRootIndex);
 		const FNetRefHandle RootObjNetHandle = NetRefHandleManager->GetNetRefHandleFromInternalIndex(ObjData.SubObjectRootIndex);
 		
-		UE_LOG(LogIris, Error, TEXT("OnErrorWithNetRefHandleReported(%u) from client:%u. %s maps to SubObject: %s owned by RootObject: %s using %s"), 
+		UE_LOG(LogIris, Error, TEXT("OnErrorWithNetRefHandleReported: %u from client:%u. %s maps to SubObject: %s owned by RootObject: %s using %s"), 
 			ErrorType, ConnectionId, 
-			*RefHandle.ToString(), *GetNameSafe(ObjInstance),
+			*RefHandle.ToString(), *GetPathNameSafe(ObjInstance),
 			*GetNameSafe(RootObjInstance), *RootObjNetHandle.ToString()
 		);
 	}
 	else
 	{
-		UE_LOG(LogIris, Error, TEXT("OnErrorWithNetRefHandleReported(%u) from client:%u. %s maps to RootObject: %s"), 
+		UE_LOG(LogIris, Error, TEXT("OnErrorWithNetRefHandleReported: %u from client:%u. %s maps to RootObject: %s"), 
 			ErrorType, ConnectionId, 
-			*RefHandle.ToString(), *GetNameSafe(ObjInstance)
+			*RefHandle.ToString(), *GetPathNameSafe(ObjInstance)
 		);
 	}
 }

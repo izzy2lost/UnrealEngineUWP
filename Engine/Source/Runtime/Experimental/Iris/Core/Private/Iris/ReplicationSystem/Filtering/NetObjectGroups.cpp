@@ -4,15 +4,16 @@
 #include "Math/UnrealMathUtility.h"
 #include "Iris/Core/IrisLog.h"
 #include "Iris/ReplicationSystem/Filtering/NetObjectFilter.h"
-#include "Iris/ReplicationSystem/NetRefHandleManager.h" // for InvalidInternalIndex
+#include "Iris/ReplicationSystem/NetRefHandleManager.h"
 #include "Containers/ArrayView.h"
+
+DEFINE_LOG_CATEGORY_STATIC(LogIrisGroup, Log, All)
 
 namespace UE::Net::Private
 {
 
 FNetObjectGroups::FNetObjectGroups()
-: MaxGroupCount(0U)
-, CurrentEpoch(++NextEpoch)
+: CurrentEpoch(++NextEpoch)
 {
 }
 
@@ -73,6 +74,8 @@ void FNetObjectGroups::ResetGroupMembership(FNetObjectGroupMembership& Target)
 
 void FNetObjectGroups::Init(const FNetObjectGroupInitParams& Params)
 {
+	NetRefHandleManager = Params.NetRefHandleManager;
+
 	ensureMsgf(Params.MaxGroupCount < std::numeric_limits<FNetObjectGroupHandle::FGroupIndexType>::max(), TEXT("MaxGroupCount cannot exceed %u"), std::numeric_limits<FNetObjectGroupHandle::FGroupIndexType>::max());
 	MaxGroupCount = FMath::Clamp<uint32>(Params.MaxGroupCount, 0U, std::numeric_limits<FNetObjectGroupHandle::FGroupIndexType>::max());
 
@@ -226,6 +229,9 @@ void FNetObjectGroups::AddToGroup(FNetObjectGroupHandle GroupHandle, FInternalNe
 	FNetObjectGroup* Group = GetGroup(GroupHandle);
 	if (InternalIndex != FNetRefHandleManager::InvalidInternalIndex && Group)
 	{
+		UE_LOG(LogIrisGroup, Verbose, TEXT("FNetObjectGroups::AddToGroup Adding %s to Group %s (GroupIndex: %u)"),
+			*NetRefHandleManager->PrintObjectFromIndex(InternalIndex), *GetGroupName(GroupHandle).ToString(), GroupHandle.GetGroupIndex());
+
 		if (AddGroupMembership(GroupMemberships[InternalIndex], GroupHandle))
 		{
 			Group->Members.AddUnique(InternalIndex);
@@ -237,7 +243,8 @@ void FNetObjectGroups::AddToGroup(FNetObjectGroupHandle GroupHandle, FInternalNe
 		}
 		else
 		{
-			UE_LOG(LogIris, Error, TEXT("FNetObjectGroups::AddToGroup, Failed to add ( InternalIndex: %u ) to Group %s (GroupIndex: %u) A NetObject can only be a member of %u groups."), InternalIndex, *GetGroupName(GroupHandle).ToString(), GroupHandle.GetRawValue(), FNetObjectGroupMembership::MaxAssignedGroupCount);
+			UE_LOG(LogIrisGroup, Error, TEXT("FNetObjectGroups::AddToGroup Failed to add %s to Group %s (GroupIndex: %u) A NetObject can only be a member of %u groups."),
+				*NetRefHandleManager->PrintObjectFromIndex(InternalIndex), *GetGroupName(GroupHandle).ToString(), GroupHandle.GetGroupIndex(), FNetObjectGroupMembership::MaxAssignedGroupCount);
 			ensure(false);
 		}
 	}
@@ -248,6 +255,9 @@ void FNetObjectGroups::RemoveFromGroup(FNetObjectGroupHandle GroupHandle, FInter
 	FNetObjectGroup* Group = GetGroup(GroupHandle);
 	if (InternalIndex != FNetRefHandleManager::InvalidInternalIndex && Group)
 	{
+		UE_LOG(LogIrisGroup, Verbose, TEXT("FNetObjectGroups::RemoveFromGroup Removing %s from Group %s (GroupIndex: %u)"),
+			*NetRefHandleManager->PrintObjectFromIndex(InternalIndex), *GetGroupName(GroupHandle).ToString(), GroupHandle.GetGroupIndex());
+
 		FNetObjectGroupMembership& GroupMembership = GroupMemberships[InternalIndex];
 		checkSlow(IsMemberOf(GroupMembership, GroupHandle));
 
@@ -268,6 +278,8 @@ void FNetObjectGroups::AddExclusionFilterTrait(FNetObjectGroupHandle GroupHandle
 	{
 		if (!IsFilterGroup(*Group))
 		{
+			UE_LOG(LogIrisGroup, Verbose, TEXT("FNetObjectGroups::AddExclusionFilterTrait to Group %s (GroupIndex: %u)"), *GetGroupName(GroupHandle).ToString(), GroupHandle.GetGroupIndex());
+
 			Group->Traits |= ENetObjectGroupTraits::IsExclusionFiltering;
 
 			// Flag all current members of this group that they are now filterable
@@ -291,6 +303,8 @@ void FNetObjectGroups::RemoveExclusionFilterTrait(FNetObjectGroupHandle GroupHan
 	{
 		return;
 	}
+
+	UE_LOG(LogIrisGroup, Verbose, TEXT("FNetObjectGroups::RemoveExclusionFilterTrait to Group %s (GroupIndex: %u)"), *GetGroupName(GroupHandle).ToString(), GroupHandle.GetGroupIndex());
 
 	Group->Traits &= ~(ENetObjectGroupTraits::IsExclusionFiltering);
 

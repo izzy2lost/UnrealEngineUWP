@@ -122,6 +122,7 @@ public:
 		FNetObjectGroups& Groups = ReplicationSystemInternal.GetGroups();
 		{
 			FNetObjectGroupInitParams InitParams = {};
+			InitParams.NetRefHandleManager = &NetRefHandleManager;
 			InitParams.MaxObjectCount = MaxObjectCount;
 			InitParams.MaxGroupCount = Params.MaxNetObjectGroupCount;
 

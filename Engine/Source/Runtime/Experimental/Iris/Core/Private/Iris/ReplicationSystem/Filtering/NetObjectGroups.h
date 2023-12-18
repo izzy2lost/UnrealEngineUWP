@@ -15,6 +15,8 @@ namespace UE::Net
 	namespace Private
 	{
 		typedef uint32 FInternalNetRefIndex;
+
+		class FNetRefHandleManager;
 	}
 }
 
@@ -40,8 +42,9 @@ struct FNetObjectGroup
 
 struct FNetObjectGroupInitParams
 {
-	uint32 MaxObjectCount;
-	uint32 MaxGroupCount;
+	FNetRefHandleManager* NetRefHandleManager = nullptr;
+	uint32 MaxObjectCount = 0;
+	uint32 MaxGroupCount = 0;
 };
 
 class FNetObjectGroups
@@ -54,6 +57,7 @@ public:
 
 	void Init(const FNetObjectGroupInitParams& Params);
 
+	//$IRIS TODO: Groups should have a mandatory unique name. Otherwise it's impossible to debug issues with groups.
 	FNetObjectGroupHandle CreateGroup();
 	void DestroyGroup(FNetObjectGroupHandle GroupHandle);
 	void ClearGroup(FNetObjectGroupHandle GroupHandle);
@@ -133,12 +137,16 @@ private:
 
 	bool IsInAnyFilterGroup(const FNetObjectGroupMembership& GroupMembership) const;
 
+private:
+
+	FNetRefHandleManager* NetRefHandleManager = nullptr;
+
 	// Group usage pattern should not be high frequency so memory layout should not be a major concern
 	TSparseArray<FNetObjectGroup> Groups;
 
 	// Track what groups each internal handle is a member of, we can tighten this up a bit if needed
 	TArray<FNetObjectGroupMembership> GroupMemberships;
-	uint32 MaxGroupCount;
+	uint32 MaxGroupCount = 0U;
 
 	// List of objects that are members of a group with a filter trait
 	FNetBitArray GroupFilteredOutObjects;

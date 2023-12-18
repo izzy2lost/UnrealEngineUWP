@@ -2269,12 +2269,15 @@ EMemberPropertyTraits FPropertyReplicationStateDescriptorBuilder::GetFastArrayPr
 			else if (Struct->IsChildOf(FFastArraySerializerItem::StaticStruct()))
 			{
 				// Invalidate FastArrayItem if it has a custom NetSerializer which we currently do not support, the workaround is to wrap the struct with the custom netserializer in a struct
-				if (ensureMsgf(!IsStructWithCustomSerializer(Struct), 
-					TEXT("FPropertyReplicationStateDescriptorBuilder Iris does not support custom NetSerializers for FastArrayItems %s, if required use a property in the struct wrapping the custom NetSerializer"), *Struct->GetName())
-				)
+				if (IsStructWithCustomSerializer(Struct))
 				{
-					return EMemberPropertyTraits::IsFastArrayItem;
+					UE_LOG(LogIris, Error, TEXT("FPropertyReplicationStateDescriptorBuilder found unsupported custom NetSerializers for FastArrayItems %s"), *Struct->GetName());
+					ensureMsgf(false, TEXT("FPropertyReplicationStateDescriptorBuilder Iris does not support custom NetSerializers for FastArrayItems %s, if required use a property in the struct wrapping the custom NetSerializer"), *Struct->GetName());
+
+					return EMemberPropertyTraits::None;
 				}
+
+				return EMemberPropertyTraits::IsFastArrayItem;
 			}
 		}
 	}
@@ -2669,6 +2672,7 @@ SIZE_T FReplicationStateDescriptorBuilder::CreateDescriptorsForClass(FResult& Cr
 				else if (EnumHasAnyFlags(MemberProperty.Traits, EMemberPropertyTraits::IsFastArray))
 				{
 					// FastArrayProperties should use a custom replication fragment
+					UE_LOG(LogIris, Error, TEXT("FReplicationStateDescriptorBuilder::CreateDescriptorsForClass FFastArray property %s not registered and won't be replicated."), *Property->GetFullName());
 					ensureMsgf(false, TEXT("FReplicationStateDescriptorBuilder::CreateDescriptorsForClass FFastArray property %s not registered! Usually this means a call to SetupIrisSupport is needed in the module's Build.cs file."), *Property->GetFullName());
 					continue;
 				}

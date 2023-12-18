@@ -157,17 +157,8 @@ const FReplicationInstanceProtocol* FNetRefHandleManager::DetachInstanceProtocol
 		const bool bDetachedInstancedIsPendingEndReplication = ReplicatedObjectData[InternalIndex].bPendingEndReplication == 1U;
 		if (!bDetachedInstancedIsPendingEndReplication)
 		{
-			ensureMsgf(false, TEXT("DetachInstanceProtocol for %s (%s) from client"), *Data.RefHandle.ToString(), Data.Protocol->DebugName->Name);
-
-			if (Data.SubObjectRootIndex != InvalidInternalIndex)
-			{
-				FReplicatedObjectData& RootObjectData = ReplicatedObjectData[Data.SubObjectRootIndex];
-				UE_LOG(LogIris, Warning, TEXT("FNetRefHandleManager::DetachInstanceProtocol - DetachInstanceProtocol %s (%s Root:%s) from client"), *Data.RefHandle.ToString(), Data.Protocol->DebugName->Name, RootObjectData.Protocol->DebugName->Name);
-			}
-			else
-			{
-				UE_LOG(LogIris, Warning, TEXT("FNetRefHandleManager::DetachInstanceProtocol - DetachInstanceProtocol %s (%s) from client"), *Data.RefHandle.ToString(), Data.Protocol->DebugName->Name);
-			}
+			UE_LOG(LogIris, Warning, TEXT("FNetRefHandleManager::DetachInstanceProtocol - DetachInstanceProtocol %s %s (%s) from client"), *PrintObjectFromIndex(InternalIndex),*Data.RefHandle.ToString(), Data.Protocol->DebugName->Name);
+			ensureMsgf(false, TEXT("DetachInstanceProtocol for %s %s (%s) from client"), *PrintObjectFromIndex(InternalIndex),*Data.RefHandle.ToString(), Data.Protocol->DebugName->Name);
 		}
 		
 		Data.InstanceProtocol = nullptr;
@@ -834,4 +825,29 @@ void FNetRefHandleManager::OnPostSendUpdate()
 	ScopeFrameData.bIsValid = false;
 }
 
+FString FNetRefHandleManager::PrintObjectFromIndex(FInternalNetRefIndex ObjectIndex) const
+{
+	if (ObjectIndex != InvalidInternalIndex)
+	{
+		const FNetRefHandle NetRefHandle = GetNetRefHandleFromInternalIndex(ObjectIndex);
+		const FReplicatedObjectData& ObjectData = GetReplicatedObjectDataNoCheck(ObjectIndex);
+
+		if (ObjectData.SubObjectRootIndex == InvalidInternalIndex)
+		{
+			return FString::Printf(TEXT("RootObject %s (InternalIndex: %u) (%s)"), *GetNameSafe(ReplicatedInstances[ObjectIndex]), ObjectIndex, *NetRefHandle.ToString());
+		}
+		else
+		{
+			const FNetRefHandle RootNetRefHandle = GetNetRefHandleFromInternalIndex(ObjectData.SubObjectRootIndex);
+			return FString::Printf(TEXT("SubObject %s (InternalIndex: %u) (%s) tied to RootObject %s (InternalIndex: %u) (%s)"), 
+								*GetNameSafe(ReplicatedInstances[ObjectIndex]), ObjectIndex, *NetRefHandle.ToString(),
+								*GetNameSafe(ReplicatedInstances[ObjectData.SubObjectRootIndex]), ObjectData.SubObjectRootIndex, *RootNetRefHandle.ToString());
+		}
+	}
+	else
+	{
+		return FString(TEXT("InvalidObject (InternalIndex: Invalid)"));
+	}
 }
+
+} // end namespace UE::Net::Private

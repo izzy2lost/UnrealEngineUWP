@@ -265,11 +265,13 @@ public:
 	// Get child subobjects and condtionals array if one exists, if there are no child subobjects the method returns false
 	inline bool GetChildSubObjects(FInternalNetRefIndex OwnerIndex, FChildSubObjectsInfo& OutInfo) const;
 
+	/** Get the map that translates RefHandles into InternalIndexes */
 	const FRefHandleMap& GetReplicatedHandles() const { return RefHandleToInternalIndex; }
 
 	// Get the replicated object represented by a given internal index.
 	UObject* GetReplicatedObjectInstance(FInternalNetRefIndex ObjectIndex) const { return ReplicatedInstances[ObjectIndex]; }
 
+	/** Get the array of all held object pointers */
 	const TArray<UObject*>& GetReplicatedInstances() const { return ReplicatedInstances; }
 
 	void AddReferencedObjects(FReferenceCollector& Collector);
@@ -279,8 +281,14 @@ public:
 
 	const FNetBitArray& GetDestroyedStartupObjectInternalIndices() const { return DestroyedStartupObjectInternalIndices; }
 
+	/** List of replicated objects that want to be dormant */
 	const FNetBitArray& GetWantToBeDormantInternalIndices() const { return WantToBeDormantInternalIndices; }
 	FNetBitArray& GetWantToBeDormantInternalIndices() { return WantToBeDormantInternalIndices; }
+
+	/** Return a string to identify the object linked to an index in logs */
+	FString PrintObjectFromIndex(FInternalNetRefIndex ObjectIndex) const;
+
+public:
 
 	// Iterate over all dependent objects and their dependent objects
 	template <typename T>
