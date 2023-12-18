@@ -12,6 +12,7 @@
 #include "LumenRadianceCache.h"
 #include "GlobalDistanceField.h"
 #include "LumenTracingUtils.h"
+#include "ComponentRecreateRenderStateContext.h"
 
 extern int32 GLumenSceneGlobalSDFSimpleCoverageBasedExpand;
 
@@ -29,7 +30,11 @@ FLumenGatherCvarState::FLumenGatherCvarState()
 static TAutoConsoleVariable<int> CVarLumenGlobalIllumination(
 	TEXT("r.Lumen.DiffuseIndirect.Allow"),
 	1,
-	TEXT("Whether to allow Lumen Global Illumination.  Lumen GI is enabled in the project settings, this cvar can only disable it."),
+	TEXT("Whether to allow Lumen Global Illumination.  Lumen GI is enabled in the project settings, this cvar can only disable it."), 
+	FConsoleVariableDelegate::CreateLambda([](IConsoleVariable* InVariable)
+	{
+		FGlobalComponentRecreateRenderStateContext Context;
+	}),
 	ECVF_Scalability | ECVF_RenderThreadSafe
 );
 

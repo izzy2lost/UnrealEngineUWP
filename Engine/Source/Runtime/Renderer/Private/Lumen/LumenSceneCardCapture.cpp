@@ -354,6 +354,7 @@ void FLumenCardMeshProcessor::AddMeshBatch(const FMeshBatch& RESTRICT MeshBatch,
 	EShaderPlatform Platform = GetFeatureLevelShaderPlatform(FeatureLevel);
 	if ((MeshBatch.bUseForMaterial || MeshBatch.bUseForLumenSurfaceCacheCapture)
 		&& DoesPlatformSupportLumenGI(Platform)
+		&& LumenDiffuseIndirect::IsAllowed()
 		&& (PrimitiveSceneProxy && PrimitiveSceneProxy->ShouldRenderInMainPass() && PrimitiveSceneProxy->AffectsDynamicIndirectLighting()))
 	{
 		const FMaterialRenderProxy* MaterialRenderProxy = MeshBatch.MaterialRenderProxy;
