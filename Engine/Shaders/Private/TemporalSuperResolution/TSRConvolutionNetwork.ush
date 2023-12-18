@@ -581,6 +581,28 @@ TLaneVector2D<ScalarType, 4, LaneStrideX, LaneStrideY> MaxRGBMinA3x3(TLaneVector
 }
 
 CALL_SITE_DEBUGLOC
+template<typename ScalarType, uint LaneStrideX, uint LaneStrideY>
+TLaneVector2D<ScalarType, 2, LaneStrideX, LaneStrideY> MaxRMinG3x3(TLaneVector2D<ScalarType, 2, LaneStrideX, LaneStrideY> Center)
+{
+	TLaneVector2D<ScalarType, 2, LaneStrideX, LaneStrideY> CO = Center;
+	TLaneVector2D<ScalarType, 2, LaneStrideX, LaneStrideY> CP;
+	TLaneVector2D<ScalarType, 2, LaneStrideX, LaneStrideY> CN;
+	AccessNeighborTexels1x3(CO, /* out */ CP, /* out */ CN);
+	
+	TLaneVector2D<ScalarType, 2, LaneStrideX, LaneStrideY> MaxO = max3(CN, CP, CO);
+	MaxO.SetComponent(1, min3(CN[1], CP[1], CO[1]));
+
+	TLaneVector2D<ScalarType, 2, LaneStrideX, LaneStrideY> MaxP;
+	TLaneVector2D<ScalarType, 2, LaneStrideX, LaneStrideY> MaxN;
+	AccessNeighborTexels3x1(MaxO, /* out */ MaxP, /* out */ MaxN);
+	
+	TLaneVector2D<ScalarType, 2, LaneStrideX, LaneStrideY> R = max3(MaxN, MaxP, MaxO);
+	R.SetComponent(1, min3(MaxN[1], MaxP[1], MaxO[1]));
+
+	return R;
+}
+
+CALL_SITE_DEBUGLOC
 template<typename ScalarType, uint VectorSize, uint LaneStrideX, uint LaneStrideY>
 void MinMax3x3(
 	TLaneVector2D<ScalarType, VectorSize, LaneStrideX, LaneStrideY> Center,
@@ -659,6 +681,17 @@ void AnnihilateMutually3x3(
 {
 	AnnihilatedInput   = AnnihilateToGuide3x3(Input  , /* Guide = */ History);
 	AnnihilatedHistory = AnnihilateToGuide3x3(History, /* Guide = */ Input);
+}
+
+CALL_SITE_DEBUGLOC
+template<typename ScalarType, uint LaneStrideX, uint LaneStrideY>
+void AnnihilateMutuallySingleChannel3x3(
+	TLaneVector2D<ScalarType, 1, LaneStrideX, LaneStrideY> Input,
+	TLaneVector2D<ScalarType, 1, LaneStrideX, LaneStrideY> History,
+	out TLaneVector2D<ScalarType, 1, LaneStrideX, LaneStrideY> AnnihilatedInput,
+	out TLaneVector2D<ScalarType, 1, LaneStrideX, LaneStrideY> AnnihilatedHistory)
+{
+	Deconcatenate(AnnihilateToGuide3x3(/* ToClamp = */ Concatenate(Input, History), /* Guide = */ Concatenate(History, Input)), /* out */ AnnihilatedInput, /* out */ AnnihilatedHistory);
 }
 
 
