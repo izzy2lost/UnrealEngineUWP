@@ -836,6 +836,11 @@ bool FWidgetBlueprintEditor::CanPasteWidgets()
 		return false;
 	}
 
+	if (!FWidgetBlueprintEditorUtils::DoesClipboardTextContainWidget(GetWidgetBlueprintObj()))
+	{
+		return false;
+	}
+
 	if ( Widgets.Num() == 1 )
 	{
 		// Always return true here now since we want to support pasting widgets as siblings
