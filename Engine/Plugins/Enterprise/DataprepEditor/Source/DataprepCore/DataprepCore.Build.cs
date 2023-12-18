@@ -13,7 +13,7 @@ namespace UnrealBuildTool.Rules
 					"BlueprintGraph",
 					"Core",
 					"CoreUObject",
-					"DesktopPlatform",
+					"DatasmithContent",
 					"EditorFramework",
 					"EditorScriptingUtilities",
 					"EditorStyle",

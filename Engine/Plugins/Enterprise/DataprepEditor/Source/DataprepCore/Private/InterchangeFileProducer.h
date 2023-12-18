@@ -65,8 +65,6 @@ private:
 	UPROPERTY( Transient, DuplicateTransient )
 	TObjectPtr<UPackage> TransientPackage = nullptr;
 
-	static TArray<FSoftObjectPath> OverridePipelines;
-
 	TArray< TWeakObjectPtr< UObject > > Assets;
 
 	friend class SInterchangeFileProducerFileProperty;

@@ -2,13 +2,13 @@
 
 #include "InterchangeDataprepPipeline.h"
 
-//#include "Nodes/InterchangeFactoryBaseNode.h"
 #include "InterchangeActorFactoryNode.h"
-
-#include "Engine/Texture.h"
-#include "Materials/MaterialInterface.h"
-#include "Engine/StaticMesh.h"
-#include "LevelSequence.h"
+#include "InterchangeLevelSequenceFactoryNode.h"
+#include "InterchangeMaterialFactoryNode.h"
+#include "InterchangeSceneVariantSetsFactoryNode.h"
+#include "InterchangeStaticMeshFactoryNode.h"
+#include "InterchangeTextureFactoryNode.h"
+#include "Nodes/InterchangeFactoryBaseNode.h"
 
 void UInterchangeDataprepLevelPipeline::ExecutePipeline(UInterchangeBaseNodeContainer* NodeContainer, const TArray<UInterchangeSourceData*>& InSourceDatas, const FString& ContentBasePath)
 {
@@ -19,35 +19,48 @@ void UInterchangeDataprepLevelPipeline::ExecutePipeline(UInterchangeBaseNodeCont
 
 	Super::ExecutePipeline(NodeContainer, InSourceDatas, ContentBasePath);
 
-	static TMap<UClass*, FString> SubPathsPerClass{
-		{ UTexture::StaticClass(), "Textures" },
-		{ UMaterialInterface::StaticClass(), "Materials" },
-		{ UStaticMesh::StaticClass(), "Geometries" },
-		{ ULevelSequence::StaticClass(), TEXT("Animations") },
-	};
-
 	// Compute unique prefix based on file path
-	FString UniquePrefix = FString::FromInt(GetTypeHash(InSourceDatas[0]->GetFilename()));
+	const FString PackageSubPath = FPaths::GetBaseFilename(InSourceDatas[0]->GetFilename());
 
-	auto UpdateFactoryNodes = [this,&UniquePrefix](const FString& NodeUid, UInterchangeFactoryBaseNode* FactoryNode)
+	auto UpdateFactoryNodes = [this,&PackageSubPath](const FString& NodeUid, UInterchangeFactoryBaseNode* FactoryNode)
 	{
-		for (TPair<UClass*, FString>& Entry : SubPathsPerClass)
-		{
-			if (FactoryNode->GetObjectClass() && FactoryNode->GetObjectClass()->IsChildOf(Entry.Key))
-			{
-				FactoryNode->SetCustomSubPath(Entry.Value);
-				break;
-			}
-		}
-
 		// Append prefix to prevent actor's name collision in Dataprep world
 		if (UInterchangeActorFactoryNode* ActorFactoryNode = Cast< UInterchangeActorFactoryNode>(FactoryNode))
 		{
-			FString NewLabel = UniquePrefix + TEXT("_") + ActorFactoryNode->GetDisplayLabel();
+			FString NewLabel = PackageSubPath + TEXT("_") + ActorFactoryNode->GetDisplayLabel();
 			ActorFactoryNode->SetDisplayLabel(NewLabel);
 		}
-
-		//FactoryNode->SetEnabled(true);
+		else if (UInterchangeTextureFactoryNode* TextureFactoryNode = Cast<UInterchangeTextureFactoryNode>(FactoryNode))
+		{
+			TextureFactoryNode->SetCustomSubPath(FPaths::Combine(PackageSubPath, "Textures"));
+		}
+		else if (UInterchangeBaseMaterialFactoryNode* MaterialFactoryNode = Cast<UInterchangeBaseMaterialFactoryNode>(FactoryNode))
+		{
+			if (MaterialFactoryNode->IsA<UInterchangeMaterialFactoryNode>())
+			{
+				MaterialFactoryNode->SetCustomSubPath(FPaths::Combine(PackageSubPath, "Materials/References"));
+			}
+			else if (MaterialFactoryNode->IsA<UInterchangeMaterialFunctionFactoryNode>())
+			{
+				MaterialFactoryNode->SetCustomSubPath(FPaths::Combine(PackageSubPath, "Materials/References/Functions"));
+			}
+			else
+			{
+				MaterialFactoryNode->SetCustomSubPath(FPaths::Combine(PackageSubPath, "Materials"));
+			}
+		}
+		else if (UInterchangeStaticMeshFactoryNode* MeshFactoryNode = Cast<UInterchangeStaticMeshFactoryNode>(FactoryNode))
+		{
+			MeshFactoryNode->SetCustomSubPath(FPaths::Combine(PackageSubPath, "Geometries"));
+		}
+		else if (UInterchangeLevelSequenceFactoryNode* SequenceFactoryNode = Cast<UInterchangeLevelSequenceFactoryNode>(FactoryNode))
+		{
+			SequenceFactoryNode->SetCustomSubPath(FPaths::Combine(PackageSubPath, "Animations"));
+		}
+		else if (UInterchangeSceneVariantSetsFactoryNode* VariantFactoryNode = Cast<UInterchangeSceneVariantSetsFactoryNode>(FactoryNode))
+		{
+			VariantFactoryNode->SetCustomSubPath(FPaths::Combine(PackageSubPath, "Variants"));
+		}
 	};
 
 	//Find all factory node we need for this pipeline

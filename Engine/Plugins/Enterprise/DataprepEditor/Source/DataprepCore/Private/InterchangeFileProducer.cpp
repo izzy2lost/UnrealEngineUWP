@@ -7,6 +7,7 @@
 #include "IDataprepProgressReporter.h"
 #include "InterchangeDataprepPipeline.h"
 
+#include "InterchangeProjectSettings.h"
 #include "InterchangeManager.h"
 
 #include "AssetRegistry/AssetRegistryModule.h"
@@ -46,8 +47,6 @@ FAutoConsoleVariableRef GEnableInterchangeProducerVar(
 	TEXT("Enable/disable the Intrchange file producer.\nDefault is disabled\n"),
 	ECVF_Default
 );
-
-TArray<FSoftObjectPath> UInterchangeFileProducer::OverridePipelines;
 
 namespace FInterchangeFileProducerUtils
 {
@@ -133,17 +132,42 @@ namespace FInterchangeFileProducerUtils
 		TArray<UObject*> ImportOptions;
 		TWeakPtr< SWindow > Window;
 	};
+
+	void GetPipelinesFromSourceData(UInterchangeSourceData& SourceData, TArray<FSoftObjectPath>& OutPipelines)
+	{
+		const FInterchangeImportSettings& InterchangeImportSettings = FInterchangeProjectSettingsUtils::GetDefaultImportSettings(true);
+		const TMap<FName, FInterchangePipelineStack>& DefaultPipelineStacks = InterchangeImportSettings.PipelineStacks;
+		FName DefaultStackName = FInterchangeProjectSettingsUtils::GetDefaultPipelineStackName(true, SourceData);
+		
+		OutPipelines.Empty();
+
+		UE::Interchange::FScopedTranslator ScopedTranslator(&SourceData);
+
+		for (const TPair<FName, FInterchangePipelineStack>& PipelineStackInfo : DefaultPipelineStacks)
+		{
+			if (PipelineStackInfo.Key == DefaultStackName)
+			{
+				const FInterchangePipelineStack& PipelineStack = PipelineStackInfo.Value;
+				OutPipelines = PipelineStack.Pipelines;
+
+				for (const FInterchangeTranslatorPipelines& TranslatorPipelines : PipelineStack.PerTranslatorPipelines)
+				{
+					const UClass* TranslatorClass = TranslatorPipelines.Translator.LoadSynchronous();
+					if (ScopedTranslator.GetTranslator()->IsA(TranslatorClass))
+					{
+						OutPipelines = TranslatorPipelines.Pipelines;
+						break;
+					}
+				}
+
+				break;
+			}
+		}
+	}
 }
 
 UInterchangeFileProducer::UInterchangeFileProducer()
 {
-	if (HasAnyFlags(RF_ClassDefaultObject))
-	{
-		// #dataprep_todo Allow users to override the stack of pipelines
-		OverridePipelines.Add(FSoftObjectPath(TEXT("/Interchange/Pipelines/DefaultSceneAssetsPipeline.DefaultSceneAssetsPipeline")));
-		OverridePipelines.Add(FSoftObjectPath(TEXT("/Interchange/Pipelines/DefaultSceneLevelPipeline.DefaultSceneLevelPipeline")));
-		OverridePipelines.Add(FSoftObjectPath(TEXT("/DataprepEditor/DefaultDataprepPipeline.DefaultDataprepPipeline")));
-	}
 }
 
 bool UInterchangeFileProducer::IsActive()
@@ -192,6 +216,7 @@ bool UInterchangeFileProducer::InitTranslator()
 
 bool UInterchangeFileProducer::Execute(TArray< TWeakObjectPtr< UObject > >& OutAssets)
 {
+	using namespace FInterchangeFileProducerUtils;
 	using namespace UE::Interchange;
 	using FInterchangeResults = TTuple<FAssetImportResultRef, FSceneImportResultRef>;
 
@@ -206,18 +231,22 @@ bool UInterchangeFileProducer::Execute(TArray< TWeakObjectPtr< UObject > >& OutA
 
 	FScopedSourceData ScopedSourceData(FilePath);
 
-	if (!InterchangeManager.CanTranslateSourceData(ScopedSourceData.GetSourceData()))
+	UInterchangeSourceData* SourceData = ScopedSourceData.GetSourceData();
+
+	if (!InterchangeManager.CanTranslateSourceData(SourceData))
 	{
 		return false;
 	}
-	
+
 	FImportAssetParameters ImportAssetParameters;
 	
 	ImportAssetParameters.bIsAutomated = true;
 	ImportAssetParameters.ImportLevel = Context.WorldPtr.Get()->GetCurrentLevel();
-	ImportAssetParameters.OverridePipelines = OverridePipelines;
 
-	FInterchangeResults ImportResults = InterchangeManager.ImportSceneAsync(TransientPackage->GetPathName(), ScopedSourceData.GetSourceData(), ImportAssetParameters);
+	GetPipelinesFromSourceData(*SourceData, ImportAssetParameters.OverridePipelines);
+	ImportAssetParameters.OverridePipelines.Add(FSoftObjectPath(TEXT("/DataprepEditor/DefaultDataprepPipeline.DefaultDataprepPipeline")));
+
+	FInterchangeResults ImportResults = InterchangeManager.ImportSceneAsync(TransientPackage->GetPathName(), SourceData, ImportAssetParameters);
 
 	ImportResults.Get<0>()->WaitUntilDone();
 	ImportResults.Get<1>()->WaitUntilDone();
