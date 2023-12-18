@@ -1511,7 +1511,7 @@ bool FMeshPayloadContext::FetchMeshPayloadInternal(FFbxParser& Parser
 	{
 		UInterchangeResultError_Generic* Message = Parser.AddMessage<UInterchangeResultError_Generic>();
 		Message->InterchangeKey = Parser.GetFbxHelper()->GetMeshUniqueID(Mesh);
-		Message->Text = LOCTEXT("FBXSceneNull_Mesh", "Cannot fetch FBX mesh payload because the FBX scene is null.");
+		Message->Text = LOCTEXT("FetchMeshPayloadInternal_FBXSceneNull_Mesh", "Cannot fetch FBX mesh payload because the FBX scene is null.");
 		return false;
 	}
 
@@ -1519,7 +1519,7 @@ bool FMeshPayloadContext::FetchMeshPayloadInternal(FFbxParser& Parser
 	{
 		UInterchangeResultError_Generic* Message = Parser.AddMessage<UInterchangeResultError_Generic>();
 		Message->InterchangeKey = Parser.GetFbxHelper()->GetMeshUniqueID(Mesh);
-		Message->Text = LOCTEXT("FBXMeshNull", "Cannot fetch FBX mesh payload because the FBX mesh is null.");
+		Message->Text = LOCTEXT("FetchMeshPayloadInternal_FBXMeshNull", "Cannot fetch FBX mesh payload because the FBX mesh is null.");
 		return false;
 	}
 
@@ -1527,7 +1527,7 @@ bool FMeshPayloadContext::FetchMeshPayloadInternal(FFbxParser& Parser
 	{
 		UInterchangeResultError_Generic* Message = Parser.AddMessage<UInterchangeResultError_Generic>();
 		Message->InterchangeKey = Parser.GetFbxHelper()->GetMeshUniqueID(Mesh);
-		Message->Text = LOCTEXT("FBXConverterNull", "Cannot fetch FBX mesh payload because the FBX geometry converter is null.");
+		Message->Text = LOCTEXT("FetchMeshPayloadInternal_FBXConverterNull", "Cannot fetch FBX mesh payload because the FBX geometry converter is null.");
 		return false;
 	}
 
@@ -1610,7 +1610,7 @@ bool FMorphTargetPayloadContext::FetchMeshPayloadInternal(FFbxParser& Parser
 	{
 		UInterchangeResultError_Generic* Message = Parser.AddMessage<UInterchangeResultError_Generic>();
 		Message->InterchangeKey = Parser.GetFbxHelper()->GetMeshUniqueID(Shape);
-		Message->Text = LOCTEXT("FBXSceneNull_Mesh", "Cannot fetch FBX mesh morph shape payload because the FBX scene is null.");
+		Message->Text = LOCTEXT("FetchMorphTargetMeshPayloadInternal_FBXSceneNull_Mesh", "Cannot fetch FBX mesh morph shape payload because the FBX scene is null.");
 		return false;
 	}
 
@@ -1618,7 +1618,7 @@ bool FMorphTargetPayloadContext::FetchMeshPayloadInternal(FFbxParser& Parser
 	{
 		UInterchangeResultError_Generic* Message = Parser.AddMessage<UInterchangeResultError_Generic>();
 		Message->InterchangeKey = Parser.GetFbxHelper()->GetMeshUniqueID(Shape);
-		Message->Text = LOCTEXT("FBXConverterNull", "Cannot fetch FBX mesh morph shape payload because the FBX geometry converter is null.");
+		Message->Text = LOCTEXT("FetchMorphTargetMeshPayloadInternal_FBXConverterNull", "Cannot fetch FBX mesh morph shape payload because the FBX geometry converter is null.");
 		return false;
 	}
 
@@ -1626,7 +1626,7 @@ bool FMorphTargetPayloadContext::FetchMeshPayloadInternal(FFbxParser& Parser
 	{
 		UInterchangeResultError_Generic* Message = Parser.AddMessage<UInterchangeResultError_Generic>();
 		Message->InterchangeKey = Parser.GetFbxHelper()->GetMeshUniqueID(Shape);
-		Message->Text = LOCTEXT("FBXMeshNull", "Cannot fetch FBX mesh morph shape payload because the FBX shape is null.");
+		Message->Text = LOCTEXT("FetchMorphTargetMeshPayloadInternal_FBXMeshNull", "Cannot fetch FBX mesh morph shape payload because the FBX shape is null.");
 		return false;
 	}
 
