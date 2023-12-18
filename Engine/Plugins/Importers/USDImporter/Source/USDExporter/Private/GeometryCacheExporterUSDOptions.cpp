@@ -4,10 +4,7 @@
 
 #include "AnalyticsEventAttribute.h"
 
-void UsdUtils::AddAnalyticsAttributes(
-	const UGeometryCacheExporterUSDOptions& Options,
-	TArray< FAnalyticsEventAttribute >& InOutAttributes
-)
+void UsdUtils::AddAnalyticsAttributes(const UGeometryCacheExporterUSDOptions& Options, TArray<FAnalyticsEventAttribute>& InOutAttributes)
 {
 	UsdUtils::AddAnalyticsAttributes(Options.StageOptions, InOutAttributes);
 	UsdUtils::AddAnalyticsAttributes(Options.MeshAssetOptions, InOutAttributes);

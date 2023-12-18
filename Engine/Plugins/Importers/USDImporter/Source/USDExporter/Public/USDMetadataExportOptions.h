@@ -30,14 +30,26 @@ struct USDEXPORTER_API FUsdMetadataExportOptions
 
 	// When exporting metadata, we will ignore all entries that start with these prefixes.
 	// Note that you can use the ":" separator for nested dictionaries in USD.
-	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Metadata", config, meta = (EditCondition = "bExportAssetMetadata || bExportComponentMetadata"))
+	UPROPERTY(
+		EditAnywhere,
+		BlueprintReadWrite,
+		Category = "Metadata",
+		config,
+		meta = (EditCondition = "bExportAssetMetadata || bExportComponentMetadata")
+	)
 	TArray<FString> BlockedPrefixFilters;
 
 	// When this is false (default), the "BlockedPrefixFilters" property describe prefixes to block, and
 	// metadata entries that match any of those prefixes are ignored and not exported.
 	// When this is true, the "BlockedPrefixFilters" property is inverted, and describes prefixes to *allow*.
 	// In that case, entries are only allowed and exported if they match at least one of the provided prefixes.
-	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Metadata", config, meta = (EditCondition = "bExportAssetMetadata || bExportComponentMetadata"))
+	UPROPERTY(
+		EditAnywhere,
+		BlueprintReadWrite,
+		Category = "Metadata",
+		config,
+		meta = (EditCondition = "bExportAssetMetadata || bExportComponentMetadata")
+	)
 	bool bInvertFilters = false;
 };
 

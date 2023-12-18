@@ -76,10 +76,17 @@ UGeometryCacheExporterUSD::UGeometryCacheExporterUSD()
 	}
 	SupportedClass = UGeometryCache::StaticClass();
 	bText = false;
-#endif // #if USE_USD_SDK
+#endif	  // #if USE_USD_SDK
 }
 
-bool UGeometryCacheExporterUSD::ExportBinary(UObject* Object, const TCHAR* Type, FArchive& Ar, FFeedbackContext* Warn, int32 FileIndex, uint32 PortFlags)
+bool UGeometryCacheExporterUSD::ExportBinary(
+	UObject* Object,
+	const TCHAR* Type,
+	FArchive& Ar,
+	FFeedbackContext* Warn,
+	int32 FileIndex,
+	uint32 PortFlags
+)
 {
 #if USE_USD_SDK
 	UGeometryCache* GeometryCache = CastChecked<UGeometryCache>(Object);
@@ -100,7 +107,10 @@ bool UGeometryCacheExporterUSD::ExportBinary(UObject* Object, const TCHAR* Type,
 		// Prompt with an options dialog if we can
 		if (Options && (!ExportTask || !ExportTask->bAutomated))
 		{
-			Options->MeshAssetOptions.MaterialBakingOptions.TexturesDir.Path = FPaths::Combine(FPaths::GetPath(UExporter::CurrentFilename), TEXT("Textures"));
+			Options->MeshAssetOptions.MaterialBakingOptions.TexturesDir.Path = FPaths::Combine(
+				FPaths::GetPath(UExporter::CurrentFilename),
+				TEXT("Textures")
+			);
 
 			const bool bContinue = SUsdOptionsWindow::ShowExportOptions(*Options);
 			if (!bContinue)
@@ -141,8 +151,8 @@ bool UGeometryCacheExporterUSD::ExportBinary(UObject* Object, const TCHAR* Type,
 		PayloadFilename = FPaths::Combine(PathPart, FilenamePart + TEXT("_payload.") + ExtensionPart);
 	}
 
-	if (!IUsdExporterModule::CanExportToLayer(UExporter::CurrentFilename) ||
-		(Options->MeshAssetOptions.bUsePayload && !IUsdExporterModule::CanExportToLayer(PayloadFilename)))
+	if (!IUsdExporterModule::CanExportToLayer(UExporter::CurrentFilename)
+		|| (Options->MeshAssetOptions.bUsePayload && !IUsdExporterModule::CanExportToLayer(PayloadFilename)))
 	{
 		return false;
 	}
@@ -164,7 +174,9 @@ bool UGeometryCacheExporterUSD::ExportBinary(UObject* Object, const TCHAR* Type,
 	{
 		if (!ExportTask->bReplaceIdentical)
 		{
-			UE_LOG(LogUsd, Log,
+			UE_LOG(
+				LogUsd,
+				Log,
 				TEXT("Skipping export of asset '%s' as the target file '%s' already exists."),
 				*Object->GetPathName(),
 				*UExporter::CurrentFilename
@@ -188,12 +200,13 @@ bool UGeometryCacheExporterUSD::ExportBinary(UObject* Object, const TCHAR* Type,
 
 					const bool bVersionMatches = !Info.Version.IsEmpty() && Info.Version == DDCKeyHash;
 
-					const bool bAssetTypeMatches = !Info.UnrealAssetType.IsEmpty()
-						&& Info.UnrealAssetType == GeometryCache->GetClass()->GetName();
+					const bool bAssetTypeMatches = !Info.UnrealAssetType.IsEmpty() && Info.UnrealAssetType == GeometryCache->GetClass()->GetName();
 
 					if (bVersionMatches && bAssetTypeMatches)
 					{
-						UE_LOG(LogUsd, Log,
+						UE_LOG(
+							LogUsd,
+							Log,
 							TEXT("Skipping export of asset '%s' as the target file '%s' already contains up-to-date exported data."),
 							*GeometryCache->GetPathName(),
 							*UExporter::CurrentFilename
@@ -363,5 +376,5 @@ bool UGeometryCacheExporterUSD::ExportBinary(UObject* Object, const TCHAR* Type,
 	return true;
 #else
 	return false;
-#endif // #if USE_USD_SDK
+#endif	  // #if USE_USD_SDK
 }

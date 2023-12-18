@@ -38,13 +38,7 @@ public:
 
 namespace UsdUtils
 {
-	USDEXPORTER_API void AddAnalyticsAttributes(
-		const UGeometryCacheExporterUSDOptions& Options,
-		TArray< FAnalyticsEventAttribute >& InOutAttributes
-	);
+	USDEXPORTER_API void AddAnalyticsAttributes(const UGeometryCacheExporterUSDOptions& Options, TArray<FAnalyticsEventAttribute>& InOutAttributes);
 
-	USDEXPORTER_API void HashForGeometryCacheExport(
-		const UGeometryCacheExporterUSDOptions& Options,
-		FSHA1& HashToUpdate
-	);
+	USDEXPORTER_API void HashForGeometryCacheExport(const UGeometryCacheExporterUSDOptions& Options, FSHA1& HashToUpdate);
 }

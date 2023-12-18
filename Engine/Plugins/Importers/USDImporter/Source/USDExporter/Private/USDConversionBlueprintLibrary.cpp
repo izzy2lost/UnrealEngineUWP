@@ -2,7 +2,6 @@
 
 #include "USDConversionBlueprintLibrary.h"
 
-#include "LevelExporterUSD.h"
 #include "LevelExporterUSDOptions.h"
 #include "UnrealUSDWrapper.h"
 #include "USDAssetUserData.h"
@@ -11,20 +10,17 @@
 #include "USDExporterModule.h"
 #include "USDLayerUtils.h"
 #include "USDLog.h"
-#include "USDTypesConversion.h"
 #include "USDValueConversion.h"
 
 #include "UsdWrappers/SdfLayer.h"
 #include "UsdWrappers/SdfPath.h"
 #include "UsdWrappers/UsdPrim.h"
 #include "UsdWrappers/UsdStage.h"
-#include "UsdWrappers/VtValue.h"
 
 #include "AnalyticsBlueprintLibrary.h"
 #include "AnalyticsEventAttribute.h"
 #include "AssetCompilingManager.h"
 #include "ContentStreaming.h"
-#include "CoreMinimal.h"
 #include "Editor.h"
 #include "Engine/Engine.h"
 #include "Engine/Level.h"
@@ -36,141 +32,135 @@
 #include "LevelEditorSequencerIntegration.h"
 #include "UObject/ObjectMacros.h"
 
-namespace UE
+namespace UE::UsdConversionBlueprintLibrary::Private
 {
-	namespace UsdConversionBlueprintLibraryImpl
+	void WaitForAllAsyncAndSteamingTasks(UWorld* World)
 	{
-		namespace Private
+		FlushAsyncLoading();
+
+		if (World)
 		{
-			void WaitForAllAsyncAndSteamingTasks(UWorld* World)
+			World->BlockTillLevelStreamingCompleted();
+
+			if (!FPlatformProperties::RequiresCookedData())
 			{
-				FlushAsyncLoading();
-
-				if (World)
-				{
-					World->BlockTillLevelStreamingCompleted();
-
-					if (!FPlatformProperties::RequiresCookedData())
-					{
-						UMaterialInterface::SubmitRemainingJobsForWorld(World);
-						FAssetCompilingManager::Get().FinishAllCompilation();
-					}
-				}
-
-				UTexture::ForceUpdateTextureStreaming();
-
-				IStreamingManager::Get().StreamAllResources(0.0f);
+				UMaterialInterface::SubmitRemainingJobsForWorld(World);
+				FAssetCompilingManager::Get().FinishAllCompilation();
 			}
+		}
 
-			void StreamInLevels( ULevel* Level, const TSet<FString>& LevelsToIgnore )
+		UTexture::ForceUpdateTextureStreaming();
+
+		IStreamingManager::Get().StreamAllResources(0.0f);
+	}
+
+	void StreamInLevels(ULevel* Level, const TSet<FString>& LevelsToIgnore)
+	{
+		UWorld* InnerWorld = Level->GetTypedOuter<UWorld>();
+		if (!InnerWorld || InnerWorld->GetStreamingLevels().Num() == 0)
+		{
+			return;
+		}
+
+		// Ensure our world to export has a context so that level streaming doesn't crash.
+		// This is needed exclusively to be able to load other levels from python scripts using just `load_asset`
+		// and have them be exportable.
+		bool bCreatedContext = false;
+		FWorldContext* Context = GEngine->GetWorldContextFromWorld(InnerWorld);
+		if (!Context)
+		{
+			FWorldContext& NewContext = GEngine->CreateNewWorldContext(EWorldType::EditorPreview);
+			NewContext.SetCurrentWorld(InnerWorld);
+
+			bCreatedContext = true;
+		}
+
+		// Mark all sublevels that we need to be loaded
+		for (ULevelStreaming* StreamingLevel : InnerWorld->GetStreamingLevels())
+		{
+			if (StreamingLevel)
 			{
-				UWorld* InnerWorld = Level->GetTypedOuter<UWorld>();
-				if ( !InnerWorld || InnerWorld->GetStreamingLevels().Num() == 0 )
+				// Note how we will always load the sublevel's package even if will ignore this level. This is a workaround
+				// to a level streaming bug/quirk:
+				// As soon as we first load the sublevels's package the component scene proxies will be (incorrectly?) placed on
+				// the vestigial worlds' FScene. When exporting sublevels though, we need the scene proxies to be on the owning
+				// world, especially for landscapes as their materials will be baked by essentially taking a camera screenshot
+				// from the FScene.
+				// Because of that, we have to always at least load the sublevels here so that the FlushLevelStreaming call below can
+				// call World->RemoveFromWorld from within ULevelStreaming::UpdateStreamingState when we call FlushLevelStreaming
+				// below and leave the loaded level's component's unregistered.
+				// This ensures that if we later try exporting this same sublevel, we won't get the components first registered
+				// during the process of actually first loading the sublevel (which would have placed them on the vestigial world), but
+				// instead, since the level *is already loaded*, a future call to to FlushLevelStreaming below can trigger the landscape
+				// components to be registered on the owning world by the World->AddToWorld call.
+				const FString StreamingLevelWorldAssetPackageName = StreamingLevel->GetWorldAssetPackageName();
+				const FName StreamingLevelWorldAssetPackageFName = StreamingLevel->GetWorldAssetPackageFName();
+				ULevel::StreamedLevelsOwningWorld.Add(StreamingLevelWorldAssetPackageFName, InnerWorld);
+				UPackage* Package = LoadPackage(nullptr, *StreamingLevelWorldAssetPackageName, LOAD_None);
+				ULevel::StreamedLevelsOwningWorld.Remove(StreamingLevelWorldAssetPackageFName);
+
+				const FString LevelName = FPaths::GetBaseFilename(StreamingLevel->GetWorldAssetPackageName());
+				if (LevelsToIgnore.Contains(LevelName))
 				{
-					return;
+					continue;
 				}
 
-				// Ensure our world to export has a context so that level streaming doesn't crash.
-				// This is needed exclusively to be able to load other levels from python scripts using just `load_asset`
-				// and have them be exportable.
-				bool bCreatedContext = false;
-				FWorldContext* Context = GEngine->GetWorldContextFromWorld( InnerWorld );
-				if ( !Context )
+				const bool bInShouldBeLoaded = true;
+				StreamingLevel->SetShouldBeLoaded(bInShouldBeLoaded);
+
+				// This is a workaround to a level streaming bug/quirk:
+				// We must set these to false here in order to get both our streaming level's current and target
+				// state to LoadedNotVisible. If the level is already visible when we call FlushLevelStreaming,
+				// our level will go directly to the LoadedVisible state.
+				// This may seem desirable, but it means the second FlushLevelStreaming call below won't really do anything.
+				// We need ULevelStreaming::UpdateStreamingState to call World->RemoveFromWorld and World->AddToWorld though,
+				// as that is the only thing that will force the sublevel components' scene proxies to being added to the
+				// *owning* world's FScene, as opposed to being left at the vestigial world's FScenes instead.
+				// If we don't do this, we may get undesired effects when exporting anything that relies on the actual FScene,
+				// like baking landscape materials (see UE-126953)
 				{
-					FWorldContext& NewContext = GEngine->CreateNewWorldContext( EWorldType::EditorPreview );
-					NewContext.SetCurrentWorld( InnerWorld );
-
-					bCreatedContext = true;
-				}
-
-				// Mark all sublevels that we need to be loaded
-				for ( ULevelStreaming* StreamingLevel : InnerWorld->GetStreamingLevels() )
-				{
-					if ( StreamingLevel )
-					{
-						// Note how we will always load the sublevel's package even if will ignore this level. This is a workaround
-						// to a level streaming bug/quirk:
-						// As soon as we first load the sublevels's package the component scene proxies will be (incorrectly?) placed on
-						// the vestigial worlds' FScene. When exporting sublevels though, we need the scene proxies to be on the owning
-						// world, especially for landscapes as their materials will be baked by essentially taking a camera screenshot
-						// from the FScene.
-						// Because of that, we have to always at least load the sublevels here so that the FlushLevelStreaming call below can
-						// call World->RemoveFromWorld from within ULevelStreaming::UpdateStreamingState when we call FlushLevelStreaming
-						// below and leave the loaded level's component's unregistered.
-						// This ensures that if we later try exporting this same sublevel, we won't get the components first registered
-						// during the process of actually first loading the sublevel (which would have placed them on the vestigial world), but
-						// instead, since the level *is already loaded*, a future call to to FlushLevelStreaming below can trigger the landscape
-						// components to be registered on the owning world by the World->AddToWorld call.
-						const FString StreamingLevelWorldAssetPackageName = StreamingLevel->GetWorldAssetPackageName();
-						const FName StreamingLevelWorldAssetPackageFName = StreamingLevel->GetWorldAssetPackageFName();
-						ULevel::StreamedLevelsOwningWorld.Add( StreamingLevelWorldAssetPackageFName, InnerWorld );
-						UPackage* Package = LoadPackage( nullptr, *StreamingLevelWorldAssetPackageName, LOAD_None );
-						ULevel::StreamedLevelsOwningWorld.Remove( StreamingLevelWorldAssetPackageFName );
-
-						const FString LevelName = FPaths::GetBaseFilename( StreamingLevel->GetWorldAssetPackageName() );
-						if ( LevelsToIgnore.Contains( LevelName ) )
-						{
-							continue;
-						}
-
-						const bool bInShouldBeLoaded = true;
-						StreamingLevel->SetShouldBeLoaded( bInShouldBeLoaded );
-
-						// This is a workaround to a level streaming bug/quirk:
-						// We must set these to false here in order to get both our streaming level's current and target
-						// state to LoadedNotVisible. If the level is already visible when we call FlushLevelStreaming,
-						// our level will go directly to the LoadedVisible state.
-						// This may seem desirable, but it means the second FlushLevelStreaming call below won't really do anything.
-						// We need ULevelStreaming::UpdateStreamingState to call World->RemoveFromWorld and World->AddToWorld though,
-						// as that is the only thing that will force the sublevel components' scene proxies to being added to the
-						// *owning* world's FScene, as opposed to being left at the vestigial world's FScenes instead.
-						// If we don't do this, we may get undesired effects when exporting anything that relies on the actual FScene,
-						// like baking landscape materials (see UE-126953)
-						{
-							const bool bShouldBeVisible = false;
-							StreamingLevel->SetShouldBeVisible( bShouldBeVisible );
-							StreamingLevel->SetShouldBeVisibleInEditor( bShouldBeVisible );
-						}
-					}
-				}
-
-				// Synchronously stream in levels
-				InnerWorld->FlushLevelStreaming( EFlushLevelStreamingType::Full );
-
-				// Mark all sublevels that we need to be made visible
-				// For whatever reason this needs to be done with two separate flushes: One for loading, one for
-				// turning visible. If we do this with a single flush the levels will not be synchronously loaded *and* made visible
-				// on this same exact frame, and if we're e.g. baking a landscape immediately after this,
-				// its material will be baked incorrectly (check test_export_level_landscape_bake.py)
-				for ( ULevelStreaming* StreamingLevel : InnerWorld->GetStreamingLevels() )
-				{
-					if ( StreamingLevel )
-					{
-						const FString LevelName = FPaths::GetBaseFilename( StreamingLevel->GetWorldAssetPackageName() );
-						if ( LevelsToIgnore.Contains( LevelName ) )
-						{
-							continue;
-						}
-
-						const bool bInShouldBeVisible = true;
-						StreamingLevel->SetShouldBeVisible( bInShouldBeVisible );
-						StreamingLevel->SetShouldBeVisibleInEditor( bInShouldBeVisible );
-					}
-				}
-
-				// Synchronously show levels right now
-				InnerWorld->FlushLevelStreaming( EFlushLevelStreamingType::Visibility );
-
-				WaitForAllAsyncAndSteamingTasks(InnerWorld);
-
-				if ( bCreatedContext )
-				{
-					GEngine->DestroyWorldContext( InnerWorld );
+					const bool bShouldBeVisible = false;
+					StreamingLevel->SetShouldBeVisible(bShouldBeVisible);
+					StreamingLevel->SetShouldBeVisibleInEditor(bShouldBeVisible);
 				}
 			}
 		}
+
+		// Synchronously stream in levels
+		InnerWorld->FlushLevelStreaming(EFlushLevelStreamingType::Full);
+
+		// Mark all sublevels that we need to be made visible
+		// For whatever reason this needs to be done with two separate flushes: One for loading, one for
+		// turning visible. If we do this with a single flush the levels will not be synchronously loaded *and* made visible
+		// on this same exact frame, and if we're e.g. baking a landscape immediately after this,
+		// its material will be baked incorrectly (check test_export_level_landscape_bake.py)
+		for (ULevelStreaming* StreamingLevel : InnerWorld->GetStreamingLevels())
+		{
+			if (StreamingLevel)
+			{
+				const FString LevelName = FPaths::GetBaseFilename(StreamingLevel->GetWorldAssetPackageName());
+				if (LevelsToIgnore.Contains(LevelName))
+				{
+					continue;
+				}
+
+				const bool bInShouldBeVisible = true;
+				StreamingLevel->SetShouldBeVisible(bInShouldBeVisible);
+				StreamingLevel->SetShouldBeVisibleInEditor(bInShouldBeVisible);
+			}
+		}
+
+		// Synchronously show levels right now
+		InnerWorld->FlushLevelStreaming(EFlushLevelStreamingType::Visibility);
+
+		WaitForAllAsyncAndSteamingTasks(InnerWorld);
+
+		if (bCreatedContext)
+		{
+			GEngine->DestroyWorldContext(InnerWorld);
+		}
 	}
-}
+}	 // namespace UE::UsdConversionBlueprintLibrary::Private
 
 int32 UUsdConversionBlueprintLibrary::GetNumLevelsToExport(UWorld* World, const TSet<FString>& LevelsToIgnore)
 {
@@ -203,24 +193,24 @@ int32 UUsdConversionBlueprintLibrary::GetNumLevelsToExport(UWorld* World, const 
 	return Count;
 }
 
-void UUsdConversionBlueprintLibrary::StreamInRequiredLevels( UWorld* World, const TSet<FString>& LevelsToIgnore )
+void UUsdConversionBlueprintLibrary::StreamInRequiredLevels(UWorld* World, const TSet<FString>& LevelsToIgnore)
 {
-	if ( !World )
+	if (!World)
 	{
 		return;
 	}
 
-	if ( ULevel* PersistentLevel = World->PersistentLevel )
+	if (ULevel* PersistentLevel = World->PersistentLevel)
 	{
-		UE::UsdConversionBlueprintLibraryImpl::Private::StreamInLevels( PersistentLevel, LevelsToIgnore );
+		UE::UsdConversionBlueprintLibrary::Private::StreamInLevels(PersistentLevel, LevelsToIgnore);
 	}
 }
 
 void UUsdConversionBlueprintLibrary::RevertSequencerAnimations()
 {
-	for ( const TWeakPtr<ISequencer>& Sequencer : FLevelEditorSequencerIntegration::Get().GetSequencers() )
+	for (const TWeakPtr<ISequencer>& Sequencer : FLevelEditorSequencerIntegration::Get().GetSequencers())
 	{
-		if ( TSharedPtr<ISequencer> PinnedSequencer = Sequencer.Pin() )
+		if (TSharedPtr<ISequencer> PinnedSequencer = Sequencer.Pin())
 		{
 			PinnedSequencer->EnterSilentMode();
 			PinnedSequencer->RestorePreAnimatedState();
@@ -230,9 +220,9 @@ void UUsdConversionBlueprintLibrary::RevertSequencerAnimations()
 
 void UUsdConversionBlueprintLibrary::ReapplySequencerAnimations()
 {
-	for ( const TWeakPtr<ISequencer>& Sequencer : FLevelEditorSequencerIntegration::Get().GetSequencers() )
+	for (const TWeakPtr<ISequencer>& Sequencer : FLevelEditorSequencerIntegration::Get().GetSequencers())
 	{
-		if ( TSharedPtr<ISequencer> PinnedSequencer = Sequencer.Pin() )
+		if (TSharedPtr<ISequencer> PinnedSequencer = Sequencer.Pin())
 		{
 			PinnedSequencer->InvalidateCachedData();
 			PinnedSequencer->ForceEvaluate();
@@ -241,307 +231,319 @@ void UUsdConversionBlueprintLibrary::ReapplySequencerAnimations()
 	}
 }
 
-TArray<FString> UUsdConversionBlueprintLibrary::GetLoadedLevelNames( UWorld* World )
+TArray<FString> UUsdConversionBlueprintLibrary::GetLoadedLevelNames(UWorld* World)
 {
 	TArray<FString> Result;
 
-	for ( ULevelStreaming* StreamingLevel : World->GetStreamingLevels() )
+	for (ULevelStreaming* StreamingLevel : World->GetStreamingLevels())
 	{
-		if ( StreamingLevel && StreamingLevel->IsLevelLoaded() )
+		if (StreamingLevel && StreamingLevel->IsLevelLoaded())
 		{
-			Result.Add( StreamingLevel->GetWorldAssetPackageName() );
+			Result.Add(StreamingLevel->GetWorldAssetPackageName());
 		}
 	}
 
 	return Result;
 }
 
-TArray<FString> UUsdConversionBlueprintLibrary::GetVisibleInEditorLevelNames( UWorld* World )
+TArray<FString> UUsdConversionBlueprintLibrary::GetVisibleInEditorLevelNames(UWorld* World)
 {
 	TArray<FString> Result;
 
-	for ( ULevelStreaming* StreamingLevel : World->GetStreamingLevels() )
+	for (ULevelStreaming* StreamingLevel : World->GetStreamingLevels())
 	{
-		if ( StreamingLevel && StreamingLevel->GetShouldBeVisibleInEditor() )
+		if (StreamingLevel && StreamingLevel->GetShouldBeVisibleInEditor())
 		{
-			Result.Add( StreamingLevel->GetWorldAssetPackageName() );
+			Result.Add(StreamingLevel->GetWorldAssetPackageName());
 		}
 	}
 
 	return Result;
 }
 
-void UUsdConversionBlueprintLibrary::StreamOutLevels( UWorld* OwningWorld, const TArray<FString>& LevelNamesToStreamOut, const TArray<FString>& LevelNamesToHide )
+void UUsdConversionBlueprintLibrary::StreamOutLevels(
+	UWorld* OwningWorld,
+	const TArray<FString>& LevelNamesToStreamOut,
+	const TArray<FString>& LevelNamesToHide
+)
 {
-	if ( LevelNamesToStreamOut.Num() == 0 && LevelNamesToHide.Num() == 0 )
+	if (LevelNamesToStreamOut.Num() == 0 && LevelNamesToHide.Num() == 0)
 	{
 		return;
 	}
 
 	bool bCreatedContext = false;
-	FWorldContext* Context = GEngine->GetWorldContextFromWorld( OwningWorld );
-	if ( !Context )
+	FWorldContext* Context = GEngine->GetWorldContextFromWorld(OwningWorld);
+	if (!Context)
 	{
-		FWorldContext& NewContext = GEngine->CreateNewWorldContext( EWorldType::EditorPreview );
-		NewContext.SetCurrentWorld( OwningWorld );
+		FWorldContext& NewContext = GEngine->CreateNewWorldContext(EWorldType::EditorPreview);
+		NewContext.SetCurrentWorld(OwningWorld);
 
 		bCreatedContext = true;
 	}
 
-	for ( ULevelStreaming* StreamingLevel : OwningWorld->GetStreamingLevels() )
+	for (ULevelStreaming* StreamingLevel : OwningWorld->GetStreamingLevels())
 	{
-		if ( StreamingLevel )
+		if (StreamingLevel)
 		{
 			const FString& LevelName = StreamingLevel->GetWorldAssetPackageName();
 
-			if ( LevelNamesToHide.Contains( LevelName ) )
+			if (LevelNamesToHide.Contains(LevelName))
 			{
 				const bool bInShouldBeVisible = false;
-				StreamingLevel->SetShouldBeVisible( bInShouldBeVisible );
-				StreamingLevel->SetShouldBeVisibleInEditor( bInShouldBeVisible );
+				StreamingLevel->SetShouldBeVisible(bInShouldBeVisible);
+				StreamingLevel->SetShouldBeVisibleInEditor(bInShouldBeVisible);
 			}
 
-			if ( LevelNamesToStreamOut.Contains( LevelName ) )
+			if (LevelNamesToStreamOut.Contains(LevelName))
 			{
 				const bool bInShouldBeLoaded = false;
-				StreamingLevel->SetShouldBeVisible( bInShouldBeLoaded );
-				StreamingLevel->SetShouldBeLoaded( bInShouldBeLoaded );
+				StreamingLevel->SetShouldBeVisible(bInShouldBeLoaded);
+				StreamingLevel->SetShouldBeLoaded(bInShouldBeLoaded);
 			}
 		}
 	}
 
-	UE::UsdConversionBlueprintLibraryImpl::Private::WaitForAllAsyncAndSteamingTasks(OwningWorld);
+	UE::UsdConversionBlueprintLibrary::Private::WaitForAllAsyncAndSteamingTasks(OwningWorld);
 
-	if ( bCreatedContext )
+	if (bCreatedContext)
 	{
-		GEngine->DestroyWorldContext( OwningWorld );
+		GEngine->DestroyWorldContext(OwningWorld);
 	}
 }
 
-TSet<AActor*> UUsdConversionBlueprintLibrary::GetActorsToConvert( UWorld* World )
+TSet<AActor*> UUsdConversionBlueprintLibrary::GetActorsToConvert(UWorld* World)
 {
 	TSet<AActor*> Result;
-	if ( !World )
+	if (!World)
 	{
 		return Result;
 	}
 
-	auto CollectActors = [ &Result ]( ULevel* Level )
+	auto CollectActors = [&Result](ULevel* Level)
 	{
-		if ( !Level )
+		if (!Level)
 		{
 			return;
 		}
 
-		Result.Append( ObjectPtrDecay(Level->Actors) );
+		Result.Append(ObjectPtrDecay(Level->Actors));
 	};
 
-	CollectActors( World->PersistentLevel );
+	CollectActors(World->PersistentLevel);
 
-	for ( ULevelStreaming* StreamingLevel : World->GetStreamingLevels() )
+	for (ULevelStreaming* StreamingLevel : World->GetStreamingLevels())
 	{
-		if ( StreamingLevel && StreamingLevel->IsLevelLoaded() && StreamingLevel->GetShouldBeVisibleInEditor() )
+		if (StreamingLevel && StreamingLevel->IsLevelLoaded() && StreamingLevel->GetShouldBeVisibleInEditor())
 		{
-			if ( ULevel* Level = StreamingLevel->GetLoadedLevel() )
+			if (ULevel* Level = StreamingLevel->GetLoadedLevel())
 			{
-				CollectActors( Level );
+				CollectActors(Level);
 			}
 		}
 	}
 
-	Result.Remove( nullptr );
+	Result.Remove(nullptr);
 
 	// Remove transient actors here because it is not possible to do this via Python
 	TSet<AActor*> ActorsToRemove;
-	ActorsToRemove.Reserve( Result.Num() );
-	for ( AActor* Actor : Result )
+	ActorsToRemove.Reserve(Result.Num());
+	for (AActor* Actor : Result)
 	{
 		// Actors marked with this tag are transient because they're spawnables: We still want to export those, in case
 		// we're exporting a level for a LevelSequence export with spawnables.
-		if ( Actor->HasAnyFlags( EObjectFlags::RF_Transient ) && !Actor->Tags.Contains( TEXT( "SequencerActor" ) ) )
+		if (Actor->HasAnyFlags(EObjectFlags::RF_Transient) && !Actor->Tags.Contains(TEXT("SequencerActor")))
 		{
-			ActorsToRemove.Add( Actor );
+			ActorsToRemove.Add(Actor);
 		}
 	}
-	Result = Result.Difference( ActorsToRemove );
+	Result = Result.Difference(ActorsToRemove);
 	return Result;
 }
 
-FString UUsdConversionBlueprintLibrary::GenerateObjectVersionString( const UObject* ObjectToExport, UObject* ExportOptions )
+FString UUsdConversionBlueprintLibrary::GenerateObjectVersionString(const UObject* ObjectToExport, UObject* ExportOptions)
 {
-	if ( !ObjectToExport )
+	if (!ObjectToExport)
 	{
 		return {};
 	}
 
 	FSHA1 SHA1;
 
-	if ( !IUsdClassesModule::HashObjectPackage( ObjectToExport, SHA1 ) )
+	if (!IUsdClassesModule::HashObjectPackage(ObjectToExport, SHA1))
 	{
 		return {};
 	}
 
-	if ( ULevelExporterUSDOptions* LevelExportOptions = Cast<ULevelExporterUSDOptions>( ExportOptions ) )
+	if (ULevelExporterUSDOptions* LevelExportOptions = Cast<ULevelExporterUSDOptions>(ExportOptions))
 	{
-		UsdUtils::HashForLevelExport( *LevelExportOptions, SHA1 );
+		UsdUtils::HashForLevelExport(*LevelExportOptions, SHA1);
 	}
 
 	FSHAHash Hash;
 	SHA1.Final();
-	SHA1.GetHash( &Hash.Hash[ 0 ] );
+	SHA1.GetHash(&Hash.Hash[0]);
 	return Hash.ToString();
 }
 
-bool UUsdConversionBlueprintLibrary::CanExportToLayer( const FString& TargetFilePath )
+bool UUsdConversionBlueprintLibrary::CanExportToLayer(const FString& TargetFilePath)
 {
-	return IUsdExporterModule::CanExportToLayer( TargetFilePath );
+	return IUsdExporterModule::CanExportToLayer(TargetFilePath);
 }
 
-FString UUsdConversionBlueprintLibrary::MakePathRelativeToLayer( const FString& AnchorLayerPath, const FString& PathToMakeRelative )
+FString UUsdConversionBlueprintLibrary::MakePathRelativeToLayer(const FString& AnchorLayerPath, const FString& PathToMakeRelative)
 {
 #if USE_USD_SDK
-	if ( UE::FSdfLayer Layer = UE::FSdfLayer::FindOrOpen( *AnchorLayerPath ) )
+	if (UE::FSdfLayer Layer = UE::FSdfLayer::FindOrOpen(*AnchorLayerPath))
 	{
 		FString Path = PathToMakeRelative;
-		UsdUtils::MakePathRelativeToLayer( Layer, Path );
+		UsdUtils::MakePathRelativeToLayer(Layer, Path);
 		return Path;
 	}
 	else
 	{
-		UE_LOG(LogUsd, Error, TEXT("Failed to find a layer with path '%s' to make the path '%s' relative to"), *AnchorLayerPath, *PathToMakeRelative );
+		UE_LOG(LogUsd, Error, TEXT("Failed to find a layer with path '%s' to make the path '%s' relative to"), *AnchorLayerPath, *PathToMakeRelative);
 		return PathToMakeRelative;
 	}
 #else
 	return FString();
-#endif // USE_USD_SDK
+#endif	  // USE_USD_SDK
 }
 
-void UUsdConversionBlueprintLibrary::InsertSubLayer( const FString& ParentLayerPath, const FString& SubLayerPath, int32 Index /*= -1 */ )
+void UUsdConversionBlueprintLibrary::InsertSubLayer(const FString& ParentLayerPath, const FString& SubLayerPath, int32 Index /*= -1 */)
 {
 #if USE_USD_SDK
-	if ( ParentLayerPath.IsEmpty() || SubLayerPath.IsEmpty() )
+	if (ParentLayerPath.IsEmpty() || SubLayerPath.IsEmpty())
 	{
 		return;
 	}
 
-	if ( UE::FSdfLayer Layer = UE::FSdfLayer::FindOrOpen( *ParentLayerPath ) )
+	if (UE::FSdfLayer Layer = UE::FSdfLayer::FindOrOpen(*ParentLayerPath))
 	{
-		UsdUtils::InsertSubLayer( Layer, *SubLayerPath, Index );
+		UsdUtils::InsertSubLayer(Layer, *SubLayerPath, Index);
 	}
 	else
 	{
-		UE_LOG( LogUsd, Error, TEXT( "Failed to find a parent layer '%s' when trying to insert sublayer '%s'" ), *ParentLayerPath, *SubLayerPath );
+		UE_LOG(LogUsd, Error, TEXT("Failed to find a parent layer '%s' when trying to insert sublayer '%s'"), *ParentLayerPath, *SubLayerPath);
 	}
-#endif // USE_USD_SDK
+#endif	  // USE_USD_SDK
 }
 
-void UUsdConversionBlueprintLibrary::AddReference( const FString& ReferencingStagePath, const FString& ReferencingPrimPath, const FString& TargetStagePath )
+void UUsdConversionBlueprintLibrary::AddReference(
+	const FString& ReferencingStagePath,
+	const FString& ReferencingPrimPath,
+	const FString& TargetStagePath
+)
 {
 #if USE_USD_SDK
 	TArray<UE::FUsdStage> PreviouslyOpenedStages = UnrealUSDWrapper::GetAllStagesFromCache();
 
 	// Open using the stage cache as it's very likely this stage is already in there anyway
-	UE::FUsdStage ReferencingStage = UnrealUSDWrapper::OpenStage( *ReferencingStagePath, EUsdInitialLoadSet::LoadAll );
-	if ( ReferencingStage )
+	UE::FUsdStage ReferencingStage = UnrealUSDWrapper::OpenStage(*ReferencingStagePath, EUsdInitialLoadSet::LoadAll);
+	if (ReferencingStage)
 	{
-		if ( UE::FUsdPrim ReferencingPrim = ReferencingStage.GetPrimAtPath( UE::FSdfPath( *ReferencingPrimPath ) ) )
+		if (UE::FUsdPrim ReferencingPrim = ReferencingStage.GetPrimAtPath(UE::FSdfPath(*ReferencingPrimPath)))
 		{
-			UsdUtils::AddReference( ReferencingPrim, *TargetStagePath );
+			UsdUtils::AddReference(ReferencingPrim, *TargetStagePath);
 		}
 	}
 
 	// Cleanup or else the stage cache will keep these stages open forever
-	if ( !PreviouslyOpenedStages.Contains( ReferencingStage ) )
+	if (!PreviouslyOpenedStages.Contains(ReferencingStage))
 	{
-		UnrealUSDWrapper::EraseStageFromCache( ReferencingStage );
+		UnrealUSDWrapper::EraseStageFromCache(ReferencingStage);
 	}
-#endif // USE_USD_SDK
+#endif	  // USE_USD_SDK
 }
 
-void UUsdConversionBlueprintLibrary::AddPayload( const FString& ReferencingStagePath, const FString& ReferencingPrimPath, const FString& TargetStagePath )
+void UUsdConversionBlueprintLibrary::AddPayload(
+	const FString& ReferencingStagePath,
+	const FString& ReferencingPrimPath,
+	const FString& TargetStagePath
+)
 {
 #if USE_USD_SDK
 	TArray<UE::FUsdStage> PreviouslyOpenedStages = UnrealUSDWrapper::GetAllStagesFromCache();
 
 	// Open using the stage cache as it's very likely this stage is already in there anyway
-	UE::FUsdStage ReferencingStage = UnrealUSDWrapper::OpenStage( *ReferencingStagePath, EUsdInitialLoadSet::LoadAll );
-	if ( ReferencingStage )
+	UE::FUsdStage ReferencingStage = UnrealUSDWrapper::OpenStage(*ReferencingStagePath, EUsdInitialLoadSet::LoadAll);
+	if (ReferencingStage)
 	{
-		if ( UE::FUsdPrim ReferencingPrim = ReferencingStage.GetPrimAtPath( UE::FSdfPath( *ReferencingPrimPath ) ) )
+		if (UE::FUsdPrim ReferencingPrim = ReferencingStage.GetPrimAtPath(UE::FSdfPath(*ReferencingPrimPath)))
 		{
-			UsdUtils::AddPayload( ReferencingPrim, *TargetStagePath );
+			UsdUtils::AddPayload(ReferencingPrim, *TargetStagePath);
 		}
 	}
 
 	// Cleanup or else the stage cache will keep these stages open forever
-	if ( !PreviouslyOpenedStages.Contains( ReferencingStage ) )
+	if (!PreviouslyOpenedStages.Contains(ReferencingStage))
 	{
-		UnrealUSDWrapper::EraseStageFromCache( ReferencingStage );
+		UnrealUSDWrapper::EraseStageFromCache(ReferencingStage);
 	}
-#endif // USE_USD_SDK
+#endif	  // USE_USD_SDK
 }
 
-FString UUsdConversionBlueprintLibrary::GetPrimPathForObject( const UObject* ActorOrComponent, const FString& ParentPrimPath, bool bUseActorFolders )
+FString UUsdConversionBlueprintLibrary::GetPrimPathForObject(const UObject* ActorOrComponent, const FString& ParentPrimPath, bool bUseActorFolders)
 {
 #if USE_USD_SDK
-	return UsdUtils::GetPrimPathForObject( ActorOrComponent, ParentPrimPath, bUseActorFolders );
+	return UsdUtils::GetPrimPathForObject(ActorOrComponent, ParentPrimPath, bUseActorFolders);
 #else
 	return {};
-#endif // USE_USD_SDK
+#endif	  // USE_USD_SDK
 }
 
-FString UUsdConversionBlueprintLibrary::GetSchemaNameForComponent( const USceneComponent* Component )
+FString UUsdConversionBlueprintLibrary::GetSchemaNameForComponent(const USceneComponent* Component)
 {
 #if USE_USD_SDK
-	if ( Component )
+	if (Component)
 	{
-		return UsdUtils::GetSchemaNameForComponent( *Component );
+		return UsdUtils::GetSchemaNameForComponent(*Component);
 	}
-#endif // USE_USD_SDK
+#endif	  // USE_USD_SDK
 
 	return {};
 }
 
-AInstancedFoliageActor* UUsdConversionBlueprintLibrary::GetInstancedFoliageActorForLevel( bool bCreateIfNone /*= false */, ULevel* Level /*= nullptr */ )
+AInstancedFoliageActor* UUsdConversionBlueprintLibrary::GetInstancedFoliageActorForLevel(bool bCreateIfNone /*= false */, ULevel* Level /*= nullptr */)
 {
-	if ( !Level )
+	if (!Level)
 	{
 		const bool bEnsureIsGWorld = false;
-		UWorld* EditorWorld = GEditor ? GEditor->GetEditorWorldContext( bEnsureIsGWorld ).World() : nullptr;
-		if ( !EditorWorld )
+		UWorld* EditorWorld = GEditor ? GEditor->GetEditorWorldContext(bEnsureIsGWorld).World() : nullptr;
+		if (!EditorWorld)
 		{
 			return nullptr;
 		}
 
 		Level = EditorWorld->GetCurrentLevel();
-		if ( !Level )
+		if (!Level)
 		{
 			return nullptr;
 		}
 	}
 
-	return AInstancedFoliageActor::GetInstancedFoliageActorForLevel( Level, bCreateIfNone );
+	return AInstancedFoliageActor::GetInstancedFoliageActorForLevel(Level, bCreateIfNone);
 }
 
-TArray<UFoliageType*> UUsdConversionBlueprintLibrary::GetUsedFoliageTypes( AInstancedFoliageActor* Actor )
+TArray<UFoliageType*> UUsdConversionBlueprintLibrary::GetUsedFoliageTypes(AInstancedFoliageActor* Actor)
 {
 	TArray<UFoliageType*> Result;
-	if ( !Actor )
+	if (!Actor)
 	{
 		return Result;
 	}
 
-	for ( const TPair<UFoliageType*, TUniqueObj<FFoliageInfo>>& FoliagePair : Actor->GetFoliageInfos() )
+	for (const TPair<UFoliageType*, TUniqueObj<FFoliageInfo>>& FoliagePair : Actor->GetFoliageInfos())
 	{
-		Result.Add( FoliagePair.Key );
+		Result.Add(FoliagePair.Key);
 	}
 
 	return Result;
 }
 
-UObject* UUsdConversionBlueprintLibrary::GetSource( UFoliageType* FoliageType )
+UObject* UUsdConversionBlueprintLibrary::GetSource(UFoliageType* FoliageType)
 {
-	if ( FoliageType )
+	if (FoliageType)
 	{
 		return FoliageType->GetSource();
 	}
@@ -549,37 +551,41 @@ UObject* UUsdConversionBlueprintLibrary::GetSource( UFoliageType* FoliageType )
 	return nullptr;
 }
 
-TArray<FTransform> UUsdConversionBlueprintLibrary::GetInstanceTransforms( AInstancedFoliageActor* Actor, UFoliageType* FoliageType, ULevel* InstancesLevel )
+TArray<FTransform> UUsdConversionBlueprintLibrary::GetInstanceTransforms(
+	AInstancedFoliageActor* Actor,
+	UFoliageType* FoliageType,
+	ULevel* InstancesLevel
+)
 {
 	TArray<FTransform> Result;
-	if ( !Actor || !FoliageType )
+	if (!Actor || !FoliageType)
 	{
 		return Result;
 	}
 
 	// Modified from AInstancedFoliageActor::GetInstancesForComponent to limit traversal only to our FoliageType
 
-	if ( const TUniqueObj<FFoliageInfo>* FoundInfo = Actor->GetFoliageInfos().Find( FoliageType ) )
+	if (const TUniqueObj<FFoliageInfo>* FoundInfo = Actor->GetFoliageInfos().Find(FoliageType))
 	{
-		const FFoliageInfo& Info = ( *FoundInfo ).Get();
+		const FFoliageInfo& Info = (*FoundInfo).Get();
 
 		// Collect IDs of components that are on the same level as the actor's level. This because later on we'll have level-by-level
 		// export, and we'd want one point instancer per level
-		for ( const TPair<FFoliageInstanceBaseId, FFoliageInstanceBaseInfo>& FoliageInstancePair : Actor->InstanceBaseCache.InstanceBaseMap )
+		for (const TPair<FFoliageInstanceBaseId, FFoliageInstanceBaseInfo>& FoliageInstancePair : Actor->InstanceBaseCache.InstanceBaseMap)
 		{
 			UActorComponent* Comp = FoliageInstancePair.Value.BasePtr.Get();
-			if ( !Comp || ( InstancesLevel && ( Comp->GetComponentLevel() != InstancesLevel ) ) )
+			if (!Comp || (InstancesLevel && (Comp->GetComponentLevel() != InstancesLevel)))
 			{
 				continue;
 			}
 
-			if ( const auto* InstanceSet = Info.ComponentHash.Find( FoliageInstancePair.Key ) )
+			if (const auto* InstanceSet = Info.ComponentHash.Find(FoliageInstancePair.Key))
 			{
-				Result.Reserve( Result.Num() + InstanceSet->Num() );
-				for ( int32 InstanceIndex : *InstanceSet )
+				Result.Reserve(Result.Num() + InstanceSet->Num());
+				for (int32 InstanceIndex : *InstanceSet)
 				{
-					const FFoliageInstancePlacementInfo* Instance = &Info.Instances[ InstanceIndex ];
-					Result.Emplace( FQuat( Instance->Rotation ), Instance->Location, ( FVector ) Instance->DrawScale3D );
+					const FFoliageInstancePlacementInfo* Instance = &Info.Instances[InstanceIndex];
+					Result.Emplace(FQuat(Instance->Rotation), Instance->Location, (FVector)Instance->DrawScale3D);
 				}
 			}
 		}
@@ -588,16 +594,16 @@ TArray<FTransform> UUsdConversionBlueprintLibrary::GetInstanceTransforms( AInsta
 	return Result;
 }
 
-TArray<FAnalyticsEventAttr> UUsdConversionBlueprintLibrary::GetAnalyticsAttributes( const ULevelExporterUSDOptions* Options )
+TArray<FAnalyticsEventAttr> UUsdConversionBlueprintLibrary::GetAnalyticsAttributes(const ULevelExporterUSDOptions* Options)
 {
 	TArray<FAnalyticsEventAttr> Attrs;
-	if ( Options )
+	if (Options)
 	{
 		TArray<FAnalyticsEventAttribute> Attributes;
-		UsdUtils::AddAnalyticsAttributes( *Options, Attributes );
+		UsdUtils::AddAnalyticsAttributes(*Options, Attributes);
 
-		Attrs.Reserve( Attributes.Num() );
-		for(const FAnalyticsEventAttribute& Attribute : Attributes )
+		Attrs.Reserve(Attributes.Num());
+		for (const FAnalyticsEventAttribute& Attribute : Attributes)
 		{
 			FAnalyticsEventAttr& NewAttr = Attrs.Emplace_GetRef();
 			NewAttr.Name = Attribute.GetName();
@@ -607,102 +613,106 @@ TArray<FAnalyticsEventAttr> UUsdConversionBlueprintLibrary::GetAnalyticsAttribut
 	return Attrs;
 }
 
-void UUsdConversionBlueprintLibrary::SendAnalytics( const TArray<FAnalyticsEventAttr>& Attrs, const FString& EventName, bool bAutomated, double ElapsedSeconds, double NumberOfFrames, const FString& Extension )
+void UUsdConversionBlueprintLibrary::SendAnalytics(
+	const TArray<FAnalyticsEventAttr>& Attrs,
+	const FString& EventName,
+	bool bAutomated,
+	double ElapsedSeconds,
+	double NumberOfFrames,
+	const FString& Extension
+)
 {
 	TArray<FAnalyticsEventAttribute> Converted;
-	Converted.Reserve( Attrs.Num() );
-	for ( const FAnalyticsEventAttr& Attr : Attrs )
+	Converted.Reserve(Attrs.Num());
+	for (const FAnalyticsEventAttr& Attr : Attrs)
 	{
-		Converted.Emplace( Attr.Name, Attr.Value );
+		Converted.Emplace(Attr.Name, Attr.Value);
 	}
 
-	IUsdClassesModule::SendAnalytics( MoveTemp( Converted ), EventName, bAutomated, ElapsedSeconds, NumberOfFrames, Extension );
+	IUsdClassesModule::SendAnalytics(MoveTemp(Converted), EventName, bAutomated, ElapsedSeconds, NumberOfFrames, Extension);
 }
 
-void UUsdConversionBlueprintLibrary::RemoveAllPrimSpecs( const FString& StageRootLayer, const FString& PrimPath, const FString& TargetLayer )
+void UUsdConversionBlueprintLibrary::RemoveAllPrimSpecs(const FString& StageRootLayer, const FString& PrimPath, const FString& TargetLayer)
 {
 #if USE_USD_SDK
 	const bool bUseStageCache = true;
-	UE::FUsdStage Stage = UnrealUSDWrapper::OpenStage( *StageRootLayer, EUsdInitialLoadSet::LoadAll, bUseStageCache );
-	if ( !Stage )
+	UE::FUsdStage Stage = UnrealUSDWrapper::OpenStage(*StageRootLayer, EUsdInitialLoadSet::LoadAll, bUseStageCache);
+	if (!Stage)
 	{
 		return;
 	}
 
-	UsdUtils::RemoveAllLocalPrimSpecs(
-		Stage.GetPrimAtPath( UE::FSdfPath{ *PrimPath } ),
-		UE::FSdfLayer::FindOrOpen( *TargetLayer )
-	);
-#endif // USE_USD_SDK
+	UsdUtils::RemoveAllLocalPrimSpecs(Stage.GetPrimAtPath(UE::FSdfPath{*PrimPath}), UE::FSdfLayer::FindOrOpen(*TargetLayer));
+#endif	  // USE_USD_SDK
 }
 
-bool UUsdConversionBlueprintLibrary::CutPrims( const FString& StageRootLayer, const TArray<FString>& PrimPaths )
+bool UUsdConversionBlueprintLibrary::CutPrims(const FString& StageRootLayer, const TArray<FString>& PrimPaths)
 {
 #if USE_USD_SDK
 	const bool bUseStageCache = true;
-	UE::FUsdStage Stage = UnrealUSDWrapper::OpenStage( *StageRootLayer, EUsdInitialLoadSet::LoadAll, bUseStageCache );
-	if ( !Stage )
+	UE::FUsdStage Stage = UnrealUSDWrapper::OpenStage(*StageRootLayer, EUsdInitialLoadSet::LoadAll, bUseStageCache);
+	if (!Stage)
 	{
 		return false;
 	}
 
 	TArray<UE::FUsdPrim> Prims;
-	Prims.Reserve( PrimPaths.Num() );
+	Prims.Reserve(PrimPaths.Num());
 
-	for ( const FString& PrimPath : PrimPaths )
+	for (const FString& PrimPath : PrimPaths)
 	{
-		Prims.Add( Stage.GetPrimAtPath( UE::FSdfPath{ *PrimPath } ) );
+		Prims.Add(Stage.GetPrimAtPath(UE::FSdfPath{*PrimPath}));
 	}
 
-	return UsdUtils::CutPrims( Prims );
+	return UsdUtils::CutPrims(Prims);
 #else
 	return false;
-#endif // USE_USD_SDK
+#endif	  // USE_USD_SDK
 }
 
-bool UUsdConversionBlueprintLibrary::CopyPrims( const FString& StageRootLayer, const TArray<FString>& PrimPaths )
+bool UUsdConversionBlueprintLibrary::CopyPrims(const FString& StageRootLayer, const TArray<FString>& PrimPaths)
 {
 #if USE_USD_SDK
 	const bool bUseStageCache = true;
-	UE::FUsdStage Stage = UnrealUSDWrapper::OpenStage( *StageRootLayer, EUsdInitialLoadSet::LoadAll, bUseStageCache );
-	if ( !Stage )
+	UE::FUsdStage Stage = UnrealUSDWrapper::OpenStage(*StageRootLayer, EUsdInitialLoadSet::LoadAll, bUseStageCache);
+	if (!Stage)
 	{
 		return false;
 	}
 
 	TArray<UE::FUsdPrim> Prims;
-	Prims.Reserve( PrimPaths.Num() );
+	Prims.Reserve(PrimPaths.Num());
 
-	for ( const FString& PrimPath : PrimPaths )
+	for (const FString& PrimPath : PrimPaths)
 	{
-		Prims.Add( Stage.GetPrimAtPath( UE::FSdfPath{ *PrimPath } ) );
+		Prims.Add(Stage.GetPrimAtPath(UE::FSdfPath{*PrimPath}));
 	}
 
-	return UsdUtils::CopyPrims( Prims );
+	return UsdUtils::CopyPrims(Prims);
 #else
 	return false;
-#endif // USE_USD_SDK
+#endif	  // USE_USD_SDK
 }
 
-TArray<FString> UUsdConversionBlueprintLibrary::PastePrims( const FString& StageRootLayer, const FString& ParentPrimPath )
+TArray<FString> UUsdConversionBlueprintLibrary::PastePrims(const FString& StageRootLayer, const FString& ParentPrimPath)
 {
 	TArray<FString> Result;
 
 #if USE_USD_SDK
 	const bool bUseStageCache = true;
-	UE::FUsdStage Stage = UnrealUSDWrapper::OpenStage( *StageRootLayer, EUsdInitialLoadSet::LoadAll, bUseStageCache );
-	if ( !Stage )
+	UE::FUsdStage Stage = UnrealUSDWrapper::OpenStage(*StageRootLayer, EUsdInitialLoadSet::LoadAll, bUseStageCache);
+	if (!Stage)
 	{
 		return Result;
 	}
 
-	TArray<UE::FSdfPath> PastedPrims = UsdUtils::PastePrims( Stage.GetPrimAtPath( UE::FSdfPath{ *ParentPrimPath } ) );
+	TArray<UE::FSdfPath> PastedPrims = UsdUtils::PastePrims(Stage.GetPrimAtPath(UE::FSdfPath{*ParentPrimPath}));
 
-	for ( const UE::FSdfPath& DuplicatePrim : PastedPrims )
+	for (const UE::FSdfPath& DuplicatePrim : PastedPrims)
 	{
-		Result.Add( DuplicatePrim.GetString() );
+		Result.Add(DuplicatePrim.GetString());
 	}
-#endif // USE_USD_SDK
+#endif	  // USE_USD_SDK
 
 	return Result;
 }
@@ -717,39 +727,40 @@ void UUsdConversionBlueprintLibrary::ClearPrimClipboard()
 	UsdUtils::ClearPrimClipboard();
 }
 
-TArray<FString> UUsdConversionBlueprintLibrary::DuplicatePrims( const FString& StageRootLayer, const TArray<FString>& PrimPaths, EUsdDuplicateType DuplicateType, const FString& TargetLayer )
+TArray<FString> UUsdConversionBlueprintLibrary::DuplicatePrims(
+	const FString& StageRootLayer,
+	const TArray<FString>& PrimPaths,
+	EUsdDuplicateType DuplicateType,
+	const FString& TargetLayer
+)
 {
 	TArray<FString> Result;
-	Result.SetNum( PrimPaths.Num() );
+	Result.SetNum(PrimPaths.Num());
 
 #if USE_USD_SDK
 	const bool bUseStageCache = true;
-	UE::FUsdStage Stage = UnrealUSDWrapper::OpenStage( *StageRootLayer, EUsdInitialLoadSet::LoadAll, bUseStageCache );
-	if ( !Stage )
+	UE::FUsdStage Stage = UnrealUSDWrapper::OpenStage(*StageRootLayer, EUsdInitialLoadSet::LoadAll, bUseStageCache);
+	if (!Stage)
 	{
 		return Result;
 	}
 
 	TArray<UE::FUsdPrim> Prims;
-	Prims.Reserve( PrimPaths.Num() );
+	Prims.Reserve(PrimPaths.Num());
 
-	for ( const FString& PrimPath : PrimPaths )
+	for (const FString& PrimPath : PrimPaths)
 	{
-		Prims.Add( Stage.GetPrimAtPath( UE::FSdfPath{ *PrimPath } ) );
+		Prims.Add(Stage.GetPrimAtPath(UE::FSdfPath{*PrimPath}));
 	}
 
-	TArray<UE::FSdfPath> DuplicatedPrims = UsdUtils::DuplicatePrims(
-		Prims,
-		DuplicateType,
-		UE::FSdfLayer::FindOrOpen( *TargetLayer )
-	);
+	TArray<UE::FSdfPath> DuplicatedPrims = UsdUtils::DuplicatePrims(Prims, DuplicateType, UE::FSdfLayer::FindOrOpen(*TargetLayer));
 
-	for ( int32 Index = 0; Index < DuplicatedPrims.Num(); ++Index )
+	for (int32 Index = 0; Index < DuplicatedPrims.Num(); ++Index)
 	{
 		const UE::FSdfPath& DuplicatePrim = DuplicatedPrims[Index];
-		Result[ Index ] = DuplicatePrim.GetString();
+		Result[Index] = DuplicatePrim.GetString();
 	}
-#endif // USE_USD_SDK
+#endif	  // USE_USD_SDK
 
 	return Result;
 }
@@ -764,7 +775,7 @@ bool UUsdConversionBlueprintLibrary::SetUsdAssetUserData(UObject* Object, UUsdAs
 	return UsdUtils::SetAssetUserData(Object, AssetUserData);
 }
 
-namespace UE::UsdConversionBlueprintLibraryImpl::Private
+namespace UE::UsdConversionBlueprintLibrary::Private
 {
 	FEditPropertyChain& GetMetadataPropertyChain()
 	{
@@ -781,7 +792,9 @@ namespace UE::UsdConversionBlueprintLibraryImpl::Private
 
 			Chain.Emplace();
 			Chain->AddHead(StageIdentifierProp);
-			Chain->AddTail(FUsdCombinedPrimMetadata::StaticStruct()->FindPropertyByName(GET_MEMBER_NAME_CHECKED(FUsdCombinedPrimMetadata, PrimPathToMetadata)));
+			Chain->AddTail(
+				FUsdCombinedPrimMetadata::StaticStruct()->FindPropertyByName(GET_MEMBER_NAME_CHECKED(FUsdCombinedPrimMetadata, PrimPathToMetadata))
+			);
 			Chain->AddTail(FUsdPrimMetadata::StaticStruct()->FindPropertyByName(GET_MEMBER_NAME_CHECKED(FUsdPrimMetadata, Metadata)));
 			Chain->AddTail(StringifiedValueProp);
 			Chain->SetActivePropertyNode(StringifiedValueProp);
@@ -796,20 +809,16 @@ namespace UE::UsdConversionBlueprintLibraryImpl::Private
 		FPropertyChangedEvent PostChangeEvent{
 			FUsdMetadataValue::StaticStruct()->FindPropertyByName(GET_MEMBER_NAME_CHECKED(FUsdMetadataValue, StringifiedValue)),
 			ChangeType,
-			{TopLevelObject}
-		};
+			{TopLevelObject}};
 		PostChangeEvent.MemberProperty = UUsdAssetUserData::StaticClass()->FindPropertyByName(
 			GET_MEMBER_NAME_CHECKED(UUsdAssetUserData, StageIdentifierToMetadata)
 		);
 
-		FPropertyChangedChainEvent ChainEvent{
-			GetMetadataPropertyChain(),
-			PostChangeEvent
-		};
+		FPropertyChangedChainEvent ChainEvent{GetMetadataPropertyChain(), PostChangeEvent};
 
 		return ChainEvent;
 	}
-}
+}	 // namespace UE::UsdConversionBlueprintLibrary::Private
 
 bool UUsdConversionBlueprintLibrary::SetMetadataField(
 	UUsdAssetUserData* AssetUserData,
@@ -821,7 +830,7 @@ bool UUsdConversionBlueprintLibrary::SetMetadataField(
 	bool bTriggerPropertyChangeEvents
 )
 {
-	using namespace UE::UsdConversionBlueprintLibraryImpl::Private;
+	using namespace UE::UsdConversionBlueprintLibrary::Private;
 
 	if (!AssetUserData)
 	{
@@ -830,19 +839,26 @@ bool UUsdConversionBlueprintLibrary::SetMetadataField(
 
 	if (StageIdentifier.IsEmpty() && AssetUserData->StageIdentifierToMetadata.Num() != 1)
 	{
-		UE_LOG(LogUsd, Warning, TEXT("Failed to set metadata field '%s' on AssetUserData '%s': Please provide a valid value for the StageIdentifier parameter"),
+		UE_LOG(
+			LogUsd,
+			Warning,
+			TEXT("Failed to set metadata field '%s' on AssetUserData '%s': Please provide a valid value for the StageIdentifier parameter"),
 			*AssetUserData->GetPathName(),
 			*Key
 		);
 		return false;
 	}
 
-	const FString& StageIdentifierToUse = !StageIdentifier.IsEmpty() ? StageIdentifier : AssetUserData->StageIdentifierToMetadata.CreateIterator()->Key;
+	const FString& StageIdentifierToUse = !StageIdentifier.IsEmpty() ? StageIdentifier
+																	 : AssetUserData->StageIdentifierToMetadata.CreateIterator()->Key;
 	FUsdCombinedPrimMetadata& CombinedPrimMetadata = AssetUserData->StageIdentifierToMetadata.FindOrAdd(StageIdentifierToUse);
 
 	if (PrimPath.IsEmpty() && CombinedPrimMetadata.PrimPathToMetadata.Num() != 1)
 	{
-		UE_LOG(LogUsd, Warning, TEXT("Failed to set metadata field '%s' on AssetUserData '%s': Please provide a valid value for the PrimPath parameter"),
+		UE_LOG(
+			LogUsd,
+			Warning,
+			TEXT("Failed to set metadata field '%s' on AssetUserData '%s': Please provide a valid value for the PrimPath parameter"),
 			*AssetUserData->GetPathName(),
 			*Key
 		);
@@ -878,7 +894,7 @@ bool UUsdConversionBlueprintLibrary::ClearMetadataField(
 	bool bTriggerPropertyChangeEvents
 )
 {
-	using namespace UE::UsdConversionBlueprintLibraryImpl::Private;
+	using namespace UE::UsdConversionBlueprintLibrary::Private;
 
 	if (!AssetUserData)
 	{
@@ -887,19 +903,26 @@ bool UUsdConversionBlueprintLibrary::ClearMetadataField(
 
 	if (StageIdentifier.IsEmpty() && AssetUserData->StageIdentifierToMetadata.Num() != 1)
 	{
-		UE_LOG(LogUsd, Warning, TEXT("Failed to clear metadata field '%s' on AssetUserData '%s': Please provide a valid value for the StageIdentifier parameter"),
+		UE_LOG(
+			LogUsd,
+			Warning,
+			TEXT("Failed to clear metadata field '%s' on AssetUserData '%s': Please provide a valid value for the StageIdentifier parameter"),
 			*AssetUserData->GetPathName(),
 			*Key
 		);
 		return false;
 	}
 
-	const FString& StageIdentifierToUse = !StageIdentifier.IsEmpty() ? StageIdentifier : AssetUserData->StageIdentifierToMetadata.CreateIterator()->Key;
+	const FString& StageIdentifierToUse = !StageIdentifier.IsEmpty() ? StageIdentifier
+																	 : AssetUserData->StageIdentifierToMetadata.CreateIterator()->Key;
 	FUsdCombinedPrimMetadata& CombinedPrimMetadata = AssetUserData->StageIdentifierToMetadata.FindOrAdd(StageIdentifierToUse);
 
 	if (PrimPath.IsEmpty() && CombinedPrimMetadata.PrimPathToMetadata.Num() != 1)
 	{
-		UE_LOG(LogUsd, Warning, TEXT("Failed to clear metadata field '%s' on AssetUserData '%s': Please provide a valid value for the PrimPath parameter"),
+		UE_LOG(
+			LogUsd,
+			Warning,
+			TEXT("Failed to clear metadata field '%s' on AssetUserData '%s': Please provide a valid value for the PrimPath parameter"),
 			*AssetUserData->GetPathName(),
 			*Key
 		);
@@ -939,14 +962,18 @@ bool UUsdConversionBlueprintLibrary::HasMetadataField(
 
 	if (StageIdentifier.IsEmpty() && AssetUserData->StageIdentifierToMetadata.Num() != 1)
 	{
-		UE_LOG(LogUsd, Warning, TEXT("Failed to check for metadata field '%s' on AssetUserData '%s': Please provide a valid value for the StageIdentifier parameter"),
+		UE_LOG(
+			LogUsd,
+			Warning,
+			TEXT("Failed to check for metadata field '%s' on AssetUserData '%s': Please provide a valid value for the StageIdentifier parameter"),
 			*AssetUserData->GetPathName(),
 			*Key
 		);
 		return false;
 	}
 
-	const FString& StageIdentifierToUse = !StageIdentifier.IsEmpty() ? StageIdentifier : AssetUserData->StageIdentifierToMetadata.CreateIterator()->Key;
+	const FString& StageIdentifierToUse = !StageIdentifier.IsEmpty() ? StageIdentifier
+																	 : AssetUserData->StageIdentifierToMetadata.CreateIterator()->Key;
 	const FUsdCombinedPrimMetadata* CombinedPrimMetadata = AssetUserData->StageIdentifierToMetadata.Find(StageIdentifierToUse);
 	if (!CombinedPrimMetadata)
 	{
@@ -955,7 +982,10 @@ bool UUsdConversionBlueprintLibrary::HasMetadataField(
 
 	if (PrimPath.IsEmpty() && CombinedPrimMetadata->PrimPathToMetadata.Num() != 1)
 	{
-		UE_LOG(LogUsd, Warning, TEXT("Failed to clear metadata field '%s' on AssetUserData '%s': Please provide a valid value for the PrimPath parameter"),
+		UE_LOG(
+			LogUsd,
+			Warning,
+			TEXT("Failed to clear metadata field '%s' on AssetUserData '%s': Please provide a valid value for the PrimPath parameter"),
 			*AssetUserData->GetPathName(),
 			*Key
 		);
@@ -986,14 +1016,18 @@ FUsdMetadataValue UUsdConversionBlueprintLibrary::GetMetadataField(
 
 	if (StageIdentifier.IsEmpty() && AssetUserData->StageIdentifierToMetadata.Num() != 1)
 	{
-		UE_LOG(LogUsd, Warning, TEXT("Failed to get metadata field '%s' on AssetUserData '%s': Please provide a valid value for the StageIdentifier parameter"),
+		UE_LOG(
+			LogUsd,
+			Warning,
+			TEXT("Failed to get metadata field '%s' on AssetUserData '%s': Please provide a valid value for the StageIdentifier parameter"),
 			*AssetUserData->GetPathName(),
 			*Key
 		);
 		return {};
 	}
 
-	const FString& StageIdentifierToUse = !StageIdentifier.IsEmpty() ? StageIdentifier : AssetUserData->StageIdentifierToMetadata.CreateIterator()->Key;
+	const FString& StageIdentifierToUse = !StageIdentifier.IsEmpty() ? StageIdentifier
+																	 : AssetUserData->StageIdentifierToMetadata.CreateIterator()->Key;
 	const FUsdCombinedPrimMetadata* CombinedPrimMetadata = AssetUserData->StageIdentifierToMetadata.Find(StageIdentifierToUse);
 	if (!CombinedPrimMetadata)
 	{
@@ -1002,7 +1036,10 @@ FUsdMetadataValue UUsdConversionBlueprintLibrary::GetMetadataField(
 
 	if (PrimPath.IsEmpty() && CombinedPrimMetadata->PrimPathToMetadata.Num() != 1)
 	{
-		UE_LOG(LogUsd, Warning, TEXT("Failed to get metadata field '%s' on AssetUserData '%s': Please provide a valid value for the PrimPath parameter"),
+		UE_LOG(
+			LogUsd,
+			Warning,
+			TEXT("Failed to get metadata field '%s' on AssetUserData '%s': Please provide a valid value for the PrimPath parameter"),
 			*AssetUserData->GetPathName(),
 			*Key
 		);
@@ -1021,7 +1058,10 @@ FUsdMetadataValue UUsdConversionBlueprintLibrary::GetMetadataField(
 		return *FoundValue;
 	}
 
-	UE_LOG(LogUsd, Warning, TEXT("Failed to find a metadata entry in '%s' with stage identifier '%s', prim path '%s' and key '%s'"),
+	UE_LOG(
+		LogUsd,
+		Warning,
+		TEXT("Failed to find a metadata entry in '%s' with stage identifier '%s', prim path '%s' and key '%s'"),
 		*AssetUserData->GetPathName(),
 		*StageIdentifier,
 		*PrimPath,
@@ -1399,9 +1439,7 @@ int32 UUsdConversionBlueprintLibrary::UnstringifyAsInt(const FString& String)
 int32 UUsdConversionBlueprintLibrary::UnstringifyAsUInt(const FString& String)
 {
 	// Have to cast as there are no unsigned types higher than uint8 on blueprint...
-	return static_cast<int32>(
-		UE::UsdConversionLibrary::Private::UnstringifyOrDefault<uint32, UsdUtils::UnstringifyAsUInt>(String, TEXT("uint"))
-	);
+	return static_cast<int32>(UE::UsdConversionLibrary::Private::UnstringifyOrDefault<uint32, UsdUtils::UnstringifyAsUInt>(String, TEXT("uint")));
 }
 
 int64 UUsdConversionBlueprintLibrary::UnstringifyAsInt64(const FString& String)
@@ -1412,9 +1450,7 @@ int64 UUsdConversionBlueprintLibrary::UnstringifyAsInt64(const FString& String)
 int64 UUsdConversionBlueprintLibrary::UnstringifyAsUInt64(const FString& String)
 {
 	// Have to cast as there are no unsigned types higher than uint8 on blueprint...
-	return static_cast<int64>(
-		UE::UsdConversionLibrary::Private::UnstringifyOrDefault<uint64, UsdUtils::UnstringifyAsUInt64>(String, TEXT("uint64"))
-	);
+	return static_cast<int64>(UE::UsdConversionLibrary::Private::UnstringifyOrDefault<uint64, UsdUtils::UnstringifyAsUInt64>(String, TEXT("uint64")));
 }
 
 float UUsdConversionBlueprintLibrary::UnstringifyAsHalf(const FString& String)
@@ -1631,17 +1667,26 @@ TArray<FString> UUsdConversionBlueprintLibrary::UnstringifyAsAssetPathArray(cons
 
 TArray<FString> UUsdConversionBlueprintLibrary::UnstringifyAsListOpTokens(const FString& String)
 {
-	return UE::UsdConversionLibrary::Private::UnstringifyOrDefault<TArray<FString>, UsdUtils::UnstringifyAsListOpTokens>(String, TEXT("SdfListOp<Token>"));
+	return UE::UsdConversionLibrary::Private::UnstringifyOrDefault<TArray<FString>, UsdUtils::UnstringifyAsListOpTokens>(
+		String,
+		TEXT("SdfListOp<Token>")
+	);
 }
 
 TArray<FMatrix2D> UUsdConversionBlueprintLibrary::UnstringifyAsMatrix2dArray(const FString& String)
 {
-	return UE::UsdConversionLibrary::Private::UnstringifyOrDefault<TArray<FMatrix2D>, UsdUtils::UnstringifyAsMatrix2dArray>(String, TEXT("matrix2d[]"));
+	return UE::UsdConversionLibrary::Private::UnstringifyOrDefault<TArray<FMatrix2D>, UsdUtils::UnstringifyAsMatrix2dArray>(
+		String,
+		TEXT("matrix2d[]")
+	);
 }
 
 TArray<FMatrix3D> UUsdConversionBlueprintLibrary::UnstringifyAsMatrix3dArray(const FString& String)
 {
-	return UE::UsdConversionLibrary::Private::UnstringifyOrDefault<TArray<FMatrix3D>, UsdUtils::UnstringifyAsMatrix3dArray>(String, TEXT("matrix3d[]"));
+	return UE::UsdConversionLibrary::Private::UnstringifyOrDefault<TArray<FMatrix3D>, UsdUtils::UnstringifyAsMatrix3dArray>(
+		String,
+		TEXT("matrix3d[]")
+	);
 }
 
 TArray<FMatrix> UUsdConversionBlueprintLibrary::UnstringifyAsMatrix4dArray(const FString& String)
