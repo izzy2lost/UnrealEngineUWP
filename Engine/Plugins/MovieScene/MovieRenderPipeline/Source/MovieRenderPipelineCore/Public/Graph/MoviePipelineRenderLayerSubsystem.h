@@ -679,12 +679,20 @@ private:
 	/** Various visibility properties for an actor. */
 	struct FActorVisibilityState
 	{
+		struct FComponentState
+		{
+			TSoftObjectPtr<UPrimitiveComponent> Component = nullptr;
+			
+			uint8 bCastsShadows : 1 = true;
+			uint8 bCastShadowWhileHidden : 1 = false;
+			uint8 bAffectIndirectLightingWhileHidden : 1 = false;
+			uint8 bHoldout : 1 = false;
+		};
+
 		TSoftObjectPtr<AActor> Actor = nullptr;
+		TArray<FComponentState> Components;
+
 		uint8 bIsHidden : 1 = false;
-		uint8 bCastsShadows : 1 = true;
-		uint8 bCastShadowWhileHidden : 1 = false;
-		uint8 bAffectIndirectLightingWhileHidden : 1 = false;
-		uint8 bHoldout : 1 = false;
 	};
 
 	/** Updates an actor's visibility state to the state contained in NewVisibilityState. */

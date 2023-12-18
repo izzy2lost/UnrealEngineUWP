@@ -3,6 +3,17 @@
 #include "Graph/Nodes/MovieGraphImagePassBaseNode.h"
 #include "Graph/MoviePipelineRenderLayerSubsystem.h" 
 
+
+static TAutoConsoleVariable<bool> CVarMoviePipelineFlushRenderingPerLayerHack(
+	TEXT("MoviePipeline.FlushLayersHack"),
+	false,
+	TEXT("This is a debug cvar intended to help diagnose issues in the MoviePipeline multi-layer rendering mode\n")
+	TEXT("that flushes any outstanding rendering commands for each layer. This can have a large performance impact,\n")
+	TEXT("as it effectively removes any parallelism between the Game Thread and Render Thread!\n")
+	TEXT(" 0 - Don't flush (default)\n")
+	TEXT(" 1 - Flush (but negatively impacts performance)"),
+	ECVF_Default);
+
 UMovieGraphImagePassBaseNode::UMovieGraphImagePassBaseNode()
 {
 	ShowFlags = CreateDefaultSubobject<UMovieGraphShowFlags>(TEXT("ShowFlags"));
@@ -51,6 +62,15 @@ void UMovieGraphImagePassBaseNode::RenderImpl(const FMovieGraphTraversalContext&
 			LayerSubsystem->SetActiveRenderLayerByName(Instance->GetBranchName());
 		}
 		
+		// This is a hack to provide debug tooling for rendering issues caused by
+		// multiple layers. Flushing can ensure that all render proxies/etc. are
+		// recreated which can be used to see if it fixes various issues, but
+		// this comes at a big performance cost as it effectively removes GT/RT parallelism.
+		if (CVarMoviePipelineFlushRenderingPerLayerHack.GetValueOnGameThread())
+		{
+			FlushRenderingCommands();
+		}
+
 		Instance->Render(InFrameTraversalContext, InTimeData);
 
 		// Revert all modifiers
@@ -58,6 +78,11 @@ void UMovieGraphImagePassBaseNode::RenderImpl(const FMovieGraphTraversalContext&
 		{
 			TRACE_CPUPROFILER_EVENT_SCOPE(MRQ::DeferredRender::RevertRenderLayer);
 			LayerSubsystem->ClearActiveRenderLayer();
+		}
+
+		if (CVarMoviePipelineFlushRenderingPerLayerHack.GetValueOnGameThread())
+		{
+			FlushRenderingCommands();
 		}
 	}
 }

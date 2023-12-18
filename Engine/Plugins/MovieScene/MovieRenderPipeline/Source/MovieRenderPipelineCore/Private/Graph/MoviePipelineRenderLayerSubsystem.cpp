@@ -162,10 +162,13 @@ void UMoviePipelineVisibilityModifier::ApplyModifier(const UWorld* World)
 	// a differing actor), so create one copy to prevent constantly re-creating structs.
 	FActorVisibilityState NewVisibilityState;
 	NewVisibilityState.bIsHidden = bIsHidden;
-	NewVisibilityState.bCastsShadows = bCastsShadows;
-	NewVisibilityState.bCastShadowWhileHidden = bCastShadowWhileHidden;
-	NewVisibilityState.bAffectIndirectLightingWhileHidden = bAffectIndirectLightingWhileHidden;
-	NewVisibilityState.bHoldout = bHoldout;
+
+	// Create a stub component representation since we're just using this to propagate to all children right now.
+	FActorVisibilityState::FComponentState& NewComponentState = NewVisibilityState.Components.AddDefaulted_GetRef();
+	NewComponentState.bCastsShadows = bCastsShadows;
+	NewComponentState.bCastShadowWhileHidden = bCastShadowWhileHidden;
+	NewComponentState.bAffectIndirectLightingWhileHidden = bAffectIndirectLightingWhileHidden;
+	NewComponentState.bHoldout = bHoldout;
 	
 	for (const UMovieGraphCollection* Collection : Collections)
 	{
@@ -183,19 +186,31 @@ void UMoviePipelineVisibilityModifier::ApplyModifier(const UWorld* World)
 			FActorVisibilityState OriginalVisibilityState;
 			OriginalVisibilityState.Actor = Actor;
 			OriginalVisibilityState.bIsHidden = Actor->IsHidden();
-			if (const UPrimitiveComponent* PrimitiveComponent = Actor->GetComponentByClass<UPrimitiveComponent>())
+
+			const bool bIncludeFromChildActors = true;
+			TInlineComponentArray<UPrimitiveComponent*> Components;
+			Actor->GetComponents<UPrimitiveComponent>(Components, bIncludeFromChildActors);
+
+			OriginalVisibilityState.Components.Reserve(Components.Num());
+			for(const UPrimitiveComponent* PrimitiveComponent : Components)
 			{
-				OriginalVisibilityState.bCastsShadows = PrimitiveComponent->CastShadow;
-				OriginalVisibilityState.bCastShadowWhileHidden = PrimitiveComponent->bCastHiddenShadow;
-				OriginalVisibilityState.bAffectIndirectLightingWhileHidden = PrimitiveComponent->bAffectIndirectLightingWhileHidden;
-				OriginalVisibilityState.bHoldout = PrimitiveComponent->bHoldout;
+				// Cache the state
+				FActorVisibilityState::FComponentState& ComponentState = OriginalVisibilityState.Components.AddDefaulted_GetRef();
+				ComponentState.Component = PrimitiveComponent;
+				ComponentState.bCastsShadows = PrimitiveComponent->CastShadow;
+				ComponentState.bCastShadowWhileHidden = PrimitiveComponent->bCastHiddenShadow;
+				ComponentState.bAffectIndirectLightingWhileHidden = PrimitiveComponent->bAffectIndirectLightingWhileHidden;
+				ComponentState.bHoldout = PrimitiveComponent->bHoldout;
+
+				// Then override it. We override it one component at a time so that we can avoid making a bunch of
+				// copies of NewVisibilityState for the varying number of components you might have.
+				NewVisibilityState.Actor = Actor;
+				NewVisibilityState.Components[0].Component = PrimitiveComponent;
+				SetActorVisibilityState(NewVisibilityState);
 			}
 			
 			ModifiedActors.Add(OriginalVisibilityState);
 
-			// Set new visibility state
-			NewVisibilityState.Actor = Actor;
-			SetActorVisibilityState(NewVisibilityState);
 		}
 	}
 }
@@ -224,14 +239,20 @@ void UMoviePipelineVisibilityModifier::SetActorVisibilityState(const FActorVisib
 	Actor->SetIsTemporarilyHiddenInEditor(NewVisibilityState.bIsHidden);
 #endif
 
-	if (UPrimitiveComponent* PrimitiveComponent = Actor->GetComponentByClass<UPrimitiveComponent>())
+	
+	for (const FActorVisibilityState::FComponentState& ComponentState : NewVisibilityState.Components)
 	{
 		// TODO: These could potentially cause a large rendering penalty due to dirtying the render state; investigate potential
 		// ways to optimize this
-		PrimitiveComponent->SetCastShadow(NewVisibilityState.bCastsShadows);
-		PrimitiveComponent->SetCastHiddenShadow(NewVisibilityState.bCastShadowWhileHidden);
-		PrimitiveComponent->SetAffectIndirectLightingWhileHidden(NewVisibilityState.bAffectIndirectLightingWhileHidden);
-		PrimitiveComponent->SetHoldout(NewVisibilityState.bHoldout);
+		if (!ComponentState.Component)
+		{
+			continue;
+		}
+
+		ComponentState.Component->SetCastShadow(ComponentState.bCastsShadows);
+		ComponentState.Component->SetCastHiddenShadow(ComponentState.bCastShadowWhileHidden);
+		ComponentState.Component->SetAffectIndirectLightingWhileHidden(ComponentState.bAffectIndirectLightingWhileHidden);
+		ComponentState.Component->SetHoldout(ComponentState.bHoldout);
 	}
 }
 
