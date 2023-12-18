@@ -194,12 +194,19 @@ namespace UE::NNERuntimeIREECpu::Private
 		return MakeUnique<FNNERuntimeIREECpuCompiler>(CompilerCommand, LinkerCommand, SharedLibExt, Targets);
 	}
 
-	bool FNNERuntimeIREECpuCompiler::CompileMlir(TConstArrayView<uint8> InFileData, const FString& InModelName, const FString& InIntermediateDir, const FString& InStagingDir, TArray<FIREECompilerResult>& OutCompilerResults)
+	bool FNNERuntimeIREECpuCompiler::CompileMlir(TConstArrayView<uint8> InFileData, const FString& InModelName, const FString& InIntermediateDir, const FString& InStagingDir, TArray<FIREECompilerResult>& OutCompilerResults, UNNERuntimeIREEModuleMetaData* ModuleMetaData)
 	{
 		using namespace Private;
 
 		FString InputFilePath = FPaths::Combine(InIntermediateDir, InModelName) + ".mlir";
 		FFileHelper::SaveArrayToFile(InFileData, *InputFilePath);
+
+		if (ModuleMetaData)
+		{
+			FString FileDataString = "";
+			FileDataString.AppendChars((char*)InFileData.GetData(), InFileData.Num());
+			ModuleMetaData->ParseFromString(FileDataString);
+		}
 
 		TArray<FIREECompilerResult> Results;
 		bool bResult = true;

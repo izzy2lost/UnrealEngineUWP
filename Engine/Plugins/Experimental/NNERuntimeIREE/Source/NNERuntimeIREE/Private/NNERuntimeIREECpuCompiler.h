@@ -9,6 +9,7 @@
 #include "Containers/ArrayView.h"
 #include "Containers/UnrealString.h"
 #include "GenericPlatform/GenericPlatformMisc.h"
+#include "NNERuntimeIREEMetaData.h"
 #include "Serialization/JsonSerializerMacros.h"
 #include "Templates/UniquePtr.h"
 
@@ -59,7 +60,7 @@ namespace UE::NNERuntimeIREECpu::Private
 		static TUniquePtr<FNNERuntimeIREECpuCompiler> Make(const FString& InTargetPlatformName);
 
 	public:
-		bool CompileMlir(TConstArrayView<uint8> InFileData, const FString& InModelName, const FString& InIntermediateDir, const FString& InStagingDir, TArray<FIREECompilerResult>& OutCompilerResults);
+		bool CompileMlir(TConstArrayView<uint8> InFileData, const FString& InModelName, const FString& InIntermediateDir, const FString& InStagingDir, TArray<FIREECompilerResult>& OutCompilerResults, UNNERuntimeIREEModuleMetaData* ModuleMetaData);
 
 		// Needs to stay in header to prevent system macros to overwrite GetEnvironmentVariable
 		static FString GetEnvVar(const FString& EnvironmentVariableName) { return FPlatformMisc::GetEnvironmentVariable(*EnvironmentVariableName); }

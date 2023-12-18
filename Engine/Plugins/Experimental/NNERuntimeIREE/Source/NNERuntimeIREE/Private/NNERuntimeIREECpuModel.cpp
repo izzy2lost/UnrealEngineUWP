@@ -57,12 +57,13 @@ namespace UE::NNERuntimeIREECpu
 		return Session->RunSyncCPU(InInputBindings, InOutputBindings);
 	}
 
-	bool FModel::Init(const FString& DirPath, const FString& SharedLibraryFileName, const FString& VmfbFileName, const FString& LibraryQueryFunctionName, const UE::NNERuntimeIREE::FModuleMetaData& ModuleMetaData)
+	bool FModel::Init(const FString& DirPath, const FString& SharedLibraryFileName, const FString& VmfbFileName, const FString& LibraryQueryFunctionName, const UNNERuntimeIREEModuleMetaData& ModuleMetaData)
 	{
 		check(!Module.IsValid());
 		check(!SharedLibraryFileName.IsEmpty());
 		check(!VmfbFileName.IsEmpty());
 		check(!LibraryQueryFunctionName.IsEmpty());
+		check(!ModuleMetaData.FunctionMetaData.IsEmpty());
 
 		Module = UE::NNERuntimeIREE::FIREEModule::MakeModule(DirPath, VmfbFileName, ModuleMetaData);
 		if (!Module.IsValid())

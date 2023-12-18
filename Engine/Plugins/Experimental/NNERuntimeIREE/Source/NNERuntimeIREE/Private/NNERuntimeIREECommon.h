@@ -5,17 +5,26 @@
 #ifdef WITH_NNE_RUNTIME_IREE
 
 #include "CoreMinimal.h"
-#include "GenericPlatform/GenericPlatformProcess.h"
-#include "HAL/FileManager.h"
-#include "Misc/Paths.h"
-#include "Misc/ScopeLock.h"
 #include "NNEModelData.h"
 #include "NNERuntimeIREECpu.h"
 #include "NNERuntimeIREEMetaData.h"
 #include "NNETypes.h"
-#include "Serialization/Archive.h"
 
-#include "iree/runtime/api.h"
+#if PLATFORM_MICROSOFT
+#include "Microsoft/AllowMicrosoftPlatformTypes.h"
+#include "Microsoft/AllowMicrosoftPlatformAtomics.h"
+#endif // PLATFORM_MICROSOFT
+THIRD_PARTY_INCLUDES_START
+#include "iree/hal/buffer.h"
+#include "iree/hal/channel.h"
+#include "iree/runtime/call.h"
+#include "iree/runtime/session.h"
+#include "iree/vm/module.h"
+THIRD_PARTY_INCLUDES_END
+#if PLATFORM_MICROSOFT
+#include "Microsoft/HideMicrosoftPlatformAtomics.h"
+#include "Microsoft/HideMicrosoftPlatformTypes.h"
+#endif // PLATFORM_MICROSOF
 
 namespace UE::NNERuntimeIREE
 {
@@ -28,7 +37,7 @@ namespace UE::NNERuntimeIREE
 		FIREEModule();
 		~FIREEModule();
 
-		static TSharedPtr<FIREEModule> MakeModule(const FString& DirPath, const FString& VmfbFileName, const UE::NNERuntimeIREE::FModuleMetaData& ModuleMetaData);
+		static TSharedPtr<FIREEModule> MakeModule(const FString& DirPath, const FString& VmfbFileName, const UNNERuntimeIREEModuleMetaData& ModuleMetaData);
 		bool AppendToSession(iree_runtime_session_t* Session);
 
 		iree_vm_function_t GetMainFunction();

@@ -2,8 +2,7 @@
 
 #pragma once
 
-#include "CoreMinimal.h"
-#include "EditorReimportHandler.h"
+#include "UObject/UObjectGlobals.h"
 #include "Factories/Factory.h"
 
 #include "NNERuntimeIREEModelDataFactory.generated.h"

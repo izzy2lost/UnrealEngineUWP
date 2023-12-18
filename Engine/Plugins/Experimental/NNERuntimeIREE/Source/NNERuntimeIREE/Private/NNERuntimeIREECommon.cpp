@@ -4,90 +4,33 @@
 
 #ifdef WITH_NNE_RUNTIME_IREE
 
+#include "GenericPlatform/GenericPlatformProcess.h"
+#include "HAL/FileManager.h"
+#include "Misc/Paths.h"
+#include "Misc/ScopeLock.h"
+#include "Serialization/Archive.h"
+
+#if PLATFORM_MICROSOFT
+#include "Microsoft/AllowMicrosoftPlatformTypes.h"
+#include "Microsoft/AllowMicrosoftPlatformAtomics.h"
+#endif // PLATFORM_MICROSOFT
+THIRD_PARTY_INCLUDES_START
 #include "iree/hal/drivers/local_sync/sync_device.h"
 #include "iree/hal/local/loaders/static_library_loader.h"
-#include "iree/modules/hal/types.h"
+#include "iree/runtime/call.h"
+#include "iree/runtime/instance.h"
+#include "iree/runtime/session.h"
 #include "iree/vm/bytecode/module.h"
-#undef GetObject // This is needed for unity nopch builds to not throw an error  (one of the above headers include windows.h which has #define GetObject to GetObjectW)
+THIRD_PARTY_INCLUDES_END
+#if PLATFORM_MICROSOFT
+#include "Microsoft/HideMicrosoftPlatformAtomics.h"
+#include "Microsoft/HideMicrosoftPlatformTypes.h"
+#endif // PLATFORM_MICROSOF
 
 namespace UE::NNERuntimeIREE
 {
 	namespace Private
 	{
-		ENNETensorDataType GetTypeFromString(const FString& TypeString)
-		{
-			if (TypeString.StartsWith("char"))
-			{
-				return ENNETensorDataType::Char;
-			}
-			if (TypeString.StartsWith("bool") || TypeString.StartsWith("i1"))
-			{
-				return ENNETensorDataType::Boolean;
-			}
-			else if (TypeString.StartsWith("half"))
-			{
-				return ENNETensorDataType::Half;
-			}
-			else if (TypeString.StartsWith("f"))
-			{
-				if (TypeString.StartsWith("f16"))
-				{
-					return ENNETensorDataType::Half;
-				}
-				else if (TypeString.StartsWith("float") || TypeString.StartsWith("f32"))
-				{
-					return ENNETensorDataType::Float;
-				}
-				else if (TypeString.StartsWith("f64"))
-				{
-					return ENNETensorDataType::Double;
-				}
-			}
-			else if (TypeString.StartsWith("double"))
-			{
-				return ENNETensorDataType::Double;
-			}
-			else if (TypeString.StartsWith("i") || TypeString.StartsWith("si"))
-			{
-				if (TypeString.EndsWith("i8"))
-				{
-					return ENNETensorDataType::Int8;
-				}
-				else if (TypeString.EndsWith("i16"))
-				{
-					return ENNETensorDataType::Int16;
-				}
-				else if (TypeString.EndsWith("i32") || TypeString.EndsWith("int"))
-				{
-					return ENNETensorDataType::Int32;
-				}
-				else if (TypeString.EndsWith("i64"))
-				{
-					return ENNETensorDataType::Int64;
-				}
-			}
-			else if (TypeString.StartsWith("ui"))
-			{
-				if (TypeString.EndsWith("i8"))
-				{
-					return ENNETensorDataType::UInt8;
-				}
-				else if (TypeString.EndsWith("i16"))
-				{
-					return ENNETensorDataType::UInt16;
-				}
-				else if (TypeString.EndsWith("i32"))
-				{
-					return ENNETensorDataType::UInt32;
-				}
-				else if (TypeString.EndsWith("i64"))
-				{
-					return ENNETensorDataType::UInt64;
-				}
-			}
-			return ENNETensorDataType::None;
-		}
-
 		iree_hal_element_types_t NNEToIREEType(ENNETensorDataType Type)
 		{
 			switch (Type)
@@ -148,6 +91,17 @@ namespace UE::NNERuntimeIREE
 					break;
 			}
 		}
+
+		void PrintIREEError(const FString& Message, iree_status_t Status)
+		{
+			iree_host_size_t TrueLength = 0;
+			iree_status_format(Status, 0, (char*)nullptr, &TrueLength);
+			void* ErrorString = FMemory::Malloc(TrueLength + 1);
+			((char*)ErrorString)[TrueLength] = (char)0;
+			iree_status_format(Status, TrueLength, (char*)ErrorString, &TrueLength);
+			UE_LOG(LogTemp, Error, TEXT("%s: %s"), *Message, *FString(StringCast<TCHAR>(static_cast<const ANSICHAR*>(ErrorString)).Get()));
+			FMemory::Free(ErrorString);
+		}
 	} // Private
 
 	class FIREEInstance
@@ -193,17 +147,6 @@ namespace UE::NNERuntimeIREE
 		iree_runtime_instance_release(Instance);
 	}
 
-	void PrintIREEError(FString Message, iree_status_t Status)
-	{
-		iree_host_size_t TrueLength = 0;
-		iree_status_format(Status, 0, (char*)nullptr, &TrueLength);
-		void* ErrorString = FMemory::Malloc(TrueLength + 1);
-		((char*)ErrorString)[TrueLength] = (char)0;
-		iree_status_format(Status, TrueLength, (char*)ErrorString, &TrueLength);
-		UE_LOG(LogTemp, Error, TEXT("%s: %s"), *Message, *FString(ANSI_TO_TCHAR(ErrorString)));
-		FMemory::Free(ErrorString);
-	}
-
 	bool FIREEInstance::CreateModule(TConstArrayView<uint8> VmfbDataView, iree_vm_module_t** Module)
 	{
 		check(!VmfbDataView.IsEmpty());
@@ -218,7 +161,7 @@ namespace UE::NNERuntimeIREE
 		Status = iree_vm_bytecode_module_create(iree_runtime_instance_vm_instance(Instance), ModuleData, iree_allocator_null(), GetHostAllocator(), &TempModule);
 		if (!iree_status_is_ok(Status))
 		{
-			PrintIREEError("Failed to create the module", Status);
+			Private::PrintIREEError("Failed to create the module", Status);
 
 			if (TempModule)
 			{
@@ -250,7 +193,7 @@ namespace UE::NNERuntimeIREE
 		Status = iree_hal_static_library_loader_create(IREE_ARRAYSIZE(LibraryList), LibraryList, iree_hal_executable_import_provider_null(), HostAllocator, &LibraryLoader);
 		if (!iree_status_is_ok(Status))
 		{
-			PrintIREEError("Failed to create the library loader", Status);
+			Private::PrintIREEError("Failed to create the library loader", Status);
 
 			if (LibraryLoader)
 			{
@@ -266,7 +209,7 @@ namespace UE::NNERuntimeIREE
 		Status = iree_hal_allocator_create_heap(Identifier, HostAllocator, HostAllocator, &DeviceAllocator);
 		if (!iree_status_is_ok(Status))
 		{
-			PrintIREEError("Failed to create the device allocator", Status);
+			Private::PrintIREEError("Failed to create the device allocator", Status);
 			
 			if (DeviceAllocator)
 			{
@@ -284,7 +227,7 @@ namespace UE::NNERuntimeIREE
 		Status = iree_hal_sync_device_create(Identifier, &DeviceParams, 1, &LibraryLoader, DeviceAllocator, HostAllocator, &TempDevice);
 		if (!iree_status_is_ok(Status))
 		{
-			PrintIREEError("Failed to create the device", Status);
+			Private::PrintIREEError("Failed to create the device", Status);
 
 			if (TempDevice)
 			{
@@ -321,7 +264,7 @@ namespace UE::NNERuntimeIREE
 		Status = iree_runtime_session_create_with_device(Instance, &SessionOptions, Device, GetHostAllocator(), &TempSession);
 		if (!iree_status_is_ok(Status))
 		{
-			PrintIREEError("Failed to create the session", Status);
+			Private::PrintIREEError("Failed to create the session", Status);
 
 			if (TempSession)
 			{
@@ -417,7 +360,7 @@ namespace UE::NNERuntimeIREE
 		Status = iree_runtime_instance_create(&InstanceOptions, iree_allocator_system(), &TempInstance);
 		if (!iree_status_is_ok(Status))
 		{
-			PrintIREEError("Failed to create the instance", Status);
+			Private::PrintIREEError("Failed to create the instance", Status);
 
 			if (TempInstance)
 			{
@@ -450,9 +393,10 @@ namespace UE::NNERuntimeIREE
 		Instance.Reset();
 	}
 
-	TSharedPtr<FIREEModule> FIREEModule::MakeModule(const FString& DirPath, const FString& VmfbFileName, const UE::NNERuntimeIREE::FModuleMetaData& ModuleMetaData)
+	TSharedPtr<FIREEModule> FIREEModule::MakeModule(const FString& DirPath, const FString& VmfbFileName, const UNNERuntimeIREEModuleMetaData& ModuleMetaData)
 	{
 		check(!VmfbFileName.IsEmpty());
+		check(!ModuleMetaData.FunctionMetaData.IsEmpty());
 
 		TSharedPtr<FIREEInstance> Instance = FIREEInstance::GetInstance();
 		if (!Instance.IsValid())
@@ -475,99 +419,34 @@ namespace UE::NNERuntimeIREE
 		iree_status_t Status = iree_ok_status();
 		check(iree_status_is_ok(Status));
 
-		iree_vm_function_t LocalMainFunction = {0};
-		TArray<UE::NNE::FTensorDesc> InputTensorDescs;
-		TArray<UE::NNE::FTensorDesc> OutputTensorDescs;
-		int32 NumMainFunctionCandidates = 0;
-		int32 Ordinal = 0;
-		while (true)
+		iree_vm_function_t MainFunction;
+		iree_string_view_t Identifier = iree_make_cstring_view(StringCast<ANSICHAR>(static_cast<const TCHAR*>(*ModuleMetaData.FunctionMetaData[0].Name)).Get());
+		Status = iree_vm_module_lookup_function_by_name(TempModule, IREE_VM_FUNCTION_LINKAGE_EXPORT, Identifier, &MainFunction);
+		if (!iree_status_is_ok(Status) || iree_vm_function_is_null(MainFunction))
 		{
-			iree_vm_function_t MainFunctionCandidate;
-			Status = iree_vm_module_lookup_function_by_ordinal(TempModule, IREE_VM_FUNCTION_LINKAGE_EXPORT, Ordinal, &MainFunctionCandidate);
-			if (!iree_status_is_ok(Status) || iree_vm_function_is_null(MainFunctionCandidate))
-			{
-				Ordinal = -1;
-				break;
-			}
-			Ordinal++;
-
-			iree_host_size_t NumInputs = 0;
-			iree_host_size_t NumOutputs = 0;
-			iree_vm_function_signature_t Signature = iree_vm_function_signature(&MainFunctionCandidate);
-			Status = iree_vm_function_call_count_arguments_and_results(&Signature, &NumInputs, &NumOutputs);
-			if (iree_status_is_ok(Status) && NumInputs > 0 && NumOutputs > 0)
-			{
-				if (NumMainFunctionCandidates == 0)
-				{
-					iree_string_view_t FunctionName = iree_vm_function_name(&MainFunctionCandidate);
-					FString FunctionNameString = "";
-					FunctionNameString.Append(FunctionName.data, FunctionName.size);
-					if (ModuleMetaData.FunctionMetaData.Contains(FunctionNameString))
-					{
-						FFunctionMetaData MetaData = ModuleMetaData.FunctionMetaData[FunctionNameString];
-						if (MetaData.ArgumentMetaData.Num() == NumInputs && MetaData.ResultMetaData.Num() == NumOutputs)
-						{
-							LocalMainFunction = MainFunctionCandidate;
-
-							for (int32 i = 0; i < NumInputs; i++)
-							{
-								ENNETensorDataType DataType = UE::NNERuntimeIREE::Private::GetTypeFromString(MetaData.ArgumentMetaData[i].Type);
-								if (DataType == ENNETensorDataType::None)
-								{
-									UE_LOG(LogTemp, Error, TEXT("Unknown argument type in function %s: %s"), *FunctionNameString, *MetaData.ArgumentMetaData[i].Type);
-									iree_status_free(Status);
-									return TSharedPtr<FIREEModule>();
-								}
-								InputTensorDescs.Add(UE::NNE::FTensorDesc::Make(MetaData.ArgumentMetaData[i].Name, UE::NNE::FSymbolicTensorShape::Make(MetaData.ArgumentMetaData[i].Shape), DataType));
-							}
-
-							for (int32 i = 0; i < NumOutputs; i++)
-							{
-								ENNETensorDataType DataType = UE::NNERuntimeIREE::Private::GetTypeFromString(MetaData.ResultMetaData[i].Type);
-								if (DataType == ENNETensorDataType::None)
-								{
-									UE_LOG(LogTemp, Error, TEXT("Unknown result type in function %s: %s"), *FunctionNameString, *MetaData.ResultMetaData[i].Type);
-									iree_status_free(Status);
-									return TSharedPtr<FIREEModule>();
-								}
-								OutputTensorDescs.Add(UE::NNE::FTensorDesc::Make(MetaData.ResultMetaData[i].Name, UE::NNE::FSymbolicTensorShape::Make(MetaData.ResultMetaData[i].Shape), DataType));
-							}
-						}
-						else
-						{
-							UE_LOG(LogTemp, Error, TEXT("Input and output count mismatch in function %s"), *FunctionNameString);
-							iree_status_free(Status);
-							return TSharedPtr<FIREEModule>();
-						}
-					}
-					else
-					{
-						UE_LOG(LogTemp, Error, TEXT("Failed to find meta data for function %s"), *FunctionNameString);
-						iree_status_free(Status);
-						return TSharedPtr<FIREEModule>();
-					}
-				}
-				NumMainFunctionCandidates++;
-			}
-		}
-		if (NumMainFunctionCandidates < 1)
-		{
-			UE_LOG(LogTemp, Error, TEXT("Failed to find a suitable module main function"));
+			UE_LOG(LogTemp, Error, TEXT("FIREEModule failed to find the module function %s"), *ModuleMetaData.FunctionMetaData[0].Name);
 			iree_status_free(Status);
 			return TSharedPtr<FIREEModule>();
 		}
-		if (NumMainFunctionCandidates > 1)
+
+		iree_host_size_t NumInputs = 0;
+		iree_host_size_t NumOutputs = 0;
+		iree_vm_function_signature_t Signature = iree_vm_function_signature(&MainFunction);
+		Status = iree_vm_function_call_count_arguments_and_results(&Signature, &NumInputs, &NumOutputs);
+		if (!iree_status_is_ok(Status) || NumInputs != ModuleMetaData.FunctionMetaData[0].InputDescs.Num() || NumOutputs != ModuleMetaData.FunctionMetaData[0].OutputDescs.Num())
 		{
-			UE_LOG(LogTemp, Warning, TEXT("Found multiple suitable module main functions"));
+			UE_LOG(LogTemp, Error, TEXT("FIREEModule has a function signature mismatch in function %s"), *ModuleMetaData.FunctionMetaData[0].Name);
+			iree_status_free(Status);
+			return TSharedPtr<FIREEModule>();
 		}
 
 		TSharedPtr<FIREEModule> Result = MakeShared<FIREEModule>();
 		Result->Instance = Instance;
 		Result->ModelData = ModelData;
 		Result->Module = TempModule;
-		Result->MainFunction = LocalMainFunction;
-		Result->InputTensorDescs = InputTensorDescs;
-		Result->OutputTensorDescs = OutputTensorDescs;
+		Result->MainFunction = MainFunction;
+		Result->InputTensorDescs = ModuleMetaData.FunctionMetaData[0].InputDescs;
+		Result->OutputTensorDescs = ModuleMetaData.FunctionMetaData[0].OutputDescs;
 
 		iree_status_free(Status);
 		return Result;
@@ -584,7 +463,7 @@ namespace UE::NNERuntimeIREE
 		Status = iree_runtime_session_append_module(Session, Module);
 		if (!iree_status_is_ok(Status))
 		{
-			PrintIREEError("Failed to append the module to the session", Status);
+			Private::PrintIREEError("Failed to append the module to the session", Status);
 			iree_status_free(Status);
 			return false;
 		}
@@ -660,7 +539,7 @@ namespace UE::NNERuntimeIREE
 		Status = iree_runtime_call_initialize(Session, MainFunction, &Call);
 		if (!iree_status_is_ok(Status))
 		{
-			PrintIREEError("Failed to initialize the session call", Status);
+			Private::PrintIREEError("Failed to initialize the session call", Status);
 			iree_status_free(Status);
 			return false;
 		}
@@ -798,7 +677,7 @@ namespace UE::NNERuntimeIREE
 				&TempBufferView);
 			if (!iree_status_is_ok(Status))
 			{
-				PrintIREEError("Failed to allocate the buffer view", Status);
+				Private::PrintIREEError("Failed to allocate the buffer view", Status);
 				if (TempBufferView)
 				{
 					iree_hal_buffer_view_release(TempBufferView);
@@ -811,7 +690,7 @@ namespace UE::NNERuntimeIREE
 			iree_hal_buffer_view_release(TempBufferView);
 			if (!iree_status_is_ok(Status))
 			{
-				PrintIREEError("Failed to push the buffer view to the input list", Status);
+				Private::PrintIREEError("Failed to push the buffer view to the input list", Status);
 				iree_status_free(Status);
 				return -1;
 			}
@@ -820,7 +699,7 @@ namespace UE::NNERuntimeIREE
 		Status = iree_runtime_call_invoke(&Call, 0);
 		if (!iree_status_is_ok(Status))
 		{
-			PrintIREEError("Failed to call the model function", Status);
+			Private::PrintIREEError("Failed to call the model function", Status);
 			iree_status_free(Status);
 			return -1;
 		}
@@ -875,7 +754,7 @@ namespace UE::NNERuntimeIREE
 				Status = iree_hal_buffer_map_range(Buffer, IREE_HAL_MAPPING_MODE_PERSISTENT, IREE_HAL_MEMORY_ACCESS_READ, 0, DataSizeInBytes, &BufferMapping);
 				if (!iree_status_is_ok(Status))
 				{
-					PrintIREEError("Failed to map the result buffer", Status);
+					Private::PrintIREEError("Failed to map the result buffer", Status);
 					Result = -1;
 					break;
 				}

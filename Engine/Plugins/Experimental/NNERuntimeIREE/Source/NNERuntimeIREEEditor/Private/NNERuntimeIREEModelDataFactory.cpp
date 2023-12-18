@@ -2,16 +2,16 @@
 
 #include "NNERuntimeIREEModelDataFactory.h"
 
+#include "CoreMinimal.h"
 #include "Editor.h"
-#include "Editor/EditorEngine.h"
-#include "EditorFramework/AssetImportData.h"
 #include "EngineAnalytics.h"
-#include "HAL/FileManager.h"
+#include "Interfaces/IMainFrameModule.h"
 #include "Kismet/GameplayStatics.h"
-#include "NNE.h"
+#include "Modules/ModuleManager.h"
 #include "NNEModelData.h"
+#include "NNERuntimeIREEMetaData.h"
+#include "Serialization/MemoryWriter.h"
 #include "Subsystems/ImportSubsystem.h"
-
 
 UNNERuntimeIREEModelDataFactory::UNNERuntimeIREEModelDataFactory(const FObjectInitializer& ObjectInitializer) : UFactory(ObjectInitializer)
 {
@@ -32,9 +32,26 @@ UObject* UNNERuntimeIREEModelDataFactory::FactoryCreateBinary(UClass* Class, UOb
 		return nullptr;
 	}
 
+	TConstArrayView<uint8> BufferView = MakeArrayView(Buffer, BufferEnd - Buffer);
+	FString FileDataString = "";
+	FileDataString.AppendChars((char*)BufferView.GetData(), BufferView.Num());
+
+	UNNERuntimeIREEModuleMetaData* ModuleMetaData = NewObject<UNNERuntimeIREEModuleMetaData>();
+	if (!ModuleMetaData->ParseFromString(FileDataString) || ModuleMetaData->FunctionMetaData.IsEmpty())
+	{
+		UE_LOG(LogTemp, Error, TEXT("UNNERuntimeIREEModelDataFactory failed to parse the models meta data"));
+		return nullptr;
+	}
+
+	TArray<uint8> MetaDataByteArray;
+	FMemoryWriter Writer(MetaDataByteArray);
+	ModuleMetaData->Serialize(Writer);
+
+	TMap<FString, TConstArrayView<uint8>> AdditionalFileData;
+	AdditionalFileData.Add("IREEModuleMetaData", MetaDataByteArray);
+
 	UNNEModelData* ModelData = NewObject<UNNEModelData>(InParent, Class, Name, Flags);
-	TConstArrayView<uint8> BufferView = MakeArrayView(Buffer, BufferEnd-Buffer);
-	ModelData->Init(Type, BufferView);
+	ModelData->Init(Type, BufferView, AdditionalFileData);
 
 	GEditor->GetEditorSubsystem<UImportSubsystem>()->BroadcastAssetPostImport(this, ModelData);
 

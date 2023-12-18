@@ -36,7 +36,7 @@ namespace UE::NNERuntimeIREECpu
 		FModel() {};
 		virtual ~FModel() = default;
 
-		bool Init(const FString& DirPath, const FString& SharedLibraryFileName, const FString& VmfbFileName, const FString& LibraryQueryFunctionName, const UE::NNERuntimeIREE::FModuleMetaData& ModuleMetaData);
+		bool Init(const FString& DirPath, const FString& SharedLibraryFileName, const FString& VmfbFileName, const FString& LibraryQueryFunctionName, const UNNERuntimeIREEModuleMetaData& ModuleMetaData);
 
 		//~ Begin IModelCPU Interface
 		virtual TSharedPtr<UE::NNE::IModelInstanceCPU> CreateModelInstanceCPU() override;
