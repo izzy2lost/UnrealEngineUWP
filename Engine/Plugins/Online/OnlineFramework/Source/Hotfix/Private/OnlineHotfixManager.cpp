@@ -1458,6 +1458,67 @@ void UOnlineHotfixManager::PatchAssetsFromIniFiles()
 	}
 }
 
+void UOnlineHotfixManager::ReloadConfigsFromIniFiles()
+{
+	FlushAsyncLoading();
+
+	TArray<FString> ClassesToReload;
+
+	for (const FCloudFileHeader& FileHeader : HotfixFileList)
+	{
+		if (FileHeader.FileName.EndsWith(TEXT(".INI")))
+		{
+			const FString ProcessedName = BuildConfigCacheKey(GetStrippedConfigFileName(FileHeader.FileName));
+			for (int32 Index = 0; Index < IniBackups.Num(); Index++)
+			{
+				const FConfigFileBackup& BackupFile = IniBackups[Index];
+				if (IniBackups[Index].IniName == ProcessedName)
+				{
+					ClassesToReload.Append(BackupFile.ClassesReloaded);
+				}
+			}
+		}
+	}
+
+	int32 NumObjectsReloaded = 0;
+	const double StartTime = FPlatformTime::Seconds();
+
+	if (ClassesToReload.Num() > 0)
+	{
+		TArray<UClass*> RestoredClasses;
+		RestoredClasses.Reserve(ClassesToReload.Num());
+		for (int32 Index = 0; Index < ClassesToReload.Num(); Index++)
+		{
+			UClass* Class = FindObject<UClass>(nullptr, *ClassesToReload[Index], true);
+			if (Class != nullptr)
+			{
+				// Add this to the list to check against
+				RestoredClasses.Add(Class);
+			}
+		}
+
+		for (UClass* Class : RestoredClasses)
+		{
+			if (Class->HasAnyClassFlags(CLASS_Config))
+			{
+				TArray<UObject*> Objects;
+				GetObjectsOfClass(Class, Objects, true, RF_NoFlags);
+				for (UObject* Object : Objects)
+				{
+					if (IsValid(Object))
+					{
+						UE_LOG(LogHotfixManager, Verbose, TEXT("Reloading %s"), *Object->GetPathName());
+						Object->ReloadConfig();
+						NumObjectsReloaded++;
+					}
+				}
+			}
+		}
+	}
+
+	UE_LOG(LogHotfixManager, Log, TEXT("Reloading config for %d changed classes took %f seconds reloading %d objects"),
+		ClassesToReload.Num(), FPlatformTime::Seconds() - StartTime, NumObjectsReloaded);
+}
 
 void UOnlineHotfixManager::HotfixRowUpdate(UObject* Asset, const FString& AssetPath, const FString& RowName, const FString& ColumnName, const FString& NewValue, TArray<FString>& ProblemStrings, TSet<UDataTable*>* ChangedTables)
 {

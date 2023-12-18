@@ -347,6 +347,9 @@ protected:
 	/** Called after any hotfixes are applied to apply last-second changes to certain asset types from .ini file data */
 	virtual void PatchAssetsFromIniFiles();
 	
+	/** Called after any hotfixes are applied to apply last-second changes to Config properties from .ini file data */
+	virtual void ReloadConfigsFromIniFiles();
+
 	/** Used in PatchAssetsFromIniFiles to hotfix only a row in a table. 
 	 *  If ChangedTables is not null then HandleDataTableChanged will not be called and the caller should call it on the data tables in ChangedTables when they're ready to
 	 */
