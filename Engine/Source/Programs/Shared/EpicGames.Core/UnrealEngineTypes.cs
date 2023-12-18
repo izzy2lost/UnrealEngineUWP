@@ -1210,9 +1210,14 @@ namespace EpicGames.Core
 		TObjectPtrWrapper = TObjectPtr | UObjectWrapper,
 
 		/// <summary>
-		/// ****Experimental*** Property will use different logic to serialize knowing what changes are done against its default use the overridable information provided by the overidable manager on the object
+		/// ****Experimental*** Property will use different logic to serialize knowing what changes are done against its default use the overridable information provided by the overridable manager on the object
 		/// </summary>
 		ExperimentalOverridableLogic = 0x0200000000000000,
+
+		/// <summary>
+		/// ****Experimental*** Property should never inherit from the parent when using overridable serialization
+		/// </summary>
+		ExperimentalAlwaysOverriden = 0x0400000000000000,
 
 		/// <summary>
 		/// All Native Access Specifier flags
