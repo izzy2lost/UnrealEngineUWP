@@ -27,6 +27,13 @@ EHttpFailureReason FHttpRequestCommon::GetFailureReason() const
 
 bool FHttpRequestCommon::PreCheck() const
 {
+	// Disabled http request processing
+	if (!FHttpModule::Get().IsHttpEnabled())
+	{
+		UE_LOG(LogHttp, Verbose, TEXT("Http disabled. Skipping request. url=%s"), *GetURL());
+		return false;
+	}
+
 	// Prevent overlapped requests using the same instance
 	if (CompletionStatus == EHttpRequestStatus::Processing)
 	{
@@ -65,6 +72,8 @@ bool FHttpRequestCommon::PreProcess()
 		FinishRequestNotInHttpManager();
 		return false;
 	}
+
+	UE_LOG(LogHttp, Verbose, TEXT("%p: Verb='%s' URL='%s'"), this, *GetVerb(), *GetURL());
 
 	return true;
 }

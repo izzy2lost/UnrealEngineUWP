@@ -742,12 +742,6 @@ bool FCurlHttpRequest::SetupRequest()
 	QUICK_SCOPE_CYCLE_COUNTER(STAT_FCurlHttpRequest_SetupRequest);
 	check(EasyHandle);
 
-	// Disabled http request processing
-	if (!FHttpModule::Get().IsHttpEnabled())
-	{
-		UE_LOG(LogHttp, Verbose, TEXT("Http disabled. Skipping request. url=%s"), *GetURL());
-		return false;
-	}
 	if ((GetVerb().IsEmpty() || GetVerb().Equals(TEXT("GET"), ESearchCase::IgnoreCase))
 		&& (RequestPayload.IsValid() && RequestPayload->GetContentLength() > 0))
 	{
@@ -768,14 +762,6 @@ bool FCurlHttpRequest::SetupRequest()
 	CurlAddToMultiResult = CURLM_OK;
 	LastReportedBytesSent = 0;
 
-	// default no verb to a GET
-	if (Verb.IsEmpty())
-	{
-		Verb = TEXT("GET");
-	}
-
-	UE_LOG(LogHttp, Verbose, TEXT("%p: URL='%s'"), this, *URL);
-	UE_LOG(LogHttp, Verbose, TEXT("%p: Verb='%s'"), this, *Verb);
 	UE_LOG(LogHttp, Verbose, TEXT("%p: Custom headers are %s"), this, Headers.Num() ? TEXT("present") : TEXT("NOT present"));
 	UE_LOG(LogHttp, Verbose, TEXT("%p: Payload size=%llu"), this, RequestPayload->GetContentLength());
 
