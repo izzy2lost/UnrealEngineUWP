@@ -118,6 +118,7 @@ using Horde.Server.Telemetry.Metrics;
 using EpicGames.Horde.Jobs;
 using EpicGames.Horde.Logs;
 using Horde.Server.Replicators;
+using Swashbuckle.AspNetCore.SwaggerGen;
 
 namespace Horde.Server
 {
@@ -376,6 +377,24 @@ namespace Horde.Server
 
 			/// <inheritdoc/>
 			public RedisValue ToRedisValue(AgentId value) => value.ToString();
+		}
+
+		/// <summary>
+		/// Configure custom types for the public API documentation
+		/// </summary>
+		class SwaggerSchemaFilter : ISchemaFilter
+		{
+			public void Apply(OpenApiSchema schema, SchemaFilterContext context)
+			{
+				if (context.Type == typeof(AgentId))
+				{
+				}
+				if (context.Type == typeof(Utf8String) || context.Type.GetCustomAttribute<JsonSchemaStringAttribute>() != null)
+				{
+					schema.Type = "string";
+					schema.Properties.Clear();
+				}
+			}
 		}
 
 		// This method gets called *multiple times* by the runtime. Use this method to add services to the container.
@@ -868,6 +887,7 @@ namespace Horde.Server
 
 			services.AddSwaggerGen(config =>
 			{
+				config.SchemaGeneratorOptions.SchemaFilters.Add(new SwaggerSchemaFilter());
 				config.SwaggerDoc("v1", new OpenApiInfo { Title = "Horde Server API", Version = "v1" });
 				config.IncludeXmlComments(Path.Combine(AppContext.BaseDirectory, $"{Assembly.GetExecutingAssembly().GetName().Name}.xml"));
 			});

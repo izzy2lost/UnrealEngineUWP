@@ -10,6 +10,7 @@ namespace EpicGames.Horde.Artifacts
 	/// </summary>
 	/// <param name="Id">Identifier for the artifact</param>
 	[LogValueType]
+	[JsonSchemaString]
 	[TypeConverter(typeof(BinaryIdTypeConverter<ArtifactId, ArtifactIdConverter>))]
 	[BinaryIdConverter(typeof(ArtifactIdConverter))]
 	public record struct ArtifactId(BinaryId Id)

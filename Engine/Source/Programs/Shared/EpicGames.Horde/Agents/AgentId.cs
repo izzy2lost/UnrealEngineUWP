@@ -12,6 +12,7 @@ namespace EpicGames.Horde.Agents
 	/// <summary>
 	/// Normalized hostname of an agent
 	/// </summary>
+	[JsonSchemaString]
 	[LogValueType]
 	[TypeConverter(typeof(AgentIdTypeConverter))]
 	[JsonConverter(typeof(AgentIdJsonConverter))]

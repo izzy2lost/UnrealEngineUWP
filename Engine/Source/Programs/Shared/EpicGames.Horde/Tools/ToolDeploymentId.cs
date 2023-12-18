@@ -10,6 +10,7 @@ namespace EpicGames.Horde.Tools
 	/// </summary>
 	/// <param name="Id">Identifier for the artifact</param>
 	[LogValueType]
+	[JsonSchemaString]
 	[TypeConverter(typeof(BinaryIdTypeConverter<ToolDeploymentId, ToolDeploymentIdConverter>))]
 	[BinaryIdConverter(typeof(ToolDeploymentIdConverter))]
 	public record struct ToolDeploymentId(BinaryId Id)
