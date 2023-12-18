@@ -8,6 +8,8 @@
 
 #if defined(__clang__)
 	#include "Clang/ClangPlatform.h"
+#elif defined(__INTEL_LLVM_COMPILER)
+	#include "IntelICX/IntelICXPlatform.h"
 #else
 	#include "MSVC/MSVCPlatform.h"
 #endif

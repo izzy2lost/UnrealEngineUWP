@@ -1081,7 +1081,7 @@ namespace UnrealBuildTool
 		/// <param name="Logger"></param>
 		static void AddIntelOneApiToolChain(DirectoryReference ToolChainDir, List<ToolChainInstallation> ToolChains, bool IsAutoSdk, ILogger Logger)
 		{
-			FileReference CompilerFile = FileReference.Combine(ToolChainDir, "windows", "bin", "icx.exe");
+			FileReference CompilerFile = FileReference.Combine(ToolChainDir, "bin", "icx.exe");
 			if (FileReference.Exists(CompilerFile))
 			{
 				FileVersionInfo VersionInfo = FileVersionInfo.GetVersionInfo(CompilerFile.FullName);

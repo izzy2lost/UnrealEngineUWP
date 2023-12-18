@@ -679,7 +679,7 @@ static void PureCallHandler()
 	}
 }
 
-#if ENABLE_PGO_PROFILE && !defined(__INTEL_LLVM_COMPILER)
+#if ENABLE_PGO_PROFILE && !defined(__clang__) && !defined(__INTEL_LLVM_COMPILER)
 void PGO_WriteFile()
 {
 	// NB. Using pgosweep.exe means the PGC file will be writable as soon as the title exits & we can control where it is written.
@@ -722,7 +722,7 @@ void PGO_WriteFile()
 		UE_LOG(LogWindows, Log, TEXT("pgosweep.exe exit code %d"), ExitCode);
 	}
 }
-#endif //ENABLE_PGO_PROFILE && !__INTEL_LLVM_COMPILER
+#endif //ENABLE_PGO_PROFILE && !__clang__ && !__INTEL_LLVM_COMPILER
 
 
 /*-----------------------------------------------------------------------------
@@ -1269,7 +1269,7 @@ void FWindowsPlatformMisc::RequestExitWithStatus(bool Force, uint8 ReturnCode, c
 	UE_LOG(LogWindows, Log, TEXT("FPlatformMisc::RequestExitWithStatus(%i, %i, %s)"), Force, ReturnCode,
 		CallSite ? CallSite : TEXT("<NoCallSiteInfo>"));
 
-#if ENABLE_PGO_PROFILE && !defined(__INTEL_LLVM_COMPILER)
+#if ENABLE_PGO_PROFILE && !defined(__clang__) && !defined(__INTEL_LLVM_COMPILER)
 	// save current PGO profiling data and terminate immediately
 	PGO_WriteFile();
 	TerminateProcess(GetCurrentProcess(), 0);

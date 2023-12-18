@@ -205,6 +205,9 @@ namespace UnrealBuildTool
 			Arguments.Add("-Wno-constant-logical-operand"); // Triggered by || of two template-derived values inside a static_assert
 			Arguments.Add("-Wno-unused-value");
 			Arguments.Add("-Wno-bitfield-enum-conversion");
+			Arguments.Add("-Wno-deprecated-copy-with-user-provided-copy");
+			Arguments.Add("-Wno-null-pointer-subtraction");
+			Arguments.Add("-Wno-dangling");
 		}
 
 		// Additional disabled warnings for Intel. Everything below should be checked if it is necessary
@@ -217,6 +220,16 @@ namespace UnrealBuildTool
 			Arguments.Add("-Wno-implicit-float-size-conversion");
 			Arguments.Add("-Wno-null-pointer-subtraction");
 			Arguments.Add("-Wno-single-bit-bitfield-constant-conversion");
+			Arguments.Add("-Wno-invalid-unevaluated-string");
+			Arguments.Add("-Wno-unused-command-line-argument");
+			Arguments.Add("-Wno-dangling");
+			Arguments.Add("-Wno-comment");
+			Arguments.Add("-Wno-range-loop-construct");
+			Arguments.Add("-Wno-pragma-once-outside-header");
+			Arguments.Add("-Wno-extra-qualification");
+			Arguments.Add("-Wno-logical-not-parentheses");
+			Arguments.Add("-Wno-c++20-extensions");
+			Arguments.Add("-Wno-deprecated-declarations");
 		}
 	}
 }

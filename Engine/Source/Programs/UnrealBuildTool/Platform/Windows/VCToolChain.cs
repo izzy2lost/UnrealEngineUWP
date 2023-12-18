@@ -719,30 +719,45 @@ namespace UnrealBuildTool
 				CompileEnvironment.bPGOProfile ||
 				CompileEnvironment.bPGOOptimize ||
 				CompileEnvironment.bAllowLTCG;
-			if (bEnableLTCG && !Target.WindowsPlatform.Compiler.IsIntel())
+			if (bEnableLTCG && !Target.WindowsPlatform.Compiler.IsClang())
 			{
 				// Enable link-time code generation.
 				Arguments.Add("/GL");
 			}
 
-			if (Target.WindowsPlatform.Compiler.IsIntel())
+			if (Target.WindowsPlatform.Compiler.IsClang())
 			{
-				if (CompileEnvironment.bAllowLTCG)
+				if (CompileEnvironment.bAllowLTCG && Target.WindowsPlatform.bAllowClangLinker)
 				{
-					// Enable link-time code generation.
-					Arguments.Add("-flto");
+					// Enable link-time code generation. Requires Clang linker.
+					Arguments.Add("-flto=thin");
 				}
 
 				if (CompileEnvironment.bPGOProfile)
 				{
 					// Generate instrumented code.
-					Arguments.Add($"-fprofile-instr-generate=\"{CompileEnvironment.PGOFilenamePrefix}\"-%p-%m.profraw");
+					if (Target.WindowsPlatform.Compiler.IsIntel() && Target.WindowsPlatform.bSampleBasedPGO)
+					{
+						Arguments.Add("-fprofile-sample-generate");
+						Arguments.Add($"-fprofile-dwo-dir=\"{CompileEnvironment.PGODirectory!}\"");
+						Arguments.Add("-gsplit-dwarf");
+					}
+					else
+					{
+						Arguments.Add("-fprofile-generate");
+					}
 				}
 				else if (CompileEnvironment.bPGOOptimize)
 				{
 					// Use a merged profdata file.
-					Arguments.Add("-Wno-profile-instr-out-of-date");
-					Arguments.Add($"-fprofile-instr-use=\"{Path.Combine(CompileEnvironment.PGODirectory!, CompileEnvironment.PGOFilenamePrefix!)}\".profdata");
+					if (Target.WindowsPlatform.Compiler.IsIntel() && Target.WindowsPlatform.bSampleBasedPGO)
+					{
+						Arguments.Add($"-fprofile-sample-use=\"{Path.Combine(CompileEnvironment.PGODirectory!, CompileEnvironment.PGOFilenamePrefix!)}\".profdata");
+					}
+					else
+					{
+						Arguments.Add($"-fprofile-use=\"{Path.Combine(CompileEnvironment.PGODirectory!, CompileEnvironment.PGOFilenamePrefix!)}\".profdata");
+					}
 				}
 			}
 
@@ -770,6 +785,12 @@ namespace UnrealBuildTool
 				}
 			}
 
+			if (CompileEnvironment.Architecture == UnrealArch.X64 && CompileEnvironment.MinCpuArchX64 == MinimumCpuArchitectureX64.None && Target.WindowsPlatform.Compiler.IsIntel())
+			{
+				// Intel oneAPI has /arch switch for sse4.2. Use it when no minimum is set.
+				Arguments.Add("/arch:sse4.2");
+			}
+
 			// Prompt the user before reporting internal errors to Microsoft.
 			Arguments.Add("/errorReport:prompt");
 
@@ -788,7 +809,7 @@ namespace UnrealBuildTool
 			}
 
 			// If enabled, create debug information.
-			if (CompileEnvironment.bCreateDebugInfo)
+			if (CompileEnvironment.bCreateDebugInfo && !(Target.WindowsPlatform.Compiler.IsIntel() && (CompileEnvironment.bPGOOptimize || CompileEnvironment.bPGOProfile || CompileEnvironment.bAllowLTCG)))
 			{
 				// Store debug info in .pdb files.
 				// @todo clang: PDB files are emited from Clang but do not fully work with Visual Studio yet (breakpoints won't hit due to "symbol read error")
@@ -878,6 +899,18 @@ namespace UnrealBuildTool
 				case FPSemanticsMode.Precise: Arguments.Add("/fp:precise"); break;
 				default:
 					throw new BuildException($"Unsupported FP semantics: {FPSemantics}");
+			}
+
+			if (Target.WindowsPlatform.Compiler.IsIntel())
+			{
+				Arguments.Add("/Qvec-peel-loops");
+				Arguments.Add("/Qvec-remainder-loops");
+				Arguments.Add("/Qvec-with-mask");
+				Arguments.Add("/Qopt-dynamic-align");
+				Arguments.Add("/Qunroll");
+				Arguments.Add("/Qopt-streaming-stores:auto");
+				Arguments.Add("/Qopt-jump-tables");
+				Arguments.Add("/Qbranches-within-32B-boundaries");
 			}
 
 			// Intel oneAPI compiler does not support /Zo
@@ -1085,7 +1118,7 @@ namespace UnrealBuildTool
 				{
 					Arguments.Add("/await:strict");
 				}
-				else
+				else if(Target.WindowsPlatform.Compiler.IsClang() && !Target.WindowsPlatform.Compiler.IsIntel())
 				{
 					Arguments.Add("-fcoroutines-ts");
 				}
@@ -1093,8 +1126,8 @@ namespace UnrealBuildTool
 
 			if (Target.WindowsPlatform.Compiler.IsClang())
 			{
-				// Enable codeview ghash for faster lld links
-				if (Target.WindowsPlatform.Compiler == WindowsCompiler.Clang && Target.WindowsPlatform.bAllowClangLinker)
+				// Enable codeview ghash for faster lld links on Clang and Intel
+				if (Target.WindowsPlatform.bAllowClangLinker)
 				{
 					Arguments.Add("-Xclang -gcodeview-ghash");
 				}
@@ -1209,8 +1242,8 @@ namespace UnrealBuildTool
 
 			if (LinkEnvironment.bCreateDebugInfo && LinkEnvironment.bUseFastPDBLinking)
 			{
-				// Allow partial PDBs for faster linking
-				if (Target.WindowsPlatform.Compiler == WindowsCompiler.Clang && Target.WindowsPlatform.bAllowClangLinker)
+				// Allow partial PDBs for faster linking on Clang and Intel
+				if (Target.WindowsPlatform.Compiler.IsClang() && Target.WindowsPlatform.bAllowClangLinker)
 				{
 					Arguments[Arguments.Count - 1] = "/DEBUG:GHASH";
 				}
@@ -1358,7 +1391,7 @@ namespace UnrealBuildTool
 			}
 
 			// Identical COMDAT folding
-			if (Target.WindowsPlatform.bMergeIdenticalCOMDATs)
+			if (Target.WindowsPlatform.bMergeIdenticalCOMDATs && !(Target.WindowsPlatform.Compiler.IsIntel() && Target.WindowsPlatform.bSampleBasedPGO && LinkEnvironment.bPGOProfile))
 			{
 				Arguments.Add("/OPT:ICF");
 			}
@@ -1985,7 +2018,7 @@ namespace UnrealBuildTool
 			}
 
 			// copy PGO support binaries for Windows from $(VC_PGO_RunTime_Dir)
-			if (Target.bPGOProfile && Target.Platform.IsInGroup(UnrealPlatformGroup.Windows) && !Target.WindowsPlatform.Compiler.IsIntel())
+			if (Target.bPGOProfile && Target.Platform.IsInGroup(UnrealPlatformGroup.Windows) && !Target.WindowsPlatform.Compiler.IsClang())
 			{
 				string[] PGOFiles = {
 					"pgort140.dll",
@@ -2667,7 +2700,7 @@ namespace UnrealBuildTool
 				LinkAction.bCanExecuteRemotely = true;
 			}
 
-			if (LinkEnvironment.bPGOOptimize || LinkEnvironment.bPGOProfile)
+			if ((Target.WindowsPlatform.Compiler.IsIntel() && Target.WindowsPlatform.bAllowClangLinker) || LinkEnvironment.bPGOOptimize || LinkEnvironment.bPGOProfile)
 			{
 				LinkAction.bCanExecuteInUBA = false; // Disabled for now. Should revisit to see why it is not working
 			}
@@ -2780,7 +2813,7 @@ namespace UnrealBuildTool
 			bool bPGOOptimize = LinkEnvironment.bPGOOptimize;
 			bool bPGOProfile = LinkEnvironment.bPGOProfile;
 
-			if (!Target.WindowsPlatform.Compiler.IsIntel())
+			if (!Target.WindowsPlatform.Compiler.IsClang())
 			{
 				if (bPGOOptimize || bPGOProfile)
 				{
@@ -2832,7 +2865,7 @@ namespace UnrealBuildTool
 					{
 						Arguments.Add("/LTCG");
 					}
-					Log.TraceInformationOnce("Enabling Link-time code generation (LTGC) as Profile Guided Optimization (PGO) was requested. Linking will take a while.");
+					Log.TraceInformationOnce("Enabling Link-time code generation (LTCG) as Profile Guided Optimization (PGO) was requested. Linking will take a while.");
 				}
 
 				if (bPGOOptimize)
@@ -2872,14 +2905,42 @@ namespace UnrealBuildTool
 			}
 			else
 			{
-				// No link arguments used for PGO on Intel compiler
+				if (LinkEnvironment.bAllowLTCG)
+				{
+					if (Target.WindowsPlatform.bAllowClangLinker)
+					{
+						Log.TraceInformationOnce("Enabling Link-time optimization. Linking will take a while.");
+					}
+					else
+					{
+						Log.TraceWarningOnce("Link-time optimization requires Clang linker.");
+					}
+				}
+
+				// Link arguments used for PGO on Clang/Intel compiler
 				if (bPGOOptimize)
 				{
-					Log.TraceInformationOnce("Enabling Profile Guided Optimization (PGO) on Intel Compiler. Linking will take a while.");
+					if (Target.WindowsPlatform.Compiler.IsIntel() && Target.WindowsPlatform.bSampleBasedPGO)
+					{
+						Log.TraceInformationOnce("Enabling using Sample-Based Profile Guided Optimization (SPGO). Linking will take a while.");
+					}
+					else
+					{
+						Log.TraceInformationOnce("Enabling using Profile Guided Optimization (PGO). Linking will take a while.");
+					}
 				}
 				else if (bPGOProfile)
 				{
-					Log.TraceInformationOnce("Enabling generating Profile Guided Optimization (PGO) on Intel Compiler. Linking will take a while.");
+					// Clang does not yet support sample-based PGO
+					if (Target.WindowsPlatform.Compiler.IsIntel() && Target.WindowsPlatform.bSampleBasedPGO)
+					{
+						Log.TraceInformationOnce("Enabling generating Sample-based Profile Guided Optimization (SPGO). Linking will take a while.");
+						Arguments.Add("-profile-sample-generate");
+					}
+					else
+					{
+						Log.TraceInformationOnce("Enabling generating Profile Guided Optimization (PGO). Linking will take a while.");
+					}
 				}
 			}
 		}

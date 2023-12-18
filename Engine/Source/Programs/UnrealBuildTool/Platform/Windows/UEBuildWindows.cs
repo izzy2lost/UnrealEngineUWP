@@ -239,6 +239,13 @@ namespace UnrealBuildTool
 		public bool bPGONoExtraCounters = false;
 
 		/// <summary>
+		/// If specified along with -PGOProfile, use sample-based PGO instead of instrumented. Currently Intel oneAPI 2024.0+ only.
+		/// </summary>
+		[XmlConfigFile(Category = "WindowsPlatform")]
+		[CommandLine("-SampleBasedPGO")]
+		public bool bSampleBasedPGO = false;
+
+		/// <summary>
 		/// Which level to use for Inline Function Expansion when TargetRules.bUseInlining is enabled
 		/// </summary>
 		/// <seealso href="https://learn.microsoft.com/en-us/cpp/build/reference/ob-inline-function-expansion">ob-inline-function-expansion</seealso>
@@ -325,7 +332,7 @@ namespace UnrealBuildTool
 		public bool bClangStandaloneDebug = false;
 
 		/// <summary>
-		/// True if we should use the Clang linker (LLD) when we are compiling with Clang, or Intel linker (xilink\xilib) when we are compiling with Intel oneAPI, otherwise we use the MSVC linker.
+		/// True if we should use the Clang linker (LLD) when we are compiling with Clang or Intel oneAPI, otherwise we use the MSVC linker.
 		/// </summary>
 		[ConfigFile(ConfigHierarchyType.Engine, "/Script/WindowsTargetPlatform.WindowsTargetSettings", "bAllowClangLinker")]
 		[XmlConfigFile(Category = "WindowsPlatform")]
@@ -775,6 +782,8 @@ namespace UnrealBuildTool
 		public bool bUseFastGenProfile => Inner.bUseFastGenProfile;
 
 		public bool bPGONoExtraCounters => Inner.bPGONoExtraCounters;
+
+		public bool bSampleBasedPGO => Inner.bSampleBasedPGO;
 
 		public int InlineFunctionExpansionLevel => Inner.InlineFunctionExpansionLevel;
 

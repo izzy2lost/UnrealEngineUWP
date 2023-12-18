@@ -31,6 +31,9 @@ namespace Chaos
 
 	template class CHAOS_API Chaos::ISpatialAcceleration<int32, FReal, 3>;
 	template class CHAOS_API Chaos::ISpatialAcceleration<FAccelerationStructureHandle, FReal, 3>;
+	template class CHAOS_API Chaos::ISpatialAcceleration<FAccelerationStructureHandle, FReal, 3>* TSpatialAccelerationSerializationFactory<ESpatialAcceleration::BoundingVolume, FAccelerationStructureHandle, FReal, 3>::Create();
+	template class CHAOS_API Chaos::ISpatialAcceleration<FAccelerationStructureHandle, FReal, 3>* TSpatialAccelerationSerializationFactory<ESpatialAcceleration::AABBTree, FAccelerationStructureHandle, FReal, 3>::Create();
+	template class CHAOS_API Chaos::ISpatialAcceleration<FAccelerationStructureHandle, FReal, 3>* TSpatialAccelerationSerializationFactory<ESpatialAcceleration::AABBTreeBV, FAccelerationStructureHandle, FReal, 3>::Create();
 
 	template class CHAOS_API Chaos::ISpatialVisitor<int32, FReal>;
 	template class CHAOS_API Chaos::ISpatialVisitor<FAccelerationStructureHandle, FReal>;

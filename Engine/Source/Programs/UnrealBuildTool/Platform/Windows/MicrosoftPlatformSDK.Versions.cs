@@ -76,13 +76,13 @@ namespace UnrealBuildTool
 		/// </summary>
 		static readonly VersionNumberRange[] PreferredIntelOneApiVersions =
 		{
-			VersionNumberRange.Parse("2023.1.0", "2023.9999"),
+			VersionNumberRange.Parse("2024.0.0", "2024.9999"),
 		};
 
 		/// <summary>
 		/// The minimum supported Intel compiler
 		/// </summary>
-		static readonly VersionNumber MinimumIntelOneApiVersion = new VersionNumber(2023, 0, 0);
+		static readonly VersionNumber MinimumIntelOneApiVersion = new VersionNumber(2024, 0, 0);
 
 		/// <inheritdoc/>
 		protected override void GetValidSoftwareVersionRange(out string? MinVersion, out string? MaxVersion)
@@ -115,7 +115,7 @@ namespace UnrealBuildTool
 		/// <returns></returns>
 		public static VersionNumber GetClangVersionForIntelCompiler(FileReference IntelCompilerPath)
 		{
-			FileReference LdLLdPath = FileReference.Combine(IntelCompilerPath.Directory, "..", "bin-llvm", "ld.lld.exe");
+			FileReference LdLLdPath = FileReference.Combine(IntelCompilerPath.Directory, "compiler", "ld.lld.exe");
 			if (FileReference.Exists(LdLLdPath))
 			{
 				FileVersionInfo VersionInfo = FileVersionInfo.GetVersionInfo(LdLLdPath.FullName);

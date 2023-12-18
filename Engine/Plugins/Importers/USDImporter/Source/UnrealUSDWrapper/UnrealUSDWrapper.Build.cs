@@ -177,6 +177,7 @@ namespace UnrealBuildTool.Rules
 
 			bool bEnableUsdSdk = (
 				Target.WindowsPlatform.Compiler != WindowsCompiler.Clang &&
+				Target.WindowsPlatform.Compiler != WindowsCompiler.Intel &&
 				Target.StaticAnalyzer == StaticAnalyzer.None
 			);
 

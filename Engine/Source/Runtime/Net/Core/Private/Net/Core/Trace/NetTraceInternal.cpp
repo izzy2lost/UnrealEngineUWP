@@ -50,13 +50,14 @@ struct FNetTraceInternal
 
 	static inline FThreadBuffer* CreateThreadBuffer();
 
-	static inline thread_local TUniquePtr<FThreadBuffer> ThreadBuffer;
 	static constexpr ENetTraceVersion NetTraceVersion = ENetTraceVersion::ENetTraceVersion_FixedBunchSizeEncoding;
 };
 
+static thread_local TUniquePtr<FNetTraceInternal::FThreadBuffer> ThreadBuffer;
+
 FNetTraceInternal::FThreadBuffer* FNetTraceInternal::CreateThreadBuffer()
 {
-	ThreadBuffer = MakeUnique<FThreadBuffer>();
+	ThreadBuffer = MakeUnique<FNetTraceInternal::FThreadBuffer>();
 	return ThreadBuffer.Get();
 }
 
@@ -81,11 +82,11 @@ void FNetTrace::SetTraceVerbosity(uint32 Verbosity)
 	}
 	else if (GetTraceVerbosity() && !NewVerbosity)
 	{
-		if (FNetTraceInternal::ThreadBuffer)
+		if (ThreadBuffer)
 		{
 			UE::Trace::ToggleChannel(TEXT("NetChannel"), false);
 
-			FNetTraceInternal::ThreadBuffer.Reset();
+			ThreadBuffer.Reset();
 		}		
 	}
 
@@ -511,22 +512,22 @@ UE::Net::FNetDebugNameId FNetTrace::TraceName(const TCHAR* Name)
 	}
 
 	// Get Thread buffer
-	FNetTraceInternal::FThreadBuffer* ThreadBuffer = FNetTraceInternal::ThreadBuffer.Get();
-	if (!ThreadBuffer)
+	FNetTraceInternal::FThreadBuffer* ThreadBufferPtr = ThreadBuffer.Get();
+	if (!ThreadBufferPtr)
 	{
-		ThreadBuffer = FNetTraceInternal::CreateThreadBuffer();
+		ThreadBufferPtr = FNetTraceInternal::CreateThreadBuffer();
 	}
 
 	// Hash the name using CityHash64
 	const uint64 HashedName = CityHash64((const char*)Name, FCString::Strlen(Name) * sizeof(TCHAR));
-	if (const UE::Net::FNetDebugNameId* FoundNameId = ThreadBuffer->DynamicNameHashToNameIdMap.Find(HashedName))
+	if (const UE::Net::FNetDebugNameId* FoundNameId = ThreadBufferPtr->DynamicNameHashToNameIdMap.Find(HashedName))
 	{
 		return *FoundNameId;
 	}
 	else
 	{
 		const UE::Net::FNetDebugNameId NameId = FNetTraceInternal::GetNextNameId();
-		ThreadBuffer->DynamicNameHashToNameIdMap.Add(HashedName, NameId);
+		ThreadBufferPtr->DynamicNameHashToNameIdMap.Add(HashedName, NameId);
 
 		FTCHARToUTF8 Converter(Name);
 		FNetTraceInternal::Reporter::ReportAnsiName(NameId, Converter.Length() + 1, (const char*)Converter.Get());		
@@ -545,20 +546,20 @@ UE::Net::FNetDebugNameId FNetTrace::TraceName(FName Name)
 	}
 
 	// Get Thread buffer
-	FNetTraceInternal::FThreadBuffer* ThreadBuffer = FNetTraceInternal::ThreadBuffer.Get();
-	if (!ThreadBuffer)
+	FNetTraceInternal::FThreadBuffer* ThreadBufferPtr = ThreadBuffer.Get();
+	if (!ThreadBufferPtr)
 	{
-		ThreadBuffer = FNetTraceInternal::CreateThreadBuffer();
+		ThreadBufferPtr = FNetTraceInternal::CreateThreadBuffer();
 	}
 
-	if (const FNetDebugNameId* FoundNameId = ThreadBuffer->DynamicFNameToNameIdMap.Find(Name))
+	if (const FNetDebugNameId* FoundNameId = ThreadBufferPtr->DynamicFNameToNameIdMap.Find(Name))
 	{
 		return *FoundNameId;
 	}
 	else
 	{
 		const FNetDebugNameId NameId = FNetTraceInternal::GetNextNameId();
-		ThreadBuffer->DynamicFNameToNameIdMap.Add(Name, NameId);
+		ThreadBufferPtr->DynamicFNameToNameIdMap.Add(Name, NameId);
 
 		const uint32 StringBufferSize = 256;
 		TCHAR Buffer[StringBufferSize];
