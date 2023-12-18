@@ -6,5 +6,4 @@
 
 class USDSTAGEEDITORVIEWMODELS_API IUsdStageEditorViewModelsModule : public IModuleInterface
 {
-
 };
