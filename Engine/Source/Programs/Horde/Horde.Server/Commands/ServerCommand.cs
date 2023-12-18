@@ -3,14 +3,17 @@
 using System;
 using System.IO;
 using System.Runtime.InteropServices;
+using System.Runtime.Versioning;
 using System.Security.Cryptography.X509Certificates;
 using System.Threading.Tasks;
 using EpicGames.Core;
+using EpicGames.Horde;
 using Microsoft.AspNetCore.Hosting;
 using Microsoft.AspNetCore.Server.Kestrel.Core;
 using Microsoft.Extensions.Configuration;
 using Microsoft.Extensions.Hosting;
 using Microsoft.Extensions.Logging;
+using Microsoft.Win32;
 using Serilog;
 
 namespace Horde.Server.Commands
@@ -71,14 +74,24 @@ namespace Horde.Server.Commands
 
 						options.Limits.KeepAliveTimeout = TimeSpan.FromSeconds(220); // 10 seconds more than agent's timeout
 
-						if (serverSettings.HttpPort != 0)
+						int? httpPort = serverSettings.HttpPort;
+						if (httpPort == null)
 						{
-							options.ListenAnyIP(serverSettings.HttpPort, configure => { configure.Protocols = HttpProtocols.Http1AndHttp2; });
+							httpPort ??= GetGlobalIntSetting("HttpPort");
+						}
+						if (httpPort != 0)
+						{
+							options.ListenAnyIP(httpPort ?? 5000, configure => { configure.Protocols = HttpProtocols.Http1AndHttp2; });
 						}
 
-						if (serverSettings.HttpsPort != 0)
+						int? httpsPort = serverSettings.HttpsPort;
+						if (httpsPort == null)
 						{
-							options.ListenAnyIP(serverSettings.HttpsPort, configure => 
+							httpsPort ??= GetGlobalIntSetting("HttpsPort");
+						}
+						if (httpsPort != null && httpsPort != 0)
+						{
+							options.ListenAnyIP(httpsPort.Value, configure => 
 							{
 								if (sslCert != null)
 								{
@@ -93,9 +106,14 @@ namespace Horde.Server.Commands
 
 						// To serve HTTP/2 with gRPC *without* TLS enabled, a separate port for HTTP/2 must be used.
 						// This is useful when having a load balancer in front that terminates TLS.
-						if (serverSettings.Http2Port != 0)
+						int? http2Port = serverSettings.Http2Port;
+						if (http2Port == 0)
 						{
-							options.ListenAnyIP(serverSettings.Http2Port, configure => { configure.Protocols = HttpProtocols.Http2; });
+							http2Port ??= GetGlobalIntSetting("Http2Port");
+						}
+						if (http2Port != 0)
+						{
+							options.ListenAnyIP(http2Port ?? 5002, configure => { configure.Protocols = HttpProtocols.Http2; });
 						}
 					});
 					webBuilder.UseStartup<Startup>();
@@ -115,6 +133,25 @@ namespace Horde.Server.Commands
 			}
 
 			return hostBuilder;
+		}
+
+		static int? GetGlobalIntSetting(string valueName)
+		{
+			if (RuntimeInformation.IsOSPlatform(OSPlatform.Windows))
+			{
+				object? value = GetRegistrySetting(valueName);
+				if (value is int intValue)
+				{
+					return intValue;
+				}
+			}
+			return null;
+		}
+
+		[SupportedOSPlatform("windows")]
+		static object? GetRegistrySetting(string valueName)
+		{
+			return Registry.GetValue("HKEY_LOCAL_MACHINE\\Software\\Epic Games\\Horde\\Server", valueName, null);
 		}
 
 		/// <summary>

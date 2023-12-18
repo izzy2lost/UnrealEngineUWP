@@ -8,7 +8,7 @@ using Horde.Server.Server;
 using Horde.Server.Utilities;
 using Microsoft.Extensions.Logging;
 
-namespace Horde.Server.Commands.Config
+namespace Horde.Server.Commands.Generate
 {
 	[Command("generate", "configschemas", "Writes JSON schemas for server settings")]
 	class SchemasCommand : Command

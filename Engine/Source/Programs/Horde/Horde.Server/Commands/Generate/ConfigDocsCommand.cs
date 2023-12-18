@@ -17,7 +17,7 @@ using Horde.Server.Server;
 using Horde.Server.Streams;
 using Microsoft.Extensions.Logging;
 
-namespace Horde.Server.Commands.Config
+namespace Horde.Server.Commands.Generate
 {
 	[Command("generate", "configdocs", "Writes Markdown docs for server settings")]
 	class DocsCommand : Command

@@ -15,7 +15,7 @@ using Microsoft.AspNetCore.Mvc;
 using System.Threading;
 using EpicGames.Horde;
 
-namespace Horde.Server.Commands
+namespace Horde.Server.Commands.Generate
 {
 	[Command("generate", "cppapi", "Outputs C++ source files describing the Horde API")]
 	class CppApiCommand : Command
