@@ -94,7 +94,7 @@ public:
 	 * (e.g. {0: ['/Root/mesh', '/Root/othermesh/geomsubset0', '/Root/othermesh/geomsubset1'] }).
 	 */
 	UPROPERTY()
-	TMap< int32, FUsdPrimPathList > MaterialSlotToPrimPaths;
+	TMap<int32, FUsdPrimPathList> MaterialSlotToPrimPaths;
 
 	/** Describes which primvars should be assigned to each UV index. */
 	UPROPERTY()

@@ -27,13 +27,14 @@
 
 #if WITH_EDITOR
 #include "Editor/MaterialEditor/Public/MaterialEditingLibrary.h"
-#endif // WITH_EDITOR
+#endif	  // WITH_EDITOR
 
 static bool GUseWholeExtentsToDetectSelection = true;
 static FAutoConsoleVariableRef CVarUseWholeExtentsToDetectSelection(
 	TEXT("USD.Bounds.UseWholeExtentsToDetectSelection"),
 	GUseWholeExtentsToDetectSelection,
-	TEXT("When true it means we can select the UUsdDrawModeComponents in 'bounds', 'cards' or 'origin' mode by clicking anywhere on the extent's 'volume' itself, and not only by clicking directly on the drawn lines")
+	TEXT("When true it means we can select the UUsdDrawModeComponents in 'bounds', 'cards' or 'origin' mode by clicking anywhere on the extent's "
+		 "'volume' itself, and not only by clicking directly on the drawn lines")
 );
 
 static float GBoundsLineThickness = 2.0f;
@@ -86,8 +87,7 @@ namespace UE::UsdDrawModeComponentImpl::Private
 					FVector3f(-0.5, -0.5, +0.5),
 					FVector3f(-0.5, +0.5, +0.5),
 					FVector3f(+0.5, +0.5, +0.5),
-					FVector3f(+0.5, -0.5, +0.5)
-				};
+					FVector3f(+0.5, -0.5, +0.5)};
 
 				FVector2f UVs[4] = {
 					FVector2f(0, 0),
@@ -151,7 +151,6 @@ namespace UE::UsdDrawModeComponentImpl::Private
 						HitProxyBuffer.Upload();
 					}
 				);
-
 			}
 		}
 
@@ -202,7 +201,8 @@ namespace UE::UsdDrawModeComponentImpl::Private
 							);
 							bOutputVelocity |= AlwaysHasVelocity();
 
-							FDynamicPrimitiveUniformBuffer& DynamicPrimitiveUniformBuffer = Collector.AllocateOneFrameResource<FDynamicPrimitiveUniformBuffer>();
+							FDynamicPrimitiveUniformBuffer&
+								DynamicPrimitiveUniformBuffer = Collector.AllocateOneFrameResource<FDynamicPrimitiveUniformBuffer>();
 
 							DynamicPrimitiveUniformBuffer.Set(
 								Collector.GetRHICommandList(),
@@ -1079,7 +1079,7 @@ HHitProxy* UUsdDrawModeComponent::CreateMeshHitProxy(int32 SectionIndex, int32 M
 {
 	return nullptr;
 }
-#endif // WITH_EDITOR
+#endif	  // WITH_EDITOR
 
 EUsdModelCardFace UUsdDrawModeComponent::GetAuthoredFaces() const
 {

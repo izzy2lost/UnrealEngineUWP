@@ -31,7 +31,7 @@ enum class EUsdModelCardGeometry : int32
 {
 	Cross,
 	Box,
-	FromTexture UMETA(Hidden)// We don't really support this one, and will fallback to "Box"
+	FromTexture UMETA(Hidden)	 // We don't really support this one, and will fallback to "Box"
 };
 
 UENUM(meta = (Bitflags, UseEnumValuesAsMaskValuesInEditor = "true"))
@@ -150,7 +150,7 @@ public:
 
 public:
 	UUsdDrawModeComponent();
-	virtual ~UUsdDrawModeComponent() override {};
+	virtual ~UUsdDrawModeComponent() override{};
 
 	// Begin UPrimitiveComponent interface
 	virtual FPrimitiveSceneProxy* CreateSceneProxy() override;

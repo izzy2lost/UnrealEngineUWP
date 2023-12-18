@@ -4,7 +4,6 @@
 
 #include "Containers/LruCache.h"
 #include "Containers/Map.h"
-#include "CoreMinimal.h"
 #include "Serialization/BulkData.h"
 #include "UObject/ObjectKey.h"
 
@@ -13,7 +12,7 @@
 /**
  * Owns the assets generated and reused by USD Stages, allowing thread-safe retrieval/storage.
  */
-UCLASS(BlueprintType, Blueprintable, meta=(DisplayName="USD Asset Cache", ScriptName="UsdAssetCache"))
+UCLASS(BlueprintType, Blueprintable, meta = (DisplayName = "USD Asset Cache", ScriptName = "UsdAssetCache"))
 class USDCLASSES_API UUsdAssetCache2 : public UObject
 {
 	GENERATED_BODY()
@@ -220,7 +219,7 @@ private:
 		TSet<FSoftObjectPath> Consumers;
 
 		// Transient stuff
-		ECacheStorageType CurrentStorageType = ECacheStorageType::None;  // Only used internally during RefreshStorage()
+		ECacheStorageType CurrentStorageType = ECacheStorageType::None;	   // Only used internally during RefreshStorage()
 		TSet<FObjectKey> Referencers;
 
 	public:
@@ -248,7 +247,7 @@ private:
 	// When this is set to something, we will track that it is referencing any new asset that we cache.
 	// See FUsdScopedAssetCacheReferencer just below
 	const UObject* CurrentScopedReferencer = nullptr;
-};
+};	  // UCLASS(BlueprintType)
 
 /**
  * The UUsdAssetCache2 can track all the UObjects that are referencing assets, so that it knows when to discard an
