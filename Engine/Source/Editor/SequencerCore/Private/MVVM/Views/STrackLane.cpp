@@ -234,8 +234,6 @@ void STrackLane::OnArrangeChildren( const FGeometry& AllottedGeometry, FArranged
 
 int32 STrackLane::OnPaint(const FPaintArgs& Args, const FGeometry& AllottedGeometry, const FSlateRect& MyCullingRect, FSlateWindowElementList& OutDrawElements, int32 LayerId, const FWidgetStyle& InWidgetStyle, bool bParentEnabled) const
 {
-	LayerId = PaintLaneBackground(AllottedGeometry, MyCullingRect, OutDrawElements, LayerId, InWidgetStyle);
-
 	FArrangedChildren ArrangedChildren(EVisibility::Visible);
 	ArrangeChildren(AllottedGeometry, ArrangedChildren);
 
@@ -246,10 +244,12 @@ int32 STrackLane::OnPaint(const FPaintArgs& Args, const FGeometry& AllottedGeome
 		LayerId = CurWidget.Widget->Paint( Args.WithNewParent(this), CurWidget.Geometry, ChildClipRect, OutDrawElements, LayerId, InWidgetStyle, ShouldBeEnabled( bParentEnabled ) );
 	}
 
+	LayerId = PaintLaneForeground(AllottedGeometry, MyCullingRect, OutDrawElements, LayerId, InWidgetStyle);
+
 	return LayerId + 1;
 }
 
-int32 STrackLane::PaintLaneBackground(const FGeometry& AllottedGeometry, const FSlateRect& MyCullingRect, FSlateWindowElementList& OutDrawElements, int32 LayerId, const FWidgetStyle& InWidgetStyle) const
+int32 STrackLane::PaintLaneForeground(const FGeometry& AllottedGeometry, const FSlateRect& MyCullingRect, FSlateWindowElementList& OutDrawElements, int32 LayerId, const FWidgetStyle& InWidgetStyle) const
 {
 	static const FName BorderName("Sequencer.AnimationOutliner.DefaultBorder");
 	static const FName SelectionColorName("SelectionColor");
@@ -260,8 +260,6 @@ int32 STrackLane::PaintLaneBackground(const FGeometry& AllottedGeometry, const F
 	{
 		return LayerId;
 	}
-
-	const int32 PaintLayerId = TrackAreaView->GetPaintLayers().LaneBackgrounds;
 
 	TViewModelPtr<IHoveredExtension> Hoverable = OutlinerItem.ImplicitCast();
 
@@ -276,14 +274,14 @@ int32 STrackLane::PaintLaneBackground(const FGeometry& AllottedGeometry, const F
 
 		FSlateDrawElement::MakeBox(
 			OutDrawElements,
-			PaintLayerId,
+			LayerId++,
 			AllottedGeometry.ToPaintGeometry(
 				FVector2f(AllottedGeometry.GetLocalSize().X, TotalNodeHeight),
 				FSlateLayoutTransform()
 			),
 			FAppStyle::GetBrush(BorderName),
 			ESlateDrawEffect::None,
-			SelectionColor
+			SelectionColor.CopyWithNewOpacity(0.2f)
 		);
 	}
 
@@ -307,7 +305,7 @@ int32 STrackLane::PaintLaneBackground(const FGeometry& AllottedGeometry, const F
 		{
 			FSlateDrawElement::MakeBox(
 				OutDrawElements,
-				PaintLayerId,
+				LayerId++,
 				AllottedGeometry.ToPaintGeometry(
 					FVector2f(AllottedGeometry.GetLocalSize().X, TotalNodeHeight),
 					FSlateLayoutTransform()
