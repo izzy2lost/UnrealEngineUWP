@@ -5,17 +5,19 @@
 #include "InterchangeDatasmithAreaLightNode.h"
 #include "InterchangeDatasmithAreaLightFactoryNode.h"
 #include "InterchangeDatasmithLevelPipeline.h"
+#include "InterchangeDatasmithLog.h"
 #include "InterchangeDatasmithMaterialPipeline.h"
-#include "InterchangeDatasmithSceneNode.h"
-#include "InterchangeDatasmithSceneFactoryNode.h"
 #include "InterchangeDatasmithStaticMeshPipeline.h"
-#include "InterchangeDatasmithTexturePipeline.h"
+//#include "InterchangeDatasmithTexturePipeline.h"
+#include "InterchangeDatasmithTextureData.h"
 #include "InterchangeDatasmithUtils.h"
 
-#include "InterchangeLevelSequenceFactoryNode.h"
 #include "InterchangeGenericAnimationPipeline.h"
 #include "InterchangeGenericScenesPipeline.h"
+#include "InterchangeGenericTexturePipeline.h"
+#include "InterchangeLevelSequenceFactoryNode.h"
 #include "InterchangeMaterialFactoryNode.h"
+#include "InterchangeSceneImportAssetFactoryNode.h"
 #include "InterchangeSceneVariantSetsFactoryNode.h"
 #include "InterchangeStaticMeshFactoryNode.h"
 #include "InterchangeTexture2DNode.h"
@@ -25,8 +27,6 @@
 
 #include "ExternalSource.h"
 #include "DatasmithAreaLightActor.h"
-#include "DatasmithScene.h"
-#include "DatasmithSceneXmlWriter.h"
 
 #include "StaticMeshAttributes.h"
 #include "Engine/StaticMeshActor.h"
@@ -107,7 +107,6 @@ UInterchangeDatasmithPipeline::UInterchangeDatasmithPipeline()
 	CommonMeshesProperties = CreateDefaultSubobject<UInterchangeGenericCommonMeshesProperties>("CommonMeshesProperties");
 	CommonMeshesProperties->bBakeMeshes = false;
 
-	TexturePipeline = CreateDefaultSubobject<UInterchangeDatasmithTexturePipeline>("DatasmithTexturePipeline");
 	MaterialPipeline = CreateDefaultSubobject<UInterchangeDatasmithMaterialPipeline>("DatasmithMaterialPipeline");
 	MeshPipeline = CreateDefaultSubobject<UInterchangeDatasmithStaticMeshPipeline>("DatasmithMeshPipeline");
 	LevelPipeline = CreateDefaultSubobject<UInterchangeDatasmithLevelPipeline>("DatasmithLevelPipeline");
@@ -126,11 +125,8 @@ void UInterchangeDatasmithPipeline::ExecutePipeline(UInterchangeBaseNodeContaine
 
 	BaseNodeContainer = InBaseNodeContainer;
 
-	TArray<UInterchangeDatasmithSceneNode*> DatasmithSceneNodes = NodeUtils::GetNodes<UInterchangeDatasmithSceneNode>(BaseNodeContainer);
-	if (!ensure(DatasmithSceneNodes.Num() == 1))
-	{
-		return;
-	}
+	ensure(BaseNodeContainer);
+	ensure(Results);
 
 	auto ExecutePreImportPipelineFunc = [this, &SourceDatas, &ContentBasePath](UInterchangePipelineBase* Pipeline)
 	{
@@ -141,22 +137,25 @@ void UInterchangeDatasmithPipeline::ExecutePipeline(UInterchangeBaseNodeContaine
 		}
 	};
 
-	ensure(Results);
-	ExecutePreImportPipelineFunc(TexturePipeline);
 	ExecutePreImportPipelineFunc(MaterialPipeline);
+	for (UInterchangeTextureFactoryNode* TextureFactoryNode : NodeUtils::GetNodes<UInterchangeTextureFactoryNode>(BaseNodeContainer))
+	{
+		PreImportTextureFactoryNode(TextureFactoryNode);
+	}
+
 	ExecutePreImportPipelineFunc(MeshPipeline);
 	ExecutePreImportPipelineFunc(LevelPipeline);
 	ExecutePreImportPipelineFunc(AnimationPipeline);
 
-	const UInterchangeDatasmithSceneNode* DatasmithSceneNode = DatasmithSceneNodes[0];
-	const FString PackageSubPath = DatasmithSceneNode->GetDisplayLabel();
+	const FString PackageSubPath = FPaths::GetBaseFilename(SourceDatas[0]->GetFilename());
 
-	TArray<FString> DependenciesUids;
+#if WITH_EDITORONLY_DATA
+	LevelPipeline->SceneImportFactoryNode->SetCustomSubPath(PackageSubPath);
+#endif
 
 	// Textures
 	for (UInterchangeTextureFactoryNode* TextureFactoryNode : NodeUtils::GetNodes<UInterchangeTextureFactoryNode>(BaseNodeContainer))
 	{
-		DependenciesUids.Add(TextureFactoryNode->GetUniqueID());
 		TextureFactoryNode->SetCustomSubPath(FPaths::Combine(PackageSubPath, "Textures"));
 		TextureFactoryNode->SetEnabled(true);
 	}
@@ -164,7 +163,6 @@ void UInterchangeDatasmithPipeline::ExecutePipeline(UInterchangeBaseNodeContaine
 	// Materials
 	for (UInterchangeBaseMaterialFactoryNode* MaterialFactoryNode : NodeUtils::GetNodes<UInterchangeBaseMaterialFactoryNode>(BaseNodeContainer))
 	{
-		DependenciesUids.Add(MaterialFactoryNode->GetUniqueID());
 		if (bCreateMaterialReferencesFolders)
 		{
 			if (MaterialFactoryNode->IsA<UInterchangeMaterialFactoryNode>())
@@ -190,7 +188,6 @@ void UInterchangeDatasmithPipeline::ExecutePipeline(UInterchangeBaseNodeContaine
 	// StaticMeshes
 	for (UInterchangeStaticMeshFactoryNode* StaticMeshFactoryNode : NodeUtils::GetNodes<UInterchangeStaticMeshFactoryNode>(BaseNodeContainer))
 	{
-		DependenciesUids.Add(StaticMeshFactoryNode->GetUniqueID());
 		StaticMeshFactoryNode->SetCustomSubPath(FPaths::Combine(PackageSubPath, "Geometries"));
 		StaticMeshFactoryNode->SetEnabled(true);
 	}
@@ -198,7 +195,6 @@ void UInterchangeDatasmithPipeline::ExecutePipeline(UInterchangeBaseNodeContaine
 	// LevelSequences
 	for (UInterchangeLevelSequenceFactoryNode* AnimationTrackSetFactoryNode : NodeUtils::GetNodes<UInterchangeLevelSequenceFactoryNode>(BaseNodeContainer))
 	{
-		DependenciesUids.Add(AnimationTrackSetFactoryNode->GetUniqueID());
 		AnimationTrackSetFactoryNode->SetCustomSubPath(FPaths::Combine(PackageSubPath, "Animations"));
 		AnimationTrackSetFactoryNode->SetEnabled(true);
 	}
@@ -206,43 +202,14 @@ void UInterchangeDatasmithPipeline::ExecutePipeline(UInterchangeBaseNodeContaine
 	// LevelVariantSets
 	for (UInterchangeSceneVariantSetsFactoryNode* LevelVariantSetFactoryNode : NodeUtils::GetNodes<UInterchangeSceneVariantSetsFactoryNode>(BaseNodeContainer))
 	{
-		DependenciesUids.Add(LevelVariantSetFactoryNode->GetUniqueID());
 		LevelVariantSetFactoryNode->SetCustomSubPath(FPaths::Combine(PackageSubPath, "Variants"));
 		LevelVariantSetFactoryNode->SetEnabled(true);
-	}
-
-	// Datasmith Scene
-	{
-		const FString DatasmithSceneUid = UInterchangeFactoryBaseNode::BuildFactoryNodeUid(DatasmithSceneNode->GetUniqueID());
-		const FString DisplayLabel = DatasmithSceneNode->GetDisplayLabel();
-		UInterchangeDatasmithSceneFactoryNode* DatasmithSceneFactoryNode = NewObject<UInterchangeDatasmithSceneFactoryNode>(BaseNodeContainer, NAME_None);
-		if (!ensure(DatasmithSceneFactoryNode))
-		{
-			return;
-		}
-
-		DatasmithSceneFactoryNode->InitializeDatasmithFactorySceneNode(DatasmithSceneUid, DisplayLabel, UDatasmithScene::StaticClass()->GetName());
-		DatasmithSceneFactoryNode->SetCustomSubPath(PackageSubPath);
-		DatasmithSceneFactoryNode->AddTargetNodeUid(DatasmithSceneNode->GetUniqueID());
-		DatasmithSceneNode->AddTargetNodeUid(DatasmithSceneFactoryNode->GetUniqueID());
-
-		for (const FString& Uid : DependenciesUids)
-		{
-			DatasmithSceneFactoryNode->AddFactoryDependencyUid(Uid);
-		}
-
-		BaseNodeContainer->AddNode(DatasmithSceneFactoryNode);
 	}
 }
 
 void UInterchangeDatasmithPipeline::ExecutePostImportPipeline(const UInterchangeBaseNodeContainer* InBaseNodeContainer, const FString& NodeKey, UObject* CreatedAsset, bool bIsAReimport)
 {
 	TRACE_CPUPROFILER_EVENT_SCOPE(UInterchangeDatasmithPipeline::ExecutePostImportPipeline);
-
-	if (TexturePipeline)
-	{
-		TexturePipeline->ScriptedExecutePostImportPipeline(InBaseNodeContainer, NodeKey, CreatedAsset, bIsAReimport);
-	}
 
 	if (MaterialPipeline)
 	{
@@ -263,91 +230,148 @@ void UInterchangeDatasmithPipeline::ExecutePostImportPipeline(const UInterchange
 	{
 		AnimationPipeline->ScriptedExecutePostImportPipeline(InBaseNodeContainer, NodeKey, CreatedAsset, bIsAReimport);
 	}
-
-	if (UDatasmithScene* DatasmithSceneAsset = Cast<UDatasmithScene>(CreatedAsset))
-	{
-		PostImportDatasmithSceneAsset(*DatasmithSceneAsset);
-	}
-#if WITH_EDITORONLY_DATA
-	if (bDeleteInvalidMeshes)
-	{
-		if (UStaticMesh* StaticMesh = Cast<UStaticMesh>(CreatedAsset))
-		{
-			if (!UE::Interchange::StaticMeshUtils::IsMeshValid(StaticMesh))
-			{
-				UInterchangeResultWarning_Generic* InvalidMeshWarning = AddMessage<UInterchangeResultWarning_Generic>();
-				InvalidMeshWarning->Text = FText::Format(
-					LOCTEXT("InvalidStaticMesh", "Static Mesh {0} contains only degenerate or empty triangles."),
-					FText::FromString(StaticMesh->GetName())
-				);
-
-				if (UInterchangeStaticMeshFactoryNode* FactoryNode = Cast<UInterchangeStaticMeshFactoryNode>(InBaseNodeContainer->GetFactoryNode(NodeKey)))
-				{
-					FactoryNode->SetCustomReferenceObject(FSoftObjectPath());
-					InvalidStaticMeshFactoryUids.Emplace(FactoryNode->GetUniqueID());
-				}
-
-				CreatedAsset->Rename(nullptr, GetTransientPackage(), REN_NonTransactional | REN_DontCreateRedirectors);
-				if (CreatedAsset->IsRooted())
-				{
-					CreatedAsset->RemoveFromRoot();
-				}
-				CreatedAsset->ClearFlags(RF_Public | RF_Standalone);
-				CreatedAsset->MarkAsGarbage();
-			}
-		}
-
-		// Clear up the reference 
-		if (AStaticMeshActor* StaticMeshActor = Cast<AStaticMeshActor>(CreatedAsset))
-		{
-			if (UInterchangeMeshActorFactoryNode* FactoryNode = Cast<UInterchangeMeshActorFactoryNode>(InBaseNodeContainer->GetFactoryNode(NodeKey)))
-			{
-				TArray<FString> FactoryDependencies;
-				FactoryNode->GetFactoryDependencies(FactoryDependencies);
-				for (const FString& FactoryDependency : FactoryDependencies)
-				{
-					if (InvalidStaticMeshFactoryUids.Contains(FactoryDependency))
-					{
-						if (UStaticMeshComponent* StaticMeshComponent = StaticMeshActor->GetStaticMeshComponent())
-						{
-							StaticMeshComponent->SetStaticMesh(nullptr);
-						}
-					}
-				}
-			}
-		}
-	}
-#endif
 }
 
-void UInterchangeDatasmithPipeline::PostImportDatasmithSceneAsset(UDatasmithScene& DatasmithSceneAsset)
+void UInterchangeDatasmithPipeline::PreImportTextureFactoryNode(UInterchangeTextureFactoryNode* TextureFactoryNode) const
 {
 	using namespace UE::DatasmithInterchange;
 
-#if WITH_EDITORONLY_DATA
-	TArray<UInterchangeDatasmithSceneNode*> DatasmithSceneNodes = NodeUtils::GetNodes<UInterchangeDatasmithSceneNode>(BaseNodeContainer);
-	if (!ensure(DatasmithSceneNodes.Num() == 1))
+	TArray<FString> TargetNodes;
+	TextureFactoryNode->GetTargetNodeUids(TargetNodes);
+	if (TargetNodes.Num() == 0)
 	{
-		// TODO: Warn more than one Datasmith scene asset
 		return;
 	}
 
-	TArray< uint8 > Bytes;
-	FMemoryWriter MemoryWriter(Bytes, true);
+	const UInterchangeBaseNode* TargetNode = BaseNodeContainer->GetNode(TargetNodes[0]);
+	if (!FInterchangeDatasmithTextureData::HasData(TargetNode))
+	{
+		return;
+	}
 
-	FDatasmithSceneXmlWriter DatasmithSceneXmlWriter;
-	DatasmithSceneXmlWriter.Serialize(DatasmithSceneNodes[0]->DatasmithScene.ToSharedRef(), MemoryWriter);
+	FInterchangeDatasmithTextureDataConst TextureData(TargetNode);
+	TOptional< bool > bLocalFlipNormalMapGreenChannel;
+	TOptional< TextureMipGenSettings > MipGenSettings;
+	TOptional< TextureGroup > LODGroup;
+	TOptional< TextureCompressionSettings > CompressionSettings;
 
-	DatasmithSceneAsset.DatasmithSceneBulkData.Lock(LOCK_READ_WRITE);
+	// Make sure to set the proper LODGroup as it's used to determine the CompressionSettings when using TEXTUREGROUP_WorldNormalMap
+	EDatasmithTextureMode TextureMode;
+	if (TextureData.GetCustomTextureMode(TextureMode))
+	{
+		switch (TextureMode)
+		{
+		case EDatasmithTextureMode::Diffuse:
+			LODGroup = TEXTUREGROUP_World;
+			break;
+		case EDatasmithTextureMode::Specular:
+			LODGroup = TEXTUREGROUP_WorldSpecular;
+			break;
+		case EDatasmithTextureMode::Bump:
+		case EDatasmithTextureMode::Normal:
+			LODGroup = TEXTUREGROUP_WorldNormalMap;
+			CompressionSettings = TC_Normalmap;
+			break;
+		case EDatasmithTextureMode::NormalGreenInv:
+			LODGroup = TEXTUREGROUP_WorldNormalMap;
+			CompressionSettings = TC_Normalmap;
+			bLocalFlipNormalMapGreenChannel = true;
+			break;
+		}
+	}
 
-	uint8* Dest = reinterpret_cast<uint8*>(DatasmithSceneAsset.DatasmithSceneBulkData.Realloc(Bytes.Num()));
+	const TOptional< float > RGBCurve = [&TextureData]() -> TOptional< float >
+		{
+			float ElementRGBCurve;
 
-	FPlatformMemory::Memcpy(Dest, Bytes.GetData(), Bytes.Num());
+			if (TextureData.GetCustomRGBCurve(ElementRGBCurve)
+				&& FMath::IsNearlyEqual(ElementRGBCurve, 1.0f) == false
+				&& ElementRGBCurve > 0.f)
+			{
+				return ElementRGBCurve;
+			}
 
-	DatasmithSceneAsset.DatasmithSceneBulkData.Unlock();
+			return {};
+		}();
 
-	// Todo: Fill up imported DatasmithScene with created assets
-#endif
+		static_assert(TextureAddress::TA_Wrap == (int)EDatasmithTextureAddress::Wrap && TextureAddress::TA_Mirror == (int)EDatasmithTextureAddress::Mirror, "Texture Address enum doesn't match!");
+
+		TOptional< TextureFilter > TexFilter;
+		EDatasmithTextureFilter TextureFilter;
+		if (TextureData.GetCustomTextureFilter(TextureFilter))
+		{
+			switch (TextureFilter)
+			{
+			case EDatasmithTextureFilter::Nearest:
+				TexFilter = TextureFilter::TF_Nearest;
+				break;
+			case EDatasmithTextureFilter::Bilinear:
+				TexFilter = TextureFilter::TF_Bilinear;
+				break;
+			case EDatasmithTextureFilter::Trilinear:
+				TexFilter = TextureFilter::TF_Trilinear;
+				break;
+			}
+		}
+
+		TOptional< bool > bSrgb;
+		EDatasmithColorSpace ColorSpace;
+		if (TextureData.GetCustomSRGB(ColorSpace))
+		{
+			if (ColorSpace == EDatasmithColorSpace::sRGB)
+			{
+				bSrgb = true;
+			}
+			else if (ColorSpace == EDatasmithColorSpace::Linear)
+			{
+				bSrgb = false;
+			}
+		}
+
+		EDatasmithTextureAddress AddressX;
+		EDatasmithTextureAddress AddressY;
+		UInterchangeTexture2DFactoryNode* Texture2DFactoryNode = Cast<UInterchangeTexture2DFactoryNode>(TextureFactoryNode);
+		if (Texture2DFactoryNode
+			&& TextureData.GetCustomTextureAddressX(AddressX)
+			&& TextureData.GetCustomTextureAddressY(AddressY))
+		{
+			Texture2DFactoryNode->SetCustomAddressX((TextureAddress)AddressX);
+			Texture2DFactoryNode->SetCustomAddressY((TextureAddress)AddressY);
+		}
+
+		if (bSrgb.IsSet())
+		{
+			TextureFactoryNode->SetCustomSRGB(bSrgb.GetValue());
+		}
+
+		if (bLocalFlipNormalMapGreenChannel.IsSet())
+		{
+			TextureFactoryNode->SetCustombFlipGreenChannel(bLocalFlipNormalMapGreenChannel.GetValue());
+		}
+
+		if (MipGenSettings.IsSet())
+		{
+			TextureFactoryNode->SetCustomMipGenSettings(MipGenSettings.GetValue());
+		}
+
+		if (LODGroup.IsSet())
+		{
+			TextureFactoryNode->SetCustomLODGroup(LODGroup.GetValue());
+		}
+
+		if (CompressionSettings.IsSet())
+		{
+			TextureFactoryNode->SetCustomCompressionSettings(CompressionSettings.GetValue());
+		}
+
+		if (RGBCurve.IsSet())
+		{
+			TextureFactoryNode->SetCustomAdjustRGBCurve(RGBCurve.GetValue());
+		}
+
+		if (TexFilter.IsSet())
+		{
+			TextureFactoryNode->SetCustomFilter(TexFilter.GetValue());
+		}
 }
-
 #undef LOCTEXT_NAMESPACE

@@ -5,7 +5,6 @@
 #include "InterchangeDatasmithAreaLightNode.h"
 #include "InterchangeDatasmithLog.h"
 #include "InterchangeDatasmithMaterialNode.h"
-#include "InterchangeDatasmithSceneNode.h"
 #include "InterchangeDatasmithTextureData.h"
 #include "InterchangeDatasmithUtils.h"
 
@@ -39,8 +38,100 @@
 #include "Misc/App.h"
 #include "Misc/PackageName.h"
 
+#if WITH_EDITOR
+#include "DesktopPlatformModule.h"
+#include "Dialogs/DlgPickPath.h"
+#include "IDesktopPlatform.h"
+#include "Interfaces/IMainFrameModule.h"
+#include "ObjectTools.h"
+#include "Styling/SlateIconFinder.h"
+#include "UI/DatasmithImportOptionsWindow.h"
+#endif //WITH_EDITOR
 
 #define LOCTEXT_NAMESPACE "DatasmithInterchange"
+
+namespace UE::Interchange::Datasmith
+{
+#if WITH_EDITOR
+	bool DisplayOptionsDialog(IDatasmithTranslator& Translator)
+	{
+		TArray<TObjectPtr<UDatasmithOptionsBase>> ImportOptions;
+		Translator.GetSceneImportOptions(ImportOptions);
+
+		if (ImportOptions.Num() == 0)
+		{
+			return true;
+		}
+
+		const FString FilePath = Translator.GetSource().GetSourceFile();
+
+		TSharedPtr<SWindow> ParentWindow;
+
+		if (FModuleManager::Get().IsModuleLoaded("MainFrame"))
+		{
+			IMainFrameModule& MainFrame = FModuleManager::LoadModuleChecked<IMainFrameModule>("MainFrame");
+			ParentWindow = MainFrame.GetParentWindow();
+		}
+
+		TArray<UObject*> Options;
+		Options.SetNum(ImportOptions.Num());
+		for (int32 Index = 0; Index < ImportOptions.Num(); ++Index)
+		{
+			Options[Index] = ImportOptions[Index];
+		}
+
+		TSharedRef<SWindow> Window = SNew(SWindow)
+			.Title(LOCTEXT("DatasmithImportSettingsTitle", "Datasmith Import Options"))
+			.SizingRule(ESizingRule::Autosized);
+
+		float SceneVersion = FDatasmithUtils::GetDatasmithFormatVersionAsFloat();
+		FString FileSDKVersion = FDatasmithUtils::GetEnterpriseVersionAsString();
+
+		TSharedPtr<SDatasmithOptionsWindow> OptionsWindow;
+		Window->SetContent
+		(
+			SAssignNew(OptionsWindow, SDatasmithOptionsWindow)
+			.ImportOptions(Options)
+			.WidgetWindow(Window)
+			// note: Spacing in text below is intentional for text alignment
+			.FileNameText(FText::Format(LOCTEXT("DatasmithImportSettingsFileName", "  Import File  :    {0}"), FText::FromString(FPaths::GetCleanFilename(FilePath))))
+			.FilePathText(FText::FromString(FilePath))
+			.FileFormatVersion(SceneVersion)
+			.FileSDKVersion(FText::FromString(FileSDKVersion))
+//			.PackagePathText(FText::Format(LOCTEXT("DatasmithImportSettingsPackagePath", "  Import To   :    {0}"), FText::FromString(PackagePath)))
+			.ProceedButtonLabel(LOCTEXT("DatasmithOptionWindow_ImportCurLevel", "Import"))
+			.ProceedButtonTooltip(LOCTEXT("DatasmithOptionWindow_ImportCurLevel_ToolTip", "Import the file through Interchange and add to the current Level"))
+			.CancelButtonLabel(LOCTEXT("DatasmithOptionWindow_Cancel", "Cancel"))
+			.CancelButtonTooltip(LOCTEXT("DatasmithOptionWindow_Cancel_ToolTip", "Cancel importing this file"))
+			.MinDetailHeight(320.f)
+			.MinDetailWidth(450.f)
+		);
+
+		FSlateApplication::Get().AddModalWindow(Window, ParentWindow, false);
+
+		return OptionsWindow->ShouldImport();
+	}
+#endif
+}
+
+TArray<FString> UInterchangeDatasmithTranslator::GetSupportedFormats() const
+{
+	const TArray<FString> DatasmithFormats = FDatasmithTranslatorManager::Get().GetSupportedFormats();
+	TArray<FString> Formats;
+	Formats.Reserve(DatasmithFormats.Num() - 1);
+
+	for (const FString& Format : DatasmithFormats)
+	{
+		if (Format.Contains(TEXT("gltf")) || Format.Contains(TEXT("glb")))
+		{
+			continue;
+		}
+
+		Formats.Add(Format);
+	}
+
+	return Formats;
+}
 
 bool UInterchangeDatasmithTranslator::CanImportSourceData(const UInterchangeSourceData* InSourceData) const
 {
@@ -69,38 +160,51 @@ bool UInterchangeDatasmithTranslator::Translate(UInterchangeBaseNodeContainer& B
 	FString FilePath = FPaths::ConvertRelativePathToFull(SourceData->GetFilename());
 	FileName = FPaths::GetCleanFilename(FilePath);
 	const FSourceUri FileNameUri = FSourceUri::FromFilePath(FilePath);
-	const_cast<UInterchangeDatasmithTranslator*>(this)->LoadedExternalSource = IExternalSourceModule::GetOrCreateExternalSource(FileNameUri);
+	LoadedExternalSource = IExternalSourceModule::GetOrCreateExternalSource(FileNameUri);
 
 	if (!LoadedExternalSource.IsValid() || !LoadedExternalSource->IsAvailable())
 	{
 		return false;
 	}
 
-	UClass* Class = UInterchangeDatasmithSceneNode::StaticClass();
-	if (!ensure(Class))
-	{
-		return false;
-	}
-
-	// Temporary: Update the tessellation options of the associated translator
+	// Temporary: Update the extra options of the associated translator
+#if WITH_EDITOR
 	{
 		const TSharedPtr<IDatasmithTranslator>& DatasmithTranslator = LoadedExternalSource->GetAssetTranslator();
-
-		const FString OptionFilePath = BuildConfigFilePath(FilePath);
-
-		if (DatasmithTranslator.IsValid() && FPaths::FileExists(OptionFilePath))
+		if (!DatasmithTranslator)
 		{
-			TArray<TObjectPtr<UDatasmithOptionsBase>> ImportOptions;
-			DatasmithTranslator->GetSceneImportOptions(ImportOptions);
+			return false;
+		}
 
-			for (TObjectPtr<UDatasmithOptionsBase>& Option : ImportOptions)
+		bool bShouldImport = true;
+		if (!IsInGameThread())
+		{
+			TSharedRef<TPromise<bool>, ESPMode::ThreadSafe> Promise = MakeShareable(new TPromise<bool>());
+			TFunction<void()> PromiseKeeper = [&DatasmithTranslator, &Promise]() -> void
 			{
-				Option->LoadConfig(nullptr, *OptionFilePath);
-			}
+				bool bShouldImport = UE::Interchange::Datasmith::DisplayOptionsDialog(*DatasmithTranslator);
+				Promise->SetValue(bShouldImport);
+			};
 
-			DatasmithTranslator->SetSceneImportOptions(ImportOptions);
+			AsyncTask(ENamedThreads::GameThread, MoveTemp(PromiseKeeper));
+
+			TFuture<bool> Future = Promise->GetFuture();
+			
+			Future.Wait();
+			
+			bShouldImport = Future.Get();
+		}
+		else
+		{
+			bShouldImport = UE::Interchange::Datasmith::DisplayOptionsDialog(*DatasmithTranslator);
+		}
+
+		if (!bShouldImport)
+		{
+			return false;
 		}
 	}
+#endif
 
 	StartTime = FPlatformTime::Cycles64();
 	FPaths::NormalizeFilename(FilePath);
@@ -110,24 +214,6 @@ bool UInterchangeDatasmithTranslator::Translate(UInterchangeBaseNodeContainer& B
 	if (!DatasmithScene.IsValid())
 	{
 		return false;
-	}
-
-	// Datasmith Scene Node
-	{
-		FString DisplayLabel = DatasmithScene->GetName();
-		FString NodeUID(NodeUtils::DatasmithScenePrefix + FilePath);
-		UInterchangeDatasmithSceneNode* DatasmithSceneNode = NewObject<UInterchangeDatasmithSceneNode>(&BaseNodeContainer, Class);
-		if (!ensure(DatasmithSceneNode))
-		{
-			return false;
-		}
-		DatasmithSceneNode->InitializeNode(NodeUID, DisplayLabel, EInterchangeNodeContainerType::TranslatedAsset);
-
-		// Assigning those variables are our only way to pass the translated state to the part of the pipeline that does not use interchange yet.
-		DatasmithSceneNode->ExternalSource = LoadedExternalSource;
-		DatasmithSceneNode->DatasmithScene = DatasmithScene;
-
-		BaseNodeContainer.AddNode(DatasmithSceneNode);
 	}
 
 	// Texture Nodes
@@ -319,6 +405,13 @@ bool UInterchangeDatasmithTranslator::Translate(UInterchangeBaseNodeContainer& B
 
 		VariantSetUtils::TranslateLevelVariantSets(LevelVariantSets, BaseNodeContainer);
 	}
+
+	// Log time spent to import incoming file in minutes and seconds
+	double ElapsedSeconds = FPlatformTime::ToSeconds64(FPlatformTime::Cycles64() - StartTime);
+
+	int ElapsedMin = int(ElapsedSeconds / 60.0);
+	ElapsedSeconds -= 60.0 * (double)ElapsedMin;
+	UE_LOG(LogInterchangeDatasmith, Log, TEXT("Translation of %s in[%d min %.3f s]"), *FileName, ElapsedMin, ElapsedSeconds);
 
 	return true;
 }
@@ -777,12 +870,6 @@ void UInterchangeDatasmithTranslator::ImportFinish()
 	ElapsedSeconds -= 60.0 * (double)ElapsedMin;
 
 	UE_LOG(LogInterchangeDatasmith, Log, TEXT("Imported %s in [%d min %.3f s]"), *FileName, ElapsedMin, ElapsedSeconds);
-}
-
-FString UInterchangeDatasmithTranslator::BuildConfigFilePath(const FString& FilePath)
-{
-	const FString OptionFileName = FMD5::HashAnsiString(*(FPaths::ConvertRelativePathToFull(FilePath) + TEXT("_Config"))) + TEXT(".ini");
-	return  FPaths::Combine(FPlatformProcess::UserTempDir(), OptionFileName);
 }
 
 

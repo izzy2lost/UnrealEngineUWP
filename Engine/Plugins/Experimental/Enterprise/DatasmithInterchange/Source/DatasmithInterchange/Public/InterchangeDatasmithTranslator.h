@@ -66,8 +66,15 @@ public:
 
 	virtual bool Translate(UInterchangeBaseNodeContainer& BaseNodeContainer) const override;
 
-	virtual TArray<FString> GetSupportedFormats() const override { return TArray<FString>(); }
-	virtual EInterchangeTranslatorAssetType GetSupportedAssetTypes() const override { return EInterchangeTranslatorAssetType::Materials | EInterchangeTranslatorAssetType::Meshes;}
+	virtual TArray<FString> GetSupportedFormats() const override;
+	virtual EInterchangeTranslatorAssetType GetSupportedAssetTypes() const override
+	{ 
+		return EInterchangeTranslatorAssetType::Textures | EInterchangeTranslatorAssetType::Materials | EInterchangeTranslatorAssetType::Meshes;
+	}
+	virtual EInterchangeTranslatorType GetTranslatorType() const override
+	{
+		return EInterchangeTranslatorType::Scenes;
+	}
 
 	virtual void ReleaseSource() override
 	{
@@ -92,9 +99,6 @@ public:
 	virtual TFuture<TOptional<UE::Interchange::FVariantSetPayloadData>> GetVariantSetPayloadData(const FString& PayloadKey) const override;
 	/* IInterchangeVariantSetPayloadInterface End */
 
-	/** Returns a unique file path to */ 
-	static FString BuildConfigFilePath(const FString& FilePath);
-
 private:
 
 	void HandleDatasmithActor(UInterchangeBaseNodeContainer& BaseNodeContainer, const TSharedRef<IDatasmithActorElement>& ActorElement, const UInterchangeSceneNode* ParentNode) const;
@@ -105,7 +109,7 @@ private:
 
 	UInterchangeDecalNode* AddDecalNode(UInterchangeBaseNodeContainer& BaseNodeContainer, const TSharedRef<IDatasmithDecalActorElement>& DecalActor) const;
 
-	TSharedPtr<UE::DatasmithImporter::FExternalSource> LoadedExternalSource;
+	mutable TSharedPtr<UE::DatasmithImporter::FExternalSource> LoadedExternalSource;
 
 	mutable uint64 StartTime = 0;
 	mutable FString FileName;

@@ -14,6 +14,8 @@
 #include "InterchangeLightFactoryNode.h"
 #include "InterchangeMeshActorFactoryNode.h"
 #include "InterchangeMeshNode.h"
+#include "InterchangeDecalActorFactoryNode.h"
+#include "InterchangeDecalNode.h"
 #include "InterchangePipelineLog.h"
 #include "InterchangePipelineMeshesUtilities.h"
 #include "InterchangeSceneNode.h"
@@ -584,6 +586,10 @@ UInterchangeActorFactoryNode* UInterchangeGenericLevelPipeline::CreateActorFacto
 		{
 			return NewObject<UInterchangeDirectionalLightFactoryNode>(BaseNodeContainer, NAME_None);
 		}
+		else if (TranslatedAssetNode && TranslatedAssetNode->IsA<UInterchangeDecalNode>())
+		{
+			return NewObject<UInterchangeDecalActorFactoryNode>(BaseNodeContainer, NAME_None);
+		}
 	}
 
 	return NewObject<UInterchangeActorFactoryNode>(BaseNodeContainer, NAME_None);
@@ -870,6 +876,37 @@ void UInterchangeGenericLevelPipeline::SetUpFactoryNode(UInterchangeActorFactory
 					CameraFactoryNode->SetCustomFieldOfView(FieldOfView);
 				}
 			}
+		}
+	}
+	else if (const UInterchangeDecalNode* DecalNode = Cast<UInterchangeDecalNode>(TranslatedAssetNode))
+	{
+		UInterchangeDecalActorFactoryNode* DecalActorFactory = Cast<UInterchangeDecalActorFactoryNode>(ActorFactoryNode);
+		ensure(DecalActorFactory);
+
+		if (FVector DecalSize; DecalNode->GetCustomDecalSize(DecalSize))
+		{
+			DecalActorFactory->SetCustomDecalSize(DecalSize);
+		}
+
+		if (int32 SortOrder; DecalNode->GetCustomSortOrder(SortOrder))
+		{
+			DecalActorFactory->SetCustomSortOrder(SortOrder);
+		}
+		
+		bool bHasMaterialPathName = false;
+		FString DecalMaterialPathName;
+		if (DecalNode->GetCustomDecalMaterialPathName(DecalMaterialPathName))
+		{
+			DecalActorFactory->SetCustomDecalMaterialPathName(DecalMaterialPathName);
+			bHasMaterialPathName = true;
+		}
+
+		// If the path is not a valid object path then it is an Interchange Node UID (Decal Material Node to be specific).
+		if (bHasMaterialPathName && !FPackageName::IsValidObjectPath(DecalMaterialPathName))
+		{
+			const FString MaterialFactoryUid = UInterchangeFactoryBaseNode::BuildFactoryNodeUid(DecalMaterialPathName);
+			DecalActorFactory->SetCustomDecalMaterialPathName(MaterialFactoryUid);
+			DecalActorFactory->AddFactoryDependencyUid(MaterialFactoryUid);
 		}
 	}
 }

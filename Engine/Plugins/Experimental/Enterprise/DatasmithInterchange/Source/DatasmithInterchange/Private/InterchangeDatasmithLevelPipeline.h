@@ -32,5 +32,6 @@ protected:
 private:
 
 	void SetupAreaLight(UInterchangeDatasmithAreaLightFactoryNode* AreaLightFactoryNode, const UInterchangeDatasmithAreaLightNode* AreaLightNode) const;
-	void SetupDecalActor(UInterchangeDecalActorFactoryNode* DecalActorFactoryNode, const UInterchangeDecalNode* DecalNode) const;
+
+	friend class UInterchangeDatasmithPipeline;
 };

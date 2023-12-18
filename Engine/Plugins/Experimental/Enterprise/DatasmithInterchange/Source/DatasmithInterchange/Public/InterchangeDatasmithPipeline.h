@@ -18,7 +18,8 @@ class UInterchangeDatasmithLevelPipeline;
 class UInterchangeDatasmithMaterialPipeline;
 class UInterchangeDatasmithStaticMeshPipeline;
 class UInterchangeDatasmithSceneNode;
-class UInterchangeDatasmithTexturePipeline;
+class UInterchangeGenericTexturePipeline;
+class UInterchangeTextureFactoryNode;
 class UTexture;
 struct FDatasmithImportContext;
 
@@ -28,9 +29,6 @@ class DATASMITHINTERCHANGE_API UInterchangeDatasmithPipeline : public UInterchan
 	GENERATED_BODY()
 
 	UInterchangeDatasmithPipeline();
-
-	UPROPERTY(VisibleAnywhere, Instanced, Category = "Textures")
-	TObjectPtr<UInterchangeDatasmithTexturePipeline> TexturePipeline;
 
 	UPROPERTY(VisibleAnywhere, Instanced, Category = "Materials")
 	TObjectPtr<UInterchangeDatasmithMaterialPipeline> MaterialPipeline;
@@ -69,10 +67,8 @@ protected:
 	}
 
 private:
+	void PreImportTextureFactoryNode(UInterchangeTextureFactoryNode* TextureFactoryNode) const;
+
+private:
 	UInterchangeBaseNodeContainer* BaseNodeContainer = nullptr;
-
-	// Fill up the UDatasmithScene with all the data its needs for DnD
-	void PostImportDatasmithSceneAsset(UDatasmithScene& DatasmithSceneAsset);
-
-	TSet<FString> InvalidStaticMeshFactoryUids;
 };

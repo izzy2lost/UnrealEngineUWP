@@ -6,9 +6,6 @@
 #include "InterchangeDatasmithAreaLightNode.h"
 #include "InterchangeDatasmithUtils.h"
 
-#include "InterchangeDecalActorFactoryNode.h"
-#include "InterchangeDecalNode.h"
-
 #include "InterchangeLevelSequenceFactoryNode.h"
 #include "InterchangeAnimationTrackSetNode.h"
 #include "InterchangeMaterialFactoryNode.h"
@@ -153,11 +150,6 @@ UInterchangeActorFactoryNode* UInterchangeDatasmithLevelPipeline::CreateActorFac
 	{
 		return NewObject<UInterchangeDatasmithAreaLightFactoryNode>(BaseNodeContainer, NAME_None);
 	}
-	// Experimental - Move to Super class once finalized
-	else if (TranslatedAssetNode && TranslatedAssetNode->IsA<UInterchangeDecalNode>())
-	{
-		return NewObject<UInterchangeDecalActorFactoryNode>(BaseNodeContainer, NAME_None);
-	}
 	else
 	{
 		return Super::CreateActorFactoryNode(SceneNode, TranslatedAssetNode);
@@ -171,13 +163,6 @@ void UInterchangeDatasmithLevelPipeline::SetUpFactoryNode(UInterchangeActorFacto
 		UInterchangeDatasmithAreaLightFactoryNode* AreaLightFactory = Cast<UInterchangeDatasmithAreaLightFactoryNode>(ActorFactoryNode);
 		ensure(AreaLightFactory);
 		SetupAreaLight(AreaLightFactory, AreaLightNode);
-	}
-	// Experimental - Move to Super class once finalized
-	else if (const UInterchangeDecalNode* DecalNode = Cast<UInterchangeDecalNode>(TranslatedAssetNode))
-	{
-		UInterchangeDecalActorFactoryNode* DecalActorFactory = Cast<UInterchangeDecalActorFactoryNode>(ActorFactoryNode);
-		ensure(DecalActorFactory);
-		SetupDecalActor(DecalActorFactory, DecalNode);
 	}
 	else
 	{
@@ -276,21 +261,6 @@ void UInterchangeDatasmithLevelPipeline::SetupAreaLight(UInterchangeDatasmithAre
 
 	APPLY_FACTORY_ATTRIBUTE(SpotlightInnerAngle, float);
 	APPLY_FACTORY_ATTRIBUTE(SpotlightOuterAngle, float);
-}
-
-void UInterchangeDatasmithLevelPipeline::SetupDecalActor(UInterchangeDecalActorFactoryNode* FactoryNode, const UInterchangeDecalNode* TranslatedNode) const
-{
-	APPLY_FACTORY_ATTRIBUTE(DecalSize, FVector);
-	APPLY_FACTORY_ATTRIBUTE(SortOrder, int32);
-	APPLY_FACTORY_ATTRIBUTE(DecalMaterialPathName, FString);
-
-	// If the path is not a valid object path then it is an Interchange Node UID (Decal Material Node to be specific).
-	if (!FPackageName::IsValidObjectPath(DecalMaterialPathName))
-	{
-		const FString MaterialFactoryUid = UInterchangeFactoryBaseNode::BuildFactoryNodeUid(DecalMaterialPathName);
-		FactoryNode->SetCustomDecalMaterialPathName(MaterialFactoryUid);
-		FactoryNode->AddFactoryDependencyUid(MaterialFactoryUid);
-	}
 }
 
 #undef APPLY_FACTORY_ATTRIBUTE
