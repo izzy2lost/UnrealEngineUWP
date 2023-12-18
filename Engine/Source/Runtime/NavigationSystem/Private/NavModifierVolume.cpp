@@ -124,10 +124,7 @@ void ANavModifierVolume::GetNavigationData(FNavigationRelevantData& Data) const
 
 		if (NavMeshResolution != ENavigationDataResolution::Invalid)
 		{
-			const FBox& Box = GetBrushComponent()->Brush->Bounds.GetBox();
-			const FAreaNavModifier AreaMod(Box, GetBrushComponent()->GetComponentTransform(), AreaClass);
 			Data.Modifiers.SetNavMeshResolution(NavMeshResolution);
-			Data.Modifiers.Add(AreaMod);
 		}
 	}
 }
