@@ -759,7 +759,7 @@ void FGeometryCollectionPhysicsProxy::CreateGTParticles(const TBitArray<>& Effec
 			P->SetUserData(Parameters.UserData);
 			P->SetProxy(this);
 		}
-		if (bInitializationTime && TransformIndex == Parameters.InitialRootIndex && bUseStaticMeshCollisionForTraces && CreateTraceCollisionGeometryCallback != nullptr)
+		if (bInitializationTime && TransformIndex == Parameters.InitialRootIndex && Parameters.bUseStaticMeshCollisionForTraces && CreateTraceCollisionGeometryCallback != nullptr)
 		{
 			const FTransform ToLocal = MassToLocal[TransformIndex].Inverse();
 			TArray<Chaos::FImplicitObjectPtr> Geoms;
@@ -3351,7 +3351,7 @@ void FGeometryCollectionPhysicsProxy::SetUseStaticMeshCollisionForTraces_Externa
 
 	// Expensive, so only do it when we need to
 	const bool bUseSMCollisionForTraces = ((bInUseStaticMeshCollisionForTraces && ForceOverrideGCCollisionSetupForTraces == GCCSFT_Property) || (ForceOverrideGCCollisionSetupForTraces == GCCSFT_ForceSM));
-	if (bUseStaticMeshCollisionForTraces != bUseSMCollisionForTraces && CreateTraceCollisionGeometryCallback != nullptr)
+	if (Parameters.bUseStaticMeshCollisionForTraces != bUseSMCollisionForTraces && CreateTraceCollisionGeometryCallback != nullptr)
 	{
 		const int32 TransformIndex = Parameters.InitialRootIndex;
 		const int32 ParticleIndex = FromTransformToParticleIndex[TransformIndex];
@@ -3385,7 +3385,8 @@ void FGeometryCollectionPhysicsProxy::SetUseStaticMeshCollisionForTraces_Externa
 				}
 			}
 			// We only want to change the value of our boolean if we actually changed the collision, so the collision state matches
-			bUseStaticMeshCollisionForTraces = bUseSMCollisionForTraces;
+			// note we can set thsi member of Parameters on the GT because it is only used and set on the GT 
+			Parameters.bUseStaticMeshCollisionForTraces = bUseSMCollisionForTraces;
 		}
 	}
 }

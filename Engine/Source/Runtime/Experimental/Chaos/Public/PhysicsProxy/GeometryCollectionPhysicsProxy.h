@@ -686,9 +686,6 @@ private:
 	// todo(chaos): Remove this and move to a cook time approach of the SM data based on the GC property
 	FCreateTraceCollisionGeometryCallback CreateTraceCollisionGeometryCallback;
 	
-	// Use SetUseStaticMeshCollisionForTraces_External instead of setting this directly, so that the collision can be recreated if needed
-	bool bUseStaticMeshCollisionForTraces = false;
-
 #ifdef TODO_REIMPLEMENT_RIGID_CACHING
 	TFunction<void(void)> ResetAnimationCacheCallback;
 	TFunction<void(const TArrayView<FTransform> &)> UpdateTransformsCallback;

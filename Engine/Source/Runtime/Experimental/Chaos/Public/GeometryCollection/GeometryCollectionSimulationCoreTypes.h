@@ -224,6 +224,7 @@ struct FSimulationParameters
 		, QueryFilterData()
 		, UserData(nullptr)
 		, bEnableStrainOnCollision(true)
+		, bUseStaticMeshCollisionForTraces(false)
 	{}
 
 	FSimulationParameters(const FSimulationParameters& Other)
@@ -285,6 +286,7 @@ struct FSimulationParameters
 		, QueryFilterData(Other.QueryFilterData)
 		, UserData(Other.UserData)
 		, bEnableStrainOnCollision(Other.bEnableStrainOnCollision)
+		, bUseStaticMeshCollisionForTraces(Other.bUseStaticMeshCollisionForTraces)
 	{
 	}
 
@@ -378,4 +380,6 @@ struct FSimulationParameters
 	FCollisionFilterData QueryFilterData;
 	void* UserData;
 	bool bEnableStrainOnCollision;
+
+	bool bUseStaticMeshCollisionForTraces;
 };
