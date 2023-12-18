@@ -875,9 +875,6 @@ void FPrimitiveSceneInfo::RemoveCachedNaniteMaterialBins()
 	}
 
 	bNaniteRasterBinsRenderCustomDepth = false;
-#if WITH_EDITOR
-	NaniteHitProxyIds.Reset();
-#endif
 }
 
 #if RHI_RAYTRACING

@@ -9,7 +9,6 @@
 #include "NaniteDataDecode.ush"
 #include "NaniteAttributeDecode.ush"
 
-ByteAddressBuffer MaterialSlotTable;
 ByteAddressBuffer MaterialDepthTable;
 ByteAddressBuffer MaterialHitProxyTable;
 
@@ -17,6 +16,7 @@ uint DummyZero; // TODO: Remove me
 uint StencilClear;
 uint StencilDecal;
 uint bWriteCustomStencil; // only used to repurpose EmitSceneDepthStencilPS for custom depth/stencil where possible
+uint MeshPassIndex;
 
 Texture2D<UlongType> VisBuffer64;
 #if SHADING_MASK_LOAD
@@ -92,9 +92,9 @@ void EmitMaterialDepthPS(
 		FInstanceSceneData InstanceData = GetInstanceSceneData( VisibleCluster, false );
 		FCluster ClusterData = GetCluster(VisibleCluster.PageIndex, VisibleCluster.ClusterIndex);
 	#if LEGACY_CULLING
-		ShadingBin = GetMaterialLegacyShadingId(ClusterData, InstanceData.PrimitiveId, TriIndex, MaterialSlotTable);
+		ShadingBin = GetMaterialLegacyShadingId(ClusterData, InstanceData.PrimitiveId, MeshPassIndex, TriIndex);
 	#else
-		ShadingBin = GetMaterialShadingBin(ClusterData, InstanceData.PrimitiveId, TriIndex, MaterialSlotTable);
+		ShadingBin = GetMaterialShadingBin(ClusterData, InstanceData.PrimitiveId, MeshPassIndex, TriIndex);
 	#endif
 	}
 #endif
@@ -136,6 +136,7 @@ void EmitSceneDepthPS(
 	#if VELOCITY_EXPORT || SHADING_MASK_EXPORT
 		FVisibleCluster VisibleCluster = GetVisibleCluster(VisibleClusterIndex);
 		const FInstanceSceneData InstanceData = GetInstanceSceneData(VisibleCluster, false);
+		const FPrimitiveSceneData PrimitiveData = GetPrimitiveData(InstanceData.PrimitiveId);
 	#if VELOCITY_EXPORT
 	#if INSTANCED_STEREO
 		checkSlow(VisibleCluster.ViewId < 2);					// see INSTANCED_VIEW_COUNT in SceneView.h.  
@@ -150,27 +151,27 @@ void EmitSceneDepthPS(
 	#endif
 
 #if SHADING_MASK_EXPORT
-		const FCluster ClusterData		= GetCluster(VisibleCluster.PageIndex, VisibleCluster.ClusterIndex);
+		const FCluster ClusterData = GetCluster(VisibleCluster.PageIndex, VisibleCluster.ClusterIndex);
 	#if LEGACY_CULLING
-		const uint ShadingBin			= GetMaterialLegacyShadingId(ClusterData, InstanceData.PrimitiveId, TriIndex, MaterialSlotTable);
+		const uint ShadingBin			= GetMaterialLegacyShadingId(ClusterData, InstanceData.PrimitiveId, MeshPassIndex, TriIndex);
 	#else
-		const uint ShadingBin			= GetMaterialShadingBin(ClusterData, InstanceData.PrimitiveId, TriIndex, MaterialSlotTable);
+		const uint ShadingBin			= GetMaterialShadingBin(ClusterData, InstanceData.PrimitiveId, MeshPassIndex, TriIndex);
 	#endif
-		const bool bIsDecalReceiver		= (GetPrimitiveData(InstanceData.PrimitiveId).Flags & PRIMITIVE_SCENE_DATA_FLAG_DECAL_RECEIVER) != 0 && View.ShowDecalsMask > 0;
-		const bool bHasDistanceField	= (GetPrimitiveData(InstanceData.PrimitiveId).Flags & PRIMITIVE_SCENE_DATA_FLAG_HAS_DISTANCE_FIELD_REPRESENTATION) != 0;
+		const bool bIsDecalReceiver		= (PrimitiveData.Flags & PRIMITIVE_SCENE_DATA_FLAG_DECAL_RECEIVER) != 0 && View.ShowDecalsMask > 0;
+		const bool bHasDistanceField	= (PrimitiveData.Flags & PRIMITIVE_SCENE_DATA_FLAG_HAS_DISTANCE_FIELD_REPRESENTATION) != 0;
 		OutShadingMask = PackShadingMask(
 			ShadingBin,
 			D3D12_SHADING_RATE_1X1,
 			bIsDecalReceiver,
 			bHasDistanceField,
-			GetPrimitive_LightingChannelMask_FromFlags(GetPrimitiveData(InstanceData.PrimitiveId).Flags)
+			GetPrimitive_LightingChannelMask_FromFlags(PrimitiveData.Flags)
 		);
 #endif
 
 	#if VELOCITY_EXPORT
 		// Don't output velocity here for WPO clusters, as their velocity must be calculated in the base pass
 		const bool bWPOEnabled = (VisibleCluster.Flags & NANITE_CULLING_FLAG_ENABLE_WPO) != 0;
-		const bool bOutputVelocity = !bWPOEnabled && (GetPrimitiveData(InstanceData.PrimitiveId).Flags & PRIMITIVE_SCENE_DATA_FLAG_OUTPUT_VELOCITY) != 0;
+		const bool bOutputVelocity = !bWPOEnabled && (PrimitiveData.Flags & PRIMITIVE_SCENE_DATA_FLAG_OUTPUT_VELOCITY) != 0;
 		if (bOutputVelocity)
 		{
 			FInstanceDynamicData InstanceDynamicData = CalculateInstanceDynamicData(NaniteView, InstanceData);
@@ -183,7 +184,7 @@ void EmitSceneDepthPS(
 			const float4 ScreenPosPrev = mul(float4(WorldPosPrev, 1), NaniteView.PrevTranslatedWorldToClip);
 		
 			const float3 Velocity = Calculate3DVelocity(ScreenPos, ScreenPosPrev);
-			OutVelocity = EncodeVelocityToTexture(Velocity, (GetPrimitiveData(InstanceData.PrimitiveId).Flags & PRIMITIVE_SCENE_DATA_FLAG_HAS_PIXEL_ANIMATION) != 0);
+			OutVelocity = EncodeVelocityToTexture(Velocity, (PrimitiveData.Flags & PRIMITIVE_SCENE_DATA_FLAG_HAS_PIXEL_ANIMATION) != 0);
 		}
 		else
 		{

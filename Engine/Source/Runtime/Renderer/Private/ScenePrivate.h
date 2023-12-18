@@ -3693,6 +3693,15 @@ public:
 	void DebugRender(TArrayView<FViewInfo> Views);
 #endif
 
+	template<typename TExtension>
+	TExtension* GetExtensionPtr() { return SceneExtensions.GetExtensionPtr<TExtension>(); }
+	template<typename TExtension>
+	const TExtension* GetExtensionPtr() const { return SceneExtensions.GetExtensionPtr<TExtension>(); }
+	template<typename TExtension>
+	TExtension& GetExtension() { return SceneExtensions.GetExtension<TExtension>(); }
+	template<typename TExtension>
+	const TExtension& GetExtension() const { return SceneExtensions.GetExtension<TExtension>(); }
+
 	FSceneCulling* SceneCulling = nullptr;
 
 	class FInstanceCullingOcclusionQueryRenderer* InstanceCullingOcclusionQueryRenderer = nullptr;

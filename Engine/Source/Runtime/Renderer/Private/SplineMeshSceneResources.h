@@ -11,14 +11,7 @@
 #include "RenderGraphResources.h"
 #include "SceneExtensions.h"
 
-class FRDGBuilder;
-class FScene;
-class FSceneUniformBuffer;
-class FScenePreUpdateChangeSet;
-class FScenePostUpdateChangeSet;
-class FPrimitiveSceneInfo;
 struct IPooledRenderTarget;
-class FSceneRendererBase;
 
 /**
  *	FSplineMeshSceneExtension
@@ -85,6 +78,8 @@ private:
 /** This class performs updates to the persistent spline mesh resources. */
 class FSplineMeshSceneUpdater : public ISceneExtensionUpdater
 {
+	DECLARE_SCENE_EXTENSION_UPDATER(FSplineMeshSceneUpdater, FSplineMeshSceneExtension);
+
 public:
 	FSplineMeshSceneUpdater(FSplineMeshSceneExtension& InSceneData) : SceneData(&InSceneData) {}
 
@@ -111,6 +106,8 @@ private:
 /** This class is used to insert the spline mesh scene uniforms into the scene uniform buffer for any given renderer */
 class FSplineMeshSceneRenderer : public ISceneExtensionRenderer
 {
+	DECLARE_SCENE_EXTENSION_RENDERER(FSplineMeshSceneRenderer, FSplineMeshSceneExtension);
+
 public:
 	FSplineMeshSceneRenderer(FSplineMeshSceneExtension& InSceneData) : SceneData(&InSceneData) {}
 	virtual void UpdateSceneUniformBuffer(FRDGBuilder& GraphBuilder, FSceneUniformBuffer& SceneUniforms) override;

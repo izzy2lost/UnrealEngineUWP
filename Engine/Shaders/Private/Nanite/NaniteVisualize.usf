@@ -29,7 +29,6 @@ Texture2D<uint>			FastClearTileVis;
 StructuredBuffer<FNaniteRasterBinMeta> RasterBinMeta;
 ByteAddressBuffer		ShadingBinData;
 
-ByteAddressBuffer		MaterialSlotTable;
 ByteAddressBuffer		MaterialDepthTable;
 ByteAddressBuffer		MaterialHitProxyTable;
 
@@ -37,6 +36,9 @@ int4					VisualizeConfig;
 int4					VisualizeScales;
 uint					RegularMaterialRasterBinCount;
 int2					PickingPixelPos;
+
+// NOTE: Just hardcoded to ENaniteMeshPass::BasePass as an optimization, as all these shaders are only concerned with base pass materials
+static const uint MeshPassIndex = 0;
 
 RWStructuredBuffer<FNanitePickingFeedback> FeedbackBuffer;
 
@@ -266,13 +268,13 @@ void VisualizeCS(uint3 DTID : SV_DispatchThreadID, uint3 GID : SV_GroupID)
 		else if (VisualizeMode == NANITE_VISUALIZE_RASTER_BINS)
 		{
 			const bool bSecondaryRasterBin = !bWPOEnabled;
-			uint RasterBin = GetMaterialRasterBin(Cluster, InstanceData.PrimitiveId, TriIndex, RegularMaterialRasterBinCount, bSecondaryRasterBin, MaterialSlotTable);
+			uint RasterBin = GetMaterialRasterBin(Cluster, InstanceData.PrimitiveId, MeshPassIndex, TriIndex, RegularMaterialRasterBinCount, bSecondaryRasterBin);
 			RasterBin = RemapRasterBin(RasterBin, RenderFlags, MaterialFlags);
 			Result = IntToColor(RasterBin);
 		}
 		else if (VisualizeMode == NANITE_VISUALIZE_SHADING_BINS)
 		{
-			const uint ShadingBin = GetMaterialShadingBin(Cluster, InstanceData.PrimitiveId, TriIndex, MaterialSlotTable);
+			const uint ShadingBin = GetMaterialShadingBin(Cluster, InstanceData.PrimitiveId, MeshPassIndex, TriIndex);
 			Result = IntToColor(ShadingBin);
 		}
 		else if (VisualizeMode == NANITE_VISUALIZE_HIERARCHY_OFFSET)
@@ -575,7 +577,7 @@ void PickingCS(uint3 DTID : SV_DispatchThreadID, uint3 GID : SV_GroupID)
 		const bool bWPOEnabled = (VisibleCluster.Flags & NANITE_CULLING_FLAG_ENABLE_WPO) != 0;
 		const bool bSecondaryRasterBin = !bWPOEnabled;
 
-		uint RasterBin = GetMaterialRasterBin(Cluster, InstanceData.PrimitiveId, TriIndex, RegularMaterialRasterBinCount, bSecondaryRasterBin, MaterialSlotTable);
+		uint RasterBin = GetMaterialRasterBin(Cluster, InstanceData.PrimitiveId, MeshPassIndex, TriIndex, RegularMaterialRasterBinCount, bSecondaryRasterBin);
 		RasterBin = RemapRasterBin(RasterBin, RenderFlags, MaterialFlags);
 
 		FeedbackResults.PrimitiveId			= InstanceData.PrimitiveId;
@@ -588,8 +590,8 @@ void PickingCS(uint3 DTID : SV_DispatchThreadID, uint3 GID : SV_GroupID)
 		FeedbackResults.DepthInt			= DepthInt;
 		FeedbackResults.RasterMode			= DebugValueMax;
 		FeedbackResults.RasterBin			= RasterBin;
-		FeedbackResults.ShadingBin			= GetMaterialShadingBin(Cluster, InstanceData.PrimitiveId, TriIndex, MaterialSlotTable);
-		FeedbackResults.LegacyShadingId		= GetMaterialLegacyShadingId(Cluster, InstanceData.PrimitiveId, TriIndex, MaterialSlotTable);
+		FeedbackResults.ShadingBin			= GetMaterialShadingBin(Cluster, InstanceData.PrimitiveId, MeshPassIndex, TriIndex);
+		FeedbackResults.LegacyShadingId		= GetMaterialLegacyShadingId(Cluster, InstanceData.PrimitiveId, MeshPassIndex, TriIndex);
 		FeedbackResults.MaterialDepthId		= GetMaterialDepthId(FeedbackResults.LegacyShadingId, MaterialDepthTable);
 		FeedbackResults.MaterialIndex		= GetRelativeMaterialIndex(Cluster, TriIndex);
 		FeedbackResults.MaterialCount		= GetMaterialCount(Cluster);

@@ -153,6 +153,7 @@ struct FByteAddressBufferTraits
 	static constexpr bool bAutoValuesPerScatter = true;
 };
 
+
 /**
  * Typed version of FPersistentStructuredBuffer 
  */
@@ -261,7 +262,7 @@ public:
 	 */
 	void AddMultiple(const TConstArrayView<ValueType> &InValues, int32 FirstScatterOffset)
 	{
-		check(InValues.Num() % NumValuesPerScatter = 0);
+		check(InValues.Num() % NumValuesPerScatter == 0);
 		check(UploadDataProxy == nullptr);
 
 		UploadData.Values.Append(InValues);
@@ -269,6 +270,25 @@ public:
 		{
 			UploadData.ScatterOffsets.Add(FirstScatterOffset + Index);
 		}
+	}
+
+	/**
+	 * Add a number of values to scatter to consecutive destination offsets with a common start offset, 
+	 * NOTE: this allocates a new scatter offset for each NumValuesPerScatter elements.
+	 */
+	TArrayView<ValueType> AddMultiple_GetRef(int32 FirstScatterOffset, int32 NumValues)
+	{
+		check(NumValues % NumValuesPerScatter == 0);
+		check(UploadDataProxy == nullptr);
+
+		int32 SrcOffset = UploadData.Values.Num();
+		UploadData.Values.AddUninitialized(NumValues);
+		for (int32 Index = 0; Index < NumValues / NumValuesPerScatter; ++Index)
+		{
+			UploadData.ScatterOffsets.Add(FirstScatterOffset + Index);
+		}
+
+		return MakeArrayView(&UploadData.Values[SrcOffset], NumValues);
 	}
 
 	int32 GetNumScatters() const { return UploadDataProxy != nullptr ? UploadDataProxy->ScatterOffsets.Num() : UploadData.ScatterOffsets.Num(); }
@@ -293,7 +313,15 @@ public:
 			FRDGBuffer *ScatterOffsetsRDG = BufferTraits::CreateUploadBuffer(GraphBuilder, TEXT("ScatterUploader.Offsets"), UploadDataProxy->ScatterOffsets);
 			FRDGBuffer *ValuesRDG = BufferTraits::CreateUploadBuffer(GraphBuilder, TEXT("ScatterUploader.Values"), UploadDataProxy->Values);
 
-			FBufferScatterUploader::UploadTo(GraphBuilder, DestBufferRDG, ScatterOffsetsRDG, ValuesRDG, NumScatters, sizeof(ValueType), BufferTraits::bAutoValuesPerScatter ? INDEX_NONE : NumValuesPerScatter);
+			uint32 ElementSize = sizeof(ValueType);
+			uint32 ElementsPerScatter = NumValuesPerScatter;
+			if (BufferTraits::bAutoValuesPerScatter)
+			{
+				// Let the implementation determine the optimal way to divide up the scatter
+				ElementSize *= ElementsPerScatter;
+				ElementsPerScatter = INDEX_NONE;
+			}
+			FBufferScatterUploader::UploadTo(GraphBuilder, DestBufferRDG, ScatterOffsetsRDG, ValuesRDG, NumScatters, ElementSize, ElementsPerScatter);
 		}
 
 		return DestBufferRDG;

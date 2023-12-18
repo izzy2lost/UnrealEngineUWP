@@ -19,6 +19,7 @@
 uint4 DepthExportConfig;
 uint4 ViewRect;
 uint bWriteCustomStencil;
+uint MeshPassIndex;
 
 // Requirements:
 // COMPILER_SUPPORTS_TO_SCALAR_MEMORY
@@ -43,7 +44,6 @@ RWStructuredBuffer<uint>	MaterialHTile;
 RWTexture2D<float>			MaterialDepth;
 #endif
 
-ByteAddressBuffer			MaterialSlotTable;
 #if MATERIAL_DEPTH_EXPORT
 ByteAddressBuffer			MaterialDepthTable;
 #endif
@@ -143,9 +143,9 @@ void DepthExport(uint2 GroupId : SV_GroupID, uint ThreadIndex : SV_GroupIndex)
 				const FCluster ClusterData = GetCluster(VisibleCluster.PageIndex, VisibleCluster.ClusterIndex);
 
 			#if LEGACY_CULLING
-				const uint ShadingBin = GetMaterialLegacyShadingId(ClusterData, InstanceData.PrimitiveId, TriIndex, MaterialSlotTable);
+				const uint ShadingBin = GetMaterialLegacyShadingId(ClusterData, InstanceData.PrimitiveId, MeshPassIndex, TriIndex);
 			#else
-				const uint ShadingBin = GetMaterialShadingBin(ClusterData, InstanceData.PrimitiveId, TriIndex, MaterialSlotTable);
+				const uint ShadingBin = GetMaterialShadingBin(ClusterData, InstanceData.PrimitiveId, MeshPassIndex, TriIndex);
 			#endif
 			#if MATERIAL_DEPTH_EXPORT
 				MaterialDepthValue = asfloat(GetMaterialDepthId(ShadingBin, MaterialDepthTable));

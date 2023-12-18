@@ -129,7 +129,7 @@ class FSplineMeshTextureFillCS : public FGlobalShader
 		OutEnvironment.SetDefine(TEXT("VF_SUPPORTS_PRIMITIVE_SCENE_DATA"), 1);
 	}
 };
-IMPLEMENT_GLOBAL_SHADER(FSplineMeshTextureFillCS, "/Engine/Private/SplineMeshSceneTexture.usf", "FillTexture", SF_Compute);
+IMPLEMENT_GLOBAL_SHADER(FSplineMeshTextureFillCS, "/Engine/Private/SplineMeshSceneTexture.usf", "FillTexture", SF_Compute)
 
 IMPLEMENT_SCENE_EXTENSION(FSplineMeshSceneExtension);
 
@@ -582,5 +582,5 @@ void FSplineMeshSceneRenderer::UpdateSceneUniformBuffer(FRDGBuilder& GraphBuilde
 		ShaderParams.SplineTextureInvExtent = InvExtent;
 	
 		SceneUniforms.Set(SceneUB::SplineMesh, ShaderParams);
-		}
+	}
 }

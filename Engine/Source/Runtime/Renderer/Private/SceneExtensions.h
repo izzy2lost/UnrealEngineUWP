@@ -81,8 +81,9 @@ public:
 		return *GlobalRegistry;
 	}
 
+	int32 GetMaxRegistrationID() const { return Factories.Num() - 1; }
 	void Register(ISceneExtensionFactory& Factory);
-	TArray<ISceneExtension*> CreateExtensions(FScene& Scene);
+	TSparseArray<ISceneExtension*> CreateExtensions(FScene& Scene);
 
 private:
 	static void InitRegistry();
@@ -96,8 +97,8 @@ private:
 class FSceneExtensions
 {	
 public:
-	using FUpdaterList = TArray<ISceneExtensionUpdater*, FSceneRenderingArrayAllocator>;
-	using FRendererList = TArray<ISceneExtensionRenderer*, FSceneRenderingArrayAllocator>;
+	using FUpdaterList = TSparseArray<ISceneExtensionUpdater*, SceneRenderingSparseArrayAllocator>;
+	using FRendererList = TSparseArray<ISceneExtensionRenderer*, SceneRenderingSparseArrayAllocator>;
 
 	~FSceneExtensions() { Reset(); }
 
@@ -107,10 +108,10 @@ public:
 	void CreateRenderers(FRendererList& OutRenderers);
 
 	template<typename TDerivedExtension>
-	TDerivedExtension* GetExtension()
+	TDerivedExtension* GetExtensionPtr()
 	{
 		const int32 Index = TDerivedExtension::GetExtensionID();
-		if (ensure(Extensions.IsValidIndex(Index)))
+		if (Extensions.IsValidIndex(Index))
 		{
 			return static_cast<TDerivedExtension*>(Extensions[Index]);
 		}
@@ -118,51 +119,69 @@ public:
 	}
 
 	template<typename TDerivedExtension>
-	const TDerivedExtension* GetExtension() const
+	const TDerivedExtension* GetExtensionPtr() const
 	{
-		return const_cast<FSceneExtensions*>(this)->GetExtension<TDerivedExtension>();
+		return const_cast<FSceneExtensions*>(this)->GetExtensionPtr<TDerivedExtension>();
 	}
 	
 	template<typename TDerivedExtension>
-	TDerivedExtension& GetExtensionChecked()
+	TDerivedExtension& GetExtension()
 	{
-		TDerivedExtension* Extension = this->GetExtension<TDerivedExtension>();
+		TDerivedExtension* Extension = this->GetExtensionPtr<TDerivedExtension>();
 		check(Extension != nullptr);
 		return *Extension;
 	}
 	
 	template<typename TDerivedExtension>
-	const TDerivedExtension& GetExtensionChecked() const
+	const TDerivedExtension& GetExtension() const
 	{
-		return const_cast<FSceneExtensions*>(this)->GetExtensionChecked<TDerivedExtension>();
+		return const_cast<FSceneExtensions*>(this)->GetExtension<TDerivedExtension>();
 	}
 
 	template<typename TFunc>
 	void ForEachExtension(const TFunc& F)
 	{
-		for(auto* Ext : Extensions)
+		for(auto Ext : Extensions)
 		{
 			F(Ext);
 		}
 	}
 
 private:
-	TArray<ISceneExtension*> Extensions;
+	TSparseArray<ISceneExtension*> Extensions;
 };
 
 /** Performs updates for the given scene extensions */
-class FSceneExtensionsUpdater
+class FSceneExtensionsUpdaters
 {
 	friend class FSceneExtensions;
 
 public:
-	FSceneExtensionsUpdater() {}
-	explicit FSceneExtensionsUpdater(FScene& InScene) { Begin(InScene); }
-	~FSceneExtensionsUpdater() { End(); }
+	FSceneExtensionsUpdaters() {}
+	explicit FSceneExtensionsUpdaters(FScene& InScene) { Begin(InScene); }
+	~FSceneExtensionsUpdaters() { End(); }
 
 	void Begin(FScene& InScene);
 	void End();
 	bool IsUpdating() const { return Scene != nullptr; }
+
+	template<typename TUpdater>
+	TUpdater* GetUpdaterPtr()
+	{
+		const int32 Index = TUpdater::FExtension::GetExtensionID();
+		return Updaters.IsValidIndex(Index) ? static_cast<TUpdater*>(Updaters[Index]) : nullptr;
+	}
+	template<typename TUpdater>
+	const TUpdater* GetUpdaterPtr() const { return const_cast<FSceneExtensionsUpdaters*>(this)->GetUpdaterPtr<TUpdater>(); }
+	template<typename TUpdater>
+	TUpdater& GetUpdater()
+	{
+		auto Updater = GetUpdaterPtr<TUpdater>();
+		check(Updater != nullptr);
+		return *Updater;
+	}
+	template<typename TUpdater>
+	const TUpdater& GetUpdater() const { return const_cast<FSceneExtensionsUpdaters*>(this)->GetUpdater<TUpdater>(); }
 
 	void PreSceneUpdate(FRDGBuilder& GraphBuilder, const FScenePreUpdateChangeSet& ChangeSet)
 	{
@@ -185,18 +204,36 @@ private:
 };
 
 /** Performs rendering for the given scene extensions */
-class FSceneExtensionsRenderer
+class FSceneExtensionsRenderers
 {
 	friend class FSceneExtensions;
 
 public:
-	FSceneExtensionsRenderer() {}
-	FSceneExtensionsRenderer(FSceneRendererBase& InSceneRenderer) { Begin(InSceneRenderer); }
-	~FSceneExtensionsRenderer() { End(); }
+	FSceneExtensionsRenderers() {}
+	FSceneExtensionsRenderers(FSceneRendererBase& InSceneRenderer) { Begin(InSceneRenderer); }
+	~FSceneExtensionsRenderers() { End(); }
 	
 	void Begin(FSceneRendererBase& InSceneRenderer);
 	void End();
 	bool IsRendering() const { return SceneRenderer != nullptr; }
+
+	template<typename TRenderer>
+	TRenderer* GetRendererPtr()
+	{
+		const int32 Index = TRenderer::FExtension::GetExtensionID();
+		return Renderers.IsValidIndex(Index) ? static_cast<TRenderer*>(Renderers[Index]) : nullptr;
+	}
+	template<typename TRenderer>
+	const TRenderer* GetRendererPtr() const { return const_cast<FSceneExtensionsRenderers*>(this)->GetRendererPtr<TRenderer>(); }
+	template<typename TRenderer>
+	TRenderer& GetRenderer()
+	{
+		auto Renderer = GetRendererPtr<TRenderer>();
+		check(Renderer != nullptr); 
+		return *Renderer;
+	}
+	template<typename TRenderer>
+	const TRenderer& GetRenderer() const { return const_cast<FSceneExtensionsRenderers*>(this)->GetRenderer<TRenderer>(); }
 
 	void UpdateSceneUniformBuffer(FRDGBuilder& GraphBuilder, FSceneUniformBuffer& SceneUniforms)
 	{
@@ -240,13 +277,21 @@ public:
 	}
 };
 
-/** Use this macros in the class definition of your extension. */
+/** Use these macros in the class definitions of your extension. */
 #define DECLARE_SCENE_EXTENSION(ClassName) \
 	public: \
-		static int32 GetExtensionID() { return ExtensionRegistration.GetExtensionID(); } \
+		static int32 GetExtensionID() { return ExtensionRegistration.GetExtensionID();  } \
 	private: \
 		static TSceneExtensionRegistration<ClassName> ExtensionRegistration
 
-/** Use this macros in the implementation source file of your extension. */
+#define DECLARE_SCENE_EXTENSION_UPDATER(ClassName, SceneExtensionClassName) \
+	public: \
+		using FExtension = SceneExtensionClassName
+
+#define DECLARE_SCENE_EXTENSION_RENDERER(ClassName, SceneExtensionClassName) \
+	public: \
+		using FExtension = SceneExtensionClassName
+
+/** Use this macro in the implementation source file of your extension. */
 #define IMPLEMENT_SCENE_EXTENSION(ClassName) \
 	TSceneExtensionRegistration<ClassName> ClassName::ExtensionRegistration

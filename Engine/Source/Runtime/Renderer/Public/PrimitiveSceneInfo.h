@@ -319,10 +319,6 @@ public:
 	TArray<FNaniteCommandInfo> NaniteCommandInfos[ENaniteMeshPass::Num];
 	TArray<FNaniteMaterialSlot> NaniteMaterialSlots[ENaniteMeshPass::Num];
 
-#if WITH_EDITOR
-	TArray<uint32> NaniteHitProxyIds;
-#endif
-
 	/** The identifier for the primitive in Scene->PrimitiveOctree. */
 	FOctreeElementId2 OctreeId;
 

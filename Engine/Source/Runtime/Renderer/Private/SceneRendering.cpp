@@ -2817,7 +2817,7 @@ FSceneRenderer::FSceneRenderer(const FSceneViewFamily* InViewFamily, FHitProxyCo
 	GDumpInstancingStats = 0;
 
 	// Initialize scene renderer extensions here, after the rest of the renderer has been initialized
-	InitSceneExtensionsRenderer();
+	InitSceneExtensionsRenderers();
 }
 
 // static
@@ -5136,7 +5136,7 @@ public:
 		ViewFamily(InViewFamily)
 	{
 		Renderer.Scene = &Scene;
-		Renderer.InitSceneExtensionsRenderer();
+		Renderer.InitSceneExtensionsRenderers();
 		if (ViewFamily)
 		{
 			ViewFamily->SetSceneRenderer(&Renderer);

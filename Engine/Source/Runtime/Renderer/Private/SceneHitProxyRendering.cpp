@@ -575,9 +575,9 @@ void FMobileSceneRenderer::RenderHitProxies(FRDGBuilder& GraphBuilder)
 	// Find the visible primitives.
 	InitViews(GraphBuilder, SceneTexturesConfig, InstanceCullingManager, nullptr, InitViewTaskDatas);
 	
-	GetSceneExtensionsRenderer().UpdateSceneUniformBuffer(GraphBuilder, GetSceneUniforms());
+	GetSceneExtensionsRenderers().UpdateSceneUniformBuffer(GraphBuilder, GetSceneUniforms());
 
-	GetSceneExtensionsRenderer().PreRender(GraphBuilder);
+	GetSceneExtensionsRenderers().PreRender(GraphBuilder);
 	GEngine->GetPreRenderDelegateEx().Broadcast(GraphBuilder);
 
 	InstanceCullingManager.FlushRegisteredViews(GraphBuilder);
@@ -586,7 +586,7 @@ void FMobileSceneRenderer::RenderHitProxies(FRDGBuilder& GraphBuilder)
 	::DoRenderHitProxies(GraphBuilder, this, HitProxyTexture, HitProxyDepthTexture, NaniteRasterResults, InstanceCullingManager);
 
 	GEngine->GetPostRenderDelegateEx().Broadcast(GraphBuilder);
-	GetSceneExtensionsRenderer().PostRender(GraphBuilder);
+	GetSceneExtensionsRenderers().PostRender(GraphBuilder);
 
 #endif
 
@@ -648,7 +648,7 @@ void FDeferredShadingSceneRenderer::RenderHitProxies(FRDGBuilder& GraphBuilder)
 
 	EndInitViews(GraphBuilder, LumenFrameTemporaries, InstanceCullingManager, InitViewTaskDatas);
 
-	GetSceneExtensionsRenderer().UpdateSceneUniformBuffer(GraphBuilder, GetSceneUniforms());
+	GetSceneExtensionsRenderers().UpdateSceneUniformBuffer(GraphBuilder, GetSceneUniforms());
 
 	ExternalAccessQueue.Submit(GraphBuilder);
 
@@ -661,7 +661,7 @@ void FDeferredShadingSceneRenderer::RenderHitProxies(FRDGBuilder& GraphBuilder)
 		Nanite::GStreamingManager.EndAsyncUpdate(GraphBuilder);
 	}
 
-	GetSceneExtensionsRenderer().PreRender(GraphBuilder);
+	GetSceneExtensionsRenderers().PreRender(GraphBuilder);
 	GEngine->GetPreRenderDelegateEx().Broadcast(GraphBuilder);
 
 	// Notify the FX system that the scene is about to be rendered.
@@ -736,7 +736,7 @@ void FDeferredShadingSceneRenderer::RenderHitProxies(FRDGBuilder& GraphBuilder)
 	ShaderPrint::EndViews(Views);
 
 	GEngine->GetPostRenderDelegateEx().Broadcast(GraphBuilder);
-	GetSceneExtensionsRenderer().PostRender(GraphBuilder);
+	GetSceneExtensionsRenderers().PostRender(GraphBuilder);
 
 	AddDispatchToRHIThreadPass(GraphBuilder);
 #endif

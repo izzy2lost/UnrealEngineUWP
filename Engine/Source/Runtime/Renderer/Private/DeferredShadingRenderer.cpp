@@ -1923,7 +1923,7 @@ void FDeferredShadingSceneRenderer::Render(FRDGBuilder& GraphBuilder)
 	}
 
 	// Allow scene extensions to affect the scene uniform buffer after GPU scene has fully updated
-	GetSceneExtensionsRenderer().UpdateSceneUniformBuffer(GraphBuilder, GetSceneUniforms());
+	GetSceneExtensionsRenderers().UpdateSceneUniformBuffer(GraphBuilder, GetSceneUniforms());
 
 	const bool bUseGBuffer = IsUsingGBuffers(ShaderPlatform);
 	const bool bShouldRenderVolumetricFog = ShouldRenderVolumetricFog();
@@ -2013,7 +2013,7 @@ void FDeferredShadingSceneRenderer::Render(FRDGBuilder& GraphBuilder)
 	// Sanity check - Note: Nanite forces a Z prepass in ShouldForceFullDepthPass()
 	check(!UseNanite(ShaderPlatform) || bNeedsPrePass);
 
-	GetSceneExtensionsRenderer().PreRender(GraphBuilder);
+	GetSceneExtensionsRenderers().PreRender(GraphBuilder);
 	GEngine->GetPreRenderDelegateEx().Broadcast(GraphBuilder);
 
 	if (DepthPass.IsComputeStencilDitherEnabled())
@@ -3432,7 +3432,7 @@ void FDeferredShadingSceneRenderer::Render(FRDGBuilder& GraphBuilder)
 		}
 
 		GEngine->GetPostRenderDelegateEx().Broadcast(GraphBuilder);
-		GetSceneExtensionsRenderer().PostRender(GraphBuilder);
+		GetSceneExtensionsRenderers().PostRender(GraphBuilder);
 
 #if RHI_RAYTRACING
 		ReleaseRaytracingResources(GraphBuilder, Views, Scene->RayTracingScene, bIsLastSceneRenderer);

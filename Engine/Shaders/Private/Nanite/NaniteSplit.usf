@@ -35,7 +35,6 @@ void DisplaceBounds( float3 ConeCenter, float ConeCos, float DisplacementMin, fl
 }
 
 uint RegularMaterialRasterSlotCount;
-ByteAddressBuffer MaterialSlotTable;
 StructuredBuffer<FNaniteRasterBinMeta> RasterBinMeta;
 
 struct FSplitTask

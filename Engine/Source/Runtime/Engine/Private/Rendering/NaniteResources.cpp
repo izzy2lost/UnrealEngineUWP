@@ -608,6 +608,7 @@ void FSceneProxyBase::OnMaterialsUpdated()
 	MaxWPOExtent = 0.0f;
 	MinMaxMaterialDisplacement = FVector2f::Zero();
 	bHasProgrammableRaster = false;
+	bHasDynamicDisplacement = false;
 	bAnyMaterialAlwaysEvaluatesWorldPositionOffset = false;
 	bAnyMaterialHasPixelAnimation = false;
 
@@ -673,6 +674,8 @@ void FSceneProxyBase::OnMaterialsUpdated()
 
 			MinMaxMaterialDisplacement.X = FMath::Min(MinMaxMaterialDisplacement.X, MinDisplacement);
 			MinMaxMaterialDisplacement.Y = FMath::Max(MinMaxMaterialDisplacement.Y, MaxDisplacement);
+
+			bHasDynamicDisplacement = true;
 		}
 		else
 		{
@@ -790,6 +793,8 @@ FSceneProxy::FSceneProxy(const FMaterialAudit& MaterialAudit, const FStaticMeshS
 
 			// Get the shading material
 			ShadingMaterial = MaterialAudit.GetMaterial(MaterialSection.MaterialIndex);
+
+			MaterialSection.LocalUVDensities = MaterialAudit.GetLocalUVDensities(MaterialSection.MaterialIndex);
 
 			// Copy over per-instance material flags for this section
 			MaterialSection.bHasPerInstanceRandomID = MaterialAudit.HasPerInstanceRandomID(MaterialSection.MaterialIndex);
@@ -2177,7 +2182,8 @@ uint32 FSceneProxy::GetMemoryFootprint() const
 struct FAuditMaterialSlotInfo
 {
 	UMaterialInterface* Material;
-	FName SlotName;	
+	FName SlotName;
+	FMeshUVChannelInfo UVChannelData;
 };
 
 template<class T>
@@ -2192,9 +2198,9 @@ TArray<FAuditMaterialSlotInfo, TInlineAllocator<32>> GetMaterialSlotInfos(const 
 		uint32 Index = 0;
 		for (FStaticMaterial& Material : StaticMaterials)
 		{
-			Infos.Add({Object.GetNaniteAuditMaterial(Index), Material.MaterialSlotName});
+			Infos.Add({Object.GetNaniteAuditMaterial(Index), Material.MaterialSlotName, Material.UVChannelData});
 			Index++;
-		}			
+		}
 	}
 
 	return Infos;
@@ -2222,7 +2228,12 @@ FMaterialAudit& AuditMaterialsImp(const T* InProxyDesc, FMaterialAudit& Audit)
 			Index++;
 			Entry.Material = SlotInfo.Material;
 			Entry.bHasNullMaterial = Entry.Material == nullptr;
-
+			Entry.LocalUVDensities = FVector4f(
+				SlotInfo.UVChannelData.LocalUVDensities[0],
+				SlotInfo.UVChannelData.LocalUVDensities[1],
+				SlotInfo.UVChannelData.LocalUVDensities[2],
+				SlotInfo.UVChannelData.LocalUVDensities[3]
+			);
 
 			if (Entry.bHasNullMaterial)
 			{

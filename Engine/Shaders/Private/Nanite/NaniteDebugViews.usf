@@ -11,8 +11,6 @@
 Texture2D<UlongType> VisBuffer64;
 Texture2D<float> SceneDepth;
 Texture2D<uint> ShadingMask;
-ByteAddressBuffer MaterialSlotTable;
-ByteAddressBuffer MaterialDepthTable;
 ByteAddressBuffer MaterialEditorTable;
 ByteAddressBuffer MaterialHitProxyTable;
 

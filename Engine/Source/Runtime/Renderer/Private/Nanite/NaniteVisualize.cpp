@@ -18,6 +18,7 @@
 #include "NaniteSceneProxy.h"
 #include "ShaderPrint.h"
 #include "InstanceDataSceneProxy.h"
+#include "Nanite/NaniteMaterialsSceneExtension.h"
 
 // Specifies if visualization only shows Nanite information that passes full scene depth test
 // -1: Use default composition specified the each mode
@@ -179,9 +180,8 @@ class FNaniteVisualizeCS : public FNaniteGlobalShader
 		SHADER_PARAMETER_RDG_TEXTURE(Texture2D<float>, MaterialZDecoded)
 		SHADER_PARAMETER_RDG_TEXTURE(Texture2D<FUint32Vector4>, MaterialZLayout)
 		SHADER_PARAMETER_RDG_TEXTURE(Texture2D<uint>, FastClearTileVis)
-		SHADER_PARAMETER_SRV(ByteAddressBuffer, MaterialSlotTable)
 		SHADER_PARAMETER_SRV(ByteAddressBuffer, MaterialDepthTable)
-		SHADER_PARAMETER_SRV(ByteAddressBuffer, MaterialHitProxyTable)
+		SHADER_PARAMETER_RDG_BUFFER_SRV(ByteAddressBuffer, MaterialHitProxyTable)
 	END_SHADER_PARAMETER_STRUCT()
 };
 IMPLEMENT_GLOBAL_SHADER(FNaniteVisualizeCS, "/Engine/Private/Nanite/NaniteVisualize.usf", "VisualizeCS", SF_Compute);
@@ -221,9 +221,8 @@ class FNanitePickingCS : public FNaniteGlobalShader
 		SHADER_PARAMETER_RDG_TEXTURE(Texture2D<uint>, DbgBuffer32)
 		SHADER_PARAMETER_RDG_TEXTURE(Texture2D<uint>, ShadingMask)
 		SHADER_PARAMETER_RDG_TEXTURE(Texture2D<float>, SceneDepth)
-		SHADER_PARAMETER_SRV(ByteAddressBuffer, MaterialSlotTable)
 		SHADER_PARAMETER_SRV(ByteAddressBuffer, MaterialDepthTable)
-		SHADER_PARAMETER_SRV(ByteAddressBuffer, MaterialHitProxyTable)
+		SHADER_PARAMETER_RDG_BUFFER_SRV(ByteAddressBuffer, MaterialHitProxyTable)
 	END_SHADER_PARAMETER_STRUCT()
 };
 IMPLEMENT_GLOBAL_SHADER(FNanitePickingCS, "/Engine/Private/Nanite/NaniteVisualize.usf", "PickingCS", SF_Compute);
@@ -279,10 +278,9 @@ public:
 		SHADER_PARAMETER_RDG_TEXTURE(Texture2D<UlongType>, VisBuffer64)
 		SHADER_PARAMETER_RDG_TEXTURE(Texture2D<float>, SceneDepth)
 		SHADER_PARAMETER_RDG_TEXTURE(Texture2D<uint>, ShadingMask)
-		SHADER_PARAMETER_SRV(ByteAddressBuffer, MaterialSlotTable)
 		SHADER_PARAMETER_SRV(ByteAddressBuffer, MaterialDepthTable)
 		SHADER_PARAMETER_SRV(ByteAddressBuffer, MaterialEditorTable)
-		SHADER_PARAMETER_SRV(ByteAddressBuffer, MaterialHitProxyTable)
+		SHADER_PARAMETER_RDG_BUFFER_SRV(ByteAddressBuffer, MaterialHitProxyTable)
 		SHADER_PARAMETER_RDG_BUFFER_SRV(Buffer<uint>, EditorSelectedHitProxyIds)
 		SHADER_PARAMETER_RDG_BUFFER_SRV(ByteAddressBuffer, ShadingBinData)
 		RENDER_TARGET_BINDING_SLOTS()
@@ -392,15 +390,16 @@ static FRDGBufferRef PerformPicking(
 		PassParameters->DbgBuffer32 = Data.DbgBuffer32;
 		PassParameters->ShadingMask = Data.ShadingMask;
 		PassParameters->SceneDepth = SceneTextures.Depth.Target;
-		PassParameters->MaterialSlotTable = MaterialCommands.GetMaterialSlotSRV();
 		PassParameters->MaterialDepthTable = MaterialCommands.GetMaterialDepthSRV();
-	#if WITH_EDITOR
-		PassParameters->MaterialHitProxyTable = MaterialCommands.GetHitProxyTableSRV();
-	#else
-		// TODO: Permutation with hit proxy support to keep this clean?
-		// For now, bind a valid SRV
-		PassParameters->MaterialHitProxyTable = MaterialCommands.GetMaterialSlotSRV();
-	#endif
+		PassParameters->MaterialHitProxyTable = GraphBuilder.CreateSRV(
+		#if WITH_EDITOR
+			Scene->GetExtension<Nanite::FMaterialsSceneExtension>().CreateHitProxyIDBuffer(GraphBuilder)
+		#else
+			// TODO: Permutation with hit proxy support to keep this clean?
+			// For now, bind a valid SRV
+			GSystemTextures.GetDefaultByteAddressBuffer(GraphBuilder, 4u)
+		#endif
+		);
 		PassParameters->FeedbackBuffer = GraphBuilder.CreateUAV(PickingFeedback);
 
 		auto PickingShader = View.ShaderMap->GetShader<FNanitePickingCS>();
@@ -595,6 +594,16 @@ void AddVisualizationPasses(
 
 	if (Scene && Views.Num() > 0 && VisualizationData.IsActive() && EngineShowFlags.VisualizeNanite)
 	{
+		FRDGBufferSRVRef HitProxyIDBuffer = GraphBuilder.CreateSRV(
+		#if WITH_EDITOR
+			Scene->GetExtension<Nanite::FMaterialsSceneExtension>().CreateHitProxyIDBuffer(GraphBuilder)
+		#else
+			// TODO: Permutation with hit proxy support to keep this clean?
+			// For now, bind a valid SRV
+			GSystemTextures.GetDefaultByteAddressBuffer(GraphBuilder, 4u)
+		#endif
+		);
+
 		// These should always match 1:1
 		if (ensure(Views.Num() == Results.Num()))
 		{
@@ -782,15 +791,8 @@ void AddVisualizationPasses(
 						PassParameters->MaterialZDecoded = MaterialZDecoded;
 						PassParameters->MaterialZLayout = MaterialZLayout;
 						PassParameters->FastClearTileVis = GetFastClearTileVis(GraphBuilder);
-						PassParameters->MaterialSlotTable = MaterialCommands.GetMaterialSlotSRV();
 						PassParameters->MaterialDepthTable = MaterialCommands.GetMaterialDepthSRV();
-					#if WITH_EDITOR
-						PassParameters->MaterialHitProxyTable = MaterialCommands.GetHitProxyTableSRV();
-					#else
-						// TODO: Permutation with hit proxy support to keep this clean?
-						// For now, bind a valid SRV
-						PassParameters->MaterialHitProxyTable = MaterialCommands.GetMaterialSlotSRV();
-					#endif
+						PassParameters->MaterialHitProxyTable = HitProxyIDBuffer;
 						PassParameters->ShadingBinData = GetShadingBinDataSRV(GraphBuilder);
 						PassParameters->DebugOutput = GraphBuilder.CreateUAV(Visualization.ModeOutput);
 
@@ -916,20 +918,20 @@ void RenderDebugViewMode(
 	PassParameters->VisBuffer64 = RasterResults.VisBuffer64;
 	PassParameters->SceneDepth = InputDepthTexture;
 	PassParameters->ShadingMask = RasterResults.ShadingMask;
-	PassParameters->MaterialSlotTable = MaterialCommands.GetMaterialSlotSRV();
 	PassParameters->MaterialDepthTable = MaterialCommands.GetMaterialDepthSRV();
 	PassParameters->MaterialEditorTable = MaterialCommands.GetMaterialEditorSRV();
 	PassParameters->EditorSelectedHitProxyIds = GetEditorSelectedHitProxyIdsSRV(GraphBuilder, View);
 	PassParameters->ShadingBinData = GetShadingBinDataSRV(GraphBuilder);
 
-#if WITH_EDITOR
-	PassParameters->MaterialHitProxyTable = MaterialCommands.GetHitProxyTableSRV();
-#else
-	// TODO: Permutation with hit proxy support to keep this clean?
-	// For now, bind a valid SRV
-	PassParameters->MaterialHitProxyTable = MaterialCommands.GetMaterialSlotSRV();
-#endif
-
+	PassParameters->MaterialHitProxyTable = GraphBuilder.CreateSRV(
+	#if WITH_EDITOR
+		Scene.GetExtension<Nanite::FMaterialsSceneExtension>().CreateHitProxyIDBuffer(GraphBuilder)
+	#else
+		// TODO: Permutation with hit proxy support to keep this clean?
+		// For now, bind a valid SRV
+		GSystemTextures.GetDefaultByteAddressBuffer(GraphBuilder, 4u)
+	#endif
+	);
 
 	PassParameters->RenderTargets[0] = FRenderTargetBinding(OutputColorTexture, ERenderTargetLoadAction::ELoad, 0);
 

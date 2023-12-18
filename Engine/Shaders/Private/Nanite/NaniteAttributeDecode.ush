@@ -189,13 +189,46 @@ uint GetRelativeMaterialIndex(FCluster InCluster, uint InTriIndex)
 	return MaterialIndex;
 }
 
-uint RemapMaterialIndexToOffset(uint InPrimitiveIndex, uint InMaterialIndex, uint BytesPerMaterial)
+struct FNaniteMaterialPrimitiveData
 {
-	// Remap local primitive material indices (i.e. 0...8) to global indices of all primitives in current scene
-	const uint MaxMaterials = 64;
-	const uint GlobalMaterialIndex = InPrimitiveIndex * MaxMaterials + InMaterialIndex;
-	const uint RemapOffset = GlobalMaterialIndex * BytesPerMaterial;
-	return RemapOffset;
+	uint MaterialBufferOffset;
+	uint MaterialMaxIndex;
+	uint MeshPassMask;
+	bool bHasUVDensities;
+	uint HitProxyBufferOffset;
+};
+
+FNaniteMaterialPrimitiveData UnpackNaniteMaterialPrimitiveData(uint3 Data)
+{
+	FNaniteMaterialPrimitiveData Output;
+	Output.MaterialBufferOffset	= Data.x;
+	Output.MaterialMaxIndex		= BitFieldExtractU32(Data.y, 8u,  0u);
+	Output.MeshPassMask			= BitFieldExtractU32(Data.y, 8u,  8u);
+	Output.bHasUVDensities		= BitFieldExtractU32(Data.y, 1u, 16u);
+	Output.HitProxyBufferOffset = Data.z;
+
+	return Output;
+}
+
+FNaniteMaterialPrimitiveData LoadNaniteMaterialPrimitiveData(uint InPrimitiveIndex)
+{
+	const uint ElementStride = Scene.NaniteMaterials.PrimitiveMaterialElementStride;
+	const uint Offset = InPrimitiveIndex * ElementStride;
+	uint3 Data = (uint3)0xFFFFFFFFu;
+	
+#if USE_EDITOR_SHADERS
+	// Check to load the hit proxy buffer offset
+	if (ElementStride / 4u >= 3u)
+	{
+		Data = Scene.NaniteMaterials.PrimitiveMaterialData.Load3(Offset);
+	}
+	else
+#endif
+	{
+		checkSlow(ElementStride / 4u >= 2u);
+		Data.xy = Scene.NaniteMaterials.PrimitiveMaterialData.Load2(InPrimitiveIndex * 2u * 4u);
+	}
+	return UnpackNaniteMaterialPrimitiveData(Data);
 }
 
 struct FNaniteMaterialSlot
@@ -216,34 +249,90 @@ FNaniteMaterialSlot UnpackMaterialSlot(uint2 Data)
 	return Output;
 }
 
-FNaniteMaterialSlot LoadMaterialSlot(ByteAddressBuffer InMaterialTable, uint Offset)
+FNaniteMaterialSlot LoadMaterialSlot(uint Offset)
 {
-	uint2 Data = InMaterialTable.Load2(Offset);
+	uint2 Data = Scene.NaniteMaterials.MaterialData.Load2(Offset);
 	return UnpackMaterialSlot(Data);
 }
 
-FNaniteMaterialSlot LoadMaterialSlot(uint InPrimitiveIndex, uint InMaterialIndex, ByteAddressBuffer InMaterialTable)
+float4 LoadMaterialUVDensities(uint Offset)
 {
-	const uint BytesPerMaterial = 4 * 2; // 2 dwords per material
-	const uint RemapOffset = RemapMaterialIndexToOffset(InPrimitiveIndex, InMaterialIndex, BytesPerMaterial);
-	return LoadMaterialSlot(InMaterialTable, RemapOffset);
+	if (Offset == 0xFFFFFFFFu)
+	{
+		return (float4)1.0f;
+	}
+	return asfloat(Scene.NaniteMaterials.MaterialData.Load4(Offset));
+}
+
+uint GetMaterialSlotOffset(uint InRelativeMaterialIndex, uint InPrimitiveIndex, uint InMeshPassIndex)
+{
+	FNaniteMaterialPrimitiveData PrimitiveData = LoadNaniteMaterialPrimitiveData(InPrimitiveIndex);
+	const uint DwordsPerMaterialSlot = 2u;
+	const uint MeshPassBit = (1u << InMeshPassIndex);
+	const uint MaterialCount = PrimitiveData.MaterialMaxIndex + 1;
+	const uint MeshPassSlotsOffset = MaterialCount * countbits(PrimitiveData.MeshPassMask & (MeshPassBit - 1u));
+
+	checkSlow(PrimitiveData.MaterialBufferOffset != 0xFFFFFFFFu);
+	checkSlow((MeshPassBit & PrimitiveData.MeshPassMask) != 0);
+
+	InRelativeMaterialIndex = min(InRelativeMaterialIndex, PrimitiveData.MaterialMaxIndex);
+
+	return 4 * (
+		PrimitiveData.MaterialBufferOffset +
+		DwordsPerMaterialSlot * (MeshPassSlotsOffset + InRelativeMaterialIndex)
+	);
+}
+
+uint GetMaterialUVDensitiesOffset(uint InRelativeMaterialIndex, uint InPrimitiveIndex)
+{
+	FNaniteMaterialPrimitiveData PrimitiveData = LoadNaniteMaterialPrimitiveData(InPrimitiveIndex);
+	
+	checkSlow(PrimitiveData.MaterialBufferOffset != 0xFFFFFFFFu);
+
+	if (!PrimitiveData.bHasUVDensities)
+	{
+		return 0xFFFFFFFFu;
+	}
+
+	const uint DwordsPerMaterialSlot = 2u;
+	const uint DwordsPerUVDensities = 4u;
+	const uint MaterialCount = PrimitiveData.MaterialMaxIndex + 1;
+	const uint FirstUVDensitiesOffset = MaterialCount * countbits(PrimitiveData.MeshPassMask) * DwordsPerMaterialSlot;
+
+	InRelativeMaterialIndex = min(InRelativeMaterialIndex, PrimitiveData.MaterialMaxIndex);
+
+	return 4 * (
+		PrimitiveData.MaterialBufferOffset +
+		FirstUVDensitiesOffset +
+		(InRelativeMaterialIndex * DwordsPerUVDensities)
+	);
+}
+
+FNaniteMaterialSlot LoadMaterialSlot(uint InRelativeMaterialIndex, uint InPrimitiveIndex, uint InMeshPassIndex)
+{
+	return LoadMaterialSlot(GetMaterialSlotOffset(InRelativeMaterialIndex, InPrimitiveIndex, InMeshPassIndex));
+}
+
+float4 LoadMaterialUVDensities(uint InRelativeMaterialIndex, uint InPrimitiveIndex)
+{
+	return LoadMaterialUVDensities(GetMaterialUVDensitiesOffset(InRelativeMaterialIndex, InPrimitiveIndex));
 }
 
 uint GetMaterialLegacyShadingIdFromIndex(
 	uint InRelativeMaterialIndex,
 	uint InPrimitiveIndex,
-	ByteAddressBuffer InMaterialSlotTable)
+	uint InMeshPassIndex)
 {
-	FNaniteMaterialSlot MaterialSlot = LoadMaterialSlot(InPrimitiveIndex, InRelativeMaterialIndex, InMaterialSlotTable);
+	FNaniteMaterialSlot MaterialSlot = LoadMaterialSlot(InRelativeMaterialIndex, InPrimitiveIndex, InMeshPassIndex);
 	return MaterialSlot.LegacyShadingId;
 }
 
 uint GetMaterialShadingBinFromIndex(
 	uint InRelativeMaterialIndex,
 	uint InPrimitiveIndex,
-	ByteAddressBuffer InMaterialSlotTable)
+	uint InMeshPassIndex)
 {
-	FNaniteMaterialSlot MaterialSlot = LoadMaterialSlot(InPrimitiveIndex, InRelativeMaterialIndex, InMaterialSlotTable);
+	FNaniteMaterialSlot MaterialSlot = LoadMaterialSlot(InRelativeMaterialIndex, InPrimitiveIndex, InMeshPassIndex);
 	return MaterialSlot.ShadingBin;
 }
 
@@ -264,11 +353,11 @@ uint RemapRasterBin(uint InBinIndex, uint InRenderFlags, FNaniteMaterialFlags Ma
 uint GetMaterialRasterBinFromIndex(
 	uint InRelativeMaterialIndex,
 	uint InPrimitiveIndex,
+	uint InMeshPassIndex,
 	uint InRegularRasterBinCount,
-	bool bSecondaryRasterBin,
-	ByteAddressBuffer InMaterialSlotTable)
+	bool bSecondaryRasterBin)
 {
-	FNaniteMaterialSlot MaterialSlot = LoadMaterialSlot(InPrimitiveIndex, InRelativeMaterialIndex, InMaterialSlotTable);
+	FNaniteMaterialSlot MaterialSlot = LoadMaterialSlot(InRelativeMaterialIndex, InPrimitiveIndex, InMeshPassIndex);
 	uint RasterBin = MaterialSlot.RasterBin;
 	
 	if (bSecondaryRasterBin && MaterialSlot.SecondaryRasterBin != 0xFFFFu)
@@ -287,37 +376,46 @@ uint GetMaterialRasterBinFromIndex(
 uint GetMaterialLegacyShadingId(
 	FCluster InCluster,
 	uint InPrimitiveIndex,
-	uint InTriIndex,
-	ByteAddressBuffer InMaterialSlotTable)
+	uint InMeshPassIndex,
+	uint InTriIndex)
 {
 	const uint RelativeMaterialIndex = GetRelativeMaterialIndex(InCluster, InTriIndex);
-	return GetMaterialLegacyShadingIdFromIndex(RelativeMaterialIndex, InPrimitiveIndex, InMaterialSlotTable);
+	return GetMaterialLegacyShadingIdFromIndex(RelativeMaterialIndex, InPrimitiveIndex, InMeshPassIndex);
+}
+
+float4 GetMaterialUVDensities(
+	FCluster InCluster,
+	uint InPrimitiveIndex,
+	uint InTriIndex)
+{
+	const uint RelativeMaterialIndex = GetRelativeMaterialIndex(InCluster, InTriIndex);
+	return LoadMaterialUVDensities(RelativeMaterialIndex, InPrimitiveIndex);
 }
 
 uint GetMaterialShadingBin(
-	FCluster InCluster,
+	FCluster InCluster,	
 	uint InPrimitiveIndex,
-	uint InTriIndex,
-	ByteAddressBuffer InMaterialSlotTable)
+	uint InMeshPassIndex,
+	uint InTriIndex)
 {
 	const uint RelativeMaterialIndex = GetRelativeMaterialIndex(InCluster, InTriIndex);
-	return GetMaterialShadingBinFromIndex(RelativeMaterialIndex, InPrimitiveIndex, InMaterialSlotTable);
+	return GetMaterialShadingBinFromIndex(RelativeMaterialIndex, InPrimitiveIndex, InMeshPassIndex);
 }
 
 uint GetMaterialRasterBin(
 	FCluster InCluster,
 	uint InPrimitiveIndex,
+	uint InMeshPassIndex,
 	uint InTriIndex,
 	uint InRegularSlotCount,
-	bool bSecondaryBin,
-	ByteAddressBuffer InMaterialSlotTable)
+	bool bSecondaryBin)
 {
 	return GetMaterialRasterBinFromIndex(
 		GetRelativeMaterialIndex(InCluster, InTriIndex),
 		InPrimitiveIndex,
+		InMeshPassIndex,
 		InRegularSlotCount,
-		bSecondaryBin,
-		InMaterialSlotTable
+		bSecondaryBin
 	);
 }
 
@@ -331,9 +429,15 @@ uint GetMaterialDepthId(
 
 uint LoadMaterialHitProxyId(uint InPrimitiveIndex, uint InMaterialIndex, ByteAddressBuffer InMaterialHitProxyTable)
 {
-	const uint BytesPerMaterial = 4; // Hit proxy ID
-	const uint RemapOffset = RemapMaterialIndexToOffset(InPrimitiveIndex, InMaterialIndex, BytesPerMaterial);
-	return InMaterialHitProxyTable.Load(RemapOffset);
+	FNaniteMaterialPrimitiveData PrimitiveData = LoadNaniteMaterialPrimitiveData(InPrimitiveIndex);
+	const uint InvisibleHitProxyID = uint(-2);
+	uint HitProxyID = InvisibleHitProxyID;
+	if (PrimitiveData.HitProxyBufferOffset != 0xFFFFFFFFu)
+	{
+		const uint OffsetDwords = PrimitiveData.HitProxyBufferOffset + min(InMaterialIndex, PrimitiveData.MaterialMaxIndex);
+		HitProxyID = InMaterialHitProxyTable.Load(OffsetDwords * 4);
+	}
+	return HitProxyID;
 }
 
 uint GetMaterialHitProxyId(

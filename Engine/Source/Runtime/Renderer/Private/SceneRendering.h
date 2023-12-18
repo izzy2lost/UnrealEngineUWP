@@ -1997,16 +1997,16 @@ public:
 		return GetSceneUniforms().GetBuffer(GraphBuilder);
 	}
 
-	void InitSceneExtensionsRenderer()
+	void InitSceneExtensionsRenderers()
 	{
-		SceneExtensionsRenderer.Begin(*this);
+		SceneExtensionsRenderers.Begin(*this);
 	}
-	FSceneExtensionsRenderer& GetSceneExtensionsRenderer() { return SceneExtensionsRenderer; }
-	const FSceneExtensionsRenderer& GetSceneExtensionsRenderer() const { return SceneExtensionsRenderer; }
+	FSceneExtensionsRenderers& GetSceneExtensionsRenderers() { return SceneExtensionsRenderers; }
+	const FSceneExtensionsRenderers& GetSceneExtensionsRenderers() const { return SceneExtensionsRenderers; }
 
 private:
 	FSceneUniformBuffer SceneUniforms;
-	FSceneExtensionsRenderer SceneExtensionsRenderer;
+	FSceneExtensionsRenderers SceneExtensionsRenderers;
 };
 
 /**

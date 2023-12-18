@@ -45,33 +45,13 @@ void FNaniteDrawListContext::BeginPrimitiveSceneInfo(FPrimitiveSceneInfo& Primit
 	check(PrimitiveSceneInfo.Proxy->IsNaniteMesh());
 
 	Nanite::FSceneProxyBase* NaniteSceneProxy = static_cast<Nanite::FSceneProxyBase*>(PrimitiveSceneInfo.Proxy);
+	const int32 NumMaterialSections = NaniteSceneProxy->GetMaterialSections().Num();
 
-	const TArray<Nanite::FSceneProxyBase::FMaterialSection>& MaterialSections = NaniteSceneProxy->GetMaterialSections();
-
-	// Initialize material slots
-	for (int32 NaniteMeshPassIndex = 0; NaniteMeshPassIndex < ENaniteMeshPass::Num; ++NaniteMeshPassIndex)
+	// Pre-allocate the max possible material slots for the slot arrays here, before contexts are applied serially.
+	for (auto& MaterialSlots : PrimitiveSceneInfo.NaniteMaterialSlots)
 	{
-		check(PrimitiveSceneInfo.NaniteCommandInfos[NaniteMeshPassIndex].Num() == 0);
-		check(PrimitiveSceneInfo.NaniteRasterBins[NaniteMeshPassIndex].Num() == 0);
-		check(PrimitiveSceneInfo.NaniteShadingBins[NaniteMeshPassIndex].Num() == 0);
-
-		TArray<FNaniteMaterialSlot>& MaterialSlots = PrimitiveSceneInfo.NaniteMaterialSlots[NaniteMeshPassIndex];
-		check(MaterialSlots.Num() == 0);
-
-		MaterialSlots.SetNumUninitialized(MaterialSections.Num());
-		FMemory::Memset(MaterialSlots.GetData(), 0xFF, MaterialSlots.Num() * MaterialSlots.GetTypeSize());
+		MaterialSlots.Empty(NumMaterialSections);
 	}
-
-#if WITH_EDITOR
-	// Initialize hit proxy IDs
-	check(PrimitiveSceneInfo.NaniteHitProxyIds.Num() == 0);
-	const TConstArrayView<const FHitProxyId> HitProxyIds = NaniteSceneProxy->GetHitProxyIds();
-	PrimitiveSceneInfo.NaniteHitProxyIds.SetNumUninitialized(HitProxyIds.Num());
-	for (int32 IdIndex = 0; IdIndex < HitProxyIds.Num(); ++IdIndex)
-	{
-		PrimitiveSceneInfo.NaniteHitProxyIds[IdIndex] = HitProxyIds[IdIndex].GetColor().ToPackedABGR();
-	}
-#endif
 
 	CurrentPrimitiveSceneInfo = &PrimitiveSceneInfo;
 }
@@ -95,28 +75,46 @@ void FNaniteDrawListContext::EndMeshPass()
 	CurrentMeshPass = ENaniteMeshPass::Num;
 }
 
+FNaniteMaterialSlot& FNaniteDrawListContext::GetMaterialSlotForWrite(FPrimitiveSceneInfo& PrimitiveSceneInfo, ENaniteMeshPass::Type MeshPass, uint8 SectionIndex)
+{	
+	TArray<FNaniteMaterialSlot>& MaterialSlots = PrimitiveSceneInfo.NaniteMaterialSlots[MeshPass];
+
+	// Initialize material slots if they haven't been already
+	// NOTE: Lazily initializing them like this prevents adding material slots for primitives that have no bins in the pass
+	if (MaterialSlots.Num() == 0)
+	{
+		check(PrimitiveSceneInfo.Proxy->IsNaniteMesh());
+		check(PrimitiveSceneInfo.NaniteCommandInfos[MeshPass].Num() == 0);
+		check(PrimitiveSceneInfo.NaniteRasterBins[MeshPass].Num() == 0);
+		check(PrimitiveSceneInfo.NaniteShadingBins[MeshPass].Num() == 0);
+
+		auto* NaniteSceneProxy = static_cast<const Nanite::FSceneProxyBase*>(PrimitiveSceneInfo.Proxy);
+		const int32 NumMaterialSections = NaniteSceneProxy->GetMaterialSections().Num();
+
+		MaterialSlots.SetNumUninitialized(NumMaterialSections);
+		FMemory::Memset(MaterialSlots.GetData(), 0xFF, NumMaterialSections * MaterialSlots.GetTypeSize());
+	}
+
+	check(MaterialSlots.IsValidIndex(SectionIndex));
+	return MaterialSlots[SectionIndex];
+}
+
 void FNaniteDrawListContext::AddShadingCommand(FPrimitiveSceneInfo& PrimitiveSceneInfo, const FNaniteCommandInfo& ShadingCommand, ENaniteMeshPass::Type MeshPass, uint8 SectionIndex)
 {
-	PrimitiveSceneInfo.NaniteCommandInfos[MeshPass].Add(ShadingCommand);
-
-	TArray<FNaniteMaterialSlot>& MaterialSlots = PrimitiveSceneInfo.NaniteMaterialSlots[MeshPass];
-	check(SectionIndex < uint32(MaterialSlots.Num()));
-
-	FNaniteMaterialSlot& MaterialSlot = MaterialSlots[SectionIndex];
+	FNaniteMaterialSlot& MaterialSlot = GetMaterialSlotForWrite(PrimitiveSceneInfo, MeshPass, SectionIndex);
 	check(MaterialSlot.LegacyShadingId == 0xFFFFu);
-	PrimitiveSceneInfo.NaniteMaterialSlots[MeshPass][SectionIndex].LegacyShadingId = uint16(ShadingCommand.GetMaterialSlot());
+	MaterialSlot.LegacyShadingId = uint16(ShadingCommand.GetMaterialSlot());
+
+	PrimitiveSceneInfo.NaniteCommandInfos[MeshPass].Add(ShadingCommand);
 }
 
 void FNaniteDrawListContext::AddShadingBin(FPrimitiveSceneInfo& PrimitiveSceneInfo, const FNaniteShadingBin& ShadingBin, ENaniteMeshPass::Type MeshPass, uint8 SectionIndex)
 {
-	PrimitiveSceneInfo.NaniteShadingBins[MeshPass].Add(ShadingBin);
-
-	TArray<FNaniteMaterialSlot>& MaterialSlots = PrimitiveSceneInfo.NaniteMaterialSlots[MeshPass];
-	check(SectionIndex < uint32(MaterialSlots.Num()));
-
-	FNaniteMaterialSlot& MaterialSlot = MaterialSlots[SectionIndex];
+	FNaniteMaterialSlot& MaterialSlot = GetMaterialSlotForWrite(PrimitiveSceneInfo, MeshPass, SectionIndex);
 	check(MaterialSlot.ShadingBin == 0xFFFFu);
-	PrimitiveSceneInfo.NaniteMaterialSlots[MeshPass][SectionIndex].ShadingBin = ShadingBin.BinIndex;
+	MaterialSlot.ShadingBin = ShadingBin.BinIndex;
+
+	PrimitiveSceneInfo.NaniteShadingBins[MeshPass].Add(ShadingBin);
 }
 
 void FNaniteDrawListContext::AddRasterBin(
@@ -127,19 +125,17 @@ void FNaniteDrawListContext::AddRasterBin(
 	uint8 SectionIndex)
 {
 	check(PrimaryRasterBin.IsValid());
+	
+	FNaniteMaterialSlot& MaterialSlot = GetMaterialSlotForWrite(PrimitiveSceneInfo, MeshPass, SectionIndex);
+	check(MaterialSlot.RasterBin == 0xFFFFu);
+	MaterialSlot.RasterBin = PrimaryRasterBin.BinIndex;
+	MaterialSlot.SecondaryRasterBin = SecondaryRasterBin.BinIndex;
+	
 	PrimitiveSceneInfo.NaniteRasterBins[MeshPass].Add(PrimaryRasterBin);
 	if (SecondaryRasterBin.IsValid())
 	{
 		PrimitiveSceneInfo.NaniteRasterBins[MeshPass].Add(SecondaryRasterBin);
 	}
-
-	TArray<FNaniteMaterialSlot>& MaterialSlots = PrimitiveSceneInfo.NaniteMaterialSlots[MeshPass];
-	check(SectionIndex < uint32(MaterialSlots.Num()));
-
-	FNaniteMaterialSlot& MaterialSlot = MaterialSlots[SectionIndex];
-	check(MaterialSlot.RasterBin == 0xFFFFu);
-	MaterialSlot.RasterBin = PrimaryRasterBin.BinIndex;
-	MaterialSlot.SecondaryRasterBin = SecondaryRasterBin.BinIndex;
 }
 
 void FNaniteDrawListContext::FinalizeCommand(

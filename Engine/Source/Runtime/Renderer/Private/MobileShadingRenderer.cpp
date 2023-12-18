@@ -1014,9 +1014,9 @@ void FMobileSceneRenderer::Render(FRDGBuilder& GraphBuilder)
 	}
 
 	// Allow scene extensions to affect the scene uniform buffer
-	GetSceneExtensionsRenderer().UpdateSceneUniformBuffer(GraphBuilder, GetSceneUniforms());
+	GetSceneExtensionsRenderers().UpdateSceneUniformBuffer(GraphBuilder, GetSceneUniforms());
 
-	GetSceneExtensionsRenderer().PreRender(GraphBuilder);
+	GetSceneExtensionsRenderers().PreRender(GraphBuilder);
 	GEngine->GetPreRenderDelegateEx().Broadcast(GraphBuilder);
 	
 	GraphBuilder.SetCommandListStat(GET_STATID(STAT_CLMM_SceneSim));
@@ -1334,7 +1334,7 @@ void FMobileSceneRenderer::Render(FRDGBuilder& GraphBuilder)
 	}
 
 	GEngine->GetPostRenderDelegateEx().Broadcast(GraphBuilder);
-	GetSceneExtensionsRenderer().PostRender(GraphBuilder);
+	GetSceneExtensionsRenderers().PostRender(GraphBuilder);
 
 	GraphBuilder.SetCommandListStat(GET_STATID(STAT_CLMM_SceneEnd));
 

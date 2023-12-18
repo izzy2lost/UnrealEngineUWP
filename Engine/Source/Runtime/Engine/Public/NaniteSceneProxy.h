@@ -41,6 +41,8 @@ struct FMaterialAuditEntry
 	uint8 bHasPerInstanceRandomID		: 1;
 	uint8 bHasPerInstanceCustomData		: 1;
 	uint8 bHasInvalidUsage				: 1;
+
+	FVector4f LocalUVDensities;
 };
 
 struct ENGINE_API FMaterialAudit
@@ -103,6 +105,15 @@ struct ENGINE_API FMaterialAudit
 		}
 
 		return false;
+	}
+
+	FORCEINLINE FVector4f GetLocalUVDensities(int32 MaterialIndex) const
+	{
+		if (Entries.IsValidIndex(MaterialIndex))
+		{
+			return Entries[MaterialIndex].LocalUVDensities;
+		}
+		return FVector4f(1.0f);
 	}
 };
 
@@ -175,6 +186,7 @@ public:
 		FDisplacementScaling DisplacementScaling;
 
 		FMaterialRelevance MaterialRelevance;
+		FVector4f LocalUVDensities = FVector4f(1.0f);
 
 		uint8 bHasPerInstanceRandomID : 1;
 		uint8 bHasPerInstanceCustomData : 1;
@@ -204,6 +216,7 @@ public:
 	{
 		bIsNaniteMesh  = true;
 		bHasProgrammableRaster = false;
+		bHasDynamicDisplacement = false;
 		bReverseCulling = false;
 	#if WITH_EDITOR
 		bHasSelectedInstances = false;
@@ -215,6 +228,7 @@ public:
 	{
 		bIsNaniteMesh  = true;
 		bHasProgrammableRaster = false;
+		bHasDynamicDisplacement = false;
 		bReverseCulling = false;
 	#if WITH_EDITOR
 		bHasSelectedInstances = false;
@@ -237,6 +251,11 @@ public:
 	inline bool HasProgrammableRaster() const
 	{
 		return bHasProgrammableRaster;
+	}
+
+	inline bool HasDynamicDisplacement() const
+	{
+		return bHasDynamicDisplacement;
 	}
 
 	inline const TArray<FMaterialSection>& GetMaterialSections() const
@@ -314,6 +333,7 @@ protected:
 	uint32 InstanceWPODisableDistance = 0;
 	EFilterFlags FilterFlags = EFilterFlags::None;
 	uint8 bHasProgrammableRaster : 1;
+	uint8 bHasDynamicDisplacement : 1;
 	uint8 bReverseCulling : 1;
 #if WITH_EDITOR
 	uint8 bHasSelectedInstances : 1;

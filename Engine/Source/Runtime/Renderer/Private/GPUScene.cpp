@@ -1168,50 +1168,6 @@ void FGPUScene::UploadGeneral(FRDGBuilder& GraphBuilder, const FRegisteredBuffer
 
 				NumInstanceSceneDataUploads += UploadInfo.NumInstanceUploads;
 				NumInstancePayloadDataUploads += UploadInfo.NumInstancePayloadDataUploads;
-
-				if (TaskContext.bUseNaniteMaterialUploaders && UploadInfo.NaniteSceneProxy != nullptr)
-				{
-					check(UploadDataSourceAdapter.bUpdateNaniteMaterialTables);
-					check(UploadInfo.PrimitiveSceneInfo != nullptr);
-					const FPrimitiveSceneInfo* PrimitiveSceneInfo = UploadInfo.PrimitiveSceneInfo;
-					const Nanite::FSceneProxyBase* NaniteSceneProxy = UploadInfo.NaniteSceneProxy;
-					const TArray<Nanite::FSceneProxyBase::FMaterialSection>& PassMaterials = NaniteSceneProxy->GetMaterialSections();
-
-					// Update raster bin, material depth and hit proxy ID remapping tables.
-					for (int32 NaniteMeshPass = 0; NaniteMeshPass < ENaniteMeshPass::Num; ++NaniteMeshPass)
-					{
-						FNaniteMaterialCommands::FUploader* NaniteMaterialUploader = TaskContext.NaniteMaterialUploaders[NaniteMeshPass];
-						const TArray<FNaniteMaterialSlot>& PassMaterialSlots = PrimitiveSceneInfo->NaniteMaterialSlots[NaniteMeshPass];
-
-						if (PassMaterials.Num() == PassMaterialSlots.Num())
-						{
-							const uint32 MaterialSlotCount = uint32(PassMaterialSlots.Num());
-							const uint32 TableEntryCount = uint32(NaniteSceneProxy->GetMaterialMaxIndex() + 1);
-
-							// TODO: Make this more robust, and catch issues earlier on
-							const uint32 UploadEntryCount = FMath::Max(MaterialSlotCount, TableEntryCount);
-
-							void* MaterialSlotRange = NaniteMaterialUploader->GetMaterialSlotPtr(UploadInfo.PrimitiveID, UploadEntryCount);
-							auto MaterialSlots = static_cast<FNaniteMaterialSlot::FPacked*>(MaterialSlotRange);
-							for (uint32 Entry = 0; Entry < MaterialSlotCount; ++Entry)
-							{
-								MaterialSlots[PassMaterials[Entry].MaterialIndex] = PassMaterialSlots[Entry].Pack();
-							}
-
-#if WITH_EDITOR
-							if (NaniteMeshPass == ENaniteMeshPass::BasePass && NaniteSceneProxy->GetHitProxyMode() == Nanite::FSceneProxyBase::EHitProxyMode::MaterialSection)
-							{
-								const TArray<uint32>& PassHitProxyIds = PrimitiveSceneInfo->NaniteHitProxyIds;
-								uint32* HitProxyTable = static_cast<uint32*>(NaniteMaterialUploader->GetHitProxyTablePtr(UploadInfo.PrimitiveID, UploadEntryCount));
-								for (int32 Entry = 0; Entry < PassHitProxyIds.Num(); ++Entry)
-								{
-									HitProxyTable[PassMaterials[Entry].MaterialIndex] = PassHitProxyIds[Entry];
-								}
-							}
-#endif
-						}
-					}
-				}
 			}
 
 			TaskContext.PrimitiveUploader->Add(UploadDataSourceAdapter.GetItemPrimitiveIds());

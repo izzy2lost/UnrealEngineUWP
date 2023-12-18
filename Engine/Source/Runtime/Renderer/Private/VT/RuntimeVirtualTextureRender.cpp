@@ -1582,10 +1582,10 @@ namespace RuntimeVirtualTexture
 				FSimpleRVTRenderer(FRDGBuilder& GraphBuilder, FRenderPageBatchDesc const& InDesc)
 					: FSceneRendererBase(*InDesc.Scene)
 				{
-					InitSceneExtensionsRenderer();
+					InitSceneExtensionsRenderers();
 
 					InDesc.Scene->GPUScene.FillSceneUniformBuffer(GraphBuilder, GetSceneUniforms());
-					GetSceneExtensionsRenderer().UpdateSceneUniformBuffer(GraphBuilder, GetSceneUniforms());
+					GetSceneExtensionsRenderers().UpdateSceneUniformBuffer(GraphBuilder, GetSceneUniforms());
 			}
 			};
 			FSimpleRVTRenderer SimpleRenderer(GraphBuilder, InDesc);

@@ -999,7 +999,6 @@ class FRasterBinBuild_CS : public FNaniteGlobalShader
 
 		SHADER_PARAMETER_RDG_BUFFER_SRV(ByteAddressBuffer, VisibleClustersSWHW)
 		SHADER_PARAMETER_RDG_BUFFER_SRV(ByteAddressBuffer, ClusterPageData)
-		SHADER_PARAMETER_SRV(ByteAddressBuffer, MaterialSlotTable)
 
 		SHADER_PARAMETER_RDG_BUFFER_SRV( ByteAddressBuffer,	VisiblePatches )
 		SHADER_PARAMETER_RDG_BUFFER_SRV( Buffer< uint >,	VisiblePatchesArgs )
@@ -1013,6 +1012,7 @@ class FRasterBinBuild_CS : public FNaniteGlobalShader
 		SHADER_PARAMETER(uint32, RegularMaterialRasterBinCount)
 		SHADER_PARAMETER(uint32, bUsePrimOrMeshShader)
 		SHADER_PARAMETER(uint32, MaxPatchesPerGroup)
+		SHADER_PARAMETER(uint32, MeshPassIndex)
 	END_SHADER_PARAMETER_STRUCT()
 
 	static bool ShouldCompilePermutation(const FGlobalShaderPermutationParameters& Parameters)
@@ -1224,9 +1224,9 @@ BEGIN_SHADER_PARAMETER_STRUCT( FRasterizePassParameters, )
 	SHADER_PARAMETER( uint32,		RenderFlags )
 	SHADER_PARAMETER( uint32,		VisualizeModeOverdraw )
 	SHADER_PARAMETER( uint32,		ActiveRasterBin )
+	SHADER_PARAMETER( uint32,		MeshPass )
 
 	SHADER_PARAMETER_RDG_BUFFER_SRV( ByteAddressBuffer, ClusterPageData )
-	SHADER_PARAMETER_SRV( ByteAddressBuffer, MaterialSlotTable )
 
 	SHADER_PARAMETER_RDG_BUFFER_SRV( StructuredBuffer< FPackedView >,	InViews )
 	SHADER_PARAMETER_RDG_BUFFER_SRV( ByteAddressBuffer,					VisibleClustersSWHW )
@@ -3070,7 +3070,6 @@ FBinningData FRenderer::AddPass_Binning(
 		PassParameters->Scene					= SceneUniformBuffer;
 		PassParameters->VisibleClustersSWHW		= GraphBuilder.CreateSRV(VisibleClustersSWHW);
 		PassParameters->ClusterPageData			= GStreamingManager.GetClusterPageDataSRV(GraphBuilder);
-		PassParameters->MaterialSlotTable		= Scene.NaniteMaterials[MeshPass].GetMaterialSlotSRV();
 		PassParameters->InClusterCountSWHW		= GraphBuilder.CreateSRV(ClusterCountSWHW);
 		PassParameters->InClusterOffsetSWHW		= GraphBuilder.CreateSRV(ClusterOffsetSWHW, PF_R32_UINT);
 		PassParameters->IndirectArgs			= VisiblePatchesArgs ? VisiblePatchesArgs : ClusterClassifyArgs;
@@ -3079,8 +3078,8 @@ FBinningData FRenderer::AddPass_Binning(
 
 		if (VisiblePatches)
 		{
-			PassParameters->VisiblePatches		= GraphBuilder.CreateSRV(VisiblePatches);
-			PassParameters->VisiblePatchesArgs	= GraphBuilder.CreateSRV(VisiblePatchesArgs);
+			PassParameters->VisiblePatches = GraphBuilder.CreateSRV(VisiblePatches);
+			PassParameters->VisiblePatchesArgs = GraphBuilder.CreateSRV(VisiblePatchesArgs);
 			PassParameters->SplitWorkQueue		= SplitWorkQueue;
 		}
 
@@ -3090,6 +3089,7 @@ FBinningData FRenderer::AddPass_Binning(
 		PassParameters->RegularMaterialRasterBinCount = Scene.NaniteRasterPipelines[MeshPass].GetRegularBinCount();
 		PassParameters->bUsePrimOrMeshShader = bUsePrimOrMeshShader;
 		PassParameters->MaxPatchesPerGroup = GetMaxPatchesPerGroup();
+		PassParameters->MeshPassIndex = MeshPass;
 
 		// Count SW & HW Clusters
 		{
@@ -3737,7 +3737,6 @@ FBinningData FRenderer::AddPass_Rasterize(
 	RasterPassParameters->InViews					= ViewsBuffer != nullptr ? GraphBuilder.CreateSRV( ViewsBuffer ) : nullptr;
 	RasterPassParameters->InClusterOffsetSWHW		= GraphBuilder.CreateSRV( ClusterOffsetSWHW, PF_R32_UINT );
 	RasterPassParameters->InTotalPrevDrawClusters	= GraphBuilder.CreateSRV( TotalPrevDrawClustersBuffer );
-	RasterPassParameters->MaterialSlotTable			= Scene.NaniteMaterials[Configuration.bIsLumenCapture ? ENaniteMeshPass::LumenCardCapture : ENaniteMeshPass::BasePass].GetMaterialSlotSRV();
 	RasterPassParameters->RasterBinData				= GraphBuilder.CreateSRV(BinningData.DataBuffer);
 	RasterPassParameters->RasterBinMeta				= GraphBuilder.CreateSRV(BinningData.MetaBuffer);
 
@@ -3746,6 +3745,7 @@ FBinningData FRenderer::AddPass_Rasterize(
 	RasterPassParameters->TessellationTable_Indexes	= GTessellationTable.Indexes.SRV;
 	RasterPassParameters->InvDiceRate				= CVarNaniteMaxPixelsPerEdge.GetValueOnRenderThread() / CVarNaniteDicingRate.GetValueOnRenderThread();
 	RasterPassParameters->MaxPatchesPerGroup		= GetMaxPatchesPerGroup();
+	RasterPassParameters->MeshPass					= Configuration.bIsLumenCapture ? ENaniteMeshPass::LumenCardCapture : ENaniteMeshPass::BasePass;
 
 	if( bPatches )
 	{

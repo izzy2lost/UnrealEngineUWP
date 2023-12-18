@@ -38,6 +38,8 @@
 #define VIRTUAL_TEXTURE_TARGET 0
 #endif
 
+uint MeshPassIndex;
+
 RWStructuredBuffer<FNaniteRasterBinMeta> OutRasterBinMeta;
 
 FNaniteMaterialFlags GetRasterBinMaterialFlags(uint BinIndex)
@@ -71,15 +73,14 @@ uint GetRemappedRasterBinFromIndex(
 	uint InPrimitiveIndex,
 	uint InRegularRasterBinCount,
 	uint InRenderFlags,
-	bool bSecondaryRasterBin,
-	ByteAddressBuffer InMaterialSlotTable)
+	bool bSecondaryRasterBin)
 {
 	uint RasterBin = GetMaterialRasterBinFromIndex(
 		InRelativeMaterialIndex,
 		InPrimitiveIndex,
+		MeshPassIndex,
 		InRegularRasterBinCount,
-		bSecondaryRasterBin,
-		InMaterialSlotTable
+		bSecondaryRasterBin
 	);
 
 	const FNaniteMaterialFlags MaterialFlags = GetRasterBinMaterialFlags(RasterBin);
@@ -158,7 +159,6 @@ StructuredBuffer<uint2> InTotalPrevDrawClusters;
 uint bUsePrimOrMeshShader;
 
 uint RegularMaterialRasterBinCount;
-ByteAddressBuffer MaterialSlotTable;
 
 #if RASTER_BIN_SCATTER
 RWBuffer<uint> OutRasterBinArgsSWHW;
@@ -350,8 +350,7 @@ void RasterBinBuild(uint RelativeClusterIndex : SV_DispatchThreadID, uint GroupT
 			InstanceData.PrimitiveId,
 			RegularMaterialRasterBinCount,
 			RenderFlags,
-			/* Secondary Bin */ false,
-			MaterialSlotTable
+			/* Secondary Bin */ false
 		);
 
 		uint IndexInBin = 0;
@@ -446,19 +445,19 @@ void RasterBinBuild(uint RelativeClusterIndex : SV_DispatchThreadID, uint GroupT
 
 			// The 0th material range is always non-zero length
 			{
-				RasterBin0 = GetRemappedRasterBinFromIndex(Cluster.Material0Index, InstanceData.PrimitiveId, RegularMaterialRasterBinCount, RenderFlags, bSecondaryBin, MaterialSlotTable);
+				RasterBin0 = GetRemappedRasterBinFromIndex(Cluster.Material0Index, InstanceData.PrimitiveId, RegularMaterialRasterBinCount, RenderFlags, bSecondaryBin);
 			}
 
 			BRANCH
 			if (Cluster.Material1Length > 0u)
 			{
-				RasterBin1 = GetRemappedRasterBinFromIndex(Cluster.Material1Index, InstanceData.PrimitiveId, RegularMaterialRasterBinCount, RenderFlags, bSecondaryBin, MaterialSlotTable);
+				RasterBin1 = GetRemappedRasterBinFromIndex(Cluster.Material1Index, InstanceData.PrimitiveId, RegularMaterialRasterBinCount, RenderFlags, bSecondaryBin);
 			}
 
 			BRANCH
 			if (Material2Length > 0)
 			{
-				RasterBin2 = GetRemappedRasterBinFromIndex(Cluster.Material2Index, InstanceData.PrimitiveId, RegularMaterialRasterBinCount, RenderFlags, bSecondaryBin, MaterialSlotTable);
+				RasterBin2 = GetRemappedRasterBinFromIndex(Cluster.Material2Index, InstanceData.PrimitiveId, RegularMaterialRasterBinCount, RenderFlags, bSecondaryBin);
 			}
 
 			if (RasterBin0 == RasterBin1 && RasterBin0 == RasterBin2)
@@ -527,7 +526,7 @@ void RasterBinBuild(uint RelativeClusterIndex : SV_DispatchThreadID, uint GroupT
 				uint MaterialIndex;
 				DecodeMaterialRange(EncodedRange, TriStart, TriLength, MaterialIndex);
 
-				const uint RasterBinN = GetRemappedRasterBinFromIndex(MaterialIndex, InstanceData.PrimitiveId, RegularMaterialRasterBinCount, RenderFlags, bSecondaryBin, MaterialSlotTable);
+				const uint RasterBinN = GetRemappedRasterBinFromIndex(MaterialIndex, InstanceData.PrimitiveId, RegularMaterialRasterBinCount, RenderFlags, bSecondaryBin);
 
 				const uint BatchCount = BitStreamReader_Read_RO(ClusterPageData, BatchCountStreamState, 4, 4);
 

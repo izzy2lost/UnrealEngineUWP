@@ -11,8 +11,6 @@
 #define NANITE_MAX_MATERIAL_BINS (NANITE_MAX_MATERIAL_SLOTS / 32u)
 
 Texture2D<UlongType> VisBuffer64;
-ByteAddressBuffer MaterialSlotTable;
-ByteAddressBuffer MaterialDepthTable;
 Texture2D<uint> ShadingMask;
 
 RWBuffer<uint> MaterialIndirectArgs;

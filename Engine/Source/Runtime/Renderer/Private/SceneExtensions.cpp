@@ -22,10 +22,10 @@ void FSceneExtensionRegistry::Register(ISceneExtensionFactory& Factory)
 	Factories.Add(&Factory);
 }
 
-TArray<ISceneExtension*> FSceneExtensionRegistry::CreateExtensions(FScene& Scene)
+TSparseArray<ISceneExtension*> FSceneExtensionRegistry::CreateExtensions(FScene& Scene)
 {
-	TArray<ISceneExtension*> Extensions;
-	Extensions.Reserve(Factories.Num());
+	TSparseArray<ISceneExtension*> Extensions;
+	Extensions.Empty(Factories.Num());
 
 	int32 ExtensionID = 0;
 	for (auto* Factory : Factories)
@@ -33,13 +33,14 @@ TArray<ISceneExtension*> FSceneExtensionRegistry::CreateExtensions(FScene& Scene
 		checkSlow(Factory->GetExtensionID() == ExtensionID); // sanity check
 		if (auto Extension = Factory->CreateInstance(Scene))
 		{
-			Extensions.Add(Extension);
+			Extensions.EmplaceAt(ExtensionID, Extension);
 		}
 		++ExtensionID;
 	}
 
 	return Extensions;
 }
+
 
 void FSceneExtensions::Init(FScene& Scene)
 {
@@ -61,29 +62,34 @@ void FSceneExtensions::Reset()
 
 void FSceneExtensions::CreateUpdaters(FUpdaterList& OutUpdaters)
 {
-	OutUpdaters.Reserve(OutUpdaters.Num() + Extensions.Num());
-	for (auto Extension : Extensions)
+	OutUpdaters.Empty(Extensions.Num());
+	for (auto It = Extensions.CreateIterator(); It; ++It)
 	{
-		if (auto Updater = Extension->CreateUpdater())
+		const int32 Index = It.GetIndex();
+		check(Index <= FSceneExtensionRegistry::Get().GetMaxRegistrationID());
+		if (auto Updater = Extensions[Index]->CreateUpdater())
 		{
-			OutUpdaters.Add(Updater);
-		}
-	}	
-}
-
-void FSceneExtensions::CreateRenderers(FRendererList& OutRenderers)
-{
-	OutRenderers.Reserve(OutRenderers.Num() + Extensions.Num());
-	for (auto Extension : Extensions)
-	{
-		if (auto Renderer = Extension->CreateRenderer())
-		{
-			OutRenderers.Add(Renderer);
+			OutUpdaters.EmplaceAt(Index, Updater);
 		}
 	}
 }
 
-void FSceneExtensionsUpdater::Begin(FScene& InScene)
+void FSceneExtensions::CreateRenderers(FRendererList& OutRenderers)
+{
+	OutRenderers.Empty(Extensions.Num());
+	for (auto It = Extensions.CreateIterator(); It; ++It)
+	{
+		const int32 Index = It.GetIndex();
+		check(Index <= FSceneExtensionRegistry::Get().GetMaxRegistrationID());
+		if (auto Renderer = Extensions[Index]->CreateRenderer())
+		{
+			OutRenderers.EmplaceAt(Index, Renderer);
+		}
+	}
+}
+
+
+void FSceneExtensionsUpdaters::Begin(FScene& InScene)
 {
 	checkf(!IsUpdating(), TEXT("Detected FSceneExtensionsUpdater Begin() without matching End()"));
 	
@@ -95,7 +101,7 @@ void FSceneExtensionsUpdater::Begin(FScene& InScene)
 	}
 }
 
-void FSceneExtensionsUpdater::End()
+void FSceneExtensionsUpdaters::End()
 {
 	for (auto Updater : Updaters)
 	{
@@ -106,7 +112,8 @@ void FSceneExtensionsUpdater::End()
 	Scene = nullptr;
 }
 
-void FSceneExtensionsRenderer::Begin(FSceneRendererBase& InSceneRenderer)
+
+void FSceneExtensionsRenderers::Begin(FSceneRendererBase& InSceneRenderer)
 {
 	checkf(!IsRendering(), TEXT("Detected FSceneExtensionsRenderer Begin() without matching End()"));
 
@@ -120,7 +127,7 @@ void FSceneExtensionsRenderer::Begin(FSceneRendererBase& InSceneRenderer)
 	}
 }
 
-void FSceneExtensionsRenderer::End()
+void FSceneExtensionsRenderers::End()
 {
 	for (auto Renderer : Renderers)
 	{

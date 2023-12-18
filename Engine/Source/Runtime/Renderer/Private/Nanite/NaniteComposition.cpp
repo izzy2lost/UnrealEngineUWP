@@ -87,7 +87,7 @@ class FEmitMaterialDepthPS : public FNaniteGlobalShader
 		SHADER_PARAMETER_RDG_TEXTURE(Texture2D<uint>, ShadingMask)
 		SHADER_PARAMETER_RDG_TEXTURE(Texture2D<UlongType>, VisBuffer64)
 
-		SHADER_PARAMETER_SRV(ByteAddressBuffer, MaterialSlotTable)
+		SHADER_PARAMETER(uint32, MeshPassIndex)
 		SHADER_PARAMETER_SRV(ByteAddressBuffer, MaterialDepthTable)
 
 		RENDER_TARGET_BINDING_SLOTS()
@@ -124,7 +124,7 @@ class FEmitSceneDepthPS : public FNaniteGlobalShader
 		SHADER_PARAMETER(FIntVector4, PageConstants)
 		SHADER_PARAMETER_RDG_BUFFER_SRV(ByteAddressBuffer, ClusterPageData)
 		SHADER_PARAMETER_RDG_TEXTURE(Texture2D<UlongType>, VisBuffer64)
-		SHADER_PARAMETER_SRV(ByteAddressBuffer, MaterialSlotTable)
+		SHADER_PARAMETER(uint32, MeshPassIndex)
 		RENDER_TARGET_BINDING_SLOTS()
 	END_SHADER_PARAMETER_STRUCT()
 };
@@ -226,6 +226,7 @@ class FDepthExportCS : public FNaniteGlobalShader
 		SHADER_PARAMETER(FIntVector4, DepthExportConfig)
 		SHADER_PARAMETER(FUint32Vector4, ViewRect)
 		SHADER_PARAMETER(uint32, bWriteCustomStencil)
+		SHADER_PARAMETER(uint32, MeshPassIndex)
 		SHADER_PARAMETER_RDG_TEXTURE(Texture2D<UlongType>, VisBuffer64)
 		SHADER_PARAMETER_RDG_TEXTURE_UAV(RWTexture2D<float4>, Velocity)
 		SHADER_PARAMETER_RDG_TEXTURE_UAV(RWTexture2D<uint>, ShadingMask)
@@ -234,7 +235,6 @@ class FDepthExportCS : public FNaniteGlobalShader
 		SHADER_PARAMETER_RDG_TEXTURE_UAV(RWTexture2D<uint>, SceneStencil)
 		SHADER_PARAMETER_RDG_TEXTURE_UAV(RWTextureMetadata, MaterialHTile)
 		SHADER_PARAMETER_RDG_TEXTURE_UAV(RWTexture2D<float>, MaterialDepth)
-		SHADER_PARAMETER_SRV(ByteAddressBuffer, MaterialSlotTable)
 		SHADER_PARAMETER_SRV(ByteAddressBuffer, MaterialDepthTable)
 	END_SHADER_PARAMETER_STRUCT()
 };
@@ -358,6 +358,7 @@ void EmitDepthTargets(
 		PassParameters->DepthExportConfig		= FIntVector4(PlatformConfig, SceneTexturesExtent.X, StencilDecalMask, Nanite::FGlobalResources::GetMaxVisibleClusters());
 		PassParameters->ViewRect				= FUint32Vector4((uint32)ViewRect.Min.X, (uint32)ViewRect.Min.Y, (uint32)ViewRect.Max.X, (uint32)ViewRect.Max.Y);
 		PassParameters->bWriteCustomStencil		= false;
+		PassParameters->MeshPassIndex			= ENaniteMeshPass::BasePass;
 		PassParameters->VisBuffer64				= VisBuffer64;
 		PassParameters->Velocity				= VelocityUAV;
 		PassParameters->ShadingMask				= ShadingMaskUAV;
@@ -366,7 +367,6 @@ void EmitDepthTargets(
 		PassParameters->SceneStencil			= SceneStencilUAV;
 		PassParameters->MaterialHTile			= MaterialHTileUAV;
 		PassParameters->MaterialDepth			= MaterialDepthUAV;
-		PassParameters->MaterialSlotTable		= Scene.NaniteMaterials[ENaniteMeshPass::BasePass].GetMaterialSlotSRV();
 		PassParameters->MaterialDepthTable		= UseNaniteComputeMaterials() ? nullptr : Scene.NaniteMaterials[ENaniteMeshPass::BasePass].GetMaterialDepthSRV();
 
 		FDepthExportCS::FPermutationDomain PermutationVectorCS;
@@ -404,7 +404,7 @@ void EmitDepthTargets(
 			PassParameters->PageConstants				= RasterResults.PageConstants;
 			PassParameters->VisBuffer64					= VisBuffer64;
 			PassParameters->ClusterPageData				= Nanite::GStreamingManager.GetClusterPageDataSRV(GraphBuilder);
-			PassParameters->MaterialSlotTable			= Scene.NaniteMaterials[ENaniteMeshPass::BasePass].GetMaterialSlotSRV();
+			PassParameters->MeshPassIndex				= ENaniteMeshPass::BasePass;
 			PassParameters->RenderTargets[0]			= FRenderTargetBinding(RasterResults.ShadingMask, ERenderTargetLoadAction::ELoad);
 			PassParameters->RenderTargets[1]			= bEmitVelocity ? FRenderTargetBinding(VelocityBuffer, ERenderTargetLoadAction::ELoad) : FRenderTargetBinding();
 			PassParameters->RenderTargets.DepthStencil	= FDepthStencilBinding(SceneDepth, ERenderTargetLoadAction::ELoad, FExclusiveDepthStencil::DepthWrite_StencilWrite);
@@ -462,13 +462,13 @@ void EmitDepthTargets(
 
 			PassParameters->DummyZero = 0u;
 			PassParameters->ClusterPageData				= Nanite::GStreamingManager.GetClusterPageDataSRV(GraphBuilder);
-			PassParameters->MaterialSlotTable			= Scene.NaniteMaterials[ENaniteMeshPass::BasePass].GetMaterialSlotSRV();
 			PassParameters->MaterialDepthTable			= Scene.NaniteMaterials[ENaniteMeshPass::BasePass].GetMaterialDepthSRV();
 			PassParameters->PageConstants				= RasterResults.PageConstants;
 			PassParameters->View						= View.ViewUniformBuffer;
 			PassParameters->ShadingMask					= RasterResults.ShadingMask;
 			PassParameters->VisBuffer64					= VisBuffer64;
 			PassParameters->VisibleClustersSWHW			= GraphBuilder.CreateSRV(RasterResults.VisibleClustersSWHW);
+			PassParameters->MeshPassIndex				= ENaniteMeshPass::BasePass;
 			PassParameters->RenderTargets.DepthStencil	= FDepthStencilBinding(
 				RasterResults.MaterialDepth,
 				ERenderTargetLoadAction::EClear,
@@ -615,6 +615,7 @@ void EmitCustomDepthStencilTargets(
 			PassParameters->DepthExportConfig		= FIntVector4(PlatformConfig, CustomDepthExtent.X, 0, Nanite::FGlobalResources::GetMaxVisibleClusters());
 			PassParameters->ViewRect				= FUint32Vector4((uint32)View.ViewRect.Min.X, (uint32)View.ViewRect.Min.Y, (uint32)View.ViewRect.Max.X, (uint32)View.ViewRect.Max.Y);
 			PassParameters->bWriteCustomStencil		= bWriteCustomStencil;
+			PassParameters->MeshPassIndex			= ENaniteMeshPass::BasePass;
 			PassParameters->VisBuffer64				= VisBuffer64;
 			PassParameters->Velocity				= nullptr;
 			PassParameters->ShadingMask				= nullptr;
@@ -623,7 +624,6 @@ void EmitCustomDepthStencilTargets(
 			PassParameters->SceneStencil			= CustomStencilUAV;
 			PassParameters->MaterialHTile			= nullptr;
 			PassParameters->MaterialDepth			= nullptr;
-			PassParameters->MaterialSlotTable		= Scene.NaniteMaterials[ENaniteMeshPass::BasePass].GetMaterialSlotSRV();
 			PassParameters->MaterialDepthTable		= Scene.NaniteMaterials[ENaniteMeshPass::BasePass].GetMaterialDepthSRV();
 
 			FDepthExportCS::FPermutationDomain PermutationVectorCS;
@@ -777,7 +777,7 @@ void EmitMaterialIdRects(
 
 	PassParameters->PS.VisBuffer64 = RasterContext.VisBuffer64;
 
-	PassParameters->PS.MaterialSlotTable	= Scene.NaniteMaterials[ENaniteMeshPass::LumenCardCapture].GetMaterialSlotSRV();
+	PassParameters->PS.MeshPassIndex 		= ENaniteMeshPass::LumenCardCapture;
 	PassParameters->PS.MaterialDepthTable	= Scene.NaniteMaterials[ENaniteMeshPass::LumenCardCapture].GetMaterialDepthSRV();
 
 	PassParameters->PS.RenderTargets.DepthStencil = FDepthStencilBinding(

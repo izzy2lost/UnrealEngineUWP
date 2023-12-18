@@ -363,12 +363,6 @@ public:
 	{
 	public:
 		void Lock(FRHICommandListBase& RHICmdList);
-
-		void* GetMaterialSlotPtr(uint32 PrimitiveIndex, uint32 EntryCount);
-#if WITH_EDITOR
-		void* GetHitProxyTablePtr(uint32 PrimitiveIndex, uint32 EntryCount);
-#endif
-
 		void Unlock(FRHICommandListBase& RHICmdList);
 
 	private:
@@ -392,8 +386,6 @@ public:
 
 		TArray<FMaterialUploadEntry, FSceneRenderingArrayAllocator> DirtyMaterialEntries;
 
-		FRDGScatterUploader* MaterialSlotUploader = nullptr;
-		FRDGScatterUploader* HitProxyTableUploader = nullptr;
 		FRDGScatterUploader* MaterialDepthUploader = nullptr;
 		FRDGScatterUploader* MaterialEditorUploader = nullptr;
 		int32 MaxMaterials = 0;
@@ -405,11 +397,6 @@ public:
 
 	void Finish(FRDGBuilder& GraphBuilder, FRDGExternalAccessQueue& ExternalAccessQueue, FUploader* Uploader);
 
-#if WITH_EDITOR
-	FRHIShaderResourceView* GetHitProxyTableSRV() const { return HitProxyTableDataBuffer->GetSRV(); }
-#endif
-
-	FRHIShaderResourceView* GetMaterialSlotSRV() const { return MaterialSlotDataBuffer->GetSRV(); }
 	FRHIShaderResourceView* GetMaterialDepthSRV() const { return MaterialDepthDataBuffer->GetSRV(); }
 #if WITH_DEBUG_VIEW_MODES
 	FRHIShaderResourceView* GetMaterialEditorSRV() const { return MaterialEditorDataBuffer->GetSRV(); }
@@ -428,12 +415,6 @@ private:
 	uint32 NumHitProxyTableUpdates = 0;
 	uint32 NumMaterialSlotUpdates = 0;
 	uint32 NumMaterialDepthUpdates = 0;
-
-	FRDGAsyncScatterUploadBuffer MaterialSlotUploadBuffer;
-	TRefCountPtr<FRDGPooledBuffer> MaterialSlotDataBuffer;
-
-	FRDGAsyncScatterUploadBuffer HitProxyTableUploadBuffer;
-	TRefCountPtr<FRDGPooledBuffer> HitProxyTableDataBuffer;
 
 	FGrowOnlySpanAllocator	MaterialSlotAllocator;
 
