@@ -130,6 +130,8 @@ public:
 	virtual void SetPlacement(ESchematicGraphNodePlacementConstraint InPlacement) { Placement = InPlacement; }
 	virtual ESchematicGraphNodeVisibility GetVisibility() const { return Visibility; }
 	virtual void SetVisibility(ESchematicGraphNodeVisibility InVisibility) { Visibility = InVisibility; }
+	virtual bool IsDragSupported() const { return bDragSupported; }
+	virtual void SetDragSupported(bool InDragSupported) { bDragSupported = InDragSupported;}
 
 	virtual FString GetDragDropDecoratorLabel() const;
 
@@ -145,6 +147,7 @@ protected:
 	FText ToolTip = FText();
 	ESchematicGraphNodePlacementConstraint Placement = ESchematicGraphNodePlacementConstraint::Free;
 	ESchematicGraphNodeVisibility Visibility = ESchematicGraphNodeVisibility::Visible;
+	bool bDragSupported = false;
 
 	friend class FSchematicGraphModel;
 };
@@ -224,10 +227,14 @@ public:
 	virtual ESchematicGraphNodePlacementConstraint GetPlacementForNode(const FSchematicGraphNode* InNode) const;
 	ESchematicGraphNodeVisibility GetVisibilityForNode(const FGuid& InGuid) const;
 	virtual ESchematicGraphNodeVisibility GetVisibilityForNode(const FSchematicGraphNode* InNode) const;
+	bool IsDragSupportedForNode(const FGuid& InGuid) const;
+	virtual bool IsDragSupportedForNode(const FSchematicGraphNode* InNode) const;
 
 	FOnNodeAdded& OnNodeAdded() { return OnNodeAddedDelegate; }
 	FOnNodeRemoved& OnNodeRemoved() { return OnNodeRemovedDelegate; }
 	FOnGraphReset& OnGraphReset() { return OnGraphResetDelegate; }
+
+	virtual bool GetForwardedNodeForDrag(FGuid& InOutGuid) const { return false; }
 
 protected:
 
@@ -423,6 +430,7 @@ public:
 	void OnBeginDragEvent(SSchematicGraphNode* Node, const FDragDropOperation& InDragDropEvent);
 	void OnEndDragEvent(SSchematicGraphNode* Node, const FDragDropOperation& InDragDropEvent);
 	void OnDropEvent(SSchematicGraphNode* Node, const FDragDropEvent& InDragDropEvent);
+	FReply HandleNodeDragDetected(FGuid Guid, const FGeometry& MyGeometry, const FPointerEvent& MouseEvent);
 
 	virtual FVector2d GetPositionForNode(FGuid InNodeGuid) const;
 	virtual FVector2d GetSizeForNode(FGuid InNodeGuid) const;
@@ -432,6 +440,7 @@ public:
 	virtual const FSlateBrush* GetBrushForNode(FGuid InNodeGuid) const;
 	virtual FText GetToolTipForNode(FGuid InNodeGuid) const;
 	virtual ESchematicGraphNodeVisibility GetVisibilityForNode(FGuid InNodeGuid) const;
+	virtual bool IsDragSupportedForNode(FGuid InNodeGuid) const;
 
 	void UpdateAutoScalingForNodes();
 

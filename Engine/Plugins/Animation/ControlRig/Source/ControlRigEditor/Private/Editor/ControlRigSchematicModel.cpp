@@ -16,6 +16,11 @@ FString FControlRigSchematicRigElementKeyNode::GetDragDropDecoratorLabel() const
 	return Key.ToString();
 }
 
+bool FControlRigSchematicRigElementKeyNode::IsDragSupported() const
+{
+	return Key.Type == ERigElementType::Connector;
+}
+
 FControlRigSchematicModel::~FControlRigSchematicModel()
 {
 	if(ControlRigBeingDebuggedPtr.IsValid())
@@ -436,6 +441,25 @@ const FText FControlRigSchematicModel::GetToolTipForNode(const FSchematicGraphNo
 	return FSchematicGraphModel::GetToolTipForNode(InNode);
 }
 
+ESchematicGraphNodeVisibility FControlRigSchematicModel::GetVisibilityForNode(const FSchematicGraphNode* InNode) const
+{
+	if(const FControlRigSchematicRigElementKeyNode* Node = Cast<FControlRigSchematicRigElementKeyNode>(InNode))
+	{
+		if(Node->GetKey().Type == ERigElementType::Connector)
+		{
+			FRigElementKey ResolvedSocket;
+			if(IsConnectorResolved(Node->GetKey(), &ResolvedSocket))
+			{
+				if(ContainsElementKeyNode(ResolvedSocket))
+				{
+					return ESchematicGraphNodeVisibility::Hidden;
+				}
+			}
+		}
+	}
+	return FSchematicGraphModel::GetVisibilityForNode(InNode);
+}
+
 ESchematicGraphNodePlacementConstraint FControlRigSchematicModel::GetPlacementForNode(const FSchematicGraphNode* InNode) const
 {
 	if(const FControlRigSchematicRigElementKeyNode* Node = Cast<FControlRigSchematicRigElementKeyNode>(InNode))
@@ -449,6 +473,25 @@ ESchematicGraphNodePlacementConstraint FControlRigSchematicModel::GetPlacementFo
 		}
 	}
 	return FSchematicGraphModel::GetPlacementForNode(InNode);
+}
+
+bool FControlRigSchematicModel::GetForwardedNodeForDrag(FGuid& InOutGuid) const
+{
+	if(const FControlRigSchematicRigElementKeyNode* ElementKeyNode = Cast<FControlRigSchematicRigElementKeyNode>(FindNode(InOutGuid)))
+	{
+		for(const TPair<FRigElementKey, FRigElementKey>& Pair : ControlRigBlueprint->ConnectionMap)
+		{
+			if(Pair.Value == ElementKeyNode->GetKey())
+			{
+				if(const FControlRigSchematicRigElementKeyNode* ForwardedNode = FindElementKeyNode(Pair.Key))
+				{
+					InOutGuid = ForwardedNode->GetGuid();
+					return true;
+				}
+			}
+		}
+	}
+	return FSchematicGraphModel::GetForwardedNodeForDrag(InOutGuid);
 }
 
 void FControlRigSchematicModel::HandleSchematicNodeClicked(SSchematicGraphPanel* InPanel, SSchematicGraphNode* InNode)
@@ -530,6 +573,11 @@ void FControlRigSchematicModel::HandleSchematicBeginDrag(SSchematicGraphPanel* I
 	if (!ModuleInstance)
 	{
 		return;
+	}
+
+	if (UModularRigController* Controller = ControlRigBlueprint->GetModularRigController())
+	{
+		Controller->DisconnectConnector(Connector->GetKey(), true);
 	}
 
 	const UModularRigRuleManager* RuleManager = Hierarchy->GetRuleManager();

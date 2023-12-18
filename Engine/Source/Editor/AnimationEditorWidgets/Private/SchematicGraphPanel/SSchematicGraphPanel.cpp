@@ -244,6 +244,21 @@ ESchematicGraphNodeVisibility FSchematicGraphModel::GetVisibilityForNode(const F
 	return InNode->GetVisibility();
 }
 
+bool FSchematicGraphModel::IsDragSupportedForNode(const FGuid& InGuid) const
+{
+	if(const FSchematicGraphNode* Node = FindNode(InGuid))
+	{
+		return IsDragSupportedForNode(Node);
+	}
+	return false;
+}
+
+bool FSchematicGraphModel::IsDragSupportedForNode(const FSchematicGraphNode* InNode) const
+{
+	check(InNode);
+	return InNode->IsDragSupported();
+}
+
 TSharedRef<FSchematicGraphNodeDragDropOp> FSchematicGraphNodeDragDropOp::New(TArray<SSchematicGraphNode*> InSchematicGraphNodes, const TArray<FGuid>& InElements, FSchematicGraphNodeDragDropOp::FOnEndDrag InOnEndDragDelegate)
 {
 	TSharedRef<FSchematicGraphNodeDragDropOp> Operation = MakeShared<FSchematicGraphNodeDragDropOp>();
@@ -444,18 +459,34 @@ FReply SSchematicGraphNode::OnDrop(const FGeometry& MyGeometry, const FDragDropE
 
 FReply SSchematicGraphNode::OnDragDetected(const FGeometry& MyGeometry, const FPointerEvent& MouseEvent)
 {
-	TArray<FGuid> DraggedElements = {GetGuid()};
+	FGuid Guid = GetGuid();
+	if(SchematicGraphPanel)
+	{
+		const FReply ReplyFromPanel = SchematicGraphPanel->HandleNodeDragDetected(Guid, MyGeometry, MouseEvent);
+		if(ReplyFromPanel.IsEventHandled())
+		{
+			return ReplyFromPanel;
+		}
+	}
+	
+	TArray<FGuid> DraggedElements = {Guid};
 	if (MouseEvent.IsMouseButtonDown(EKeys::LeftMouseButton) && DraggedElements.Num() > 0)
 	{
-		bIsBeingDragged = true;
+		if(SchematicGraphPanel)
+		{
+			if(SchematicGraphPanel->IsDragSupportedForNode(GetGuid()))
+			{
+				bIsBeingDragged = true;
 
-		const FVector2f AbsoluteMousePosition = MouseEvent.GetScreenSpacePosition();
-		const FVector2d LocalMousePosition =  (AbsoluteMousePosition - MyGeometry.GetAbsolutePosition()) / MyGeometry.GetAccumulatedLayoutTransform().GetScale();
-		OffsetDuringDrag = -LocalMousePosition;
-		
-		const TSharedRef<FSchematicGraphNodeDragDropOp> DragDropOp = FSchematicGraphNodeDragDropOp::New({this}, MoveTemp(DraggedElements), OnEndDragDelegate);
-		OnBeginDragDelegate.ExecuteIfBound(this, DragDropOp.Get());
-		return FReply::Handled().BeginDragDrop(DragDropOp);
+				const FVector2f AbsoluteMousePosition = MouseEvent.GetScreenSpacePosition();
+				const FVector2d LocalMousePosition =  (AbsoluteMousePosition - MyGeometry.GetAbsolutePosition()) / MyGeometry.GetAccumulatedLayoutTransform().GetScale();
+				OffsetDuringDrag = -LocalMousePosition;
+			
+				const TSharedRef<FSchematicGraphNodeDragDropOp> DragDropOp = FSchematicGraphNodeDragDropOp::New({this}, MoveTemp(DraggedElements), OnEndDragDelegate);
+				OnBeginDragDelegate.ExecuteIfBound(this, DragDropOp.Get());
+				return FReply::Handled().BeginDragDrop(DragDropOp);
+			}
+		}
 	}
 	
 	return FReply::Unhandled();
@@ -463,6 +494,11 @@ FReply SSchematicGraphNode::OnDragDetected(const FGeometry& MyGeometry, const FP
 
 EVisibility SSchematicGraphNode::GetNodeVisibility() const
 {
+	if(IsBeingDragged())
+	{
+		return EVisibility::HitTestInvisible;
+	}
+
 	if(SchematicGraphPanel)
 	{
 		ESchematicGraphNodeVisibility Vis = SchematicGraphPanel->GetVisibilityForNode(GetGuid());
@@ -474,11 +510,6 @@ EVisibility SSchematicGraphNode::GetNodeVisibility() const
 		{
 			return EVisibility::HitTestInvisible;
 		}
-	}
-
-	if(IsBeingDragged())
-	{
-		return EVisibility::HitTestInvisible;
 	}
 
 	return EVisibility::Visible;
@@ -846,6 +877,20 @@ void SSchematicGraphPanel::OnDropEvent(SSchematicGraphNode* Node, const FDragDro
 	OnDropDelegate.ExecuteIfBound(this, Node, InDragDropEvent);
 }
 
+FReply SSchematicGraphPanel::HandleNodeDragDetected(FGuid Guid, const FGeometry& MyGeometry, const FPointerEvent& MouseEvent)
+{
+	if(GraphData)
+	{
+		FGuid ForwardedGuid = Guid;
+		if(GraphData->GetForwardedNodeForDrag(ForwardedGuid))
+		{
+			SSchematicGraphNode* ForwardedNode = const_cast<SSchematicGraphNode*>(FindNode(ForwardedGuid));
+			return ForwardedNode->OnDragDetected(MyGeometry, MouseEvent);
+		}
+	}
+	return FReply::Unhandled();
+}
+
 FVector2d SSchematicGraphPanel::GetPositionForNode(FGuid InNodeGuid) const
 {
 	const SSchematicGraphNode* NodeWidget = FindNode(InNodeGuid);
@@ -991,6 +1036,15 @@ ESchematicGraphNodeVisibility SSchematicGraphPanel::GetVisibilityForNode(FGuid I
 		return GraphData->GetVisibilityForNode(InNodeGuid);
 	}
 	return ESchematicGraphNodeVisibility::Visible;
+}
+
+bool SSchematicGraphPanel::IsDragSupportedForNode(FGuid InNodeGuid) const
+{
+	if(GraphData)
+	{
+		return GraphData->IsDragSupportedForNode(InNodeGuid);
+	}
+	return false;
 }
 
 void SSchematicGraphPanel::UpdateAutoScalingForNodes()

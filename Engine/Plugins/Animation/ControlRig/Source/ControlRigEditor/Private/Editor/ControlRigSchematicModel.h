@@ -24,6 +24,7 @@ public:
 	const FRigElementKey& GetKey() const { return Key; }
 	virtual FString GetDragDropDecoratorLabel() const override;
 	virtual bool IsAutoScaleEnabled() const override { return true; }
+	virtual bool IsDragSupported() const override;
 	
 protected:
 
@@ -56,7 +57,10 @@ public:
 	virtual const FSlateBrush* GetBrushForNode(const FSchematicGraphNode* InNode) const override;
 	virtual FLinearColor GetColorForNode(const FSchematicGraphNode* InNode) const override;
 	virtual const FText GetToolTipForNode(const FSchematicGraphNode* InNode) const override;
+	virtual ESchematicGraphNodeVisibility GetVisibilityForNode(const FSchematicGraphNode* InNode) const override;
 	virtual ESchematicGraphNodePlacementConstraint GetPlacementForNode(const FSchematicGraphNode* InNode) const override;
+
+	virtual bool GetForwardedNodeForDrag(FGuid& InOutGuid) const override;
 
 private:
 
