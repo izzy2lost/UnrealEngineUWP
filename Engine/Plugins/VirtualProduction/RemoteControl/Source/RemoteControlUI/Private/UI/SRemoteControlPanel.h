@@ -75,7 +75,6 @@ public:
 
 	void Construct(const FArguments& InArgs, URemoteControlPreset* InPreset, TSharedPtr<IToolkitHost> InToolkitHost);
 	~SRemoteControlPanel();
-	static void Shutdown();
 
 	//~ Begin SWidget interface
 	virtual void Tick(const FGeometry& AllottedGeometry, const double InCurrentTime, const float InDeltaTime);
@@ -163,6 +162,9 @@ public:
 	}
 
 private:
+
+	/** Returns a Helper widget for entity details view and protocol details view. */
+	static TSharedRef<SBox> CreateNoneSelectedWidget();
 
 	//~ Remote Control Commands
 	void BindRemoteControlCommands();
@@ -380,8 +382,6 @@ private:
 	TSharedPtr<class IStructureDetailsView> EntityDetailsView;
 	/** Wrapper widget for entity details view. */
 	TSharedPtr<SBorder> WrappedEntityDetailsView;
-	/** Helper widget for entity details view and protocol details view. */
-	static TSharedPtr<SBox> NoneSelectedWidget;
 	/** Holds the field's protocol details. */
 	TSharedPtr<SBox> EntityProtocolDetails;
 	/** Whether to show the rebind all button. */

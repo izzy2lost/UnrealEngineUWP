@@ -3,22 +3,21 @@
 #include "SRCBehaviourPanel.h"
 #include "SRCBehaviourPanelList.h"
 
-#include "Behaviour/RCBehaviourBlueprintNode.h"
 #include "Behaviour/RCBehaviour.h"
+#include "Behaviour/RCBehaviourBlueprintNode.h"
 #include "Behaviour/RCBehaviourNode.h"
 #include "Controller/RCController.h"
 #include "Framework/MultiBox/MultiBoxBuilder.h"
 #include "Kismet2/KismetEditorUtilities.h"
 #include "Misc/MessageDialog.h"
-#include "RemoteControlPreset.h"
 
 #include "SlateOptMacros.h"
 #include "Styling/RemoteControlStyles.h"
 
+#include "UI/Controller/RCControllerModel.h"
 #include "UI/Panels/SRCDockPanel.h"
 #include "UI/RemoteControlPanelStyle.h"
 #include "UI/SRemoteControlPanel.h"
-#include "UI/Controller/RCControllerModel.h"
 #include "UObject/UObjectIterator.h"
 #include "Widgets/Input/SComboButton.h"
 
@@ -28,17 +27,20 @@
 
 #define LOCTEXT_NAMESPACE "SRCBehaviourPanel"
 
-TSharedPtr<SBox> SRCBehaviourPanel::NoneSelectedWidget = SNew(SBox)
-			.Padding(10.f)
-			.VAlign(VAlign_Center)
-			.HAlign(HAlign_Center)
-			[
-				SNew(STextBlock)
-				.Text(LOCTEXT("NoneSelected", "Select a controller\nto view its behaviors."))
-				.TextStyle(&FAppStyle::GetWidgetStyle<FTextBlockStyle>("NormalText"))
-				.Justification(ETextJustify::Center)
-				.AutoWrapText(true)
-			];
+TSharedRef<SBox> SRCBehaviourPanel::CreateNoneSelectedWidget()
+{
+	return SNew(SBox)
+		.Padding(10.f)
+		.VAlign(VAlign_Center)
+		.HAlign(HAlign_Center)
+		[
+			SNew(STextBlock)
+			.Text(LOCTEXT("NoneSelected", "Select a controller\nto view its behaviors."))
+			.TextStyle(&FAppStyle::GetWidgetStyle<FTextBlockStyle>("NormalText"))
+			.Justification(ETextJustify::Center)
+			.AutoWrapText(true)
+		];
+}
 
 void SRCBehaviourPanel::Construct(const FArguments& InArgs, const TSharedRef<SRemoteControlPanel>& InPanel)
 {
@@ -57,11 +59,6 @@ void SRCBehaviourPanel::Construct(const FArguments& InArgs, const TSharedRef<SRe
 
 	// Register delegates
 	InPanel->OnControllerSelectionChanged.AddSP(this, &SRCBehaviourPanel::OnControllerSelectionChanged);
-}
-
-void SRCBehaviourPanel::Shutdown()
-{
-	NoneSelectedWidget.Reset();
 }
 
 void SRCBehaviourPanel::OnControllerSelectionChanged(TSharedPtr<FRCControllerModel> InControllerItem)
@@ -116,7 +113,7 @@ void SRCBehaviourPanel::UpdateWrappedWidget(TSharedPtr<FRCControllerModel> InCon
 	}
 	else
 	{
-		WrappedBoxWidget->SetContent(NoneSelectedWidget.ToSharedRef());
+		WrappedBoxWidget->SetContent(CreateNoneSelectedWidget());
 	}
 }
 

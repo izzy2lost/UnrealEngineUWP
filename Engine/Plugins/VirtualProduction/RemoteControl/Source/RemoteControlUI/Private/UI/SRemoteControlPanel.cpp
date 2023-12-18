@@ -86,16 +86,19 @@ const FName SRemoteControlPanel::DefaultRemoteControlPanelToolBarName("RemoteCon
 const FName SRemoteControlPanel::AuxiliaryRemoteControlPanelToolBarName("RemoteControlPanel.AuxiliaryToolBar");
 const float SRemoteControlPanel::MinimumPanelWidth = 640.f;
 
-TSharedPtr<SBox> SRemoteControlPanel::NoneSelectedWidget = SNew(SBox)
-			.Padding(0.f)
-			.HAlign(HAlign_Center)
-			.VAlign(VAlign_Center)
-			[
-				SNew(STextBlock)
-				.Text(LOCTEXT("NoneSelected", "Select an entity to view details."))
-				.TextStyle(&FAppStyle::GetWidgetStyle<FTextBlockStyle>("NormalText"))
-				.Justification(ETextJustify::Center)
-			];
+TSharedRef<SBox> SRemoteControlPanel::CreateNoneSelectedWidget()
+{
+	return SNew(SBox)
+		.Padding(0.f)
+		.HAlign(HAlign_Center)
+		.VAlign(VAlign_Center)
+		[
+			SNew(STextBlock)
+			.Text(LOCTEXT("NoneSelected", "Select an entity to view details."))
+			.TextStyle(&FAppStyle::GetWidgetStyle<FTextBlockStyle>("NormalText"))
+			.Justification(ETextJustify::Center)
+		];
+}
 
 namespace RemoteControlPanelUtils
 {
@@ -755,11 +758,6 @@ SRemoteControlPanel::~SRemoteControlPanel()
 	{
 		FRemoteControlUIModule::Get().UnregisterRemoteControlPanel(this);
 	}
-}
-
-void SRemoteControlPanel::Shutdown()
-{
-	NoneSelectedWidget.Reset();
 }
 
 void SRemoteControlPanel::Tick(const FGeometry& AllottedGeometry, const double InCurrentTime, const float InDeltaTime)
@@ -1758,7 +1756,7 @@ TSharedRef<SWidget> SRemoteControlPanel::CreateEntityDetailsView()
 	}
 	else
 	{
-		WrappedEntityDetailsView->SetContent(NoneSelectedWidget.ToSharedRef());
+		WrappedEntityDetailsView->SetContent(CreateNoneSelectedWidget());
 	}
 
 	return EntityDetailsDockPanel;
@@ -1794,7 +1792,7 @@ void SRemoteControlPanel::UpdateEntityDetailsView(const TSharedPtr<SRCPanelTreeN
 	}
 	else
 	{
-		WrappedEntityDetailsView->SetContent(NoneSelectedWidget.ToSharedRef());
+		WrappedEntityDetailsView->SetContent(CreateNoneSelectedWidget());
 	}
 
 	static const FName ProtocolWidgetsModuleName = "RemoteControlProtocolWidgets";
@@ -1809,13 +1807,13 @@ void SRemoteControlPanel::UpdateEntityDetailsView(const TSharedPtr<SRCPanelTreeN
 			}
 			else
 			{
-				EntityProtocolDetails->SetContent(NoneSelectedWidget.ToSharedRef());
+				EntityProtocolDetails->SetContent(CreateNoneSelectedWidget());
 			}
 		}
 	}
 	else
 	{
-		EntityProtocolDetails->SetContent(NoneSelectedWidget.ToSharedRef());
+		EntityProtocolDetails->SetContent(CreateNoneSelectedWidget());
 	}
 
 	// Trigger search to list the search results specific to selected group.

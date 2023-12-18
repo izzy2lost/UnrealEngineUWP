@@ -37,9 +37,6 @@ public:
 	/** Constructs this widget with InArgs */
 	void Construct(const FArguments& InArgs, const TSharedRef<SRemoteControlPanel>& InPanel);
 
-	/** Shutdown panel */
-	static void Shutdown();
-
 	/** Whether the Actions list widget currently has focus.*/
 	bool IsListFocused() const;
 
@@ -147,6 +144,8 @@ private:
 	void OnRemoteControlFieldDeleted(const FGuid& GroupId, const FGuid& FieldId, int32 FieldPosition);
 
 private:
+	/** Helper widget for behavior details. */
+	static TSharedRef<SBox> CreateNoneSelectedWidget();
 
 	void DuplicateAction(URCAction* InAction);
 
@@ -164,11 +163,8 @@ private:
 	/** Behaviour specific details widget*/
 	TSharedPtr<SRCBehaviourDetails> BehaviourDetailsWidget;
 
-	/** Helper widget for behavior details. */
-	static TSharedPtr<SBox> NoneSelectedWidget;
-
 	/** Panel Style reference. */
-	const FRCPanelStyle* RCPanelStyle;
+	const FRCPanelStyle* RCPanelStyle = nullptr;
 
 	/** Cached menu widget for Add New Action */
 	TSharedPtr<SWidget> AddNewActionMenuWidget;

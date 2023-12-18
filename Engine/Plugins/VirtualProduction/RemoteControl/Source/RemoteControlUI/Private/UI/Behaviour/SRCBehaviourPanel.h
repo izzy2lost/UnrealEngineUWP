@@ -30,9 +30,6 @@ public:
 	/** Constructs this widget with InArgs */
 	void Construct(const FArguments& InArgs, const TSharedRef<SRemoteControlPanel>& InPanel);
 
-	/** Shutdown panel */
-	static void Shutdown();
-
 	/** Whether the Behaviour list widget currently has focus. Used for Delete Item UI command */
 	bool IsListFocused() const;
 
@@ -69,6 +66,9 @@ protected:
 	virtual FReply RequestDeleteAllItems() override;
 
 private:
+	/** Get a Helper widget for behavior details. */
+	static TSharedRef<SBox> CreateNoneSelectedWidget();
+
 	/** Duplicates a given Behaviour object*/
 	void DuplicateBehaviour(URCBehaviour* InBehaviour);
 	
@@ -94,7 +94,6 @@ private:
 	FReply OnClickEmptyButton();
 
 private:
-
 	/** The parent Controller that this Behaviour panel is associated with */
 	TWeakPtr<FRCControllerModel> SelectedControllerItemWeakPtr = nullptr;
 	
@@ -104,9 +103,6 @@ private:
 	/** Widget representing List of Behaviours */
 	TSharedPtr<class SRCBehaviourPanelList> BehaviourPanelList;
 
-	/** Helper widget for behavior details. */
-	static TSharedPtr<SBox> NoneSelectedWidget;
-
 	/** Panel Style reference. */
-	const FRCPanelStyle* RCPanelStyle;
+	const FRCPanelStyle* RCPanelStyle = nullptr;
 };

@@ -22,18 +22,6 @@
 
 class SPositiveActionButton;
 
-namespace UE::SRCBehaviourConditional::Private
-{
-	static TSharedPtr<ERCBehaviourConditionType> ConditionTypeIsEqual = MakeShared<ERCBehaviourConditionType>(ERCBehaviourConditionType::IsEqual);
-	static TSharedPtr<ERCBehaviourConditionType> ConditionTypeIsLesserThan = MakeShared<ERCBehaviourConditionType>(ERCBehaviourConditionType::IsLesserThan);
-	static TSharedPtr<ERCBehaviourConditionType> ConditionTypeIsGreaterThan = MakeShared<ERCBehaviourConditionType>(ERCBehaviourConditionType::IsGreaterThan);
-	static TSharedPtr<ERCBehaviourConditionType> ConditionTypeIsLesserThanOrEqualTo = MakeShared<ERCBehaviourConditionType>(ERCBehaviourConditionType::IsLesserThanOrEqualTo);
-	static TSharedPtr<ERCBehaviourConditionType> ConditionTypeIsGreaterThanOrEqualTo = MakeShared<ERCBehaviourConditionType>(ERCBehaviourConditionType::IsGreaterThanOrEqualTo);
-	static TSharedPtr<ERCBehaviourConditionType> ConditionTypeElse = MakeShared<ERCBehaviourConditionType>(ERCBehaviourConditionType::Else);
-}
-
-using namespace UE::SRCBehaviourConditional::Private;
-
 BEGIN_SLATE_FUNCTION_BUILD_OPTIMIZATION
 
 void SRCBehaviourConditional::Construct(const FArguments& InArgs, TSharedRef<FRCBehaviourConditionalModel> InBehaviourItem)
@@ -46,17 +34,22 @@ void SRCBehaviourConditional::Construct(const FArguments& InArgs, TSharedRef<FRC
 	{
 		if (URCController* Controller = Behaviour->ControllerWeakPtr.Get())
 		{
-			Conditions.Add(ConditionTypeIsEqual);
+			auto AddCondition = [this](ERCBehaviourConditionType InConditionType)
+			{
+				Conditions.Add(MakeShared<ERCBehaviourConditionType>(InConditionType));
+			};
+
+			AddCondition(ERCBehaviourConditionType::IsEqual);
 
 			if (Controller->IsNumericType())
 			{
-				Conditions.Add(ConditionTypeIsLesserThan);
-				Conditions.Add(ConditionTypeIsGreaterThan);
-				Conditions.Add(ConditionTypeIsLesserThanOrEqualTo);
-				Conditions.Add(ConditionTypeIsGreaterThanOrEqualTo);
+				AddCondition(ERCBehaviourConditionType::IsLesserThan);
+				AddCondition(ERCBehaviourConditionType::IsGreaterThan);
+				AddCondition(ERCBehaviourConditionType::IsLesserThanOrEqualTo);
+				AddCondition(ERCBehaviourConditionType::IsGreaterThanOrEqualTo);
 			}
 
-			Conditions.Add(ConditionTypeElse);
+			AddCondition(ERCBehaviourConditionType::Else);
 		}
 	}
 
@@ -118,17 +111,6 @@ void SRCBehaviourConditional::Construct(const FArguments& InArgs, TSharedRef<FRC
 
 END_SLATE_FUNCTION_BUILD_OPTIMIZATION
 
-void SRCBehaviourConditional::Shutdown()
-{
-	// Reset all static shared pointers
-	ConditionTypeIsEqual.Reset();
-	ConditionTypeIsLesserThan.Reset();
-	ConditionTypeIsGreaterThan.Reset();
-	ConditionTypeIsLesserThanOrEqualTo.Reset();
-	ConditionTypeIsGreaterThan.Reset();
-	ConditionTypeElse.Reset();
-}
-
 void SRCBehaviourConditional::RefreshPropertyWidget()
 {
 	if (ComparandFieldBoxWidget)
@@ -136,7 +118,7 @@ void SRCBehaviourConditional::RefreshPropertyWidget()
 		if (TSharedPtr<const FRCBehaviourConditionalModel> BehaviourItem = ConditionalBehaviourItemWeakPtr.Pin())
 		{
 			ComparandFieldBoxWidget->SetContent(BehaviourItem->GetComparandFieldWidget());
-		}		
+		}
 	}
 }
 

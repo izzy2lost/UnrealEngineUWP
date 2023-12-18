@@ -274,10 +274,6 @@ void FRemoteControlUIModule::ShutdownModule()
 	UnbindRemoteControlCommands();
 	FRemoteControlPanelStyle::Shutdown();
 	FRemoteControlExposeMenuStyle::Shutdown();
-	SRemoteControlPanel::Shutdown();
-	SRCActionPanel::Shutdown();
-	SRCBehaviourPanel::Shutdown();
-	SRCBehaviourConditional::Shutdown();
 }
 
 FDelegateHandle FRemoteControlUIModule::AddPropertyFilter(FOnDisplayExposeIcon OnDisplayExposeIcon)

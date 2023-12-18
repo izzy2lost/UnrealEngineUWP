@@ -40,16 +40,19 @@
 
 #define LOCTEXT_NAMESPACE "SRCActionPanel"
 
-TSharedPtr<SBox> SRCActionPanel::NoneSelectedWidget = SNew(SBox)
-			.Padding(0.f)
-			.VAlign(VAlign_Center)
-			.HAlign(HAlign_Center)
-			[
-				SNew(STextBlock)
-				.Text(LOCTEXT("NoneSelected", "Select a behavior to view its actions."))
-				.TextStyle(&FAppStyle::GetWidgetStyle<FTextBlockStyle>("NormalText"))
-				.Justification(ETextJustify::Center)
-			];
+TSharedRef<SBox> SRCActionPanel::CreateNoneSelectedWidget()
+{
+	return SNew(SBox)
+	.Padding(0.f)
+	.VAlign(VAlign_Center)
+	.HAlign(HAlign_Center)
+	[
+		SNew(STextBlock)
+		.Text(LOCTEXT("NoneSelected", "Select a behavior to view its actions."))
+		.TextStyle(&FAppStyle::GetWidgetStyle<FTextBlockStyle>("NormalText"))
+		.Justification(ETextJustify::Center)
+	];
+}
 
 BEGIN_SLATE_FUNCTION_BUILD_OPTIMIZATION
 
@@ -81,11 +84,6 @@ void SRCActionPanel::Construct(const FArguments& InArgs, const TSharedRef<SRemot
 }
 
 END_SLATE_FUNCTION_BUILD_OPTIMIZATION
-
-void SRCActionPanel::Shutdown()
-{
-	NoneSelectedWidget.Reset();
-}
 
 void SRCActionPanel::OnBehaviourSelectionChanged(TSharedPtr<FRCBehaviourModel> InBehaviourItem)
 {
@@ -199,7 +197,7 @@ void SRCActionPanel::UpdateWrappedWidget(TSharedPtr<FRCBehaviourModel> InBehavio
 	}
 	else
 	{
-		WrappedBoxWidget->SetContent(NoneSelectedWidget.ToSharedRef());
+		WrappedBoxWidget->SetContent(CreateNoneSelectedWidget());
 	}
 }
 
