@@ -80,6 +80,28 @@ bool FTimerNameFilterState::ApplyFilter(const FFilterContext& Context) const
 }
 
 ////////////////////////////////////////////////////////////////////////////////////////////////////
+
+bool FTimerNameFilterState::Equals(const FFilterState& Other) const
+{
+	if (this->GetTypeName() != Other.GetTypeName())
+	{
+		return false;
+	}
+
+	const FTimerNameFilterState& OtherTimerNameFilter = StaticCast<const FTimerNameFilterState&>(Other);
+	return FilterValue == OtherTimerNameFilter.FilterValue;
+}
+
+////////////////////////////////////////////////////////////////////////////////////////////////////
+
+TSharedRef<FFilterState> FTimerNameFilterState::DeepCopy() const
+{
+	TSharedRef<FTimerNameFilterState> Copy = MakeShared<FTimerNameFilterState>(*this);
+
+	return Copy;
+}
+
+////////////////////////////////////////////////////////////////////////////////////////////////////
 // FTimerNameFilter
 ////////////////////////////////////////////////////////////////////////////////////////////////////
 
@@ -599,6 +621,35 @@ FText FMetadataFilterState::GetTermTextBoxValue() const
 void FMetadataFilterState::OnTermTextBoxValueCommitted(const FText& InNewText, ETextCommit::Type InTextCommit)
 {
 	Term = InNewText.ToString();
+}
+
+////////////////////////////////////////////////////////////////////////////////////////////////////
+
+bool FMetadataFilterState::Equals(const FFilterState& Other) const
+{
+	if (this->GetTypeName() != Other.GetTypeName())
+	{
+		return false;
+	}
+
+	bool bIsEqual = true;
+
+	const FMetadataFilterState& OtherMetadataFilter = StaticCast<const FMetadataFilterState&>(Other);
+	
+	bIsEqual &= Key.Equals(OtherMetadataFilter.Key);
+	bIsEqual &= Term.Equals(OtherMetadataFilter.Term);
+	bIsEqual &= SelectedDataType == OtherMetadataFilter.SelectedDataType;
+
+	return bIsEqual;
+}
+
+////////////////////////////////////////////////////////////////////////////////////////////////////
+
+TSharedRef<FFilterState> FMetadataFilterState::DeepCopy() const
+{
+	TSharedRef<FMetadataFilterState> Copy = MakeShared<FMetadataFilterState>(*this);
+	
+	return Copy;
 }
 
 ////////////////////////////////////////////////////////////////////////////////////////////////////

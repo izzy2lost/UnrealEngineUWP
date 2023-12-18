@@ -37,13 +37,8 @@ TSharedRef<FFilterConfiguratorNode> FFilterConfiguratorNode::DeepCopy(const FFil
 	NodeCopy.AvailableFilters = InSourceNode.AvailableFilters;
 	NodeCopy.AvailableFilterOperators = InSourceNode.AvailableFilterOperators;
 	NodeCopy.SelectedFilter = InSourceNode.SelectedFilter;
-	NodeCopy.SelectedFilterOperator = InSourceNode.SelectedFilterOperator;
 	NodeCopy.SelectedFilterGroupOperator = InSourceNode.SelectedFilterGroupOperator;
 	NodeCopy.TextBoxValue = InSourceNode.TextBoxValue;
-	if (InSourceNode.SelectedFilter.IsValid())
-	{
-		NodeCopy.FilterState = InSourceNode.SelectedFilter->BuildFilterState(*InSourceNode.FilterState);
-	}
 
 	NodeCopy.SetExpansion(InSourceNode.IsExpanded());
 
@@ -58,6 +53,10 @@ TSharedRef<FFilterConfiguratorNode> FFilterConfiguratorNode::DeepCopy(const FFil
 			NodeCopy.AddChildAndSetParent(ChildCopy);
 		}
 	}
+	else
+	{
+		NodeCopy.FilterState = InSourceNode.FilterState->DeepCopy();
+	}
 
 	return NodeCopyPtr;
 }
@@ -67,9 +66,24 @@ TSharedRef<FFilterConfiguratorNode> FFilterConfiguratorNode::DeepCopy(const FFil
 bool FFilterConfiguratorNode::operator==(const FFilterConfiguratorNode& Other) const
 {
 	bool bIsEqual = true;
+	
+	if (!IsGroup())
+	{
+		check(FilterState.IsValid());
+		check(Other.FilterState.IsValid());
+
+		if (FilterState->GetTypeName() == Other.FilterState->GetTypeName())
+		{
+			bIsEqual &= FilterState->Equals(*Other.FilterState);
+		}
+		else
+		{
+			return false;
+		}
+	}
+
 	bIsEqual &= AvailableFilters.Get() == Other.AvailableFilters.Get();
 	bIsEqual &= SelectedFilter.Get() == Other.SelectedFilter.Get();
-	bIsEqual &= SelectedFilterOperator.Get() == Other.SelectedFilterOperator.Get();
 	bIsEqual &= SelectedFilterGroupOperator.Get() == Other.SelectedFilterGroupOperator.Get();
 	bIsEqual &= TextBoxValue == Other.TextBoxValue;
 	bIsEqual &= GetChildrenCount() == Other.GetChildrenCount();
@@ -88,7 +102,7 @@ bool FFilterConfiguratorNode::operator==(const FFilterConfiguratorNode& Other) c
 
 ////////////////////////////////////////////////////////////////////////////////////////////////////
 
-const TArray<TSharedPtr<FFilterGroupOperator>>& FFilterConfiguratorNode::GetFilterGroupOperators()
+const TArray<TSharedPtr<FFilterGroupOperator>>& FFilterConfiguratorNode::GetFilterGroupOperators() const
 {
 	return FFilterService::Get()->GetFilterGroupOperators();
 }
@@ -257,7 +271,7 @@ void FFilterConfiguratorNode::SetSelectedFilterOperator(TSharedPtr<IFilterOperat
 
 ////////////////////////////////////////////////////////////////////////////////////////////////////
 
-TSharedPtr<IFilterOperator> FFilterConfiguratorNode::GetSelectedFilterOperator() const
+TSharedPtr<const IFilterOperator> FFilterConfiguratorNode::GetSelectedFilterOperator() const
 {
 	if (FilterState.IsValid())
 	{

@@ -190,7 +190,7 @@ public:
 	virtual ~FFilterState() {}
 
 	void SetSelectedOperator(TSharedPtr<IFilterOperator> InOperator) { SelectedOperator = InOperator; }
-	TSharedPtr<IFilterOperator> GetSelectedOperator() { return SelectedOperator; }
+	TSharedPtr<const IFilterOperator> GetSelectedOperator() const { return SelectedOperator; }
 
 	virtual void Update() {};
 	virtual bool ApplyFilter(const FFilterContext& Context) const;
@@ -199,6 +199,9 @@ public:
 
 	virtual bool HasCustomUI() const { return false; }
 	virtual void AddCustomUI(TSharedRef<SHorizontalBox> LeftBox) {}
+
+	virtual bool Equals(const FFilterState& Other) const;
+	virtual TSharedRef<FFilterState> DeepCopy() const;
 
 protected:
 	TSharedRef<FFilter> Filter;

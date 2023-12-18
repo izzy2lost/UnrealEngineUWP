@@ -25,6 +25,12 @@ public:
 		: FFilterState(InFilter)
 	{}
 
+	FTimerNameFilterState(const FTimerNameFilterState& Other)
+		: FFilterState(Other)
+	{
+		FilterValue = Other.FilterValue;
+	}
+
 	virtual ~FTimerNameFilterState() {}
 
 	virtual void Update() override;
@@ -33,10 +39,12 @@ public:
 
 	virtual void SetFilterValue(FString InFilterValue) override { FilterValue = InFilterValue; }
 
+	virtual bool Equals(const FFilterState& Other) const;
+	virtual TSharedRef<FFilterState> DeepCopy() const;
+
 private:
 	FString FilterValue;
 	TSet<uint32> TimerIds;
-	bool bShouldUpdate = true;
 };
 
 class FTimerNameFilter : public FCustomFilter
@@ -98,6 +106,9 @@ public:
 
 	virtual bool HasCustomUI() const override { return true; }
 	virtual void AddCustomUI(TSharedRef<SHorizontalBox> LeftBox) override;
+
+	virtual bool Equals(const FFilterState& Other) const override ;
+	virtual TSharedRef<FFilterState> DeepCopy() const override ;
 
 private:
 	FText GetKeyTextBoxValue() const;

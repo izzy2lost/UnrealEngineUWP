@@ -64,9 +64,9 @@ public:
 	TSharedPtr<FFilter> GetSelectedFilter() const { return SelectedFilter; }
 
 	void SetSelectedFilterOperator(TSharedPtr<IFilterOperator> InSelectedFilterOperator);
-	TSharedPtr<IFilterOperator> GetSelectedFilterOperator() const;
+	TSharedPtr<const IFilterOperator> GetSelectedFilterOperator() const;
 
-	const TArray<TSharedPtr<FFilterGroupOperator>>& GetFilterGroupOperators();
+	const TArray<TSharedPtr<FFilterGroupOperator>>& GetFilterGroupOperators() const;
 	void SetSelectedFilterGroupOperator(TSharedPtr<FFilterGroupOperator> InSelectedFilterGroupOperator) { SelectedFilterGroupOperator = InSelectedFilterGroupOperator; }
 	TSharedPtr<FFilterGroupOperator> GetSelectedFilterGroupOperator() const { return SelectedFilterGroupOperator; }
 
@@ -91,8 +91,6 @@ private:
 	TSharedPtr<TArray<TSharedPtr<FFilter>>> AvailableFilters;
 
 	TSharedPtr<FFilter> SelectedFilter;
-
-	TSharedPtr<IFilterOperator> SelectedFilterOperator;
 
 	TSharedPtr<FFilterGroupOperator> SelectedFilterGroupOperator;
 

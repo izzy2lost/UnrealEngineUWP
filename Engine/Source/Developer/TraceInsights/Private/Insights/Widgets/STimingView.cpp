@@ -5239,7 +5239,6 @@ void STimingView::FilterAllTracks()
 {
 	LLM_SCOPE_BYTAG(Insights);
 	FilterConfigurator = MakeShared<Insights::FFilterConfigurator>(*QuickFindVm->GetFilterConfigurator());
-	FilterConfigurator->Update();
 
 	for (auto& Entry : AllTracks)
 	{
