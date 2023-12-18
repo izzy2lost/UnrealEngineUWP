@@ -893,7 +893,7 @@ const TResourceArray<float>& FLandscapeRenderSystem::ComputeSectionsLODForView(c
 {
 	TRACE_CPUPROFILER_EVENT_SCOPE(FLandscapeRenderSystem::ComputeSectionsLODForView);
 
-	TResourceArray<float>& SectionLODValues = CachedSectionLODValues.Add(InView.GetViewKey());
+	TResourceArray<float>& SectionLODValues = CachedSectionLODValues.Add(&InView);
 	SectionLODValues.AddZeroed(SectionInfos.Num());
 
 	for (int32 SectionIndex = 0; SectionIndex < SectionInfos.Num(); SectionIndex++)
@@ -1875,7 +1875,8 @@ FPrimitiveViewRelevance FLandscapeComponentSceneProxy::GetViewRelevance(const FS
 		(CVarLandscapeShowDirty.GetValueOnAnyThread() && GLandscapeDirtyMaterial) ||
 		(GetViewLodOverride(*View, LandscapeKey) >= 0)
 #else
-		IsSelected()
+		IsSelected() ||
+		(View->CustomRenderPass && GetViewLodOverride(*View, LandscapeKey) >= 0)
 #endif
 		)
 	{
@@ -1895,7 +1896,7 @@ FPrimitiveViewRelevance FLandscapeComponentSceneProxy::GetViewRelevance(const FS
 	}
 #endif // !UE_BUILD_SHIPPING
 
-	if (bNaniteActive && View->Family->EngineShowFlags.NaniteMeshes)
+	if (bNaniteActive && View->Family->EngineShowFlags.NaniteMeshes && !View->CustomRenderPass)
 	{
 		Result.bShadowRelevance = false;
 		Result.bVelocityRelevance = false;
@@ -2581,7 +2582,8 @@ void FLandscapeComponentSceneProxy::GetDynamicMeshElements(const TArray<const FS
 						(IsSelected() && !GLandscapeEditModeActive) ||
 						(GetViewLodOverride(*View, LandscapeKey) >= 0)
 #else
-						IsSelected()
+						IsSelected() ||
+						(View->CustomRenderPass && GetViewLodOverride(*View, LandscapeKey) >= 0)
 #endif
 						)
 					{

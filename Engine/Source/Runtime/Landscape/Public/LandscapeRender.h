@@ -486,7 +486,7 @@ struct FLandscapeRenderSystem
 
 	FUniformBufferRHIRef SectionLODUniformBuffer;
 
-	TMap<FViewKey, TResourceArray<float>> CachedSectionLODValues;
+	TMap<const FSceneView*, TResourceArray<float>> CachedSectionLODValues;
 
 	/** Forced LOD level which overrides the ForcedLOD level of all the sections under this LandscapeRenderSystem. */
 	int8 ForcedLODOverride;
@@ -546,7 +546,7 @@ struct FLandscapeRenderSystem
 
 	float GetSectionLODValue(const FSceneView& SceneView, FIntPoint InRenderCoord) const
 	{
-		return CachedSectionLODValues[SceneView.GetViewKey()][GetSectionLinearIndex(InRenderCoord)];
+		return CachedSectionLODValues[&SceneView][GetSectionLinearIndex(InRenderCoord)];
 	}
 
 	float GetSectionLODBias(FIntPoint InRenderCoord) const
