@@ -42,6 +42,9 @@ static FAutoConsoleVariableRef CVarUseReplicationConditionForActiveGameplayEffec
 static bool bReplicateAbilitiesToSimulatedProxies = false;
 static FAutoConsoleVariableRef CVarReplicateGameplayAbilitiesToOwnerOnly(TEXT("AbilitySystem.Fix.ReplicateAbilitiesToSimulatedProxies"), bReplicateAbilitiesToSimulatedProxies, TEXT("Default: False.  When false, Gameplay Abilities replicate to AutonomousProxies only, not SimulatedProxies (surmised to be a bug)"));
 
+static bool bForceReplicationAlsoUpdatesReplicatedProxyInterface = true;
+static FAutoConsoleVariableRef CVarForceReplicationAlsoUpdatesReplicatedProxyInterface(TEXT("AbilitySystem.Fix.ForceReplicationAlsoUpdatesReplicatedProxyInterface"), bForceReplicationAlsoUpdatesReplicatedProxyInterface, TEXT("Default: True.  When true, Calling ForceReplication() on the AbilitySystemComponent will also call ForceReplication() on the ReplicationProxy to ensure prompt replication of Cues and Tags"));
+
 UAbilitySystemComponent::UAbilitySystemComponent(const FObjectInitializer& ObjectInitializer)
 	: Super(ObjectInitializer)
 	, GameplayTagCountContainer()
@@ -1658,6 +1661,15 @@ void UAbilitySystemComponent::ForceReplication()
 	if (OwningActor)
 	{
 		OwningActor->ForceNetUpdate();
+
+		if (ReplicationProxyEnabled && bForceReplicationAlsoUpdatesReplicatedProxyInterface)
+		{
+			IAbilitySystemReplicationProxyInterface* ReplicationProxy = GetReplicationInterface();
+			if (ReplicationProxy && ReplicationProxy != this)
+			{
+				ReplicationProxy->ForceReplication();
+			}
+		}
 	}
 }
 
