@@ -1856,7 +1856,7 @@ void FSlateRHIRenderer::DrawWindows_Private(FSlateDrawBuffer& WindowDrawBuffer)
 						}
 						else if (SlatePostBuffer 
 							&& SlatePostBuffer->GetResource()
-							&& LastFramesPostBufferUsed[SlatePostBufferBitIndex] < GFrameCounter
+							&& LastFramesPostBufferUsed[SlatePostBufferBitIndex] + 1 < GFrameCounter
 							&& SlatePostRTFences[SlatePostBufferBitIndex].IsFenceComplete() 
 							&& (SlatePostBuffer->SizeX != 1 || SlatePostBuffer->SizeY != 1))
 						{
