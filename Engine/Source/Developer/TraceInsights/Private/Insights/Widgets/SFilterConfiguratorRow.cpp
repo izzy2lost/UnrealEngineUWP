@@ -55,26 +55,26 @@ TSharedRef<SWidget> SFilterConfiguratorRow::GenerateWidgetForColumn(const FName&
 
 		TSharedPtr<FFilterState> FilterState = FilterConfiguratorNodePtr->GetSelectedFilterState();
 		check(FilterState.IsValid());
+
+		// Filter combo box
+		LeftBox->AddSlot()
+			.HAlign(HAlign_Left)
+			.VAlign(VAlign_Center)
+			.AutoWidth()
+			.Padding(FMargin(0.0f, 2.0f))
+			[
+				SAssignNew(FilterTypeComboBox, SComboBox<TSharedPtr<FFilter>>)
+				.OptionsSource(GetAvailableFilters())
+				.OnSelectionChanged(this, &SFilterConfiguratorRow::AvailableFilters_OnSelectionChanged)
+				.OnGenerateWidget(this, &SFilterConfiguratorRow::AvailableFilters_OnGenerateWidget)
+				[
+					SNew(STextBlock)
+					.Text(this, &SFilterConfiguratorRow::AvailableFilters_GetSelectionText)
+				]
+			];
 		
 		if (!FilterState->HasCustomUI())
 		{
-			// Filter combo box
-			LeftBox->AddSlot()
-				.HAlign(HAlign_Left)
-				.VAlign(VAlign_Center)
-				.AutoWidth()
-				.Padding(FMargin(0.0f, 2.0f))
-				[
-					SAssignNew(FilterTypeComboBox, SComboBox<TSharedPtr<FFilter>>)
-					.OptionsSource(GetAvailableFilters())
-					.OnSelectionChanged(this, &SFilterConfiguratorRow::AvailableFilters_OnSelectionChanged)
-					.OnGenerateWidget(this, &SFilterConfiguratorRow::AvailableFilters_OnGenerateWidget)
-					[
-						SNew(STextBlock)
-						.Text(this, &SFilterConfiguratorRow::AvailableFilters_GetSelectionText)
-					]
-				];
-
 			// Operator combo box
 			LeftBox->AddSlot()
 				.HAlign(HAlign_Left)
