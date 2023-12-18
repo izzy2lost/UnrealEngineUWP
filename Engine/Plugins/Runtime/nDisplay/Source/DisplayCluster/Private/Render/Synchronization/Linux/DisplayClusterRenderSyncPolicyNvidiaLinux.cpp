@@ -22,6 +22,11 @@ bool FDisplayClusterRenderSyncPolicyNvidia::InitializeNvidiaSwapLock()
 	return true;
 }
 
+void FDisplayClusterRenderSyncPolicyNvidia::SetMaximumFrameLatency(uint8 FrameLatency)
+{
+	// not implemented yet
+}
+
 bool FDisplayClusterRenderSyncPolicyNvidia::SynchronizeClusterRendering(int32& InOutSyncInterval)
 {
 	// Wait unless the frame is rendered

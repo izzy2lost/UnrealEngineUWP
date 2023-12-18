@@ -36,7 +36,11 @@ public:
 	virtual bool SynchronizeClusterRendering(int32& InOutSyncInterval) override;
 
 private:
+	// Initializes NVIDIA internals
 	bool InitializeNvidiaSwapLock();
+
+	// Frame latency control
+	void SetMaximumFrameLatency(uint8 FrameLatency);
 
 private:
 	bool bNvApiInitialized = false;
