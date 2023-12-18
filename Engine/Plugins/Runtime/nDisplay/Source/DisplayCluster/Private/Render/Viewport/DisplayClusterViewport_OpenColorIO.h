@@ -32,9 +32,6 @@ public:
 	virtual ~FDisplayClusterViewport_OpenColorIO();
 
 public:
-	/** Update render thread resources. */
-	void UpdateOpenColorIORenderPassResources();
-
 	/** Setup view for OCIO.
 	 *
 	 * @param InOutViewFamily - [In,Out] ViewFamily.
@@ -42,7 +39,7 @@ public:
 	 *
 	 * @return - none.
 	 */
-	void SetupSceneView(FSceneViewFamily& InOutViewFamily, FSceneView& InOutView) const;
+	void SetupSceneView(FSceneViewFamily& InOutViewFamily, FSceneView& InOutView);
 
 	/** Add OCIO render pass.
 	 *
@@ -75,6 +72,12 @@ public:
 		return ConversionSettings;
 	}
 
+	/** Returns true if OCIO can be used in the rendering thread. */
+	bool IsValid_RenderThread() const
+	{
+		return CachedResourcesRenderThread.IsValid();
+	}
+
 private:
 	/* returns the DisplayGamma of OCIO for the viewport context.*/
 	float GetDisplayGamma(const FDisplayClusterViewport_Context& InViewportContext) const;
@@ -85,7 +88,4 @@ private:
 
 	/** Configuration to apply during post render callback. */
 	FOpenColorIOColorConversionSettings ConversionSettings;
-
-	/** Shader resources state. */
-	bool bShaderResourceValid = true;
 };

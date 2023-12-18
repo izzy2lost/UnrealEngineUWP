@@ -242,6 +242,11 @@ void UOpenColorIOColorTransform::ProcessTransformForGPU()
 	FOpenColorIOWrapperProcessor TransformProcessor;
 	if (GetTransformProcessor(TransformProcessor))
 	{
+		// Note for a ticket in jira [UE-202180]
+		// When the Textures array is emptied, this will cause all existing UTexture objects in the game thread to be deleted.
+		// The resources that were returned earlier using GetRenderResources() and GetRenderPassResources() will also be deleted.
+		// Other plugins store OCIO resources in the FOpenColorIORenderPassResources structure, which uses pointers to FTextureResources
+		// that are used without reference counting. Once deleted in the game thread, they become invalid in the rendering thread.
 		Textures.Reset();
 
 		const UOpenColorIOSettings* Settings = GetDefault<UOpenColorIOSettings>();
@@ -491,7 +496,18 @@ bool UOpenColorIOColorTransform::GetRenderResources(ERHIFeatureLevel::Type InFea
 
 		for (const TPair<int32, TObjectPtr<UTexture>>& Pair : Textures)
 		{
-			OutTextureResources.Add(Pair.Key, Pair.Value->GetResource());
+			if (FTextureResource* TextureResource = Pair.Value->GetResource())
+			{
+				OutTextureResources.Add(Pair.Key, TextureResource);
+			}
+			else
+			{
+				// The texture doesn't exist, we can't get all the resources we need
+				OutShaderResource = nullptr;
+				OutTextureResources.Empty();
+
+				return false;
+			}
 		}
 	}
 	

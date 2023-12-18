@@ -26,25 +26,20 @@ FDisplayClusterViewport_OpenColorIO::FDisplayClusterViewport_OpenColorIO(const F
 FDisplayClusterViewport_OpenColorIO::~FDisplayClusterViewport_OpenColorIO()
 { }
 
-void FDisplayClusterViewport_OpenColorIO::SetupSceneView(FSceneViewFamily& InOutViewFamily, FSceneView& InOutView) const
+void FDisplayClusterViewport_OpenColorIO::SetupSceneView(FSceneViewFamily& InOutViewFamily, FSceneView& InOutView)
 {
-	if (bShaderResourceValid)
+	FOpenColorIORenderPassResources PassResources = FOpenColorIORendering::GetRenderPassResources(ConversionSettings, InOutViewFamily.GetFeatureLevel());
+	if (PassResources.IsValid())
 	{
 		FOpenColorIORendering::PrepareView(InOutViewFamily, InOutView);
 	}
-}
 
-void FDisplayClusterViewport_OpenColorIO::UpdateOpenColorIORenderPassResources()
-{
-	FOpenColorIORenderPassResources PassResources = FOpenColorIORendering::GetRenderPassResources(ConversionSettings, GMaxRHIFeatureLevel);
-
-	bShaderResourceValid = PassResources.IsValid();
-
+	// Update data on rendering thread
 	ENQUEUE_RENDER_COMMAND(ProcessColorSpaceTransform)(
-		[This = SharedThis(this), PassResourcesRenderThread = MoveTemp(PassResources)](FRHICommandListImmediate& RHICmdList)
+		[This = SharedThis(this), ResourcesRenderThread = MoveTemp(PassResources)](FRHICommandListImmediate& RHICmdList)
 		{
 			//Caches render thread resource to be used when applying configuration in PostRenderViewFamily_RenderThread
-			This->CachedResourcesRenderThread = PassResourcesRenderThread;
+			This->CachedResourcesRenderThread = ResourcesRenderThread;
 		}
 	);
 }

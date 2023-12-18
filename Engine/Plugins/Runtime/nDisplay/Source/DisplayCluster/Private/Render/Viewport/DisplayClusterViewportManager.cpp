@@ -653,19 +653,6 @@ void FDisplayClusterViewportManager::InitializeNewFrame()
 {
 	check(IsInGameThread());
 
-	// Before render
-	for (const TSharedPtr<FDisplayClusterViewport, ESPMode::ThreadSafe>& Viewport : ImplGetCurrentRenderFrameViewports())
-	{
-		if (Viewport.IsValid())
-		{
-			// Initialize OCIO resources
-			if (Viewport->GetOpenColorIO().IsValid())
-			{
-				Viewport->GetOpenColorIO()->UpdateOpenColorIORenderPassResources();
-			}
-		}
-	}
-
 	// Handle new frame for warp policies
 	FDisplayClusterWarpPolicyManager WarpPolicyManager;
 	WarpPolicyManager.HandleNewFrame(*this);

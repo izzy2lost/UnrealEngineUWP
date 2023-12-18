@@ -42,6 +42,7 @@ void FOpenColorIORendering::AddPass_RenderThread(
 	FGlobalShaderMap* ShaderMap = GetGlobalShaderMap(FeatureLevel);
 	TShaderMapRef<FScreenPassVS> VertexShader(ShaderMap);
 
+	bool bRenderPassSuccessed = false;
 	if (InPassResource.ShaderResource != nullptr)
 	{
 		TShaderRef<FOpenColorIOPixelShader> OCIOPixelShader = InPassResource.ShaderResource->GetShader<FOpenColorIOPixelShader>();
@@ -49,15 +50,20 @@ void FOpenColorIORendering::AddPass_RenderThread(
 		FOpenColorIOPixelShaderParameters* Parameters = GraphBuilder.AllocParameters<FOpenColorIOPixelShaderParameters>();
 		Parameters->InputTexture = Input.Texture;
 		Parameters->InputTextureSampler = TStaticSamplerState<>::GetRHI();
-		OpenColorIOBindTextureResources(Parameters, InPassResource.TextureResources);
-		Parameters->Gamma = InGamma;
-		Parameters->TransformAlpha = (uint32)TransformAlpha;
-		Parameters->RenderTargets[0] = Output.GetRenderTargetBinding();
-		
-		FRDGEventName PassName = RDG_EVENT_NAME("OpenColorIOPass %dx%d (%s)", Output.ViewRect.Width(), Output.ViewRect.Height(), InPassResource.TransformName.IsEmpty() ? TEXT("Unspecified Transform") : *InPassResource.TransformName);
-		AddDrawScreenPass(GraphBuilder, MoveTemp(PassName), ViewInfo, OutputViewport, InputViewport, VertexShader, OCIOPixelShader, Parameters);
+		if (OpenColorIOBindTextureResources(Parameters, InPassResource.TextureResources))
+		{
+			Parameters->Gamma = InGamma;
+			Parameters->TransformAlpha = (uint32)TransformAlpha;
+			Parameters->RenderTargets[0] = Output.GetRenderTargetBinding();
+
+			FRDGEventName PassName = RDG_EVENT_NAME("OpenColorIOPass %dx%d (%s)", Output.ViewRect.Width(), Output.ViewRect.Height(), InPassResource.TransformName.IsEmpty() ? TEXT("Unspecified Transform") : *InPassResource.TransformName);
+			AddDrawScreenPass(GraphBuilder, MoveTemp(PassName), ViewInfo, OutputViewport, InputViewport, VertexShader, OCIOPixelShader, Parameters);
+
+			bRenderPassSuccessed = true;
+		}
 	}
-	else
+
+	if(!bRenderPassSuccessed)
 	{
 		// Fallback pass, printing invalid message across the viewport.
 		TShaderMapRef<FOpenColorIOInvalidPixelShader> OCIOInvalidPixelShader(ShaderMap);

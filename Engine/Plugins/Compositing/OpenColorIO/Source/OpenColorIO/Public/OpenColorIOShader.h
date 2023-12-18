@@ -103,6 +103,6 @@ public:
 	using FParameters = FOpenColorIOInvalidShaderParameters;
 };
 
-OPENCOLORIO_API void OpenColorIOBindTextureResources(FOpenColorIOPixelShaderParameters* Parameters, const TSortedMap<int32, FTextureResource*>& InTextureResources);
+OPENCOLORIO_API bool OpenColorIOBindTextureResources(FOpenColorIOPixelShaderParameters* Parameters, const TSortedMap<int32, FTextureResource*>& InTextureResources);
 
 FRHITexture* OpenColorIOGetMiniFontTexture();
