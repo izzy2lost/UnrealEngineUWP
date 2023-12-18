@@ -145,7 +145,7 @@ FArchive& operator<<(FArchive& Ar, FSkeletalMeshVertexClothBuffer& VertexBuffer)
 		VertexBuffer.AllocateData();
 	}
 
-	if (!StripFlags.IsDataStrippedForServer() || Ar.IsCountingMemory())
+	if (!StripFlags.IsAudioVisualDataStripped() || Ar.IsCountingMemory())
 	{
 		if (VertexBuffer.VertexData != NULL)
 		{

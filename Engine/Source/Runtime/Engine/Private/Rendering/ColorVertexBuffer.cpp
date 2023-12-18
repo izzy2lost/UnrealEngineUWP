@@ -209,7 +209,7 @@ void FColorVertexBuffer::Serialize( FArchive& Ar, bool bNeedsCPUAccess )
 			AllocateData(bNeedsCPUAccess);
 		}
 
-		if (!StripFlags.IsDataStrippedForServer() || Ar.IsCountingMemory())
+		if (!StripFlags.IsAudioVisualDataStripped() || Ar.IsCountingMemory())
 		{
 			if (VertexData != nullptr)
 			{
@@ -220,7 +220,7 @@ void FColorVertexBuffer::Serialize( FArchive& Ar, bool bNeedsCPUAccess )
 
 		if (Ar.IsLoading())
 		{
-			if (!StripFlags.IsDataStrippedForServer())
+			if (!StripFlags.IsAudioVisualDataStripped())
 			{
 				if (VertexData != nullptr && VertexData->Num() > 0)
 				{

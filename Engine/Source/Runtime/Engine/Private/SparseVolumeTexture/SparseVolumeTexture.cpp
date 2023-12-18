@@ -192,7 +192,7 @@ void FResources::Serialize(FArchive& Ar, UObject* Owner, bool bCooked)
 {
 	// Note: this is all derived data, native versioning is not needed, but be sure to bump GetDerivedDataVersion() when modifying!
 	FStripDataFlags StripFlags(Ar, 0);
-	if (!StripFlags.IsDataStrippedForServer())
+	if (!StripFlags.IsAudioVisualDataStripped())
 	{
 		Ar << Header;
 

@@ -84,7 +84,7 @@ FArchive& operator<<(FArchive& Ar, FSkinWeightLookupVertexBuffer& VertexBuffer)
 	}
 
 	// if Ar is counting, it still should serialize. Need to count VertexData
-	if (!StripFlags.IsDataStrippedForServer() || Ar.IsCountingMemory())
+	if (!StripFlags.IsAudioVisualDataStripped() || Ar.IsCountingMemory())
 	{
 		if (VertexBuffer.LookupData != NULL)
 		{
@@ -287,7 +287,7 @@ FArchive& operator<<(FArchive& Ar, FSkinWeightDataVertexBuffer& VertexBuffer)
 	}
 
 	// if Ar is counting, it still should serialize. Need to count VertexData
-	if (!StripFlags.IsDataStrippedForServer() || Ar.IsCountingMemory())
+	if (!StripFlags.IsAudioVisualDataStripped() || Ar.IsCountingMemory())
 	{
 		if (VertexBuffer.WeightData != NULL)
 		{

@@ -747,7 +747,7 @@ void FStaticMeshLODResources::Serialize(FArchive& Ar, UObject* Owner, int32 Inde
 	Ar << bInlined;
 	bBuffersInlined = bInlined;
 
-	if (!StripFlags.IsDataStrippedForServer() && !bIsLODCookedOut)
+	if (!StripFlags.IsAudioVisualDataStripped() && !bIsLODCookedOut)
 	{
 		FStaticMeshBuffersSize TmpBuffersSize;
 		TArray<uint8> TmpBuff;
@@ -1626,7 +1626,7 @@ void FStaticMeshRenderData::SerializeInlineDataRepresentations(FArchive& Ar, USt
 #endif
 
 	FStripDataFlags StripFlags(Ar, ClassDataStripFlags);
-	if (!StripFlags.IsDataStrippedForServer() && !StripFlags.IsClassDataStripped(CardRepresentationDataStripFlag))
+	if (!StripFlags.IsAudioVisualDataStripped() && !StripFlags.IsClassDataStripped(CardRepresentationDataStripFlag))
 	{
 		if (Ar.IsSaving())
 		{
@@ -1771,7 +1771,7 @@ void FStaticMeshRenderData::Serialize(FArchive& Ar, UStaticMesh* Owner, bool bCo
 #endif
 
 		FStripDataFlags StripFlags(Ar, ClassDataStripFlags);
-		if (!StripFlags.IsDataStrippedForServer() && !StripFlags.IsClassDataStripped(DistanceFieldDataStripFlag))
+		if (!StripFlags.IsAudioVisualDataStripped() && !StripFlags.IsClassDataStripped(DistanceFieldDataStripFlag))
 		{
 			if (Ar.IsSaving())
 			{

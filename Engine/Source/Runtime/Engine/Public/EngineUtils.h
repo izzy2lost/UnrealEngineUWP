@@ -829,10 +829,13 @@ public:
 	{
 		None = 0,
 
-		/* Editor data */
-		Editor = 1,
-		/* All data not required for dedicated server to work correctly (usually includes editor data). */
-		Server = 2,
+		/* This flag means that Editor-only data is stripped */
+		EditorOnly = 1,
+		Editor UE_DEPRECATED(5.4, "Use EditorOnly value instead of Editor") = EditorOnly,
+
+		/* This flag means that AudioVisual data is stripped (e.g. target is dedicated server). */
+		AudioVisual = 2,
+		Server UE_DEPRECATED(5.4, "Use AudioVisual value instead of Server") = AudioVisual,
 
 		// Add global flags here (up to 8 including the already defined ones).
 
@@ -917,7 +920,17 @@ public:
 	 */
 	FORCEINLINE bool IsEditorDataStripped() const
 	{
-		return (GlobalStripFlags & static_cast<uint8>(FStripDataFlags::EStrippedData::Editor)) != 0;
+		return (GlobalStripFlags & static_cast<uint8>(FStripDataFlags::EStrippedData::EditorOnly)) != 0;
+	}
+
+	/**
+	 * Checks if FStripDataFlags::AudioVisual flag is set or not
+	 *
+	 * @return true if FStripDataFlags::AudioVisual is set, false otherwise.
+	 */
+	bool IsAudioVisualDataStripped() const
+	{
+		return (GlobalStripFlags & static_cast<uint8>(FStripDataFlags::EStrippedData::AudioVisual)) != 0;
 	}
 
 	/**
@@ -925,9 +938,10 @@ public:
 	 *
 	 * @return true if FStripDataFlags::Server is set, false otherwise.
 	 */
+	UE_DEPRECATED(5.4, "Use IsAudioVisualDataStripped instead.")
 	bool IsDataStrippedForServer() const
 	{
-		return (GlobalStripFlags & static_cast<uint8>(FStripDataFlags::EStrippedData::Server)) != 0;
+		return IsAudioVisualDataStripped();
 	}
 
 	/**

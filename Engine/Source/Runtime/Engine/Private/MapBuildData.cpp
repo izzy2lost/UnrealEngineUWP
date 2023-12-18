@@ -524,7 +524,7 @@ void UMapBuildDataRegistry::Serialize(FArchive& Ar)
 	Ar.UsingCustomVersion(FUE5ReleaseStreamObjectVersion::GUID);
 	Ar.UsingCustomVersion(FUE5MainStreamObjectVersion::GUID);
 
-	if (!StripFlags.IsDataStrippedForServer())
+	if (!StripFlags.IsAudioVisualDataStripped())
 	{
 		Ar << MeshBuildData;
 		Ar << LevelPrecomputedLightVolumeBuildData;

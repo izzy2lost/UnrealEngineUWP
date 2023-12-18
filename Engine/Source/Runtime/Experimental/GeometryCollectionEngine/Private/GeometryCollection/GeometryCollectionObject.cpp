@@ -841,7 +841,7 @@ static void SerializeOldNaniteData(FArchive& Ar, UGeometryCollection* Owner)
 	for (int32 i = 0; i < NumNaniteResources; ++i)
 	{
 		FStripDataFlags StripFlags(Ar, 0);
-		if (!StripFlags.IsDataStrippedForServer())
+		if (!StripFlags.IsAudioVisualDataStripped())
 		{
 			bool bLZCompressed;
 			TArray< uint8 >						RootClusterPage;

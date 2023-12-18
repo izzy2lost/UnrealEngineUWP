@@ -216,7 +216,7 @@ void FStaticMeshVertexBuffer::Serialize(FArchive& Ar, bool bNeedsCPUAccess)
 		AllocateData(bNeedsCPUAccess);
 	}
 
-	if (!StripFlags.IsDataStrippedForServer() || Ar.IsCountingMemory())
+	if (!StripFlags.IsAudioVisualDataStripped() || Ar.IsCountingMemory())
 	{
 		if (TangentsData != nullptr)
 		{

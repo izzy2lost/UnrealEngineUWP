@@ -3742,7 +3742,7 @@ FArchive& operator<<(FArchive& Ar,FStaticMeshComponentLODInfo& I)
 #endif // WITH_EDITORONLY_DATA
 	FStripDataFlags StripFlags( Ar, bStrippedOverrideColors ? OverrideColorsStripFlag : 0 );
 
-	if( !StripFlags.IsDataStrippedForServer() )
+	if( !StripFlags.IsAudioVisualDataStripped() )
 	{
 		if (Ar.IsLoading() && Ar.CustomVer(FRenderingObjectVersion::GUID) < FRenderingObjectVersion::MapBuildDataSeparatePackage)
 		{

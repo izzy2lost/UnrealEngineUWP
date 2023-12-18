@@ -338,13 +338,9 @@ FArchive& operator<<(FArchive& Ar, FSkelMeshSection& S)
 		Ar << DummyChunkIndex;
 	}
 
-	if (!StripFlags.IsDataStrippedForServer())
+	if (!StripFlags.IsAudioVisualDataStripped())
 	{
 		Ar << S.BaseIndex;
-	}
-
-	if (!StripFlags.IsDataStrippedForServer())
-	{
 		Ar << S.NumTriangles;
 	}
 
@@ -416,7 +412,7 @@ FArchive& operator<<(FArchive& Ar, FSkelMeshSection& S)
 	if (Ar.CustomVer(FSkeletalMeshCustomVersion::GUID) >= FSkeletalMeshCustomVersion::CombineSectionWithChunk)
 	{
 
-		if (!StripFlags.IsDataStrippedForServer())
+		if (!StripFlags.IsAudioVisualDataStripped())
 		{
 			// This is so that BaseVertexIndex is never set to anything else that 0 (for safety)
 			Ar << S.BaseVertexIndex;
@@ -449,7 +445,7 @@ FArchive& operator<<(FArchive& Ar, FSkelMeshSection& S)
 		// If loading content newer than CombineSectionWithChunk but older than SaveNumVertices, update NumVertices here
 		if (Ar.IsLoading() && Ar.CustomVer(FSkeletalMeshCustomVersion::GUID) < FSkeletalMeshCustomVersion::SaveNumVertices)
 		{
-			if (!StripFlags.IsDataStrippedForServer())
+			if (!StripFlags.IsAudioVisualDataStripped())
 			{
 				S.NumVertices = S.SoftVertices.Num();
 			}
@@ -668,7 +664,7 @@ struct FLegacySkelMeshChunk
 	{
 		FStripDataFlags StripFlags(Ar);
 
-		if (!StripFlags.IsDataStrippedForServer())
+		if (!StripFlags.IsAudioVisualDataStripped())
 		{
 			// This is so that BaseVertexIndex is never set to anything else that 0 (for safety)
 			Ar << C.BaseVertexIndex;
@@ -740,7 +736,7 @@ void FSkeletalMeshLODModel::Serialize(FArchive& Ar, UObject* Owner, int32 Idx)
 	Ar.UsingCustomVersion(FUE5MainStreamObjectVersion::GUID);
 	Ar.UsingCustomVersion(FUE5ReleaseStreamObjectVersion::GUID);
 
-	if (StripFlags.IsDataStrippedForServer())
+	if (StripFlags.IsAudioVisualDataStripped())
 	{
 		TArray<FSkelMeshSection> TempSections;
 		Ar << TempSections;
@@ -824,7 +820,7 @@ void FSkeletalMeshLODModel::Serialize(FArchive& Ar, UObject* Owner, int32 Idx)
 			LegacyChunks[ChunkIdx].CopyToSection(Section);
 
 			// Set NumVertices for older content on load
-			if (!StripFlags.IsDataStrippedForServer())
+			if (!StripFlags.IsAudioVisualDataStripped())
 			{
 				Section.NumVertices = Section.SoftVertices.Num();
 			}
@@ -842,7 +838,7 @@ void FSkeletalMeshLODModel::Serialize(FArchive& Ar, UObject* Owner, int32 Idx)
 		Ar << LegacySize;
 	}
 
-	if (!StripFlags.IsDataStrippedForServer())
+	if (!StripFlags.IsAudioVisualDataStripped())
 	{
 		Ar << NumVertices;
 	}
@@ -888,7 +884,7 @@ void FSkeletalMeshLODModel::Serialize(FArchive& Ar, UObject* Owner, int32 Idx)
 		}
 	}
 
-	if (StripFlags.IsDataStrippedForServer())
+	if (StripFlags.IsAudioVisualDataStripped())
 	{
 		TArray<int32> TempMeshToImportVertexMap;
 		Ar << TempMeshToImportVertexMap;
@@ -902,7 +898,7 @@ void FSkeletalMeshLODModel::Serialize(FArchive& Ar, UObject* Owner, int32 Idx)
 		Ar << MaxImportVertex;
 	}
 
-	if (!StripFlags.IsDataStrippedForServer())
+	if (!StripFlags.IsAudioVisualDataStripped())
 	{
 		Ar << NumTexCoords;
 
@@ -967,7 +963,7 @@ void FSkeletalMeshLODModel::Serialize(FArchive& Ar, UObject* Owner, int32 Idx)
 				FStripDataFlags StripFlags2(Ar, 0, FPackageFileVersion::CreateUE4Version(VER_UE4_STATIC_SKELETAL_MESH_SERIALIZATION_FIX));
 				TSkeletalMeshVertexData<FMeshToMeshVertData> DummyClothData(true);
 
-				if (!StripFlags2.IsDataStrippedForServer() || Ar.IsCountingMemory())
+				if (!StripFlags2.IsAudioVisualDataStripped() || Ar.IsCountingMemory())
 				{
 					DummyClothData.Serialize(Ar);
 			
