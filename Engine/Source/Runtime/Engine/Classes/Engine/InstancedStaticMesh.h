@@ -516,6 +516,8 @@ public:
 
 	virtual bool IsDetailMesh() const override { return true; }
 
+	virtual void SetInstanceCullDistance_RenderThread(float StartCullDistance, float EndCullDistance) override;
+
 protected:
 	ENGINE_API FInstancedStaticMeshVFLooseUniformShaderParametersRef CreateLooseUniformBuffer(const FSceneView* View, const FInstancingUserData* InstancingUserData, uint32 InstancedLODRange, uint32 InstancedLODIndex, EUniformBufferUsage UniformBufferUsage) const;
 

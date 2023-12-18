@@ -1699,6 +1699,11 @@ void FSceneProxy::SetWorldPositionOffsetDisableDistance_GameThread(int32 NewValu
 		});
 }
 
+void FSceneProxy::SetInstanceCullDistance_RenderThread(float InStartCullDistance, float InEndCullDistance)
+{
+	EndCullDistance = InEndCullDistance;
+}
+
 FInstanceDataUpdateTaskInfo *FSceneProxy::GetInstanceDataUpdateTaskInfo() const
 {
 	return InstanceDataSceneProxy ? InstanceDataSceneProxy->GetUpdateTaskInfo() : nullptr;

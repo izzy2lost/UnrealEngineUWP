@@ -1150,6 +1150,18 @@ void FPrimitiveSceneProxy::SetDistanceFieldSelfShadowBias_RenderThread(float New
 	DistanceFieldSelfShadowBias = NewBias;
 }
 
+void FPrimitiveSceneProxy::SetDrawDistance_RenderThread(float InMinDrawDistance, float InMaxDrawDistance, float InVirtualTextureMaxDrawDistance)
+{
+	MinDrawDistance = InMinDrawDistance;
+	MaxDrawDistance = InMaxDrawDistance > 0.0f ? InMaxDrawDistance : FLT_MAX;
+	// Modify max draw distance for main pass if we are using virtual texturing
+	const bool bUseVirtualTexture = RuntimeVirtualTextures.Num() > 0;
+	if (bUseVirtualTexture && InVirtualTextureMaxDrawDistance > 0.f)
+	{
+		MaxDrawDistance = FMath::Min(MaxDrawDistance, InVirtualTextureMaxDrawDistance);
+	}
+}
+
 void FPrimitiveSceneProxy::GetPreSkinnedLocalBounds(FBoxSphereBounds& OutBounds) const
 {
 	// if we padded the local bounds for WPO, un-pad them for the "pre-skinned" bounds

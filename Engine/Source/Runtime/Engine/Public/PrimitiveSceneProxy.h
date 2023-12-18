@@ -269,6 +269,8 @@ public:
 
 	virtual void SetWorldPositionOffsetDisableDistance_GameThread(int32 NewValue) {}
 
+	virtual void SetInstanceCullDistance_RenderThread(float StartCullDistance, float EndCullDistance) {}
+
 	/** @return True if the primitive is visible in the given View. */
 	ENGINE_API bool IsShown(const FSceneView* View) const;
 
@@ -619,6 +621,8 @@ public:
 	void SetCustomDepthStencilValue_RenderThread(const int32 InCustomDepthStencilValue);
 
 	void SetDistanceFieldSelfShadowBias_RenderThread(float NewBias);
+
+	ENGINE_API void SetDrawDistance_RenderThread(float MinDrawDistance, float MaxDrawDistance, float VirtualTextureMaxDrawDistance);
 
 	// Accessors.
 	inline FSceneInterface& GetScene() const { return *Scene; }

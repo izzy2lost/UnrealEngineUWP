@@ -2188,6 +2188,30 @@ void FScene::UpdatePrimitiveOcclusionBoundsSlack(UPrimitiveComponent* Primitive,
 	}
 }
 
+void FScene::UpdatePrimitiveDrawDistance(UPrimitiveComponent* Primitive, float MinDrawDistance, float MaxDrawDistance, float VirtualTextureMaxDrawDistance)
+{
+	if (FPrimitiveSceneProxy* SceneProxy = Primitive->GetSceneProxy())
+	{
+		ENQUEUE_RENDER_COMMAND(UpdatePrimitiveDrawDistanceCmd)(
+			[this, SceneProxy, MinDrawDistance, MaxDrawDistance, VirtualTextureMaxDrawDistance] (FRHICommandListBase&)
+			{
+				UpdatedDrawDistance.Update(SceneProxy, FVector3f(MinDrawDistance, MaxDrawDistance, VirtualTextureMaxDrawDistance));
+			});
+	}
+}
+
+void FScene::UpdateInstanceCullDistance(UPrimitiveComponent* Primitive, float StartCullDistance, float EndCullDistance)
+{
+	if (FPrimitiveSceneProxy* SceneProxy = Primitive->GetSceneProxy())
+	{
+		ENQUEUE_RENDER_COMMAND(UpdateInstanceCullDistanceCmd)(
+			[this, SceneProxy, StartCullDistance, EndCullDistance] (FRHICommandListBase&)
+			{
+				UpdatedInstanceCullDistance.Update(SceneProxy, FVector2f(StartCullDistance, EndCullDistance));
+			});
+	}
+}
+
 void FScene::UpdatePrimitiveInstances(UInstancedStaticMeshComponent* Primitive)
 {
 	SCOPE_CYCLE_COUNTER(STAT_UpdatePrimitiveInstanceGT);
@@ -2408,6 +2432,8 @@ bool FScene::RemovePrimitiveSceneInfo_RenderThread(FPrimitiveSceneInfo* Primitiv
 		UpdatedCustomPrimitiveParams.Remove(PrimitiveSceneInfo->Proxy);
 		OverridenPreviousTransforms.Remove(PrimitiveSceneInfo);
 		UpdatedOcclusionBoundsSlacks.Remove(PrimitiveSceneInfo->Proxy);
+		UpdatedInstanceCullDistance.Remove(PrimitiveSceneInfo->Proxy);
+		UpdatedDrawDistance.Remove(PrimitiveSceneInfo->Proxy);
 		DistanceFieldSceneDataUpdates.Remove(PrimitiveSceneInfo);
 		UpdatedAttachmentRoots.Remove(PrimitiveSceneInfo);
 		DeletedPrimitiveSceneInfos.Emplace(PrimitiveSceneInfo);
@@ -5533,7 +5559,12 @@ void FScene::UpdateAllPrimitiveSceneInfos(FRDGBuilder& GraphBuilder, EUpdateAllP
 		{
 			InvalidatingPrimitiveCollector.UpdatedTransform(Transform.Key->GetPrimitiveSceneInfo());
 		}
-
+		
+		for (const auto& CullDistance : UpdatedInstanceCullDistance)
+		{
+			InvalidatingPrimitiveCollector.UpdatedTransform(CullDistance.Key->GetPrimitiveSceneInfo());
+		}
+		
 		InvalidatingPrimitiveCollector.Finalize();
 
 		CacheManager->ProcessInvalidations(GraphBuilder, SceneUB, InvalidatingPrimitiveCollector);
@@ -6508,6 +6539,57 @@ void FScene::UpdateAllPrimitiveSceneInfos(FRDGBuilder& GraphBuilder, EUpdateAllP
 		PrimitiveOcclusionBounds[SceneInfo->PackedIndex] = NewOccBounds.ExpandBy(OCCLUSION_SLOP + OccSlackDelta.Value);
 	}
 
+	for (auto& CullDistance : UpdatedInstanceCullDistance)
+	{
+		FPrimitiveSceneProxy* SceneProxy = CullDistance.Key;
+		FPrimitiveSceneInfo* SceneInfo = SceneProxy->GetPrimitiveSceneInfo();
+
+		if (DeletedPrimitiveSceneInfos.Contains(SceneInfo))
+		{
+			continue;
+		}
+
+		float StartCullDistance = CullDistance.Value.X;
+		float EndCullDistance = CullDistance.Value.Y;
+		
+		SceneProxy->SetInstanceCullDistance_RenderThread(StartCullDistance, EndCullDistance);
+		SceneInfo->MarkGPUStateDirty(EPrimitiveDirtyState::ChangedOther);
+	}
+
+	for (auto& DrawDistance : UpdatedDrawDistance)
+	{
+		FPrimitiveSceneProxy* SceneProxy = DrawDistance.Key;
+		FPrimitiveSceneInfo* SceneInfo = SceneProxy->GetPrimitiveSceneInfo();
+
+		if (DeletedPrimitiveSceneInfos.Contains(SceneInfo))
+		{
+			continue;
+		}
+
+		float MinDrawDistance = DrawDistance.Value.X;
+		float MaxDrawDistance = DrawDistance.Value.Y;
+		float VirtualTextureMaxDrawDistance = DrawDistance.Value.Z;
+
+		SceneProxy->SetDrawDistance_RenderThread(MinDrawDistance, MaxDrawDistance, VirtualTextureMaxDrawDistance);
+
+		if (SceneInfo->PackedIndex != INDEX_NONE)
+		{
+			PrimitiveBounds[SceneInfo->PackedIndex].MinDrawDistance = SceneProxy->GetMinDrawDistance();
+			PrimitiveBounds[SceneInfo->PackedIndex].MaxDrawDistance = SceneProxy->GetMaxDrawDistance();
+			PrimitiveBounds[SceneInfo->PackedIndex].MaxCullDistance = SceneProxy->GetMaxDrawDistance();
+		}
+
+		// Update the primitive info in octree.
+		if (SceneInfo->OctreeId.IsValidId())
+		{
+			FPrimitiveSceneInfoCompact& CompactPrimitiveSceneInfo = PrimitiveOctree.GetElementById(SceneInfo->OctreeId);
+			CompactPrimitiveSceneInfo.MinDrawDistance = SceneProxy->GetMinDrawDistance();
+			CompactPrimitiveSceneInfo.MaxDrawDistance = SceneProxy->GetMaxDrawDistance();
+		}
+
+		DistanceFieldSceneData.UpdatePrimitive(SceneInfo);
+	}
+	
 	{
 		RDG_CSV_STAT_EXCLUSIVE_SCOPE(GraphBuilder, UpdateGPUScene);
 		RDG_GPU_STAT_SCOPE(GraphBuilder, GPUSceneUpdate);
@@ -6557,6 +6639,8 @@ void FScene::UpdateAllPrimitiveSceneInfos(FRDGBuilder& GraphBuilder, EUpdateAllP
 	UpdatedCustomPrimitiveParams.Empty();
 	OverridenPreviousTransforms.Empty();
 	UpdatedOcclusionBoundsSlacks.Empty();
+	UpdatedInstanceCullDistance.Empty();
+	UpdatedDrawDistance.Empty();
 	DistanceFieldSceneDataUpdates.Empty();
 	AddedPrimitiveSceneInfos.Empty();
 	LevelCommands.Empty();
@@ -6690,6 +6774,8 @@ public:
 	virtual void UpdatePrimitiveTransform(UPrimitiveComponent* Primitive) override {}
 	virtual void UpdatePrimitiveInstances(UInstancedStaticMeshComponent* Primitive) override {}
 	virtual void UpdatePrimitiveOcclusionBoundsSlack(UPrimitiveComponent* Primitive, float NewSlack) override {}
+	virtual void UpdatePrimitiveDrawDistance(UPrimitiveComponent* Primitive, float MinDrawDistance, float MaxDrawDistance, float VirtualTextureMaxDrawDistance) override {}
+	virtual void UpdateInstanceCullDistance(UPrimitiveComponent* Primitive, float StartCullDistance, float EndCullDistance) {}
 	virtual void UpdatePrimitiveAttachment(UPrimitiveComponent* Primitive) override {}
 	virtual void UpdateCustomPrimitiveData(UPrimitiveComponent* Primitive) override {}
 

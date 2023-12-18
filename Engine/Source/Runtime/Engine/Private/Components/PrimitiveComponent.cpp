@@ -1982,7 +1982,11 @@ void UPrimitiveComponent::SetCachedMaxDrawDistance(const float NewCachedMaxDrawD
 	if( !FMath::IsNearlyEqual(CachedMaxDrawDistance, NewMaxDrawDistance) )
 	{
 		CachedMaxDrawDistance = NewMaxDrawDistance;
-		MarkRenderStateDirty();
+		
+		if (GetScene() && SceneProxy)
+		{
+			GetScene()->UpdatePrimitiveDrawDistance(this, MinDrawDistance, NewMaxDrawDistance, GetVirtualTextureMainPassMaxDrawDistance());
+		}
 	}
 }
 

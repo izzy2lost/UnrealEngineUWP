@@ -1983,6 +1983,23 @@ void FInstancedStaticMeshSceneProxy::SetupRayTracingDynamicInstances(int32 NumDy
 
 #endif
 
+void FInstancedStaticMeshSceneProxy::SetInstanceCullDistance_RenderThread(float StartCullDistance, float EndCullDistance)
+{
+	UserData_AllInstances.StartCullDistance = StartCullDistance;
+	UserData_AllInstances.EndCullDistance = EndCullDistance;
+
+	UserData_SelectedInstances.StartCullDistance = StartCullDistance;
+	UserData_SelectedInstances.EndCullDistance = EndCullDistance;
+
+	UserData_DeselectedInstances.StartCullDistance = StartCullDistance;
+	UserData_DeselectedInstances.EndCullDistance = EndCullDistance;
+
+	for (int32 i = 0; i < LODs.Num(); ++i)
+	{
+		FInstancedStaticMeshVFLooseUniformShaderParametersRef LooseUniformBuffer = CreateLooseUniformBuffer(nullptr, &UserData_AllInstances, 0, i, EUniformBufferUsage::UniformBuffer_MultiFrame);
+		LODLooseUniformBuffers.Add(i, LooseUniformBuffer);
+	}
+}
 
 /*-----------------------------------------------------------------------------
 	UInstancedStaticMeshComponent
@@ -4415,7 +4432,11 @@ void UInstancedStaticMeshComponent::SetCullDistances(int32 StartCullDistance, in
 	{
 		InstanceStartCullDistance = StartCullDistance;
 		InstanceEndCullDistance = EndCullDistance;
-		MarkRenderStateDirty();
+
+		if (GetScene() && SceneProxy)
+		{
+			GetScene()->UpdateInstanceCullDistance(this, StartCullDistance, EndCullDistance);
+		}
 	}
 }
 
