@@ -37,6 +37,8 @@ using MongoDB.Bson.Serialization;
 using EpicGames.Horde.Jobs;
 using EpicGames.Horde.Logs;
 using EpicGames.Horde.Agents.Sessions;
+using EpicGames.Horde.Storage;
+using Horde.Server.Storage;
 
 namespace Horde.Server.Jobs
 {
@@ -75,6 +77,44 @@ namespace Horde.Server.Jobs
 		{
 			(IJob job, _, IJobStep step) = await AuthorizeAsync(request.JobId, request.StepId, context);
 
+			ArtifactType type = request.Type switch
+			{
+				JobArtifactType.TempStorage => ArtifactType.StepOutput,
+				JobArtifactType.Saved => ArtifactType.StepSaved,
+				JobArtifactType.Trace => ArtifactType.StepTrace,
+				JobArtifactType.TestData => ArtifactType.StepTestData,
+				_ => throw new StructuredRpcException(StatusCode.InvalidArgument, "Invalid artifact type")
+			};
+
+			List<string> keys = new List<string>();
+			keys.Add($"job:{job.Id}");
+			keys.Add($"job:{job.Id}/step:{step.Id}");
+
+			if (!_globalConfig.TryGetTemplate(job.StreamId, job.TemplateId, out TemplateRefConfig? templateConfig))
+			{
+				throw new StructuredRpcException(StatusCode.NotFound, "Couldn't find template {TemplateId} in stream {StreamId}", job.TemplateId, job.StreamId);
+			}
+
+			DateTime? expireAt = null;
+			if (_globalConfig.TryGetArtifactType(type, out ArtifactTypeConfig? typeConfig) && typeConfig.KeepDays != null && typeConfig.KeepDays.Value >= 0)
+			{
+				expireAt = DateTime.UtcNow + TimeSpan.FromDays(typeConfig.KeepDays.Value);
+			}
+
+			IArtifact artifact = await _artifactCollection.AddAsync(new ArtifactName("default"), type, job.StreamId, job.Change, keys, expireAt, templateConfig.ScopeName, context.CancellationToken);
+
+			List<AclClaimConfig> claims = new List<AclClaimConfig>();
+			claims.Add(new AclClaimConfig(HordeClaimTypes.WriteNamespace, artifact.NamespaceId.ToString()));
+
+			string token = await _aclService.IssueBearerTokenAsync(claims, TimeSpan.FromHours(8.0));
+			return new Common.Rpc.CreateJobArtifactResponse { Id = artifact.Id.ToString(), NamespaceId = artifact.NamespaceId.ToString(), RefName = artifact.RefName.ToString(), Token = token };
+		}
+
+		/// <inheritdoc/>
+		public override async Task<Common.Rpc.CreateJobArtifactResponseV2> CreateArtifactV2(CreateJobArtifactRequestV2 request, ServerCallContext context)
+		{
+			(IJob job, _, IJobStep step) = await AuthorizeAsync(request.JobId, request.StepId, context);
+
 			ArtifactName name = new ArtifactName(request.Name);
 			ArtifactType type = new ArtifactType(request.Type);
 
@@ -100,7 +140,7 @@ namespace Horde.Server.Jobs
 
 			string token = await _aclService.IssueBearerTokenAsync(claims, TimeSpan.FromHours(8.0));
 
-			Common.Rpc.CreateJobArtifactResponse response = new Common.Rpc.CreateJobArtifactResponse();
+			Common.Rpc.CreateJobArtifactResponseV2 response = new Common.Rpc.CreateJobArtifactResponseV2();
 			response.Id = artifact.Id.ToString();
 			response.NamespaceId = artifact.NamespaceId.ToString();
 			response.RefName = artifact.RefName.ToString();

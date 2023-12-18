@@ -504,13 +504,13 @@ namespace Horde.Agent.Execution
 					ArtifactName artifactName = TempStorage.GetArtifactNameForNode(SetupStepName);
 					ArtifactType artifactType = ArtifactType.StepOutput;
 
-					CreateJobArtifactRequest artifactRequest = new CreateJobArtifactRequest();
+					CreateJobArtifactRequestV2 artifactRequest = new CreateJobArtifactRequestV2();
 					artifactRequest.JobId = JobId;
 					artifactRequest.StepId = step.StepId;
 					artifactRequest.Name = artifactName.ToString();
 					artifactRequest.Type = artifactType.ToString();
 
-					CreateJobArtifactResponse artifact = await jobRpc.Client.CreateArtifactAsync(artifactRequest, cancellationToken: cancellationToken);
+					CreateJobArtifactResponseV2 artifact = await jobRpc.Client.CreateArtifactV2Async(artifactRequest, cancellationToken: cancellationToken);
 					logger.LogInformation("Creating output artifact {ArtifactId} '{ArtifactName}' ({ArtifactType}) with ref {RefName} in namespace {NamespaceId}", artifact.Id, artifactName, artifactType, artifact.RefName, artifact.NamespaceId);
 
 					// Write the data
@@ -829,13 +829,13 @@ namespace Horde.Agent.Execution
 			{
 				using IRpcClientRef<JobRpc.JobRpcClient> jobRpc = await RpcConnection.GetClientRefAsync<JobRpc.JobRpcClient>(cancellationToken);
 
-				CreateJobArtifactRequest artifactRequest = new CreateJobArtifactRequest();
+				CreateJobArtifactRequestV2 artifactRequest = new CreateJobArtifactRequestV2();
 				artifactRequest.JobId = JobId;
 				artifactRequest.StepId = stepId;
 				artifactRequest.Name = name.ToString();
 				artifactRequest.Type = type.ToString();
 
-				CreateJobArtifactResponse artifact = await jobRpc.Client.CreateArtifactAsync(artifactRequest, cancellationToken: cancellationToken);
+				CreateJobArtifactResponseV2 artifact = await jobRpc.Client.CreateArtifactV2Async(artifactRequest, cancellationToken: cancellationToken);
 				Logger.LogInformation("Created artifact {ArtifactId} '{ArtifactName}' ({ArtifactType}) with ref {RefName} in ns {NamespaceId}", artifact.Id, name, type, artifact.RefName, artifact.NamespaceId);
 
 				using IStorageClient storage = CreateStorageClient(new NamespaceId(artifact.NamespaceId), artifact.Token);
@@ -1029,13 +1029,13 @@ namespace Horde.Agent.Execution
 			using (GlobalTracer.Instance.BuildSpan("TempStorage").WithTag("resource", "Write").StartActive())
 			{
 				// Create the artifact
-				CreateJobArtifactRequest artifactRequest = new CreateJobArtifactRequest();
+				CreateJobArtifactRequestV2 artifactRequest = new CreateJobArtifactRequestV2();
 				artifactRequest.JobId = JobId;
 				artifactRequest.StepId = step.StepId;
 				artifactRequest.Name = TempStorage.GetArtifactNameForNode(step.Name).ToString();
 				artifactRequest.Type = ArtifactType.StepOutput.ToString();
 
-				CreateJobArtifactResponse artifact = await jobRpc.Client.CreateArtifactAsync(artifactRequest, cancellationToken: cancellationToken);
+				CreateJobArtifactResponseV2 artifact = await jobRpc.Client.CreateArtifactV2Async(artifactRequest, cancellationToken: cancellationToken);
 				logger.LogInformation("Created artifact {ArtifactId} '{ArtifactName}' ({ArtifactType}) with ref {RefName} in namespace {Namespace}", artifact.Id, artifactRequest.Name, ArtifactType.StepOutput, artifact.RefName, artifact.NamespaceId);
 
 				using IStorageClient storage = CreateStorageClient(new NamespaceId(artifact.NamespaceId), artifact.Token);
