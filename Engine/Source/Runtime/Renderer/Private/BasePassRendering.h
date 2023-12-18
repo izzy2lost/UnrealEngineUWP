@@ -36,6 +36,7 @@
 #include "LocalFogVolumeRendering.h"
 #include "LightFunctionAtlas.h"
 #include "RenderUtils.h"
+#include "SceneTexturesConfig.h"
 
 class FScene;
 
@@ -839,6 +840,21 @@ public:
 	static ELightMapPolicyType GetUniformLightMapPolicyType(ERHIFeatureLevel::Type FeatureLevelconst, const FScene* Scene, const FLightCacheInterface* LCI, const FPrimitiveSceneProxy* RESTRICT PrimitiveSceneProxy, const FMaterial& Material);
 	static TArray<ELightMapPolicyType, TInlineAllocator<2>> GetUniformLightMapPolicyTypeForPSOCollection(ERHIFeatureLevel::Type FeatureLevel, const FMaterial& Material);
 
+	template<typename PassShadersType>
+	static void AddBasePassGraphicsPipelineStateInitializer(
+		ERHIFeatureLevel::Type InFeatureLevel,
+		const FPSOPrecacheVertexFactoryData& VertexFactoryData,
+		const FMaterial& RESTRICT MaterialResource,
+		const FMeshPassProcessorRenderState& RESTRICT DrawRenderState,
+		const FGraphicsPipelineRenderTargetsInfo& RESTRICT RenderTargetsInfo,
+		PassShadersType PassShaders,
+		ERasterizerFillMode MeshFillMode,
+		ERasterizerCullMode MeshCullMode,
+		EPrimitiveType PrimitiveType,
+		bool bPrecacheAlphaColorChannel,
+		int InPSOCollectorIndex,
+		TArray<FPSOPrecacheData>& PSOInitializers);
+
 private:
 
 	bool TryAddMeshBatch(const FMeshBatch& RESTRICT MeshBatch, uint64 BatchElementMask, const FPrimitiveSceneProxy* RESTRICT PrimitiveSceneProxy, int32 StaticMeshId, const FMaterialRenderProxy& MaterialRenderProxy, const FMaterial& Material);
@@ -863,6 +879,7 @@ private:
 	void CollectPSOInitializersForSkyLight(
 		const FSceneTexturesConfig& SceneTexturesConfig,
 		const FPSOPrecacheVertexFactoryData& VertexFactoryData,
+		const FPSOPrecacheParams& PreCacheParams,
 		const FMaterial& RESTRICT MaterialResource,
 		const bool bRenderSkylight,
 		const bool bDitheredLODTransition,
@@ -875,6 +892,7 @@ private:
 	void CollectPSOInitializersForLMPolicy(
 		const FSceneTexturesConfig& SceneTexturesConfig,
 		const FPSOPrecacheVertexFactoryData& VertexFactoryData,
+		const FPSOPrecacheParams& PreCacheParams,
 		const FMaterial& RESTRICT MaterialResource,
 		FMaterialShadingModelField ShadingModels,
 		const bool bRenderSkylight,
@@ -893,6 +911,69 @@ private:
 	bool bRequiresExplicit128bitRT;
 	float AutoBeforeDOFTranslucencyBoundary = 0.0f;
 };
+
+template<typename PassShadersType>
+void FBasePassMeshProcessor::AddBasePassGraphicsPipelineStateInitializer(
+	ERHIFeatureLevel::Type InFeatureLevel,
+	const FPSOPrecacheVertexFactoryData& VertexFactoryData,
+	const FMaterial& RESTRICT MaterialResource,
+	const FMeshPassProcessorRenderState& RESTRICT DrawRenderState,
+	const FGraphicsPipelineRenderTargetsInfo& RESTRICT RenderTargetsInfo,
+	PassShadersType PassShaders,
+	ERasterizerFillMode MeshFillMode,
+	ERasterizerCullMode MeshCullMode,
+	EPrimitiveType PrimitiveType,
+	bool bPrecacheAlphaColorChannel,
+	int InPSOCollectorIndex,
+	TArray<FPSOPrecacheData>& PSOInitializers)
+{
+	AddGraphicsPipelineStateInitializer(
+		VertexFactoryData,
+		MaterialResource,
+		DrawRenderState,
+		RenderTargetsInfo,
+		PassShaders,
+		MeshFillMode,
+		MeshCullMode,
+		PrimitiveType,
+		EMeshPassFeatures::Default,
+		ESubpassHint::None,
+		0,
+		true /*bRequired*/,
+		InPSOCollectorIndex,
+		PSOInitializers);
+
+	// Planar reflections and scene captures use scene color alpha to keep track of where content has been rendered, for compositing into a different scene later
+	if (bPrecacheAlphaColorChannel)
+	{
+		FGraphicsPipelineRenderTargetsInfo AlphaColorRenderTargetsInfo = RenderTargetsInfo;
+
+		bool bRequiresAlphaChannel = true;
+		ETextureCreateFlags ExtraSceneColorCreateFlags = ETextureCreateFlags::None;
+		EPixelFormat SceneColorFormatWithAlpha;
+		ETextureCreateFlags SceneColorCreateFlagsWithAlpha;
+		GetSceneColorFormatAndCreateFlags(InFeatureLevel, bRequiresAlphaChannel, ExtraSceneColorCreateFlags, RenderTargetsInfo.NumSamples, false /*bMemorylessMSAA*/, SceneColorFormatWithAlpha, SceneColorCreateFlagsWithAlpha);
+
+		AlphaColorRenderTargetsInfo.RenderTargetFormats[0] = SceneColorFormatWithAlpha;
+		AlphaColorRenderTargetsInfo.RenderTargetFlags[0] = SceneColorCreateFlagsWithAlpha;
+
+		AddGraphicsPipelineStateInitializer(
+			VertexFactoryData,
+			MaterialResource,
+			DrawRenderState,
+			AlphaColorRenderTargetsInfo,
+			PassShaders,
+			MeshFillMode,
+			MeshCullMode,
+			PrimitiveType,
+			EMeshPassFeatures::Default,
+			ESubpassHint::None,
+			0,
+			true /*bRequired*/,
+			InPSOCollectorIndex,
+			PSOInitializers);
+	}
+}
 
 ENUM_CLASS_FLAGS(FBasePassMeshProcessor::EFlags);
 

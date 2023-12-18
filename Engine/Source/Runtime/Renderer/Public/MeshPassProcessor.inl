@@ -232,6 +232,7 @@ void FMeshPassProcessor::AddGraphicsPipelineStateInitializer(
 		ESubpassHint::None,
 		0,
 		bRequired,
+		PSOCollectorIndex,
 		PSOInitializers);
 }
 
@@ -249,6 +250,7 @@ void FMeshPassProcessor::AddGraphicsPipelineStateInitializer(
 	ESubpassHint SubpassHint,
 	uint8 SubpassIndex,
 	bool bRequired,
+	int32 InPSOCollectorIndex,
 	TArray<FPSOPrecacheData>& PSOInitializers)
 {
 	TRACE_CPUPROFILER_EVENT_SCOPE(FMeshPassProcessor::AddGraphicsPipelineStateInitializer);
@@ -295,9 +297,9 @@ void FMeshPassProcessor::AddGraphicsPipelineStateInitializer(
 	{
 		MinimalPipelineStateInitializer.StatePrecachePSOHash = PipelineStateInitializer.StatePrecachePSOHash;
 		FGraphicsMinimalPipelineStateInitializer ShadersOnlyInitializer = PSOCollectorStats::GetShadersOnlyInitializer(MinimalPipelineStateInitializer);
-		PSOCollectorStats::GetShadersOnlyPSOPrecacheStatsCollector().AddStateToCache(ShadersOnlyInitializer, PSOCollectorStats::GetPSOPrecacheHash, &MaterialResource, PSOCollectorIndex, VertexFactoryData.VertexFactoryType);
+		PSOCollectorStats::GetShadersOnlyPSOPrecacheStatsCollector().AddStateToCache(ShadersOnlyInitializer, PSOCollectorStats::GetPSOPrecacheHash, &MaterialResource, InPSOCollectorIndex, VertexFactoryData.VertexFactoryType);
 		FGraphicsMinimalPipelineStateInitializer PatchedMinimalInitializer = PSOCollectorStats::PatchMinimalPipelineStateToCheck(MinimalPipelineStateInitializer);
-		PSOCollectorStats::GetMinimalPSOPrecacheStatsCollector().AddStateToCache(PatchedMinimalInitializer, PSOCollectorStats::GetPSOPrecacheHash, &MaterialResource, PSOCollectorIndex, VertexFactoryData.VertexFactoryType);
+		PSOCollectorStats::GetMinimalPSOPrecacheStatsCollector().AddStateToCache(PatchedMinimalInitializer, PSOCollectorStats::GetPSOPrecacheHash, &MaterialResource, InPSOCollectorIndex, VertexFactoryData.VertexFactoryType);
 	}
 #endif // PSO_PRECACHING_VALIDATE
 
@@ -310,7 +312,7 @@ void FMeshPassProcessor::AddGraphicsPipelineStateInitializer(
 	PSOPrecacheData.Type = FPSOPrecacheData::EType::Graphics;
 	PSOPrecacheData.GraphicsPSOInitializer = PipelineStateInitializer;
 #if PSO_PRECACHING_VALIDATE
-	PSOPrecacheData.PSOCollectorIndex = PSOCollectorIndex;
+	PSOPrecacheData.PSOCollectorIndex = InPSOCollectorIndex;
 	PSOPrecacheData.VertexFactoryType = VertexFactoryData.VertexFactoryType;
 	if (PSOCollectorStats::IsFullPrecachingValidationEnabled())
 	{

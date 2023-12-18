@@ -96,10 +96,10 @@ static TAutoConsoleVariable<int32> CVarClearGBufferDBeforeBasePass(
 
 static TAutoConsoleVariable<int32> CVarPSOPrecacheLightMapPolicyMode(
 	TEXT("r.PSOPrecache.LightMapPolicyMode"),
-	0,
+	1,
 	TEXT("Defines which light map policies should be checked during PSO precaching of the base pass.\n") \
-	TEXT(" 0: All possible LMP will be checked (default).\n") \
-	TEXT(" 1: Only LMP_NO_LIGHTMAP will be precached.\n"),
+	TEXT(" 0: All possible LMP will be checked.\n") \
+	TEXT(" 1: Only LMP_NO_LIGHTMAP will be precached (default).\n"),
 	ECVF_ReadOnly
 );
 
@@ -1619,6 +1619,7 @@ template<typename LightMapPolicyType>
 void FBasePassMeshProcessor::CollectPSOInitializersForLMPolicy(
 	const FSceneTexturesConfig& SceneTexturesConfig,
 	const FPSOPrecacheVertexFactoryData& VertexFactoryData,
+	const FPSOPrecacheParams& PreCacheParams,
 	const FMaterial& RESTRICT MaterialResource,
 	FMaterialShadingModelField ShadingModels,
 	const bool bRenderSkylight,
@@ -1732,10 +1733,20 @@ void FBasePassMeshProcessor::CollectPSOInitializersForLMPolicy(
 	}
 	else
 	{
-		// Regular base pass with gbuffer bindings
-		SetupGBufferRenderTargetInfo(SceneTexturesConfig, RenderTargetsInfo, true /*bSetupDepthStencil*/);
+		if (PreCacheParams.bCanvasMaterial)
+		{
+			DrawRenderState.SetDepthStencilState(TStaticDepthStencilState<false, CF_Always>::GetRHI());
+			SetTranslucentRenderState(DrawRenderState, MaterialResource, GShaderPlatformForFeatureLevel[FeatureLevel], ETranslucencyPass::TPT_AllTranslucency);
+			AddRenderTargetInfo(PreCacheParams.GetBassPixelFormat() != PF_Unknown ? PreCacheParams.GetBassPixelFormat() : PF_B8G8R8A8, TexCreate_RenderTargetable | TexCreate_ShaderResource, RenderTargetsInfo);
+		}
+		else
+		{
+			// Regular base pass with gbuffer bindings
+			SetupGBufferRenderTargetInfo(SceneTexturesConfig, RenderTargetsInfo, true /*bSetupDepthStencil*/);
+		}
 
-		AddGraphicsPipelineStateInitializer(
+		AddBasePassGraphicsPipelineStateInitializer(
+			FeatureLevel,
 			VertexFactoryData,
 			MaterialResource,
 			DrawRenderState,
@@ -1744,8 +1755,8 @@ void FBasePassMeshProcessor::CollectPSOInitializersForLMPolicy(
 			MeshFillMode,
 			MeshCullMode,
 			PrimitiveType,
-			EMeshPassFeatures::Default,
-			true /*bRequired*/,
+			true /*bPrecacheAlphaColorChannel*/,
+			PSOCollectorIndex,
 			PSOInitializers);
 	}	
 }
@@ -2334,6 +2345,7 @@ void FBasePassMeshProcessor::CollectPSOInitializers(const FSceneTexturesConfig& 
 	bool bShouldDraw = ShouldDraw(Material)
 		&& ShouldIncludeDomainInMeshPass(Material.GetMaterialDomain())
 		&& ShouldIncludeMaterialInDefaultOpaquePass(Material);
+	bShouldDraw = bShouldDraw || (PreCacheParams.bCanvasMaterial && MeshPassType == EMeshPass::BasePass);
 	if (!bShouldDraw || !PreCacheParams.bRenderInMainPass)
 	{
 		return;
@@ -2355,15 +2367,16 @@ void FBasePassMeshProcessor::CollectPSOInitializers(const FSceneTexturesConfig& 
 
 	{
 		bool bRenderSkyLight = true; // generate for both skylight enabled/disabled? Or can this be known already at this point?
-		CollectPSOInitializersForSkyLight(SceneTexturesConfig, VertexFactoryData, Material, bRenderSkyLight, bDitheredLODTransition, MeshFillMode, MeshCullMode, (EPrimitiveType)PreCacheParams.PrimitiveType, PSOInitializers);
+		CollectPSOInitializersForSkyLight(SceneTexturesConfig, VertexFactoryData, PreCacheParams, Material, bRenderSkyLight, bDitheredLODTransition, MeshFillMode, MeshCullMode, (EPrimitiveType)PreCacheParams.PrimitiveType, PSOInitializers);
 		bRenderSkyLight = false;
-		CollectPSOInitializersForSkyLight(SceneTexturesConfig, VertexFactoryData, Material, bRenderSkyLight, bDitheredLODTransition, MeshFillMode, MeshCullMode, (EPrimitiveType)PreCacheParams.PrimitiveType, PSOInitializers);
+		CollectPSOInitializersForSkyLight(SceneTexturesConfig, VertexFactoryData, PreCacheParams, Material, bRenderSkyLight, bDitheredLODTransition, MeshFillMode, MeshCullMode, (EPrimitiveType)PreCacheParams.PrimitiveType, PSOInitializers);
 	}
 }
 
 void FBasePassMeshProcessor::CollectPSOInitializersForSkyLight(
 	const FSceneTexturesConfig& SceneTexturesConfig,
 	const FPSOPrecacheVertexFactoryData& VertexFactoryData,
+	const FPSOPrecacheParams& PreCacheParams,
 	const FMaterial& RESTRICT Material,
 	const bool bRenderSkyLight,
 	const bool bDitheredLODTransition,
@@ -2391,19 +2404,19 @@ void FBasePassMeshProcessor::CollectPSOInitializersForSkyLight(
 		if (bAllowStaticLighting && bUseVolumetricLightmap)
 		{
 			CollectPSOInitializersForLMPolicy< FSelfShadowedVolumetricLightmapPolicy >(
-				SceneTexturesConfig, VertexFactoryData, Material, ShadingModels, bRenderSkyLight, bDitheredLODTransition,
+				SceneTexturesConfig, VertexFactoryData, PreCacheParams, Material, ShadingModels, bRenderSkyLight, bDitheredLODTransition,
 				FSelfShadowedVolumetricLightmapPolicy(), MeshFillMode, MeshCullMode, PrimitiveType, PSOInitializers);
 		}
 
 		if (IsIndirectLightingCacheAllowed(FeatureLevel) && bAllowIndirectLightingCache)
 		{
 			CollectPSOInitializersForLMPolicy< FSelfShadowedCachedPointIndirectLightingPolicy >(
-				SceneTexturesConfig, VertexFactoryData, Material, ShadingModels, bRenderSkyLight, bDitheredLODTransition,
+				SceneTexturesConfig, VertexFactoryData, PreCacheParams, Material, ShadingModels, bRenderSkyLight, bDitheredLODTransition,
 				FSelfShadowedCachedPointIndirectLightingPolicy(), MeshFillMode, MeshCullMode, PrimitiveType, PSOInitializers);
 		}
 
 		CollectPSOInitializersForLMPolicy< FSelfShadowedTranslucencyPolicy >(
-			SceneTexturesConfig, VertexFactoryData, Material, ShadingModels, bRenderSkyLight, bDitheredLODTransition,
+			SceneTexturesConfig, VertexFactoryData, PreCacheParams, Material, ShadingModels, bRenderSkyLight, bDitheredLODTransition,
 			FSelfShadowedTranslucencyPolicy(), MeshFillMode, MeshCullMode, PrimitiveType, PSOInitializers);
 	}
 
@@ -2411,7 +2424,7 @@ void FBasePassMeshProcessor::CollectPSOInitializersForSkyLight(
 	for (ELightMapPolicyType LightMapPolicyType : UniformLightMapPolicyTypes)
 	{
 		CollectPSOInitializersForLMPolicy< FUniformLightMapPolicy >(
-			SceneTexturesConfig, VertexFactoryData, Material, ShadingModels, bRenderSkyLight, bDitheredLODTransition,
+			SceneTexturesConfig, VertexFactoryData, PreCacheParams, Material, ShadingModels, bRenderSkyLight, bDitheredLODTransition,
 			FUniformLightMapPolicy(LightMapPolicyType), MeshFillMode, MeshCullMode, PrimitiveType, PSOInitializers);
 	}
 }

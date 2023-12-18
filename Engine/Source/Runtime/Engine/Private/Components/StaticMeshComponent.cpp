@@ -1639,7 +1639,7 @@ void UStaticMeshComponent::CollectPSOPrecacheDataImpl(
 
 	FPSOPrecacheParams PrecachePSOParams = BasePrecachePSOParams;
 	PrecachePSOParams.bCastShadow = bAnySectionCastsShadows;
-	PrecachePSOParams.bReverseCulling = bReverseCulling != bIsLocalToWorldDeterminantNegative;
+	PrecachePSOParams.bReverseCulling = PrecachePSOParams.bReverseCulling || bReverseCulling != bIsLocalToWorldDeterminantNegative;
 	PrecachePSOParams.bForceLODModel = ForcedLodModel > 0;
 
 	for (FPSOPrecacheVertexFactoryDataPerMaterialIndex& VFsPerMaterial : VFTypesPerMaterialIndex)

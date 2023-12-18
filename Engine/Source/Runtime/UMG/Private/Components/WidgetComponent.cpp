@@ -687,6 +687,25 @@ bool UWidgetComponent::CanBeInCluster() const
 	return false;
 }
 
+void UWidgetComponent::PostLoad()
+{
+	Super::PostLoad();
+
+	PrecachePSOs();
+}
+
+void UWidgetComponent::CollectPSOPrecacheData(const FPSOPrecacheParams& BasePrecachePSOParams, FComponentPSOPrecacheParamsList& OutParams)
+{
+	if (MaterialInstance)
+	{
+		FComponentPSOPrecacheParams& ComponentParams = OutParams[OutParams.AddDefaulted()];
+		ComponentParams.Priority = EPSOPrecachePriority::High;
+		ComponentParams.MaterialInterface = MaterialInstance;
+		ComponentParams.VertexFactoryDataList.Add(FPSOPrecacheVertexFactoryData(&FLocalVertexFactory::StaticType));
+		ComponentParams.PSOPrecacheParams = BasePrecachePSOParams;
+	}
+}
+
 void UWidgetComponent::BeginPlay()
 {
 	SetComponentTickEnabled(TickMode != ETickMode::Disabled);
@@ -741,6 +760,8 @@ void UWidgetComponent::UpdateMaterialInstance()
 		MaterialInstance->AddToCluster(this);
 	}
 	UpdateMaterialInstanceParameters();
+
+	PrecachePSOs();
 
 	MarkRenderStateDirty();
 }

@@ -2758,8 +2758,6 @@ FPSOPrecacheDataArray FMaterialShaderMap::CollectPSOPrecacheData(const FMaterial
 			IPSOCollector* PSOCollector = CreateFunction(PrecacheParams.FeatureLevel);
 			if (PSOCollector != nullptr)
 			{
-				//check(PSOCollector->PSOCollectorIndex == Index);
-
 #if PSO_PRECACHING_VALIDATE
 				ConditionalBreakOnPSOPrecacheMaterial(*PrecacheParams.Material, Index);
 #endif // PSO_PRECACHING_VALIDATE

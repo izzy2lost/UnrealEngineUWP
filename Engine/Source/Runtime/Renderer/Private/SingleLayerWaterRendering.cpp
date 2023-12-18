@@ -1532,7 +1532,8 @@ void FSingleLayerWaterPassMeshProcessor::CollectPSOInitializers(const FSceneText
 		const bool bHasDepthPrepass = IsSingleLayerWaterDepthPrepassEnabled(GetFeatureLevelShaderPlatform(FeatureLevel), FeatureLevel);
 		RenderTargetsInfo.DepthStencilAccess = bHasDepthPrepass ? FExclusiveDepthStencil::DepthRead_StencilRead : FExclusiveDepthStencil::DepthRead_StencilNop;
 
-		AddGraphicsPipelineStateInitializer(
+		FBasePassMeshProcessor::AddBasePassGraphicsPipelineStateInitializer(
+			FeatureLevel,
 			VertexFactoryData,
 			Material,
 			PassDrawRenderState,
@@ -1541,8 +1542,8 @@ void FSingleLayerWaterPassMeshProcessor::CollectPSOInitializers(const FSceneText
 			MeshFillMode,
 			MeshCullMode,
 			(EPrimitiveType)PreCacheParams.PrimitiveType,
-			EMeshPassFeatures::Default, 
-			true /*bRequired*/,
+			true /*bPrecacheAlphaColorChannel*/,
+			PSOCollectorIndex,
 			PSOInitializers);
 	}
 }

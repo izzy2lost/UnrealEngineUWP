@@ -73,6 +73,8 @@ extern ENGINE_API FSceneTextureShaderParameters GetSceneTextureShaderParameters(
 
 extern ENGINE_API FSceneTextureShaderParameters GetSceneTextureShaderParameters(TRDGUniformBufferRef<FMobileSceneTextureUniformParameters> UniformBuffer);
 
+extern ENGINE_API void GetSceneColorFormatAndCreateFlags(ERHIFeatureLevel::Type FeatureLevel, bool bRequiresAlphaChannel, ETextureCreateFlags ExtraSceneColorCreateFlags, uint32 NumSamples, bool bMemorylessMSAA, EPixelFormat& SceneColorFormat, ETextureCreateFlags& SceneColorCreateFlags);
+
 enum class ESceneTextureExtracts : uint32
 {
 	/** No textures are extracted from the render graph after execution. */

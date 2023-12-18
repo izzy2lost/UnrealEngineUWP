@@ -202,7 +202,8 @@ void FSkyPassMeshProcessor::CollectPSOInitializers(const FSceneTexturesConfig& S
 	FGraphicsPipelineRenderTargetsInfo RenderTargetsInfo;
 	SetupGBufferRenderTargetInfo(SceneTexturesConfig, RenderTargetsInfo, true /*bSetupDepthStencil*/);
 	
-	AddGraphicsPipelineStateInitializer(
+	FBasePassMeshProcessor::AddBasePassGraphicsPipelineStateInitializer(
+		FeatureLevel,
 		VertexFactoryData,
 		Material,
 		PassDrawRenderState,
@@ -211,37 +212,39 @@ void FSkyPassMeshProcessor::CollectPSOInitializers(const FSceneTexturesConfig& S
 		MeshFillMode,
 		MeshCullMode,
 		(EPrimitiveType)PreCacheParams.PrimitiveType,
-		EMeshPassFeatures::Default,
-		true /*bRequired*/,
+		true /*bPrecacheAlphaColorChannel*/,
+		PSOCollectorIndex,
 		PSOInitializers);
 
 	// Also generate with depth write which is used during CaptureSkyMeshReflection
-	const FExclusiveDepthStencil::Type SceneBasePassDepthStencilAccess = FScene::GetDefaultBasePassDepthStencilAccess(FeatureLevel);
-	FMeshPassProcessorRenderState SkyCaptureDrawRenderState;
-	FExclusiveDepthStencil::Type BasePassDepthStencilAccess_Sky = FExclusiveDepthStencil::Type(SceneBasePassDepthStencilAccess | FExclusiveDepthStencil::DepthWrite);
-	SetupBasePassState(BasePassDepthStencilAccess_Sky, false, SkyCaptureDrawRenderState);
-	
-	// Also change render target format
-	FRDGTextureDesc SkyCaptureRenderTargetDesc = FSkyPassMeshProcessor::GetCaptureFrameSkyEnvMapTextureDesc(1, 1);
+	{
+		const FExclusiveDepthStencil::Type SceneBasePassDepthStencilAccess = FScene::GetDefaultBasePassDepthStencilAccess(FeatureLevel);
+		FMeshPassProcessorRenderState SkyCaptureDrawRenderState;
+		FExclusiveDepthStencil::Type BasePassDepthStencilAccess_Sky = FExclusiveDepthStencil::Type(SceneBasePassDepthStencilAccess | FExclusiveDepthStencil::DepthWrite);
+		SetupBasePassState(BasePassDepthStencilAccess_Sky, false, SkyCaptureDrawRenderState);
 
-	FGraphicsPipelineRenderTargetsInfo SkyCaptureRenderTargetsInfo;
-	SkyCaptureRenderTargetsInfo.NumSamples = 1;
-	AddRenderTargetInfo(SkyCaptureRenderTargetDesc.Format, SkyCaptureRenderTargetDesc.Flags, SkyCaptureRenderTargetsInfo);
-	SetupDepthStencilInfo(PF_DepthStencil, SceneTexturesConfig.DepthCreateFlags, ERenderTargetLoadAction::ELoad,
-		ERenderTargetLoadAction::ELoad, FExclusiveDepthStencil::DepthWrite_StencilWrite, SkyCaptureRenderTargetsInfo);
+		// Also change render target format
+		FRDGTextureDesc SkyCaptureRenderTargetDesc = FSkyPassMeshProcessor::GetCaptureFrameSkyEnvMapTextureDesc(1, 1);
 
-	AddGraphicsPipelineStateInitializer(
-		VertexFactoryData,
-		Material,
-		SkyCaptureDrawRenderState,
-		SkyCaptureRenderTargetsInfo,
-		SkyPassShaders,
-		MeshFillMode,
-		MeshCullMode,
-		(EPrimitiveType)PreCacheParams.PrimitiveType,
-		EMeshPassFeatures::Default,
-		true /*bRequired*/,
-		PSOInitializers);
+		FGraphicsPipelineRenderTargetsInfo SkyCaptureRenderTargetsInfo;
+		SkyCaptureRenderTargetsInfo.NumSamples = 1;
+		AddRenderTargetInfo(SkyCaptureRenderTargetDesc.Format, SkyCaptureRenderTargetDesc.Flags, SkyCaptureRenderTargetsInfo);
+		SetupDepthStencilInfo(PF_DepthStencil, SceneTexturesConfig.DepthCreateFlags, ERenderTargetLoadAction::ELoad,
+			ERenderTargetLoadAction::ELoad, FExclusiveDepthStencil::DepthWrite_StencilWrite, SkyCaptureRenderTargetsInfo);
+
+		AddGraphicsPipelineStateInitializer(
+			VertexFactoryData,
+			Material,
+			SkyCaptureDrawRenderState,
+			SkyCaptureRenderTargetsInfo,
+			SkyPassShaders,
+			MeshFillMode,
+			MeshCullMode,
+			(EPrimitiveType)PreCacheParams.PrimitiveType,
+			EMeshPassFeatures::Default,
+			true /*bRequired*/,
+			PSOInitializers);
+	}
 }
 
 FRDGTextureDesc FSkyPassMeshProcessor::GetCaptureFrameSkyEnvMapTextureDesc(uint32 CubeWidth, uint32 CubeMipCount)

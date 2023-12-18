@@ -767,9 +767,11 @@ void LogMinimalPSOStateMissInfo(
 			CompareStateAndLogChanges(TEXT("DepthBounds"), uint32(PSOPrecacheData.GraphicsPSOInitializer.bDepthBounds), uint32(Initializer.bDepthBounds), StringBuilder);
 			CompareStateAndLogChanges(TEXT("MultiViewCount"), uint32(PSOPrecacheData.GraphicsPSOInitializer.MultiViewCount), uint32(Initializer.MultiViewCount), StringBuilder);
 			CompareStateAndLogChanges(TEXT("HasFragmentDensityAttachment"), uint32(PSOPrecacheData.GraphicsPSOInitializer.bHasFragmentDensityAttachment), uint32(Initializer.bHasFragmentDensityAttachment), StringBuilder);
-			CompareStateAndLogChanges(TEXT("AllowVariableRateShading"), uint32(PSOPrecacheData.GraphicsPSOInitializer.bAllowVariableRateShading), uint32(Initializer.bAllowVariableRateShading), StringBuilder);
 			CompareStateAndLogChanges(TEXT("DrawShadingRate"), uint32(PSOPrecacheData.GraphicsPSOInitializer.ShadingRate), uint32(Initializer.ShadingRate), StringBuilder);
 			CompareStateAndLogChanges(TEXT("PrimitiveType"), uint32(PSOPrecacheData.GraphicsPSOInitializer.PrimitiveType), uint32(Initializer.PrimitiveType), StringBuilder);
+
+			// Ignored for now since it doesn't add to any real PSO and can give different state
+			//CompareStateAndLogChanges(TEXT("AllowVariableRateShading"), uint32(PSOPrecacheData.GraphicsPSOInitializer.bAllowVariableRateShading), uint32(Initializer.bAllowVariableRateShading), StringBuilder);			
 		}
 	}
 	else

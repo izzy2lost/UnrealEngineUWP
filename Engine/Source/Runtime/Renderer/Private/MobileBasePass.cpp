@@ -1051,6 +1051,7 @@ void FMobileBasePassMeshProcessor::CollectPSOInitializersForLMPolicy(
 		SubpassHint,
 		SubpassIndex,
 		true /*bRequired*/,
+		PSOCollectorIndex,
 		PSOInitializers);
 }
 

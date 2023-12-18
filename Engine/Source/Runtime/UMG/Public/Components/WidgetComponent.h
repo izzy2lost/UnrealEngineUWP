@@ -99,6 +99,7 @@ public:
 	//UObject interface
 	UMG_API virtual void Serialize(FArchive& Ar) override;
 	UMG_API virtual bool CanBeInCluster() const override;
+	UMG_API virtual void PostLoad() override;
 	//~ End UObject Interface
 
 	/** UActorComponent Interface */
@@ -116,7 +117,9 @@ public:
 	UMG_API UMaterialInterface* GetMaterial(int32 MaterialIndex) const override;
 	UMG_API virtual void SetMaterial(int32 ElementIndex, UMaterialInterface* Material) override;
 	UMG_API int32 GetNumMaterials() const override;
-	UMG_API virtual void TickComponent(float DeltaTime, enum ELevelTick TickType, FActorComponentTickFunction *ThisTickFunction) override;
+	UMG_API virtual void TickComponent(float DeltaTime, enum ELevelTick TickType, FActorComponentTickFunction* ThisTickFunction) override;/** Collect all the PSO precache data used by the static mesh component */
+	UMG_API virtual void CollectPSOPrecacheData(const FPSOPrecacheParams& BasePrecachePSOParams, FComponentPSOPrecacheParamsList& OutParams) override;
+
 
 	UMG_API virtual TStructOnScope<FActorComponentInstanceData> GetComponentInstanceData() const override;
 	UMG_API void ApplyComponentInstanceData(struct FWidgetComponentInstanceData* ComponentInstanceData);

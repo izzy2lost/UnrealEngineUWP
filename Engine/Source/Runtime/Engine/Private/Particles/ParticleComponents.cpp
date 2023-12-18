@@ -151,6 +151,7 @@ void UFXSystemAsset::LaunchPSOPrecaching(TArrayView<VFsPerMaterialData> VFsPerMa
 {
 	FPSOPrecacheParams PreCachePSOParams;
 	PreCachePSOParams.SetMobility(EComponentMobility::Movable);
+	PreCachePSOParams.bRenderCustomDepth = true;
 
 	FGraphEventArray PrecachePSOsEvents;
 	for (VFsPerMaterialData& VFsPerMaterial : VFsPerMaterials)
@@ -159,7 +160,15 @@ void UFXSystemAsset::LaunchPSOPrecaching(TArrayView<VFsPerMaterialData> VFsPerMa
 		{
 			PreCachePSOParams.PrimitiveType = (EPrimitiveType)VFsPerMaterial.PrimitiveType;
 			PreCachePSOParams.bDisableBackFaceCulling = VFsPerMaterial.bDisableBackfaceCulling;
-			PrecachePSOsEvents.Append(VFsPerMaterial.MaterialInterface->PrecachePSOs(VFsPerMaterial.VertexFactoryData, PreCachePSOParams,EPSOPrecachePriority::Medium, MaterialPSOPrecacheRequestIDs));
+			PreCachePSOParams.bReverseCulling = false;
+			PrecachePSOsEvents.Append(VFsPerMaterial.MaterialInterface->PrecachePSOs(VFsPerMaterial.VertexFactoryData, PreCachePSOParams, EPSOPrecachePriority::Medium, MaterialPSOPrecacheRequestIDs));
+
+			// Also precache with reverse culling if not two sided because we don't know of the component using the asset will have negative determinant
+			if (!PreCachePSOParams.bDisableBackFaceCulling)
+			{
+				PreCachePSOParams.bReverseCulling = true;
+				PrecachePSOsEvents.Append(VFsPerMaterial.MaterialInterface->PrecachePSOs(VFsPerMaterial.VertexFactoryData, PreCachePSOParams, EPSOPrecachePriority::Medium, MaterialPSOPrecacheRequestIDs));
+			}
 		}
 	}
 

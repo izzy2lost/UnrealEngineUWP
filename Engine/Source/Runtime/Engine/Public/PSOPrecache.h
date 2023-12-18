@@ -44,6 +44,7 @@ struct FPSOPrecacheParams
 		Mobility = (uint8)EComponentMobility::Static;
 		bAnyMaterialHasWorldPositionOffset = false;
 		StencilWriteMask = (uint8)EStencilMask::SM_Default;
+		BasePassPixelFormat = (uint16)PF_Unknown;
 		Unused = 0;
 	}
 
@@ -59,7 +60,7 @@ struct FPSOPrecacheParams
 
 	friend uint32 GetTypeHash(const FPSOPrecacheParams& Params)
 	{
-		return uint32(Params.Data);
+		return GetTypeHash(Params.Data);
 	}
 
 	void SetMobility(EComponentMobility::Type InMobility)
@@ -87,35 +88,48 @@ struct FPSOPrecacheParams
 		return TEnumAsByte<EStencilMask>((EStencilMask)StencilWriteMask);
 	}
 
+	void SetBassPixelFormat(EPixelFormat InBasePassPixelFormat)
+	{
+		BasePassPixelFormat = (uint16)InBasePassPixelFormat;
+	}
+
+	EPixelFormat GetBassPixelFormat() const
+	{
+		return (EPixelFormat)BasePassPixelFormat;
+	}
+
 	union
 	{
 		struct
 		{
-			uint32 PrimitiveType : 6;
+			uint64 PrimitiveType : 6;
+			
+			uint64 bDefaultMaterial : 1;
+			uint64 bCanvasMaterial : 1;
+			
+			uint64 bRenderInMainPass : 1;
+			uint64 bRenderInDepthPass : 1;
+			uint64 bStaticLighting : 1;
+			uint64 bCastShadow : 1;
+			uint64 bRenderCustomDepth : 1;
+			
+			uint64 bAffectDynamicIndirectLighting : 1;
+			uint64 bReverseCulling : 1;
+			uint64 bDisableBackFaceCulling : 1;
+			uint64 bCastShadowAsTwoSided : 1;
+			uint64 bForceLODModel : 1;
+			
+			uint64 Mobility : 4;
+			uint64 bAnyMaterialHasWorldPositionOffset : 1;
+			uint64 StencilWriteMask : 4;
 
-			uint32 bDefaultMaterial : 1;
-			uint32 bCanvasMaterial : 1;
+			uint64 BasePassPixelFormat : 16;
 
-			uint32 bRenderInMainPass : 1;
-			uint32 bRenderInDepthPass : 1;
-			uint32 bStaticLighting : 1;
-			uint32 bCastShadow : 1;
-			uint32 bRenderCustomDepth : 1;
-
-			uint32 bAffectDynamicIndirectLighting : 1;
-			uint32 bReverseCulling : 1;
-			uint32 bDisableBackFaceCulling : 1;
-			uint32 bCastShadowAsTwoSided : 1;
-			uint32 bForceLODModel : 1;
-
-			uint32 Mobility : 4;
-			uint32 bAnyMaterialHasWorldPositionOffset : 1;
-			uint32 StencilWriteMask : 4;
-
-			uint32 Unused : 5;
+			uint64 Unused : 21;
 		};
-		uint32 Data;
+		uint64 Data;
 	};
+
 };
 
 // Unique ID to find the FVertexDeclarationElementList - these can be shared
@@ -214,7 +228,7 @@ typedef TArray<FPSOPrecacheRequestResult, TInlineAllocator<4> > FPSOPrecacheRequ
 struct FMaterialPSOPrecacheParams
 {
 	ERHIFeatureLevel::Type FeatureLevel = ERHIFeatureLevel::Num;
-	const FMaterial* Material = nullptr;
+	FMaterial* Material = nullptr;
 	FPSOPrecacheVertexFactoryData VertexFactoryData;
 	FPSOPrecacheParams PrecachePSOParams;
 

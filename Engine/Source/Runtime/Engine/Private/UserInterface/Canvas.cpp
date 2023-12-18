@@ -2067,6 +2067,12 @@ void UCanvas::K2_DrawMaterial(UMaterialInterface* RenderMaterial, FVector2D Scre
 		// This is a user-facing function, so we'd rather make sure that shaders are ready by the time we render, in order to ensure we don't draw with a fallback material :
 		RenderMaterial->EnsureIsComplete();
 
+		// Should be moved earlier
+		FPSOPrecacheParams PSOPrecacheParams;
+		PSOPrecacheParams.bCanvasMaterial = true;
+		PSOPrecacheParams.BasePassPixelFormat = (Canvas->GetRenderTarget() && Canvas->GetRenderTarget()->GetRenderTargetTexture()) ? Canvas->GetRenderTarget()->GetRenderTargetTexture()->GetDesc().Format : PF_Unknown;
+		RenderMaterial->PrecachePSOs(&FLocalVertexFactory::StaticType, PSOPrecacheParams);
+
 		FCanvasTileItem TileItem(ScreenPosition, RenderMaterial->GetRenderProxy(), ScreenSize, CoordinatePosition, CoordinatePosition + CoordinateSize);
 		TileItem.Rotation = FRotator(0, Rotation, 0);
 		TileItem.PivotPoint = PivotPoint;

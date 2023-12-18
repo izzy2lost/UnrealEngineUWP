@@ -2100,12 +2100,12 @@ public:
 		ERasterizerFillMode MeshFillMode,
 		ERasterizerCullMode MeshCullMode,
 		EPrimitiveType PrimitiveType,
-		EMeshPassFeatures MeshPassFeatures, 
+		EMeshPassFeatures MeshPassFeatures,
 		bool bRequired,
 		TArray<FPSOPrecacheData>& PSOInitializers);
 
 	template<typename PassShadersType>
-	void AddGraphicsPipelineStateInitializer(
+	static void AddGraphicsPipelineStateInitializer(
 		const FPSOPrecacheVertexFactoryData& VertexFactoryData,
 		const FMaterial& RESTRICT MaterialResource,
 		const FMeshPassProcessorRenderState& RESTRICT DrawRenderState,
@@ -2118,6 +2118,7 @@ public:
 		ESubpassHint SubpassHint,
 		uint8 SubpassIndex,
 		bool bRequired,
+		int32 PSOCollectorIndex,
 		TArray<FPSOPrecacheData>& PSOInitializers);
 
 protected:

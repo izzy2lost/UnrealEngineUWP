@@ -848,7 +848,10 @@ void USplineMeshComponent::CollectPSOPrecacheData(const FPSOPrecacheParams& Base
 		FLocalVertexFactory::GetVertexElements(GMaxRHIFeatureLevel, EVertexInputStreamType::Default, bSupportsManualVertexFetch, Data, Elements);
 	};
 
-	CollectPSOPrecacheDataImpl(VertexFactoryType, BasePrecachePSOParams, SMC_GetElements, OutParams);
+	FPSOPrecacheParams SplineMeshPSOParams = BasePrecachePSOParams;
+	SplineMeshPSOParams.bReverseCulling ^= (SplineParams.StartScale.X < 0) ^ (SplineParams.StartScale.Y < 0);
+
+	CollectPSOPrecacheDataImpl(VertexFactoryType, SplineMeshPSOParams, SMC_GetElements, OutParams);
 }
 
 FPrimitiveSceneProxy* USplineMeshComponent::CreateStaticMeshSceneProxy(Nanite::FMaterialAudit& NaniteMaterials, bool bCreateNanite)
