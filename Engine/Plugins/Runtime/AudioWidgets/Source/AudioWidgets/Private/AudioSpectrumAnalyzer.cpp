@@ -19,6 +19,8 @@ namespace AudioWidgets
 	FAudioSpectrumAnalyzer::~FAudioSpectrumAnalyzer()
 	{
 		Teardown();
+
+		Widget->UnbindOnGetAudioSpectrumData();
 	}
 
 	UAudioBus* FAudioSpectrumAnalyzer::GetAudioBus() const
