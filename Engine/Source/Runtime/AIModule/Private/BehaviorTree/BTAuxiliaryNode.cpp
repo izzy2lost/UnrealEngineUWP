@@ -22,6 +22,7 @@ void UBTAuxiliaryNode::WrappedOnBecomeRelevant(UBehaviorTreeComponent& OwnerComp
 		const UBTNode* NodeOb = HasInstance() ? GetNodeInstance(OwnerComp, NodeMemory) : this;
 		if (NodeOb)
 		{
+			UE_VLOG(&OwnerComp, LogBehaviorTree, Verbose, TEXT("OnBecomeRelevant: %s"), *UBehaviorTreeTypes::DescribeNodeHelper(NodeOb));
 			((UBTAuxiliaryNode*)NodeOb)->OnBecomeRelevant(OwnerComp, NodeMemory);
 		}
 	}
@@ -34,6 +35,7 @@ void UBTAuxiliaryNode::WrappedOnCeaseRelevant(UBehaviorTreeComponent& OwnerComp,
 		const UBTNode* NodeOb = HasInstance() ? GetNodeInstance(OwnerComp, NodeMemory) : this;
 		if (NodeOb)
 		{
+			UE_VLOG(&OwnerComp, LogBehaviorTree, Verbose, TEXT("OnCeaseRelevant: %s"), *UBehaviorTreeTypes::DescribeNodeHelper(NodeOb));
 			((UBTAuxiliaryNode*)NodeOb)->OnCeaseRelevant(OwnerComp, NodeMemory);
 		}
 	}
