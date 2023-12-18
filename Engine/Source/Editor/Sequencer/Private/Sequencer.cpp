@@ -4208,6 +4208,7 @@ TSharedRef<SWidget> FSequencer::MakePlayTimeDisplay(const TSharedRef<INumericTyp
 {
 	return SNew(STemporarilyFocusedSpinBox<double>)
 		.Style(&FAppStyle::GetWidgetStyle<FSpinBoxStyle>("Sequencer.PlayTimeSpinBox"))
+		.PreventThrottling(true)
 		.Value_Lambda([this]() -> double {
 			return GetLocalTime().Time.GetFrame().Value;
 		})
