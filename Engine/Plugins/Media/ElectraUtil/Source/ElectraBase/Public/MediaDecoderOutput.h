@@ -7,9 +7,9 @@
 #include "Templates/RefCounting.h"
 #include "Containers/Queue.h"
 #include "Misc/ScopeLock.h"
+#include "HAL/PlatformProcess.h"
 
 #include "ParameterDictionary.h"
-
 
 struct FDecoderTimeStamp
 {
@@ -47,6 +47,8 @@ class TDecoderOutputObjectPool
 	/** Object pool storage. */
 	class TStorage
 	{
+		static float constexpr kStorageBusyWaitPollInterval = 0.002f;
+
 	public:
 		TStorage(ObjectFactory* InObjectFactoryInstance)
 			: ObjectFactoryInstance(InObjectFactoryInstance)
@@ -56,11 +58,30 @@ class TDecoderOutputObjectPool
 		~TStorage()
 		{
 			Reserve(0);
+
+			double StartTime = FPlatformTime::Seconds();
+			bool bDidWait = false;
 			ObjectType* Object;
 			while (WaitReadyForReuse.Dequeue(Object))
 			{
+				while (!Object->IsReadyForReuse() && GIsRunning)
+				{
+					// If we encounter an object that is still busy, we wait a bit and try again
+					// (Assumptions:
+					//  - there will not be that many busy objects
+					//  - usually the state of a busy object should become idle quite quickly)
+					bDidWait = true;
+					FPlatformProcess::Sleep(kStorageBusyWaitPollInterval);
+				}
+
 				Object->ShutdownPoolable();
 				delete Object;
+			}
+
+			if (bDidWait)
+			{
+				double EndTime = FPlatformTime::Seconds();
+				UE_LOG(LogTemp, Log, TEXT("[%p] TDecoderOutputObjectPool::TStorage::~TStorage() finished after %.3f msec!"), this, (EndTime - StartTime) * 1000.0);
 			}
 		}
 
@@ -324,4 +345,5 @@ static const FName AspectW(TEXT("aspect_w"));
 static const FName AspectH(TEXT("aspect_h"));
 static const FName FPSNumerator(TEXT("fps_num"));
 static const FName FPSDenominator(TEXT("fps_denom"));
+static const FName PixelDataScale(TEXT("pix_datascale"));
 }

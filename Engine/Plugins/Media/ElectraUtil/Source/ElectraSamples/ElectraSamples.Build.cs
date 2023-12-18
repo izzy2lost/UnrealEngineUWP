@@ -39,22 +39,22 @@ namespace UnrealBuildTool.Rules
 			if (Target.Platform.IsInGroup(UnrealPlatformGroup.Windows))
 			{
 				PublicDependencyModuleNames.Add("DirectX");
-				if (Target.Platform.IsInGroup(UnrealPlatformGroup.Windows))
+
+				AddEngineThirdPartyPrivateStaticDependencies(Target, "DX9");
+
+				if (Target.WindowsPlatform.Architecture != UnrealArch.Arm64)
 				{
-					AddEngineThirdPartyPrivateStaticDependencies(Target, "DX9");
-
-					if (Target.WindowsPlatform.Architecture != UnrealArch.Arm64)
-					{
-						PublicAdditionalLibraries.AddRange(new string[] {
-							Path.Combine(Target.WindowsPlatform.DirectXLibDir, "dxerr.lib"),
-						});
-					}
-
-					PrivateDependencyModuleNames.Add("D3D11RHI");
-
-					PrivateDefinitions.Add("ELECTRA_SUPPORT_PREWIN8");
-					PrivateDefinitions.Add("ELECTRA_HAVE_DX11");
+					PublicAdditionalLibraries.AddRange(new string[] {
+						Path.Combine(Target.WindowsPlatform.DirectXLibDir, "dxerr.lib"),
+					});
 				}
+
+				PrivateDependencyModuleNames.Add("D3D11RHI");
+				PrivateDependencyModuleNames.Add("D3D12RHI");
+				AddEngineThirdPartyPrivateStaticDependencies(Target, "DX12");
+
+				PrivateDefinitions.Add("ELECTRA_SUPPORT_PREWIN8");
+				PrivateDefinitions.Add("ELECTRA_HAVE_DX11");
 
 				PublicSystemLibraries.AddRange(new string[] {
 					"strmiids.lib",

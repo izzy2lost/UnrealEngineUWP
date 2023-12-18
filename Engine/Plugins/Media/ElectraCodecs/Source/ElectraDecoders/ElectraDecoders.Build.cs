@@ -44,6 +44,7 @@ namespace UnrealBuildTool.Rules
 			if (Target.Platform.IsInGroup(UnrealPlatformGroup.Windows))
 			{
 				PublicDependencyModuleNames.Add("DirectX");
+				AddEngineThirdPartyPrivateStaticDependencies(Target, "DX12");
 
 				PrivateDefinitions.Add("_CRT_SECURE_NO_WARNINGS=1");
 

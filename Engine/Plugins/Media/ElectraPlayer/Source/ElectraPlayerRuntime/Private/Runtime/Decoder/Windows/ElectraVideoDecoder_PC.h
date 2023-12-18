@@ -5,6 +5,7 @@
 #include "PlayerCore.h"
 #include "ElectraPlayerPrivate.h"
 #include "MediaVideoDecoderOutputPC.h"
+#include "VideoDecoderResourceDelegate.h"
 
 /*********************************************************************************************************************/
 /*********************************************************************************************************************/
@@ -22,10 +23,15 @@ THIRD_PARTY_INCLUDES_END
 
 #include "Windows/HideWindowsPlatformTypes.h"
 
-/*********************************************************************************************************************/
-/*********************************************************************************************************************/
-/*********************************************************************************************************************/
+struct ID3D12Resource;
+struct ID3D12Fence;
 
+class FElectraMediaDecoderOutputBufferPool_DX12;
+class FElectraDecoderOutputSync;
+
+/*********************************************************************************************************************/
+/*********************************************************************************************************************/
+/*********************************************************************************************************************/
 
 class FElectraPlayerVideoDecoderOutputPC : public FVideoDecoderOutputPC
 {
@@ -38,6 +44,9 @@ public:
 
 	void InitializeWithBuffer(TSharedPtr<TArray<uint8>, ESPMode::ThreadSafe> InBuffer, uint32 InStride, FIntPoint Dim, TSharedPtr<Electra::FParamDict, ESPMode::ThreadSafe> InParamDict);
 
+	void InitializeWithResource(const TRefCountPtr<ID3D12Device>& InD3D12Device, const TRefCountPtr<ID3D12Resource> Resource, uint32 ResourcePitch, const FElectraDecoderOutputSync& OutputSync, const FIntPoint& OutputDim, TSharedPtr<Electra::FParamDict, ESPMode::ThreadSafe> InParamDict, Electra::IVideoDecoderResourceDelegate* ResourceDelegate,
+								uint32 MaxWidth, uint32 MaxHeight, uint32 MaxOutputBuffers);
+
 	// Hardware decode to shared DX11 texture (Win8+) from IMFSample
 	void InitializeWithSharedTexture(const TRefCountPtr<ID3D11Device>& InD3D11Device, const TRefCountPtr<ID3D11DeviceContext> InDeviceContext, const TRefCountPtr<IMFSample> MFSample, const FIntPoint& OutputDim, TSharedPtr<Electra::FParamDict, ESPMode::ThreadSafe> InParamDict);
 
@@ -46,8 +55,8 @@ public:
 
 	void SetOwner(const TSharedPtr<IDecoderOutputOwner, ESPMode::ThreadSafe>& InOwningRenderer) override;
 	void ShutdownPoolable() override;
+	bool IsReadyForReuse() override;
 	EOutputType GetOutputType() const override;
-	TRefCountPtr<IMFSample> GetMFSample() const override;
 	const TArray<uint8>& GetBuffer() const override;
 	uint32 GetStride() const override;
 	TRefCountPtr<IUnknown> GetTexture() const override;
@@ -64,13 +73,20 @@ private:
 	TRefCountPtr<ID3D11Texture2D> SharedTexture;
 	TRefCountPtr<ID3D11Device> D3D11Device;
 
+	TRefCountPtr<ID3D12Resource> TextureDX12;
+	FIntPoint TextureDX12Dim = {0, 0};
+	TRefCountPtr<ID3D12Fence> D3DFence;
+	uint64 FenceValue = 0;
+
+	TRefCountPtr<ID3D12CommandAllocator> D3DCmdAllocator;
+	TRefCountPtr<ID3D12GraphicsCommandList> D3DCmdList;
+	TSharedPtr<FElectraMediaDecoderOutputBufferPool_DX12> D3D12ResourcePool;
+
+	TRefCountPtr<ID3D12Resource> DecoderOutputResource;
+
 	// CPU-side buffer
 	TSharedPtr<TArray<uint8>, ESPMode::ThreadSafe> Buffer;
 	uint32 Stride = 0;
-
-	// WMF sample (owned by this class if SW decoder is used)
-	TRefCountPtr<IMFSample> MFSample;
-	uint32 AllocatedBufferSize = 0;
 
 	// Dimension of any internally allocated buffer - stored explicitly to cover various special cases for DX
 	FIntPoint SampleDim;

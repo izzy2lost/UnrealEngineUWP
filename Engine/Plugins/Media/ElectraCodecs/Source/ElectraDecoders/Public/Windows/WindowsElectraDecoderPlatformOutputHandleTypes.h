@@ -4,6 +4,13 @@
 
 #include "CoreMinimal.h"
 
+#include "Windows/AllowWindowsPlatformTypes.h"
+THIRD_PARTY_INCLUDES_START
+#include "d3d12.h"
+#include "mfobjects.h"
+THIRD_PARTY_INCLUDES_END
+#include "Windows/HideWindowsPlatformTypes.h"
+
 enum class EElectraDecoderPlatformOutputHandleType
 {
 	MFSample,
@@ -43,6 +50,27 @@ enum class EElectraDecoderPlatformPixelEncoding
 	ARGB_BigEndian,	//!< Interpret as ARGB, big endian
 };
 
+class FElectraDecoderOutputSync final
+{
+public:
+	FElectraDecoderOutputSync() : SyncValue(0), CopyDoneSyncValue(0) {}
+	FElectraDecoderOutputSync(TRefCountPtr<IUnknown> InSync, uint64 InSyncValue, TRefCountPtr<IMFSample> InMFSample = nullptr)
+		: Sync(InSync), SyncValue(InSyncValue), MFSample(InMFSample)
+	{}
+	FElectraDecoderOutputSync(TRefCountPtr<IUnknown> InSync, uint64 InSyncValue, TRefCountPtr<ID3D12Fence> InCopyDoneSync, uint64 InCopyDoneSyncValue)
+		: Sync(InSync), SyncValue(InSyncValue), CopyDoneSync(InCopyDoneSync), CopyDoneSyncValue(InCopyDoneSyncValue)
+	{}
+
+	TRefCountPtr<IUnknown>		Sync;				// An IUnknown based sync primitive (fence, or DX12 specific WMF object)
+	uint64						SyncValue;			// Optionally needed sync value
+
+	TRefCountPtr<ID3D12Fence>	CopyDoneSync;		// Fence to signal end of copy from this buffer back to decoder
+	uint64						CopyDoneSyncValue;	// Value to be used with CopyDoneSync fence
+
+private:
+	TRefCountPtr<IMFSample>		MFSample;			// The sample reference can ride along to ensure that the DX12 WMF interface properly keeps reference to the sample until we enqueue their sync primitives with the a D3D queue
+};
+
 class IElectraDecoderVideoOutputImageBuffers
 {
 public:
@@ -58,6 +86,9 @@ public:
 	// Returns the n'th image buffer as GPU texture resource.
 	virtual void* GetBufferTextureByIndex(int32 InBufferIndex) const = 0;
 
+	// Returns the n'th image buffer's GPU sync object to signal texture data as being ready to be read
+	virtual bool GetBufferTextureSyncByIndex(int32 InBufferIndex, FElectraDecoderOutputSync& SyncObject) const = 0;
+
 	// Returns the n'th image buffer format
 	virtual EElectraDecoderPlatformPixelFormat GetBufferFormatByIndex(int32 InBufferIndex) const = 0;
 
@@ -67,3 +98,5 @@ public:
 	// Returns the n'th image buffer pitch
 	virtual int32 GetBufferPitchByIndex(int32 InBufferIndex) const = 0;
 };
+
+#define ELECTRA_HAVE_IMAGEBUFFERS 1

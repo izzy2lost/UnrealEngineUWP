@@ -96,6 +96,10 @@ public:
 	{
 		return InBufferIndex == 0 ? ImageBuffer : nullptr;
 	}
+	virtual bool GetBufferTextureSyncByIndex(int32 InBufferIndex, FElectraDecoderOutputSync& SyncObject) const override
+	{
+		return false;
+	}
 	EElectraDecoderPlatformPixelFormat GetBufferFormatByIndex(int32 InBufferIndex) const override
 	{
 		return PixelFormat;

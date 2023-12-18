@@ -48,6 +48,7 @@ namespace UnrealBuildTool.Rules
 				PrivateDefinitions.Add("_CRT_SECURE_NO_WARNINGS=1");
 
 				AddEngineThirdPartyPrivateStaticDependencies(Target, "WinHttp");
+				AddEngineThirdPartyPrivateStaticDependencies(Target, "DX12");
 
 				PrivateDefinitions.Add("ELECTRA_HAVE_DX11");	// video decoding for DX11 enabled (Win8+)
 
