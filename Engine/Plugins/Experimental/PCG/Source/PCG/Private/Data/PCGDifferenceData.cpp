@@ -1,8 +1,11 @@
 // Copyright Epic Games, Inc. All Rights Reserved.
 
 #include "Data/PCGDifferenceData.h"
+
+#include "PCGContext.h"
 #include "Data/PCGPointData.h"
 #include "Data/PCGSpatialData.h"
+#include "Data/PCGSpatialDataTpl.h"
 #include "Data/PCGUnionData.h"
 #include "Helpers/PCGAsync.h"
 
@@ -239,13 +242,12 @@ const UPCGPointData* UPCGDifferenceData::CreatePointData(FPCGContext* Context) c
 	}
 
 	const UPCGMetadata* SourceMetadata = SourcePointData->Metadata;
+	const TArray<FPCGPoint>& SourcePoints = SourcePointData->GetPoints();
 
 	UPCGPointData* Data = NewObject<UPCGPointData>();
 	Data->InitializeFromData(this, SourceMetadata);
 	
 	UPCGMetadata* OutMetadata = Data->Metadata;
-
-	const TArray<FPCGPoint>& SourcePoints = SourcePointData->GetPoints();
 	TArray<FPCGPoint>& TargetPoints = Data->GetMutablePoints();
 
 	const UPCGMetadata* DifferenceMetadata = GetDifference()->Metadata;
@@ -256,34 +258,55 @@ const UPCGPointData* UPCGDifferenceData::CreatePointData(FPCGContext* Context) c
 		TempDiffMetadata->Initialize(DifferenceMetadata);
 	}
 
-	FPCGAsync::AsyncPointProcessing(Context, SourcePoints.Num(), TargetPoints, [this, Data, OutMetadata, SourcePointData, SourceMetadata, TempDiffMetadata, &SourcePoints](int32 Index, FPCGPoint& OutPoint)
+	constexpr int ChunkSize = FPCGSpatialDataProcessing::DefaultSamplePointsChunkSize;
+
+	auto ChunkSamplePoints = [this, SourceMetadata, TempDiffMetadata, OutMetadata](const TArrayView<TPair<FTransform, FBox>>& Samples, const TArrayView<const FPCGPoint>& SourcePoints, TArray<FPCGPoint, TInlineAllocator<ChunkSize>>& OutPoints)
 	{
-		const FPCGPoint& Point = SourcePoints[Index];
+		const int NumPoints = Samples.Num();
 
-		FPCGPoint PointFromDiff;
-		if (GetDifference() && GetDifference()->SamplePoint(Point.Transform, Point.GetLocalBounds(), PointFromDiff, TempDiffMetadata))
+		TArray<FPCGPoint, TInlineAllocator<ChunkSize>> PointsFromDiff;
+		PointsFromDiff.SetNum(NumPoints);
+
+		check(GetDifference());
+		GetDifference()->SamplePoints(Samples, PointsFromDiff, TempDiffMetadata);
+
+		TArray<FPCGPoint, TInlineAllocator<ChunkSize>> KeptPoints;
+		TArray<FPCGPoint, TInlineAllocator<ChunkSize>> RejectedPoints;
+
+		const bool bBinaryDensity = (DensityFunction == EPCGDifferenceDensityFunction::Binary);
+
+		for (int PointIndex = 0; PointIndex < NumPoints; ++PointIndex)
 		{
-			const bool bBinaryDensity = (DensityFunction == EPCGDifferenceDensityFunction::Binary);
+			const FPCGPoint& Point = SourcePoints[PointIndex];
+			FPCGPoint& PointFromDiff = PointsFromDiff[PointIndex];
 
-			OutPoint = Point;
-			OutPoint.Density = bBinaryDensity ? 0 : FMath::Max(0, Point.Density - PointFromDiff.Density);
+			const float Density = (bBinaryDensity && PointFromDiff.Density > 0) ? 0.0f : Point.Density - PointFromDiff.Density;
 
-			if (TempDiffMetadata && OutPoint.Density > 0 && PointFromDiff.MetadataEntry != PCGInvalidEntryKey)
+			if (Density > 0)
 			{
-				OutMetadata->MergePointAttributesSubset(Point, SourceMetadata, SourceMetadata, PointFromDiff, TempDiffMetadata, TempDiffMetadata, OutPoint, EPCGMetadataOp::Sub);
+				FPCGPoint& OutPoint = KeptPoints.Add_GetRef(Point);
+				OutPoint.Density = Density;
+
+				// TODO: create an array-based MergePointsAttributeSubset
+				if (TempDiffMetadata && PointFromDiff.MetadataEntry != PCGInvalidEntryKey)
+				{
+					OutMetadata->MergePointAttributesSubset(Point, SourceMetadata, SourceMetadata, PointFromDiff, TempDiffMetadata, TempDiffMetadata, OutPoint, EPCGMetadataOp::Sub);
+				}
 			}
-
-			return OutPoint.Density > 0 || bKeepZeroDensityPoints;
+			else if(bKeepZeroDensityPoints)
+			{
+				FPCGPoint& RejectedPoint = RejectedPoints.Add_GetRef(Point);
+				RejectedPoint.Density = 0;
+			}
 		}
-		else
-		{
-			OutPoint = Point;
-			return true;
-		}
-	});
 
-	UE_LOG(LogPCG, Verbose, TEXT("Difference generated %d points from %d source points"), TargetPoints.Num(), SourcePointData->GetPoints().Num());
+		OutPoints.Append(KeptPoints);
+		OutPoints.Append(RejectedPoints);
+	};
 
+	FPCGSpatialDataProcessing::SampleBasedRangeProcessing<ChunkSize>(Context ? &Context->AsyncState : nullptr, ChunkSamplePoints, SourcePoints, TargetPoints);
+	
+	UE_LOG(LogPCG, Verbose, TEXT("Difference generated %d points from %d source points"), TargetPoints.Num(), SourcePointData->GetPoints().Num());	
 	return Data;
 }
 

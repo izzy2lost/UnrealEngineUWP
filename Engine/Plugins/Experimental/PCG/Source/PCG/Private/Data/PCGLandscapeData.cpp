@@ -4,16 +4,21 @@
 
 #include "PCGSubsystem.h"
 #include "Data/PCGPointData.h"
+#include "Data/PCGSpatialDataTpl.h"
 #include "Data/PCGSurfaceData.h"
 #include "Data/PCGWorldData.h"
 #include "Grid/PCGLandscapeCache.h"
 #include "Helpers/PCGHelpers.h"
 
+#include "ChaosInterfaceWrapperCore.h"
 #include "Landscape.h"
 #include "LandscapeInfo.h"
 #include "LandscapeProxy.h"
+#include "Chaos/ChaosEngineInterface.h"
+#include "Chaos/PhysicsObjectCollisionInterface.h"
 #include "Engine/World.h"
 #include "PhysicalMaterials/PhysicalMaterial.h"
+#include "PhysicsEngine/PhysicsObjectExternalInterface.h"
 
 #include UE_INLINE_GENERATED_CPP_BY_NAME(PCGLandscapeData)
 
@@ -50,7 +55,8 @@ void UPCGLandscapeData::Initialize(const TArray<TWeakObjectPtr<ALandscapeProxy>>
 		Landscapes.Emplace(Landscape.Get());
 
 		// Build landscape info list
-		LandscapeInfos.Emplace(PCGHelpers::GetLandscapeBounds(Landscape.Get()), Landscape->GetLandscapeInfo());
+		LandscapeInfos.AddUnique(Landscape->GetLandscapeInfo());
+		BoundsToLandscapeInfos.Emplace(PCGHelpers::GetLandscapeBounds(Landscape.Get()), Landscape->GetLandscapeInfo());
 	}
 
 	check(!Landscapes.IsEmpty());
@@ -120,7 +126,8 @@ void UPCGLandscapeData::PostLoad()
 		Landscape.LoadSynchronous();
 		if (Landscape.Get())
 		{
-			LandscapeInfos.Emplace(PCGHelpers::GetLandscapeBounds(Landscape.Get()), Landscape->GetLandscapeInfo());
+			LandscapeInfos.AddUnique(Landscape->GetLandscapeInfo());
+			BoundsToLandscapeInfos.Emplace(PCGHelpers::GetLandscapeBounds(Landscape.Get()), Landscape->GetLandscapeInfo());
 
 			if (!FirstLandscape)
 			{
@@ -226,6 +233,128 @@ bool UPCGLandscapeData::SamplePoint(const FTransform& InTransform, const FBox& I
 	}
 
 	return false;
+}
+
+void UPCGLandscapeData::SamplePoints(const TArrayView<const TPair<FTransform, FBox>>& Samples, const TArrayView<FPCGPoint>& OutPoints, UPCGMetadata* OutMetadata) const
+{
+	// Implementation note:
+	// We will first build a list of all relevant landscsape collision components and the samples to test against them
+	constexpr int32 ChunkSize = FPCGSpatialDataProcessing::DefaultSamplePointsChunkSize;
+	TMap<ULandscapeHeightfieldCollisionComponent*, TArray<int, TInlineAllocator<ChunkSize>>> LandscapeCollisionComponentsToSamples;
+	TMap<const ULandscapeInfo*, FTransform> LandscapeTransformsMap;
+
+	for (int SampleIndex = 0; SampleIndex < Samples.Num(); ++SampleIndex)
+	{
+		const TPair<FTransform, FBox>& Sample = Samples[SampleIndex];
+		const ULandscapeInfo* LandscapeInfo = GetLandscapeInfo(Sample.Key.GetLocation());
+
+		// Implementation note: we reset the density here to simplify the early return cases + the points that wouldn't be kept at the end of the process
+		OutPoints[SampleIndex].Density = 0;
+
+		if (!LandscapeInfo || !LandscapeInfo->GetLandscapeProxy())
+		{
+			continue;
+		}
+
+		if (!LandscapeTransformsMap.Contains(LandscapeInfo))
+		{
+			LandscapeTransformsMap.Add(LandscapeInfo, LandscapeInfo->GetLandscapeProxy()->LandscapeActorToWorld());
+		}
+
+		const FTransform& LandscapeTransform = LandscapeTransformsMap[LandscapeInfo];
+
+		// Transform Box in local space -> box in world space -> box in landscape space
+		const FTransform BoundsTransformInLanscapeSpace = Sample.Key.GetRelativeTransform(LandscapeTransform);
+		FBox BoundsInLanscapeSpace = Sample.Value.TransformBy(BoundsTransformInLanscapeSpace);
+
+		// The landscape is transformed so that its coordinates are [0, ComponentSizeQuads], so we'll compute our min/max bounds here in landscape local space down below
+		// Gather all landscape heightfield components we need to test
+		const int ComponentMapKeyMinX = FMath::FloorToInt(BoundsInLanscapeSpace.Min.X / LandscapeInfo->ComponentSizeQuads);
+		const int ComponentMapKeyMaxX = FMath::FloorToInt(BoundsInLanscapeSpace.Max.X / LandscapeInfo->ComponentSizeQuads);
+		const int ComponentMapKeyMinY = FMath::FloorToInt(BoundsInLanscapeSpace.Min.Y / LandscapeInfo->ComponentSizeQuads);
+		const int ComponentMapKeyMaxY = FMath::FloorToInt(BoundsInLanscapeSpace.Max.Y / LandscapeInfo->ComponentSizeQuads);
+
+		for (int X = ComponentMapKeyMinX; X <= ComponentMapKeyMaxX; ++X)
+		{
+			for (int Y = ComponentMapKeyMinY; Y <= ComponentMapKeyMaxY; ++Y)
+			{
+				if (ULandscapeHeightfieldCollisionComponent* CollisionComponent = LandscapeInfo->XYtoCollisionComponentMap.FindRef(FIntPoint(X, Y)))
+				{
+					LandscapeCollisionComponentsToSamples.FindOrAdd(CollisionComponent).Add(SampleIndex);
+				}
+			}
+		}
+	}
+
+	if (LandscapeCollisionComponentsToSamples.IsEmpty())
+	{
+		return;
+	}
+
+	TArray<FCollisionShape, TInlineAllocator<ChunkSize>> CollisionShapes;
+	TArray<FPhysicsShapeAdapter_Chaos, TInlineAllocator<ChunkSize>> CollisionShapeAdapters;
+	TBitArray<TInlineAllocator<ChunkSize>> KeptSamples(false, Samples.Num());
+	CollisionShapes.Reserve(Samples.Num());
+
+	for (const TPair<FTransform, FBox>& Sample : Samples)
+	{
+		FCollisionShape& CollisionShape = CollisionShapes.Emplace_GetRef();
+		CollisionShape.SetBox(FVector3f(Sample.Value.GetExtent() * Sample.Key.GetScale3D()));
+		CollisionShapeAdapters.Emplace(Sample.Key.GetRotation(), CollisionShape);
+	}
+
+	// For each landscape collision component, lock, test all points, repeat.
+	TArray<ChaosInterface::FOverlapHit> OverlapHits;
+	for (const auto& ComponentToSamples : LandscapeCollisionComponentsToSamples)
+	{
+		ULandscapeHeightfieldCollisionComponent* Component = ComponentToSamples.Key;
+		const TArray<int, TInlineAllocator<ChunkSize>>& SampleIndices = ComponentToSamples.Value;
+
+		// Implementation note: this is an exploded version of OverlapComponentWithResult so we lock only once per chunk
+		// TODO: Replace this by the proper API call once it is available
+		TArray<Chaos::FPhysicsObjectHandle> Objects = Component->GetAllPhysicsObjects();
+		FLockedReadPhysicsObjectExternalInterface Interface = FPhysicsObjectExternalInterface::LockRead(Objects);
+		Objects = Objects.FilterByPredicate(
+			[&Interface](Chaos::FPhysicsObjectHandle Handle)
+			{
+				return !Interface->AreAllDisabled({ &Handle, 1 });
+			}
+		);
+
+		Chaos::FPhysicsObjectCollisionInterface_External CollisionInterface{ Interface.GetInterface() };
+
+		for (int ShapeIndex : SampleIndices)
+		{
+			if (KeptSamples[ShapeIndex])
+			{
+				continue;
+			}
+
+			const FPhysicsGeometry& Geometry = CollisionShapeAdapters[ShapeIndex].GetGeometry();
+			const FTransform& SampleTransform = Samples[ShapeIndex].Key;
+
+			if (CollisionInterface.ShapeOverlap(Objects, Geometry, { SampleTransform.GetRotation(), SampleTransform.GetLocation() }, OverlapHits))
+			{
+				if (!OverlapHits.IsEmpty())
+				{
+					KeptSamples[ShapeIndex] = true;
+				}
+
+				OverlapHits.Reset();
+			}
+		}
+	}
+
+	// Finally, write back the data to the OutPoints
+	for (int SampleIndex = 0; SampleIndex < Samples.Num(); ++SampleIndex)
+	{
+		FPCGPoint& OutPoint = OutPoints[SampleIndex];
+		if (KeptSamples[SampleIndex])
+		{
+			new(&OutPoint) FPCGPoint(Samples[SampleIndex].Key, /*Density=*/1.0f, /*Seed=*/0);
+			OutPoint.SetLocalBounds(Samples[SampleIndex].Value);
+		}
+	}
 }
 
 bool UPCGLandscapeData::ProjectPoint(const FTransform& InTransform, const FBox& InBounds, const FPCGProjectionParams& InParams, FPCGPoint& OutPoint, UPCGMetadata* OutMetadata) const
@@ -366,13 +495,7 @@ const UPCGPointData* UPCGLandscapeData::CreatePointData(FPCGContext* Context, co
 
 	// Most proxies we gathered will have the same landscape info, we shouldn't loop multiple times
 	// on them, unless we add the box filtering - but even then, depending on the transform we could have overlaps
-	TSet<ULandscapeInfo*> AllLandscapeInfos;
-	for (const TPair<FBox, ULandscapeInfo*>& LandscapeInfoPair : LandscapeInfos)
-	{
-		AllLandscapeInfos.Add(LandscapeInfoPair.Value);
-	}
-
-	for(ULandscapeInfo* LandscapeInfo : AllLandscapeInfos)
+	for (ULandscapeInfo* LandscapeInfo : LandscapeInfos)
 	{
 		ALandscapeProxy* LandscapeProxy = LandscapeInfo ? LandscapeInfo->GetLandscapeProxy() : nullptr;
 		if (!LandscapeProxy)
@@ -472,12 +595,12 @@ const ULandscapeInfo* UPCGLandscapeData::GetLandscapeInfo(const FVector& InPosit
 	// Early out
 	if (LandscapeInfos.Num() == 1)
 	{
-		return LandscapeInfos[0].Value;
+		return LandscapeInfos[0];
 	}
 
 	// As discussed in the header, this loop here is the reason why we do not really support overlapping landscapes.
 	// TODO: we could maybe improve on this if we find the "nearest" landscape on a Z perspective, but this might still lead to issues
-	for (const TPair<FBox, ULandscapeInfo*>& LandscapeInfoPair : LandscapeInfos)
+	for (const TPair<FBox, ULandscapeInfo*>& LandscapeInfoPair : BoundsToLandscapeInfos)
 	{
 		if (PCGHelpers::IsInsideBoundsXY(LandscapeInfoPair.Key, InPosition))
 		{
@@ -498,6 +621,7 @@ UPCGSpatialData* UPCGLandscapeData::CopyInternal() const
 	NewLandscapeData->Bounds = Bounds;
 	NewLandscapeData->DataProps = DataProps;
 	NewLandscapeData->LandscapeInfos = LandscapeInfos;
+	NewLandscapeData->BoundsToLandscapeInfos = BoundsToLandscapeInfos;
 	NewLandscapeData->LandscapeCache = LandscapeCache;
 
 	return NewLandscapeData;

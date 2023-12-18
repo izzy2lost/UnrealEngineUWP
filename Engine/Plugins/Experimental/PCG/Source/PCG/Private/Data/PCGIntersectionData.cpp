@@ -1,8 +1,11 @@
 // Copyright Epic Games, Inc. All Rights Reserved.
 
 #include "Data/PCGIntersectionData.h"
+
+#include "PCGContext.h"
 #include "Data/PCGPointData.h"
 #include "Data/PCGSpatialData.h"
+#include "Data/PCGSpatialDataTpl.h"
 #include "Helpers/PCGAsync.h"
 #include "Helpers/PCGHelpers.h"
 
@@ -215,9 +218,10 @@ UPCGPointData* UPCGIntersectionData::CreateAndFilterPointData(FPCGContext* Conte
 	}
 
 	const TArray<FPCGPoint>& SourcePoints = SourcePointData->GetPoints();
+	const UPCGMetadata* SourceMetadata = SourcePointData->Metadata;
 
 	UPCGPointData* Data = NewObject<UPCGPointData>();
-	Data->InitializeFromData(this, SourcePointData->Metadata);
+	Data->InitializeFromData(this, SourceMetadata);
 	Data->Metadata->AddAttributes(Y->Metadata);
 
 	UPCGMetadata* TempYMetadata = nullptr;
@@ -227,43 +231,55 @@ UPCGPointData* UPCGIntersectionData::CreateAndFilterPointData(FPCGContext* Conte
 		TempYMetadata->Initialize(Y->Metadata);
 	}
 
-	const bool bPointDataHasCommonAttributes = (SourcePointData->Metadata && Y->Metadata && SourcePointData->Metadata->HasCommonAttributes(Y->Metadata));
+	const bool bPointDataHasCommonAttributes = (SourceMetadata && Y->Metadata && SourceMetadata->HasCommonAttributes(Y->Metadata));
 
 	TArray<FPCGPoint>& TargetPoints = Data->GetMutablePoints();
 
-	FPCGAsync::AsyncPointProcessing(Context, SourcePoints.Num(), TargetPoints, [this, Data, SourcePointData, &SourcePoints, Y, TempYMetadata, bPointDataHasCommonAttributes](int32 Index, FPCGPoint& OutPoint)
+	constexpr int ChunkSize = FPCGSpatialDataProcessing::DefaultSamplePointsChunkSize;
+
+	auto ChunkSamplePoints = [this, Data, SourceMetadata, Y, TempYMetadata, bPointDataHasCommonAttributes](const TArrayView<TPair<FTransform, FBox>>& Samples, const TArrayView<const FPCGPoint>& SourcePoints, TArray<FPCGPoint, TInlineAllocator<ChunkSize>>& OutPoints)
 	{
-		TRACE_CPUPROFILER_EVENT_SCOPE(UPCGIntersectionData::CreateAndFilterPointData::Iteration);
-		const FPCGPoint& Point = SourcePoints[Index];
+		const int NumPoints = Samples.Num();
 
-		FPCGPoint PointFromY;
-		if (!Y->SamplePoint(Point.Transform, Point.GetLocalBounds(), PointFromY, TempYMetadata))
+		TArray<FPCGPoint, TInlineAllocator<ChunkSize>> PointsFromY;
+		PointsFromY.SetNum(NumPoints);
+
+		Y->SamplePoints(Samples, PointsFromY, TempYMetadata);
+
+		TArray<FPCGPoint, TInlineAllocator<ChunkSize>> KeptPoints;
+		TArray<FPCGPoint, TInlineAllocator<ChunkSize>> RejectedPoints;
+
+		// Filter points based on output density
+		for (int PointIndex = 0; PointIndex < NumPoints; ++PointIndex)
 		{
-			if (!bKeepZeroDensityPoints)
+			const FPCGPoint& Point = SourcePoints[PointIndex];
+			FPCGPoint& PointFromY = PointsFromY[PointIndex];
+
+			if (PointFromY.Density > 0)
 			{
-				return false;
+				FPCGPoint& KeptPoint = KeptPoints.Add_GetRef(Point); // note: not the sampled point
+				KeptPoint.Density = PCGIntersectionDataMaths::ComputeDensity(Point.Density, PointFromY.Density, DensityFunction);
+				KeptPoint.Color = Point.Color * PointFromY.Color;
+
+				// TODO: create an array-based MergePointsAttributeSubset..
+				// If either the point from Y has metadata or the merge would be a non-trivial value, then perform the full merge
+				if (Data->Metadata && (bPointDataHasCommonAttributes || PointFromY.MetadataEntry != PCGInvalidEntryKey))
+				{
+					Data->Metadata->MergePointAttributesSubset(Point, SourceMetadata, SourceMetadata, PointFromY, TempYMetadata, TempYMetadata, KeptPoint, EPCGMetadataOp::Min);
+				}
 			}
-			else
+			else if (bKeepZeroDensityPoints)
 			{
-				// Point is rejected, mark its density to zero
-				PointFromY.Density = 0;
-				PointFromY.MetadataEntry = PCGInvalidEntryKey;
-				PointFromY.Color = FVector4::One();
+				FPCGPoint& RejectedPoint = RejectedPoints.Add_GetRef(Point); // note: not the sampled point
+				RejectedPoint.Density = 0;
 			}
 		}
 
-		OutPoint = Point;
-		OutPoint.Density = PCGIntersectionDataMaths::ComputeDensity(Point.Density, PointFromY.Density, DensityFunction);
-		OutPoint.Color = Point.Color * PointFromY.Color;
+		OutPoints.Append(KeptPoints);
+		OutPoints.Append(RejectedPoints);
+	};
 
-		// If either the point from Y has metadata or the merge would be a non-trivial value, then perform the full merge
-		if (Data->Metadata && (bPointDataHasCommonAttributes || PointFromY.MetadataEntry != PCGInvalidEntryKey))
-		{
-			Data->Metadata->MergePointAttributesSubset(Point, SourcePointData->Metadata, SourcePointData->Metadata, PointFromY, TempYMetadata, TempYMetadata, OutPoint, EPCGMetadataOp::Min);
-		}
-
-		return true;
-	});
+	FPCGSpatialDataProcessing::SampleBasedRangeProcessing<ChunkSize>(Context ? &Context->AsyncState : nullptr, ChunkSamplePoints, SourcePoints, TargetPoints);
 
 	UE_LOG(LogPCG, Verbose, TEXT("Intersection generated %d points from %d source points"), TargetPoints.Num(), SourcePoints.Num());
 

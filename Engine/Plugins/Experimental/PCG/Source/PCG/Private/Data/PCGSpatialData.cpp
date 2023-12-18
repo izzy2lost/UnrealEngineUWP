@@ -104,6 +104,32 @@ float UPCGSpatialData::GetDensityAtPosition(const FVector& InPosition) const
 	}
 }
 
+bool UPCGSpatialData::K2_SamplePoint(const FTransform& InTransform, const FBox& InBounds, FPCGPoint& OutPoint, UPCGMetadata* OutMetadata) const
+{
+	return SamplePoint(InTransform, InBounds, OutPoint, OutMetadata);
+}
+
+bool UPCGSpatialData::K2_ProjectPoint(const FTransform& InTransform, const FBox& InBounds, const FPCGProjectionParams& InParams, FPCGPoint& OutPoint, UPCGMetadata* OutMetadata) const
+{
+	return ProjectPoint(InTransform, InBounds, InParams, OutPoint, OutMetadata);
+}
+
+void UPCGSpatialData::SamplePoints(const TArrayView<const TPair<FTransform, FBox>>& InSamples, const TArrayView<FPCGPoint>& OutPoints, UPCGMetadata* OutMetadata) const
+{
+	TRACE_CPUPROFILER_EVENT_SCOPE(UPCGSpatialData::SamplePoints);
+	check(InSamples.Num() == OutPoints.Num());
+	for(int Index = 0; Index < InSamples.Num(); ++Index)
+	{
+		const TPair<FTransform, FBox>& Sample = InSamples[Index];
+		FPCGPoint& OutPoint = OutPoints[Index];
+
+		if (!SamplePoint(Sample.Key, Sample.Value, OutPoint, OutMetadata))
+		{
+			OutPoint.Density = 0;
+		}
+	}
+}
+
 bool UPCGSpatialData::ProjectPoint(const FTransform& InTransform, const FBox& InBounds, const FPCGProjectionParams& InParams, FPCGPoint& OutPoint, UPCGMetadata* OutMetadata) const
 {
 	// Fallback implementation - calls SamplePoint because SamplePoint was being used for projection previously.
@@ -130,6 +156,22 @@ bool UPCGSpatialData::ProjectPoint(const FTransform& InTransform, const FBox& In
 	}
 
 	return bResult;
+}
+
+void UPCGSpatialData::ProjectPoints(const TArrayView<const TPair<FTransform, FBox>>& InSamples, const FPCGProjectionParams& InParams, const TArrayView<FPCGPoint>& OutPoints, UPCGMetadata* OutMetadata) const
+{
+	TRACE_CPUPROFILER_EVENT_SCOPE(UPCGSpatialData::ProjectPoints);
+	check(InSamples.Num() == OutPoints.Num());
+	for (int Index = 0; Index < InSamples.Num(); ++Index)
+	{
+		const TPair<FTransform, FBox>& Sample = InSamples[Index];
+		FPCGPoint& OutPoint = OutPoints[Index];
+
+		if (!ProjectPoint(Sample.Key, Sample.Value, InParams, OutPoint, OutMetadata))
+		{
+			OutPoint.Density = 0;
+		}
+	}
 }
 
 UPCGIntersectionData* UPCGSpatialData::IntersectWith(const UPCGSpatialData* InOther) const

@@ -93,8 +93,8 @@ namespace FPCGAsync
 
 	namespace Private
 	{
-	template <typename InitializeFunc, typename InnerLoopFunc, typename MoveDataFunc, typename FinishedFunc>
-	bool AsyncProcessing(FPCGAsyncState& AsyncState, int32 NumIterations, InitializeFunc&& Initialize, InnerLoopFunc&& IterationInnerLoop, MoveDataFunc&& MoveData, FinishedFunc&& Finished, const bool bInEnableTimeSlicing, const int32 InChunkSize)
+	template <typename InitializeFunc, typename InnerLoopFunc, typename MoveDataRangeFunc, typename FinishedFunc>
+	bool AsyncProcessing(FPCGAsyncState& AsyncState, int32 NumIterations, InitializeFunc&& Initialize, InnerLoopFunc&& IterationInnerLoop, MoveDataRangeFunc&& MoveDataRange, FinishedFunc&& Finished, const bool bInEnableTimeSlicing, const int32 InChunkSize)
 	{
 		TRACE_CPUPROFILER_EVENT_SCOPE(FPCGAsync::AsyncProcessing);
 
@@ -278,10 +278,8 @@ namespace FPCGAsync
 						else
 						{
 							// Otherwise collapse
-							for (int32 i = 0; i < NumberOfElementsWritten; ++i)
-							{
-								MoveData(ReadStartIndexForCurrentChunkToCollapse + i, AsyncState.AsyncCurrentWriteIndex++);
-							}
+							MoveDataRange(ReadStartIndexForCurrentChunkToCollapse, AsyncState.AsyncCurrentWriteIndex, NumberOfElementsWritten);
+							AsyncState.AsyncCurrentWriteIndex += NumberOfElementsWritten;
 						}
 
 						AsyncState.AsyncCurrentReadIndex += ChunkSize;
@@ -315,6 +313,48 @@ namespace FPCGAsync
 
 		return bIsDone;
 	}
+	}
+
+	/**
+	* A Helper for generic parallel loops, with support for timeslicing, specialized to work on ranges. This version only uses indexes allowing more flexible usage
+	* to process many arrays in parallel or use it for other batch updating.
+	* 
+	* Work will be separated in chunks, that will be processed in parallel. Main thread will then collapse incoming data from async tasks.
+	* Will use AsyncState.ShouldStop() to stop execution if timeslicing is enabled.
+	* Important info: 
+	*   - We will finish to process and collapse data for all data already in process, even if we need to stop. To mitigate this, try to use small chunk sizes.
+	*   - To avoid infinite loops (when we should stop even before starting working), we will at least process 1 chunk of data per thread.
+	*   - To have async tasks, you need to have at least 3 available threads (main thread + 2 futures). Otherwise, we will only process on the main thread, without collapse.
+	* 
+	* @param AsyncState - The context containing the information about how many tasks we can launch, async read/write index for the current job and a function to know if we need to stop processing.
+	* @param NumIterations - The number of calls that will be done to the provided function, also an upper bound on the number of data generated.
+	* @param Initialize - Signature: void(). A function that will be called once on the first timeslice, where you can reserve data for processing
+	* @param ProcessRange - Signature: bool(int32 StartReadIndex, int32 StartWriteIndex, int32 Count). A function that processes a range of values and returns the number of written values 
+	* @param MoveDataRange - Signature: void(int32 ReadIndex, int32 WriteIndex, int32 Count). If the processing filters points, this will be used to move elements in chunk from one range to another 
+	* @param Finished - Signature: void(int32 Count). Called once on finished, and tells you the total count of points written.
+	* @param bEnableTimeSlicing - If false, we will not stop until all the processing is done.
+	* @param ChunkSize - Size of the chunks to cut the input data with
+	* @returns true if the processing is done, false otherwise. Use this to know if you need to reschedule the task.
+	*/
+	template <typename InitializeFunc, typename ProcessRangeFunc, typename MoveDataRangeFunc, typename FinishedFunc>
+	bool AsyncProcessingRangeEx(FPCGAsyncState* AsyncState, int32 NumIterations, InitializeFunc&& Initialize, ProcessRangeFunc&& ProcessRange, MoveDataRangeFunc&& MoveDataRange, FinishedFunc&& Finished, const bool bEnableTimeSlicing, const int32 ChunkSize = 64)
+	{
+		if (AsyncState && !AsyncState->bIsRunningAsyncCall)
+		{
+			AsyncState->bIsRunningAsyncCall = true;
+			const bool bIsDone = Private::AsyncProcessing(*AsyncState, NumIterations, Initialize, ProcessRange, MoveDataRange, Finished, bEnableTimeSlicing, ChunkSize);
+			AsyncState->bIsRunningAsyncCall = false;
+			return bIsDone;
+		}
+		else
+		{
+			// Can't use time slicing without an async state or while running in another async call (it will mess up with async indexes). 
+			// We also force using one thread (the current one).
+			FPCGAsyncState DummyState;
+			DummyState.NumAvailableTasks = 1;
+			DummyState.bIsRunningAsyncCall = true;
+			return Private::AsyncProcessing(DummyState, NumIterations, Initialize, ProcessRange, MoveDataRange, Finished, /*bEnableTimeSlicing=*/false, ChunkSize);
+		}
 	}
 
 	/**
@@ -356,22 +396,15 @@ namespace FPCGAsync
 			return NumPointsWritten;
 		};
 
-		if (AsyncState && !AsyncState->bIsRunningAsyncCall)
+		auto MoveDataRange = [Func = MoveTemp(MoveData)](int32 ReadIndex, int32 WriteIndex, int32 Count)
 		{
-			AsyncState->bIsRunningAsyncCall = true;
-			const bool bIsDone = Private::AsyncProcessing(*AsyncState, NumIterations, Initialize, IterationInnerLoop, MoveData, Finished, bEnableTimeSlicing, ChunkSize);
-			AsyncState->bIsRunningAsyncCall = false;
-			return bIsDone;
-		}
-		else
-		{
-			// Can't use time slicing without an async state or while running in another async call (it will mess up with async indexes). 
-			// We also force using one thread (the current one).
-			FPCGAsyncState DummyState;
-			DummyState.NumAvailableTasks = 1;
-			DummyState.bIsRunningAsyncCall = true;
-			return Private::AsyncProcessing(DummyState, NumIterations, Initialize, IterationInnerLoop, MoveData, Finished, /*bEnableTimeSlicing=*/false, ChunkSize);
-		}
+			for (int Index = 0; Index < Count; ++Index)
+			{
+				Func(ReadIndex + Index, WriteIndex + Index);
+			}
+		};
+
+		return AsyncProcessingRangeEx(AsyncState, NumIterations, Initialize, IterationInnerLoop, MoveDataRange, Finished, bEnableTimeSlicing, ChunkSize);
 	}
  
  	/**
@@ -409,13 +442,13 @@ namespace FPCGAsync
 			return Count;
 		};
 
-		auto MoveData = [](int32, int32) { ensure(false); };
+		auto MoveDataRange = [](int32, int32, int32) { ensure(false); };
 		auto Finished = [NumIterations](int32 Count) { ensure(NumIterations == Count); };
 
 		if (AsyncState && !AsyncState->bIsRunningAsyncCall)
 		{
 			AsyncState->bIsRunningAsyncCall = true;
-			const bool bIsDone = Private::AsyncProcessing(*AsyncState, NumIterations, Initialize, IterationInnerLoop, MoveData, Finished, bEnableTimeSlicing, ChunkSize);
+			const bool bIsDone = Private::AsyncProcessing(*AsyncState, NumIterations, Initialize, IterationInnerLoop, MoveDataRange, Finished, bEnableTimeSlicing, ChunkSize);
 			AsyncState->bIsRunningAsyncCall = false;
 			return bIsDone;
 		}
@@ -426,7 +459,7 @@ namespace FPCGAsync
 			FPCGAsyncState DummyState;
 			DummyState.NumAvailableTasks = 1;
 			DummyState.bIsRunningAsyncCall = true;
-			return Private::AsyncProcessing(DummyState, NumIterations, Initialize, IterationInnerLoop, MoveData, Finished, /*bEnableTimeSlicing=*/false, ChunkSize);
+			return Private::AsyncProcessing(DummyState, NumIterations, Initialize, IterationInnerLoop, MoveDataRange, Finished, /*bEnableTimeSlicing=*/false, ChunkSize);
 		}
 	}
 
@@ -471,7 +504,7 @@ namespace FPCGAsync
 		{
 			// Shrinking can have a big impact on the performance, but without it, we can also hold a big chunk of wasted memory.
 			// Might revisit later if the performance impact is too big.
-			OutData.SetNum(Count);			
+			OutData.SetNum(Count);
 		};
 
 		return AsyncProcessingEx(AsyncState, NumIterations, Initialize, IterationInnerLoop, MoveData, Finished, bEnableTimeSlicing, ChunkSize);

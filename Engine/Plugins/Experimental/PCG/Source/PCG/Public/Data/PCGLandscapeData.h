@@ -63,6 +63,7 @@ public:
 	virtual FBox GetBounds() const override;
 	virtual FBox GetStrictBounds() const override;
 	virtual bool SamplePoint(const FTransform& Transform, const FBox& Bounds, FPCGPoint& OutPoint, UPCGMetadata* OutMetadata) const override;
+	virtual void SamplePoints(const TArrayView<const TPair<FTransform, FBox>>& Samples, const TArrayView<FPCGPoint>& OutPoints, UPCGMetadata* OutMetadata) const override;
 	virtual bool ProjectPoint(const FTransform& InTransform, const FBox& InBounds, const FPCGProjectionParams& InParams, FPCGPoint& OutPoint, UPCGMetadata* OutMetadata) const override;
 	virtual bool HasNonTrivialTransform() const override { return true; }
 protected:
@@ -104,7 +105,8 @@ protected:
 
 private:
 	// Transient data
-	TArray<TPair<FBox, ULandscapeInfo*>> LandscapeInfos;
+	TArray<TPair<FBox, ULandscapeInfo*>> BoundsToLandscapeInfos;
+	TArray<ULandscapeInfo*> LandscapeInfos;
 	UPCGLandscapeCache* LandscapeCache = nullptr;
 };
 
