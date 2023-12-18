@@ -14,6 +14,7 @@ using namespace uba;
 namespace uba
 {
 	int g_comFd = -1;
+	int g_sessionPid = -1;
 	Event* g_cancelEvent;
 	Event* g_readEvent;
 	Event* g_writeEvent;
@@ -120,6 +121,7 @@ static void __attribute__((constructor(102))) PreInitCtor()
 		sigaction(signal, &sa, NULL);
 	#endif
 
+	g_sessionPid = atoi(getenv("UBA_SESSION_PROCESS"));
 	g_runningRemote = getenv("UBA_REMOTE") != nullptr;
 
 	g_rulesIndex = strtoul(getenv("UBA_RULES"), nullptr, 10);
@@ -178,6 +180,13 @@ namespace uba
 		{
 			if (g_readEvent->IsSet(1000))
 				break;
+			
+#if PLATFORM_MAC
+			// check if session process is gone
+			if (kill(g_sessionPid, 0) == -1 && errno == ESRCH)
+				exit(1337);
+#endif
+			
 			if (g_cancelEvent->IsSet(0))
 				exit(1339);
 		} while (true);

@@ -1325,6 +1325,14 @@ namespace uba
 			res = posix_spawnattr_setpgroup(&attr, getpgrp());
 			UBA_ASSERTF(res == 0, TC("posix_spawnattr_setpgroup (%s)"), strerror(errno));
 
+			/* Set the child's priority to be two levels lower. */
+			sched_param param;
+			res = posix_spawnattr_getschedparam(&attr, &param);
+			UBA_ASSERTF(res == 0, TC("posix_spawnattr_getschedparam (%s)"), strerror(errno));
+			param.sched_priority -= 2;
+			res = posix_spawnattr_setschedparam(&attr, &param);
+			UBA_ASSERTF(res == 0, TC("posix_spawnattr_setschedparam (%s)"), strerror(errno));
+
 			posix_spawn_file_actions_t fileActions;
 			res = posix_spawn_file_actions_init(&fileActions);
 			UBA_ASSERTF(res == 0, TC("posix_spawn_file_actions_init (%s)"), strerror(errno));
@@ -1345,6 +1353,7 @@ namespace uba
 			StringBuffer<512> logFile;
 			StringBuffer<512> ldLibraryPath;
 			StringBuffer<512> detoursVar;
+			StringBuffer<32> processVar;
 
 			Vector<const char*> envvars;
 
@@ -1387,6 +1396,8 @@ namespace uba
 				detoursVar.Append("DYLD_INSERT_LIBRARIES=").Append(detoursLib);
 #endif
 
+				processVar.Append("UBA_SESSION_PROCESS=").AppendValue(getpid());
+
 
 				comIdVar.Append("UBA_COMID=").AppendValue(communicationHandle.uid).Append('+').AppendValue(communicationOffset);
 				workingDir.Append("UBA_CWD=").Append(m_realWorkingDir);
@@ -1403,6 +1414,7 @@ namespace uba
 				if (ldLibraryPath.count)
 					envvars.push_back(ldLibraryPath.data);
 				envvars.push_back(detoursVar.data);
+				envvars.push_back(processVar.data);
 				envvars.push_back(comIdVar.data);
 				envvars.push_back(workingDir.data);
 				envvars.push_back(rulesStr.data);
