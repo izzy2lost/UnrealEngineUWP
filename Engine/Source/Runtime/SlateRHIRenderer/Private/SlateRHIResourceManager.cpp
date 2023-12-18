@@ -234,7 +234,7 @@ void FDynamicResourceMap::RemoveExpiredMaterialResources(TArray< TSharedPtr<FSla
 	for (FMaterialResourceMap::TIterator It(MaterialMap); It; ++It)
 	{
 		FMaterialKey& Key = It.Key();
-		if (!Key.Material.IsValid())
+		if (Key.Material.ResolveObjectPtr() == nullptr)
 		{
 			RemovedMaterials.Push(It.Value());
 			It.Value()->ResetMaterial();
