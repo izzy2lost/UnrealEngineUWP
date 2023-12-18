@@ -19,6 +19,10 @@ namespace UE { class FLogRecord; }
 #define USE_DEBUG_LOGGING 1
 #endif
 
+#ifndef USE_EVENT_LOGGING
+#define USE_EVENT_LOGGING 1
+#endif
+
 #if !PLATFORM_SUPPORTS_COLORIZED_OUTPUT_DEVICE
 	// don't support colorized text on consoles
 	#define SET_WARN_COLOR(Color)

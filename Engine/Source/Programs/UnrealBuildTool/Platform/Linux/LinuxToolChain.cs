@@ -539,6 +539,10 @@ namespace UnrealBuildTool
 
 			// build up the commandline common to C and C++
 
+			// These aren't supported on Linux at this time
+			Arguments.Add("-DUSE_DEBUG_LOGGING=0");
+			Arguments.Add("-DUSE_EVENT_LOGGING=0");
+
 			// always select the driver g++ in-case we are using a different binary for clang, such as clang/clang-cl
 			Arguments.Add("--driver-mode=g++");
 			if (ShouldUseLibcxx())
