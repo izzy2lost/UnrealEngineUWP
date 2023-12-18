@@ -141,7 +141,7 @@ public:
 	/**
 	 * Gets the last computed desired size.
 	 */
-	FVector2D GetDesiredSize() const;
+	SLATE_API FVector2D GetDesiredSize() const;
 
 
 	/**
