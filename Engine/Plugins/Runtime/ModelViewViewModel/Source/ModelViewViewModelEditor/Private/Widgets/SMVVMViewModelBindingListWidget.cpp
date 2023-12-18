@@ -495,19 +495,7 @@ FMVVMBlueprintPropertyPath SSourceBindingList::CreateBlueprintPropertyPath(SProp
 		// Backward, test if the object can be access.
 		//The last property can be a struct variable, inside a struct, inside..., inside an object. 
 		bool bPassFilter = false;
-		const UStruct* CurrentContainer = AccessorClass;
-
-		{
-			FMVVMBlueprintPropertyPath TempPropertyPath;
-			Source->Key.SetSourceTo(TempPropertyPath);
-			TArray<FMVVMConstFieldVariant> AllFields = TempPropertyPath.GetCompleteFields(WidgetBlueprintPtr);
-			if (AllFields.Num() > 0)
-			{
-				TValueOrError<const UStruct*, void> NewContainerResult = FieldPathHelper::GetFieldAsContainer(AllFields[0]);
-				CurrentContainer = NewContainerResult.HasValue() ? NewContainerResult.GetValue() : nullptr;
-			}
-		}
-
+		const UStruct* CurrentContainer = Source->Key.GetClass();
 		for (const FFieldVariant& FieldVariant : FieldPath)
 		{
 			FMVVMConstFieldVariant NewField;
