@@ -22,7 +22,7 @@ DEFINE_LOG_CATEGORY(LogOverridableObject);
 thread_local bool FOverridableSerializationLogic::bUseOverridableSerialization = false;
 thread_local FOverriddenPropertySet* FOverridableSerializationLogic::OverriddenProperties = nullptr;
 
-EOverriddenPropertyOperation FOverridableSerializationLogic::GetOverriddenPropertyOperation(const FArchive& Ar, FProperty* Property /*= nullptr*/)
+EOverriddenPropertyOperation FOverridableSerializationLogic::GetOverriddenPropertyOperation(const FArchive& Ar, FProperty* Property /*= nullptr*/, uint8* DataPtr /*= nullptr*/)
 {
 	checkf(bUseOverridableSerialization, TEXT("Nobody should use this method if it is not setup to use overridable serialization"));
 
@@ -44,7 +44,16 @@ EOverriddenPropertyOperation FOverridableSerializationLogic::GetOverriddenProper
 		// This should probably be fix in verse at some point.
 		else if (CurrentProperty->HasAnyPropertyFlags(CPF_PersistentInstance))
 		{
-			return EOverriddenPropertyOperation::Modified;
+			if (const FObjectProperty* ObjectProperty = CastField<FObjectProperty>(CurrentProperty))
+			{
+				if (UObject* SubObject = ObjectProperty->GetObjectPropertyValue(DataPtr))
+				{
+					if (FOverridableManager::Get().GetOverriddenState(*SubObject) != EOverriddenState::NoOverrides)
+					{
+						return EOverriddenPropertyOperation::Modified;
+					}
+				}
+			}
 		}
 		else if (const FArrayProperty* CurrentArrayProperty = CastField<FArrayProperty>(CurrentProperty))
 		{

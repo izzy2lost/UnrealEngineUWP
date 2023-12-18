@@ -64,8 +64,9 @@ public:
 	 * Retrieve from the Archive and the current property the overridden property operation to know if it has to be serialized or not
 	 * @param Ar currently being used to serialize the current object (will be used to retrieve the current property serialized path)
 	 * @param Property the property about to be serialized, can be null
+	 * @param DataPtr to the memory of that property
 	 * @return the overridden property operation */
-	static EOverriddenPropertyOperation GetOverriddenPropertyOperation(const FArchive& Ar, FProperty* Property = nullptr);
+	static EOverriddenPropertyOperation GetOverriddenPropertyOperation(const FArchive& Ar, FProperty* Property = nullptr, uint8* DataPtr = nullptr);
 
 private:
 	static thread_local bool bUseOverridableSerialization;
