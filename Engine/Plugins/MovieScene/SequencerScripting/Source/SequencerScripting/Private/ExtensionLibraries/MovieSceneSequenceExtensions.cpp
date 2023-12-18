@@ -1031,7 +1031,7 @@ void UMovieSceneSequenceExtensions::RemoveRootFolderFromSequence(UMovieSceneSequ
 #endif
 }
 
-TArray<FMovieSceneMarkedFrame> UMovieSceneSequenceExtensions::GetMarkedFrames(UMovieSceneSequence* Sequence)
+TArray<FMovieSceneMarkedFrame> UMovieSceneSequenceExtensions::GetMarkedFramesFromSequence(UMovieSceneSequence* Sequence, ESequenceTimeUnit TimeUnit)
 {
 	if (!Sequence)
 	{
@@ -1042,13 +1042,25 @@ TArray<FMovieSceneMarkedFrame> UMovieSceneSequenceExtensions::GetMarkedFrames(UM
 	UMovieScene* MovieScene = Sequence->GetMovieScene();
 	if (MovieScene)
 	{
-		return MovieScene->GetMarkedFrames();
+		TArray<FMovieSceneMarkedFrame> MarkedFrames = MovieScene->GetMarkedFrames();
+		if (TimeUnit == ESequenceTimeUnit::DisplayRate)
+		{
+			FFrameRate TickResolution = MovieScene->GetTickResolution();
+			FFrameRate DisplayRate = MovieScene->GetDisplayRate();
+
+			for (FMovieSceneMarkedFrame& MarkedFrame : MarkedFrames)
+			{
+				MarkedFrame.FrameNumber = FFrameRate::TransformTime(MarkedFrame.FrameNumber, TickResolution, DisplayRate).RoundToFrame();
+			}
+		}
+
+		return MarkedFrames;
 	}
 
 	return TArray<FMovieSceneMarkedFrame>();
 }
 
-int32 UMovieSceneSequenceExtensions::AddMarkedFrame(UMovieSceneSequence* Sequence, const FMovieSceneMarkedFrame& InMarkedFrame)
+int32 UMovieSceneSequenceExtensions::AddMarkedFrameToSequence(UMovieSceneSequence* Sequence, const FMovieSceneMarkedFrame& InMarkedFrame, ESequenceTimeUnit TimeUnit)
 {
 	if (!Sequence)
 	{
@@ -1061,13 +1073,19 @@ int32 UMovieSceneSequenceExtensions::AddMarkedFrame(UMovieSceneSequence* Sequenc
 	{
 		MovieScene->Modify();
 
-		return MovieScene->AddMarkedFrame(InMarkedFrame);
+		FMovieSceneMarkedFrame MarkedFrame(InMarkedFrame);
+		if (TimeUnit == ESequenceTimeUnit::DisplayRate)
+		{
+			MarkedFrame.FrameNumber = FFrameRate::TransformTime(MarkedFrame.FrameNumber, MovieScene->GetDisplayRate(), MovieScene->GetTickResolution()).RoundToFrame();
+		}
+
+		return MovieScene->AddMarkedFrame(MarkedFrame);
 	}
 	return INDEX_NONE;
 }
 
 
-void UMovieSceneSequenceExtensions::SetMarkedFrame(UMovieSceneSequence* Sequence, int32 InMarkIndex, FFrameNumber InFrameNumber)
+void UMovieSceneSequenceExtensions::SetMarkedFrameInSequence(UMovieSceneSequence* Sequence, int32 InMarkIndex, FFrameNumber InFrameNumber, ESequenceTimeUnit TimeUnit)
 {
 	if (!Sequence)
 	{
@@ -1078,6 +1096,11 @@ void UMovieSceneSequenceExtensions::SetMarkedFrame(UMovieSceneSequence* Sequence
 	UMovieScene* MovieScene = Sequence->GetMovieScene();
 	if (MovieScene)
 	{
+		if (TimeUnit == ESequenceTimeUnit::DisplayRate)
+		{
+			InFrameNumber = FFrameRate::TransformTime(InFrameNumber, MovieScene->GetDisplayRate(), MovieScene->GetTickResolution()).RoundToFrame();
+		}
+
 		return MovieScene->SetMarkedFrame(InMarkIndex, InFrameNumber);
 	}
 }
@@ -1148,7 +1171,7 @@ int32 UMovieSceneSequenceExtensions::FindMarkedFrameByLabel(UMovieSceneSequence*
 	return INDEX_NONE;
 }
 
-int32 UMovieSceneSequenceExtensions::FindMarkedFrameByFrameNumber(UMovieSceneSequence* Sequence, FFrameNumber InFrameNumber)
+int32 UMovieSceneSequenceExtensions::FindMarkedFrameByFrameNumberInSequence(UMovieSceneSequence* Sequence, FFrameNumber InFrameNumber, ESequenceTimeUnit TimeUnit)
 {
 	if (!Sequence)
 	{
@@ -1159,12 +1182,17 @@ int32 UMovieSceneSequenceExtensions::FindMarkedFrameByFrameNumber(UMovieSceneSeq
 	UMovieScene* MovieScene = Sequence->GetMovieScene();
 	if (MovieScene)
 	{
+		if (TimeUnit == ESequenceTimeUnit::DisplayRate)
+		{
+			InFrameNumber = FFrameRate::TransformTime(InFrameNumber, MovieScene->GetDisplayRate(), MovieScene->GetTickResolution()).RoundToFrame();
+		}
+
 		return MovieScene->FindMarkedFrameByFrameNumber(InFrameNumber);
 	}
 	return INDEX_NONE;
 }
 
-int32 UMovieSceneSequenceExtensions::FindNextMarkedFrame(UMovieSceneSequence* Sequence, FFrameNumber InFrameNumber, bool bForward)
+int32 UMovieSceneSequenceExtensions::FindNextMarkedFrameInSequence(UMovieSceneSequence* Sequence, FFrameNumber InFrameNumber, bool bForward, ESequenceTimeUnit TimeUnit)
 {
 	if (!Sequence)
 	{
@@ -1175,6 +1203,11 @@ int32 UMovieSceneSequenceExtensions::FindNextMarkedFrame(UMovieSceneSequence* Se
 	UMovieScene* MovieScene = Sequence->GetMovieScene();
 	if (MovieScene)
 	{
+		if (TimeUnit == ESequenceTimeUnit::DisplayRate)
+		{
+			InFrameNumber = FFrameRate::TransformTime(InFrameNumber, MovieScene->GetDisplayRate(), MovieScene->GetTickResolution()).RoundToFrame();
+		}
+
 		return MovieScene->FindNextMarkedFrame(InFrameNumber, bForward);
 	}
 	return INDEX_NONE;
