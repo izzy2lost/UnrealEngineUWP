@@ -15,7 +15,7 @@ BEGIN_SHADER_PARAMETER_STRUCT( FInstanceHierarchyParameters, )
 	SHADER_PARAMETER(int32, FirstLevel)
 
 	SHADER_PARAMETER_RDG_BUFFER_SRV( StructuredBuffer< FCellBlockData >, InstanceHierarchyCellBlockData)
-	SHADER_PARAMETER_RDG_BUFFER_SRV( StructuredBuffer< FCellHeader >, InstanceHierarchyCellHeaders)
+	SHADER_PARAMETER_RDG_BUFFER_SRV( StructuredBuffer< FPackedCellHeader >, InstanceHierarchyCellHeaders)
 	SHADER_PARAMETER_RDG_BUFFER_SRV( StructuredBuffer< uint >, InstanceHierarchyItemChunks)
 	SHADER_PARAMETER_RDG_BUFFER_SRV( StructuredBuffer< uint >, InstanceHierarchyItems)
 END_SHADER_PARAMETER_STRUCT()

@@ -58,7 +58,7 @@ static TAutoConsoleVariable<int32> CVarNaniteEnableAsyncRasterization(
 
 static TAutoConsoleVariable<int32> CVarNaniteAsyncRasterizeShadowDepths(
 	TEXT("r.Nanite.AsyncRasterization.ShadowDepths"),
-	1,
+	0,
 	TEXT("If available, run Nanite compute rasterization of shadows as asynchronous compute."),
 	ECVF_RenderThreadSafe
 );
@@ -66,7 +66,7 @@ static TAutoConsoleVariable<int32> CVarNaniteAsyncRasterizeShadowDepths(
 static TAutoConsoleVariable<int32> CVarNaniteCullInstanceHierarchy(
 	TEXT("r.Nanite.UseSceneInstanceHierarchy"),
 	1,
-	TEXT("Control Nanite use of the insscene tance culling hierarchy, has no effect unless  r.SceneCulling is also enabled."),
+	TEXT("Control Nanite use of the scene instance culling hierarchy. Has no effect unless  r.SceneCulling is also enabled."),
 	ECVF_RenderThreadSafe
 );
 

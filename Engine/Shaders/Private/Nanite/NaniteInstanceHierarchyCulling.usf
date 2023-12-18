@@ -42,11 +42,11 @@ FCellBlockData GetCellBlockData(uint BlockId)
 	return InstanceHierarchyCellBlockData[BlockId];
 }
 
-StructuredBuffer<FCellHeader> InstanceHierarchyCellHeaders;
+StructuredBuffer<FPackedCellHeader> InstanceHierarchyCellHeaders;
 
 FCellHeader GetCellHeader(uint CellId)
 {
-	return InstanceHierarchyCellHeaders[CellId];
+	return UnpackCellHeader(InstanceHierarchyCellHeaders[CellId]);
 }
 StructuredBuffer<uint> InstanceHierarchyItemChunks;
 

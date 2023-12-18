@@ -5468,6 +5468,11 @@ void FScene::UpdateAllPrimitiveSceneInfos(FRDGBuilder& GraphBuilder, EUpdateAllP
 		{
 			FPrimitiveSceneInfo* PrimitiveSceneInfo = Transform.Key->GetPrimitiveSceneInfo();
 
+			if (UpdatedInstances.Find(Transform.Key) != nullptr)
+			{
+				continue;
+			}
+
 			if (RemovedPrimitiveSceneInfos.Find(PrimitiveSceneInfo) != nullptr)
 			{
 				continue;
@@ -5487,12 +5492,10 @@ void FScene::UpdateAllPrimitiveSceneInfos(FRDGBuilder& GraphBuilder, EUpdateAllP
 	// we cannot safely kick off the AsyncCreateLightPrimitiveInteractionsTask before the RemovedPrimitiveSceneInfos has been cleared.
 	// TODO: this is probably not true anymore!
 	RemovedPrimitiveSceneInfos.Empty();
-
+	bool bAnySceneUpdatesQueued = RemovedLocalPrimitiveSceneInfos.Num() + AddedPrimitiveSceneInfos.Num() + UpdatedTransforms.Num() + UpdatedInstances.Num() > 0;
 	RemovedLocalPrimitiveSceneInfos.Sort(FPrimitiveArraySortKey());
 	GPUScene.OnPreSceneUpdate(GraphBuilder, SceneUpdateChangeSetStorage.GetPreUpdateSet());
-
-	// TODO: Move this to a scene extension?
-	auto &SceneCullingUpdater = SceneCulling->BeginUpdate(GraphBuilder);
+	auto &SceneCullingUpdater = SceneCulling->BeginUpdate(GraphBuilder, bAnySceneUpdatesQueued);
 	SceneCullingUpdater.OnPreSceneUpdate(GraphBuilder, SceneUpdateChangeSetStorage.GetPreUpdateSet());
 	
 	// Create a SceneUB that permits access to the scene for invalidation processing.

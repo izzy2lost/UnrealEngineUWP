@@ -13,6 +13,7 @@
 
 #include "SceneCullingDefinitions.h"
 #include "HierarchicalSpatialHashGrid.h"
+#include "InstanceDataSceneProxy.h"
 
 class FScenePreUpdateChangeSet;
 class FScenePostUpdateChangeSet;
@@ -72,7 +73,7 @@ public:
 	/**
 	 * Set up update driver that can collect change sets and initiate async update. The updater (internals) has RDG scope.
 	 */
-	FUpdater &BeginUpdate(FRDGBuilder& GraphBuilder);
+	FUpdater &BeginUpdate(FRDGBuilder& GraphBuilder, bool bAnySceneUpdatesExpected);
 
 	/**
 	 * Finalize update of hierarchy, should be done as late as possible, also performs update of RDG resources. 
@@ -92,7 +93,52 @@ public:
 
 	void Test(const FCullingVolume& CullingVolume, TArray<FCellDraw, SceneRenderingAllocator>& OutCellDraws, uint32 ViewGroupId, uint32 MaxNumViews, uint32& OutNumInstanceGroups);
 
-	using FSpatialHash = THierarchicalSpatialHashGrid<3>;
+	struct alignas(16) FBlockLocAligned
+	{
+		FORCEINLINE FBlockLocAligned() {}
+
+		FORCEINLINE explicit FBlockLocAligned(const RenderingSpatialHash::TLocation<int64> &InLoc)
+			: Data(int32(InLoc.Coord.X), int32(InLoc.Coord.Y), int32(InLoc.Coord.Z), int32(InLoc.Level))
+		{
+		}
+
+		FORCEINLINE bool operator==(const FBlockLocAligned& BlockLocAligned) const
+		{
+			return Data == BlockLocAligned.Data;
+		}
+
+		FORCEINLINE void operator=(const FBlockLocAligned &BlockLocAligned)
+		{
+			Data = BlockLocAligned.Data;
+		}
+		FORCEINLINE int32 GetLevel() const { return Data.W; }
+
+		FORCEINLINE FIntVector3 GetCoord() const { return FIntVector3(Data.X, Data.Y, Data.Z); }
+
+		FORCEINLINE FVector3d GetWorldPosition() const
+		{
+			double LevelSize = RenderingSpatialHash::GetCellSize(Data.W);
+			return FVector3d(GetCoord()) * LevelSize;
+		}
+
+		FORCEINLINE uint32 GetHash() const
+		{
+			// TODO: Vectorize? Maybe convert to float vector & use dot product? Maybe not? (mul is easy, dot maybe not?)
+			return uint32(Data.X * 1150168907 + Data.Y * 1235029793 + Data.Z * 1282581571 + Data.W * 1264559321);
+		}
+
+		FIntVector4 Data;
+	};
+
+	using FBlockLoc = FBlockLocAligned;
+
+	struct FBlockTraits
+	{
+		static constexpr int32 CellBlockDimLog2 = 3; // (8x8x8)
+		using FBlockLoc = FBlockLoc;
+	};
+
+	using FSpatialHash = THierarchicalSpatialHashGrid<FBlockTraits>;
 
 	using FLocation64 = FSpatialHash::FLocation64;
 	using FLocation32 = FSpatialHash::FLocation32;
@@ -119,6 +165,7 @@ private:
 			uint32 NumInstances : InstanceCountNumBits;
 			uint32 CellIndex : 32 - InstanceCountNumBits;
 		};
+
 		inline void Add(int32 CellIndex, int32 NumInstances)
 		{
 			check(CellIndex < CellIndexMax);
@@ -137,6 +184,7 @@ private:
 			Item.NumInstances = NumInstances;
 			Items.Add(Item);
 		}
+
 		inline void Set(int32 Index, int32 CellIndex, int32 NumInstances)
 		{
 			check(CellIndex < CellIndexMax);
@@ -147,6 +195,12 @@ private:
 			Item.NumInstances = NumInstances;
 			Items[Index] = Item;
 		}
+
+		FORCEINLINE void Reset() 
+		{
+			Items.Reset();
+		}
+
 		TArray<FItem> Items;
 	};
 
@@ -190,14 +244,18 @@ private:
 
 		const FString &ToString() const;
 
-#if SCENE_CULLING_USE_PRECOMPUTED && DO_GUARD_SLOW
-		TArray<FPrimitiveSceneProxy::FCompressedSpatialHashItem> CompressedInstanceSpatialHashes;
+#if SCENE_CULLING_USE_PRECOMPUTED
+		TSharedPtr<FInstanceSceneDataImmutable, ESPMode::ThreadSafe> InstanceSceneDataImmutable;
 #endif
 	};
 
 	TArray<FPrimitiveState> PrimitiveStates;
 	TSparseArray<FCellIndexCacheEntry> CellIndexCache;
 	int32 TotalCellIndexCacheItems = 0;
+
+	int32 NumDynamicInstances = 0;
+	int32 NumStaticInstances = 0;
+	
 
 	friend class FSceneCullingBuilder;
 	friend class FSceneInstanceCullingQuery;
@@ -215,7 +273,7 @@ private:
 	FSpanAllocator CellChunkIdAllocator;
 	TArray<uint32> PackedCellData;
 	TArray<uint32> FreeChunks;
-	TArray<FCellHeader> CellHeaders;
+	TArray<FPackedCellHeader> CellHeaders;
 	TBitArray<> CellOccupancyMask;
 	TBitArray<> BlockLevelOccupancyMask;
 
@@ -230,15 +288,18 @@ private:
 	bool bTestCellVsQueryBounds = true;
 	bool bUseAsyncUpdate = true;
 	bool bUseAsyncQuery = true;
+	bool bPackedCellDataLocked = false;
 
 	inline uint32 AllocateChunk();
 	inline void FreeChunk(uint32 ChunkId);
+	inline uint32* LockChunkCellData(uint32 ChunkId, int32 NumSlackChunksNeeded);
+	inline void UnLockChunkCellData(uint32 ChunkId);
 	inline int32 CellIndexToBlockId(int32 CellIndex);
 	inline FLocation64 GetCellLoc(int32 CellIndex);
 	inline bool IsUncullable(const FPrimitiveBounds& Bounds, FPrimitiveSceneInfo* PrimitiveSceneInfo);
 
 	// Persistent GPU-representation
-	TPersistentStructuredBuffer<FCellHeader> CellHeadersBuffer;
+	TPersistentStructuredBuffer<FPackedCellHeader> CellHeadersBuffer;
 	TPersistentStructuredBuffer<uint32> ItemChunksBuffer;
 	TPersistentStructuredBuffer<uint32> ItemsBuffer;
 	TPersistentStructuredBuffer<FCellBlockData> CellBlockDataBuffer;

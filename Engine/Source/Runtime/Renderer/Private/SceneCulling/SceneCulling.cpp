@@ -9,7 +9,17 @@
 #include "InstanceDataSceneProxy.h"
 
 #if !(UE_BUILD_SHIPPING || UE_BUILD_TEST)
+#include "RendererModule.h"
 #include "DynamicPrimitiveDrawing.h"
+
+  // Keep these in the ifdef to make it easier to iterate 
+  // UE_DISABLE_OPTIMIZATION
+  // #define SC_FORCEINLINE FORCENOINLINE
+  #define SC_FORCEINLINE FORCEINLINE
+#else
+
+#define SC_FORCEINLINE FORCEINLINE
+
 #endif
 
 #define OLA_TODO 0
@@ -17,6 +27,14 @@
 #define SC_ENABLE_DETAILED_LOGGING 0 //(UE_BUILD_DEBUG)
 #define SC_ENABLE_GPU_DATA_VALIDATION (DO_CHECK)
 #define SC_ALLOW_ASYNC_TASKS 1
+
+#if 0
+#define SC_SCOPED_NAMED_EVENT_DETAIL SCOPED_NAMED_EVENT
+#define SC_SCOPED_NAMED_EVENT_DETAIL_TCHAR SCOPED_NAMED_EVENT_TCHAR
+#else
+#define SC_SCOPED_NAMED_EVENT_DETAIL(...)
+#define SC_SCOPED_NAMED_EVENT_DETAIL_TCHAR(...)
+#endif
 
 // TODO: this might be adding too much overhead in Development as well...
 #define SC_ENABLE_DETAILED_BUILDER_STATS (!(UE_BUILD_SHIPPING || UE_BUILD_TEST))
@@ -47,11 +65,15 @@ DECLARE_DWORD_COUNTER_STAT(TEXT("Update Uploaded Blocks"), STAT_SceneCulling_Upl
 DECLARE_DWORD_COUNTER_STAT(TEXT("Block Count"), STAT_SceneCulling_BlockCount, STATGROUP_SceneCulling);
 DECLARE_DWORD_COUNTER_STAT(TEXT("Cell Count"), STAT_SceneCulling_CellCount, STATGROUP_SceneCulling);
 DECLARE_DWORD_COUNTER_STAT(TEXT("Item Chunk Count"), STAT_SceneCulling_ItemChunkCount, STATGROUP_SceneCulling);
-DECLARE_DWORD_COUNTER_STAT(TEXT("Item Count"), STAT_SceneCulling_ItemCount, STATGROUP_SceneCulling);
-
+DECLARE_DWORD_COUNTER_STAT(TEXT("Used Explicit Item Count"), STAT_SceneCulling_UsedExplicitItemCount, STATGROUP_SceneCulling);
+DECLARE_DWORD_COUNTER_STAT(TEXT("Compressed Item Count"), STAT_SceneCulling_CompressedItemCount, STATGROUP_SceneCulling);
+DECLARE_DWORD_COUNTER_STAT(TEXT("Item Buffer Count"), STAT_SceneCulling_ItemBufferCount, STATGROUP_SceneCulling);
 DECLARE_DWORD_COUNTER_STAT(TEXT("Total Id Cache Size"), STAT_SceneCulling_IdCacheSize, STATGROUP_SceneCulling);
 
 #if SC_ENABLE_DETAILED_BUILDER_STATS
+
+DECLARE_DWORD_COUNTER_STAT(TEXT("Num Static Instances"), STAT_SceneCulling_NumStaticInstances, STATGROUP_SceneCulling);
+DECLARE_DWORD_COUNTER_STAT(TEXT("Num Dynamic Instances"), STAT_SceneCulling_NumDynamicInstances, STATGROUP_SceneCulling);
 
 // Detailed stat?
 DECLARE_DWORD_COUNTER_STAT(TEXT("Non-Empty Cell Count"), STAT_SceneCulling_NonEmptyCellCount, STATGROUP_SceneCulling);
@@ -81,13 +103,13 @@ static TAutoConsoleVariable<int32> CVarSceneCulling(
 	TEXT("r.SceneCulling"), 
 	0, 
 	TEXT("Enable/Disable scene culling.\n")
+	TEXT("  While enabled, it will only build the instance hierarchy if used by any system - currently that corresponds to Nanite being enabled.\n")
 	TEXT("  Forces a recreate of all render state since (at present) there is only an incremental update path."),
 	FConsoleVariableDelegate::CreateLambda([](IConsoleVariable* InVariable)
 	{
 		FGlobalComponentRecreateRenderStateContext Context;
 	}),
 	ECVF_RenderThreadSafe);
-
 
 static TAutoConsoleVariable<int32> CVarSceneCullingAsyncUpdate(
 	TEXT("r.SceneCulling.Async.Update"), 
@@ -100,7 +122,6 @@ static TAutoConsoleVariable<int32> CVarSceneCullingAsyncQuery(
 	1, 
 	TEXT("Enable/Disable async culling scene queries."),
 	ECVF_RenderThreadSafe);
-
 
 static TAutoConsoleVariable<float> CVarSceneCullingMinCellSize(
 	TEXT("r.SceneCulling.MinCellSize"), 
@@ -116,6 +137,13 @@ static TAutoConsoleVariable<float> CVarSceneCullingMaxCellSize(
 	UE_OLD_HALF_WORLD_MAX, 
 	TEXT("Hierarchy max cell size. Objects with larger bounds will be classified as uncullable."), 
 	ECVF_RenderThreadSafe | ECVF_ReadOnly);
+
+static TAutoConsoleVariable<int32> CVarTreatDynamicInstancedAsUncullable(
+	TEXT("r.SceneCulling.TreatInstancedDynamicAsUnCullable"), 
+	1, 
+	TEXT("If this is turned on (default), dynamic primitives with instances are treated as uncullable (not put into the hierarchy and instead brute-forced on the GPU).")
+	TEXT("  This significantly reduces the hierarchy update cost on the CPU and for scenes with a large proportion of static elements, does not increase the GPU cost."),
+	ECVF_RenderThreadSafe);
 
 static TAutoConsoleVariable<int32> CVarSmallFootprintCellCountThreshold(
 	TEXT("r.SceneCulling.SmallFootprintCellCountThreshold"), 
@@ -142,7 +170,27 @@ static TAutoConsoleVariable<int32> CVarValidateGPUData(
 
 #if SC_ENABLE_DETAILED_LOGGING
 static FSceneCullingBuilder *GBuilderForLogging = nullptr;
-#define BUILDER_LOG(Fmt, ...) GBuilderForLogging->AddLog(FString::Printf(TEXT(Fmt), __VA_ARGS__))
+
+struct FLoggerGlobalScopeHelper
+{
+	FLoggerGlobalScopeHelper(FSceneCullingBuilder *InBuilderForLogging) : BuilderForLogging(InBuilderForLogging)
+	{
+		GBuilderForLogging = BuilderForLogging;
+	}
+
+	~FLoggerGlobalScopeHelper()
+	{
+		check(GBuilderForLogging == BuilderForLogging);
+		GBuilderForLogging = nullptr;
+	}
+
+	FSceneCullingBuilder *BuilderForLogging = nullptr;
+};
+
+#define SC_DETAILED_LOGGING_SCOPE(_Builder_) FLoggerGlobalScopeHelper LoggerGlobalScopeHelper(_Builder_)
+
+
+#define BUILDER_LOG(Fmt, ...) if (GBuilderForLogging) { GBuilderForLogging->AddLog(FString::Printf(TEXT(Fmt), ##__VA_ARGS__)); }
 
 struct FIHLoggerScopeHelper
 {
@@ -168,9 +216,9 @@ struct FIHLoggerListScopeHelper
 	FString LogStr;
 };
 
-#define BUILDER_LOG_SCOPE(Fmt, ...) GBuilderForLogging->AddLog(FString::Printf(TEXT(Fmt), __VA_ARGS__)); FIHLoggerScopeHelper IHLoggerScopeHelper
-#define BUILDER_LOG_LIST(Fmt, ...) FIHLoggerListScopeHelper IHLoggerListScopeHelper(FString::Printf(TEXT(Fmt), __VA_ARGS__))
-#define BUILDER_LOG_LIST_APPEND(Fmt, ...) IHLoggerListScopeHelper.Add(FString::Printf(TEXT(Fmt), __VA_ARGS__))
+#define BUILDER_LOG_SCOPE(Fmt, ...) if (GBuilderForLogging) { GBuilderForLogging->AddLog(FString::Printf(TEXT(Fmt), ##__VA_ARGS__)); } FIHLoggerScopeHelper PREPROCESSOR_JOIN(IHLoggerScopeHelper, __LINE__)
+#define BUILDER_LOG_LIST(Fmt, ...) FIHLoggerListScopeHelper IHLoggerListScopeHelper(FString::Printf(TEXT(Fmt), ##__VA_ARGS__))
+#define BUILDER_LOG_LIST_APPEND(Fmt, ...) IHLoggerListScopeHelper.Add(FString::Printf(TEXT(Fmt), ##__VA_ARGS__))
 
 static TAutoConsoleVariable<int32> CVarSceneCullingLogBuild(
 	TEXT("r.SceneCulling.LogBuild"), 
@@ -179,15 +227,34 @@ static TAutoConsoleVariable<int32> CVarSceneCullingLogBuild(
 	ECVF_RenderThreadSafe);
 
 #else
+#define SC_DETAILED_LOGGING_SCOPE(_Builder_)
 #define BUILDER_LOG(...)
 #define BUILDER_LOG_SCOPE(...)
 #define BUILDER_LOG_LIST(...)
 #define BUILDER_LOG_LIST_APPEND(...)
 #endif
 
+
+/**
+ * This conditional may need to move later, e.g, for when preparing data upstream.
+ */
+static bool UseSceneCulling(EShaderPlatform ShaderPlatform)
+{
+	return CVarSceneCulling.GetValueOnAnyThread() != 0 && UseNanite(ShaderPlatform);
+}
+
 // doesn't exist in the global definitions for some reason
 using FInt8Vector3 = UE::Math::TIntVector3<int8>;
 
+namespace EUpdateFrequencyCategory
+{
+	enum EType
+	{
+		Static,
+		Dynamic,
+		Num,
+	};
+}
 
 FString GSceneCullingDbgPattern;// = "Cube*";
 FAutoConsoleVariableRef CVarSceneCullingDbgPattern(
@@ -230,11 +297,13 @@ const FString &FSceneCulling::FPrimitiveState::ToString() const
 }
 
 #if SCENE_CULLING_USE_PRECOMPUTED
-inline bool operator==(const FPrimitiveSceneProxy::FCompressedSpatialHashItem A, const FPrimitiveSceneProxy::FCompressedSpatialHashItem B)
+inline bool operator==(const FInstanceSceneDataBuffers::FCompressedSpatialHashItem A, const FInstanceSceneDataBuffers::FCompressedSpatialHashItem B)
 {
 	return A.Location == B.Location && A.NumInstances == B.NumInstances;
 }
 #endif
+
+#if OLA_TODO
 
 struct FSpatialHashNullDebugDrawer
 {
@@ -243,7 +312,6 @@ struct FSpatialHashNullDebugDrawer
 	inline void DrawBlock(bool bHighlight, const FBox& BlockBounds) {}
 
 };
-#if 0
 
 struct FSpatialHashDebugDrawer
 {
@@ -282,14 +350,18 @@ struct FSpatialHashDebugDrawer
 };
 #endif
 
-inline bool IsValid(const FCellHeader& CellHeader)
+// works for both packed and not
+template <typename CellHeaderType>
+inline bool IsValidCell(const CellHeaderType& CellHeader)
 {
-	return (CellHeader.NumItemChunks & FSceneCulling::InvalidCellFlag) == 0;
+	return (CellHeader.ItemChunksOffset & FSceneCulling::InvalidCellFlag) == 0;
 }
 
-inline bool IsTempCell(const FCellHeader& CellHeader)
+// works for both packed and not
+template <typename CellHeaderType>
+inline bool IsTempCell(const CellHeaderType& CellHeader)
 {
-	return (CellHeader.NumItemChunks & FSceneCulling::TempCellFlag) != 0;
+	return (CellHeader.ItemChunksOffset & FSceneCulling::TempCellFlag) != 0;
 }
 
 template <typename ScalarType>
@@ -301,7 +373,7 @@ inline UE::Math::TIntVector3<ScalarType> ClampDim(const UE::Math::TIntVector3<Sc
 		FMath::Clamp(Vec.Z, MinValueInc, MaxValueInc));
 };
 
-inline FSceneCulling::FFootprint8 ToBlockLocal(const FSceneCulling::FFootprint64& ObjFootprint, const FSceneCulling::FLocation64& BlockLoc)
+SC_FORCEINLINE FSceneCulling::FFootprint8 ToBlockLocal(const FSceneCulling::FFootprint64& ObjFootprint, const FSceneCulling::FLocation64& BlockLoc)
 {
 	FInt64Vector3 BlockMin = BlockLoc.Coord * FSceneCulling::FSpatialHash::CellBlockDim;
 	FInt64Vector3 BlockMax = BlockMin + FInt64Vector3(FSceneCulling::FSpatialHash::CellBlockDim - 1);
@@ -315,10 +387,11 @@ inline FSceneCulling::FFootprint8 ToBlockLocal(const FSceneCulling::FFootprint64
 	return LocalFp;
 };
 
-inline FSceneCulling::FLocation8 ToBlockLocal(const FSceneCulling::FLocation64& ItemLoc, const FSceneCulling::FLocation64& BlockLoc)
+SC_FORCEINLINE FSceneCulling::FLocation8 ToBlockLocal(const FSceneCulling::FLocation64& ItemLoc, const FSceneCulling::FBlockLoc& BlockLoc)
 {
-	checkSlow(ItemLoc.Level - BlockLoc.Level);
-	FInt64Vector3 BlockMin = BlockLoc.Coord << FSceneCulling::FSpatialHash::CellBlockDimLog2;
+	checkSlow(FSceneCulling::FSpatialHash::CellBlockDimLog2 == BlockLoc.GetLevel() - ItemLoc.Level);
+	// Note: need to go to 64-bit here to avoid edge cases at the far LWC range... can probably reformulate to avoid the need.
+	FInt64Vector3 BlockMin = FInt64Vector3(BlockLoc.GetCoord()) << FSceneCulling::FSpatialHash::CellBlockDimLog2;
 
 	// This can be packed to very few bits if need be.
 	FSceneCulling::FLocation8 LocalLoc;
@@ -331,6 +404,7 @@ inline FSceneCulling::FLocation8 ToBlockLocal(const FSceneCulling::FLocation64& 
 
 	return LocalLoc;
 };
+
 
 inline FInt64Vector3 ToLevelRelative(const FInt64Vector3& Coord, int32 LevelDelta)
 {
@@ -357,6 +431,34 @@ inline FSceneCulling::FLocation64 ToLevelRelative(const FSceneCulling::FLocation
 	return ResLoc;
 };
 
+
+template<int32 LevelDelta>
+inline FInt64Vector3 ToLevelRelative(const FInt64Vector3& Coord)
+{
+	if (LevelDelta > 0)
+	{
+		return Coord >> LevelDelta;
+	}
+	else if (LevelDelta < 0)
+	{
+		return Coord << -LevelDelta;
+	}
+	return Coord;
+}
+
+template<int32 LevelDelta>
+inline FSceneCulling::FLocation64 ToLevelRelative(const FSceneCulling::FLocation64& Loc)
+{
+	if (LevelDelta == 0)
+	{
+		return Loc;
+	}
+	FSceneCulling::FLocation64 ResLoc = Loc;
+	ResLoc.Level += LevelDelta;
+	ResLoc.Coord = ToLevelRelative<LevelDelta>(Loc.Coord);
+	return ResLoc;
+};
+
 inline FSceneCulling::FFootprint64 ToLevelRelative(const FSceneCulling::FFootprint64& Footprint, int32 LevelDelta)
 {
 	FSceneCulling::FFootprint64 Result;
@@ -371,7 +473,9 @@ void FSceneCulling::TestConvexVolume(const FConvexVolume& ViewCullVolume, TArray
 	LLM_SCOPE_BYTAG(SceneCulling);
 
 	SCOPE_CYCLE_COUNTER(STAT_SceneCulling_Test_Convex);
+#if OLA_TODO
 	FSpatialHashNullDebugDrawer DebugDrawer;
+#endif
 
 	OutNumInstanceGroups += UncullableNumItemChunks;
 
@@ -380,13 +484,15 @@ void FSceneCulling::TestConvexVolume(const FConvexVolume& ViewCullVolume, TArray
 		const auto& BlockItem = *It;
 		int32 BlockIndex = It.GetElementId().GetIndex();
 		const FSpatialHash::FCellBlock& Block = BlockItem.Value;
-		FLocation64 BlockLoc = BlockItem.Key;
+		FSpatialHash::FBlockLoc BlockLoc = BlockItem.Key;
 
+#if OLA_TODO
 		DebugDrawer.OnBlockBegin(BlockLoc);
+#endif
 
-		const double BlockLevelSize = SpatialHash.GetCellSize(BlockLoc.Level);
-		FVector3d BlockBoundsCenter = FVector3d(BlockLoc.Coord) * BlockLevelSize + BlockLevelSize * 0.5;
-		const double LevelCellSize = SpatialHash.GetCellSize(BlockLoc.Level - FSpatialHash::CellBlockDimLog2);
+		const double BlockLevelSize = SpatialHash.GetCellSize(BlockLoc.GetLevel());
+		FVector3d BlockBoundsCenter = FVector3d(BlockLoc.GetCoord()) * BlockLevelSize + BlockLevelSize * 0.5;
+		const double LevelCellSize = SpatialHash.GetCellSize(BlockLoc.GetLevel() - FSpatialHash::CellBlockDimLog2);
 		// Extend extent by half a cell size in all directions
 		FVector3d BlockBoundsExtent = FVector((BlockLevelSize + LevelCellSize) * 0.5);
 		FOutcode BlockCullResult = ViewCullVolume.GetBoxIntersectionOutcode(BlockBoundsCenter, BlockBoundsExtent);
@@ -410,7 +516,7 @@ void FSceneCulling::TestConvexVolume(const FConvexVolume& ViewCullVolume, TArray
 			else
 			{
 				FVector3d CellBoundsExtent = FVector3d(LevelCellSize);
-				FVector3d MinCellCenter = FVector3d(BlockLoc.Coord) * BlockLevelSize + LevelCellSize * 0.5;
+				FVector3d MinCellCenter = FVector3d(BlockLoc.GetCoord()) * BlockLevelSize + LevelCellSize * 0.5;
 
 				int32 BitRangeEnd = Block.GridOffset + FSpatialHash::CellBlockSize;
 				for (TConstSetBitIterator<> BitIt(CellOccupancyMask, Block.GridOffset); BitIt && BitIt.GetIndex() < BitRangeEnd; ++BitIt)
@@ -432,14 +538,18 @@ void FSceneCulling::TestConvexVolume(const FConvexVolume& ViewCullVolume, TArray
 					bool bCellIntersects = ViewCullVolume.IntersectBox(CellCenter, CellBoundsExtent);
 					if (bCellIntersects)
 					{
-						FCellHeader CellHeader = CellHeaders[CellId];
-						check(IsValid(CellHeader));
+						FCellHeader CellHeader = UnpackCellHeader(CellHeaders[CellId]);
+						check(IsValidCell(CellHeader));
 						OutNumInstanceGroups += CellHeader.NumItemChunks;
 						OutCellDraws.Add(FCellDraw{ CellId, ViewGroupId });
 					}
-					//DebugDrawer.DrawCell(bCellIntersects && !bIsContained, bCellIntersects, CellCenter, CellBoundsExtent);
+#if OLA_TODO
+					DebugDrawer.DrawCell(bCellIntersects && !bIsContained, bCellIntersects, CellCenter, CellBoundsExtent);
+#endif
 				}
-				//DebugDrawer.DrawBlock(bIsContained, BlockBounds);
+#if OLA_TODO
+				DebugDrawer.DrawBlock(bIsContained, BlockBounds);
+#endif
 			}
 		}
 	}
@@ -450,7 +560,9 @@ void FSceneCulling::TestSphere(const FSphere& Sphere, TArray<FCellDraw, SceneRen
 	LLM_SCOPE_BYTAG(SceneCulling);
 
 	SCOPE_CYCLE_COUNTER(STAT_SceneCulling_Test_Sphere);
+#if OLA_TODO
 	FSpatialHashNullDebugDrawer DebugDrawer;
+#endif
 
 	OutNumInstanceGroups += UncullableNumItemChunks;
 
@@ -482,10 +594,12 @@ void FSceneCulling::TestSphere(const FSphere& Sphere, TArray<FCellDraw, SceneRen
 			INC_DWORD_STAT(STAT_SceneCulling_TestSphereBlocks);
 			// TODO[Opt]: Add cache for block ID lookups? The hash lookup is somewhat costly and we hit it quite a bit due to the loose footprint.
 			//       Could be a 3d grid/level (or not?) with modulo and use the BlockLoc as key. Getting very similar to just using a cheaper hash...
-			FSpatialHash::FBlockId BlockId = GlobalSpatialHash.FindId(BlockLoc);
+			FSpatialHash::FBlockId BlockId = GlobalSpatialHash.FindId(FBlockLoc(BlockLoc));
 			if (BlockId.IsValid())
 			{
+#if OLA_TODO
 				DebugDrawer.OnBlockBegin(BlockLoc);
+#endif
 
 				const FSpatialHash::FCellBlock& Block = GlobalSpatialHash.GetByElementId(BlockId).Value;
 				FVector3d BlockWorldPos = FVector3d(BlockLoc.Coord) * double(BlockSize);
@@ -529,19 +643,23 @@ void FSceneCulling::TestSphere(const FSphere& Sphere, TArray<FCellDraw, SceneRen
 							if (bIntersects)
 							{
 								uint32 CellId = Block.GetCellGridOffset(CellSubLoc.Coord);
-								FCellHeader CellHeader = CellHeaders[CellId];
-								if (IsValid(CellHeader))
+								FCellHeader CellHeader = UnpackCellHeader(CellHeaders[CellId]);
+								if (IsValidCell(CellHeader))
 								{
 									OutNumInstanceGroups += CellHeader.NumItemChunks;
 									OutCellDraws.Add(FCellDraw{ CellId, ViewGroupId });
 								}
 							}
 
+#if OLA_TODO
 							DebugDrawer.DrawCell(bIntersects, bIntersects, BlockWorldPos + FVector3d(Box.GetCenter()), FVector3d(Box.GetExtent()));
+#endif
 						}
 					});
 				}
+#if OLA_TODO
 				DebugDrawer.DrawBlock(true, SpatialHash.CalcBlockBounds(BlockLoc));
+#endif
 			}
 		});
 	}
@@ -591,6 +709,8 @@ void FSceneCulling::Empty()
 	PrimitiveStates.Empty();
 	CellIndexCache.Empty();
 	TotalCellIndexCacheItems = 0;
+	NumStaticInstances = 0;
+	NumDynamicInstances = 0;
 
 	CellHeadersBuffer.Empty();
 	ItemChunksBuffer.Empty();
@@ -598,11 +718,10 @@ void FSceneCulling::Empty()
 	CellBlockDataBuffer.Empty();
 }
 
-
 /**
  * Produce a world-space bounding sphere for an instance given local bounds and transforms.
  */
-FORCEINLINE_DEBUGGABLE FVector4d TransformBounds(VectorRegister4f VecOrigin, VectorRegister4f VecExtent, const FRenderTransform& LocalToPrimitiveRelative, VectorRegister4Double PrimitiveToWorldTranslationVec)
+SC_FORCEINLINE FVector4d TransformBounds(VectorRegister4f VecOrigin, VectorRegister4f VecExtent, const FRenderTransform& LocalToPrimitiveRelative, VectorRegister4Double PrimitiveToWorldTranslationVec)
 {
 	// 1. Matrix Concat and bounds all in one
 	VectorRegister4f NewOrigin;
@@ -638,14 +757,14 @@ FORCEINLINE_DEBUGGABLE FVector4d TransformBounds(VectorRegister4f VecOrigin, Vec
 
 struct FBoundsTransformerUniqueBounds
 {
-	FORCEINLINE_DEBUGGABLE FBoundsTransformerUniqueBounds(const FInstanceSceneDataBuffers& InInstanceSceneDataBuffers)
+	SC_FORCEINLINE FBoundsTransformerUniqueBounds(const FInstanceSceneDataBuffers& InInstanceSceneDataBuffers)
 		: InstanceSceneDataBuffers(InInstanceSceneDataBuffers)
 	{
 		// Note: for reasons unknown VectorLoadFloat3 also does doubles...
 		PrimitiveToWorldTranslationVec = VectorLoadFloat3(&InstanceSceneDataBuffers.GetPrimitiveWorldSpaceOffset());
 	}
 
-	FORCEINLINE_DEBUGGABLE FVector4d TransformBounds(int32 InstanceIndex)
+	SC_FORCEINLINE FVector4d TransformBounds(int32 InstanceIndex)
 	{
 		const FRenderBounds InstanceBounds = InstanceSceneDataBuffers.GetInstanceLocalBounds(InstanceIndex);
 
@@ -665,7 +784,7 @@ struct FBoundsTransformerUniqueBounds
 
 struct FBoundsTransformerSharedBounds
 {
-	FORCEINLINE_DEBUGGABLE FBoundsTransformerSharedBounds(const FInstanceSceneDataBuffers& InInstanceSceneDataBuffers)
+	SC_FORCEINLINE FBoundsTransformerSharedBounds(const FInstanceSceneDataBuffers& InInstanceSceneDataBuffers)
 		: InstanceSceneDataBuffers(InInstanceSceneDataBuffers)
 	{
 		// Note: for reasons unknown VectorLoadFloat3 also does doubles...
@@ -679,7 +798,7 @@ struct FBoundsTransformerSharedBounds
 		VecExtent = VectorMultiply(VectorSubtract(VecMax, VecMin), Half);
 	}
 
-	FORCEINLINE_DEBUGGABLE FVector4d TransformBounds(int32 InstanceIndex)
+	SC_FORCEINLINE FVector4d TransformBounds(int32 InstanceIndex)
 	{
 		FRenderTransform InstanceToPrimitiveRelative = InstanceSceneDataBuffers.GetInstanceToPrimitiveRelative(InstanceIndex);
 		return ::TransformBounds(VecOrigin, VecExtent, InstanceToPrimitiveRelative, PrimitiveToWorldTranslationVec);
@@ -694,13 +813,13 @@ struct FBoundsTransformerSharedBounds
 template <typename BoundsTransformerType>
 struct FHashLocationComputerFromBounds
 {
-	FORCEINLINE_DEBUGGABLE FHashLocationComputerFromBounds(	const FInstanceSceneDataBuffers &InInstanceSceneDataBuffers, FSceneCulling::FSpatialHash& InSpatialHash)
+	SC_FORCEINLINE FHashLocationComputerFromBounds(	const FInstanceSceneDataBuffers &InInstanceSceneDataBuffers, FSceneCulling::FSpatialHash& InSpatialHash)
 		: BoundsTransformer(InInstanceSceneDataBuffers)
 		, SpatialHash(InSpatialHash)
 	{
 	}
 
-	FORCEINLINE_DEBUGGABLE FSceneCulling::FLocation64 CalcLoc(int32 InstanceIndex)
+	SC_FORCEINLINE FSceneCulling::FLocation64 CalcLoc(int32 InstanceIndex)
 	{
 		FVector4d InstanceWorldBound = BoundsTransformer.TransformBounds(InstanceIndex);
 		return SpatialHash.CalcLevelAndLocation(InstanceWorldBound);
@@ -709,32 +828,6 @@ struct FHashLocationComputerFromBounds
 	BoundsTransformerType BoundsTransformer;
 	FSceneCulling::FSpatialHash& SpatialHash;
 };
-
-#if SCENE_CULLING_USE_PRECOMPUTED
-
-struct FHashLocationComputerPrecomputed
-{
-	FHashLocationComputerPrecomputed(const FSpatialHash& InSpatialHash, const FPrimitiveSceneProxy* SceneProxy)
-		: InstanceSpatialHashes(SceneProxy->GetInstanceSpatialHashes())
-		, SpatialHash(InSpatialHash)
-	{
-	}
-
-	FLocation64 CalcLoc(int32 InstanceIndex)
-	{
-		FLocation64 PreCompLoc = InstanceSpatialHashes[InstanceIndex];
-		if (PreCompLoc.Level < SpatialHash.GetFirstLevel())
-		{
-			PreCompLoc = ToLevelRelative(PreCompLoc, SpatialHash.GetFirstLevel() - PreCompLoc.Level);
-		}
-		return PreCompLoc;
-	}
-
-	const TConstArrayView<RenderingSpatialHash::FLocation64> InstanceSpatialHashes;
-	const FSpatialHash& SpatialHash;
-};
-
-#endif
 
 class FSceneCullingBuilder
 {
@@ -753,6 +846,8 @@ public:
 	using FPrimitiveState = FSceneCulling::FPrimitiveState;
 	using FCellIndexCacheEntry = FSceneCulling::FCellIndexCacheEntry;
 
+	using FBlockLoc = FSceneCulling::FBlockLoc;
+
 #if SC_ENABLE_DETAILED_BUILDER_STATS
 	// Detail Stats
 	struct FStats
@@ -765,7 +860,7 @@ public:
 	FStats Stats;
 #endif 
 
-	FSceneCullingBuilder(FSceneCulling& InSceneCulling) 
+	FSceneCullingBuilder(FSceneCulling& InSceneCulling, bool bAnySceneUpdatesExpected) 
 		: SceneCulling(InSceneCulling)
 		, SpatialHash(InSceneCulling.SpatialHash)
 		, SpatialHashMap(InSceneCulling.SpatialHash.GetHashMap())
@@ -777,22 +872,65 @@ public:
 		// TODO: this is not needed when we also call update for added primitives correctly, remove and replace with a check!
 		SceneCulling.PrimitiveStates.SetNum(SceneCulling.Scene.GetMaxPersistentPrimitiveIndex());
 
+		if (CVarTreatDynamicInstancedAsUncullable.GetValueOnRenderThread() != 0)
+		{
+			// Flip dynamic stuff into the uncullabe bucket. 
+			DynamicInstancedPrimitiveState = FPrimitiveState::UnCullable;
+		}
+
 #if SC_ENABLE_DETAILED_LOGGING
-		bIsLoggingEnabled = CVarSceneCullingLogBuild.GetValueOnRenderThread() != 0;
-		check(GBuilderForLogging == nullptr);
-		GBuilderForLogging = this;
+		bIsLoggingEnabled = CVarSceneCullingLogBuild.GetValueOnRenderThread() != 0 && bAnySceneUpdatesExpected || CVarSceneCullingLogBuild.GetValueOnRenderThread() > 1;
 		SceneTag.Appendf(TEXT("[%s]"), SceneCulling.Scene.IsEditorScene() ? TEXT("EditorScene") : TEXT(""));
 		SceneTag.Append(SceneCulling.Scene.GetFullWorldName());
-		AddLog(TEXT("Log-Scope-Begin"));
+		AddLog(FString(TEXT("Log-Scope-Begin - ")) + SceneTag);
 		LogIndent(1);
 #endif
 	}
 	
+	/**
+	 * Allocate space for a range of chunk-offsets in the buffer if needed, and free the previous chunk if there was one.
+	 */
+	SC_FORCEINLINE uint32 ReallocateChunkRange(uint32 NewNumItemChunks, uint32 PrevItemChunksOffset, uint32 PrevNumItemChunks)
+	{
+		uint32 ItemChunksOffset = PrevItemChunksOffset;
+		// TODO: round allocation size to POT, or some multiple to reduce reallocations & fragmentation?
+		if (ItemChunksOffset != INDEX_NONE && PrevNumItemChunks != NewNumItemChunks)
+		{
+			BUILDER_LOG("Free Chunk Range: [%d,%d)", PrevItemChunksOffset, PrevItemChunksOffset + PrevNumItemChunks);
+			SceneCulling.CellChunkIdAllocator.Free(PrevItemChunksOffset, PrevNumItemChunks);
+			ItemChunksOffset = INDEX_NONE;
+		}
+
+		// Need a new chunk offset allocated
+		if (NewNumItemChunks != 0 && ItemChunksOffset == INDEX_NONE)
+		{
+			ItemChunksOffset = SceneCulling.CellChunkIdAllocator.Allocate(NewNumItemChunks);
+			BUILDER_LOG("Allocate Chunk Range: [%d,%d)", ItemChunksOffset, ItemChunksOffset + NewNumItemChunks);
+		} 
+		return ItemChunksOffset;
+	}
+
 	struct FChunkBuilder
 	{
 		int32 CurrentChunkCount = MaxChunkSize;
 		int32 CurrentChunkId = INDEX_NONE;
-		FORCEINLINE_DEBUGGABLE void EmitCurrentChunk()
+		
+
+		SC_FORCEINLINE bool IsCurrentChunkEmpty() const
+		{
+			return CurrentChunkId == INDEX_NONE;
+		}
+
+		SC_FORCEINLINE void EmitCurrentChunkIfFull()
+		{
+			if (CurrentChunkId != INDEX_NONE && CurrentChunkCount >= MaxChunkSize)
+			{
+				PackedChunkIds.Add(uint32(CurrentChunkId) | (uint32(CurrentChunkCount) << INSTANCE_HIERARCHY_ITEM_CHUNK_COUNT_SHIFT));
+				CurrentChunkId = INDEX_NONE;
+			}
+		}
+
+		SC_FORCEINLINE void EmitCurrentChunk()
 		{
 			if (CurrentChunkId != INDEX_NONE)
 			{
@@ -801,7 +939,7 @@ public:
 			CurrentChunkId = INDEX_NONE;
 		}
 
-		FORCEINLINE_DEBUGGABLE void AddCompressedChunk(FSceneCullingBuilder& Builder, uint32 StartInstanceId)
+		SC_FORCEINLINE void AddCompressedChunk(FSceneCullingBuilder& Builder, uint32 StartInstanceId)
 		{
 			Builder.TotalCellChunkDataCount += 1;
 			// Add directly to chunk headers to not upset current chunk packing
@@ -809,7 +947,8 @@ public:
 
 			//Builder->SceneCulling.InstanceIdToCellDataSlot[StartInstanceId] = FCellDataSlot { true, 0 };
 		}
-		FORCEINLINE_DEBUGGABLE void Add(FSceneCullingBuilder& Builder, uint32 InstanceId)
+
+		SC_FORCEINLINE void Add(FSceneCullingBuilder& Builder, uint32 InstanceId)
 		{
 			TArray<uint32>& PackedCellData = Builder.SceneCulling.PackedCellData;
 			if (CurrentChunkCount >= MaxChunkSize)
@@ -825,7 +964,7 @@ public:
 			PackedCellData[ItemOffset] = InstanceId;
 		}
 
-		FORCEINLINE_DEBUGGABLE void AddRange(FSceneCullingBuilder& Builder, int32 InInstanceIdOffset, int32 InInstanceIdCount)
+		SC_FORCEINLINE void AddRange(FSceneCullingBuilder& Builder, int32 InInstanceIdOffset, int32 InInstanceIdCount)
 		{
 			// First add all compressible ranges.
 			int32 InstanceIdOffset = InInstanceIdOffset;
@@ -846,28 +985,14 @@ public:
 			}
 		}
 
-
-		FORCEINLINE_DEBUGGABLE uint32 ReallocateChunkRange(FSceneCullingBuilder &Builder, uint32 PrevItemChunksOffset, uint32 PrevNumItemChunks)
+		SC_FORCEINLINE void AddExistingChunk(FSceneCullingBuilder& Builder, uint32 PackedChunkDesc)
 		{
-			uint32 ItemChunksOffset = PrevItemChunksOffset;
-			// TODO: round allocation size to POT, or some multiple to reduce reallocations & fragmentation?
-			if (ItemChunksOffset != INDEX_NONE && PrevNumItemChunks != PackedChunkIds.Num())
-			{
-				BUILDER_LOG("Free Chunk Range: [%d,%d)", PrevItemChunksOffset, PrevItemChunksOffset + PrevNumItemChunks);
-				Builder.SceneCulling.CellChunkIdAllocator.Free(PrevItemChunksOffset, PrevNumItemChunks);
-				ItemChunksOffset = INDEX_NONE;
-			}
-
-			// Need a new chunk offset allocated
-			if (!PackedChunkIds.IsEmpty() && ItemChunksOffset == INDEX_NONE)
-			{
-				ItemChunksOffset = Builder.SceneCulling.CellChunkIdAllocator.Allocate(PackedChunkIds.Num());
-				BUILDER_LOG("Allocate Chunk Range: [%d,%d)", ItemChunksOffset, ItemChunksOffset + PackedChunkIds.Num());
-			} 
-			return ItemChunksOffset;
+			Builder.TotalCellChunkDataCount += 1;
+			// Add directly to chunk headers to not upset current chunk packing
+			PackedChunkIds.Add(PackedChunkDesc);
 		}
 
-		FORCEINLINE_DEBUGGABLE void OutputChunkIds(FSceneCullingBuilder &Builder, uint32 ItemChunksOffset)
+		SC_FORCEINLINE void OutputChunkIds(FSceneCullingBuilder &Builder, uint32 ItemChunksOffset)
 		{
 			int32 NumIds = PackedChunkIds.Num();
 			// 3. Copy the list of chunk IDs
@@ -883,149 +1008,122 @@ public:
 			}
 		}
 
-		FORCEINLINE_DEBUGGABLE bool IsEmpty() const { return PackedChunkIds.IsEmpty(); }
+		SC_FORCEINLINE bool IsEmpty() const { return PackedChunkIds.IsEmpty(); }
 
-		TArray<uint32, TInlineAllocator<32, SceneRenderingAllocator>> PackedChunkIds;
-	};
 
-	/**
-	 * The temp cell is used to record information about additions / removals for a grid cell during the update.
-	 * An index to a temp cell is stored in the grid instead of the index to cell data when a cell is first accessed during update.
-	 * At the end of the update all temp cells are processed and then removed.
-	 */
-	struct FTempCell : public FChunkBuilder
-	{
-		struct FTempChunks
+		SC_FORCEINLINE int32 FinalizeChunks(FSceneCullingBuilder& Builder, int32 StartChunkOffset, int32 EndChunkOffset, int32& NumToRemove)
 		{
-			TArray<uint32, TInlineAllocator<32, SceneRenderingAllocator>> PackedIds;
-		};
-
-		int32 CellOffset = INDEX_NONE;
-		int32 ItemChunksOffset = INDEX_NONE;
-		int32 RemovedInstanceCount = 0;
-		FCellHeader PrevCellHeader = FCellHeader { InvalidCellFlag, InvalidCellFlag };
-
-		FORCEINLINE_DEBUGGABLE void FinalizeChunks(FSceneCullingBuilder& Builder)
-		{
-			// TODO: pass in and share/reuse space? 
-			// Copied chunk data (only whole chunks)
-			FTempChunks RetainedChunks; 
-
-			BUILDER_LOG_SCOPE("FinalizeChunks(Index: %d RemovedInstanceCount %d):", CellOffset, RemovedInstanceCount);
-#if OLA_TODO
-			// Handle complete removal case efficiently
-			if (RemovedInstanceCount == TotalCellInstances)
+			// Process removals if there are any left
+			int32 ChunkOffset = StartChunkOffset;
+			// Scan the chunks in the existing cell.
+			for (; ChunkOffset < EndChunkOffset && NumToRemove > 0; ++ChunkOffset)
 			{
-				ClearCell();
-			}
-#endif
-			// Process removals
-			if (RemovedInstanceCount > 0)
-			{
-				check(IsValid(PrevCellHeader));
-				int32 NumRemoved = 0;
-				// Iterate chunks in reverse order as the last ones are the ones that are most likely to contain updated items
-				for (int32 ChunkIndex = int32(PrevCellHeader.NumItemChunks) - 1; ChunkIndex >= 0; --ChunkIndex)
+				uint32 PackedChunkData = Builder.SceneCulling.PackedCellChunkData[ChunkOffset];
+
+				const bool bIsCompressed = (PackedChunkData & INSTANCE_HIERARCHY_ITEM_CHUNK_COMPRESSED_FLAG) != 0u;
+				const uint32 NumItems = bIsCompressed ? 64u : PackedChunkData >> INSTANCE_HIERARCHY_ITEM_CHUNK_COUNT_SHIFT;
+				const bool bIsFullChunk = NumItems == 64u;
+
+				// 1. if it is a compressed chunk and contains any index, we may assume it is to be removed entirely.
+				if (bIsCompressed)
 				{
-					uint32 PackedChunkData = Builder.SceneCulling.PackedCellChunkData[PrevCellHeader.ItemChunksOffset + uint32(ChunkIndex)];
-					const bool bIsCompressed = (PackedChunkData & INSTANCE_HIERARCHY_ITEM_CHUNK_COMPRESSED_FLAG) != 0u;
-					const uint32 NumItems = bIsCompressed ? 64u : PackedChunkData >> INSTANCE_HIERARCHY_ITEM_CHUNK_COUNT_SHIFT;
-					const bool bIsFullChunk = NumItems == 64u;
-					// If nothing is to be removed from this chunk
-					const bool bNoneRemoved = NumRemoved == RemovedInstanceCount;
-
-					// We can copy the whole chunk if we're done with removals, or the current chunk has non marked for remove, and it is a full chunk
-					bool bCopyExistingChunk = bNoneRemoved && bIsFullChunk;
-
-					if (bCopyExistingChunk)
+					uint32 FirstInstanceDataOffset = PackedChunkData & INSTANCE_HIERARCHY_ITEM_CHUNK_COMPRESSED_PAYLOAD_MASK;
+					if (!Builder.IsMarkedForRemove(FirstInstanceDataOffset))
 					{
-						BUILDER_LOG("Chunk-Retained( NumItems: %d)", NumItems);
-						AddExistingChunk(RetainedChunks, PackedChunkData);
-						continue;
+						BUILDER_LOG("Chunk-Retained (FirstInstanceDataOffset: %d)", FirstInstanceDataOffset);
+						AddExistingChunk(Builder, PackedChunkData);
 					}
-
-					// 1. if it is a compressed chunk and contains any index, we may assume it is to be removed entirely.
-					if (bIsCompressed)
-					{
-						uint32 FirstInstanceDataOffset = PackedChunkData & INSTANCE_HIERARCHY_ITEM_CHUNK_COMPRESSED_PAYLOAD_MASK;
-						if (!Builder.IsMarkedForRemove(FirstInstanceDataOffset))
-						{
-							BUILDER_LOG("Chunk-Retained (FirstInstanceDataOffset: %d)", FirstInstanceDataOffset);
-							AddExistingChunk(RetainedChunks, PackedChunkData);
-						}
-						else
-						{
-							BUILDER_LOG("Chunk-Removed (FirstInstanceDataOffset: %d)", FirstInstanceDataOffset);
-							NumRemoved += 64;
-						}
-					}
-					// 2. elsewise, loop over the items in the chunk and copy not-deleted ones.
 					else
 					{
-						uint32 ChunkId =  (PackedChunkData & INSTANCE_HIERARCHY_ITEM_CHUNK_ID_MASK);
-						uint32 ItemDataOffset = ChunkId * INSTANCE_HIERARCHY_MAX_CHUNK_SIZE;
-
-						UPDATE_BUILDER_STAT(Builder, VisitedIdCount, NumItems);
-
-						// 3.1. scan chunk for deleted items
-						uint64 DeletionMask = 0ull;
-
-						for (uint32 ItemIndex = 0u; ItemIndex < NumItems; ++ItemIndex)
-						{
-							uint32 InstanceId = Builder.SceneCulling.PackedCellData[ItemDataOffset + ItemIndex];
-							if (Builder.IsMarkedForRemove(InstanceId))
-							{
-								DeletionMask |= 1ull << ItemIndex;
-								NumRemoved += 1;
-							}
-						}
-
-						// 3.2 If none were actually deleted, then re-emit the chunk (if it is full - otherwise we may end up with a lot of half filled chunks)
-						if (DeletionMask == 0ull && bIsFullChunk)
-						{
-							AddExistingChunk(RetainedChunks, PackedChunkData);
-						}
-						else
-						{
-							BUILDER_LOG_LIST("Processed(%d):", NumItems);
-							// 3.3., otherwise, we must copy the surviving IDs
-							for (uint32 ItemIndex = 0u; ItemIndex < NumItems; ++ItemIndex)
-							{
-								uint32 InstanceId = Builder.SceneCulling.PackedCellData[ItemDataOffset + ItemIndex];
-								if ((DeletionMask & (1ull << ItemIndex)) == 0ull)
-								{
-									BUILDER_LOG_LIST_APPEND("K: %d", InstanceId);
-									UPDATE_BUILDER_STAT(Builder, CopiedIdCount, 1);
-									Add(Builder, InstanceId);
-								}
-								else
-								{
-									BUILDER_LOG_LIST_APPEND("D: %d", InstanceId);
-								}
-							}
-
-							// Mark the chunk as not in use.
-							Builder.SceneCulling.FreeChunk(ChunkId);
-						}
+						BUILDER_LOG("Chunk-Removed (FirstInstanceDataOffset: %d)", FirstInstanceDataOffset);
+						NumToRemove -= 64;
 					}
 				}
+				// 2. elsewise, loop over the items in the chunk and copy not-deleted ones.
+				else
+				{
+					uint32 ChunkId =  (PackedChunkData & INSTANCE_HIERARCHY_ITEM_CHUNK_ID_MASK);
+					uint32 ItemDataOffset = ChunkId * INSTANCE_HIERARCHY_MAX_CHUNK_SIZE;
+
+					UPDATE_BUILDER_STAT(Builder, VisitedIdCount, NumItems);
+
+					// 3.1. scan chunk for deleted items
+					uint64 DeletionMask = 0ull;
+
+					// Mark chunks data array as locked & return a pointer to this chunk, allocates a number of chunks of slack by default as it must not resize the underlying array during this.
+					// Here, we know there can be at most one new chunk allocated.
+					const uint32* RESTRICT ChunkDataPtr = Builder.SceneCulling.LockChunkCellData(ChunkId, 1);//PackedCellData[ItemDataOffset];
+
+					{
+						BUILDER_LOG_LIST("ScanChunk[ID:%d](%d):", ChunkId, NumItems);
+						for (uint32 ItemIndex = 0u; ItemIndex < NumItems; ++ItemIndex)
+						{
+							uint32 InstanceId = ChunkDataPtr[ItemIndex];
+							if (Builder.IsMarkedForRemove(InstanceId))
+							{
+								BUILDER_LOG_LIST_APPEND("RM:%d", InstanceId);
+
+								DeletionMask |= 1ull << ItemIndex;
+								NumToRemove -= 1;
+							}
+							else
+							{
+								BUILDER_LOG_LIST_APPEND("KP:%d", InstanceId);
+							}
+						}
+					}
+
+					// 3.2 If none were actually deleted, then re-emit the chunk (if it is full - otherwise we may end up with a lot of half filled chunks)
+					if (DeletionMask == 0ull && bIsFullChunk)
+					{
+						AddExistingChunk(Builder, PackedChunkData);
+					}
+					else
+					{
+						// mask with 1 for each item to be kept
+						uint64 RetainedMask = (~DeletionMask) & ((~0ull) >> (64u - NumItems));
+						BUILDER_LOG_LIST("Retained(%d):", FMath::CountBits(RetainedMask));
+						
+						// 3.3., otherwise, we must copy the surviving IDs
+						while (RetainedMask != 0ull)
+						{
+							uint32 ItemIndex = FMath::CountTrailingZeros64(RetainedMask);
+							RetainedMask &= RetainedMask - 1ull;
+							uint32 InstanceId = ChunkDataPtr[ItemIndex];
+							BUILDER_LOG_LIST_APPEND("K: %d", InstanceId);
+							UPDATE_BUILDER_STAT(Builder, CopiedIdCount, 1);
+							Add(Builder, InstanceId);
+						}
+
+						// Mark the chunk as not in use.
+						Builder.SceneCulling.FreeChunk(ChunkId);
+					}
+
+					Builder.SceneCulling.UnLockChunkCellData(ChunkId);
+				}
 			}
-			else if (IsValid(PrevCellHeader) && PrevCellHeader.NumItemChunks > 0)
+
+			// If we have not reached the last chunk, there must be left overs that we can just copy
+			if (ChunkOffset < EndChunkOffset)
 			{
 				// No removals, do a fast path
-				int32 LastChunkIndex = PrevCellHeader.ItemChunksOffset + PrevCellHeader.NumItemChunks - 1;
+				int32 LastChunkIndex = EndChunkOffset - 1;
 				uint32 PackedChunkData = Builder.SceneCulling.PackedCellChunkData[LastChunkIndex];
 				const bool bIsLastCompressed = (PackedChunkData & INSTANCE_HIERARCHY_ITEM_CHUNK_COMPRESSED_FLAG) != 0u;
 				const uint32 LastNumItems = bIsLastCompressed ? 64u : PackedChunkData >> INSTANCE_HIERARCHY_ITEM_CHUNK_COUNT_SHIFT;
 
-				bool bLastChunkFull = LastNumItems == 64u;
-				int32 NumToBulkCopy = PrevCellHeader.NumItemChunks - (bLastChunkFull ? 0 : 1);
+				// Conditionally flush the chunk in progress if it is full anyway.
+				EmitCurrentChunkIfFull();
+
+				// we can just copy the lot if there is no chunk in progress as well as if it is full.
+				bool bBulkCopyLast = LastNumItems == 64u || IsCurrentChunkEmpty();
+				int32 NumToBulkCopy = (EndChunkOffset - ChunkOffset) - (bBulkCopyLast ? 0 : 1);
 				if (NumToBulkCopy > 0)
 				{
-					PackedChunkIds.Append(TConstArrayView<uint32>(&Builder.SceneCulling.PackedCellChunkData[PrevCellHeader.ItemChunksOffset], NumToBulkCopy));
+					PackedChunkIds.Append(TConstArrayView<uint32>(&Builder.SceneCulling.PackedCellChunkData[ChunkOffset], NumToBulkCopy));
 				}
 				// need to rebuild the last chunk to continue adding to it.
-				if (!bLastChunkFull)
+				if (!bBulkCopyLast)
 				{
 					UPDATE_BUILDER_STAT(Builder, VisitedIdCount, LastNumItems);
 
@@ -1049,48 +1147,119 @@ public:
 			// Flush the remainder into the last chunk.
 			EmitCurrentChunk();
 
+			return PackedChunkIds.Num();
+		}
+
+		TArray<uint32, TInlineAllocator<32, SceneRenderingAllocator>> PackedChunkIds;
+	};
+
+	/**
+	 * The temp cell is used to record information about additions / removals for a grid cell during the update.
+	 * An index to a temp cell is stored in the grid instead of the index to cell data when a cell is first accessed during update.
+	 * At the end of the update all temp cells are processed and then removed.
+	 */
+	struct FTempCell
+	{
+		int32 CellOffset = INDEX_NONE;
+		int32 ItemChunksOffset = INDEX_NONE;
+		int32 RemovedInstanceCount[EUpdateFrequencyCategory::Num] = { 0, 0 };
+		FCellHeader PrevCellHeader = FCellHeader { 0u, InvalidCellFlag };
+
+		FORCEINLINE int32 GetRemovedInstanceCount() const
+		{
+			return RemovedInstanceCount[EUpdateFrequencyCategory::Static] + RemovedInstanceCount[EUpdateFrequencyCategory::Dynamic];
+		}
+
+		SC_FORCEINLINE void FinalizeChunks(FSceneCullingBuilder& Builder)
+		{
+
+			BUILDER_LOG_SCOPE("FinalizeChunks(Index: %d RemovedInstanceCount %d):", CellOffset, RemovedInstanceCount);
+#if OLA_TODO
+			// Handle complete removal case efficiently
+			if (RemovedInstanceCount == TotalCellInstances)
+			{
+				ClearCell();
+			}
+#endif
+			//check(IsValidCell(PrevCellHeader));
+			const int32 PrevNumItemChunks = IsValidCell(PrevCellHeader) ? PrevCellHeader.NumItemChunks : 0;
+			const int32 PrevNumStaticItemChunks = IsValidCell(PrevCellHeader) ? PrevCellHeader.NumStaticChunks : 0;
+			const int32 PrevItemChunksOffset = IsValidCell(PrevCellHeader) ? PrevCellHeader.ItemChunksOffset : INDEX_NONE;
+
+			int32 TotalItemChunks = 0;
+			// 1. flush the dynamic stuff
+			{
+				int32 NumToremove = RemovedInstanceCount[EUpdateFrequencyCategory::Dynamic];
+				TotalItemChunks += Builders[EUpdateFrequencyCategory::Dynamic].FinalizeChunks(Builder, PrevItemChunksOffset + PrevNumStaticItemChunks, PrevItemChunksOffset + PrevNumItemChunks, NumToremove);
+				check(NumToremove == 0);
+			}
+
+			// 2. And then the static.
+			{
+				int32 NumToremove = RemovedInstanceCount[EUpdateFrequencyCategory::Static];
+				TotalItemChunks += Builders[EUpdateFrequencyCategory::Static].FinalizeChunks(Builder, PrevItemChunksOffset, PrevItemChunksOffset + PrevNumStaticItemChunks, NumToremove);
+				check(NumToremove == 0);
+			}
+
 			// Insert retained chunk info first.
-			PackedChunkIds.Insert(RetainedChunks.PackedIds, 0);
 			int32 BlockId = Builder.SceneCulling.CellIndexToBlockId(CellOffset);
 			FSpatialHash::FCellBlock& Block = Builder.SpatialHashMap.GetByElementId(BlockId).Value;
 
 			// update the delta to track total
-			Block.NumItemChunks += PackedChunkIds.Num() - (IsValid(PrevCellHeader) ? PrevCellHeader.NumItemChunks : 0);
+			Block.NumItemChunks += TotalItemChunks - PrevNumItemChunks;
 			check(Block.NumItemChunks >= 0);
 
-			ItemChunksOffset = ReallocateChunkRange(Builder, IsValid(PrevCellHeader) ? PrevCellHeader.ItemChunksOffset : INDEX_NONE, PrevCellHeader.NumItemChunks);
+			ItemChunksOffset = Builder.ReallocateChunkRange(TotalItemChunks, PrevItemChunksOffset, PrevNumItemChunks);
 		}
 
-		FORCEINLINE_DEBUGGABLE void AddExistingChunk(FTempChunks& RetainedChunks, uint32 ExistingPackedChunk)
+		// One Builders for static and one for dynamic
+		FChunkBuilder Builders[EUpdateFrequencyCategory::Num];
+
+		SC_FORCEINLINE bool IsEmpty() const
 		{
-			// Builder.TotalCellChunkDataCount += 1;
-			// Add directly to chunk headers to not upset current chunk packing
-			RetainedChunks.PackedIds.Add(ExistingPackedChunk);
+			return Builders[EUpdateFrequencyCategory::Static].IsEmpty() && Builders[EUpdateFrequencyCategory::Dynamic].IsEmpty();
+		}
+
+		SC_FORCEINLINE int32 GetTotalItemChunks() const
+		{
+			return Builders[EUpdateFrequencyCategory::Static].PackedChunkIds.Num() + Builders[EUpdateFrequencyCategory::Dynamic].PackedChunkIds.Num();
+		}
+
+		SC_FORCEINLINE uint32 GetNumItemChunks(EUpdateFrequencyCategory::EType UpdateFrequencyCategory) const
+		{
+			return uint32(Builders[UpdateFrequencyCategory].PackedChunkIds.Num());
+		}
+
+		SC_FORCEINLINE void OutputChunkIds(FSceneCullingBuilder &Builder)
+		{
+			Builders[EUpdateFrequencyCategory::Static].OutputChunkIds(Builder, ItemChunksOffset);
+			Builders[EUpdateFrequencyCategory::Dynamic].OutputChunkIds(Builder, ItemChunksOffset + Builders[EUpdateFrequencyCategory::Static].PackedChunkIds.Num());
 		}
 	};
 
-	FORCEINLINE_DEBUGGABLE FHashElementId FindOrAddBlock(const FSceneCulling::FLocation64& BlockLoc)
+	SC_FORCEINLINE FHashElementId FindOrAddBlock(const FBlockLoc& BlockLoc)
 	{
-		// Update cached block ID / loc on the assumption that when adding many instances they will often hit the same block
-		if (!CachedBlockId.IsValid() || !(CachedBlockLoc == BlockLoc))
+		bool bAlreadyInMap = false;
+		FHashElementId BlockId = SpatialHashMap.FindOrAddId(BlockLoc, FSpatialHash::FCellBlock{}, bAlreadyInMap);
+		if (!bAlreadyInMap)
 		{
-			bool bAlreadyInMap = false;
-			FHashElementId BlockId = SpatialHashMap.FindOrAddId(BlockLoc, FSpatialHash::FCellBlock{}, bAlreadyInMap);
-			if (!bAlreadyInMap)
-			{
-				BUILDER_LOG("Allocated Block %d", BlockId.GetIndex());
-			}
-			CachedBlockId = BlockId;
-			CachedBlockLoc = BlockLoc;
+			BUILDER_LOG("Allocated Block %d", BlockId.GetIndex());
 		}
 
-		return CachedBlockId;
+		return BlockId;
 	}
 
-	FORCEINLINE_DEBUGGABLE FTempCell& GetOrAddTempCell(const FSceneCulling::FLocation64& InstanceCellLoc)
+	
+	SC_FORCEINLINE FBlockLoc ToBlock(const FSceneCulling::FLocation64& Loc)
+	{
+		return FBlockLoc(RenderingSpatialHash::TLocation<int64>(ToLevelRelative<CellBlockDimLog2>(Loc.Coord), Loc.Level + CellBlockDimLog2));
+	};
+
+
+	SC_FORCEINLINE FTempCell& GetOrAddTempCell(const FSceneCulling::FLocation64& InstanceCellLoc)
 	{
 		// Address of the cell-block touched
-		FSceneCulling::FLocation64 BlockLoc = ToLevelRelative(InstanceCellLoc, CellBlockDimLog2);
+		FBlockLoc BlockLoc = ToBlock(InstanceCellLoc);
 
 		// TODO: queue fine-level work by block(?) and defer, better memory coherency, probably.
 		// Possibly store compressed as we would have a fair bit of empty space & bit mask + prefix sum (can we use popc efficiently nowadays on CPU)
@@ -1112,7 +1281,7 @@ public:
 			// TODO: store the validity state in bit mask instead of with each item?
 			for (int32 Index = 0; Index < CellBlockSize; ++Index)
 			{
-				SceneCulling.CellHeaders[StartIndex + Index].NumItemChunks = InvalidCellFlag;
+				SceneCulling.CellHeaders[StartIndex + Index].ItemChunksOffset = InvalidCellFlag;
 			}			
 			// No need to set the bits as they are maintained incrementally (or new and cleared)
 			SceneCulling.CellOccupancyMask.SetNum(NewMinSize, false);
@@ -1127,9 +1296,9 @@ public:
 		return GetOrAddTempCell(CellOffset);
 	}
 
-	FORCEINLINE_DEBUGGABLE FTempCell& GetOrAddTempCell(int32 CellIndex)
+	SC_FORCEINLINE FTempCell& GetOrAddTempCell(int32 CellIndex)
 	{
-		FCellHeader CellHeader = SceneCulling.CellHeaders[CellIndex];
+		FPackedCellHeader CellHeader = SceneCulling.CellHeaders[CellIndex];
 
 		if (!IsTempCell(CellHeader))
 		{
@@ -1139,41 +1308,68 @@ public:
 			FTempCell& TempCell = TempCells[TempCellIndex];
 
 			TempCell.CellOffset = CellIndex;
-			TempCell.PrevCellHeader = CellHeader;
+			TempCell.PrevCellHeader = UnpackCellHeader(CellHeader);
+
+			LogCell(TempCell.PrevCellHeader);
 
 			// Hijack the items offset to store the index to the temp cell so we can add data there during construction.
-			CellHeader.ItemChunksOffset = TempCellIndex;
-			CellHeader.NumItemChunks = TempCellFlag;
+			CellHeader.ItemChunksOffset = TempCellFlag;
+			CellHeader.NumStaticDynamicItemChunks = TempCellIndex;
 
 			SceneCulling.CellHeaders[CellIndex] = CellHeader;
 
 			return TempCell;
 		}
 
-		return TempCells[CellHeader.ItemChunksOffset];
+		return TempCells[CellHeader.NumStaticDynamicItemChunks];
 	}
 
-	FORCEINLINE_DEBUGGABLE int32 AddRange(const FSceneCulling::FLocation64& InstanceCellLoc, int32 InInstanceIdOffset, int32 InInstanceIdCount)
+	template <EUpdateFrequencyCategory::EType UpdateFrequencyCategory>// = EUpdateFrequencyCategory::Default>
+	SC_FORCEINLINE int32 AddRange(const FSceneCulling::FLocation64& InstanceCellLoc, int32 InInstanceIdOffset, int32 InInstanceIdCount)
 	{
 		UPDATE_BUILDER_STAT(*this, RangeCount, 1);
 
 		FTempCell& TempCell = GetOrAddTempCell(InstanceCellLoc);
 
-		TempCell.AddRange(*this, InInstanceIdOffset, InInstanceIdCount);
+		TempCell.Builders[UpdateFrequencyCategory].AddRange(*this, InInstanceIdOffset, InInstanceIdCount);
 
+#if SC_ENABLE_DETAILED_BUILDER_STATS
+		if (UpdateFrequencyCategory == EUpdateFrequencyCategory::Dynamic )
+		{
+			SceneCulling.NumDynamicInstances += InInstanceIdCount;
+		}
+		else
+		{
+			SceneCulling.NumStaticInstances += InInstanceIdCount;
+		}
+#endif
 		return TempCell.CellOffset;
 	}
 
-	FORCEINLINE_DEBUGGABLE int32 AddToCell(const FSceneCulling::FLocation64& InstanceCellLoc, int32 InstanceId)
+	SC_FORCEINLINE int32 AddToCell(const FSceneCulling::FLocation64& InstanceCellLoc, int32 InstanceId, EUpdateFrequencyCategory::EType UpdateFrequencyCategory)
 	{
+#if SC_ENABLE_DETAILED_BUILDER_STATS
+		if (UpdateFrequencyCategory == EUpdateFrequencyCategory::Dynamic )
+		{
+			SceneCulling.NumDynamicInstances += 1;
+		}
+		else
+		{
+			SceneCulling.NumStaticInstances += 1;
+		}
+#endif
 		FTempCell& TempCell = GetOrAddTempCell(InstanceCellLoc);
-		TempCell.Add(*this, uint32(InstanceId));
+		TempCell.Builders[UpdateFrequencyCategory].Add(*this, uint32(InstanceId));
 		return TempCell.CellOffset;
 	}
 
-	template <typename HashLocationComputerType>
-	FORCEINLINE_DEBUGGABLE void BuildInstanceRange(int32 InstanceDataOffset, int32 NumInstances, HashLocationComputerType HashLocationComputer, FSceneCulling::FCellIndexCacheEntry &CellIndexCacheEntry, bool bCompressRLE)
+	template <EUpdateFrequencyCategory::EType UpdateFrequencyCategory, typename HashLocationComputerType>
+	SC_FORCEINLINE void BuildInstanceRange(int32 InstanceDataOffset, int32 NumInstances, HashLocationComputerType HashLocationComputer, FSceneCulling::FCellIndexCacheEntry &CellIndexCacheEntry)
 	{
+		BUILDER_LOG_LIST("BuildInstanceRange(%d, %d):", InstanceDataOffset, NumInstances);
+
+		constexpr bool bCompressRLE = UpdateFrequencyCategory != EUpdateFrequencyCategory::Dynamic;
+
 		FSceneCulling::FLocation64 PrevInstanceCellLoc;
 		int32 SameInstanceLocRunCount = 0;
 		int32 StartRunInstanceInstanceId = -1;
@@ -1195,8 +1391,10 @@ public:
 				// If we have any accumulated same-cell instances, bulk-add those
 				if (SameInstanceLocRunCount > 0)
 				{
-					int32 CellIndex = AddRange(PrevInstanceCellLoc, StartRunInstanceInstanceId, SameInstanceLocRunCount);
+					int32 CellIndex = AddRange<UpdateFrequencyCategory>(PrevInstanceCellLoc, StartRunInstanceInstanceId, SameInstanceLocRunCount);
 					CellIndexCacheEntry.Add(CellIndex, SameInstanceLocRunCount);
+					BUILDER_LOG_LIST_APPEND("(%d, Id: %d : %d)", CellIndex, StartRunInstanceInstanceId, SameInstanceLocRunCount);
+
 				}
 				// Start a new run
 				PrevInstanceCellLoc = InstanceCellLoc;
@@ -1208,31 +1406,25 @@ public:
 		// Flush any outstanding ranges.
 		if (SameInstanceLocRunCount > 0)
 		{
-			int32 CellIndex = AddRange(PrevInstanceCellLoc, StartRunInstanceInstanceId, SameInstanceLocRunCount);
+			int32 CellIndex = AddRange<UpdateFrequencyCategory>(PrevInstanceCellLoc, StartRunInstanceInstanceId, SameInstanceLocRunCount);
 			CellIndexCacheEntry.Add(CellIndex, SameInstanceLocRunCount);
+			BUILDER_LOG_LIST_APPEND("(%d, Id: %d : %d)", CellIndex, StartRunInstanceInstanceId, SameInstanceLocRunCount);
 		}
 	}
 
-	FORCEINLINE_DEBUGGABLE FHashElementId GetBlockId(const FSceneCulling::FLocation64& BlockLoc)
+	SC_FORCEINLINE FHashElementId GetBlockId(const FBlockLoc& BlockLoc)
 	{
-		// Update cached block ID / loc on the assumption that when adding many instances they will often hit the same block
-		if (!CachedBlockId.IsValid() || !(CachedBlockLoc == BlockLoc))
-		{
-			FHashElementId BlockId = SpatialHashMap.FindId(BlockLoc);
-			check(BlockId.IsValid()); // TODO: checkslow?
-			CachedBlockId = BlockId;
-			CachedBlockLoc = BlockLoc;
-		}
-
-		return CachedBlockId;
+		FHashElementId BlockId = SpatialHashMap.FindId(BlockLoc);
+		check(BlockId.IsValid()); // TODO: checkslow?
+		return BlockId;
 	}
 
-	FORCEINLINE_DEBUGGABLE int32 GetCellIndex(const FSceneCulling::FLocation64 &CellLoc)
+	SC_FORCEINLINE int32 GetCellIndex(const FSceneCulling::FLocation64 &CellLoc)
 	{
 		if (CachedCellIdIndex == INDEX_NONE || !(CachedCellLoc == CellLoc))
 		{
 			// Address of the cell-block touched
-			FSceneCulling::FLocation64 BlockLoc = ToLevelRelative(CellLoc, CellBlockDimLog2);
+			FBlockLoc BlockLoc = ToBlock(CellLoc);
 
 			FHashElementId BlockId = GetBlockId(BlockLoc);
 			FSpatialHash::FCellBlock& Block = SpatialHashMap.GetByElementId(BlockId).Value;
@@ -1247,7 +1439,7 @@ public:
 		return CachedCellIdIndex;
 	}
 
-	void FinalizeTempCellsAndUncullable()
+	SC_FORCEINLINE void FinalizeTempCellsAndUncullable()
 	{
 		SCOPED_NAMED_EVENT(BuildHierarchy_FinalizeGrid, FColor::Emerald);
 		BUILDER_LOG_SCOPE("FinalizeTempCells: %d", TempCells.Num());
@@ -1259,12 +1451,18 @@ public:
 
 		CellHeaderUploader.Reserve(TempCells.Num());
 
+		{
+			SCOPED_NAMED_EVENT(BuildHierarchy_FinalizeChunks, FColor::Emerald);
+
 		for (FTempCell& TempCell : TempCells)
 		{
-			TotalRemovedInstances += TempCell.RemovedInstanceCount;
+			TotalRemovedInstances += TempCell.GetRemovedInstanceCount();
 			TempCell.FinalizeChunks(*this);
 		}
+		}
 
+		{
+			SCOPED_NAMED_EVENT(BuildHierarchy_FreeUncullable, FColor::Emerald);
 		// Free all uncullable chunks
 		for (int32 Index = 0; Index < SceneCulling.UncullableNumItemChunks; ++Index)
 		{
@@ -1277,6 +1475,10 @@ public:
 				SceneCulling.FreeChunk(ChunkId);
 			}
 		}
+		}
+
+		{
+			SCOPED_NAMED_EVENT(BuildHierarchy_ChunkBuilder, FColor::Emerald);
 
 		FChunkBuilder ChunkBuilder;
 		for (FPersistentPrimitiveIndex PersistentPrimitiveIndex : SceneCulling.UnCullablePrimitives)
@@ -1289,7 +1491,7 @@ public:
 			}
 		}
 		ChunkBuilder.EmitCurrentChunk();
-		SceneCulling.UncullableItemChunksOffset = ChunkBuilder.ReallocateChunkRange(*this, SceneCulling.UncullableItemChunksOffset, SceneCulling.UncullableNumItemChunks);
+		SceneCulling.UncullableItemChunksOffset = ReallocateChunkRange(ChunkBuilder.PackedChunkIds.Num(), SceneCulling.UncullableItemChunksOffset, SceneCulling.UncullableNumItemChunks);
 		SceneCulling.UncullableNumItemChunks = ChunkBuilder.PackedChunkIds.Num();
 
 		SceneCulling.PackedCellChunkData.SetNum(SceneCulling.CellChunkIdAllocator.GetMaxSize());
@@ -1298,12 +1500,17 @@ public:
 		{
 			ChunkBuilder.OutputChunkIds(*this, SceneCulling.UncullableItemChunksOffset);
 		}
+		}
+		{
+			SCOPED_NAMED_EVENT(BuildHierarchy_OutputChunkIds, FColor::Emerald);
 
+		
 		DirtyBlocks.SetNum(SpatialHash.GetMaxNumBlocks(), false);
 		NumDirtyBlocks = 0;
 		for (FTempCell& TempCell : TempCells)
 		{
-			FCellHeader &CellHeader = SceneCulling.CellHeaders[TempCell.CellOffset];
+			BUILDER_LOG_SCOPE("OutputChunkIds");
+			FPackedCellHeader &CellHeader = SceneCulling.CellHeaders[TempCell.CellOffset];
 			check(IsTempCell(CellHeader));
 			// mark block as dirty
 			DirtyBlocks[SceneCulling.CellIndexToBlockId(TempCell.CellOffset)] = true;
@@ -1312,23 +1519,24 @@ public:
 			{
 				BUILDER_LOG("Mark Empty Cell: %d", TempCell.CellOffset);
 				SceneCulling.CellOccupancyMask[TempCell.CellOffset] = false;
-				CellHeader.ItemChunksOffset = -1;
-				CellHeader.NumItemChunks = InvalidCellFlag;
+				CellHeader.ItemChunksOffset = InvalidCellFlag;
+				CellHeader.NumStaticDynamicItemChunks = 0u;
 			}
 			else
 			{
 				SceneCulling.CellOccupancyMask[TempCell.CellOffset] = true;
 				// 2. Store final offsets
 				CellHeader.ItemChunksOffset = TempCell.ItemChunksOffset;
-				CellHeader.NumItemChunks = TempCell.PackedChunkIds.Num();
+				CellHeader.NumStaticDynamicItemChunks = (TempCell.GetNumItemChunks(EUpdateFrequencyCategory::Static) << 16u) | TempCell.GetNumItemChunks(EUpdateFrequencyCategory::Dynamic);
 
 				// 3. Copy the list of chunk IDs
-				TempCell.OutputChunkIds(*this, CellHeader.ItemChunksOffset);
+				TempCell.OutputChunkIds(*this);
 			}
+			LogCell(UE::HLSL::UnpackCellHeader(CellHeader));
 			CellHeaderUploader.Add(CellHeader, TempCell.CellOffset);
 			BUILDER_LOG("CellHeaderUploader { %u, %u} -> %d", CellHeader.ItemChunksOffset, CellHeader.NumItemChunks, TempCell.CellOffset);
 		}
-
+		}
 		TempCells.Empty();
 	}
 
@@ -1355,9 +1563,48 @@ public:
 		return SceneCulling.CellIndexCache[CacheIndex];
 	}
 
+	SC_FORCEINLINE void LogCell(const FCellHeader &CellHeader)
+	{
+#if SC_ENABLE_DETAILED_LOGGING
+		BUILDER_LOG_LIST("CellData[%d, %d]:", CellHeader.NumItemChunks, CellHeader.NumStaticChunks);
+		if (IsValidCell(CellHeader))
+		{
+			for (uint32 ChunkOffset = CellHeader.ItemChunksOffset; ChunkOffset < CellHeader.ItemChunksOffset + CellHeader.NumItemChunks; ++ChunkOffset)
+			{
+				uint32 PackedChunkData = SceneCulling.PackedCellChunkData[ChunkOffset];
+				const bool bIsCompressed = (PackedChunkData & INSTANCE_HIERARCHY_ITEM_CHUNK_COMPRESSED_FLAG) != 0u;
+				const uint32 NumItems = bIsCompressed ? 64u : PackedChunkData >> INSTANCE_HIERARCHY_ITEM_CHUNK_COUNT_SHIFT;
+				const bool bIsFullChunk = NumItems == 64u;
+
+				if (bIsCompressed)
+				{
+					uint32 FirstInstanceDataOffset = PackedChunkData & INSTANCE_HIERARCHY_ITEM_CHUNK_COMPRESSED_PAYLOAD_MASK;
+					BUILDER_LOG_LIST_APPEND("CMP: %d", FirstInstanceDataOffset);
+				}
+				else
+				{
+					uint32 ChunkId =  (PackedChunkData & INSTANCE_HIERARCHY_ITEM_CHUNK_ID_MASK);
+					uint32 ItemDataOffset = ChunkId * INSTANCE_HIERARCHY_MAX_CHUNK_SIZE;
+
+					BUILDER_LOG_LIST_APPEND("CNK: %d { ", ChunkId);
+					for (uint32 ItemIndex = 0u; ItemIndex < NumItems; ++ItemIndex)
+					{
+						uint32 InstanceId = SceneCulling.PackedCellData[ItemDataOffset + ItemIndex];
+						BUILDER_LOG_LIST_APPEND("Id:%d", InstanceId);
+					}
+					BUILDER_LOG_LIST_APPEND("}");
+				}
+			}
+		}
+#endif // SC_ENABLE_DETAILED_LOGGING
+	}
+
 	inline uint32 AllocateChunk()
 	{
 		uint32 ChunkId = SceneCulling.AllocateChunk();
+
+		BUILDER_LOG("AllocateChunk (ChunkId: %d)", ChunkId);
+
 		DirtyChunks.SetNum(FMath::Max(DirtyChunks.Num(), int32(ChunkId) + 1), false);
 		// We know (as chunks are lazy allocated) that they need to be reuploaded if allocated during build, also because we double buffer (don't update in-place)
 		// track chunk dirty state (could use an array and append ID instead), however, this guarantees that a reused chunk won't be uploaded twice
@@ -1366,15 +1613,19 @@ public:
 		return ChunkId;
 	}
 
-	FPrimitiveState ComputePrimitiveState(const FPrimitiveBounds& Bounds, FPrimitiveSceneInfo* PrimitiveSceneInfo, int32 NumInstances, int32 InstanceDataOffset, FPrimitiveSceneProxy* SceneProxy, const FPrimitiveState &PrevState)
+	inline void FreeChunk(uint32 ChunkId)
+	{
+		BUILDER_LOG("FreeChunk (ChunkId: %d)", ChunkId);
+
+		SceneCulling.FreeChunk(ChunkId);
+	}
+
+	FORCEINLINE FPrimitiveState ComputePrimitiveState(const FPrimitiveBounds& Bounds, FPrimitiveSceneInfo* PrimitiveSceneInfo, int32 NumInstances, int32 InstanceDataOffset, FPrimitiveSceneProxy* SceneProxy, FInstanceDataFlags InstanceDataFlags, const FPrimitiveState &PrevState)
 	{
 		FPrimitiveState NewState;
 		NewState.bDynamic = PrevState.bDynamic || SceneProxy->IsOftenMoving();
 		NewState.NumInstances = NumInstances;
 		NewState.InstanceDataOffset = InstanceDataOffset;
-#if SCENE_CULLING_USE_PRECOMPUTED
-		const bool bHasPerInstanceSpatialHash = SceneProxy->HasPerInstanceSpatialHash();
-#endif
 
 		if (SceneCulling.IsUncullable(Bounds, PrimitiveSceneInfo))
 		{
@@ -1389,16 +1640,14 @@ public:
 			else
 			{
 #if SCENE_CULLING_USE_PRECOMPUTED
-				// If this primitive has been discovered to be dynamic we fall over to processing it as a dynamic item even though it has precomputed data (no longer trustworthy).
-				if (bHasPerInstanceSpatialHash && !NewState.bDynamic)
+				if (InstanceDataFlags.bHasCompressedSpatialHash && bUsePrecomputed)
 				{
 					NewState.State = FPrimitiveState::Precomputed;
 				}
 				else 
 #endif // SCENE_CULLING_USE_PRECOMPUTED
 				{
-					// Dynamic case, decide if we are going to cache or not (always for now)
-					NewState.State = NewState.bDynamic ? FPrimitiveState::Dynamic : FPrimitiveState::Cached;
+					NewState.State = NewState.bDynamic ? DynamicInstancedPrimitiveState : FPrimitiveState::Cached;
 				}		
 			}
 		}
@@ -1407,7 +1656,45 @@ public:
 		return NewState;
 	}
 
-	void AddInstances(FPersistentPrimitiveIndex PersistentId, FPrimitiveSceneInfo* PrimitiveSceneInfo)
+
+	template <EUpdateFrequencyCategory::EType UpdateFrequencyCategory>
+	FORCEINLINE int32 AddCachedOrDynamic(const FInstanceSceneDataBuffers *InstanceSceneDataBuffers, int32 CacheIndex, const bool bHasPerInstanceLocalBounds, int32 InstanceDataOffset, int32 NumInstances)
+	{
+		check(InstanceSceneDataBuffers != nullptr);
+
+		FCellIndexCacheEntry &CellIndexCacheEntry = GetCacheEntry(CacheIndex);
+		check(CellIndexCacheEntry.Items.IsEmpty());		
+
+		if (bHasPerInstanceLocalBounds)
+		{
+			FHashLocationComputerFromBounds<FBoundsTransformerUniqueBounds> HashLocationComputer(*InstanceSceneDataBuffers, SpatialHash);
+			BuildInstanceRange<UpdateFrequencyCategory>(InstanceDataOffset, NumInstances, HashLocationComputer, CellIndexCacheEntry);
+		}
+		else
+		{
+			FHashLocationComputerFromBounds<FBoundsTransformerSharedBounds> HashLocationComputer(*InstanceSceneDataBuffers, SpatialHash);
+			BuildInstanceRange<UpdateFrequencyCategory>(InstanceDataOffset, NumInstances, HashLocationComputer, CellIndexCacheEntry);
+		}
+
+		BUILDER_LOG_LIST("CellIndexCacheEntry(%d):", CellIndexCacheEntry.Items.Num());
+		for (FCellIndexCacheEntry::FItem Item : CellIndexCacheEntry.Items)
+		{
+			BUILDER_LOG_LIST_APPEND("(%d, %d)", Item.CellIndex, Item.NumInstances);
+		}
+
+		SceneCulling.TotalCellIndexCacheItems += CellIndexCacheEntry.Items.Num();
+
+		return CacheIndex;
+	}
+
+	// Helper to be able to capture stall time
+	SC_FORCEINLINE const FInstanceSceneDataBuffers *GetInstanceSceneDataBuffers(FPrimitiveSceneInfo* PrimitiveSceneInfo)
+	{
+		SC_SCOPED_NAMED_EVENT_DETAIL(SceneCulling_GetInstanceSceneDataBuffers, FColor::Emerald);
+		return PrimitiveSceneInfo->GetInstanceSceneDataBuffers();
+	}
+
+	FORCEINLINE void AddInstances(FPersistentPrimitiveIndex PersistentId, FPrimitiveSceneInfo* PrimitiveSceneInfo)
 	{
 		FScene &Scene = SceneCulling.Scene;
 		TArray<FPrimitiveState> &PrimitiveStates = SceneCulling.PrimitiveStates;
@@ -1430,37 +1717,42 @@ public:
 		}
 		check(InstanceDataOffset >= 0);
 		FPrimitiveSceneProxy* SceneProxy = PrimitiveSceneInfo->Proxy;
-		const FInstanceSceneDataBuffers *InstanceSceneDataBuffers = PrimitiveSceneInfo->GetInstanceSceneDataBuffers();
+		const FInstanceSceneDataBuffers *InstanceSceneDataBuffers = GetInstanceSceneDataBuffers(PrimitiveSceneInfo);
 		check((NumInstances == 1 && InstanceSceneDataBuffers == nullptr) || (InstanceSceneDataBuffers != nullptr && InstanceSceneDataBuffers->GetNumInstances() == NumInstances));
-		const bool bHasPerInstanceLocalBounds = InstanceSceneDataBuffers ? InstanceSceneDataBuffers->GetFlags().bHasPerInstanceLocalBounds : false;
+		FInstanceDataFlags InstanceDataFlags = InstanceSceneDataBuffers ? InstanceSceneDataBuffers->GetFlags() : FInstanceDataFlags();
+
 
 		const FPrimitiveBounds& Bounds = Scene.PrimitiveBounds[PrimitiveIndex];
-		FPrimitiveState NewPrimitiveState = ComputePrimitiveState(Bounds, PrimitiveSceneInfo, NumInstances, InstanceDataOffset, SceneProxy, PrevPrimitiveState);
+		FPrimitiveState NewPrimitiveState = ComputePrimitiveState(Bounds, PrimitiveSceneInfo, NumInstances, InstanceDataOffset, SceneProxy, InstanceDataFlags, PrevPrimitiveState);
 
 		switch(NewPrimitiveState.State)
 		{
 			case FPrimitiveState::SinglePrim:
 			{
 				FSceneCulling::FLocation64 PrimitiveCellLoc = SpatialHash.CalcLevelAndLocation(Bounds.BoxSphereBounds);
-				int32 CellIndex = AddToCell(PrimitiveCellLoc, InstanceDataOffset);
+				int32 CellIndex = AddToCell(PrimitiveCellLoc, InstanceDataOffset, NewPrimitiveState.bDynamic ? EUpdateFrequencyCategory::Dynamic : EUpdateFrequencyCategory::Static);
 				NewPrimitiveState.Payload = CellIndex;
 			}
 			break;
 #if SCENE_CULLING_USE_PRECOMPUTED
 			case FPrimitiveState::Precomputed:
 			{
+				SC_SCOPED_NAMED_EVENT_DETAIL(SceneCulling_Post_AddInstances_Precomputed, FColor::Emerald);
+
 				BUILDER_LOG_LIST("Add CompressedInstanceSpatialHashes");
 
 				int32 InstanceDataOffsetCurrent = InstanceDataOffset;
-				for (FPrimitiveSceneProxy::FCompressedSpatialHashItem Item : SceneProxy->CompressedInstanceSpatialHashes)
+
+				TSharedPtr<FInstanceSceneDataImmutable, ESPMode::ThreadSafe> InstanceSceneDataImmutable = InstanceSceneDataBuffers->GetImmutable();
+
+				for (FInstanceSceneDataBuffers::FCompressedSpatialHashItem Item : InstanceSceneDataImmutable->GetCompressedInstanceSpatialHashes())
 				{
-					int32 CellIndex = AddRange(Item.Location, InstanceDataOffsetCurrent, Item.NumInstances);
+					int32 CellIndex = AddRange<EUpdateFrequencyCategory::Static>(Item.Location, InstanceDataOffsetCurrent, Item.NumInstances);
 					BUILDER_LOG_LIST_APPEND("(%d, %d, %d)", CellIndex, InstanceDataOffsetCurrent, Item.NumInstances);
 					InstanceDataOffsetCurrent += Item.NumInstances;
 				}
-#if DO_GUARD_SLOW
-				NewPrimitiveState.CompressedInstanceSpatialHashes = SceneProxy->CompressedInstanceSpatialHashes;
-#endif
+				// Hang onto this so we can safely remove the thing if it changes in the future.
+				NewPrimitiveState.InstanceSceneDataImmutable = InstanceSceneDataImmutable;
 			}
 			break;
 #endif // SCENE_CULLING_USE_PRECOMPUTED
@@ -1469,30 +1761,18 @@ public:
 				SceneCulling.UnCullablePrimitives.Add(PersistentId);
 			}
 			break;
-			default:
+			case FPrimitiveState::Dynamic:
 			{
-				check(NewPrimitiveState.State == FPrimitiveState::Dynamic || NewPrimitiveState.State == FPrimitiveState::Cached);
-				check(InstanceSceneDataBuffers != nullptr);
-				const bool bIsDynamic = NewPrimitiveState.State == FPrimitiveState::Dynamic;
-					
-				int32 CacheIndex = AllocateCacheEntry();
-				NewPrimitiveState.Payload = CacheIndex;
-				FCellIndexCacheEntry &CellIndexCacheEntry = GetCacheEntry(CacheIndex);
-				const FMatrix& PrimitiveToWorld = SceneCulling.Scene.PrimitiveTransforms[PrimitiveIndex];
-
-				if (bHasPerInstanceLocalBounds)
-				{
-					FHashLocationComputerFromBounds<FBoundsTransformerUniqueBounds> HashLocationComputer(*InstanceSceneDataBuffers, SpatialHash);
-					BuildInstanceRange(InstanceDataOffset, NumInstances, HashLocationComputer, CellIndexCacheEntry, !bIsDynamic);
-				}
-				else
-				{
-					FHashLocationComputerFromBounds<FBoundsTransformerSharedBounds> HashLocationComputer(*InstanceSceneDataBuffers, SpatialHash);
-					BuildInstanceRange(InstanceDataOffset, NumInstances, HashLocationComputer, CellIndexCacheEntry, !bIsDynamic);
-				}
-
-				SceneCulling.TotalCellIndexCacheItems += CellIndexCacheEntry.Items.Num();
+				SC_SCOPED_NAMED_EVENT_DETAIL(SceneCulling_Post_AddInstances_Dynamic, FColor::Emerald);
+				NewPrimitiveState.Payload = AddCachedOrDynamic<EUpdateFrequencyCategory::Dynamic>(InstanceSceneDataBuffers, AllocateCacheEntry(), InstanceDataFlags.bHasPerInstanceLocalBounds, InstanceDataOffset, NumInstances);
 			}
+			break;
+			case FPrimitiveState::Cached:
+			{
+				SC_SCOPED_NAMED_EVENT_DETAIL(SceneCulling_Post_AddInstances_Cached, FColor::Emerald);
+				NewPrimitiveState.Payload = AddCachedOrDynamic<EUpdateFrequencyCategory::Static>(InstanceSceneDataBuffers, AllocateCacheEntry(), InstanceDataFlags.bHasPerInstanceLocalBounds, InstanceDataOffset, NumInstances);
+			}
+			break;
 		};
 
 		check(NewPrimitiveState.NumInstances > 0 || NewPrimitiveState.State == FPrimitiveState::Unknown || NewPrimitiveState.State == FPrimitiveState::UnCullable);
@@ -1500,29 +1780,55 @@ public:
 		BUILDER_LOG("PrimitiveState-end: %s", *NewPrimitiveState.ToString());
 	}
 
-	inline void MarkCellForRemove(int32 CellIndex, int32 NumInstances)
+	inline void MarkCellForRemove(int32 CellIndex, int32 NumInstances, EUpdateFrequencyCategory::EType UpdateFrequencyCategory)
 	{
 		FTempCell &TempCell = GetOrAddTempCell(CellIndex);
 		// Should not mark remove for a cell that didn't have anything in it before...
-		check(IsValid(TempCell.PrevCellHeader));
+		check(IsValidCell(TempCell.PrevCellHeader));
 		// Track total to be removed.
-		TempCell.RemovedInstanceCount += NumInstances;
+		TempCell.RemovedInstanceCount[UpdateFrequencyCategory] += NumInstances;
+
+#if SC_ENABLE_DETAILED_BUILDER_STATS
+		if (UpdateFrequencyCategory == EUpdateFrequencyCategory::Dynamic )
+		{
+			SceneCulling.NumDynamicInstances -= NumInstances;
+		}
+		else
+		{
+			SceneCulling.NumStaticInstances -= NumInstances;
+		}
+#endif
 	}
 
-	inline void MarkForRemove(int32 CellIndex, int32 InstanceDataOffset, int32 NumInstances)
+	inline void MarkForRemove(int32 CellIndex, int32 InstanceDataOffset, int32 NumInstances, EUpdateFrequencyCategory::EType UpdateFrequencyCategory)
 	{
 		RemovedInstanceFlags.SetRange(InstanceDataOffset, NumInstances, true);
-		MarkCellForRemove(CellIndex, NumInstances);
+		MarkCellForRemove(CellIndex, NumInstances, UpdateFrequencyCategory);
 	}
+
+#if SCENE_CULLING_USE_PRECOMPUTED
+	inline void RemovePrecomputed(FSceneCulling::FPrimitiveState &PrimitiveState)
+	{
+		BUILDER_LOG("FPrimitiveState::Precomputed");
+		check(PrimitiveState.InstanceSceneDataImmutable);
+
+		BUILDER_LOG_LIST("RemovePrecomputed");
+		for (FInstanceSceneDataBuffers::FCompressedSpatialHashItem Item : PrimitiveState.InstanceSceneDataImmutable->GetCompressedInstanceSpatialHashes())
+		{
+			int32 CellIndex = GetCellIndex(Item.Location);
+			BUILDER_LOG_LIST_APPEND("(%d, %d)", CellIndex, Item.NumInstances);
+			MarkCellForRemove(CellIndex, Item.NumInstances, EUpdateFrequencyCategory::Static);
+		}
+	}
+#endif
 
 	inline void MarkInstancesForRemoval(FPersistentPrimitiveIndex PersistentPrimitiveIndex, FPrimitiveSceneInfo *PrimitiveSceneInfo)
 	{
-		FSceneCulling::FPrimitiveState PrimitiveState = SceneCulling.PrimitiveStates[PersistentPrimitiveIndex.Index];
+		// Copy & Clear tracked state since it is being removed (ID may now be reused so we need to prevent state from surviving).
+		FSceneCulling::FPrimitiveState PrimitiveState = MoveTemp(SceneCulling.PrimitiveStates[PersistentPrimitiveIndex.Index]);
+		SceneCulling.PrimitiveStates[PersistentPrimitiveIndex.Index] = FPrimitiveState();
 		BUILDER_LOG_SCOPE("MarkInstancesForRemoval: %d %s", PersistentPrimitiveIndex.Index, *PrimitiveState.ToString());
 		check(PrimitiveState.NumInstances > 0 || PrimitiveState.State == FPrimitiveState::Unknown || PrimitiveState.State == FPrimitiveState::UnCullable);
-
-		// Clear tracked state since it is being removed (ID may now be reused so we need to prevent state from surviving).
-		SceneCulling.PrimitiveStates[PersistentPrimitiveIndex.Index] = FPrimitiveState();
 
 		// TODO: this is not needed when we also call update for added primitives correctly, remove and replace with a check!
 		if (PrimitiveState.State == FPrimitiveState::Unknown)
@@ -1548,26 +1854,12 @@ public:
 			checkf(PrimitiveState.NumInstances == 1, TEXT("Invalid PrimitiveState.NumInstances %s"), *PrimitiveState.ToString());
 
 			int32 CellIndex = PrimitiveState.Payload;
-			MarkCellForRemove(CellIndex, PrimitiveState.NumInstances);
+			MarkCellForRemove(CellIndex, PrimitiveState.NumInstances, PrimitiveState.bDynamic ? EUpdateFrequencyCategory::Dynamic : EUpdateFrequencyCategory::Static);
 		}
 #if SCENE_CULLING_USE_PRECOMPUTED
 		else if (PrimitiveState.State == FPrimitiveState::Precomputed)
 		{
-			BUILDER_LOG("FPrimitiveState::Precomputed");
-
-			// NOTE: this is only safe because the scene update waits on the task before deleting the proxies.
-			FPrimitiveSceneProxy* SceneProxy = PrimitiveSceneInfo->Proxy;
-
-			const bool bHasPerInstanceSpatialHash = SceneProxy->HasPerInstanceSpatialHash();
-			check(bHasPerInstanceSpatialHash);
-			BUILDER_LOG_LIST("MarkCellForRemove");
-			checkSlow(SceneProxy->CompressedInstanceSpatialHashes == PrimitiveState.CompressedInstanceSpatialHashes);
-			for (FPrimitiveSceneProxy::FCompressedSpatialHashItem Item : SceneProxy->CompressedInstanceSpatialHashes)
-			{
-				int32 CellIndex = GetCellIndex(Item.Location);
-				BUILDER_LOG_LIST_APPEND("(%d, %d)", CellIndex, Item.NumInstances);
-				MarkCellForRemove(CellIndex, Item.NumInstances);
-			}
+			RemovePrecomputed(PrimitiveState);
 		}
 #endif
 		else if (PrimitiveState.State == FPrimitiveState::Cached || PrimitiveState.State == FPrimitiveState::Dynamic)
@@ -1579,7 +1871,7 @@ public:
 			for (FCellIndexCacheEntry::FItem Item : CellIndexCacheEntry.Items)
 			{
 				BUILDER_LOG_LIST_APPEND("(%d, %d)", Item.CellIndex, Item.NumInstances);
-				MarkCellForRemove(Item.CellIndex, Item.NumInstances);
+				MarkCellForRemove(Item.CellIndex, Item.NumInstances, (PrimitiveState.State == FPrimitiveState::Dynamic) ? EUpdateFrequencyCategory::Dynamic : EUpdateFrequencyCategory::Static);
 			}
 
 			FreeCacheEntry(CacheIndex);
@@ -1606,20 +1898,21 @@ public:
 				FSceneCulling::FLocation64 PrevCellLoc = SceneCulling.GetCellLoc(PrevCellIndex);
 				if (PrevCellLoc != InstanceCellLoc)
 				{
-					MarkForRemove(PrevCellIndex, InstanceId, 1);
+					MarkForRemove(PrevCellIndex, InstanceId, 1, EUpdateFrequencyCategory::Dynamic);
 					bNeedAdd = true;
 				}
 			}
 			if (bNeedAdd)
 			{
-				int32 CellIndex = AddToCell(InstanceCellLoc, InstanceId);
+				int32 CellIndex = AddToCell(InstanceCellLoc, InstanceId, EUpdateFrequencyCategory::Dynamic);
 				CacheEntry.Set(InstanceIndex, CellIndex, 1);
 			}
 		}
 	}
 
 	// Mark those that need for remove, queue others for add
-	inline void UpdateInstances(FPersistentPrimitiveIndex PersistentPrimitiveIndex, FPrimitiveSceneInfo* PrimitiveSceneInfo)
+
+	FORCEINLINE void UpdateInstances(FPersistentPrimitiveIndex PersistentPrimitiveIndex, FPrimitiveSceneInfo* PrimitiveSceneInfo)
 	{
 		FSceneCulling::FPrimitiveState PrevPrimitiveState = SceneCulling.PrimitiveStates[PersistentPrimitiveIndex.Index];
 		BUILDER_LOG_SCOPE("UpdateInstances: %d [%s]", PersistentPrimitiveIndex.Index, *PrevPrimitiveState.ToString());
@@ -1642,17 +1935,15 @@ public:
 		int32 PrimitiveIndex = PrimitiveSceneInfo->GetIndex();
 		const FPrimitiveBounds& Bounds = SceneCulling.Scene.PrimitiveBounds[PrimitiveIndex];
 		FPrimitiveSceneProxy* SceneProxy = PrimitiveSceneInfo->Proxy;
-		const FInstanceSceneDataBuffers *InstanceSceneDataBuffers = PrimitiveSceneInfo->GetInstanceSceneDataBuffers();
+		const FInstanceSceneDataBuffers *InstanceSceneDataBuffers = GetInstanceSceneDataBuffers(PrimitiveSceneInfo);
 		check((NumInstances == 1 && InstanceSceneDataBuffers == nullptr) || (InstanceSceneDataBuffers != nullptr && InstanceSceneDataBuffers->GetNumInstances() == NumInstances));
-		const bool bHasPerInstanceLocalBounds = InstanceSceneDataBuffers ? InstanceSceneDataBuffers->GetFlags().bHasPerInstanceLocalBounds : false;
-		FPrimitiveState NewPrimitiveState = ComputePrimitiveState(Bounds, PrimitiveSceneInfo, NumInstances, InstanceDataOffset, SceneProxy, PrevPrimitiveState);
+		const FInstanceDataFlags InstanceDataFlags = InstanceSceneDataBuffers ? InstanceSceneDataBuffers->GetFlags() : FInstanceDataFlags();
+
+		FPrimitiveState NewPrimitiveState = ComputePrimitiveState(Bounds, PrimitiveSceneInfo, NumInstances, InstanceDataOffset, SceneProxy, InstanceDataFlags, PrevPrimitiveState);
 		const bool bStateChanged = NewPrimitiveState.State != PrevPrimitiveState.State;
 		const bool bInstanceDataOffsetChanged = PrevPrimitiveState.InstanceDataOffset != NewPrimitiveState.InstanceDataOffset;
 		const FMatrix& PrimitiveToWorld = SceneCulling.Scene.PrimitiveTransforms[PrimitiveIndex];
 
-#if SCENE_CULLING_USE_PRECOMPUTED
-		const bool bHasPerInstanceSpatialHash = SceneProxy->HasPerInstanceSpatialHash();
-#endif
 		INC_DWORD_STAT_BY(STAT_SceneCulling_UpdatedInstanceCount, NumInstances);
 
 		// If it was previously unknown it must now be added
@@ -1660,12 +1951,14 @@ public:
 
 		// Handle singular case
 		if (PrevPrimitiveState.State == FPrimitiveState::SinglePrim)
-		{ 
+		{ 			
+			SC_SCOPED_NAMED_EVENT_DETAIL(SceneCulling_Post_UpdateInstances_SinglePrim, FColor::Blue);
+
 			int32 PrevCellIndex = PrevPrimitiveState.Payload;
 			// If it is changed away from this state, just mark for remove and flag for re-add
 			if (bStateChanged)
 			{
-				MarkForRemove(PrevCellIndex, PrevPrimitiveState.InstanceDataOffset, PrevPrimitiveState.NumInstances);
+				MarkForRemove(PrevCellIndex, PrevPrimitiveState.InstanceDataOffset, PrevPrimitiveState.NumInstances, PrevPrimitiveState.bDynamic ? EUpdateFrequencyCategory::Dynamic : EUpdateFrequencyCategory::Static);
 				bNeedsAdd = true;
 			}
 			else
@@ -1675,13 +1968,13 @@ public:
 				FSpatialHash::FLocation64 PrevCellLoc = SceneCulling.GetCellLoc(PrevCellIndex);
 
 				// It is different, so need to remove/add
-				if (PrevCellLoc != PrimitiveCellLoc || bInstanceDataOffsetChanged)
+				if (PrevCellLoc != PrimitiveCellLoc || bInstanceDataOffsetChanged || PrevPrimitiveState.bDynamic != NewPrimitiveState.bDynamic)
 				{
 					// mark for removal
-					MarkForRemove(PrevCellIndex, PrevPrimitiveState.InstanceDataOffset, PrevPrimitiveState.NumInstances);
+					MarkForRemove(PrevCellIndex, PrevPrimitiveState.InstanceDataOffset, PrevPrimitiveState.NumInstances, PrevPrimitiveState.bDynamic ? EUpdateFrequencyCategory::Dynamic : EUpdateFrequencyCategory::Static);
 
 					// It is still a single-instance prim (it might be an ISM which varies) re-add at once, since we have already computed the new PrimitiveCellLoc
-					int32 CellIndex = AddToCell(PrimitiveCellLoc, NewPrimitiveState.InstanceDataOffset);
+					int32 CellIndex = AddToCell(PrimitiveCellLoc, NewPrimitiveState.InstanceDataOffset, NewPrimitiveState.bDynamic ? EUpdateFrequencyCategory::Dynamic : EUpdateFrequencyCategory::Static);
 					NewPrimitiveState.Payload = CellIndex;
 				}
 				else
@@ -1693,6 +1986,7 @@ public:
 		}
 		else if (NewPrimitiveState.State == FPrimitiveState::Dynamic && !bStateChanged && !bInstanceDataOffsetChanged)
 		{
+			SC_SCOPED_NAMED_EVENT_DETAIL(SceneCulling_Post_UpdateInstances_DynamicUpdate, FColor::Red);
 			check(InstanceSceneDataBuffers != nullptr);
 
 			// For dynamic instance batches we process individual instances since they can then more often be retained
@@ -1706,14 +2000,14 @@ public:
 			{
 				FCellIndexCacheEntry::FItem Item = CellIndexCacheEntry.Items[ItemIndex];
 				// Assumes 1:1 between index and ID
-				MarkForRemove(Item.CellIndex, PrevPrimitiveState.InstanceDataOffset + ItemIndex, Item.NumInstances);
+				MarkForRemove(Item.CellIndex, PrevPrimitiveState.InstanceDataOffset + ItemIndex, Item.NumInstances, PrevPrimitiveState.bDynamic ? EUpdateFrequencyCategory::Dynamic : EUpdateFrequencyCategory::Static);
 			}
 			// Maintain the total accross all entries
 			SceneCulling.TotalCellIndexCacheItems -= CellIndexCacheEntry.Items.Num();
 			// Resize the cache entry to fit new IDs or trim excess ones.
 			CellIndexCacheEntry.Items.SetNumZeroed(NumInstances, false);
 			SceneCulling.TotalCellIndexCacheItems += CellIndexCacheEntry.Items.Num();
-			if (bHasPerInstanceLocalBounds)
+			if (InstanceDataFlags.bHasPerInstanceLocalBounds)
 			{
 				FHashLocationComputerFromBounds<FBoundsTransformerUniqueBounds> HashLocationComputer(*InstanceSceneDataBuffers, SpatialHash);
 				UpdateProcessDynamicInstances(HashLocationComputer, InstanceDataOffset, NumInstances, PrevPrimitiveState.NumInstances, CellIndexCacheEntry);
@@ -1727,20 +2021,15 @@ public:
 #if SCENE_CULLING_USE_PRECOMPUTED
 		else if (PrevPrimitiveState.State == FPrimitiveState::Precomputed)
 		{
+			SC_SCOPED_NAMED_EVENT_DETAIL(SceneCulling_Post_UpdateInstances_Precomputed, FColor::Emerald);
 			BUILDER_LOG("FPrimitiveState::Precomputed");
 			// This _should_ not happen (but it does!! I.e., we have static ISMs with updating instances), these must be remove/readded to the scene			
 			// Check that they are indeed not being re-added as precomputed.
-			check(NewPrimitiveState.bDynamic && bStateChanged);
+			check(bStateChanged);
 
 			RemovedInstanceFlags.SetRange(PrevPrimitiveState.InstanceDataOffset, PrevPrimitiveState.NumInstances, true);
 
-			BUILDER_LOG_LIST("MarkCellForRemove");
-			for (FPrimitiveSceneProxy::FCompressedSpatialHashItem Item : SceneProxy->CompressedInstanceSpatialHashes)
-			{
-				int32 CellIndex = GetCellIndex(Item.Location);
-				MarkCellForRemove(CellIndex, Item.NumInstances);
-				BUILDER_LOG_LIST_APPEND("(%d, %d)", CellIndex, Item.NumInstances);
-			}
+			RemovePrecomputed(PrevPrimitiveState);
 
 			bNeedsAdd = true;
 		}
@@ -1748,13 +2037,15 @@ public:
 		// In all other cases we have something that must be removed and is in either Cached or Dynamic state which are both removed in the same way.
 		else if (PrevPrimitiveState.State != FPrimitiveState::Unknown)
 		{
+			SC_SCOPED_NAMED_EVENT_DETAIL_TCHAR(PrevPrimitiveState.State == FPrimitiveState::Cached ? TEXT("SceneCulling_Post_UpdateInstances_ReAddCached") : (InstanceDataOffset != PrevPrimitiveState.InstanceDataOffset ? TEXT("SceneCulling_Post_UpdateInstances_Dynamic_Offset") : TEXT("SceneCulling_Post_UpdateInstances_Dynamic_Other")), FColor::Emerald);
+
 			check(PrevPrimitiveState.State == FPrimitiveState::Cached || (PrevPrimitiveState.State == FPrimitiveState::Dynamic && (InstanceDataOffset != PrevPrimitiveState.InstanceDataOffset || bStateChanged)));
 			FCellIndexCacheEntry &CellIndexCacheEntry = GetCacheEntry(PrevPrimitiveState.Payload);
 
 			RemovedInstanceFlags.SetRange(PrevPrimitiveState.InstanceDataOffset, PrevPrimitiveState.NumInstances, true);
 			for (FCellIndexCacheEntry::FItem Item : CellIndexCacheEntry.Items)
 			{
-				MarkCellForRemove(Item.CellIndex, Item.NumInstances);
+				MarkCellForRemove(Item.CellIndex, Item.NumInstances, PrevPrimitiveState.bDynamic ? EUpdateFrequencyCategory::Dynamic : EUpdateFrequencyCategory::Static);
 			}
 			
 			// Reset the cache entry
@@ -1763,7 +2054,7 @@ public:
 			// If the primitive stays cached, we just hang on to the cache entry
 			if (NewPrimitiveState.IsCachedState())
 			{
-				CellIndexCacheEntry.Items.Reset();
+				CellIndexCacheEntry.Reset();
 			}
 			else
 			{
@@ -1777,6 +2068,8 @@ public:
 		// TODO: refactor to share more code with AddInstances
 		if (bNeedsAdd)
 		{
+			SC_SCOPED_NAMED_EVENT_DETAIL(SceneCulling_Post_UpdateInstances_ReAdd, FColor::Emerald);
+
 			switch(NewPrimitiveState.State)
 			{
 				case FPrimitiveState::Unknown:
@@ -1784,7 +2077,7 @@ public:
 				case FPrimitiveState::SinglePrim:
 				{
 					FSceneCulling::FLocation64 PrimitiveCellLoc = SpatialHash.CalcLevelAndLocation(Bounds.BoxSphereBounds);
-					int32 CellIndex = AddToCell(PrimitiveCellLoc, InstanceDataOffset);
+					int32 CellIndex = AddToCell(PrimitiveCellLoc, InstanceDataOffset, NewPrimitiveState.bDynamic ? EUpdateFrequencyCategory::Dynamic : EUpdateFrequencyCategory::Static);
 					NewPrimitiveState.Payload = CellIndex;
 				}
 				break;
@@ -1802,40 +2095,25 @@ public:
 				}
 				break;
 				case FPrimitiveState::Dynamic:
+				{
+					check(NewPrimitiveState.IsCachedState());
+					NewPrimitiveState.Payload = AddCachedOrDynamic<EUpdateFrequencyCategory::Dynamic>(InstanceSceneDataBuffers, PrevPrimitiveState.IsCachedState() ? PrevPrimitiveState.Payload : AllocateCacheEntry(), InstanceDataFlags.bHasPerInstanceLocalBounds, InstanceDataOffset, NumInstances);
+				}
+				break;
 				case FPrimitiveState::Cached:
 				{
 					check(NewPrimitiveState.IsCachedState());
-					check(InstanceSceneDataBuffers != nullptr);
-
-					const bool bIsDynamic = NewPrimitiveState.State == FPrimitiveState::Dynamic;
-					// re-use from previous state if it was also cachable
-					int32 CacheIndex = PrevPrimitiveState.IsCachedState() ? PrevPrimitiveState.Payload : AllocateCacheEntry();
-					NewPrimitiveState.Payload = CacheIndex;
-
-					FCellIndexCacheEntry &CellIndexCacheEntry = GetCacheEntry(CacheIndex);
-
-					if (bHasPerInstanceLocalBounds)
-					{
-						FHashLocationComputerFromBounds<FBoundsTransformerUniqueBounds> HashLocationComputer(*InstanceSceneDataBuffers, SpatialHash);
-						BuildInstanceRange(InstanceDataOffset, NumInstances, HashLocationComputer, CellIndexCacheEntry, !bIsDynamic);
-					}
-					else
-					{
-						FHashLocationComputerFromBounds<FBoundsTransformerSharedBounds> HashLocationComputer(*InstanceSceneDataBuffers, SpatialHash);
-						BuildInstanceRange(InstanceDataOffset, NumInstances, HashLocationComputer, CellIndexCacheEntry, !bIsDynamic);
-					}
-
-					SceneCulling.TotalCellIndexCacheItems += CellIndexCacheEntry.Items.Num();
+					NewPrimitiveState.Payload = AddCachedOrDynamic<EUpdateFrequencyCategory::Static>(InstanceSceneDataBuffers, PrevPrimitiveState.IsCachedState() ? PrevPrimitiveState.Payload : AllocateCacheEntry(), InstanceDataFlags.bHasPerInstanceLocalBounds, InstanceDataOffset, NumInstances);
 				}
 				break;
 			};
 		}
 
 		check(NewPrimitiveState.NumInstances > 0 || NewPrimitiveState.State == FPrimitiveState::Unknown || NewPrimitiveState.State == FPrimitiveState::UnCullable);
-		// Update tracked state
-		SceneCulling.PrimitiveStates[PersistentPrimitiveIndex.Index] = NewPrimitiveState;
 
 		BUILDER_LOG("PrimitiveState-end: %s", *NewPrimitiveState.ToString());
+		// Update tracked state
+		SceneCulling.PrimitiveStates[PersistentPrimitiveIndex.Index] = MoveTemp(NewPrimitiveState);
 	}
 
 	inline bool IsMarkedForRemove(uint32 InstanceId)
@@ -1852,6 +2130,10 @@ public:
 		INC_DWORD_STAT_BY(STAT_SceneCulling_VisitedIdCount, Stats.VisitedIdCount);
 		Stats = FStats();
 #endif 
+		CSV_CUSTOM_STAT(SceneCulling, NumUpdatedInstances,  TotalUpdatedInstances, ECsvCustomStatOp::Accumulate);
+		CSV_CUSTOM_STAT(SceneCulling, NumAddedInstances,  TotalAddedInstances, ECsvCustomStatOp::Accumulate);
+		CSV_CUSTOM_STAT(SceneCulling, NumRemovedInstances,  TotalRemovedInstances, ECsvCustomStatOp::Accumulate);
+
 		SceneCulling.PublishStats();
 	}
 
@@ -1886,15 +2168,15 @@ public:
 				{
 					check(GPUValue == HostValue); 
 				});
-			SceneCulling.CellHeadersBuffer.ValidateGPUData(GraphBuilder, TConstArrayView<FCellHeader>(SceneCulling.CellHeaders), 
-				[this](int32 Index, const FCellHeader &HostValue, const FCellHeader &GPUValue) 
+			SceneCulling.CellHeadersBuffer.ValidateGPUData(GraphBuilder, TConstArrayView<FPackedCellHeader>(SceneCulling.CellHeaders), 
+				[this](int32 Index, const FPackedCellHeader &HostValue, const FPackedCellHeader &GPUValue) 
 				{
 					// We don't upload unreferenced cells, so they can be just garbage on the GPU.
 					// In the future (if we start doing GPU-side traversal that might need to change).
-					if (IsValid(HostValue))
+					if (IsValidCell(HostValue))
 					{
 						check(GPUValue.ItemChunksOffset == HostValue.ItemChunksOffset); 
-						check(GPUValue.NumItemChunks == HostValue.NumItemChunks); 
+						check(GPUValue.NumStaticDynamicItemChunks == HostValue.NumStaticDynamicItemChunks); 
 					}
 				});
 			SceneCulling.ItemChunksBuffer.ValidateGPUData(GraphBuilder, TConstArrayView<const uint32>(SceneCulling.PackedCellChunkData), 
@@ -1911,23 +2193,31 @@ public:
 		LLM_SCOPE_BYTAG(SceneCulling);
 		SCOPED_NAMED_EVENT(SceneCulling_Update_Post, FColor::Emerald);
 		SCOPE_CYCLE_COUNTER(STAT_SceneCulling_Update_Post);
+		CSV_SCOPED_TIMING_STAT(SceneCulling, PostSceneUpdate);
 
 		BUILDER_LOG_SCOPE("ProcessPostSceneUpdate: %d/%d", ScenePostUpdateData.UpdatedPrimitiveIds.Num(), ScenePostUpdateData.AddedPrimitiveIds.Num());
 
 		SceneCulling.PrimitiveStates.SetNum(SceneCulling.Scene.GetMaxPersistentPrimitiveIndex(), false);
 
-		//// [transform-] updated primitives instances & primitives with updated instances 
-		for (int32 Index = 0; Index < ScenePostUpdateData.UpdatedPrimitiveIds.Num(); ++Index)
 		{
-			UpdateInstances(ScenePostUpdateData.UpdatedPrimitiveIds[Index], ScenePostUpdateData.UpdatedPrimitiveSceneInfos[Index]);
-		}	
+			SCOPED_NAMED_EVENT(SceneCulling_Post_UpdateInstances, FColor::Emerald);
 
-		// Next process all added and added ones.
-		for (int32 Index = 0; Index < ScenePostUpdateData.AddedPrimitiveIds.Num(); ++Index)
-		{
-			AddInstances(ScenePostUpdateData.AddedPrimitiveIds[Index], ScenePostUpdateData.AddedPrimitiveSceneInfos[Index]);
+			// [transform-] updated primitives instances & primitives with updated instances 
+			for (int32 Index = 0; Index < ScenePostUpdateData.UpdatedPrimitiveIds.Num(); ++Index)
+			{
+				UpdateInstances(ScenePostUpdateData.UpdatedPrimitiveIds[Index], ScenePostUpdateData.UpdatedPrimitiveSceneInfos[Index]);
+			}	
 		}
 
+		{
+			SCOPED_NAMED_EVENT(SceneCulling_Post_AddInstances, FColor::Emerald);
+
+			// Next process all added and added ones.
+			for (int32 Index = 0; Index < ScenePostUpdateData.AddedPrimitiveIds.Num(); ++Index)
+			{
+				AddInstances(ScenePostUpdateData.AddedPrimitiveIds[Index], ScenePostUpdateData.AddedPrimitiveSceneInfos[Index]);
+			}
+		}
 		FinalizeTempCellsAndUncullable();
 
 		// TODO: count them while marking instead, perhaps.
@@ -1965,7 +2255,7 @@ public:
 				for (int32 CellIndex = Block.GridOffset; CellIndex < Block.GridOffset + FSpatialHash::CellBlockSize; ++CellIndex)
 				{
 					check(!SceneCulling.CellOccupancyMask[CellIndex]);
-					check(!IsValid(SceneCulling.CellHeaders[CellIndex]));
+					check(!IsValidCell(SceneCulling.CellHeaders[CellIndex]));
 				}
 #endif
 				SpatialHashMap.RemoveByElementId(BlockIndex);
@@ -1974,12 +2264,12 @@ public:
 			}
 			else
 			{
-				FSceneCulling::FLocation64 BlockLoc = BlockItem.Key;
+				FSceneCulling::FBlockLoc BlockLoc = BlockItem.Key;
 				FVector3d BlockWorldPos = SpatialHash.CalcBlockWorldPosition(BlockLoc);
 
-				SceneCulling.BlockLevelOccupancyMask[BlockLoc.Level] = true;
+				SceneCulling.BlockLevelOccupancyMask[BlockLoc.GetLevel()] = true;
 				BlockData.WorldPos = TLargeWorldRenderPosition<float>{ BlockWorldPos };
-				BlockData.LevelCellSize = SpatialHash.GetCellSize(BlockLoc.Level - FSpatialHash::CellBlockDimLog2);
+				BlockData.LevelCellSize = SpatialHash.GetCellSize(BlockLoc.GetLevel() - FSpatialHash::CellBlockDimLog2);
 			}
 			// Keep host/GPU in sync (mostly for validation/debugging purposes)
 			if (SceneCulling.CellBlockData.IsValidIndex(BlockIndex))
@@ -1999,10 +2289,6 @@ public:
 		DirtyChunks.Empty();
 		DirtyBlocks.Empty();
 		RemovedInstanceFlags.Empty();
-
-		CSV_CUSTOM_STAT(SceneCulling, NumUpdatedInstances,  TotalUpdatedInstances, ECsvCustomStatOp::Accumulate);
-		CSV_CUSTOM_STAT(SceneCulling, NumAddedInstances,  TotalAddedInstances, ECsvCustomStatOp::Accumulate);
-		CSV_CUSTOM_STAT(SceneCulling, NumRemovedInstances,  TotalRemovedInstances, ECsvCustomStatOp::Accumulate);
 	}
 
 	using FRemovedIntanceFlags = TBitArray<SceneRenderingAllocator>;
@@ -2013,9 +2299,6 @@ public:
 
 	FSceneCulling::FLocation64 CachedCellLoc;
 	int32 CachedCellIdIndex = -1;
-
-	FHashElementId CachedBlockId;
-	FSceneCulling::FLocation64 CachedBlockLoc;
 
 	TArray<FTempCell, SceneRenderingAllocator> TempCells;
 	int32 TotalCellChunkDataCount = 0;
@@ -2028,11 +2311,14 @@ public:
 	int32 NumDirtyBlocks = 0;
 	TBitArray<SceneRenderingAllocator> DirtyBlocks;
 	TBitArray<SceneRenderingAllocator> DirtyChunks;
-
+	
 	TStructuredBufferScatterUploader<FCellBlockData> BlockDataUploader;
 	TStructuredBufferScatterUploader<uint32, INSTANCE_HIERARCHY_MAX_CHUNK_SIZE> ItemChunkDataUploader;
-	TStructuredBufferScatterUploader<FCellHeader> CellHeaderUploader;
+	TStructuredBufferScatterUploader<FPackedCellHeader> CellHeaderUploader;
 	TStructuredBufferScatterUploader<uint32> ItemChunkUploader;
+
+	// The default for primitives that are dynamic & instanced is to be treated as dynamic, but to improve update performance they can instead be treated as "uncullable"
+	FPrimitiveState::EState DynamicInstancedPrimitiveState = FPrimitiveState::Dynamic;
 
 	int32 TotalUpdatedInstances = 0;
 	int32 TotalAddedInstances = 0;
@@ -2052,13 +2338,11 @@ public:
 		if (bIsLoggingEnabled)
 		{
 			FString Indent = FString::ChrN(LogStrIndent, TEXT(' '));
-			UE_LOG(LogTemp, Warning, TEXT("[%s]%s%s"), *SceneTag, *Indent, *Item);
+			UE_LOG(LogTemp, Warning, TEXT("%s%s"), *Indent, *Item);
 		}
 	}
 	inline void EndLogging()
 	{
-		check(GBuilderForLogging == this);
-		GBuilderForLogging = nullptr;
 		if (bIsLoggingEnabled)
 		{
 			LogIndent(-1);
@@ -2093,19 +2377,36 @@ void FSceneCulling::PublishStats()
 	SET_DWORD_STAT(STAT_SceneCulling_BlockCount, CellBlockData.Num());
 	SET_DWORD_STAT(STAT_SceneCulling_CellCount, CellHeaders.Num());
 	SET_DWORD_STAT(STAT_SceneCulling_ItemChunkCount, PackedCellChunkData.Num());
-	SET_DWORD_STAT(STAT_SceneCulling_ItemCount, PackedCellData.Num());
+	int32 NumUsedItems = PackedCellData.Num() - FreeChunks.Num() * INSTANCE_HIERARCHY_MAX_CHUNK_SIZE;
+	SET_DWORD_STAT(STAT_SceneCulling_UsedExplicitItemCount, NumUsedItems);
+	SET_DWORD_STAT(STAT_SceneCulling_CompressedItemCount, INSTANCE_HIERARCHY_MAX_CHUNK_SIZE * PackedCellChunkData.Num() - NumUsedItems);
+	SET_DWORD_STAT(STAT_SceneCulling_ItemBufferCount, PackedCellData.Num());
+
 	SET_DWORD_STAT(STAT_SceneCulling_IdCacheSize, TotalCellIndexCacheItems);
+
+#if SC_ENABLE_DETAILED_BUILDER_STATS
+	SET_DWORD_STAT(STAT_SceneCulling_NumStaticInstances, NumStaticInstances);
+	SET_DWORD_STAT(STAT_SceneCulling_NumDynamicInstances, NumDynamicInstances);
+	CSV_CUSTOM_STAT(SceneCulling, NumStaticInstances,  NumStaticInstances, ECsvCustomStatOp::Accumulate);
+	CSV_CUSTOM_STAT(SceneCulling, NumDynamicInstances,  NumDynamicInstances, ECsvCustomStatOp::Accumulate);
+#endif
 }
 
 FSceneCulling::FSceneCulling(FScene& InScene)
 	: Scene(InScene)
-	, bIsEnabled(CVarSceneCulling.GetValueOnAnyThread() != 0)
-	, SpatialHash( CVarSceneCullingMinCellSize.GetValueOnAnyThread(), CVarSceneCullingMaxCellSize.GetValueOnAnyThread(), 0.0f)
+	, bIsEnabled(UseSceneCulling(Scene.GetShaderPlatform()))
+	, SpatialHash( CVarSceneCullingMinCellSize.GetValueOnAnyThread(), CVarSceneCullingMaxCellSize.GetValueOnAnyThread())
 	, CellHeadersBuffer(16, TEXT("SceneCulling.CellHeaders"))
 	, ItemChunksBuffer(16, TEXT("SceneCulling.ItemChunks"))
 	, ItemsBuffer(16, TEXT("SceneCulling.Items"))
 	, CellBlockDataBuffer(16, TEXT("SceneCulling.CellBlockData"))
 {
+#if (!(UE_BUILD_SHIPPING || UE_BUILD_TEST))
+	if (CVarSceneCulling.GetValueOnAnyThread() != 0 && !UseNanite(InScene.GetShaderPlatform()))
+	{
+		UE_LOG(LogRenderer, Log, TEXT("SceneCulling instance hierarchy is disabled as UseNanite(%s) returned false, for scene: '%s'."), *LexToString(InScene.GetShaderPlatform()), *Scene.GetFullWorldName());
+	}
+#endif
 }
 
 FSceneCulling::FUpdater::~FUpdater()
@@ -2117,7 +2418,7 @@ FSceneCulling::FUpdater::~FUpdater()
 	}
 }
 
-FSceneCulling::FUpdater &FSceneCulling::BeginUpdate(FRDGBuilder& GraphBuilder)
+FSceneCulling::FUpdater &FSceneCulling::BeginUpdate(FRDGBuilder& GraphBuilder, bool bAnySceneUpdatesExpected)
 {	
 	if (Updater.Implementation != nullptr)
 	{
@@ -2126,8 +2427,15 @@ FSceneCulling::FUpdater &FSceneCulling::BeginUpdate(FRDGBuilder& GraphBuilder)
 
 	check(Updater.Implementation == nullptr);
 
+#if (!(UE_BUILD_SHIPPING || UE_BUILD_TEST))
+	if (bIsEnabled && CVarSceneCulling.GetValueOnAnyThread() != 0 && !UseNanite(Scene.GetShaderPlatform()))
+	{
+		UE_LOG(LogRenderer, Log, TEXT("SceneCulling instance hierarchy is disabled as UseNanite(%s) returned false, for scene: '%s'."), *LexToString(Scene.GetShaderPlatform()), *Scene.GetFullWorldName());
+	}
+#endif
 	// Note: this only works in concert with the FGlobalComponentRecreateRenderStateContext on the CVarSceneCulling callback ensuring all geometry is re-registered
-	bIsEnabled = CVarSceneCulling.GetValueOnRenderThread() != 0;
+	bIsEnabled = UseSceneCulling(Scene.GetShaderPlatform());
+
 	SmallFootprintCellCountThreshold = CVarSmallFootprintCellCountThreshold.GetValueOnRenderThread();
 	bUseAsyncUpdate = CVarSceneCullingAsyncUpdate.GetValueOnRenderThread() != 0;
 	bUseAsyncQuery = CVarSceneCullingAsyncQuery.GetValueOnRenderThread() != 0;
@@ -2135,7 +2443,7 @@ FSceneCulling::FUpdater &FSceneCulling::BeginUpdate(FRDGBuilder& GraphBuilder)
 
 	if (bIsEnabled)
 	{
-		Updater.Implementation = new FSceneCullingBuilder(*this);
+		Updater.Implementation = new FSceneCullingBuilder(*this, bAnySceneUpdatesExpected);
 	}
 	else
 	{
@@ -2152,6 +2460,7 @@ void FSceneCulling::FUpdater::OnPreSceneUpdate(FRDGBuilder& GraphBuilder, const 
 	{
 		return;
 	}
+	SC_DETAILED_LOGGING_SCOPE(Implementation);
 
 	// This can be run async, but we need to either
 	//  1. [if SCENE_CULLING_USE_PRECOMPUTED] retain a reference to the compressed data (could ref count this), or 
@@ -2167,6 +2476,7 @@ void FSceneCulling::FUpdater::OnPreSceneUpdate(FRDGBuilder& GraphBuilder, const 
 		SCOPED_NAMED_EVENT(SceneCulling_Update, FColor::Emerald);
 		SCOPE_CYCLE_COUNTER(STAT_SceneCulling_Update_Pre);
 		BUILDER_LOG_SCOPE("OnPreSceneUpdate: %d", ScenePreUpdateData.RemovedPrimitiveIds.Num());
+		CSV_SCOPED_TIMING_STAT(SceneCulling, PreSceneUpdate);
 
 		check(DebugTaskCounter++ == 0);
 		for (int32 Index = 0; Index < ScenePreUpdateData.RemovedPrimitiveIds.Num(); ++Index)
@@ -2200,6 +2510,7 @@ void FSceneCulling::FUpdater::OnPostSceneUpdate(FRDGBuilder& GraphBuilder, const
 	{
 		return;
 	}
+	SC_DETAILED_LOGGING_SCOPE(Implementation);
 
 #if SC_ALLOW_ASYNC_TASKS
 	PostUpdateTaskHandle = GraphBuilder.AddSetupTask([this, ScenePostUpdateData]()
@@ -2219,9 +2530,10 @@ void FSceneCulling::FUpdater::FinalizeAndClear(FRDGBuilder& GraphBuilder, bool b
 	LLM_SCOPE_BYTAG(SceneCulling);
 	if (Implementation != nullptr)
 	{
+		SC_DETAILED_LOGGING_SCOPE(Implementation);
 		SCOPED_NAMED_EVENT(SceneCulling_Update_FinalizeAndClear, FColor::Emerald);
 		SCOPE_CYCLE_COUNTER(STAT_SceneCulling_Update_FinalizeAndClear);
-		BUILDER_LOG_SCOPE("FinalizeAndClear %d", 1);
+		//BUILDER_LOG_SCOPE("FinalizeAndClear %d", 1);
 
 		PostUpdateTaskHandle.Wait();
 
@@ -2259,8 +2571,8 @@ void FSceneCulling::ValidateAllInstanceAllocations()
 		for (TConstSetBitIterator<> BitIt(CellOccupancyMask); BitIt; ++BitIt)
 		{
 			uint32 CellId = uint32(BitIt.GetIndex());
-			FCellHeader CellHeader = CellHeaders[CellId];
-			check(IsValid(CellHeader));
+			FCellHeader CellHeader = UnpackCellHeader(CellHeaders[CellId]);
+			check(IsValidCell(CellHeader));
 
 			for (uint32 ChunkIndex = 0; ChunkIndex < CellHeader.NumItemChunks; ++ChunkIndex)
 			{
@@ -2311,6 +2623,7 @@ uint32 FSceneCulling::AllocateChunk()
 		return FreeChunks.Pop(false);
 	}
 
+	check(!bPackedCellDataLocked);
 	uint32 NewChunkId = PackedCellData.Num() / uint32(INSTANCE_HIERARCHY_MAX_CHUNK_SIZE);
 	PackedCellData.SetNumUninitialized(PackedCellData.Num() + int32(INSTANCE_HIERARCHY_MAX_CHUNK_SIZE), false);
 	return NewChunkId;
@@ -2326,14 +2639,41 @@ inline int32 FSceneCulling::CellIndexToBlockId(int32 CellIndex)
 	return CellIndex / FSpatialHash::CellBlockSize;
 }
 
+inline uint32* FSceneCulling::LockChunkCellData(uint32 ChunkId, int32 NumSlackChunksNeeded)
+{
+	check(!bPackedCellDataLocked);
+
+	int32 NumNewNeeded = NumSlackChunksNeeded - FreeChunks.Num();
+	if(NumNewNeeded > 0)
+	{
+		uint32 NewChunkId = PackedCellData.Num() / uint32(INSTANCE_HIERARCHY_MAX_CHUNK_SIZE);
+		for (int32 Index = 0; Index < NumNewNeeded; ++Index)
+		{
+			FreeChunks.Add(NewChunkId + uint32(Index));
+		}
+		PackedCellData.SetNumUninitialized(PackedCellData.Num() + NumNewNeeded * int32(INSTANCE_HIERARCHY_MAX_CHUNK_SIZE));
+	}
+
+	bPackedCellDataLocked = true;
+	return &PackedCellData[ChunkId * INSTANCE_HIERARCHY_MAX_CHUNK_SIZE];
+}
+
+inline void FSceneCulling::UnLockChunkCellData(uint32 ChunkId)
+{
+	check(bPackedCellDataLocked);
+	bPackedCellDataLocked = false;
+}
+
 inline FSceneCulling::FLocation64 FSceneCulling::GetCellLoc(int32 CellIndex)
 {
 	FLocation64 Result;
 	Result.Level = INT32_MIN;
-	if (CellHeaders.IsValidIndex(CellIndex) && IsValid(CellHeaders[CellIndex]))
+	if (CellHeaders.IsValidIndex(CellIndex) && IsValidCell(CellHeaders[CellIndex]))
 	{
 		int32 BlockId = CellIndexToBlockId(CellIndex);
-		Result = ToLevelRelative(SpatialHash.GetBlockLocById(BlockId), -FSpatialHash::CellBlockDimLog2);
+		FBlockLoc BlockLoc = SpatialHash.GetBlockLocById(BlockId);
+		Result.Coord = FInt64Vector3(BlockLoc.GetCoord()) << FSpatialHash::CellBlockDimLog2;
+		Result.Level = BlockLoc.GetLevel() - FSpatialHash::CellBlockDimLog2;
 		// Offset by local coord.
 		Result.Coord.X += CellIndex & FSpatialHash::LocalCellCoordMask;
 		Result.Coord.Y += (CellIndex >> FSpatialHash::CellBlockDimLog2) & FSpatialHash::LocalCellCoordMask;
