@@ -37,7 +37,7 @@ enum class EUsdStageState : uint8
 	OpenedAndLoaded
 };
 
-UCLASS( MinimalAPI, config = USDImporter )
+UCLASS(MinimalAPI, config = USDImporter)
 class AUsdStageActor : public AActor
 {
 	GENERATED_BODY()
@@ -59,24 +59,24 @@ public:
 	// This allows the defaults for them to be configured on EditorPerProjectUserSettings.ini, and allows us to write
 	// to that config from the USD Stage Editor, specifying our options before the editor is attached to any stage actor.
 
-	UPROPERTY(EditAnywhere, BlueprintReadOnly, Category = "USD", config )
+	UPROPERTY(EditAnywhere, BlueprintReadOnly, Category = "USD", config)
 	EUsdInitialLoadSet InitialLoadSet;
 
-	UPROPERTY( EditAnywhere, BlueprintReadOnly, Category = "USD", config )
+	UPROPERTY(EditAnywhere, BlueprintReadOnly, Category = "USD", config)
 	EUsdInterpolationType InterpolationType;
 
 	/**
 	 * Whether to try to combine individual assets and components of the same type on a kind-per-kind basis,
 	 * like multiple Mesh prims into a single Static Mesh
 	 */
-	UPROPERTY(EditAnywhere, BlueprintReadOnly, Category = "USD", config, meta = (Bitmask, BitmaskEnum="/Script/UnrealUSDWrapper.EUsdDefaultKind"))
+	UPROPERTY(EditAnywhere, BlueprintReadOnly, Category = "USD", config, meta = (Bitmask, BitmaskEnum = "/Script/UnrealUSDWrapper.EUsdDefaultKind"))
 	int32 KindsToCollapse;
 
 	/**
 	 * If enabled, when multiple mesh prims are collapsed into a single static mesh, identical material slots are merged into one slot.
 	 * Otherwise, materials slots are simply appended to the list.
 	 */
-	UPROPERTY(EditAnywhere, BlueprintReadOnly, Category = "USD", config )
+	UPROPERTY(EditAnywhere, BlueprintReadOnly, Category = "USD", config)
 	bool bMergeIdenticalMaterialSlots;
 
 	/**
@@ -84,7 +84,7 @@ public:
 	 * that asset is generated, and the asset is shared by the components generated for both prims.
 	 * If false, we will always generate a dedicated asset for each prim.
 	 */
-	UPROPERTY(EditAnywhere, BlueprintReadOnly, Category = "USD", config )
+	UPROPERTY(EditAnywhere, BlueprintReadOnly, Category = "USD", config)
 	bool bReuseIdenticalAssets;
 
 	/**
@@ -92,28 +92,28 @@ public:
 	 * If false, will cause us to use HierarchicalInstancedStaticMeshComponents to replicate the instancing behavior.
 	 * Point instancers inside other point instancer prototypes are *always* collapsed into the prototype's static mesh.
 	 */
-	UE_DEPRECATED( 5.2, "This option is now controlled via the cvar 'USD.CollapseTopLevelPointInstancers'" )
+	UE_DEPRECATED(5.2, "This option is now controlled via the cvar 'USD.CollapseTopLevelPointInstancers'")
 	UPROPERTY()
 	bool bCollapseTopLevelPointInstancers;
 
 	/* Only load prims with these specific purposes from the USD file */
-	UPROPERTY(EditAnywhere, BlueprintReadOnly, Category = "USD", config, meta = (Bitmask, BitmaskEnum="/Script/UnrealUSDWrapper.EUsdPurpose"))
+	UPROPERTY(EditAnywhere, BlueprintReadOnly, Category = "USD", config, meta = (Bitmask, BitmaskEnum = "/Script/UnrealUSDWrapper.EUsdPurpose"))
 	int32 PurposesToLoad;
 
 	/** Try enabling Nanite for static meshes that are generated with at least this many triangles */
-	UPROPERTY( EditAnywhere, BlueprintReadOnly, Category = "USD", config, meta = ( NoSpinbox = "true", UIMin = "0", ClampMin = "0" ))
+	UPROPERTY(EditAnywhere, BlueprintReadOnly, Category = "USD", config, meta = (NoSpinbox = "true", UIMin = "0", ClampMin = "0"))
 	int32 NaniteTriangleThreshold;
 
 	/** Specifies which set of shaders to use when parsing USD materials, in addition to the universal render context. */
-	UPROPERTY(EditAnywhere, BlueprintReadOnly, Category = "USD", config )
+	UPROPERTY(EditAnywhere, BlueprintReadOnly, Category = "USD", config)
 	FName RenderContext;
 
 	/** Specifies which material purbose to use when parsing USD material bindings, in addition to the "allPurpose" fallback. */
-	UPROPERTY( EditAnywhere, BlueprintReadOnly, Category = "USD", config )
+	UPROPERTY(EditAnywhere, BlueprintReadOnly, Category = "USD", config)
 	FName MaterialPurpose;
 
 	// Describes what to add to the root bone animation within generated AnimSequences, if anything
-	UPROPERTY( EditAnywhere, BlueprintReadOnly, Category = "USD", config )
+	UPROPERTY(EditAnywhere, BlueprintReadOnly, Category = "USD", config)
 	EUsdRootMotionHandling RootMotionHandling;
 
 	/**
@@ -149,7 +149,7 @@ public:
 
 public:
 	UFUNCTION(BlueprintCallable, Category = "USD", meta = (CallInEditor = "true"))
-	USDSTAGE_API void SetRootLayer(const FString& RootFilePath );
+	USDSTAGE_API void SetRootLayer(const FString& RootFilePath);
 
 	UFUNCTION(BlueprintCallable, Category = "USD", meta = (CallInEditor = "true"))
 	USDSTAGE_API void SetStageState(EUsdStageState NewStageState);
@@ -158,38 +158,38 @@ public:
 	USDSTAGE_API void SetAssetCache(UUsdAssetCache2* NewCache);
 
 	UFUNCTION(BlueprintCallable, Category = "USD", meta = (CallInEditor = "true"))
-	USDSTAGE_API void SetInitialLoadSet( EUsdInitialLoadSet NewLoadSet );
+	USDSTAGE_API void SetInitialLoadSet(EUsdInitialLoadSet NewLoadSet);
 
-	UFUNCTION( BlueprintCallable, Category = "USD", meta = ( CallInEditor = "true" ) )
-	USDSTAGE_API void SetInterpolationType( EUsdInterpolationType NewType );
+	UFUNCTION(BlueprintCallable, Category = "USD", meta = (CallInEditor = "true"))
+	USDSTAGE_API void SetInterpolationType(EUsdInterpolationType NewType);
 
-	UFUNCTION( BlueprintCallable, Category = "USD", meta = ( CallInEditor = "true" ) )
-	USDSTAGE_API void SetKindsToCollapse( int32 NewKindsToCollapse );
+	UFUNCTION(BlueprintCallable, Category = "USD", meta = (CallInEditor = "true"))
+	USDSTAGE_API void SetKindsToCollapse(int32 NewKindsToCollapse);
 
-	UFUNCTION( BlueprintCallable, Category = "USD", meta = ( CallInEditor = "true" ) )
-	USDSTAGE_API void SetMergeIdenticalMaterialSlots( bool bMerge );
+	UFUNCTION(BlueprintCallable, Category = "USD", meta = (CallInEditor = "true"))
+	USDSTAGE_API void SetMergeIdenticalMaterialSlots(bool bMerge);
 
 	UFUNCTION(BlueprintCallable, Category = "USD", meta = (CallInEditor = "true"))
 	USDSTAGE_API void SetReuseIdenticalAssets(bool bReuse);
 
-	UE_DEPRECATED( 5.2, "This option is now controlled via the cvar 'USD.CollapseTopLevelPointInstancers'" )
-	UFUNCTION( BlueprintCallable, Category = "USD", meta = ( CallInEditor = "true" ) )
-	USDSTAGE_API void SetCollapseTopLevelPointInstancers( bool bCollapse );
+	UE_DEPRECATED(5.2, "This option is now controlled via the cvar 'USD.CollapseTopLevelPointInstancers'")
+	UFUNCTION(BlueprintCallable, Category = "USD", meta = (CallInEditor = "true"))
+	USDSTAGE_API void SetCollapseTopLevelPointInstancers(bool bCollapse);
 
 	UFUNCTION(BlueprintCallable, Category = "USD", meta = (CallInEditor = "true"))
-	USDSTAGE_API void SetPurposesToLoad( int32 NewPurposesToLoad );
-
-	UFUNCTION( BlueprintCallable, Category = "USD", meta = ( CallInEditor = "true" ) )
-	USDSTAGE_API void SetNaniteTriangleThreshold( int32 NewNaniteTriangleThreshold );
+	USDSTAGE_API void SetPurposesToLoad(int32 NewPurposesToLoad);
 
 	UFUNCTION(BlueprintCallable, Category = "USD", meta = (CallInEditor = "true"))
-	USDSTAGE_API void SetRenderContext( const FName& NewRenderContext );
+	USDSTAGE_API void SetNaniteTriangleThreshold(int32 NewNaniteTriangleThreshold);
 
-	UFUNCTION( BlueprintCallable, Category = "USD", meta = ( CallInEditor = "true" ) )
-	USDSTAGE_API void SetMaterialPurpose( const FName& NewMaterialPurpose );
+	UFUNCTION(BlueprintCallable, Category = "USD", meta = (CallInEditor = "true"))
+	USDSTAGE_API void SetRenderContext(const FName& NewRenderContext);
 
-	UFUNCTION( BlueprintCallable, Category = "USD", meta = ( CallInEditor = "true" ) )
-	USDSTAGE_API void SetRootMotionHandling( EUsdRootMotionHandling NewHandlingStrategy );
+	UFUNCTION(BlueprintCallable, Category = "USD", meta = (CallInEditor = "true"))
+	USDSTAGE_API void SetMaterialPurpose(const FName& NewMaterialPurpose);
+
+	UFUNCTION(BlueprintCallable, Category = "USD", meta = (CallInEditor = "true"))
+	USDSTAGE_API void SetRootMotionHandling(EUsdRootMotionHandling NewHandlingStrategy);
 
 	UFUNCTION(BlueprintCallable, Category = "USD", meta = (CallInEditor = "true"))
 	USDSTAGE_API void SetSubdivisionLevel(int32 NewLevel);
@@ -215,33 +215,37 @@ public:
 	UFUNCTION(BlueprintCallable, Category = "USD", meta = (CallInEditor = "true"))
 	USDSTAGE_API void SetTime(float InTime);
 
-	UFUNCTION( BlueprintCallable, Category = "USD", meta = ( CallInEditor = "true" ) )
+	UFUNCTION(BlueprintCallable, Category = "USD", meta = (CallInEditor = "true"))
 	USDSTAGE_API ULevelSequence* GetLevelSequence();
 
 	/**
 	 * Gets the transient component that was generated for a prim with a given prim path.
-	 * Warning: The lifetime of the component is managed by the AUsdStageActor, and it may be force-destroyed at any time (e.g. when closing the stage)
+	 * Warning: The lifetime of the component is managed by the AUsdStageActor, and it may be force-destroyed at any time (e.g. when closing the
+	 * stage)
 	 * @param PrimPath - Full path to the source prim, e.g. "/root_prim/my_prim"
-	 * @return The corresponding spawned component. It may correspond to a parent prim, if the prim at PrimPath was collapsed. Nullptr if path is invalid.
+	 * @return The corresponding spawned component. It may correspond to a parent prim, if the prim at PrimPath was collapsed. Nullptr if path is
+	 * invalid.
 	 */
 	UFUNCTION(BlueprintCallable, Category = "USD", meta = (CallInEditor = "true"))
-	USDSTAGE_API USceneComponent* GetGeneratedComponent( const FString& PrimPath );
+	USDSTAGE_API USceneComponent* GetGeneratedComponent(const FString& PrimPath);
 
 	/**
-	 * Gets the transient assets that were generated for a prim with a given prim path. Likely one asset (e.g. UStaticMesh), but can be multiple (USkeletalMesh, USkeleton, etc.)
+	 * Gets the transient assets that were generated for a prim with a given prim path. Likely one asset (e.g. UStaticMesh), but can be multiple
+	 * (USkeletalMesh, USkeleton, etc.)
 	 * @param PrimPath - Full path to the source prim, e.g. "/root_prim/my_mesh"
 	 * @return The corresponding generated assets. May be empty if path is invalid or if that prim led to no generated assets.
 	 */
 	UFUNCTION(BlueprintCallable, Category = "USD", meta = (CallInEditor = "true"))
-	USDSTAGE_API TArray<UObject*> GetGeneratedAssets( const FString& PrimPath );
+	USDSTAGE_API TArray<UObject*> GetGeneratedAssets(const FString& PrimPath);
 
 	/**
 	 * Gets the path to the prim that was parsed to generate the given `Object`.
-	 * @param Object - UObject to query with. Can be one of the transient components generated when a stage was opened, or something like a UStaticMesh.
+	 * @param Object - UObject to query with. Can be one of the transient components generated when a stage was opened, or something like a
+	 * UStaticMesh.
 	 * @return The path to the source prim, e.g. "/root_prim/some_prim". May be empty in case we couldn't find the source prim.
 	 */
 	UFUNCTION(BlueprintCallable, Category = "USD", meta = (CallInEditor = "true"))
-	USDSTAGE_API FString GetSourcePrimPath( UObject* Object );
+	USDSTAGE_API FString GetSourcePrimPath(UObject* Object);
 
 	// Creates a brand new, memory-only USD stage and opens it
 	UFUNCTION(BlueprintCallable, Category = "USD", meta = (CallInEditor = "true"))
@@ -282,14 +286,14 @@ public:
 	USDSTAGE_API void SetUsdStage(const UE::FUsdStage& NewStage);
 
 	// Enters isolated mode by creating a new USD Stage using the provided layer as its root
-	USDSTAGE_API void IsolateLayer( const UE::FSdfLayer& Layer );
+	USDSTAGE_API void IsolateLayer(const UE::FSdfLayer& Layer);
 
 	// Regenerates our LevelSequence from the USD Stage
 	USDSTAGE_API void ReloadAnimations();
 
 	USDSTAGE_API TSharedPtr<FUsdInfoCache> GetInfoCache();
 	USDSTAGE_API TSharedPtr<UE::FUsdGeomBBoxCache> GetBBoxCache();
-	USDSTAGE_API TMap< FString, TMap< FString, int32 > > GetMaterialToPrimvarToUVIndex();
+	USDSTAGE_API TMap<FString, TMap<FString, int32>> GetMaterialToPrimvarToUVIndex();
 	USDSTAGE_API const UsdUtils::FBlendShapeMap& GetBlendShapeMap();
 	USDSTAGE_API FUsdListener& GetUsdListener();
 	USDSTAGE_API const FUsdListener& GetUsdListener() const;
@@ -305,18 +309,18 @@ public:
 	USDSTAGE_API void BlockMonitoringLevelSequenceForThisTransaction();
 
 	// Begin UObject interface
-	USDSTAGE_API virtual void PostDuplicate( bool bDuplicateForPIE ) override;
+	USDSTAGE_API virtual void PostDuplicate(bool bDuplicateForPIE) override;
 	USDSTAGE_API virtual void Serialize(FArchive& Ar) override;
 	USDSTAGE_API virtual void Destroyed() override;
 	USDSTAGE_API virtual void PostActorCreated() override;
-	USDSTAGE_API virtual void PostRename( UObject* OldOuter, const FName OldName ) override;
+	USDSTAGE_API virtual void PostRename(UObject* OldOuter, const FName OldName) override;
 	USDSTAGE_API virtual void BeginDestroy() override;
 #if WITH_EDITOR
-	USDSTAGE_API virtual void PostEditChangeProperty( FPropertyChangedEvent& PropertyChangedEvent ) override;
+	USDSTAGE_API virtual void PostEditChangeProperty(FPropertyChangedEvent& PropertyChangedEvent) override;
 	USDSTAGE_API virtual void PostTransacted(const FTransactionObjectEvent& TransactionEvent) override;
-	USDSTAGE_API virtual void PreEditChange( FProperty* PropertyThatWillChange ) override;
+	USDSTAGE_API virtual void PreEditChange(FProperty* PropertyThatWillChange) override;
 	USDSTAGE_API virtual void PreEditUndo() override;
-#endif // WITH_EDITOR
+#endif	  // WITH_EDITOR
 	// End UObject interface
 
 	// Begin AActor interface
@@ -365,24 +369,29 @@ protected:
 #if WITH_EDITOR
 	void OnBeginPIE(bool bIsSimulating);
 	void OnPostPIEStarted(bool bIsSimulating);
-	void OnObjectsReplaced( const TMap<UObject*, UObject*>& ObjectReplacementMap );
+	void OnObjectsReplaced(const TMap<UObject*, UObject*>& ObjectReplacementMap);
 	void OnLevelActorDeleted(AActor* DeletedActor);
 	void HandleTransactionStateChanged(const FTransactionContext& InTransactionContext, const ETransactionStateEventType InTransactionState);
-#endif // WITH_EDITOR
+#endif	  // WITH_EDITOR
 
 	void OnPreUsdImport(FString FilePath);
 	void OnPostUsdImport(FString FilePath);
-	void OnUsdObjectsChanged( const UsdUtils::FObjectChangesByPath& InfoChanges, const UsdUtils::FObjectChangesByPath& ResyncChanges );
-	void OnUsdPrimTwinDestroyed( const UUsdPrimTwin& UsdPrimTwin );
-	void OnObjectPropertyChanged( UObject* ObjectBeingModified, FPropertyChangedEvent& PropertyChangedEvent );
-	void HandlePropertyChangedEvent( FPropertyChangedEvent& PropertyChangedEvent );
+	void OnUsdObjectsChanged(const UsdUtils::FObjectChangesByPath& InfoChanges, const UsdUtils::FObjectChangesByPath& ResyncChanges);
+	void OnUsdPrimTwinDestroyed(const UUsdPrimTwin& UsdPrimTwin);
+	void OnObjectPropertyChanged(UObject* ObjectBeingModified, FPropertyChangedEvent& PropertyChangedEvent);
+	void HandlePropertyChangedEvent(FPropertyChangedEvent& PropertyChangedEvent);
 	void OnSkelAnimationBaked(const FString& SkeletonPrimPath);
 
 protected:
 	friend struct FUsdStageActorImpl;
 	friend class FUsdLevelSequenceHelperImpl;
 
-	UPROPERTY(Category = UsdStageActor, VisibleAnywhere, BlueprintReadOnly, meta = (ExposeFunctionCategories = "Mesh,Rendering,Physics,Components|StaticMesh", AllowPrivateAccess = "true"))
+	UPROPERTY(
+		Category = UsdStageActor,
+		VisibleAnywhere,
+		BlueprintReadOnly,
+		meta = (ExposeFunctionCategories = "Mesh,Rendering,Physics,Components|StaticMesh", AllowPrivateAccess = "true")
+	)
 	TObjectPtr<class USceneComponent> SceneComponent;
 
 	/* TimeCode to evaluate the USD stage at */
@@ -393,20 +402,23 @@ protected:
 	TObjectPtr<ULevelSequence> LevelSequence;
 
 	// Note: This cannot be instanced: Read the comment in the constructor
-	UPROPERTY( Transient )
+	UPROPERTY(Transient)
 	TObjectPtr<UUsdPrimTwin> RootUsdTwin;
 
-	UPROPERTY( Transient )
-	TSet< FString > PrimsToAnimate;
+	UPROPERTY(Transient)
+	TSet<FString> PrimsToAnimate;
 
-	UPROPERTY( Transient )
-	TMap< TObjectPtr<UObject>, FString > ObjectsToWatch;
+	UPROPERTY(Transient)
+	TMap<TObjectPtr<UObject>, FString> ObjectsToWatch;
 
 	UE_DEPRECATED(5.2, "Use the new AssetCache property instead, that uses UUsdAssetCache2 objects")
-	UPROPERTY(AdvancedDisplay, meta=(DeprecatedProperty, DeprecationMessage = "Use the new AssetCache property instead, that uses UUsdAssetCache2 objects"))
+	UPROPERTY(
+		AdvancedDisplay,
+		meta = (DeprecatedProperty, DeprecationMessage = "Use the new AssetCache property instead, that uses UUsdAssetCache2 objects")
+	)
 	TObjectPtr<UUsdAssetCache> AssetCache;
 
-	UPROPERTY( Transient )
+	UPROPERTY(Transient)
 	TObjectPtr<UUsdTransactor> Transactor;
 
 	/** Caches various information about prims that are expensive to query */
@@ -433,7 +445,7 @@ protected:
 	 * When parsing meshes later, we use this data to place the correct primvar values in each UV channel.
 	 * We keep this here as these are generated when the materials stored in AssetsCache are parsed, so it should accompany them
 	 */
-	TMap< FString, TMap< FString, int32 > > MaterialToPrimvarToUVIndex;
+	TMap<FString, TMap<FString, int32>> MaterialToPrimvarToUVIndex;
 
 	/**
 	 * We use PostRegisterAllComponents and PostUnregisterAllComponents as main entry points to decide when to load/unload
@@ -464,16 +476,15 @@ protected:
 class USDSTAGE_API FScopedBlockNoticeListening final
 {
 public:
-	explicit FScopedBlockNoticeListening( AUsdStageActor* InStageActor );
+	explicit FScopedBlockNoticeListening(AUsdStageActor* InStageActor);
 	~FScopedBlockNoticeListening();
 
 	FScopedBlockNoticeListening() = delete;
-	FScopedBlockNoticeListening( const FScopedBlockNoticeListening& ) = delete;
-	FScopedBlockNoticeListening( FScopedBlockNoticeListening&& ) = delete;
-	FScopedBlockNoticeListening& operator=( const FScopedBlockNoticeListening& ) = delete;
-	FScopedBlockNoticeListening& operator=( FScopedBlockNoticeListening&& ) = delete;
+	FScopedBlockNoticeListening(const FScopedBlockNoticeListening&) = delete;
+	FScopedBlockNoticeListening(FScopedBlockNoticeListening&&) = delete;
+	FScopedBlockNoticeListening& operator=(const FScopedBlockNoticeListening&) = delete;
+	FScopedBlockNoticeListening& operator=(FScopedBlockNoticeListening&&) = delete;
 
 private:
 	TWeakObjectPtr<AUsdStageActor> StageActor;
 };
-

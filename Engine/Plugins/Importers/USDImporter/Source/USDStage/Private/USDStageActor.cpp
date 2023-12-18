@@ -5,7 +5,6 @@
 #include "UnrealUSDWrapper.h"
 #include "UObject/Package.h"
 #include "USDAssetCache.h"
-#include "USDAssetImportData.h"
 #include "USDAssetUserData.h"
 #include "USDClassesModule.h"
 #include "USDConversionUtils.h"
@@ -13,7 +12,6 @@
 #include "USDDynamicBindingResolverLibrary.h"
 #include "USDErrorUtils.h"
 #include "USDGeomMeshConversion.h"
-#include "USDGeomMeshTranslator.h"
 #include "USDGeomXformableTranslator.h"
 #include "USDInfoCache.h"
 #include "USDIntegrationUtils.h"
@@ -31,14 +29,11 @@
 #include "USDTransactor.h"
 #include "USDTypesConversion.h"
 
-#include "UsdWrappers/SdfChangeBlock.h"
 #include "UsdWrappers/SdfLayer.h"
-#include "UsdWrappers/UsdAttribute.h"
 #include "UsdWrappers/UsdGeomBBoxCache.h"
 #include "UsdWrappers/UsdGeomXformable.h"
 #include "UsdWrappers/UsdStage.h"
 
-#include "Async/ParallelFor.h"
 #include "CineCameraActor.h"
 #include "CineCameraComponent.h"
 #include "Components/DirectionalLightComponent.h"
@@ -49,62 +44,48 @@
 #include "Components/SkeletalMeshComponent.h"
 #include "Components/SkyLightComponent.h"
 #include "Components/SpotLightComponent.h"
-#include "Components/StaticMeshComponent.h"
 #include "Engine/Blueprint.h"
 #include "Engine/BlueprintGeneratedClass.h"
 #include "Engine/Engine.h"
 #include "Engine/Level.h"
 #include "Engine/Light.h"
-#include "Engine/SkeletalMesh.h"
-#include "Engine/StaticMesh.h"
 #include "Engine/World.h"
 #include "EngineAnalytics.h"
 #include "Framework/Notifications/NotificationManager.h"
-#include "HAL/FileManager.h"
 #include "HAL/IConsoleManager.h"
-#include "InterchangeGenericMaterialPipeline.h"
 #include "LevelSequence.h"
 #include "LiveLinkComponentController.h"
-#include "Materials/Material.h"
-#include "Materials/MaterialInstanceConstant.h"
 #include "Materials/MaterialInterface.h"
-#include "MeshDescription.h"
 #include "Misc/Paths.h"
 #include "Misc/ScopedSlowTask.h"
 #include "Modules/ModuleManager.h"
 #include "MovieScene.h"
-#include "PhysicsEngine/BodySetup.h"
-#include "Rendering/SkeletalMeshLODImporterData.h"
 #include "Roles/LiveLinkTransformRole.h"
 #include "Sections/MovieSceneSubSection.h"
-#include "StaticMeshAttributes.h"
-#include "StaticMeshOperations.h"
 #include "Tracks/MovieScene3DTransformTrack.h"
 #include "Widgets/Notifications/SNotificationList.h"
 
 #if WITH_EDITOR
-#include "USDClassesEditorModule.h"
-
 #include "BlueprintActionMenuItem.h"
 #include "BlueprintFunctionNodeSpawner.h"
 #include "EdGraphSchema_K2.h"
 #include "Editor.h"
 #include "Editor/TransBuffer.h"
 #include "Editor/UnrealEdEngine.h"
-#include "Engine/Selection.h"
 #include "ILevelSequenceEditorToolkit.h"
 #include "ISequencerModule.h"
 #include "K2Node_FunctionEntry.h"
 #include "K2Node_FunctionResult.h"
 #include "Kismet2/KismetEditorUtilities.h"
-#include "LevelEditor.h"
 #include "MovieSceneDirectorBlueprintUtils.h"
 #include "MovieSceneDynamicBindingUtils.h"
-#include "PropertyEditorModule.h"
 #include "ScopedTransaction.h"
+#include "Selection.h"
 #include "Subsystems/AssetEditorSubsystem.h"
 #include "UnrealEdGlobals.h"
-#endif // WITH_EDITOR
+#include "USDClassesEditorModule.h"
+
+#endif	  // WITH_EDITOR
 
 #define LOCTEXT_NAMESPACE "USDStageActor"
 
@@ -112,13 +93,17 @@ static bool GRegenerateSkeletalAssetsOnControlRigBake = true;
 static FAutoConsoleVariableRef CVarRegenerateSkeletalAssetsOnControlRigBake(
 	TEXT("USD.RegenerateSkeletalAssetsOnControlRigBake"),
 	GRegenerateSkeletalAssetsOnControlRigBake,
-	TEXT("Whether to regenerate the assets associated with a SkelRoot (mesh, skeleton, anim sequence, etc.) whenever we modify Control Rig tracks. The USD Stage itself is always updated however."));
+	TEXT("Whether to regenerate the assets associated with a SkelRoot (mesh, skeleton, anim sequence, etc.) whenever we modify Control Rig tracks. "
+		 "The USD Stage itself is always updated however.")
+);
 
 static bool GTranslateOnlyUsedMaterialsWhenOpeningStage = true;
 static FAutoConsoleVariableRef CVarTranslateOnlyUsedMaterialsWhenOpeningStage(
 	TEXT("USD.TranslateOnlyUsedMaterialsWhenOpeningStage"),
 	GTranslateOnlyUsedMaterialsWhenOpeningStage,
-	TEXT("If enabled, only Material prims bound by at least one Mesh are translated into Unreal material assets. If disabled, all Material prims are translated into Unreal material assets."));
+	TEXT("If enabled, only Material prims bound by at least one Mesh are translated into Unreal material assets. If disabled, all Material prims are "
+		 "translated into Unreal material assets.")
+);
 
 static const EObjectFlags DefaultObjFlag = EObjectFlags::RF_Transactional | EObjectFlags::RF_Transient;
 
@@ -127,9 +112,9 @@ AUsdStageActor::FOnOpenStageEditorClicked AUsdStageActor::OnOpenStageEditorClick
 
 struct FUsdStageActorImpl
 {
-	static TSharedRef< FUsdSchemaTranslationContext > CreateUsdSchemaTranslationContext(AUsdStageActor* StageActor, const FString& PrimPath)
+	static TSharedRef<FUsdSchemaTranslationContext> CreateUsdSchemaTranslationContext(AUsdStageActor* StageActor, const FString& PrimPath)
 	{
-		TSharedRef< FUsdSchemaTranslationContext > TranslationContext = MakeShared< FUsdSchemaTranslationContext >(
+		TSharedRef<FUsdSchemaTranslationContext> TranslationContext = MakeShared<FUsdSchemaTranslationContext>(
 			StageActor->GetOrOpenUsdStage(),
 			*StageActor->UsdAssetCache
 		);
@@ -198,19 +183,22 @@ struct FUsdStageActorImpl
 			TArray<UObject*> ComponentsToDeselect;
 
 			const bool bRecursive = true;
-			StageActor->GetRootPrimTwin()->Iterate([&ActorsToDeselect, &ComponentsToDeselect](UUsdPrimTwin& PrimTwin)
-			{
-				if (USceneComponent* ReferencedComponent = PrimTwin.SceneComponent.Get())
+			StageActor->GetRootPrimTwin()->Iterate(
+				[&ActorsToDeselect, &ComponentsToDeselect](UUsdPrimTwin& PrimTwin)
 				{
-					ComponentsToDeselect.Add(ReferencedComponent);
-
-					AActor* Owner = ReferencedComponent->GetOwner();
-					if (Owner && Owner->GetRootComponent() == ReferencedComponent)
+					if (USceneComponent* ReferencedComponent = PrimTwin.SceneComponent.Get())
 					{
-						ActorsToDeselect.Add(Owner);
+						ComponentsToDeselect.Add(ReferencedComponent);
+
+						AActor* Owner = ReferencedComponent->GetOwner();
+						if (Owner && Owner->GetRootComponent() == ReferencedComponent)
+						{
+							ActorsToDeselect.Add(Owner);
+						}
 					}
-				}
-			}, bRecursive);
+				},
+				bRecursive
+			);
 
 			if (USelection* SelectedComponents = GEditor->GetSelectedComponents())
 			{
@@ -236,16 +224,16 @@ struct FUsdStageActorImpl
 				}
 			}
 
-			if (bDeselected && GIsEditor) // Make sure we're not in standalone either
+			if (bDeselected && GIsEditor)	 // Make sure we're not in standalone either
 			{
 				GEditor->NoteSelectionChange();
 			}
 		}
-#endif // WITH_EDITOR
+#endif	  // WITH_EDITOR
 	}
 
 	template<typename ObjectPtr>
-	static void CloseEditorsForAssets(const TMap< FString, ObjectPtr >& AssetsCache)
+	static void CloseEditorsForAssets(const TMap<FString, ObjectPtr>& AssetsCache)
 	{
 #if WITH_EDITOR
 		if (GIsEditor && GEditor)
@@ -261,7 +249,7 @@ struct FUsdStageActorImpl
 				}
 			}
 		}
-#endif // WITH_EDITOR
+#endif	  // WITH_EDITOR
 	}
 
 	static void DiscardStage(const UE::FUsdStage& Stage, AUsdStageActor* DiscardingActor)
@@ -430,7 +418,7 @@ struct FUsdStageActorImpl
 		{
 			return FPaths::IsSamePath(UsdUtils::MakePathRelativeToProjectDir(Layer.GetRealPath()), FilePath);
 		}
-#endif // USE_USD_SDK
+#endif	  // USE_USD_SDK
 
 		return false;
 	}
@@ -603,7 +591,7 @@ struct FUsdStageActorImpl
 				}
 			}
 		}
-#endif // WITH_EDITOR
+#endif	  // WITH_EDITOR
 	}
 
 	static void SetupDynamicBinding(
@@ -652,19 +640,15 @@ struct FUsdStageActorImpl
 
 			// Store a path to this very actor on the binding, so that it can find us later and ask how to resolve a particular
 			// prim path
-			FMovieSceneDynamicBindingPayloadVariable& ActorPathVariable = Possessable.DynamicBinding.PayloadVariables.FindOrAdd(
-				TEXT("StageActorIDNameFilter")
-			);
+			FMovieSceneDynamicBindingPayloadVariable& ActorPathVariable = Possessable.DynamicBinding.PayloadVariables.FindOrAdd(TEXT("StageActorIDNam"
+																																	 "eFilter"));
 			ActorPathVariable.Value = DefaultActorFilter;
 
-			FMovieSceneDynamicBindingPayloadVariable& RootLayerVariable = Possessable.DynamicBinding.PayloadVariables.FindOrAdd(
-				TEXT("RootLayerFilter")
-			);
+			FMovieSceneDynamicBindingPayloadVariable& RootLayerVariable = Possessable.DynamicBinding.PayloadVariables.FindOrAdd(TEXT("RootLayerFilter"
+			));
 			RootLayerVariable.Value = FString{};	// No root layer filter by default for more flexibility
 
-			FMovieSceneDynamicBindingPayloadVariable& PrimPathVariable = Possessable.DynamicBinding.PayloadVariables.FindOrAdd(
-				TEXT("PrimPath")
-			);
+			FMovieSceneDynamicBindingPayloadVariable& PrimPathVariable = Possessable.DynamicBinding.PayloadVariables.FindOrAdd(TEXT("PrimPath"));
 			PrimPathVariable.Value = PrimPath;
 		}
 
@@ -1018,12 +1002,10 @@ struct FRecompilationTracker
 
 	static void OnCompilationStarted(UBlueprint* BP)
 	{
-		// We don't care if a BP is compiling on first load: It only matters to use if we're compiling one that already has loaded instances on the level
-		if (!BP ||
-			BP->bIsRegeneratingOnLoad ||
-			!BP->GeneratedClass ||
-			!BP->GeneratedClass->IsChildOf(AUsdStageActor::StaticClass()) ||
-			RecompilingBlueprints.Contains(BP))
+		// We don't care if a BP is compiling on first load: It only matters to use if we're compiling one that already has loaded instances on the
+		// level
+		if (!BP || BP->bIsRegeneratingOnLoad || !BP->GeneratedClass || !BP->GeneratedClass->IsChildOf(AUsdStageActor::StaticClass())
+			|| RecompilingBlueprints.Contains(BP))
 		{
 			return;
 		}
@@ -1052,7 +1034,7 @@ private:
 };
 bool FRecompilationTracker::bEventIsSetup = false;
 TMap<UBlueprint*, FDelegateHandle> FRecompilationTracker::RecompilingBlueprints;
-#endif // WITH_EDITOR
+#endif	  // WITH_EDITOR
 
 AUsdStageActor::AUsdStageActor()
 	: StageState(EUsdStageState::OpenedAndLoaded)
@@ -1067,18 +1049,18 @@ AUsdStageActor::AUsdStageActor()
 	, RootMotionHandling(EUsdRootMotionHandling::NoAdditionalRootMotion)
 	, SubdivisionLevel(0)
 	, MetadataOptions(FUsdMetadataImportOptions{
-		false, 	/* bCollectMetadata */
-		false, 	/* bCollectFromEntireSubtrees */
-		false, 	/* bCollectOnComponents */
-		{},		/* BlockedPrefixFilters */
-		false	/* bInvertFilters */
-	})
+		  false, /* bCollectMetadata */
+		  false, /* bCollectFromEntireSubtrees */
+		  false, /* bCollectOnComponents */
+		  {},	 /* BlockedPrefixFilters */
+		  false	 /* bInvertFilters */
+	  })
 	, Time(0.0f)
 	, bIsTransitioningIntoPIE(false)
 	, bIsModifyingAProperty(false)
 	, bIsUndoRedoing(false)
 {
-	SceneComponent = CreateDefaultSubobject< USceneComponent >(TEXT("SceneComponent0"));
+	SceneComponent = CreateDefaultSubobject<USceneComponent>(TEXT("SceneComponent0"));
 	SceneComponent->Mobility = EComponentMobility::Static;
 
 	RootComponent = SceneComponent;
@@ -1090,7 +1072,7 @@ AUsdStageActor::AUsdStageActor()
 	// some transitions like reinstantiation.
 	// c.f. doc comment on FRecompilationTracker for more info.
 
-	IUsdSchemasModule& UsdSchemasModule = FModuleManager::Get().LoadModuleChecked< IUsdSchemasModule >(TEXT("USDSchemas"));
+	IUsdSchemasModule& UsdSchemasModule = FModuleManager::Get().LoadModuleChecked<IUsdSchemasModule>(TEXT("USDSchemas"));
 	RenderContext = UsdSchemasModule.GetRenderContextRegistry().GetUnrealRenderContext();
 
 	const FName UniqueName = MakeUniqueObjectName(this, UUsdTransactor::StaticClass(), TEXT("Transactor"));
@@ -1110,11 +1092,14 @@ AUsdStageActor::AUsdStageActor()
 			FProperty* Property = *PropertyIterator;
 			if (Property && Property->GetFName() == GET_MEMBER_NAME_CHECKED(AUsdStageActor, RootLayer))
 			{
-				TArray< FString > SupportedExtensions = UnrealUSDWrapper::GetAllSupportedFileFormats();
+				TArray<FString> SupportedExtensions = UnrealUSDWrapper::GetAllSupportedFileFormats();
 				if (SupportedExtensions.Num() > 0)
 				{
-					FString JoinedExtensions = FString::Join(SupportedExtensions, TEXT("; *.")); // Combine "usd" and "usda" into "usd; *.usda"
-					Property->SetMetaData(TEXT("FilePathFilter"), FString::Printf(TEXT("Universal Scene Description files|*.%s"), *JoinedExtensions, *JoinedExtensions));
+					FString JoinedExtensions = FString::Join(SupportedExtensions, TEXT("; *."));	// Combine "usd" and "usda" into "usd; *.usda"
+					Property->SetMetaData(
+						TEXT("FilePathFilter"),
+						FString::Printf(TEXT("Universal Scene Description files|*.%s"), *JoinedExtensions, *JoinedExtensions)
+					);
 				}
 				break;
 			}
@@ -1140,10 +1125,9 @@ AUsdStageActor::AUsdStageActor()
 				[this](const FTransactionContext& TransactionContext, bool bSucceeded)
 				{
 					// This text should match the one in ConcertClientTransactionBridge.cpp
-					if (this &&
-						HasAuthorityOverStage() &&
-						TransactionContext.Title.EqualTo(LOCTEXT("ConcertTransactionEvent", "Concert Transaction Event")) &&
-						!RootLayer.FilePath.IsEmpty())
+					if (this && HasAuthorityOverStage()
+						&& TransactionContext.Title.EqualTo(LOCTEXT("ConcertTransactionEvent", "Concert Transaction Event"))
+						&& !RootLayer.FilePath.IsEmpty())
 					{
 						// Other user deleted us
 						if (!IsValid(this))
@@ -1152,7 +1136,8 @@ AUsdStageActor::AUsdStageActor()
 						}
 						// We have a valid filepath but no objects/assets spawned, so it's likely we were just spawned on the
 						// other client, and were replicated here with our RootLayer path already filled out, meaning we should just load that stage
-						// Note that now our UUsdTransactor may have already caused the stage itself to be loaded, but we may still need to call LoadUsdStage on our end.
+						// Note that now our UUsdTransactor may have already caused the stage itself to be loaded, but we may still need to call
+						// LoadUsdStage on our end.
 						else if (ObjectsToWatch.Num() == 0 && (!UsdAssetCache || UsdAssetCache->GetNumAssets() == 0))
 						{
 							this->LoadUsdStage();
@@ -1179,8 +1164,7 @@ AUsdStageActor::AUsdStageActor()
 			}
 		}
 		ISequencerModule& SequencerModule = FModuleManager::Get().LoadModuleChecked<ISequencerModule>(TEXT("Sequencer"));
-		OnSequencerCreatedHandle = SequencerModule.RegisterOnSequencerCreated(
-			FOnSequencerCreated::FDelegate::CreateLambda(SubscribeToSequencerEvents)
+		OnSequencerCreatedHandle = SequencerModule.RegisterOnSequencerCreated(FOnSequencerCreated::FDelegate::CreateLambda(SubscribeToSequencerEvents)
 		);
 
 		FCoreUObjectDelegates::OnObjectPropertyChanged.AddUObject(this, &AUsdStageActor::OnObjectPropertyChanged);
@@ -1197,7 +1181,7 @@ AUsdStageActor::AUsdStageActor()
 
 		LevelSequenceHelper.GetOnSkelAnimationBaked().AddUObject(this, &AUsdStageActor::OnSkelAnimationBaked);
 
-#endif // WITH_EDITOR
+#endif	  // WITH_EDITOR
 
 		OnTimeChanged.AddUObject(this, &AUsdStageActor::AnimatePrims);
 
@@ -1291,7 +1275,7 @@ void AUsdStageActor::NewStage()
 	{
 		return;
 	}
-	FString	StagePath = FString(UnrealIdentifiers::IdentifierPrefix) + Layer.GetIdentifier();
+	FString StagePath = FString(UnrealIdentifiers::IdentifierPrefix) + Layer.GetIdentifier();
 
 	UE::FUsdPrim RootPrim = NewStage.DefinePrim(UE::FSdfPath{TEXT("/Root")}, TEXT("Xform"));
 	ensure(UsdUtils::SetDefaultKind(RootPrim, EUsdDefaultKind::Assembly));
@@ -1317,7 +1301,7 @@ void AUsdStageActor::NewStage()
 	}
 
 	SetRootLayer(StagePath);
-#endif // USE_USD_SDK
+#endif	  // USE_USD_SDK
 }
 
 void AUsdStageActor::SetIsolatedRootLayer(const FString& IsolatedStageRootLayer)
@@ -1345,7 +1329,7 @@ FString AUsdStageActor::GetIsolatedRootLayer() const
 	return IsolatedStage ? IsolatedStage.GetRootLayer().GetIdentifier() : FString{};
 }
 
-void AUsdStageActor::IsolateLayer( const UE::FSdfLayer& Layer )
+void AUsdStageActor::IsolateLayer(const UE::FSdfLayer& Layer)
 {
 	if (IsolatedStage && IsolatedStage.GetRootLayer() == Layer)
 	{
@@ -1382,7 +1366,10 @@ void AUsdStageActor::IsolateLayer( const UE::FSdfLayer& Layer )
 		TArray<UE::FSdfLayer> CurrentLayerStack = FreshCurrentStage.GetLayerStack();
 		if (!CurrentLayerStack.Contains(Layer))
 		{
-			UE_LOG(LogUsd, Warning, TEXT("Failed to isolate layer '%s' as it is not part of the currently opened USD Stage's local layer stack"),
+			UE_LOG(
+				LogUsd,
+				Warning,
+				TEXT("Failed to isolate layer '%s' as it is not part of the currently opened USD Stage's local layer stack"),
 				*Layer.GetIdentifier(),
 				*UsdStage.GetRootLayer().GetIdentifier()
 			);
@@ -1449,9 +1436,10 @@ void AUsdStageActor::OnUsdObjectsChanged(const UsdUtils::FObjectChangesByPath& I
 	}
 
 	// Only update the transactor if we're listening to USD notices. Within OnObjectPropertyChanged we will stop listening when writing stage changes
-	// from our component changes, and this will also make sure we're not duplicating the events we store and replicate via multi-user: If a modification
-	// can be described purely via UObject changes, then those changes will be responsible for the whole modification and we won't record the corresponding
-	// stage changes. The intent is that when undo/redo/replicating that UObject change, it will automatically generate the corresponding stage changes
+	// from our component changes, and this will also make sure we're not duplicating the events we store and replicate via multi-user: If a
+	// modification can be described purely via UObject changes, then those changes will be responsible for the whole modification and we won't record
+	// the corresponding stage changes. The intent is that when undo/redo/replicating that UObject change, it will automatically generate the
+	// corresponding stage changes
 	if (Transactor)
 	{
 		Transactor->Update(InfoChanges, ResyncChanges);
@@ -1464,8 +1452,9 @@ void AUsdStageActor::OnUsdObjectsChanged(const UsdUtils::FObjectChangesByPath& I
 	}
 
 	// If the stage was closed in a big transaction (e.g. undo open) a random UObject may be transacting before us and triggering USD changes,
-	// and the UE::FUsdStage will still be opened and valid (even though we intend on closing/changing it when we transact). It could be problematic/wasteful if we
-	// responded to those notices, so just early out here. We can do this check because our RootLayer property will already have the new value
+	// and the UE::FUsdStage will still be opened and valid (even though we intend on closing/changing it when we transact). It could be
+	// problematic/wasteful if we responded to those notices, so just early out here. We can do this check because our RootLayer property will already
+	// have the new value
 	{
 		const UE::FUsdStage& BaseStage = GetBaseUsdStage();
 		const UE::FSdfLayer& StageRoot = BaseStage.GetRootLayer();
@@ -1489,7 +1478,7 @@ void AUsdStageActor::OnUsdObjectsChanged(const UsdUtils::FObjectChangesByPath& I
 			LogUsd,
 			Warning,
 			TEXT("Closing the stage '%s' as no asset cache was provided, but the AUsdStageActor '%s' was set to open the stage and load assets. "
-					"Either provide an asset cache or switch the stage actor to the 'Opened' state"),
+				 "Either provide an asset cache or switch the stage actor to the 'Opened' state"),
 			*RootLayer.FilePath,
 			*GetPathName()
 		);
@@ -1539,7 +1528,7 @@ void AUsdStageActor::OnUsdObjectsChanged(const UsdUtils::FObjectChangesByPath& I
 				// TODO: Better way of handling material override updates. Ideally we wouldn't be resyncing
 				// the Mesh prim just to update material overrides...
 				UE::FUsdPrim ChangedPrim = Stage.GetPrimAtPath(PrimPath);
-				if(ChangedPrim && ChangedPrim.IsA(TEXT("GeomSubset")))
+				if (ChangedPrim && ChangedPrim.IsA(TEXT("GeomSubset")))
 				{
 					PrimPath = PrimPath.GetParentPath();
 				}
@@ -1549,10 +1538,7 @@ void AUsdStageActor::OnUsdObjectsChanged(const UsdUtils::FObjectChangesByPath& I
 
 			for (const UsdUtils::FAttributeChange& AttributeChange : ObjectChange.AttributeChanges)
 			{
-				static const TSet<FString> StageResyncProperties = {
-					TEXT("metersPerUnit"),
-					TEXT("upAxis")
-				};
+				static const TSet<FString> StageResyncProperties = {TEXT("metersPerUnit"), TEXT("upAxis")};
 
 				// Upgrade these to resync so that the prim twins are regenerated, which clears all the existing
 				// animation tracks and adds new ones, automatically re-baking to control rig
@@ -1570,8 +1556,7 @@ void AUsdStageActor::OnUsdObjectsChanged(const UsdUtils::FObjectChangesByPath& I
 					// When we change these UsdGeomModelAPI attributes we may need to create a new component type
 					// for the prim (as it may now need/stop needing an alternate draw mode component)
 					UnrealIdentifiers::ModelDrawMode,
-					UnrealIdentifiers::ModelApplyDrawMode
-				};
+					UnrealIdentifiers::ModelApplyDrawMode};
 
 				// Some stage info should trigger some resyncs because they should trigger reparsing of geometry
 				if ((PrimPath.IsAbsoluteRootPath() && StageResyncProperties.Contains(AttributeChange.PropertyName))
@@ -1593,8 +1578,8 @@ void AUsdStageActor::OnUsdObjectsChanged(const UsdUtils::FObjectChangesByPath& I
 		}
 
 		// We may need the full spec path with variant selections later, but for traversal and retrieving prims from the stage we always need
-		// the prim path without any variant selections in it (i.e. GetPrimAtPath("/Root{Varset=Var}Child") doesn't work, we need GetPrimAtPath("/Root/Child")),
-		// and USD sometimes emits changes with the variant selection path (like during renames).
+		// the prim path without any variant selections in it (i.e. GetPrimAtPath("/Root{Varset=Var}Child") doesn't work, we need
+		// GetPrimAtPath("/Root/Child")), and USD sometimes emits changes with the variant selection path (like during renames).
 		SortedPrimsChangedList.Add(PrimPath, bIsResync);
 	}
 	// Do Resyncs after so that they overwrite pure info changes if we have any
@@ -1695,12 +1680,11 @@ void AUsdStageActor::OnUsdObjectsChanged(const UsdUtils::FObjectChangesByPath& I
 	// Traverses the info caches to find out which prims we need to update
 	TFunction<void(const UE::FSdfPath&, bool, TMap<UE::FSdfPath, bool>&, TSet<UE::FSdfPath>&)> RecursiveCollectPrimsToUpdate;
 	RecursiveCollectPrimsToUpdate =
-		[this, &OldInfoCache, &RecursiveCollectPrimsToUpdate, &KnownOldPrims, &Stage](
-			const UE::FSdfPath& PrimPath,
-			bool bIsResync,
-			TMap<UE::FSdfPath, bool>& OutPrimsToUpdate,
-			TSet<UE::FSdfPath>& InOutVisitedPaths
-		)
+		[this,
+		 &OldInfoCache,
+		 &RecursiveCollectPrimsToUpdate,
+		 &KnownOldPrims,
+		 &Stage](const UE::FSdfPath& PrimPath, bool bIsResync, TMap<UE::FSdfPath, bool>& OutPrimsToUpdate, TSet<UE::FSdfPath>& InOutVisitedPaths)
 	{
 		// Allow revisiting a prim if we're resyncing: This is a cheap way of making sure we mark the
 		// resynced prims as resynced, or else we may recurse into them while traversing another prim and preemptively
@@ -1762,7 +1746,7 @@ void AUsdStageActor::OnUsdObjectsChanged(const UsdUtils::FObjectChangesByPath& I
 				KnownOldPrims = OldInfoCache->GetKnownPrims();
 			}
 
-			if(UE::FUsdPrim Prim = Stage.GetPrimAtPath(PrimPath))
+			if (UE::FUsdPrim Prim = Stage.GetPrimAtPath(PrimPath))
 			{
 				for (const UE::FUsdPrim& ChildPrim : Prim.GetChildren())
 				{
@@ -1899,11 +1883,11 @@ void AUsdStageActor::OnUsdObjectsChanged(const UsdUtils::FObjectChangesByPath& I
 		}
 	}
 
-	if(MaterialUserPrims.Num())
+	if (MaterialUserPrims.Num())
 	{
 		TSet<UE::FSdfPath> VisitedPaths;
 		PrimsToUpdate.Reserve(PrimsToUpdate.Num() + MaterialUserPrims.Num());
-		for(const UE::FSdfPath& MaterialUserPrim : MaterialUserPrims)
+		for (const UE::FSdfPath& MaterialUserPrim : MaterialUserPrims)
 		{
 			// This also needs to be done recursivly because our "material user prim" may be just something
 			// like a UsdGeomSubset. If we're going to resync its component, we actually need to resync whatever
@@ -1989,7 +1973,7 @@ void AUsdStageActor::OnUsdObjectsChanged(const UsdUtils::FObjectChangesByPath& I
 	}
 
 #if WITH_EDITOR
-	if (GIsEditor && GEditor && !IsGarbageCollecting()) // Make sure we're not in standalone either
+	if (GIsEditor && GEditor && !IsGarbageCollecting())	   // Make sure we're not in standalone either
 	{
 		if (bHasResync)
 		{
@@ -1998,9 +1982,9 @@ void AUsdStageActor::OnUsdObjectsChanged(const UsdUtils::FObjectChangesByPath& I
 
 		GEditor->RedrawLevelEditingViewports();
 	}
-#endif // WITH_EDITOR
+#endif	  // WITH_EDITOR
 
-#endif // USE_USD_SDK
+#endif	  // USE_USD_SDK
 }
 
 USDSTAGE_API void AUsdStageActor::Reset()
@@ -2099,9 +2083,10 @@ UUsdPrimTwin* AUsdStageActor::ExpandPrim(const UE::FUsdPrim& Prim, bool bResync,
 
 	bool bExpandChildren = true;
 
-	IUsdSchemasModule& UsdSchemasModule = FModuleManager::Get().LoadModuleChecked< IUsdSchemasModule >(TEXT("USDSchemas"));
+	IUsdSchemasModule& UsdSchemasModule = FModuleManager::Get().LoadModuleChecked<IUsdSchemasModule>(TEXT("USDSchemas"));
 
-	if (TSharedPtr< FUsdSchemaTranslator > SchemaTranslator = UsdSchemasModule.GetTranslatorRegistry().CreateTranslatorForSchema(TranslationContext.AsShared(), UE::FUsdTyped(Prim)))
+	if (TSharedPtr<FUsdSchemaTranslator> SchemaTranslator = UsdSchemasModule.GetTranslatorRegistry()
+																.CreateTranslatorForSchema(TranslationContext.AsShared(), UE::FUsdTyped(Prim)))
 	{
 		if (bResync && !UsdPrimTwin->SceneComponent.IsValid())
 		{
@@ -2132,10 +2117,10 @@ UUsdPrimTwin* AUsdStageActor::ExpandPrim(const UE::FUsdPrim& Prim, bool bResync,
 			ContextParentComponent = UsdPrimTwin->SceneComponent.Get();
 		}
 
-		TGuardValue< USceneComponent* > ParentComponentGuard(TranslationContext.ParentComponent, ContextParentComponent);
+		TGuardValue<USceneComponent*> ParentComponentGuard(TranslationContext.ParentComponent, ContextParentComponent);
 
 		const bool bTraverseInstanceProxies = true;
-		const TArray< UE::FUsdPrim > PrimChildren = Prim.GetFilteredChildren(bTraverseInstanceProxies);
+		const TArray<UE::FUsdPrim> PrimChildren = Prim.GetFilteredChildren(bTraverseInstanceProxies);
 
 		for (const UE::FUsdPrim& ChildPrim : PrimChildren)
 		{
@@ -2148,7 +2133,7 @@ UUsdPrimTwin* AUsdStageActor::ExpandPrim(const UE::FUsdPrim& Prim, bool bResync,
 	{
 #if WITH_EDITOR
 		TwinSceneComponent->PostEditChange();
-#endif // WITH_EDITOR
+#endif	  // WITH_EDITOR
 
 		if (!TwinSceneComponent->IsRegistered())
 		{
@@ -2291,7 +2276,7 @@ UUsdPrimTwin* AUsdStageActor::ExpandPrim(const UE::FUsdPrim& Prim, bool bResync,
 		}
 	}
 
-#endif // USE_USD_SDK
+#endif	  // USE_USD_SDK
 	return UsdPrimTwin;
 }
 
@@ -2368,8 +2353,7 @@ void AUsdStageActor::SetUsdStage(const UE::FUsdStage& NewStage)
 		// Try loading a UE-state session layer if we can find one
 		const bool bCreateIfNeeded = false;
 		UsdUtils::GetUEPersistentStateSublayer(UsdStage, bCreateIfNeeded);
-#endif // #if USE_USD_SDK
-
+#endif	  // #if USE_USD_SDK
 	}
 
 	LoadUsdStage();
@@ -2398,7 +2382,7 @@ void AUsdStageActor::SetRootLayer(const FString& RootFilePath)
 	{
 		RelativeFilePath = UsdUtils::MakePathRelativeToProjectDir(RootFilePath);
 	}
-#endif // USE_USD_SDK
+#endif	  // USE_USD_SDK
 
 	// See if we're talking about the stage that is already loaded
 	if (UsdStage)
@@ -2485,7 +2469,11 @@ void AUsdStageActor::SetAssetCache(UUsdAssetCache2* NewCache)
 	if (!UsdAssetCache && UsdStage)
 	{
 		FNotificationInfo Toast(LOCTEXT("MustHaveCache", "Must have an Asset Cache"));
-		Toast.SubText = LOCTEXT("MustHaveCache_Subtext", "The Stage Actor must always have an Asset Cache while a stage is loaded, so a temporary cache will be created.\n\nClose the stage before clearing the cache if you wish to clear this property.");
+		Toast.SubText = LOCTEXT(
+			"MustHaveCache_Subtext",
+			"The Stage Actor must always have an Asset Cache while a stage is loaded, so a temporary cache will be created.\n\nClose the stage "
+			"before clearing the cache if you wish to clear this property."
+		);
 		Toast.Image = FCoreStyle::Get().GetBrush(TEXT("MessageLog.Warning"));
 		Toast.bUseLargeFont = false;
 		Toast.bFireAndForget = true;
@@ -2495,14 +2483,14 @@ void AUsdStageActor::SetAssetCache(UUsdAssetCache2* NewCache)
 		Toast.bUseSuccessFailIcons = false;
 		FSlateNotificationManager::Get().AddNotification(Toast);
 
-		UsdAssetCache = NewObject< UUsdAssetCache2 >(GetTransientPackage(), NAME_None, GetMaskedFlags(RF_PropagateToSubObjects));
+		UsdAssetCache = NewObject<UUsdAssetCache2>(GetTransientPackage(), NAME_None, GetMaskedFlags(RF_PropagateToSubObjects));
 	}
 
 	// Here we pretend we just received a root resync so that we re-fetch assets from the cache
 	// and update its components
 	UsdUtils::FObjectChangesByPath InfoChanges;
 	UsdUtils::FObjectChangesByPath ResyncChanges;
-	ResyncChanges.Add({ TEXT("/"), {} });
+	ResyncChanges.Add({TEXT("/"), {}});
 	OnUsdObjectsChanged(InfoChanges, ResyncChanges);
 }
 
@@ -2782,7 +2770,7 @@ ULevelSequence* AUsdStageActor::GetLevelSequence()
 	return LevelSequence;
 }
 
-USceneComponent* AUsdStageActor::GetGeneratedComponent( const FString& PrimPath )
+USceneComponent* AUsdStageActor::GetGeneratedComponent(const FString& PrimPath)
 {
 	const UE::FUsdStage& CurrentStage = static_cast<const AUsdStageActor*>(this)->GetUsdStage();
 	if (!CurrentStage)
@@ -2884,7 +2872,8 @@ void AUsdStageActor::OpenUsdStage()
 	FString AbsPath;
 	if (!RootLayer.FilePath.StartsWith(UnrealIdentifiers::IdentifierPrefix) && FPaths::IsRelative(RootLayer.FilePath))
 	{
-		// The RootLayer property is marked as RelativeToGameDir, and FUsdStageViewModel::OpenStage will also give us paths relative to the project's directory
+		// The RootLayer property is marked as RelativeToGameDir, and FUsdStageViewModel::OpenStage will also give us paths relative to the project's
+		// directory
 		FString ProjectDir = FPaths::ConvertRelativePathToFull(FPaths::ProjectDir());
 		AbsPath = FPaths::ConvertRelativePathToFull(FPaths::Combine(ProjectDir, RootLayer.FilePath));
 	}
@@ -2918,12 +2907,15 @@ void AUsdStageActor::OpenUsdStage()
 		// Try loading a UE-state session layer if we can find one
 		const bool bCreateIfNeeded = false;
 		UsdUtils::GetUEPersistentStateSublayer(UsdStage, bCreateIfNeeded);
-#endif // #if USE_USD_SDK
+#endif	  // #if USE_USD_SDK
 	}
 
 	OnStageChanged.Broadcast();
 
-	UsdUtils::ShowErrorsAndStopMonitoring(FText::Format(LOCTEXT("USDOpenError", "Encountered some errors opening USD file at path '{0}!\nCheck the Output Log for details."), FText::FromString(RootLayer.FilePath)));
+	UsdUtils::ShowErrorsAndStopMonitoring(FText::Format(
+		LOCTEXT("USDOpenError", "Encountered some errors opening USD file at path '{0}!\nCheck the Output Log for details."),
+		FText::FromString(RootLayer.FilePath)
+	));
 }
 
 void AUsdStageActor::CloseUsdStage(bool bUnloadIfNeeded)
@@ -3093,7 +3085,7 @@ void AUsdStageActor::OnLevelActorDeleted(AActor* DeletedActor)
 	}
 }
 
-#endif // WITH_EDITOR
+#endif	  // WITH_EDITOR
 
 void AUsdStageActor::LoadUsdStage(bool bOpenIfNeeded)
 {
@@ -3181,10 +3173,10 @@ void AUsdStageActor::LoadUsdStage(bool bOpenIfNeeded)
 	// the tracks
 	PrimsToAnimate.Reset();
 
-	TSharedRef< FUsdSchemaTranslationContext > TranslationContext = FUsdStageActorImpl::CreateUsdSchemaTranslationContext(this, RootTwin->PrimPath);
+	TSharedRef<FUsdSchemaTranslationContext> TranslationContext = FUsdStageActorImpl::CreateUsdSchemaTranslationContext(this, RootTwin->PrimPath);
 
 	SlowTask.EnterProgressFrame(0.1f);
-	InfoCache->RemoveAllAssetPrimLinks();  // These are usually not reset when rebuilding the cache so we must call manually
+	InfoCache->RemoveAllAssetPrimLinks();	 // These are usually not reset when rebuilding the cache so we must call manually
 	InfoCache->RebuildCacheForSubtree(StageToLoad.GetPseudoRoot(), TranslationContext.Get());
 
 	SlowTask.EnterProgressFrame(0.7f);
@@ -3211,7 +3203,8 @@ void AUsdStageActor::LoadUsdStage(bool bOpenIfNeeded)
 			UWorld* World = GetWorld();
 			if (World && World->WorldType == EWorldType::EditorPreview)
 			{
-				// Note: CDO is an instance of a BlueprintGeneratedClass here and this is just a base class pointer. We're not changing the actual AUsdStageActor's CDO
+				// Note: CDO is an instance of a BlueprintGeneratedClass here and this is just a base class pointer. We're not changing the actual
+				// AUsdStageActor's CDO
 				if (AUsdStageActor* CDO = Cast<AUsdStageActor>(GetClass()->GetDefaultObject()))
 				{
 					CDO->SetTime(GetTime());
@@ -3228,12 +3221,12 @@ void AUsdStageActor::LoadUsdStage(bool bOpenIfNeeded)
 	FUsdStageActorImpl::RepairExternalSequencerBindings();
 
 #if WITH_EDITOR
-	if (GIsEditor && GEditor && !IsGarbageCollecting()) // Make sure we're not in standalone either
+	if (GIsEditor && GEditor && !IsGarbageCollecting())	   // Make sure we're not in standalone either
 	{
 		GEditor->BroadcastLevelActorListChanged();
 		GEditor->RedrawLevelEditingViewports();
 	}
-#endif // WITH_EDITOR
+#endif	  // WITH_EDITOR
 
 	OnStageLoaded.Broadcast();
 
@@ -3243,16 +3236,19 @@ void AUsdStageActor::LoadUsdStage(bool bOpenIfNeeded)
 	int ElapsedMin = int(ElapsedSeconds / 60.0);
 	ElapsedSeconds -= 60.0 * (double)ElapsedMin;
 
-	UE_LOG(LogUsd, Log, TEXT("%s %s in [%d min %.3f s]"), TEXT("Stage loaded"), *FPaths::GetBaseFilename(RootLayer.FilePath), ElapsedMin, ElapsedSeconds);
+	UE_LOG(
+		LogUsd,
+		Log,
+		TEXT("%s %s in [%d min %.3f s]"),
+		TEXT("Stage loaded"),
+		*FPaths::GetBaseFilename(RootLayer.FilePath),
+		ElapsedMin,
+		ElapsedSeconds
+	);
 
 #if USE_USD_SDK
-	FUsdStageActorImpl::SendAnalytics(
-		this,
-		ElapsedSeconds,
-		UsdUtils::GetUsdStageNumFrames(StageToLoad),
-		FPaths::GetExtension(RootLayer.FilePath)
-	);
-#endif // #if USE_USD_SDK
+	FUsdStageActorImpl::SendAnalytics(this, ElapsedSeconds, UsdUtils::GetUsdStageNumFrames(StageToLoad), FPaths::GetExtension(RootLayer.FilePath));
+#endif	  // #if USE_USD_SDK
 }
 
 void AUsdStageActor::UnloadUsdStage()
@@ -3283,7 +3279,7 @@ void AUsdStageActor::UnloadUsdStage()
 		{
 			GEditor->GetEditorSubsystem<UAssetEditorSubsystem>()->CloseAllEditorsForAsset(LevelSequence);
 		}
-#endif // WITH_EDITOR
+#endif	  // WITH_EDITOR
 		LevelSequence = nullptr;
 	}
 	LevelSequenceHelper.Clear();
@@ -3306,7 +3302,7 @@ void AUsdStageActor::UnloadUsdStage()
 		GEditor->BroadcastLevelActorListChanged();
 		GEditor->RedrawLevelEditingViewports();
 	}
-#endif // WITH_EDITOR
+#endif	  // WITH_EDITOR
 
 	if (UsdAssetCache)
 	{
@@ -3335,7 +3331,11 @@ void AUsdStageActor::SetupAssetCacheIfNeeded()
 		{
 			if (UUsdAssetCache2* DefaultCache = Cast<UUsdAssetCache2>(ProjectSettings->DefaultAssetCache.TryLoad()))
 			{
-				UE_LOG(LogUsd, Log, TEXT("USD Stage Actor '%s' had no previous USD Asset Cache, so it will use the default cache at '%s'. This can be configured on the project settings."),
+				UE_LOG(
+					LogUsd,
+					Log,
+					TEXT("USD Stage Actor '%s' had no previous USD Asset Cache, so it will use the default cache at '%s'. This can be configured on "
+						 "the project settings."),
 					*GetPathName(),
 					*DefaultCache->GetPathName()
 				);
@@ -3371,7 +3371,11 @@ void AUsdStageActor::SetupAssetCacheIfNeeded()
 
 					UsdAssetCache = NewCache;
 
-					UE_LOG(LogUsd, Log, TEXT("USD Stage Actor '%s' will use newly created, default USD Asset Cache at '%s'. This can be configured on the project settings."),
+					UE_LOG(
+						LogUsd,
+						Log,
+						TEXT("USD Stage Actor '%s' will use newly created, default USD Asset Cache at '%s'. This can be configured on the project "
+							 "settings."),
 						*GetPathName(),
 						*UsdAssetCache->GetPathName()
 					);
@@ -3389,11 +3393,16 @@ void AUsdStageActor::SetupAssetCacheIfNeeded()
 
 	if (!UsdAssetCache)
 	{
-		UE_LOG(LogUsd, Warning, TEXT("USD Stage Actor '%s' had no previous USD Asset Cache and no default cache is specified on the project settings, so a temporary cache will be generated. For better performance, create a persistent USD Asset Cache asset and point to it with this actor's UsdAssetCache property."),
+		UE_LOG(
+			LogUsd,
+			Warning,
+			TEXT("USD Stage Actor '%s' had no previous USD Asset Cache and no default cache is specified on the project settings, so a temporary "
+				 "cache will be generated. For better performance, create a persistent USD Asset Cache asset and point to it with this actor's "
+				 "UsdAssetCache property."),
 			*GetPathName()
 		);
 
-		UsdAssetCache = NewObject< UUsdAssetCache2 >(GetTransientPackage(), NAME_None, GetMaskedFlags(RF_PropagateToSubObjects));
+		UsdAssetCache = NewObject<UUsdAssetCache2>(GetTransientPackage(), NAME_None, GetMaskedFlags(RF_PropagateToSubObjects));
 	}
 }
 
@@ -3473,7 +3482,7 @@ void AUsdStageActor::ReloadAnimations()
 				}
 			}
 		}
-#endif // WITH_EDITOR
+#endif	  // WITH_EDITOR
 
 		// We need to guarantee we'll record our change of LevelSequence into the transaction, as Init() will create a new one
 		const bool bMarkDirty = false;
@@ -3490,7 +3499,7 @@ void AUsdStageActor::ReloadAnimations()
 				Sequencer->ResetToNewRootSequence(*LevelSequence);
 			}
 		}
-#endif // WITH_EDITOR
+#endif	  // WITH_EDITOR
 	}
 }
 
@@ -3566,9 +3575,9 @@ void AUsdStageActor::PostTransacted(const FTransactionObjectEvent& TransactionEv
 	{
 		// If we're in a sublevel that is hidden, we'll respond to the generated PostUnregisterAllComponent call
 		// and unload our spawned actors/assets, so let's close/open the stage too
-		if (ChangedProperties.Contains(GET_MEMBER_NAME_CHECKED(AActor, bHiddenEdLevel)) ||
-			ChangedProperties.Contains(GET_MEMBER_NAME_CHECKED(AActor, bHiddenEdLayer)) ||
-			ChangedProperties.Contains(GET_MEMBER_NAME_CHECKED(AActor, bHiddenEd)))
+		if (ChangedProperties.Contains(GET_MEMBER_NAME_CHECKED(AActor, bHiddenEdLevel))
+			|| ChangedProperties.Contains(GET_MEMBER_NAME_CHECKED(AActor, bHiddenEdLayer))
+			|| ChangedProperties.Contains(GET_MEMBER_NAME_CHECKED(AActor, bHiddenEd)))
 		{
 			if (IsHiddenEd())
 			{
@@ -3627,13 +3636,16 @@ void AUsdStageActor::PostTransacted(const FTransactionObjectEvent& TransactionEv
 			// Sometimes when we undo/redo changes that modify SkinnedMeshComponents, their render state is not correctly updated which can show some
 			// very garbled meshes. Here we workaround that by recreating all those render states manually
 			const bool bRecurive = true;
-			GetRootPrimTwin()->Iterate([](UUsdPrimTwin& PrimTwin)
+			GetRootPrimTwin()->Iterate(
+				[](UUsdPrimTwin& PrimTwin)
 				{
 					if (USkinnedMeshComponent* Component = Cast<USkinnedMeshComponent>(PrimTwin.GetSceneComponent()))
 					{
 						FRenderStateRecreator RecreateRenderState{Component};
 					}
-				}, bRecurive);
+				},
+				bRecurive
+			);
 		}
 	}
 
@@ -3671,12 +3683,15 @@ void AUsdStageActor::PreEditUndo()
 	Super::PreEditUndo();
 }
 
-void AUsdStageActor::HandleTransactionStateChanged(const FTransactionContext& InTransactionContext, const ETransactionStateEventType InTransactionState)
+void AUsdStageActor::HandleTransactionStateChanged(
+	const FTransactionContext& InTransactionContext,
+	const ETransactionStateEventType InTransactionState
+)
 {
 	// Hack for solving UE-127253
-	// When we Reload (or open a new stage), we call ReloadAnimations which will close the Sequencer (if opened), recreate our LevelSequence, and get the Sequencer
-	// to show that one instead. If we undo the Reload, that new LevelSequence will be deleted and the Sequencer will be left open trying to display it,
-	// which leads to crashes. Here we try detecting for that case and close/reopen the sequencer to show the correct one.
+	// When we Reload (or open a new stage), we call ReloadAnimations which will close the Sequencer (if opened), recreate our LevelSequence, and get
+	// the Sequencer to show that one instead. If we undo the Reload, that new LevelSequence will be deleted and the Sequencer will be left open
+	// trying to display it, which leads to crashes. Here we try detecting for that case and close/reopen the sequencer to show the correct one.
 #if WITH_EDITOR
 	if (GIsEditor && LevelSequence
 		&& (InTransactionState == ETransactionStateEventType::UndoRedoStarted || InTransactionState == ETransactionStateEventType::UndoRedoFinalized))
@@ -3724,22 +3739,26 @@ void AUsdStageActor::HandleTransactionStateChanged(const FTransactionContext& In
 										SequencersToReset.Add(PinnedSequencer);
 
 										// Hack for solving UE-171596
-										// In this transaction we will switch LevelSequences, and have a Sequencer opened displaying our current Sequence.
-										// - We cannot leave this Sequencer displaying our old LevelSequence, because it will go PendingKill, and as the
-										//   Sequencer fetches it through WeakPtrs it will not find a valid LevelSequence and crash (this was the reason for
-										//   the original UE-127253 hack above). This means on UndoRedoStarted we *must* do something;
-										// - We cannot set our new LevelSequence into it yet of course, because it hasn't been created yet (it will be spawned
+										// In this transaction we will switch LevelSequences, and have a Sequencer opened displaying our current
+										// Sequence.
+										// - We cannot leave this Sequencer displaying our old LevelSequence, because it will go PendingKill, and as
+										// the
+										//   Sequencer fetches it through WeakPtrs it will not find a valid LevelSequence and crash (this was the
+										//   reason for the original UE-127253 hack above). This means on UndoRedoStarted we *must* do something;
+										// - We cannot set our new LevelSequence into it yet of course, because it hasn't been created yet (it will be
+										// spawned
 										//   by the undo system after UndoRedoStarted);
-										// - We cannot close this Sequencer, because of this "DeferredModify" mechanism that pushes some updates to the end
-										//   of the transaction (to UndoRedoFinalized). If one of those updates executes after we close the Sequencer and before
-										//   we fix things up (which it can always do as the order of execution of the delegates is not deterministic), it will
-										//   crash (this is the issue at UE-171596);
+										// - We cannot close this Sequencer, because of this "DeferredModify" mechanism that pushes some updates to
+										// the end
+										//   of the transaction (to UndoRedoFinalized). If one of those updates executes after we close the Sequencer
+										//   and before we fix things up (which it can always do as the order of execution of the delegates is not
+										//   deterministic), it will crash (this is the issue at UE-171596);
 										//
-										// This means we're forced to give *some valid LevelSequence* to the Sequencer for the split second while we switch
-										// our actual generated LevelSequence.
+										// This means we're forced to give *some valid LevelSequence* to the Sequencer for the split second while we
+										// switch our actual generated LevelSequence.
 										static TStrongObjectPtr<ULevelSequence> DummySequencePtr = nullptr;
 										ULevelSequence* DummySequence = DummySequencePtr.Get();
-										if(!DummySequence)
+										if (!DummySequence)
 										{
 											DummySequence = NewObject<ULevelSequence>();
 											DummySequence->Initialize();
@@ -3775,17 +3794,16 @@ void AUsdStageActor::HandleTransactionStateChanged(const FTransactionContext& In
 			}
 		}
 	}
-#endif // WITH_EDITOR
+#endif	  // WITH_EDITOR
 
-	if (InTransactionState == ETransactionStateEventType::TransactionFinalized ||
-		InTransactionState == ETransactionStateEventType::UndoRedoFinalized ||
-		InTransactionState == ETransactionStateEventType::TransactionCanceled)
+	if (InTransactionState == ETransactionStateEventType::TransactionFinalized || InTransactionState == ETransactionStateEventType::UndoRedoFinalized
+		|| InTransactionState == ETransactionStateEventType::TransactionCanceled)
 	{
 		OldRootLayer = RootLayer;
 	}
 }
 
-#endif // WITH_EDITOR
+#endif	  // WITH_EDITOR
 
 void AUsdStageActor::PostDuplicate(bool bDuplicateForPIE)
 {
@@ -3800,7 +3818,7 @@ void AUsdStageActor::PostDuplicate(bool bDuplicateForPIE)
 		// Temporary asset caches aren't meant to be shared
 		if (UsdAssetCache && UsdAssetCache->GetOutermost() == GetTransientPackage())
 		{
-			UsdAssetCache = NewObject< UUsdAssetCache2 >(GetTransientPackage(), NAME_None, GetMaskedFlags(RF_PropagateToSubObjects));
+			UsdAssetCache = NewObject<UUsdAssetCache2>(GetTransientPackage(), NAME_None, GetMaskedFlags(RF_PropagateToSubObjects));
 		}
 
 		LoadUsdStage();
@@ -3923,7 +3941,7 @@ void AUsdStageActor::BeginDestroy()
 	{
 		RootUsdTwin->Clear();
 	}
-#endif // WITH_EDITOR
+#endif	  // WITH_EDITOR
 
 	Super::BeginDestroy();
 }
@@ -3935,7 +3953,8 @@ void AUsdStageActor::PostRegisterAllComponents()
 	// This may fail if our stage happened to not spawn any components, actors or assets, but by that
 	// point "being loaded" doesn't really mean anything anyway
 	const bool bStageIsLoaded = GetBaseUsdStage()
-		&& ((RootUsdTwin && RootUsdTwin->GetSceneComponent() != nullptr) || (UsdAssetCache && UsdAssetCache->GetNumAssets() > 0));
+								&& ((RootUsdTwin && RootUsdTwin->GetSceneComponent() != nullptr)
+									|| (UsdAssetCache && UsdAssetCache->GetNumAssets() > 0));
 
 	// Blocks loading stage when going into PIE, if we already have something loaded (we'll want to duplicate stuff instead).
 	// We need to allow loading when going into PIE when we have nothing loaded yet because the MovieRenderQueue (or other callers)
@@ -3955,7 +3974,8 @@ void AUsdStageActor::PostRegisterAllComponents()
 	}
 
 #if WITH_EDITOR
-	// Prevent loading on bHiddenEdLevel because PostRegisterAllComponents gets called in the process of hiding our level, if we're in the persistent level.
+	// Prevent loading on bHiddenEdLevel because PostRegisterAllComponents gets called in the process of hiding our level, if we're in the persistent
+	// level.
 	if (bIsEditorPreviewActor || bHiddenEdLevel)
 	{
 		return;
@@ -3978,11 +3998,11 @@ void AUsdStageActor::PostRegisterAllComponents()
 			return;
 		}
 	}
-#endif // WITH_EDITOR
+#endif	  // WITH_EDITOR
 
-	// When we add a sublevel the very first time (i.e. when it is associating) it may still be invisible, but we should load the stage anyway because by
-	// default it will become visible shortly after this call. On subsequent postregisters, if our level is invisible there is no point to loading our stage,
-	// as our spawned actors/components should be invisible too
+	// When we add a sublevel the very first time (i.e. when it is associating) it may still be invisible, but we should load the stage anyway because
+	// by default it will become visible shortly after this call. On subsequent postregisters, if our level is invisible there is no point to loading
+	// our stage, as our spawned actors/components should be invisible too
 	ULevel* Level = GetLevel();
 	const bool bIsLevelHidden = !Level || (!Level->bIsVisible && !Level->bIsAssociatingLevel);
 	if (bIsLevelHidden)
@@ -4025,10 +4045,11 @@ void AUsdStageActor::UnregisterAllComponents(bool bForReregister)
 			return;
 		}
 	}
-#endif // WITH_EDITOR
+#endif	  // WITH_EDITOR
 
 	const bool bStageIsLoaded = GetBaseUsdStage()
-		&& ((RootUsdTwin && RootUsdTwin->GetSceneComponent() != nullptr) || (UsdAssetCache && UsdAssetCache->GetNumAssets() > 0));
+								&& ((RootUsdTwin && RootUsdTwin->GetSceneComponent() != nullptr)
+									|| (UsdAssetCache && UsdAssetCache->GetNumAssets() > 0));
 
 	UWorld* World = GetWorld();
 	if (bIsTransitioningIntoPIE && bStageIsLoaded && (!World || World->WorldType == EWorldType::PIE))
@@ -4205,7 +4226,7 @@ void AUsdStageActor::OnMovieSceneDataChanged(EMovieSceneDataChangeType ChangeTyp
 	}
 
 	UUsdLevelSequenceAssetUserData* AssetUserData = Sequence->GetAssetUserData<UUsdLevelSequenceAssetUserData>();
-	if(!AssetUserData)
+	if (!AssetUserData)
 	{
 		AssetUserData = NewObject<UUsdLevelSequenceAssetUserData>(Sequence);
 		Sequence->AddAssetUserData(AssetUserData);
@@ -4226,9 +4247,7 @@ void AUsdStageActor::OnMovieSceneDataChanged(EMovieSceneDataChangeType ChangeTyp
 
 	// The UI action to add the actor to the sequencer should have spawned it's transaction already, but just in case it
 	// hasn't let's do that, as we'll end up modifying UObjects in here
-	FScopedTransaction Transaction(
-		LOCTEXT("ComponentAddedToSequencer", "Added USD component bindings to the Sequencer")
-	);
+	FScopedTransaction Transaction(LOCTEXT("ComponentAddedToSequencer", "Added USD component bindings to the Sequencer"));
 	Sequence->Modify();
 	MovieScene->Modify();
 
@@ -4257,7 +4276,7 @@ void AUsdStageActor::OnMovieSceneDataChanged(EMovieSceneDataChangeType ChangeTyp
 	};
 
 	int32 PossessableCount = MovieScene->GetPossessableCount();
-	for(int32 Index = 0; Index < PossessableCount; ++Index)
+	for (int32 Index = 0; Index < PossessableCount; ++Index)
 	{
 		FMovieScenePossessable& Possessable = MovieScene->GetPossessable(Index);
 
@@ -4304,7 +4323,7 @@ void AUsdStageActor::OnMovieSceneDataChanged(EMovieSceneDataChangeType ChangeTyp
 void AUsdStageActor::OnUsdPrimTwinDestroyed(const UUsdPrimTwin& UsdPrimTwin)
 {
 	PrimsToAnimate.Remove(UsdPrimTwin.PrimPath);
-	ObjectsToWatch.Remove( UsdPrimTwin.SceneComponent.Get() );
+	ObjectsToWatch.Remove(UsdPrimTwin.SceneComponent.Get());
 	LevelSequenceHelper.RemovePrim(UsdPrimTwin);
 }
 
@@ -4383,8 +4402,7 @@ void AUsdStageActor::OnObjectPropertyChanged(UObject* ObjectBeingModified, FProp
 	const static TSet<FName> TransformProperties = {
 		USceneComponent::GetRelativeLocationPropertyName(),
 		USceneComponent::GetRelativeRotationPropertyName(),
-		USceneComponent::GetRelativeScale3DPropertyName()
-	};
+		USceneComponent::GetRelativeScale3DPropertyName()};
 	const bool bIsTransformChange = TransformProperties.Contains(PropertyChangedEvent.GetPropertyName());
 
 	// When we change an actor property that is just a mirror of a component property (e.g. light intensity, or camera aperture)
@@ -4474,7 +4492,7 @@ void AUsdStageActor::OnObjectPropertyChanged(UObject* ObjectBeingModified, FProp
 			}
 		}
 	}
-#endif // WITH_EDITOR
+#endif	  // WITH_EDITOR
 
 	// We spawn Cine Camera Actors for Camera prims, but those have two components by default. Our convention is to place
 	// camera stuff on the camera component (not much choice there), but use the transform of the scene (root) component.
@@ -4537,7 +4555,7 @@ void AUsdStageActor::OnObjectPropertyChanged(UObject* ObjectBeingModified, FProp
 				const bool bTimeSampleValues = false;
 				UsdUtils::AuthorIdentityTransformGprimAttributes(UsdPrim, bDefaultValues, bTimeSampleValues);
 
-				if (UMeshComponent* MeshComponent = Cast< UMeshComponent >(PrimSceneComponent))
+				if (UMeshComponent* MeshComponent = Cast<UMeshComponent>(PrimSceneComponent))
 				{
 					UnrealToUsd::ConvertMeshComponent(CurrentStage, MeshComponent, UsdPrim);
 				}
@@ -4606,7 +4624,7 @@ void AUsdStageActor::OnObjectPropertyChanged(UObject* ObjectBeingModified, FProp
 					UnrealToUsd::ConvertLightComponent(*SkyLightComponent, UsdPrim, UsdUtils::GetDefaultTimeCode());
 					UnrealToUsd::ConvertSkyLightComponent(*SkyLightComponent, UsdPrim, UsdUtils::GetDefaultTimeCode());
 				}
-#endif // #if USE_USD_SDK
+#endif	  // #if USE_USD_SDK
 
 				// Update stage window in case any of our component changes trigger USD stage changes
 				this->OnPrimChanged.Broadcast(PrimPath, false);
@@ -4617,10 +4635,11 @@ void AUsdStageActor::OnObjectPropertyChanged(UObject* ObjectBeingModified, FProp
 
 void AUsdStageActor::HandlePropertyChangedEvent(FPropertyChangedEvent& PropertyChangedEvent)
 {
-	// Handle property changed events with this function (called from our OnObjectPropertyChanged delegate) instead of overriding PostEditChangeProperty because replicated
-	// multi-user transactions directly broadcast OnObjectPropertyChanged on the properties that were changed, instead of making PostEditChangeProperty events.
-	// Note that UObject::PostEditChangeProperty ends up broadcasting OnObjectPropertyChanged anyway, so this works just the same as before.
-	// see ConcertClientTransactionBridge.cpp, function ConcertClientTransactionBridgeUtil::ProcessTransactionEvent.
+	// Handle property changed events with this function (called from our OnObjectPropertyChanged delegate) instead of overriding
+	// PostEditChangeProperty because replicated multi-user transactions directly broadcast OnObjectPropertyChanged on the properties that were
+	// changed, instead of making PostEditChangeProperty events. Note that UObject::PostEditChangeProperty ends up broadcasting
+	// OnObjectPropertyChanged anyway, so this works just the same as before. see ConcertClientTransactionBridge.cpp, function
+	// ConcertClientTransactionBridgeUtil::ProcessTransactionEvent.
 
 	// Note that in here we'll delegate to these setter functions (like SetRootLayer) to actually set the new property values.
 	// We want our setter functions to be able to automatically refresh the stage (both for simplicity, since we have a single
@@ -4662,7 +4681,7 @@ void AUsdStageActor::HandlePropertyChangedEvent(FPropertyChangedEvent& PropertyC
 #if WITH_EDITOR
 		static IConsoleVariable* CVar = IConsoleManager::Get().FindConsoleVariable(TEXT("USD.DiscardUndoBufferOnStageOpenClose"));
 		const bool bDiscardUndo = CVar && CVar->GetBool();
-#endif // WITH_EDITOR
+#endif	  // WITH_EDITOR
 
 		// Technically we don't need this guard value for the root layer itself, since SetRootLayer can compare
 		// RootLayer with the path of the current stage's root layer, but let's just do this for consistency.
@@ -4679,12 +4698,12 @@ void AUsdStageActor::HandlePropertyChangedEvent(FPropertyChangedEvent& PropertyC
 				EditorTransactor->Reset(Reason);
 			}
 		}
-#endif // WITH_EDITOR
+#endif	  // WITH_EDITOR
 	}
 	else if (PropertyName == GET_MEMBER_NAME_CHECKED(AUsdStageActor, StageState))
 	{
 		const EUsdStageState CorrectState = StageState;
-		StageState = (EUsdStageState)!((uint8)StageState);
+		StageState = (EUsdStageState) !((uint8)StageState);
 		SetStageState(CorrectState);
 	}
 	else if (PropertyName == GET_MEMBER_NAME_CHECKED(AUsdStageActor, Time))
@@ -4802,12 +4821,12 @@ void AUsdStageActor::HandlePropertyChangedEvent(FPropertyChangedEvent& PropertyC
 bool AUsdStageActor::HasAuthorityOverStage() const
 {
 #if WITH_EDITOR
-	if (GIsEditor) // Don't check for world in Standalone: The game world is the only one there, so it's OK if we have authority while in it
+	if (GIsEditor)	  // Don't check for world in Standalone: The game world is the only one there, so it's OK if we have authority while in it
 	{
 		// In the editor we have to prevent actors in PIE worlds from having authority
 		return !IsTemplate() && (!GetWorld() || !GetWorld()->IsGameWorld());
 	}
-#endif // WITH_EDITOR
+#endif	  // WITH_EDITOR
 
 	return !IsTemplate();
 }
@@ -4845,12 +4864,13 @@ void AUsdStageActor::OnSkelAnimationBaked(const FString& SkeletonPrimPath)
 		return;
 	}
 
-	TSharedRef< FUsdSchemaTranslationContext > TranslationContext = FUsdStageActorImpl::CreateUsdSchemaTranslationContext(this, SkeletonPrimPath);
+	TSharedRef<FUsdSchemaTranslationContext> TranslationContext = FUsdStageActorImpl::CreateUsdSchemaTranslationContext(this, SkeletonPrimPath);
 	// The only way we could have baked a skel animation is via the sequencer, so we know its playing
 	TranslationContext->bSequencerIsAnimating = true;
 
-	IUsdSchemasModule& UsdSchemasModule = FModuleManager::Get().LoadModuleChecked< IUsdSchemasModule >(TEXT("USDSchemas"));
-	if (TSharedPtr< FUsdSchemaTranslator > SchemaTranslator = UsdSchemasModule.GetTranslatorRegistry().CreateTranslatorForSchema(TranslationContext, UE::FUsdTyped(SkeletonPrim)))
+	IUsdSchemasModule& UsdSchemasModule = FModuleManager::Get().LoadModuleChecked<IUsdSchemasModule>(TEXT("USDSchemas"));
+	if (TSharedPtr<FUsdSchemaTranslator> SchemaTranslator = UsdSchemasModule.GetTranslatorRegistry()
+																.CreateTranslatorForSchema(TranslationContext, UE::FUsdTyped(SkeletonPrim)))
 	{
 		if (TSharedPtr<FUsdSkelSkeletonTranslator> SkelRootTranslator = StaticCastSharedPtr<FUsdSkelSkeletonTranslator>(SchemaTranslator))
 		{
@@ -4864,7 +4884,7 @@ void AUsdStageActor::OnSkelAnimationBaked(const FString& SkeletonPrimPath)
 			SkelRootTranslator->UpdateComponents(SkeletalMeshComponent);
 		}
 	}
-#endif // #if USE_USD_SDK
+#endif	  // #if USE_USD_SDK
 }
 
 bool AUsdStageActor::UnloadAssets(const UE::FSdfPath& StartPrimPath, bool bForEntireSubtree)
@@ -4937,21 +4957,19 @@ bool AUsdStageActor::LoadAsset(FUsdSchemaTranslationContext& TranslationContext,
 	}
 
 	// Mark the assets as non transactional so that they don't get serialized in the transaction buffer
-	TGuardValue< EObjectFlags > ContextFlagsGuard(TranslationContext.ObjectFlags, TranslationContext.ObjectFlags & ~RF_Transactional);
+	TGuardValue<EObjectFlags> ContextFlagsGuard(TranslationContext.ObjectFlags, TranslationContext.ObjectFlags & ~RF_Transactional);
 
 	int32 StartNumAssets = UsdAssetCache->GetNumAssets();
 
-	IUsdSchemasModule& UsdSchemasModule = FModuleManager::Get().LoadModuleChecked< IUsdSchemasModule >(TEXT("USDSchemas"));
-	if (TSharedPtr< FUsdSchemaTranslator > SchemaTranslator = UsdSchemasModule.GetTranslatorRegistry().CreateTranslatorForSchema(
-		TranslationContext.AsShared(),
-		UE::FUsdTyped(Prim)
-	))
+	IUsdSchemasModule& UsdSchemasModule = FModuleManager::Get().LoadModuleChecked<IUsdSchemasModule>(TEXT("USDSchemas"));
+	if (TSharedPtr<FUsdSchemaTranslator> SchemaTranslator = UsdSchemasModule.GetTranslatorRegistry()
+																.CreateTranslatorForSchema(TranslationContext.AsShared(), UE::FUsdTyped(Prim)))
 	{
 		TRACE_CPUPROFILER_EVENT_SCOPE(AUsdStageActor::CreateAssetsForPrim);
 		SchemaTranslator->CreateAssets();
 	}
 
-	TranslationContext.CompleteTasks(); // Finish the asset tasks before moving on
+	TranslationContext.CompleteTasks();	   // Finish the asset tasks before moving on
 
 	return UsdAssetCache->GetNumAssets() != StartNumAssets;
 }
@@ -4966,13 +4984,13 @@ bool AUsdStageActor::LoadAssets(FUsdSchemaTranslationContext& TranslationContext
 	}
 
 	// Mark the assets as non transactional so that they don't get serialized in the transaction buffer
-	TGuardValue< EObjectFlags > ContextFlagsGuard(TranslationContext.ObjectFlags, TranslationContext.ObjectFlags & ~RF_Transactional);
+	TGuardValue<EObjectFlags> ContextFlagsGuard(TranslationContext.ObjectFlags, TranslationContext.ObjectFlags & ~RF_Transactional);
 
 	int32 StartNumAssets = UsdAssetCache->GetNumAssets();
 
-	IUsdSchemasModule& UsdSchemasModule = FModuleManager::Get().LoadModuleChecked< IUsdSchemasModule >(TEXT("USDSchemas"));
+	IUsdSchemasModule& UsdSchemasModule = FModuleManager::Get().LoadModuleChecked<IUsdSchemasModule>(TEXT("USDSchemas"));
 
-	auto CreateAssetsForPrims = [&UsdSchemasModule, &TranslationContext](const TArray< UE::FUsdPrim >& AllPrimAssets, FSlowTask& Progress)
+	auto CreateAssetsForPrims = [&UsdSchemasModule, &TranslationContext](const TArray<UE::FUsdPrim>& AllPrimAssets, FSlowTask& Progress)
 	{
 		TRACE_CPUPROFILER_EVENT_SCOPE(AUsdStageActor::CreateAssetsForPrims);
 
@@ -4980,25 +4998,23 @@ bool AUsdStageActor::LoadAssets(FUsdSchemaTranslationContext& TranslationContext
 		{
 			Progress.EnterProgressFrame(1.f);
 
-			if (TSharedPtr< FUsdSchemaTranslator > SchemaTranslator = UsdSchemasModule.GetTranslatorRegistry().CreateTranslatorForSchema(
-				TranslationContext.AsShared(),
-				UE::FUsdTyped(UsdPrim)
-			))
+			if (TSharedPtr<FUsdSchemaTranslator> SchemaTranslator = UsdSchemasModule.GetTranslatorRegistry().CreateTranslatorForSchema(
+					TranslationContext.AsShared(),
+					UE::FUsdTyped(UsdPrim)
+				))
 			{
 				TRACE_CPUPROFILER_EVENT_SCOPE(AUsdStageActor::CreateAssetsForPrim);
 				SchemaTranslator->CreateAssets();
 			}
 		}
 
-		TranslationContext.CompleteTasks(); // Finish the assets tasks before moving on
+		TranslationContext.CompleteTasks();	   // Finish the assets tasks before moving on
 	};
 
 	auto PruneChildren = [&UsdSchemasModule, &TranslationContext](const UE::FUsdPrim& UsdPrim) -> bool
 	{
-		if (TSharedPtr< FUsdSchemaTranslator > SchemaTranslator = UsdSchemasModule.GetTranslatorRegistry().CreateTranslatorForSchema(
-			TranslationContext.AsShared(),
-			UE::FUsdTyped(UsdPrim)
-		))
+		if (TSharedPtr<FUsdSchemaTranslator> SchemaTranslator = UsdSchemasModule.GetTranslatorRegistry()
+																	.CreateTranslatorForSchema(TranslationContext.AsShared(), UE::FUsdTyped(UsdPrim)))
 		{
 			return SchemaTranslator->CollapsesChildren(ECollapsingType::Assets);
 		}
@@ -5007,7 +5023,7 @@ bool AUsdStageActor::LoadAssets(FUsdSchemaTranslationContext& TranslationContext
 	};
 
 	// Load materials first since meshes are referencing them
-	TArray< UE::FUsdPrim > AllPrimAssets = UsdUtils::GetAllPrimsOfType(StartPrim, TEXT("UsdShadeMaterial"));
+	TArray<UE::FUsdPrim> AllPrimAssets = UsdUtils::GetAllPrimsOfType(StartPrim, TEXT("UsdShadeMaterial"));
 	{
 		FScopedSlowTask MaterialsProgress(AllPrimAssets.Num(), LOCTEXT("CreateMaterials", "Creating materials"));
 		CreateAssetsForPrims(AllPrimAssets, MaterialsProgress);
@@ -5034,7 +5050,10 @@ void AUsdStageActor::AnimatePrims()
 		return;
 	}
 
-	TSharedRef< FUsdSchemaTranslationContext > TranslationContext = FUsdStageActorImpl::CreateUsdSchemaTranslationContext(this, GetRootPrimTwin()->PrimPath);
+	TSharedRef<FUsdSchemaTranslationContext> TranslationContext = FUsdStageActorImpl::CreateUsdSchemaTranslationContext(
+		this,
+		GetRootPrimTwin()->PrimPath
+	);
 
 	// c.f. comment on bSequencerIsAnimating's declaration
 #if WITH_EDITOR
@@ -5047,14 +5066,17 @@ void AUsdStageActor::AnimatePrims()
 			TranslationContext->bSequencerIsAnimating = true;
 		}
 	}
-#endif // WITH_EDITOR
+#endif	  // WITH_EDITOR
 
 	for (const FString& PrimToAnimate : PrimsToAnimate)
 	{
 		UE::FSdfPath PrimPath(*PrimToAnimate);
 
-		IUsdSchemasModule& SchemasModule = FModuleManager::Get().LoadModuleChecked< IUsdSchemasModule >("USDSchemas");
-		if (TSharedPtr< FUsdSchemaTranslator > SchemaTranslator = SchemasModule.GetTranslatorRegistry().CreateTranslatorForSchema(TranslationContext, UE::FUsdTyped(CurrentStage.GetPrimAtPath(PrimPath))))
+		IUsdSchemasModule& SchemasModule = FModuleManager::Get().LoadModuleChecked<IUsdSchemasModule>("USDSchemas");
+		if (TSharedPtr<FUsdSchemaTranslator> SchemaTranslator = SchemasModule.GetTranslatorRegistry().CreateTranslatorForSchema(
+				TranslationContext,
+				UE::FUsdTyped(CurrentStage.GetPrimAtPath(PrimPath))
+			))
 		{
 			if (UUsdPrimTwin* UsdPrimTwin = GetRootPrimTwin()->Find(PrimToAnimate))
 			{

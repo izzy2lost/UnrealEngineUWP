@@ -43,7 +43,8 @@ public:
 	/** Sets the asset cache to use when fetching assets and asset info required for the level sequence animation, like UAnimSequences */
 	void SetInfoCache(TSharedPtr<FUsdInfoCache> InInfoCache);
 
-	/** Sets the BBoxCache to use when importing bound animations for prims. Needed for importing, where we don't have a stage actor to take the BBoxCache from */
+	/** Sets the BBoxCache to use when importing bound animations for prims. Needed for importing, where we don't have a stage actor to take the
+	 * BBoxCache from */
 	void SetBBoxCache(TSharedPtr<UE::FUsdGeomBBoxCache> InBBoxCache);
 
 	/* Returns true if we have at least one possessable or a reference to a subsequence */
@@ -85,7 +86,7 @@ public:
 	/** Removes any track associated with this prim */
 	void RemovePrim(const UUsdPrimTwin& PrimTwin);
 
-	void UpdateControlRigTracks( UUsdPrimTwin& PrimTwin );
+	void UpdateControlRigTracks(UUsdPrimTwin& PrimTwin);
 
 	/** Blocks updating the level sequences & tracks from object changes. */
 	void StartMonitoringChanges();
@@ -93,9 +94,9 @@ public:
 	void BlockMonitoringChangesForThisTransaction();
 
 	ULevelSequence* GetMainLevelSequence() const;
-	TArray< ULevelSequence* > GetSubSequences() const;
+	TArray<ULevelSequence*> GetSubSequences() const;
 
-	DECLARE_EVENT_OneParam( FUsdLevelSequenceHelper, FOnSkelAnimationBaked, const FString& /*SkeletonPrimPath*/ );
+	DECLARE_EVENT_OneParam(FUsdLevelSequenceHelper, FOnSkelAnimationBaked, const FString& /*SkeletonPrimPath*/);
 	FOnSkelAnimationBaked& GetOnSkelAnimationBaked();
 
 private:
@@ -106,15 +107,15 @@ private:
 class USDSTAGE_API FScopedBlockMonitoringChangesForTransaction final
 {
 public:
-	explicit FScopedBlockMonitoringChangesForTransaction( FUsdLevelSequenceHelper& InHelper );
-	explicit FScopedBlockMonitoringChangesForTransaction( FUsdLevelSequenceHelperImpl& InHelperImpl );
+	explicit FScopedBlockMonitoringChangesForTransaction(FUsdLevelSequenceHelper& InHelper);
+	explicit FScopedBlockMonitoringChangesForTransaction(FUsdLevelSequenceHelperImpl& InHelperImpl);
 	~FScopedBlockMonitoringChangesForTransaction();
 
 	FScopedBlockMonitoringChangesForTransaction() = delete;
-	FScopedBlockMonitoringChangesForTransaction( const FScopedBlockMonitoringChangesForTransaction& ) = delete;
-	FScopedBlockMonitoringChangesForTransaction( FScopedBlockMonitoringChangesForTransaction&& ) = delete;
-	FScopedBlockMonitoringChangesForTransaction& operator=( const FScopedBlockMonitoringChangesForTransaction& ) = delete;
-	FScopedBlockMonitoringChangesForTransaction& operator=( FScopedBlockMonitoringChangesForTransaction&& ) = delete;
+	FScopedBlockMonitoringChangesForTransaction(const FScopedBlockMonitoringChangesForTransaction&) = delete;
+	FScopedBlockMonitoringChangesForTransaction(FScopedBlockMonitoringChangesForTransaction&&) = delete;
+	FScopedBlockMonitoringChangesForTransaction& operator=(const FScopedBlockMonitoringChangesForTransaction&) = delete;
+	FScopedBlockMonitoringChangesForTransaction& operator=(FScopedBlockMonitoringChangesForTransaction&&) = delete;
 
 private:
 	FUsdLevelSequenceHelperImpl& HelperImpl;
