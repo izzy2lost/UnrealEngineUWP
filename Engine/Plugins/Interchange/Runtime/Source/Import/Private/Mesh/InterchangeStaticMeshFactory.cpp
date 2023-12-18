@@ -720,6 +720,7 @@ UInterchangeFactoryBase::FImportAssetResult UInterchangeStaticMeshFactory::EndIm
 
 void UInterchangeStaticMeshFactory::CommitMeshDescriptions(UStaticMesh& StaticMesh)
 {
+#if WITH_EDITOR
 	if (FApp::IsGame())
 	{
 		return;
@@ -738,6 +739,7 @@ void UInterchangeStaticMeshFactory::CommitMeshDescriptions(UStaticMesh& StaticMe
 
 		StaticMesh.CommitMeshDescription(LodIndex, CommitMeshDescriptionParams);
 	}
+#endif
 }
 
 void UInterchangeStaticMeshFactory::BuildFromMeshDescriptions(UStaticMesh& StaticMesh)
