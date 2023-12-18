@@ -108,6 +108,16 @@ public:
 	 * Conditionally update the text style if needed
 	 */
 	SLATE_API void ConditionallyUpdateTextStyle(const FTextBlockStyle::CompareParams& InNewStyleParams);
+	
+	/**
+	 * Update the text style.
+	 */
+	SLATE_API void UpdateTextStyle(const FTextBlockStyle& InTextStyle);
+
+	/**
+	 * Update the text style.
+	 */
+	SLATE_API void UpdateTextStyle(const FTextBlockStyle::CompareParams& InNewStyleParams);
 
 	/**
 	 * Get the computed desired size for this layout, updating the internal cache as required
@@ -125,7 +135,8 @@ public:
 	 */
 	UE_DEPRECATED(5.0, "FWidgetArgs is deprecated. Upgrade to FWidgetDesiredSizeArgs instead.")
 	SLATE_API FVector2D ComputeDesiredSize(const FWidgetArgs& InWidgetArgs, const float InScale, const FTextBlockStyle& InTextStyle);
-	SLATE_API PRAGMA_ENABLE_DEPRECATION_WARNINGS
+
+	PRAGMA_ENABLE_DEPRECATION_WARNINGS
 
 	/**
 	 * Gets the last computed desired size.

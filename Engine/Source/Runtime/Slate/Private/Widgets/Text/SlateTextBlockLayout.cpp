@@ -30,8 +30,7 @@ void FSlateTextBlockLayout::ConditionallyUpdateTextStyle(const FTextBlockStyle& 
 	// Has the style used for this text block changed?
 	if (!IsStyleUpToDate(InTextStyle))
 	{
-		TextLayout->SetDefaultTextStyle(InTextStyle);
-		Marshaller->MakeDirty(); // will regenerate the text using the new default style
+		UpdateTextStyle(InTextStyle);
 	}
 }
 
@@ -40,23 +39,34 @@ void FSlateTextBlockLayout::ConditionallyUpdateTextStyle(const FTextBlockStyle::
 	// Has the style used for this text block changed?
 	if (!IsStyleUpToDate(InNewStyleParams))
 	{
-		FTextBlockStyle ComputedStyle = InNewStyleParams.StyleBase;
-		ComputedStyle.SetFont(InNewStyleParams.Font);
-		if (InNewStyleParams.StrikeBrush)
-		{
-			ComputedStyle.SetStrikeBrush(*InNewStyleParams.StrikeBrush);
-		}
-		ComputedStyle.SetColorAndOpacity(InNewStyleParams.ColorAndOpacity);
-		ComputedStyle.SetShadowOffset(InNewStyleParams.ShadowOffset);
-		ComputedStyle.SetShadowColorAndOpacity(InNewStyleParams.ShadowColorAndOpacity);
-		ComputedStyle.SetHighlightColor(InNewStyleParams.HighlightColor);
-		if (InNewStyleParams.HighlightShape)
-		{
-			ComputedStyle.SetHighlightShape(*InNewStyleParams.HighlightShape);
-		}
-		TextLayout->SetDefaultTextStyle(MoveTemp(ComputedStyle));
-		Marshaller->MakeDirty(); // will regenerate the text using the new default style
+		UpdateTextStyle(InNewStyleParams);
 	}
+}
+
+void FSlateTextBlockLayout::UpdateTextStyle(const FTextBlockStyle& InTextStyle)
+{
+	TextLayout->SetDefaultTextStyle(InTextStyle);
+	Marshaller->MakeDirty(); // will regenerate the text in ComputeDesiredSize()
+}
+
+void FSlateTextBlockLayout::UpdateTextStyle(const FTextBlockStyle::CompareParams& InNewStyleParams)
+{
+	FTextBlockStyle ComputedStyle = InNewStyleParams.StyleBase;
+	ComputedStyle.SetFont(InNewStyleParams.Font);
+	if (InNewStyleParams.StrikeBrush)
+	{
+		ComputedStyle.SetStrikeBrush(*InNewStyleParams.StrikeBrush);
+	}
+	ComputedStyle.SetColorAndOpacity(InNewStyleParams.ColorAndOpacity);
+	ComputedStyle.SetShadowOffset(InNewStyleParams.ShadowOffset);
+	ComputedStyle.SetShadowColorAndOpacity(InNewStyleParams.ShadowColorAndOpacity);
+	ComputedStyle.SetHighlightColor(InNewStyleParams.HighlightColor);
+	if (InNewStyleParams.HighlightShape)
+	{
+		ComputedStyle.SetHighlightShape(*InNewStyleParams.HighlightShape);
+	}
+
+	UpdateTextStyle(ComputedStyle);
 }
 
 

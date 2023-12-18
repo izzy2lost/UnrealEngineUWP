@@ -2521,7 +2521,7 @@ void FTextLayout::SetScale( float Value )
 {
 	if (FMath::IsNaN(Value))
 	{
-		Value = 0.0;
+		Value = 0.0f;
 	}
 
 	if (Scale != Value)

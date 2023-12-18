@@ -297,10 +297,13 @@ public:
 
 private:
 	/** Get the computed text style to use with the text marshaller */
-	SLATE_API FTextBlockStyle GetComputedTextStyle() const;
+	FTextBlockStyle GetComputedTextStyle() const;
+
+	/** Update the TextBlock layout. */
+	void UpdateTextBlockLayout(float LayoutScaleMultiplier) const;
 
 	/** Call to invalidate this text block */
-	SLATE_API void InvalidateText(EInvalidateWidgetReason InvalidateReason);
+	void InvalidateText(EInvalidateWidgetReason InvalidateReason);
 
 private:
 	/** The text displayed in this text block */
@@ -368,6 +371,7 @@ private:
 	{
 		struct 
 		{
+			//~ for attribute
 			uint16 bIsAttributeBoundTextBound : 1;
 			uint16 bIsAttributeFontSet : 1;
 			uint16 bIsAttributeStrikeBrushSet : 1;
@@ -378,6 +382,9 @@ private:
 			uint16 bIsAttributeHighlightShapeSet : 1;
 			uint16 bIsAttributeWrapTextAtSet : 1;
 			uint16 bIsAttributeTransformPolicySet : 1;
+			//~ for TextBlockLayout
+			mutable uint16 bTextLayoutUpdateTextStyle : 1;
+			mutable uint16 bTextLayoutUpdateDesiredSize : 1;
 		};
 		uint16 Union_Flags;
 	};
