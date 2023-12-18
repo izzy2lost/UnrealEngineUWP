@@ -151,7 +151,6 @@ private:
 		bool bExposeOnSpawn = false;
 		bool bPrivate = false;
 		bool bReadOnly = false;
-		bool bInstanced = false;
 
 		const FProperty* Property = nullptr;
 	};

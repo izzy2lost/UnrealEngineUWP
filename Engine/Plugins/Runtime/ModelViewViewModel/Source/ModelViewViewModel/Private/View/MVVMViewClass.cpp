@@ -38,33 +38,11 @@ UObject* FMVVMViewClass_Source::GetOrCreateInstance(const UMVVMViewClass* InView
 	UObject* Result = nullptr;
 	const bool bOptional = IsOptional();
 
-	auto GetInstanceObjectFromProperty = [&]() -> bool
-	{
-		TValueOrError<UE::MVVM::FFieldContext, void> FieldPathResult = InViewClass->GetBindingLibrary().EvaluateFieldPath(InUserWidget, FieldPath);
-		if (FieldPathResult.HasValue())
-		{
-			TValueOrError<UObject*, void> ObjectResult = UE::MVVM::FieldPathHelper::EvaluateObjectProperty(FieldPathResult.GetValue());
-			if (ObjectResult.HasValue() && ObjectResult.GetValue() != nullptr)
-			{
-				Result = ObjectResult.GetValue();
-			}
-		}
-
-		return Result != nullptr || bOptional;
-	};
-
 	if ((Flags & (uint16)EFlags::TypeCreateInstance) != 0)
 	{
 		if (ExpectedSourceType.Get() != nullptr)
 		{
-			if (ensure(FieldPath.IsValid()))
-			{
-				if (!GetInstanceObjectFromProperty())
-				{
-					UE::MVVM::FMessageLog Log(InUserWidget);
-					Log.Error(FText::Format(LOCTEXT("CreateInstanceInvalidStaticInstance", "The source '{0}' was not found for the static view model at initialization."), FText::FromName(PropertyName)));
-				}
-			}
+			Result = NewObject<UObject>(InUserWidget, ExpectedSourceType.Get(), NAME_None, RF_Transient);
 		}
 		else if (!bOptional)
 		{
@@ -128,10 +106,20 @@ UObject* FMVVMViewClass_Source::GetOrCreateInstance(const UMVVMViewClass* InView
 	}
 	else if (FieldPath.IsValid())
 	{
-		if (!GetInstanceObjectFromProperty())
+		TValueOrError<UE::MVVM::FFieldContext, void> FieldPathResult = InViewClass->GetBindingLibrary().EvaluateFieldPath(InUserWidget, FieldPath);
+		if (FieldPathResult.HasValue())
+		{
+			TValueOrError<UObject*, void> ObjectResult = UE::MVVM::FieldPathHelper::EvaluateObjectProperty(FieldPathResult.GetValue());
+			if (ObjectResult.HasValue() && ObjectResult.GetValue() != nullptr)
+			{
+				Result = ObjectResult.GetValue();
+			}
+		}
+
+		if (Result == nullptr && !bOptional)
 		{
 			UE::MVVM::FMessageLog Log(InUserWidget);
-			Log.Error(FText::Format(LOCTEXT("CreateInstanceInvalidBinding", "The source '{0}' was evaluated to be invalid at initialization."), FText::FromName(PropertyName)));
+			Log.Error(FText::Format(LOCTEXT("CreateInstanceInvalidBiding", "The source '{0}' was evaluated to be invalid at initialization."), FText::FromName(PropertyName)));
 		}
 	}
 
@@ -246,7 +234,7 @@ FString FMVVMViewClass_Source::ToString(const UMVVMViewClass* ViewClass, FToStri
 		StringBuilder << TEXT("\n    CreationType: ");
 		if ((Flags & (uint8)EFlags::TypeCreateInstance) != 0)
 		{
-			StringBuilder << TEXT("CreateInstance");
+			StringBuilder << TEXT("CreateInsance");
 		}
 		else if (Resolver)
 		{
