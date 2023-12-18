@@ -742,6 +742,7 @@ public:
 
 	FVulkanDevice* Device;
 	VkImage Image;
+	VkImageUsageFlags ImageUsageFlags;
 	VkFormat StorageFormat;  // Removes SRGB if requested, used to upload data
 	VkFormat ViewFormat;  // Format for SRVs, render targets
 	VkMemoryPropertyFlags MemProps;

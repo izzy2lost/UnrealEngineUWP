@@ -373,7 +373,7 @@ FVulkanFramebuffer::FVulkanFramebuffer(FVulkanDevice& Device, const FRHISetRende
 				, ArraySliceIndex
 				, NumArraySlices
 				, true
-				, VK_IMAGE_USAGE_COLOR_ATTACHMENT_BIT
+				, VK_IMAGE_USAGE_COLOR_ATTACHMENT_BIT | (Texture->ImageUsageFlags & VK_IMAGE_USAGE_INPUT_ATTACHMENT_BIT)
 			);
 		}
 		else if (Texture->GetViewType() == VK_IMAGE_VIEW_TYPE_CUBE)
@@ -392,7 +392,7 @@ FVulkanFramebuffer::FVulkanFramebuffer(FVulkanDevice& Device, const FRHISetRende
 				, InRTInfo.ColorRenderTarget[Index].ArraySliceIndex
 				, 1
 				, true
-				, VK_IMAGE_USAGE_COLOR_ATTACHMENT_BIT
+				, VK_IMAGE_USAGE_COLOR_ATTACHMENT_BIT | (Texture->ImageUsageFlags & VK_IMAGE_USAGE_INPUT_ATTACHMENT_BIT)
 			);
 		}
 		else if (Texture->GetViewType() == VK_IMAGE_VIEW_TYPE_3D)
@@ -408,7 +408,7 @@ FVulkanFramebuffer::FVulkanFramebuffer(FVulkanDevice& Device, const FRHISetRende
 				, 0
 				, Desc.Depth
 				, true
-				, VK_IMAGE_USAGE_COLOR_ATTACHMENT_BIT
+				, VK_IMAGE_USAGE_COLOR_ATTACHMENT_BIT | (Texture->ImageUsageFlags & VK_IMAGE_USAGE_INPUT_ATTACHMENT_BIT)
 			);
 		}
 		else
