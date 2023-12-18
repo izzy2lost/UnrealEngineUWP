@@ -70,7 +70,7 @@ struct FMaterialInstanceBasePropertyOverrides
 	uint8 DitheredLODTransition : 1;
 
 	/** Whether the material should cast shadows as masked even though it has a translucent blend mode. */
-	UPROPERTY(EditAnywhere, Category = Material, meta = (editcondition = "bOverride_CastShadowAsMasked", NoSpinbox = true))
+	UPROPERTY(EditAnywhere, Category = Material, meta = (editcondition = "bOverride_CastDynamicShadowAsMasked", NoSpinbox = true))
 	uint8 bCastDynamicShadowAsMasked:1;
 
 	/** Whether the material should output velocity even though it has a translucent blend mode. */

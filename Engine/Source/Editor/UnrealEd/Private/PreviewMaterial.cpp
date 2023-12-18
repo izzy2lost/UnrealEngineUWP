@@ -964,6 +964,10 @@ void UMaterialEditorInstanceConstant::CopyBasePropertiesFromParent()
 	{
 		BasePropertyOverrides.MaxWorldPositionOffsetDisplacement = SourceInstance->GetMaxWorldPositionOffsetDisplacement();
 	}
+	if (!BasePropertyOverrides.bOverride_CastDynamicShadowAsMasked)
+	{
+		BasePropertyOverrides.bCastDynamicShadowAsMasked = SourceInstance->GetCastDynamicShadowAsMasked();
+	}
 
 	// Copy the Lightmass settings...
 	// The lightmass functions (GetCastShadowAsMasked, etc.) check if the value is overridden and returns the current value if so, otherwise returns the parent value

@@ -130,6 +130,8 @@ private:
 	void OnOverrideHasPixelAnimationChanged(bool NewValue);
 	void OnOverrideDisplacementScalingChanged(bool NewValue);
 	void OnOverrideMaxWorldPositionOffsetDisplacementChanged(bool NewValue);
+	bool OverrideCastDynamicShadowAsMaskedEnabled() const;
+	void OnOverrideCastDynamicShadowAsMaskedChanged(bool NewValue);
 
 private:
 	/** Object that stores all of the possible parameters we can edit */
