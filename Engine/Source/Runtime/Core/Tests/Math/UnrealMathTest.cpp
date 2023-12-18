@@ -4616,6 +4616,55 @@ TEST_CASE_NAMED(FMathWrapTest, "System::Core::Math::Wrap", "[ApplicationContextM
 		/* SizeTo   */   7.23,
 		/* SizeStep */   0.59
 	);
+
+	// Test large values far away from the range
+	WrapTest(
+		/* ValFrom  */  1 << 30,
+		/* ValTo    */  (1 << 30) + 1,
+		/* ValStep  */  1,
+		/* MinFrom  */  0,
+		/* MinTo    */  1,
+		/* MinStep  */  1,
+		/* SizeFrom */  2,
+		/* SizeTo   */  3,
+		/* SizeStep */  1
+	);
+	WrapTest(
+		/* ValFrom  */  (float)(1 << 25),
+		/* ValTo    */  (float)(1 << 25) + 4.0f,
+		/* ValStep  */  4.0f,
+		/* MinFrom  */  0.0f,
+		/* MinTo    */  1.0f,
+		/* MinStep  */  1.0f,
+		/* SizeFrom */  1.0f,
+		/* SizeTo   */  2.0f,
+		/* SizeStep */  1.0f
+	);
+	WrapTest(
+		/* ValFrom  */  (double)(1ull << 54),
+		/* ValTo    */  (double)(1ull << 54) + 4.0,
+		/* ValStep  */  4.0,
+		/* MinFrom  */  0.0,
+		/* MinTo    */  1.0,
+		/* MinStep  */  1.0,
+		/* SizeFrom */  1.0,
+		/* SizeTo   */  2.0,
+		/* SizeStep */  1.0
+	);
+
+	// Test constexpr
+	static_assert(FMath::Wrap(-3, 0, 5) == 2);
+	//static_assert(FMath::Wrap(-3.0f, 0.0f, 5.0f) == 2); // needs constexpr fmod support in C++23
+	//static_assert(FMath::Wrap(-3.0, 0.0, 5.0) == 2); // needs constexpr fmod support in C++23
+
+	// These will fail to compile due to signed overload if we don't use unsigned diffs in the implementation
+	static_assert(FMath::Wrap(MAX_int32, MIN_int32 + 2, MAX_int32)); // range size will overflow
+	static_assert(FMath::Wrap(MIN_int32, MAX_int32 - 2, MAX_int32)); // distance from val to min will overflow
+	static_assert(FMath::Wrap(MAX_int32, MIN_int32, MIN_int32 + 2)); // distance from max to val will overflow
+
+	// Try with bytes too, where the value is more than 128 away from the range
+	static_assert(FMath::Wrap((int8)123, (int8)-20, (int8)-10) == (int8)-17);
+	static_assert(FMath::Wrap((int8)-123, (int8)10, (int8)20) == (int8)17);
 }
 class FInitVectorTestClass {
 public:

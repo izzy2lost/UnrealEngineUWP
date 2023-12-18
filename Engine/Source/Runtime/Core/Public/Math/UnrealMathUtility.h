@@ -6,9 +6,7 @@
 #include "Misc/AssertionMacros.h"
 #include "HAL/PlatformMath.h"
 #include "Math/MathFwd.h"
-#include "Templates/Decay.h"
-#include "Templates/IsFloatingPoint.h"
-#include "Templates/IsIntegral.h"
+#include "Templates/Identity.h"
 
 // Assert on non finite numbers. Used to track NaNs.
 #ifndef ENABLE_NAN_DIAGNOSTIC
@@ -609,25 +607,32 @@ public:
 	template< class T >
 	UE_NODISCARD static constexpr FORCEINLINE T Wrap(const T X, const T Min, const T Max)
 	{
+		// Use unsigned type for integers to allow for large ranges which don't overflow on subtraction
+		// We don't do that for floating point types because there are no unsigned versions of those.  We
+		// could bump up to the next size up (though there's no `long double` on some platforms), but such
+		// values near the extremes are unlikely.
+		using SizeType = typename std::conditional_t<std::is_integral_v<T>, std::make_unsigned<T>, TIdentity<T>>::type;
+
 		// Our asserts are not constexpr-friendly yet
 		// checkSlow(Min <= Max);
 
-		T Size = Max - Min;
+		SizeType Size = (SizeType)Max - (SizeType)Min;
 		if (Size == 0)
 		{
-			// Guard against zero-sized ranges causing an infinite loop.
+			// Guard against zero-sized ranges causing division by zero.
 			return Max;
 		}
 
 		T EndVal = X;
-		while (EndVal < Min)
+		if (EndVal < Min)
 		{
-			EndVal += Size;
+			SizeType Mod = FMath::Modulo((SizeType)((SizeType)Min - (SizeType)EndVal), Size);
+			EndVal = (Mod != (T)0) ? (T)((SizeType)Max - Mod) : Min;
 		}
-
-		while (EndVal > Max)
+		else if (EndVal > Max)
 		{
-			EndVal -= Size;
+			T Mod = FMath::Modulo((SizeType)((SizeType)EndVal - (SizeType)Max), Size);
+			EndVal = (Mod != (T)0) ? (T)((SizeType)Min + Mod) : Max;
 		}
 		return EndVal;
 	}
@@ -2639,3 +2644,9 @@ namespace LWC
 
 } // namespace LWC
 } // namespace UE
+
+#if UE_ENABLE_INCLUDE_ORDER_DEPRECATED_IN_5_4
+#include "Templates/Decay.h"
+#include "Templates/IsFloatingPoint.h"
+#include "Templates/IsIntegral.h"
+#endif
