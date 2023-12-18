@@ -1220,6 +1220,16 @@ UMaterial* UMaterialInterface::GetBaseMaterial()
 	return GetMaterial();
 }
 
+void UMaterialInterface::OnAssignedAsOverride(const UObject* Owner)
+{
+
+}
+
+void UMaterialInterface::OnRemovedAsOverride(const UObject* Owner)
+{
+
+}
+
 bool DoesMaterialUseTexture(const UMaterialInterface* Material,const UTexture* CheckTexture)
 {
 	//Do not care if we're running dedicated server

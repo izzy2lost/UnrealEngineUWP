@@ -5,6 +5,7 @@
 
 #include "Async/TaskGraphInterfaces.h"
 #include "CoreMinimal.h"
+#include "Delegates/Delegate.h"
 #include "MaterialTypes.h"
 #include "Containers/ArrayView.h"
 #include "UObject/ObjectMacros.h"
@@ -252,6 +253,8 @@ public:
 	bool bLoadedCachedExpressionData = false;
 };
 
+DECLARE_MULTICAST_DELEGATE_OneParam(FOnBaseMaterialIsSet, UMaterialInterface*);
+
 UCLASS(abstract, BlueprintType, MinimalAPI, HideCategories = (Thumbnail))
 class UMaterialInterface : public UObject, public IBlendableInterface, public IInterface_AssetUserData
 {
@@ -289,6 +292,9 @@ public:
 	/** Whether this material interface is included in the base game (and not in a DLC) */
 	UPROPERTY()
 	uint8 bIncludedInBaseGame : 1;
+
+	/** Event triggered when the base material is set */
+	FOnBaseMaterialIsSet OnBaseMaterialSetEvent;
 
 	/* -------------------------- */
 
@@ -404,6 +410,11 @@ public:
 	/** Walks up parent chain and finds the base Material that this is an instance of. Just calls the virtual GetMaterial() */
 	UFUNCTION(BlueprintCallable, Category="Rendering|Material")
 	ENGINE_API UMaterial* GetBaseMaterial();
+
+	/** Callback triggered when the material has been assigned as an override material */
+	ENGINE_API virtual void OnAssignedAsOverride(const UObject* Owner);
+	/** Callback triggered when the material has been removed as an override material */
+	ENGINE_API virtual void OnRemovedAsOverride(const UObject* Owner);
 
 	/**
 	 * Get the material which we are instancing.

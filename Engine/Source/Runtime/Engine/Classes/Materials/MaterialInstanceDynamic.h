@@ -210,8 +210,12 @@ class UMaterialInstanceDynamic : public UMaterialInstance
 	// This overrides does the remapping before looking at the parent data.
 	ENGINE_API virtual float GetTextureDensity(FName TextureName, const struct FMeshUVChannelInfo& UVChannelData) const override;
 
-private:
+protected:
+
 	ENGINE_API void InitializeMID(class UMaterialInterface* ParentMaterial);
+
+private:
+	
 	ENGINE_API void UpdateCachedDataDynamic();
 };
 

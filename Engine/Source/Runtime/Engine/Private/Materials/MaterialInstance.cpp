@@ -3438,6 +3438,12 @@ bool UMaterialInstance::SetParentInternal(UMaterialInterface* NewParent, bool Re
 			InitResources();
 		}
 	}
+
+	if (bSetParent)
+	{
+		OnBaseMaterialSetEvent.Broadcast(this);
+	}
+
 	return bSetParent;
 }
 

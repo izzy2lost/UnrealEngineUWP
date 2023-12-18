@@ -178,6 +178,11 @@ public:
 		return (ParameterCache ? ParameterCache->ScalarParameterDefaultValue : 0.f);
 	}
 protected:
+
+	//~ Begin UObject Interface.
+	ENGINE_API virtual void BeginDestroy() override;
+	//~ End UObject Interface.
+
 	/** Get the default overlay material used by a mesh */
 	virtual UMaterialInterface* GetDefaultOverlayMaterial() const { return nullptr; };
 	

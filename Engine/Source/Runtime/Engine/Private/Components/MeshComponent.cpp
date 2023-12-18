@@ -85,8 +85,18 @@ void UMeshComponent::SetMaterial(int32 ElementIndex, UMaterialInterface* Materia
 				}
 			}	
 
+			if (UMaterialInterface* PreviousMaterial = OverrideMaterials[ElementIndex].Get())
+			{
+				PreviousMaterial->OnRemovedAsOverride(this);
+			}
+
 			// Set the material and invalidate things
 			OverrideMaterials[ElementIndex] = Material;
+
+			if (Material)
+			{
+				Material->OnAssignedAsOverride(this);
+			}
 
 			// Precache PSOs again
 			PrecachePSOs();
@@ -193,13 +203,24 @@ void UMeshComponent::PostEditChangeChainProperty(FPropertyChangedChainEvent& Pro
 void UMeshComponent::CleanUpOverrideMaterials()
 {
 	bool bUpdated = false;
+	int32 NumMaterials = GetNumMaterials();
+	int32 NumOverrideMaterials = OverrideMaterials.Num();
 
 	// We have to remove material override Ids that are bigger then the material list
-	if (OverrideMaterials.Num() > GetNumMaterials())
+	if (NumOverrideMaterials > NumMaterials)
 	{
 		//Remove the override material id that are superior to the static mesh materials number
-		int32 RemoveCount = OverrideMaterials.Num() - GetNumMaterials();
-		OverrideMaterials.RemoveAt(GetNumMaterials(), RemoveCount);
+		int32 RemoveCount = NumOverrideMaterials - NumMaterials;
+
+		for (int32 MatIndex = NumMaterials; MatIndex < NumOverrideMaterials; MatIndex++)
+		{
+			if (UMaterialInterface* MatInterface = OverrideMaterials[MatIndex].Get())
+			{
+				MatInterface->OnRemovedAsOverride(this);
+			}
+		}
+
+		OverrideMaterials.RemoveAt(NumMaterials, RemoveCount);
 		bUpdated = true;
 	}
 
@@ -214,6 +235,14 @@ void UMeshComponent::EmptyOverrideMaterials()
 {
 	if (OverrideMaterials.Num())
 	{
+		for (int32 MatIndex = 0; MatIndex < OverrideMaterials.Num(); MatIndex++)
+		{
+			if (UMaterialInterface* MatInterface = OverrideMaterials[MatIndex].Get())
+			{
+				MatInterface->OnRemovedAsOverride(this);
+			}
+		}
+
 		OverrideMaterials.Reset();
 		MarkRenderStateDirty();
 	}
@@ -470,6 +499,21 @@ void UMeshComponent::MarkCachedMaterialParameterNameIndicesDirty()
 {
 	// Flag the cached material parameter indices as dirty
 	bCachedMaterialParameterIndicesAreDirty = true;
+}
+
+void UMeshComponent::BeginDestroy()
+{
+	for (int32 MatIndex = 0; MatIndex < OverrideMaterials.Num(); MatIndex++)
+	{
+		if (UMaterialInterface* MatInterface = OverrideMaterials[MatIndex].Get())
+		{
+			MatInterface->OnRemovedAsOverride(this);
+		}
+
+		OverrideMaterials[MatIndex] = nullptr;
+	}
+
+	Super::BeginDestroy();
 }
 
 void UMeshComponent::CacheMaterialParameterNameIndices()
