@@ -257,6 +257,7 @@ namespace Horde.Server.Perforce
 		public async Task RunAsync(ReplicatorId replicatorId, StreamConfig streamConfig, ReplicatorConfig replicatorConfig, CancellationToken cancellationToken = default)
 		{
 			RefName refName = new RefName(streamConfig.Id.ToString());
+			_logger.LogInformation("Starting replication background task for {ReplicatorId}", replicatorId);
 
 			using IStorageClient store = _storageService.CreateClient(Namespace.Perforce);
 
@@ -310,7 +311,7 @@ namespace Horde.Server.Perforce
 		/// <param name="cancellationToken">Cancellation token for the operation</param>
 		public async Task WriteAsync(ReplicatorId replicatorId, StreamConfig streamConfig, int change, PerforceReplicationOptions options, CancellationToken cancellationToken = default)
 		{
-			_logger.LogInformation("Replicating {StreamId} change {Change}", replicatorId, change);
+			_logger.LogInformation("Replicating {ReplicatorId} change {Change}", replicatorId, change);
 
 			IReplicator? replicator = await _replicatorCollection.GetOrAddAsync(replicatorId, cancellationToken: cancellationToken);
 			if (replicator.CurrentChange != change)
@@ -329,6 +330,7 @@ namespace Horde.Server.Perforce
 			}
 			catch (Exception ex)
 			{
+				_logger.LogError(ex, "Replication error for {ReplicatorId}: {Message}", replicatorId, ex.Message);
 				await replicator.TryUpdateAsync(new UpdateReplicatorOptions { NewError = ex.Message }, cancellationToken);
 				throw;
 			}

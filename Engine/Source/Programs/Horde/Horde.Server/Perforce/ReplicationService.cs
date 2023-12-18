@@ -119,8 +119,14 @@ namespace Horde.Server.Perforce
 		{
 			_logger.LogInformation("Started background task for replication of {ReplicatorId}", replicatorId);
 
+			ValueTask OnRetry(OnRetryArguments<object> args)
+			{
+				_logger.LogError(args.Outcome.Exception, "Replication for {ReplicatorId} failed (attempt {Count}): {Message}", replicatorId, args.AttemptNumber, args.Outcome.Exception?.Message ?? "(no exception)");
+				return default;
+			}
+
 			ResiliencePipeline pipeline = new ResiliencePipelineBuilder()
-				.AddRetry(new RetryStrategyOptions { MaxRetryAttempts = int.MaxValue })
+				.AddRetry(new RetryStrategyOptions { MaxRetryAttempts = int.MaxValue, OnRetry = OnRetry })
 				.Build();
 
 			await pipeline.ExecuteAsync(async ctx => await _replicator.RunAsync(replicatorId, streamConfig, replicatorConfig, ctx), cancellationToken);
