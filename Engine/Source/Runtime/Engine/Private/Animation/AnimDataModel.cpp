@@ -570,11 +570,21 @@ FGuid UAnimDataModel::GenerateGuid() const
 		UpdateSHAWithArray(Attribute.Identifier.GetBoneName().ToString().GetCharArray());
 		UpdateWithData(Attribute.Identifier.GetBoneIndex());
 		UpdateSHAWithArray(Attribute.Identifier.GetType()->GetFName().ToString().GetCharArray());
-		const uint32 StructSize = Attribute.Identifier.GetType()->GetPropertiesSize();
+		const UScriptStruct* TypeStruct = Attribute.Identifier.GetType();
+		const uint32 StructSize = TypeStruct->GetPropertiesSize();
+		const bool bHasTypeHash = TypeStruct->GetCppStructOps()->HasGetTypeHash();
 		for (const FAttributeKey& Key : Attribute.Curve.GetConstRefOfKeys())
 		{
 			UpdateWithData(Key.Time);
-			Sha.Update(Key.GetValuePtr<uint8>(), StructSize);
+			if (bHasTypeHash)
+			{
+				const uint32 KeyHash = TypeStruct->GetStructTypeHash(Key.GetValuePtr<uint8>());
+				UpdateWithData(KeyHash);
+			}
+			else
+			{
+				Sha.Update(Key.GetValuePtr<uint8>(), StructSize);
+			}
 		}
 	}
 

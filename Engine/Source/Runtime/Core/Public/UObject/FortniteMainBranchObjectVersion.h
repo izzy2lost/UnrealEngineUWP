@@ -402,6 +402,9 @@ struct FFortniteMainBranchObjectVersion
 		// Move AnimNext graphs to sub-entries of assets
 		AnimNextMoveGraphsToEntries,
 
+		// Removed debug information containing compressed data author, time etc. from animation DDC data as it introduces indeterminism
+		AnimationSequenceCompressedDataRemoveDebugData,
+
 		// -----<new versions can be added above this line>-------------------------------------------------
 		VersionPlusOne,
 		LatestVersion = VersionPlusOne - 1

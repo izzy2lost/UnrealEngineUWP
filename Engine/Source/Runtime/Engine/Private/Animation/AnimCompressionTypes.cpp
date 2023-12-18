@@ -1241,6 +1241,7 @@ void ICompressedAnimData::SerializeCompressedData(class FArchive& Ar)
 struct FAnimDDCDebugData
 {
 public:
+	FAnimDDCDebugData() {}
 	FAnimDDCDebugData(FName InOwnerName, const TArray<FRawAnimSequenceTrack>& RawData)
 	{
 		CompressedRawData = RawData;
@@ -1287,6 +1288,8 @@ FArchive& operator<<(FArchive& Ar, FAnimDDCDebugData& DebugData)
 
 void FCompressedAnimSequence::SerializeCompressedData(FArchive& Ar, bool bDDCData, UObject* DataOwner, USkeleton* Skeleton, UAnimBoneCompressionSettings* BoneCompressionSettings, UAnimCurveCompressionSettings* CurveCompressionSettings, bool bCanUseBulkData)
 {
+	Ar.UsingCustomVersion(FFortniteMainBranchObjectVersion::GUID);
+
 	Ar << CompressedRawDataSize;
 	Ar << CompressedTrackToSkeletonMapTable;
 	Ar << IndexedCurveNames;
@@ -1417,7 +1420,6 @@ void FCompressedAnimSequence::SerializeCompressedData(FArchive& Ar, bool bDDCDat
 		bool bSavebUseBulkDataForSave = false;
 		if (!bDDCData)
 		{
-			Ar.UsingCustomVersion(FFortniteMainBranchObjectVersion::GUID);
 			if (Ar.CustomVer(FFortniteMainBranchObjectVersion::GUID) < FFortniteMainBranchObjectVersion::FortMappedCookedAnimation)
 			{
 				bUseBulkDataForSave = false;
@@ -1503,13 +1505,10 @@ void FCompressedAnimSequence::SerializeCompressedData(FArchive& Ar, bool bDDCDat
 #if WITH_EDITOR
 	if (bDDCData)
 	{
-		FAnimDDCDebugData DebugData(OwnerName, CompressedRawData);
-		Ar << DebugData;
-
-		if (Ar.IsLoading() && Skeleton)
+		if (Ar.IsLoading() && Ar.CustomVer(FFortniteMainBranchObjectVersion::GUID) < FFortniteMainBranchObjectVersion::AnimationSequenceCompressedDataRemoveDebugData)
 		{
-			//Temp DDC debug
-			//DebugData.Display();
+			FAnimDDCDebugData DebugData;
+			Ar << DebugData;
 		}
 	}
 #endif
