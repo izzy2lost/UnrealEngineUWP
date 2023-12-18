@@ -74,7 +74,7 @@ namespace PCGAttributeAccessorHelpers
 			std::is_const_v<AccessorType> == std::is_const_v<DataType>
 		>
 	>
-	TUniquePtr<AccessorType> CreateAccessorImpl(DataType* InData, const FPCGAttributePropertySelector& InSelector)
+	TUniquePtr<AccessorType> CreateAccessorImpl(DataType* InData, const FPCGAttributePropertySelector& InSelector, bool bQuiet)
 	{
 		const FName Name = InSelector.GetName();
 		TUniquePtr<IPCGAttributeAccessor> Accessor;
@@ -99,7 +99,11 @@ namespace PCGAttributeAccessorHelpers
 
 			if (!Accessor.IsValid())
 			{
-				UE_LOG(LogPCG, Error, TEXT("[PCGAttributeAccessorHelpers::ConstAccessor] Expected to select an extra property but the data doesn't support this property."));
+				if (!bQuiet)
+				{
+					UE_LOG(LogPCG, Error, TEXT("[PCGAttributeAccessorHelpers::ConstAccessor] Expected to select an extra property but the data doesn't support this property."));
+				}
+				
 				return TUniquePtr<IPCGAttributeAccessor>();
 			}
 		}
@@ -108,7 +112,11 @@ namespace PCGAttributeAccessorHelpers
 		// We can't continue if it is a property wanted.
 		if (InSelector.GetSelection() == EPCGAttributePropertySelection::PointProperty && !Accessor.IsValid())
 		{
-			UE_LOG(LogPCG, Error, TEXT("[PCGAttributeAccessorHelpers::CreateAccessor] Expected to select a property but the data doesn't support this property."));
+			if (!bQuiet)
+			{
+				UE_LOG(LogPCG, Error, TEXT("[PCGAttributeAccessorHelpers::CreateAccessor] Expected to select a property but the data doesn't support this property."));
+			}
+			
 			return TUniquePtr<IPCGAttributeAccessor>();
 		}
 
@@ -136,7 +144,11 @@ namespace PCGAttributeAccessorHelpers
 			Accessor = CreateChainAccessor(std::move(Accessor), FName(ExtraName), bSuccess);
 			if (!bSuccess)
 			{
-				UE_LOG(LogPCG, Error, TEXT("[PCGAttributeAccessorHelpers::CreateAccessor] Extra selectors don't match existing properties."));
+				if (!bQuiet)
+				{
+					UE_LOG(LogPCG, Error, TEXT("[PCGAttributeAccessorHelpers::CreateAccessor] Extra selectors don't match existing properties."));
+				}
+				
 				return TUniquePtr<AccessorType>();
 			}
 		}
@@ -146,7 +158,11 @@ namespace PCGAttributeAccessorHelpers
 		{
 			if (Accessor && Accessor->IsReadOnly())
 			{
-				UE_LOG(LogPCG, Error, TEXT("[PCGAttributeAccessorHelpers::CreateAccessor] Attribute can not be written into, since it is read-only."));
+				if (!bQuiet)
+				{
+					UE_LOG(LogPCG, Error, TEXT("[PCGAttributeAccessorHelpers::CreateAccessor] Attribute can not be written into, since it is read-only."));
+				}
+				
 				return TUniquePtr<AccessorType>();
 			}
 
@@ -583,24 +599,24 @@ TUniquePtr<const IPCGAttributeAccessor> PCGAttributeAccessorHelpers::CreateConst
 	return TUniquePtr<const IPCGAttributeAccessor>{};
 }
 
-TUniquePtr<const IPCGAttributeAccessor> PCGAttributeAccessorHelpers::CreateConstAccessor(const UPCGData* InData, const FPCGAttributePropertySelector& InSelector)
+TUniquePtr<const IPCGAttributeAccessor> PCGAttributeAccessorHelpers::CreateConstAccessor(const UPCGData* InData, const FPCGAttributePropertySelector& InSelector, bool bQuiet)
 {
-	return CreateAccessorImpl<const IPCGAttributeAccessor, const UPCGData>(InData, InSelector);
+	return CreateAccessorImpl<const IPCGAttributeAccessor, const UPCGData>(InData, InSelector, bQuiet);
 }
 
-TUniquePtr<const IPCGAttributeAccessor> PCGAttributeAccessorHelpers::CreateConstAccessor(const FPCGMetadataAttributeBase* InAttribute, const UPCGMetadata* InMetadata)
+TUniquePtr<const IPCGAttributeAccessor> PCGAttributeAccessorHelpers::CreateConstAccessor(const FPCGMetadataAttributeBase* InAttribute, const UPCGMetadata* InMetadata, bool bQuiet)
 {
-	return CreateAttributeAccessorImpl<const IPCGAttributeAccessor>(const_cast<FPCGMetadataAttributeBase*>(InAttribute), const_cast<UPCGMetadata*>(InMetadata));
+	return CreateAttributeAccessorImpl<const IPCGAttributeAccessor>(const_cast<FPCGMetadataAttributeBase*>(InAttribute), const_cast<UPCGMetadata*>(InMetadata), bQuiet);
 }
 
-TUniquePtr<IPCGAttributeAccessor> PCGAttributeAccessorHelpers::CreateAccessor(UPCGData* InData, const FPCGAttributePropertySelector& InSelector)
+TUniquePtr<IPCGAttributeAccessor> PCGAttributeAccessorHelpers::CreateAccessor(UPCGData* InData, const FPCGAttributePropertySelector& InSelector, bool bQuiet)
 {
-	return CreateAccessorImpl<IPCGAttributeAccessor, UPCGData>(InData, InSelector);
+	return CreateAccessorImpl<IPCGAttributeAccessor, UPCGData>(InData, InSelector, bQuiet);
 }
 
-TUniquePtr<IPCGAttributeAccessor> PCGAttributeAccessorHelpers::CreateAccessor(FPCGMetadataAttributeBase* InAttribute, UPCGMetadata* InMetadata)
+TUniquePtr<IPCGAttributeAccessor> PCGAttributeAccessorHelpers::CreateAccessor(FPCGMetadataAttributeBase* InAttribute, UPCGMetadata* InMetadata, bool bQuiet)
 {
-	return CreateAttributeAccessorImpl<IPCGAttributeAccessor>(InAttribute, InMetadata);
+	return CreateAttributeAccessorImpl<IPCGAttributeAccessor>(InAttribute, InMetadata, bQuiet);
 }
 
 TUniquePtr<const IPCGAttributeAccessorKeys> PCGAttributeAccessorHelpers::CreateConstKeys(const UPCGData* InData, const FPCGAttributePropertySelector& InSelector)

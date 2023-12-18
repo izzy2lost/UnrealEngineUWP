@@ -4,7 +4,8 @@
 
 #include "PCGContext.h"
 #include "PCGData.h"
-#include "Metadata/PCGMetadata.h"
+#include "Metadata/Accessors/IPCGAttributeAccessor.h"
+#include "Metadata/Accessors/PCGAttributeAccessorHelpers.h"
 
 #define LOCTEXT_NAMESPACE "PCGFilterByAttributeElement"
 
@@ -42,7 +43,8 @@ bool FPCGFilterByAttributeElement::ExecuteInternal(FPCGContext* Context) const
 	const UPCGFilterByAttributeSettings* Settings = Context->GetInputSettings<UPCGFilterByAttributeSettings>();
 	check(Settings);
 
-	const FName Attribute = FName(Settings->Attribute);
+	FPCGAttributePropertySelector Selector;
+	Selector.Update(Settings->Attribute.ToString());
 
 	TArray<FPCGTaggedData> Inputs = Context->InputData.GetInputsByPin(PCGPinConstants::DefaultInputLabel);
 	TArray<FPCGTaggedData>& Outputs = Context->OutputData.TaggedData;
@@ -51,9 +53,15 @@ bool FPCGFilterByAttributeElement::ExecuteInternal(FPCGContext* Context) const
 	{
 		FPCGTaggedData& Output = Outputs.Add_GetRef(Input);
 		Output.Pin = PCGPinConstants::DefaultOutFilterLabel;
-		
-		const UPCGMetadata* Metadata = Input.Data ? Input.Data->ConstMetadata() : nullptr;
-		if (Metadata && Metadata->HasAttribute(Attribute))
+
+		if (!Input.Data)
+		{
+			continue;
+		}
+
+		TUniquePtr<const IPCGAttributeAccessor> Accessor = PCGAttributeAccessorHelpers::CreateConstAccessor(Input.Data, Selector, /*bQuiet=*/true);
+
+		if (Accessor && Accessor.IsValid())
 		{
 			Output.Pin = PCGPinConstants::DefaultInFilterLabel;
 		}
