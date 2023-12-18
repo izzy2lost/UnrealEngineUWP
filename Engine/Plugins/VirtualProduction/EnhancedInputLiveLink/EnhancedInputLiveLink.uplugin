@@ -1,0 +1,34 @@
+﻿{
+	"FileVersion": 3,
+	"Version": 1,
+	"VersionName": "1.0",
+	"FriendlyName": "EnhancedInputLiveLink",
+	"Description": "A lightweight plugin to enable Enhanced Input within a Virtual Live Link subject",
+	"Category": "Virtual Production",
+	"CreatedBy": "Epic Games Inc.",
+	"CreatedByURL": "Virtual Production",
+	"DocsURL": "",
+	"MarketplaceURL": "",
+	"CanContainContent": true,
+	"IsBetaVersion": true,
+	"IsExperimentalVersion": true,
+	"Installed": false,
+	"Modules": [
+		{
+			"Name": "EnhancedInputLiveLink",
+			"Type": "Editor",
+			"LoadingPhase": "Default"
+		}
+	],
+	"Plugins": [
+		{
+			"Name": "EnhancedInput",
+			"Enabled": true
+		},
+		{
+			"Name": "LiveLink",
+			"Enabled": true
+		}
+	],
+	"SupportURL": ""
+}
