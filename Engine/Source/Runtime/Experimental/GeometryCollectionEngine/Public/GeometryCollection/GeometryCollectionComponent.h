@@ -1763,6 +1763,8 @@ private:
 
 	GEOMETRYCOLLECTIONENGINE_API void OnPostPhysicsSync();
 
+	GEOMETRYCOLLECTIONENGINE_API void OnPostCreateParticles();
+
 	GEOMETRYCOLLECTIONENGINE_API bool HasVisibleGeometry() const;
 
 	/** backward compatibility method, until we can remove GlobalMatrices */

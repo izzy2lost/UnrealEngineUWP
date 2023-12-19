@@ -3860,6 +3860,8 @@ void UGeometryCollectionComponent::RegisterAndInitializePhysicsProxy()
 #endif
 	PhysicsProxy = new FGeometryCollectionPhysicsProxy(this, *DynamicCollection, SimulationParameters, InitialSimFilter, InitialQueryFilter, CollectorGuid);
 	PhysicsProxy->SetPostPhysicsSyncCallback([this]() { OnPostPhysicsSync(); });
+	PhysicsProxy->SetPostParticlesCreatedCallback([this]() { OnPostCreateParticles(); });
+
 
 	if (GetIsReplicated())
 	{
@@ -4152,6 +4154,11 @@ void UGeometryCollectionComponent::OnTransformsDirty()
 {
 	ComponentSpaceTransforms.MarkDirty();
 	ComponentSpaceBounds.Init();
+}
+
+void UGeometryCollectionComponent::OnPostCreateParticles()
+{
+	LoadCollisionProfiles();
 }
 
 void UGeometryCollectionComponent::OnPostPhysicsSync()

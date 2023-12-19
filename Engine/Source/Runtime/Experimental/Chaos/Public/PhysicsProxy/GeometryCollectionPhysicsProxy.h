@@ -523,6 +523,11 @@ public:
 	{
 		PostPhysicsSyncCallback = Callback;
 	}
+
+	void SetPostParticlesCreatedCallback(TFunction<void()> Callback)
+	{
+		PostParticlesCreatedCallback = Callback;
+	}
 	
 	CHAOS_API FClusterHandle* GetInitialRootHandle_Internal() const;
 
@@ -707,6 +712,7 @@ private:
 
 	// called after we sync the physics thread data ( called on the game thread )
 	TFunction<void()> PostPhysicsSyncCallback;
+	TFunction<void()> PostParticlesCreatedCallback;
 	
 	// Per object collision fraction.
 	float CollisionParticlesPerObjectFraction;
