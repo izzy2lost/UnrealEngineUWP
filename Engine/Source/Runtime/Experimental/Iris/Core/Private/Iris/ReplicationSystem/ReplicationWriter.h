@@ -505,7 +505,7 @@ private:
 	// Returns true object and subobjects can be created on remote
 	bool CanSendObject(uint32 InternalIndex) const;
 
-	inline bool IsInitialState(const EReplicatedObjectState State) const { return State == EReplicatedObjectState::PendingCreate || (bHighPrioCreate && State == EReplicatedObjectState::WaitOnCreateConfirmation); }
+	inline bool IsInitialState(const EReplicatedObjectState State) const { return State == EReplicatedObjectState::PendingCreate || State == EReplicatedObjectState::WaitOnCreateConfirmation; }
 
 	bool IsActiveHugeObject(uint32 InternalIndex) const;
 	bool IsObjectPartOfActiveHugeObject(uint32 InternalIndex, const FReplicationInfo& Info) const;

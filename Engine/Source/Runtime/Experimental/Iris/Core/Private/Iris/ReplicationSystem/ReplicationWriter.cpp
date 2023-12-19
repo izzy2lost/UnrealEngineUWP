@@ -1753,8 +1753,9 @@ bool FReplicationWriter::CanSendObject(uint32 InternalIndex) const
 		{
 			const FInternalNetRefIndex DependentInternalIndex = DependentObjectInfo.NetRefIndex;
 
-			// If the dependent object already has been written in this packet we are fine.
-			if (WriteContext.ObjectsWrittenThisPacket.GetBit(DependentInternalIndex))
+			// If the dependent object already has been written in this packet and is not part of a huge object we do not need to do any further checks.
+			// Note: To avoid waiting for ack of huge dependent object we could remove the special scheduling of dependent actors and instead handle this when we write the batch
+			if (WriteContext.ObjectsWrittenThisPacket.GetBit(DependentInternalIndex) && !IsActiveHugeObject(DependentInternalIndex))
 			{
 				continue;
 			}
