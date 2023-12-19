@@ -203,6 +203,12 @@ struct PBIK_API FPBIKSolver
 
 public:
 
+	FPBIKSolver& operator=(const FPBIKSolver&)
+	{
+		bReadyToSimulate = false;
+		return *this;
+	}
+
 	PBIK::FDebugDraw* GetDebugDraw();
 
 	//
