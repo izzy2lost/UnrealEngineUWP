@@ -1,6 +1,7 @@
 // Copyright Epic Games, Inc. All Rights Reserved.
 
 using EpicGames.Core;
+using EpicGames.Horde;
 using EpicGames.Horde.Artifacts;
 using EpicGames.Horde.Storage;
 using EpicGames.Horde.Storage.Clients;
@@ -541,7 +542,11 @@ namespace Horde.Storage.Utility
 		public static ArtifactName GetArtifactNameForNode(string name)
 		{
 			StringBuilder builder = new StringBuilder();
-			for (int idx = 0; idx < name.Length; idx++)
+
+			int prefixLength = Math.Min(name.Length, StringId.MaxLength - 10);
+			bool appendHash = name.Length > prefixLength;
+
+			for (int idx = 0; idx < prefixLength; idx++)
 			{
 				if (name[idx] >= 'A' && name[idx] <= 'Z')
 				{
@@ -555,11 +560,23 @@ namespace Horde.Storage.Utility
 				{
 					builder.Append('/');
 				}
-				else if (name.Length > 0 && name[name.Length - 1] != '-')
+				else if (name[idx] == ' ')
 				{
 					builder.Append('-');
 				}
+				else
+				{
+					appendHash = true;
+				}
 			}
+
+			if (appendHash)
+			{
+				IoHash hash = IoHash.Compute(Encoding.UTF8.GetBytes(name.ToUpperInvariant()));
+				builder.Append('-');
+				builder.Append(hash.ToString(), 0, 8);
+			}
+
 			return new ArtifactName(builder.ToString());
 		}
 

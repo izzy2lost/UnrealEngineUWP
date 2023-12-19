@@ -31,6 +31,11 @@ namespace EpicGames.Horde
 		};
 
 		/// <summary>
+		/// Maximum length for a string id
+		/// </summary>
+		public const int MaxLength = 64;
+
+		/// <summary>
 		/// The text representing this id
 		/// </summary>
 		public Utf8String Text { get; }
@@ -118,7 +123,6 @@ namespace EpicGames.Horde
 		/// <returns></returns>
 		public static Utf8String ValidateArgument(Utf8String text, string paramName)
 		{
-			const int MaxLength = 64;
 			if (text.Length > MaxLength)
 			{
 				throw new ArgumentException($"String id may not be longer than {MaxLength} characters", paramName);
