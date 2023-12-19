@@ -100,6 +100,11 @@ namespace Horde.Server.Jobs
 			public (JobId, JobStepBatchId) Id => (_job.Id, Batch.Id);
 
 			/// <summary>
+			/// Whether the item has been removed from the list
+			/// </summary>
+			public bool _removed;
+
+			/// <summary>
 			/// Constructor
 			/// </summary>
 			/// <param name="job">The job instance</param>
@@ -839,7 +844,10 @@ namespace Horde.Server.Jobs
 
 			// Clear out the assignment for this item, and try to reassign it
 			item._assignTask = null;
-			AssignQueueItemToAnyWaiter(item);
+			if (!item._removed)
+			{
+				AssignQueueItemToAnyWaiter(item);
+			}
 			return null;
 		}
 
@@ -1171,6 +1179,8 @@ namespace Horde.Server.Jobs
 
 			_queue.Remove(item);
 			_batchIdToQueueItem.Remove(item.Id);
+
+			item._removed = true;
 		}
 	}
 }
