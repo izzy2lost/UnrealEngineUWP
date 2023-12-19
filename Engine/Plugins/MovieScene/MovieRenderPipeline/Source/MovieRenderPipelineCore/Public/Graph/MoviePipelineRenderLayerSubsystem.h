@@ -681,7 +681,7 @@ private:
 	{
 		struct FComponentState
 		{
-			TSoftObjectPtr<UPrimitiveComponent> Component = nullptr;
+			TSoftObjectPtr<USceneComponent> Component = nullptr;
 			
 			uint8 bCastsShadows : 1 = true;
 			uint8 bCastShadowWhileHidden : 1 = false;
