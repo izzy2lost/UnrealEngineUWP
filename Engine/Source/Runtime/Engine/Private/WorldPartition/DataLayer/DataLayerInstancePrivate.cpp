@@ -62,6 +62,17 @@ bool UDataLayerInstancePrivate::PerformAddActor(AActor* InActor) const
 	return FAssignActorDataLayer::AddDataLayerAsset(InActor, DataLayerAsset);
 }
 
+bool UDataLayerInstancePrivate::CanAddActor(AActor* InActor) const
+{
+	if (!Super::CanAddActor(InActor))
+	{
+		return false;
+	}
+
+	return GetOuterWorldDataLayers() == InActor->GetLevel()->GetWorldDataLayers() && // Make sure the instance is part of the same WorldDataLayers as the actor's level WorldDataLayer.
+		   UDataLayerManager::GetDataLayerManager(InActor)->GetDataLayerInstance(DataLayerAsset) != nullptr; // Make sure the DataLayerInstance exists for this level
+}
+
 bool UDataLayerInstancePrivate::PerformRemoveActor(AActor* InActor) const
 {
 	return FAssignActorDataLayer::RemoveDataLayerAsset(InActor, DataLayerAsset);

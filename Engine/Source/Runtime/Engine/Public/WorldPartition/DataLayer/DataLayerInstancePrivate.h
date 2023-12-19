@@ -23,6 +23,7 @@ public:
 	virtual bool SupportsActorFilters() const override { return GetAsset()->SupportsActorFilters(); }
 	virtual bool IsIncludedInActorFilterDefault() const override { return bIsIncludedInActorFilterDefault; }
 	virtual bool CanEditDataLayerShortName() const override { return true; }
+	virtual bool CanAddActor(AActor* InActor) const override;
 #endif
 
 	virtual const UDataLayerAsset* GetAsset() const override { return DataLayerAsset; }
