@@ -1252,15 +1252,6 @@ void UWorld::BeginDestroy()
 	FAudioDeviceHandle EmptyHandle;
 	SetAudioDevice(EmptyHandle);
 	check(!AudioDeviceDestroyedHandle.IsValid());
-
-#if UE_WITH_IRIS
-	if (IrisSystemHolder.IsHolding())
-	{
-		UE::Net::FReplicationSystemFactory::DestroyReplicationSystem(IrisSystemHolder.ReplicationSystem);
-
-		IrisSystemHolder.Clear();
-	}
-#endif // UE_WITH_IRIS
 }
 
 void UWorld::ReleasePhysicsScene()
@@ -6811,16 +6802,6 @@ bool UWorld::Listen( FURL& InURL )
 	if (GEngine->CreateNamedNetDriver(this, NAME_GameNetDriver, NAME_GameNetDriver))
 	{
 		NetDriver = GEngine->FindNamedNetDriver(this, NAME_GameNetDriver);
-
-#if UE_WITH_IRIS
-		if (IrisSystemHolder.IsHolding())
-		{
-			NetDriver->RestoreIrisSystem(IrisSystemHolder.ReplicationSystem);
-			
-			IrisSystemHolder.Clear();
-		}
-#endif // UE_WITH_IRIS
-
 		NetDriver->SetWorld(this);
 		FLevelCollection* const SourceCollection = FindCollectionByType(ELevelCollectionType::DynamicSourceLevels);
 		if (SourceCollection)
@@ -8951,17 +8932,6 @@ void UWorld::DuplicateRequestedLevels(const FName MapName)
 		}	
 	}
 }
-
-#if UE_WITH_IRIS
-void UWorld::StoreIrisAndClearReferences()
-{
-	if (NetDriver)
-	{
-		IrisSystemHolder.ReplicationSystem = NetDriver->GetReplicationSystem();
-		NetDriver->ClearIrisSystem();
-	}
-}
-#endif // UE_WITH_IRIS
 
 #if WITH_EDITOR
 void UWorld::ChangeFeatureLevel(ERHIFeatureLevel::Type InFeatureLevel, bool bShowSlowProgressDialog )
