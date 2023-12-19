@@ -89,24 +89,24 @@ FString FMVVMBlueprintPinId::ToString() const
  *
  */
 FMVVMBlueprintPin::FMVVMBlueprintPin(FName InPinName)
-	: PinId(MakeArrayView(&InPinName, 1))
+	: Id(MakeArrayView(&InPinName, 1))
 {
 }
 
 FMVVMBlueprintPin::FMVVMBlueprintPin(FMVVMBlueprintPinId InPinId)
-	: PinId(MoveTemp(InPinId))
+	: Id(MoveTemp(InPinId))
 {
 }
 
 FMVVMBlueprintPin::FMVVMBlueprintPin(const TArrayView<const FName> InPinNames)
-	: PinId(InPinNames)
+	: Id(InPinNames)
 {
 }
 
 FMVVMBlueprintPin FMVVMBlueprintPin::CreateFromPin(const UBlueprint* Blueprint, const UEdGraphPin* Pin)
 {
 	FMVVMBlueprintPin Result;
-	Result.PinId = FMVVMBlueprintPinId(UE::MVVM::ConversionFunctionHelper::FindPinId(Pin));
+	Result.Id = FMVVMBlueprintPinId(UE::MVVM::ConversionFunctionHelper::FindPinId(Pin));
 	Result.Path = UE::MVVM::ConversionFunctionHelper::GetPropertyPathForPin(Blueprint, Pin, true);
 	Result.DefaultObject = Pin->DefaultObject;
 	Result.DefaultString = Pin->DefaultValue;
@@ -232,7 +232,7 @@ TArray<FMVVMBlueprintPin> FMVVMBlueprintPin::CreateFromNode(UBlueprint* Blueprin
 
 UEdGraphPin* FMVVMBlueprintPin::FindGraphPin(const UEdGraph* Graph) const
 {
-	return UE::MVVM::ConversionFunctionHelper::FindPin(Graph, PinId.GetNames());
+	return UE::MVVM::ConversionFunctionHelper::FindPin(Graph, Id.GetNames());
 }
 
 void FMVVMBlueprintPin::Reset()
@@ -251,7 +251,7 @@ void FMVVMBlueprintPin::PostSerialize(const FArchive& Ar)
 	{
 		if (PinName_DEPRECATED.IsValid())
 		{
-			PinId = FMVVMBlueprintPinId(MakeArrayView(&PinName_DEPRECATED, 1));
+			Id = FMVVMBlueprintPinId(MakeArrayView(&PinName_DEPRECATED, 1));
 			PinName_DEPRECATED = FName();
 		}
 	}

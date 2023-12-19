@@ -65,7 +65,7 @@ struct MODELVIEWVIEWMODELBLUEPRINT_API FMVVMBlueprintPin
 
 private:	
 	UPROPERTY(VisibleAnywhere, Category = "MVVM")
-	FMVVMBlueprintPinId PinId;
+	FMVVMBlueprintPinId Id;
 
 	UPROPERTY(VisibleAnywhere, Category = "MVVM")
 	FMVVMBlueprintPropertyPath Path;
@@ -92,6 +92,9 @@ private:
 
 	UPROPERTY()
 	FName PinName_DEPRECATED;
+	
+	UPROPERTY()
+	FGuid PinId_DEPRECATED;
 
 public:
 	FMVVMBlueprintPin() = default;
@@ -103,17 +106,17 @@ public:
 	UE_DEPRECATED(5.4, "GetName is deprecated. Use GetNames instead")
 	FName GetName() const
 	{
-		return PinId.GetNames().Num() > 0 ? PinId.GetNames().Last() : FName();
+		return Id.GetNames().Num() > 0 ? Id.GetNames().Last() : FName();
 	}
 
 	const FMVVMBlueprintPinId& GetId() const
 	{
-		return PinId;
+		return Id;
 	}
 
 	bool IsValid() const
 	{
-		return PinId.IsValid();
+		return Id.IsValid();
 	}
 
 	/** The pin is split into its different components. */
