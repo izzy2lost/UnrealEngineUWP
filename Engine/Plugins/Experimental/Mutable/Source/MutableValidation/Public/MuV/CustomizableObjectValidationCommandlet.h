@@ -19,27 +19,27 @@ public:
 	virtual int32 Main(const FString& Params) override;
 	
 private:
-
 	/** Customizable Object to be tested */
 	UPROPERTY()
-	UCustomizableObject* ToTestCustomizableObject = nullptr;
+	TObjectPtr<UCustomizableObject> ToTestCustomizableObject = nullptr;
 	
-	/** Customizable Object Instance currently being updated*/
+	/** Customizable Object Instance currently being updated */
 	UPROPERTY()
-	UCustomizableObjectInstance* InstanceBeingUpdated = nullptr;
+	TObjectPtr<UCustomizableObjectInstance> InstanceBeingUpdated = nullptr;
 
-	/** Array of COI to be generated with randomized parameter values*/
+	/** Customizable Skeletal Component currently being updated */
 	UPROPERTY()
-	TArray<UCustomizableObjectInstance*> InstancesToProcess;
+	TArray<TObjectPtr<USkeletalMeshComponent>> ComponentsBeingUpdated;
+
+	/** Array of COI to be generated with randomized parameter values */
+	UPROPERTY()
+	TArray<TObjectPtr<UCustomizableObjectInstance>> InstancesToProcess;
 	
-	/** Handle to be able to unbind OnInstanceUpdated(...) from instance end of update delegate.*/
+	/** Handle to be able to unbind OnInstanceUpdated(...) from instance end of update delegate. */
 	FDelegateHandle OnInstanceUpdateHandle;
 
-	/** Did any of the instances fail the UpdateSkeletalMesh process?*/
+	/** Did any of the instances fail the UpdateSkeletalMesh process? */
 	bool bInstanceFailedUpdate = false;
-
-	// Instance update delegate
-	FInstanceUpdateDelegate InstanceUpdateDelegate;
 
 	/** Callback invoked once the currently updating instance has done the update.
 	 * @paragm Result is a container that provides us with data related with the instance updating process.
