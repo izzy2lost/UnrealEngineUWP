@@ -57,6 +57,9 @@ private:
 	const FName CookingSpanName = TEXT("Cooking");
 	const FName OpenAssetEditorSpan = TEXT("Open Asset Editor");
 
+	TMap<FString, TSharedPtr<IAnalyticsSpan>> TaskSpans;
+	FCriticalSection TaskSpanCriticalSection;
+
 	FString LevelName;
 	double SessionStartTime;
 	double AssetOpenStartTime;
