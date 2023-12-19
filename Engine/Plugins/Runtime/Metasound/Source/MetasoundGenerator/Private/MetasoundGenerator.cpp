@@ -26,6 +26,8 @@
 #define ENABLE_METASOUNDGENERATOR_INVALID_SAMPLE_VALUE_LOGGING !UE_BUILD_SHIPPING
 #endif
 
+CSV_DECLARE_CATEGORY_MODULE_EXTERN(METASOUNDGRAPHCORE_API, Audio_Metasound);
+
 namespace Metasound
 {
 	namespace ConsoleVariables
@@ -554,6 +556,7 @@ PRAGMA_ENABLE_DEPRECATION_WARNINGS
 	{
 		METASOUND_LLM_SCOPE;
 		METASOUND_TRACE_CPUPROFILER_EVENT_SCOPE_TEXT(*FString::Printf(TEXT("MetasoundGenerator::OnGenerateAudio %s"), *MetasoundName));
+		CSV_SCOPED_TIMING_STAT(Audio_Metasound, OnGenerateAudio);
 
 		// Defer finishing the metasound generator one block
 		if (bIsFinishTriggered)
@@ -574,6 +577,7 @@ PRAGMA_ENABLE_DEPRECATION_WARNINGS
 		if (bIsWaitingForFirstGraph)
 		{
 			METASOUND_TRACE_CPUPROFILER_EVENT_SCOPE_TEXT(*FString::Printf(TEXT("MetasoundGenerator::OnGenerateAudio::MissedRenderDeadline %s"), *MetasoundName));
+			CSV_CUSTOM_STAT(Audio_Metasound, WaitingForGraphBuildOnPlaybackCount, 1, ECsvCustomStatOp::Accumulate);
 			FMemory::Memset(OutAudio, 0, sizeof(float)* NumSamplesRemaining);
 			return NumSamplesRemaining;
 		}
@@ -836,8 +840,12 @@ PRAGMA_ENABLE_DEPRECATION_WARNINGS
 	{
 	}
 
+	static FThreadSafeCounter NumActiveConstGraphs;
 	void FMetasoundConstGraphGenerator::Init(FMetasoundGeneratorInitParams&& InParams)
 	{
+		NumActiveConstGraphs.Increment();
+		CSV_CUSTOM_STAT(Audio_Metasound, NumActiveConstGraphs, NumActiveConstGraphs.GetValue(), ECsvCustomStatOp::Set);
+
 		InitBase(InParams);
 		// attempt to use operator cache instead of building a new operator.
 		bool bDidUseCachedOperator = false;
@@ -861,6 +869,9 @@ PRAGMA_ENABLE_DEPRECATION_WARNINGS
 
 	FMetasoundConstGraphGenerator::~FMetasoundConstGraphGenerator()
 	{
+		NumActiveConstGraphs.Decrement();
+		CSV_CUSTOM_STAT(Audio_Metasound, NumActiveConstGraphs, NumActiveConstGraphs.GetValue(), ECsvCustomStatOp::Set);
+
 		if (BuilderTask.IsValid())
 		{
 			BuilderTask->EnsureCompletion();
@@ -973,17 +984,24 @@ PRAGMA_ENABLE_DEPRECATION_WARNINGS
 	{
 	}
 
+	static FThreadSafeCounter NumActiveDynamicGraphs;
 	FMetasoundDynamicGraphGenerator::~FMetasoundDynamicGraphGenerator()
 	{
+		NumActiveDynamicGraphs.Decrement();
+		CSV_CUSTOM_STAT(Audio_Metasound, NumActiveDynamicGraphs, NumActiveDynamicGraphs.GetValue(), ECsvCustomStatOp::Set);
+
 		if (BuilderTask.IsValid())
 		{
 			BuilderTask->EnsureCompletion();
 			BuilderTask = nullptr;
 		}
 	}
-
+	
 	void FMetasoundDynamicGraphGenerator::Init(FMetasoundDynamicGraphGeneratorInitParams&& InParams)
 	{
+		NumActiveDynamicGraphs.Increment();
+		CSV_CUSTOM_STAT(Audio_Metasound, NumActiveDynamicGraphs, NumActiveDynamicGraphs.GetValue(), ECsvCustomStatOp::Set);
+
 		InitBase(InParams);
 		AudioOutputNames = InParams.AudioOutputNames;
 		BuildGraph(MoveTemp(InParams));
