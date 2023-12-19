@@ -10,9 +10,11 @@
 #include "MovieSceneObjectBindingID.h"
 #include "VCamBlueprintFunctionLibrary.generated.h"
 
+class AActor;
 class ACineCameraActor;
 class UCineCameraComponent;
 class ULevelSequence;
+class UPrimitiveComponent;
 class USceneCaptureComponent2D;
 class UVirtualCameraClipsMetaData;
 class UVirtualCameraUserSettings; 
@@ -22,6 +24,41 @@ class ISequencer;
 #endif
 
 enum class EVCamTargetViewportID : uint8;
+
+USTRUCT(BlueprintType)
+struct VIRTUALCAMERA_API FVCamTraceHitProxyQueryParams
+{
+	GENERATED_BODY()
+
+	/** Determine the size of the query area around the center pixel. */
+	UPROPERTY(EditAnywhere, BlueprintreadWrite, Category = "VirtualCamera")
+	int32 HitProxySize = 5;
+
+	/** Components on these actors should not be considered. */
+	UPROPERTY(EditAnywhere, BlueprintreadWrite, Category = "VirtualCamera")
+	TArray<AActor*> IgnoredActors;
+};
+
+USTRUCT(BlueprintType)
+struct VIRTUALCAMERA_API FVCamTraceHitProxyResult
+{
+	GENERATED_BODY()
+
+	UPROPERTY(BlueprintReadOnly, Category = "VirtualCamera")
+	TWeakObjectPtr<AActor> HitActor;
+
+	UPROPERTY(BlueprintReadOnly, Category = "VirtualCamera")
+	TWeakObjectPtr<UPrimitiveComponent> HitComponent;
+
+	friend bool operator==(const FVCamTraceHitProxyResult& Left, const FVCamTraceHitProxyResult& Right)
+	{
+		return Left.HitActor == Right.HitActor && Left.HitComponent == Right.HitComponent;
+	}
+	friend bool operator!=(const FVCamTraceHitProxyResult& Left, const FVCamTraceHitProxyResult& Right)
+	{
+		return !(Left == Right);
+	}
+};
 
 UCLASS(config=VirtualCamera, BlueprintType)
 class VIRTUALCAMERA_API UVCamBlueprintFunctionLibrary : public UBlueprintFunctionLibrary
@@ -200,6 +237,23 @@ public:
 	/** Converts 2D screen position to World Space 3D position and direction in the specified viewport. Returns false if unable to determine value. Only works in editor builds. */
 	UFUNCTION(BlueprintCallable, Category = "VirtualCamera")
 	static bool DeprojectScreenToWorldByViewport(const FVector2D& InScreenPosition, EVCamTargetViewportID TargetViewport, FVector& OutWorldPosition, FVector& OutWorldDirection);
+
+	/**
+	 * Traces from the viewport and returns all components that contribute to the pixels surrounding InScreenPosition.
+	 * The size of the pixel area checked is controlled by InQueryParams.HitProxySize.
+	 * 
+	 * This finds actors that have NoCollision set. The actor is found by determining which actors contribute to the specified pixel.
+	 * This function is designed for Editor builds; in Runtime builds, it returns false.
+	 *
+	 * @param InScreenPosition The viewport position to trace
+	 * @param InTargetViewport The viewport to trace in
+	 * @param InQueryParams Parameters for how the actors should be queried
+	 * @param Result The result, set if this function returns true.
+	 *
+	 * @return Whether Result was written to
+	 */
+	UFUNCTION(BlueprintPure, Category = "VirtualCamera")
+	static bool MultiTraceHitProxyOnViewport(const FVector2D& InScreenPosition, EVCamTargetViewportID InTargetViewport, FVCamTraceHitProxyQueryParams InQueryParams, TArray<FVCamTraceHitProxyResult>& Result);
 
 private:
 
