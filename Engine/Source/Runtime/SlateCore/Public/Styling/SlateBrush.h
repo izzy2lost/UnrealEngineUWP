@@ -135,7 +135,7 @@ struct FSlateBrushOutlineSettings
 	GENERATED_USTRUCT_BODY()
 
 	FSlateBrushOutlineSettings()
-		: CornerRadii(0.0)
+		: CornerRadii(FVector4(0.0, 0.0, 0.0, 0.0))
 		, Color(FLinearColor::Transparent)
 		, Width(0.0)
 		, RoundingType(ESlateBrushRoundingType::HalfHeightRadius)
@@ -159,7 +159,7 @@ struct FSlateBrushOutlineSettings
 	{}
 
 	FSlateBrushOutlineSettings(const FSlateColor& InColor, float InWidth)
-		: CornerRadii(0.0)
+		: CornerRadii(FVector4(0.0, 0.0, 0.0, 0.0))
 		, Color(InColor)
 		, Width(InWidth)
 		, RoundingType(ESlateBrushRoundingType::HalfHeightRadius)
