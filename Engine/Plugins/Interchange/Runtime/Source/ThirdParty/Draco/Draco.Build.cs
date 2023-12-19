@@ -42,17 +42,19 @@ public class Draco : ModuleRules
 		}
 		else if (Target.Platform == UnrealTargetPlatform.Mac)
 		{
-			string MacOSDracoLibsDir = Path.Combine(DracoLibsDir, "MacOS");
+			//TODO: Created framework seem to be failing on arm64, disabling until fixed:
 
-			PublicSystemIncludePaths.Add(DracoIncDir);
-			PublicSystemLibraryPaths.Add(MacOSDracoLibsDir);
+			//string MacOSDracoLibsDir = Path.Combine(DracoLibsDir, "MacOS");
 
-			foreach (string DracoLib in Directory.EnumerateFiles(MacOSDracoLibsDir, "*.a", SearchOption.AllDirectories))
-			{
-				PublicAdditionalLibraries.Add(DracoLib);
-			}
+			//PublicSystemIncludePaths.Add(DracoIncDir);
+			//PublicSystemLibraryPaths.Add(MacOSDracoLibsDir);
 
-			PublicDefinitions.Add("USE_DRACO_LIBRARY=1");
+			//foreach (string DracoLib in Directory.EnumerateFiles(MacOSDracoLibsDir, "*.a", SearchOption.AllDirectories))
+			//{
+			//	PublicAdditionalLibraries.Add(DracoLib);
+			//}
+
+			PublicDefinitions.Add("USE_DRACO_LIBRARY=0");
 		}
 		else if (Target.Platform == UnrealTargetPlatform.IOS)
 		{
