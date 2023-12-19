@@ -1269,6 +1269,7 @@ FProperty* FKismetCompilerUtilities::CreatePrimitiveProperty(FFieldVariant Prope
 				if (SubType->HasAnyClassFlags(CLASS_DefaultToInstanced))
 				{
 					NewPropertyObj->SetPropertyFlags(CPF_InstancedReference);
+					NewPropertyObj->SetMetaData(TEXT("EditInline"), TEXT("true"));
 				}
 
 				// we want to use this setter function instead of setting the 
