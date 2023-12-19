@@ -176,7 +176,7 @@ void FAnalyticsTracer::StartSession()
 void FAnalyticsTracer::EndSession()
 {
 	FScopeLock ScopeLock(&CriticalSection);	
-	SessionSpan->End();
+	EndSpan(SessionSpan);
 	SessionSpan.Reset();
 	AnalyticsProvider.Reset();
 }
