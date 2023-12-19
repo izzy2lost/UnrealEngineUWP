@@ -76,6 +76,7 @@ void FStatsGridRow_Empty::CreateRow(TSharedPtr<FMaterialStats> StatsManager)
 	// just an array of empty cells
 	AddCell(FMaterialStatsGrid::DescriptorColumnName, MakeShareable(new FGridCell_Empty()));
 	AddCell(FMaterialStatsGrid::ShaderColumnName, MakeShareable(new FGridCell_Empty()));
+	AddCell(FMaterialStatsGrid::ShaderStatisticColumnName, MakeShareable(new FGridCell_Empty()));
 
 	FillPlatformCellsHelper(StatsManager);
 }
@@ -99,6 +100,7 @@ void FStatsGridRow_Name::CreateRow(TSharedPtr<FMaterialStats> StatsManager)
 	// we don't use a descriptor for this row
 	AddCell(FMaterialStatsGrid::DescriptorColumnName, MakeShareable(new FGridCell_Empty()));
 	AddCell(FMaterialStatsGrid::ShaderColumnName, MakeShareable(new FGridCell_Empty()));
+	AddCell(FMaterialStatsGrid::ShaderStatisticColumnName, MakeShareable(new FGridCell_Empty()));
 
 	FillPlatformCellsHelper(StatsManager);
 }
@@ -124,6 +126,7 @@ void FStatsGridRow_Quality::CreateRow(TSharedPtr<FMaterialStats> StatsManager)
 	// we don't use a descriptor for this row
 	AddCell(FMaterialStatsGrid::DescriptorColumnName, MakeShareable(new FGridCell_Empty()));
 	AddCell(FMaterialStatsGrid::ShaderColumnName, MakeShareable(new FGridCell_Empty()));
+	AddCell(FMaterialStatsGrid::ShaderStatisticColumnName, MakeShareable(new FGridCell_Empty()));
 
 	FillPlatformCellsHelper(StatsManager);
 }
@@ -148,10 +151,11 @@ void FStatsGridRow_Quality::AddPlatform(TSharedPtr<FMaterialStats> StatsManager,
 /*==============================================================================================================*/
 /* FStatsGridRow_Shaders functions*/
 
-FStatsGridRow_Shaders::FStatsGridRow_Shaders(ERepresentativeShader RepresentativeShader, bool bHeader)
+FStatsGridRow_Shaders::FStatsGridRow_Shaders(ERepresentativeShader RepresentativeShader, bool bHeader, bool bInstructionRow)
+	: bIsHeaderRow(bHeader)
+	, bInstructionRow(bInstructionRow)
+	, ShaderType(RepresentativeShader)
 {
-	bIsHeaderRow = bHeader;
-	ShaderType = RepresentativeShader;
 }
 
 FStatsGridRow_Shaders::EShaderClass FStatsGridRow_Shaders::GetShaderClass(const ERepresentativeShader Shader)
@@ -207,6 +211,10 @@ void FStatsGridRow_Shaders::CreateRow(TSharedPtr<FMaterialStats> StatsManager)
 	ShaderNameCell->SetColor(FStyleColors::Foreground);
 	AddCell(FMaterialStatsGrid::ShaderColumnName, ShaderNameCell);
 
+	// now add a cell that can display the what statistic we are describing.
+	FString ColumnContent = bInstructionRow ? TEXT("Instruction Count") : TEXT("Platform Statistics");
+	AddCell(FMaterialStatsGrid::ShaderStatisticColumnName, MakeShareable(new FGridCell_StaticString(ColumnContent, ColumnContent)));
+
 	FillPlatformCellsHelper(StatsManager);
 }
 
@@ -214,7 +222,7 @@ void FStatsGridRow_Shaders::AddPlatform(TSharedPtr<FMaterialStats> StatsManager,
 {
 	// add a cell that display the instruction count for this platform
 	const FString CellContent = FMaterialStatsUtils::MaterialQualityToShortString(QualityLevel);
-	TSharedPtr<FGridCell_ShaderValue> Cell = MakeShareable(new FGridCell_ShaderValue(StatsManager, EShaderInfoType::InstructionsCount, ShaderType, QualityLevel, Platform->GetPlatformShaderType(), InstanceIndex));
+	TSharedPtr<FGridCell_ShaderValue> Cell = MakeShareable(new FGridCell_ShaderValue(StatsManager, bInstructionRow ? EShaderInfoType::InstructionsCount : EShaderInfoType::GenericShaderStatistics, ShaderType, QualityLevel, Platform->GetPlatformShaderType(), InstanceIndex));
 
 	const FName ColumnName = FMaterialStatsGrid::MakePlatformColumnName(Platform, QualityLevel, InstanceIndex);
 	AddCell(ColumnName, Cell);
@@ -235,6 +243,7 @@ void FStatsGridRow_Samplers::CreateRow(TSharedPtr<FMaterialStats> StatsManager)
 	AddCell(FMaterialStatsGrid::DescriptorColumnName, HeaderCell);
 
 	AddCell(FMaterialStatsGrid::ShaderColumnName, MakeShareable(new FGridCell_Empty()));
+	AddCell(FMaterialStatsGrid::ShaderStatisticColumnName, MakeShareable(new FGridCell_Empty()));
 
 	FillPlatformCellsHelper(StatsManager);
 }
@@ -264,6 +273,7 @@ void FStatsGridRow_Interpolators::CreateRow(TSharedPtr<FMaterialStats> StatsMana
 	AddCell(FMaterialStatsGrid::DescriptorColumnName, HeaderCell);
 
 	AddCell(FMaterialStatsGrid::ShaderColumnName, MakeShareable(new FGridCell_Empty()));
+	AddCell(FMaterialStatsGrid::ShaderStatisticColumnName, MakeShareable(new FGridCell_Empty()));
 
 	FillPlatformCellsHelper(StatsManager);
 }
@@ -293,6 +303,7 @@ void FStatsGridRow_NumTextureSamples::CreateRow(TSharedPtr<FMaterialStats> Stats
 	AddCell(FMaterialStatsGrid::DescriptorColumnName, HeaderCell);
 
 	AddCell(FMaterialStatsGrid::ShaderColumnName, MakeShareable(new FGridCell_Empty()));
+	AddCell(FMaterialStatsGrid::ShaderStatisticColumnName, MakeShareable(new FGridCell_Empty()));
 
 	FillPlatformCellsHelper(StatsManager);
 }
@@ -322,6 +333,7 @@ void FStatsGridRow_NumVirtualTextureLookups::CreateRow(TSharedPtr<FMaterialStats
 	AddCell(FMaterialStatsGrid::DescriptorColumnName, HeaderCell);
 
 	AddCell(FMaterialStatsGrid::ShaderColumnName, MakeShareable(new FGridCell_Empty()));
+	AddCell(FMaterialStatsGrid::ShaderStatisticColumnName, MakeShareable(new FGridCell_Empty()));
 
 	FillPlatformCellsHelper(StatsManager);
 }
@@ -351,6 +363,7 @@ void FStatsGridRow_NumShaders::CreateRow(TSharedPtr<FMaterialStats> StatsManager
 	AddCell(FMaterialStatsGrid::DescriptorColumnName, HeaderCell);
 
 	AddCell(FMaterialStatsGrid::ShaderColumnName, MakeShareable(new FGridCell_Empty()));
+	AddCell(FMaterialStatsGrid::ShaderStatisticColumnName, MakeShareable(new FGridCell_Empty()));
 
 	FillPlatformCellsHelper(StatsManager);
 }
@@ -373,6 +386,7 @@ void FStatsGridRow_NumShaders::AddPlatform(TSharedPtr<FMaterialStats> StatsManag
 
 const FName FMaterialStatsGrid::DescriptorColumnName = TEXT("Descriptor");
 const FName FMaterialStatsGrid::ShaderColumnName = TEXT("ShaderList");
+const FName FMaterialStatsGrid::ShaderStatisticColumnName = TEXT("ShaderStatistics");
 
 FMaterialStatsGrid::FMaterialStatsGrid(TWeakPtr<FMaterialStats> _StatsManager)
 {
@@ -652,10 +666,15 @@ void FMaterialStatsGrid::BuildShaderRows()
 		{
 			bool bFirstShader = !FragmentShaderRows.Num();
 
-			TSharedPtr<FStatsGridRow> FragShaderRow = MakeShareable(new FStatsGridRow_Shaders((ERepresentativeShader)i, bFirstShader));
+			TSharedPtr<FStatsGridRow> FragShaderRow = MakeShareable(new FStatsGridRow_Shaders((ERepresentativeShader)i, bFirstShader, true));
 			FragShaderRow->CreateRow(StatsManager);
 
 			FragmentShaderRows.Add(FragShaderRow);
+
+			TSharedPtr<FStatsGridRow> FragShaderRow2 = MakeShareable(new FStatsGridRow_Shaders((ERepresentativeShader)i, false, false));
+			FragShaderRow2->CreateRow(StatsManager);
+
+			FragmentShaderRows.Add(FragShaderRow2);
 		}
 	}
 
@@ -666,7 +685,7 @@ void FMaterialStatsGrid::BuildShaderRows()
 		{
 			bool bFirstShader = !VertexShaderRows.Num();
 
-			TSharedPtr<FStatsGridRow> VertShaderRow = MakeShareable(new FStatsGridRow_Shaders((ERepresentativeShader)i, bFirstShader));
+			TSharedPtr<FStatsGridRow> VertShaderRow = MakeShareable(new FStatsGridRow_Shaders((ERepresentativeShader)i, bFirstShader, true));
 			VertShaderRow->CreateRow(StatsManager);
 
 			VertexShaderRows.Add(VertShaderRow);
@@ -679,6 +698,7 @@ void FMaterialStatsGrid::BuildColumnInfo()
 	GridColumnContent.Empty();
 	GridColumnContent.Add(DescriptorColumnName, FColumnInfo());
 	GridColumnContent.Add(ShaderColumnName, FColumnInfo());
+	GridColumnContent.Add(ShaderStatisticColumnName, FColumnInfo());
 
 	TSharedPtr<FMaterialStats> StatsManager = StatsManagerWPtr.Pin();
 	if (!StatsManager.IsValid())
@@ -933,6 +953,16 @@ FString FGridCell_ShaderValue::InternalGetContent(bool bLongContent)
 		case EShaderInfoType::InstructionsCount:
 		{
 			auto* Count = InstanceData.ShaderStatsInfo.ShaderInstructionCount.Find(ShaderType);
+			if (Count)
+			{
+				return bLongContent ? Count->StrDescriptionLong : Count->StrDescription;
+			}
+		}
+		break;
+
+		case EShaderInfoType::GenericShaderStatistics:
+		{
+			auto* Count = InstanceData.ShaderStatsInfo.GenericShaderStatistics.Find(ShaderType);
 			if (Count)
 			{
 				return bLongContent ? Count->StrDescriptionLong : Count->StrDescription;

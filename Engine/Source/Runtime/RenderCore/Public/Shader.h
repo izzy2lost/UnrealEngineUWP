@@ -844,6 +844,8 @@ public:
 	using FPermutationParameters = FShaderPermutationParameters;
 	using CompiledShaderInitializerType = FShaderCompiledShaderInitializerType;
 	using ShaderMetaType = FShaderType;
+	using ShaderStatKeyType = FMemoryImageName;
+	using FShaderStatisticMap = TMemoryImageMap<ShaderStatKeyType, FShaderStatVariant>;
 
 	/** 
 	 * Used to construct a shader for deserialization.
@@ -899,6 +901,7 @@ public:
 	inline uint32 GetNumTextureSamplers() const { return NumTextureSamplers; }
 	inline uint32 GetCodeSize() const { return CodeSize; }
 	inline void SetNumInstructions(uint32 Value) { NumInstructions = Value; }
+	inline const FShaderStatisticMap& GetShaderStatistics() const { return ShaderStatistics; }
 #else
 	inline uint32 GetNumTextureSamplers() const { return 0u; }
 	inline uint32 GetCodeSize() const { return 0u; }
@@ -1008,6 +1011,9 @@ private:
 
 	/** Size of shader's compiled code */
 	LAYOUT_FIELD_EDITORONLY(uint32, CodeSize);
+
+	/** Generic, data-driven key/value pairs of statistics. */
+	LAYOUT_FIELD_EDITORONLY(FShaderStatisticMap, ShaderStatistics);
 };
 
 RENDERCORE_API const FTypeLayoutDesc& GetTypeLayoutDesc(const FPointerTableBase* PtrTable, const FShader& Shader);
@@ -1528,6 +1534,7 @@ struct FShaderCompiledShaderInitializerType
 	uint32 NumTextureSamplers;
 	uint32 CodeSize;
 	int32 PermutationId;
+	TMap<FString, FShaderStatVariant> ShaderStatistics;
 
 	RENDERCORE_API FShaderCompiledShaderInitializerType(
 		const FShaderType* InType,
@@ -2196,6 +2203,8 @@ public:
 	RENDERCORE_API void GetOutdatedTypes(const FShaderMapBase& InShaderMap, TArray<const FShaderType*>& OutdatedShaderTypes, TArray<const FShaderPipelineType*>& OutdatedShaderPipelineTypes, TArray<const FVertexFactoryType*>& OutdatedFactoryTypes) const;
 
 	RENDERCORE_API void SaveShaderStableKeys(const FShaderMapBase& InShaderMap, EShaderPlatform TargetShaderPlatform, const struct FStableShaderKeyAndValue& SaveKeyVal);
+
+	RENDERCORE_API const FShader::FShaderStatisticMap GetShaderStatisticsMapForShader(const FShaderMapBase& InShaderMap, FShaderType* ShaderType) const;
 #endif // WITH_EDITOR
 
 	/** @return true if the map is empty */

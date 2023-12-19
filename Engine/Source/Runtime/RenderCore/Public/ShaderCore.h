@@ -54,6 +54,9 @@ class FShaderPreprocessorUtilities;
 class FSHA1;
 class ITargetPlatform;
 
+using FShaderStatVariant = TVariant<bool, float, int32, uint32>;
+DECLARE_INTRINSIC_TYPE_LAYOUT(FShaderStatVariant);
+
 /**
  * Controls whether shader related logs are visible.
  * Note: The runtime verbosity is driven by the console variable 'r.ShaderDevelopmentMode'

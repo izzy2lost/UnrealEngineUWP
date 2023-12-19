@@ -87,6 +87,7 @@ enum class EShaderInfoType
 	TextureSampleCount,
 	VirtualTextureLookupCount,
 	ShaderCount,
+	GenericShaderStatistics,
 };
 
 /** this type of cell will query certain type of informations from the material */
@@ -186,13 +187,15 @@ private:
 	// if this is true it will add a text in the 'description' column with 'fragment/vertex shader' text
 	bool bIsHeaderRow = false;
 
+	bool bInstructionRow = true;
+
 	//EShaderType ShaderType;
 	ERepresentativeShader ShaderType;
 private:
 	EShaderClass GetShaderClass(const ERepresentativeShader Shader);
 
 public:
-	FStatsGridRow_Shaders(ERepresentativeShader RepresentativeShader, bool bHeader);
+	FStatsGridRow_Shaders(ERepresentativeShader RepresentativeShader, bool bHeader, bool bInstructionRow);
 
 	void CreateRow(TSharedPtr<FMaterialStats> StatsManager) override;
 
@@ -310,6 +313,7 @@ class FMaterialStatsGrid
 public:
 	const static FName DescriptorColumnName;
 	const static FName ShaderColumnName;
+	const static FName ShaderStatisticColumnName;
 
 private:
 	void AddColumnInfo(TSharedPtr<FShaderPlatformSettings> PlatformPtr, const EMaterialQualityLevel::Type QualityLevel, const int32 InstanceIndex);

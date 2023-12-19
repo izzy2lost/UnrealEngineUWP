@@ -527,6 +527,21 @@ void FMaterialStatsUtils::GetRepresentativeShaderTypesAndDescriptions(TMap<FName
 	}
 }
 
+static FString GetShaderString(const FShader::FShaderStatisticMap& Statistics)
+{
+	TStringBuilder<2048> StatisticsStrBuilder;
+	for (const auto& Stat : Statistics)
+	{
+		StatisticsStrBuilder << Stat.Key << ": ";
+		Visit([&StatisticsStrBuilder](auto& StoredValue)
+		{
+			StatisticsStrBuilder << StoredValue << "\n";
+		}, Stat.Value);
+	}
+
+	return StatisticsStrBuilder.ToString();
+}
+
 /**
 * Gets instruction counts that best represent the likely usage of this material based on shading model and other factors.
 * @param Results - an array of descriptions to be populated
@@ -563,6 +578,11 @@ void FMaterialStatsUtils::GetRepresentativeInstructionCounts(TArray<FShaderInstr
 						Info.ShaderType = ShaderInfo.ShaderType;
 						Info.ShaderDescription = ShaderInfo.ShaderDescription;
 						Info.InstructionCount = NumInstructions;
+						Info.ShaderStatisticsString = GetShaderString(MaterialShaderMap->GetShaderStatisticsMapForShader(ShaderType));
+						if (Info.ShaderStatisticsString.Len() == 0)
+						{
+							Info.ShaderStatisticsString = TEXT("n/a");
+						}
 
 						Results.Push(Info);
 
@@ -600,6 +620,11 @@ void FMaterialStatsUtils::GetRepresentativeInstructionCounts(TArray<FShaderInstr
 									Info.ShaderType = ShaderInfo.ShaderType;
 									Info.ShaderDescription = ShaderInfo.ShaderDescription;
 									Info.InstructionCount = NumInstructions;
+									Info.ShaderStatisticsString = GetShaderString(MeshShaderMap->GetShaderStatisticsMapForShader(*MaterialShaderMap, ShaderType));
+									if (Info.ShaderStatisticsString.Len() == 0)
+									{
+										Info.ShaderStatisticsString = TEXT("n/a");
+									}
 
 									Results.Push(Info);
 
@@ -646,6 +671,12 @@ void FMaterialStatsUtils::ExtractMatertialStatsInfo(EShaderPlatform ShaderPlatfo
 				TEXT("Offline shader compiler not available or an error was encountered!");
 
 			OutInfo.ShaderInstructionCount.Add(ShaderInstructionInfo[InstructionIndex].ShaderType, Content);
+
+			FString Description = ShaderInstructionInfo[InstructionIndex].ShaderStatisticsString;
+			FShaderStatsInfo::FContent GenericContent;
+			GenericContent.StrDescription = Description;
+			GenericContent.StrDescriptionLong = Description;
+			OutInfo.GenericShaderStatistics.Add(ShaderInstructionInfo[InstructionIndex].ShaderType, GenericContent);
 		}
 
 		// extract samplers info

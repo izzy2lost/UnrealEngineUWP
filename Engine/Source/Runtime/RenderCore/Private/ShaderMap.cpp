@@ -641,6 +641,21 @@ uint32 FShaderMapContent::GetMaxNumInstructionsForShader(const FShaderMapBase& I
 	return MaxNumInstructions;
 }
 
+#if WITH_EDITOR
+const FShader::FShaderStatisticMap FShaderMapContent::GetShaderStatisticsMapForShader(const FShaderMapBase& InShaderMap, FShaderType* ShaderType) const
+{
+	FShader::FShaderStatisticMap Statistics;
+
+	FShader* Shader = GetShader(ShaderType);
+	if (Shader)
+	{
+		Statistics = Shader->GetShaderStatistics();
+	}
+
+	return Statistics;
+}
+#endif // WITH_EDITOR
+
 struct FSortedShaderEntry
 {
 	FHashedName TypeName;

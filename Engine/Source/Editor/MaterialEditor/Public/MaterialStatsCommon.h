@@ -76,6 +76,7 @@ public:
 	{
 		ERepresentativeShader ShaderType;
 		FString ShaderDescription;
+		FString ShaderStatisticsString;
 		int32 InstructionCount;
 	};
 

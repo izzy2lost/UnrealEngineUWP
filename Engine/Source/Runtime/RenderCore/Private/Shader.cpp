@@ -632,6 +632,7 @@ FShaderCompiledShaderInitializerType::FShaderCompiledShaderInitializerType(
 	, NumTextureSamplers(CompilerOutput.NumTextureSamplers)
 	, CodeSize(CompilerOutput.ShaderCode.GetShaderCodeSize())
 	, PermutationId(InPermutationId)
+	, ShaderStatistics(CompilerOutput.ShaderStatistics)
 {
 }
 
@@ -682,6 +683,11 @@ FShader::FShader(const CompiledShaderInitializerType& Initializer)
 	{
 		// Store off the VF source hash that this shader was compiled with
 		VFSourceHash = Initializer.VertexFactoryType->GetSourceHash(Initializer.Target.GetPlatform());
+	}
+
+	for (const TPair<FString, FShaderStatVariant>& Pair : Initializer.ShaderStatistics)
+	{
+		ShaderStatistics.Add(FMemoryImageName(FName(Pair.Key)), Pair.Value);
 	}
 #endif // WITH_EDITORONLY_DATA
 

@@ -212,6 +212,10 @@ float SMaterialEditorStatsWidget::GetColumnSize(const FName ColumnName) const
 	{
 		ColumnSize = ColumnSizeLarge;
 	}
+	else if (ColumnName == FMaterialStatsGrid::ShaderStatisticColumnName)
+	{
+		ColumnSize = ColumnSizeMedium;
+	}
 	else
 	{
 		auto StatsPtr = MaterialStatsWPtr.Pin();

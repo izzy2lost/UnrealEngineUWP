@@ -33,7 +33,7 @@ typedef TSharedPtr<TArray<ANSICHAR>, ESPMode::ThreadSafe> FShaderSharedAnsiStrin
 // this is for the protocol, not the data, bump if FShaderCompilerInput/FShaderPreprocessOutput serialization, SerializeWorkerInput or ProcessInputFromArchive changes.
 inline const int32 ShaderCompileWorkerInputVersion = 26;
 // this is for the protocol, not the data, bump if FShaderCompilerOutput or WriteToOutputArchive changes.
-inline const int32 ShaderCompileWorkerOutputVersion = 19;
+inline const int32 ShaderCompileWorkerOutputVersion = 20;
 // this is for the protocol, not the data.
 inline const int32 ShaderCompileWorkerSingleJobHeader = 'S';
 // this is for the protocol, not the data.
@@ -665,6 +665,8 @@ struct FShaderCompilerOutput
 
 	TArray<uint8> PlatformDebugData;
 
+	TMap<FString, FShaderStatVariant> ShaderStatistics;
+
 	/** Generates OutputHash from the compiler output. */
 	RENDERCORE_API void GenerateOutputHash();
 
@@ -677,6 +679,7 @@ struct FShaderCompilerOutput
 	/** Add optional diagnostic data in ShaderCode to perform assert translation at runtime*/
 	RENDERCORE_API void SerializeShaderDiagnosticData();
 
+	// Bump ShaderCompileWorkerOutputVersion if FShaderCompilerOutput changes
 	friend FArchive& operator<<(FArchive& Ar, FShaderCompilerOutput& Output)
 	{
 		// Note: this serialize is used to pass between UE and the shader compile worker, recompile both when modifying
@@ -691,6 +694,7 @@ struct FShaderCompilerOutput
 			Ar << Output.ModifiedEntryPointName;
 		}
 		Ar << Output.PlatformDebugData;
+		Ar << Output.ShaderStatistics;
 
 		return Ar;
 	}

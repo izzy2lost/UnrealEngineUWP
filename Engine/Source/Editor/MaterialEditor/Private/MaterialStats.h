@@ -17,6 +17,7 @@ struct FShaderStatsInfo
 	};
 
 	TMap<ERepresentativeShader, FContent> ShaderInstructionCount;
+	TMap<ERepresentativeShader, FContent> GenericShaderStatistics;
 	FContent SamplersCount;
 	FContent InterpolatorsCount;
 	FContent TextureSampleCount;
@@ -27,6 +28,7 @@ struct FShaderStatsInfo
 	void Reset()
 	{
 		ShaderInstructionCount.Empty();
+		GenericShaderStatistics.Empty();
 
 		SamplersCount.StrDescription = TEXT("Compiling...");
 		SamplersCount.StrDescriptionLong = TEXT("Compiling...");
@@ -49,6 +51,7 @@ struct FShaderStatsInfo
 	void Empty()
 	{
 		ShaderInstructionCount.Empty();
+		GenericShaderStatistics.Empty();
 
 		SamplersCount.StrDescription.Empty();
 		SamplersCount.StrDescriptionLong.Empty();
