@@ -635,6 +635,7 @@ export const HistoryModal: React.FC<{ agentId: string | undefined, onDismiss: (.
                return <Stack styles={{ root: { height: '100%', } }} horizontal horizontalAlign={'center'}><Stack.Item align={"center"}>{getShortNiceTime(lease.finishTime, false, true, true)}</Stack.Item></Stack>
             case 'description':
                link = "";
+               let name = lease.name;
                if (lease.details) {
                   if ('jobId' in lease.details) {
                      link = `/job/${lease.details['jobId']}`;
@@ -646,11 +647,17 @@ export const HistoryModal: React.FC<{ agentId: string | undefined, onDismiss: (.
                else if (lease.jobId) {
                   link = `/job/${lease.jobId}`;
                }
+
+               if (!link && (lease.parentId && lease.details && lease.details["parentLogId"])) {
+                  link = `/log/${lease.details["parentLogId"]}?leaseId=${lease.parentId}`
+                  return <Stack styles={{ root: { height: '100%' } }} horizontal><Stack.Item align={"center"}><Text style={{ fontSize: "12px" }}>{name} (parent: </Text><Link style={{ fontSize: "12px" }} to={link}>{lease.parentId}</Link><Text style={{ fontSize: "12px" }}>)</Text></Stack.Item></Stack>;
+               }
+
                if (link !== "") {
-                  return <Stack styles={{ root: { height: '100%' } }} horizontal><Stack.Item align={"center"}><Link style={{ fontSize: 12 }} key={"leaseText_" + lease.id} to={link}>{lease.name}</Link></Stack.Item></Stack>;
+                  return <Stack styles={{ root: { height: '100%' } }} horizontal><Stack.Item align={"center"}><Link style={{ fontSize: 12 }} key={"leaseText_" + lease.id} to={link}>{name}</Link></Stack.Item></Stack>;
                }
                else {
-                  return <Stack styles={{ root: { height: '100%', } }} horizontal><Stack.Item align={"center"}><Text styles={{ root: { fontSize: 12 } }} key={"leaseText_" + lease.id}>{lease.name}</Text></Stack.Item></Stack>;
+                  return <Stack styles={{ root: { height: '100%', } }} horizontal><Stack.Item align={"center"}><Text styles={{ root: { fontSize: 12 } }} key={"leaseText_" + lease.id}>{name}</Text></Stack.Item></Stack>;
                }
             default:
                return <span>{lease[column!.fieldName as keyof LeaseData] as string}</span>;

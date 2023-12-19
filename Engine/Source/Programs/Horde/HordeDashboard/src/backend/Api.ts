@@ -599,6 +599,9 @@ export type GetAgentLeaseResponse = {
 	/**Identifier for the lease */
 	id: string;
 
+	/** parent lease id */
+	parentId?: string;
+
 	/**Name of the lease */
 	name?: string;
 
