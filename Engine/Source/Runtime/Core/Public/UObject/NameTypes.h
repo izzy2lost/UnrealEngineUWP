@@ -1575,7 +1575,7 @@ class FLazyName
 {
 public:
 	FLazyName()
-		: Either(FNameEntryId())
+		: Either(FNameEntryId(), FNameEntryId())
 	{}
 
 	/** @param Literal must be a string literal */
@@ -1595,7 +1595,7 @@ public:
 	{}
 
 	explicit FLazyName(FName Name)
-		: Either(Name.GetComparisonIndex())
+		: Either(Name.GetComparisonIndex(), Name.GetDisplayIndex())
 		, Number(Name.GetNumber())
 	{}
 	
@@ -1611,6 +1611,7 @@ private:
 	{
 		// NOTE: uses high bit of pointer for flag; this may be an issue in future when high byte of address may be used for features like hardware ASAN
 		static constexpr uint64 LiteralFlag = uint64(1) << (sizeof(uint64) * 8 - 1);
+		static constexpr uint32 DisplayNameShift = 32;
 
 		explicit FLiteralOrName(const ANSICHAR* Literal)
 			: Int(reinterpret_cast<uint64>(Literal) | LiteralFlag)
@@ -1620,9 +1621,13 @@ private:
 			: Int(reinterpret_cast<uint64>(Literal) | LiteralFlag)
 		{}
 
-		explicit FLiteralOrName(FNameEntryId Name)
-			: Int(Name.ToUnstableInt())
-		{}
+		explicit FLiteralOrName(FNameEntryId ComparisionId, FNameEntryId DisplayId)
+			: Int(ComparisionId.ToUnstableInt() |
+				(WITH_CASE_PRESERVING_NAME ? ((static_cast<uint64>(DisplayId.ToUnstableInt()) << DisplayNameShift)) : 0))
+		{
+			// FName indices fit within 31 bits -> (DisplayId & LiteralFlag) == 0 -> IsName() == true.
+			checkName(IsName());
+		}
 
 		bool IsName() const
 		{
@@ -1634,9 +1639,18 @@ private:
 			return (LiteralFlag & Int) != 0;
 		}
 
-		FNameEntryId AsName() const
+		FNameEntryId GetComparisionId() const
 		{
 			return FNameEntryId::FromUnstableInt(static_cast<uint32>(Int));
+		}
+
+		FNameEntryId GetDisplayId() const
+		{
+#if WITH_CASE_PRESERVING_NAME
+			return FNameEntryId::FromUnstableInt(static_cast<uint32>(Int >> DisplayNameShift)); // Can assume LiteralFlag == 0 
+#else
+			return GetComparisionId();
+#endif
 		}
 		
 		const ANSICHAR* AsAnsiLiteral() const

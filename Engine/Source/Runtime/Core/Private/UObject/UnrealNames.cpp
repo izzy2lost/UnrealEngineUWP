@@ -3727,6 +3727,7 @@ void CheckLazyName(const CharType(&Literal)[N])
 	CharType Literal2[N];
 	FMemory::Memcpy(Literal2, Literal);
 	check(FLazyName(Literal) == FLazyName(Literal2));
+	check(WriteToString<64>(FLazyName(Literal).Resolve()).ToView().Equals(WriteToString<64>(Literal).ToView(), ESearchCase::CaseSensitive));
 }
 
 static void TestNameBatch();
@@ -3933,6 +3934,8 @@ void FName::AutoTest()
 
 	
 	CheckLazyName("Hej");
+	CheckLazyName("hej");
+	CheckLazyName("HEJ");
 	CheckLazyName(TEXT("Hej"));
 	CheckLazyName("Hej_0");
 	CheckLazyName("Hej_00");
@@ -4142,25 +4145,27 @@ FName FLazyName::Resolve() const
 
 	if (Copy.IsName())
 	{
-		FNameEntryId Id = Copy.AsName();
+		FNameEntryId ComparisonId = Copy.GetComparisionId();
+		FNameEntryId DisplayId = Copy.GetDisplayId();
 #if UE_FNAME_OUTLINE_NUMBER
-		return FNameHelper::MakeWithNumber(FNameEntryIds{ Id, Id}, FNAME_Add, Number);
+		return FNameHelper::MakeWithNumber(FNameEntryIds{ ComparisonId, DisplayId }, FNAME_Add, Number);
 #else // UE_FNAME_OUTLINE_NUMBER
-		return FName(Id, Id, Number);
+		return FName(ComparisonId, DisplayId, Number);
 #endif // UE_FNAME_OUTLINE_NUMBER
 	}
 
 	// Resolve to FName but throw away the number part
-	FNameEntryId Id = bLiteralIsWide ? FName(Copy.AsWideLiteral()).GetComparisonIndex()
-										: FName(Copy.AsAnsiLiteral()).GetComparisonIndex();
+	FName FullName = bLiteralIsWide ? FName(Copy.AsWideLiteral()) : FName(Copy.AsAnsiLiteral());
+	FNameEntryId ComparisonId = FullName.GetComparisonIndex();
+	FNameEntryId DisplayId = FullName.GetDisplayIndex();
 
 	// Deliberately unsynchronized write of word-sized int, ok if multiple threads resolve same lazy name
-	Either = FLiteralOrName(Id);
+	Either = FLiteralOrName(ComparisonId, DisplayId);
 
 #if UE_FNAME_OUTLINE_NUMBER
-	return FNameHelper::MakeWithNumber(FNameEntryIds{Id, Id}, FNAME_Add, Number);
+	return FNameHelper::MakeWithNumber(FNameEntryIds{ ComparisonId, DisplayId}, FNAME_Add, Number);
 #else // UE_FNAME_OUTLINE_NUMBER
-	return FName(Id, Id, Number);		
+	return FName(ComparisonId, DisplayId, Number);
 #endif // UE_FNAME_OUTLINE_NUMBER
 }
 
