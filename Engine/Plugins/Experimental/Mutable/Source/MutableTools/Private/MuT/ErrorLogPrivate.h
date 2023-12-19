@@ -1,6 +1,5 @@
 // Copyright Epic Games, Inc. All Rights Reserved.
 
-
 #pragma once
 
 #include "MuT/ErrorLog.h"
@@ -8,17 +7,11 @@
 #include "MuR/ModelPrivate.h"
 #include "MuR/Operations.h"
 
-#include <memory>
-
 namespace mu
 {
-	class ErrorLog::Private : public Base
+	class ErrorLog::Private
 	{
 	public:
-
-		Private()
-		{
-		}
 
         struct FErrorData
         {
@@ -36,8 +29,6 @@ namespace mu
 
 		TArray<FMessage> m_messages;
 
-
-		//-----------------------------------------------------------------------------------------
 
 		//!
 		void Add(const FString& Message, ErrorLogMessageType Type, const void* Context, ErrorLogMessageSpamBin SpamBin = ELMSB_ALL);

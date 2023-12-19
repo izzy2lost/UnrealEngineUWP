@@ -19,10 +19,6 @@ namespace mu
 	{
 	public:
 
-		MUTABLE_DEFINE_CONST_VISITABLE()
-
-	public:
-
 		static NODE_TYPE s_type;
 
 		FString m_name;
@@ -109,7 +105,7 @@ namespace mu
 				{
 					std::string Temp;
 					arch >> Temp;
-					m_extensionDataNodes[i].Name = Temp.c_str();;
+					m_extensionDataNodes[i].Name = Temp.c_str();
 					arch >> m_extensionDataNodes[i].Node;
 				}
 			}

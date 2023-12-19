@@ -11,136 +11,16 @@
 
 namespace mu
 {
-	//---------------------------------------------------------------------------------------------
-    // inline void SimpleLayoutPack( Layout* pResult, const Layout* pSource )
-	// {
-    //     check( pResult->GetBlockCount() == pSource->GetBlockCount() );
-
-	// 	int blockCount = pSource->GetBlockCount();
-	// 	vector< vec2<int> > blocks( blockCount );
-
-	// 	// Look for the maximum block sizes on the layout and the total area
-	// 	int maxX = 0;
-	// 	int maxY = 0;
-	// 	int area = 0;
-	// 	for ( int index=0; index<blockCount; ++index )
-	// 	{
-	// 		box< vec2<int> > b;
-	// 		pSource->GetBlock( index, &b.min[0], &b.min[1], &b.size[0], &b.size[1] );
-
-	// 		maxX = FMath::Max( maxX, b.size[0] );
-	// 		maxY = FMath::Max( maxY, b.size[1] );
-
-	// 		area += b.size[0] * b.size[1];
-
-	// 		blocks[index] = b.size;
-	// 	}
-
-	// 	// Grow until the area is big enough to fit all blocks. We always grow X first, because
-	// 	// in case we cannot pack everything, we will grow Y with the current horizon algorithm.
-	// 	maxX = ceilPow2( maxX );
-	// 	maxY = ceilPow2( maxY );
-	// 	while ( maxX*maxY<area )
-	// 	{
-	// 		if (maxX>maxY)
-	// 		{
-	// 			maxY*=2;
-	// 		}
-	// 		else
-	// 		{
-	// 			maxX*=2;
-	// 		}
-	// 	}
-
-	// 	// Sort by height, area
-	// 	vector<int> sorted;
-	// 	sorted.reserve( blockCount );
-	// 	for ( int index=0; index<blockCount; ++index )
-	// 	{
-	// 		int thisHeight = blocks[index][1];
-	// 		int thisArea = blocks[index][0] * blocks[index][1];
-
-	// 		int p;
-	// 		for ( p=0; p<(int)sorted.Num(); ++p )
-	// 		{
-	// 			int pos = sorted[p];
-	// 			int posHeight = blocks[pos][1];
-	// 			int posArea = blocks[pos][0] * blocks[pos][1];
-
-	// 			if ( posHeight<thisHeight || ( posHeight==thisHeight && posArea<thisArea ))
-	// 			{
-	// 				break;
-	// 			}
-	// 		}
-
-	// 		sorted.insert( sorted.begin()+p, index );
-	// 	}
-
-	// 	// Pack with fixed horizontal size
-	// 	vector<int> horizon( maxX, 0 );
-	// 	vector< vec2<int> > positions( blockCount );
-	// 	maxY = 0;
-
-	// 	for ( int p=0; p<(int)sorted.Num(); ++p )
-	// 	{
-	// 		int index = sorted[p];
-
-	// 		// Seek for the lowest span where the block fits
-	// 		int currentLevel = std::numeric_limits<int>::max();
-	// 		int currentX = -1;
-	// 		for ( int x=0; x<=maxX-blocks[index][0]; ++x )
-	// 		{
-	// 			int level = 0;
-	// 			for( int xs=x; xs<x+blocks[index][0]; ++xs )
-	// 			{
-	// 				level = FMath::Max( level, horizon[xs] );
-	// 			}
-
-	// 			if (level<currentLevel)
-	// 			{
-	// 				currentLevel = level;
-	// 				currentX = x;
-	// 			}
-
-	// 		}
-
-	// 		check( currentX>=0 && currentX<=maxX-blocks[index][0] );
-
-	// 		// Update horizon
-	// 		for( int xs=currentX; xs<currentX+blocks[index][0]; ++xs )
-	// 		{
-	// 			horizon[xs] = currentLevel+blocks[index][1];
-	// 		}
-
-	// 		// Store
-	// 		positions[ index ] = vec2<int>( currentX, currentLevel );
-	// 		maxY = FMath::Max( maxY, currentLevel+blocks[index][1] );
-	// 	}
-
-    //     // Set data in the result
-	// 	maxY = ceilPow2( maxY );
-	// 	pResult->SetGridSize( maxX, maxY );
-	// 	for ( int index=0; index<blockCount; ++index )
-	// 	{
-	// 		pResult->SetBlock
-	// 			(
-	// 				index,
-	// 				positions[index][0], positions[index][1],
-    //                 blocks[index][0], blocks[index][1]
-	// 			);
-	// 	}
-	// }
-	
 
 	//---------------------------------------------------------------------------------------------
-	struct LAY_BLOCK
+	struct FLayoutBlock
 	{
-		LAY_BLOCK()
+		FLayoutBlock()
 		{
 			index = -1;
 		}
 
-		LAY_BLOCK( int32 i, UE::Math::TIntVector2<uint16> s, int32 p=0, bool bInReduceBothAxes = false, bool bInReduceByTwo = false )
+		FLayoutBlock( int32 i, UE::Math::TIntVector2<uint16> s, int32 p=0, bool bInReduceBothAxes = false, bool bInReduceByTwo = false )
 		{
 			index = i;
 			size = s;
@@ -156,7 +36,7 @@ namespace mu
 		bool bReduceByTwo;
 	};
 
-    inline bool CompareBlocks( const LAY_BLOCK& a, const LAY_BLOCK& b )
+    inline bool CompareBlocks( const FLayoutBlock& a, const FLayoutBlock& b )
     {
         if ( a.size[1]>b.size[1] )
         {
@@ -186,7 +66,7 @@ namespace mu
         }
     }
 
-	inline bool CompareBlocksPriority(const LAY_BLOCK& a, const LAY_BLOCK& b)
+	inline bool CompareBlocksPriority(const FLayoutBlock& a, const FLayoutBlock& b)
 	{
 		if (a.priority == b.priority)
 		{
@@ -204,7 +84,7 @@ namespace mu
     struct SCRATCH_LAYOUT_PACK
     {
         TArray< UE::Math::TIntVector2<uint16> > blocks;
-		TArray< LAY_BLOCK > sorted;
+		TArray< FLayoutBlock > sorted;
 		TArray< vec2<int> > positions;
 		TArray< int > priorities;
 		TArray< vec2<int> > reductions;
@@ -282,7 +162,7 @@ namespace mu
     //     check( (int)scratch->sorted.Num()==blockCount );
     //     for ( int index=0; index<blockCount; ++index )
     //     {
-    //         scratch->sorted[index] = LAY_BLOCK( index, scratch->blocks[index], scratch->priorities[index] );
+    //         scratch->sorted[index] = FLayoutBlock( index, scratch->blocks[index], scratch->priorities[index] );
     //     }
     //     std::sort( scratch->sorted.begin(), scratch->sorted.end(), CompareBlocks );
 
@@ -831,7 +711,7 @@ namespace mu
         check( (int)scratch->sorted.Num()==blockCount );
         for ( int index=0; index<blockCount; ++index )
         {
-            scratch->sorted[index] = LAY_BLOCK( index, scratch->blocks[index], scratch->priorities[index], (bool)scratch->ReduceBothAxes[index], (bool)scratch->ReduceByTwo[index]);
+            scratch->sorted[index] = FLayoutBlock( index, scratch->blocks[index], scratch->priorities[index], (bool)scratch->ReduceBothAxes[index], (bool)scratch->ReduceByTwo[index]);
         }
 
 		// Sort blocks by height, area

@@ -17,7 +17,7 @@ namespace mu
 
 
 	//---------------------------------------------------------------------------------------------
-	class MUTABLETOOLS_API InputFileStream::Private : public Base
+	class MUTABLETOOLS_API InputFileStream::Private
 	{
 	public:
 
@@ -36,7 +36,7 @@ namespace mu
 
 
 	//---------------------------------------------------------------------------------------------
-	class MUTABLETOOLS_API OutputFileStream::Private : public Base
+	class MUTABLETOOLS_API OutputFileStream::Private
 	{
 	public:
 

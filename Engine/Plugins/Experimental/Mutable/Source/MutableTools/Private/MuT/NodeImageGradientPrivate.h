@@ -1,14 +1,11 @@
 // Copyright Epic Games, Inc. All Rights Reserved.
 
-
 #pragma once
-
 
 #include "MuT/NodeColour.h"
 #include "MuT/NodeImagePrivate.h"
 #include "MuT/NodeImageGradient.h"
 #include "MuT/AST.h"
-
 #include "MuR/MutableMath.h"
 
 
@@ -18,10 +15,6 @@ namespace mu
 
 	class NodeImageGradient::Private : public NodeImage::Private
 	{
-	public:
-
-		MUTABLE_DEFINE_CONST_VISITABLE()
-
 	public:
 
 		static NODE_TYPE s_type;

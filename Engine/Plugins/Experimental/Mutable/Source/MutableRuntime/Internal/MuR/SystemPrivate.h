@@ -1827,7 +1827,7 @@ namespace mu
 
 
 	/** */
-    class System::Private : public Base
+    class System::Private
     {
     public:
 

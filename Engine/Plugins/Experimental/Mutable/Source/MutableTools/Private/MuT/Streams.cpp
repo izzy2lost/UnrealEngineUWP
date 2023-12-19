@@ -269,7 +269,7 @@ namespace mu
     //---------------------------------------------------------------------------------------------
     //---------------------------------------------------------------------------------------------
     //---------------------------------------------------------------------------------------------
-    class ProxyFactoryMutableSourceFile::Private : public Base
+    class ProxyFactoryMutableSourceFile::Private
     {
     public:
         InputFileStream* Stream = nullptr;

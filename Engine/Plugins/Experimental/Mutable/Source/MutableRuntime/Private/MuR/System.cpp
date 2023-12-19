@@ -725,7 +725,7 @@ namespace mu
 		int32 Result = 0;
 		if (!bUnrecoverableError)
 		{
-			Result = WorkingMemoryManager.CurrentInstanceCache->GetInt(FCacheAddress(at, 0, 0));;
+			Result = WorkingMemoryManager.CurrentInstanceCache->GetInt(FCacheAddress(at, 0, 0));
 		}
 
 		WorkingMemoryManager.EndRunnerThread();

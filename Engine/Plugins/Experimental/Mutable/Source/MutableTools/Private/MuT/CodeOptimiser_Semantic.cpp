@@ -416,6 +416,36 @@ namespace mu
 			break;
 		}
 
+		//-------------------------------------------------------------------------------------
+		case OP_TYPE::ME_APPLYLAYOUT:
+		{
+			Ptr<ASTOp> Base = children[op.args.MeshApplyLayout.mesh].child();
+			OP_TYPE BaseType = Base->GetOpType();
+			switch (BaseType)
+			{
+			case OP_TYPE::ME_ADDTAGS:
+			{
+				// Add the tags after layout
+				Ptr<ASTOpMeshAddTags> NewAddTags = mu::Clone<ASTOpMeshAddTags>(Base);
+
+				if (NewAddTags->Source)
+				{
+					Ptr<ASTOpFixed> NewAt = mu::Clone<ASTOpFixed>(this);
+					NewAt->SetChild(NewAt->op.args.MeshApplyLayout.mesh, NewAddTags->Source);
+					NewAddTags->Source = NewAt;
+				}
+
+				at = NewAddTags;
+				break;
+			}
+
+			default:
+				break;
+			}
+
+			break;
+		}
+
         default:
             break;
         }
@@ -530,12 +560,17 @@ namespace mu
 
 			case OP_TYPE::ME_ADDTAGS:
 			{
-				// Ignore tags for projection
-				const ASTOpMeshAddTags* Add = dynamic_cast<const ASTOpMeshAddTags*>(sourceAt.get());
+				// Add the tags after layout
+				Ptr<ASTOpMeshAddTags> NewAddTags = mu::Clone<ASTOpMeshAddTags>(sourceAt);
 
-				Ptr<ASTOpFixed> NewProject = mu::Clone<ASTOpFixed>(this);
-				NewProject->SetChild(NewProject->op.args.MeshProject.mesh, Add->Source);
-				at = NewProject;
+				if (NewAddTags->Source)
+				{
+					Ptr<ASTOpFixed> NewAt = mu::Clone<ASTOpFixed>(this);
+					NewAt->SetChild(NewAt->op.args.MeshProject.mesh, NewAddTags->Source);
+					NewAddTags->Source = NewAt;
+				}
+
+				at = NewAddTags;
 				break;
 			}
 

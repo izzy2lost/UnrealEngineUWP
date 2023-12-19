@@ -1435,6 +1435,26 @@ namespace mu
 
 		int32 ResultLODs = Sources[0]->GetLODCount();
 
+		// Be defensive: ensure formats are uncompressed
+		for (int i = 0; i < MUTABLE_OP_MAX_SWIZZLE_CHANNELS; ++i)
+		{
+			if (Sources[i] && Sources[i]->GetFormat()!=GetUncompressedFormat(Sources[i]->GetFormat()))
+			{
+				MUTABLE_CPUPROFILER_SCOPE(ImageFormat_ForSwizzle);
+
+				EImageFormat UncompressedFormat = GetUncompressedFormat(Sources[i]->GetFormat());
+				Ptr<Image> Formatted = Runner->CreateImage(Sources[i]->GetSizeX(), Sources[i]->GetSizeY(), 1, UncompressedFormat, EInitializationType::NotInitialized);
+				bool bSuccess = false;
+				int32 ImageCompressionQuality = 4; // TODO
+				ImOp.ImagePixelFormat(bSuccess, ImageCompressionQuality, Formatted.get(), Sources[i].get());
+				check(bSuccess); // Decompression cannot fail
+				Runner->Release(Sources[i]);
+				Sources[i] = Formatted;
+				ResultLODs = 1;
+			}
+		}
+
+
 		// Be defensive: ensure image sizes match.
 		for (int i = 1; i < MUTABLE_OP_MAX_SWIZZLE_CHANNELS; ++i)
 		{

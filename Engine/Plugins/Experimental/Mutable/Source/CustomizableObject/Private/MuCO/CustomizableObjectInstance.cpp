@@ -4217,7 +4217,7 @@ void UCustomizableInstancePrivateData::BuildOrCopyClothingData(const TSharedRef<
 
 			const TSet<int32>& SrcSelfCollisionVertexSet = SrcLodData.PhysicalMeshData.SelfCollisionVertexSet;
 			TSet<int32>& NewSelfCollisionVertexSet = NewLodData.PhysicalMeshData.SelfCollisionVertexSet;
-			TrimAndRemapVertexSet(NewSelfCollisionVertexSet, SrcSelfCollisionVertexSet);;
+			TrimAndRemapVertexSet(NewSelfCollisionVertexSet, SrcSelfCollisionVertexSet);
 						
 			{
 				MUTABLE_CPUPROFILER_SCOPE(BuildClothTetherData)

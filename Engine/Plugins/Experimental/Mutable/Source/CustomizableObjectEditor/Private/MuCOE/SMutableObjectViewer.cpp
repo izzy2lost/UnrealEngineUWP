@@ -140,7 +140,7 @@ void SMutableObjectViewer::Construct(const FArguments& InArgs, UCustomizableObje
 
 	// Initialize the debugger compile options
 	CompileOptions.TextureCompression = ECustomizableObjectTextureCompression::Fast;
-	CompileOptions.OptimizationLevel = 3;
+	CompileOptions.OptimizationLevel = 2;
 	{
 		ITargetPlatformManagerModule* TPM = GetTargetPlatformManager();
 		const TArray<ITargetPlatform*>& Platforms = TPM->GetActiveTargetPlatforms();

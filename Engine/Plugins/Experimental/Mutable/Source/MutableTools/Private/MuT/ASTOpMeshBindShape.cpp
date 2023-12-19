@@ -223,8 +223,8 @@ namespace mu
 			case OP_TYPE::ME_SWITCH:
 			{
 				// If the switch variable and structure is the same
-				const ASTOpSwitch* MeshSwitch = reinterpret_cast<const ASTOpSwitch*>(MeshAt.get());
-				const ASTOpSwitch* ShapeSwitch = reinterpret_cast<const ASTOpSwitch*>(ShapeAt.get());
+				const ASTOpSwitch* MeshSwitch = static_cast<const ASTOpSwitch*>(MeshAt.get());
+				const ASTOpSwitch* ShapeSwitch = static_cast<const ASTOpSwitch*>(ShapeAt.get());
 				bool bIsSimilarSwitch = MeshSwitch->IsCompatibleWith(ShapeSwitch);
 				if (!bIsSimilarSwitch)
 				{
@@ -260,8 +260,8 @@ namespace mu
 
 			case OP_TYPE::ME_CONDITIONAL:
 			{
-				const ASTOpConditional* MeshConditional = reinterpret_cast<const ASTOpConditional*>(MeshAt.get());
-				const ASTOpConditional* ShapeConditional = reinterpret_cast<const ASTOpConditional*>(ShapeAt.get());
+				const ASTOpConditional* MeshConditional = static_cast<const ASTOpConditional*>(MeshAt.get());
+				const ASTOpConditional* ShapeConditional = static_cast<const ASTOpConditional*>(ShapeAt.get());
 				bool bIsSimilar = MeshConditional->condition == ShapeConditional->condition;
 				if (!bIsSimilar)
 				{

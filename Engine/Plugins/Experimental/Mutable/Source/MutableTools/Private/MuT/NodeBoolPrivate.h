@@ -23,10 +23,6 @@ namespace mu
 	{
 	public:
 
-		MUTABLE_DEFINE_CONST_VISITABLE();
-
-	public:
-
 		static NODE_TYPE s_type;
 
 		bool m_value;
@@ -54,10 +50,6 @@ namespace mu
 
 	class NodeBoolParameter::Private : public NodeBool::Private
 	{
-	public:
-
-		MUTABLE_DEFINE_CONST_VISITABLE();
-
 	public:
 
 		static NODE_TYPE s_type;
@@ -107,45 +99,8 @@ namespace mu
 	};
 
 
-	class NodeBoolIsNull::Private : public NodeBool::Private
-	{
-	public:
-
-		MUTABLE_DEFINE_CONST_VISITABLE();
-
-	public:
-
-		static NODE_TYPE s_type;
-
-		NodePtr m_pSource;
-
-		//!
-		void Serialise( OutputArchive& arch ) const
-		{
-            uint32 ver = 0;
-			arch << ver;
-
-			arch << m_pSource;
-		}
-
-		//!
-		void Unserialise( InputArchive& arch )
-		{
-            uint32 ver;
-			arch >> ver;
-            check(ver<=0);
-
-			arch >> m_pSource;
-		}
-	};
-
-
 	class NodeBoolNot::Private : public NodeBool::Private
 	{
-	public:
-
-		MUTABLE_DEFINE_CONST_VISITABLE();
-
 	public:
 
 		static NODE_TYPE s_type;
@@ -175,10 +130,6 @@ namespace mu
 
 	class NodeBoolAnd::Private : public NodeBool::Private
 	{
-	public:
-
-		MUTABLE_DEFINE_CONST_VISITABLE();
-
 	public:
 
 		static NODE_TYPE s_type;

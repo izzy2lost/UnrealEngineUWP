@@ -427,8 +427,16 @@ bool FMutableTextureMipDataProvider::PollMips(const FTextureUpdateSyncOptions& S
 				int32 MipDataSize = Image->GetLODDataSize(MipIndex);
 
 				// Check Mip DataSize for consistency, but skip if 0 because it's optional and might be zero in cooked mips
-				check(Level.DataSize == 0 || MipDataSize == Level.DataSize);
-				FMemory::Memcpy(Dest, Image->GetMipData(MipIndex), MipDataSize);
+				bool bCorrectDataSize = (Level.DataSize == 0 || MipDataSize == Level.DataSize);
+				if (bCorrectDataSize)
+				{
+					FMemory::Memcpy(Dest, Image->GetMipData(MipIndex), MipDataSize);
+				}
+				else
+				{
+					UE_LOG(LogMutable, Warning, TEXT("Mip data has incorrect size."));
+					FMemory::Memzero(Dest, Level.DataSize);
+				}
 			}
 			else
 			{

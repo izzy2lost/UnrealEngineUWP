@@ -16,10 +16,6 @@ class NodeExtensionDataConstant::Private : public Node::Private
 {
 public:
 
-	MUTABLE_DEFINE_CONST_VISITABLE()
-
-public:
-
 	static NODE_TYPE s_type;
 
 	ExtensionDataPtrConst Value;

@@ -265,8 +265,8 @@ namespace mu
 
     //---------------------------------------------------------------------------------------------
 	void CodeGenerator::PrepareForLayout(Ptr<const Layout> GeneratedLayout,
-		MeshPtr currentLayoutMesh,
-		size_t currentLayoutChannel,
+		Ptr<Mesh> currentLayoutMesh,
+		int32 currentLayoutChannel,
 		const void* errorContext,
 		const FMeshGenerationOptions& MeshOptions
 		)
@@ -692,9 +692,6 @@ namespace mu
             return;
         }
 
-		// Clear bottom-up state
-		m_currentBottomUpState.m_address = nullptr;
-
         // See if it was already generated
 		FGeneratedMeshCacheKey Key;
 		Key.Node = InUntypedNode;
@@ -749,7 +746,7 @@ namespace mu
         // Factor
         if ( node.Factor )
         {
-            OpMorph->Factor = Generate( node.Factor.get() );
+            OpMorph->Factor = Generate( node.Factor.get(), InOptions );
         }
         else
         {
@@ -979,7 +976,7 @@ namespace mu
         // Factor
         if ( Node* pFactor = node.m_pFactor.get() )
         {
-            op->SetChild( op->op.args.MeshInterpolate.factor, Generate( pFactor ) );
+            op->SetChild( op->op.args.MeshInterpolate.factor, Generate( pFactor, InOptions ) );
         }
         else
         {
@@ -1071,7 +1068,7 @@ namespace mu
         // Factor
         if ( node.m_pParameter )
         {
-            op->variable = Generate( node.m_pParameter.get() );
+            op->variable = Generate( node.m_pParameter.get(), InOptions);
         }
         else
         {
@@ -1377,18 +1374,22 @@ namespace mu
 					// Apply whatever transform is necessary for every layout
 					for (int32 LayoutIndex = 0; LayoutIndex < node.m_layouts.Num(); ++LayoutIndex)
 					{
-						NodeLayoutPtr pLayoutNode = node.m_layouts[LayoutIndex];
-						// TODO: In a cleanup of the design of the layouts, we should remove this cast.
-						const NodeLayoutBlocks* TypedNode = dynamic_cast<NodeLayoutBlocks*>(pLayoutNode.get());
-						if (TypedNode)
+						Ptr<NodeLayout> pLayoutNode = node.m_layouts[LayoutIndex];
+						if (!pLayoutNode)
 						{
-							Ptr<const Layout> SourceLayout = TypedNode->GetPrivate()->m_pLayout;
-							Ptr<const Layout> GeneratedLayout = AddLayout( SourceLayout );
-							const void* Context = InOptions.OverrideContext.Get(node.m_errorContext);
-							PrepareForLayout(GeneratedLayout, pCloned, LayoutIndex, Context, InOptions);
-
-							OutResult.GeneratedLayouts.Add(GeneratedLayout);
+							continue;
 						}
+
+						// TODO: In a cleanup of the design of the layouts, we should remove this cast.
+						check(pLayoutNode->GetType()==NodeLayoutBlocks::GetStaticType() );
+						const NodeLayoutBlocks* TypedNode = static_cast<const NodeLayoutBlocks*>(pLayoutNode.get());
+
+						Ptr<const Layout> SourceLayout = TypedNode->GetPrivate()->m_pLayout;
+						Ptr<const Layout> GeneratedLayout = AddLayout( SourceLayout );
+						const void* Context = InOptions.OverrideContext.Get(node.m_errorContext);
+						PrepareForLayout(GeneratedLayout, pCloned, LayoutIndex, Context, InOptions);
+
+						OutResult.GeneratedLayouts.Add(GeneratedLayout);
 					}
 				}
 				else
@@ -1460,13 +1461,8 @@ namespace mu
 		}
 
 		// Apply the modifier for the pre-normal operations stage.
-		FBottomUpState TempState = m_currentBottomUpState;
-
 		bool bModifiersForBeforeOperations = true;
-		OutResult.meshOp = ApplyMeshModifiers(LastMeshOp, InOptions.ActiveTags, bModifiersForBeforeOperations, node.m_errorContext);
-
-		m_currentBottomUpState = TempState;
-
+		OutResult.meshOp = ApplyMeshModifiers(InOptions, LastMeshOp, bModifiersForBeforeOperations, node.m_errorContext);
     }
 
 
@@ -1796,8 +1792,8 @@ namespace mu
 			op->meshB = bResult.meshOp;
 		}
 
-		op->scalarA = Generate(node.m_pScalarA);
-		op->scalarB = Generate(node.m_pScalarB);
+		op->scalarA = Generate(node.m_pScalarA, InOptions);
+		op->scalarB = Generate(node.m_pScalarB, InOptions);
 
 		OutResult.meshOp = op;
 	}

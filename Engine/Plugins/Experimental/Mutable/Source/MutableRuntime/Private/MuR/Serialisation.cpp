@@ -253,7 +253,7 @@ namespace mu
     //---------------------------------------------------------------------------------------------
     //---------------------------------------------------------------------------------------------
     //---------------------------------------------------------------------------------------------
-    class InputArchiveWithProxies::Private : public Base
+    class InputArchiveWithProxies::Private
     {
     public:
         TArray< Ptr<ResourceProxy<Image>> > m_proxyHistory;

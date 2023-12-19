@@ -371,23 +371,22 @@ namespace mu
 		bool found = false;
 
 		// If the program added new operations, we haven't visited them.
-		m_visited.resize( program.m_opAddress.Num(), 0 );
+		m_visited.SetNumZeroed( program.m_opAddress.Num() );
 
-		m_pending.clear();
-		m_pending.reserve( program.m_opAddress.Num()/4 );
-		m_pending.push_back( std::make_pair(false,rootAt) );
+		m_pending.Reset();
+		m_pending.Reserve( program.m_opAddress.Num()/4 );
+		m_pending.Add({ false,rootAt });
 
 		// Don't early out to be able to complete parent op cached flags
-		while ( !m_pending.empty() )
+		while ( !m_pending.IsEmpty() )
 		{
-			std::pair<bool,int> item = m_pending.back();
-			m_pending.pop_back();
-			OP::ADDRESS at = item.second;
+			TPair<bool,int> item = m_pending.Pop();
+			OP::ADDRESS at = item.Value;
 
 			// Not cached?
 			if (m_visited[at]<=1)
 			{
-				if (item.first)
+				if (item.Key)
 				{
 					// Item indicating we finished with all the children of a parent
 					check(m_visited[at]==1);
@@ -402,9 +401,7 @@ namespace mu
 				}
 				else if (!found)
 				{
-					if ( std::find( m_typesToFind.begin(), m_typesToFind.end(), program.GetOpType(at))
-						 !=
-						 m_typesToFind.end() )
+					if (m_typesToFind.Find(program.GetOpType(at)) != INDEX_NONE )
 					{
 						m_visited[at] = 3; // visited, ops found
 						found = true;
@@ -414,13 +411,13 @@ namespace mu
 						check(m_visited[at]==0);
 
 						m_visited[at] = 1;
-						m_pending.push_back( std::make_pair(true,at) );
+						m_pending.Add({ true,at });
 
 						ForEachReference( program, at, [&](OP::ADDRESS ref)
 						{
 							if (ref && m_visited[ref]==0)
 							{
-								m_pending.push_back( std::make_pair(false,ref) );
+								m_pending.Add({ false,ref });
 							}
 						});
 					}
@@ -442,14 +439,14 @@ namespace mu
 	//---------------------------------------------------------------------------------------------
 	IsConstantVisitor::IsConstantVisitor()
 	{
-		vector<OP_TYPE> parameterTypes;
-		parameterTypes.push_back( OP_TYPE::BO_PARAMETER );
-		parameterTypes.push_back( OP_TYPE::NU_PARAMETER );
-		parameterTypes.push_back( OP_TYPE::SC_PARAMETER );
-		parameterTypes.push_back( OP_TYPE::CO_PARAMETER );
-		parameterTypes.push_back( OP_TYPE::PR_PARAMETER );
-		parameterTypes.push_back( OP_TYPE::IM_PARAMETER );
-		m_findOpTypeVisitor= std::make_unique<FindOpTypeVisitor>(parameterTypes);
+		TArray<OP_TYPE> parameterTypes;
+		parameterTypes.Add( OP_TYPE::BO_PARAMETER );
+		parameterTypes.Add( OP_TYPE::NU_PARAMETER );
+		parameterTypes.Add( OP_TYPE::SC_PARAMETER );
+		parameterTypes.Add( OP_TYPE::CO_PARAMETER );
+		parameterTypes.Add( OP_TYPE::PR_PARAMETER );
+		parameterTypes.Add( OP_TYPE::IM_PARAMETER );
+		m_findOpTypeVisitor = MakeUnique<FindOpTypeVisitor>(parameterTypes);
 	}
 
 
@@ -823,7 +820,7 @@ namespace mu
 	//-------------------------------------------------------------------------------------------------
 	//-------------------------------------------------------------------------------------------------
 	//-------------------------------------------------------------------------------------------------
-	CodeOptimiser::CodeOptimiser(Ptr<CompilerOptions> options, vector<STATE_COMPILATION_DATA>& states )
+	CodeOptimiser::CodeOptimiser(Ptr<CompilerOptions> options, TArray<FStateCompilationData>& states )
 		: m_states( states )
 	{
 		m_options = options;
@@ -1244,7 +1241,7 @@ namespace mu
 			// like the grow-map generation.
 			bool modified = true;
 			int numIterations = 0;
-			while (modified && (!m_optimizeIterationsMax || (m_optimizeIterationsLeft>0) || !numIterations) )
+			while (modified)
 			{
 				MUTABLE_CPUPROFILER_SCOPE(FirstStage);
 
@@ -1306,7 +1303,7 @@ namespace mu
 			});
 
 			// Make sure we didn't lose track of pointers
-			for ( size_t s=0;  s<m_states.size(); ++s )
+			for ( int32 s=0;  s<m_states.Num(); ++s )
 			{
 				check( roots.Contains( m_states[s].root ) );
 			}
@@ -1347,7 +1344,7 @@ namespace mu
 				FullOptimiseAST(roots, 2);
 			}
 
-			for ( size_t s=0;  s<m_states.size(); ++s )
+			for ( int32 s=0;  s<m_states.Num(); ++s )
 			{
 				UE_LOG(LogMutableCore, Verbose, TEXT(" - constant generator"));
 				ConstantGeneratorAST( m_options->GetPrivate(), m_states[s].root );
@@ -1363,7 +1360,7 @@ namespace mu
 			//AXE_INT_VALUE("Mutable", Verbose, "ast size", (int64_t)ASTOp::CountNodes(roots));
 
 			// Make sure we didn't lose track of pointers
-			for ( size_t s=0;  s<m_states.size(); ++s )
+			for ( int32 s=0;  s<m_states.Num(); ++s )
 			{
 				check( roots.Contains( m_states[s].root ) );
 			}

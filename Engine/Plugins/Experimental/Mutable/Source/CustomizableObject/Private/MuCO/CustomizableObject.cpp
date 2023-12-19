@@ -1650,7 +1650,7 @@ bool UCustomizableObject::GetBoolParameterDefaultValue(const FString& InParamete
 	if (!Model)
 	{
 		checkNoEntry();
-		return FCustomizableObjectBoolParameterValue::DEFAULT_PARAMETER_VALUE;;
+		return FCustomizableObjectBoolParameterValue::DEFAULT_PARAMETER_VALUE;
 	}
 	
 	return Model->GetBoolDefaultValue(ParameterIndex);
@@ -1663,7 +1663,7 @@ FLinearColor UCustomizableObject::GetColorParameterDefaultValue(const FString& I
 	if (ParameterIndex == INDEX_NONE)
 	{
 		UE_LOG(LogMutable, Error, TEXT("Tried to access the default value of the nonexistent color parameter [%s] in the CustomizableObject [%s]."), *InParameterName, *GetName());
-		return FCustomizableObjectVectorParameterValue::DEFAULT_PARAMETER_VALUE;;
+		return FCustomizableObjectVectorParameterValue::DEFAULT_PARAMETER_VALUE;
 	}
 
 	const TSharedPtr<mu::Model> Model = GetModel();

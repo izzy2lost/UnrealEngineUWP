@@ -23,47 +23,36 @@
 #include "MuT/NodeSurfaceNew.h"
 #include "MuT/NodeSurfaceVariation.h"
 #include "MuT/NodeSurfaceSwitch.h"
-#include "MuT/Visitor.h"
-
-#include <stdint.h>
-#include <memory>
-#include <utility>
 
 namespace mu
 {
 	class Layout;
 	struct FObjectState;
 
-	//---------------------------------------------------------------------------------------------
-	//! First pass of the code generation process.
-	//! It collects data about the object hierarchy, the conditions for each object and the global
-	//! modifiers.
-	//---------------------------------------------------------------------------------------------
-	class FirstPassGenerator :
-		public Base,
-		public BaseVisitor,
-
-        public Visitor<NodeSurfaceNew::Private, Ptr<ASTOp>, true>,
-        public Visitor<NodeSurfaceEdit::Private, Ptr<ASTOp>, true>,
-		public Visitor<NodeSurfaceVariation::Private, Ptr<ASTOp>, true>,
-		public Visitor<NodeSurfaceSwitch::Private, Ptr<ASTOp>, true>,
-		public Visitor<NodeComponentNew::Private, Ptr<ASTOp>, true>,
-        public Visitor<NodeComponentEdit::Private, Ptr<ASTOp>, true>,
-        public Visitor<NodeLOD::Private, Ptr<ASTOp>, true>,
-        public Visitor<NodeObjectNew::Private, Ptr<ASTOp>, true>,
-        public Visitor<NodeObjectGroup::Private, Ptr<ASTOp>, true>,
-        public Visitor<NodePatchMesh::Private, Ptr<ASTOp>, true>,
-
-        public Visitor<NodeModifierMeshClipMorphPlane::Private, Ptr<ASTOp>, true>,
-		public Visitor<NodeModifierMeshClipWithMesh::Private, Ptr<ASTOp>, true>,
-		public Visitor<NodeModifierMeshClipWithUVMask::Private, Ptr<ASTOp>, true>,
-		public Visitor<NodeModifierMeshClipDeform::Private, Ptr<ASTOp>, true>
+	/** First pass of the code generation process.
+	 * It collects data about the object hierarchy, the conditions for each object and the global modifiers.
+	 */
+	class FirstPassGenerator
 	{
 	public:
 
 		FirstPassGenerator();
 
-        void Generate(ErrorLogPtr pErrorLog, const Node::Private* root, bool ignoreStates, class CodeGenerator*);
+        void Generate(Ptr<ErrorLog>, const Node* Root, bool bIgnoreStates, class CodeGenerator*);
+
+	private:
+
+		void Generate_Generic(const Node*);
+		void Generate_Modifier(const NodeModifier*);
+		void Generate_SurfaceNew(const NodeSurfaceNew*);
+		void Generate_SurfaceEdit(const NodeSurfaceEdit*);
+		void Generate_SurfaceSwitch(const NodeSurfaceSwitch*);
+		void Generate_SurfaceVariation(const NodeSurfaceVariation*);
+		void Generate_ComponentNew(const NodeComponentNew*);
+		void Generate_ComponentEdit(const NodeComponentEdit*);
+		void Generate_LOD(const NodeLOD*);
+		void Generate_ObjectNew(const NodeObjectNew*);
+		void Generate_ObjectGroup(const NodeObjectGroup*);
 
 	public:
 
@@ -82,7 +71,7 @@ namespace mu
         //! This is the state mask for the states in which this surface must be added. If it
         //! is empty it means the surface is valid for all states. Otherwise it is only valid
         //! for the states whose index is true.
-        using StateCondition = TArray<uint8_t>;
+        using StateCondition = TArray<uint8>;
 
 		//! Store information about every surface including
 		//! - the component it may be added to
@@ -183,23 +172,6 @@ namespace mu
         //! nodes.
         typedef TArray< TPair<FObjectState, const Node::Private*> > StateList;
         StateList m_states;
-
-	public:
-
-        Ptr<ASTOp> Visit(const NodeSurfaceNew::Private&) override;
-        Ptr<ASTOp> Visit(const NodeSurfaceEdit::Private&) override;
-		Ptr<ASTOp> Visit(const NodeSurfaceVariation::Private&) override;
-		Ptr<ASTOp> Visit(const NodeSurfaceSwitch::Private&) override;
-		Ptr<ASTOp> Visit(const NodeComponentNew::Private&) override;
-        Ptr<ASTOp> Visit(const NodeComponentEdit::Private&) override;
-        Ptr<ASTOp> Visit(const NodeLOD::Private&) override;
-        Ptr<ASTOp> Visit(const NodeObjectNew::Private& node) override;
-        Ptr<ASTOp> Visit(const NodeObjectGroup::Private&) override;
-        Ptr<ASTOp> Visit(const NodeModifierMeshClipMorphPlane::Private&) override;
-        Ptr<ASTOp> Visit(const NodeModifierMeshClipWithMesh::Private&) override;
-		Ptr<ASTOp> Visit(const NodeModifierMeshClipWithUVMask::Private&) override;
-		Ptr<ASTOp> Visit(const NodeModifierMeshClipDeform::Private&) override;
-        Ptr<ASTOp> Visit(const NodePatchMesh::Private&) override;
 
 	private:
 

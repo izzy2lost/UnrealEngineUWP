@@ -138,8 +138,7 @@ namespace mu
 
             //! List of root instructions for the dynamic resources that depend on the runtime
             //! parameters of this state, with a mask of relevant runtime parameters.
-            //! The mask has a bit on for every runtime parameter in the m_runtimeParameters
-            //! vector.
+            //! The mask has a bit on for every runtime parameter in the m_runtimeParameters array.
 			//! The uint64 is linked to MUTABLE_MAX_RUNTIME_PARAMETERS_PER_STATE
 			TArray< TPair<OP::ADDRESS,uint64> > m_dynamicResources;
 
@@ -669,7 +668,7 @@ namespace mu
 
 
     //!
-    class MUTABLERUNTIME_API Model::Private : public Base
+    class MUTABLERUNTIME_API Model::Private
     {
     public:
 
@@ -699,7 +698,7 @@ namespace mu
 
 
     //!
-    class MUTABLERUNTIME_API ModelParametersGenerator::Private : public Base
+    class MUTABLERUNTIME_API ModelParametersGenerator::Private
     {
     public:
 

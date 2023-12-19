@@ -25,7 +25,7 @@ namespace mu
 		{
 			Constant = 0,
 			Parameter = 1,
-			IsNull = 2,
+			DEPRECATED_IsNull = 2,
 			Not = 3,
 			And = 4,
 
@@ -171,56 +171,6 @@ namespace mu
 
 		//! Forbidden. 
 		~NodeBoolParameter();
-
-	private:
-
-		Private* m_pD;
-
-	};
-
-
-	//---------------------------------------------------------------------------------------------
-	//! Node that returns true if there is an input or false if there is nothing connected.
-	//! This node is mostly useful when used in the model Transform's conditions.
-	//! \ingroup model
-	//---------------------------------------------------------------------------------------------
-	class MUTABLETOOLS_API NodeBoolIsNull : public NodeBool
-	{
-	public:
-
-		//-----------------------------------------------------------------------------------------
-		// Life cycle
-		//-----------------------------------------------------------------------------------------
-
-		NodeBoolIsNull();
-
-		void SerialiseWrapper(OutputArchive& arch) const override;
-		static void Serialise( const NodeBoolIsNull* pNode, OutputArchive& arch );
-		static Ptr<NodeBoolIsNull> StaticUnserialise( InputArchive& arch );
-
-
-		//-----------------------------------------------------------------------------------------
-		// Node Interface
-		//-----------------------------------------------------------------------------------------
-
-        const NODE_TYPE* GetType() const override;
-		static const NODE_TYPE* GetStaticType();
-
-		//-----------------------------------------------------------------------------------------
-		// Own Interface
-		//-----------------------------------------------------------------------------------------
-
-		//-----------------------------------------------------------------------------------------
-		// Interface pattern
-		//-----------------------------------------------------------------------------------------
-		class Private;
-		Private* GetPrivate() const;
-        Node::Private* GetBasePrivate() const override;
-
-	protected:
-
-		//! Forbidden. 
-		~NodeBoolIsNull();
 
 	private:
 

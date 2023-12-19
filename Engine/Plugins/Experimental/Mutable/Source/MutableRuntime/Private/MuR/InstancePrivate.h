@@ -123,7 +123,7 @@ namespace mu
 		FName Name;
 	};
 
-	class Instance::Private : public Base
+	class Instance::Private
 	{
 	public:
 

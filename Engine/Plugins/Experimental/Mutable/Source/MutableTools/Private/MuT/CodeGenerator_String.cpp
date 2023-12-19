@@ -19,28 +19,25 @@
 #include "MuT/NodeStringConstantPrivate.h"
 #include "MuT/NodeStringParameter.h"
 #include "MuT/NodeStringParameterPrivate.h"
-#include "map"
-
-#include <memory>
-#include <utility>
-
 
 namespace mu
 {
 
 
 	//-------------------------------------------------------------------------------------------------
-	void CodeGenerator::GenerateString(FStringGenerationResult& result, const NodeStringPtrConst& untyped)
+	void CodeGenerator::GenerateString(FStringGenerationResult& result, const FGenericGenerationOptions& Options, const Ptr<const NodeString>& Untyped)
 	{
-		if (!untyped)
+		if (!Untyped)
 		{
 			result = FStringGenerationResult();
 			return;
 		}
 
 		// See if it was already generated
-		FVisitedKeyMap key = GetCurrentCacheKey(untyped);
-		GeneratedStringsMap::ValueType* it = m_generatedStrings.Find(key);
+		FGeneratedCacheKey Key;
+		Key.Node = Untyped;
+		Key.Options = Options;
+		FGeneratedStringsMap::ValueType* it = GeneratedStrings.Find(Key);
 		if (it)
 		{
 			result = *it;
@@ -48,13 +45,13 @@ namespace mu
 		}
 
 		// Generate for each different type of node
-		if (auto Constant = dynamic_cast<const NodeStringConstant*>(untyped.get()))
+		if (Untyped->GetType()==NodeStringConstant::GetStaticType())
 		{
-			GenerateString_Constant(result, Constant);
+			GenerateString_Constant(result, Options, static_cast<const NodeStringConstant*>(Untyped.get()));
 		}
-		else if (auto Param = dynamic_cast<const NodeStringParameter*>(untyped.get()))
+		else if (Untyped->GetType() == NodeStringParameter::GetStaticType())
 		{
-			GenerateString_Parameter(result, Param);
+			GenerateString_Parameter(result, Options, static_cast<const NodeStringParameter*>(Untyped.get()));
 		}
 		else
 		{
@@ -62,12 +59,12 @@ namespace mu
 		}
 
 		// Cache the result
-		m_generatedStrings.Add(key, result);
+		GeneratedStrings.Add(Key, result);
 	}
 
 
 	//-------------------------------------------------------------------------------------------------
-	void CodeGenerator::GenerateString_Constant(FStringGenerationResult& result, const Ptr<const NodeStringConstant>& Typed)
+	void CodeGenerator::GenerateString_Constant(FStringGenerationResult& result, const FGenericGenerationOptions& Options, const Ptr<const NodeStringConstant>& Typed)
 	{
 		const NodeStringConstant::Private& node = *Typed->GetPrivate();
 
@@ -79,14 +76,14 @@ namespace mu
 
 
 	//-------------------------------------------------------------------------------------------------
-	void CodeGenerator::GenerateString_Parameter(FStringGenerationResult& result, const Ptr<const NodeStringParameter>& Typed)
+	void CodeGenerator::GenerateString_Parameter(FStringGenerationResult& result, const FGenericGenerationOptions& Options, const Ptr<const NodeStringParameter>& Typed)
 	{
 		const NodeStringParameter::Private& node = *Typed->GetPrivate();
 
 		Ptr<ASTOpParameter> op;
 
-		auto it = m_nodeVariables.find(node.m_pNode);
-		if (it == m_nodeVariables.end())
+		Ptr<ASTOpParameter>* it = NodeVariables.Find(node.m_pNode);
+		if (!it)
 		{
 			FParameterDesc param;
 			param.m_name = node.m_name;
@@ -102,15 +99,15 @@ namespace mu
 			for (int32 a = 0; a < node.m_ranges.Num(); ++a)
 			{
 				FRangeGenerationResult rangeResult;
-				GenerateRange(rangeResult, node.m_ranges[a]);
+				GenerateRange(rangeResult, Options, node.m_ranges[a]);
 				op->ranges.Emplace(op.get(), rangeResult.sizeOp, rangeResult.rangeName, rangeResult.rangeUID);
 			}
 
-			m_nodeVariables[node.m_pNode] = op;
+			NodeVariables.Add(node.m_pNode, op);
 		}
 		else
 		{
-			op = it->second;
+			op = *it;
 		}
 
 		result.op = op;

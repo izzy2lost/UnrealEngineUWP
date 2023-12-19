@@ -44,7 +44,7 @@ namespace mu
 		{
 		case 0 :  return NodeBoolConstant::StaticUnserialise( arch ); break;
 		case 1 :  return NodeBoolParameter::StaticUnserialise( arch ); break;
-		case 2 :  return NodeBoolIsNull::StaticUnserialise( arch ); break;
+		//case 2 :  return NodeBoolIsNull::StaticUnserialise( arch ); break;
 		case 3 :  return NodeBoolNot::StaticUnserialise( arch ); break;
 		case 4 :  return NodeBoolAnd::StaticUnserialise( arch ); break;
 		default : check(false);

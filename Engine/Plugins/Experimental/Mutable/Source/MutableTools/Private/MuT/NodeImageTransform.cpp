@@ -136,7 +136,7 @@ namespace mu
 	//---------------------------------------------------------------------------------------------
 	bool NodeImageTransform::GetKeepAspectRatio() const
 	{
-		return m_pD->bKeepAspectRatio;;
+		return m_pD->bKeepAspectRatio;
 	}
 
 	//---------------------------------------------------------------------------------------------

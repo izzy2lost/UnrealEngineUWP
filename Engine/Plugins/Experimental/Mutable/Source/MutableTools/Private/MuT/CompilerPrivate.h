@@ -82,7 +82,7 @@ namespace mu
 
 
     //!
-    class CompilerOptions::Private : public Base
+    class CompilerOptions::Private
     {
     public:
 
@@ -162,7 +162,7 @@ namespace mu
 
 
     //!
-    struct STATE_COMPILATION_DATA
+    struct FStateCompilationData
     {
         FObjectState nodeState;
         Ptr<ASTOp> root;
@@ -179,7 +179,7 @@ namespace mu
 
 
     //!
-    class Compiler::Private : public Base
+    class Compiler::Private
     {
     public:
 

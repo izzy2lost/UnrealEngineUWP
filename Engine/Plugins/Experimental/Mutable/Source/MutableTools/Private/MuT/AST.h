@@ -797,7 +797,7 @@ namespace mu
     inline Ptr<DERIVED> Clone( const ASTOp* s )
     {
 		ASTOp::MapChildFunc Identity = [](const Ptr<ASTOp>& o) {return o; };
-		auto c = s->Clone(Identity);
+		Ptr<ASTOp> c = s->Clone(Identity);
 		Ptr<DERIVED> t = dynamic_cast<DERIVED*>(c.get());
         check(t);
         return t;
@@ -807,7 +807,7 @@ namespace mu
     inline Ptr<DERIVED> Clone( const Ptr<const ASTOp>& s )
     {
 		ASTOp::MapChildFunc Identity = [](const Ptr<ASTOp>& o) {return o; };
-        auto c = s->Clone(Identity);
+		Ptr<ASTOp> c = s->Clone(Identity);
         Ptr<DERIVED> t = dynamic_cast<DERIVED*>(c.get());
         check(t);
         return t;
@@ -817,7 +817,7 @@ namespace mu
     //!
     //---------------------------------------------------------------------------------------------
     template<typename STATE>
-    class Visitor_TopDown_Unique_Const : public Base
+    class Visitor_TopDown_Unique_Const
     {
     private:
 
@@ -970,7 +970,7 @@ namespace mu
     //! Once an instruction has changed, all the chain of instructions up to the root will be
     //! cloned, referencing the new instruction.
     //---------------------------------------------------------------------------------------------
-    class Visitor_TopDown_Unique_Cloning : public Base
+    class Visitor_TopDown_Unique_Cloning
     {
     public:
 

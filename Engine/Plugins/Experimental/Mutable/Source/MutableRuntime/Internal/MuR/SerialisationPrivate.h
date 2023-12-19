@@ -87,7 +87,7 @@ namespace mu
 
 
     //---------------------------------------------------------------------------------------------
-    class MUTABLERUNTIME_API InputMemoryStream::Private : public Base
+    class MUTABLERUNTIME_API InputMemoryStream::Private
     {
     public:
 
@@ -107,7 +107,7 @@ namespace mu
 
 
     //---------------------------------------------------------------------------------------------
-    class MUTABLERUNTIME_API OutputMemoryStream::Private : public Base
+    class MUTABLERUNTIME_API OutputMemoryStream::Private
     {
     public:
         TArray<uint8,TSizedHeapAllocator<64>> m_buffer;
@@ -115,7 +115,7 @@ namespace mu
 
 
 	//---------------------------------------------------------------------------------------------
-	class MUTABLERUNTIME_API InputArchive::Private : public Base
+	class MUTABLERUNTIME_API InputArchive::Private
 	{
 	public:
 
@@ -128,7 +128,7 @@ namespace mu
 	};
 
 	//---------------------------------------------------------------------------------------------
-	class MUTABLERUNTIME_API OutputArchive::Private : public Base
+	class MUTABLERUNTIME_API OutputArchive::Private
 	{
 	public:
 

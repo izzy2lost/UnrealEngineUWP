@@ -23,12 +23,6 @@ namespace mu
 	{
 	public:
 
-		//MUTABLE_DEFINE_CONST_VISITABLE()
-		
-		//-----------------------------------------------------------------------------------------
-		// Life cycle
-		//-----------------------------------------------------------------------------------------
-
 		NodeImageNormalComposite();
 
 		void SerialiseWrapper(OutputArchive& arch) const override;

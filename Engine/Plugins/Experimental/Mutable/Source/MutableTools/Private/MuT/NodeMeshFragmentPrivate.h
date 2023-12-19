@@ -16,10 +16,6 @@ namespace mu
 	{
 	public:
 
-		MUTABLE_DEFINE_CONST_VISITABLE()
-
-	public:
-
 		Private()
 		{
             m_layoutOrGroup = -1;

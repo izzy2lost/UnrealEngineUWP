@@ -4,12 +4,11 @@
 
 #include "MuT/Table.h"
 
-#include "MuT/Visitor.h"
 #include "MuT/ErrorLogPrivate.h"
-
 #include "MuR/MutableMath.h"
 #include "MuR/SerialisationPrivate.h"
 
+#include <string>
 
 namespace mu
 {
@@ -45,7 +44,7 @@ namespace mu
 
 
 	//!
-	class Table::Private : public Base
+	class Table::Private
 	{
 	public:
 
@@ -114,7 +113,7 @@ namespace mu
 			{
 				if (ver <= 2)
 				{
-					string LegacyString;
+					std::string LegacyString;
 					arch >> LegacyString;
 					Columns[c].Name = LegacyString.c_str();
 				}
@@ -181,7 +180,7 @@ namespace mu
 					{
 						if (ver <= 2)
 						{
-							string LegacyString;
+							std::string LegacyString;
 							arch >> LegacyString;
 							v.String = LegacyString.c_str();
 						}

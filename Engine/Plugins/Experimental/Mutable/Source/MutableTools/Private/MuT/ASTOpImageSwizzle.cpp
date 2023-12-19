@@ -723,8 +723,9 @@ namespace mu
 							|| Typed->UncroppedSizeY != FirstRasterMesh->UncroppedSizeY
 							|| Typed->CropMinX != FirstRasterMesh->CropMinX
 							|| Typed->CropMinY != FirstRasterMesh->CropMinY
-							|| Typed->bIsRGBFadingEnabled != FirstRasterMesh->bIsRGBFadingEnabled
-							|| Typed->bIsAlphaFadingEnabled != FirstRasterMesh->bIsAlphaFadingEnabled
+							// Also ignore the fading flags. They are dealt with below.
+							//|| Typed->bIsRGBFadingEnabled != FirstRasterMesh->bIsRGBFadingEnabled
+							//|| Typed->bIsAlphaFadingEnabled != FirstRasterMesh->bIsAlphaFadingEnabled
 							)
 						{
 							bAreAllRasterMeshesCompatible = false;
@@ -759,7 +760,8 @@ namespace mu
 						}
 						else if (Sources[3] && SourceChannels[3] < 3)
 						{
-							NewRaster->bIsAlphaFadingEnabled = NewRaster->bIsRGBFadingEnabled;
+							const ASTOpImageRasterMesh* ChannelRaster = static_cast<const ASTOpImageRasterMesh*>(Sources[3].child().get());
+							NewRaster->bIsAlphaFadingEnabled = ChannelRaster->bIsRGBFadingEnabled;
 						}
 					}
 

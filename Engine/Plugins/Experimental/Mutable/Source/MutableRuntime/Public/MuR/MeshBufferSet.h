@@ -206,7 +206,7 @@ namespace mu
 
 
 	//! Set of buffers storing mesh element data. Elements can be vertices, indices or faces.
-	class MUTABLERUNTIME_API FMeshBufferSet : public Base
+	class MUTABLERUNTIME_API FMeshBufferSet
 	{
 	public:
 

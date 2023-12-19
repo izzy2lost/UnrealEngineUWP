@@ -25,10 +25,6 @@ namespace mu
 	{
 	public:
 
-		MUTABLE_DEFINE_CONST_VISITABLE()
-
-	public:
-
 		Private()
 		{
 			m_pLayout = new Layout();

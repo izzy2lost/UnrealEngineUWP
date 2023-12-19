@@ -22,9 +22,19 @@ namespace mu
     //---------------------------------------------------------------------------------------------
 	inline EImageFormat GetMostGenericFormat(EImageFormat FormatA, EImageFormat FormatB)
     {
-        if (FormatA == FormatB) 
-		{	
+		if (FormatA == FormatB)
+		{
 			return FormatA;
+		}
+
+		if (FormatA == EImageFormat::IF_NONE)
+		{
+			return FormatA;
+		}
+
+		if (FormatB == EImageFormat::IF_NONE)
+		{
+			return FormatB;
 		}
 
         if (GetImageFormatData(FormatA).Channels > GetImageFormatData(FormatB).Channels)
@@ -37,12 +47,15 @@ namespace mu
 			return FormatB;
 		}
 
-        if (FormatA == EImageFormat::IF_BC2 || FormatA == EImageFormat::IF_BC3 || FormatA == EImageFormat::IF_ASTC_4x4_RGBA_LDR)
+        if (FormatA == EImageFormat::IF_BC2 || FormatA == EImageFormat::IF_BC3 
+			|| FormatA == EImageFormat::IF_ASTC_4x4_RGBA_LDR || FormatA == EImageFormat::IF_ASTC_6x6_RGBA_LDR || FormatA == EImageFormat::IF_ASTC_8x8_RGBA_LDR || FormatA == EImageFormat::IF_ASTC_10x10_RGBA_LDR)
 		{	
 			return FormatA;
 		}
 
-        if (FormatB == EImageFormat::IF_BC2 || FormatB == EImageFormat::IF_BC3 || FormatB == EImageFormat::IF_ASTC_4x4_RGBA_LDR)
+        if (FormatB == EImageFormat::IF_BC2 || FormatB == EImageFormat::IF_BC3
+			|| FormatB == EImageFormat::IF_ASTC_4x4_RGBA_LDR || FormatB == EImageFormat::IF_ASTC_6x6_RGBA_LDR || FormatB == EImageFormat::IF_ASTC_8x8_RGBA_LDR || FormatB == EImageFormat::IF_ASTC_10x10_RGBA_LDR)
+
 		{
 			return FormatB;
 		}

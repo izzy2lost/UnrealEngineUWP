@@ -11,6 +11,7 @@
 #include "MuR/ImageRLE.h"
 #include "MuR/MutableMath.h"
 #include "MuR/MutableTrace.h"
+#include "MuR/MutableRuntimeModule.h"
 #include "MuR/Ptr.h"
 
 
@@ -1226,8 +1227,20 @@ void FImageOperator::ImagePixelFormat( bool& bOutSuccess, int32 CompressionQuali
             }
 
             default:
-                // Case not implemented
-                check( false );
+			{
+				UE_LOG(LogMutableCore, Log, TEXT("Image format conversion not implemented. Expensive generic one used. "));
+
+				// Case not implemented, try a generic more expensive operatino.
+				ImagePtr Temp = ImagePixelFormat(CompressionQuality, Base, EImageFormat::IF_RGBA_UBYTE);
+				for (int m = 0; m < resultLODCount; ++m)
+				{
+					FIntVector2 mipSize = pResult->CalculateMipSize(m);
+					miro::RGBA_to_BC1(
+						mipSize[0], mipSize[1], Base->GetMipData(baseLOD + m),
+						pResult->GetMipData(m), CompressionQuality);
+				}
+				ReleaseImage(Temp);
+			}
 
             }
 
@@ -1249,8 +1262,20 @@ void FImageOperator::ImagePixelFormat( bool& bOutSuccess, int32 CompressionQuali
                 break;
 
             default:
-                // Case not implemented
-                check( false );
+			{
+				UE_LOG(LogMutableCore, Log, TEXT("Image format conversion not implemented. Expensive generic one used. "));
+
+				// Case not implemented, try a generic more expensive operatino.
+				ImagePtr Temp = ImagePixelFormat(CompressionQuality, Base, EImageFormat::IF_RGBA_UBYTE);
+				for (int m = 0; m < resultLODCount; ++m)
+				{
+					FIntVector2 mipSize = pResult->CalculateMipSize(m);
+					miro::RGBA_to_BC2(
+						mipSize[0], mipSize[1], Base->GetMipData(baseLOD + m),
+						pResult->GetMipData(m), CompressionQuality);
+				}
+				ReleaseImage(Temp);
+			}
 
             }
 
@@ -1296,8 +1321,20 @@ void FImageOperator::ImagePixelFormat( bool& bOutSuccess, int32 CompressionQuali
             }
 
             default:
-                // Case not implemented
-                check( false );
+			{
+				UE_LOG(LogMutableCore, Log, TEXT("Image format conversion not implemented. Expensive generic one used. "));
+
+				// Case not implemented, try a generic more expensive operatino.
+				ImagePtr Temp = ImagePixelFormat(CompressionQuality, Base, EImageFormat::IF_RGBA_UBYTE);
+				for (int m = 0; m < resultLODCount; ++m)
+				{
+					FIntVector2 mipSize = pResult->CalculateMipSize(m);
+					miro::RGBA_to_BC3(
+						mipSize[0], mipSize[1], Base->GetMipData(baseLOD + m),
+						pResult->GetMipData(m), CompressionQuality);
+				}
+				ReleaseImage(Temp);
+			}               
 
             }
 

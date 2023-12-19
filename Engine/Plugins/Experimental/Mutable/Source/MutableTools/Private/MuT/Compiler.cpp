@@ -196,7 +196,7 @@ namespace mu
     {
         MUTABLE_CPUPROFILER_SCOPE(Compile);
 
-        vector< STATE_COMPILATION_DATA > states;
+        TArray< FStateCompilationData > states;
         Ptr<ErrorLog> genErrorLog;
         {
             CodeGenerator gen( m_pD->m_options->GetPrivate() );
@@ -207,23 +207,23 @@ namespace mu
 
             for ( const auto& s: gen.m_states )
             {
-                STATE_COMPILATION_DATA data;
-                data.nodeState = s.first;
-                data.root = s.second;
-                data.state.Name = s.first.m_name;
-                states.push_back( data );
+                FStateCompilationData data;
+                data.nodeState = s.Key;
+                data.root = s.Value;
+                data.state.Name = s.Key.m_name;
+                states.Add( data );
             }
 
             genErrorLog = gen.m_pErrorLog;
         }
 
-        //vector<Ptr<ASTOp>> roots;
-        //for( const STATE_COMPILATION_DATA& s: states)
-        //{
-        //    roots.push_back(s.root);
-        //}
 
         // Slow AST code verification for debugging.
+        //TArray<Ptr<ASTOp>> roots;
+        //for( const FStateCompilationData& s: states)
+        //{
+        //    roots.Add(s.root);
+        //}
         //ASTOp::FullAssert(roots);
 
         // Optimize the generated code
@@ -246,7 +246,7 @@ namespace mu
 		FImageOperator ImOp = FImageOperator::GetDefault(m_pD->m_options->GetPrivate()->ImageFormatFunc);
 		FLinkerOptions LinkerOptions(ImOp);
 
-		for( STATE_COMPILATION_DATA& s: states )
+		for(FStateCompilationData& s: states )
         {
 			LinkerOptions.MinTextureResidentMipCount = m_pD->m_options->GetPrivate()->MinTextureResidentMipCount;
 
@@ -265,7 +265,7 @@ namespace mu
 		program.m_opAddress.Shrink();
 
         // Set the runtime parameter indices.
-        for( STATE_COMPILATION_DATA& s: states )
+        for(FStateCompilationData& s: states )
         {
             for ( int32 p=0; p<s.nodeState.m_runtimeParams.Num(); ++p )
             {

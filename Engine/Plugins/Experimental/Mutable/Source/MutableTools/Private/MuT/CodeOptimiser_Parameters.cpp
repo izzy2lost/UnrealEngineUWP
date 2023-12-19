@@ -45,7 +45,7 @@ namespace mu
     //---------------------------------------------------------------------------------------------
     //---------------------------------------------------------------------------------------------
     //---------------------------------------------------------------------------------------------
-    RuntimeParameterVisitorAST::RuntimeParameterVisitorAST(const STATE_COMPILATION_DATA* pState)
+    RuntimeParameterVisitorAST::RuntimeParameterVisitorAST(const FStateCompilationData* pState)
         : m_pState(pState)
     {
     }
@@ -271,7 +271,7 @@ namespace mu
     //---------------------------------------------------------------------------------------------
     //---------------------------------------------------------------------------------------------
     ParameterOptimiserAST::ParameterOptimiserAST(
-            STATE_COMPILATION_DATA& s,
+		FStateCompilationData& s,
             const FModelOptimizationOptions& optimisationOptions
             )
             : m_stateProps(s)
@@ -1621,10 +1621,10 @@ namespace mu
     void SubtreeRelevantParametersVisitorAST::Run( Ptr<ASTOp> root )
     {
         // Cached?
-		std::unordered_map< STATE, TSet<FString>, state_hash >::iterator it = m_resultCache.find( STATE(root,false) );
-        if (it!=m_resultCache.end())
+		TSet<FString>* it = m_resultCache.Find( FState(root,false) );
+        if (it)
         {
-            m_params = it->second;
+            m_params = *it;
             return;
         }
 
@@ -1706,7 +1706,7 @@ namespace mu
                 return true;
             });
 
-            m_resultCache[STATE(root,false)] = m_params;
+            m_resultCache.Add( FState(root,false), m_params );
         }
     }
 
@@ -1723,7 +1723,7 @@ namespace mu
     {
     public:
 
-        StateCacheDetectorAST( STATE_COMPILATION_DATA* pState )
+        StateCacheDetectorAST(FStateCompilationData* pState )
             : m_hasRuntimeParamVisitor( pState )
         {
             ASTOpList roots;
@@ -1851,7 +1851,7 @@ namespace mu
     {
     public:
 
-        StateCacheFormatOptimiserAST( STATE_COMPILATION_DATA& state,
+        StateCacheFormatOptimiserAST(FStateCompilationData& state,
                                    const AccumulateAllImageFormatsOpAST& opFormats )
             : m_state(state)
             , m_opFormats(opFormats)
@@ -1900,7 +1900,7 @@ namespace mu
 
     private:
 
-        STATE_COMPILATION_DATA& m_state;
+		FStateCompilationData& m_state;
 
         const AccumulateAllImageFormatsOpAST& m_opFormats;
     };
@@ -1910,7 +1910,7 @@ namespace mu
     //---------------------------------------------------------------------------------------------
     //---------------------------------------------------------------------------------------------
     RuntimeTextureCompressionRemoverAST::RuntimeTextureCompressionRemoverAST(
-		STATE_COMPILATION_DATA* pState,
+		FStateCompilationData* pState,
 		bool bInAlwaysUncompress
 	)
         : m_hasRuntimeParamVisitor(pState)
@@ -2006,7 +2006,7 @@ namespace mu
     {
         MUTABLE_CPUPROFILER_SCOPE(OptimiseStatesAST);
 
-         for ( size_t s=0; s<m_states.size(); ++s )
+         for ( int32 s=0; s<m_states.Num(); ++s )
          {
             // Remove the unnecessary lods
             if (m_states[s].nodeState.m_optimisation.bOnlyFirstLOD)
@@ -2101,7 +2101,7 @@ namespace mu
         // necessary at this stage before GPU optimisation.
         {
             TArray<Ptr<ASTOp>> roots;
-            for(const STATE_COMPILATION_DATA& s:m_states)
+            for(const FStateCompilationData& s:m_states)
             {
                 roots.Add(s.root);
             }
@@ -2109,7 +2109,7 @@ namespace mu
             AccumulateAllImageFormatsOpAST opFormats;
             opFormats.Run(roots);
 
-            for (STATE_COMPILATION_DATA& s: m_states )
+            for (FStateCompilationData& s: m_states )
             {
                 {
                     UE_LOG(LogMutableCore, Verbose, TEXT(" - state cache"));
@@ -2133,7 +2133,7 @@ namespace mu
             while (modified && (!m_optimizeIterationsMax || m_optimizeIterationsLeft>0 || !numIterations ))
             {
                 TArray<Ptr<ASTOp>> roots;
-                for(const STATE_COMPILATION_DATA& s:m_states)
+                for(const FStateCompilationData& s:m_states)
                 {
                     roots.Add(s.root);
                 }
@@ -2156,14 +2156,14 @@ namespace mu
 				UE_LOG(LogMutableCore, Verbose, TEXT("(int) %s : %ld"), TEXT("ast size"), int64(ASTOp::CountNodes(roots)));
 			}
 
-            for(STATE_COMPILATION_DATA& s:m_states)
+            for(FStateCompilationData& s:m_states)
             {
                 UE_LOG(LogMutableCore, Verbose, TEXT(" - constant optimiser"));
                 ConstantGeneratorAST( m_options->GetPrivate(), s.root );
             }
 
             TArray<Ptr<ASTOp>> roots;
-            for(const STATE_COMPILATION_DATA& s:m_states)
+            for(const FStateCompilationData& s:m_states)
             {
                 roots.Add(s.root);
             }
@@ -2180,7 +2180,7 @@ namespace mu
 
         // Gather all the current roots
         TArray<Ptr<ASTOp>> roots;
-        for(const STATE_COMPILATION_DATA& s:m_states)
+        for(const FStateCompilationData& s:m_states)
         {
             roots.Add(s.root);
         }
@@ -2197,7 +2197,7 @@ namespace mu
 
             // Update the marks for the instructions that don't depend on runtime parameters to be
             // cached.
-            for (STATE_COMPILATION_DATA& s:m_states)
+            for (FStateCompilationData& s:m_states)
             {
                 StateCacheDetectorAST c( &s );
             }

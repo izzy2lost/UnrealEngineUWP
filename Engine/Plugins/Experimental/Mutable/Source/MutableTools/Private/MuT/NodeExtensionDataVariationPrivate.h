@@ -11,10 +11,6 @@ namespace mu
 	{
 	public:
 
-		MUTABLE_DEFINE_CONST_VISITABLE()
-
-	public:
-
 		static NODE_TYPE s_type;
 
 		NodeExtensionDataPtr DefaultValue;

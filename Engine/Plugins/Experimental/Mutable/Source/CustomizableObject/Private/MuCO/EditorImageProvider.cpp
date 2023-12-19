@@ -17,6 +17,6 @@ UCustomizableSystemImageProvider::ValueType UEditorImageProvider::HasTexturePara
 
 UTexture2D* UEditorImageProvider::GetTextureParameterValue(const FName& ID)
 {
-	return Cast<UTexture2D>(FSoftObjectPath(ID.ToString()).TryLoad());;
+	return Cast<UTexture2D>(FSoftObjectPath(ID.ToString()).TryLoad());
 }
 

@@ -6,7 +6,6 @@
 #include "MuT/NodeComponentPrivate.h"
 #include "MuT/NodeComponentEdit.h"
 #include "MuT/NodePatchImagePrivate.h"
-
 #include "MuT/NodeMesh.h"
 #include "MuT/NodePatchMesh.h"
 #include "MuT/NodeImage.h"
@@ -22,10 +21,6 @@ namespace mu
 	//---------------------------------------------------------------------------------------------
 	class NodeComponentEdit::Private : public NodeComponent::Private
 	{
-	public:
-
-		MUTABLE_DEFINE_CONST_VISITABLE()
-
 	public:
 
 		static NODE_TYPE s_type;
@@ -57,18 +52,7 @@ namespace mu
 
 
 		// NodeComponent::Private interface
-        const NodeComponentNew::Private* GetParentComponentNew() const override
-		{
-			const NodeComponentNew::Private* parent = nullptr;
-			if (m_pParent)
-			{
-				NodeComponent::Private* ParentPrivate = dynamic_cast<NodeComponent::Private*>(m_pParent->GetBasePrivate());
-				parent = ParentPrivate->GetParentComponentNew();
-			}
-
-			check(parent);
-			return parent;
-		}
+		const NodeComponentNew::Private* GetParentComponentNew() const override;
 	};
 
 }

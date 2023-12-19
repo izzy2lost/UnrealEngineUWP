@@ -76,6 +76,21 @@ namespace mu
         m_pD->m_surfaces[ index ] = pNode;
     }
 
+
+	//---------------------------------------------------------------------------------------------
+	const NodeComponentNew::Private* NodeComponentEdit::Private::GetParentComponentNew() const
+	{
+		const NodeComponentNew::Private* parent = nullptr;
+		if (m_pParent)
+		{
+			NodeComponent::Private* ParentPrivate = dynamic_cast<NodeComponent::Private*>(m_pParent->GetBasePrivate());
+			parent = ParentPrivate->GetParentComponentNew();
+		}
+
+		check(parent);
+		return parent;
+	}
+
 }
 
 

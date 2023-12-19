@@ -22,10 +22,6 @@ namespace mu
 	{
 	public:
 
-		MUTABLE_DEFINE_CONST_VISITABLE()
-
-	public:
-
 		static NODE_TYPE s_type;
 
         PROJECTOR_TYPE m_type = PROJECTOR_TYPE::PLANAR;
@@ -69,10 +65,6 @@ namespace mu
 
 	class NodeProjectorParameter::Private : public NodeProjectorConstant::Private
 	{
-	public:
-
-		MUTABLE_DEFINE_CONST_VISITABLE()
-
 	public:
 
 		static NODE_TYPE s_type;

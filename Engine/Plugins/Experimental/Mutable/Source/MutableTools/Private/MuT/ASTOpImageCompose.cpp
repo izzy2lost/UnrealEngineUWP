@@ -9,14 +9,12 @@
 #include "MuR/ModelPrivate.h"
 #include "MuR/MutableMath.h"
 #include "MuR/MutableTrace.h"
+#include "MuR/ImagePrivate.h"
 #include "MuR/RefCounted.h"
 #include "MuR/Types.h"
 #include "MuT/ASTOpConstantResource.h"
 #include "MuT/ASTOpImagePixelFormat.h"
 #include "MuT/StreamsPrivate.h"
-
-#include <memory>
-#include <utility>
 
 
 namespace mu
@@ -144,8 +142,13 @@ FImageDesc ASTOpImageCompose::GetImageDesc( bool returnBestOption, FGetImageDesc
         res = Base->GetImageDesc( returnBestOption, context );
     }
 
+	if (BlockImage)
+	{
+		FImageDesc BlockDesc = BlockImage->GetImageDesc(returnBestOption, context);
+		res.m_format = GetMostGenericFormat(res.m_format,BlockDesc.m_format);
+	}
 
-    // Cache the result
+    // Cache th result
     if (context)
     {
 		context->m_results.Add(this, res);

@@ -20,11 +20,10 @@
 namespace mu
 {
 
-	//---------------------------------------------------------------------------------------------
-	//! Second pass of the code generation process.
-    //! Solves surface and modifier conditions from tags and variations
-	//---------------------------------------------------------------------------------------------
-    class SecondPassGenerator : public Base
+	/** Second pass of the code generation process.
+     * It solves surface and modifier conditions from tags and variations
+	 */
+    class SecondPassGenerator
 	{
 	public:
 

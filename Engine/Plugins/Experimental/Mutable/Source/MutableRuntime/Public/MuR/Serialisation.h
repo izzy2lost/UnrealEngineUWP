@@ -74,7 +74,7 @@ namespace mu
 
 
 	/** */
-	class MUTABLERUNTIME_API ModelReader : public Base
+	class MUTABLERUNTIME_API ModelReader
     {
     public:
 
@@ -122,7 +122,7 @@ namespace mu
 
 
 	/** */
-	class MUTABLERUNTIME_API ModelWriter : public Base
+	class MUTABLERUNTIME_API ModelWriter
 	{
 	public:
 
@@ -167,7 +167,7 @@ namespace mu
 
     //! Interface for any input stream to be use with InputArchives.
     //! \ingroup tools
-    class MUTABLERUNTIME_API InputStream : public Base
+    class MUTABLERUNTIME_API InputStream
     {
     public:
 
@@ -183,7 +183,7 @@ namespace mu
 
     //! Interface for any output stream to be used with OutputArchives
     //! \ingroup tools
-    class MUTABLERUNTIME_API OutputStream : public Base
+    class MUTABLERUNTIME_API OutputStream
     {
     public:
 
@@ -200,7 +200,7 @@ namespace mu
 
     //! Archive containing data to be deserialised.
     //! \ingroup tools
-    class MUTABLERUNTIME_API InputArchive : public Base
+    class MUTABLERUNTIME_API InputArchive
     {
     public:
 
@@ -228,7 +228,7 @@ namespace mu
 
     //! Archive where data can be serialised to.
     //! \ingroup tools
-    class MUTABLERUNTIME_API OutputArchive : public Base
+    class MUTABLERUNTIME_API OutputArchive
     {
     public:
 

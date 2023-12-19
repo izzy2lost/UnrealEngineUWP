@@ -1,10 +1,8 @@
 // Copyright Epic Games, Inc. All Rights Reserved.
 
-
 #pragma once
 
 #include "MuT/Node.h"
-#include "MuT/Visitor.h"
 #include "MuT/AST.h"
 #include "MuR/Operations.h"
 
@@ -12,18 +10,17 @@
 namespace mu
 {
 
-
-    //!
-    class Node::Private :
-        public Base,
-        public BaseVisitable<Ptr<class ASTOp>,DefaultCatchAll,true>
+    class Node::Private
     {
     public:
 
-        //! This is an opaque context used to attach to reported error messages.
+		/** Force a virtual destructor. */
+		virtual ~Private() = default; 
+
+        /** This is an opaque context used to attach to reported error messages. */
 		const void* m_errorContext = nullptr;
 
-		//! Generic pointer to the node owning this private.
+		/** Generic pointer to the node owning this private. */
 		const Node* m_pNode = nullptr;
     };
 

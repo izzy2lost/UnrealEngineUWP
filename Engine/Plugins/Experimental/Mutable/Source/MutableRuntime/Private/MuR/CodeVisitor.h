@@ -16,7 +16,6 @@
 
 namespace mu
 {
-class Parameters;
 
     //---------------------------------------------------------------------------------------------
     //! Decide what operations are an "add resource" since they are handled differently sometimes.
@@ -28,7 +27,6 @@ class Parameters;
     }
 
 
-
     //---------------------------------------------------------------------------------------------
     //! Code visitor that:
     //! - is top-down
@@ -37,7 +35,7 @@ class Parameters;
     //! - Its iterative
     //---------------------------------------------------------------------------------------------
     template<typename STATE=int>
-    class UniqueConstCodeVisitorIterative : public Base
+    class UniqueConstCodeVisitorIterative
     {
     public:
 
@@ -152,7 +150,7 @@ class Parameters;
         //! States found so far
 		TArray<STATE> m_states;
 
-        //! Index of the current state, from the m_states vector.
+        //! Index of the current state, from the m_states array.
         int m_currentState;
 
         //! If true, operations adding resources (meshes or images) will only
@@ -160,7 +158,7 @@ class Parameters;
         bool m_skipResources;
 
         //! Array of states visited for each operation.
-        //! Empty vector means operation not visited at all.
+        //! Empty array means operation not visited at all.
 		TArray<TArray<int>> m_visited;
 
         //! Process all the pending operations and visit all children if necessary
@@ -210,7 +208,7 @@ class Parameters;
     //! - Its iterative
     //---------------------------------------------------------------------------------------------
     template<class STATE=int>
-    class RepeatConstCodeVisitorIterative : public Base
+    class RepeatConstCodeVisitorIterative
     {
     public:
 
@@ -329,7 +327,7 @@ class Parameters;
         //! States found so far
 		TArray<STATE> m_states;
 
-        //! Index of the current state, from the m_states vector.
+        //! Index of the current state, from the m_states array.
         int m_currentState;
 
         //! If true, operations adding resources (meshes or images) will only
@@ -653,7 +651,7 @@ class Parameters;
     //! Calculate all the parameters found under a particular operation
     //! It has an internal cache, so don't reuse objects of this class if the program changes.
     //---------------------------------------------------------------------------------------------
-    class MUTABLERUNTIME_API SubtreeParametersVisitor : public Base
+    class MUTABLERUNTIME_API SubtreeParametersVisitor
     {
     public:
 

@@ -533,7 +533,7 @@ namespace Private
     };
 
 
-    class MUTABLERUNTIME_API RangeIndex::Private : public Base
+    class MUTABLERUNTIME_API RangeIndex::Private
     {
     public:
 
@@ -548,7 +548,7 @@ namespace Private
     };
 
 
-    class MUTABLERUNTIME_API Parameters::Private : public Base
+    class MUTABLERUNTIME_API Parameters::Private
     {
     public:
 

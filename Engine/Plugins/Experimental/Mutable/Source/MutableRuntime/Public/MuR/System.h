@@ -84,7 +84,7 @@ namespace mu
 
 
     /** Interface to request external images used as parameters. */
-    class MUTABLERUNTIME_API ImageParameterGenerator : public Base
+    class MUTABLERUNTIME_API ImageParameterGenerator
     {
     public:
 

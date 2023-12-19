@@ -17,10 +17,6 @@ namespace mu
 	{
 	public:
 
-		MUTABLE_DEFINE_CONST_VISITABLE()
-
-	public:
-
 		static NODE_TYPE s_type;
 
 		/** Image with the regions to remove. It will be interpreted as a bitmap. */

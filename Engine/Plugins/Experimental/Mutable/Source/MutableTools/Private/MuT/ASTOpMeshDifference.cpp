@@ -133,8 +133,8 @@ namespace mu
 			case OP_TYPE::ME_SWITCH:
 			{
 				// If the switch variable and structure is the same
-				const ASTOpSwitch* BaseSwitch = reinterpret_cast<const ASTOpSwitch*>(BaseAt.get());
-				const ASTOpSwitch* TargetSwitch = reinterpret_cast<const ASTOpSwitch*>(TargetAt.get());
+				const ASTOpSwitch* BaseSwitch = static_cast<const ASTOpSwitch*>(BaseAt.get());
+				const ASTOpSwitch* TargetSwitch = static_cast<const ASTOpSwitch*>(TargetAt.get());
 				bool bIsSimilarSwitch = BaseSwitch->IsCompatibleWith(TargetSwitch);
 				if (!bIsSimilarSwitch)
 				{
@@ -170,8 +170,8 @@ namespace mu
 
 			case OP_TYPE::ME_CONDITIONAL:
 			{
-				const ASTOpConditional* BaseConditional = reinterpret_cast<const ASTOpConditional*>(BaseAt.get());
-				const ASTOpConditional* TargetConditional = reinterpret_cast<const ASTOpConditional*>(TargetAt.get());
+				const ASTOpConditional* BaseConditional = static_cast<const ASTOpConditional*>(BaseAt.get());
+				const ASTOpConditional* TargetConditional = static_cast<const ASTOpConditional*>(TargetAt.get());
 				bool bIsSimilar = BaseConditional->condition == TargetConditional->condition;
 				if (!bIsSimilar)
 				{

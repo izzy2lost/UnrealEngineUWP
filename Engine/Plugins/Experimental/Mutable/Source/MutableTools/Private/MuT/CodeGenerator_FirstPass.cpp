@@ -49,38 +49,22 @@ namespace mu
 
 
 	//---------------------------------------------------------------------------------------------
-    void FirstPassGenerator::Generate( ErrorLogPtr pErrorLog,
-                                       const Node::Private* root,
-                                       bool ignoreStates,
+    void FirstPassGenerator::Generate( Ptr<ErrorLog> InErrorLog,
+                                       const Node* Root,
+                                       bool bIgnoreStates,
 									   CodeGenerator* InGenerator )
 	{
 		MUTABLE_CPUPROFILER_SCOPE(FirstPassGenerate);
 
 		Generator = InGenerator;
-		m_pErrorLog = pErrorLog;
-        m_ignoreStates = ignoreStates;
+		m_pErrorLog = InErrorLog;
+        m_ignoreStates = bIgnoreStates;
 
 		// Step 1: collect all objects, surfaces and object conditions
-        if ( root )
+        if (Root)
 		{
-            bool isFirstPassNode =
-                    dynamic_cast<const NodeSurface*>(root->m_pNode)
-                    ||
-                    dynamic_cast<const NodeComponent*>(root->m_pNode)
-                    ||
-                    dynamic_cast<const NodeObject*>(root->m_pNode)
-                    ||
-                    dynamic_cast<const NodeLOD*>(root->m_pNode)
-                    ||
-                    dynamic_cast<const NodePatchMesh*>(root->m_pNode)
-                    ||
-                    dynamic_cast<const NodeModifier*>(root->m_pNode);
-
-            if (isFirstPassNode)
-            {
-                root->Accept(*this);
-            }
-		}
+ 			Generate_Generic(Root);
+ 		}
 
 		// Step 2: Collect all tags and a list of the surfaces that activate them
 		for (int32 s=0; s<surfaces.Num(); ++s)
@@ -148,9 +132,8 @@ namespace mu
 
 		}
 
-
         // Step 3: Create default state if necessary
-        if ( ignoreStates )
+        if ( bIgnoreStates )
         {
             m_states.Empty();
         }
@@ -159,109 +142,105 @@ namespace mu
         {
             FObjectState data;
             data.m_name = "Default";
-            m_states.Emplace( data, root );
+            m_states.Emplace( data, Root->GetBasePrivate() );
         }
 	}
 
 
-	//---------------------------------------------------------------------------------------------
-    Ptr<ASTOp> FirstPassGenerator::Visit(const NodeModifierMeshClipMorphPlane::Private& node)
+	void FirstPassGenerator::Generate_Generic(const Node* Root)
 	{
-        // Add the data about this modifier
-        FModifier thisData;
-        thisData.node = &node;
-        thisData.objectCondition = m_currentCondition.Last().objectCondition;
-        thisData.stateCondition = m_currentStateCondition.Last();
-        thisData.lod = m_currentLOD;
-        thisData.positiveTags = m_currentPositiveTags;
-        thisData.negativeTags = m_currentNegativeTags;
-        modifiers.Add(thisData);
-
-        return nullptr;
-    }
-
+		if (Root->GetType()==NodeSurfaceNew::GetStaticType())
+		{
+			Generate_SurfaceNew(static_cast<const NodeSurfaceNew*>(Root));
+		}
+		else if (Root->GetType() == NodeSurfaceEdit::GetStaticType())
+		{
+			Generate_SurfaceEdit(static_cast<const NodeSurfaceEdit*>(Root));
+		}
+		else if (Root->GetType() == NodeSurfaceVariation::GetStaticType())
+		{
+			Generate_SurfaceVariation(static_cast<const NodeSurfaceVariation*>(Root));
+		}
+		else if (Root->GetType() == NodeSurfaceSwitch::GetStaticType())
+		{
+			Generate_SurfaceSwitch(static_cast<const NodeSurfaceSwitch*>(Root));
+		}
+		else if (Root->GetType() == NodeComponentNew::GetStaticType())
+		{
+			Generate_ComponentNew(static_cast<const NodeComponentNew*>(Root));
+		}
+		else if (Root->GetType() == NodeComponentEdit::GetStaticType())
+		{
+			Generate_ComponentEdit(static_cast<const NodeComponentEdit*>(Root));
+		}
+		else if (Root->GetType() == NodeObjectNew::GetStaticType())
+		{
+			Generate_ObjectNew(static_cast<const NodeObjectNew*>(Root));
+		}
+		else if (Root->GetType() == NodeObjectGroup::GetStaticType())
+		{
+			Generate_ObjectGroup(static_cast<const NodeObjectGroup*>(Root));
+		}
+		else if (Root->GetType() == NodeLOD::GetStaticType())
+		{
+			Generate_LOD(static_cast<const NodeLOD*>(Root));
+		}
+		else if (Root->GetType() == NodeModifier::GetStaticType())
+		{
+			Generate_Modifier(static_cast<const NodeModifier*>(Root));
+		}
+		else
+		{
+			check(false);
+		}
+	}
 
 	//---------------------------------------------------------------------------------------------
-	Ptr<ASTOp> FirstPassGenerator::Visit(const NodeModifierMeshClipWithMesh::Private& node)
+	void FirstPassGenerator::Generate_Modifier(const NodeModifier* InNode)
 	{
 		// Add the data about this modifier
 		FModifier thisData;
-		thisData.node = &node;
+		thisData.node = static_cast<const NodeModifier::Private*>(InNode->GetBasePrivate());
 		thisData.objectCondition = m_currentCondition.Last().objectCondition;
 		thisData.stateCondition = m_currentStateCondition.Last();
 		thisData.lod = m_currentLOD;
 		thisData.positiveTags = m_currentPositiveTags;
 		thisData.negativeTags = m_currentNegativeTags;
 		modifiers.Add(thisData);
-
-		return nullptr;
 	}
 
 
 	//---------------------------------------------------------------------------------------------
-	Ptr<ASTOp> FirstPassGenerator::Visit(const NodeModifierMeshClipWithUVMask::Private& node)
-	{
-		// Add the data about this modifier
-		FModifier thisData;
-		thisData.node = &node;
-		thisData.objectCondition = m_currentCondition.Last().objectCondition;
-		thisData.stateCondition = m_currentStateCondition.Last();
-		thisData.lod = m_currentLOD;
-		thisData.positiveTags = m_currentPositiveTags;
-		thisData.negativeTags = m_currentNegativeTags;
-		modifiers.Add(thisData);
-
-		return nullptr;
-	}
-
-	
-	//---------------------------------------------------------------------------------------------
-    Ptr<ASTOp> FirstPassGenerator::Visit(const NodeModifierMeshClipDeform::Private& node)
-	{
-        // Add the data about this modifier
-		FModifier thisData;
-		thisData.node = &node;
-        thisData.objectCondition = m_currentCondition.Last().objectCondition;
-        thisData.stateCondition = m_currentStateCondition.Last();
-        thisData.lod = m_currentLOD;
-        thisData.positiveTags = m_currentPositiveTags;
-        thisData.negativeTags = m_currentNegativeTags;
-        modifiers.Add(thisData);
-
-        return nullptr;
-	}
-
-	//---------------------------------------------------------------------------------------------
-    Ptr<ASTOp> FirstPassGenerator::Visit(const NodeSurfaceNew::Private& node)
+	void FirstPassGenerator::Generate_SurfaceNew(const NodeSurfaceNew* InNode)
 	{
 		// Add the data about this surface
 		FSurface thisData;
-		thisData.node = dynamic_cast<const NodeSurfaceNew*>(node.m_pNode);
+		thisData.node = InNode;
 		thisData.component = m_currentComponent;
-        thisData.objectCondition = m_currentCondition.Last().objectCondition;
-        thisData.stateCondition = m_currentStateCondition.Last();
-        thisData.positiveTags = m_currentPositiveTags;
-        thisData.negativeTags = m_currentNegativeTags;
-        surfaces.Add(thisData);
-
-        return nullptr;
+		thisData.objectCondition = m_currentCondition.Last().objectCondition;
+		thisData.stateCondition = m_currentStateCondition.Last();
+		thisData.positiveTags = m_currentPositiveTags;
+		thisData.negativeTags = m_currentNegativeTags;
+		surfaces.Add(thisData);
 	}
 
 
 	//---------------------------------------------------------------------------------------------
-    Ptr<ASTOp> FirstPassGenerator::Visit(const NodeSurfaceEdit::Private& node)
+    void FirstPassGenerator::Generate_SurfaceEdit(const NodeSurfaceEdit* InNode)
 	{
+		const NodeSurfaceEdit::Private* Private = InNode->GetPrivate();
+
 		// Store a reference to this node in the surface data for the surface that this node is
 		// editing.
-		auto its = surfaces.FindByPredicate([&node](const FirstPassGenerator::FSurface& s)
+		FSurface* Surface = surfaces.FindByPredicate([&Private](const FSurface& s)
         {
             // Are we editing the main surface node of this surface?
-            if (s.node.get() == node.m_pParent.get()) return true;
+            if (s.node.get() == Private->m_pParent.get()) return true;
 
             // Are we editing an edit node modifying this surface?
             for (const auto& e: s.edits)
             {
-                if (node.m_pParent && e.node==node.m_pParent->GetBasePrivate())
+                if (Private->m_pParent && e.node==Private->m_pParent->GetBasePrivate())
                 {
                     return true;
                 }
@@ -272,69 +251,66 @@ namespace mu
 		
 		// The surface could be missing if the parent is not in the hierarchy. This could happen
 		// with wrong input or in case of partial models for preview.
-		if (its)
+		if (Surface)
 		{
-			FSurface& surface = *its;
-
 			FSurface::FEdit edit;
-            edit.node = &node;
+            edit.node = Private;
             edit.condition = m_currentCondition.Last().objectCondition;
-            surface.edits.Add(edit);
+			Surface->edits.Add(edit);
 		}
 		else
 		{
-			m_pErrorLog->GetPrivate()->Add("Missing parent object for edit node.",
-				ELMT_WARNING, node.m_errorContext);
+			m_pErrorLog->GetPrivate()->Add("Missing parent object for edit node.", ELMT_WARNING, Private->m_errorContext);
 		}
-
-        return nullptr;
 	}
 
 
 	//---------------------------------------------------------------------------------------------
-    Ptr<ASTOp> FirstPassGenerator::Visit(const NodeSurfaceVariation::Private& node)
+	void FirstPassGenerator::Generate_SurfaceVariation(const NodeSurfaceVariation* InNode)
 	{
-        switch(node.m_type)
+		const NodeSurfaceVariation::Private* Private = InNode->GetPrivate();
+
+        switch(Private->m_type)
         {
 
         case NodeSurfaceVariation::VariationType::Tag:
         {
             // Any of the tags in the variations would prevent the default surface
             auto oldNegativeTags = m_currentNegativeTags;
-            for (int32 v=0; v<node.m_variations.Num(); ++v)
+            for (int32 v=0; v< Private->m_variations.Num(); ++v)
             {
-                m_currentNegativeTags.Add(node.m_variations[v].m_tag);
+                m_currentNegativeTags.Add(Private->m_variations[v].m_tag);
             }
 
-            for(const auto& n:node.m_defaultSurfaces)
+            for(const auto& n: Private->m_defaultSurfaces)
             {
-                n->GetBasePrivate()->Accept(*this);
-            }
-            for(const auto& n:node.m_defaultModifiers)
+				Generate_Generic(n.get());
+			}
+            for(const auto& n: Private->m_defaultModifiers)
             {
-                n->GetBasePrivate()->Accept(*this);
+				Generate_Modifier(n.get());
             }
 
             m_currentNegativeTags = oldNegativeTags;
 
-            for (int32 v=0; v<node.m_variations.Num(); ++v)
+            for (int32 v=0; v< Private->m_variations.Num(); ++v)
             {
-                m_currentPositiveTags.Add(node.m_variations[v].m_tag);
-                for (const auto& s : node.m_variations[v].m_surfaces)
+                m_currentPositiveTags.Add(Private->m_variations[v].m_tag);
+                for (const auto& s : Private->m_variations[v].m_surfaces)
                 {
-                    s->GetBasePrivate()->Accept(*this);
+					Generate_Generic(s.get());
                 }
 
-                for (const auto& s : node.m_variations[v].m_modifiers)
+                for (const auto& s : Private->m_variations[v].m_modifiers)
                 {
-                    s->GetBasePrivate()->Accept(*this);
-                }
+					Generate_Modifier(s.get());
+				}
 
                 m_currentPositiveTags.Pop();
 
                 // Tags have an order in a variation node: the current tag should prevent any following
                 // variation surface
-                m_currentNegativeTags.Add(node.m_variations[v].m_tag);
+                m_currentNegativeTags.Add(Private->m_variations[v].m_tag);
             }
 
             m_currentNegativeTags = oldNegativeTags;
@@ -358,7 +334,7 @@ namespace mu
                             ? AllTrue
                             : m_currentStateCondition.Last();
 
-                    for (const auto& v:node.m_variations)
+                    for (const auto& v: Private->m_variations)
                     {
                         for( size_t s=0; s<stateCount; ++s )
                         {
@@ -373,21 +349,20 @@ namespace mu
 
                 m_currentStateCondition.Add(defaultStates);
 
-                for (const auto& n : node.m_defaultSurfaces)
+                for (const auto& n : Private->m_defaultSurfaces)
                 {
-                    n->GetBasePrivate()->Accept(*this);
-                }
-                for (const auto& n : node.m_defaultModifiers)
+					Generate_Generic(n.get());
+				}
+                for (const auto& n : Private->m_defaultModifiers)
                 {
-                    n->GetBasePrivate()->Accept(*this);
-                }
+					Generate_Modifier(n.get());
+				}
 
                 m_currentStateCondition.Pop();
             }
 
-
             // Variation branches
-            for (const auto& v:node.m_variations)
+            for (const auto& v: Private->m_variations)
             {
                 // Store the states for this variation here
 				StateCondition variationStates;
@@ -405,12 +380,12 @@ namespace mu
 
                 for (const auto& n : v.m_surfaces)
                 {
-                    n->GetBasePrivate()->Accept(*this);
-                }
+					Generate_Generic(n.get());
+				}
                 for (const auto& n : v.m_modifiers)
                 {
-                    n->GetBasePrivate()->Accept(*this);
-                }
+					Generate_Modifier(n.get());
+				}
 
                 m_currentStateCondition.Pop();
             }
@@ -418,44 +393,40 @@ namespace mu
             break;
         }
 
-
         default:
             // Case not implemented.
             check(false);
             break;
         }
-
-        return nullptr;
 	}
 
 
 	//---------------------------------------------------------------------------------------------
-	Ptr<ASTOp> FirstPassGenerator::Visit(const NodeSurfaceSwitch::Private& node)
+	void FirstPassGenerator::Generate_SurfaceSwitch(const NodeSurfaceSwitch* InNode)
 	{
-		if (node.Options.Num() == 0)
+		const NodeSurfaceSwitch::Private* Private = InNode->GetPrivate();
+
+		if (Private->Options.Num() == 0)
 		{
 			// No options in the switch!
-			return nullptr;
+			return;
 		}
 
 		// Prepare the enumeration parameter
+		CodeGenerator::FGenericGenerationOptions Options;
 		CodeGenerator::FScalarGenerationResult ScalarResult;
-		if (node.Parameter)
+		if (Private->Parameter)
 		{
-			Generator->GenerateScalar( ScalarResult, node.Parameter );
-
-			// Not really necessary but it currently should always be this type.
-			Ptr<ASTOpParameter> EnumOp = dynamic_cast<ASTOpParameter*>(ScalarResult.op.get());
-			check(EnumOp);
+			Generator->GenerateScalar( ScalarResult, Options, Private->Parameter );
 		}
 		else
 		{
 			// This argument is required
-			ScalarResult.op = Generator->GenerateMissingScalarCode(TEXT("Switch variable"), 0.0f, node.m_errorContext);
+			ScalarResult.op = Generator->GenerateMissingScalarCode(TEXT("Switch variable"), 0.0f, Private->m_errorContext);
 		}
 
 		// Parse the options
-		for (int32 t = 0; t < node.Options.Num(); ++t)
+		for (int32 t = 0; t < Private->Options.Num(); ++t)
 		{
 			// Create a comparison operation as the boolean parameter for the child
 			Ptr<ASTOpFixed> ParamOp = new ASTOpFixed();
@@ -477,144 +448,144 @@ namespace mu
 			data.objectCondition = ParamOp;
 			m_currentCondition.Push(data);
 
-			if (node.Options[t])
+			if (Private->Options[t])
 			{
-				node.Options[t]->GetBasePrivate()->Accept(*this);
+				Generate_Generic(Private->Options[t].get());
 			}
 
 			m_currentCondition.Pop();
 		}
-
-		return nullptr;
 	}
 
 
 	//---------------------------------------------------------------------------------------------
-    Ptr<ASTOp> FirstPassGenerator::Visit(const NodeComponentNew::Private& node)
+	void FirstPassGenerator::Generate_ComponentNew(const NodeComponentNew* InNode)
 	{
-        m_currentComponent = node.GetParentComponentNew();
+		const NodeComponentNew::Private* Private = InNode->GetPrivate();
 
-		for (const auto& c : node.m_surfaces)
+        m_currentComponent = Private->GetParentComponentNew();
+
+		for (const Ptr<NodeSurface>& c : Private->m_surfaces)
 		{
 			if (c)
 			{
-				c->GetBasePrivate()->Accept(*this);
+				Generate_Generic(c.get());
 			}
 		}
 
 		m_currentComponent = nullptr;
-
-        return nullptr;
 	}
 
 
 	//---------------------------------------------------------------------------------------------
-    Ptr<ASTOp> FirstPassGenerator::Visit(const NodeComponentEdit::Private& node)
+	void FirstPassGenerator::Generate_ComponentEdit(const NodeComponentEdit* InNode)
 	{
-		m_currentComponent = node.GetParentComponentNew();
+		const NodeComponentEdit::Private* Private = InNode->GetPrivate();
 
-		for (const auto& c : node.m_surfaces)
+		m_currentComponent = Private->GetParentComponentNew();
+
+		for (const auto& c : Private->m_surfaces)
 		{
 			if (c)
 			{
-                c->GetBasePrivate()->Accept(*this);
+				Generate_Generic(c.get());
 			}
 		}
 
 		m_currentComponent = nullptr;
-
-        return nullptr;
 	}
 
 
 	//---------------------------------------------------------------------------------------------
-    Ptr<ASTOp> FirstPassGenerator::Visit(const NodeLOD::Private& node)
+	void FirstPassGenerator::Generate_LOD(const NodeLOD* InNode)
 	{
-		for (const auto& c : node.m_components)
-		{
-			if (c)
-			{
-				c->GetBasePrivate()->Accept(*this);
-			}
-		}
-		for (const auto& c : node.m_modifiers)
-		{
-			if (c)
-			{
-				c->GetBasePrivate()->Accept(*this);
-			}
-		}
+		const NodeLOD::Private* Private = InNode->GetPrivate();
 
-        return nullptr;
+		for (const auto& c : Private->m_components)
+		{
+			if (c)
+			{
+				Generate_Generic(c.get());
+			}
+		}
+		for (const auto& c : Private->m_modifiers)
+		{
+			if (c)
+			{
+				Generate_Modifier(c.get());
+			}
+		}
 	}
 
 
 	//---------------------------------------------------------------------------------------------
-    Ptr<ASTOp> FirstPassGenerator::Visit(const NodeObjectNew::Private& node)
+	void FirstPassGenerator::Generate_ObjectNew(const NodeObjectNew* InNode)
 	{
+		const NodeObjectNew::Private* Private = InNode->GetPrivate();
+
 		// Add the data about this object
 		FObject thisData;
-		thisData.node = &node;
+		thisData.node = Private;
         thisData.condition = m_currentCondition.Last().objectCondition;
 		objects.Add(thisData);
 
         // Accumulate the model states
-        for ( const auto& s: node.m_states )
+        for ( const auto& s: Private->m_states )
         {
-            m_states.Emplace( s, &node );
+            m_states.Emplace( s, Private );
 
             if ( s.m_runtimeParams.Num() > MUTABLE_MAX_RUNTIME_PARAMETERS_PER_STATE )
             {
                 FString Msg = FString::Printf( TEXT("State [%s] has more than %d runtime parameters. Their update may fail."), 
 					*s.m_name,
                     MUTABLE_MAX_RUNTIME_PARAMETERS_PER_STATE);
-                m_pErrorLog->GetPrivate()->Add(Msg, ELMT_ERROR, node.m_errorContext );
+                m_pErrorLog->GetPrivate()->Add(Msg, ELMT_ERROR, Private->m_errorContext );
             }
         }
 
 		// Process the lods
 		int i = 0;
-		for (const auto& l : node.m_lods)
+		for (const auto& l : Private->m_lods)
 		{
 			if (l)
 			{
                 m_currentLOD = i++;
-				l->GetBasePrivate()->Accept(*this);
+				Generate_Generic(l.get());
 			}
 		}
 
 		m_currentLOD = -1;
 
 		// Process the children
-		for (const auto& c : node.m_children)
+		for (const auto& c : Private->m_children)
 		{
 			if (c)
 			{
-				c->GetBasePrivate()->Accept(*this);
+				Generate_Generic(c.get());
 			}
 		}
-
-        return nullptr;
 	}
 
 
 	//---------------------------------------------------------------------------------------------
-    Ptr<ASTOp> FirstPassGenerator::Visit(const NodeObjectGroup::Private& node)
+	void FirstPassGenerator::Generate_ObjectGroup(const NodeObjectGroup* InNode)
 	{
-       // Prepare the enumeration parameter if necessary
+		const NodeObjectGroup::Private* Private = InNode->GetPrivate();
+
+		// Prepare the enumeration parameter if necessary
         Ptr<ASTOpParameter> enumOp;
-        if ( node.m_type==NodeObjectGroup::CS_ALWAYS_ONE ||
-             node.m_type==NodeObjectGroup::CS_ONE_OR_NONE )
+        if (Private->m_type==NodeObjectGroup::CS_ALWAYS_ONE ||
+			Private->m_type==NodeObjectGroup::CS_ONE_OR_NONE )
         {
             Ptr<ASTOpParameter> op = new ASTOpParameter();
             op->type = OP_TYPE::NU_PARAMETER;
 
-            op->parameter.m_name = node.Name;
-            op->parameter.m_uid = node.Uid;
+            op->parameter.m_name = Private->Name;
+            op->parameter.m_uid = Private->Uid;
             op->parameter.m_type = PARAMETER_TYPE::T_INT;
             op->parameter.m_defaultValue.Set<ParamIntType>(-1);
 
-            if ( node.m_type==NodeObjectGroup::CS_ONE_OR_NONE )
+            if (Private->m_type==NodeObjectGroup::CS_ONE_OR_NONE )
             {
                 FParameterDesc::FIntValueDesc nullValue;
                 nullValue.m_value = -1;
@@ -628,13 +599,13 @@ namespace mu
 
 
         // Parse the child objects
-		for ( int32 t=0; t<node.m_children.Num(); ++t )
+		for ( int32 t=0; t< Private->m_children.Num(); ++t )
         {
-            if ( const NodeObject* pChildNode = node.m_children[t].get() )
+            if ( const NodeObject* pChildNode = Private->m_children[t].get() )
             {
                 // Overwrite the implicit condition
                 Ptr<ASTOp> paramOp = 0;
-                switch ( node.m_type )
+                switch (Private->m_type )
                 {
                     case NodeObjectGroup::CS_TOGGLE_EACH:
                     {
@@ -706,21 +677,12 @@ namespace mu
                 data.objectCondition = paramOp;
                 m_currentCondition.Add( data );
 
-				pChildNode->GetBasePrivate()->Accept(*this);
+				Generate_Generic(pChildNode);
 
                 m_currentCondition.Pop();
             }
         }
-
-        return nullptr;
  	}
-
-
-	//---------------------------------------------------------------------------------------------
-    Ptr<ASTOp> FirstPassGenerator::Visit(const NodePatchMesh::Private&)
-	{
-        return nullptr;
-	}
 
 }
 

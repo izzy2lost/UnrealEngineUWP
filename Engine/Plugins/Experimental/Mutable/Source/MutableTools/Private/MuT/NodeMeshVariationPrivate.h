@@ -15,9 +15,6 @@ namespace mu
     class NodeMeshVariation::Private : public Node::Private
     {
     public:
-        MUTABLE_DEFINE_CONST_VISITABLE()
-
-    public:
         Private() {}
 
         static NODE_TYPE s_type;

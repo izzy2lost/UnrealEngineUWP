@@ -51,17 +51,19 @@ namespace mu
 
 
 	//-------------------------------------------------------------------------------------------------
-	void CodeGenerator::GenerateProjector(FProjectorGenerationResult& result, const NodeProjectorPtrConst& untyped)
+	void CodeGenerator::GenerateProjector(FProjectorGenerationResult& result, const FGenericGenerationOptions& Options, const Ptr<const NodeProjector>& Untyped)
 	{
-		if (!untyped)
+		if (!Untyped)
 		{
 			result = FProjectorGenerationResult();
 			return;
 		}
 
 		// See if it was already generated
-		FVisitedKeyMap key = GetCurrentCacheKey(untyped);
-		GeneratedProjectorsMap::ValueType* it = m_generatedProjectors.Find(key);
+		FGeneratedCacheKey Key;
+		Key.Node = Untyped;
+		Key.Options = Options;
+		FGeneratedProjectorsMap::ValueType* it = GeneratedProjectors.Find(Key);
 		if (it)
 		{
 			result = *it;
@@ -69,13 +71,13 @@ namespace mu
 		}
 
 		// Generate for each different type of node
-		if (auto Constant = dynamic_cast<const NodeProjectorConstant*>(untyped.get()))
+		if ( Untyped->GetType()== NodeProjectorConstant::GetStaticType() )
 		{
-			GenerateProjector_Constant(result, Constant);
+			GenerateProjector_Constant(result, Options, static_cast<const NodeProjectorConstant*>(Untyped.get()));
 		}
-		else if (auto Param = dynamic_cast<const NodeProjectorParameter*>(untyped.get()))
+		else if (Untyped->GetType() == NodeProjectorParameter::GetStaticType() )
 		{
-			GenerateProjector_Parameter(result, Param);
+			GenerateProjector_Parameter(result, Options, static_cast<const NodeProjectorParameter*>(Untyped.get()));
 		}
 		else
 		{
@@ -84,12 +86,12 @@ namespace mu
 
 
 		// Cache the result
-		m_generatedProjectors.Add(key, result);
+		GeneratedProjectors.Add(Key, result);
 	}
 
 
 	//-------------------------------------------------------------------------------------------------
-	void CodeGenerator::GenerateProjector_Constant(FProjectorGenerationResult& result,
+	void CodeGenerator::GenerateProjector_Constant(FProjectorGenerationResult& result, const FGenericGenerationOptions& Options,
 		const Ptr<const NodeProjectorConstant>& constant)
 	{
 		const NodeProjectorConstant::Private& node = *constant->GetPrivate();
@@ -103,15 +105,15 @@ namespace mu
 
 
 	//-------------------------------------------------------------------------------------------------
-	void CodeGenerator::GenerateProjector_Parameter(FProjectorGenerationResult& result,
+	void CodeGenerator::GenerateProjector_Parameter(FProjectorGenerationResult& result, const FGenericGenerationOptions& Options,
 		const Ptr<const NodeProjectorParameter>& paramn)
 	{
 		const NodeProjectorParameter::Private& node = *paramn->GetPrivate();
 
 		Ptr<ASTOpParameter> op;
 
-		auto it = m_nodeVariables.find(node.m_pNode);
-		if (it == m_nodeVariables.end())
+		Ptr<ASTOpParameter>* it = NodeVariables.Find(node.m_pNode);
+		if (!it)
 		{
 			FParameterDesc param;
 			param.m_name = node.m_name;
@@ -129,15 +131,15 @@ namespace mu
 			for (int32 a = 0; a < node.m_ranges.Num(); ++a)
 			{
 				FRangeGenerationResult rangeResult;
-				GenerateRange(rangeResult, node.m_ranges[a]);
+				GenerateRange(rangeResult, Options, node.m_ranges[a]);
 				op->ranges.Emplace(op.get(), rangeResult.sizeOp, rangeResult.rangeName, rangeResult.rangeUID);
 			}
 
-			m_nodeVariables[node.m_pNode] = op;
+			NodeVariables.Add(node.m_pNode, op);
 		}
 		else
 		{
-			op = it->second;
+			op = *it;
 		}
 
 		const FProjector& Projector = op->parameter.m_defaultValue.Get<ParamProjectorType>();

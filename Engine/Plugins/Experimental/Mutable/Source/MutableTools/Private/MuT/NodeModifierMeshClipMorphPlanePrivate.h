@@ -15,10 +15,6 @@ namespace mu
     {
     public:
 
-        MUTABLE_DEFINE_CONST_VISITABLE()
-
-    public:
-
         Private()
                 : m_dist(0.0f), m_factor(0.0f)
                 , m_radius1(0.0f), m_radius2(0.0f), m_rotation(0.0f)
