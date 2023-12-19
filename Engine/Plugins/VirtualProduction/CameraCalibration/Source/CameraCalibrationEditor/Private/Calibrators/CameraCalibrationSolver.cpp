@@ -23,6 +23,23 @@ static TAutoConsoleVariable<float> CVarLocationStepValue(TEXT("CameraCalibration
 
 DEFINE_LOG_CATEGORY_STATIC(LogCameraCalibrationSolver, Log, All);
 
+bool ULensDistortionSolver::GetStatusText(FText& OutStatusText) 
+{ 
+	OutStatusText = StatusText;
+	if (bHasStatusChanged)
+	{
+		bHasStatusChanged = false;
+		return true;
+	}
+	return false;
+}
+
+void ULensDistortionSolver::SetStatusText(FText InStatusText) 
+{ 
+	StatusText = MoveTemp(InStatusText);
+	bHasStatusChanged = true;
+}
+
 FText ULensDistortionSolverOpenCV::GetDisplayName_Implementation() const
 {
 	return LOCTEXT("OpenCVSolverDisplayName", "OpenCV Solver");
@@ -300,10 +317,11 @@ FDistortionCalibrationResult ULensDistortionSolverOpenCV::Solve_Implementation(
 	cv::Mat Jacobian(MaxPoints * 2, NumExtrinsics + NumIntrinsics, CV_64FC1, cv::Scalar(0));
 	cv::Mat Diffs(MaxPoints * 2, 1, CV_64FC1);
 
+	int32 LoopCounter = 0;
 	while (true)
 	{
 		// Update the solver
-		bool bShouldProceed = Solver.UpdateAlt();
+		bool bShouldProceed = Solver.UpdateAlt() && IsRunning();
 		bool bComputeJacobian = Solver.State == FLevMarqSolver::ESolverState::ComputeJacobian;
 
 		// Update the camera matrix and distortion parameters with the latest values of the parameters from the solver
@@ -407,6 +425,11 @@ FDistortionCalibrationResult ULensDistortionSolverOpenCV::Solve_Implementation(
 
 		// Update the solver's error with the latest reprojection error
 		Solver.ErrorNorm = ReprojectionError;
+
+		const double CurrentRMSE = FMath::Sqrt(ReprojectionError / NumTotalPoints);
+		SetStatusText(FText::Format(LOCTEXT("ReprojectionError", "Reprojection Error: {0} pixels for loop {1}"), CurrentRMSE, LoopCounter));
+
+		++LoopCounter;
 	}
 
 	RMSE = FMath::Sqrt(ReprojectionError / NumTotalPoints);

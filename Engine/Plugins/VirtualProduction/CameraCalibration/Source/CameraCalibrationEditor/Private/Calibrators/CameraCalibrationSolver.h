@@ -85,6 +85,13 @@ public:
 	UFUNCTION(BlueprintNativeEvent, Category = "Calibration")
 	FText GetDisplayName() const;
 
+public:
+	/** Get the latest status of the solve and marks the status as old. Returns true if this status was new, or false if this status was old. */
+	bool GetStatusText(FText& OutStatusText);
+
+	/** Cancels the solve by setting bIsRunning to false, inidicating that the solver should stop executing the next time it checks IsRunning() */
+	void Cancel() { bIsRunning = false; }
+
 	virtual FDistortionCalibrationResult Solve_Implementation(
 		const TArray<FObjectPoints>& ObjectPointArray,
 		const TArray<FImagePoints>& ImagePointArray,
@@ -97,6 +104,23 @@ public:
 		ECalibrationFlags SolverFlags) PURE_VIRTUAL(ULensDistortionSolver::Solve_Implementation, return FDistortionCalibrationResult(););
 
 	virtual FText GetDisplayName_Implementation() const PURE_VIRTUAL(ULensDistortionSolver::GetDisplayName_Implementation, return FText::GetEmpty(););
+
+protected:
+	/** Returns true if the solver is currently running, and false if it has been cancelled. The solver should call this in critical loops in order to respond to cancellation requests. */
+	bool IsRunning() const { return bIsRunning; }
+
+	/** Sets the latest status text and marks bIsStatusNew to true */
+	void SetStatusText(FText InStatusText);
+
+protected:
+	/** True is the solver should continue executing. Set to false by Cancel(), indicating that the solver should early-out the next time it checks IsRunning() */
+	std::atomic<bool> bIsRunning = true;
+
+	/** Status text describing the current state of the solve */
+	FText StatusText;
+
+	/** Set to true by SetStatusText() when a new status is available. Set to false by GetStatusText(), indicating that the latest status has already been queried. */
+	bool bHasStatusChanged = false;
 };
 
 /** 

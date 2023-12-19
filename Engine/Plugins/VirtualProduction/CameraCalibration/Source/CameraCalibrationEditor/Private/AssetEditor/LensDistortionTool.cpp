@@ -107,6 +107,13 @@ void ULensDistortionTool::Shutdown()
 {
 	if (CurrentAlgo)
 	{
+		if (CalibrationTask.IsValid())
+		{
+			CurrentAlgo->CancelCalibration();
+			CalibrationTask = {};
+			ProgressWindow->HideWindow();
+		}
+
 		CurrentAlgo->Shutdown();
 		CurrentAlgo = nullptr;
 
@@ -156,6 +163,16 @@ void ULensDistortionTool::Tick(float DeltaTime)
 
 			OkayButton->SetEnabled(true);
 		}
+		else
+		{
+			FText StatusText = FText::GetEmpty();
+			const bool bIsStatusNew = CurrentAlgo->GetCalibrationStatus(StatusText);
+
+			if (bIsStatusNew)
+			{
+				ProgressTextWidget->SetText(StatusText);
+			}
+		}
 	}
 }
 
@@ -167,6 +184,12 @@ bool ULensDistortionTool::OnViewportClicked(const FGeometry& MyGeometry, const F
 	}
 
 	if (!CurrentAlgo)
+	{
+		return false;
+	}
+
+	// Block user interaction with the simulcam viewport while an async calibration task is executing
+	if (CalibrationTask.IsValid())
 	{
 		return false;
 	}
@@ -185,6 +208,7 @@ void ULensDistortionTool::BuildProgressWindowWidgets()
 	ProgressWindow = SNew(SWindow)
 		.Title(LOCTEXT("ProgressWindowTitle", "Distortion Calibration Progress"))
 		.SizingRule(ESizingRule::Autosized)
+		.IsTopmostWindow(true)
 		.HasCloseButton(false)
 		.SupportsMaximize(false)
 		.SupportsMinimize(true);
@@ -378,6 +402,8 @@ void ULensDistortionTool::OnSaveCurrentCalibrationData()
 		// Ensure that the Ok button is disabled and show the progress window
 		OkayButton->SetEnabled(false);
 		ProgressWindow->ShowWindow();
+
+		DistortionWidget->SetEnabled(false);
 	}
 	else
 	{
@@ -418,7 +444,11 @@ void ULensDistortionTool::OnSaveCurrentCalibrationData()
 
 FReply ULensDistortionTool::OnCancelPressed()
 {
-	// TODO: Implement correct cancel handling. Send a signal to the algo to interrupt the currently running calibration task 
+	CurrentAlgo->CancelCalibration();
+
+	CalibrationTask = {};
+	ProgressWindow->HideWindow();
+	DistortionWidget->SetEnabled(true);
 
 	return FReply::Handled();
 }
@@ -428,6 +458,7 @@ FReply ULensDistortionTool::OnOkPressed()
 	SaveCalibrationResult();
 
 	ProgressWindow->HideWindow();
+	DistortionWidget->SetEnabled(true);
 
 	return FReply::Handled();
 }

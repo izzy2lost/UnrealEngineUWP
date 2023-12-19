@@ -735,12 +735,10 @@ FDistortionCalibrationTask UCameraLensDistortionAlgoCheckerboard::BeginCalibrati
 
 	const TSubclassOf<ULensModel> Model = LensFile->LensInfo.LensModel;
 	
-	UClass* SolverClass = Tool->GetSolverClass();
+	Solver = NewObject<ULensDistortionSolver>(this, Tool->GetSolverClass());
 
-	CalibrationTask = UE::Tasks::Launch(UE_SOURCE_LOCATION, [SolverClass, Model, Samples3d, Samples2d, ImageSize, FocalLength, ImageCenter, CameraPoses, PixelAspect, SolverFlags, Focus, Zoom]() mutable
+	CalibrationTask = UE::Tasks::Launch(UE_SOURCE_LOCATION, [Solver=Solver, Model, Samples3d, Samples2d, ImageSize, FocalLength, ImageCenter, CameraPoses, PixelAspect, SolverFlags, Focus, Zoom]() mutable
 		{
-			ULensDistortionSolver* Solver = NewObject<ULensDistortionSolver>(GetTransientPackage(), SolverClass);
-
 			FDistortionCalibrationResult Result = Solver->Solve(
 				Samples3d,
 				Samples2d,
@@ -765,6 +763,23 @@ FDistortionCalibrationTask UCameraLensDistortionAlgoCheckerboard::BeginCalibrati
 		});
 
 	return CalibrationTask;
+}
+
+void UCameraLensDistortionAlgoCheckerboard::CancelCalibration()
+{
+	if (Solver)
+	{
+		Solver->Cancel();
+	}
+}
+
+bool UCameraLensDistortionAlgoCheckerboard::GetCalibrationStatus(FText& StatusText) const
+{
+	if (Solver)
+	{
+		return Solver->GetStatusText(StatusText);
+	}
+	return false;
 }
 
 TSharedRef<SWidget> UCameraLensDistortionAlgoCheckerboard::BuildCalibrationDevicePickerWidget()

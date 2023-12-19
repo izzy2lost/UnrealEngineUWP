@@ -88,6 +88,12 @@ public:
 	/** Launches an asynchronous task to perform the distortion calibration. The task will contain the calibration result when it finishes. */
 	virtual FDistortionCalibrationTask BeginCalibration() { return {}; };
 
+	/** Cancel an in-progress async calibration task */
+	virtual void CancelCalibration() { };
+
+	/** Get the latest status from the lens distortion calibration. Returns true if this status is "new", or false if this status was previously reported. */
+	virtual bool GetCalibrationStatus(FText& StatusText) const { return false; };
+
 	/** 
 	 * If true, the algo must override BeginCalibration() and use it to launch the calibration as an asynchronous task.
 	 * If false, the algo must override GetLensDistortion() and run the calibration on the Game Thread.

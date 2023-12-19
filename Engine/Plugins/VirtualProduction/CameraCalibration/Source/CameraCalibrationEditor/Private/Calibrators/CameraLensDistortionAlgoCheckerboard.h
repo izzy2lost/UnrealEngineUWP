@@ -3,6 +3,8 @@
 #pragma once
 
 #include "CameraLensDistortionAlgo.h"
+
+#include "CameraCalibrationSolver.h"
 #include "ImageCore.h"
 
 #include "CameraLensDistortionAlgoCheckerboard.generated.h"
@@ -134,6 +136,8 @@ public:
 	virtual bool IsOverlayEnabled() const override { return bShouldShowOverlay; };
 	virtual void OnDistortionSavedToLens() override;
 	virtual FDistortionCalibrationTask BeginCalibration() override;
+	virtual void CancelCalibration() override;
+	virtual bool GetCalibrationStatus(FText& StatusText) const override;
 	virtual bool SupportsAsyncCalibration() override { return true; };
 	virtual bool HasCalibrationData() const override;
 	virtual void PreImportCalibrationData() override;
@@ -189,6 +193,9 @@ private:
 
 	/** Texture into which detected chessboard corners from each calibration row are drawn */
 	TObjectPtr<UTexture2D> CoverageTexture;
+
+	/** Solver instance that will run the distortion calibration */
+	TObjectPtr<ULensDistortionSolver> Solver;
 
 private:
 
