@@ -195,8 +195,8 @@ void UGameplayCueManager::RouteGameplayCue(AActor* TargetActor, FGameplayTag Gam
 	if (DisplayGameplayCues && !(Options & EGameplayCueExecutionOptions::IgnoreDebug))
 	{
 		FString DebugStr = FString::Printf(TEXT("[%s] %s - %s"), *GetNameSafe(TargetActor), *GameplayCueTag.ToString(), *EGameplayCueEventToString(EventType) );
-		FColor DebugColor = EventType == EGameplayCueEvent::Removed ? FColor::Red : FColor::Green;
-		DrawDebugString(TargetActor->GetWorld(), FVector(0.f, 0.f, -10.0f * static_cast<int>(EventType)), DebugStr, TargetActor, DebugColor, DisplayGameplayCueDuration);
+		FColor DebugColor = FColor::Green;
+		DrawDebugString(TargetActor->GetWorld(), FVector(0.f, 0.f, 100.f), DebugStr, TargetActor, DebugColor, DisplayGameplayCueDuration);
 		ABILITY_LOG(Display, TEXT("%s"), *DebugStr);
 	}
 #endif // ENABLE_DRAW_DEBUG

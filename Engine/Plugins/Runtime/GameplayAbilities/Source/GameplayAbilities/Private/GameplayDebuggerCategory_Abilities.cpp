@@ -12,22 +12,11 @@
 #include "AbilitySystemGlobals.h"
 #include "AbilitySystemComponent.h"
 #include "Engine/Canvas.h"
-#include "Engine/NetConnection.h"
-#include "GameFramework/PlayerController.h"
 
 
 FGameplayDebuggerCategory_Abilities::FGameplayDebuggerCategory_Abilities()
 {
 	SetDataPackReplication<FRepData>(&DataPack);
-
-	// Hard coding these to avoid needing to import InputCore just for EKeys::GetFName().
-	const FName KeyNameOne{ "One" };
-	const FName KeyNameTwo{ "Two" };
-	const FName KeyNameThree{ "Three" };
-
-	BindKeyPress(KeyNameOne, FGameplayDebuggerInputModifier::Shift, this, &FGameplayDebuggerCategory_Abilities::OnShowGameplayTagsToggle, EGameplayDebuggerInputMode::Local);
-	BindKeyPress(KeyNameTwo, FGameplayDebuggerInputModifier::Shift, this, &FGameplayDebuggerCategory_Abilities::OnShowGameplayAbilitiesToggle, EGameplayDebuggerInputMode::Local);
-	BindKeyPress(KeyNameThree, FGameplayDebuggerInputModifier::Shift, this, &FGameplayDebuggerCategory_Abilities::OnShowGameplayEffectsToggle, EGameplayDebuggerInputMode::Local);
 }
 
 TSharedRef<FGameplayDebuggerCategory> FGameplayDebuggerCategory_Abilities::MakeInstance()
@@ -35,25 +24,9 @@ TSharedRef<FGameplayDebuggerCategory> FGameplayDebuggerCategory_Abilities::MakeI
 	return MakeShareable(new FGameplayDebuggerCategory_Abilities());
 }
 
-void FGameplayDebuggerCategory_Abilities::OnShowGameplayTagsToggle()
-{
-	bShowGameplayTags = !bShowGameplayTags;
-}
-
-void FGameplayDebuggerCategory_Abilities::OnShowGameplayAbilitiesToggle()
-{
-	bShowGameplayAbilities = !bShowGameplayAbilities;
-}
-
-void FGameplayDebuggerCategory_Abilities::OnShowGameplayEffectsToggle()
-{
-	bShowGameplayEffects = !bShowGameplayEffects;
-}
-
 void FGameplayDebuggerCategory_Abilities::FRepData::Serialize(FArchive& Ar)
 {
-	bool bSuccess;
-	OwnedTags.NetSerialize(Ar, ClientPackageMap.Get(), bSuccess);
+	Ar << OwnedTags;
 
 	int32 NumAbilities = Abilities.Num();
 	Ar << NumAbilities;
@@ -93,11 +66,10 @@ void FGameplayDebuggerCategory_Abilities::CollectData(APlayerController* OwnerPC
 	UAbilitySystemComponent* AbilityComp = UAbilitySystemGlobals::GetAbilitySystemComponentFromActor(DebugActor);
 	if (AbilityComp)
 	{
-		// Save off the package map for serialization over the network
-		UNetConnection* NetConnection = OwnerPC->GetNetConnection();
-		DataPack.ClientPackageMap = NetConnection ? NetConnection->PackageMap : nullptr;
-
-		AbilityComp->GetOwnedGameplayTags(DataPack.OwnedTags);
+		static FGameplayTagContainer OwnerTags;
+		OwnerTags.Reset();
+		AbilityComp->GetOwnedGameplayTags(OwnerTags);
+		DataPack.OwnedTags = OwnerTags.ToStringSimple();
 
 		TArray<FGameplayEffectSpec> ActiveEffectSpecs;
 		AbilityComp->GetAllActiveGameplayEffectSpecs(ActiveEffectSpecs);
@@ -140,7 +112,7 @@ void FGameplayDebuggerCategory_Abilities::CollectData(APlayerController* OwnerPC
 	}
 }
 
-bool FGameplayDebuggerCategory_Abilities::WrapStringAccordingToViewport(const FString& StrIn, FString& StrOut, FGameplayDebuggerCanvasContext& CanvasContext, float ViewportWitdh) const
+bool FGameplayDebuggerCategory_Abilities::WrapStringAccordingToViewport(const FString& StrIn, FString& StrOut, FGameplayDebuggerCanvasContext& CanvasContext, float ViewportWitdh)
 {
 	if (!StrIn.IsEmpty())
 	{
@@ -165,10 +137,6 @@ bool FGameplayDebuggerCategory_Abilities::WrapStringAccordingToViewport(const FS
 			}
 			return true;
 		}
-		else
-		{
-			StrOut = StrIn;
-		}
 	}
 	// No need to wrap the text 
 	return false;
@@ -176,196 +144,103 @@ bool FGameplayDebuggerCategory_Abilities::WrapStringAccordingToViewport(const FS
 
 void FGameplayDebuggerCategory_Abilities::DrawData(APlayerController* OwnerPC, FGameplayDebuggerCanvasContext& CanvasContext)
 {
-	// Draw the sub-category bindings inline with the category header
-	{
-		CanvasContext.CursorX += 250.0f;
-		CanvasContext.CursorY -= CanvasContext.GetLineHeight();
-		const TCHAR* Active = TEXT("{green}");
-		const TCHAR* Inactive = TEXT("{yellow}");
-		CanvasContext.Printf(TEXT("Tags [%s%s{white}]\tAbilities [%s%s{white}]\tEffects [%s%s{white}]"), bShowGameplayTags ? Active : Inactive, *GetInputHandlerDescription(0), bShowGameplayAbilities ? Active : Inactive, *GetInputHandlerDescription(1), bShowGameplayEffects ? Active : Inactive, *GetInputHandlerDescription(2));
-	}
+	FVector2D ViewPortSize;
+	GEngine->GameViewport->GetViewportSize( /*out*/ViewPortSize);
 
-	static float LastDrawDataEndSize = CanvasContext.Canvas->SizeY - CanvasContext.CursorY - CanvasContext.CursorX;
-	float ThisDrawDataStartPos = CanvasContext.CursorY;
-
+	const float BackgroundPadding = 5.0f;
+	const FVector2D BackgroundSize(ViewPortSize.X - 2 * BackgroundPadding, ViewPortSize.Y);
 	const FLinearColor BackgroundColor(0.1f, 0.1f, 0.1f, 0.8f);
-	const FVector2D BackgroundPos{ CanvasContext.CursorX, CanvasContext.CursorY };
-	const FVector2D BackgroundSize(CanvasContext.Canvas->SizeX - (2.0f * CanvasContext.CursorX), LastDrawDataEndSize);
 
-	// Draw a transparent dark background so that the text is easier to look at
-	FCanvasTileItem Background(FVector2D(0.0f), BackgroundSize, BackgroundColor);
+	// Draw a transparent background so that the text is easier to look at
+	FCanvasTileItem Background(FVector2D(0.0f, 0.0f), BackgroundSize, BackgroundColor);
 	Background.BlendMode = SE_BLEND_Translucent;
+	CanvasContext.DrawItem(Background, CanvasContext.DefaultX - BackgroundPadding, CanvasContext.DefaultY - BackgroundPadding);
 
-	CanvasContext.DrawItem(Background, BackgroundPos.X, BackgroundPos.Y);
+	FString WrappedOwnedTagsStr;
+	// If need to wrap string, use the wrapped string, else use the DataPack one, avoid string copying.
+	const FString& OwnedTagsRef = WrapStringAccordingToViewport(DataPack.OwnedTags, WrappedOwnedTagsStr, CanvasContext, BackgroundSize.X) ? WrappedOwnedTagsStr : DataPack.OwnedTags;
 
-	if (bShowGameplayTags)
-	{
-		DrawGameplayTags(CanvasContext, OwnerPC);
-	}
-
-	if (bShowGameplayAbilities)
-	{
-		DrawGameplayAbilities(CanvasContext, OwnerPC);
-	}
-
-	if (bShowGameplayEffects)
-	{
-		DrawGameplayEffects(CanvasContext, OwnerPC);
-	}
-
-	LastDrawDataEndSize = CanvasContext.CursorY - ThisDrawDataStartPos;
-}
-
-void FGameplayDebuggerCategory_Abilities::DrawGameplayTags(FGameplayDebuggerCanvasContext& CanvasContext, const APlayerController* OwnerPC) const
-{
-	const float CanvasWidth = CanvasContext.Canvas->SizeX;
+	CanvasContext.Printf(TEXT("Owned Tags: \n{yellow}%s"), *OwnedTagsRef);
 
 	AActor* LocalDebugActor = FindLocalDebugActor();
-	if (UAbilitySystemComponent* AbilityComp = UAbilitySystemGlobals::GetAbilitySystemComponentFromActor(LocalDebugActor))
+	UAbilitySystemComponent* AbilityComp = UAbilitySystemGlobals::GetAbilitySystemComponentFromActor(LocalDebugActor);
+	if (AbilityComp)
 	{
-		FGameplayTagContainer ServerOnlyTags = DataPack.OwnedTags;
+		static FGameplayTagContainer OwnerTags;
+		OwnerTags.Reset();
+		AbilityComp->GetOwnedGameplayTags(OwnerTags);
 
-		// If we're not the authority, we should represent the tags in such a way that the user can see the difference between agreed upon server/client tags
-		// and ones where they disagree.
-		if (!AbilityComp->IsOwnerActorAuthoritative())
-		{
-			static FGameplayTagContainer LocalOnlyTags;
-			AbilityComp->GetOwnedGameplayTags(LocalOnlyTags);
+		TArray<FString> OwnerTagsStrArray = OwnerTags.ToStringsMaxLen(1024);
+		FString OwnerTagsStr = OwnerTagsStrArray.Num() > 0 ? OwnerTagsStrArray[0] : TEXT("");
+		FString WrappedOwnerTagsStr;
 
-			FGameplayTagContainer MatchingTags = ServerOnlyTags.FilterExact(LocalOnlyTags);
-			ServerOnlyTags.RemoveTags(MatchingTags);
-			LocalOnlyTags.RemoveTags(MatchingTags);
-
-			// Wrap the strings to the viewport
-			FString MatchingTagsStr, ServerOnlyTagsStr, LocalOnlyTagsStr;
-			WrapStringAccordingToViewport(MatchingTags.ToStringSimple(), MatchingTagsStr, CanvasContext, CanvasWidth);
-			WrapStringAccordingToViewport(ServerOnlyTags.ToStringSimple(), ServerOnlyTagsStr, CanvasContext, CanvasWidth);
-			WrapStringAccordingToViewport(LocalOnlyTags.ToStringSimple(), LocalOnlyTagsStr, CanvasContext, CanvasWidth);
-
-			MatchingTagsStr = MatchingTagsStr.Len() > 0 ? FString::Printf(TEXT("{cyan}%s  "), *MatchingTagsStr) : FString{};
-			ServerOnlyTagsStr = ServerOnlyTagsStr.Len() > 0 ? FString::Printf(TEXT("{yellow}%s  "), *ServerOnlyTagsStr) : FString{};
-			LocalOnlyTagsStr = LocalOnlyTagsStr.Len() > 0 ? FString::Printf(TEXT("{green}%s  "), *LocalOnlyTagsStr) : FString{};
-
-			CanvasContext.Printf(TEXT("Owned Tags Legend:  {cyan}Both  {yellow}Server  {green}Local \n%s%s%s"), *MatchingTagsStr, *ServerOnlyTagsStr, *LocalOnlyTagsStr);
-		}
-		else
-		{
-			FString ServerOnlyTagsStr;
-			WrapStringAccordingToViewport(ServerOnlyTags.ToStringSimple(), ServerOnlyTagsStr, CanvasContext, CanvasWidth);
-			CanvasContext.Printf(TEXT("Owned Tags: \n{cyan}%s"), *ServerOnlyTagsStr);
-		}
+		const FString& OwnerTagsStrRef = WrapStringAccordingToViewport(OwnerTagsStr, WrappedOwnerTagsStr, CanvasContext, BackgroundSize.X) ? WrappedOwnerTagsStr : OwnerTagsStr;
+		CanvasContext.Printf(TEXT("Local Tags: \n{cyan}%s"), *OwnerTagsStrRef);
 	}
 
-	// End with a newline to separate from the other categories
-	CanvasContext.Print(TEXT(""));
-}
-
-void FGameplayDebuggerCategory_Abilities::DrawGameplayEffects(FGameplayDebuggerCanvasContext& CanvasContext, const APlayerController* OwnerPC) const
-{
 	CanvasContext.Printf(TEXT("Gameplay Effects: {yellow}%d"), DataPack.GameplayEffects.Num());
 	for (int32 Idx = 0; Idx < DataPack.GameplayEffects.Num(); Idx++)
 	{
 		const FRepData::FGameplayEffectDebug& ItemData = DataPack.GameplayEffects[Idx];
 
-		FStringBuilderBase Desc;
-		Desc.Appendf(TEXT("\t{yellow}%s {grey}source:{white}%s {grey}duration:{white}"), *ItemData.Effect, *ItemData.Context);
-		if (ItemData.Duration > 0.0f)
-		{
-			Desc.Appendf(TEXT("%.3f"), ItemData.Duration);
-		}
-		else
-		{
-			Desc.Appendf(TEXT("INF"));
-		}
+		FString Desc = FString::Printf(TEXT("\t{yellow}%s {grey}source:{white}%s {grey}duration:{white}"), *ItemData.Effect, *ItemData.Context);
+		Desc += (ItemData.Duration > 0.0f) ? FString::Printf(TEXT("%.2f"), ItemData.Duration) : FString(TEXT("INF"));
 
 		if (ItemData.Period > 0.0f)
 		{
-			Desc.Appendf(TEXT(" {grey}period:{white}%.3f"), ItemData.Period);
+			Desc += FString::Printf(TEXT(" {grey}period:{white}%.2f"), ItemData.Period);
 		}
 
 		if (ItemData.Stacks > 1)
 		{
-			Desc.Appendf(TEXT(" {grey}stacks:{white}%d"), ItemData.Stacks);
+			Desc += FString::Printf(TEXT(" {grey}stacks:{white}%d"), ItemData.Stacks);
 		}
 
 		if (ItemData.Level > 1.0f)
 		{
-			Desc.Appendf(TEXT(" {grey}level:{white}%.2f"), ItemData.Level);
+			Desc += FString::Printf(TEXT(" {grey}level:{white}%.2f"), ItemData.Level);
 		}
 
-		CanvasContext.Print(Desc.ToString());
+		CanvasContext.Print(Desc);
 	}
-	
-	// End with a newline to separate from the other categories
-	CanvasContext.MoveToNewLine();
-}
 
-void FGameplayDebuggerCategory_Abilities::DrawGameplayAbilities(FGameplayDebuggerCanvasContext& CanvasContext, const APlayerController* OwnerPC) const
-{
-	const float CanvasWidth = CanvasContext.Canvas->SizeX;
-
-	// Let's do something semi-smart and stable to resize the columns to readable yet wide enough
-	int32 NumActive = 0;
-	FString LongestLengthObjectName;
-	for (const FRepData::FGameplayAbilityDebug& ItemData : DataPack.Abilities)
+	CanvasContext.Printf(TEXT("Gameplay Abilities: {yellow}%d"), DataPack.Abilities.Num());
+	int32 HalfNum = FMath::CeilToInt(DataPack.Abilities.Num() / 2.f);
+	for (int32 Idx = 0; Idx < HalfNum; Idx++)
 	{
-		if (ItemData.Ability.Len() > LongestLengthObjectName.Len())
+		if (2 * Idx + 1 < DataPack.Abilities.Num())
 		{
-			LongestLengthObjectName = ItemData.Ability;
-		}
+			const FRepData::FGameplayAbilityDebug* ItemData[2] = { &DataPack.Abilities[2 * Idx], &DataPack.Abilities[2 * Idx + 1] };
+			FString Abilities[2];
+			float WidthSum = 0.0f;
+			for (size_t j = 0; j < 2; ++j)
+			{
+				Abilities[j] = FString::Printf(TEXT("\t{yellow}%s {grey}source:{white}%s {grey}level:{white}%d {grey}active:{white}%s"),
+					*ItemData[j]->Ability, *ItemData[j]->Source, ItemData[j]->Level, ItemData[j]->bIsActive ? TEXT("YES") : TEXT("NO"));
+				float TempWidth = 0.0f; 
+				float TempHeight = 0.0f;
+				CanvasContext.MeasureString(Abilities[j], TempWidth, TempHeight);
+				WidthSum += TempWidth;
+			}
 
-		if (ItemData.Source.Len() > LongestLengthObjectName.Len())
+			if (WidthSum < BackgroundSize.X)
+			{
+				CanvasContext.Print(Abilities[0].Append(Abilities[1]));
+			}
+			else
+			{
+				CanvasContext.Print(Abilities[0]);
+				CanvasContext.Print(Abilities[1]);
+			}
+		}
+		else
 		{
-			LongestLengthObjectName = ItemData.Source;
-		}
-
-		NumActive += ItemData.bIsActive;
-	}
-
-	// Measure the individual string sizes, so that we can size the columns properly
-	constexpr float Padding = 10.0f;
-	static float ObjNameSize = 150.0f, SourceNameSize = 100.0f, LevelNameSize = 100.0f, TempSizeY = 0.0f;
-	static int32 CachedLen = 0;
-	if (LongestLengthObjectName.Len() > CachedLen)
-	{
-		CanvasContext.MeasureString(LongestLengthObjectName, ObjNameSize, TempSizeY);
-		CanvasContext.MeasureString(TEXT("source: "), SourceNameSize, TempSizeY);
-		CanvasContext.MeasureString(TEXT("level: 00"), LevelNameSize, TempSizeY);
-		ObjNameSize += Padding;
-	}
-	const float ColumnWidth = ObjNameSize * 2 + SourceNameSize + LevelNameSize;
-	const int NumColumns = FMath::Max(1, FMath::FloorToInt(CanvasWidth / ColumnWidth));
-
-	CanvasContext.Printf(TEXT("Gameplay Abilities: \t{yellow}Granted[%d] \t{cyan}Active[%d]"), DataPack.Abilities.Num(), NumActive);
-	for (const FRepData::FGameplayAbilityDebug& ItemData : DataPack.Abilities)
-	{
-		float CursorX = CanvasContext.CursorX;
-		float CursorY = CanvasContext.CursorY;
-
-		// Print positions manually to align them properly
-		CanvasContext.PrintAt(CursorX + ObjNameSize * 0, CursorY, ItemData.bIsActive ? FColor::Cyan : FColor::Yellow, ItemData.Ability);
-		CanvasContext.PrintAt(CursorX + ObjNameSize * 1, CursorY, FString::Printf(TEXT("{grey}source:{white}%s"), *ItemData.Source));
-		CanvasContext.PrintAt(CursorX + ObjNameSize * 2 + SourceNameSize, CursorY, FString::Printf(TEXT("{grey}level:{white}%02d"), ItemData.Level));
-
-		// PrintAt would have reset these values, restore them.
-		CanvasContext.CursorX = CursorX + (CanvasWidth / NumColumns);
-		CanvasContext.CursorY = CursorY;
-
-		// If we're going to overflow, go to the next line...
-		if (CanvasContext.CursorX + ColumnWidth >= CanvasWidth)
-		{
-			CanvasContext.MoveToNewLine();
+			const FRepData::FGameplayAbilityDebug& ItemData = DataPack.Abilities[2 * Idx];
+			// Only display one
+			CanvasContext.Printf(TEXT("\t{yellow}%s {grey}source:{white}%s {grey}level:{white}%d {grey}active:{white}%s"),
+				*ItemData.Ability, *ItemData.Source, ItemData.Level, ItemData.bIsActive ? TEXT("YES") : TEXT("NO"));
 		}
 	}
-
-	// End the row with a newline
-	if (CanvasContext.CursorX != CanvasContext.DefaultX)
-	{
-		CanvasContext.MoveToNewLine();
-	}
-
-	// End the category with a newline to separate from the other categories
-	CanvasContext.MoveToNewLine();
 }
 
 #endif // WITH_GAMEPLAY_DEBUGGER_MENU
