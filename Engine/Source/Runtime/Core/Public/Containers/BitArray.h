@@ -303,6 +303,16 @@ public:
 
 	int32  WordIndex;
 	uint32 Mask;
+
+	FORCEINLINE bool operator==(FRelativeBitReference Other) const
+	{
+		return (WordIndex == Other.WordIndex) & (Mask == Other.Mask);
+	}
+
+	FORCEINLINE bool operator!=(FRelativeBitReference Other) const
+	{
+		return !(Other == *this);
+	}
 };
 
 class FBitArrayMemory
@@ -1463,11 +1473,18 @@ public:
 			}
 			return *this;
 		}
+
+		FORCEINLINE FBitReference operator*() const
+		{
+			return GetValue();
+		}
+
 		/** conversion to "bool" returning true if the iterator is valid. */
 		FORCEINLINE explicit operator bool() const
 		{ 
 			return Index < Array.Num(); 
 		}
+
 		/** inverse of the "bool" operator */
 		FORCEINLINE bool operator !() const 
 		{
@@ -1502,6 +1519,11 @@ public:
 				++this->WordIndex;
 			}
 			return *this;
+		}
+
+		FORCEINLINE FBitReference operator*() const
+		{
+			return GetValue();
 		}
 
 		/** conversion to "bool" returning true if the iterator is valid. */
@@ -1692,6 +1714,13 @@ public:
 			}
 		}
 	};
+
+	/** Enables range-based for loops, DO NOT USE DIRECTLY. */
+
+	FORCEINLINE FIterator		begin()			{ return FIterator(*this); }
+	FORCEINLINE FConstIterator	begin() const	{ return FConstIterator(*this); }
+	FORCEINLINE FIterator		end()			{ return FIterator(*this, NumBits); }
+	FORCEINLINE FConstIterator	end() const		{ return FConstIterator(*this, NumBits); }
 
 private:
 	AllocatorType AllocatorInstance;
