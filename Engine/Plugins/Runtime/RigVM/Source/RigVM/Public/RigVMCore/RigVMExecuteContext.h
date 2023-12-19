@@ -713,13 +713,10 @@ struct RIGVM_API FRigVMExtendedExecuteContext
 		return 0;
 	}
 
-	UPROPERTY(transient)
 	uint32 VMHash = 0;
 
-	UPROPERTY(transient)
 	FRigVMMemoryStorageStruct WorkMemoryStorage;
 
-	UPROPERTY(transient)
 	FRigVMMemoryStorageStruct DebugMemoryStorage;
 
 #if WITH_EDITORONLY_DATA
