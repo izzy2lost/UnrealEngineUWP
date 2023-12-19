@@ -1753,7 +1753,7 @@ URuntimeHashExternalStreamingObjectBase* UWorldPartition::FlushStreamingToExtern
 
 void UWorldPartition::SetupHLODActors(const FSetupHLODActorsParams& Params)
 {
-	ForEachActorDescContainer([this, &Params](UActorDescContainerInstance* InContainerInstance)
+	ForEachActorDescContainerInstance([this, &Params](UActorDescContainerInstance* InContainerInstance)
 	{
 		TErrorHandlerSelector<FStreamingGenerationLogErrorHandler> ErrorHandlerSelector;
 
@@ -1899,7 +1899,7 @@ void UWorldPartition::CheckForErrors(IStreamingGenerationErrorHandler* ErrorHand
 		.SetIsValidHLODLayer([this](FName GridName, const FSoftObjectPath& HLODLayerPath) { return RuntimeHash->IsValidHLODLayer(GridName, HLODLayerPath); })
 		.SetEnableStreaming(IsStreamingEnabled());
 
-	ForEachActorDescContainer([&StreamingGeneratorParams](const UActorDescContainerInstance* InContainerInstance)
+	ForEachActorDescContainerInstance([&StreamingGeneratorParams](const UActorDescContainerInstance* InContainerInstance)
 	{
 		for (UActorDescContainerInstance::TConstIterator<> Iterator(InContainerInstance); Iterator; ++Iterator)
 		{
@@ -1908,7 +1908,7 @@ void UWorldPartition::CheckForErrors(IStreamingGenerationErrorHandler* ErrorHand
 		}
 	});
 
-	ForEachActorDescContainer([this, &StreamingGeneratorParams](const UActorDescContainerInstance* InContainerInstance)
+	ForEachActorDescContainerInstance([this, &StreamingGeneratorParams](const UActorDescContainerInstance* InContainerInstance)
 	{
 		check(StreamingGeneratorParams.WorldPartitionContext == InContainerInstance->GetWorldPartition());
 		FWorldPartitionStreamingGenerator StreamingGenerator(StreamingGeneratorParams);
@@ -1926,7 +1926,7 @@ void UWorldPartition::CheckForErrors(const FCheckForErrorsParams& Params)
 	FActorDescList ModifiedActorDescList;
 
 	TArray<const UActorDescContainerInstance*> Containers;
-	Params.ActorDescContainerInstanceCollection->ForEachActorDescContainer([&Containers](UActorDescContainerInstance* InContainerInstance) { Containers.Add(InContainerInstance); });
+	Params.ActorDescContainerInstanceCollection->ForEachActorDescContainerInstance([&Containers](UActorDescContainerInstance* InContainerInstance) { Containers.Add(InContainerInstance); });
 
 	FStreamingGenerationContainerInstanceCollection Collection{ Containers };
 	const UActorDescContainerInstance* MainContainerInstance = Collection.GetMainContainer();

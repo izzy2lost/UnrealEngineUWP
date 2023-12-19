@@ -621,7 +621,7 @@ void UWorldPartition::Initialize(UWorld* InWorld, const FTransform& InTransform)
 
 		ActorDescContainerInstance = RegisterActorDescContainerInstance(UActorDescContainerInstance::FInitializeParams(ContainerPackageName));
 
-		ForEachActorDescContainer([this, bIsEditor, bIsCooking](UActorDescContainerInstance* InActorDescContainerInstance)
+		ForEachActorDescContainerInstance([this, bIsEditor, bIsCooking](UActorDescContainerInstance* InActorDescContainerInstance)
 		{
 			InitializeActorDescContainerEditorStreaming(InActorDescContainerInstance, bIsEditor && !bIsCooking);
 		});

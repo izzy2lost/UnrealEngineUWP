@@ -214,7 +214,7 @@ void UWorldPartitionChangelistValidator::ValidateActorsAndDataLayersFromChangeLi
 			.SetErrorHandler(this)
 			.SetEnableStreaming(!ULevel::GetIsStreamingDisabledFromPackage(MapPath.GetPackageName()));
 
-		ContainersToValidate.ForEachActorDescContainer([&Params](const UActorDescContainerInstance* ContainerInstance)
+		ContainersToValidate.ForEachActorDescContainerInstance([&Params](const UActorDescContainerInstance* ContainerInstance)
 		{
 			for (UActorDescContainerInstance::TConstIterator<> Iterator(ContainerInstance); Iterator; ++Iterator)
 			{

@@ -1304,7 +1304,7 @@ bool FActorBrowsingMode::HasErrors() const
 		{
 			bool bHasErrors = 0;
 
-			WorldPartition->ForEachActorDescContainer([&bHasErrors](UActorDescContainerInstance* ActorDescContainerInstance)
+			WorldPartition->ForEachActorDescContainerInstance([&bHasErrors](UActorDescContainerInstance* ActorDescContainerInstance)
 			{
 				if (ActorDescContainerInstance->GetContainer()->HasInvalidActors())
 				{
@@ -1334,7 +1334,7 @@ void FActorBrowsingMode::RepairErrors() const
 			ISourceControlProvider& SourceControlProvider = SourceControlModule.GetProvider();
 
 			TArray<FAssetData> InvalidActorAssets;
-			WorldPartition->ForEachActorDescContainer([&InvalidActorAssets](UActorDescContainerInstance* ActorDescContainerInstance)
+			WorldPartition->ForEachActorDescContainerInstance([&InvalidActorAssets](UActorDescContainerInstance* ActorDescContainerInstance)
 			{
 				for (const FAssetData& InvalidActor : ActorDescContainerInstance->GetContainer()->GetInvalidActors())
 				{

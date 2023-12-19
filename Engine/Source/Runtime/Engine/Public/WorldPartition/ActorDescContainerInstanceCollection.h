@@ -63,11 +63,11 @@ public:
 	DECLARE_EVENT_OneParam(UWorldPartition, FActorDescInstanceRemovedEvent, FWorldPartitionActorDescInstance*);
 	FActorDescInstanceRemovedEvent OnActorDescInstanceRemovedEvent;
 
-	void ForEachActorDescContainerBreakable(TFunctionRef<bool(ActorDescContPtrType)> Func);
-	void ForEachActorDescContainerBreakable(TFunctionRef<bool(ActorDescContPtrType)> Func) const;
+	void ForEachActorDescContainerInstanceBreakable(TFunctionRef<bool(ActorDescContPtrType)> Func);
+	void ForEachActorDescContainerInstanceBreakable(TFunctionRef<bool(ActorDescContPtrType)> Func) const;
 
-	void ForEachActorDescContainer(TFunctionRef<void(ActorDescContPtrType)> Func);
-	void ForEachActorDescContainer(TFunctionRef<void(ActorDescContPtrType)> Func) const;
+	void ForEachActorDescContainerInstance(TFunctionRef<void(ActorDescContPtrType)> Func);
+	void ForEachActorDescContainerInstance(TFunctionRef<void(ActorDescContPtrType)> Func) const;
 
 protected:
 	virtual void OnCollectionChanged() {};
@@ -205,7 +205,7 @@ template<class U>
 TActorDescContainerInstanceCollection<ActorDescContPtrType>::TActorDescContainerInstanceCollection(std::initializer_list<U> ActorDescContainerInstanceArray)
 	: ActorDescContainerInstanceCollection(ActorDescContainerInstanceArray)
 {
-	ForEachActorDescContainer([this](ActorDescContPtrType ActorDescContainerInstance)
+	ForEachActorDescContainerInstance([this](ActorDescContPtrType ActorDescContainerInstance)
 	{
 		RegisterDelegates(ActorDescContainerInstance);
 	});
@@ -216,7 +216,7 @@ template<class U>
 TActorDescContainerInstanceCollection<ActorDescContPtrType>::TActorDescContainerInstanceCollection(const TArray<U>& ActorDescContainerInstances)
 	: ActorDescContainerInstanceCollection(ActorDescContainerInstances)
 {
-	ForEachActorDescContainer([this](ActorDescContPtrType ActorDescContainerInstance)
+	ForEachActorDescContainerInstance([this](ActorDescContPtrType ActorDescContainerInstance)
 	{
 		RegisterDelegates(ActorDescContainerInstance);
 	});
@@ -283,7 +283,7 @@ ActorDescContPtrType TActorDescContainerInstanceCollection<ActorDescContPtrType>
 template<class ActorDescContPtrType>
 void TActorDescContainerInstanceCollection<ActorDescContPtrType>::Empty()
 {
-	ForEachActorDescContainer([this](ActorDescContPtrType ActorDescContainerInstance)
+	ForEachActorDescContainerInstance([this](ActorDescContPtrType ActorDescContainerInstance)
 	{
 		UnregisterDelegates(ActorDescContainerInstance);
 	});
@@ -310,7 +310,7 @@ template<class ActorDescContPtrType>
 const FWorldPartitionActorDescInstance* TActorDescContainerInstanceCollection<ActorDescContPtrType>::GetActorDescInstance(const FGuid& Guid) const
 {
 	const FWorldPartitionActorDescInstance* ActorDescInstance = nullptr;
-	ForEachActorDescContainerBreakable([&Guid, &ActorDescInstance](ActorDescContPtrType ActorDescContainerInstance)
+	ForEachActorDescContainerInstanceBreakable([&Guid, &ActorDescInstance](ActorDescContPtrType ActorDescContainerInstance)
 	{
 		ActorDescInstance = ActorDescContainerInstance->GetActorDescInstance(Guid);
 		return ActorDescInstance == nullptr;
@@ -329,7 +329,7 @@ template<class ActorDescContPtrType>
 const FWorldPartitionActorDescInstance* TActorDescContainerInstanceCollection<ActorDescContPtrType>::GetActorDescInstanceByPath(const FString& ActorPath) const
 {
 	const FWorldPartitionActorDescInstance* ActorDescInstance = nullptr;
-	ForEachActorDescContainerBreakable([&ActorPath, &ActorDescInstance](ActorDescContPtrType ActorDescContainerInstance)
+	ForEachActorDescContainerInstanceBreakable([&ActorPath, &ActorDescInstance](ActorDescContPtrType ActorDescContainerInstance)
 	{
 		ActorDescInstance = ActorDescContainerInstance->GetActorDescInstanceByPath(ActorPath);
 		return ActorDescInstance == nullptr;
@@ -342,7 +342,7 @@ template<class ActorDescContPtrType>
 const FWorldPartitionActorDescInstance* TActorDescContainerInstanceCollection<ActorDescContPtrType>::GetActorDescInstanceByPath(const FSoftObjectPath& ActorPath) const
 {
 	const FWorldPartitionActorDescInstance* ActorDescInstance = nullptr;
-	ForEachActorDescContainerBreakable([&ActorPath, &ActorDescInstance](ActorDescContPtrType ActorDescContainerInstance)
+	ForEachActorDescContainerInstanceBreakable([&ActorPath, &ActorDescInstance](ActorDescContPtrType ActorDescContainerInstance)
 	{
 		ActorDescInstance = ActorDescContainerInstance->GetActorDescInstanceByPath(ActorPath);
 		return ActorDescInstance == nullptr;
@@ -355,7 +355,7 @@ template<class ActorDescContPtrType>
 const FWorldPartitionActorDescInstance* TActorDescContainerInstanceCollection<ActorDescContPtrType>::GetActorDescInstanceByName(FName ActorName) const
 {
 	const FWorldPartitionActorDescInstance* ActorDescInstance = nullptr;
-	ForEachActorDescContainerBreakable([&ActorName, &ActorDescInstance](ActorDescContPtrType ActorDescContainerInstance)
+	ForEachActorDescContainerInstanceBreakable([&ActorName, &ActorDescInstance](ActorDescContPtrType ActorDescContainerInstance)
 	{
 		ActorDescInstance = ActorDescContainerInstance->GetActorDescInstanceByName(ActorName);
 		return ActorDescInstance == nullptr;
@@ -368,7 +368,7 @@ template<class ActorDescContPtrType>
 ActorDescContPtrType TActorDescContainerInstanceCollection<ActorDescContPtrType>::GetActorDescContainerInstance(const FGuid& ActorGuid) const
 {
 	ActorDescContPtrType ActorDescContainerInstance = nullptr;
-	ForEachActorDescContainerBreakable([&ActorGuid, &ActorDescContainerInstance](ActorDescContPtrType InActorDescContainerInstance)
+	ForEachActorDescContainerInstanceBreakable([&ActorGuid, &ActorDescContainerInstance](ActorDescContPtrType InActorDescContainerInstance)
 	{
 		if (InActorDescContainerInstance->GetActorDescInstance(ActorGuid) != nullptr)
 		{
@@ -391,7 +391,7 @@ ActorDescContPtrType TActorDescContainerInstanceCollection<ActorDescContPtrType>
 
 	// Actor is not yet stored in a container. Find which one should handle it.
 	ActorDescContPtrType ActorDescContainerInstance = nullptr;
-	ForEachActorDescContainerBreakable([&ActorDescContainerInstance, &Actor](ActorDescContPtrType InActorDescContainerInstance)
+	ForEachActorDescContainerInstanceBreakable([&ActorDescContainerInstance, &Actor](ActorDescContPtrType InActorDescContainerInstance)
 	{
 		if (InActorDescContainerInstance->IsActorDescHandled(Actor))
 		{
@@ -408,7 +408,7 @@ template<typename, typename>
 bool TActorDescContainerInstanceCollection<ActorDescContPtrType>::RemoveActor(const FGuid& ActorGuid)
 {
 	bool bRemoved = false;
-	ForEachActorDescContainerBreakable([&ActorGuid, &bRemoved](ActorDescContPtrType ContainerInstance)
+	ForEachActorDescContainerInstanceBreakable([&ActorGuid, &bRemoved](ActorDescContPtrType ContainerInstance)
 	{
 		bRemoved = ContainerInstance->GetContainer()->RemoveActor(ActorGuid);
 		return !bRemoved;
@@ -421,7 +421,7 @@ template<class ActorDescContPtrType>
 template<typename, typename>
 void TActorDescContainerInstanceCollection<ActorDescContPtrType>::OnPackageDeleted(UPackage* Package)
 {
-	ForEachActorDescContainer([Package](ActorDescContPtrType ContainerInstance)
+	ForEachActorDescContainerInstance([Package](ActorDescContPtrType ContainerInstance)
 	{
 		ContainerInstance->GetContainer()->OnPackageDeleted(Package);
 	});
@@ -431,7 +431,7 @@ template<class ActorDescContPtrType>
 template<typename, typename>
 void TActorDescContainerInstanceCollection<ActorDescContPtrType>::LoadAllActors(TArray<FWorldPartitionReference>& OutReferences)
 {
-	ForEachActorDescContainer([&OutReferences](ActorDescContPtrType ContainerInstance)
+	ForEachActorDescContainerInstance([&OutReferences](ActorDescContPtrType ContainerInstance)
 	{
 		ContainerInstance->LoadAllActors(OutReferences);
 	});
@@ -439,7 +439,7 @@ void TActorDescContainerInstanceCollection<ActorDescContPtrType>::LoadAllActors(
 
 
 template<class ActorDescContPtrType>
-void TActorDescContainerInstanceCollection<ActorDescContPtrType>::ForEachActorDescContainerBreakable(TFunctionRef<bool(ActorDescContPtrType)> Func) const
+void TActorDescContainerInstanceCollection<ActorDescContPtrType>::ForEachActorDescContainerInstanceBreakable(TFunctionRef<bool(ActorDescContPtrType)> Func) const
 {
 	for (ActorDescContPtrType ActorDescContainerInstance : ActorDescContainerInstanceCollection)
 	{
@@ -451,13 +451,13 @@ void TActorDescContainerInstanceCollection<ActorDescContPtrType>::ForEachActorDe
 }
 
 template<class ActorDescContPtrType>
-void TActorDescContainerInstanceCollection<ActorDescContPtrType>::ForEachActorDescContainerBreakable(TFunctionRef<bool(ActorDescContPtrType)> Func)
+void TActorDescContainerInstanceCollection<ActorDescContPtrType>::ForEachActorDescContainerInstanceBreakable(TFunctionRef<bool(ActorDescContPtrType)> Func)
 {
-	const_cast<const TActorDescContainerInstanceCollection*>(this)->ForEachActorDescContainerBreakable(Func);
+	const_cast<const TActorDescContainerInstanceCollection*>(this)->ForEachActorDescContainerInstanceBreakable(Func);
 }
 
 template<class ActorDescContPtrType>
-void TActorDescContainerInstanceCollection<ActorDescContPtrType>::ForEachActorDescContainer(TFunctionRef<void(ActorDescContPtrType)> Func) const
+void TActorDescContainerInstanceCollection<ActorDescContPtrType>::ForEachActorDescContainerInstance(TFunctionRef<void(ActorDescContPtrType)> Func) const
 {
 	for (ActorDescContPtrType ActorDescContainerInstance : ActorDescContainerInstanceCollection)
 	{
@@ -466,9 +466,9 @@ void TActorDescContainerInstanceCollection<ActorDescContPtrType>::ForEachActorDe
 }
 
 template<class ActorDescContPtrType>
-void TActorDescContainerInstanceCollection<ActorDescContPtrType>::ForEachActorDescContainer(TFunctionRef<void(ActorDescContPtrType)> Func)
+void TActorDescContainerInstanceCollection<ActorDescContPtrType>::ForEachActorDescContainerInstance(TFunctionRef<void(ActorDescContPtrType)> Func)
 {
-	const_cast<const TActorDescContainerInstanceCollection*>(this)->ForEachActorDescContainer(Func);
+	const_cast<const TActorDescContainerInstanceCollection*>(this)->ForEachActorDescContainerInstance(Func);
 }
 
 template<class ActorDescContPtrType>

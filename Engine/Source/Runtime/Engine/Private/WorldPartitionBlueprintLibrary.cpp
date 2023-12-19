@@ -86,7 +86,7 @@ bool UWorldPartitionBlueprintLibrary::GetActorDescs(const UWorldPartition* InWor
 {
 	bool bResult = true;
 
-	InWorldPartition->ForEachActorDescContainer([&](const UActorDescContainerInstance* InContainerInstance)
+	InWorldPartition->ForEachActorDescContainerInstance([&](const UActorDescContainerInstance* InContainerInstance)
 	{
 		bResult &= GetActorDescs(InContainerInstance, FTransform::Identity, OutActorDescs);
 	});

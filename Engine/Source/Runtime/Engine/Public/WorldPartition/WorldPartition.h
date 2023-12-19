@@ -491,9 +491,18 @@ private:
 public:
 	UE_DEPRECATED(5.4, "Use GetActorDescContainerInstance")
 	UActorDescContainer* GetActorDescContainer() const { return nullptr; }
-		
+
 #if WITH_EDITOR
 	UActorDescContainerInstance* GetActorDescContainerInstance() const { return ActorDescContainerInstance; }
+
+	UE_DEPRECATED(5.4, "Use ForEachActorDescContainerInstanceBreakable.")
+	void ForEachActorDescContainerBreakable(TFunctionRef<bool(UActorDescContainer*)> Func) {}
+	UE_DEPRECATED(5.4, "Use ForEachActorDescContainerInstanceBreakable.")
+	void ForEachActorDescContainerBreakable(TFunctionRef<bool(UActorDescContainer*)> Func) const {}
+	UE_DEPRECATED(5.4, "Use ForEachActorDescContainerInstance.")
+	void ForEachActorDescContainer(TFunctionRef<void(UActorDescContainer*)> Func) {}
+	UE_DEPRECATED(5.4, "Use ForEachActorDescContainerInstance.")
+	void ForEachActorDescContainer(TFunctionRef<void(UActorDescContainer*)> Func) const {}
 #endif			
 
 	UPROPERTY()

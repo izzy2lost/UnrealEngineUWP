@@ -21,7 +21,7 @@ FWorldPartitionHLODEditorData::FWorldPartitionHLODEditorData(UWorldPartition* In
 	WorldPartition->OnActorDescContainerInstanceUnregistered.AddRaw(this, &FWorldPartitionHLODEditorData::OnActorDescContainerInstanceUnregistered);
 
 	// Since this is created upon WP init, we missed the first broadcasts for existing container instances. Register them manually.
-	WorldPartition->ForEachActorDescContainer([this](UActorDescContainerInstance* InContainerInstance)
+	WorldPartition->ForEachActorDescContainerInstance([this](UActorDescContainerInstance* InContainerInstance)
 	{
 		OnActorDescContainerInstanceRegistered(InContainerInstance);
 	});	
