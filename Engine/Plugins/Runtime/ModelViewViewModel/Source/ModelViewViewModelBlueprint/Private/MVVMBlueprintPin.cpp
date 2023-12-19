@@ -2,21 +2,111 @@
 
 #include "MVVMBlueprintPin.h"
 
+#include "Algo/Reverse.h"
 #include "Bindings/MVVMConversionFunctionHelper.h"
 #include "EdGraph/EdGraphPin.h"
 #include "EdGraphSchema_K2.h"
 
 #include UE_INLINE_GENERATED_CPP_BY_NAME(MVVMBlueprintPin)
 
+/**
+ *
+ */
+FMVVMBlueprintPinId::FMVVMBlueprintPinId(const TArrayView<const FName> Names)
+	: PinNames(Names)
+{
+}
+
+FMVVMBlueprintPinId::FMVVMBlueprintPinId(TArray<FName>&& Names)
+	: PinNames(Names)
+{
+}
+
+bool FMVVMBlueprintPinId::IsValid() const
+{
+	return PinNames.Num() > 0 && !PinNames.Contains(FName());
+}
+
+bool FMVVMBlueprintPinId::IsChildOf(const FMVVMBlueprintPinId& Other) const
+{
+	if (Other.PinNames.Num() >= PinNames.Num())
+	{
+		return false;
+	}
+
+	for (int32 Index = 0; Index < Other.PinNames.Num(); ++Index)
+	{
+		if (Other.PinNames[Index] != PinNames[Index])
+		{
+			return false;
+		}
+	}
+	return true;
+}
+
+bool FMVVMBlueprintPinId::IsDirectChildOf(const FMVVMBlueprintPinId& Other) const
+{
+	if (Other.PinNames.Num() != PinNames.Num() - 1)
+	{
+		return false;
+	}
+
+	for (int32 Index = 0; Index < Other.PinNames.Num(); ++Index)
+	{
+		if (Other.PinNames[Index] != PinNames[Index])
+		{
+			return false;
+		}
+	}
+	return true;
+}
+
+bool FMVVMBlueprintPinId::operator==(const FMVVMBlueprintPinId& Other) const
+{
+	return PinNames == Other.PinNames;
+}
+
+bool FMVVMBlueprintPinId::operator==(const TArrayView<const FName> Other) const
+{
+	return PinNames.Num() == Other.Num() && CompareItems(GetData(Other), GetData(PinNames), PinNames.Num());
+}
+
+FString FMVVMBlueprintPinId::ToString() const
+{
+	TStringBuilder<256> Builder;
+	for (FName Name : PinNames)
+	{
+		if (Builder.Len() > 0)
+		{
+			Builder << TEXT('.');
+		}
+		Builder << Name;
+	}
+	return Builder.ToString();
+}
+
+/**
+ *
+ */
 FMVVMBlueprintPin::FMVVMBlueprintPin(FName InPinName)
-	: PinName(InPinName)
+	: PinId(MakeArrayView(&InPinName, 1))
+{
+}
+
+FMVVMBlueprintPin::FMVVMBlueprintPin(FMVVMBlueprintPinId InPinId)
+	: PinId(MoveTemp(InPinId))
+{
+}
+
+FMVVMBlueprintPin::FMVVMBlueprintPin(const TArrayView<const FName> InPinNames)
+	: PinId(InPinNames)
 {
 }
 
 FMVVMBlueprintPin FMVVMBlueprintPin::CreateFromPin(const UBlueprint* Blueprint, const UEdGraphPin* Pin)
 {
 	FMVVMBlueprintPin Result;
-	Result.PinName = Pin->PinName;
+	Result.PinId = FMVVMBlueprintPinId(UE::MVVM::ConversionFunctionHelper::FindPinId(Pin));
 	Result.Path = UE::MVVM::ConversionFunctionHelper::GetPropertyPathForPin(Blueprint, Pin, true);
 	Result.DefaultObject = Pin->DefaultObject;
 	Result.DefaultString = Pin->DefaultValue;
@@ -74,7 +164,7 @@ FString FMVVMBlueprintPin::GetValueAsString(const UClass* SelfContext) const
 
 bool FMVVMBlueprintPin::IsInputPin(const UEdGraphPin* Pin)
 {
-	return Pin->PinName != UEdGraphSchema_K2::PN_Self && Pin->PinName != UEdGraphSchema_K2::PN_Execute && Pin->Direction == EGPD_Input && (!Pin->bOrphanedPin || Pin->ShouldSavePinIfOrphaned()) && !Pin->bHidden;
+	return UE::MVVM::ConversionFunctionHelper::IsInputPin(Pin);
 }
 
 TArray<FMVVMBlueprintPin> FMVVMBlueprintPin::CopyAndReturnMissingPins(UBlueprint* Blueprint, UEdGraphNode* GraphNode, const TArray<FMVVMBlueprintPin>& Pins)
@@ -87,7 +177,7 @@ TArray<FMVVMBlueprintPin> FMVVMBlueprintPin::CopyAndReturnMissingPins(UBlueprint
 	for (const FMVVMBlueprintPin& Pin : Pins)
 	{
 		Pin.CopyTo(Blueprint, GraphNode);
-		if (UEdGraphPin* GraphPin = Pin.FindGraphPin(GraphNode))
+		if (UEdGraphPin* GraphPin = Pin.FindGraphPin(GraphNode->GetGraph()))
 		{
 			AllGraphPins.Add(GraphPin);
 		}
@@ -108,7 +198,7 @@ TArray<FMVVMBlueprintPin> FMVVMBlueprintPin::CopyAndReturnMissingPins(UBlueprint
 void FMVVMBlueprintPin::CopyTo(const UBlueprint* Blueprint, UEdGraphNode* Node) const
 {
 	Status = EMVVMBlueprintPinStatus::Orphaned;
-	if (UEdGraphPin* GraphPin = FindGraphPin(Node))
+	if (UEdGraphPin* GraphPin = FindGraphPin(Node->GetGraph()))
 	{
 		if (IsInputPin(GraphPin))
 		{
@@ -140,9 +230,9 @@ TArray<FMVVMBlueprintPin> FMVVMBlueprintPin::CreateFromNode(UBlueprint* Blueprin
 	return Result;
 }
 
-UEdGraphPin* FMVVMBlueprintPin::FindGraphPin(UEdGraphNode* Node) const
+UEdGraphPin* FMVVMBlueprintPin::FindGraphPin(const UEdGraph* Graph) const
 {
-	return Node->FindPin(PinName, EGPD_Input);
+	return UE::MVVM::ConversionFunctionHelper::FindPin(Graph, PinId.GetNames());
 }
 
 void FMVVMBlueprintPin::Reset()
@@ -153,4 +243,16 @@ void FMVVMBlueprintPin::Reset()
 	DefaultObject = nullptr;
 	bSplit = false;
 	Status = EMVVMBlueprintPinStatus::Valid;
+}
+
+void FMVVMBlueprintPin::PostSerialize(const FArchive& Ar)
+{
+	if (Ar.IsLoading())
+	{
+		if (PinName_DEPRECATED.IsValid())
+		{
+			PinId = FMVVMBlueprintPinId(MakeArrayView(&PinName_DEPRECATED, 1));
+			PinName_DEPRECATED = FName();
+		}
+	}
 }

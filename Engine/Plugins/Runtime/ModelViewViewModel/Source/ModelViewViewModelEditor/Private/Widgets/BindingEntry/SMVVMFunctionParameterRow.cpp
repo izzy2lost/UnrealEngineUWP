@@ -41,12 +41,12 @@ TSharedRef<SWidget> SFunctionParameterRow::BuildRowWidget()
 		UMVVMBlueprintViewConversionFunction* ConversionFunction = Binding->Conversion.GetConversionFunction(bSourceToDestination);
 		check(ConversionFunction);
 
-		Pin = ConversionFunction->GetPins().FindByPredicate([Name = GetEntry()->GetBindingParameterName()](const FMVVMBlueprintPin& Other) { return Other.GetName() == Name; });
-		GraphPin = ConversionFunction->GetOrCreateGraphPin(GetBlueprint(), GetEntry()->GetBindingParameterName());
+		Pin = ConversionFunction->GetPins().FindByPredicate([ArgId = GetEntry()->GetBindingParameterId()](const FMVVMBlueprintPin& Other) { return Other.GetId() == ArgId; });
+		GraphPin = ConversionFunction->GetOrCreateGraphPin(GetBlueprint(), GetEntry()->GetBindingParameterId());
 
 		ContentWidget = SNew(SFunctionParameter, GetBlueprint())
 			.BindingId(Binding->BindingId)
-			.ParameterName(GetEntry()->GetBindingParameterName())
+			.ParameterId(GetEntry()->GetBindingParameterId())
 			.SourceToDestination(bSourceToDestination)
 			.AllowDefault(!bSimpleConversionFunction);
 	}
@@ -55,12 +55,12 @@ TSharedRef<SWidget> SFunctionParameterRow::BuildRowWidget()
 		UMVVMBlueprintViewEvent* ViewEvent = GetEntry()->GetEvent();
 		check(ViewEvent);
 
-		Pin = ViewEvent->GetPins().FindByPredicate([Name = GetEntry()->GetEventParameterName()](const FMVVMBlueprintPin& Other) { return Other.GetName() == Name; });
-		GraphPin = ViewEvent->GetOrCreateGraphPin(GetEntry()->GetEventParameterName());
+		Pin = ViewEvent->GetPins().FindByPredicate([ArgId = GetEntry()->GetEventParameterId()](const FMVVMBlueprintPin& Other) { return Other.GetId() == ArgId; });
+		GraphPin = ViewEvent->GetOrCreateGraphPin(GetEntry()->GetEventParameterId());
 
 		ContentWidget = SNew(SEventParameter, GetBlueprint())
 			.Event(GetEntry()->GetEvent())
-			.ParameterName(GetEntry()->GetEventParameterName())
+			.ParameterId(GetEntry()->GetEventParameterId())
 			.AllowDefault(true);
 	}
 
@@ -73,7 +73,7 @@ TSharedRef<SWidget> SFunctionParameterRow::BuildRowWidget()
 	{
 		PrimaryBrush = FBlueprintEditorUtils::GetIconFromPin(FEdGraphPinType());
 		PrimaryColor = FLinearColor::Red;
-		DisplayName = GraphPin ? GraphPin->GetDisplayName() : (Pin ? FText::FromName(Pin->GetName()) : FText::GetEmpty());
+		DisplayName = GraphPin ? GraphPin->GetDisplayName() : (Pin ? FText::FromName(Pin->GetId().GetNames().Last()) : FText::GetEmpty());
 		bTextColorIsRed = true;
 	}
 	else

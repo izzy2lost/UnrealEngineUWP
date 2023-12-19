@@ -51,12 +51,12 @@ void FBindingEntry::SetBindingId(FGuid Id)
 	BindingId = Id;
 }
 
-void FBindingEntry::SetBindingParameter(FGuid Id, FName ParameterName)
+void FBindingEntry::SetBindingParameter(FGuid Id, FMVVMBlueprintPinId Parameter)
 {
 	check(RowType == ERowType::None);
 	RowType = ERowType::BindingParameter;
 	BindingId = Id;
-	Name = ParameterName;
+	PinId = MoveTemp(Parameter);
 }
 
 UMVVMBlueprintViewEvent* FBindingEntry::GetEvent() const
@@ -71,12 +71,12 @@ void FBindingEntry::SetEvent(UMVVMBlueprintViewEvent* InEvent)
 	Event = InEvent;
 }
 
-void FBindingEntry::SetEventParameter(UMVVMBlueprintViewEvent* InEvent, FName ParameterName)
+void FBindingEntry::SetEventParameter(UMVVMBlueprintViewEvent* InEvent, FMVVMBlueprintPinId Parameter)
 {
 	check(RowType == ERowType::None);
 	RowType = ERowType::EventParameter;
 	Event = InEvent;
-	Name = ParameterName;
+	PinId = MoveTemp(Parameter);
 }
 
 void FBindingEntry::AddChild(TSharedPtr<FBindingEntry> Child)
@@ -107,6 +107,7 @@ bool FBindingEntry::operator==(const FBindingEntry& Other) const
 	return RowType == Other.RowType
 		&& Name == Other.Name
 		&& BindingId == Other.BindingId
+		&& PinId == Other.PinId
 		&& Event == Other.Event;
 }
 
@@ -118,9 +119,11 @@ FString FBindingEntry::GetSearchNameString(UMVVMBlueprintView* View, UWidgetBlue
 	switch (RowType)
 	{
 	case UE::MVVM::FBindingEntry::ERowType::Group:
+		RowToString = Name.ToString();
+		break;
 	case UE::MVVM::FBindingEntry::ERowType::BindingParameter:
 	case UE::MVVM::FBindingEntry::ERowType::EventParameter:
-		RowToString = Name.ToString();
+		RowToString = PinId.ToString();
 		break;
 	case UE::MVVM::FBindingEntry::ERowType::Binding:
 		{

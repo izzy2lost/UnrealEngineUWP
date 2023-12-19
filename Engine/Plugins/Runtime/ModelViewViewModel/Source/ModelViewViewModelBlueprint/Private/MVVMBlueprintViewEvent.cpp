@@ -113,14 +113,10 @@ void UMVVMBlueprintViewEvent::RemoveWrapperGraph()
 	SavedPins.Empty();
 }
 
-UEdGraphPin* UMVVMBlueprintViewEvent::GetOrCreateGraphPin(FName PinName)
+UEdGraphPin* UMVVMBlueprintViewEvent::GetOrCreateGraphPin(const FMVVMBlueprintPinId& PinId)
 {
 	GetOrCreateWrapperGraph();
-	if (CachedWrapperNode)
-	{
-		return CachedWrapperNode->FindPin(PinName);
-	}
-	return nullptr;
+	return CachedWrapperGraph ? UE::MVVM::ConversionFunctionHelper::FindPin(CachedWrapperGraph, PinId.GetNames()) : nullptr;
 }
 
 void UMVVMBlueprintViewEvent::SavePinValues()
@@ -156,21 +152,21 @@ bool UMVVMBlueprintViewEvent::HasOrphanedPin() const
 	return false;
 }
 
-FMVVMBlueprintPropertyPath UMVVMBlueprintViewEvent::GetPinPath(FName PinName) const
+FMVVMBlueprintPropertyPath UMVVMBlueprintViewEvent::GetPinPath(const FMVVMBlueprintPinId& PinId) const
 {
-	const FMVVMBlueprintPin* ViewPin = SavedPins.FindByPredicate([PinName](const FMVVMBlueprintPin& Other) { return PinName == Other.GetName(); });
+	const FMVVMBlueprintPin* ViewPin = SavedPins.FindByPredicate([&PinId](const FMVVMBlueprintPin& Other) { return PinId == Other.GetId(); });
 	return ViewPin ? ViewPin->GetPath() : FMVVMBlueprintPropertyPath();
 }
 
-void UMVVMBlueprintViewEvent::SetPinPath(FName PinName, const FMVVMBlueprintPropertyPath& Path)
+void UMVVMBlueprintViewEvent::SetPinPath(const FMVVMBlueprintPinId& PinId, const FMVVMBlueprintPropertyPath& Path)
 {
-	UEdGraphPin* GraphPin = GetOrCreateGraphPin(PinName);
+	UEdGraphPin* GraphPin = GetOrCreateGraphPin(PinId);
 
 	if (GraphPin)
 	{
 		UBlueprint* Blueprint = GetWidgetBlueprintInternal();
 		// Set the value and make the blueprint as dirty before creating the pin.
-		FMVVMBlueprintPin* ViewPin = SavedPins.FindByPredicate([PinName](const FMVVMBlueprintPin& Other) { return PinName == Other.GetName(); });
+		FMVVMBlueprintPin* ViewPin = SavedPins.FindByPredicate([&PinId](const FMVVMBlueprintPin& Other) { return PinId == Other.GetId(); });
 		if (!ViewPin)
 		{
 			ViewPin = &SavedPins.Add_GetRef(FMVVMBlueprintPin::CreateFromPin(Blueprint, GraphPin));
@@ -186,12 +182,12 @@ void UMVVMBlueprintViewEvent::SetPinPath(FName PinName, const FMVVMBlueprintProp
 	}
 }
 
-void UMVVMBlueprintViewEvent::SetPinPathNoGraphGeneration(FName PinName, const FMVVMBlueprintPropertyPath& Path)
+void UMVVMBlueprintViewEvent::SetPinPathNoGraphGeneration(const FMVVMBlueprintPinId& PinId, const FMVVMBlueprintPropertyPath& Path)
 {
-	FMVVMBlueprintPin* ViewPin = SavedPins.FindByPredicate([PinName](const FMVVMBlueprintPin& Other) { return PinName == Other.GetName(); });
+	FMVVMBlueprintPin* ViewPin = SavedPins.FindByPredicate([&PinId](const FMVVMBlueprintPin& Other) { return PinId == Other.GetId(); });
 	if (!ViewPin)
 	{
-		ViewPin = &SavedPins.Emplace_GetRef(PinName);
+		ViewPin = &SavedPins.Emplace_GetRef(PinId);
 		ViewPin->SetPath(Path);
 	}
 

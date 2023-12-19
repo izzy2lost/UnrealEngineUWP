@@ -41,13 +41,18 @@ namespace Private
 		return nullptr;
 	}
 
+	bool IsSystemInputPin(const UEdGraphPin* Pin)
+	{
+		return Pin && Pin->PinName != UEdGraphSchema_K2::PN_Execute && Pin->Direction == EGPD_Input && (!Pin->bOrphanedPin || Pin->ShouldSavePinIfOrphaned()) && !Pin->bHidden;
+	}
+
 	void MarkAsConversionFunction(const UK2Node* FunctionNode, const UEdGraph* Graph)
 	{
 		check(FunctionNode != nullptr);
 		FunctionNode->GetPackage()->GetMetaData()->SetValue(FunctionNode, ConversionFunctionMetadataKey.Resolve(), TEXT(""));
 	}
 
-	UK2Node_FunctionEntry* FindFunctionEntry(UEdGraph* Graph)
+	UK2Node_FunctionEntry* FindFunctionEntry(const UEdGraph* Graph)
 	{
 		for (UEdGraphNode* Node : Graph->Nodes)
 		{
@@ -58,8 +63,8 @@ namespace Private
 		}
 		return nullptr;
 	}
-	
-	UK2Node_FunctionResult* FindFunctionResult(UEdGraph* Graph)
+
+	UK2Node_FunctionResult* FindFunctionResult(const UEdGraph* Graph)
 	{
 		for (UEdGraphNode* Node : Graph->Nodes)
 		{
@@ -144,7 +149,7 @@ namespace Private
 		auto AddNode = [&NodesInPath](const UEdGraphPin* Pin)
 			{
 				UEdGraphNode* Result = nullptr;
-				if (Pin->Direction == EGPD_Input && Pin->LinkedTo.Num() == 1 && Pin->PinName != UEdGraphSchema_K2::PN_Execute)
+				if (Private::IsSystemInputPin(Pin) && Pin->LinkedTo.Num() == 1)
 				{
 					Result = Pin->LinkedTo[0]->GetOwningNode();
 					NodesInPath.Emplace(Result, Pin->LinkedTo[0]);
@@ -173,7 +178,7 @@ namespace Private
 
 	FMVVMBlueprintPropertyPath GetPropertyPathForPin(const UBlueprint* Blueprint, const UEdGraphPin* StartPin, bool bSkipResolve)
 	{
-		if (StartPin->Direction != EGPD_Input || StartPin->PinName == UEdGraphSchema_K2::PN_Self)
+		if (!IsInputPin(StartPin))
 		{
 			return FMVVMBlueprintPropertyPath();
 		}
@@ -309,6 +314,22 @@ namespace Private
 		return ResultPath;
 	}
 
+	UEdGraphPin* FindNewOutputPin(const UEdGraphNode* NewNode)
+	{
+		// then update our previous pin pointers
+		for (UEdGraphPin* Pin : NewNode->Pins)
+		{
+			if (Pin->Direction == EGPD_Output)
+			{
+				if (Pin->PinName != UEdGraphSchema_K2::PN_Then)
+				{
+					return Pin;
+				}
+			}
+		}
+		return nullptr;
+	};
+
 	TValueOrError<TArray<UEdGraphPin*>, void> BuildPropertyPath(const UBlueprint* Blueprint, UEdGraph* FunctionGraph, const FMVVMBlueprintPropertyPath& PropertyPath, int32 NumberOfFieldExcludingThePropertyPathSource, FVector2f EndLocation)
 	{
 		// Add new nodes
@@ -322,22 +343,6 @@ namespace Private
 				return Pin->Direction == EGPD_Input
 					&& Pin->PinName != UEdGraphSchema_K2::PN_Execute
 					&& GetDefault<UEdGraphSchema_K2>()->ArePinsCompatible(PreviousDataPin, Pin, Context);
-			};
-
-		auto FindNewOutputPin = [](UEdGraphNode* NewNode) -> UEdGraphPin*
-			{
-				// then update our previous pin pointers
-				for (UEdGraphPin* Pin : NewNode->Pins)
-				{
-					if (Pin->Direction == EGPD_Output)
-					{
-						if (Pin->PinName != UEdGraphSchema_K2::PN_Then)
-						{
-							return Pin;
-						}
-					}
-				}
-				return nullptr;
 			};
 
 		NumberOfFieldExcludingThePropertyPathSource = FMath::Clamp(NumberOfFieldExcludingThePropertyPathSource, 0, PropertyPath.GetFieldPaths().Num());
@@ -691,7 +696,7 @@ namespace Private
 			ThenPin->MakeLinkTo(FunctionResultExecPin);
 		}
 	}
-}
+} //namespace
 
 bool RequiresWrapper(const UFunction* ConversionFunction)
 {
@@ -706,6 +711,11 @@ bool RequiresWrapper(const UFunction* ConversionFunction)
 		return (ArgumentsResult.GetValue().Num() > 1);
 	}
 	return false;
+}
+
+bool IsInputPin(const UEdGraphPin* Pin)
+{
+	return Private::IsSystemInputPin(Pin) && Pin->PinName != UEdGraphSchema_K2::PN_Self;
 }
 
 FName CreateWrapperName(const FMVVMBlueprintViewBinding& Binding, bool bSourceToDestination)
@@ -1009,7 +1019,7 @@ TPair<UEdGraph*, UK2Node*> CreateGraph(UBlueprint* Blueprint, FName GraphName, c
 	return { NewGraph.FunctionGraph , CallFunctionNode };
 }
 
-UK2Node* GetWrapperNode(UEdGraph* Graph)
+UK2Node* GetWrapperNode(const UEdGraph* Graph)
 {
 	if (Graph == nullptr)
 	{
@@ -1108,39 +1118,69 @@ FMVVMBlueprintPropertyPath GetPropertyPathForArgument(const UBlueprint* WidgetBl
 	return GetPropertyPathForPin(WidgetBlueprint, ArgumentPin, bSkipResolve);
 }
 
-TMap<FName, FMVVMBlueprintPropertyPath> GetAllArgumentPropertyPaths(const UBlueprint* Blueprint, const UK2Node_CallFunction* FunctionNode, bool bSkipResolve)
+UEdGraphPin* FindPin(const UEdGraph* Graph, const TArrayView<const FName> PinNames)
 {
-	check(FunctionNode);
-
-	TMap<FName, FMVVMBlueprintPropertyPath> Paths;
-	for (const UEdGraphPin* Pin : FunctionNode->GetAllPins())
+	if (PinNames.Num() == 0 || Graph == nullptr)
 	{
-		FMVVMBlueprintPropertyPath Path = Private::GetPropertyPathForPin(Blueprint, Pin, bSkipResolve);
-		if (Path.IsValid())
+		return nullptr;
+	}
+
+	const UEdGraphNode* CurrentGraphNode = GetWrapperNode(Graph);
+	if (CurrentGraphNode == nullptr)
+	{
+		return nullptr;
+	}
+
+	for (int32 Index = 0; Index < PinNames.Num() - 1; ++Index)
+	{
+		FName PinName = PinNames[Index];
+		const UEdGraphPin* Pin = CurrentGraphNode->FindPin(PinName);
+		if (Pin == nullptr || Pin->LinkedTo.Num() != 1)
 		{
-			Paths.Add(Pin->PinName, Path);
+			return nullptr;
+		}
+		CurrentGraphNode = Pin->LinkedTo[0]->GetOwningNode();
+		if (CurrentGraphNode == nullptr)
+		{
+			return nullptr;
 		}
 	}
 
-	return Paths;
+	return CurrentGraphNode ? CurrentGraphNode->FindPin(PinNames.Last()) : nullptr;
 }
 
-TMap<FName, FMVVMBlueprintPropertyPath> GetAllArgumentPropertyPaths(const UBlueprint* Blueprint, const FMVVMBlueprintViewBinding& Binding, bool bSourceToDestination, bool bSkipResolve)
+TArray<FName> FindPinId(const UEdGraphPin* GraphPin)
 {
-	if (UMVVMBlueprintViewConversionFunction* ConversionFunction = Binding.Conversion.GetConversionFunction(bSourceToDestination))
+	if (GraphPin == nullptr)
 	{
-		if (UEdGraph* ConversionFunctionGraph = ConversionFunction->GetWrapperGraph())
-		{
-			if (UK2Node_CallFunction* ConversionNode = Cast<UK2Node_CallFunction>(ConversionFunctionHelper::GetWrapperNode(ConversionFunctionGraph)))
-			{
-				return GetAllArgumentPropertyPaths(Blueprint, ConversionNode, bSkipResolve);
-			}
-		}
+		return TArray<FName>();
 	}
 
-	return TMap<FName, FMVVMBlueprintPropertyPath>();
+	const UEdGraphNode* ConversionFunctionNode = GetWrapperNode(GraphPin->GetOwningNode()->GetGraph());
+	if (ConversionFunctionNode == nullptr)
+	{
+		return TArray<FName>();
+	}
+
+	TArray<FName> Result;
+	while (GraphPin)
+	{
+		Result.Insert(GraphPin->GetFName(), 0);
+		const UEdGraphNode* CurrentGraphNode = GraphPin->GetOwningNode();
+		if (ConversionFunctionNode == CurrentGraphNode)
+		{
+			break;
+		}
+		const UEdGraphPin* OutputPin = Private::FindNewOutputPin(CurrentGraphNode);
+		if (OutputPin->LinkedTo.Num() != 1)
+		{
+			break;
+		}
+		GraphPin = OutputPin->LinkedTo[0];
+	}
+	return Result;
 }
 
-} //namespace UE::MVVM
+} // UE::MVVM::ConversionFunctionHelper
 
 #undef LOCTEXT_NAMESPACE

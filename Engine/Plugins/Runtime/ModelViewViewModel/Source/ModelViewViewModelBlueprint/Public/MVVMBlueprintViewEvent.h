@@ -92,12 +92,12 @@ public:
 	/** Keep the orphaned pins. Add the missing pins. */
 	bool HasOrphanedPin() const;
 
-	UEdGraphPin* GetOrCreateGraphPin(FName PinName);
+	UEdGraphPin* GetOrCreateGraphPin(const FMVVMBlueprintPinId& Pin);
 
-	FMVVMBlueprintPropertyPath GetPinPath(FName PinName) const;
-	void SetPinPath(FName PinName, const FMVVMBlueprintPropertyPath& Path);
+	FMVVMBlueprintPropertyPath GetPinPath(const FMVVMBlueprintPinId& Pin) const;
+	void SetPinPath(const FMVVMBlueprintPinId& Pin, const FMVVMBlueprintPropertyPath& Path);
 	// To set a pin when loading the asset (no graph generation)
-	void SetPinPathNoGraphGeneration(FName PinName, const FMVVMBlueprintPropertyPath& Path);
+	void SetPinPathNoGraphGeneration(const FMVVMBlueprintPinId& Pin, const FMVVMBlueprintPropertyPath& Path);
 
 	FSimpleMulticastDelegate OnWrapperGraphModified;
 

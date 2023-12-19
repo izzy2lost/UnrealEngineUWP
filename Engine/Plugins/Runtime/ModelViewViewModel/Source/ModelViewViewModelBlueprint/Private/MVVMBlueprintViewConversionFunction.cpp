@@ -234,7 +234,8 @@ void UMVVMBlueprintViewConversionFunction::Deprecation_InitializeFromMemberRefer
 	const FProperty* PinProperty = ConversionFunction ? UE::MVVM::BindingHelper::GetFirstArgumentProperty(ConversionFunction) : nullptr;
 	if (PinProperty)
 	{
-		FMVVMBlueprintPin NewPin = PinProperty->GetFName();
+		FName PinPropertyName = PinProperty->GetFName();
+		FMVVMBlueprintPin NewPin = FMVVMBlueprintPin(FMVVMBlueprintPinId(MakeArrayView(&PinPropertyName, 1)));
 		NewPin.SetPath(Source);
 		SavedPins.Add(MoveTemp(NewPin));
 	}
@@ -257,7 +258,8 @@ void UMVVMBlueprintViewConversionFunction::Deprecation_SetWrapperGraphName(UBlue
 		const FProperty* PinProperty = ConversionFunction ? UE::MVVM::BindingHelper::GetFirstArgumentProperty(ConversionFunction) : nullptr;
 		if (PinProperty)
 		{
-			FMVVMBlueprintPin NewPin = PinProperty->GetFName();
+			FName PinPropertyName = PinProperty->GetFName();
+			FMVVMBlueprintPin NewPin  = FMVVMBlueprintPin(FMVVMBlueprintPinId(MakeArrayView(&PinPropertyName, 1)));
 			NewPin.SetPath(Source);
 			SavedPins.Add(MoveTemp(NewPin));
 		}
@@ -372,14 +374,10 @@ UEdGraph* UMVVMBlueprintViewConversionFunction::GetOrCreateWrapperGraph(UBluepri
 	return nullptr;
 }
 
-UEdGraphPin* UMVVMBlueprintViewConversionFunction::GetOrCreateGraphPin(UBlueprint* Blueprint, FName PinName)
+UEdGraphPin* UMVVMBlueprintViewConversionFunction::GetOrCreateGraphPin(UBlueprint* Blueprint, const FMVVMBlueprintPinId& PinId)
 {
 	GetOrCreateWrapperGraph(Blueprint);
-	if (CachedWrapperNode)
-	{
-		return CachedWrapperNode->FindPin(PinName);
-	}
-	return nullptr;
+	return CachedWrapperGraph ? UE::MVVM::ConversionFunctionHelper::FindPin(CachedWrapperGraph, PinId.GetNames()) : nullptr;
 }
 
 UEdGraph* UMVVMBlueprintViewConversionFunction::GetOrCreateWrapperGraphInternal(FKismetCompilerContext& Context, const UFunction* Function)
@@ -408,13 +406,13 @@ void UMVVMBlueprintViewConversionFunction::RemoveWrapperGraph(UBlueprint* Bluepr
 	SetCachedWrapperGraph(Blueprint, nullptr, nullptr);
 }
 
-void UMVVMBlueprintViewConversionFunction::SetGraphPin(UBlueprint* Blueprint, FName PinName, const FMVVMBlueprintPropertyPath& Path)
+void UMVVMBlueprintViewConversionFunction::SetGraphPin(UBlueprint* Blueprint, const FMVVMBlueprintPinId& PinId, const FMVVMBlueprintPropertyPath& Path)
 {
-	UEdGraphPin* GraphPin = GetOrCreateGraphPin(Blueprint, PinName);
+	UEdGraphPin* GraphPin = GetOrCreateGraphPin(Blueprint, PinId);
 
 	// Set the value and make the blueprint as dirty before creating the pin.
 	//A property may not be created yet and the skeletal needs to be recreated.
-	FMVVMBlueprintPin* Pin = SavedPins.FindByPredicate([PinName](const FMVVMBlueprintPin& Other) { return PinName == Other.GetName(); });
+	FMVVMBlueprintPin* Pin = SavedPins.FindByPredicate([&PinId](const FMVVMBlueprintPin& Other) { return PinId == Other.GetId(); });
 	if (!Pin)
 	{
 		Pin = &SavedPins.Add_GetRef(FMVVMBlueprintPin::CreateFromPin(Blueprint, GraphPin));

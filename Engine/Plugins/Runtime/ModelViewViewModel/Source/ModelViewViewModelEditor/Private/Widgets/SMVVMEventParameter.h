@@ -2,6 +2,7 @@
 
 #pragma once
 
+#include "MVVMBlueprintPin.h"
 #include "MVVMPropertyPath.h"
 #include "Widgets/SCompoundWidget.h"
 #include "Widgets/SMVVMFieldSelectorMenu.h"
@@ -24,7 +25,7 @@ class SEventParameter : public SCompoundWidget
 public:
 	SLATE_BEGIN_ARGS(SEventParameter) {}
 		SLATE_ARGUMENT_DEFAULT(UMVVMBlueprintViewEvent*, Event) =  nullptr;
-		SLATE_ARGUMENT(FName, ParameterName)
+		SLATE_ARGUMENT(FMVVMBlueprintPinId, ParameterId)
 		SLATE_ARGUMENT_DEFAULT(bool, AllowDefault) = true;
 	SLATE_END_ARGS()
 
@@ -45,7 +46,7 @@ private:
 private:
 	TWeakObjectPtr<UWidgetBlueprint> WidgetBlueprint;
 	TWeakObjectPtr<UMVVMBlueprintViewEvent> ViewEvent;
-	FName ParameterName;
+	FMVVMBlueprintPinId ParameterId;
 	/** This reference is just to keep the default value widget alive. */
 	TSharedPtr<SGraphPin> GraphPin;
 

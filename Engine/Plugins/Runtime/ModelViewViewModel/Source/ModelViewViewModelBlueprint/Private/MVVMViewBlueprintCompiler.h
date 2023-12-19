@@ -11,9 +11,7 @@
 #include "UObject/StrongObjectPtr.h"
 #include "WidgetBlueprintCompiler.h"
 
-struct FMVVMBlueprintPropertyPath;
-
-struct FMVVMViewModelPropertyPath;
+struct FMVVMBlueprintPinId;
 struct FMVVMBlueprintViewBinding;
 class FWidgetBlueprintCompilerContext;
 class UEdGraph;
@@ -346,10 +344,10 @@ private:
 	};
 	void AddMessage(const FText& MessageText, EMessageType MessageType) const;
 	void AddMessages(TArrayView<TWeakPtr<FCompilerBinding>> Bindings, TArrayView<TWeakPtr<FCompilerEvent>> Events, const FText& MessageText, EMessageType MessageType) const;
-	void AddMessageForBinding(const TSharedPtr<FCompilerBinding>& Binding, const FText& MessageText, EMessageType MessageType, FName ArgumentName) const;
-	void AddMessageForBinding(const FMVVMBlueprintViewBinding& Binding, const FText& MessageText, EMessageType MessageType, FName ArgumentName) const;
-	void AddMessageForEvent(const TSharedPtr<FCompilerEvent>& Event, const FText& MessageText, EMessageType MessageType, FName ArgumentName) const;
-	void AddMessageForEvent(const UMVVMBlueprintViewEvent* Event, const FText& MessageText, EMessageType MessageType, FName ArgumentName) const;
+	void AddMessageForBinding(const TSharedPtr<FCompilerBinding>& Binding, const FText& MessageText, EMessageType MessageType, const FMVVMBlueprintPinId& ArgumentName) const;
+	void AddMessageForBinding(const FMVVMBlueprintViewBinding& Binding, const FText& MessageText, EMessageType MessageType, const FMVVMBlueprintPinId& ArgumentName) const;
+	void AddMessageForEvent(const TSharedPtr<FCompilerEvent>& Event, const FText& MessageText, EMessageType MessageType, const FMVVMBlueprintPinId& ArgumentName) const;
+	void AddMessageForEvent(const UMVVMBlueprintViewEvent* Event, const FText& MessageText, EMessageType MessageType, const FMVVMBlueprintPinId& ArgumentName) const;
 	void AddMessageForViewModel(const FMVVMBlueprintViewModelContext& ViewModel, const FText& Message, EMessageType MessageType) const;
 	void AddMessageForViewModel(const FText& ViewModelDisplayName, const FText& Message, EMessageType MessageType) const;
 

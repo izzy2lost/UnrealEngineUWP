@@ -353,7 +353,7 @@ namespace UE::MVVM::Private
 					{
 						if (bGenerateGraph)
 						{
-							Binding.Conversion.DestinationToSourceConversion->SetGraphPin(WidgetBlueprint, Pin.GetName(), NewPath.GetValue());
+							Binding.Conversion.DestinationToSourceConversion->SetGraphPin(WidgetBlueprint, Pin.GetId(), NewPath.GetValue());
 						}
 						else
 						{
@@ -372,7 +372,7 @@ namespace UE::MVVM::Private
 					{
 						if (bGenerateGraph)
 						{
-							Binding.Conversion.SourceToDestinationConversion->SetGraphPin(WidgetBlueprint, Pin.GetName(), NewPath.GetValue());
+							Binding.Conversion.SourceToDestinationConversion->SetGraphPin(WidgetBlueprint, Pin.GetId(), NewPath.GetValue());
 						}
 						else
 						{
@@ -410,18 +410,18 @@ namespace UE::MVVM::Private
 					}
 				};
 
-				TArray<TTuple<FName, FMVVMBlueprintPropertyPath>> NewPins;
+				TArray<TTuple<FMVVMBlueprintPinId, FMVVMBlueprintPropertyPath>> NewPins;
 				for (const FMVVMBlueprintPin& Pin : Event->GetPins())
 				{
 					TOptional<FMVVMBlueprintPropertyPath> NewPath = PredPin(Pin);
 					if (NewPath.IsSet())
 					{
-						NewPins.Emplace(Pin.GetName(), MoveTemp(NewPath.GetValue()));
+						NewPins.Emplace(Pin.GetId(), MoveTemp(NewPath.GetValue()));
 					}
 				}
 				PredEventPath(Event->GetEventPath(), true);
 				PredEventPath(Event->GetDestinationPath(), false);
-				for (TTuple<FName, FMVVMBlueprintPropertyPath>& Pin : NewPins)
+				for (TTuple<FMVVMBlueprintPinId, FMVVMBlueprintPropertyPath>& Pin : NewPins)
 				{
 					if (bGenerateGraph)
 					{

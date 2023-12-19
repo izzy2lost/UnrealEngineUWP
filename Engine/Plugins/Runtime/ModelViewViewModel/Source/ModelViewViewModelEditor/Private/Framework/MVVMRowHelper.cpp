@@ -292,14 +292,14 @@ void HandleResetSelectedPin(UWidgetBlueprint* WidgetBlueprint, UMVVMBlueprintVie
 	{
 		if (Entry->GetRowType() == FBindingEntry::ERowType::EventParameter)
 		{
-			EditorSubsystem->ResetPinToDefaultValue(WidgetBlueprint, Entry->GetEvent(), Entry->GetEventParameterName());
+			EditorSubsystem->ResetPinToDefaultValue(WidgetBlueprint, Entry->GetEvent(), Entry->GetEventParameterId());
 		}
 		else if (Entry->GetRowType() == FBindingEntry::ERowType::BindingParameter)
 		{
 			if (FMVVMBlueprintViewBinding* Binding = Entry->GetBinding(View))
 			{
 				const bool bSourceToDestination = UE::MVVM::IsForwardBinding(Binding->BindingType);
-				EditorSubsystem->ResetPinToDefaultValue(WidgetBlueprint, *Binding, Entry->GetBindingParameterName(), bSourceToDestination);
+				EditorSubsystem->ResetPinToDefaultValue(WidgetBlueprint, *Binding, Entry->GetBindingParameterId(), bSourceToDestination);
 			}
 		}
 	}
@@ -312,14 +312,14 @@ void HandleBreakSelectedPin(UWidgetBlueprint* WidgetBlueprint, UMVVMBlueprintVie
 	{
 		if (Entry->GetRowType() == FBindingEntry::ERowType::EventParameter)
 		{
-			EditorSubsystem->SplitPin(WidgetBlueprint, Entry->GetEvent(), Entry->GetEventParameterName());
+			EditorSubsystem->SplitPin(WidgetBlueprint, Entry->GetEvent(), Entry->GetEventParameterId());
 		}
 		else if (Entry->GetRowType() == FBindingEntry::ERowType::BindingParameter)
 		{
 			if (FMVVMBlueprintViewBinding* Binding = Entry->GetBinding(View))
 			{
 				const bool bSourceToDestination = UE::MVVM::IsForwardBinding(Binding->BindingType);
-				EditorSubsystem->SplitPin(WidgetBlueprint, *Binding, Entry->GetBindingParameterName(), bSourceToDestination);
+				EditorSubsystem->SplitPin(WidgetBlueprint, *Binding, Entry->GetBindingParameterId(), bSourceToDestination);
 			}
 		}
 	}
@@ -332,14 +332,14 @@ void HandleRecombineSelectedPin(UWidgetBlueprint* WidgetBlueprint, UMVVMBlueprin
 	{
 		if (Entry->GetRowType() == FBindingEntry::ERowType::EventParameter)
 		{
-			EditorSubsystem->RecombinePin(WidgetBlueprint, Entry->GetEvent(), Entry->GetEventParameterName());
+			EditorSubsystem->RecombinePin(WidgetBlueprint, Entry->GetEvent(), Entry->GetEventParameterId());
 		}
 		else if (Entry->GetRowType() == FBindingEntry::ERowType::BindingParameter)
 		{
 			if (FMVVMBlueprintViewBinding* Binding = Entry->GetBinding(View))
 			{
 				const bool bSourceToDestination = UE::MVVM::IsForwardBinding(Binding->BindingType);
-				EditorSubsystem->RecombinePin(WidgetBlueprint, *Binding, Entry->GetBindingParameterName(), bSourceToDestination);
+				EditorSubsystem->RecombinePin(WidgetBlueprint, *Binding, Entry->GetBindingParameterId(), bSourceToDestination);
 			}
 		}
 	}
@@ -352,14 +352,14 @@ void HandleResetOrphanedSelectedPin(UWidgetBlueprint* WidgetBlueprint, UMVVMBlue
 	{
 		if (Entry->GetRowType() == FBindingEntry::ERowType::EventParameter)
 		{
-			EditorSubsystem->ResetOrphanedPin(WidgetBlueprint, Entry->GetEvent(), Entry->GetEventParameterName());
+			EditorSubsystem->ResetOrphanedPin(WidgetBlueprint, Entry->GetEvent(), Entry->GetEventParameterId());
 		}
 		else if (Entry->GetRowType() == FBindingEntry::ERowType::BindingParameter)
 		{
 			if (FMVVMBlueprintViewBinding* Binding = Entry->GetBinding(View))
 			{
 				const bool bSourceToDestination = UE::MVVM::IsForwardBinding(Binding->BindingType);
-				EditorSubsystem->ResetOrphanedPin(WidgetBlueprint, *Binding, Entry->GetBindingParameterName(), bSourceToDestination);
+				EditorSubsystem->ResetOrphanedPin(WidgetBlueprint, *Binding, Entry->GetBindingParameterId(), bSourceToDestination);
 			}
 		}
 	}
@@ -433,25 +433,25 @@ FMenuBuilder FRowHelper::CreateContextMenu(UWidgetBlueprint* WidgetBlueprint, UM
 			{
 				if (Entry->GetRowType() == FBindingEntry::ERowType::EventParameter)
 				{
-					if (!EditorSubsystem->CanSplitPin(WidgetBlueprint, Entry->GetEvent(), Entry->GetEventParameterName()))
+					if (!EditorSubsystem->CanSplitPin(WidgetBlueprint, Entry->GetEvent(), Entry->GetEventParameterId()))
 					{
 						bCanSplitPin = false;
 					}
-					if (!EditorSubsystem->CanRecombinePin(WidgetBlueprint, Entry->GetEvent(), Entry->GetEventParameterName()))
+					if (!EditorSubsystem->CanRecombinePin(WidgetBlueprint, Entry->GetEvent(), Entry->GetEventParameterId()))
 					{
 						bCanRecombinePin = false;
 					}
-					if (!EditorSubsystem->CanResetPinToDefaultValue(WidgetBlueprint, Entry->GetEvent(), Entry->GetEventParameterName()))
+					if (!EditorSubsystem->CanResetPinToDefaultValue(WidgetBlueprint, Entry->GetEvent(), Entry->GetEventParameterId()))
 					{
 						bCanResetPin = false;
 					}
-					if (!EditorSubsystem->CanResetOrphanedPin(WidgetBlueprint, Entry->GetEvent(), Entry->GetEventParameterName()))
+					if (!EditorSubsystem->CanResetOrphanedPin(WidgetBlueprint, Entry->GetEvent(), Entry->GetEventParameterId()))
 					{
 						bCanResetOrphanedPin = false;
 					}
 
 					UMVVMBlueprintViewEvent* ViewEvent = Entry->GetEvent();
-					UEdGraphPin* GraphPin = ViewEvent ? ViewEvent->GetOrCreateGraphPin(Entry->GetEventParameterName()) : nullptr;
+					UEdGraphPin* GraphPin = ViewEvent ? ViewEvent->GetOrCreateGraphPin(Entry->GetEventParameterId()) : nullptr;
 					if (GraphPin == nullptr)
 					{
 						bCanRecombinePinVisible = false;
@@ -475,24 +475,24 @@ FMenuBuilder FRowHelper::CreateContextMenu(UWidgetBlueprint* WidgetBlueprint, UM
 					if (Binding)
 					{
 						const bool bSourceToDestination = UE::MVVM::IsForwardBinding(Binding->BindingType);
-						if (!EditorSubsystem->CanSplitPin(WidgetBlueprint, *Binding, Entry->GetBindingParameterName(), bSourceToDestination))
+						if (!EditorSubsystem->CanSplitPin(WidgetBlueprint, *Binding, Entry->GetBindingParameterId(), bSourceToDestination))
 						{
 							bCanSplitPin = false;
 						}
-						if (!EditorSubsystem->CanRecombinePin(WidgetBlueprint, *Binding, Entry->GetBindingParameterName(), bSourceToDestination))
+						if (!EditorSubsystem->CanRecombinePin(WidgetBlueprint, *Binding, Entry->GetBindingParameterId(), bSourceToDestination))
 						{
 							bCanRecombinePin = false;
 						}
-						if (!EditorSubsystem->CanResetPinToDefaultValue(WidgetBlueprint, *Binding, Entry->GetBindingParameterName(), bSourceToDestination))
+						if (!EditorSubsystem->CanResetPinToDefaultValue(WidgetBlueprint, *Binding, Entry->GetBindingParameterId(), bSourceToDestination))
 						{
 							bCanResetPin = false;
 						}
-						if (!EditorSubsystem->CanResetOrphanedPin(WidgetBlueprint, *Binding, Entry->GetBindingParameterName(), bSourceToDestination))
+						if (!EditorSubsystem->CanResetOrphanedPin(WidgetBlueprint, *Binding, Entry->GetBindingParameterId(), bSourceToDestination))
 						{
 							bCanResetOrphanedPin = false;
 						}
 
-						UEdGraphPin* GraphPin = EditorSubsystem->GetConversionFunctionArgumentPin(WidgetBlueprint, *Binding, Entry->GetBindingParameterName(), bSourceToDestination);
+						UEdGraphPin* GraphPin = EditorSubsystem->GetConversionFunctionArgumentPin(WidgetBlueprint, *Binding, Entry->GetBindingParameterId(), bSourceToDestination);
 						if (GraphPin == nullptr)
 						{
 							bCanRecombinePinVisible = false;

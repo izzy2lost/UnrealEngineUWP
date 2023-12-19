@@ -32,8 +32,8 @@ void SFunctionParameter::Construct(const FArguments& InArgs, UWidgetBlueprint* I
 	BindingId = InArgs._BindingId;
 	check(BindingId.IsValid());
 
-	ParameterName = InArgs._ParameterName;
-	check(!ParameterName.IsNone());
+	ParameterId = InArgs._ParameterId;
+	check(ParameterId.IsValid());
 	
 	bSourceToDestination = InArgs._SourceToDestination;
 	bAllowDefault = InArgs._AllowDefault;
@@ -48,7 +48,7 @@ void SFunctionParameter::Construct(const FArguments& InArgs, UWidgetBlueprint* I
 	TSharedRef<SWidget> ValueWidget = SNullWidget::NullWidget;
 	bool bIsBooleanPin = false;
 
-	if (UEdGraphPin* Pin = EditorSubsystem->GetConversionFunctionArgumentPin(InWidgetBlueprint, *Binding, ParameterName, bSourceToDestination))
+	if (UEdGraphPin* Pin = EditorSubsystem->GetConversionFunctionArgumentPin(InWidgetBlueprint, *Binding, ParameterId, bSourceToDestination))
 	{
 		bIsBooleanPin = Pin->PinType.PinCategory == UEdGraphSchema_K2::PC_Boolean;
 		// create a new pin widget so that we can get the default value widget out of it
@@ -172,7 +172,7 @@ FMVVMBlueprintPropertyPath SFunctionParameter::OnGetSelectedField() const
 		{
 			if (const FMVVMBlueprintViewBinding* Binding = View->GetBinding(BindingId))
 			{
-				return Subsystem->GetPathForConversionFunctionArgument(WidgetBlueprint.Get(), *Binding, ParameterName, bSourceToDestination);
+				return Subsystem->GetPathForConversionFunctionArgument(WidgetBlueprint.Get(), *Binding, ParameterId, bSourceToDestination);
 			}
 		}
 	}
@@ -188,7 +188,7 @@ void SFunctionParameter::SetSelectedField(const FMVVMBlueprintPropertyPath& Path
 		{
 			if (FMVVMBlueprintViewBinding* Binding = View->GetBinding(BindingId))
 			{
-				Subsystem->SetPathForConversionFunctionArgument(WidgetBlueprint.Get(), *Binding, ParameterName, Path, bSourceToDestination);
+				Subsystem->SetPathForConversionFunctionArgument(WidgetBlueprint.Get(), *Binding, ParameterId, Path, bSourceToDestination);
 			}
 		}
 	}
@@ -225,7 +225,7 @@ FFieldSelectionContext SFunctionParameter::GetSelectedSelectionContext() const
 	}
 
 	Result.BindingMode = EMVVMBindingMode::OneWayToDestination;
-	Result.AssignableTo = ConversionFunction->FindPropertyByName(ParameterName);
+	Result.AssignableTo = ParameterId.GetNames().Num() > 0 ? ConversionFunction->FindPropertyByName(ParameterId.GetNames().Last()) : nullptr;
 	Result.bAllowWidgets = true;
 	Result.bAllowViewModels = true;
 	Result.bAllowConversionFunctions = false;

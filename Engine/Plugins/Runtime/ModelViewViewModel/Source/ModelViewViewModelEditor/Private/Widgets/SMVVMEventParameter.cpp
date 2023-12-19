@@ -32,14 +32,14 @@ void SEventParameter::Construct(const FArguments& InArgs, UWidgetBlueprint* InWi
 	ViewEvent = InArgs._Event;
 	check(InArgs._Event);
 
-	ParameterName = InArgs._ParameterName;
-	check(!ParameterName.IsNone());
+	ParameterId = InArgs._ParameterId;
+	check(ParameterId.IsValid());
 
 	bAllowDefault = InArgs._AllowDefault;
 
 	bool bIsBooleanPin = false;
 	TSharedRef<SWidget> ValueWidget = SNullWidget::NullWidget;
-	if (UEdGraphPin* Pin = InArgs._Event->GetOrCreateGraphPin(ParameterName))
+	if (UEdGraphPin* Pin = InArgs._Event->GetOrCreateGraphPin(ParameterId))
 	{
 		bIsBooleanPin = Pin->PinType.PinCategory == UEdGraphSchema_K2::PC_Boolean;
 		// create a new pin widget so that we can get the default value widget out of it
@@ -155,7 +155,7 @@ FMVVMBlueprintPropertyPath SEventParameter::OnGetSelectedField() const
 {
 	if (const UMVVMBlueprintViewEvent* EventPtr = ViewEvent.Get())
 	{
-		return EventPtr->GetPinPath(ParameterName);
+		return EventPtr->GetPinPath(ParameterId);
 	}
 	return FMVVMBlueprintPropertyPath();
 }
@@ -165,7 +165,7 @@ void SEventParameter::SetSelectedField(const FMVVMBlueprintPropertyPath& Path)
 	if (UMVVMBlueprintViewEvent* EventPtr = ViewEvent.Get())
 	{
 		const UMVVMEditorSubsystem* Subsystem = GEditor->GetEditorSubsystem<UMVVMEditorSubsystem>();
-		Subsystem->SetEventArgumentPath(EventPtr, ParameterName, Path);
+		Subsystem->SetEventArgumentPath(EventPtr, ParameterId, Path);
 	}
 }
 
@@ -185,7 +185,7 @@ FFieldSelectionContext SEventParameter::GetSelectedSelectionContext() const
 	}
 	
 	Result.BindingMode = EMVVMBindingMode::OneTimeToDestination;
-	//Result.AssignableTo = ConversionFunction->FindPropertyByName(ParameterName);
+	//Result.AssignableTo = ConversionFunction->FindPropertyByName(ParameterId);
 	Result.bAllowWidgets = true;
 	Result.bAllowViewModels = true;
 	Result.bAllowConversionFunctions = false;

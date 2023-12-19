@@ -183,11 +183,11 @@ void FMVVMViewBlueprintCompiler::AddMessages(TArrayView<TWeakPtr<FCompilerBindin
 {
 	for (TWeakPtr<FCompilerBinding>& Binding : Bindings)
 	{
-		AddMessageForBinding(Binding.Pin(), MessageText, MessageType, FName());
+		AddMessageForBinding(Binding.Pin(), MessageText, MessageType, FMVVMBlueprintPinId());
 	}
 	for (TWeakPtr<FCompilerEvent>& Event : Events)
 	{
-		AddMessageForEvent(Event.Pin(), MessageText, MessageType, FName());
+		AddMessageForEvent(Event.Pin(), MessageText, MessageType, FMVVMBlueprintPinId());
 	}
 
 	if (Bindings.Num() == 0 && Events.Num() == 0)
@@ -196,12 +196,13 @@ void FMVVMViewBlueprintCompiler::AddMessages(TArrayView<TWeakPtr<FCompilerBindin
 	}
 }
 
-void FMVVMViewBlueprintCompiler::AddMessageForBinding(const TSharedPtr<FCompilerBinding>& Binding, const FText& MessageText, EMessageType MessageType, FName ArgumentName) const
+
+void FMVVMViewBlueprintCompiler::AddMessageForBinding(const TSharedPtr<FCompilerBinding>& Binding, const FText& MessageText, EMessageType MessageType, const FMVVMBlueprintPinId& PinId) const
 {
 	const FMVVMBlueprintViewBinding* BindingPtr = Binding ? BlueprintView->GetBindingAt(Binding->Key.ViewBindingIndex) : nullptr;
 	if (BindingPtr)
 	{
-		AddMessageForBinding(*BindingPtr, MessageText, MessageType, ArgumentName);
+		AddMessageForBinding(*BindingPtr, MessageText, MessageType, PinId);
 	}
 	else
 	{
@@ -209,14 +210,27 @@ void FMVVMViewBlueprintCompiler::AddMessageForBinding(const TSharedPtr<FCompiler
 	}
 }
 
-void FMVVMViewBlueprintCompiler::AddMessageForBinding(const FMVVMBlueprintViewBinding& Binding, const FText& MessageText, EMessageType MessageType, FName ArgumentName) const
+
+FText GetJoinArgumentNames(const FMVVMBlueprintPinId& PinId)
+{
+	TArray<FText> JoinedNames;
+	JoinedNames.Reserve(PinId.GetNames().Num());
+	for (FName Name : PinId.GetNames())
+	{
+		JoinedNames.Add(FText::FromName(Name));
+	}
+	return FText::Join(LOCTEXT("NameSeperator", "."), JoinedNames);
+}
+
+
+void FMVVMViewBlueprintCompiler::AddMessageForBinding(const FMVVMBlueprintViewBinding& Binding, const FText& MessageText, EMessageType MessageType, const FMVVMBlueprintPinId& PinId) const
 {
 	const FText BindingName = FText::FromString(Binding.GetDisplayNameString(WidgetBlueprintCompilerContext.WidgetBlueprint()));
 
 	FText FormattedError;
-	if (!ArgumentName.IsNone())
+	if (PinId.IsValid())
 	{
-		FormattedError = FText::Format(LOCTEXT("BindingFormatWithArgument", "Binding '{0}': Argument '{1}' - {2}"), BindingName, FText::FromName(ArgumentName), MessageText);
+		FormattedError = FText::Format(LOCTEXT("BindingFormatWithArgument", "Binding '{0}': Argument '{1}' - {2}"), BindingName, UE::MVVM::Private::GetJoinArgumentNames(PinId), MessageText);
 	}
 	else
 	{
@@ -230,12 +244,12 @@ void FMVVMViewBlueprintCompiler::AddMessageForBinding(const FMVVMBlueprintViewBi
 }
 
 
-void FMVVMViewBlueprintCompiler::AddMessageForEvent(const TSharedPtr<FCompilerEvent>& Event, const FText& MessageText, EMessageType MessageType, FName ArgumentName) const
+void FMVVMViewBlueprintCompiler::AddMessageForEvent(const TSharedPtr<FCompilerEvent>& Event, const FText& MessageText, EMessageType MessageType, const FMVVMBlueprintPinId& PinId) const
 {
 	const UMVVMBlueprintViewEvent* EventPtr = Event ? Event->Event.Get() : nullptr;
 	if (EventPtr)
 	{
-		AddMessageForEvent(EventPtr, MessageText, MessageType, ArgumentName);
+		AddMessageForEvent(EventPtr, MessageText, MessageType, PinId);
 	}
 	else
 	{
@@ -244,14 +258,14 @@ void FMVVMViewBlueprintCompiler::AddMessageForEvent(const TSharedPtr<FCompilerEv
 }
 
 
-void FMVVMViewBlueprintCompiler::AddMessageForEvent(const UMVVMBlueprintViewEvent* Event, const FText& MessageText, EMessageType MessageType, FName ArgumentName) const
+void FMVVMViewBlueprintCompiler::AddMessageForEvent(const UMVVMBlueprintViewEvent* Event, const FText& MessageText, EMessageType MessageType, const FMVVMBlueprintPinId& PinId) const
 {
 	const FText EventName = Event->GetDisplayName(true);
 
 	FText FormattedError;
-	if (!ArgumentName.IsNone())
+	if (PinId.IsValid())
 	{
-		FormattedError = FText::Format(LOCTEXT("EventFormatWithArgument", "Event '{0}': Argument '{1}' - {2}"), EventName, FText::FromName(ArgumentName), MessageText);
+		FormattedError = FText::Format(LOCTEXT("EventFormatWithArgument", "Event '{0}': Argument '{1}' - {2}"), EventName, UE::MVVM::Private::GetJoinArgumentNames(PinId), MessageText);
 	}
 	else
 	{
@@ -542,7 +556,7 @@ void FMVVMViewBlueprintCompiler::CreateBindingList(const FWidgetBlueprintCompile
 		const bool bHasConversionFunction = Binding.Conversion.GetConversionFunction(true) || Binding.Conversion.GetConversionFunction(false);
 		if (bHasConversionFunction && Binding.BindingType == EMVVMBindingMode::TwoWay)
 		{
-			AddMessageForBinding(Binding, LOCTEXT("TwoWayBindingsWithConversion", "Two-way bindings are not allowed to use conversion functions."), EMessageType::Error, FName());
+			AddMessageForBinding(Binding, LOCTEXT("TwoWayBindingsWithConversion", "Two-way bindings are not allowed to use conversion functions."), EMessageType::Error, FMVVMBlueprintPinId());
 			bIsCreateVariableStepValid = false;
 			continue;
 		}
@@ -587,7 +601,7 @@ void FMVVMViewBlueprintCompiler::CreateEventList(const FWidgetBlueprintCompilerC
 
 		if (!EventPtr->GetEventPath().HasPaths())
 		{
-			AddMessageForEvent(EventPtr, LOCTEXT("EventInvalidEventPath", "The event path is invalid."), EMessageType::Error, FName());
+			AddMessageForEvent(EventPtr, LOCTEXT("EventInvalidEventPath", "The event path is invalid."), EMessageType::Error, FMVVMBlueprintPinId());
 			bIsCreateVariableStepValid = false;
 			continue;
 		}
@@ -805,12 +819,12 @@ void FMVVMViewBlueprintCompiler::CreateRequiredProperties(const FWidgetBlueprint
 	{
 		const FMVVMBlueprintViewBinding& Binding = *(BlueprintView->GetBindingAt(ValidBinding->Key.ViewBindingIndex));
 
-		auto RunGenerateCompilerSourceContext = [Self = this, &GenerateCompilerContext, &Binding](bool bCreateSource, const FMVVMBlueprintPropertyPath& PropertyPath, FName ArgumentName)
+		auto RunGenerateCompilerSourceContext = [Self = this, &GenerateCompilerContext, &Binding](bool bCreateSource, const FMVVMBlueprintPropertyPath& PropertyPath, const FMVVMBlueprintPinId& PinId)
 			{
 				TValueOrError<void, FText> SourceContextResult = GenerateCompilerContext(bCreateSource, PropertyPath);
 				if (SourceContextResult.HasError())
 				{
-					Self->AddMessageForBinding(Binding, SourceContextResult.StealError(), EMessageType::Error, ArgumentName);
+					Self->AddMessageForBinding(Binding, SourceContextResult.StealError(), EMessageType::Error, PinId);
 					Self->bIsCreateVariableStepValid = false;
 				}
 			};
@@ -823,29 +837,29 @@ void FMVVMViewBlueprintCompiler::CreateRequiredProperties(const FWidgetBlueprint
 			{
 				if (Pin.UsedPathAsValue())
 				{
-					if (Pin.GetName().IsNone())
+					if (!Pin.IsValid())
 					{
 						AddMessageForBinding(Binding
 							, FText::Format(LOCTEXT("InvalidFunctionArgumentPathName", "The conversion function {0} has an invalid argument."), FText::FromString(Binding.GetDisplayNameString(WidgetBlueprintCompilerContext.WidgetBlueprint())))
 							, EMessageType::Error
-							, FName()
+							, FMVVMBlueprintPinId()
 						);
 						bIsCreateVariableStepValid = false;
 						continue;
 					}
-					RunGenerateCompilerSourceContext(true, Pin.GetPath(), Pin.GetName());
+					RunGenerateCompilerSourceContext(true, Pin.GetPath(), Pin.GetId());
 				}
 			}
 
 			// validate the destination
 			const FMVVMBlueprintPropertyPath& BindingDestinationPath = ValidBinding->Key.bIsForwardBinding ? Binding.DestinationPath : Binding.SourcePath;
-			RunGenerateCompilerSourceContext(false, BindingDestinationPath, FName());
+			RunGenerateCompilerSourceContext(false, BindingDestinationPath, FMVVMBlueprintPinId());
 		}
 		else
 		{
 			// if we aren't using a conversion function, validate the source and destination paths
-			RunGenerateCompilerSourceContext(ValidBinding->Key.bIsForwardBinding, Binding.SourcePath, FName());
-			RunGenerateCompilerSourceContext(!ValidBinding->Key.bIsForwardBinding, Binding.DestinationPath, FName());
+			RunGenerateCompilerSourceContext(ValidBinding->Key.bIsForwardBinding, Binding.SourcePath, FMVVMBlueprintPinId());
+			RunGenerateCompilerSourceContext(!ValidBinding->Key.bIsForwardBinding, Binding.DestinationPath, FMVVMBlueprintPinId());
 		}
 	}
 
@@ -855,29 +869,33 @@ void FMVVMViewBlueprintCompiler::CreateRequiredProperties(const FWidgetBlueprint
 	{
 		UMVVMBlueprintViewEvent* EventPtr = ValidEvent->Event.Get();
 		check(EventPtr);
-		auto RunGenerateCompilerSourceContext = [Self = this, &GenerateCompilerContext, EventPtr](bool bCreateSource, const FMVVMBlueprintPropertyPath& PropertyPath, FName ArgumentName)
+		auto RunGenerateCompilerSourceContext = [Self = this, &GenerateCompilerContext, EventPtr](bool bCreateSource, const FMVVMBlueprintPropertyPath& PropertyPath, const FMVVMBlueprintPinId& PinId)
 		{
 			TValueOrError<void, FText> SourceContextResult = GenerateCompilerContext(bCreateSource, PropertyPath);
 			if (SourceContextResult.HasError())
 			{
-				Self->AddMessageForEvent(EventPtr, SourceContextResult.StealError(), EMessageType::Error, ArgumentName);
+				Self->AddMessageForEvent(EventPtr, SourceContextResult.StealError(), EMessageType::Error, PinId);
 				Self->bIsCreateVariableStepValid = false;
 			}
 		};
 
-		RunGenerateCompilerSourceContext(false, EventPtr->GetEventPath(), FName());
-		RunGenerateCompilerSourceContext(false, EventPtr->GetDestinationPath(), FName());
+		RunGenerateCompilerSourceContext(false, EventPtr->GetEventPath(), FMVVMBlueprintPinId());
+		RunGenerateCompilerSourceContext(false, EventPtr->GetDestinationPath(), FMVVMBlueprintPinId());
 		for (const FMVVMBlueprintPin& Pin : EventPtr->GetPins())
 		{
 			if (Pin.UsedPathAsValue())
 			{
-				if (Pin.GetName().IsNone())
+				if (!Pin.IsValid())
 				{
-					AddMessageForEvent(EventPtr, LOCTEXT("InvalidEventArgumentPathName", "The event has an invalid argument."), EMessageType::Error, Pin.GetName());
+					AddMessageForEvent(EventPtr
+						, LOCTEXT("InvalidEventArgumentPathName", "The event has an invalid argument.")
+						, EMessageType::Error
+						, FMVVMBlueprintPinId()
+					);
 					bIsCreateVariableStepValid = false;
 					continue;
 				}
-				RunGenerateCompilerSourceContext(false, Pin.GetPath(), Pin.GetName());
+				RunGenerateCompilerSourceContext(false, Pin.GetPath(), Pin.GetId());
 			}
 		}
 	}
@@ -961,7 +979,7 @@ void FMVVMViewBlueprintCompiler::CategorizeBindings(const FWidgetBlueprintCompil
 			UClass* NewClass = WidgetBlueprintCompilerContext.NewClass;
 			if (!ConversionFunction->IsValid(WidgetBlueprintCompilerContext.WidgetBlueprint()))
 			{
-				AddMessageForBinding(Binding, LOCTEXT("InvalidConversionFunction", "The conversion function is invalid."), EMessageType::Error, FName());
+				AddMessageForBinding(Binding, LOCTEXT("InvalidConversionFunction", "The conversion function is invalid."), EMessageType::Error, FMVVMBlueprintPinId());
 				bIsCreateFunctionsStepValid = false;
 				continue;
 			}
@@ -970,7 +988,10 @@ void FMVVMViewBlueprintCompiler::CategorizeBindings(const FWidgetBlueprintCompil
 			UEdGraph* WrapperGraph = ConversionFunction->GetOrCreateIntermediateWrapperGraph(WidgetBlueprintCompilerContext);
 			if (WrapperGraph == nullptr)
 			{
-				AddMessageForBinding(Binding, LOCTEXT("InvalidConversionFunctionGraph", "The conversion function graph could not be generated."), EMessageType::Error, FName());
+				AddMessageForBinding(Binding, LOCTEXT("InvalidConversionFunctionGraph", "The conversion function graph could not be generated.")
+					, EMessageType::Error
+					, FMVVMBlueprintPinId()
+				);
 				bIsCreateFunctionsStepValid = false;
 				continue;
 			}
@@ -979,7 +1000,10 @@ void FMVVMViewBlueprintCompiler::CategorizeBindings(const FWidgetBlueprintCompil
 
 			if (ConversionFunction->HasOrphanedPin())
 			{
-				AddMessageForBinding(Binding, LOCTEXT("InvalidConversionFunctionGraphOrphaned", "The conversion function has an orphaned pin."), EMessageType::Warning, FName());
+				AddMessageForBinding(Binding, LOCTEXT("InvalidConversionFunctionGraphOrphaned", "The conversion function has an orphaned pin.")
+					, EMessageType::Warning
+					, FMVVMBlueprintPinId()
+				);
 				bIsCreateFunctionsStepValid = false;
 				continue;
 			}
@@ -989,7 +1013,7 @@ void FMVVMViewBlueprintCompiler::CategorizeBindings(const FWidgetBlueprintCompil
 				AddMessageForBinding(Binding
 					, FText::Format(LOCTEXT("InvalidNumberOfFunctionPin", "The conversion function {0} has no source."), FText::FromString(Binding.GetDisplayNameString(WidgetBlueprintCompilerContext.WidgetBlueprint())))
 					, EMessageType::Error
-					, FName()
+					, FMVVMBlueprintPinId()
 				);
 				bIsCreateFunctionsStepValid = false;
 				continue;
@@ -1009,7 +1033,7 @@ void FMVVMViewBlueprintCompiler::CategorizeBindings(const FWidgetBlueprintCompil
 			//const FMVVMBlueprintPropertyPath& BindingSourcePath = ValidBinding->Key.bIsForwardBinding ? Binding.SourcePath : Binding.DestinationPath;
 			//if (BindingSourcePath.IsValid())
 			//{
-			//	AddMessageForBinding(Binding, LOCTEXT("ShouldNotHaveSourceWarning", "Internal Error. The binding should not have a source."), EMessageType::Warning, FName());
+			//	AddMessageForBinding(Binding, LOCTEXT("ShouldNotHaveSourceWarning", "Internal Error. The binding should not have a source."), EMessageType::Warning, FMVVMBlueprintPinId());
 			//}
 		}
 		else
@@ -1030,7 +1054,7 @@ void FMVVMViewBlueprintCompiler::CategorizeEvents(const FWidgetBlueprintCompiler
 		UEdGraph* WrapperGraph = EventPtr->GetOrCreateWrapperGraph();
 		if (WrapperGraph == nullptr)
 		{
-			AddMessageForEvent(EventPtr, LOCTEXT("InvalidEventGraph", "The event could not be generated."), EMessageType::Warning, FName());
+			AddMessageForEvent(EventPtr, LOCTEXT("InvalidEventGraph", "The event could not be generated."), EMessageType::Warning, FMVVMBlueprintPinId());
 			bIsCreateFunctionsStepValid = false;
 			continue;
 		}
@@ -1039,7 +1063,7 @@ void FMVVMViewBlueprintCompiler::CategorizeEvents(const FWidgetBlueprintCompiler
 
 		if (EventPtr->HasOrphanedPin())
 		{
-			AddMessageForEvent(EventPtr, LOCTEXT("InvalidEventGraphOrphaned", "The event has an orphaned pin."), EMessageType::Warning, FName());
+			AddMessageForEvent(EventPtr, LOCTEXT("InvalidEventGraphOrphaned", "The event has an orphaned pin."), EMessageType::Warning, FMVVMBlueprintPinId());
 			bIsCreateFunctionsStepValid = false;
 			continue;
 		}
@@ -1072,7 +1096,7 @@ void FMVVMViewBlueprintCompiler::CreateWriteFieldContexts(const FWidgetBlueprint
 			TValueOrError<FCreateFieldsResult, FText> FieldContextResult = CreateFieldContext(NewSkeletonClass, DestinationPropertyPath, false);
 			if (FieldContextResult.HasError())
 			{
-				AddMessageForBinding(Binding, FieldContextResult.StealError(), EMessageType::Error, FName());
+				AddMessageForBinding(Binding, FieldContextResult.StealError(), EMessageType::Error, FMVVMBlueprintPinId());
 				bIsCreateFunctionsStepValid = false;
 				continue;
 			}
@@ -1090,7 +1114,7 @@ void FMVVMViewBlueprintCompiler::CreateWriteFieldContexts(const FWidgetBlueprint
 					//AddMessageForBinding(Binding
 					//	, FText::Format(LOCTEXT("PropertyPathAlreadyUsed", "The property path '{0}' is already used by another binding."), PropertyPathToText(NewSkeletonClass, BlueprintView.Get(), DestinationPropertyPath))
 					//	, EMessageType::Warning
-					//	, FName()
+					//	, FMVVMBlueprintPinId()
 					//);
 					ValidBinding->WritePath = *Found;
 					continue;
@@ -1125,7 +1149,7 @@ void FMVVMViewBlueprintCompiler::CreateWriteFieldContexts(const FWidgetBlueprint
 				AddMessageForEvent(EventPtr
 					, FText::Format(Private::PropertyPathIsInvalidFormat, PropertyPathToText(NewSkeletonClass, BlueprintView.Get(), EventPtr->GetDestinationPath()))
 					, EMessageType::Error
-					, FName()
+					, FMVVMBlueprintPinId()
 				);
 				bIsCreateFunctionsStepValid = false;
 				continue;
@@ -1396,7 +1420,7 @@ void FMVVMViewBlueprintCompiler::CreateReadFieldContexts(UWidgetBlueprintGenerat
 	{
 		const FMVVMBlueprintViewBinding& Binding = *BlueprintView->GetBindingAt(ValidBinding->Key.ViewBindingIndex);
 
-		auto CreateBindingSourceContext = [Self = this, Class, &ValidBinding, &Binding](const FMVVMBlueprintPropertyPath& PropertyPath, FName ArgumentName) -> TValueOrError<FCreateFieldsResult, void>
+		auto CreateBindingSourceContext = [Self = this, Class, &ValidBinding, &Binding](const FMVVMBlueprintPropertyPath& PropertyPath, const FMVVMBlueprintPinId& PinId) -> TValueOrError<FCreateFieldsResult, void>
 		{
 			TValueOrError<FCreateFieldsResult, FText> FieldContextResult = Self->CreateFieldContext(Class, PropertyPath, true);
 			if (FieldContextResult.HasError())
@@ -1404,7 +1428,7 @@ void FMVVMViewBlueprintCompiler::CreateReadFieldContexts(UWidgetBlueprintGenerat
 				Self->AddMessageForBinding(Binding
 					, FText::Format(Private::PropertyPathIsInvalidFormat, PropertyPathToText(Class, Self->BlueprintView.Get(), PropertyPath))
 					, EMessageType::Error
-					, ArgumentName
+					, PinId
 				);
 				Self->bIsPreCompileStepValid = false;
 				return MakeError();
@@ -1413,7 +1437,7 @@ void FMVVMViewBlueprintCompiler::CreateReadFieldContexts(UWidgetBlueprintGenerat
 			return MakeValue(FieldContextResult.StealValue());
 		};
 
-		auto CreateFieldId = [Self = this, Class, &Binding, bIsOneTimeBinding = ValidBinding->bIsOneTimeBinding](const FMVVMBlueprintPropertyPath& PropertyPath, TSharedPtr<FGeneratedReadFieldPathContext>& ReadFieldContext, FName ArgumentName) -> TValueOrError<void, void>
+		auto CreateFieldId = [Self = this, Class, &Binding, bIsOneTimeBinding = ValidBinding->bIsOneTimeBinding](const FMVVMBlueprintPropertyPath& PropertyPath, TSharedPtr<FGeneratedReadFieldPathContext>& ReadFieldContext, const FMVVMBlueprintPinId& PinId) -> TValueOrError<void, void>
 		{
 			if (!ReadFieldContext->NotificationField.IsValid())
 			{
@@ -1423,7 +1447,7 @@ void FMVVMViewBlueprintCompiler::CreateReadFieldContexts(UWidgetBlueprintGenerat
 					Self->AddMessageForBinding(Binding
 						, FText::Format(LOCTEXT("CreateNotifyFieldIdFailedInvalidSelfContext", "The property path '{0}' is invalid. {1}"), PropertyPathToText(Class, Self->BlueprintView.Get(), PropertyPath), CreateFieldResult.StealError())
 						, EMessageType::Error
-						, ArgumentName
+						, PinId
 					);
 					return MakeError();
 				}
@@ -1445,7 +1469,7 @@ void FMVVMViewBlueprintCompiler::CreateReadFieldContexts(UWidgetBlueprintGenerat
 								Self->AddMessageForBinding(Binding
 									, FText::Format(LOCTEXT("CreateNotifyFieldIdFailedInvalidInvalidContext", "Internal error. The property path '{0}' is invalid. The context is invalid."), PropertyPathToText(Class, Self->BlueprintView.Get(), PropertyPath))
 									, EMessageType::Error
-									, ArgumentName
+									, PinId
 								);
 								return MakeError();
 							}
@@ -1462,7 +1486,7 @@ void FMVVMViewBlueprintCompiler::CreateReadFieldContexts(UWidgetBlueprintGenerat
 		if (ValidBinding->Type == FCompilerBinding::EType::Assignment)
 		{
 			const FMVVMBlueprintPropertyPath& BindingSourcePath = ValidBinding->Key.bIsForwardBinding ? Binding.SourcePath : Binding.DestinationPath;
-			TValueOrError<FCreateFieldsResult, void> CreateSourceResult = CreateBindingSourceContext(BindingSourcePath, FName());
+			TValueOrError<FCreateFieldsResult, void> CreateSourceResult = CreateBindingSourceContext(BindingSourcePath, FMVVMBlueprintPinId());
 			if (CreateSourceResult.HasError())
 			{
 				continue;
@@ -1476,7 +1500,7 @@ void FMVVMViewBlueprintCompiler::CreateReadFieldContexts(UWidgetBlueprintGenerat
 				Found->GeneratedFields = MoveTemp(CreateSourceResult.GetValue().GeneratedFields);
 				Found->SkeletalGeneratedFields = MoveTemp(CreateSourceResult.GetValue().SkeletalGeneratedFields);
 
-				if (CreateFieldId(BindingSourcePath, Found, FName()).HasError())
+				if (CreateFieldId(BindingSourcePath, Found, FMVVMBlueprintPinId()).HasError())
 				{
 					bIsPreCompileStepValid = false;
 					continue;
@@ -1498,7 +1522,7 @@ void FMVVMViewBlueprintCompiler::CreateReadFieldContexts(UWidgetBlueprintGenerat
 				{
 					if (Pin.UsedPathAsValue())
 					{
-						TValueOrError<FCreateFieldsResult, void> CreateSourceResult = CreateBindingSourceContext(Pin.GetPath(), Pin.GetName());
+						TValueOrError<FCreateFieldsResult, void> CreateSourceResult = CreateBindingSourceContext(Pin.GetPath(), Pin.GetId());
 						if (CreateSourceResult.HasError())
 						{
 							continue;
@@ -1512,7 +1536,7 @@ void FMVVMViewBlueprintCompiler::CreateReadFieldContexts(UWidgetBlueprintGenerat
 							Found->GeneratedFields = MoveTemp(CreateSourceResult.GetValue().GeneratedFields);
 							Found->SkeletalGeneratedFields = MoveTemp(CreateSourceResult.GetValue().SkeletalGeneratedFields);
 
-							if (CreateFieldId(Pin.GetPath(), Found, Pin.GetName()).HasError())
+							if (CreateFieldId(Pin.GetPath(), Found, Pin.GetId()).HasError())
 							{
 								bIsPreCompileStepValid = false;
 								continue;
@@ -1546,7 +1570,7 @@ void FMVVMViewBlueprintCompiler::CreateReadFieldContexts(UWidgetBlueprintGenerat
 						AddMessageForEvent(ValidEvent
 							, FText::Format(Private::PropertyPathIsInvalidFormat, PropertyPathToText(Class, BlueprintView.Get(), Pin.GetPath()))
 							, EMessageType::Error
-							, Pin.GetName()
+							, Pin.GetId()
 						);
 						bIsPreCompileStepValid = false;
 					}
@@ -2039,7 +2063,11 @@ void FMVVMViewBlueprintCompiler::PreCompileBindings(UWidgetBlueprintGeneratedCla
 		{
 			if (!GetDefault<UMVVMDeveloperProjectSettings>()->IsExecutionModeAllowed(Binding.OverrideExecutionMode))
 			{
-				Self->AddMessageForBinding(Binding, LOCTEXT("NotAllowedExecutionMode", "The binding has a restricted execution mode."), EMessageType::Error, FName());
+				Self->AddMessageForBinding(Binding
+					, LOCTEXT("NotAllowedExecutionMode", "The binding has a restricted execution mode.")
+					, EMessageType::Error
+					, FMVVMBlueprintPinId()
+				);
 				return false;
 			}
 		}
@@ -2069,7 +2097,7 @@ void FMVVMViewBlueprintCompiler::PreCompileBindings(UWidgetBlueprintGeneratedCla
 							Self->AddMessageForBinding(Binding
 								, FText::Format(LOCTEXT("CouldNotCreateFieldId", "Could not create Field. {0}"), FieldIdResult.GetError())
 								, EMessageType::Error
-								, FName()
+								, FMVVMBlueprintPinId()
 							);
 							return false;
 						}
@@ -2088,7 +2116,7 @@ void FMVVMViewBlueprintCompiler::PreCompileBindings(UWidgetBlueprintGeneratedCla
 			Self->AddMessageForBinding(Binding
 				, LOCTEXT("CouldNotCreateSourceFields", "There is no field to bind to. The binding must be a OneTime binding.")
 				, EMessageType::Error
-				, FName()
+				, FMVVMBlueprintPinId()
 			);
 			return false;
 		}
@@ -2115,7 +2143,7 @@ void FMVVMViewBlueprintCompiler::PreCompileBindings(UWidgetBlueprintGeneratedCla
 						Self->AddMessageForBinding(Binding
 							, FText::Format(Private::CouldNotCreateSourceFieldPathFormat, ::UE::MVVM::FieldPathHelper::ToText(ReadPath->GeneratedFields), FieldPathResult.GetError())
 							, EMessageType::Error
-							, FName()
+							, FMVVMBlueprintPinId()
 						);
 						return false;
 					}
@@ -2133,7 +2161,7 @@ void FMVVMViewBlueprintCompiler::PreCompileBindings(UWidgetBlueprintGeneratedCla
 			Self->AddMessageForBinding(Binding
 				, LOCTEXT("CouldNotCreateSourceReadIsPresent", "Internal error. There should be no property to read from.")
 				, EMessageType::Error
-				, FName()
+				, FMVVMBlueprintPinId()
 			);
 			return false;
 		}
@@ -2153,7 +2181,7 @@ void FMVVMViewBlueprintCompiler::PreCompileBindings(UWidgetBlueprintGeneratedCla
 			Self->AddMessageForBinding(Binding
 				, LOCTEXT("InvalidWritePath", "Internal Error. The write path is invalid.")
 				, EMessageType::Error
-				, FName()
+				, FMVVMBlueprintPinId()
 			);
 			return false;
 		}
@@ -2164,7 +2192,7 @@ void FMVVMViewBlueprintCompiler::PreCompileBindings(UWidgetBlueprintGeneratedCla
 			Self->AddMessageForBinding(Binding
 				, FText::Format(Private::CouldNotCreateDestinationFieldPathFormat, ::UE::MVVM::FieldPathHelper::ToText(ValidBinding.WritePath->GeneratedFields), FieldPathResult.GetError())
 				, EMessageType::Error
-				, FName()
+				, FMVVMBlueprintPinId()
 			);
 			return false;
 		}
@@ -2188,7 +2216,7 @@ void FMVVMViewBlueprintCompiler::PreCompileBindings(UWidgetBlueprintGeneratedCla
 					Self->AddMessageForBinding(Binding
 						, FText::Format(LOCTEXT("ConversionFunctionNotFound", "The conversion function '{0}' could not be found."), FText::FromName(ViewConversionFunction->GetCompiledFunctionName(Class)))
 						, EMessageType::Error
-						, FName()
+						, FMVVMBlueprintPinId()
 					);
 					return false;
 				}
@@ -2201,14 +2229,18 @@ void FMVVMViewBlueprintCompiler::PreCompileBindings(UWidgetBlueprintGeneratedCla
 						Self->AddMessageForBinding(Binding
 							, FText::Format(LOCTEXT("ConversionFunctionNotAllow", "The conversion function {0} is not allowed."), FText::FromName(FunctionOrWrapperFunction.Get<const UFunction*>()->GetFName()))
 							, EMessageType::Error
-							, FName()
+							, FMVVMBlueprintPinId()
 						);
 						return false;
 					}
 				}
 				else
 				{
-					Self->AddMessageForBinding(Binding, LOCTEXT("ConversionFunctionNodeNotAllow", "The conversion function node is not allowed."), EMessageType::Error, FName());
+					Self->AddMessageForBinding(Binding
+						, LOCTEXT("ConversionFunctionNodeNotAllow", "The conversion function node is not allowed.")
+						, EMessageType::Error
+						, FMVVMBlueprintPinId()
+					);
 					return false;
 				}
 			}
@@ -2224,7 +2256,7 @@ void FMVVMViewBlueprintCompiler::PreCompileBindings(UWidgetBlueprintGeneratedCla
 						, FText::FromString(ConversionFunction->GetPathName())
 						, FieldPathResult.GetError())
 					, EMessageType::Error
-					, FName()
+					, FMVVMBlueprintPinId()
 				);
 				return false;
 			}
@@ -2237,14 +2269,14 @@ void FMVVMViewBlueprintCompiler::PreCompileBindings(UWidgetBlueprintGeneratedCla
 			const bool bShouldHaveConversionFunction = ValidBinding.Type == FCompilerBinding::EType::ComplexConversionFunction || ValidBinding.Type == FCompilerBinding::EType::SimpleConversionFunction;
 			if ((ConversionFunction != nullptr) != bShouldHaveConversionFunction)
 			{
-				Self->AddMessageForBinding(Binding, LOCTEXT("ConversionFunctionShouldExist", "Internal error. The conversion function should exist."), EMessageType::Error, FName());
+				Self->AddMessageForBinding(Binding, LOCTEXT("ConversionFunctionShouldExist", "Internal error. The conversion function should exist."), EMessageType::Error, FMVVMBlueprintPinId());
 				return false;
 			}
 
 			const bool bShouldHaveComplexConversionFunction = ValidBinding.Type == FCompilerBinding::EType::ComplexConversionFunction;
 			if (bShouldHaveComplexConversionFunction != BindingHelper::IsValidForComplexRuntimeConversion(ConversionFunction))
 			{
-				Self->AddMessageForBinding(Binding, LOCTEXT("ConversionFunctionIsNotComplex", "Internal Error. The complex conversion function does not respect the prerequisite."), EMessageType::Error, FName());
+				Self->AddMessageForBinding(Binding, LOCTEXT("ConversionFunctionIsNotComplex", "Internal Error. The complex conversion function does not respect the prerequisite."), EMessageType::Error, FMVVMBlueprintPinId());
 				return false;
 			}
 		}
@@ -2259,7 +2291,7 @@ void FMVVMViewBlueprintCompiler::PreCompileBindings(UWidgetBlueprintGeneratedCla
 			&& ValidBinding->Type != FCompilerBinding::EType::ComplexConversionFunction
 			&& ValidBinding->Type != FCompilerBinding::EType::SimpleConversionFunction)
 		{
-			AddMessageForBinding(Binding, LOCTEXT("UnsupportedBindingType", "The binding is invalid."), EMessageType::Error, FName());
+			AddMessageForBinding(Binding, LOCTEXT("UnsupportedBindingType", "The binding is invalid."), EMessageType::Error, FMVVMBlueprintPinId());
 			bIsPreCompileStepValid = false;
 			continue;
 		}
@@ -2289,7 +2321,7 @@ void FMVVMViewBlueprintCompiler::PreCompileBindings(UWidgetBlueprintGeneratedCla
 			AddMessageForBinding(Binding
 				, FText::Format(LOCTEXT("CouldNotCreateBinding", "Could not create binding. {0}"), BindingResult.StealError())
 				, EMessageType::Error
-				, FName()
+				, FMVVMBlueprintPinId()
 			);
 			bIsPreCompileStepValid = false;
 			continue;
@@ -2355,7 +2387,7 @@ void FMVVMViewBlueprintCompiler::CompileBindings(const FCompiledBindingLibraryCo
 		const FMVVMVCompiledBinding* CompiledBinding = CompileResult.Bindings.Find(ValidBinding->BindingHandle);
 		if (CompiledBinding == nullptr)
 		{
-			AddMessageForBinding(Binding, LOCTEXT("CompiledBindingNotGenerated", "Could not generate compiled binding."), EMessageType::Error, FName());
+			AddMessageForBinding(Binding, LOCTEXT("CompiledBindingNotGenerated", "Could not generate compiled binding."), EMessageType::Error, FMVVMBlueprintPinId());
 			bIsCompileStepValid = false;
 			continue;
 		}
@@ -2378,7 +2410,7 @@ void FMVVMViewBlueprintCompiler::CompileBindings(const FCompiledBindingLibraryCo
 		{
 			if (ReadPath->OptionalSource == nullptr)
 			{
-				AddMessageForBinding(Binding, LOCTEXT("InvalidSourceInternal", "Internal error. The binding has an invalid source."), EMessageType::Error, FName());
+				AddMessageForBinding(Binding, LOCTEXT("InvalidSourceInternal", "Internal error. The binding has an invalid source."), EMessageType::Error, FMVVMBlueprintPinId());
 				bIsCompileStepValid = false;
 				continue;
 			}
@@ -2389,7 +2421,7 @@ void FMVVMViewBlueprintCompiler::CompileBindings(const FCompiledBindingLibraryCo
 				});
 			if (!ViewExtension->Sources.IsValidIndex(ViewExtensionSourceCreatorsIndex))
 			{
-				AddMessageForBinding(Binding, LOCTEXT("CompiledSourceCreatorNotGenerated", "Internal error. The source creator was not generated."), EMessageType::Error, FName());
+				AddMessageForBinding(Binding, LOCTEXT("CompiledSourceCreatorNotGenerated", "Internal error. The source creator was not generated."), EMessageType::Error, FMVVMBlueprintPinId());
 				bIsCompileStepValid = false;
 				continue;
 			}
@@ -2403,7 +2435,7 @@ void FMVVMViewBlueprintCompiler::CompileBindings(const FCompiledBindingLibraryCo
 			const UE::FieldNotification::FFieldId* CompiledFieldId = bHasField ? CompileResult.FieldIds.Find(ReadPath->NotificationField->LibraryCompilerHandle) : nullptr;
 			if (CompiledFieldId == nullptr && bHasField)
 			{
-				AddMessageForBinding(Binding, LOCTEXT("CompiledFieldNotGenerated", "Internal error. The FieldId was not generated."), EMessageType::Error, FName());
+				AddMessageForBinding(Binding, LOCTEXT("CompiledFieldNotGenerated", "Internal error. The FieldId was not generated."), EMessageType::Error, FMVVMBlueprintPinId());
 				bIsCompileStepValid = false;
 				continue;
 			}
@@ -2549,7 +2581,7 @@ void FMVVMViewBlueprintCompiler::PreCompileEvents(UWidgetBlueprintGeneratedClass
 			AddMessageForEvent(EventPtr
 				, FText::Format(Private::PropertyPathIsInvalidFormat, PropertyPathToText(Class, BlueprintView.Get(), EventPtr->GetEventPath()))
 				, EMessageType::Error
-				, FName());
+				, FMVVMBlueprintPinId());
 			bIsPreCompileStepValid = false;
 			continue;
 		}
@@ -2561,7 +2593,7 @@ void FMVVMViewBlueprintCompiler::PreCompileEvents(UWidgetBlueprintGeneratedClass
 			AddMessageForEvent(EventPtr
 				, FText::Format(LOCTEXT("EventPathIsNotMulticastDelegate", "The event {0} is not a multicast delegate."), PropertyPathToText(Class, BlueprintView.Get(), EventPtr->GetEventPath()))
 				, EMessageType::Error
-				, FName());
+				, FMVVMBlueprintPinId());
 			bIsPreCompileStepValid = false;
 			continue;
 		}
@@ -2572,7 +2604,7 @@ void FMVVMViewBlueprintCompiler::PreCompileEvents(UWidgetBlueprintGeneratedClass
 			AddMessageForEvent(EventPtr
 				, FText::Format(LOCTEXT("EventPathFunctionSignatureError", "The event {0} doesn't match the function signature."), DelegateProperty->GetDisplayNameText())
 				, EMessageType::Error
-				, FName());
+				, FMVVMBlueprintPinId());
 			bIsPreCompileStepValid = false;
 			continue;
 		}
@@ -2584,7 +2616,7 @@ void FMVVMViewBlueprintCompiler::PreCompileEvents(UWidgetBlueprintGeneratedClass
 			AddMessageForEvent(EventPtr
 				, FText::Format(Private::CouldNotCreateSourceFieldPathFormat, PropertyPathToText(Class, BlueprintView.Get(), EventPtr->GetEventPath()), EventFieldPathResult.GetError())
 				, EMessageType::Error
-				, FName());
+				, FMVVMBlueprintPinId());
 			bIsPreCompileStepValid = false;
 			continue;
 		}
@@ -2636,14 +2668,14 @@ void FMVVMViewBlueprintCompiler::CompileEvents(const FCompiledBindingLibraryComp
 		const FMVVMVCompiledFieldPath* CompiledFieldPath = CompileResult.FieldPaths.Find(ValidEvent->DelegateFieldPathHandle);
 		if (CompiledFieldPath == nullptr)
 		{
-			AddMessageForEvent(ValidEvent->Event.Get(), LOCTEXT("CompiledEventFieldPathNotGenerated", "Could not generate the event path."), EMessageType::Error, FName());
+			AddMessageForEvent(ValidEvent->Event.Get(), LOCTEXT("CompiledEventFieldPathNotGenerated", "Could not generate the event path."), EMessageType::Error, FMVVMBlueprintPinId());
 			bIsCompileStepValid = false;
 			continue;
 		}
 
 		if (ValidEvent->GeneratedGraphName.IsNone() || Class->FindFunctionByName(ValidEvent->GeneratedGraphName) == nullptr)
 		{
-			AddMessageForEvent(ValidEvent->Event.Get(), LOCTEXT("CompiledEventFieldPathNotGenerated", "Could not generate the event path."), EMessageType::Error, FName());
+			AddMessageForEvent(ValidEvent->Event.Get(), LOCTEXT("CompiledEventFieldPathNotGenerated", "Could not generate the event path."), EMessageType::Error, FMVVMBlueprintPinId());
 			bIsCompileStepValid = false;
 			continue;
 		}

@@ -3,6 +3,7 @@
 #pragma once
 
 #include "CoreMinimal.h"
+#include "MVVMBlueprintPin.h"
 #include "UObject/Object.h"
 #include "UObject/WeakObjectPtr.h"
 #include "UObject/WeakObjectPtrTemplates.h"
@@ -67,12 +68,12 @@ struct FBindingEntry
 	void SetBindingId(FGuid Id);
 
 	//~ binding parameter
-	FName GetBindingParameterName() const
+	const FMVVMBlueprintPinId& GetBindingParameterId() const
 	{
-		return Name;
+		return PinId;
 	}
 
-	void SetBindingParameter(FGuid Id, FName ParameterName);
+	void SetBindingParameter(FGuid Id, FMVVMBlueprintPinId Parameter);
 
 	//~ event
 	UMVVMBlueprintViewEvent* GetEvent() const;
@@ -80,12 +81,12 @@ struct FBindingEntry
 	void SetEvent(UMVVMBlueprintViewEvent* InEvent);
 
 	//~ event parameter
-	FName GetEventParameterName() const
+	const FMVVMBlueprintPinId& GetEventParameterId() const
 	{
-		return Name;
+		return PinId;
 	}
 
-	void SetEventParameter(UMVVMBlueprintViewEvent* InEvent, FName ParameterName);
+	void SetEventParameter(UMVVMBlueprintViewEvent* Event, FMVVMBlueprintPinId Parameter);
 
 	//~ children
 	TConstArrayView<TSharedPtr<FBindingEntry>> GetAllChildren() const
@@ -114,6 +115,7 @@ private:
 	ERowType RowType = ERowType::None;
 	FName Name;
 	FGuid BindingId;
+	FMVVMBlueprintPinId PinId;
 	TWeakObjectPtr<UMVVMBlueprintViewEvent> Event;
 	TArray<TSharedPtr<FBindingEntry>> AllChildren;
 	TArray<TSharedPtr<FBindingEntry>> FilteredChildren;

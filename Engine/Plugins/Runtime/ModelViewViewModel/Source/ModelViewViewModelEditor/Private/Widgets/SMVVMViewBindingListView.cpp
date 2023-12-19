@@ -342,7 +342,7 @@ void SBindingsList::Refresh()
 				ConversionFunction->GetOrCreateWrapperGraph(MVVMExtensionPtr->GetWidgetBlueprint());
 				for (const FMVVMBlueprintPin& Pin : ConversionFunction->GetPins())
 				{
-					UEdGraphPin* GraphPin = ConversionFunction->GetOrCreateGraphPin(MVVMExtensionPtr->GetWidgetBlueprint(), Pin.GetName());
+					UEdGraphPin* GraphPin = ConversionFunction->GetOrCreateGraphPin(MVVMExtensionPtr->GetWidgetBlueprint(), Pin.GetId());
 					if (GraphPin && GraphPin->bHidden)
 					{
 						continue;
@@ -351,8 +351,12 @@ void SBindingsList::Refresh()
 					TSharedPtr<FBindingEntry> ArgumentEntry;
 					if (PreviousGroupEntry)
 					{
-						if (TSharedPtr<FBindingEntry>* FoundParameter = PreviousGroupEntry->Children.FindByPredicate([BindingId, ArgumentName = Pin.GetName()](const TSharedPtr<FBindingEntry>& Other)
-							{ return Other->GetBindingId() == BindingId && Other->GetRowType() == FBindingEntry::ERowType::BindingParameter && Other->GetBindingParameterName() == ArgumentName; }))
+						TSharedPtr<FBindingEntry>* FoundParameter = PreviousGroupEntry->Children.FindByPredicate(
+							[BindingId, ArgumentId = Pin.GetId()](const TSharedPtr<FBindingEntry>& Other)
+							{
+								return Other->GetBindingId() == BindingId && Other->GetRowType() == FBindingEntry::ERowType::BindingParameter && Other->GetBindingParameterId() == ArgumentId;
+							});
+						if (FoundParameter)
 						{
 							ArgumentEntry = *FoundParameter;
 						}
@@ -361,7 +365,7 @@ void SBindingsList::Refresh()
 					if (!ArgumentEntry.IsValid())
 					{
 						ArgumentEntry = MakeShared<FBindingEntry>();
-						ArgumentEntry->SetBindingParameter(Binding.BindingId, Pin.GetName());
+						ArgumentEntry->SetBindingParameter(Binding.BindingId, Pin.GetId());
 						ConversionFunction->OnWrapperGraphModified.AddSP(this, &SBindingsList::ForceRefresh);
 
 						NewEntries.Add(ArgumentEntry);
@@ -425,7 +429,7 @@ void SBindingsList::Refresh()
 			// Create/Find entries for function parameters
 			for (const FMVVMBlueprintPin& Pin : Event->GetPins())
 			{
-				UEdGraphPin* GraphPin = Event->GetOrCreateGraphPin(Pin.GetName());
+				UEdGraphPin* GraphPin = Event->GetOrCreateGraphPin(Pin.GetId());
 				if (GraphPin && GraphPin->bHidden)
 				{
 					continue;
@@ -434,8 +438,12 @@ void SBindingsList::Refresh()
 				TSharedPtr<FBindingEntry> ArgumentEntry;
 				if (PreviousGroupEntry)
 				{
-					if (TSharedPtr<FBindingEntry>* FoundParameter = PreviousGroupEntry->Children.FindByPredicate([Event, ArgumentName = Pin.GetName()](const TSharedPtr<FBindingEntry>& Other)
-						{ return Other->GetRowType() == FBindingEntry::ERowType::EventParameter && Other->GetEvent() == Event && Other->GetEventParameterName() == ArgumentName; }))
+					TSharedPtr<FBindingEntry>* FoundParameter = PreviousGroupEntry->Children.FindByPredicate(
+						[Event, ArgumentId = Pin.GetId()](const TSharedPtr<FBindingEntry>& Other)
+						{
+							return Other->GetRowType() == FBindingEntry::ERowType::EventParameter && Other->GetEvent() == Event && Other->GetEventParameterId() == ArgumentId;
+						});
+					if (FoundParameter)
 					{
 						ArgumentEntry = *FoundParameter;
 					}
@@ -444,7 +452,7 @@ void SBindingsList::Refresh()
 				if (!ArgumentEntry.IsValid())
 				{
 					ArgumentEntry = MakeShared<FBindingEntry>();
-					ArgumentEntry->SetEventParameter(Event, Pin.GetName());
+					ArgumentEntry->SetEventParameter(Event, Pin.GetId());
 					Event->OnWrapperGraphModified.AddSP(this, &SBindingsList::ForceRefresh);
 
 					NewEntries.Add(ArgumentEntry);
