@@ -28,6 +28,13 @@ public:
 	typedef FString FStringType;
 	typedef FCString FCStringType;
 
+	/** Constexpr predicate indicating whether wide or ansi chars are used */
+	static constexpr bool IsWide() { return sizeof(CharType) == 2; }
+	/** Constexpr function returning the number of characters read in a single SIMD compare op */
+	static constexpr int32 GetSimdCharCount() { return IsWide() ? 8 : 16; }
+	/** Constexpr function returning a mask value for a single character */
+	static constexpr int32 GetSingleCharMask() { return IsWide() ? 3 : 1; }
+
 	/* Construct an empty shader source object; will still contain padding */
 	FShaderSource() { SetLen(0); };
 
