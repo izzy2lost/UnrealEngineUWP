@@ -18,6 +18,7 @@
 #include "InputMappingContext.h"
 #include "PlayerMappableInputConfig.h"
 #include "GenericPlatform/GenericPlatformInputDeviceMapper.h"
+#include "Engine/Engine.h"
 
 #if WITH_EDITOR
 #include "Editor/EditorEngine.h"

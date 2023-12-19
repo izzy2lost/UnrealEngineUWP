@@ -33,6 +33,7 @@
 #include "Engine/SpotLight.h"
 #include "Engine/StaticMeshActor.h"
 #include "Engine/World.h"
+#include "Misc/PackageName.h"
 
 #if WITH_EDITOR
 #include "ObjectTools.h"
