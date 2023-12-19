@@ -1002,6 +1002,8 @@ namespace uba
 		else
 			m_keepOutputFileMemoryMapsThreshold = info.keepOutputFileMemoryMapsThreshold;
 		m_shouldWriteToDisk = info.shouldWriteToDisk;
+		UBA_ASSERTF(m_shouldWriteToDisk || m_allowMemoryMaps, TC("Can't disable both should write to disk and allow memory maps"));
+
 		m_detailedTrace = info.detailedTrace;
 		m_logToFile = info.logToFile;
 		if (info.extraInfo)
@@ -1511,11 +1513,8 @@ namespace uba
 		return true;
 	}
 
-	u64 Session::GetMemoryMapAlignment(const tchar* fileName, u64 fileNameLen) const
+	u32 Session::GetMemoryMapAlignment(const tchar* fileName, u64 fileNameLen) const
 	{
-		if (!m_allowMemoryMaps)
-			return 0;
-
 		// It is not necessarily better to make mem maps of everything.. only things that are read more than once in the build.
 		// Reason is because there is additional overhead to use memory mappings.
 		// Upside is that all things that are memory mapped can be stored compressed in cas storage so it saves space.
@@ -1622,85 +1621,88 @@ namespace uba
 		const StringBufferBase& fileName = msg.fileName;
 		const StringKey& fileNameKey = msg.fileNameKey;
 
+		auto tableSizeGuard = MakeGuard([&]()
+			{
+				out.mappedFileTableSize = GetFileMappingSize();
+				out.directoryTableSize = GetDirectoryTableSize();
+			});
+
 		if ((msg.access & ~FileAccess_Read) == 0)
 		{
 			if (!IsWindows)
 			{
 				out.fileName.Append(fileName);
+				return true;
 			}
-			else if (fileName.EndsWith(TC(".dll")) || fileName.EndsWith(TC(".exe")))
+		
+			if (fileName.EndsWith(TC(".dll")) || fileName.EndsWith(TC(".exe")))
 			{
-				if (fileName[1] != ':')
-				{
-					UBA_ASSERTF(false, TC("Got bad filename from process %s"), fileName.data);
-				}
-				else
-				{
-					AddFileMapping(fileNameKey, fileName.data, TC("#"));
-					out.fileName.Append(TC("#"));
-				}
+				UBA_ASSERTF(fileName[1] == ':', TC("Got bad filename from process %s"), fileName.data);
+				AddFileMapping(fileNameKey, fileName.data, TC("#"));
+				out.fileName.Append(TC("#"));
+				return true;
 			}
-			else if (u64 alignment = GetMemoryMapAlignment(fileName.data, fileName.count))
+			
+			if (m_allowMemoryMaps)
 			{
-				MemoryMap map;
-				if (CreateMemoryMapFromFile(map, fileNameKey, fileName.data, false, alignment))
+				if (u64 alignment = GetMemoryMapAlignment(fileName.data, fileName.count))
 				{
-					out.size = map.size;
-					out.fileName.Append(map.name);
-				}
-				else
-				{
-					out.fileName.Append(fileName);
+					MemoryMap map;
+					if (CreateMemoryMapFromFile(map, fileNameKey, fileName.data, false, alignment))
+					{
+						out.size = map.size;
+						out.fileName.Append(map.name);
+					}
+					else
+					{
+						out.fileName.Append(fileName);
+					}
+					return true;
 				}
 			}
-			else if (!IsRarelyRead(msg.process, fileName))
+
+			if (!IsRarelyRead(msg.process, fileName))
 			{
 				AddFileMapping(fileNameKey, fileName.data, TC("#"));
 				out.fileName.Append(TC("#"));
+				return true;
 			}
-			else
-			{
-				out.fileName.Append(fileName);
-			}
+
+			out.fileName.Append(fileName);
+			return true;
 		}
-		else // if ((message.Access & FileAccess.Write) != 0)
+		
+		// if ((message.Access & FileAccess.Write) != 0)
+		m_storage.ReportFileWrite(fileName.data);
+
+		if (m_runningRemote && !fileName.StartsWith(m_tempPath.data))
 		{
-			m_storage.ReportFileWrite(fileName.data);
-
-			if (m_runningRemote && !fileName.StartsWith(m_tempPath.data))
-			{
-				ScopedWriteLock lock(m_outputFilesLock);
-				auto insres = m_outputFiles.try_emplace(fileName.data);
-				if (insres.second)
-				{
-					out.fileName.Append(m_sessionOutputDir).Append(KeyToString(fileNameKey));
-					insres.first->second = out.fileName.data;
-				}
-				else
-				{
-					out.fileName.Append(insres.first->second.c_str());
-				}
-			}
-			else
-			{
-				out.fileName.Append(fileName);
-			}
-
-			ScopedWriteLock lock(m_activeFilesLock);
-			u32 wantsOnCloseId = m_wantsOnCloseIdCounter++;
-			out.closeId = wantsOnCloseId;
-			auto insres = m_activeFiles.try_emplace(wantsOnCloseId);
+			ScopedWriteLock lock(m_outputFilesLock);
+			auto insres = m_outputFiles.try_emplace(fileName.data);
 			if (insres.second)
 			{
-				insres.first->second.name = fileName.data;
-				insres.first->second.nameKey = fileNameKey;
+				out.fileName.Append(m_sessionOutputDir).Append(KeyToString(fileNameKey));
+				insres.first->second = out.fileName.data;
 			}
 			else
-				return m_logger.Error(TC("TRYING TO ADD %s twice!"), out.fileName.data);
+			{
+				out.fileName.Append(insres.first->second.c_str());
+			}
+		}
+		else
+		{
+			out.fileName.Append(fileName);
 		}
 
-		out.mappedFileTableSize = GetFileMappingSize();
-		out.directoryTableSize = GetDirectoryTableSize();
+		ScopedWriteLock lock(m_activeFilesLock);
+		u32 wantsOnCloseId = m_wantsOnCloseIdCounter++;
+		out.closeId = wantsOnCloseId;
+		auto insres = m_activeFiles.try_emplace(wantsOnCloseId);
+		if (!insres.second)
+			return m_logger.Error(TC("TRYING TO ADD %s twice!"), out.fileName.data);
+
+		insres.first->second.name = fileName.data;
+		insres.first->second.nameKey = fileNameKey;
 		return true;
 	}
 

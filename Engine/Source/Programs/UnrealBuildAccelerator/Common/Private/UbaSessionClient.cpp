@@ -82,19 +82,19 @@ namespace uba
 		return m_bestPing;
 	}
 
-	bool SessionClient::RetrieveCasFile(CasKey& outNewKey, u64& outSize, const CasKey& casKey, const tchar* hint, bool willBeUsedUncompressed, bool allowProxy)
+	bool SessionClient::RetrieveCasFile(CasKey& outNewKey, u64& outSize, const CasKey& casKey, const tchar* hint, bool storeUncompressed, bool allowProxy)
 	{
 		TimerScope s(m_stats.storageRetrieve);
 		CasKey tempKey = casKey;
 
 #if UBA_USE_SPARSEFILE
-		willBeUsedUncompressed = false;
+		storeUncompressed = false;
 #endif
 
-		if (willBeUsedUncompressed)
+		if (storeUncompressed)
 			tempKey = AsCompressed(casKey, false);
 		//else
-		//	willBeUsedUncompressed = !IsCompressed(casKey);
+		//	storeUncompressed = !IsCompressed(casKey);
 
 		Storage::RetrieveResult result;
 		bool res = m_storage.RetrieveCasFile(result, tempKey, hint, nullptr, 1, allowProxy);
@@ -172,10 +172,10 @@ namespace uba
 			out.Append(fileName);
 			return true;
 		}
-		bool willBeUsedUncompressed = true;
+		bool storeUncompressed = true;
 		CasKey newKey;
 		u64 fileSize;
-		if (!RetrieveCasFile(newKey, fileSize, casKey, outVirtual.data, willBeUsedUncompressed))
+		if (!RetrieveCasFile(newKey, fileSize, casKey, outVirtual.data, storeUncompressed))
 			UBA_ASSERTF(false, TC("Casfile not found for %s using %s"), outVirtual.data, CasKeyString(casKey).str);
 		StringBuffer<> destFile;
 		if (fileName[1] == ':')
@@ -195,14 +195,6 @@ namespace uba
 		outRealApplication.Clear();
 		outRealWorkingDir = m_processWorkingDir.data;
 		return EnsureApplicationEnvironment(outRealApplication, 0, startInfo.application);
-	}
-
-	u64 SessionClient::GetMemoryMapAlignment(const tchar* fileName, u64 fileNameLen) const
-	{
-		u64 alignment = Session::GetMemoryMapAlignment(fileName, fileNameLen);
-		if (!alignment && !m_useStorage && m_allowMemoryMaps)
-			return 64 * 1024;
-		return alignment;
 	}
 
 	bool SessionClient::EnsureApplicationEnvironment(StringBufferBase& out, u32 processId, const tchar* application)
@@ -253,9 +245,9 @@ namespace uba
 				}
 
 				CasKey newCasKey;
-				bool willBeUsedUncompressed = true;
+				bool storeUncompressed = true;
 				u64 fileSize;
-				if (!RetrieveCasFile(newCasKey, fileSize, casKey, moduleFile.data, willBeUsedUncompressed))
+				if (!RetrieveCasFile(newCasKey, fileSize, casKey, moduleFile.data, storeUncompressed))
 					return m_logger.Error(TC("Casfile not found for %s (%s)"), moduleFile.data, CasKeyString(casKey).str);
 
 				const tchar* moduleName = moduleFile.data;
@@ -342,7 +334,14 @@ namespace uba
 		bool isDir = casKey == CasKeyIsDirectory;
 		u64 fileSize = InvalidValue;
 		CasKey newCasKey;
-		u64 memoryMapAlignment = GetMemoryMapAlignment(fileName.data, fileName.count);
+
+		u32 memoryMapAlignment = 0;
+		if (m_allowMemoryMaps)
+		{
+			memoryMapAlignment = GetMemoryMapAlignment(fileName.data, fileName.count);
+			if (!memoryMapAlignment && !m_useStorage)
+				memoryMapAlignment = 64 * 1024;
+		}
 
 		if (isDir)
 		{
@@ -352,8 +351,8 @@ namespace uba
 		{
 			if (m_useStorage || memoryMapAlignment == 0)
 			{
-				bool willBeUsedUncompressed = memoryMapAlignment == 0;
-				if (!RetrieveCasFile(newCasKey, fileSize, casKey, fileName.data, willBeUsedUncompressed, !IsRarelyRead(msg.process, fileName)))
+				bool storeUncompressed = memoryMapAlignment == 0;
+				if (!RetrieveCasFile(newCasKey, fileSize, casKey, fileName.data, storeUncompressed, !IsRarelyRead(msg.process, fileName)))
 					return m_logger.Error(TC("Error retrieving cas entry %s (%s)"), CasKeyString(casKey).str, fileName.data);
 
 				#if !UBA_USE_SPARSEFILE
@@ -1083,6 +1082,26 @@ namespace uba
 		u32 neededDirectoryTableSize = reader.ReadU32();
 		u32 neededHashTableSize = reader.ReadU32();
 
+		if (u32 knownInputsCount = reader.ReadU32())
+		{
+			while (knownInputsCount--)
+			{
+				CasKey knownInputKey = reader.ReadCasKey();
+				u32 mappingAlignment = reader.ReadU32();
+				bool storeUncompressed = !m_allowMemoryMaps || mappingAlignment == 0;
+				if (storeUncompressed)
+					knownInputKey = AsCompressed(knownInputKey, false);
+
+				m_client.AddWork([knownInputKey, this]()
+					{
+						Storage::RetrieveResult result;
+						bool allowProxy = true;
+						bool res = m_storage.RetrieveCasFile(result, knownInputKey, TC(""), nullptr, 1, allowProxy);
+						(void)res;
+					}, 1, TC("KnownInput"));
+			}
+		}
+
 		if (!out.empty())
 		{
 			if (neededDirectoryTableSize > GetDirectoryTableSize())
@@ -1561,6 +1580,8 @@ namespace uba
 		};
 
 		SendSummary();
+
+		m_client.FlushWork();
 	}
 
 	u32 SessionClient::CountLogLines(ProcessImpl& process)

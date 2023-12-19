@@ -115,7 +115,7 @@ namespace uba
 		--m_activeWorkerCount;
 	}
 
-	void WorkManagerImpl::Wait()
+	void WorkManagerImpl::FlushWork()
 	{
 		while (true)
 		{

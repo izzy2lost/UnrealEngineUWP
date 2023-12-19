@@ -21,9 +21,9 @@ namespace uba
 		// Run process remotely.
 		// startInfo contains info about the process to run remotely
 		// weight is the expected core usage of the process. If processes are multithreaded it makes sense to increase weight. As an example, in UnrealBuildTool we see cl.exe as 1.5 and clang.exe as 1.0
-		// knownInputs is a memory block with null terminated strings followed by an empty null terminated string. knownInputSize is the size of the memoryBlock in bytes
-		// knownInputs strings should be of type tchar and a path relative to working dir or absolute. Session will make a copy of knownInputs internally
-		ProcessHandle RunProcessRemote(const ProcessStartInfo& startInfo, float weight = 1.0f, const void* knownInputs = nullptr, u32 knownInputsSizeBytes = 0);
+		// knownInputs is a memory block with null terminated tchar strings followed by an empty null terminated string to end. knownInputsCount is the number of strings in the memory block
+		// strings should be absolute or relative to working dir.
+		ProcessHandle RunProcessRemote(const ProcessStartInfo& startInfo, float weight = 1.0f, const void* knownInputs = nullptr, u32 knownInputsCount = 0);
 
 		// Will kick off a local process with the same startInfo as the one provided to start the process with id matching raceAgainstRemoteProcessId
 		// This can be useful if there are free local cores and we know local machine is faster or network connection to remote is slow
@@ -127,6 +127,8 @@ namespace uba
 
 			ReaderWriterLock dirTablePosLock;
 			u32 dirTablePos = 0;
+
+			UnorderedSet<CasKey> sentKeys;
 
 		};
 		Vector<ClientSession*> m_clientSessions;

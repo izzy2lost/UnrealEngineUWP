@@ -30,6 +30,7 @@ namespace uba
 		{
 			StringBuffer<512> temp;
 			FixFileName(temp, si.workingDir, nullptr);
+			temp.EnsureEndsWithSlash();
 			workingDir = temp.data;
 
 			temp.EnsureEndsWithSlash();
@@ -45,6 +46,11 @@ namespace uba
 			m_startInfo.arguments = arguments.c_str();
 			m_startInfo.workingDir = workingDir.c_str();
 			m_startInfo.logFile = nullptr;
+		}
+
+		~RemoteProcess()
+		{
+			delete[] m_knownInputs;
 		}
 
 		virtual const ProcessStartInfo& GetStartInfo() override { return m_startInfo; }
@@ -99,6 +105,10 @@ namespace uba
 		u32 m_sessionId = 0;
 		float m_weight;
 		TString m_executingHost;
+
+		struct KnownInput { CasKey key; u32 mappingAlignment = 0; };
+		KnownInput* m_knownInputs = nullptr;
+		u32 m_knownInputsCount = 0;
 	};
 
 
@@ -261,12 +271,53 @@ namespace uba
 		return {};
 	}
 
-	ProcessHandle SessionServer::RunProcessRemote(const ProcessStartInfo& startInfo, float weight, const void* knownInputs, u32 knownInputsSizeBytes)
+	ProcessHandle SessionServer::RunProcessRemote(const ProcessStartInfo& startInfo, float weight, const void* knownInputs, u32 knownInputsCount)
 	{
 		FlushDeadProcesses();
 		ValidateStartInfo(startInfo);
 		u32 processId = ++m_processIdCounter;
 		RemoteProcess* remoteProcess = new RemoteProcess(this, startInfo, processId, weight);
+		
+		if (knownInputsCount)
+		{
+			auto keys = remoteProcess->m_knownInputs = new RemoteProcess::KnownInput[knownInputsCount];
+
+			u32 keysIndex = 0;
+			const TString& workingDir = remoteProcess->workingDir;
+			for (auto kiIt = (const tchar*)knownInputs; *kiIt; kiIt += TStrlen(kiIt) + 1)
+			{
+				StringBuffer<> fileName;
+				FixPath(kiIt, workingDir.c_str(), u32(workingDir.size()), fileName);
+
+				// Make sure cas entry exists and caskey is calculated (cas content creation is deferred in case client already has it)
+				CasKey casKey;
+				bool deferCreation = true;
+				if (!m_storage.StoreCasFile(casKey, fileName.data, CasKeyZero, deferCreation) || casKey == CasKeyZero)
+					continue;
+
+				auto& ki = keys[keysIndex++];
+				ki.key = casKey;
+				ki.mappingAlignment = GetMemoryMapAlignment(fileName.data, fileName.count);
+
+
+				// Update name to hash table
+				if (CaseInsensitiveFs)
+					fileName.MakeLower();
+				StringKey fileNameKey = ToStringKey(fileName);
+				ScopedWriteLock lock(m_nameToHashLookupLock);
+				CasKey& lookupCasKey = m_nameToHashLookup[fileNameKey];
+				if (lookupCasKey != casKey)
+				{
+					lookupCasKey = casKey;
+					BinaryWriter w(m_nameToHashTableMem.memory, m_nameToHashTableMem.writtenSize, NameToHashMemSize);
+					m_nameToHashTableMem.AllocateNoLock(sizeof(StringKey) + sizeof(CasKey), 1, TC("NameToHashTable"));
+					w.WriteStringKey(fileNameKey);
+					w.WriteCasKey(lookupCasKey);
+				}
+			}
+			remoteProcess->m_knownInputsCount = keysIndex;
+		}
+		
 		ScopedCriticalSection lock(m_remoteProcessAndSessionLock);
 		m_queuedRemoteProcesses.push_back(remoteProcess);
 		if (m_remoteProcessReturnedEvent)
@@ -859,8 +910,14 @@ namespace uba
 				u32 sessionId = reader.ReadU32();
 				u32 sessionIndex = sessionId - 1;
 
+				ScopedCriticalSection sessionsLock(m_remoteProcessAndSessionLock);
+				ClientSession& session = *m_clientSessions[sessionIndex];
+				sessionsLock.Leave();
+
 				u32 weight32 = reader.ReadU32();
 				float availableWeight = *(float*)&weight32;
+
+				Vector<RemoteProcess::KnownInput*> knownInputsToSend;
 
 				float weightLeft = availableWeight;
 				u32 addCount = 0;
@@ -880,6 +937,10 @@ namespace uba
 					writer.WriteU32(*(u32*)&process->m_weight);
 					writer.WriteU64(process->m_startInfo.outputStatsThresholdMs);
 
+					for (auto kiIt = process->m_knownInputs, kiEnd = kiIt + process->m_knownInputsCount; kiIt!=kiEnd; ++kiIt)
+						if (session.sentKeys.insert(kiIt->key).second)
+							knownInputsToSend.push_back(kiIt);
+
 					++addCount;
 
 					if (writer.GetCapacityLeft() < 5000) // Arbitrary number to cover all parameters above
@@ -892,9 +953,7 @@ namespace uba
 				u32 neededDirectoryTableSize = GetDirectoryTableSize();
 				u32 neededHashTableSize = m_nameToHashLookupLock.ScopedRead([this]() { return u32(m_nameToHashTableMem.writtenSize); });
 
-				ScopedCriticalSection lock(m_remoteProcessAndSessionLock);
-				ClientSession& session = *m_clientSessions[sessionIndex];
-
+				sessionsLock.Enter();
 				//if (addCount)
 				//	m_logger.Debug(TC("Gave %u processes to %s using up %.1f weight out of %.1f available"), addCount, session.name.c_str(), availableWeight - weightLeft, availableWeight);
 
@@ -922,6 +981,7 @@ namespace uba
 						}
 					}
 				}
+				sessionsLock.Leave();
 
 				writer.WriteU32(remoteExecutionEnabled ? SessionProcessAvailableResponse_None : SessionProcessAvailableResponse_RemoteExecutionDisabled);
 
@@ -929,6 +989,18 @@ namespace uba
 				// Write in the needed dir and hash table offset to be up-to-date (to potentially avoid additional messages from client
 				writer.WriteU32(neededDirectoryTableSize);
 				writer.WriteU32(neededHashTableSize);
+
+				// Send caskeys of known inputs so client can start retrieving them straight away
+				u32 kiCapacity = u32(writer.GetCapacityLeft() - sizeof(u32)) / sizeof(RemoteProcess::KnownInput);
+				u32 toSendCount = Min(kiCapacity, u32(knownInputsToSend.size()));
+				writer.WriteU32(toSendCount);
+				for (auto kv : knownInputsToSend)
+				{
+					if (!toSendCount--)
+						break;
+					writer.WriteCasKey(kv->key);
+					writer.WriteU32(kv->mappingAlignment);
+				}
 
 				return true;
 			}
@@ -1424,7 +1496,7 @@ namespace uba
 
 	bool SessionServer::CreateFile(CreateFileResponse& out, const CreateFileMessage& msg)
 	{
-		if ((msg.access & FileAccess_Write) == 0)
+		if (!m_shouldWriteToDisk && ((msg.access & FileAccess_Write) == 0))
 		{
 			ScopedReadLock lock(m_receivedFilesLock);
 			auto findIt = m_receivedFiles.find(msg.fileNameKey);

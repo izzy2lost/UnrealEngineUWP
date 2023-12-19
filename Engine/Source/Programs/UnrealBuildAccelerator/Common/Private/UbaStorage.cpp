@@ -1434,7 +1434,7 @@ namespace uba
 			});
 		m_logger.Info(TC("Validating %u entries..."), entryCount);
 
-		workManager.Wait();
+		workManager.FlushWork();
 
 		StringBuffer<> newestLastWrittenStr;
 		writeTimeAgo(newestLastWrittenStr, newestWrittenError);
@@ -1499,7 +1499,7 @@ namespace uba
 							atomicDeleteCount += deleteCountTemp;
 						}, 1, TC(""));
 				});
-			workManager.Wait();
+			workManager.FlushWork();
 			deleteCount += atomicDeleteCount;
 		}
 
@@ -1551,7 +1551,8 @@ namespace uba
 		if (fileEntry.verified)
 		{
 			UBA_ASSERT(casKeyOverride == CasKeyZero || casKeyOverride == fileEntry.casKey);
-			CasEntryAccessed(fileEntry.casKey);
+			if (!AddCasFile(fileName, fileEntry.casKey, deferCreation))
+				return false;
 			out = fileEntry.casKey;
 			return true;
 		}

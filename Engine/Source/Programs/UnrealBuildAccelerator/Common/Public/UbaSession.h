@@ -120,7 +120,8 @@ namespace uba
 		void StopTraceThread();
 		u32 GetDirectoryTableSize();
 		u32 GetFileMappingSize();
-		
+		u32 GetMemoryMapAlignment(const tchar* fileName, u64 fileNameLen) const;
+
 		SessionStats& Stats();
 
 		struct BinaryModule { TString name; TString path; u32 fileAttributes = 0; bool isSystem = false; };
@@ -140,7 +141,6 @@ namespace uba
 		u32 RegisterDeleteFile(StringKey fileNameKey, const tchar* fileName);
 
 		virtual bool PrepareProcess(const ProcessStartInfo& startInfo, bool isChild, StringBufferBase& outRealApplication, const tchar*& outRealWorkingDir);
-		virtual u64 GetMemoryMapAlignment(const tchar* fileName, u64 fileNameLen) const;
 		virtual void* GetProcessEnvironmentVariables();
 		virtual void PrintSessionStats(Logger& logger);
 

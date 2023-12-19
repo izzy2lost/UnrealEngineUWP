@@ -45,6 +45,7 @@ namespace uba
 	public:
 		ScopedCriticalSection(CriticalSection& cs) : m_cs(cs), m_active(true) { cs.Enter(); }
 		~ScopedCriticalSection() { Leave(); }
+		void Enter() { if (m_active) return; m_cs.Enter(); m_active = true; }
 		void Leave() { if (!m_active) return; m_cs.Leave(); m_active = false; }
 	private:
 		CriticalSection& m_cs;

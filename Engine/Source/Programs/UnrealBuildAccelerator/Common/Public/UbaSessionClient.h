@@ -39,10 +39,9 @@ namespace uba
 
 		u64 GetBestPing();
 
-		bool RetrieveCasFile(CasKey& outNewKey, u64& outSize, const CasKey& casKey, const tchar* hint, bool willBeUsedUnCompressed, bool allowProxy = true);
+		bool RetrieveCasFile(CasKey& outNewKey, u64& outSize, const CasKey& casKey, const tchar* hint, bool storeUncompressed, bool allowProxy = true);
 
 		virtual bool PrepareProcess(const ProcessStartInfo& startInfo, bool isChild, StringBufferBase& outRealApplication, const tchar*& outRealWorkingDir) override;
-		virtual u64 GetMemoryMapAlignment(const tchar* fileName, u64 fileNameLen) const override;
 		virtual void* GetProcessEnvironmentVariables() override;
 		virtual bool CreateFile(CreateFileResponse& out, const CreateFileMessage& msg) override;
 		virtual bool DeleteFile(DeleteFileResponse& out, const DeleteFileMessage& msg) override;

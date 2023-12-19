@@ -752,7 +752,7 @@ namespace UnrealBuildTool
 				byte[]? knownInputs = null;
 				if (UBAConfig.bUseKnownInputs)
 				{
-					int sizeOfChar = Marshal.SizeOf<char>();
+					int sizeOfChar = System.OperatingSystem.IsWindows() ? 2 : 1;
 
 					int byteCount = 0;
 					foreach (var item in action.PrerequisiteItems)
