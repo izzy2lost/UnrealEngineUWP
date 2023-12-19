@@ -1129,23 +1129,66 @@ namespace PropertyEditorHelpers
 		
 	}
 
-	TArray<FName> GetValidEnumsFromPropertyOverride(const FProperty* Property, const UEnum* InEnum)
+	TArray<FName> GetValidEnumsFromPropertyOverride(const TArray<UObject*>& ObjectList, const FProperty* Property, const UEnum* InEnum)
 	{
 		TArray<FName> ValidEnumValues;
+		
+		bool bMergeValidEnums = false;
 
 		static const FName ValidEnumValuesName("ValidEnumValues");
+		static const FName GetValidEnumValuesName("GetValidEnumValues");
+		TArray<FString> ValidEnumValuesAsString;
+		
 		if(Property->HasMetaData(ValidEnumValuesName))
 		{
-			TArray<FString> ValidEnumValuesAsString;
-
+			bMergeValidEnums = true;
 			Property->GetMetaData(ValidEnumValuesName).ParseIntoArray(ValidEnumValuesAsString, TEXT(","));
-			for(FString& Value : ValidEnumValuesAsString)
-			{
-				Value.TrimStartInline();
-				ValidEnumValues.Add(*InEnum->GenerateFullEnumName(*Value));
-			}
 		}
 
+		if(Property->HasMetaData(GetValidEnumValuesName))
+		{
+			const FString GetValidEnumValuesNameFunctionName = Property->GetMetaData(GetValidEnumValuesName);
+			if (!GetValidEnumValuesNameFunctionName.IsEmpty())
+			{
+				for (UObject* Object : ObjectList)
+				{
+					const UFunction* GetValidEnumValuesNameFunction = Object ? Object->FindFunction(*GetValidEnumValuesNameFunctionName) : nullptr;
+					if (GetValidEnumValuesNameFunction)
+					{
+						DECLARE_DELEGATE_RetVal(TArray<FString>, FGetValidEnumValuesNameF);
+						if (!bMergeValidEnums)
+						{
+							ValidEnumValuesAsString = FGetValidEnumValuesNameF::CreateUFunction(Object, GetValidEnumValuesNameFunction->GetFName()).Execute();
+							bMergeValidEnums = true;
+						}
+						else
+						{
+							TArray<FString> ValidEnumValuesAsStringToMerge = FGetValidEnumValuesNameF::CreateUFunction(Object, GetValidEnumValuesNameFunction->GetFName()).Execute();
+							TArray<FString> OldValidEnumValuesAsString = MoveTemp(ValidEnumValuesAsString);
+							for (const FString& OldValidEnumValue : OldValidEnumValuesAsString)
+							{
+								if (ValidEnumValuesAsStringToMerge.Contains(OldValidEnumValue))
+								{
+									ValidEnumValuesAsString.Add(OldValidEnumValue);
+								}
+							}
+						}
+						if (ValidEnumValuesAsString.IsEmpty())
+						{
+							ValidEnumValues.Add(NAME_None);
+							return ValidEnumValues;
+						}
+					}
+				}
+			}
+		}
+		
+		for(FString& Value : ValidEnumValuesAsString)
+		{
+			Value.TrimStartInline();
+			ValidEnumValues.Add(*InEnum->GenerateFullEnumName(*Value));
+		}
+			
 		return ValidEnumValues;
 	}
 

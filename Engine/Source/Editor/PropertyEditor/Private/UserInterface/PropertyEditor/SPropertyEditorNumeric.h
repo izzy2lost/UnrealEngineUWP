@@ -62,7 +62,7 @@ public:
 		{
 			auto CreateBitmaskFlagsArray = [PropertyHandle]()
 			{
-				const int32 BitmaskBitCount = sizeof(NumericType) << 3;
+				constexpr int32 BitmaskBitCount = sizeof(NumericType) << 3;
 
 				TArray<FBitmaskFlagInfo> Result;
 				Result.Empty(BitmaskBitCount);
@@ -79,7 +79,7 @@ public:
 				{
 					const TMap<FName, FText> EnumValueDisplayNameOverrides = PropertyEditorHelpers::GetEnumValueDisplayNamesFromPropertyOverride(PropertyHandle->GetProperty(), BitmaskEnum);
 
-					const bool bUseEnumValuessAsMaskValues = BitmaskEnum->GetBoolMetaData(PropertyEditorConstants::MD_UseEnumValuesAsMaskValuesInEditor);
+					const bool bUseEnumValuesAsMaskValues = BitmaskEnum->GetBoolMetaData(PropertyEditorConstants::MD_UseEnumValuesAsMaskValuesInEditor);
 					auto AddNewBitmaskFlagLambda = [BitmaskEnum, &Result, &EnumValueDisplayNameOverrides](int32 InEnumIndex, int64 InFlagValue)
 					{
 						Result.Emplace();
@@ -98,7 +98,10 @@ public:
 						}
 					};
 
-					const TArray<FName> AllowedPropertyEnums = PropertyEditorHelpers::GetValidEnumsFromPropertyOverride(PropertyHandle->GetProperty(), BitmaskEnum);
+					TArray<UObject*> OuterObjects;
+					PropertyHandle->GetOuterObjects(OuterObjects);
+					
+					const TArray<FName> AllowedPropertyEnums = PropertyEditorHelpers::GetValidEnumsFromPropertyOverride(OuterObjects, PropertyHandle->GetProperty(), BitmaskEnum);
 					const TArray<FName> DisallowedPropertyEnums = PropertyEditorHelpers::GetInvalidEnumsFromPropertyOverride(PropertyHandle->GetProperty(), BitmaskEnum);
 					// Note: This loop doesn't include (BitflagsEnum->NumEnums() - 1) in order to skip the implicit "MAX" value that gets added to the enum type at compile time.
 					for (int32 BitmaskEnumIndex = 0; BitmaskEnumIndex < BitmaskEnum->NumEnums() - 1; ++BitmaskEnumIndex)
@@ -119,7 +122,7 @@ public:
 						}
 						if (EnumValue >= 0 && !bShouldBeHidden)
 						{
-							if (bUseEnumValuessAsMaskValues)
+							if (bUseEnumValuesAsMaskValues)
 							{
 								if (EnumValue < MAX_int64 && FMath::IsPowerOfTwo(EnumValue))
 								{

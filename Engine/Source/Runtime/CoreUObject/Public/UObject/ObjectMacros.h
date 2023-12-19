@@ -1490,6 +1490,15 @@ namespace UM
 
 		/// [PropertyMetadata] Used for enum properties to define the subset of valid values as a comma-separated string; values outside of this subset are not made available.
 		ValidEnumValues,
+
+		/// [PropertyMetadata] Used for enum properties to define the subset of invalid values as a comma-separated string; values within this subset are not made available.
+		InvalidEnumValues,
+
+		/// [PropertyMetadata] Used for enum properties to define the subset of valid values through a UFunction, e.g. meta=(GetValidEnumValues="FuncName"). 
+		///
+		/// UFUNCTION()
+		/// TArray<FString> FuncName() const;
+		GetValidEnumValues,
 		
 		/// [PropertyMetadata] Causes assets to be filtered through a UFunction, e.g. meta=(GetAssetFilter="FuncName"). The UFunction should return true to exclude the asset.
 		///
@@ -1507,10 +1516,7 @@ namespace UM
 		///
 		/// UFUNCTION()
 		/// TArray<UClass*> FuncName() const;
-		GetDisallowedClasses,
-
-	    /// [PropertyMetadata] Used for enum properties to define the subset of invalid values as a comma-separated string; values within this subset are not made available.
-        InvalidEnumValues,
+		GetDisallowedClasses
 	};
 
 	// Metadata usable in UPROPERTY for customizing the behavior of Persona and UMG
