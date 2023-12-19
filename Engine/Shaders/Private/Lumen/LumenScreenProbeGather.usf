@@ -1252,7 +1252,7 @@ void ScreenProbeIntegrateCS(
 			if (DiffuseIntegrationMethod == DIFFUSE_INTEGRATION_SPHERICAL_HARMONIC)
 			{
 				float3 R = 2.0f * dot(V, Material.WorldNormal) * Material.WorldNormal - V;
-				R = normalize(GetOffSpecularPeakReflectionDir(Material.WorldNormal, R, Material.GBufferData.Roughness));
+				R = normalize(GetOffSpecularPeakReflectionDir(Material.WorldNormal, R, Material.Roughness));
 
 				DiffuseLighting += EvaluateDiffuse(ScreenProbeSample, Material.WorldNormal, R, Material.bHasBackfaceDiffuse, UnitBentNormal, AO, BackfaceDiffuseLighting, RoughSpecularLighting);
 			}
