@@ -31,7 +31,6 @@ class UWorldPartitionHLODRuntimeSubsystem : public UWorldSubsystem
 
 public:
 	ENGINE_API UWorldPartitionHLODRuntimeSubsystem();
-	ENGINE_API virtual ~UWorldPartitionHLODRuntimeSubsystem();
 
 	//~ Begin USubsystem Interface.
 	ENGINE_API virtual void Initialize(FSubsystemCollectionBase& Collection) override;
@@ -40,10 +39,7 @@ public:
 
 	//~ Begin UWorldSubsystem Interface.
 	ENGINE_API virtual bool DoesSupportWorldType(const EWorldType::Type WorldType) const override;
-	ENGINE_API virtual void OnWorldBeginPlay(UWorld& InWorld) override;
 	//~ End UWorldSubsystem Interface.
-
-	ENGINE_API bool Tick(float DeltaTime);
 
 	ENGINE_API void RegisterHLODActor(AWorldPartitionHLOD* InWorldPartitionHLOD);
 	ENGINE_API void UnregisterHLODActor(AWorldPartitionHLOD* InWorldPartitionHLOD);
@@ -64,14 +60,15 @@ public:
 	ENGINE_API void OnExternalStreamingObjectInjected(URuntimeHashExternalStreamingObjectBase* ExternalStreamingObject);
 	ENGINE_API void OnExternalStreamingObjectRemoved(URuntimeHashExternalStreamingObjectBase* ExternalStreamingObject);
 
-	ENGINE_API void SetHLODAlwaysLoadedCullDistance(int32 InCullDistance);
-
 	ENGINE_API void OnCVarsChanged();
 
 #if WITH_EDITOR
 	uint32 GetNumOutdatedHLODActors() const { return OutdatedHLODActors.Num(); }
 	static ENGINE_API bool WriteHLODStatsCSV(UWorld* InWorld, const FString& InFilename);
 #endif
+
+	UE_DEPRECATED(5.4, "You should perform this logic on the game side.")
+	ENGINE_API void SetHLODAlwaysLoadedCullDistance(int32 InCullDistance) {}
 	
 private:
 	struct FCellData
@@ -85,18 +82,10 @@ private:
 		TMap<FGuid, FCellData> CellsData;
 	};
 
-	struct FDrawDistanceQueue
-	{
-		float DrawDistance;
-		TObjectPtr<AWorldPartitionHLOD> HLODActor;
-	};
-	
 	TMap<TObjectPtr<UWorldPartition>, FWorldPartitionHLODRuntimeData> WorldPartitionsHLODRuntimeData;
 	ENGINE_API const FCellData* GetCellData(const UWorldPartitionRuntimeCell* InCell) const;
 	ENGINE_API FCellData* GetCellData(const UWorldPartitionRuntimeCell* InCell);
 	ENGINE_API FCellData* GetCellData(AWorldPartitionHLOD* InWorldPartitionHLOD);
-
-	TArray<AWorldPartitionHLOD*> AlwaysLoadedHLODActors;
 
 	struct FWorldPartitionHLODWarmupState
 	{
@@ -113,10 +102,6 @@ private:
 	ENGINE_API bool ShouldPerformWarmup() const;
 	ENGINE_API bool ShouldPerformWarmupForCell(const UWorldPartitionRuntimeCell* InCell) const;
 	bool bCachedShouldPerformWarmup;
-
-	TArray<FDrawDistanceQueue> OperationQueue;
-	FTSTicker::FDelegateHandle TickHandle;
-	int32 LastSetCullDistance;
 
 	/** Console command used to turn on/off loading & rendering of world partition HLODs */
 	static ENGINE_API class FAutoConsoleCommand EnableHLODCommand;
