@@ -220,6 +220,14 @@ void UStateTreeEditorData::PostEditChangeChainProperty(FPropertyChangedChainEven
 				EditorBindings.RemoveUnusedBindings(AllStructValues);
 			}
 		}
+
+		// Notify that the global data changed (will need to update binding widgets, etc)
+		if (MemberName == GET_MEMBER_NAME_CHECKED(UStateTreeEditorData, Evaluators)
+			|| MemberName == GET_MEMBER_NAME_CHECKED(UStateTreeEditorData, GlobalTasks))
+		{
+			UE::StateTree::Delegates::OnGlobalDataChanged.Broadcast(*StateTree);
+		}
+
 	}
 
 	UE::StateTree::PropertyHelpers::DispatchPostEditToNodes(*this, PropertyChangedEvent);

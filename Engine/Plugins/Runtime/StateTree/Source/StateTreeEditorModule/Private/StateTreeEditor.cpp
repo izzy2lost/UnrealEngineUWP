@@ -255,7 +255,8 @@ void FStateTreeEditor::InitEditor( const EToolkitMode::Type Mode, const TSharedP
 
 	UE::StateTree::Delegates::OnIdentifierChanged.AddSP(this, &FStateTreeEditor::OnIdentifierChanged);
 	UE::StateTree::Delegates::OnSchemaChanged.AddSP(this, &FStateTreeEditor::OnSchemaChanged);
-	UE::StateTree::Delegates::OnParametersChanged.AddSP(this, &FStateTreeEditor::OnParametersChanged);
+	UE::StateTree::Delegates::OnParametersChanged.AddSP(this, &FStateTreeEditor::OnRefreshDetailsView);
+	UE::StateTree::Delegates::OnGlobalDataChanged.AddSP(this, &FStateTreeEditor::OnRefreshDetailsView);
 	UE::StateTree::Delegates::OnStateParametersChanged.AddSP(this, &FStateTreeEditor::OnStateParametersChanged);
 }
 
@@ -501,7 +502,7 @@ void FStateTreeEditor::OnSchemaChanged(const UStateTree& InStateTree)
 	}
 }
 
-void FStateTreeEditor::OnParametersChanged(const UStateTree& InStateTree)
+void FStateTreeEditor::OnRefreshDetailsView(const UStateTree& InStateTree)
 {
 	if (StateTree == &InStateTree)
 	{

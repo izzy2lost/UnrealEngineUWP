@@ -9,6 +9,7 @@ namespace UE::StateTree::Delegates
 FOnIdentifierChanged OnIdentifierChanged;
 FOnSchemaChanged OnSchemaChanged;
 FOnParametersChanged OnParametersChanged;
+FOnGlobalDataChanged OnGlobalDataChanged;
 FOnStateParametersChanged OnStateParametersChanged;
 FOnBreakpointsChanged OnBreakpointsChanged;
 FOnPostCompile OnPostCompile;
