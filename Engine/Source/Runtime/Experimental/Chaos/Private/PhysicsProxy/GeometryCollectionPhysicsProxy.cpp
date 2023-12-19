@@ -1063,7 +1063,7 @@ void FGeometryCollectionPhysicsProxy::CreateNonClusteredParticles(Chaos::FPBDRig
 			Chaos::FUniqueIdx ExistingIndex;
 			if (GTParticles[ParticleIndex] == nullptr)
 			{
-				ExistingIndex = RigidsSolver->GetEvolution()->GenerateUniqueIdx();
+				ExistingIndex = UniqueIdxs[ParticleIndex];
 			}
 			else
 			{
