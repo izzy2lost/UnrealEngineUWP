@@ -18,12 +18,15 @@
 #include "Rendering/SkeletalMeshLODModel.h"
 #include "StaticMeshAttributes.h"
 #include "UObject/Package.h"
-#include "UsdWrappers/UsdPrim.h"
-#include "USDStageImporter.h"
+#include "UnrealUSDWrapper.h"
+#include "USDConversionUtils.h"
 #include "USDStageImportContext.h"
+#include "USDStageImporter.h"
 #include "USDStageImportOptions.h"
 #include "USDTypesConversion.h"
 #include "USDValueConversion.h"
+#include "UsdWrappers/UsdPrim.h"
+#include "UsdWrappers/VtValue.h"
 
 #include UE_INLINE_GENERATED_CPP_BY_NAME(USDImportNode)
 

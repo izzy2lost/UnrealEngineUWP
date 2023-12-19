@@ -2,21 +2,19 @@
 
 #pragma once
 
-#include "UnrealUSDWrapper.h"
 #include "USDInfoCache.h"
 #include "USDLevelSequenceHelper.h"
-#include "USDMemory.h"
 #include "USDStageOptions.h"
 
 #include "UsdWrappers/UsdStage.h"
 
-#include "Logging/TokenizedMessage.h"
 #include "CoreMinimal.h"
 
 #include "USDStageImportContext.generated.h"
 
 class UUsdAssetCache2;
 class UUsdStageImportOptions;
+class FTokenizedMessage;
 
 USTRUCT()
 struct USDSTAGEIMPORTER_API FUsdStageImportContext
@@ -71,7 +69,7 @@ struct USDSTAGEIMPORTER_API FUsdStageImportContext
 	 * When parsing materials, we keep track of which primvar we mapped to which UV channel.
 	 * When parsing meshes later, we use this data to place the correct primvar values in each UV channel.
 	 */
-	TMap< FString, TMap< FString, int32 > > MaterialToPrimvarToUVIndex;
+	TMap<FString, TMap<FString, int32>> MaterialToPrimvarToUVIndex;
 
 	/** USD Stage to import */
 	UE::FUsdStage Stage;
@@ -91,7 +89,8 @@ struct USDSTAGEIMPORTER_API FUsdStageImportContext
 	/** If we're reading from the stage cache and the stage was originally open, it will be left open when the import is completed */
 	bool bStageWasOriginallyOpenInCache;
 
-	/** We modify the stage with our meters per unit import option on import. If the stage was already open, we use this to undo the changes after import */
+	/** We modify the stage with our meters per unit import option on import. If the stage was already open, we use this to undo the changes after
+	 * import */
 	float OriginalMetersPerUnit;
 	EUsdUpAxis OriginalUpAxis;
 
@@ -107,7 +106,15 @@ public:
 	FUsdStageImportContext& operator=(const FUsdStageImportContext& Other) = default;
 	PRAGMA_ENABLE_DEPRECATION_WARNINGS
 
-	bool Init(const FString& InName, const FString& InFilePath, const FString& InInitialPackagePath, EObjectFlags InFlags, bool bInIsAutomated, bool bIsReimport = false, bool bAllowActorImport = true);
+	bool Init(
+		const FString& InName,
+		const FString& InFilePath,
+		const FString& InInitialPackagePath,
+		EObjectFlags InFlags,
+		bool bInIsAutomated,
+		bool bIsReimport = false,
+		bool bAllowActorImport = true
+	);
 	void Reset();
 
 private:

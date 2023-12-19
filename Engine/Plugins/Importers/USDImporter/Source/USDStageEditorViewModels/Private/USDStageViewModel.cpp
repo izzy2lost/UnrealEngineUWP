@@ -11,6 +11,7 @@
 #include "USDLog.h"
 #include "USDStageActor.h"
 #include "USDStageImportContext.h"
+#include "USDStageImporter.h"
 #include "USDStageImporterModule.h"
 #include "USDStageImportOptions.h"
 #include "USDStageModule.h"
