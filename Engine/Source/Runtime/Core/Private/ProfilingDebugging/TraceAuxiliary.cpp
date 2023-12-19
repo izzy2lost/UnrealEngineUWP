@@ -1823,7 +1823,7 @@ static bool LaunchTraceServerCommand(const TCHAR* Command, bool bAddSponsor)
 ////////////////////////////////////////////////////////////////////////////////
 bool FTraceServerControls::Start()
 {
-	return LaunchTraceServerCommand(TEXT("fork"), true);
+	return LaunchTraceServerCommand(TEXT("fork"), false);
 }
 
 ////////////////////////////////////////////////////////////////////////////////
