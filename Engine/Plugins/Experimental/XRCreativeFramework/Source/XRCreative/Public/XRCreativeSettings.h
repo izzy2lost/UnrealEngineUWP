@@ -2,7 +2,6 @@
 
 #pragma once
 
-#include "Engine/DeveloperSettingsBackedByCVars.h"
 #include "XRCreativeSettings.generated.h"
 
 UENUM(BlueprintType)
@@ -12,24 +11,41 @@ enum class EXRCreativeHandedness : uint8
 	Right	UMETA(DisplayName = "Right"),
 };
 
-UCLASS(Config=XRCreativeSettings, DisplayName="XR Creative")
-class XRCREATIVE_API UXRCreativeSettings : public UDeveloperSettingsBackedByCVars
+/**
+ * Per project settings for XRCreative.
+ */
+UCLASS(Config=XRCreativeSettings, DefaultConfig, DisplayName="XR Creative")
+
+class XRCREATIVE_API UXRCreativeSettings : public UObject
 {
 	GENERATED_BODY()
 	
 public:
-	UPROPERTY(Config, EditAnywhere, BlueprintReadWrite, Category="XR Creative", meta=(DisplayName="Show Measurements in Imperial Units"))
-	bool bUseImperial = false;
-
-	UPROPERTY(Config, EditAnywhere, BlueprintReadWrite, Category="XR Creative", meta=(DisplayName="TestArray"))
-	TArray<float> FloatArray = {1,3,2,5};
 
 	UPROPERTY(Config, EditAnywhere, BlueprintReadWrite, Category="XR Creative")
 	TSoftClassPtr<class UXRCreativeSubsystemHelper> SubsystemHelperClass;
 
-	UPROPERTY(Config, EditAnywhere, BlueprintReadWrite, Category="XR Creative", meta=(DisplayName="Handedness"))
-	EXRCreativeHandedness Handedness = EXRCreativeHandedness::Right;
-
 	UFUNCTION(BlueprintPure, Category="XR Creative")
 	static UXRCreativeSettings* GetXRCreativeSettings();
+};
+
+/**
+ * Per user settings for XRCreative Editor.
+ */
+UCLASS(Config=EditorPerProjectUserSettings, meta=(DisplayName="XR Creative Editor"))
+
+class XRCREATIVE_API UXRCreativeEditorSettings : public UObject
+{
+	GENERATED_BODY()
+
+public:
+
+	/** Manages Left/Right handedness user preferences.
+	 * Modifying this setting requires an editor restart to take effect.
+	 **/
+	UPROPERTY(Config, EditAnywhere, BlueprintReadWrite, Category="XR Creative", meta=(DisplayName="Handedness"))
+	EXRCreativeHandedness Handedness = EXRCreativeHandedness::Right;
+	
+	UFUNCTION(BlueprintPure, Category="XR Creative Editor")
+	static UXRCreativeEditorSettings* GetXRCreativeEditorSettings();
 };
