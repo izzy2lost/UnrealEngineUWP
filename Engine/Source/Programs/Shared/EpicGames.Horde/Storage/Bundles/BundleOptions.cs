@@ -15,7 +15,7 @@ namespace EpicGames.Horde.Storage.Bundles
 		/// <summary>
 		/// Maximum version number of bundles to write
 		/// </summary>
-		public BundleVersion MaxVersion { get; set; } = BundleVersion.LatestV2;
+		public BundleVersion MaxVersion { get; set; } = BundleVersion.LatestV1;
 
 		/// <summary>
 		/// Maximum payload size fo a blob
