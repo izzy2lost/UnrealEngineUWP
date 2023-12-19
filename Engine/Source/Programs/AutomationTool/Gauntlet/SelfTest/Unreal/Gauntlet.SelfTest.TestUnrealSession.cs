@@ -53,8 +53,8 @@ namespace Gauntlet.SelfTest
 			string PlatformString = Gauntlet.Globals.Params.ParseValue("Platform", "Win64");
 			UnrealTargetPlatform Platform = UnrealTargetPlatform.Parse(PlatformString);
 			UnrealSession Session = new UnrealSession(Build, new[] {
-				new UnrealSessionRole(UnrealTargetRole.Client, Platform, UnrealTargetConfiguration.Development, ClientArgs, Options)
-				, new UnrealSessionRole(UnrealTargetRole.Server, UnrealTargetPlatform.Win64, UnrealTargetConfiguration.Development, ServerArgs, Options)
+				new UnrealSessionRole(UnrealTargetRole.Client, Platform, Configuration, ClientArgs, Options)
+				, new UnrealSessionRole(UnrealTargetRole.Server, UnrealTargetPlatform.Win64, Configuration, ServerArgs, Options)            
 			});
 
 			// launch an instance of this session
@@ -191,12 +191,12 @@ namespace Gauntlet.SelfTest
 			// Set up roles
 			UnrealDeviceTargetConstraint DefaultConstraint = new UnrealDeviceTargetConstraint(UnrealTargetPlatform.Win64);
 			List<EIntendedBaseCopyDirectory> DefaultAdditionalDirectories = new();
-			Client = new UnrealSessionRole(UnrealTargetRole.Client, Platform, UnrealTargetConfiguration.Test, null)
+			Client = new UnrealSessionRole(UnrealTargetRole.Client, Platform, Configuration, null)
 			{
 				Constraint = DefaultConstraint,
 				AdditionalArtifactDirectories = DefaultAdditionalDirectories
 			};
-			Server = new UnrealSessionRole(UnrealTargetRole.Server, Platform, UnrealTargetConfiguration.Test, null)
+			Server = new UnrealSessionRole(UnrealTargetRole.Server, Platform, Configuration, null)
 			{
 				Constraint = DefaultConstraint,
 				AdditionalArtifactDirectories = DefaultAdditionalDirectories
@@ -261,7 +261,7 @@ namespace Gauntlet.SelfTest
 			Client.AdditionalArtifactDirectories.Add(EIntendedBaseCopyDirectory.Build);
 
 			// Create a couple images for the client - these should get converted to a .gif
-			DirectoryInfo ScreenshotDirectory = new(Path.Combine(ClientArtifactSource.FullName, "Screenshots", "Win64"));
+			DirectoryInfo ScreenshotDirectory = new(Path.Combine(ClientArtifactSource.FullName, "Screenshots", "Windows"));
 			FileInfo RedImage = CreateDummyPNGInDirectory("Red", ScreenshotDirectory);
 			FileInfo BlueImage = CreateDummyPNGInDirectory("Blue", ScreenshotDirectory);
 
@@ -299,7 +299,7 @@ namespace Gauntlet.SelfTest
 			FileInfo ClientBuildFile = new(Path.Combine(ClientDirectory.FullName, "Build", ClientBuildFileName));
 
 			// We should see the .pngs were converted to .jpgs and a .gif file in the root directory
-			DirectoryInfo ScreenshotDirectory = new(Path.Combine(ClientDirectory.FullName, "Screenshots", "Win64"));
+			DirectoryInfo ScreenshotDirectory = new(Path.Combine(ClientDirectory.FullName, "Screenshots", "Windows"));
 			FileInfo RedImage = new(Path.Combine(ScreenshotDirectory.FullName, "Red.jpg"));
 			FileInfo BlueImage = new(Path.Combine(ScreenshotDirectory.FullName, "Blue.jpg"));
 			FileInfo TestGif = new(Path.Combine(ClientDirectory.FullName, "ClientTest.gif"));

@@ -4,14 +4,12 @@ using AutomationTool;
 using EpicGames.Core;
 using System;
 using System.Collections.Generic;
-using System.Configuration;
 using System.IO;
 using System.Linq;
 using System.Text.RegularExpressions;
 using System.Threading;
 using UnrealBuildTool;
 using Gauntlet.Utils;
-using System.Globalization;
 
 namespace Gauntlet
 {
@@ -254,7 +252,7 @@ namespace Gauntlet
 			public UnrealSessionRole Role { get; protected set; }
 
 			/// <summary>
-			/// Underlying AppInstance that us running the role
+			/// Underlying AppInstance that is running the role
 			/// </summary>
 			public IAppInstance AppInstance { get; protected set; }
 
@@ -560,7 +558,7 @@ namespace Gauntlet
 
 
 	/// <summary>
-	/// Helper class that understands how to launch/monitor/stop an an Unreal test (clients + server) based on params contained in the test context and config
+	/// Helper class that understands how to launch/monitor/stop an Unreal test (clients + server) based on params contained in the test context and config
 	/// </summary>
 	public class UnrealSession : IDisposable
 	{
@@ -1009,6 +1007,47 @@ namespace Gauntlet
 			}
 		}
 
+		private string GenerateNotTakenFilePath(string DesiredPath)
+		{
+			string ResultPath = null;
+			
+			FileInfo PotentialPathFileInfo = new FileInfo(DesiredPath);
+
+			for (int NumericPostfix = 0; (string.IsNullOrEmpty(ResultPath)) && (NumericPostfix < int.MaxValue); NumericPostfix++)
+			{
+				string PotentialPath = DesiredPath;
+
+				if (NumericPostfix > 0)
+				{
+					PotentialPath = Path.Combine(
+						PotentialPathFileInfo.DirectoryName,
+						string.Format("{0}_{1}", Path.GetFileNameWithoutExtension(PotentialPathFileInfo.Name), NumericPostfix));
+
+					if (!string.IsNullOrEmpty(PotentialPathFileInfo.Extension))
+					{
+						PotentialPath += PotentialPathFileInfo.Extension;
+					}
+				}
+
+				bool PathIsTaken = File.Exists(PotentialPath);
+				if (PathIsTaken)
+				{
+					Log.VeryVerbose("File already exists at {0}", PotentialPath);
+				}
+				else
+				{
+					ResultPath = PotentialPath;
+				}
+			}
+
+			if (string.IsNullOrEmpty(ResultPath))
+			{
+				throw new AutomationException("Cannot generate not taken file path for the path {0}", DesiredPath);
+			}
+
+			return ResultPath;
+		}
+
 		/// <summary>
 		/// Retrieves and saves all artifacts from the provided session role. Artifacts are saved to the destination path
 		/// </summary>
@@ -1214,20 +1253,24 @@ namespace Gauntlet
 			{
 				try
 				{
-					DirectoryInfo ScreenshotDirectory = new(Path.Combine(DestinationDirectory.FullName, "Screenshots", InRunningRole.Role.Platform.ToString()));
-
-					// Check as early as possible for screenshots before creating a temp folder to copy
-					if (ScreenshotDirectory.Exists && ScreenshotDirectory.GetFiles().Any())
+					DirectoryInfo ScreenshotDirectory = new(Path.Combine(DestinationDirectory.FullName, "Screenshots"));
+					if (ScreenshotDirectory.Exists)
 					{
-						Log.Info("Downsizing and gifying session images at {0}", ScreenshotDirectory.FullName);
-
-						// Downsize first so gif-step is quicker and takes less resoruces.
-						Utils.Image.ConvertImages(ScreenshotDirectory.FullName, ScreenshotDirectory.FullName, "jpg", true);
-
-						string GifPath = Path.Combine(DestinationDirectory.FullName, RoleName + "Test.gif");
-						if (Utils.Image.SaveImagesAsGif(ScreenshotDirectory.FullName, GifPath))
+						foreach (DirectoryInfo ScreenshotSubdirectory in ScreenshotDirectory.EnumerateDirectories())
 						{
-							Log.Info("Saved gif to {0}", GifPath);
+							if (ScreenshotSubdirectory.GetFiles().Any())
+							{
+								Log.Info("Downsizing and gifying session images at {0}", ScreenshotSubdirectory.FullName);
+
+								// Downsize first so gif-step is quicker and takes less resoruces.
+								Utils.Image.ConvertImages(ScreenshotSubdirectory.FullName, ScreenshotSubdirectory.FullName, "jpg", true);
+
+								string GifPath = GenerateNotTakenFilePath(Path.Combine(DestinationDirectory.FullName, RoleName + "Test.gif"));
+								if (Utils.Image.SaveImagesAsGif(ScreenshotSubdirectory.FullName, GifPath))
+								{
+									Log.Info("Saved gif to {0}", GifPath);
+								}
+							}
 						}
 					}
 				}
