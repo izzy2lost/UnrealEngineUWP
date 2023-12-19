@@ -106,7 +106,7 @@ public:
 			case EElectraDecoderPlatformOutputHandleType::ImageBuffers:
 				if (!MFSample.IsValid())
 				{
-					if (InTypeOfHandle == EElectraDecoderPlatformOutputHandleType::ImageBuffers)
+					if (InTypeOfHandle == EElectraDecoderPlatformOutputHandleType::ImageBuffers)	//-V547
 					{
 						return static_cast<IElectraDecoderVideoOutputImageBuffers*>(const_cast<FElectraVideoDecoderOutputH264_DX*>(this));
 					}
