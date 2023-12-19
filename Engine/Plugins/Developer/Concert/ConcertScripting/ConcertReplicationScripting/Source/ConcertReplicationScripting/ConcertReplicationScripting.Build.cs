@@ -27,7 +27,7 @@ namespace UnrealBuildTool.Rules
 				}
 			);
 
-			// TODO UE-202216: Do proper fix
+			// Hacky but we decided to keep it like this to avoid exceeding the 200 character path limit
 			ShortName = "CS";
 		}
 	}
