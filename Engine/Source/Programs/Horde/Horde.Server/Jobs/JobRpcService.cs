@@ -37,8 +37,6 @@ using MongoDB.Bson.Serialization;
 using EpicGames.Horde.Jobs;
 using EpicGames.Horde.Logs;
 using EpicGames.Horde.Agents.Sessions;
-using EpicGames.Horde.Storage;
-using Horde.Server.Storage;
 
 namespace Horde.Server.Jobs
 {

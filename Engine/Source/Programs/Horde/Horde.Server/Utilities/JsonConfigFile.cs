@@ -26,7 +26,7 @@ namespace Horde.Server.Utilities
 
 		public static async Task<JsonConfigFile> ReadAsync(FileReference file, CancellationToken cancellationToken = default)
 		{
-			byte[] data = await FileReference.ReadAllBytesAsync(file);
+			byte[] data = await FileReference.ReadAllBytesAsync(file, cancellationToken);
 			JsonObject? obj = JsonNode.Parse(data, new JsonNodeOptions { PropertyNameCaseInsensitive = true }, new JsonDocumentOptions { AllowTrailingCommas = true, CommentHandling = JsonCommentHandling.Skip }) as JsonObject;
 			return new JsonConfigFile(obj ?? new JsonObject());
 		}
