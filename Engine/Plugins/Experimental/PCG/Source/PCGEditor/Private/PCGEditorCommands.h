@@ -19,6 +19,7 @@ public:
 	TSharedPtr<FUICommandInfo> Find;
 	TSharedPtr<FUICommandInfo> PauseAutoRegeneration;
 	TSharedPtr<FUICommandInfo> ForceGraphRegeneration;
+	TSharedPtr<FUICommandInfo> OpenDebugObjectTreeTab;
 	TSharedPtr<FUICommandInfo> RunDeterminismNodeTest;
 	TSharedPtr<FUICommandInfo> RunDeterminismGraphTest;
 	TSharedPtr<FUICommandInfo> EditGraphSettings;

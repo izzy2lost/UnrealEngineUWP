@@ -31,7 +31,6 @@
 #include "PCGEditorUtils.h"
 #include "SPCGEditorGraphAttributeListView.h"
 #include "SPCGEditorGraphDebugObjectTree.h"
-#include "SPCGEditorGraphDebugObjectWidget.h"
 #include "SPCGEditorGraphDeterminism.h"
 #include "SPCGEditorGraphFind.h"
 #include "SPCGEditorGraphLogView.h"
@@ -133,7 +132,6 @@ void FPCGEditor::Initialize(const EToolkitMode::Type InMode, const TSharedPtr<cl
 
 	GraphEditorWidget = CreateGraphEditorWidget();
 	PaletteWidget = CreatePaletteWidget();
-	DebugObjectWidget = CreateDebugObjectWidget();
 	DebugObjectTreeWidget = CreateDebugObjectTreeWidget();
 	FindWidget = CreateFindWidget();
 	AttributesWidget = CreateAttributesWidget();
@@ -224,7 +222,7 @@ UPCGEditorGraph* FPCGEditor::GetPCGEditorGraph()
 	return PCGEditorGraph;
 }
 
-void FPCGEditor::SetStackBeingInspected(const FPCGStack& FullStack, FPCGDebugObjectSelectionMethod SelectionMethod)
+void FPCGEditor::SetStackBeingInspected(const FPCGStack& FullStack)
 {
 	UPCGComponent* OldComponent = PCGComponentBeingInspected.Get();
 	UPCGComponent* NewComponent = const_cast<UPCGComponent*>(FullStack.GetRootComponent());
@@ -254,15 +252,6 @@ void FPCGEditor::SetStackBeingInspected(const FPCGStack& FullStack, FPCGDebugObj
 			{
 				PCGGraphBeingEdited->EnableInspection();
 			}
-		}
-
-		if (SelectionMethod == FPCGDebugObjectSelectionMethod::DebugObjectTree)
-		{
-			DebugObjectWidget->SetDebugObjectSelection(StackBeingInspected);
-		}
-		else
-		{
-			DebugObjectTreeWidget->SetDebugObjectSelection(StackBeingInspected);
 		}
 
 		UpdateDebugAfterComponentSelection(OldComponent, NewComponent, bNewComponentStartedInspecting);
@@ -388,7 +377,7 @@ void FPCGEditor::RegisterTabSpawners(const TSharedRef<FTabManager>& InTabManager
 		.SetDisplayName(LOCTEXT("PaletteTab", "Palette"))
 		.SetGroup(WorkspaceMenuCategoryRef);
 
-	InTabManager->RegisterTabSpawner(FPCGEditor_private::DebugObjectID, FOnSpawnTab::CreateSP(this, &FPCGEditor::SpawnTab_DebugObject))
+	InTabManager->RegisterTabSpawner(FPCGEditor_private::DebugObjectID, FOnSpawnTab::CreateSP(this, &FPCGEditor::SpawnTab_DebugObjectTree))
 		.SetDisplayName(LOCTEXT("DebugTab", "Debug Object Tree"))
 		.SetGroup(WorkspaceMenuCategoryRef);
 
@@ -507,11 +496,12 @@ void FPCGEditor::RegisterToolbar() const
 		const FPCGEditorCommands& PCGEditorCommands = FPCGEditorCommands::Get();
 		const FToolMenuInsert InsertAfterAssetSection("Asset", EToolMenuInsertType::After);
 		FToolMenuSection& Section = ToolBar->AddSection("PCGToolbar", TAttribute<FText>(), InsertAfterAssetSection);
+
 		Section.AddEntry(FToolMenuEntry::InitToolBarButton(
 			PCGEditorCommands.Find,
 			TAttribute<FText>(),
 			TAttribute<FText>(),
-			FSlateIcon(FAppStyle::GetAppStyleSetName(), "BlueprintEditor.FindInBlueprint"))); // TODO, use own application style?
+			FSlateIcon(FAppStyle::GetAppStyleSetName(), "BlueprintEditor.FindInBlueprint")));
 
 		Section.AddEntry(FToolMenuEntry::InitToolBarButton(
 			FPCGEditorCommands::Get().PauseAutoRegeneration,
@@ -531,20 +521,14 @@ void FPCGEditor::RegisterToolbar() const
 			TAttribute<FText>(),
 			FSlateIcon(FAppStyle::GetAppStyleSetName(), "Icons.Toolbar.Stop")));
 
-		Section.AddSeparator(NAME_None);
-		Section.AddDynamicEntry("Debugging", FNewToolMenuSectionDelegate::CreateLambda([](FToolMenuSection& InSection)
-		{
-			const UPCGEditorMenuContext* Context = InSection.FindContext<UPCGEditorMenuContext>();
-			if (Context && Context->PCGEditor.IsValid())
-			{
-				InSection.AddEntry(FToolMenuEntry::InitWidget(
-					"SelectedDebugObjectWidget",
-					Context->PCGEditor.Pin()->DebugObjectWidget.ToSharedRef(),
-					FText::GetEmpty()));
-			}
-		}));
+		Section.AddEntry(FToolMenuEntry::InitToolBarButton(
+			FPCGEditorCommands::Get().OpenDebugObjectTreeTab,
+			TAttribute<FText>(),
+			TAttribute<FText>(),
+			FSlateIcon(FAppStyle::GetAppStyleSetName(), "LevelEditor.CreateBlankBlueprintClass")));
 
 		Section.AddSeparator(NAME_None);
+
 		Section.AddEntry(FToolMenuEntry::InitToolBarButton(
 			 PCGEditorCommands.RunDeterminismGraphTest,
 			 TAttribute<FText>(),
@@ -552,6 +536,7 @@ void FPCGEditor::RegisterToolbar() const
 			 FSlateIcon(FAppStyle::GetAppStyleSetName(), "BlueprintDebugger.TabIcon")));
 
 		Section.AddSeparator(NAME_None);
+
 		Section.AddEntry(FToolMenuEntry::InitToolBarButton(
 			 PCGEditorCommands.EditGraphSettings,
 			 TAttribute<FText>(),
@@ -582,6 +567,13 @@ void FPCGEditor::BindCommands()
 		PCGEditorCommands.CancelExecution,
 		FExecuteAction::CreateSP(this, &FPCGEditor::OnCancelExecution_Clicked),
 		FCanExecuteAction::CreateSP(this, &FPCGEditor::IsCurrentlyGenerating));
+
+	// Left on UI as a disabled button if debug object tree tab already open. This is a deliberate
+	// hint for 5.4 to help direct users to use the tree.
+	ToolkitCommands->MapAction(
+		PCGEditorCommands.OpenDebugObjectTreeTab,
+		FExecuteAction::CreateSP(this, &FPCGEditor::OnOpenDebugObjectTreeTab_Clicked),
+		FCanExecuteAction::CreateSP(this, &FPCGEditor::IsDebugObjectTreeTabClosed));
 
 	ToolkitCommands->MapAction(
 		PCGEditorCommands.RunDeterminismGraphTest,
@@ -712,6 +704,16 @@ bool FPCGEditor::IsCurrentlyGenerating() const
 	}
 
 	return false;
+}
+
+bool FPCGEditor::IsDebugObjectTreeTabClosed() const
+{
+	return !TabManager.IsValid() || !TabManager->FindExistingLiveTab(FPCGEditor_private::DebugObjectID).IsValid();
+}
+
+void FPCGEditor::OnOpenDebugObjectTreeTab_Clicked()
+{
+	TabManager->TryInvokeTab(FPCGEditor_private::DebugObjectID);
 }
 
 bool FPCGEditor::CanRunDeterminismNodeTest() const
@@ -2132,11 +2134,6 @@ TSharedRef<SPCGEditorGraphNodePalette> FPCGEditor::CreatePaletteWidget()
 	return SNew(SPCGEditorGraphNodePalette);
 }
 
-TSharedRef<SPCGEditorGraphDebugObjectWidget> FPCGEditor::CreateDebugObjectWidget()
-{
-	return SNew(SPCGEditorGraphDebugObjectWidget, SharedThis(this));
-}
-
 TSharedRef<SPCGEditorGraphDebugObjectTree> FPCGEditor::CreateDebugObjectTreeWidget()
 {
 	return SNew(SPCGEditorGraphDebugObjectTree, SharedThis(this));
@@ -2356,7 +2353,6 @@ void FPCGEditor::OnGraphStructureChanged(UPCGGraphInterface* InGraph)
 
 void FPCGEditor::OnComponentGenerationCompleteOrCancelled()
 {
-	DebugObjectWidget->RefreshDebugObjects();
 	DebugObjectTreeWidget->RequestRefresh();
 
 	// If we are debugging the graph cache then we need to refresh the cache count displayed in the title after every generation.
@@ -2389,10 +2385,6 @@ void FPCGEditor::OnMapChanged(UWorld* InWorld, EMapChangeType InMapChangedType)
 		{
 			DebugObjectTreeWidget->RequestRefresh();
 		}
-		if (DebugObjectWidget.IsValid())
-		{
-			DebugObjectWidget->RefreshDebugObjects();
-		}
 
 		// Subsystem has been torn down and rebuilt.
 		if (UPCGSubsystem* Subsystem = GetSubsystem())
@@ -2404,15 +2396,10 @@ void FPCGEditor::OnMapChanged(UWorld* InWorld, EMapChangeType InMapChangedType)
 
 void FPCGEditor::OnLevelActorDeleted(AActor* InActor)
 {
+	// Forward call as this makes an effort to retain the selection if the selected component has not been deleted.
 	if (DebugObjectTreeWidget.IsValid())
 	{
 		DebugObjectTreeWidget->RequestRefresh();
-	}
-
-	// Forward call as this makes an effort to retain the selection if the selected component has not been deleted.
-	if (DebugObjectWidget.IsValid())
-	{
-		DebugObjectWidget->OnLevelActorDeleted(InActor);
 	}
 }
 
@@ -2446,7 +2433,7 @@ TSharedRef<SDockTab> FPCGEditor::SpawnTab_Palette(const FSpawnTabArgs& Args)
 		];
 }
 
-TSharedRef<SDockTab> FPCGEditor::SpawnTab_DebugObject(const FSpawnTabArgs& Args)
+TSharedRef<SDockTab> FPCGEditor::SpawnTab_DebugObjectTree(const FSpawnTabArgs& Args)
 {
 	return SNew(SDockTab)
 		.Label(LOCTEXT("PCGDebugObjectTitle", "Debug Object"))

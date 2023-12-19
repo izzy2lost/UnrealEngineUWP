@@ -17,7 +17,6 @@ class FUICommandList;
 class IDetailsView;
 class SGraphEditor;
 class SPCGEditorGraphAttributeListView;
-class SPCGEditorGraphDebugObjectWidget;
 class SPCGEditorGraphDebugObjectTree;
 class SPCGEditorGraphDeterminismListView;
 class SPCGEditorGraphFind;
@@ -34,13 +33,6 @@ class UPCGNode;
 DECLARE_MULTICAST_DELEGATE_OneParam(FOnInspectedStackChanged, const FPCGStack&);
 DECLARE_MULTICAST_DELEGATE_OneParam(FOnInspectedNodeChanged, UPCGEditorGraphNodeBase*);
 
-/** Used to communicate how a debug object was selected so that other selection widgets can be synchronized. */
-enum class FPCGDebugObjectSelectionMethod : uint8
-{
-	DebugObjectTree,
-	DebugObjectDropdown,
-};
-
 class FPCGEditor : public FAssetEditorToolkit, public FGCObject, public FSelfRegisteringEditorUndoClient
 {
 public:
@@ -54,7 +46,7 @@ public:
 	static UPCGEditorGraph* GetPCGEditorGraph(UPCGGraph* InGraph);
 
 	/** Sets the execution stack that want to inspect. */
-	void SetStackBeingInspected(const FPCGStack& FullStack, FPCGDebugObjectSelectionMethod SelectionMethod);
+	void SetStackBeingInspected(const FPCGStack& FullStack);
 
 	/** Gets the PCG component we are debugging */
 	UPCGComponent* GetPCGComponentBeingInspected() const { return const_cast<UPCGComponent*>(StackBeingInspected.GetRootComponent()); }
@@ -153,8 +145,14 @@ private:
 	/** Cancels the current execution of the selected graph */
 	void OnCancelExecution_Clicked();
 
-	/* Returns true if inspected graph is currently scheduled or executing */
+	/** Returns true if inspected graph is currently scheduled or executing */
 	bool IsCurrentlyGenerating() const;
+
+	/** Returns true if the debug object tree tab is not currently open. */
+	bool IsDebugObjectTreeTabClosed() const;
+
+	/** Opens the debug object tree tab if it is not open already. */
+	void OnOpenDebugObjectTreeTab_Clicked();
 
 	/** Can determinism be tested on the selected node(s) */
 	bool CanRunDeterminismNodeTest() const;
@@ -247,9 +245,6 @@ private:
 	/** Create new palette widget */
 	TSharedRef<SPCGEditorGraphNodePalette> CreatePaletteWidget();
 
-	/** Create debug object combo box */
-	TSharedRef<SPCGEditorGraphDebugObjectWidget> CreateDebugObjectWidget();
-
 	/** Create new debug object tree widget */
 	TSharedRef<SPCGEditorGraphDebugObjectTree> CreateDebugObjectTreeWidget();
 
@@ -311,7 +306,7 @@ private:
 	TSharedRef<SDockTab> SpawnTab_GraphEditor(const FSpawnTabArgs& Args);
 	TSharedRef<SDockTab> SpawnTab_PropertyDetails(const FSpawnTabArgs& Args);
 	TSharedRef<SDockTab> SpawnTab_Palette(const FSpawnTabArgs& Args);
-	TSharedRef<SDockTab> SpawnTab_DebugObject(const FSpawnTabArgs& Args);
+	TSharedRef<SDockTab> SpawnTab_DebugObjectTree(const FSpawnTabArgs& Args);
 	TSharedRef<SDockTab> SpawnTab_Attributes(const FSpawnTabArgs& Args);
 	TSharedRef<SDockTab> SpawnTab_Find(const FSpawnTabArgs& Args);
 	TSharedRef<SDockTab> SpawnTab_Determinism(const FSpawnTabArgs& Args);
@@ -321,7 +316,6 @@ private:
 	TSharedPtr<SGraphEditor> GraphEditorWidget;
 	TSharedPtr<IDetailsView> PropertyDetailsWidget;
 	TSharedPtr<SPCGEditorGraphNodePalette> PaletteWidget;
-	TSharedPtr<SPCGEditorGraphDebugObjectWidget> DebugObjectWidget;
 	TSharedPtr<SPCGEditorGraphDebugObjectTree> DebugObjectTreeWidget;
 	TSharedPtr<SPCGEditorGraphFind> FindWidget;
 	TSharedPtr<SPCGEditorGraphAttributeListView> AttributesWidget;

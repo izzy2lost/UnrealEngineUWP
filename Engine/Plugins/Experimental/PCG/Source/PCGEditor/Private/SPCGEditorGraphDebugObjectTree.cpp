@@ -896,13 +896,13 @@ void SPCGEditorGraphDebugObjectTree::OnSelectionChanged(FPCGEditorGraphDebugObje
 
 	if (!InItem)
 	{
-		PCGEditor.Pin()->SetStackBeingInspected(FPCGStack(), FPCGDebugObjectSelectionMethod::DebugObjectTree);
+		PCGEditor.Pin()->SetStackBeingInspected(FPCGStack());
 		return;
 	}
 
 	if (const FPCGStack* PCGStack = InItem->GetPCGStack())
 	{
-		PCGEditor.Pin()->SetStackBeingInspected(*PCGStack, FPCGDebugObjectSelectionMethod::DebugObjectTree);
+		PCGEditor.Pin()->SetStackBeingInspected(*PCGStack);
 	}
 }
 
