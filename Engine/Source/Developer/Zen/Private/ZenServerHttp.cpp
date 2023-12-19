@@ -227,7 +227,7 @@ namespace UE::Zen {
 		if (AcceptType != EContentType::UnknownContentType)
 		{
 			AddHeader(TEXTVIEW("Accept"), GetMimeType(EContentType::CbPackage));
-	}
+		}
 
 		ContentLength = Payload.GetSize();
 
