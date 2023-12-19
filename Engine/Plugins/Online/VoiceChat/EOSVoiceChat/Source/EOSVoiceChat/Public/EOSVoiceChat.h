@@ -4,7 +4,11 @@
 
 #include "EOSShared.h"
 
-#if WITH_EOS_RTC
+#ifndef WITH_EOSVOICECHAT
+#define WITH_EOSVOICECHAT WITH_EOS_RTC
+#endif
+
+#if WITH_EOSVOICECHAT
 
 #include "Misc/CoreMisc.h"
 #include "VoiceChat.h"
@@ -228,4 +232,4 @@ protected:
 	friend const TCHAR* LexToString(FEOSVoiceChat::EConnectionState State);
 };
 
-#endif // WITH_EOS_RTC
+#endif // WITH_EOSVOICECHAT

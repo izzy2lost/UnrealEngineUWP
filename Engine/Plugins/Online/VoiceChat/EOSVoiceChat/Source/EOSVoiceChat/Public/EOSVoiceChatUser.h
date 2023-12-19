@@ -5,7 +5,7 @@
 #include "EOSVoiceChat.h"
 #include "EOSVoiceChatLog.h"
 
-#if WITH_EOS_RTC
+#if WITH_EOSVOICECHAT
 
 #include "eos_rtc_types.h"
 #include "eos_rtc_audio_types.h"
@@ -365,4 +365,4 @@ protected:
 	friend const TCHAR* LexToString(EChannelJoinState State);
 };
 
-#endif // WITH_EOS_RTC
+#endif // WITH_EOSVOICECHAT

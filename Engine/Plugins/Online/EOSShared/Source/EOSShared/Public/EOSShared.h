@@ -41,9 +41,7 @@
 #include "eos_userinfo_types.h"
 #include "eos_version.h"
 
-#if defined(DISABLE_EOSVOICECHAT_ENGINE)
-#define WITH_EOS_RTC 0
-#else
+#ifndef WITH_EOS_RTC
 #define WITH_EOS_RTC WITH_EOS_SDK && (EOS_MAJOR_VERSION >= 1 && EOS_MINOR_VERSION >= 13)
 #endif
 

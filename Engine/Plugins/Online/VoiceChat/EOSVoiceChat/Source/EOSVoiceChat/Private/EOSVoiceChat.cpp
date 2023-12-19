@@ -2,7 +2,7 @@
 
 #include "EOSVoiceChat.h" 
 
-#if WITH_EOS_RTC
+#if WITH_EOSVOICECHAT
 
 #include "Async/Async.h"
 #include "Containers/Ticker.h"
@@ -1069,4 +1069,4 @@ const TCHAR* LexToString(FEOSVoiceChat::EConnectionState State)
 
 #undef CHECKPIN
 
-#endif // WITH_EOS_RTC
+#endif // WITH_EOSVOICECHAT

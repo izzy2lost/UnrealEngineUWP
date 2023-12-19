@@ -2,7 +2,7 @@
 
 #include "EOSVoiceChatUser.h"
 
-#if WITH_EOS_RTC
+#if WITH_EOSVOICECHAT
 
 #include "HAL/IConsoleManager.h"
 #include "Misc/ConfigCacheIni.h"
@@ -2738,4 +2738,4 @@ const TCHAR* LexToString(FEOSVoiceChatUser::EChannelJoinState State)
 	}
 }
 
-#endif // WITH_EOS_RTC
+#endif // WITH_EOSVOICECHAT

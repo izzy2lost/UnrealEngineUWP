@@ -13,6 +13,7 @@
 #include "OnlineStoreEOS.h"
 #include "EOSSettings.h"
 #include "EOSShared.h"
+#include "EOSVoiceChat.h"
 #include "IEOSSDKManager.h"
 #include "SocketSubsystemEOSUtils_OnlineSubsystemEOS.h"
 
@@ -28,7 +29,7 @@
 #define EOS_ENCRYPTION_KEY_MAX_LENGTH 64
 #define EOS_ENCRYPTION_KEY_MAX_BUFFER_LEN (EOS_ENCRYPTION_KEY_MAX_LENGTH + 1)
 
-#if WITH_EOS_RTC
+#if WITH_EOSVOICECHAT
 
 #include "EOSVoiceChatFactory.h"
 #include "EOSVoiceChatUser.h"
@@ -122,7 +123,7 @@ public:
 	FEOSVoiceChatUser& VoiceChatUser;
 };
 
-#endif // WITH_EOS_RTC
+#endif // WITH_EOSVOICECHAT
 
 FPlatformEOSHelpersPtr FOnlineSubsystemEOS::EOSHelpersPtr;
 
@@ -460,7 +461,7 @@ bool FOnlineSubsystemEOS::Shutdown()
 	TitleFileInterfacePtr = nullptr;
 	UserCloudInterfacePtr = nullptr;
 
-#if WITH_EOS_RTC
+#if WITH_EOSVOICECHAT
 	for (TPair<FUniqueNetIdRef, FOnlineSubsystemEOSVoiceChatUserWrapperRef>& Pair : LocalVoiceChatUsers)
 	{
 		FOnlineSubsystemEOSVoiceChatUserWrapperRef& VoiceChatUserWrapper = Pair.Value;
@@ -468,7 +469,7 @@ bool FOnlineSubsystemEOS::Shutdown()
 	}
 	LocalVoiceChatUsers.Reset();
 	VoiceChatInterface = nullptr;
-#endif
+#endif // WITH_EOSVOICECHAT
 
 	EOSPlatformHandle = nullptr;
 
@@ -678,7 +679,7 @@ IVoiceChatUser* FOnlineSubsystemEOS::GetVoiceChatUserInterface(const FUniqueNetI
 {
 	IVoiceChatUser* Result = nullptr;
 
-#if WITH_EOS_RTC
+#if WITH_EOSVOICECHAT
 	if (!VoiceChatInterface)
 	{
 		if (FEOSVoiceChatFactory* EOSVoiceChatFactory = FEOSVoiceChatFactory::Get())
@@ -702,7 +703,7 @@ IVoiceChatUser* FOnlineSubsystemEOS::GetVoiceChatUserInterface(const FUniqueNetI
 			Result = &Wrapper.Get();
 		}
 	}
-#endif // WITH_EOS_RTC
+#endif // WITH_EOSVOICECHAT
 
 	return Result;
 }
@@ -710,18 +711,18 @@ IVoiceChatUser* FOnlineSubsystemEOS::GetVoiceChatUserInterface(const FUniqueNetI
 FEOSVoiceChatUser* FOnlineSubsystemEOS::GetEOSVoiceChatUserInterface(const FUniqueNetId& LocalUserId)
 {
 	FEOSVoiceChatUser* Result = nullptr;
-#if WITH_EOS_RTC
+#if WITH_EOSVOICECHAT
 	if (IVoiceChatUser* Wrapper = GetVoiceChatUserInterface(LocalUserId))
 	{
 		Result = &static_cast<FOnlineSubsystemEOSVoiceChatUserWrapper*>(Wrapper)->VoiceChatUser;
 	}
-#endif
+#endif // WITH_EOSVOICECHAT
 	return Result;
 }
 
 void FOnlineSubsystemEOS::ReleaseVoiceChatUserInterface(const FUniqueNetId& LocalUserId)
 {
-#if WITH_EOS_RTC
+#if WITH_EOSVOICECHAT
 	if (VoiceChatInterface)
 	{
 		if (FOnlineSubsystemEOSVoiceChatUserWrapperRef* WrapperPtr = LocalVoiceChatUsers.Find(LocalUserId.AsShared()))
@@ -730,7 +731,7 @@ void FOnlineSubsystemEOS::ReleaseVoiceChatUserInterface(const FUniqueNetId& Loca
 			LocalVoiceChatUsers.Remove(LocalUserId.AsShared());
 		}
 	}
-#endif
+#endif // WITH_EOSVOICECHAT
 }
 
 #endif // WITH_EOS_SDK

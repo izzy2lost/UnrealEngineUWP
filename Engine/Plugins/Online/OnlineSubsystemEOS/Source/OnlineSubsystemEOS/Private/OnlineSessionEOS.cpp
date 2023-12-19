@@ -3984,12 +3984,12 @@ uint32 FOnlineSessionEOS::CreateLobbySession(int32 HostingPlayerNum, FNamedOnlin
 
 				Session->SessionInfo = MakeShared<FOnlineSessionInfoEOS>(FOnlineSessionInfoEOS::Create(HostAddr, FUniqueNetIdEOSLobby::Create(UTF8_TO_TCHAR(Data->LobbyId))));
 
-#if WITH_EOS_RTC
+#if WITH_EOSVOICECHAT
 				if (FEOSVoiceChatUser* VoiceChatUser = static_cast<FEOSVoiceChatUser*>(EOSSubsystem->GetEOSVoiceChatUserInterface(*LocalUserNetId)))
 				{
 					VoiceChatUser->AddLobbyRoom(UTF8_TO_TCHAR(Data->LobbyId));
 				}
-#endif
+#endif // WITH_EOSVOICECHAT
 
 				BeginSessionAnalytics(Session);
 
@@ -4064,12 +4064,12 @@ void FOnlineSessionEOS::DestroyLobbySessionOnCreationUpdateError(int32 LocalUser
 				UE_LOG_ONLINE_SESSION(Warning, TEXT("[FOnlineSessionEOS::DestroyLobbySessionOnCreationUpdateError] DestroyLobby not successful. Finished with EOS_EResult %s"), ANSI_TO_TCHAR(EOS_EResult_ToString(Data->ResultCode)));
 			}
 
-#if WITH_EOS_RTC
+#if WITH_EOSVOICECHAT
 			if (FEOSVoiceChatUser* VoiceChatUser = static_cast<FEOSVoiceChatUser*>(EOSSubsystem->GetEOSVoiceChatUserInterface(*EOSSubsystem->UserManager->GetLocalUniqueNetIdEOS(LocalUserNum))))
 			{
 				VoiceChatUser->RemoveLobbyRoom(UTF8_TO_TCHAR(Data->LobbyId));
 			}
-#endif
+#endif // WITH_EOSVOICECHAT
 
 			EndSessionAnalytics();
 
@@ -4135,12 +4135,12 @@ uint32 FOnlineSessionEOS::JoinLobbySession(int32 PlayerNum, FNamedOnlineSession*
 
 						BeginSessionAnalytics(Session);
 
-#if WITH_EOS_RTC
+#if WITH_EOSVOICECHAT
 						if (FEOSVoiceChatUser* VoiceChatUser = static_cast<FEOSVoiceChatUser*>(EOSSubsystem->GetEOSVoiceChatUserInterface(*LocalUserNetId)))
 						{
 							VoiceChatUser->AddLobbyRoom(UTF8_TO_TCHAR(Data->LobbyId));
 						}
-#endif
+#endif // WITH_EOSVOICECHAT
 
 						OnLobbyUpdateReceived(Data->LobbyId); // We could use LocalUserNetId here instead of the default local user for the session, but the end result should be the same
 					}
@@ -4470,12 +4470,12 @@ uint32 FOnlineSessionEOS::DestroyLobbySession(int32 LocalUserNum, FNamedOnlineSe
 					UE_LOG_ONLINE_SESSION(Warning, TEXT("[FOnlineSessionEOS::DestroyLobbySession] LeaveLobby not successful. Finished with EOS_EResult %s"), ANSI_TO_TCHAR(EOS_EResult_ToString(Data->ResultCode)));
 				}
 
-#if WITH_EOS_RTC
+#if WITH_EOSVOICECHAT
 				if (FEOSVoiceChatUser* VoiceChatUser = static_cast<FEOSVoiceChatUser*>(EOSSubsystem->GetEOSVoiceChatUserInterface(*EOSSubsystem->UserManager->GetLocalUniqueNetIdEOS(LocalUserNum))))
 				{
 					VoiceChatUser->RemoveLobbyRoom(UTF8_TO_TCHAR(Data->LobbyId));
 				}
-#endif
+#endif // WITH_EOSVOICECHAT
 
 				EndSessionAnalytics();
 

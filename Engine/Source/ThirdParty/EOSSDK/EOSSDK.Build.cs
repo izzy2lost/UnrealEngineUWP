@@ -208,15 +208,37 @@ public class EOSSDK : ModuleRules
 		}
 	}
 
+	/**
+	 * Allow projects to provide their own EOSSDK binaries.
+	 * In monolithic targets, prevents this module adding EOSSDK binaries to the linker args. The project is expected to add EOSSDK binaries to the linker args instead.
+	 * In unique build environments, prevents this module staging EOSSDK binaries. The project is expected to stage EOSSDK binaries instead.
+	 */
+	[ConfigFile(ConfigHierarchyType.Engine, "EOSSDK")]
+	bool bHasProjectBinary = false;
+
+	bool HasProjectBinary
+	{
+		get
+		{
+			ConfigCache.ReadSettings(DirectoryReference.FromFile(Target.ProjectFile), Target.Platform, this);
+			return bHasProjectBinary;
+		}
+	}
+
 	public EOSSDK(ReadOnlyTargetRules Target) : base(Target)
 	{
 		Type = ModuleType.External;
 
 		bool bIsMonolithic = Target.LinkType == TargetLinkType.Monolithic;
 		bool bIsUniqueBuildEnv = Target.BuildEnvironment == TargetBuildEnvironment.Unique;
-		bool bUseProjectBinary = (bIsMonolithic || bIsUniqueBuildEnv) && Target.GlobalDefinitions.Contains("EOSSDK_USE_PROJECT_BINARY=1");
 
-		if (!bUseProjectBinary && Target.Platform == UnrealTargetPlatform.LinuxArm64)
+		// Don't link against the SDK if this is a monolithic build and a project binary is being provided.
+		bool bEnableLink = !(bIsMonolithic && HasProjectBinary);
+
+		// Don't stage if this is a unique build environment and a project binary is being provided
+		bool bEnableStage = bEnableLink && !(bIsUniqueBuildEnv && HasProjectBinary);
+
+		if (bEnableLink && Target.Platform == UnrealTargetPlatform.LinuxArm64)
         {
 			// Not supported yet for non-project binaries.
 			PublicDefinitions.Add("WITH_EOS_SDK=0");
@@ -239,7 +261,7 @@ public class EOSSDK : ModuleRules
 		{
 			PublicSystemIncludePaths.Add(Path.Combine(SDKIncludesDir, "Android"));
 
-			if (!bUseProjectBinary)
+			if (bEnableLink)
 			{
 				PublicAdditionalLibraries.Add(Path.Combine(SDKBinariesDir, "static-stdc++", "libs", "armeabi-v7a", RuntimeLibraryFileName));
 				PublicAdditionalLibraries.Add(Path.Combine(SDKBinariesDir, "static-stdc++", "libs", "arm64-v8a", RuntimeLibraryFileName));
@@ -251,7 +273,7 @@ public class EOSSDK : ModuleRules
         }
 		else if (Target.Platform == UnrealTargetPlatform.IOS)
 		{
-			if (!bUseProjectBinary)
+			if (bEnableLink)
 			{
 				PublicAdditionalFrameworks.Add(new Framework("EOSSDK", SDKBinariesDir, "", true));
 			}
@@ -264,11 +286,14 @@ public class EOSSDK : ModuleRules
 		}
 		else
 		{
-			// Allow projects to provide their own EOSSDK binaries. We will still compile against our own headers, because EOSSDK makes guarantees about forward compat. Note this global definition is only valid for monolithic targets.
-			if(!bUseProjectBinary)
+			if(bEnableLink)
             {
 				PublicAdditionalLibraries.Add(Path.Combine(SDKBinariesDir, LibraryLinkName));
-				RuntimeDependencies.Add(Path.Combine(EngineBinariesDir, RuntimeLibraryFileName), Path.Combine(SDKBinariesDir, RuntimeLibraryFileName));
+
+				if(bEnableStage)
+				{
+					RuntimeDependencies.Add(Path.Combine(EngineBinariesDir, RuntimeLibraryFileName), Path.Combine(SDKBinariesDir, RuntimeLibraryFileName));
+				}
 
 				// needed for linux to find the .so
 				PublicRuntimeLibraryPaths.Add(EngineBinariesDir);
