@@ -2131,6 +2131,14 @@ static EHairGeometryType ConvertLODGeometryType(EHairGeometryType Type, bool Inb
 	return EHairGeometryType::NoneGeometry;
 }
 
+static EHairGeometryType GetLODGeometryType(FHairGroupInstance* InInstance, int32 InLODIndex, EShaderPlatform InShaderPlatform=GMaxRHIShaderPlatform)
+{
+	const TArray<EHairGeometryType>& LODGeometryTypes = InInstance->HairGroupPublicData->GetLODGeometryTypes();
+	check(LODGeometryTypes.IsValidIndex(InLODIndex));
+	const bool bForceCards = GHairStrands_UseCards > 0 || InInstance->bForceCards;
+	return ConvertLODGeometryType(LODGeometryTypes[InLODIndex], bForceCards, InShaderPlatform);
+}
+
 static void RunHairBufferSwap(const FHairStrandsInstances& Instances, const TArray<const FSceneView*> Views)
 {
 	EShaderPlatform ShaderPlatform = EShaderPlatform::SP_NumPlatforms;
@@ -2217,7 +2225,6 @@ void AddHairStreamingRequest(FHairGroupInstance* Instance, int32 InLODIndex)
 		const float MinLOD = FMath::Max(0, GHairStrandsMinLOD);
 		float LODIndex = FMath::Max(InLODIndex, MinLOD);
 
-		const TArray<EHairGeometryType>& LODGeometryTypes = Instance->HairGroupPublicData->GetLODGeometryTypes();
 		const TArray<bool>& LODVisibilities = Instance->HairGroupPublicData->GetLODVisibilities();
 		const int32 LODCount = LODVisibilities.Num();
 
@@ -2225,9 +2232,8 @@ void AddHairStreamingRequest(FHairGroupInstance* Instance, int32 InLODIndex)
 
 		const int32 IntLODIndex = FMath::Clamp(FMath::FloorToInt(LODIndex), 0, LODCount - 1);
 		const bool bIsVisible = LODVisibilities[IntLODIndex];
-		const bool bForceCards = GHairStrands_UseCards > 0 || Instance->bForceCards; // todo
-		EHairGeometryType GeometryType = ConvertLODGeometryType(LODGeometryTypes[IntLODIndex], bForceCards, GMaxRHIShaderPlatform);
 
+		EHairGeometryType GeometryType = GetLODGeometryType(Instance, IntLODIndex);
 		if (GeometryType == EHairGeometryType::Meshes)
 		{
 			if (!Instance->Meshes.IsValid(IntLODIndex))
@@ -2488,11 +2494,10 @@ static bool SelectValidLOD(
 	bool bHasPathTracingView)
 {
 	const int32 IntHairLODIndex = FMath::Clamp(FMath::FloorToInt(HairLODIndex), 0, HairLODCount - 1);
-	const TArray<EHairGeometryType>& LODGeometryTypes = Instance->HairGroupPublicData->GetLODGeometryTypes();
 	const TArray<bool>& LODVisibilities = Instance->HairGroupPublicData->GetLODVisibilities();
 	const bool bIsVisible = LODVisibilities[IntHairLODIndex];
-	const bool bForceCards = GHairStrands_UseCards > 0 || Instance->bForceCards; // todo
-	EHairGeometryType GeometryType = ConvertLODGeometryType(LODGeometryTypes[IntHairLODIndex], bForceCards, ShaderPlatform);
+
+	EHairGeometryType GeometryType = GetLODGeometryType(Instance, IntHairLODIndex, ShaderPlatform);
 
 	// Skip cluster culling if strands have a single LOD (i.e.: LOD0), and the instance is static (i.e., no skinning, no simulation, ...)
 	bool bCullingEnable = false;
@@ -2604,17 +2609,17 @@ static bool SelectValidLOD(
 	{
 		check(Instance->HairGroupPublicData);
 
-		if (Instance->Strands.RestRootResource)			{ Instance->Strands.RestRootResource->Allocate(GraphBuilder, EHairResourceLoadingType::Async, ResourceStatus, RequestedCurveCount, RequestedPointCount, MeshLODIndex); }
-		if (Instance->Strands.RestResource)				{ Instance->Strands.RestResource->Allocate(GraphBuilder, EHairResourceLoadingType::Async, ResourceStatus, RequestedCurveCount, RequestedPointCount); }
-		if (Instance->Strands.ClusterResource)			{ Instance->Strands.ClusterResource->Allocate(GraphBuilder, EHairResourceLoadingType::Async, ResourceStatus, RequestedCurveCount, RequestedPointCount); }
-		if (Instance->Strands.InterpolationResource)	{ Instance->Strands.InterpolationResource->Allocate(GraphBuilder, EHairResourceLoadingType::Async, ResourceStatus, RequestedCurveCount, RequestedPointCount); }
-		if (Instance->Strands.CullingResource)			{ Instance->Strands.CullingResource->Allocate(GraphBuilder, EHairResourceLoadingType::Async, ResourceStatus, RequestedCurveCount, RequestedPointCount); }
+		if (Instance->Strands.RestRootResource)			{ Instance->Strands.RestRootResource->Allocate		(GraphBuilder, EHairResourceLoadingType::Async, ResourceStatus, RequestedCurveCount, RequestedPointCount, MeshLODIndex,       false/*bAllowDeallocation*/); }
+		if (Instance->Strands.RestResource)				{ Instance->Strands.RestResource->Allocate			(GraphBuilder, EHairResourceLoadingType::Async, ResourceStatus, RequestedCurveCount, RequestedPointCount, -1/*MeshLODIndex*/, false/*bAllowDeallocation*/); }
+		if (Instance->Strands.ClusterResource)			{ Instance->Strands.ClusterResource->Allocate		(GraphBuilder, EHairResourceLoadingType::Async, ResourceStatus, RequestedCurveCount, RequestedPointCount, -1/*MeshLODIndex*/, false/*bAllowDeallocation*/); }
+		if (Instance->Strands.InterpolationResource)	{ Instance->Strands.InterpolationResource->Allocate	(GraphBuilder, EHairResourceLoadingType::Async, ResourceStatus, RequestedCurveCount, RequestedPointCount, -1/*MeshLODIndex*/, false/*bAllowDeallocation*/); }
+		if (Instance->Strands.CullingResource)			{ Instance->Strands.CullingResource->Allocate		(GraphBuilder, EHairResourceLoadingType::Async, ResourceStatus, RequestedCurveCount, RequestedPointCount); }
 
-		if (Instance->Strands.DeformedRootResource)		{ Instance->Strands.DeformedRootResource->Allocate(GraphBuilder, EHairResourceLoadingType::Async, ResourceStatus, RequestedCurveCount, RequestedPointCount, MeshLODIndex); }
-		if (Instance->Strands.DeformedResource)			{ Instance->Strands.DeformedResource->Allocate(GraphBuilder, EHairResourceLoadingType::Async, ResourceStatus, RequestedCurveCount, RequestedPointCount); }
+		if (Instance->Strands.DeformedRootResource)		{ Instance->Strands.DeformedRootResource->Allocate	(GraphBuilder, EHairResourceLoadingType::Async, ResourceStatus, RequestedCurveCount, RequestedPointCount, MeshLODIndex); }
+		if (Instance->Strands.DeformedResource)			{ Instance->Strands.DeformedResource->Allocate		(GraphBuilder, EHairResourceLoadingType::Async, ResourceStatus, RequestedCurveCount, RequestedPointCount); }
 #if RHI_RAYTRACING
 		if (bHasPathTracingView)						{ AllocateRaytracingResources(Instance); }
-		if (Instance->Strands.RenRaytracingResource)	{ Instance->Strands.RenRaytracingResource->Allocate(GraphBuilder, EHairResourceLoadingType::Async, ResourceStatus, RequestedCurveCount, RequestedPointCount); }
+		if (Instance->Strands.RenRaytracingResource)	{ Instance->Strands.RenRaytracingResource->Allocate	(GraphBuilder, EHairResourceLoadingType::Async, ResourceStatus, RequestedCurveCount, RequestedPointCount, -1/*MeshLODIndex*/, Instance->Strands.RenRaytracingResourceOwned/*bAllowDeallocation*/); }
 #endif
 		Instance->Strands.VertexFactory->InitResources(GraphBuilder.RHICmdList);
 
@@ -2732,6 +2737,41 @@ static void RunHairLODSelection(
 
 	};
 
+	struct FUniqueGroom
+	{
+		uint32 InstanceCount = 0;
+		FHairLOD HairLOD;
+		uint32 AssetHash = 0;
+		uint32 GroupIndex = 0;
+		int32 MeshLODIndex = -1;
+		uint32 RestCurveCount = 0;
+
+		// Resources
+		FHairStrandsRestResource*			RestResource = nullptr;
+		FHairStrandsInterpolationResource*	InterpolationResource = nullptr;
+		FHairStrandsClusterResource* 		ClusterResource = nullptr;
+	#if RHI_RAYTRACING
+		FHairStrandsRaytracingResource*		RaytracingResource = nullptr;
+	#endif
+	};
+	TArray<FUniqueGroom> UniqueGroomAssets;
+	UniqueGroomAssets.Reserve(Instances.Num());
+
+	struct FUniqueGroomBinding
+	{
+		uint32 InstanceCount = 0;
+		FHairLOD HairLOD;
+		uint32 AssetHash = 0;
+		uint32 GroupIndex = 0;
+		int32 MeshLODIndex = -1;
+		uint32 RestCurveCount = 0;
+
+		// Resources
+		FHairStrandsRestRootResource* RestRootResource = nullptr;
+	};
+	TArray<FUniqueGroomBinding> UniqueGroomBindingAssets;
+	UniqueGroomAssets.Reserve(Instances.Num());
+
 	// Find unique groom assets
 	TArray<FInstanceData> InstanceDatas;
 	InstanceDatas.Reserve(Instances.Num());
@@ -2748,6 +2788,100 @@ static void RunHairLODSelection(
 		InstanceData.PrevMeshLODIndex 		= Instance->HairGroupPublicData->GetMeshLODIndex();
 		InstanceData.HairLOD 				= ComputeHairLODIndex(Instance, Views);
 		InstanceData.MeshLODIndex 			= GetMeshLODIndex(GraphBuilder, ShaderMap, Scene, Instance, InstanceData.MeshLODLocalToWorld);
+
+		const EHairGeometryType GeometryType = GetLODGeometryType(Instance, InstanceData.HairLOD.HairLODIndex, ShaderPlatform);
+		const EHairBindingType BindingType = Instance->HairGroupPublicData->GetBindingType(InstanceData.HairLOD.HairLODIndex);
+
+		// Extract unique Groom/GroomBinding assets
+		// Only for strands geometry as, we only support fine-grain stream on strands resources
+		if (GeometryType == EHairGeometryType::Strands)
+		{
+			// Groom
+			{
+				FUniqueGroom* Unique = UniqueGroomAssets.FindByPredicate([Instance](const FUniqueGroom& A) { return A.AssetHash == Instance->Debug.GroomAssetHash && A.GroupIndex == Instance->Debug.GroupIndex; });
+				if (Unique)
+				{
+					if (InstanceData.HairLOD.ContinuousLODCurveCount > Unique->HairLOD.ContinuousLODCurveCount)
+					{
+						Unique->HairLOD = InstanceData.HairLOD;
+					}
+				}
+				else
+				{
+					Unique 					= &UniqueGroomAssets.AddDefaulted_GetRef();
+					Unique->AssetHash 		= Instance->Debug.GroomAssetHash;
+					Unique->GroupIndex 		= Instance->Debug.GroupIndex;
+					Unique->HairLOD 		= InstanceData.HairLOD;
+					Unique->RestCurveCount 	= Instance->HairGroupPublicData->RestCurveCount;
+				}
+				++Unique->InstanceCount;
+
+				if (!Unique->RestResource) 			{ Unique->RestResource 			= Instance->Strands.RestResource; }
+				if (!Unique->InterpolationResource) { Unique->InterpolationResource = Instance->Strands.InterpolationResource; }
+				if (!Unique->ClusterResource) 		{ Unique->ClusterResource 		= Instance->Strands.ClusterResource; }
+			#if RHI_RAYTRACING
+				if (!Unique->RaytracingResource && !Instance->Strands.RenRaytracingResourceOwned)
+				{
+					Unique->RaytracingResource 	= Instance->Strands.RenRaytracingResource;
+				}
+			#endif
+			}
+	
+			// Groom binding
+			if (BindingType == EHairBindingType::Skinning)
+			{
+				FUniqueGroomBinding* Unique = UniqueGroomBindingAssets.FindByPredicate([Instance](const FUniqueGroomBinding& A) { return A.AssetHash == Instance->Debug.GroomBindingAssetHash && A.GroupIndex == Instance->Debug.GroupIndex; });
+				if (Unique)
+				{
+					if (InstanceData.HairLOD.ContinuousLODCurveCount > Unique->HairLOD.ContinuousLODCurveCount)
+					{
+						Unique->HairLOD 	= InstanceData.HairLOD;
+						Unique->MeshLODIndex= InstanceData.MeshLODIndex;
+					}
+				}
+				else
+				{
+					Unique 					= &UniqueGroomBindingAssets.AddDefaulted_GetRef();
+					Unique->AssetHash 		= Instance->Debug.GroomBindingAssetHash;
+					Unique->GroupIndex 		= Instance->Debug.GroupIndex;
+					Unique->HairLOD 		= InstanceData.HairLOD;
+					Unique->RestCurveCount 	= Instance->HairGroupPublicData->RestCurveCount;
+					Unique->MeshLODIndex 	= InstanceData.MeshLODIndex;
+				}
+				++Unique->InstanceCount;
+
+				if (!Unique->RestRootResource) { Unique->RestRootResource = Instance->Strands.RestRootResource; }
+			}
+		}
+	}
+
+	// Emit streaming request for each unique Groom/GroomBinding group
+	for (FUniqueGroom& Unique : UniqueGroomAssets)
+	{
+		const uint32 RequestedCurveCount = Unique.HairLOD.ContinuousLODCurveCount;
+		const uint32 RequestedPointCount = Unique.HairLOD.ContinuousLODPointCount;
+
+		EHairResourceStatus ResourceStatus;
+		ResourceStatus.Status 				= EHairResourceStatus::EStatus::None;
+		ResourceStatus.AvailableCurveCount 	= Unique.RestCurveCount;
+
+		if (Unique.RestResource)			{ Unique.RestResource->Allocate(GraphBuilder, EHairResourceLoadingType::Async, ResourceStatus, RequestedCurveCount, RequestedPointCount); }
+		if (Unique.ClusterResource)			{ Unique.ClusterResource->Allocate(GraphBuilder, EHairResourceLoadingType::Async, ResourceStatus, RequestedCurveCount, RequestedPointCount); }
+		if (Unique.InterpolationResource)	{ Unique.InterpolationResource->Allocate(GraphBuilder, EHairResourceLoadingType::Async, ResourceStatus, RequestedCurveCount, RequestedPointCount); }
+		#if RHI_RAYTRACING
+		if (Unique.RaytracingResource)		{ Unique.RaytracingResource->Allocate(GraphBuilder, EHairResourceLoadingType::Async, ResourceStatus, RequestedCurveCount, RequestedPointCount); }
+		#endif
+	}
+	for (FUniqueGroomBinding& Unique : UniqueGroomBindingAssets)
+	{
+		const uint32 RequestedCurveCount = Unique.HairLOD.ContinuousLODCurveCount;
+		const uint32 RequestedPointCount = Unique.HairLOD.ContinuousLODPointCount;
+
+		EHairResourceStatus ResourceStatus;
+		ResourceStatus.Status 				= EHairResourceStatus::EStatus::None;
+		ResourceStatus.AvailableCurveCount 	= Unique.RestCurveCount;
+
+		if (Unique.RestRootResource)		{ Unique.RestRootResource->Allocate(GraphBuilder, EHairResourceLoadingType::Async, ResourceStatus, RequestedCurveCount, RequestedPointCount, Unique.MeshLODIndex); }
 	}
 
 	// LOD selection & load resources

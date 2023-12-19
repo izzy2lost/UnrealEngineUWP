@@ -90,6 +90,11 @@ bool IsHairStrandsDDCLogEnable()
 	return GHairStrandsDDCLogEnable > 0;
 }
 
+uint32 GetAssetNameHash(const FString& In)
+{
+	return CityHash32((const char*)*In, In.Len() * sizeof(FString::ElementType));
+}
+
 static int32 GHairMaxSimulatedLOD = -1;
 static FAutoConsoleVariableRef CVarHairMaxSimulatedLOD(TEXT("r.HairStrands.MaxSimulatedLOD"), GHairMaxSimulatedLOD, TEXT("Maximum hair LOD to be simulated"));
 static bool IsHairLODSimulationEnabled(const int32 LODIndex) { return (LODIndex >= 0 && (GHairMaxSimulatedLOD < 0 || (GHairMaxSimulatedLOD >= 0 && LODIndex <= GHairMaxSimulatedLOD))); }
@@ -1208,6 +1213,9 @@ void UGroomAsset::PostLoad()
 	LLM_SCOPE_BYTAG(Groom);
 
 	Super::PostLoad();
+
+	// Compute a hash of the Groom asset fullname for finding unique groom during LOD selection/streaming
+	AssetNameHash = GetAssetNameHash(GetFullName());
 
 	// Legacy asset are missing rendering or interpolation settings
 #if WITH_EDITORONLY_DATA

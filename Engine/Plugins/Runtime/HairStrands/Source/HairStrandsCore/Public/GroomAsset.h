@@ -717,6 +717,7 @@ public:
 
 	/** Helper function to return the asset path name, optionally joined with the LOD index if LODIndex > -1. */
 	FName GetAssetPathName(int32 LODIndex = -1);
+	uint32 GetAssetHash() const { return AssetNameHash; }
 
 //private :
 #if WITH_EDITOR
@@ -826,6 +827,7 @@ private:
 	bool bRetryLoadFromGameThread = false;
 #endif // WITH_EDITORONLY_DATA
 	bool bIsInitialized = false;
+	uint32 AssetNameHash = 0;
 
 #if WITH_EDITOR
 public:

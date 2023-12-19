@@ -227,6 +227,7 @@ public:
 
 	/** Helper function to return the asset path name, optionally joined with the LOD index if LODIndex > -1. */
 	FName GetAssetPathName(int32 LODIndex = -1);
+	uint32 GetAssetHash() const { return AssetNameHash; }
 
 #if WITH_EDITOR
 	FOnGroomBindingAssetChanged& GetOnGroomBindingAssetChanged() { return OnGroomBindingAssetChanged; }
@@ -282,6 +283,7 @@ private:
 	TArray<FString> CachedDerivedDataKey;
 #endif
 	bool bIsValid = false;
+	uint32 AssetNameHash = 0;
 };
 
 UCLASS(BlueprintType, hidecategories = (Object))

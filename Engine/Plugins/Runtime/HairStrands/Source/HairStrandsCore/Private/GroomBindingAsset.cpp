@@ -31,6 +31,7 @@ LLM_DECLARE_TAG(Groom);
 /////////////////////////////////////////////////////////////////////////////////////////
 
 bool IsHairStrandsDDCLogEnable();
+uint32 GetAssetNameHash(const FString& In);
 
 ////////////////////////////////////////////////////////////////////////////////////////////////////////////
 
@@ -324,6 +325,10 @@ void UGroomBindingAsset::PostLoad()
 	LLM_SCOPE_BYTAG(Groom);
 
 	Super::PostLoad();
+
+	// Compute a hash of the Groom asset fullname for finding unique groom during LOD selection/streaming
+	AssetNameHash = GetAssetNameHash(GetFullName());
+
 	if (UGroomAsset* LocalGroom = GetGroom())
 	{
 		// Make sure that the asset initialized its resources first since the component needs them to initialize its own resources

@@ -244,6 +244,8 @@ struct HAIRSTRANDSCORE_API FHairGroupInstance : public FHairStrandsInstance
 		uint32					GroupCount = 0;
 		FString					GroomAssetName;
 		uint32					LastFrameIndex = ~0;
+		uint32					GroomAssetHash = 0;
+		uint32					GroomBindingAssetHash = 0;
 
 		float					LODPredictedIndex = -1.f;	// Computed on the rendering-thread, readback on the game-thread during tick()
 		float					LODForcedIndex = -1.f;		// Set by the game-thread, read on the rendering-thread to force a particular LOD
