@@ -251,7 +251,7 @@ namespace mu
 			{
 				return m_pObject == Other.m_pObject
 					&&
-					m_lod == m_lod;
+					m_lod == Other.m_lod;
 			}
 
 			friend FORCEINLINE uint32 GetTypeHash(const FAdditionalComponentKey& InKey)
