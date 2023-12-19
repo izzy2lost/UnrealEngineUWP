@@ -164,6 +164,10 @@ namespace UE::NNERuntimeIREE::ModuleMetaData::Private
 		}
 
 		FunctionMetaData.Name = FunctionString.Mid(0, ArgumentsOpenBracket).TrimStartAndEnd();
+		if (FunctionMetaData.Name.IsEmpty())
+		{
+			return false;
+		}
 		FunctionMetaData.InputDescs.Empty();
 		FunctionMetaData.OutputDescs.Empty();
 

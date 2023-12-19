@@ -18,6 +18,8 @@ public class NNERuntimeIREEEditor : ModuleRules
 				"MainFrame",
 				"NNE",
 				"NNERuntimeIREE",
+				"Slate",
+				"SlateCore",
 				"UnrealEd"
 			}
 		);
