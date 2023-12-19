@@ -111,7 +111,7 @@ void UAssetEditorSubsystem::Deinitialize()
 void UAssetEditorSubsystem::InitializeRecentAssets()
 {
 	// The current max allowed is 30 assets
-	RecentAssetsList = MakeUnique<FMainMRUFavoritesList>(TEXT("AssetEditorSubsystemRecents"), 30);
+	RecentAssetsList = MakeUnique<FMainMRUFavoritesList>(TEXT("AssetEditorSubsystemRecents"), TEXT("AssetEditorSubsystemFavorites"), 30);
 	RecentAssetsList->ReadFromINI();
 	
 	TArray<FString> RecentAssetEditors;
