@@ -487,7 +487,7 @@ static void AddDrawDebugStrandsCVsPass(
 	Parameters->ViewUniformBuffer = View.ViewUniformBuffer;
 	Parameters->HairStrandsVF = Instance->Strands.UniformBuffer;
 	Parameters->LocalToWorld = FMatrix44f(Instance->LocalToWorld.ToMatrixWithScale());		// LWC_TODO: Precision loss // TODO change this to Uniform buffer parameters..
-	Parameters->MaxVertexCount = Instance->Strands.Data->GetNumPoints();
+	Parameters->MaxVertexCount = Instance->Strands.GetData().GetNumPoints();
 	Parameters->ColorTexture = GraphBuilder.CreateUAV(ColorTexture);
 	Parameters->DepthTexture = DepthTexture;
 	Parameters->LinearSampler = TStaticSamplerState<SF_Bilinear, AM_Clamp, AM_Clamp, AM_Clamp>::GetRHI();
@@ -579,7 +579,7 @@ static void AddDrawDebugCardsGuidesPass(
 	}
 
 	const FHairGroupInstance::FCards::FLOD& LOD = Instance->Cards.LODs[HairLODIndex];
-	if (!LOD.Guides.Data)
+	if (!LOD.Guides.RestResource)
 	{
 		return;
 	}
@@ -820,9 +820,8 @@ static void AddHairDebugPrintInstancePass(
 		case EHairGeometryType::Strands:
 			if (Instance->Strands.IsValid())
 			{
-				check(Instance->Strands.Data);
-				D.Data0.Z = Instance->Strands.Data->GetNumCurves(); // Change this later on for having dynamic value
-				D.Data0.W = Instance->Strands.Data->GetNumPoints(); // Change this later on for having dynamic value
+				D.Data0.Z = Instance->Strands.GetData().GetNumCurves(); // Change this later on for having dynamic value
+				D.Data0.W = Instance->Strands.GetData().GetNumPoints(); // Change this later on for having dynamic value
 				const int32 MeshLODIndex = Instance->HairGroupPublicData->MeshLODIndex;
 				if (MeshLODIndex>=0 && Instance->Strands.RestRootResource)
 				{
@@ -845,7 +844,7 @@ static void AddHairDebugPrintInstancePass(
 					D.Data2.Y = Instance->HairGroupPublicData->GetActiveStrandsPointCount();
 					D.Data2.Z = Instance->HairGroupPublicData->GetActiveStrandsCurveCount();
 
-					D.Data2.W = Instance->Strands.Data->Header.ImportedAttributes;
+					D.Data2.W = Instance->Strands.GetData().Header.ImportedAttributes;
 				}
 				
 				D.Data3 = FUintVector4(0);
@@ -868,8 +867,8 @@ static void AddHairDebugPrintInstancePass(
 		case EHairGeometryType::Cards:
 			if (Instance->Cards.IsValid(IntLODIndex))
 			{
-				D.Data0.Z = Instance->Cards.LODs[IntLODIndex].Guides.IsValid() ? Instance->Cards.LODs[IntLODIndex].Guides.Data->GetNumCurves() : 0;
-				D.Data0.W = Instance->Cards.LODs[IntLODIndex].Data->GetNumVertices();
+				D.Data0.Z = Instance->Cards.LODs[IntLODIndex].Guides.IsValid() ? Instance->Cards.LODs[IntLODIndex].Guides.GetData().GetNumCurves() : 0;
+				D.Data0.W = Instance->Cards.LODs[IntLODIndex].GetData().GetNumVertices();
 
 				D.Data2 = FUintVector4(0);
 				D.Data2.X |= VisibilityType == EHairInstanceVisibilityType::CardsOrMeshesPrimaryView ? 0x1u : 0u;
@@ -887,7 +886,7 @@ static void AddHairDebugPrintInstancePass(
 			if (Instance->Meshes.IsValid(IntLODIndex))
 			{
 				D.Data0.Z = 0;
-				D.Data0.W = Instance->Meshes.LODs[IntLODIndex].Data->GetNumVertices();
+				D.Data0.W = Instance->Meshes.LODs[IntLODIndex].GetData().GetNumVertices();
 
 				D.Data2 = FUintVector4(0);
 				D.Data2.X |= VisibilityType == EHairInstanceVisibilityType::CardsOrMeshesPrimaryView ? 0x1u : 0u;
@@ -1113,14 +1112,15 @@ static void AddHairDebugPrintMemoryPass(
 				for (uint32 GroupIt = 0; GroupIt < GroupCount; ++GroupIt)
 				{					
 					const FHairGroupPlatformData& Data = AssetIt->GetHairGroupsPlatformData()[GroupIt];
-					const FGroomAssetMemoryStats MemoryStats = FGroomAssetMemoryStats::Get(Data);
+					const FHairGroupResources& Resources = AssetIt->GetHairGroupsResources()[GroupIt];
+					const FGroomAssetMemoryStats MemoryStats = FGroomAssetMemoryStats::Get(Data, Resources);
 
 					GroomNames.Add(AssetIt->GetName());
 
 					FInfos& D = GroomBuffer.AddDefaulted_GetRef();
 					D.Data0.X = GroupIt;
 					D.Data0.Y = GroupCount;
-					D.Data0.Z = Data.Strands.RestResource ? Data.Strands.RestResource->MaxAvailableCurveCount : 0;
+					D.Data0.Z = Resources.Strands.RestResource ? Resources.Strands.RestResource->MaxAvailableCurveCount : 0;
 					D.Data0.W = Data.Strands.BulkData.IsValid() ? Data.Strands.BulkData.GetNumCurves() : 0;
 			
 					D.Data1.X = MemoryStats.CPU.Guides;

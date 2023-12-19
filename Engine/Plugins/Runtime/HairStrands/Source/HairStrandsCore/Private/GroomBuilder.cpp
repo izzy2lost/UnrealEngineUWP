@@ -3419,7 +3419,7 @@ static FRDGBufferRef ReadPositions(
 	FRDGBufferRef OutPositions = nullptr;
 	if (const FHairGroupInstance* Instance = Component->GetGroupInstance(GroupIt))
 	{
-		const uint32 NumVertices = Instance->Strands.Data->GetNumPoints();
+		const uint32 NumVertices = Instance->Strands.GetData().GetNumPoints();
 
 		FRDGBufferSRVRef InPositions = nullptr;
 		FRDGBufferSRVRef InPositionOffset = nullptr;

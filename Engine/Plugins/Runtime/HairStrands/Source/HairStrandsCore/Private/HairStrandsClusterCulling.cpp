@@ -196,7 +196,7 @@ void AddInstanceToClusterData(FHairGroupInstance* In, FHairStrandClusterData& Ou
 	// Initialize group cluster data for culling by the renderer
 	const int32 ClusterDataGroupIndex = Out.HairGroups.Num();
 	FHairStrandClusterData::FHairGroup& HairGroupCluster = Out.HairGroups.Emplace_GetRef();
-	HairGroupCluster.MaxPointPerCurve = In->Strands.Data ? In->Strands.Data->Header.MaxPointPerCurve : 0;
+	HairGroupCluster.MaxPointPerCurve = In->Strands.IsValid() ? In->Strands.GetData().Header.MaxPointPerCurve : 0;
 	HairGroupCluster.ClusterScale = In->HairGroupPublicData->ClusterScale;
 
 	HairGroupCluster.CurveBuffer = &In->Strands.RestResource->CurveBuffer;

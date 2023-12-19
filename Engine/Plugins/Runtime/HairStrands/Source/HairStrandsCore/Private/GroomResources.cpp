@@ -1795,12 +1795,10 @@ void CreateHairStrandsDebugDatas(
 	check(Out.VoxelData.Num()>0);
 }
 
-void CreateHairStrandsDebugResources(FRDGBuilder& GraphBuilder, const FHairStrandsDebugDatas* In, FHairStrandsDebugDatas::FResources* Out)
+void CreateHairStrandsDebugResources(FRDGBuilder& GraphBuilder, const FHairStrandsDebugDatas* In, FHairStrandsDebugResources* Out)
 {
 	check(In);
 	check(Out);
-
-	Out->VoxelDescription = In->VoxelDescription;
 
 	FRDGBufferRef VoxelOffsetAndCount = CreateStructuredBuffer(
 		GraphBuilder,
@@ -1818,6 +1816,7 @@ void CreateHairStrandsDebugResources(FRDGBuilder& GraphBuilder, const FHairStran
 		In->VoxelData.GetData(),
 		sizeof(FHairStrandsDebugDatas::FVoxel) * In->VoxelData.Num());
 
+	Out->VoxelDescription = In->VoxelDescription;
 	Out->VoxelOffsetAndCount = ConvertToExternalAccessBuffer(GraphBuilder, VoxelOffsetAndCount);
 	Out->VoxelData = ConvertToExternalAccessBuffer(GraphBuilder, VoxelData);
 }

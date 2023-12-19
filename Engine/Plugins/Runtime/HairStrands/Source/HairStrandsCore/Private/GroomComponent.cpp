@@ -2167,16 +2167,16 @@ UMaterialInterface* UGroomComponent::GetMaterial(int32 ElementIndex) const
 
 FHairStrandsRestResource* UGroomComponent::GetGuideStrandsRestResource(uint32 GroupIndex)
 {
-	if (!GroomAsset || GroupIndex >= uint32(GroomAsset->GetNumHairGroups()))
+	if (!GroomAsset || !GroomAsset->GetHairGroupsResources().IsValidIndex(GroupIndex))
 	{
 		return nullptr;
 	}
 
-	if (!GroomAsset->GetHairGroupsPlatformData()[GroupIndex].Guides.IsValid())
+	if (!GroomAsset->GetHairGroupsResources()[GroupIndex].Guides.IsValid())
 	{
 		return nullptr;
 	}
-	return GroomAsset->GetHairGroupsPlatformData()[GroupIndex].Guides.RestResource;
+	return GroomAsset->GetHairGroupsResources()[GroupIndex].Guides.RestResource;
 }
 
 FHairStrandsDeformedResource* UGroomComponent::GetGuideStrandsDeformedResource(uint32 GroupIndex)
@@ -2667,6 +2667,7 @@ void UGroomComponent::InitResources(bool bIsBindingReloading)
 		HairGroupInstance->LocalToWorld							= HairGroupInstance->GetCurrentLocalToWorld();
 
 		FHairGroupPlatformData& GroupData = GroomAsset->GetHairGroupsPlatformData()[GroupIt];
+		FHairGroupResources& GroupResources = GroomAsset->GetHairGroupsResources()[GroupIt];
 
 		const EHairInterpolationType HairInterpolationType = ToHairInterpolationType(GroomAsset->GetHairInterpolationType());
 
@@ -2732,8 +2733,6 @@ void UGroomComponent::InitResources(bool bIsBindingReloading)
 		const bool bNeedGuides = (GroupData.Guides.HasValidData() && (bHasNeedSimulation[GroupIt] || bHasNeedGlobalDeformation[GroupIt] || bHasNeedDeformation[GroupIt])) || HairGroupInstance->HairGroupPublicData->bIsSimulationCacheEnable;
 		if (bNeedGuides)
 		{
-			HairGroupInstance->Guides.Data = &GroupData.Guides.BulkData;
-
 			if (LocalBindingAsset)
 			{
 				check(RegisteredMeshComponent);
@@ -2750,7 +2749,7 @@ void UGroomComponent::InitResources(bool bIsBindingReloading)
 
 			// Lazy allocation of the guide resources
 			HairGroupInstance->Guides.RestResource = GroomAsset->AllocateGuidesResources(GroupIt);
-			check(GroupData.Guides.RestResource);
+			check(GroupResources.Guides.RestResource);
 
 			// If guides are allocated, deformed resources are always needs since they are either used with simulation, or RBF deformation. Both are dynamics, and require deformed positions
 			HairGroupInstance->Guides.DeformedResource = new FHairStrandsDeformedResource(GroupData.Guides.BulkData, EHairStrandsResourcesType::Guides, ResourceName, OwnerName);
@@ -2767,11 +2766,10 @@ void UGroomComponent::InitResources(bool bIsBindingReloading)
 		HairGroupInstance->Strands.Modifier = GetGroomGroupsDesc(GroomAsset, this, GroupIt);
 
 		// Strands data/resources
-		if (bNeedStrandsData && GroupData.Strands.IsValid())
+		if (bNeedStrandsData && GroupData.Strands.HasValidData())
 		{
 			check(GroupIt < GroomGroupsDesc.Num());
 
-			HairGroupInstance->Strands.Data = &GroupData.Strands.BulkData;
 			HairGroupInstance->HairGroupPublicData->RestPointCount = GroupData.Strands.BulkData.GetNumPoints();
 			HairGroupInstance->HairGroupPublicData->RestCurveCount = GroupData.Strands.BulkData.GetNumCurves();
 			HairGroupInstance->HairGroupPublicData->ClusterCount = 0u;
@@ -2873,19 +2871,19 @@ void UGroomComponent::InitResources(bool bIsBindingReloading)
 				HairGroupInstance->Strands.DeformedRootResource = new FHairStrandsDeformedRootResource(HairGroupInstance->Strands.RestRootResource, EHairStrandsResourcesType::Strands, ResourceName, OwnerName);
 			}
 
-			HairGroupInstance->Strands.RestResource = GroupData.Strands.RestResource;
+			HairGroupInstance->Strands.RestResource = GroupResources.Strands.RestResource;
 			if (bNeedDynamicResources)
 			{
 				HairGroupInstance->Strands.DeformedResource = new FHairStrandsDeformedResource(GroupData.Strands.BulkData, EHairStrandsResourcesType::Strands, ResourceName, OwnerName);
 			} 
 
 			// An empty groom doesn't have a ClusterResource
-			HairGroupInstance->Strands.ClusterResource = GroupData.Strands.ClusterResource;
+			HairGroupInstance->Strands.ClusterResource = GroupResources.Strands.ClusterResource;
 			if (HairGroupInstance->Strands.ClusterResource)
 			{
 				// This codes assumes strands LOD are contigus and the highest (i.e., 0...x). Change this code to something more robust
 				check(HairGroupInstance->HairGroupPublicData);
-				const int32 StrandsLODCount = GroupData.Strands.ClusterResource->BulkData.Header.LODInfos.Num();
+				const int32 StrandsLODCount = GroupResources.Strands.ClusterResource->BulkData.Header.LODInfos.Num();
 				const TArray<float>& LODScreenSizes = HairGroupInstance->HairGroupPublicData->GetLODScreenSizes();
 				const TArray<bool>& LODVisibilities = HairGroupInstance->HairGroupPublicData->GetLODVisibilities();
 				check(StrandsLODCount <= LODScreenSizes.Num());
@@ -2905,11 +2903,15 @@ void UGroomComponent::InitResources(bool bIsBindingReloading)
 		}
 
 		// Cards resources
-		for (FHairGroupPlatformData::FCards::FLOD& LOD : GroupData.Cards.LODs)
+		const uint32 CardLODCount = GroupData.Cards.LODs.Num();
+		for (uint32 CardLODIt=0;CardLODIt<CardLODCount;++CardLODIt)
 		{
+			FHairGroupPlatformData::FCards::FLOD& LODData = GroupData.Cards.LODs[CardLODIt];
+			FHairGroupResources::FCards::FLOD& LODResource = GroupResources.Cards.LODs[CardLODIt];
+
 			const uint32 CardsLODIndex = HairGroupInstance->Cards.LODs.Num();
 			FHairGroupInstance::FCards::FLOD& InstanceLOD = HairGroupInstance->Cards.LODs.AddDefaulted_GetRef();
-			if (LOD.IsValid())
+			if (LODData.HasValidData())
 			{
 				FHairResourceName LODResourceName(GetFName(), GroupIt, CardsLODIndex);
 				const FName LODOwnerName = GroomAsset->GetAssetPathName(CardsLODIndex);
@@ -2927,13 +2929,12 @@ void UGroomComponent::InitResources(bool bIsBindingReloading)
 					check(BindingType == EHairBindingType::Skinning);
 				}
 
-				InstanceLOD.Data = &LOD.BulkData;
-				InstanceLOD.RestResource = LOD.RestResource;
-				InstanceLOD.InterpolationResource = LOD.InterpolationResource;
+				InstanceLOD.RestResource = LODResource.RestResource;
+				InstanceLOD.InterpolationResource = LODResource.InterpolationResource;
 
 				if (bNeedDeformedPositions)
 				{
-					InstanceLOD.DeformedResource = new FHairCardsDeformedResource(LOD.BulkData, false, LODResourceName, LODOwnerName);
+					InstanceLOD.DeformedResource = new FHairCardsDeformedResource(LODData.BulkData, false, LODResourceName, LODOwnerName);
 				}
 
 				#if RHI_RAYTRACING
@@ -2942,7 +2943,7 @@ void UGroomComponent::InitResources(bool bIsBindingReloading)
 					if (bNeedDeformedPositions)
 					{
 						// Allocate dynamic raytracing resources (owned by the groom component/instance)
-						InstanceLOD.RaytracingResource = new FHairStrandsRaytracingResource(*InstanceLOD.Data, LODResourceName, LODOwnerName);
+						InstanceLOD.RaytracingResource = new FHairStrandsRaytracingResource(InstanceLOD.GetData(), LODResourceName, LODOwnerName);
 						InstanceLOD.RaytracingResourceOwned = true;
 					}
 					else
@@ -2958,8 +2959,7 @@ void UGroomComponent::InitResources(bool bIsBindingReloading)
 				// Strands data/resources
 				if (bNeedDeformedPositions)
 				{
-					InstanceLOD.Guides.Data = &LOD.Guides.BulkData;
-					InstanceLOD.Guides.InterpolationResource = LOD.Guides.InterpolationResource;
+					InstanceLOD.Guides.InterpolationResource = LODResource.GuideInterpolationResource;
 
 					if (bNeedRootData)
 					{
@@ -2974,9 +2974,9 @@ void UGroomComponent::InitResources(bool bIsBindingReloading)
 						InstanceLOD.Guides.DeformedRootResource = new FHairStrandsDeformedRootResource(InstanceLOD.Guides.RestRootResource, EHairStrandsResourcesType::Cards, LODResourceName, LODOwnerName);
 					}
 
-					InstanceLOD.Guides.RestResource = LOD.Guides.RestResource;
+					InstanceLOD.Guides.RestResource = LODResource.GuideRestResource;
 					{
-						InstanceLOD.Guides.DeformedResource = new FHairStrandsDeformedResource(LOD.Guides.BulkData, EHairStrandsResourcesType::Cards, LODResourceName, LODOwnerName);
+						InstanceLOD.Guides.DeformedResource = new FHairStrandsDeformedResource(LODData.GuideBulkData, EHairStrandsResourcesType::Cards, LODResourceName, LODOwnerName);
 					}
 
 					InstanceLOD.Guides.HairInterpolationType = HairInterpolationType;
@@ -2985,11 +2985,15 @@ void UGroomComponent::InitResources(bool bIsBindingReloading)
 		}
 
 		// Meshes resources
-		for (FHairGroupPlatformData::FMeshes::FLOD& LOD : GroupData.Meshes.LODs)
+		const uint32 MeshLODCount = GroupData.Meshes.LODs.Num();
+		for (uint32 MeshLODIt=0;MeshLODIt<MeshLODCount;++MeshLODIt)
 		{
+			FHairGroupPlatformData::FMeshes::FLOD& LODData = GroupData.Meshes.LODs[MeshLODIt];
+			FHairGroupResources::FMeshes::FLOD& LODResource = GroupResources.Meshes.LODs[MeshLODIt];
+
 			const int32 MeshLODIndex = HairGroupInstance->Meshes.LODs.Num();
 			FHairGroupInstance::FMeshes::FLOD& InstanceLOD = HairGroupInstance->Meshes.LODs.AddDefaulted_GetRef();
-			if (LOD.IsValid())
+			if (LODData.IsValid())
 			{
 				FHairResourceName LODResourceName(GetFName(), GroupIt, MeshLODIndex);
 				const FName LODOwnerName = GroomAsset->GetAssetPathName(MeshLODIndex);
@@ -2998,11 +3002,10 @@ void UGroomComponent::InitResources(bool bIsBindingReloading)
 				const bool bHasGlobalDeformation   = HairGroupInstance->HairGroupPublicData->IsGlobalInterpolationEnable(MeshLODIndex);
 				const bool bNeedDeformedPositions  = bHasGlobalDeformation && BindingType == EHairBindingType::Skinning;
 
-				InstanceLOD.Data = &LOD.BulkData;
-				InstanceLOD.RestResource = LOD.RestResource;
+				InstanceLOD.RestResource = LODResource.RestResource;
 				if (bNeedDeformedPositions)
 				{
-					InstanceLOD.DeformedResource = new FHairMeshesDeformedResource(LOD.BulkData, true, LODResourceName, LODOwnerName);
+					InstanceLOD.DeformedResource = new FHairMeshesDeformedResource(LODData.BulkData, true, LODResourceName, LODOwnerName);
 				}
 
 				#if RHI_RAYTRACING
@@ -3011,7 +3014,7 @@ void UGroomComponent::InitResources(bool bIsBindingReloading)
 					if (bNeedDeformedPositions)
 					{
 						// Allocate dynamic raytracing resources (owned by the groom component/instance)
-						InstanceLOD.RaytracingResource = new FHairStrandsRaytracingResource(*InstanceLOD.Data, LODResourceName, LODOwnerName);
+						InstanceLOD.RaytracingResource = new FHairStrandsRaytracingResource(LODData.BulkData, LODResourceName, LODOwnerName);
 						InstanceLOD.RaytracingResourceOwned = true;
 					}
 					else

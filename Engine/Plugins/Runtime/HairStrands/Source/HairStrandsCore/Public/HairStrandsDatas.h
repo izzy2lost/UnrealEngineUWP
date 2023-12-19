@@ -931,12 +931,11 @@ struct HAIRSTRANDSCORE_API FHairStrandsDebugDatas
 	FDesc VoxelDescription;
 	TArray<FOffsetAndCount> VoxelOffsetAndCount;
 	TArray<FVoxel> VoxelData;
+};
 
-	struct FResources
-	{
-		FDesc VoxelDescription;
-
-		TRefCountPtr<FRDGPooledBuffer> VoxelOffsetAndCount;
-		TRefCountPtr<FRDGPooledBuffer> VoxelData;
-	};
+struct HAIRSTRANDSCORE_API FHairStrandsDebugResources
+{
+	FHairStrandsDebugDatas::FDesc VoxelDescription;
+	TRefCountPtr<FRDGPooledBuffer> VoxelOffsetAndCount;
+	TRefCountPtr<FRDGPooledBuffer> VoxelData;
 };

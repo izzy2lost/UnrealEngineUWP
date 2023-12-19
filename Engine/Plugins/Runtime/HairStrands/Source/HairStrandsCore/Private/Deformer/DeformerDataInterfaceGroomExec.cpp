@@ -120,8 +120,8 @@ int32 FOptimusGroomExecDataProviderProxy::GetDispatchThreadCount(TArray<FIntVect
 	{		
 		if (FHairGroupInstance* Instance = GroomComponent->GetGroupInstance(InvocationIndex))
 		{
-			const int32 NumControlPoints = Instance->Strands.Data->GetNumPoints();
-			const int32 NumCurves = Instance->Strands.Data->GetNumCurves();
+			const int32 NumControlPoints = Instance->Strands.GetData().GetNumPoints();
+			const int32 NumCurves = Instance->Strands.GetData().GetNumCurves();
 			const int32 NumThreads = Domain == EOptimusGroomExecDomain::ControlPoint ? NumControlPoints : NumCurves;
 			ThreadCounts.Add(FIntVector(NumThreads, 1, 1));
 		}
@@ -149,8 +149,8 @@ void FOptimusGroomExecDataProviderProxy::GatherDispatchData(FDispatchData const&
 	for (int32 InvocationIndex = 0; InvocationIndex < ParameterArray.Num(); ++InvocationIndex)
 	{
 		FHairGroupInstance* Instance = GroomComponent->GetGroupInstance(InvocationIndex);
-		const int32 NumControlPoints = Instance->Strands.Data->GetNumPoints();
-		const int32 NumCurves = Instance->Strands.Data->GetNumCurves();
+		const int32 NumControlPoints = Instance->Strands.GetData().GetNumPoints();
+		const int32 NumCurves = Instance->Strands.GetData().GetNumCurves();
 		const int32 NumThreads = Domain == EOptimusGroomExecDomain::ControlPoint ? NumControlPoints : NumCurves;
 
 		FParameters& Parameters = ParameterArray[InvocationIndex];

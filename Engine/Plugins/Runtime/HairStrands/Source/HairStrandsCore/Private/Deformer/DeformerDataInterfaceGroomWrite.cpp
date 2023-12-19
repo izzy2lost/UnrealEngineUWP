@@ -195,8 +195,8 @@ void FOptimusGroomWriteDataProviderProxy::AllocateResources(FRDGBuilder& GraphBu
 		if (GroomInstance)
 		{
 			// Allocate required buffers
-			const int32 NumControlPoints = GroomInstance->Strands.Data->GetNumPoints();
-			const int32 NumCurves = GroomInstance->Strands.Data->GetNumCurves();
+			const int32 NumControlPoints = GroomInstance->Strands.GetData().GetNumPoints();
+			const int32 NumCurves = GroomInstance->Strands.GetData().GetNumCurves();
 
 			FResources& R = Resources.AddDefaulted_GetRef();
 

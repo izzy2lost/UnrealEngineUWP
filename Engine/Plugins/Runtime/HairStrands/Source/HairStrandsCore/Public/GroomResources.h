@@ -759,6 +759,7 @@ struct FHairMeshesRestResource : public FHairCommonResource
 	/* Strand hair rest position buffer */
 	FHairCardsVertexBuffer RestPositionBuffer;
 	FHairCardIndexBuffer IndexBuffer;	
+	bool bInvertUV = false;
 
 	FHairCardsVertexBuffer NormalsBuffer;
 	FHairCardsVertexBuffer UVsBuffer;
@@ -821,4 +822,4 @@ struct FHairMeshesDeformedResource : public FHairCommonResource
 ////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////
 // Debug data (used for debug visalization but also for texture generation)
 void CreateHairStrandsDebugDatas(const FHairStrandsDatas& InData, FHairStrandsDebugDatas& Out);
-void CreateHairStrandsDebugResources(class FRDGBuilder& GraphBuilder, const FHairStrandsDebugDatas* In, FHairStrandsDebugDatas::FResources* Out);
+void CreateHairStrandsDebugResources(class FRDGBuilder& GraphBuilder, const FHairStrandsDebugDatas* In, FHairStrandsDebugResources* Out);

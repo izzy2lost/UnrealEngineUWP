@@ -1023,11 +1023,11 @@ static bool TraceTextures(
 			continue;
 		}
 
-		FHairGroupPlatformData& GroupData = InInfo.GroomAsset->GetHairGroupsPlatformData()[GroupIndex];
+		FHairGroupResources& GroupResource = InInfo.GroomAsset->GetHairGroupsResources()[GroupIndex];
 		FHairGroupsRendering& RenderingData = InInfo.GroomAsset->GetHairGroupsRendering()[GroupIndex];
 
-		FRDGBufferRef VoxelOffsetAndCount = GraphBuilder.RegisterExternalBuffer(GroupData.Debug.Resource->VoxelOffsetAndCount);
-		FRDGBufferRef VoxelData = GraphBuilder.RegisterExternalBuffer(GroupData.Debug.Resource->VoxelData);
+		FRDGBufferRef VoxelOffsetAndCount = GraphBuilder.RegisterExternalBuffer(GroupResource.Debug.Resource->VoxelOffsetAndCount);
+		FRDGBufferRef VoxelData = GraphBuilder.RegisterExternalBuffer(GroupResource.Debug.Resource->VoxelData);
 
 		{
 			FRHIShaderResourceView* PositionBuffer = nullptr;
@@ -1091,12 +1091,12 @@ static bool TraceTextures(
 			// Ensure the rest resources are loaded when rendering the strands textures
 			// Use EHairResourceLoadingType::Async, as the we can't use ::Sync because the resource is expected to be loading in async
 			// If a streaming request is in-flight, ensure it is done and allocate the resource
-			GroupData.Strands.RestResource->Allocate(GraphBuilder, EHairResourceLoadingType::Async);
+			GroupResource.Strands.RestResource->Allocate(GraphBuilder, EHairResourceLoadingType::Async);
 		#if WITH_EDITORONLY_DATA
-			if (GroupData.Strands.RestResource->StreamingRequest.DDCRequestOwner)
+			if (GroupResource.Strands.RestResource->StreamingRequest.DDCRequestOwner)
 			{
-				GroupData.Strands.RestResource->StreamingRequest.DDCRequestOwner->Wait();
-				GroupData.Strands.RestResource->Allocate(GraphBuilder, EHairResourceLoadingType::Async);
+				GroupResource.Strands.RestResource->StreamingRequest.DDCRequestOwner->Wait();
+				GroupResource.Strands.RestResource->Allocate(GraphBuilder, EHairResourceLoadingType::Async);
 			}
 		#endif	
 
@@ -1104,20 +1104,20 @@ static bool TraceTextures(
 			FHairStrandsInstanceRawParameters Instance;
 			Instance.Common.GroupIndex = GroupIndex;
 			Instance.Common.GroupCount = GroupCount;
-			Instance.Common.PointCount = GroupData.Strands.RestResource->BulkData.GetNumPoints();
-			Instance.Common.CurveCount = GroupData.Strands.RestResource->BulkData.GetNumCurves();
+			Instance.Common.PointCount = GroupResource.Strands.RestResource->BulkData.GetNumPoints();
+			Instance.Common.CurveCount = GroupResource.Strands.RestResource->BulkData.GetNumCurves();
 			Instance.Common.Radius = RenderingData.GeometrySettings.HairWidth * 0.5f;
 			Instance.Common.RootScale = 1.0f;
 			Instance.Common.TipScale = 1.0f;
 			Instance.Common.LengthScale = 1.0f;
-			Instance.Common.Length = GroupData.Strands.RestResource->BulkData.Header.MaxLength;
-			Instance.Common.PositionOffset = FVector3f(GroupData.Strands.RestResource->GetPositionOffset());
-			GetHairStrandsAttributeParameter(GroupData.Strands.RestResource->BulkData, Instance.Common.Attributes);
+			Instance.Common.Length = GroupResource.Strands.RestResource->BulkData.Header.MaxLength;
+			Instance.Common.PositionOffset = FVector3f(GroupResource.Strands.RestResource->GetPositionOffset());
+			GetHairStrandsAttributeParameter(GroupResource.Strands.RestResource->BulkData, Instance.Common.Attributes);
 
-			Instance.Resources.PositionBuffer = GroupData.Strands.RestResource->PositionBuffer.SRV;
-			Instance.Resources.CurveAttributeBuffer = GroupData.Strands.RestResource->CurveAttributeBuffer.SRV;
-			Instance.Resources.PointAttributeBuffer = GroupData.Strands.RestResource->PointAttributeBuffer.SRV;
-			Instance.Resources.PointToCurveBuffer = GroupData.Strands.RestResource->PointToCurveBuffer.SRV;
+			Instance.Resources.PositionBuffer = GroupResource.Strands.RestResource->PositionBuffer.SRV;
+			Instance.Resources.CurveAttributeBuffer = GroupResource.Strands.RestResource->CurveAttributeBuffer.SRV;
+			Instance.Resources.PointAttributeBuffer = GroupResource.Strands.RestResource->PointAttributeBuffer.SRV;
+			Instance.Resources.PointToCurveBuffer = GroupResource.Strands.RestResource->PointToCurveBuffer.SRV;
 
 			InternalGenerateHairStrandsTextures(
 				GraphBuilder,
@@ -1140,11 +1140,11 @@ static bool TraceTextures(
 				UVsBuffer,
 				TangentBuffer,
 
-				GroupData.Debug.Resource->VoxelDescription.VoxelMinBound,
-				GroupData.Debug.Resource->VoxelDescription.VoxelMaxBound,
-				GroupData.Debug.Resource->VoxelDescription.VoxelResolution,
-				GroupData.Debug.Resource->VoxelDescription.VoxelSize,
-				GroupData.Debug.Resource->VoxelDescription.MaxSegmentPerVoxel,
+				GroupResource.Debug.Resource->VoxelDescription.VoxelMinBound,
+				GroupResource.Debug.Resource->VoxelDescription.VoxelMaxBound,
+				GroupResource.Debug.Resource->VoxelDescription.VoxelResolution,
+				GroupResource.Debug.Resource->VoxelDescription.VoxelSize,
+				GroupResource.Debug.Resource->VoxelDescription.MaxSegmentPerVoxel,
 				VoxelOffsetAndCount,
 				VoxelData,
 				Instance,

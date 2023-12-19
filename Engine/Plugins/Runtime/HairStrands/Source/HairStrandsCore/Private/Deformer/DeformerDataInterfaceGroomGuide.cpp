@@ -197,8 +197,8 @@ void FOptimusGroomGuideDataProviderProxy::GatherDispatchData(FDispatchData const
 				// Reuse the strands properties for guides, and apply guides values
 				const FHairGroupPublicData::FVertexFactoryInput VFInput = ComputeHairStrandsVertexInputData(Instance, EGroomViewMode::None);
 				Parameters.Common 				= VFInput.Strands.Common;
-				Parameters.Common.PointCount 	= Instance->Guides.Data ? Instance->Guides.Data->Header.PointCount : 0;
-				Parameters.Common.CurveCount 	= Instance->Guides.Data ? Instance->Guides.Data->Header.CurveCount : 0;
+				Parameters.Common.PointCount 	= Instance->Guides.IsValid() ? Instance->Guides.GetData().Header.PointCount : 0;
+				Parameters.Common.CurveCount 	= Instance->Guides.IsValid() ? Instance->Guides.GetData().Header.CurveCount : 0;
 				Parameters.Resources 			= Resources[InvocationIndex];
 			}
 		}

@@ -79,15 +79,13 @@ struct HAIRSTRANDSCORE_API FHairGroupInstance : public FHairStrandsInstance
 	virtual ~FHairGroupInstance();
 
 	//////////////////////////////////////////////////////////////////////////////////////////
-	// Helper struct which aggregate strands based data/resources
-
-	struct FStrandsBase
+	// Simulation
+	struct FGuides
 	{
-		bool HasValidData() const { return Data != nullptr && Data->GetNumPoints() > 0; }
-		bool IsValid() const { return RestResource != nullptr; }
+		const FHairStrandsBulkData& GetData() const { return RestResource->BulkData; }
 
-		// Data - Render & sim (rest) data
-		FHairStrandsBulkData* Data = nullptr;
+		bool IsValid() const { return RestResource != nullptr; }
+		bool HasValidRootData() const { return RestRootResource != nullptr && DeformedRootResource != nullptr; }
 
 		// Resources - Strands rest position data for sim & render strands
 		// Resources - Strands deformed position data for sim & render strands
@@ -99,25 +97,6 @@ struct HAIRSTRANDSCORE_API FHairGroupInstance : public FHairStrandsInstance
 		FHairStrandsRestRootResource* RestRootResource = nullptr;
 		FHairStrandsDeformedRootResource* DeformedRootResource = nullptr;
 
-		bool HasValidRootData() const { return RestRootResource != nullptr && DeformedRootResource != nullptr; }
-	};
-
-	struct FStrandsBaseWithInterpolation : FStrandsBase
-	{
-		// Data - Interpolation data (weights/Id/...) for transfering sim strands (i.e. guide) motion to render strands
-		// Resources - Strands deformed position data for sim & render strands
-		FHairStrandsInterpolationResource* InterpolationResource = nullptr;
-
-		EHairInterpolationType HairInterpolationType = EHairInterpolationType::NoneSkinning;
-
-		// Indicates if culling is enabled for this hair strands data.
-		bool bCullingEnable = false;
-	};
-
-	//////////////////////////////////////////////////////////////////////////////////////////
-	// Simulation
-	struct FGuides : FStrandsBase
-	{
 		bool bIsSimulationEnable = false;
 		bool bIsDeformationEnable = false;
 		bool bHasGlobalInterpolation = false;
@@ -126,11 +105,30 @@ struct HAIRSTRANDSCORE_API FHairGroupInstance : public FHairStrandsInstance
 
 	//////////////////////////////////////////////////////////////////////////////////////////
 	// Strands
-	struct FStrands : FStrandsBaseWithInterpolation
+	struct FStrands
 	{
+		const FHairStrandsBulkData& GetData() const { return RestResource->BulkData; }
+
+		bool IsValid() const { return RestResource != nullptr; }
+		bool HasValidRootData() const { return RestRootResource != nullptr && DeformedRootResource != nullptr; }
+
+		// Resources - Strands rest position data for sim & render strands
+		// Resources - Strands deformed position data for sim & render strands
+		FHairStrandsRestResource* RestResource = nullptr;
+		FHairStrandsDeformedResource* DeformedResource = nullptr;
+
+		// Data - Interpolation data (weights/Id/...) for transfering sim strands (i.e. guide) motion to render strands
+		// Resources - Strands deformed position data for sim & render strands
+		FHairStrandsInterpolationResource* InterpolationResource = nullptr;
+
 		// Resources - Strands cluster data for culling/voxelization purpose
 		FHairStrandsClusterResource* ClusterResource = nullptr;
 		FHairStrandsCullingResource* CullingResource = nullptr;
+
+		// Resources - Rest root data, for deforming strands attached to a skinned mesh surface
+		// Resources - Deformed root data, for deforming strands attached to a skinned mesh surface
+		FHairStrandsRestRootResource* RestRootResource = nullptr;
+		FHairStrandsDeformedRootResource* DeformedRootResource = nullptr;
 
 		// Resources - Raytracing data when enabling (expensive) raytracing method
 		#if RHI_RAYTRACING
@@ -148,6 +146,9 @@ struct HAIRSTRANDSCORE_API FHairGroupInstance : public FHairStrandsInstance
 
 		FHairStrandsUniformBuffer UniformBuffer;
 		FHairStrandsVertexFactory* VertexFactory = nullptr;
+
+		EHairInterpolationType HairInterpolationType = EHairInterpolationType::NoneSkinning;		
+		bool bCullingEnable = false; // Indicates if culling is enabled for this hair strands data.
 	} Strands;
 
 	//////////////////////////////////////////////////////////////////////////////////////////
@@ -159,22 +160,38 @@ struct HAIRSTRANDSCORE_API FHairGroupInstance : public FHairStrandsInstance
 		struct FLOD
 		{
 			bool IsValid() const { return RestResource != nullptr; }
-
-			// Data
-			FHairCardsBulkData* Data = nullptr;
+			const FHairCardsBulkData& GetData() const { return RestResource->BulkData; }
 
 			// Resources
 			FHairCardsRestResource* RestResource = nullptr;
 			FHairCardsDeformedResource* DeformedResource = nullptr;
+			FHairCardsInterpolationResource* InterpolationResource = nullptr;
 			#if RHI_RAYTRACING
 			FHairStrandsRaytracingResource* RaytracingResource = nullptr;
 			bool RaytracingResourceOwned = false;
 			#endif
 
-			// Interpolation data/resources
-			FHairCardsInterpolationResource* InterpolationResource = nullptr;
+			struct FGuides
+			{
+				bool IsValid() const { return RestResource != nullptr; }
+				bool HasValidRootData() const { return RestRootResource != nullptr && DeformedRootResource != nullptr; }
+				const FHairStrandsBulkData& GetData() const { return RestResource->BulkData; }
 
-			FStrandsBaseWithInterpolation Guides;
+				// Resources - Strands rest position data for sim & render strands
+				// Resources - Strands deformed position data for sim & render strands
+				FHairStrandsRestResource* RestResource = nullptr;
+				FHairStrandsDeformedResource* DeformedResource = nullptr;
+	
+				// Resources - Rest root data, for deforming strands attached to a skinned mesh surface
+				// Resources - Deformed root data, for deforming strands attached to a skinned mesh surface
+				FHairStrandsRestRootResource* RestRootResource = nullptr;
+				FHairStrandsDeformedRootResource* DeformedRootResource = nullptr;
+	
+				// Resources - Strands deformed position data for sim & render strands
+				FHairStrandsInterpolationResource* InterpolationResource = nullptr;
+
+				EHairInterpolationType HairInterpolationType = EHairInterpolationType::NoneSkinning;
+			} Guides;
 
 			FHairCardsUniformBuffer UniformBuffer;
 			FHairCardsVertexFactory* VertexFactory = nullptr;
@@ -197,9 +214,7 @@ struct HAIRSTRANDSCORE_API FHairGroupInstance : public FHairStrandsInstance
 		struct FLOD
 		{
 			bool IsValid() const { return RestResource != nullptr; }
-
-			// Data
-			FHairMeshesBulkData* Data = nullptr;
+			const FHairMeshesBulkData& GetData() const { return RestResource->BulkData; }
 
 			// Resources
 			FHairMeshesRestResource* RestResource = nullptr;
@@ -251,7 +266,7 @@ struct HAIRSTRANDSCORE_API FHairGroupInstance : public FHairStrandsInstance
 		TSharedPtr<class IGroomCacheBuffers, ESPMode::ThreadSafe> GroomCacheBuffers;
 
 		// Resources
-		FHairStrandsDebugDatas::FResources* HairDebugResource = nullptr;
+		FHairStrandsDebugResources* HairDebugResource = nullptr;
 	} Debug;
 
 	FTransform				LocalToWorld = FTransform::Identity;
@@ -265,10 +280,10 @@ struct HAIRSTRANDSCORE_API FHairGroupInstance : public FHairStrandsInstance
 	bool					bHoldout = false;
 	
 	// Deformed component to extract the bone buffer 
-	UMeshComponent*	 DeformedComponent = nullptr;
+	UMeshComponent* DeformedComponent = nullptr;
 	
 	// Section of the deformed component to be used 
-	int32	 DeformedSection = INDEX_NONE;
+	int32 DeformedSection = INDEX_NONE;
 	
 	bool IsValid() const 
 	{

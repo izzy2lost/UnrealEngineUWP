@@ -826,7 +826,7 @@ void AddHairClusterAABBPass(
 	FRDGBufferUAVRef GroupAABBBUAV)
 {
 	// Clusters AABB are only update if the groom is deformed.
-	const FBoxSphereBounds& Bounds = Instance->Strands.Data->Header.BoundingBox;
+	const FBoxSphereBounds& Bounds = Instance->Strands.GetData().Header.BoundingBox;
 	FTransform InRenLocalToTranslatedWorld = Instance->LocalToWorld;
 	InRenLocalToTranslatedWorld.AddToTranslation(TranslatedWorldOffset);
 	const FBoxSphereBounds TransformedBounds = Bounds.TransformBy(InRenLocalToTranslatedWorld);
@@ -1723,11 +1723,11 @@ FHairGroupPublicData::FVertexFactoryInput InternalComputeHairStrandsVertexInputD
 
 	if (bUseGuideAttributeOffsets)
 	{
-		GetHairStrandsAttributeParameter(*Instance->Guides.Data, OutVFInput.Strands.Common.Attributes);
+		GetHairStrandsAttributeParameter(Instance->Guides.GetData(), OutVFInput.Strands.Common.Attributes);
 	}
 	else
 	{
-		GetHairStrandsAttributeParameter(*Instance->Strands.Data, OutVFInput.Strands.Common.Attributes);
+		GetHairStrandsAttributeParameter(Instance->Strands.GetData(), OutVFInput.Strands.Common.Attributes);
 	}
 
 	return OutVFInput;

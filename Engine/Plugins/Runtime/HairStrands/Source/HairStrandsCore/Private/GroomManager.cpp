@@ -1180,7 +1180,7 @@ static void RunHairStrandsInterpolation_Strands(
 
 		if (InstanceData.MeshLODIndex >= 0 && (InstanceData.bSimulationEnable || InstanceData.bDeformationEnable))
 		{
-			check(Instance->Strands.HasValidData());
+			check(Instance->Strands.IsValid());
 		}
 	}
 
@@ -1508,14 +1508,14 @@ static void RunHairStrandsInterpolation_Strands(
 				// Special case for debug mode were the attribute buffer is patch with some custom data to show hair properties (strands belonging to the same cluster, ...)
 				if (InstanceData.Instance->Strands.DebugCurveAttributeBuffer.Buffer == nullptr)
 				{
-					CreateHairStrandsDebugAttributeBuffer(GraphBuilder, &InstanceData.Instance->Strands.DebugCurveAttributeBuffer, InstanceData.Instance->Strands.Data->GetCurveAttributeSizeInBytes(), FName(InstanceData.Instance->Debug.MeshComponentName));
+					CreateHairStrandsDebugAttributeBuffer(GraphBuilder, &InstanceData.Instance->Strands.DebugCurveAttributeBuffer, InstanceData.Instance->Strands.GetData().GetCurveAttributeSizeInBytes(), FName(InstanceData.Instance->Debug.MeshComponentName));
 				}
 				FRDGImportedBuffer OutRenCurveAttributeBuffer = Register(GraphBuilder, InstanceData.Instance->Strands.DebugCurveAttributeBuffer, ERDGImportedBufferFlags::CreateUAV);
 			
 				const bool bValidGuide = InstanceData.bNeedDeformation && (InstanceData.bSimulationEnable || InstanceData.bGlobalDeformationEnable || InstanceData.bDeformationEnable || InstanceData.Instance->Guides.bIsSimulationCacheEnable);// || (WITH_EDITOR && PatchMode == EHairPatchAttribute::GuideInflucence);
 				const bool bUseSingleGuide	= InstanceData.bNeedDeformation && bValidGuide && InstanceData.Instance->Strands.InterpolationResource->UseSingleGuide();
 
-				check(InstanceData.Instance->Strands.Data);
+				check(InstanceData.Instance->Strands.IsValid());
 				AddPatchAttributePass(
 					GraphBuilder,
 					ShaderMap,
@@ -1523,7 +1523,7 @@ static void RunHairStrandsInterpolation_Strands(
 					PatchMode,
 					bValidGuide,
 					bUseSingleGuide,
-					*InstanceData.Instance->Strands.Data,
+					InstanceData.Instance->Strands.GetData(),
 					Register(GraphBuilder, InstanceData.Instance->Strands.RestResource->CurveAttributeBuffer, ERDGImportedBufferFlags::CreateSRV).Buffer,
 					RegisterAsSRV(GraphBuilder, InstanceData.Instance->Strands.RestResource->CurveBuffer),
 					RegisterAsSRV(GraphBuilder, InstanceData.Instance->Strands.ClusterResource->CurveToClusterIdBuffer),
@@ -1806,7 +1806,7 @@ static void RunHairStrandsInterpolation_Cards(
 
 				if (InstanceData.bNeedDeformation)
 				{
-					check(InstanceData.CardInstance->Guides.Data);
+					check(InstanceData.CardInstance->Guides.RestResource);
 				}
 				if (InstanceData.bSimulationEnable || InstanceData.bDeformationEnable)
 				{
@@ -2186,7 +2186,7 @@ static void AllocateRaytracingResources(FHairGroupInstance* Instance)
 {
 	if (IsHairRayTracingEnabled() && !Instance->Strands.RenRaytracingResource)
 	{
-		check(Instance->Strands.Data);
+		check(Instance->Strands.IsValid());
 
 #if RHI_ENABLE_RESOURCE_INFO
 		FName OwnerName(FString::Printf(TEXT("%s [LOD%d]"), *Instance->Debug.MeshComponentName, Instance->Debug.MeshLODIndex));
@@ -2196,7 +2196,7 @@ static void AllocateRaytracingResources(FHairGroupInstance* Instance)
 
 		// Allocate dynamic raytracing resources (owned by the groom component/instance)
 		FHairResourceName ResourceName(FName(Instance->Debug.GroomAssetName), Instance->Debug.GroupIndex);
-		Instance->Strands.RenRaytracingResource		 = new FHairStrandsRaytracingResource(*Instance->Strands.Data, ResourceName, OwnerName);
+		Instance->Strands.RenRaytracingResource		 = new FHairStrandsRaytracingResource(Instance->Strands.GetData(), ResourceName, OwnerName);
 		Instance->Strands.RenRaytracingResourceOwned = true;
 	}
 	Instance->Strands.ViewRayTracingMask |= EHairViewRayTracingMask::PathTracing;
@@ -2269,7 +2269,7 @@ void AddHairStreamingRequest(FHairGroupInstance* Instance, int32 InLODIndex)
 
 		// Lazy allocation of resources
 		// Note: Allocation will only be done if the resources is not initialized yet. Guides deformed position are also initialized from the Rest position at creation time.
-		if (Instance->Guides.Data && bLODNeedsGuides)
+		if (Instance->Guides.RestResource && bLODNeedsGuides)
 		{
 			if (Instance->Guides.RestRootResource)			{ Instance->Guides.RestRootResource->StreamInData(MeshLODIndex);}
 			if (Instance->Guides.RestResource)				{ Instance->Guides.RestResource->StreamInData(); }
@@ -2384,7 +2384,7 @@ static FHairLOD ComputeHairLODIndex(const FHairGroupInstance* Instance, const TA
 	for (const FSceneView* View : Views)
 	{
 		const FVector3d BoundScale = Instance->LocalToWorld.GetScale3D();
-		const FVector3f BoundExtent = Instance->Strands.Data ? FVector3f(Instance->Strands.Data->Header.BoundingBox.GetExtent()) : FVector3f(0,0,0);
+		const FVector3f BoundExtent = Instance->Strands.IsValid() ? FVector3f(Instance->Strands.GetData().Header.BoundingBox.GetExtent()) : FVector3f(0,0,0);
 		const float BoundRadius = FMath::Max3(BoundExtent.X, BoundExtent.Y, BoundExtent.Z) * FMath::Max3(BoundScale.X, BoundScale.Y, BoundScale.Z);
 
 		const float ScreenSize_RestBound = FMath::Clamp(ComputeBoundsScreenSize(FVector4(SphereBound.Center, 1), BoundRadius, *View), 0.f, 1.0f);
@@ -2439,7 +2439,7 @@ static FHairLOD ComputeHairLODIndex(const FHairGroupInstance* Instance, const TA
 
 	// Auto LOD
 	const bool bNeedAutoLOD = MaxLODIndexWithStrands != INDEX_NONE && int32(Out.HairLODIndex) <= MaxLODIndexWithStrands;
-	if (Instance->Strands.ClusterResource && Instance->Strands.Data)
+	if (Instance->Strands.ClusterResource && Instance->Strands.RestResource)
 	{
 		uint32 EffectiveCurveCount = 0;
 		if (bNeedAutoLOD && (Instance->HairGroupPublicData->bAutoLOD || IsHairStrandsForceAutoLODEnabled()))
@@ -2451,10 +2451,10 @@ static FHairLOD ComputeHairLODIndex(const FHairGroupInstance* Instance, const TA
 		{
 			EffectiveCurveCount = Instance->Strands.ClusterResource->BulkData.GetCurveCount(Out.HairLODIndex);
 		}
-		check(EffectiveCurveCount <= uint32(Instance->Strands.Data->Header.CurveToPointCount.Num()));
+		check(EffectiveCurveCount <= uint32(Instance->Strands.GetData().Header.CurveToPointCount.Num()));
 
 		Out.ContinuousLODCurveCount = EffectiveCurveCount;
-		Out.ContinuousLODPointCount = EffectiveCurveCount > 0 ? Instance->Strands.Data->Header.CurveToPointCount[EffectiveCurveCount - 1] : 0;
+		Out.ContinuousLODPointCount = EffectiveCurveCount > 0 ? Instance->Strands.GetData().Header.CurveToPointCount[EffectiveCurveCount - 1] : 0;
 		Out.ContinuousLODCoverageScale = ComputeActiveCurveCoverageScale(EffectiveCurveCount, Instance->HairGroupPublicData->RestCurveCount);
 	}
 
@@ -2537,7 +2537,7 @@ static bool SelectValidLOD(
 	{
 		// Round Curve/Point request to curve 'page'
 		RequestedCurveCount = GetRoundedCurveCount(Instance->HairGroupPublicData->ContinuousLODCurveCount, Instance->HairGroupPublicData->RestCurveCount);
-		RequestedPointCount = RequestedCurveCount > 0 ? Instance->Strands.Data->Header.CurveToPointCount[RequestedCurveCount - 1] : 0;
+		RequestedPointCount = RequestedCurveCount > 0 ? Instance->Strands.GetData().Header.CurveToPointCount[RequestedCurveCount - 1] : 0;
 	}
 
 	const bool bSimulationEnable			= Instance->HairGroupPublicData->IsSimulationEnable(IntHairLODIndex);
@@ -2553,7 +2553,7 @@ static bool SelectValidLOD(
 
 	// Lazy allocation of resources
 	// Note: Allocation will only be done if the resources is not initialized yet. Guides deformed position are also initialized from the Rest position at creation time.
-	if (Instance->Guides.Data && bLODNeedsGuides)
+	if (Instance->Guides.IsValid() && bLODNeedsGuides)
 	{
 		if (Instance->Guides.RestRootResource)			{ Instance->Guides.RestRootResource->Allocate(GraphBuilder, LoadingType, ResourceStatus, MeshLODIndex); }
 		if (Instance->Guides.RestResource)				{ Instance->Guides.RestResource->Allocate(GraphBuilder, LoadingType, ResourceStatus); }
@@ -2671,12 +2671,12 @@ static bool SelectValidLOD(
 			return false;
 		}
 		check(bIsLODDataReady);
-		check(Instance->Strands.RestResource);
+		check(Instance->Strands.IsValid());
 
 		// Adapt CurveCount/PointCount/CoverageScale based on what is actually available
 		const uint32 EffectiveCurveCount = FMath::Min(ResourceStatus.AvailableCurveCount, Instance->HairGroupPublicData->ContinuousLODCurveCount);
 		Instance->HairGroupPublicData->ContinuousLODCurveCount = EffectiveCurveCount;
-		Instance->HairGroupPublicData->ContinuousLODPointCount = EffectiveCurveCount > 0 ? Instance->Strands.Data->Header.CurveToPointCount[EffectiveCurveCount - 1] : 0;
+		Instance->HairGroupPublicData->ContinuousLODPointCount = EffectiveCurveCount > 0 ? Instance->Strands.GetData().Header.CurveToPointCount[EffectiveCurveCount - 1] : 0;
 		Instance->HairGroupPublicData->ContinuousLODCoverageScale = ComputeActiveCurveCoverageScale(EffectiveCurveCount, Instance->HairGroupPublicData->RestCurveCount);
 		check(Instance->HairGroupPublicData->ContinuousLODPointCount <= Instance->HairGroupPublicData->RestPointCount);
 	}

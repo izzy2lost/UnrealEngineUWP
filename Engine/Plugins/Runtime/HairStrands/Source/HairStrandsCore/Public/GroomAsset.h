@@ -99,53 +99,12 @@ struct HAIRSTRANDSCORE_API FHairGroupsMaterial
 };
 
 
-/** Describe all data & resource for a groom asset's hair group */
-struct HAIRSTRANDSCORE_API FHairGroupPlatformData
+struct FHairGroupResources
 {
-	////////////////////////////////////////////////////////////////////////////
-	// Helper
-
-	struct FBase
+	struct FGuides
 	{
-		bool HasValidData() const		{ return BulkData.GetNumPoints() > 0;}
-		bool IsValid() const			{ return RestResource != nullptr; }
-		const FBox& GetBounds() const	{ return BulkData.GetBounds(); }
+		bool IsValid() const { return RestResource != nullptr; }
 
-		uint32 GetDataSize() const
-		{
-			uint32 Total = 0;
-			Total += BulkData.Data.Positions.IsBulkDataLoaded() 		? BulkData.Data.Positions.GetBulkDataSize()   : 0;
-			Total += BulkData.Data.CurveAttributes.IsBulkDataLoaded()	? BulkData.Data.CurveAttributes.GetBulkDataSize() : 0;
-			Total += BulkData.Data.PointAttributes.IsBulkDataLoaded()	? BulkData.Data.PointAttributes.GetBulkDataSize() : 0;
-			Total += BulkData.Data.Curves.IsBulkDataLoaded() 			? BulkData.Data.Curves.GetBulkDataSize(): 0;
-			Total += BulkData.Data.PointToCurve.IsBulkDataLoaded()		? BulkData.Data.PointToCurve.GetBulkDataSize() : 0;
-			return Total;
-		}
-
-		FHairStrandsBulkData				BulkData;
-		FHairStrandsRestResource*			RestResource = nullptr;
-	};
-
-	struct FBaseWithInterpolation : FBase
-	{
-		uint32 GetDataSize() const
-		{
-			uint32 Total = 0;
-			Total += FBase::GetDataSize();
-			Total += InterpolationBulkData.Data.Interpolation.IsBulkDataLoaded()	? InterpolationBulkData.Data.Interpolation.GetBulkDataSize() : 0;
-			Total += InterpolationBulkData.Data.SimRootPointIndex.IsBulkDataLoaded()? InterpolationBulkData.Data.SimRootPointIndex.GetBulkDataSize() : 0;
-			return Total;
-		}
-
-		FHairStrandsInterpolationBulkData	InterpolationBulkData;
-		FHairStrandsInterpolationResource*	InterpolationResource = nullptr;
-	};
-
-	////////////////////////////////////////////////////////////////////////////
-	// Data
-
-	struct FGuides : FBase
-	{
 		/* Return the memory size for GPU resources */
 		uint32 GetResourcesSize() const
 		{
@@ -154,39 +113,162 @@ struct HAIRSTRANDSCORE_API FHairGroupPlatformData
 			return Total;
 		}
 
-		uint32 GetDataSize() const
-		{
-			uint32 Total = 0;
-			Total += FBase::GetDataSize();
-			return Total;
-		}
+		FHairStrandsRestResource* RestResource = nullptr;
 
 	} Guides;
 
-	struct FStrands : FBaseWithInterpolation
+	struct FStrands
 	{
+		bool IsValid() const { return RestResource != nullptr; }
+
 		/* Return the memory size for GPU resources */
 		uint32 GetResourcesSize() const
 		{
 			uint32 Total = 0;
-			if (RestResource) Total += RestResource->GetResourcesSize();
-			if (InterpolationResource) Total += InterpolationResource->GetResourcesSize();
-			if (ClusterResource) Total += ClusterResource->GetResourcesSize();
+			if (RestResource) 			Total += RestResource->GetResourcesSize();
+			if (InterpolationResource) 	Total += InterpolationResource->GetResourcesSize();
+			if (ClusterResource) 		Total += ClusterResource->GetResourcesSize();
 			#if RHI_RAYTRACING
-			if (RaytracingResource) Total += RaytracingResource->GetResourcesSize();
+			if (RaytracingResource) 	Total += RaytracingResource->GetResourcesSize();
 			#endif
 			return Total;
 		}
 
-		uint32 GetDataSize() const;
-
-		FHairStrandsClusterBulkData	ClusterBulkData;
-		FHairStrandsClusterResource* ClusterResource = nullptr;
-
+		FHairStrandsRestResource*			RestResource = nullptr;
+		FHairStrandsInterpolationResource*	InterpolationResource = nullptr;
+		FHairStrandsClusterResource* 		ClusterResource = nullptr;
 		#if RHI_RAYTRACING
 		FHairStrandsRaytracingResource*		RaytracingResource = nullptr;
 		#endif
 
+		bool bIsCookedOut = false;
+	} Strands;
+
+	struct FCards
+	{
+		/* Return the memory size for GPU resources */
+		uint32 GetResourcesSize() const
+		{
+			uint32 Total = 0;
+			for (const FLOD& LOD : LODs)
+			{
+				Total += LOD.GetResourcesSize();
+			}
+			return Total;
+		}
+
+		struct FLOD
+		{
+			/* Return the memory size for GPU resources */
+			uint32 GetResourcesSize() const
+			{
+				uint32 Total = 0;
+				if (RestResource) 				Total += RestResource->GetResourcesSize();
+				if (InterpolationResource) 		Total += InterpolationResource->GetResourcesSize();
+				if (GuideRestResource) 			Total += GuideRestResource->GetResourcesSize();
+				if (GuideInterpolationResource) Total += GuideInterpolationResource->GetResourcesSize();
+				#if RHI_RAYTRACING
+				if (RaytracingResource) 		Total += RaytracingResource->GetResourcesSize();
+				#endif
+				return Total;
+			}
+
+			bool IsValid() const { return RestResource != nullptr; }
+
+			FHairCardsRestResource*				RestResource = nullptr;
+			FHairCardsInterpolationResource*	InterpolationResource = nullptr;
+			FHairStrandsRestResource*			GuideRestResource = nullptr;
+			FHairStrandsInterpolationResource*	GuideInterpolationResource = nullptr;
+			#if RHI_RAYTRACING
+			FHairStrandsRaytracingResource*		RaytracingResource = nullptr;
+			#endif
+
+			bool bIsCookedOut = false;
+		};
+		TArray<FLOD> LODs;
+	} Cards;
+
+	struct FMeshes
+	{	
+		/* Return the memory size for GPU resources */
+		uint32 GetResourcesSize() const
+		{
+			uint32 Total = 0;
+			for (const FLOD& LOD : LODs)
+			{
+				Total += LOD.GetResourcesSize();
+			}
+			return Total;
+		}
+
+		struct FLOD
+		{
+			/* Return the memory size for GPU resources */
+			uint32 GetResourcesSize() const
+			{
+				uint32 Total = 0;
+				if (RestResource) 		Total += RestResource->GetResourcesSize();
+				#if RHI_RAYTRACING
+				if (RaytracingResource) Total += RaytracingResource->GetResourcesSize();
+				#endif
+				return Total;
+			}
+
+			bool IsValid() const { return RestResource != nullptr; }
+
+			FHairMeshesRestResource* 		RestResource = nullptr;
+			#if RHI_RAYTRACING
+			FHairStrandsRaytracingResource* RaytracingResource = nullptr;
+			#endif
+			bool bIsCookedOut = false;
+		};
+		TArray<FLOD> LODs;
+	} Meshes;
+
+	struct FDebug
+	{
+		FHairStrandsDebugResources* Resource = nullptr;
+	} Debug;
+};
+
+FORCEINLINE uint32 GetDataSize(const FHairStrandsBulkData& BulkData)
+{
+	uint32 Total = 0;
+	Total += BulkData.Data.Positions.IsBulkDataLoaded() 		? BulkData.Data.Positions.GetBulkDataSize()   : 0;
+	Total += BulkData.Data.CurveAttributes.IsBulkDataLoaded()	? BulkData.Data.CurveAttributes.GetBulkDataSize() : 0;
+	Total += BulkData.Data.PointAttributes.IsBulkDataLoaded()	? BulkData.Data.PointAttributes.GetBulkDataSize() : 0;
+	Total += BulkData.Data.Curves.IsBulkDataLoaded() 			? BulkData.Data.Curves.GetBulkDataSize(): 0;
+	Total += BulkData.Data.PointToCurve.IsBulkDataLoaded()		? BulkData.Data.PointToCurve.GetBulkDataSize() : 0;
+	return Total;
+}
+
+FORCEINLINE uint32 GetDataSize(const FHairStrandsInterpolationBulkData& InterpolationBulkData) 	
+{
+	uint32 Total = 0;
+	Total += InterpolationBulkData.Data.Interpolation.IsBulkDataLoaded()	? InterpolationBulkData.Data.Interpolation.GetBulkDataSize() : 0;
+	Total += InterpolationBulkData.Data.SimRootPointIndex.IsBulkDataLoaded()? InterpolationBulkData.Data.SimRootPointIndex.GetBulkDataSize() : 0;
+	return Total;
+}
+
+struct FHairGroupPlatformData
+{
+	struct FGuides
+	{
+		bool HasValidData() const		{ return BulkData.GetNumPoints() > 0;}
+		const FBox& GetBounds() const	{ return BulkData.GetBounds(); }
+		uint32 GetDataSize() const		{ return ::GetDataSize(BulkData); }
+		FHairStrandsBulkData BulkData;
+	} Guides;
+
+	struct FStrands
+	{
+		bool HasValidData() const		{ return BulkData.GetNumPoints() > 0;}
+		const FBox& GetBounds() const	{ return BulkData.GetBounds(); }
+
+		uint32 GetDataSize() const;
+		FHairStrandsBulkData				BulkData;
+		FHairStrandsInterpolationBulkData	InterpolationBulkData;
+		FHairStrandsClusterBulkData			ClusterBulkData;
 		bool bIsCookedOut = false;
 	} Strands;
 
@@ -197,13 +279,13 @@ struct HAIRSTRANDSCORE_API FHairGroupPlatformData
 			for (const FLOD& LOD : LODs)
 			{
 				if (LOD.HasValidData())
-					return true;
+				return true;
 			}
 			return false;
 		}
 
-		bool HasValidData(uint32 LODIt) const { return LODIt < uint32(LODs.Num()) && LODs[LODIt].HasValidData(); }
-		bool IsValid(uint32 LODIt) const { return LODIt < uint32(LODs.Num()) && LODs[LODIt].IsValid(); }
+		bool HasValidData(uint32 LODIt) const 	{ return LODIt < uint32(LODs.Num()) && LODs[LODIt].HasValidData(); }
+		bool IsValid(uint32 LODIt) const 		{ return LODIt < uint32(LODs.Num()) && LODs[LODIt].IsValid(); }
 		FBox GetBounds() const
 		{
 			for (const FLOD& LOD : LODs)
@@ -211,17 +293,6 @@ struct HAIRSTRANDSCORE_API FHairGroupPlatformData
 				if (LOD.IsValid()) return LOD.BulkData.BoundingBox;
 			}
 			return FBox();
-		}
-
-		/* Return the memory size for GPU resources */
-		uint32 GetResourcesSize() const
-		{
-			uint32 Total = 0;
-			for (const FLOD& LOD : LODs)
-			{
-				Total += LOD.GetResourcesSize();
-			}
-			return Total;
 		}
 
 		uint32 GetDataSize() const
@@ -236,18 +307,6 @@ struct HAIRSTRANDSCORE_API FHairGroupPlatformData
 
 		struct FLOD
 		{
-			/* Return the memory size for GPU resources */
-			uint32 GetResourcesSize() const
-			{
-				uint32 Total = 0;
-				if (RestResource) Total += RestResource->GetResourcesSize();
-				if (InterpolationResource) Total += InterpolationResource->GetResourcesSize();
-				#if RHI_RAYTRACING
-				if (RaytracingResource) Total += RaytracingResource->GetResourcesSize();
-				#endif
-				return Total;
-			}
-
 			uint32 GetDataSize() const
 			{
 				uint32 Total = 0;
@@ -255,29 +314,20 @@ struct HAIRSTRANDSCORE_API FHairGroupPlatformData
 				Total += BulkData.Normals.GetAllocatedSize();
 				Total += BulkData.UVs.GetAllocatedSize();
 				Total += BulkData.Indices.GetAllocatedSize();
-
 				Total += InterpolationBulkData.Interpolation.GetAllocatedSize();
-
-				Total += Guides.GetDataSize();
+				Total += ::GetDataSize(GuideBulkData);
+				Total += ::GetDataSize(GuideInterpolationBulkData);
 				return Total;
 			}
 
-			bool HasValidData() const { return BulkData.IsValid(); }
-			bool IsValid() const { return BulkData.IsValid() && RestResource != nullptr; }
+			bool HasValidData() const	{ return BulkData.IsValid(); }
+			bool IsValid() const 		{ return BulkData.IsValid(); }
 
 			// Main data & Resources
 			FHairCardsBulkData					BulkData;
-			FHairCardsRestResource*				RestResource = nullptr;
-
-			// Interpolation data & resources
 			FHairCardsInterpolationBulkData		InterpolationBulkData;
-			FHairCardsInterpolationResource*	InterpolationResource = nullptr;
-
-			FBaseWithInterpolation				Guides;
-
-			#if RHI_RAYTRACING
-			FHairStrandsRaytracingResource*		RaytracingResource = nullptr;
-			#endif
+			FHairStrandsBulkData				GuideBulkData;
+			FHairStrandsInterpolationBulkData	GuideInterpolationBulkData;
 
 			bool bIsCookedOut = false;
 		};
@@ -291,12 +341,12 @@ struct HAIRSTRANDSCORE_API FHairGroupPlatformData
 			for (const FLOD& LOD : LODs)
 			{
 				if (LOD.HasValidData())
-					return true;
+				return true;
 			}
 			return false;
 		}
-		bool HasValidData(uint32 LODIt) const { return LODIt < uint32(LODs.Num()) && LODs[LODIt].HasValidData(); }
-		bool IsValid(uint32 LODIt) const { return LODIt < uint32(LODs.Num()) && LODs[LODIt].IsValid(); }
+		bool HasValidData(uint32 LODIt) const 	{ return LODIt < uint32(LODs.Num()) && LODs[LODIt].HasValidData(); }
+		bool IsValid(uint32 LODIt) const 		{ return LODIt < uint32(LODs.Num()) && LODs[LODIt].IsValid(); }
 		FBox GetBounds() const
 		{
 			for (const FLOD& LOD : LODs)
@@ -304,17 +354,6 @@ struct HAIRSTRANDSCORE_API FHairGroupPlatformData
 				if (LOD.IsValid()) return LOD.BulkData.BoundingBox;
 			}
 			return FBox();
-		}
-		
-		/* Return the memory size for GPU resources */
-		uint32 GetResourcesSize() const
-		{
-			uint32 Total = 0;
-			for (const FLOD& LOD : LODs)
-			{
-				Total += LOD.GetResourcesSize();
-			}
-			return Total;
 		}
 
 		uint32 GetDataSize() const
@@ -329,17 +368,6 @@ struct HAIRSTRANDSCORE_API FHairGroupPlatformData
 
 		struct FLOD
 		{
-			/* Return the memory size for GPU resources */
-			uint32 GetResourcesSize() const
-			{
-				uint32 Total = 0;
-				if (RestResource) Total += RestResource->GetResourcesSize();
-				#if RHI_RAYTRACING
-				if (RaytracingResource) Total += RaytracingResource->GetResourcesSize();
-				#endif
-				return Total;
-			}
-
 			uint32 GetDataSize() const
 			{
 				uint32 Total = 0;
@@ -350,14 +378,10 @@ struct HAIRSTRANDSCORE_API FHairGroupPlatformData
 				return Total;
 			}
 
-			bool HasValidData() const { return BulkData.IsValid(); }
-			bool IsValid() const { return BulkData.IsValid() && RestResource != nullptr; }
+			bool HasValidData() const 	{ return BulkData.IsValid(); }
+			bool IsValid() const 		{ return BulkData.IsValid(); }
 
 			FHairMeshesBulkData BulkData;
-			FHairMeshesRestResource* RestResource = nullptr;
-			#if RHI_RAYTRACING
-			FHairStrandsRaytracingResource* RaytracingResource = nullptr;
-			#endif
 			bool bIsCookedOut = false;
 		};
 		TArray<FLOD> LODs;
@@ -366,7 +390,6 @@ struct HAIRSTRANDSCORE_API FHairGroupPlatformData
 	struct FDebug
 	{
 		FHairStrandsDebugDatas Data;
-		FHairStrandsDebugDatas::FResources* Resource = nullptr;
 	} Debug;
 };
 
@@ -509,6 +532,10 @@ public:
 	UE_DEPRECATED(5.3, "Please do not access this member directly; use UGroomAsset accessor.")
 	TArray<FHairGroupPlatformData> HairGroupsPlatformData;
 
+private:
+	/** Store strands/cards/meshes resources */
+	TArray<FHairGroupResources> HairGroupsResources;
+
 public:
 	static FName GetHairGroupsRenderingMemberName();
 	UFUNCTION(BlueprintGetter) TArray<FHairGroupsRendering>& GetHairGroupsRendering();
@@ -589,6 +616,9 @@ public:
 	const TArray<FHairGroupInfoWithVisibility>& GetHairGroupsInfo() const;
 	void SetHairGroupsInfo(const TArray<FHairGroupInfoWithVisibility>& In);
 
+	const TArray<FHairGroupResources>& GetHairGroupsResources() const;
+	TArray<FHairGroupResources>& GetHairGroupsResources();
+
 public:
 
 	//~ Begin UObject Interface.
@@ -596,12 +626,6 @@ public:
 	virtual void PostLoad() override;
 	virtual void BeginDestroy() override;
 	virtual void Serialize(FArchive& Ar) override;
-
-	PRAGMA_DISABLE_DEPRECATION_WARNINGS // Suppress compiler warning on override of deprecated function
-	UE_DEPRECATED(5.0, "Use version that takes FObjectPreSaveContext instead.")
-	virtual void PreSave(const class ITargetPlatform* TargetPlatform) override;
-	PRAGMA_ENABLE_DEPRECATION_WARNINGS
-	virtual void PreSave(FObjectPreSaveContext ObjectSaveContext) override;
 
 #if WITH_EDITOR
 	FOnGroomAssetChanged& GetOnGroomAssetChanged() { return OnGroomAssetChanged;  }
@@ -743,11 +767,14 @@ private:
 #if WITH_EDITORONLY_DATA
 	bool HasImportedStrandsData() const;
 
-	bool BuildCardsData(uint32 GroupIndex);
-	bool BuildMeshesData(uint32 GroupIndex);
+	bool BuildHairGroup_Cards(uint32 GroupIndex);
+	bool BuildHairGroup_Meshes(uint32 GroupIndex);
 
-	bool HasValidCardsData(uint32 GroupIndex) const;
-	bool HasValidMeshesData(uint32 GroupIndex) const;
+	bool HasChanged_Cards(uint32 GroupIndex, TArray<bool>& OutIsValid) const;
+	bool HasChanged_Meshes(uint32 GroupIndex, TArray<bool>& OutIsValid) const;
+
+	bool HasValidData_Cards(uint32 GroupIndex) const;
+	bool HasValidData_Meshes(uint32 GroupIndex) const;
 public:
 	enum EHairDescriptionType
 	{
@@ -843,7 +870,7 @@ struct FGroomAssetMemoryStats
 	FStrandsDetails Memory;
 	FStrandsDetails Curves;
 
-	static FGroomAssetMemoryStats Get(const FHairGroupPlatformData& In);
+	static FGroomAssetMemoryStats Get(const FHairGroupPlatformData& InData, const FHairGroupResources& In);
 	void Accumulate(const FGroomAssetMemoryStats& In);
 	uint32 GetTotalCPUSize() const;
 	uint32 GetTotalGPUSize() const;
