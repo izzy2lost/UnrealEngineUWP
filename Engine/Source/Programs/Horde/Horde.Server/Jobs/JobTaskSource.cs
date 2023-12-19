@@ -633,11 +633,13 @@ namespace Horde.Server.Jobs
 							{
 								if (batch.SchedulePriority == existingItem.Batch.SchedulePriority)
 								{
+									_logger.LogInformation("Updating job in queue for {JobId}:{BatchId} to {UpdateIndex})", job.Id, batch.Id, job.UpdateIndex);
 									existingItem._job = job;
 									existingItem._batchIdx = batchIdx;
 								}
 								else
 								{
+									_logger.LogInformation("Updating job in queue for {JobId}:{BatchId} to {UpdateIndex}) (insert/replace)", job.Id, batch.Id, job.UpdateIndex);
 									RemoveQueueItem(existingItem);
 									InsertQueueItem(job, batchIdx, existingItem._poolId, existingItem._workspace, existingItem._useAutoSdk);
 								}
@@ -673,6 +675,14 @@ namespace Horde.Server.Jobs
 								_logger.LogInformation("Ignoring update for {JobId}:{BatchId} - existing update index is newer ({ExistingUpdateIndex} vs {NewUpdateIndex})", job.Id, batch.Id, existingItem._job.UpdateIndex, job.UpdateIndex);
 							}
 						}
+					}
+				}
+
+				foreach (QueueItem item in _queue)
+				{
+					if (item.Id.Item1 == job.Id)
+					{
+						_logger.LogInformation("New entry for {JobId}:{BatchId} has update index {Idx}", item.Id.Item1, item.Id.Item2, item._job.UpdateIndex);
 					}
 				}
 			}
