@@ -104,15 +104,32 @@ void UActorDescContainerSubsystem::FContainerManager::UpdateContainerBoundsFromP
 
 void UActorDescContainerSubsystem::FContainerManager::SetContainerPackage(UActorDescContainer* Container, FName PackageName)
 {
+	// Remove and Copy existing Registration (with previous ContainerName: ex: /Temp/Untitled)
 	FRegisteredContainer RegisteredContainer;
 	const bool bRegistered = RegisteredContainers.RemoveAndCopyValue(Container->GetContainerName(), RegisteredContainer);
 
+	// Update Name
 	Container->SetContainerPackage(PackageName);
-
+		
 	if(bRegistered)
 	{
+		// Check if we have an existing container registered with the new name, which means we are saving a map over another one
+		FRegisteredContainer ReplacedContainer;
+		if (RegisteredContainers.RemoveAndCopyValue(Container->GetContainerName(), ReplacedContainer))
+		{
+			// Move it out of the way with unique package name without losing the ref counts so that NotifyContainerReplaced listeners will be able to properly unregister
+			FString ReplacePackageName = PackageName.ToString() + TEXT("_Replaced_") + FGuid::NewGuid().ToString();
+			ReplacedContainer.Container->SetContainerPackage(*ReplacePackageName);
+			RegisteredContainers.Add(ReplacedContainer.Container->GetContainerName(), ReplacedContainer);
+		}
+		
 		check(RegisteredContainer.Container == Container);
 		RegisteredContainers.Add(Container->GetContainerName(), RegisteredContainer);
+
+		if (ReplacedContainer.Container)
+		{
+			Owner->NotifyContainerReplaced(ReplacedContainer.Container, RegisteredContainer.Container);
+		}
 	}
 }
 #endif

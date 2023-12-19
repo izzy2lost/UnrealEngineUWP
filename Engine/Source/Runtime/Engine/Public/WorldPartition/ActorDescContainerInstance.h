@@ -131,6 +131,7 @@ protected:
 	const UDataLayerManager* GetResolvingDataLayerManager() const;
 private:
 	void OnContainerUpdated(FName ContainerPackage);
+	void OnContainerReplaced(UActorDescContainer* InOldContainer, UActorDescContainer* InNewContainer);
 	void SetContainerPackage(FName InContainerPackageName);
 		
 	void RegisterDelegates();

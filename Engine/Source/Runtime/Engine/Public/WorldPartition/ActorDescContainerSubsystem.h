@@ -33,9 +33,11 @@ public:
 	ENGINE_API static UActorDescContainerSubsystem* Get();
 	ENGINE_API static UActorDescContainerSubsystem& GetChecked();
 
-	DECLARE_EVENT_OneParam(UActorDescContainerSubsystemFOnContainerUpdated, FContainerUpdatedEvent, FName);
+	DECLARE_EVENT_OneParam(UActorDescContainerSubsystem, FContainerUpdatedEvent, FName);
+	DECLARE_EVENT_TwoParams(UActorDescContainerSubsystem, FContainerReplacedEvent, UActorDescContainer*, UActorDescContainer*);
 
 	FContainerUpdatedEvent& ContainerUpdated() { return OnContainerUpdated; }
+	FContainerReplacedEvent& ContainerReplaced() { return OnContainerReplaced; }
 	
 	template <class ContainerType = UActorDescContainer>
 	ContainerType* RegisterContainer(const typename UActorDescContainer::FInitializeParams& InitParams) { return ContainerManager.RegisterContainer<ContainerType>(InitParams); }
@@ -49,6 +51,10 @@ public:
 		ContainerManager.UpdateContainerBoundsFromPackage(ContainerPackage);
 		OnContainerUpdated.Broadcast(ContainerPackage);
 	}
+	void NotifyContainerReplaced(UActorDescContainer* OldContainer, UActorDescContainer* NewContainer)
+	{
+		OnContainerReplaced.Broadcast(OldContainer, NewContainer);
+	}
 #endif
 
 	//~ Begin UObject Interface
@@ -60,6 +66,7 @@ public:
 private:
 #if WITH_EDITOR
 	FContainerUpdatedEvent OnContainerUpdated;
+	FContainerReplacedEvent OnContainerReplaced;
 
 	class FContainerManager
 	{
@@ -133,7 +140,7 @@ private:
 
 	private:
 		TMap<FString, FRegisteredContainer> RegisteredContainers;
-		UObject* Owner = nullptr;
+		UActorDescContainerSubsystem* Owner = nullptr;
 	};
 
 	FContainerManager ContainerManager;

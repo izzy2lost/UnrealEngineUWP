@@ -64,6 +64,24 @@ void UActorDescContainerInstance::OnContainerUpdated(FName ContainerPackage)
 	}
 }
 
+void UActorDescContainerInstance::OnContainerReplaced(UActorDescContainer* InOldContainer, UActorDescContainer* InNewContainer)
+{
+	if (ChildContainerInstances.Num())
+	{
+		TMap<FGuid, TObjectPtr<UActorDescContainerInstance>> CopyChildContainerInstances(ChildContainerInstances);
+		for (auto& [ContainerGuid, ContainerInstance] : CopyChildContainerInstances)
+		{
+			if (ContainerInstance->GetContainer() == InOldContainer)
+			{
+				FWorldPartitionActorDescInstance* ContainerDescInstance = GetActorDescInstance(ContainerGuid);
+				check(ContainerDescInstance);
+				ContainerDescInstance->UpdateChildContainerInstance();
+				check(ContainerDescInstance->GetChildContainerInstance()->GetContainer() == InNewContainer);
+			}
+		}
+	}
+}
+
 void UActorDescContainerInstance::Initialize(const FInitializeParams& InParams)
 {
 	FName OuterWorldContainerPackageName;
@@ -220,6 +238,7 @@ void UActorDescContainerInstance::RegisterDelegates()
 		if (bCreateChildContainerHierarchy)
 		{
 			UActorDescContainerSubsystem::GetChecked().ContainerUpdated().AddUObject(this, &UActorDescContainerInstance::OnContainerUpdated);
+			UActorDescContainerSubsystem::GetChecked().ContainerReplaced().AddUObject(this, &UActorDescContainerInstance::OnContainerReplaced);
 		}
 
 		// No need to register Added descs events for instanced worlds as they don't support it for now (Level Instances get reloaded after an edit)
@@ -252,6 +271,7 @@ void UActorDescContainerInstance::UnregisterDelegates()
 		if (UActorDescContainerSubsystem* ActorDescContainerSubsystem = UActorDescContainerSubsystem::Get())
 		{
 			ActorDescContainerSubsystem->ContainerUpdated().RemoveAll(this);
+			ActorDescContainerSubsystem->ContainerReplaced().RemoveAll(this);
 		}
 	}
 }
