@@ -152,7 +152,7 @@ TArray<FMovieGraphPinProperties> UMovieGraphSelectNode::GetInputPinProperties() 
 	}
 
 	Properties.Add(FMovieGraphPinProperties::MakeBranchProperties(UE::MovieGraph::SelectNode::DefaultBranch));
-	Properties.Add(FMovieGraphPinProperties(UE::MovieGraph::SelectNode::SelectedOption, SelectOptions->GetValueType(), false));
+	Properties.Add(FMovieGraphPinProperties(UE::MovieGraph::SelectNode::SelectedOption, SelectOptions->GetValueType(), SelectOptions->GetValueTypeObject(), false));
 	
 	return Properties;
 }

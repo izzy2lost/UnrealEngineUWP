@@ -27,7 +27,7 @@ TArray<FMovieGraphPinProperties> UMovieGraphOutputNode::GetInputPinProperties() 
 	{
 		for (const UMovieGraphOutput* Output : ParentGraph->GetOutputs())
 		{
-			FMovieGraphPinProperties PinProperties(FName(Output->GetMemberName()), Output->GetValueType(), false);
+			FMovieGraphPinProperties PinProperties(FName(Output->GetMemberName()), Output->GetValueType(), Output->GetValueTypeObject(), false);
 			PinProperties.bIsBranch = Output->bIsBranch;
 			Properties.Add(MoveTemp(PinProperties));
 		}
@@ -100,6 +100,7 @@ void UMovieGraphOutputNode::UpdateExistingPins(UMovieGraphMember* ChangedOutput)
 			{
 				InputPins[Index]->Properties.Label = FName(OutputMembers[Index]->GetMemberName());
 				InputPins[Index]->Properties.Type = OutputMembers[Index]->GetValueType();
+				InputPins[Index]->Properties.TypeObject = OutputMembers[Index]->GetValueTypeObject();
 				InputPins[Index]->Properties.bIsBranch = OutputMembers[Index]->bIsBranch;
 			}
 		}

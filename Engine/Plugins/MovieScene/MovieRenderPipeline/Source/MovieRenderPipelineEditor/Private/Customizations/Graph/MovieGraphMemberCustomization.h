@@ -52,15 +52,59 @@ protected:
 		}
 	}
 
+	bool IsPinTypeAllowed(const FEdGraphPinType& InPinType) const
+	{
+		// Property bags do not support interface types
+		if (InPinType.PinCategory == UEdGraphSchema_K2::PC_Interface)
+		{
+			return false;
+		}
+
+		return true;
+	}
+
 	virtual void CustomizeDetails(IDetailLayoutBuilder& DetailBuilder) override
 	{
 		TSharedRef<IPropertyUtilities> PropUtils = DetailBuilder.GetPropertyUtilities();
 		
 		auto GetFilteredVariableTypeTree = [this](TArray<TSharedPtr<UEdGraphSchema_K2::FPinTypeTreeInfo>>& TypeTree, ETypeTreeFilter TypeTreeFilter)
 		{
-			// All types from the schema are allowed
+			// Most types from the schema are allowed
 			check(GetDefault<UEdGraphSchema_K2>());
 			GetDefault<UPropertyBagSchema>()->GetVariableTypeTree(TypeTree, TypeTreeFilter);
+
+			// Filter out disallowed types
+			for (int32 Index = 0; Index < TypeTree.Num(); )
+			{
+				TSharedPtr<UEdGraphSchema_K2::FPinTypeTreeInfo>& PinType = TypeTree[Index];
+				if (!PinType.IsValid())
+				{
+					return;
+				}
+
+				constexpr bool bForceLoadedSubCategoryObject = false;
+				if (!IsPinTypeAllowed(PinType->GetPinType(bForceLoadedSubCategoryObject)))
+				{
+					TypeTree.RemoveAt(Index);
+					continue;
+				}
+
+				for (int32 ChildIndex = 0; ChildIndex < PinType->Children.Num(); )
+				{
+					TSharedPtr<UEdGraphSchema_K2::FPinTypeTreeInfo> Child = PinType->Children[ChildIndex];
+					if (Child.IsValid())
+					{
+						if (!IsPinTypeAllowed(Child->GetPinType(bForceLoadedSubCategoryObject)))
+						{
+							PinType->Children.RemoveAt(ChildIndex);
+							continue;
+						}
+					}
+					++ChildIndex;
+				}
+
+				++Index;
+			}
 		};
 
 		auto PinInfoChanged = [PropUtils](const FEdGraphPinType& PinType, const TWeakObjectPtr<UMovieGraphMember>& GraphMember)

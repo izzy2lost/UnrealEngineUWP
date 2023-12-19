@@ -219,16 +219,18 @@ void UMoviePipelineEdGraphNodeBase::UpdateEnableState() const
 
 void UMoviePipelineEdGraphNode::AllocateDefaultPins()
 {
-	if(RuntimeNode)
+	if (RuntimeNode)
 	{
 		for(const UMovieGraphPin* InputPin : RuntimeNode->GetInputPins())
 		{
-			CreatePin(EEdGraphPinDirection::EGPD_Input, GetPinType(InputPin), InputPin->Properties.Label);
+			UEdGraphPin* NewPin = CreatePin(EGPD_Input, GetPinType(InputPin), InputPin->Properties.Label);
+			NewPin->PinToolTip = GetPinTooltip(InputPin);
 		}
 		
 		for(const UMovieGraphPin* OutputPin : RuntimeNode->GetOutputPins())
 		{
-			CreatePin(EEdGraphPinDirection::EGPD_Output, GetPinType(OutputPin), OutputPin->Properties.Label);
+			UEdGraphPin* NewPin = CreatePin(EGPD_Output, GetPinType(OutputPin), OutputPin->Properties.Label);
+			NewPin->PinToolTip = GetPinTooltip(OutputPin);
 		}
 	}
 }
@@ -322,6 +324,7 @@ void UMoviePipelineEdGraphNodeBase::CreatePins(const TArray<UMovieGraphPin*>& In
 		}
 
 		UEdGraphPin* Pin = CreatePin(EGPD_Input, GetPinType(InputPin), InputPin->Properties.Label);
+		Pin->PinToolTip = GetPinTooltip(InputPin);
 		// Pin->bAdvancedView = InputPin->Properties.bAdvancedPin;
 		bHasAdvancedPin |= Pin->bAdvancedView;
 	}
@@ -334,6 +337,7 @@ void UMoviePipelineEdGraphNodeBase::CreatePins(const TArray<UMovieGraphPin*>& In
 		}
 
 		UEdGraphPin* Pin = CreatePin(EGPD_Output, GetPinType(OutputPin), OutputPin->Properties.Label);
+		Pin->PinToolTip = GetPinTooltip(OutputPin);
 		// Pin->bAdvancedView = OutputPin->Properties.bAdvancedPin;
 		bHasAdvancedPin |= Pin->bAdvancedView;
 	}
@@ -346,6 +350,24 @@ void UMoviePipelineEdGraphNodeBase::CreatePins(const TArray<UMovieGraphPin*>& In
 	{
 		AdvancedPinDisplay = ENodeAdvancedPins::NoPins;
 	}
+}
+
+FString UMoviePipelineEdGraphNodeBase::GetPinTooltip(const UMovieGraphPin* InPin) const
+{
+	const EMovieGraphValueType PinType = InPin->Properties.Type;
+	const FString TypeString = InPin->Properties.bIsBranch
+		? LOCTEXT("PinTypeTooltip_Branch", "Branch").ToString()
+		: StaticEnum<EMovieGraphValueType>()->GetDisplayNameTextByValue(static_cast<int64>(PinType)).ToString();
+
+	TStringBuilder<256> PinTooltip;
+	PinTooltip << LOCTEXT("PinTypeTooltip_Type", "Type: ").ToString() << TypeString;
+
+	if (const TObjectPtr<const UObject> ValueTypeObject = InPin->Properties.TypeObject)
+	{
+		PinTooltip << TEXT(" (") << ValueTypeObject.Get()->GetName() << TEXT(")"); 
+	}
+
+	return PinTooltip.ToString();
 }
 
 void UMoviePipelineEdGraphNodeBase::AutowireNewNode(UEdGraphPin* FromPin)

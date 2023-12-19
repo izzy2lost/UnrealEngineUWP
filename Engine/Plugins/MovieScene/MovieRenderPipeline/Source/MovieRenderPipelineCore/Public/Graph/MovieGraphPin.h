@@ -17,15 +17,16 @@ struct FMovieGraphPinProperties
 	GENERATED_BODY()
 
 	FMovieGraphPinProperties() = default;
-	explicit FMovieGraphPinProperties(const FName& InLabel, const EMovieGraphValueType PinType, bool bInAllowMultipleConnections)
+	explicit FMovieGraphPinProperties(const FName& InLabel, const EMovieGraphValueType PinType, const TObjectPtr<const UObject>& TypeObject, bool bInAllowMultipleConnections)
 		: Label(InLabel)
 		, Type(PinType)
+		, TypeObject(TypeObject)
 		, bAllowMultipleConnections(bInAllowMultipleConnections)
 	{}
 
 	static FMovieGraphPinProperties MakeBranchProperties(const FName& InLabel = NAME_None)
 	{
-		FMovieGraphPinProperties Properties(InLabel, EMovieGraphValueType::None, false);
+		FMovieGraphPinProperties Properties(InLabel, EMovieGraphValueType::None, nullptr, false);
 		Properties.bIsBranch = true;
 		return MoveTemp(Properties);
 	}
@@ -37,6 +38,10 @@ struct FMovieGraphPinProperties
 	/** The type of the pin. If the pin represents a branch, this type is ignored. */
 	UPROPERTY(BlueprintReadWrite, EditAnywhere, Category = "Settings")
 	EMovieGraphValueType Type = EMovieGraphValueType::Float;
+
+	/** The value type of the pin, if the type is an enum, struct, class, or object. */
+	UPROPERTY(BlueprintReadWrite, EditAnywhere, Category = "Settings")
+	TObjectPtr<const UObject> TypeObject;
 
 	/** Whether this pin can accept multiple connections. */
 	UPROPERTY(BlueprintReadWrite, EditAnywhere, Category = "Settings")
@@ -57,6 +62,7 @@ struct FMovieGraphPinProperties
 	{
 		return Label == Other.Label
 			&& Type == Other.Type
+			&& TypeObject == Other.TypeObject
 			&& bAllowMultipleConnections == Other.bAllowMultipleConnections
 			&& bIsBranch == Other.bIsBranch
 			&& bIsBuiltIn == Other.bIsBuiltIn;

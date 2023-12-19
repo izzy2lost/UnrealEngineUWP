@@ -110,7 +110,8 @@ FPinConnectionResponse UMovieGraphPin::CanCreateConnection_PinConnectionResponse
 
 	const bool bBothPinsAreSameType = bBothPinsAreBranch ||				// Both are branches or
 		(!Properties.bIsBranch && !InOtherPin->Properties.bIsBranch &&	// Neither is branch and
-		Properties.Type == InOtherPin->Properties.Type)	;				// They have the same property type
+		Properties.Type == InOtherPin->Properties.Type &&				// They have the same property type and
+		Properties.TypeObject == InOtherPin->Properties.TypeObject);	// They have the same type object (for enums, structs, objects, classes)
 
 	// Pins need to be the same type
 	if (!bBothPinsAreSameType)				

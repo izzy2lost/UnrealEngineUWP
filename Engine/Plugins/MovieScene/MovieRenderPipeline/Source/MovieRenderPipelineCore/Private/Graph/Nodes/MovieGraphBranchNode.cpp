@@ -84,9 +84,10 @@ TArray<FMovieGraphPinProperties> UMovieGraphBranchNode::GetInputPinProperties() 
 {
 	TArray<FMovieGraphPinProperties> Properties;
 	
+	const TObjectPtr<UObject> ValueTypeObject = nullptr;
 	Properties.Add(FMovieGraphPinProperties::MakeBranchProperties(UE::MovieGraph::BranchNode::TrueBranch));
 	Properties.Add(FMovieGraphPinProperties::MakeBranchProperties(UE::MovieGraph::BranchNode::FalseBranch));
-	Properties.Add(FMovieGraphPinProperties(UE::MovieGraph::BranchNode::Condition, EMovieGraphValueType::Bool, false));
+	Properties.Add(FMovieGraphPinProperties(UE::MovieGraph::BranchNode::Condition, EMovieGraphValueType::Bool, ValueTypeObject, false));
 	return Properties;
 }
 

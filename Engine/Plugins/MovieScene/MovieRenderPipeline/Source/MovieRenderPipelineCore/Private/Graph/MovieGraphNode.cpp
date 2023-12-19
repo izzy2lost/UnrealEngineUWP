@@ -10,7 +10,7 @@ FString UMovieGraphNode::GlobalsPinNameString = FString("Globals");
 
 namespace UE::MovieGraph::Private
 {
-	EMovieGraphValueType GetValueTypeFromProperty(const FProperty* InSourceProperty)
+	EMovieGraphValueType GetValueTypeFromProperty(const FProperty* InSourceProperty, TObjectPtr<const UObject>& OutValueTypeObject)
 	{
 		if (CastField<FBoolProperty>(InSourceProperty))
 		{
@@ -18,7 +18,13 @@ namespace UE::MovieGraph::Private
 		}
 		if (const FByteProperty* ByteProperty = CastField<FByteProperty>(InSourceProperty))
 		{
-			return ByteProperty->IsEnum() ? EMovieGraphValueType::Enum : EMovieGraphValueType::Byte;
+			if (ByteProperty->IsEnum())
+			{
+				OutValueTypeObject = ByteProperty->Enum.Get();
+				return EMovieGraphValueType::Enum;
+			}
+			
+			return EMovieGraphValueType::Byte;
 		}
 		if (CastField<FIntProperty>(InSourceProperty))
 		{
@@ -48,35 +54,41 @@ namespace UE::MovieGraph::Private
 		{
 			return EMovieGraphValueType::Text;
 		}
-		if (CastField<FEnumProperty>(InSourceProperty))
+		if (const FEnumProperty* EnumProperty = CastField<FEnumProperty>(InSourceProperty))
 		{
+			OutValueTypeObject = EnumProperty->GetEnum();
 			return EMovieGraphValueType::Enum;
 		}
-		if (CastField<FStructProperty>(InSourceProperty))
+		if (const FStructProperty* StructProperty = CastField<FStructProperty>(InSourceProperty))
 		{
+			OutValueTypeObject = StructProperty->Struct.Get();
 			return EMovieGraphValueType::Struct;
 		}
-		if (CastField<FObjectProperty>(InSourceProperty))
+		if (const FObjectProperty* ObjectProperty = CastField<FObjectProperty>(InSourceProperty))
 		{
+			OutValueTypeObject = ObjectProperty->PropertyClass.Get();
 			return EMovieGraphValueType::Object;
 		}
-		if (CastField<FSoftObjectProperty>(InSourceProperty))
+		if (const FSoftObjectProperty* SoftObjectProperty = CastField<FSoftObjectProperty>(InSourceProperty))
 		{
+			OutValueTypeObject = SoftObjectProperty->PropertyClass.Get();
 			return EMovieGraphValueType::SoftObject;
 		}
-		if (CastField<FClassProperty>(InSourceProperty))
+		if (const FClassProperty* ClassProperty = CastField<FClassProperty>(InSourceProperty))
 		{
+			OutValueTypeObject = ClassProperty->PropertyClass.Get();
 			return EMovieGraphValueType::Class;
 		}
-		if (CastField<FSoftClassProperty>(InSourceProperty))
+		if (const FSoftClassProperty* SoftClassProperty = CastField<FSoftClassProperty>(InSourceProperty))
 		{
+			OutValueTypeObject = SoftClassProperty->PropertyClass.Get();
 			return EMovieGraphValueType::SoftClass;
 		}
 
 		// Handle array property
 		if (const FArrayProperty* ArrayProperty = CastField<FArrayProperty>(InSourceProperty))
 		{
-			return GetValueTypeFromProperty(ArrayProperty->Inner);	
+			return GetValueTypeFromProperty(ArrayProperty->Inner, OutValueTypeObject);	
 		}
 
 		return EMovieGraphValueType::None;
@@ -100,7 +112,7 @@ TArray<FMovieGraphPinProperties> UMovieGraphNode::GetExposedPinProperties() cons
 		}
 		
 		constexpr bool bAllowMultipleConnections = false;
-		Properties.Add(FMovieGraphPinProperties(PropertyInfo.Name, PropertyInfo.ValueType, bAllowMultipleConnections));
+		Properties.Add(FMovieGraphPinProperties(PropertyInfo.Name, PropertyInfo.ValueType, PropertyInfo.ValueTypeObject, bAllowMultipleConnections));
 	}
 
 	return Properties;
@@ -441,7 +453,7 @@ TArray<FMovieGraphPropertyInfo> UMovieGraphNode::GetOverrideablePropertyInfo() c
 			FMovieGraphPropertyInfo Info;
 			Info.Name = PropertyIterator->GetFName();
 			Info.bIsDynamicProperty = false;
-			Info.ValueType = UE::MovieGraph::Private::GetValueTypeFromProperty(*PropertyIterator);
+			Info.ValueType = UE::MovieGraph::Private::GetValueTypeFromProperty(*PropertyIterator, Info.ValueTypeObject);
 			
 			OverrideableProperties.Add(MoveTemp(Info));
 		}
@@ -455,6 +467,7 @@ TArray<FMovieGraphPropertyInfo> UMovieGraphNode::GetOverrideablePropertyInfo() c
 			Info.Name = Desc.Name;
 			Info.bIsDynamicProperty = true;
 			Info.ValueType = static_cast<EMovieGraphValueType>(Desc.ValueType);
+			Info.ValueTypeObject = Desc.ValueTypeObject.Get();
 
 			OverrideableProperties.Add(MoveTemp(Info));
 		}

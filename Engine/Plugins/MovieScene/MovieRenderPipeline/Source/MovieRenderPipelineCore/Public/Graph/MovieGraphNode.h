@@ -52,6 +52,10 @@ struct FMovieGraphPropertyInfo
 	UPROPERTY()
 	EMovieGraphValueType ValueType = EMovieGraphValueType::None;
 
+	/** The associated value type object if the ValueType is an enum, struct, class, or object. */
+	UPROPERTY()
+	TObjectPtr<const UObject> ValueTypeObject;
+
 	/**
 	 * Determines if this struct represents the same property as another instance of this struct.
 	 *
@@ -69,7 +73,8 @@ struct FMovieGraphPropertyInfo
 	{
 		return (Name == Other.Name)
 			&& (bIsDynamicProperty == Other.bIsDynamicProperty)
-			&& (ValueType == Other.ValueType);
+			&& (ValueType == Other.ValueType)
+			&& (ValueTypeObject == Other.ValueTypeObject);
 	}
 };
 
