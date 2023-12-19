@@ -173,6 +173,13 @@ bool UModularRigController::ConnectConnectorToElement(const FRigElementKey& InCo
 		return false;
 	}
 
+	const FRigElementKey ConnectorKey(*ConnectorName, ERigElementType::Connector);
+	FRigElementKey* CurrentTarget = Module->Connections.Find(ConnectorKey);
+	if (CurrentTarget && InTargetKey == *CurrentTarget)
+	{
+		return true; // Nothing to do
+	}
+
 	/*
 	FText ErrorMessage;
 	if (!CanConnectConnectorToElement(*ModuleConnector, InTargetKey, ErrorMessage))
@@ -201,9 +208,13 @@ bool UModularRigController::ConnectConnectorToElement(const FRigElementKey& InCo
 	}
 #endif 
 
-	const FRigElementKey ConnectorKey(*ConnectorName, ERigElementType::Connector);
-	FRigElementKey& TargetKey = Module->Connections.FindOrAdd(ConnectorKey);
-	TargetKey = InTargetKey;
+	// First disconnect before connecting to anything else. This might disconnect other secondary/optional connectors.
+	if (CurrentTarget && CurrentTarget->IsValid())
+	{
+		DisconnectConnector(InConnectorKey, bSetupUndo);
+	}
+
+	Module->Connections.FindOrAdd(ConnectorKey) = InTargetKey;
 
 	Notify(EModularRigNotification::ConnectionChanged, Module);
 
@@ -268,6 +279,15 @@ bool UModularRigController::DisconnectConnector(const FRigElementKey& InConnecto
 
 	const FRigElementKey ConnectorKey(*ConnectorName, ERigElementType::Connector);
 	Module->Connections.Remove(ConnectorKey);
+
+	if (Connector->Settings.Type == EConnectorType::Primary)
+	{
+		Module->Connections.Reset();
+	}
+	else
+	{
+		// todo: Make sure all the rest of the connections are still valid
+	}
 
 	Notify(EModularRigNotification::ConnectionChanged, Module);
 

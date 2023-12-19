@@ -69,12 +69,14 @@ struct CONTROLRIGEDITOR_API FRigTreeDisplaySettings
 
 DECLARE_DELEGATE_RetVal(const URigHierarchy*, FOnGetRigTreeHierarchy);
 DECLARE_DELEGATE_RetVal(const FRigTreeDisplaySettings&, FOnGetRigTreeDisplaySettings);
+DECLARE_DELEGATE_RetVal(const TArray<FRigElementKey>, FOnRigTreeGetSelection);
 DECLARE_DELEGATE_RetVal_TwoParams(FName, FOnRigTreeRenameElement, const FRigElementKey& /*OldKey*/, const FString& /*NewName*/);
 DECLARE_DELEGATE_RetVal_ThreeParams(bool, FOnRigTreeVerifyElementNameChanged, const FRigElementKey& /*OldKey*/, const FString& /*NewName*/, FText& /*OutErrorMessage*/);
 DECLARE_DELEGATE_RetVal_TwoParams(bool, FOnRigTreeCompareKeys, const FRigElementKey& /*A*/, const FRigElementKey& /*B*/);
 DECLARE_DELEGATE_RetVal_OneParam(FRigElementKey, FOnRigTreeGetResolvedKey, const FRigElementKey&);
 DECLARE_DELEGATE_OneParam(FOnRigTreeRequestDetailsInspection, const FRigElementKey&);
 DECLARE_DELEGATE_RetVal_OneParam(TOptional<FText>, FOnRigTreeItemGetToolTip, const FRigElementKey&);
+DECLARE_DELEGATE_RetVal_OneParam(bool, FOnRigTreeIsItemVisible, const FRigElementKey&);
 
 typedef STableRow<TSharedPtr<FRigTreeElement>>::FOnCanAcceptDrop FOnRigTreeCanAcceptDrop;
 typedef STableRow<TSharedPtr<FRigTreeElement>>::FOnAcceptDrop FOnRigTreeAcceptDrop;
@@ -92,6 +94,7 @@ struct CONTROLRIGEDITOR_API FRigTreeDelegates
 	FOnDragDetected OnDragDetected;
 	FOnRigTreeCanAcceptDrop OnCanAcceptDrop;
 	FOnRigTreeAcceptDrop OnAcceptDrop;
+	FOnRigTreeGetSelection OnGetSelection;
 	FOnRigTreeSelectionChanged OnSelectionChanged;
 	FOnContextMenuOpening OnContextMenuOpening;
 	FOnRigTreeMouseButtonClick OnMouseButtonClick;
@@ -102,6 +105,7 @@ struct CONTROLRIGEDITOR_API FRigTreeDelegates
 	FOnRigTreeRequestDetailsInspection OnRequestDetailsInspection;
 	FOnRigTreeElementKeyTagDragDetected OnRigTreeElementKeyTagDragDetected;
 	FOnRigTreeItemGetToolTip OnRigTreeGetItemToolTip;
+	FOnRigTreeIsItemVisible OnRigTreeIsItemVisible;
 
 	FRigTreeDelegates()
 	{
@@ -124,6 +128,19 @@ struct CONTROLRIGEDITOR_API FRigTreeDelegates
 			return OnGetDisplaySettings.Execute();
 		}
 		return DefaultDisplaySettings;
+	}
+
+	TArray<FRigElementKey> GetSelection() const
+	{
+		if (OnGetSelection.IsBound())
+		{
+			return OnGetSelection.Execute();
+		}
+		if (const URigHierarchy* Hierarchy = GetHierarchy())
+		{
+			return Hierarchy->GetSelectedKeys();
+		}
+		return {};
 	}
 	
 	FName HandleRenameElement(const FRigElementKey& OldKey, const FString& NewName) const

@@ -400,7 +400,13 @@ bool SRigHierarchyTreeView::AddElement(FRigElementKey InKey, FRigElementKey InPa
 	const bool bSupportsRename = Delegates.OnRenameElement.IsBound();
 
 	const FString FilteredString = Settings.FilterText.ToString();
-	if (FilteredString.IsEmpty() || !InKey.IsValid())
+	bool bAnyFilteredOut = Delegates.OnRigTreeIsItemVisible.IsBound();
+	if (!bAnyFilteredOut)
+	{
+		bAnyFilteredOut = FilteredString.IsEmpty() || !InKey.IsValid();
+	}
+
+	if (!bAnyFilteredOut)
 	{
 		TSharedPtr<FRigTreeElement> NewItem = MakeShared<FRigTreeElement>(InKey, SharedThis(this), bSupportsRename, ERigTreeFilterResult::Shown);
 
@@ -430,8 +436,14 @@ bool SRigHierarchyTreeView::AddElement(FRigElementKey InKey, FRigElementKey InPa
 	}
 	else
 	{
+		bool bIsFilteredOut = false;
+		if (Delegates.OnRigTreeIsItemVisible.IsBound())
+		{
+			bIsFilteredOut = !Delegates.OnRigTreeIsItemVisible.Execute(InKey);
+		}
+		
 		FString FilteredStringUnderScores = FilteredString.Replace(TEXT(" "), TEXT("_"));
-		if (InKey.Name.ToString().Contains(FilteredString) || InKey.Name.ToString().Contains(FilteredStringUnderScores))	
+		if (!bIsFilteredOut && (InKey.Name.ToString().Contains(FilteredString) || InKey.Name.ToString().Contains(FilteredStringUnderScores)))
 		{
 			TSharedPtr<FRigTreeElement> NewItem = MakeShared<FRigTreeElement>(InKey, SharedThis(this), bSupportsRename, ERigTreeFilterResult::Shown);
 			ElementMap.Add(InKey, NewItem);
@@ -844,7 +856,7 @@ void SRigHierarchyTreeView::RefreshTreeView(bool bRebuildContent)
 
 		if(const URigHierarchy* Hierarchy = Delegates.GetHierarchy())
 		{
-			TArray<FRigElementKey> Selection = Hierarchy->GetSelectedKeys();
+			TArray<FRigElementKey> Selection = Delegates.GetSelection();
 			for (const FRigElementKey& Key : Selection)
 			{
 				for (int32 RootIndex = 0; RootIndex < RootElements.Num(); ++RootIndex)

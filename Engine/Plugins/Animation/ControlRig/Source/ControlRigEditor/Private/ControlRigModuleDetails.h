@@ -23,6 +23,7 @@
 #include "Styling/AppStyle.h"
 #include "Algo/Transform.h"
 #include "IPropertyUtilities.h"
+#include "Editor/SRigHierarchyTreeView.h"
 
 class IPropertyHandle;
 
@@ -49,6 +50,14 @@ public:
 	FText GetRigClassPath() const;
 	TArray<FRigModuleConnector> GetConnectors() const;
 	FRigElementKeyRedirector GetConnections() const;
+	void PopulateConnectorTargetList(const FRigElementKey& InConnectorKey);
+	void PopulateConnectorCurrentTarget(
+		TSharedPtr<SVerticalBox> InListBox,
+		const FRigElementKey& InConnectorKey,
+		const FRigElementKey& InTargetKey,
+		const FSlateBrush* InBrush,
+		const FSlateColor& InColor,
+		const FText& InTitle);
 
 	void OnConfigValueChanged(const FName InVariableName);
 	
@@ -125,13 +134,6 @@ public:
 
 	virtual void RegisterSectionMappings(FPropertyEditorModule& PropertyEditorModule, UClass* InClass);
 
-	void OnElementNameChanged(TSharedPtr<FString> InItem, ESelectInfo::Type InSelectionInfo, FRigElementKey Connector);
-	void OnElementTypeChanged(ERigElementType InElementType, FRigElementKey Connector);
-	FText GetElementNameAsText(FRigElementKey Connector) const;
-	FReply OnGetSelectedClicked(FRigElementKey Connector);
-	FReply OnSelectInHierarchyClicked(FRigElementKey Connector);
-	ERigElementType GetElementType(FRigElementKey Connector) const;
-
 protected:
 
 	FText GetBindingText(const FProperty* InProperty) const;
@@ -143,6 +145,10 @@ protected:
 	void HandleChangeBinding(const FProperty* InProperty, const FString& InNewVariablePath) const;
 
 	TArray<FPerModuleInfo> PerModuleInfos;
-	TSharedPtr<SRigElementKeyWidget> RigElementKeyWidget;
-	TMap<FRigElementKey, FRigElementKey> Connections;
+	TMap<FRigElementKey, TSharedPtr<SSearchableRigHierarchyTreeView>> ConnectionListBox;
+
+	/** Helper buttons. */
+	TMap<FRigElementKey, TSharedPtr<SButton>> UseSelectedButton;
+	TMap<FRigElementKey, TSharedPtr<SButton>> SelectElementButton;
+	TMap<FRigElementKey, TSharedPtr<SButton>> ResetConnectorButton;
 };
