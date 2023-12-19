@@ -1980,6 +1980,12 @@ void UNiagaraComponent::PostApplyToComponent()
 	Super::PostApplyToComponent();
 
 #if WITH_EDITOR
+	// Ensure update the override parameters as they may be incomplete
+	// Without this calls to set override data interface values can fail as the DI may not be present in the override parameter store
+	if (Asset != nullptr)
+	{
+		CopyParametersFromAsset(false);
+	}
 	ApplyOverridesToParameterStore();
 	FixDataInterfaceOuters();
 #endif
