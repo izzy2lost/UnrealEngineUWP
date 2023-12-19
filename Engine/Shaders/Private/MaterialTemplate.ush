@@ -2567,7 +2567,7 @@ float4 SceneTextureLookup(float2 UV, int SceneTextureIndex, bool bFiltered)
 			const FSubstrateSubsurfaceHeader SSSHeader = SubstrateLoadSubsurfaceHeader(SubstrateSceneTexture.MaterialTextureArray, SubstrateSceneTexture.FirstSliceStoringSubstrateSSSData, SubstrateAddressing.PixelCoords);
 			const uint SSSType = SubstrateSubSurfaceHeaderGetSSSType(SSSHeader);
 
-			const FSubstrateBSDF BSDF = UnpackSubstrateBSDFIn(SubstrateSceneTexture.MaterialTextureArray, SubstrateAddressing, SubstratePixelHeader);
+			FSubstrateBSDF BSDF = UnpackSubstrateBSDFIn(SubstrateSceneTexture.MaterialTextureArray, SubstrateAddressing, SubstratePixelHeader);
 			switch (SceneTextureIndex)
 			{
 				// order needs to match to ESceneTextureId
