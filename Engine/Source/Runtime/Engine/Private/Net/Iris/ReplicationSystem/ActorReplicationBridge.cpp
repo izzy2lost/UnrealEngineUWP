@@ -303,14 +303,14 @@ UE::Net::FNetRefHandle UActorReplicationBridge::BeginReplication(AActor* Actor, 
 			{
 				LevelGroup = CreateLevelGroup(Level);
 
-				UE_LOG_ACTORREPLICATIONBRIDGE(Log, TEXT("Created new GroupIndex: %u for Level: %s"), LevelGroup.GetRawValue(), ToCStr(PackageName.ToString()));
+				UE_LOG_ACTORREPLICATIONBRIDGE(Log, TEXT("Created new GroupIndex: %u for Level: %s"), LevelGroup.GetGroupIndex(), ToCStr(PackageName.ToString()));
 
 				// Update the filtering status of the group based on current level visibility for all connections
 				NetDriver->UpdateGroupFilterStatusForLevel(Level, LevelGroup);
 			}
 
 			// Add object to group
-			UE_LOG_ACTORREPLICATIONBRIDGE(Verbose, TEXT("Added %s to GroupIndex: %u Level: %s"), *ActorRefHandle.ToString(), LevelGroup.GetRawValue(), ToCStr(PackageName.ToString()));
+			UE_LOG_ACTORREPLICATIONBRIDGE(Verbose, TEXT("Added %s to GroupIndex: %u Level: %s"), *ActorRefHandle.ToString(), LevelGroup.GetGroupIndex(), ToCStr(PackageName.ToString()));
 			GetReplicationSystem()->AddToGroup(LevelGroup, ActorRefHandle);	
 		}
 	}
