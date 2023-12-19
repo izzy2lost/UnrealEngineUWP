@@ -118,7 +118,7 @@ void UMetaSoundPatch::PostEditUndo()
 
 void UMetaSoundPatch::BeginDestroy()
 {
-	UnregisterGraphWithFrontend();
+	OnNotifyBeginDestroy();
 	Super::BeginDestroy();
 }
 

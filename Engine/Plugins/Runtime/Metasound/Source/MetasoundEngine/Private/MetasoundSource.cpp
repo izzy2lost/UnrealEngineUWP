@@ -497,7 +497,7 @@ FTopLevelAssetPath UMetaSoundSource::GetAssetPathChecked() const
 
 void UMetaSoundSource::BeginDestroy()
 {
-	UnregisterGraphWithFrontend();
+	OnNotifyBeginDestroy();
 	Super::BeginDestroy();
 }
 

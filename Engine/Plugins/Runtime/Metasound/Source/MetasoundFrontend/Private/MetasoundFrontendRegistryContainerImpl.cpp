@@ -492,12 +492,19 @@ namespace Metasound::Frontend
 		}
 
 
-		if (NumRemoved == 0 && !IsRunningCookCommandlet())
+		if (NumRemoved == 0)
 		{
-			UE_LOG(LogMetaSound, Warning,
-				TEXT("Failed to find active %s tasks for the graph '%s' "),
+			const bool bIsCooking = IsRunningCookCommandlet();
+			if (ensureMsgf(!bIsCooking,
+				TEXT("Failed to find active %s tasks for the graph '%s': Async registration is not supported while cooking"),
 				*FNodeRegistryTransaction::LexToString(TransactionType),
-				*InKey.ToString());
+				*InKey.ToString()))
+			{
+				UE_LOG(LogMetaSound, Warning,
+					TEXT("Failed to find active %s tasks for the graph '%s'."),
+					*FNodeRegistryTransaction::LexToString(TransactionType),
+					*InKey.ToString());
+			}
 		}
 	}
 
@@ -556,8 +563,8 @@ namespace Metasound::Frontend
 			}
 			else
 			{
-				// Avoid warning if in cook as we always expect a graph to not get registered/unregistered
-				// while cooking (as its unnecessary for serialization)
+				// Avoid warning if in cook as we always expect a graph to not get registered/
+				// unregistered while cooking (as its unnecessary for serialization).
 				if (bNodeUnregistered && !IsRunningCookCommandlet())
 				{
 					UE_LOG(LogMetaSound, Warning, TEXT("Graph '%s' was not found, but analogous registered node class was when unregistering."), *InKey.ToString());

@@ -6,6 +6,7 @@
 #include "MetasoundAssetManager.h"
 #include "MetasoundBuilderSubsystem.h"
 #include "MetasoundFrontendDocumentIdGenerator.h"
+#include "MetasoundFrontendRegistryKey.h"
 #include "MetasoundUObjectRegistry.h"
 #include "Serialization/Archive.h"
 
@@ -40,9 +41,9 @@ namespace Metasound
 		}
 
 		template<typename TMetaSoundObject>
-		static void SetReferencedAssetClasses(TMetaSoundObject& InMetaSound, TSet<Metasound::Frontend::IMetaSoundAssetManager::FAssetInfo>&& InAssetClasses)
+		static void SetReferencedAssetClasses(TMetaSoundObject& InMetaSound, TSet<Frontend::IMetaSoundAssetManager::FAssetInfo>&& InAssetClasses)
 		{
-			using namespace Metasound::Frontend;
+			using namespace Frontend;
 			
 			InMetaSound.ReferencedAssetClassKeys.Reset();
 			InMetaSound.ReferencedAssetClassObjects.Reset();
@@ -97,7 +98,7 @@ namespace Metasound
 		static void PreSaveAsset(TMetaSoundObject& InMetaSound, FObjectPreSaveContext InSaveContext)
 		{
 #if WITH_EDITORONLY_DATA
-			using namespace Metasound::Frontend;
+			using namespace Frontend;
 
 			// Do not call asset manager on CDO objects which may be loaded before asset 
 			// manager is set.
@@ -187,10 +188,9 @@ namespace Metasound
 
 #if WITH_EDITORONLY_DATA
 		template <typename TMetaSoundObject>
-		static void SetMetaSoundRegistryAssetClassInfo(TMetaSoundObject& InMetaSound, const Metasound::Frontend::FNodeClassInfo& InClassInfo)
+		static void SetMetaSoundRegistryAssetClassInfo(TMetaSoundObject& InMetaSound, const Frontend::FNodeClassInfo& InClassInfo)
 		{
-			using namespace Metasound;
-			using namespace Metasound::Frontend;
+			using namespace Frontend;
 
 			check(AssetTags::AssetClassID == GET_MEMBER_NAME_CHECKED(TMetaSoundObject, AssetClassID));
 			check(AssetTags::IsPreset == GET_MEMBER_NAME_CHECKED(TMetaSoundObject, bIsPreset));

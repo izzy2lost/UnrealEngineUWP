@@ -197,6 +197,8 @@ public:
 	FString GetOwningAssetName() const;
 
 protected:
+	void OnNotifyBeginDestroy();
+
 #if WITH_EDITOR
 	virtual void SetReferencedAssetClasses(TSet<Metasound::Frontend::IMetaSoundAssetManager::FAssetInfo>&& InAssetClasses) = 0;
 #endif

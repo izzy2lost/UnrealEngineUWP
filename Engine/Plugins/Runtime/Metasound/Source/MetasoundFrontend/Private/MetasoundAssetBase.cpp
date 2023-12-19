@@ -265,6 +265,7 @@ void FMetasoundAssetBase::RegisterGraphWithFrontend(Metasound::Frontend::FMetaSo
 
 	// Graph registration must only happen on one thread to avoid race conditions on graph registration.
 	checkf(IsInGameThread(), TEXT("MetaSound %s graph can only be registered on the GameThread"), *GetOwningAssetName());
+	checkf(!IsRunningCookCommandlet(), TEXT("Cook of asset must call RegisterNode directly providing FDocumentNodeRegistryEntryForCook to avoid proxy/runtime graph generation."));
 
 	METASOUND_TRACE_CPUPROFILER_EVENT_SCOPE(MetaSoundAssetBase::RegisterGraphWithFrontend);
 	METASOUND_TRACE_CPUPROFILER_EVENT_SCOPE_TEXT(*FString::Printf(TEXT("MetaSoundAssetBase::RegisterGraphWithFrontend asset %s"), *this->GetOwningAssetName()));
@@ -321,9 +322,11 @@ void FMetasoundAssetBase::RegisterGraphWithFrontend(Metasound::Frontend::FMetaSo
 	check(Owner);
 	const FString AssetName = Owner->GetName();
 
-	// If the IMetaSoundDocumentInterface actively modified by a builder, then
-	// we must build synchronously to avoid a race condition on reading/writing
-	// the IMetaSoundDocumentInterface
+	// Async registration is only available if:
+	// 1. The IMetaSoundDocumentInterface is not actively modified by a builder
+	//    (built graph must be released synchronously to avoid a race condition on
+	//    reading/writing the IMetaSoundDocumentInterface on the Game Thread)
+	// 2. Async registration is globally disabled via console variable.
 	const bool bAsync = !(IsBuilderActive() || ConsoleVariables::bDisableAsyncGraphRegistration);
 	const TScriptInterface<IMetaSoundDocumentInterface> RegistryDocInterface = AssetBasePrivate::BuildRegistryDocument(Owner);
 	GraphRegistryKey = FRegistryContainerImpl::Get().RegisterGraph(RegistryDocInterface, bAsync);
@@ -384,16 +387,21 @@ void FMetasoundAssetBase::CookMetaSound()
 			DocBuilder.TransformTemplateNodes();
 		}
 
+		if (GraphRegistryKey.IsValid())
+		{
+			FRegistryContainerImpl::Get().UnregisterNode(GraphRegistryKey.NodeKey);
+			GraphRegistryKey = { };
+		}
+
 		// During cook, we need to register the node so that it is available for other graphs, but we need to avoid
 		// creating proxies. To do so, we use a special node registration object which reflects the necessary information
 		// for the node registry, but does not create INodes.
-		UnregisterGraphWithFrontend();
 		TScriptInterface<IMetaSoundDocumentInterface> DocInterface(Owner);
 		const FMetasoundFrontendDocument& Document = DocInterface->GetConstDocument();
 		const FTopLevelAssetPath AssetPath = DocInterface->GetAssetPathChecked();
 		TUniquePtr<INodeRegistryEntry> RegistryEntry = MakeUnique<AssetBasePrivate::FDocumentNodeRegistryEntryForCook>(Document, AssetPath);
 
-		const FNodeRegistryKey NodeKey = FMetasoundFrontendRegistryContainer::Get()->RegisterNode(MoveTemp(RegistryEntry));
+		const FNodeRegistryKey NodeKey = FRegistryContainerImpl::Get().RegisterNode(MoveTemp(RegistryEntry));
 		GraphRegistryKey = FGraphRegistryKey { NodeKey, AssetPath };
 	}
 
@@ -412,20 +420,44 @@ void FMetasoundAssetBase::CookMetaSound()
 	}
 }
 
+void FMetasoundAssetBase::OnNotifyBeginDestroy()
+{
+	using namespace Metasound::Frontend;
+
+	// Unregistration of graph is not necessary when cooking as deserialized objects are not mutable and, should they be reloaded,
+	// omitting unregistration avoids potentially kicking off an invalid asynchronous task to unregister a non-existent runtime graph.
+	if (IsRunningCookCommandlet())
+	{
+		if (GraphRegistryKey.IsValid())
+		{
+			FRegistryContainerImpl::Get().UnregisterNode(GraphRegistryKey.NodeKey);
+			GraphRegistryKey = { };
+		}
+	}
+	else
+	{
+		UnregisterGraphWithFrontend();
+	}
+}
+
 void FMetasoundAssetBase::UnregisterGraphWithFrontend()
 {
 	using namespace Metasound::Frontend;
 	METASOUND_TRACE_CPUPROFILER_EVENT_SCOPE(MetaSoundAssetBase::UnregisterGraphWithFrontend);
 
 	check(IsInGameThread());
+	checkf(!IsRunningCookCommandlet(), TEXT("Cook of asset must call UnregisterNode directly providing FDocumentNodeRegistryEntryForCook to avoid proxy/runtime graph generation."));
+
 	if (GraphRegistryKey.IsValid())
 	{
 		UObject* OwningAsset = GetOwningAsset();
 		if (ensureAlways(OwningAsset))
 		{
-			// If the IMetaSoundDocumentInterface is actively modified by a builder, then
-			// we must release built graph synchronously to avoid a race condition on
-			// reading/writing the IMetaSoundDocumentInterface
+			// Async registration is only available if:
+			// 1. The IMetaSoundDocumentInterface is not actively modified by a builder
+			//    (built graph must be released synchronously to avoid a race condition on
+			//    reading/writing the IMetaSoundDocumentInterface on the Game Thread)
+			// 2. Async registration is globally disabled via console variable.
 			const bool bAsync = !(IsBuilderActive() || ConsoleVariables::bDisableAsyncGraphRegistration);
 			const bool bSuccess = FRegistryContainerImpl::Get().UnregisterGraph(GraphRegistryKey, OwningAsset, bAsync);
 			if (!bSuccess)

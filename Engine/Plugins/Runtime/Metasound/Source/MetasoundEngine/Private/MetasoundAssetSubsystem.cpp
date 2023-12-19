@@ -646,18 +646,14 @@ void UMetaSoundAssetSubsystem::RenameAsset(const FAssetData& InAssetData, bool b
 		AddOrUpdateAsset(InAssetData);
 	};
 
+	FMetasoundAssetBase* MetaSoundAsset = Metasound::IMetasoundUObjectRegistry::Get().GetObjectAsAssetBase(InAssetData.GetAsset());
+	check(MetaSoundAsset);
+	MetaSoundAsset->UnregisterGraphWithFrontend();
+	PerformRename();
+
 	if (bInReregisterWithFrontend)
 	{
-		FMetasoundAssetBase* MetaSoundAsset = Metasound::IMetasoundUObjectRegistry::Get().GetObjectAsAssetBase(InAssetData.GetAsset());
-		check(MetaSoundAsset);
-
-		MetaSoundAsset->UnregisterGraphWithFrontend();
-		PerformRename();
 		MetaSoundAsset->RegisterGraphWithFrontend();
-	}
-	else
-	{
-		PerformRename();
 	}
 }
 
