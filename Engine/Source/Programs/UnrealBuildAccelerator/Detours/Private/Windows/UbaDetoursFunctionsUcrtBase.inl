@@ -329,6 +329,15 @@ int Detoured__wspawnl(int mode, const wchar_t* cmdname, const wchar_t* arg0, con
 	return exitCode;
 }
 
+errno_t Detoured__wsplitpath_s(const wchar_t* path, wchar_t* drive, size_t driveNumberOfElements, wchar_t* dir, size_t dirNumberOfElements, wchar_t* fname, size_t nameNumberOfElements, wchar_t* ext, size_t extNumberOfElements)
+{
+	DETOURED_CALL(_wsplitpath_s);
+
+	g_rules->RepairMalformedLibPath(path);
+	auto res = True__wsplitpath_s(path, drive, driveNumberOfElements, dir, dirNumberOfElements, fname, nameNumberOfElements, ext, extNumberOfElements);
+	DEBUG_LOG_TRUE(L"_wsplitpath_s", L"%ls %ls %ls %ls %ls", path, drive, dir, fname, ext);
+	return res;
+}
 
 #if defined(DETOURED_INCLUDE_DEBUG)
 int Detoured__wcsnicoll_l(const wchar_t* string1, const wchar_t* string2, size_t count, _locale_t locale)
@@ -383,13 +392,6 @@ errno_t Detoured_getenv_s(size_t* pReturnValue, char* buffer, size_t numberOfEle
 	DETOURED_CALL(getenv_s);
 	auto res = True_getenv_s(pReturnValue, buffer, numberOfElements, varname);
 	DEBUG_LOG_DETOURED(L"getenv_s", L"%hs -> %hs", varname, buffer);
-	return res;
-}
-
-errno_t Detoured__wsplitpath_s(const wchar_t* path, wchar_t* drive, size_t driveNumberOfElements, wchar_t* dir, size_t dirNumberOfElements, wchar_t* fname, size_t nameNumberOfElements, wchar_t* ext, size_t extNumberOfElements)
-{
-	auto res = True__wsplitpath_s(path, drive, driveNumberOfElements, dir, dirNumberOfElements, fname, nameNumberOfElements, ext, extNumberOfElements);
-	DEBUG_LOG_TRUE(L"_wsplitpath_s", L"%ls %ls %ls %ls %ls", path, drive, dir, fname, ext);
 	return res;
 }
 

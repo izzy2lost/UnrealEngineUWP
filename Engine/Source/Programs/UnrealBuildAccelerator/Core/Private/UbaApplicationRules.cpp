@@ -1,6 +1,7 @@
 // Copyright Epic Games, Inc. All Rights Reserved.
 
 #include "UbaApplicationRules.h"
+#include "UbaPlatform.h"
 
 namespace uba
 {
@@ -334,6 +335,23 @@ namespace uba
 		{
 			return EndsWith(file, fileLen, TC(".pvslog"))
 				|| EndsWith(file, fileLen, TC(".stacktrace.txt"));
+		}
+		
+		virtual bool IsRarelyRead(const StringBufferBase& file) override
+		{
+			return file.EndsWith(TC(".i"))
+				|| file.EndsWith(TC(".pvslog"))
+				|| file.EndsWith(TC(".stacktrace.txt"));
+		}
+
+		virtual void RepairMalformedLibPath(const wchar_t* path) override
+		{
+			// There is a bug where the path passed into wsplitpath_s is malformed and not null terminated correctly
+			const wchar_t* pext = TStrstr(path, L".dll");
+			if (pext == nullptr) pext = TStrstr(path, L".DLL");
+			if (pext == nullptr) pext = TStrstr(path, L".exe");
+			if (pext == nullptr) pext = TStrstr(path, L".EXE");
+			if (pext != nullptr && *(pext + 4) != 0) *(const_cast<wchar_t*>(pext + 4)) = 0;
 		}
 	};
 

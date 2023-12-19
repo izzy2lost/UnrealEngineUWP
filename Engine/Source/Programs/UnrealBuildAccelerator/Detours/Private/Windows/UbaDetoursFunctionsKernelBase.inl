@@ -2246,6 +2246,8 @@ DWORD Detoured_SearchPathW(LPCWSTR lpPath, LPCWSTR lpFileName, LPCWSTR lpExtensi
 	DETOURED_CALL(SearchPathW);
 	if (g_runningRemote && !t_disallowDetour)
 	{
+		g_rules->RepairMalformedLibPath(lpFileName);
+
 		const wchar_t* original = lpFileName; (void)original;
 		u64 pathLen = wcslen(lpFileName);
 		StringBuffer<512> tempBuf;
@@ -2644,6 +2646,27 @@ BOOL Detoured_GetExitCodeProcess(HANDLE hProcess, LPDWORD lpExitCode)
 		hProcess = asDetouredHandle(hProcess).trueHandle;
 	BOOL res = True_GetExitCodeProcess(hProcess, lpExitCode);
 	DEBUG_LOG_DETOURED(L"GetExitCodeProcess", L"%llu Exit code: %u -> %ls", uintptr_t(hProcess), *lpExitCode, ToString(res));
+	return res;
+}
+
+BOOL Detoured_CreateTimerQueueTimer(PHANDLE phNewTimer, HANDLE TimerQueue, WAITORTIMERCALLBACK Callback, PVOID Parameter, DWORD DueTime, DWORD Period, ULONG Flags)
+{
+	DETOURED_CALL(CreateTimerQueueTimer);
+	BOOL res = True_CreateTimerQueueTimer(phNewTimer, TimerQueue, Callback, Parameter, DueTime, Period, Flags);
+	DEBUG_LOG_TRUE(L"CreateTimerQueueTimer", L"%p -> %ls", *phNewTimer, ToString(res));
+	return res;
+}
+
+BOOL Detoured_DeleteTimerQueueTimer(HANDLE TimerQueue, HANDLE Timer, HANDLE CompletionEvent)
+{
+	DETOURED_CALL(DeleteTimerQueueTimer);
+	BOOL res = True_DeleteTimerQueueTimer(TimerQueue, Timer, CompletionEvent);
+	if (!res && IsRunningWine())
+	{
+		DEBUG_LOG_DETOURED(L"DeleteTimerQueueTimer", L"%p %p %p -> %ls (WINE ignored)", TimerQueue, Timer, CompletionEvent, ToString(res));
+		return true;
+	}
+	DEBUG_LOG_TRUE(L"DeleteTimerQueueTimer", L"%p %p %p -> %ls", TimerQueue, Timer, CompletionEvent, ToString(res));
 	return res;
 }
 

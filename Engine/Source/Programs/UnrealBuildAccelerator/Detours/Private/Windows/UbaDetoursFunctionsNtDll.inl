@@ -513,7 +513,7 @@ NTSTATUS NTAPI Shared_NtCreateFile(bool IsCreateFunc, PHANDLE hFileHandle, ACCES
 			if (StartsWith(createFileName, L"\\\\?\\"))
 				createFileName += 4;
 			if (!FixPath(fileName, createFileName))
-				UBA_ASSERT(false);
+				UBA_ASSERTF(false, L"FixPath failed for string '%ls'", createFileName);
 			if (fileName.StartsWith(L"\\\\.\\pipe"))
 				createFileName = nullptr;
 
@@ -523,7 +523,7 @@ NTSTATUS NTAPI Shared_NtCreateFile(bool IsCreateFunc, PHANDLE hFileHandle, ACCES
 		else if (memcmp(buf, L"\\??\\", 8) == 0)
 		{
 			if (!FixPath(fileName, buf + 4))
-				UBA_ASSERT(false);
+				UBA_ASSERTF(false, L"FixPath failed for string '%ls'", buf + 4);
 		}
 		else
 		{
