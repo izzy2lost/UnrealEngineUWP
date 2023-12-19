@@ -43,6 +43,8 @@ struct FAtmosphereSetup
 
 	FLinearColor GroundAlbedo;
 
+	uint32 bHoldout;
+
 	float TransmittanceMinLightElevationAngle;
 
 	ENGINE_API FAtmosphereSetup(const USkyAtmosphereComponent& SkyAtmosphereComponent);

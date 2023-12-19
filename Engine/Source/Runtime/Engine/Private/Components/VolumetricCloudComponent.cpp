@@ -166,6 +166,15 @@ CLOUD_DECLARE_BLUEPRINT_SETFUNCTION(float, ShadowTracingDistance);
 CLOUD_DECLARE_BLUEPRINT_SETFUNCTION(float, StopTracingTransmittanceThreshold);
 CLOUD_DECLARE_BLUEPRINT_SETFUNCTION(UMaterialInterface*, Material);
 
+void UVolumetricCloudComponent::SetHoldout(bool bNewHoldout)
+{
+	if (bHoldout != bNewHoldout)
+	{
+		bHoldout = bNewHoldout;
+		MarkRenderStateDirty();
+	}
+}
+
 void UVolumetricCloudComponent::SetReflectionViewSampleCountScale(float NewValue)
 {
 	if (AreDynamicDataChangesAllowed() && ReflectionViewSampleCountScaleValue != NewValue)

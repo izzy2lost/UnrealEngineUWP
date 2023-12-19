@@ -53,6 +53,7 @@ BEGIN_GLOBAL_SHADER_PARAMETER_STRUCT(FAtmosphereUniformShaderParameters, )
 	SHADER_PARAMETER(float, AbsorptionDensity1LinearTerm)
 	SHADER_PARAMETER(FLinearColor, AbsorptionExtinction)
 	SHADER_PARAMETER(FLinearColor, GroundAlbedo)
+	SHADER_PARAMETER(int32, bHoldout)
 END_GLOBAL_SHADER_PARAMETER_STRUCT()
 
 // These parameters are shared on the view global uniform buffer and are dynamically changed with cvars.

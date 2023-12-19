@@ -40,6 +40,7 @@ public:
 	float PlanetRadiusKm;
 	FColor GroundAlbedo;
 	bool bUsePerSampleAtmosphericLightTransmittance;
+	bool bHoldout;
 	float SkyLightCloudBottomOcclusion;
 	
 	float ViewSampleCountScale;

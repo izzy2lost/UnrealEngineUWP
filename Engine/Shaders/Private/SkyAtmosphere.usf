@@ -1,7 +1,7 @@
 // Copyright Epic Games, Inc. All Rights Reserved.
 
 /*=============================================================================
-	SkyAtmosphere.usf: Sky and atmosphere rendering functions. 
+	SkyAtmosphere.usf: Sky and atmosphere rendering functions.  
 =============================================================================*/
 
 
@@ -824,6 +824,13 @@ float4 PrepareOutput(float3 PreExposedLuminance, float3 Transmittance = float3(1
 	// We also half that range to also make sure we have room for other additive elements such as bloom, clouds or particle visual effects.
 	float3 SafePreExposedLuminance = min(PreExposedLuminance, Max10BitsFloat.xxx * 0.5f);
 
+#if POST_PROCESS_ALPHA
+	if (Atmosphere.bHoldout && View.RenderingReflectionCaptureMask == 0.0f)
+	{
+		SafePreExposedLuminance *= 0;
+	}
+#endif
+
 	const float GreyScaleTransmittance = dot(Transmittance, float3(1.0f / 3.0f, 1.0f / 3.0f, 1.0f / 3.0f));
 	return float4(SafePreExposedLuminance, GreyScaleTransmittance);
 }
@@ -1569,6 +1576,15 @@ void RenderCameraAerialPerspectiveVolumeCS(uint3 ThreadId : SV_DispatchThreadID)
 		View.AtmosphereLightIlluminanceOuterSpace[0].rgb, View.AtmosphereLightIlluminanceOuterSpace[1].rgb,
 		AerialPespectiveViewDistanceScale,
 		tMaxMax);
+
+#if POST_PROCESS_ALPHA
+	if (Atmosphere.bHoldout && !RealTimeReflection360Mode)
+	{
+		ss.L *= 0;
+		ss.LMieOnly *= 0;
+		ss.LRayOnly *= 0;
+	}
+#endif
 
 	const float Transmittance = dot(ss.Transmittance, float3(1.0f / 3.0f, 1.0f / 3.0f, 1.0f / 3.0f));
 	CameraAerialPerspectiveVolumeUAV[ThreadId] = float4(ss.L, Transmittance);

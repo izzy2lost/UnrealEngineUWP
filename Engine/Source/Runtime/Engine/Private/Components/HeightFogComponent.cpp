@@ -349,6 +349,15 @@ void UExponentialHeightFogComponent::SetSecondFogData(FExponentialHeightFogData 
 	}
 }
 
+void UExponentialHeightFogComponent::SetHoldout(bool bNewHoldout)
+{
+	if (bHoldout != bNewHoldout)
+	{
+		bHoldout = bNewHoldout;
+		MarkRenderStateDirty();
+	}
+}
+
 void UExponentialHeightFogComponent::Serialize(FArchive& Ar)
 {
 	Super::Serialize(Ar);

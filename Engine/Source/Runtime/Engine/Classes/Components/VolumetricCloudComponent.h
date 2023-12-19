@@ -139,6 +139,10 @@ class UVolumetricCloudComponent : public USceneComponent
 	UPROPERTY(EditAnywhere, BlueprintReadOnly, interp, Category = "Art Direction", meta = (UIMin = 0.0, UIMax = 100.0, ClampMin = 0.0, SliderExponent = 2.0))
 	float AerialPespectiveMieScatteringFadeDistance;
 
+	/** If this is True, this primitive will render black with an alpha of 0, but all secondary effects (shadows, reflections, indirect lighting) remain. This feature required the project setting "Enable alpha channel support in post processing". */
+	UPROPERTY(EditAnywhere, AdvancedDisplay, BlueprintReadOnly, Category = Rendering, Interp)
+	uint8 bHoldout : 1;
+
 
 	UFUNCTION(BlueprintCallable, Category = "Rendering")
 	ENGINE_API void SetLayerBottomAltitude(float NewValue);
@@ -180,6 +184,9 @@ class UVolumetricCloudComponent : public USceneComponent
 	UE_DEPRECATED(5.0, "This function has been replaced by SetShadowReflectionViewSampleCountScale.")
 	UFUNCTION(BlueprintCallable, Category = "Rendering", meta = (DeprecatedFunction, DeprecationMessage = "This function has been replaced by SetShadowReflectionViewSampleCountScale."))
 	ENGINE_API void SetShadowReflectionSampleCountScale(float NewValue);
+
+	UFUNCTION(BlueprintCallable, Category = "Rendering")
+	ENGINE_API void SetHoldout(bool bNewHoldout);
 
 
 protected:

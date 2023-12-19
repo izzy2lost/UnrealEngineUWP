@@ -1,7 +1,7 @@
 // Copyright Epic Games, Inc. All Rights Reserved.
 
 /*=============================================================================
-	HeightFogCommon.usf: 
+	HeightFogCommon.usf:  
 =============================================================================*/
 
 #pragma once
@@ -205,6 +205,13 @@ half4 GetExponentialHeightFog(float3 WorldPositionRelativeToCamera, float Exclud
 		half3 FogColor = (InscatteringColor) * (1 - ExpFogFactor) + DirectionalInscattering;
 	#endif
 
+#if POST_PROCESS_ALPHA
+	if (FogStruct.bHoldout && View.RenderingReflectionCaptureMask == 0.0f)
+	{
+		FogColor.rgb *= 0;
+	}
+#endif
+
 	return half4(FogColor, ExpFogFactor);
 }
 
@@ -264,6 +271,14 @@ float4 CombineVolumetricFog(float4 GlobalFog, float3 VolumeUV, uint EyeIndex, fl
 
 	// Visualize depth distribution
 	//VolumetricFogLookup.rgb += .1f * frac(min(ZSlice, 1.0f) / View.VolumetricFogInvGridSize.z);
+
+#if POST_PROCESS_ALPHA
+	if (FogStruct.bHoldout && View.RenderingReflectionCaptureMask == 0.0f)
+	{
+		VolumetricFogLookup.rgb *= 0;
+		GlobalFog.rgb *= 0;
+	}
+#endif
 
 	return float4(VolumetricFogLookup.rgb + GlobalFog.rgb * VolumetricFogLookup.a, VolumetricFogLookup.a * GlobalFog.a);
 }
