@@ -14,10 +14,12 @@ public class Draco : ModuleRules
 
 		if (Target.Platform == UnrealTargetPlatform.Win64)
 		{
-			PublicSystemIncludePaths.Add(DracoIncDir);
-			PublicSystemLibraryPaths.Add(DracoLibsDir);
+			string Win64DracoLibsDir = Path.Combine(DracoLibsDir, "Win64");
 
-			foreach (string DracoLib in Directory.EnumerateFiles(DracoLibsDir, "*.lib", SearchOption.AllDirectories))
+			PublicSystemIncludePaths.Add(DracoIncDir);
+			PublicSystemLibraryPaths.Add(Win64DracoLibsDir);
+
+			foreach (string DracoLib in Directory.EnumerateFiles(Win64DracoLibsDir, "*.lib", SearchOption.AllDirectories))
 			{
 				PublicAdditionalLibraries.Add(DracoLib);
 			}
@@ -26,11 +28,45 @@ public class Draco : ModuleRules
 		}
 		else if (Target.Platform == UnrealTargetPlatform.Linux)
 		{
-			PublicDefinitions.Add("USE_DRACO_LIBRARY=0"); //update to =1 once the support for the platform is added
+			string MacOSDracoLibsDir = Path.Combine(DracoLibsDir, "Linux");
+
+			PublicSystemIncludePaths.Add(DracoIncDir);
+			PublicSystemLibraryPaths.Add(MacOSDracoLibsDir);
+
+			foreach (string DracoLib in Directory.EnumerateFiles(MacOSDracoLibsDir, "*.a", SearchOption.AllDirectories))
+			{
+				PublicAdditionalLibraries.Add(DracoLib);
+			}
+
+			PublicDefinitions.Add("USE_DRACO_LIBRARY=1");
 		}
 		else if (Target.Platform == UnrealTargetPlatform.Mac)
 		{
-			PublicDefinitions.Add("USE_DRACO_LIBRARY=0"); //update to =1 once the support for the platform is added
+			string MacOSDracoLibsDir = Path.Combine(DracoLibsDir, "MacOS");
+
+			PublicSystemIncludePaths.Add(DracoIncDir);
+			PublicSystemLibraryPaths.Add(MacOSDracoLibsDir);
+
+			foreach (string DracoLib in Directory.EnumerateFiles(MacOSDracoLibsDir, "*.a", SearchOption.AllDirectories))
+			{
+				PublicAdditionalLibraries.Add(DracoLib);
+			}
+
+			PublicDefinitions.Add("USE_DRACO_LIBRARY=1");
+		}
+		else if (Target.Platform == UnrealTargetPlatform.IOS)
+		{
+			string iOSDracoLibsDir = Path.Combine(DracoLibsDir, "iOS");
+
+			PublicSystemIncludePaths.Add(DracoIncDir);
+			PublicSystemLibraryPaths.Add(iOSDracoLibsDir);
+
+			foreach (string DracoLib in Directory.EnumerateFiles(iOSDracoLibsDir, "*.a", SearchOption.AllDirectories))
+			{
+				PublicAdditionalLibraries.Add(DracoLib);
+			}
+
+			PublicDefinitions.Add("USE_DRACO_LIBRARY=1");
 		}
 		else
 		{
