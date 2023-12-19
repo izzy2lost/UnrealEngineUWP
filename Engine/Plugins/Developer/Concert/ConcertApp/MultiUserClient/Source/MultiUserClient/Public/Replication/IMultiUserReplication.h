@@ -2,6 +2,7 @@
 
 #pragma once
 
+#include "Misc/Attribute.h"
 #include "Templates/SharedPointer.h"
 
 struct FGuid;
@@ -9,20 +10,15 @@ struct FObjectReplicationMap;
 
 namespace UE::MultiUserClient
 {
+	class IClientChangeOperation;
 	class IReplicationDiscoverer;
+	
+	struct FChangeClientReplicationRequest;
 	
 	/** Interface for interacting with Multi-User replication, which uses the Concert replication system. */
 	class MULTIUSERCLIENT_API IMultiUserReplication
 	{
 	public:
-
-		/**
-		 * The server keeps track of multiple streams per client and the ID is used to identify streams by client.
-		 * MU only uses one stream per client and this is its ID.
-		 * 
-		 * @return The stream ID that every MU client uses to register its replication stream with the server.
-		 */
-		virtual FGuid GetMultiUserStreamId() const = 0;
 
 		/**
 		 * @return Gets the last known server map of objects registered for replication for a given client.
@@ -41,6 +37,19 @@ namespace UE::MultiUserClient
 		virtual void RegisterReplicationDiscoverer(TSharedRef<IReplicationDiscoverer> Discoverer) = 0;
 		/** Unregisters a previously registered discoverer */
 		virtual void RemoveReplicationDiscoverer(const TSharedRef<IReplicationDiscoverer>& Discoverer) = 0;
+
+		/**
+		 * Enqueues a request for changing a client's stream and authority.
+		 * The request is enqueued with the other requests that Multi-User might have ongoing already (like those triggered by the UI).
+		 *
+		 * A stream is the mapping of objects to properties.
+		 * The authority state specifies which of the registered objects should actually be sending data.
+		 * The stream change is requested first and is followed by the authority change.
+		 *
+		 * @param ClientId The client for which to change authority
+		 * @param SubmissionParams Once the request is ready to be sent to the server, this attribute is used to generate the change request
+		 */
+		virtual TSharedRef<IClientChangeOperation> EnqueueChanges(const FGuid& ClientId, TAttribute<FChangeClientReplicationRequest> SubmissionParams) = 0;
 
 		virtual ~IMultiUserReplication() = default;
 	};

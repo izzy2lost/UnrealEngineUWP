@@ -3,6 +3,7 @@
 #include "MultiUserReplicationManager.h"
 
 #include "IConcertSyncClient.h"
+#include "Replication/ChangeOperationTypes.h"
 #include "Replication/IConcertClientReplicationManager.h"
 
 #include "Containers/Ticker.h"
@@ -99,11 +100,6 @@ namespace UE::MultiUserClient
 		OnReplicationConnectionStateChangedDelegate.Broadcast(ConnectionState);
 	}
 
-	FGuid FMultiUserReplicationManager::GetMultiUserStreamId() const
-	{
-		return UMultiUserReplicationClientPreset::MultiUserStreamID;
-	}
-
 	const FObjectReplicationMap* FMultiUserReplicationManager::FindReplicationMapForClient(const FGuid& ClientId) const
 	{
 		if (ConnectedState)
@@ -134,6 +130,18 @@ namespace UE::MultiUserClient
 	void FMultiUserReplicationManager::RemoveReplicationDiscoverer(const TSharedRef<IReplicationDiscoverer>& Discoverer)
 	{
 		DiscoveryContainer.RemoveDiscoverer(Discoverer);
+	}
+
+	TSharedRef<IClientChangeOperation> FMultiUserReplicationManager::EnqueueChanges(const FGuid& ClientId, TAttribute<FChangeClientReplicationRequest> SubmissionParams)
+	{
+		if (ConnectedState)
+		{
+			FReplicationClient* ReplicationClient = ConnectedState->ClientManager.FindClient(ClientId);
+			return ReplicationClient
+				? ReplicationClient->GetExternalRequestHandler().HandleRequest(MoveTemp(SubmissionParams))
+				: FExternalClientChangeRequestHandler::MakeFailedOperation(EChangeStreamOperationResult::UnknownClient, EChangeAuthorityOperationResult::UnknownClient);
+		}
+		return FExternalClientChangeRequestHandler::MakeFailedOperation(EChangeStreamOperationResult::NotInSession, EChangeAuthorityOperationResult::NotInSession);
 	}
 
 	FMultiUserReplicationManager::FConnectedState::FConnectedState(TSharedRef<IConcertSyncClient> InClient, FReplicationDiscoveryContainer& InDiscoveryContainer)

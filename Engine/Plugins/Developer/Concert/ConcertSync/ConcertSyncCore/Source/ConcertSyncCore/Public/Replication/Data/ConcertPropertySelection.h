@@ -67,6 +67,7 @@ struct CONCERTSYNCCORE_API FConcertPropertyChain
 	/** @return Attempts to resolve this property given the class */
 	FProperty* ResolveProperty(UStruct& Class, bool bLogOnFail = true) const;
 
+	FConcertPropertyChain GetParent() const;
 	const TArray<FName>& GetPathToProperty() const { return PathToProperty; }
 
 	enum class EToStringMethod
@@ -187,6 +188,14 @@ struct CONCERTSYNCCORE_API FConcertPropertySelection
 
 	/** @return Whether this includes all properties of Other */
 	bool Includes(const FConcertPropertySelection& Other) const;
+
+	/**
+	 * Adds all parent properties if they are missing.
+	 * 
+	 * Suppose ReplicatedProperties = { ["Vector", "X"] }.
+	 * After execution, it would be { ["Vector", "X"], ["Vector"] }
+	 */
+	void DiscoverAndAddImplicitParentProperties();
 	
 	/**
 	 * Determines all properties that overlap.

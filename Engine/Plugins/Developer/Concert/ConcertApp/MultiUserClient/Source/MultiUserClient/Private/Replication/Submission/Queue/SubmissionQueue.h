@@ -26,6 +26,9 @@ namespace UE::MultiUserClient
 	{
 	public:
 		
+		/**
+		 * @param InWorkflow Used to dispatch requests. The caller ensures it outlives the constructed instance.
+		 */
 		FSubmissionQueue(ISubmissionWorkflow& InWorkflow);
 		virtual ~FSubmissionQueue();
 
@@ -53,7 +56,10 @@ namespace UE::MultiUserClient
 		/** Implements the queue. The head is the next to execute. Used instead of TQueue because TQueue does not support removing. */
 		TDoubleLinkedList<IDeferredSubmitter*> Queue;
 
-		/** The workflow that is being enqueued for. */
+		/**
+		 * The workflow that is being enqueued for.
+		 * Outlives this object.
+		 */
 		ISubmissionWorkflow& Workflow;
 
 		/** Set to true when a task finishes outside of the game thread. Written exactly once by other threads other than game thread. Read by game thread. */

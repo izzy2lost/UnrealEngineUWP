@@ -3,7 +3,6 @@
 #pragma once
 
 #include "Client/ReplicationClientManager.h"
-
 #include "IConcertSession.h"
 #include "Replication/IMultiUserReplication.h"
 #include "Replication/Stream/Discovery/ReplicationDiscoveryContainer.h"
@@ -28,11 +27,6 @@ namespace UE::ConcertClientSharedSlate
 
 namespace UE::MultiUserClient
 {
-	namespace Replication
-	{
-		struct FJoinSessionResult;
-	}
-
 	enum class EMultiUserReplicationConnectionState : uint8
 	{
 		Connecting,
@@ -75,11 +69,11 @@ namespace UE::MultiUserClient
 		EMultiUserReplicationConnectionState GetConnectionState() const { return ConnectionState; }
 
 		//~ Begin IMultiUserReplication Interface
-		virtual FGuid GetMultiUserStreamId() const override;
 		virtual const FObjectReplicationMap* FindReplicationMapForClient(const FGuid& ClientId) const override;
 		virtual bool IsReplicatingObject(const FGuid& ClientId, const FSoftObjectPath& ObjectPath) const override;
 		virtual void RegisterReplicationDiscoverer(TSharedRef<IReplicationDiscoverer> Discoverer) override;
 		virtual void RemoveReplicationDiscoverer(const TSharedRef<IReplicationDiscoverer>& Discoverer) override;
+		virtual TSharedRef<IClientChangeOperation> EnqueueChanges(const FGuid& ClientId, TAttribute<FChangeClientReplicationRequest> SubmissionParams) override;
 		//~ End IMultiUserReplication Interface
 
 	private:

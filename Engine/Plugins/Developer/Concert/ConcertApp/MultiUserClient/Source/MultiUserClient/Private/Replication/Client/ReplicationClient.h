@@ -8,6 +8,7 @@
 #include "Replication/Stream/StreamChangeTracker.h"
 #include "Replication/Submission/AutoSubmissionPolicy.h"
 #include "Replication/Submission/ChangeRequestBuilder.h"
+#include "Replication/Submission/External/ExternalClientChangeRequestHandler.h"
 #include "Replication/Submission/ISubmissionWorkflow.h"
 #include "Replication/Submission/Queue/SubmissionQueue.h"
 
@@ -29,7 +30,7 @@ namespace UE::MultiUserClient
 	class ISubmissionWorkflow;
 	
 	/**
-	 * Holds on to shared info about a local or remote client.
+	 * Initializes systems that are common for local or remote clients.
 	 * This class' responsibility is to initialize all systems that exist for the life time of a client in a session.
 	 */
 	class FReplicationClient : public FNoncopyable
@@ -79,6 +80,8 @@ namespace UE::MultiUserClient
 		ISubmissionWorkflow& GetSubmissionWorkflow() { return *SubmissionWorkflow; }
 		/** @return Implements simple game-thread based queue for SubmissionWorkflow. Only one submission can be in progress at any given time. */
 		FSubmissionQueue& GetSubmissionQueue() { return SubmissionQueue; }
+		/** @return Gets the adapter handling requests received by IMultiUserReplication::EnqueuesChanges */
+		FExternalClientChangeRequestHandler& GetExternalRequestHandler() { return ExternalRequestHandler; }
 
 		/** @return The endpoint ID of this client in the Concert session. */
 		const FGuid& GetEndpointId() const { return EndpointId; }
@@ -113,6 +116,8 @@ namespace UE::MultiUserClient
 
 		/** Allows systems to queue pending submissions to SubmissionWorkflow in case a submission is in progress. */
 		FSubmissionQueue SubmissionQueue;
+		/** Enqueues external change requests into the SubmissionQueue. */
+		FExternalClientChangeRequestHandler ExternalRequestHandler;
 		
 		/**
 		 * Used to detect changes made to the client's config by the local editor.

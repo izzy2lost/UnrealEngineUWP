@@ -28,6 +28,11 @@ namespace UE::MultiUserClient
 		, AuthoritySynchronizer(MoveTemp(InAuthoritySynchronizer))
 		, SubmissionWorkflow(MoveTemp(InSubmissionWorkflow))
 		, SubmissionQueue(*SubmissionWorkflow)
+		, ExternalRequestHandler(
+			StreamSynchronizer->GetStreamId(),
+			FGetStreamContent::CreateLambda([this](){ return &StreamSynchronizer->GetServerState(); }),
+			SubmissionQueue
+			)
 		, LocalClientEditModel(CreatePropertySelectionModel(
 			*ClientContentStorage->Stream,
 			ClientContentStorage->Stream->MakeReplicationMapGetterAttribute(),

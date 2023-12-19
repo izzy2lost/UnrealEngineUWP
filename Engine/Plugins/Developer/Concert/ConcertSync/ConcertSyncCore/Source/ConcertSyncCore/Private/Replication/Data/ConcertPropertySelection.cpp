@@ -190,6 +190,18 @@ FProperty* FConcertPropertyChain::ResolveProperty(UStruct& Class, bool bLogOnFai
 	return UE::ConcertSyncCore::PropertyChain::ResolveProperty(Class, *this, bLogOnFail);
 }
 
+FConcertPropertyChain FConcertPropertyChain::GetParent() const
+{
+	if (PathToProperty.Num() <= 1)
+	{
+		return {};
+	}
+	
+	FConcertPropertyChain Result = *this;
+	Result.PathToProperty.RemoveAt(Result.PathToProperty.Num() - 1);
+	return Result;
+}
+
 FString FConcertPropertyChain::ToString(EToStringMethod Method) const
 {
 	switch (Method)
@@ -217,6 +229,21 @@ bool FConcertPropertySelection::Includes(const FConcertPropertySelection& Other)
 	{
 		return Other.ReplicatedProperties.Contains(Property);
 	});
+}
+
+void FConcertPropertySelection::DiscoverAndAddImplicitParentProperties()
+{
+	// Iterate in reverse to ignore the properties we're about to add
+	for (int32 Index = ReplicatedProperties.Num() - 1; ReplicatedProperties.IsValidIndex(Index); ++Index)
+	{
+		FConcertPropertyChain Current = ReplicatedProperties[Index].GetParent();
+		while (!Current.IsEmpty())
+		{
+			// This part makes the algorithm O(n^2) but could be O(n) with a TSet. Suboptimal, but it's simple... it's quite unlikely this will cause us performance trouble
+			ReplicatedProperties.AddUnique(Current);
+			Current = Current.GetParent();
+		}
+	}
 }
 
 bool FConcertPropertySelection::EnumeratePropertyOverlaps(

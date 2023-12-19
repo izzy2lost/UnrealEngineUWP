@@ -3,6 +3,7 @@
 #pragma once
 
 #include "Replication/Data/ConcertPropertySelection.h"
+#include "UObject/Object.h"
 #include "ObjectReplicationMap.generated.h"
 
 USTRUCT()
@@ -15,6 +16,12 @@ struct FReplicatedObjectInfo
 	
 	UPROPERTY()
 	FConcertPropertySelection PropertySelection;
+
+	// Use static factories instead of user-provided constructors to continue allowing brace-initialization
+	static FReplicatedObjectInfo Make(const UObject& Object)
+	{
+		return { Object.GetClass() };
+	}
 
 	/** @return Whether this data is valid for sending to the server. */
 	bool IsValidForSendingToServer() const { return ClassPath.IsValid() && !PropertySelection.ReplicatedProperties.IsEmpty(); }
