@@ -21,6 +21,13 @@ UBTService_RunEQS::UBTService_RunEQS(const FObjectInitializer& ObjectInitializer
 
 	bNotifyBecomeRelevant = false;
 	bNotifyCeaseRelevant = true;
+
+#if WITH_EDITORONLY_DATA
+	// Do not expose the option to tick on search start since the request is async and it
+	// requires the node to be relevant to properly manage the request and its delegate.
+	bCanTickOnSearchStartBeExposed = false;
+	bCallTickOnSearchStart = false;
+#endif // WITH_EDITORONLY_DATA
 	
 	// accept only actors and vectors
 	BlackboardKey.AddObjectFilter(this, GET_MEMBER_NAME_CHECKED(UBTService_RunEQS, BlackboardKey), AActor::StaticClass());
@@ -89,14 +96,8 @@ void UBTService_RunEQS::OnQueryFinished(TSharedPtr<FEnvQueryResult> Result)
 	}
 
 	FBTEQSServiceMemory* MyMemory = CastInstanceNodeMemory<FBTEQSServiceMemory>(BTComp->GetNodeMemory(this, BTComp->FindInstanceContainingNode(this)));
-	if (MyMemory == nullptr || MyMemory->RequestID == INDEX_NONE)
+	if (!ensureMsgf(MyMemory && MyMemory->RequestID != INDEX_NONE, TEXT("%hs called while the BT node is not or no longer active."), __FUNCTION__))
 	{
-		// this can happen in hard to repro edge cases if the BT node being notified here has already been canceled
-		// in which case it should be safe to ignore it.
-		// @todo we need to find the exact case and repro it via unit tests
-		const bool bIsActive = BTComp->IsAuxNodeActive(this);
-		ensureMsgf(bIsActive == false, TEXT("%hs called while the BT node is not active or has already been aborted"), __FUNCTION__);
-		UE_CVLOG_UELOG(bIsActive == false, BTComp, LogBehaviorTree, Warning, TEXT("%hs called for %s while it's not active or has already been aborted"), __FUNCTION__, *GetNodeName());
 		return;
 	}
 
