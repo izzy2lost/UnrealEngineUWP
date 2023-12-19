@@ -96,7 +96,7 @@ namespace EpicGames.UBA
 		static extern IntPtr SessionServer_RunProcess(IntPtr server, IntPtr info, bool async, bool enableDetour);
 
 		[DllImport("UbaHost", CharSet = CharSet.Auto)]
-		static extern IntPtr SessionServer_RunProcessRemote(IntPtr server, IntPtr info, float weight);
+		static extern IntPtr SessionServer_RunProcessRemote(IntPtr server, IntPtr info, float weight, byte[]? knownInputs, uint knownInputsCount);
 
 		[DllImport("UbaHost", CharSet = CharSet.Auto)]
 		static extern void SessionServer_SetMaxRemoteProcessCount(IntPtr server, uint count);
@@ -165,10 +165,10 @@ namespace EpicGames.UBA
 			return process;
 		}
 
-		public IProcess RunProcessRemote(ProcessStartInfo info, IProcess.ExitedEventHandler? exitedEventHandler, double weight)
+		public IProcess RunProcessRemote(ProcessStartInfo info, IProcess.ExitedEventHandler? exitedEventHandler, double weight, byte[]? knownInputs, uint knownInputsCount)
 		{
 			IProcessStartInfo startInfo = IProcessStartInfo.CreateProcessStartInfo(info, exitedEventHandler != null);
-			IntPtr processPtr = SessionServer_RunProcessRemote(_handle, startInfo.GetHandle(), (float)weight);
+			IntPtr processPtr = SessionServer_RunProcessRemote(_handle, startInfo.GetHandle(), (float)weight, knownInputs, knownInputsCount);
 			IProcess process = IProcess.CreateProcess(processPtr, startInfo, exitedEventHandler, info.UserData);
 			_remoteProcesses.AddOrUpdate(process.Hash, process, (k, v) => process);
 			return process;

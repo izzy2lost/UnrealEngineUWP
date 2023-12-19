@@ -183,8 +183,10 @@ namespace EpicGames.UBA
 		/// <param name="info">Process start info</param>
 		/// <param name="exitedEventHandler">Optional callback when the process exits</param>
 		/// <param name="weight">Number of cores this process uses</param>
+		/// <param name="knownInputs">Optionally contains input that we know process will need. Memory block containing zero-terminated strings with an extra termination in the end.</param>
+		/// <param name="knownInputsCount">Number of strings in known inputs</param>
 		/// <returns>The remote process being run</returns>
-		public abstract IProcess RunProcessRemote(ProcessStartInfo info, IProcess.ExitedEventHandler? exitedEventHandler, double weight = 1.0);
+		public abstract IProcess RunProcessRemote(ProcessStartInfo info, IProcess.ExitedEventHandler? exitedEventHandler, double weight = 1.0, byte[]? knownInputs = null, uint knownInputsCount = 0);
 
 		/// <summary>
 		/// Refresh cached information about directories

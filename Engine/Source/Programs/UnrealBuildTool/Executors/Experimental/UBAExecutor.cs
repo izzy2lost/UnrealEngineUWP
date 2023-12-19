@@ -232,6 +232,13 @@ namespace UnrealBuildTool
 		[CommandLine("-BoxCrypto", Value = "true")]
 		[CommandLine("-UBACrypto", Value = "true")]
 		public bool bUseCrypto { get; set; } = false;
+
+		/// <summary>
+		/// Set to true to provide known inputs to processes that are run remote. This is an experimental feature to speed up build times when ping is higher
+		/// </summary>
+		[XmlConfigFile(Category = "UnrealBuildAccelerator")]
+		[CommandLine("-UBAUseKnownInputs", Value = "true")]
+		public bool bUseKnownInputs { get; set; } = false;
 	}
 
 	class UBAExecutor : ParallelExecutor
@@ -741,6 +748,29 @@ namespace UnrealBuildTool
 
 			return () =>
 			{
+				uint knownInputsCount = 0;
+				byte[]? knownInputs = null;
+				if (UBAConfig.bUseKnownInputs)
+				{
+					int byteCount = 0;
+					foreach (var item in action.PrerequisiteItems)
+					{
+						byteCount += (item.FullName.Length + 1) * sizeof(char);
+						++knownInputsCount;
+					}
+
+					knownInputs = new byte[byteCount + sizeof(char)];
+
+					int byteOffset = 0;
+					foreach (var item in action.PrerequisiteItems)
+					{
+						var str = item.FullName;
+						int strBytes = str.Length * sizeof(char);
+						System.Buffer.BlockCopy(str.ToCharArray(), 0, knownInputs, byteOffset, strBytes);
+						byteOffset += strBytes + sizeof(char);
+					}
+				}
+
 				ProcessStartInfo startInfo = GetActionStartInfo(action, out FileItem? pchItem);
 				_session!.RunProcessRemote(startInfo, (s, e) =>
 				{
@@ -756,7 +786,7 @@ namespace UnrealBuildTool
 					List<string> logLines = e.LogLines;
 					logLines.RemoveAll((line) => line.StartsWith("   Creating library ", StringComparison.OrdinalIgnoreCase) && line.EndsWith(".exp", StringComparison.OrdinalIgnoreCase));
 					ActionFinished(queue, new ExecuteResults(logLines, e.ExitCode, executionTime, processorTime, additionalDescription), action, pchItem, s as IProcess);
-				}, action.Weight);
+				}, action.Weight, knownInputs, knownInputsCount);
 				return Task.CompletedTask;
 			};
 		}
