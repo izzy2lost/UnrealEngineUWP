@@ -1626,7 +1626,7 @@ bool UAbilitySystemComponent::InternalTryActivateAbility(FGameplayAbilitySpecHan
 		{
 			// If we have a valid prediction key, the ability was started on the local client so it's okay
 
-			ABILITY_LOG(Warning, TEXT("Can't activate LocalOnly or LocalPredicted ability %s when not local! Net Execution Policy is %d."), *Ability->GetName(), (int32)Ability->GetNetExecutionPolicy());
+			ABILITY_LOG(Warning, TEXT("Can't activate %s ability %s when not local."), *UEnum::GetValueAsString<EGameplayAbilityNetExecutionPolicy::Type>(Ability->GetNetExecutionPolicy()), *Ability->GetName());
 
 			if (NetworkFailTag.IsValid())
 			{
@@ -1640,7 +1640,7 @@ bool UAbilitySystemComponent::InternalTryActivateAbility(FGameplayAbilitySpecHan
 
 	if (NetMode != ROLE_Authority && (Ability->GetNetExecutionPolicy() == EGameplayAbilityNetExecutionPolicy::ServerOnly || Ability->GetNetExecutionPolicy() == EGameplayAbilityNetExecutionPolicy::ServerInitiated))
 	{
-		ABILITY_LOG(Warning, TEXT("Can't activate ServerOnly or ServerInitiated ability %s when not the server! Net Execution Policy is %d."), *Ability->GetName(), (int32)Ability->GetNetExecutionPolicy());
+		ABILITY_LOG(Warning, TEXT("Can't activate %s ability %s when not the server."), *UEnum::GetValueAsString<EGameplayAbilityNetExecutionPolicy::Type>(Ability->GetNetExecutionPolicy()), *Ability->GetName());
 
 		if (NetworkFailTag.IsValid())
 		{

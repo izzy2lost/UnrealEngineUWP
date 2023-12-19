@@ -5,10 +5,12 @@
 #include "CoreMinimal.h"
 
 #if WITH_GAMEPLAY_DEBUGGER_MENU
+#include "GameplayTagContainer.h"
 #include "GameplayDebuggerCategory.h"
 
 class AActor;
 class APlayerController;
+class UPackageMap;
 
 class FGameplayDebuggerCategory_Abilities : public FGameplayDebuggerCategory
 {
@@ -20,10 +22,23 @@ public:
 
 	static TSharedRef<FGameplayDebuggerCategory> MakeInstance();
 
+	void OnShowGameplayTagsToggle();
+	void OnShowGameplayAbilitiesToggle();
+	void OnShowGameplayEffectsToggle();
+		
 protected:
+
+	void DrawGameplayTags(FGameplayDebuggerCanvasContext& CanvasContext, const APlayerController* OwnerPC) const;
+	void DrawGameplayAbilities(FGameplayDebuggerCanvasContext& CanvasContext, const APlayerController* OwnerPC) const;
+	void DrawGameplayEffects(FGameplayDebuggerCanvasContext& CanvasContext, const APlayerController* OwnerPC) const;
+
+
 	struct FRepData
 	{
-		FString OwnedTags;
+		// to aid in NetSerialize
+		TWeakObjectPtr<UPackageMap>	ClientPackageMap;
+
+		FGameplayTagContainer OwnedTags;
 
 		struct FGameplayAbilityDebug
 		{
@@ -49,7 +64,12 @@ protected:
 	};
 	FRepData DataPack;
 
-	bool WrapStringAccordingToViewport(const FString& iStr, FString& oStr, FGameplayDebuggerCanvasContext& CanvasContext, float ViewportWitdh);
+	bool WrapStringAccordingToViewport(const FString& iStr, FString& oStr, FGameplayDebuggerCanvasContext& CanvasContext, float ViewportWitdh) const;
+
+private:
+	bool bShowGameplayTags = true;
+	bool bShowGameplayAbilities = true;
+	bool bShowGameplayEffects = true;
 };
 
 #endif // WITH_GAMEPLAY_DEBUGGER_MENU
