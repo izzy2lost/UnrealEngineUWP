@@ -74,19 +74,6 @@ TSharedRef<SWidget> SEventRow::BuildRowWidget()
 			]
 
 			+ SHorizontalBox::Slot()
-			.Padding(0.0f)
-			.VAlign(VAlign_Center)
-			.HAlign(HAlign_Left)
-			.AutoWidth()
-			[
-				SNew(SSimpleButton)
-					.Icon(FAppStyle::Get().GetBrush("Icons.Error"))
-					.Visibility(this, &SEventRow::GetErrorButtonVisibility)
-					.ToolTipText(this, &SEventRow::GetErrorButtonToolTip)
-					.OnClicked(this, &SEventRow::OnErrorButtonClicked)
-			]
-
-			+ SHorizontalBox::Slot()
 			.Padding(4.0f, 0.0f)
 			.VAlign(VAlign_Center)
 			.HAlign(HAlign_Left)
@@ -145,6 +132,19 @@ TSharedRef<SWidget> SEventRow::BuildRowWidget()
 			+ SHorizontalBox::Slot()
 			[
 				SNew(SSpacer)
+			]
+
+			+ SHorizontalBox::Slot()
+			.Padding(0.0f)
+			.VAlign(VAlign_Center)
+			.HAlign(HAlign_Left)
+			.AutoWidth()
+			[
+				SNew(SSimpleButton)
+				.Icon(FAppStyle::Get().GetBrush("Icons.Error"))
+				.Visibility(this, &SEventRow::GetErrorButtonVisibility)
+				.ToolTipText(this, &SEventRow::GetErrorButtonToolTip)
+				.OnClicked(this, &SEventRow::OnErrorButtonClicked)
 			]
 
 			+ SHorizontalBox::Slot()
