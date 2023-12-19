@@ -745,17 +745,27 @@ void UNetworkPhysicsComponent::OnPreProcessInputsInternal(const int32 PhysicsSte
 		if (!IsLocallyControlled() || bIsSolverResim)
 		{
 			FNetworkPhysicsDatas* PhysicsDatas = InputsDatas.Get();
+			const int32 ExpectedInputFrame = PhysicsDatas->LocalFrame + 1;
 			PhysicsDatas->LocalFrame = PhysicsStep;
+
 	#if DEBUG_NETWORK_PHYSICS
 			UE_LOG(LogChaos, Log, TEXT("		Extracting history inputs at frame %d | Component = %s"), PhysicsStep, *GetFullName());
 	#endif
 			if (InputsHistory->ExtractDatas(PhysicsStep, bIsSolverReset, PhysicsDatas))
 			{ 
 				// Calculate input decay if we are resimulating and we don't have up to date inputs
-				if (bIsSolverResim && PhysicsDatas->LocalFrame < PhysicsStep)
+				if (bIsSolverResim)
 				{
-					const float InputDecay = GetCurrentInputDecay(PhysicsDatas);
-					PhysicsDatas->DecayDatas(InputDecay);
+					if (PhysicsDatas->LocalFrame < PhysicsStep)
+					{
+						const float InputDecay = GetCurrentInputDecay(PhysicsDatas);
+						PhysicsDatas->DecayDatas(InputDecay);
+					}
+				}
+				// Merge all inputs since last used input, if not resimulating
+				else if (PhysicsDatas->LocalFrame > ExpectedInputFrame)
+				{
+					InputsHistory->MergeData(ExpectedInputFrame, PhysicsDatas);
 				}
 
 				PhysicsDatas->ApplyDatas(ActorComponent);

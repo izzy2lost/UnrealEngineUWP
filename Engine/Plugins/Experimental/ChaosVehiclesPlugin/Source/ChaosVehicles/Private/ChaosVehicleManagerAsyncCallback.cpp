@@ -261,7 +261,9 @@ void FNetworkVehicleInputs::BuildDatas(const UActorComponent* NetworkComponent)
 
 void FNetworkVehicleInputs::InterpolateDatas(const FNetworkVehicleInputs& MinDatas, const FNetworkVehicleInputs& MaxDatas)
 {
-	const float LerpFactor = (LocalFrame - MinDatas.LocalFrame) / (MaxDatas.LocalFrame - MinDatas.LocalFrame);
+	const float LerpFactor = MaxDatas.LocalFrame == LocalFrame 
+	? 1.0f / (MaxDatas.LocalFrame - MinDatas.LocalFrame + 1) // Merge from min into max
+	: (LocalFrame - MinDatas.LocalFrame) / (MaxDatas.LocalFrame - MinDatas.LocalFrame); // Interpolate from min to max
 
 	TransmissionChangeTime = FMath::Lerp(MinDatas.TransmissionChangeTime, MaxDatas.TransmissionChangeTime, LerpFactor);
 	TransmissionCurrentGear = LerpFactor < 0.5 ? MinDatas.TransmissionCurrentGear : MaxDatas.TransmissionCurrentGear;
@@ -279,6 +281,15 @@ void FNetworkVehicleInputs::InterpolateDatas(const FNetworkVehicleInputs& MinDat
 	VehicleInputs.GearDownInput = LerpFactor < 0.5 ? MinDatas.VehicleInputs.GearDownInput : MaxDatas.VehicleInputs.GearDownInput;
 	VehicleInputs.GearUpInput = LerpFactor < 0.5 ? MinDatas.VehicleInputs.GearUpInput : MaxDatas.VehicleInputs.GearUpInput;
 	VehicleInputs.TransmissionType = LerpFactor < 0.5 ? MinDatas.VehicleInputs.TransmissionType : MaxDatas.VehicleInputs.TransmissionType;
+}
+
+void FNetworkVehicleInputs::MergeDatas(const FNetworkPhysicsDatas* FromData)
+{
+	if (const FNetworkVehicleInputs* FromDataInput = static_cast<const FNetworkVehicleInputs*>(FromData))
+	{
+		// Perform merge through InterpolateDatas
+		InterpolateDatas(*FromDataInput, *this);
+	}
 }
 
 void FNetworkVehicleInputs::DecayDatas(float DecayAmount)

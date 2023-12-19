@@ -366,6 +366,14 @@ struct FNetworkPhysicsDatas
 	* EXAMPLE: Use to decay steering inputs to make resimulation not predict too much with a high steering value. Use DecayAmount of 0.1 to turn a steering value of 0.5 into 0.45 for example.
 	*/ 
 	virtual void DecayDatas(float DecayAmount) {}
+	
+	/** Define how to merge data together
+	* @param FromData is data from a previous frame that is getting merged into the current data.
+	* EXAMPLE: Simulated proxies might receive two inputs at the same time after having used the same input twice, to not miss any important inputs we need to take both inputs into account 
+	* and to not get behind in simulation we need to apply them both at the same simulation tick meaning we merge the two new inputs to one input.
+	*/
+	virtual void MergeDatas(const FNetworkPhysicsDatas* FromData) {}
+
 
 	friend UNetworkPhysicsComponent;
 };

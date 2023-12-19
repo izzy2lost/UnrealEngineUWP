@@ -44,6 +44,9 @@ struct FBaseRewindHistory
 
 	/** Extract datas from the history buffer at a given time */
 	FORCEINLINE virtual bool ExtractDatas(const int32 ExtractFrame, const bool bResetSolver, void* HistoryDatas, const bool bExactFrame = false) { return true; }
+	
+	/** Iterate over and merge data */
+	FORCEINLINE virtual void MergeData(const int32 FromFrame, void* ToData) {}
 
 	/** Record datas into the history buffer at a given time */
 	FORCEINLINE virtual bool RecordDatas(const int32 RecordFrame, const void* HistoryDatas) { return true; }
@@ -163,6 +166,19 @@ public :
 			}
 		}
 		return false;
+	}
+
+	FORCEINLINE virtual void MergeData(int32 FromFrame, void* ToData) override
+	{
+		const int32 ToFrame = static_cast<DatasType*>(ToData)->LocalFrame;
+		for (; FromFrame < ToFrame; FromFrame++)
+		{
+			const int32 LocalFrame = FromFrame % NumFrames;
+			if (FromFrame == DatasArray[LocalFrame].LocalFrame)
+			{
+				static_cast<DatasType*>(ToData)->MergeDatas(&DatasArray[LocalFrame]);
+			}
+		}
 	}
 
 	/** Load the datas from the buffer at a specific frame */
