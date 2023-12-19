@@ -3429,7 +3429,7 @@ namespace Audio
 		}
 
 		// update trace values
-		CSV_CUSTOM_STAT(Audio, AudioMixerThreadCommands, NewNum, ECsvCustomStatOp::Set);
+		CSV_CUSTOM_STAT(Audio, AudioMixerThreadCommands, static_cast<int32>(NewNum), ECsvCustomStatOp::Set);
 		TRACE_INT_VALUE(TEXT("AudioMixerThreadCommands::NumCommands"), NewNum);
 		TRACE_INT_VALUE(TEXT("AudioMixerThreadCommands::CurrentBufferSizeInKb"), CurrentBufferSizeInBytes >> 10);
 	}
