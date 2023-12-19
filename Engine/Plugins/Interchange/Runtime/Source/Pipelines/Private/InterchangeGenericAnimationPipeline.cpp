@@ -21,6 +21,21 @@
 
 #include UE_INLINE_GENERATED_CPP_BY_NAME(InterchangeGenericAnimationPipeline)
 
+#if WITH_EDITOR
+bool UInterchangeGenericAnimationPipeline::CanEditChange(const FProperty* InProperty) const
+{
+	// If other logic prevents editing, we want to respect that
+	const bool ParentVal = Super::CanEditChange(InProperty);
+
+	// Can we edit flower color?
+	if (InProperty->GetFName() == GET_MEMBER_NAME_CHECKED(UInterchangeGenericAnimationPipeline, FrameImportRange))
+	{
+		return ParentVal && bImportAnimations && bImportBoneTracks && AnimationRange == EInterchangeAnimationRange::SetRange;
+	}
+	return ParentVal;
+}
+#endif
+
 void UInterchangeGenericAnimationPipeline::AdjustSettingsForContext(EInterchangePipelineContext ImportType, TObjectPtr<UObject> ReimportAsset)
 {
 	Super::AdjustSettingsForContext(ImportType, ReimportAsset);

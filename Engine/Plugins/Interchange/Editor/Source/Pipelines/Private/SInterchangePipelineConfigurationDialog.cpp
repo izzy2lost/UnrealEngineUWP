@@ -27,6 +27,13 @@
 
 #define LOCTEXT_NAMESPACE "InterchangePipelineConfiguration"
 
+static bool GInterchangeDefaultBasicLayoutView = false;
+static FAutoConsoleVariableRef CCvarInterchangeEnableFBXImport(
+	TEXT("Interchange.FeatureFlags.Import.DefaultBasicLayoutView"),
+	GInterchangeDefaultBasicLayoutView,
+	TEXT("Whether the import dialog start by default in basic layout."),
+	ECVF_Default);
+
 const FName ReimportStackName = TEXT("ReimportPipeline");
 const FString ReimportPipelinePrefix = TEXT("reimport_");
 
@@ -297,6 +304,10 @@ TSharedRef<SBox> SInterchangePipelineConfigurationDialog::SpawnPipelineConfigura
 	{
 
 		StackTextComboBox = SNew(SHorizontalBox)
+		.Visibility_Lambda([this]()
+			{
+				return bBasicLayout ? EVisibility::Collapsed : EVisibility::All;
+			})
 		+ SHorizontalBox::Slot()
 		.VAlign(VAlign_Center)
 		.AutoWidth()
@@ -401,6 +412,9 @@ void SInterchangePipelineConfigurationDialog::Construct(const FArguments& InArgs
 		OwnerWindowPinned->GetOnWindowClosedEvent().AddRaw(this, &SInterchangePipelineConfigurationDialog::OnWindowClosed);
 	}
 
+	//Get the default layout when the user open the import dialog for the first time.
+	bBasicLayout = GInterchangeDefaultBasicLayoutView;
+
 	if (bReimport)
 	{
 		bFilterOptions = false;
@@ -473,7 +487,7 @@ void SInterchangePipelineConfigurationDialog::Construct(const FArguments& InArgs
 					.Padding(4.f, 0.f)
 					[
 						SNew(STextBlock)
-						.Text(LOCTEXT("SInterchangePipelineConfigurationDialog_FilterPipelineOptions", "Filter Options"))
+						.Text(LOCTEXT("SInterchangePipelineConfigurationDialog_FilterPipelineOptions", "Filter on Contents"))
 					]
 					+ SHorizontalBox::Slot()
 					.Padding(4.f, 0.f)

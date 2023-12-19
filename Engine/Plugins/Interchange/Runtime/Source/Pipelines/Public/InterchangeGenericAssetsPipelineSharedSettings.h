@@ -93,11 +93,11 @@ public:
 	bool bRecomputeTangents = true;
 
 	/** If true, recompute tangents will use mikkt space. */
-	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Common Meshes", meta = (SubCategory = "Build"))
+	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Common Meshes", meta = (SubCategory = "Build", editcondition = "bRecomputeTangents"))
 	bool bUseMikkTSpace = true;
 
 	/** If true, we will use the surface area and the corner angle of the triangle as a ratio when computing the normals. */
-	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Common Meshes", meta = (SubCategory = "Build"))
+	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Common Meshes", meta = (SubCategory = "Build", editcondition = "bRecomputeNormals"))
 	bool bComputeWeightedNormals = false;
 
 	/** If true, Tangents will be stored at 16 bit vs 8 bit precision. */
