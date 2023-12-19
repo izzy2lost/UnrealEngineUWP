@@ -308,6 +308,14 @@ FAutoConsoleVariableRef GVarLumenScreenProbeMaxRoughnessToEvaluateRoughSpecular(
 	ECVF_Scalability | ECVF_RenderThreadSafe
 );
 
+int32 GLumenScreenProbeRoughSpecularSamplingMode = 0;
+FAutoConsoleVariableRef GVarLumenScreenProbeRoughSpecularSamplingMode(
+	TEXT("r.Lumen.ScreenProbeGather.RoughSpecularSamplingMode"),
+	GLumenScreenProbeRoughSpecularSamplingMode,
+	TEXT("Mode 0: use the diffuse SH sample as specular. Mode 1: sample the SH along the main GGX specular reflection vector."),
+	ECVF_Scalability | ECVF_RenderThreadSafe
+);
+
 int32 GLumenScreenProbeTileDebugMode = 0;
 FAutoConsoleVariableRef GVarLumenScreenProbeTileDebugMode(
 	TEXT("r.Lumen.ScreenProbeGather.TileDebugMode"),
@@ -880,7 +888,8 @@ class FScreenProbeIntegrateCS : public FGlobalShader
 	class FOverflowTile : SHADER_PERMUTATION_BOOL("PERMUTATION_OVERFLOW_TILE");
 	class FDirectLighting : SHADER_PERMUTATION_BOOL("SUPPORT_DIRECT_LIGHTING");
 	class FSupportBackfaceDiffuse : SHADER_PERMUTATION_BOOL("SUPPORT_BACKFACE_DIFFUSE");
-	using FPermutationDomain = TShaderPermutationDomain<FTileClassificationMode, FShortRangeAO, FProbeIrradianceFormat, FStochasticProbeInterpolation, FOverflowTile, FDirectLighting, FSupportBackfaceDiffuse>;
+	class FRoughSpecularSamplingMode : SHADER_PERMUTATION_INT("ROUGH_SPECULAR_SAMPLING_MODE", 2);
+	using FPermutationDomain = TShaderPermutationDomain<FTileClassificationMode, FShortRangeAO, FProbeIrradianceFormat, FStochasticProbeInterpolation, FOverflowTile, FDirectLighting, FSupportBackfaceDiffuse, FRoughSpecularSamplingMode>;
 
 	static void ModifyCompilationEnvironment(const FGlobalShaderPermutationParameters& Parameters, FShaderCompilerEnvironment& OutEnvironment)
 	{
@@ -1075,6 +1084,7 @@ void InterpolateAndIntegrate(
 	const bool bApplyShortRangeAO = ScreenSpaceBentNormalParameters.UseShortRangeAO != 0 && LumenScreenProbeGather::ApplyShortRangeAODuringIntegration();
 	const bool bUseTileClassification = GLumenScreenProbeIntegrationTileClassification != 0 && LumenScreenProbeGather::GetDiffuseIntegralMethod() != 2;
 	const bool bSupportBackfaceDiffuse = BackfaceDiffuseIndirect != nullptr;
+	const int32 RoughSpecularSamplingMode = GLumenScreenProbeRoughSpecularSamplingMode > 0 ? 1 : 0;
 
 	LumenReflections::FCompositeParameters ReflectionsCompositeParameters;
 	LumenReflections::SetupCompositeParameters(View, ReflectionsCompositeParameters);
@@ -1259,6 +1269,7 @@ void InterpolateAndIntegrate(
 				PermutationVector.Set< FScreenProbeIntegrateCS::FStochasticProbeInterpolation >(GLumenScreenProbeStochasticInterpolation != 0);
 				PermutationVector.Set< FScreenProbeIntegrateCS::FDirectLighting >(bRenderDirectLighting && !GLumenScreenProbeInjectLightsToProbes);
 				PermutationVector.Set< FScreenProbeIntegrateCS::FSupportBackfaceDiffuse >(bSupportBackfaceDiffuse);
+				PermutationVector.Set< FScreenProbeIntegrateCS::FRoughSpecularSamplingMode >(RoughSpecularSamplingMode);
 				auto ComputeShader = View.ShaderMap->GetShader<FScreenProbeIntegrateCS>(PermutationVector);
 
 				FComputeShaderUtils::AddPass(
@@ -1325,6 +1336,7 @@ void InterpolateAndIntegrate(
 			PermutationVector.Set< FScreenProbeIntegrateCS::FStochasticProbeInterpolation >(GLumenScreenProbeStochasticInterpolation != 0);
 			PermutationVector.Set< FScreenProbeIntegrateCS::FDirectLighting >(bRenderDirectLighting && !GLumenScreenProbeInjectLightsToProbes);
 			PermutationVector.Set< FScreenProbeIntegrateCS::FSupportBackfaceDiffuse >(bSupportBackfaceDiffuse);
+			PermutationVector.Set< FScreenProbeIntegrateCS::FRoughSpecularSamplingMode >(RoughSpecularSamplingMode);
 			auto ComputeShader = View.ShaderMap->GetShader<FScreenProbeIntegrateCS>(PermutationVector);
 
 			const FIntPoint DispatchViewRect = View.ViewRect.Size();

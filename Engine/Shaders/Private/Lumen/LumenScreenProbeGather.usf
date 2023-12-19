@@ -19,6 +19,7 @@
 #include "../MortonCode.ush"
 #include "LumenScreenSpaceBentNormal.ush"
 #include "LumenReflectionsCombine.ush"
+#include "../ReflectionEnvironmentShared.ush"
 
 #ifndef THREADGROUP_SIZE
 #define THREADGROUP_SIZE 1
@@ -940,7 +941,7 @@ float3 InterpolateScreenProbeIrradiance(FScreenProbeSample ScreenProbeSample, fl
 	return Irradiance;
 }
 
-float3 EvaluateDiffuse(FScreenProbeSample ScreenProbeSample, float3 WorldNormal, bool bHasBackfaceDiffuse, float3 UnitBentNormal, float AO, inout float3 BackfaceDiffuseLighting)
+float3 EvaluateDiffuse(FScreenProbeSample ScreenProbeSample, float3 WorldNormal, float3 RoughSpecularMainDirection, bool bHasBackfaceDiffuse, float3 UnitBentNormal, float AO, inout float3 BackfaceDiffuseLighting, inout float3 RoughSpecularLighting)
 {
 	float3 DiffuseLighting = 0.0f;
 	const float PreintegratedTwoSidedBxDF = 1.0f / PI;
@@ -965,17 +966,28 @@ float3 EvaluateDiffuse(FScreenProbeSample ScreenProbeSample, float3 WorldNormal,
 		float3 SHDiffuseLighting = EvaluateSHIrradiance(ProbeLightingNormal, 1 - AO, LightingSH);
 		DiffuseLighting += 4 * PI * SHDiffuseLighting;
 
+	#if ROUGH_SPECULAR_SAMPLING_MODE == 1
+		// We do not have any valid bent normal / AO for the reflection so assuming a fully open cone.
+		//@todo - replace with SH fit of GGX
+		const float3 SHRoughSpecularLighting = EvaluateSHIrradiance(RoughSpecularMainDirection, 0 /*AO*/, LightingSH);
+		RoughSpecularLighting += (4 * PI * SHRoughSpecularLighting) / PI;
+	#else
+		RoughSpecularLighting += 0; // Should not be used in this case.
+	#endif
+
 #if SUPPORT_BACKFACE_DIFFUSE
 		if (bHasBackfaceDiffuse)
 		{
 			float3 BackfaceSHDiffuseLighting = EvaluateSHIrradiance(-WorldNormal, 0.0f, LightingSH);
-			BackfaceDiffuseLighting += 4 * PI * PreintegratedTwoSidedBxDF * BackfaceSHDiffuseLighting;
+			BackfaceDiffuseLighting += 4 * PI * PreintegratedTwoSidedBxDF * BackfaceSHDiffuseLighting / PI;
 		}
 #endif
 	}
 	#else
 	{
 		DiffuseLighting += InterpolateScreenProbeIrradiance(ScreenProbeSample, ProbeLightingNormal);
+
+		RoughSpecularLighting += InterpolateScreenProbeIrradiance(ScreenProbeSample, RoughSpecularMainDirection);
 
 #if SUPPORT_BACKFACE_DIFFUSE
 		if (bHasBackfaceDiffuse)
@@ -1224,6 +1236,7 @@ void ScreenProbeIntegrateCS(
 			float3 UnitBentNormal = Material.WorldNormal;
 			float AO = 1.0f;
 			float3 DiffuseLighting = 0;
+			float3 RoughSpecularLighting = 0;
 			float3 BackfaceDiffuseLighting = 0;
 
 			#if SHORT_RANGE_AO 
@@ -1238,7 +1251,10 @@ void ScreenProbeIntegrateCS(
 
 			if (DiffuseIntegrationMethod == DIFFUSE_INTEGRATION_SPHERICAL_HARMONIC)
 			{
-				DiffuseLighting += EvaluateDiffuse(ScreenProbeSample, Material.WorldNormal, Material.bHasBackfaceDiffuse, UnitBentNormal, AO, BackfaceDiffuseLighting);
+				float3 R = 2.0f * dot(V, Material.WorldNormal) * Material.WorldNormal - V;
+				R = normalize(GetOffSpecularPeakReflectionDir(Material.WorldNormal, R, Material.GBufferData.Roughness));
+
+				DiffuseLighting += EvaluateDiffuse(ScreenProbeSample, Material.WorldNormal, R, Material.bHasBackfaceDiffuse, UnitBentNormal, AO, BackfaceDiffuseLighting, RoughSpecularLighting);
 			}
 		#if INTEGRATE_TILE_CLASSIFICATION_MODE != TILE_CLASSIFICATION_SIMPLE_DIFFUSE
 			else if (DiffuseIntegrationMethod == DIFFUSE_INTEGRATION_IMPORTANCE_SAMPLE_BRDF)
@@ -1442,8 +1458,11 @@ void ScreenProbeIntegrateCS(
 				RWBackfaceDiffuseIndirect[Coord.SvPositionFlatten] = BackfaceDiffuseLighting;
 			#endif
 
-			//@todo - replace with SH fit of GGX
+		#if ROUGH_SPECULAR_SAMPLING_MODE == 1
+			float3 SpecularLighting = RoughSpecularLighting;
+		#else
 			float3 SpecularLighting = DiffuseLighting / PI;
+		#endif
 			const float DiffuseLerp = GetDiffuseLerp(Material.Roughness);
 
 			// Prevent NaNs from ImportanceSampleVisibleGGX
