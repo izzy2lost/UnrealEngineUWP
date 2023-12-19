@@ -7,15 +7,14 @@
 
 
 /**
- * Per project settings for Virtual Scouting.
+ * Virtual Scouting Settings 
  */
-UCLASS(Config=VirtualScoutingSettings, DefaultConfig, DisplayName="Virtual Scouting")
-class VIRTUALSCOUTING_API UVirtualScoutingSettings : public UObject
+UCLASS(Config=VirtualScoutingSettings, DisplayName="Virtual Scouting")
+class VIRTUALSCOUTING_API UVirtualScoutingSettings : public UDeveloperSettingsBackedByCVars
 {
 	GENERATED_BODY()
 	
 public:
-
 	UPROPERTY(Config, EditAnywhere, BlueprintReadWrite, Category="Virtual Scouting", meta=(DisplayName="Show Measurements in Imperial Units"))
 	bool bUseImperial = false;
 
@@ -24,18 +23,4 @@ public:
 
 	UFUNCTION(BlueprintPure, Category="Virtual Scouting")
 	static UVirtualScoutingSettings* GetVirtualScoutingSettings();
-};
-
-/**
- * Per user settings for Virtual Scouting Editor.
- */
-UCLASS(Config=EditorPerProjectUserSettings, DisplayName="Virtual Scouting Editor")
-class VIRTUALSCOUTING_API UVirtualScoutingEditorSettings : public UObject
-{
-	GENERATED_BODY()
-	
-public:
-
-	UFUNCTION(BlueprintPure, Category="Virtual Scouting Editor")
-	static UVirtualScoutingEditorSettings* GetVirtualScoutingEditorSettings();
 };

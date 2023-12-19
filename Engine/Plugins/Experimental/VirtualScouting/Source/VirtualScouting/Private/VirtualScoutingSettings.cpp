@@ -7,8 +7,3 @@ UVirtualScoutingSettings* UVirtualScoutingSettings::GetVirtualScoutingSettings()
 {
 	return GetMutableDefault<UVirtualScoutingSettings>();
 }
-
-UVirtualScoutingEditorSettings* UVirtualScoutingEditorSettings::GetVirtualScoutingEditorSettings()
-{
-	return GetMutableDefault<UVirtualScoutingEditorSettings>();
-}

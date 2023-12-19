@@ -15,26 +15,13 @@ DEFINE_LOG_CATEGORY(LogVirtualScouting);
 
 void FVirtualScoutingModule::StartupModule()
 {
-	if(ISettingsModule* SettingsModule = FModuleManager::GetModulePtr<ISettingsModule>("Settings"))
-	{
-		SettingsModule->RegisterSettings("Project", "Plugins", "VirtualScoutingSettings",
-			LOCTEXT("RuntimeSettingsName", "Virtual Scouting Settings"), LOCTEXT("RuntimeSettingsDescription", "Virtual Scouting Settings"),
-			GetMutableDefault<UVirtualScoutingSettings>());
-
-		SettingsModule->RegisterSettings("Editor", "Plugins", "VirtualScoutingEditorSettings",
-			LOCTEXT("EditorSettingsName", "Virtual Scouting Editor Settings"), LOCTEXT("EditorSettingsDescription", "Virtual Scouting Editor Settings"),
-			GetMutableDefault<UVirtualScoutingEditorSettings>());
-	}
+	//RegisterSettings();
 }
 
 
 void FVirtualScoutingModule::ShutdownModule()
 {
-	if(ISettingsModule* SettingsModule = FModuleManager::GetModulePtr<ISettingsModule>("Settings"))
-	{
-		SettingsModule->UnregisterSettings("Project", "Plugins", "VirtualScoutingSettings");
-		SettingsModule->UnregisterSettings("Editor", "Plugins", "VirtualScoutingEditorSettings");
-	}
+	//UnregisterSettings();
 }
 
 
