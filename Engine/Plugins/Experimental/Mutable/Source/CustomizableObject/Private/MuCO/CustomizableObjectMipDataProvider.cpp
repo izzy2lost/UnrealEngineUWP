@@ -248,6 +248,11 @@ namespace impl
 			FFunctionGraphTask::CreateAndDispatchWhenReady(
 			[CustomizableObjectPathName, InstancePathName, Time, PeakMemory, RealMemoryPeak]()
 			{
+				if (!UCustomizableObjectSystem::IsCreated()) // We are shutting down
+				{
+					return;	
+				}
+				
 				UCustomizableObjectSystem* System = UCustomizableObjectSystem::GetInstance();
 				if (!System)
 				{
