@@ -399,13 +399,13 @@ void FAnalyticsProviderET::EndSession()
 	if (bSessionInProgress)
 	{
 		RecordEvent(TEXT("SessionEnd"), TArray<FAnalyticsEventAttribute>());
+		UE_LOG(LogAnalytics, Display, TEXT("[%s] Ended ET Analytics provider session"), *Config.APIKeyET);
 	}
+
 	FlushEvents();
 	SessionID.Empty();
 
 	bSessionInProgress = false;
-
-	UE_LOG(LogAnalytics, Display, TEXT("[%s] Ended ET Analytics provider session"), *Config.APIKeyET);
 }
 
 TSharedRef<IHttpRequest, ESPMode::ThreadSafe> FAnalyticsProviderET::CreateRequest()

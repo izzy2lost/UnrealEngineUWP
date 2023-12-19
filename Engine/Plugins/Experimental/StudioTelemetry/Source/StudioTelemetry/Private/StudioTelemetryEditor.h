@@ -34,26 +34,33 @@ private:
 	static void RecordEvent_VirtualAssets(const FString& Context, TArray<FAnalyticsEventAttribute> Attributes = {});
 	static void RegisterCollectionWorkflowDelegates(FTelemetryRouter& Router);
 
-	/** Internal variables for Flows and Timer data */
-	FString LevelName;
-	FGuid EditorBootFlowGuid;
-	FGuid InteractiveEditorFlowGuid;
-	FGuid LoadMapSubFlowGuid;
-	FGuid PIEFlowGuid;
-	FGuid PIEInitializeSubFlowGuid;
-	FGuid PIELoadMapSubFlowGuid;
-	FGuid CookByTheBookFlowGuid;
+	TSharedPtr<IAnalyticsSpan> EditorSpan;
+	TSharedPtr<IAnalyticsSpan> EditorBootSpan;
+	TSharedPtr<IAnalyticsSpan> EditorInteractSpan;
+	TSharedPtr<IAnalyticsSpan> EditorInitilizeSpan;
+	TSharedPtr<IAnalyticsSpan> EditorLoadMapSpan;
+	TSharedPtr<IAnalyticsSpan> PIESpan;
+	TSharedPtr<IAnalyticsSpan> PIEStartupSpan;
+	TSharedPtr<IAnalyticsSpan> PIELoadMapSpan;
+	TSharedPtr<IAnalyticsSpan> PIEWorldStreamingSpan;
+	TSharedPtr<IAnalyticsSpan> CookingSpan;
+	
+	const FName EditorSpanName = TEXT("Editor");
+	const FName EditorBootSpanName = TEXT("Editor.Boot");
+	const FName EditorInitilizeSpanName = TEXT("Editor.Initialize");
+	const FName EditorInteractSpanName = TEXT("Editor.Interact");
+	const FName EditorLoadMapSpanName = TEXT("Editor.LoadMap");
+	const FName PIESpanName = TEXT("PIE");
+	const FName PIEStartupSpanName = TEXT("PIE.Startup");
+	const FName PIELoadMapSpanName = TEXT("PIE.LoadMap");
+	const FName PIEWorldStreamingSpanName = TEXT("PIE.WorldStreaming");
+	const FName CookingSpanName = TEXT("Cooking");
+	const FName OpenAssetEditorSpan = TEXT("Open Asset Editor");
 
+	FString LevelName;
 	double SessionStartTime;
-	double PIEStartTime;
-	double LoadMapStartTime;
 	double AssetOpenStartTime;
-	double WorldStreamingStartTime;
-	double EditorStartupTime=0;
-	double LoadMapTime=0;
-	double PIEStartupTime = 0;
-	double PIELoadMapTime = 0;
-	double PIELoadMapStartTime;
+	double TimeToStartEditor;
 };
 
 #endif // WITH_EDITOR

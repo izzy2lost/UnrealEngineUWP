@@ -3,7 +3,7 @@
 #pragma once
 
 #include "Interfaces/IAnalyticsProvider.h"
-#include "AnalyticsFlowTracker.h"
+#include "Interfaces/IAnalyticsTracer.h"
 #include "Containers/Array.h"
 #include "Containers/UnrealString.h"
 #include "CoreMinimal.h"
@@ -11,9 +11,16 @@
 #include "Templates/SharedPointer.h"
 
 class FAnalyticsProviderMulticast;
-
 /**
- * Public facing Studio Telemetry Plugin API
+ * Studio Telemetry Plugin API
+ * 
+ * Notes:
+ * Telemetry for Common Editor and Core Engine is collected automatically.
+ * Telemetry Sessions are started and ended automatically with the plugin initialization and shutdown. As such telemetry will not be captured prior to the plugin initialization.
+ * Developers are encouraged to add their own telemetry via this API or to intercept the event recording via the supplied callback on the SetRecordEventCallback API below.
+ * It is strongly recommended that developers implement their own IAnalyticsProviderModule where custom recording of telemetry events is desired.
+ * Custom AnalyticsProviders can be added to the plugin via the .ini. See FAnalyticsProviderLog or FAnalyticsProviderET for example.
+ * Telemetry events are recored to all registered IAnalyticsProviders supplied in the .ini file using the FAnalyticsProviderMulticast provider, except where specifically recorded with the RecordEvent(ProviderName,.. ) API below
  */
 class FStudioTelemetry : public IModuleInterface
 {
@@ -33,16 +40,31 @@ public:
 	/** Access to the broadcast analytics provider for the system*/
 	STUDIOTELEMETRY_API TWeakPtr<IAnalyticsProvider> GetProvider();
 
-	/** Access to the flow tracker for the system, this will ultimately broadcast flow events to all providers*/
-	STUDIOTELEMETRY_API TWeakPtr<FAnalyticsFlowTracker> GetFlowTracker();
+	/** Access to the tracer for the system*/
+	STUDIOTELEMETRY_API TWeakPtr<IAnalyticsTracer> GetTracer();
 	
-	/** Thread safe method to record an event to all analytics providers*/
+	/** Thread safe method to record an event to all registered analytics providers*/
 	STUDIOTELEMETRY_API void RecordEvent(const FString& EventName, const TArray<FAnalyticsEventAttribute>& Attributes = {});
 
-	/** Thread safe method to record an event to the named analytics provider */
+	/** Thread safe method to record an event to the specifically named analytics provider */
 	STUDIOTELEMETRY_API void RecordEvent(const FString& ProviderName, const FString& EventName, const TArray<FAnalyticsEventAttribute>& Attributes = {});
-	
-	/** Method for custom recording of telemetry events*/
+
+	/** Start a new span specifying the parent*/
+	STUDIOTELEMETRY_API TSharedPtr<IAnalyticsSpan> StartSpan(const FName Name, const TArray<FAnalyticsEventAttribute>& AdditionalAttributes = {});
+
+	/** Start a new span specifying the parent*/
+	STUDIOTELEMETRY_API TSharedPtr<IAnalyticsSpan> StartSpan(const FName Name, TSharedPtr<IAnalyticsSpan> ParentSpan, const TArray<FAnalyticsEventAttribute>& AdditionalAttributes = {});
+
+	/** End an existing span*/
+	STUDIOTELEMETRY_API bool EndSpan(TSharedPtr<IAnalyticsSpan> Span, const TArray<FAnalyticsEventAttribute>& AdditionalAttributes = {});
+
+	/** End an existing span by name*/
+	STUDIOTELEMETRY_API bool EndSpan(const FName& Name, const TArray<FAnalyticsEventAttribute>& AdditionalAttributes = {});
+
+	/** Get an active span by name, non active spans will not be available*/
+	STUDIOTELEMETRY_API TSharedPtr<IAnalyticsSpan> GetSpan(const FName Name);
+
+	/** Callback for interception of telemetry events recording that can be used by Developers to send telemetry events to their own back end, though it is recommended that Developers implement their own IAnalyticsProvider via their own IAnalyticsProviderModule*/
 	STUDIOTELEMETRY_API void SetRecordEventCallback(OnRecordEvent);
 
 private:
@@ -59,6 +81,6 @@ private:
 
 	FCriticalSection						CriticalSection;
 	TSharedPtr<FAnalyticsProviderMulticast>	AnalyticsProvider;
-	TSharedPtr<FAnalyticsFlowTracker>		AnalyticsFlowTracker;
+	TSharedPtr<IAnalyticsTracer>			AnalyticsTracer;
 	OnRecordEvent							RecordEventCallback;
 };

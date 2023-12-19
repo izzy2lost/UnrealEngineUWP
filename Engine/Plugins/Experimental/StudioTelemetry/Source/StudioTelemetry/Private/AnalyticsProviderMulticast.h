@@ -6,7 +6,20 @@
 #include "Interfaces/IAnalyticsProvider.h"
 
 /**
- * Implementation of the IAnalyticsProvider interface that forwards the API calls to an array of IAnalyticsProviderET interfaces
+ * Implementation of the IAnalyticsProvider interface that forwards the API calls to an array of IAnalyticsProvider interfaces
+ * 
+ * IAnalyticsProviders are specified in the Engine.ini interface and are constructed and configured automatically.
+ *
+ * AnalyticsLog for example in Engine/Config/BaseEngine.ini
+ * 
+ * ; Studio Telemetry Settings
+ * [StudioTelemetry.Log]
+ * Name=LogAnalytics
+ * ProviderModule=AnalyticsLog
+ * UsageType=Editor
+ * 
+ * This instructs the Multicast provider to create a Provider from the AnalyticsLog module via the IANalyticsProviderModule interface. 
+ * See FAnalayticsLog and FAnalyticsProviderLog for more details.
  */
 class FAnalyticsProviderMulticast : public IAnalyticsProvider
 {

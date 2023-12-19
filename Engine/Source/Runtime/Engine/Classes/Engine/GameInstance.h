@@ -294,7 +294,7 @@ public:
 	/** Called as soon as the game mode is spawned, to allow additional PIE setting validation prior to creating the local players / etc... (called on pure clients too, in which case the game mode is nullptr) */
 	ENGINE_API virtual FGameInstancePIEResult PostCreateGameModeForPIE(const FGameInstancePIEParameters& Params, AGameModeBase* GameMode);
 
-	ENGINE_API void ReportPIEStartupTime();
+	ENGINE_API virtual void ReportPIEStartupTime();
 #endif
 
 	ENGINE_API class UEngine* GetEngine() const;

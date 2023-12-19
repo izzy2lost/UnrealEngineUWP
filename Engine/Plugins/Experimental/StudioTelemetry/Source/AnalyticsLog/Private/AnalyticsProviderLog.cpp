@@ -15,16 +15,16 @@ FAnalyticsProviderLog::FAnalyticsProviderLog(const FAnalyticsProviderConfigurati
 		FileName = TEXT("Telemetry.json");
 	}
 
-	FString PathName = GetConfigValue.Execute(TEXT("PathName"), true);
+	FString FolderPath = GetConfigValue.Execute(TEXT("FolderPath"), true);
 
-	if (PathName.IsEmpty())
+	if (FolderPath.IsEmpty())
 	{
 		// Use default output path
-		PathName = FPaths::ProjectSavedDir() / TEXT("Telemetry");
+		FolderPath = FPaths::ProjectSavedDir() / TEXT("Telemetry");
 	}
 
 	// Create the full output path
-	FString FilePath = PathName / FileName;
+	FString FilePath = FolderPath / FileName;
 	FileWriter = TUniquePtr<FArchive>(IFileManager::Get().CreateFileWriter(*FilePath, FILEWRITE_EvenIfReadOnly));
 }
 
@@ -98,6 +98,8 @@ void FAnalyticsProviderLog::EndSession()
 
 void FAnalyticsProviderLog::RecordEvent(const FString& EventName, const TArray<FAnalyticsEventAttribute>& Attributes)
 {	
+	static uint32 RecordId(0);
+
 	if (FileWriter)
 	{
 		TStringBuilder<1024> Builder;
@@ -106,18 +108,27 @@ void FAnalyticsProviderLog::RecordEvent(const FString& EventName, const TArray<F
 		Builder.Appendf(TEXT("{\"EventName\":\"%s\""), *EventName);
 
 		// Add the event timestamp field
-		Builder.Appendf(TEXT(",\"TimestampUTC\":\"%f\""), FDateTime::UtcNow().ToUnixTimestampDecimal());
+		Builder.Appendf(TEXT(",\"TimestampUTC\":%f"), FDateTime::UtcNow().ToUnixTimestampDecimal());
 
-		// Log the default attributes
-		for (const FAnalyticsEventAttribute& Attribute : DefaultEventAttributes)
-		{
-			Builder.Appendf(TEXT(",\"%s\":\"%s\""), *Attribute.GetName(), *Attribute.GetValue());
-		}
+		// Add the record Id and increment it
+		Builder.Appendf(TEXT(",\"RecordId\":%d"), RecordId++);
 
-		// Log the event attributes
-		for ( const FAnalyticsEventAttribute& Attribute : Attributes )
+		// Accumulate all the attributes together. We could have had two loops but this seems cleaner
+		TArray<FAnalyticsEventAttribute> EventAttributes(DefaultEventAttributes);
+		EventAttributes.Append(Attributes);
+
+		// Add all the attributes
+		for (const FAnalyticsEventAttribute& Attribute : EventAttributes)
 		{
-			Builder.Appendf(TEXT(",\"%s\":\"%s\""), *Attribute.GetName(), *Attribute.GetValue());
+			// This should be almost nearly true, but we should check and JSON'ify as needed
+			if (Attribute.IsJsonFragment())
+			{
+				Builder.Appendf(TEXT(",\"%s\":%s"), *Attribute.GetName(), *Attribute.GetValue());
+			}
+			else
+			{
+				Builder.Appendf(TEXT(",\"%s\":\"%s\""), *Attribute.GetName(), *Attribute.GetValue());
+			}
 		}
 
 		FileWriter->Logf(TEXT("%s}"),Builder.ToString());

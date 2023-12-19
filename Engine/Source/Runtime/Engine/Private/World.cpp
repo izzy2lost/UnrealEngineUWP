@@ -577,6 +577,8 @@ FWorldDelegates::FWorldEvent FWorldDelegates::OnWorldBeginTearDown;
 FWorldDelegates::FRefreshLevelScriptActionsEvent FWorldDelegates::RefreshLevelScriptActions;
 FWorldDelegates::FOnWorldPIEStarted FWorldDelegates::OnPIEStarted;
 FWorldDelegates::FOnWorldPIEReady FWorldDelegates::OnPIEReady;
+FWorldDelegates::FOnWorldPIEMapCreated FWorldDelegates::OnPIEMapCreated;
+FWorldDelegates::FOnWorldPIEMapReady FWorldDelegates::OnPIEMapReady;
 FWorldDelegates::FOnWorldPIEEnded FWorldDelegates::OnPIEEnded;
 #endif // WITH_EDITOR
 FWorldDelegates::FOnSeamlessTravelStart FWorldDelegates::OnSeamlessTravelStart;

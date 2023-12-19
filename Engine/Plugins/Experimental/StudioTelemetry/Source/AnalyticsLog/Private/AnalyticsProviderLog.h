@@ -2,13 +2,14 @@
 
 #pragma once
 
-#if WITH_EDITOR
-
 #include "AnalyticsProviderConfigurationDelegate.h"
 #include "Interfaces/IAnalyticsProvider.h"
 
 /**
- * Implementation of the IAnalyticsProviderET interface that exports to OpenTelemetry
+ * Implementation of the IAnalyticsProviderET interface that exports telemetry events to a file as Newline - delimited JSON
+ * By default,the log file is written to Saved/Telemetry folder of the application.
+ * FileName and FolderPath can be overridden in the configuration
+ * Here as a simple example of how a developer might implement and configure their own analytics provider for use with the StudioTelemerty plugin
  */
 class FAnalyticsProviderLog : public IAnalyticsProvider
 {
@@ -41,5 +42,3 @@ private:
 	TArray<FAnalyticsEventAttribute>		DefaultEventAttributes;	
 	TUniquePtr<FArchive>					FileWriter;
 };
-
-#endif

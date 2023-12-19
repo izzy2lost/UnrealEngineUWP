@@ -8,7 +8,7 @@
 
 using FThreadId = uint32;
 
-class FAnalyticsFlowTracker : FNoncopyable
+class UE_DEPRECATED(5.4, "Use FAnalyticsTracer instead.") FAnalyticsFlowTracker : FNoncopyable
 {
 public:
 	FAnalyticsFlowTracker() {};

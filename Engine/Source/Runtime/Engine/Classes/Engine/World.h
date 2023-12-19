@@ -4200,6 +4200,14 @@ public:
 	DECLARE_MULTICAST_DELEGATE_OneParam(FOnWorldPIEReady, UGameInstance*);
 	static FOnWorldPIEStarted OnPIEReady;
 
+	// PIE map is created
+	DECLARE_MULTICAST_DELEGATE_OneParam(FOnWorldPIEMapCreated, UGameInstance*);
+	static FOnWorldPIEMapCreated OnPIEMapCreated;
+
+	// PIE map is created
+	DECLARE_MULTICAST_DELEGATE_OneParam(FOnWorldPIEMapReady, UGameInstance*);
+	static FOnWorldPIEMapReady OnPIEMapReady;
+
 	// PIE has ended
 	DECLARE_MULTICAST_DELEGATE_OneParam(FOnWorldPIEEnded, UGameInstance*);
 	static FOnWorldPIEEnded OnPIEEnded;

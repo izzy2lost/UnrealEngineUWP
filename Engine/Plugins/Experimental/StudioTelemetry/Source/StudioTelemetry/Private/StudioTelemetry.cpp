@@ -10,6 +10,7 @@
 
 #include "Analytics.h"
 #include "AnalyticsProviderMulticast.h"
+#include "AnalyticsTracer.h"
 #include "BuildSettings.h"
 #include "RHI.h"
 
@@ -73,19 +74,20 @@ void FStudioTelemetry::ShutdownModule()
 
 void FStudioTelemetry::EndSession()
 {
-	if (AnalyticsFlowTracker.IsValid())
+	// End session for the tracer and the provider
+	if (AnalyticsTracer.IsValid())
 	{
-		AnalyticsFlowTracker->EndSession();
-		AnalyticsFlowTracker.Reset();
+		AnalyticsTracer->EndSession();
+		AnalyticsTracer.Reset();
 	}
 
 	if (AnalyticsProvider.IsValid())
 	{
 		AnalyticsProvider->EndSession();
 		AnalyticsProvider.Reset();
-	}
 
-	UE_LOG(LogStudioTelemetry, Log, TEXT("Ended StudioTelemetry Session"));
+		UE_LOG(LogStudioTelemetry, Log, TEXT("Ended StudioTelemetry Session"));
+	}
 }
 
 void FStudioTelemetry::StartSession()
@@ -172,10 +174,13 @@ void FStudioTelemetry::StartSession()
 		// Start the analytics session
 		AnalyticsProvider->StartSession();
 
-		// Make the flow tracker and start the session
-		AnalyticsFlowTracker = MakeShared<FAnalyticsFlowTracker>();
-		AnalyticsFlowTracker->SetProvider(AnalyticsProvider);
-		AnalyticsFlowTracker->StartSession();
+		// Create the IAnalyticsTracer interface
+		AnalyticsTracer = FAnalytics::Get().CreateAnalyticsTracer();
+		AnalyticsTracer->SetProvider(AnalyticsProvider);
+		AnalyticsTracer->StartSession();
+
+		// Bind the pre-exit callback
+		FCoreDelegates::OnEnginePreExit.AddRaw(&FStudioTelemetry::Get(), &FStudioTelemetry::EndSession);
 
 		UE_LOG(LogStudioTelemetry, Log, TEXT("Started StudioTelemetry Session"));
 	}
@@ -211,7 +216,32 @@ TWeakPtr<IAnalyticsProvider> FStudioTelemetry::GetProvider(const FString& Name)
 	return AnalyticsProvider.IsValid()? AnalyticsProvider->GetAnalyticsProvider(Name) : TWeakPtr<IAnalyticsProvider>();
 }
 
-TWeakPtr<FAnalyticsFlowTracker> FStudioTelemetry::GetFlowTracker()
+TWeakPtr<IAnalyticsTracer> FStudioTelemetry::GetTracer()
 {
-	return AnalyticsFlowTracker;
+	return AnalyticsTracer;
+}
+
+TSharedPtr<IAnalyticsSpan> FStudioTelemetry::StartSpan(const FName Name, const TArray<FAnalyticsEventAttribute>& AdditionalAttributes)
+{
+	return AnalyticsTracer.IsValid() ? AnalyticsTracer->StartSpan(Name, AdditionalAttributes) : TSharedPtr<IAnalyticsSpan>();
+}
+
+TSharedPtr<IAnalyticsSpan> FStudioTelemetry::StartSpan(const FName Name, TSharedPtr<IAnalyticsSpan> ParentSpan, const TArray<FAnalyticsEventAttribute>& AdditionalAttributes)
+{
+	return AnalyticsTracer.IsValid() ? AnalyticsTracer->StartSpan(Name, ParentSpan, AdditionalAttributes)  : TSharedPtr<IAnalyticsSpan>();
+}
+
+bool FStudioTelemetry::EndSpan(TSharedPtr<IAnalyticsSpan> Span, const TArray<FAnalyticsEventAttribute>& AdditionalAttributes)
+{
+	return AnalyticsTracer.IsValid() ? AnalyticsTracer->EndSpan(Span, AdditionalAttributes) : false;
+}
+
+bool FStudioTelemetry::EndSpan(const FName& Name, const TArray<FAnalyticsEventAttribute>& AdditionalAttributes)
+{
+	return AnalyticsTracer.IsValid() ? AnalyticsTracer->EndSpan(Name, AdditionalAttributes) : false;
+}
+
+TSharedPtr<IAnalyticsSpan> FStudioTelemetry::GetSpan(const FName Name)
+{
+	return AnalyticsTracer.IsValid() ? AnalyticsTracer->GetSpan(Name) : TSharedPtr<IAnalyticsSpan>();
 }

@@ -5,7 +5,7 @@
 #if WITH_EDITOR
 
 #include "StudioTelemetry.h"
-#include "AnalyticsFlowTracker.h"
+#include "AnalyticsTracer.h"
 #include "CollectionManagerModule.h"
 #include "ContentBrowserModule.h"
 #include "TelemetryRouter.h"
@@ -398,187 +398,60 @@ void FStudioTelemetryEditor::Initialize()
 {
 	SessionStartTime = FPlatformTime::Seconds();
 
-	TSharedPtr<FAnalyticsFlowTracker> FlowTracker = FStudioTelemetry::Get().GetFlowTracker().Pin();
+	// Install Editor Mode callbacks
+	// 
+	// Start Editor and Editor Boot span. Note : this will only start when the plugin is loaded and as such will miss any activity that runs beforehand
+	EditorSpan = FStudioTelemetry::Get().StartSpan(EditorSpanName);
+	EditorBootSpan = FStudioTelemetry::Get().StartSpan(EditorBootSpanName);
 
-	if (FlowTracker.IsValid())
-	{
-		// Start Editor Boot Flow immediately
-		EditorBootFlowGuid = FlowTracker->StartFlow(TEXT("Editor Boot"));
-		FlowTracker->StartSubFlow(TEXT("Editor Boot"), EditorBootFlowGuid);
-	}
+	TArray<FAnalyticsEventAttribute> Attributes;
+	Attributes.Emplace(FAnalyticsEventAttribute(TEXT("LevelName"), TEXT("EditorBoot")));
+	Attributes.Emplace(FAnalyticsEventAttribute(TEXT("MapName"), TEXT("EditorBoot")));
 
-	FEditorDelegates::BeginPIE.AddLambda([this](bool)
+	EditorBootSpan->AddAttributes(Attributes);
+
+	FEditorDelegates::OnMapLoad.AddLambda([this](const FString& MapName, FCanLoadMap& OutCanLoadMap)
 		{
-			TSharedPtr<FAnalyticsFlowTracker> FlowTracker = FStudioTelemetry::Get().GetFlowTracker().Pin();
-
-			if (FlowTracker.IsValid())
-			{
-				// Finish the Editor Interaction Flow
-				FlowTracker->EndFlow(InteractiveEditorFlowGuid);
-
-				// Start PIE Flow
-				PIEStartTime = FPlatformTime::Seconds();
-				PIEFlowGuid = FlowTracker->StartFlow(TEXT("Play In Editor"));
-				PIEInitializeSubFlowGuid = FlowTracker->StartSubFlow(TEXT("PIE Initialize"), PIEFlowGuid);
-			}			
+			// The Editor loads a new map
+			EditorLoadMapSpan = FStudioTelemetry::Get().StartSpan(EditorLoadMapSpanName);
 		});
 
-	FEditorDelegates::PostPIEStarted.AddLambda([this](bool)
+	FEditorDelegates::OnMapOpened.AddLambda([this](const FString& MapName, bool Unused)
 		{
-			TSharedPtr<FAnalyticsFlowTracker> FlowTracker = FStudioTelemetry::Get().GetFlowTracker().Pin();
-
-			if (FlowTracker.IsValid())
-			{
-				// Called when PIE has finally started
-				FlowTracker->EndSubFlow(PIEInitializeSubFlowGuid);
-			}
-		});
-
-	FEditorDelegates::EndPIE.AddLambda([this](bool)
-		{
-			TSharedPtr<FAnalyticsFlowTracker> FlowTracker = FStudioTelemetry::Get().GetFlowTracker().Pin();
-
-			if (FlowTracker.IsValid())
-			{
-				// End PIE Flow and any SubFlows within it
-				FlowTracker->EndFlow(PIEFlowGuid, true);
-
-				// Restart the Interactive Editor Flow
-				FlowTracker->StartFlow(TEXT("Interactive Editor"));
-			}
-		});
-
-	FWorldDelegates::OnPIEStarted.AddLambda([this](UGameInstance* GameInstance)
-		{
-			TSharedPtr<FAnalyticsFlowTracker> FlowTracker = FStudioTelemetry::Get().GetFlowTracker().Pin();
-
-			if (FlowTracker.IsValid())
-			{
-				PIELoadMapStartTime = FPlatformTime::Seconds();
-				PIELoadMapSubFlowGuid = FlowTracker->StartSubFlow(TEXT("PIE Load Map"), PIEFlowGuid);
-			}
-		});
-
-	FWorldDelegates::OnPIEReady.AddLambda([this](UGameInstance* GameInstance)
-		{	
-			const FString MapName = FPaths::GetBaseFilename(GameInstance->PIEMapName);
+			// The new editor map was actually opened
+			LevelName = FPaths::GetBaseFilename(MapName);
 
 			TArray<FAnalyticsEventAttribute> Attributes;
 			Attributes.Emplace(FAnalyticsEventAttribute(TEXT("LevelName"), LevelName));
-			Attributes.Emplace(FAnalyticsEventAttribute(TEXT("MapName"), MapName));
-			
-			// Currently there is no obvious way to know when PIE has finished loading everything but loading map FrontEnd is good enough for Epic products.
-			if (MapName.Contains(TEXT("Frontend")))
-			{
-				static bool IsFirstTimeToPIE = true;
+			Attributes.Emplace(FAnalyticsEventAttribute(TEXT("MapName"), LevelName));
 
-				PIEStartupTime = FPlatformTime::Seconds() - PIEStartTime;
+			EditorLoadMapSpan->AddAttributes(Attributes);
 
-				if (IsFirstTimeToPIE == true)
-				{
-					// Record the absolute time from editor boot to PIE
-					FStudioTelemetryEditor::RecordEvent_Loading(TEXT("TimeToPIE"), EditorStartupTime + LoadMapTime + PIEStartupTime, Attributes);
-					FStudioTelemetryEditor::RecordEvent_CoreSystems(TEXT("TimeToPIE"), Attributes);
+			FStudioTelemetry::Get().EndSpan(EditorLoadMapSpan);
 
-					IsFirstTimeToPIE = false;
-				}
-				
-				// Record the time from start PIE to PIE
-				FStudioTelemetryEditor::RecordEvent_Loading(TEXT("PIE.TotalStartupTime"), PIEStartupTime, Attributes);
-				FStudioTelemetryEditor::RecordEvent_CoreSystems(TEXT("PIE.TotalStartupTime"), Attributes);
-			}
-
-			PIELoadMapTime = FPlatformTime::Seconds() - PIELoadMapStartTime;
-
-			// Record the sub map load time
-			FStudioTelemetryEditor::RecordEvent_Loading(TEXT("PIE.LoadMapTime"), PIELoadMapTime, Attributes);
-			FStudioTelemetryEditor::RecordEvent_CoreSystems(TEXT("PIE.LoadMapTime"), Attributes);
-
-			TSharedPtr<FAnalyticsFlowTracker> FlowTracker = FStudioTelemetry::Get().GetFlowTracker().Pin();
-
-			if (FlowTracker.IsValid())
-			{
-				FlowTracker->EndSubFlow(PIELoadMapSubFlowGuid, true, Attributes);
-
-				// Start tracking World Streaming
-				if (UWorld* World = GameInstance->GetWorld())
-				{
-					FGuid WorldStreamingSubFlowGuid = FlowTracker->StartSubFlow(TEXT("World Streaming"));
-
-					WorldStreamingStartTime = FPlatformTime::Seconds();
-
-					World->OnWorldMatchStarting.AddLambda([this, WorldStreamingSubFlowGuid, MapName, FlowTracker]()
-						{
-							TArray<FAnalyticsEventAttribute> Attributes;
-							Attributes.Emplace(FAnalyticsEventAttribute(TEXT("LevelName"), LevelName));
-							Attributes.Emplace(FAnalyticsEventAttribute(TEXT("MapName"), MapName));
-
-							FlowTracker->EndSubFlow(WorldStreamingSubFlowGuid, true, Attributes);
-							
-							FStudioTelemetryEditor::RecordEvent_Loading(TEXT("WorldStreaming"), FPlatformTime::Seconds() - WorldStreamingStartTime, Attributes);
-						});
-				}
-			}
-		});
-
-	FEditorFileUtils::GetOnLoadMapStartDelegate().AddLambda([this]()
-		{
-			TSharedPtr<FAnalyticsFlowTracker> FlowTracker = FStudioTelemetry::Get().GetFlowTracker().Pin();
-
-			if (FlowTracker.IsValid())
-			{
-				// Load Map SubFlow will inherit the current Flow scope
-				LoadMapStartTime = FPlatformTime::Seconds();
-				LoadMapSubFlowGuid = FlowTracker->StartSubFlow(TEXT("Load Map"));
-			}
-		});
-
-	FEditorFileUtils::GetOnLoadMapEndDelegate().AddLambda([this](const FString& MapName)
-		{
-			LevelName = MapName;
-
-			TArray<FAnalyticsEventAttribute> Attributes;
-			Attributes.Emplace(FAnalyticsEventAttribute(TEXT("LevelName"), LevelName));
-			Attributes.Emplace(FAnalyticsEventAttribute(TEXT("MapName"), MapName));
-
-			LoadMapTime = FPlatformTime::Seconds() - LoadMapStartTime;
-			
-			FStudioTelemetryEditor::RecordEvent_Loading(TEXT("LoadMap"), LoadMapTime, Attributes);
-			FStudioTelemetryEditor::RecordEvent_CoreSystems(TEXT("LoadMap"), Attributes);
-
-			TSharedPtr<FAnalyticsFlowTracker> FlowTracker = FStudioTelemetry::Get().GetFlowTracker().Pin();
-
-			if (FlowTracker.IsValid())
-			{
-				FlowTracker->EndSubFlow(LoadMapSubFlowGuid, true, Attributes);
-			}
+			FStudioTelemetryEditor::RecordEvent_Loading(TEXT("LoadMap"), EditorLoadMapSpan->GetDuration(), EditorLoadMapSpan->GetAttributes());
+			FStudioTelemetryEditor::RecordEvent_CoreSystems(TEXT("LoadMap"), EditorLoadMapSpan->GetAttributes());
 		});
 
 	FEditorDelegates::OnEditorBoot.AddLambda([this](double TimeToBootEditor)
-		{
-			// Editor Boot Flow has finished
-			TArray<FAnalyticsEventAttribute> Attributes;
-			Attributes.Emplace(FAnalyticsEventAttribute(TEXT("LevelName"), TEXT("EditorBoot")));
-			Attributes.Emplace(FAnalyticsEventAttribute(TEXT("MapName"), TEXT("EditorBoot")));
-			
-			FStudioTelemetryEditor::RecordEvent_Loading(TEXT("BootEditor"), TimeToBootEditor, Attributes);
-			FStudioTelemetryEditor::RecordEvent_CoreSystems(TEXT("BootEditor"), Attributes);
+		{	
+			FStudioTelemetry::Get().EndSpan(EditorBootSpan);
 
-			TSharedPtr<FAnalyticsFlowTracker> FlowTracker = FStudioTelemetry::Get().GetFlowTracker().Pin();
+			// Callback is received when the editor has booted but has not been initialized
+			FStudioTelemetryEditor::RecordEvent_Loading(TEXT("BootEditor"), EditorBootSpan->GetDuration(), EditorBootSpan->GetAttributes());
+			FStudioTelemetryEditor::RecordEvent_CoreSystems(TEXT("BootEditor"), EditorBootSpan->GetAttributes());
 
-			if (FlowTracker.IsValid())
-			{
-				FlowTracker->EndFlow(EditorBootFlowGuid, true, Attributes);
-
-				// Start the Editor Interact Flow
-				InteractiveEditorFlowGuid = FlowTracker->StartFlow(TEXT("Interactive Editor"));
-			}
+			EditorInitilizeSpan = FStudioTelemetry::Get().StartSpan(EditorInitilizeSpanName);
 		});
 
 	FEditorDelegates::OnEditorInitialized.AddLambda([this](double TimeToInitializeEditor)
 		{
-			EditorStartupTime = TimeToInitializeEditor;
+			TimeToStartEditor = TimeToInitializeEditor;
 
+			// Editor has finished initializing so start the Editor Interact span
+			FStudioTelemetry::Get().EndSpan(EditorInitilizeSpan);
+			EditorInteractSpan = FStudioTelemetry::Get().StartSpan(EditorInteractSpanName);
+			
 			// Editor has initialized
 			TArray<FAnalyticsEventAttribute> Attributes;
 			Attributes.Emplace(FAnalyticsEventAttribute(TEXT("LevelName"), TEXT("EditorInitialize")));
@@ -595,12 +468,7 @@ void FStudioTelemetryEditor::Initialize()
 				GEditor->GetEditorSubsystem<UAssetEditorSubsystem>()->OnAssetEditorRequestedOpen().AddLambda([this](UObject* Asset)
 					{
 						AssetOpenStartTime = FPlatformTime::Seconds();
-						TSharedPtr<FAnalyticsFlowTracker> FlowTracker = FStudioTelemetry::Get().GetFlowTracker().Pin();
-
-						if (FlowTracker.IsValid())
-						{
-							FlowTracker->StartSubFlow(TEXT("Open Asset Editor"));
-						}
+						FStudioTelemetry::Get().StartSpan(OpenAssetEditorSpan);
 					});
 
 				GEditor->GetEditorSubsystem<UAssetEditorSubsystem>()->OnAssetOpenedInEditor().AddLambda([this](UObject* Asset, IAssetEditorInstance*)
@@ -617,12 +485,7 @@ void FStudioTelemetryEditor::Initialize()
 							FStudioTelemetryEditor::RecordEvent_Loading(TEXT("OpenAssetEditor"), FPlatformTime::Seconds() - AssetOpenStartTime, Attributes);
 						}
 
-						TSharedPtr<FAnalyticsFlowTracker> FlowTracker = FStudioTelemetry::Get().GetFlowTracker().Pin();
-
-						if (FlowTracker.IsValid())
-						{
-							FlowTracker->EndSubFlow(TEXT("Open Asset Editor"), true, Attributes);
-						}
+						FStudioTelemetry::Get().EndSpan(OpenAssetEditorSpan, Attributes);			
 				});
 			}
 
@@ -645,47 +508,128 @@ void FStudioTelemetryEditor::Initialize()
 
 			if (GWarn != nullptr)
 			{
+				// Start the SlowTask span
 				GWarn->OnStartSlowTask().AddLambda([this](const FText& TaskName)
 					{	
-						TSharedPtr<FAnalyticsFlowTracker> FlowTracker = FStudioTelemetry::Get().GetFlowTracker().Pin();
+						TArray<FAnalyticsEventAttribute> Attributes;
+						Attributes.Emplace(TEXT("TaskName"), TaskName.ToString());
 
-						if (FlowTracker.IsValid())
-						{
-							FlowTracker->StartSubFlow(FName(TaskName.ToString()));
-						}
+						FStudioTelemetry::Get().StartSpan(FName(TaskName.ToString()), Attributes);
 					});
 
+				// End the SlowTask span
 				GWarn->OnFinalizeSlowTask().AddLambda([this](const FText& TaskName, double TaskDurationSeconds)
 					{
-						TArray<FAnalyticsEventAttribute> Attributes;
-						Attributes.Emplace(FAnalyticsEventAttribute(TEXT("LevelName"), LevelName));
-						Attributes.Emplace(TEXT("TaskName"), TaskName.ToString());
-						
-						TSharedPtr<FAnalyticsFlowTracker> FlowTracker = FStudioTelemetry::Get().GetFlowTracker().Pin();
+						TSharedPtr<IAnalyticsSpan> SlowTaskSpan = FStudioTelemetry::Get().GetSpan(FName(TaskName.ToString()));
 
-						if (FlowTracker.IsValid())
+						if (SlowTaskSpan.IsValid())
 						{
-							FlowTracker->EndSubFlow(FName(TaskName.ToString()), true, Attributes);
+							FStudioTelemetry::Get().EndSpan(SlowTaskSpan);
+							FStudioTelemetryEditor::RecordEvent_Loading(TEXT("SlowTask"), SlowTaskSpan->GetDuration(), SlowTaskSpan->GetAttributes());	
 						}
-						
-						FStudioTelemetryEditor::RecordEvent_Loading(TEXT("SlowTaskDialog"), TaskDurationSeconds, Attributes);
 					});
 			}
 		});
+
+	// Install PIE Mode callbacks
+	FEditorDelegates::BeginPIE.AddLambda([this](bool)
+		{
+			// PIE mode has been started. The user has pressed the Start PIE button.
+			// Finish the Editor span
+			FStudioTelemetry::Get().EndSpan(EditorSpan);
+
+			// Start PIE span
+			PIESpan = FStudioTelemetry::Get().StartSpan(PIESpanName);
+			PIEStartupSpan = FStudioTelemetry::Get().StartSpan(PIEStartupSpanName);		
+		});
+
+	FWorldDelegates::OnPIEMapCreated.AddLambda([this](UGameInstance* GameInstance)
+		{
+			// A new PIE map was created
+			PIELoadMapSpan = FStudioTelemetry::Get().StartSpan(PIELoadMapSpanName);
+		});
+
+	FWorldDelegates::OnPIEMapReady.AddLambda([this](UGameInstance* GameInstance)
+		{
+			// PIE map is now loaded and ready to use
+			const FString MapName = FPaths::GetBaseFilename(GameInstance->PIEMapName);
+
+			TArray<FAnalyticsEventAttribute> Attributes;
+			Attributes.Emplace(FAnalyticsEventAttribute(TEXT("LevelName"), LevelName));
+			Attributes.Emplace(FAnalyticsEventAttribute(TEXT("MapName"), MapName));
+
+			PIELoadMapSpan->AddAttributes(Attributes);
+			
+			FStudioTelemetry::Get().EndSpan(PIELoadMapSpan);
+
+			FStudioTelemetryEditor::RecordEvent_Loading(TEXT("PIE.LoadMapTime"), PIELoadMapSpan->GetDuration(), PIELoadMapSpan->GetAttributes());
+			FStudioTelemetryEditor::RecordEvent_CoreSystems(TEXT("PIE.LoadMapTime"), PIELoadMapSpan->GetAttributes());
+		});
+
+	FWorldDelegates::OnPIEReady.AddLambda([this](UGameInstance* GameInstance)
+		{
+			// PIE is now ready for user interaction
+			static bool IsFirstTimeToPIE = true;
+
+			FStudioTelemetry::Get().EndSpan(PIEStartupSpan);
+
+			// Record the time from start PIE to PIE
+			FStudioTelemetryEditor::RecordEvent_Loading(TEXT("PIE.TotalStartupTime"), PIEStartupSpan->GetDuration(), PIEStartupSpan->GetAttributes());
+			FStudioTelemetryEditor::RecordEvent_CoreSystems(TEXT("PIE.TotalStartupTime"), PIEStartupSpan->GetAttributes());
+
+			if (IsFirstTimeToPIE == true)
+			{
+				// Record the absolute time from editor boot to PIE
+				FStudioTelemetryEditor::RecordEvent_Loading(TEXT("TimeToPIE"), TimeToStartEditor + EditorLoadMapSpan->GetDuration() + PIEStartupSpan->GetDuration(), PIEStartupSpan->GetAttributes());
+				FStudioTelemetryEditor::RecordEvent_CoreSystems(TEXT("TimeToPIE"), PIEStartupSpan->GetAttributes());
+
+				IsFirstTimeToPIE = false;
+			}
+	
+			// Start PIE World Streaming span
+			if (GameInstance)
+			{
+				if (UWorld* World = GameInstance->GetWorld())
+				{
+					PIEWorldStreamingSpan = FStudioTelemetry::Get().StartSpan(PIEWorldStreamingSpanName);
+
+					World->OnWorldMatchStarting.AddLambda([this]()
+						{
+							FStudioTelemetry::Get().EndSpan(PIEWorldStreamingSpan);
+							FStudioTelemetryEditor::RecordEvent_Loading(TEXT("PIE.WorldStreaming"), PIEWorldStreamingSpan->GetDuration(), PIEWorldStreamingSpan->GetAttributes());	
+						});
+				}
+			}	
+		});
+
+	FEditorDelegates::EndPIE.AddLambda([this](bool)
+		{
+			// PIE has ended, ie. the user has pressed the Stop PIE button, and we are going back to interactive Editor mode	
+			FStudioTelemetry::Get().EndSpan(PIESpan);
+
+			// Restart the Editor span
+			EditorSpan = FStudioTelemetry::Get().StartSpan(EditorSpanName);
+			EditorInteractSpan = FStudioTelemetry::Get().StartSpan(EditorInteractSpanName);
+		});
+
 	
 	// Install Cooking Callbacks
 	UE::Cook::FDelegates::CookByTheBookStarted.AddLambda([this](UE::Cook::ICookInfo& CookInfo)
 	{
-			TSharedPtr<FAnalyticsFlowTracker> FlowTracker = FStudioTelemetry::Get().GetFlowTracker().Pin();
+		// Begin the cooking span	
+		CookingSpan = FStudioTelemetry::Get().StartSpan(TEXT("Cooking"));
 
-			if (FlowTracker.IsValid())
-			{
-				CookByTheBookFlowGuid = FlowTracker->StartFlow("Cook By The Book");
-			}
+		TArray<FAnalyticsEventAttribute> Attributes;
+		Attributes.Emplace(FAnalyticsEventAttribute(TEXT("LevelName"), LevelName));
+		Attributes.Emplace(FAnalyticsEventAttribute(TEXT("MapName"), LevelName));
+
+		CookingSpan->AddAttributes(Attributes);
 	});
 
 	UE::Cook::FDelegates::CookByTheBookFinished.AddLambda([this](UE::Cook::ICookInfo& CookInfo)
 	{
+		// End the cooking span
+	
 		// Suppress sending telemetry from CookWorkers for now.
 		uint32 MultiprocessId = 0;
 		FParse::Value(FCommandLine::Get(), TEXT("-MultiprocessId="), MultiprocessId);
@@ -694,21 +638,13 @@ void FStudioTelemetryEditor::Initialize()
 			return;
 		}
 
-		TArray<FAnalyticsEventAttribute> Attributes;
-		Attributes.Emplace(FAnalyticsEventAttribute(TEXT("LevelName"), LevelName));
-		Attributes.Emplace(FAnalyticsEventAttribute(TEXT("MapName"), LevelName));
+		FStudioTelemetryEditor::RecordEvent_Cooking(CookingSpan->GetAttributes());
+		FStudioTelemetryEditor::RecordEvent_CoreSystems(TEXT("Cooking"), CookingSpan->GetAttributes());
 
-		TSharedPtr<FAnalyticsFlowTracker> FlowTracker = FStudioTelemetry::Get().GetFlowTracker().Pin();
-
-		if (FlowTracker.IsValid())
-		{
-			FlowTracker->EndFlow(CookByTheBookFlowGuid, true, Attributes);
-		}
-
-		FStudioTelemetryEditor::RecordEvent_Cooking(Attributes);
-		FStudioTelemetryEditor::RecordEvent_CoreSystems(TEXT("Cooking"), Attributes);
+		FStudioTelemetry::Get().EndSpan(CookingSpan);
 	});
 
+	// Install Content Browser callbacks
 	FContentBrowserModule* ContentBrowserModule = FModuleManager::GetModulePtr<FContentBrowserModule>( TEXT("ContentBrowser") );
 	
 	FTelemetryRouter& Router = FTelemetryRouter::Get();

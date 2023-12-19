@@ -5,7 +5,6 @@
 #if WITH_EDITOR
 
 #include "AnalyticsProviderConfigurationDelegate.h"
-#include "AnalyticsET.h"
 #include "Containers/Array.h"
 #include "Containers/UnrealString.h"
 #include "CoreMinimal.h"
@@ -20,7 +19,7 @@ class IAnalyticsProvider;
 class IAnalyticsProviderET;
 
 /**
- *  Public implementation of EpicGames.MCP.AnalyticsProvider
+ *  Public implementation of IAnalyticsProviderModule that returns a JSON formatted FAnalayticsProviderLog object
  */
 class FAnalyticsLog : public IAnalyticsProviderModule
 {
@@ -30,8 +29,7 @@ class FAnalyticsLog : public IAnalyticsProviderModule
 public:
 	/**
 	 * Singleton-like access to this module's interface.  This is just for convenience!
-	 * Beware of calling this during the shutdown phase, though.  Your module might have been unloaded already.
-	 *
+	 * Beware of calling this during the shutdown phase, though.  Your module might have been unloaded already
 	 * @return Returns singleton instance, loading the module on demand if needed
 	 */
 	static inline FAnalyticsLog& Get()
@@ -39,19 +37,8 @@ public:
 		return FModuleManager::LoadModuleChecked< FAnalyticsLog >( "AnalyticsLog" );
 	}
 
-	//--------------------------------------------------------------------------
-	// Configuration functionality
-	//--------------------------------------------------------------------------
-public:
-	
-	//--------------------------------------------------------------------------
-	// provider factory functions
-	//--------------------------------------------------------------------------
-public:
 	/**
 	 * IAnalyticsProviderModule interface.
-	 * Creates the analytics provider given a configuration delegate.
-	 * The keys required exactly match the field names in the Config object. 
 	 */
 	ANALYTICSLOG_API virtual TSharedPtr<IAnalyticsProvider> CreateAnalyticsProvider(const FAnalyticsProviderConfigurationDelegate& GetConfigValue) const override;
 

@@ -278,6 +278,7 @@ static ENetMode GetNetModeFromPlayNetMode(const EPlayNetMode InPlayNetMode, cons
 FGameInstancePIEResult UGameInstance::InitializeForPlayInEditor(int32 PIEInstanceIndex, const FGameInstancePIEParameters& Params)
 {
 	FWorldDelegates::OnPIEStarted.Broadcast(this);
+	FWorldDelegates::OnPIEMapCreated.Broadcast(this);
 
 	UEditorEngine* const EditorEngine = CastChecked<UEditorEngine>(GetEngine());
 
@@ -364,14 +365,15 @@ FGameInstancePIEResult UGameInstance::InitializeForPlayInEditor(int32 PIEInstanc
 	// This creates the world subsystems and prepares to begin play
 	EditorEngine->PostCreatePIEWorld(NewWorld);
 
+	FWorldDelegates::OnPIEMapReady.Broadcast(this);
+
 	// Games can override this to return failure if PIE is not allowed for some reason
 	return FGameInstancePIEResult::Success();
 }
 
-
+#if WITH_EDITOR
 void UGameInstance::ReportPIEStartupTime()
 {
-#if WITH_EDITOR
 	if (!bReportedPIEStartupTime)
 	{
 		static bool bHasRunPIEThisSession = false;
@@ -388,9 +390,8 @@ void UGameInstance::ReportPIEStartupTime()
 	}
 
 	FWorldDelegates::OnPIEReady.Broadcast(this);
-#endif
 }
-
+#endif
 
 FGameInstancePIEResult UGameInstance::StartPlayInEditorGameInstance(ULocalPlayer* LocalPlayer, const FGameInstancePIEParameters& Params)
 {
