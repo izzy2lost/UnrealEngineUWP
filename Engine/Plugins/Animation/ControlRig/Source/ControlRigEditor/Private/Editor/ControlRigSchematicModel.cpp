@@ -673,7 +673,7 @@ void FControlRigSchematicModel::HandleSchematicDrop(SSchematicGraphPanel* InPane
 				{
 					if (UModularRigController* Controller = ControlRigBlueprint->GetModularRigController())
 					{
-						UControlRig* ControlRig = ControlRigBlueprint->GetDebuggedControlRig();
+						UModularRig* ControlRig = Cast<UModularRig>(ControlRigBlueprint->GetDebuggedControlRig());
 						if (!ControlRig)
 						{
 							return;
@@ -710,7 +710,7 @@ void FControlRigSchematicModel::HandleSchematicDrop(SSchematicGraphPanel* InPane
 							{
 								(void)Controller->ReparentModule(ModulePath, TargetModulePath.ToString());
 							}
-							Controller->ConnectConnectorToElement(PrimaryConnectorKey, TargetKey);
+							Controller->ConnectConnectorToElement(PrimaryConnectorKey, TargetKey, true, ControlRig->GetModularRigSettings().bAutoResolve);
 						}
 					}
 				}, TStatId(), NULL, ENamedThreads::GameThread);
@@ -722,7 +722,7 @@ void FControlRigSchematicModel::HandleSchematicDrop(SSchematicGraphPanel* InPane
 		const TArray<FGuid> Sources = SchematicDragDropOp->GetElements();
 		FFunctionGraphTask::CreateAndDispatchWhenReady([this, Sources, TargetKey]()
 		{
-			UControlRig* ControlRig = ControlRigBlueprint->GetDebuggedControlRig();
+			UModularRig* ControlRig = Cast<UModularRig>(ControlRigBlueprint->GetDebuggedControlRig());
 			if (!ControlRig)
 			{
 				return;
@@ -742,7 +742,7 @@ void FControlRigSchematicModel::HandleSchematicDrop(SSchematicGraphPanel* InPane
 					{
 						if (Hierarchy->Find<FRigConnectorElement>(Pair.Key))
 						{
-							Controller->ConnectConnectorToElement(Pair.Key, TargetKey);
+							Controller->ConnectConnectorToElement(Pair.Key, TargetKey, true, ControlRig->GetModularRigSettings().bAutoResolve);
 							break;
 						}
 					}

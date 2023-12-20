@@ -7,6 +7,16 @@
 #include "RigModuleDefines.generated.h"
 
 USTRUCT(BlueprintType)
+struct FModularRigSettings
+{
+	GENERATED_BODY()
+
+	// Whether or not to autoresolve secondary connectors once the primary connector is resolved
+	UPROPERTY(BlueprintReadWrite, EditAnywhere, Category = ModularRig)
+	bool bAutoResolve = true;
+};
+
+USTRUCT(BlueprintType)
 struct CONTROLRIG_API FRigModuleIdentifier
 {
 	GENERATED_BODY()

@@ -139,6 +139,12 @@ public:
 	// END ControlRig
 
 	UPROPERTY()
+	FModularRigSettings ModularRigSettings;
+
+	// Returns the settings of the modular rig
+	const FModularRigSettings& GetModularRigSettings() const;
+
+	UPROPERTY()
 	FModularRigModel ModularRigModel;
 
 	UPROPERTY()

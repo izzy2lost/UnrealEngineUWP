@@ -153,6 +153,9 @@ public:
 		return Hierarchy;
 	}
 
+	UPROPERTY(EditAnywhere, Category = "Modular Rig")
+	FModularRigSettings ModularRigSettings;
+
 	UPROPERTY(EditAnywhere, Category = "Hierarchy")
 	FRigHierarchySettings HierarchySettings;
 
