@@ -11,6 +11,7 @@
 #include "Engine/SCS_Node.h"
 #include "Misc/DataValidation.h"
 #include "SmartObjectPropertyHelpers.h"
+#include "Interfaces/ITargetPlatform.h"
 #endif
 
 #include UE_INLINE_GENERATED_CPP_BY_NAME(SmartObjectDefinition)
@@ -346,6 +347,35 @@ void USmartObjectDefinition::PreSave(FObjectPreSaveContext SaveContext)
 
 	UpdateSlotReferences();
 	Super::PreSave(SaveContext);
+
+#if WITH_EDITOR
+	if (SaveContext.IsCooking()
+		&& SaveContext.GetTargetPlatform()->IsClientOnly()
+		&& GetDefault<USmartObjectSettings>()->bShouldExcludePreConditionsOnDedicatedClient
+		&& !HasAnyFlags(RF_ArchetypeObject | RF_ClassDefaultObject))
+	{
+		FObjectSaveOverride ObjSaveOverride;
+
+		// Add path to the conditions within the main definition
+		FProperty* OverrideProperty = FindFProperty<FProperty>(GetClass(), GET_MEMBER_NAME_CHECKED(USmartObjectDefinition, Preconditions));
+		check(OverrideProperty);
+		FPropertySaveOverride PropOverride;
+		PropOverride.PropertyPath = FFieldPath(OverrideProperty);
+		PropOverride.bMarkTransient = true;
+		
+		ObjSaveOverride.PropOverrides.Add(PropOverride);
+
+		// Add path to the conditions within the slot definition struct
+		OverrideProperty = FindFProperty<FProperty>(FSmartObjectSlotDefinition::StaticStruct(), GET_MEMBER_NAME_CHECKED(FSmartObjectSlotDefinition, SelectionPreconditions));
+		check(OverrideProperty);
+		PropOverride.PropertyPath = FFieldPath(OverrideProperty);
+		ObjSaveOverride.PropOverrides.Add(PropOverride);
+
+		SaveContext.AddSaveOverride(this, ObjSaveOverride);
+	}
+
+#endif // WITH_EDITOR
+	
 }
 
 void USmartObjectDefinition::UpdateSlotReferences()

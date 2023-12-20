@@ -929,29 +929,26 @@ void FPackageHarvester::ResolveOverrides()
 			if (FProperty* Prop = Override.bMarkTransient ? CastField<FProperty>(Override.PropertyPath.GetTyped(FProperty::StaticClass())) : nullptr)
 			{
 				FProperty* InnerProp = Prop;
-				if (FArrayProperty* ArrayProp = CastField<FArrayProperty>(Prop))
+				if (const FArrayProperty* ArrayProp = CastField<FArrayProperty>(Prop))
 				{
 					InnerProp = ArrayProp->Inner;
+					checkf(InnerProp, TEXT("Missing InnerProp for ArrayProperty.Name: %s, Type: %s. Package: %s"), *Prop->GetName(), *Prop->GetClass()->GetName(), *GetNameSafe(SaveContext.GetPackage()));
 				}
 
-				// We currently only support object property
-				if (ensureAlwaysMsgf(InnerProp && InnerProp->IsA<FObjectProperty>(), TEXT("Save Overrides supports only object properties at the moment. Name: %s, Type: %s. Package: %s"), *Prop->GetName(), *Prop->GetClass()->GetName(), *GetNameSafe(SaveContext.GetPackage())))
+				// Harvest the name of the property, since it is only made transient for the purpose of the package harvest, it will be needed for the LinkerSave
+				HarvestExportDataName(Prop->GetFName());
+
+				Props.Add(Prop);
+
+				if (Prop != InnerProp)
 				{
-					// Harvest the name of the property, since it is only made transient for the purpose of the package harvest, it will be needed for the LinkerSave
-					HarvestExportDataName(Prop->GetFName());
-
-					Props.Add(Prop);
-
-					if (Prop != InnerProp)
+					if (Prop->GetFName() != InnerProp->GetFName())
 					{
-						if (Prop->GetFName() != InnerProp->GetFName())
-						{
-							// Harvest the name of the inner property as well, since it is only made transient for the purpose of the package harvest, it will be needed for the LinkerSave
-							HarvestExportDataName(InnerProp->GetFName());
-						}
-
-						Props.Add(InnerProp);
+						// Harvest the name of the inner property as well, since it is only made transient for the purpose of the package harvest, it will be needed for the LinkerSave
+						HarvestExportDataName(InnerProp->GetFName());
 					}
+
+					Props.Add(InnerProp);
 				}
 			}
 		}
