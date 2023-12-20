@@ -122,7 +122,7 @@ TArray<FString> UInterchangeDatasmithTranslator::GetSupportedFormats() const
 
 	for (const FString& Format : DatasmithFormats)
 	{
-		if (Format.Contains(TEXT("gltf")) || Format.Contains(TEXT("glb")))
+		if (Format.Contains(TEXT("gltf")) || Format.Contains(TEXT("glb")) || Format.Contains(TEXT("fbx")))
 		{
 			continue;
 		}
@@ -139,7 +139,7 @@ bool UInterchangeDatasmithTranslator::CanImportSourceData(const UInterchangeSour
 
 	const FString FilePath = InSourceData->GetFilename();
 	const FString FileExtension = FPaths::GetExtension(FilePath);
-	if (FileExtension.Equals(TEXT("gltf"), ESearchCase::IgnoreCase) || FileExtension.Equals(TEXT("glb"), ESearchCase::IgnoreCase))
+	if (FileExtension.Equals(TEXT("gltf"), ESearchCase::IgnoreCase) || FileExtension.Equals(TEXT("glb"), ESearchCase::IgnoreCase) || FileExtension.Equals(TEXT("fbx"), ESearchCase::IgnoreCase))
 	{
 		// Do not translate gltf since there is already a native gltf interchange translator. 
 		return false;

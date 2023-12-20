@@ -17,6 +17,7 @@
 #include "Engine/World.h"
 #include "MaterialDomain.h"
 #include "Materials/Material.h"
+#include "Misc/SecureHash.h"
 
 #if WITH_EDITOR
 #include "Editor/EditorEngine.h"
@@ -46,8 +47,20 @@ AActor* UE::Interchange::ActorHelper::SpawnFactoryActor(const UInterchangeFactor
 		return nullptr;
 	}
 
+	//To avoid too long actor's name, compute a 128-bit hash based on the string
+	// and use that as a unique name in the form of a GUID
+	FString UniqueID;
+	{
+		FTCHARToUTF8 Converted(*CreateSceneObjectsParams.ObjectName);
+		FMD5 MD5Gen;
+		MD5Gen.Update((const uint8*)Converted.Get(), Converted.Length());
+		uint32 Digest[4];
+		MD5Gen.Final((uint8*)Digest);
+		UniqueID = FGuid(Digest[0], Digest[1], Digest[2], Digest[3]).ToString(EGuidFormats::Base36Encoded);
+	}
+
 	FActorSpawnParameters SpawnParameters;
-	SpawnParameters.Name = FName(*CreateSceneObjectsParams.ObjectName);
+	SpawnParameters.Name = FName(*UniqueID);
 	SpawnParameters.NameMode = FActorSpawnParameters::ESpawnActorNameMode::Requested;
 	SpawnParameters.OverrideLevel = CreateSceneObjectsParams.Level;
 	SpawnParameters.SpawnCollisionHandlingOverride = ESpawnActorCollisionHandlingMethod::AlwaysSpawn;
@@ -112,7 +125,7 @@ AActor* UE::Interchange::ActorHelper::SpawnFactoryActor(const UInterchangeFactor
 	if (SpawnedActor)
 	{
 #if WITH_EDITOR
-		SpawnedActor->SetActorLabel(SpawnParameters.Name.ToString());
+		SpawnedActor->SetActorLabel(CreateSceneObjectsParams.ObjectName);
 #endif
 		if (!SpawnedActor->GetRootComponent())
 		{
