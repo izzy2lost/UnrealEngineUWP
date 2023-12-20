@@ -2192,6 +2192,14 @@ private:
 	/** Called from RPC processing code to forward RPC to other NetDrivers if ShouldForwardFunction returns true. */
 	void ForwardRemoteFunction(UObject* RootObject, UObject* SubObject, UFunction* Function, void* Parms);
 
+	/** Go over imported network guids and map them to the newly created object. */
+	void UpdateUnmappedObjects();
+
+	/** Periodically look for invalid dormant replicators tied to destroyed objects. */
+	void CleanupStaleDormantReplicators();
+
+private:
+
 	UPROPERTY(transient)
 	TObjectPtr<UReplicationDriver> ReplicationDriver;
 
