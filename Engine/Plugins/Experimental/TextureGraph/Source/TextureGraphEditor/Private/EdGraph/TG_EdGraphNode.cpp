@@ -1,0 +1,727 @@
+// Copyright Epic Games, Inc. All Rights Reserved.
+
+#include "EdGraph/TG_EdGraphNode.h"
+#include "Misc/TransactionObjectEvent.h"
+
+#include "TG_Node.h"
+#include "TG_Pin.h"
+#include "EdGraph/TG_EdGraph.h"
+#include "EdGraph/EdGraphPin.h"
+#include "TextureGraph.h"
+#include "TG_Graph.h"
+
+#include "Framework/Commands/GenericCommands.h"
+#include "TG_EditorCommands.h"
+#include "ToolMenuSection.h"
+#include "ToolMenus.h"
+#include "TG_EdGraphSchema.h"
+#include "Expressions/Input/TG_Expression_InputParam.h"
+#include "Materials/Material.h"
+#include "Transform/Expressions/T_ExtractMaterialIds.h"
+#include "TG_HelperFunctions.h"
+
+#define LOCTEXT_NAMESPACE "UTG_EdGraphNode"
+
+static TAutoConsoleVariable<int32> CVarTGNodeOpacity(
+	TEXT("TG.Node.Opacity"),
+	1,
+	TEXT("Defines the Opacity of texture graph node.\n")
+	TEXT("<=0: Transparent\n")
+	TEXT("  1: Opaque\n"));
+
+void UTG_EdGraphNode::Construct(UTG_Node* InNode)
+{
+	check(InNode);
+	Node = InNode;
+	NodePosX = InNode->EditorData.PosX;
+	NodePosY = InNode->EditorData.PosY;
+	NodeComment = InNode->EditorData.NodeComment;
+	bCommentBubblePinned = InNode->EditorData.bCommentBubblePinned;
+	bCommentBubbleVisible = InNode->EditorData.bCommentBubbleVisible;
+	bCanRenameNode = InNode->GetExpression()->CanRenameTitle();
+}
+
+void UTG_EdGraphNode::BeginDestroy()
+{
+	Super::BeginDestroy();
+}
+
+UObject* UTG_EdGraphNode::GetDetailsObject()
+{
+	return GetNode()->GetExpression();
+}
+
+FText UTG_EdGraphNode::GetTooltipText() const
+{
+	auto Expr = GetNode()->GetExpression();
+	if (Expr)
+		return Expr->GetTooltipText();
+	return Super::GetTooltipText();
+}
+
+void UTG_EdGraphNode::SelectPin(UEdGraphPin* Pin, bool IsSelected)
+{
+	SelectedPin = nullptr;
+
+	if (IsSelected)
+	{
+		SelectedPin = Pin;
+	}
+
+	if(OnPinSelectionChangeDelegate.IsBound())
+		OnPinSelectionChangeDelegate.Broadcast(SelectedPin);
+}
+
+const FGuid UTG_EdGraphNode::GetSelectedPinFGuid() const
+{
+	if (SelectedPin)
+		return SelectedPin->PinId;
+	else return FGuid();
+}
+
+void UTG_EdGraphNode::GetNodeContextMenuActions(UToolMenu* Menu, class UGraphNodeContextMenuContext* Context) const
+{
+	if (!Context->Node)
+	{
+		return;
+	}
+
+	{
+		FToolMenuSection& Section = Menu->AddSection("EdGraphSchemaNodeActions", LOCTEXT("NodeActionsHeader", "Node Actions"));
+
+		UTG_Expression_InputParam* InputParamExpression = Cast< UTG_Expression_InputParam>(Node->GetExpression());
+		if (InputParamExpression)
+		{
+			if (InputParamExpression->bIsConstant)
+				Section.AddMenuEntry(FTG_EditorCommands::Get().ConvertInputParameterFromConstant);
+			else
+				Section.AddMenuEntry(FTG_EditorCommands::Get().ConvertInputParameterToConstant);
+
+		}
+	}
+
+	{
+		if (Context->Pin && Context->Pin->Direction == EEdGraphPinDirection::EGPD_Output)
+		{
+			FToolMenuSection& Section = Menu->AddSection("EdGraphSchemaPinActions", LOCTEXT("PinActionsMenuHeader", "Pin Actions"));
+			//Section.AddMenuEntry(FPCGEditorCommands::Get().AddSourcePin);
+			Section.AddMenuEntry("SetPreview",
+			LOCTEXT("SelectPin", "Set as preview"),
+			LOCTEXT("SelectPinTooltip", "Set this pin as thumb and preview"),
+			FSlateIcon(),
+			FUIAction(
+				FExecuteAction::CreateLambda([Pin = Context->Pin, Node = Context->Node, this]
+				{
+					auto TSEdGraph = Cast<UTG_EdGraph>(Node->GetGraph());
+					TSEdGraph->PinSelectionManager.UpdateSelection(const_cast<UEdGraphPin*>(Pin));
+				}),
+				FCanExecuteAction::CreateLambda([Pin = Context->Pin, this]
+				{
+					return Pin != SelectedPin;
+				})));
+		}
+	}
+
+	{
+		FToolMenuSection& Section = Menu->AddSection("EdGraphSchemaGeneral", LOCTEXT("GeneralHeader", "General"));
+		Section.AddMenuEntry(FGenericCommands::Get().Delete);
+		// TODO: Add also Copy, Paste, Duplicate...
+		Section.AddMenuEntry(FGenericCommands::Get().Cut);
+		Section.AddMenuEntry(FGenericCommands::Get().Copy);
+		Section.AddMenuEntry(FGenericCommands::Get().Duplicate);
+	}
+
+	Super::GetNodeContextMenuActions(Menu, Context);
+}
+
+void UTG_EdGraphNode::AllocateDefaultPins()
+{
+	bool showAdvancedPinDisplay = false;
+	for (auto Pin : GetNode()->Pins)
+	{
+
+		if (Pin  // Need a valid Pin obviously
+			&& !(Pin->IsPrivate())  // Not PRIVATE
+			&& !(Pin->IsParam() && Pin->IsOutput()) // Not PARAM OUTPUT
+			&& !(Pin->IsParam() && Pin->IsInput() && (Pin->GetArgumentCPPTypeName() == TEXT("FTG_Texture"))) // Not Input Param of type FTG_Texture (special case of the InputTextureParam)
+			)
+		{
+			// Pin name is the Argument name since we use it to retrieve the actual TG_Pin in the node
+			// The Schema can overwrite the pin name displayed
+			TWeakObjectPtr<UObject> PinSubCategoryObject = nullptr;
+			FName PinCategory = GetPinCategory(Pin, PinSubCategoryObject);
+			FName PinSubCategory(Pin->GetArgumentCPPTypeName());
+			FName PinName(Pin->GetArgumentName());
+
+			// early out if PinCategory isn't recognized
+			if (PinCategory.IsNone())
+				continue;
+			
+			UEdGraphPin* NewPin = nullptr;
+			if (Pin->IsInput())
+			{
+				NewPin = CreatePin(EGPD_Input, PinCategory, PinSubCategory, PinSubCategoryObject.Get(), PinName);
+			}
+			else if (Pin->IsOutput())
+			{
+				NewPin = CreatePin(EGPD_Output, PinCategory, PinSubCategory, PinSubCategoryObject.Get(), PinName);
+				FProperty* Property = Pin->GetExpressionProperty();
+				// Hide buffer descriptor from the nodes where we do not want to show
+				if (Property && !Property->HasMetaData("HideInnerPropertiesInNode"))
+				{
+					showAdvancedPinDisplay |= Pin->IsOutput() && Pin->GetArgument().IsTexture();
+				}
+			}
+			else
+			{
+				UE_LOG(LogTemp, Warning, TEXT("UTG_EdGraphNode::AllocateDefaultPins Unimplemented type: %s"), *Pin->GetArgumentCPPTypeName().ToString())
+				continue;
+			}
+
+			NewPin->bAdvancedView = Pin->IsSetting();
+			showAdvancedPinDisplay |= Pin->IsSetting();
+
+			NewPin->bNotConnectable = Pin->IsNotConnectable() || Pin->IsParam();
+
+			FString DefaultValue = Pin->GetSelfVar()->LogValue();
+			FProperty* Property = Pin->GetExpressionProperty();
+			FByteProperty* ByteProperty = CastField<FByteProperty>(Property);
+			if (ByteProperty)
+			{
+				UEnum* Enum = ByteProperty->GetIntPropertyEnum();
+				if (Enum)
+				{
+					DefaultValue = Enum->GetNameByValue(FCString::Atoi(*DefaultValue)).ToString();
+				}
+				NewPin->bNotConnectable = true;
+			}
+			FEnumProperty* EnumProperty = CastField<FEnumProperty>(Property);
+			if (EnumProperty)
+			{
+				UEnum* Enum = EnumProperty->GetEnum();
+				if (Enum)
+				{
+					DefaultValue = Enum->GetNameByValue(FCString::Atoi(*DefaultValue)).ToString();
+				}
+				NewPin->bNotConnectable = true;
+			}
+			
+			NewPin->DefaultValue = DefaultValue;
+			// This updates the UObject (Texture/Material) picker UI in the Node to get updated
+			if (Property && Property->GetClass()->IsChildOf(FObjectProperty::StaticClass()))
+			{
+				NewPin->DefaultObject = Pin->EditSelfVar()->GetAs<TObjectPtr<UObject>>();
+			}
+			NewPin->PinFriendlyName = FText::FromName(Pin->GetAliasName());
+			NewPin->PinToolTip = Pin->LogTooltip();
+		}
+	}
+	AdvancedPinDisplay = showAdvancedPinDisplay ? ENodeAdvancedPins::Hidden : ENodeAdvancedPins::NoPins;
+}
+
+FName UTG_EdGraphNode::GetPinCategory(UTG_Pin* Pin, TWeakObjectPtr<UObject>& SubCategoryObj)
+{
+	FName PinCategory("PinCategory");
+
+	// Find the UPROPERTY associated with the pin
+	FProperty* Property = Pin->GetExpressionProperty();
+	if (Property)
+	{
+		FFieldClass* PropertyClass = Property->GetClass();
+		if (PropertyClass == FFloatProperty::StaticClass())
+		{
+			PinCategory = UTG_EdGraphSchema::PC_Float;
+		}
+		else if (PropertyClass == FDoubleProperty::StaticClass())
+		{
+			PinCategory = UTG_EdGraphSchema::PC_Double;
+		}
+		else if (PropertyClass == FIntProperty::StaticClass())
+		{
+			PinCategory = UTG_EdGraphSchema::PC_Int;
+		}
+		else if (PropertyClass == FUInt32Property::StaticClass())
+		{
+			PinCategory = UTG_EdGraphSchema::PC_Int;
+		}
+		else if (PropertyClass == FEnumProperty::StaticClass())
+		{
+			PinCategory = UTG_EdGraphSchema::PC_Enum;
+			SubCategoryObj = CastField<FEnumProperty>(Property)->GetEnum();
+		}
+		else if (PropertyClass == FByteProperty::StaticClass())
+		{
+			PinCategory = UTG_EdGraphSchema::PC_Byte;
+			SubCategoryObj = CastField<FByteProperty>(Property)->GetIntPropertyEnum();
+		}
+		else if (PropertyClass == FBoolProperty::StaticClass())
+		{
+			PinCategory = UTG_EdGraphSchema::PC_Boolean;
+		}
+		else if (PropertyClass == FStructProperty::StaticClass())
+		{
+			PinCategory = UTG_EdGraphSchema::PC_Struct;
+			UScriptStruct* Struct = CastField<FStructProperty>(Property)->Struct;
+
+			if (Struct)
+			{
+				SubCategoryObj = Struct;
+			}
+		}
+		else if (PropertyClass == FArrayProperty::StaticClass())
+		{
+			PinCategory = UTG_EdGraphSchema::PC_Array;
+
+			FArrayProperty* ArrayProperty  = static_cast<FArrayProperty*>( Property );
+			FProperty* ArrayTypeProperty = ArrayProperty->Inner;
+			
+			if (ArrayTypeProperty->IsA(FStructProperty::StaticClass()))
+			{
+				UScriptStruct* Struct = CastField<FStructProperty>(ArrayTypeProperty)->Struct;
+
+				if (Struct)
+				{
+					SubCategoryObj = Struct;
+				}
+			}
+		}
+		else if (PropertyClass->IsChildOf(FObjectProperty::StaticClass()))
+		{
+			UClass* ObjPropertyClass = CastField<FObjectProperty>(Property)->PropertyClass;
+
+			// disable material pin for now
+			if (ObjPropertyClass == UMaterial::StaticClass())
+			{
+				return NAME_None;
+			}
+			
+			PinCategory = UTG_EdGraphSchema::PC_Object;
+			SubCategoryObj = TWeakObjectPtr<UClass>(ObjPropertyClass);//Pin->EditSelfVar()->GetAs<TObjectPtr<PropertyClass>>());
+			
+		}
+	}
+	else
+		// if there is no property, e.g. when pins are made from Material
+	{
+		// Determine category based on ArgumentCPPType
+		auto ArgCPPType = Pin->GetArgumentCPPTypeName();
+		if (ArgCPPType == TG_TypeUtils::FloatTypeName)
+		{
+			PinCategory = UTG_EdGraphSchema::PC_Float;
+		}
+		else if(ArgCPPType == TG_TypeUtils::Int32TypeName)
+		{
+			PinCategory = UTG_EdGraphSchema::PC_Int;
+		}
+		else if( ArgCPPType == TG_TypeUtils::Int64TypeName)
+		{
+			PinCategory = UTG_EdGraphSchema::PC_Int64;
+		}
+		else if( ArgCPPType == TG_TypeUtils::BoolTypeName)
+		{
+			PinCategory = UTG_EdGraphSchema::PC_Boolean;
+		}
+		else if (ArgCPPType == TG_TypeUtils::DoubleTypeName)
+		{
+			PinCategory = UTG_EdGraphSchema::PC_Double;
+		}
+		// else if (ArgCPPType.ToString().Contains( ""))
+	}
+	
+	return PinCategory;
+}
+
+void UTG_EdGraphNode::ReconstructNode()
+{
+	// Store copy of old pins
+	TArray<UEdGraphPin*> OldPins = MoveTemp(Pins);
+	Pins.Reset();
+
+	// clear cache of thumb blobs
+	PinThumbBlobMap.Reset();
+	
+	// Generate new pins
+	AllocateDefaultPins();
+
+	// Transfer persistent data from old to new pins
+	for (UEdGraphPin* OldPin : OldPins)
+	{
+		// Only same name pin could be candidates
+		const FName& OldPinName = OldPin->PinName;
+		UEdGraphPin** NewPin = Pins.FindByPredicate([&OldPinName](UEdGraphPin* InPin) { return InPin->PinName == OldPinName; });	
+		if (NewPin)
+		{
+			// And also check that the new pin at that name is connected to anything, if so grab the UI connections
+			UTG_Pin* TSPin = Node->GetPin(Node->GetPinId(OldPinName));
+			if (TSPin->IsConnected())
+				(*NewPin)->MovePersistentDataFromOldPin(*OldPin);
+		}
+	}
+
+	// Remove old pins
+	for (UEdGraphPin* OldPin : OldPins)
+	{
+		RemovePin(OldPin);
+	}
+
+	// Notify editor
+	OnNodeReconstructDelegate.Broadcast();
+}
+
+FString UTG_EdGraphNode::GetTitleDetail()
+{
+	FString Details = "";
+	const UTG_EdGraphSchema* Schema = Cast<const UTG_EdGraphSchema>(GetSchema());
+	TArray<const UTG_Pin*> OutPins;
+	GetNode()->GetOutputPins(OutPins);
+	
+	for (auto Pin : OutPins)
+	{
+		const UTG_Pin* TGPin = Pin;
+		
+		if (SelectedPin)
+		{
+			TGPin = Schema->GetTGPinFromEdPin(SelectedPin);
+		}
+
+		// Only interested by the texture type pin
+		FTG_Texture Texture;
+		if ((Pin == TGPin) && Pin->GetValue(Texture))
+		{
+			if (Texture.RasterBlob)
+			{
+				const auto Desc = Texture.RasterBlob->GetDescriptor();
+				const FString FormatString = Desc.FormatToString(Desc.Format);
+				const FString Channel = TextureHelper::GetChannelsTextFromItemsPerPoint(Desc.ItemsPerPoint);
+				FString BufferString = Desc.bIsSRGB ? "sRGB" : "Linear";
+				BufferString += " - " + Channel + "_" + FormatString + "\n";
+				BufferString += FString::FromInt(Desc.Width) + "x" + FString::FromInt(Desc.Height);
+				Details = BufferString;
+				return Details;
+			}
+		}
+	}
+	return Details;
+}
+
+void UTG_EdGraphNode::PrepareForCopying()
+{
+	if (Node)
+	{
+		// Temporarily take ownership of the TG_Node, so that it is not deleted when cutting
+		Node->Rename(NULL, this, REN_DontCreateRedirectors);
+	}
+}
+
+bool UTG_EdGraphNode::CanUserDeleteNode() const
+{
+	return true;
+}
+
+void UTG_EdGraphNode::PostCopyNode()
+{
+	if (Node)
+	{
+		UTG_EdGraph* EdGraph = CastChecked<UTG_EdGraph>(GetGraph());
+		UTG_Graph* Graph = EdGraph->TextureGraph->Graph();
+		check(Graph);
+		Node->Rename(nullptr, Graph, REN_DontCreateRedirectors | REN_DoNotDirty);
+	}
+}
+
+void UTG_EdGraphNode::PostPasteNode()
+{	
+	UTG_EdGraph* EdGraph = CastChecked<UTG_EdGraph>(GetGraph());
+	UTG_Graph* Graph = EdGraph->TextureGraph->Graph();
+	check(Graph);
+	Node->Rename(nullptr, Graph, REN_DontCreateRedirectors | REN_DoNotDirty);
+
+	// Our TG node is a new node that need to be taken care of and added to the graph
+	Graph->AddPostPasteNode(Node);
+}
+
+void UTG_EdGraphNode::PinDefaultValueChangedWithTweaking(UEdGraphPin* Pin, bool bIsTweaking)
+{
+	const UTG_EdGraphSchema* Schema = Cast<const UTG_EdGraphSchema>(GetSchema());
+	UTG_Pin* TGPin = Schema->GetTGPinFromEdPin(Pin);
+	TGPin->SetSelfVarValueFromString(Pin->DefaultValue, bIsTweaking);
+
+	// This updates the UObject (Texture/Material) picker UI in the Node to get updated
+	FProperty* Property = TGPin->GetExpressionProperty();
+	if (Property && Property->GetClass()->IsChildOf(FObjectProperty::StaticClass()))
+	{
+		Pin->DefaultObject = TGPin->EditSelfVar()->GetAs<TObjectPtr<UObject>>();
+	}
+}
+
+void UTG_EdGraphNode::PinConnectionListChanged(UEdGraphPin* Pin)
+{
+	Super::PinConnectionListChanged(Pin);
+	Pin->bDefaultValueIsReadOnly = Pin->HasAnyConnections();
+}
+
+void UTG_EdGraphNode::AutowireNewNode(UEdGraphPin* FromPin)
+{
+	if (Node == nullptr || FromPin == nullptr)
+	{
+		return;
+	}
+
+	const bool bFromPinIsInput = FromPin->Direction == EEdGraphPinDirection::EGPD_Input;
+	TArray<FTG_Id> OtherPinsList;
+	if(bFromPinIsInput)
+	{
+		OtherPinsList.Append(Node->GetOutputPinIds());
+	}
+	else
+	{
+		OtherPinsList.Append(Node->GetInputPinIds());
+	}
+
+	// Try to connect to the first compatible pin
+	for (FTG_Id OtherPinId : OtherPinsList)
+	{
+		TObjectPtr<UTG_Pin> OtherPin = Node->GetGraph()->GetPin(OtherPinId);
+		check(OtherPin);
+
+		const FName& OtherPinName = OtherPin->GetArgumentName();
+		UEdGraphPin* ToPin = FindPinChecked(OtherPinName, bFromPinIsInput ? EEdGraphPinDirection::EGPD_Output : EEdGraphPinDirection::EGPD_Input);
+		if (ToPin && GetSchema()->TryCreateConnection(FromPin, ToPin))
+		{
+			// Connection succeeded
+			break;
+		}
+	}
+
+	NodeConnectionListChanged();
+}
+
+FText UTG_EdGraphNode::GetNodeTitle(ENodeTitleType::Type TitleType) const
+{
+	return FText::FromString(GetNode()->GetNodeName().ToString());
+}
+
+void UTG_EdGraphNode::OnRenameNode(const FString& NewName)
+{
+	Node->GetExpression()->Modify();
+	Node->GetExpression()->SetTitleName(FName(NewName));
+}
+
+float UTG_EdGraphNode::GetNodeAlpha() const
+{
+	return CVarTGNodeOpacity.GetValueOnGameThread() == 1 ? 1.0f : 0.7f;
+}
+
+FLinearColor UTG_EdGraphNode::GetTitleColor() const
+{
+	FName ExpressionCategory = GetNode()->GetExpression()->GetCategory();
+	if (ExpressionCategory == TG_Category::Output)
+	{
+		return UTG_EdGraphSchema::OutputNodesColor;
+	}
+	if (ExpressionCategory == TG_Category::Input)
+	{
+		return UTG_EdGraphSchema::InputNodesColor;
+	}
+	if (ExpressionCategory == TG_Category::Utilities)
+	{
+		return UTG_EdGraphSchema::FunctionNodesColor;
+	}
+	if (ExpressionCategory == TG_Category::Maths)
+	{
+		return UTG_EdGraphSchema::MathsNodesColor;
+	}
+	if (ExpressionCategory == TG_Category::Procedural)
+	{
+		return UTG_EdGraphSchema::GeneratorNodesColor;
+	}
+	if (ExpressionCategory == TG_Category::Adjustment ||
+		ExpressionCategory == TG_Category::Filter ||
+		ExpressionCategory == TG_Category::Channel)
+	{
+		return UTG_EdGraphSchema::OperatorNodesColor;
+	}
+
+	if (ExpressionCategory == TG_Category::DevOnly)
+	{
+		return UTG_EdGraphSchema::DevOnlyNodesColor;
+	}
+	if (ExpressionCategory == TG_Category::Custom ||
+		ExpressionCategory == TG_Category::Default)
+	{
+		return UTG_EdGraphSchema::CustomNodesColor;
+	}
+
+	return UTG_EdGraphSchema::TGNodeColor;
+}
+
+FLinearColor UTG_EdGraphNode::GetNodeTitleColor() const
+{
+	auto TitleColor = GetTitleColor();
+	TitleColor.A = GetNodeAlpha();
+	
+	return TitleColor;
+}
+
+FLinearColor UTG_EdGraphNode::GetNodeBodyTintColor() const
+{
+	FLinearColor BodyColor = UTG_EdGraphSchema::NodeBodyColor;
+	BodyColor.A = GetNodeAlpha();
+	return BodyColor;
+}
+
+void UTG_EdGraphNode::UpdatePosition()
+{
+	if (Node)
+	{
+		Node->Modify();
+		Node->EditorData.PosX = NodePosX;
+		Node->EditorData.PosY = NodePosY;
+	}
+}
+
+void UTG_EdGraphNode::OnNodePostEvaluate(const FTG_EvaluationContext* EvaluationContext)
+{
+	if (OnNodePostEvaluateDelegate.IsBound())
+	{
+		OnNodePostEvaluateDelegate.Broadcast(EvaluationContext);
+	};
+	OnNodeChanged(GetNode());
+}
+
+void UTG_EdGraphNode::UpdateEdPinDefaultValue(UEdGraphPin* EdPin, const UTG_EdGraphSchema* Schema)
+{
+	UTG_Pin* TSPin = Schema->GetTGPinFromEdPin(EdPin);
+	if (TSPin)
+	{
+		UTG_EdGraph* EdGraph = CastChecked<UTG_EdGraph>(GetGraph());
+		UTG_Graph* Graph = EdGraph->TextureGraph->Graph();
+		
+		FTG_Var* Var = Graph->GetVar(TSPin->GetVarId());
+
+		bool ShowSelfValue = TSPin->NeedsConformance() && TSPin->IsConnected();
+		FString DefaultValue =  ShowSelfValue ? TSPin->GetSelfVar()->LogValue() : Var->LogValue();
+		
+		// Enum requires special-case handling
+		// Needs help from the FProperty as the Var does not know the Enum type
+		FProperty* Property = TSPin->GetExpressionProperty();
+		FByteProperty* ByteProperty = CastField<FByteProperty>(Property);
+		if (ByteProperty)
+		{
+			UEnum* Enum = ByteProperty->GetIntPropertyEnum();
+			if (Enum)
+			{
+				DefaultValue = Enum->GetNameByValue(FCString::Atoi(*DefaultValue)).ToString();
+			}
+		}
+		FEnumProperty* EnumProperty = CastField<FEnumProperty>(Property);
+		if (EnumProperty)
+		{
+			UEnum* Enum = EnumProperty->GetEnum();
+			if (Enum)
+			{
+				DefaultValue = Enum->GetNameByValue(FCString::Atoi(*DefaultValue)).ToString();
+			}
+		}
+		
+		EdPin->bDefaultValueIsReadOnly = false;
+		EdPin->DefaultValue = DefaultValue;
+
+		// This updates the UObject (Texture/Material) picker UI in the Node to get updated
+		if (Property && Property->GetClass()->IsChildOf(FObjectProperty::StaticClass()))
+		{
+			EdPin->DefaultObject = TSPin->EditSelfVar()->GetAs<TObjectPtr<UObject>>();
+		}
+		EdPin->bDefaultValueIsReadOnly = EdPin->HasAnyConnections();
+	}
+}
+
+void UTG_EdGraphNode::OnNodeChanged(UTG_Node* InNode)
+{
+	// Update Default Values to their respective Var values;
+	for(UEdGraphPin* EdPin : Pins)
+	{
+		const UTG_EdGraphSchema* Schema = Cast<const UTG_EdGraphSchema>(GetSchema());
+		UpdateEdPinDefaultValue(EdPin, Schema);
+	}
+}
+
+void UTG_EdGraphNode::PostTransacted(const FTransactionObjectEvent& TransactionEvent)
+{
+	Super::PostTransacted(TransactionEvent);
+
+	TArray<FName> PropertiesChanged = TransactionEvent.GetChangedProperties();
+
+	if (PropertiesChanged.Contains(TEXT("bCommentBubblePinned")))
+	{
+		UpdateCommentBubblePinned();
+	}
+
+	if (PropertiesChanged.Contains(TEXT("NodePosX")) || PropertiesChanged.Contains(TEXT("NodePosY")))
+	{
+		UpdatePosition();
+	}
+}
+
+void UTG_EdGraphNode::OnUpdateCommentText(const FString& NewComment)
+{
+	Super::OnUpdateCommentText(NewComment);
+	if (Node && Node->EditorData.NodeComment != NewComment)
+	{
+		Node->Modify();
+		Node->EditorData.NodeComment = NewComment;
+	}
+}
+
+void UTG_EdGraphNode::OnCommentBubbleToggled(bool bInCommentBubbleVisible)
+{
+	Super::OnCommentBubbleToggled(bInCommentBubbleVisible);
+
+	if (Node && Node->EditorData.bCommentBubbleVisible != bInCommentBubbleVisible)
+	{
+		Node->Modify();
+		Node->EditorData.bCommentBubbleVisible = bInCommentBubbleVisible;
+	}
+}
+
+void UTG_EdGraphNode::UpdateCommentBubblePinned()
+{
+	if (Node)
+	{
+		Node->Modify();
+		Node->EditorData.bCommentBubblePinned = bCommentBubblePinned;
+	}
+}
+
+TArray<UEdGraphPin*> UTG_EdGraphNode::GetOutputPins() const
+{
+	TArray<UEdGraphPin*> OutputPins;
+	for (auto Pin : Pins)
+	{
+		if (Pin->Direction == EEdGraphPinDirection::EGPD_Output)
+		{
+			OutputPins.Add(Pin);
+		}
+	}
+	return MoveTemp(OutputPins);
+}
+
+TArray<UEdGraphPin*> UTG_EdGraphNode::GetTextureOutputPins() const
+{
+	TArray<UEdGraphPin*> TexturedOutputPins;
+	auto OutputPins = GetOutputPins();
+	const UTG_EdGraphSchema* Schema = Cast<const UTG_EdGraphSchema>(GetSchema());
+	
+	for (auto Pin : OutputPins)
+	{
+		UTG_Pin* TGPin = Schema->GetTGPinFromEdPin(Pin);
+
+		if (TGPin->GetArgument().IsTexture())
+		{
+			//FTG_Texture& Texture = TGPin->GetNodePtr()->GetGraph()->GetVar(TGPin->GetId())->EditAs<FTG_Texture>();
+			TexturedOutputPins.Add(Pin);
+		}
+	}
+	return MoveTemp(TexturedOutputPins);
+}
+#undef LOCTEXT_NAMESPACE

@@ -1,0 +1,168 @@
+// Copyright Epic Games, Inc. All Rights Reserved.
+#include "STG_TextureDetails.h"
+#include "Widgets/Layout/SBox.h"
+#include "TG_Pin.h"
+#include "TG_Graph.h"
+#include "Transform/Utility/T_TextureHistogram.h"
+#include "STextureHistogram.h"
+#include "Widgets/Layout/SSeparator.h"
+#include "Brushes/SlateColorBrush.h"
+#include "Brushes/SlateBorderBrush.h"
+
+void STG_TextureDetails::Construct(const FArguments& InArgs)
+{
+	const float TEXT_PADDING = 2.0;
+	CheckedBrush = new FSlateRoundedBoxBrush(FLinearColor(0.039, 0.039, 0.039, 1), CoreStyleConstants::InputFocusRadius);
+
+	ChildSlot
+		[
+			SAssignNew(VerticalBox, SVerticalBox)
+		];
+
+	MakeControls();
+}
+
+void STG_TextureDetails::MakeControls()
+{
+	VerticalBox->AddSlot()
+	.AutoHeight()
+	.Padding(6, 3, 3, 0)
+	[
+		SAssignNew(RGBAButtons,STG_RGBAButtons)
+	];
+
+	AddHistogramWidget();
+
+	VerticalBox->AddSlot()
+	.AutoHeight()
+	.HAlign(HAlign_Fill)
+	[
+		SNew(SSeparator)
+		.Thickness(1)
+	];
+}
+
+void STG_TextureDetails::AddHistogramWidget()
+{
+	VerticalBox->AddSlot()
+	.Padding(5, 5, 5, 10)
+	[
+		SNew(SBox)
+		.MinDesiredHeight(300) // Set your desired minimum height here
+		[
+			SNew(SBorder)
+			.BorderBackgroundColor(FLinearColor::White)  // Set the border color to white
+			.BorderImage(FCoreStyle::Get().GetBrush("WhiteBrush"))
+			.Padding(FMargin(1))
+			[
+				SNew(SOverlay)
+
+				+
+
+				SOverlay::Slot()
+				[
+					SNew(SImage)
+					.Image(FCoreStyle::Get().GetBrush("WhiteBrush"))
+					.ColorAndOpacity(FLinearColor::Black)
+				]
+
+				+
+
+				SOverlay::Slot()
+				.Padding(2, 10, 2, 2)
+				[
+					SAssignNew(HistogramBlobWidgetR, STG_HistogramBlob)
+					.Curves(ETG_HistogramCurves::R)
+					.Visibility(this, &STG_TextureDetails::ShowR)
+				]
+
+				+
+
+				SOverlay::Slot()
+				.Padding(2, 10, 2, 2)
+				[
+					SAssignNew(HistogramBlobWidgetG, STG_HistogramBlob)
+					.Curves(ETG_HistogramCurves::G)
+					.Visibility(this, &STG_TextureDetails::ShowG)
+				]
+
+				+
+
+				SOverlay::Slot()
+				.Padding(2, 10, 2, 2)
+				[
+					SAssignNew(HistogramBlobWidgetB, STG_HistogramBlob)
+					.Curves(ETG_HistogramCurves::B)
+					.Visibility(this, &STG_TextureDetails::ShowB)
+				]
+
+				+
+
+				SOverlay::Slot()
+				.Padding(2, 10, 2, 2)
+				[
+					SAssignNew(HistogramBlobWidgetLuma, STG_HistogramBlob)
+					.Curves(ETG_HistogramCurves::Luma)
+					.Visibility(this, &STG_TextureDetails::ShowLuma)
+				]
+			]
+		]
+	];
+}
+
+EVisibility STG_TextureDetails::ShowR() const
+{
+	return RGBAButtons && RGBAButtons->GetIsRChannel() ? EVisibility::Visible : EVisibility::Collapsed;
+}
+
+EVisibility STG_TextureDetails::ShowG() const
+{
+	return RGBAButtons && RGBAButtons->GetIsGChannel() ? EVisibility::Visible : EVisibility::Collapsed;
+}
+
+EVisibility STG_TextureDetails::ShowB() const
+{
+	return RGBAButtons && RGBAButtons->GetIsBChannel() ? EVisibility::Visible : EVisibility::Collapsed;
+}
+
+EVisibility STG_TextureDetails::ShowLuma() const
+{
+	return RGBAButtons && RGBAButtons->GetIsAChannel() ? EVisibility::Visible : EVisibility::Collapsed;
+}
+
+void STG_TextureDetails::ClearHistogramWidgets()
+{
+	if (UseBlobWidget)
+	{
+		HistogramBlobWidgetR->Clear();
+		HistogramBlobWidgetG->Clear();
+		HistogramBlobWidgetB->Clear();
+		HistogramBlobWidgetLuma->Clear();
+	}
+}
+
+void STG_TextureDetails::CalculateHistogram(BlobPtr InBlob, UTextureGraph* InTextureGraph)
+{
+	if (!InBlob)
+	{
+		ClearHistogramWidgets();
+		//Early out no need to calculate histogram for null source blob
+		return;
+	}
+
+	InBlob->OnFinalise()
+	.then([this, InTextureGraph, InBlob]() mutable
+	{
+		T_TextureHistogram::Create(InTextureGraph, std::static_pointer_cast<TiledBlob>(InBlob), 0);
+
+		return InBlob->GetHistogram()->OnFinalise();
+	})
+	.then([this, InBlob]() mutable
+	{
+		TiledBlobPtr FinalizedHistogram = std::static_pointer_cast<TiledBlob>(InBlob->GetHistogram());
+		HistogramBlobWidgetR->Update(FinalizedHistogram);
+		HistogramBlobWidgetG->Update(FinalizedHistogram);
+		HistogramBlobWidgetB->Update(FinalizedHistogram);
+		HistogramBlobWidgetLuma->Update(FinalizedHistogram);
+	});
+}

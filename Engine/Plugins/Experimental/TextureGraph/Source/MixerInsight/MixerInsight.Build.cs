@@ -1,0 +1,36 @@
+// Copyright Epic Games, Inc. All Rights Reserved.
+using UnrealBuildTool;
+
+public class MixerInsight : ModuleRules
+{
+	public MixerInsight(ReadOnlyTargetRules Target) : base(Target)
+	{
+		PCHUsage = PCHUsageMode.UseExplicitOrSharedPCHs;
+		bUseRTTI = true;
+		bEnableExceptions = true;
+
+		PublicDependencyModuleNames.AddRange(new string[] {
+			"Core",
+			"CoreUObject",
+			"Engine",
+			"InputCore",
+			"RenderCore",
+			"RHI"
+		});
+
+		PrivateDependencyModuleNames.AddRange(new string[]
+		{
+			"Slate",
+			"SlateCore",
+			"UMG"
+		});
+
+		PrivateDependencyModuleNames.AddRange(new string[]
+		{
+			"MixerEngine",
+			"FreeImage",
+			"Function2",
+			"Continuable",
+		});
+	}
+}
