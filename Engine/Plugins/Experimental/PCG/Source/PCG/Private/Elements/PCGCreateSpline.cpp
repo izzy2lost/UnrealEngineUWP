@@ -218,7 +218,7 @@ bool FPCGCreateSplineElement::ExecuteInternal(FPCGContext* Context) const
 		// Execute PostProcess Functions
 		if (SplineActor)
 		{
-			for (UFunction* Function : PCGHelpers::FindUserFunctions(SplineActor->GetClass(), Settings->PostProcessFunctionNames, Context))
+			for (UFunction* Function : PCGHelpers::FindUserFunctions(SplineActor->GetClass(), Settings->PostProcessFunctionNames, { UPCGFunctionPrototypes::GetPrototypeWithNoParams() }, Context))
 			{
 				SplineActor->ProcessEvent(Function, nullptr);
 			}

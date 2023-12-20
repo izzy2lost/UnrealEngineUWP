@@ -829,7 +829,14 @@ void FPCGSpawnActorElement::SpawnActors(FPCGSubgraphContext* Context, AActor* Ta
 		PCGHelpers::GetGeneratedActorsFolderPath(TargetActor, GeneratedActorsFolderPath);
 #endif
 
-		const TArray<UFunction*> PostSpawnFunctions = PCGHelpers::FindUserFunctions(InTemplateActorClass, Settings->PostSpawnFunctionNames, Context);
+		const UFunction* FunctionPrototypeWithNoParams = UPCGFunctionPrototypes::GetPrototypeWithNoParams();
+		const UFunction* FunctionPrototypeWithPointAndMetadata = UPCGFunctionPrototypes::GetPrototypeWithPointAndMetadata();
+
+		const TArray<UFunction*> PostSpawnFunctions = PCGHelpers::FindUserFunctions(
+			InTemplateActorClass,
+			Settings->PostSpawnFunctionNames,
+			{ FunctionPrototypeWithNoParams, FunctionPrototypeWithPointAndMetadata },
+			Context);
 
 		bool bAllActorOverridesSucceeded = true;
 
@@ -854,7 +861,15 @@ void FPCGSpawnActorElement::SpawnActors(FPCGSubgraphContext* Context, AActor* Ta
 
 			for (UFunction* PostSpawnFunction : PostSpawnFunctions)
 			{
-				GeneratedActor->ProcessEvent(PostSpawnFunction, nullptr);
+				if (PostSpawnFunction->IsSignatureCompatibleWith(FunctionPrototypeWithNoParams))
+				{
+					GeneratedActor->ProcessEvent(PostSpawnFunction, nullptr);
+				}
+				else if (PostSpawnFunction->IsSignatureCompatibleWith(FunctionPrototypeWithPointAndMetadata))
+				{
+					TPair<FPCGPoint, const UPCGMetadata*> PointAndMetadata = { Point, PointData->ConstMetadata() };
+					GeneratedActor->ProcessEvent(PostSpawnFunction, &PointAndMetadata);
+				}
 			}
 
 			ManagedActors->GeneratedActors.Add(GeneratedActor);

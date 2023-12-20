@@ -3,8 +3,12 @@
 #pragma once
 
 #include "PCGCommon.h"
+#include "PCGPoint.h"
 
+#include "Kismet/BlueprintFunctionLibrary.h"
 #include "Math/Box.h"
+
+#include "PCGHelpers.generated.h"
 
 class AActor;
 class APCGWorldActor;
@@ -12,8 +16,10 @@ class ALandscape;
 class ALandscapeProxy;
 class UPCGComponent;
 class UPCGGraph;
+class UPCGMetadata;
 class UWorld;
 struct FPCGContext;
+struct FPCGPoint;
 
 namespace PCGHelpers
 {
@@ -72,6 +78,27 @@ namespace PCGHelpers
 
 	PCG_API void AttachToParent(AActor* InActorToAttach, AActor* InParent, EPCGAttachOptions AttachOptions, const FString& GeneratedPath = FString());
 
-	/** Finds functions on the actor matching the provided function names. Functions must be marked as CallInEditor and take no parameters. */
-	PCG_API TArray<UFunction*> FindUserFunctions(TSubclassOf<AActor> ActorClass, const TArray<FName>& FunctionNames, const FPCGContext* InContext = nullptr);
+	/**
+	 * Finds functions on the actor matching the provided function names. Functions must be marked as CallInEditor
+	 * and have parameters matching one of the provided prototypes. Some prototypes are provided in UPCGFunctionPrototypes.
+	 */
+	PCG_API TArray<UFunction*> FindUserFunctions(TSubclassOf<AActor> ActorClass, const TArray<FName>& FunctionNames, const TArray<const UFunction*>& FunctionPrototypes, const FPCGContext* InContext = nullptr);
+};
+
+/** Holds function prototypes used to match against actor function signatures. */
+UCLASS()
+class PCG_API UPCGFunctionPrototypes : public UBlueprintFunctionLibrary
+{
+	GENERATED_BODY()
+
+public:
+	static UFunction* GetPrototypeWithNoParams() { return FindObject<UFunction>(StaticClass(), TEXT("PrototypeWithNoParams")); }
+	static UFunction* GetPrototypeWithPointAndMetadata() { return FindObject<UFunction>(StaticClass(), TEXT("PrototypeWithPointAndMetadata")); }
+
+private:
+	UFUNCTION()
+	void PrototypeWithNoParams() {}
+
+	UFUNCTION()
+	void PrototypeWithPointAndMetadata(FPCGPoint Point, const UPCGMetadata* Metadata) {}
 };

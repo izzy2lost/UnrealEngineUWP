@@ -492,7 +492,7 @@ namespace PCGHelpers
 #endif
 	}
 
-	TArray<UFunction*> FindUserFunctions(TSubclassOf<AActor> ActorClass, const TArray<FName>& FunctionNames, const FPCGContext* InContext)
+	TArray<UFunction*> FindUserFunctions(TSubclassOf<AActor> ActorClass, const TArray<FName>& FunctionNames, const TArray<const UFunction*>& FunctionPrototypes, const FPCGContext* InContext)
 	{
 		TArray<UFunction*> Functions;
 
@@ -510,20 +510,25 @@ namespace PCGHelpers
 
 			if (UFunction* Function = ActorClass->FindFunctionByName(FunctionName))
 			{
-				// TODO: support Parameters
-				if (Function->NumParms != 0)
-				{
-					PCGLog::LogWarningOnGraph(FText::Format(LOCTEXT("ParametersMissing", "Function '{0}' in class '{1}' has parameters, but only parameter-less functions are supported. Call will be skipped."), FText::FromName(FunctionName), FText::FromName(ActorClass->GetFName())), InContext);
-				}
 #if WITH_EDITOR
-				else if (!Function->GetBoolMetaData(TEXT("CallInEditor")))
+				if (!Function->GetBoolMetaData(TEXT("CallInEditor")))
 				{
 					PCGLog::LogWarningOnGraph(FText::Format(LOCTEXT("CallInEditorFailed", "Function '{0}' in class '{1}' requires CallInEditor to be true while in-editor."), FText::FromName(FunctionName), FText::FromName(ActorClass->GetFName())), InContext);
+					continue;
 				}
 #endif
-				else
+				for (const UFunction* Prototype : FunctionPrototypes)
 				{
-					Functions.Add(Function);
+					if (Function->IsSignatureCompatibleWith(Prototype))
+					{
+						Functions.Add(Function);
+						break;
+					}
+				}
+
+				if (Functions.IsEmpty() || Functions.Last() != Function)
+				{
+					PCGLog::LogWarningOnGraph(FText::Format(LOCTEXT("ParametersIncorrect", "Function '{0}' in class '{1}' has incorrect parameters."), FText::FromName(FunctionName), FText::FromName(ActorClass->GetFName())), InContext);
 				}
 			}
 			else
