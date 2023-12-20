@@ -160,7 +160,7 @@ void ULearningAgentsImitationTrainer::BeginTraining(
 		return;
 	}
 
-	const FString SitePackagesPath = UE::Learning::Trainer::GetSitePackagesPath(ImitationTrainerPathSettings.GetEditorEnginePath());
+	const FString SitePackagesPath = UE::Learning::Trainer::GetSitePackagesPath(ImitationTrainerPathSettings.GetIntermediatePath());
 
 	if (!FPaths::DirectoryExists(SitePackagesPath))
 	{

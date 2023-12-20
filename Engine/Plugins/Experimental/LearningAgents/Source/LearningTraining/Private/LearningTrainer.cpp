@@ -299,9 +299,9 @@ namespace UE::Learning::Trainer
 		return EngineDir / TEXT("Binaries/ThirdParty/Python3") / FPlatformMisc::GetUBTPlatform() / (PLATFORM_WINDOWS ? TEXT("python.exe") : TEXT("bin/python"));
 	}
 
-	FString GetSitePackagesPath(const FString& EngineDir)
+	FString GetSitePackagesPath(const FString& IntermediateDir)
 	{
-		return EngineDir / TEXT("Plugins/Experimental/PythonFoundationPackages/Content/Python/Lib") / FPlatformMisc::GetUBTPlatform() / TEXT("site-packages");
+		return IntermediateDir / TEXT("PipInstall/Lib/site-packages");
 	}
 
 	FString GetPythonContentPath(const FString& EngineDir)
