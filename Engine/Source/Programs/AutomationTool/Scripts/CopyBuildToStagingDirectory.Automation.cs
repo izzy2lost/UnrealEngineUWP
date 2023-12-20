@@ -3738,7 +3738,10 @@ namespace AutomationScripts
 					UploadArgs.Append(" -KeepPakFiles");
 					UploadArgs.Append(" -BuildVersion=0");
 					UploadArgs.Append(" -WriteTocToDisk");
-					UploadArgs.Append(Params.AdditionalPakOptions);
+					if (Params.AdditionalPakOptions.Length > 0)
+					{
+						UploadArgs.Append(" " + Params.AdditionalPakOptions);
+					}
 
 					FileReference CryptoKeysFilename = FileReference.Combine(SC.MetadataDir, "Crypto.json");
 					if (FileExists_NoExceptions(CryptoKeysFilename.FullName))
