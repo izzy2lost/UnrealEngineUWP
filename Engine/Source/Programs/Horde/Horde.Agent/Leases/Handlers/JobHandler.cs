@@ -134,23 +134,6 @@ namespace Horde.Agent.Leases.Handlers
 			}
 		}
 
-		class InternalLogger : ILogger
-		{
-			readonly ILogger[] _loggers;
-
-			public InternalLogger(params ILogger[] loggers) => _loggers = loggers;
-
-			public IDisposable? BeginScope<TState>(TState state) where TState : notnull => null!;
-			public bool IsEnabled(LogLevel logLevel) => true;
-			public void Log<TState>(LogLevel logLevel, EventId eventId, TState state, Exception? exception, Func<TState, Exception?, string> formatter)
-			{
-				foreach (ILogger logger in _loggers)
-				{
-					logger.Log(logLevel, eventId, state, exception, formatter);
-				}
-			}
-		}
-
 		internal async Task<LeaseResult> ExecuteInternalAsync(ISession session, string leaseId, ExecuteJobTask executeTask, CancellationToken cancellationToken)
 		{
 			// Create a storage client for this session
@@ -160,7 +143,7 @@ namespace Horde.Agent.Leases.Handlers
 			using ILoggerFactory leaseLoggerFactory = _leaseLoggerFactory.CreateLoggerFactory(leaseId);
 			ILogger leaseLogger = leaseLoggerFactory.CreateLogger<JobHandler>();
 
-			InternalLogger logger = new InternalLogger(_defaultLogger, batchLogger, leaseLogger);
+			MultiplexedLogger logger = new MultiplexedLogger(_defaultLogger, batchLogger, leaseLogger);
 			logger.LogInformation("Executing job \"{JobName}\", jobId {JobId}, batchId {BatchId}, leaseId {LeaseId}, agentVersion {AgentVersion}", executeTask.JobName, executeTask.JobId, executeTask.BatchId, leaseId, AgentApp.Version);
 
 			GlobalTracer.Instance.ActiveSpan?.SetTag("jobId", executeTask.JobId.ToString());
@@ -460,6 +443,23 @@ namespace Horde.Agent.Leases.Handlers
 				}
 
 				await Task.WhenAny(Task.Delay(_stepAbortPollInterval, cancellationToken), finishedTask);
+			}
+		}
+	}
+
+	class MultiplexedLogger : ILogger
+	{
+		readonly ILogger[] _loggers;
+
+		public MultiplexedLogger(params ILogger[] loggers) => _loggers = loggers;
+
+		public IDisposable? BeginScope<TState>(TState state) where TState : notnull => null!;
+		public bool IsEnabled(LogLevel logLevel) => true;
+		public void Log<TState>(LogLevel logLevel, EventId eventId, TState state, Exception? exception, Func<TState, Exception?, string> formatter)
+		{
+			foreach (ILogger logger in _loggers)
+			{
+				logger.Log(logLevel, eventId, state, exception, formatter);
 			}
 		}
 	}

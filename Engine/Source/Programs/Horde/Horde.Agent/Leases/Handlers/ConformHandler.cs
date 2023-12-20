@@ -15,23 +15,30 @@ namespace Horde.Agent.Leases.Handlers
 	{
 		readonly AgentSettings _settings;
 		readonly IServerLoggerFactory _serverLoggerFactory;
+		readonly LeaseLoggerFactory _leaseLoggerFactory;
 
 		/// <summary>
 		/// Constructor
 		/// </summary>
-		public ConformHandler(IOptions<AgentSettings> settings, IServerLoggerFactory serverLoggerFactory)
+		public ConformHandler(IOptions<AgentSettings> settings, IServerLoggerFactory serverLoggerFactory, LeaseLoggerFactory leaseLoggerFactory)
 		{
 			_settings = settings.Value;
 			_serverLoggerFactory = serverLoggerFactory;
+			_leaseLoggerFactory = leaseLoggerFactory;
 		}
 
 		/// <inheritdoc/>
 		public override async Task<LeaseResult> ExecuteAsync(ISession session, string leaseId, ConformTask conformTask, CancellationToken cancellationToken)
 		{
 			await using IServerLogger conformLogger = _serverLoggerFactory.CreateLogger(session, conformTask.LogId, null, null);
+
+			using ILoggerFactory leaseLoggerFactory = _leaseLoggerFactory.CreateLoggerFactory(leaseId);
+			ILogger leaseLogger = leaseLoggerFactory.CreateLogger<ConformHandler>();
+
+			MultiplexedLogger logger = new MultiplexedLogger(conformLogger, leaseLogger);
 			try
 			{
-				LeaseResult result = await ExecuteInternalAsync(session, leaseId, conformTask, conformLogger, cancellationToken);
+				LeaseResult result = await ExecuteInternalAsync(session, leaseId, conformTask, logger, cancellationToken);
 				return result;
 			}
 			catch (Exception ex)
@@ -41,7 +48,7 @@ namespace Horde.Agent.Leases.Handlers
 			}
 		}
 
-		async Task<LeaseResult> ExecuteInternalAsync(ISession session, string leaseId, ConformTask conformTask, IServerLogger conformLogger, CancellationToken cancellationToken)
+		async Task<LeaseResult> ExecuteInternalAsync(ISession session, string leaseId, ConformTask conformTask, ILogger conformLogger, CancellationToken cancellationToken)
 		{
 			conformLogger.LogInformation("Conforming, lease {LeaseId}", leaseId);
 			await session.TerminateProcessesAsync(TerminateCondition.BeforeConform, conformLogger, cancellationToken);
