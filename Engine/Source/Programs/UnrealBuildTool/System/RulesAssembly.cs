@@ -645,7 +645,7 @@ namespace UnrealBuildTool
 			if (!bSkipValidation)
 			{
 				// Delayed-fixup of TargetBuildEnvironment.UniqueIfNeeded
-				Rules.UpdateBuildEnvironmentIfNeeded(this, Arguments: null, Logger);
+				Rules.UpdateBuildEnvironmentIfNeeded(this, arguments: null, Logger);
 
 				// Set the default value for whether to use the shared build environment
 				if (Rules.BuildEnvironment == TargetBuildEnvironment.Unique && Unreal.IsEngineInstalled())
