@@ -89,6 +89,7 @@
 #include "IHeadMountedDisplay.h"
 #include "IXRTrackingSystem.h"
 #include "ActorGroupingUtils.h"
+#include "EditorInteractiveGizmoManager.h"
 #include "EditorWorldExtension.h"
 #include "VREditorMode.h"
 #include "EditorWorldExtension.h"
@@ -3278,8 +3279,7 @@ bool FLevelEditorViewportClient::InputWidgetDelta(FViewport* InViewport, EAxisLi
 
 				// We do not want actors updated if we are holding down the middle mouse button.
 				// enable MMB for New TRS Gizmos
-				static IConsoleVariable* const UseLegacyWidgetCVar = IConsoleManager::Get().FindConsoleVariable(TEXT("Gizmos.UseLegacyWidget"));
-				const bool bEnableMMB = UseLegacyWidgetCVar ? !UseLegacyWidgetCVar->GetBool() && !bDraggingByHandle : false;
+				const bool bEnableMMB = UEditorInteractiveGizmoManager::UsesNewTRSGizmos() ? !bDraggingByHandle : false;
 				
 				if(!MiddleMouseButtonDown || bEnableMMB)
 				{

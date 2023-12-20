@@ -1,6 +1,8 @@
 // Copyright Epic Games, Inc. All Rights Reserved.
 
 #include "SEditorViewport.h"
+
+#include "EditorInteractiveGizmoManager.h"
 #include "Misc/Paths.h"
 #include "Framework/Commands/UICommandList.h"
 #include "Misc/App.h"
@@ -765,10 +767,8 @@ void SEditorViewport::OnCycleCoordinateSystem()
 
 	++CoordSystemAsInt;
 
-	static IConsoleVariable* UseLegacyWidgetCVar = IConsoleManager::Get().FindConsoleVariable(TEXT("Gizmos.UseLegacyWidget"));
-	const bool bUseNewGizmos = UseLegacyWidgetCVar ? UseLegacyWidgetCVar->GetInt() < 1 : false;
 	// parent mode is only supported with new trs gizmos for now
-	const int CoordMax = bUseNewGizmos ? COORD_Max : COORD_Parent;
+	const int CoordMax = UEditorInteractiveGizmoManager::UsesNewTRSGizmos() ? COORD_Max : COORD_Parent;
 	if( CoordSystemAsInt >= CoordMax )
 	{
 		CoordSystemAsInt = COORD_World;

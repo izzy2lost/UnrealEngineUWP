@@ -12,6 +12,8 @@
 #include "EditorGizmos/EditorTransformGizmoBuilder.h"
 #include "EditorGizmos/EditorTransformGizmoDataBinder.h"
 #include "EditorViewportClient.h"
+#include "EditorModes.h"
+#include "Tools/DefaultEdMode.h"
 
 #include UE_INLINE_GENERATED_CPP_BY_NAME(EditorTransformGizmoUtil)
 
@@ -253,6 +255,9 @@ void UEditorTransformGizmoContextObject::UpdateGizmo(const TArray<FEditorViewpor
 	
 	const UModeManagerInteractiveToolsContext* ToolsContext = ModeTools->GetInteractiveToolsContext();
 	const TObjectPtr<UInteractiveToolManager> ToolManager = ToolsContext->ToolManager;
+
+	// swap default mode
+	const bool Swapped = SwapDefaultMode(FBuiltinEditorModes::EM_Default, FAssetEdModes::EM_AssetDefault);
 	
 	if (UE::EditorTransformGizmoUtil::FindDefaultTransformGizmo(ToolManager))
 	{
@@ -262,7 +267,7 @@ void UEditorTransformGizmoContextObject::UpdateGizmo(const TArray<FEditorViewpor
 	// create a new one
 	if (UTransformGizmo* TransformGizmo = UE::EditorTransformGizmoUtil::GetDefaultTransformGizmo(ToolManager))
 	{
-		TransformGizmo->SetVisibility(false);
+		TransformGizmo->SetVisibility(Swapped ? UEditorInteractiveGizmoManager::UsesNewTRSGizmos() : false);
 	}
 }
 
@@ -274,11 +279,12 @@ void UEditorTransformGizmoContextObject::InitializeCVarBinding()
 		auto OnGizmoVariableChanged = [this](IConsoleVariable* InLegacyWidgetCVar)
 		{
 			const bool bUseLegacyGizmo = InLegacyWidgetCVar ? UseLegacyWidgetCVar->GetInt() > 0 : false;
-
 			if (bUseLegacyGizmo)
 			{
-				// remove viewports' binding + gizmos as they are useless
+				// swap back default mode
+				(void)SwapDefaultMode(FAssetEdModes::EM_AssetDefault, FBuiltinEditorModes::EM_Default);
 				
+				// remove viewports' binding + gizmos as they are useless
 				const UModeManagerInteractiveToolsContext* ToolsContext = ModeTools->GetInteractiveToolsContext();
 				const TObjectPtr<UInteractiveToolManager> ToolManager = ToolsContext->ToolManager;
 				UE::EditorTransformGizmoUtil::RemoveDefaultTransformGizmo(ToolManager);
@@ -352,4 +358,32 @@ void UEditorTransformGizmoContextObject::RemoveViewportsBinding()
 		}
 		ViewportClientsChangedHandle.Reset();
 	}
+}
+
+bool UEditorTransformGizmoContextObject::SwapDefaultMode(const FEditorModeID InCurrentDefaultMode, const FEditorModeID InNewDefaultMode) const
+{
+	// swap only if we're not dealing with the level editor + InCurrentDefaultMode is one of the default modes
+	if (!ModeTools->IsDefaultMode(InCurrentDefaultMode))
+	{
+		return false;
+	}
+	
+	const bool bIsLevelMode = ModeTools == &GLevelEditorModeTools();
+	if (bIsLevelMode)
+	{
+		return false;
+	}
+	
+	// replace default mode
+	ModeTools->RemoveDefaultMode(InCurrentDefaultMode);
+	ModeTools->AddDefaultMode(InNewDefaultMode);
+	
+	if (ModeTools->IsModeActive(InCurrentDefaultMode))
+	{
+		// activate it if the previous one was 
+		ModeTools->DeactivateMode(InCurrentDefaultMode);
+		ModeTools->ActivateMode(InNewDefaultMode);
+	}
+
+	return true;
 }

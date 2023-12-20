@@ -129,6 +129,11 @@ public:
 	/** instance/builder identifiers for transform gizmo */
 	static const FString& TransformInstanceIdentifier();
 	static const FString& TransformBuilderIdentifier();
+
+	/**
+	 * Returns true if the new TRS gizmos are used.
+	 */
+	static bool UsesNewTRSGizmos();
 	
 protected:
 

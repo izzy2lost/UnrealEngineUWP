@@ -101,6 +101,9 @@ private:
 	EDITORINTERACTIVETOOLSFRAMEWORK_API void RemoveCVarBinding();
 	EDITORINTERACTIVETOOLSFRAMEWORK_API void RemoveViewportsBinding();
 
+	typedef FName FEditorModeID;
+	bool SwapDefaultMode(const FEditorModeID InCurrentDefaultMode, const FEditorModeID InNewDefaultMode) const;
+
 	FOnGizmoCreated OnGizmoCreated;
 	
 	FEditorModeTools* ModeTools = nullptr;

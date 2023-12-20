@@ -2,6 +2,8 @@
 
 
 #include "STransformViewportToolbar.h"
+
+#include "EditorInteractiveGizmoManager.h"
 #include "EngineDefines.h"
 #include "Modules/ModuleManager.h"
 #include "Widgets/SBoxPanel.h"
@@ -211,9 +213,7 @@ TSharedRef< SWidget > STransformViewportToolBar::MakeTransformToolBar( const TSh
 
 		TAttribute<FText> CoordSystemToolTip = TAttribute<FText>::CreateLambda([]
 		{
-			static IConsoleVariable* UseLegacyWidgetCVar = IConsoleManager::Get().FindConsoleVariable(TEXT("Gizmos.UseLegacyWidget"));
-			const bool bUseNewGizmo = UseLegacyWidgetCVar ? UseLegacyWidgetCVar->GetInt() < 1 : false;
-			if (bUseNewGizmo)
+			if (UEditorInteractiveGizmoManager::UsesNewTRSGizmos())
 			{
 				return LOCTEXT(	"CycleTransformGizmoCoordSystemWithParent_ToolTip",
 								"Cycles the transform gizmo coordinate systems between world, local and parent space");

@@ -27,20 +27,33 @@ class FCanvas;
 
 #define LOCTEXT_NAMESPACE "UEditorInteractiveGizmoManager"
 
-static TAutoConsoleVariable<int32> CVarUseLegacyWidget(
+namespace GizmoManagerLocals
+{
+	static int32 UseLegacyWidget = 1;
+}
+
+static FAutoConsoleVariableRef CVarUseLegacyWidget(
 	TEXT("Gizmos.UseLegacyWidget"),
-	1,
+	GizmoManagerLocals::UseLegacyWidget,
 	TEXT("Specify whether to use selection-based gizmos or legacy widget\n")
 	TEXT("0 = enable UE5 transform and other selection-based gizmos.\n")
 	TEXT("1 = enable legacy UE4 transform widget."),
+	FConsoleVariableDelegate::CreateLambda([](IConsoleVariable*)
+	{
+		GizmoManagerLocals::UseLegacyWidget = FMath::Clamp(GizmoManagerLocals::UseLegacyWidget, 0, 1);
+	}),
 	ECVF_RenderThreadSafe);
 
+bool UEditorInteractiveGizmoManager::UsesNewTRSGizmos()
+{
+	return (GizmoManagerLocals::UseLegacyWidget == 0);
+}
 
 UEditorInteractiveGizmoManager::UEditorInteractiveGizmoManager() :
 	UInteractiveGizmoManager()
 {
 	Registry = NewObject<UEditorInteractiveGizmoRegistry>();
-	bShowEditorGizmos = (CVarUseLegacyWidget.GetValueOnGameThread() == 0);
+	bShowEditorGizmos = UsesNewTRSGizmos();
 }
 
 
@@ -175,8 +188,23 @@ bool UEditorInteractiveGizmoManager::GetShowEditorGizmosForView(IToolsContextRen
 
 void UEditorInteractiveGizmoManager::UpdateActiveEditorGizmos()
 {
+	const bool bEnableEditorGizmos = UsesNewTRSGizmos();
+	if (!bEnableEditorGizmos)
+	{
+		if (bShowEditorGizmos)
+		{
+			if (UTransformGizmo* Gizmo = FindDefaultTransformGizmo())
+			{
+				DestroyGizmo(Gizmo);
+			}
+			DestroyAllEditorGizmos();
+		}
+		
+		bShowEditorGizmos = false;
+		return;
+	}
+	
 	const bool bEditorModeToolsSupportsWidgetDrawing = EditorModeManager ? EditorModeManager->GetShowWidget() : true;
-	const bool bEnableEditorGizmos = (CVarUseLegacyWidget.GetValueOnGameThread() == 0);
 	const bool bNewShowEditorGizmos = bEditorModeToolsSupportsWidgetDrawing && bEnableEditorGizmos;
 
 	if (bShowEditorGizmos != bNewShowEditorGizmos)

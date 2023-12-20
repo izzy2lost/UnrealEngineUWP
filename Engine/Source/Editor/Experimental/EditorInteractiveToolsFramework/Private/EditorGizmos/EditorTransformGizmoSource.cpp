@@ -3,6 +3,7 @@
 #include "EditorGizmos/EditorTransformGizmoSource.h"
 
 #include "Editor.h"
+#include "EditorInteractiveGizmoManager.h"
 #include "EditorModeManager.h"
 #include "EditorViewportClient.h"
 #include "EditorGizmos/EditorTransformGizmoUtil.h"
@@ -88,11 +89,7 @@ bool UEditorTransformGizmoSource::CanInteract() const
 			bool bUseLegacyWidget = (WidgetMode == UE::Widget::WM_TranslateRotateZ || WidgetMode == UE::Widget::WM_2D);
 			if (!bUseLegacyWidget)
 			{
-				static IConsoleVariable* const UseLegacyWidgetCVar = IConsoleManager::Get().FindConsoleVariable(TEXT("Gizmos.UseLegacyWidget"));
-				if (ensure(UseLegacyWidgetCVar))
-				{
-					bUseLegacyWidget = UseLegacyWidgetCVar->GetInt() > 0;
-				}
+				bUseLegacyWidget = !UEditorInteractiveGizmoManager::UsesNewTRSGizmos();
 			}
 			return !bUseLegacyWidget;
 		}

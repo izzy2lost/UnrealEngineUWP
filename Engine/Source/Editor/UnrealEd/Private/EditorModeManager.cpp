@@ -36,6 +36,7 @@
 #include "EngineUtils.h"
 #include "Tools/AssetEditorContextObject.h"
 #include "ContextObjectStore.h"
+#include "EditorInteractiveGizmoManager.h"
 #include "UObject/GCObjectScopeGuard.h"
 #include "Settings/LevelEditorViewportSettings.h"
 #include "Subsystems/EditorElementSubsystem.h"
@@ -133,8 +134,7 @@ void FEditorModeTools::LoadConfig(void)
 	if (static_cast<ECoordSystem>(CoordSystemAsInt) == COORD_Parent)
 	{
 		// parent mode is only supported with new trs gizmos for now
-		static IConsoleVariable* UseLegacyWidgetCVar = IConsoleManager::Get().FindConsoleVariable(TEXT("Gizmos.UseLegacyWidget"));
-		const bool bUseNewGizmo = UseLegacyWidgetCVar ? UseLegacyWidgetCVar->GetInt() < 1 : false;
+		const bool bUseNewGizmo = UEditorInteractiveGizmoManager::UsesNewTRSGizmos();
 		if (!bUseNewGizmo)
 		{
 			CoordSystemAsInt = static_cast<int32>(COORD_Local);

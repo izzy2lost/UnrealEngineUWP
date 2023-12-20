@@ -71,6 +71,7 @@
 #include "DragTool_BoxSelect.h"
 #include "DragTool_FrustumSelect.h"
 #include "AnimationEditorViewportClient.h"
+#include "EditorInteractiveGizmoManager.h"
 
 #include UE_INLINE_GENERATED_CPP_BY_NAME(ControlRigEditMode)
 
@@ -1978,8 +1979,7 @@ bool FControlRigEditMode::InputDelta(FEditorViewportClient* InViewportClient, FV
 	//button down if left and ctrl and right is down, needed for indirect posting
 
 	// enable MMB with the new TRS gizmos
-	static IConsoleVariable* const UseLegacyWidgetCVar = IConsoleManager::Get().FindConsoleVariable(TEXT("Gizmos.UseLegacyWidget"));
-	const bool bEnableMMB = UseLegacyWidgetCVar ? !UseLegacyWidgetCVar->GetBool() : false;
+	const bool bEnableMMB = UEditorInteractiveGizmoManager::UsesNewTRSGizmos();
 	
 	const bool bMouseButtonDown =
 		InViewport->KeyState(EKeys::LeftMouseButton) ||
