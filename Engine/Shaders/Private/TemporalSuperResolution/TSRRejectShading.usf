@@ -169,6 +169,8 @@ float FlickeringFramePeriod;
 float TheoricBlendFactor;
 uint TileOverscan;
 float PerceptionAdd;
+uint bEnableResurrection;
+uint bEnableFlickeringHeuristic;
 
 
 Texture2D<tsr_halfC> InputTexture;
@@ -927,20 +929,20 @@ void MainCS(
 	}
 		
 	// Analyses the moire pattern overtime.
-	tsr_simd_halfC OriginalOpaqueInput;
-	tsr_simd_half4 OriginalTranslucencyInput;
-	tsr_simd_half  VelocityEdge;
-	tsr_simd_bool  bIsDisoccluded;
-	tsr_simd_half  MoireError = tsr_simd_half::Const(0.0);
+	tsr_simd_half  MoireError;
 	#if CONFIG_MOIRE_DETECTION
+	BRANCH
+	if (bEnableFlickeringHeuristic)
 	PLATFORM_SPECIFIC_ISOLATE
 	{
 		// Load its own data
-		#if CONFIG_MOIRE_DETECTION
-			tsr_simd_half  MoireInput;
-			tsr_simd_half4 PrevMoireHistory;
-			tsr_simd_half  bIsStatic;
-		#endif
+		tsr_simd_half  VelocityEdge;
+		tsr_simd_bool  bIsDisoccluded;
+		tsr_simd_halfC OriginalOpaqueInput;
+		tsr_simd_half4 OriginalTranslucencyInput;
+		tsr_simd_half  MoireInput;
+		tsr_simd_half4 PrevMoireHistory;
+		tsr_simd_half  bIsStatic;
 		PLATFORM_SPECIFIC_ISOLATE
 		{
 			tsr_simd_short2 PixelPos = ComputePixelPos();
@@ -973,9 +975,17 @@ void MainCS(
 			HistoryMoireOutput[tsr_short3(OutputPixelPos, 0)] = MoireHistory.GetElement(ElementIndex);
 		}
 	}
+	else
 	#endif // CONFIG_MOIRE_DETECTION
+	{
+		MoireError = tsr_simd_half::Const(0.0);
+	}
 	
 	// Load all the history data.
+	tsr_simd_half  VelocityEdge;
+	tsr_simd_bool  bIsDisoccluded;
+	tsr_simd_halfC OriginalOpaqueInput;
+	tsr_simd_half4 OriginalTranslucencyInput;
 	tsr_simd_halfC OriginalHistory;
 	tsr_simd_half  OriginalHistoryUncertainty;
 	#if CONFIG_HISTORY_RESURRECTION
@@ -986,10 +996,8 @@ void MainCS(
 	{
 		tsr_simd_short2 PixelPos = ComputePixelPos();
 
-		#if !CONFIG_MOIRE_DETECTION || 1
-			FetchDecimateMask(PixelPos, /* out */ VelocityEdge, /* out */ bIsDisoccluded);
-			FetchSceneColorAndTranslucency(PixelPos, /* out */ OriginalOpaqueInput, /* out */ OriginalTranslucencyInput);
-		#endif
+		FetchDecimateMask(PixelPos, /* out */ VelocityEdge, /* out */ bIsDisoccluded);
+		FetchSceneColorAndTranslucency(PixelPos, /* out */ OriginalOpaqueInput, /* out */ OriginalTranslucencyInput);
 		FetchHistoryGuide(
 			ReprojectedHistoryGuideTexture,
 			ReprojectedHistoryGuideMetadataTexture,
@@ -1043,7 +1051,7 @@ void MainCS(
 	tsr_simd_half RejectionClampBlend = tsr_simd_half::Const(1.0);
 	tsr_simd_bool bAliasingIsVisible = tsr_simd_bool::Const(false);
 	#if CONFIG_HISTORY_RESURRECTION
-		tsr_simd_bool bResurrectionIsCloser = tsr_simd_bool::Const(false);
+		tsr_simd_bool bResurrectionIsCloser;
 	#endif
 	PLATFORM_SPECIFIC_ISOLATE
 	{
@@ -1060,12 +1068,20 @@ void MainCS(
 			
 		// Check whether the history resurrection is closer to input, to discard and no pay the register pressure of OriginalResurrectedHistory
 		#if CONFIG_HISTORY_RESURRECTION
+		BRANCH
+		if (bEnableResurrection)
+		{
 			tsr_simd_halfC ExposedResurrectedHistory = ChangePerceptionAdd(
 				OriginalResurrectedHistory,
 				/* SourcePerceptionAdd = */ kHistoryGuidePreceptionAdd,
 				/* DestPerceptionAdd   = */ PerceptionAdd);
 				
 			bResurrectionIsCloser = IsResurrectedFrameCloserThanPreviousFrame(ExposedInput, ExposedHistory, ExposedResurrectedHistory);
+		}
+		else
+		{
+			bResurrectionIsCloser = tsr_simd_bool::Const(false);
+		}
 		#endif
 		
 		// Mutual Annihilation
