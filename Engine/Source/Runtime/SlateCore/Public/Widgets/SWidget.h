@@ -796,12 +796,29 @@ private:
 	SLATECORE_API void UpdateWidgetProxy(int32 NewLayerId, FSlateCachedElementsHandle& CacheHandle);
 
 public:
+#if UE_SLATE_TRACE_ENABLED
+	uint8 Debug_GetWidgetInfoTraced() const 
+	{ 
+		return Debug_LastTraceInfoSent; 
+	}
+
+	void Debug_SetWidgetInfoTraced(uint8 InDebug_LastTraceInfoSent) const 
+	{ 
+		Debug_LastTraceInfoSent = InDebug_LastTraceInfoSent; 
+	}
+#endif // UE_SLATE_TRACE_ENABLED
 
 #if WITH_SLATE_DEBUGGING
-	uint32 Debug_GetLastPaintFrame() const { return LastPaintFrame; }
+	uint32 Debug_GetLastPaintFrame() const 
+	{ 
+		return LastPaintFrame; 
+	}
 private:
-	void Debug_UpdateLastPaintFrame() { LastPaintFrame = GFrameNumber; }
-#endif
+	void Debug_UpdateLastPaintFrame() 
+	{ 
+		LastPaintFrame = GFrameNumber; 
+	}
+#endif // WITH_SLATE_DEBUGGING
 
 public:
 
@@ -1897,12 +1914,21 @@ private:
 	FName CreatedInLocation;
 #endif
 
+#if UE_SLATE_TRACE_ENABLED
+	/**
+	 * If the widget info is sent when a trace is not active, it will be ignored.
+	 * In this scenario, if the info is not re-sent the trace will not function correctly.
+	 * Track which traces we have sent info for so we can re-send when needed.
+	 */
+	mutable uint8 Debug_LastTraceInfoSent = 0;
+#endif // UE_SLATE_TRACE_ENABLED
+
 #if WITH_SLATE_DEBUGGING
 	/** The last time this widget got painted. */
 	uint32 LastPaintFrame = 0;
 	/** Flag to help detect when we access an invalid Widget. */
 	uint8 Debug_DestroyedTag = 0xDC;
-#endif
+#endif // WITH_SLATE_DEBUGGING
 
 #if !(UE_BUILD_SHIPPING || UE_BUILD_TEST)
 	UE_DEPRECATED(4.27, "Access to SWidget::Cursor is deprecated and will not function. Call SetCursor/GetCursor instead")

@@ -732,6 +732,8 @@ TSharedRef<FSlateApplication> FSlateApplication::Create(const TSharedRef<class G
 	CurrentApplication = MakeShareable( new FSlateApplication() );
 	CurrentBaseApplication = CurrentApplication;
 
+	UE_TRACE_SLATE_APPLICATION_REGISTER_TRACE_EVENTS(*CurrentApplication);
+
 	PlatformApplication->SetMessageHandler( CurrentApplication.ToSharedRef() );
 #if WITH_ACCESSIBILITY
 	PlatformApplication->SetAccessibleMessageHandler(CurrentApplication->GetAccessibleMessageHandler());
