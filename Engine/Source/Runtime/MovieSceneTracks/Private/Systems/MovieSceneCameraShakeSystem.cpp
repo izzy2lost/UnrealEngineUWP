@@ -402,7 +402,7 @@ void UMovieSceneCameraShakeInstantiatorSystem::OnRun(FSystemTaskPrerequisites& I
 		if (ShakeSourceComponent)
 		{
 			bool bStartShake = true;
-			if (ShakeInstanceData.SectionSignature == ShakeData.SectionSignature)
+			if (ShakeInstanceData.SectionSignature == ShakeData.SectionSignature && ShakeInstanceData.ShakeInstance.Get() != nullptr && ShakeInstanceData.ShakeInstance->IsActive())
 			{
 				// Don't re-create and restart the shake if it was already running with the same
 				// parameters and this instantiation phase is just re-importing other stuff.
@@ -462,7 +462,7 @@ void UMovieSceneCameraShakeInstantiatorSystem::OnRun(FSystemTaskPrerequisites& I
 		{
 			bool bStartInstance = true;
 			UCameraShakeBase* ShakeInstance = nullptr;
-			if (ShakeInstanceData.SectionSignature == ShakeData.SectionSignature)
+			if (ShakeInstanceData.SectionSignature == ShakeData.SectionSignature && ShakeInstanceData.ShakeInstance.Get() != nullptr && ShakeInstanceData.ShakeInstance->IsActive())
 			{
 				// Don't re-create and restart the shake if it was already running with the same
 				// parameters and this instantiation phase is just re-importing other stuff.
