@@ -6,10 +6,10 @@ import 'package:flutter/material.dart';
 import 'package:logging/logging.dart';
 import 'package:provider/provider.dart';
 
+import '../utilities/unreal_utilities.dart';
 import './engine_connection.dart';
 import './property_modify_operations.dart';
 import './unreal_types.dart';
-import '../utilities/unreal_utilities.dart';
 import 'unreal_transaction_manager.dart';
 
 final _log = Logger('UnrealPropertyManager');
@@ -509,6 +509,10 @@ class UnrealPropertyManager {
 
   /// Called each tick, when we're ready to send updates back to the engine.
   void _onTick(Timer timer) {
+    if (_connectionManager.bIsInDemoMode) {
+      return;
+    }
+
     final List<dynamic> messages = _finalizeTickChanges();
 
     if (_transientPresetName == null) {

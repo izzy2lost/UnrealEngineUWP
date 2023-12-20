@@ -26,7 +26,6 @@ import '../../models/unreal_property_manager.dart';
 import '../../models/unreal_types.dart';
 import '../../utilities/constants.dart';
 import '../../utilities/guarded_refresh_state.dart';
-import 'dropdown_button.dart';
 import 'place_actor_menu.dart';
 import 'spinner_overlay.dart';
 import 'transform_gesture_detector.dart';
@@ -423,11 +422,12 @@ class StageMapState extends State<StageMap> with PreviewRenderConsumer, GuardedR
     _propertyManager = Provider.of<UnrealPropertyManager>(context, listen: false);
     _updateActorTransformRegistration();
 
+    _previewImageStreamListener = ImageStreamListener(_onPreviewImageLoaded, onError: _onPreviewImageError);
+
     _previewRenderManager = Provider.of<PreviewRenderManager>(context, listen: false);
     _previewRenderManager.addConsumer(this);
 
     _mapTransform.addListener(_saveMapTransformToUserSettings);
-    _previewImageStreamListener = ImageStreamListener(_onPreviewImageLoaded, onError: _onPreviewImageError);
   }
 
   @override

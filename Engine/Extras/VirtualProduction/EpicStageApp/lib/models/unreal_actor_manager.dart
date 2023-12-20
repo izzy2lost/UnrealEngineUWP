@@ -123,6 +123,10 @@ class UnrealActorManager with WidgetsBindingObserver {
   /// Start watching for any engine-side changes to actors of the Unreal type [className], and call [callback] when
   /// there's any change in the list of relevant actors.
   void watchClassName(String className, ActorUpdateCallback callback) {
+    if (_connectionManager.bIsInDemoMode) {
+      return;
+    }
+
     if (_classWatchCallbacks.containsKey(className)) {
       // We're already watching this class, so just add the callback
       _classWatchCallbacks[className]!.add(callback);

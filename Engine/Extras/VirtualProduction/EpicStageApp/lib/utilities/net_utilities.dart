@@ -43,7 +43,28 @@ class UnrealStageBeaconData {
 
 /// Data about a connection to Unreal Engine.
 class ConnectionData {
-  const ConnectionData({required this.name, required this.websocketAddress, required this.websocketPort});
+  const ConnectionData({
+    required this.name,
+    required this.websocketAddress,
+    required this.websocketPort,
+  }) : this.bIsDemo = false;
+
+  const ConnectionData._({
+    required this.name,
+    required this.websocketAddress,
+    required this.websocketPort,
+    required this.bIsDemo,
+  });
+
+  /// Create connection data for demo mode.
+  static ConnectionData forDemoMode() {
+    return ConnectionData._(
+      name: 'Demo',
+      websocketAddress: InternetAddress('127.0.0.1'),
+      websocketPort: 0,
+      bIsDemo: true,
+    );
+  }
 
   /// Create connection data from a [response] to an UnrealEngineBeacon message.
   static ConnectionData fromBeaconResponse(UnrealStageBeaconResponse response) {
@@ -62,6 +83,9 @@ class ConnectionData {
 
   /// Port to connect to for WebSocket communication.
   final int websocketPort;
+
+  /// Whether this connection is a demo, meaning no actual Unreal Engine instance exists.
+  final bool bIsDemo;
 }
 
 /// A helper class that automatically retries sending a message to the engine if it times out.

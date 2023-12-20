@@ -10,6 +10,9 @@ import 'package:flutter_gen/gen_l10n/app_localizations.dart';
 import '../../../../utilities/constants.dart';
 import '../../../../utilities/net_utilities.dart';
 
+/// String which will trigger demo mode when entered as the IP address.
+const String _demoModeString = 'demo.mode';
+
 /// Manual connection form for manually connecting to an instance of UE.
 class ManualConnectForm extends StatefulWidget {
   const ManualConnectForm({Key? key, required this.connect}) : super(key: key);
@@ -101,11 +104,17 @@ class _ManualConnectFormState extends State<ManualConnectForm> {
 
     Navigator.of(context).pop(false);
 
-    ConnectionData connection = ConnectionData(
-      name: AppLocalizations.of(context)!.connectScreenManualConnectionLabel,
-      websocketAddress: InternetAddress(_ipTextController.text),
-      websocketPort: int.parse(_portTextController.text),
-    );
+    final ConnectionData connection;
+
+    if (_ipTextController.text == _demoModeString) {
+      connection = ConnectionData.forDemoMode();
+    } else {
+      connection = ConnectionData(
+        name: AppLocalizations.of(context)!.connectScreenManualConnectionLabel,
+        websocketAddress: InternetAddress(_ipTextController.text),
+        websocketPort: int.parse(_portTextController.text),
+      );
+    }
 
     /// Form input validating has passed, we are calling [widget.connect] to initiate a connection with UE using
     /// [connection]
@@ -114,6 +123,10 @@ class _ManualConnectFormState extends State<ManualConnectForm> {
 
   /// String validation for validating IpAddresses.
   String? _validateAddress(String? text) {
+    if (text == _demoModeString) {
+      return null;
+    }
+
     if (text == null) {
       return AppLocalizations.of(context)!.formErrorInvalidIPAddress;
     }

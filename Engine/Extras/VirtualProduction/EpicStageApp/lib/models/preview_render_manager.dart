@@ -335,6 +335,11 @@ class PreviewRenderManager with WidgetsBindingObserver {
 
   /// Send a request to initialize the preview renderer in the engine.
   void _initializePreviewRenderer() {
+    if (_connectionManager.bIsInDemoMode) {
+      _onPreviewRendererCreated({'RendererId': 0});
+      return;
+    }
+
     final rootPath = _selectedActorSettings.displayClusterRootPath.getValue();
     if (rootPath.isEmpty) {
       return;
@@ -408,6 +413,15 @@ class PreviewRenderManager with WidgetsBindingObserver {
       return;
     }
 
+    if (_connectionManager.bIsInDemoMode) {
+      _onPreviewRenderCompleted({
+        'RendererId': _previewRendererId,
+        // A 1x1 black square encoded as a base64 image so that we have something to display
+        'ImageBase64': 'iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAQAAAC1HAwCAAAAC0lEQVR42mNk+A8AAQUBAScY42YAAAAASUVORK5CYII=',
+      });
+      return;
+    }
+
     _requestRenderHelper = MessageTimeoutRetryHelper(
       logger: _log,
       logDescription: 'new preview render',
@@ -471,27 +485,30 @@ class PreviewRenderManager with WidgetsBindingObserver {
       // Gather actor position data
       final List<PreviewActorData> actorPositions = [];
       final dynamic actorPositionsData = message['ActorPositions'];
-      for (dynamic positionPair in actorPositionsData) {
-        final String? actorPath = positionPair['Path'];
-        if (actorPath == null) {
-          continue;
-        }
 
-        final dynamic actorPositionData = positionPair['Position'];
-        if (actorPositionData == null) {
-          continue;
-        }
+      if (actorPositionsData is List) {
+        for (dynamic positionPair in actorPositionsData) {
+          final String? actorPath = positionPair['Path'];
+          if (actorPath == null) {
+            continue;
+          }
 
-        final double? xPosition = jsonNumberToDouble(actorPositionData['X']);
-        final double? yPosition = jsonNumberToDouble(actorPositionData['Y']);
-        if (xPosition == null || yPosition == null) {
-          continue;
-        }
+          final dynamic actorPositionData = positionPair['Position'];
+          if (actorPositionData == null) {
+            continue;
+          }
 
-        actorPositions.add(PreviewActorData(
-          path: actorPath,
-          position: Offset(xPosition, yPosition),
-        ));
+          final double? xPosition = jsonNumberToDouble(actorPositionData['X']);
+          final double? yPosition = jsonNumberToDouble(actorPositionData['Y']);
+          if (xPosition == null || yPosition == null) {
+            continue;
+          }
+
+          actorPositions.add(PreviewActorData(
+            path: actorPath,
+            position: Offset(xPosition, yPosition),
+          ));
+        }
       }
 
       for (final PreviewRenderConsumer consumer in _consumers) {

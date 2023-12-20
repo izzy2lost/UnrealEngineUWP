@@ -14,13 +14,13 @@ import 'package:provider/provider.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 import 'package:web_socket_channel/io.dart';
 
-import './navigator_keys.dart';
 import '../utilities/net_utilities.dart';
 import '../utilities/unreal_utilities.dart';
 import '../widgets/screens/connect/connect.dart';
 import '../widgets/screens/connect/views/passphrase_modal.dart';
 import '../widgets/screens/main/stage_app_main_screen.dart';
 import '../widgets/screens/reconnect_screen.dart';
+import './navigator_keys.dart';
 import 'api_version.dart';
 import 'engine_passphrase_manager.dart';
 import 'settings/connection_settings.dart';
@@ -165,6 +165,9 @@ class EngineConnectionManager with WidgetsBindingObserver {
   /// Whether this should attempt to reconnect when the app becomes active again.
   bool _bShouldReconnectOnWake = false;
 
+  /// Whether the current connection is in demo mode, meaning no actual Unreal Engine instance is connected.
+  bool _bIsInDemoMode = false;
+
   /// MD5 hash of the passphrase to be passed along with all messages for the current connection, or null if no
   /// passphrase was given.
   String? _passphraseHash;
@@ -187,6 +190,9 @@ class EngineConnectionManager with WidgetsBindingObserver {
   /// Get the version of the engine we're currently connected to, or null if we're not connected.
   EpicStageAppAPIVersion? get apiVersion => _apiVersion;
 
+  /// Whether the current connection is in demo mode, meaning no actual Unreal Engine instance is connected.
+  bool get bIsInDemoMode => _bIsInDemoMode;
+
   /// Dispose of any stored data.
   void dispose() {
     disconnect();
@@ -199,6 +205,7 @@ class EngineConnectionManager with WidgetsBindingObserver {
       case AppLifecycleState.detached:
       case AppLifecycleState.paused:
       case AppLifecycleState.inactive:
+      case AppLifecycleState.hidden:
         _onAppPaused();
         break;
 
@@ -275,6 +282,8 @@ class EngineConnectionManager with WidgetsBindingObserver {
       // the navigator by itself
       bShouldReturnToConnectScreen: _pendingConnectionAttempt == null,
     );
+
+    _bIsInDemoMode = false;
   }
 
   /// Send a message via the current WebSocket connection in standard Unreal WebSocket format.
@@ -304,6 +313,10 @@ class EngineConnectionManager with WidgetsBindingObserver {
   /// Send a raw message via the current WebSocket connection, encoded as JSON.
   /// You may want to create the message using [createUnrealWebSocketMessage].
   void sendRawMessage(dynamic message) {
+    if (_bIsInDemoMode) {
+      return;
+    }
+
     if (connectionState != EngineConnectionState.connected && _pendingConnectionAttempt == null) {
       return;
     }
@@ -459,6 +472,15 @@ class EngineConnectionManager with WidgetsBindingObserver {
   /// Internal function to connect to the engine.
   /// You should almost always call [connect] instead of this so we know we have a pending connection attempt.
   Future<EngineConnectionResult> _internalConnect(ConnectionData connectionData) async {
+    _bIsInDemoMode = connectionData.bIsDemo;
+
+    if (_bIsInDemoMode) {
+      // Run the app in demo mode, where the connection will be spoofed
+      _connectionState = EngineConnectionState.connected;
+      _apiVersion = EpicStageAppAPIVersion(0, 0, 0);
+      return Future.value(EngineConnectionResult.success);
+    }
+
     // Get the passphrase ready
     final passphraseManager = Provider.of<EnginePassphraseManager>(context, listen: false);
     final String? passphrase = await passphraseManager.getPassphrase(connectionData);
