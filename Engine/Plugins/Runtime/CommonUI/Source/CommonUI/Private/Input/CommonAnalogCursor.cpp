@@ -325,7 +325,7 @@ bool FCommonAnalogCursor::HandleMouseButtonDownEvent(FSlateApplication& SlateApp
 {
 	if (FAnalogCursor::IsRelevantInput(PointerEvent))
 	{
-#if UE_COMMONUI_PLATFORM_SUPPORTS_TOUCH	
+#if UE_COMMONUI_PLATFORM_REQUIRES_CURSOR_HIDDEN_FOR_TOUCH	
 		// Some platforms don't register as switching its input type, so detect touch input here to hide the cursor.
 		if (PointerEvent.IsTouchEvent() && ShouldHideCursor())
 		{
