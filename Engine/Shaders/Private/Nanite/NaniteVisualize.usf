@@ -104,7 +104,20 @@ uint GetVisualizeMode()
 
 uint GetPickingDomain()
 {
-	return VisualizeConfig.y;
+	return select(
+		GetVisualizeMode() == NANITE_VISUALIZE_PICKING,
+		VisualizeConfig.y,
+		NANITE_PICKING_DOMAIN_TRIANGLE
+	);
+}
+
+uint GetPixelProgrammableVisMode()
+{
+	return select(
+		GetVisualizeMode() == NANITE_VISUALIZE_PIXEL_PROGRAMMABLE_RASTER,
+		VisualizeConfig.y,
+		NANITE_PIXEL_PROG_VIS_MODE_DEFAULT
+	);
 }
 
 float GetOverdrawScale()
@@ -297,18 +310,6 @@ void VisualizeCS(uint3 DTID : SV_DispatchThreadID, uint3 GID : SV_GroupID)
 		{
 			const uint MaterialDepthId = GetMaterialDepthId(UnpackedMask.ShadingBin, MaterialDepthTable);
 			Result = IntToColor(MaterialDepthId);
-
-		#if 0
-			// For testing
-			if (MaterialFlags.bPixelDiscard)
-			{
-				Result = float3(0.0f, 0.8f, 0.0f);
-			}
-			else
-			{
-				Result = float3(0.0f, 0.0f, 0.8f);
-			}
-		#endif
 		}
 		else if (VisualizeMode == NANITE_VISUALIZE_SHADING_WRITE_MASK)
 		{
@@ -423,6 +424,29 @@ void VisualizeCS(uint3 DTID : SV_DispatchThreadID, uint3 GID : SV_GroupID)
 			{
 				Result = float3(1, 0, 0);
 			}
+		}
+		else if (VisualizeMode == NANITE_VISUALIZE_PIXEL_PROGRAMMABLE_RASTER)
+		{
+			bool bHighlight = false;
+			switch (GetPixelProgrammableVisMode())
+			{
+			case NANITE_PIXEL_PROG_VIS_MODE_DEFAULT:
+				bHighlight = MaterialFlags.bPixelDiscard || MaterialFlags.bPixelDepthOffset || MaterialFlags.bDisplacement;
+				break;
+			case NANITE_PIXEL_PROG_VIS_MODE_MASKED_ONLY:
+				bHighlight = MaterialFlags.bPixelDiscard;
+				break;
+			case NANITE_PIXEL_PROG_VIS_MODE_PDO_ONLY:
+				bHighlight = MaterialFlags.bPixelDepthOffset;
+				break;
+			case NANITE_PIXEL_PROG_VIS_MODE_TESS_ONLY:
+				bHighlight = MaterialFlags.bDisplacement;
+				break;
+			default:
+				break;
+			}
+
+			Result = select(bHighlight, float3(1, 0, 0), float3(0.1, 0, 0.3));
 		}
 		else if (VisualizeMode == NANITE_VISUALIZE_LIGHTMAP_UVS)
 		{

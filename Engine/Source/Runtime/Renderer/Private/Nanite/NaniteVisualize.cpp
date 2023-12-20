@@ -67,6 +67,16 @@ FAutoConsoleVariableRef CVarNanitePickingDomain(
 	TEXT("")
 );
 
+int32 GNanitePixelProgrammableVisMode = NANITE_PIXEL_PROG_VIS_MODE_DEFAULT;
+FAutoConsoleVariableRef CVarNanitePixelProgrammableVisMode(
+	TEXT("r.Nanite.Visualize.PixelProgrammableVisMode"),
+	GNanitePixelProgrammableVisMode,
+	TEXT("0: Show masked, pixel depth offset, and dynamic displacement materials.\n")
+	TEXT("1: Show masked materials only.\n")
+	TEXT("2: Show pixel depth offset only.\n")
+	TEXT("3: Show dynamic displacement only.")
+);
+
 
 static FRDGBufferSRVRef GetEditorSelectedHitProxyIdsSRV(FRDGBuilder& GraphBuilder, const FViewInfo& View)
 {
@@ -103,7 +113,18 @@ static FIntVector4 GetVisualizeConfig(int32 ModeID, bool bCompositeScene, bool b
 {
 	if (ModeID != INDEX_NONE)
 	{
-		return FIntVector4(ModeID, GNanitePickingDomain, bCompositeScene ? 1 : 0, bEdgeDetect ? 1 : 0);
+		int32 ModeArg = 0;
+		switch (ModeID)
+		{
+		case NANITE_VISUALIZE_PICKING:
+			ModeArg = GNanitePickingDomain;
+			break;
+		case NANITE_VISUALIZE_PIXEL_PROGRAMMABLE_RASTER:
+			ModeArg = GNanitePixelProgrammableVisMode;
+		default:
+			break;
+		}
+		return FIntVector4(ModeID, ModeArg, bCompositeScene ? 1 : 0, bEdgeDetect ? 1 : 0);
 	}
 
 	return FIntVector4(INDEX_NONE, 0, 0, 0);
@@ -370,6 +391,7 @@ static FRDGBufferRef PerformPicking(
 	FRDGBufferDesc PickingFeedbackBufferDesc(FRDGBufferDesc::CreateStructuredDesc(sizeof(FNanitePickingFeedback), 1));
 	PickingFeedbackBufferDesc.Usage |= BUF_SourceCopy;
 	FRDGBufferRef PickingFeedback = GraphBuilder.CreateBuffer(PickingFeedbackBufferDesc, TEXT("Nanite.PickingFeedback"));
+	FRDGBufferRef HitProxyIDBuffer = GSystemTextures.GetDefaultByteAddressBuffer(GraphBuilder, 4u); // NOTE: unused in this mode
 
 	{
 		FNanitePickingCS::FParameters* PassParameters = GraphBuilder.AllocParameters<FNanitePickingCS::FParameters>();
@@ -391,15 +413,7 @@ static FRDGBufferRef PerformPicking(
 		PassParameters->ShadingMask = Data.ShadingMask;
 		PassParameters->SceneDepth = SceneTextures.Depth.Target;
 		PassParameters->MaterialDepthTable = MaterialCommands.GetMaterialDepthSRV();
-		PassParameters->MaterialHitProxyTable = GraphBuilder.CreateSRV(
-		#if WITH_EDITOR
-			Scene->GetExtension<Nanite::FMaterialsSceneExtension>().CreateHitProxyIDBuffer(GraphBuilder)
-		#else
-			// TODO: Permutation with hit proxy support to keep this clean?
-			// For now, bind a valid SRV
-			GSystemTextures.GetDefaultByteAddressBuffer(GraphBuilder, 4u)
-		#endif
-		);
+		PassParameters->MaterialHitProxyTable = GraphBuilder.CreateSRV(HitProxyIDBuffer);
 		PassParameters->FeedbackBuffer = GraphBuilder.CreateUAV(PickingFeedback);
 
 		auto PickingShader = View.ShaderMap->GetShader<FNanitePickingCS>();
@@ -594,15 +608,10 @@ void AddVisualizationPasses(
 
 	if (Scene && Views.Num() > 0 && VisualizationData.IsActive() && EngineShowFlags.VisualizeNanite)
 	{
-		FRDGBufferSRVRef HitProxyIDBuffer = GraphBuilder.CreateSRV(
-		#if WITH_EDITOR
-			Scene->GetExtension<Nanite::FMaterialsSceneExtension>().CreateHitProxyIDBuffer(GraphBuilder)
-		#else
-			// TODO: Permutation with hit proxy support to keep this clean?
-			// For now, bind a valid SRV
-			GSystemTextures.GetDefaultByteAddressBuffer(GraphBuilder, 4u)
-		#endif
-		);
+		// Don't create the hit proxy ID buffer until it's needed
+		// TODO: Permutation with hit proxy support to keep this clean when !WITH_EDITOR?
+		FRDGBufferRef HitProxyIDBuffer = GSystemTextures.GetDefaultByteAddressBuffer(GraphBuilder, 4u);
+		bool bHitProxyIDBufferCreated = false;
 
 		// These should always match 1:1
 		if (ensure(Views.Num() == Results.Num()))
@@ -672,6 +681,7 @@ void AddVisualizationPasses(
 						}
 					}
 
+					bool bRequiresHitProxyIDs = false;
 					bool bRequiresHiZDecode = false;
 					for (FVisualizeResult& Visualization : Data.Visualizations)
 					{
@@ -680,15 +690,21 @@ void AddVisualizationPasses(
 							continue;
 						}
 
-						if (VisualizationRequiresHiZDecode(Visualization.ModeID))
-						{
-							bRequiresHiZDecode = true;
-							break;
-						}
+						bRequiresHitProxyIDs |= Visualization.ModeID == NANITE_VISUALIZE_HIT_PROXY_DEPTH;
+						bRequiresHiZDecode |= VisualizationRequiresHiZDecode(Visualization.ModeID);
 					}
 
-                    FRDGTextureRef DefaultUintVec4 = GSystemTextures.GetDefaultTexture(GraphBuilder, ETextureDimension::Texture2D, PF_R32G32B32A32_UINT, FUintVector4(0.0, 0.0, 0.0, 0.0));
-                    
+				#if WITH_EDITOR
+					if (bRequiresHitProxyIDs && !bHitProxyIDBufferCreated)
+					{
+						auto& MaterialsExtension = Scene->GetExtension<Nanite::FMaterialsSceneExtension>();
+						HitProxyIDBuffer = MaterialsExtension.CreateHitProxyIDBuffer(GraphBuilder);
+						bHitProxyIDBufferCreated = true;
+					}
+				#endif
+
+					FRDGTextureRef DefaultUintVec4 = GSystemTextures.GetDefaultTexture(GraphBuilder, ETextureDimension::Texture2D, PF_R32G32B32A32_UINT, FUintVector4(0.0, 0.0, 0.0, 0.0));
+
 					FRDGTextureRef SceneZDecoded = SystemTextures.Black;
 					FRDGTextureRef SceneZLayout = DefaultUintVec4;
 					FRDGTextureRef MaterialZDecoded = SystemTextures.Black;
@@ -792,7 +808,7 @@ void AddVisualizationPasses(
 						PassParameters->MaterialZLayout = MaterialZLayout;
 						PassParameters->FastClearTileVis = GetFastClearTileVis(GraphBuilder);
 						PassParameters->MaterialDepthTable = MaterialCommands.GetMaterialDepthSRV();
-						PassParameters->MaterialHitProxyTable = HitProxyIDBuffer;
+						PassParameters->MaterialHitProxyTable = GraphBuilder.CreateSRV(HitProxyIDBuffer);
 						PassParameters->ShadingBinData = GetShadingBinDataSRV(GraphBuilder);
 						PassParameters->DebugOutput = GraphBuilder.CreateUAV(Visualization.ModeOutput);
 

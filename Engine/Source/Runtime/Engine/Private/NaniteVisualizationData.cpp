@@ -39,6 +39,7 @@ void FNaniteVisualizationData::Initialize()
 		AddVisualizationMode(TEXT("MaterialID"), LOCTEXT("MaterialID", "Material ID"), FModeType::Standard, NANITE_VISUALIZE_MATERIAL_DEPTH, true);
 		AddVisualizationMode(TEXT("LightmapUV"), LOCTEXT("LightmapUV", "Lightmap UV"), FModeType::Standard, NANITE_VISUALIZE_LIGHTMAP_UVS, true);
 		AddVisualizationMode(TEXT("EvaluateWPO"), LOCTEXT("EvaluateWPO", "Evaluate WPO"), FModeType::Standard, NANITE_VISUALIZE_EVALUATE_WORLD_POSITION_OFFSET, true);
+		AddVisualizationMode(TEXT("PixelProgrammable"), LOCTEXT("PixelProgrammable", "Pixel Programmable"), FModeType::Standard, NANITE_VISUALIZE_PIXEL_PROGRAMMABLE_RASTER, true);
 		
 		AddVisualizationMode(TEXT("Picking"), LOCTEXT("Picking", "Picking"), FModeType::Advanced, NANITE_VISUALIZE_PICKING, true);
 		AddVisualizationMode(TEXT("Groups"), LOCTEXT("Groups", "Groups"), FModeType::Advanced, NANITE_VISUALIZE_GROUPS, true);
