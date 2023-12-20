@@ -80,8 +80,22 @@ TSharedPtr<SWidget> STransportControl::MakeTransportControlWidget(ETransportCont
 			. IsFocusable(bAreButtonsFocusable)
 			[
 				SNew(SImage)
-				.ColorAndOpacity(FSlateColor::UseSubduedForeground())
-				.Image(this, &STransportControl::GetRecordStatusIcon )
+				.Image(FAppStyle::Get().GetBrush("Animation.Record"))
+				.ColorAndOpacity_Lambda([this]()
+				{
+					bool bIsRecording = false;
+					if (TransportControlArgs.OnGetRecording.IsBound())
+					{
+						bIsRecording = TransportControlArgs.OnGetRecording.Execute();
+					}
+
+					if (bIsRecording)
+					{
+						return FSlateColor::UseForeground();
+					}
+
+					return FSlateColor::UseSubduedForeground();
+				})
 			];
 	case ETransportControlWidgetType::ForwardPlay:
 		return SAssignNew(ForwardPlayButton, SButton)

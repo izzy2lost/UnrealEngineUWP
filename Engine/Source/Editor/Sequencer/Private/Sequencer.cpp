@@ -4424,10 +4424,9 @@ TSharedRef<SWidget> FSequencer::OnCreateTransportRecord()
 				{
 					RecordingAnimation.Play(SequencerWidget.ToSharedRef(), true);
 				}
-
-				FLinearColor Color = FSlateColor::UseSubduedForeground().GetSpecifiedColor();
-				Color.A = 0.2f + 0.8f * RecordingAnimation.GetLerp();
-				return FSlateColor(Color);
+				
+				FLinearColor Color = FLinearColor::White;
+				return FSlateColor(Color.CopyWithNewOpacity(0.2f + 0.8f * RecordingAnimation.GetLerp()));
 			}
 
 			RecordingAnimation.Pause();
