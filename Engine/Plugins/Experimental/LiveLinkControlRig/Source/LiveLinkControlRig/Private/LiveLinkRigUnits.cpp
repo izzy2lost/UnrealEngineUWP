@@ -155,10 +155,12 @@ FRigUnit_LiveLinkEvaluateBasicValue_Execute()
 				if(FoundIndex != INDEX_NONE)
 				{
 					FLiveLinkBaseFrameData* BasicData = FrameData.FrameData.Cast<FLiveLinkBaseFrameData>();
+					if(StaticData->PropertyNames.Num() == BasicData->PropertyValues.Num()) //Catch case where the number of PropertyNames and PropertyValues don't match. This can happen in Blueprint Virtual Subjects.
+					{
 					Value = BasicData->PropertyValues[FoundIndex];
+					}
 				}
 			}
-
 		}
 	}
 }
