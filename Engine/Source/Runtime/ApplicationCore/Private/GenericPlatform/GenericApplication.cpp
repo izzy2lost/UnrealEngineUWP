@@ -144,8 +144,8 @@ void FDisplayMetrics::ApplyDefaultSafeZones()
 	TitleSafePaddingSize = FVector4(0.0f, 0.0f, 0.0f, 0.0f);
 	bool bSetByCommandLine;
 	bSetByCommandLine = FParse::Value(FCommandLine::Get(), TEXT("SafeZonePaddingLeft="),   TitleSafePaddingSize.X);
-	bSetByCommandLine = FParse::Value(FCommandLine::Get(), TEXT("SafeZonePaddingRight="),  TitleSafePaddingSize.Y) || bSetByCommandLine;
-	bSetByCommandLine = FParse::Value(FCommandLine::Get(), TEXT("SafeZonePaddingTop="),    TitleSafePaddingSize.Z) || bSetByCommandLine;
+	bSetByCommandLine = FParse::Value(FCommandLine::Get(), TEXT("SafeZonePaddingTop="),  TitleSafePaddingSize.Y) || bSetByCommandLine;
+	bSetByCommandLine = FParse::Value(FCommandLine::Get(), TEXT("SafeZonePaddingRight="),    TitleSafePaddingSize.Z) || bSetByCommandLine;
 	bSetByCommandLine = FParse::Value(FCommandLine::Get(), TEXT("SafeZonePaddingBottom="), TitleSafePaddingSize.W) || bSetByCommandLine;
 
 	if (!bSetByCommandLine)
