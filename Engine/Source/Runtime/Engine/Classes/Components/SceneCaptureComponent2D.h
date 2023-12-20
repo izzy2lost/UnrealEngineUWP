@@ -66,9 +66,8 @@ public:
 	UPROPERTY(BlueprintReadWrite, AdvancedDisplay, Category = Projection)
 	FMatrix CustomProjectionMatrix;
 
-	/** In case of orthographic camera, generate a fake view position that has a non-zero W component. The view position will be derived based on the view matrix. */
-	UPROPERTY(EditAnywhere, BlueprintReadWrite, AdvancedDisplay, Category = Projection, meta = (editcondition = "ProjectionType==1"))
-	bool bUseFauxOrthoViewPos = true;
+	UPROPERTY(meta = (DeprecatedProperty, DeprecationMessage = "5.4 - bUseFauxOrthoViewPos has been deprecated alongside updates to Orthographic camera fixes"))
+	bool bUseFauxOrthoViewPos = false;
 
 	/** Render the scene in n frames (i.e TileCount) - Ignored in Perspective mode, works only in Orthographic mode when CaptureSource uses SceneColor (not FinalColor)
 	* If CaptureSource uses FinalColor, tiling will be ignored and a Warning message will be logged	*/

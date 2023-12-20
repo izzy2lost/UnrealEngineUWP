@@ -56,7 +56,6 @@ FSceneViewInitOptions FMovieGraphImagePassBase::CreateViewInitOptions(const UE::
 	ViewInitOptions.SceneViewStateInterface = InViewStateRef.GetReference();
 	ViewInitOptions.FOV = ViewFOV;
 	ViewInitOptions.DesiredFOV = ViewFOV;
-	ViewInitOptions.bUseFauxOrthoViewPos = InCameraInfo.ViewInfo.ProjectionMode == ECameraProjectionMode::Orthographic;
 	
 	return ViewInitOptions;
 }

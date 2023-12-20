@@ -51,7 +51,6 @@ class ITemporalUpscaler;
 
 class FRenderTarget;
 
-
 // Projection data for a FSceneView
 struct FSceneViewProjectionData
 {
@@ -64,10 +63,13 @@ struct FSceneViewProjectionData
 	/** UE projection matrix projects such that clip space Z=1 is the near plane, and Z=0 is the infinite far plane. */
 	FMatrix ProjectionMatrix;
 
-protected:
+	/** This can be specified for ortho views so that the min draw distance/LOD resolution etc, is controlled by camera location rather than the pseudo infinite viewport location of Ortho*/
+	FVector LODViewOrigin;
+
 	//The unconstrained (no aspect ratio bars applied) view rectangle (also unscaled)
 	FIntRect ViewRect;
 
+protected:
 	// The constrained view rectangle (identical to UnconstrainedUnscaledViewRect if aspect ratio is not constrained)
 	FIntRect ConstrainedViewRect;
 
@@ -102,6 +104,38 @@ public:
 	FMatrix ComputeViewProjectionMatrix() const
 	{
 		return FTranslationMatrix(-ViewOrigin) * ViewRotationMatrix * ProjectionMatrix;
+	}
+
+	//Function for retrieving the NearPlane from the existing projection matrix
+	static ENGINE_API float GetNearPlaneFromProjectionMatrix(const FMatrix& ProjectionMatrix)
+	{
+		return static_cast<float>((1.0f - ProjectionMatrix.M[3][2]) / (ProjectionMatrix.M[2][2] == 0.0f ? UE_DELTA : ProjectionMatrix.M[2][2]));
+	}
+
+	float GetNearPlaneFromProjectionMatrix() const
+	{
+		return GetNearPlaneFromProjectionMatrix(ProjectionMatrix);
+	}
+
+	// Function for correcting Ortho camera near plane locations to avoid artifacts behind camera view origin
+	static ENGINE_API bool UpdateOrthoNearPlane(FSceneViewProjectionData* InOutProjectionData, float& NearPlane, bool bUpdateOrthoProjectionMatrix = false);
+
+	static ENGINE_API bool UpdateOrthoNearPlane(FMatrix& ProjectionMatrix, float& NearPlane, bool bUpdateOrthoProjectionMatrix = false)
+	{
+		FSceneViewProjectionData InOutProjectionData;
+		InOutProjectionData.ProjectionMatrix = ProjectionMatrix;
+		InOutProjectionData.ViewOrigin = FVector::ZeroVector;
+		bool Result = UpdateOrthoNearPlane(&InOutProjectionData, NearPlane, bUpdateOrthoProjectionMatrix);
+		if(bUpdateOrthoProjectionMatrix && Result)
+		{
+			ProjectionMatrix = InOutProjectionData.ProjectionMatrix;
+		}
+		return Result;
+	}
+	
+	bool UpdateOrthoNearPlane(float& NearPlane, bool bUpdateOrthoProjectionMatrix = false)
+	{
+		return UpdateOrthoNearPlane(this, NearPlane, bUpdateOrthoProjectionMatrix);
 	}
 };
 
@@ -186,9 +220,6 @@ struct FSceneViewInitOptions : public FSceneViewProjectionData
 	float FOV;
 	float DesiredFOV;
 
-	/** In case of ortho, generate a fake view position that has a non-zero W component. The view position will be derived based on the view matrix. */
-	bool bUseFauxOrthoViewPos;
-
 	/** Whether this view is being used to render a scene capture. */
 	bool bIsSceneCapture;
 
@@ -207,9 +238,6 @@ struct FSceneViewInitOptions : public FSceneViewProjectionData
 #if WITH_EDITOR
 	/** default to 0'th view index, which is a bitfield of 1 */
 	uint64 EditorViewBitflag;
-
-	/** this can be specified for ortho views so that it's min draw distance/LOD parenting etc, is controlled by a perspective viewport */
-	FVector OverrideLODViewOrigin;
 
 	/** Whether game screen percentage should be disabled. */
 	bool bDisableGameScreenPercentage;
@@ -237,7 +265,6 @@ struct FSceneViewInitOptions : public FSceneViewProjectionData
 		, bUseFieldOfViewForLOD(true)
 		, FOV(90.f)
 		, DesiredFOV(90.f)
-		, bUseFauxOrthoViewPos(false)
 		, bIsSceneCapture(false)
 		, bIsSceneCaptureCube(false)
 		, bSceneCaptureUsesRayTracing(false)
@@ -245,7 +272,6 @@ struct FSceneViewInitOptions : public FSceneViewProjectionData
 		, bIsPlanarReflection(false)
 #if WITH_EDITOR
 		, EditorViewBitflag(1)
-		, OverrideLODViewOrigin(ForceInitToZero)
 		, bDisableGameScreenPercentage(false)
 		//@TODO: , const TBitArray<>& InSpriteCategoryVisibility=TBitArray<>()
 #endif
@@ -263,9 +289,9 @@ struct FViewMatrices
 		FMatrix ViewRotationMatrix = FMatrix::Identity;
 		FMatrix ProjectionMatrix = FMatrix::Identity;
 		FVector ViewOrigin = FVector::ZeroVector;
+		FVector LODViewOrigin = FVector::ZeroVector;
 		FIntRect ConstrainedViewRect = FIntRect(0, 0, 0, 0);
 		EStereoscopicPass StereoPass = EStereoscopicPass::eSSP_FULL;
-		bool bUseFauxOrthoViewPos = false;
 	};
 
 	FViewMatrices()
@@ -287,9 +313,9 @@ struct FViewMatrices
 		ScreenToClipMatrix.SetIdentity();
 		PreViewTranslation = FVector::ZeroVector;
 		ViewOrigin = FVector::ZeroVector;
+		LODViewOrigin = FVector::ZeroVector;
 		ProjectionScale = FVector2D::ZeroVector;
 		TemporalAAProjectionJitter = FVector2D::ZeroVector;
-		ViewOriginWithoutFauxOrthoPos = FVector::ZeroVector;
 		ScreenScale = 1.f;
 	}
 
@@ -332,8 +358,10 @@ private:
 	FMatrix		ScreenToClipMatrix;
 	/** The translation to apply to the world before TranslatedViewProjectionMatrix. Usually it is -ViewOrigin but with rereflections this can differ */
 	FVector		PreViewTranslation;
-	/** To support ortho and other modes this is redundant, in world space */
+	/** The camera/viewport location in world space */
 	FVector		ViewOrigin;
+	/** The camera/viewport location for resolving LOD sizes for Orthographic cameras */
+	FVector 	LODViewOrigin;
 	/** Scale applied by the projection matrix in X and Y. */
 	FVector2D	ProjectionScale;
 	/** TemporalAA jitter offset currently stored in the projection matrix */
@@ -352,11 +380,6 @@ private:
 	/** Depth test scaling; differs between perspective and orthographic  */
 	float PerProjectionDepthThicknessScale;
 
-	/** 
-	* If we are using an Ortho camera, we need to compensate faux ortho camera position,
-	* However that doesn't work well with all render passes, so this needs to be stored to compensate.
-	*/
-	FVector ViewOriginWithoutFauxOrthoPos;
 	//
 	// World = TranslatedWorld - PreViewTranslation
 	// TranslatedWorld = World + PreViewTranslation
@@ -454,9 +477,10 @@ public:
 		return ViewOrigin;
 	}
 
-	inline const FVector& GetViewOriginWithoutFauxOrthoPosition() const
+	inline const FVector& GetLODViewOrigin() const
 	{
-		return ViewOriginWithoutFauxOrthoPos;
+		//Perspective should always set this to the ViewOrigin in Init, Ortho needs a corrected location for resolving LODs
+		return LODViewOrigin;
 	}
 
 	inline float GetScreenScale() const
@@ -1490,9 +1514,6 @@ public:
 #if WITH_EDITOR
 	/** The set of (the first 64) groups' visibility info for this view */
 	uint64 EditorViewBitflag;
-
-	/** For ortho views, this can control how to determine LOD parenting (ortho has no "distance-to-camera") */
-	FVector OverrideLODViewOrigin;
 
 	/** True if we should draw translucent objects when rendering hit proxies */
 	bool bAllowTranslucentPrimitivesInHitProxy;

@@ -405,6 +405,9 @@ struct FFortniteMainBranchObjectVersion
 		// Removed debug information containing compressed data author, time etc. from animation DDC data as it introduces indeterminism
 		AnimationSequenceCompressedDataRemoveDebugData,
 
+		// Changes to Orthographic Camera default settings
+		OrthographicCameraDefaultSettings,
+
 		// -----<new versions can be added above this line>-------------------------------------------------
 		VersionPlusOne,
 		LatestVersion = VersionPlusOne - 1

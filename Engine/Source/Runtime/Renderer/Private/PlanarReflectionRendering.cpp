@@ -506,7 +506,6 @@ extern void SetupViewFamilyForSceneCapture(
 	USceneCaptureComponent* SceneCaptureComponent,
 	const TArrayView<const FSceneCaptureViewInfo> Views,
 	float MaxViewDistance,
-	bool bUseFauxOrthoViewPos,
 	bool bCaptureSceneColor,
 	bool bIsPlanarReflection,
 	FPostProcessSettings* PostProcessSettings,
@@ -651,7 +650,8 @@ void FScene::UpdatePlanarReflectionContents(UPlanarReflectionComponent* CaptureC
 			ViewFamily,
 			CaptureComponent,
 			SceneCaptureViewInfo, CaptureComponent->MaxViewDistanceOverride,
-			/* bUseFauxOrthoViewPos = */ true, /* bCaptureSceneColor = */ true, /* bIsPlanarReflection = */ true,
+			/* bCaptureSceneColor = */ true,
+			/* bIsPlanarReflection = */ true,
 			&PostProcessSettings, 1.0f,
 			/*ViewActor =*/ nullptr,
 			/*CubemapFaceIndex =*/ INDEX_NONE);

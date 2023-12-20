@@ -87,7 +87,7 @@ void FTemporalLODState::UpdateTemporalLODTransition(const FSceneView& View, floa
 				TemporalLODViewOrigin[0] = TemporalLODViewOrigin[1];
 				TemporalLODTime[0] = TemporalLODTime[1];
 			}
-			TemporalLODViewOrigin[1] = View.ViewMatrices.GetViewOrigin();
+			TemporalLODViewOrigin[1] = View.ViewMatrices.GetLODViewOrigin();
 			TemporalLODTime[1] = LastRenderTime;
 			if (TemporalLODTime[1] <= TemporalLODTime[0])
 			{
@@ -97,8 +97,8 @@ void FTemporalLODState::UpdateTemporalLODTransition(const FSceneView& View, floa
 	}
 	if (!bOk)
 	{
-		TemporalLODViewOrigin[0] = View.ViewMatrices.GetViewOrigin();
-		TemporalLODViewOrigin[1] = View.ViewMatrices.GetViewOrigin();
+		TemporalLODViewOrigin[0] = View.ViewMatrices.GetLODViewOrigin();
+		TemporalLODViewOrigin[1] = View.ViewMatrices.GetLODViewOrigin();
 		TemporalLODTime[0] = LastRenderTime;
 		TemporalLODTime[1] = LastRenderTime;
 		TemporalLODLag = 0.0f;

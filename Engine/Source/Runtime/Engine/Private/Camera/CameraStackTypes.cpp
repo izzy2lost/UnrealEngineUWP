@@ -17,6 +17,17 @@ static TAutoConsoleVariable<bool> CVarUseLegacyMaintainYFOV(
 	ECVF_Default
 );
 
+bool GAllowOrthoNearPlaneCorrection = true;
+static FAutoConsoleVariableRef CVarAllowOrthoNearPlaneCorrection(
+	TEXT("r.Ortho.AllowNearPlaneCorrection"),
+	GAllowOrthoNearPlaneCorrection,
+	TEXT("Orthographic near planes can be behind the camera position, which causes some issues with Unreal resolving lighting behind the camera position ")
+	TEXT("This CVar enables the Orthographic cameras globally to automatically update the camera location to match the NearPlane location, ")
+	TEXT("and force the pseudo camera position to be the replaced near plane location for the projection matrix calculation. ")
+	TEXT("This means Unreal can resolve lighting behind the camera correctly."),
+	ECVF_Default
+);
+
 //////////////////////////////////////////////////////////////////////////
 // FMinimalViewInfo
 
@@ -90,7 +101,7 @@ void FMinimalViewInfo::AddWeightedViewInfo(const FMinimalViewInfo& OtherView, co
 	bUseFieldOfViewForLOD |= OtherViewWeighted.bUseFieldOfViewForLOD;
 }
 
-FMatrix FMinimalViewInfo::CalculateProjectionMatrix() const
+FMatrix FMinimalViewInfo::CalculateProjectionMatrix(float NegativeNearPlaneOverride) const
 {
 	FMatrix ProjectionMatrix;
 
@@ -101,7 +112,7 @@ FMatrix FMinimalViewInfo::CalculateProjectionMatrix() const
 		const float HalfOrthoWidth = OrthoWidth / 2.0f;
 		const float ScaledOrthoHeight = OrthoWidth / 2.0f * YScale;
 
-		const float NearPlane = OrthoNearClipPlane;
+		const float NearPlane = GAllowOrthoNearPlaneCorrection && NegativeNearPlaneOverride < 0.0f ? NegativeNearPlaneOverride : OrthoNearClipPlane;
 		const float FarPlane = OrthoFarClipPlane;
 
 		const float ZScale = 1.0f / (FarPlane - NearPlane);
@@ -140,14 +151,27 @@ FMatrix FMinimalViewInfo::CalculateProjectionMatrix() const
 
 void FMinimalViewInfo::CalculateProjectionMatrixGivenViewRectangle(const FMinimalViewInfo& ViewInfo, TEnumAsByte<enum EAspectRatioAxisConstraint> AspectRatioAxisConstraint, const FIntRect& ConstrainedViewRectangle, FSceneViewProjectionData& InOutProjectionData)
 {
+	bool bOrthographicNearPlaneCorrection = ViewInfo.ProjectionMode == ECameraProjectionMode::Orthographic
+											&& GAllowOrthoNearPlaneCorrection
+											&& ViewInfo.OrthoNearClipPlane < 0.0f;
+
 	// Create the projection matrix (and possibly constrain the view rectangle)
 	if (ViewInfo.bConstrainAspectRatio)
 	{
 		// Enforce a particular aspect ratio for the render of the scene. 
 		// Results in black bars at top/bottom etc.
 		InOutProjectionData.SetConstrainedViewRectangle(ConstrainedViewRectangle);
-
-		InOutProjectionData.ProjectionMatrix = ViewInfo.CalculateProjectionMatrix();
+		if (bOrthographicNearPlaneCorrection)
+		{
+			float NearPlane = ViewInfo.OrthoNearClipPlane;
+			InOutProjectionData.UpdateOrthoNearPlane(NearPlane);
+			InOutProjectionData.ProjectionMatrix = ViewInfo.CalculateProjectionMatrix(NearPlane);
+		}
+		else
+		{
+			InOutProjectionData.ProjectionMatrix = ViewInfo.CalculateProjectionMatrix();
+		}
+		
 	}
 	else
 	{
@@ -201,8 +225,12 @@ void FMinimalViewInfo::CalculateProjectionMatrixGivenViewRectangle(const FMinima
 			const float OrthoWidth = ViewInfo.OrthoWidth / 2.0f * XAxisMultiplier;
 			const float OrthoHeight = (ViewInfo.OrthoWidth / 2.0f) / YAxisMultiplier;
 
-			const float NearPlane = ViewInfo.OrthoNearClipPlane;
 			const float FarPlane = ViewInfo.OrthoFarClipPlane;
+			float NearPlane = ViewInfo.OrthoNearClipPlane;
+			if (bOrthographicNearPlaneCorrection)
+			{
+				InOutProjectionData.UpdateOrthoNearPlane(NearPlane);
+			}
 
 			const float ZScale = 1.0f / (FarPlane - NearPlane);
 			const float ZOffset = -NearPlane;

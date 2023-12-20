@@ -523,7 +523,6 @@ FSceneView* UMoviePipelineImagePassBase::GetSceneViewForSampleState(FSceneViewFa
 				ZScale,
 				ZOffset
 			);
-			ViewInitOptions.bUseFauxOrthoViewPos = true;
 			
 			// Modify the projection matrix to do an off center projection, with overlap for high-res tiling
 			const bool bOrthographic = true;

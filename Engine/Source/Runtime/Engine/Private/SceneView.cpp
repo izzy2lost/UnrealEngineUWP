@@ -335,11 +335,19 @@ static TAutoConsoleVariable<int32> CVarEnableTemporalUpsample(
 
 float GOrthographicDepthThicknessScale = 0.01;
 static FAutoConsoleVariableRef CVarOrthographicDepthThicknessScale(
-	TEXT("r.OrthographicDepthThicknessScale"),
+	TEXT("r.Ortho.DepthThicknessScale"),
 	GOrthographicDepthThicknessScale,
 	TEXT("Orthographic scene depth scales proportionally lower than perspective, typically on a scale of 1/100")
 	TEXT("Use this value to tweak the scale of depth thickness testing values simultaneously across various screen trace passes"),
 	ECVF_RenderThreadSafe);
+
+float GDefaultUpdateOrthoNearPlane = 0.0f;
+static FAutoConsoleVariableRef CVarDefaultUpdateOrthoNearPlane(
+	TEXT("r.Ortho.DefaultUpdateNearClipPlane"),
+	GDefaultUpdateOrthoNearPlane,
+	TEXT("Ortho near clip plane value to correct to when using ortho near clip correction"),
+	ECVF_RenderThreadSafe
+);
 
 int32 GVirtualTextureFeedbackFactor = 16;
 static FAutoConsoleVariableRef CVarVirtualTextureFeedbackFactor(
@@ -581,6 +589,44 @@ FVector4f CreateInvDeviceZToWorldZTransform(const FMatrix& ProjMatrix)
 	}
 }
 
+bool FSceneViewProjectionData::UpdateOrthoNearPlane(FSceneViewProjectionData* InOutProjectionData, float& NearPlane, bool bUpdateOrthoProjectionMatrix)
+{
+	if (!InOutProjectionData || NearPlane >= 0.0f)
+	{
+		return false;
+	}
+	
+	//Store the original ViewOrigin for LOD location resolving.
+	InOutProjectionData->LODViewOrigin = InOutProjectionData->ViewOrigin;
+
+	//Get the ViewForward vector from the RotationMatrix + ensure it is normalized.
+	FVector ViewForward = InOutProjectionData->ViewRotationMatrix.GetColumn(2);
+	ViewForward.Normalize();
+
+	//OrthoNearClipPlane is negative at this point + we are moving the theoretical camera position backwards.
+	InOutProjectionData->ViewOrigin += ViewForward * NearPlane;
+	NearPlane = GDefaultUpdateOrthoNearPlane;
+
+	//If required, recalculate the new projection matrix from the old one using the new NearClip value
+	if (bUpdateOrthoProjectionMatrix)
+	{
+		const FMatrix InvProjectionMatrix = InOutProjectionData->ProjectionMatrix.InverseFast();
+		const float OrthoWidth = InvProjectionMatrix.M[0][0];
+		const float OrthoHeight = InvProjectionMatrix.M[1][1];
+
+		const float FarPlane = NearPlane - (InvProjectionMatrix.M[2][2]);
+		const float ZScale = 1.0f / (FarPlane - NearPlane);
+
+		InOutProjectionData->ProjectionMatrix = FReversedZOrthoMatrix(
+			OrthoWidth,
+			OrthoHeight,
+			ZScale,
+			-NearPlane
+		);
+	}
+
+	return true;
+}
 
 void FViewMatrices::Init(const FMinimalInitializer& Initializer)
 {
@@ -598,21 +644,6 @@ void FViewMatrices::Init(const FMinimalInitializer& Initializer)
 	{
 		LocalViewOrigin += ViewRotationMatrix.InverseTransformPosition(FVector::ZeroVector);
 		ViewRotationMatrix = ViewRotationMatrix.RemoveTranslation();
-	}
-
-	ViewOriginWithoutFauxOrthoPos = LocalViewOrigin;
-	if (Initializer.bUseFauxOrthoViewPos && !IsPerspectiveProjection() && Initializer.ProjectionMatrix.M[2][2] != 0)
-	{
-	 	/**
-	 	* Faux ortho is repurposed here to fake correction of the view origin, allowing ortho cameras to render 
-	 	* lighting and other passes behind their actual position.
-	 	*/
-		FVector ViewForward = (FTranslationMatrix(LocalViewOrigin) * FTranslationMatrix(-LocalViewOrigin) * ViewRotationMatrix).GetColumn(2);
-		float NearPlane = (1.0f - Initializer.ProjectionMatrix.M[3][2]) / Initializer.ProjectionMatrix.M[2][2];
-		if (NearPlane < 0)
-		{
-			LocalViewOrigin += ViewForward * NearPlane;
-		}
 	}
 
 	ViewMatrix = FTranslationMatrix(-LocalViewOrigin) * ViewRotationMatrix;
@@ -651,12 +682,14 @@ void FViewMatrices::Init(const FMinimalInitializer& Initializer)
 		ProjectionScale.X = ScreenXScale * FMath::Abs(ProjectionMatrix.M[0][0]);
 		ProjectionScale.Y = FMath::Abs(ProjectionMatrix.M[1][1]);
 		PerProjectionDepthThicknessScale = 1.0f;
+		LODViewOrigin = ViewOrigin;
 	}
 	else
 	{
 		//No FOV for ortho so do not scale
 		ProjectionScale = FVector2D(ScreenXScale, 1.0f);
 		PerProjectionDepthThicknessScale = GOrthographicDepthThicknessScale;
+		LODViewOrigin = Initializer.LODViewOrigin;
 	}
 	ScreenScale = FMath::Max(
 		Initializer.ConstrainedViewRect.Size().X * 0.5f * ProjectionScale.X,
@@ -671,19 +704,9 @@ FViewMatrices::FViewMatrices(const FSceneViewInitOptions& InitOptions) : FViewMa
 	Initializer.ViewRotationMatrix   = InitOptions.ViewRotationMatrix;
 	Initializer.ProjectionMatrix     = InitOptions.ProjectionMatrix;
 	Initializer.ViewOrigin           = InitOptions.ViewOrigin;
+	Initializer.LODViewOrigin        = InitOptions.LODViewOrigin;
 	Initializer.ConstrainedViewRect  = InitOptions.GetConstrainedViewRect();
 	Initializer.StereoPass           = InitOptions.StereoPass;
-
-	//This is a bit of a hack to ensure orthographic camera views are resolving correctly, without affecting non-camera views 
-	//it will be removed once we have a more robust solution + can hopefully deprecate bUseFauxOrthoViewPos entirely
-	if (InitOptions.ProjectionMatrix.M[3][3] >= 1.0f && InitOptions.ViewActor && InitOptions.ViewActor->HasActiveCameraComponent(true))
-	{
-		Initializer.bUseFauxOrthoViewPos = true;
-	}
-	else
-	{
-		Initializer.bUseFauxOrthoViewPos = InitOptions.bUseFauxOrthoViewPos;
-	}
 
 	Init(Initializer);
 }
@@ -825,7 +848,6 @@ PRAGMA_ENABLE_DEPRECATION_WARNINGS
 	, GlobalClippingPlane(FPlane(0, 0, 0, 0))
 	, LensPrincipalPointOffsetScale(0.0f, 0.0f, 1.0f, 1.0f)
 #if WITH_EDITOR
-	, OverrideLODViewOrigin(InitOptions.OverrideLODViewOrigin)
 	, bAllowTranslucentPrimitivesInHitProxy( true )
 	, bHasSelectedComponents( false )
 #endif

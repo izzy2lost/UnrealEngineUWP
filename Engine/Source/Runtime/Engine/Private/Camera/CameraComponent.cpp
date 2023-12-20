@@ -19,11 +19,33 @@
 #include "IXRTrackingSystem.h"
 #include "IXRCamera.h"
 #include "Math/UnitConversion.h"
+#include "UObject/FortniteMainBranchObjectVersion.h"
 #include "UObject/UnrealType.h"
 
 #include UE_INLINE_GENERATED_CPP_BY_NAME(CameraComponent)
 
 #define LOCTEXT_NAMESPACE "CameraComponent"
+
+static TAutoConsoleVariable<float> CVarDefaultCameraOrthoWidth(
+	TEXT("r.Ortho.DefaultCameraWidth"),
+	DEFAULT_ORTHOWIDTH,
+	TEXT("Default Ortho Width when creating a new camera actor"),
+	ECVF_ReadOnly
+);
+
+static TAutoConsoleVariable<float> CVarDefaultCameraNearPlane(
+	TEXT("r.Ortho.DefaultCameraNearPlane"),
+	DEFAULT_ORTHONEARPLANE,
+	TEXT("Default Ortho Near Plane when creating a new camera actor"),
+	ECVF_ReadOnly
+);
+
+static TAutoConsoleVariable<float> CVarDefaultCameraFarPlane(
+	TEXT("r.Ortho.DefaultCameraFarPlane"),
+	UE_OLD_WORLD_MAX,
+	TEXT("Default Ortho Far Plane when creating a new camera actor"),
+	ECVF_ReadOnly
+);
 
 //////////////////////////////////////////////////////////////////////////
 // UCameraComponent
@@ -44,9 +66,9 @@ UCameraComponent::UCameraComponent(const FObjectInitializer& ObjectInitializer)
 
 	FieldOfView = 90.0f;
 	AspectRatio = 1.777778f;
-	OrthoWidth = 512.0f;
-	OrthoNearClipPlane = 0.0f;
-	OrthoFarClipPlane = UE_OLD_WORLD_MAX;
+	OrthoWidth = CVarDefaultCameraOrthoWidth.GetValueOnAnyThread();
+	OrthoNearClipPlane = CVarDefaultCameraNearPlane.GetValueOnAnyThread();
+	OrthoFarClipPlane = CVarDefaultCameraFarPlane.GetValueOnAnyThread();
 	bConstrainAspectRatio = false;
 	bOverrideAspectRatioAxisConstraint = false;
 	bUseFieldOfViewForLOD = true;
@@ -289,6 +311,14 @@ void UCameraComponent::RestoreFrustumColor()
 
 void UCameraComponent::Serialize(FArchive& Ar)
 {
+	Ar.UsingCustomVersion(FFortniteMainBranchObjectVersion::GUID);
+	if (Ar.CustomVer(FFortniteMainBranchObjectVersion::GUID) < FFortniteMainBranchObjectVersion::OrthographicCameraDefaultSettings)
+	{
+		OrthoWidth = 512.0f;
+		OrthoNearClipPlane = 0.0f;
+		OrthoFarClipPlane = UE_OLD_WORLD_MAX;
+	}
+
 	Super::Serialize(Ar);
 
 	if (Ar.IsLoading())
