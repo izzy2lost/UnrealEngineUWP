@@ -181,6 +181,22 @@ bool UModularRigController::CanConnectConnectorToElement(const FRigElementKey& I
 		return true; // Nothing to do
 	}
 
+	if (ModuleConnector->Settings.Type != EConnectorType::Primary)
+	{
+		const FRigModuleConnector* PrimaryMdouleConnector = RigCDO->GetRigModuleSettings().ExposedConnectors.FindByPredicate(
+		[ConnectorName](FRigModuleConnector& Connector)
+		{
+			return Connector.Settings.Type == EConnectorType::Primary;
+		});
+		const FRigElementKey PrimaryConnectorKey(*PrimaryMdouleConnector->Name, ERigElementType::Connector);
+		FRigElementKey* PrimaryTarget = Module->Connections.Find(PrimaryConnectorKey);
+		if (!PrimaryTarget || !PrimaryTarget->IsValid())
+		{
+			OutErrorMessage = FText::FromString(FString::Printf(TEXT("Cannot resolve connector %s because primary connector is not resolved"), *InConnectorKey.ToString()));
+			return false;
+		}
+	}
+
 #if WITH_EDITOR
 	UBlueprint* Blueprint = Cast<UBlueprint>(GetOuter());
 
@@ -227,7 +243,7 @@ bool UModularRigController::CanConnectConnectorToElement(const FRigElementKey& I
 	return true;
 }
 
-bool UModularRigController::ConnectConnectorToElement(const FRigElementKey& InConnectorKey, const FRigElementKey& InTargetKey, bool bSetupUndo)
+bool UModularRigController::ConnectConnectorToElement(const FRigElementKey& InConnectorKey, const FRigElementKey& InTargetKey, bool bSetupUndo, bool bAutoResolveOtherConnectors)
 {
 	FText ErrorMessage;
 	if (!CanConnectConnectorToElement(InConnectorKey, InTargetKey, ErrorMessage))
@@ -261,8 +277,58 @@ bool UModularRigController::ConnectConnectorToElement(const FRigElementKey& InCo
 	}
 
 	Module->Connections.FindOrAdd(ConnectorKey) = InTargetKey;
-
 	Notify(EModularRigNotification::ConnectionChanged, Module);
+
+#if WITH_EDITOR
+	if (bAutoResolveOtherConnectors)
+	{
+		if (UControlRig* RigCDO = Module->Class->GetDefaultObject<UControlRig>())
+		{
+			if (UModularRig* ModularRig = Cast<UModularRig>(Blueprint->GetObjectBeingDebugged()))
+			{
+				if (URigHierarchy* Hierarchy = ModularRig->GetHierarchy())
+				{
+					UModularRigRuleManager* RuleManager = Hierarchy->GetRuleManager();
+					const FRigModuleInstance* ModuleInstance = ModularRig->FindModule(Module->GetPath());
+
+					for (const FRigModuleConnector& OtherConnector : RigCDO->GetRigModuleSettings().ExposedConnectors)
+					{
+						FRigElementKey OtherConnectorShortKey;
+						OtherConnectorShortKey.Name = *OtherConnector.Name;
+						OtherConnectorShortKey.Type = ERigElementType::Connector;
+						if (!Module->Connections.Contains(OtherConnectorShortKey))
+						{
+							FRigElementKey OtherConnectorKey;
+							OtherConnectorKey.Name = *FString::Printf(TEXT("%s%s"), *Module->GetNamespace(), *OtherConnector.Name);
+							OtherConnectorKey.Type = ERigElementType::Connector;
+							
+							const FRigConnectorElement* OtherConnectorElement = Cast<FRigConnectorElement>(Hierarchy->Find(OtherConnectorKey));
+							FModularRigResolveResult RuleResults = RuleManager->FindMatches(OtherConnectorElement, ModuleInstance, ModularRig->GetElementKeyRedirector());
+
+							if (RuleResults.GetMatches().Num() == 1)
+							{
+								Module->Connections.FindOrAdd(OtherConnectorShortKey) = RuleResults.GetMatches()[0].GetKey();
+								Notify(EModularRigNotification::ConnectionChanged, Module);
+							}
+							else
+							{
+								for (const FRigElementResolveResult& Result : RuleResults.GetMatches())
+								{
+									if (Result.GetState() == ERigElementResolveState::DefaultTarget)
+									{
+										Module->Connections.FindOrAdd(OtherConnectorShortKey) = Result.GetKey();
+										Notify(EModularRigNotification::ConnectionChanged, Module);
+										break;
+									}
+								}
+							}
+						}
+					}
+				}
+			}
+		}
+	}
+#endif
 
 #if WITH_EDITOR
 	TransactionPtr.Reset();

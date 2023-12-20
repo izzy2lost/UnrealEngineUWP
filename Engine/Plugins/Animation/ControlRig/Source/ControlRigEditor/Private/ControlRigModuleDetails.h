@@ -50,7 +50,7 @@ public:
 	FText GetRigClassPath() const;
 	TArray<FRigModuleConnector> GetConnectors() const;
 	FRigElementKeyRedirector GetConnections() const;
-	void PopulateConnectorTargetList(const FRigElementKey& InConnectorKey);
+	void PopulateConnectorTargetList(const FRigElementKey InConnectorKey);
 	void PopulateConnectorCurrentTarget(
 		TSharedPtr<SVerticalBox> InListBox,
 		const FRigElementKey& InConnectorKey,
@@ -60,6 +60,7 @@ public:
 		const FText& InTitle);
 
 	void OnConfigValueChanged(const FName InVariableName);
+	void OnConnectorTargetChanged(TSharedPtr<FRigTreeElement> Selection, ESelectInfo::Type SelectInfo, const FRigElementKey InConnectorKey);
 	
 	struct FPerModuleInfo
 	{

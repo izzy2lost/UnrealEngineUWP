@@ -109,6 +109,22 @@ public:
 
 	GENERATED_BODY()
 
+	FModularRigModel(){}
+	FModularRigModel(const FModularRigModel& Other)
+	{
+		Modules = Other.Modules;
+		UpdateCachedChildren();
+	}
+	
+	FModularRigModel& operator=(const FModularRigModel& Other)
+	{
+		Modules = Other.Modules;
+		UpdateCachedChildren();
+		return *this;
+	}
+	FModularRigModel(FModularRigModel&&) = delete;
+	FModularRigModel& operator=(FModularRigModel&&) = delete;
+
 	UPROPERTY()
 	TArray<FRigModuleReference> Modules;
 	TArray<FRigModuleReference*> RootModules;

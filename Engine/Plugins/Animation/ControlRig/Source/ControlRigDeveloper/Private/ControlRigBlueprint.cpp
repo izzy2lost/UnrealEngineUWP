@@ -991,7 +991,7 @@ bool UControlRigBlueprint::ResolveConnector(const FRigElementKey& DraggedKey, co
 		// Add connection to the model
 		if (UModularRigController* Controller = GetModularRigController())
 		{
-			Controller->ConnectConnectorToElement(DraggedKey, TargetKey, bSetupUndoRedo);
+			Controller->ConnectConnectorToElement(DraggedKey, TargetKey, bSetupUndoRedo, ModularRigSettings.bAutoResolve);
 		}
 	}
 	else
@@ -1600,6 +1600,8 @@ void UControlRigBlueprint::RecompileModularRig()
 			// behaviors in the blueprint re-instancer - which is disregarding any
 			// object under a CDO.
 			DefaultObject->ModularRigModel = ModularRigModel;
+			DefaultObject->ModularRigModel.SetOuterClientHost(DefaultObject);
+			DefaultObject->ModularRigSettings = ModularRigSettings;
 			PropagateModuleHierarchyFromBPToInstances();
 		}
 	}

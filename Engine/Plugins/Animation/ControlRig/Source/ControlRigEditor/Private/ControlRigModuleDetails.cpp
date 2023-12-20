@@ -285,22 +285,7 @@ void FRigModuleInstanceDetails::CustomizeDetails(IDetailLayoutBuilder& DetailBui
 				}
 				return {};
 			});
-			TreeDelegates.OnSelectionChanged.BindLambda([this, ConnectorKey](TSharedPtr<FRigTreeElement> Selection, ESelectInfo::Type SelectInfo)
-			{
-				FPerModuleInfo Info = PerModuleInfos[0];
-				TSharedPtr<FRigTreeElement> NewSelection = Selection;
-				if (UModularRigController* Controller = Info.GetBlueprint()->GetModularRigController())
-				{
-					if (NewSelection.IsValid())
-					{
-						Controller->ConnectConnectorToElement(ConnectorKey, NewSelection->Key);
-					}
-					else
-					{
-						Controller->DisconnectConnector(ConnectorKey);
-					}
-				}
-			});
+			TreeDelegates.OnSelectionChanged.BindSP(this, &FRigModuleInstanceDetails::OnConnectorTargetChanged, ConnectorKey);
 			
 
 			ConnectionsCategory.AddCustomRow(Label)
@@ -323,6 +308,7 @@ void FRigModuleInstanceDetails::CustomizeDetails(IDetailLayoutBuilder& DetailBui
 						SNew( SComboButton )
 						.ContentPadding(3)
 						.MenuPlacement(MenuPlacement_BelowAnchor)
+						.OnComboBoxOpened(this, &FRigModuleInstanceDetails::PopulateConnectorTargetList, ConnectorKey)
 						.ButtonContent()
 						[
 							// Wrap in configurable box to restrain height/width of menu
@@ -354,6 +340,7 @@ void FRigModuleInstanceDetails::CustomizeDetails(IDetailLayoutBuilder& DetailBui
 						.VAlign(VAlign_Center)
 						.AutoHeight()
 						[
+							// Reset button
 							SNew(SHorizontalBox)
 							+SHorizontalBox::Slot()
 							.AutoWidth()
@@ -409,7 +396,7 @@ void FRigModuleInstanceDetails::CustomizeDetails(IDetailLayoutBuilder& DetailBui
 										const TArray<FRigElementKey>& Selected = ModularRig->GetHierarchy()->GetSelectedKeys();
 										if (Selected.Num() > 0)
 										{
-											PerModuleInfos[0].GetBlueprint()->GetModularRigController()->ConnectConnectorToElement(ConnectorKey, Selected[0]);
+											PerModuleInfos[0].GetBlueprint()->GetModularRigController()->ConnectConnectorToElement(ConnectorKey, Selected[0], true, ModularRig->GetModularRigSettings().bAutoResolve);
 										}
 									}
 									return FReply::Handled();
@@ -479,7 +466,6 @@ void FRigModuleInstanceDetails::CustomizeDetails(IDetailLayoutBuilder& DetailBui
 			}
 			TPair<const FSlateBrush*, FSlateColor> IconAndColor = SRigHierarchyItem::GetBrushForElementType(PerModuleInfos[0].GetModularRig()->GetHierarchy(), CurrentTargetKey);
 			PopulateConnectorCurrentTarget(ButtonBox, ConnectorKey, CurrentTargetKey, IconAndColor.Key, IconAndColor.Value, FText::FromName(CurrentTargetKey.Name));
-			PopulateConnectorTargetList(ConnectorKey);
 		}
 	}
 
@@ -833,7 +819,7 @@ FRigElementKeyRedirector FRigModuleInstanceDetails::GetConnections() const
 	return FRigElementKeyRedirector();
 }
 
-void FRigModuleInstanceDetails::PopulateConnectorTargetList(const FRigElementKey& InConnectorKey)
+void FRigModuleInstanceDetails::PopulateConnectorTargetList(const FRigElementKey InConnectorKey)
 {
 	if (PerModuleInfos.IsEmpty() || PerModuleInfos.Num() > 1)
 	{
@@ -872,9 +858,9 @@ void FRigModuleInstanceDetails::PopulateConnectorCurrentTarget(TSharedPtr<SVerti
 		SNew( SButton )
 		.ButtonStyle(FAppStyle::Get(), "SimpleButton")
 		.ContentPadding(FMargin(0.0))
-		.OnClicked_Lambda([Controller, InConnectorKey, InTargetKey]()
+		.OnClicked_Lambda([Info, Controller, InConnectorKey, InTargetKey]()
 		{
-			Controller->ConnectConnectorToElement(InConnectorKey, InTargetKey);
+			Controller->ConnectConnectorToElement(InConnectorKey, InTargetKey, true, Info.GetModularRig()->GetModularRigSettings().bAutoResolve);
 			return FReply::Handled();
 		})
 		[
@@ -940,6 +926,30 @@ void FRigModuleInstanceDetails::OnConfigValueChanged(const FName InVariableName)
 					Controller->SetConfigValueInModule(ModuleInstance->GetPath(), InVariableName, ValueStr);
 				}
 			}
+		}
+	}
+}
+
+void FRigModuleInstanceDetails::OnConnectorTargetChanged(TSharedPtr<FRigTreeElement> Selection, ESelectInfo::Type SelectInfo, const FRigElementKey InConnectorKey)
+{
+	if (SelectInfo == ESelectInfo::OnNavigation)
+	{
+		return;
+	}
+	
+	FScopedTransaction Transaction(LOCTEXT("ModuleHierarchyResolveConnector", "Resolve Connector"));
+	FPerModuleInfo Info = PerModuleInfos[0];
+	TSharedPtr<FRigTreeElement> NewSelection = Selection;
+	if (UModularRigController* Controller = Info.GetBlueprint()->GetModularRigController())
+	{
+		if (NewSelection.IsValid())
+		{
+			const FModularRigSettings& Settings = Info.GetModularRig()->GetModularRigSettings();
+			Controller->ConnectConnectorToElement(InConnectorKey, NewSelection->Key, true, Settings.bAutoResolve);
+		}
+		else
+		{
+			Controller->DisconnectConnector(InConnectorKey);
 		}
 	}
 }
