@@ -145,7 +145,7 @@ namespace UnrealBuildTool
 		/// </summary>
 		protected void SetResourcesFolder(string ResourcesRelativeFolder)
 		{
-			AdditionalPropertiesForReceipt.Inner.RemoveAll(Prop => Prop.Name == "ResourcesFolder");
+			AdditionalPropertiesForReceipt.RemoveAll(Prop => Prop.Name == "ResourcesFolder");
 
 			foreach (DirectoryReference Directory in GetAllModuleDirectories())
 			{
