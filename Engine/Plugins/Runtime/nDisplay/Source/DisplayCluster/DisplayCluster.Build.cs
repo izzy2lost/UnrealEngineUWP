@@ -74,7 +74,8 @@ public class DisplayCluster : ModuleRules
 			});
 
 			AddEngineThirdPartyPrivateStaticDependencies(Target, "DX11", "DX12");
-			AddEngineThirdPartyPrivateStaticDependencies(Target, "NVAPI");
 		}
+
+		AddEngineThirdPartyPrivateStaticDependencies(Target, "NVAPI");
 	}
 }

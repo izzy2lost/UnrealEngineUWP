@@ -84,9 +84,13 @@ namespace DisplayClusterConfigurationStrings
 				static constexpr const TCHAR* Ethernet          = TEXT("ethernet");
 				static constexpr const TCHAR* EthernetBarrier   = TEXT("ethernet_barrier");
 
+				// NVIDIA Swap Barrier (old)
 				static constexpr const TCHAR* Nvidia            = TEXT("nvidia");
 				static constexpr const TCHAR* NvidiaSwapBarrier = TEXT("swap_barrier");
 				static constexpr const TCHAR* NvidiaSwapGroup   = TEXT("swap_group");
+
+				// NVIDIA Present Barrier (new)
+				static constexpr const TCHAR* NvidiaAdvanced    = TEXT("nvidia_pb");
 
 				// Always use 'none' for headless rendering
 				static constexpr const TCHAR* HeadlessRenderingSyncPolicy = None;

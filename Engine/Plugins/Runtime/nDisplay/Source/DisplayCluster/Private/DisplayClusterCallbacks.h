@@ -72,6 +72,11 @@ public:
 		return DisplayClusterPresentationPostSynchronizationEvent;
 	}
 
+	virtual FDisplayClusterFramePresentated_RHIThread& OnDisplayClusterFramePresented_RHIThread() override
+	{
+		return DisplayClusterFramePresentedEvent;
+	}
+
 	virtual FDisplayClusterFailoverNodeDown& OnDisplayClusterFailoverNodeDown() override
 	{
 		return DisplayClusterFailoverNodeDown;
@@ -147,6 +152,7 @@ private:
 
 	FDisplayClusterPresentationPreSynchronization_RHIThread  DisplayClusterPresentationPreSynchronizationEvent;
 	FDisplayClusterPresentationPostSynchronization_RHIThread DisplayClusterPresentationPostSynchronizationEvent;
+	FDisplayClusterFramePresentated_RHIThread                DisplayClusterFramePresentedEvent;
 
 	FDisplayClusterPostRenderViewFamily_RenderThread DisplayClusterPostRenderViewFamily;
 	FDisplayClusterPreWarp_RenderThread              DisplayClusterPreWarpEvent;
