@@ -322,13 +322,6 @@ public:
 	void ResetBreadcrumbs();
 	void PopBreadcrumb();
 
-	/** Step to next and previous keyframes */
-	void StepToNextKey();
-	void StepToPreviousKey();
-	void StepToNextCameraKey();
-	void StepToPreviousCameraKey();
-	void StepToKey(bool bStepToNextKey, bool bCameraOnly);
-
 	/** Called when the save button is clicked */
 	void OnSaveMovieSceneClicked();
 

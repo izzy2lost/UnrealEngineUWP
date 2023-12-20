@@ -85,12 +85,6 @@ public:
 	/** Step to previous key */
 	TSharedPtr< FUICommandInfo > StepToPreviousKey;
 
-	/** Step to next camera key */
-	TSharedPtr< FUICommandInfo > StepToNextCameraKey;
-
-	/** Step to previous camera key */
-	TSharedPtr< FUICommandInfo > StepToPreviousCameraKey;
-
 	/** Step to next shot */
 	TSharedPtr< FUICommandInfo > StepToNextShot;
 

@@ -9085,31 +9085,6 @@ void FSequencer::JumpBackward()
 	OnStepBackward(Settings->GetJumpFrameIncrement());
 }
 
-
-void FSequencer::StepToNextKey()
-{
-	SequencerWidget->StepToNextKey();
-}
-
-
-void FSequencer::StepToPreviousKey()
-{
-	SequencerWidget->StepToPreviousKey();
-}
-
-
-void FSequencer::StepToNextCameraKey()
-{
-	SequencerWidget->StepToNextCameraKey();
-}
-
-
-void FSequencer::StepToPreviousCameraKey()
-{
-	SequencerWidget->StepToPreviousCameraKey();
-}
-
-
 void FSequencer::StepToNextShot()
 {
 	if (ActiveTemplateIDs.Num() < 2)
@@ -10361,11 +10336,11 @@ void FSequencer::BindCommands()
 
 	SequencerCommandBindings->MapAction(
 		Commands.StepToNextKey,
-		FExecuteAction::CreateSP( this, &FSequencer::StepToNextKey) );
+		FExecuteAction::CreateLambda([this] { JumpToNextKey(); }));
 
 	SequencerCommandBindings->MapAction(
 		Commands.StepToPreviousKey,
-		FExecuteAction::CreateSP( this, &FSequencer::StepToPreviousKey ) );
+		FExecuteAction::CreateLambda([this] { JumpToPreviousKey(); }));
 
 	SequencerCommandBindings->MapAction(
 		Commands.StepForwardViewport,
@@ -10376,14 +10351,6 @@ void FSequencer::BindCommands()
 		Commands.StepBackwardViewport,
 		FExecuteAction::CreateSP(this, &FSequencer::StepBackward),
 		EUIActionRepeatMode::RepeatEnabled);
-
-	SequencerCommandBindings->MapAction(
-		Commands.StepToNextCameraKey,
-		FExecuteAction::CreateSP( this, &FSequencer::StepToNextCameraKey ) );
-
-	SequencerCommandBindings->MapAction(
-		Commands.StepToPreviousCameraKey,
-		FExecuteAction::CreateSP( this, &FSequencer::StepToPreviousCameraKey ) );
 
 	SequencerCommandBindings->MapAction(
 		Commands.SortAllNodesAndDescendants,

@@ -1005,10 +1005,6 @@ protected:
 	void StepBackward();
 	void JumpForward();
 	void JumpBackward();
-	void StepToNextKey();
-	void StepToPreviousKey();
-	void StepToNextCameraKey();
-	void StepToPreviousCameraKey();
 	void StepToNextShot();
 	void StepToPreviousShot();
 
