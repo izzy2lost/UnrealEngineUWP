@@ -932,18 +932,26 @@ void FAudioSection::RegenerateWaveforms(TRange<float> DrawRange, int32 XOffset, 
 FAudioTrackEditor::FAudioTrackEditor( TSharedRef<ISequencer> InSequencer )
 	: FMovieSceneTrackEditor( InSequencer ) 
 {
-	RegisterMovieSceneChangedDelegate(InSequencer);
 }
 
 FAudioTrackEditor::~FAudioTrackEditor()
+{
+}
+
+void FAudioTrackEditor::OnInitialize()
+{
+	RegisterMovieSceneChangedDelegate();
+}
+
+void FAudioTrackEditor::OnRelease()
 {
 	TSharedPtr<ISequencer> SequencerPtr = GetSequencer();
 	if (SequencerPtr.IsValid() && MovieSceneChangedDelegate.IsValid())
 	{
 		SequencerPtr->OnMovieSceneDataChanged().Remove(MovieSceneChangedDelegate);
+		MovieSceneChangedDelegate.Reset();
 	}
 }
-
 
 TSharedRef<ISequencerTrackEditor> FAudioTrackEditor::CreateTrackEditor( TSharedRef<ISequencer> InSequencer )
 {
@@ -1407,31 +1415,37 @@ void FAudioTrackEditor::OnAttachedAudioEnterPressed(const TArray<FAssetData>& As
 	}
 }
 
-void FAudioTrackEditor::RegisterMovieSceneChangedDelegate(TSharedRef<ISequencer> InSequencer)
+void FAudioTrackEditor::RegisterMovieSceneChangedDelegate()
 {
-	if (SequenceContainsAudioTrack(InSequencer->GetRootMovieSceneSequence()))
+	TSharedPtr<ISequencer> SequencerPtr = GetSequencer();
+	if (SequencerPtr.IsValid())
 	{
-		// This sequence already has an audio track. Don't install the delegate.
-		return;
-	}
-	
-	// Add delegate for scene data change events
-	MovieSceneChangedDelegate = InSequencer->OnMovieSceneDataChanged().AddLambda([this](EMovieSceneDataChangeType InChangeType)
-	{
-		if (InChangeType == EMovieSceneDataChangeType::MovieSceneStructureItemAdded)
+		if (SequenceContainsAudioTrack(SequencerPtr->GetRootMovieSceneSequence()))
 		{
-			if (CheckSequenceClockSource())
+			// This sequence already has an audio track. Don't install the delegate.
+			return;
+		}
+	
+		// Add delegate for scene data change events
+		MovieSceneChangedDelegate = SequencerPtr->OnMovieSceneDataChanged().AddSP(this, &FAudioTrackEditor::OnMovieSceneDataChanged);
+	}
+}
+
+void FAudioTrackEditor::OnMovieSceneDataChanged(EMovieSceneDataChangeType InChangeType)
+{
+	if (InChangeType == EMovieSceneDataChangeType::MovieSceneStructureItemAdded)
+	{
+		if (CheckSequenceClockSource())
+		{
+			// The user has been notified, remove the delegate
+			TSharedPtr<ISequencer> SequencerPtr = GetSequencer();
+			if (SequencerPtr.IsValid() && MovieSceneChangedDelegate.IsValid())
 			{
-				// The user has been notified, remove the delegate
-				TSharedPtr<ISequencer> SequencerPtr = GetSequencer();
-				if (SequencerPtr.IsValid() && MovieSceneChangedDelegate.IsValid())
-				{
-					SequencerPtr->OnMovieSceneDataChanged().Remove(MovieSceneChangedDelegate);
-					MovieSceneChangedDelegate.Reset();
-				}
+				SequencerPtr->OnMovieSceneDataChanged().Remove(MovieSceneChangedDelegate);
+				MovieSceneChangedDelegate.Reset();
 			}
 		}
-	});
+	}
 }
 
 bool FAudioTrackEditor::SequenceContainsAudioTrack(const UMovieSceneSequence* InSequence)
