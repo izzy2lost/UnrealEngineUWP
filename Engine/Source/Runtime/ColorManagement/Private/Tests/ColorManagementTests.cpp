@@ -255,7 +255,29 @@ static void TestColorSpaceTransforms(UE::Color::EChromaticAdaptationMethod Metho
 		).GetTransposed();
 		LogTest(TEXT("AP1->Rec709 with Bradford chromatic adaptation"), TestMatricesDoubleEqual(Mat0, Mat1, Tolerance));
 	}
+}
 
+static void TestColorTransforms()
+{
+	using namespace UE::Color;
+
+	// Intentionally misalign the start of FLinearColor member,
+	// as a test against 16-byte (128bit) alignment when using 4 float SIMD instructions.
+	// 
+	// Given that we now load/store from unaligned memory, the above alignment requirement is lifted.
+	struct FAlignmentTest
+	{
+		float Nudge = 0.0f;
+		FLinearColor SrcColor = FLinearColor(1.0f, 0.5f, 0.0f);
+	};
+
+	FColorSpaceTransform Transform = FColorSpaceTransform(FColorSpace(EColorSpace::sRGB), FColorSpace(EColorSpace::ACESAP1), EChromaticAdaptationMethod::Bradford);
+
+	TUniquePtr<FAlignmentTest> AlignmentTest = MakeUnique<FAlignmentTest>();
+	FLinearColor ExpectedResult = FLinearColor(0.78285898f, 0.52837066f, 0.07540048f);
+	FLinearColor Result = Transform.Apply(AlignmentTest->SrcColor);
+
+	LogTest(TEXT("FLinearColor sRGB->AP1 color transform"), Result.Equals(ExpectedResult, UE_SMALL_NUMBER));
 }
 
 static void TestLuminance()
@@ -291,6 +313,8 @@ bool FColorSpaceTest::RunTest(const FString& Parameters)
 	TestColorSpaceTransforms(EChromaticAdaptationMethod::None);
 
 	TestColorSpaceTransforms(EChromaticAdaptationMethod::Bradford);
+
+	TestColorTransforms();
 
 	TestLuminance();
 

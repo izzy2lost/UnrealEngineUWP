@@ -341,9 +341,9 @@ FColorSpaceTransform::FColorSpaceTransform(FMatrix44d Matrix)
 FLinearColor FColorSpaceTransform::Apply(const FLinearColor& Color) const
 {
 	FLinearColor Result;
-	VectorRegister4Float VecP = VectorLoadAligned((const FVector4f*)&Color);
+	VectorRegister4Float VecP = VectorLoad(&Color.R);
 	VectorRegister4Float VecR = VectorTransformVector(VecP, this);
-	VectorStoreAligned(VecR, (FVector4f*)&Result);
+	VectorStore(VecR, &Result.R);
 	return Result;
 }
 
