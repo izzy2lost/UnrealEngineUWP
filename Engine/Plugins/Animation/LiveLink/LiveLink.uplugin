@@ -82,7 +82,8 @@
 		{
 			"Name": "LiveLinkHubMessaging",
 			"Type": "Runtime",
-			"LoadingPhase": "Default"
+			"LoadingPhase": "Default",
+			"ProgramAllowList": [ "LiveLinkHub" ]
 		}
 	]
 }

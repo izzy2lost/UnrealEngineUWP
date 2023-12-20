@@ -74,6 +74,18 @@ void FLiveLinkModule::ShutdownModule()
 	FLiveLinkLogInstance::DestroyInstance();
 }
 
+FDelegateHandle FLiveLinkModule::RegisterMessageBusSourceFilter(const FOnLiveLinkShouldDisplaySource& Delegate)
+{
+	FDelegateHandle Handle = Delegate.GetHandle();
+	RegisteredSourceFilters.FindOrAdd(Handle) = Delegate;
+	return Handle;
+}
+
+void FLiveLinkModule::UnregisterMessageBusSourceFilter(FDelegateHandle Handle)
+{
+	RegisteredSourceFilters.Remove(Handle);
+}
+
 void FLiveLinkModule::CreateStyle()
 {
 	static FName LiveLinkStyle(TEXT("LiveLinkCoreStyle"));

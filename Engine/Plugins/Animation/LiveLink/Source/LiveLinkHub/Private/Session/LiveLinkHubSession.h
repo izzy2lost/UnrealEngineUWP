@@ -81,7 +81,7 @@ public:
 
 	virtual TOptional<FLiveLinkHubSubjectProxy> GetSubjectConfig(const FLiveLinkSubjectKey& SubjectKey) const override
 	{
-		FWriteScopeLock Locker(SessionDataLock);
+		FReadScopeLock Locker(SessionDataLock);
 		return SessionData.SubjectsConfig.GetSubjectConfig(SubjectKey);
 	}
 

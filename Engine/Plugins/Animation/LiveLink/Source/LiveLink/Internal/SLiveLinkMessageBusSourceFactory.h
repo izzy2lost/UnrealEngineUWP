@@ -16,12 +16,14 @@ class ILiveLinkClient;
 class ITableRow;
 class STableViewBase;
 
+
 DECLARE_DELEGATE_OneParam(FOnLiveLinkMessageBusSourceSelected, FProviderPollResultPtr);
 
-class SLiveLinkMessageBusSourceFactory : public SCompoundWidget
+class LIVELINK_API SLiveLinkMessageBusSourceFactory : public SCompoundWidget
 {
 	SLATE_BEGIN_ARGS(SLiveLinkMessageBusSourceFactory) {}
 		SLATE_EVENT(FOnLiveLinkMessageBusSourceSelected, OnSourceSelected)
+		SLATE_ARGUMENT(UClass*, FactoryClass)
 	SLATE_END_ARGS()
 
 	~SLiveLinkMessageBusSourceFactory();
@@ -74,4 +76,7 @@ private:
 
 	/** Time before a source should disappear from the UI after its last pong. */
 	double SecondsBeforeSourcesDisappear = 2.0;
+
+	/** Class of the factory that created this widget. */
+	UClass* FactoryClass = nullptr;
 };
