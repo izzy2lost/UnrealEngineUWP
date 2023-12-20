@@ -109,7 +109,7 @@ namespace uba
 		};
 
 		Process* GetProcess(const ProcessLocation& loc) { return &(sessions[loc.sessionIndex].processors[loc.processorIndex].processes[loc.processIndex]); }
-		void Clear() { sessions.clear(); workTracks.clear(); strings.clear(); startTime = 0; finished = false; };
+		void Clear() { sessions.clear(); workTracks.clear(); strings.clear(); startTime = 0; finished = true; };
 
 		Vector<Session> sessions;
 		Vector<WorkTrack> workTracks;
@@ -138,7 +138,7 @@ namespace uba
 		bool UpdateReadClient(TraceView& out, NetworkClient& client, bool& outChanged);
 
 		// Use for local
-		bool StartReadNamed(TraceView& out, const tchar* namedTrace);
+		bool StartReadNamed(TraceView& out, const tchar* namedTrace, bool silentFail = false);
 		bool UpdateReadNamed(TraceView& out, bool& outChanged);
 
 		bool ReadMemory(TraceView& out, bool trackHost);

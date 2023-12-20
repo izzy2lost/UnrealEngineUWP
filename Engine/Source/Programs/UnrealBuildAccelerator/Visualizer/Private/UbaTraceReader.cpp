@@ -176,12 +176,13 @@ namespace uba
 		return ReadMemory(out, false);
 	}
 
-	bool TraceReader::StartReadNamed(TraceView& out, const tchar* namedTrace)
+	bool TraceReader::StartReadNamed(TraceView& out, const tchar* namedTrace, bool silentFail)
 	{
 		m_memoryHandle.handle = ::OpenFileMappingW(PAGE_READWRITE, false, namedTrace);
 		if (!m_memoryHandle.IsValid())
 		{
-			m_logger.Error(L"OpenFileMappingW - Failed to open file mapping %ls (%ls)", namedTrace, LastErrorToText().data);
+			if (!silentFail)
+				m_logger.Error(L"OpenFileMappingW - Failed to open file mapping %ls (%ls)", namedTrace, LastErrorToText().data);
 			return false;
 		}
 		m_memoryBegin = MapViewOfFile(m_memoryHandle, FILE_MAP_READ, 0, 0);
@@ -189,7 +190,7 @@ namespace uba
 			return false;
 		m_memoryPos = m_memoryBegin;
 		m_memoryEnd = m_memoryBegin;
-
+		m_hostProcess = 0;
 		out.finished = false;
 		out.sessions.emplace_back();
 		out.sessions.back().name = L"LOCAL";
@@ -205,7 +206,7 @@ namespace uba
 		m_memoryEnd = m_memoryBegin + *(u32*)m_memoryBegin;
 		outChanged = !m_activeProcesses.empty() || m_memoryPos != m_memoryEnd;
 		bool res = ReadMemory(out, true);
-		if (WaitForSingleObject(m_hostProcess, 0) != WAIT_TIMEOUT)
+		if (m_hostProcess  && WaitForSingleObject(m_hostProcess, 0) != WAIT_TIMEOUT)
 			StopAllActive(out, GetTime() - m_startTime);
 		return res;
 	}

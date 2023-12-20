@@ -370,8 +370,6 @@ namespace uba
 
 		m_startTime = GetTime();
 
-		SetTimer(m_hwnd, 0, 200, NULL);
-
 		while (m_looping)
 		{
 			MSG msg;
@@ -1766,14 +1764,17 @@ namespace uba
 			}
 			else
 			{
-				if (!m_trace.StartReadNamed(m_traceView, m_newTraceName.data))
+				if (!m_trace.StartReadNamed(m_traceView, m_newTraceName.data, true))
 					return false;
 				m_namedTrace.Clear().Append(m_newTraceName);
 				title.Appendf(L"%s (Listening for new sessions on channel '%s')", m_namedTrace.data, m_listenChannel.data);
 			}
+
+			m_traceView.finished = false;
 			SetWindowTextW(m_hwnd, title.data);
 			SendMessage(m_hwnd, WM_TIMER, 0, 0);
 			UpdateScrollbars(true);
+			SetTimer(m_hwnd, 0, 200, NULL);
 			return 0;
 		}
 
@@ -1847,7 +1848,8 @@ namespace uba
 				RedrawWindow(hWnd, NULL, NULL, RDW_INVALIDATE|RDW_UPDATENOW);
 				u64 paintTimeMs = TimeToMs(GetTime() - startTime);
 				u32 waitTime = u32(Min(paintTimeMs * 5, 200ull));
-				SetTimer(m_hwnd, 0, waitTime, NULL);
+				if (!m_traceView.finished)
+					SetTimer(m_hwnd, 0, waitTime, NULL);
 			}
 			break;
 		}
