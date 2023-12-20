@@ -111,6 +111,7 @@ private:
 	virtual TStatId GetStatId() const override;
 	virtual bool IsTickableWhenPaused() const override { return true; }
 	virtual bool IsTickableInEditor() const override { return true; }
+	virtual bool IsTickable() const override;
 	// End FTickableGameObject
 
 	friend UCustomizableSkeletalComponent;

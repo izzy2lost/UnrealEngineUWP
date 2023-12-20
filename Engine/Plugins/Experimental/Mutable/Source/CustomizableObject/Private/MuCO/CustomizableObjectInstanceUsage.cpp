@@ -584,6 +584,12 @@ TStatId UCustomizableObjectInstanceUsage::GetStatId() const
 }
 
 
+bool UCustomizableObjectInstanceUsage::IsTickable() const
+{
+	return !HasAnyFlags(RF_BeginDestroyed);
+}
+
+
 bool UCustomizableObjectInstanceUsage::IsNetMode(ENetMode InNetMode) const
 {
 	if (CustomizableSkeletalComponent)
