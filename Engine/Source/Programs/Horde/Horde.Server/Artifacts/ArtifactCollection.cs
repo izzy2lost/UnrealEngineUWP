@@ -121,28 +121,32 @@ namespace Horde.Server.Artifacts
 		}
 
 		/// <inheritdoc/>
-		public async IAsyncEnumerable<IArtifact> FindAsync(StreamId streamId, int? minChange = null, int? maxChange = null, ArtifactName? name = null, ArtifactType? type = null, IEnumerable<string>? keys = null, [EnumeratorCancellation] CancellationToken cancellationToken = default)
+		public async IAsyncEnumerable<IArtifact> FindAsync(StreamId? streamId = null, int? minChange = null, int? maxChange = null, ArtifactName? name = null, ArtifactType? type = null, IEnumerable<string>? keys = null, [EnumeratorCancellation] CancellationToken cancellationToken = default)
 		{
-			FilterDefinition<Artifact> filter = Builders<Artifact>.Filter.Eq(x => x.StreamId, streamId);
+			FilterDefinition<Artifact> filter = FilterDefinition<Artifact>.Empty;
+			if (streamId != null)
+			{
+				filter &= Builders<Artifact>.Filter.Eq(x => x.StreamId, streamId.Value);
+			}
 			if (minChange != null)
 			{
-				filter = filter & Builders<Artifact>.Filter.Gte(x => x.Change, minChange.Value);
+				filter &= Builders<Artifact>.Filter.Gte(x => x.Change, minChange.Value);
 			}
 			if (maxChange != null)
 			{
-				filter = filter & Builders<Artifact>.Filter.Lte(x => x.Change, maxChange.Value);
+				filter &= Builders<Artifact>.Filter.Lte(x => x.Change, maxChange.Value);
 			}
 			if (name != null)
 			{
-				filter = filter &= Builders<Artifact>.Filter.Eq(x => x.Name, name.Value);
+				filter &= Builders<Artifact>.Filter.Eq(x => x.Name, name.Value);
 			}
 			if (type != null)
 			{
-				filter = filter &= Builders<Artifact>.Filter.Eq(x => x.Type, type.Value);
+				filter &= Builders<Artifact>.Filter.Eq(x => x.Type, type.Value);
 			}
 			if (keys != null && keys.Any())
 			{
-				filter = filter & Builders<Artifact>.Filter.All(x => x.Keys, keys);
+				filter &= Builders<Artifact>.Filter.All(x => x.Keys, keys);
 			}
 
 			using (IAsyncCursor<Artifact> cursor = await _artifacts.Find(filter).SortByDescending(x => x.Change).ThenByDescending(x => x.Id).ToCursorAsync(cancellationToken))
