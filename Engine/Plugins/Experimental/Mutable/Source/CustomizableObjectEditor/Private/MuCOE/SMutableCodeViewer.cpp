@@ -3183,6 +3183,3 @@ int32 FMutableCodeTreeElement::GetStateIndex() const
 
 
 #undef LOCTEXT_NAMESPACE
-
-
-#undef LOCTEXT_NAMESPACE
