@@ -828,9 +828,21 @@ FSuppressableWarningDialog::FSuppressableWarningDialog(const FSetupInfo& Info)
 	IniSettingName = Info.IniSettingName;
 	IniSettingFileName = Info.IniSettingFileName;
 	Prompt = Info.Message;
-	bDontPersistSuppressionAcrossSessions = Info.bDontPersistSuppressionAcrossSessions;
+	ResponseIniSettingName = Info.IniSettingName + TEXT("_ConfirmResponse");
 
-	if (bDontPersistSuppressionAcrossSessions)
+	// bDontPersistSuppressionAcrossSessions takes precedence until removed
+	PRAGMA_DISABLE_DEPRECATION_WARNINGS
+	if (Info.bDontPersistSuppressionAcrossSessions)
+	PRAGMA_ENABLE_DEPRECATION_WARNINGS
+	{
+		DialogMode = EMode::DontPersistSuppressionAcrossSessions;
+	}
+	else
+	{
+		DialogMode = Info.DialogMode;
+	}
+
+	if (DialogMode == EMode::DontPersistSuppressionAcrossSessions)
 	{
 		bShouldSuppressDialog = SuppressedInTheSession.Contains(SuppressableWarningDialogGetSessionKey(IniSettingName, IniSettingFileName));
 	}
@@ -871,7 +883,7 @@ FSuppressableWarningDialog::EResult FSuppressableWarningDialog::ShowModal() cons
 	bool bShouldSuppressDialog = false;
 
 	// Get the setting from the config file.
-	if (bDontPersistSuppressionAcrossSessions)
+	if (DialogMode == EMode::DontPersistSuppressionAcrossSessions)
 	{
 		bShouldSuppressDialog = SuppressedInTheSession.Contains(SuppressableWarningDialogGetSessionKey(IniSettingName, IniSettingFileName));
 	}
@@ -885,12 +897,13 @@ FSuppressableWarningDialog::EResult FSuppressableWarningDialog::ShowModal() cons
 	{
 		GEditor->EditorAddModalWindow(ModalWindow.ToSharedRef());
 		RetCode = (MessageBox->GetResponse()) ? Confirm : Cancel;
+		
+		// Set the ini variable to the state of the disable check box
+		bShouldSuppressDialog = MessageBox->GetCheckBoxState();
 
 		if( RetCode == Confirm )
 		{
-			// Set the ini variable to the state of the disable check box
-			bShouldSuppressDialog = MessageBox->GetCheckBoxState();
-			if (bDontPersistSuppressionAcrossSessions)
+			if (DialogMode == EMode::DontPersistSuppressionAcrossSessions)
 			{
 				if (bShouldSuppressDialog)
 				{
@@ -899,7 +912,20 @@ FSuppressableWarningDialog::EResult FSuppressableWarningDialog::ShowModal() cons
 			}
 			else
 			{
-				GConfig->SetBool( *ConfigSection, *IniSettingName, bShouldSuppressDialog, IniSettingFileName );
+				GConfig->SetBool(*ConfigSection, *IniSettingName, bShouldSuppressDialog, IniSettingFileName);
+
+				if (DialogMode == EMode::PersistUserResponse)
+				{
+					GConfig->SetBool(*ConfigSection, *ResponseIniSettingName, true, IniSettingFileName);
+				}
+			}
+		}
+		else
+		{
+			if (DialogMode == EMode::PersistUserResponse)
+			{
+				GConfig->SetBool(*ConfigSection, *IniSettingName, bShouldSuppressDialog, IniSettingFileName);
+				GConfig->SetBool(*ConfigSection, *ResponseIniSettingName, false, IniSettingFileName);
 			}
 		}
 	}
@@ -907,6 +933,15 @@ FSuppressableWarningDialog::EResult FSuppressableWarningDialog::ShowModal() cons
 	{
 		// If the dialog is suppressed, log the warning
 		UE_LOG(LogDialogs, Warning, TEXT("Suppressed: %s"), *Prompt.ToString());
+
+		if (DialogMode == EMode::PersistUserResponse)
+		{
+			// Get the saved response
+			bool bWasConfirmed = false;
+			GConfig->GetBool(*ConfigSection, *ResponseIniSettingName, bWasConfirmed, IniSettingFileName);
+
+			RetCode = bWasConfirmed ? Confirm : Cancel;
+		}
 	}
 
 	return RetCode;

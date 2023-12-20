@@ -1409,11 +1409,9 @@ void FAudioTrackEditor::OnAttachedAudioEnterPressed(const TArray<FAssetData>& As
 
 void FAudioTrackEditor::RegisterMovieSceneChangedDelegate(TSharedRef<ISequencer> InSequencer)
 {
-	// Check the sequence prior to installing the delegate
-	if (CheckSequenceClockSource())
+	if (SequenceContainsAudioTrack(InSequencer->GetRootMovieSceneSequence()))
 	{
-		// If we are here then either the clock source for this sequence is already set to audio clock or
-		// there is an audio track and the user has been notified. Either way, no need to install the delegate. 
+		// This sequence already has an audio track. Don't install the delegate.
 		return;
 	}
 	
@@ -1436,6 +1434,55 @@ void FAudioTrackEditor::RegisterMovieSceneChangedDelegate(TSharedRef<ISequencer>
 	});
 }
 
+bool FAudioTrackEditor::SequenceContainsAudioTrack(const UMovieSceneSequence* InSequence)
+{
+	if (!InSequence)
+	{
+		return false;
+	}
+
+	if (UMovieScene* MovieScene = InSequence->GetMovieScene())
+	{
+		for (const UMovieSceneTrack* Track : MovieScene->GetTracks())
+		{
+			if (Cast<UMovieSceneAudioTrack>(Track))
+			{
+				return true;
+			}
+
+			const UMovieSceneSubTrack* SubTrack = Cast<UMovieSceneSubTrack>(Track);
+			if (!SubTrack)
+			{
+				continue;
+			}
+
+			for (const UMovieSceneSection* Section : SubTrack->GetAllSections())
+			{
+				const UMovieSceneSubSection* SubSection = Cast<UMovieSceneSubSection>(Section);
+				if (!SubSection)
+				{
+					continue;
+				}
+
+				UMovieSceneSequence* SubSequence = SubSection->GetSequence();
+				if (!SubSequence)
+				{
+					continue;
+				}
+				else
+				{
+					if (SequenceContainsAudioTrack(SubSequence))
+					{
+						return true;
+					}
+				}
+			}
+		}
+	}
+
+	return false;
+}
+
 bool FAudioTrackEditor::CheckSequenceClockSource()
 {
 	TSharedPtr<ISequencer> SequencerPtr = GetSequencer();
@@ -1445,7 +1492,7 @@ bool FAudioTrackEditor::CheckSequenceClockSource()
 	{
 		if (UMovieScene* MovieScene = RootSequence->GetMovieScene())
 		{
-			const bool bHasAudioTrack = (MovieScene->FindTrack(UMovieSceneAudioTrack::StaticClass()) != nullptr);
+			const bool bHasAudioTrack = SequenceContainsAudioTrack(RootSequence);
 			const bool bIsUsingAudioClock = (MovieScene->GetClockSource() == EUpdateClockSource::Audio);
 
 			if (bIsUsingAudioClock)
@@ -1453,9 +1500,12 @@ bool FAudioTrackEditor::CheckSequenceClockSource()
 				// If sequence is already using audio clock, we're done
 				return true;
 			} 
-			else if (bHasAudioTrack && !MovieScene->IsReadOnly())
+			else if (bHasAudioTrack)
 			{
-				PromptUserForClockSource();
+				if (!MovieScene->IsReadOnly())
+				{
+					PromptUserForClockSource();
+				}
 
 				// Only prompt once per sequencer instance to avoid dialog thrashing
 				return true;
@@ -1471,13 +1521,14 @@ void FAudioTrackEditor::PromptUserForClockSource()
 	FSuppressableWarningDialog::FSetupInfo SetupInfo(
 		LOCTEXT("AutoSelectAudioClockSource_Message", "It is recommended to use the audio clock as the clock source when working with audio tracks in sequencer for improved synchronization between animation and audio. Would you like to switch the clock source now?"),
 		LOCTEXT("AutoSelectAudioClockSource_Title", "Use Audio Clock Source?"),
-		TEXT("AutoSelectAudioClockSource_Dialog"));
+		TEXT("AutoSelectAudioClockSource_SuppressDialog"));
 
 	SetupInfo.ConfirmText = LOCTEXT("AutoSelectAudioClockSource_ConfirmText", "Yes");
 	SetupInfo.CancelText = LOCTEXT("AutoSelectAudioClockSource_CancelText", "No");
 	SetupInfo.CheckBoxText = LOCTEXT("AutoSelectAudioClockSource_CheckBoxText", "Don't show this again");
 	SetupInfo.bDefaultToSuppressInTheFuture = false;
-
+	SetupInfo.DialogMode = FSuppressableWarningDialog::EMode::PersistUserResponse;
+	
 	FSuppressableWarningDialog SwitchToAudioClockSourceDialog(SetupInfo);
 	FSuppressableWarningDialog::EResult Result = SwitchToAudioClockSourceDialog.ShowModal();
 
@@ -1485,10 +1536,6 @@ void FAudioTrackEditor::PromptUserForClockSource()
 	{
 		// Configure this sequence's clock source to use the audio clock
 		SetClockSoureToAudioClock();
-	}
-	else if (Result == FSuppressableWarningDialog::Suppressed)
-	{
-		UE_LOG(LogMovieScene, Display, TEXT("It is recommended to use the audio clock as the clock source when working with audio tracks in sequencer for improved synchronization between animation and audio. Consider switching to the audio clock source."));
 	}
 }
 

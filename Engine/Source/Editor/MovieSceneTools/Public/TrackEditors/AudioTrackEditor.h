@@ -99,6 +99,9 @@ private:
 	/** Registers a delegate with the given sequencer for monitoring edits */
 	void RegisterMovieSceneChangedDelegate(TSharedRef<ISequencer> InSequencer);
 
+	/** Returns true if the given Sequence or any subsequence contains an audio track */
+	bool SequenceContainsAudioTrack(const UMovieSceneSequence* InSequence);
+
 	/** Will return true if a sequence contains an audio track and the user was notified about the potential clock source issue */
 	bool CheckSequenceClockSource();
 

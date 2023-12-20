@@ -77,7 +77,22 @@ class FSuppressableWarningDialog
 {
 public:
 
-	/** 
+	/**
+	 * Optional mode of operation for FSuppressableWarningDialog
+	 */
+	enum class EMode
+	{
+		/** Default behavior for dialog */
+		Default,
+
+		/** Dialog suppression will not persist after editor closes */
+		DontPersistSuppressionAcrossSessions,
+
+		/** Persist user result */
+		PersistUserResponse
+	};
+
+	/**
 	 * Struct used to initialize FSuppressableWarningDialog
 	 * 
 	 * User must provide confirm text, and cancel text (if using cancel button)
@@ -100,7 +115,11 @@ public:
 		bool bDefaultToSuppressInTheFuture;
 
 		/** If true suppression will not persist for future editor sessions */
+		UE_DEPRECATED(5.4, "bDontPersistSuppressionAcrossSessions is deprecated, please use FSetupInfo::DialogMode instead.")
 		bool bDontPersistSuppressionAcrossSessions;
+
+		/** Optional mode of operation for FSuppressableWarningDialog */
+		EMode DialogMode;
 
 		/** Wrap message at specified length, zero or negative number will disable the wrapping */
 		float WrapMessageAt;
@@ -132,6 +151,7 @@ public:
 			, IniSettingFileName(InIniSettingFileName)
 			, bDefaultToSuppressInTheFuture(false)
 			, bDontPersistSuppressionAcrossSessions(false)
+			, DialogMode(EMode::Default)
 			, WrapMessageAt(512.0f)
 			, ConfirmText()
 			, CancelText()
@@ -164,6 +184,9 @@ private:
 	/** Name of the flag which controls whether to launch the warning */
 	FString IniSettingName;
 
+	/** The name of the setting which stores the user response when dismissing the dialog. */
+	FString ResponseIniSettingName;
+
 	/** Name of the file which stores the IniSettingName flag result */
 	FString IniSettingFileName;
 
@@ -176,8 +199,8 @@ private:
 	/** Cached pointer to the message box held within the window */
 	TSharedPtr<class SModalDialogWithCheckbox> MessageBox;
 
-	/** If true suppression will not persist for future editor sessions */
-	bool bDontPersistSuppressionAcrossSessions;
+	/** Optional mode of operation */
+	EMode DialogMode;
 
 	/** Set of session only suppressions */
 	static TSet<FString> SuppressedInTheSession;

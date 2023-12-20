@@ -2686,7 +2686,7 @@ bool FMaterialEditor::UpdateOriginalMaterial()
 				FText::Format(NSLOCTEXT("UnrealEd", "Error_CompileErrorsInDefaultMaterial", "The current material has the following compilation errors:\n{0}\nThis material is a Default Material which must be available as a code fallback at all times, compilation errors are not allowed."), JoinedErrors),
 				NSLOCTEXT("UnrealEd", "Warning_CompileErrorsInDefaultMaterial_Title", "Error: Compilation errors in Default Material"), "Error_CompileErrorsInDefaultMaterial");
 			Info.ConfirmText = NSLOCTEXT("ModalDialogs", "CompileErrorsInDefaultMaterialOk", "Ok");
-			Info.bDontPersistSuppressionAcrossSessions = true;
+			Info.DialogMode = FSuppressableWarningDialog::EMode::DontPersistSuppressionAcrossSessions;
 			Info.WrapMessageAt = 0.0f;
 
 			FSuppressableWarningDialog CompileErrors(Info);
@@ -2700,7 +2700,7 @@ bool FMaterialEditor::UpdateOriginalMaterial()
 				NSLOCTEXT("UnrealEd", "Warning_CompileErrorsInMaterial_Title", "Warning: Compilation errors in this Material" ), "Warning_CompileErrorsInMaterial");
 			Info.ConfirmText = NSLOCTEXT("ModalDialogs", "CompileErrorsInMaterialConfirm", "Continue");
 			Info.CancelText = NSLOCTEXT("ModalDialogs", "CompileErrorsInMaterialCancel", "Abort");
-			Info.bDontPersistSuppressionAcrossSessions = true;
+			Info.DialogMode = FSuppressableWarningDialog::EMode::DontPersistSuppressionAcrossSessions;
 			Info.WrapMessageAt = 0.0f;
 
 			FSuppressableWarningDialog CompileErrorsWarning( Info );
