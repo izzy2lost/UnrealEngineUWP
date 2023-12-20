@@ -114,7 +114,7 @@ namespace uba
 			return true;
 		}
 
-		virtual void RepairMalformedLibPath(const wchar_t* path)
+		virtual void RepairMalformedLibPath(const tchar* path)
 		{
 			// Do nothing
 		}
