@@ -66,10 +66,12 @@ public:
 	virtual void SetJustification(ETextJustify::Type InJustification) { Justification = InJustification; }
 
 	UMG_API void SetLineHeightPercentage(float InLineHeightPercentage);
+	UMG_API void SetApplyLineHeightToBottomLine(bool InApplyLineHeightToBottomLine);
 	UMG_API void SetMargin(const FMargin& InMargin);
 
 protected:
 	virtual void OnLineHeightPercentageChanged(float InLineHeightPercentage) {};
+	virtual void OnApplyLineHeightToBottomLineChanged(bool InApplyLineHeightToBottomLine) {};
 	virtual void OnMarginChanged(const FMargin& InMargin) {};
 
 	/** Synchronize the properties with the given widget. A template as the Slate widgets conform to the same API, but don't derive from a common base. */
@@ -84,6 +86,7 @@ protected:
 		InWidget.SetWrappingPolicy(WrappingPolicy);
 		InWidget.SetMargin(Margin);
 		InWidget.SetLineHeightPercentage(LineHeightPercentage);
+		InWidget.SetApplyLineHeightToBottomLine(ApplyLineHeightToBottomLine);
 	}
 
 	/** Controls how the text within this widget should be shaped. */
@@ -113,4 +116,8 @@ protected:
 	/** The amount to scale each lines height by. */
 	UPROPERTY(EditAnywhere, BlueprintReadWrite, Setter, Category=Appearance, AdvancedDisplay)
 	float LineHeightPercentage;
+
+	/** Whether to leave extra space below the last line due to line height. */
+	UPROPERTY(EditAnywhere, BlueprintReadWrite, Setter, Category=Appearance, AdvancedDisplay)
+	bool ApplyLineHeightToBottomLine;
 };

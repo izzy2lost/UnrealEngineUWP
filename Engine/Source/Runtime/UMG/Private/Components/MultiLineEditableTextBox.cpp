@@ -144,6 +144,15 @@ void UMultiLineEditableTextBox::OnLineHeightPercentageChanged(float InLineHeight
 	}
 }
 
+void UMultiLineEditableTextBox::OnApplyLineHeightToBottomLineChanged(bool InApplyLineHeightToBottomLine)
+{
+	Super::OnApplyLineHeightToBottomLineChanged(InApplyLineHeightToBottomLine);
+	if (MyEditableTextBlock.IsValid())
+	{
+		MyEditableTextBlock->SetApplyLineHeightToBottomLine(InApplyLineHeightToBottomLine);
+	}
+}
+
 void UMultiLineEditableTextBox::OnMarginChanged(const FMargin& InMargin)
 {
 	Super::OnMarginChanged(InMargin);

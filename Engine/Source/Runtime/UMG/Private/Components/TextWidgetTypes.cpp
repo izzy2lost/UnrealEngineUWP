@@ -23,6 +23,7 @@ UTextLayoutWidget::UTextLayoutWidget(const FObjectInitializer& ObjectInitializer
 	WrappingPolicy = ETextWrappingPolicy::DefaultWrapping;
 	Margin = FMargin(0.0f);
 	LineHeightPercentage = 1.0f;
+	ApplyLineHeightToBottomLine = true;
 }
 
 void UTextLayoutWidget::SetLineHeightPercentage(float InLineHeightPercentage)
@@ -31,6 +32,15 @@ void UTextLayoutWidget::SetLineHeightPercentage(float InLineHeightPercentage)
 	{
 		LineHeightPercentage = InLineHeightPercentage;
 		OnLineHeightPercentageChanged(InLineHeightPercentage);
+	}
+}
+
+void UTextLayoutWidget::SetApplyLineHeightToBottomLine(bool InApplyLineHeightToBottomLine)
+{
+	if (ApplyLineHeightToBottomLine != InApplyLineHeightToBottomLine)
+	{
+		ApplyLineHeightToBottomLine = InApplyLineHeightToBottomLine;
+		OnApplyLineHeightToBottomLineChanged(InApplyLineHeightToBottomLine);
 	}
 }
 

@@ -133,6 +133,15 @@ void UMultiLineEditableText::OnLineHeightPercentageChanged(float InLineHeightPer
 	}
 }
 
+void UMultiLineEditableText::OnApplyLineHeightToBottomLineChanged(bool InApplyLineHeightToBottomLine)
+{
+	Super::OnApplyLineHeightToBottomLineChanged(InApplyLineHeightToBottomLine);
+	if (MyMultiLineEditableText.IsValid())
+	{
+		MyMultiLineEditableText->SetApplyLineHeightToBottomLine(InApplyLineHeightToBottomLine);
+	}
+}
+
 void UMultiLineEditableText::OnMarginChanged(const FMargin& InMargin)
 {
 	Super::OnMarginChanged(InMargin);

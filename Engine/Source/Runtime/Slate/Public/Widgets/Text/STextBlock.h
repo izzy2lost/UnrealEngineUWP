@@ -59,6 +59,7 @@ public:
 		, _TransformPolicy()
 		, _Margin()
 		, _LineHeightPercentage(1.0f)
+		, _ApplyLineHeightToBottomLine(true)
 		, _Justification(ETextJustify::Left)
 		, _MinDesiredWidth(0.0f)
 		, _TextShapingMethod()
@@ -119,6 +120,9 @@ public:
 
 		/** The amount to scale each lines height by. */
 		SLATE_ATTRIBUTE( float, LineHeightPercentage )
+
+		/** Whether to leave extra space below the last line due to line height. */
+		SLATE_ATTRIBUTE( bool, ApplyLineHeightToBottomLine )
 
 		/** How the text should be aligned with the margin. */
 		SLATE_ATTRIBUTE( ETextJustify::Type, Justification )
@@ -240,6 +244,9 @@ public:
 	/** See LineHeightPercentage attribute */
 	SLATE_API void SetLineHeightPercentage(TAttribute<float> InLineHeightPercentage);
 
+	/** See ApplyLineHeightToBottomLine attribute */
+	SLATE_API void SetApplyLineHeightToBottomLine(TAttribute<bool> InApplyLineHeightToBottomLine);
+
 	/** See Margin attribute */
 	SLATE_API void SetMargin(TAttribute<FMargin> InMargin);
 
@@ -359,6 +366,9 @@ private:
 
 	/** How the text should be aligned with the margin. */
 	TSlateAttribute<float> LineHeightPercentage;
+
+	/** Whether to leave extra space below the last line due to line height. */
+	TSlateAttribute<bool> ApplyLineHeightToBottomLine;
 
 	/** Prevents the text block from being smaller than desired in certain cases (e.g. when it is empty) */
 	TSlateAttribute<float> MinDesiredWidth;

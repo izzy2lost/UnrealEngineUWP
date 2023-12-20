@@ -29,6 +29,7 @@ FTextScrollerOptions UCommonTextScrollStyle::ToScrollOptions() const
 UCommonTextStyle::UCommonTextStyle()
 	: Color(FLinearColor::Black)
 	, LineHeightPercentage(1.0f)
+	, ApplyLineHeightToBottomLine(true)
 {
 }
 
@@ -50,6 +51,11 @@ void UCommonTextStyle::GetMargin(FMargin& OutMargin) const
 float UCommonTextStyle::GetLineHeightPercentage() const
 {
 	return LineHeightPercentage;
+}
+
+bool UCommonTextStyle::GetApplyLineHeightToBottomLine() const
+{
+	return ApplyLineHeightToBottomLine;
 }
 
 void UCommonTextStyle::GetShadowOffset(FVector2D& OutShadowOffset) const
@@ -82,6 +88,7 @@ void UCommonTextStyle::ApplyToTextBlock(const TSharedRef<STextBlock>& TextBlock)
 	TextBlock->SetStrikeBrush(&StrikeBrush);
 	TextBlock->SetMargin(Margin);
 	TextBlock->SetLineHeightPercentage(LineHeightPercentage);
+	TextBlock->SetApplyLineHeightToBottomLine(ApplyLineHeightToBottomLine);
 	TextBlock->SetColorAndOpacity(Color);
 	if (bUsesDropShadow)
 	{
@@ -212,6 +219,9 @@ void UCommonTextBlock::PostLoad()
 			// LineHeightPercentage
 			if (LineHeightPercentage == CDO->LineHeightPercentage) { LineHeightPercentage = DefaultStyleCDO->LineHeightPercentage; } else { bAllDefaults = false; }
 
+			// ApplyLineHeightToBottomLine
+			if (ApplyLineHeightToBottomLine == CDO->ApplyLineHeightToBottomLine) { ApplyLineHeightToBottomLine = DefaultStyleCDO->ApplyLineHeightToBottomLine; } else { bAllDefaults = false; }
+
 			// ColorAndOpacity
 			if (GetColorAndOpacity() == CDO->GetColorAndOpacity()) { SetColorAndOpacity(DefaultStyleCDO->Color); } else { bAllDefaults = false; }
 
@@ -297,6 +307,7 @@ void UCommonTextBlock::Serialize(FArchive& Ar)
 		FSlateBrush TempStrikeBrush;
 		FMargin TempMargin;
 		float TempLineHeightPercentage = 1.f;
+		bool TempApplyLineHeightToBottomLine = true;
 		FSlateColor TempColorAndOpacity;
 		FVector2D TempShadowOffset = FVector2D::ZeroVector;
 		FLinearColor TempShadowColorAndOpacity = FLinearColor::Transparent;
@@ -306,6 +317,7 @@ void UCommonTextBlock::Serialize(FArchive& Ar)
 		Swap(StrikeBrush, TempStrikeBrush);
 		Swap(Margin, TempMargin);
 		Swap(LineHeightPercentage, TempLineHeightPercentage);
+		Swap(ApplyLineHeightToBottomLine, TempApplyLineHeightToBottomLine);
 		Swap(ColorAndOpacity, TempColorAndOpacity);
 		Swap(ShadowOffset, TempShadowOffset);
 		Swap(ShadowColorAndOpacity, TempShadowColorAndOpacity);
@@ -316,6 +328,7 @@ void UCommonTextBlock::Serialize(FArchive& Ar)
 		Swap(TempStrikeBrush, StrikeBrush);
 		Swap(TempMargin, Margin);
 		Swap(TempLineHeightPercentage, LineHeightPercentage);
+		Swap(TempApplyLineHeightToBottomLine, ApplyLineHeightToBottomLine);
 		Swap(TempColorAndOpacity, ColorAndOpacity);
 		Swap(TempShadowOffset, ShadowOffset);
 		Swap(TempShadowColorAndOpacity, ShadowColorAndOpacity);
@@ -349,6 +362,11 @@ void UCommonTextBlock::SetTextCase(bool bUseAllCaps)
 void UCommonTextBlock::SetLineHeightPercentage(float InLineHeightPercentage)
 {
 	UTextLayoutWidget::SetLineHeightPercentage(InLineHeightPercentage);
+}
+
+void UCommonTextBlock::SetApplyLineHeightToBottomLine(bool InApplyLineHeightToBottomLine)
+{
+	UTextLayoutWidget::SetApplyLineHeightToBottomLine(InApplyLineHeightToBottomLine);
 }
 
 void UCommonTextBlock::SetStyle(TSubclassOf<UCommonTextStyle> InStyle)
@@ -474,6 +492,7 @@ void UCommonTextBlock::UpdateFromStyle()
 		SetStrikeBrush(TextStyle->StrikeBrush);
 		Margin = TextStyle->Margin;
 		LineHeightPercentage = TextStyle->LineHeightPercentage;
+		ApplyLineHeightToBottomLine = TextStyle->ApplyLineHeightToBottomLine;
 		SetColorAndOpacity(TextStyle->Color);
 
 		if (TextStyle->bUsesDropShadow)
@@ -528,6 +547,7 @@ PRAGMA_DISABLE_DEPRECATION_WARNINGS
 				GET_MEMBER_NAME_CHECKED(UCommonTextBlock, StrikeBrush),
 				GET_MEMBER_NAME_CHECKED(UCommonTextBlock, Margin),
 				GET_MEMBER_NAME_CHECKED(UCommonTextBlock, LineHeightPercentage),
+				GET_MEMBER_NAME_CHECKED(UCommonTextBlock, ApplyLineHeightToBottomLine),
 				GET_MEMBER_NAME_CHECKED(UCommonTextBlock, ColorAndOpacity),
 				GET_MEMBER_NAME_CHECKED(UCommonTextBlock, ShadowOffset),
 				GET_MEMBER_NAME_CHECKED(UCommonTextBlock, ShadowColorAndOpacity)

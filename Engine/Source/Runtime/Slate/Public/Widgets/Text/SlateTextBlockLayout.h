@@ -31,6 +31,7 @@ public:
 			const ETextTransformPolicy InTransformPolicy,
 			const FMargin& InMargin,
 			const float InLineHeightPercentage,
+			const bool InApplyLineHeightToBottomLine,
 			const ETextJustify::Type InJustification
 		)
 			: Text(InText)
@@ -38,6 +39,31 @@ public:
 			, Margin(InMargin)
 			, WrapTextAt(InWrapTextAt)
 			, LineHeightPercentage(InLineHeightPercentage)
+			, ApplyLineHeightToBottomLine(InApplyLineHeightToBottomLine)
+			, WrappingPolicy(InWrappingPolicy)
+			, TransformPolicy(InTransformPolicy)
+			, Justification(InJustification)
+			, AutoWrapText(InAutoWrapText)
+		{
+		}
+
+		FORCEINLINE FWidgetDesiredSizeArgs(
+			const FText& InText,
+			const FText& InHighlightText,
+			const float InWrapTextAt,
+			const bool InAutoWrapText,
+			const ETextWrappingPolicy InWrappingPolicy,
+			const ETextTransformPolicy InTransformPolicy,
+			const FMargin& InMargin,
+			const float InLineHeightPercentage,
+			const ETextJustify::Type InJustification
+		)
+			: Text(InText)
+			, HighlightText(InHighlightText)
+			, Margin(InMargin)
+			, WrapTextAt(InWrapTextAt)
+			, LineHeightPercentage(InLineHeightPercentage)
+			, ApplyLineHeightToBottomLine(true)
 			, WrappingPolicy(InWrappingPolicy)
 			, TransformPolicy(InTransformPolicy)
 			, Justification(InJustification)
@@ -50,6 +76,7 @@ public:
 		const FMargin Margin;
 		const float WrapTextAt = 0.f;
 		const float LineHeightPercentage;
+		const bool ApplyLineHeightToBottomLine;
 		const ETextWrappingPolicy WrappingPolicy;
 		const ETextTransformPolicy TransformPolicy;
 		const ETextJustify::Type Justification;
@@ -70,7 +97,7 @@ public:
 			const TAttribute<FMargin>& InMargin, 
 			const TAttribute<float>& InLineHeightPercentage, 
 			const TAttribute<ETextJustify::Type>& InJustification
-			)
+		)
 			: Text(InText)
 			, HighlightText(InHighlightText)
 			, WrapTextAt(InWrapTextAt)

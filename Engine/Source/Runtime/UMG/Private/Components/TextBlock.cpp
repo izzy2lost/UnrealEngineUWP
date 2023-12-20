@@ -161,6 +161,15 @@ void UTextBlock::OnLineHeightPercentageChanged(float InLineHeightPercentage)
 	}
 }
 
+void UTextBlock::OnApplyLineHeightToBottomLineChanged(bool InApplyLineHeightToBottomLine)
+{
+	Super::OnApplyLineHeightToBottomLineChanged(InApplyLineHeightToBottomLine);
+	if (MyTextBlock.IsValid())
+	{
+		MyTextBlock->SetApplyLineHeightToBottomLine(InApplyLineHeightToBottomLine);
+	}
+}
+
 void UTextBlock::OnMarginChanged(const FMargin& InMargin)
 {
 	Super::OnMarginChanged(InMargin);

@@ -229,6 +229,7 @@ public:
 protected:
 	//~ Begin UTextLayoutWidget Interface
 	UMG_API virtual void OnLineHeightPercentageChanged(float InLineHeightPercentage) override;
+	UMG_API virtual void OnApplyLineHeightToBottomLineChanged(bool InApplyLineHeightToBottomLine) override;
 	UMG_API virtual void OnMarginChanged(const FMargin& InMargin) override;
 	//~ End UTextLayoutWidget Interface
 

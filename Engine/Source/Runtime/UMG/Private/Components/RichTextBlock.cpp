@@ -413,6 +413,15 @@ void URichTextBlock::OnLineHeightPercentageChanged(float InLineHeightPercentage)
 	}
 }
 
+void URichTextBlock::OnApplyLineHeightToBottomLineChanged(bool InApplyLineHeightToBottomLine)
+{
+	Super::OnApplyLineHeightToBottomLineChanged(InApplyLineHeightToBottomLine);
+	if (MyRichTextBlock.IsValid())
+	{
+		MyRichTextBlock->SetApplyLineHeightToBottomLine(InApplyLineHeightToBottomLine);
+	}
+}
+
 void URichTextBlock::OnMarginChanged(const FMargin& InMargin)
 {
 	Super::OnMarginChanged(InMargin);

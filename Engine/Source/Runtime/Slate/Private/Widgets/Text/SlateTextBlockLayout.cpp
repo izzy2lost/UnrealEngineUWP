@@ -86,6 +86,7 @@ FVector2D FSlateTextBlockLayout::ComputeDesiredSize(const FWidgetDesiredSizeArgs
 	TextLayout->SetMargin(InWidgetArgs.Margin);
 	TextLayout->SetJustification(InWidgetArgs.Justification);
 	TextLayout->SetLineHeightPercentage(InWidgetArgs.LineHeightPercentage);
+	TextLayout->SetApplyLineHeightToBottomLine(InWidgetArgs.ApplyLineHeightToBottomLine);
 
 	// Has the transform policy changed? If so we need a full refresh as that is destructive to the model text
 	if (PreviousTransformPolicy != TextLayout->GetTransformPolicy())
@@ -159,6 +160,7 @@ FVector2D FSlateTextBlockLayout::ComputeDesiredSize(const FWidgetArgs& InWidgetA
 	TextLayout->SetMargin(InWidgetArgs.Margin.Get());
 	TextLayout->SetJustification(InWidgetArgs.Justification.Get());
 	TextLayout->SetLineHeightPercentage(InWidgetArgs.LineHeightPercentage.Get());
+	TextLayout->SetApplyLineHeightToBottomLine(true);
 
 	// Has the transform policy changed? If so we need a full refresh as that is destructive to the model text
 	if (PreviousTransformPolicy != TextLayout->GetTransformPolicy())

@@ -76,6 +76,8 @@ void STextBlock::PrivateRegisterAttributes(FSlateAttributeInitializer& Attribute
 		.OnValueChanged(FSlateAttributeDescriptor::FAttributeValueChangedDelegate::CreateStatic(FInvalidation::UpdateDesiredSize));
 	SLATE_ADD_MEMBER_ATTRIBUTE_DEFINITION(AttributeInitializer, LineHeightPercentage, FInvalidation::GetInvalidationNoneIfSimpleTextMode)
 		.OnValueChanged(FSlateAttributeDescriptor::FAttributeValueChangedDelegate::CreateStatic(FInvalidation::UpdateDesiredSize));
+	SLATE_ADD_MEMBER_ATTRIBUTE_DEFINITION(AttributeInitializer, ApplyLineHeightToBottomLine, FInvalidation::GetInvalidationNoneIfSimpleTextMode)
+		.OnValueChanged(FSlateAttributeDescriptor::FAttributeValueChangedDelegate::CreateStatic(FInvalidation::UpdateDesiredSize));
 	SLATE_ADD_MEMBER_ATTRIBUTE_DEFINITION(AttributeInitializer, MinDesiredWidth, EInvalidateWidgetReason::Layout);
 }
 
@@ -96,6 +98,7 @@ STextBlock::STextBlock()
 	, Margin(*this)
 	, Justification(*this)
 	, LineHeightPercentage(*this, 1.0f)
+	, ApplyLineHeightToBottomLine(*this, true)
 	, MinDesiredWidth(*this, 0.0f)
 	, Union_Flags(0)
 	, bSimpleTextMode(false)
@@ -129,6 +132,7 @@ void STextBlock::Construct( const FArguments& InArgs )
 
 	SetMargin(InArgs._Margin);
 	SetLineHeightPercentage(InArgs._LineHeightPercentage);
+	SetApplyLineHeightToBottomLine(InArgs._ApplyLineHeightToBottomLine);
 	SetJustification(InArgs._Justification);
 	SetMinDesiredWidth(InArgs._MinDesiredWidth);
 
@@ -459,6 +463,11 @@ void STextBlock::SetLineHeightPercentage(TAttribute<float> InLineHeightPercentag
 	LineHeightPercentage.Assign(*this, MoveTemp(InLineHeightPercentage));
 }
 
+void STextBlock::SetApplyLineHeightToBottomLine(TAttribute<bool> InApplyLineHeightToBottomLine)
+{
+	ApplyLineHeightToBottomLine.Assign(*this, MoveTemp(InApplyLineHeightToBottomLine));
+}
+
 void STextBlock::SetMargin(TAttribute<FMargin> InMargin)
 {
 	Margin.Assign(*this, MoveTemp(InMargin));
@@ -507,6 +516,7 @@ void STextBlock::UpdateTextBlockLayout(float LayoutScaleMultiplier) const
 			GetTransformPolicyImpl(),
 			Margin.Get(),
 			LineHeightPercentage.Get(),
+			ApplyLineHeightToBottomLine.Get(),
 			Justification.Get()
 		);
 		TextLayoutCache->ComputeDesiredSize(DesiredSizeArgs, LayoutScaleMultiplier);
