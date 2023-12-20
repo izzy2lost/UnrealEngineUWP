@@ -359,11 +359,6 @@ static bool UsePrimitiveShader()
 	return CVarNanitePrimShaderRasterization.GetValueOnAnyThread() != 0 && GRHISupportsPrimitiveShaders;
 }
 
-static bool TessellationEnabled()
-{
-	return CVarNaniteTessellation.GetValueOnAnyThread() != 0 && NaniteTessellationSupported();
-}
-
 static uint32 GetMaxPatchesPerGroup()
 {
 	return (uint32)FMath::Max(1, FMath::Min(CVarNaniteMaxPatchesPerGroup.GetValueOnRenderThread(), GRHIMinimumWaveSize / 3));
@@ -1258,7 +1253,7 @@ static uint32 PackMaterialBitFlags(const FMaterial& RasterMaterial, bool bMateri
 	Flags.bPixelDiscard = RasterMaterial.IsMasked();
 	Flags.bPixelDepthOffset = bMaterialUsesPixelDepthOffset;
 	Flags.bWorldPositionOffset = !bForceDisableWPO && bMaterialUsesWorldPositionOffset;
-	Flags.bDisplacement = TessellationEnabled() && bMaterialUsesDisplacement;
+	Flags.bDisplacement = UseNaniteTessellation() && bMaterialUsesDisplacement;
 	Flags.bSplineMesh = bSplineMesh;
 	Flags.bTwoSided = RasterMaterial.IsTwoSided();
 	return PackNaniteMaterialBitFlags(Flags);
@@ -3526,7 +3521,7 @@ FBinningData FRenderer::AddPass_Rasterize(
 				RasterMaterialCacheKey.bForceDisableWPO = RasterEntry.bForceDisableWPO;
 				RasterMaterialCacheKey.bUseMeshShader = bUseMeshShader;
 				RasterMaterialCacheKey.bUsePrimitiveShader = bUsePrimitiveShader;
-				RasterMaterialCacheKey.bUseDisplacement = TessellationEnabled();
+				RasterMaterialCacheKey.bUseDisplacement = UseNaniteTessellation();
 				RasterMaterialCacheKey.bVisualizeActive = VisualizeActive;
 				RasterMaterialCacheKey.bHasVirtualShadowMap = bHasVirtualShadowMap;
 				RasterMaterialCacheKey.bIsDepthOnly = RasterMode == EOutputBufferMode::DepthOnly;
@@ -3962,7 +3957,7 @@ void FRenderer::AddPass_PatchSplit(
 	FRDGBufferRef VisiblePatchesArgs,
 	uint32 CullingPass )
 {
-	if (!TessellationEnabled())
+	if (!UseNaniteTessellation())
 	{
 		return;
 	}
@@ -4029,7 +4024,7 @@ void FRenderer::AddPass_PatchSplit(
 
 void FRenderer::AddPass_ClearSplitQueue(const FGlobalWorkQueueParameters& SplitWorkQueue)
 {
-	if (!TessellationEnabled())
+	if (!UseNaniteTessellation())
 	{
 		return;
 	}
@@ -4342,7 +4337,7 @@ void FRenderer::DrawGeometry(
 {
 	LLM_SCOPE_BYTAG(Nanite);
 
-	const bool bTessellationEnabled = TessellationEnabled() && (RenderFlags & NANITE_RENDER_FLAG_DISABLE_PROGRAMMABLE) == 0u;
+	const bool bTessellationEnabled = UseNaniteTessellation() && (RenderFlags & NANITE_RENDER_FLAG_DISABLE_PROGRAMMABLE) == 0u;
 	
 	// Split rasterization into multiple passes if there are too many views. Only possible for depth-only rendering.
 	if (ViewArray.NumViews > NANITE_MAX_VIEWS_PER_CULL_RASTERIZE_PASS)

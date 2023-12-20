@@ -2112,11 +2112,6 @@ bool UStaticMeshComponent::CanEditChange(const FProperty* InProperty) const
 		{
 			return bOverrideDistanceFieldSelfShadowBias && bAffectDistanceFieldLighting;
 		}
-
-		if (PropertyName == GET_MEMBER_NAME_STRING_CHECKED(UStaticMeshComponent, bEvaluateWorldPositionOffset))
-		{
-			return IsOptimizedWPO();
-		}
 	}
 
 	return Super::CanEditChange(InProperty);

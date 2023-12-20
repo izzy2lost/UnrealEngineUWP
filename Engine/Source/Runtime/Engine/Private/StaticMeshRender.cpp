@@ -246,7 +246,7 @@ FStaticMeshSceneProxy::FStaticMeshSceneProxy(const FStaticMeshSceneProxyDesc& In
 	// Static meshes do not deform internally (save by material effects such as WPO and PDO, which is allowed).
 	bHasDeformableMesh = false;
 
-	bEvaluateWorldPositionOffset = !IsOptimizedWPO() || InProxyDesc.bEvaluateWorldPositionOffset;
+	bEvaluateWorldPositionOffset = InProxyDesc.bEvaluateWorldPositionOffset;
 
 	const auto FeatureLevel = GetScene().GetFeatureLevel();
 

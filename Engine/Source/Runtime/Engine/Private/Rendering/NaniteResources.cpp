@@ -612,9 +612,7 @@ void FSceneProxyBase::OnMaterialsUpdated()
 	bAnyMaterialAlwaysEvaluatesWorldPositionOffset = false;
 	bAnyMaterialHasPixelAnimation = false;
 
-	static const auto TessellationEnabledVar = IConsoleManager::Get().FindTConsoleVariableDataInt(TEXT("r.Nanite.Tessellation"));
-	const bool bTessellationEnabled = (TessellationEnabledVar && TessellationEnabledVar->GetValueOnAnyThread() != 0);
-	const bool bUseTessellation = bTessellationEnabled && NaniteTessellationSupported();
+	const bool bUseTessellation = UseNaniteTessellation();
 
 	EShaderPlatform ShaderPlatform = GetScene().GetShaderPlatform();
 	bool bVelocityEncodeHasPixelAnimation = VelocityEncodeHasPixelAnimation(ShaderPlatform);
@@ -734,7 +732,7 @@ FSceneProxy::FSceneProxy(const FMaterialAudit& MaterialAudit, const FStaticMeshS
 	DistanceFieldData = MeshResources.DistanceFieldData;
 	CardRepresentationData = MeshResources.CardRepresentationData;
 
-	bEvaluateWorldPositionOffset = !IsOptimizedWPO() || ProxyDesc.bEvaluateWorldPositionOffset;
+	bEvaluateWorldPositionOffset = ProxyDesc.bEvaluateWorldPositionOffset;
 	
 	MaterialSections.SetNumZeroed(MeshSections.Num());
 
@@ -1356,7 +1354,6 @@ void FSceneProxy::GetDynamicMeshElements(const TArray<const FSceneView*>& Views,
 
 	LLM_SCOPE_BYTAG(Nanite);
 	QUICK_SCOPE_CYCLE_COUNTER(STAT_NaniteSceneProxy_GetMeshElements);
-	checkSlow(IsInRenderingThread());
 
 	const bool bIsLightmapSettingError = HasStaticLighting() && !HasValidSettingsForStaticLighting();
 	const bool bProxyIsSelected = IsSelected();

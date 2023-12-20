@@ -41,19 +41,6 @@ static TAutoConsoleVariable<int32> CVarForceSingleSampleShadowingFromStationary(
 	ECVF_RenderThreadSafe | ECVF_Scalability
 	);
 
-static TAutoConsoleVariable<bool> CVarOptimizedWPO(
-	TEXT("r.OptimizedWPO"),
-	false,
-	TEXT("Special mode where primitives can explicitly indicate if WPO should be evaluated or not as an optimization.\n")
-	TEXT(" False ( 0): Ignore WPO evaluation flag, and always evaluate WPO.\n")
-	TEXT(" True  ( 1): Only evaluate WPO on primitives with explicit activation."),
-	FConsoleVariableDelegate::CreateLambda([](IConsoleVariable* InVariable)
-	{
-		FGlobalComponentRecreateRenderStateContext Context;
-	}),
-	ECVF_RenderThreadSafe
-);
-
 static TAutoConsoleVariable<bool> CVarOptimizedWPOAffectNonNaniteShaderSelection(
 	TEXT("r.OptimizedWPO.AffectNonNaniteShaderSelection"),
 	false,
@@ -130,11 +117,6 @@ bool FPrimitiveSceneProxy::ShouldRenderCustomDepth() const
 bool IsAllowingApproximateOcclusionQueries()
 {
 	return CVarApproximateOcclusionQueries.GetValueOnAnyThread() != 0;
-}
-
-bool IsOptimizedWPO()
-{
-	return CVarOptimizedWPO.GetValueOnAnyThread() != 0;
 }
 
 bool ShouldOptimizedWPOAffectNonNaniteShaderSelection()
@@ -1403,12 +1385,9 @@ void FPrimitiveSceneProxy::SetEvaluateWorldPositionOffset_GameThread(bool bEvalu
 	ENQUEUE_RENDER_COMMAND(SetEvaluateWorldPositionOffset)
 		([PrimitiveSceneProxy, bEvaluate, Scene = Scene, PrimitiveSceneInfo = PrimitiveSceneInfo](FRHICommandList& RHICmdList)
 	{
-		const bool bOptimizedWPO = CVarOptimizedWPO.GetValueOnRenderThread();
-		const bool bWPOEvaluate = !bOptimizedWPO || bEvaluate;
-
-		if (PrimitiveSceneProxy->bEvaluateWorldPositionOffset != bWPOEvaluate)
+		if (PrimitiveSceneProxy->bEvaluateWorldPositionOffset != bEvaluate)
 		{
-			PrimitiveSceneProxy->bEvaluateWorldPositionOffset = bWPOEvaluate;
+			PrimitiveSceneProxy->bEvaluateWorldPositionOffset = bEvaluate;
 
 			if (PrimitiveSceneInfo)
 			{

@@ -396,6 +396,7 @@ RENDERCORE_API bool NaniteSplineMeshesSupported();
 
 RENDERCORE_API bool UseNaniteComputeMaterials();
 RENDERCORE_API bool UseNaniteFastTileClear();
+RENDERCORE_API bool UseNaniteTessellation();
 
 RENDERCORE_API bool DoesPlatformSupportNanite(EShaderPlatform Platform, bool bCheckForProjectSetting = true);
 RENDERCORE_API bool DoesRuntimeSupportNanite(EShaderPlatform ShaderPlatform, bool bCheckForAtomicSupport, bool bCheckForProjectSetting);

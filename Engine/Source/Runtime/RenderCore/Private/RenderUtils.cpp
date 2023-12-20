@@ -1320,6 +1320,13 @@ bool NaniteSplineMeshesSupported()
 	return bAllowSplineMeshes;
 }
 
+bool UseNaniteTessellation()
+{
+	static const auto TessellationVar = IConsoleManager::Get().FindTConsoleVariableDataInt(TEXT("r.Nanite.Tessellation"));
+	const bool bTessellation = (TessellationVar && TessellationVar->GetValueOnAnyThread() != 0);
+	return bTessellation && NaniteTessellationSupported();
+}
+
 bool DoesRuntimeSupportNanite(EShaderPlatform ShaderPlatform, bool bCheckForAtomicSupport, bool bCheckForProjectSetting)
 {
 	// Does the platform support Nanite?

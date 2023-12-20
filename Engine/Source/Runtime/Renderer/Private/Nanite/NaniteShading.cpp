@@ -512,20 +512,13 @@ void BuildShadingCommands(FRDGBuilder& GraphBuilder, FScene& Scene, ENaniteMeshP
 	}
 }
 
-static bool TessellationEnabled()
-{
-	static const auto TessellationVar = IConsoleManager::Get().FindTConsoleVariableDataInt(TEXT("r.Nanite.Tessellation"));
-	const bool bTessellation = (TessellationVar && TessellationVar->GetValueOnRenderThread() != 0);
-	return bTessellation != 0 && NaniteTessellationSupported();
-}
-
 uint32 PackMaterialBitFlags(const FMaterial& Material, uint32 BoundTargetMask, bool bNoDerivativeOps)
 {
 	FNaniteMaterialFlags Flags = { 0 };
 	Flags.bPixelDiscard = Material.IsMasked();
 	Flags.bPixelDepthOffset = Material.MaterialUsesPixelDepthOffset_RenderThread();
 	Flags.bWorldPositionOffset = Material.MaterialUsesWorldPositionOffset_RenderThread();
-	Flags.bDisplacement = TessellationEnabled() && Material.MaterialUsesDisplacement_RenderThread();
+	Flags.bDisplacement = UseNaniteTessellation() && Material.MaterialUsesDisplacement_RenderThread();
 	Flags.bNoDerivativeOps = bNoDerivativeOps;
 	Flags.bTwoSided = Material.IsTwoSided();
 	const uint32 PackedFlags = PackNaniteMaterialBitFlags(Flags);
