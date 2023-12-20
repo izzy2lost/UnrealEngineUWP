@@ -11,23 +11,20 @@ namespace UE::Learning
 		const int32 InMemoryStateNum,
 		const TSharedPtr<FNeuralNetwork>& InNeuralNetwork,
 		const FNeuralNetworkInferenceSettings& InInferenceSettings)
-		: MaxInstanceNum(InMaxInstanceNum)
-		, ObservationEncodedNum(InObservationEncodedNum)
+		: ObservationEncodedNum(InObservationEncodedNum)
 		, ActionEncodedNum(InActionEncodedNum)
 		, MemoryStateNum(InMemoryStateNum)
-		, NeuralNetwork(InNeuralNetwork)
-		, InferenceSettings(InInferenceSettings)
 	{
-		UE_LEARNING_CHECK(NeuralNetwork->GetInputSize() == ObservationEncodedNum + MemoryStateNum);
-		UE_LEARNING_CHECK(NeuralNetwork->GetOutputSize() == ActionEncodedNum + MemoryStateNum);
+		UE_LEARNING_CHECK(InNeuralNetwork->GetInputSize() == ObservationEncodedNum + MemoryStateNum);
+		UE_LEARNING_CHECK(InNeuralNetwork->GetOutputSize() == ActionEncodedNum + MemoryStateNum);
 
-		Input.SetNumUninitialized({ MaxInstanceNum, ObservationEncodedNum + MemoryStateNum });
-		Output.SetNumUninitialized({ MaxInstanceNum, ActionEncodedNum + MemoryStateNum });
+		Input.SetNumUninitialized({ InMaxInstanceNum, ObservationEncodedNum + MemoryStateNum });
+		Output.SetNumUninitialized({ InMaxInstanceNum, ActionEncodedNum + MemoryStateNum });
 
 		Array::Zero(Input);
 		Array::Zero(Output);
 
-		NeuralNetworkInference = NeuralNetwork->CreateInferenceObject(MaxInstanceNum, InferenceSettings);
+		NeuralNetworkFunction = MakeShared<FNeuralNetworkFunction>(InMaxInstanceNum, InNeuralNetwork, InInferenceSettings);
 	}
 
 	void FNeuralNetworkPolicy::Evaluate(
@@ -52,7 +49,7 @@ namespace UE::Learning
 			Array::Copy(Input[InstanceIdx].Slice(ObservationEncodedNum, MemoryStateNum), InputMemoryState[InstanceIdx]);
 		}
 
-		NeuralNetworkInference->Evaluate(Output, Input, Instances);
+		NeuralNetworkFunction->Evaluate(Output, Input, Instances);
 
 		// Copy Out Memory State
 
@@ -68,12 +65,6 @@ namespace UE::Learning
 
 	void FNeuralNetworkPolicy::UpdateNeuralNetwork(const TSharedPtr<FNeuralNetwork>& NewNeuralNetwork)
 	{
-		if (NeuralNetwork != NewNeuralNetwork)
-		{
-			UE_LEARNING_CHECK(NewNeuralNetwork->GetInputSize() == ObservationEncodedNum + MemoryStateNum);
-			UE_LEARNING_CHECK(NewNeuralNetwork->GetOutputSize() == ActionEncodedNum + MemoryStateNum);
-			NeuralNetwork = NewNeuralNetwork;
-			NeuralNetworkInference = NeuralNetwork->CreateInferenceObject(MaxInstanceNum, InferenceSettings);
-		}
+		NeuralNetworkFunction->UpdateNeuralNetwork(NewNeuralNetwork);
 	}
 }

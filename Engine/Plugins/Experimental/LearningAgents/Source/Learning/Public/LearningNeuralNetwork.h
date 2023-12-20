@@ -156,46 +156,43 @@ namespace UE::Learning
 	struct LEARNING_API FNeuralNetworkInference
 	{
 		/**
-		 * Constructs a new network inference object.
+		 * Constructs a new network inference object. Generally this should not be called directly and FNeuralNetwork::CreateInferenceObject should 
+		 * be used instead so that created instances are tracked.
 		 * 
 		 * @param InModel			NNE Model
-		 * @param MaxBatchSize		Maximum batch size
+		 * @param InMaxBatchSize	Maximum batch size
 		 * @param InInputSize		Network input size
 		 * @param InOutputSize		Network output size
 		 * @param InSettings		Inference settings
 		 */
 		FNeuralNetworkInference(
 			UE::NNE::IModelCPU& InModel,
-			const int32 MaxBatchSize,
+			const int32 InMaxBatchSize,
 			const int32 InInputSize,
 			const int32 InOutputSize,
 			const FNeuralNetworkInferenceSettings& InSettings = FNeuralNetworkInferenceSettings());
 
 		/**
-		 * Evaluate this network for the given instances.
+		 * Evaluate this network.
 		 * 
-		 * Note: this function takes a lock, so although it can be called from multiple threads it will not benefit from multi-threading. This is 
-		 * because to use the NNE interface all the instances that need to be evaluated must be gathered and scattered into internal buffers. To
-		 * compensate for this, this call will do multi-threading internally based on the inference settings used.
-		 * 
-		 * @param Output		The Output Buffer of shape (MaxBatchSize, InOutputSize)
-		 * @param Input			The Input Buffer of shape (MaxBatchSize, InInputSize)
-		 * @param Instances		The batch instances to evaluate
+		 * @param Output		The Output Buffer of shape (<= MaxBatchSize, OutputSize)
+		 * @param Input			The Input Buffer of shape (<= MaxBatchSize, InputSize)
 		 */
-		void Evaluate(
-			TLearningArrayView<2, float> Output,
-			const TLearningArrayView<2, const float> Input,
-			const FIndexSet Instances);
+		void Evaluate(TLearningArrayView<2, float> Output, const TLearningArrayView<2, const float> Input);
 
 		// This function will re-build the internal Model Instances used for multi-threading. It should be called whenever the given Model is updated. 
 		void ReloadModelInstances(NNE::IModelCPU& Model);
 
+		int32 GetMaxBatchSize() const;
+		int32 GetInputSize() const;
+		int32 GetOutputSize() const;
+
 	private:
 
+		int32 MaxBatchSize = 0;
+		int32 InputSize = 0;
+		int32 OutputSize = 0;
 		FNeuralNetworkInferenceSettings Settings;
-		FRWLock EvaluationLock;
-		TLearningArray<2, float> InputBuffer;
-		TLearningArray<2, float> OutputBuffer;
 		TArray<TSharedPtr<NNE::IModelInstanceCPU>, TInlineAllocator<64>> ModelInstances;
 	};
 
@@ -219,8 +216,12 @@ namespace UE::Learning
 		/**
 		 * Evaluate this network for the given instances.
 		 *
-		 * @param Output		The Output Buffer of shape (MaxInstanceNum, InOutputSize)
-		 * @param Input			The Input Buffer of shape (MaxInstanceNum, InInputSize)
+		 * Note: this function takes a lock, so although it can be called from multiple threads if the set of Instances don't overlap, it will not 
+		 * benefit from multi-threading. This is because to use the NNE interface all the instances that need to be evaluated must be gathered and 
+		 * scattered into internal buffers. 
+		 * 
+		 * @param Output		The Output Buffer of shape (<= MaxInstanceNum, OutputSize)
+		 * @param Input			The Input Buffer of shape (<= MaxInstanceNum, InputSize)
 		 * @param Instances		The instances to evaluate
 		 */
 		void Evaluate(
@@ -234,6 +235,9 @@ namespace UE::Learning
 	private:
 
 		int32 MaxInstanceNum = 0;
+		FRWLock EvaluationLock;
+		TLearningArray<2, float> InputBuffer;
+		TLearningArray<2, float> OutputBuffer;
 		TSharedPtr<FNeuralNetwork> NeuralNetwork;
 		TSharedPtr<FNeuralNetworkInference> NeuralNetworkInference;
 		FNeuralNetworkInferenceSettings InferenceSettings;

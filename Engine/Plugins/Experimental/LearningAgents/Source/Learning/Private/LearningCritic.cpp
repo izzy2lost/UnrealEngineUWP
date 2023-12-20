@@ -10,19 +10,16 @@ namespace UE::Learning
 		const int32 InMemoryStateNum,
 		const TSharedPtr<FNeuralNetwork>& InNeuralNetwork,
 		const FNeuralNetworkInferenceSettings& InInferenceSettings)
-		: MaxInstanceNum(InMaxInstanceNum)
-		, ObservationEncodedNum(InObservationEncodedNum)
+		: ObservationEncodedNum(InObservationEncodedNum)
 		, MemoryStateNum(InMemoryStateNum)
-		, NeuralNetwork(InNeuralNetwork)
-		, InferenceSettings(InInferenceSettings)
 	{
-		UE_LEARNING_CHECK(NeuralNetwork->GetInputSize() == ObservationEncodedNum + MemoryStateNum);
-		UE_LEARNING_CHECK(NeuralNetwork->GetOutputSize() == 1);
+		UE_LEARNING_CHECK(InNeuralNetwork->GetInputSize() == ObservationEncodedNum + MemoryStateNum);
+		UE_LEARNING_CHECK(InNeuralNetwork->GetOutputSize() == 1);
 
-		Input.SetNumUninitialized({ MaxInstanceNum, ObservationEncodedNum + MemoryStateNum });
+		Input.SetNumUninitialized({ InMaxInstanceNum, ObservationEncodedNum + MemoryStateNum });
 		Array::Zero(Input);
 
-		NeuralNetworkInference = NeuralNetwork->CreateInferenceObject(MaxInstanceNum, InferenceSettings);
+		NeuralNetworkFunction = MakeShared<FNeuralNetworkFunction>(InMaxInstanceNum, InNeuralNetwork, InInferenceSettings);
 	}
 
 	void FNeuralNetworkCritic::Evaluate(
@@ -46,7 +43,7 @@ namespace UE::Learning
 
 		// Evaluate Network
 
-		NeuralNetworkInference->Evaluate(
+		NeuralNetworkFunction->Evaluate(
 			TLearningArrayView<2, float>(OutputReturns.GetData(), { OutputReturns.Num(), 1 }),
 			Input, 
 			Instances);
@@ -56,12 +53,6 @@ namespace UE::Learning
 
 	void FNeuralNetworkCritic::UpdateNeuralNetwork(const TSharedPtr<FNeuralNetwork>& NewNeuralNetwork)
 	{
-		if (NeuralNetwork != NewNeuralNetwork)
-		{
-			UE_LEARNING_CHECK(NewNeuralNetwork->GetInputSize() == ObservationEncodedNum + MemoryStateNum);
-			UE_LEARNING_CHECK(NewNeuralNetwork->GetOutputSize() == 1);
-			NeuralNetwork = NewNeuralNetwork;
-			NeuralNetworkInference = NeuralNetwork->CreateInferenceObject(MaxInstanceNum, InferenceSettings);
-		}
+		NeuralNetworkFunction->UpdateNeuralNetwork(NewNeuralNetwork);
 	}
 }

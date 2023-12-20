@@ -49,12 +49,9 @@ namespace UE::Learning
 
 	private:
 
-		int32 MaxInstanceNum = 0;
 		int32 ObservationEncodedNum = 0;
 		int32 MemoryStateNum = 0;
-		TSharedPtr<FNeuralNetwork> NeuralNetwork;
-		TSharedPtr<FNeuralNetworkInference> NeuralNetworkInference;
-		FNeuralNetworkInferenceSettings InferenceSettings;
+		TSharedPtr<FNeuralNetworkFunction> NeuralNetworkFunction;
 
 		TLearningArray<2, float> Input;
 	};

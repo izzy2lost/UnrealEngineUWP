@@ -108,7 +108,7 @@ TSharedPtr<UE::Learning::FNeuralNetwork>& ULearningNeuralNetworkData::GetNetwork
 
 bool ULearningNeuralNetworkData::IsEmpty() const
 {
-	return Network->IsEmpty();
+	return !Network.IsValid() || Network->IsEmpty();
 }
 
 int32 ULearningNeuralNetworkData::GetInputSize() const
@@ -184,7 +184,7 @@ namespace UE::Learning
 
 	bool FNeuralNetwork::IsEmpty() const
 	{
-		return Model != nullptr;
+		return Model == nullptr;
 	}
 	
 	int32 FNeuralNetwork::GetInputSize() const
@@ -231,15 +231,15 @@ namespace UE::Learning
 
 	FNeuralNetworkInference::FNeuralNetworkInference(
 		UE::NNE::IModelCPU& InModel,
-		const int32 MaxBatchSize,
+		const int32 InMaxBatchSize,
 		const int32 InInputSize,
 		const int32 InOutputSize,
 		const FNeuralNetworkInferenceSettings& InSettings)
-		: Settings(InSettings)
+		: MaxBatchSize(InMaxBatchSize)
+		, InputSize(InInputSize)
+		, OutputSize(InOutputSize)
+		, Settings(InSettings)
 	{
-		InputBuffer.SetNumUninitialized({ MaxBatchSize, InInputSize });
-		OutputBuffer.SetNumUninitialized({ MaxBatchSize, InOutputSize });
-
 		ReloadModelInstances(InModel);
 	}
 
@@ -247,22 +247,18 @@ namespace UE::Learning
 	{
 		UE_LEARNING_TRACE_CPUPROFILER_EVENT_SCOPE(Learning::FNeuralNetworkInference::ReloadModelInstances);
 
-		const int32 MaxBatchSize = InputBuffer.Num<0>();
-		const int32 InputSize = InputBuffer.Num<1>();
-		const int32 OutputSize = OutputBuffer.Num<1>();
-
 		if (Settings.bParallelEvaluation)
 		{
 			const int32 IdealInferenceInstanceNum = ParallelForImpl::GetNumberOfThreadTasks(MaxBatchSize, Settings.MinParallelBatchSize, EParallelForFlags::None);
-			const int32 InferenceInstanceSliceLength = FMath::DivideAndRoundUp((int32)MaxBatchSize, IdealInferenceInstanceNum);
-			const int32 InferenceInstanceNum = FMath::DivideAndRoundUp((int32)MaxBatchSize, InferenceInstanceSliceLength);
+			const int32 InferenceInstanceBatchSize = FMath::DivideAndRoundUp((int32)MaxBatchSize, IdealInferenceInstanceNum);
+			const int32 InferenceInstanceNum = FMath::DivideAndRoundUp((int32)MaxBatchSize, InferenceInstanceBatchSize);
 
 			ModelInstances.Empty(InferenceInstanceNum);
 
 			for (int32 InferenceInstanceIdx = 0; InferenceInstanceIdx < InferenceInstanceNum; InferenceInstanceIdx++)
 			{
 				ModelInstances.Emplace(InModel.CreateModelInstanceCPU());
-				ModelInstances.Last()->SetInputTensorShapes({ NNE::FTensorShape::Make({(uint32)InferenceInstanceSliceLength, (uint32)InputSize}) });
+				ModelInstances.Last()->SetInputTensorShapes({ NNE::FTensorShape::Make({(uint32)InferenceInstanceBatchSize, (uint32)InputSize}) });
 			}
 		}
 		else
@@ -273,77 +269,69 @@ namespace UE::Learning
 		}
 	}
 
-	void FNeuralNetworkInference::Evaluate(
-		TLearningArrayView<2, float> Output,
-		const TLearningArrayView<2, const float> Input,
-		const FIndexSet Instances)
+	int32 FNeuralNetworkInference::GetMaxBatchSize() const
+	{
+		return MaxBatchSize;
+	}
+
+	int32 FNeuralNetworkInference::GetInputSize() const
+	{
+		return InputSize;
+	}
+
+	int32 FNeuralNetworkInference::GetOutputSize() const
+	{
+		return OutputSize;
+	}
+
+	void FNeuralNetworkInference::Evaluate(TLearningArrayView<2, float> Output, const TLearningArrayView<2, const float> Input)
 	{
 		UE_LEARNING_TRACE_CPUPROFILER_EVENT_SCOPE(Learning::FNeuralNetworkInference::Evaluate);
 
-		const int32 InstanceNum = Instances.Num();
-		const int32 InputNum = Input.Num<1>();
-		const int32 OutputNum = Output.Num<1>();
+		UE_LEARNING_CHECK(Output.Num<0>() == Input.Num<0>());
+		UE_LEARNING_CHECK(Input.Num<1>() == InputSize);
+		UE_LEARNING_CHECK(Output.Num<1>() == OutputSize);
 
-		if (InstanceNum == 0) { return; }
+		const int32 BatchSize = Output.Num<0>();
 
-		// Evaluation is not thread-safe due to the scatter and gather we do into the InputBuffer and OutputBuffer
-		// so we take a lock here since the interface for this function makes it appear like this might be thread safe as 
-		// long as the Instances provided are not an overlapping set.
-		FScopeNullableWriteLock ScopeLock(&EvaluationLock);
+		UE_LEARNING_CHECK(BatchSize <= MaxBatchSize);
 
-		// Gather Inputs
+		if (BatchSize == 0) { return; }
 
-		Array::Check(Input, Instances);
+		Array::Check(Input);
 
-		for (int32 InstanceIdx = 0; InstanceIdx < InstanceNum; InstanceIdx++)
+		if (Settings.bParallelEvaluation && BatchSize > Settings.MinParallelBatchSize)
 		{
-			Array::Copy(InputBuffer[InstanceIdx], Input[Instances[InstanceIdx]]);
-		}
-
-		// Run Inference
-
-		Array::Check(InputBuffer.Slice(0, InstanceNum));
-
-		if (Settings.bParallelEvaluation && InstanceNum > Settings.MinParallelBatchSize)
-		{
-			const int32 IdealInferenceInstanceNum = ParallelForImpl::GetNumberOfThreadTasks(InstanceNum, Settings.MinParallelBatchSize, EParallelForFlags::None);
-			const int32 InferenceInstanceSliceLength = FMath::DivideAndRoundUp(InstanceNum, IdealInferenceInstanceNum);
-			const int32 InferenceInstanceNum = FMath::DivideAndRoundUp(InstanceNum, InferenceInstanceSliceLength);
+			const int32 IdealInferenceInstanceNum = ParallelForImpl::GetNumberOfThreadTasks(BatchSize, Settings.MinParallelBatchSize, EParallelForFlags::None);
+			const int32 InferenceInstanceBatchSize = FMath::DivideAndRoundUp(BatchSize, IdealInferenceInstanceNum);
+			const int32 InferenceInstanceNum = FMath::DivideAndRoundUp(BatchSize, InferenceInstanceBatchSize);
 
 			UE_LEARNING_CHECK(InferenceInstanceNum <= ModelInstances.Num());
 
-			ParallelFor(InferenceInstanceNum, [this, InstanceNum, InputNum, InferenceInstanceSliceLength](int32 InferenceInstanceIdx)
+			ParallelFor(InferenceInstanceNum, [this, Input, Output, BatchSize, InferenceInstanceBatchSize](int32 InferenceInstanceIdx)
 			{
-				const int32 StartIndex = InferenceInstanceIdx * InferenceInstanceSliceLength;
-				const int32 StopIndex = FMath::Min((InferenceInstanceIdx + 1) * InferenceInstanceSliceLength, InstanceNum);
+				const int32 StartIndex = InferenceInstanceIdx * InferenceInstanceBatchSize;
+				const int32 StopIndex = FMath::Min((InferenceInstanceIdx + 1) * InferenceInstanceBatchSize, BatchSize);
+				const int32 InstanceBatchSize = StopIndex - StartIndex;
 
-				TLearningArrayView<2, float> InputBufferSlice = InputBuffer.Slice(StartIndex, StopIndex - StartIndex);
-				TLearningArrayView<2, float> OutputBufferSlice = OutputBuffer.Slice(StartIndex, StopIndex - StartIndex);
+				const TLearningArrayView<2, const float> InputSlice = Input.Slice(StartIndex, InstanceBatchSize);
+				const TLearningArrayView<2, float> OutputSlice = Output.Slice(StartIndex, InstanceBatchSize);
 
-				ModelInstances[InferenceInstanceIdx]->SetInputTensorShapes({ NNE::FTensorShape::Make({(uint32)(StopIndex - StartIndex), (uint32)InputNum}) });
+				ModelInstances[InferenceInstanceIdx]->SetInputTensorShapes({ NNE::FTensorShape::Make({(uint32)InstanceBatchSize, (uint32)InputSize}) });
 				ModelInstances[InferenceInstanceIdx]->RunSync(
-					{ { (void*)InputBufferSlice.GetData(), InputBufferSlice.Num() * sizeof(float) } },
-					{ { (void*)OutputBufferSlice.GetData(), OutputBufferSlice.Num() * sizeof(float) } });
+					{ { (void*)InputSlice.GetData(), InputSlice.Num() * sizeof(float) } },
+					{ { (void*)OutputSlice.GetData(), OutputSlice.Num() * sizeof(float) } });
 			});
 		}
 		else
 		{
-			ModelInstances[0]->SetInputTensorShapes({ NNE::FTensorShape::Make({(uint32)InstanceNum, (uint32)InputNum}) });
+			ModelInstances[0]->SetInputTensorShapes({ NNE::FTensorShape::Make({(uint32)BatchSize, (uint32)InputSize}) });
 			ModelInstances[0]->RunSync(
-				{ { (void*)InputBuffer.GetData(), InputBuffer.Slice(0, InstanceNum).Num() * sizeof(float) } },
-				{ { (void*)OutputBuffer.GetData(), OutputBuffer.Slice(0, InstanceNum).Num() * sizeof(float) } });
+				{ { (void*)Input.GetData(), Input.Num() * sizeof(float) } },
+				{ { (void*)Output.GetData(), Output.Num() * sizeof(float) } });
 		}
 
-		Array::Check(OutputBuffer.Slice(0, InstanceNum));
-
-		// Scatter Outputs
-
-		for (int32 InstanceIdx = 0; InstanceIdx < InstanceNum; InstanceIdx++)
-		{
-			Array::Copy(Output[Instances[InstanceIdx]], OutputBuffer[InstanceIdx]);
-		}
-
-		Array::Check(Output, Instances);
+		Array::Check(Output);
 	}
 
 
@@ -356,6 +344,8 @@ namespace UE::Learning
 		, InferenceSettings(InInferenceSettings)
 	{
 		NeuralNetworkInference = NeuralNetwork->CreateInferenceObject(InMaxInstanceNum, InInferenceSettings);
+		InputBuffer.SetNumUninitialized({ MaxInstanceNum, InNeuralNetwork->GetInputSize() });
+		OutputBuffer.SetNumUninitialized({ MaxInstanceNum, InNeuralNetwork->GetOutputSize() });
 	}
 
 	void FNeuralNetworkFunction::Evaluate(
@@ -363,13 +353,44 @@ namespace UE::Learning
 		const TLearningArrayView<2, const float> Input,
 		const FIndexSet Instances)
 	{
-		NeuralNetworkInference->Evaluate(Output, Input, Instances);
+		// Evaluation is not thread-safe due to the scatter and gather we do into the InputBuffer and OutputBuffer
+		// so we take a lock here since the interface for this function makes it appear like this might be thread safe as 
+		// long as the Instances provided are not an overlapping set.
+		FScopeNullableWriteLock ScopeLock(&EvaluationLock);
+
+		const int32 InstanceNum = Instances.Num();
+
+		if (InstanceNum == 0) { return; }
+
+		// Gather Inputs
+
+		Array::Check(Input, Instances);
+
+		for (int32 InstanceIdx = 0; InstanceIdx < InstanceNum; InstanceIdx++)
+		{
+			Array::Copy(InputBuffer[InstanceIdx], Input[Instances[InstanceIdx]]);
+		}
+
+		// Evaluate Network
+
+		NeuralNetworkInference->Evaluate(OutputBuffer.Slice(0, InstanceNum), InputBuffer.Slice(0, InstanceNum));
+
+		// Scatter Outputs
+
+		for (int32 InstanceIdx = 0; InstanceIdx < InstanceNum; InstanceIdx++)
+		{
+			Array::Copy(Output[Instances[InstanceIdx]], OutputBuffer[InstanceIdx]);
+		}
+
+		Array::Check(Output, Instances);
 	}
 
 	void FNeuralNetworkFunction::UpdateNeuralNetwork(const TSharedPtr<FNeuralNetwork>& NewNeuralNetwork)
 	{
 		if (NeuralNetwork != NewNeuralNetwork)
 		{
+			UE_LEARNING_CHECK(NeuralNetwork->GetInputSize() == NewNeuralNetwork->GetInputSize());
+			UE_LEARNING_CHECK(NeuralNetwork->GetOutputSize() == NewNeuralNetwork->GetOutputSize());
 			NeuralNetwork = NewNeuralNetwork;
 			NeuralNetworkInference = NeuralNetwork->CreateInferenceObject(MaxInstanceNum, InferenceSettings);
 		}
