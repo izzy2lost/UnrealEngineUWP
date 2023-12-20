@@ -7,6 +7,7 @@
 #include "Misc/Optional.h"
 #include "Misc/ScopeRWLock.h"
 #include "Modules/Boilerplate/ModuleBoilerplate.h"
+#include "Modules/ModuleManager.h"
 #include "Templates/SharedPointer.h"
 #include "Templates/UnrealTemplate.h"
 

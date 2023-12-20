@@ -4,6 +4,6 @@
 
 #include "Modules/ModuleInterface.h"
 
-class USDSTAGEEDITORVIEWMODELS_API IUsdStageEditorViewModelsModule : public IModuleInterface
+class IUsdStageEditorViewModelsModule : public IModuleInterface
 {
 };
