@@ -1,7 +1,9 @@
 // Copyright Epic Games, Inc. All Rights Reserved.
 #include "ProxyTable.h"
+
 #include "AssetRegistry/AssetRegistryModule.h"
 #include "Logging/LogMacros.h"
+#include "Misc/StringBuilder.h"
 
 DEFINE_LOG_CATEGORY_STATIC(LogProxyTable,Log,All);
 
@@ -23,7 +25,7 @@ const FGuid FProxyEntry::GetGuid() const
 		FGuid Guid;
 		if (Key != NAME_None)
 		{
-			Guid.A = GetTypeHash(Key);
+			Guid.A = GetTypeHash(WriteToString<128>(Key).ToView());
 		}
 		return Guid;
 	}
