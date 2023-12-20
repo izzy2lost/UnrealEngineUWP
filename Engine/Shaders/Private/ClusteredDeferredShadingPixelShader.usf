@@ -7,7 +7,7 @@
 
 // Following the lead of Tiled Deferred 
 #define SUPPORT_CONTACT_SHADOWS 0
-#define USE_IES_PROFILE 0
+#define USE_IES_PROFILE 1
 #define NON_DIRECTIONAL_DIRECT_LIGHTING 0
 #define SUBSTRATE_SSS_TRANSMISSION USE_TRANSMISSION
 
@@ -261,6 +261,9 @@ float4 GetLightGridLocalLighting(
 		FDeferredLightData LightData = ConvertToDeferredLight(LocalLight);
 		LightData.ShadowedBits = 1;
 		LightData.bRectLight = false;
+		#if USE_IES_PROFILE
+		LightData.Color *= ComputeLightProfileMultiplier(TranslatedWorldPosition, LightData.TranslatedWorldPosition, -LightData.Direction, LightData.Tangent, LightData.IESAtlasIndex);
+		#endif
 		float4 LightAttenuation = float4(1, 1, 1, 1);
 
 		// Find packed VSM projection result if present
