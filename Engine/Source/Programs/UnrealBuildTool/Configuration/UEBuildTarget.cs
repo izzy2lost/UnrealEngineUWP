@@ -3380,6 +3380,12 @@ namespace UnrealBuildTool
 					AnyErrors |= UEBuildPlatform.GetBuildPlatform(Platform).ValidateModuleIncludePaths(Module, Rules, Modules.Values);
 				}
 
+				// Intentionally not ordered by name to maintain the reference include order
+				foreach (UEBuildModule Module in Modules.Values)
+				{
+					Module.ValidateModule("Target", Logger);
+				}
+
 				if (AnyErrors)
 				{
 					throw new BuildException("Errors validating modules.");
