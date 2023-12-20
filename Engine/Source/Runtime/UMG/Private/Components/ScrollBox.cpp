@@ -489,16 +489,16 @@ float UScrollBox::GetNavigationScrollPadding() const
 
 void UScrollBox::SetAllowRightClickDragScrolling(bool bShouldAllowRightClickDragScrolling)
 {
-	AlwaysShowScrollbarTrack = bShouldAllowRightClickDragScrolling;
+	bAllowRightClickDragScrolling = bShouldAllowRightClickDragScrolling;
 	if (MyScrollBox)
 	{
-		MyScrollBox->SetScrollBarRightClickDragAllowed(AlwaysShowScrollbarTrack);
+		MyScrollBox->SetScrollBarRightClickDragAllowed(bAllowRightClickDragScrolling);
 	}
 }
 
 bool UScrollBox::IsAllowRightClickDragScrolling() const
 {
-	return AlwaysShowScrollbarTrack;
+	return bAllowRightClickDragScrolling;
 }
 
 bool UScrollBox::IsFrontPadScrolling() const
