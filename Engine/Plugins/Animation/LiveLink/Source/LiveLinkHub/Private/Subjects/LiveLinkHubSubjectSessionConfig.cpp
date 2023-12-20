@@ -5,98 +5,49 @@
 #include "Async/Async.h"
 #include "Clients/LiveLinkHubProvider.h"
 #include "Features/IModularFeatures.h"
+#include "LiveLinkClient.h"
 #include "LiveLinkHubModule.h"
 #include "Modules/ModuleManager.h"
-#include "LiveLinkClient.h"
 #include "UObject/StrongObjectPtr.h"
 
-ULiveLinkHubSubjectSessionConfig::ULiveLinkHubSubjectSessionConfig()
+
+void FLiveLinkHubSubjectSessionConfig::Initialize()
 {
-	if (!IsTemplate())
+	FLiveLinkClient& LiveLinkClient = IModularFeatures::Get().GetModularFeature<FLiveLinkClient>(ILiveLinkClient::ModularFeatureName);
+
+	constexpr bool bIncludeDisabledSubject = true;
+	constexpr bool bIncludeVirtualSubject = true;
+
+	for (const FLiveLinkSubjectKey& SubjectKey : LiveLinkClient.GetSubjects(bIncludeDisabledSubject, bIncludeVirtualSubject))
 	{
-		FLiveLinkClient& LiveLinkClient = IModularFeatures::Get().GetModularFeature<FLiveLinkClient>(ILiveLinkClient::ModularFeatureName);
-		LiveLinkClient.OnLiveLinkSubjectAdded().AddUObject(this, &ULiveLinkHubSubjectSessionConfig::OnSubjectAdded_AnyThread);
-		LiveLinkClient.OnLiveLinkSubjectRemoved().AddUObject(this, &ULiveLinkHubSubjectSessionConfig::OnSubjectRemoved_AnyThread);
+		FLiveLinkHubSubjectProxy SubjectSettings;
+		SubjectSettings.Initialize(SubjectKey, LiveLinkClient.GetSourceType(SubjectKey.Source).ToString());
 
-		constexpr bool bIncludeDisabledSubject = true;
-		constexpr bool bIncludeVirtualSubject = true;
-		for (const FLiveLinkSubjectKey& SubjectKey : LiveLinkClient.GetSubjects(bIncludeDisabledSubject, bIncludeVirtualSubject))
-		{
-			ULiveLinkHubSubjectProxy* SubjectSettings = NewObject<ULiveLinkHubSubjectProxy>();
-			SubjectSettings->Initialize(SubjectKey, LiveLinkClient.GetSourceType(SubjectKey.Source).ToString());
-
-			SubjectProxies.Add(SubjectKey, SubjectSettings);
-		}
+		SubjectProxies.Add(SubjectKey, MoveTemp(SubjectSettings));
 	}
 }
 
-ULiveLinkHubSubjectSessionConfig::~ULiveLinkHubSubjectSessionConfig()
+TOptional<FLiveLinkHubSubjectProxy> FLiveLinkHubSubjectSessionConfig::GetSubjectConfig(const FLiveLinkSubjectKey& InSubject) const
 {
-	if (IModularFeatures::Get().IsModularFeatureAvailable(ILiveLinkClient::ModularFeatureName))
-    {
-    	FLiveLinkClient& LiveLinkClient = IModularFeatures::Get().GetModularFeature<FLiveLinkClient>(ILiveLinkClient::ModularFeatureName);
-    	LiveLinkClient.OnLiveLinkSubjectRemoved().RemoveAll(this);
-    	LiveLinkClient.OnLiveLinkSubjectAdded().RemoveAll(this);
-    }
-}
+	TOptional<FLiveLinkHubSubjectProxy> Settings;
 
-ULiveLinkHubSubjectProxy* ULiveLinkHubSubjectSessionConfig::GetSubjectConfig(const FLiveLinkSubjectKey& InSubject)
-{
-    ULiveLinkHubSubjectProxy* Settings = nullptr;
-
-    if (TObjectPtr<ULiveLinkHubSubjectProxy>* SettingsPtr = SubjectProxies.Find(InSubject))
+    if (const FLiveLinkHubSubjectProxy* SettingsPtr = SubjectProxies.Find(InSubject))
     {
-    	Settings = SettingsPtr->Get();
+    	Settings = *SettingsPtr;
     }
 
     return Settings;
 }
 
-void ULiveLinkHubSubjectSessionConfig::OnSubjectAdded_AnyThread(FLiveLinkSubjectKey SubjectKey)
+void FLiveLinkHubSubjectSessionConfig::RenameSubject(const FLiveLinkSubjectKey& SubjectKey, FName NewName)
 {
-	TWeakObjectPtr<ULiveLinkHubSubjectSessionConfig> Self = this;
-	AsyncTask(ENamedThreads::GameThread, [Self, Key = MoveTemp(SubjectKey)]
+	if (FLiveLinkHubSubjectProxy* Proxy = SubjectProxies.Find(SubjectKey))
 	{
-		ULiveLinkHubSubjectSessionConfig* Container = Self.Get();
-		if (UObjectInitialized() && Container)
-		{
-			Container->OnSubjectAdded(Key);
-		}
-	});
-}
-
-void ULiveLinkHubSubjectSessionConfig::OnSubjectAdded(const FLiveLinkSubjectKey& SubjectKey)
-{
-	if (!SubjectProxies.Contains(SubjectKey))
-	{
-		ILiveLinkClient& LiveLinkClient = IModularFeatures::Get().GetModularFeature<ILiveLinkClient>(ILiveLinkClient::ModularFeatureName);
-
-		ULiveLinkHubSubjectProxy* SubjectSettings = NewObject<ULiveLinkHubSubjectProxy>();
-		SubjectSettings->Initialize(SubjectKey, LiveLinkClient.GetSourceType(SubjectKey.Source).ToString());
-
-		SubjectProxies.FindOrAdd(SubjectKey) = SubjectSettings;
+		Proxy->SetOutboundName(NewName);
 	}
 }
 
-void ULiveLinkHubSubjectSessionConfig::OnSubjectRemoved_AnyThread(FLiveLinkSubjectKey SubjectKey)
-{
-	TWeakObjectPtr<ULiveLinkHubSubjectSessionConfig> Self = this;
-	AsyncTask(ENamedThreads::GameThread, [Self, Key = MoveTemp(SubjectKey)]
-	{
-		ULiveLinkHubSubjectSessionConfig* Container = Self.Get();
-		if (UObjectInitialized() && Container)
-		{
-			Container->OnSubjectAdded(Key);
-		}
-	});
-}
-
-void ULiveLinkHubSubjectSessionConfig::OnSubjectRemoved(const FLiveLinkSubjectKey& SubjectKey)
-{
-	SubjectProxies.Remove(SubjectKey);
-}
-
-void ULiveLinkHubSubjectProxy::Initialize(const FLiveLinkSubjectKey& InSubjectKey, FString InSource)
+void FLiveLinkHubSubjectProxy::Initialize(const FLiveLinkSubjectKey& InSubjectKey, FString InSource)
 {
 	SubjectName = InSubjectKey.SubjectName.Name.ToString();
 	SubjectKey = InSubjectKey;
@@ -104,27 +55,7 @@ void ULiveLinkHubSubjectProxy::Initialize(const FLiveLinkSubjectKey& InSubjectKe
 	Source = MoveTemp(InSource);
 }
 
-void ULiveLinkHubSubjectProxy::PreEditChange(FProperty* PropertyAboutToChange)
-{
-	Super::PreEditChange(PropertyAboutToChange);
-
-	if (PropertyAboutToChange && PropertyAboutToChange->GetFName() == GET_MEMBER_NAME_CHECKED(ULiveLinkHubSubjectProxy, OutboundName))
-	{
-		PreviousOutboundName = *OutboundName;
-	}
-}
-
-void ULiveLinkHubSubjectProxy::PostEditChangeProperty(struct FPropertyChangedEvent& PropertyChangedEvent)
-{
-	Super::PostEditChangeProperty(PropertyChangedEvent);
-
-	if (PropertyChangedEvent.Property && PropertyChangedEvent.Property->GetName() == GET_MEMBER_NAME_CHECKED(ULiveLinkHubSubjectProxy, OutboundName))
-	{
-		NotifyRename();
-	}
-}
-
-FName ULiveLinkHubSubjectProxy::GetOutboundName() const
+FName FLiveLinkHubSubjectProxy::GetOutboundName() const
 {
 	if (bPendingOutboundNameChange)
 	{
@@ -134,7 +65,15 @@ FName ULiveLinkHubSubjectProxy::GetOutboundName() const
 	return *OutboundName;
 }
 
-void ULiveLinkHubSubjectProxy::NotifyRename()
+void FLiveLinkHubSubjectProxy::SetOutboundName(FName NewName)
+{
+	PreviousOutboundName = *OutboundName;
+	OutboundName = *NewName.ToString();
+
+	NotifyRename();
+}
+
+void FLiveLinkHubSubjectProxy::NotifyRename()
 {
 	FLiveLinkHubModule& LiveLinkHubModule = FModuleManager::Get().GetModuleChecked<FLiveLinkHubModule>("LiveLinkHub");
 

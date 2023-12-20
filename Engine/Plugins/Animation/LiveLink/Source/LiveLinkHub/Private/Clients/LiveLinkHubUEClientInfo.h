@@ -18,66 +18,30 @@ struct FLiveLinkHubClientId
 	/** Default constructor, should only be used by the reflection code. */
 	FLiveLinkHubClientId() = default;
 
-	explicit FLiveLinkHubClientId(FMessageAddress InAddress)
-		: Address(MoveTemp(InAddress))
-		, Guid(FGuid::NewGuid())
+	static FLiveLinkHubClientId NewId()
 	{
+		FLiveLinkHubClientId Id{};
+		Id.Guid = FGuid::NewGuid();
+		return Id;
 	}
 
-	/** Update the address contained in this ID. */
-	void UpdateAddress(FMessageAddress InAddress)
+	bool IsValid() const
 	{
-		Address = InAddress;
-	}
-
-	/** Invalidate the address contained in this ID. */
-	void InvalidateAddress()
-	{
-		Address.Invalidate();
-	}
-
-	/** Get the message bus address of this client. */
-	FMessageAddress GetAddress() const
-	{
-		return Address;
+		return Guid.IsValid();
 	}
 
 	/** Get the hash of this ID. */
 	friend uint32 GetTypeHash(FLiveLinkHubClientId Id)
 	{
-		if (Id.Address.IsValid())
-		{
-			return GetTypeHash(Id.Address);
-		}
-
 		return GetTypeHash(Id.Guid);
 	}
 
 	bool operator==(const FLiveLinkHubClientId& Other) const
 	{
-		if (Guid == Other.Guid)
-		{
-			return true;
-		}
-
-		if (Address.IsValid() && Other.Address.IsValid())
-		{
-			return Address == Other.Address;
-		}
-
-		// Make sure we return false so that 2 clients with invalid addresses are considered different.
-		return false;
-	}
-
-	bool operator==(const FMessageAddress& Other) const
-	{
-		return Address == Other;
+		return Guid == Other.Guid;
 	}
 
 private:
-	/** MessageBus address for this client. Invalid when the client is disconnected. */
-	FMessageAddress Address;
-
 	/** Unique identifier for this client. */
 	UPROPERTY()
 	FGuid Guid;
@@ -91,8 +55,8 @@ struct FLiveLinkHubUEClientInfo
 
 	FLiveLinkHubUEClientInfo() = default;
 
-	explicit FLiveLinkHubUEClientInfo(const FLiveLinkClientInfoMessage& InClientInfo, FMessageAddress Address)
-		: Id(FLiveLinkHubClientId(MoveTemp(Address)))
+	explicit FLiveLinkHubUEClientInfo(const FLiveLinkClientInfoMessage& InClientInfo)
+		: Id(FLiveLinkHubClientId::NewId())
 		, LongName(InClientInfo.LongName)
 		, Status(InClientInfo.Status)
 		, IPAddress(TEXT("192.168.0.1 (Placeholder)"))
@@ -102,17 +66,15 @@ struct FLiveLinkHubUEClientInfo
 	{
 	}
 
-	void UpdateFromClient(const FLiveLinkClientInfoMessage& InClientInfo, FMessageAddress Address)
-    {
-		// Preserve old id but update its connection address.
-		FLiveLinkHubClientId PreviousId = Id;
-		PreviousId.UpdateAddress(Address);
-
-		FLiveLinkHubUEClientInfo NewInfo{InClientInfo, Address};
-		NewInfo.Id = PreviousId;
-
-		*this = MoveTemp(NewInfo);
-    }
+	void UpdateFromInfoMessage(const FLiveLinkClientInfoMessage& InClientInfo)
+	{
+		LongName = InClientInfo.LongName;
+		Status = InClientInfo.Status;
+		IPAddress = TEXT("192.168.0.1 (Placeholder)");
+		Hostname = InClientInfo.Hostname;
+		ProjectName = InClientInfo.ProjectName;
+		CurrentLevel = InClientInfo.CurrentLevel;
+	}
 
 	/** Identifier for this client. */
 	UPROPERTY()

@@ -7,15 +7,18 @@
 #include "IDetailsView.h"
 #include "IStructureDetailsView.h"
 #include "LiveLinkHub.h"
+#include "LiveLinkHubModule.h"
 #include "LiveLinkHubUEClientInfo.h"
 #include "LiveLinkHubProvider.h"
 #include "LiveLinkTypes.h"
+#include "Modules/ModuleManager.h"
 #include "PropertyEditorModule.h"
+#include "Session/LiveLinkHubSession.h"
+#include "Session/LiveLinkHubSessionManager.h"
 #include "SLiveLinkHubClientsView.h"
 #include "UObject/StructOnScope.h"
 #include "Widgets/SNullWidget.h"
 #include "Widgets/Text/STextBlock.h"
-
 
 /** Controller responsible for holding the list of connected clients and creating the clients view. */
 class FLiveLinkHubClientsController
@@ -24,6 +27,9 @@ public:
 	FLiveLinkHubClientsController(const TSharedRef<ILiveLinkHubClientsModel>& InClientsModel)
 		: ClientsModel(InClientsModel)
 	{
+		const FLiveLinkHubModule& LiveLinkHubModule = FModuleManager::Get().GetModuleChecked<FLiveLinkHubModule>("LiveLinkHub");
+		LiveLinkHubModule.GetSessionManager()->OnActiveSessionChanged().AddRaw(this, &FLiveLinkHubClientsController::OnActiveSessionChanged);
+
 		ClientsModel->OnClientEvent().AddRaw(this, &FLiveLinkHubClientsController::OnClientEvent);
 		
 		UEClientInfo = MakeShared<TStructOnScope<FLiveLinkHubUEClientInfo>>();
@@ -31,6 +37,14 @@ public:
 
 	~FLiveLinkHubClientsController()
 	{
+		if (const FLiveLinkHubModule* LiveLinkHubModule = FModuleManager::Get().GetModulePtr<FLiveLinkHubModule>("LiveLinkHub"))
+		{
+			if (TSharedPtr<ILiveLinkHubSessionManager> SessionManager = LiveLinkHubModule->GetSessionManager())
+			{
+				SessionManager->OnActiveSessionChanged().RemoveAll(this);
+			}
+		}
+
 		ClientsModel->OnClientEvent().RemoveAll(this);
 	}
 
@@ -38,7 +52,9 @@ public:
 	TSharedRef<SWidget> MakeClientsView()
 	{
 		return SAssignNew(ClientsView, SLiveLinkHubClientsView, ClientsModel.ToSharedRef())
-			.OnClientSelected_Raw(this, &FLiveLinkHubClientsController::UpdateClientDetails);
+			.OnClientSelected_Raw(this, &FLiveLinkHubClientsController::UpdateClientDetails)
+			.OnDiscoveredClientPicked_Raw(this, &FLiveLinkHubClientsController::OnDiscoveredClientPicked)
+			.OnRemoveClientFromSession_Raw(this, &FLiveLinkHubClientsController::OnRemoveClientFromSession);
 	}
 
 	/** Create the widget that displays information about a given UE client. */
@@ -67,19 +83,14 @@ private:
 	{
 		switch (EventType)
 		{
-			case ILiveLinkHubClientsModel::EClientEventType::Connected:
+			case ILiveLinkHubClientsModel::EClientEventType::Discovered:
 				break;
-			case ILiveLinkHubClientsModel::EClientEventType::Removed:
+			case ILiveLinkHubClientsModel::EClientEventType::Disconnected:
 			{
-				if (TOptional<FLiveLinkHubClientId> SelectedClient = ClientsView->GetSelectedClient())
-				{
-					if (ClientIdentifier == *SelectedClient)
-					{
-						StructDetailsView->SetStructureData(nullptr);
-					}
-				}
 				break;
 			}
+			case ILiveLinkHubClientsModel::EClientEventType::Reestablished:
+				// fallthrough
 			case ILiveLinkHubClientsModel::EClientEventType::Modified:
 			{
 				if (TOptional<FLiveLinkHubClientId> SelectedClient = ClientsView->GetSelectedClient())
@@ -97,6 +108,16 @@ private:
 			}
 		}
 	}
+
+	void OnActiveSessionChanged(const TSharedRef<ILiveLinkHubSession>& ActiveSession)
+	{
+		if (ClientsView)
+		{
+			ClientsView->Reinitialize();
+		}
+
+		StructDetailsView->SetStructureData(nullptr);
+	}
 	
 	/** Handles updating client details in the client details panel. */
 	void UpdateClientDetails(FLiveLinkHubClientId Client)
@@ -110,6 +131,38 @@ private:
 		{
 			// Disable this for the time being, this hides the details panel when you click on the empty list
 			//StructDetailsView->SetStructureData(nullptr);
+		}
+	}
+
+	void OnDiscoveredClientPicked(FLiveLinkHubClientId Client)
+	{
+		if (TSharedPtr<ILiveLinkHubSessionManager> SessionManager = FModuleManager::Get().GetModuleChecked<FLiveLinkHubModule>("LiveLinkHub").GetLiveLinkHub()->GetSessionManager())
+		{
+			if (TSharedPtr<ILiveLinkHubSession> CurrentSession = SessionManager->GetCurrentSession())
+			{
+				CurrentSession->AddClient(Client);
+			}
+		}
+	}
+	
+	void OnRemoveClientFromSession(FLiveLinkHubClientId Client)
+	{
+		if (TSharedPtr<ILiveLinkHubSessionManager> SessionManager = FModuleManager::Get().GetModuleChecked<FLiveLinkHubModule>("LiveLinkHub").GetLiveLinkHub()->GetSessionManager())
+		{
+			if (TSharedPtr<ILiveLinkHubSession> CurrentSession = SessionManager->GetCurrentSession())
+			{
+				if (TOptional<FLiveLinkHubClientId> SelectedClient = ClientsView->GetSelectedClient())
+				{
+					// Clear client details if it was selected.
+					if (Client == *SelectedClient)
+					{
+						UEClientInfo->Reset();
+						StructDetailsView->SetStructureData(nullptr);
+					}
+				}
+
+				CurrentSession->RemoveClient(Client);
+			}
 		}
 	}
 

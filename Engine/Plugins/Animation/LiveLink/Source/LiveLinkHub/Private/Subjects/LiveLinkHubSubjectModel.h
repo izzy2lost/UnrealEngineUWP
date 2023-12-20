@@ -15,7 +15,7 @@ public:
 	virtual ~ILiveLinkHubSubjectModel() = default;
 
 	/** Get the settings for a livelinkhub subject. */
-	virtual ULiveLinkHubSubjectProxy* GetSubjectConfig(const FLiveLinkSubjectKey& InSubject) const = 0;
+	virtual TOptional<FLiveLinkHubSubjectProxy> GetSubjectConfig(const FLiveLinkSubjectKey& InSubject) const = 0;
 };
 
 /** Implementation of the ILiveLinkHubSubjectModel. */
@@ -23,13 +23,13 @@ class FLiveLinkHubSubjectModel : public ILiveLinkHubSubjectModel
 {
 public:
 	/** Get the settings for a livelinkhub subject. */
-	virtual ULiveLinkHubSubjectProxy* GetSubjectConfig(const FLiveLinkSubjectKey& InSubject) const override
+	virtual TOptional<FLiveLinkHubSubjectProxy> GetSubjectConfig(const FLiveLinkSubjectKey& InSubject) const override
 	{
 		const FLiveLinkHubModule& LiveLinkHubModule = FModuleManager::Get().GetModuleChecked<FLiveLinkHubModule>("LiveLinkHub");
 		if (const TSharedPtr<ILiveLinkHubSession> Session = LiveLinkHubModule.GetSessionManager()->GetCurrentSession())
 		{
 			return Session->GetSubjectConfig(InSubject);
 		}
-		return nullptr;
+		return {};
 	}
 };

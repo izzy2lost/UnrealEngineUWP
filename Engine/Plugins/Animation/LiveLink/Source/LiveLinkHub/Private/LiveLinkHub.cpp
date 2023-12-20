@@ -4,7 +4,6 @@
 
 #include "Clients/LiveLinkHubClientsController.h"
 #include "Clients/LiveLinkHubProvider.h"
-#include "Config/LiveLinkHubConfigData.h"
 #include "Config/LiveLinkHubFileUtilities.h"
 #include "DesktopPlatformModule.h"
 #include "EditorDirectories.h"
@@ -13,15 +12,15 @@
 #include "IDesktopPlatform.h"
 #include "LiveLinkHubClient.h"
 #include "LiveLinkProvider.h"
-#include "LiveLinkSubject.h"
 #include "LiveLinkHubCommands.h"
-#include "LiveLinkSubject.h"
 #include "LiveLinkProviderImpl.h"
+#include "LiveLinkSubject.h"
 #include "LiveLinkSubjectSettings.h"
 #include "Misc/ConfigCacheIni.h"
 #include "Recording/LiveLinkHubPlaybackController.h"
 #include "Recording/LiveLinkHubRecordingController.h"
 #include "Recording/LiveLinkHubRecordingListController.h"
+#include "Session/LiveLinkHubSessionManager.h"
 #include "Subjects/LiveLinkHubSubjectController.h"
 #include "UI/Window/LiveLinkHubWindowController.h"
 
@@ -76,6 +75,8 @@ FLiveLinkHub::~FLiveLinkHub()
 	LiveLinkHubClient->OnLiveLinkSubjectAdded().RemoveAll(this);
 	LiveLinkHubClient->OnFrameDataReceived_AnyThread().RemoveAll(this);
 	LiveLinkHubClient->OnStaticDataReceived_AnyThread().RemoveAll(this);
+
+	IModularFeatures::Get().UnregisterModularFeature(ILiveLinkClient::ModularFeatureName, LiveLinkHubClient.Get());
 }
 
 bool FLiveLinkHub::IsInPlayback() const
@@ -188,149 +189,29 @@ void FLiveLinkHub::BindCommands()
 		FCanExecuteAction::CreateSP(this, &FLiveLinkHub::CanSaveConfig));
 }
 
-void FLiveLinkHub::ClearClient()
-{
-	check(LiveLinkProvider.IsValid());
-	check(LiveLinkHubClient.IsValid());
-	
-	TMap<FLiveLinkHubClientId, FLiveLinkHubUEClientInfo> Clients = LiveLinkProvider->GetClientsMap();
-	
-	for (const TTuple<FLiveLinkHubClientId, FLiveLinkHubUEClientInfo>& Client : Clients)
-	{
-		LiveLinkProvider->RemoveClient(Client.Key);
-	}
-	
-	LiveLinkHubClient->RemoveAllSources();
-
-	// Removing sources only sets bPendingKill to true, need to tick to make sure they are removed.
-	LiveLinkHubClient->ForceTick();
-}
-
 void FLiveLinkHub::NewConfig()
 {
-	ClearClient();
-	LastConfigPath.Empty();
+	SessionManager->NewSession();
 }
 
 void FLiveLinkHub::SaveConfigAs()
 {
-	const FString FileDescription = UE::LiveLinkHub::FileUtilities::Private::ConfigDescription;
-	const FString Extensions = UE::LiveLinkHub::FileUtilities::Private::ConfigExtension;
-	const FString FileTypes = FString::Printf(TEXT("%s (*.%s)|*.%s"), *FileDescription, *Extensions, *Extensions);
-
-	const FString DefaultFile = UE::LiveLinkHub::FileUtilities::Private::ConfigDefaultFileName;
-	
-	TArray<FString> SaveFileNames;
-
-	IDesktopPlatform* DesktopPlatform = FDesktopPlatformModule::Get();
-	const void* ParentWindowWindowHandle = FSlateApplication::Get().FindBestParentWindowHandleForDialogs(nullptr);
-	
-	const bool bFileSelected = DesktopPlatform->SaveFileDialog(
-		ParentWindowWindowHandle,
-		LOCTEXT("LiveLinkHubSaveAsTitle", "Save As").ToString(),
-		FEditorDirectories::Get().GetLastDirectory(ELastDirectory::GENERIC_SAVE),
-		DefaultFile,
-		FileTypes,
-		EFileDialogFlags::None,
-		SaveFileNames);
-
-	if (bFileSelected && SaveFileNames.Num() > 0)
-	{
-		LastConfigPath = SaveFileNames[0];
-		FEditorDirectories::Get().SetLastDirectory(ELastDirectory::GENERIC_SAVE, FPaths::GetPath(LastConfigPath));
-		SaveConfig();
-	}
+	SessionManager->SaveSessionAs();
 }
 
 bool FLiveLinkHub::CanSaveConfig() const
 {
-	return !LastConfigPath.IsEmpty();
+	return SessionManager->CanSaveCurrentSession();
 }
 
 void FLiveLinkHub::SaveConfig()
 {
-	if (LastConfigPath.IsEmpty())
-	{
-		return;
-	}
-	
-	check(LiveLinkProvider.IsValid())
-	check(LiveLinkHubClient.IsValid());
-	
-	FLiveLinkHubConfigData LiveLinkHubConfigData;
-	
-	TArray<FGuid> SourceGuids = LiveLinkHubClient->GetSources();
-	for (const FGuid& SourceGuid : SourceGuids)
-	{
-		LiveLinkHubConfigData.Sources.Add(LiveLinkHubClient->GetSourcePreset(SourceGuid, nullptr));
-	}
-
-	TArray<FLiveLinkSubjectKey> Subjects = LiveLinkHubClient->GetSubjects(true, true);
-	for (const FLiveLinkSubjectKey& Subject : Subjects)
-	{
-		LiveLinkHubConfigData.Subjects.Add(LiveLinkHubClient->GetSubjectPreset(Subject, nullptr));
-	}
-
-	const TMap<FLiveLinkHubClientId, FLiveLinkHubUEClientInfo>& ClientMap = LiveLinkProvider->GetClientsMap();
-	
-	for (const TTuple<FLiveLinkHubClientId, FLiveLinkHubUEClientInfo>& ClientKeyVal : ClientMap)
-	{
-		LiveLinkHubConfigData.Clients.Add(ClientKeyVal.Value);
-	}
-
-	UE::LiveLinkHub::FileUtilities::Private::SaveConfig(LiveLinkHubConfigData, LastConfigPath);
+	SessionManager->SaveCurrentSession();
 }
 
 void FLiveLinkHub::OpenConfig()
 {
-	const FString FileDescription = UE::LiveLinkHub::FileUtilities::Private::ConfigDescription;
-	const FString Extensions = UE::LiveLinkHub::FileUtilities::Private::ConfigExtension;
-	const FString FileTypes = FString::Printf(TEXT("%s (*.%s)|*.%s"), *FileDescription, *Extensions, *Extensions);
-
-	const FString DefaultFile = UE::LiveLinkHub::FileUtilities::Private::ConfigDefaultFileName;
-
-	check(LiveLinkProvider.IsValid())
-	check(LiveLinkHubClient.IsValid());
-	
-	ClearClient();
-	
-	TArray<FString> OpenFileNames;
-
-	IDesktopPlatform* DesktopPlatform = FDesktopPlatformModule::Get();
-	const void* ParentWindowWindowHandle = FSlateApplication::Get().FindBestParentWindowHandleForDialogs(nullptr);
-	const bool bFileSelected = DesktopPlatform->OpenFileDialog(
-		ParentWindowWindowHandle,
-		LOCTEXT("LiveLinkHubOpenTitle", "Open").ToString(),
-		FEditorDirectories::Get().GetLastDirectory(ELastDirectory::GENERIC_OPEN),
-		DefaultFile,
-		FileTypes,
-		EFileDialogFlags::None,
-		OpenFileNames);
-
-	if (bFileSelected && OpenFileNames.Num() > 0)
-	{
-		LastConfigPath = OpenFileNames[0];
-		FEditorDirectories::Get().SetLastDirectory(ELastDirectory::GENERIC_OPEN, FPaths::GetPath(LastConfigPath));
-
-		const TSharedPtr<FLiveLinkHubConfigData> ConfigData = UE::LiveLinkHub::FileUtilities::Private::LoadConfig(LastConfigPath);
-		if (ConfigData.IsValid())
-		{
-			for (const FLiveLinkSourcePreset& SourcePreset : ConfigData->Sources)
-			{
-				LiveLinkHubClient->CreateSource(SourcePreset);
-			}
-
-			for (const FLiveLinkSubjectPreset& SubjectPreset : ConfigData->Subjects)
-			{
-				LiveLinkHubClient->CreateSubject(SubjectPreset);	
-			}
-
-			for (const FLiveLinkHubUEClientInfo& Client : ConfigData->Clients)
-			{
-				LiveLinkProvider->AddClient(Client);
-			}
-		}
-	}
+	SessionManager->RestoreSession();
 }
 
 FName FLiveLinkHub::GetSubjectNameOverride(const FLiveLinkSubjectKey& InSubjectKey) const
@@ -339,7 +220,7 @@ FName FLiveLinkHub::GetSubjectNameOverride(const FLiveLinkSubjectKey& InSubjectK
 	{
 		if (const TSharedPtr<ILiveLinkHubSession> CurrentSession = Manager->GetCurrentSession())
 		{
-			if (const ULiveLinkHubSubjectProxy* SubjectProxy = CurrentSession->GetSubjectConfig(InSubjectKey))
+			if (TOptional<FLiveLinkHubSubjectProxy> SubjectProxy = CurrentSession->GetSubjectConfig(InSubjectKey))
 			{
 				return SubjectProxy->GetOutboundName();
 			}

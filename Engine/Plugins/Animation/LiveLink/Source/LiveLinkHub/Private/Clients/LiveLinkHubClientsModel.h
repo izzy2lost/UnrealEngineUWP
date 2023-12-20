@@ -11,7 +11,6 @@ struct FLiveLinkClientInfoMessage;
 struct FLiveLinkHubUEClientInfo;
 struct FLiveLinkSubjectKey;
 
-
 /** Decouples the UI from the livelink hub functions. */
 class ILiveLinkHubClientsModel
 {
@@ -19,12 +18,13 @@ public:
 	/** Types of client updates. */
 	enum class EClientEventType
 	{
-		Connected,
-		Removed,
-		Modified
+		Discovered, // UE client was discovered by the hub.
+		Disconnected, // Connection was lost with a client.
+		Reestablished, // Connection was restored with a previously disconnected client.
+		Modified // Information about a given client has changed (ie. level has changed).
 	};
 
-	DECLARE_MULTICAST_DELEGATE_TwoParams(FOnClientEvent, FLiveLinkHubClientId, EClientEventType);
+	DECLARE_TS_MULTICAST_DELEGATE_TwoParams(FOnClientEvent, FLiveLinkHubClientId, EClientEventType);
 
 	virtual ~ILiveLinkHubClientsModel() = default;
 
@@ -32,7 +32,10 @@ public:
 	virtual FOnClientEvent& OnClientEvent() = 0;
 
 	/** Get the status text of a client. */
-	virtual FText GetClientStatus(FLiveLinkHubClientId InClient) const = 0;
+	virtual FText GetClientStatus(FLiveLinkHubClientId Client) const = 0;
+
+	/** Get the list of clients that should be displayed in the clients panel according to the current session config. */
+	virtual TArray<FLiveLinkHubClientId> GetSessionClients() const = 0;
 
 	/** Get the list of clients discovered by the hub. */
 	virtual TArray<FLiveLinkHubClientId> GetDiscoveredClients() const = 0;
@@ -42,9 +45,6 @@ public:
 
 	/** Get the name of a client. */
 	virtual FText GetClientDisplayName(FLiveLinkHubClientId InClient) const = 0;
-
-	/** Remove a client from the client list. */
-	virtual void RemoveClient(FLiveLinkHubClientId InClient) = 0;
 
 	/** Get whether a client should receive livelink data. */
 	virtual bool IsClientEnabled(FLiveLinkHubClientId InClient) const = 0;

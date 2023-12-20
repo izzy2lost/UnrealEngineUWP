@@ -9,39 +9,9 @@
 
 #include "LiveLinkHubSubjectSessionConfig.generated.h"
 
-/** Config pertaining to livelink hub subjects for a given session. */
-UCLASS()
-class ULiveLinkHubSubjectSessionConfig : public UObject
-{
-public:
-	GENERATED_BODY()
-
-	ULiveLinkHubSubjectSessionConfig();
-	virtual ~ULiveLinkHubSubjectSessionConfig() override;
-
-	/** Get the config for a livelinkhub subject. */
-	ULiveLinkHubSubjectProxy* GetSubjectConfig(const FLiveLinkSubjectKey& InSubject);
-
-private:
-	/** AnyThread handler for the SubjectAdded delegate, dispatches handling on the game thread to avoid asserts in Slate. */
-	void OnSubjectAdded_AnyThread(FLiveLinkSubjectKey SubjectKey);
-	/** Handles updating the tree view when a subject is added. */
-	void OnSubjectAdded(const FLiveLinkSubjectKey& SubjectKey);
-	/** AnyThread handler for the SubjectRemoved delegate, dispatches handling on the game thread to avoid asserts in Slate. */
-	void OnSubjectRemoved_AnyThread(FLiveLinkSubjectKey SubjectKey);
-	/** Handles updating the tree view when a subject is removed. */
-	void OnSubjectRemoved(const FLiveLinkSubjectKey& SubjectKey);
-
-private:
-	/** Settings for subjects displayed in the livelink hub. */
-	UPROPERTY(Instanced)
-	TMap<FLiveLinkSubjectKey, TObjectPtr<ULiveLinkHubSubjectProxy>> SubjectProxies;
-};
-
-
 /** Holds information and config for a subject for the duration of a livelink hub session.  */
-UCLASS()
-class ULiveLinkHubSubjectProxy : public UObject
+USTRUCT()
+struct FLiveLinkHubSubjectProxy
 {
 public:
 	GENERATED_BODY()
@@ -52,10 +22,15 @@ public:
 	/** Get the outbound name for this subject, allows  */
 	FName GetOutboundName() const;
 
-	//~ Begin UObject interface
-	virtual void PreEditChange(FProperty* PropertyAboutToChange) override;
-	virtual void PostEditChangeProperty(struct FPropertyChangedEvent& PropertyChangedEvent) override;
-	//~ End UObject interface
+	/** Change the outbound name for this subject proxy. */
+	void SetOutboundName(FName NewName);
+
+	/** Get the outbound name property name. */
+	static FName GetOutboundNamePropertyName()
+	{
+		return GET_MEMBER_NAME_CHECKED(FLiveLinkHubSubjectProxy, OutboundName);
+	}
+
 private:
 	/** Notify clients that the old subject should be deleted and replaced with a new one with the updated name. */
 	void NotifyRename();
@@ -85,4 +60,27 @@ private:
 
 	/* Previous outbound name to be used for noticing clients to remove this entry from their subject list. */
 	FName PreviousOutboundName;
+};
+
+/** Config pertaining to livelink hub subjects for a given session. */
+USTRUCT()
+struct FLiveLinkHubSubjectSessionConfig
+{
+public:
+	GENERATED_BODY()
+
+	void Initialize();
+
+	/** Get the config for a livelinkhub subject. */
+	TOptional<FLiveLinkHubSubjectProxy> GetSubjectConfig(const FLiveLinkSubjectKey& InSubject) const;
+
+	/** Change the outbound name of a subject for the current session. */
+	void RenameSubject(const FLiveLinkSubjectKey& SubjectKey, FName NewName);
+
+private:
+	/** Settings for subjects displayed in the livelink hub. */
+	UPROPERTY()
+	TMap<FLiveLinkSubjectKey, FLiveLinkHubSubjectProxy> SubjectProxies;
+
+	friend class FLiveLinkHubSession;
 };

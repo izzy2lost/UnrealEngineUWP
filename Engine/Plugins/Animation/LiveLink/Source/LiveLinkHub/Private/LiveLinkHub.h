@@ -82,7 +82,6 @@ private:
 	void BindCommands();
 
 	/** Clear all client settings. */
-	void ClearClient();
 	FName GetSubjectNameOverride(const FLiveLinkSubjectKey& InSubjectKey) const;
 
 	/** Create a new config. */

@@ -8,13 +8,16 @@
 #include "Delegates/Delegate.h"
 #include "Delegates/DelegateCombinations.h"
 #include "Features/IModularFeatures.h"
+#include "Framework/Application/SlateApplication.h"
 #include "Misc/Guid.h"
 #include "LiveLinkClient.h"
 #include "LiveLinkHubClientsModel.h"
 #include "LiveLinkHubUEClientInfo.h"
+#include "Session/LiveLinkHubSessionManager.h"
 #include "Styling/SlateTypes.h"
 #include "Widgets/Input/SButton.h"
 #include "Widgets/Input/SCheckBox.h"
+#include "Widgets/Input/SComboButton.h"
 #include "Widgets/Text/STextBlock.h"
 #include "Widgets/Views/STreeView.h"
 
@@ -24,6 +27,9 @@ class FLiveLinkHub;
 #define LOCTEXT_NAMESPACE "LiveLinkHub.ClientsView"
 
 DECLARE_DELEGATE_OneParam(FOnClientSelected, FLiveLinkHubClientId/*ClientIdentifier*/);
+DECLARE_DELEGATE_OneParam(FOnDiscoveredClientPicked, FLiveLinkHubClientId/*ClientIdentifier*/);
+DECLARE_DELEGATE_OneParam(FOnRemoveClientFromSession, FLiveLinkHubClientId/*ClientIdentifier*/);
+
 
 static const FName NameColumnId = "Name";
 static const FName StatusColumnId = "Status";
@@ -32,13 +38,13 @@ static const FName EnabledIconColumnId = "EnabledIcon";
 /** Tree view item that represents either a client or a livelink subject. */
 struct FClientTreeViewItem
 {
-	virtual ~FClientTreeViewItem() = default;
-
 	FClientTreeViewItem(FLiveLinkHubClientId InClientId, TSharedRef<ILiveLinkHubClientsModel> InClientsModel)
 		: ClientId(MoveTemp(InClientId))
 		, ClientsModel(MoveTemp(InClientsModel))
 	{
 	}
+
+	virtual ~FClientTreeViewItem() = default;
 
 	/** Get the subject key for this tree item (Invalid key for client rows). */
 	virtual const FLiveLinkSubjectKey& GetSubjectKey() const
@@ -64,7 +70,8 @@ struct FClientTreeViewItem
 
 	/** Get status text for the row. */
 	virtual FText GetStatusText() const = 0;
-
+	
+public:
 	/** This item's children, in the case of client rows, these represent the livelink subjects. */
 	TArray<TSharedPtr<FClientTreeViewItem>> Children;
 	/** Name of the tree item (client or subject name). */
@@ -156,7 +163,7 @@ struct FClientTreeViewSubjectItem : public FClientTreeViewItem
 	{
 		if (const TSharedPtr<ILiveLinkHubClientsModel> ClientsModelPtr = ClientsModel.Pin())
 		{
-			return !ClientsModelPtr->IsClientEnabled(ClientId);
+			return !ClientsModelPtr->IsClientEnabled(ClientId) || !ClientsModelPtr->IsClientConnected(ClientId);
 		}
 
 		return false;
@@ -180,7 +187,7 @@ struct FClientTreeViewSubjectItem : public FClientTreeViewItem
 	FLiveLinkSubjectKey LiveLinkSubjectKey;
 };
 
-
+/** Holds a client row's data. */
 class SLiveLinkHubClientsRow : public SMultiColumnTableRow<TSharedPtr<FClientTreeViewItem>>
 {
 public:
@@ -275,6 +282,8 @@ class SLiveLinkHubClientsView : public SCompoundWidget
 public:
 	SLATE_BEGIN_ARGS(SLiveLinkHubClientsView) {}
 	SLATE_EVENT(FOnClientSelected, OnClientSelected)
+	SLATE_EVENT(FOnDiscoveredClientPicked, OnDiscoveredClientPicked)
+	SLATE_EVENT(FOnRemoveClientFromSession, OnRemoveClientFromSession)
 	SLATE_END_ARGS()
 
 	using FClientTreeItemPtr = TSharedPtr<FClientTreeViewItem>;
@@ -283,9 +292,17 @@ public:
 	void Construct(const FArguments& InArgs, TSharedRef<ILiveLinkHubClientsModel> InClientsModel)
 	{
 		OnClientSelectedDelegate = InArgs._OnClientSelected;
+		OnDiscoveredClientPickedDelegate = InArgs._OnDiscoveredClientPicked;
+		OnRemoveClientFromSessionDelegate = InArgs._OnRemoveClientFromSession;
+
 		ClientsModel = MoveTemp(InClientsModel);
 		 
 		ClientsModel->OnClientEvent().AddSP(this, &SLiveLinkHubClientsView::OnClientEvent);
+
+		const FLiveLinkHubModule& LiveLinkHubModule = FModuleManager::Get().GetModuleChecked<FLiveLinkHubModule>("LiveLinkHub");
+		LiveLinkHubModule.GetSessionManager()->OnClientAddedToSession().AddSP(this, &SLiveLinkHubClientsView::OnClientAddedToSession);
+		LiveLinkHubModule.GetSessionManager()->OnClientRemovedFromSession().AddSP(this, &SLiveLinkHubClientsView::OnClientRemovedFromSession);
+		LiveLinkHubModule.GetSessionManager()->OnActiveSessionChanged().AddSP(this, &SLiveLinkHubClientsView::OnActiveSessionChanged);
 
 		FLiveLinkClient& LiveLinkClient = IModularFeatures::Get().GetModularFeature<FLiveLinkClient>(ILiveLinkClient::ModularFeatureName);
 		LiveLinkClient.OnLiveLinkSubjectAdded().AddSP(this, &SLiveLinkHubClientsView::OnSubjectAdded_AnyThread);
@@ -293,7 +310,37 @@ public:
 
 		ChildSlot
 		[
-			SAssignNew(TreeView, STreeView<FClientTreeItemPtr>)
+			SNew(SVerticalBox)
+			+ SVerticalBox::Slot()
+			.HAlign(HAlign_Right)
+			.AutoHeight()
+			[
+				SNew(SComboButton)
+				.CollapseMenuOnParentFocus(true)
+				.ButtonContent()
+				[
+					SNew(STextBlock)
+					.Text(LOCTEXT("AddClientLabel", "Add Client"))
+				]
+				.MenuContent()
+				[
+					SNew(SBox)
+					.HeightOverride(200.0)
+					.WidthOverride(200.0)
+					[
+						SAssignNew(DiscoveredClientsListView, SListView<TSharedPtr<FLiveLinkHubClientId>>)
+						.ListItemsSource(&DiscoveredClients)
+						.ItemHeight(20.0f)
+						.OnSelectionChanged(this, &SLiveLinkHubClientsView::OnDiscoveredClientPicked)
+						.OnGenerateRow(this, &SLiveLinkHubClientsView::OnGenerateDiscoveredClientsRow)
+					]
+				]
+				
+			]
+			+ SVerticalBox::Slot()
+			.AutoHeight()
+			[
+				SAssignNew(TreeView, STreeView<FClientTreeItemPtr>)
 				.TreeItemsSource(&Clients)
 				.ItemHeight(20.0f)
 				.OnSelectionChanged(this, &SLiveLinkHubClientsView::OnSelectionChanged)
@@ -313,9 +360,10 @@ public:
 					.ManualWidth(20.f)
 					.DefaultLabel(LOCTEXT("EnabledIconEmpty", ""))
 				)
+			]
 		];
 
-		PopulateClients();
+		Reinitialize();
 	}
 	//~ End SWidget interface
 
@@ -328,9 +376,30 @@ public:
 			LiveLinkClient.OnLiveLinkSubjectAdded().RemoveAll(this);
 		}
 
+		if (FLiveLinkHubModule* LiveLinkHubModule = FModuleManager::Get().GetModulePtr<FLiveLinkHubModule>("LiveLinkHub"))
+		{
+			if (TSharedPtr<ILiveLinkHubSessionManager> SessionManager = LiveLinkHubModule->GetSessionManager())
+			{
+				SessionManager->OnActiveSessionChanged().RemoveAll(this);
+				SessionManager->OnClientRemovedFromSession().RemoveAll(this);
+				SessionManager->OnClientAddedToSession().RemoveAll(this);
+			}
+		}
+
 		if (ClientsModel)
 		{
 			ClientsModel->OnClientEvent().RemoveAll(this);
+		}
+	}
+
+	/** Refresh the data and widgets. */
+	void Reinitialize()
+	{
+		PopulateClients();
+		TreeView->RequestTreeRefresh();
+		if (DiscoveredClientsListView)
+		{
+			DiscoveredClientsListView->RequestListRefresh();
 		}
 	}
 
@@ -349,6 +418,22 @@ public:
 	}
 
 private:
+	/** Handler used to generate a widget for a given client row. */
+	TSharedRef<ITableRow> OnGenerateDiscoveredClientsRow(TSharedPtr<FLiveLinkHubClientId> Item, const TSharedRef<STableViewBase>& OwnerTable)
+	{
+		FText ClientName = LOCTEXT("InvalidClient", "Invalid Client");
+		if (ClientsModel && Item)
+		{
+			ClientName = ClientsModel->GetClientDisplayName(*Item);
+		}
+
+		return SNew(STableRow<TSharedPtr<FLiveLinkHubClientId>>, OwnerTable)
+		[
+			SNew(STextBlock)
+			.Text(ClientName)
+		];
+	}
+
 	/** Handler used to generate a widget for a given client row. */
 	TSharedRef<ITableRow> OnGenerateClientRow(FClientTreeItemPtr Item, const TSharedRef<STableViewBase>& OwnerTable)
 	{
@@ -369,7 +454,7 @@ private:
     	{
 			if (TOptional<FLiveLinkHubClientId> Id = GetSelectedClient())
 			{
-				ClientsModel->RemoveClient(*Id);
+				OnRemoveClientFromSessionDelegate.ExecuteIfBound(*Id);
 			}
     		return FReply::Handled();
     	}
@@ -386,28 +471,108 @@ private:
 		}
 	}
 
+	/** Handler called when a client is picked in the Add Client menu. */
+	void OnDiscoveredClientPicked(TSharedPtr<FLiveLinkHubClientId> InItem, const ESelectInfo::Type InSelectInfoType)
+	{
+		if (InItem && TreeView)
+		{
+			OnDiscoveredClientPickedDelegate.ExecuteIfBound(*InItem);
+			FSlateApplication::Get().SetUserFocus(0, TreeView);
+		}
+	}
+
 	/** Handler called when the client list has changed. */
 	void OnClientEvent(FLiveLinkHubClientId ClientId, ILiveLinkHubClientsModel::EClientEventType EventType)
 	{
 		switch (EventType)
 		{
-		case ILiveLinkHubClientsModel::EClientEventType::Connected:
+		case ILiveLinkHubClientsModel::EClientEventType::Discovered:
 		{
-			if (!Clients.ContainsByPredicate([ClientId](const FClientTreeItemPtr& InClient) { return InClient->ClientId == ClientId; }))
+			if (!DiscoveredClients.ContainsByPredicate([ClientId](const TSharedPtr<FLiveLinkHubClientId>& InClient) { return *InClient == ClientId; }))
 			{
-				TSharedPtr<FClientTreeViewClientItem> ClientItem = MakeShared<FClientTreeViewClientItem>(ClientId, ClientsModel.ToSharedRef());
-				ClientItem->ClientId = ClientId;
-				InitializeClientItem(*ClientItem);
+				DiscoveredClients.Add(MakeShared<FLiveLinkHubClientId>(MoveTemp(ClientId)));
 
-				Clients.Add(ClientItem);
-				TreeView->RequestTreeRefresh();
+				TWeakPtr<SListView<TSharedPtr<FLiveLinkHubClientId>>> WeakList = DiscoveredClientsListView;
+				AsyncTask(ENamedThreads::GameThread, [WeakList]() 
+				{
+					if (TSharedPtr<SListView<TSharedPtr<FLiveLinkHubClientId>>> List = WeakList.Pin())
+					{
+						List->RequestListRefresh();
+					}
+				});
 			}
 			break;
 		}
-		case ILiveLinkHubClientsModel::EClientEventType::Removed:
+		case ILiveLinkHubClientsModel::EClientEventType::Disconnected:
 		{
-			Clients.RemoveAll([ClientId](const FClientTreeItemPtr& InClient) { return InClient->ClientId == ClientId; });
-			TreeView->RequestTreeRefresh();
+			int32 ClientIndex = DiscoveredClients.IndexOfByPredicate([ClientId](const TSharedPtr<FLiveLinkHubClientId>& InClient) { return *InClient == ClientId; });
+			if (ClientIndex != INDEX_NONE)
+			{
+				DiscoveredClients.RemoveAt(ClientIndex);
+
+				TWeakPtr<SListView<TSharedPtr<FLiveLinkHubClientId>>> WeakList = DiscoveredClientsListView;
+				AsyncTask(ENamedThreads::GameThread, [WeakList]()
+					{
+						if (TSharedPtr<SListView<TSharedPtr<FLiveLinkHubClientId>>> List = WeakList.Pin())
+						{
+							List->RequestListRefresh();
+						}
+					});
+			}
+			break;
+		}
+		case ILiveLinkHubClientsModel::EClientEventType::Reestablished:
+		{
+
+			if (FLiveLinkHubModule* LiveLinkHubModule = FModuleManager::Get().GetModulePtr<FLiveLinkHubModule>("LiveLinkHub"))
+			{
+				if (TSharedPtr<ILiveLinkHubSessionManager> SessionManager = LiveLinkHubModule->GetSessionManager())
+				{
+					if (SessionManager->GetCurrentSession()->IsClientInSession(ClientId))
+					{
+						// Client is in session, add it to the clients, remove from discovered list
+						int32 DiscoveredClientIndex = DiscoveredClients.IndexOfByPredicate([ClientId](const TSharedPtr<FLiveLinkHubClientId>& InClient) { return *InClient == ClientId; });
+						if (DiscoveredClientIndex != INDEX_NONE)
+						{
+							DiscoveredClients.RemoveAt(DiscoveredClientIndex);
+						}
+
+						int32 ClientIndex = Clients.IndexOfByPredicate([ClientId](const FClientTreeItemPtr& InClient) { return InClient->ClientId == ClientId; });
+						if (ClientIndex == INDEX_NONE)
+						{
+							TSharedPtr<FClientTreeViewClientItem> ClientItem = MakeShared<FClientTreeViewClientItem>(ClientId, ClientsModel.ToSharedRef());
+							ClientItem->ClientId = ClientId;
+							InitializeClientItem(*ClientItem);
+							Clients.Add(ClientItem);
+						}
+					}
+					else
+					{
+						// Client is not in session, add it to discovered clients if not already there
+						int32 ClientIndex = DiscoveredClients.IndexOfByPredicate([ClientId](const TSharedPtr<FLiveLinkHubClientId>& InClient) { return *InClient == ClientId; });
+						if (ClientIndex == INDEX_NONE)
+						{
+							DiscoveredClients.Add(MakeShared<FLiveLinkHubClientId>(ClientId));
+						}
+					}
+				}
+			}
+
+
+			TWeakPtr<SListView<TSharedPtr<FLiveLinkHubClientId>>> WeakDiscoveredList = DiscoveredClientsListView;
+			TWeakPtr<STreeView<FClientTreeItemPtr>> WeakClients = TreeView;
+			AsyncTask(ENamedThreads::GameThread, [WeakDiscoveredList, WeakClients]()
+			{
+				if (TSharedPtr<SListView<TSharedPtr<FLiveLinkHubClientId>>> List = WeakDiscoveredList.Pin())
+				{
+					List->RequestListRefresh();
+				}
+
+				if (TSharedPtr<STreeView<FClientTreeItemPtr>> ClientsList = WeakClients.Pin())
+				{
+					ClientsList->RequestTreeRefresh();
+				}
+			});
 			break;
 		}
 		case ILiveLinkHubClientsModel::EClientEventType::Modified:
@@ -419,6 +584,48 @@ private:
 			checkNoEntry();
 		}
 		}
+	}
+
+	/** Handler called when a client is added to a session. */
+	void OnClientAddedToSession(FLiveLinkHubClientId ClientId)
+	{
+		int32 ClientIndex = DiscoveredClients.IndexOfByPredicate([ClientId](const TSharedPtr<FLiveLinkHubClientId>& InClient) { return *InClient == ClientId; });
+		if (ClientIndex != INDEX_NONE)
+		{
+			DiscoveredClients.RemoveAt(ClientIndex);
+		}
+
+		TSharedPtr<FClientTreeViewClientItem> ClientItem = MakeShared<FClientTreeViewClientItem>(ClientId, ClientsModel.ToSharedRef());
+		ClientItem->ClientId = ClientId;
+		InitializeClientItem(*ClientItem);
+		Clients.Add(ClientItem);
+
+		TreeView->RequestTreeRefresh();
+		DiscoveredClientsListView->RequestListRefresh();
+	}
+
+	/** Handler called when a client is removed from a session. */
+	void OnClientRemovedFromSession(FLiveLinkHubClientId ClientId)
+	{
+		int32 ClientIndex = Clients.IndexOfByPredicate([ClientId](const FClientTreeItemPtr& InClient) { return InClient->ClientId == ClientId; });
+		if (ClientIndex != INDEX_NONE)
+		{
+			Clients.RemoveAt(ClientIndex);
+		}
+
+		if (ClientsModel->IsClientConnected(ClientId))
+		{
+			DiscoveredClients.Add(MakeShared<FLiveLinkHubClientId>(ClientId));
+			DiscoveredClientsListView->RequestListRefresh();
+		}
+
+		TreeView->RequestTreeRefresh();
+	}
+
+	/** Refreshes the data when the current session changes. */
+	void OnActiveSessionChanged(const TSharedRef<ILiveLinkHubSession>& ActiveSession)
+	{
+		Reinitialize();
 	}
 
 	/** Populate a client item row with its data and children. */
@@ -502,8 +709,16 @@ private:
 	/** Build the client list. */
 	void PopulateClients()
 	{
-		TArray<FLiveLinkHubClientId> ClientList = ClientsModel->GetDiscoveredClients();
+		TArray<FLiveLinkHubClientId> ClientList = ClientsModel->GetSessionClients();
 		Clients.Reset(ClientList.Num());
+
+		TArray<FLiveLinkHubClientId> DiscoveredClientList = ClientsModel->GetDiscoveredClients();
+		DiscoveredClients.Reset(DiscoveredClientList.Num());
+
+		for (const FLiveLinkHubClientId& Client : DiscoveredClientList)
+		{
+			DiscoveredClients.Add(MakeShared<FLiveLinkHubClientId>(Client));
+		}
 
 		for (const FLiveLinkHubClientId& Client : ClientList)
 		{
@@ -517,10 +732,18 @@ private:
 private:
 	/** Delegate called when a client is selected. */
 	FOnClientSelected OnClientSelectedDelegate;
+	/** Delegate called when a client is selected. */
+	FOnDiscoveredClientPicked OnDiscoveredClientPickedDelegate;
+	/** Delegate called when a client is deleted. */
+	FOnRemoveClientFromSession OnRemoveClientFromSessionDelegate;
 	/** TreeView widget that displays the clients. */
 	TSharedPtr<STreeView<FClientTreeItemPtr>> TreeView;
-	/** List of message addresses used to identify UE clients and populate the list view. */
+	/** ListView widget that displays clients discovered by the hub that aren't in the current session. */
+	TSharedPtr<SListView<TSharedPtr<FLiveLinkHubClientId>>> DiscoveredClientsListView;
+	/** List of clients in the current session. */
 	TArray<FClientTreeItemPtr> Clients;
+	/** Clients discovered by the hub. */
+	TArray<TSharedPtr<FLiveLinkHubClientId>> DiscoveredClients;
 	/** Model that holds the client data we are displaying. */
 	TSharedPtr<ILiveLinkHubClientsModel> ClientsModel;
 };

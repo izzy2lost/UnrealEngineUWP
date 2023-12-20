@@ -4,6 +4,7 @@
 
 #include "Clients/LiveLinkHubProvider.h"
 #include "LiveLinkHubApplication.h"
+#include "LiveLinkHubLog.h"
 #include "Modules/ModuleManager.h"
 #include "Recording/LiveLinkHubPlaybackController.h"
 #include "Recording/LiveLinkHubRecordingController.h"
@@ -58,22 +59,22 @@ TSharedPtr<FLiveLinkHub> FLiveLinkHubModule::GetLiveLinkHub() const
 
 TSharedPtr<FLiveLinkHubProvider> FLiveLinkHubModule::GetLiveLinkProvider() const
 {
-	return LiveLinkHub->LiveLinkProvider;
+	return LiveLinkHub ? LiveLinkHub->LiveLinkProvider : nullptr;
 }
 
 TSharedPtr<FLiveLinkHubRecordingController> FLiveLinkHubModule::GetRecordingController() const
 {
-	return LiveLinkHub->RecordingController;
+	return LiveLinkHub ? LiveLinkHub->RecordingController : nullptr;
 }
 
 TSharedPtr<FLiveLinkHubRecordingListController> FLiveLinkHubModule::GetRecordingListController() const
 {
-	return LiveLinkHub->RecordingListController;
+	return LiveLinkHub ? LiveLinkHub->RecordingListController : nullptr;
 }
 
 TSharedPtr<FLiveLinkHubPlaybackController> FLiveLinkHubModule::GetPlaybackController() const
 {
-	return LiveLinkHub->PlaybackController;
+	return LiveLinkHub ? LiveLinkHub->PlaybackController : nullptr;
 }
 
 #if !WITH_LIVELINK_HUB
@@ -143,12 +144,12 @@ void FLiveLinkHubModule::OpenLiveLinkHub() const
 
 TSharedPtr<FLiveLinkHubSubjectController> FLiveLinkHubModule::GetSubjectController() const
 {
-	return LiveLinkHub->SubjectController;
+	return LiveLinkHub ? LiveLinkHub->SubjectController : nullptr;
 }
 
 TSharedPtr<ILiveLinkHubSessionManager> FLiveLinkHubModule::GetSessionManager() const
 {
-	return LiveLinkHub->SessionManager;
+	return LiveLinkHub ? LiveLinkHub->SessionManager : nullptr;
 }
 
 IMPLEMENT_MODULE(FLiveLinkHubModule, LiveLinkHub);
