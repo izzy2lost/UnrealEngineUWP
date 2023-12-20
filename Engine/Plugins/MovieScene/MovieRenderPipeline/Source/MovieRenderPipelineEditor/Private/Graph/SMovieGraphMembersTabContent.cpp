@@ -65,6 +65,10 @@ void SMovieGraphMembersTabContent::Construct(const FArguments& InArgs)
 	EditorToolkit = InArgs._Editor;
 	CurrentGraph = InArgs._Graph;
 	OnActionSelected = InArgs._OnActionSelected;
+
+	// Update the UI whenever the graph adds/updates variables. In this case it's not known which variable is added/updated, so just pass nullptr.
+	UMovieGraphMember* UpdatedMember = nullptr;
+	CurrentGraph->OnGraphVariablesChangedDelegate.AddSP(this, &SMovieGraphMembersTabContent::RefreshMemberActions, UpdatedMember);
 	
 	ChildSlot
 	[
@@ -402,7 +406,7 @@ FReply SMovieGraphMembersTabContent::OnAddButtonClickedOnSection(const int32 InS
 	return FReply::Handled();
 }
 
-void SMovieGraphMembersTabContent::RefreshMemberActions(UMovieGraphMember* UpdatedMember) const
+void SMovieGraphMembersTabContent::RefreshMemberActions(UMovieGraphMember* UpdatedMember)
 {
 	// Currently the entire action menu is refreshed rather than a specific action being targeted
 

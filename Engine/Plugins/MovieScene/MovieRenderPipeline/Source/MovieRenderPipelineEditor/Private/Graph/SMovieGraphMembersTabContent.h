@@ -86,7 +86,7 @@ private:
 	FReply OnAddButtonClickedOnSection(const int32 InSectionID);
 
 	/** Refresh/regenerate the action menu when the given member is updated. */
-	void RefreshMemberActions(class UMovieGraphMember* UpdatedMember = nullptr) const;
+	void RefreshMemberActions(class UMovieGraphMember* UpdatedMember = nullptr);
 
 private:
 	/** The editor that this widget is associated with. */

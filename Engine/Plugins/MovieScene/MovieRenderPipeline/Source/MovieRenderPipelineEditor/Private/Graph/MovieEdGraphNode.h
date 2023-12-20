@@ -102,5 +102,11 @@ protected:
 	void TogglePromotePropertyToPin(const FName PropertyName) const;
 
 private:
-	void GetPropertyPromotionContextMenuActions(UToolMenu* Menu, UGraphNodeContextMenuContext* Context) const;
+	void GetPropertyPromotionContextMenuActions(UToolMenu* Menu, const UGraphNodeContextMenuContext* Context) const;
+
+	/**
+	 * Promote the property identified by TargetProperty to a variable. This means 1) creating a new variable w/ the type associated with the
+	 * target property, 2) creating a new variable node linked to this new variable, and 3) connecting the variable node to TargetProperty's pin.
+	 */
+	void PromotePropertyToVariable(const FMovieGraphPropertyInfo& TargetProperty) const;
 };
