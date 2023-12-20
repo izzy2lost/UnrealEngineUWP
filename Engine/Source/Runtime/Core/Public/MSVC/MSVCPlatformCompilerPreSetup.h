@@ -246,4 +246,7 @@
 
 	#define EMIT_CUSTOM_WARNING_AT_LINE(Line, Warning) \
 		__pragma(message(WARNING_LOCATION(Line) ": warning C4996: " Warning))
+
+	#define EMIT_CUSTOM_ERROR_AT_LINE(Line, Error) \
+		__pragma(message(WARNING_LOCATION(Line) ": error C4996: " Error))
 #endif // defined(__clang__)

@@ -5193,6 +5193,16 @@ namespace UnrealBuildTool
 			// Set the global app name
 			GlobalCompileEnvironment.Definitions.Add(String.Format("UE_APP_NAME=\"{0}\"", AppName));
 
+			// Set the global
+			if (Rules.bWarningsAsErrors)
+			{
+				GlobalCompileEnvironment.Definitions.Add("UE_WARNINGS_AS_ERRORS=1");
+			}
+			else
+			{
+				GlobalCompileEnvironment.Definitions.Add("UE_WARNINGS_AS_ERRORS=0");
+			}
+
 			// Add global definitions for project-specific binaries. HACK: Also defining for monolithic builds in binary releases. Might be better to set this via command line instead?
 			if (!bUseSharedBuildEnvironment || bCompileMonolithic)
 			{
