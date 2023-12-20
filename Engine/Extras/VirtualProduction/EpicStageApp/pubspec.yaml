@@ -82,9 +82,6 @@ flutter:
 
   assets:
     - assets/images/map/
-  
-  shaders:
-    - assets/shaders/scroll_view_fade.frag
 
   fonts:
     - family: Inter

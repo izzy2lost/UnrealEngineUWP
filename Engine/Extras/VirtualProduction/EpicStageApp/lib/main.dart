@@ -80,11 +80,6 @@ Future preloadShaders() async {
   await EpicCommonWidgets.preloadShaders();
 }
 
-/// Unload any preloaded shaders.
-void unloadShaders() {
-  EpicScrollView.unloadShaders();
-}
-
 class EpicStageApp extends StatefulWidget {
   const EpicStageApp({Key? key, required this.preferences}) : super(key: key);
 

@@ -34,6 +34,9 @@ flutter:
     - assets/icons/
     - assets/images/
 
+  shaders:
+    - assets/shaders/scroll_view_fade.frag
+
 # Automatically generate arb localization files from a CSV
 arb_generator:
   input_filepath: "lib/src/l10n/l10n.csv"
