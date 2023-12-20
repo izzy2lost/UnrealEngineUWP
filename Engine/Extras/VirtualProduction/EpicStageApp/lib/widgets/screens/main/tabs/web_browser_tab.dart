@@ -39,10 +39,7 @@ class _WebBrowserTabState extends State<WebBrowserTab> {
   late final EngineConnectionManager _connectionManager;
 
   /// Controls the state of the web view.
-  WebViewController? _webViewController;
-
-  /// The initial URL to attempt to connect to.
-  String? _initialUrl;
+  WebViewController? _webViewController = null;
 
   /// The current URL to display in the address bar.
   String _currentUrl = '';
@@ -86,9 +83,13 @@ class _WebBrowserTabState extends State<WebBrowserTab> {
 
   @override
   Widget build(BuildContext context) {
+    if (_webViewController == null) {
+      _initWebViewController();
+    }
+
     late final Widget mainContent;
 
-    if (_errorMessage == null) {
+    if (_webViewController != null && _errorMessage == null) {
       // Show web view
       mainContent = Column(
         crossAxisAlignment: CrossAxisAlignment.stretch,
@@ -99,20 +100,11 @@ class _WebBrowserTabState extends State<WebBrowserTab> {
             child: Stack(
               children: [
                 if (!_bIsPageLoaded) const SpinnerOverlay(),
-                if (_initialUrl != null)
-                  Center(
-                    child: WebView(
-                      backgroundColor: Theme.of(context).colorScheme.surface,
-                      initialUrl: _initialUrl!,
-                      javascriptMode: JavascriptMode.unrestricted,
-                      allowsInlineMediaPlayback: true,
-                      onPageFinished: _onPageFinished,
-                      onWebViewCreated: (controller) => _webViewController = controller,
-                      onPageStarted: (String url) => setState(() {
-                        _currentUrl = url;
-                      }),
-                    ),
+                Center(
+                  child: WebViewWidget(
+                    controller: _webViewController!,
                   ),
+                ),
               ],
             ),
           ),
@@ -123,11 +115,13 @@ class _WebBrowserTabState extends State<WebBrowserTab> {
       mainContent = Center(
         child: EmptyPlaceholder(
           message: _errorMessage!,
-          button: EpicWideButton(
-            text: AppLocalizations.of(context)!.webBrowserReconnectButtonLabel,
-            iconPath: 'packages/epic_common/assets/icons/refresh.svg',
-            onPressed: _attemptToConnect,
-          ),
+          button: _webViewController != null
+              ? EpicWideButton(
+                  text: AppLocalizations.of(context)!.webBrowserReconnectButtonLabel,
+                  iconPath: 'packages/epic_common/assets/icons/refresh.svg',
+                  onPressed: _attemptToConnect,
+                )
+              : null,
         ),
       );
     }
@@ -141,25 +135,42 @@ class _WebBrowserTabState extends State<WebBrowserTab> {
   /// Refresh the currently loaded page, or attempt to reconnect if not currently showing a page.
   void refresh() {
     if (_webViewController == null) {
-      _attemptToConnect();
       return;
     }
 
+    _attemptToConnect();
     _webViewController!.reload();
+  }
+
+  /// Try to set up the web view controller and set [_bIsWebViewAvailable] accordingly.
+  void _initWebViewController() {
+    if (WebViewPlatform.instance == null) {
+      // Not supported on this platform
+      _errorMessage = AppLocalizations.of(context)!.webBrowserUnsupportedMessage;
+      return;
+    }
+
+    _webViewController = WebViewController()
+      ..setBackgroundColor(Theme.of(context).colorScheme.surface)
+      ..setJavaScriptMode(JavaScriptMode.unrestricted)
+      ..setNavigationDelegate(
+        NavigationDelegate(
+          onPageFinished: _onPageFinished,
+          onPageStarted: (String url) => setState(() {
+            _currentUrl = url;
+          }),
+        ),
+      );
   }
 
   /// Try the full connection process from scratch, including retrieving the URI from the engine.
   void _attemptToConnect() {
-    _initialUrl = null;
+    if (_webViewController == null) {
+      return;
+    }
+
     _errorMessage = null;
     _bIsPageLoaded = false;
-
-    try {
-      WebView.platform;
-    } catch (e) {
-      _errorMessage = AppLocalizations.of(context)!.webBrowserUnsupportedMessage;
-      setState(() {});
-    }
 
     if (_errorMessage == null) {
       _findBrowserURI().then((bool bSuccess) {
@@ -225,13 +236,13 @@ class _WebBrowserTabState extends State<WebBrowserTab> {
       }
 
       setState(() {
-        _initialUrl = 'http://${connectionData.websocketAddress.address}:$port';
+        _webViewController!.loadRequest(Uri.http('${connectionData.websocketAddress.address}:$port'));
       });
 
       return true;
     }).onError((error, stackTrace) {
       setState(() {
-        _log.warning('Failed to send request for web interface port.');
+        _log.warning('Failed to send request for web interface port.', error, stackTrace);
       });
       return false;
     });

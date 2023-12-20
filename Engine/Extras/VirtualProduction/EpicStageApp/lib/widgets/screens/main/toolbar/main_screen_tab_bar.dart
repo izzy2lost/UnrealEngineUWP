@@ -33,7 +33,9 @@ class _MainScreenTabBarState extends State<MainScreenTabBar> {
         color: Theme.of(context).colorScheme.primary,
       ),
       indicatorSize: TabBarIndicatorSize.label,
+      labelColor: Colors.white,
       tabs: MainScreenTabs.tabConfigs.map((tabConfig) => _MainScreenTabBarTab(tabConfig: tabConfig)).toList(),
+      tabAlignment: TabAlignment.start,
     );
   }
 }
