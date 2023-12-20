@@ -721,7 +721,7 @@ namespace uba
 
 	bool StorageImpl::AddCasFile(const tchar* fileName, const CasKey& casKey, bool deferCreation)
 	{
-		UBA_ASSERT(IsCompressed(casKey) == m_storeCompressed);
+		UBA_ASSERTF(IsCompressed(casKey) == m_storeCompressed, TC("CasKey compress mode must match storage compress mode (%s)"), fileName);
 		ScopedWriteLock lookupLock(m_casLookupLock);
 		auto insres = m_casLookup.try_emplace(casKey);
 		CasEntry& casEntry = insres.first->second;
@@ -1550,9 +1550,12 @@ namespace uba
 	
 		if (fileEntry.verified)
 		{
-			UBA_ASSERT(casKeyOverride == CasKeyZero || casKeyOverride == fileEntry.casKey);
-			if (!AddCasFile(fileName, fileEntry.casKey, deferCreation))
-				return false;
+			if (fileEntry.casKey != CasKeyZero)
+			{
+				UBA_ASSERT(casKeyOverride == CasKeyZero || casKeyOverride == fileEntry.casKey);
+				if (!AddCasFile(fileName, fileEntry.casKey, deferCreation))
+					return false;
+			}
 			out = fileEntry.casKey;
 			return true;
 		}

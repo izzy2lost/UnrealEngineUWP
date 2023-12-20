@@ -147,8 +147,10 @@ namespace uba
 		{
 			if (!GetCasKeyForFile(casKey, processId, fileName, fileNameKey))
 				return false;
-			const tchar* lastSlash = TStrrchr(fileName.data, PathSeparator);
-			outVirtual.Append(lastSlash + 1);
+			// This needs to be absolute virtual path (the path on the host).. don't remember why this was written like this. Changed to just use fileName (needed for shadercompilerworker)
+			//const tchar* lastSlash = TStrrchr(fileName.data, PathSeparator);
+			//outVirtual.Append(lastSlash + 1);
+			outVirtual.Append(fileName);
 		}
 		else
 		{
@@ -242,6 +244,7 @@ namespace uba
 					localSystemModule.Append(m_systemPath).Append(moduleFile.data + serverSystemPathLen);
 					if (FileExists(m_logger, localSystemModule.data))
 						continue;
+					moduleFile.Clear().Append(localSystemModule);
 				}
 
 				CasKey newCasKey;

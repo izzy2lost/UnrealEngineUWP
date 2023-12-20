@@ -2264,9 +2264,13 @@ DWORD Detoured_SearchPathW(LPCWSTR lpPath, LPCWSTR lpFileName, LPCWSTR lpExtensi
 }
 
 using AdditionalLoads = Vector<HMODULE, GrowingAllocator<HMODULE>>;
+using VisitedModules = std::unordered_set<StringKey, std::hash<StringKey>, std::equal_to<StringKey>, GrowingAllocator<StringKey>>;
 
-HMODULE Recursive_LoadLibraryExW(LPCWSTR lpLibFileName, LPCWSTR originalName, DWORD dwFlags, AdditionalLoads& additionalLoads)
+HMODULE Recursive_LoadLibraryExW(LPCWSTR lpLibFileName, LPCWSTR originalName, DWORD dwFlags, AdditionalLoads& additionalLoads, VisitedModules& visitedModules)
 {
+	if (!visitedModules.insert(ToStringKeyNoCheck(lpLibFileName, wcslen(lpLibFileName))).second)
+		return 0;
+
 	// Important that this code is not doing allocations.. it could cause a recursive stack overflow
 	struct Import { char name[128]; Import(const char* s) { strcpy_s(name, sizeof_array(name), s); } };
 	std::vector<Import, GrowingAllocator<Import>> importedModules(&g_memoryBlock);
@@ -2297,7 +2301,8 @@ HMODULE Recursive_LoadLibraryExW(LPCWSTR lpLibFileName, LPCWSTR originalName, DW
 		StringBuffer<512> tempBuf;
 		Rpc_GetFullFileName(path, pathLen, tempBuf, false);
 
-		additionalLoads.push_back(Recursive_LoadLibraryExW(path, moduleNameW, dwFlags, additionalLoads));
+		if (HMODULE r = Recursive_LoadLibraryExW(path, moduleNameW, dwFlags, additionalLoads, visitedModules))
+			additionalLoads.push_back(r);
 	}
 
 	StringBuffer<512> newName;
@@ -2358,7 +2363,8 @@ HMODULE Shared_LoadLibrary(LPCWSTR lpLibFileName, HANDLE hFile, DWORD dwFlags)
 		Rpc_GetFullFileName(newPath, newPathLen, tempBuf, false);
 
 	AdditionalLoads additionalLoads(&g_memoryBlock); // Don't do allocations
-	HMODULE res = Recursive_LoadLibraryExW(newPath, fileName, dwFlags, additionalLoads);
+	VisitedModules visitedModules(&g_memoryBlock);
+	HMODULE res = Recursive_LoadLibraryExW(newPath, fileName, dwFlags, additionalLoads, visitedModules);
 	for (HMODULE h : additionalLoads)
 		FreeLibrary(h);
 	return res;
@@ -2792,26 +2798,28 @@ BOOL Detoured_GetThreadPreferredUILanguages(DWORD dwFlags, PULONG pulNumLanguage
 {
 	DETOURED_CALL(GetThreadPreferredUILanguages);
 
-	if (!(dwFlags & MUI_LANGUAGE_ID))
+	if (dwFlags & MUI_LANGUAGE_ID)
 	{
-		UBA_ASSERT(!g_runningRemote);
+		DEBUG_LOG_DETOURED(L"GetThreadPreferredUILanguages", L"");
+		//UBA_ASSERT(!(dwFlags & ~MUI_LANGUAGE_ID);
+		*pulNumLanguages = 1;
+		*pcchLanguagesBuffer = 6;
+
+		if (!pwszLanguagesBuffer)
+			return TRUE;
+
+		swprintf_s(pwszLanguagesBuffer, 6, L"%04x", g_uiLanguage);
+		pwszLanguagesBuffer[5] = 0;
+		return TRUE;
+	}
+	else // MUI_LANGUAGE_NAME
+	{
+		// TODO: We need to get the string of g_uiLanguage
+		//UBA_ASSERTF(!g_runningRemote, L"GetThreadPreferredUILanguages uses unsupported flag on remote execution: %u", dwFlags);
 		auto res = True_GetThreadPreferredUILanguages(dwFlags, pulNumLanguages, pwszLanguagesBuffer, pcchLanguagesBuffer);
 		DEBUG_LOG_TRUE(L"GetThreadPreferredUILanguages", L"-> %ls", ToString(res));
 		return res;
 	}
-
-	DEBUG_LOG_DETOURED(L"GetThreadPreferredUILanguages", L"");
-
-	UBA_ASSERT(dwFlags & MUI_LANGUAGE_ID);
-	*pulNumLanguages = 1;
-	*pcchLanguagesBuffer = 6;
-
-	if (!pwszLanguagesBuffer)
-		return TRUE;
-
-	swprintf_s(pwszLanguagesBuffer, 6, L"%04x", g_uiLanguage);
-	pwszLanguagesBuffer[5] = 0;
-	return TRUE;
 }
 
 #if defined(DETOURED_INCLUDE_DEBUG)

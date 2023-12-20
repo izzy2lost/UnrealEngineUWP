@@ -129,6 +129,7 @@ namespace uba
 		void Free(Vector<BinaryModule>& v);
 		bool IsRarelyRead(ProcessImpl& process, const StringBufferBase& fileName) const;
 		bool IsRarelyReadAfterWritten(ProcessImpl& process, const tchar* fileName, u64 fileNameLen) const;
+		bool IsKnownSystemFile(const tchar* applicationName);
 		bool ShouldWriteToDisk(const tchar* fileName, u64 fileNameLen);
 		u32 WriteDirectoryEntries(const StringKey& dirKey, tchar* dirPath, u32& outTableOffset);
 		u32 AddFileMapping(StringKey fileNameKey, const tchar* fileName, const tchar* newFileName, u64 fileSize = InvalidValue);

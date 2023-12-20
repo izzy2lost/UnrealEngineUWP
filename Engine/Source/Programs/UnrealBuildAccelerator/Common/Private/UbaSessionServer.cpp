@@ -667,7 +667,7 @@ namespace uba
 				CasKey casKey = CasKeyZero;
 				StringBuffer<> absoluteFile;
 				if (SearchPathForFile(m_logger, absoluteFile, fileName.data, applicationDir.data))
-					if (!absoluteFile.StartsWith(m_systemPath.data))
+					if (!absoluteFile.StartsWith(m_systemPath.data) || !IsKnownSystemFile(absoluteFile.data))
 						if (!StoreCasFile(casKey, fileNameKey, absoluteFile.data))
 							return false;
 

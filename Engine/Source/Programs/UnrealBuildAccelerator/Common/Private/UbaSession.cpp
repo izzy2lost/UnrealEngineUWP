@@ -894,61 +894,8 @@ namespace uba
 		FixPath(applicationName, nullptr, 0, temp3);
 
 		bool isSystem = StartsWith(applicationName, m_systemPath.data);
-
-		if (isSystem)
-		{
-			// These dlls should _always_ exist on all machines so we can filter them out from the list of imports to copy
-
-			static const wchar_t* knownSystemFiles[] = // Sorted lowercase
-			{
-				L"advapi32.dll",
-				L"bcrypt.dll",
-				L"bcryptprimitives.dll",
-				L"combase.dll",
-				L"cryptbase.dll",
-				L"dbghelp.dll",
-				L"dnsapi.dll",
-				L"fwpuclnt.dll",
-				L"gdi32.dll",
-				L"gdi32full.dll",
-				L"imm32.dll",
-				L"iphlpapi.dll",
-				L"kernel32.dll",
-				L"kernelbase.dll",
-				L"msvcp_win.dll",
-				L"msvcrt.dll",
-				L"mswsock.dll",
-				L"ncrypt.dll",
-				L"nsi.dll",
-				L"ntasn1.dll",
-				L"ntdll.dll",
-				L"ole32.dll",
-				L"oleaut32.dll",
-				L"ondemandconnroutehelper.dll",
-				L"powrprof.dll",
-				L"rasadhlp.dll",
-				L"rpcrt4.dll",
-				L"rstrtmgr.dll",
-				L"sechost.dll",
-				L"sspicli.dll",
-				L"ucrtbase.dll",
-				L"umpdc.dll",
-				L"umppc17706.dll",
-				L"user32.dll",
-				L"version.dll",
-				L"webio.dll",
-				L"win32u.dll",
-				L"winhttp.dll",
-				L"winnsi.dll",
-				L"ws2_32.dll",
-			};
-
-			auto lastSeparator = TStrrchr(applicationName, PathSeparator);
-			StringBuffer<> nameLower;
-			nameLower.Append(lastSeparator + 1).MakeLower();
-			if (std::binary_search(knownSystemFiles, knownSystemFiles + sizeof_array(knownSystemFiles), nameLower.data, [](const wchar_t* a, const wchar_t* b) { return TStrcmp(a, b) < 0; }))
-				return true;
-		}
+		if (isSystem && IsKnownSystemFile(applicationName))
+			return true;
 
 
 		out.push_back({ library, temp3.data, attr, isSystem });
@@ -1499,6 +1446,64 @@ namespace uba
 	bool Session::IsRarelyReadAfterWritten(ProcessImpl& process, const tchar* fileName, u64 fileNameLen) const
 	{
 		return GetApplicationRules()[process.m_rulesIndex].rules->IsRarelyReadAfterWritten(fileName, fileNameLen);
+	}
+
+	bool Session::IsKnownSystemFile(const tchar* applicationName)
+	{
+#if PLATFORM_WINDOWS
+		// These dlls should _always_ exist on all machines so we can filter them out from the list of imports to copy
+
+		static const wchar_t* knownSystemFiles[] = // Sorted lowercase
+		{
+			L"advapi32.dll",
+			L"bcrypt.dll",
+			L"bcryptprimitives.dll",
+			L"combase.dll",
+			L"cryptbase.dll",
+			L"dbghelp.dll",
+			L"dnsapi.dll",
+			L"fwpuclnt.dll",
+			L"gdi32.dll",
+			L"gdi32full.dll",
+			L"imm32.dll",
+			L"iphlpapi.dll",
+			L"kernel32.dll",
+			L"kernelbase.dll",
+			L"msvcp_win.dll",
+			L"msvcrt.dll",
+			L"mswsock.dll",
+			L"ncrypt.dll",
+			L"nsi.dll",
+			L"ntasn1.dll",
+			L"ntdll.dll",
+			L"ole32.dll",
+			L"oleaut32.dll",
+			L"ondemandconnroutehelper.dll",
+			L"powrprof.dll",
+			L"rasadhlp.dll",
+			L"rpcrt4.dll",
+			L"rstrtmgr.dll",
+			L"sechost.dll",
+			L"sspicli.dll",
+			L"ucrtbase.dll",
+			L"umpdc.dll",
+			L"umppc17706.dll",
+			L"user32.dll",
+			L"version.dll",
+			L"webio.dll",
+			L"win32u.dll",
+			L"winhttp.dll",
+			L"winnsi.dll",
+			L"ws2_32.dll",
+		};
+
+		auto lastSeparator = TStrrchr(applicationName, PathSeparator);
+		StringBuffer<> nameLower;
+		nameLower.Append(lastSeparator + 1).MakeLower();
+		return std::binary_search(knownSystemFiles, knownSystemFiles + sizeof_array(knownSystemFiles), nameLower.data, [](const wchar_t* a, const wchar_t* b) { return TStrcmp(a, b) < 0; });
+#else
+		return false;
+#endif
 	}
 
 	bool Session::ShouldWriteToDisk(const tchar* fileName, u64 fileNameLen)
