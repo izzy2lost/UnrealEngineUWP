@@ -241,12 +241,12 @@ namespace Metasound
 			// Check to see if this is a global shuffler or a local one. 
 			// Global shuffler will use a namespace to opt into it.
 			PrevSeedValue = *SeedValue;
-			PrevNoRepeatOrder = FMath::Max(*NoRepeatOrder, 0);
-
+			
 			WeightsArray = *InputWeightsArray;
 
 			const ArrayType& InputArrayRef = *InputArray;
 			PrevArraySize = InputArrayRef.Num();
+			PrevNoRepeatOrder = FMath::Clamp(*NoRepeatOrder, 0, PrevArraySize - 1);
 
 			InitializeState(PrevArraySize);
 
