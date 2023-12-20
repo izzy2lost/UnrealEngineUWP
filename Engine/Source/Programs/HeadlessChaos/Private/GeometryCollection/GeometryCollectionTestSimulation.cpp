@@ -285,7 +285,6 @@ namespace GeometryCollectionTest
 		UnitTest.Advance();
 
 		// testing...
-		auto GCParticles = Collection->PhysObject->GetSolverParticleHandles();
 		for (int Frame = 1; Frame < 200; Frame++)
 		{
 			if (Frame == 1)
@@ -295,11 +294,11 @@ namespace GeometryCollectionTest
 				// Object 3 collides with Object 0 plus the ground
 				// Object 4 collides with nothing
 				// We should end up with 2 stacks on the ground (0,1,2), (0,3) and one free-falling object (4)
-				GCParticles[0]->SetCollisionGroup(0);
-				GCParticles[1]->SetCollisionGroup(1);
-				GCParticles[2]->SetCollisionGroup(1);
-				GCParticles[3]->SetCollisionGroup(3);
-				GCParticles[4]->SetCollisionGroup(-1);
+				Collection->PhysObject->GetSolverClusterHandle_Internal(0)->SetCollisionGroup(0);
+				Collection->PhysObject->GetSolverClusterHandle_Internal(1)->SetCollisionGroup(1);
+				Collection->PhysObject->GetSolverClusterHandle_Internal(2)->SetCollisionGroup(1);
+				Collection->PhysObject->GetSolverClusterHandle_Internal(3)->SetCollisionGroup(3);
+				Collection->PhysObject->GetSolverClusterHandle_Internal(4)->SetCollisionGroup(-1);
 
 				EXPECT_TRUE(Collection->DynamicCollection->GetTransform(0).GetRotation() == FQuat4f::Identity); // Can use defaulted zero rotation to indicate that the
 				EXPECT_TRUE(Collection->DynamicCollection->GetTransform(1).GetRotation() == FQuat4f::Identity); // rigid has not been affected. Should we though??
@@ -330,7 +329,7 @@ namespace GeometryCollectionTest
 		EXPECT_TRUE(Collection->DynamicCollection->GetTransform(4).GetRotation() == FQuat4f::Identity); // Phased through everything, good.
 		EXPECT_LT(Collection->DynamicCollection->GetTransform(4).GetTranslation().Z, -100.0f);
 
-		GCParticles[0]->SetCollisionGroup(-1);
+		Collection->PhysObject->GetSolverClusterHandle_Internal(0)->SetCollisionGroup(-1);
 		for (int i = 0; i < 50; i++) { UnitTest.Advance(); }
 		EXPECT_LT(Collection->DynamicCollection->GetTransform(0).GetTranslation().Z, -100.0f);
 

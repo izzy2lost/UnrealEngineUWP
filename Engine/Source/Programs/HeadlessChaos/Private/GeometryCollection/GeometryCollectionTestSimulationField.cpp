@@ -536,48 +536,47 @@ namespace GeometryCollectionTest
 
 		UnitTest.Advance();
 
-		TArray<Chaos::TPBDRigidClusteredParticleHandle<FReal, 3>*>& ParticleHandles = Collection->PhysObject->GetSolverParticleHandles();
 		{
 			FName TargetName = GetFieldPhysicsName(EFieldPhysicsType::Field_ExternalClusterStrain);
 			UnitTest.Solver->GetPerSolverField().AddTransientCommand({ TargetName, FalloffField->NewCopy() });
 
 			EXPECT_EQ(ClusterMap.Num(), 3);
-			EXPECT_EQ(ClusterMap[ParticleHandles[4]].Num(), 2);
-			EXPECT_TRUE(ClusterMap[ParticleHandles[4]].Contains(ParticleHandles[0]));
-			EXPECT_TRUE(ClusterMap[ParticleHandles[4]].Contains(ParticleHandles[1]));
-			EXPECT_EQ(ClusterMap[ParticleHandles[5]].Num(), 2);
-			EXPECT_TRUE(ClusterMap[ParticleHandles[5]].Contains(ParticleHandles[2]));
-			EXPECT_TRUE(ClusterMap[ParticleHandles[5]].Contains(ParticleHandles[3]));
-			EXPECT_EQ(ClusterMap[ParticleHandles[6]].Num(), 2);
-			EXPECT_TRUE(ClusterMap[ParticleHandles[6]].Contains(ParticleHandles[5]));
-			EXPECT_TRUE(ClusterMap[ParticleHandles[6]].Contains(ParticleHandles[4]));
+			EXPECT_EQ(ClusterMap[Collection->PhysObject->GetParticle_Internal(4)].Num(), 2);
+			EXPECT_TRUE(ClusterMap[Collection->PhysObject->GetParticle_Internal(4)].Contains(Collection->PhysObject->GetParticle_Internal(0)));
+			EXPECT_TRUE(ClusterMap[Collection->PhysObject->GetParticle_Internal(4)].Contains(Collection->PhysObject->GetParticle_Internal(1)));
+			EXPECT_EQ(ClusterMap[Collection->PhysObject->GetParticle_Internal(5)].Num(), 2);
+			EXPECT_TRUE(ClusterMap[Collection->PhysObject->GetParticle_Internal(5)].Contains(Collection->PhysObject->GetParticle_Internal(2)));
+			EXPECT_TRUE(ClusterMap[Collection->PhysObject->GetParticle_Internal(5)].Contains(Collection->PhysObject->GetParticle_Internal(3)));
+			EXPECT_EQ(ClusterMap[Collection->PhysObject->GetParticle_Internal(6)].Num(), 2);
+			EXPECT_TRUE(ClusterMap[Collection->PhysObject->GetParticle_Internal(6)].Contains(Collection->PhysObject->GetParticle_Internal(5)));
+			EXPECT_TRUE(ClusterMap[Collection->PhysObject->GetParticle_Internal(6)].Contains(Collection->PhysObject->GetParticle_Internal(4)));
 
-			EXPECT_TRUE(ParticleHandles[0]->Disabled());
-			EXPECT_TRUE(ParticleHandles[1]->Disabled());
-			EXPECT_TRUE(ParticleHandles[2]->Disabled());
-			EXPECT_TRUE(ParticleHandles[3]->Disabled());
-			EXPECT_TRUE(ParticleHandles[4]->Disabled());
-			EXPECT_TRUE(ParticleHandles[5]->Disabled());
-			EXPECT_FALSE(ParticleHandles[6]->Disabled());
+			EXPECT_TRUE(Collection->PhysObject->GetParticle_Internal(0)->Disabled());
+			EXPECT_TRUE(Collection->PhysObject->GetParticle_Internal(1)->Disabled());
+			EXPECT_TRUE(Collection->PhysObject->GetParticle_Internal(2)->Disabled());
+			EXPECT_TRUE(Collection->PhysObject->GetParticle_Internal(3)->Disabled());
+			EXPECT_TRUE(Collection->PhysObject->GetParticle_Internal(4)->Disabled());
+			EXPECT_TRUE(Collection->PhysObject->GetParticle_Internal(5)->Disabled());
+			EXPECT_FALSE(Collection->PhysObject->GetParticle_Internal(6)->Disabled());
 
 			UnitTest.Advance();
 
 			// todo: indices here might seem odd, particles 4 & 5 are swapped
 			EXPECT_EQ(ClusterMap.Num(), 2);
-			EXPECT_EQ(ClusterMap[ParticleHandles[4]].Num(), 2);
-			EXPECT_TRUE(ClusterMap[ParticleHandles[4]].Contains(ParticleHandles[0]));
-			EXPECT_TRUE(ClusterMap[ParticleHandles[4]].Contains(ParticleHandles[1]));
-			EXPECT_EQ(ClusterMap[ParticleHandles[5]].Num(), 2);
-			EXPECT_TRUE(ClusterMap[ParticleHandles[5]].Contains(ParticleHandles[2]));
-			EXPECT_TRUE(ClusterMap[ParticleHandles[5]].Contains(ParticleHandles[3]));
+			EXPECT_EQ(ClusterMap[Collection->PhysObject->GetParticle_Internal(4)].Num(), 2);
+			EXPECT_TRUE(ClusterMap[Collection->PhysObject->GetParticle_Internal(4)].Contains(Collection->PhysObject->GetParticle_Internal(0)));
+			EXPECT_TRUE(ClusterMap[Collection->PhysObject->GetParticle_Internal(4)].Contains(Collection->PhysObject->GetParticle_Internal(1)));
+			EXPECT_EQ(ClusterMap[Collection->PhysObject->GetParticle_Internal(5)].Num(), 2);
+			EXPECT_TRUE(ClusterMap[Collection->PhysObject->GetParticle_Internal(5)].Contains(Collection->PhysObject->GetParticle_Internal(2)));
+			EXPECT_TRUE(ClusterMap[Collection->PhysObject->GetParticle_Internal(5)].Contains(Collection->PhysObject->GetParticle_Internal(3)));
 
-			EXPECT_TRUE(ParticleHandles[0]->Disabled());
-			EXPECT_TRUE(ParticleHandles[1]->Disabled());
-			EXPECT_TRUE(ParticleHandles[2]->Disabled());
-			EXPECT_TRUE(ParticleHandles[3]->Disabled());
-			EXPECT_FALSE(ParticleHandles[4]->Disabled());
-			EXPECT_FALSE(ParticleHandles[5]->Disabled());
-			EXPECT_TRUE(ParticleHandles[6]->Disabled());
+			EXPECT_TRUE(Collection->PhysObject->GetParticle_Internal(0)->Disabled());
+			EXPECT_TRUE(Collection->PhysObject->GetParticle_Internal(1)->Disabled());
+			EXPECT_TRUE(Collection->PhysObject->GetParticle_Internal(2)->Disabled());
+			EXPECT_TRUE(Collection->PhysObject->GetParticle_Internal(3)->Disabled());
+			EXPECT_FALSE(Collection->PhysObject->GetParticle_Internal(4)->Disabled());
+			EXPECT_FALSE(Collection->PhysObject->GetParticle_Internal(5)->Disabled());
+			EXPECT_TRUE(Collection->PhysObject->GetParticle_Internal(6)->Disabled());
 		}
 
 		delete FalloffField;
@@ -613,7 +612,11 @@ namespace GeometryCollectionTest
 		UnitTest.Initialize();
 		UnitTest.Advance();
 
-		TArray<Chaos::TPBDRigidClusteredParticleHandle<FReal, 3>*>& ParticleHandles = Collection->PhysObject->GetSolverParticleHandles();
+		auto ParticleHandles = [&Collection](int32 Index) -> Chaos::TPBDRigidClusteredParticleHandle<FReal, 3>*
+		{
+			return Collection->PhysObject->GetParticle_Internal(Index);
+		};
+
 		auto& Clustering = UnitTest.Solver->GetEvolution()->GetRigidClustering();
 		const auto& ClusterMap = Clustering.GetChildrenMap();
 
@@ -625,47 +628,47 @@ namespace GeometryCollectionTest
 			UnitTest.Solver->GetPerSolverField().AddTransientCommand(Command);
 
 			EXPECT_EQ(ClusterMap.Num(), 3);
-			EXPECT_EQ(ClusterMap[ParticleHandles[6]].Num(), 3);
-			EXPECT_TRUE(ClusterMap[ParticleHandles[6]].Contains(ParticleHandles[0]));
-			EXPECT_TRUE(ClusterMap[ParticleHandles[6]].Contains(ParticleHandles[1]));
-			EXPECT_TRUE(ClusterMap[ParticleHandles[6]].Contains(ParticleHandles[2]));
-			EXPECT_EQ(ClusterMap[ParticleHandles[7]].Num(), 3);
-			EXPECT_TRUE(ClusterMap[ParticleHandles[7]].Contains(ParticleHandles[3]));
-			EXPECT_TRUE(ClusterMap[ParticleHandles[7]].Contains(ParticleHandles[4]));
-			EXPECT_TRUE(ClusterMap[ParticleHandles[7]].Contains(ParticleHandles[5]));
-			EXPECT_EQ(ClusterMap[ParticleHandles[8]].Num(), 2);
-			EXPECT_TRUE(ClusterMap[ParticleHandles[8]].Contains(ParticleHandles[7]));
-			EXPECT_TRUE(ClusterMap[ParticleHandles[8]].Contains(ParticleHandles[6]));
+			EXPECT_EQ(ClusterMap[ParticleHandles(6)].Num(), 3);
+			EXPECT_TRUE(ClusterMap[ParticleHandles(6)].Contains(ParticleHandles(0)));
+			EXPECT_TRUE(ClusterMap[ParticleHandles(6)].Contains(ParticleHandles(1)));
+			EXPECT_TRUE(ClusterMap[ParticleHandles(6)].Contains(ParticleHandles(2)));
+			EXPECT_EQ(ClusterMap[ParticleHandles(7)].Num(), 3);
+			EXPECT_TRUE(ClusterMap[ParticleHandles(7)].Contains(ParticleHandles(3)));
+			EXPECT_TRUE(ClusterMap[ParticleHandles(7)].Contains(ParticleHandles(4)));
+			EXPECT_TRUE(ClusterMap[ParticleHandles(7)].Contains(ParticleHandles(5)));
+			EXPECT_EQ(ClusterMap[ParticleHandles(8)].Num(), 2);
+			EXPECT_TRUE(ClusterMap[ParticleHandles(8)].Contains(ParticleHandles(7)));
+			EXPECT_TRUE(ClusterMap[ParticleHandles(8)].Contains(ParticleHandles(6)));
 
-			EXPECT_TRUE(ParticleHandles[0]->Disabled());
-			EXPECT_TRUE(ParticleHandles[1]->Disabled());
-			EXPECT_TRUE(ParticleHandles[2]->Disabled());
-			EXPECT_TRUE(ParticleHandles[3]->Disabled());
-			EXPECT_TRUE(ParticleHandles[4]->Disabled());
-			EXPECT_TRUE(ParticleHandles[5]->Disabled());
-			EXPECT_TRUE(ParticleHandles[6]->Disabled());
-			EXPECT_TRUE(ParticleHandles[7]->Disabled());
-			EXPECT_FALSE(ParticleHandles[8]->Disabled());
+			EXPECT_TRUE(ParticleHandles(0)->Disabled());
+			EXPECT_TRUE(ParticleHandles(1)->Disabled());
+			EXPECT_TRUE(ParticleHandles(2)->Disabled());
+			EXPECT_TRUE(ParticleHandles(3)->Disabled());
+			EXPECT_TRUE(ParticleHandles(4)->Disabled());
+			EXPECT_TRUE(ParticleHandles(5)->Disabled());
+			EXPECT_TRUE(ParticleHandles(6)->Disabled());
+			EXPECT_TRUE(ParticleHandles(7)->Disabled());
+			EXPECT_FALSE(ParticleHandles(8)->Disabled());
 
 			UnitTest.Advance();
 			UnitTest.Solver->GetPerSolverField().AddTransientCommand(Command);
 			UnitTest.Advance();
 
 			EXPECT_EQ(ClusterMap.Num(), 1);
-			EXPECT_EQ(ClusterMap[ParticleHandles[7]].Num(), 3);
-			EXPECT_TRUE(ClusterMap[ParticleHandles[7]].Contains(ParticleHandles[3]));
-			EXPECT_TRUE(ClusterMap[ParticleHandles[7]].Contains(ParticleHandles[4]));
-			EXPECT_TRUE(ClusterMap[ParticleHandles[7]].Contains(ParticleHandles[5]));
+			EXPECT_EQ(ClusterMap[ParticleHandles(7)].Num(), 3);
+			EXPECT_TRUE(ClusterMap[ParticleHandles(7)].Contains(ParticleHandles(3)));
+			EXPECT_TRUE(ClusterMap[ParticleHandles(7)].Contains(ParticleHandles(4)));
+			EXPECT_TRUE(ClusterMap[ParticleHandles(7)].Contains(ParticleHandles(5)));
 
-			EXPECT_FALSE(ParticleHandles[0]->Disabled());
-			EXPECT_FALSE(ParticleHandles[1]->Disabled());
-			EXPECT_FALSE(ParticleHandles[2]->Disabled());
-			EXPECT_TRUE(ParticleHandles[3]->Disabled());
-			EXPECT_TRUE(ParticleHandles[4]->Disabled());
-			EXPECT_TRUE(ParticleHandles[5]->Disabled());
-			EXPECT_TRUE(ParticleHandles[6]->Disabled());
-			EXPECT_FALSE(ParticleHandles[7]->Disabled());
-			EXPECT_TRUE(ParticleHandles[8]->Disabled());
+			EXPECT_FALSE(ParticleHandles(0)->Disabled());
+			EXPECT_FALSE(ParticleHandles(1)->Disabled());
+			EXPECT_FALSE(ParticleHandles(2)->Disabled());
+			EXPECT_TRUE(ParticleHandles(3)->Disabled());
+			EXPECT_TRUE(ParticleHandles(4)->Disabled());
+			EXPECT_TRUE(ParticleHandles(5)->Disabled());
+			EXPECT_TRUE(ParticleHandles(6)->Disabled());
+			EXPECT_FALSE(ParticleHandles(7)->Disabled());
+			EXPECT_TRUE(ParticleHandles(8)->Disabled());
 		}
 
 		delete FalloffField;
@@ -704,7 +707,10 @@ namespace GeometryCollectionTest
 		auto& Clustering = UnitTest.Solver->GetEvolution()->GetRigidClustering();
 		const auto& ClusterMap = Clustering.GetChildrenMap();
 
-		TArray<Chaos::TPBDRigidClusteredParticleHandle<FReal, 3>*>& ParticleHandles = Collection->PhysObject->GetSolverParticleHandles();
+		auto ParticleHandles = [&Collection](int32 Index) -> Chaos::TPBDRigidClusteredParticleHandle<FReal, 3>*
+		{
+			return Collection->PhysObject->GetParticle_Internal(Index);
+		};
 
 		UnitTest.Advance();
 
@@ -715,38 +721,38 @@ namespace GeometryCollectionTest
 			Command.MetaData.Add(FFieldSystemMetaData::EMetaType::ECommandData_ProcessingResolution, TUniquePtr< FFieldSystemMetaDataProcessingResolution >(ResolutionData));
 			UnitTest.Solver->GetPerSolverField().AddTransientCommand(Command);
 
-			EXPECT_TRUE(ParticleHandles[0]->Disabled());
-			EXPECT_TRUE(ParticleHandles[1]->Disabled());
-			EXPECT_TRUE(ParticleHandles[2]->Disabled());
-			EXPECT_TRUE(ParticleHandles[3]->Disabled());
-			EXPECT_TRUE(ParticleHandles[4]->Disabled());
-			EXPECT_TRUE(ParticleHandles[5]->Disabled());
-			EXPECT_TRUE(ParticleHandles[6]->Disabled());
-			EXPECT_TRUE(ParticleHandles[7]->Disabled());
-			EXPECT_FALSE(ParticleHandles[8]->Disabled());
+			EXPECT_TRUE(ParticleHandles(0)->Disabled());
+			EXPECT_TRUE(ParticleHandles(1)->Disabled());
+			EXPECT_TRUE(ParticleHandles(2)->Disabled());
+			EXPECT_TRUE(ParticleHandles(3)->Disabled());
+			EXPECT_TRUE(ParticleHandles(4)->Disabled());
+			EXPECT_TRUE(ParticleHandles(5)->Disabled());
+			EXPECT_TRUE(ParticleHandles(6)->Disabled());
+			EXPECT_TRUE(ParticleHandles(7)->Disabled());
+			EXPECT_FALSE(ParticleHandles(8)->Disabled());
 
 			UnitTest.Advance();
 
 			// todo: indices here might be off but the test crashes before this so we can't validate yet
 			EXPECT_EQ(ClusterMap.Num(), 2);
-			EXPECT_EQ(ClusterMap[ParticleHandles[7]].Num(), 3);
-			EXPECT_TRUE(ClusterMap[ParticleHandles[7]].Contains(ParticleHandles[3]));
-			EXPECT_TRUE(ClusterMap[ParticleHandles[7]].Contains(ParticleHandles[4]));
-			EXPECT_TRUE(ClusterMap[ParticleHandles[7]].Contains(ParticleHandles[5]));
-			EXPECT_EQ(ClusterMap[ParticleHandles[6]].Num(), 3);
-			EXPECT_TRUE(ClusterMap[ParticleHandles[6]].Contains(ParticleHandles[0]));
-			EXPECT_TRUE(ClusterMap[ParticleHandles[6]].Contains(ParticleHandles[1]));
-			EXPECT_TRUE(ClusterMap[ParticleHandles[6]].Contains(ParticleHandles[2]));
+			EXPECT_EQ(ClusterMap[ParticleHandles(7)].Num(), 3);
+			EXPECT_TRUE(ClusterMap[ParticleHandles(7)].Contains(ParticleHandles(3)));
+			EXPECT_TRUE(ClusterMap[ParticleHandles(7)].Contains(ParticleHandles(4)));
+			EXPECT_TRUE(ClusterMap[ParticleHandles(7)].Contains(ParticleHandles(5)));
+			EXPECT_EQ(ClusterMap[ParticleHandles(6)].Num(), 3);
+			EXPECT_TRUE(ClusterMap[ParticleHandles(6)].Contains(ParticleHandles(0)));
+			EXPECT_TRUE(ClusterMap[ParticleHandles(6)].Contains(ParticleHandles(1)));
+			EXPECT_TRUE(ClusterMap[ParticleHandles(6)].Contains(ParticleHandles(2)));
 
-			EXPECT_TRUE(ParticleHandles[0]->Disabled());
-			EXPECT_TRUE(ParticleHandles[1]->Disabled());
-			EXPECT_TRUE(ParticleHandles[2]->Disabled());
-			EXPECT_TRUE(ParticleHandles[3]->Disabled());
-			EXPECT_TRUE(ParticleHandles[4]->Disabled());
-			EXPECT_TRUE(ParticleHandles[5]->Disabled());
-			EXPECT_FALSE(ParticleHandles[6]->Disabled());
-			EXPECT_FALSE(ParticleHandles[7]->Disabled());
-			EXPECT_TRUE(ParticleHandles[8]->Disabled());
+			EXPECT_TRUE(ParticleHandles(0)->Disabled());
+			EXPECT_TRUE(ParticleHandles(1)->Disabled());
+			EXPECT_TRUE(ParticleHandles(2)->Disabled());
+			EXPECT_TRUE(ParticleHandles(3)->Disabled());
+			EXPECT_TRUE(ParticleHandles(4)->Disabled());
+			EXPECT_TRUE(ParticleHandles(5)->Disabled());
+			EXPECT_FALSE(ParticleHandles(6)->Disabled());
+			EXPECT_FALSE(ParticleHandles(7)->Disabled());
+			EXPECT_TRUE(ParticleHandles(8)->Disabled());
 		}
 
 		delete FalloffField;
