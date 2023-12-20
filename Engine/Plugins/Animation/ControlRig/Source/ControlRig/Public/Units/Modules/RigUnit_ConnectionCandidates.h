@@ -27,7 +27,7 @@ struct CONTROLRIG_API FRigUnit_GetCandidates : public FRigUnit
 };
 
 /**
- * Adds possible matches during a connector event
+ * Discards matches during a connector event
  */
 USTRUCT(meta=(DisplayName="Discard Matches", Category="Modules", TitleColor="1 0 0", NodeColor="1 1 1", Keywords="Connection,Resolve,Match", Varying))
 struct CONTROLRIG_API FRigUnit_DiscardMatches : public FRigUnitMutable
@@ -44,3 +44,20 @@ struct CONTROLRIG_API FRigUnit_DiscardMatches : public FRigUnitMutable
 	UPROPERTY(EditAnywhere, Transient, Category = "Modules", meta = (Input))
 	FString Message;
 };
+
+/**
+ * Set default match during a connector event
+ */
+USTRUCT(meta=(DisplayName="Set Default Match", Category="Modules", TitleColor="1 0 0", NodeColor="1 1 1", Keywords="Connection,Resolve,Match,Default", Varying))
+struct CONTROLRIG_API FRigUnit_SetDefaultMatch : public FRigUnitMutable
+{
+	GENERATED_BODY()
+
+	RIGVM_METHOD()
+	virtual void Execute() override;
+
+	// The items being interacted on
+	UPROPERTY(EditAnywhere, Transient, Category = "Modules", meta = (Input))
+	FRigElementKey Default;
+};
+

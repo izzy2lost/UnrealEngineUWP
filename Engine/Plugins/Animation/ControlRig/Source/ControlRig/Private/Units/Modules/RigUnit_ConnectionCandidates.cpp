@@ -14,6 +14,7 @@ FRigUnit_GetCandidates_Execute()
 	if(ExecuteContext.GetEventName() != FRigUnit_ConnectorExecution::EventName)
 	{
 		UE_CONTROLRIG_RIGUNIT_REPORT_ERROR(TEXT("Can only use GetCandidates during %s event."), *FRigUnit_ConnectorExecution::EventName.ToString());
+		return;
 	}
 
 	Algo::Transform(ExecuteContext.UnitContext.ConnectionResolve.Matches, Candidates, [](const FRigElementResolveResult& Match)
@@ -30,7 +31,8 @@ FRigUnit_DiscardMatches_Execute()
 	// only allow these nodes during connector resolval event
 	if(ExecuteContext.GetEventName() != FRigUnit_ConnectorExecution::EventName)
 	{
-		UE_CONTROLRIG_RIGUNIT_REPORT_ERROR(TEXT("Can only use AddMatches during %s event."), *FRigUnit_ConnectorExecution::EventName.ToString());
+		UE_CONTROLRIG_RIGUNIT_REPORT_ERROR(TEXT("Can only use DiscardMatches during %s event."), *FRigUnit_ConnectorExecution::EventName.ToString());
+		return;
 	}
 
 	// Filter any items that are already excluded
@@ -55,5 +57,40 @@ FRigUnit_DiscardMatches_Execute()
 		}
 
 		ExecuteContext.UnitContext.ConnectionResolve.Excluded.Add(FRigElementResolveResult(Exclude, ERigElementResolveState::InvalidTarget, FText::FromString(Message)));
+	}
+}
+
+FRigUnit_SetDefaultMatch_Execute()
+{
+	DECLARE_SCOPE_HIERARCHICAL_COUNTER_RIGUNIT()
+
+	// only allow these nodes during connector resolval event
+	if(ExecuteContext.GetEventName() != FRigUnit_ConnectorExecution::EventName)
+	{
+		UE_CONTROLRIG_RIGUNIT_REPORT_ERROR(TEXT("Can only use SetDefaultMatch during %s event."), *FRigUnit_ConnectorExecution::EventName.ToString());
+		return;
+	}
+
+	FModularRigResolveResult& Resolve = ExecuteContext.UnitContext.ConnectionResolve;
+	TArray<FRigElementResolveResult>& Matches = Resolve.Matches;
+
+	// Make sure the Default element is contained in the matches array
+	FRigElementResolveResult* NewDefault = const_cast<FRigElementResolveResult*>(Resolve.FindMatch(Default));
+	if (!NewDefault)
+	{
+		UE_CONTROLRIG_RIGUNIT_REPORT_ERROR(TEXT("Cannot set default match %s because it is not part of %s matches."), *Default.ToString(), *Resolve.GetConnectorKey().ToString());
+		return;
+	}
+
+	// Remove the old default if it exists (set to just possible target)
+	FRigElementResolveResult* OldDefault = const_cast<FRigElementResolveResult*>(Resolve.GetDefaultMatch());
+	if (OldDefault)
+	{
+		OldDefault->SetPossibleTarget();
+	}
+
+	if (NewDefault)
+	{
+		NewDefault->SetDefaultTarget();
 	}
 }

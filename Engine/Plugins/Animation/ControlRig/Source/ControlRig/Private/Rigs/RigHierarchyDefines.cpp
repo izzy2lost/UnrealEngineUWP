@@ -422,3 +422,19 @@ bool FModularRigResolveResult::ContainsMatch(const FRigElementKey& InKey, FStrin
 	
 	return false;
 }
+
+const FRigElementResolveResult* FModularRigResolveResult::FindMatch(const FRigElementKey& InKey) const
+{
+	return Matches.FindByPredicate([InKey](const FRigElementResolveResult& InMatch) -> bool
+	{
+		return InMatch.GetKey() == InKey;
+	});
+}
+
+const FRigElementResolveResult* FModularRigResolveResult::GetDefaultMatch() const
+{
+	return Matches.FindByPredicate([](const FRigElementResolveResult& Match)
+	{
+		return Match.GetState() == ERigElementResolveState::DefaultTarget;
+	});
+}

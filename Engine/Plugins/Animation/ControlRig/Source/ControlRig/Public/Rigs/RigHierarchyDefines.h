@@ -1913,6 +1913,8 @@ public:
 	}
 
 	bool ContainsMatch(const FRigElementKey& InKey, FString* OutErrorMessage = nullptr) const;
+	const FRigElementResolveResult* FindMatch(const FRigElementKey& InKey) const;
+	const FRigElementResolveResult* GetDefaultMatch() const;
 
 private:
 
@@ -1935,4 +1937,5 @@ private:
 	friend class UModularRig;
 	friend struct FRigUnit_GetCandidates;
 	friend struct FRigUnit_DiscardMatches;
+	friend struct FRigUnit_SetDefaultMatch;
 };
