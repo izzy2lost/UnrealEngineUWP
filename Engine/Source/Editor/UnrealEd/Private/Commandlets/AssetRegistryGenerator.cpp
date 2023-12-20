@@ -365,23 +365,8 @@ bool FAssetRegistryGenerator::GenerateStreamingInstallManifest(int64 InOverrideC
 		return false;
 	}
 
-	TArray<FString> CompressedChunkWildcards;
-	TOptional<FConfigFile> PlatformIniFile;
-	auto ConditionalLoadPlatformIniFile = [&PlatformIniFile, this]()
-	{
-		if (!PlatformIniFile)
-		{
-			PlatformIniFile.Emplace();
-			FConfigCacheIni::LoadLocalIniFile(*PlatformIniFile, TEXT("Game"), true, *TargetPlatform->IniPlatformName());
-		}
-	};
-	if (!TargetPlatform->IsServerOnly())
-	{
-		// Load the list of wildcards to specify which pakfiles should be compressed, if the targetplatform supports it.
-		// This is only used in client platforms.
-		ConditionalLoadPlatformIniFile();
-		PlatformIniFile->GetArray(TEXT("/Script/UnrealEd.ProjectPackagingSettings"), TEXT("CompressedChunkWildcard"), CompressedChunkWildcards);
-	}
+	FConfigFile PlatformIniFile;
+	FConfigCacheIni::LoadLocalIniFile(PlatformIniFile, TEXT("Game"), true, *TargetPlatform->IniPlatformName());
 
 	// Update manifests for any encryption groups that contain non-asset files
 	if (!TargetPlatform->HasSecurePackageFormat())
@@ -429,10 +414,9 @@ bool FAssetRegistryGenerator::GenerateStreamingInstallManifest(int64 InOverrideC
 	bool bUseSecondaryOpenOrder = false;
 	TArray<FString> OrderFileSpecStrings;
 	{
-		ConditionalLoadPlatformIniFile();
-		PlatformIniFile->GetBool(TEXT("/Script/UnrealEd.ProjectPackagingSettings"), TEXT("bEnableAssetRegistryGameOpenOrderSort"), bEnableGameOpenOrderSort);
-		PlatformIniFile->GetBool(TEXT("/Script/UnrealEd.ProjectPackagingSettings"), TEXT("bPakUsesSecondaryOrder"), bUseSecondaryOpenOrder);
-		PlatformIniFile->GetArray(TEXT("/Script/UnrealEd.ProjectPackagingSettings"), TEXT("PakOrderFileSpecs"), OrderFileSpecStrings);
+		PlatformIniFile.GetBool(TEXT("/Script/UnrealEd.ProjectPackagingSettings"), TEXT("bEnableAssetRegistryGameOpenOrderSort"), bEnableGameOpenOrderSort);
+		PlatformIniFile.GetBool(TEXT("/Script/UnrealEd.ProjectPackagingSettings"), TEXT("bPakUsesSecondaryOrder"), bUseSecondaryOpenOrder);
+		PlatformIniFile.GetArray(TEXT("/Script/UnrealEd.ProjectPackagingSettings"), TEXT("PakOrderFileSpecs"), OrderFileSpecStrings);
 	}
 
 	// if a game open order can be found then use that to sort the filenames
@@ -552,6 +536,22 @@ bool FAssetRegistryGenerator::GenerateStreamingInstallManifest(int64 InOverrideC
 		}
 	}
 
+	TArray<FString> CompressedChunkWildcards;
+	if (!TargetPlatform->IsServerOnly())
+	{
+		// Load the list of wildcards to specify which pakfiles should be compressed, if the targetplatform supports it.
+		// This is only used in client platforms.
+		PlatformIniFile.GetArray(TEXT("/Script/UnrealEd.ProjectPackagingSettings"), TEXT("CompressedChunkWildcard"), CompressedChunkWildcards);
+	}
+
+	// Load the list of wildcards to specify which pakfiles have per-chunk compression. These are allowed to 
+	// use individual compression settings even if the platform package doesn't want compression.
+	// NOTE: If DDPI specifies a hardware compression setting of 'None', this won't work as expected because there will be no global compression settings to opt in to. In this case, 
+	// set bForceUseProjectCompressionFormatIgnoreHardwareOverride=true and bCompressed=False in[/Script/UnrealEd.ProjectPackagingSettings], 
+	// then setup whatever project compression settings you would like chunks to be able to opt in to.
+	TArray<FString> AllowPerChunkCompressionWildcards;
+	PlatformIniFile.GetArray(TEXT("/Script/UnrealEd.ProjectPackagingSettings"), TEXT("AllowPerChunkCompressionWildcard"), AllowPerChunkCompressionWildcards);
+
 	// generate per-chunk pak list files
 	FDefaultPakFileRules DefaultPakFileRules;
 	bool bSucceeded = true;
@@ -628,6 +628,15 @@ bool FAssetRegistryGenerator::GenerateStreamingInstallManifest(int64 InOverrideC
 				if (PakChunkFilename.MatchesWildcard(CompressedChunkWildcard))
 				{
 					PakChunkOptions += " compressed";
+					break;
+				}
+			}
+
+			for (const FString& AllowPerChunkCompressionWildcard : AllowPerChunkCompressionWildcards)
+			{
+				if (PakChunkFilename.MatchesWildcard(AllowPerChunkCompressionWildcard))
+				{
+					PakChunkOptions += " AllowPerChunkCompression";
 					break;
 				}
 			}
