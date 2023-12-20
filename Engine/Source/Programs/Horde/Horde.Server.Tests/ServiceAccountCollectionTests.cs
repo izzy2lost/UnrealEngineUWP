@@ -5,7 +5,6 @@ using System.Threading.Tasks;
 using Horde.Server.Server;
 using Horde.Server.Users;
 using Microsoft.VisualStudio.TestTools.UnitTesting;
-using MongoDB.Bson;
 
 namespace Horde.Server.Tests
 {
@@ -19,18 +18,23 @@ namespace Horde.Server.Tests
 		{
 			MongoService mongoService = GetMongoServiceSingleton();
 			_serviceAccounts = new ServiceAccountCollection(mongoService);
-			_serviceAccount = _serviceAccounts.AddAsync(ObjectId.GenerateNewId().ToString(), new List<string> {"myclaim###myvalue"}, "mydesc").Result;
+			_serviceAccount = _serviceAccounts.AddAsync("myName", "myLogin",
+				claims: new List<IUserClaim> { new UserClaim("myClaim", "myValue")},
+				description: "myDesc").Result;
 		}
 
 		[TestMethod]
 		public async Task AddAsync()
 		{
-			IServiceAccount sa = await _serviceAccounts.AddAsync("addToken", new List<string> {"myclaim###myvalue"}, "mydesc");
+			IServiceAccount sa = await _serviceAccounts.AddAsync("myName", "myLogin",
+				secretToken: "addToken",
+				claims: new List<IUserClaim> { new UserClaim("myClaim", "myValue")},
+				description: "myDesc");
 			Assert.AreEqual("addToken", sa.SecretToken);
 			Assert.AreEqual(1, sa.GetClaims().Count);
-			Assert.AreEqual("myvalue", sa.GetClaims()[0].Value);
+			Assert.AreEqual("myValue", sa.GetClaims()[0].Value);
 			Assert.IsTrue(sa.Enabled);
-			Assert.AreEqual("mydesc", sa.Description);
+			Assert.AreEqual("myDesc", sa.Description);
 		}
 		
 		[TestMethod]
@@ -43,23 +47,46 @@ namespace Horde.Server.Tests
 		[TestMethod]
 		public async Task GetBySecretTokenAsync()
 		{
-			IServiceAccount sa = (await _serviceAccounts.GetBySecretTokenAsync(_serviceAccount.SecretToken))!;
+			IServiceAccount sa = (await _serviceAccounts.GetBySecretTokenAsync(_serviceAccount.SecretToken!))!;
 			Assert.AreEqual(_serviceAccount, sa);
+		}
+		
+		[TestMethod]
+		public async Task GetByLoginAsync()
+		{
+			IServiceAccount sa = (await _serviceAccounts.GetByLogin(_serviceAccount.Login))!;
+			Assert.AreEqual(_serviceAccount.Id, sa.Id);
+			Assert.AreEqual(_serviceAccount.Login, sa.Login);
+			
+			Assert.IsNull(await _serviceAccounts.GetByLogin("does-not-exist"));
 		}
 		
 		[TestMethod]
 		public async Task UpdateAsync()
 		{
-			List<string> newClaims = new List<string> {{"newclaim1###newvalue1"}, {"newclaim2###newvalue2"}};
-			await _serviceAccounts.UpdateAsync(_serviceAccount.Id, "newtoken", newClaims, false, "newdesc");
-			IServiceAccount getSa = (await _serviceAccounts.GetAsync(_serviceAccount.Id))!;
+			List<string> newClaims = new () {"newClaim1###newValue1", "newClaim2###newValue2"};
+			await _serviceAccounts.UpdateAsync(_serviceAccount.Id,
+				name: "newName",
+				login: "newLogin",
+				email: "foo@bar.com",
+				secretToken: "newToken",
+				passwordHash: "newHash",
+				passwordSalt: "newSalt",
+				claims: newClaims,
+				enabled: false,
+				description: "newDesc");
+			IServiceAccount sa = (await _serviceAccounts.GetAsync(_serviceAccount.Id))!;
 			
-			Assert.AreEqual("newtoken", getSa.SecretToken);
-			Assert.AreEqual(2, getSa.GetClaims().Count);
-			Assert.AreEqual("newvalue1", getSa.GetClaims()[0].Value);
-			Assert.AreEqual("newvalue2", getSa.GetClaims()[1].Value);
-			Assert.AreEqual(false, getSa.Enabled);
-			Assert.AreEqual("newdesc", getSa.Description);
+			Assert.AreEqual("newName", sa.Name);
+			Assert.AreEqual("newLogin", sa.Login);
+			Assert.AreEqual("newToken", sa.SecretToken);
+			Assert.AreEqual("newHash", sa.PasswordHash);
+			Assert.AreEqual("newSalt", sa.PasswordSalt);
+			Assert.AreEqual(2, sa.GetClaims().Count);
+			Assert.AreEqual("newValue1", sa.GetClaims()[0].Value);
+			Assert.AreEqual("newValue2", sa.GetClaims()[1].Value);
+			Assert.AreEqual(false, sa.Enabled);
+			Assert.AreEqual("newDesc", sa.Description);
 		}
 		
 		[TestMethod]

@@ -12,37 +12,54 @@ namespace Horde.Server.Users
 	public interface IServiceAccount
 	{
 		/// <summary>
-		/// Unique id for this session
+		/// Unique internal ID for this Horde account
 		/// </summary>
 		public ObjectId Id { get; }
 		
 		/// <summary>
-		/// Secret token used for identifying calls made as the service account
+		/// Full name of the user
 		/// </summary>
-		public string SecretToken { get; }
+		public string Name { get; }
+
+		/// <summary>
+		/// A login ID or username
+		/// </summary>
+		public string Login { get; }
+
+		/// <summary>
+		/// Email associated with account
+		/// </summary>
+		public string? Email { get; }
 		
 		/// <summary>
-		/// If the service account is active
+		/// Secret token used for identifying API calls made as the account
+		/// </summary>
+		public string? SecretToken { get; }
+		
+		/// <summary>
+		/// Hashed password
+		/// </summary>
+		public string? PasswordHash { get; }
+		
+		/// <summary>
+		/// Salt for password hash (if PasswordHash is set)
+		/// </summary>
+		public string? PasswordSalt { get; }
+		
+		/// <summary>
+		/// If the account is active
 		/// </summary>
 		public bool Enabled { get; }
 		
 		/// <summary>
-		/// Description of the service account (who is it for, is there an owner etc)
+		/// Description of the account (who is it for, is there an owner etc)
 		/// </summary>
 		public string Description { get; }
-
-		/// <summary>
-		/// Add a claim
-		/// </summary>
-		/// <param name="type">Type of claim</param>
-		/// <param name="value">Value of claim</param>
-		/// <returns></returns>
-		public void AddClaim(string type, string value);
 		
 		/// <summary>
 		/// Get list of claims
 		/// </summary>
 		/// <returns>List of claims</returns>
-		public IReadOnlyList<(string Type, string Value)> GetClaims();
+		public IReadOnlyList<IUserClaim> GetClaims();
 	}
 }

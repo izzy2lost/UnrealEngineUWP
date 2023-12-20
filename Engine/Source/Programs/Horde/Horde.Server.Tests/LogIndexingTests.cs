@@ -7,7 +7,6 @@ using System.Linq;
 using System.Text;
 using System.Threading;
 using System.Threading.Tasks;
-using Horde.Server.Compute.Tests.Properties;
 using Horde.Server.Logs;
 using Horde.Server.Logs.Builder;
 using Horde.Server.Logs.Storage;
@@ -29,7 +28,7 @@ namespace Horde.Server.Tests
 		private readonly ILogFileService _logFileService;
 		private readonly NullLogStorage _nullLogStorage;
 		private readonly LocalLogStorage _logStorage;
-		private readonly byte[] _data = Resources.TextFile;
+		private readonly byte[] _data = Horde.Server.Compute.Tests.Properties.Resources.TextFile;
 
 		public LogIndexingTests()
 		{

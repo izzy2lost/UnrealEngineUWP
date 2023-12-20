@@ -647,6 +647,12 @@ namespace Horde.Server
 							options.DefaultChallengeScheme = OpenIdConnectDefaults.AuthenticationScheme;
 							break;
 						
+						case AuthMethod.Horde:
+							options.DefaultAuthenticateScheme = CookieAuthenticationDefaults.AuthenticationScheme;
+							options.DefaultSignInScheme = CookieAuthenticationDefaults.AuthenticationScheme;
+							options.DefaultChallengeScheme = CookieAuthenticationDefaults.AuthenticationScheme;
+							break;
+						
 						default:
 							throw new ArgumentException($"Invalid auth method {settings.AuthMethod}");
 					}
@@ -655,26 +661,32 @@ namespace Horde.Server
 			List<string> schemes = new List<string>();
 
 			authBuilder.AddCookie(options =>
-				 {
-					 options.Events.OnValidatePrincipal = context =>
-					 {
-						 if (!String.Equals(context.Principal?.FindFirst(HordeClaimTypes.Version)?.Value, HordeClaimTypes.CurrentVersion, StringComparison.Ordinal))
-						 {
-							 context.RejectPrincipal();
-						 }
-						 if (context.Principal?.FindFirst(HordeClaimTypes.UserId) == null)
-						 {
-							 context.RejectPrincipal();
-						 }
-						 return Task.CompletedTask;
-					 };
+			{
+				if (settings.AuthMethod == AuthMethod.Horde)
+				{
+					options.Cookie.Name = CookieAuthenticationDefaults.AuthenticationScheme;
+					options.LoginPath = "/account/login/horde";
+				}
 
-					 options.Events.OnRedirectToAccessDenied = context =>
-					 {
-						 context.Response.StatusCode = StatusCodes.Status403Forbidden;
-						 return context.Response.CompleteAsync();
-					 };
-				 });
+				options.Events.OnValidatePrincipal = context =>
+				{
+					if (!String.Equals(context.Principal?.FindFirst(HordeClaimTypes.Version)?.Value, HordeClaimTypes.CurrentVersion, StringComparison.Ordinal))
+					{
+						context.RejectPrincipal();
+					}
+					if (context.Principal?.FindFirst(HordeClaimTypes.UserId) == null)
+					{
+						context.RejectPrincipal();
+					}
+					return Task.CompletedTask;
+				};
+
+				options.Events.OnRedirectToAccessDenied = context =>
+				{
+					context.Response.StatusCode = StatusCodes.Status403Forbidden;
+					return context.Response.CompleteAsync();
+				};
+			});
 			schemes.Add(CookieAuthenticationDefaults.AuthenticationScheme);
 
 			authBuilder.AddServiceAccount(options => { });
@@ -734,6 +746,10 @@ namespace Horde.Server
 							}
 						});
 					schemes.Add(OpenIdConnectDefaults.AuthenticationScheme);
+					break;
+				
+				case AuthMethod.Horde:
+					// No extra handling needed, cookie-based auth is used
 					break;
 						
 				default:

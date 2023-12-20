@@ -1,18 +1,24 @@
 // Copyright Epic Games, Inc. All Rights Reserved.
 
 using System;
+using System.Collections.Generic;
 using System.Globalization;
 using System.Net;
+using System.Security.Claims;
 using System.Text;
 using System.Threading.Tasks;
 using EpicGames.Horde.Server;
 using Horde.Server.Acls;
 using Horde.Server.Authentication;
+using Horde.Server.Users;
+using Horde.Server.Utilities;
 using Microsoft.AspNetCore.Authentication;
 using Microsoft.AspNetCore.Authentication.Cookies;
 using Microsoft.AspNetCore.Authentication.OpenIdConnect;
 using Microsoft.AspNetCore.Mvc;
 using Microsoft.Extensions.Options;
+
+#pragma warning disable CA1054 // URI-like parameters should not be strings
 
 namespace Horde.Server.Server
 {
@@ -33,14 +39,18 @@ namespace Horde.Server.Server
 			"table { margin:10px 20px; } " +
 			"td { margin:5px; font-size:13px; }";
 
+		readonly IUserCollection _users;
+		readonly IServiceAccountCollection _serviceAccounts;
 		readonly string _authenticationScheme;
 		readonly IOptionsSnapshot<GlobalConfig> _globalConfig;
 
 		/// <summary>
 		/// Constructor
 		/// </summary>
-		public AccountController(IOptionsMonitor<ServerSettings> serverSettings, IOptionsSnapshot<GlobalConfig> globalConfig)
+		public AccountController(IUserCollection users, IServiceAccountCollection serviceAccounts, IOptionsMonitor<ServerSettings> serverSettings, IOptionsSnapshot<GlobalConfig> globalConfig)
 		{
+			_users = users;
+			_serviceAccounts = serviceAccounts;
 			_authenticationScheme = GetAuthScheme(serverSettings.CurrentValue.AuthMethod);
 			_globalConfig = globalConfig;
 		}
@@ -57,6 +67,7 @@ namespace Horde.Server.Server
 				AuthMethod.Anonymous => AnonymousAuthenticationHandler.AuthenticationScheme,
 				AuthMethod.Okta => OktaDefaults.AuthenticationScheme,
 				AuthMethod.OpenIdConnect => OpenIdConnectDefaults.AuthenticationScheme,
+				AuthMethod.Horde => CookieAuthenticationDefaults.AuthenticationScheme,
 				_ => throw new ArgumentOutOfRangeException(nameof(method), method, null)
 			};
 		}
@@ -102,6 +113,111 @@ namespace Horde.Server.Server
 			}
 			content.Append("</html>");
 			return new ContentResult { ContentType = "text/html", StatusCode = (int)HttpStatusCode.OK, Content = content.ToString() };
+		}
+
+		private string RenderLoginForm(string? error = null, string? returnUrl = null)
+		{
+			string? loginPostUrl = Url.Action("UserPassLogin", "Account", returnUrl != null ? new {returnUrl} : null);
+			string content = Resources.HordeAccountLoginHtml;
+			return content
+				.Replace("%%errorMsg%%", error == null ? "" : $"<div class=\"error\">{error}</div>", StringComparison.InvariantCulture)
+				.Replace("%%loginPostUrl%%", loginPostUrl, StringComparison.InvariantCulture);
+		}
+		
+		/// <summary>
+		/// Show login form for username/password login
+		/// </summary>
+		/// <returns>HTML for a login form</returns>
+		[HttpGet]
+		[Route("/account/login/horde")]
+		public IActionResult UserPassLoginForm(string? returnUrl = null)
+		{
+			if (User.Identity is { IsAuthenticated: true })
+			{
+				// Redirect if already logged in
+				return Redirect(returnUrl ?? "/");
+			}
+			
+			return new ContentResult
+			{
+				ContentType = "text/html",
+				StatusCode = (int)HttpStatusCode.OK,
+				Content = RenderLoginForm(returnUrl: returnUrl)
+			};
+		}
+		
+		/// <summary>
+		/// Perform a login with username/password credentials
+		/// </summary>
+		/// <returns>An HTTP redirect if successful</returns>
+		[HttpPost]
+		[Route("/account/login/horde")]
+		public async Task<IActionResult> UserPassLoginAsync(string? returnUrl = null)
+		{
+			const string ErrorMsg = "Invalid username or password";
+			string? username = Request.Form["username"];
+			string? password = Request.Form["password"];
+
+			if (String.IsNullOrEmpty(username) || String.IsNullOrEmpty(password))
+			{
+				return LoginFormError(ErrorMsg, returnUrl);
+			}
+
+			IServiceAccount? account = await _serviceAccounts.GetByLogin(username);
+			if (account == null)
+			{
+				return LoginFormError(ErrorMsg, returnUrl);
+			}
+
+			byte[] correctHash = PasswordHasher.HashFromString(account.PasswordHash);
+			byte[] salt = PasswordHasher.SaltFromString(account.PasswordSalt);
+			if (!PasswordHasher.ValidatePassword(password, salt, correctHash))
+			{
+				return LoginFormError(ErrorMsg, returnUrl);
+			}
+			
+			if (String.IsNullOrEmpty(account.Email))
+			{
+				return LoginFormError("E-mail not set for user", returnUrl);
+			}
+
+			IUser user = await _users.FindOrAddUserByLoginAsync(account.Login, account.Name, account.Email);
+			List<Claim> claims = new()
+			{
+				new Claim(HordeClaimTypes.Version, HordeClaimTypes.CurrentVersion),
+				new Claim(ClaimTypes.Name, account.Name),
+				new Claim(ClaimTypes.Email, account.Email),
+				new Claim(HordeClaimTypes.User, account.Login),
+				new Claim(HordeClaimTypes.UserId, user.Id.ToString()),
+			};
+			foreach (IUserClaim claim in account.GetClaims())
+			{
+				claims.Add(new Claim(claim.Type, claim.Value));
+			}
+
+			ClaimsIdentity claimsIdentity = new (claims, CookieAuthenticationDefaults.AuthenticationScheme);
+			AuthenticationProperties authProperties = new ()
+			{
+				IsPersistent = true,
+				ExpiresUtc = DateTimeOffset.UtcNow.AddDays(7)
+			};
+
+			await HttpContext.SignInAsync(
+				CookieAuthenticationDefaults.AuthenticationScheme,
+				new ClaimsPrincipal(claimsIdentity),
+				authProperties);
+
+			return LocalRedirect(returnUrl ?? "/");
+		}
+
+		private ContentResult LoginFormError(string message, string? returnUrl = null, HttpStatusCode statusCode = HttpStatusCode.BadRequest)
+		{
+			return new ContentResult
+			{
+				ContentType = "text/html",
+				StatusCode = (int)statusCode,
+				Content = RenderLoginForm(message, returnUrl)
+			};
 		}
 
 		/// <summary>

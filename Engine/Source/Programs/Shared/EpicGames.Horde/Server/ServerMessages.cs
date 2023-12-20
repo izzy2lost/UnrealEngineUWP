@@ -68,7 +68,7 @@ namespace EpicGames.Horde.Server
 	public enum AuthMethod
 	{
 		/// <summary>
-		/// No authentication enabled, mainly for demo and testing purposes
+		/// No authentication enabled. *Only* for demo and testing purposes.
 		/// </summary>
 		Anonymous,
 
@@ -81,6 +81,13 @@ namespace EpicGames.Horde.Server
 		/// Generic OpenID Connect authentication, recommended for most
 		/// </summary>
 		OpenIdConnect,
+		
+		/// <summary>
+		/// Authenticate using username and password credentials stored in Horde
+		/// OpenID Connect (OIDC) is first and foremost recommended.
+		/// But if you have a small installation (less than ~10 users) or lacking an OIDC provider, this is an option.
+		/// </summary>
+		Horde,
 	}
 
 	/// <summary>

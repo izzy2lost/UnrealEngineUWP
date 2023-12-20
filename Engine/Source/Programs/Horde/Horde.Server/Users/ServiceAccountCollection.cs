@@ -3,6 +3,7 @@
 using System;
 using System.Collections.Generic;
 using System.Linq;
+using System.Security.Cryptography;
 using System.Threading.Tasks;
 using Horde.Server.Server;
 using MongoDB.Bson;
@@ -12,6 +13,85 @@ using MongoDB.Driver;
 namespace Horde.Server.Users
 {
 	/// <summary>
+	/// Password hasher
+	/// </summary>
+	public static class PasswordHasher
+	{
+		private const int SaltSize = 16; // 128 bit 
+		private const int KeySize = 32; // 256 bit
+		private const int Iterations = 100000; // Number of iterations
+
+		/// <summary>
+		/// Generate a new salt for use with password hash
+		/// </summary>
+		/// <returns>A salt</returns>
+		public static byte[] GenerateSalt()
+		{
+			using RandomNumberGenerator rng = RandomNumberGenerator.Create();
+			byte[] salt = new byte[SaltSize];
+			rng.GetBytes(salt);
+			return salt;
+		}
+
+		/// <summary>
+		/// Create a hash for the given password
+		/// </summary>
+		/// <param name="password">Clear text password</param>
+		/// <param name="salt">Salt to hash with</param>
+		/// <returns></returns>
+		public static byte[] HashPassword(string password, byte[] salt)
+		{
+			using Rfc2898DeriveBytes rfc2898DeriveBytes = new (password, salt, Iterations, HashAlgorithmName.SHA256);
+			return rfc2898DeriveBytes.GetBytes(KeySize);
+		}
+
+		/// <summary>
+		/// Validate a password
+		/// </summary>
+		/// <param name="password">Clear text password</param>
+		/// <param name="salt">Salt to hash with</param>
+		/// <param name="correctHash">Correct hash</param>
+		/// <returns>True if password matches correct hash</returns>
+		public static bool ValidatePassword(string password, byte[] salt, byte[] correctHash)
+		{
+			byte[] hash = HashPassword(password, salt);
+			return hash.SequenceEqual(correctHash);
+		}
+		
+		/// <summary>
+		/// Convert a salt string to byte array
+		/// </summary>
+		/// <param name="saltString">Salt stored as a hex string</param>
+		/// <returns>A byte array representation</returns>
+		/// <exception cref="ArgumentException">If salt is invalid</exception>
+		public static byte[] SaltFromString(string? saltString)
+		{
+			byte[] salt = Convert.FromHexString(saltString ?? "");
+			if (salt.Length != 16)
+			{
+				throw new ArgumentException($"Invalid salt length: {salt.Length}");
+			}
+			return salt;
+		}
+		
+		/// <summary>
+		/// Convert a hash string to byte array
+		/// </summary>
+		/// <param name="hashString">Hash stored as a hex string</param>
+		/// <returns>A byte array representation</returns>
+		/// <exception cref="ArgumentException">If hash is invalid</exception>
+		public static byte[] HashFromString(string? hashString)
+		{
+			byte[] hash = Convert.FromHexString(hashString ?? "");
+			if (hash.Length != 32)
+			{
+				throw new ArgumentException($"Invalid hash length: {hash.Length}");
+			}
+			return hash;
+		}
+	}
+	
+	/// <summary>
 	/// Collection of service account documents
 	/// </summary>
 	public class ServiceAccountCollection : IServiceAccountCollection
@@ -19,49 +99,65 @@ namespace Horde.Server.Users
 		/// <summary>
 		/// Concrete implementation of IServiceAccount
 		/// </summary>
-		class ServiceAccountDocument : IServiceAccount
+		private class ServiceAccountDocument : IServiceAccount
 		{
 			public const string ClaimSeparator = "###";
 			
+			/// <inheritdoc/>
 			[BsonRequired, BsonId]
 			public ObjectId Id { get; set; }
-
+			
+			/// <inheritdoc/>
 			[BsonRequired]
-			public string SecretToken { get; set; } = "empty";
-
+			public string Name { get; set; } = "";
+			
+			[BsonRequired]
+			public string Login { get; set; } = "";
+			
+			/// <inheritdoc/>
+			[BsonRequired]
+			public string? Email { get; set; }
+			
+			/// <inheritdoc/>
+			[BsonRequired]
+			public string? SecretToken { get; set; }
+			
+			/// <inheritdoc/>
+			[BsonRequired]
+			public string? PasswordHash { get; set; }
+			
+			/// <inheritdoc/>
+			[BsonRequired]
+			public string? PasswordSalt { get; set; }
+			
 			[BsonRequired]
 			public List<string> Claims { get; set; } = new List<string>();
 			
+			/// <inheritdoc/>
 			public bool Enabled { get; set; }
-			public string Description { get; set; } = "empty";
+			
+			/// <inheritdoc/>
+			public string Description { get; set; } = "";
 
 			[BsonConstructor]
 			private ServiceAccountDocument()
 			{
 			}
 
-			public ServiceAccountDocument(ObjectId id, string secretToken, List<string> claims, bool enabled, string description)
+			public ServiceAccountDocument(ObjectId id, string name, string login)
 			{
 				Id = id;
-				SecretToken = secretToken;
-				Claims = claims;
-				Enabled = enabled;
-				Description = description;
-			}
-			
-			/// <inheritdoc/>
-			public void AddClaim(string type, string value)
-			{
-				Claims.Add(type + ClaimSeparator + value);
+				Name = name;
+				Login = login;
 			}
 
 			/// <inheritdoc/>
-			public IReadOnlyList<(string Type, string Value)> GetClaims()
+			public IReadOnlyList<IUserClaim> GetClaims()
 			{
 				return Claims.Select(x =>
 				{
 					string[] split = x.Split(ClaimSeparator);
-					return (split[0], split[1]);
+					return new UserClaim(split[0], split[1]);
 				}).ToList();
 			}
 
@@ -110,11 +206,33 @@ namespace Horde.Server.Users
 		}
 
 		/// <inheritdoc/>
-		public async Task<IServiceAccount> AddAsync(string secretToken, List<string> claims, string description)
+		public async Task<IServiceAccount> AddAsync(
+			string name,
+			string login,
+			List<IUserClaim>? claims,
+			string? description,
+			string? email,
+			string? secretToken,
+			string? password)
 		{
-			ServiceAccountDocument newSession = new ServiceAccountDocument(ObjectId.GenerateNewId(), secretToken, claims, true, description);
-			await _serviceAccounts.InsertOneAsync(newSession);
-			return newSession;
+			List<string> stringClaims = (claims ?? new List<IUserClaim>())
+				.Select(x => $"{x.Type}{ServiceAccountDocument.ClaimSeparator}{x.Value}").ToList();
+			
+			ServiceAccountDocument account = new(ObjectId.GenerateNewId(), name, login)
+			{
+				Email = email,
+				SecretToken = secretToken,
+				Description = description ?? "",
+				Claims = stringClaims,
+				Enabled = true
+			};
+
+			await _serviceAccounts.InsertOneAsync(account);
+			if (password != null)
+			{
+				await SetPasswordAsync(account.Id, password);
+			}
+			return account;
 		}
 
 		/// <inheritdoc/>
@@ -128,16 +246,51 @@ namespace Horde.Server.Users
 		{
 			return await _serviceAccounts.Find(x => x.SecretToken == secretToken).FirstOrDefaultAsync();
 		}
+		
+		/// <inheritdoc/>
+		public async Task<IServiceAccount?> GetByLogin(string login)
+		{
+			return await _serviceAccounts.Find(x => x.Login == login).FirstOrDefaultAsync();
+		}
 
 		/// <inheritdoc/>
-		public Task UpdateAsync(ObjectId id, string? secretToken, List<string>? claims, bool? enabled, string? description)
+		public Task UpdateAsync(ObjectId id,
+			string? name,
+			string? login,
+			string? email,
+			string? secretToken,
+			string? passwordHash,
+			string? passwordSalt,
+			List<string>? claims,
+			bool? enabled,
+			string? description)
 		{
 			UpdateDefinitionBuilder<ServiceAccountDocument> update = Builders<ServiceAccountDocument>.Update;
 			List<UpdateDefinition<ServiceAccountDocument>> updates = new List<UpdateDefinition<ServiceAccountDocument>>();
-
+		
+			if (name != null)
+			{
+				updates.Add(update.Set(x => x.Name, name));
+			}
+			if (login != null)
+			{
+				updates.Add(update.Set(x => x.Login, login));
+			}
+			if (email != null)
+			{
+				updates.Add(update.Set(x => x.Email, email));
+			}
 			if (secretToken != null)
 			{
 				updates.Add(update.Set(x => x.SecretToken, secretToken));
+			}
+			if (passwordHash != null)
+			{
+				updates.Add(update.Set(x => x.PasswordHash, passwordHash));
+			}
+			if (passwordSalt != null)
+			{
+				updates.Add(update.Set(x => x.PasswordSalt, passwordSalt));
 			}
 			if (claims != null)
 			{
@@ -159,6 +312,23 @@ namespace Horde.Server.Users
 		public Task DeleteAsync(ObjectId sessionId)
 		{
 			return _serviceAccounts.DeleteOneAsync(x => x.Id == sessionId);
+		}
+
+		/// <inheritdoc/>
+		public async Task SetPasswordAsync(ObjectId id, string password)
+		{
+			IServiceAccount? sa = await GetAsync(id);
+			if (sa == null)
+			{
+				throw new Exception($"Account with ID {id} not found");
+			}
+			
+			byte[] salt = PasswordHasher.GenerateSalt();
+			byte[] hashedPassword = PasswordHasher.HashPassword(password, salt);
+			await (this as IServiceAccountCollection).UpdateAsync(
+				id,
+				passwordHash: Convert.ToHexString(hashedPassword),
+				passwordSalt: Convert.ToHexString(salt));
 		}
 	}
 }

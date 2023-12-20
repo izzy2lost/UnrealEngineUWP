@@ -20,10 +20,6 @@ namespace Horde.Server.Tests
 	[TestClass]
 	public class ServiceAccountAuthTest : DatabaseIntegrationTest
 	{
-		public ServiceAccountAuthTest()
-		{
- 		}
-
 		protected override void ConfigureServices(IServiceCollection services)
 		{
 			base.ConfigureServices(services);
@@ -37,8 +33,11 @@ namespace Horde.Server.Tests
 		{
 			ServiceAccountAuthOptions options = new ServiceAccountAuthOptions();
 
-			ServiceAccountCollection serviceAccounts = ServiceProvider.GetRequiredService<ServiceAccountCollection>();
-			await serviceAccounts.AddAsync("mytoken", new List<string> { "myclaim###myvalue", "foo###bar" }, "mydesc");
+			IServiceAccountCollection serviceAccounts = ServiceProvider.GetRequiredService<ServiceAccountCollection>();
+			await serviceAccounts.AddAsync("myName", "myLogin",
+				secretToken: "myToken",
+				claims: new List<IUserClaim> { new UserClaim("myClaim", "myValue"), new UserClaim("foo", "bar") },
+				description: "myDesc");
 
 			ILoggerFactory loggerFactory = ServiceProvider.GetRequiredService<ILoggerFactory>();
 			ServiceAccountAuthHandler handler = new ServiceAccountAuthHandler(new TestOptionsMonitor<ServiceAccountAuthOptions>(options), loggerFactory, new UrlTestEncoder(), new SystemClock(), serviceAccounts);
@@ -58,11 +57,11 @@ namespace Horde.Server.Tests
 		[TestMethod]
 		public async Task ValidTokenAsync()
 		{
-			ServiceAccountAuthHandler handler = await GetAuthHandlerAsync("ServiceAccount mytoken");
+			ServiceAccountAuthHandler handler = await GetAuthHandlerAsync("ServiceAccount myToken");
 			AuthenticateResult result = await handler.AuthenticateAsync();
 			Assert.IsTrue(result.Succeeded);
 			
-			handler = await GetAuthHandlerAsync("ServiceAccount   mytoken        ");
+			handler = await GetAuthHandlerAsync("ServiceAccount   myToken        ");
 			result = await handler.AuthenticateAsync();
 			Assert.IsTrue(result.Succeeded);
 		}
@@ -75,7 +74,7 @@ namespace Horde.Server.Tests
 			Assert.IsFalse(result.Succeeded);
 			
 			// Valid token but bad prefix
-			handler = await GetAuthHandlerAsync("SriceAcct mytoken");
+			handler = await GetAuthHandlerAsync("SriceAcct myToken");
 			result = await handler.AuthenticateAsync();
 			Assert.IsFalse(result.Succeeded);
 		}
@@ -84,7 +83,7 @@ namespace Horde.Server.Tests
 		public async Task NoResultAsync()
 		{
 			// Valid token but bad prefix
-			ServiceAccountAuthHandler handler = await GetAuthHandlerAsync("Bogus mytoken");
+			ServiceAccountAuthHandler handler = await GetAuthHandlerAsync("Bogus myToken");
 			AuthenticateResult result = await handler.AuthenticateAsync();
 			Assert.IsFalse(result.Succeeded);
 			Assert.IsTrue(result.None);
@@ -99,12 +98,12 @@ namespace Horde.Server.Tests
 		[TestMethod]
 		public async Task ClaimsAsync()
 		{
-			ServiceAccountAuthHandler handler = await GetAuthHandlerAsync("ServiceAccount mytoken");
+			ServiceAccountAuthHandler handler = await GetAuthHandlerAsync("ServiceAccount myToken");
 			AuthenticateResult result = await handler.AuthenticateAsync();
 			Assert.IsTrue(result.Succeeded);
 			Assert.AreEqual(3, result.Ticket!.Principal.Claims.Count());
 			Assert.AreEqual(ServiceAccountAuthHandler.AuthenticationScheme, result.Ticket.Principal.FindFirst(ClaimTypes.Name)!.Value);
-			Assert.AreEqual("myvalue", result.Ticket!.Principal.FindFirst("myclaim")!.Value);
+			Assert.AreEqual("myValue", result.Ticket!.Principal.FindFirst("myClaim")!.Value);
 			Assert.AreEqual("bar", result.Ticket!.Principal.FindFirst("foo")!.Value);
 		}
 	}
