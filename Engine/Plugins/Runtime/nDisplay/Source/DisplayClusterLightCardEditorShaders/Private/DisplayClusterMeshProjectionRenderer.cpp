@@ -415,7 +415,8 @@ public:
 		return EnumHasAllFlags(Parameters.Flags, EShaderPermutationFlags::HasEditorOnlyData)
 			// and only compile for default materials or materials that are masked.
 			&&
-			( !Parameters.MaterialParameters.bWritesEveryPixel
+			(  Parameters.MaterialParameters.bIsSpecialEngineMaterial
+			|| !Parameters.MaterialParameters.bWritesEveryPixel
 			|| Parameters.MaterialParameters.bMaterialMayModifyMeshPosition
 			|| Parameters.MaterialParameters.bIsTwoSided);
 	}
