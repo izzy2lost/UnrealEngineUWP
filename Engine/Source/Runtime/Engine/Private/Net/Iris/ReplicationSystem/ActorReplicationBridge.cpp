@@ -1229,6 +1229,26 @@ void UActorReplicationBridge::ReportErrorWithNetRefHandle(uint32 ErrorType, FNet
 		}
 	}
 }
+
+FString UActorReplicationBridge::PrintConnectionInfo(uint32 ConnectionId)
+{
+	if (NetDriver)
+	{
+		if (UNetConnection* ClientConnection = NetDriver->GetConnectionById(ConnectionId))
+		{
+			return FString::Printf(TEXT("ConnectionId:%u %s"), ConnectionId, *ClientConnection->Describe());
+		}
+		else
+		{
+			return FString::Printf(TEXT("ConnectionId:%u no NetConnection found"), ConnectionId);
+		}
+	}
+	else
+	{
+		return FString::Printf(TEXT("ConnectionId:%u no NetDriver attached"), ConnectionId);
+	}
+}
+
 #else //!UE_WITH_IRIS
 
 UActorReplicationBridge::UActorReplicationBridge() = default;

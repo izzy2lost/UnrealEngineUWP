@@ -301,6 +301,9 @@ protected:
 	/** Returns true if the class is considered critical and we force a disconnection if a protocol mismatch prevents instances of this class from replicating. */
 	IRISCORE_API bool IsClassCritical(const UClass* Class);
 
+	/** Returns the most relevant description of the client tied to this connection id. */
+	[[nodiscard]] IRISCORE_API virtual FString PrintConnectionInfo(uint32 ConnectionId);
+
 	/** Current max tick rate set by the engine */
 	float GetMaxTickRate() const { return MaxTickRate; }
 

@@ -1446,6 +1446,11 @@ bool UObjectReplicationBridge::IsClassCritical(const UClass* Class)
 	return false;
 }
 
+FString UObjectReplicationBridge::PrintConnectionInfo(uint32 ConnectionId)
+{
+	return FString::Printf(TEXT("ConnectionId:%u"), ConnectionId);
+}
+
 void UObjectReplicationBridge::OptionallySetObjectRequiresFrequentWorldLocationUpdate(FNetRefHandle RefHandle, bool bDesiresFrequentWorldLocationUpdate)
 {
 	using namespace UE::Net;
@@ -1973,35 +1978,18 @@ void UObjectReplicationBridge::OnErrorWithNetRefHandleReported(uint32 ErrorType,
 	// Ensure at the end so the log contains all the relevant information
 	ON_SCOPE_EXIT
 	{
-		ensureMsgf(false, TEXT("NetRefHandle error: %u reported. Look at the log for important information on the object tied to the handle."), ErrorType);
+		ensureMsgf(false, TEXT("NetRefHandle error: %u reported for %s. Look at the log for important information on the object tied to the handle."), ErrorType, *RefHandle.ToString());
 	};
 
 	const FInternalNetRefIndex ObjectInternalIndex = NetRefHandleManager->GetInternalIndex(RefHandle);
 	if (ObjectInternalIndex == FNetRefHandleManager::InvalidInternalIndex)
 	{
-		UE_LOG(LogIris, Warning, TEXT("OnErrorWithNetRefHandleReported: %u from Connection:%u for %s but object has no InternalIndex."), ErrorType, ConnectionId, *RefHandle.ToString());
+		UE_LOG(LogIris, Warning, TEXT("OnErrorWithNetRefHandleReported: %u from client %s for %s but object has no InternalIndex."), ErrorType, *PrintConnectionInfo(ConnectionId), *RefHandle.ToString());
 		return;
 	}
 
-	UObject* ObjInstance = NetRefHandleManager->GetReplicatedObjectInstance(ObjectInternalIndex);
-	const FNetRefHandleManager::FReplicatedObjectData& ObjData = NetRefHandleManager->GetReplicatedObjectData(ObjectInternalIndex);
-
-	if (ObjData.IsSubObject())
-	{
-		UObject* RootObjInstance = NetRefHandleManager->GetReplicatedObjectInstance(ObjData.SubObjectRootIndex);
-		const FNetRefHandle RootObjNetHandle = NetRefHandleManager->GetNetRefHandleFromInternalIndex(ObjData.SubObjectRootIndex);
-		
-		UE_LOG(LogIris, Error, TEXT("OnErrorWithNetRefHandleReported: %u from client:%u. %s maps to SubObject: %s owned by RootObject: %s using %s"), 
-			ErrorType, ConnectionId, 
-			*RefHandle.ToString(), *GetPathNameSafe(ObjInstance),
-			*GetNameSafe(RootObjInstance), *RootObjNetHandle.ToString()
-		);
-	}
-	else
-	{
-		UE_LOG(LogIris, Error, TEXT("OnErrorWithNetRefHandleReported: %u from client:%u. %s maps to RootObject: %s"), 
-			ErrorType, ConnectionId, 
-			*RefHandle.ToString(), *GetPathNameSafe(ObjInstance)
-		);
-	}
+	UE_LOG(LogIris, Error, TEXT("OnErrorWithNetRefHandleReported: %u from client %s. Problematic object was %s"), 
+		ErrorType, *PrintConnectionInfo(ConnectionId),
+		*NetRefHandleManager->PrintObjectFromIndex(ObjectInternalIndex)
+	);
 }
