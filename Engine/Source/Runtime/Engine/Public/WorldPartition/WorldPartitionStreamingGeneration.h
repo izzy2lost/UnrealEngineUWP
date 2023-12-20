@@ -7,7 +7,6 @@
 #include "WorldPartition/ActorDescContainerCollection.h"
 #include "WorldPartition/ActorDescContainerInstanceCollection.h"
 #include "WorldPartition/WorldPartitionActorDescInstance.h"
-#include "WorldPartition/WorldPartitionActorDescInstanceInterface.h"
 #include "WorldPartition/WorldPartitionActorDescInstanceViewInterface.h"
 
 // deprecated
@@ -22,7 +21,7 @@ class FStreamingGenerationActorDescView : public IWorldPartitionActorDescInstanc
 
 protected:
 	// Used for invalid reference error reporting
-	FStreamingGenerationActorDescView(const IWorldPartitionActorDescInstance* InActorDescInstance)
+	FStreamingGenerationActorDescView(const FWorldPartitionActorDescInstance* InActorDescInstance)
 		: ActorDescViewMap(nullptr)
 		, ActorDescInstance(InActorDescInstance)
 		, ParentView(nullptr)
@@ -35,7 +34,7 @@ protected:
 	}
 
 public:
-	FStreamingGenerationActorDescView(const FStreamingGenerationActorDescViewMap& InActorDescViewMap, const IWorldPartitionActorDescInstance* InActorDescInstance, bool bInUnsaved = false)
+	FStreamingGenerationActorDescView(const FStreamingGenerationActorDescViewMap& InActorDescViewMap, const FWorldPartitionActorDescInstance* InActorDescInstance, bool bInUnsaved = false)
 		: FStreamingGenerationActorDescView(InActorDescInstance)
 	{
 		ActorDescViewMap = &InActorDescViewMap;
@@ -140,7 +139,7 @@ public:
 
 private:
 	const FStreamingGenerationActorDescViewMap* ActorDescViewMap;
-	const IWorldPartitionActorDescInstance* ActorDescInstance;
+	const FWorldPartitionActorDescInstance* ActorDescInstance;
 		
 	const FStreamingGenerationActorDescView* ParentView;
 
