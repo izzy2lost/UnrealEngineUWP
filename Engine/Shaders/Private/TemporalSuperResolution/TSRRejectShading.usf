@@ -128,6 +128,8 @@
 
 //------------------------------------------------------- TYPEDEFS
 
+#define tsr_simd_float  TLaneVector2D<float, 1, LANE_STRIDE_X, LANE_STRIDE_Y>
+#define tsr_simd_float2 TLaneVector2D<float, 2, LANE_STRIDE_X, LANE_STRIDE_Y>
 #define tsr_simd_half  TLaneVector2D<tsr_half, 1, LANE_STRIDE_X, LANE_STRIDE_Y>
 #define tsr_simd_half2 TLaneVector2D<tsr_half, 2, LANE_STRIDE_X, LANE_STRIDE_Y>
 #define tsr_simd_half3 TLaneVector2D<tsr_half, 3, LANE_STRIDE_X, LANE_STRIDE_Y>
@@ -159,6 +161,7 @@ static const tsr_half FilteringWeight = rcp(tsr_half(1.0 + 4 * 0.5 + 4 * 0.25));
 //------------------------------------------------------- PARAMETERS
 
 FScreenTransform InputPixelPosToTranslucencyTextureUV;
+float4x4 ClipToResurrectionClip;
 float2 TranslucencyTextureUVMin;
 float2 TranslucencyTextureUVMax;
 float3 HistoryGuideQuantizationError;
@@ -180,12 +183,14 @@ Texture2D<tsr_half4> ReprojectedHistoryMoireTexture;
 #endif
 Texture2D<tsr_half2> DecimateMaskTexture;
 Texture2D<tsr_ushort> IsMovingMaskTexture;
+Texture2D<float2> ClosestDepthTexture;
 
 RWTexture2DArray<tsr_half4> HistoryGuideOutput;
 RWTexture2DArray<tsr_half4> HistoryMoireOutput;
-RWTexture2D<tsr_half4> HistoryRejectionOutput;
-RWTexture2D<tsr_halfC> InputSceneColorOutput;
-RWTexture2D<tsr_half> InputSceneColorLdrLumaOutput;
+RWTexture2D<tsr_half4>  HistoryRejectionOutput;
+RWTexture2D<float2>     DilatedVelocityOutput;
+RWTexture2D<tsr_halfC>  InputSceneColorOutput;
+RWTexture2D<tsr_half>   InputSceneColorLdrLumaOutput;
 RWTexture2D<tsr_ushort> AntiAliasMaskOutput;
 
 
@@ -198,6 +203,20 @@ static tsr_simd_halfC Debug[DEBUG_ARRAY_SIZE];
 
 //------------------------------------------------------- INPUT FETCHES
 
+tsr_short2 ComputeElementPixelPos(const uint ElementIndex)
+{
+	tsr_short2 ClampedFetchPixelPos = ComputeElementInputPixelPos(
+		/* LaneStride = */ uint2(LANE_STRIDE_X, LANE_STRIDE_Y),
+		TileOverscan,
+		InputInfo_ViewportMin,
+		InputInfo_ViewportMax,
+		GGroupId,
+		GGroupThreadIndex,
+		ElementIndex);
+
+	return ClampedFetchPixelPos;
+}
+
 tsr_simd_short2 ComputePixelPos()
 {
 	tsr_simd_short2 PixelPos;
@@ -205,16 +224,7 @@ tsr_simd_short2 ComputePixelPos()
 	UNROLL_N(SIMD_SIZE)
 	for (uint ElementIndex = 0; ElementIndex < SIMD_SIZE; ElementIndex++)
 	{
-		tsr_short2 ClampedFetchPixelPos = ComputeElementInputPixelPos(
-			/* LaneStride = */ uint2(LANE_STRIDE_X, LANE_STRIDE_Y),
-			TileOverscan,
-			InputInfo_ViewportMin,
-			InputInfo_ViewportMax,
-			GGroupId,
-			GGroupThreadIndex,
-			ElementIndex);
-
-		PixelPos.SetElement(ElementIndex, ClampedFetchPixelPos);
+		PixelPos.SetElement(ElementIndex, ComputeElementPixelPos(ElementIndex));
 	}
 
 	return PixelPos;
@@ -794,6 +804,42 @@ tsr_simd_bool ShouldResurrectHistory(tsr_simd_half PrevRejectionBlendFinal, tsr_
 	return bResurrectHistory;
 }
 
+// Load the depth for ComputeResurrectionVelocity()
+CALL_SITE_DEBUGLOC
+void FetchDeviceZ(
+	tsr_simd_short2 PixelPos,
+	out tsr_simd_float DeviceZ)
+{
+	UNROLL_N(SIMD_SIZE)
+	for (uint ElementIndex = 0; ElementIndex < SIMD_SIZE; ElementIndex++)
+	{
+		tsr_short2 ClampedFetchPixelPos = PixelPos.GetElement(ElementIndex);
+		
+		DeviceZ.SetElement(ElementIndex, ClosestDepthTexture[ClampedFetchPixelPos].g);
+	}
+} // FetchMoireInput()
+
+// Compute the velocity used by the reprojection of the resurrection.
+CALL_SITE_DEBUGLOC
+tsr_simd_float2 ComputeResurrectionMotionVector(tsr_simd_float DeviceZ)
+{
+	tsr_simd_float2 ResurrectedEncodedScreenVelocity;
+	
+	UNROLL_N(SIMD_SIZE)
+	for (uint ElementIndex = 0; ElementIndex < SIMD_SIZE; ElementIndex++)
+	{
+		float2 ScreenPos = ApplyScreenTransform(float2(ComputeElementPixelPos(ElementIndex)), InputPixelPosToScreenPos);
+
+		float4 ThisClip = float4(ScreenPos, DeviceZ.GetElement(ElementIndex), 1);
+		float4 ResurrectionClip = mul(ThisClip, ClipToResurrectionClip); 
+		float2 ResurrectionScreen = ResurrectionClip.xy / ResurrectionClip.w;
+			
+		ResurrectedEncodedScreenVelocity.SetElement(ElementIndex, EncodeVelocityToTexture(float3(ScreenPos - ResurrectionScreen, 0.0)).xy);
+	}
+
+	return ResurrectedEncodedScreenVelocity;
+}
+
 #endif // CONFIG_HISTORY_RESURRECTION
 
 
@@ -1138,22 +1184,42 @@ void MainCS(
 			// Reload the resurrected history from cache.
 			tsr_simd_halfC ResurrectedHistory;
 			tsr_simd_half  ResurrectedHistoryUncertainty;
-			#if CONFIG_CACHE_REFETCH
+			tsr_simd_float DeviceZ;
+			PLATFORM_SPECIFIC_ISOLATE
 			{
-				FetchHistoryGuide(
-					ResurrectedHistoryGuideTexture,
-					ReprojectedHistoryGuideMetadataTexture,
-					ComputePixelPos(),
-					/* out */ ResurrectedHistory,
-					/* out */ ResurrectedHistoryUncertainty);
+				tsr_simd_short2 PixePos = ComputePixelPos();
+				
+				#if CONFIG_CACHE_REFETCH
+					FetchHistoryGuide(
+						ResurrectedHistoryGuideTexture,
+						ReprojectedHistoryGuideMetadataTexture,
+						PixePos,
+						/* out */ ResurrectedHistory,
+						/* out */ ResurrectedHistoryUncertainty);
+				#else
+					ResurrectedHistory            = OriginalResurrectedHistory;
+					ResurrectedHistoryUncertainty = OriginalResurrectedHistoryUncertainty;
+				#endif
+					
+				FetchDeviceZ(PixePos, /* out */ DeviceZ);
 			}
-			#else
-				ResurrectedHistory            = OriginalResurrectedHistory;
-				ResurrectedHistoryUncertainty = OriginalResurrectedHistoryUncertainty;
-			#endif
 
+			// Apply the resurrection on the guide immediatly to free up registers.
 			History = select(tsr_simd_boolC::Vectorize(bResurrectHistory), ResurrectedHistory, History);
 			HistoryUncertainty = select(bResurrectHistory, ResurrectedHistoryUncertainty, HistoryUncertainty);
+			
+			// Compute the motion vector for the resurrection
+			tsr_simd_float2 ResurrectionMotionVector = ComputeResurrectionMotionVector(DeviceZ);
+			
+			// Amends the motion vector for resurrection areas.
+			UNROLL_N(SIMD_SIZE)
+			for (uint ElementIndex = 0; ElementIndex < SIMD_SIZE; ElementIndex++)
+			{
+				tsr_short2 OutputPixelPos = ComputeElementOutputPixelPos(ElementIndex);
+				OutputPixelPos.x = select(bResurrectHistory.GetElement(ElementIndex), OutputPixelPos.x, tsr_short(-1));
+
+				DilatedVelocityOutput[OutputPixelPos] = ResurrectionMotionVector.GetElement(ElementIndex);
+			}
 		}
 		#endif // CONFIG_HISTORY_RESURRECTION
 
