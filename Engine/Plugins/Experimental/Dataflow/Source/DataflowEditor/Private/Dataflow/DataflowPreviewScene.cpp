@@ -9,57 +9,26 @@
 #include "Dataflow/DataflowActor.h"
 #include "Dataflow/DataflowComponent.h"
 #include "Dataflow/DataflowEditor.h"
+#include "Dataflow/DataflowEditorContent.h"
+#include "Dataflow/DataflowEditorStyle.h"
+#include "Dataflow/DataflowEditorUtil.h"
 #include "Elements/Framework/EngineElementsLibrary.h"
+#include "ModelingToolTargetUtil.h"
 
 #define LOCTEXT_NAMESPACE "FDataflowPreviewScene"
+
 
 FDataflowPreviewScene::FDataflowPreviewScene(FPreviewScene::ConstructionValues ConstructionValues,TObjectPtr<UDataflowEditorContent> InEditorContent) 
 	: FAdvancedPreviewScene(ConstructionValues), EditorContent(InEditorContent)
 {
 	check(EditorContent);
-	SkeletalMeshActor = GetWorld()->SpawnActor<AActor>(AActor::StaticClass());
-
-	if(EditorContent->SkeletalMesh && EditorContent->bHasValidSkeletalMesh)
-	{
-		SkeletalMeshComponent = NewObject<USkeletalMeshComponent>(SkeletalMeshActor);
-		SkeletalMeshComponent->SelectionOverrideDelegate = UPrimitiveComponent::FSelectionOverride::CreateRaw(this, &FDataflowPreviewScene::IsComponentSelected);
-		SkeletalMeshComponent->SetDisablePostProcessBlueprint(true);
-		UpdateSkeletalMeshComponent();
-	}
-	
-	// @todo(DynamicMeshRendering) : Enable Dynamic Mesh Rendering for dataflow terminals. Hide the dataflow 
-	DataflowActor = Cast<ADataflowActor>(GetWorld()->SpawnActor<ADataflowActor>(ADataflowActor::StaticClass()));
-	DataflowComponent = DataflowActor->GetDataflowComponent();
-	//DataflowComponent->SelectionOverrideDelegate = UPrimitiveComponent::FSelectionOverride::CreateRaw(this, &FDataflowPreviewScene::IsComponentSelected);
-	//DataflowComponent->SetVisibility(false);
-	UpdateDataflowComponent();
-	
-
 	DynamicMeshActor = GetWorld()->SpawnActor<AActor>(AActor::StaticClass());	
-	SkeletalMeshActor->RegisterAllComponents();
-	DataflowActor->RegisterAllComponents();
 	DynamicMeshActor->RegisterAllComponents();
-
 	SetFloorVisibility(false, true);
 }
 
 FDataflowPreviewScene::~FDataflowPreviewScene()
 {
-	if (SkeletalMeshComponent)
-	{
-		SkeletalMeshComponent->TransformUpdated.RemoveAll(this);
-		SkeletalMeshComponent->SelectionOverrideDelegate.Unbind();
-		SkeletalMeshComponent->UnregisterComponent();
-		SkeletalMeshComponent->DestroyComponent();
-	}
-
-	if (DataflowComponent)
-	{
-		DataflowComponent->SelectionOverrideDelegate.Unbind();
-		DataflowComponent->UnregisterComponent();
-		DataflowComponent->DestroyComponent();
-	}
-
 	ResetDynamicMeshComponents();
 }
 
@@ -67,56 +36,41 @@ void FDataflowPreviewScene::AddReferencedObjects(FReferenceCollector& Collector)
 {
 	FAdvancedPreviewScene::AddReferencedObjects(Collector);
 	Collector.AddReferencedObject(EditorContent);
-
-	Collector.AddReferencedObject(DataflowComponent);
-	Collector.AddReferencedObject(SkeletalMeshComponent);
-	Collector.AddReferencedObject(SkeletalMeshActor);
-	Collector.AddReferencedObject(DataflowActor);
 	Collector.AddReferencedObject(DynamicMeshActor);
-	Collector.AddReferencedObject(PreviewAnimInstance);
 	Collector.AddReferencedObjects(DynamicMeshComponents);
 }
 
-void FDataflowPreviewScene::UpdateDataflowComponent()
+void FDataflowPreviewScene::Update()
 {
-	if (EditorContent->DataflowAsset)
+	using namespace UE::Geometry;//FDynamicMesh3
+
+	// The preview scene for the construction view will be
+	// cleared and rebuilt from scratch. This will genrate a 
+	// list of UPrimitiveComponents for rendering.
+	ResetDynamicMeshComponents();
+
+	if (EditorContent)
 	{
-		DataflowComponent->ResetRenderTargets();
-
-		DataflowComponent->SetDataflow(EditorContent->DataflowAsset);
-		DataflowComponent->SetContext(EditorContent->DataflowContext);
-
-		for (const UDataflowEdNode* const Node : EditorContent->DataflowAsset->GetRenderTargets())
+		TObjectPtr<UDataflow> DataflowAsset = EditorContent->DataflowAsset;
+		TSharedPtr<Dataflow::FEngineContext> DataflowContext = EditorContent->DataflowContext;
+		if(DataflowAsset && DataflowContext)
 		{
-			DataflowComponent->AddRenderTarget(Node);
+			for (const UDataflowEdNode* Target : DataflowAsset->GetRenderTargets())
+			{
+				if (Target)
+				{
+					FDynamicMesh3 DynamicMesh;
+					FManagedArrayCollection RenderCollection;
+					GeometryCollection::Facades::FRenderingFacade Facade(RenderCollection);
+					Facade.DefineSchema();
+
+					Target->Render(Facade, DataflowContext);
+					UE::Conversion::RenderingFacadeToDynamicMesh(Facade, DynamicMesh);
+					AddDynamicMeshComponent(MoveTemp(DynamicMesh), {});
+				}
+			}
 		}
-		DataflowComponent->UpdateBounds();
 	}
-}
-
-void FDataflowPreviewScene::UpdateSkeletalMeshComponent()
-{
-	SkeletalMeshComponent->SetSkeletalMeshAsset(EditorContent->SkeletalMesh);
-
-	if (EditorContent->AnimationAsset)
-	{
-		PreviewAnimInstance = NewObject<UAnimSingleNodeInstance>(SkeletalMeshComponent);
-		PreviewAnimInstance->SetAnimationAsset(EditorContent->AnimationAsset);
-
-		SkeletalMeshComponent->SetAnimationMode(EAnimationMode::AnimationSingleNode);
-		SkeletalMeshComponent->InitAnim(true);
-		SkeletalMeshComponent->AnimationData.PopulateFrom(PreviewAnimInstance);
-		SkeletalMeshComponent->AnimScriptInstance = PreviewAnimInstance;
-		SkeletalMeshComponent->AnimScriptInstance->InitializeAnimation();
-		SkeletalMeshComponent->ValidateAnimation();
-	}
-	else
-	{
-		SkeletalMeshComponent->Stop();
-		SkeletalMeshComponent->AnimationData = FSingleAnimationPlayData();
-		SkeletalMeshComponent->AnimScriptInstance = nullptr;
-	}
-	SkeletalMeshComponent->UpdateBounds();
 }
 
 void FDataflowPreviewScene::ResetDynamicMeshComponents()
@@ -135,8 +89,16 @@ TObjectPtr<UDynamicMeshComponent>& FDataflowPreviewScene::AddDynamicMeshComponen
 	TObjectPtr<UDynamicMeshComponent> DynamicMeshComponent = NewObject<UDynamicMeshComponent>(DynamicMeshActor);
 		
 	DynamicMeshComponent->SetMesh(MoveTemp(DynamicMesh));
-	DynamicMeshComponent->ConfigureMaterialSet(MaterialSet);
-	check(DynamicMeshComponent->ValidateMaterialSlots(false, false));
+
+	// @todo(Material) This is just to have a material, we should transfer the materials from the assets if they have them. 
+	if (FDataflowEditorStyle::Get().DefaultMaterial)
+	{
+		DynamicMeshComponent->ConfigureMaterialSet({ FDataflowEditorStyle::Get().DefaultMaterial });
+	}
+	else
+	{
+		DynamicMeshComponent->ValidateMaterialSlots(true, false);
+	}
 	DynamicMeshComponent->SelectionOverrideDelegate = UPrimitiveComponent::FSelectionOverride::CreateRaw(this, &FDataflowPreviewScene::IsComponentSelected);
 	
 	DynamicMeshComponent->RegisterComponentWithWorld(GetWorld());

@@ -1,18 +1,27 @@
 // Copyright Epic Games, Inc. All Rights Reserved.
 
 #include "Dataflow/DataflowEditorMode.h"
-#include "Dataflow/DataflowEditorModeToolkit.h"
+
+#include "AttributeEditorTool.h"
+#include "Components/DynamicMeshComponent.h"
 #include "Dataflow/DataflowComponentToolTarget.h"
-#include "Dataflow/DataflowToolTarget.h"
-#include "Dataflow/DataflowGraphEditor.h"
-#include "Dataflow/DataflowSNode.h"
-#include "Dataflow/DataflowEditorCommands.h"
-#include "Dataflow/DataflowPreviewScene.h"
 #include "Dataflow/DataflowEditor.h"
+#include "Dataflow/DataflowEditorContent.h"
+#include "Dataflow/DataflowEditorCommands.h"
+#include "Dataflow/DataflowEditorModeToolkit.h"
+#include "Dataflow/DataflowGraphEditor.h"
+#include "Dataflow/DataflowPreviewScene.h"
+#include "Dataflow/DataflowSNode.h"
+#include "Dataflow/DataflowToolTarget.h"
+#include "EditorModeManager.h"
+#include "EdModeInteractiveToolsContext.h"
+#include "MeshSelectionTool.h"
+#include "MeshVertexPaintTool.h"
+#include "MeshAttributePaintTool.h"
+#include "ModelingToolTargetUtil.h"
 #include "TargetInterfaces/MaterialProvider.h"
 #include "TargetInterfaces/DynamicMeshCommitter.h"
 #include "TargetInterfaces/DynamicMeshProvider.h"
-#include "EdModeInteractiveToolsContext.h"
 #include "ToolTargetManager.h"
 #include "ToolTargets/DynamicMeshComponentToolTarget.h"
 #include "ToolTargets/StaticMeshComponentToolTarget.h"
@@ -20,13 +29,6 @@
 #include "ToolTargets/SkeletalMeshComponentToolTarget.h"
 #include "ToolTargets/SkeletalMeshToolTarget.h"
 #include "Tools/UEdMode.h"
-#include "AttributeEditorTool.h"
-#include "MeshSelectionTool.h"
-#include "MeshVertexPaintTool.h"
-#include "MeshAttributePaintTool.h"
-#include "ModelingToolTargetUtil.h"
-#include "Components/DynamicMeshComponent.h"
-#include "EditorModeManager.h"
 #include "Selection.h"
 
 #include UE_INLINE_GENERATED_CPP_BY_NAME(DataflowEditorMode)
@@ -157,14 +159,19 @@ void UDataflowEditorMode::InitializeTargets(const TArray<TObjectPtr<UObject>>& A
 	SelectedComponents->BeginBatchSelectOperation();
 	SelectedComponents->DeselectAll();
 
-	PreviewScene->ResetDynamicMeshComponents();
-	for (UToolTarget* Target : ToolTargets)
+	// @todo(brice) : What are the ToolTargets storing?
+	// ... for(ToolTarget& : ToolTargets){
+	// ... UE::ToolTarget::GetDynamicMeshCopy(Target)
+	// ... UE::ToolTarget::GetMaterialSet(Target).Materials for PreviewScene->AddDynamicMeshComponent
+	// ... }
+	PreviewScene->Update();
+
+	for (TObjectPtr<UDynamicMeshComponent>& Component : PreviewScene->GetDynamicMeshComponents())
 	{
-		// @todo(DynamicMeshRendering) : Enable Dynamic Mesh Rendering for dataflow terminals. 
-		//  TObjectPtr<UDynamicMeshComponent>& DynamicMeshComponent =
-		//	PreviewScene->AddDynamicMeshComponent(MoveTemp(DynamicMesh), UE::ToolTarget::GetMaterialSet(Target).Materials);
-		//
-		//SelectedComponents->Select(DynamicMeshComponent);
+		if (Component)
+		{
+			SelectedComponents->Select(Component);
+		}
 	}
 	SelectedComponents->EndBatchSelectOperation();
 }

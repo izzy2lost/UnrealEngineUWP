@@ -5,8 +5,10 @@
 #include "Styling/SlateStyleMacros.h"
 #include "Styling/SlateStyleRegistry.h"
 #include "Interfaces/IPluginManager.h"
+#include "Materials/Material.h"
 #include "Misc/Paths.h"
 #include "Dataflow/DataflowEditorCommands.h"
+#include "Dataflow/DataflowEditorUtil.h"
 
 class FDataflowEditorStyle final : public FSlateStyleSet
 {
@@ -40,6 +42,8 @@ public:
 		const FString MeshSelectionPropertyName = "DataflowEditor." + FDataflowEditorCommandsImpl::BeginMeshSelectionToolIdentifier;
 		Set(*MeshSelectionPropertyName, new FSlateImageBrush(RootToContentDir(TEXT("Slate/Dataflow_SelectVertex20x.png")), Icon20x20));
 
+		DefaultMaterial = Cast<UMaterial>(StaticLoadObject(UMaterial::StaticClass(), NULL, TEXT("/Engine/BasicShapes/BasicShapeMaterial")));
+
 		FSlateStyleRegistry::RegisterSlateStyle(*this);
 	}
 
@@ -47,6 +51,10 @@ public:
 	{
 		FSlateStyleRegistry::UnRegisterSlateStyle(*this);
 	}
+
+
+	/** Default Rendering Material for Mesh surfaces */
+	UMaterial* DefaultMaterial = nullptr;
 
 public:
 

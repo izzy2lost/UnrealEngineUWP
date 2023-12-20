@@ -17,49 +17,7 @@
 #include "DataflowEditor.generated.h"
 
 class FDataflowEditorToolkit;
-class USkeletalMesh;
-class USkeleton;
-class UAnimationAsset;
-
-/** 
- * Dataflow datas that will be used within the editor classes to evaluate the graph
- */
-UCLASS()
-class UDataflowEditorContent : public UObject
-{
-	GENERATED_BODY()
-
-public:
-	/** Check if the datas flow datas are valid */
-	bool IsValid() const { return DataflowOwner && DataflowAsset;}
-	
-	/** Data flow object owner */
-	TObjectPtr<UObject> DataflowOwner = nullptr;
-
-	/** Data flow asset that we will edit */
-	TObjectPtr<UDataflow> DataflowAsset = nullptr;
-
-	/** Data flow terminal path for evaluation */
-	FString DataflowTerminal = "";
-
-	/** Data flow skeletal mesh*/
-	TObjectPtr<USkeletalMesh> SkeletalMesh = nullptr;
-
-	/** Data flow skeleton*/
-	TObjectPtr<USkeleton> Skeleton = nullptr;
-
-	/** Animation asset to be used to preview simulation */
-	TObjectPtr<UAnimationAsset> AnimationAsset;
-
-	/**  Engine context to be used for dataflow evaluation */
-	TSharedPtr<Dataflow::FEngineContext> DataflowContext = nullptr;
-
-	/** Last data flow evaluated node time stamp */
-	Dataflow::FTimestamp LastNodeTimestamp = Dataflow::FTimestamp::Invalid;
-
-	/** Boolean to check if the skelmesh is valid*/
-	bool bHasValidSkeletalMesh = false;
-};
+class UDataflowEditorContent;
 
 /** 
  * The actual asset editor class doesn't have that much in it, intentionally. 

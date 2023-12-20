@@ -3,63 +3,16 @@
 #include "Dataflow/DataflowEditor.h"
 
 #include "Animation/Skeleton.h"
+#include "Dataflow/DataflowEditorContent.h"
 #include "Dataflow/DataflowEditorToolkit.h"
+#include "Dataflow/DataflowEditorUtil.h"
 #include "Engine/SkeletalMesh.h"
 
 #include UE_INLINE_GENERATED_CPP_BY_NAME(DataflowEditor)
 
 DEFINE_LOG_CATEGORY(LogDataflowEditor);
 
-namespace Private
-{
-	UDataflow* GetDataflowAssetFrom(UObject* InObject)
-	{
-		if (UClass* Class = InObject->GetClass())
-		{
-			if (FProperty* Property = Class->FindPropertyByName(FName("DataflowAsset")))
-			{
-				return *Property->ContainerPtrToValuePtr<UDataflow*>(InObject);
-			}
-		}
-		return nullptr;
-	}
 
-	USkeletalMesh* GetSkeletalMeshFrom(UObject* InObject)
-	{
-		if (UClass* Class = InObject->GetClass())
-		{
-			if (FProperty* Property = Class->FindPropertyByName(FName("SkeletalMesh")))
-			{
-				return *Property->ContainerPtrToValuePtr<USkeletalMesh*>(InObject);
-			}
-		}
-		return nullptr;
-	}
-	
-	UAnimationAsset* GetAnimationAssetFrom(UObject* InObject)
-	{
-		if (UClass* Class = InObject->GetClass())
-		{
-			if (FProperty* Property = Class->FindPropertyByName(FName("AnimationAsset")))
-			{
-				return *Property->ContainerPtrToValuePtr<UAnimationAsset*>(InObject);
-			}
-		}
-		return nullptr;
-	}
-
-	FString GetDataflowTerminalFrom(UObject* InObject)
-	{
-		if (UClass* Class = InObject->GetClass())
-		{
-			if (FProperty* Property = Class->FindPropertyByName(FName("DataflowTerminal")))
-			{
-				return *Property->ContainerPtrToValuePtr<FString>(InObject);
-			}
-		}
-		return FString();
-	}
-};
 
 UDataflowEditor::UDataflowEditor() : Super()
 {
@@ -94,7 +47,7 @@ void UDataflowEditor::Initialize(const TArray<TObjectPtr<UObject>>& InObjects)
 			Content->DataflowOwner = RootObject;
 			Content->DataflowAsset->Schema = UDataflowSchema::StaticClass();
 			Content->DataflowContext = MakeShared<Dataflow::FEngineContext>(RootObject, Content->DataflowAsset, FPlatformTime::Cycles64());
-			Content->LastNodeTimestamp = Content->DataflowContext->GetTimestamp();
+			Content->LastModifiedTimestamp = Content->DataflowContext->GetTimestamp();
 
 			ObjectsToEdit.Add(Content->DataflowOwner);
 

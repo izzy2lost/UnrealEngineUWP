@@ -20,9 +20,8 @@ void FDataflowEditorModeToolkit::BuildToolPalette(FName PaletteIndex, class FToo
 	const FDataflowEditorCommandsImpl& Commands = FDataflowEditorCommands::Get();
 	if (PaletteIndex == ToolsTabName)
 	{
-		// @todo(DynamicMeshRendering) : Enable Dynamic Mesh Rendering for dataflow terminals. 
-		//ToolbarBuilder.AddToolBarButton(Commands.BeginAttributeEditorTool);
-		//ToolbarBuilder.AddToolBarButton(Commands.BeginMeshSelectionTool);
+		ToolbarBuilder.AddToolBarButton(Commands.BeginAttributeEditorTool);
+		ToolbarBuilder.AddToolBarButton(Commands.BeginMeshSelectionTool);
 	}
 }
 

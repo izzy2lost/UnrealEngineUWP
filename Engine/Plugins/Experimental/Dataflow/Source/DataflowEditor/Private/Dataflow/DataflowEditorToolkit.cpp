@@ -6,6 +6,7 @@
 #include "Animation/Skeleton.h"
 #include "Dataflow/DataflowCore.h"
 #include "Dataflow/DataflowEditor.h"
+#include "Dataflow/DataflowEditorContent.h"
 #include "Dataflow/DataflowEditorCommands.h"
 #include "Dataflow/DataflowEditorMode.h"
 #include "Dataflow/DataflowEditorViewport.h"
@@ -368,7 +369,7 @@ void FDataflowEditorToolkit::OnPropertyValueChanged(const FPropertyChangedEvent&
 	if (TObjectPtr<UDataflowEditorContent> EditorContent = GetDataflowEditorContent())
 	{
 		ensure(EditorContent);
-		FDataflowEditorCommands::OnPropertyValueChanged(EditorContent->DataflowAsset, EditorContent->DataflowContext, EditorContent->LastNodeTimestamp, PropertyChangedEvent, PrevNodeSelection);
+		FDataflowEditorCommands::OnPropertyValueChanged(EditorContent->DataflowAsset, EditorContent->DataflowContext, EditorContent->LastModifiedTimestamp, PropertyChangedEvent, PrevNodeSelection);
 	}
 }
 
@@ -376,7 +377,7 @@ void FDataflowEditorToolkit::OnAssetPropertyValueChanged(const FPropertyChangedE
 {
 	if (TObjectPtr<UDataflowEditorContent> EditorContent = GetDataflowEditorContent())
 	{
-		ensure(EditorContent);	FDataflowEditorCommands::OnAssetPropertyValueChanged(EditorContent->DataflowAsset, EditorContent->DataflowContext, EditorContent->LastNodeTimestamp, PropertyChangedEvent);
+		ensure(EditorContent);	FDataflowEditorCommands::OnAssetPropertyValueChanged(EditorContent->DataflowAsset, EditorContent->DataflowContext, EditorContent->LastModifiedTimestamp, PropertyChangedEvent);
 	}
 }
 
@@ -467,9 +468,9 @@ void FDataflowEditorToolkit::Tick(float DeltaTime)
 			if (!EditorContent->DataflowContext)
 			{
 				EditorContent->DataflowContext = MakeShared<Dataflow::FEngineContext>(EditorContent->DataflowOwner, EditorContent->DataflowAsset, Dataflow::FTimestamp::Invalid);
-				EditorContent->LastNodeTimestamp = Dataflow::FTimestamp::Invalid;
+				EditorContent->LastModifiedTimestamp = Dataflow::FTimestamp::Invalid;
 			}
-			FDataflowEditorCommands::EvaluateTerminalNode(*EditorContent->DataflowContext.Get(), EditorContent->LastNodeTimestamp,
+			FDataflowEditorCommands::EvaluateTerminalNode(*EditorContent->DataflowContext.Get(), EditorContent->LastModifiedTimestamp,
 														  EditorContent->DataflowAsset, nullptr, nullptr, EditorContent->DataflowOwner, EditorContent->DataflowTerminal);
 		}
 	}
@@ -496,9 +497,9 @@ TSharedRef<SDataflowGraphEditor> FDataflowEditorToolkit::CreateGraphEditorWidget
 					EditorContent->DataflowContext = MakeShared<Dataflow::FEngineContext>(EditorContent->DataflowOwner, EditorContent->DataflowAsset, Dataflow::FTimestamp::Invalid);
 				}
 				Node->Invalidate();
-				EditorContent->LastNodeTimestamp = Dataflow::FTimestamp::Invalid;
+				EditorContent->LastModifiedTimestamp = Dataflow::FTimestamp::Invalid;
 
-				FDataflowEditorCommands::EvaluateTerminalNode(*EditorContent->DataflowContext.Get(), EditorContent->LastNodeTimestamp,
+				FDataflowEditorCommands::EvaluateTerminalNode(*EditorContent->DataflowContext.Get(), EditorContent->LastModifiedTimestamp,
 															  EditorContent->DataflowAsset, Node, Out, EditorContent->DataflowOwner, EditorContent->DataflowTerminal);
 			}
 		}
