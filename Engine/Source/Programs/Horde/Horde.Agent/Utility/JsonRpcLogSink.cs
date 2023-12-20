@@ -251,7 +251,7 @@ namespace Horde.Agent.Utility
 
 		protected virtual async Task UpdateLogAsync(IBlobHandle target, int lineCount, bool complete, CancellationToken cancellationToken)
 		{
-			_logger.LogInformation("Updating log {LogId} to line {LineCount}, target {Locator}", _logId, lineCount, target);
+			_logger.LogInformation("Updating log {LogId} to line {LineCount}, target {Locator}", _logId, lineCount, target.GetLocator());
 
 			UpdateLogRequest request = new UpdateLogRequest();
 			request.LogId = _logId;

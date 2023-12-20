@@ -332,6 +332,7 @@ namespace Horde.Agent.Execution
 					HashSet<DirectoryReference> protectDirs = new HashSet<DirectoryReference>();
 					if (!removeUntrackedFiles)
 					{
+						protectDirs.Add(DirectoryReference.Combine(rootDir, "Leases"));
 						protectDirs.Add(DirectoryReference.Combine(rootDir, "Temp"));
 						protectDirs.Add(DirectoryReference.Combine(rootDir, "Saved"));
 					}

@@ -331,36 +331,6 @@ namespace Horde.Server.Logs
 		}
 
 		/// <summary>
-		/// Appends data to a log file
-		/// </summary>
-		/// <param name="logFileId">The logfile id</param>
-		/// <param name="offset">Offset within the log file</param>
-		/// <param name="lineIndex">The line index</param>
-		/// <param name="cancellationToken">Cancellation token for the request</param>
-		/// <returns>Http result code</returns>
-		[HttpPost]
-		[Route("/api/v1/logs/{logFileId}")]
-		public async Task<ActionResult> WriteDataAsync(LogId logFileId, [FromQuery] long offset, [FromQuery] int lineIndex, CancellationToken cancellationToken)
-		{
-			ILogFile? logFile = await _logFileService.GetLogFileAsync(logFileId, cancellationToken);
-			if (logFile == null)
-			{
-				return NotFound();
-			}
-			if (!await AuthorizeAsync(logFile, LogAclAction.WriteLogData, User))
-			{
-				return Forbid();
-			}
-
-			using (MemoryStream bodyStream = new MemoryStream())
-			{
-				await Request.Body.CopyToAsync(bodyStream, cancellationToken);
-				await _logFileService.WriteLogDataAsync(logFile, offset, lineIndex, bodyStream.ToArray(), false, cancellationToken: cancellationToken);
-			}
-			return Ok();
-		}
-
-		/// <summary>
 		/// Determines if the user is authorized to perform an action on a particular template
 		/// </summary>
 		/// <param name="logFile">The template to check</param>

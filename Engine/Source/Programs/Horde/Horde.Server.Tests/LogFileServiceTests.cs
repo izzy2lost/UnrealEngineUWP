@@ -262,12 +262,12 @@ namespace Horde.Server.Tests
 			JobId jobId = JobIdUtils.GenerateNewId();
             SessionId sessionId = SessionIdUtils.GenerateNewId();
             ILogFile a = await _logFileService.CreateLogFileAsync(jobId, null, sessionId, LogType.Text, useNewStorageBackend: false, logId: null, CancellationToken.None);
-            ILogFile b = (await _logFileService.GetCachedLogFileAsync(a.Id, CancellationToken.None))!;
+            ILogFile b = (await _logFileService.GetLogFileAsync(a.Id, CancellationToken.None))!;
             Assert.AreEqual(a.JobId, b.JobId);
             Assert.AreEqual(a.SessionId, b.SessionId);
             Assert.AreEqual(a.Type, b.Type);
 
-            ILogFile? notFound = await _logFileService.GetCachedLogFileAsync(LogIdUtils.GenerateNewId(), CancellationToken.None);
+            ILogFile? notFound = await _logFileService.GetLogFileAsync(LogIdUtils.GenerateNewId(), CancellationToken.None);
             Assert.IsNull(notFound);
 
             await _logFileService.CreateLogFileAsync(JobIdUtils.GenerateNewId(), null, SessionIdUtils.GenerateNewId(), LogType.Text, useNewStorageBackend: false, logId: null, cancellationToken: CancellationToken.None);

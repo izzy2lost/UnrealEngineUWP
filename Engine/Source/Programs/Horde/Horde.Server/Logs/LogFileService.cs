@@ -76,14 +76,6 @@ namespace Horde.Server.Logs
 		Task<ILogFile?> GetLogFileAsync(LogId logFileId, CancellationToken cancellationToken);
 
 		/// <summary>
-		/// Gets a logfile by ID, returning a cached copy if available. This should only be used to retrieve constant properties set at creation, such as the session or job it's associated with.
-		/// </summary>
-		/// <param name="logFileId">Unique id of the log file</param>
-		/// <param name="cancellationToken">Cancellation token for the call</param>
-		/// <returns>The logfile document</returns>
-		Task<ILogFile?> GetCachedLogFileAsync(LogId logFileId, CancellationToken cancellationToken);
-
-		/// <summary>
 		/// Returns a list of log files
 		/// </summary>
 		/// <param name="index">Index of the first result to return</param>
@@ -606,33 +598,7 @@ namespace Horde.Server.Logs
 		/// <inheritdoc/>
 		public async Task<ILogFile?> GetLogFileAsync(LogId logFileId, CancellationToken cancellationToken)
 		{
-			ILogFile? logFile = await _logFiles.GetLogFileAsync(logFileId, cancellationToken);
-			if(logFile != null)
-			{
-				AddCachedLogFile(logFile);
-			}
-			return logFile;
-		}
-
-		/// <summary>
-		/// Adds a log file to the cache
-		/// </summary>
-		/// <param name="logFile">The log file to cache</param>
-		void AddCachedLogFile(ILogFile logFile)
-		{
-			MemoryCacheEntryOptions options = new MemoryCacheEntryOptions().SetSlidingExpiration(TimeSpan.FromSeconds(30));
-			_logFileCache.Set(logFile.Id, logFile, options);
-		}
-
-		/// <inheritdoc />
-		public async Task<ILogFile?> GetCachedLogFileAsync(LogId logFileId, CancellationToken cancellationToken)
-		{
-			object? logFile;
-			if (!_logFileCache.TryGetValue(logFileId, out logFile))
-			{
-				logFile = await GetLogFileAsync(logFileId, cancellationToken);
-			}
-			return (ILogFile?)logFile;
+			return await _logFiles.GetLogFileAsync(logFileId, cancellationToken);
 		}
 
 		/// <inheritdoc/>
