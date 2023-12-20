@@ -1605,8 +1605,6 @@ void FSlateRHIRenderingPolicy::ChooseMaterialShaderTypes(ESlateShader ShaderType
 {
 	switch (ShaderType)
 	{
-	case ESlateShader::RoundedBox:
-		// Todo rounded box not supported in materials currently, intentional fall-through to Default
 	case ESlateShader::Default:
 		OutShaderTypes.AddShaderType<TSlateMaterialShaderPS<ESlateShader::Default>>();
 		break;
@@ -1621,6 +1619,9 @@ void FSlateRHIRenderingPolicy::ChooseMaterialShaderTypes(ESlateShader ShaderType
 		break;
 	case ESlateShader::Custom:
 		OutShaderTypes.AddShaderType<TSlateMaterialShaderPS<ESlateShader::Custom>>();
+		break;
+	case ESlateShader::RoundedBox:
+		OutShaderTypes.AddShaderType<TSlateMaterialShaderPS<ESlateShader::RoundedBox>>();
 		break;
 	case ESlateShader::SdfFont:
 		OutShaderTypes.AddShaderType<TSlateMaterialShaderPS<ESlateShader::SdfFont>>();
