@@ -46,7 +46,7 @@ When GPU->GPU is supported, the frame dependency issue have more meaning for GPU
 #include "UObject/UObjectIterator.h"
 #include "NiagaraDataChannel.generated.h"
 
-DECLARE_STATS_GROUP(TEXT("Niagara Data Channels"), STATGROUP_NiagaraDataChannels, STATCAT_Advanced);
+DECLARE_STATS_GROUP(TEXT("Niagara Data Channels"), STATGROUP_NiagaraDataChannels, STATCAT_Niagara);
 
 class FRHICommandListImmediate;
 

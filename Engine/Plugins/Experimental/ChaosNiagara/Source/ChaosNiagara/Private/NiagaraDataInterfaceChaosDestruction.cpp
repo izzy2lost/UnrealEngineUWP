@@ -25,7 +25,7 @@
 #define LOCTEXT_NAMESPACE "ChaosNiagaraDestructionDataInterface"
 //#pragma optimize("", off)
 
-DECLARE_STATS_GROUP(TEXT("ChaosNiagara"), STATGROUP_ChaosNiagara, STATCAT_Advanced);
+DECLARE_STATS_GROUP(TEXT("ChaosNiagara"), STATGROUP_ChaosNiagara, STATCAT_Niagara);
 DECLARE_CYCLE_STAT(TEXT("CollisionCallback"), STAT_CollisionCallback, STATGROUP_ChaosNiagara);
 DECLARE_CYCLE_STAT(TEXT("TrailingCallback"), STAT_NiagaraTrailingCallback, STATGROUP_ChaosNiagara);
 DECLARE_CYCLE_STAT(TEXT("BreakingCallback"), STAT_NiagaraBreakingCallback, STATGROUP_ChaosNiagara);

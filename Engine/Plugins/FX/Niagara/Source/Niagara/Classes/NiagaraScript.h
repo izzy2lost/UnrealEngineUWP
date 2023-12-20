@@ -30,7 +30,7 @@ class UNiagaraConvertInPlaceUtilityBase;
 
 #define NIAGARA_SCRIPT_COMPILE_LOGGING_MEDIUM
 
-DECLARE_STATS_GROUP(TEXT("Niagara Detailed"), STATGROUP_NiagaraDetailed, STATCAT_Advanced);
+DECLARE_STATS_GROUP(TEXT("Niagara Detailed"), STATGROUP_NiagaraDetailed, STATCAT_Niagara);
 
 /** Defines what will happen to unused attributes when a script is run. */
 UENUM()
