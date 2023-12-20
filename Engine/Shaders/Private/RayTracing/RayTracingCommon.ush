@@ -988,66 +988,80 @@ CHECK_RT_PAYLOAD_SIZE(FPackedMaterialClosestHitPayload)
 ///////////////////////////////////////////////////////////////////////////////////////////////////
 // Decal parameters
 
+// Must match EDecalsWriteFlags
+// TODO: Move to a shared header?
 #define DECAL_WRITE_BASE_COLOR_FLAG						(1 << 0)
 #define DECAL_WRITE_NORMAL_FLAG							(1 << 1)
 #define DECAL_WRITE_ROUGHNESS_SPECULAR_METALLIC_FLAG	(1 << 2)
 #define DECAL_WRITE_EMISSIVE_FLAG						(1 << 3)
 
+#define DECAL_USE_REVERSE_CULLING 						1
+
 #if IS_PAYLOAD_ENABLED(RT_PAYLOAD_TYPE_DECALS)
 struct FDecalShaderPayload : FMinimalPayload
 {
-	uint Data[14];
+	// float HitT                          //  4 bytes
+	float3 TranslatedWorldPos;             // 12 bytes
+	uint2 PackedBaseColor;                 //  8 bytes half4
+	uint2 PackedMetallicSpecularRoughness; //  8 bytes - half4
+	uint2 PackedWorldNormal;               //  8 bytes - half4
+	uint2 PackedEmissive;                  //  8 bytes - half3 (alpha is not used)
+	                                       // 48 bytes total
 
-	void SetInputTranslatedWorldPosition(float3 In)
-	{
-		Data[0] = asuint(In.x);
-		Data[1] = asuint(In.y);
-		Data[2] = asuint(In.z);
+	float4 GetBaseColor() {
+		return float4(UnpackFloat2FromUInt(PackedBaseColor.x),
+		              UnpackFloat2FromUInt(PackedBaseColor.y));
 	}
-	float3 GetInputTranslatedWorldPosition() { return float3(asfloat(Data[0]), asfloat(Data[1]), asfloat(Data[2])); }
 
-	void SetMetallicSpecularRoughness(float3 In)
-	{
-		Data[3] = f32tof16(In.r);
-		Data[3] |= f32tof16(In.g) << 16;
-		Data[4] = f32tof16(In.b);
+	void SetBaseColor(float4 BaseColor) {
+		PackedBaseColor.x = PackFloat2ToUInt(BaseColor.rg);
+		PackedBaseColor.y = PackFloat2ToUInt(BaseColor.ba);
 	}
-	float3 GetMetallicSpecularRoughness() { return float3(f16tof32(Data[3]), f16tof32(Data[3] >> 16), f16tof32(Data[4])); }
 
-	void SetBaseColor(float3 In)
-	{
-		Data[5] = f32tof16(In.r);
-		Data[5] |= f32tof16(In.g) << 16;
-		Data[6] = f32tof16(In.b);
+	float4 GetMetallicSpecularRoughness() {
+		return float4(UnpackFloat2FromUInt(PackedMetallicSpecularRoughness.x),
+		              UnpackFloat2FromUInt(PackedMetallicSpecularRoughness.y));
 	}
-	float3 GetBaseColor() { return float3(f16tof32(Data[5]), f16tof32(Data[5] >> 16), f16tof32(Data[6])); }
 
-	void SetWorldNormal(float3 In)
-	{
-		Data[7] = asuint(In.r);
-		Data[8] = asuint(In.g);
-		Data[9] = asuint(In.b);
+	void SetMetallicSpecularRoughness(float4 MetallicSpecularRoughness) {
+		PackedMetallicSpecularRoughness.x = PackFloat2ToUInt(MetallicSpecularRoughness.rg);
+		PackedMetallicSpecularRoughness.y = PackFloat2ToUInt(MetallicSpecularRoughness.ba);
 	}
-	float3 GetWorldNormal() { return float3(asfloat(Data[7]), asfloat(Data[8]), asfloat(Data[9])); }
 
-	void SetEmissive(float3 In)
-	{
-		Data[10] = f32tof16(In.r);
-		Data[10] |= f32tof16(In.g) << 16;
-		Data[11] = f32tof16(In.b);
+	float4 GetWorldNormal() {
+		return float4(UnpackFloat2FromUInt(PackedWorldNormal.x),
+		              UnpackFloat2FromUInt(PackedWorldNormal.y));
 	}
-	float3 GetEmissive() { return float3(f16tof32(Data[10]), f16tof32(Data[10] >> 16), f16tof32(Data[11])); }
 
-	void SetTransparency(float In)
-	{
-		Data[12] = asuint(In);
+	void SetWorldNormal(float4 WorldNormal) {
+		PackedWorldNormal.x = PackFloat2ToUInt(WorldNormal.xy);
+		PackedWorldNormal.y = PackFloat2ToUInt(WorldNormal.zw);
 	}
-	float GetTransparency() { return asfloat(Data[12]); }
 
-	void SetFlags(uint In) { Data[13] = In; }
-	uint GetFlags() { return Data[13]; }
+	float3 GetEmissive() {
+		return float3(UnpackFloat2FromUInt(PackedEmissive.x),
+		              f16tof32(PackedEmissive.y));
+	}
+
+	void SetEmissive(float3 Emissive) {
+		PackedEmissive.x = PackFloat2ToUInt(Emissive.xy);
+		PackedEmissive.y = f32tof16(Emissive.z);
+	}
 };
 CHECK_RT_PAYLOAD_SIZE(FDecalShaderPayload)
+
+
+FDecalShaderPayload InitDecalShaderPayload(float3 TranslatedWorldPos)
+{
+	FDecalShaderPayload Payload = (FDecalShaderPayload)0;
+	Payload.TranslatedWorldPos = TranslatedWorldPos;
+	// set alpha=1 on all fields
+	Payload.PackedBaseColor.y = f32tof16(1.0) << 16;
+	Payload.PackedMetallicSpecularRoughness.y = f32tof16(1.0) << 16;
+	Payload.PackedWorldNormal.y = f32tof16(1.0) << 16;
+	return Payload;
+}
+
 #endif
 
 

@@ -32,28 +32,36 @@ struct FDecalData
 	float3 WorldNormal;
 	float3 MetallicSpecularRoughness;
 	float3 Emissive;
-
-	void WriteToPayload(inout FDecalShaderPayload Payload, uint WriteFlags, float OpacityMult)
+	
+	void CombineWithPayload(inout FDecalShaderPayload Payload, uint WriteFlags, float OpacityMult)
 	{
 		Opacity *= OpacityMult;
+		float Transparency = 1.0 - Opacity;
 		if (WriteFlags & DECAL_WRITE_BASE_COLOR_FLAG)
 		{
-			Payload.SetBaseColor(BaseColor * Opacity);
+			float4 DestBaseColor = Payload.GetBaseColor();
+			DestBaseColor.rgb = BaseColor * Opacity + DestBaseColor.rgb * Transparency;
+			DestBaseColor.a *= Transparency;
+			Payload.SetBaseColor(DestBaseColor);
 		}
 		if (WriteFlags & DECAL_WRITE_NORMAL_FLAG)
 		{
-			Payload.SetWorldNormal(WorldNormal * Opacity);
+			float4 DestWorldNormal = Payload.GetWorldNormal();
+			DestWorldNormal.xyz = WorldNormal * Opacity + DestWorldNormal.xyz * Transparency;
+			DestWorldNormal.w *= Transparency;
+			Payload.SetWorldNormal(DestWorldNormal);
 		}
 		if (WriteFlags & DECAL_WRITE_ROUGHNESS_SPECULAR_METALLIC_FLAG)
 		{
-			Payload.SetMetallicSpecularRoughness(MetallicSpecularRoughness * Opacity);
+			float4 DestMetallicSpecularRoughness = Payload.GetMetallicSpecularRoughness();
+			DestMetallicSpecularRoughness.rgb = MetallicSpecularRoughness * Opacity + DestMetallicSpecularRoughness.rgb * Transparency;
+			DestMetallicSpecularRoughness.a *= Transparency;
+			Payload.SetMetallicSpecularRoughness(DestMetallicSpecularRoughness);
 		}
 		if (WriteFlags & DECAL_WRITE_EMISSIVE_FLAG)
 		{
-			Payload.SetEmissive(Emissive * Opacity);
+			Payload.SetEmissive(Payload.GetEmissive() + Emissive * Opacity);
 		}
-		Payload.SetTransparency(1.0f - Opacity);
-		Payload.SetFlags(WriteFlags);
 	}
 };
 
@@ -97,14 +105,13 @@ RAY_TRACING_ENTRY_CALLABLE(RayTracingDecalMaterialShader, FDecalShaderPayload, P
 {
 	ResolvedView = ResolveView();
 
-	const float3 TranslatedWorldPosition = Payload.GetInputTranslatedWorldPosition();
+	const float3 TranslatedWorldPosition = Payload.TranslatedWorldPos;
 
 	float4 DecalPos = mul(float4(TranslatedWorldPosition.xyz, 1), WorldToDecal);
 
 	if (any(abs(DecalPos.xyz) > 1))
 	{
-		// clip content outside the decal
-		Payload.SetTransparency(1.0f);
+		// out of bounds, nothing to do
 		return;
 	}
 
@@ -157,7 +164,7 @@ RAY_TRACING_ENTRY_CALLABLE(RayTracingDecalMaterialShader, FDecalShaderPayload, P
 	}
 #endif
 	
-	Data.WriteToPayload(Payload, DecalWriteFlags, DecalFading);
+	Data.CombineWithPayload(Payload, DecalWriteFlags, DecalFading);
 
 }
 #endif // RAYCALLABLESHADER
@@ -231,7 +238,11 @@ RAY_TRACING_ENTRY_CLOSEST_HIT(RayTracingDecalMaterialCHS,
 	}
 #endif
 
-	Data.WriteToPayload(Payload, DECAL_PAYLOAD_FLAGS, 1.0);
+#if DECAL_USE_REVERSE_CULLING
+	Data.WorldNormal = -Data.WorldNormal; // flip normal (see matching logic in the PathTracer)
+#endif
+
+	Data.CombineWithPayload(Payload, DECAL_PAYLOAD_FLAGS, 1.0);
 }
 
 #if USE_MATERIAL_ANY_HIT_SHADER
