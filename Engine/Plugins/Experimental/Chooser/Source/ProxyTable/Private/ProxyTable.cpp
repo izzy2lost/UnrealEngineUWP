@@ -25,7 +25,7 @@ const FGuid FProxyEntry::GetGuid() const
 		FGuid Guid;
 		if (Key != NAME_None)
 		{
-			Guid.A = GetTypeHash(WriteToString<128>(Key).ToView());
+			Guid.A = GetTypeHash(WriteToString<128>(Key).ToView()); // Make sure this matches UProxyTableFunctionLibrary::EvaluateProxyTable
 		}
 		return Guid;
 	}

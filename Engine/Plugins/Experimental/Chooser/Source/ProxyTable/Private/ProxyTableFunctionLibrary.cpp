@@ -2,6 +2,7 @@
 #include "ProxyTableFunctionLibrary.h"
 
 #include "LookupProxy.h"
+#include "Misc/StringBuilder.h"
 #include "ProxyTable.h"
 
 /////////////////////////////////////////////////////////////////////////////////////
@@ -30,7 +31,7 @@ UObject* UProxyTableFunctionLibrary::EvaluateProxyTable(const UObject* ContextOb
 	if (ProxyTable)
 	{
 		FGuid Guid;
-		Guid.A = GetTypeHash(Key);
+		Guid.A = GetTypeHash(WriteToString<128>(Key).ToView()); // Make sure this matches FProxyEntry::GetGuid
 		FChooserEvaluationContext Context(const_cast<UObject*>(ContextObject));
 		if (UObject* Value = ProxyTable->FindProxyObject(Guid, Context))
 		{
