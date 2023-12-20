@@ -303,7 +303,7 @@ int32 FArchetypeFixupDetailNodeBuilder::GetNameWidgetIndex() const
 	{
 		if (Panel->HasViewFlag(FArchetypeFixupPanel::EViewFlags::AllowRemapLooseProperties))
 		{
-			if (Panel->OriginalPaths.Contains(*PropertyHandle->CreateFPropertyPath()))
+			if (Panel->RevertInfo.Contains(*PropertyHandle->CreateFPropertyPath()))
 			{
 				return DisplayRedirectMenu;
 			}

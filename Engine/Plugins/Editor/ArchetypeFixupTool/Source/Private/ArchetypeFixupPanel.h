@@ -99,8 +99,16 @@ private:
 	// the redirected property tree keeps track of which properties in the archetype were either set by a property bag during serialization or
 	// redirected to from a floating property. The members of the tree are visible in the left panel.
 	TSharedPtr<FRedirectedPropertyNode> RedirectedPropertyTree;
+
+	struct FRevertInfo
+	{
+		TArray<uint8> OriginalValue;
+		FPropertyPath OriginalPath;
+		bool bWasTransient;
+		bool bWasHidden;
+	};
 	
-	TMap<FPropertyPath, FPropertyPath> OriginalPaths;
+	TMap<FPropertyPath, FRevertInfo> RevertInfo;
 	TSet<FPropertyPath> MarkedForDelete;
 	
 	TWeakPtr<FAsyncDetailViewDiff> DiffAgainstLeft;
@@ -119,7 +127,7 @@ public:
 	
 	TWeakPtr<FArchetypeFixupPanel> ArchetypePanel;
 	
-	TMap<FPropertyPath, FPropertyPath> OriginalPaths;
+	TMap<FPropertyPath, FArchetypeFixupPanel::FRevertInfo> RevertInfo;
 	TSet<FPropertyPath> MarkedForDelete;
 	FPropertyPath RedirectFrom;
 	FPropertyPath RedirectTo;
