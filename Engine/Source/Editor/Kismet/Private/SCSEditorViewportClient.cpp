@@ -712,18 +712,47 @@ void FSCSEditorViewportClient::TrackingStarted( const struct FInputEventState& I
 {
 	if( !bIsManipulating && bIsDraggingWidget )
 	{
-		// Suspend component modification during each delta step to avoid recording unnecessary overhead into the transaction buffer
-		GEditor->DisableDeltaModification(true);
-
-		// Begin transaction
-		BeginTransaction( NSLOCTEXT("UnrealEd", "ModifyComponents", "Modify Component(s)") );
-		bIsManipulating = true;
+		HandleBeginTransform();
 	}
 }
 
 void FSCSEditorViewportClient::TrackingStopped() 
 {
 	if( bIsManipulating )
+	{
+		HandleEndTransform();
+	}
+}
+
+bool FSCSEditorViewportClient::BeginTransform(const FGizmoState& InState)
+{
+	return HandleBeginTransform();
+}
+
+bool FSCSEditorViewportClient::EndTransform(const FGizmoState& InState)
+{
+	return HandleEndTransform();
+}
+
+bool FSCSEditorViewportClient::HandleBeginTransform()
+{
+	if (!bIsManipulating)
+	{
+		// Suspend component modification during each delta step to avoid recording unnecessary overhead into the transaction buffer
+		GEditor->DisableDeltaModification(true);
+
+		// Begin transaction
+		BeginTransaction( NSLOCTEXT("UnrealEd", "ModifyComponents", "Modify Component(s)") );
+		bIsManipulating = true;
+		return true;
+	}
+	
+	return false;
+}
+
+bool FSCSEditorViewportClient::HandleEndTransform()
+{
+	if (bIsManipulating)
 	{
 		// Re-run construction scripts if we haven't done so yet (so that the components in the preview actor can update their transforms)
 		AActor* PreviewActor = GetPreviewActor();
@@ -742,7 +771,11 @@ void FSCSEditorViewportClient::TrackingStopped()
 
 		// Restore component delta modification
 		GEditor->DisableDeltaModification(false);
+
+		return true;
 	}
+
+	return false;
 }
 
 UE::Widget::EWidgetMode FSCSEditorViewportClient::GetWidgetMode() const

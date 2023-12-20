@@ -329,6 +329,31 @@ bool FIKRetargetDefaultMode::HandleClick(FEditorViewportClient* InViewportClient
 
 bool FIKRetargetDefaultMode::StartTracking(FEditorViewportClient* InViewportClient, FViewport* InViewport)
 {
+	return HandleBeginTransform(InViewportClient);
+}
+
+bool FIKRetargetDefaultMode::EndTracking(FEditorViewportClient* InViewportClient, FViewport* InViewport)
+{
+	return HandleEndTransform();
+}
+
+bool FIKRetargetDefaultMode::BeginTransform(const FGizmoState& InState)
+{
+	return HandleBeginTransform(Owner->GetFocusedViewportClient());
+}
+
+bool FIKRetargetDefaultMode::EndTransform(const FGizmoState& InState)
+{
+	return HandleEndTransform();
+}
+
+bool FIKRetargetDefaultMode::HandleBeginTransform(const FEditorViewportClient* InViewportClient)
+{
+	if (!InViewportClient)
+	{
+		return false;
+	}
+	
 	bIsTranslating = false;
 
 	// not manipulating any widget axes, so stop tracking
@@ -356,7 +381,7 @@ bool FIKRetargetDefaultMode::StartTracking(FEditorViewportClient* InViewportClie
 	return false;
 }
 
-bool FIKRetargetDefaultMode::EndTracking(FEditorViewportClient* InViewportClient, FViewport* InViewport)
+bool FIKRetargetDefaultMode::HandleEndTransform()
 {
 	GEditor->EndTransaction();
 	bIsTranslating = false;

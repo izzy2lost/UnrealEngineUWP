@@ -1220,17 +1220,36 @@ bool FCustomizableObjectEditorViewportClient::InputWidgetDelta(FViewport* InView
 
 void FCustomizableObjectEditorViewportClient::TrackingStarted(const FInputEventState& InInputState, bool bIsDraggingWidget, bool bNudge)
 {
+	if (!bIsDraggingWidget || !InInputState.IsLeftMouseButtonPressed() || (Widget->GetCurrentAxis() & EAxisList::All) == 0)
+	{
+		return;
+	}
+	
+	(void)HandleBeginTransform();
+}
+
+
+void FCustomizableObjectEditorViewportClient::TrackingStopped()
+{
+	(void)HandleEndTransform();
+}
+
+bool FCustomizableObjectEditorViewportClient::BeginTransform(const FGizmoState& InState)
+{
+	return HandleBeginTransform();
+}
+
+bool FCustomizableObjectEditorViewportClient::EndTransform(const FGizmoState& InState)
+{
+	return HandleEndTransform();
+}
+
+bool FCustomizableObjectEditorViewportClient::HandleBeginTransform()
+{
 	switch (WidgetType)
 	{
 	case EWidgetType::Projector:
 		{
-			if (!bIsDraggingWidget ||
-				!InInputState.IsLeftMouseButtonPressed() ||
-				(Widget->GetCurrentAxis() & EAxisList::All) == 0)
-			{
-				return;
-			}
-
 			bManipulating = true;
 
 			const UE::Widget::EWidgetMode WidgetMode = GetWidgetMode();
@@ -1248,7 +1267,8 @@ void FCustomizableObjectEditorViewportClient::TrackingStarted(const FInputEventS
 				GEditor->BeginTransaction(LOCTEXT("CustomizableObjectEditor_ScaleProjector", "Scale Projector"));
 			}
 
-			WidgetTrackingStartedDelegate.ExecuteIfBound();
+			(void)WidgetTrackingStartedDelegate.ExecuteIfBound();
+			return true;
 		}
 
 	// The following cases are missing Undo/Redo functionality MTBL-391.
@@ -1256,14 +1276,15 @@ void FCustomizableObjectEditorViewportClient::TrackingStarted(const FInputEventS
 	case EWidgetType::ClipMesh:
 	case EWidgetType::Light:
 	case EWidgetType::Hidden:
+		return true;
 		break;
 	default:
 		unimplemented();
 	}
+	return false;
 }
 
-
-void FCustomizableObjectEditorViewportClient::TrackingStopped()
+bool FCustomizableObjectEditorViewportClient::HandleEndTransform()
 {
 	switch (WidgetType)
 	{
@@ -1272,18 +1293,20 @@ void FCustomizableObjectEditorViewportClient::TrackingStopped()
 		{
 			bManipulating = false;
 			GEditor->EndTransaction();
+			return true;
 		}
 
 	case EWidgetType::Hidden:
 	case EWidgetType::ClipMorph:
 	case EWidgetType::ClipMesh:
 	case EWidgetType::Light:
+		return true;
 		break;
 	default:
 		unimplemented();
 	}
+	return false;
 }
-
 
 FVector FCustomizableObjectEditorViewportClient::GetWidgetLocation() const
 {

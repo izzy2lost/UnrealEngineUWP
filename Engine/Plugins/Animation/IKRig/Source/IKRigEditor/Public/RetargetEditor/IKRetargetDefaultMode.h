@@ -12,7 +12,7 @@ class UIKRigProcessor;
 class FIKRetargetEditorController;
 class FIKRetargetEditor;
 class FIKRetargetPreviewScene;
-
+struct FGizmoState;
 
 class FIKRetargetDefaultMode : public IPersonaEditMode
 {
@@ -42,6 +42,8 @@ public:
 	virtual bool HandleClick(FEditorViewportClient* InViewportClient, HHitProxy* HitProxy, const FViewportClick& Click) override;
 	virtual bool StartTracking(FEditorViewportClient* InViewportClient, FViewport* InViewport) override;
 	virtual bool EndTracking(FEditorViewportClient* InViewportClient, FViewport* InViewport) override;
+	virtual bool BeginTransform(const FGizmoState& InState) override;
+	virtual bool EndTransform(const FGizmoState& InState) override;
 	virtual bool InputDelta(FEditorViewportClient* InViewportClient, FViewport* InViewport, FVector& InDrag, FRotator& InRot, FVector& InScale) override;
 	virtual bool GetCustomDrawingCoordinateSystem(FMatrix& InMatrix, void* InData) override;
 	virtual bool GetCustomInputCoordinateSystem(FMatrix& InMatrix, void* InData) override;
@@ -56,6 +58,9 @@ private:
 	void RenderDebugProxies(FPrimitiveDrawInterface* PDI, const FIKRetargetEditorController* Controller) const;
 	static void ApplyOffsetToMeshTransform(const FVector& Offset, USceneComponent* Component);
 
+	bool HandleBeginTransform(const FEditorViewportClient* InViewportClient);
+	bool HandleEndTransform();
+	
 	// the skeleton currently being edited
 	UDebugSkelMeshComponent* GetCurrentlyEditedMesh() const;
 	ERetargetSourceOrTarget SkeletonMode;

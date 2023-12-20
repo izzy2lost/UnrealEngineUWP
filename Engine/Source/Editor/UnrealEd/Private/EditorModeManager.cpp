@@ -37,12 +37,14 @@
 #include "Tools/AssetEditorContextObject.h"
 #include "ContextObjectStore.h"
 #include "EditorInteractiveGizmoManager.h"
+#include "GizmoEdModeInterface.h"
 #include "UObject/GCObjectScopeGuard.h"
 #include "Settings/LevelEditorViewportSettings.h"
 #include "Subsystems/EditorElementSubsystem.h"
 
 #include "Elements/Interfaces/TypedElementWorldInterface.h"
 #include "TextureResource.h"
+#include "EditorGizmos/EditorGizmoStateTarget.h"
 #include "EditorGizmos/EditorTransformGizmoUtil.h"
 #include "Toolkits/ToolkitManager.h"
 
@@ -118,6 +120,7 @@ FEditorModeTools::~FEditorModeTools()
 		InteractiveToolsContext->Deactivate();
 		InteractiveToolsContext->ShutdownContext();
 		InteractiveToolsContext = nullptr;
+		GizmoStateTarget = nullptr;
 	}
 }
 
@@ -1099,35 +1102,50 @@ bool FEditorModeTools::StartTracking(FEditorViewportClient* InViewportClient, FV
 	bIsTracking = true;
 	CachedLocation = PivotLocation;	// Cache the pivot location
 
-	bool bTransactionHandled = InteractiveToolsContext->StartTracking(InViewportClient, InViewport);
-	ForEachEdMode<ILegacyEdModeViewportInterface>([&bTransactionHandled, InViewportClient, InViewport](ILegacyEdModeViewportInterface* ViewportInterface)
+	bool bTrackingHandled = InteractiveToolsContext->StartTracking(InViewportClient, InViewport);
+
+	// no need to go further if bHasOngoingTransform is true
+	if (!bHasOngoingTransform)
+	{
+		ForEachEdMode<ILegacyEdModeViewportInterface>([&bTrackingHandled, InViewportClient, InViewport](ILegacyEdModeViewportInterface* ViewportInterface)
 		{
-			bTransactionHandled |= ViewportInterface->StartTracking(InViewportClient, InViewport);
+			bTrackingHandled |= ViewportInterface->StartTracking(InViewportClient, InViewport);
 			return true;
 		});
+	}
 
-	return bTransactionHandled;
+	return bTrackingHandled;
 }
 
 /** Mouse tracking interface.  Passes tracking messages to all active modes */
 bool FEditorModeTools::EndTracking(FEditorViewportClient* InViewportClient, FViewport* InViewport)
 {
 	bIsTracking = false;
-	bool bTransactionHandled = InteractiveToolsContext->EndTracking(InViewportClient, InViewport);
 
-	ForEachEdMode<ILegacyEdModeViewportInterface>([&bTransactionHandled, InViewportClient, InViewport](ILegacyEdModeViewportInterface* ViewportInterface)
-		{
-			bTransactionHandled |= ViewportInterface->EndTracking(InViewportClient, InViewport);
-			return true;
-		});
-
-	CachedLocation = PivotLocation;	// Clear the pivot location
+	bool bTrackingHandled = InteractiveToolsContext->EndTracking(InViewportClient, InViewport);
+	// no need to go further if bHasOngoingTransform is true
+	if (!bHasOngoingTransform)
+	{
+		ForEachEdMode<ILegacyEdModeViewportInterface>([&bTrackingHandled, InViewportClient, InViewport](ILegacyEdModeViewportInterface* ViewportInterface)
+		   {
+			   bTrackingHandled |= ViewportInterface->EndTracking(InViewportClient, InViewport);
+			   return true;
+		   });
+	}
 	
-	return bTransactionHandled;
+	CachedLocation = PivotLocation;	// Clear the pivot location
+	bHasOngoingTransform = false;
+	
+	return bTrackingHandled;
 }
 
 bool FEditorModeTools::AllowsViewportDragTool() const
 {
+	if (bHasOngoingTransform)
+	{
+		return false;
+	}
+	
 	bool bCanUseDragTool = false;
 	ForEachEdMode<const ILegacyEdModeViewportInterface>([&bCanUseDragTool](const ILegacyEdModeViewportInterface* LegacyMode)
 		{
@@ -1338,6 +1356,8 @@ bool FEditorModeTools::ProcessCapturedMouseMoves( FEditorViewportClient* InViewp
 /** Notifies all active modes of keyboard input via a viewport client */
 bool FEditorModeTools::InputKey(FEditorViewportClient* InViewportClient, FViewport* Viewport, FKey Key, EInputEvent Event, bool bRouteToToolsContext)
 {
+	const bool bHadOngoingTransform = bHasOngoingTransform;
+
 	bool bWasHandledByToolsContext = false;
 	if (bRouteToToolsContext)
 	{
@@ -1359,6 +1379,15 @@ bool FEditorModeTools::InputKey(FEditorViewportClient* InViewportClient, FViewpo
 		EndTracking(InViewportClient, Viewport);
 	}
 
+	// no need to go further if bHasOngoingTransform state has changed 
+	// NOTE, this should probably be done comparing HasActiveMouseCapture changes instead as it means that the ITF handled the event
+	// however, as with StartTracking/EndTracking and bTrackingHandled, testing bWasHandledByToolsContext is not reliable as
+	// InteractiveToolsContext->InputKey will return false when the mouse is released, even if there was an ongoing capture before the release event ended it.
+	if (bHasOngoingTransform != bHadOngoingTransform)
+	{
+		return true;
+	}
+	
 	// If the toolkit should process the command, it should not have been handled by ITF, or be tracked elsewhere.
 	const bool bPassToToolkitCommands = bRouteToToolsContext && !bWasHandledByToolsContext;
 	bool bHandled = bWasHandledByToolsContext;
@@ -1716,14 +1745,19 @@ bool FEditorModeTools::PostConvertMouseMovement(FEditorViewportClient* InViewpor
 
 bool FEditorModeTools::GetShowWidget() const
 {
+	if (!bShowWidget)
+	{
+		return false;
+	}
+	
 	bool bDrawModeSupportsWidgetDrawing = false;
 	// Check to see of any active modes support widget drawing
 	ForEachEdMode<ILegacyEdModeWidgetInterface>([&bDrawModeSupportsWidgetDrawing](ILegacyEdModeWidgetInterface* LegacyMode)
 		{
 			bDrawModeSupportsWidgetDrawing |= LegacyMode->ShouldDrawWidget();
-			return true;
+			return !bDrawModeSupportsWidgetDrawing;
 		});
-	return bDrawModeSupportsWidgetDrawing && bShowWidget;
+	return bDrawModeSupportsWidgetDrawing;
 }
 
 /**
@@ -1936,4 +1970,57 @@ bool FEditorModeTools::IsOperationSupportedForCurrentAsset(EAssetOperation InOpe
 UModeManagerInteractiveToolsContext* FEditorModeTools::GetInteractiveToolsContext() const
 {
 	return InteractiveToolsContext;
+}
+
+IGizmoStateTarget* FEditorModeTools::GetGizmoStateTarget()
+{
+	if (!GizmoStateTarget)
+	{
+		GizmoStateTarget = UEditorGizmoStateTarget::Construct(
+			this,
+			NSLOCTEXT("UTransformGizmo", "UTransformGizmoTransaction", "Transform"),
+			InteractiveToolsContext->GizmoManager);
+	}
+	return GizmoStateTarget;
+}
+
+bool FEditorModeTools::BeginTransform(const FGizmoState& InState)
+{
+	bool bHandled = false;
+	ForEachEdMode<IGizmoEdModeInterface>([&bHandled, &InState](IGizmoEdModeInterface* GizmoInterface)
+	{
+		bHandled |= GizmoInterface->BeginTransform(InState);
+		return true;
+	});
+
+	// Give the focused VPC an opportunity to open the transform transacting if it has not been handled before 
+	if (!bHandled && FocusedViewportClient)
+	{
+		bHandled = FocusedViewportClient->BeginTransform(InState);
+	}
+
+	bHasOngoingTransform = bHandled;
+	
+	return bHandled;
+}
+
+bool FEditorModeTools::EndTransform(const FGizmoState& InState) const
+{
+	bool bHandled = false;
+	ForEachEdMode<IGizmoEdModeInterface>([&bHandled, &InState](IGizmoEdModeInterface* GizmoInterface)
+	{
+		bHandled |= GizmoInterface->EndTransform(InState);
+		return true;
+	});
+
+	// Give the focused VPC an opportunity to close the transform transacting if it has not been handled before 
+	if (!bHandled && FocusedViewportClient)
+	{
+		bHandled = FocusedViewportClient->EndTransform(InState);
+	}
+
+	// NOTE bHasOngoingTransform is not set to false here but in EndTracking as its needed there.
+	// See header file more more explanations
+	
+	return bHandled;
 }

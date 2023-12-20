@@ -7,9 +7,11 @@
 #include "UObject/WeakObjectPtrTemplates.h"
 #include "Containers/Set.h"
 
+class UGizmoEditorStateTarget;
 class UEditorTransformGizmoContextObject;
 class UTransformGizmo;
 class UTransformProxy;
+class FEditorViewportClient;
 
 /**
  * FEditorTransformGizmoDataBinder is a helper class for binding a UTransformGizmo to a FEditorModeTools
@@ -46,4 +48,13 @@ private:
 
 	/** Weak ptr to the context so we can interface with the current mode manager */
 	TWeakObjectPtr<UEditorTransformGizmoContextObject> WeakContext;
+
+	FEditorViewportClient* GetViewportClient() const;
+
+	void OnProxyBeginTransformEdit(UTransformProxy* InTransformProxy);
+	void OnProxyTransformChanged(UTransformProxy* InTransformProxy, FTransform InTransform);
+	void OnProxyEndTransformEdit(UTransformProxy* InTransformProxy);
+
+	bool bHasTransformChanged = false;
 };
+

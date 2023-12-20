@@ -17,6 +17,7 @@ struct FViewportClick;
 struct FSelectedSocketInfo;
 class FViewportClient;
 struct FReferenceSkeleton;
+struct FGizmoState;
 
 class FSkeletonSelectionEditMode : public IPersonaEditMode
 {
@@ -43,6 +44,9 @@ public:
 	virtual bool HandleClick(FEditorViewportClient* InViewportClient, HHitProxy *HitProxy, const FViewportClick &Click) override;
 	virtual bool CanCycleWidgetMode() const override;
 
+	virtual bool BeginTransform(const FGizmoState& InState) override;
+	virtual bool EndTransform(const FGizmoState& InState) override;
+	
 protected:
 	FTransform GetBoneTransform(const int32 BoneIndex) const;
 	FTransform GetSocketTransform(const USkeletalMeshSocket* Socket) const;

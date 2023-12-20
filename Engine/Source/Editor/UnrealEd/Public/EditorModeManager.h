@@ -30,6 +30,9 @@ class UInteractiveGizmoManager;
 class UInputRouter;
 class UModeManagerInteractiveToolsContext;
 class UTypedElementSelectionSet;
+class IGizmoStateTarget;
+class UEditorGizmoStateTarget;
+struct FGizmoState;
 
 /**
  * A helper class to store the state of the various editor modes.
@@ -532,7 +535,11 @@ public:
 	/** @return ToolsContext for this Mode Manager */
 	UNREALED_API UModeManagerInteractiveToolsContext* GetInteractiveToolsContext() const;
 
-
+	/** New TRS Gizmo interface */
+	UNREALED_API IGizmoStateTarget* GetGizmoStateTarget();
+	UNREALED_API bool BeginTransform(const FGizmoState& InState);
+	UNREALED_API bool EndTransform(const FGizmoState& InState) const;
+	
 protected:
 	/** 
 	 * Delegate handlers
@@ -622,6 +629,16 @@ private:
 
 	/** Guard to prevent modes from entering as part of their exit routine */
 	bool bIsExitingModesDuringTick = false;
+
+	/** GizmoStateTarget used to handle a new TRS gizmo transform begin/end sequence. */
+	TObjectPtr<UEditorGizmoStateTarget> GizmoStateTarget;
+
+	/** Flag to track if we started a new TRS gizmo transform.
+	 * NOTE: we have to use it for now as StartTracking / EndTracking iterates thru the modes even if the ITF context captured something.
+	 * This might not be needed anymore in the future but as some routing behavior had to be kept for legacy reasons, we use that extra flag.
+	 * If StartTracking / EndTracking were to be changed (which needs more testing), this could probably be removed.
+	 */
+	bool bHasOngoingTransform = false;
 
 	FEditorViewportClient* HoveredViewportClient = nullptr;
 	FEditorViewportClient* FocusedViewportClient = nullptr;

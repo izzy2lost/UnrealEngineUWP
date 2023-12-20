@@ -95,12 +95,72 @@ FSelectedSocketInfo FSkeletonSelectionEditMode::DuplicateAndSelectSocket(const F
 	return NewSocketInfo;
 }
 
+bool FSkeletonSelectionEditMode::BeginTransform(const FGizmoState& InState)
+{
+	bManipulating = bInTransaction = false;
+	
+	const UDebugSkelMeshComponent* PreviewMeshComponent = GetAnimPreviewScene().GetPreviewMeshComponent();
+	const USkeletalMesh* SkeletalMeshAsset = PreviewMeshComponent ? PreviewMeshComponent->GetSkeletalMeshAsset() : nullptr;
+	if (!SkeletalMeshAsset)
+	{
+		return false;
+	}
+
+	// transact bone transform?
+	const int32 BoneIndex = GetAnimPreviewScene().GetSelectedBoneIndex();
+	const FReferenceSkeleton& ReferenceSkeleton = GetReferenceSkeletonForComponent(PreviewMeshComponent);
+	if (BoneIndex >= INDEX_NONE && ReferenceSkeleton.IsValidIndex(BoneIndex))
+	{
+		PreviewMeshComponent->PreviewInstance->SetFlags(RF_Transactional);	// Undo doesn't work without this!
+		PreviewMeshComponent->PreviewInstance->Modify();
+
+		// now modify the bone array
+		const FName BoneName = ReferenceSkeleton.GetBoneName(BoneIndex);
+		PreviewMeshComponent->PreviewInstance->ModifyBone(BoneName);
+
+		bManipulating = bInTransaction = true;
+		return true;
+	}
+
+	FSelectedSocketInfo SelectedSocketInfo = GetAnimPreviewScene().GetSelectedSocket();
+	if (SelectedSocketInfo.IsValid())
+	{
+		if (GetModeManager()->GetFocusedViewportClient())
+		{
+			const bool bAltDown = GetModeManager()->GetFocusedViewportClient()->IsAltPressed();
+			if (bAltDown)
+			{
+				// Rather than moving/rotating the selected socket, copy it and move the copy instead
+				SelectedSocketInfo = DuplicateAndSelectSocket(SelectedSocketInfo);
+			}
+		}
+
+		// Socket movement is transactional - we want undo/redo and saving of it
+		if (USkeletalMeshSocket* Socket = SelectedSocketInfo.Socket)
+		{
+			Socket->SetFlags(RF_Transactional);	// Undo doesn't work without this!
+			Socket->Modify();
+			bManipulating = bInTransaction = true;
+			return true;
+		}
+	}
+	
+	return false;
+}
+
+bool FSkeletonSelectionEditMode::EndTransform(const FGizmoState& InState)
+{
+	const bool bWasManipulating = bManipulating;
+	bManipulating = bInTransaction = false;
+	return bWasManipulating;
+}
+
 bool FSkeletonSelectionEditMode::StartTracking(FEditorViewportClient* InViewportClient, FViewport* InViewport)
 {
-	EAxisList::Type CurrentAxis = InViewportClient->GetCurrentWidgetAxis();
-	UE::Widget::EWidgetMode WidgetMode = InViewportClient->GetWidgetMode();
+	const EAxisList::Type CurrentAxis = InViewportClient->GetCurrentWidgetAxis();
+	const UE::Widget::EWidgetMode WidgetMode = InViewportClient->GetWidgetMode();
 
-	UDebugSkelMeshComponent* PreviewMeshComponent = GetAnimPreviewScene().GetPreviewMeshComponent();
+	const UDebugSkelMeshComponent* PreviewMeshComponent = GetAnimPreviewScene().GetPreviewMeshComponent();
 	if(PreviewMeshComponent != nullptr && PreviewMeshComponent->GetSkeletalMeshAsset() != nullptr)
 	{
 		const int32 BoneIndex = GetAnimPreviewScene().GetSelectedBoneIndex();
@@ -111,9 +171,6 @@ bool FSkeletonSelectionEditMode::StartTracking(FEditorViewportClient* InViewport
 		const FReferenceSkeleton& ReferenceSkeleton = GetReferenceSkeletonForComponent(PreviewMeshComponent);
 		if ((BoneIndex >= 0 && ReferenceSkeleton.IsValidIndex(BoneIndex)) || SelectedSocket != nullptr || SelectedActor != nullptr)
 		{
-			bool bValidAxis = false;
-			FVector WorldAxisDir;
-
 			if ( ((CurrentAxis & EAxisList::XYZ) | (CurrentAxis & EAxisList::Screen)) != 0)
 			{
 				FSelectedSocketInfo SelectedSocketInfo = GetAnimPreviewScene().GetSelectedSocket();
@@ -202,11 +259,6 @@ bool FSkeletonSelectionEditMode::InputDelta(FEditorViewportClient* InViewportCli
 	const EAxisList::Type CurrentAxis = InViewportClient->GetCurrentWidgetAxis();
 	const UE::Widget::EWidgetMode WidgetMode = InViewportClient->GetWidgetMode();
 	const ECoordSystem CoordSystem = InViewportClient->GetWidgetCoordSystemSpace();
-
-	// Get some useful info about buttons being held down
-	const bool bCtrlDown = InViewport->KeyState(EKeys::LeftControl) || InViewport->KeyState(EKeys::RightControl);
-	const bool bShiftDown = InViewport->KeyState(EKeys::LeftShift) || InViewport->KeyState(EKeys::RightShift);
-	const bool bMouseButtonDown = InViewport->KeyState( EKeys::LeftMouseButton ) || InViewport->KeyState( EKeys::MiddleMouseButton ) || InViewport->KeyState( EKeys::RightMouseButton );
 
 	bool bHandled = false;
 

@@ -710,6 +710,40 @@ void FDisplayClusterConfiguratorSCSEditorViewportClient::TrackingStopped()
 	}
 }
 
+bool FDisplayClusterConfiguratorSCSEditorViewportClient::BeginTransform(const FGizmoState& InState)
+{
+	// Suspend component modification during each delta step to avoid recording unnecessary overhead into the transaction buffer
+	GEditor->DisableDeltaModification(true);
+
+	// Begin transaction
+	BeginTransaction(NSLOCTEXT("UnrealEd", "ModifyComponents", "Modify Component(s)"));
+	bIsManipulating = true;
+	return true;
+}
+
+bool FDisplayClusterConfiguratorSCSEditorViewportClient::EndTransform(const FGizmoState& InState)
+{
+	// Re-run construction scripts if we haven't done so yet (so that the components in the preview actor can update their transforms)
+	AActor* PreviewActor = GetPreviewActor();
+	if (PreviewActor != nullptr)
+	{
+		UBlueprint* PreviewBlueprint = UBlueprint::GetBlueprintFromClass(PreviewActor->GetClass());
+		if (PreviewBlueprint != nullptr && !PreviewBlueprint->bRunConstructionScriptOnDrag)
+		{
+			PreviewActor->RerunConstructionScripts();
+		}
+	}
+
+	// End transaction
+	bIsManipulating = false;
+	EndTransaction();
+
+	// Restore component delta modification
+	GEditor->DisableDeltaModification(false);
+	
+	return true;
+}
+
 UE::Widget::EWidgetMode FDisplayClusterConfiguratorSCSEditorViewportClient::GetWidgetMode() const
 {
 	// Default to not drawing the widget

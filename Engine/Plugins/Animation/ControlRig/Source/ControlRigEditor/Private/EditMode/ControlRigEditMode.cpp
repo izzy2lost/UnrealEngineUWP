@@ -1021,73 +1021,6 @@ bool FControlRigEditMode::ProcessCapturedMouseMoves(FEditorViewportClient* InVie
 	return false;
 }
 
-bool FControlRigEditMode::EndTracking(FEditorViewportClient* InViewportClient, FViewport* InViewport)
-{
-	if(RuntimeControlRigs.IsEmpty())
-	{
-		return false;
-	}
-
-	if (bisTrackingAnimToolDrag)
-	{
-		ResetAnimSlider();
-	}
-	if (IsDragAnimSliderToolPressed(InViewport))
-	{
-		return true;
-	}
-
-	if (IsMovingCamera(InViewport))
-	{
-		return true;
-	}
-	if (DragToolHandler.EndTracking(InViewportClient, InViewport))
-	{
-		return true;
-	}
-
-	const bool bWasInteracting = bManipulatorMadeChange && InteractionType != (uint8)EControlRigInteractionType::None;
-	
-	InteractionType = (uint8)EControlRigInteractionType::None;
-	bIsTracking = false;
-	
-	if (InteractionScopes.Num() > 0)
-	{		
-		if (bManipulatorMadeChange)
-		{
-			bManipulatorMadeChange = false;
-			GEditor->EndTransaction();
-		}
-
-		for (TPair<UControlRig*, FControlRigInteractionScope*>& InteractionScope : InteractionScopes)
-		{
-			if (InteractionScope.Value)
-			{
-				delete InteractionScope.Value; 
-			}
-		}
-		InteractionScopes.Reset();
-
-		if (bWasInteracting && !AreEditingControlRigDirectly())
-		{
-			// We invalidate the hit proxies when in level editor to ensure that the gizmo's hit proxy is up to date.
-			// The invalidation is called here to avoid useless viewport update in the FControlRigEditMode::Tick
-			// function (that does an update when not in level editor)
-			TickManipulatableObjects(0.f);
-			
-			static constexpr bool bInvalidateChildViews = false;
-			static constexpr bool bInvalidateHitProxies = true;
-			InViewportClient->Invalidate(bInvalidateChildViews, bInvalidateHitProxies);
-		}
-		
-		return true;
-	}
-
-	bManipulatorMadeChange = false;
-	
-	return false;
-}
-
 bool FControlRigEditMode::StartTracking(FEditorViewportClient* InViewportClient, FViewport* InViewport)
 {
 	if(RuntimeControlRigs.IsEmpty())
@@ -1113,6 +1046,54 @@ bool FControlRigEditMode::StartTracking(FEditorViewportClient* InViewportClient,
 		return DragToolHandler.StartTracking(InViewportClient, InViewport);
 	}
 
+	return HandleBeginTransform(InViewportClient);
+}
+
+bool FControlRigEditMode::EndTracking(FEditorViewportClient* InViewportClient, FViewport* InViewport)
+{
+	if(RuntimeControlRigs.IsEmpty())
+	{
+		return false;
+	}
+
+	if (bisTrackingAnimToolDrag)
+	{
+		ResetAnimSlider();
+	}
+	if (IsDragAnimSliderToolPressed(InViewport))
+	{
+		return true;
+	}
+
+	if (IsMovingCamera(InViewport))
+	{
+		return true;
+	}
+	if (DragToolHandler.EndTracking(InViewportClient, InViewport))
+	{
+		return true;
+	}
+
+	return HandleEndTransform(InViewportClient);
+}
+
+bool FControlRigEditMode::BeginTransform(const FGizmoState& InState)
+{
+	return HandleBeginTransform(Owner->GetFocusedViewportClient());
+}
+
+bool FControlRigEditMode::EndTransform(const FGizmoState& InState)
+{
+	return HandleEndTransform(Owner->GetFocusedViewportClient());
+}
+
+bool FControlRigEditMode::HandleBeginTransform(const FEditorViewportClient* InViewportClient)
+{
+	if (!InViewportClient)
+	{
+		return false;
+	}
+	
 	InteractionType = GetInteractionType(InViewportClient);
 	bIsTracking = true;
 	
@@ -1200,6 +1181,55 @@ bool FControlRigEditMode::StartTracking(FEditorViewportClient* InViewportClient,
 		bManipulatorMadeChange = false;
 	}
 	return InteractionScopes.Num() != 0;
+}
+
+bool FControlRigEditMode::HandleEndTransform(FEditorViewportClient* InViewportClient)
+{
+	if (!InViewportClient)
+	{
+		return false;
+	}
+	
+	const bool bWasInteracting = bManipulatorMadeChange && InteractionType != (uint8)EControlRigInteractionType::None;
+	
+	InteractionType = (uint8)EControlRigInteractionType::None;
+	bIsTracking = false;
+	
+	if (InteractionScopes.Num() > 0)
+	{		
+		if (bManipulatorMadeChange)
+		{
+			bManipulatorMadeChange = false;
+			GEditor->EndTransaction();
+		}
+
+		for (TPair<UControlRig*, FControlRigInteractionScope*>& InteractionScope : InteractionScopes)
+		{
+			if (InteractionScope.Value)
+			{
+				delete InteractionScope.Value; 
+			}
+		}
+		InteractionScopes.Reset();
+
+		if (bWasInteracting && !AreEditingControlRigDirectly())
+		{
+			// We invalidate the hit proxies when in level editor to ensure that the gizmo's hit proxy is up to date.
+			// The invalidation is called here to avoid useless viewport update in the FControlRigEditMode::Tick
+			// function (that does an update when not in level editor)
+			TickManipulatableObjects(0.f);
+			
+			static constexpr bool bInvalidateChildViews = false;
+			static constexpr bool bInvalidateHitProxies = true;
+			InViewportClient->Invalidate(bInvalidateChildViews, bInvalidateHitProxies);
+		}
+		
+		return true;
+	}
+
+	bManipulatorMadeChange = false;
+	
+	return false;
 }
 
 bool FControlRigEditMode::UsesTransformWidget() const
@@ -2830,28 +2860,33 @@ void FControlRigEditMode::ResetControlShapeSize()
 	GetModeManager()->SetWidgetScale(PreviousGizmoScale);
 }
 
-uint8 FControlRigEditMode::GetInteractionType(FEditorViewportClient* InViewportClient)
+uint8 FControlRigEditMode::GetInteractionType(const FEditorViewportClient* InViewportClient)
 {
-	uint8 Result = (uint8)EControlRigInteractionType::None;
-	if(InViewportClient->IsMovingCamera())
+	EControlRigInteractionType Result = EControlRigInteractionType::None;
+	if (InViewportClient->IsMovingCamera())
 	{
-		return Result;
+		return static_cast<uint8>(Result);
 	}
 	
-	const UE::Widget::EWidgetMode WidgetMode = InViewportClient->GetWidgetMode();
-	if(WidgetMode == UE::Widget::WM_Translate || WidgetMode == UE::Widget::WM_TranslateRotateZ)
+	switch (InViewportClient->GetWidgetMode())
 	{
-		Result |= (uint8)EControlRigInteractionType::Translate;
+		case UE::Widget::WM_Translate:
+			EnumAddFlags(Result, EControlRigInteractionType::Translate);
+			break;
+		case UE::Widget::WM_TranslateRotateZ:
+			EnumAddFlags(Result, EControlRigInteractionType::Translate);
+			EnumAddFlags(Result, EControlRigInteractionType::Rotate);
+			break;
+		case UE::Widget::WM_Rotate:
+			EnumAddFlags(Result, EControlRigInteractionType::Rotate);
+			break;
+		case UE::Widget::WM_Scale:
+			EnumAddFlags(Result, EControlRigInteractionType::Scale);
+			break;
+		default:
+			break;
 	}
-	if(WidgetMode == UE::Widget::WM_Rotate || WidgetMode == UE::Widget::WM_TranslateRotateZ)
-	{
-		Result |= (uint8)EControlRigInteractionType::Rotate;
-	}
-	if(WidgetMode == UE::Widget::WM_Scale)
-	{
-		Result |= (uint8)EControlRigInteractionType::Scale;
-	}
-	return Result;	
+	return static_cast<uint8>(Result);
 }
 
 void FControlRigEditMode::ToggleControlShapeTransformEdit()

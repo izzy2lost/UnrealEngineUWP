@@ -2983,9 +2983,9 @@ bool FEditorViewportClient::Internal_InputKey(const FInputKeyEventArgs& EventArg
 		return true;
 	}
 	
-	FKey Key = EventArgs.Key;
-	EInputEvent Event = EventArgs.Event;
-	FViewport* InViewport = EventArgs.Viewport;
+	const FKey& Key = EventArgs.Key;
+	const EInputEvent& Event = EventArgs.Event;
+	const FViewport* InViewport = EventArgs.Viewport;
 
 	// Let the current mode have a look at the input before reacting to it. 
 	// Note that bIsTracking tells us whether the viewport client is capturing mouse behavior to fly around,
@@ -3000,7 +3000,7 @@ bool FEditorViewportClient::Internal_InputKey(const FInputKeyEventArgs& EventArg
 		return true;
 	}
 
-	FInputEventState InputState(EventArgs.Viewport, EventArgs.Key, EventArgs.Event);
+	const FInputEventState InputState(EventArgs.Viewport, Key, Event);
 	
 	bool bHandled = false;
 
@@ -3032,21 +3032,13 @@ bool FEditorViewportClient::Internal_InputKey(const FInputKeyEventArgs& EventArg
 		ModeTools->SetWidgetModeOverride(UE::Widget::WM_None);
 	}
 
-	const int32	HitX = InViewport->GetMouseX();
-	const int32	HitY = InViewport->GetMouseY();
-
-	FCachedJoystickState* JoystickState = GetJoystickState(EventArgs.InputDevice.GetId());
-	if (JoystickState)
+	if (FCachedJoystickState* JoystickState = GetJoystickState(EventArgs.InputDevice.GetId()))
 	{
 		JoystickState->KeyEventValues.Add(Key, Event);
 	}
 
 	const bool bWasCursorVisible = InViewport->IsCursorVisible();
 	const bool bWasSoftwareCursorVisible = InViewport->IsSoftwareCursorVisible();
-
-	const bool AltDown = InputState.IsAltButtonPressed();
-	const bool ShiftDown = InputState.IsShiftButtonPressed();
-	const bool ControlDown = InputState.IsCtrlButtonPressed();
 
 	RequiredCursorVisibiltyAndAppearance.bDontResetCursor = false;
 	UpdateRequiredCursorVisibility();

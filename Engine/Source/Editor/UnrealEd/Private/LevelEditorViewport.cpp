@@ -3677,12 +3677,6 @@ void FLevelEditorViewportClient::TrackingStarted( const FInputEventState& InInpu
 
 void FLevelEditorViewportClient::TrackingStopped()
 {
-	const bool AltDown = IsAltPressed();
-	const bool ShiftDown = IsShiftPressed();
-	const bool ControlDown = IsCtrlPressed();
-	const bool LeftMouseButtonDown = Viewport->KeyState(EKeys::LeftMouseButton);
-	const bool RightMouseButtonDown = Viewport->KeyState(EKeys::RightMouseButton);
-	const bool MiddleMouseButtonDown = Viewport->KeyState(EKeys::MiddleMouseButton);
 
 	// Only disable the duplicate on next drag flag if we actually dragged the mouse.
 	bDuplicateOnNextDrag = false;
@@ -5403,6 +5397,134 @@ bool FLevelEditorViewportClient::OverrideHighResScreenshotCaptureRegion(FIntRect
 		return true;
 	}
 	return false;
+}
+
+bool FLevelEditorViewportClient::BeginTransform(const FGizmoState& InState)
+{
+	TrackingTransaction.End();
+	bDuplicateOnNextDrag = false;
+	bOnlyMovedPivot = false;
+	bNeedToRestoreComponentBeingMovedFlag = false;
+	MouseDeltaTracker->SetExternalMovement(true);
+
+	PreDragActorTransforms.Empty();
+
+	Widget->SetSnapEnabled(true);
+
+	const FTypedElementListConstRef ElementsToManipulate = GetElementsToManipulate();
+	ViewportInteraction->BeginGizmoManipulation(ElementsToManipulate, GetWidgetMode());
+	bHasBegunGizmoManipulation = true;
+
+	if (!bDuplicateActorsInProgress)
+	{
+		bNeedToRestoreComponentBeingMovedFlag = true;
+		TypedElementListObjectUtil::ForEachObject<AActor>(ElementsToManipulate, [this](AActor* InActor)
+		{
+			SetActorBeingMovedByEditor(InActor, true);
+			return true;
+		});
+	}
+
+	TrackingTransaction.TransCount++;
+	const FText Description = LOCTEXT("TransformTransaction", "Transform Elements");
+	TrackingTransaction.BeginPending(Description);
+
+	if (TrackingTransaction.IsActive() || TrackingTransaction.IsPending())
+	{
+		// Suspend actor/component modification during each delta step to avoid recording unnecessary overhead into the transaction buffer
+		GEditor->DisableDeltaModification(true);
+	}
+
+	GUnrealEd->ComponentVisManager.TrackingStarted(this);
+	
+	return true;
+}
+
+bool FLevelEditorViewportClient::EndTransform(const FGizmoState& InState)
+{
+	if (!bHasBegunGizmoManipulation)
+	{
+		return false;
+	}
+	
+	bDuplicateOnNextDrag = false;
+
+	// here we check to see if anything of worth actually changed when ending our MouseMovement
+	// If the TransCount > 0 (we changed something of value) so we need to call PostEditMove() on stuff
+	// if we didn't change anything then don't call PostEditMove()
+	bool bDidAnythingActuallyChange = false;
+
+	if( TrackingTransaction.TransCount > 0 )
+	{
+		bDidAnythingActuallyChange = true;
+		TrackingTransaction.TransCount--;
+	}
+
+	const bool bDidMove = bDidAnythingActuallyChange && MouseDeltaTracker->HasReceivedDelta();
+	const FTypedElementListConstRef ElementsToManipulate = GetElementsToManipulate();
+
+	if (bHasBegunGizmoManipulation)
+	{
+		auto GetManipType = [bDidMove]()
+		{
+			if (bDidMove)
+			{
+				return ETypedElementViewportInteractionGizmoManipulationType::Drag; 
+			}
+		   return ETypedElementViewportInteractionGizmoManipulationType::Click;
+		};
+		ViewportInteraction->EndGizmoManipulation(ElementsToManipulate, GetWidgetMode(), GetManipType());
+		bHasBegunGizmoManipulation = false;
+	}
+
+	if (bDidMove && !GUnrealEd->IsPivotMovedIndependently())
+	{
+		GUnrealEd->UpdatePivotLocationForSelection();
+	}
+
+	GUnrealEd->ComponentVisManager.TrackingStopped(this, bDidMove);
+
+	if (bNeedToRestoreComponentBeingMovedFlag)
+	{
+		TypedElementListObjectUtil::ForEachObject<AActor>(ElementsToManipulate, [this](AActor* InActor)
+		{
+			SetActorBeingMovedByEditor(InActor, false);
+			return true;
+		});
+
+		bNeedToRestoreComponentBeingMovedFlag = false;
+	}
+
+	// End the transaction here if one was started in StartTransaction()
+	if( TrackingTransaction.IsActive() || TrackingTransaction.IsPending() )
+	{
+		if (!HaveSelectedObjectsBeenChanged())
+		{
+			TrackingTransaction.Cancel();
+		}
+		else
+		{
+			TrackingTransaction.End();
+		}
+	
+		// Restore actor/component delta modification
+		GEditor->DisableDeltaModification(false);
+	}
+
+	ModeTools->ActorMoveNotify();
+
+	if (bDidAnythingActuallyChange)
+	{
+		FScopedLevelDirtied LevelDirtyCallback;
+		LevelDirtyCallback.Request();
+
+		RedrawAllViewportsIntoThisScene();
+	}
+
+	PreDragActorTransforms.Empty();
+	MouseDeltaTracker->SetExternalMovement(false);
+
+	return true;
 }
 
 /**

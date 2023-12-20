@@ -28,7 +28,7 @@ class UObject;
 class UStaticMesh;
 class UStaticMeshComponent;
 struct FInputKeyEventArgs;
-
+struct FGizmoState;
 
 DECLARE_DELEGATE_RetVal(FVector, FWidgetLocationDelegate);
 DECLARE_DELEGATE_OneParam(FOnWidgetLocationChangedDelegate, const FVector&)
@@ -85,6 +85,8 @@ public:
 	virtual bool InputWidgetDelta(FViewport* Viewport, EAxisList::Type CurrentAxis, FVector& Drag, FRotator& Rot, FVector& Scale) override;
 	virtual void TrackingStarted(const FInputEventState& InInputState, bool bIsDragging, bool bNudge) override;
 	virtual void TrackingStopped() override;
+	virtual bool BeginTransform(const FGizmoState& InState) override;
+	virtual bool EndTransform(const FGizmoState& InState) override;
 	virtual bool CanSetWidgetMode(UE::Widget::EWidgetMode NewMode) const override;
 	virtual FVector GetWidgetLocation() const override;
 	virtual FMatrix GetWidgetCoordSystem() const override;
@@ -272,6 +274,9 @@ private:
 	void DrawMeshBones(UDebugSkelMeshComponent* MeshComponent, FPrimitiveDrawInterface* PDI);
 
 	void SetWidgetType(EWidgetType Type);
+
+	bool HandleBeginTransform();
+	bool HandleEndTransform();
 	
 	/** Component for the static/skeletal mesh. */
 	TWeakObjectPtr<UStaticMeshComponent> StaticMeshComponent;

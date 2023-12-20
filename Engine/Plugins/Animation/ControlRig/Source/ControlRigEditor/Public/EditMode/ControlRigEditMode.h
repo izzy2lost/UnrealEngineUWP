@@ -39,6 +39,7 @@ class IControlRigManipulatable;
 class ISequencer;
 enum class EControlRigSetKey : uint8;
 class UToolMenu;
+struct FGizmoState;
 
 DECLARE_DELEGATE_RetVal_ThreeParams(FTransform, FOnGetRigElementTransform, const FRigElementKey& /*RigElementKey*/, bool /*bLocal*/, bool /*bOnDebugInstance*/);
 DECLARE_DELEGATE_ThreeParams(FOnSetRigElementTransform, const FRigElementKey& /*RigElementKey*/, const FTransform& /*Transform*/, bool /*bLocal*/);
@@ -116,6 +117,8 @@ public:
 	virtual bool InputKey(FEditorViewportClient* InViewportClient, FViewport* InViewport, FKey InKey, EInputEvent InEvent) override;
 	virtual bool EndTracking(FEditorViewportClient* InViewportClient, FViewport* InViewport) override;
 	virtual bool StartTracking(FEditorViewportClient* InViewportClient, FViewport* InViewport) override;
+	virtual bool BeginTransform(const FGizmoState& InState) override;
+	virtual bool EndTransform(const FGizmoState& InState) override;
 	virtual bool ProcessCapturedMouseMoves(FEditorViewportClient* InViewportClient, FViewport* InViewport, const TArrayView<FIntPoint>& CapturedMouseMoves) override;
 	virtual bool HandleClick(FEditorViewportClient* InViewportClient, HHitProxy *HitProxy, const FViewportClick &Click) override;
 	virtual bool BoxSelect(FBox& InBox, bool InSelect = true) override;
@@ -233,6 +236,9 @@ protected:
 
 	/** If the Drag Anim Slider Tool is pressed*/
 	bool IsDragAnimSliderToolPressed(FViewport* InViewport);
+
+	bool HandleBeginTransform(const FEditorViewportClient* InViewportClient);
+	bool HandleEndTransform(FEditorViewportClient* InViewportClient);
 
 public:
 	
@@ -518,7 +524,7 @@ private:
 	TArray<FRigElementKey> DeferredItemsToFrame;
 
 	/** Computes the current interaction types based on the widget mode */
-	static uint8 GetInteractionType(FEditorViewportClient* InViewportClient);
+	static uint8 GetInteractionType(const FEditorViewportClient* InViewportClient);
 	uint8 InteractionType;
 	bool bShowControlsAsOverlay;
 

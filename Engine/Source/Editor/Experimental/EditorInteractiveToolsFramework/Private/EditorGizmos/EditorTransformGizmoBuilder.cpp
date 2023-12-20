@@ -6,6 +6,7 @@
 #include "BaseGizmos/GizmoElementHitTargets.h"
 #include "BaseGizmos/GizmoViewContext.h"
 #include "ContextObjectStore.h"
+#include "EditorModeManager.h"
 #include "EdModeInteractiveToolsContext.h"
 #include "EditorGizmos/EditorTransformGizmo.h"
 #include "EditorGizmos/EditorTransformGizmoSource.h"
@@ -43,8 +44,11 @@ void UEditorTransformGizmoBuilder::UpdateGizmoForSelection(UInteractiveGizmo* Gi
 {
 	if (UTransformGizmo* TransformGizmo = Cast<UTransformGizmo>(Gizmo))
 	{
-		UEditorTransformProxy* TransformProxy = UEditorTransformProxy::CreateNew(GetTransformGizmoContext(SceneState));
-		TransformGizmo->SetActiveTarget(TransformProxy);
+		const UEditorTransformGizmoContextObject* GizmoContextObject = GetTransformGizmoContext(SceneState);
+		FEditorModeTools* ModeTools = GizmoContextObject ? GizmoContextObject->GetModeTools() : nullptr;
+		ensure(ModeTools);
+		UEditorTransformProxy* TransformProxy = UEditorTransformProxy::CreateNew(GizmoContextObject);
+		TransformGizmo->SetActiveTarget(TransformProxy, nullptr, ModeTools->GetGizmoStateTarget());
 		TransformGizmo->SetVisibility(true);
 		
 		if (UGizmoElementHitMultiTarget* HitMultiTarget = Cast< UGizmoElementHitMultiTarget>(TransformGizmo->HitTarget))

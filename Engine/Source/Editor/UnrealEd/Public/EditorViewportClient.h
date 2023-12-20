@@ -38,6 +38,7 @@ class SEditorViewport;
 class UActorFactory;
 class UTypedElementViewportInteraction;
 enum class EViewStatusForScreenPercentage;
+struct FGizmoState;
 
 /** Delegate called by FEditorViewportClient to check its visibility */
 DECLARE_DELEGATE_RetVal( bool, FViewportStateGetter );
@@ -616,6 +617,9 @@ public:
 	UNREALED_API virtual void SetEnabledStats(const TArray<FString>& InEnabledStats) override;
 	UNREALED_API virtual bool IsStatEnabled(const FString& InName) const override;
 
+	UNREALED_API virtual bool BeginTransform(const FGizmoState& InState) { return false; }
+	UNREALED_API virtual bool EndTransform(const FGizmoState& InState) { return false; }
+	
 protected:
 
 	UNREALED_API virtual bool Internal_InputKey(const FInputKeyEventArgs& EventArgs);

@@ -27,6 +27,7 @@ class UModel;
 class UTypedElementSelectionSet;
 struct FWorldContext;
 struct FTypedElementHandle;
+struct FGizmoState;
 
 /** Describes an object that's currently hovered over in the level viewport */
 struct FViewportHoverTarget
@@ -230,6 +231,10 @@ public:
 	UNREALED_API virtual bool ShouldScaleCameraSpeedByDistance() const override;
 
 	UNREALED_API virtual bool OverrideHighResScreenshotCaptureRegion(FIntRect& OutCaptureRegion) override;
+
+	UNREALED_API virtual bool BeginTransform(const FGizmoState& InState) override;
+	UNREALED_API virtual bool EndTransform(const FGizmoState& InState) override;
+	
 
 	/** Sets a flag for this frame indicating that the camera has been cut, and temporal effects (such as motion blur) should be reset */
 	void SetIsCameraCut()
