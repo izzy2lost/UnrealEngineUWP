@@ -5,6 +5,7 @@
 =============================================================================*/
 
 #include "Algo/RemoveIf.h"
+#include "Algo/Unique.h"
 #include "AssetCompilingManager.h"
 #include "AssetRegistry/AssetData.h"
 #include "CollectionManagerModule.h"
@@ -292,7 +293,7 @@ int32 UResavePackagesCommandlet::InitializeResaveParameters( const TArray<FStrin
 	// ... if not, load in all packages
 	if( !bExplicitPackages || Switches.Contains(TEXT("SaveAll")))
 	{
-		UE_LOG( LogContentCommandlet, Display, TEXT( "No maps found to save when building HLODs, checking Project Settings for Directory or Asset Path(s)" ) );
+		UE_CLOG( bShouldBuildHLOD, LogContentCommandlet, Display, TEXT( "No maps found to save when building HLODs, checking Project Settings for Directory or Asset Path(s)" ) );
 
 		uint8 PackageFilter = NORMALIZE_DefaultFlags;
 		if ( Switches.Contains(TEXT("SKIPMAPS")) )
@@ -428,6 +429,26 @@ int32 UResavePackagesCommandlet::InitializeResaveParameters( const TArray<FStrin
 			{
 				TArray<FName> Referencers;
 				AssetRegistry.GetReferencers(AssetData.PackageName, Referencers);
+
+				// For external objects referencers, also add the object's outer package as a referencer so it can be handled by PerformAdditionalOperations.
+				FARFilter Filter;
+				Filter.bIncludeOnlyOnDiskAssets = true;
+				Filter.PackageNames = Referencers;
+
+				TArray<FAssetData> AssetReferencers;
+				AssetRegistry.GetAssets(Filter, AssetReferencers);
+
+				TArray<FName> ReferencerOuters;
+				for (const FAssetData& AssetReferencer : AssetReferencers)
+				{
+					if (!AssetReferencer.GetOptionalOuterPathName().IsNone())
+					{
+						Referencers.Add(FSoftObjectPath(AssetReferencer.GetOptionalOuterPathName().ToString()).GetLongPackageFName());
+					}
+				}
+
+				Referencers.Sort(FNameFastLess());
+				Referencers.SetNum(Algo::Unique(Referencers));
 
 				for (FName Referencer : Referencers)
 				{
