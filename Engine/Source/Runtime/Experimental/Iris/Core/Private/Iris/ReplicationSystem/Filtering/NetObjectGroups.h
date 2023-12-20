@@ -99,9 +99,7 @@ public:
 	/** Does the group have the inclusion filter trait */
 	bool IsInclusionFilterGroup(FNetObjectGroupHandle GroupHandle) const;
 
-	/** Returns how many groups the given handle is a member of */
-	uint32 GetNumGroupMemberships(FInternalNetRefIndex InternalIndex) const;
-
+	/** Get the array of all groups that the NetObject is a member of */
 	const FNetObjectGroupHandle* GetGroupMemberships(FInternalNetRefIndex InternalIndex, uint32& GroupCount) const;
 
 	/** Create and manage named groups, only groups created as a named group will be findable by name */
@@ -122,8 +120,8 @@ public:
 private:
 	struct FNetObjectGroupMembership
 	{
-		enum { MaxAssignedGroupCount = 8 };
-		FNetObjectGroupHandle Groups[MaxAssignedGroupCount];		
+		enum { NumInlinedGroupHandles = 2 };
+		TArray<FNetObjectGroupHandle, TInlineAllocator<NumInlinedGroupHandles>> Groups;
 	};
 
 	static bool AddGroupMembership(FNetObjectGroupMembership& Target, FNetObjectGroupHandle Group);
