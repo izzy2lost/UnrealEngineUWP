@@ -16,7 +16,7 @@
 #include "VisualizeTexture.h"
 #include "RayTracing/RaytracingOptions.h"
 #include "Lumen/Lumen.h"
-#include "SampledDirectLighting/SampledDirectLighting.h"
+#include "StochasticShadows/StochasticShadows.h"
 #include "ScenePrivate.h"
 #include "Substrate/Substrate.h"
 
@@ -778,12 +778,12 @@ bool FSceneRenderer::ShouldPrepareGlobalDistanceField() const
 
 	const bool bShouldPrepareForLumen = IsLumenEnabled(Views[0]) && Lumen::UseGlobalSDFObjectGrid(*Views[0].Family);
 
-	// TODO: Should check any light actually uses Sampled Direct Lighting
-	const bool bShouldPrepareForSampledDirectLighting = SampledDirectLighting::IsEnabled() && SampledDirectLighting::UseGlobalSDF();
+	// TODO: Should check any light actually uses Stochastic Shadows
+	const bool bShouldPrepareForStochasticShadows = StochasticShadows::IsUsingGlobalSDF();
 
 	const bool bShouldPrepareForVisualization = ViewFamily.EngineShowFlags.VisualizeGlobalDistanceField;
 
-	return (bShouldPrepareForAO || bShouldPrepareForLumen || bShouldPrepareForSampledDirectLighting || bShouldPrepareForVisualization) && UseGlobalDistanceField();
+	return (bShouldPrepareForAO || bShouldPrepareForLumen || bShouldPrepareForStochasticShadows || bShouldPrepareForVisualization) && UseGlobalDistanceField();
 }
 
 void FDeferredShadingSceneRenderer::RenderDFAOAsIndirectShadowing(

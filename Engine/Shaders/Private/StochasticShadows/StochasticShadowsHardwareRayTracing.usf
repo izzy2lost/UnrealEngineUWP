@@ -1,12 +1,20 @@
 // Copyright Epic Games, Inc. All Rights Reserved.
 
+#define STOCHASTIC_SHADOWS 1
+
 #include "../Common.ush"
 #include "../BlueNoise.ush"
 #include "../RayTracing/RayTracingCommon.ush"
 #include "../SceneTexturesCommon.ush"
-#include "SampledDirectLighting.ush"
-#include "SampledDirectLightingTracing.ush"
+#include "StochasticShadows.ush"
+#include "StochasticShadowsTracing.ush"
 #include "../Lumen/LumenHardwareRayTracingPayloadCommon.ush"
+#if DEBUG_MODE
+	#include "../ShaderPrint.ush"
+#endif
+#if HAIR_VOXEL_TRACES
+	#include "../HairStrands/HairStrandsRaytracing.ush"
+#endif
 
 float RayTracingBias;
 float RayTracingNormalBias;
@@ -27,7 +35,6 @@ RaytracingAccelerationStructure TLAS;
 #endif
 
 RWTexture2D<uint> RWLightSamples;
-
 Texture2D<float> LightSampleRayDistance;
 StructuredBuffer<uint> CompactedTraceTexelData;
 StructuredBuffer<uint> CompactedTraceTexelAllocator;
@@ -74,7 +81,7 @@ RAY_TRACING_ENTRY_RAYGEN_OR_INLINE(HardwareRayTraceLightSamples)
 
 		FLumenMinimalPayload Payload = (FLumenMinimalPayload)0;
 
-		// #sdl_todo: Share it with LumenHardwareRayTracingCommon.ush
+		// #ss_todo: Share it with LumenHardwareRayTracingCommon.ush
 		#if LUMEN_HARDWARE_INLINE_RAYTRACING
 		{
 			FTraceRayInlineContext TraceRayInlineContext = CreateTraceRayInlineContext();
@@ -118,6 +125,21 @@ RAY_TRACING_ENTRY_RAYGEN_OR_INLINE(HardwareRayTraceLightSamples)
 		}
 		#endif
 
+		#if HAIR_VOXEL_TRACES
+		{
+			// #ss_todo: replaced with spatio-temporal blue noise
+			RandomSequence RandSequence;
+			RandomSequence_Initialize(RandSequence, SampleCoord, 0, StochasticShadowsStateFrameIndex, 1);
+			Payload.HitT = TraverseHair(ScreenCoord, RandSequence, Ray.Origin, Ray.Direction, Payload.HitT, VirtualVoxel.Raytracing_ShadowOcclusionThreshold);
+		}
+		#endif
+
+		if (Payload.IsHit())
+		{
+			LightSample.bVisible = false;
+			RWLightSamples[SampleCoord] = PackLightSample(LightSample);
+		}
+
 		#if DEBUG_MODE
 		if (bDebug && DebugMode == DEBUG_MODE_VISUALIZE_TRACING)
 		{
@@ -129,15 +151,8 @@ RAY_TRACING_ENTRY_RAYGEN_OR_INLINE(HardwareRayTraceLightSamples)
 			float3 RayEnd = Ray.Origin + Ray.Direction * (Payload.IsHit() ? Payload.HitT : Ray.TMax);
 			float4 RayColor = float4(LightData.Color.xyz / Luminance(LightData.Color.xyz), 1.0f);
 
-			AddLineTWS(Context, RayStart, RayEnd, RayColor);	
+			AddLineTWS(Context, RayStart, RayEnd, RayColor);
 		}
 		#endif
-
-		if (Payload.IsHit())
-		{
-			LightSample.bCompleted = true;
-			LightSample.bVisible = false;
-			RWLightSamples[SampleCoord] = PackLightSample(LightSample);
-		}
 	}
 }

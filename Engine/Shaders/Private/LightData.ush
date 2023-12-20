@@ -80,13 +80,13 @@ struct FLocalLightData
 	// Derived terms after unpacking
 	/** Flag is true if clustered deferred is supported for this light. They are always first / together.*/
 	bool bClusteredDeferredSupported;
-	// True if sampled direct lighting path is supported for this light.
-	bool bSampledDirectLightingSupported;
+	// True if Stochastic Shadows are supported for this light.
+	bool bStochasticShadowsSupported;
 	/** Flag is true if it is a simple light. They are always first / together.*/
 	bool bIsSimpleLight;
-	/** Virtual shadow map ID or INDEX_NONE if not present. Only valid if SAMPLED_DIRECT_LIGHTING is NOT defined. */
+	/** Virtual shadow map ID or INDEX_NONE if not present. Only valid if STOCHASTIC_SHADOWS is NOT defined. */
 	int  VirtualShadowMapId;
-	/** Previous frame LocalLightIndex or INDEX_NONE if not present. Only valid if SAMPLED_DIRECT_LIGHTING is defined. */
+	/** Previous frame LocalLightIndex or INDEX_NONE if not present. Only valid if STOCHASTIC_SHADOWS is defined. */
 	int  PrevLocalLightIndex;
 	/** Index into GPUScene lights */
 	int LightSceneId;

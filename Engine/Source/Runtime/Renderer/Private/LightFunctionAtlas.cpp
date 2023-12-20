@@ -13,7 +13,7 @@
 #include "SystemTextures.h"
 #include "PostProcess/PostProcessing.h"
 #include "PostProcess/SceneFilterRendering.h"
-#include "SampledDirectLighting/SampledDirectLighting.h"
+#include "StochasticShadows/StochasticShadows.h"
 #include "ShadowRendering.h"
 #include "CanvasItem.h"
 #include "CanvasTypes.h"
@@ -105,14 +105,6 @@ FAutoConsoleVariableRef CVarDeferredLightsUsesLightFunctionAtlas(
 	GDeferredUsesLightFunctionAtlas,
 	TEXT("Whether the light function atlas is sampled when rendering local lights."),
 	ECVF_RenderThreadSafe
-);
-
-int GSampledDirectLightingUsesLightFunctionAtlas = 1;
-FAutoConsoleVariableRef CVarSampledDirectLightingUsesLightFunctionAtlas(
-	TEXT("r.SampledDirectLighting.UsesLightFunctionAtlas"),
-	GSampledDirectLightingUsesLightFunctionAtlas,
-	TEXT("Whether the light function atlas is sampled when rendering sampled direct lighting."),
-	ECVF_Scalability | ECVF_RenderThreadSafe
 );
 
 int GLumenUsesLightFunctionAtlas = 1;
@@ -268,19 +260,19 @@ void FLightFunctionAtlas::BeginSceneFrame(const FViewFamilyInfo& ViewFamily, TAr
 	// But only really enable the atlas generation if a system asks for it
 	bool bVolumetricFogRequestsLF = false;
 	bool bDeferredlightingRequestsLF = false;
-	bool bSampledDirectLightingRequestsLF = false;
+	bool bStochasticShadowsRequestsLF = false;
 	bool bLumenRequestsLF = false;
 	if (bLightFunctionAtlasEnabled)
 	{
 		bVolumetricFogRequestsLF 		= bShouldRenderVolumetricFog && GVolumetricFogUsesLightFunctionAtlas > 0;
-		bDeferredlightingRequestsLF 	= GDeferredUsesLightFunctionAtlas > 0;
-		bSampledDirectLightingRequestsLF= SampledDirectLighting::IsEnabled() && GSampledDirectLightingUsesLightFunctionAtlas > 0;
+		bDeferredlightingRequestsLF		= GDeferredUsesLightFunctionAtlas > 0;
+		bStochasticShadowsRequestsLF	= StochasticShadows::IsUsingLightFunctions();
 		bLumenRequestsLF 				= GLumenUsesLightFunctionAtlas > 0;// && IsLumenTranslucencyGIEnabled();// GLumenScene enabled ...;
 
 		bLightFunctionAtlasEnabled = bLightFunctionAtlasEnabled && 
 			(bVolumetricFogRequestsLF || 
 			bDeferredlightingRequestsLF || 
-			bSampledDirectLightingRequestsLF ||
+			bStochasticShadowsRequestsLF ||
 			bLumenRequestsLF ||
 			GetSingleLayerWaterUsesLightFunctionAtlas() || 
 			GetTranslucentUsesLightFunctionAtlas()); 
@@ -290,10 +282,10 @@ void FLightFunctionAtlas::BeginSceneFrame(const FViewFamilyInfo& ViewFamily, TAr
 	LightFunctionAtlasSceneData.SetData(this, bLightFunctionAtlasEnabled);
 	if (bLightFunctionAtlasEnabled)
 	{
-		if (bVolumetricFogRequestsLF) 			{ LightFunctionAtlasSceneData.AddSystem(ELightFunctionAtlasSystem::VolumetricFog); }
-		if (bDeferredlightingRequestsLF)		{ LightFunctionAtlasSceneData.AddSystem(ELightFunctionAtlasSystem::DeferredLighting); }
-		if (bSampledDirectLightingRequestsLF)	{ LightFunctionAtlasSceneData.AddSystem(ELightFunctionAtlasSystem::SampledDirectLighting); }
-		if (bLumenRequestsLF) 					{ LightFunctionAtlasSceneData.AddSystem(ELightFunctionAtlasSystem::Lumen); }
+		if (bVolumetricFogRequestsLF) 		{ LightFunctionAtlasSceneData.AddSystem(ELightFunctionAtlasSystem::VolumetricFog); }
+		if (bDeferredlightingRequestsLF)	{ LightFunctionAtlasSceneData.AddSystem(ELightFunctionAtlasSystem::DeferredLighting); }
+		if (bStochasticShadowsRequestsLF)	{ LightFunctionAtlasSceneData.AddSystem(ELightFunctionAtlasSystem::StochasticShadows); }
+		if (bLumenRequestsLF) 				{ LightFunctionAtlasSceneData.AddSystem(ELightFunctionAtlasSystem::Lumen); }
 	}
 
 	for (uint32 ViewIndex=0,ViewCount=Views.Num();ViewIndex<ViewCount;++ViewIndex)

@@ -8,12 +8,11 @@
  #define HZB_TRACE_INCLUDE_FULL_RES_DEPTH 1
 #include "../Lumen/LumenScreenTracing.ush"
 #include "../SceneTexturesCommon.ush"
-#include "SampledDirectLighting.ush"
-#include "SampledDirectLightingTracing.ush"
+#include "StochasticShadows.ush"
+#include "StochasticShadowsTracing.ush"
 
 StructuredBuffer<uint> CompactedTraceTexelAllocator;
 RWBuffer<uint> RWIndirectArgs;
-Texture2D<uint> DownsampledTileMask;
 
 [numthreads(THREADGROUP_SIZE, 1, 1)]
 void InitCompactedTraceTexelIndirectArgsCS(uint3 DispatchThreadId : SV_DispatchThreadID)
@@ -36,6 +35,7 @@ void InitCompactedTraceTexelIndirectArgsCS(uint3 DispatchThreadId : SV_DispatchT
 
 uint2 SampleViewSize;
 uint DebugMode;
+
 float4 HZBUvFactorAndInvFactor;
 float MaxHierarchicalScreenTraceIterations;
 float RelativeDepthThickness;
@@ -43,8 +43,10 @@ float HistoryDepthTestRelativeThickness;
 uint MinimumTracingThreadOccupancy;
 
 Texture2D<uint> LightSamples;
-
+RWTexture2D<uint> RWLightSamples;
+RWTexture2D<float> RWLightSampleRayDistance;
 Texture2D<uint> RWTraceTile;
+
 RWStructuredBuffer<uint> RWCompactedTraceTexelData;
 RWStructuredBuffer<uint> RWCompactedTraceTexelAllocator;
 
@@ -92,7 +94,7 @@ void CompactLightSampleTracesCS(
 	uint2 LocalTileMaskCoord = SampleCoordToDownsampledScreenCoord(SampleCoord - GroupId.xy * THREADGROUP_SIZE) / TILE_SIZE;
 	if (all(SampleCoord < SampleViewSize))
 	{
-		// #sdl_todo: try to preserve z-order here for improved tracing coherency
+		// #ss_todo: try to preserve z-order here for improved tracing coherency
 		FLightSample LightSample = UnpackLightSample(LightSamples[SampleCoord]);
 
 		if (LightSample.LocalLightIndex != INVALID_LOCAL_LIGHT_INDEX && !LightSample.bCompleted)
@@ -173,9 +175,6 @@ void CompactLightSampleTracesCS(
 	#endif
 }
 
-RWTexture2D<uint> RWLightSamples;
-RWTexture2D<float> RWLightSampleRayDistance;
-
 StructuredBuffer<uint> CompactedTraceTexelData;
 Texture2D<float> DownsampledSceneDepth;
 Texture2D<UNORM float3> DownsampledSceneWorldNormal;
@@ -226,7 +225,7 @@ void ScreenSpaceRayTraceLightSamplesCS(
 			float2 CornerScreenPosition = (CornerScreenUV - View.ScreenPositionScaleBias.wz) / View.ScreenPositionScaleBias.xy;
 			float3 CornerTranslatedWorldPosition = mul(float4(GetScreenPositionForProjectionType(CornerScreenPosition, SceneDepth), SceneDepth, 1), View.ScreenToTranslatedWorld).xyz;
 
-			// #sdl_todo: fixup bias and incorporate it into Lumen
+			// #ss_todo: fixup bias and incorporate it into Lumen
 			// Project texel corner onto normal
 			float NormalBias = abs(dot(CornerTranslatedWorldPosition - TranslatedWorldPosition, SceneWorldNormal)) * 2.0f;
 			TranslatedWorldPosition += NormalBias * SceneWorldNormal + 0.05f * SceneWorldNormal;
@@ -312,12 +311,6 @@ void SoftwareRayTraceLightSamplesCS(
 		uint2 ScreenCoord = SampleCoordToScreenCoord(SampleCoord);
 		uint2 DownsampledScreenCoord = SampleCoordToDownsampledScreenCoord(SampleCoord);
 
-#if DEBUG_MODE
-		FShaderPrintContext Context = InitShaderPrintContext(true, float2(0.55, 0.45));
-		int2 DebugScreenCoord = View.CursorPosition.x >= 0 ? View.CursorPosition * View.ViewResolutionFraction : -1;
-		bool bDebug = all(DebugScreenCoord / DOWNSAMPLE_FACTOR == DownsampledScreenCoord);
-#endif
-
 		float2 ScreenUV = (ScreenCoord + 0.5f) * View.BufferSizeAndInvSize.zw;
 		float SceneDepth = DownsampledSceneDepth[DownsampledScreenCoord];
 		float3 TranslatedWorldPosition = GetTranslatedWorldPositionFromScreenUV(ScreenUV, SceneDepth);
@@ -328,7 +321,7 @@ void SoftwareRayTraceLightSamplesCS(
 
 		FGlobalSDFTraceInput TraceInput = SetupGlobalSDFTraceInput(TranslatedWorldPosition, LightSampleTrace.Direction, LightSampleRayMinT, LightSampleTrace.Distance, 1.0f, 1.0f);
 
-		// #sdl_todo: setup bias
+		// #ss_todo: setup bias
 		TraceInput.VoxelSizeRelativeBias = 0.5f;
 		TraceInput.VoxelSizeRelativeRayEndBias = 0.5f;
 		TraceInput.DitherScreenCoord = SampleCoord;
@@ -339,23 +332,7 @@ void SoftwareRayTraceLightSamplesCS(
 		if (bHit)
 		{
 			LightSample.bVisible = false;
-			LightSample.bCompleted = true;
 			RWLightSamples[SampleCoord] = PackLightSample(LightSample);
 		}
-
-		#if DEBUG_MODE
-		if (bDebug && DebugMode == DEBUG_MODE_VISUALIZE_TRACING)
-		{
-			const FLocalLightData LocalLightData = GetLocalLightDataNonStereo(LightSample.LocalLightIndex);
-			const FLightSceneData LightSceneData = GetLightSceneData(LocalLightData.LightSceneId);
-			const FDeferredLightData LightData = ConvertToDeferredLight(LightSceneData);
-
-			float3 RayStart = TraceInput.TranslatedWorldRayStart + TraceInput.WorldRayDirection * TraceInput.MinTraceDistance;
-			float3 RayEnd = TraceInput.TranslatedWorldRayStart + TraceInput.WorldRayDirection * (bHit ? SDFResult.HitTime : TraceInput.MaxTraceDistance);
-			float4 RayColor = float4(LightData.Color.xyz / Luminance(LightData.Color.xyz), 1.0f);
-
-			AddLineTWS(Context, RayStart, RayEnd, RayColor);
-		}
-		#endif
 	}
 }

@@ -1,0 +1,316 @@
+// Copyright Epic Games, Inc. All Rights Reserved.
+
+#pragma once
+
+// Change this to force recompilation of all Stochastic Shadows shaders
+#pragma message("UESHADERMETADATA_VERSION B6E1A867-BF74-49CF-BDCB-24BF6F02D711")
+
+#define STOCHASTIC_SHADOWS 1
+#include "../LightGridCommon.ush"
+
+#define SUPPORT_CONTACT_SHADOWS 0
+#define NON_DIRECTIONAL_DIRECT_LIGHTING 0
+#include "../DeferredLightingCommon.ush"
+#include "../SceneData.ush"
+#include "../Hash.ush"
+#if DEBUG_MODE
+	#include "../ShaderPrint.ush"
+#endif
+#include "../Lumen/LumenPosition.ush"
+
+#define DEBUG_MODE_VISUALIZE_SAMPLING 1
+#define DEBUG_MODE_VISUALIZE_TRACING  2
+
+// Limited by PackLightSample
+#define LOCAL_LIGHT_INDEX_BITS		(14)
+#define LOCAL_LIGHT_INDEX_MASK		((1 << LOCAL_LIGHT_INDEX_BITS) - 1)
+#define INVALID_LOCAL_LIGHT_INDEX	(LOCAL_LIGHT_INDEX_MASK)
+
+#define TILE_SIZE						8
+#define SHADOW_MASK_TILE_SIZE			8
+#define INVALID_SHADOW_MASK_TILE_INDEX	0xFFFFFFFF
+#define MAX_SHADOW_MASK_AGE				7
+#define MAX_SHADOW_MASK_HISTORY_LENGTH	7
+
+// Keep in sync with StochasticShadows.cpp
+#define MAX_LOCAL_LIGHT_INDEX_XY	16
+#define MAX_LOCAL_LIGHT_INDEX		(MAX_LOCAL_LIGHT_INDEX_XY * MAX_LOCAL_LIGHT_INDEX_XY)
+
+#define SHARED_LIGHT_MASK_SIZE		(MAX_LOCAL_LIGHT_INDEX / 32)
+
+#define SHADOW_MASK_ATLAS_SIZE_IN_TILES 512
+#define DOWNSAMPLE_FACTOR				2
+#define SHADOW_MASK_DOWNSAMPLE_FACTOR	2
+
+// Keep in sync with StochasticShadows::ETileType
+#define TILE_MODE_SIMPLE_SHADING	0
+#define TILE_MODE_COMPLEX_SHADING	1
+#define TILE_MODE_EMPTY				2
+#define TILE_MODE_MAX				3
+
+uint PackTile(uint2 TileCoord)
+{
+	return TileCoord.x | (TileCoord.y << 16);
+}
+
+uint2 UnpackTile(uint PackedTile)
+{
+	return uint2(PackedTile & 0xFFFF, PackedTile >> 16);
+}
+
+uint2 ShadowMaskPageTablePerLightSize;
+
+uint2 GetShadowMaskPageTableCoord(uint LightIndex, uint2 ShadowMaskScreenCoord)
+{
+	uint2 LightOffset;
+	LightOffset.x = (LightIndex % MAX_LOCAL_LIGHT_INDEX_XY) * ShadowMaskPageTablePerLightSize.x;
+	LightOffset.y = (LightIndex / MAX_LOCAL_LIGHT_INDEX_XY) * ShadowMaskPageTablePerLightSize.y;
+
+	uint2 TileCoord = ShadowMaskScreenCoord / SHADOW_MASK_TILE_SIZE;
+
+	uint2 PageTableCoord = LightOffset + TileCoord;
+	return PageTableCoord;
+}
+
+uint2 GetShadowMaskTileAtlasCoord(uint ShadowMaskTileIndex, uint2 LocalShadowMaskTileCoord)
+{
+	uint2 AtlasCoord;
+	AtlasCoord.x = (ShadowMaskTileIndex % SHADOW_MASK_ATLAS_SIZE_IN_TILES) * SHADOW_MASK_TILE_SIZE + LocalShadowMaskTileCoord.x;
+	AtlasCoord.y = (ShadowMaskTileIndex / SHADOW_MASK_ATLAS_SIZE_IN_TILES) * SHADOW_MASK_TILE_SIZE + LocalShadowMaskTileCoord.y;
+	return AtlasCoord;
+}
+
+uint2 GetShadingTileAtlasCoord(uint ShadingTileIndex, uint2 CoordInTile)
+{
+	uint2 AtlasCoord;
+	AtlasCoord.x = (ShadingTileIndex % SHADOW_MASK_ATLAS_SIZE_IN_TILES) * SHADOW_MASK_TILE_SIZE + CoordInTile.x;
+	AtlasCoord.y = (ShadingTileIndex / SHADOW_MASK_ATLAS_SIZE_IN_TILES) * SHADOW_MASK_TILE_SIZE + CoordInTile.y;
+	return AtlasCoord;
+}
+
+uint2 GetShadowMaskTileAtlasCoordFromDownsampledScreenCoord(uint ShadowMaskTileIndex, uint2 DownsampledScreenCoord)
+{
+	uint2 LocalShadowMaskTileCoord = DownsampledScreenCoord % SHADOW_MASK_TILE_SIZE;
+	return GetShadowMaskTileAtlasCoord(ShadowMaskTileIndex, LocalShadowMaskTileCoord);
+}
+
+struct FShadowMask
+{
+	float Factor;
+	float FactorSq;
+
+	// Number of frames from when this pixel was traced. Values in [0;7].
+	uint Age;			
+
+	// Number of frames accumulated in history. Values in [0;7].
+	uint HistoryLength;
+
+	bool IsValid()
+	{
+		return Age < MAX_SHADOW_MASK_AGE;
+	}
+};
+
+FShadowMask InitShadowMask()
+{
+	FShadowMask ShadowMask;
+	ShadowMask.Factor = 1.0f;
+	ShadowMask.FactorSq = 1.0f;
+	ShadowMask.Age = MAX_SHADOW_MASK_AGE;
+	ShadowMask.HistoryLength = 0;
+	return ShadowMask;
+}
+
+// Dither assumed to be random variable in [0;1]
+uint PackShadowMask(FShadowMask ShadowMask, float Dither)
+{
+	uint PackedShadowMask = 0;
+	PackedShadowMask |= clamp(uint(ShadowMask.Factor * 0x3FF + Dither), 0u, 0x3FFu); // 10 bits
+	PackedShadowMask |= clamp(uint(ShadowMask.FactorSq * 0x3FF + Dither), 0, 0x3FFu) << 10; // 10 bits
+	PackedShadowMask |= min(ShadowMask.Age, MAX_SHADOW_MASK_AGE) << 20;
+	PackedShadowMask |= min(ShadowMask.HistoryLength, MAX_SHADOW_MASK_HISTORY_LENGTH) << 23;
+	return PackedShadowMask;
+}
+
+FShadowMask UnpackShadowMask(uint PackedShadowMask)
+{
+	FShadowMask ShadowMask;
+	ShadowMask.Factor = (PackedShadowMask & 0x3FF) / float(0x3FF);
+	ShadowMask.FactorSq = ((PackedShadowMask >> 10) & 0x3FF) / float(0x3FF);
+	ShadowMask.Age = (PackedShadowMask >> 20) & 0x7;
+	ShadowMask.HistoryLength = (PackedShadowMask >> 23) & 0x7;
+	return ShadowMask;
+}
+
+struct FShadowMaskAccumulator
+{
+	float FactorSum;
+	float FactorSqSum;
+	float WeightSum;
+	uint MinAge;
+	uint MaxHistoryLength;
+
+	FShadowMask ResolveShadowMask()
+	{
+		FShadowMask ShadowMask = InitShadowMask();
+		ShadowMask.Factor = FactorSum / WeightSum;
+		ShadowMask.FactorSq = FactorSqSum / WeightSum;
+		ShadowMask.Age = MinAge;
+		ShadowMask.HistoryLength = MaxHistoryLength;
+		return ShadowMask;
+	}
+};
+
+FShadowMaskAccumulator InitShadowMaskAccumulator()
+{
+	FShadowMaskAccumulator Accumulator;
+	Accumulator.FactorSum = 0.0f;
+	Accumulator.FactorSqSum = 0.0f;
+	Accumulator.WeightSum = 0.0f;
+	Accumulator.MinAge = MAX_SHADOW_MASK_AGE;
+	Accumulator.MaxHistoryLength = 0;
+	return Accumulator;
+}
+
+struct FLightSample
+{
+	uint LocalLightIndex;
+	bool bVisible;
+	bool bCompleted; // Whether tracing was completed
+};
+
+FLightSample InitLightSample()
+{
+	FLightSample LightSample;
+	LightSample.LocalLightIndex = INVALID_LOCAL_LIGHT_INDEX;
+	LightSample.bVisible = false;
+	LightSample.bCompleted = true;
+	return LightSample;
+}
+
+uint PackLightSample(FLightSample LightSample)
+{
+	uint PackedLightSample = LightSample.LocalLightIndex & LOCAL_LIGHT_INDEX_MASK;
+	PackedLightSample |= LightSample.bVisible ? 0x8000 : 0;
+	PackedLightSample |= LightSample.bCompleted ? 0x4000 : 0;
+	return PackedLightSample;
+}
+
+FLightSample UnpackLightSample(uint PackedLightSample)
+{
+	FLightSample LightSample;
+	LightSample.LocalLightIndex = PackedLightSample & LOCAL_LIGHT_INDEX_MASK;
+	LightSample.bVisible = PackedLightSample & 0x8000 ? true : false;
+	LightSample.bCompleted = PackedLightSample & 0x4000 ? true : false;
+	return LightSample;
+}
+
+uint StochasticShadowsStateFrameIndex;
+
+/** 
+ * Returns sample jitter offset in the range [0, DOWNSAMPLE_FACTOR - 1]
+ */
+uint2 GetSampleScreenCoordJitter()
+{
+	return Hammersley16(StochasticShadowsStateFrameIndex, 8, 0) * DOWNSAMPLE_FACTOR;
+}
+
+/** 
+ * Returns sample jitter offset in the range [0, DOWNSAMPLE_FACTOR - 1] from the last frame
+ */
+uint2 GetHistorySampleScreenCoordJitter()
+{
+	return Hammersley16(StochasticShadowsStateFrameIndex + 7, 8, 0) * DOWNSAMPLE_FACTOR;
+}
+
+uint2 DownsampledScreenCoordToScreenCoord(uint2 DownsampledScreenCoord)
+{
+	return DownsampledScreenCoord * DOWNSAMPLE_FACTOR + GetSampleScreenCoordJitter();
+}
+
+float2 DownsampledScreenCoordToScreenUV(uint2 DownsampledScreenCoord)
+{
+	uint2 ScreenCoord = DownsampledScreenCoordToScreenCoord(DownsampledScreenCoord);
+	float2 ScreenUV = (ScreenCoord + 0.5f) * View.BufferSizeAndInvSize.zw;
+	return ScreenUV;
+}
+
+uint2 PackShadowMaskTile(uint LocalLightIndex, uint2 ShadowMaskScreenCoord)
+{
+	ShadowMaskScreenCoord /= SHADOW_MASK_TILE_SIZE;
+
+	uint2 PackedTile;
+	PackedTile.x = LocalLightIndex;
+	PackedTile.y = (ShadowMaskScreenCoord.x & 0xFFFF) | ((ShadowMaskScreenCoord.y & 0xFFFF) << 16);
+	return PackedTile;
+}
+
+void UnpackShadowMaskTile(uint2 PackedTile, out uint LocalLightIndex, out uint2 ShadowMaskScreenCoord)
+{
+	LocalLightIndex = PackedTile.x;
+	ShadowMaskScreenCoord.x = PackedTile.y & 0xFFFF;
+	ShadowMaskScreenCoord.y = PackedTile.y >> 16;
+
+	ShadowMaskScreenCoord *= SHADOW_MASK_TILE_SIZE;
+}
+
+Texture2D<uint> ShadowMaskPageTableHistory;
+Texture2D<uint> ShadowMaskAtlasHistory;
+int2 ShadowMaskViewSize;
+
+void AccumulateHistoryShadowMask(uint PrevLocalLightIndex, uint2 ShadowMaskScreenCoord, float Weight, inout FShadowMaskAccumulator Accumulator)
+{
+	if (all(ShadowMaskScreenCoord < ShadowMaskViewSize) && Weight > 0.01f)
+	{
+		uint2 HistoryShadowMaskPageTableCoord = GetShadowMaskPageTableCoord(PrevLocalLightIndex, ShadowMaskScreenCoord);
+
+		uint HistoryShadowMaskTileIndex = ShadowMaskPageTableHistory[HistoryShadowMaskPageTableCoord];
+
+		if (HistoryShadowMaskTileIndex != INVALID_SHADOW_MASK_TILE_INDEX)
+		{
+			uint2 HistoryShadowMaskAtlasCoord = GetShadowMaskTileAtlasCoordFromDownsampledScreenCoord(HistoryShadowMaskTileIndex, ShadowMaskScreenCoord);
+			FShadowMask HistoryShadowMask = UnpackShadowMask(ShadowMaskAtlasHistory[HistoryShadowMaskAtlasCoord]);
+
+			// Increase age as we are sampling previous frame
+			HistoryShadowMask.Age = min(HistoryShadowMask.Age + 1, MAX_SHADOW_MASK_AGE);
+
+			if (HistoryShadowMask.IsValid())
+			{
+				Accumulator.FactorSum += Weight * HistoryShadowMask.Factor;
+				Accumulator.FactorSqSum += Pow2(HistoryShadowMask.Factor) * Weight;
+				Accumulator.WeightSum += Weight;
+				Accumulator.MinAge = min(Accumulator.MinAge, HistoryShadowMask.Age);
+				Accumulator.MaxHistoryLength = max(Accumulator.MaxHistoryLength, HistoryShadowMask.HistoryLength);
+			}
+		}
+	}
+}
+
+struct FShadingTile
+{
+	uint LocalLightIndex;
+	uint ShadingTileIndex;
+};
+
+uint PackShadingTile(uint LocalLightIndex, uint ShadingTileIndex)
+{
+	uint PackedShadingTile = LocalLightIndex & 0xFFF;
+	PackedShadingTile |= ShadingTileIndex << 12;
+	return PackedShadingTile;
+}
+
+FShadingTile UnpackShadingTile(uint PackedShadingTile)
+{
+	FShadingTile ShadingTile;
+	ShadingTile.LocalLightIndex = PackedShadingTile & 0xFFF;
+	ShadingTile.ShadingTileIndex = PackedShadingTile >> 12;
+	return ShadingTile;
+}
+
+uint2 ShadingTileGridSize;
+uint MaxShadingTilesPerGridCell;
+
+uint GetShadingTileGridOffset(uint2 ShadingTileCoord, uint IndexInCell)
+{
+	return (ShadingTileCoord.x + ShadingTileCoord.y * ShadingTileGridSize.x) * MaxShadingTilesPerGridCell + IndexInCell;
+}

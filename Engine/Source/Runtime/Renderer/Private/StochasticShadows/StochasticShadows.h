@@ -9,13 +9,16 @@ namespace ECastRayTracedShadow
 	enum Type : int;
 };
 
-// Public SampledDirectLighting interface
-namespace SampledDirectLighting
+// Public StochasticShadows interface
+namespace StochasticShadows
 {
 	bool IsEnabled();
+
 	bool IsUsingClosestHZB();
+	bool IsUsingGlobalSDF();
+	bool IsUsingLightFunctions();
+
 	bool IsLightSupported(uint8 LightType, ECastRayTracedShadow::Type CastRayTracedShadow);
 	bool UseHardwareRayTracing();
 	bool UseInlineHardwareRayTracing();
-	bool UseGlobalSDF();
 };

@@ -104,7 +104,7 @@ void ScreenProbeGenerateLightSamplesCS(
 			{
 				const FLocalLightData LocalLight = GetLocalLightData(CulledLightGridData.DataStartIndex + GridLightIndex, EyeIndex);
 
-				if (LocalLight.bSampledDirectLightingSupported)
+				if (LocalLight.bStochasticShadowsSupported)
 				{
 					LumenLightStartIndex = GridLightIndex;
 					break;

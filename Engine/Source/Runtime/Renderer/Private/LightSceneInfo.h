@@ -99,8 +99,8 @@ struct FSortedLightSceneInfo
 			 * Super-set of lights supporting tiled, so the tiled lights will end up in the first part of this range.
 			 */
 			uint32 bClusteredDeferredNotSupported : 1;
-			/** Whether the light should be handled by Sampled Direct Lighting, these will be sorted to the end so they can be skipped */
-			uint32 bHandledBySampledDirectLighting : 1;
+			/** Whether the light should be handled by Stochastic Shadows, these will be sorted to the end so they can be skipped */
+			uint32 bHandledByStochasticShadows : 1;
 		} Fields;
 		/** Sort key bits packed into an integer. */
 		int32 Packed;
@@ -141,8 +141,8 @@ struct FSortedLightSetSceneInfo
 	/** First light with shadow map or */
 	int32 UnbatchedLightStart;
 
-	// First light handled by Sampled Direct Lighting
-	int32 SampledDirectLightingLightStart;
+	// First light handled by Stochastic Shadows
+	int32 StochasticShadowsLightStart;
 
 	FSimpleLightArray SimpleLights;
 	TArray<FSortedLightSceneInfo, SceneRenderingAllocator> SortedLights;

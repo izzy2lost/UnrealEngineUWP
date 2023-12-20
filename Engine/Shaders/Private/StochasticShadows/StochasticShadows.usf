@@ -1,7 +1,7 @@
 // Copyright Epic Games, Inc. All Rights Reserved.
 
 #include "../Common.ush"
-#include "SampledDirectLighting.ush"
+#include "StochasticShadows.ush"
 
 groupshared uint SharedTileMode[THREADGROUP_SIZE * THREADGROUP_SIZE];
 
@@ -110,21 +110,21 @@ void TileClassificationCS(
 
 		if (SharedTileMode[0] & 0x4)
 		{
-			uint SampledDirectLightingTileIndex = 0;
-			InterlockedAdd(RWTileAllocator[TILE_MODE_COMPLEX_SHADING], 1, SampledDirectLightingTileIndex);
-			RWTileData[DataStride * TILE_MODE_COMPLEX_SHADING + SampledDirectLightingTileIndex] = PackTile(TileCoord);
+			uint StochasticShadowsTileIndex = 0;
+			InterlockedAdd(RWTileAllocator[TILE_MODE_COMPLEX_SHADING], 1, StochasticShadowsTileIndex);
+			RWTileData[DataStride * TILE_MODE_COMPLEX_SHADING + StochasticShadowsTileIndex] = PackTile(TileCoord);
 		}
 		else if (SharedTileMode[0] & 0x2)
 		{
-			uint SampledDirectLightingTileIndex = 0;
-			InterlockedAdd(RWTileAllocator[TILE_MODE_SIMPLE_SHADING], 1, SampledDirectLightingTileIndex);
-			RWTileData[DataStride * TILE_MODE_SIMPLE_SHADING + SampledDirectLightingTileIndex] = PackTile(TileCoord);
+			uint StochasticShadowsTileIndex = 0;
+			InterlockedAdd(RWTileAllocator[TILE_MODE_SIMPLE_SHADING], 1, StochasticShadowsTileIndex);
+			RWTileData[DataStride * TILE_MODE_SIMPLE_SHADING + StochasticShadowsTileIndex] = PackTile(TileCoord);
 		}
 		else if (SharedTileMode[0] == 0x1)
 		{
-			uint SampledDirectLightingTileIndex = 0;
-			InterlockedAdd(RWTileAllocator[TILE_MODE_EMPTY], 1, SampledDirectLightingTileIndex);
-			RWTileData[DataStride * TILE_MODE_EMPTY + SampledDirectLightingTileIndex] = PackTile(TileCoord);
+			uint StochasticShadowsTileIndex = 0;
+			InterlockedAdd(RWTileAllocator[TILE_MODE_EMPTY], 1, StochasticShadowsTileIndex);
+			RWTileData[DataStride * TILE_MODE_EMPTY + StochasticShadowsTileIndex] = PackTile(TileCoord);
 		}
 	}
 }
@@ -146,30 +146,30 @@ void InitTileIndirectArgsCS(uint3 DispatchThreadId : SV_DispatchThreadID)
 }
 
 RWBuffer<uint> RWIndirectArgs;
-StructuredBuffer<uint> CompositeTileAllocator;
-uint MaxCompositeTiles;
+StructuredBuffer<uint> ShadowMaskTileAllocator;
+uint MaxShadowMaskTiles;
 
 [numthreads(THREADGROUP_SIZE, 1, 1)]
-void InitCompositeIndirectArgsCS(uint3 DispatchThreadId : SV_DispatchThreadID)
+void InitShadowMaskUpdateIndirectArgsCS(uint3 DispatchThreadId : SV_DispatchThreadID)
 {
 	if (all(DispatchThreadId == 0))
 	{
 		// Dispatch one group per shadow mask tile
-		uint NumGroups = min(CompositeTileAllocator[0], MaxCompositeTiles);
+		uint NumGroups = min(ShadowMaskTileAllocator[0], MaxShadowMaskTiles);
 		WriteDispatchIndirectArgs(RWIndirectArgs, 0, NumGroups, 1, 1);
 	}
 }
 
-RWTexture2D<float4> RWCompositeUpsampleWeights;
+RWTexture2D<float4> RWShadowMaskUpsampleWeights;
 
 Texture2D<float> DownsampledSceneDepth;
 float2 DownsampledBufferInvSize;
 
 /**
- * Prepare weights for upsampling in order to pull out common per pixel composite work into a separate dispatch.
+ * Prepare weights for upsampling. This pulls out common per pixel shadow mask work into a separate dispatch.
  */
 [numthreads(THREADGROUP_SIZE, THREADGROUP_SIZE, 1)]
-void InitCompositeUpsampleWeightsCS(
+void InitShadowMaskUpsampleWeightsCS(
 	uint3 GroupId : SV_GroupID,
 	uint3 GroupThreadId : SV_GroupThreadID,
 	uint3 DispatchThreadId : SV_DispatchThreadID)
@@ -229,6 +229,6 @@ void InitCompositeUpsampleWeightsCS(
 		InterpolationWeights *= DepthWeights;
 		InterpolationWeights /= max(dot(InterpolationWeights, 1), Epsilon);
 
-		RWCompositeUpsampleWeights[ScreenCoord] = InterpolationWeights;
+		RWShadowMaskUpsampleWeights[ScreenCoord] = InterpolationWeights;
 	}
 }

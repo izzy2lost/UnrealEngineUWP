@@ -30,7 +30,7 @@
 #include "BasePassRendering.h"
 #include "MobileBasePassRendering.h"
 #include "TranslucentLighting.h"
-#include "SampledDirectLighting/SampledDirectLighting.h"
+#include "StochasticShadows/StochasticShadows.h"
 #include "LightFunctionAtlas.h"
 
 using namespace LightFunctionAtlas;
@@ -679,9 +679,9 @@ FDeferredLightUniformStruct GetSimpleDeferredLightParameters(
 
 FLightOcclusionType GetLightOcclusionType(const FLightSceneProxy& Proxy)
 {
-	if (SampledDirectLighting::IsLightSupported(Proxy.GetLightType(), Proxy.CastsRaytracedShadow()))
+	if (StochasticShadows::IsLightSupported(Proxy.GetLightType(), Proxy.CastsRaytracedShadow()))
 	{
-		return FLightOcclusionType::SampledDirectLighting;
+		return FLightOcclusionType::StochasticShadows;
 	}
 
 #if RHI_RAYTRACING
@@ -696,9 +696,9 @@ FLightOcclusionType GetLightOcclusionType(const FLightSceneProxy& Proxy)
 
 FLightOcclusionType GetLightOcclusionType(const FLightSceneInfoCompact& LightInfo)
 {
-	if (SampledDirectLighting::IsLightSupported(LightInfo.LightType, LightInfo.CastRaytracedShadow))
+	if (StochasticShadows::IsLightSupported(LightInfo.LightType, LightInfo.CastRaytracedShadow))
 	{
-		return FLightOcclusionType::SampledDirectLighting;
+		return FLightOcclusionType::StochasticShadows;
 	}
 
 #if RHI_RAYTRACING
@@ -1186,8 +1186,9 @@ void FSceneRenderer::GatherAndSortLights(FSortedLightSetSceneInfo& OutSortedLigh
 					// These are not simple lights.
 					SortedLightInfo->SortKey.Fields.bIsNotSimpleLight = 1;
 
-					// Lights handled by Stochastic Direct Lighting
-					const bool bHandledBySampledDirectLighting = SampledDirectLighting::IsLightSupported(LightSceneInfoCompact.LightType, LightSceneInfoCompact.CastRaytracedShadow);
+					// Lights handled by Stochastic Shadows
+					const bool bHandledByStochasticShadows = StochasticShadows::IsLightSupported(LightSceneInfoCompact.LightType, LightSceneInfoCompact.CastRaytracedShadow)
+						|| StochasticShadows::IsLightSupported(LightSceneInfoCompact.LightType, LightSceneInfoCompact.CastRaytracedShadow);
 
 					// tiled and clustered deferred lighting only supported for certain lights that don't use any additional features
 					// And also that are not directional (mostly because it doesn't make so much sense to insert them into every grid cell in the universe)
@@ -1200,10 +1201,10 @@ void FSceneRenderer::GatherAndSortLights(FSortedLightSetSceneInfo& OutSortedLigh
 						!SortedLightInfo->SortKey.Fields.bUsesLightingChannels
 						&& LightSceneInfoCompact.LightType != LightType_Directional
 						&& LightSceneInfoCompact.LightType != LightType_Rect
-						&& !bHandledBySampledDirectLighting;
+						&& !bHandledByStochasticShadows;
 
 					SortedLightInfo->SortKey.Fields.bClusteredDeferredNotSupported = !bClusteredDeferredSupported;
-					SortedLightInfo->SortKey.Fields.bHandledBySampledDirectLighting = bHandledBySampledDirectLighting;
+					SortedLightInfo->SortKey.Fields.bHandledByStochasticShadows = bHandledByStochasticShadows;
 					break;
 				}
 			}
@@ -1235,7 +1236,7 @@ void FSceneRenderer::GatherAndSortLights(FSortedLightSetSceneInfo& OutSortedLigh
 
 		// Simple lights are ok to use with tiled and clustered deferred lighting
 		SortedLightInfo->SortKey.Fields.bClusteredDeferredNotSupported = 0;
-		SortedLightInfo->SortKey.Fields.bHandledBySampledDirectLighting = 0;
+		SortedLightInfo->SortKey.Fields.bHandledByStochasticShadows = 0;
 	}
 
 	// Sort non-shadowed, non-light function lights first to avoid render target switches.
@@ -1252,7 +1253,7 @@ void FSceneRenderer::GatherAndSortLights(FSortedLightSetSceneInfo& OutSortedLigh
 	OutSortedLights.SimpleLightsEnd = SortedLights.Num();
 	OutSortedLights.ClusteredSupportedEnd = SortedLights.Num();
 	OutSortedLights.UnbatchedLightStart = SortedLights.Num();
-	OutSortedLights.SampledDirectLightingLightStart = SortedLights.Num();
+	OutSortedLights.StochasticShadowsLightStart = SortedLights.Num();
 
 	// Iterate over all lights to be rendered and build ranges for tiled deferred and unshadowed lights
 	for (int32 LightIndex = 0; LightIndex < SortedLights.Num(); LightIndex++)
@@ -1265,10 +1266,10 @@ void FSceneRenderer::GatherAndSortLights(FSortedLightSetSceneInfo& OutSortedLigh
 		// Do not schedule unbatched lights if the atlas is used and enabled
 		const bool bDrawLightFunction = SortedLightInfo.SortKey.Fields.bLightFunction && !bUseLightFunctionAtlas;
 
-		if (SortedLightInfo.SortKey.Fields.bHandledBySampledDirectLighting && OutSortedLights.SampledDirectLightingLightStart == SortedLights.Num())
+		if (SortedLightInfo.SortKey.Fields.bHandledByStochasticShadows && OutSortedLights.StochasticShadowsLightStart == SortedLights.Num())
 		{
 			// Mark the first index that needs to be rendered
-			OutSortedLights.SampledDirectLightingLightStart = LightIndex;
+			OutSortedLights.StochasticShadowsLightStart = LightIndex;
 		}
 
 		if (SortedLightInfo.SortKey.Fields.bIsNotSimpleLight && OutSortedLights.SimpleLightsEnd == SortedLights.Num())
@@ -1285,7 +1286,7 @@ void FSceneRenderer::GatherAndSortLights(FSortedLightSetSceneInfo& OutSortedLigh
 
 		if ((bDrawShadows || bDrawLightFunction || bLightingChannels) 
 			&& SortedLightInfo.SortKey.Fields.bClusteredDeferredNotSupported
-			&& !SortedLightInfo.SortKey.Fields.bHandledBySampledDirectLighting
+			&& !SortedLightInfo.SortKey.Fields.bHandledByStochasticShadows
 			&& OutSortedLights.UnbatchedLightStart == SortedLights.Num())
 		{
 			OutSortedLights.UnbatchedLightStart = LightIndex;
@@ -1296,9 +1297,9 @@ void FSceneRenderer::GatherAndSortLights(FSortedLightSetSceneInfo& OutSortedLigh
 	check(OutSortedLights.ClusteredSupportedEnd >= OutSortedLights.SimpleLightsEnd);
 	check(OutSortedLights.UnbatchedLightStart >= OutSortedLights.ClusteredSupportedEnd);
 
-	if (OutSortedLights.UnbatchedLightStart > OutSortedLights.SampledDirectLightingLightStart)
+	if (OutSortedLights.UnbatchedLightStart > OutSortedLights.StochasticShadowsLightStart)
 	{
-		OutSortedLights.UnbatchedLightStart = OutSortedLights.SampledDirectLightingLightStart;
+		OutSortedLights.UnbatchedLightStart = OutSortedLights.StochasticShadowsLightStart;
 	}
 
 	// Update the light function atlas according to registered lights and views
@@ -1333,7 +1334,7 @@ void FDeferredShadingSceneRenderer::RenderLights(
 	const TArray<FSortedLightSceneInfo, SceneRenderingAllocator>& SortedLights = SortedLightSet.SortedLights;
 	const int32 SimpleLightsEnd = SortedLightSet.SimpleLightsEnd;
 	const int32 UnbatchedLightStart = SortedLightSet.UnbatchedLightStart;
-	const int32 SampledDirectLightingLightStart = SortedLightSet.SampledDirectLightingLightStart;
+	const int32 StochasticShadowsLightStart = SortedLightSet.StochasticShadowsLightStart;
 
 	FHairStrandsTransmittanceMaskData DummyTransmittanceMaskData;
 	if (bUseHairLighting && Views.Num() > 0)
@@ -1501,7 +1502,7 @@ void FDeferredShadingSceneRenderer::RenderLights(
 				const uint32 ViewIndex = 0;
 				FViewInfo& View = Views[ViewIndex];
 
-				const int32 NumShadowedLights = SampledDirectLightingLightStart - UnbatchedLightStart;
+				const int32 NumShadowedLights = StochasticShadowsLightStart - UnbatchedLightStart;
 				// Allocate PreprocessedShadowMaskTextures once so QueueTextureExtraction can deferred write.
 				{
 					if (!View.bStatePrevViewInfoIsReadOnly)
@@ -1527,7 +1528,7 @@ void FDeferredShadingSceneRenderer::RenderLights(
 			FRDGTextureRef SharedScreenShadowMaskSubPixelTexture = nullptr;
 
 			// Draw shadowed and light function lights
-			for (int32 LightIndex = UnbatchedLightStart; LightIndex < SampledDirectLightingLightStart; LightIndex++)
+			for (int32 LightIndex = UnbatchedLightStart; LightIndex < StochasticShadowsLightStart; LightIndex++)
 			{
 				const FSortedLightSceneInfo& SortedLightInfo = SortedLights[LightIndex];
 				const FLightSceneInfo& LightSceneInfo = *SortedLightInfo.LightSceneInfo;
@@ -1658,7 +1659,7 @@ void FDeferredShadingSceneRenderer::RenderLights(
 							}; // QuickOffDenoisingBatch
 
 							// Ray trace shadows of lights, and quick off denoising batch.
-							for (int32 LightBatchIndex = LightIndex; LightBatchIndex < SampledDirectLightingLightStart; LightBatchIndex++)
+							for (int32 LightBatchIndex = LightIndex; LightBatchIndex < StochasticShadowsLightStart; LightBatchIndex++)
 							{
 								const FSortedLightSceneInfo& BatchSortedLightInfo = SortedLights[LightBatchIndex];
 								const FLightSceneInfo& BatchLightSceneInfo = *BatchSortedLightInfo.LightSceneInfo;

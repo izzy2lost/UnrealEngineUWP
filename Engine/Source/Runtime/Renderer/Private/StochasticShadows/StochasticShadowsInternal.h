@@ -6,7 +6,7 @@
 #include "RendererPrivate.h"
 #include "BlueNoise.h"
 
-BEGIN_SHADER_PARAMETER_STRUCT(FSampledDirectLightingParameters, )
+BEGIN_SHADER_PARAMETER_STRUCT(FStochasticShadowsParameters, )
 	SHADER_PARAMETER_STRUCT_REF(FViewUniformShaderParameters, ViewUniformBuffer)
 	SHADER_PARAMETER_STRUCT_INCLUDE(ShaderPrint::FShaderParameters, ShaderPrintUniformBuffer)
 	SHADER_PARAMETER_STRUCT_INCLUDE(FSceneTextureParameters, SceneTextures)
@@ -16,32 +16,31 @@ BEGIN_SHADER_PARAMETER_STRUCT(FSampledDirectLightingParameters, )
 	SHADER_PARAMETER_RDG_UNIFORM_BUFFER(FForwardLightData, ForwardLightData)
 	SHADER_PARAMETER_RDG_UNIFORM_BUFFER(LightFunctionAtlas::FLightFunctionAtlasGlobalParameters, LightFunctionAtlas)
 	SHADER_PARAMETER_STRUCT_REF(FBlueNoise, BlueNoise)
-	SHADER_PARAMETER_TEXTURE(Texture2D, PreIntegratedGF)
-	SHADER_PARAMETER_SAMPLER(SamplerState, PreIntegratedGFSampler)
 	SHADER_PARAMETER(FIntPoint, SampleViewSize)
 	SHADER_PARAMETER(FIntPoint, DownsampledViewSize)
+	SHADER_PARAMETER(FIntPoint, ShadowMaskViewSize)
 	SHADER_PARAMETER(FIntPoint, NumSamplesPerPixel)
 	SHADER_PARAMETER(FIntPoint, NumSamplesPerPixelDivideShift)
-	SHADER_PARAMETER(uint32, SampledDirectLightingStateFrameIndex)
-	SHADER_PARAMETER(uint32, MaxCompositeTiles)
+	SHADER_PARAMETER(uint32, StochasticShadowsStateFrameIndex)
+	SHADER_PARAMETER(uint32, MaxShadowMaskTiles)
 	SHADER_PARAMETER(uint32, MaxShadingTiles)
 	SHADER_PARAMETER(uint32, MaxShadingTilesPerGridCell)
+	SHADER_PARAMETER(FIntPoint, ShadowMaskPageTablePerLightSize)
 	SHADER_PARAMETER(FIntPoint, ShadingTileGridSize)
 	SHADER_PARAMETER(FVector2f, DownsampledBufferInvSize)
 	SHADER_PARAMETER(float, SamplingMinWeight)
 	SHADER_PARAMETER(int32, TileDataStride)
 	SHADER_PARAMETER(int32, DownsampledTileDataStride)
-	SHADER_PARAMETER(float, TemporalMaxFramesAccumulated)
+	SHADER_PARAMETER(int32, TemporalMaxFramesAccumulated)
 	SHADER_PARAMETER(float, TemporalNeighborhoodClampScale)
 	SHADER_PARAMETER(int32, DebugMode)
 	SHADER_PARAMETER(int32, DebugLightId)
-	SHADER_PARAMETER_RDG_TEXTURE(Texture2D<uint>, DownsampledTileMask)
 	SHADER_PARAMETER_RDG_TEXTURE(Texture2D<float>, DownsampledSceneDepth)
 	SHADER_PARAMETER_RDG_TEXTURE(Texture2D<UNORM float3>, DownsampledSceneWorldNormal)
 END_SHADER_PARAMETER_STRUCT()
 
-// Internal functions, don't use outside of the SampledDirectLighting
-namespace SampledDirectLighting
+// Internal functions, don't use outside of the StochasticShadows
+namespace StochasticShadows
 {
 	void RayTraceLightSamples(
 		const FViewInfo& View,
@@ -50,7 +49,7 @@ namespace SampledDirectLighting
 		const FIntPoint SampleBufferSize,
 		FRDGTextureRef LightSamples,
 		FRDGTextureRef LightSampleRayDistance,
-		const FSampledDirectLightingParameters& SampledDirectLightingParameters
+		const FStochasticShadowsParameters& StochasticShadowsParameters
 	);
 
 	bool ShouldCompileShaders(const FGlobalShaderPermutationParameters& Parameters);
