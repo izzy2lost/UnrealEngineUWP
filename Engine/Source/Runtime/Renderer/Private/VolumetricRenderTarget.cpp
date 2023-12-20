@@ -13,6 +13,7 @@
 #include "SingleLayerWaterRendering.h"
 #include "VolumetricCloudRendering.h"
 #include "RendererUtils.h"
+#include "PostProcess/PostProcessing.h" // IsPostProcessingWithAlphaChannelSupported
 
 static TAutoConsoleVariable<int32> CVarVolumetricRenderTarget(
 	TEXT("r.VolumetricRenderTarget"), 1,
@@ -755,7 +756,16 @@ void ComposeVolumetricRenderTargetOverScene(
 	RDG_GPU_STAT_SCOPE(GraphBuilder, VolCloudComposeOverScene);
 	SCOPED_NAMED_EVENT(VolCloudComposeOverScene, FColor::Emerald);
 
-	FRHIBlendState* PreMultipliedColorTransmittanceBlend = TStaticBlendState<CW_RGB, BO_Add, BF_One, BF_SourceAlpha, BO_Add, BF_Zero, BF_One>::GetRHI();
+	FRHIBlendState* PreMultipliedColorTransmittanceBlend;
+	const bool bSupportsAlpha = IsPostProcessingWithAlphaChannelSupported();
+	if (bSupportsAlpha)
+	{
+		PreMultipliedColorTransmittanceBlend = TStaticBlendState<CW_RGBA, BO_Add, BF_One, BF_SourceAlpha, BO_Add, BF_Zero, BF_SourceAlpha>::GetRHI();
+	}
+	else
+	{
+		PreMultipliedColorTransmittanceBlend = TStaticBlendState<CW_RGB, BO_Add, BF_One, BF_SourceAlpha, BO_Add, BF_Zero, BF_One>::GetRHI();
+	}
 
 	for (int32 ViewIndex = 0; ViewIndex < Views.Num(); ViewIndex++)
 	{

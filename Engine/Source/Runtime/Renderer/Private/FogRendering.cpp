@@ -11,6 +11,7 @@
 #include "SceneCore.h"
 #include "ScreenPass.h"
 #include "TextureResource.h"
+#include "PostProcess/PostProcessing.h" // IsPostProcessingWithAlphaChannelSupported
 
 DECLARE_GPU_DRAWCALL_STAT(Fog);
 
@@ -315,8 +316,16 @@ static void RenderViewFog(
 
 	if (bEnableBlending)
 	{
-		// disable alpha writes in order to preserve scene depth values on PC
-		GraphicsPSOInit.BlendState = TStaticBlendState<CW_RGB, BO_Add, BF_One, BF_SourceAlpha>::GetRHI();
+		const bool bSupportsAlpha = IsPostProcessingWithAlphaChannelSupported();
+		if (bSupportsAlpha)
+		{
+			GraphicsPSOInit.BlendState = TStaticBlendState<CW_RGBA, BO_Add, BF_One, BF_SourceAlpha, BO_Add, BF_Zero, BF_SourceAlpha>::GetRHI();
+		}
+		else
+		{
+			// disable alpha writes in order to preserve scene depth values on PC
+			GraphicsPSOInit.BlendState = TStaticBlendState<CW_RGB, BO_Add, BF_One, BF_SourceAlpha>::GetRHI();
+		}
 	}
 	else
 	{

@@ -944,10 +944,19 @@ void RenderSkyAtmosphereRayMarchingPS(
 		bool IntersectGround = RaySphereIntersectNearest(WorldPosLocal, WorldDirLocal, float3(0, 0, 0), Atmosphere.BottomRadiusKm) >= 0.0f;
 
 		SkyViewLutParamsToUv(IntersectGround, ViewZenithCosAngle, WorldDirLocal, ViewHeight, Atmosphere.BottomRadiusKm, SkyAtmosphere.SkyViewLutSizeAndInvSize, UV);
-		float3 SkyLuminance = SkyViewLutTexture.SampleLevel(SkyViewLutTextureSampler, UV, 0).rgb;
+		float4 SkyLuminanceTransmittance = SkyViewLutTexture.SampleLevel(SkyViewLutTextureSampler, UV, 0);
+		float3 SkyLuminance = SkyLuminanceTransmittance.rgb;
+
+		float3 SkyGreyTransmittance = 1.0f;
+	#if POST_PROCESS_ALPHA
+		if (Atmosphere.bHoldout && View.RenderingReflectionCaptureMask == 0.0f)
+		{
+			SkyGreyTransmittance = SkyLuminanceTransmittance.aaa;
+		}
+	#endif
 
 		PreExposedL += SkyLuminance * LuminanceScale * (ViewOneOverPreExposure * OutputPreExposure);
-		OutLuminance = PrepareOutput(PreExposedL);
+		OutLuminance = PrepareOutput(PreExposedL, SkyGreyTransmittance);
 		return;
 	}
 #endif
@@ -1230,12 +1239,9 @@ void RenderMultiScatteredLuminanceLutCS(uint3 ThreadId : SV_DispatchThreadID)
 // Sky View LUT
 ////////////////////////////////////////////////////////////
 
-// see SkyAtmosphereRendering.cpp GetSkyLutTextureFormat
-#if SHADING_PATH_MOBILE
+// Even thought the texture can have 3 channels only (see SkyAtmosphereRendering.cpp GetSkyLutTextureFormat)
+// We always write 4 channels as the grey scale transmittance can be used when alpha propagation is enabled.
 RWTexture2D<float4> SkyViewLutUAV;
-#else
-RWTexture2D<float3> SkyViewLutUAV;
-#endif
 
 [numthreads(THREADGROUP_SIZE, THREADGROUP_SIZE, 1)]
 void RenderSkyViewLutCS(uint3 ThreadId : SV_DispatchThreadID)
@@ -1292,11 +1298,8 @@ void RenderSkyViewLutCS(uint3 ThreadId : SV_DispatchThreadID)
 		View.AtmosphereLightIlluminanceOuterSpace[0].rgb, View.AtmosphereLightIlluminanceOuterSpace[1].rgb,
 		AerialPespectiveViewDistanceScale);
 
-#if SHADING_PATH_MOBILE
-	SkyViewLutUAV[int2(PixPos)] = float4(ss.L, 0.0f);
-#else
-	SkyViewLutUAV[int2(PixPos)] = ss.L;
-#endif
+	const float Transmittance = dot(ss.Transmittance, float3(1.0f / 3.0f, 1.0f / 3.0f, 1.0f / 3.0f));
+	SkyViewLutUAV[int2(PixPos)] = float4(ss.L, Transmittance);
 }
 
 

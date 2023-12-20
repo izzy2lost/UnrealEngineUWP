@@ -19,6 +19,7 @@
 #include "RendererUtils.h"
 #include "ScreenPass.h"
 #include "UnrealEngine.h"
+#include "PostProcess/PostProcessing.h" // IsPostProcessingWithAlphaChannelSupported
 
 
 //PRAGMA_DISABLE_OPTIMIZATION
@@ -1111,7 +1112,8 @@ void FSceneRenderer::InitSkyAtmosphereForViews(FRHICommandListImmediate& RHICmdL
 static EPixelFormat GetSkyLutTextureFormat(ERHIFeatureLevel::Type FeatureLevel)
 {
 	EPixelFormat TextureLUTFormat = PF_FloatRGB;
-	if (FeatureLevel <= ERHIFeatureLevel::ES3_1)
+	const bool bSupportsAlpha = IsPostProcessingWithAlphaChannelSupported();
+	if (FeatureLevel <= ERHIFeatureLevel::ES3_1 || bSupportsAlpha)
 	{
 		// OpenGL ES3.1 does not support storing into 3-component images
 		// TODO: check if need this for Metal, Vulkan
@@ -1858,12 +1860,13 @@ void FSceneRenderer::RenderSkyAtmosphereInternal(
 
 		const bool bFastAerialPerspectiveDepthTest = SkyRC.bFastAerialPerspectiveDepthTest;
 		const bool bRenderSkyPixel = SkyRC.bRenderSkyPixel;
+		const bool bSupportsAlpha = IsPostProcessingWithAlphaChannelSupported();
 		FIntRect Viewport = SkyRC.Viewport;
 		GraphBuilder.AddPass(
 			{},
 			PsPassParameters,
 			ERDGPassFlags::Raster,
-			[PsPassParameters, VertexShader, PixelShader, Viewport, bFastAerialPerspectiveDepthTest, bRenderSkyPixel, bDisableBlending, StartDepthZ](FRHICommandList& RHICmdListLambda)
+			[PsPassParameters, VertexShader, PixelShader, Viewport, bFastAerialPerspectiveDepthTest, bRenderSkyPixel, bDisableBlending, StartDepthZ, bSupportsAlpha](FRHICommandList& RHICmdListLambda)
 		{
 			RHICmdListLambda.SetViewport(Viewport.Min.X, Viewport.Min.Y, 0.0f, Viewport.Max.X, Viewport.Max.Y, 1.0f);
 
@@ -1876,7 +1879,14 @@ void FSceneRenderer::RenderSkyAtmosphereInternal(
 			}
 			else
 			{
-				GraphicsPSOInit.BlendState = TStaticBlendState<CW_RGB, BO_Add, BF_One, BF_SourceAlpha, BO_Add, BF_Zero, BF_One>::GetRHI();
+				if (bSupportsAlpha)
+				{
+					GraphicsPSOInit.BlendState = TStaticBlendState<CW_RGBA, BO_Add, BF_One, BF_SourceAlpha, BO_Add, BF_Zero, BF_SourceAlpha>::GetRHI();
+				}
+				else
+				{
+					GraphicsPSOInit.BlendState = TStaticBlendState<CW_RGB, BO_Add, BF_One, BF_SourceAlpha, BO_Add, BF_Zero, BF_One>::GetRHI(); 
+				}
 			}
 			if (bFastAerialPerspectiveDepthTest)
 			{
