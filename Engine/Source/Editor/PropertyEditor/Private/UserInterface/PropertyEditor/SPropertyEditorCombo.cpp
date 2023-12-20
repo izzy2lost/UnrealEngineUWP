@@ -260,10 +260,7 @@ void SPropertyEditorCombo::GenerateComboBoxStrings( TArray< TSharedPtr<FString> 
 
 			if(Enum)
 			{
-				TArray<UObject*> ObjectList;
-				ComboArgs.PropertyHandle->GetOuterObjects(ObjectList);
-				
-				TArray<FName> ValidPropertyEnums = PropertyEditorHelpers::GetValidEnumsFromPropertyOverride(ObjectList, Property, Enum);
+				TArray<FName> ValidPropertyEnums = PropertyEditorHelpers::GetValidEnumsFromPropertyOverride(Property, Enum);
 				TArray<FName> InvalidPropertyEnums = PropertyEditorHelpers::GetInvalidEnumsFromPropertyOverride(Property, Enum);
 				
 				// Get enum doc link (not just GetDocumentationLink as that is the documentation for the struct we're in, not the enum documentation)

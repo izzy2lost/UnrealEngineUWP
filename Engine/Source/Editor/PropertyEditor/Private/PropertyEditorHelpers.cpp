@@ -128,7 +128,6 @@ TSharedRef<SWidget> SPropertyValueWidget::ConstructPropertyEditorWidget( TShared
 	//const TSharedRef<IPropertyUtilities> PropertyUtilitiesRef = InPropertyUtilities.ToSharedRef();
 
 	const TSharedRef< FPropertyNode > PropertyNode = PropertyEditorRef->GetPropertyNode();
-	const int32 NodeArrayIndex = PropertyNode->GetArrayIndex();
 	FProperty* Property = PropertyNode->GetProperty();
 	
 	FSlateFontInfo FontStyle = FAppStyle::GetFontStyle( PropertyEditorConstants::PropertyFontStyle );
@@ -1117,7 +1116,7 @@ namespace PropertyEditorHelpers
 
 	void CollectObjectNodes( TSharedPtr<FPropertyNode> StartNode, TArray<FObjectPropertyNode*>& OutObjectNodes )
 	{
-		if( StartNode->AsObjectNode() != NULL )
+		if( StartNode->AsObjectNode() != nullptr )
 		{
 			OutObjectNodes.Add( StartNode->AsObjectNode() );
 		}
@@ -1126,69 +1125,26 @@ namespace PropertyEditorHelpers
 		{
 			CollectObjectNodes( StartNode->GetChildNode( ChildIndex ), OutObjectNodes );
 		}
-		
 	}
 
-	TArray<FName> GetValidEnumsFromPropertyOverride(const TArray<UObject*>& ObjectList, const FProperty* Property, const UEnum* InEnum)
+	TArray<FName> GetValidEnumsFromPropertyOverride(const FProperty* Property, const UEnum* InEnum)
 	{
 		TArray<FName> ValidEnumValues;
-		
-		bool bMergeValidEnums = false;
 
 		static const FName ValidEnumValuesName("ValidEnumValues");
-		static const FName GetValidEnumValuesName("GetValidEnumValues");
-		TArray<FString> ValidEnumValuesAsString;
 		
-		if(Property->HasMetaData(ValidEnumValuesName))
+		if (Property->HasMetaData(ValidEnumValuesName))
 		{
-			bMergeValidEnums = true;
+			TArray<FString> ValidEnumValuesAsString;
 			Property->GetMetaData(ValidEnumValuesName).ParseIntoArray(ValidEnumValuesAsString, TEXT(","));
-		}
-
-		if(Property->HasMetaData(GetValidEnumValuesName))
-		{
-			const FString GetValidEnumValuesNameFunctionName = Property->GetMetaData(GetValidEnumValuesName);
-			if (!GetValidEnumValuesNameFunctionName.IsEmpty())
+			
+			for (FString& Value : ValidEnumValuesAsString)
 			{
-				for (UObject* Object : ObjectList)
-				{
-					const UFunction* GetValidEnumValuesNameFunction = Object ? Object->FindFunction(*GetValidEnumValuesNameFunctionName) : nullptr;
-					if (GetValidEnumValuesNameFunction)
-					{
-						DECLARE_DELEGATE_RetVal(TArray<FString>, FGetValidEnumValuesNameF);
-						if (!bMergeValidEnums)
-						{
-							ValidEnumValuesAsString = FGetValidEnumValuesNameF::CreateUFunction(Object, GetValidEnumValuesNameFunction->GetFName()).Execute();
-							bMergeValidEnums = true;
-						}
-						else
-						{
-							TArray<FString> ValidEnumValuesAsStringToMerge = FGetValidEnumValuesNameF::CreateUFunction(Object, GetValidEnumValuesNameFunction->GetFName()).Execute();
-							TArray<FString> OldValidEnumValuesAsString = MoveTemp(ValidEnumValuesAsString);
-							for (const FString& OldValidEnumValue : OldValidEnumValuesAsString)
-							{
-								if (ValidEnumValuesAsStringToMerge.Contains(OldValidEnumValue))
-								{
-									ValidEnumValuesAsString.Add(OldValidEnumValue);
-								}
-							}
-						}
-						if (ValidEnumValuesAsString.IsEmpty())
-						{
-							ValidEnumValues.Add(NAME_None);
-							return ValidEnumValues;
-						}
-					}
-				}
+				Value.TrimStartInline();
+				ValidEnumValues.Add(*InEnum->GenerateFullEnumName(*Value));
 			}
 		}
-		
-		for(FString& Value : ValidEnumValuesAsString)
-		{
-			Value.TrimStartInline();
-			ValidEnumValues.Add(*InEnum->GenerateFullEnumName(*Value));
-		}
-			
+
 		return ValidEnumValues;
 	}
 
@@ -1197,12 +1153,12 @@ namespace PropertyEditorHelpers
 		TArray<FName> InvalidEnumValues;
 
 		static const FName InvalidEnumValuesName("InvalidEnumValues");
-		if(Property->HasMetaData(InvalidEnumValuesName))
+		if (Property->HasMetaData(InvalidEnumValuesName))
 		{
 			TArray<FString> InvalidEnumValuesAsString;
 
 			Property->GetMetaData(InvalidEnumValuesName).ParseIntoArray(InvalidEnumValuesAsString, TEXT(","));
-			for(FString& Value : InvalidEnumValuesAsString)
+			for (FString& Value : InvalidEnumValuesAsString)
 			{
 				Value.TrimStartInline();
 				InvalidEnumValues.Add(*InEnum->GenerateFullEnumName(*Value));
@@ -1210,6 +1166,40 @@ namespace PropertyEditorHelpers
 		}
 
 		return InvalidEnumValues;
+	}
+	
+	TArray<FName> GetRestrictedEnumsFromPropertyOverride(TArrayView<UObject*> ObjectList, const FProperty* Property, const UEnum* InEnum)
+	{
+		TArray<FName> RestrictedEnumValues;
+
+		static const FName GetRestrictedEnumValuesName("GetRestrictedEnumValues");
+		TArray<FString> ValidEnumValuesAsString;
+		
+		if (Property->HasMetaData(GetRestrictedEnumValuesName))
+		{
+			const FString GetRestrictedEnumValuesNameFunctionName = Property->GetMetaData(GetRestrictedEnumValuesName);
+			if (!GetRestrictedEnumValuesNameFunctionName.IsEmpty())
+			{
+				for (UObject* Object : ObjectList)
+				{
+					const UFunction* GetRestrictedEnumValuesNameFunction = Object ? Object->FindFunction(*GetRestrictedEnumValuesNameFunctionName) : nullptr;
+					if (GetRestrictedEnumValuesNameFunction)
+					{
+						DECLARE_DELEGATE_RetVal(TArray<FString>, FGetValidEnumValuesNameF);
+
+						ValidEnumValuesAsString.Append(FGetValidEnumValuesNameF::CreateUFunction(Object, GetRestrictedEnumValuesNameFunction->GetFName()).Execute());
+					}
+				}
+			}
+
+			for (FString& Value : ValidEnumValuesAsString)
+			{
+				Value.TrimStartInline();
+				RestrictedEnumValues.AddUnique(*InEnum->GenerateFullEnumName(*Value));
+			}
+		}
+		
+		return RestrictedEnumValues;
 	}
 
 	TMap<FName, FText> GetEnumValueDisplayNamesFromPropertyOverride(const FProperty* Property, const UEnum* InEnum)

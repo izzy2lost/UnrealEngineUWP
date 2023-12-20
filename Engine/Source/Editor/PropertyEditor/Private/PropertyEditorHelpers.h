@@ -256,12 +256,11 @@ namespace PropertyEditorHelpers
 	/**
 	 * Returns any enums that are explicitly allowed by the "ValidEnumValues" metadata on FProperty using the specified enum.
 	 *
-	 * @param ObjectList The list of objects currently edited
 	 * @param Property	The property which may contain the "ValidEnumValues" metadata
 	 * @param InEnum	The enum to search
 	 * @return The array of allowed enums.  NOTE: If an empty array is returned all enum values are allowed. It is an error for a property to hide all enum values so that state is undefined here.
 	 */
-	TArray<FName> GetValidEnumsFromPropertyOverride(const TArray<UObject*>& ObjectList, const FProperty* Property, const UEnum* InEnum);
+	TArray<FName> GetValidEnumsFromPropertyOverride(const FProperty* Property, const UEnum* InEnum);
 
 	/**
 	 * Returns any enums that are explicitly Disallowed by the "InvalidEnumValues" metadata on FProperty using the specified enum.
@@ -271,6 +270,16 @@ namespace PropertyEditorHelpers
 	 * @return The array of disallowed enums.
 	 */
 	TArray<FName> GetInvalidEnumsFromPropertyOverride(const FProperty* Property, const UEnum* InEnum);
+
+	/**
+	 * Returns any enums that are explicitly restricted by the "GetRestrictedEnumValues" metadata on FProperty using the specified enum.
+	 *
+	 * @param ObjectList The list of objects currently edited
+	 * @param Property	The property which may contain the "GetRestrictedEnumValues" metadata
+	 * @param InEnum	The enum to search
+	 * @return The array of restricted enums.  
+	 */
+	TArray<FName> GetRestrictedEnumsFromPropertyOverride(TArrayView<UObject*> ObjectList, const FProperty* Property, const UEnum* InEnum);
 
 	/**
 	 * Returns any enums that are have an overridden display name from the "EnumValueDisplayNameOverrides" metadata on FProperty using the specified enum.

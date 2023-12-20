@@ -3082,8 +3082,10 @@ bool FPropertyHandleBase::GeneratePossibleValues(TArray< TSharedPtr<FString> >& 
 		TArray<UObject*> OuterObjects;
 		GetOuterObjects(OuterObjects);		
 		
-		const TArray<FName> ValidEnumValues = PropertyEditorHelpers::GetValidEnumsFromPropertyOverride(OuterObjects, Property, Enum);
+		const TArray<FName> ValidEnumValues = PropertyEditorHelpers::GetValidEnumsFromPropertyOverride(Property, Enum);
 		const TArray<FName> InvalidEnumValues = PropertyEditorHelpers::GetInvalidEnumsFromPropertyOverride(Property, Enum);
+		const TArray<FName> RestrictedEnumValues = PropertyEditorHelpers::GetRestrictedEnumsFromPropertyOverride(OuterObjects, Property, Enum);
+		
 		const TMap<FName, FText> EnumValueDisplayNameOverrides = PropertyEditorHelpers::GetEnumValueDisplayNamesFromPropertyOverride(Property, Enum);
 
 		//NumEnums() - 1, because the last item in an enum is the _MAX item
@@ -3095,12 +3097,12 @@ bool FPropertyHandleBase::GeneratePossibleValues(TArray< TSharedPtr<FString> >& 
 			{
 				if(ValidEnumValues.Num() > 0)
 				{
-					bShouldBeHidden = ValidEnumValues.Find(Enum->GetNameByIndex(EnumIndex)) == INDEX_NONE;
+					bShouldBeHidden = !ValidEnumValues.Contains(Enum->GetNameByIndex(EnumIndex));
 				}
 				// If both are specified, InvalidEnumValues takes precedence
 				else if(InvalidEnumValues.Num() > 0)
 				{
-					bShouldBeHidden = InvalidEnumValues.Find(Enum->GetNameByIndex(EnumIndex)) != INDEX_NONE;
+					bShouldBeHidden = InvalidEnumValues.Contains(Enum->GetNameByIndex(EnumIndex));
 				}
 			}
 
@@ -3120,7 +3122,7 @@ bool FPropertyHandleBase::GeneratePossibleValues(TArray< TSharedPtr<FString> >& 
 				}
 
 				FText RestrictionTooltip;
-				const bool bIsRestricted = GenerateRestrictionToolTip(EnumName, RestrictionTooltip);
+				const bool bIsRestricted = GenerateRestrictionToolTip(EnumName, RestrictionTooltip) || RestrictedEnumValues.Contains(Enum->GetNameByIndex(EnumIndex));
 				OutRestrictedItems.Add(bIsRestricted);
 
 				if (EnumDisplayName.Len() == 0)
