@@ -393,6 +393,9 @@ protected:
 
 		EInstallBundleCacheReserveResult LastCacheReserveResult = EInstallBundleCacheReserveResult::Success;
 
+		// how many results we are expected to have in the SourceRequestResults array
+		int RequiredSourceRequestResultsCount = 0;
+		// completion results from each bundle source
 		TMap<EInstallBundleSourceType, FInstallBundleSourceUpdateContentResultInfo> SourceRequestResults;
 		FText OptionalErrorText;
 		FString OptionalErrorCode;
@@ -685,6 +688,7 @@ protected:
 	void PersistentTimingStatsBegin(TSharedRef<FContentRequest> ContentRequest, InstallBundleUtil::PersistentStats::ETimingStatNames TimerStatName);
 	void PersistentTimingStatsEnd(TSharedRef<FContentRequest> ContentRequest, InstallBundleUtil::PersistentStats::ETimingStatNames TimerStatName);
 	
+	virtual TMap<EInstallBundleSourceType, TSharedPtr<IInstallBundleSource>> GetEnabledBundleSourcesForRequest(FContentRequestRef Request) const;
 	// Initialization state machine
 protected:
 	EInstallBundleManagerInitResult Init_DefaultBundleSources();
