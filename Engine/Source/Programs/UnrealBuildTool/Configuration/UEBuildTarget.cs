@@ -2124,11 +2124,11 @@ namespace UnrealBuildTool
 				{
 					if (Pair.Value == BuildProductType.Executable)
 					{
-						if (System.IO.Path.GetFileNameWithoutExtension(Pair.Key.FullName).EndsWith("-Cmd"))
+						if (System.IO.Path.GetFileNameWithoutExtension(Pair.Key.FullName).EndsWith("-Cmd") && Receipt.LaunchCmd == null)
 						{
 							Receipt.LaunchCmd = Pair.Key;
 						}
-						else
+						else if (Receipt.Launch == null)
 						{
 							Receipt.Launch = Pair.Key;
 						}
