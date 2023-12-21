@@ -17,7 +17,10 @@ class HORDE_API FBlobReader
 {
 public:
 	FBlobReader(const FBlob& InBlob);
-	FBlobReader(const FMemoryView& InBuffer, const TArray<FBlobHandle>& InImports);
+	FBlobReader(int32 InVersion, const FMemoryView& InBuffer, const TArray<FBlobHandle>& InImports);
+
+	/** Gets a version number for the current blob */
+	int GetVersion() const;
 
 	/** Gets a pointer to the remaining memory. */
 	const unsigned char* GetBuffer() const;
@@ -32,6 +35,7 @@ public:
 	FBlobHandle ReadImport();
 
 private:
+	int32 Version;
 	FMemoryView Buffer;
 	const TArray<FBlobHandle>& Imports;
 	int32 NextImportIdx;

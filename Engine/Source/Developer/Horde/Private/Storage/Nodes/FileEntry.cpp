@@ -21,6 +21,10 @@ FFileEntry::~FFileEntry()
 FFileEntry FFileEntry::Read(FBlobReader& Reader)
 {
 	FBlobHandleWithHash Target = ReadBlobHandleWithHash(Reader);
+	if (Reader.GetVersion() >= 2)
+	{
+		ReadUnsignedVarInt(Reader);
+	}
 
 	FUtf8String Name = ReadString(Reader);
 	EFileEntryFlags Flags = (EFileEntryFlags)ReadUnsignedVarInt(Reader);

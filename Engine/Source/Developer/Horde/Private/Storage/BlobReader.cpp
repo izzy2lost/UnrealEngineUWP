@@ -8,15 +8,21 @@
 // ------------------------------------------------------------------------
 
 FBlobReader::FBlobReader(const FBlob& InBlob)
-	: FBlobReader(InBlob.Data.GetView(), InBlob.References)
+	: FBlobReader(InBlob.Type.Version, InBlob.Data.GetView(), InBlob.References)
 {
 }
 
-FBlobReader::FBlobReader(const FMemoryView& InBuffer, const TArray<FBlobHandle>& InImports)
-	: Buffer(InBuffer)
+FBlobReader::FBlobReader(int32 InVersion, const FMemoryView& InBuffer, const TArray<FBlobHandle>& InImports)
+	: Version(InVersion)
+	, Buffer(InBuffer)
 	, Imports(InImports)
 	, NextImportIdx(0)
 {
+}
+
+int32 FBlobReader::GetVersion() const
+{
+	return Version;
 }
 
 const unsigned char* FBlobReader::GetBuffer() const
