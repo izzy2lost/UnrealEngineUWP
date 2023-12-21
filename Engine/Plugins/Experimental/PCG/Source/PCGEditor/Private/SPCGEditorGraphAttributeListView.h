@@ -139,11 +139,15 @@ public:
 
 	void RequestRefresh() { bNeedsRefresh = true; }
 
+	UPCGEditorGraphNodeBase* GetNodeBeingInspected() const;
+	void SetNodeBeingInspected(UPCGEditorGraphNodeBase* InNode);
+
+	bool IsLocked() const { return bIsLocked; }
+
 private:
 	TSharedRef<SHeaderRow> CreateHeaderRowWidget() const;
 
 	void OnInspectedStackChanged(const FPCGStack& InPCGStack);
-	void OnInspectedNodeChanged(UPCGEditorGraphNodeBase* InPCGEditorGraphNode);
 
 	void OnGenerateUpdated(UPCGComponent* InPCGComponent);
 
@@ -204,6 +208,11 @@ private:
 	void CopySelectionToClipboard() const;
 	bool CanCopySelectionToClipboard() const;
 
+	/** @return the Slate brush to use for the lock image */
+	const FSlateBrush* OnGetLockButtonImageResource() const;
+
+	FReply OnLockClick();
+
 	/** Pointer back to the PCG editor that owns us */
 	TWeakPtr<FPCGEditor> PCGEditorPtr;
 
@@ -232,6 +241,7 @@ private:
 	TSharedPtr<STextBlock> NodeNameTextBlock;
 	TSharedPtr<STextBlock> InfoTextBlock;
 	TSharedPtr<SComboButton> FilterButton;
+	TSharedPtr<SButton> LockButton;
 
 	TArray<FName> HiddenAttributes;
 
@@ -242,7 +252,10 @@ private:
 	FName SortingColumn = NAME_None;
 	EColumnSortMode::Type SortMode = EColumnSortMode::Type::Ascending;
 
-	bool bNeedsRefresh = false;
+	bool bNeedsRefresh : 1 = false;
+
+	/** True if this property view is currently locked (i.e. The objects being observed are not changed automatically due to user selection)*/
+	bool bIsLocked : 1 = false;
 
 	TSharedPtr<FPCGListViewUpdater> CurrentUpdateTask = nullptr;
 };

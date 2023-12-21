@@ -12,12 +12,11 @@ class FSpawnTabArgs;
 enum class ECheckBoxState : uint8;
 namespace ETextCommit { enum Type : int; }
 
-struct FPropertyAndParent;
 class FUICommandList;
-class IDetailsView;
 class SGraphEditor;
 class SPCGEditorGraphAttributeListView;
 class SPCGEditorGraphDebugObjectTree;
+class SPCGEditorGraphDetailsView;
 class SPCGEditorGraphDeterminismListView;
 class SPCGEditorGraphFind;
 class SPCGEditorGraphLogView;
@@ -28,7 +27,6 @@ class UPCGComponent;
 class UPCGEditorGraph;
 class UPCGEditorGraphNodeBase;
 class UPCGGraph;
-class UPCGNode;
 
 DECLARE_MULTICAST_DELEGATE_OneParam(FOnInspectedStackChanged, const FPCGStack&);
 DECLARE_MULTICAST_DELEGATE_OneParam(FOnInspectedNodeChanged, UPCGEditorGraphNodeBase*);
@@ -89,7 +87,6 @@ public:
 	// ~End FAssetEditorToolkit interface
 
 	FOnInspectedStackChanged OnInspectedStackChangedDelegate;
-	FOnInspectedNodeChanged OnInspectedNodeChangedDelegate;
 
 protected:
 	// ~Begin FAssetEditorToolkit interface
@@ -286,12 +283,6 @@ private:
 	/** To be called everytime we need to replicate our extra nodes to the underlying PCGGraph */
 	void ReplicateExtraNodes() const;
 
-	/** Returns whether a property should be readonly (used for instances) */
-	bool IsReadOnlyProperty(const FPropertyAndParent& InPropertyAndParent, IDetailsView* InDetailsView) const;
-
-	/** Returns whether a property should be visible (used for instance vs. settings properties) */
-	bool IsVisibleProperty(const FPropertyAndParent& InPropertyAndParent, IDetailsView* InDetailsView) const;
-
 	void OnGraphStructureChanged(UPCGGraphInterface* InGraph);
 
 	/** Called when a component finishes executing. Useful for updating debugging tools/UIs. */
@@ -304,21 +295,25 @@ private:
 	void OnLevelActorDeleted(AActor* InActor);
 
 	TSharedRef<SDockTab> SpawnTab_GraphEditor(const FSpawnTabArgs& Args);
-	TSharedRef<SDockTab> SpawnTab_PropertyDetails(const FSpawnTabArgs& Args);
+	TSharedRef<SDockTab> SpawnTab_PropertyDetails(const FSpawnTabArgs& Args, int PropertyDetailsIndex);
 	TSharedRef<SDockTab> SpawnTab_Palette(const FSpawnTabArgs& Args);
 	TSharedRef<SDockTab> SpawnTab_DebugObjectTree(const FSpawnTabArgs& Args);
-	TSharedRef<SDockTab> SpawnTab_Attributes(const FSpawnTabArgs& Args);
+	TSharedRef<SDockTab> SpawnTab_Attributes(const FSpawnTabArgs& Args, int AttributesIndex);
 	TSharedRef<SDockTab> SpawnTab_Find(const FSpawnTabArgs& Args);
 	TSharedRef<SDockTab> SpawnTab_Determinism(const FSpawnTabArgs& Args);
 	TSharedRef<SDockTab> SpawnTab_Profiling(const FSpawnTabArgs& Args);
 	TSharedRef<SDockTab> SpawnTab_Log(const FSpawnTabArgs& Args);
 
+	FText GetDetailsTabLabel(int DetailsIndex);
+	FText GetDetailsViewObjectName(int DetailsIndex);
+	FText GetAttributesTabLabel(int AttributesIndex);
+
 	TSharedPtr<SGraphEditor> GraphEditorWidget;
-	TSharedPtr<IDetailsView> PropertyDetailsWidget;
+	TArray<TSharedPtr<SPCGEditorGraphDetailsView>> PropertyDetailsWidgets;
 	TSharedPtr<SPCGEditorGraphNodePalette> PaletteWidget;
 	TSharedPtr<SPCGEditorGraphDebugObjectTree> DebugObjectTreeWidget;
 	TSharedPtr<SPCGEditorGraphFind> FindWidget;
-	TSharedPtr<SPCGEditorGraphAttributeListView> AttributesWidget;
+	TArray<TSharedPtr<SPCGEditorGraphAttributeListView>> AttributesWidgets;
 	TSharedPtr<SPCGEditorGraphDeterminismListView> DeterminismWidget;
 	TSharedPtr<SPCGEditorGraphProfilingView> ProfilingWidget;
 	TSharedPtr<SPCGEditorGraphLogView> LogWidget;
@@ -330,5 +325,4 @@ private:
 
 	TWeakObjectPtr<UPCGComponent> PCGComponentBeingInspected;
 	FPCGStack StackBeingInspected;
-	UPCGEditorGraphNodeBase* PCGGraphNodeBeingInspected = nullptr;
 };

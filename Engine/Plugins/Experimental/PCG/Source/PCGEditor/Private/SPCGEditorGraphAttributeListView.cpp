@@ -26,6 +26,7 @@
 #include "HAL/PlatformApplicationMisc.h"
 #include "Widgets/Images/SLayeredImage.h"
 #include "Widgets/Images/SThrobber.h"
+#include "Widgets/Input/SButton.h"
 #include "Widgets/Input/SComboBox.h"
 #include "Widgets/Input/SSearchBox.h"
 #include "Widgets/Layout/SScrollBox.h"
@@ -141,7 +142,7 @@ void FPCGListViewUpdater::AsyncSort()
 {
 	if (const FPCGColumnData* Data = ColumnData.Find(SortMode == EColumnSortMode::None ? PCGEditorGraphAttributeListView::NAME_Index : SortingColumn))
 	{
-		if (Data->DataAccessor.IsValid() && Data->DataKeys.IsValid())
+		if (Data->DataAccessor.IsValid() && Data->DataKeys.IsValid() && Data->DataKeys->GetNum() == ListViewItems.Num())
 		{
 			//lambda used here to get the index value of an item in the array for sorting
 			PCGAttributeAccessorHelpers::SortByAttribute(*Data->DataAccessor, *Data->DataKeys, ListViewItems, !(SortMode & EColumnSortMode::Descending), [this](int Index) { return ListViewItems[Index]->Index; });
@@ -311,7 +312,6 @@ SPCGEditorGraphAttributeListView::~SPCGEditorGraphAttributeListView()
 	if (PCGEditorPtr.IsValid())
 	{
 		PCGEditorPtr.Pin()->OnInspectedStackChangedDelegate.RemoveAll(this);
-		PCGEditorPtr.Pin()->OnInspectedNodeChangedDelegate.RemoveAll(this);
 	}
 }
 
@@ -321,7 +321,6 @@ void SPCGEditorGraphAttributeListView::Construct(const FArguments& InArgs, TShar
 	SortingColumn = PCGEditorGraphAttributeListView::NAME_Index;
 
 	PCGEditorPtr.Pin()->OnInspectedStackChangedDelegate.AddSP(this, &SPCGEditorGraphAttributeListView::OnInspectedStackChanged);
-	PCGEditorPtr.Pin()->OnInspectedNodeChangedDelegate.AddSP(this, &SPCGEditorGraphAttributeListView::OnInspectedNodeChanged);
 
 	TextFilter = MakeShareable(new FTextFilterExpressionEvaluator(ETextFilterExpressionEvaluatorMode::Complex));
 
@@ -380,6 +379,19 @@ void SPCGEditorGraphAttributeListView::Construct(const FArguments& InArgs, TShar
 
 	FilterImage->AddLayer(TAttribute<const FSlateBrush*>(this, &SPCGEditorGraphAttributeListView::GetFilterBadgeIcon));
 
+	SAssignNew(LockButton, SButton)
+		.ButtonStyle(FAppStyle::Get(), "SimpleButton")
+		.OnClicked(this, &SPCGEditorGraphAttributeListView::OnLockClick)
+		.ContentPadding(FMargin(4, 2))
+		.HAlign(HAlign_Center)
+		.VAlign(VAlign_Center)
+		.ToolTipText(LOCTEXT("LockSelectionButton_ToolTip", "Locks the current attribute list view to this selection"))
+		[
+			SNew(SImage)
+				.ColorAndOpacity(FSlateColor::UseForeground())
+				.Image(this, &SPCGEditorGraphAttributeListView::OnGetLockButtonImageResource)
+		];
+
 	SAssignNew(FilterButton, SComboButton)
 		.ForegroundColor(FSlateColor::UseStyle())
 		.HasDownArrow(false)
@@ -406,6 +418,12 @@ void SPCGEditorGraphAttributeListView::Construct(const FArguments& InArgs, TShar
 		.Padding(1.0f)
 		[
 			SNew(SHorizontalBox)
+			+SHorizontalBox::Slot()
+			.AutoWidth()
+			.Padding(1.0f, 0.0f)
+			[
+				LockButton->AsShared()
+			]
 			+SHorizontalBox::Slot()
 			.AutoWidth()
 			.Padding(1.0f, 0.0f)
@@ -554,7 +572,12 @@ void SPCGEditorGraphAttributeListView::OnInspectedStackChanged(const FPCGStack& 
 	}
 }
 
-void SPCGEditorGraphAttributeListView::OnInspectedNodeChanged(UPCGEditorGraphNodeBase* InPCGEditorGraphNode)
+UPCGEditorGraphNodeBase* SPCGEditorGraphAttributeListView::GetNodeBeingInspected() const
+{
+	return PCGEditorGraphNode.Get();
+}
+
+void SPCGEditorGraphAttributeListView::SetNodeBeingInspected(UPCGEditorGraphNodeBase* InPCGEditorGraphNode)
 {
 	if (PCGEditorGraphNode == InPCGEditorGraphNode)
 	{
@@ -573,6 +596,9 @@ void SPCGEditorGraphAttributeListView::OnInspectedNodeChanged(UPCGEditorGraphNod
 		NodeNameTextBlock->SetText(PCGEditorGraphAttributeListView::NoNodeInspectedText);
 		NodeNameTextBlock->SetToolTipText(PCGEditorGraphAttributeListView::NoNodeInspectedToolTip);
 	}
+
+	// Always unlock when changing the node, to make sure we unlock when removing the inspected node
+	bIsLocked = false;
 
 	RequestRefresh();
 }
@@ -1392,6 +1418,17 @@ void SPCGEditorGraphAttributeListView::CopySelectionToClipboard() const
 bool SPCGEditorGraphAttributeListView::CanCopySelectionToClipboard() const
 {
 	return ListView->GetNumItemsSelected() > 0;
+}
+
+const FSlateBrush* SPCGEditorGraphAttributeListView::OnGetLockButtonImageResource() const
+{
+	return FAppStyle::GetBrush(bIsLocked ? TEXT("PropertyWindow.Locked") : TEXT("PropertyWindow.Unlocked"));
+}
+
+FReply SPCGEditorGraphAttributeListView::OnLockClick()
+{
+	bIsLocked = !bIsLocked;
+	return FReply::Handled();
 }
 
 #undef LOCTEXT_NAMESPACE

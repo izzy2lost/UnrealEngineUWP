@@ -2,7 +2,6 @@
 
 #include "PCGEditor.h"
 
-#include "DetailsViewArgs.h"
 #include "PCGComponent.h"
 #include "Framework/Application/SlateApplication.h"
 #include "PCGEdge.h"
@@ -31,6 +30,7 @@
 #include "PCGEditorUtils.h"
 #include "SPCGEditorGraphAttributeListView.h"
 #include "SPCGEditorGraphDebugObjectTree.h"
+#include "SPCGEditorGraphDetailsView.h"
 #include "SPCGEditorGraphDeterminism.h"
 #include "SPCGEditorGraphFind.h"
 #include "SPCGEditorGraphLogView.h"
@@ -70,10 +70,18 @@
 namespace FPCGEditor_private
 {
 	const FName GraphEditorID = FName(TEXT("GraphEditor"));
-	const FName PropertyDetailsID = FName(TEXT("PropertyDetails"));
+	const FName PropertyDetailsID[] = {
+		FName(TEXT("PropertyDetails")),
+		FName(TEXT("PropertyDetails2")),
+		FName(TEXT("PropertyDetails3")),
+		FName(TEXT("PropertyDetails4")) };
 	const FName PaletteID = FName(TEXT("Palette"));
 	const FName DebugObjectID = FName(TEXT("DebugObject"));
-	const FName AttributesID = FName(TEXT("Attributes"));
+	const FName AttributesID[] = {
+		FName(TEXT("Attributes")),
+		FName(TEXT("Attributes2")),
+		FName(TEXT("Attributes3")),
+		FName(TEXT("Attributes4")) };
 	const FName FindID = FName(TEXT("Find"));
 	const FName DeterminismID = FName(TEXT("Determinism"));
 	const FName ProfilingID = FName(TEXT("Profiling"));
@@ -117,24 +125,23 @@ void FPCGEditor::Initialize(const EToolkitMode::Type InMode, const TSharedPtr<cl
 	PCGGraphBeingEdited->PCGEditorGraph->SetEditor(SharedThis(this));
 	PCGEditorGraph = PCGGraphBeingEdited->PCGEditorGraph;
 
-	FPropertyEditorModule& PropertyEditorModule = FModuleManager::GetModuleChecked<FPropertyEditorModule>("PropertyEditor");
-
-	FDetailsViewArgs DetailsViewArgs;
-	DetailsViewArgs.NameAreaSettings = FDetailsViewArgs::HideNameArea;
-	DetailsViewArgs.bHideSelectionTip = true;
-	DetailsViewArgs.DefaultsOnlyVisibility = EEditDefaultsOnlyNodeVisibility::Automatic;
-	PropertyDetailsWidget = PropertyEditorModule.CreateDetailView(DetailsViewArgs);
-	PropertyDetailsWidget->SetObject(PCGGraphBeingEdited);
-
-	IDetailsView* RawPropertyDetailsPtr = PropertyDetailsWidget.Get();
-	PropertyDetailsWidget->SetIsPropertyReadOnlyDelegate(FIsPropertyReadOnly::CreateRaw(this, &FPCGEditor::IsReadOnlyProperty, RawPropertyDetailsPtr));
-	PropertyDetailsWidget->SetIsPropertyVisibleDelegate(FIsPropertyVisible::CreateRaw(this, &FPCGEditor::IsVisibleProperty, RawPropertyDetailsPtr));
+	for (int PropertyDetailsIndex = 0; PropertyDetailsIndex < 4; ++PropertyDetailsIndex)
+	{
+		TSharedRef<SPCGEditorGraphDetailsView> PropertyDetailsWidget = SNew(SPCGEditorGraphDetailsView);
+		PropertyDetailsWidget->SetObject(PCGGraphBeingEdited);
+		PropertyDetailsWidgets.Add(PropertyDetailsWidget);
+	}
 
 	GraphEditorWidget = CreateGraphEditorWidget();
 	PaletteWidget = CreatePaletteWidget();
 	DebugObjectTreeWidget = CreateDebugObjectTreeWidget();
 	FindWidget = CreateFindWidget();
-	AttributesWidget = CreateAttributesWidget();
+
+	for (int AttributesIndex = 0; AttributesIndex < 4; ++AttributesIndex)
+	{
+		AttributesWidgets.Add(CreateAttributesWidget());
+	}
+	
 	DeterminismWidget = CreateDeterminismWidget();
 	ProfilingWidget = CreateProfilingWidget();
 	LogWidget = CreateLogWidget();
@@ -169,7 +176,7 @@ void FPCGEditor::Initialize(const EToolkitMode::Type InMode, const TSharedPtr<cl
 					FTabManager::NewStack()
 					->SetSizeCoefficient(0.20f)
 					->SetHideTabWell(true)
-					->AddTab(FPCGEditor_private::PropertyDetailsID, ETabState::OpenedTab)
+					->AddTab(FPCGEditor_private::PropertyDetailsID[0], ETabState::OpenedTab)
 				)
 			)
 			->Split
@@ -188,7 +195,7 @@ void FPCGEditor::Initialize(const EToolkitMode::Type InMode, const TSharedPtr<cl
 					FTabManager::NewStack()
 					->SetSizeCoefficient(0.8)
 					->SetHideTabWell(true)
-					->AddTab(FPCGEditor_private::AttributesID, ETabState::OpenedTab)
+					->AddTab(FPCGEditor_private::AttributesID[0], ETabState::OpenedTab)
 					->AddTab(FPCGEditor_private::DeterminismID, ETabState::ClosedTab)
 					->AddTab(FPCGEditor_private::FindID, ETabState::ClosedTab)
 				)
@@ -283,7 +290,10 @@ void FPCGEditor::UpdateDebugAfterComponentSelection(UPCGComponent* InOldComponen
 
 	auto RefreshComponent = [](UPCGComponent* Component)
 	{
-		check(Component);
+		if (!ensure(Component))
+		{
+			return;
+		}
 
 		// GenerateAtRuntime components should be refreshed through the runtime gen scheduler.
 		if (Component->IsManagedByRuntimeGenSystem())
@@ -360,6 +370,8 @@ void FPCGEditor::JumpToNode(const UEdGraphNode* InNode)
 void FPCGEditor::RegisterTabSpawners(const TSharedRef<FTabManager>& InTabManager)
 {
 	WorkspaceMenuCategory = InTabManager->AddLocalWorkspaceMenuCategory(LOCTEXT("WorkspaceMenu_PCGEditor", "PCG Editor"));
+	TSharedRef<FWorkspaceItem> DetailsGroup = WorkspaceMenuCategory->AddGroup(LOCTEXT("WorkspaceMenu_PCGEditor_Details", "Details"));
+	TSharedRef<FWorkspaceItem> AttributesGroup = WorkspaceMenuCategory->AddGroup(LOCTEXT("WorkspaceMenu_PCGEditor_Attributes", "Attributes"));
 	const TSharedRef<FWorkspaceItem>& WorkspaceMenuCategoryRef = WorkspaceMenuCategory.ToSharedRef();
 
 	FAssetEditorToolkit::RegisterTabSpawners(InTabManager);
@@ -369,9 +381,21 @@ void FPCGEditor::RegisterTabSpawners(const TSharedRef<FTabManager>& InTabManager
 		.SetDisplayName(LOCTEXT("GraphTab", "Graph"))
 		.SetGroup(WorkspaceMenuCategoryRef);
 
-	InTabManager->RegisterTabSpawner(FPCGEditor_private::PropertyDetailsID, FOnSpawnTab::CreateSP(this, &FPCGEditor::SpawnTab_PropertyDetails))
-		.SetDisplayName(LOCTEXT("DetailsTab", "Details"))
-		.SetGroup(WorkspaceMenuCategoryRef);
+	InTabManager->RegisterTabSpawner(FPCGEditor_private::PropertyDetailsID[0], FOnSpawnTab::CreateSP(this, &FPCGEditor::SpawnTab_PropertyDetails, 0))
+		.SetDisplayName(LOCTEXT("DetailsTab", "Details 1"))
+		.SetGroup(DetailsGroup);
+
+	InTabManager->RegisterTabSpawner(FPCGEditor_private::PropertyDetailsID[1], FOnSpawnTab::CreateSP(this, &FPCGEditor::SpawnTab_PropertyDetails, 1))
+		.SetDisplayName(LOCTEXT("DetailsTab", "Details 2"))
+		.SetGroup(DetailsGroup);
+
+	InTabManager->RegisterTabSpawner(FPCGEditor_private::PropertyDetailsID[2], FOnSpawnTab::CreateSP(this, &FPCGEditor::SpawnTab_PropertyDetails, 2))
+		.SetDisplayName(LOCTEXT("DetailsTab", "Details 3"))
+		.SetGroup(DetailsGroup);
+
+	InTabManager->RegisterTabSpawner(FPCGEditor_private::PropertyDetailsID[3], FOnSpawnTab::CreateSP(this, &FPCGEditor::SpawnTab_PropertyDetails, 3))
+		.SetDisplayName(LOCTEXT("DetailsTab", "Details 4"))
+		.SetGroup(DetailsGroup);
 
 	InTabManager->RegisterTabSpawner(FPCGEditor_private::PaletteID, FOnSpawnTab::CreateSP(this, &FPCGEditor::SpawnTab_Palette))
 		.SetDisplayName(LOCTEXT("PaletteTab", "Palette"))
@@ -381,9 +405,21 @@ void FPCGEditor::RegisterTabSpawners(const TSharedRef<FTabManager>& InTabManager
 		.SetDisplayName(LOCTEXT("DebugTab", "Debug Object Tree"))
 		.SetGroup(WorkspaceMenuCategoryRef);
 
-	InTabManager->RegisterTabSpawner(FPCGEditor_private::AttributesID, FOnSpawnTab::CreateSP(this, &FPCGEditor::SpawnTab_Attributes))
-		.SetDisplayName(LOCTEXT("AttributesTab", "Attributes"))
-		.SetGroup(WorkspaceMenuCategoryRef);
+	InTabManager->RegisterTabSpawner(FPCGEditor_private::AttributesID[0], FOnSpawnTab::CreateSP(this, &FPCGEditor::SpawnTab_Attributes, 0))
+		.SetDisplayName(LOCTEXT("AttributesTab", "Attributes 1"))
+		.SetGroup(AttributesGroup);
+
+	InTabManager->RegisterTabSpawner(FPCGEditor_private::AttributesID[1], FOnSpawnTab::CreateSP(this, &FPCGEditor::SpawnTab_Attributes, 1))
+		.SetDisplayName(LOCTEXT("AttributesTab", "Attributes 2"))
+		.SetGroup(AttributesGroup);
+
+	InTabManager->RegisterTabSpawner(FPCGEditor_private::AttributesID[2], FOnSpawnTab::CreateSP(this, &FPCGEditor::SpawnTab_Attributes, 2))
+		.SetDisplayName(LOCTEXT("AttributesTab", "Attributes 3"))
+		.SetGroup(AttributesGroup);
+
+	InTabManager->RegisterTabSpawner(FPCGEditor_private::AttributesID[3], FOnSpawnTab::CreateSP(this, &FPCGEditor::SpawnTab_Attributes, 3))
+		.SetDisplayName(LOCTEXT("AttributesTab", "Attributes 4"))
+		.SetGroup(AttributesGroup);
 
 	InTabManager->RegisterTabSpawner(FPCGEditor_private::FindID, FOnSpawnTab::CreateSP(this, &FPCGEditor::SpawnTab_Find))
 		.SetDisplayName(LOCTEXT("FindTab", "Find"))
@@ -405,10 +441,16 @@ void FPCGEditor::RegisterTabSpawners(const TSharedRef<FTabManager>& InTabManager
 void FPCGEditor::UnregisterTabSpawners(const TSharedRef<class FTabManager>& InTabManager)
 {
 	InTabManager->UnregisterTabSpawner(FPCGEditor_private::GraphEditorID);
-	InTabManager->UnregisterTabSpawner(FPCGEditor_private::PropertyDetailsID);
+	InTabManager->UnregisterTabSpawner(FPCGEditor_private::PropertyDetailsID[0]);
+	InTabManager->UnregisterTabSpawner(FPCGEditor_private::PropertyDetailsID[1]);
+	InTabManager->UnregisterTabSpawner(FPCGEditor_private::PropertyDetailsID[2]);
+	InTabManager->UnregisterTabSpawner(FPCGEditor_private::PropertyDetailsID[3]);
 	InTabManager->UnregisterTabSpawner(FPCGEditor_private::PaletteID);
 	InTabManager->UnregisterTabSpawner(FPCGEditor_private::DebugObjectID);
-	InTabManager->UnregisterTabSpawner(FPCGEditor_private::AttributesID);
+	InTabManager->UnregisterTabSpawner(FPCGEditor_private::AttributesID[0]);
+	InTabManager->UnregisterTabSpawner(FPCGEditor_private::AttributesID[1]);
+	InTabManager->UnregisterTabSpawner(FPCGEditor_private::AttributesID[2]);
+	InTabManager->UnregisterTabSpawner(FPCGEditor_private::AttributesID[3]);
 	InTabManager->UnregisterTabSpawner(FPCGEditor_private::FindID);
 	InTabManager->UnregisterTabSpawner(FPCGEditor_private::DeterminismID);
 
@@ -875,13 +917,24 @@ void FPCGEditor::OnDeterminismGraphTest()
 
 void FPCGEditor::OnEditGraphSettings() const
 {
-	PropertyDetailsWidget->SetObject(PCGGraphBeingEdited);
+	for (TSharedPtr<SPCGEditorGraphDetailsView> PropertyDetailsWidget : PropertyDetailsWidgets)
+	{
+		PropertyDetailsWidget->SetObject(PCGGraphBeingEdited);
+	}
 }
 
 bool FPCGEditor::IsEditGraphSettingsToggled() const
 {
-	const TArray<TWeakObjectPtr<UObject>>& SelectedObjects = PropertyDetailsWidget->GetSelectedObjects();
-	return SelectedObjects.Num() == 1 && SelectedObjects[0] == PCGGraphBeingEdited.Get();
+	for (TSharedPtr<SPCGEditorGraphDetailsView> PropertyDetailsWidget : PropertyDetailsWidgets)
+	{
+		const TArray<TWeakObjectPtr<UObject>>& SelectedObjects = PropertyDetailsWidget->GetSelectedObjects();
+		if (SelectedObjects.Num() == 1 && SelectedObjects[0] == PCGGraphBeingEdited.Get())
+		{
+			return true;
+		}
+	}
+
+	return false;
 }
 
 bool FPCGEditor::CanCollapseNodesInSubgraph() const
@@ -1215,11 +1268,6 @@ void FPCGEditor::OnToggleInspected()
 		return;
 	}
 
-	if (PCGGraphNodeBeingInspected)
-	{
-		PCGGraphNodeBeingInspected->SetInspected(false);
-	}
-
 	UEdGraphNode* GraphNode = GraphEditorWidget->GetSingleSelectedNode();
 	UPCGEditorGraphNodeBase* PCGGraphNodeBase = Cast<UPCGEditorGraphNodeBase>(GraphNode);
 
@@ -1231,29 +1279,65 @@ void FPCGEditor::OnToggleInspected()
 		return;
 	}
 
-	if (PCGGraphNodeBase && PCGGraphNodeBase != PCGGraphNodeBeingInspected)
+	TArray<UPCGEditorGraphNodeBase*, TInlineAllocator<4>> InspectedNodesBefore;
+	for (TSharedPtr<SPCGEditorGraphAttributeListView> AttributeListView : AttributesWidgets)
 	{
-		PCGGraphNodeBeingInspected = PCGGraphNodeBase;
-		PCGGraphNodeBeingInspected->SetInspected(true);
+		InspectedNodesBefore.Add(AttributeListView->GetNodeBeingInspected());
+	}
+
+	bool bIsInspecting = false;
+
+	// If the selected node was previously inspected, stop inspecting it, and unselect it from the attribute list views
+	if (InspectedNodesBefore.Contains(PCGGraphNodeBase))
+	{
+		PCGGraphNodeBase->SetInspected(false);
+
+		for (TSharedPtr<SPCGEditorGraphAttributeListView> AttributeListView : AttributesWidgets)
+		{
+			if (AttributeListView->GetNodeBeingInspected() == PCGGraphNodeBase)
+			{
+				AttributeListView->SetNodeBeingInspected(nullptr);
+			}
+		}
 	}
 	else
 	{
-		PCGGraphNodeBeingInspected = nullptr;
+		TArray<UPCGEditorGraphNodeBase*, TInlineAllocator<4>> InspectedNodesAfter;
+
+		for (TSharedPtr<SPCGEditorGraphAttributeListView> AttributeListView : AttributesWidgets)
+		{
+			if (!AttributeListView->IsLocked())
+			{
+				AttributeListView->SetNodeBeingInspected(PCGGraphNodeBase);
+			}
+
+			InspectedNodesAfter.Add(AttributeListView->GetNodeBeingInspected());
+		}
+
+		if (InspectedNodesAfter.Contains(PCGGraphNodeBase))
+		{
+			PCGGraphNodeBase->SetInspected(true);
+			bIsInspecting = true;
+		}
+
+		for (UPCGEditorGraphNodeBase* BeforeNode : InspectedNodesBefore)
+		{
+			if (!InspectedNodesAfter.Contains(BeforeNode) && BeforeNode)
+			{
+				BeforeNode->SetInspected(false);
+			}
+		}
 	}
 
-	OnInspectedNodeChangedDelegate.Broadcast(PCGGraphNodeBeingInspected);
-	GetTabManager()->TryInvokeTab(FPCGEditor_private::AttributesID);
-
-	DebugObjectTreeWidget->SetNodeBeingInspected(PCGGraphNodeBeingInspected ? PCGNode : nullptr);
+	if (bIsInspecting)
+	{
+		GetTabManager()->TryInvokeTab(FPCGEditor_private::AttributesID[0]);
+		DebugObjectTreeWidget->SetNodeBeingInspected(PCGNode);
+	}
 }
 
 bool FPCGEditor::CanToggleInspected() const
 {
-	if (PCGGraphNodeBeingInspected)
-	{
-		return true;
-	}
-
 	if (!GraphEditorWidget.IsValid())
 	{
 		return false;
@@ -2197,9 +2281,12 @@ void FPCGEditor::OnSelectedNodesChanged(const TSet<UObject*>& NewSelection)
 		}
 	}
 
-	PropertyDetailsWidget->SetObjects(SelectedObjects, /*bForceRefresh=*/true);
+	for (TSharedPtr<SPCGEditorGraphDetailsView> PropertyDetailsWidget : PropertyDetailsWidgets)
+	{
+		PropertyDetailsWidget->SetObjects(SelectedObjects, /*bForceRefresh=*/true);
+	}
 
-	GetTabManager()->TryInvokeTab(FPCGEditor_private::PropertyDetailsID);
+	GetTabManager()->TryInvokeTab(FPCGEditor_private::PropertyDetailsID[0]);
 }
 
 void FPCGEditor::OnNodeTitleCommitted(const FText& NewText, ETextCommit::Type CommitInfo, UEdGraphNode* NodeBeingChanged)
@@ -2278,72 +2365,6 @@ void FPCGEditor::JumpToDefinition(const UClass* Class) const
 	}
 }
 
-bool FPCGEditor::IsReadOnlyProperty(const FPropertyAndParent& InPropertyAndParent, IDetailsView* InDetailsView) const
-{
-	// Everything is writeable when not in an instance
-	if (!InDetailsView ||
-		InPropertyAndParent.ParentProperties.IsEmpty() ||
-		InPropertyAndParent.ParentProperties.Last()->GetFName() != GET_MEMBER_NAME_CHECKED(UPCGSettingsInstance, Settings))
-	{
-		return false;
-	}
-
-	const TArray<TWeakObjectPtr<UObject>>& SelectedObjects = InDetailsView->GetSelectedObjects();
-	for (const TWeakObjectPtr<UObject>& SelectedObject : SelectedObjects)
-	{
-		if (!SelectedObject.IsValid())
-		{
-			continue;
-		}
-
-		if (UPCGSettingsInstance* Instance = Cast<UPCGSettingsInstance>(SelectedObject.Get()))
-		{
-			return true;
-		}
-	}
-
-	return false;
-}
-
-bool FPCGEditor::IsVisibleProperty(const FPropertyAndParent& InPropertyAndParent, IDetailsView* InDetailsView) const
-{
-	if (!InDetailsView)
-	{
-		return true;
-	}
-
-	// Currently never hide anything from the graph settings
-	if (InPropertyAndParent.Objects.Num() == 1 && Cast<UPCGGraph>(InPropertyAndParent.Objects[0]))
-	{
-		return true;
-	}
-
-	// Always hide asset info information
-	if (InPropertyAndParent.Property.HasMetaData(TEXT("Category")) &&
-		InPropertyAndParent.Property.GetMetaData(TEXT("Category")) == TEXT("AssetInfo"))
-	{
-		return false;
-	}
-
-	// Otherwise, everything is visible when not in an instance
-	if(	InPropertyAndParent.ParentProperties.IsEmpty() ||
-		InPropertyAndParent.ParentProperties.Last()->GetFName() != GET_MEMBER_NAME_CHECKED(UPCGSettingsInstance, Settings))
-	{
-		return true;
-	}
-
-	// Hide debug settings from the setting when showing the instance settings.
-	if (InPropertyAndParent.Property.GetFName() == GET_MEMBER_NAME_CHECKED(UPCGSettings, bEnabled) ||
-		InPropertyAndParent.Property.GetFName() == GET_MEMBER_NAME_CHECKED(UPCGSettings, bDebug) ||
-		(InPropertyAndParent.ParentProperties.Num() >= 2 &&
-			InPropertyAndParent.ParentProperties[InPropertyAndParent.ParentProperties.Num() - 2]->GetFName() == GET_MEMBER_NAME_CHECKED(UPCGSettings, DebugSettings)))
-	{
-		return false;
-	}
-
-	return true;
-}
-
 void FPCGEditor::OnGraphStructureChanged(UPCGGraphInterface* InGraph)
 {
 	check(PCGEditorGraph);
@@ -2413,13 +2434,16 @@ TSharedRef<SDockTab> FPCGEditor::SpawnTab_GraphEditor(const FSpawnTabArgs& Args)
 		];
 }
 
-TSharedRef<SDockTab> FPCGEditor::SpawnTab_PropertyDetails(const FSpawnTabArgs& Args)
+TSharedRef<SDockTab> FPCGEditor::SpawnTab_PropertyDetails(const FSpawnTabArgs& Args, int PropertyDetailsIndex)
 {
+	TAttribute<FText> Label = TAttribute<FText>::Create(TAttribute<FText>::FGetter::CreateRaw(this, &FPCGEditor::GetDetailsTabLabel, PropertyDetailsIndex));
+	TSharedPtr<SPCGEditorGraphDetailsView> DetailsView = PropertyDetailsWidgets[PropertyDetailsIndex];
+
 	return SNew(SDockTab)
-		.Label(LOCTEXT("PCGDetailsTitle", "Details"))
+		.Label(Label)
 		.TabColorScale(GetTabColorScale())
 		[
-			PropertyDetailsWidget.ToSharedRef()
+			DetailsView.ToSharedRef()
 		];
 }
 
@@ -2443,13 +2467,15 @@ TSharedRef<SDockTab> FPCGEditor::SpawnTab_DebugObjectTree(const FSpawnTabArgs& A
 		];
 }
 
-TSharedRef<SDockTab> FPCGEditor::SpawnTab_Attributes(const FSpawnTabArgs& Args)
+TSharedRef<SDockTab> FPCGEditor::SpawnTab_Attributes(const FSpawnTabArgs& Args, int AttributesIndex)
 {
+	TAttribute<FText> Label = TAttribute<FText>::Create(TAttribute<FText>::FGetter::CreateRaw(this, &FPCGEditor::GetAttributesTabLabel, AttributesIndex));
+
 	return SNew(SDockTab)
-		.Label(LOCTEXT("PCGAttributesTitle", "Attributes"))
+		.Label(Label)
 		.TabColorScale(GetTabColorScale())
 		[
-			AttributesWidget.ToSharedRef()
+			AttributesWidgets[AttributesIndex].ToSharedRef()
 		];
 }
 
@@ -2491,6 +2517,35 @@ TSharedRef<SDockTab> FPCGEditor::SpawnTab_Log(const FSpawnTabArgs& Args)
 		[
 			LogWidget.ToSharedRef()
 		];
+}
+
+FText FPCGEditor::GetDetailsTabLabel(int DetailsIndex)
+{
+	if (DetailsIndex == 0)
+	{
+		return LOCTEXT("PCGDetailsTitle", "Details");
+	}
+	else
+	{
+		return FText::Format(LOCTEXT("PCGDetailsTitle_Multi", "Details {0}"), DetailsIndex + 1);
+	}
+}
+
+FText FPCGEditor::GetDetailsViewObjectName(int DetailsIndex)
+{
+	return LOCTEXT("PCGDetailsName", "This is a node name placeholder");
+}
+
+FText FPCGEditor::GetAttributesTabLabel(int AttributesIndex)
+{
+	if (AttributesIndex == 0)
+	{
+		return LOCTEXT("PCGAttributesTitle", "Attributes");
+	}
+	else
+	{
+		return FText::Format(LOCTEXT("PCGAttributesTitle_Multi", "Attributes {0}"), AttributesIndex + 1);
+	}
 }
 
 #undef LOCTEXT_NAMESPACE
