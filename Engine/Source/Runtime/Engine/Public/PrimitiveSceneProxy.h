@@ -740,8 +740,6 @@ public:
 
 	inline bool HasPerInstanceHitProxies() const { return bHasPerInstanceHitProxies; }
 
-	inline bool AnyMaterialHasPerInstanceRandom() const { return bAnyMaterialHasPerInstanceRandom; }
-	inline bool AnyMaterialHasPerInstanceCustomData() const { return bAnyMaterialHasPerInstanceCustomData; }
 #if WITH_EDITOR
 	inline uint8 GetSelectionOutlineColorIndex() const { return SelectionOutlineColorIndex; }
 #endif // WITH_EDITOR
@@ -1375,12 +1373,6 @@ protected:
 	uint8 bHoldout : 1;
 
 	uint8 bSplineMesh : 1;
-
-	/** Set to true in the proxy initialization if any of the materials use per instance random. */
-	uint8 bAnyMaterialHasPerInstanceRandom : 1;
-
-	/** Set to true in the proxy initialization if any of the materials use per instance custom data. */
-	uint8 bAnyMaterialHasPerInstanceCustomData : 1;
 	
 private:
 

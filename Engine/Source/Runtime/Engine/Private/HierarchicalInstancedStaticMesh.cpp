@@ -2582,14 +2582,14 @@ void UHierarchicalInstancedStaticMeshComponent::PostBuildStats()
 #endif
 }
 
-void UHierarchicalInstancedStaticMeshComponent::BuildComponentInstanceData(FInstanceUpdateComponentDesc& OutData, FPrimitiveSceneProxy* PrimitiveSceneProxy)
+void UHierarchicalInstancedStaticMeshComponent::BuildComponentInstanceData(ERHIFeatureLevel::Type FeatureLevel, FInstanceUpdateComponentDesc& OutData)
 {
 	LLM_SCOPE(ELLMTag::InstancedMesh);
 	QUICK_SCOPE_CYCLE_COUNTER(STAT_UInstancedStaticMeshComponent_BuildRenderData);
 
 	OutData.PrimitiveLocalToWorld = GetRenderMatrix();
-	OutData.PrimitiveSceneProxy = PrimitiveSceneProxy;
-	OutData.Flags = MakeInstanceDataFlags(PrimitiveSceneProxy->AnyMaterialHasPerInstanceRandom(), PrimitiveSceneProxy->AnyMaterialHasPerInstanceCustomData());
+	OutData.PrimitiveMaterialDesc = GetUsedMaterialPropertyDesc(FeatureLevel);
+	OutData.Flags = MakeInstanceDataFlags(OutData.PrimitiveMaterialDesc.bAnyMaterialHasPerInstanceRandom, OutData.PrimitiveMaterialDesc.bAnyMaterialHasPerInstanceCustomData);
 	OutData.Flags.bHasPerInstanceDynamicData = false;
 	OutData.StaticMeshBounds = GetStaticMesh()->GetBounds();
 	OutData.NumProxyInstances = InstanceCountToRender;
@@ -2999,7 +2999,7 @@ FPrimitiveSceneProxy* UHierarchicalInstancedStaticMeshComponent::CreateSceneProx
 	if (PrimitiveSceneProxy != nullptr)
 	{
 		FInstanceUpdateComponentDesc ComponentData;
-		BuildComponentInstanceData(ComponentData, PrimitiveSceneProxy);
+		BuildComponentInstanceData(PrimitiveSceneProxy->GetScene().GetFeatureLevel(), ComponentData);
 		PrimitiveInstanceDataManager.FlushChanges(MoveTemp(ComponentData), true);
 	}
 

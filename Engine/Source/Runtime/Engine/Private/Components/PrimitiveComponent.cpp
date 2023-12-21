@@ -47,6 +47,8 @@
 #include "MeshUVChannelInfo.h"
 #include "PrimitiveSceneDesc.h"
 #include "PSOPrecacheMaterial.h"
+#include "MaterialCachedData.h"
+#include "MaterialShared.h"
 
 #if WITH_EDITOR
 #include "Engine/LODActor.h"
@@ -4756,6 +4758,50 @@ bool UPrimitiveComponent::CheckPSOPrecachingAndBoostPriority()
 #else
 	return false;
 #endif
+}
+
+FPrimitiveMaterialPropertyDescriptor UPrimitiveComponent::GetUsedMaterialPropertyDesc(ERHIFeatureLevel::Type FeatureLevel) const
+{
+	FPrimitiveMaterialPropertyDescriptor Result;
+	TArray<UMaterialInterface*> UsedMaterials;
+	GetUsedMaterials(UsedMaterials);
+
+	const bool bUseTessellation = UseNaniteTessellation();
+
+	for (const UMaterialInterface* MaterialInterface : UsedMaterials)
+	{
+		if (MaterialInterface)
+		{
+			FMaterialRelevance MaterialRelevance = MaterialInterface->GetRelevance_Concurrent(FeatureLevel);
+
+			Result.bAnyMaterialHasWorldPositionOffset = Result.bAnyMaterialHasWorldPositionOffset || MaterialRelevance.bUsesWorldPositionOffset;
+
+			if (MaterialInterface->HasPixelAnimation() && IsOpaqueOrMaskedBlendMode(MaterialInterface->GetBlendMode()))
+			{
+				Result.bAnyMaterialHasPixelAnimation = true;
+			}
+
+			if (bUseTessellation && MaterialRelevance.bUsesDisplacement)
+			{
+				FDisplacementScaling DisplacementScaling = MaterialInterface->GetDisplacementScaling();
+			
+				const float MinDisplacement = (0.0f - DisplacementScaling.Center) * DisplacementScaling.Magnitude;
+				const float MaxDisplacement = (1.0f - DisplacementScaling.Center) * DisplacementScaling.Magnitude;
+
+				Result.MinMaxMaterialDisplacement.X = FMath::Min(Result.MinMaxMaterialDisplacement.X, MinDisplacement);
+				Result.MinMaxMaterialDisplacement.Y = FMath::Max(Result.MinMaxMaterialDisplacement.Y, MaxDisplacement);
+			}
+
+			Result.MaxWorldPositionOffsetDisplacement = FMath::Max(Result.MaxWorldPositionOffsetDisplacement, MaterialInterface->GetMaxWorldPositionOffsetDisplacement());
+
+			const FMaterialCachedExpressionData& CachedMaterialData = MaterialInterface->GetCachedExpressionData();
+
+			Result.bAnyMaterialHasPerInstanceRandom = Result.bAnyMaterialHasPerInstanceRandom || CachedMaterialData.bHasPerInstanceRandom;
+			Result.bAnyMaterialHasPerInstanceCustomData = Result.bAnyMaterialHasPerInstanceCustomData || CachedMaterialData.bHasPerInstanceCustomData;
+		}
+	}
+
+	return Result;
 }
 
 #if WITH_EDITOR

@@ -308,8 +308,6 @@ public:
 	}
 #endif
 
-	void UpdateMaterialDynamicDataUsage();
-
 	// Nanite always uses LOD 0, and performs custom LOD streaming.
 	virtual uint8 GetCurrentFirstLODIdx_RenderThread() const override { return 0; }
 

@@ -95,11 +95,11 @@ void UGrassInstancedStaticMeshComponent::AcceptPrebuiltTree(TArray<FClusterNode>
 	MarkRenderStateDirty();
 }
 
-void UGrassInstancedStaticMeshComponent::BuildComponentInstanceData(FInstanceUpdateComponentDesc& OutData, FPrimitiveSceneProxy* PrimitiveSceneProxy)
+void UGrassInstancedStaticMeshComponent::BuildComponentInstanceData(ERHIFeatureLevel::Type FeatureLevel, FInstanceUpdateComponentDesc& OutData)
 {
 	OutData.PrimitiveLocalToWorld = GetRenderMatrix();
-	OutData.PrimitiveSceneProxy = PrimitiveSceneProxy;
-	OutData.Flags = MakeInstanceDataFlags(PrimitiveSceneProxy->AnyMaterialHasPerInstanceRandom(), PrimitiveSceneProxy->AnyMaterialHasPerInstanceCustomData());
+	OutData.PrimitiveMaterialDesc = GetUsedMaterialPropertyDesc(FeatureLevel);
+	OutData.Flags = MakeInstanceDataFlags(OutData.PrimitiveMaterialDesc.bAnyMaterialHasPerInstanceRandom, OutData.PrimitiveMaterialDesc.bAnyMaterialHasPerInstanceCustomData);
 	OutData.Flags.bHasPerInstanceDynamicData = false;
 	OutData.StaticMeshBounds = GetStaticMesh()->GetBounds();
 	OutData.NumProxyInstances = InstanceCountToRender;

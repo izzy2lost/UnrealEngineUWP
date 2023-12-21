@@ -528,12 +528,6 @@ bool FPrimitiveInstanceDataManager::FlushChanges(FInstanceUpdateComponentDesc &&
 	// Always clear the flag such that any subsequent change marks it as needing update again.
 	bComponentMarkedDirty = false;
 
-	// No point updating data if there is no owning proxy that might use the data.
-	if (ComponentData.PrimitiveSceneProxy == nullptr)
-	{
-		return false;
-	}
-
 	// Can't update if there is no proxy, if it was destroyed we must wait for a new scene proxy to come around and request a new one to be created.
 	if (!Proxy)
 	{
@@ -544,10 +538,6 @@ bool FPrimitiveInstanceDataManager::FlushChanges(FInstanceUpdateComponentDesc &&
 	// In fact, we could, e.g., for static ISMs kick this directly in post load perhaps.
 	const bool bIsUnattached = bNewPrimitiveProxy && Proxy->bIsNew;
 	Proxy->bIsNew = false;
-
-	EShaderPlatform ShaderPlatform = ComponentData.PrimitiveSceneProxy->GetScene().GetShaderPlatform();
-	ERHIFeatureLevel::Type FeatureLevel = ComponentData.PrimitiveSceneProxy->GetScene().GetFeatureLevel();
-	check(Proxy->CheckPlatformFeatureLevel(ShaderPlatform, FeatureLevel));
 	
 	// BandAid: This is the first flush & we have not been informed correctly about the number of instances in the ISM so we need to patch that up here and now.
 	if (bFirstFlush && GetMaxInstanceIndex() == 0 && ComponentData.NumSourceInstances != 0)
@@ -557,6 +547,9 @@ bool FPrimitiveInstanceDataManager::FlushChanges(FInstanceUpdateComponentDesc &&
 		NumInstances = ComponentData.NumSourceInstances;
 	}
 	bFirstFlush = false;
+
+	float NewAbsMaxDisplacement = FMath::Max(-ComponentData.PrimitiveMaterialDesc.MinMaxMaterialDisplacement.X, ComponentData.PrimitiveMaterialDesc.MinMaxMaterialDisplacement.Y)
+		+ ComponentData.PrimitiveMaterialDesc.MaxWorldPositionOffsetDisplacement;
 
 	bool bWasUpdateQueued = false;
 	// Marked for externally managed update, this may be combined with tracked changes (which results in double updates)
@@ -594,7 +587,7 @@ bool FPrimitiveInstanceDataManager::FlushChanges(FInstanceUpdateComponentDesc &&
 		ExternalChangeSet.HitProxyContainer = MakeOpaqueHitProxyContainer(LegacyBuildData->HitProxies);
 #endif
 
-		ExternalChangeSet.AbsMaxDisplacement = AbsMaxDisplacement;
+		ExternalChangeSet.AbsMaxDisplacement = NewAbsMaxDisplacement;
 
 		// Assemble header info to enable nonblocking primitive update.
 		FInstanceDataBufferHeader InstanceDataBufferHeader;
@@ -637,11 +630,6 @@ bool FPrimitiveInstanceDataManager::FlushChanges(FInstanceUpdateComponentDesc &&
 	}
 
 	FChangeDesc ChangeDesc;
-
-	// Note: this must be supplied to allow calculating correct bounds for each instance, currently this is derived in the primitive proxy ctor, meaning it should be fetched from the proxy
-	//       However, we may want to remove this coupling.
-	float NewAbsMaxDisplacement = ComponentData.PrimitiveSceneProxy->GetAbsMaxDisplacement();
-
 
 	// TODO: We may decide to do so if other conditions are met (e.g., large change-set or marked for full invalidation).
 	// TODO: Need to figure this out in some other way, e.g., attachment counter or whatnot, since the creation has been moved up we no longer know if this is a fresh one.
@@ -944,10 +932,11 @@ void FPrimitiveInstanceDataManager::FreeInstanceId(FPrimitiveInstanceId Instance
 	LOG_INST_DATA(TEXT("IdToIndexMap[%d] = %d"), InstanceId.Id, INDEX_NONE);
 }
 
-TSharedPtr<FISMCInstanceDataSceneProxy, ESPMode::ThreadSafe> FPrimitiveInstanceDataManager::GetOrCreateProxy(FStaticShaderPlatform InShaderPlatform, ERHIFeatureLevel::Type InFeatureLevel)
+TSharedPtr<FISMCInstanceDataSceneProxy, ESPMode::ThreadSafe> FPrimitiveInstanceDataManager::GetOrCreateProxy(ERHIFeatureLevel::Type InFeatureLevel)
 {
 	LOG_INST_DATA(TEXT("GetOrCreateProxy"));
-	if (Proxy && !Proxy->CheckPlatformFeatureLevel(InShaderPlatform, InFeatureLevel))
+	FStaticShaderPlatform ShaderPlatform = GetFeatureLevelShaderPlatform(InFeatureLevel);
+	if (Proxy && !Proxy->CheckPlatformFeatureLevel(ShaderPlatform, InFeatureLevel))
 	{
 		// TODO: May need to add some attachment counter checks here?
 		Proxy.Reset();
@@ -956,18 +945,18 @@ TSharedPtr<FISMCInstanceDataSceneProxy, ESPMode::ThreadSafe> FPrimitiveInstanceD
 
 	if (!Proxy)
 	{
-		if (!UseGPUScene(InShaderPlatform, InFeatureLevel))
+		if (!UseGPUScene(ShaderPlatform, InFeatureLevel))
 		{
 			// Catch all proxy for both ISM / HISM in mobile mode.
-			Proxy = MakeShared<FISMCInstanceDataSceneProxyNoGPUScene>(InShaderPlatform, InFeatureLevel, Mode == EMode::Legacy);
+			Proxy = MakeShared<FISMCInstanceDataSceneProxyNoGPUScene>(ShaderPlatform, InFeatureLevel, Mode == EMode::Legacy);
 		}
 		else if (Mode == EMode::Legacy || Mode == EMode::ExternalLegacyData)
 		{
-			Proxy = MakeShared<FISMCInstanceDataSceneProxyLegacyReordered>(InShaderPlatform, InFeatureLevel, Mode != EMode::ExternalLegacyData);
+			Proxy = MakeShared<FISMCInstanceDataSceneProxyLegacyReordered>(ShaderPlatform, InFeatureLevel, Mode != EMode::ExternalLegacyData);
 		}
 		else
 		{
-			Proxy = MakeShared<FISMCInstanceDataSceneProxy>(InShaderPlatform, InFeatureLevel);
+			Proxy = MakeShared<FISMCInstanceDataSceneProxy>(ShaderPlatform, InFeatureLevel);
 		}
 	}
 

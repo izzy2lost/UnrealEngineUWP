@@ -521,24 +521,6 @@ HHitProxy* FSceneProxyBase::CreateHitProxies(IPrimitiveComponent* ComponentInter
 }
 #endif
 
-void FSceneProxyBase::UpdateMaterialDynamicDataUsage()
-{
-	bAnyMaterialHasPerInstanceRandom = false;
-	bAnyMaterialHasPerInstanceCustomData = false;
-
-	// Checks if any assigned material uses special features
-	for (const FMaterialSection& MaterialSection : MaterialSections)
-	{
-		bAnyMaterialHasPerInstanceCustomData |= MaterialSection.bHasPerInstanceCustomData;
-		bAnyMaterialHasPerInstanceRandom |= MaterialSection.bHasPerInstanceRandomID;
-
-		if (bAnyMaterialHasPerInstanceCustomData && bAnyMaterialHasPerInstanceRandom)
-		{
-			break;
-		}
-	}
-}
-
 void FSceneProxyBase::DrawStaticElementsInternal(FStaticPrimitiveDrawInterface* PDI, const FLightCacheInterface* LCI)
 {
 	LLM_SCOPE_BYTAG(Nanite);
@@ -934,8 +916,6 @@ FSceneProxy::FSceneProxy(const FMaterialAudit& MaterialAudit, const FInstancedSt
 		}
 	}
 #endif
-
-	UpdateMaterialDynamicDataUsage();
 
 	EndCullDistance = InProxyDesc.InstanceEndCullDistance;
 

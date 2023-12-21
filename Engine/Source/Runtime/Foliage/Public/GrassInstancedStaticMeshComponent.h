@@ -22,6 +22,6 @@ public:
 	FOLIAGE_API bool SupportsWorldPositionOffsetVelocity() const override;
 
 private:
-	virtual void BuildComponentInstanceData(FInstanceUpdateComponentDesc& OutData, FPrimitiveSceneProxy* PrimitiveSceneProxy) override final;
+	virtual void BuildComponentInstanceData(ERHIFeatureLevel::Type FeatureLevel, FInstanceUpdateComponentDesc& OutData) override final;
 };
 

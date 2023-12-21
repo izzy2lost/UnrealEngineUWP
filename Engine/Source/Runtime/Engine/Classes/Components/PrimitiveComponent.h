@@ -934,6 +934,12 @@ public:
 protected:
 
 	/**
+	 * Examines the used materials (GetUsedMaterials) and returns a descriptor. This may be called when there is no proxy created
+	 * which can be useful. But will use the information in the proxy if it is present.
+	 */
+	ENGINE_API FPrimitiveMaterialPropertyDescriptor GetUsedMaterialPropertyDesc(ERHIFeatureLevel::Type FeatureLevel) const;
+
+	/**
 	 * Returns true if this component opts in to participate in the render proxy delay mechanism that kicks in
 	 * if PSO precaching hasn't finished. Otherwise, PSO precaching will still be active but the render proxy
 	 * will be created as normal.

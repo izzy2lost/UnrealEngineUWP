@@ -595,6 +595,12 @@ public:
 	 */
 	ENGINE_API void InvalidateInstanceDataTracking();
 
+	/** wrapper which is public so we can implement the LIST ISM command */
+	inline FPrimitiveMaterialPropertyDescriptor GetUsedMaterialPropertyDesc(ERHIFeatureLevel::Type FeatureLevel) const
+	{
+		return UPrimitiveComponent::GetUsedMaterialPropertyDesc(FeatureLevel);
+	}
+	
 private:
 	ENGINE_API void ApplyInheritedPerInstanceData(const UInstancedStaticMeshComponent* InArchetype);
 	ENGINE_API bool ShouldInheritPerInstanceData(const UInstancedStaticMeshComponent* InArchetype) const;
@@ -678,7 +684,7 @@ protected:
 
 	// Helper to collect the base delta data from the ISM *notably not transforms*
 	ENGINE_API void BuildInstanceDataDeltaChangeSetCommon(FISMInstanceUpdateChangeSet &ChangeSet);
-	ENGINE_API virtual void BuildComponentInstanceData(FInstanceUpdateComponentDesc& OutData, FPrimitiveSceneProxy* PrimitiveSceneProxy);
+	ENGINE_API virtual void BuildComponentInstanceData(ERHIFeatureLevel::Type FeatureLevel, FInstanceUpdateComponentDesc& OutData);
 
 	//~ ISMInstanceManager interface
 	ENGINE_API virtual bool CanEditSMInstance(const FSMInstanceId& InstanceId) const override;

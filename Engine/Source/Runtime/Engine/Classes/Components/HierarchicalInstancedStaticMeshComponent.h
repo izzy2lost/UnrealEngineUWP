@@ -351,7 +351,7 @@ public:
 	EHISMViewRelevanceType GetViewRelevanceType() const { return ViewRelevanceType; }
 
 protected:
-	ENGINE_API virtual void BuildComponentInstanceData(FInstanceUpdateComponentDesc& OutData, FPrimitiveSceneProxy* PrimitiveSceneProxy);
+	ENGINE_API virtual void BuildComponentInstanceData(ERHIFeatureLevel::Type FeatureLevel, FInstanceUpdateComponentDesc& OutData) override;
 
 
 	ENGINE_API void BuildTree();

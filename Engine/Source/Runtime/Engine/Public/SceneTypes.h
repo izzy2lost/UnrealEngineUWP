@@ -245,3 +245,16 @@ enum class EShadowCacheInvalidationBehavior : uint8
 	 */
 	Static,
 };
+
+/**
+ * This struct captures summary information about material features in the primitive
+ */
+struct FPrimitiveMaterialPropertyDescriptor
+{
+	FVector2f MinMaxMaterialDisplacement = FVector2f::ZeroVector;
+	float MaxWorldPositionOffsetDisplacement = 0.0f;
+	bool bAnyMaterialHasWorldPositionOffset = false;
+	bool bAnyMaterialHasPixelAnimation = false;
+	bool bAnyMaterialHasPerInstanceCustomData = false;
+	bool bAnyMaterialHasPerInstanceRandom = false;
+};

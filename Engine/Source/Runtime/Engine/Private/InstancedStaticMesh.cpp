@@ -259,11 +259,12 @@ class FISMExecHelper : public FSelfRegisteringExec
 		}
 		else if(FParse::Command(&Cmd, TEXT("LIST ISM")))
 		{
-			// Flush commands because we will be touching the proxy.
-			FlushRenderingCommands();
-
+			if (InWorld == nullptr)
+			{
+				return true;
+			}
 			Ar.Logf(TEXT("Name, Num Instances, Has Previous Transform, Num Custom Floats, Has Random, Has Custom Data, Has Dynamic Data, Has LMSMUVBias, Has LocalBounds, Has Instance Hiearchy Offset"));
-
+			ERHIFeatureLevel::Type FeatureLevel = InWorld->GetFeatureLevel();
 			for (TObjectIterator<UInstancedStaticMeshComponent> It; It; ++It)
 			{
 				UInstancedStaticMeshComponent* ISMComponent = *It;
@@ -274,22 +275,20 @@ class FISMExecHelper : public FSelfRegisteringExec
 				}
 
 				UStaticMesh* Mesh = ISMComponent->GetStaticMesh();
-				if (ISMComponent->SceneProxy)
-				{
-					FInstanceDataFlags Flags = ISMComponent->MakeInstanceDataFlags(ISMComponent->SceneProxy->AnyMaterialHasPerInstanceRandom(), ISMComponent->SceneProxy->AnyMaterialHasPerInstanceCustomData());
+				FPrimitiveMaterialPropertyDescriptor MatDesc = ISMComponent->GetUsedMaterialPropertyDesc(FeatureLevel);
+				FInstanceDataFlags Flags = ISMComponent->MakeInstanceDataFlags(MatDesc.bAnyMaterialHasPerInstanceRandom, MatDesc.bAnyMaterialHasPerInstanceCustomData);
 
-					Ar.Logf(TEXT("%s, %d, %d, %d, %d, %d, %d, %d, %d, %d"),
-						Mesh ? *Mesh->GetFullName() : TEXT(""),
-						ISMComponent->GetInstanceCount(),
-						ISMComponent->PerInstancePrevTransform.Num() > 0,
-						ISMComponent->NumCustomDataFloats,
-						Flags.bHasPerInstanceRandom,
-						Flags.bHasPerInstanceCustomData,
-						Flags.bHasPerInstanceDynamicData,
-						Flags.bHasPerInstanceLMSMUVBias,
-						Flags.bHasPerInstanceLocalBounds,
-						Flags.bHasPerInstanceHierarchyOffset);
-				}
+				Ar.Logf(TEXT("%s, %d, %d, %d, %d, %d, %d, %d, %d, %d"),
+					Mesh ? *Mesh->GetFullName() : TEXT(""),
+					ISMComponent->GetInstanceCount(),
+					ISMComponent->PerInstancePrevTransform.Num() > 0,
+					ISMComponent->NumCustomDataFloats,
+					Flags.bHasPerInstanceRandom,
+					Flags.bHasPerInstanceCustomData,
+					Flags.bHasPerInstanceDynamicData,
+					Flags.bHasPerInstanceLMSMUVBias,
+					Flags.bHasPerInstanceLocalBounds,
+					Flags.bHasPerInstanceHierarchyOffset);
 			}
 			return true;
 		}
@@ -1362,8 +1361,6 @@ void FInstancedStaticMeshSceneProxy::SetupProxy(const FInstancedStaticMeshSceneP
 	SetupInstanceSceneDataBuffers(InstanceDataSceneProxy->GeInstanceSceneDataBuffers());
 
 	bAnySegmentUsesWorldPositionOffset = false;
-	bAnyMaterialHasPerInstanceRandom = false;
-	bAnyMaterialHasPerInstanceCustomData = false;
 
 	// Make sure all the materials are okay to be rendered as an instanced mesh.
 	for (int32 LODIndex = 0; LODIndex < LODs.Num(); LODIndex++)
@@ -1380,8 +1377,6 @@ void FInstancedStaticMeshSceneProxy::SetupProxy(const FInstancedStaticMeshSceneP
 			bAnySegmentUsesWorldPositionOffset |= Section.Material->GetRelevance_Concurrent(GMaxRHIFeatureLevel).bUsesWorldPositionOffset;
 
 			const FMaterialCachedExpressionData& CachedMaterialData = Section.Material->GetCachedExpressionData();
-			bAnyMaterialHasPerInstanceRandom |= CachedMaterialData.bHasPerInstanceRandom;
-			bAnyMaterialHasPerInstanceCustomData |= CachedMaterialData.bHasPerInstanceCustomData;
 		}
 	}
 
@@ -2183,7 +2178,7 @@ void UInstancedStaticMeshComponent::SendRenderInstanceData_Concurrent()
 		{
 			// Make sure the instance data proxy is up to date:
 			FInstanceUpdateComponentDesc ComponentData;
-			BuildComponentInstanceData(ComponentData, SceneProxy);
+			BuildComponentInstanceData(SceneProxy->GetScene().GetFeatureLevel(), ComponentData);
 			if (PrimitiveInstanceDataManager.FlushChanges(MoveTemp(ComponentData), false))
 			{
 				UpdateBounds();
@@ -2260,7 +2255,7 @@ FPrimitiveSceneProxy* UInstancedStaticMeshComponent::CreateSceneProxy()
 	if (PrimitiveSceneProxy != nullptr)
 	{
 		FInstanceUpdateComponentDesc ComponentData;
-		BuildComponentInstanceData(ComponentData, PrimitiveSceneProxy);
+		BuildComponentInstanceData(PrimitiveSceneProxy->GetScene().GetFeatureLevel(), ComponentData);
 		PrimitiveInstanceDataManager.FlushChanges(MoveTemp(ComponentData), true);
 	}
 	return PrimitiveSceneProxy;
@@ -2365,7 +2360,7 @@ void UInstancedStaticMeshComponent::BuildInstanceDataDeltaChangeSetCommon(FISMIn
 {
 #if WITH_EDITOR
 	if (ChangeSet.Flags.bHasPerInstanceEditorData)
-		{
+	{
 		// TODO: the way hit proxies are managed seems daft, why don't we just add them when needed and store them in an array alonside the instances?
 		//       this will always force us to update all the hit proxy data for every instances.
 		TArray<TRefCountPtr<HHitProxy>> HitProxies;
@@ -2431,13 +2426,13 @@ void UInstancedStaticMeshComponent::BuildInstanceDataDeltaChangeSetCommon(FISMIn
 	ChangeSet.SetCustomData(MakeArrayView(PerInstanceSMCustomData), NumCustomDataFloats);
 }
 
-void UInstancedStaticMeshComponent::BuildComponentInstanceData(FInstanceUpdateComponentDesc& OutData, FPrimitiveSceneProxy* PrimitiveSceneProxy)
+void UInstancedStaticMeshComponent::BuildComponentInstanceData(ERHIFeatureLevel::Type FeatureLevel, FInstanceUpdateComponentDesc& OutData)
 {
 	LLM_SCOPE(ELLMTag::InstancedMesh);
 	QUICK_SCOPE_CYCLE_COUNTER(STAT_UInstancedStaticMeshComponent_BuildRenderData);
 
-	OutData.PrimitiveSceneProxy = PrimitiveSceneProxy;
-	OutData.Flags = MakeInstanceDataFlags(PrimitiveSceneProxy->AnyMaterialHasPerInstanceRandom(), PrimitiveSceneProxy->AnyMaterialHasPerInstanceCustomData());
+	OutData.PrimitiveMaterialDesc = GetUsedMaterialPropertyDesc(FeatureLevel);
+	OutData.Flags = MakeInstanceDataFlags(OutData.PrimitiveMaterialDesc.bAnyMaterialHasPerInstanceRandom, OutData.PrimitiveMaterialDesc.bAnyMaterialHasPerInstanceCustomData);
 	OutData.PrimitiveLocalToWorld = GetRenderMatrix();
 	OutData.StaticMeshBounds = GetStaticMesh()->GetBounds();
 	OutData.NumProxyInstances = PerInstanceSMData.Num();
@@ -4444,7 +4439,7 @@ TSharedPtr<FISMCInstanceDataSceneProxy, ESPMode::ThreadSafe> UInstancedStaticMes
 {
 	if (FSceneInterface *Scene = GetScene())
 	{
-		return PrimitiveInstanceDataManager.GetOrCreateProxy(Scene->GetShaderPlatform(), Scene->GetFeatureLevel());
+		return PrimitiveInstanceDataManager.GetOrCreateProxy(Scene->GetFeatureLevel());
 	}
 	return nullptr;
 }

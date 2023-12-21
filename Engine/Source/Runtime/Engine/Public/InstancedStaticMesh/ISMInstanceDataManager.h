@@ -2,6 +2,7 @@
 
 #pragma once
 
+#include "SceneTypes.h"
 #include "ISMInstanceDataSceneProxy.h"
 #include "InstanceAttributeTracker.h"
 
@@ -17,10 +18,7 @@ struct FInstanceUpdateComponentDesc
 	FMatrix PrimitiveLocalToWorld;
 	FRenderBounds StaticMeshBounds;
 	FInstanceDataFlags Flags;
-	FPrimitiveSceneProxy* PrimitiveSceneProxy = nullptr;
-	// Note: this must be supplied to allow calculating correct bounds for each instance, currently this is derived in the primitive proxy ctor, meaning it should be fetched from the proxy
-	//       However, we may want to remove this coupling.
-	// float AbsMaxDisplacement = 0.0f;
+	FPrimitiveMaterialPropertyDescriptor PrimitiveMaterialDesc;
 
 	// The number of instances that will be allocated in the proxy
 	int32 NumProxyInstances = -1;
@@ -131,7 +129,7 @@ public:
 
 	ETrackingState GetState() const { return TrackingState; }
 
-	ENGINE_API TSharedPtr<FISMCInstanceDataSceneProxy, ESPMode::ThreadSafe> GetOrCreateProxy(FStaticShaderPlatform InShaderPlatform, ERHIFeatureLevel::Type InFeatureLevel);
+	ENGINE_API TSharedPtr<FISMCInstanceDataSceneProxy, ESPMode::ThreadSafe> GetOrCreateProxy(ERHIFeatureLevel::Type InFeatureLevel);
 
 	void Invalidate(int32 InNumInstances);
 	
