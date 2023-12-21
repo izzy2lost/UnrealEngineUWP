@@ -508,9 +508,7 @@ namespace PCGSplineSampler
 
 		virtual bool IsDone() const override
 		{
-			// Distance Sampler is not done until it captures the final control point, which does not have a valid segment associated unless the spline is a closed loop.
-			const int NumSegments = LineData->IsClosed() ? LineData->GetNumSegments() - 1 : LineData->GetNumSegments();
-			return CurrentSegmentIndex >= NumSegments;
+			return CurrentSegmentIndex >= LineData->GetNumSegments();
 		}
 
 		FVector::FReal DistanceIncrement;
