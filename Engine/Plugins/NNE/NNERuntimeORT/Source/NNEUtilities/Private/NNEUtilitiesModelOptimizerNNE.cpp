@@ -6,6 +6,7 @@
 #include "NNERuntimeFormat.h"
 #include "NNEUtilitiesModelBuilderNNE.h"
 #include "NNEUtilitiesModelOptimizerONNX.h"
+#include "NNEUtilitiesHelpers.h"
 
 #include "NNEUtilitiesThirdPartyWarningDisabler.h"
 NNE_THIRD_PARTY_INCLUDES_START
@@ -182,17 +183,6 @@ namespace ModelOptimizerNNEHelper
 		}
 	}
 
-	TOptional<uint32> GetOpVersion(const onnx::ModelProto& ModelProto, const FString& OpType)
-	{
-		const onnx::OpSchema* OpSchema = onnx::OpSchemaRegistry::Schema(TCHAR_TO_ANSI(*OpType), (int) ModelProto.opset_import(0).version());
-		if(OpSchema == nullptr)
-		{
-			UE_LOG(LogNNE, Warning, TEXT("No OpSchema found for operator %s and OpSet version %d."), *OpType, (int) ModelProto.opset_import(0).version());
-			return TOptional<uint32>();
-		}
-		return (uint32) OpSchema->SinceVersion();
-	}
-
 	bool BuildNNEFormatFromONNX(TArray<uint8>& ONNXData, TArray<uint8>& NNEData)
 	{
 		TUniquePtr<IModelBuilder> Builder = CreateNNEModelBuilder();
@@ -277,7 +267,7 @@ namespace ModelOptimizerNNEHelper
 					Builder->AddTensor(FString(ANSI_TO_TCHAR(Output.name().c_str())) + TEXT("_NNEInitializer"), DataType, Shape, Data, DataSize);
 
 				const FString IdentityOpType = TEXT("Identity");
-				TOptional<uint32> OpVersion = GetOpVersion(ModelProto, IdentityOpType);
+				TOptional<uint32> OpVersion = GetOpVersionFromOpsetVersion(IdentityOpType, (int) ModelProto.opset_import(0).version());
 				if(!OpVersion.IsSet())
 				{
 					return false;
@@ -296,7 +286,7 @@ namespace ModelOptimizerNNEHelper
 			FString NNEOpType(StringCast<TCHAR>(OnnxOpType.c_str()));
 			const std::string& OnnxOpName = Node.name();
 			FString NNEOpName(StringCast<TCHAR>(OnnxOpName.c_str()));
-			TOptional<uint32> OpVersion = GetOpVersion(ModelProto, NNEOpType);
+			TOptional<uint32> OpVersion = GetOpVersionFromOpsetVersion(NNEOpType, (int) ModelProto.opset_import(0).version());
 			if(!OpVersion.IsSet())
 			{
 				return false;

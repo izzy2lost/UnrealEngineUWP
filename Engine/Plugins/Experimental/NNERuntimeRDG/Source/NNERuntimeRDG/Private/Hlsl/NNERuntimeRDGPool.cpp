@@ -241,9 +241,6 @@ namespace UE::NNERuntimeRDG::Private::Hlsl
 	template< UE::NNEHlslShaders::Internal::EPoolOperatorType PoolOperatorType >
 	bool ValidatePoolOperator(const NNE::FAttributeMap& AttributeMap, TConstArrayView<ENNETensorDataType> InputTypes, TConstArrayView<NNE::FSymbolicTensorShape> InputPools)
 	{
-		//This match version 8 of the MaxPool operator, next version is 10
-		//and version 7 of the AveragexPool operator, next version is 10
-		//https://github.com/onnx/onnx/blob/main/docs/Operators.md#MaxPool
 		bool bIsValid = true;
 
 		FAttributeValidator AttributeValidator;
@@ -282,8 +279,9 @@ namespace UE::NNERuntimeRDG::Private::Hlsl
 
 	bool RegisterPoolOperators(FOperatorRegistryHlsl& Registry)
 	{
-		Registry.OpAdd({{TEXT("MaxPool"), TEXT("Onnx")}}, CreateMaxPoolOperator, ValidatePoolOperator<UE::NNEHlslShaders::Internal::EPoolOperatorType::MAX_POOL>);
-		Registry.OpAdd({ {TEXT("AveragePool"), TEXT("Onnx")} }, CreateAveragePoolOperator, ValidatePoolOperator<UE::NNEHlslShaders::Internal::EPoolOperatorType::AVERAGE_POOL>);
+		// Note: support of a particular version is partial with respect to tensor data types (only the most typical ones are usually supported).
+		Registry.OpAdd({{TEXT("MaxPool"), TEXT("Onnx")}, 8}, CreateMaxPoolOperator, ValidatePoolOperator<UE::NNEHlslShaders::Internal::EPoolOperatorType::MAX_POOL>);
+		Registry.OpAdd({ {TEXT("AveragePool"), TEXT("Onnx")}, 7}, CreateAveragePoolOperator, ValidatePoolOperator<UE::NNEHlslShaders::Internal::EPoolOperatorType::AVERAGE_POOL>);
 		return true;
 	}
 } // UE::NNERuntimeRDG::Private::Hlsl

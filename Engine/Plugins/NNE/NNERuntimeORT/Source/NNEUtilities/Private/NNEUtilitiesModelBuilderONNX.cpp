@@ -64,12 +64,12 @@ class FModelBuilderONNX : public IModelBuilder
 
 	onnx::ModelProto	Model;
 	onnx::GraphProto*	Graph{ nullptr };
-	int64				IrVersion { DefaultOnnxIrVersion };
-	int64				OpsetVersion{ DefaultOnnxOpsetVersion };
+	int64				IrVersion;
+	int64				OpsetVersion;
 	
 public:
 
-	FModelBuilderONNX(int64 InIrVersion = DefaultOnnxIrVersion, int64 InOpsetVersion = DefaultOnnxOpsetVersion)
+	FModelBuilderONNX(int64 InIrVersion, int64 InOpsetVersion)
 		: IrVersion(InIrVersion) , OpsetVersion(InOpsetVersion) {}
 	
 	virtual bool Begin(const FString& Name) override
@@ -321,49 +321,14 @@ private:
 	}
 };
 
-bool CreateONNXModelForOperator(const FString& OperatorName, bool bUseVariadicShapeForModel,
+bool CreateONNXModelForOperator(const FString& OperatorName, int32 IrVersion, int32 OpsetVersion, bool bUseVariadicShapeForModel,
 	TConstArrayView<NNE::Internal::FTensor> InInputTensors, TConstArrayView<NNE::Internal::FTensor> InOutputTensors,
 	TConstArrayView<NNE::Internal::FTensor> InWeightTensors, TConstArrayView<TConstArrayView<uint8>> InWeightTensorsData,
 	const UE::NNE::FAttributeMap& Attributes, FNNEModelRaw& Model)
 {
 	Model = FNNEModelRaw{};
-	
-	int64 IrVersion = DefaultOnnxIrVersion;
-	int64 OpsetVersion = DefaultOnnxOpsetVersion;
 
-	if (OperatorName == TEXT("BatchNormalization") ||	// current implementation is opset 9 (next version is 14)
-		OperatorName == TEXT("Clip") ||					// current implementation is opset 6 (next version is 11)
-		OperatorName == TEXT("Pad") ||					// current implementation is opset 2 (next version is 11)
-		OperatorName == TEXT("Split") ||				// current implementation is opset 2 (next version is 11)
-		OperatorName == TEXT("Shape") ||				// current implementation is opset 1 (next version is 13)
-		OperatorName == TEXT("Slice") ||				// current implementation is opset 1 (next version is 10)
-		OperatorName == TEXT("Squeeze") ||				// current implementation is opset 1 (next version is 11)
-		OperatorName == TEXT("Unsqueeze") ||			// current implementation is opset 1 (next version is 11)
-		OperatorName == TEXT("Upsample")				// deprecated starting opset 10
-		)				
-	{
-		OpsetVersion = 9;
-	}
-	else
-	if (OperatorName == TEXT("ReduceL1") ||				// current implementation is opset 11 (next version is 13)
-		OperatorName == TEXT("ReduceL2") ||				// current implementation is opset 11 (next version is 13)
-		OperatorName == TEXT("ReduceLogSum") ||			// current implementation is opset 11 (next version is 13)
-		OperatorName == TEXT("ReduceLogSumExp") ||		// current implementation is opset 11 (next version is 13)
-		OperatorName == TEXT("ReduceLogMin") ||			// current implementation is opset 11 (next version is 13)
-		OperatorName == TEXT("ReduceLogMax") ||			// current implementation is opset 11 (next version is 13)
-		OperatorName == TEXT("ReduceMean") ||			// current implementation is opset 11 (next version is 13)
-		OperatorName == TEXT("ReduceProd") ||			// current implementation is opset 11 (next version is 13)
-		OperatorName == TEXT("ReduceSum") ||			// current implementation is opset 11 (next version is 13)
-		OperatorName == TEXT("ReduceSumSquare") ||		// current implementation is opset 11 (next version is 13)
-		OperatorName == TEXT("Resize") ||				// current implementation is opset 11 (next version is 13)
-		OperatorName == TEXT("Squeeze") ||				// current implementation is opset 11 (next version is 13)
-		OperatorName == TEXT("Unsqueeze")				// current implementation is opset 11 (next version is 13)
-		)
-	{
-		OpsetVersion = 11;
-	}
-
-	TUniquePtr<IModelBuilder> Builder(CreateONNXModelBuilder(IrVersion, OpsetVersion));
+	TUniquePtr<IModelBuilder> Builder(CreateONNXModelBuilder((int64) IrVersion, (int64) OpsetVersion));
 
 	Builder->Begin();
 
