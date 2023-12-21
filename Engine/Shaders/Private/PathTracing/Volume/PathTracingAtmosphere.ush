@@ -114,11 +114,6 @@ float3 RayPlanetIntersectPrecise(float3 Ro, float3 Rd)
 
 FVolumeIntersection AtmosphereIntersect(float3 Origin, float3 Direction, float TMin, float TMax)
 {
-	// NOTE: only this call needs to be guarded at the moment since the others can't be reached if this returns nothing
-	if (!EnableAtmosphere)
-	{
-		return CreateEmptyVolumeIntersection();
-	}
 	float3 Result = RayPlanetIntersectPrecise(Origin, Direction);
 	// clip to provided ray interval
 	return CreateVolumeIntersection(
@@ -127,7 +122,7 @@ FVolumeIntersection AtmosphereIntersect(float3 Origin, float3 Direction, float T
 		Result.x > TMin && Result.x < TMax ? Result.x : -1.0);
 }
 
-FPackedPathTracingPayload AtmosphereGetBlockerHit(float3 Origin, float3 Direction, float HitT)
+FPackedPathTracingPayload AtmosphereGetBlockerHit(float3 Origin, float3 Direction, float HitT, bool bIsCameraRay)
 {
 	float3 Center = PlanetCenterTranslatedWorldHi + PlanetCenterTranslatedWorldLo;
 	float3 WorldP = Origin + HitT * Direction;
@@ -141,6 +136,11 @@ FPackedPathTracingPayload AtmosphereGetBlockerHit(float3 Origin, float3 Directio
 	Payload.HitT = HitT;
 	Payload.PrimitiveLightingChannelMask = 7; // visible to all lights
 	Payload.SetFrontFace();
+	if (bIsCameraRay && (VolumeFlags & PATH_TRACER_VOLUME_HOLDOUT_ATMOSPHERE) != 0)
+	{
+		Payload.SetHoldout();
+		Payload.ShadingModelID = SHADINGMODELID_UNLIT;
+	}
 	return PackPathTracingPayload(Payload);
 }
 

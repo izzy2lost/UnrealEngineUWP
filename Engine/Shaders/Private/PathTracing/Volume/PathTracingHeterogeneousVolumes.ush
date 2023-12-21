@@ -20,34 +20,30 @@ float GetPhaseG()
 
 FVolumeIntersection HeterogeneousVolumesIntersect(float3 Origin, float3 Direction, float TMin, float TMax)
 {
-	if (EnableHeterogeneousVolumes)
+	float3 WorldBoundsMin = FrustumGridUniformBuffer.TopLevelGridWorldBoundsMin;
+	float3 WorldBoundsMax = FrustumGridUniformBuffer.TopLevelGridWorldBoundsMax;
+	if (OrthoGridUniformBuffer.bUseOrthoGrid)
 	{
-		float3 WorldBoundsMin = FrustumGridUniformBuffer.TopLevelGridWorldBoundsMin;
-		float3 WorldBoundsMax = FrustumGridUniformBuffer.TopLevelGridWorldBoundsMax;
-		if (OrthoGridUniformBuffer.bUseOrthoGrid)
-		{
-			WorldBoundsMin = OrthoGridUniformBuffer.TopLevelGridWorldBoundsMin;
-			WorldBoundsMax = OrthoGridUniformBuffer.TopLevelGridWorldBoundsMax;
-		}
-
-		if (OrthoGridUniformBuffer.bUseOrthoGrid || FrustumGridUniformBuffer.bUseFrustumGrid)
-		{
-			float3 TranslatedWorldBoundsMin = GetTranslatedWorldPos(WorldBoundsMin);
-			float3 TranslatedWorldBoundsMax = GetTranslatedWorldPos(WorldBoundsMax);
-
-			float2 RayHitT = IntersectAABB(
-				Origin,
-				Direction,
-				TMin,
-				TMax,
-				TranslatedWorldBoundsMin,
-				TranslatedWorldBoundsMax
-			);
-
-			return CreateVolumeIntersection(RayHitT.x, RayHitT.y);
-		}
+		WorldBoundsMin = OrthoGridUniformBuffer.TopLevelGridWorldBoundsMin;
+		WorldBoundsMax = OrthoGridUniformBuffer.TopLevelGridWorldBoundsMax;
 	}
 
+	if (OrthoGridUniformBuffer.bUseOrthoGrid || FrustumGridUniformBuffer.bUseFrustumGrid)
+	{
+		float3 TranslatedWorldBoundsMin = GetTranslatedWorldPos(WorldBoundsMin);
+		float3 TranslatedWorldBoundsMax = GetTranslatedWorldPos(WorldBoundsMax);
+
+		float2 RayHitT = IntersectAABB(
+			Origin,
+			Direction,
+			TMin,
+			TMax,
+			TranslatedWorldBoundsMin,
+			TranslatedWorldBoundsMax
+		);
+
+		return CreateVolumeIntersection(RayHitT.x, RayHitT.y);
+	}
 	return CreateEmptyVolumeIntersection();
 }
 
@@ -175,29 +171,15 @@ FVolumeShadedResult HeterogeneousVolumesGetDensity(float3 TranslatedWorldPos)
 {
 	FVolumeShadedResult Result = (FVolumeShadedResult) 0;
 
-	if (EnableHeterogeneousVolumes)
+	bool bInFrustum = false;
+	if (FrustumGridUniformBuffer.bUseFrustumGrid)
 	{
-		bool bUseBothGrids = OrthoGridUniformBuffer.bUseOrthoGrid && FrustumGridUniformBuffer.bUseFrustumGrid;
-		if (bUseBothGrids)
-		{
-			bool bInFrustum = false;
-			Result = GetFrustumVoxelGridDensity(TranslatedWorldPos, bInFrustum);
-			if (!bInFrustum)
-			{
-				Result = GetOrthoVoxelGridDensity(TranslatedWorldPos);
-			}
-		}
-		else if (FrustumGridUniformBuffer.bUseFrustumGrid)
-		{
-			bool bInFrustum = false;
-			Result = GetFrustumVoxelGridDensity(TranslatedWorldPos, bInFrustum);
-		}
-		else if (OrthoGridUniformBuffer.bUseOrthoGrid)
-		{
-			Result = GetOrthoVoxelGridDensity(TranslatedWorldPos);
-		}
+		Result = GetFrustumVoxelGridDensity(TranslatedWorldPos, bInFrustum);
 	}
-
+	if (!bInFrustum && OrthoGridUniformBuffer.bUseOrthoGrid)
+	{
+		Result = GetOrthoVoxelGridDensity(TranslatedWorldPos);
+	}
 	return Result;
 }
 

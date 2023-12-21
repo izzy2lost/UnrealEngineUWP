@@ -433,13 +433,10 @@ BEGIN_SHADER_PARAMETER_STRUCT(FPathTracingData, )
 	SHADER_PARAMETER(uint32, VisualizeLightGrid)
 	SHADER_PARAMETER(uint32, VisualizeDecalGrid)
 	SHADER_PARAMETER(uint32, EnableDBuffer)
-	SHADER_PARAMETER(uint32, EnableAtmosphere)
-	SHADER_PARAMETER(uint32, EnableFog)
-	SHADER_PARAMETER(uint32, EnableHeterogeneousVolumes)
+	SHADER_PARAMETER(uint32, VolumeFlags)
 	SHADER_PARAMETER(uint32, EnabledDirectLightingContributions)   // PATHTRACER_CONTRIBUTION_*
 	SHADER_PARAMETER(uint32, EnabledIndirectLightingContributions) // PATHTRACER_CONTRIBUTION_*
 	SHADER_PARAMETER(uint32, ApplyDiffuseSpecularOverrides)
-	SHADER_PARAMETER(uint32, UseAnalyticTransmittance)
 	SHADER_PARAMETER(int32, MaxRaymarchSteps)
 	SHADER_PARAMETER(float, MaxPathIntensity)
 	SHADER_PARAMETER(float, MaxNormalBias)
@@ -487,10 +484,7 @@ struct FPathTracingConfig
 			PathTracingData.EnableDBuffer != Other.PathTracingData.EnableDBuffer ||
 			PathTracingData.MaxPathIntensity != Other.PathTracingData.MaxPathIntensity ||
 			PathTracingData.FilterWidth != Other.PathTracingData.FilterWidth ||
-			PathTracingData.EnableAtmosphere != Other.PathTracingData.EnableAtmosphere ||
-			PathTracingData.EnableFog != Other.PathTracingData.EnableFog ||
-			PathTracingData.EnableHeterogeneousVolumes != Other.PathTracingData.EnableHeterogeneousVolumes ||
-			PathTracingData.UseAnalyticTransmittance != Other.PathTracingData.UseAnalyticTransmittance ||
+			PathTracingData.VolumeFlags != Other.PathTracingData.VolumeFlags ||
 			PathTracingData.ApplyDiffuseSpecularOverrides != Other.PathTracingData.ApplyDiffuseSpecularOverrides ||
 			PathTracingData.EnabledDirectLightingContributions != Other.PathTracingData.EnabledDirectLightingContributions ||
 			PathTracingData.EnabledIndirectLightingContributions != Other.PathTracingData.EnabledIndirectLightingContributions ||
@@ -603,7 +597,7 @@ namespace PathTracing
 	}
 }
 
-static uint32 EvalUseAnalyticTransmittance(const FViewInfo& View)
+static bool EvalUseAnalyticTransmittance(const FViewInfo& View)
 {
 	int32 UseAnalyticTransmittance = CVarPathTracingUseAnalyticTransmittance.GetValueOnRenderThread();
 	if (UseAnalyticTransmittance < 0)
@@ -611,7 +605,7 @@ static uint32 EvalUseAnalyticTransmittance(const FViewInfo& View)
 		UseAnalyticTransmittance = !ShouldRenderHeterogeneousVolumesForView(View);
 	}
 
-	return uint32(UseAnalyticTransmittance);
+	return UseAnalyticTransmittance != 0;
 }
 
 // This function prepares the portion of shader arguments that may involve invalidating the path traced state
@@ -656,21 +650,25 @@ static void PreparePathTracingData(const FScene* Scene, const FViewInfo& View, F
 		PathTracingData.CameraLensRadius.Y = 0.5f * FocalLengthInCM / PPV.DepthOfFieldFstop;
 		PathTracingData.CameraLensRadius.X = PathTracingData.CameraLensRadius.Y / FMath::Clamp(PPV.DepthOfFieldSqueezeFactor, 1.0f, 2.0f);
 	}
-	PathTracingData.EnableAtmosphere =
+
+	// Merge all volume flags into one uint
+	PathTracingData.VolumeFlags = 0;
+	PathTracingData.VolumeFlags |=
 		ShouldRenderSkyAtmosphere(Scene, ShowFlags) && 
 		View.SkyAtmosphereUniformShaderParameters != nullptr &&
-		PPV.PathTracingEnableReferenceAtmosphere != 0;
-
-	PathTracingData.EnableFog = ShouldRenderFog(*View.Family)
+		PPV.PathTracingEnableReferenceAtmosphere != 0 ? PATH_TRACER_VOLUME_ENABLE_ATMOSPHERE : 0;
+	PathTracingData.VolumeFlags |= ShouldRenderFog(*View.Family)
 		&& Scene->ExponentialFogs.Num() > 0
 		&& Scene->ExponentialFogs[0].bEnableVolumetricFog
 		&& Scene->ExponentialFogs[0].VolumetricFogDistance > 0
 		&& Scene->ExponentialFogs[0].VolumetricFogExtinctionScale > 0
 		&& (Scene->ExponentialFogs[0].FogData[0].Density > 0 ||
-			Scene->ExponentialFogs[0].FogData[1].Density > 0);
+			Scene->ExponentialFogs[0].FogData[1].Density > 0) ? PATH_TRACER_VOLUME_ENABLE_FOG : 0;
+	PathTracingData.VolumeFlags |= ShouldRenderHeterogeneousVolumesForView(View) ? PATH_TRACER_VOLUME_ENABLE_HETEROGENEOUS_VOLUMES : 0;
+	PathTracingData.VolumeFlags |= View.SkyAtmosphereUniformShaderParameters != nullptr &&  View.SkyAtmosphereUniformShaderParameters->bHoldout ? PATH_TRACER_VOLUME_HOLDOUT_ATMOSPHERE : 0;
+	PathTracingData.VolumeFlags |= Scene->ExponentialFogs.Num() > 0 && Scene->ExponentialFogs[0].bHoldout ? PATH_TRACER_VOLUME_HOLDOUT_FOG : 0;
+	PathTracingData.VolumeFlags |= EvalUseAnalyticTransmittance(View) ? PATH_TRACER_VOLUME_USE_ANALYTIC_TRANSMITTANCE : 0;
 
-	PathTracingData.EnableHeterogeneousVolumes = ShouldRenderHeterogeneousVolumesForView(View);
-	PathTracingData.UseAnalyticTransmittance = EvalUseAnalyticTransmittance(View);
 	PathTracingData.EnableDBuffer = CVarPathTracingUseDBuffer.GetValueOnRenderThread();
 
 	PathTracingData.DecalRoughnessCutoff = PathTracing::UsesDecals(*View.Family) && View.bHasRayTracingDecals ? CVarPathTracingDecalRoughnessCutoff.GetValueOnRenderThread() : -1.0f;
@@ -2055,7 +2053,7 @@ void SetLightParameters(FRDGBuilder& GraphBuilder, FPathTracingRG::FParameters* 
 
 	// Prepend SkyLight to light buffer since it is not part of the regular light list
 	// skylight should be excluded if we are using the reference atmosphere calculation (don't bother checking again if an atmosphere is present)
-	const bool bUseAtmosphere = PassParameters->PathTracingData.EnableAtmosphere != 0;
+	const bool bUseAtmosphere = (PassParameters->PathTracingData.VolumeFlags & PATH_TRACER_VOLUME_ENABLE_ATMOSPHERE) != 0;
 	const bool bEnableSkydome = !bUseAtmosphere;
 	if (PrepareSkyTexture(GraphBuilder, Scene, View, bEnableSkydome, UseMISCompensation, &PassParameters->SkylightParameters))
 	{
@@ -2597,7 +2595,7 @@ void FDeferredShadingSceneRenderer::RenderPathTracing(
 
 	// prepare atmosphere optical depth lookup texture (if needed)
 	FRDGTexture* AtmosphereOpticalDepthLUT = nullptr;
-	if (Config.PathTracingData.EnableAtmosphere)
+	if ((Config.PathTracingData.VolumeFlags & PATH_TRACER_VOLUME_ENABLE_ATMOSPHERE) != 0)
 	{
 		check(Scene->GetSkyAtmosphereSceneInfo() != nullptr);
 		check(Scene->GetSkyAtmosphereSceneInfo()->GetAtmosphereShaderParameters() != nullptr);
@@ -2917,7 +2915,7 @@ void FDeferredShadingSceneRenderer::RenderPathTracing(
 								PassParameters->PlanetCenterTranslatedWorldHi = PreviousPassParameters->PlanetCenterTranslatedWorldHi;
 								PassParameters->PlanetCenterTranslatedWorldLo = PreviousPassParameters->PlanetCenterTranslatedWorldLo;
 							}
-							else if (Config.PathTracingData.EnableAtmosphere)
+							else if ((Config.PathTracingData.VolumeFlags & PATH_TRACER_VOLUME_ENABLE_ATMOSPHERE) != 0)
 							{
 								PassParameters->Atmosphere = Scene->GetSkyAtmosphereSceneInfo()->GetAtmosphereUniformBuffer();
 								FVector PlanetCenterTranslatedWorld = Scene->GetSkyAtmosphereSceneInfo()->GetSkyAtmosphereSceneProxy().GetAtmosphereSetup().PlanetCenterKm * double(FAtmosphereSetup::SkyUnitToCm) + View.ViewMatrices.GetPreViewTranslation();
@@ -2935,7 +2933,7 @@ void FDeferredShadingSceneRenderer::RenderPathTracing(
 							PassParameters->AtmosphereOpticalDepthLUT = AtmosphereOpticalDepthLUT;
 							PassParameters->AtmosphereOpticalDepthLUTSampler = TStaticSamplerState<SF_Bilinear, AM_Clamp, AM_Clamp, AM_Clamp>::GetRHI();
 
-							if (Config.PathTracingData.EnableFog)
+							if ((Config.PathTracingData.VolumeFlags & PATH_TRACER_VOLUME_ENABLE_FOG) != 0)
 							{
 								PassParameters->FogParameters = PrepareFogParameters(View, Scene->ExponentialFogs[0]);
 							}

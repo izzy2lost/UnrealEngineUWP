@@ -387,7 +387,7 @@ FPathTracingPayload TraceTransparentRay(inout FPathState PathState, int Bounce, 
 		{
 			// we didn't hit any real geometry, but we did hit the volume's blocker geometry
 			// create a virtual hit with it here
-			PackedPayload = VolumeGetBlockerHit(VolumeIsectList.BlockerID, PathState.Ray.Origin, PathState.Ray.Direction, VolumeIsectList.BlockerHitT);
+			PackedPayload = VolumeGetBlockerHit(VolumeIsectList.BlockerID, PathState.Ray.Origin, PathState.Ray.Direction, VolumeIsectList.BlockerHitT, bIsCameraRay);
 		}
 
 		// Loop over lights to capture their contribution
@@ -452,8 +452,9 @@ FPathTracingPayload TraceTransparentRay(inout FPathState PathState, int Bounce, 
 			}
 
 			// NOTE: when using analytic raymarching, we can skip all raymarching on the last bounce because we know we don't need a scattering point
-			const uint UseNullTrackingTransmittance = !UseAnalyticTransmittance;
-			if (UseNullTrackingTransmittance || (UseAnalyticTransmittance && !bLastBounce))
+			const bool bUseAnalyticTransmittance = (VolumeFlags & PATH_TRACER_VOLUME_USE_ANALYTIC_TRANSMITTANCE) != 0;
+			const bool bUseNullTrackingTransmittance = !bUseAnalyticTransmittance;
+			if (bUseNullTrackingTransmittance || (bUseAnalyticTransmittance && !bLastBounce))
 			{
 				// remember the start of our interval before ray marching messes with it
 				float StartVolumeTMin = Interval.VolumeTMin;
@@ -478,13 +479,18 @@ FPathTracingPayload TraceTransparentRay(inout FPathState PathState, int Bounce, 
 						float3 Ro = PathState.Ray.Origin;
 						float3 Rd = PathState.Ray.Direction;
 						float3 TranslatedWorldPos = Ro + Interval.VolumeTMin * Rd;
-						FVolumeShadedResult Result = VolumeGetDensity(TranslatedWorldPos, Interval);
+						FVolumeShadedResult Result = VolumeGetDensity(TranslatedWorldPos, Interval, bIsCameraRay);
 
 						// clamp to make sure we never exceed the majorant (should not be the case, but need to avoid any possible numerical issues)
 						float3 SigmaT = min(Result.SigmaT, TrackingResult.SigmaBar);
 						float3 SigmaN = TrackingResult.SigmaBar - SigmaT;
 
-						if (UseAnalyticTransmittance || (UseNullTrackingTransmittance && !bLastBounce)) // check now if this loop is also computing transmittance
+						if (bIsCameraRay)
+						{
+							PathState.BackgroundVisibility += Luminance(PathThroughput * Result.SigmaH);
+						}
+
+						if (bUseAnalyticTransmittance || (bUseNullTrackingTransmittance && !bLastBounce)) // check now if this loop is also computing transmittance
 						{
 							float3 SigmaS = min(Result.SigmaSRayleigh + Result.SigmaSHG, SigmaT);
 							// accumulate a signal for the denoiser
@@ -516,14 +522,14 @@ FPathTracingPayload TraceTransparentRay(inout FPathState PathState, int Bounce, 
 
 				// restore interval start now that we are finished with ray marching
 				Interval.VolumeTMin = StartVolumeTMin;
-				if (UseNullTrackingTransmittance)
+				if (bUseNullTrackingTransmittance)
 				{
 					// record the change in transmittance since we already computed it
 					PathState.PathThroughput = PathThroughput;
 				}
 			}
 			
-			if (UseAnalyticTransmittance)
+			if (bUseAnalyticTransmittance)
 			{
 				// analytically handle the transmittance to the next surface (which will be higher quality than the transmittance implicitly computed above and prevent noise with emissive surfaces in volumes)
 				PathState.PathThroughput = VolumeGetTransmittance(PathState.PathThroughput, PathState.Ray.Origin, PathState.Ray.Direction, Interval, PathState.RandSequence);
@@ -621,7 +627,8 @@ FPathTracingPayload TraceTransparentRay(inout FPathState PathState, int Bounce, 
 
 		if (HitPayload.HitT == POSITIVE_INFINITY)
 		{
-			// if our hit was against an infinite light, exit now
+			// if our hit was against an infinite light, treat it as having background alpha, and exit
+			PathState.BackgroundVisibility += Luminance(PathState.PathThroughput);
 			break;
 		}
 
@@ -1394,7 +1401,7 @@ bool PathTracingKernel(inout FPathState PathState, int Bounce)
 
 			// find out how much volume exists at the current point
 			const float3 TranslatedWorldPos = Ro + EquiAngularT * Rd;
-			const FVolumeShadedResult Result = VolumeGetDensity(TranslatedWorldPos, VolumeSegment.Interval);
+			const FVolumeShadedResult Result = VolumeGetDensity(TranslatedWorldPos, VolumeSegment.Interval, bIsCameraRay);
 			const float3 SigmaT = Result.SigmaT;
 			const float3 SigmaS = min(Result.SigmaSRayleigh + Result.SigmaSHG, SigmaT);
 

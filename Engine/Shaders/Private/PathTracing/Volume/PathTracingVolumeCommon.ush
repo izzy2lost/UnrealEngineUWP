@@ -33,10 +33,6 @@ FVolumeIntersection CreateEmptyVolumeIntersection()
 	return (FVolumeIntersection)0;
 }
 
-#define VOLUMEID_ATMOSPHERE				0
-#define VOLUMEID_FOG					1
-#define VOLUMEID_HETEROGENEOUS_VOLUMES	2
-#define PATH_TRACER_MAX_VOLUMES			3
 
 // representes an interval along the ray over which the specified volumes are known to exist
 struct FVolumeIntersectionInterval
@@ -188,6 +184,7 @@ void MergeVolumeDensityBounds(inout FVolumeDensityBounds Merged, FVolumeDensityB
 struct FVolumeShadedResult
 {
 	float3 SigmaT;         // extinction
+	float3 SigmaH;         // holdout density
 	float3 SigmaSRayleigh; // Rayleight scattering coefficient
 	float3 SigmaSHG;       // Henyey-Greenstein scattering coefficient
 	float3 Emission;
@@ -215,6 +212,7 @@ FPathTracingPayload CreateMediumHitPayload(float HitT, float3 TranslatedWorldPos
 void MergeVolumeShadedResult(inout FVolumeShadedResult Merged, FVolumeShadedResult Other)
 {
 	Merged.SigmaT += Other.SigmaT;
+	Merged.SigmaH += Other.SigmaH;
 	Merged.SigmaSRayleigh += Other.SigmaSRayleigh;
 	Merged.SigmaSHG += Other.SigmaSHG;
 	Merged.Emission += Other.Emission;
@@ -222,23 +220,6 @@ void MergeVolumeShadedResult(inout FVolumeShadedResult Merged, FVolumeShadedResu
 	float Qa = Other.SigmaSHG.x + Other.SigmaSHG.y + Other.SigmaSHG.z;
 	float Qs = Merged.SigmaSHG.x + Merged.SigmaSHG.y + Merged.SigmaSHG.z;
 	Merged.PhaseG = lerp(Merged.PhaseG, Other.PhaseG, Qs > 0 ? Qa / Qs : 0.0);
-}
-
-struct FVolumeSampleResult
-{
-	float3 SurfaceThroughput;  // the path throughput beyond the volume (for the surface hit behind usually)
-	float3 VolumeThroughput;   // the path throughput up to the volume sample (if we sampled one)
-	float  VolumeT;            // distance to volume sample along the ray (will be <= 0 if none was sampled)
-	FVolumeShadedResult VolumeSample; // actual shaded volume hit (if we have one)
-
-	bool VolumeHit() { return VolumeT > 0.0; }
-};
-
-FVolumeSampleResult CreateEmptyVolumeSampleResult()
-{
-	FVolumeSampleResult Result = (FVolumeSampleResult)0;
-	Result.VolumeT = -1.0;
-	return Result;
 }
 
 // represent a stochastically chosen volume element that is guaranteed to lie between 

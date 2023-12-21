@@ -8,37 +8,34 @@
 #include "PathTracingHeterogeneousVolumes.ush"
 #include "PathTracingVolumeSampling.ush"
 
-uint UseAnalyticTransmittance;
-
-uint EnableAtmosphere;
-uint EnableFog;
-uint EnableHeterogeneousVolumes;
+uint VolumeFlags;
 int MaxRaymarchSteps;
 
 
 // Given an input ray, figure out where the provided volume intersects it
 FVolumeIntersectionList VolumeIntersect(float3 Origin, float3 Direction, float TMin, float TMax)
 {
+	// NOTE: only this call needs to be guarded by enable flags at the moment since the others can't be reached if this returns nothing
 	FVolumeIntersectionList Result = CreateEmptyVolumeIntersectionList();
-	if (EnableAtmosphere)
+	if (VolumeFlags & PATH_TRACER_VOLUME_ENABLE_ATMOSPHERE)
 	{
 		Result.Add(VOLUMEID_ATMOSPHERE, AtmosphereIntersect(Origin, Direction, TMin, TMax));
 	}
-	if (EnableFog)
+	if (VolumeFlags & PATH_TRACER_VOLUME_ENABLE_FOG)
 	{
 		Result.Add(VOLUMEID_FOG, FogIntersect(Origin, Direction, TMin, TMax));
 	}
-	if (EnableHeterogeneousVolumes)
+	if (VolumeFlags & PATH_TRACER_VOLUME_ENABLE_HETEROGENEOUS_VOLUMES)
 	{
 		Result.Add(VOLUMEID_HETEROGENEOUS_VOLUMES, HeterogeneousVolumesIntersect(Origin, Direction, TMin, TMax));
 	}
 	return Result;
 }
 
-FPackedPathTracingPayload VolumeGetBlockerHit(uint VolumeID, float3 Origin, float3 Direction, float HitT)
+FPackedPathTracingPayload VolumeGetBlockerHit(uint VolumeID, float3 Origin, float3 Direction, float HitT, bool bIsCameraRay)
 {
 	// NOTE: only atmosphere supports blockers, so if this gets called it is safe to assume its for the atmosphere volume
-	return AtmosphereGetBlockerHit(Origin, Direction, HitT);
+	return AtmosphereGetBlockerHit(Origin, Direction, HitT, bIsCameraRay);
 }
 
 // Given an input ray, figure out the bounds on density. The T interval may be smaller than the one returned by VolumeIntersect
@@ -58,17 +55,25 @@ FVolumeDensityBounds VolumeGetDensityBounds(float3 Origin, float3 Direction, FVo
 }
 
 // Given a point in world space, return the amount of volume and its scattering properties
-FVolumeShadedResult VolumeGetDensity(float3 TranslatedWorldPos, FVolumeIntersectionInterval Interval)
+FVolumeShadedResult VolumeGetDensity(float3 TranslatedWorldPos, FVolumeIntersectionInterval Interval, bool bIsCameraRay)
 {
 	FVolumeShadedResult Result = (FVolumeShadedResult)0;
 	for (int Index = 0; Index < Interval.Num; Index++)
 	{
+		FVolumeShadedResult LocalResult = (FVolumeShadedResult)0;
 		switch (Interval.VolumeID[Index])
 		{
-			case VOLUMEID_ATMOSPHERE:            MergeVolumeShadedResult(Result, AtmosphereGetDensity(TranslatedWorldPos)); break;
-			case VOLUMEID_FOG:                   MergeVolumeShadedResult(Result, FogGetDensity(TranslatedWorldPos)); break;
-			case VOLUMEID_HETEROGENEOUS_VOLUMES: MergeVolumeShadedResult(Result, HeterogeneousVolumesGetDensity(TranslatedWorldPos)); break;
+			case VOLUMEID_ATMOSPHERE:            LocalResult = AtmosphereGetDensity(TranslatedWorldPos); break;
+			case VOLUMEID_FOG:                   LocalResult = FogGetDensity(TranslatedWorldPos); break;
+			case VOLUMEID_HETEROGENEOUS_VOLUMES: LocalResult = HeterogeneousVolumesGetDensity(TranslatedWorldPos); break;
 		}
+		if (bIsCameraRay && (VolumeFlags & PATH_TRACER_VOLUME_HOLDOUT_BIT << Interval.VolumeID[Index]) != 0)
+		{
+			// remove scattering and set holdout density
+			LocalResult.SigmaH = LocalResult.SigmaT;
+			LocalResult.SigmaSHG = LocalResult.SigmaSRayleigh = 0;
+		}
+		MergeVolumeShadedResult(Result, LocalResult);
 	}
 	return Result;
 }
@@ -213,7 +218,7 @@ float3 VolumeGetTransmittanceNullTracking(float3 StartThroughput, float3 Origin,
 
 float3 VolumeGetTransmittance(float3 StartThroughput, float3 Origin, float3 Direction, FVolumeIntersectionInterval Interval, inout RandomSequence RandSequence)
 {
-	if (UseAnalyticTransmittance)
+	if (VolumeFlags & PATH_TRACER_VOLUME_USE_ANALYTIC_TRANSMITTANCE)
 	{
 		return VolumeGetTransmittanceAnalytical(StartThroughput, Origin, Direction, Interval, RandSequence);
 	}
@@ -223,7 +228,7 @@ float3 VolumeGetTransmittance(float3 StartThroughput, float3 Origin, float3 Dire
 
 float3 VolumeGetTransmittance(float3 StartThroughput, float3 Origin, float3 Direction, FVolumeIntersectionList IntersectionList, inout RandomSequence RandSequence)
 {
-	if (UseAnalyticTransmittance)
+	if (VolumeFlags & PATH_TRACER_VOLUME_USE_ANALYTIC_TRANSMITTANCE)
 	{
 		return VolumeGetTransmittanceAnalytical(StartThroughput, Origin, Direction, IntersectionList, RandSequence);
 	}
@@ -235,7 +240,7 @@ FVolumeTrackingResult VolumeSampleDistance(float3 PathThroughput, float3 Origin,
 {
 	FVolumeDensityBounds VolumeDensityBounds = VolumeGetDensityBounds(Origin, Direction, Interval);
 	float3 SigmaBar = VolumeDensityBounds.SigmaMax;
-	if (!UseAnalyticTransmittance)
+	if ((VolumeFlags & PATH_TRACER_VOLUME_USE_ANALYTIC_TRANSMITTANCE) == 0)
 	{
 		// if we are not using analytical transmittance, a tight majorant could prevent us from "seeing" hits that match the density exactly
 		// leading to heavy noise on bright objects embedded in the volume
