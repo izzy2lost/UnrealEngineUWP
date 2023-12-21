@@ -23,6 +23,22 @@ using Microsoft.Extensions.Options;
 namespace Horde.Server.Server
 {
 	/// <summary>
+	/// Model for Horde account login view
+	/// </summary>
+	public class HordeAccountLoginViewModel
+	{
+		/// <summary>
+		/// Where to post the form
+		/// </summary>
+		public string? FormPostUrl { get; set; }
+		
+		/// <summary>
+		/// Optional error message to display
+		/// </summary>
+		public string? ErrorMessage { get; set; }
+	}
+	
+	/// <summary>
 	/// Controller managing account status
 	/// </summary>
 	[ApiController]
@@ -115,14 +131,6 @@ namespace Horde.Server.Server
 			return new ContentResult { ContentType = "text/html", StatusCode = (int)HttpStatusCode.OK, Content = content.ToString() };
 		}
 
-		private string RenderLoginForm(string? error = null, string? returnUrl = null)
-		{
-			string? loginPostUrl = Url.Action("UserPassLogin", "Account", returnUrl != null ? new {returnUrl} : null);
-			string content = Resources.HordeAccountLoginHtml;
-			return content
-				.Replace("%%errorMsg%%", error == null ? "" : $"<div class=\"error\">{error}</div>", StringComparison.InvariantCulture)
-				.Replace("%%loginPostUrl%%", loginPostUrl, StringComparison.InvariantCulture);
-		}
 		
 		/// <summary>
 		/// Show login form for username/password login
@@ -137,13 +145,11 @@ namespace Horde.Server.Server
 				// Redirect if already logged in
 				return Redirect(returnUrl ?? "/");
 			}
-			
-			return new ContentResult
+
+			return View("~/Server/HordeAccountLogin.cshtml", new HordeAccountLoginViewModel
 			{
-				ContentType = "text/html",
-				StatusCode = (int)HttpStatusCode.OK,
-				Content = RenderLoginForm(returnUrl: returnUrl)
-			};
+				FormPostUrl = Url.Action("UserPassLogin", "Account", returnUrl != null ? new { returnUrl } : null)
+			});
 		}
 		
 		/// <summary>
@@ -210,14 +216,14 @@ namespace Horde.Server.Server
 			return Redirect(returnUrl ?? "/");
 		}
 
-		private ContentResult LoginFormError(string message, string? returnUrl = null, HttpStatusCode statusCode = HttpStatusCode.BadRequest)
+		private ViewResult LoginFormError(string message, string? returnUrl = null, HttpStatusCode statusCode = HttpStatusCode.BadRequest)
 		{
-			return new ContentResult
+			Response.StatusCode = (int)statusCode;
+			return View("~/Server/HordeAccountLogin.cshtml", new HordeAccountLoginViewModel
 			{
-				ContentType = "text/html",
-				StatusCode = (int)statusCode,
-				Content = RenderLoginForm(message, returnUrl)
-			};
+				FormPostUrl = Url.Action("UserPassLogin", "Account", returnUrl != null ? new { returnUrl } : null),
+				ErrorMessage = message
+			});
 		}
 
 		/// <summary>

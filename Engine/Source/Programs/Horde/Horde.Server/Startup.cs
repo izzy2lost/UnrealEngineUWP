@@ -666,6 +666,7 @@ namespace Horde.Server
 				{
 					options.Cookie.Name = CookieAuthenticationDefaults.AuthenticationScheme;
 					options.LoginPath = "/account/login/horde";
+					options.LogoutPath = "/";
 				}
 
 				options.Events.OnValidatePrincipal = context =>
@@ -878,7 +879,8 @@ namespace Horde.Server
 			});
 
 			services.AddMvc().AddJsonOptions(options => ConfigureJsonSerializer(options.JsonSerializerOptions));
-
+			services.AddControllersWithViews().AddRazorRuntimeCompilation();
+			
 			services.AddControllers(options =>
 			{
 				options.InputFormatters.Add(new CbInputFormatter());
