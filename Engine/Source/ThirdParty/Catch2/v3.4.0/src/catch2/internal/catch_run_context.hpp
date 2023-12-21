@@ -9,6 +9,7 @@
 #define CATCH_RUN_CONTEXT_HPP_INCLUDED
 
 #include <catch2/interfaces/catch_interfaces_capture.hpp>
+#include <catch2/interfaces/catch_interfaces_run_capture.hpp>
 #include <catch2/internal/catch_test_registry.hpp>
 #include <catch2/internal/catch_test_run_info.hpp>
 #include <catch2/internal/catch_fatal_condition_handler.hpp>
@@ -34,7 +35,7 @@ namespace Catch {
 
     ///////////////////////////////////////////////////////////////////////////
 
-    class RunContext final : public IResultCapture {
+    class RunContext final : public IResultCapture, public IRunCapture {
 
     public:
         RunContext( RunContext const& ) = delete;
@@ -113,6 +114,9 @@ namespace Catch {
 
 		void testsStarting(std::set<StringRef> filteredGroups);
 		void testsFinished(std::set<StringRef> filteredGroups);
+
+	public: // IRunCapture
+		const TestCaseInfo* getCurrentTest() const override;
 
     public:
         // !TBD We need to do this another way!

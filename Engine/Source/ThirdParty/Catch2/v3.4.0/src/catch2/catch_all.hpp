@@ -23,6 +23,7 @@
 #define CATCH_ALL_HPP_INCLUDED
 
 #include <catch2/benchmark/catch_benchmark_all.hpp>
+#include <catch2/catch_active_test.hpp>
 #include <catch2/catch_approx.hpp>
 #include <catch2/catch_assertion_info.hpp>
 #include <catch2/catch_assertion_result.hpp>

@@ -468,6 +468,31 @@ SetResourcesFolder("TestFilesResources");
 
 When **Unreal Build Tool (UBT)** runs the platform deploy step, UBT copies this folder and its entire contents into the binary path so tests can relatively locate and load resources from it.
 
+### Retrieve active test information
+
+To access the name and tag list of current running test include `<catch2/catch_active_test.hpp>` in your test:
+* `Catch::getActiveTestName()` will return the name of the current running test - also called the active test
+* `Catch::getActiveTestTags()` will return the tags of the current running test in alphabetical order
+```cpp
+#if WITH_LOW_LEVEL_TESTS
+
+#include "TestHarness.h"
+
+#include <catch2/catch_active_test.hpp>
+#include <string>
+
+TEST_CASE("Example::ActiveTest", "[GetTags][GetName][ActiveTest]")
+{
+    // Returns "Example::ActiveTest"
+	const std::string CurrentTestName = Catch::getActiveTestName();
+
+	// Returns "[ActiveTest][GetName][GetTags]"
+	const std::string CurrentRunningTestTags = Catch::getActiveTestTags();
+}
+
+#endif
+```
+
 ### Best Practices
 
 * Provide tags to test cases and scenarios.

@@ -6,7 +6,7 @@
 // SPDX-License-Identifier: BSL-1.0
 
 //  Catch v3.4.0
-//  Generated: 2023-11-15 15:01:06.660894
+//  Generated: 2023-12-21 08:37:23.527822
 //  ----------------------------------------------------------
 //  This file is an amalgamation of multiple different files.
 //  You probably shouldn't edit it directly.
@@ -536,11 +536,13 @@
 namespace Catch {
 
     class IResultCapture;
+    class IRunCapture;
     class IConfig;
 
     class Context {
         IConfig const* m_config = nullptr;
         IResultCapture* m_resultCapture = nullptr;
+        IRunCapture* m_runCapture = nullptr;
 
         CATCH_EXPORT static Context* currentContext;
         friend Context& getCurrentMutableContext();
@@ -550,8 +552,10 @@ namespace Catch {
 
     public:
         IResultCapture* getResultCapture() const { return m_resultCapture; }
+        IRunCapture* getRunCapture() const { return m_runCapture; }
         IConfig const* getConfig() const { return m_config; }
         void setResultCapture( IResultCapture* resultCapture );
+        void setRunCapture( IRunCapture* runCapture );
         void setConfig( IConfig const* config );
     };
 
@@ -2479,6 +2483,19 @@ namespace Catch {
 #endif // CATCH_CONSTRUCTOR_HPP_INCLUDED
 
 #endif // CATCH_BENCHMARK_ALL_HPP_INCLUDED
+
+
+#ifndef CATCH_ACTIVE_TEST_HPP_INCLUDED
+#define CATCH_ACTIVE_TEST_HPP_INCLUDED
+
+#include <string>
+
+namespace Catch {
+   const std::string getActiveTestName();
+   const std::string getActiveTestTags();
+} // end namespace Catch
+
+#endif // CATCH_ACTIVE_TEST_HPP_INCLUDED
 
 
 #ifndef CATCH_APPROX_HPP_INCLUDED
@@ -8784,6 +8801,24 @@ namespace Catch {
 #endif // CATCH_INTERFACES_REPORTER_REGISTRY_HPP_INCLUDED
 
 
+#ifndef CATCH_INTERFACES_RUN_CAPTURE_HPP_INCLUDED
+#define CATCH_INTERFACES_RUN_CAPTURE_HPP_INCLUDED
+
+namespace Catch {
+
+    struct TestCaseInfo;
+
+    class IRunCapture {
+    public:
+        virtual const TestCaseInfo* getCurrentTest() const = 0;
+    };
+
+    IRunCapture& getRunCapture();
+}
+
+#endif // CATCH_INTERFACES_RUN_CAPTURE_HPP_INCLUDED
+
+
 #ifndef CATCH_INTERFACES_TAG_ALIAS_REGISTRY_HPP_INCLUDED
 #define CATCH_INTERFACES_TAG_ALIAS_REGISTRY_HPP_INCLUDED
 
@@ -10024,7 +10059,7 @@ namespace Catch {
 
     ///////////////////////////////////////////////////////////////////////////
 
-    class RunContext final : public IResultCapture {
+    class RunContext final : public IResultCapture, public IRunCapture {
 
     public:
         RunContext( RunContext const& ) = delete;
@@ -10103,6 +10138,9 @@ namespace Catch {
 
 		void testsStarting(std::set<StringRef> filteredGroups);
 		void testsFinished(std::set<StringRef> filteredGroups);
+
+	public: // IRunCapture
+		const TestCaseInfo* getCurrentTest() const override;
 
     public:
         // !TBD We need to do this another way!

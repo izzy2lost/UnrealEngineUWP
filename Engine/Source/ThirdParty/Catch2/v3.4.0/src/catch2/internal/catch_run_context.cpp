@@ -173,6 +173,7 @@ namespace Catch {
         m_includeSuccessfulResults( m_config->includeSuccessfulResults() || m_reporter->getPreferences().shouldReportAllAssertions )
     {
         getCurrentMutableContext().setResultCapture( this );
+        getCurrentMutableContext().setRunCapture( this );
         m_reporter->testRunStarting(m_runInfo);
     }
 
@@ -430,6 +431,11 @@ namespace Catch {
             ? m_activeTestCase->getTestCaseInfo().name
             : std::string();
     }
+
+	// from IRunCapture
+    const TestCaseInfo* RunContext::getCurrentTest() const {
+        return m_activeTestCase ? &(m_activeTestCase->getTestCaseInfo()) : nullptr;
+	}
 
     const AssertionResult * RunContext::getLastResult() const {
         return &(*m_lastResult);
@@ -762,6 +768,13 @@ namespace Catch {
             return *capture;
         else
             CATCH_INTERNAL_ERROR("No result capture instance");
+    }
+
+	IRunCapture& getRunCapture() {
+        if ( auto* capture = getCurrentContext().getRunCapture() )
+            return *capture;
+        else
+            CATCH_INTERNAL_ERROR( "No run capture instance" );
     }
 
     void seedRng(IConfig const& config) {

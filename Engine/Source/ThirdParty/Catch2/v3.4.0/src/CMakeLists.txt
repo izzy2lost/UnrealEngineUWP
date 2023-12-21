@@ -44,6 +44,7 @@ set(IMPL_HEADERS
  "${PROJECT_BINARY_DIR}/generated-includes/catch2/catch_user_config.hpp"
   ${SOURCES_DIR}/catch_user_config.hpp.in
   ${SOURCES_DIR}/catch_all.hpp
+  ${SOURCES_DIR}/catch_active_test.hpp
   ${SOURCES_DIR}/catch_approx.hpp
   ${SOURCES_DIR}/catch_assertion_info.hpp
   ${SOURCES_DIR}/catch_assertion_result.hpp
@@ -147,6 +148,7 @@ set(IMPL_HEADERS
   ${SOURCES_DIR}/internal/catch_xmlwriter.hpp
 )
 set(IMPL_SOURCES
+  ${SOURCES_DIR}/catch_active_test.cpp
   ${SOURCES_DIR}/catch_approx.cpp
   ${SOURCES_DIR}/catch_assertion_result.cpp
   ${SOURCES_DIR}/catch_config.cpp
@@ -227,6 +229,7 @@ set(INTERFACE_HEADERS
   ${SOURCES_DIR}/interfaces/catch_interfaces_registry_hub.hpp
   ${SOURCES_DIR}/interfaces/catch_interfaces_reporter.hpp
   ${SOURCES_DIR}/interfaces/catch_interfaces_reporter_factory.hpp
+  ${SOURCES_DIR}/interfaces/catch_interfaces_run_capture.hpp
   ${SOURCES_DIR}/interfaces/catch_interfaces_tag_alias_registry.hpp
   ${SOURCES_DIR}/interfaces/catch_interfaces_test_invoker.hpp
   ${SOURCES_DIR}/interfaces/catch_interfaces_testcase.hpp

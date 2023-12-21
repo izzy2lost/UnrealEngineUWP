@@ -31,6 +31,10 @@ namespace Catch {
         m_resultCapture = resultCapture;
     }
 
+	void Context::setRunCapture( IRunCapture* runCapture ) {
+        m_runCapture = runCapture;
+    }
+
     void Context::setConfig( IConfig const* config ) { m_config = config; }
 
     SimplePcg32& sharedRng() {

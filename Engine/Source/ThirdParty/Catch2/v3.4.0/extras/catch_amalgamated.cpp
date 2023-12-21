@@ -6,7 +6,7 @@
 // SPDX-License-Identifier: BSL-1.0
 
 //  Catch v3.4.0
-//  Generated: 2023-11-15 15:01:06.731879
+//  Generated: 2023-12-21 08:37:23.604816
 //  ----------------------------------------------------------
 //  This file is an amalgamation of multiple different files.
 //  You probably shouldn't edit it directly.
@@ -405,6 +405,26 @@ namespace Catch {
     } // namespace Benchmark
 } // namespace Catch
 
+
+
+
+
+namespace Catch {
+
+	const std::string getActiveTestName() {
+        if ( auto* CurrentTest = getRunCapture().getCurrentTest() )
+            return CurrentTest->name;
+        else
+            CATCH_INTERNAL_ERROR( "No active test instance" );
+    }
+	
+	const std::string getActiveTestTags() {
+        if ( auto* CurrentTest = getRunCapture().getCurrentTest() )
+            return CurrentTest->tagsAsString();
+        else
+            CATCH_INTERNAL_ERROR( "No active test instance" );
+	}
+} // end namespace Catch
 
 
 #include <cmath>
@@ -3616,6 +3636,10 @@ namespace Catch {
         m_resultCapture = resultCapture;
     }
 
+	void Context::setRunCapture( IRunCapture* runCapture ) {
+        m_runCapture = runCapture;
+    }
+
     void Context::setConfig( IConfig const* config ) { m_config = config; }
 
     SimplePcg32& sharedRng() {
@@ -5378,6 +5402,7 @@ namespace Catch {
         m_includeSuccessfulResults( m_config->includeSuccessfulResults() || m_reporter->getPreferences().shouldReportAllAssertions )
     {
         getCurrentMutableContext().setResultCapture( this );
+        getCurrentMutableContext().setRunCapture( this );
         m_reporter->testRunStarting(m_runInfo);
     }
 
@@ -5635,6 +5660,11 @@ namespace Catch {
             ? m_activeTestCase->getTestCaseInfo().name
             : std::string();
     }
+
+	// from IRunCapture
+    const TestCaseInfo* RunContext::getCurrentTest() const {
+        return m_activeTestCase ? &(m_activeTestCase->getTestCaseInfo()) : nullptr;
+	}
 
     const AssertionResult * RunContext::getLastResult() const {
         return &(*m_lastResult);
@@ -5967,6 +5997,13 @@ namespace Catch {
             return *capture;
         else
             CATCH_INTERNAL_ERROR("No result capture instance");
+    }
+
+	IRunCapture& getRunCapture() {
+        if ( auto* capture = getCurrentContext().getRunCapture() )
+            return *capture;
+        else
+            CATCH_INTERNAL_ERROR( "No run capture instance" );
     }
 
     void seedRng(IConfig const& config) {
