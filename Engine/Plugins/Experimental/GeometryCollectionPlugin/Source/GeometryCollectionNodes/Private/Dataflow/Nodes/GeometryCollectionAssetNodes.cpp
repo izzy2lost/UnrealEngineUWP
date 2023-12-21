@@ -109,6 +109,8 @@ void FGetGeometryCollectionAssetDataflowNode::Evaluate(Dataflow::FContext& Conte
 			SetValue(Context, CollectionAsset, &Asset);
 		}
 	}
+
+	SetValue(Context, TObjectPtr<UGeometryCollection>(), &Asset);
 }
 
 // ===========================================================================================================================
