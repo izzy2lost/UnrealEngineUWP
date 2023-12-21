@@ -315,14 +315,14 @@ TSharedRef<SWidget> STG_SelectionPreview::MakeZoomControlWidget()
 			FCanExecuteAction(),
 			FIsActionChecked::CreateSP(this, &STG_SelectionPreview::IsZoomMenuFitChecked)
 		);
-		ZoomMenuBuilder.AddMenuEntry(NSLOCTEXT("STG_SelectionPreview", "ZoomFillAction", "Scale To Fit"), NSLOCTEXT("STG_SelectionPreview", "ZoomFitActionHint", "Scales the texture down to fit within the viewport if needed."), FSlateIcon(), ZoomFitAction, NAME_None, EUserInterfaceActionType::RadioButton);
+		ZoomMenuBuilder.AddMenuEntry(NSLOCTEXT("STG_SelectionPreview", "ZoomFitAction", "Scale To Fit"), NSLOCTEXT("STG_SelectionPreview", "ZoomFitActionHint", "Scales the texture down to fit within the viewport if needed."), FSlateIcon(), ZoomFitAction, NAME_None, EUserInterfaceActionType::RadioButton);
 		
 		FUIAction ZoomFillAction(
 			FExecuteAction::CreateSP(this, &STG_SelectionPreview::HandleZoomMenuFillClicked),
 			FCanExecuteAction(),
 			FIsActionChecked::CreateSP(this, &STG_SelectionPreview::IsZoomMenuFillChecked)
 		);
-		ZoomMenuBuilder.AddMenuEntry(NSLOCTEXT("STG_SelectionPreview", "ZoomFillAction", "Scale To Fill"), NSLOCTEXT("STG_SelectionPreview", "ZoomFitActionHint", "Scales the texture up and down to fill the viewport."), FSlateIcon(), ZoomFillAction, NAME_None, EUserInterfaceActionType::RadioButton);
+		ZoomMenuBuilder.AddMenuEntry(NSLOCTEXT("STG_SelectionPreview", "ZoomFillAction", "Scale To Fill"), NSLOCTEXT("STG_SelectionPreview", "ZoomFillActionHint", "Scales the texture up and down to fill the viewport."), FSlateIcon(), ZoomFillAction, NAME_None, EUserInterfaceActionType::RadioButton);
 	}
 
 	// zoom Dropdown

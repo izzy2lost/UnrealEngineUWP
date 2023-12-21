@@ -227,7 +227,7 @@ TSharedRef<SDockTab> FMixerInsightEditorModule::OnSpawnPluginTab(const FSpawnTab
 			{
 				return SNew(SDockTab)
 					.TabRole(ETabRole::PanelTab)
-					.Label(LOCTEXT("FMixerInsightEditorTabTitleAction", "Mixer Inspector"))
+					.Label(LOCTEXT("FMixerInsightEditorTabTitleInspector", "Mixer Inspector"))
 					[
 						SNew(SMixerInsightInspectorView)
 					];

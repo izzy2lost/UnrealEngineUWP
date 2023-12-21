@@ -166,7 +166,7 @@ const FPinConnectionResponse UTG_EdGraphSchema::CanCreateConnection(const UEdGra
 
 	if (!CategorizePinsByDirection(A, B, /*out*/ InputPin, /*out*/ OutputPin))
 	{
-		return FPinConnectionResponse(CONNECT_RESPONSE_DISALLOW, LOCTEXT("ConnectionIncompatible", "Directions are not compatible"));
+		return FPinConnectionResponse(CONNECT_RESPONSE_DISALLOW, LOCTEXT("ConnectionDirectionsNotCompatible", "Directions are not compatible"));
 	}
 
 	// Check for new and existing loops
@@ -179,7 +179,7 @@ const FPinConnectionResponse UTG_EdGraphSchema::CanCreateConnection(const UEdGra
 	// Check for incompatible pins and get description if they cannot connect
 	if (!ArePinsCompatible_Internal(OutputPin, InputPin))
 	{
-		return FPinConnectionResponse(CONNECT_RESPONSE_DISALLOW, LOCTEXT("ConnectionLoop", "Pins are not compatible").ToString());
+		return FPinConnectionResponse(CONNECT_RESPONSE_DISALLOW, LOCTEXT("ConnectionPinsNotCompatible", "Pins are not compatible").ToString());
 	}
 
 	// For non-exec pins, break existing connections on inputs only - multiple output connections are acceptable

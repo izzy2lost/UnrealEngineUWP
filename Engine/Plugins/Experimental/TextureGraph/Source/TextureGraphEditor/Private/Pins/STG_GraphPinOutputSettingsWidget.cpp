@@ -95,14 +95,14 @@ void STG_GraphPinOutputSettingsWidget::Construct(const FArguments& InArgs, UEdGr
 		+ SVerticalBox::Slot()
 		.Padding(2)
 		[
-			AddEnumComobox(LOCTEXT("OutputWidth", "Height"), GetHeightDelegate, OnGenerateHeightMenu)
+			AddEnumComobox(LOCTEXT("OutputHeight", "Height"), GetHeightDelegate, OnGenerateHeightMenu)
 		]
 
 		//Path Format
 		+ SVerticalBox::Slot()
 		.Padding(2)
 		[
-			AddEnumComobox(LOCTEXT("OutputWidth", "Format"), GetFormatDelegate, OnGenerateFormatMenu)
+			AddEnumComobox(LOCTEXT("OutputFormat", "Format"), GetFormatDelegate, OnGenerateFormatMenu)
 		]
 	];
 }
