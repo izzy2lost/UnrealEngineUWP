@@ -146,6 +146,7 @@ public:
 	virtual void BuildMenu(FMenuBuilder& InMenuBuilder, class STraceStoreWindow& InWindow);
 
 protected:
+	virtual void AddDefaultValues(TArray<TSetType>& InOutDefaultValues) const { }
 	virtual TSetType GetFilterValueForTrace(const FTraceViewModel& InTrace) const = 0;
 	virtual FText ValueToText(const TSetType Value) const = 0;
 
@@ -240,6 +241,64 @@ protected:
 	{
 		return InTrace.Branch.ToString();
 	}
+};
+
+class FTraceFilterBySize : public TTraceSetFilter<uint8>
+{
+public:
+	enum class ESizeCategory : uint8
+	{
+		Empty,  // 0 bytes
+		Small,  // < 1 MiB
+		Medium, // < 1 GiB
+		Large,  // >= 1 GiB
+
+		InvalidOrMax
+	};
+
+public:
+	FTraceFilterBySize();
+
+protected:
+	virtual void AddDefaultValues(TArray<uint8>& InOutDefaultValues) const override;
+
+	virtual uint8 GetFilterValueForTrace(const FTraceViewModel& InTrace) const override
+	{
+		if (InTrace.Size == 0)
+		{
+			return (uint8)ESizeCategory::Empty;
+		}
+		else if (InTrace.Size < 1024ull * 1024ull)
+		{
+			return (uint8)ESizeCategory::Small;
+		}
+		else if (InTrace.Size < 1024ull * 1024ull * 1024ull)
+		{
+			return (uint8)ESizeCategory::Medium;
+		}
+		else
+		{
+			return (uint8)ESizeCategory::Large;
+		}
+	}
+
+	virtual FText ValueToText(const uint8 InValue) const override;
+};
+
+class FTraceFilterByStatus : public TTraceSetFilter<bool>
+{
+public:
+	FTraceFilterByStatus();
+
+protected:
+	virtual void AddDefaultValues(TArray<bool>& InOutDefaultValues) const override;
+
+	virtual bool GetFilterValueForTrace(const FTraceViewModel& InTrace) const override
+	{
+		return InTrace.bIsLive;
+	}
+
+	virtual FText ValueToText(const bool InValue) const override;
 };
 
 ////////////////////////////////////////////////////////////////////////////////////////////////////
@@ -357,8 +416,17 @@ private:
 	TSharedRef<SWidget> MakeBuildTargetFilterMenu();
 	void BuildBuildTargetFilterSubMenu(FMenuBuilder& InMenuBuilder);
 
+	TSharedRef<SWidget> MakeBranchColumnHeaderMenu();
 	TSharedRef<SWidget> MakeBranchFilterMenu();
 	void BuildBranchFilterSubMenu(FMenuBuilder& InMenuBuilder);
+
+	TSharedRef<SWidget> MakeSizeColumnHeaderMenu();
+	TSharedRef<SWidget> MakeSizeFilterMenu();
+	void BuildSizeFilterSubMenu(FMenuBuilder& InMenuBuilder);
+
+	TSharedRef<SWidget> MakeStatusColumnHeaderMenu();
+	TSharedRef<SWidget> MakeStatusFilterMenu();
+	void BuildStatusFilterSubMenu(FMenuBuilder& InMenuBuilder);
 
 	FReply RefreshTraces_OnClicked();
 	FSlateColor GetColorByPath(const FString& Uri);
@@ -576,6 +644,8 @@ private:
 	TSharedPtr<FTraceFilterByBuildConfig> FilterByBuildConfig;
 	TSharedPtr<FTraceFilterByBuildTarget> FilterByBuildTarget;
 	TSharedPtr<FTraceFilterByBranch> FilterByBranch;
+	TSharedPtr<FTraceFilterBySize> FilterBySize;
+	TSharedPtr<FTraceFilterByStatus> FilterByStatus;
 
 	bool bFilterStatsTextIsDirty = true;
 	FText FilterStatsText;

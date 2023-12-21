@@ -1163,6 +1163,24 @@ TSharedRef<SWidget> STraceStoreWindow::ConstructFiltersToolbar()
 			LOCTEXT("FilterByBranchToolTip", "Filters the list of trace sessions by branch."),
 			FSlateIcon(FInsightsStyle::GetStyleSetName(), "Icons.Filter.ToolBar"),
 			false);
+
+		// Filter by Size
+		ToolbarBuilder.AddComboButton(
+			FUIAction(),
+			FOnGetContent::CreateSP(this, &STraceStoreWindow::MakeSizeFilterMenu),
+			LOCTEXT("FilterBySizeText", "Size"),
+			LOCTEXT("FilterBySizeToolTip", "Filters the list of trace sessions by size."),
+			FSlateIcon(FInsightsStyle::GetStyleSetName(), "Icons.Filter.ToolBar"),
+			false);
+
+		// Filter by Status
+		ToolbarBuilder.AddComboButton(
+			FUIAction(),
+			FOnGetContent::CreateSP(this, &STraceStoreWindow::MakeStatusFilterMenu),
+			LOCTEXT("FilterByStatusText", "Status"),
+			LOCTEXT("FilterByStatusToolTip", "Filters the list of trace sessions by status.."),
+			FSlateIcon(FInsightsStyle::GetStyleSetName(), "Icons.Filter.ToolBar"),
+			false);
 	}
 	ToolbarBuilder.EndSection();
 
@@ -1227,6 +1245,7 @@ TSharedRef<SWidget> STraceStoreWindow::ConstructSessionsPanel()
 			[
 				SNew(SBox)
 				.VAlign(VAlign_Center)
+				.MinDesiredHeight(24.0f)
 				[
 					SNew(STextBlock)
 					.Text(LOCTEXT("NameColumn", "Name"))
@@ -1243,6 +1262,7 @@ TSharedRef<SWidget> STraceStoreWindow::ConstructSessionsPanel()
 			[
 				SNew(SBox)
 				.VAlign(VAlign_Center)
+				.MinDesiredHeight(24.0f)
 				[
 					SNew(STextBlock)
 					.Text(LOCTEXT("PlatformColumn", "Platform"))
@@ -1259,6 +1279,7 @@ TSharedRef<SWidget> STraceStoreWindow::ConstructSessionsPanel()
 			[
 				SNew(SBox)
 				.VAlign(VAlign_Center)
+				.MinDesiredHeight(24.0f)
 				[
 					SNew(STextBlock)
 					.Text(LOCTEXT("AppNameColumn", "App Name"))
@@ -1275,6 +1296,7 @@ TSharedRef<SWidget> STraceStoreWindow::ConstructSessionsPanel()
 			[
 				SNew(SBox)
 				.VAlign(VAlign_Center)
+				.MinDesiredHeight(24.0f)
 				[
 					SNew(STextBlock)
 					.Text(LOCTEXT("BuildConfigColumn", "Build Config"))
@@ -1291,6 +1313,7 @@ TSharedRef<SWidget> STraceStoreWindow::ConstructSessionsPanel()
 			[
 				SNew(SBox)
 				.VAlign(VAlign_Center)
+				.MinDesiredHeight(24.0f)
 				[
 					SNew(STextBlock)
 					.Text(LOCTEXT("BuildTargetColumn", "Build Target"))
@@ -1299,22 +1322,42 @@ TSharedRef<SWidget> STraceStoreWindow::ConstructSessionsPanel()
 			]
 
 			+ SHeaderRow::Column(TraceStoreColumns::Size)
-			.DefaultLabel(LOCTEXT("SizeColumn", "File Size"))
 			.FixedWidth(100.0f)
 			.HAlignHeader(HAlign_Right)
 			.HAlignCell(HAlign_Right)
 			.InitialSortMode(EColumnSortMode::Descending)
 			.SortMode(this, &STraceStoreWindow::GetSortModeForColumn, TraceStoreColumns::Size)
 			.OnSort(this, &STraceStoreWindow::OnSortModeChanged)
+			.OnGetMenuContent(this, &STraceStoreWindow::MakeSizeColumnHeaderMenu)
+			[
+				SNew(SBox)
+				.VAlign(VAlign_Center)
+				.MinDesiredHeight(24.0f)
+				[
+					SNew(STextBlock)
+					.Text(LOCTEXT("SizeColumn", "File Size"))
+					.ColorAndOpacity_Lambda([this] { return FilterBySize->IsEmpty() ? FLinearColor(0.5f, 0.5f, 0.5f, 1.0f) : FLinearColor(0.3f, 0.75f, 1.0f, 1.0f); })
+				]
+			]
 
 			+ SHeaderRow::Column(TraceStoreColumns::Status)
-			.DefaultLabel(LOCTEXT("StatusColumn", "Status"))
 			.FixedWidth(60.0f)
 			.HAlignHeader(HAlign_Right)
 			.HAlignCell(HAlign_Right)
 			.InitialSortMode(EColumnSortMode::Ascending)
 			.SortMode(this, &STraceStoreWindow::GetSortModeForColumn, TraceStoreColumns::Status)
 			.OnSort(this, &STraceStoreWindow::OnSortModeChanged)
+			.OnGetMenuContent(this, &STraceStoreWindow::MakeStatusColumnHeaderMenu)
+			[
+				SNew(SBox)
+				.VAlign(VAlign_Center)
+				.MinDesiredHeight(24.0f)
+				[
+					SNew(STextBlock)
+					.Text(LOCTEXT("StatusColumn", "Status"))
+					.ColorAndOpacity_Lambda([this] { return FilterByStatus->IsEmpty() ? FLinearColor(0.5f, 0.5f, 0.5f, 1.0f) : FLinearColor(0.3f, 0.75f, 1.0f, 1.0f); })
+				]
+			]
 		);
 
 	return Widget;
@@ -3218,7 +3261,7 @@ TSharedRef<SWidget> STraceStoreWindow::MakePlatformColumnHeaderMenu()
 
 	FMenuBuilder MenuBuilder(/*bInShouldCloseWindowAfterMenuSelection=*/true, nullptr);
 
-	MenuBuilder.BeginSection("Filter", LOCTEXT("MenuSection_PlatformFilter", "Platform Filter"));
+	MenuBuilder.BeginSection("Filter", LOCTEXT("ColumnHeaderMenuSection_PlatformFilter", "Platform Filter"));
 	BuildPlatformFilterSubMenu(MenuBuilder);
 	MenuBuilder.EndSection();
 
@@ -3255,7 +3298,7 @@ TSharedRef<SWidget> STraceStoreWindow::MakeAppNameColumnHeaderMenu()
 
 	FMenuBuilder MenuBuilder(/*bInShouldCloseWindowAfterMenuSelection=*/true, nullptr);
 
-	MenuBuilder.BeginSection("Filter", LOCTEXT("MenuSection_AppNameFilter", "App Name Filter"));
+	MenuBuilder.BeginSection("Filter", LOCTEXT("ColumnHeaderMenuSection_AppNameFilter", "App Name Filter"));
 	BuildAppNameFilterSubMenu(MenuBuilder);
 	MenuBuilder.EndSection();
 
@@ -3292,7 +3335,7 @@ TSharedRef<SWidget> STraceStoreWindow::MakeBuildConfigColumnHeaderMenu()
 
 	FMenuBuilder MenuBuilder(/*bInShouldCloseWindowAfterMenuSelection=*/true, nullptr);
 
-	MenuBuilder.BeginSection("Filter", LOCTEXT("MenuSection_BuildConfigFilter", "Build Config Filter"));
+	MenuBuilder.BeginSection("Filter", LOCTEXT("ColumnHeaderMenuSection_BuildConfigFilter", "Build Config Filter"));
 	BuildBuildConfigFilterSubMenu(MenuBuilder);
 	MenuBuilder.EndSection();
 
@@ -3329,7 +3372,7 @@ TSharedRef<SWidget> STraceStoreWindow::MakeBuildTargetColumnHeaderMenu()
 
 	FMenuBuilder MenuBuilder(/*bInShouldCloseWindowAfterMenuSelection=*/true, nullptr);
 
-	MenuBuilder.BeginSection("Filter", LOCTEXT("MenuSection_BuildTargetFilter", "Build Target Filter"));
+	MenuBuilder.BeginSection("Filter", LOCTEXT("ColumnHeaderMenuSection_BuildTargetFilter", "Build Target Filter"));
 	BuildBuildTargetFilterSubMenu(MenuBuilder);
 	MenuBuilder.EndSection();
 
@@ -3360,6 +3403,21 @@ void STraceStoreWindow::BuildBuildTargetFilterSubMenu(FMenuBuilder& InMenuBuilde
 
 ////////////////////////////////////////////////////////////////////////////////////////////////////
 
+TSharedRef<SWidget> STraceStoreWindow::MakeBranchColumnHeaderMenu()
+{
+	FSlateApplication::Get().CloseToolTip();
+
+	FMenuBuilder MenuBuilder(/*bInShouldCloseWindowAfterMenuSelection=*/true, nullptr);
+
+	MenuBuilder.BeginSection("Filter", LOCTEXT("ColumnHeaderMenuSection_BranchFilter", "Branch Filter"));
+	BuildBranchFilterSubMenu(MenuBuilder);
+	MenuBuilder.EndSection();
+
+	return MenuBuilder.MakeWidget();
+}
+
+////////////////////////////////////////////////////////////////////////////////////////////////////
+
 TSharedRef<SWidget> STraceStoreWindow::MakeBranchFilterMenu()
 {
 	FSlateApplication::Get().CloseToolTip();
@@ -3378,6 +3436,80 @@ TSharedRef<SWidget> STraceStoreWindow::MakeBranchFilterMenu()
 void STraceStoreWindow::BuildBranchFilterSubMenu(FMenuBuilder& InMenuBuilder)
 {
 	FilterByBranch->BuildMenu(InMenuBuilder, *this);
+}
+
+////////////////////////////////////////////////////////////////////////////////////////////////////
+
+TSharedRef<SWidget> STraceStoreWindow::MakeSizeColumnHeaderMenu()
+{
+	FSlateApplication::Get().CloseToolTip();
+
+	FMenuBuilder MenuBuilder(/*bInShouldCloseWindowAfterMenuSelection=*/true, nullptr);
+
+	MenuBuilder.BeginSection("Filter", LOCTEXT("ColumnHeaderMenuSection_SizeFilter", "Size Filter"));
+	BuildSizeFilterSubMenu(MenuBuilder);
+	MenuBuilder.EndSection();
+
+	return MenuBuilder.MakeWidget();
+}
+
+////////////////////////////////////////////////////////////////////////////////////////////////////
+
+TSharedRef<SWidget> STraceStoreWindow::MakeSizeFilterMenu()
+{
+	FSlateApplication::Get().CloseToolTip();
+
+	FMenuBuilder MenuBuilder(/*bInShouldCloseWindowAfterMenuSelection=*/true, nullptr);
+
+	MenuBuilder.BeginSection("Filter", LOCTEXT("MenuSection_SizeFilter", "Size Filter"));
+	BuildSizeFilterSubMenu(MenuBuilder);
+	MenuBuilder.EndSection();
+
+	return MenuBuilder.MakeWidget();
+}
+
+////////////////////////////////////////////////////////////////////////////////////////////////////
+
+void STraceStoreWindow::BuildSizeFilterSubMenu(FMenuBuilder& InMenuBuilder)
+{
+	FilterBySize->BuildMenu(InMenuBuilder, *this);
+}
+
+////////////////////////////////////////////////////////////////////////////////////////////////////
+
+TSharedRef<SWidget> STraceStoreWindow::MakeStatusColumnHeaderMenu()
+{
+	FSlateApplication::Get().CloseToolTip();
+
+	FMenuBuilder MenuBuilder(/*bInShouldCloseWindowAfterMenuSelection=*/true, nullptr);
+
+	MenuBuilder.BeginSection("Filter", LOCTEXT("ColumnHeaderMenuSection_StatusFilter", "Status Filter"));
+	BuildStatusFilterSubMenu(MenuBuilder);
+	MenuBuilder.EndSection();
+
+	return MenuBuilder.MakeWidget();
+}
+
+////////////////////////////////////////////////////////////////////////////////////////////////////
+
+TSharedRef<SWidget> STraceStoreWindow::MakeStatusFilterMenu()
+{
+	FSlateApplication::Get().CloseToolTip();
+
+	FMenuBuilder MenuBuilder(/*bInShouldCloseWindowAfterMenuSelection=*/true, nullptr);
+
+	MenuBuilder.BeginSection("Filter", LOCTEXT("MenuSection_StatusFilter", "Status Filter"));
+	BuildStatusFilterSubMenu(MenuBuilder);
+	MenuBuilder.EndSection();
+
+	return MenuBuilder.MakeWidget();
+}
+
+////////////////////////////////////////////////////////////////////////////////////////////////////
+
+void STraceStoreWindow::BuildStatusFilterSubMenu(FMenuBuilder& InMenuBuilder)
+{
+	FilterByStatus->BuildMenu(InMenuBuilder, *this);
 }
 
 ////////////////////////////////////////////////////////////////////////////////////////////////////
@@ -3571,7 +3703,14 @@ void TTraceSetFilter<TSetType>::BuildMenu(FMenuBuilder& InMenuBuilder, STraceSto
 
 	InMenuBuilder.AddSeparator();
 
+	TArray<TSetType> DefaultValues;
+	AddDefaultValues(DefaultValues);
+
 	TMap<TSetType, uint32> AllUniqueValues;
+	for (const TSetType& Value : DefaultValues)
+	{
+		AllUniqueValues.Add(Value, 0);
+	}
 	for (const TSharedPtr<FTraceViewModel>& Trace : Window.GetAllAvailableTraces())
 	{
 		TSetType Value = GetFilterValueForTrace(*Trace);
@@ -3617,6 +3756,8 @@ void TTraceSetFilter<TSetType>::BuildMenu(FMenuBuilder& InMenuBuilder, STraceSto
 	}
 }
 
+////////////////////////////////////////////////////////////////////////////////////////////////////
+
 template<typename TSetType>
 TTraceSetFilter<TSetType>::TTraceSetFilter()
 {
@@ -3624,29 +3765,99 @@ TTraceSetFilter<TSetType>::TTraceSetFilter()
 	UndefinedValueLabel = LOCTEXT("UndefinedValueLabel", "N/A");
 }
 
+////////////////////////////////////////////////////////////////////////////////////////////////////
+
 FTraceFilterByPlatform::FTraceFilterByPlatform()
 {
 	ToggleAllActionTooltip = LOCTEXT("FilterByPlatform_ToggleAll_Tooltip", "Shows or hides traces for all platforms.");
 }
+
+////////////////////////////////////////////////////////////////////////////////////////////////////
 
 FTraceFilterByAppName::FTraceFilterByAppName()
 {
 	ToggleAllActionTooltip = LOCTEXT("FilterByAppName_ToggleAll_Tooltip", "Shows or hides traces for all app names.");
 }
 
+////////////////////////////////////////////////////////////////////////////////////////////////////
+
 FTraceFilterByBuildConfig::FTraceFilterByBuildConfig()
 {
 	ToggleAllActionTooltip = LOCTEXT("FilterByBuildConfig_ToggleAll_Tooltip", "Shows or hides traces for all build configurations.");
 }
+
+////////////////////////////////////////////////////////////////////////////////////////////////////
 
 FTraceFilterByBuildTarget::FTraceFilterByBuildTarget()
 {
 	ToggleAllActionTooltip = LOCTEXT("FilterByBuildTarget_ToggleAll_Tooltip", "Shows or hides traces for all build targets.");
 }
 
+////////////////////////////////////////////////////////////////////////////////////////////////////
+
 FTraceFilterByBranch::FTraceFilterByBranch()
 {
 	ToggleAllActionTooltip = LOCTEXT("FilterByBranch_ToggleAll_Tooltip", "Shows or hides traces for all branches.");
+}
+
+////////////////////////////////////////////////////////////////////////////////////////////////////
+
+FTraceFilterBySize::FTraceFilterBySize()
+{
+	ToggleAllActionTooltip = LOCTEXT("FilterBySize_ToggleAll_Tooltip", "Shows or hides traces of all sizes.");
+}
+
+////////////////////////////////////////////////////////////////////////////////////////////////////
+
+void FTraceFilterBySize::AddDefaultValues(TArray<uint8>& InOutDefaultValues) const
+{
+	for (uint8 SizeCategory = 0; SizeCategory < (uint8)ESizeCategory::InvalidOrMax; ++SizeCategory)
+	{
+		InOutDefaultValues.Add(SizeCategory);
+	}
+}
+
+////////////////////////////////////////////////////////////////////////////////////////////////////
+
+FText FTraceFilterBySize::ValueToText(const uint8 InValue) const
+{
+	switch ((ESizeCategory)InValue)
+	{
+		case ESizeCategory::Empty:  return LOCTEXT("FilterBySize_Empty",  "Empty (0 bytes)");
+		case ESizeCategory::Small:  return LOCTEXT("FilterBySize_Small",  "Small (< 1 MiB)");
+		case ESizeCategory::Medium: return LOCTEXT("FilterBySize_Medium", "Medium (< 1 GiB)");
+		case ESizeCategory::Large:  return LOCTEXT("FilterBySize_Large",  "Large (\u2265 1 GiB)");
+		default:                    return UndefinedValueLabel;
+	}
+}
+
+////////////////////////////////////////////////////////////////////////////////////////////////////
+
+FTraceFilterByStatus::FTraceFilterByStatus()
+{
+	ToggleAllActionTooltip = LOCTEXT("FilterByStatus_ToggleAll_Tooltip", "Shows or hides all traces.");
+}
+
+////////////////////////////////////////////////////////////////////////////////////////////////////
+
+void FTraceFilterByStatus::AddDefaultValues(TArray<bool>& InOutDefaultValues) const
+{
+	InOutDefaultValues.Add(false);
+	InOutDefaultValues.Add(true);
+}
+
+////////////////////////////////////////////////////////////////////////////////////////////////////
+
+FText FTraceFilterByStatus::ValueToText(const bool InValue) const
+{
+	if (InValue)
+	{
+		return LOCTEXT("FilterByStatus_Live", "LIVE");
+	}
+	else
+	{
+		return LOCTEXT("FilterByStatus_Offline", "Offline");
+	}
 }
 
 ////////////////////////////////////////////////////////////////////////////////////////////////////
@@ -3697,6 +3908,12 @@ void STraceStoreWindow::CreateFilters()
 
 	FilterByBranch = MakeShared<FTraceFilterByBranch>();
 	Filters->Add(FilterByBranch);
+
+	FilterBySize = MakeShared<FTraceFilterBySize>();
+	Filters->Add(FilterBySize);
+
+	FilterByStatus = MakeShared<FTraceFilterByStatus>();
+	Filters->Add(FilterByStatus);
 }
 
 ////////////////////////////////////////////////////////////////////////////////////////////////////
@@ -3724,7 +3941,9 @@ void STraceStoreWindow::UpdateFiltering()
 		FilterByAppName->IsEmpty() &&
 		FilterByBuildConfig->IsEmpty() &&
 		FilterByBuildTarget->IsEmpty() &&
-		FilterByBranch->IsEmpty())
+		FilterByBranch->IsEmpty() &&
+		FilterBySize->IsEmpty() &&
+		FilterByStatus->IsEmpty())
 	{
 		// No filtering.
 		FilteredTraceViewModels = TraceViewModels;
