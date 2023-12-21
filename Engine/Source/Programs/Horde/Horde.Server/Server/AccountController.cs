@@ -207,7 +207,7 @@ namespace Horde.Server.Server
 				new ClaimsPrincipal(claimsIdentity),
 				authProperties);
 
-			return LocalRedirect(returnUrl ?? "/");
+			return Redirect(returnUrl ?? "/");
 		}
 
 		private ContentResult LoginFormError(string message, string? returnUrl = null, HttpStatusCode statusCode = HttpStatusCode.BadRequest)
