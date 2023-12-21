@@ -30,7 +30,8 @@ public class FoundationTests : TestModuleRules
 				"Cbor",
 				"CoreUObject",
 				"TelemetryUtils",
-				"AssetRegistry"
+				"AssetRegistry",
+				"ColorManagement"
 			});
 
 		if (Target.bBuildWithEditorOnlyData)
