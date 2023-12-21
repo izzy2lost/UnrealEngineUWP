@@ -175,6 +175,11 @@ float3 GetLocalPosition_{ParameterName}(in float3 WorldPosition, in int ElementI
 	return PreviousLocal + TimeFraction * (CurrentLocal-PreviousLocal);
 }
 
+float3 GetCurrentLocalPosition_{ParameterName}(in float3 WorldPosition, in int ElementIndex )
+{
+	return mul(GetInverseTransform_{ParameterName}(ElementIndex), float4(WorldPosition,1.0)).xyz;	
+}
+
 // Given a world space position (WorldPosition) compute the sphere closest point (position,normal,velocity)
 int GetClosestElement_{ParameterName}(in float3 WorldPosition, out float3 OutClosestPosition, out float3 OutClosestNormal, out float OutMinDistance, in float TimeFraction)
 {	
@@ -214,6 +219,49 @@ int GetClosestElement_{ParameterName}(in float3 WorldPosition, out float3 OutClo
 	}
 	OutClosestPosition = CollisionPosition;
 	OutClosestNormal = CollisionNormal;
+	OutMinDistance = MinDistance;
+	return ElementIndex;
+}
+
+// Given a world space position (WorldPosition) compute the sphere closest point (position,normal,velocity)
+int GetClosestElementSimple_{ParameterName}(in float3 WorldPosition, out float3 OutClosestPosition, out float OutMinDistance)
+{	
+	float MinDistance = MAX_DISTANCE;
+	int ElementIndex = -1;
+	float3 CollisionPosition = float3(0,0,0);
+	float3 CollisionNormal = float3(0,0,0);
+
+	const int SpheresBegin = {ParameterName}_ElementOffsets[SPHERE_INDEX];
+	const int SpheresEnd = {ParameterName}_ElementOffsets[SPHERE_INDEX+1];
+	for (int SphereIndex = SpheresBegin; SphereIndex < SpheresEnd; ++SphereIndex)
+	{
+		const float3 LocalPosition = GetCurrentLocalPosition_{ParameterName}(WorldPosition,SphereIndex);
+
+		GetSphereProjection_{ParameterName}(LocalPosition, float3(0,0,0), {ParameterName}_ElementExtentBuffer[SphereIndex].x, SphereIndex,
+				CollisionPosition, CollisionNormal, ElementIndex, MinDistance);
+	}
+
+	const int CapsulesBegin = {ParameterName}_ElementOffsets[CAPSULE_INDEX];
+	const int CapsulesEnd = {ParameterName}_ElementOffsets[CAPSULE_INDEX+1];
+	for (int CapsuleIndex = CapsulesBegin; CapsuleIndex < CapsulesEnd; ++CapsuleIndex)
+	{
+		const float3 LocalPosition = GetCurrentLocalPosition_{ParameterName}(WorldPosition,CapsuleIndex);
+
+		GetCapsuleProjection_{ParameterName}(LocalPosition, {ParameterName}_ElementExtentBuffer[CapsuleIndex].xy, CapsuleIndex,
+				CollisionPosition, CollisionNormal, ElementIndex, MinDistance);
+	}
+
+	const int BoxesBegin = {ParameterName}_ElementOffsets[BOX_INDEX];
+	const int BoxesEnd = {ParameterName}_ElementOffsets[BOX_INDEX+1];
+	for (int BoxIndex = BoxesBegin; BoxIndex < BoxesEnd; ++BoxIndex)
+	{
+		const float3 LocalPosition = GetCurrentLocalPosition_{ParameterName}(WorldPosition,BoxIndex);
+
+		GetBoxProjection_{ParameterName}(LocalPosition, {ParameterName}_ElementExtentBuffer[BoxIndex].xyz, BoxIndex,
+				CollisionPosition, CollisionNormal, ElementIndex, MinDistance);
+	}
+
+	OutClosestPosition = CollisionPosition;	
 	OutMinDistance = MinDistance;
 	return ElementIndex;
 }
@@ -390,6 +438,24 @@ void GetClosestPoint_{ParameterName}(in float3 WorldPosition, in float DeltaTime
 		OutClosestPosition = PreviousPosition + TimeFraction * (CurrentPosition-PreviousPosition);
 		OutClosestNormal = normalize(PreviousNormal + TimeFraction * (CurrentNormal-PreviousNormal));
 
+		OutClosestVelocity = ( CurrentPosition - PreviousPosition ) / DeltaTime;
+	}
+}
+
+// Given a world space position (WorldPosition) compute the static mesh closest point (position,normal,velocity)
+void GetClosestPointSimple_{ParameterName}(in float3 WorldPosition, in float DeltaTime, out float OutClosestDistance, out float3 OutClosestVelocity)
+{	
+	float3 CollisionPosition = float3(0,0,0);
+	OutClosestDistance = 0.0;
+
+	const int ElementIndex = GetClosestElementSimple_{ParameterName}(WorldPosition,CollisionPosition,OutClosestDistance);
+
+	OutClosestVelocity = float3(0,0,0);
+
+	if (ElementIndex != -1)
+	{
+		const float3 PreviousPosition = mul(GetPreviousTransform_{ParameterName}(ElementIndex), float4(CollisionPosition,1.0)).xyz;
+		const float3 CurrentPosition = mul(GetCurrentTransform_{ParameterName}(ElementIndex), float4(CollisionPosition,1.0)).xyz;
 		OutClosestVelocity = ( CurrentPosition - PreviousPosition ) / DeltaTime;
 	}
 }
