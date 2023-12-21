@@ -94,7 +94,7 @@ namespace EpicGames.Horde.Storage.Nodes
 		/// </summary>
 		/// <param name="reader"></param>
 		public FileEntry(IBlobReader reader)
-			: base(reader)
+			: base(ReadNodeRef(reader))
 		{
 			Name = reader.ReadString();
 			Flags = (FileEntryFlags)reader.ReadUnsignedVarInt();
@@ -105,6 +105,18 @@ namespace EpicGames.Horde.Storage.Nodes
 			{
 				CustomData = reader.ReadVariableLengthBytes();
 				Flags &= ~FileEntryFlags.HasCustomData;
+			}
+		}
+
+		static HashedNodeRef<ChunkedDataNode> ReadNodeRef(IBlobReader reader)
+		{
+			if (reader.Version >= 2)
+			{
+				return new ChunkedDataNodeRef(reader);
+			}
+			else
+			{
+				return reader.ReadHashedNodeRef<ChunkedDataNode>();
 			}
 		}
 
