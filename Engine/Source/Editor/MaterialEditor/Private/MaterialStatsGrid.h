@@ -87,6 +87,7 @@ enum class EShaderInfoType
 	TextureSampleCount,
 	VirtualTextureLookupCount,
 	ShaderCount,
+	PreShaderCount,
 	GenericShaderStatistics,
 };
 
@@ -247,6 +248,15 @@ public:
 	void AddPlatform(TSharedPtr<FMaterialStats> StatsManager, const TSharedPtr<FShaderPlatformSettings> Platform, const EMaterialQualityLevel::Type QualityLevel, const int32 InstanceIndex) override;
 };
 
+/** this row will display the total number of shaders present in the material for a specified platform */
+class FStatsGridRow_NumPreshaders : public FStatsGridRow
+{
+public:
+	void CreateRow(TSharedPtr<FMaterialStats> StatsManager) override;
+
+	void AddPlatform(TSharedPtr<FMaterialStats> StatsManager, const TSharedPtr<FShaderPlatformSettings> Platform, const EMaterialQualityLevel::Type QualityLevel, const int32 InstanceIndex) override;
+};
+
 /** class that models the logical material stats grid */
 class FMaterialStatsGrid
 {
@@ -272,6 +282,7 @@ class FMaterialStatsGrid
 		TextureSamples,
 		VirtualTextureLookups,
 		Shaders,
+		PreShaders,
 
 		VertexShader,
 		FragmentShader,

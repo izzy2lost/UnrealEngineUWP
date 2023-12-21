@@ -352,7 +352,7 @@ void FStatsGridRow_NumVirtualTextureLookups::AddPlatform(TSharedPtr<FMaterialSta
 /*==============================================================================================================*/
 
 /*==============================================================================================================*/
-/* FStatsGridRow_NumVirtualTextureLookups functions*/
+/* FStatsGridRow_NumShaders functions*/
 
 void FStatsGridRow_NumShaders::CreateRow(TSharedPtr<FMaterialStats> StatsManager)
 {
@@ -379,6 +379,36 @@ void FStatsGridRow_NumShaders::AddPlatform(TSharedPtr<FMaterialStats> StatsManag
 }
 
 /*end FStatsGridRow_NumTotalShaders functions*/
+/*==============================================================================================================*/
+
+/*==============================================================================================================*/
+/* FStatsGridRow_NumPreshaders functions*/
+
+void FStatsGridRow_NumPreshaders::CreateRow(TSharedPtr<FMaterialStats> StatsManager)
+{
+	// static string in the descriptor column
+	TSharedPtr<FGridCell> HeaderCell = MakeShareable(new FGridCell_StaticString(TEXT("Preshader Count"), TEXT("Number of preshader instructions that will be evaluated on the CPU for this material.")));
+	HeaderCell->SetColor(FStyleColors::Foreground);
+	HeaderCell->SetContentBold(true);
+	AddCell(FMaterialStatsGrid::DescriptorColumnName, HeaderCell);
+
+	AddCell(FMaterialStatsGrid::ShaderColumnName, MakeShareable(new FGridCell_Empty()));
+	AddCell(FMaterialStatsGrid::ShaderStatisticColumnName, MakeShareable(new FGridCell_Empty()));
+
+	FillPlatformCellsHelper(StatsManager);
+}
+
+void FStatsGridRow_NumPreshaders::AddPlatform(TSharedPtr<FMaterialStats> StatsManager, const TSharedPtr<FShaderPlatformSettings> Platform, const EMaterialQualityLevel::Type QualityLevel, const int32 InstanceIndex)
+{
+	// cell that will enumerate the number of pre shaders
+	const FString CellContent = FMaterialStatsUtils::MaterialQualityToShortString(QualityLevel);
+	TSharedPtr<FGridCell_ShaderValue> Cell = MakeShareable(new FGridCell_ShaderValue(StatsManager, EShaderInfoType::PreShaderCount, ERepresentativeShader::Num, QualityLevel, Platform->GetPlatformShaderType(), InstanceIndex));
+
+	const FName ColumnName = FMaterialStatsGrid::MakePlatformColumnName(Platform, QualityLevel, InstanceIndex);
+	AddCell(ColumnName, Cell);
+}
+
+/*end FStatsGridRow_NumPreshaders functions*/
 /*==============================================================================================================*/
 
 /***********************************************************************************************************************/
@@ -576,6 +606,7 @@ void FMaterialStatsGrid::BuildRowIds()
 		BuildKeyAndInsert(ERowType::VirtualTextureLookups);
 		BuildKeyAndInsert(ERowType::Interpolators);
 		BuildKeyAndInsert(ERowType::Shaders);
+		BuildKeyAndInsert(ERowType::PreShaders);
 	}
 }
 
@@ -645,6 +676,11 @@ void FMaterialStatsGrid::BuildStaticRows()
 		TSharedPtr<FStatsGridRow> Row = MakeShareable(new FStatsGridRow_NumShaders());
 		Row->CreateRow(StatsManager);
 		StaticRows.Add(ERowType::Shaders, Row);
+	}
+	{
+		TSharedPtr<FStatsGridRow> Row = MakeShareable(new FStatsGridRow_NumPreshaders());
+		Row->CreateRow(StatsManager);
+		StaticRows.Add(ERowType::PreShaders, Row);
 	}
 }
 
@@ -988,6 +1024,10 @@ FString FGridCell_ShaderValue::InternalGetContent(bool bLongContent)
 
 		case EShaderInfoType::ShaderCount:
 			return bLongContent ? InstanceData.ShaderStatsInfo.ShaderCount.StrDescriptionLong : InstanceData.ShaderStatsInfo.ShaderCount.StrDescription;
+		break;
+
+		case EShaderInfoType::PreShaderCount:
+			return bLongContent ? InstanceData.ShaderStatsInfo.PreShaderCount.StrDescriptionLong : InstanceData.ShaderStatsInfo.PreShaderCount.StrDescription;
 		break;
 	}
 
