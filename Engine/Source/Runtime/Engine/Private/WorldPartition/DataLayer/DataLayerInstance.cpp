@@ -403,18 +403,19 @@ bool UDataLayerInstance::SetParent(UDataLayerInstance* InParent)
 	return true;
 }
 
-void UDataLayerInstance::SetChildParent(UDataLayerInstance* InParent)
+void UDataLayerInstance::OnRemovedFromWorldDataLayers()
 {
-	if (this == InParent)
-	{
-		return;
-	}
-
-	check(!InParent || InParent->CanHaveChildDataLayers());
 	while (Children.Num())
 	{
-		Children[0]->SetParent(InParent);
+		// If can't reparent, move to root
+		UDataLayerInstance* ChildNewParent = Children[0]->CanBeChildOf(Parent) ? Parent : nullptr;
+		verify(Children[0]->SetParent(ChildNewParent));
 	};
+
+	if (Parent)
+	{
+		Parent->RemoveChild(this);
+	}
 }
 
 void UDataLayerInstance::RemoveChild(UDataLayerInstance* InDataLayer)

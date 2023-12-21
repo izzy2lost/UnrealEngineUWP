@@ -93,7 +93,8 @@ public:
 	ENGINE_API bool CanBeChildOf(const UDataLayerInstance* InParent, FText* OutReason = nullptr) const;
 	ENGINE_API bool SetParent(UDataLayerInstance* InParent);
 
-	ENGINE_API void SetChildParent(UDataLayerInstance* InParent);
+	UE_DEPRECATED(5.4, "SetChildParent was removed")
+	ENGINE_API void SetChildParent(UDataLayerInstance* InParent) {}
 
 	static ENGINE_API FText GetDataLayerText(const UDataLayerInstance* InDataLayer);
 
@@ -199,6 +200,7 @@ private:
 	friend class FDataLayerUtils;
 
 #if WITH_EDITOR
+	ENGINE_API void OnRemovedFromWorldDataLayers();
 	ENGINE_API void RemoveChild(UDataLayerInstance* DataLayer);
 #endif
 
@@ -248,4 +250,6 @@ private:
 
 	UPROPERTY(Transient)
 	TArray<TObjectPtr<UDataLayerInstance>> Children;
+
+	friend class AWorldDataLayers;
 };

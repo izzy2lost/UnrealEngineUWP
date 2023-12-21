@@ -675,7 +675,7 @@ int32 AWorldDataLayers::RemoveDataLayers(const TArray<UDataLayerInstance*>& InDa
 			const bool bDirty = !bUseExternalPackageDataLayerInstances;
 			Modify(bDirty);
 			DataLayerInstance->Modify();
-			DataLayerInstance->SetChildParent(DataLayerInstance->GetParent());
+			DataLayerInstance->OnRemovedFromWorldDataLayers();
 			UsedDataLayerInstances.Remove(DataLayerInstance);
 			if (DataLayerInstance->IsA<UDeprecatedDataLayerInstance>())
 			{
