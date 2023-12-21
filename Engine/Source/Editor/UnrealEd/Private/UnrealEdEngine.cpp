@@ -83,6 +83,8 @@
 #include "ObjectTools.h"
 #include "Cooker/ExternalCookOnTheFlyServer.h"
 #include "ISettingsSection.h"
+#include "DirectoryWatcherModule.h"
+#include "IDirectoryWatcher.h"
 
 DEFINE_LOG_CATEGORY_STATIC(LogUnrealEdEngine, Log, All);
 
@@ -118,9 +120,19 @@ void UUnrealEdEngine::Init(IEngineLoop* InEngineLoop)
 	// Set-up the initial set of content mount paths to check for write permision
 	TArray<FString> RootPaths;
 	FPackageName::QueryRootContentPaths(RootPaths);
+	int32 RootPathIndex = 0;
+	FDirectoryWatcherModule* DirectoryWatcherModule = FModuleManager::GetModulePtr<FDirectoryWatcherModule>(TEXT("DirectoryWatcher"));
+	IDirectoryWatcher* DirectoryWatcher = DirectoryWatcherModule ? DirectoryWatcherModule->Get() : nullptr;
+
 	for (const FString& RootPath : RootPaths)
 	{
 		VerifyMountPointWritePermission(*RootPath);
+		// We're writing files to test the write permission, and this will send file events to the directory watcher. Tick
+		// every few writes so that we don't overflow the directory watcher's buffer and cause a FCA_RescanRequired event.
+		if (DirectoryWatcher && ((++RootPathIndex) % 10) == 0)
+		{
+			DirectoryWatcher->Tick(-1.0f);
+		}
 	}
 	// Watch for new content mount paths
 	FPackageName::OnContentPathMounted().AddUObject(this, &UUnrealEdEngine::OnContentPathMounted);
