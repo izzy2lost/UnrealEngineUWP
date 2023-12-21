@@ -185,6 +185,32 @@ void FLandscapeEditorDetailCustomization_ImportExport::CustomizeDetails(IDetailL
 	TSharedPtr<SToolTip> ExportSingleFileTooltip = SNew(SToolTip)
 		.Text(PropertyHandle_ExportSingleFile->GetToolTipText());
 
+	TSharedRef<IPropertyHandle> PropertyHandle_ImportExportMode = DetailBuilder.GetProperty(GET_MEMBER_NAME_CHECKED(ULandscapeEditorObject, ImportExportMode));
+	TSharedPtr<SWidget> NameWidget;
+	TSharedPtr<SWidget> ValueWidget;
+	IDetailPropertyRow& ImportExportModeRow = ImportExportCategory.AddProperty(PropertyHandle_ImportExportMode);
+	ImportExportModeRow.GetDefaultWidgets(NameWidget, ValueWidget);
+	ImportExportModeRow.CustomWidget()
+		.NameContent()
+		[
+			SNew(SBox)
+				.VAlign(VAlign_Center)
+				.Padding(FMargin(0, 0, 2, 0))
+				[
+					SNew(STextBlock)
+						.Text(MakeAttributeLambda([]() { return IsImporting() ? LOCTEXT("ImportMode", "Import Mode") : LOCTEXT("ExportMode", "Export Mode"); }))
+						.Font(DetailBuilder.GetDetailFont())
+						.ToolTipText(MakeAttributeLambda([]() { return IsImporting() 
+							? LOCTEXT("ImportModeTooltip", "Specifies whether all or only loaded landscape regions should be imported") 
+							: LOCTEXT("ExportModeToolTip", "Specifies whether all or only loaded landscape regions should be imported"); }))
+				]
+		]
+		.ValueContent()
+		[
+			ValueWidget.ToSharedRef()
+		];
+
+
 	ImportExportCategory.AddProperty(PropertyHandle_ExportSingleFile)
 		.Visibility(MakeAttributeLambda([]() { return FLandscapeEditorDetailCustomization_ImportExport::GetImportExportVisibility(false); }))
 		.IsEnabled(MakeAttributeLambda([]() { return FLandscapeEditorDetailCustomization_ImportExport::GetExportSingleFileIsEnabled(); }))

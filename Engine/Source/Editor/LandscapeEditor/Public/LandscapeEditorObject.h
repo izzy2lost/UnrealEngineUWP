@@ -581,10 +581,10 @@ class ULandscapeEditorObject : public UObject
 	UPROPERTY(Category = "Import / Export", EditAnywhere, NonTransactional, meta = (DisplayName="Export Selected Edit Layer", ShowForTools = "ImportExport", ToolTip="When true exports the selected edit layer, if false exports the blended result"))
 	bool bExportEditLayer = true;
 
-	UPROPERTY(Category = "Import / Export", EditAnywhere, NonTransactional, meta = (DisplayName = "Export Single File", ShowForTools = "ImportExport", ToolTip = "(World Partition only) When true, exports the landscape as a single file, if false exports each grid tile individually."))
+	UPROPERTY(Category = "Import / Export", EditAnywhere, NonTransactional, meta = (ShowForTools = "ImportExport", ToolTip = "(World Partition only) When true, exports the landscape as a single file, if false exports each grid tile individually."))
 	bool bExportSingleFile = false;
 
-	UPROPERTY(Category = "Import / Export", EditAnywhere, NonTransactional, meta = (DisplayName = "Mode", ShowForTools = "ImportExport", ToolTip = "Import Loaded or All Landscape Regions"))
+	UPROPERTY(Category = "Import / Export", EditAnywhere, NonTransactional, meta = (ShowForTools = "ImportExport"))
 	ELandscapeImportExportMode ImportExportMode = ELandscapeImportExportMode::LoadedOnly;
 
 	UPROPERTY(NonTransactional)
