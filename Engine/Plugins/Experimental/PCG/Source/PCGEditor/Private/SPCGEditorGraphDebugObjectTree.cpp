@@ -748,7 +748,7 @@ void SPCGEditorGraphDebugObjectTree::RefreshTree()
 		}
 
 		UPCGComponent* PCGComponent = Cast<UPCGComponent>(PCGComponentObject);
-		if (!PCGComponent)
+		if (!PCGComponent || !PCGComponent->IsRegistered())
 		{
 			continue;
 		}
