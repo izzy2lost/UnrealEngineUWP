@@ -277,7 +277,6 @@ struct HAIRSTRANDSCORE_API FHairGroupInstance : public FHairStrandsInstance
 	EHairBindingType		BindingType = EHairBindingType::NoneBinding;
 	bool					bForceCards = false;
 	bool					bUpdatePositionOffset = false;
-	bool					bCastShadow = true;
 	bool 					bSupportStreaming = true;
 	
 	// Deformed component to extract the bone buffer 

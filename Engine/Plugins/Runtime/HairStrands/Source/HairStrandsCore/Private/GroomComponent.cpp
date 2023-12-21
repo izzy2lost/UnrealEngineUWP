@@ -455,7 +455,6 @@ public:
 			check(HairInstance->HairGroupPublicData);
 			HairInstance->bForceCards = Component->bUseCards;
 			HairInstance->bUpdatePositionOffset = Component->RegisteredMeshComponent != nullptr;
-			HairInstance->bCastShadow = Component->CastShadow;
 
 			if (HairInstance->Strands.IsValid() && HairInstance->Strands.VertexFactory == nullptr)
 			{
