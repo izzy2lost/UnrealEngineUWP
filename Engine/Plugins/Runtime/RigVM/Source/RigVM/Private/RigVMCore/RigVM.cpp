@@ -186,6 +186,7 @@ void URigVM::Load(FArchive& Ar)
 			Ar << TmpLiteralMemoryStorage;
 			Ar << FunctionNamesStorage;
 			Ar << ByteCodeStorage;
+			ByteCodeStorage.AlignByteCode();
 			Ar << Parameters;
 
 			if (Ar.CustomVer(FUE5MainStreamObjectVersion::GUID) < FUE5MainStreamObjectVersion::RigVMCopyOpStoreNumBytes)
@@ -232,6 +233,7 @@ void URigVM::Load(FArchive& Ar)
 	Ar << ExternalPropertyPathDescriptions;
 	Ar << FunctionNamesStorage;
 	Ar << ByteCodeStorage;
+	ByteCodeStorage.AlignByteCode();
 	Ar << Parameters;
 
 	if (Ar.CustomVer(FUE5ReleaseStreamObjectVersion::GUID) >= FUE5ReleaseStreamObjectVersion::RigVMSaveDebugMapInGraphFunctionData ||

@@ -631,8 +631,6 @@ void FRigVMByteCode::Load(FArchive& Ar)
 		}
 	}
 	
-	AlignByteCode();
-
 	Entries.Reset();
 	if (Ar.CustomVer(FAnimObjectVersion::GUID) >= FAnimObjectVersion::SerializeRigVMEntries)
 	{
@@ -1119,6 +1117,7 @@ uint64 FRigVMByteCode::AddExecuteOp(uint16 InFunctionIndex, const FRigVMOperandA
 uint64 FRigVMByteCode::InlineFunction(const FRigVMByteCode* FunctionByteCode, const FRigVMOperandArray& InOperands)
 {
 	check(FunctionByteCode);
+	check(!FunctionByteCode->bByteCodeIsAligned);
 	uint64 OpByteIndex = ByteCode.Num();
 	ByteCode.Append(FunctionByteCode->ByteCode);
 	NumInstructions += FunctionByteCode->NumInstructions;

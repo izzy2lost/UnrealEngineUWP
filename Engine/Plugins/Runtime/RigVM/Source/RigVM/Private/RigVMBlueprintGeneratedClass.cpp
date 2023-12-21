@@ -117,7 +117,10 @@ void URigVMBlueprintGeneratedClass::GetAssetRegistryTags(FAssetRegistryTagsConte
 	
 	for (const FRigVMGraphFunctionData& FunctionData : GraphFunctionStore.PublicFunctions)
 	{
-		HeaderArray.Headers.Add(FunctionData.Header);
+		if (FunctionData.CompilationData.IsValid())
+		{
+			HeaderArray.Headers.Add(FunctionData.Header);
+		}
 	}
 
 	FString HeadersString;
