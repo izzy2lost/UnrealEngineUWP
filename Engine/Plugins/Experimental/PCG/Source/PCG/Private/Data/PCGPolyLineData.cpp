@@ -20,6 +20,18 @@ FBox UPCGPolyLineData::GetBounds() const
 	return Bounds;
 }
 
+FVector::FReal UPCGPolyLineData::GetLength() const
+{
+	FVector::FReal Length = 0.0;
+
+	for (int SegmentIndex = 0; SegmentIndex < GetNumSegments(); ++SegmentIndex)
+	{
+		Length += GetSegmentLength(SegmentIndex);
+	}
+
+	return Length;
+}
+
 void UPCGPolyLineData::GetTangentsAtSegmentStart(int SegmentIndex, FVector& OutArriveTangent, FVector& OutLeaveTangent) const
 {
 	OutArriveTangent = FVector::Zero();

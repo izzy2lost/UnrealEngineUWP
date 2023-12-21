@@ -782,6 +782,28 @@ namespace PCGSplineSampler
 
 		FStepSampler* Sampler = ((Params.Mode == EPCGSplineSamplingMode::Subdivision) ? static_cast<FStepSampler*>(&SubdivisionSampler) : static_cast<FStepSampler*>(&DistanceSampler));
 
+		if (Params.Mode == EPCGSplineSamplingMode::NumberOfSamples)
+		{
+			if (Params.NumSamples <= 0)
+			{
+				return;
+			}
+
+			// Compute an increment which evenly distributes sample points along the length of the curve.
+			DistanceSampler.DistanceIncrement = LineData->GetLength() / (LineData->IsClosed() ? Params.NumSamples : FMath::Max(1, Params.NumSamples - 1));
+
+			if (LineData->IsClosed() || Params.NumSamples == 1)
+			{
+				// If the curve is closed or only has one sample, we nudge the DistanceIncrement slightly to avoid floating point error giving us an extra sample point.
+				DistanceSampler.DistanceIncrement += UE_DOUBLE_SMALL_NUMBER;
+			}
+			else
+			{
+				// If the curve is not closed and has more than one sample, we should nudge DistanceIncrement slightly lower so that we guarantee capturing the last sample point.
+				DistanceSampler.DistanceIncrement -= UE_DOUBLE_SMALL_NUMBER;
+			}
+		}
+
 		FDimensionSampler TrivialDimensionSampler(LineData, InBoundingShapeData, InProjectionTarget, InProjectionParams, Params, OutPointData);
 		FVolumeSampler VolumeSampler(LineData, InBoundingShapeData, InProjectionTarget, InProjectionParams, Params, OutPointData);
 

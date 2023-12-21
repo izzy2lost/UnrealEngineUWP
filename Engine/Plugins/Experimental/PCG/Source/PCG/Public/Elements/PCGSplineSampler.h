@@ -17,7 +17,8 @@ UENUM()
 enum class EPCGSplineSamplingMode : uint8
 {
 	Subdivision = 0,
-	Distance
+	Distance,
+	NumberOfSamples UMETA(Tooltip = "Samples a specified number of times, evenly spaced around the spline.")
 };
 
 UENUM()
@@ -63,6 +64,9 @@ struct PCG_API FPCGSplineSamplerParams
 
 	UPROPERTY(BlueprintReadWrite, EditAnywhere, Category = Settings, meta = (ClampMin = "0.1", EditCondition = "Mode==EPCGSplineSamplingMode::Distance&&Dimension!=EPCGSplineSamplingDimension::OnInterior"))
 	float DistanceIncrement = 100.0f;
+
+	UPROPERTY(BlueprintReadWrite, EditAnywhere, Category = Settings, meta = (ClampMin = "0", EditCondition = "Mode==EPCGSplineSamplingMode::NumberOfSamples&&Dimension!=EPCGSplineSamplingDimension::OnInterior"))
+	int32 NumSamples = 8;
 
 	UPROPERTY(BlueprintReadWrite, EditAnywhere, Category = Settings, meta = (ClampMin = "0", EditCondition = "Dimension==EPCGSplineSamplingDimension::OnHorizontal||Dimension==EPCGSplineSamplingDimension::OnVolume"))
 	int32 NumPlanarSubdivisions = 8;
