@@ -232,10 +232,10 @@ TArray<TPair<FMovieGraphRenderDataIdentifier, TUniquePtr<FImagePixelData>>> UMov
 
 FString UMovieGraphImageSequenceOutputNode::CreateFileName(
 	UE::MovieGraph::FMovieGraphOutputMergerFrame* InRawFrameData,
+	const UMovieGraphImageSequenceOutputNode* InParentNode,
 	const UMovieGraphPipeline* InPipeline,
 	const TPair<FMovieGraphRenderDataIdentifier, TUniquePtr<FImagePixelData>>& InRenderData,
 	const EImageFormat InImageFormat,
-	const FString& InFileNameFormat,
 	FMovieGraphResolveArgs& OutMergedFormatArgs) const
 {
 	const TCHAR* Extension = TEXT("");
@@ -254,8 +254,26 @@ FString UMovieGraphImageSequenceOutputNode::CreateFileName(
 	}
 
 	// Generate one string that puts the directory combined with the filename format.
-	FString FileNameFormatString = OutputSettingNode->OutputDirectory.Path / InFileNameFormat;
+	FString FileNameFormatString = OutputSettingNode->OutputDirectory.Path / InParentNode->FileNameFormat;
 
+	if (InRawFrameData->HasDataFromMultipleBranches())
+	{
+		// There should be one render layer per branch, so with multiple branches
+		// we test for {layer_name} presence.
+		// 
+		// ToDo: This is overly protective and could be relaxed later, for instance
+		// if different file write nodes have chosen a separate filepath entirely.
+		UE::MoviePipeline::ConformOutputFormatStringToken(FileNameFormatString, TEXT("{layer_name}"), InParentNode->GetFName(), InRenderData.Key.RootBranchName);
+	}
+
+	if (InRawFrameData->HasMultipleRendersPerBranch(InRenderData.Key.RootBranchName))
+	{
+		UE::MoviePipeline::ConformOutputFormatStringToken(FileNameFormatString, TEXT("{renderer_name}"), InParentNode->GetFName(), InRenderData.Key.RootBranchName);
+	}
+
+	// ToDo: Add {camera_name} validation once relevant
+
+	// Previous method is preserved for output frame number validation.
 	constexpr bool bIncludeRenderPass = false;
 	constexpr bool bTestFrameNumber = true;
 	UE::MoviePipeline::ValidateOutputFormatString(FileNameFormatString, bIncludeRenderPass, bTestFrameNumber);
@@ -326,7 +344,7 @@ void UMovieGraphImageSequenceOutputNode::OnReceiveImageDataImpl(UMovieGraphPipel
 		checkf(ParentNode, TEXT("Image sequence output should not exist without a parent node in the graph."));
 		
 		FMovieGraphResolveArgs FinalResolvedKVPs;
-		FString FileName = CreateFileName(InRawFrameData, InPipeline, RenderData, PreferredOutputFormat, ParentNode->FileNameFormat, FinalResolvedKVPs);
+		FString FileName = CreateFileName(InRawFrameData, ParentNode, InPipeline, RenderData, PreferredOutputFormat, FinalResolvedKVPs);
 		if (!ensureMsgf(!FileName.IsEmpty(), TEXT("Unexpected empty file name, skipping frame.")))
 		{
 			continue;
@@ -544,7 +562,7 @@ void UMovieGraphImageSequenceOutputNode_EXR::OnReceiveImageDataImpl(UMovieGraphP
 		checkf(ParentNode, TEXT("Single-layer EXR should not exist without a parent node in the graph."));
 
 		FMovieGraphResolveArgs ResolvedFormatArgs;
-		FString FileName = CreateFileName(InRawFrameData, InPipeline, RenderData, OutputFormat, ParentNode->FileNameFormat, ResolvedFormatArgs);
+		FString FileName = CreateFileName(InRawFrameData, ParentNode, InPipeline, RenderData, OutputFormat, ResolvedFormatArgs);
 		if (!ensureMsgf(!FileName.IsEmpty(), TEXT("Unexpected empty file name, skipping frame.")))
 		{
 			continue;

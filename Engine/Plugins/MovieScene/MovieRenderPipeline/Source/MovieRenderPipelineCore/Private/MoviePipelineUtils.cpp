@@ -659,6 +659,38 @@ namespace UE
 	{
 		DECLARE_CYCLE_STAT(TEXT("STAT_MoviePipeline_HardwareMetadata"), STAT_HardwareMetadata, STATGROUP_MoviePipeline);
 
+		void ConformOutputFormatStringToken(FString& InOutFilenameFormatString, const FStringView InToken, const FName& InNodeName, const FName& InBranchName)
+		{
+			static const FString FrameNumberIdentifiers[] = { TEXT("{frame_number}"), TEXT("{frame_number_shot}"), TEXT("{frame_number_rel}"), TEXT("{frame_number_shot_rel}") };
+
+			if (!InOutFilenameFormatString.Contains(InToken, ESearchCase::IgnoreCase))
+			{
+				UE_LOG(LogMovieRenderPipeline, Warning, TEXT("Missing expected %s format token on node '%s' in branch '%s'. Automatically adding!"), InToken.GetData(), *InNodeName.ToString(), *InBranchName.ToString());
+
+				// Search for a frame number in the output string
+				int32 FrameNumberIndex = INDEX_NONE;
+				for (const FString& Identifier : FrameNumberIdentifiers)
+				{
+					FrameNumberIndex = InOutFilenameFormatString.Find(Identifier, ESearchCase::IgnoreCase, ESearchDir::FromEnd);
+					if (FrameNumberIndex != INDEX_NONE)
+					{
+						break;
+					}
+				}
+
+				if (FrameNumberIndex == INDEX_NONE)
+				{
+					// No frame number found, so just append the token
+					InOutFilenameFormatString += InToken;
+				}
+				else
+				{
+					// If a frame number is found, we need to insert the token first before it, so various editing
+					// software will still be able to identify if this is an image sequence
+					InOutFilenameFormatString.InsertAt(FrameNumberIndex, FString(InToken) + TEXT("."));
+				}
+			}
+		}
 
 		void ValidateOutputFormatString(FString& InOutFilenameFormatString, const bool bTestRenderPass, const bool bTestFrameNumber, const bool bTestCameraName)
 		{

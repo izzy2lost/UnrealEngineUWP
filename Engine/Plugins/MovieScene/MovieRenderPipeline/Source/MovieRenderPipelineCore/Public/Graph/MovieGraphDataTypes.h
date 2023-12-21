@@ -8,6 +8,7 @@
 #include "Templates/SubclassOf.h"
 #include "ImagePixelData.h"
 #include "Containers/Queue.h"
+#include "Containers/Set.h"
 #include "Misc/FrameRate.h"
 #include "MovieRenderPipelineDataTypes.h"
 #include "Engine/EngineCustomTimeStep.h"
@@ -451,6 +452,53 @@ namespace UE::MovieGraph
 
 		/** Additional metadata to be added to the output (if supported by the output container). */
 		TMap<FString, FString> FileMetadata;
+
+		/** Check if the (expected) render passes come from different branches. */
+		bool HasDataFromMultipleBranches() const
+		{
+			TSet<FName> BranchUseCounts;
+			BranchUseCounts.Reserve(ExpectedRenderPasses.Num());
+
+			for (const FMovieGraphRenderDataIdentifier& PassIdentifier : ExpectedRenderPasses)
+			{
+				BranchUseCounts.Add(PassIdentifier.RootBranchName);
+			}
+
+			return BranchUseCounts.Num() > 1;
+		}
+
+		/** Check if the (expected) render passes come from different renderers, excluding composited ones. */
+		bool HasMultipleRendersPerBranch(const FName& InBranchName)
+		{
+			TSet<uint32> BranchRendererUseCounts;
+			BranchRendererUseCounts.Reserve(ExpectedRenderPasses.Num());
+
+			for (const FMovieGraphRenderDataIdentifier& PassIdentifier : ExpectedRenderPasses)
+			{
+				if (PassIdentifier.RootBranchName == InBranchName)
+				{
+					BranchRendererUseCounts.Add(GetTypeHash(PassIdentifier.RendererName));
+				}
+			}
+
+			// Remove any renderers that will be composited on later
+			for (const TPair<FMovieGraphRenderDataIdentifier, TUniquePtr<FImagePixelData>>& RenderData : ImageOutputData)
+			{
+				if (RenderData.Key.RootBranchName != InBranchName)
+				{
+					continue;
+				}
+
+				UE::MovieGraph::FMovieGraphSampleState* Payload = RenderData.Value->GetPayload<UE::MovieGraph::FMovieGraphSampleState>();
+				check(Payload);
+				if (Payload->bCompositeOnOtherRenders)
+				{
+					BranchRendererUseCounts.Remove(GetTypeHash(RenderData.Key.RendererName));
+				}
+			}
+
+			return BranchRendererUseCounts.Num() > 1;
+		}
 	};
 
 	/**

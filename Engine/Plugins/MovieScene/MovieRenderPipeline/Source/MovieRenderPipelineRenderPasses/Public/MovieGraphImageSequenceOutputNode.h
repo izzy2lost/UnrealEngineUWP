@@ -63,10 +63,10 @@ protected:
 	/** Convenience function to create the output file name. */
 	FString CreateFileName(
 		UE::MovieGraph::FMovieGraphOutputMergerFrame* InRawFrameData,
+		const UMovieGraphImageSequenceOutputNode* InParentNode,
 		const UMovieGraphPipeline* InPipeline,
 		const TPair<FMovieGraphRenderDataIdentifier, TUniquePtr<FImagePixelData>>& InRenderData,
 		const EImageFormat InImageFormat,
-		const FString& InFileNameFormat,
 		FMovieGraphResolveArgs& OutMergedFormatArgs) const;
 
 protected:
