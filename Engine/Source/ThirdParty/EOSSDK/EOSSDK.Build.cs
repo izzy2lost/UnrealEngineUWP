@@ -6,6 +6,7 @@ using System.IO;
 using System.Linq;
 using UnrealBuildTool;
 using EpicGames.Core;
+using Microsoft.Extensions.Logging;
 
 public class EOSSDK : ModuleRules
 {
@@ -220,6 +221,13 @@ public class EOSSDK : ModuleRules
 	{
 		get
 		{
+			// Keep supporting old GlobalDef mechanism in case licensees are using it
+			if (Target.GlobalDefinitions.Contains("EOSSDK_USE_PROJECT_BINARY=1"))
+			{
+				Logger.LogWarning("EOSSDK_USE_PROJECT_BINARY is deprecated, please use Engine.ini [EOSSDK] bHasProjectBinary=true config mechanism instead");
+				return true;
+			}
+
 			ConfigCache.ReadSettings(DirectoryReference.FromFile(Target.ProjectFile), Target.Platform, this);
 			return bHasProjectBinary;
 		}

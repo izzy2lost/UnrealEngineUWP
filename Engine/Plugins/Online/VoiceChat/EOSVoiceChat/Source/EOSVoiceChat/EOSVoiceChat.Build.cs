@@ -1,8 +1,10 @@
 // Copyright Epic Games, Inc. All Rights Reserved.
 
 using EpicGames.Core;
+using Microsoft.Extensions.Logging;
 using System;
 using System.IO;
+using System.Linq;
 
 namespace UnrealBuildTool.Rules
 {
@@ -15,6 +17,13 @@ namespace UnrealBuildTool.Rules
 		{
 			get
 			{
+				// Keep supporting old GlobalDef mechanism in case licensees are using it
+				if (Target.GlobalDefinitions.Contains("DISABLE_EOSVOICECHAT_ENGINE=1"))
+				{
+					Logger.LogWarning("DISABLE_EOSVOICECHAT_ENGINE is deprecated, please use Engine.ini [EOSVoiceChat] bDisableInMonolithic=true config mechanism instead");
+					return true;
+				}
+
 				ConfigCache.ReadSettings(DirectoryReference.FromFile(Target.ProjectFile), Target.Platform, this);
 				return bDisableInMonolithic;
 			}
