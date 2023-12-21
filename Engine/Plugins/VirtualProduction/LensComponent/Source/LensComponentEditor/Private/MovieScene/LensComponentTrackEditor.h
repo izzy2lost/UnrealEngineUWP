@@ -3,7 +3,7 @@
 #pragma once
 
 #include "KeyframeTrackEditor.h"
-#include "MovieSceneLensComponentTrack.h"
+#include "MovieScene/MovieSceneLensComponentTrack.h"
 
 /** A property track editor for Lens Component */
 class FLensComponentTrackEditor : public FKeyframeTrackEditor<UMovieSceneLensComponentTrack>

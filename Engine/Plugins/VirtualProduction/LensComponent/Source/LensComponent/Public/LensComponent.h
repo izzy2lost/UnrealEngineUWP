@@ -57,7 +57,7 @@ enum class EDistortionSource : uint8
 
 /** Component for applying a post-process lens distortion effect to a CineCameraComponent on the same actor */
 UCLASS(HideCategories=(Tags, Activation, Cooking, AssetUserData, Collision), meta=(BlueprintSpawnableComponent))
-class CAMERACALIBRATIONCORE_API ULensComponent : public UActorComponent
+class LENSCOMPONENT_API ULensComponent : public UActorComponent
 {
 	GENERATED_BODY()
 

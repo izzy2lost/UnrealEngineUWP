@@ -2,8 +2,8 @@
 	"FileVersion": 3,
 	"Version": 1,
 	"VersionName": "1.0",
-	"FriendlyName": "Camera Calibration",
-	"Description": "Framework to support lens distortion and camera calibration in engine.",
+	"FriendlyName": "Lens Component",
+	"Description": "Implements the Lens Component for adding distortion to a cinematic camera",
 	"Category": "Virtual Production",
 	"CreatedBy": "Epic Games, Inc.",
 	"CreatedByURL": "https://epicgames.com",
@@ -12,11 +12,20 @@
 	"SupportURL": "",
 	"CanContainContent": true,
 	"IsBetaVersion": true,
+	"Hidden": true,
 	"Installed": false,
+	"SupportedPrograms": [ "LiveLinkHub" ],
 	"Modules": [
 		{
-			"Name": "CameraCalibrationEditor",
+			"Name": "LensComponent",
+			"Type": "Runtime",
+			"ProgramAllowlist": [ "LiveLinkHub" ],
+			"LoadingPhase": "Default"
+		},
+		{
+			"Name": "LensComponentEditor",
 			"Type": "Editor",
+			"ProgramAllowlist": [ "LiveLinkHub" ],
 			"LoadingPhase": "Default"
 		}
 	],
@@ -26,19 +35,11 @@
 			"Enabled": true
 		},
 		{
-			"Name": "Composure",
+			"Name": "LiveLink",
 			"Enabled": true
 		},
 		{
-			"Name": "LensComponent",
-			"Enabled": true
-		},
-		{
-			"Name": "MediaFrameworkUtilities",
-			"Enabled": true
-		},
-		{
-			"Name": "OpenCVLensDistortion",
+			"Name": "Takes",
 			"Enabled": true
 		}
 	]

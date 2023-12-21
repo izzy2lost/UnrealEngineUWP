@@ -27,27 +27,11 @@
 			"Type": "Editor",
 			"ProgramAllowlist": [ "LiveLinkHub" ],
 			"LoadingPhase": "Default"
-		},
-		{
-			"Name": "CameraCalibrationCoreMovieScene",
-			"Type": "Runtime",
-			"ProgramAllowlist": [ "LiveLinkHub" ],
-			"LoadingPhase": "Default"
-		},
-		{
-			"Name": "CameraCalibrationCoreSequencer",
-			"Type": "UncookedOnly",
-			"ProgramAllowlist": [ "LiveLinkHub" ],
-			"LoadingPhase": "Default"
 		}
 	],
 	"Plugins": [
 		{
 			"Name": "ProceduralMeshComponent",
-			"Enabled": true
-		},
-		{
-			"Name": "LiveLink",
 			"Enabled": true
 		}
 	]

@@ -2,20 +2,31 @@
 
 #include "Modules/ModuleInterface.h"
 
+#include "Editor.h"
 #include "Features/IModularFeatures.h"
 #include "ISequencerModule.h"
-#include "LensComponentTrackEditor.h"
+#include "LensComponent.h"
+#include "LensComponentDetailCustomization.h"
 #include "Modules/ModuleManager.h"
-#include "MovieSceneLensComponentTrackRecorder.h"
+#include "MovieScene/LensComponentTrackEditor.h"
+#include "MovieScene/MovieSceneLensComponentTrackRecorder.h"
+#include "PropertyEditorModule.h"
 
 static const FName MovieSceneTrackRecorderFactoryName("MovieSceneTrackRecorderFactory");
 
-class FCameraCalibrationCoreSequencerModule : public IModuleInterface
+class FLensComponentEditorModule : public IModuleInterface
 {
 public:
 	//~ Begin IModuleInterface interface
 	virtual void StartupModule() override
 	{
+		FPropertyEditorModule& PropertyEditorModule = FModuleManager::Get().LoadModuleChecked<FPropertyEditorModule>("PropertyEditor");
+
+		PropertyEditorModule.RegisterCustomClassLayout(
+			ULensComponent::StaticClass()->GetFName(),
+			FOnGetDetailCustomizationInstance::CreateStatic(&FLensComponentDetailCustomization::MakeInstance)
+		);
+
 		// Register Track Editor for LensComponent track
 		ISequencerModule& SequencerModule = FModuleManager::LoadModuleChecked<ISequencerModule>("Sequencer");
 		CreateLensComponentTrackEditorHandle = SequencerModule.RegisterTrackEditor(FOnCreateTrackEditor::CreateStatic(&FLensComponentTrackEditor::CreateTrackEditor));
@@ -26,14 +37,11 @@ public:
 
 	virtual void ShutdownModule() override
 	{
-		// Unregister Track Editor for LensComponent track
-		if (ISequencerModule* SequencerModule = FModuleManager::GetModulePtr<ISequencerModule>("Sequencer"))
+		if (!IsEngineExitRequested() && GEditor && UObjectInitialized())
 		{
-			SequencerModule->UnRegisterTrackEditor(CreateLensComponentTrackEditorHandle);
+			FPropertyEditorModule& PropertyModule = FModuleManager::GetModuleChecked<FPropertyEditorModule>("PropertyEditor");
+			PropertyModule.UnregisterCustomClassLayout(ULensComponent::StaticClass()->GetFName());
 		}
-
-		// Unregister modular feature for LensComponent track recorder factory
-		IModularFeatures::Get().UnregisterModularFeature(MovieSceneTrackRecorderFactoryName, &LensComponentTrackRecorderFactory);
 	}
 	//~ End IModuleInterface interface
 
@@ -43,4 +51,4 @@ private:
 	FMovieSceneLensComponentTrackRecorderFactory LensComponentTrackRecorderFactory;
 };
 
-IMPLEMENT_MODULE(FCameraCalibrationCoreSequencerModule, CameraCalibrationCoreSequencer);
+IMPLEMENT_MODULE(FLensComponentEditorModule, LensComponentEditor);

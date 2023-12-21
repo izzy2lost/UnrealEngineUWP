@@ -5,7 +5,7 @@
 #include "TrackRecorders/IMovieSceneTrackRecorderFactory.h"
 #include "TrackRecorders/MovieSceneTrackRecorder.h"
 
-#include "MovieSceneLensComponentSection.h"
+#include "MovieScene/MovieSceneLensComponentSection.h"
 
 #include "MovieSceneLensComponentTrackRecorder.generated.h"
 

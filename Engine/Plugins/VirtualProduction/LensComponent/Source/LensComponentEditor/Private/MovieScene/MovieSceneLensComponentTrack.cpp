@@ -1,8 +1,8 @@
 // Copyright Epic Games, Inc. All Rights Reserved.
 
-#include "MovieSceneLensComponentTrack.h"
+#include "MovieScene/MovieSceneLensComponentTrack.h"
 
-#include "MovieSceneLensComponentSection.h"
+#include "MovieScene/MovieSceneLensComponentSection.h"
 
 #define LOCTEXT_NAMESPACE "MovieSceneLensComponentTrack"
 

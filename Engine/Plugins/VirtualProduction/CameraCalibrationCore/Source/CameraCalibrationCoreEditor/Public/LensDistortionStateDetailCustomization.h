@@ -7,7 +7,7 @@
 #include "Models/LensModel.h"
 #include "Templates/SubclassOf.h"
 
-class FLensDistortionStateDetailCustomization : public IPropertyTypeCustomization
+class CAMERACALIBRATIONCOREEDITOR_API FLensDistortionStateDetailCustomization : public IPropertyTypeCustomization
 {
 public:
 	FLensDistortionStateDetailCustomization(TSubclassOf<ULensModel> InLensModel);

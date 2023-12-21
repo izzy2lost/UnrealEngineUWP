@@ -1,6 +1,6 @@
 // Copyright Epic Games, Inc. All Rights Reserved.
 
-#include "MovieSceneLensComponentSection.h"
+#include "MovieScene/MovieSceneLensComponentSection.h"
 
 #include "Channels/MovieSceneChannelProxy.h"
 #include "Evaluation/MovieScenePreAnimatedState.h"

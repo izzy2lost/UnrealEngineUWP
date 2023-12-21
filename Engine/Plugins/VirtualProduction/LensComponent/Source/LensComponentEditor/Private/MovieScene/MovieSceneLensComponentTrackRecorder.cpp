@@ -2,7 +2,7 @@
 
 #include "MovieSceneLensComponentTrackRecorder.h"
 
-#include "MovieSceneLensComponentTrack.h"
+#include "MovieScene/MovieSceneLensComponentTrack.h"
 #include "LensComponent.h"
 
 #define LOCTEXT_NAMESPACE "MovieSceneLensComponentTrackRecorder"

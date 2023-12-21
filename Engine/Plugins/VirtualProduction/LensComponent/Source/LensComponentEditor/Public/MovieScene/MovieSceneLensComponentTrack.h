@@ -8,7 +8,7 @@
 
 /** Movie Scene track for Lens Component */
 UCLASS()
-class CAMERACALIBRATIONCOREMOVIESCENE_API UMovieSceneLensComponentTrack : public UMovieSceneNameableTrack
+class LENSCOMPONENTEDITOR_API UMovieSceneLensComponentTrack : public UMovieSceneNameableTrack
 {
 	GENERATED_BODY()
 

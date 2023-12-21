@@ -14,7 +14,7 @@ struct FMovieSceneChannelProxyData;
 
 /** Movie Scene section for Lens Component */
 UCLASS()
-class CAMERACALIBRATIONCOREMOVIESCENE_API UMovieSceneLensComponentSection : public UMovieSceneHookSection
+class LENSCOMPONENTEDITOR_API UMovieSceneLensComponentSection : public UMovieSceneHookSection
 {
 	GENERATED_BODY()
 

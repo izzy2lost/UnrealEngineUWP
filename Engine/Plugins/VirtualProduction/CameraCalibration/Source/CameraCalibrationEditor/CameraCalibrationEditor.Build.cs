@@ -31,6 +31,7 @@ namespace UnrealBuildTool.Rules
 					"InputCore",
 					"Json",
 					"JsonUtilities",
+					"LensComponent",
 					"MediaAssets",
 					"MediaFrameworkUtilities",
 					"OpenCV",
