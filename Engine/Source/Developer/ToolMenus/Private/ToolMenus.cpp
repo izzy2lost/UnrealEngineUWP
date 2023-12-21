@@ -2538,7 +2538,7 @@ void UToolMenus::UnregisterOwnerInternal(FToolMenuOwner InOwner)
 	}
 }
 
-void UToolMenus::UnregisterRuntimeMenuCustomizationOwner(FName InOwnerName)
+void UToolMenus::UnregisterRuntimeMenuCustomizationOwner(const FName InOwnerName)
 {
 	if (InOwnerName.IsNone())
 	{
@@ -2565,6 +2565,41 @@ void UToolMenus::UnregisterRuntimeMenuCustomizationOwner(FName InOwnerName)
 		RefreshAllWidgets();
 	}
 }
+
+void UToolMenus::UnregisterRuntimeMenuProfileOwner(const FName InOwnerName)
+{
+	if (InOwnerName.IsNone())
+	{
+		return;
+	}
+
+	bool bNeedsRefresh = false;
+
+	// Loop through all menus with profiles
+	for (TPair<FName, FToolMenuProfileMap>& MenusWithProfiles : RuntimeMenuProfiles)
+	{
+		// Loop through all profiles for a given menu
+		for (TPair<FName, FToolMenuProfile>& MenuProfile : MenusWithProfiles.Value.MenuProfiles)
+		{
+			if (MenuProfile.Value.MenuPermissions.UnregisterOwner(InOwnerName))
+			{
+				bNeedsRefresh = true;
+			}
+
+			if (MenuProfile.Value.SuppressExtenders.Remove(InOwnerName) > 0)
+			{
+				bNeedsRefresh = true;
+			}
+		}
+	}
+
+	// Refresh any widgets that are currently displayed to the user
+	if (bNeedsRefresh)
+	{
+		RefreshAllWidgets();
+	}
+}
+
 
 FToolMenuOwner UToolMenus::CurrentOwner() const
 {

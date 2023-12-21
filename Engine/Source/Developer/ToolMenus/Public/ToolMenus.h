@@ -293,6 +293,9 @@ public:
 	/** Unregister runtime customization settings for a specific owner name */
 	void UnregisterRuntimeMenuCustomizationOwner(const FName InOwnerName);
 
+	/** Unregister runtime profile settings for a specific owner name */
+	void UnregisterRuntimeMenuProfileOwner(const FName InOwnerName);
+
 	/** Generates sub menu by entry name in the given generated menu parent */
 	UToolMenu* GenerateSubMenu(const UToolMenu* InGeneratedParent, const FName InBlockName);
 
