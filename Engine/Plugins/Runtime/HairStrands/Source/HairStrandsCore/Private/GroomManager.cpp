@@ -2942,7 +2942,7 @@ static void RunHairLODSelection(
 		}
 
 		// Update the local-to-world transform based on the binding type 
-		if (GetHairSwapBufferType() != EHairBufferSwapType::Tick)
+		if (GetHairSwapBufferType() == EHairBufferSwapType::BeginOfFrame || GetHairSwapBufferType() == EHairBufferSwapType::EndOfFrame)
 		{
 			InstanceData.Instance->Debug.SkinningPreviousLocalToWorld = InstanceData.Instance->Debug.SkinningCurrentLocalToWorld;
 			InstanceData.Instance->Debug.SkinningCurrentLocalToWorld  = InstanceData.MeshLODLocalToWorld;

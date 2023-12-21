@@ -51,6 +51,9 @@ static FAutoConsoleVariableRef CVarHairStrandsTransferPositionOnLODChange(TEXT("
 static int32 GHairStrands_Raytracing_ForceRebuildBVH = 1;
 static FAutoConsoleVariableRef CVarHairRTGeomForceRebuild(TEXT("r.HairStrands.Strands.Raytracing.ForceRebuildBVH"), GHairStrands_Raytracing_ForceRebuildBVH, TEXT("Force BVH rebuild instead of doing a BVH refit when hair positions changed"));
 
+static int32 GHairStrands_MotionVector_CheckViewID = 1;
+static FAutoConsoleVariableRef CVarHairStrands_MotionVector_CheckViewID(TEXT("r.HairStrands.Strands.MotionVectorCheckViewID"), GHairStrands_MotionVector_CheckViewID, TEXT("Issue motion vector on hair strands only if updates happens on the same view"));
+
 ////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////
 
 uint32 GetHairCardsInterpolationType()
@@ -1633,9 +1636,10 @@ FHairGroupPublicData::FVertexFactoryInput InternalComputeHairStrandsVertexInputD
 	// 2. Render Strands with deformation
 	else if (bSupportDeformation)
 	{
-		const bool bHasValidMotionVector =
+		const bool bSameUniqueView = 
 			Instance->Strands.DeformedResource->GetUniqueViewID(FHairStrandsDeformedResource::Current) ==
 			Instance->Strands.DeformedResource->GetUniqueViewID(FHairStrandsDeformedResource::Previous);
+		const bool bHasValidMotionVector = GHairStrands_MotionVector_CheckViewID ? bSameUniqueView : true;
 		if (bHasValidMotionVector)
 		{
 			CONVERT_HAIRSSTRANDS_VF_PARAMETERS(OutVFInput.Strands.PositionBuffer,			Instance->Strands.DeformedResource->GetBuffer(FHairStrandsDeformedResource::EFrameType::Current));

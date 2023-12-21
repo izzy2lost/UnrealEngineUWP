@@ -3576,12 +3576,21 @@ void UGroomComponent::SendRenderDynamicData_Concurrent()
 
 	if(GetHairSwapBufferType() == EHairBufferSwapType::RenderFrame)
 	{
+		FTransform SkelLocalToTransform = FTransform::Identity;
+		if (RegisteredMeshComponent)
+		{
+			SkelLocalToTransform = RegisteredMeshComponent->GetComponentTransform();
+		}
+
 		TArray<TRefCountPtr<FHairGroupInstance>> LocalHairGroupInstances = HairGroupInstances;
 		ENQUEUE_RENDER_COMMAND(FHairStrandsTick_TransformUpdate)(
-			[LocalHairGroupInstances](FRHICommandListImmediate& RHICmdList)
+			[LocalHairGroupInstances, SkelLocalToTransform](FRHICommandListImmediate& RHICmdList)
 		{
 			for (const TRefCountPtr<FHairGroupInstance>& Instance : LocalHairGroupInstances)
 			{
+				Instance->Debug.SkinningPreviousLocalToWorld = Instance->Debug.SkinningCurrentLocalToWorld;
+				Instance->Debug.SkinningCurrentLocalToWorld  = SkelLocalToTransform;
+
 				if (Instance->Guides.DeformedResource)  { Instance->Guides.DeformedResource->SwapBuffer(); }
 				if (Instance->Strands.DeformedResource) { Instance->Strands.DeformedResource->SwapBuffer(); }
 			}
