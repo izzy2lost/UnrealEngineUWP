@@ -19,6 +19,9 @@ namespace UE::StateTree::PropertyHelpers {
  */
 void DispatchPostEditToNodes(UObject& Owner, FPropertyChangedChainEvent& PropertyChangedEvent);
 
+/** Makes deterministic ID from the owners property path, a property path (or any string), and a seed value (e.g. array index). */
+FGuid MakeDeterministicID(const UObject& Owner, const FString& PropertyPath, const uint64 Seed);
+
 /**
  * Gets a struct value from property handle, checks type before access. Expects T is struct.
  * @param ValueProperty Handle to property where value is got from.

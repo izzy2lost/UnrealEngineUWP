@@ -2,6 +2,8 @@
 
 #include "StateTreePropertyHelpers.h"
 #include "StateTreeEditorNode.h"
+#include "Hash/Blake3.h"
+#include "Misc/StringBuilder.h"
 
 namespace UE::StateTree::PropertyHelpers
 {
@@ -112,6 +114,29 @@ void DispatchPostEditToNodes(UObject& Owner, FPropertyChangedChainEvent& InPrope
 			break;
 		}
 	}
+}
+
+
+FGuid MakeDeterministicID(const UObject& Owner, const FString& PropertyPath, const uint64 Seed)
+{
+	// From FGuid::NewDeterministicGuid(FStringView ObjectPath, uint64 Seed)
+	
+	// Convert the objectpath to utf8 so that whether TCHAR is UTF8 or UTF16 does not alter the hash.
+	TUtf8StringBuilder<1024> Utf8ObjectPath(InPlace, Owner.GetPathName());
+	TUtf8StringBuilder<1024> Utf8PropertyPath(InPlace, PropertyPath);
+
+	FBlake3 Builder;
+
+	// Hash this as the namespace of the Version 3 UUID, to avoid collisions with any other guids created using Blake3.
+	static FGuid BaseVersion(TEXT("bf324a38-a445-45a4-8921-249554b58189"));
+	Builder.Update(&BaseVersion, sizeof(FGuid));
+	Builder.Update(Utf8ObjectPath.GetData(), Utf8ObjectPath.Len() * sizeof(UTF8CHAR));
+	Builder.Update(Utf8PropertyPath.GetData(), Utf8PropertyPath.Len() * sizeof(UTF8CHAR));
+	Builder.Update(&Seed, sizeof(Seed));
+
+	const FBlake3Hash Hash = Builder.Finalize();
+
+	return FGuid::NewGuidFromHash(Hash);
 }
 
 }; // UE::StateTree::PropertyHelpers
