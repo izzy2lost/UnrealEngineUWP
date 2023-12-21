@@ -27,6 +27,15 @@ FNavigationConfig::FNavigationConfig()
 
 	KeyEventRules.Emplace(EKeys::Down, EUINavigation::Down);
 	KeyEventRules.Emplace(EKeys::Gamepad_DPad_Down, EUINavigation::Down);
+
+	// By default, enter, space, and gamepad accept are all counted as accept
+	KeyActionRules.Emplace(EKeys::Enter, EUINavigationAction::Accept);
+	KeyActionRules.Emplace(EKeys::SpaceBar, EUINavigationAction::Accept);
+	KeyActionRules.Emplace(EKeys::Virtual_Accept, EUINavigationAction::Accept);
+
+	// By default, escape and gamepad back count as leaving current scope
+	KeyActionRules.Emplace(EKeys::Escape, EUINavigationAction::Back);
+	KeyActionRules.Emplace(EKeys::Virtual_Back, EUINavigationAction::Back);
 }
 
 FNavigationConfig::~FNavigationConfig()
@@ -168,17 +177,10 @@ PRAGMA_ENABLE_DEPRECATION_WARNINGS
 
 EUINavigationAction FNavigationConfig::GetNavigationActionForKey(const FKey& InKey) const
 {
-	if (InKey == EKeys::Enter || InKey == EKeys::SpaceBar || InKey == EKeys::Virtual_Accept)
+	if (const EUINavigationAction* Action = KeyActionRules.Find(InKey))
 	{
-		// By default, enter, space, and gamepad accept are all counted as accept
-		return EUINavigationAction::Accept;
+		return *Action;
 	}
-	else if (InKey == EKeys::Escape || InKey == EKeys::Virtual_Back)
-	{
-		// By default, escape and gamepad back count as leaving current scope
-		return EUINavigationAction::Back;
-	}
-
 	return EUINavigationAction::Invalid;
 }
 

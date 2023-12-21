@@ -112,6 +112,9 @@ public:
 	/** Digital key navigation rules. */
 	TMap<FKey, EUINavigation> KeyEventRules;
 
+	/** Digital key action rules. */
+	TMap<FKey, EUINavigationAction> KeyActionRules;
+
 protected:
 	/**
 	 * Gets the repeat rate of the navigation based on the current pressure being applied.  The idea being
