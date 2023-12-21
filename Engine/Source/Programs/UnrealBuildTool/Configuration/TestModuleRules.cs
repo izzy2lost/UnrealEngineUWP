@@ -550,8 +550,8 @@ namespace UnrealBuildTool
 			/// </summary>
 			public Dictionary<UnrealTargetPlatform, bool> PlatformRunContainerized
 			{
-				get { return PlatformRunContainerizedPrivate; }
-				set { PlatformRunContainerizedPrivate = value; }
+				get => PlatformRunContainerizedPrivate;
+				set => PlatformRunContainerizedPrivate = value;
 			}
 
 		}

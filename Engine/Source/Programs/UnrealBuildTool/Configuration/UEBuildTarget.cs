@@ -1402,7 +1402,7 @@ namespace UnrealBuildTool
 			if (ThisRules.RequiresUniqueEnvironment(RulesAssembly, Arguments, PropNamesThatRequiredUnique, out BaseTargetName))
 			{
 				throw new BuildException("{0} modifies the values of properties: [ {1} ]. This is not allowed, as {0} has build products in common with {2}.\nRemove the modified setting, change {0} to use a unique build environment by setting 'BuildEnvironment = TargetBuildEnvironment.Unique;' in the {3} constructor, or set bOverrideBuildEnvironment = true to force this setting on.", 
-					ThisTargetName, string.Join(", ", PropNamesThatRequiredUnique), BaseTargetName, ThisRules.GetType().Name);
+					ThisTargetName, String.Join(", ", PropNamesThatRequiredUnique), BaseTargetName, ThisRules.GetType().Name);
 			}
 
 			// Make sure that we don't explicitly enable or disable any plugins through the target rules. We can't do this with the shared build environment because it requires recompiling the "Projects" engine module.

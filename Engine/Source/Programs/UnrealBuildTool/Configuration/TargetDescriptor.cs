@@ -172,7 +172,7 @@ namespace UnrealBuildTool
 				}
 				return UnrealIntermediateEnvironment.Default;
 			}
-			set { IntermediateEnvironmentOverride = value; }
+			set => IntermediateEnvironmentOverride = value;
 		}
 		private UnrealIntermediateEnvironment? IntermediateEnvironmentOverride;
 

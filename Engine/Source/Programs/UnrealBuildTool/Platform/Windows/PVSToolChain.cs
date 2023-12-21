@@ -535,7 +535,7 @@ namespace UnrealBuildTool
 
 		static Version GetAnalyzerVersion(FileReference AnalyzerPath)
 		{
-			String Output = String.Empty;
+			string Output = String.Empty;
 			Version? AnalyzerVersion = new Version(0, 0);
 
 			try
@@ -553,7 +553,7 @@ namespace UnrealBuildTool
 					PvsProc.WaitForExit();
 				}
 
-				const String VersionPattern = @"\d+(?:\.\d+)+";
+				const string VersionPattern = @"\d+(?:\.\d+)+";
 				Match Match = Regex.Match(Output, VersionPattern);
 
 				if (Match.Success)
@@ -624,7 +624,7 @@ namespace UnrealBuildTool
 			return cppCfgStandard;
 		}
 
-		public static bool ShouldCompileAsC(String compilerCommandLine, String sourceFileName)
+		public static bool ShouldCompileAsC(string compilerCommandLine, string sourceFileName)
 		{
 			int CFlagLastPosition = Math.Max(Math.Max(compilerCommandLine.LastIndexOf("/TC "), compilerCommandLine.LastIndexOf("/Tc ")),
 											 Math.Max(compilerCommandLine.LastIndexOf("-TC "), compilerCommandLine.LastIndexOf("-Tc ")));
