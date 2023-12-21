@@ -1720,9 +1720,14 @@ bool FPaths::ValidatePath( const FString& InPath, FText* OutReason )
 
 void FPaths::Split( const FString& InPath, FString& PathPart, FString& FilenamePart, FString& ExtensionPart )
 {
-	PathPart = GetPath(InPath);
-	FilenamePart = GetBaseFilename(InPath);
-	ExtensionPart = GetExtension(InPath);
+	FStringView PathView;
+	FStringView FilenameView;
+	FStringView ExtensionView;
+
+	FPathViews::Split(InPath, PathView, FilenameView, ExtensionView);
+	PathPart = PathView;
+	FilenamePart = FilenameView;
+	ExtensionPart = ExtensionView;
 }
 
 const FString& FPaths::GetRelativePathToRoot()

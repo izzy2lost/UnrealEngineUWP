@@ -231,8 +231,18 @@ void FPathViews::Split(const FStringView& InPath, FStringView& OutPath, FStringV
 	const TCHAR* DotPos = Algo::FindLast(CleanName, TEXT('.'));
 	const int32 NameLen = DotPos ? UE_PTRDIFF_TO_INT32(DotPos - CleanName.GetData()) : CleanName.Len();
 	OutPath = InPath.LeftChop(CleanName.Len() + 1);
-	OutName = CleanName.Left(NameLen);
-	OutExt = CleanName.RightChop(NameLen + 1);
+	// If there is a ., check for CleanName == ..; that is a special case that is incorrectly handled if we
+	// always interpret the last . as a file extension marker
+	if (DotPos && CleanName == TEXTVIEW(".."))
+	{
+		OutName = CleanName;
+		OutExt.Reset();
+	}
+	else
+	{
+		OutName = CleanName.Left(NameLen);
+		OutExt = CleanName.RightChop(NameLen + 1);
+	}
 }
 
 FString FPathViews::ChangeExtension(const FStringView& InPath, const FStringView& InNewExtension)

@@ -497,6 +497,9 @@ TEST_CASE_NAMED(FPathViewsSplitTest, "System::Core::Misc::PathViews::Split", "[A
 	RunSplitTest(TEXT(".tar.gz"), TEXT(""), TEXT(".tar"), TEXT("gz"));
 	RunSplitTest(TEXT(".tar.gz/"), TEXT(".tar.gz"), TEXT(""), TEXT(""));
 	RunSplitTest(TEXT(".tar.gz\\"), TEXT(".tar.gz"), TEXT(""), TEXT(""));
+	// TEXT(".") is ambiguous; we currently treat it as an extension separator but we don't guarantee that in our contract
+	//RunSplitTest(TEXT("."), TEXT(""), TEXT(""), TEXT(""));
+	RunSplitTest(TEXT(".."), TEXT(""), TEXT(".."), TEXT(""));
 	RunSplitTest(TEXT("File"), TEXT(""), TEXT("File"), TEXT(""));
 	RunSplitTest(TEXT("File.txt"), TEXT(""), TEXT("File"), TEXT("txt"));
 	RunSplitTest(TEXT("File.tar.gz"), TEXT(""), TEXT("File.tar"), TEXT("gz"));
