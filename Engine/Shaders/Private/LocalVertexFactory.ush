@@ -567,7 +567,7 @@ FMaterialPixelParameters GetMaterialPixelParameters(FVertexFactoryInterpolantsVS
 	Result.TwoSidedSign = 1;
 	Result.PrimitiveId = GetPrimitiveId(Interpolants);
 
-#if USES_PER_INSTANCE_CUSTOM_DATA_PS && VF_USE_PRIMITIVE_SCENE_DATA
+#if USES_PER_INSTANCE_CUSTOM_DATA && VF_USE_PRIMITIVE_SCENE_DATA
 	Result.CustomDataOffset = Interpolants.CustomDataOffset;
 	Result.CustomDataCount  = Interpolants.CustomDataCount;
 #endif
@@ -1110,7 +1110,7 @@ FVertexFactoryInterpolantsVSToPS VertexFactoryGetInterpolantsVSToPS(FVertexFacto
 	Interpolants.PerInstanceParams = Intermediates.PerInstanceParams;
 #endif
 
-#if USES_PER_INSTANCE_CUSTOM_DATA_PS && VF_USE_PRIMITIVE_SCENE_DATA
+#if USES_PER_INSTANCE_CUSTOM_DATA && VF_USE_PRIMITIVE_SCENE_DATA
 	Interpolants.CustomDataOffset = InstanceData.CustomDataOffset;
 	Interpolants.CustomDataCount  = InstanceData.CustomDataCount;
 #endif
@@ -1253,7 +1253,7 @@ float4 VertexFactoryGetPreviousWorldPosition(FVertexFactoryInput Input, FVertexF
     #endif
 #endif	
 
-#if USES_PER_INSTANCE_CUSTOM_DATA_PS && VF_USE_PRIMITIVE_SCENE_DATA
+#if USES_PER_INSTANCE_CUSTOM_DATA && VF_USE_PRIMITIVE_SCENE_DATA
 		O.InterpolantsVSToPS.CustomDataOffset = a.InterpolantsVSToPS.CustomDataOffset;
 		O.InterpolantsVSToPS.CustomDataCount  = a.InterpolantsVSToPS.CustomDataCount;
 #endif

@@ -233,7 +233,9 @@ FInstanceSceneData LoadInstanceDataUBO(uint DrawInstanceId)
 	// CustomDataCount, TODO: yzw
 	{
 		float4 Data = LoadInstanceDataElementUBO(DrawInstanceId, DataIdx+0);
+#if ENABLE_PER_INSTANCE_CUSTOM_DATA
 		InstanceData.CustomDataCount = asuint(Data.x);
+#endif
 		DataIdx += 1u;
 	}
 

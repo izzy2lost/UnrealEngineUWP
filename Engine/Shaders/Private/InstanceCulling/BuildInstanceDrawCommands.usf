@@ -3,6 +3,10 @@
 // Just used to trigger shader recompiles, guid should be regenerated on merge conflicts
 #pragma message("UESHADERMETADATA_VERSION DC8F4920-57F0-41EF-ACC0-B6643D1D80C7")
 
+#ifndef ENABLE_PER_INSTANCE_CUSTOM_DATA
+	#define ENABLE_PER_INSTANCE_CUSTOM_DATA 1
+#endif
+
 #if ENABLE_INSTANCE_COMPACTION
 	// Currently, instance compaction is the only reason to need extended payload data, so tie it to the permutation for now.
 	#define ENABLE_EXTENDED_INSTANCE_CULLING_PAYLOADS 1

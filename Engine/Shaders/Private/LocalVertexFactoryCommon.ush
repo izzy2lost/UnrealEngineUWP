@@ -37,7 +37,7 @@ struct FVertexFactoryInterpolantsVSToPS
 	#if NEEDS_LIGHTMAP_COORDINATE
 		nointerpolation uint LightmapDataIndex : LIGHTMAP_ID;
 	#endif
-	#if USES_PER_INSTANCE_CUSTOM_DATA_PS
+	#if USES_PER_INSTANCE_CUSTOM_DATA
 		nointerpolation uint CustomDataOffset : CUSTOM_DATA_OFFSET;
 		nointerpolation uint CustomDataCount : CUSTOM_DATA_COUNT;
 	#endif

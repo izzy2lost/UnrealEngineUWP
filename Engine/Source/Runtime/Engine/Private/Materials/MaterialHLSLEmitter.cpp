@@ -433,9 +433,6 @@ static void GetMaterialEnvironment(EShaderPlatform InPlatform,
 	const bool bUsesPerInstanceFadeAmount = EmitMaterialData.IsExternalInputUsed(Material::EExternalInput::PerInstanceFadeAmount);
 
 	OutEnvironment.SetDefine(TEXT("USES_PER_INSTANCE_CUSTOM_DATA"), MaterialCompilationOutput.bUsesPerInstanceCustomData && InMaterial.IsUsedWithInstancedStaticMeshes());
-	// FIXME: should detect if PS uses it to save interpolators
-	OutEnvironment.SetDefine(TEXT("USES_PER_INSTANCE_CUSTOM_DATA_PS"), MaterialCompilationOutput.bUsesPerInstanceCustomData && InMaterial.IsUsedWithInstancedStaticMeshes());
-
 	OutEnvironment.SetDefine(TEXT("USES_PER_INSTANCE_FADE_AMOUNT"), bUsesPerInstanceFadeAmount&& InMaterial.IsUsedWithInstancedStaticMeshes());
 	OutEnvironment.SetDefine(TEXT("USES_VERTEX_INTERPOLATOR"), MaterialCompilationOutput.bUsesVertexInterpolator);
 
