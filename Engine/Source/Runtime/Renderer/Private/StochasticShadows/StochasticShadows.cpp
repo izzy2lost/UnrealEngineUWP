@@ -543,7 +543,8 @@ class FShadowMaskSpatialPassCS : public FGlobalShader
 	}
 
 	class FSpatialPass : SHADER_PERMUTATION_BOOL("SPATIAL_PASS");
-	using FPermutationDomain = TShaderPermutationDomain<FSpatialPass>;
+	class FDebugMode : SHADER_PERMUTATION_BOOL("DEBUG_MODE");
+	using FPermutationDomain = TShaderPermutationDomain<FSpatialPass, FDebugMode>;
 
 	static bool ShouldCompilePermutation(const FGlobalShaderPermutationParameters& Parameters)
 	{
@@ -1083,6 +1084,7 @@ void FDeferredShadingSceneRenderer::RenderStochasticShadows(FRDGBuilder& GraphBu
 
 		FShadowMaskSpatialPassCS::FPermutationDomain PermutationVector;
 		PermutationVector.Set<FShadowMaskSpatialPassCS::FSpatialPass>(CVarStochasticShadowsSpatial.GetValueOnRenderThread() != 0);
+		PermutationVector.Set<FShadowMaskSpatialPassCS::FDebugMode>(bDebug);
 		auto ComputeShader = View.ShaderMap->GetShader<FShadowMaskSpatialPassCS>(PermutationVector);
 
 		FComputeShaderUtils::AddPass(

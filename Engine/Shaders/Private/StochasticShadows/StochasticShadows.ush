@@ -276,8 +276,8 @@ void AccumulateHistoryShadowMask(uint PrevLocalLightIndex, uint2 ShadowMaskScree
 
 			if (HistoryShadowMask.IsValid())
 			{
-				Accumulator.FactorSum += Weight * HistoryShadowMask.Factor;
-				Accumulator.FactorSqSum += Pow2(HistoryShadowMask.Factor) * Weight;
+				Accumulator.FactorSum += HistoryShadowMask.Factor * Weight;
+				Accumulator.FactorSqSum += HistoryShadowMask.FactorSq * Weight;
 				Accumulator.WeightSum += Weight;
 				Accumulator.MinAge = min(Accumulator.MinAge, HistoryShadowMask.Age);
 				Accumulator.MaxHistoryLength = max(Accumulator.MaxHistoryLength, HistoryShadowMask.HistoryLength);

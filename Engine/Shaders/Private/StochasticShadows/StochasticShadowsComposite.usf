@@ -180,9 +180,11 @@ void CompositeShadowMaskTracesCS(
 		if (SampleAccumulator.SampleWeightSum > 0 && CenterSampleAccumulator.SampleWeightSum == 0.0f)
 		{
 			ShadowMask.Factor = SampleAccumulator.SampleSum / SampleAccumulator.SampleWeightSum;
-			ShadowMask.FactorSq = SampleAccumulator.SampleSum / SampleAccumulator.SampleWeightSum;
 			ShadowMask.Age = 0;
 		}
+
+		// Tracking only temporal variance
+		ShadowMask.FactorSq = Pow2(ShadowMask.Factor);
 
 		#if TEMPORAL_ACCUMULATION
 		{
