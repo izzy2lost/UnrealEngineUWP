@@ -44,7 +44,6 @@
 #include "KismetCastingUtils.h"
 #include "KismetCompiledFunctionContext.h"
 #include "KismetCompiler.h"
-
 #include "K2Node_EnumLiteral.h"
 #include "Kismet/KismetArrayLibrary.h"
 #include "Kismet2/KismetReinstanceUtilities.h"
@@ -52,6 +51,7 @@
 #include "Kismet2/StructureEditorUtils.h"
 #include "ObjectTools.h"
 #include "BlueprintEditorSettings.h"
+#include "Components/ActorComponent.h"
 
 #define LOCTEXT_NAMESPACE "KismetCompiler"
 
@@ -1269,7 +1269,16 @@ FProperty* FKismetCompilerUtilities::CreatePrimitiveProperty(FFieldVariant Prope
 				if (SubType->HasAnyClassFlags(CLASS_DefaultToInstanced))
 				{
 					NewPropertyObj->SetPropertyFlags(CPF_InstancedReference);
-					NewPropertyObj->SetMetaData(TEXT("EditInline"), TEXT("true"));
+
+					// Actor components should only be instanced by the SCS editor.
+					// 
+					// Default actor components are outered to the generated BP class instead of the CDO.
+					// If we set "EditInline" on actor components, we would actually outer them to the CDO.
+					// This would lead to various serialization and instancing issues.
+					if (!SubType->IsChildOf<UActorComponent>())
+					{
+						NewPropertyObj->SetMetaData(TEXT("EditInline"), TEXT("true"));
+					}
 				}
 
 				// we want to use this setter function instead of setting the 
