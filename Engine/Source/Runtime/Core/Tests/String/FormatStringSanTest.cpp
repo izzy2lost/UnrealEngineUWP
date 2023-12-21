@@ -8,7 +8,7 @@
 
 namespace UE
 {
-TEST_CASE_NAMED(FFormatStringValidatorTest, "Core::String::FormatStringSan", "[Core][String][FormatStringSan]")
+TEST_CASE_NAMED(FFormatStringValidatorTest, "System::Core::String::FormatStringSan", "[Core][String][FormatStringSan]")
 {
 	using namespace UE::Core::Private;
 	SECTION("Error Handling")
@@ -101,7 +101,7 @@ TEST_CASE_NAMED(FFormatStringValidatorTest, "Core::String::FormatStringSan", "[C
 	}
 }
 
-TEST_CASE_NAMED(FFormatStringConstStringValidationTest, "Core::String::FormatStringSan::ConstString", "[Core][String][FormatStringSan]")
+TEST_CASE_NAMED(FFormatStringConstStringValidationTest, "System::Core::String::FormatStringSan::ConstString", "[Core][String][FormatStringSan]")
 {
 	using namespace UE::Core::Private::FormatStringSan;
 

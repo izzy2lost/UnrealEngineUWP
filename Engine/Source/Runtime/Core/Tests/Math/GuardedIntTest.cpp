@@ -176,7 +176,7 @@ bool DoGuardedIntTestForType(FAutomationTestBase& Test)
 }
 }
 
-IMPLEMENT_SIMPLE_AUTOMATION_TEST(FGuardedIntTest, "Core.GuardedInt", EAutomationTestFlags::ApplicationContextMask | EAutomationTestFlags::EngineFilter)
+IMPLEMENT_SIMPLE_AUTOMATION_TEST(FGuardedIntTest, "System.Core.GuardedInt", EAutomationTestFlags::ApplicationContextMask | EAutomationTestFlags::EngineFilter)
 bool FGuardedIntTest::RunTest(const FString&)
 {
 	bool bResult = true;
