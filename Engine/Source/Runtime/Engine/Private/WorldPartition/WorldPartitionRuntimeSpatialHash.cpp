@@ -112,7 +112,7 @@ const FSquare2DGridHelper& FSpatialHashStreamingGrid::GetGridHelper() const
 {
 	if (!GridHelper)
 	{
-		GridHelper = new FSquare2DGridHelper(WorldBounds, Origin, CellSize);
+		GridHelper = new FSquare2DGridHelper(WorldBounds, Origin, CellSize, Settings.bUseAlignedGridLevels);
 	}
 
 	check(GridHelper->Levels.Num() == GridLevels.Num());
@@ -324,7 +324,7 @@ void FSpatialHashStreamingGrid::GetCells(const TArray<FWorldPartitionStreamingSo
 									break;
 								case EStreamingSourceTargetState::Activated:
 									OutActivateCells.AddCell(Cell, Source, Shape);
-									bAddedActivatedCell = !GRuntimeSpatialHashUseAlignedGridLevelsEffective && GRuntimeSpatialHashSnapNonAlignedGridLevelsToLowerLevelsEffective;
+									bAddedActivatedCell = !Settings.bUseAlignedGridLevels && Settings.bSnapNonAlignedGridLevelsToLowerLevels;
 									break;
 								default:
 									checkNoEntry();
@@ -348,7 +348,7 @@ void FSpatialHashStreamingGrid::GetCells(const TArray<FWorldPartitionStreamingSo
 
 	GetNonSpatiallyLoadedCells(OutActivateCells.GetCells(), OutLoadCells.GetCells());
 
-	if (!GRuntimeSpatialHashUseAlignedGridLevelsEffective && GRuntimeSpatialHashSnapNonAlignedGridLevelsToLowerLevelsEffective)
+	if (!Settings.bUseAlignedGridLevels && Settings.bSnapNonAlignedGridLevelsToLowerLevels)
 	{
 		auto FindIntersectingParents = [&Helper, this](const FIntersectingCells& InAllCells, const FIntersectingCells& InTestCells, FIntersectingCells& OutIntersectingCells)
 		{
@@ -1051,11 +1051,11 @@ UWorldPartitionRuntimeSpatialHash::UWorldPartitionRuntimeSpatialHash(const FObje
 #if WITH_EDITORONLY_DATA
 	, bPreviewGrids(false)
 	, PreviewGridLevel(0)
-#endif
 	, UseAlignedGridLevels(EWorldPartitionCVarProjectDefaultOverride::Disabled)
 	, SnapNonAlignedGridLevelsToLowerLevels(EWorldPartitionCVarProjectDefaultOverride::Disabled)
 	, PlaceSmallActorsUsingLocation(EWorldPartitionCVarProjectDefaultOverride::Enabled)
 	, PlacePartitionActorsUsingLocation(EWorldPartitionCVarProjectDefaultOverride::Enabled)
+#endif
 	, bIsNameToGridMappingDirty(true)
 {}
 
@@ -1087,7 +1087,9 @@ FString UWorldPartitionRuntimeSpatialHash::GetCellCoordString(const FGridCellCoo
 #if WITH_EDITOR
 void UWorldPartitionRuntimeSpatialHash::DrawPreview() const
 {
-	GridPreviewer.Draw(GetWorld(), Grids, bPreviewGrids, PreviewGridLevel);
+	// Use latest settings value for Preview
+	const bool bUseAlignedGridLevels = (UseAlignedGridLevels == EWorldPartitionCVarProjectDefaultOverride::ProjectDefault) ? GRuntimeSpatialHashUseAlignedGridLevels : (UseAlignedGridLevels == EWorldPartitionCVarProjectDefaultOverride::Enabled);
+	GridPreviewer.Draw(GetWorld(), Grids, bPreviewGrids, PreviewGridLevel, bUseAlignedGridLevels);
 }
 
 URuntimeHashExternalStreamingObjectBase* UWorldPartitionRuntimeSpatialHash::StoreToExternalStreamingObject(UObject* StreamingObjectOuter, FName StreamingObjectName)
@@ -1119,14 +1121,6 @@ URuntimeHashExternalStreamingObjectBase* UWorldPartitionRuntimeSpatialHash::Stor
 }
 #endif
 
-void UWorldPartitionRuntimeSpatialHash::ApplyCVars()
-{
-	GRuntimeSpatialHashUseAlignedGridLevelsEffective = (UseAlignedGridLevels == EWorldPartitionCVarProjectDefaultOverride::ProjectDefault) ? GRuntimeSpatialHashUseAlignedGridLevels : (UseAlignedGridLevels == EWorldPartitionCVarProjectDefaultOverride::Enabled);
-	GRuntimeSpatialHashSnapNonAlignedGridLevelsToLowerLevelsEffective = (SnapNonAlignedGridLevelsToLowerLevels == EWorldPartitionCVarProjectDefaultOverride::ProjectDefault) ? GRuntimeSpatialHashSnapNonAlignedGridLevelsToLowerLevels : (SnapNonAlignedGridLevelsToLowerLevels == EWorldPartitionCVarProjectDefaultOverride::Enabled);
-	GRuntimeSpatialHashPlaceSmallActorsUsingLocationEffective = (PlaceSmallActorsUsingLocation == EWorldPartitionCVarProjectDefaultOverride::ProjectDefault) ? GRuntimeSpatialHashPlaceSmallActorsUsingLocation : (PlaceSmallActorsUsingLocation == EWorldPartitionCVarProjectDefaultOverride::Enabled);
-	GRuntimeSpatialHashPlacePartitionActorsUsingLocationEffective = (PlacePartitionActorsUsingLocation == EWorldPartitionCVarProjectDefaultOverride::ProjectDefault) ? GRuntimeSpatialHashPlacePartitionActorsUsingLocation : (PlacePartitionActorsUsingLocation == EWorldPartitionCVarProjectDefaultOverride::Enabled);
-}
-
 void UWorldPartitionRuntimeSpatialHash::Serialize(FArchive& Ar)
 {
 	Ar.UsingCustomVersion(FFortniteMainBranchObjectVersion::GUID);
@@ -1142,8 +1136,16 @@ void UWorldPartitionRuntimeSpatialHash::Serialize(FArchive& Ar)
 		PlacePartitionActorsUsingLocation = EWorldPartitionCVarProjectDefaultOverride::ProjectDefault;
 	}
 #endif
+}
 
-	ApplyCVars();
+void UWorldPartitionRuntimeSpatialHash::PostLoad()
+{
+	Super::PostLoad();
+
+#if !WITH_EDITOR
+	UE_LOG(LogWorldPartition, Log, TEXT("UWorldPartitionRuntimeSpatialHash::PostLoad : UseAlignedGridLevels = %d, SnapNonAlignedGridLevelsToLowerLevels = %d"),
+		Settings.bUseAlignedGridLevels, Settings.bSnapNonAlignedGridLevelsToLowerLevels);
+#endif
 }
 
 #if WITH_EDITOR
@@ -1177,8 +1179,6 @@ void UWorldPartitionRuntimeSpatialHash::PostEditChangeProperty(FPropertyChangedE
 		}
 	}
 
-	ApplyCVars();
-
 	Super::PostEditChangeProperty(PropertyChangedEvent);
 }
 
@@ -1189,6 +1189,17 @@ void UWorldPartitionRuntimeSpatialHash::SetDefaultValues()
 	FSpatialHashRuntimeGrid& MainGrid = Grids.AddDefaulted_GetRef();
 	MainGrid.GridName = TEXT("MainGrid");
 	MainGrid.DebugColor = FLinearColor::Gray;
+}
+
+void UWorldPartitionRuntimeSpatialHash::UpdateSettings()
+{
+	check(StreamingGrids.IsEmpty());
+	Settings.bUseAlignedGridLevels = (UseAlignedGridLevels == EWorldPartitionCVarProjectDefaultOverride::ProjectDefault) ? GRuntimeSpatialHashUseAlignedGridLevels : (UseAlignedGridLevels == EWorldPartitionCVarProjectDefaultOverride::Enabled);
+	Settings.bSnapNonAlignedGridLevelsToLowerLevels = (SnapNonAlignedGridLevelsToLowerLevels == EWorldPartitionCVarProjectDefaultOverride::ProjectDefault) ? GRuntimeSpatialHashSnapNonAlignedGridLevelsToLowerLevels : (SnapNonAlignedGridLevelsToLowerLevels == EWorldPartitionCVarProjectDefaultOverride::Enabled);
+	Settings.bPlaceSmallActorsUsingLocation = (PlaceSmallActorsUsingLocation == EWorldPartitionCVarProjectDefaultOverride::ProjectDefault) ? GRuntimeSpatialHashPlaceSmallActorsUsingLocation : (PlaceSmallActorsUsingLocation == EWorldPartitionCVarProjectDefaultOverride::Enabled);
+	Settings.bPlacePartitionActorsUsingLocation = (PlacePartitionActorsUsingLocation == EWorldPartitionCVarProjectDefaultOverride::ProjectDefault) ? GRuntimeSpatialHashPlacePartitionActorsUsingLocation : (PlacePartitionActorsUsingLocation == EWorldPartitionCVarProjectDefaultOverride::Enabled);
+	UE_LOG(LogWorldPartition, Log, TEXT("UWorldPartitionRuntimeSpatialHash::UpdateSettings : UseAlignedGridLevels = %d, SnapNonAlignedGridLevelsToLowerLevels = %d, PlaceSmallActorsUsingLocation = %d, PlacePartitionActorsUsingLocation = %d"),
+		Settings.bUseAlignedGridLevels, Settings.bSnapNonAlignedGridLevelsToLowerLevels, Settings.bPlaceSmallActorsUsingLocation, Settings.bPlacePartitionActorsUsingLocation);
 }
 
 bool UWorldPartitionRuntimeSpatialHash::GenerateStreaming(UWorldPartitionStreamingPolicy* StreamingPolicy, const IStreamingGenerationContext* StreamingGenerationContext, TArray<FString>* OutPackagesToGenerate)
@@ -1207,6 +1218,9 @@ bool UWorldPartitionRuntimeSpatialHash::GenerateStreaming(UWorldPartitionStreami
 	// Fix case where StreamingGrids might have been persisted.
 	bIsNameToGridMappingDirty = true;
 	StreamingGrids.Empty();
+	
+	// Apply Settings (should no longer change after streaming generation)
+	UpdateSettings();
 
 	// Append grids from ASpatialHashRuntimeGridInfo actors to runtime spatial hash grids
 	TArray<FSpatialHashRuntimeGrid> AllGrids;
@@ -1258,7 +1272,7 @@ bool UWorldPartitionRuntimeSpatialHash::GenerateStreaming(UWorldPartitionStreami
 	for (int32 GridIndex=0; GridIndex < AllGrids.Num(); GridIndex++)
 	{
 		const FSpatialHashRuntimeGrid& Grid = AllGrids[GridIndex];
-		const FSquare2DGridHelper PartionedActors = GetPartitionedActors(WorldBounds, Grid, GridActorSetInstances[GridIndex]);
+		const FSquare2DGridHelper PartionedActors = GetPartitionedActors(WorldBounds, Grid, GridActorSetInstances[GridIndex], Settings);
 		if (!CreateStreamingGrid(Grid, PartionedActors, StreamingPolicy, OutPackagesToGenerate))
 		{
 			return false;
@@ -1467,6 +1481,7 @@ bool UWorldPartitionRuntimeSpatialHash::CreateStreamingGrid(const FSpatialHashRu
 	const bool bIsMainWorldPartition = (World == OuterWorld);
 
 	FSpatialHashStreamingGrid& CurrentStreamingGrid = StreamingGrids.AddDefaulted_GetRef();
+	CurrentStreamingGrid.Settings = Settings;
 	CurrentStreamingGrid.GridName = RuntimeGrid.GridName;
 	CurrentStreamingGrid.CellSize = PartionedActors.CellSize;
 	CurrentStreamingGrid.WorldBounds = PartionedActors.WorldBounds;
@@ -1686,10 +1701,17 @@ bool UWorldPartitionRuntimeSpatialHash::InjectExternalStreamingObject(URuntimeHa
 	// Validate that there's a corresponding streaming grid for each streaming grid of this external streaming object
 	for (const FSpatialHashStreamingGrid& ExternalStreamingGrid : SpatialHashExternalStreamingObject->StreamingGrids)
 	{
-		if (!GetStreamingGridByName(ExternalStreamingGrid.GridName))
+		const FSpatialHashStreamingGrid* SourceGrid = GetStreamingGridByName(ExternalStreamingGrid.GridName);
+		if (!SourceGrid)
 		{
 			UE_LOG(LogWorldPartition, Error, TEXT("Failed to inject external streaming object %s, can't find matching streaming grid %s."),
 				*InExternalStreamingObject->GetName(), *ExternalStreamingGrid.GridName.ToString());
+			return false;
+		}
+		else if (SourceGrid->Settings != ExternalStreamingGrid.Settings)
+		{
+			UE_LOG(LogWorldPartition, Error, TEXT("Failed to inject external streaming object %s, miss matching settings."),
+				*InExternalStreamingObject->GetName());
 			return false;
 		}
 	}

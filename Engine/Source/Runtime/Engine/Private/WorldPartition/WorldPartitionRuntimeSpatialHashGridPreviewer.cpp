@@ -28,7 +28,7 @@ FWorldPartitionRuntimeSpatialHashGridPreviewer::FWorldPartitionRuntimeSpatialHas
 }
 
 #if WITH_EDITOR
-void FWorldPartitionRuntimeSpatialHashGridPreviewer::Draw(UWorld* World, const TArray<FSpatialHashRuntimeGrid>& Grids, bool bEnabled, int32 PreviewGridLevel)
+void FWorldPartitionRuntimeSpatialHashGridPreviewer::Draw(UWorld* World, const TArray<FSpatialHashRuntimeGrid>& Grids, bool bEnabled, int32 PreviewGridLevel, bool bUseAlignedGridLevels)
 {
 	if (bEnabled && Material)
 	{
@@ -83,7 +83,7 @@ void FWorldPartitionRuntimeSpatialHashGridPreviewer::Draw(UWorld* World, const T
 						CachedParameters.GridColor = Grid.DebugColor;
 					}
 
-					FVector GridOffset = FVector(Grid.Origin, 0) + (GRuntimeSpatialHashUseAlignedGridLevelsEffective ? FVector(0.5 * PreviewCellSize) : FVector::ZeroVector);
+					FVector GridOffset = FVector(Grid.Origin, 0) + (bUseAlignedGridLevels ? FVector(0.5 * PreviewCellSize) : FVector::ZeroVector);
 					if (CachedParameters.GridOffset != GridOffset)
 					{
 						MID->SetVectorParameterValue(*FString::Printf(TEXT("Grid%d_Offset"), i), GridOffset);

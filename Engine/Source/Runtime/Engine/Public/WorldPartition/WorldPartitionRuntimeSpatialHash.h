@@ -28,6 +28,38 @@ enum class EWorldPartitionCVarProjectDefaultOverride : uint8
 };
 
 USTRUCT()
+struct FSpatialHashSettings
+{
+	GENERATED_USTRUCT_BODY()
+
+	FSpatialHashSettings()
+		: bUseAlignedGridLevels(true)
+		, bSnapNonAlignedGridLevelsToLowerLevels(true)
+#if WITH_EDITORONLY_DATA
+		, bPlaceSmallActorsUsingLocation(false)
+		, bPlacePartitionActorsUsingLocation(true)
+#endif
+	{}
+
+	friend bool operator==(const FSpatialHashSettings& Lhs, const FSpatialHashSettings& Rhs) = default;
+	friend bool operator!=(const FSpatialHashSettings& Lhs, const FSpatialHashSettings& Rhs) = default;
+	
+	UPROPERTY();
+	bool bUseAlignedGridLevels;
+
+	UPROPERTY();
+	bool bSnapNonAlignedGridLevelsToLowerLevels;
+
+#if WITH_EDITORONLY_DATA
+	UPROPERTY();
+	bool bPlaceSmallActorsUsingLocation;
+
+	UPROPERTY();
+	bool bPlacePartitionActorsUsingLocation;
+#endif
+};
+
+USTRUCT()
 struct FSpatialHashStreamingGridLayerCell
 {
 	GENERATED_USTRUCT_BODY()
@@ -136,7 +168,10 @@ struct FSpatialHashStreamingGrid
 
 	UPROPERTY()
 	int32 GridIndex;
-
+		
+	UPROPERTY()
+	FSpatialHashSettings Settings;
+			
 	ENGINE_API void InjectExternalStreamingObjectGrid(const FSpatialHashStreamingGrid& InExternalObjectStreamingGrid) const;
 	ENGINE_API void RemoveExternalStreamingObjectGrid(const FSpatialHashStreamingGrid& InExternalObjectStreamingGrid) const;
 
@@ -266,8 +301,10 @@ public:
 	virtual void PreSave(FObjectPreSaveContext ObjectSaveContext) override;
 
 	ENGINE_API virtual void Serialize(FArchive& Ar) override;
+	ENGINE_API virtual void PostLoad() override;
 
-	ENGINE_API void ApplyCVars();
+	UE_DEPRECATED(5.4, "ApplyCVars is deprecated")
+	ENGINE_API void ApplyCVars() {}
 
 #if WITH_EDITOR
 	ENGINE_API virtual void PostEditChangeProperty(FPropertyChangedEvent& PropertyChangedEvent) override;
@@ -335,6 +372,7 @@ private:
 	mutable FWorldPartitionRuntimeSpatialHashGridPreviewer GridPreviewer;
 #endif
 
+#if WITH_EDITORONLY_DATA
 	/** Disable to help break the pattern caused by world partition promotion of actors to upper grid levels that are always aligned on child levels. */
 	UPROPERTY(EditAnywhere, Config, AdvancedDisplay, Category = RuntimeSettings)
 	EWorldPartitionCVarProjectDefaultOverride UseAlignedGridLevels;
@@ -350,12 +388,16 @@ private:
 	/** Enable to place partitioned actors into their corresponding cell using their location instead of their bounding box. */
 	UPROPERTY(EditAnywhere, Config, AdvancedDisplay, Category = RuntimeSettings)
 	EWorldPartitionCVarProjectDefaultOverride PlacePartitionActorsUsingLocation;
-
+#endif
+		
 	/** Whether this hash enables Z culling. */
 	UPROPERTY(EditAnywhere, Config, Category = RuntimeSettings)
 	bool bEnableZCulling;
 
 protected:
+	UPROPERTY()
+	FSpatialHashSettings Settings;
+	
 	/** 
 	 * Represents the streaming grids (PIE or Game)
 	 */
@@ -374,6 +416,7 @@ private:
 	ENGINE_API void GetAlwaysLoadedStreamingCells(const FSpatialHashStreamingGrid& StreamingGrid, TSet<const UWorldPartitionRuntimeCell*>& Cells) const;
 	ENGINE_API const TMap<FName, const FSpatialHashStreamingGrid*>& GetNameToGridMapping() const;
 #if WITH_EDITOR
+	ENGINE_API void UpdateSettings();
 	ENGINE_API bool CreateStreamingGrid(const FSpatialHashRuntimeGrid& RuntimeGrid, const FSquare2DGridHelper& PartionedActors, UWorldPartitionStreamingPolicy* StreamingPolicy, TArray<FString>* OutPackagesToGenerate = nullptr);
 #endif
 	ENGINE_API TArray<const FSpatialHashStreamingGrid*> GetFilteredStreamingGrids() const;
