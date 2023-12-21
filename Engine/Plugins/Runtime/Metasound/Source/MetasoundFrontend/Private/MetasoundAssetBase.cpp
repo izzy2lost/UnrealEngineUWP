@@ -52,57 +52,6 @@ namespace Metasound
 			static float BlockRateOverride = 0;
 			static int32 SampleRateOverride = 0;
 
-			TScriptInterface<IMetaSoundDocumentInterface> BuildRegistryDocument(TScriptInterface<IMetaSoundDocumentInterface> DocumentInterface)
-			{
-				using namespace Metasound::Frontend;
-
-				METASOUND_TRACE_CPUPROFILER_EVENT_SCOPE(BuildRegistryDocument);
-
-#if WITH_EDITOR
-				// Node template transform is performed on copy of local document to avoid overwriting editable data
-				constexpr bool bTransformDocumentBeforeRegistering = true;
-#else // !WITH_EDITOR
-				// Node template transform is performed on local document only if cook determinism ID generation
-				// is enabled to avoid transforms potentially creating new edges with non-deterministic IDs.
-				const bool bTransformDocumentBeforeRegistering = MetaSoundEnableCookDeterministicIDGeneration == 0;
-#endif // WITH_EDITOR
-
-				const FMetasoundFrontendDocument& Document = DocumentInterface->GetConstDocument();
-				const TArray<FMetasoundFrontendClass>& Dependencies = Document.Dependencies;
-
-				if (bTransformDocumentBeforeRegistering)
-				{
-					// 1. Find template dependencies to build prior to making new document/builder as an optimization
-					// (no sense in creating new document/builder if no templates need processing)
-					FMetaSoundFrontendDocumentBuilder OriginalDocBuilder(DocumentInterface);
-					const bool bContainsTemplateDependency = OriginalDocBuilder.ContainsDependencyOfType(EMetasoundFrontendClassType::Template);
-					if (bContainsTemplateDependency)
-					{
-						UMetaSoundBuilderDocument& RegistryDocObject = UMetaSoundBuilderDocument::Create(*DocumentInterface.GetInterface());
-						FMetaSoundFrontendDocumentBuilder RegistryDocBuilder(&RegistryDocObject);
-
-						RegistryDocBuilder.TransformTemplateNodes();
-
-						return &RegistryDocObject;
-					}
-				}
-#if !NO_LOGGING
-				else
-				{
-					FMetaSoundFrontendDocumentBuilder OriginalDocBuilder(DocumentInterface);
-					const bool bContainsTemplateDependency = OriginalDocBuilder.ContainsDependencyOfType(EMetasoundFrontendClassType::Template);
-					if (bContainsTemplateDependency)
-					{
-						UE_LOG(LogMetaSound, Error,
-							TEXT("Template node processing disabled but provided asset class at '%s' to register contains template nodes. Runtime graph will fail to build."),
-							*OriginalDocBuilder.GetDebugName());
-					}
-				}
-#endif // !NO_LOGGING
-
-				return DocumentInterface;
-			}
-
 			void DepthFirstTraversal(const FMetasoundAssetBase& InInitAsset, TFunctionRef<TSet<const FMetasoundAssetBase*>(const FMetasoundAssetBase&)> InVisitFunction)
 			{
 				// Non recursive depth first traversal.
@@ -121,8 +70,6 @@ namespace Metasound
 					}
 				}
 			}
-
-
 
 			// Registers node by copying document. Updates to document require re-registration.
 			// This registry entry does not support node creation as it is only intended to be
@@ -328,8 +275,7 @@ void FMetasoundAssetBase::RegisterGraphWithFrontend(Metasound::Frontend::FMetaSo
 	//    reading/writing the IMetaSoundDocumentInterface on the Game Thread)
 	// 2. Async registration is globally disabled via console variable.
 	const bool bAsync = !(IsBuilderActive() || ConsoleVariables::bDisableAsyncGraphRegistration);
-	const TScriptInterface<IMetaSoundDocumentInterface> RegistryDocInterface = AssetBasePrivate::BuildRegistryDocument(Owner);
-	GraphRegistryKey = FRegistryContainerImpl::Get().RegisterGraph(RegistryDocInterface, bAsync);
+	GraphRegistryKey = FRegistryContainerImpl::Get().RegisterGraph(Owner, bAsync);
 
 	if (GraphRegistryKey.IsValid())
 	{

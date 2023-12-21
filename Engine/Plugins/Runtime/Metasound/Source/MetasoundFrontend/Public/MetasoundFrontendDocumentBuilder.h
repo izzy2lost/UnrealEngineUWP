@@ -139,10 +139,9 @@ public:
 	FMetaSoundFrontendDocumentBuilder(TScriptInterface<IMetaSoundDocumentInterface> InDocumentInterface);
 	FMetaSoundFrontendDocumentBuilder(TScriptInterface<IMetaSoundDocumentInterface> InDocumentInterface, TSharedRef<Metasound::Frontend::FDocumentModifyDelegates> InDocumentDelegates);
 	virtual ~FMetaSoundFrontendDocumentBuilder();
-		
+
 	// Call when the builder will no longer modify the IMetaSoundDocumentInterface
 	void FinishBuilding();
-
 
 	const FMetasoundFrontendClass* AddDependency(const FMetasoundFrontendClass& InClass);
 	void AddEdge(FMetasoundFrontendEdge&& InNewEdge);
@@ -280,11 +279,6 @@ public:
 	bool SwapGraphInput(const FMetasoundFrontendClassVertex& InExistingInputVertex, const FMetasoundFrontendClassVertex& NewInputVertex);
 	bool SwapGraphOutput(const FMetasoundFrontendClassVertex& InExistingOutputVertex, const FMetasoundFrontendClassVertex& NewOutputVertex);
 	bool UpdateDependencyClassNames(const TMap<FMetasoundFrontendClassName, FMetasoundFrontendClassName>& OldToNewReferencedClassNames);
-
-	// Determines if the provided interface requires further processing or if its data  is ready as is for insertion into the FrontendRegistry.
-	// If it requires further processing, returns a transient document interface to be used by the registry with an optimized, transformed version
-	// of the given interface's document.
-	static TScriptInterface<IMetaSoundDocumentInterface> BuildRegistryDocument(TScriptInterface<IMetaSoundDocumentInterface> DocumentInterface);
 
 	// Transforms template nodes within the given builder's document, which can include swapping associated edges and/or
 	// replacing nodes with other, registry-defined concrete node class instances. Returns true if any template nodes were processed.
