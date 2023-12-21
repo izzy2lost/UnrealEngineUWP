@@ -3,6 +3,7 @@
 #include "NiagaraSimCacheCompare.h"
 #include "NiagaraConstants.h"
 #include "NiagaraModule.h"
+#include "NiagaraSimCacheCustomStorageInterface.h"
 
 namespace NiagaraSimCacheCompareInternal
 {
@@ -229,6 +230,83 @@ bool FNiagaraSimCacheCompare::Compare(const UNiagaraSimCache& LhsCache, const UN
 			break;
 		}
 	}
+
+	// Compare data interfaces
+	if (bEqual && bIncludeDataInterfaces)
+	{
+		// Generate set of DIs to compare
+		const TArray<FNiagaraVariableBase> DataInterfacesToCompare = LhsCache.GetStoredDataInterfaces();
+		{
+			TArray<FNiagaraVariableBase> ExpectedDataInterfaces = RhsCache.GetStoredDataInterfaces();
+			for (const FNiagaraVariableBase& DIVariable : DataInterfacesToCompare)
+			{
+				if (ExpectedDataInterfaces.Remove(DIVariable) == 0)
+				{
+					AddError(OutDifferences, FString::Printf(TEXT("DataInterface(%s) was in Lhs and not Rhs cache."), *DIVariable.GetName().ToString()));
+					bEqual = false;
+				}
+			}
+
+			for (const FNiagaraVariableBase& DIVariable : ExpectedDataInterfaces)
+			{
+				AddError(OutDifferences, FString::Printf(TEXT("DataInterface(%s) was in Rhs and not Lhs cache."), *DIVariable.GetName().ToString()));
+				bEqual = false;
+			}
+		}
+
+		// Compare data interfaces
+		if (bEqual)
+		{
+			for (const FNiagaraVariableBase& DIVariable : DataInterfacesToCompare)
+			{
+				if (AttributesToExclude_SystemScript.Contains(DIVariable))
+				{
+					continue;
+				}
+
+				UClass* Class = DIVariable.GetType().GetClass();
+				INiagaraSimCacheCustomStorageInterface* DataInterfaceCDO = Class ? Cast<INiagaraSimCacheCustomStorageInterface>(DIVariable.GetType().GetClass()->GetDefaultObject()) : nullptr;
+				if (!DataInterfaceCDO)
+				{
+					AddError(OutDifferences, FString::Printf(TEXT("DataInterface(%s) could not find CDO for Class(%s)."), *DIVariable.GetName().ToString(), *GetNameSafe(Class)));
+					bEqual = false;
+					break;
+				}
+
+				TOptional<float> Tolerance;
+				if (float* UserTolerance = VariableToFloatTolerances_SystemScript.Find(DIVariable))
+				{
+					Tolerance.Emplace(*UserTolerance);
+				}
+
+				UObject* LhsStorageObject = LhsCache.GetDataInterfaceStorageObject(DIVariable);
+				UObject* RhsStorageObject = RhsCache.GetDataInterfaceStorageObject(DIVariable);
+				if (LhsStorageObject && RhsStorageObject)
+				{
+					for (int FrameIndex=0; FrameIndex < LhsCache.GetNumFrames(); FrameIndex++)
+					{
+						FString DIErrors;
+						if (!DataInterfaceCDO->SimCacheCompareFrame(LhsStorageObject, RhsStorageObject, FrameIndex, Tolerance, DIErrors))
+						{
+							AddError(OutDifferences, FString::Printf(TEXT("DataInterface(%s) frame (%d) is not equal - %s."), *DIVariable.GetName().ToString(), FrameIndex, *DIErrors));
+							bEqual = false;
+						}
+					}
+				}
+				else
+				{
+					AddError(OutDifferences, FString::Printf(TEXT("DataInterface(%s) storage was not found in Rhs(%p) Lhs(%p) cache."), *DIVariable.GetName().ToString(), LhsStorageObject, RhsStorageObject));
+					bEqual = false;
+				}
+
+				if (!bEqual)
+				{
+					break;
+				}
+			}
+		}
+	}
+
 
 	return bEqual;
 }

@@ -58,6 +58,12 @@ public:
 	virtual void SimCachePostReadFrame(void* OptionalPerInstanceData, FNiagaraSystemInstance* SystemInstance) {}
 
 	/**
+	Called to compare a frame between two separate simulation cache storages
+	This will be called on the CDO object since we do not have the actual data interface.
+	*/
+	virtual bool SimCacheCompareFrame(UObject* LhsStorageObject, UObject* RhsStorageObject, int FrameIndex, TOptional<float> Tolerance, FString& OutErrors) { OutErrors = TEXT("Compare not implemented"); return false; }
+
+	/**
 	This function allows you to preserve a list of attributes when building a renderer only cache.
 	The UsageContext will be either a UNiagaraSystem or a UNiagaraEmitter and can be used to scope your variables accordingly.
 	For example, if you were to require 'Particles.MyAttribute' in order to process the cache results you would need to convert

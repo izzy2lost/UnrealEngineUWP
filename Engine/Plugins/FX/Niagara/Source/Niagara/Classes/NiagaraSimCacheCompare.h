@@ -19,6 +19,12 @@ public:
 	/** Should we exclude known none deterministic variables, i.e. ID / MaterialRandom. */
 	bool bExcludeNoneDeterministicVariables = true;
 
+	/**
+	Should we include data interface as part of the comparison.
+	Note: If the data interface does not implement the comparison function an error will be generated.
+	*/
+	bool bIncludeDataInterfaces = true;
+
 	/** Add an attribute to exclude from the comparison. */
 	NIAGARA_API void AddExcludeAttribute(FNiagaraVariableBase Variable);
 
