@@ -3,9 +3,12 @@
 
 #include "NiagaraCommon.h"
 #include "NiagaraShared.h"
+#include "NiagaraSimCacheCustomStorageInterface.h"
+
 #include "VectorVM.h"
 #include "NiagaraDataInterfaceRW.h"
 #include "HAL/PlatformAtomics.h"
+
 #include "NiagaraDataInterfaceSimpleCounter.generated.h"
 
 struct FNiagaraDataInterfaceGeneratedFunction;
@@ -15,7 +18,7 @@ Thread safe counter starts at the initial value on start / reset.
 When operating between CPU & GPU ensure you set the appropriate sync mode.
 */
 UCLASS(EditInlineNew, Category = "Counting", CollapseCategories, meta = (DisplayName = "Simple Counter"), MinimalAPI)
-class UNiagaraDataInterfaceSimpleCounter : public UNiagaraDataInterfaceRWBase
+class UNiagaraDataInterfaceSimpleCounter : public UNiagaraDataInterfaceRWBase, public INiagaraSimCacheCustomStorageInterface
 {
 	GENERATED_UCLASS_BODY()
 
@@ -56,6 +59,13 @@ public:
 	NIAGARA_API virtual void PushToRenderThreadImpl() override;
 	// UNiagaraDataInterface Interface End
 
+	//~ INiagaraSimCacheCustomStorageInterface interface BEGIN
+	virtual UObject* SimCacheBeginWrite(UObject* SimCache, FNiagaraSystemInstance* NiagaraSystemInstance, const void* OptionalPerInstanceData, FNiagaraSimCacheFeedbackContext& FeedbackContext) const override;
+	virtual bool SimCacheWriteFrame(UObject* StorageObject, int FrameIndex, FNiagaraSystemInstance* SystemInstance, const void* OptionalPerInstanceData, FNiagaraSimCacheFeedbackContext& FeedbackContext) const override;
+	virtual bool SimCacheReadFrame(UObject* StorageObject, int FrameA, int FrameB, float Interp, FNiagaraSystemInstance* SystemInstance, void* OptionalPerInstanceData) override;
+	virtual bool SimCacheCompareFrame(UObject* LhsStorageObject, UObject* RhsStorageObject, int FrameIndex, TOptional<float> Tolerance, FString& OutErrors) override;
+	//~ UNiagaraDataInterface interface END
+
 	void UpdateDIProxy();
 
 	// VM functions
@@ -80,4 +90,14 @@ protected:
 #if WITH_EDITORONLY_DATA
 	NIAGARA_API virtual void GetFunctionsInternal(TArray<FNiagaraFunctionSignature>& OutFunctions) const override;
 #endif
+};
+
+UCLASS(MinimalAPI)
+class UNDISimpleCounterSimCacheData : public UObject
+{
+	GENERATED_BODY()
+
+public:
+	UPROPERTY()
+	TArray<int32> Values;
 };
