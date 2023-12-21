@@ -50,7 +50,7 @@ namespace EpicGames.Horde.Storage.Nodes
 	/// <summary>
 	/// Entry for a file within a directory node
 	/// </summary>
-	public sealed class FileEntry : HashedNodeRef<ChunkedDataNode>
+	public sealed class FileEntry
 	{
 		/// <summary>
 		/// Name of this file
@@ -68,9 +68,14 @@ namespace EpicGames.Horde.Storage.Nodes
 		public long Length { get; }
 
 		/// <summary>
-		/// Hash of the target node
+		/// Hash of the file as a contiguous stream. This differs from individual node hashes which hash the Merkle tree of chunks forming it.
 		/// </summary>
-		public new IoHash Hash { get; }
+		public IoHash StreamHash { get; }
+
+		/// <summary>
+		/// Reference to the chunked data for the file
+		/// </summary>
+		public ChunkedDataNodeRef Target { get; }
 
 		/// <summary>
 		/// Custom user data for this file entry
@@ -80,13 +85,13 @@ namespace EpicGames.Horde.Storage.Nodes
 		/// <summary>
 		/// Constructor
 		/// </summary>
-		public FileEntry(string name, FileEntryFlags flags, long length, ChunkedData data)
-			: base(data.Root)
+		public FileEntry(string name, FileEntryFlags flags, long length, ChunkedData chunkedData)
 		{
 			Name = name;
 			Flags = flags;
 			Length = length;
-			Hash = data.Hash;
+			StreamHash = chunkedData.StreamHash;
+			Target = chunkedData.Root;
 		}
 
 		/// <summary>
@@ -94,12 +99,20 @@ namespace EpicGames.Horde.Storage.Nodes
 		/// </summary>
 		/// <param name="reader"></param>
 		public FileEntry(IBlobReader reader)
-			: base(ReadNodeRef(reader))
 		{
+			if (reader.Version >= 2)
+			{
+				Target = new ChunkedDataNodeRef(reader);
+			}
+			else
+			{
+				Target = new ChunkedDataNodeRef(ChunkedDataNodeType.Unknown, reader);
+			}
+
 			Name = reader.ReadString();
 			Flags = (FileEntryFlags)reader.ReadUnsignedVarInt();
 			Length = (long)reader.ReadUnsignedVarInt();
-			Hash = reader.ReadIoHash();
+			StreamHash = reader.ReadIoHash();
 
 			if ((Flags & FileEntryFlags.HasCustomData) != 0)
 			{
@@ -108,32 +121,20 @@ namespace EpicGames.Horde.Storage.Nodes
 			}
 		}
 
-		static HashedNodeRef<ChunkedDataNode> ReadNodeRef(IBlobReader reader)
-		{
-			if (reader.Version >= 2)
-			{
-				return new ChunkedDataNodeRef(reader);
-			}
-			else
-			{
-				return reader.ReadHashedNodeRef<ChunkedDataNode>();
-			}
-		}
-
 		/// <summary>
 		/// Serialize this entry
 		/// </summary>
 		/// <param name="writer"></param>
-		public override void Serialize(IBlobWriter writer)
+		public void Serialize(IBlobWriter writer)
 		{
-			base.Serialize(writer);
+			writer.WriteNodeRef(Target);
 
 			FileEntryFlags flags = (CustomData.Length > 0) ? (Flags | FileEntryFlags.HasCustomData) : (Flags & ~FileEntryFlags.HasCustomData);
 
 			writer.WriteString(Name);
 			writer.WriteUnsignedVarInt((ulong)flags);
 			writer.WriteUnsignedVarInt((ulong)Length);
-			writer.WriteIoHash(Hash);
+			writer.WriteIoHash(StreamHash);
 
 			if ((flags & FileEntryFlags.HasCustomData) != 0)
 			{
@@ -154,7 +155,7 @@ namespace EpicGames.Horde.Storage.Nodes
 		/// <param name="cancellationToken">Cancellation token for the operation</param>
 		public async Task CopyToStreamAsync(Stream outputStream, CancellationToken cancellationToken)
 		{
-			await ChunkedDataNode.CopyToStreamAsync(Handle, outputStream, cancellationToken);
+			await ChunkedDataNode.CopyToStreamAsync(Target.Handle, outputStream, cancellationToken);
 		}
 
 		/// <summary>
@@ -167,7 +168,7 @@ namespace EpicGames.Horde.Storage.Nodes
 		{
 			try
 			{
-				await ChunkedDataNode.CopyToFileAsync(Handle, file, cancellationToken);
+				await ChunkedDataNode.CopyToFileAsync(Target.Handle, file, cancellationToken);
 
 				if ((Flags & FileEntryFlags.Executable) != 0)
 				{
@@ -189,6 +190,20 @@ namespace EpicGames.Horde.Storage.Nodes
 
 		/// <inheritdoc/>
 		public override string ToString() => Name.ToString();
+	}
+
+	/// <summary>
+	/// Extension methods for <see cref="FileEntry"/>
+	/// </summary>
+	public static class FileEntryExtensions
+	{
+		/// <summary>
+		/// Serialize a file entry to a writer
+		/// </summary>
+		public static void WriteFileEntry(this IBlobWriter writer, FileEntry entry)
+		{
+			entry.Serialize(writer);
+		}
 	}
 
 	/// <summary>

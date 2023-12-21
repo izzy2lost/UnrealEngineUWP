@@ -110,7 +110,7 @@ namespace EpicGames.Horde.Storage.Nodes
 			writer.WriteOptionalString(CommitterId);
 			writer.WriteString(Message);
 			writer.WriteDateTime(Time);
-			writer.WriteHashedNodeRef(Contents);
+			writer.WriteDirectoryNodeRef(Contents);
 			writer.WriteDictionary(Metadata, key => writer.WriteGuidUnrealOrder(key), value => writer.WriteHashedNodeRef(value));
 		}
 	}

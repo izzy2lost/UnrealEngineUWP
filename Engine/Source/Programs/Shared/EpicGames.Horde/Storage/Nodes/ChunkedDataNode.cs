@@ -448,7 +448,7 @@ namespace EpicGames.Horde.Storage.Nodes
 		/// <returns>Handle to the root node of the tree</returns>
 		public static async Task<ChunkedData> CreateTreeAsync(LeafChunkedData leafChunkedData, InteriorChunkedDataNodeOptions options, IStorageWriter writer, CancellationToken cancellationToken)
 		{
-			HashedNodeRef<ChunkedDataNode> rootRef = await CreateTreeAsync(leafChunkedData.LeafHandles, options, writer, cancellationToken);
+			ChunkedDataNodeRef rootRef = await CreateTreeAsync(leafChunkedData.LeafHandles, options, writer, cancellationToken);
 			return new ChunkedData(leafChunkedData.Hash, rootRef);
 		}
 
@@ -460,7 +460,7 @@ namespace EpicGames.Horde.Storage.Nodes
 		/// <param name="writer">Output writer for new interior nodes</param>
 		/// <param name="cancellationToken">Cancellation token for the operation</param>
 		/// <returns>Handle to the root node of the tree</returns>
-		public static async Task<HashedNodeRef<ChunkedDataNode>> CreateTreeAsync(List<ChunkedDataNodeRef> nodeRefs, InteriorChunkedDataNodeOptions options, IStorageWriter writer, CancellationToken cancellationToken)
+		public static async Task<ChunkedDataNodeRef> CreateTreeAsync(List<ChunkedDataNodeRef> nodeRefs, InteriorChunkedDataNodeOptions options, IStorageWriter writer, CancellationToken cancellationToken)
 		{
 			List<ChunkedDataNodeRef> handleBuffer = new List<ChunkedDataNodeRef>();
 

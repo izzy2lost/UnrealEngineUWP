@@ -47,4 +47,18 @@ namespace EpicGames.Horde.Storage.Nodes
 		/// <inheritdoc/>
 		public override string ToString() => Name;
 	}
+
+	/// <summary>
+	/// Extension methods for <see cref="DirectoryEntry"/>
+	/// </summary>
+	public static class DirectoryEntryExtensions
+	{
+		/// <summary>
+		/// Serialize a directory entry to storage
+		/// </summary>
+		public static void WriteDirectoryEntry(this IBlobWriter writer, DirectoryEntry entry)
+		{
+			entry.Serialize(writer);
+		}
+	}
 }

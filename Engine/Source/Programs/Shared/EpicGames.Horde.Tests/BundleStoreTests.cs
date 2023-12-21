@@ -264,11 +264,11 @@ namespace EpicGames.Horde.Tests
 			Assert.AreEqual(1, root.Directories.Count);
 			Assert.AreEqual("hello", root.Directories.First().Name);
 
-			DirectoryNode hello = await root.Directories.First().ExpandAsync(CancellationToken.None);
+			DirectoryNode hello = await root.Directories.First().Target.ExpandAsync(CancellationToken.None);
 			Assert.AreEqual(1, hello.Directories.Count);
 			Assert.AreEqual("world", hello.Directories.First().Name);
 
-			DirectoryNode world = await hello.Directories.First().ExpandAsync(CancellationToken.None);
+			DirectoryNode world = await hello.Directories.First().Target.ExpandAsync(CancellationToken.None);
 			Assert.AreEqual(0, world.Directories.Count);
 		}
 
@@ -310,12 +310,12 @@ namespace EpicGames.Horde.Tests
 			Assert.AreEqual(1, root.Directories.Count);
 			Assert.AreEqual("hello", root.Directories.First().Name);
 
-			DirectoryNode hello = await root.Directories.First().ExpandAsync();
+			DirectoryNode hello = await root.Directories.First().Target.ExpandAsync();
 			Assert.AreEqual(0, hello.Directories.Count);
 			Assert.AreEqual(1, hello.Files.Count);
 			Assert.AreEqual("world", hello.Files.First().Name);
 
-			ChunkedDataNode world = await hello.Files.First().ExpandAsync();
+			ChunkedDataNode world = await hello.Files.First().Target.ExpandAsync();
 
 			byte[] worldData = await GetFileDataAsync(world);
 			Assert.IsTrue(worldData.SequenceEqual(Encoding.UTF8.GetBytes("world")));
@@ -406,10 +406,10 @@ namespace EpicGames.Horde.Tests
 				await CompareTreesAsync(root, newRoot);
 				await CheckLargeFileTreeAsync(root, data);
 
-				HashedNodeRef<ChunkedDataNode> file = root.GetFileEntry("test");
+				FileEntry file = root.GetFileEntry("test");
 
 				Dictionary<BlobLocator, long> locatorToSize = new Dictionary<BlobLocator, long>();
-				await GetUniqueBlobsAsync(file.Handle, locatorToSize);
+				await GetUniqueBlobsAsync(file.Target.Handle, locatorToSize);
 
 				long uniqueSize = locatorToSize.Sum(x => x.Value);
 				Assert.IsTrue(uniqueSize < data.Length / 3); // random fraction meaning "lots of dedupe happened"
@@ -435,8 +435,8 @@ namespace EpicGames.Horde.Tests
 
 			foreach ((FileEntry oldFileEntry, FileEntry newFileEntry) in oldNode.Files.Zip(newNode.Files))
 			{
-				ChunkedDataNode oldFile = await oldFileEntry.ExpandAsync();
-				ChunkedDataNode newFile = await newFileEntry.ExpandAsync();
+				ChunkedDataNode oldFile = await oldFileEntry.Target.ExpandAsync();
+				ChunkedDataNode newFile = await newFileEntry.Target.ExpandAsync();
 				await CompareTreesAsync(oldFile, newFile);
 			}
 		}
@@ -473,7 +473,7 @@ namespace EpicGames.Horde.Tests
 			Assert.AreEqual(0, root.Directories.Count);
 			Assert.AreEqual(1, root.Files.Count);
 
-			ChunkedDataNode world = await root.Files.First().ExpandAsync(CancellationToken.None);
+			ChunkedDataNode world = await root.Files.First().Target.ExpandAsync(CancellationToken.None);
 
 			int length = await CheckFileDataAsync(world, data);
 			Assert.AreEqual(data.Length, length);

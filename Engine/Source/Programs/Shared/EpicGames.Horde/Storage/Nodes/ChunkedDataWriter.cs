@@ -56,9 +56,9 @@ namespace EpicGames.Horde.Storage.Nodes
 	/// <summary>
 	/// Describes a chunked data stream
 	/// </summary>
-	/// <param name="Hash">Hash of the stream</param>
+	/// <param name="StreamHash">Hash of the stream as a contiguous buffer</param>
 	/// <param name="Root">Handle to the root chunk containing the data</param>
-	public record class ChunkedData(IoHash Hash, HashedNodeRef<ChunkedDataNode> Root);
+	public record class ChunkedData(IoHash StreamHash, ChunkedDataNodeRef Root);
 
 	/// <summary>
 	/// Utility class for generating FileNode data directly into <see cref="IStorageWriter"/> instances, without constructing node representations first.
@@ -322,7 +322,7 @@ namespace EpicGames.Horde.Storage.Nodes
 		public async Task<ChunkedData> CompleteAsync(CancellationToken cancellationToken)
 		{
 			await FlushLeafNodeAsync(cancellationToken);
-			HashedNodeRef<ChunkedDataNode> rootHandle = await InteriorChunkedDataNode.CreateTreeAsync(_leafHandles, _options.InteriorOptions, _writer, cancellationToken);
+			ChunkedDataNodeRef rootHandle = await InteriorChunkedDataNode.CreateTreeAsync(_leafHandles, _options.InteriorOptions, _writer, cancellationToken);
 			return new ChunkedData(IoHash.FromBlake3(_hasher), rootHandle);
 		}
 

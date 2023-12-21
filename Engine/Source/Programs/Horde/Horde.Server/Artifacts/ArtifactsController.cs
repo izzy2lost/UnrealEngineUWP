@@ -292,7 +292,7 @@ namespace Horde.Server.Artifacts
 					{
 						return NotFound();
 					}
-					directoryNode = await nextDirectoryEntry.ExpandAsync(cancellationToken);
+					directoryNode = await nextDirectoryEntry.Target.ExpandAsync(cancellationToken);
 				}
 			}
 
@@ -308,9 +308,9 @@ namespace Horde.Server.Artifacts
 				response.Directories = new List<GetArtifactDirectoryEntryResponse>();
 				foreach (DirectoryEntry subDirectoryEntry in directoryNode.Directories)
 				{
-					DirectoryNode subDirectoryNode = await subDirectoryEntry.ExpandAsync(cancellationToken);
+					DirectoryNode subDirectoryNode = await subDirectoryEntry.Target.ExpandAsync(cancellationToken);
 
-					GetArtifactDirectoryEntryResponse subDirectoryEntryResponse = new GetArtifactDirectoryEntryResponse(subDirectoryEntry.Name.ToString(), subDirectoryEntry.Length, subDirectoryEntry.Hash);
+					GetArtifactDirectoryEntryResponse subDirectoryEntryResponse = new GetArtifactDirectoryEntryResponse(subDirectoryEntry.Name.ToString(), subDirectoryEntry.Length, subDirectoryEntry.Target.Hash);
 					if (depth == 0)
 					{
 						if (subDirectoryNode.Directories.Count + subDirectoryNode.Files.Count < 16)
@@ -338,7 +338,7 @@ namespace Horde.Server.Artifacts
 
 			if (directoryNode.Files.Count > 0)
 			{
-				response.Files = directoryNode.Files.Select(x => new GetArtifactFileEntryResponse(x.Name.ToString(), x.Length, x.Hash)).ToList();
+				response.Files = directoryNode.Files.Select(x => new GetArtifactFileEntryResponse(x.Name.ToString(), x.Length, x.StreamHash)).ToList();
 			}
 		}
 

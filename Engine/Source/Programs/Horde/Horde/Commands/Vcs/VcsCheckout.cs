@@ -73,7 +73,7 @@ namespace Horde.Commands.Vcs
 
 			DirectoryState newState = new DirectoryState();
 
-			DirectoryNode directoryNode = await directoryRef.ExpandAsync();
+			DirectoryNode directoryNode = await directoryRef.Target.ExpandAsync();
 			foreach ((string name, DirectoryEntry? subDirEntry, DirectoryState? subDirState) in EnumerableExtensions.Zip(directoryNode.NameToDirectory, directoryState?.Directories))
 			{
 				DirectoryReference subDirPath = DirectoryReference.Combine(dirPath, name.ToString());
@@ -100,7 +100,7 @@ namespace Horde.Commands.Vcs
 						FileReference.Delete(filePath);
 					}
 				}
-				else if (fileState == null || fileState.Hash != fileEntry.Hash)
+				else if (fileState == null || fileState.Hash != fileEntry.StreamHash)
 				{
 					newState.Files[name] = await CheckoutFileAsync(fileEntry, filePath.ToFileInfo(), logger);
 				}
@@ -110,16 +110,16 @@ namespace Horde.Commands.Vcs
 				}
 			}
 
-			newState.Hash = directoryRef.Hash;
+			newState.Hash = directoryRef.Target.Hash;
 			return newState;
 		}
 
 		static async Task<FileState> CheckoutFileAsync(FileEntry fileRef, FileInfo fileInfo, ILogger logger)
 		{
-			logger.LogInformation("Updating {File} to {Hash}", fileInfo, fileRef.Hash);
-			await ChunkedDataNode.CopyToFileAsync(fileRef.Handle, fileInfo, CancellationToken.None);
+			logger.LogInformation("Updating {File} to {Hash}", fileInfo, fileRef.StreamHash);
+			await ChunkedDataNode.CopyToFileAsync(fileRef.Target.Handle, fileInfo, CancellationToken.None);
 			fileInfo.Refresh();
-			return new FileState(fileInfo, fileRef.Hash);
+			return new FileState(fileInfo, fileRef.StreamHash);
 		}
 	}
 }

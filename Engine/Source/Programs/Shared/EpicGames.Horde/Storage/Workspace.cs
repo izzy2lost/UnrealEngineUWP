@@ -623,7 +623,7 @@ namespace EpicGames.Horde.Storage
 				FileState fileState = dirState.Files[fileIdx];
 				if ((fileState.LayerFlags & flag) != 0)
 				{
-					if (dirNode == null || !dirNode.TryGetFileEntry(fileState.Name, out FileEntry? entry) || entry.Hash != fileState.Hash)
+					if (dirNode == null || !dirNode.TryGetFileEntry(fileState.Name, out FileEntry? entry) || entry.StreamHash != fileState.Hash)
 					{
 						fileState.LayerFlags &= ~flag;
 
@@ -650,7 +650,7 @@ namespace EpicGames.Horde.Storage
 					DirectoryReference subDirPath = DirectoryReference.Combine(dirRef, subDirEntry.Name.ToString());
 					DirectoryState subDirState = dirState.FindOrAddDirectory(subDirEntry.Name);
 
-					DirectoryNode subDirNode = await subDirEntry.ExpandAsync(cancellationToken);
+					DirectoryNode subDirNode = await subDirEntry.Target.ExpandAsync(cancellationToken);
 					await SyncDirectoryAsync(subDirPath, subDirState, subDirNode, flag, cacheDirState, cancellationToken);
 
 					dirState.LayerFlags |= flag;
@@ -676,7 +676,7 @@ namespace EpicGames.Horde.Storage
 			FileState? fileState;
 			if (dirState.TryGetFile(fileEntry.Name, out fileState))
 			{
-				if (fileState.Hash == fileEntry.Hash)
+				if (fileState.Hash == fileEntry.StreamHash)
 				{
 					fileState.LayerFlags |= flag;
 				}
@@ -689,22 +689,22 @@ namespace EpicGames.Horde.Storage
 			{
 				FileInfo fileInfo = FileReference.Combine(dirRef, fileEntry.Name.ToString()).ToFileInfo();
 
-				fileState = TryMoveCachedDataAsync(fileEntry.Hash, dirState, fileEntry.Name);
+				fileState = TryMoveCachedDataAsync(fileEntry.StreamHash, dirState, fileEntry.Name);
 				if (fileState == null)
 				{
 					fileState = dirState.FindOrAddFile(fileEntry.Name);
 
-					_logger.LogInformation("Updating {File} to {Hash}", fileInfo, fileEntry.Hash);
+					_logger.LogInformation("Updating {File} to {Hash}", fileInfo, fileEntry.StreamHash);
 					using (FileStream stream = fileInfo.Open(FileMode.Create, FileAccess.Write, FileShare.Read))
 					{
-						await ExtractDataAsync(fileEntry, stream, cancellationToken);
+						await ExtractDataAsync(fileEntry.Target, stream, cancellationToken);
 						if (stream.Length != fileEntry.Length)
 						{
 							throw new EndOfStreamException($"Incorrect length for extracted file {fileInfo.FullName}");
 						}
 					}
 
-					fileState.Hash = fileEntry.Hash;
+					fileState.Hash = fileEntry.StreamHash;
 
 					fileInfo.Refresh();
 					fileState.Update(fileInfo);

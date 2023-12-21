@@ -765,7 +765,7 @@ namespace Horde.Storage.Utility
 				Stopwatch timer = Stopwatch.StartNew();
 
 				// Add all the files and flush the ref
-				DirectoryNode rootDirNode = await rootDirEntry.ExpandAsync(cancellationToken);
+				DirectoryNode rootDirNode = await rootDirEntry.Target.ExpandAsync(cancellationToken);
 				await rootDirNode.CopyToDirectoryAsync(rootDir.ToDirectoryInfo(), new CopyStatsLogger(logger), logger, cancellationToken);
 
 				StorageStats deltaStats = StorageStats.GetDelta(initialStats, storageClient.GetStats());
