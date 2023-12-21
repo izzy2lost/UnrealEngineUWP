@@ -56,6 +56,10 @@ $ bAllowUBAExecutor : Whether the experimental UnrealBuildAccelerator executor w
 
 $ bAllowUBALocalExecutor : Whether the experimental UnrealBuildAccelerator (local only) executor will be used.
 
+$ DefaultWarningLevel : Default treatment of uncategorized warnings
+
+$ DeprecationWarningLevel : Level to report deprecation warnings as errors
+
 $ bDebugBuildsActuallyUseDebugCRT : Enables the debug C++ runtime (CRT) for debug builds. By default we always use the release runtime, since the debug version isn't particularly useful when debugging Unreal Engine projects, and linking against the debug CRT libraries forces our third party library dependencies to also be compiled using the debug CRT (and often perform more slowly). Often it can be inconvenient to require a separate copy of the debug versions of third party static libraries simply so that you can debug your program's code.
 
 $ bLegalToDistributeBinary : Whether the output from this target can be publicly distributed, even if it has dependencies on modules that are in folders with special restrictions (eg. CarefullyRedist, NotForLicensees, NoRedist).
@@ -69,8 +73,6 @@ $ bUseInlining : Enable inlining for all modules.
 $ bUseDebugLiveCodingConsole : Whether to enable support for live coding
 
 $ bUseXGEController : Whether the XGE controller worker and modules should be included in the engine build. These are required for distributed shader compilation using the XGE interception interface.
-
-$ bMergeModuleAndGeneratedUnityFiles : Whether to merge module and generated unity files for faster compilation.
 
 $ bUseAdaptiveUnityBuild : Use a heuristic to determine which files are currently being iterated on and exclude them from unity blobs, result in faster incremental compile times. The current implementation uses the read-only flag to distinguish the working set, assuming that files will be made writable by the source control system if they are being modified. This is true for Perforce, but not for Git.
 
@@ -88,9 +90,9 @@ $ bAdaptiveUnityCompilesHeaderFiles : Creates a dedicated source file for each h
 
 $ MinGameModuleSourceFilesForUnityBuild : The number of source files in a game module before unity build will be activated for that module.  This allows small game modules to have faster iterative compile times for single files, at the expense of slower full rebuild times.  This setting can be overridden by the bFasterWithoutUnity option in a module's Build.cs file.
 
-$ DefaultWarningLevel : Default treatment of uncategorized warnings
+$ bRequireObjectPtrForAddReferencedObjects : Require TObjectPtr for FReferenceCollector API's. (Needed for compatibility with incremental GC.)
 
-$ DeprecationWarningLevel : Level to report deprecation warnings as errors
+$ bValidateFormatStrings : Emits compilation errors for incorrect UE_LOG format strings.
 
 $ bWarningsAsErrors : Whether to enable all warnings as errors. UE enables most warnings as errors already, but disables a few (such as deprecation warnings).
 
@@ -118,6 +120,12 @@ $ bStressTestUnity : Whether to stress test the C++ unity build robustness by in
 
 $ bDetailedUnityFiles : Whether to add additional information to the unity files, such as '_of_X' in the file name. Not recommended.
 
+$ bDisableDebugInfo : Whether to globally disable debug info generation; Obsolete, please use TargetRules.DebugInfoMode instead
+
+$ DebugInfo : How much debug info should be generated. See DebugInfoMode enum for more details
+
+$ DebugInfoLineTablesOnly : True if only debug line number tables should be emitted in debug information for compilers that support doing so. Overrides TargetRules.DebugInfo See https://clang.llvm.org/docs/UsersManual.html#cmdoption-gline-tables-only for more information
+
 $ bDisableDebugInfoForGeneratedCode : Whether to disable debug info generation for generated files. This improves link times and reduces pdb size for modules that have a lot of generated glue code.
 
 $ bOmitPCDebugInfoInDevelopment : Whether to disable debug info on PC/Mac in development builds (for faster developer iteration, as link times are extremely fast with debug info disabled).
@@ -125,6 +133,8 @@ $ bOmitPCDebugInfoInDevelopment : Whether to disable debug info on PC/Mac in dev
 $ bUsePDBFiles : Whether PDB files should be used for Visual C++ builds.
 
 $ bUsePCHFiles : Whether PCH files should be used.
+
+$ bDeterministic : Set flags require for deterministic compiling and linking. Enabling deterministic mode for msvc disables codegen multithreading so compiling will be slower
 
 $ bChainPCHs : Whether PCHs should be chained when compiling with clang.
 
@@ -162,8 +172,6 @@ $ bSupportEditAndContinue : Whether to support edit and continue.
 
 $ bOmitFramePointers : Whether to omit frame pointers or not. Disabling is useful for e.g. memory profiling on the PC.
 
-$ bUseMallocProfiler : If true, then enable memory profiling in the build (defines USE_MALLOC_PROFILER=1 and forces bOmitFramePointers=false).
-
 $ bShaderCompilerWorkerTrace : If true, then enable Unreal Insights (utrace) profiling in the build for the Shader Compiler Worker (defines USE_SHADER_COMPILER_WORKER_TRACE=1).
 
 $ bUseSharedPCHs : Enables "Shared PCHs", a feature which significantly speeds up compile times by attempting to share certain PCH files between modules that UBT detects is including those PCH's header files.
@@ -200,25 +208,13 @@ $ MSVCCompileActionWeight : The weight(cpu/memory utilization) of a MSVC compile
 
 $ ClangCompileActionWeight : The weight(cpu/memory utilization) of a clang compile action
 
-$ CStandard : Which C standard to use for compiling this target
-
-$ MinCpuArchX64 : Direct the compiler to generate AVX instructions wherever SSE or AVX intrinsics are used, on the x64 platforms that support it. Note that by enabling this you are changing the minspec for the PC platform, and the resultant executable will crash on machines without AVX support.
-
-$ bRequireObjectPtrForAddReferencedObjects : Require TObjectPtr for FReferenceCollector API's. (Needed for compatibility with incremental GC.)
-
-$ bValidateFormatStrings : Emits compilation errors for incorrect UE_LOG format strings.
-
-$ bDisableDebugInfo : Whether to globally disable debug info generation; Obsolete, please use TargetRules.DebugInfoMode instead
-
-$ DebugInfo : How much debug info should be generated. See DebugInfoMode enum for more details
-
-$ DebugInfoLineTablesOnly : True if only debug line number tables should be emitted in debug information for compilers that support doing so. Overrides TargetRules.DebugInfo See https://clang.llvm.org/docs/UsersManual.html#cmdoption-gline-tables-only for more information
-
-$ bDeterministic : Set flags require for deterministic compiling and linking. Enabling deterministic mode for msvc disables codegen multithreading so compiling will be slower
-
 $ CppStandardEngine : Which C++ standard to use for compiling this target (for engine modules)
 
 $ CppStandard : Which C++ standard to use for compiling this target (for non-engine modules)
+
+$ CStandard : Which C standard to use for compiling this target
+
+$ MinCpuArchX64 : Direct the compiler to generate AVX instructions wherever SSE or AVX intrinsics are used, on the x64 platforms that support it. Note that by enabling this you are changing the minspec for the PC platform, and the resultant executable will crash on machines without AVX support.
 
 $ ActionStallReportTime : Number of second of no completed actions to trigger an action stall report. If zero, stall reports will not be enabled.
 
@@ -344,12 +340,6 @@ $ ToolChain : Version of the toolchain to use on Windows platform when a non-msv
 
 $ bStrictConformanceMode : Enables strict standard conformance mode (/permissive-).
 
-### TargetRules
-
-$ bCompileChaosVisualDebuggerSupport : Whether to compile in Chaos Visual Debugger (CVD) support features to record the state of the physics simulation
-
-$ bDisableInliningGenCpps : Disable supports for inlining gen.cpps
-
 ### ModuleConfiguration
 
 $ DisableMergingModuleAndGeneratedFilesInUnityFiles : List of modules that disables merging module and generated cpp files in the same unity files.
@@ -364,11 +354,13 @@ $ OptimizeForSize : List of modules to optimize for size. This allows the target
 
 $ OptimizeForSizeAndSpeed : List of modules to optimize for size and speed. This allows the target to override module optimization level Note that this may disable PCH usage if a private PCH is not provided
 
-### TestTargetRules
+### TargetRules
 
 $ bCompileChaosVisualDebuggerSupport : Whether to compile in Chaos Visual Debugger (CVD) support features to record the state of the physics simulation
 
-$ bDisableInliningGenCpps : Disable supports for inlining gen.cpps
+### TestTargetRules
+
+$ bCompileChaosVisualDebuggerSupport : Whether to compile in Chaos Visual Debugger (CVD) support features to record the state of the physics simulation
 
 ### FASTBuild
 
