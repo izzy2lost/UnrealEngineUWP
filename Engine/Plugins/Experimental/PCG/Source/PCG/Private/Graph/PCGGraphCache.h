@@ -63,14 +63,14 @@ private:
 */
 struct FPCGGraphCache : public FGCObject
 {
-	explicit FPCGGraphCache(TWeakObjectPtr<UObject> InOwner);
+	FPCGGraphCache();
 	~FPCGGraphCache();
 
 	/** Returns true if data was found from the cache, in which case the outputs are written in OutOutput. InNode is optional and for logging only. */
-	bool GetFromCache(const UPCGNode* InNode, const IPCGElement* InElement, const FPCGCrc& InCrc, const FPCGDataCollection& InInput, const UPCGSettings* InSettings, const UPCGComponent* InComponent, FPCGDataCollection& OutOutput) const;
+	bool GetFromCache(const UPCGNode* InNode, const IPCGElement* InElement, const FPCGCrc& InCrc, const UPCGComponent* InComponent, FPCGDataCollection& OutOutput) const;
 
 	/** Stores data in the cache for later use */
-	void StoreInCache(const IPCGElement* InElement, const FPCGCrc& InCrc, const FPCGDataCollection& InInput, const UPCGSettings* InSettings, const UPCGComponent* InComponent, const FPCGDataCollection& InOutput);
+	void StoreInCache(const IPCGElement* InElement, const FPCGCrc& InCrc, const FPCGDataCollection& InOutput);
 
 	/** Removes all entries from the cache, unroots data, etc. */
 	void ClearCache();
@@ -107,7 +107,6 @@ private:
 	// Note: we are not going to serialize this as-is, since the pointers will change
 	// We will have to serialize on a node id basis most likely
 	TLruCache<FPCGCacheEntryKey, FPCGDataCollection> CacheData;
-	TWeakObjectPtr<UObject> Owner = nullptr;
 
 	/** Map from data UIDs to records. Provides ref counting and caches memory size. */
 	TMap<uint64, FCachedMemoryRecord> MemoryRecords;

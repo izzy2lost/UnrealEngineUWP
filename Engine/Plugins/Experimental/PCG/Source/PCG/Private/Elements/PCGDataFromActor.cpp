@@ -335,12 +335,21 @@ bool FPCGDataFromActorElement::ExecuteInternal(FPCGContext* InContext) const
 					// Add a trivial task after these generations that wakes up this task
 					Context->bIsPaused = true;
 
-					Subsystem->ScheduleGeneric([Context]()
-					{
-						// Wake up the current task
-						Context->bIsPaused = false;
-						return true;
-					}, Context->SourceComponent.Get(), WaitOnTaskIds);
+					Subsystem->ScheduleGeneric(
+						[Context]() // Normal execution: Wake up the current task
+						{
+							Context->bIsPaused = false; 
+							return true;
+						}, 
+						[Context]() // On Abort: Wake up on abort, clear all results and mark as cancelled
+						{
+							Context->bIsPaused = false; 
+							Context->FoundActors.Reset();
+							Context->OutputData.bCancelExecution = true;
+							return true;
+						},
+						Context->SourceComponent.Get(),
+						WaitOnTaskIds);
 
 					return false;
 				}

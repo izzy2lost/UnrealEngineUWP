@@ -6,6 +6,7 @@
 #include "PCGElement.h"
 #include "PCGSubsystem.h"
 #include "Graph/PCGGraphCache.h"
+#include "Graph/PCGGraphCompiler.h"
 #include "Graph/PCGStackContext.h"
 
 #include "UObject/GCObject.h"
@@ -23,6 +24,16 @@ class FPCGGraphCompiler;
 struct FPCGStack;
 class FPCGStackContext;
 class FTextFormat;
+
+namespace PCGGraphExecutor
+{
+	extern PCG_API TAutoConsoleVariable<float> CVarTimePerFrame;
+	extern PCG_API TAutoConsoleVariable<bool> CVarGraphMultithreading;
+
+#if WITH_EDITOR
+	extern PCG_API TAutoConsoleVariable<float> CVarEditorTimePerFrame;
+#endif
+}
 
 struct FPCGGraphTaskInput
 {
@@ -68,6 +79,7 @@ struct FPCGGraphScheduleTask
 	TWeakObjectPtr<UPCGComponent> SourceComponent = nullptr;
 	int32 FirstTaskIndex = 0;
 	int32 LastTaskIndex = 0;
+	bool bHasAbortCallbacks = false;
 };
 
 struct FPCGGraphActiveTask
@@ -87,7 +99,7 @@ struct FPCGGraphActiveTask
 class FPCGGraphExecutor : public FGCObject
 {
 public:
-	explicit FPCGGraphExecutor(UObject* InOwner);
+	FPCGGraphExecutor();
 	~FPCGGraphExecutor();
 
 	/** Compile (and cache) a graph for later use. This call is threadsafe */
@@ -120,6 +132,7 @@ public:
 
 	// Back compatibility function. Use ScheduleGenericWithContext
 	FPCGTaskId ScheduleGeneric(TFunction<bool()> InOperation, UPCGComponent* InSourceComponent, const TArray<FPCGTaskId>& TaskExecutionDependencies);
+	FPCGTaskId ScheduleGeneric(TFunction<bool()> InOperation, TFunction<void()> InAbortOperation, UPCGComponent* InSourceComponent, const TArray<FPCGTaskId>& TaskExecutionDependencies);
 
 	/** General job scheduling
 	*  @param InOperation:               Callback that takes a Context as argument and returns true if the task is done, false otherwise
@@ -129,11 +142,23 @@ public:
 	*/
 	FPCGTaskId ScheduleGenericWithContext(TFunction<bool(FPCGContext*)> InOperation, UPCGComponent* InSourceComponent, const TArray<FPCGTaskId>& TaskExecutionDependencies, const TArray<FPCGTaskId>& TaskDataDependencies);
 
+	/** General job scheduling
+	*  @param InOperation:               Callback that takes a Context as argument and returns true if the task is done, false otherwise
+	*  @param InAbortOperation:          Callback that is called if the task is aborted (cancelled) before fully executed.
+	*  @param InSourceComponent:         PCG component associated with this task. Can be null.
+	*  @param TaskExecutionDependencies: Task will wait on these tasks to execute and won't take their output data as input.
+	*  @param TaskDataDependencies:      Task will wait on these tasks to execute and will take their output data as input.
+	*/
+	FPCGTaskId ScheduleGenericWithContext(TFunction<bool(FPCGContext*)> InOperation, TFunction<void(FPCGContext*)> InAbortOperation, UPCGComponent* InSourceComponent, const TArray<FPCGTaskId>& TaskExecutionDependencies, const TArray<FPCGTaskId>& TaskDataDependencies);
+
 	/** Gets data in the output results. Returns false if data is not ready. */
 	bool GetOutputData(FPCGTaskId InTaskId, FPCGDataCollection& OutData);
 
-	/** So the profiler can decode graph task ids **/
-	FPCGGraphCompiler* GetCompiler() const { return GraphCompiler.Get(); }
+	/** Accessor so PCG tools (e.g. profiler) can easily decode graph task ids **/
+	FPCGGraphCompiler& GetCompiler() { return GraphCompiler; }
+
+	/** Accessor so PCG tools (e.g. profiler) can easily decode graph task ids **/
+	const FPCGGraphCompiler& GetCompiler() const { return GraphCompiler; }
 
 #if WITH_EDITOR
 	FPCGTaskId ScheduleDebugWithTaskCallback(UPCGComponent* InComponent, TFunction<void(FPCGTaskId, const UPCGNode*, const FPCGDataCollection&)> TaskCompleteCallback);
@@ -185,7 +210,7 @@ private:
 #endif
 
 	/** Graph compiler that turns a graph into tasks */
-	TUniquePtr<FPCGGraphCompiler> GraphCompiler;
+	FPCGGraphCompiler GraphCompiler;
 
 	/** Graph results cache */
 	FPCGGraphCache GraphCache;
@@ -244,6 +269,14 @@ public:
 	{
 		return new FPCGContext();
 	});
+
+	FPCGGenericElement(
+		TFunction<bool(FPCGContext*)> InOperation,
+		TFunction<void(FPCGContext*)> InAbortOperation,
+		const FContextAllocator& InContextAllocator = (FContextAllocator)[](const FPCGDataCollection&, TWeakObjectPtr<UPCGComponent>, const UPCGNode*)
+	{
+		return new FPCGContext();
+	});
 	
 	virtual FPCGContext* Initialize(const FPCGDataCollection& InputData, TWeakObjectPtr<UPCGComponent> SourceComponent, const UPCGNode* Node) override;
 
@@ -254,6 +287,7 @@ protected:
 	// Important note: generic elements must always be run on the main thread
 	// as most of these will impact the editor in some way (loading, unloading, saving)
 	virtual bool ExecuteInternal(FPCGContext* Context) const override;
+	virtual void AbortInternal(FPCGContext* Context) const override;
 	virtual bool IsCancellable() const override { return false; }
 
 #if WITH_EDITOR
@@ -262,6 +296,7 @@ protected:
 
 private:
 	TFunction<bool(FPCGContext*)> Operation;
+	TFunction<void(FPCGContext*)> AbortOperation;
 
 	/** Creates a context object for this element. */
 	FContextAllocator ContextAllocator;

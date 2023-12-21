@@ -594,11 +594,21 @@ bool FPCGSubgraphElement::ExecuteInternal(FPCGContext* InContext) const
 					Context->bIsPaused = true;
 					
 					// add a trivial task after the output task that wakes up this task
-					Subsystem->ScheduleGeneric([Context]() {
-						// Wake up the current task
-						Context->bIsPaused = false;
-						return true;
-					}, Context->SourceComponent.Get(), Context->SubgraphTaskIds);
+					Subsystem->ScheduleGeneric(
+						[Context]() // Normal execution: Wake up the current task
+						{
+							Context->bIsPaused = false;
+							return true;
+						}, 
+						[Context]() // On Abort: Wake up and cancel the execution
+						{
+							Context->bIsPaused = false;
+							Context->OutputData.bCancelExecution = true;
+							Context->SubgraphTaskIds.Reset();
+							return true;
+						},
+						Context->SourceComponent.Get(), 
+						Context->SubgraphTaskIds);
 
 					return false;
 				}

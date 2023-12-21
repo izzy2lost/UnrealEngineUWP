@@ -290,12 +290,21 @@ bool FPCGLoopElement::ExecuteInternal(FPCGContext* InContext) const
 			Context->bScheduledSubgraph = true;
 			Context->bIsPaused = true;
 
-			Subsystem->ScheduleGeneric([Context]()
-			{
-				// Wake up the current task
-				Context->bIsPaused = false;
-				return true;
-			}, Context->SourceComponent.Get(), Context->SubgraphTaskIds);
+			Subsystem->ScheduleGeneric(
+				[Context]() // Normal execution: Wake up the current task
+				{
+					Context->bIsPaused = false;
+					return true;
+				},
+				[Context]() // On abort: wakeup and cancel, forget subgraphs
+				{
+					Context->bIsPaused = false;
+					Context->SubgraphTaskIds.Reset();
+					Context->OutputData.bCancelExecution = true;
+					return true;
+				},
+				Context->SourceComponent.Get(),
+				Context->SubgraphTaskIds);
 
 			return false;
 		}

@@ -418,7 +418,6 @@ void FPCGDataCollection::Reset()
 {
 	// Implementation note: We are assuming that there is no need to remove the data from the rootset here.
 	TaggedData.Reset();
-	bCancelExecutionOnEmpty = false;
 	bCancelExecution = false;
 }
 

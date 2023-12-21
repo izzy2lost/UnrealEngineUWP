@@ -4,7 +4,6 @@
 
 #include "PCGCommon.h"
 #include "PCGComponent.h"
-#include "PCGContext.h"
 #include "PCGCrc.h"
 #include "PCGGraph.h"
 #include "PCGInputOutputSettings.h"
@@ -13,9 +12,6 @@
 #include "PCGPin.h"
 #include "PCGSubsystem.h"
 #include "PCGWorldActor.h"
-#include "Graph/PCGGraphCache.h"
-#include "Graph/PCGGraphCompiler.h"
-#include "Graph/PCGStackContext.h"
 #include "Grid/PCGPartitionActor.h"
 #include "Helpers/PCGActorHelpers.h"
 #include "Helpers/PCGHelpers.h"
@@ -47,31 +43,34 @@ static TAutoConsoleVariable<float> CVarMaxPercentageOfThreadsToUse(
 	0.9f,
 	TEXT("Maximum percentage of number of threads for concurrent PCG processing"));
 
-static TAutoConsoleVariable<float> CVarTimePerFrame(
-	TEXT("pcg.FrameTime"),
-	1000.0f / 60.0f,
-	TEXT("Allocated time in ms per frame"));
-
-static TAutoConsoleVariable<float> CVarEditorTimePerFrame(
-	TEXT("pcg.EditorFrameTime"),
-	1000.0f / 20.0f,
-	TEXT("Allocated time in ms per frame when running in editor (non pie)"));
-
-static TAutoConsoleVariable<bool> CVarGraphMultithreading(
-	TEXT("pcg.GraphMultithreading"),
-	false,
-	TEXT("Controls whether the graph can dispatch multiple tasks at the same time"));
-
 static TAutoConsoleVariable<bool> CVarStripEmptyPointData(
 	TEXT("pcg.StripEmptyPointData"),
 	false,
 	TEXT("Will strip empty point data from being passed along as output"));
 
-FPCGGraphExecutor::FPCGGraphExecutor(UObject* InOwner)
-	: GraphCompiler(MakeUnique<FPCGGraphCompiler>())
-	, GraphCache(InOwner)
+namespace PCGGraphExecutor
+{
+	TAutoConsoleVariable<float> CVarTimePerFrame(
+		TEXT("pcg.FrameTime"),
+		1000.0f / 60.0f,
+		TEXT("Allocated time in ms per frame"));
+
+	TAutoConsoleVariable<bool> CVarGraphMultithreading(
+		TEXT("pcg.GraphMultithreading"),
+		false,
+		TEXT("Controls whether the graph can dispatch multiple tasks at the same time"));
+
 #if WITH_EDITOR
-	, GenerationProgressNotification(GetNotificationTextFormat())
+	TAutoConsoleVariable<float> CVarEditorTimePerFrame(
+		TEXT("pcg.EditorFrameTime"),
+		1000.0f / 20.0f,
+		TEXT("Allocated time in ms per frame when running in editor (non pie)"));
+#endif
+}
+
+FPCGGraphExecutor::FPCGGraphExecutor()
+#if WITH_EDITOR
+	: GenerationProgressNotification(GetNotificationTextFormat())
 #endif
 {
 }
@@ -91,7 +90,7 @@ FPCGGraphExecutor::~FPCGGraphExecutor()
 
 void FPCGGraphExecutor::Compile(UPCGGraph* Graph)
 {
-	GraphCompiler->Compile(Graph);
+	GraphCompiler.Compile(Graph);
 }
 
 FPCGTaskId FPCGGraphExecutor::Schedule(UPCGComponent* Component, const TArray<FPCGTaskId>& ExternalDependencies, const FPCGStack* InFromStack)
@@ -130,7 +129,7 @@ FPCGTaskId FPCGGraphExecutor::Schedule(
 
 	// Get compiled tasks from compiler
 	TSharedPtr<FPCGStackContext> StackContextPtr = MakeShared<FPCGStackContext>();
-	TArray<FPCGGraphTask> CompiledTasks = GraphCompiler->GetCompiledTasks(Graph, GenerationGridSize, *StackContextPtr);
+	TArray<FPCGGraphTask> CompiledTasks = GraphCompiler.GetCompiledTasks(Graph, GenerationGridSize, *StackContextPtr);
 
 	// Create the final stack context by including the current stack frames
 	if (InFromStack)
@@ -286,6 +285,20 @@ TSet<UPCGComponent*> FPCGGraphExecutor::Cancel(TFunctionRef<bool(TWeakObjectPtr<
 		return CancelledComponents;
 	}
 
+	auto TryAbortScheduledTasks = [](FPCGGraphScheduleTask& ScheduledTask)
+	{
+		if (ScheduledTask.bHasAbortCallbacks)
+		{
+			for (FPCGGraphTask& InternalTask : ScheduledTask.Tasks)
+			{
+				if (InternalTask.Element)
+				{
+					InternalTask.Element->Abort(InternalTask.Context);
+				}
+			}
+		}
+	};
+
 	TArray<FPCGTaskId> CancelledScheduledTasks;
 
 	bool bStableCancellationSet = false;
@@ -301,6 +314,8 @@ TSet<UPCGComponent*> FPCGGraphExecutor::Cancel(TFunctionRef<bool(TWeakObjectPtr<
 			if (CancelledComponents.Contains(ScheduledTask.SourceComponent.Get()))
 			{
 				CancelledScheduledTasks.Add(ScheduledTask.Tasks[ScheduledTask.LastTaskIndex].NodeId);
+
+				TryAbortScheduledTasks(ScheduledTask);
 				ScheduledTasks.RemoveAtSwap(ScheduledTaskIndex);
 			}
 		}
@@ -324,6 +339,8 @@ TSet<UPCGComponent*> FPCGGraphExecutor::Cancel(TFunctionRef<bool(TWeakObjectPtr<
 					}
 
 					CancelledScheduledTasks.Add(ScheduledTask.Tasks[ScheduledTask.LastTaskIndex].NodeId);
+
+					TryAbortScheduledTasks(ScheduledTask);
 					ScheduledTasks.RemoveAtSwap(ScheduledTaskIndex);
 				}
 			}
@@ -339,6 +356,11 @@ TSet<UPCGComponent*> FPCGGraphExecutor::Cancel(TFunctionRef<bool(TWeakObjectPtr<
 
 			if (CancelledComponents.Contains(Task.SourceComponent.Get()))
 			{
+				if (Task.Element)
+				{
+					Task.Element->Abort(Task.Context);
+				}
+
 				FPCGTaskId CancelledTaskId = Task.NodeId;
 				RemoveTaskFromInputSuccessors(CancelledTaskId, Task.Inputs);
 
@@ -354,6 +376,9 @@ TSet<UPCGComponent*> FPCGGraphExecutor::Cancel(TFunctionRef<bool(TWeakObjectPtr<
 			FPCGGraphActiveTask& Task = ActiveTasks[ActiveTaskIndex];
 			if (Task.Context && CancelledComponents.Contains(Task.Context->SourceComponent.Get()))
 			{
+				check(Task.Element);
+				Task.Element->Abort(Task.Context.Get());
+
 				FPCGTaskId CancelledTaskId = Task.NodeId;
 				Task.bWasCancelled = true;
 				RemoveTaskFromInputSuccessors(CancelledTaskId, Task.Inputs);
@@ -368,6 +393,9 @@ TSet<UPCGComponent*> FPCGGraphExecutor::Cancel(TFunctionRef<bool(TWeakObjectPtr<
 			FPCGGraphActiveTask& Task = SleepingTasks[SleepingTaskIndex];
 			if (Task.Context && CancelledComponents.Contains(Task.Context->SourceComponent.Get()))
 			{
+				check(Task.Element);
+				Task.Element->Abort(Task.Context.Get());
+
 				FPCGTaskId CancelledTaskId = Task.NodeId;
 				RemoveTaskFromInputSuccessors(CancelledTaskId, Task.Inputs);
 
@@ -403,14 +431,44 @@ bool FPCGGraphExecutor::IsGraphCurrentlyExecuting(UPCGGraph* InGraph)
 
 FPCGTaskId FPCGGraphExecutor::ScheduleGeneric(TFunction<bool()> InOperation, UPCGComponent* InSourceComponent, const TArray<FPCGTaskId>& TaskExecutionDependencies)
 {
-	// Since we have no context, the generic task will consume no input (no data dependencies).
-	return ScheduleGenericWithContext([Operation = MoveTemp(InOperation)](FPCGContext*) -> bool
-	{
-			return Operation();
-	}, InSourceComponent, TaskExecutionDependencies, /*TaskDataDependencies=*/{});
+	return ScheduleGeneric(
+		InOperation,
+		TFunction<void()>(),
+		InSourceComponent,
+		TaskExecutionDependencies);
 }
 
-FPCGTaskId FPCGGraphExecutor::ScheduleGenericWithContext(TFunction<bool(FPCGContext*)> InOperation, UPCGComponent* InSourceComponent, const TArray<FPCGTaskId>& TaskDataDependencies, const TArray<FPCGTaskId>& TaskExecutionDependencies)
+FPCGTaskId FPCGGraphExecutor::ScheduleGeneric(TFunction<bool()> InOperation, TFunction<void()> InAbortOperation, UPCGComponent* InSourceComponent, const TArray<FPCGTaskId>& TaskExecutionDependencies)
+{
+	// Since we have no context, the generic task will consume no input (no data dependencies).
+	return ScheduleGenericWithContext(
+		[Operation = MoveTemp(InOperation)](FPCGContext*) -> bool
+		{
+			return Operation && Operation();
+		}, 
+		[AbortOperation = MoveTemp(InAbortOperation)](FPCGContext*)
+		{
+			if(AbortOperation)
+			{
+				AbortOperation();
+			}
+		},
+		InSourceComponent,
+		TaskExecutionDependencies,
+		/*TaskDataDependencies=*/{});
+}
+
+FPCGTaskId FPCGGraphExecutor::ScheduleGenericWithContext(TFunction<bool(FPCGContext*)> InOperation, UPCGComponent* InSourceComponent, const TArray<FPCGTaskId>& TaskExecutionDependencies, const TArray<FPCGTaskId>& TaskDataDependencies)
+{
+	return ScheduleGenericWithContext(
+		InOperation,
+		TFunction<void(FPCGContext*)>(),
+		InSourceComponent,
+		TaskExecutionDependencies,
+		TaskDataDependencies);
+}
+
+FPCGTaskId FPCGGraphExecutor::ScheduleGenericWithContext(TFunction<bool(FPCGContext*)> InOperation, TFunction<void(FPCGContext*)> InAbortOperation, UPCGComponent* InSourceComponent, const TArray<FPCGTaskId>& TaskExecutionDependencies, const TArray<FPCGTaskId>& TaskDataDependencies)
 {
 	// Build task & element to hold the operation to perform
 	FPCGGraphTask Task;
@@ -428,7 +486,7 @@ FPCGTaskId FPCGGraphExecutor::ScheduleGenericWithContext(TFunction<bool(FPCGCont
 	}
 
 	Task.SourceComponent = InSourceComponent;
-	Task.Element = MakeShared<FPCGGenericElement>(InOperation);
+	Task.Element = MakeShared<FPCGGenericElement>(InOperation, InAbortOperation);
 
 	ScheduleLock.Lock();
 
@@ -438,6 +496,7 @@ FPCGTaskId FPCGGraphExecutor::ScheduleGenericWithContext(TFunction<bool(FPCGCont
 	FPCGGraphScheduleTask& ScheduledTask = ScheduledTasks.Emplace_GetRef();
 	ScheduledTask.Tasks.Add(Task);
 	ScheduledTask.SourceComponent = InSourceComponent;
+	ScheduledTask.bHasAbortCallbacks = !!InAbortOperation;
 
 	ScheduleLock.Unlock();
 
@@ -517,19 +576,19 @@ void FPCGGraphExecutor::Execute()
 
 	const double StartTime = FPlatformTime::Seconds();
 
-	double VarTimePerFrame = CVarTimePerFrame.GetValueOnAnyThread() / 1000.0;
+	double VarTimePerFrame = PCGGraphExecutor::CVarTimePerFrame.GetValueOnAnyThread() / 1000.0;
 
 #if WITH_EDITOR
 	if (GEditor && !GEditor->IsPlaySessionInProgress())
 	{
-		VarTimePerFrame = CVarEditorTimePerFrame.GetValueOnAnyThread() / 1000.0;
+		VarTimePerFrame = PCGGraphExecutor::CVarEditorTimePerFrame.GetValueOnAnyThread() / 1000.0;
 	}
 #endif
 
 	const double EndTime = StartTime + VarTimePerFrame;
 	const float MaxPercentageOfThreadsToUse = FMath::Clamp(CVarMaxPercentageOfThreadsToUse.GetValueOnAnyThread(), 0.0f, 1.0f);
 	const int32 MaxNumThreads = FMath::Max(0, FMath::Min((int32)(FPlatformMisc::NumberOfCoresIncludingHyperthreads() * MaxPercentageOfThreadsToUse), CVarMaxNumTasks.GetValueOnAnyThread() - 1));
-	const bool bAllowMultiDispatch = CVarGraphMultithreading.GetValueOnAnyThread();
+	const bool bAllowMultiDispatch = PCGGraphExecutor::CVarGraphMultithreading.GetValueOnAnyThread();
 	const bool bGraphCacheDebuggingEnabled = IsGraphCacheDebuggingEnabled();
 	const bool bStripEmptyPointData = CVarStripEmptyPointData.GetValueOnAnyThread();
 
@@ -663,7 +722,7 @@ void FPCGGraphExecutor::Execute()
 				}
 
 				FPCGDataCollection CachedOutput;
-				const bool bResultAlreadyInCache = bCacheable && DependenciesCrc.IsValid() && GraphCache.GetFromCache(Task.Node, Task.Element.Get(), DependenciesCrc, TaskInput, TaskSettings, Task.SourceComponent.Get(), CachedOutput);
+				const bool bResultAlreadyInCache = bCacheable && DependenciesCrc.IsValid() && GraphCache.GetFromCache(Task.Node, Task.Element.Get(), DependenciesCrc, Task.SourceComponent.Get(), CachedOutput);
 #if WITH_EDITOR
 				const bool bNeedsToCreateActiveTask = !bResultAlreadyInCache || TaskSettingsInterface->bDebug;
 #else
@@ -819,7 +878,7 @@ void FPCGGraphExecutor::Execute()
 				if (ActiveTaskSettingsInterface && !bHasErrorOrWarning && ActiveTask.Element->IsCacheableInstance(ActiveTaskSettingsInterface))
 				{
 					const UPCGSettings* ActiveTaskSettings = ActiveTaskSettingsInterface ? ActiveTaskSettingsInterface->GetSettings() : nullptr;
-					GraphCache.StoreInCache(ActiveTask.Element.Get(), ActiveTask.Context->DependenciesCrc, ActiveTask.Context->InputData, ActiveTaskSettings, ActiveTask.Context->SourceComponent.Get(), ActiveTask.Context->OutputData);
+					GraphCache.StoreInCache(ActiveTask.Element.Get(), ActiveTask.Context->DependenciesCrc, ActiveTask.Context->OutputData);
 				}
 			}
 
@@ -1058,6 +1117,11 @@ bool FPCGGraphExecutor::CancelNextTasks(FPCGTaskId CancelledTask, TSet<UPCGCompo
 					bAddedComponents = true;
 				}
 
+				if (Task->Element)
+				{
+					Task->Element->Abort(Task->Context);
+				}
+
 				RemoveTaskFromInputSuccessors(Task->NodeId, Task->Inputs);
 				Tasks.Remove(Successor);
 			}
@@ -1160,11 +1224,6 @@ void FPCGGraphExecutor::BuildTaskInput(const FPCGGraphTask& Task, FPCGDataCollec
 
 		// Write input pin name (e.g. name of the output pin on the dependency node) Crc to uniquely identify inputs per-pin, or use a placeholder for symmetry.
 		Crc.Combine(Input.InPin ? GetTypeHash(Input.InPin->Properties.Label) : DefaultHashForNoInputPin);
-
-		if (TaskInput.TaggedData.Num() == TaggedDataOffset && InputCollection.bCancelExecutionOnEmpty)
-		{
-			TaskInput.bCancelExecution = true;
-		}
 
 		// Apply labelling on data; technically, we should ensure that we do this only for pass-through nodes,
 		// Otherwise we could also null out the label on the input...
@@ -1300,7 +1359,7 @@ FPCGTaskId FPCGGraphExecutor::ScheduleDebugWithTaskCallback(UPCGComponent* InCom
 	const uint32 GenerationGridSize = bNonPartitionedComponent ? PCGHiGenGrid::UninitializedGridSize() : InComponent->GetGenerationGridSize();
 
 	FPCGStackContext DummyStackContext;
-	TArray<FPCGGraphTask> CompiledTasks = GraphCompiler->GetCompiledTasks(InComponent->GetGraph(), GenerationGridSize, DummyStackContext, /*bIsTopGraph=*/true);
+	TArray<FPCGGraphTask> CompiledTasks = GraphCompiler.GetCompiledTasks(InComponent->GetGraph(), GenerationGridSize, DummyStackContext, /*bIsTopGraph=*/true);
 	CompiledTasks.Pop(); // Remove the final task
 
 	// Set up all final dependencies for the entire execution
@@ -1385,10 +1444,7 @@ void FPCGGraphExecutor::ReleaseUnusedActors()
 
 void FPCGGraphExecutor::NotifyGraphChanged(UPCGGraph* InGraph)
 {
-	if (GraphCompiler)
-	{
-		GraphCompiler->NotifyGraphChanged(InGraph);
-	}
+	GraphCompiler.NotifyGraphChanged(InGraph);
 }
 
 void FPCGGraphExecutor::UpdateGenerationNotification()
@@ -1506,6 +1562,13 @@ FPCGGenericElement::FPCGGenericElement(TFunction<bool(FPCGContext*)> InOperation
 {
 }
 
+FPCGGenericElement::FPCGGenericElement(TFunction<bool(FPCGContext*)> InOperation, TFunction<void(FPCGContext*)> InAbortOperation, const FContextAllocator& InContextAllocator)
+	: Operation(InOperation)
+	, AbortOperation(InAbortOperation)
+	, ContextAllocator(InContextAllocator)
+{
+}
+
 FPCGContext* FPCGGenericElement::Initialize(const FPCGDataCollection& InputData, TWeakObjectPtr<UPCGComponent> SourceComponent, const UPCGNode* Node)
 {
 	check(ContextAllocator);
@@ -1520,7 +1583,16 @@ FPCGContext* FPCGGenericElement::Initialize(const FPCGDataCollection& InputData,
 bool FPCGGenericElement::ExecuteInternal(FPCGContext* Context) const
 {
 	TRACE_CPUPROFILER_EVENT_SCOPE(FPCGGenericElement::Execute);
-	return Operation(Context);
+	return Operation && Operation(Context);
+}
+
+void FPCGGenericElement::AbortInternal(FPCGContext* Context) const
+{
+	TRACE_CPUPROFILER_EVENT_SCOPE(FPCGGenericElement::Abort);
+	if(AbortOperation)
+	{
+		AbortOperation(Context);
+	}
 }
 
 namespace PCGGraphExecutor

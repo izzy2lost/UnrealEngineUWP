@@ -27,11 +27,9 @@ static TAutoConsoleVariable<bool> CVarCacheMemoryBudgetEnabled(
 // Initial max number of entries graph cache
 static const int32 GPCGGraphCacheInitialCapacity = 65536;
 
-FPCGGraphCache::FPCGGraphCache(TWeakObjectPtr<UObject> InOwner)
+FPCGGraphCache::FPCGGraphCache()
 	: CacheData(GPCGGraphCacheInitialCapacity)
-	, Owner(InOwner)
 {
-	check(InOwner.Get());
 }
 
 FPCGGraphCache::~FPCGGraphCache()
@@ -39,13 +37,8 @@ FPCGGraphCache::~FPCGGraphCache()
 	ClearCache();
 }
 
-bool FPCGGraphCache::GetFromCache(const UPCGNode* InNode, const IPCGElement* InElement, const FPCGCrc& InDependenciesCrc, const FPCGDataCollection& InInput, const UPCGSettings* InSettings, const UPCGComponent* InComponent, FPCGDataCollection& OutOutput) const
+bool FPCGGraphCache::GetFromCache(const UPCGNode* InNode, const IPCGElement* InElement, const FPCGCrc& InDependenciesCrc, const UPCGComponent* InComponent, FPCGDataCollection& OutOutput) const
 {
-	if (!Owner.IsValid())
-	{
-		return false;
-	}
-
 	if(!InDependenciesCrc.IsValid())
 	{
 		UE_LOG(LogPCG, Warning, TEXT("Invalid dependencies passed to FPCGGraphCache::GetFromCache(), lookup aborted."));
@@ -83,9 +76,9 @@ bool FPCGGraphCache::GetFromCache(const UPCGNode* InNode, const IPCGElement* InE
 	}
 }
 
-void FPCGGraphCache::StoreInCache(const IPCGElement* InElement, const FPCGCrc& InDependenciesCrc, const FPCGDataCollection& InInput, const UPCGSettings* InSettings, const UPCGComponent* InComponent, const FPCGDataCollection& InOutput)
+void FPCGGraphCache::StoreInCache(const IPCGElement* InElement, const FPCGCrc& InDependenciesCrc, const FPCGDataCollection& InOutput)
 {
-	if (!Owner.IsValid() || !ensure(InDependenciesCrc.IsValid()))
+	if (!ensure(InDependenciesCrc.IsValid()))
 	{
 		return;
 	}

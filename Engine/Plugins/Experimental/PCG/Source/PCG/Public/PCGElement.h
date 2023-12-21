@@ -96,6 +96,9 @@ public:
 	*/
 	bool Execute(FPCGContext* Context) const;
 
+	/** Public function called when an element is cancelled, passing its current context if any. */
+	void Abort(FPCGContext* Context) const;
+
 	/** Note: the following methods must be called from the main thread */
 #if WITH_EDITOR
 	void DebugDisplay(FPCGContext* Context) const;
@@ -110,6 +113,8 @@ protected:
 	virtual bool ExecuteInternal(FPCGContext* Context) const = 0;
 	/** This function will be called once and once only, at the end of an execution */
 	void PostExecute(FPCGContext* Context) const;
+	/** This function will be called once and only once if the element is aborted. The Context can be used to retrieve the current phase if needed. */
+	virtual void AbortInternal(FPCGContext* Context) const {};
 
 	/** Controls whether an element can skip its execution wholly when the input data has the cancelled tag */
 	virtual bool IsCancellable() const { return true; }

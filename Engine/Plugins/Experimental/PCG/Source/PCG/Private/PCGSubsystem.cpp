@@ -172,7 +172,7 @@ void UPCGSubsystem::PostInitialize()
 
 	// Initialize graph executor
 	check(!GraphExecutor);
-	GraphExecutor = new FPCGGraphExecutor(this);
+	GraphExecutor = new FPCGGraphExecutor();
 
 	// Initialize runtime generation scheduler
 	check(!RuntimeGenScheduler);
@@ -597,7 +597,7 @@ FPCGTaskId UPCGSubsystem::ScheduleComponent(UPCGComponent* PCGComponent, EPCGHiG
 			}
 
 			return true;
-		}, PCGComponent, DataDependencyTasks, ExecutionDependencyTasks);
+		}, PCGComponent, ExecutionDependencyTasks, DataDependencyTasks);
 	}
 	else
 	{
@@ -740,10 +740,22 @@ FPCGTaskId UPCGSubsystem::ScheduleGeneric(TFunction<bool()> InOperation, UPCGCom
 	return GraphExecutor->ScheduleGeneric(InOperation, SourceComponent, TaskExecutionDependencies);
 }
 
+FPCGTaskId UPCGSubsystem::ScheduleGeneric(TFunction<bool()> InOperation, TFunction<void()> InAbortOperation, UPCGComponent* SourceComponent, const TArray<FPCGTaskId>& TaskExecutionDependencies)
+{
+	check(GraphExecutor);
+	return GraphExecutor->ScheduleGeneric(InOperation, InAbortOperation, SourceComponent, TaskExecutionDependencies);
+}
+
 FPCGTaskId UPCGSubsystem::ScheduleGenericWithContext(TFunction<bool(FPCGContext*)> InOperation, UPCGComponent* SourceComponent, const TArray<FPCGTaskId>& TaskExecutionDependencies, const TArray<FPCGTaskId>& TaskDataDependencies)
 {
 	check(GraphExecutor);
 	return GraphExecutor->ScheduleGenericWithContext(InOperation, SourceComponent, TaskExecutionDependencies, TaskDataDependencies);
+}
+
+FPCGTaskId UPCGSubsystem::ScheduleGenericWithContext(TFunction<bool(FPCGContext*)> InOperation, TFunction<void(FPCGContext*)> InAbortOperation, UPCGComponent* SourceComponent, const TArray<FPCGTaskId>& TaskExecutionDependencies, const TArray<FPCGTaskId>& TaskDataDependencies)
+{
+	check(GraphExecutor);
+	return GraphExecutor->ScheduleGenericWithContext(InOperation, InAbortOperation, SourceComponent, TaskExecutionDependencies, TaskDataDependencies);
 }
 
 void UPCGSubsystem::CancelGeneration(UPCGComponent* Component)
@@ -1493,17 +1505,17 @@ void UPCGSubsystem::ClearLandscapeCache()
 	}
 }
 
-FPCGGraphCompiler* UPCGSubsystem::GetGraphCompiler() const
+FPCGGraphCompiler* UPCGSubsystem::GetGraphCompiler()
 {
 	if (GraphExecutor)
 	{
-		return GraphExecutor->GetCompiler();
+		return &(GraphExecutor->GetCompiler());
 	}
 
 	return nullptr;
 }
 
-bool UPCGSubsystem::GetStackContext(const UPCGComponent* InComponent, FPCGStackContext& OutStackContext) const
+bool UPCGSubsystem::GetStackContext(const UPCGComponent* InComponent, FPCGStackContext& OutStackContext)
 {
 	if (InComponent && InComponent->GetGraph())
 	{
@@ -1577,11 +1589,7 @@ void UPCGSubsystem::FlushCache()
 	if (GraphExecutor)
 	{
 		GraphExecutor->GetCache().ClearCache();
-
-		if (FPCGGraphCompiler* Compiler = GraphExecutor->GetCompiler())
-		{
-			Compiler->ClearCache();
-		}
+		GraphExecutor->GetCompiler().ClearCache();
 	}
 
 #if WITH_EDITOR

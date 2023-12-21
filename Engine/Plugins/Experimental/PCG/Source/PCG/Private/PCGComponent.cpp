@@ -2896,7 +2896,7 @@ void UPCGComponent::ChangeTransientState(EPCGEditorDirtyMode NewEditingMode)
 
 bool UPCGComponent::GetStackContext(FPCGStackContext& OutStackContext) const
 {
-	const UPCGSubsystem* Subsystem = GetSubsystem();
+	UPCGSubsystem* Subsystem = GetSubsystem();
 	if (Subsystem && Subsystem->GetStackContext(this, OutStackContext))
 	{
 		FPCGStack ComponentStack;

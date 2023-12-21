@@ -177,6 +177,11 @@ void IPCGElement::PostExecute(FPCGContext* Context) const
 	Context->CurrentPhase = EPCGExecutionPhase::Done;
 }
 
+void IPCGElement::Abort(FPCGContext* Context) const
+{
+	AbortInternal(Context);
+}
+
 void IPCGElement::DisabledPassThroughData(FPCGContext* Context) const
 {
 	check(Context);

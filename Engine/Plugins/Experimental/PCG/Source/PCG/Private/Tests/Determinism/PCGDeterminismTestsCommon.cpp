@@ -96,7 +96,7 @@ namespace PCGDeterminismTests
 			PCGComponentCopy->RegisterComponentWithWorld(PCGActor->GetWorld());
 		}
 
-		FPCGGraphExecutor Executor = FPCGGraphExecutor(PCGComponentCopy);
+		FPCGGraphExecutor Executor;
 
 		auto ScheduleAndWaitForExecution = [&Executor, PCGComponentCopy](FPCGTaskId FinalTaskID)
 		{
@@ -107,7 +107,7 @@ namespace PCGDeterminismTests
 			Executor.GetCache().ClearCache();
 
 			// Schedule final task for waiting
-			Executor.ScheduleGeneric([&bTasksComplete]
+			Executor.ScheduleGeneric([&bTasksComplete]()
 			{
 				bTasksComplete = true;
 				return true;

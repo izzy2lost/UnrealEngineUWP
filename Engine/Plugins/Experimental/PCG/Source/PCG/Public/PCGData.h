@@ -175,6 +175,7 @@ struct PCG_API FPCGDataCollection
 	UPROPERTY(BlueprintReadWrite, EditAnywhere, Category = Data)
 	TArray<FPCGTaggedData> TaggedData;
 
+	/** Deprecated - Will be removed in 5.4 */
 	UPROPERTY(BlueprintReadWrite, EditAnywhere, Category = Data)
 	bool bCancelExecutionOnEmpty = false;
 
