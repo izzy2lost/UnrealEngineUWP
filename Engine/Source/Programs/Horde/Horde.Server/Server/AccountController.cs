@@ -131,6 +131,16 @@ namespace Horde.Server.Server
 			return new ContentResult { ContentType = "text/html", StatusCode = (int)HttpStatusCode.OK, Content = content.ToString() };
 		}
 
+		/// <summary>
+		/// Logged out page
+		/// </summary>
+		/// <returns>HTML</returns>
+		[HttpGet]
+		[Route("/account/logged-out")]
+		public ViewResult LoggedOut()
+		{
+			return View("~/Server/HordeAccountLoggedOut.cshtml");
+		}
 		
 		/// <summary>
 		/// Show login form for username/password login
