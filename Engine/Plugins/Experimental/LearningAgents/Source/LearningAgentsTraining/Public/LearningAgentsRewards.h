@@ -21,10 +21,10 @@ public:
 	static float RewardOnCondition(const bool bCondition, const float RewardScale = 1.0f);
 
 	UFUNCTION(BlueprintPure, Category = "LearningAgents")
-	static float RewardOnTranslationDifferenceBelowThreshold(const FVector TranslationA, const FVector TranslationB, const float DistanceThreshold = 100.0f, const float RewardScale = 1.0f);
+	static float RewardOnLocationDifferenceBelowThreshold(const FVector LocationA, const FVector LocationB, const float DistanceThreshold = 100.0f, const float RewardScale = 1.0f);
 
 	UFUNCTION(BlueprintPure, Category = "LearningAgents")
-	static float RewardFromTranslationSimilarity(const FVector TranslationA, const FVector TranslationB, const float TranslationScale = 100.0f, const float RewardScale = 1.0f);
+	static float RewardFromLocationSimilarity(const FVector LocationA, const FVector LocationB, const float LocationScale = 100.0f, const float RewardScale = 1.0f);
 
 	UFUNCTION(BlueprintPure, Category = "LearningAgents")
 	static float RewardFromRotationSimilarity(const FRotator RotationA, const FRotator RotationB, const float AngleScale = 90.0f, const float RewardScale = 1.0f);
@@ -47,10 +47,10 @@ public:
 	static float PenaltyOnCondition(const bool bCondition, const float PenaltyScale = 1.0f);
 
 	UFUNCTION(BlueprintPure, Category = "LearningAgents")
-	static float PenaltyOnTranslationDifferenceAboveThreshold(const FVector TranslationA, const FVector TranslationB, const float DistanceThreshold = 100.0f, const float PenaltyScale = 1.0f);
+	static float PenaltyOnLocationDifferenceAboveThreshold(const FVector LocationA, const FVector LocationB, const float DistanceThreshold = 100.0f, const float PenaltyScale = 1.0f);
 
 	UFUNCTION(BlueprintPure, Category = "LearningAgents")
-	static float PenaltyFromTranslationDifference(const FVector TranslationA, const FVector TranslationB, const float TranslationScale = 100.0f, const float PenaltyScale = 1.0f);
+	static float PenaltyFromLocationDifference(const FVector LocationA, const FVector LocationB, const float LocationScale = 100.0f, const float PenaltyScale = 1.0f);
 
 	UFUNCTION(BlueprintPure, Category = "LearningAgents")
 	static float PenaltyFromAngleDifference(const float AngleA, const float AngleB, const float AngleScale = 90.0f, const float PenaltyScale = 1.0f);

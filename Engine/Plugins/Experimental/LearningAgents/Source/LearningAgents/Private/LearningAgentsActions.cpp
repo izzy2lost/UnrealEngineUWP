@@ -1043,7 +1043,7 @@ FLearningAgentsActionSchemaElement ULearningAgentsActionSchema::SpecifyFloatActi
 	return SpecifyContinuousAction(1, Name);
 }
 
-FLearningAgentsActionSchemaElement ULearningAgentsActionSchema::SpecifyTranslationAction(const FName Name)
+FLearningAgentsActionSchemaElement ULearningAgentsActionSchema::SpecifyLocationAction(const FName Name)
 {
 	return SpecifyContinuousAction(3, Name);
 }
@@ -1062,12 +1062,12 @@ FLearningAgentsActionSchemaElement ULearningAgentsActionSchema::SpecifyTransform
 {
 	return SpecifyStructActionFromArrayViews(
 		{
-			TEXT("Translation"),
+			TEXT("Location"),
 			TEXT("Rotation"),
 			TEXT("Scale")
 		},
 		{
-			SpecifyTranslationAction(),
+			SpecifyLocationAction(),
 			SpecifyRotationAction(),
 			SpecifyScaleAction()
 		}, 
@@ -1426,14 +1426,14 @@ FLearningAgentsActionObjectElement ULearningAgentsActionObject::MakeFloatAction(
 	return MakeContinuousActionFromArrayView({ Value / FMath::Max(FloatScale, UE_SMALL_NUMBER) }, Name);
 }
 
-FLearningAgentsActionObjectElement ULearningAgentsActionObject::MakeTranslationAction(const FVector Translation, const FTransform RelativeTransform, const float TranslationScale, const FName Name)
+FLearningAgentsActionObjectElement ULearningAgentsActionObject::MakeLocationAction(const FVector Location, const FTransform RelativeTransform, const float LocationScale, const FName Name)
 {
-	const FVector LocalTranslation = RelativeTransform.InverseTransformPosition(Translation);
+	const FVector LocalLocation = RelativeTransform.InverseTransformPosition(Location);
 
 	return MakeContinuousActionFromArrayView({
-		(float)LocalTranslation.X / FMath::Max(TranslationScale, UE_SMALL_NUMBER),
-		(float)LocalTranslation.Y / FMath::Max(TranslationScale, UE_SMALL_NUMBER),
-		(float)LocalTranslation.Z / FMath::Max(TranslationScale, UE_SMALL_NUMBER) }, Name);
+		(float)LocalLocation.X / FMath::Max(LocationScale, UE_SMALL_NUMBER),
+		(float)LocalLocation.Y / FMath::Max(LocationScale, UE_SMALL_NUMBER),
+		(float)LocalLocation.Z / FMath::Max(LocationScale, UE_SMALL_NUMBER) }, Name);
 }
 
 FLearningAgentsActionObjectElement ULearningAgentsActionObject::MakeRotationAction(const FRotator Rotation, const FRotator RelativeRotation, const float RotationScale, const FName Name)
@@ -1467,18 +1467,18 @@ FLearningAgentsActionObjectElement ULearningAgentsActionObject::MakeScaleAction(
 		}, Name);
 }
 
-FLearningAgentsActionObjectElement ULearningAgentsActionObject::MakeTransformAction(const FTransform Transform, const FTransform RelativeTransform, const float TranslationScale, const FName Name)
+FLearningAgentsActionObjectElement ULearningAgentsActionObject::MakeTransformAction(const FTransform Transform, const FTransform RelativeTransform, const float LocationScale, const FName Name)
 {
 	const FTransform LocalTransform = Transform * RelativeTransform.Inverse();
 
 	return MakeStructActionFromArrayViews(
 		{
-			TEXT("Translation"),
+			TEXT("Location"),
 			TEXT("Rotation"),
 			TEXT("Scale")
 		},
 		{
-			MakeTranslationAction(LocalTransform.GetTranslation(), FTransform::Identity, TranslationScale),
+			MakeLocationAction(LocalTransform.GetLocation(), FTransform::Identity, LocationScale),
 			MakeRotationActionFromQuat(LocalTransform.GetRotation(), FQuat::Identity),
 			MakeScaleAction(LocalTransform.GetScale3D(), FVector::OneVector)
 		},
@@ -2349,17 +2349,17 @@ bool ULearningAgentsActionObject::GetFloatAction(float& OutValue, const FLearnin
 	return true;
 }
 
-bool ULearningAgentsActionObject::GetTranslationAction(FVector& OutTranslation, const FLearningAgentsActionObjectElement Element, const FTransform RelativeTransform, const float TranslationScale, const FName Name) const
+bool ULearningAgentsActionObject::GetLocationAction(FVector& OutLocation, const FLearningAgentsActionObjectElement Element, const FTransform RelativeTransform, const float LocationScale, const FName Name) const
 {
 	TStaticArray<float, 3> OutValues;
 	if (!GetContinuousActionToArrayView(OutValues, Element, Name))
 	{
-		OutTranslation = FVector::ZeroVector;
+		OutLocation = FVector::ZeroVector;
 		return false;
 	}
 
-	const FVector LocalTranslation = TranslationScale * FVector(OutValues[0], OutValues[1], OutValues[2]);
-	OutTranslation = RelativeTransform.TransformPosition(LocalTranslation);
+	const FVector LocalLocation = LocationScale * FVector(OutValues[0], OutValues[1], OutValues[2]);
+	OutLocation = RelativeTransform.TransformPosition(LocalLocation);
 	return true;
 }
 
@@ -2404,7 +2404,7 @@ bool ULearningAgentsActionObject::GetScaleAction(FVector& OutScale, const FLearn
 	return true;
 }
 
-bool ULearningAgentsActionObject::GetTransformAction(FTransform& OutTransform, const FLearningAgentsActionObjectElement Element, const FTransform RelativeTransform, const float TranslationScale, const float RotationScale, const float ScaleScale, const FName Name) const
+bool ULearningAgentsActionObject::GetTransformAction(FTransform& OutTransform, const FLearningAgentsActionObjectElement Element, const FTransform RelativeTransform, const float LocationScale, const float RotationScale, const float ScaleScale, const FName Name) const
 {
 	TStaticArray<FName, 3> OutElementNames;
 	TStaticArray<FLearningAgentsActionObjectElement, 3> OutElements;
@@ -2414,8 +2414,8 @@ bool ULearningAgentsActionObject::GetTransformAction(FTransform& OutTransform, c
 		return false;
 	}
 
-	FVector OutTranslation;
-	if (!GetTranslationAction(OutTranslation, OutElements[MakeArrayView(OutElementNames).Find(TEXT("Translation"))], RelativeTransform, TranslationScale))
+	FVector OutLocation;
+	if (!GetLocationAction(OutLocation, OutElements[MakeArrayView(OutElementNames).Find(TEXT("Location"))], RelativeTransform, LocationScale))
 	{
 		OutTransform = FTransform::Identity;
 		return false;
@@ -2435,7 +2435,7 @@ bool ULearningAgentsActionObject::GetTransformAction(FTransform& OutTransform, c
 		return false;
 	}
 
-	OutTransform = FTransform(OutRotation, OutTranslation, OutScale);
+	OutTransform = FTransform(OutRotation, OutLocation, OutScale);
 	return true;
 }
 

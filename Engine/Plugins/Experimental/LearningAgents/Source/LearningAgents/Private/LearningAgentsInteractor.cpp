@@ -228,7 +228,7 @@ void ULearningAgentsInteractor::ScatterAgentActions_Implementation(const TArray<
 	UE_LOG(LogLearning, Error, TEXT("%s: ScatterAgentActions function must be overridden!"), *GetName());
 }
 
-void  ULearningAgentsInteractor::ScatterAgentObservationsUsingDelegate(
+void  ULearningAgentsInteractor::ScatterAgentActionsUsingDelegate(
 	const TArray<FLearningAgentsActionObjectElement>& InActionObjectElements,
 	const ULearningAgentsActionObject* InActionObject,
 	const TArray<int32>& AgentIds,

@@ -143,11 +143,11 @@ public:
 	 *
 	 * @param InActionObjectElements			Input Actions Element. This will be the same size as AgentIds.
 	 * @param InActionObject					Action Object.
-	 * @param AgentIds							Set of Agent Ids to scatter observations for.
+	 * @param AgentIds							Set of Agent Ids to scatter actions for.
 	 * @param Delegate							The Delegate used to scatter each agent's actions.
 	 */
 	UFUNCTION(BlueprintPure = false, Category = "LearningAgents")
-	void ScatterAgentObservationsUsingDelegate(
+	void ScatterAgentActionsUsingDelegate(
 		const TArray<FLearningAgentsActionObjectElement>& InActionObjectElements, 
 		const ULearningAgentsActionObject* InActionObject,
 		const TArray<int32>& AgentIds,

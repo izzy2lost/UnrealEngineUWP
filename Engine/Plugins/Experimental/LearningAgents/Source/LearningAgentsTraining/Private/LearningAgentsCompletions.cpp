@@ -96,29 +96,29 @@ ELearningAgentsCompletion ULearningAgentsCompletions::CompletionOnEpisodeStepsRe
 	return CompletionOnCondition(EpisodeSteps >= MaxEpisodeSteps, CompletionType);
 }
 
-ELearningAgentsCompletion ULearningAgentsCompletions::CompletionOnTranslationDifferenceBelowThreshold(const FVector TranslationA, const FVector TranslationB, const float DistanceThreshold, const ELearningAgentsCompletion CompletionType)
+ELearningAgentsCompletion ULearningAgentsCompletions::CompletionOnLocationDifferenceBelowThreshold(const FVector LocationA, const FVector LocationB, const float DistanceThreshold, const ELearningAgentsCompletion CompletionType)
 {
-	return CompletionOnCondition(FVector::Distance(TranslationA, TranslationB) < DistanceThreshold, CompletionType);
+	return CompletionOnCondition(FVector::Distance(LocationA, LocationB) < DistanceThreshold, CompletionType);
 }
 
-ELearningAgentsCompletion ULearningAgentsCompletions::CompletionOnTranslationDifferenceAboveThreshold(const FVector TranslationA, const FVector TranslationB, const float DistanceThreshold, const ELearningAgentsCompletion CompletionType)
+ELearningAgentsCompletion ULearningAgentsCompletions::CompletionOnLocationDifferenceAboveThreshold(const FVector LocationA, const FVector LocationB, const float DistanceThreshold, const ELearningAgentsCompletion CompletionType)
 {
-	return CompletionOnCondition(FVector::Distance(TranslationA, TranslationB) > DistanceThreshold, CompletionType);
+	return CompletionOnCondition(FVector::Distance(LocationA, LocationB) > DistanceThreshold, CompletionType);
 }
 
-ELearningAgentsCompletion ULearningAgentsCompletions::CompletionOnTranslationOutsideBounds(
-	const FVector Translation,
+ELearningAgentsCompletion ULearningAgentsCompletions::CompletionOnLocationOutsideBounds(
+	const FVector Location,
 	const FTransform BoundsTransform,
 	const FVector BoundsMins,
 	const FVector BoundsMaxs,
 	const ELearningAgentsCompletion CompletionType)
 {
-	const FVector LocalTranslation = BoundsTransform.InverseTransformPosition(Translation);
+	const FVector LocalLocation = BoundsTransform.InverseTransformPosition(Location);
 
 	return CompletionOnCondition(
-		LocalTranslation.X < BoundsMins.X || LocalTranslation.X > BoundsMaxs.X ||
-		LocalTranslation.Y < BoundsMins.Y || LocalTranslation.Y > BoundsMaxs.Y ||
-		LocalTranslation.Z < BoundsMins.Z || LocalTranslation.Z > BoundsMaxs.Z,
+		LocalLocation.X < BoundsMins.X || LocalLocation.X > BoundsMaxs.X ||
+		LocalLocation.Y < BoundsMins.Y || LocalLocation.Y > BoundsMaxs.Y ||
+		LocalLocation.Z < BoundsMins.Z || LocalLocation.Z > BoundsMaxs.Z,
 		CompletionType);
 }
 

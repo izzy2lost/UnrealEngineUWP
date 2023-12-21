@@ -919,7 +919,7 @@ FLearningAgentsObservationSchemaElement ULearningAgentsObservationSchema::Specif
 	return SpecifyContinuousObservation(1, Name);
 }
 
-FLearningAgentsObservationSchemaElement ULearningAgentsObservationSchema::SpecifyTranslationObservation(const FName Name)
+FLearningAgentsObservationSchemaElement ULearningAgentsObservationSchema::SpecifyLocationObservation(const FName Name)
 {
 	return SpecifyContinuousObservation(3, Name);
 }
@@ -938,12 +938,12 @@ FLearningAgentsObservationSchemaElement ULearningAgentsObservationSchema::Specif
 {
 	return SpecifyStructObservationFromArrayViews(
 		{
-			TEXT("Translation"),
+			TEXT("Location"),
 			TEXT("Rotation"),
 			TEXT("Scale")
 		},
 		{
-			SpecifyTranslationObservation(),
+			SpecifyLocationObservation(),
 			SpecifyRotationObservation(),
 			SpecifyScaleObservation()
 		}, 
@@ -967,7 +967,7 @@ FLearningAgentsObservationSchemaElement ULearningAgentsObservationSchema::Specif
 
 FLearningAgentsObservationSchemaElement ULearningAgentsObservationSchema::SpecifyLocationAlongSplineObservation(const FName Name)
 {
-	return SpecifyTranslationObservation(Name);
+	return SpecifyLocationObservation(Name);
 }
 
 FLearningAgentsObservationSchemaElement ULearningAgentsObservationSchema::SpecifyProportionAlongSplineObservation(const FName Name)
@@ -1500,14 +1500,14 @@ FLearningAgentsObservationObjectElement ULearningAgentsObservationObject::MakeFl
 	return MakeContinuousObservationFromArrayView({ Value / FMath::Max(FloatScale, UE_SMALL_NUMBER) }, Name);
 }
 
-FLearningAgentsObservationObjectElement ULearningAgentsObservationObject::MakeTranslationObservation(const FVector Translation, const FTransform RelativeTransform, const float TranslationScale, const FName Name)
+FLearningAgentsObservationObjectElement ULearningAgentsObservationObject::MakeLocationObservation(const FVector Location, const FTransform RelativeTransform, const float LocationScale, const FName Name)
 {
-	const FVector LocalTranslation = RelativeTransform.InverseTransformPosition(Translation);
+	const FVector LocalLocation = RelativeTransform.InverseTransformPosition(Location);
 
 	return MakeContinuousObservationFromArrayView({
-		(float)LocalTranslation.X / FMath::Max(TranslationScale, UE_SMALL_NUMBER),
-		(float)LocalTranslation.Y / FMath::Max(TranslationScale, UE_SMALL_NUMBER),
-		(float)LocalTranslation.Z / FMath::Max(TranslationScale, UE_SMALL_NUMBER),
+		(float)LocalLocation.X / FMath::Max(LocationScale, UE_SMALL_NUMBER),
+		(float)LocalLocation.Y / FMath::Max(LocationScale, UE_SMALL_NUMBER),
+		(float)LocalLocation.Z / FMath::Max(LocationScale, UE_SMALL_NUMBER),
 		}, Name);
 }
 
@@ -1545,18 +1545,18 @@ FLearningAgentsObservationObjectElement ULearningAgentsObservationObject::MakeSc
 		}, Name);
 }
 
-FLearningAgentsObservationObjectElement ULearningAgentsObservationObject::MakeTransformObservation(const FTransform Transform, const FTransform RelativeTransform, const float TranslationScale, const FName Name)
+FLearningAgentsObservationObjectElement ULearningAgentsObservationObject::MakeTransformObservation(const FTransform Transform, const FTransform RelativeTransform, const float LocationScale, const FName Name)
 {
 	const FTransform LocalTransform = Transform * RelativeTransform.Inverse();
 	
 	return MakeStructObservationFromArrayViews(
 		{
-			TEXT("Translation"),
+			TEXT("Location"),
 			TEXT("Rotation"),
 			TEXT("Scale")
 		},
 		{
-			MakeTranslationObservation(LocalTransform.GetTranslation(), FTransform::Identity, TranslationScale),
+			MakeLocationObservation(LocalTransform.GetLocation(), FTransform::Identity, LocationScale),
 			MakeRotationObservationFromQuat(LocalTransform.GetRotation(), FQuat::Identity),
 			MakeScaleObservation(LocalTransform.GetScale3D(), FVector::OneVector)
 		},
@@ -1600,7 +1600,7 @@ FLearningAgentsObservationObjectElement ULearningAgentsObservationObject::MakeDi
 		}, Name);
 }
 
-FLearningAgentsObservationObjectElement ULearningAgentsObservationObject::MakeLocationAlongSplineObservation(const USplineComponent* SplineComponent, const float DistanceAlongSpline, const FTransform RelativeTransform, const float TranslationScale, const FName Name)
+FLearningAgentsObservationObjectElement ULearningAgentsObservationObject::MakeLocationAlongSplineObservation(const USplineComponent* SplineComponent, const float DistanceAlongSpline, const FTransform RelativeTransform, const float LocationScale, const FName Name)
 {
 	if (!SplineComponent)
 	{
@@ -1608,7 +1608,7 @@ FLearningAgentsObservationObjectElement ULearningAgentsObservationObject::MakeLo
 		return FLearningAgentsObservationObjectElement();
 	}
 
-	return MakeTranslationObservation(SplineComponent->GetLocationAtDistanceAlongSpline(DistanceAlongSpline, ESplineCoordinateSpace::World), RelativeTransform, TranslationScale, Name);
+	return MakeLocationObservation(SplineComponent->GetLocationAtDistanceAlongSpline(DistanceAlongSpline, ESplineCoordinateSpace::World), RelativeTransform, LocationScale, Name);
 }
 
 FLearningAgentsObservationObjectElement ULearningAgentsObservationObject::MakeProportionAlongSplineObservation(const USplineComponent* SplineComponent, const float DistanceAlongSpline, const FName Name)
@@ -1645,7 +1645,7 @@ FLearningAgentsObservationObjectElement ULearningAgentsObservationObject::MakeDi
 	return MakeDirectionObservation(SplineComponent->GetDirectionAtDistanceAlongSpline(DistanceAlongSpline, ESplineCoordinateSpace::World), RelativeTransform, Name);
 }
 
-FLearningAgentsObservationObjectElement ULearningAgentsObservationObject::MakePropertiesAlongSplineObservation(const USplineComponent* SplineComponent, const float DistanceAlongSpline, const FTransform RelativeTransform, const float TranslationScale, const FName Name)
+FLearningAgentsObservationObjectElement ULearningAgentsObservationObject::MakePropertiesAlongSplineObservation(const USplineComponent* SplineComponent, const float DistanceAlongSpline, const FTransform RelativeTransform, const float LocationScale, const FName Name)
 {
 	if (!SplineComponent)
 	{
@@ -1660,7 +1660,7 @@ FLearningAgentsObservationObjectElement ULearningAgentsObservationObject::MakePr
 			TEXT("Direction")
 		},
 		{
-			MakeLocationAlongSplineObservation(SplineComponent, DistanceAlongSpline, RelativeTransform, TranslationScale),
+			MakeLocationAlongSplineObservation(SplineComponent, DistanceAlongSpline, RelativeTransform, LocationScale),
 			MakeProportionAlongSplineObservation(SplineComponent, DistanceAlongSpline),
 			MakeDirectionAlongSplineObservation(SplineComponent, DistanceAlongSpline, RelativeTransform),
 		}, Name);
@@ -2898,16 +2898,16 @@ bool ULearningAgentsObservationObject::GetFloatObservation(float& OutValue, cons
 	return true;
 }
 
-bool ULearningAgentsObservationObject::GetTranslationObservation(FVector& OutTranslation, const FLearningAgentsObservationObjectElement Element, const FTransform RelativeTransform, const float TranslationScale, const FName Name) const
+bool ULearningAgentsObservationObject::GetLocationObservation(FVector& OutLocation, const FLearningAgentsObservationObjectElement Element, const FTransform RelativeTransform, const float LocationScale, const FName Name) const
 {
 	TStaticArray<float, 3> OutValues;
 	if (!GetContinuousObservationToArrayView(OutValues, Element, Name))
 	{
-		OutTranslation = FVector::ZeroVector;
+		OutLocation = FVector::ZeroVector;
 		return false;
 	}
 
-	OutTranslation = RelativeTransform.TransformPosition(TranslationScale * FVector(OutValues[0], OutValues[1], OutValues[2]));
+	OutLocation = RelativeTransform.TransformPosition(LocationScale * FVector(OutValues[0], OutValues[1], OutValues[2]));
 	return true;
 }
 
@@ -2961,7 +2961,7 @@ bool ULearningAgentsObservationObject::GetScaleObservation(FVector& OutScale, co
 	return true;
 }
 
-bool ULearningAgentsObservationObject::GetTransformObservation(FTransform& OutTransform, const FLearningAgentsObservationObjectElement Element, const FTransform RelativeTransform, const float TranslationScale, const FName Name) const
+bool ULearningAgentsObservationObject::GetTransformObservation(FTransform& OutTransform, const FLearningAgentsObservationObjectElement Element, const FTransform RelativeTransform, const float LocationScale, const FName Name) const
 {
 	TStaticArray<FName, 3> OutElementNames;
 	TStaticArray<FLearningAgentsObservationObjectElement, 3> OutElements;
@@ -2971,9 +2971,9 @@ bool ULearningAgentsObservationObject::GetTransformObservation(FTransform& OutTr
 		return false;
 	}
 
-	const int32 TranslationElement = MakeArrayView(OutElementNames).Find(TEXT("Translation"));
-	FVector OutTranslation;
-	if (TranslationElement == INDEX_NONE || !GetTranslationObservation(OutTranslation, OutElements[TranslationElement], RelativeTransform, TranslationScale))
+	const int32 LocationElement = MakeArrayView(OutElementNames).Find(TEXT("Location"));
+	FVector OutLocation;
+	if (LocationElement == INDEX_NONE || !GetLocationObservation(OutLocation, OutElements[LocationElement], RelativeTransform, LocationScale))
 	{
 		OutTransform = FTransform::Identity;
 		return false;
@@ -2995,7 +2995,7 @@ bool ULearningAgentsObservationObject::GetTransformObservation(FTransform& OutTr
 		return false;
 	}
 
-	OutTransform = FTransform(OutRotation, OutTranslation, OutScale);
+	OutTransform = FTransform(OutRotation, OutLocation, OutScale);
 	return true;
 }
 
@@ -3050,9 +3050,9 @@ bool ULearningAgentsObservationObject::GetDirectionObservation(FVector& OutDirec
 	return true;
 }
 
-bool ULearningAgentsObservationObject::GetLocationAlongSplineObservation(FVector& OutLocation, const FLearningAgentsObservationObjectElement Element, const FTransform RelativeTransform, const float TranslationScale, const FName Name)
+bool ULearningAgentsObservationObject::GetLocationAlongSplineObservation(FVector& OutLocation, const FLearningAgentsObservationObjectElement Element, const FTransform RelativeTransform, const float LocationScale, const FName Name)
 {
-	return GetTranslationObservation(OutLocation, Element, RelativeTransform, TranslationScale, Name);
+	return GetLocationObservation(OutLocation, Element, RelativeTransform, LocationScale, Name);
 }
 
 bool ULearningAgentsObservationObject::GetProportionAlongSplineObservation(bool& bOutIsClosedLoop, float& OutAngle, float& OutPropotion, const FLearningAgentsObservationObjectElement Element, const FName Name)
@@ -3086,7 +3086,7 @@ bool ULearningAgentsObservationObject::GetDirectionAlongSplineObservation(FVecto
 	return GetDirectionObservation(OutDirection, Element, RelativeTransform, Name);
 }
 
-bool ULearningAgentsObservationObject::GetPropertiesAlongSplineObservation(FVector& OutLocation, bool& bOutIsClosedLoop, float& OutAngle, float& OutPropotion, FVector& OutDirection, const FLearningAgentsObservationObjectElement Element, const FTransform RelativeTransform, const float TranslationScale, const FName Name)
+bool ULearningAgentsObservationObject::GetPropertiesAlongSplineObservation(FVector& OutLocation, bool& bOutIsClosedLoop, float& OutAngle, float& OutPropotion, FVector& OutDirection, const FLearningAgentsObservationObjectElement Element, const FTransform RelativeTransform, const float LocationScale, const FName Name)
 {
 	TStaticArray<FName, 3> OutElementNames;
 	TStaticArray<FLearningAgentsObservationObjectElement, 3> OutElements;
@@ -3101,7 +3101,7 @@ bool ULearningAgentsObservationObject::GetPropertiesAlongSplineObservation(FVect
 	}
 
 	const int32 LocationElement = MakeArrayView(OutElementNames).Find(TEXT("Location"));
-	if (LocationElement == INDEX_NONE || !GetLocationAlongSplineObservation(OutLocation, OutElements[LocationElement], RelativeTransform, TranslationScale))
+	if (LocationElement == INDEX_NONE || !GetLocationAlongSplineObservation(OutLocation, OutElements[LocationElement], RelativeTransform, LocationScale))
 	{
 		OutLocation = FVector::ZeroVector;
 		bOutIsClosedLoop = false;

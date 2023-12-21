@@ -11,15 +11,15 @@ float ULearningAgentsRewards::RewardOnCondition(const bool bCondition, const flo
 	return bCondition ? RewardScale : 0.0f;
 }
 
-float ULearningAgentsRewards::RewardOnTranslationDifferenceBelowThreshold(const FVector TranslationA, const FVector TranslationB, const float DistanceThreshold, const float RewardScale)
+float ULearningAgentsRewards::RewardOnLocationDifferenceBelowThreshold(const FVector LocationA, const FVector LocationB, const float DistanceThreshold, const float RewardScale)
 {
-	return RewardOnCondition(FVector::Distance(TranslationA, TranslationB) < DistanceThreshold, RewardScale);
+	return RewardOnCondition(FVector::Distance(LocationA, LocationB) < DistanceThreshold, RewardScale);
 }
 
-float ULearningAgentsRewards::RewardFromTranslationSimilarity(const FVector TranslationA, const FVector TranslationB, const float TranslationScale, const float RewardScale)
+float ULearningAgentsRewards::RewardFromLocationSimilarity(const FVector LocationA, const FVector LocationB, const float LocationScale, const float RewardScale)
 {
-	const float TranslationDifference = FVector::Dist(TranslationA, TranslationB);
-	return RewardScale * FMath::InvExpApprox(FMath::Square(TranslationDifference / FMath::Max(TranslationScale, UE_SMALL_NUMBER)));
+	const float LocationDifference = FVector::Dist(LocationA, LocationB);
+	return RewardScale * FMath::InvExpApprox(FMath::Square(LocationDifference / FMath::Max(LocationScale, UE_SMALL_NUMBER)));
 }
 
 float ULearningAgentsRewards::RewardFromAngleSimilarity(const float AngleA, const float AngleB, const float AngleScale, const float RewardScale)
@@ -94,15 +94,15 @@ float ULearningAgentsRewards::PenaltyOnCondition(const bool bCondition, const fl
 	return bCondition ? -PenaltyScale : 0.0f;
 }
 
-float ULearningAgentsRewards::PenaltyOnTranslationDifferenceAboveThreshold(const FVector TranslationA, const FVector TranslationB, const float DistanceThreshold, const float PenaltyScale)
+float ULearningAgentsRewards::PenaltyOnLocationDifferenceAboveThreshold(const FVector LocationA, const FVector LocationB, const float DistanceThreshold, const float PenaltyScale)
 {
-	return PenaltyOnCondition(FVector::Distance(TranslationA, TranslationB) > DistanceThreshold, PenaltyScale);
+	return PenaltyOnCondition(FVector::Distance(LocationA, LocationB) > DistanceThreshold, PenaltyScale);
 }
 
-float ULearningAgentsRewards::PenaltyFromTranslationDifference(const FVector TranslationA, const FVector TranslationB, const float TranslationScale, const float PenaltyScale)
+float ULearningAgentsRewards::PenaltyFromLocationDifference(const FVector LocationA, const FVector LocationB, const float LocationScale, const float PenaltyScale)
 {
-	const float TranslationDifference = FVector::Dist(TranslationA, TranslationB);
-	return PenaltyScale  * (-TranslationDifference / FMath::Max(TranslationScale, UE_SMALL_NUMBER));
+	const float LocationDifference = FVector::Dist(LocationA, LocationB);
+	return PenaltyScale  * (-LocationDifference / FMath::Max(LocationScale, UE_SMALL_NUMBER));
 }
 
 float ULearningAgentsRewards::PenaltyFromAngleDifference(const float AngleA, const float AngleB, const float AngleScale, const float PenaltyScale)

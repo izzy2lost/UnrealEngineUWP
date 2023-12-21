@@ -72,14 +72,14 @@ public:
 	static ELearningAgentsCompletion CompletionOnEpisodeStepsRecorded(const int32 EpisodeSteps, const int32 MaxEpisodeSteps = 64, const ELearningAgentsCompletion CompletionType = ELearningAgentsCompletion::Truncation);
 
 	UFUNCTION(BlueprintPure, Category = "LearningAgents")
-	static ELearningAgentsCompletion CompletionOnTranslationDifferenceBelowThreshold(const FVector TranslationA, const FVector TranslationB, const float DistanceThreshold = 100.0f, const ELearningAgentsCompletion CompletionType = ELearningAgentsCompletion::Termination);
+	static ELearningAgentsCompletion CompletionOnLocationDifferenceBelowThreshold(const FVector LocationA, const FVector LocationB, const float DistanceThreshold = 100.0f, const ELearningAgentsCompletion CompletionType = ELearningAgentsCompletion::Termination);
 
 	UFUNCTION(BlueprintPure, Category = "LearningAgents")
-	static ELearningAgentsCompletion CompletionOnTranslationDifferenceAboveThreshold(const FVector TranslationA, const FVector TranslationB, const float DistanceThreshold = 100.0f, const ELearningAgentsCompletion CompletionType = ELearningAgentsCompletion::Termination);
+	static ELearningAgentsCompletion CompletionOnLocationDifferenceAboveThreshold(const FVector LocationA, const FVector LocationB, const float DistanceThreshold = 100.0f, const ELearningAgentsCompletion CompletionType = ELearningAgentsCompletion::Termination);
 
 	UFUNCTION(BlueprintPure, Category = "LearningAgents")
-	static ELearningAgentsCompletion CompletionOnTranslationOutsideBounds(
-		const FVector Translation, 
+	static ELearningAgentsCompletion CompletionOnLocationOutsideBounds(
+		const FVector Location, 
 		const FTransform BoundsTransform = FTransform(),
 		const FVector BoundsMins = FVector(-100.0f, -100.0f, -100.0f),
 		const FVector BoundsMaxs = FVector(+100.0f, +100.0f, +100.0f),
