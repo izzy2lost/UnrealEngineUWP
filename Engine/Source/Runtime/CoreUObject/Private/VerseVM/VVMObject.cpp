@@ -43,9 +43,15 @@ VObject& VObject::New(
 	const TArray<VValue>& InValues,
 	TArray<VProcedure*>& Initializers)
 {
+
 	// Combine the class and archetype to determine which fields will live in the object.
 	VEmergentType& NewEmergentType = InClass.GetOrCreateEmergentTypeForArchetype(Context, InFields);
 	VObject& NewObject = VObject::New(Context, NewEmergentType);
+
+	if (InClass.IsStruct())
+	{
+		NewObject.Misc2 |= IsStructBit;
+	}
 
 	// Initialize fields from the archetype.
 	// NOTE: This assumes that the order of values matches the IDs of the field set.
@@ -84,14 +90,63 @@ VObject& VObject::New(
 
 bool VObject::EqualImpl(FRunningContext Context, VCell* Other, const TFunction<void(::Verse::VValue, ::Verse::VValue)>& HandlePlaceholder)
 {
-	// TODO: Should be different for structs that are comparable.
-	return this == Other;
+	if (!IsStruct())
+	{
+		return this == Other;
+	}
+
+	if (!Other->IsA<VObject>())
+	{
+		return false;
+	}
+
+	if (GetEmergentType()->Type != Other->GetEmergentType()->Type)
+	{
+		return false;
+	}
+
+	if (GetEmergentType()->Shape->Fields.Num() != Other->GetEmergentType()->Shape->Fields.Num())
+	{
+		return false;
+	}
+
+	// TODO: Optimize for when objects share emergent type
+	VObject& OtherObject = Other->StaticCast<VObject>();
+	for (VShape::FieldsMap::TConstIterator It = GetEmergentType()->Shape->Fields; It; ++It)
+	{
+		VValue FieldValue = OtherObject.LoadField(Context, *It.Key().Get());
+		if (!FieldValue)
+		{
+			return false;
+		}
+
+		if (!VValue::Equal(Context, LoadField(Context, *It.Key().Get()), FieldValue, HandlePlaceholder))
+		{
+			return false;
+		}
+	}
+	return true;
 }
 
+// TODO: Make this (And all other container TypeHash funcs) handle placeholders appropriately
 uint32 VObject::GetTypeHashImpl()
 {
-	// TODO: Should be different for structs that are comparable.
-	return PointerHash(this);
+	if (!IsStruct())
+	{
+		return PointerHash(this);
+	}
+
+	// Hash nominal type
+	uint32 Result = PointerHash(GetEmergentType()->Type.Get());
+	for (VShape::FieldsMap::TConstIterator It = GetEmergentType()->Shape->Fields; It; ++It)
+	{
+		// Hash Field Name
+		::HashCombineFast(Result, GetTypeHash(It.Key()));
+
+		// Hash Value
+		It.Value().Type == EFieldType::Constant ? ::HashCombineFast(Result, GetTypeHash(It.Value().Value)) : ::HashCombineFast(Result, GetTypeHash(Data[It.Value().Index]));
+	}
+	return Result;
 }
 
 } // namespace Verse

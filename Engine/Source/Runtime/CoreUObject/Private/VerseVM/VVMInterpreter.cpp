@@ -1261,7 +1261,6 @@ class FInterpreter
 	FOpResult NewClassImpl(OpType& Op)
 	{
 		VConstructor* Constructor = Op.Constructor.Get();
-
 		TArray<VClass*> InheritedClasses = {};
 		const uint32 NumInherited = Op.Inherited.Num();
 		InheritedClasses.Reserve(NumInherited);
@@ -1269,13 +1268,10 @@ class FInterpreter
 		{
 			const VValue CurrentArg = GetOperand(Op.Inherited[Index]);
 			REQUIRE_CONCRETE(CurrentArg);
-			VClass& InheritedClass = CurrentArg.StaticCast<VClass>();
-			InheritedClasses.Add(&InheritedClass);
+			InheritedClasses.Add(&CurrentArg.StaticCast<VClass>());
 		}
-
 		VClass& NewClass = VClass::New(Context, *Constructor, InheritedClasses);
 		DEF(Op.Dest, NewClass);
-
 		return {FOpResult::Normal};
 	}
 

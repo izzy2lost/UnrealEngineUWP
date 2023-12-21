@@ -12,9 +12,8 @@ namespace Verse
 DEFINE_DERIVED_VCPPCLASSINFO(VType);
 DEFINE_TRIVIAL_VISIT_REFERENCES(VType);
 
-VType::VType(FAllocationContext Context, EVerseTypeTag T)
-	: VCell(Context, VEmergentTypeCreator::EmergentTypeForType.Get())
-	, Tag(T)
+VType::VType(FAllocationContext Context, VEmergentType* Type)
+	: VCell(Context, Type)
 {
 }
 
@@ -26,7 +25,14 @@ TGlobalHeapPtr<VTrivialType> VTrivialType::Singleton;
 void VTrivialType::Initialize(FAllocationContext Context)
 {
 	V_DIE_UNLESS(VEmergentTypeCreator::EmergentTypeForType);
+	// Set CppInfo so VCell casting functionality works
+	VEmergentTypeCreator::EmergentTypeForType->CppClassInfo = &StaticCppClassInfo;
 	Singleton.Set(Context, new (Context.AllocateFastCell(sizeof(VTrivialType))) VTrivialType(Context));
+}
+
+VTrivialType::VTrivialType(FAllocationContext Context)
+	: VType(Context, VEmergentTypeCreator::EmergentTypeForType.Get())
+{
 }
 
 } // namespace Verse

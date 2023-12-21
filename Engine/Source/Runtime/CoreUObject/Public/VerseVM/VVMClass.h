@@ -14,25 +14,10 @@ namespace Verse
 struct VUniqueString;
 struct VProcedure;
 
-// TODO: (yiliang.siew) Need to have enough info so that can do dynamic casts in Verse at runtime.
-// TODO: (yiliang.siew) Maybe use this to store the inherited types instead?
-struct VTypeClass : VType
+enum class EStructOrClass : uint8
 {
-	static constexpr EVerseTypeTag Tag = EVerseTypeTag::Class;
-	static VTypeClass* New(FAllocationContext Context)
-	{
-		return new (Context.AllocateFastCell(sizeof(VTypeClass))) VTypeClass(Context);
-	}
-	static bool Equals(const VType& Type)
-	{
-		return Type.IsA<VTypeClass>();
-	}
-
-private:
-	explicit VTypeClass(FAllocationContext& Context)
-		: VType(Context, Tag)
-	{
-	}
+	Class,
+	Struct
 };
 
 /// This provides a custom comparison that allows us to do pointer-based compares of each unique string set, rather than hash-based comparisons.
@@ -134,10 +119,17 @@ private:
 	}
 };
 
-/// A first-class Verse value representing a class.
-struct VClass : VHeapValue
+struct VClass : VType
 {
-	DECLARE_DERIVED_VCPPCLASSINFO(COREUOBJECT_API, VHeapValue);
+	DECLARE_DERIVED_VCPPCLASSINFO(COREUOBJECT_API, VType);
+	COREUOBJECT_API static TGlobalTrivialEmergentTypePtr<&StaticCppClassInfo> GlobalTrivialEmergentType;
+
+	/// Vends an emergent type based on requested fields to override in the class archetype instantiation.
+	VEmergentType& GetOrCreateEmergentTypeForArchetype(FAllocationContext Context, VUniqueStringSet& ArchetypeFieldNames);
+
+	VConstructor& GetConstructor() { return *Constructor; }
+
+	bool IsStruct() const { return StructOrClass == EStructOrClass::Struct; };
 
 	/**
 	 * Creates a new class.
@@ -145,15 +137,10 @@ struct VClass : VHeapValue
 	 * @param InConstructor The sequence of fields and blocks in the class body.
 	 * @param InInherited   An array of base classes in order of inheritance.
 	 */
-	static VClass& New(FAllocationContext Context, VConstructor& InConstructor, const TArray<VClass*>& InInherited);
+	static VClass& New(FAllocationContext Context, VConstructor& InConstructor, const TArray<VClass*>& InInherited, EStructOrClass InStructOrClass = EStructOrClass::Class);
 
-	/// Vends an emergent type based on requested fields to override in the class archetype instantiation.
-	VEmergentType& GetOrCreateEmergentTypeForArchetype(FAllocationContext Context, VUniqueStringSet& ArchetypeFieldNames);
-
-	VConstructor& GetConstructor() { return *Constructor; }
-
-private:
-	VClass(FAllocationContext Context, VConstructor& InConstructor, const TArray<VClass*>& InInherited);
+protected:
+	VClass(FAllocationContext Context, VConstructor& InConstructor, const TArray<VClass*>& InInherited, EStructOrClass InStructOrClass);
 
 	/// Append to `Entries` those elements of `Base` which are not already overridden, indicated by `Fields`.
 	static void Extend(TSet<VUniqueString*>& Fields, TArray<VConstructor::VEntry>& Entries, const VConstructor& Base);
@@ -165,6 +152,8 @@ private:
 	/// The combined sequence of initializers and blocks in this class and its superclasses, in execution order.
 	/// Actual object construction may further override some elements of this sequence.
 	TWriteBarrier<VConstructor> Constructor;
+
+	EStructOrClass StructOrClass;
 
 	uint32 NumInherited;
 	TWriteBarrier<VClass> Inherited[];

@@ -10,6 +10,10 @@
 
 namespace Verse
 {
+DEFINE_DERIVED_VCPPCLASSINFO(VTypeArray)
+DEFINE_TRIVIAL_VISIT_REFERENCES(VTypeArray);
+TGlobalTrivialEmergentTypePtr<&VTypeArray::StaticCppClassInfo> VTypeArray::GlobalTrivialEmergentType;
+
 DEFINE_DERIVED_VCPPCLASSINFO(VArray);
 DEFINE_TRIVIAL_VISIT_REFERENCES(VArray);
 TGlobalTrivialEmergentTypePtr<&VArray::StaticCppClassInfo> VArray::GlobalTrivialEmergentType;

@@ -12,6 +12,8 @@ struct VClass;
 struct VProcedure;
 struct VUniqueString;
 
+static constexpr uint8 IsStructBit = 4;
+
 /// A Verse object that may store fields and associated values for those fields on it.
 /// An object points to an emergent type, which in turn points to a "shape".
 /// A "shape" is a dynamic memory layout of fields and their offsets.
@@ -39,6 +41,8 @@ struct VObject : VHeapValue
 	VRestValue& GetFieldSlot(FAllocationContext Context, VUniqueString& Name);
 
 	void SetField(FAllocationContext Context, VUniqueString& Name, VValue Value);
+
+	bool IsStruct() const { return !!(Misc2 & IsStructBit); };
 
 private:
 	COREUOBJECT_API bool EqualImpl(FRunningContext Context, VCell* Other, const TFunction<void(::Verse::VValue, ::Verse::VValue)>& HandlePlaceholder);

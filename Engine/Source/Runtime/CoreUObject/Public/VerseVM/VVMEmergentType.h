@@ -43,7 +43,7 @@ struct VEmergentType final : VCell
 
 	friend uint32 GetTypeHash(const VEmergentType& EmergentType)
 	{
-		uint32 Hash = HashCombineFast(::GetTypeHash(EmergentType.Shape.Get()), ::GetTypeHash(EmergentType.Type.Get()->Tag));
+		uint32 Hash = HashCombineFast(::GetTypeHash(EmergentType.Shape.Get()), ::GetTypeHash(EmergentType.Type.Get()));
 		Hash = HashCombineFast(Hash, ::GetTypeHash(EmergentType.CppClassInfo));
 		return Hash;
 	}

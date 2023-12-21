@@ -23,7 +23,7 @@ inline const VValue VObject::LoadField(FAllocationContext Context, const VUnique
 	const VShape::VEntry* Field = GetEmergentType()->Shape->GetField(Context, Name);
 	if (Field == nullptr)
 	{
-		V_DIE("Field: %hs was not found!", Name.AsCString());
+		return VValue();
 	}
 	switch (Field->Type)
 	{

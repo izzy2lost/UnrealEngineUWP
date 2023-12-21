@@ -32,14 +32,15 @@ inline uint32 FEmergentTypesCacheKeyFuncs::GetKeyHash(const VUniqueStringSet& Ke
 	return GetTypeHash(Key);
 }
 
-inline VClass& VClass::New(FAllocationContext Context, VConstructor& InConstructor, const TArray<VClass*>& InInherited)
+inline VClass& VClass::New(FAllocationContext Context, VConstructor& InConstructor, const TArray<VClass*>& InInherited, EStructOrClass InStructOrClass)
 {
 	const size_t NumBytes = offsetof(VClass, Inherited) + InInherited.Num() * sizeof(Inherited[0]);
-	return *new (Context.Allocate(FHeap::DestructorSpace, NumBytes)) VClass(Context, InConstructor, InInherited);
+	return *new (Context.AllocateFastCell(NumBytes)) VClass(Context, InConstructor, InInherited, InStructOrClass);
 }
 
-inline VClass::VClass(FAllocationContext Context, VConstructor& InConstructor, const TArray<VClass*>& InInherited)
-	: VHeapValue(Context, VEmergentTypeCreator::GetOrCreate(Context, VTypeCreator::GetOrCreate<VTypeClass>(Context), &StaticCppClassInfo))
+inline VClass::VClass(FAllocationContext Context, VConstructor& InConstructor, const TArray<VClass*>& InInherited, EStructOrClass InStructOrClass)
+	: VType(Context, &GlobalTrivialEmergentType.Get(Context))
+	, StructOrClass(InStructOrClass)
 	, NumInherited(InInherited.Num())
 {
 	if (InInherited.IsEmpty())

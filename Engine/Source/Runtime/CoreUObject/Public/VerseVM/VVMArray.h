@@ -20,7 +20,9 @@ struct VInt;
 // No type information for the parts here.
 struct VTypeArray : VType
 {
-	static constexpr EVerseTypeTag Tag = EVerseTypeTag::Array;
+	DECLARE_DERIVED_VCPPCLASSINFO(COREUOBJECT_API, VType);
+	COREUOBJECT_API static TGlobalTrivialEmergentTypePtr<&StaticCppClassInfo> GlobalTrivialEmergentType;
+
 	uint32 Size;
 
 	static VTypeArray* New(FAllocationContext Context, uint32 S)
@@ -44,7 +46,7 @@ struct VTypeArray : VType
 
 private:
 	explicit VTypeArray(FAllocationContext& Context, uint32 S)
-		: VType(Context, Tag)
+		: VType(Context, &GlobalTrivialEmergentType.Get(Context))
 		, Size(S)
 	{
 	}
