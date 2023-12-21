@@ -1667,9 +1667,12 @@ void FMediaPlayerFacade::Flush(bool bExcludePlayer, bool bOnSeek)
 		SeekIndex = 0;
 	}
 
-	// Logically we have no old sample anymore
+	// Logically we have no old sample anymore if we did seek
 	// (as in: we will start asking for a new one until we get one - even with a rate of zero, if we had a non-zero one ever before)
-	LastVideoSampleProcessedTimeRange = TRange<FMediaTimeStamp>::Empty();
+	if (bOnSeek)
+	{
+		LastVideoSampleProcessedTimeRange = TRange<FMediaTimeStamp>::Empty();
+	}
 
 	// Invalidate next video time to fetch (none-audio case)
 	NextEstVideoTimeAtFrameStart.Invalidate();
@@ -2896,11 +2899,49 @@ void FMediaPlayerFacade::ProcessAudioSamples(IMediaSamples& Samples, const TRang
 bool FMediaPlayerFacade::IsVideoSampleStillGood(const TRange<FMediaTimeStamp>& LastSampleTimeRange, const TRange<FMediaTimeStamp>& TimeRange, bool bReverse) const
 {
 	// If we have no valid time range or a seek is in progress we assume the current frame can be considered "done" in any case
-	if (!TimeRange.IsEmpty() && !SeekTargetTime.IsValid())
+	if (!TimeRange.IsEmpty() && !SeekTargetTime.IsValid() && !LastSampleTimeRange.IsEmpty())
 	{
 		// This is not the case: check more detailed!
+
+		// This better be true at all times
+		check(LastSampleTimeRange.GetLowerBoundValue().SequenceIndex == LastSampleTimeRange.GetUpperBoundValue().SequenceIndex);
+
+		TRange<FMediaTimeStamp> TimeRange0;
+
+		// If we encounter a time range crossing some sequence index change, we need to check if we can "unroll" it...
+		uint64 LowerSeqIdx = TimeRange.GetLowerBoundValue().SequenceIndex;
+		uint64 UpperSeqIdx = TimeRange.GetUpperBoundValue().SequenceIndex;
+		if (LowerSeqIdx != UpperSeqIdx)
+		{
+			if (FMediaTimeStamp::GetPrimaryIndex(LowerSeqIdx) != FMediaTimeStamp::GetPrimaryIndex(UpperSeqIdx))
+			{
+				// If we have a primary index change, we cannot assume any valid frame around...
+				return false;
+			}
+
+			// So we must have a loop index change. Compute how many loops and change the range into one "unrolled" one as indicated by the playback direction...
+			int64 LoopIdxDiff = FMediaTimeStamp::GetSecondaryIndex(LowerSeqIdx)
+							  - FMediaTimeStamp::GetSecondaryIndex(UpperSeqIdx);
+			check(LoopIdxDiff > 0);
+
+			double Duration = Player->GetControls().GetDuration().GetTotalSeconds();
+
+			if (!bReverse)
+			{
+				TimeRange0 = TRange<FMediaTimeStamp>(FMediaTimeStamp(TimeRange.GetLowerBoundValue().Time, 0), FMediaTimeStamp(TimeRange.GetUpperBoundValue().Time + FTimespan::FromSeconds(LoopIdxDiff * Duration), 0));
+			}
+			else
+			{
+				TimeRange0 = TRange<FMediaTimeStamp>(FMediaTimeStamp(TimeRange.GetLowerBoundValue().Time - FTimespan::FromSeconds(LoopIdxDiff * Duration), 0), FMediaTimeStamp(TimeRange.GetUpperBoundValue().Time, 0));
+			}
+		}
+		else
+		{
+			// Simple case, just bring everything down to "zero sequence index" for ease of processing below...
+			TimeRange0 = TRange<FMediaTimeStamp>(FMediaTimeStamp(TimeRange.GetLowerBoundValue().Time, 0), FMediaTimeStamp(TimeRange.GetUpperBoundValue().Time, 0));
+		}
+
 		TRange<FMediaTimeStamp> LastSampleTimeRange0(FMediaTimeStamp(LastSampleTimeRange.GetLowerBoundValue().Time, 0), FMediaTimeStamp(LastSampleTimeRange.GetUpperBoundValue().Time, 0));
-		TRange<FMediaTimeStamp> TimeRange0(FMediaTimeStamp(TimeRange.GetLowerBoundValue().Time, 0), FMediaTimeStamp(TimeRange.GetUpperBoundValue().Time, 0));
 
 		// Is the sample time range at all still valid?
 		if (LastSampleTimeRange0.Overlaps(TimeRange0))
@@ -2910,31 +2951,16 @@ bool FMediaPlayerFacade::IsVideoSampleStillGood(const TRange<FMediaTimeStamp>& L
 
 			// Compute the "theoretical" next sample range...
 			TRange<FMediaTimeStamp> NextSampleTimeRange = !bReverse ? TRange<FMediaTimeStamp>(LastSampleTimeRange0.GetUpperBoundValue(), LastSampleTimeRange0.GetUpperBoundValue() + LastSampleTimeRange0.Size<FMediaTimeStamp>().Time)
-				: TRange<FMediaTimeStamp>(LastSampleTimeRange0.GetLowerBoundValue() - LastSampleTimeRange0.Size<FMediaTimeStamp>().Time, LastSampleTimeRange0.GetLowerBoundValue());
+																	: TRange<FMediaTimeStamp>(LastSampleTimeRange0.GetLowerBoundValue() - LastSampleTimeRange0.Size<FMediaTimeStamp>().Time, LastSampleTimeRange0.GetLowerBoundValue());
 
-			FTimespan Duration = Player->GetControls().GetDuration();
-
-			if (!Player->GetControls().IsLooping())
-			{
-				// If we are not looping we need to clamp against the media's duration
-				// (we assume it starts at zero here!)
-				NextSampleTimeRange = TRange<FMediaTimeStamp>::Intersection(NextSampleTimeRange, TRange<FMediaTimeStamp>(FMediaTimeStamp(0, NextSampleTimeRange.GetLowerBoundValue().SequenceIndex), FMediaTimeStamp(Duration, NextSampleTimeRange.GetLowerBoundValue().SequenceIndex)));
-			}
-			else
-			{
-				if (NextSampleTimeRange.GetLowerBoundValue().Time >= Duration)
-				{
-					check(!bReverse);
-					NextSampleTimeRange = TRange<FMediaTimeStamp>(FMediaTimeStamp(NextSampleTimeRange.GetLowerBoundValue().Time - Duration, FMediaTimeStamp::AdjustPrimaryIndex(NextSampleTimeRange.GetLowerBoundValue().SequenceIndex, 1)),
-						FMediaTimeStamp(NextSampleTimeRange.GetUpperBoundValue().Time - Duration, FMediaTimeStamp::AdjustPrimaryIndex(NextSampleTimeRange.GetUpperBoundValue().SequenceIndex, 1)));
-				}
-				else if (NextSampleTimeRange.GetLowerBoundValue().Time < FTimespan::Zero())
-				{
-					check(bReverse);
-					NextSampleTimeRange = TRange<FMediaTimeStamp>(FMediaTimeStamp(NextSampleTimeRange.GetLowerBoundValue().Time + Duration, FMediaTimeStamp::AdjustPrimaryIndex(NextSampleTimeRange.GetLowerBoundValue().SequenceIndex, -1)),
-						FMediaTimeStamp(NextSampleTimeRange.GetUpperBoundValue().Time + Duration, FMediaTimeStamp::AdjustPrimaryIndex(NextSampleTimeRange.GetUpperBoundValue().SequenceIndex, -1)));
-				}
-			}
+			// Note: Loops (or the end of the timeline in non-looping setups)
+			// 
+			// - We could check for them and generate proper changes to the sequence index
+			// - Doing this would leave us with quite complex setups to compute the coverage
+			// - We opt for a cleaner, simpler approach: as we are NOT interested into proper PTS values, we can safely work with an "inifite" timeline when computing any overlaps, coverage and such
+			// 
+			// --> we simply keep what we compute above!
+			//
 
 			// Compute which one is larger inside the current range...
 			int64 LastSampleCoverage = TRange<FMediaTimeStamp>::Intersection(TimeRange0, LastSampleTimeRange0).Size<FMediaTimeStamp>().Time.GetTicks();
@@ -3033,7 +3059,8 @@ bool FMediaPlayerFacade::ProcessVideoSamples(IMediaSamples& Samples, const TRang
 		// Yes. If we are in blocking playback mode we need to make sure that the sample is really in the range we asked for and block on...
 		// (same players might return an older sample as stop-gap measure if nothing can be found in the current range)
 
-		TRange<FMediaTimeStamp> SampleTimeRange(Sample->GetTime(), Sample->GetTime() + Sample->GetDuration());
+		FMediaTimeStamp SampleTime = Sample->GetTime();
+		TRange<FMediaTimeStamp> SampleTimeRange(SampleTime, SampleTime + Sample->GetDuration());
 
 		// Enqueue the sample to render
 		// (we use a queue to stay compatible with existing structure and older sinks - new sinks will read this single entry right away on the gamethread

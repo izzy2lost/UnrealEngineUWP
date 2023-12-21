@@ -650,7 +650,7 @@ void FImgMediaPlayer::FlushSamples()
 	{
 		CurrentSeekIndex = 0;
 		LastFetchTime = FTimespan::MinValue();
-		Loader->ResetFetchLogic();
+		Loader->Flush();
 	}
 }
 

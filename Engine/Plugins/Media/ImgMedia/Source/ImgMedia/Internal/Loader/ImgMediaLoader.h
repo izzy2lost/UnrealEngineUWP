@@ -369,9 +369,9 @@ public:
 	bool RequestFrame(FTimespan Time, float PlayRate, bool Loop);
 
 	/**
-	 * Reset "queued fetch" related state used to emulate player output queue behavior
+	 * Flush state if queue emulation
 	 */
-	void ResetFetchLogic();
+	void Flush();
 
 	/**
 	 * Tell the loader if playback is blocking.
@@ -547,6 +547,11 @@ protected:
 	 */
 	const TSharedPtr<FImgMediaFrame, ESPMode::ThreadSafe>* GetCachedFrame(int32 InFrameNumber);
 
+	/**
+	 * Reset "queued fetch" related state used to emulate player output queue behavior
+	 */
+	void ResetFetchLogic();
+
 private:
 
 	/** Critical section for synchronizing access to Frames. */
@@ -638,10 +643,9 @@ private:
 	/** State related to "queue style" frame access functions */
 	struct
 	{
-		int32 LastFrameIndex;
-		FMediaTimeStamp LastTimeStamp;
-		FTimespan LastDuration;
-		int32 LoopIndex;
+		FMediaTimeStamp LastTimeStamp;	// Current playhead / last delivered sample PTS
+		FTimespan LastDuration;			// Duration of a frame / zero after seek or playback start
+		int32 LoopIndex;				// Current loop index to be encoded into sequence index of timestamp
 	} QueuedSampleFetch;
 
 private:
