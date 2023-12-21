@@ -1,18 +1,24 @@
 // Copyright Epic Games, Inc. All Rights Reserved.
 
+
+// Copyright Epic Games, Inc. All Rights Reserved.
+
 using UnrealBuildTool;
 
-public class HordeTest : ModuleRules
+namespace UnrealBuildTool.Rules
 {
-	public HordeTest(ReadOnlyTargetRules Target) : base(Target)
+	public class HordeTest : ModuleRules
 	{
-		PrivateDependencyModuleNames.AddRange(
-			new string[] {
+		public HordeTest(ReadOnlyTargetRules Target) : base(Target)
+		{
+			PrivateDependencyModuleNames.AddRange(
+				new string[] {
 				"Core",
 				"Horde",
 				"DesktopPlatform",
 				"HTTP"
-			}
-		);
+				}
+			);
+		}
 	}
 }

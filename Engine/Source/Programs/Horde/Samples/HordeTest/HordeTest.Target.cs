@@ -1,12 +1,12 @@
 // Copyright Epic Games, Inc. All Rights Reserved.
 
 using UnrealBuildTool;
-using System.Collections.Generic;
 
 [SupportedPlatforms(UnrealPlatformClass.Desktop)]
+[System.Diagnostics.CodeAnalysis.SuppressMessage("Design", "CA1050:Declare types in namespaces", Justification = "<Pending>")]
 public class HordeTestTarget : TargetRules
 {
-	public HordeTestTarget(TargetInfo Target) : base(Target)
+	public HordeTestTarget(TargetInfo target) : base(target)
 	{
 		Type = TargetType.Program;
 		LinkType = TargetLinkType.Monolithic;
