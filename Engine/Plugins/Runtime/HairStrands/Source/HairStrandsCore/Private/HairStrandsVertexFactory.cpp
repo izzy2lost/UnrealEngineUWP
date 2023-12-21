@@ -214,7 +214,7 @@ void FHairStrandsVertexFactory::Copy(const FHairStrandsVertexFactory& Other)
 {
 	FHairStrandsVertexFactory* VertexFactory = this;
 	const FDataType* DataCopy = &Other.Data;
-	ENQUEUE_RENDER_COMMAND(FHairStrandsVertexFactoryCopyData)(
+	ENQUEUE_RENDER_COMMAND(FHairStrandsVertexFactoryCopyData)(/*UE::RenderCommandPipe::Groom,*/
 		[VertexFactory, DataCopy](FRHICommandListImmediate& RHICmdList)
 		{
 			VertexFactory->Data = *DataCopy;

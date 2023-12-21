@@ -438,7 +438,7 @@ void FGroomTextureBuilder::BuildFollicleTexture(const TArray<FFollicleInfo>& InC
 			}
 
 			const EPixelFormat Format = OutTexture->GetPixelFormat(0);
-			ENQUEUE_RENDER_COMMAND(FFollicleTextureQuery)(
+			ENQUEUE_RENDER_COMMAND(FFollicleTextureQuery)(/*UE::RenderCommandPipe::Groom,*/
 			[Resolution, MipCount, Format, GPUInfos, OutTexture](FRHICommandListImmediate& RHICmdList)
 			{
 				if (OutTexture->GetResource())

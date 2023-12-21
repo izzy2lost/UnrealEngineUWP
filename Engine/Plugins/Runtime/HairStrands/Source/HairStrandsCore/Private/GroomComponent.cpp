@@ -1718,7 +1718,7 @@ void UGroomComponent::SetForcedLOD(int32 CurrLODIndex)
 	if (FHairStrandsSceneProxy* GroomSceneProxy = (FHairStrandsSceneProxy*)SceneProxy)
 	{
 		const EHairLODSelectionType LocalLODSelectionType = LODSelectionType;
-		ENQUEUE_RENDER_COMMAND(FHairComponentSendLODIndex)(
+		ENQUEUE_RENDER_COMMAND(FHairComponentSendLODIndex)(/*UE::RenderCommandPipe::Groom,*/
 		[GroomSceneProxy, CurrLODIndex, LocalLODSelectionType, bHasLODSwitch, bPredictionLoad](FRHICommandListImmediate& RHICmdList)
 		{
 			for (const TRefCountPtr<FHairGroupInstance>& Instance : GroomSceneProxy->HairGroupInstances)
@@ -2233,7 +2233,7 @@ void UGroomComponent::UpdateSimulatedGroups()
 		TArray<TRefCountPtr<FHairGroupInstance>> LocalInstances = HairGroupInstances;
 		UGroomAsset* LocalGroomAsset = GroomAsset;
 		UGroomBindingAsset* LocalBindingAsset = BindingAsset;
-		ENQUEUE_RENDER_COMMAND(FHairStrandsTick_UEnableSimulatedGroups)(
+		ENQUEUE_RENDER_COMMAND(FHairStrandsTick_UEnableSimulatedGroups)(/*UE::RenderCommandPipe::Groom,*/
 			[LocalInstances, LocalGroomAsset, LocalBindingAsset, Id, bIsStrandsEnabled, LODIndex](FRHICommandListImmediate& RHICmdList)
 		{
 			int32 GroupIt = 0;
@@ -3356,7 +3356,7 @@ void UGroomComponent::TickAtThisTime(const float Time, bool bInIsRunning, bool b
 		}
 
 		// Queue the update for the render thread to sync it with GeometryCache rendering
-		ENQUEUE_RENDER_COMMAND(FGroomCacheUpdate)(
+		ENQUEUE_RENDER_COMMAND(FGroomCacheUpdate)(UE::RenderCommandPipe::Groom,
 		[this, Time](FRHICommandList& RHICmdList)
 		{
 			ElapsedTime = Time;
@@ -3526,7 +3526,7 @@ void UGroomComponent::TickComponent(float DeltaTime, enum ELevelTick TickType, F
 	{
 		TArray<TRefCountPtr<FHairGroupInstance>> LocalHairGroupInstances = HairGroupInstances;
 		const EHairLODSelectionType LocalLODSelectionType = LODSelectionType;
-		ENQUEUE_RENDER_COMMAND(FHairStrandsTick_TransformUpdate)(
+		ENQUEUE_RENDER_COMMAND(FHairStrandsTick_TransformUpdate)(/*UE::RenderCommandPipe::Groom,*/
 			[Id, FeatureLevel, LocalHairGroupInstances, EffectiveForceLOD, LocalLODSelectionType, bSwapBuffer, SkelLocalToTransform](FRHICommandListImmediate& RHICmdList)
 		{
 			for (const TRefCountPtr<FHairGroupInstance>& Instance : LocalHairGroupInstances)
@@ -3582,7 +3582,7 @@ void UGroomComponent::SendRenderDynamicData_Concurrent()
 		}
 
 		TArray<TRefCountPtr<FHairGroupInstance>> LocalHairGroupInstances = HairGroupInstances;
-		ENQUEUE_RENDER_COMMAND(FHairStrandsTick_TransformUpdate)(
+		ENQUEUE_RENDER_COMMAND(FHairStrandsTick_TransformUpdate)(/*UE::RenderCommandPipe::Groom,*/
 			[LocalHairGroupInstances, SkelLocalToTransform](FRHICommandListImmediate& RHICmdList)
 		{
 			for (const TRefCountPtr<FHairGroupInstance>& Instance : LocalHairGroupInstances)

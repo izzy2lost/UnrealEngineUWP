@@ -36,6 +36,8 @@
 #include "DerivedDataRequestOwner.h"
 #endif
 
+DEFINE_RENDER_COMMAND_PIPE(Groom, ERenderCommandPipeFlags::None);
+
 static int32 GHairStrandsBulkData_ReleaseAfterUse = 0;
 static FAutoConsoleVariableRef CVarHairStrandsBulkData_ReleaseAfterUse(TEXT("r.HairStrands.Strands.BulkData.ReleaseAfterUse"), GHairStrandsBulkData_ReleaseAfterUse, TEXT("Release CPU bulk data once hair groom/groom binding asset GPU resources are created. This saves memory"));
 

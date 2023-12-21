@@ -440,7 +440,7 @@ static void InitAtlasTexture(ResourceType* InResource, const FHairGroupCardsText
 
 	if (bHasValidTextures)
 	{
-		ENQUEUE_RENDER_COMMAND(HairStrandsCardsTextureCommand)(
+		ENQUEUE_RENDER_COMMAND(HairStrandsCardsTextureCommand)(/*UE::RenderCommandPipe::Groom,*/
 			[InResource, InTextures, InLayoutIndex](FRHICommandListImmediate& RHICmdList)
 		{
 			FSamplerStateRHIRef DefaultSampler = TStaticSamplerState<SF_AnisotropicLinear, AM_Clamp, AM_Clamp, AM_Clamp, 0, 8/*MaxAnisotropy*/>::GetRHI();
@@ -977,7 +977,7 @@ inline void InternalReleaseResource(T*& Resource)
 	if (Resource)
 	{
 		T* InResource = Resource;
-		ENQUEUE_RENDER_COMMAND(ReleaseHairResourceCommand)(
+		ENQUEUE_RENDER_COMMAND(ReleaseHairResourceCommand)(UE::RenderCommandPipe::Groom,
 			[InResource](FRHICommandList& RHICmdList)
 			{
 				InResource->ReleaseResource();
@@ -3567,7 +3567,7 @@ void UGroomAsset::CreateDebugData()
 
 			FHairStrandsDebugDatas* InData = &GroupData.Debug.Data;
 			FHairStrandsDebugResources* InResource = GroupResource.Debug.Resource;
-			ENQUEUE_RENDER_COMMAND(HairStrandsDebugResourceCommand)(
+			ENQUEUE_RENDER_COMMAND(HairStrandsDebugResourceCommand)(/*UE::RenderCommandPipe::Groom,*/
 				[InData, InResource](FRHICommandListImmediate& RHICmdList)
 				{
 					FRDGBuilder GraphBuilder(RHICmdList);

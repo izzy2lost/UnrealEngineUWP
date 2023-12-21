@@ -232,7 +232,7 @@ void UGroomBindingAsset::ReleaseResource()
 		{
 			FHairStrandsRestRootResource* InSimRootResources = Resource.SimRootResources;
 			FHairStrandsRestRootResource* InRenRootResources = Resource.RenRootResources;
-			ENQUEUE_RENDER_COMMAND(ReleaseHairStrandsResourceCommand)(
+			ENQUEUE_RENDER_COMMAND(ReleaseHairStrandsResourceCommand)(UE::RenderCommandPipe::Groom,
 				[InSimRootResources, InRenRootResources](FRHICommandList& RHICmdList)
 			{
 				if (InSimRootResources)
@@ -251,7 +251,7 @@ void UGroomBindingAsset::ReleaseResource()
 
 			for (FHairStrandsRestRootResource*& InCardsRootResources : Resource.CardsRootResources)
 			{
-				ENQUEUE_RENDER_COMMAND(ReleaseHairStrandsResourceCommand)(
+				ENQUEUE_RENDER_COMMAND(ReleaseHairStrandsResourceCommand)(UE::RenderCommandPipe::Groom,
 					[InCardsRootResources](FRHICommandList& RHICmdList)
 					{
 						if (InCardsRootResources)
@@ -272,7 +272,7 @@ void UGroomBindingAsset::ReleaseResource()
 	{
 		FHairStrandsRestRootResource* InSimRootResources = ResourceToDelete.SimRootResources;
 		FHairStrandsRestRootResource* InRenRootResources = ResourceToDelete.RenRootResources;
-		ENQUEUE_RENDER_COMMAND(ReleaseHairStrandsResourceCommand)(
+		ENQUEUE_RENDER_COMMAND(ReleaseHairStrandsResourceCommand)(UE::RenderCommandPipe::Groom,
 			[InSimRootResources, InRenRootResources](FRHICommandList& RHICmdList)
 		{
 			if (InSimRootResources)
