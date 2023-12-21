@@ -11,21 +11,21 @@
 
 //======================================================================================================================
 template<typename TParameterType> const TArray<FName>* FindNamesInSet(
-	const FRigidBodyNameRecords& NameRecords, const FName SetName)
+	const FPhysicsControlNameRecords& NameRecords, const FName SetName)
 {
 	return nullptr;
 }
 
 //======================================================================================================================
 template<> const TArray<FName>* FindNamesInSet<FRigidBodyControl>(
-	const FRigidBodyNameRecords& NameRecords, const FName SetName)
+	const FPhysicsControlNameRecords& NameRecords, const FName SetName)
 {
 	return NameRecords.ControlSets.Find(SetName);
 }
 
 //======================================================================================================================
 template<> const TArray<FName>* FindNamesInSet<FRigidBodyModifier>(
-	const FRigidBodyNameRecords& NameRecords, const FName SetName)
+	const FPhysicsControlNameRecords& NameRecords, const FName SetName)
 {
 	return NameRecords.BodyModifierSets.Find(SetName);
 }
@@ -192,6 +192,20 @@ FRigidBodyWithControlReference UPhysicsControlBPLibrary::ConvertToRigidBodyWithC
 	EAnimNodeReferenceConversionResult& Result)
 {
 	return FAnimNodeReference::ConvertToType<FRigidBodyWithControlReference>(Node, Result);
+}
+
+//======================================================================================================================
+FRigidBodyWithControlReference UPhysicsControlBPLibrary::SetOverridePhysicsAsset(
+	const FRigidBodyWithControlReference& Node, UPhysicsAsset* PhysicsAsset)
+{
+	Node.CallAnimNodeFunction<FAnimNode_RigidBodyWithControl>(
+		TEXT("SetOverridePhysicsAsset"),
+		[PhysicsAsset](FAnimNode_RigidBodyWithControl& Node)
+		{
+			Node.SetOverridePhysicsAsset(PhysicsAsset);
+		});
+
+	return Node;
 }
 
 //======================================================================================================================

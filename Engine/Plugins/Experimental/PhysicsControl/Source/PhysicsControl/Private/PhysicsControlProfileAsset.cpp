@@ -5,14 +5,19 @@
 
 //======================================================================================================================
 UPhysicsControlProfileAsset::UPhysicsControlProfileAsset()
-	: TestValue(1.0f)
 {
 }
 
 //======================================================================================================================
 void UPhysicsControlProfileAsset::Log()
 {
-	UE_LOG(LogTemp, Log, TEXT("%f"), TestValue)
+	UE_LOG(LogTemp, Log, TEXT("Number of initial controls = %d"), InitialControls.Num());
+	UE_LOG(LogTemp, Log, TEXT("Number of initial body modifiers = %d"), InitialBodyModifiers.Num());
+}
+
+//======================================================================================================================
+void UPhysicsControlProfileAsset::MakeControlsAndModifiersFromCharacterSetupData()
+{
 }
 
 #if WITH_EDITOR

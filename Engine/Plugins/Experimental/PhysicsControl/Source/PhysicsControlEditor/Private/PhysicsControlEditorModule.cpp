@@ -14,17 +14,16 @@ static const FName PhysicsControlEditorModule_PhysicsControlEditorInterface("Phy
 
 #define LOCTEXT_NAMESPACE "PhysicsControlModule"
 
-//#define ENABLE_PHYSICS_CONTROL_PROFILE_EDITOR
-
 //======================================================================================================================
 void FPhysicsControlEditorModule::StartupModule()
 {
-	// Physics Control Profile editor/asset is disabled for now
-#ifdef ENABLE_PHYSICS_CONTROL_PROFILE_EDITOR
+#ifdef ENABLE_PHYSICS_CONTROL_PROFILE_ASSET
 	IAssetTools& AssetTools = FModuleManager::LoadModuleChecked<FAssetToolsModule>("AssetTools").Get();
 	PhysicsControlProfileAssetActions = MakeShared<FPhysicsControlProfileAssetActions>();
 	AssetTools.RegisterAssetTypeActions(PhysicsControlProfileAssetActions.ToSharedRef());
+#endif
 
+#if ENABLE_PHYSICS_CONTROL_PROFILE_EDITOR
 	FEditorModeRegistry::Get().RegisterMode<FPhysicsControlProfileEditorMode>(
 		FPhysicsControlProfileEditorMode::ModeName, 
 		LOCTEXT("PhysicsControlProfileEditorMode", "PhysicsControlProfile"), 
@@ -65,9 +64,11 @@ void FPhysicsControlEditorModule::ShutdownModule()
 	}
 	
 	// Physics Control Profile editor/asset is disabled for now
-#ifdef ENABLE_PHYSICS_CONTROL_PROFILE_EDITOR
+#if ENABLE_PHYSICS_CONTROL_PROFILE_EDITOR
 	FEditorModeRegistry::Get().UnregisterMode(FPhysicsControlProfileEditorMode::ModeName);
+#endif
 
+#ifdef ENABLE_PHYSICS_CONTROL_PROFILE_ASSET
 	if (FModuleManager::Get().IsModuleLoaded("AssetTools"))
 	{
 		FAssetToolsModule::GetModule().Get().UnregisterAssetTypeActions(

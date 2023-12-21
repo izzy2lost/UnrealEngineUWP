@@ -49,7 +49,7 @@ FName FindParentBodyBoneName(const FName BoneName, const FReferenceSkeleton& Ref
 }
 
 //======================================================================================================================
-template<typename TOperatorFunctorType> void CreateAdditionalBodyModifiers(const TArray<FRigidBodyModifierCreation> CreationSpecifiers, FRigidBodyNameRecords& NameRecords, TOperatorFunctorType& OperatorFunctor)
+template<typename TOperatorFunctorType> void CreateAdditionalBodyModifiers(const TArray<FRigidBodyModifierCreation> CreationSpecifiers, FPhysicsControlNameRecords& NameRecords, TOperatorFunctorType& OperatorFunctor)
 {
 	for (const FRigidBodyModifierCreation& Specifier : CreationSpecifiers)
 	{
@@ -72,7 +72,7 @@ template<typename TOperatorFunctorType> void CreateAdditionalBodyModifiers(const
 }
 
 //======================================================================================================================
-template<typename TOperatorFunctorType> void CreateAdditionalControls(const TArray<FRigidBodyControlCreation> CreationSpecifiers, FRigidBodyNameRecords& NameRecords, TOperatorFunctorType& OperatorFunctor)
+template<typename TOperatorFunctorType> void CreateAdditionalControls(const TArray<FRigidBodyControlCreation> CreationSpecifiers, FPhysicsControlNameRecords& NameRecords, TOperatorFunctorType& OperatorFunctor)
 {
 	for (const FRigidBodyControlCreation& Specifier : CreationSpecifiers)
 	{
@@ -104,7 +104,7 @@ template<typename TFunctor> void CreateControlsFromLimbBones(
 	const FReferenceSkeleton& RefSkeleton,
 	UPhysicsAsset* const PhysicsAsset,
 	const FPhysicsControlData& ControlData,
-	FRigidBodyNameRecords& NameRecords,
+	FPhysicsControlNameRecords& NameRecords,
 	TFunctor& CreateOperationLambda)
 {
 	for (const FName ChildBoneName : LimbBones.BoneNames)
@@ -150,7 +150,7 @@ template<typename TFunctor> void CreateBodyModifiersFromLimbBones(
 	const FName                   LimbName,
 	const FPhysicsControlLimbBones& LimbBones,
 	const FPhysicsControlModifierData& ModifierData,
-	FRigidBodyNameRecords& NameRecords,
+	FPhysicsControlNameRecords& NameRecords,
 	TFunctor& CreateOperationLambda)
 {
 	for (const FName BoneName : LimbBones.BoneNames)
@@ -170,7 +170,7 @@ template<typename TFunctor> void CreateBodyModifiersFromLimbBones(
 }
 
 //======================================================================================================================
-template<typename TControlFunctorType, typename TBodyModifierFunctorType> void ForEachPotentialOperator(const FAnimNode_RigidBodyWithControl* const Node, TMap<FName, FPhysicsControlLimbBones> AllLimbBones, const FReferenceSkeleton& RefSkeleton, UPhysicsAsset* const PhysicsAsset, FRigidBodyNameRecords& NameRecords, TControlFunctorType& ControlFunctor, TBodyModifierFunctorType& BodyModifierFunctor)
+template<typename TControlFunctorType, typename TBodyModifierFunctorType> void ForEachPotentialOperator(const FAnimNode_RigidBodyWithControl* const Node, TMap<FName, FPhysicsControlLimbBones> AllLimbBones, const FReferenceSkeleton& RefSkeleton, UPhysicsAsset* const PhysicsAsset, FPhysicsControlNameRecords& NameRecords, TControlFunctorType& ControlFunctor, TBodyModifierFunctorType& BodyModifierFunctor)
 {
 	if (Node != nullptr)
 	{
@@ -200,7 +200,7 @@ template<typename TControlFunctorType, typename TBodyModifierFunctorType> void F
 
 //======================================================================================================================
 // Slightly annoying to have to add the names individually, but we want to check they exist
-template<typename TBodyModifierNameContainerType, typename TControlNameContainerType> void CreateAdditionalSets_Implimentation(const FPhysicsControlSetUpdates& AdditionalSets, const TBodyModifierNameContainerType& BodyModifierNames, const TControlNameContainerType& ControlNames, FRigidBodyNameRecords& NameRecords)
+template<typename TBodyModifierNameContainerType, typename TControlNameContainerType> void CreateAdditionalSets_Implementation(const FPhysicsControlSetUpdates& AdditionalSets, const TBodyModifierNameContainerType& BodyModifierNames, const TControlNameContainerType& ControlNames, FPhysicsControlNameRecords& NameRecords)
 {
 	for (const FPhysicsControlSetUpdate& Set : AdditionalSets.ControlSetUpdates)
 	{
@@ -351,7 +351,7 @@ TMap<FName, FPhysicsControlLimbBones> GetLimbBones(
 	return Result;
 }
 
-void CollectOperatorNames(const FAnimNode_RigidBodyWithControl* const Node, TMap<FName, FPhysicsControlLimbBones> AllLimbBones, const FReferenceSkeleton& RefSkeleton, UPhysicsAsset* const PhysicsAsset, TSet<FName>& BodyModifierNames, TSet<FName>& ControlNames, FRigidBodyNameRecords& NameRecords)
+void CollectOperatorNames(const FAnimNode_RigidBodyWithControl* const Node, TMap<FName, FPhysicsControlLimbBones> AllLimbBones, const FReferenceSkeleton& RefSkeleton, UPhysicsAsset* const PhysicsAsset, TSet<FName>& BodyModifierNames, TSet<FName>& ControlNames, FPhysicsControlNameRecords& NameRecords)
 {
 	auto CollectControlName = [&ControlNames](const FName ParentBoneName, const FName ChildBoneName, const FPhysicsControlData& Data) -> FName { const FName Name = FindUniqueControlName(ParentBoneName, ChildBoneName, ControlNames); ControlNames.Add(Name); return Name; };
 	auto CollectBodyModifierName = [&BodyModifierNames](const FName BoneName, const FPhysicsControlModifierData& Data) -> FName { const FName Name = FindUniqueBodyModifierName(BoneName, BodyModifierNames); BodyModifierNames.Add(Name); return Name; };
@@ -359,7 +359,7 @@ void CollectOperatorNames(const FAnimNode_RigidBodyWithControl* const Node, TMap
 	ForEachPotentialOperator(Node, AllLimbBones, RefSkeleton, PhysicsAsset, NameRecords, CollectControlName, CollectBodyModifierName);
 }
 
-void CreateOperatorsForNode(FAnimNode_RigidBodyWithControl* const Node, TMap<FName, FPhysicsControlLimbBones> AllLimbBones, const FReferenceSkeleton& RefSkeleton, UPhysicsAsset* const PhysicsAsset, FRigidBodyNameRecords& NameRecords)
+void CreateOperatorsForNode(FAnimNode_RigidBodyWithControl* const Node, TMap<FName, FPhysicsControlLimbBones> AllLimbBones, const FReferenceSkeleton& RefSkeleton, UPhysicsAsset* const PhysicsAsset, FPhysicsControlNameRecords& NameRecords)
 {
 	auto CreateControl = [Node](const FName ParentBoneName, const FName ChildBoneName, const FPhysicsControlData& Data) -> FName { return Node->CreateControl(ParentBoneName, ChildBoneName, Data); };
 	auto CreateBodyModifier = [Node](const FName BoneName, const FPhysicsControlModifierData& Data) -> FName { return Node->CreateBodyModifier(BoneName, Data); };
@@ -367,12 +367,12 @@ void CreateOperatorsForNode(FAnimNode_RigidBodyWithControl* const Node, TMap<FNa
 	ForEachPotentialOperator(Node, AllLimbBones, RefSkeleton, PhysicsAsset, NameRecords, CreateControl, CreateBodyModifier);
 }
 
-void CreateAdditionalSets(const FPhysicsControlSetUpdates& AdditionalSets, const TSet<FName>& BodyModifierNames, const TSet<FName>& ControlNames, FRigidBodyNameRecords& NameRecords)
+void CreateAdditionalSets(const FPhysicsControlSetUpdates& AdditionalSets, const TSet<FName>& BodyModifierNames, const TSet<FName>& ControlNames, FPhysicsControlNameRecords& NameRecords)
 {
-	CreateAdditionalSets_Implimentation(AdditionalSets, BodyModifierNames, ControlNames, NameRecords);
+	CreateAdditionalSets_Implementation(AdditionalSets, BodyModifierNames, ControlNames, NameRecords);
 }
 
-void CreateAdditionalSets(const FPhysicsControlSetUpdates& AdditionalSets, const TMap<FName, FRigidBodyModifierRecord>& BodyModifierNames, const TMap<FName, FRigidBodyControlRecord>& ControlNames, FRigidBodyNameRecords& NameRecords)
+void CreateAdditionalSets(const FPhysicsControlSetUpdates& AdditionalSets, const TMap<FName, FRigidBodyModifierRecord>& BodyModifierNames, const TMap<FName, FRigidBodyControlRecord>& ControlNames, FPhysicsControlNameRecords& NameRecords)
 {
-	CreateAdditionalSets_Implimentation(AdditionalSets, BodyModifierNames, ControlNames, NameRecords);
+	CreateAdditionalSets_Implementation(AdditionalSets, BodyModifierNames, ControlNames, NameRecords);
 }

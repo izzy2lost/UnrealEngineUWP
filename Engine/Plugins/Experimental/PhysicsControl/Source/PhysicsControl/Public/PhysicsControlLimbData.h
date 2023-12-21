@@ -73,7 +73,7 @@ struct PHYSICSCONTROL_API FPhysicsControlLimbBones
 	{}
 
 	/** The Skeletal mesh that this limb is associated with */
-	TObjectPtr<USkeletalMeshComponent> SkeletalMeshComponent;
+	TWeakObjectPtr<USkeletalMeshComponent> SkeletalMeshComponent;
 
 	/** The names of the bones in the limb */
 	TArray<FName> BoneNames;

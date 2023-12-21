@@ -39,7 +39,9 @@ LLM_DEFINE_TAG(Animation_RigidBodyWithControl);
 
 #define LOCTEXT_NAMESPACE "ImmediatePhysicsWithControl"
 
-//DEFINE_STAT(STAT_RigidBodyNodeWithControlInitTime);
+DECLARE_CYCLE_STAT(TEXT("RigidBodyNodeWithControl_InitPhysics"), STAT_RigidBodyWithControlInitPhysicsTime, STATGROUP_Anim);
+DECLARE_CYCLE_STAT(TEXT("RigidBodyNodeWithControl_SetupControls"), STAT_RigidBodyWithControlSetupControlsTime, STATGROUP_Anim);
+
 DECLARE_CYCLE_STAT(TEXT("RigidBodyNodeWithControl_Eval"), STAT_RigidBodyNodeWithControl_Eval, STATGROUP_Anim);
 DECLARE_CYCLE_STAT(TEXT("RigidBodyNodeWithControl_Simulation"), STAT_RigidBodyNodeWithControl_Simulation, STATGROUP_Anim);
 DECLARE_CYCLE_STAT(TEXT("RigidBodyNodeWithControl_SimulationWait"), STAT_RigidBodyNodeWithControl_SimulationWait, STATGROUP_Anim);
@@ -494,6 +496,8 @@ static FTransform CalculateJointTargetTransform(
 
 void FAnimNode_RigidBodyWithControl::SetupControls(USkeletalMeshComponent* const SkeletalMeshComponent)
 {
+	SCOPE_CYCLE_COUNTER(STAT_RigidBodyWithControlSetupControlsTime);
+
 	bool bSuccess = false;
 
 	if (SkeletalMeshComponent)
@@ -956,12 +960,30 @@ void ComputeBodyInsertionOrderWithControl(TArray<FBoneIndexType>& InsertionOrder
 	}
 }
 
+UPhysicsAsset* FAnimNode_RigidBodyWithControl::GetPhysicsAssetToBeUsed(const UAnimInstance* InAnimInstance) const
+{
+	if (OverridePhysicsAsset.IsValid())
+	{
+		return OverridePhysicsAsset.Get();
+	}
+
+	if (bDefaultToSkeletalMeshPhysicsAsset && ensure(InAnimInstance))
+	{
+		const USkeletalMeshComponent* SkeletalMeshComp = InAnimInstance->GetSkelMeshComponent();
+		if (SkeletalMeshComp)
+		{
+			return SkeletalMeshComp->GetPhysicsAsset();
+		}
+	}
+
+	return nullptr;
+}
+
 void FAnimNode_RigidBodyWithControl::InitPhysics(const UAnimInstance* InAnimInstance)
 {
-	LLM_SCOPE_BYNAME(TEXT("Animation/RigidBodyWithControl")); 
-	
-//	SCOPE_CYCLE_COUNTER(STAT_RigidBodyNodeInitTime);
+	SCOPE_CYCLE_COUNTER(STAT_RigidBodyWithControlInitPhysicsTime);
 
+	DestroyControlsAndBodyModifiers();
 	DestroyPhysicsSimulation();
 
 	const USkeletalMeshComponent* SkeletalMeshComp = InAnimInstance->GetSkelMeshComponent();
@@ -976,7 +998,7 @@ void FAnimNode_RigidBodyWithControl::InitPhysics(const UAnimInstance* InAnimInst
 	}
 
 	const FReferenceSkeleton& SkelMeshRefSkel = SkeletalMeshAsset->GetRefSkeleton();
-	PhysicsAssetToUse = OverridePhysicsAsset ? ToRawPtr(OverridePhysicsAsset) : InAnimInstance->GetSkelMeshComponent()->GetPhysicsAsset();
+	PhysicsAssetToUse = GetPhysicsAssetToBeUsed(InAnimInstance);
 
 	ensure(SkeletonAsset == SkeletalMeshAsset->GetSkeleton());
 
@@ -1040,7 +1062,8 @@ void FAnimNode_RigidBodyWithControl::InitPhysics(const UAnimInstance* InAnimInst
 			FPhysicsAggregateHandle(),
 			bCreateBodiesInRefPose);
 
-		if (bModifyConstraintTransformsToMatchSkeleton && (CVarEnableRigidBodyNodeWithControlMatchingConstraintsToSkeleton.GetValueOnAnyThread() > 0))
+		if (bModifyConstraintTransformsToMatchSkeleton && 
+			CVarEnableRigidBodyNodeWithControlMatchingConstraintsToSkeleton.GetValueOnAnyThread() > 0)
 		{
 			TransformConstraintsToMatchSkeletalMesh(SkeletalMeshAsset, HighLevelConstraintInstances);
 		}
@@ -1054,14 +1077,15 @@ void FAnimNode_RigidBodyWithControl::InitPhysics(const UAnimInstance* InAnimInst
 		TArray<FBoneIndexType> InsertionOrder;
 		ComputeBodyInsertionOrderWithControl(InsertionOrder, *SkeletalMeshComp);
 
-		// NOTE: NumBonesLOD0 may be less than NumBonesTotal, and it may be middle bones that are missing from LOD0.
-		// In this case, LOD0 bone indices may be >= NumBonesLOD0, but always < NumBonesTotal. Arrays indexed by
-		// bone index must be size NumBonesTotal.
+		// NOTE: NumBonesLOD0 may be less than NumBonesTotal, and it may be middle bones that are
+		// missing from LOD0. In this case, LOD0 bone indices may be >= NumBonesLOD0, but always <
+		// NumBonesTotal. Arrays indexed by bone index must be size NumBonesTotal.
 		const int32 NumBonesLOD0 = InsertionOrder.Num();
 		const int32 NumBonesTotal = SkelMeshRefSkel.GetNum();
 
-		// If our skeleton is not the one that was used to build the PhysicsAsset, some bodies may be missing, or rearranged.
-		// We need to map the original indices to the new bodies for use by the CollisionDisableTable.
+		// If our skeleton is not the one that was used to build the PhysicsAsset, some bodies may
+		// be missing, or rearranged. We need to map the original indices to the new bodies for use
+		// by the CollisionDisableTable.
 		// NOTE: This array is indexed by the original BodyInstance body index (BodyInstance->InstanceBodyIndex)
 		TArray<ImmediatePhysics::FActorHandle*> BodyIndexToActorHandle;
 		BodyIndexToActorHandle.AddZeroed(HighLevelBodyInstances.Num());
@@ -1432,8 +1456,25 @@ void FAnimNode_RigidBodyWithControl::ResetDynamics(ETeleportType InTeleportType)
 	ResetSimulatedTeleportType = ((InTeleportType > ResetSimulatedTeleportType) ? InTeleportType : ResetSimulatedTeleportType);
 }
 
+void FAnimNode_RigidBodyWithControl::SetOverridePhysicsAsset(UPhysicsAsset* PhysicsAsset)
+{
+	OverridePhysicsAsset = PhysicsAsset;
+}
+
 void FAnimNode_RigidBodyWithControl::PreUpdate(const UAnimInstance* InAnimInstance)
 {
+	// Detect changes in the physics asset to be used. This can happen when using the override
+	// physics asset feature.
+	UPhysicsAsset* PhysicsAssetToBeUsed = GetPhysicsAssetToBeUsed(InAnimInstance);
+	if (GetPhysicsAsset() != PhysicsAssetToBeUsed)
+	{
+		InitPhysics(InAnimInstance);
+
+		// Update the bone references after a change in the physics asset. This needs to happen
+		// after initializing physics as the Bodies set up in InitPhysics() need to be up to date.
+		InitializeBoneReferences(InAnimInstance->GetRequiredBones());
+	}
+
 	// Don't update geometry if RBN is disabled
 	if(!bEnabled)
 	{

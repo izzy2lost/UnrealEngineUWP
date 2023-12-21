@@ -12,7 +12,7 @@
  * 3. Sets of control/modifiers - the obvious ones are limbs (e.g. a set of world-space controls on the leg)
  *    but users might want to make other sets - e.g. "UpperBody"
  */
-struct PHYSICSCONTROL_API FRigidBodyNameRecords
+struct FPhysicsControlNameRecords
 {
 	/** Adds Name to SetName as well as adding it to the set "All" */
 	void AddControl(FName Name, FName SetName);

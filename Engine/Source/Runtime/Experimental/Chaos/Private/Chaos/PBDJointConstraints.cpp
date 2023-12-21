@@ -210,6 +210,16 @@ namespace Chaos
 		GetConstraintSettingsInternal().AngularDriveMaxTorque = MaxTorque;
 	}
 
+	void FPBDJointConstraintHandle::SetCollisionEnabled(const bool bCollisionEnabled)
+	{
+		GetConstraintSettingsInternal().bCollisionEnabled = bCollisionEnabled;
+	}
+
+	void FPBDJointConstraintHandle::SetParentInvMassScale(const FReal ParentInvMassScale)
+	{
+		GetConstraintSettingsInternal().ParentInvMassScale = ParentInvMassScale;
+	}
+
 	void FPBDJointConstraintHandle::SetDriveParams(
 		const FVec3 LinearStiffness, const FVec3 LinearDamping, const FVec3 MaxForce,
 		const FVec3 AngularStiffness, const FVec3 AngularDamping, const FVec3 MaxTorque)

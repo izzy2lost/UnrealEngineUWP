@@ -7,15 +7,15 @@
 #pragma once
 
 #include "CoreMinimal.h"
-#include "RigidBodyPoseData.h"
-#include "RigidBodyControlData.h"
-#include "PhysicsControlLimbData.h"
-#include "RigidBodyNameRecords.h"
 #include "BoneControllers/AnimNode_SkeletalControlBase.h"
 #include "Components/SkeletalMeshComponent.h"
 #include "Physics/ImmediatePhysics/ImmediatePhysicsDeclares.h"
+#include "PhysicsControlLimbData.h"
+#include "PhysicsControlNameRecords.h"
 #include "PhysicsEngine/PhysicsAsset.h"
 #include "PhysicsProxy/PerSolverFieldSystem.h"
+#include "RigidBodyControlData.h"
+#include "RigidBodyPoseData.h"
 #include "Tasks/Task.h"
 
  // Use the simulation space functions from the RBAN
@@ -64,17 +64,37 @@ struct PHYSICSCONTROL_API FAnimNode_RigidBodyWithControl : public FAnimNode_Skel
 
 	virtual void AddImpulseAtLocation(FVector Impulse, FVector Location, FName BoneName = NAME_None);
 
-	// TEMP: Exposed for use in PhAt as a quick way to get drag handles working with Chaos
+	// TEMP: Exposed for use in PhAT as a quick way to get drag handles working with Chaos
 	virtual ImmediatePhysics::FSimulation* GetSimulation() { return PhysicsSimulation; }
+
+	/**
+	 * Set the override physics asset. This will automatically trigger a physics re-init if the 
+	 * override physics asset changes. Users can get access to this in the Animation Blueprint 
+	 * via the Animation Node Functions.
+	 */
+	void SetOverridePhysicsAsset(UPhysicsAsset* PhysicsAsset);
 
 	UPhysicsAsset* GetPhysicsAsset() const { return PhysicsAssetToUse; }
 
 public:
 	/** Physics asset to use. If empty use the skeletal mesh's default physics asset */
 	UPROPERTY(EditAnywhere, Category = Settings)
-	TObjectPtr<UPhysicsAsset> OverridePhysicsAsset;
+	TWeakObjectPtr<UPhysicsAsset> OverridePhysicsAsset;
+
+	/** 
+	 * Use the skeletal mesh physics asset as default in case set to True. The Override Physics Asset 
+	 * will always have priority over this. 
+	 */
+	UPROPERTY(EditAnywhere, Category = Settings)
+	bool bDefaultToSkeletalMeshPhysicsAsset = true;
 
 private:
+	/** 
+	 * Get the physics asset candidate to be used while respecting the bDefaultToSkeletalMeshPhysicsAsset 
+	 * and the priority to the override physics asset. 
+	 */
+	UPhysicsAsset* GetPhysicsAssetToBeUsed(const UAnimInstance* InAnimInstance) const;
+
 	FTransform PreviousCompWorldSpaceTM;
 	FTransform CurrentTransform;
 	FTransform PreviousTransform;
@@ -298,7 +318,7 @@ public:
 
 	const int32 GetNumBodies() const;
 
-	const FRigidBodyNameRecords& GetNameRecords() const { return NameRecords; }
+	const FPhysicsControlNameRecords& GetNameRecords() const { return NameRecords; }
 
 private:
 
@@ -499,7 +519,7 @@ private:
 	TMap<FName, FRigidBodyModifierRecord> ModifierRecords;
 
 	// Details about sets etc
-	FRigidBodyNameRecords NameRecords;
+	FPhysicsControlNameRecords NameRecords;
 
 	FName CurrentConstraintProfile;
 

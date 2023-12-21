@@ -4,6 +4,8 @@
 
 #include "PhysicsControlData.h"
 #include "PhysicsControlLimbData.h"
+#include "PhysicsControlNameRecords.h"
+#include "PhysicsControlRecord.h"
 
 #include "UObject/ObjectMacros.h"
 #include "Components/SceneComponent.h"
@@ -88,7 +90,6 @@ public:
 	 * 
 	 * @param ControlData   Describes the initial strength etc of the new control
 	 * @param ControlTarget Describes the initial target for the new control
-	 * @param ControlSettings General settings for the control
 	 * @param Set Which set to include the control in (optional). Note that it automatically
 	 *        gets added to the set "All"
 	 * @param bEnabled If true then the control will be enabled immediately. If false you will need to call
@@ -104,7 +105,6 @@ public:
 		const FName                   ChildBoneName,
 		const FPhysicsControlData     ControlData,
 		const FPhysicsControlTarget   ControlTarget, 
-		const FPhysicsControlSettings ControlSettings,
 		FName                         Set,
 		FString                       NamePrefix = TEXT("")
 	);
@@ -115,7 +115,6 @@ public:
 	 * @param The name of the control that will be created. Creation will fail if this name is already in use.
 	 * @param ControlData   Describes the initial strength etc of the new control
 	 * @param ControlTarget Describes the initial target for the new control
-	 * @param ControlSettings General settings for the control
 	 * @param Set Which set to include the control in (optional). Note that it automatically
 	 *        gets added to the set "All"
 	 * @param bEnabled If true then the control will be enabled immediately. If false you will need to call
@@ -131,7 +130,6 @@ public:
 		const FName                   ChildBoneName,
 		const FPhysicsControlData     ControlData, 
 		const FPhysicsControlTarget   ControlTarget, 
-		const FPhysicsControlSettings ControlSettings, 
 		const FName                   Set);
 
 	/**
@@ -142,7 +140,6 @@ public:
 	 * @param bIncludeSelf Whether or not to include BoneName when creating controls
 	 * @param ControlType What type of control to create. This determines what the parent will be for each control
 	 * @param ControlData   Describes the initial strength etc of the new control
-	 * @param ControlSettings General settings for the control
 	 * @param Set Which set to include the control in (optional). Note that it automatically
 	 *        gets added to the set "All"
 	 * @param bEnabled If true then the control will be enabled immediately. If false you will need to call
@@ -156,7 +153,6 @@ public:
 		const bool                    bIncludeSelf,
 		const EPhysicsControlType     ControlType,
 		const FPhysicsControlData     ControlData,
-		const FPhysicsControlSettings ControlSettings,
 		const FName                   Set);
 
 	/**
@@ -174,7 +170,7 @@ public:
 	 *                          profile if it can't be found) - though they will not match exactly if the linear
 	 *                          drive and different x/y/z values, or if the angular drive was using twist/swing
 	 *                          instead of slerp. Note also that the joint constraints do not use the animation
-	 *                          velocity as a target, so when creating controls in this way the control settings
+	 *                          velocity as a target, so when creating controls in this way the control 
 	 *                          will set the skeletal animation velocity multiplier to zero.
 	 * @param Set Which set to include the control in (optional). Note that it automatically
 	 *        gets added to the set "All"
@@ -198,7 +194,6 @@ public:
 	 * @param BoneNames The names of bones for which controls should be created. Each bone will be the child in a control
 	 * @param ControlType What type of control to create. This determines what the parent will be for each control
 	 * @param ControlData   Describes the initial strength etc of the new control
-	 * @param ControlSettings General settings for the control
 	 * @param Set Which set to include the control in (optional). Note that it automatically
 	 *        gets added to the set "All"
 	 * @param bEnabled If true then the control will be enabled immediately. If false you will need to call
@@ -211,7 +206,6 @@ public:
 		const TArray<FName>&          BoneNames,
 		const EPhysicsControlType     ControlType,
 		const FPhysicsControlData     ControlData,
-		const FPhysicsControlSettings ControlSettings,
 		const FName                   Set);
 
 	/**
@@ -228,7 +222,7 @@ public:
 	 *                          profile if it can't be found) - though they will not match exactly if the linear
 	 *                          drive and different x/y/z values, or if the angular drive was using twist/swing
 	 *                          instead of slerp. Note also that the joint constraints do not use the animation
-	 *                          velocity as a target, so when creating controls in this way the control settings
+	 *                          velocity as a target, so when creating controls in this way the control 
 	 *                          will set the skeletal animation velocity multiplier to zero.
 	 * @param Set Which set to include the control in (optional). Note that it automatically
 	 *        gets added to the set "All"
@@ -268,7 +262,6 @@ public:
 	 *        using GetLimbBonesFromSkeletalMesh
 	 * @param ControlType What type of control to create. This determines what the parent will be for each control
 	 * @param ControlData Describes the initial strength etc of the new control
-	 * @param ControlSettings General settings for the control
 	 * @param WorldComponent Optional component to use as the parent object for any "world-space" controls 
 	 *        that are created. Will be ignored if the controls being created are not world-space.
 	 * @param WorldBoneName Additional bone name to identify the world object if the WorldComponent is actually 
@@ -282,7 +275,6 @@ public:
 		const TMap<FName, FPhysicsControlLimbBones>& LimbBones,
 		const EPhysicsControlType                    ControlType,
 		const FPhysicsControlData                    ControlData,
-		const FPhysicsControlSettings                ControlSettings,
 		UMeshComponent*                              WorldComponent = nullptr,
 		FName                                        WorldBoneName = NAME_None,
 		FString                                      NamePrefix = TEXT(""));
@@ -302,7 +294,7 @@ public:
 	 *                          profile if it can't be found) - though they will not match exactly if the linear
 	 *                          drive and different x/y/z values, or if the angular drive was using twist/swing
 	 *                          instead of slerp. Note also that the joint constraints do not use the animation 
-	 *                          velocity as a target, so when creating controls in this way the control settings
+	 *                          velocity as a target, so when creating controls in this way the control 
 	 *                          will set the skeletal animation velocity multiplier to zero.
 	 * @param bEnabled If true then the control will be enabled immediately. If false you will need to call
 	 *                 SetControlEnabled(true) in order to enable it.
@@ -371,9 +363,8 @@ public:
 	/**
 	 * Modifies an existing control data - i.e. the strengths etc of the control driving towards the target
 	 *
-	 * @param Name The name of the control to modify. 
+	 * @param Name The name of the control to update. 
 	 * @param ControlData The new control data
-	 * @param bEnableControl Enables the control if it is currently disabled
 	 * @return true if the control was found and modified, false if not
 	 */
 	UFUNCTION(BlueprintCallable, Category = PhysicsControl)
@@ -382,10 +373,9 @@ public:
 	/**
 	 * Modifies existing control data - i.e. the strengths etc of the controls driving towards the targets
 	 *
-	 * @param Names The names of the controls to modify. Note that if you have these in a FPhysicsControlNameArray
+	 * @param Names The names of the controls to update. Note that if you have these in a FPhysicsControlNameArray
 	 *              then it can be split.
 	 * @param ControlData The new control data
-	 * @param bEnableControl Enables the control if it is currently disabled
 	 */
 	UFUNCTION(BlueprintCallable, Category = PhysicsControl)
 	void SetControlDatas(const TArray<FName>& Names, const FPhysicsControlData ControlData);
@@ -393,13 +383,42 @@ public:
 	/**
 	 * Modifies existing control data - i.e. the strengths etc of the controls driving towards the targets
 	 *
-	 * @param Set The set of controls to modify. Standard sets will include "All", "WorldSpace",
+	 * @param Set The set of controls to update. Standard sets will include "All", "WorldSpace",
 	 *        "ParentSpace" and things like "WorldSpace-ArmLeft", depending on how controls have been created.
 	 * @param ControlData The new control data
-	 * @param bEnableControl Enables the controls if currently disabled
 	 */
 	UFUNCTION(BlueprintCallable, Category = PhysicsControl)
 	void SetControlDatasInSet(const FName Set, const FPhysicsControlData ControlData);
+
+	/**
+	 * Modifies an existing control data - i.e. the strengths etc of the control driving towards the target
+	 *
+	 * @param Name The name of the control to update. 
+	 * @param ControlData The new control data
+	 * @return true if the control was found and modified, false if not
+	 */
+	UFUNCTION(BlueprintCallable, Category = PhysicsControl)
+	bool SetControlSparseData(const FName Name, const FPhysicsControlSparseData ControlData);
+
+	/**
+	 * Modifies existing control data - i.e. the strengths etc of the controls driving towards the targets
+	 *
+	 * @param Names The names of the controls to update. Note that if you have these in a FPhysicsControlNameArray
+	 *              then it can be split.
+	 * @param ControlData The new control data
+	 */
+	UFUNCTION(BlueprintCallable, Category = PhysicsControl)
+	void SetControlSparseDatas(const TArray<FName>& Names, const FPhysicsControlSparseData ControlData);
+
+	/**
+	 * Modifies existing control data - i.e. the strengths etc of the controls driving towards the targets
+	 *
+	 * @param Set The set of controls to update. Standard sets will include "All", "WorldSpace",
+	 *        "ParentSpace" and things like "WorldSpace-ArmLeft", depending on how controls have been created.
+	 * @param ControlData The new control data
+	 */
+	UFUNCTION(BlueprintCallable, Category = PhysicsControl)
+	void SetControlSparseDatasInSet(const FName Set, const FPhysicsControlSparseData ControlData);
 
 	/**
 	 * Modifies an existing control data using the multipliers
@@ -410,7 +429,8 @@ public:
 	 * @return true if the control was found and modified, false if not
 	 */
 	UFUNCTION(BlueprintCallable, Category = PhysicsControl)
-	bool SetControlMultiplier(const FName Name, const FPhysicsControlMultiplier ControlMultiplier, const bool bEnableControl = true);
+	bool SetControlMultiplier
+	(const FName Name, const FPhysicsControlMultiplier ControlMultiplier, const bool bEnableControl = true);
 
 	/**
 	 * Modifies existing control data using the multipliers
@@ -439,6 +459,46 @@ public:
 		const FName                      Set, 
 		const FPhysicsControlMultiplier  ControlMultiplier, 
 		const bool                       bEnableControl = true);
+
+	/**
+	 * Modifies an existing control data using the multipliers
+	 *
+	 * @param Name The name of the control to modify. 
+	 * @param ControlMultipliers The new control multipliers
+	 * @param bEnableControl Enables the control if it is currently disabled
+	 * @return true if the control was found and modified, false if not
+	 */
+	UFUNCTION(BlueprintCallable, Category = PhysicsControl)
+	bool SetControlSparseMultiplier(
+		const FName Name, const FPhysicsControlSparseMultiplier ControlMultiplier, const bool bEnableControl = true);
+
+	/**
+	 * Modifies existing control data using the multipliers
+	 *
+	 * @param Names The names of the controls to modify. Note that if you have these in a FPhysicsControlNameArray
+	 *              then it can be split.
+	 * @param ControlMultiplier The new control multiplier
+	 * @param bEnableControl Enables the controls if currently disabled
+	 */
+	UFUNCTION(BlueprintCallable, Category = PhysicsControl)
+	void SetControlSparseMultipliers(
+		const TArray<FName>&                  Names, 
+		const FPhysicsControlSparseMultiplier ControlMultiplier, 
+		const bool                            bEnableControl = true);
+
+	/**
+	 * Modifies existing control data using the multipliers
+	 *
+	 * @param Set The set of controls to modify. Standard sets will include "All", "WorldSpace",
+	 *        "ParentSpace" and things like "WorldSpace-ArmLeft", depending on how controls have been created.
+	 * @param ControlMultiplier The new control multiplier
+	 * @param bEnableControl Enables the controls if currently disabled
+	 */
+	UFUNCTION(BlueprintCallable, Category = PhysicsControl)
+	void SetControlSparseMultipliersInSet(
+		const FName                           Set, 
+		const FPhysicsControlSparseMultiplier ControlMultiplier, 
+		const bool                            bEnableControl = true);
 
 	/**
 	 * Modifies an existing control's linear data - i.e. the strengths etc of the control driving towards the target
@@ -885,30 +945,14 @@ public:
 	 * @param BoneName The bone name, if a skeletal mesh is used
 	 * @param Set Which set to include the body modifier in (optional). Note that it automatically 
 	 *        gets added to the set "All"
-	 * @param MovementType Whether to enable/disable simulation on the body
-	 * @param CollisionType Collision type to set on the body
-	 * @param GravityMultiplier The amount of gravity to apply when simulating
-	 * @param PhysicsBlendWeight The blend weight between the body transform coming from
-	 *        animation and that coming from simulation.
-	 * @param bUseSkeletalAnimation Whether the kinematic target is specified in the frame of the
-	 *        skeletal animation, rather than world space. Only relevant if the body is part of 
-	 *        a skeletal mesh.
-	 * @param bUpdateKinematicFromSimulation Whether the body should be updated from the simulation when
-	 *        it is kinematic, or whether it should track the kinematic target directly. This will be most
-	 *        likely useful when using async physics, in order to make kinematic parts behave the same as 
-	 *        dynamic ones.
+	 * @param BodyModifierData The initial properties of the modifier
 	 */
 	UFUNCTION(BlueprintCallable, Category = PhysicsControl)
 	FName CreateBodyModifier(
-		UMeshComponent*               MeshComponent,
-		const FName                   BoneName,
-		const FName                   Set,
-		const EPhysicsMovementType    MovementType = EPhysicsMovementType::Simulated,
-		const ECollisionEnabled::Type CollisionType = ECollisionEnabled::QueryAndPhysics,
-		const float                   GravityMultiplier = 1.0f,
-		const float                   PhysicsBlendWeight = 1.0f,
-		const bool                    bUseSkeletalAnimation = true,
-		const bool                    bUpdateKinematicFromSimulation = true);
+		UMeshComponent*                   MeshComponent,
+		const FName                       BoneName,
+		const FName                       Set,
+		const FPhysicsControlModifierData BodyModifierData);
 
 	/**
 	 * Creates a new body modifier for mesh components
@@ -918,31 +962,15 @@ public:
 	 * @param BoneName The bone name, if a skeletal mesh is used
 	 * @param Set Which set to include the body modifier in (optional). Note that it automatically
 	 *        gets added to the set "All"
-	 * @param MovementType Whether to enable/disable simulation on the body
-	 * @param CollisionType Collision type to set on the body
-	 * @param GravityMultiplier The amount of gravity to apply when simulating
-	 * @param PhysicsBlendWeight The blend weight between the body transform coming from
-	 *        animation and that coming from simulation.
-	 * @param bUseSkeletalAnimation Whether the kinematic target is specified in the frame of the
-	 *        skeletal animation, rather than world space. Only relevant if the body is part of 
-	 *        a skeletal mesh.
-	 * @param bUpdateKinematicFromSimulation Whether the body should be updated from the simulation when
-	 *        it is kinematic, or whether it should track the kinematic target directly. This will be most
-	 *        likely useful when using async physics, in order to make kinematic parts behave the same as
-	 *        dynamic ones.
+	 * @param BodyModifierData The initial properties of the modifier
 	 */
 	UFUNCTION(BlueprintCallable, Category = PhysicsControl)
 	bool CreateNamedBodyModifier(
-		const FName                   Name,
-		UMeshComponent*               MeshComponent,
-		const FName                   BoneName,
-		const FName                   Set,
-		const EPhysicsMovementType    MovementType = EPhysicsMovementType::Simulated,
-		const ECollisionEnabled::Type CollisionType = ECollisionEnabled::QueryAndPhysics,
-		const float                   GravityMultiplier = 1.0f,
-		const float                   PhysicsBlendWeight = 1.0f,
-		const bool                    bUseSkeletalAnimation = true,
-		const bool                    bUpdateKinematicFromSimulation = true);
+		const FName                       Name,
+		UMeshComponent*                   MeshComponent,
+		const FName                       BoneName,
+		const FName                       Set,
+		const FPhysicsControlModifierData BodyModifierData);
 
 	/**
 	 * Creates new body modifiers for skeletal mesh components
@@ -952,31 +980,15 @@ public:
 	 * @param bIncludeSelf Whether or not to include BoneName when creating modifiers
 	 * @param Set Which set to include the body modifier in (optional). Note that it automatically
 	 *        gets added to the set "All"
-	 * @param MovementType Whether to enable/disable simulation on the body
-	 * @param CollisionType Collision type to set on the body
-	 * @param GravityMultiplier The amount of gravity to apply when simulating
-	 * @param PhysicsBlendWeight The blend weight between the body transform coming from
-	 *        animation and that coming from simulation.
-	 * @param bUseSkeletalAnimation Whether the kinematic target is specified in the frame of the
-	 *        skeletal animation, rather than world space. Only relevant if the body is part of
-	 *        a skeletal mesh.
-	 * @param bUpdateKinematicFromSimulation Whether the body should be updated from the simulation when
-	 *        it is kinematic, or whether it should track the kinematic target directly. This will be most
-	 *        likely useful when using async physics, in order to make kinematic parts behave the same as
-	 *        dynamic ones.
+	 * @param BodyModifierData The initial properties of the modifier
 	 */
 	UFUNCTION(BlueprintCallable, Category = PhysicsControl)
 	TArray<FName> CreateBodyModifiersFromSkeletalMeshBelow(
-		USkeletalMeshComponent*       SkeletalMeshComponent,
-		const FName                   BoneName,
-		const bool                    bIncludeSelf,
-		const FName                   Set,
-		const EPhysicsMovementType    MovementType = EPhysicsMovementType::Simulated,
-		const ECollisionEnabled::Type CollisionType = ECollisionEnabled::QueryAndPhysics,
-		const float                   GravityMultiplier = 1.0f,
-		const float                   PhysicsBlendWeight = 1.0f,
-		const bool                    bUseSkeletalAnimation = true,
-		const bool                    bUpdateKinematicFromSimulation = true);
+		USkeletalMeshComponent*           SkeletalMeshComponent,
+		const FName                       BoneName,
+		const bool                        bIncludeSelf,
+		const FName                       Set,
+		const FPhysicsControlModifierData BodyModifierData);
 
 
 	/**
@@ -985,18 +997,7 @@ public:
 	 * @param AllControls A single container for all the controls that have been created
 	 * @param LimbBones A map relating the limbs and the bones that they contain. Typically create this 
 	 *                  using GetLimbBonesFromSkeletalMesh
-	 * @param MovementType Whether to enable/disable simulation on the body
-	 * @param CollisionType Collision type to set on the body
-	 * @param GravityMultiplier The amount of gravity to apply when simulating
-	 * @param PhysicsBlendWeight The blend weight between the body transform coming from
-	 *        animation and that coming from simulation.
-	 * @param bUseSkeletalAnimation Whether the kinematic target is specified in the frame of the
-	 *        skeletal animation, rather than world space. Only relevant if the body is part of
-	 *        a skeletal mesh.
-	 * @param bUpdateKinematicFromSimulation Whether the body should be updated from the simulation when
-	 *        it is kinematic, or whether it should track the kinematic target directly. This will be most
-	 *        likely useful when using async physics, in order to make kinematic parts behave the same as
-	 *        dynamic ones.
+	 * @param BodyModifierData The initial properties of the modifier
 	 *
 	 * @return A map containing the modifiers for each limb
 	 */
@@ -1004,12 +1005,7 @@ public:
 	TMap<FName, FPhysicsControlNames> CreateBodyModifiersFromLimbBones(
 		FPhysicsControlNames&                        AllBodyModifiers,
 		const TMap<FName, FPhysicsControlLimbBones>& LimbBones,
-		const EPhysicsMovementType                   MovementType = EPhysicsMovementType::Simulated,
-		const ECollisionEnabled::Type                CollisionType = ECollisionEnabled::QueryAndPhysics,
-		const float                                  GravityMultiplier = 1.0f,
-		const float                                  PhysicsBlendWeight = 1.0f,
-		const bool                                   bUseSkeletalAnimation = true,
-		const bool                                   bUpdateKinematicFromSimulation = true);
+		const FPhysicsControlModifierData            BodyModifierData);
 
 	/**
 	 * Destroys a BodyModifier
@@ -1037,6 +1033,66 @@ public:
 	 */
 	UFUNCTION(BlueprintCallable, Category = PhysicsControl)
 	void DestroyBodyModifiersInSet(const FName Set);
+
+	/**
+	 * Modifies an existing Body Modifier Data
+	 *
+	 * @param Name The name of the modifier to update. 
+	 * @param ModifierData The new data
+	 * @return true if the modifier was found and modified, false if not
+	 */
+	UFUNCTION(BlueprintCallable, Category = PhysicsControl)
+	bool SetBodyModifierData(const FName Name, const FPhysicsControlModifierData ModifierData);
+
+	/**
+	 * Modifies existing Body Modifier Data
+	 *
+	 * @param Names The names of the modifiers to update. Note that if you have these in a FPhysicsControlNameArray
+	 *              then it can be split.
+	 * @param ModifierData The new data
+	 */
+	UFUNCTION(BlueprintCallable, Category = PhysicsControl)
+	void SetBodyModifierDatas(const TArray<FName>& Names, const FPhysicsControlModifierData ModifierData);
+
+	/**
+	 * Modifies existing Body Modifier Data
+	 *
+	 * @param Set The set of modifiers to update. Standard sets will include "All" and things like "ArmLeft", 
+	 *        depending on how body modifiers have been created.
+	 * @param ModifierData The new data
+	 */
+	UFUNCTION(BlueprintCallable, Category = PhysicsControl)
+	void SetBodyModifierDatasInSet(const FName Set, const FPhysicsControlModifierData ModifierData);
+
+	/**
+	 * Modifies an existing Body Modifier Data
+	 *
+	 * @param Name The name of the modifier to update. 
+	 * @param ModifierData The new data
+	 * @return true if the modifier was found and modified, false if not
+	 */
+	UFUNCTION(BlueprintCallable, Category = PhysicsControl)
+	bool SetBodyModifierSparseData(const FName Name, const FPhysicsControlModifierSparseData ModifierData);
+
+	/**
+	 * Modifies existing Body Modifier Data
+	 *
+	 * @param Names The names of the modifiers to update. Note that if you have these in a FPhysicsControlNameArray
+	 *              then it can be split.
+	 * @param ModifierData The new data
+	 */
+	UFUNCTION(BlueprintCallable, Category = PhysicsControl)
+	void SetBodyModifierSparseDatas(const TArray<FName>& Names, const FPhysicsControlModifierSparseData ModifierData);
+
+	/**
+	 * Modifies existing Body Modifier Data
+	 *
+	 * @param Set The set of modifiers to update. Standard sets will include "All" and things like "ArmLeft", 
+	 *        depending on how body modifiers have been created.
+	 * @param ModifierData The new data
+	 */
+	UFUNCTION(BlueprintCallable, Category = PhysicsControl)
+	void SetBodyModifierSparseDatasInSet(const FName Set, const FPhysicsControlModifierSparseData ModifierData);
 
 	/**
 	 * Sets the kinematic target transform for a body modifier. 
@@ -1313,12 +1369,8 @@ public:
 		USkeletalMeshComponent*                     SkeletalMeshComponent,
 		const TArray<FPhysicsControlLimbSetupData>& LimbSetupData,
 		const FPhysicsControlData                   WorldSpaceControlData,
-		const FPhysicsControlSettings               WorldSpaceControlSettings,
 		const FPhysicsControlData                   ParentSpaceControlData,
-		const FPhysicsControlSettings               ParentSpaceControlSettings,
-		const EPhysicsMovementType                  PhysicsMovementType = EPhysicsMovementType::Static,
-		const float                                 GravityMultiplier = 1.0f,
-		const float                                 PhysicsBlendWeight = 1.0f,
+		const FPhysicsControlModifierData           BodyModifierData,
 		UMeshComponent*                             WorldComponent = nullptr,
 		FName                                       WorldBoneName = NAME_None);
 
@@ -1564,7 +1616,16 @@ public:
 		const FName                        SetName,
 		const EResetToCachedTargetBehavior Behavior = EResetToCachedTargetBehavior::ResetImmediately);
 
+	/** Indicates if a control with the name exists (doesn't produce a warning if it doesn't) */
+	UFUNCTION(BlueprintCallable, Category = PhysicsControl)
+	bool GetControlExists(const FName Name) const;
+
+	/** Indicates if a body modifier with the name exists (doesn't produce a warning if it doesn't) */
+	UFUNCTION(BlueprintCallable, Category = PhysicsControl)
+	bool GetBodyModifierExists(const FName Name) const;
+
 public:
+	// Public property data
 
 	/**
 	 * If the component moves by more than this distance then it is treated as a teleport,
@@ -1623,6 +1684,25 @@ public:
 	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = Settings)
 	int32 MaxNumControlsOrModifiersPerName = 256;
 
+	/** 
+	 * Warn if an an invalid control or body modifier name is used. This can happen quite easily since 
+	 * they're only referenced through names, which are likely auto-generated. However, it may happen for
+	 * valid reasons, in which case you'll want to disable this.
+	 */
+	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = Debug)
+	bool bWarnAboutInvalidNames = true;
+
+public:
+#if WITH_EDITOR
+	//Begin ActorComponent interface
+	virtual void OnRegister() override;
+	//End ActorComponent interface
+
+	// Used by the component visualizer
+	virtual void DebugDraw(FPrimitiveDrawInterface* PDI) const;
+	virtual void DebugDrawControl(FPrimitiveDrawInterface* PDI, const FPhysicsControlRecord& Record, const FName ControlName) const;
+#endif
+
 protected:
 
 	// Begin UActorComponent Interface
@@ -1631,19 +1711,170 @@ protected:
 	virtual void TickComponent(float DeltaTime, enum ELevelTick TickType, FActorComponentTickFunction* ThisTickFunction) override;
 	// End UActorComponent Interface
 
-public:
-#if WITH_EDITOR
-	//Begin ActorComponent interface
-	virtual void OnRegister() override;
-	//End ActorComponent interface
 
-	void UpdateSpriteTexture();
-	// Used by the component visualizer
-	void DebugDraw(FPrimitiveDrawInterface* PDI) const;
-	void DebugDrawControl(FPrimitiveDrawInterface* PDI, const FPhysicsControlRecord& Record, const FName ControlName) const;
-#endif
+	/**
+	 * Retrieves the bone data for the specified bone given the skeletal mesh component.
+	 * 
+	 * @param OutBoneData If successful, this will contain the output bone data.
+	 * @param InSkeletalMeshComponent Required to be a valid pointer to a skeletal mesh component
+	 * @param InBoneName The name of the bone to retrieve data for
+	 * @return true if the bone and data were found, false if not (in which case warnings will be logged)
+	 */
+	bool GetBoneData(
+		FCachedSkeletalMeshData::FBoneData& OutBoneData,
+		const USkeletalMeshComponent*       InSkeletalMeshComponent,
+		const FName                         InBoneName) const;
+
+	/*
+	 * Retrieves the bone data for the specified bone given the skeletal mesh component, for modification
+	 *
+	 * @param OutBoneData If successful, this will point to the bone data.
+	 * @param InSkeletalMeshComponent Required to be a valid pointer to a skeletal mesh component
+	 * @param InBoneName The name of the bone to retrieve data for
+	 * @return true if the bone and data were found, false if not (in which case warnings will be logged)
+	 */
+	bool GetModifiableBoneData(
+		FCachedSkeletalMeshData::FBoneData*& OutBoneData,
+		const USkeletalMeshComponent*        InSkeletalMeshComponent,
+		const FName                          InBoneName);
+
+	/**
+	 * Retrieves the control for the name. Returns a null pointer if the name cannot be found
+	 */
+	FPhysicsControl* FindControl(const FName Name);
+	const FPhysicsControl* FindControl(const FName Name) const;
+
+	/**
+	 * Retrieves the control record for the name. Returns a null pointer if the name cannot be found
+	 */
+	FPhysicsControlRecord* FindControlRecord(const FName Name);
+	const FPhysicsControlRecord* FindControlRecord(const FName Name) const;
+
+	/**
+	 * Updates the world-space bone positions etc for each skeleton we're tracking
+	 */
+	void UpdateCachedSkeletalBoneData(float DeltaTime);
+
+	/**
+	 * @return true if the difference between the old and new TMs exceeds the teleport
+	 * translation/rotation thresholds
+	 */
+	bool DetectTeleport(const FTransform& OldTM, const FTransform& NewTM) const;
+
+	/**
+	 * @return true if the difference between the old and new TMs exceeds the teleport
+	 * translation/rotation thresholds
+	 */
+	bool DetectTeleport(
+		const FVector& OldPosition, const FQuat& OldOrientation,
+		const FVector& NewPosition, const FQuat& NewOrientation) const;
+
+	/**
+	 * Terminates the underlying physical constraints, resets our internal stored state for each control,
+	 * and optionally deletes all record of the controls.
+	 */
+	void ResetControls(bool bKeepControlRecords);
+
+	/**
+	 * Starts caching skeletal mesh poses, and registers for a tick pre-requisite
+	 */
+	void AddSkeletalMeshReferenceForCaching(USkeletalMeshComponent* SkeletalMeshComponent);
+
+	/**
+	 * Stops caching skeletal mesh poses (if this is the last one), and deregisters for a tick pre-requisite.
+	 * Returns true if this was the last reference, false otherwise.
+	 */
+	bool RemoveSkeletalMeshReferenceForCaching(USkeletalMeshComponent* SkeletalMeshComponent);
+
+	/**
+	 * Records that a modifier is working with the skeletal mesh and stores original data if necessary
+	 */
+	void AddSkeletalMeshReferenceForModifier(USkeletalMeshComponent* SkeletalMeshComponent);
+
+	/**
+	 * Records that a modifier has stopped working with the skeletal mesh and restores original data if necessary.
+	 * Returns true if this was the last reference, false otherwise.
+	 */
+	bool RemoveSkeletalMeshReferenceForModifier(USkeletalMeshComponent* SkeletalMeshComponent);
+
+	/** Update the constraint based on the record. */
+	void ApplyControl(FPhysicsControlRecord& Record);
+
+	/**
+	 * Updates the constraint strengths. Returns true if there is some strength, 
+	 * false otherwise (e.g. to skip setting targets)
+	 */
+	bool ApplyControlStrengths(FPhysicsControlRecord& Record, FConstraintInstance* ConstraintInstance);
+
+	/**
+	 * Calculates the Target TM and velocities that will get passed to the constraint - so this 
+	 * is a target that is defined in the space of the parent body (or in world space, if it doesn't exist).
+	 */
+	void CalculateControlTargetData(
+		FTransform&                  OutTargetTM, 
+		FVector&                     OutTargetVelocity,
+		FVector&                     OutTargetAngularVelocity,
+		const FPhysicsControlRecord& Record,
+		bool                         bCalculateVelocity) const;
+
+	/** Updates the body based on the modifier */
+	void ApplyBodyModifier(FPhysicsBodyModifier& BodyModifier);
+
+	/**
+	 * This will set the kinematic target for the appropriate body based on the weighted target position and 
+	 * orientation (and whether any were found) for any controls that are related to the body modifier.
+	 */
+	void ApplyKinematicTarget(const FPhysicsBodyModifier& BodyModifier) const;
+
+	/**
+	 * Sets the body (simulated or kinematic) to have the position/velocity etc state that has been cached. 
+	 * Has no effect if there is no cached target data.
+	 */
+	void ResetToCachedTarget(const FPhysicsBodyModifier& BodyModifier) const;
+
+	/**
+	 * Retrieves the body modifier for the name. Note that if Name is blank then the first modifier will be returned,
+	 * assuming there is one.
+	 */
+	FPhysicsBodyModifier* FindBodyModifier(const FName Name);
+	const FPhysicsBodyModifier* FindBodyModifier(const FName Name) const;
+
+	/** 
+	 * When destroying a control or modifier, the record will normally be removed, but it can be retained if you
+	 * will subsequently update the records
+	 */
+	enum class EDestroyBehavior : uint8
+	{
+		KeepRecord,
+		RemoveRecord
+	};
+
+	/** Destroys the control. It will optionally be removed from the array of records too */
+	bool DestroyControl(const FName Name, const EDestroyBehavior DestroyBehavior);
+
+	/** Destroys the modifier. It will optionally be removed from the array of records too */
+	bool DestroyBodyModifier(const FName Name, const EDestroyBehavior DestroyBehavior);
+
+	/** Calculates and returns a unique name based on the bone names and any existing records */
+	FName GetUniqueControlName(const FName ParentBoneName, const FName ChildBoneName, const FString& NamePrefix) const;
+
+	/** Calculates and returns a unique name based on the bone name and any existing records */
+	FName GetUniqueBodyModifierName(const FName BoneName) const;
 
 protected:
 
-	TPimplPtr<FPhysicsControlComponentImpl> Implementation;
+	// Cached transforms from each skeletal mesh we're working with. Will be updated at the
+	// beginning of each tick.
+	TMap<TWeakObjectPtr<USkeletalMeshComponent>, FCachedSkeletalMeshData> CachedSkeletalMeshDatas;
+
+	// Track which skeletons have been affected by a body modifier - some settings get overridden
+	// and then need to be restored when the last body modifier is destroyed.
+	TMap<TWeakObjectPtr<USkeletalMeshComponent>, FModifiedSkeletalMeshData> ModifiedSkeletalMeshDatas;
+
+	TMap<FName, FPhysicsControlRecord> PhysicsControlRecords;
+	TMap<FName, FPhysicsBodyModifier> PhysicsBodyModifiers;
+
+	// Keep track of the names of everything we have created
+	FPhysicsControlNameRecords NameRecords;
+
 };

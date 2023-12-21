@@ -103,6 +103,10 @@ class PHYSICSCONTROL_API UPhysicsControlBPLibrary : public UBlueprintFunctionLib
 		Result = (ConversionResult == EAnimNodeReferenceConversionResult::Succeeded);
 	}
 
+	/** Set the physics asset on the rigid body with control anim graph node (RBWC). */
+	UFUNCTION(BlueprintCallable, Category = "Animation|PhysicsControl", meta = (BlueprintThreadSafe))
+	static FRigidBodyWithControlReference SetOverridePhysicsAsset(const FRigidBodyWithControlReference& Node, UPhysicsAsset* PhysicsAsset);
+
 	/** Get the names of all the controls in a specified set managed by this Rigid Body With Control node. */
 	UFUNCTION(BlueprintPure, Category = "Animation|PhysicsControl", meta = (BlueprintThreadSafe))
 	static TArray<FName> GetControlNamesInSet(

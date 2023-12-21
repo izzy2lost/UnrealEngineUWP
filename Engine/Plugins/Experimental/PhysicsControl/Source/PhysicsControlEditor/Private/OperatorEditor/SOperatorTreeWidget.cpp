@@ -315,7 +315,7 @@ void SOperatorTreeWidget::Refresh()
 			// Create node item
 			NodeItemPtr Node = MakeShared<OperatorTreeNodeItem>(*Itr, FName(*NodeUniqueName), BlueprintName);
 
-			if (!Itr->Node.OverridePhysicsAsset)
+			if (!Itr->Node.OverridePhysicsAsset.IsValid())
 			{
 				Node->AddChild(MakeShared<OperatorTreeMessageItem>(*Itr, OperatorTreeMessageItem::Warning, LOCTEXT("OperatorNoPhysicsAssetDefinedText", "Can't create operators for limbs because no Physics Asset has been defined for this node.")));
 			}

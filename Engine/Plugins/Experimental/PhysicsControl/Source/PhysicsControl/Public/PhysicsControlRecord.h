@@ -11,34 +11,24 @@ struct FBodyInstance;
 class UMeshComponent;
 
 /**
- * The basic state of a physics control, created for every control record.
- */
-struct FPhysicsControlState
-{
-	/** Removes any constraint and resets the state */
-	void Reset();
-
-	TSharedPtr<FConstraintInstance> ConstraintInstance;
-};
-
-/**
  * There will be a PhysicsControlRecord created at runtime for every Control that has been created
  */
 struct FPhysicsControlRecord
 {
-	FPhysicsControlRecord(const FPhysicsControl& InControl) : PhysicsControl(InControl)
-	{
-	}
+	FPhysicsControlRecord(const FPhysicsControl& InControl) : PhysicsControl(InControl) {}
 
-	/** 
-	 * Creates the constraint (if necessary) and stores it in the state. ConstraintDebugOwner is passed 
-	 * to the constraint on creation. 
-	 */
-	FConstraintInstance* CreateConstraint(UObject* ConstraintDebugOwner, FName ControlName);
+	// Indicates if the control is enabled
+	bool Enabled() const { return PhysicsControl.ControlData.bEnabled; }
 
-	/** 
-	 * Initialises the constraint with the bodies assigned to us. Requires that the constraint itself 
-	 * has been made. Returns true/false on success/failure */
+	/** Removes any constraint and resets the state */
+	void ResetConstraint();
+
+	/** Returns the control point, which may be custom or automatic (centre of mass) */
+	FVector GetControlPoint() const;
+
+	/**
+	 * Creates the constraint if necessary and stores it. Then initializes the constraint with the bodies.
+	 * Returns true/false on success/failure */
 	bool InitConstraint(UObject* ConstraintDebugOwner, FName ControlName);
 
 	/** Ensures the constraint frame matches the control point in the record. */
@@ -47,13 +37,12 @@ struct FPhysicsControlRecord
 	/** Sets the control point to the center of mass of the child mesh (or to zero if that fails). */
 	void ResetControlPoint();
 
-	bool Enabled() const { return PhysicsControl.ControlData.bEnabled; }
-
 	/** The configuration data */
 	FPhysicsControl PhysicsControl;
 
-	/** The instance/runtime state - instantiated and kept up to date (during the tick) with PhysicsControl. */
-	FPhysicsControlState PhysicsControlState;
+	/** The underlying constraint used to implement the control. */
+	TSharedPtr<FConstraintInstance> ConstraintInstance;
+
 };
 
 /**
@@ -62,49 +51,25 @@ struct FPhysicsControlRecord
 struct FPhysicsBodyModifier
 {
 	FPhysicsBodyModifier(
-		TObjectPtr<UMeshComponent> InMeshComponent, 
-		const FName&               InBoneName, 
-		EPhysicsMovementType       InMovementType,
-		ECollisionEnabled::Type    InCollisionType,
-		float                      InGravityMultiplier,
-		float                      InPhysicsBlendWeight,
-		bool                       InUseSkeletalAnimation,
-		bool                       InUpdateKinematicFromSimulation)
+		TWeakObjectPtr<UMeshComponent>  InMeshComponent, 
+		const FName&                InBoneName, 
+		FPhysicsControlModifierData InBodyModifierData)
 		: MeshComponent(InMeshComponent)
 		, BoneName(InBoneName)
-		, MovementType(InMovementType)
-		, CollisionType(InCollisionType)
-		, GravityMultiplier(InGravityMultiplier)
-		, PhysicsBlendWeight(InPhysicsBlendWeight)
+		, BodyModifierData(InBodyModifierData)
 		, KinematicTargetPosition(FVector::ZeroVector)
 		, KinematicTargetOrientation(FQuat::Identity)
-		, bUseSkeletalAnimation(InUseSkeletalAnimation)
-		, bUpdateKinematicFromSimulation(InUpdateKinematicFromSimulation)
 		, bResetToCachedTarget(false)
 	{}
 
 	/**  The mesh that will be modified. */
-	TObjectPtr<UMeshComponent> MeshComponent;
+	TWeakObjectPtr<UMeshComponent> MeshComponent;
 
 	/** The name of the skeletal mesh bone or the name of the static mesh body that will be modified. */
 	FName BoneName;
 
-	/** How the associated body should move. */
-	EPhysicsMovementType MovementType = EPhysicsMovementType::Kinematic;
-
-	/** How the associated body should collide/interact */
-	ECollisionEnabled::Type CollisionType = ECollisionEnabled::QueryAndPhysics;
-
-	/**
-	 * Multiplier for gravity applied to the body. Note that if the body itself has gravity disabled, then
-	 * setting this to 1 will not enable gravity.
-	 */
-	float GravityMultiplier = 1.0f;
-
-	/**
-	 * Blend weight (between 0 and 1) that is used to set/override the one in the body instance
-	 */
-	float PhysicsBlendWeight = 1.0f;
+	/** Basic data about how the body should be modified */
+	FPhysicsControlModifierData BodyModifierData;
 
 	/** 
 	 * The target position when kinematic. Note that this is applied on top of any animation 
@@ -117,16 +82,6 @@ struct FPhysicsBodyModifier
 	 * target if bUseSkeletalAnimation is set.
 	 */
 	FQuat KinematicTargetOrientation = FQuat::Identity;
-
-	/** If true then the target will be applied on top of the skeletal animation (if there is any) */
-	uint8 bUseSkeletalAnimation:1;
-
-	/** 
-	 * If true then the associated actor's transform will be updated from the simulation when it is 
-	 * kinematic. This is most likely useful when using async physics in order to prevent different 
-	 * parts of the skeleton from being torn apart. 
-	 */
-	uint8 bUpdateKinematicFromSimulation:1;
 
 	/** 
 	 * If true then the body will be set to the transform/velocity stored in any cached target (if that

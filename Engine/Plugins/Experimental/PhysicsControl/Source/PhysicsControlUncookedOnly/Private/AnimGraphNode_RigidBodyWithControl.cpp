@@ -1,14 +1,5 @@
 // Copyright Epic Games, Inc. All Rights Reserved.
 
-/* <<<< THIS IS TEMPORARY PROTOTYPE CODE >>>>
- *
- * This is essentially a copy + paste of the 
- * equivalent file in engine code and is 
- * intended for prototyping work as part of 
- * the Ch5 locomotion initiative.
- * 
- */
-
 #include "AnimGraphNode_RigidBodyWithControl.h"
 #include "AnimNodeEditModes.h"
 #include "Features/IModularFeatures.h"
@@ -322,13 +313,13 @@ TArray<TPair<FName, TArray<FName>>> UAnimGraphNode_RigidBodyWithControl::Generat
 
 		// These functions will create the base set of controls and modifiers from SetupData
 		TMap<FName, FPhysicsControlLimbBones> AllLimbBones =
-			GetLimbBones(Node.SetupData.LimbSetupData, RefSkeleton, Node.OverridePhysicsAsset);
+			GetLimbBones(Node.SetupData.LimbSetupData, RefSkeleton, Node.OverridePhysicsAsset.Get());
 
 		TSet<FName> BodyModifierNames;
 		TSet<FName> ControlNames;
-		FRigidBodyNameRecords NameRecords;
+		FPhysicsControlNameRecords NameRecords;
 
-		CollectOperatorNames(&Node, AllLimbBones, RefSkeleton, Node.OverridePhysicsAsset, BodyModifierNames, ControlNames, NameRecords);
+		CollectOperatorNames(&Node, AllLimbBones, RefSkeleton, Node.OverridePhysicsAsset.Get(), BodyModifierNames, ControlNames, NameRecords);
 
 		// Create any additional sets that have been requested
 		CreateAdditionalSets(Node.AdditionalSets, BodyModifierNames, ControlNames, NameRecords);

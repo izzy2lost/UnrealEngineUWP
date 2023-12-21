@@ -121,103 +121,6 @@ struct PHYSICSCONTROL_API FRigidBodyControlAndBodyModifierCreations
 	TArray<FRigidBodyModifierCreation> Modifiers;
 };
 
-PHYSICSCONTROL_API FPhysicsControlData Interpolate(
-	const FPhysicsControlData& A, const FPhysicsControlData& B, const float Weight);
-PHYSICSCONTROL_API FPhysicsControlSparseData Interpolate(
-	const FPhysicsControlSparseData& A, const FPhysicsControlSparseData& B, const float Weight);
-
-/**
- * Data that can be used to parameterize (modify/update) a control 
- */
-USTRUCT(BlueprintType)
-struct PHYSICSCONTROL_API FPhysicsControlNamedControlParameters
-{
-	GENERATED_BODY();
-
-	FPhysicsControlNamedControlParameters() {}
-
-	FPhysicsControlNamedControlParameters(FName InName, const FPhysicsControlSparseData& InData)
-		: Name(InName), Data(InData) {}
-
-	// The name of the control (or set of controls) to update
-	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = PhysicsControl)
-	FName Name;
-
-	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = PhysicsControl)
-	FPhysicsControlSparseData Data;
-};
-
-PHYSICSCONTROL_API FPhysicsControlModifierData Interpolate(
-	const FPhysicsControlModifierData& A, const FPhysicsControlModifierData& B, const float Weight);
-PHYSICSCONTROL_API FPhysicsControlModifierSparseData Interpolate(
-	const FPhysicsControlModifierSparseData& A, const FPhysicsControlModifierSparseData& B, const float Weight);
-
-/**
- * Data that can be used to parameterize(modify / update) a control
- */
-USTRUCT(BlueprintType)
-struct PHYSICSCONTROL_API FPhysicsControlNamedModifierParameters
-{
-	GENERATED_BODY();
-
-	FPhysicsControlNamedModifierParameters() {}
-
-	FPhysicsControlNamedModifierParameters(FName InName, const FPhysicsControlModifierSparseData& InData)
-		: Name(InName), Data(InData) {}
-
-	// The name of the modifier (or set of modifiers) to update
-	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = PhysicsControl)
-	FName Name;
-
-	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = PhysicsControl)
-	FPhysicsControlModifierSparseData Data;
-};
-
-/**
- * These apply temporary/ephemeral changes to the controls that only persist for one tick.
- */
-USTRUCT(BlueprintType)
-struct PHYSICSCONTROL_API FPhysicsControlControlAndModifierParameters
-{
-	GENERATED_BODY();
-
-	/**
-	 * Parameters for existing controls. Each name can be the name of a control, or the name of a 
-	 * set of controls. They will only apply for one tick/update. They will be applied in order (so 
-	 * subsequent entries will override earlier ones if they apply to the same control).
-	 */ 
-	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = Settings)
-	TArray<FPhysicsControlNamedControlParameters> ControlParameters;
-	
-	/**
-	 *  Parameters for existing modifiers. Each name can be the name of a modifier, or the name of a 
-	 * set of modifiers. They will only apply for one tick/update.
-	 */
-	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = Settings)
-	TArray<FPhysicsControlNamedModifierParameters> ModifierParameters;
-
-	void Add(const FPhysicsControlNamedControlParameters& InParameters) { ControlParameters.Add(InParameters); }
-	void Add(const FPhysicsControlNamedModifierParameters& InParameters) { ModifierParameters.Add(InParameters); }
-};
-
-/**
- * These apply permanent changes to the controls and modifiers, allowing all the settings to be changed
- * (apart from the actual bodies that are being controlled/affected)
- */
-USTRUCT(BlueprintType)
-struct PHYSICSCONTROL_API FPhysicsControlControlAndModifierUpdates
-{
-	GENERATED_BODY();
-
-	/** Modifications to the underlying controls - these will persist */
-	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = PhysicsControl)
-	TArray<FPhysicsControlNamedControlParameters> ControlParameters;
-
-	/** Modifications to the underlying modifiers - these will persist */
-	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = PhysicsControl)
-	TArray<FPhysicsControlNamedModifierParameters> ModifierParameters;
-};
-
 /**
  * A single target for a control, which may be defined as an offset from the (implicit) animation target.
  */
@@ -229,9 +132,6 @@ struct PHYSICSCONTROL_API FRigidBodyControlTarget
 	FRigidBodyControlTarget()
 		: TargetPosition(ForceInitToZero)
 		, TargetOrientation(ForceInitToZero)
-		, TargetPoint(ForceInitToZero)
-		, bUseSkeletalAnimation(true)
-		, bUseTargetPoint(false)
 	{
 	}
 
@@ -242,21 +142,6 @@ struct PHYSICSCONTROL_API FRigidBodyControlTarget
 	/** The target orientation of the child body, relative to the parent body */
 	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = PhysicsControl)
 	FRotator TargetOrientation;
-
-	/** 
-	 * The point on the controlled (child) object that should be driven towards the target position.
-	 * Note that if this is not set (i.e. if UseTargetPoint is false) then the centre of mass will be used. 
-	 */
-	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = PhysicsControl, meta = (editcondition = "bUseTargetPoint"))
-	FVector TargetPoint;
-
-	/** If true then the target will be applied on top of the skeletal animation */
-	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = PhysicsControl)
-	uint8 bUseSkeletalAnimation : 1;
-
-	/** If true then the target will be applied on top of the skeletal animation */
-	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = PhysicsControl)
-	uint8 bUseTargetPoint : 1;
 };
 
 /**
@@ -325,7 +210,10 @@ struct FRigidBodyControlRecord
 	void ResetCurrent(bool bResetTarget);
 
 	// Note that this is only correct when called during or after the update has been done
-	bool IsEnabled() const { return CurrentData.bEnabled; }
+	bool IsEnabled() const { return ControlData.bEnabled; }
+
+	/** Returns the control point, which may be custom or automatic (centre of mass) */
+	FVector GetControlPoint(const ImmediatePhysics::FActorHandle* ChildActorHandle) const;
 
 	// TODO - might benefit from smaller - non-blueprint data members here ?
 	FRigidBodyControl               Control;
@@ -333,7 +221,7 @@ struct FRigidBodyControlRecord
 
 	// This contains the currently active control data. It will be updated just prior to
 	// applying the controls, by setting it to the default, and then updating it with any parameters.
-	FPhysicsControlData CurrentData;
+	FPhysicsControlData ControlData;
 
 	// Contains any control target that has been set
 	FRigidBodyControlTarget ControlTarget;
@@ -370,7 +258,6 @@ struct FRigidBodyModifierRecord
 
 	// This contains the currently active modifier data. It will be updated just prior to
 	// applying the controls, by setting it to the default, and then updating it with any parameters.
-	FPhysicsControlModifierData CurrentData;
+	FPhysicsControlModifierData ModifierData;
 };
-
 

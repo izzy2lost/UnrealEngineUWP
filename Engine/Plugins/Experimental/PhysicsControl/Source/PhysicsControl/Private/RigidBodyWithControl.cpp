@@ -50,17 +50,32 @@ static void SetConstraintEnabled(ImmediatePhysics::FJointHandle* const JointHand
 }
 
 //======================================================================================================================
-template<typename TRecord, typename TData> void SetRecordParameters(
-	const FName Name, const TData& Data, TMap<FName, TRecord>& Records)
+static void SetRecordParameters(
+	const FName Name, const FPhysicsControlModifierSparseData& Data, TMap<FName, FRigidBodyModifierRecord>& Records)
 {
-	if (TRecord* const RecordSearchResult = Records.Find(Name))
+	if (FRigidBodyModifierRecord* const RecordSearchResult = Records.Find(Name))
 	{
-		RecordSearchResult->CurrentData.UpdateFromSparseData(Data);
+		RecordSearchResult->ModifierData.UpdateFromSparseData(Data);
 	}
 	else
 	{
 		UE_LOG(LogRigidBodyWithControl, Warning,
-			TEXT("SetRecordParameters: Failed to find control/modifier with name %s"), *Name.ToString());
+			TEXT("SetRecordParameters: Failed to find modifier with name %s"), *Name.ToString());
+	}
+}
+
+//======================================================================================================================
+static void SetRecordParameters(
+	const FName Name, const FPhysicsControlSparseData& Data, TMap<FName, FRigidBodyControlRecord>& Records)
+{
+	if (FRigidBodyControlRecord* const RecordSearchResult = Records.Find(Name))
+	{
+		RecordSearchResult->ControlData.UpdateFromSparseData(Data);
+	}
+	else
+	{
+		UE_LOG(LogRigidBodyWithControl, Warning,
+			TEXT("SetRecordParameters: Failed to find control with name %s"), *Name.ToString());
 	}
 }
 
@@ -431,7 +446,8 @@ static void ConvertStrengthToSpringParams(
 
 //======================================================================================================================
 // Adjusts the constraint spring drive settings to reflect the control data
-static void UpdateDriveSpringDamperSettings(
+// Returns true if there is some control, false if the drive has no effect
+static bool UpdateDriveSpringDamperSettings(
 	Chaos::FPBDJointConstraintHandle* Constraint,
 	const Chaos::FPBDJointSettings&   Settings, 
 	const FPhysicsControlData&        ControlData)
@@ -446,9 +462,14 @@ static void UpdateDriveSpringDamperSettings(
 	ConvertStrengthToSpringParams(AngularSpring, AngularDamping, 
 		ControlData.AngularStrength, ControlData.AngularDampingRatio, ControlData.AngularExtraDamping);
 
-	Constraint->SetDriveProperties(
-		Chaos::FVec3(LinearSpring), Chaos::FVec3(LinearDamping), Chaos::FVec3(0),
-		Chaos::FVec3(AngularSpring), Chaos::FVec3(AngularDamping), Chaos::FVec3(0));
+	Constraint->SetDriveParams(
+		Chaos::FVec3(LinearSpring), Chaos::FVec3(LinearDamping), Chaos::FVec3(ControlData.MaxForce),
+		Chaos::FVec3(AngularSpring), Chaos::FVec3(AngularDamping), Chaos::FVec3(ControlData.MaxTorque));
+
+	bool bHaveAngular = (AngularSpring + AngularDamping) > 0;
+	bool bHaveLinear = (LinearSpring + LinearDamping) > 0;
+	return bHaveLinear || bHaveAngular;
+
 }
 
 //======================================================================================================================
@@ -484,82 +505,88 @@ void FAnimNode_RigidBodyWithControl::ApplyControl(FRigidBodyControlRecord& Contr
 		{
 			if (ControlRecord.ExpectedUpdateCounter.Get() != PoseData.UpdateCounter.Get())
 			{
+				// If we missed some intermediate updates, then we don't want to use the previous
+				// positions etc to calculate velocities. This will mean velocity/damping will be
+				// incorrect for one frame, but that's probably OK.
 				DeltaTime = 0.0f;
 			}
 
-			const FActorHandle* ChildActorHandle = JointHandle->GetActorHandles()[ConstraintChildIndex];
-			const FActorHandle* ParentActorHandle = JointHandle->GetActorHandles()[ConstraintParentIndex];
+			Constraint->SetCollisionEnabled(!ControlRecord.Control.ControlData.bDisableCollision);
+			Constraint->SetParentInvMassScale(ControlRecord.Control.ControlData.bOnlyControlChildObject ? 0 : 1);
 
-			if (ChildActorHandle && ParentActorHandle)
+			const Chaos::FPBDJointSettings& JointSettings = Constraint->GetSettings();
+			if (UpdateDriveSpringDamperSettings(Constraint, JointSettings, ControlRecord.ControlData))
 			{
-				const Chaos::FPBDJointSettings& JointSettings = Constraint->GetSettings();
+				const FActorHandle* ChildActorHandle = JointHandle->GetActorHandles()[ConstraintChildIndex];
+				const FActorHandle* ParentActorHandle = JointHandle->GetActorHandles()[ConstraintParentIndex];
 
-				// TODO
-				// - cache settings / previous input parameters to avoid unnecessary repeating
-				//   calculations and making physics API calls every update.
-
-				// Update the target point on the child
-				if (ControlRecord.ControlTarget.bUseTargetPoint)
+				if (ChildActorHandle && ParentActorHandle)
 				{
-					Constraint->SetChildConnectorLocation(ControlRecord.ControlTarget.TargetPoint);
+
+					// TODO
+					// - cache settings / previous input parameters to avoid unnecessary repeating
+					//   calculations and making physics API calls every update.
+
+					// Update the target point on the child
+					Constraint->SetChildConnectorLocation(ControlRecord.GetControlPoint(ChildActorHandle));
+
+					checkSlow(FindBodyIndexFromBoneName(ControlRecord.Control.ChildBoneName) == ControlRecord.ChildBodyIndex);
+					checkSlow((ControlRecord.Control.ParentBoneName.IsNone() ? -1 : 
+						FindBodyIndexFromBoneName(ControlRecord.Control.ParentBoneName)) == ControlRecord.ParentBodyIndex);
+
+					RigidBodyWithControl::FPosQuat TargetTM(
+						ControlRecord.ControlTarget.TargetOrientation, 
+						ControlRecord.ControlTarget.TargetPosition);
+
+					if (ControlRecord.ControlData.bUseSkeletalAnimation)
+					{
+						RigidBodyWithControl::FPosQuat AnimTargetTM = CalculateTargetTM(
+							JointSettings, PoseData, ControlRecord.ParentBodyIndex, ControlRecord.ChildBodyIndex);
+						TargetTM = TargetTM * AnimTargetTM;
+					}
+
+					Constraint->SetLinearDrivePositionTarget(TargetTM.GetTranslation());
+					Constraint->SetAngularDrivePositionTarget(TargetTM.GetRotation());
+
+					if ((DeltaTime * ControlRecord.ControlData.LinearTargetVelocityMultiplier) != 0)
+					{
+						FVector Velocity = (TargetTM.GetTranslation() - ControlRecord.PrevTargetTM.GetTranslation()) / DeltaTime;
+						Constraint->SetLinearDriveVelocityTarget(
+							Velocity * ControlRecord.ControlData.LinearTargetVelocityMultiplier);
+					}
+					else
+					{
+						Constraint->SetLinearDriveVelocityTarget(Chaos::FVec3(0));
+					}
+
+					if ((DeltaTime * ControlRecord.ControlData.AngularTargetVelocityMultiplier) != 0)
+					{
+						// Note that quats multiply in the opposite order to TMs, and must be in the same hemisphere.
+						const FQuat Q = TargetTM.GetRotation();
+						FQuat PrevQ = ControlRecord.PrevTargetTM.GetRotation();
+						PrevQ.EnforceShortestArcWith(Q);
+						const FQuat DeltaQ = Q * PrevQ.Inverse();
+						const FVector AngularVelocity = DeltaQ.ToRotationVector() / DeltaTime;
+
+						Constraint->SetAngularDriveVelocityTarget( 
+							AngularVelocity * ControlRecord.ControlData.AngularTargetVelocityMultiplier);
+					}
+					else
+					{
+						Constraint->SetAngularDriveVelocityTarget(Chaos::FVec3(0));
+					}
+
+
+					ControlRecord.PrevTargetTM = TargetTM;
+					ControlRecord.ExpectedUpdateCounter = PoseData.UpdateCounter;
+					ControlRecord.ExpectedUpdateCounter.Increment();
 				}
 				else
 				{
-					const FVector ChildCoMPositionOffset = ChildActorHandle->GetLocalCoMLocation();
-					Constraint->SetChildConnectorLocation(ChildCoMPositionOffset);
+					// Note that if we don't have any strength, then we don't calculate the targets.
+					// However, make sure that we don't apply velocities using the wrong calculation
+					// when the strength/damping is increased in the future
 				}
-
-				checkSlow(FindBodyIndexFromBoneName(ControlRecord.Control.ChildBoneName) == ControlRecord.ChildBodyIndex);
-				checkSlow((ControlRecord.Control.ParentBoneName.IsNone() ? -1 : 
-					FindBodyIndexFromBoneName(ControlRecord.Control.ParentBoneName)) == ControlRecord.ParentBodyIndex);
-
-				RigidBodyWithControl::FPosQuat TargetTM(
-					ControlRecord.ControlTarget.TargetOrientation, 
-					ControlRecord.ControlTarget.TargetPosition);
-
-				if (ControlRecord.ControlTarget.bUseSkeletalAnimation)
-				{
-					RigidBodyWithControl::FPosQuat AnimTargetTM = CalculateTargetTM(
-						JointSettings, PoseData, ControlRecord.ParentBodyIndex, ControlRecord.ChildBodyIndex);
-					TargetTM = TargetTM * AnimTargetTM;
-				}
-
-				Constraint->SetLinearDrivePositionTarget(TargetTM.GetTranslation());
-				Constraint->SetAngularDrivePositionTarget(TargetTM.GetRotation());
-
-				if ((DeltaTime * ControlRecord.CurrentData.LinearTargetVelocityMultiplier) != 0)
-				{
-					FVector Velocity = (TargetTM.GetTranslation() - ControlRecord.PrevTargetTM.GetTranslation()) / DeltaTime;
-					Constraint->SetLinearDriveVelocityTarget(
-						Velocity * ControlRecord.CurrentData.LinearTargetVelocityMultiplier);
-				}
-				else
-				{
-					Constraint->SetLinearDriveVelocityTarget(Chaos::FVec3(0));
-				}
-
-				if ((DeltaTime * ControlRecord.CurrentData.AngularTargetVelocityMultiplier) != 0)
-				{
-					// Note that quats multiply in the opposite order to TMs, and must be in the same hemisphere.
-					const FQuat Q = TargetTM.GetRotation();
-					FQuat PrevQ = ControlRecord.PrevTargetTM.GetRotation();
-					PrevQ.EnforceShortestArcWith(Q);
-					const FQuat DeltaQ = Q * PrevQ.Inverse();
-					const FVector AngularVelocity = DeltaQ.ToRotationVector() / DeltaTime;
-
-					Constraint->SetAngularDriveVelocityTarget( 
-						AngularVelocity * ControlRecord.CurrentData.AngularTargetVelocityMultiplier);
-				}
-				else
-				{
-					Constraint->SetAngularDriveVelocityTarget(Chaos::FVec3(0));
-				}
-
-				UpdateDriveSpringDamperSettings(Constraint, JointSettings, ControlRecord.CurrentData);
-
-				ControlRecord.PrevTargetTM = TargetTM;
-				ControlRecord.ExpectedUpdateCounter = PoseData.UpdateCounter;
-				ControlRecord.ExpectedUpdateCounter.Increment();
 			}
 		}
 	}
@@ -574,19 +601,23 @@ void FAnimNode_RigidBodyWithControl::ApplyModifier(
 	{
 		// Note that there's an early out if there's no change needed, so this should be OK.
 		BodyModifierRecord.ActorHandle->SetIsKinematic(
-			BodyModifierRecord.CurrentData.MovementType != EPhysicsMovementType::Simulated);
+			BodyModifierRecord.ModifierData.MovementType != EPhysicsMovementType::Simulated);
 
 		// Note that the actual kinematic targets will be set separately, since they need to be set
 		// for all kinematics whether or not they were under a modifier.
 
 		// Scale gravity
-		float GravityMultiplier = BodyModifierRecord.CurrentData.GravityMultiplier;
+		float GravityMultiplier = BodyModifierRecord.ModifierData.GravityMultiplier;
 		if (GravityMultiplier != 1 && BodyModifierRecord.ActorHandle->IsGravityEnabled())
 		{
 			float Mass = (float) BodyModifierRecord.ActorHandle->GetMass();
 			FVector AntiGravityForce = SimSpaceGravity * (-Mass * (1.0f - GravityMultiplier));
 			BodyModifierRecord.ActorHandle->AddForce(AntiGravityForce);
 		}
+
+		// Set collision
+		Chaos::FGeometryParticleHandle* ParticleHandle = BodyModifierRecord.ActorHandle->GetParticle();
+		ParticleHandle->SetHasCollision(CollisionEnabledHasPhysics(BodyModifierRecord.ModifierData.CollisionType));
 	}
 }
 
@@ -598,8 +629,7 @@ void FAnimNode_RigidBodyWithControl::ApplyControlAndModifierUpdatesAndParameters
 	SCOPE_CYCLE_COUNTER(STAT_RigidBodyNodeWithControl_ApplyControlAndModifierUpdatesAndParametersToRecords);
 
 	// Apply control and modifier parameters on a single-use basis
-	ApplyControlAndBodyModifierDatas(
-		Updates.ControlParameters, Updates.ModifierParameters);
+	ApplyControlAndBodyModifierDatas(Updates.ControlUpdates, Updates.ModifierUpdates);
 
 	// This goes through the records, resetting the update parts.
 	// Then the update structures get adjusted based on the parameters.
@@ -631,8 +661,8 @@ void FAnimNode_RigidBodyWithControl::ApplyControlAndModifierUpdatesAndParameters
 
 //======================================================================================================================
 void FAnimNode_RigidBodyWithControl::ApplyControlAndBodyModifierDatas(
-	const TArray<FPhysicsControlNamedControlParameters>& InControlParameters,
-	const TArray<FPhysicsControlNamedModifierParameters>& InModifierParameters)
+	const TArray<FPhysicsControlNamedControlParameters>&           InControlParameters,
+	const TArray<FPhysicsControlNamedModifierParameters>&          InModifierParameters)
 {
 	SCOPE_CYCLE_COUNTER(STAT_RigidBodyNodeWithControl_ApplyControlsAndModifierDatas);
 
