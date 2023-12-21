@@ -63,6 +63,10 @@ namespace UE::RivermaxCore::Private
 		uint64 ChunksReceived = 0;
 		uint64 EndOfFrameReceived = 0;
 		uint64 EmptyCompletionCount = 0;
+		uint64 MinFirstPacketIntervalNS = TNumericLimits<uint64>::Max();
+		uint64 MaxFirstPacketIntervalNS = TNumericLimits<uint64>::Min();
+		uint64 FirstPacketIntervalAccumulatorNS = 0;
+		uint64 FirstPacketIntervalStatsCount = 0;
 	};
 
 	struct FInputStreamData
