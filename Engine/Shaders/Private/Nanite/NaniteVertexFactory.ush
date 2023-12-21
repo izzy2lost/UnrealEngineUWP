@@ -714,7 +714,7 @@ FMaterialPixelParameters FetchNaniteMaterialPixelParameters(FPrimitiveSceneData 
 
 #endif // NEEDS_LIGHTMAP_COORDINATE
 
-#if USES_PER_INSTANCE_CUSTOM_DATA
+#if USES_PER_INSTANCE_CUSTOM_DATA_PS
 	Result.CustomDataOffset = InstanceData.CustomDataOffset;
 	Result.CustomDataCount  = InstanceData.CustomDataCount;
 #endif
