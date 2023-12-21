@@ -2114,16 +2114,17 @@ bool STraceStoreWindow::CanDeleteSelectedTraces() const
 	{
 		return false;
 	}
+
 	TArray<TSharedPtr<FTraceViewModel>> SelectedTraces = TraceListView->GetSelectedItems();
 	for (const TSharedPtr<FTraceViewModel>& SelectedTrace : SelectedTraces)
 	{
-		if (SelectedTrace->TraceId == FTraceViewModel::InvalidTraceId ||
-			SelectedTrace->bIsLive)
+		if ((SelectedTrace->TraceId != FTraceViewModel::InvalidTraceId) && 
+			!SelectedTrace->bIsLive)
 		{
-			return false;
+			return true;
 		}
 	}
-	return true;
+	return false;
 }
 
 ////////////////////////////////////////////////////////////////////////////////////////////////////
@@ -2138,6 +2139,8 @@ void STraceStoreWindow::DeleteSelectedTraces()
 	}
 
 	TArray<TSharedPtr<FTraceViewModel>> TracesToDelete = TraceListView->GetSelectedItems();
+	// Filter the traces that can actually be deleted : 
+	TracesToDelete.RemoveAll([](const TSharedPtr<FTraceViewModel>& InTrace) { return (InTrace->TraceId == FTraceViewModel::InvalidTraceId) || InTrace->bIsLive; });
 	if (TracesToDelete.Num() == 0)
 	{
 		return;
