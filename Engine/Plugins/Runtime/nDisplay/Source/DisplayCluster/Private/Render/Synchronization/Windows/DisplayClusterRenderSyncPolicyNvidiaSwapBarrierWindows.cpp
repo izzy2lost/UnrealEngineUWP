@@ -38,6 +38,7 @@ FDisplayClusterRenderSyncPolicyNvidiaSwapBarrier::~FDisplayClusterRenderSyncPoli
 {
 	using namespace DisplayClusterRenderSyncPolicyNvidiaSwapBarrier_Data_Windows;
 
+#if WITH_NVAPI
 	if (bNvLibraryInitialized)
 	{
 		if (bNvSyncInitializedSuccessfully)
@@ -48,6 +49,7 @@ FDisplayClusterRenderSyncPolicyNvidiaSwapBarrier::~FDisplayClusterRenderSyncPoli
 			NvAPI_D3D1x_JoinSwapGroup(D3DDevice, DXGISwapChain, 0, false);
 		}
 	}
+#endif // WITH_NVAPI
 }
 
 bool FDisplayClusterRenderSyncPolicyNvidiaSwapBarrier::SynchronizeClusterRendering(int32& InOutSyncInterval)
@@ -104,6 +106,7 @@ bool FDisplayClusterRenderSyncPolicyNvidiaSwapBarrier::SynchronizeClusterRenderi
 		}
 	}
 
+#if WITH_NVAPI
 	if (bNvSyncInitializedSuccessfully && D3DDevice && DXGISwapChain)
 	{
 		UE_LOG(LogDisplayClusterRenderSync, VeryVerbose, TEXT("NVS_SB: presenting the frame with sync..."));
@@ -150,6 +153,10 @@ bool FDisplayClusterRenderSyncPolicyNvidiaSwapBarrier::SynchronizeClusterRenderi
 
 	// We presented current frame so no need to present it on higher level
 	return false;
+#else
+	// NVAPI isn't available. Ask engine to present.
+	return true;
+#endif // WITH_NVAPI
 }
 
 bool FDisplayClusterRenderSyncPolicyNvidiaSwapBarrier::InitializeNvidiaSwapLock()
@@ -178,6 +185,7 @@ bool FDisplayClusterRenderSyncPolicyNvidiaSwapBarrier::InitializeNvidiaSwapLock(
 	NvU32 MaxGroups = 0;
 	NvU32 MaxBarriers = 0;
 
+#if WITH_NVAPI
 	// Get amount of available groups and barriers
 	NvAPI_Status NvApiResult = NvAPI_D3D1x_QueryMaxSwapGroup(D3DDevice, &MaxGroups, &MaxBarriers);
 	if (NvApiResult != NVAPI_OK)
@@ -251,4 +259,7 @@ bool FDisplayClusterRenderSyncPolicyNvidiaSwapBarrier::InitializeNvidiaSwapLock(
 	UE_LOG(LogDisplayClusterRenderSync, Log, TEXT("NVS_SB: Initialized successfully"));
 
 	return true;
+#else
+	return false;
+#endif // WITH_NVAPI
 }

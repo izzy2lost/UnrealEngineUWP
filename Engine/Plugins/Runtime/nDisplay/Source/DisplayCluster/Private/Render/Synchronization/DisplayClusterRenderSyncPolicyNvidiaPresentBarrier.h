@@ -25,7 +25,7 @@ public:
 	/** Returns name of this policy implementation */
 	virtual FName GetName() const override
 	{
-		return FName(DisplayClusterConfigurationStrings::config::cluster::render_sync::NvidiaAdvanced);
+		return FName(DisplayClusterConfigurationStrings::config::cluster::render_sync::NvidiaPresentBarrier);
 	}
 
 	/** Performs rendering and frame output synchronization */

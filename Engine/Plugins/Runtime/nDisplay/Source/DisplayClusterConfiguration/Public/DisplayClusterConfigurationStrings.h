@@ -90,7 +90,7 @@ namespace DisplayClusterConfigurationStrings
 				static constexpr const TCHAR* NvidiaSwapGroup   = TEXT("swap_group");
 
 				// NVIDIA Present Barrier (new)
-				static constexpr const TCHAR* NvidiaAdvanced    = TEXT("nvidia_pb");
+				static constexpr const TCHAR* NvidiaPresentBarrier = TEXT("nvidia_pb");
 
 				// Always use 'none' for headless rendering
 				static constexpr const TCHAR* HeadlessRenderingSyncPolicy = None;

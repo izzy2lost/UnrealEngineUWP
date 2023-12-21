@@ -76,6 +76,9 @@ public class DisplayCluster : ModuleRules
 			AddEngineThirdPartyPrivateStaticDependencies(Target, "DX11", "DX12");
 		}
 
-		AddEngineThirdPartyPrivateStaticDependencies(Target, "NVAPI");
+		if(Target.Platform == UnrealTargetPlatform.Win64 || Target.Platform == UnrealTargetPlatform.Linux)
+		{
+			AddEngineThirdPartyPrivateStaticDependencies(Target, "NVAPI");
+		}
 	}
 }

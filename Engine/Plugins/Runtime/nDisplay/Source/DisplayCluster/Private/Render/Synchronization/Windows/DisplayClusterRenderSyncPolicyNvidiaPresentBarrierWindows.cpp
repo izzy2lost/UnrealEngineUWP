@@ -48,6 +48,7 @@ FDisplayClusterRenderSyncPolicyNvidiaPresentBarrier::~FDisplayClusterRenderSyncP
 
 	GDisplayCluster->GetCallbacks().OnDisplayClusterFramePresented_RHIThread().RemoveAll(this);
 
+#if WITH_NVAPI
 	if (bNvLibraryInitialized)
 	{
 		// Release present barrier client
@@ -60,6 +61,7 @@ FDisplayClusterRenderSyncPolicyNvidiaPresentBarrier::~FDisplayClusterRenderSyncP
 		// Release backbuffer references if there are any
 		BackBuffers.Empty();
 	}
+#endif // WITH_NVAPI
 }
 
 bool FDisplayClusterRenderSyncPolicyNvidiaPresentBarrier::SynchronizeClusterRendering(int32& InOutSyncInterval)
@@ -149,6 +151,7 @@ bool FDisplayClusterRenderSyncPolicyNvidiaPresentBarrier::InitializePresentBarri
 	// Set frame latency
 	SetMaximumFrameLatency(1);
 
+#if WITH_NVAPI
 	NvAPI_Status NVResult = NVAPI_ERROR;
 
 	// Check if present barrier is supported
@@ -275,10 +278,21 @@ bool FDisplayClusterRenderSyncPolicyNvidiaPresentBarrier::InitializePresentBarri
 	UE_LOG(LogDisplayClusterRenderSync, Log, TEXT("NVS_PB: Initialized successfully"));
 
 	return true;
+#else
+	return false;
+#endif // WITH_NVAPI
 }
 
 void FDisplayClusterRenderSyncPolicyNvidiaPresentBarrier::OnFramePresented(bool bNativePresent)
 {
+	// Post-present alignment
+	if (bCfgPostPresentAlignment)
+	{
+		TRACE_CPUPROFILER_EVENT_SCOPE(nDisplay PostPresentAlignment);
+		SyncOnBarrier();
+	}
+
+	// Log stats
 	if (CVarNvidiaSyncPrintStatsEveryFrame.GetValueOnAnyThread())
 	{
 		LogPresentBarrierStats();
@@ -319,6 +333,7 @@ void FDisplayClusterRenderSyncPolicyNvidiaPresentBarrier::LogPresentBarrierStats
 {
 	using namespace DisplayClusterRenderSyncPolicyNvidiaPresentBarrier_Data_Windows;
 
+#if WITH_NVAPI
 	if (bNvLibraryInitialized && bNvSyncInitializedSuccessfully)
 	{
 		NV_PRESENT_BARRIER_FRAME_STATISTICS PBStats = { };
@@ -339,4 +354,5 @@ void FDisplayClusterRenderSyncPolicyNvidiaPresentBarrier::LogPresentBarrierStats
 			, PBStats.RefreshCount
 			);
 	}
+#endif // WITH_NVAPI
 }
