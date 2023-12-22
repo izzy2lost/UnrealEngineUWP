@@ -3363,7 +3363,6 @@ bool FNiagaraDebugHUDStatsListener::Tick()
 	}
 
 #if WITH_PER_SYSTEM_PARTICLE_PERF_STATS
-	TArray<TWeakObjectPtr<const UFXSystemAsset>,TInlineAllocator<8>> ToRemove;
 	for (auto& HUDStatsPair : SystemStats)
 	{
 		TWeakObjectPtr<const UFXSystemAsset> WeakSystem = HUDStatsPair.Key;
@@ -3400,11 +3399,6 @@ bool FNiagaraDebugHUDStatsListener::Tick()
 
 			Stats->ResetGT();
 		}
-	}
-
-	for (auto& Remove : ToRemove)
-	{
-		SystemStats.Remove(Remove);
 	}
 #endif
 
@@ -3458,7 +3452,6 @@ void FNiagaraDebugHUDStatsListener::TickRT()
 	}
 
 #if WITH_PER_SYSTEM_PARTICLE_PERF_STATS
-	TArray<TWeakObjectPtr<const UFXSystemAsset>, TInlineAllocator<8>> ToRemove;
 	for (auto& HUDStatsPair : SystemStats)
 	{
 		TWeakObjectPtr<const UFXSystemAsset> WeakSystem = HUDStatsPair.Key;
@@ -3504,11 +3497,6 @@ void FNiagaraDebugHUDStatsListener::TickRT()
 
 			Stats->ResetRT();
 		}
-	}
-
-	for (auto& Remove : ToRemove)
-	{
-		SystemStats.Remove(Remove);
 	}
 #endif
 }
