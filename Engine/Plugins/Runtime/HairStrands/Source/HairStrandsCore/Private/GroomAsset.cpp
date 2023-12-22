@@ -3328,47 +3328,29 @@ void UGroomAsset::InitMeshesResources()
 
 EGroomGeometryType UGroomAsset::GetGeometryType(int32 GroupIndex, int32 LODIndex) const
 {
-	if (GroupIndex < 0 || GroupIndex >= GetHairGroupsLOD().Num())
+	if (GetHairGroupsLOD().IsValidIndex(GroupIndex) && GetHairGroupsLOD()[GroupIndex].LODs.IsValidIndex(LODIndex))
 	{
-		return EGroomGeometryType::Strands;
+		return GetHairGroupsLOD()[GroupIndex].LODs[LODIndex].GeometryType;
 	}
-
-	if (LODIndex < 0 || LODIndex >= GetHairGroupsLOD()[GroupIndex].LODs.Num())
-	{
-		return EGroomGeometryType::Strands;
-	}
-
-	return GetHairGroupsLOD()[GroupIndex].LODs[LODIndex].GeometryType;
+	return EGroomGeometryType::Strands;
 }
 
 EGroomBindingType UGroomAsset::GetBindingType(int32 GroupIndex, int32 LODIndex) const
 {
-	if (GroupIndex < 0 || GroupIndex >= GetHairGroupsLOD().Num() || !IsHairStrandsBindingEnable())
+	if (GetHairGroupsLOD().IsValidIndex(GroupIndex) && GetHairGroupsLOD()[GroupIndex].LODs.IsValidIndex(LODIndex) && IsHairStrandsBindingEnable())
 	{
-		return EGroomBindingType::Rigid; // Fallback to rigid by default
+		return GetHairGroupsLOD()[GroupIndex].LODs[LODIndex].BindingType;
 	}
-
-	if (LODIndex < 0 || LODIndex >= GetHairGroupsLOD()[GroupIndex].LODs.Num())
-	{
-		return EGroomBindingType::Rigid; // Fallback to rigid by default
-	}
-
-	return GetHairGroupsLOD()[GroupIndex].LODs[LODIndex].BindingType;
+	return EGroomBindingType::Rigid; // Fallback to rigid by default
 }
 
 bool UGroomAsset::IsVisible(int32 GroupIndex, int32 LODIndex) const
 {
-	if (GroupIndex < 0 || GroupIndex >= GetHairGroupsLOD().Num())
+	if (GetHairGroupsLOD().IsValidIndex(GroupIndex) && GetHairGroupsLOD()[GroupIndex].LODs.IsValidIndex(LODIndex))
 	{
-		return false;
+		return GetHairGroupsLOD()[GroupIndex].LODs[LODIndex].bVisible;
 	}
-
-	if (LODIndex < 0 || LODIndex >= GetHairGroupsLOD()[GroupIndex].LODs.Num())
-	{
-		return false;
-	}
-
-	return GetHairGroupsLOD()[GroupIndex].LODs[LODIndex].bVisible;
+	return false;
 }
 
 bool UGroomAsset::IsDeformationEnable(int32 GroupIndex) const
@@ -3380,12 +3362,7 @@ bool UGroomAsset::IsDeformationEnable(int32 GroupIndex) const
 
 bool UGroomAsset::IsSimulationEnable(int32 GroupIndex, int32 LODIndex) const 
 {
-	if (GroupIndex < 0 || GroupIndex >= GetHairGroupsLOD().Num() || !IsHairStrandsSimulationEnable())
-	{
-		return false;
-	}
-
-	if (LODIndex >= GetHairGroupsLOD()[GroupIndex].LODs.Num())
+	if (!GetHairGroupsLOD().IsValidIndex(GroupIndex) || LODIndex >= GetHairGroupsLOD()[GroupIndex].LODs.Num() || !IsHairStrandsSimulationEnable())
 	{
 		return false;
 	}
@@ -3410,32 +3387,23 @@ bool UGroomAsset::IsSimulationEnable(int32 GroupIndex, int32 LODIndex) const
 
 bool UGroomAsset::IsGlobalInterpolationEnable(int32 GroupIndex, int32 LODIndex) const
 {
-	if (GroupIndex < 0 || GroupIndex >= GetHairGroupsLOD().Num())
+	if (GetHairGroupsLOD().IsValidIndex(GroupIndex))
 	{
-		return false;
+		if (GetHairGroupsLOD()[GroupIndex].LODs.IsValidIndex(LODIndex))
+		{
+			return
+				GetHairGroupsLOD()[GroupIndex].LODs[LODIndex].GlobalInterpolation == EGroomOverrideType::Enable ||
+				(GetHairGroupsLOD()[GroupIndex].LODs[LODIndex].GlobalInterpolation == EGroomOverrideType::Auto && GetEnableGlobalInterpolation());
+		}
 	}
-
-	if (LODIndex < 0 || LODIndex >= GetHairGroupsLOD()[GroupIndex].LODs.Num())
-	{
-		return false;
-	}
-
-	// If the LOD index is not forced, then its value could be -1. In this case we return the 'global' asset value
-	if (LODIndex < 0)
-	{
-		return GetEnableGlobalInterpolation();
-	}
-
-	return
-		GetHairGroupsLOD()[GroupIndex].LODs[LODIndex].GlobalInterpolation == EGroomOverrideType::Enable ||
-		(GetHairGroupsLOD()[GroupIndex].LODs[LODIndex].GlobalInterpolation == EGroomOverrideType::Auto && GetEnableGlobalInterpolation());
+	return GetEnableGlobalInterpolation();
 }
 
 bool UGroomAsset::IsSimulationEnable() const
 {
 	for (int32 GroupIndex = 0; GroupIndex < GetHairGroupsPlatformData().Num(); ++GroupIndex)
 	{
-		for (int32 LODIt = 0; LODIt < GetHairGroupsLOD().Num(); ++LODIt)
+		for (int32 LODIt = 0; LODIt < GetHairGroupsLOD()[GroupIndex].LODs.Num(); ++LODIt)
 		{
 			if (IsSimulationEnable(GroupIndex, LODIt))
 			{
@@ -3449,7 +3417,7 @@ bool UGroomAsset::IsSimulationEnable() const
 
 bool UGroomAsset::NeedsInterpolationData(int32 GroupIndex) const
 {
-	for (int32 LODIt = 0; LODIt < GetHairGroupsLOD().Num(); ++LODIt)
+	for (int32 LODIt = 0; LODIt < GetHairGroupsLOD()[GroupIndex].LODs.Num(); ++LODIt)
 	{
 		if (IsSimulationEnable(GroupIndex, LODIt) || IsGlobalInterpolationEnable(GroupIndex, LODIt) || GetEnableSimulationCache())
 		{

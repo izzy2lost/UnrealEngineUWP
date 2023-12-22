@@ -250,32 +250,27 @@ public:
 
 	bool IsVisible(int32 InLODIndex) const
 	{
-		if (InLODIndex < 0 && InLODIndex >= LODVisibilities.Num()) return false;
-		return LODVisibilities[InLODIndex];
+		return LODVisibilities.IsValidIndex(InLODIndex) ? LODVisibilities[InLODIndex] : false;
 	}
 
 	EHairGeometryType GetGeometryType(int32 InLODIndex) const
 	{
-		if (InLODIndex < 0 && InLODIndex >= LODGeometryTypes.Num()) return EHairGeometryType::NoneGeometry;
-		return LODGeometryTypes[InLODIndex];
+		return LODGeometryTypes.IsValidIndex(InLODIndex) ? LODGeometryTypes[InLODIndex] : EHairGeometryType::NoneGeometry;
 	}
 
 	EHairBindingType GetBindingType(int32 InLODIndex) const
 	{ 
-		if (InLODIndex < 0 || InLODIndex >= BindingTypes.Num()) return EHairBindingType::NoneBinding;
-		return BindingTypes[InLODIndex];
+		return BindingTypes.IsValidIndex(InLODIndex) ? BindingTypes[InLODIndex] :EHairBindingType::NoneBinding;
 	}	
 
 	bool IsSimulationEnable(int32 InLODIndex) const
 	{
-		if (InLODIndex < 0 || InLODIndex >= LODSimulations.Num()) return false;
-		return LODSimulations[InLODIndex];
+		return LODSimulations.IsValidIndex(InLODIndex) ? LODSimulations[InLODIndex] : false;
 	}
 
 	bool IsGlobalInterpolationEnable(int32 InLODIndex) const 
 	{
-		if (InLODIndex < 0 || InLODIndex >= LODGlobalInterpolations.Num()) return false;
-		return LODGlobalInterpolations[InLODIndex];
+		return LODGlobalInterpolations.IsValidIndex(InLODIndex) ? LODGlobalInterpolations[InLODIndex] : false;
 	}
 
 	void SetLODScreenSizes(const TArray<float>& ScreenSizes) { LODScreenSizes = ScreenSizes; }
