@@ -212,19 +212,17 @@ void FLevelInstanceActorDesc::TransferFrom(const FWorldPartitionActorDesc* From)
 	FromLevelInstanceActorDesc->UnregisterChildContainer();
 }
 
-bool FLevelInstanceActorDesc::GetLoadedChildContainerInstance(const FWorldPartitionActorDescInstance* InActorDescInstance, FLoadedContainerInstance& OutContainerInstance) const
+UWorldPartition* FLevelInstanceActorDesc::GetLoadedChildWorldPartition(const FWorldPartitionActorDescInstance* InActorDescInstance) const
 {
 	if (const ILevelInstanceInterface* LevelInstance = Cast<ILevelInstanceInterface>(InActorDescInstance->GetActor()))
 	{
 		if (ULevel* LoadedLevel = LevelInstance->GetLoadedLevel())
 		{
-			OutContainerInstance.LoadedLevel = LoadedLevel;
-			OutContainerInstance.bSupportsPartialEditorLoading = LevelInstance->SupportsPartialEditorLoading();
-			return true;
+			return LoadedLevel->GetWorldPartition();
 		}
 	}
 
-	return false;
+	return nullptr;
 }
 
 UActorDescContainerInstance* FLevelInstanceActorDesc::CreateChildContainerInstance(const FWorldPartitionActorDescInstance* InActorDescInstance) const

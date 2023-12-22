@@ -28,20 +28,13 @@ void FLoaderAdapterList::HandleActorContainer(const FWorldPartitionHandle& InAct
 {
 	if (InActor.GetInstance()->IsChildContainerInstance())
 	{
-		FWorldPartitionActorDesc::FLoadedContainerInstance ContainerInstance;
-		if (IWorldPartitionActorLoaderInterface::GetLoadedChildContainerInstance(InActor, ContainerInstance))
+		if (UWorldPartition* ContainerWorldPartition = GetLoadedChildWorldPartition(InActor); ContainerWorldPartition && ContainerWorldPartition->IsStreamingEnabledInEditor())
 		{
-			if (ContainerInstance.bSupportsPartialEditorLoading)
+			for (FActorDescContainerInstanceCollection::TIterator<> Iterator(ContainerWorldPartition); Iterator; ++Iterator)
 			{
-				if (UWorldPartition* ContainerWorldPartition = ContainerInstance.LoadedLevel ? ContainerInstance.LoadedLevel->GetWorldPartition() : nullptr)
-				{
-					for (FActorDescContainerInstanceCollection::TIterator<> Iterator(ContainerWorldPartition); Iterator; ++Iterator)
-					{
-						FWorldPartitionHandle ActorHandle(ContainerWorldPartition, Iterator->GetGuid());
-						InOperation(ActorHandle);
-						HandleActorContainer(ActorHandle, InOperation);
-					}
-				}
+				FWorldPartitionHandle ActorHandle(ContainerWorldPartition, Iterator->GetGuid());
+				InOperation(ActorHandle);
+				HandleActorContainer(ActorHandle, InOperation);
 			}
 		}
 	}

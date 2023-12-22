@@ -47,7 +47,7 @@ protected:
 	ENGINE_API virtual void SetContainer(UActorDescContainer* InContainer) override;
 	ENGINE_API virtual UActorDescContainerInstance* CreateChildContainerInstance(const FWorldPartitionActorDescInstance* InActorDescInstance) const override;
 	ENGINE_API virtual bool GetChildContainerInstance(const FWorldPartitionActorDescInstance* InActorDescInstance, FContainerInstance& OutContainerInstance) const override;
-	ENGINE_API virtual bool GetLoadedChildContainerInstance(const FWorldPartitionActorDescInstance* InActorDescInstance, FLoadedContainerInstance& OutContainerInstance) const override;
+	ENGINE_API virtual UWorldPartition* GetLoadedChildWorldPartition(const FWorldPartitionActorDescInstance* InActorDescInstance) const override;
 	ENGINE_API FTransform GetChildContainerTransform() const;
 
 	FSoftObjectPath WorldAsset;

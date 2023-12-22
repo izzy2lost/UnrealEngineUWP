@@ -75,6 +75,7 @@ public:
 		// Helpers
 		ENGINE_API FActorReferenceMap& GetContainerReferences(UActorDescContainerInstance* InContainerInstance);
 		ENGINE_API const FActorReferenceMap* GetContainerReferencesConst(UActorDescContainerInstance* InContainerInstance) const;
+		ENGINE_API UWorldPartition* GetLoadedChildWorldPartition(const FWorldPartitionHandle& Handle) const;
 
 	private:
 		UWorld* World;
@@ -102,9 +103,9 @@ public:
 
 	static ENGINE_API void RefreshLoadedState(bool bIsFromUserChange);
 
-	static ENGINE_API bool GetLoadedChildContainerInstance(const FWorldPartitionHandle& Handle, FWorldPartitionActorDesc::FLoadedContainerInstance& OutContainerInstance);
-
 private:
+	static ENGINE_API UWorldPartition* GetLoadedChildWorldPartition(const FWorldPartitionHandle& Handle);
+	
 	DECLARE_EVENT_OneParam(IWorldPartitionActorLoaderInterface, FOnActorLoaderInterfaceRefreshState, bool /*bIsFromUserChange*/);
 	static ENGINE_API FOnActorLoaderInterfaceRefreshState ActorLoaderInterfaceRefreshState;
 

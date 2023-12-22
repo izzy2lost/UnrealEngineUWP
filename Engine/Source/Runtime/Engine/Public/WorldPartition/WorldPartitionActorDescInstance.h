@@ -27,6 +27,7 @@ class FWorldPartitionActorDescInstance : public IWorldPartitionActorDescInstance
 	friend struct FWorldPartitionActorDescUnitTestAcccessor;
 	friend class UDataLayerManager;
 	friend class UWorldPartition;
+	friend class IWorldPartitionActorLoaderInterface;
 
 protected:
 	ENGINE_API FWorldPartitionActorDescInstance();
@@ -99,8 +100,7 @@ public:
 	//~ End
 
 	inline UActorDescContainerInstance* GetChildContainerInstance() const { return ChildContainerInstance; }
-	bool GetLoadedChildContainerInstance(FWorldPartitionActorDesc::FLoadedContainerInstance& OutContainerInstance) const { return GetActorDesc()->GetLoadedChildContainerInstance(this, OutContainerInstance); }
-		
+
 	ENGINE_API virtual TWeakObjectPtr<AActor>* GetActorPtr(bool bEvenIfPendingKill = true, bool bEvenIfUnreachable = false) const;
 	ENGINE_API virtual bool IsValid() const;
 				
@@ -116,6 +116,7 @@ public:
 	ENGINE_API AActor* Load();
 	ENGINE_API void Unload();
 protected:
+	UWorldPartition* GetLoadedChildWorldPartition() const { return GetActorDesc()->GetLoadedChildWorldPartition(this); }
 	ENGINE_API void UpdateActorDesc(FWorldPartitionActorDesc* InActorDesc);
 	void Invalidate();
 		

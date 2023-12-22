@@ -43,17 +43,14 @@ void ILoaderAdapterSpatial::HandleIntersectingContainer(UWorldPartition* InWorld
 
 			if (ActorDescInstance->GetIsSpatiallyLoaded() && ActorDescInstance->IsChildContainerInstance())
 			{
-				FWorldPartitionActorDesc::FLoadedContainerInstance ContainerInstance;
-				if (IWorldPartitionActorLoaderInterface::GetLoadedChildContainerInstance(ActorHandle, ContainerInstance))
+				if (UWorldPartition* ContainerWorldPartition = GetLoadedChildWorldPartition(ActorHandle))
 				{
-					if (UWorldPartition* ContainerWorldPartition = ContainerInstance.LoadedLevel ? ContainerInstance.LoadedLevel->GetWorldPartition() : nullptr)
-					{
-						const FBox InnerBoundingBox = ContainerInstance.bSupportsPartialEditorLoading ? *GetBoundingBox() : FBox(FVector(-HALF_WORLD_MAX), FVector(HALF_WORLD_MAX));
-						HandleIntersectingContainer(ContainerWorldPartition, InnerBoundingBox, InOperation);
-					}
+					const FBox InnerBoundingBox = ContainerWorldPartition->IsStreamingEnabledInEditor() ? *GetBoundingBox() : FBox(FVector(-HALF_WORLD_MAX), FVector(HALF_WORLD_MAX));
+					HandleIntersectingContainer(ContainerWorldPartition, InnerBoundingBox, InOperation);
 				}
 			}
 		}
 	}, ForEachIntersectingActorParams);
 }
+
 #endif

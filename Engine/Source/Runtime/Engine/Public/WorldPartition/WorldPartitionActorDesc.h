@@ -97,12 +97,6 @@ class FWorldPartitionActorDesc
 	template<class U> friend class TActorDescContainerCollection;
 
 public:
-	struct FLoadedContainerInstance
-	{
-		ULevel* LoadedLevel = nullptr;
-		bool bSupportsPartialEditorLoading = false;
-	};
-
 	struct FContainerInstance
 	{
 		UActorDescContainerInstance* ContainerInstance = nullptr;
@@ -342,7 +336,7 @@ protected:
 
 	virtual bool GetChildContainerInstance(const FWorldPartitionActorDescInstance* InActorDescInstance, FContainerInstance& OutContainerInstance) const { return false; }
 	virtual UActorDescContainerInstance* CreateChildContainerInstance(const FWorldPartitionActorDescInstance* InActorDescInstance) const { return nullptr; }
-	virtual bool GetLoadedChildContainerInstance(const FWorldPartitionActorDescInstance* InActorDescInstance, FLoadedContainerInstance& OutContainerInstance) const { return false; }
+	virtual UWorldPartition* GetLoadedChildWorldPartition(const FWorldPartitionActorDescInstance* InActorDescInstance) const { return nullptr; }
 	ENGINE_API virtual bool IsRuntimeRelevant(const FWorldPartitionActorDescInstance* InActorDescInstance) const;
 	ENGINE_API virtual bool IsEditorRelevant(const FWorldPartitionActorDescInstance* InActorDescInstance) const;
 

@@ -3,6 +3,7 @@
 #include "LevelInstance/LevelInstanceInterface.h"
 #include "LevelInstance/LevelInstanceSubsystem.h"
 #include "LevelInstance/LevelInstanceLevelStreaming.h"
+#include "WorldPartition/WorldPartition.h"
 #include "GameFramework/Actor.h"
 #include "Engine/Level.h"
 #include "Engine/World.h"
@@ -42,6 +43,15 @@ bool ILevelInstanceInterface::SupportsPartialEditorLoading() const
 			if (Actor->GetPackage()->HasAllPackagesFlags(PKG_NewlyCreated))
 			{
 				return false;
+			}
+
+			// If the level is loaded, check that it has editor streaming enabled
+			if (ULevel* Level = GetLoadedLevel())
+			{
+				if (UWorldPartition* WorldPartition = Level->GetWorldPartition(); WorldPartition && WorldPartition->IsInitialized() && !WorldPartition->IsStreamingEnabledInEditor())
+				{
+					return false;
+				}
 			}
 
 			if (ILevelInstanceInterface* Parent = LevelInstanceSubsystem->GetParentLevelInstance(Actor))

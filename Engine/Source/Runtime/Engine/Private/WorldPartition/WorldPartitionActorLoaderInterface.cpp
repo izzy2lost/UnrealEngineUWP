@@ -351,14 +351,19 @@ const IWorldPartitionActorLoaderInterface::FActorReferenceMap* IWorldPartitionAc
 	return ContainerActorReferences.Find(InContainerInstance);
 }
 
-bool IWorldPartitionActorLoaderInterface::GetLoadedChildContainerInstance(const FWorldPartitionHandle& Handle, FWorldPartitionActorDesc::FLoadedContainerInstance& OutContainerInstance)
+UWorldPartition* IWorldPartitionActorLoaderInterface::ILoaderAdapter::GetLoadedChildWorldPartition(const FWorldPartitionHandle& Handle) const
+{
+	return IWorldPartitionActorLoaderInterface::GetLoadedChildWorldPartition(Handle);
+}
+
+UWorldPartition* IWorldPartitionActorLoaderInterface::GetLoadedChildWorldPartition(const FWorldPartitionHandle& Handle)
 {
 	if (FWorldPartitionActorDescInstance* Instance = Handle.GetInstance())
 	{
-		return Instance->GetLoadedChildContainerInstance(OutContainerInstance);
+		return Instance->GetLoadedChildWorldPartition();
 	}
 
-	return false;
+	return nullptr;
 }
 #endif
 

@@ -143,6 +143,7 @@ public:
 	ENGINE_API void OnEnableStreamingChanged();
 	ENGINE_API void OnEnableLoadingInEditorChanged();
 
+	ENGINE_API bool IsStreamingEnabledInEditor() const;
 private:
 	ENGINE_API void SavePerUserSettings();
 		
@@ -607,7 +608,6 @@ private:
 	void HashActorDescInstance(FWorldPartitionActorDescInstance* ActorDescInstance);
 	void UnhashActorDescInstance(FWorldPartitionActorDescInstance* ActorDescInstance);
 	void OnContentBundleRemovedContent(const FContentBundleEditor* ContentBundle);
-	ENGINE_API bool IsStreamingEnabledInEditor() const;
 
 public:
 	// Editor loader adapters management

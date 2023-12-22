@@ -67,19 +67,12 @@ void FLoaderAdapterActorList::RemoveActors(const TArray<FWorldPartitionHandle>& 
 	{
 		if (ActorHandle.GetInstance()->IsChildContainerInstance())
 		{
-			FWorldPartitionActorDesc::FLoadedContainerInstance ContainerInstance;
-			if (IWorldPartitionActorLoaderInterface::GetLoadedChildContainerInstance(ActorHandle, ContainerInstance))
+			if (UWorldPartition* ContainerWorldPartition = GetLoadedChildWorldPartition(ActorHandle); ContainerWorldPartition && ContainerWorldPartition->IsStreamingEnabledInEditor())
 			{
-				if (ContainerInstance.bSupportsPartialEditorLoading)
+				for (FActorDescContainerInstanceCollection::TIterator<> Iterator(ContainerWorldPartition); Iterator; ++Iterator)
 				{
-					if (UWorldPartition* ContainerWorldPartition = ContainerInstance.LoadedLevel ? ContainerInstance.LoadedLevel->GetWorldPartition() : nullptr)
-					{
-						for (FActorDescContainerInstanceCollection::TIterator<> Iterator(ContainerWorldPartition); Iterator; ++Iterator)
-						{
-							FWorldPartitionHandle SubActorHandle(ContainerWorldPartition, Iterator->GetGuid());
-							ActorsToRemove.Add(SubActorHandle);
-						}
-					}
+					FWorldPartitionHandle SubActorHandle(ContainerWorldPartition, Iterator->GetGuid());
+					ActorsToRemove.Add(SubActorHandle);
 				}
 			}
 		}
