@@ -1542,7 +1542,7 @@ bool PathTracingKernel(inout FPathState PathState, int Bounce)
 	FMaterialSample MaterialSample = SampleMaterial(-PathState.Ray.Direction, Payload, RandSample.xyz);
 
 	// If we are using Light sampling and the material can use it ...
-	if (MISMode != 0 && SceneLightCount > 0 && bDoLightLoop)
+	if (MISMode != 0 && bDoLightLoop)
 	{
 		// Choose a light and sample it
 		float3 TranslatedWorldPos = Payload.TranslatedWorldPos;

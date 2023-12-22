@@ -17,7 +17,6 @@ LightSampling.usf: Light sampling for next-event estimation
 #include "PathTracingPointLight.ush"
 #include "PathTracingRectLight.ush"
 #include "PathTracingSkyLight.ush"
-#include "PathTracingSpotLight.ush"
 
 // Returns float4 packed with Radiance and Pdf
 FLightHit TraceLight(FRayDesc Ray, int LightId)
@@ -25,10 +24,10 @@ FLightHit TraceLight(FRayDesc Ray, int LightId)
 	switch (SceneLights[LightId].Flags & PATHTRACER_FLAG_TYPE_MASK)
 	{
 		case PATHTRACING_LIGHT_SKY:			return SkyLight_TraceLight(Ray, LightId);
-		case PATHTRACING_LIGHT_POINT:		return PointLight_TraceLight(Ray, LightId);
 		case PATHTRACING_LIGHT_DIRECTIONAL: return DirectionalLight_TraceLight(Ray, LightId);
+		case PATHTRACING_LIGHT_POINT:
+		case PATHTRACING_LIGHT_SPOT:		return PointLight_TraceLight(Ray, LightId);
 		case PATHTRACING_LIGHT_RECT:		return RectLight_TraceLight(Ray, LightId);
-		case PATHTRACING_LIGHT_SPOT:		return SpotLight_TraceLight(Ray, LightId);
 		default:							return NullLightHit(); // unknown light type?
 	}
 }
@@ -44,10 +43,10 @@ FLightSample SampleLight(
 	switch (SceneLights[LightId].Flags & PATHTRACER_FLAG_TYPE_MASK)
 	{
 		case PATHTRACING_LIGHT_SKY:			return SkyLight_SampleLight(LightId, RandSample, WorldNormal);
-		case PATHTRACING_LIGHT_POINT:		return PointLight_SampleLight(LightId, RandSample, TranslatedWorldPos, WorldNormal);
 		case PATHTRACING_LIGHT_DIRECTIONAL: return DirectionalLight_SampleLight(LightId, RandSample, WorldNormal);
+		case PATHTRACING_LIGHT_POINT:
+		case PATHTRACING_LIGHT_SPOT:		return PointLight_SampleLight(LightId, RandSample, TranslatedWorldPos, WorldNormal);
 		case PATHTRACING_LIGHT_RECT:		return RectLight_SampleLight(LightId, RandSample, TranslatedWorldPos, WorldNormal);
-		case PATHTRACING_LIGHT_SPOT:		return SpotLight_SampleLight(LightId, RandSample, TranslatedWorldPos, WorldNormal);
 		default:							return NullLightSample(); // unknown light type?
 	}
 }
@@ -68,10 +67,10 @@ float EstimateLight(
 	switch (SceneLights[LightId].Flags & PATHTRACER_FLAG_TYPE_MASK)
 	{
 		case PATHTRACING_LIGHT_SKY:			return SkyLight_EstimateLight(LightId, WorldNormal, IsTransmissiveMaterial);
-		case PATHTRACING_LIGHT_POINT:		return PointLight_EstimateLight(LightId, TranslatedWorldPos, WorldNormal, IsTransmissiveMaterial);
 		case PATHTRACING_LIGHT_DIRECTIONAL:	return DirectionalLight_EstimateLight(LightId, WorldNormal, IsTransmissiveMaterial);
+		case PATHTRACING_LIGHT_POINT:
+		case PATHTRACING_LIGHT_SPOT:		return PointLight_EstimateLight(LightId, TranslatedWorldPos, WorldNormal, IsTransmissiveMaterial);
 		case PATHTRACING_LIGHT_RECT:		return RectLight_EstimateLight(LightId, TranslatedWorldPos, WorldNormal, IsTransmissiveMaterial);
-		case PATHTRACING_LIGHT_SPOT:		return SpotLight_EstimateLight(LightId, TranslatedWorldPos, WorldNormal, IsTransmissiveMaterial);
 		default:							return 0.0;
 	}
 }
@@ -88,10 +87,10 @@ FVolumeLightSampleSetup PrepareLightVolumeSample(
 	switch (SceneLights[LightId].Flags & PATHTRACER_FLAG_TYPE_MASK)
 	{
 		//case PATHTRACING_LIGHT_SKY:         return SkyLight_PrepareLightVolumeSample(LightId, RayOrigin, RayDirection, TMin, TMax);
-		case PATHTRACING_LIGHT_POINT:       return PointLight_PrepareLightVolumeSample(LightId, RayOrigin, RayDirection, TMin, TMax);
 		//case PATHTRACING_LIGHT_DIRECTIONAL: return DirectionalLight_PrepareLightVolumeSample(LightId, RayOrigin, RayDirection, TMin, TMax);
+		case PATHTRACING_LIGHT_POINT:
+		case PATHTRACING_LIGHT_SPOT:        return PointLight_PrepareLightVolumeSample(LightId, RayOrigin, RayDirection, TMin, TMax);
 		case PATHTRACING_LIGHT_RECT:        return RectLight_PrepareLightVolumeSample(LightId, RayOrigin, RayDirection, TMin, TMax);
-		case PATHTRACING_LIGHT_SPOT:        return SpotLight_PrepareLightVolumeSample(LightId, RayOrigin, RayDirection, TMin, TMax);
 		default:                            return NullVolumeLightSetup();
 	}
 }
