@@ -99,6 +99,7 @@
 #include "WaterInfoTextureRendering.h"
 #include "PostProcess/DebugAlphaChannel.h"
 #include "StochasticShadows/StochasticShadows.h"
+#include "StochasticDirectLighting/StochasticDirectLighting.h"
 #include "Rendering/CustomRenderPass.h"
 
 #if !UE_BUILD_SHIPPING
@@ -764,6 +765,7 @@ bool FDeferredShadingSceneRenderer::SetupRayTracingPipelineStates(FRDGBuilder& G
 		for (const FViewInfo& View : Views)
 		{
 			PrepareStochasticShadowsLumenMaterial(View, LumenHardwareRayTracingRayGenShaders);
+			PrepareStochasticDirectLightingLumenMaterial(View, LumenHardwareRayTracingRayGenShaders);
 		}
 
 		DeduplicateRayGenerationShaders(LumenHardwareRayTracingRayGenShaders);
@@ -1017,7 +1019,8 @@ void FDeferredShadingSceneRenderer::WaitForRayTracingScene(FRDGBuilder& GraphBui
 	for (const FViewInfo& View : Views)
 	{
 		if (Lumen::AnyLumenHardwareInlineRayTracingPassEnabled(Scene, View) 
-			|| StochasticShadows::UseInlineHardwareRayTracing())
+			|| StochasticShadows::UseInlineHardwareRayTracing()
+			|| StochasticDirectLighting::UseInlineHardwareRayTracing())
 		{
 			bAnyLumenHardwareInlineRayTracingPassEnabled = true;
 		}
@@ -1028,7 +1031,9 @@ void FDeferredShadingSceneRenderer::WaitForRayTracingScene(FRDGBuilder& GraphBui
 		SetupLumenHardwareRayTracingHitGroupBuffer(GraphBuilder, ReferenceView);
 	}
 
-	if (Lumen::UseHardwareRayTracing(ViewFamily) || StochasticShadows::UseHardwareRayTracing())
+	if (Lumen::UseHardwareRayTracing(ViewFamily) 
+		|| StochasticShadows::UseHardwareRayTracing()
+		|| StochasticDirectLighting::UseHardwareRayTracing())
 	{
 		SetupLumenHardwareRayTracingUniformBuffer(GraphBuilder, ReferenceView);
 	}
@@ -1199,7 +1204,7 @@ void FDeferredShadingSceneRenderer::CommitFinalPipelineState()
 				bHasSSGI || bUseLumen);
 
 			ViewPipelineState.Set(&FPerViewPipelineState::bClosestHZB, 
-				bHasSSGI || bUseLumen || StochasticShadows::IsUsingClosestHZB());
+				bHasSSGI || bUseLumen || StochasticShadows::IsUsingClosestHZB() || StochasticDirectLighting::IsUsingClosestHZB());
 		}
 	}
 
@@ -2830,6 +2835,10 @@ void FDeferredShadingSceneRenderer::Render(FRDGBuilder& GraphBuilder)
 			if (SortedLightSet.StochasticShadowsLightStart < SortedLightSet.SortedLights.Num())
 			{
 				RenderStochasticShadows(
+					GraphBuilder,
+					SceneTextures);
+
+				RenderStochasticDirectLighting(
 					GraphBuilder,
 					SceneTextures);
 			}

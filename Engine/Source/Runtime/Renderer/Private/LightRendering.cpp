@@ -31,6 +31,7 @@
 #include "MobileBasePassRendering.h"
 #include "TranslucentLighting.h"
 #include "StochasticShadows/StochasticShadows.h"
+#include "StochasticDirectLighting/StochasticDirectLighting.h"
 #include "LightFunctionAtlas.h"
 
 using namespace LightFunctionAtlas;
@@ -684,6 +685,11 @@ FLightOcclusionType GetLightOcclusionType(const FLightSceneProxy& Proxy)
 		return FLightOcclusionType::StochasticShadows;
 	}
 
+	if (StochasticDirectLighting::IsLightSupported(Proxy.GetLightType(), Proxy.CastsRaytracedShadow()))
+	{
+		return FLightOcclusionType::StochasticShadows;
+	}
+
 #if RHI_RAYTRACING
 	if (ShouldRenderRayTracingShadowsForLight(Proxy))
 	{
@@ -697,6 +703,11 @@ FLightOcclusionType GetLightOcclusionType(const FLightSceneProxy& Proxy)
 FLightOcclusionType GetLightOcclusionType(const FLightSceneInfoCompact& LightInfo)
 {
 	if (StochasticShadows::IsLightSupported(LightInfo.LightType, LightInfo.CastRaytracedShadow))
+	{
+		return FLightOcclusionType::StochasticShadows;
+	}
+
+	if (StochasticDirectLighting::IsLightSupported(LightInfo.LightType, LightInfo.CastRaytracedShadow))
 	{
 		return FLightOcclusionType::StochasticShadows;
 	}
@@ -1186,7 +1197,8 @@ void FSceneRenderer::GatherAndSortLights(FSortedLightSetSceneInfo& OutSortedLigh
 					SortedLightInfo->SortKey.Fields.bIsNotSimpleLight = 1;
 
 					// Lights handled by Stochastic Shadows
-					const bool bHandledByStochasticShadows = StochasticShadows::IsLightSupported(LightSceneInfoCompact.LightType, LightSceneInfoCompact.CastRaytracedShadow);
+					const bool bHandledByStochasticShadows = StochasticShadows::IsLightSupported(LightSceneInfoCompact.LightType, LightSceneInfoCompact.CastRaytracedShadow)
+						|| StochasticDirectLighting::IsLightSupported(LightSceneInfoCompact.LightType, LightSceneInfoCompact.CastRaytracedShadow);
 
 					// tiled and clustered deferred lighting only supported for certain lights that don't use any additional features
 					// And also that are not directional (mostly because it doesn't make so much sense to insert them into every grid cell in the universe)

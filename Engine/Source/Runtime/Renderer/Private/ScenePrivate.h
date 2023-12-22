@@ -44,6 +44,7 @@
 #include "Nanite/Nanite.h"
 #include "Lumen/LumenViewState.h"
 #include "StochasticShadows/StochasticShadowsViewState.h"
+#include "StochasticDirectLighting/StochasticDirectLightingViewState.h"
 #include "VolumetricRenderTargetViewStateData.h"
 #include "GPUScene.h"
 #include "DynamicBVH.h"
@@ -1019,6 +1020,7 @@ public:
 
 	FLumenViewState Lumen;
 	FStochasticShadowsViewState StochasticShadows;
+	FStochasticDirectLightingViewState StochasticDirectLighting;
 
 	// Map from Light ID in GPU Scene to index in the View's ForwardLightData array
 	// This is stored in ViewState so we can access previous frame mapping

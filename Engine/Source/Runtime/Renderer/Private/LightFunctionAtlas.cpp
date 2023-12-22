@@ -14,6 +14,7 @@
 #include "PostProcess/PostProcessing.h"
 #include "PostProcess/SceneFilterRendering.h"
 #include "StochasticShadows/StochasticShadows.h"
+#include "StochasticDirectLighting/StochasticDirectLighting.h"
 #include "ShadowRendering.h"
 #include "CanvasItem.h"
 #include "CanvasTypes.h"
@@ -266,7 +267,7 @@ void FLightFunctionAtlas::BeginSceneFrame(const FViewFamilyInfo& ViewFamily, TAr
 	{
 		bVolumetricFogRequestsLF 		= bShouldRenderVolumetricFog && GVolumetricFogUsesLightFunctionAtlas > 0;
 		bDeferredlightingRequestsLF		= GDeferredUsesLightFunctionAtlas > 0;
-		bStochasticShadowsRequestsLF	= StochasticShadows::IsUsingLightFunctions();
+		bStochasticShadowsRequestsLF	= StochasticShadows::IsUsingLightFunctions() || StochasticDirectLighting::IsUsingLightFunctions();
 		bLumenRequestsLF 				= GLumenUsesLightFunctionAtlas > 0;// && IsLumenTranslucencyGIEnabled();// GLumenScene enabled ...;
 
 		bLightFunctionAtlasEnabled = bLightFunctionAtlasEnabled && 

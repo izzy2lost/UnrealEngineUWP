@@ -5,6 +5,7 @@
 #include "RendererPrivate.h"
 #include "PixelShaderUtils.h"
 #include "BasePassRendering.h"
+#include "StochasticDirectLighting/StochasticDirectLighting.h"
 
 static TAutoConsoleVariable<int32> CVarStochasticShadows(
 	TEXT("r.StochasticShadows"),
@@ -161,6 +162,11 @@ namespace StochasticShadows
 
 	bool IsEnabled()
 	{
+		if (StochasticDirectLighting::IsEnabled())
+		{
+			return false;
+		}
+
 		return CVarStochasticShadows.GetValueOnRenderThread() != 0;
 	}
 

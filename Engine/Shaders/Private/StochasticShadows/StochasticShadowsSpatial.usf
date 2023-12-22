@@ -202,7 +202,7 @@ void ShadowMaskSpatialPassCS(
 					uint2 NeighborShadowMaskPageTableCoord = GetShadowMaskPageTableCoord(LocalLightIndex, NeighborCoord);
 					uint NeighborShadowMaskTileIndex = ShadowMaskPageTable[NeighborShadowMaskPageTableCoord];
 
-					// #kris_todo: CVar and normalize tags!
+					// #ss_todo: CVar and normalize tags!
 					float SpatialFilterDepthWeightScale = 10000.0f;
 
 					// Depth weight
