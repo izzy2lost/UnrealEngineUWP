@@ -322,9 +322,10 @@ namespace UE::KismetCompiler::Private
 				check(KnotNode->GetOutputPin());
 				UEdGraphPin* OutputPin = KnotNode->GetOutputPin();
 				check(OutputPin);
-				check(OutputPin->LinkedTo.Num() > 0);
-				
-				LinkedNode = OutputPin->LinkedTo[0]->GetOwningNode();
+
+				// Knots don't necessarily have to be linked.
+				// In these cases, there simply isn't a corresponding signature to reference.
+				LinkedNode = (OutputPin->LinkedTo.Num() > 0) ? OutputPin->LinkedTo[0]->GetOwningNode() : nullptr;
 			}
 
 			// If the delegate pin has been linked, then we should run into either a
