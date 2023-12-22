@@ -70,7 +70,9 @@
 // Enable cluster debug visualization
 #define GRID_DEBUG_ENABLE 0
 
-Texture2D< uint4 > ShadowMaskBits;
+uint bHasLightChannels;
+Texture2D<uint> LightingChannelsTexture;
+Texture2D<uint4> ShadowMaskBits;
 
 #if USE_HAIR_LIGHTING
 uint				HairTransmittanceBufferMaxCount;
@@ -240,6 +242,11 @@ float4 GetLightGridLocalLighting(
 
 	int2 PixelPos = int2( ScreenUV.xy * View.BufferSizeAndInvSize.xy );
 	uint4 ShadowMask = ShadowMaskBits[ PixelPos ];
+	uint LightChannelMask = LIGHTING_CHANNEL_MASK;
+	if (bHasLightChannels)
+	{
+		LightChannelMask = LightingChannelsTexture.Load(uint3(PixelPos, 0)).x;
+	}
 	
 	LOOP
 	for (uint GridLightListIndex = FirstNonSimpleLightIndex; GridLightListIndex < NumLightsInGridCell; GridLightListIndex++)
@@ -254,6 +261,11 @@ float4 GetLightGridLocalLighting(
 		}
 
 		if (!IsLightVisible(LocalLight, TranslatedWorldPosition))
+		{
+			continue;
+		}
+
+		if ((LightChannelMask & UnpackLightingChannelMask(LocalLight)) == 0)
 		{
 			continue;
 		}

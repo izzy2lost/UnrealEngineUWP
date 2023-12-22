@@ -1178,7 +1178,6 @@ void FSceneRenderer::GatherAndSortLights(FSortedLightSetSceneInfo& OutSortedLigh
 
 					// Check for shadows and light functions.
 					SortedLightInfo->SortKey.Fields.LightType = LightSceneInfoCompact.LightType;
-					SortedLightInfo->SortKey.Fields.bTextureProfile = ViewFamily.EngineShowFlags.TexturedLightProfiles && LightSceneInfo->Proxy->GetIESTextureResource();
 					SortedLightInfo->SortKey.Fields.bShadowed = bDynamicShadows && CheckForProjectedShadows(LightSceneInfo);
 					SortedLightInfo->SortKey.Fields.bLightFunction = ViewFamily.EngineShowFlags.LightFunctions && CheckForLightFunction(LightSceneInfo);
 					SortedLightInfo->SortKey.Fields.bUsesLightingChannels = Views[ViewIndex].bUsesLightingChannels && LightSceneInfo->Proxy->GetLightingChannelMask() != GetDefaultLightingChannelMask();
@@ -1196,11 +1195,15 @@ void FSceneRenderer::GatherAndSortLights(FSortedLightSetSceneInfo& OutSortedLigh
 					// Rect lights are not supported as the performance impact is significant even if not used, for now, left for trad. deferred.
 					const bool bClusteredDeferredSupported =
 						(!SortedLightInfo->SortKey.Fields.bShadowed || bShadowedLightsInClustered) &&
-						(!SortedLightInfo->SortKey.Fields.bLightFunction || bUseLightFunctionAtlas) &&
-						!SortedLightInfo->SortKey.Fields.bUsesLightingChannels
+						(!SortedLightInfo->SortKey.Fields.bLightFunction || bUseLightFunctionAtlas)
 						&& LightSceneInfoCompact.LightType != LightType_Directional
 						&& LightSceneInfoCompact.LightType != LightType_Rect
 						&& !bHandledByStochasticShadows;
+
+					// Track feature available accross all lights
+					if (SortedLightInfo->SortKey.Fields.LightType == LightType_Rect)	{ OutSortedLights.bHasRectLights = true; }
+					if (SortedLightInfo->SortKey.Fields.bUsesLightingChannels)			{ OutSortedLights.bHasLightChannels = true; }
+					if (SortedLightInfo->SortKey.Fields.bLightFunction) 				{ OutSortedLights.bHasLightFunctions = true; }
 
 					SortedLightInfo->SortKey.Fields.bClusteredDeferredNotSupported = !bClusteredDeferredSupported;
 					SortedLightInfo->SortKey.Fields.bHandledByStochasticShadows = bHandledByStochasticShadows;
@@ -1225,7 +1228,6 @@ void FSceneRenderer::GatherAndSortLights(FSortedLightSetSceneInfo& OutSortedLigh
 
 		FSortedLightSceneInfo* SortedLightInfo = new(SortedLights) FSortedLightSceneInfo(SimpleLightIndex);
 		SortedLightInfo->SortKey.Fields.LightType = LightType_Point;
-		SortedLightInfo->SortKey.Fields.bTextureProfile = 0;
 		SortedLightInfo->SortKey.Fields.bShadowed = 0;
 		SortedLightInfo->SortKey.Fields.bLightFunction = 0;
 		SortedLightInfo->SortKey.Fields.bUsesLightingChannels = 0;
@@ -1259,7 +1261,6 @@ void FSceneRenderer::GatherAndSortLights(FSortedLightSetSceneInfo& OutSortedLigh
 	{
 		const FSortedLightSceneInfo& SortedLightInfo = SortedLights[LightIndex];
 		const bool bDrawShadows = SortedLightInfo.SortKey.Fields.bShadowed;
-		const bool bTextureLightProfile = SortedLightInfo.SortKey.Fields.bTextureProfile;
 		const bool bLightingChannels = SortedLightInfo.SortKey.Fields.bUsesLightingChannels;
 
 		// Do not schedule unbatched lights if the atlas is used and enabled
@@ -1431,7 +1432,7 @@ void FDeferredShadingSceneRenderer::RenderLights(
 				// Tell the trad. deferred that the simple lights are spoken for.
 				bRenderSimpleLightsStandardDeferred = false;
 
-				AddClusteredDeferredShadingPass(GraphBuilder, SceneTextures, SortedLightSet, ShadowSceneRenderer->VirtualShadowMapMaskBits, ShadowSceneRenderer->VirtualShadowMapMaskBitsHairStrands);
+				AddClusteredDeferredShadingPass(GraphBuilder, SceneTextures, SortedLightSet, ShadowSceneRenderer->VirtualShadowMapMaskBits, ShadowSceneRenderer->VirtualShadowMapMaskBitsHairStrands, LightingChannelsTexture);
 			}
 
 			if (bRenderSimpleLightsStandardDeferred)

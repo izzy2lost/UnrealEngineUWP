@@ -84,8 +84,6 @@ struct FSortedLightSceneInfo
 			// Currently bHandledByLumen is the MSB and LightType is LSB
 			/** The type of light. */
 			uint32 LightType : LightType_NumBits;
-			/** Whether the light has a texture profile. */
-			uint32 bTextureProfile : 1;
 			/** Whether the light uses a light function. */
 			uint32 bLightFunction : 1;
 			/** Whether the light uses lighting channels. */
@@ -143,6 +141,10 @@ struct FSortedLightSetSceneInfo
 
 	// First light handled by Stochastic Shadows
 	int32 StochasticShadowsLightStart;
+
+	bool bHasRectLights = false;
+	bool bHasLightFunctions = false;
+	bool bHasLightChannels = false;
 
 	FSimpleLightArray SimpleLights;
 	TArray<FSortedLightSceneInfo, SceneRenderingAllocator> SortedLights;

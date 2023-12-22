@@ -822,7 +822,8 @@ private:
 		const FMinimalSceneTextures& SceneTextures,
 		const FSortedLightSetSceneInfo& SortedLightsSet,
 		FRDGTextureRef ShadowMaskBits,
-		FRDGTextureRef HairStrandsShadowMaskBits);
+		FRDGTextureRef HairStrandsShadowMaskBits, 
+		FRDGTextureRef ShadowMaskBitsLightingChannelsTexture);
 
 	/** Renders the scene's lighting. */
 	void RenderLights(
