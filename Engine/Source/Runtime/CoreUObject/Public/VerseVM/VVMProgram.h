@@ -19,7 +19,7 @@ struct VProgram : VCell
 	uint32 Num() const { return Map.Num(); }
 	const VUTF8String& GetName(uint32 Index) const { return Map.GetName(Index); }
 	VPackage& GetPackage(uint32 Index) const { return Map.GetCell<VPackage>(Index); }
-	void AddPackage(FAllocationContext Context, FUtf8StringView Name, VPackage& Package) { Map.AddValue(Context, Name, Package); }
+	void AddPackage(FAllocationContext Context, VUTF8String& Name, VPackage& Package) { Map.AddValue(Context, Name, Package); }
 	VPackage* LookupPackage(FUtf8StringView VersePackageName) const { return Map.LookupCell<VPackage>(VersePackageName); }
 
 	const VIntrinsics& GetIntrinsics() const { return *Intrinsics.Get(); }

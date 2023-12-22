@@ -2,6 +2,7 @@
 
 #if WITH_VERSE_VM || defined(__INTELLISENSE__)
 #include "AutoRTFM/AutoRTFM.h"
+#include "Containers/Utf8String.h"
 #include "HAL/Platform.h"
 #include "HAL/PlatformMisc.h"
 #include "VerseVM/Inline/VVMArrayBaseInline.h"
@@ -10,6 +11,7 @@
 #include "VerseVM/Inline/VVMIntInline.h"
 #include "VerseVM/Inline/VVMMutableArrayInline.h"
 #include "VerseVM/Inline/VVMObjectInline.h"
+#include "VerseVM/Inline/VVMUClassInline.h"
 #include "VerseVM/Inline/VVMUTF8StringInline.h"
 #include "VerseVM/Inline/VVMValueInline.h"
 #include "VerseVM/Inline/VVMVarInline.h"
@@ -100,6 +102,15 @@ static FOpErr StopInterpreterSentry;
 
 namespace
 {
+bool CanAllocateUObjects()
+{
+	// NOTE: This is an arbitrary limit. If we have less than ~10k `UObject`s available for allocation left
+	// we're probably in a bad spot anyway. This just makes sure that there is some slack available before the
+	// limit gets hit.
+	static constexpr int32 MinAvailableObjectCount = 10 * 1024;
+	return GUObjectArray.GetObjectArrayEstimatedAvailable() >= MinAvailableObjectCount;
+}
+
 struct FExecutionState
 {
 	VFrame* Frame{nullptr};
@@ -120,13 +131,12 @@ struct FExecutionState
 	FExecutionState(FExecutionState&&) = default;
 	FExecutionState& operator=(const FExecutionState&) = default;
 };
-} // namespace
 
 // In Verse, all functions conceptually take a single argument tuple
 // To avoid unnecessary boxing and unboxing of VValues, we add an optimization where we try to avoid boxing/unboxing as much as possible
 // This function reconciles the number of expected parameters with the number of provided arguments and boxes/unboxes only as needed
 template <typename ArgFunction, typename StoreFunction>
-static void UnboxArguments(FAllocationContext Context, uint32 NumParams, uint32 NumArgs, ArgFunction GetArg, StoreFunction StoreArg)
+void UnboxArguments(FAllocationContext Context, uint32 NumParams, uint32 NumArgs, ArgFunction GetArg, StoreFunction StoreArg)
 {
 	if (NumParams == NumArgs)
 	{
@@ -170,14 +180,14 @@ static void UnboxArguments(FAllocationContext Context, uint32 NumParams, uint32 
 }
 
 template <typename ArgFunction, typename ReturnSlotType>
-static VFrame& MakeFrameForCallee(FRunningContext Context, VFrame* CallerFrame, FOp* CallerPC, ReturnSlotType ReturnSlot, VFunction& Function, uint32 NumArgs, ArgFunction GetArg)
+VFrame& MakeFrameForCallee(FRunningContext Context, VFrame* CallerFrame, FOp* CallerPC, ReturnSlotType ReturnSlot, VFunction& Function, uint32 NumArgs, ArgFunction GetArg)
 {
 	VProcedure& Procedure = Function.GetProcedure();
 	VFrame& Frame = VFrame::New(Context, Procedure.NumRegisters, CallerFrame, CallerPC, Procedure, ReturnSlot);
 
 	check(1 + Procedure.NumParameters <= Procedure.NumRegisters);
 
-	Frame.Registers[0].Set(Context, *Function.ParentScope.Get());
+	Frame.Registers[0].Set(Context, Function.ParentScope.Get());
 
 	UnboxArguments(Context, Procedure.NumParameters, NumArgs, GetArg,
 		[&](uint32 Param, VValue Value) {
@@ -186,6 +196,7 @@ static VFrame& MakeFrameForCallee(FRunningContext Context, VFrame* CallerFrame, 
 
 	return Frame;
 }
+} // namespace
 
 class FInterpreter
 {
@@ -960,7 +971,7 @@ class FInterpreter
 		{
 			DEF(Op.Dest, Option->GetValue());
 		}
-		else
+		else if (!Source.IsUObject())
 		{
 			V_DIE("Unimplemented type passed to VM `Query` operation");
 		}
@@ -1270,29 +1281,44 @@ class FInterpreter
 			REQUIRE_CONCRETE(CurrentArg);
 			InheritedClasses.Add(&CurrentArg.StaticCast<VClass>());
 		}
-		VClass& NewClass = VClass::New(Context, *Constructor, InheritedClasses);
+		VClass& NewClass = VClass::New(Context, nullptr, VClass::EKind::Class, *Constructor, InheritedClasses, nullptr);
 		DEF(Op.Dest, NewClass);
 		return {FOpResult::Normal};
 	}
 
 	template <typename OpType>
-	FOpResult NewObjectImpl(OpType& Op, VClass& Class, VObject*& NewObject, TArray<VProcedure*>& Initializers)
+	FOpResult NewObjectImpl(OpType& Op, VClass& Class, VValue& NewObject, TArray<VProcedure*>& Initializers)
 	{
 		const uint32 NumFields = Op.Fields->Num();
 		const uint32 NumValues = Op.Values.Num();
 
 		V_DIE_UNLESS(NumFields == NumValues);
 
-		TArray<VValue> Values;
-		Values.Reserve(NumValues);
+		TArray<VValue> ArchetypeValues;
+		ArchetypeValues.Reserve(NumValues);
 		for (uint32 Index = 0; Index < NumValues; ++Index)
 		{
 			VValue CurrentValue = GetOperand(Op.Values[Index]);
 			REQUIRE_CONCRETE(CurrentValue);
-			Values.Add(CurrentValue);
+			ArchetypeValues.Add(CurrentValue);
 		}
-		NewObject = &VObject::New(Context, Class, *Op.Fields.Get(), Values, Initializers);
-		DEF(Op.Dest, *NewObject);
+		VUniqueStringSet& ArchetypeFields = *Op.Fields.Get();
+
+		// UObject or VObject?
+		const float UObjectProbablity = CVarUObjectProbablity.GetValueOnAnyThread();
+		const bool bUObjectInsteadOfVObject = UObjectProbablity > 0.0f && (UObjectProbablity > RandomUObjectProbablity.FRand());
+		if (bUObjectInsteadOfVObject)
+		{
+			V_RUNTIME_ERROR_IF(!CanAllocateUObjects(), Context, FUtf8String::Printf("Ran out of memory for allocating `UObject`s while attempting to construct a Verse object of type %s!", *Class.GetName().AsCString()));
+
+			NewObject = Class.NewUObject(Context, ArchetypeFields, ArchetypeValues, Initializers);
+		}
+		else
+		{
+			NewObject = Class.NewVObject(Context, ArchetypeFields, ArchetypeValues, Initializers);
+		}
+
+		DEF(Op.Dest, NewObject);
 
 		return {FOpResult::Normal};
 	}
@@ -1302,11 +1328,23 @@ class FInterpreter
 	{
 		const VValue& ObjectOperand = GetOperand(Op.Object);
 		REQUIRE_CONCRETE(ObjectOperand);
-		VObject& Object = ObjectOperand.StaticCast<VObject>();
-		VValue FieldValue = Object.LoadField(Context, *Op.Name.Get());
+		VUniqueString& FieldName = *Op.Name.Get();
+		VValue FieldValue;
+		if (!ObjectOperand.IsUObject())
+		{
+			VObject& Object = ObjectOperand.StaticCast<VObject>();
+			FieldValue = Object.LoadField(Context, FieldName);
+		}
+		else
+		{
+			UObject* Object = ObjectOperand.AsUObject();
+			UVerseVMClass* Class = static_cast<UVerseVMClass*>(Object->GetClass());
+			FProperty* FieldProperty = Class->GetPropertyForField(Context, FieldName);
+			FieldValue = FieldProperty->ContainerPtrToValuePtr<VRestValue>(Object)->Get(Context);
+		}
 		if (FieldValue.IsCellOfType<VProcedure>())
 		{
-			FieldValue = VFunction::New(Context, FieldValue.StaticCast<VProcedure>(), Object);
+			FieldValue = VFunction::New(Context, FieldValue.StaticCast<VProcedure>(), ObjectOperand);
 		}
 		else if (FieldValue.IsCellOfType<VNativeFunction>())
 		{
@@ -1321,43 +1359,49 @@ class FInterpreter
 	{
 		const VValue& ObjectOperand = GetOperand(Op.Object);
 		REQUIRE_CONCRETE(ObjectOperand);
-		VObject& Object = ObjectOperand.StaticCast<VObject>();
-
 		VValue ValueOperand = GetOperand(Op.Value);
 		REQUIRE_CONCRETE(ValueOperand);
+		VUniqueString& FieldName = *Op.Name.Get();
 
-		const VEmergentType* EmergentType = Object.GetEmergentType();
-		V_DIE_IF(EmergentType == nullptr);
-		const VShape* Shape = EmergentType->Shape.Get();
-		V_DIE_IF(Shape == nullptr);
-		const VShape::VEntry* Field = Shape->GetField(Context, *Op.Name.Get());
-		V_DIE_IF(Field == nullptr);
 		bool bSucceeded = false;
-		switch (Field->Type)
+		if (!ObjectOperand.IsUObject())
 		{
-			case EFieldType::Offset:
+			VObject& Object = ObjectOperand.StaticCast<VObject>();
+
+			const VEmergentType* EmergentType = Object.GetEmergentType();
+			V_DIE_IF(EmergentType == nullptr);
+			const VShape* Shape = EmergentType->Shape.Get();
+			V_DIE_IF(Shape == nullptr);
+			const VShape::VEntry* Field = Shape->GetField(Context, FieldName);
+			V_DIE_IF(Field == nullptr);
+			switch (Field->Type)
 			{
-				VRestValue& Slot = Object.GetFieldSlot(Context, *Op.Name.Get());
-				bSucceeded = Def(Slot, ValueOperand);
-				break;
+				case EFieldType::Offset:
+				{
+					VRestValue& Slot = Object.GetFieldSlot(Context, FieldName);
+					bSucceeded = Def(Slot, ValueOperand);
+					break;
+				}
+				case EFieldType::Constant:
+				{
+					bSucceeded = Def(Field->Value.Get(), ValueOperand);
+					break;
+				}
+				default:
+					V_DIE("Field: %hs has an unsupported type; cannot unify!", Op.Name.Get()->AsCString());
+					break;
 			}
-			case EFieldType::Constant:
-			{
-				bSucceeded = Def(Field->Value.Get(), ValueOperand);
-				break;
-			}
-			default:
-				V_DIE("Field: %hs has an unsupported type; cannot unify!", Op.Name.Get()->AsCString());
-				break;
-		}
-		if (bSucceeded)
-		{
-			return {FOpResult::Normal};
 		}
 		else
 		{
-			return {FOpResult::Failed};
+			UObject* Object = ObjectOperand.AsUObject();
+			UVerseVMClass* Class = static_cast<UVerseVMClass*>(Object->GetClass());
+			FProperty* FieldProperty = Class->GetPropertyForField(Context, FieldName);
+			VRestValue& Slot = *FieldProperty->ContainerPtrToValuePtr<VRestValue>(Object);
+			bSucceeded = Def(Slot, ValueOperand);
 		}
+
+		return bSucceeded ? FOpResult{FOpResult::Normal} : FOpResult{FOpResult::Failed};
 	}
 
 	FOpResult NeqImplHelper(VValue LeftSource, VValue RightSource)
@@ -1853,7 +1897,7 @@ class FInterpreter
 					REQUIRE_CONCRETE(ClassOperand);
 					VClass& Class = ClassOperand.StaticCast<VClass>();
 
-					VObject* Object = nullptr;
+					VValue Object;
 					TArray<VProcedure*> Initializers;
 					OP_IMPL_HELPER(NewObject, Class, Object, Initializers);
 
@@ -1861,7 +1905,7 @@ class FInterpreter
 					while (Initializers.Num() > 0)
 					{
 						VProcedure& Procedure = *Initializers.Pop();
-						VFunction& Function = VFunction::New(Context, Procedure, *Object);
+						VFunction& Function = VFunction::New(Context, Procedure, Object);
 						VRestValue* ReturnSlot = nullptr;
 						VFrame& NewFrame = MakeFrameForCallee(Context, State.Frame, NextPC, ReturnSlot, Function, 0,
 							[](uint32 Arg) -> VValue { VERSE_UNREACHABLE(); });

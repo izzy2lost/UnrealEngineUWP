@@ -352,7 +352,6 @@ FString VValue::ToString(FAllocationContext Context, const FCellFormatter& Forma
 
 void VValue::ToString(FStringBuilderBase& Builder, FAllocationContext Context, const FCellFormatter& Formatter) const
 {
-
 	if (*this == VValue::EffectDoneMarker())
 	{
 		Builder.Appendf(TEXT("0x%x"), AsInt32());
@@ -377,6 +376,10 @@ void VValue::ToString(FStringBuilderBase& Builder, FAllocationContext Context, c
 	else if (IsCell())
 	{
 		Formatter.Append(Builder, Context, AsCell());
+	}
+	else if (IsUObject())
+	{
+		Builder.Appendf(TEXT("UObject(%p)"), AsUObject());
 	}
 	else if (IsRoot())
 	{

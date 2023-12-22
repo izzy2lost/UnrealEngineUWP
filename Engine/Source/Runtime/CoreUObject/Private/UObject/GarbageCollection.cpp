@@ -54,7 +54,6 @@
 #include "VerseVM/VVMHeap.h"
 #include "VerseVM/VVMMarkStack.h"
 #include "VerseVM/VVMValue.h"
-#include "VerseVM/VVMWriteBarrier.h"
 #endif
 
 /*-----------------------------------------------------------------------------
@@ -3042,7 +3041,7 @@ struct TBatchDispatcher
 	}
 
 #if WITH_VERSE_VM || defined(__INTELLISENSE__)
-	FORCEINLINE_DEBUGGABLE void HandleVerseValueDirectly(UObject* ReferencingObject, Verse::VValue& Value, FMemberId MemberId, EOrigin Origin)
+	FORCEINLINE_DEBUGGABLE void HandleVerseValueDirectly(UObject* ReferencingObject, Verse::VValue Value, FMemberId MemberId, EOrigin Origin)
 	{
 		if (Verse::VCell* Cell = Value.ExtractCell())
 		{
@@ -3055,16 +3054,16 @@ struct TBatchDispatcher
 		}
 	}
 
-	FORCEINLINE_DEBUGGABLE void HandleVerseValue(Verse::TWriteBarrier<Verse::VValue>& BarrierValue, FMemberId MemberId, EOrigin Origin)
+	FORCEINLINE_DEBUGGABLE void HandleVerseValue(Verse::VValue Value, FMemberId MemberId, EOrigin Origin)
 	{
-		HandleVerseValueDirectly(Context.GetReferencingObject(), reinterpret_cast<Verse::VValue&>(BarrierValue), MemberId, Origin);
+		HandleVerseValueDirectly(Context.GetReferencingObject(), Value, MemberId, Origin);
 	}
 
-	FORCEINLINE void HandleVerseValueArray(TArrayView<Verse::TWriteBarrier<Verse::VValue>> BarrierValues, FMemberId MemberId, EOrigin Origin)
+	FORCEINLINE void HandleVerseValueArray(TArrayView<Verse::VValue> Values, FMemberId MemberId, EOrigin Origin)
 	{
-		for (Verse::TWriteBarrier<Verse::VValue>& BarrierValue : BarrierValues)
+		for (Verse::VValue Value : Values)
 		{
-			HandleVerseValueDirectly(Context.GetReferencingObject(), reinterpret_cast<Verse::VValue&>(BarrierValue), MemberId, Origin);
+			HandleVerseValueDirectly(Context.GetReferencingObject(), Value, MemberId, Origin);
 		}
 	}
 

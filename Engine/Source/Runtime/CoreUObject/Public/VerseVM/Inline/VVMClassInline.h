@@ -3,8 +3,10 @@
 
 #if WITH_VERSE_VM || defined(__INTELLISENSE__)
 
+#include "VerseVM/VVMCVars.h"
 #include "VerseVM/VVMClass.h"
 #include "VerseVM/VVMEmergentTypeCreator.h"
+#include "VerseVM/VVMPackage.h"
 #include "VerseVM/VVMShape.h"
 #include "VerseVM/VVMTypeCreator.h"
 
@@ -32,15 +34,17 @@ inline uint32 FEmergentTypesCacheKeyFuncs::GetKeyHash(const VUniqueStringSet& Ke
 	return GetTypeHash(Key);
 }
 
-inline VClass& VClass::New(FAllocationContext Context, VConstructor& InConstructor, const TArray<VClass*>& InInherited, EStructOrClass InStructOrClass)
+inline VClass& VClass::New(FAllocationContext Context, VUTF8String* Name, EKind Kind, VConstructor& Constructor, const TArray<VClass*>& Inherited, VPackage* Scope)
 {
-	const size_t NumBytes = offsetof(VClass, Inherited) + InInherited.Num() * sizeof(Inherited[0]);
-	return *new (Context.AllocateFastCell(NumBytes)) VClass(Context, InConstructor, InInherited, InStructOrClass);
+	const size_t NumBytes = offsetof(VClass, Inherited) + Inherited.Num() * sizeof(Inherited[0]);
+	return *new (Context.AllocateFastCell(NumBytes)) VClass(Context, Name, Kind, Constructor, Inherited, Scope);
 }
 
-inline VClass::VClass(FAllocationContext Context, VConstructor& InConstructor, const TArray<VClass*>& InInherited, EStructOrClass InStructOrClass)
+inline VClass::VClass(FAllocationContext Context, VUTF8String* InName, EKind InKind, VConstructor& InConstructor, const TArray<VClass*>& InInherited, VPackage* InScope)
 	: VType(Context, &GlobalTrivialEmergentType.Get(Context))
-	, StructOrClass(InStructOrClass)
+	, ClassName(Context, InName)
+	, Scope(Context, InScope)
+	, Kind(InKind)
 	, NumInherited(InInherited.Num())
 {
 	if (InInherited.IsEmpty())

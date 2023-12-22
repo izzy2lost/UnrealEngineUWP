@@ -12,13 +12,14 @@
 
 namespace Verse
 {
-inline VObject& VObject::New(FAllocationContext Context, VEmergentType& InEmergentType)
+
+inline VObject& VObject::NewUninitialized(FAllocationContext Context, VEmergentType& InEmergentType)
 {
 	const uint64 NumIndexedFields = InEmergentType.Shape->NumIndexedFields;
 	return *new (Context.AllocateFastCell(offsetof(VObject, Data) + NumIndexedFields * sizeof(Data[0]))) VObject(Context, InEmergentType);
 }
 
-inline const VValue VObject::LoadField(FAllocationContext Context, const VUniqueString& Name)
+inline const VValue VObject::LoadField(FAllocationContext Context, VUniqueString& Name)
 {
 	const VShape::VEntry* Field = GetEmergentType()->Shape->GetField(Context, Name);
 	if (Field == nullptr)

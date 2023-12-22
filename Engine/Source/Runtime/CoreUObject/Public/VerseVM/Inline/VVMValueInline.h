@@ -27,6 +27,15 @@ inline VValue VRestValue::Get(FAllocationContext Context)
 	return Value.Get().Follow();
 }
 
+inline bool VRestValue::operator==(const VRestValue& Other) const
+{
+	if (Value.Get().IsRoot() && Other.Value.Get().IsRoot())
+	{
+		return this == &Other;
+	}
+	return Value.Get() == Other.Value.Get();
+}
+
 inline VValue::VValue(VCell& Cell)
 	: Cell(&Cell)
 {
@@ -150,6 +159,10 @@ inline uint32 GetTypeHash(VValue Value)
 	else if (Value.IsCell())
 	{
 		return GetTypeHash(Value.AsCell());
+	}
+	else if (Value.IsUObject())
+	{
+		return ::GetTypeHash(Value.AsUObject());
 	}
 	else if (Value.IsChar())
 	{

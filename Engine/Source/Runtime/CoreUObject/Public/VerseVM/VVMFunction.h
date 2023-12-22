@@ -18,13 +18,13 @@ struct VFunction : VHeapValue
 	using Args = TArray<VValue, TInlineAllocator<8>>;
 
 	TWriteBarrier<VProcedure> Procedure;
-	TWriteBarrier<VCell> ParentScope;
+	TWriteBarrier<VValue> ParentScope; // Either VObject or a UObject
 
 	// Upon failure, returns an uninitialized VValue
 	COREUOBJECT_API VValue InvokeInTransaction(FRunningContext Context, VValue Argument);
 	COREUOBJECT_API VValue InvokeInTransaction(FRunningContext Context, Args&& Args);
 
-	static VFunction& New(FAllocationContext Context, VProcedure& Procedure, VCell& ParentScope)
+	static VFunction& New(FAllocationContext Context, VProcedure& Procedure, VValue ParentScope)
 	{
 		return *new (Context.AllocateFastCell(sizeof(VFunction))) VFunction(Context, Procedure, ParentScope);
 	}
@@ -34,7 +34,7 @@ struct VFunction : VHeapValue
 	COREUOBJECT_API void ToStringImpl(FStringBuilderBase& Builder, FAllocationContext Context, const FCellFormatter& Formatter);
 
 private:
-	VFunction(FAllocationContext Context, VProcedure& InFunction, VCell& InParentScope)
+	VFunction(FAllocationContext Context, VProcedure& InFunction, VValue InParentScope)
 		: VHeapValue(Context, &GlobalTrivialEmergentType.Get(Context))
 		, Procedure(Context, &InFunction)
 		, ParentScope(Context, InParentScope)

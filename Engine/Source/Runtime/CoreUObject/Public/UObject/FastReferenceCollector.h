@@ -20,7 +20,6 @@
 
 #if WITH_VERSE_VM || defined(__INTELLISENSE__)
 #include "VerseVM/VVMValue.h"
-#include "VerseVM/VVMWriteBarrier.h"
 #endif
 
 #if ENABLE_GC_HISTORY
@@ -604,9 +603,9 @@ FORCEINLINE_DEBUGGABLE void VisitMembers(DispatcherType& Dispatcher, FSchemaView
 			case EMemberType::Stop:
 			return; // Stop schema without ARO call
 #if WITH_VERSE_VM || defined(__INTELLISENSE__)
-			case EMemberType::VerseValue:				Dispatcher.HandleVerseValue(*(Verse::TWriteBarrier<Verse::VValue>*)MemberPtr, FMemberId(DebugIdx), Origin);
+			case EMemberType::VerseValue:				Dispatcher.HandleVerseValue(*(Verse::VValue*)MemberPtr, FMemberId(DebugIdx), Origin);
 			break;
-			case EMemberType::VerseValueArray:			Dispatcher.HandleVerseValueArray(*(TArray<Verse::TWriteBarrier<Verse::VValue>>*)MemberPtr, FMemberId(DebugIdx), Origin);
+			case EMemberType::VerseValueArray:			Dispatcher.HandleVerseValueArray(*(TArray<Verse::VValue>*)MemberPtr, FMemberId(DebugIdx), Origin);
 			break;
 #endif
 			default:									LogIllegalTypeFatal(Member.Type, DebugIdx, Instance);
@@ -689,7 +688,7 @@ struct TDirectDispatcher
 	template <typename T>
 	struct HasHandleTokenStreamVerseCellReference <T, std::void_t<HandleTokenStreamVerseCellReference_t<T>>> : std::true_type {};
 
-	FORCEINLINE_DEBUGGABLE void HandleVerseValueDirectly(UObject* ReferencingObject, Verse::VValue& Value, FMemberId MemberId, EOrigin Origin) const
+	FORCEINLINE_DEBUGGABLE void HandleVerseValueDirectly(UObject* ReferencingObject, Verse::VValue Value, FMemberId MemberId, EOrigin Origin) const
 	{
 		if (Verse::VCell* Cell = Value.ExtractCell())
 		{
@@ -705,16 +704,16 @@ struct TDirectDispatcher
 		}
 	}
 
-	FORCEINLINE_DEBUGGABLE void HandleVerseValue(Verse::TWriteBarrier<Verse::VValue>& BarrierValue, FMemberId MemberId, EOrigin Origin)
+	FORCEINLINE_DEBUGGABLE void HandleVerseValue(Verse::VValue Value, FMemberId MemberId, EOrigin Origin)
 	{
-		HandleVerseValueDirectly(Context.GetReferencingObject(), reinterpret_cast<Verse::VValue&>(BarrierValue), MemberId, Origin);
+		HandleVerseValueDirectly(Context.GetReferencingObject(), Value, MemberId, Origin);
 	}
 
-	FORCEINLINE void HandleVerseValueArray(TArrayView<Verse::TWriteBarrier<Verse::VValue>> BarrierValues, FMemberId MemberId, EOrigin Origin)
+	FORCEINLINE void HandleVerseValueArray(TArrayView<Verse::VValue> Values, FMemberId MemberId, EOrigin Origin)
 	{
-		for (Verse::TWriteBarrier<Verse::VValue>& BarrierValue : BarrierValues)
+		for (Verse::VValue Value : Values)
 		{
-			HandleVerseValueDirectly(Context.GetReferencingObject(), reinterpret_cast<Verse::VValue&>(BarrierValue), MemberId, Origin);
+			HandleVerseValueDirectly(Context.GetReferencingObject(), Value, MemberId, Origin);
 		}
 	}
 #endif

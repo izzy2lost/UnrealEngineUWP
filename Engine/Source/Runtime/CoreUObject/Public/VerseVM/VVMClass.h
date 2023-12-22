@@ -9,16 +9,14 @@
 #include "VerseVM/VVMShape.h"
 #include "VerseVM/VVMType.h"
 
+class UObject;
+class UVerseVMClass;
+
 namespace Verse
 {
 struct VUniqueString;
 struct VProcedure;
-
-enum class EStructOrClass : uint8
-{
-	Class,
-	Struct
-};
+struct VPackage;
 
 /// This provides a custom comparison that allows us to do pointer-based compares of each unique string set, rather than hash-based comparisons.
 struct FEmergentTypesCacheKeyFuncs : TDefaultMapKeyFuncs<TWriteBarrier<VUniqueStringSet>, TWriteBarrier<VEmergentType>, /*bInAllowDuplicateKeys*/ false>
@@ -124,26 +122,56 @@ struct VClass : VType
 	DECLARE_DERIVED_VCPPCLASSINFO(COREUOBJECT_API, VType);
 	COREUOBJECT_API static TGlobalTrivialEmergentTypePtr<&StaticCppClassInfo> GlobalTrivialEmergentType;
 
+	enum class EKind : uint8
+	{
+		Class,
+		Struct,
+		Interface
+	};
+
 	/// Vends an emergent type based on requested fields to override in the class archetype instantiation.
 	VEmergentType& GetOrCreateEmergentTypeForArchetype(FAllocationContext Context, VUniqueStringSet& ArchetypeFieldNames);
 
+	VUTF8String& GetName() const { return *ClassName; }
+	EKind GetKind() const { return Kind; }
 	VConstructor& GetConstructor() { return *Constructor; }
+	UVerseVMClass* GetOrCreateUClass(FAllocationContext Context) { return AssociatedUClass ? reinterpret_cast<UVerseVMClass*>(AssociatedUClass.Get().AsUObject()) : CreateUClass(Context); }
 
-	bool IsStruct() const { return StructOrClass == EStructOrClass::Struct; };
+	/// Allocate a new VObject. Also returns a sequence of VProcedures to invoke to finish the object's construction.
+	/// `ArchetypeValues` should match the order of IDs in `ArchetypeFields`.
+	VObject& NewVObject(FAllocationContext Context, VUniqueStringSet& ArchetypeFields, const TArray<VValue>& ArchetypeValues, TArray<VProcedure*>& OutInitializers);
+
+	/// Allocate a new UObject. Also returns a sequence of VProcedures to invoke to finish the object's construction.
+	/// `ArchetypeValues` should match the order of IDs in `ArchetypeFields`.
+	UObject* NewUObject(FAllocationContext Context, VUniqueStringSet& ArchetypeFields, const TArray<VValue>& ArchetypeValues, TArray<VProcedure*>& OutInitializers);
 
 	/**
 	 * Creates a new class.
 	 *
-	 * @param InConstructor The sequence of fields and blocks in the class body.
-	 * @param InInherited   An array of base classes in order of inheritance.
+	 * @param Name        Name or null.
+	 * @param Kind        Class, Struct or Interface.
+	 * @param Constructor The sequence of fields and blocks in the class body.
+	 * @param Inherited   An array of base classes in order of inheritance.
+	 * @param Scope       Containing package or null.
 	 */
-	static VClass& New(FAllocationContext Context, VConstructor& InConstructor, const TArray<VClass*>& InInherited, EStructOrClass InStructOrClass = EStructOrClass::Class);
+	static VClass& New(FAllocationContext Context, VUTF8String* Name, EKind Kind, VConstructor& Constructor, const TArray<VClass*>& Inherited, VPackage* Scope);
 
 protected:
-	VClass(FAllocationContext Context, VConstructor& InConstructor, const TArray<VClass*>& InInherited, EStructOrClass InStructOrClass);
+	VClass(FAllocationContext Context, VUTF8String* Name, EKind Kind, VConstructor& InConstructor, const TArray<VClass*>& InInherited, VPackage* InScope);
 
 	/// Append to `Entries` those elements of `Base` which are not already overridden, indicated by `Fields`.
 	static void Extend(TSet<VUniqueString*>& Fields, TArray<VConstructor::VEntry>& Entries, const VConstructor& Base);
+
+	// Helper to find initializer procedures after archetype fields have been set on an object
+	void GatherInitializers(VUniqueStringSet& ArchetypeFields, TArray<VProcedure*>& OutInitializers);
+
+	/// Creates an associated UClass for this VClass
+	UVerseVMClass* CreateUClass(FAllocationContext Context);
+
+	TWriteBarrier<VUTF8String> ClassName;
+
+	/// The package this class is in
+	TWriteBarrier<VPackage> Scope;
 
 	// TODO: (yiliang.siew) This should be a weak map when we can support it in the GC. https://jira.it.epicgames.com/browse/SOL-5312
 	/// This is a cache that allows for fast vending of emergent types based on the fields being overridden.
@@ -153,7 +181,10 @@ protected:
 	/// Actual object construction may further override some elements of this sequence.
 	TWriteBarrier<VConstructor> Constructor;
 
-	EStructOrClass StructOrClass;
+	/// An associated UClass allows this VClass to create UObject instances
+	TWriteBarrier<VValue> AssociatedUClass;
+
+	EKind Kind; // Stored here to share alignment space with NumInherited
 
 	uint32 NumInherited;
 	TWriteBarrier<VClass> Inherited[];

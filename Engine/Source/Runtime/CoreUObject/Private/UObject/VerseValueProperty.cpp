@@ -3,17 +3,25 @@
 #include "UObject/VerseValueProperty.h"
 #include "UObject/GarbageCollectionSchema.h"
 #include "UObject/VerseTypes.h"
+#include "VerseVM/VVMRestValue.h"
+#include "VerseVM/Inline/VVMValueInline.h"
 
 IMPLEMENT_FIELD(FVerseValueProperty)
 
 FVerseValueProperty::FVerseValueProperty(FFieldVariant InOwner, const FName& InName, EObjectFlags InObjectFlags)
 	: FProperty(InOwner, InName, InObjectFlags)	
 {
+#if WITH_VERSE_VM || defined(__INTELLISENSE__)
+	ElementSize = sizeof(TCppType);
+#endif
 }
 
 FVerseValueProperty::FVerseValueProperty(FFieldVariant InOwner, const UECodeGen_Private::FVerseValuePropertyParams& Prop)
 	: FProperty(InOwner, (const UECodeGen_Private::FPropertyParamsBaseWithOffset&)Prop, CPF_HasGetValueTypeHash)
 {
+#if WITH_VERSE_VM || defined(__INTELLISENSE__)
+	ElementSize = sizeof(TCppType);
+#endif
 }
 
 void FVerseValueProperty::SerializeItem(FStructuredArchive::FSlot Slot, void* Value, void const* Defaults) const
@@ -84,14 +92,14 @@ void FVerseValueProperty::ClearValueInternal(void* Data) const
 {
 #if WITH_VERSE_VM || defined(__INTELLISENSE__)
 	TCppType* Value = reinterpret_cast<TCppType*>(Data);
-	*Value = TCppType();
+	Value->Reset(0);
 #endif
 }
 
 void FVerseValueProperty::InitializeValueInternal(void* Data) const
 {
 #if WITH_VERSE_VM || defined(__INTELLISENSE__)
-	new (Data) TCppType();
+	new (Data) TCppType(0);
 #endif
 }
 

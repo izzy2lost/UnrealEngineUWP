@@ -47,6 +47,8 @@ struct VRestValue
 
 	VValue Get(FAllocationContext Context);
 
+	bool operator==(const VRestValue& Other) const;
+
 	FString ToString(FAllocationContext Context, const FCellFormatter& Formatter) const;
 	void ToString(FStringBuilderBase& Builder, FAllocationContext Context, const FCellFormatter& Formatter) const;
 

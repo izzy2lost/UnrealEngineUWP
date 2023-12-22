@@ -22,19 +22,10 @@ struct VObject : VHeapValue
 	DECLARE_DERIVED_VCPPCLASSINFO(COREUOBJECT_API, VHeapValue);
 	COREUOBJECT_API static TGlobalTrivialEmergentTypePtr<&StaticCppClassInfo> GlobalTrivialEmergentType;
 
-	/// Allocate a new uninitialized object with the given shape.
-	static VObject& New(FAllocationContext Context, VEmergentType& InEmergentType);
+	/// Allocate a new object with the given shape, populated with placeholders
+	static VObject& NewUninitialized(FAllocationContext Context, VEmergentType& InEmergentType);
 
-	/// Allocate a new object. Also returns a sequence of VProcedures to invoke to finish the object's construction.
-	/// `InValues` should match the order of IDs in `InFields`.
-	static VObject& New(
-		FAllocationContext Context,
-		VClass& InClass,
-		VUniqueStringSet& InFields,
-		const TArray<VValue>& InValues,
-		TArray<VProcedure*>& OutConstructor);
-
-	const VValue LoadField(FAllocationContext Context, const VUniqueString& Name);
+	const VValue LoadField(FAllocationContext Context, VUniqueString& Name);
 
 	/// Use this when you are retrieving a `var` from an object and not what the `var` points to.
 	/// The data is retrieved from the object, rather than the shape.

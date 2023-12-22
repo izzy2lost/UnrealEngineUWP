@@ -7,9 +7,7 @@
 
 namespace Verse
 {
-	struct VValue;
-	template <typename T>
-	struct TWriteBarrier;
+	struct VRestValue;
 }
 
 //
@@ -22,7 +20,7 @@ class FVerseValueProperty : public FProperty
 public:
 
 #if WITH_VERSE_VM || defined(__INTELLISENSE__)
-	using TCppType = Verse::TWriteBarrier<Verse::VValue>;
+	using TCppType = Verse::VRestValue;
 #endif
 
 	COREUOBJECT_API FVerseValueProperty(FFieldVariant InOwner, const FName& InName, EObjectFlags InObjectFlags);

@@ -18,9 +18,12 @@ struct TGlobalTrivialEmergentTypePtr;
 
 enum class EFieldType : int8
 {
-	// The field's value is stored in the object.
+	// The field's value is stored in a VObject.
 	// e.g. `c := class{ X:int }` or `c := class{ var X:int = 0 }`
 	Offset,
+
+	// The field's value is stored in a UObject.
+	FProperty,
 
 	// The field's value is stored in the shape.
 	// This is used for fields default-initialized to a constant, such as methods.
@@ -38,6 +41,10 @@ struct VShape : VCell
 		{
 			/// The zero-based offset for the given entry that can be used to index into the object.
 			uint64 Index;
+
+			/// For shapes of UObjects, this points to the FProperty associated with this field
+			/// The caller must guarantee that the property lives as long as this shape
+			FProperty* Property;
 
 			/// The constant value for the given entry.
 			TWriteBarrier<VValue> Value;

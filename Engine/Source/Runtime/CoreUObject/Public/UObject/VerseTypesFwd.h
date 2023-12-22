@@ -8,7 +8,7 @@ namespace Verse
 {
 struct VCell;
 struct VValue;
-
+struct VRestValue;
 template <typename T>
 struct TWriteBarrier;
 }
