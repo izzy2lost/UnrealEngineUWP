@@ -61,6 +61,7 @@ void UE::Interchange::FTaskPreCompletion::DoTask(ENamedThreads::Type CurrentThre
 		Arguments.NodeContainer = AsyncHelper->BaseNodeContainers[SourceIndex].Get();
 		Arguments.Pipelines = AsyncHelper->Pipelines;
 		Arguments.OriginalPipelines = AsyncHelper->OriginalPipelines;
+		Arguments.Translator = AsyncHelper->Translators[SourceIndex];
 
 		//First iteration to call SetupObject_GameThread and pipeline ExecutePostFactoryPipeline
 		for (const FImportAsyncHelper::FImportedObjectInfo& ObjectInfo : ImportedObjects)

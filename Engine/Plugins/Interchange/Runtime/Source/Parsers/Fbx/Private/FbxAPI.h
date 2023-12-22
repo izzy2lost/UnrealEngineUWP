@@ -42,9 +42,18 @@ namespace UE
 
 				~FFbxParser();
 
+				void Reset();
+
 				void SetResultContainer(UInterchangeResultsContainer* Result)
 				{
 					ResultsContainer = Result;
+				}
+
+				void SetConvertSettings(const bool InbConvertScene, const bool InbForceFrontXAxis, const bool InbConvertSceneUnit)
+				{
+					bConvertScene = InbConvertScene;
+					bForceFrontXAxis = InbForceFrontXAxis;
+					bConvertSceneUnit = InbConvertSceneUnit;
 				}
 
 				//return the fbx helper for this parser
@@ -113,6 +122,11 @@ namespace UE
 
 				//For PivotReset and Animation Conversion:
 				double FrameRate = 30.0;
+
+				//Convert settings
+				bool bConvertScene = true;
+				bool bForceFrontXAxis = false;
+				bool bConvertSceneUnit = true;
 			};
 		}//ns Private
 	}//ns Interchange

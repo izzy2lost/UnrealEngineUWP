@@ -21,14 +21,17 @@ protected:
 	virtual EInterchangePipelineConfigurationDialogResult ShowPipelineConfigurationDialog(TArray<FInterchangeStackInfo>& PipelineStacks
 		, TArray<UInterchangePipelineBase*>& OutPipelines
 		, TWeakObjectPtr<UInterchangeSourceData> SourceData
+		, TWeakObjectPtr <UInterchangeTranslatorBase> Translator
 		, TWeakObjectPtr<UInterchangeBaseNodeContainer> BaseNodeContainer) override;
 	virtual EInterchangePipelineConfigurationDialogResult ShowScenePipelineConfigurationDialog(TArray<FInterchangeStackInfo>& PipelineStacks
 		, TArray<UInterchangePipelineBase*>& OutPipelines
 		, TWeakObjectPtr<UInterchangeSourceData> SourceData
+		, TWeakObjectPtr <UInterchangeTranslatorBase> Translator
 		, TWeakObjectPtr<UInterchangeBaseNodeContainer> BaseNodeContainer) override;
 	virtual EInterchangePipelineConfigurationDialogResult ShowReimportPipelineConfigurationDialog(TArray<FInterchangeStackInfo>& PipelineStacks
 		, TArray<UInterchangePipelineBase*>& OutPipelines
 		, TWeakObjectPtr<UInterchangeSourceData> SourceData
+		, TWeakObjectPtr <UInterchangeTranslatorBase> Translator
 		, TWeakObjectPtr<UInterchangeBaseNodeContainer> BaseNodeContainer
 		, TWeakObjectPtr <UObject> ReimportAsset) override;
 };

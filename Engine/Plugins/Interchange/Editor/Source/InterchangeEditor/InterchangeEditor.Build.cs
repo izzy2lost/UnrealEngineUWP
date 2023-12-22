@@ -23,9 +23,11 @@ namespace UnrealBuildTool.Rules
 				{
 					"AssetDefinition",
 					"ContentBrowser",
+					"InterchangeCommonParser",
 					"InterchangeCore",
 					"InterchangeEngine",
 					"InterchangeFactoryNodes",
+					"InterchangeFbxParser",
 					"InterchangeImport",
 					"InterchangeNodes",
 					"InterchangePipelines",

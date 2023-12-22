@@ -55,10 +55,21 @@ namespace UE::Interchange
 		FbxParserPrivate = nullptr;
 	}
 
+	void FInterchangeFbxParser::Reset()
+	{
+		ResultPayloads.Reset();
+		FbxParserPrivate->Reset();
+	}
+
 	void FInterchangeFbxParser::SetResultContainer(UInterchangeResultsContainer* Result)
 	{
 		InternalResultsContainer = Result;
 		FbxParserPrivate->SetResultContainer(Result);
+	}
+
+	void FInterchangeFbxParser::SetConvertSettings(const bool InbConvertScene, const bool InbForceFrontXAxis, const bool InbConvertSceneUnit)
+	{
+		FbxParserPrivate->SetConvertSettings(InbConvertScene, InbForceFrontXAxis, InbConvertSceneUnit);
 	}
 
 	void FInterchangeFbxParser::LoadFbxFile(const FString& Filename, const FString& ResultFolder)

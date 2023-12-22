@@ -32,7 +32,7 @@ namespace UE::Interchange
 		struct FFbxHelper
 		{
 		public:
-
+			void Reset() { MaterialNameClashMap.Reset(); }
 			FString GetMeshName(FbxGeometryBase* Mesh) const;
 			FString GetMeshUniqueID(FbxGeometryBase* Mesh) const;
 

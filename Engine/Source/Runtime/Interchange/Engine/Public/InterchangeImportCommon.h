@@ -14,6 +14,7 @@ class UInterchangeBaseNodeContainer;
 class UInterchangeFactoryBaseNode;
 class UInterchangePipelineBase;
 class UInterchangeSourceData;
+class UInterchangeTranslatorBase;
 class UObject;
 template <typename FuncType> class TFunctionRef;
 
@@ -35,13 +36,15 @@ namespace UE::Interchange
 			FString NodeUniqueID;
 			UInterchangeBaseNodeContainer* NodeContainer;
 			const TArray<UObject*> Pipelines;
+			const UInterchangeTranslatorBase* Translator;
 
 			INTERCHANGEENGINE_API FUpdateImportAssetDataParameters(UObject* InAssetImportDataOuter
 																, UAssetImportData* InAssetImportData
 																, const UInterchangeSourceData* InSourceData
 																, FString InNodeUniqueID
 																, UInterchangeBaseNodeContainer* InNodeContainer
-																, const TArray<UObject*>& InPipelines);
+																, const TArray<UObject*>& InPipelines
+																, const UInterchangeTranslatorBase* InTranslator);
 		};
 
 		/**
@@ -70,7 +73,8 @@ namespace UE::Interchange
 				, const UInterchangeSourceData* InSourceData
 				, FString InNodeUniqueID
 				, UInterchangeBaseNodeContainer* InNodeContainer
-				, const TArray<UObject*>& InPipelines);
+				, const TArray<UObject*>& InPipelines
+				, const UInterchangeTranslatorBase* InTranslator);
 		};
 
 		/**

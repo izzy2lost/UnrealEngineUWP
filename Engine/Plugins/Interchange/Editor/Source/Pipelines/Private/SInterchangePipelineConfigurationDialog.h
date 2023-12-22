@@ -15,6 +15,8 @@ struct FSlateBrush;
 class IDetailsView;
 class SCheckBox;
 class STextComboBox;
+class UInterchangeTranslatorBase;
+
 
 struct FInterchangePipelineItemType
 {
@@ -68,6 +70,7 @@ public:
 		SLATE_ARGUMENT(TArray<UInterchangePipelineBase*>*, OutPipelines)
 		SLATE_ARGUMENT(TWeakObjectPtr<UInterchangeBaseNodeContainer>, BaseNodeContainer)
 		SLATE_ARGUMENT(TWeakObjectPtr<UObject>, ReimportObject)
+		SLATE_ARGUMENT(TWeakObjectPtr<UInterchangeTranslatorBase>, Translator)
 	SLATE_END_ARGS()
 
 public:
@@ -112,11 +115,17 @@ private:
 	/** Internal utility function to properly display pipeline's name */
 	static FString GetPipelineDisplayName(const UInterchangePipelineBase* Pipeline);
 
+	void SetEditPipeline(UInterchangePipelineBase* PipelineToEdit);
+	FReply OnEditTranslatorSettings();
+	void OnFinishedChangingProperties(const FPropertyChangedEvent& PropertyChangedEvent);
+
 private:
 	TWeakPtr< SWindow > OwnerWindow;
 	TWeakObjectPtr<UInterchangeSourceData> SourceData;
 	TWeakObjectPtr<UInterchangeBaseNodeContainer> BaseNodeContainer;
 	TWeakObjectPtr<UObject> ReimportObject;
+	TWeakObjectPtr<UInterchangeTranslatorBase> Translator;
+	TObjectPtr<UInterchangeTranslatorSettings> TranslatorSettings = nullptr;
 	TArray<FInterchangeStackInfo> PipelineStacks;
 	TArray<UInterchangePipelineBase*>* OutPipelines;
 

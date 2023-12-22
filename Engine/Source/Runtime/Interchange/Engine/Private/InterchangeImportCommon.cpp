@@ -9,6 +9,7 @@
 #include "InterchangePythonPipelineBase.h"
 #include "InterchangeSceneImportAsset.h"
 #include "InterchangeSourceData.h"
+#include "InterchangeTranslatorBase.h"
 #include "Nodes/InterchangeBaseNodeContainer.h"
 #include "Nodes/InterchangeFactoryBaseNode.h"
 #include "UObject/Object.h"
@@ -79,6 +80,11 @@ namespace UE::Interchange
 			}
 			AssetImportData->SetNodeContainer(FactoryNodeContainer);
 
+			if (UInterchangeTranslatorSettings* InterchangeTranslatorSettings = Parameters.Translator->GetSettings())
+			{
+				AssetImportData->SetTranslatorSettings(InterchangeTranslatorSettings);
+			}
+
 			TArray<UObject*> NewPipelines;
 			for (const UObject* Pipeline : Parameters.Pipelines)
 			{
@@ -114,18 +120,21 @@ namespace UE::Interchange
 																						, const UInterchangeSourceData* InSourceData
 																						, FString InNodeUniqueID
 																						, UInterchangeBaseNodeContainer* InNodeContainer
-																						, const TArray<UObject*>& InPipelines)
+																						, const TArray<UObject*>& InPipelines
+																						, const UInterchangeTranslatorBase* InTranslator)
 		: AssetImportDataOuter(InAssetImportDataOuter)
 		, AssetImportData(InAssetImportData)
 		, SourceData(InSourceData)
 		, NodeUniqueID(InNodeUniqueID)
 		, NodeContainer(InNodeContainer)
 		, Pipelines(InPipelines)
+		, Translator(InTranslator)
 	{
 		ensure(AssetImportDataOuter);
 		ensure(SourceData);
 		ensure(!NodeUniqueID.IsEmpty());
 		ensure(NodeContainer);
+		ensure(Translator);
 	}
 
 	UAssetImportData* FFactoryCommon::UpdateImportAssetData(FUpdateImportAssetDataParameters& Parameters)
@@ -186,13 +195,15 @@ namespace UE::Interchange
 																				, const UInterchangeSourceData* InSourceData
 																				, FString InNodeUniqueID
 																				, UInterchangeBaseNodeContainer* InNodeContainer
-																				, const TArray<UObject*>& InPipelines)
+																				, const TArray<UObject*>& InPipelines
+																				, const UInterchangeTranslatorBase* InTranslator)
 		: FUpdateImportAssetDataParameters(InAssetImportDataOuter
 			, InAssetImportData
 			, InSourceData
 			, InNodeUniqueID
 			, InNodeContainer
 			, InPipelines
+			, InTranslator
 			)
 		, SourceFiles()
 	{

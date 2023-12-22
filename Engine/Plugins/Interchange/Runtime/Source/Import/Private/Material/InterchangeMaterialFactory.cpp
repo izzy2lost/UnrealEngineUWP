@@ -1138,7 +1138,8 @@ void UInterchangeMaterialFactory::SetupObject_GameThread(const FSetupObjectParam
 																										  , Arguments.SourceData
 																										  , Arguments.NodeUniqueID
 																										  , Arguments.NodeContainer
-																										  , Arguments.OriginalPipelines);
+																										  , Arguments.OriginalPipelines
+																										  , Arguments.Translator);
 
 		ImportedMaterialInterface->AssetImportData = UE::Interchange::FFactoryCommon::UpdateImportAssetData(UpdateImportAssetDataParameters);
 #endif // WITH_EDITORONLY_DATA

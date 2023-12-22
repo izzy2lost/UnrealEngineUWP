@@ -41,6 +41,20 @@ public:
 	INTERCHANGECORE_API UInterchangeBaseNodeContainer();
 
 	/**
+	 * Empty the container.
+	 *
+	 * @param Node - a pointer on the node you want to add
+	 * @return: return the node unique ID of the added item. If the node already exist it will return the existing ID. Return InvalidNodeUid if the node cannot be added.
+	 *
+	 */
+	UFUNCTION(BlueprintCallable, Category = "Interchange | Node Container")
+	INTERCHANGECORE_API void Reset()
+	{
+		Nodes.Reset();
+		ChildrenCache.Reset();
+	}
+
+	/**
 	 * Add a node in the container, the node will be add into a TMap.
 	 *
 	 * @param Node - a pointer on the node you want to add

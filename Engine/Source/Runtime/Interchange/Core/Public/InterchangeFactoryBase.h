@@ -238,6 +238,7 @@ public:
 		UInterchangeBaseNodeContainer* NodeContainer = nullptr;
 		TArray<UInterchangePipelineBase*> Pipelines;
 		TArray<UObject*> OriginalPipelines;
+		UInterchangeTranslatorBase* Translator;
 		
 		bool bIsReimport  = false;
 ;

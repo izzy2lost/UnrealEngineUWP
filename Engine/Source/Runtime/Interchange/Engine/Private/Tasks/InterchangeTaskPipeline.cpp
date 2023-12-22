@@ -188,6 +188,7 @@ void UE::Interchange::FTaskPostImport::DoTask(ENamedThreads::Type CurrentThread,
 			Arguments.NodeContainer = AsyncHelper->BaseNodeContainers[SourceIndex].Get();
 			Arguments.Pipelines = AsyncHelper->Pipelines;
 			Arguments.OriginalPipelines = AsyncHelper->OriginalPipelines;
+			Arguments.Translator = AsyncHelper->Translators[SourceIndex];
 
 			for (const UE::Interchange::FImportAsyncHelper::FImportedObjectInfo& ObjectInfo : ImportedInfos)
 			{

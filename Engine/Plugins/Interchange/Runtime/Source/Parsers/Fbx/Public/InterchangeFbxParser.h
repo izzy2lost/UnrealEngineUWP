@@ -29,7 +29,11 @@ namespace UE
 			
 			void ReleaseResources();
 
+			void Reset();
+
 			void SetResultContainer(UInterchangeResultsContainer* Result);
+
+			void SetConvertSettings(const bool InbConvertScene, const bool InbForceFrontXAxis, const bool InbConvertSceneUnit);
 			/**
 			 * Parse a file support by the fbx sdk. It just extract all the fbx node and create a FBaseNodeContainer and dump it in a json file inside the ResultFolder
 			 * @param - Filename is the file that the fbx sdk will read (.fbx or .obj)

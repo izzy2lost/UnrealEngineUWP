@@ -20,6 +20,20 @@
 
 class UInterchangeBaseNodeContainer;
 
+/**
+ * Base class for translator settings, the UInterchangeAssetImportData will store this data if the source translator exist
+ */
+UCLASS(BlueprintType, Blueprintable, editinlinenew, Abstract, MinimalAPI)
+class UInterchangeTranslatorSettings : public UObject
+{
+	GENERATED_BODY()
+
+public:
+	INTERCHANGECORE_API void LoadSettings();
+
+	INTERCHANGECORE_API void SaveSettings();
+};
+
 UENUM(BlueprintType)
 enum class EInterchangeTranslatorType : uint8
 {
@@ -135,6 +149,15 @@ public:
 		return SourceData;
 	}
 
+	/**
+	 * Return this translator settings
+	 */
+	INTERCHANGECORE_API virtual UInterchangeTranslatorSettings* GetSettings() const { return nullptr; }
+
+	/**
+	 * Reimport will set the settings if they exist in UInterchangeAssetImportData
+	 */
+	INTERCHANGECORE_API virtual void SetSettings(const UInterchangeTranslatorSettings* InterchangeTranslatorSettings) { }
 
 	UPROPERTY()
 	TObjectPtr<UInterchangeResultsContainer> Results;

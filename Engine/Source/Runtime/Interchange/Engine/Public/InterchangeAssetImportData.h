@@ -4,6 +4,7 @@
 
 #include "CoreMinimal.h"
 #include "EditorFramework/AssetImportData.h"
+#include "InterchangeTranslatorBase.h"
 #include "Nodes/InterchangeBaseNode.h"
 #include "Nodes/InterchangeBaseNodeContainer.h"
 #include "UObject/AssetRegistryTagsContext.h"
@@ -159,6 +160,13 @@ public:
 	UFUNCTION(BlueprintCallable, Category = "Interchange | AssetImportData")
 	INTERCHANGEENGINE_API UInterchangeFactoryBaseNode* GetStoredFactoryNode(const FString& InNodeUniqueId) const;
 
+	UFUNCTION(BlueprintCallable, Category = "Interchange | AssetImportData")
+	INTERCHANGEENGINE_API const UInterchangeTranslatorSettings* GetTranslatorSettings() const;
+
+	UFUNCTION(BlueprintCallable, Category = "Interchange | AssetImportData")
+	INTERCHANGEENGINE_API void SetTranslatorSettings(UInterchangeTranslatorSettings* TranslatorSettings) const;
+
+
 private:
 	UPROPERTY(meta = (DeprecatedProperty, DeprecationMessage = "Use GetNodeContainer/SetNodeContainer instead."))
 	TObjectPtr<UInterchangeBaseNodeContainer> NodeContainer_DEPRECATED;
@@ -171,11 +179,16 @@ private:
 	UPROPERTY(Transient)
 	mutable TArray<TObjectPtr<UObject>> TransientPipelines;
 
+	UPROPERTY(Transient)
+	mutable TObjectPtr<UInterchangeTranslatorSettings> TransientTranslatorSettings;
+
 	void ProcessContainerCache() const;
 	void ProcessPipelinesCache() const;
 	void ProcessDeprecatedData() const;
+	void ProcessTranslatorCache() const;
 	mutable TArray64<uint8> CachedNodeContainer;
 	mutable TArray<TPair<FString, FString>> CachedPipelines; //Class, Data(serialized JSON) pair
+	mutable TPair<FString, FString> CachedTranslatorSettings;
 };
 
 /**

@@ -1,6 +1,7 @@
 // Copyright Epic Games, Inc. All Rights Reserved.
 #pragma once
 
+#include "Engine/DeveloperSettings.h"
 #include "Animation/InterchangeAnimationPayloadInterface.h"
 #include "CoreMinimal.h"
 #include "InterchangeTranslatorBase.h"
@@ -19,6 +20,26 @@
 #include "InterchangeFbxTranslator.generated.h"
 
 /* Fbx translator class support import of texture, material, static mesh, skeletal mesh, */
+
+UCLASS(BlueprintType, editinlinenew, MinimalAPI)
+class UInterchangeFbxTranslatorSettings : public UInterchangeTranslatorSettings
+{
+	GENERATED_BODY()
+
+public:
+
+	/** Whether to convert FBX scene axis system to Unreal axis system. */
+	UPROPERTY(EditAnywhere, Category = "Fbx Translator")
+	bool bConvertScene = true;
+
+	/** Whether to force the front axis to be align with X instead of -Y default. */
+	UPROPERTY(EditAnywhere, Category = "Fbx Translator", meta = (EditCondition = "bConvertScene"))
+	bool bForceFrontXAxis = false;
+
+	/** Whether to convert the scene from FBX unit to UE unit (centimeter). */
+	UPROPERTY(EditAnywhere, Category = "Fbx Translator")
+	bool bConvertSceneUnit = true;
+};
 
 UCLASS(BlueprintType)
 class INTERCHANGEIMPORT_API UInterchangeFbxTranslator : public UInterchangeTranslatorBase
@@ -40,6 +61,8 @@ public:
 	virtual bool Translate(UInterchangeBaseNodeContainer& BaseNodeContainer) const override;
 	virtual void ReleaseSource() override;
 	virtual void ImportFinish() override;
+	virtual UInterchangeTranslatorSettings* GetSettings() const override;
+	virtual void SetSettings(const UInterchangeTranslatorSettings* InterchangeTranslatorSettings) override;
 	/** End UInterchangeTranslatorBase API*/
 
 
@@ -79,7 +102,7 @@ public:
 	virtual TFuture<TOptional<UE::Interchange::FAnimationPayloadData>> GetAnimationPayloadData(const FInterchangeAnimationPayLoadKey& PayLoadKey, const double BakeFrequency = 0, const double RangeStartSecond = 0, const double RangeStopSecond = 0) const override;
 	/* IInterchangeAnimationPayloadInterface End */
 private:
-	FString CreateLoadFbxFileCommand(const FString& FbxFilePath) const;
+	FString CreateLoadFbxFileCommand(const FString& FbxFilePath, const bool bConvertScene, const bool bForceFrontXAxis, const bool bConvertSceneUnit) const;
 
 	FString CreateFetchMeshPayloadFbxCommand(const FString& FbxPayloadKey, const FTransform& MeshGlobalTransform) const;
 
@@ -93,6 +116,8 @@ private:
 	//never translate a source.
 	mutable TUniquePtr<UE::Interchange::FInterchangeDispatcher> Dispatcher;
 
+	mutable TObjectPtr<UInterchangeFbxTranslatorSettings> CacheFbxTranslatorSettings = nullptr;
+
 	//If true this translator will use the dispatcher (InterchangeWorker program) to translate and return payloads.
 	//If false, this translator will not use the dispatcher
 	bool bUseWorkerImport = false;
@@ -101,5 +126,4 @@ private:
 #endif //WITH_EDITOR
 	FString ResultFolder;
 };
-
 

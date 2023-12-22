@@ -12,6 +12,7 @@
 EInterchangePipelineConfigurationDialogResult UInterchangePipelineConfigurationGeneric::ShowPipelineConfigurationDialog(TArray<FInterchangeStackInfo>& PipelineStacks
 	, TArray<UInterchangePipelineBase*>& OutPipelines
 	, TWeakObjectPtr<UInterchangeSourceData> SourceData
+	, TWeakObjectPtr <UInterchangeTranslatorBase> Translator
 	, TWeakObjectPtr<UInterchangeBaseNodeContainer> BaseNodeContainer)
 {
 	//Create and show the graph inspector UI dialog
@@ -35,6 +36,7 @@ EInterchangePipelineConfigurationDialogResult UInterchangePipelineConfigurationG
 		.PipelineStacks(PipelineStacks)
 		.OutPipelines(&OutPipelines)
 		.BaseNodeContainer(BaseNodeContainer)
+		.Translator(Translator)
 	);
 
 	FSlateApplication::Get().AddModalWindow(Window, ParentWindow, false);
@@ -55,6 +57,7 @@ EInterchangePipelineConfigurationDialogResult UInterchangePipelineConfigurationG
 EInterchangePipelineConfigurationDialogResult UInterchangePipelineConfigurationGeneric::ShowScenePipelineConfigurationDialog(TArray<FInterchangeStackInfo>& PipelineStacks
 	, TArray<UInterchangePipelineBase*>& OutPipelines
 	, TWeakObjectPtr<UInterchangeSourceData> SourceData
+	, TWeakObjectPtr <UInterchangeTranslatorBase> Translator
 	, TWeakObjectPtr<UInterchangeBaseNodeContainer> BaseNodeContainer)
 {
 	//Create and show the graph inspector UI dialog
@@ -78,6 +81,7 @@ EInterchangePipelineConfigurationDialogResult UInterchangePipelineConfigurationG
 		.PipelineStacks(PipelineStacks)
 		.OutPipelines(&OutPipelines)
 		.BaseNodeContainer(BaseNodeContainer)
+		.Translator(Translator)
 	);
 
 	FSlateApplication::Get().AddModalWindow(Window, ParentWindow, false);
@@ -98,6 +102,7 @@ EInterchangePipelineConfigurationDialogResult UInterchangePipelineConfigurationG
 EInterchangePipelineConfigurationDialogResult UInterchangePipelineConfigurationGeneric::ShowReimportPipelineConfigurationDialog(TArray<FInterchangeStackInfo>& PipelineStacks
 	, TArray<UInterchangePipelineBase*>& OutPipelines
 	, TWeakObjectPtr<UInterchangeSourceData> SourceData
+	, TWeakObjectPtr <UInterchangeTranslatorBase> Translator
 	, TWeakObjectPtr<UInterchangeBaseNodeContainer> BaseNodeContainer
 	, TWeakObjectPtr <UObject> ReimportAsset)
 {
@@ -123,6 +128,7 @@ EInterchangePipelineConfigurationDialogResult UInterchangePipelineConfigurationG
 		.OutPipelines(&OutPipelines)
 		.BaseNodeContainer(BaseNodeContainer)
 		.ReimportObject(ReimportAsset)
+		.Translator(Translator)
 	);
 
 	FSlateApplication::Get().AddModalWindow(Window, ParentWindow, false);

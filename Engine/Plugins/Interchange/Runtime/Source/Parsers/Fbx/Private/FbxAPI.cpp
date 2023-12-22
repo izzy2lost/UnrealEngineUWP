@@ -35,8 +35,13 @@ namespace UE
 		{
 			FFbxParser::~FFbxParser()
 			{
-				PayloadContexts.Empty();
 				FbxHelper = nullptr;
+				Reset();
+			}
+			
+			void FFbxParser::Reset()
+			{
+				PayloadContexts.Reset();
 
 				DESTROY_FBX_OBJECT(SDKImporter);
 				DESTROY_FBX_OBJECT(SDKScene);
@@ -47,8 +52,12 @@ namespace UE
 				}
 				DESTROY_FBX_OBJECT(SDKIoSettings);
 				DESTROY_FBX_OBJECT(SDKManager);
+				if (FbxHelper.IsValid())
+				{
+					FbxHelper->Reset();
+				}
 			}
-			
+
 			const TSharedPtr<FFbxHelper> FFbxParser::GetFbxHelper()
 			{
 				if (!FbxHelper.IsValid())
@@ -121,7 +130,7 @@ namespace UE
 				bool bStatus = SDKImporter->Import(SDKScene);
 
 				//We always convert scene to UE axis and units
-				FFbxConvert::ConvertScene(SDKScene);
+				FFbxConvert::ConvertScene(SDKScene, bConvertScene, bForceFrontXAxis, bConvertSceneUnit);
 
 				FrameRate = FbxTime::GetFrameRate(SDKScene->GetGlobalSettings().GetTimeMode());
 

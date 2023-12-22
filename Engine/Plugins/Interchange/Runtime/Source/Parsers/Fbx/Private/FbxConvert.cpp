@@ -13,7 +13,7 @@ namespace UE
 	{
 		namespace Private
 		{
-			void FFbxConvert::ConvertScene(FbxScene* SDKScene)
+			void FFbxConvert::ConvertScene(FbxScene* SDKScene, const bool bConvertScene, const bool bForceFrontXAxis, const bool bConvertSceneUnit)
 			{
 				if (!ensure(SDKScene))
 				{
@@ -42,30 +42,33 @@ namespace UE
 					}
 				}
 
-				//Set the original file information
-				FbxAxisSystem FileAxisSystem = SDKScene->GetGlobalSettings().GetAxisSystem();
-				FbxSystemUnit FileUnitSystem = SDKScene->GetGlobalSettings().GetSystemUnit();
 
-
-				//UE is: z up, front x, left handed
-				FbxAxisSystem::EUpVector UpVector = FbxAxisSystem::EUpVector::eZAxis;
-#if CONVERT_TO_FRONT_X
-				FbxAxisSystem::EFrontVector FrontVector = (FbxAxisSystem::EFrontVector)FbxAxisSystem::eParityEven;
-#else
-				FbxAxisSystem::EFrontVector FrontVector = (FbxAxisSystem::EFrontVector) - FbxAxisSystem::eParityOdd;
-#endif //CONVERT_TO_FRONT_X
-				FbxAxisSystem::ECoordSystem CoordSystem = FbxAxisSystem::ECoordSystem::eRightHanded;
-				FbxAxisSystem UnrealImportAxis(UpVector, FrontVector, CoordSystem);
-
-				if (FileAxisSystem != UnrealImportAxis)
+				if (bConvertScene)
 				{
-					FbxRootNodeUtility::RemoveAllFbxRoots(SDKScene);
-					UnrealImportAxis.ConvertScene(SDKScene);
+					//Set the original file information
+					FbxAxisSystem FileAxisSystem = SDKScene->GetGlobalSettings().GetAxisSystem();
+
+
+					//UE is: z up, front x, left handed
+					FbxAxisSystem::EUpVector UpVector = FbxAxisSystem::EUpVector::eZAxis;
+					FbxAxisSystem::EFrontVector FrontVector = (FbxAxisSystem::EFrontVector)(bForceFrontXAxis ? FbxAxisSystem::eParityEven : -FbxAxisSystem::eParityOdd);
+					FbxAxisSystem::ECoordSystem CoordSystem = FbxAxisSystem::ECoordSystem::eRightHanded;
+					FbxAxisSystem UnrealImportAxis(UpVector, FrontVector, CoordSystem);
+
+					if (FileAxisSystem != UnrealImportAxis)
+					{
+						FbxRootNodeUtility::RemoveAllFbxRoots(SDKScene);
+						UnrealImportAxis.ConvertScene(SDKScene);
+					}
 				}
 
-				if (FileUnitSystem != FbxSystemUnit::cm)
+				if (bConvertSceneUnit)
 				{
-					FbxSystemUnit::cm.ConvertScene(SDKScene);
+					FbxSystemUnit FileUnitSystem = SDKScene->GetGlobalSettings().GetSystemUnit();
+					if (FileUnitSystem != FbxSystemUnit::cm)
+					{
+						FbxSystemUnit::cm.ConvertScene(SDKScene);
+					}
 				}
 
 				//Reset all the transform evaluation cache since we change some node transform

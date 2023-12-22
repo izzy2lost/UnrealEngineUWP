@@ -180,6 +180,12 @@ bool UInterchangeFbxTranslator::Translate(UInterchangeBaseNodeContainer& BaseNod
 		return false;
 	}
 
+	GetSettings();
+	ensure(CacheFbxTranslatorSettings);
+	const bool bConvertScene = CacheFbxTranslatorSettings ? CacheFbxTranslatorSettings->bConvertScene : true;
+	const bool bForceFrontXAxis = CacheFbxTranslatorSettings ? CacheFbxTranslatorSettings->bForceFrontXAxis : false;
+	const bool bConvertSceneUnit = CacheFbxTranslatorSettings ? CacheFbxTranslatorSettings->bConvertSceneUnit : true;
+
 	if (bUseWorkerImport)
 	{
 		if (!Dispatcher.IsValid())
@@ -187,7 +193,7 @@ bool UInterchangeFbxTranslator::Translate(UInterchangeBaseNodeContainer& BaseNod
 			return false;
 		}
 		//Create a json command to read the fbx file
-		FString JsonCommand = CreateLoadFbxFileCommand(Filename);
+		FString JsonCommand = CreateLoadFbxFileCommand(Filename, bConvertScene, bForceFrontXAxis, bConvertSceneUnit);
 		int32 TaskIndex = Dispatcher->AddTask(JsonCommand);
 
 		//Blocking call until all tasks are executed
@@ -225,7 +231,9 @@ bool UInterchangeFbxTranslator::Translate(UInterchangeBaseNodeContainer& BaseNod
 	else
 	{
 #if WITH_EDITOR
+		FbxParser.Reset();
 		FbxParser.SetResultContainer(Results);
+		FbxParser.SetConvertSettings(bConvertScene, bForceFrontXAxis, bConvertSceneUnit);
 		FbxParser.LoadFbxFile(Filename, BaseNodeContainer);
 #endif
 	}
@@ -251,6 +259,12 @@ void UInterchangeFbxTranslator::ReleaseSource()
 		IFileManager::Get().DeleteDirectory(*ResultFolder, RequireExists, Tree);
 	}
 	ResultFolder.Empty();
+
+	if (CacheFbxTranslatorSettings)
+	{
+		CacheFbxTranslatorSettings->ClearFlags(RF_Standalone);
+		CacheFbxTranslatorSettings = nullptr;
+	}
 }
 
 void UInterchangeFbxTranslator::ImportFinish()
@@ -261,6 +275,33 @@ void UInterchangeFbxTranslator::ImportFinish()
 	}
 }
 
+UInterchangeTranslatorSettings* UInterchangeFbxTranslator::GetSettings() const
+{
+	if (!CacheFbxTranslatorSettings)
+	{
+		CacheFbxTranslatorSettings = DuplicateObject<UInterchangeFbxTranslatorSettings>(UInterchangeFbxTranslatorSettings::StaticClass()->GetDefaultObject<UInterchangeFbxTranslatorSettings>(), GetTransientPackage());
+		CacheFbxTranslatorSettings->LoadSettings();
+		CacheFbxTranslatorSettings->SetFlags(RF_Standalone);
+		CacheFbxTranslatorSettings->ClearInternalFlags(EInternalObjectFlags::Async);
+	}
+	return CacheFbxTranslatorSettings;
+}
+
+void UInterchangeFbxTranslator::SetSettings(const UInterchangeTranslatorSettings* InterchangeTranslatorSettings)
+{
+	if (CacheFbxTranslatorSettings)
+	{
+		CacheFbxTranslatorSettings->ClearFlags(RF_Standalone);
+		CacheFbxTranslatorSettings->ClearInternalFlags(EInternalObjectFlags::Async);
+		CacheFbxTranslatorSettings = nullptr;
+	}
+	if (InterchangeTranslatorSettings)
+	{
+		CacheFbxTranslatorSettings = DuplicateObject<UInterchangeFbxTranslatorSettings>(Cast<UInterchangeFbxTranslatorSettings>(InterchangeTranslatorSettings), GetTransientPackage());
+		CacheFbxTranslatorSettings->ClearInternalFlags(EInternalObjectFlags::Async);
+		CacheFbxTranslatorSettings->SetFlags(RF_Standalone);
+	}
+}
 
 TOptional<UE::Interchange::FImportImage> UInterchangeFbxTranslator::GetTexturePayloadData(const FString& PayLoadKey, TOptional<FString>& AlternateTexturePath) const
 {
@@ -556,9 +597,9 @@ TFuture<TOptional<UE::Interchange::FAnimationPayloadData>> UInterchangeFbxTransl
 	return Promise->GetFuture();
 }
 
-FString UInterchangeFbxTranslator::CreateLoadFbxFileCommand(const FString& FbxFilePath) const
+FString UInterchangeFbxTranslator::CreateLoadFbxFileCommand(const FString& FbxFilePath, const bool bConvertScene, const bool bForceFrontXAxis, const bool bConvertSceneUnit) const
 {
-	UE::Interchange::FJsonLoadSourceCmd LoadSourceCommand(TEXT("FBX"), FbxFilePath);
+	UE::Interchange::FJsonLoadSourceCmd LoadSourceCommand(TEXT("FBX"), FbxFilePath, bConvertScene, bForceFrontXAxis, bConvertSceneUnit);
 	return LoadSourceCommand.ToJson();
 }
 

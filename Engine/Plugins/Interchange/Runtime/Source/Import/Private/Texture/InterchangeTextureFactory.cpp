@@ -1880,7 +1880,8 @@ void UInterchangeTextureFactory::SetupObject_GameThread(const FSetupObjectParams
 																						 , Arguments.SourceData
 																						 , Arguments.NodeUniqueID
 																						 , Arguments.NodeContainer
-																						 , Arguments.OriginalPipelines);
+																						 , Arguments.OriginalPipelines
+																						 , Arguments.Translator);
 		SetImportAssetDataParameters.SourceFiles = MoveTemp(SourceFiles);
 
 		Texture->AssetImportData = UE::Interchange::FFactoryCommon::SetImportAssetData(SetImportAssetDataParameters);

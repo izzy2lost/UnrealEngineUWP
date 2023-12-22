@@ -14,6 +14,7 @@
 #include "Factories/FbxSkeletalMeshImportData.h"
 #include "Factories/FbxStaticMeshImportData.h"
 #include "Factories/FbxTextureImportData.h"
+#include "Fbx/InterchangeFbxTranslator.h"
 #include "InterchangeAnimSequenceFactoryNode.h"
 #include "InterchangeAssetImportData.h"
 #include "InterchangeGenericAnimationPipeline.h"
@@ -35,11 +36,27 @@ namespace UE::Interchange::Private
 		DestinationData->SetSourceFiles(MoveTemp(SourceFiles));
 	}
 
-	void FillFbxAssetImportData(const UInterchangeGenericAssetsPipeline* GenericAssetPipeline, UFbxAssetImportData* AssetImportData)
+	void FillFbxAssetImportData(const UInterchangeFbxTranslatorSettings* InterchangeFbxTranslatorSettings, const UInterchangeGenericAssetsPipeline* GenericAssetPipeline, UFbxAssetImportData* AssetImportData)
 	{
-		AssetImportData->bConvertScene = true;
-		AssetImportData->bConvertSceneUnit = true;
-		AssetImportData->bForceFrontXAxis = false;
+		if (InterchangeFbxTranslatorSettings)
+		{
+			AssetImportData->bConvertScene = InterchangeFbxTranslatorSettings->bConvertScene;
+			AssetImportData->bConvertSceneUnit = InterchangeFbxTranslatorSettings->bConvertSceneUnit;
+			AssetImportData->bForceFrontXAxis = InterchangeFbxTranslatorSettings->bForceFrontXAxis;
+			
+		}
+		else if(UInterchangeFbxTranslatorSettings* InterchangeFbxTranslatorSettingsCDO = UInterchangeFbxTranslatorSettings::StaticClass()->GetDefaultObject<UInterchangeFbxTranslatorSettings>())
+		{
+			AssetImportData->bConvertScene = InterchangeFbxTranslatorSettingsCDO->bConvertScene;
+			AssetImportData->bConvertSceneUnit = InterchangeFbxTranslatorSettingsCDO->bConvertSceneUnit;
+			AssetImportData->bForceFrontXAxis = InterchangeFbxTranslatorSettingsCDO->bForceFrontXAxis;
+		}
+		else
+		{
+			AssetImportData->bConvertScene = true;
+			AssetImportData->bConvertSceneUnit = true;
+			AssetImportData->bForceFrontXAxis = false;
+		}
 		AssetImportData->bImportAsScene = false;
 		AssetImportData->ImportRotation = GenericAssetPipeline->ImportOffsetRotation;
 		AssetImportData->ImportTranslation = GenericAssetPipeline->ImportOffsetTranslation;
@@ -284,13 +301,15 @@ namespace UE::Interchange::Private
 		//Transfer the Source file information
 		TransferSourceFileInformation(InterchangeSourceData, DestinationStaticMeshImportData);
 
+		const UInterchangeFbxTranslatorSettings* InterchangeFbxTranslatorSettings = Cast<UInterchangeFbxTranslatorSettings>(InterchangeSourceData->GetTranslatorSettings());
+
 		//Now find the generic asset pipeline
 		for (UObject* Pipeline : InterchangeSourceData->GetPipelines())
 		{
 			if (const UInterchangeGenericAssetsPipeline* GenericAssetPipeline = Cast<UInterchangeGenericAssetsPipeline>(Pipeline))
 			{
 
-				FillFbxAssetImportData(GenericAssetPipeline, DestinationStaticMeshImportData);
+				FillFbxAssetImportData(InterchangeFbxTranslatorSettings, GenericAssetPipeline, DestinationStaticMeshImportData);
 				FillFbxMeshImportData(GenericAssetPipeline, DestinationStaticMeshImportData);
 
 				DestinationStaticMeshImportData->bAutoGenerateCollision = GenericAssetPipeline->MeshPipeline->bImportCollision;
@@ -347,12 +366,14 @@ namespace UE::Interchange::Private
 		//Transfer the Source file information
 		TransferSourceFileInformation(InterchangeSourceData, DestinationSkeletalMeshImportData);
 
+		const UInterchangeFbxTranslatorSettings* InterchangeFbxTranslatorSettings = Cast<UInterchangeFbxTranslatorSettings>(InterchangeSourceData->GetTranslatorSettings());
+
 		//Now find the generic asset pipeline
 		for (UObject* Pipeline : InterchangeSourceData->GetPipelines())
 		{
 			if (const UInterchangeGenericAssetsPipeline* GenericAssetPipeline = Cast<UInterchangeGenericAssetsPipeline>(Pipeline))
 			{
-				FillFbxAssetImportData(GenericAssetPipeline, DestinationSkeletalMeshImportData);
+				FillFbxAssetImportData(InterchangeFbxTranslatorSettings, GenericAssetPipeline, DestinationSkeletalMeshImportData);
 				FillFbxMeshImportData(GenericAssetPipeline, DestinationSkeletalMeshImportData);
 				DestinationSkeletalMeshImportData->bImportMeshesInBoneHierarchy = GenericAssetPipeline->CommonSkeletalMeshesAndAnimationsProperties->bImportMeshesInBoneHierarchy;
 				DestinationSkeletalMeshImportData->bImportMorphTargets = GenericAssetPipeline->MeshPipeline->bImportMorphTargets;
@@ -437,12 +458,14 @@ namespace UE::Interchange::Private
 		//Transfer the Source file information
 		TransferSourceFileInformation(InterchangeSourceData, DestinationAnimSequenceImportData);
 
+		const UInterchangeFbxTranslatorSettings* InterchangeFbxTranslatorSettings = Cast<UInterchangeFbxTranslatorSettings>(InterchangeSourceData->GetTranslatorSettings());
+
 		//Now find the generic asset pipeline
 		for (UObject* Pipeline : InterchangeSourceData->GetPipelines())
 		{
 			if (const UInterchangeGenericAssetsPipeline* GenericAssetPipeline = Cast<UInterchangeGenericAssetsPipeline>(Pipeline))
 			{
-				FillFbxAssetImportData(GenericAssetPipeline, DestinationAnimSequenceImportData);
+				FillFbxAssetImportData(InterchangeFbxTranslatorSettings, GenericAssetPipeline, DestinationAnimSequenceImportData);
 
 				switch (GenericAssetPipeline->AnimationPipeline->AnimationRange)
 				{
@@ -516,6 +539,13 @@ namespace UE::Interchange::Private
 		GenericAssetPipeline->ImportOffsetTranslation = FbxAssetImportData->ImportTranslation;
 		GenericAssetPipeline->ImportOffsetUniformScale = FbxAssetImportData->ImportUniformScale;
 
+		UInterchangeFbxTranslatorSettings* InterchangeFbxTranslatorSettings = NewObject<UInterchangeFbxTranslatorSettings>(DestinationData);
+		InterchangeFbxTranslatorSettings->ClearInternalFlags(EInternalObjectFlags::Async);
+		InterchangeFbxTranslatorSettings->bConvertScene = FbxAssetImportData->bConvertScene;
+		InterchangeFbxTranslatorSettings->bForceFrontXAxis = FbxAssetImportData->bForceFrontXAxis;
+		InterchangeFbxTranslatorSettings->bConvertSceneUnit = FbxAssetImportData->bConvertSceneUnit;
+		DestinationData->SetTranslatorSettings(InterchangeFbxTranslatorSettings);
+
 		if (const UFbxStaticMeshImportData* LegacyStaticMeshImportData = Cast<UFbxStaticMeshImportData>(FbxAssetImportData))
 		{
 			UInterchangeStaticMeshFactoryNode* MeshNode = NewObject<UInterchangeStaticMeshFactoryNode>(DestinationContainer);
@@ -577,6 +607,16 @@ namespace UE::Interchange::Private
 		Pipelines.Add(GenericAssetPipeline);
 		DestinationData->SetPipelines(Pipelines);
 
+		auto SetTranslatorSettings = [&DestinationData](const UFbxAssetImportData* FbxAssetImportData)
+			{
+				UInterchangeFbxTranslatorSettings* InterchangeFbxTranslatorSettings = NewObject<UInterchangeFbxTranslatorSettings>(DestinationData);
+				InterchangeFbxTranslatorSettings->ClearInternalFlags(EInternalObjectFlags::Async);
+				InterchangeFbxTranslatorSettings->bConvertScene = FbxAssetImportData->bConvertScene;
+				InterchangeFbxTranslatorSettings->bForceFrontXAxis = FbxAssetImportData->bForceFrontXAxis;
+				InterchangeFbxTranslatorSettings->bConvertSceneUnit = FbxAssetImportData->bConvertSceneUnit;
+				DestinationData->SetTranslatorSettings(InterchangeFbxTranslatorSettings);
+			};
+
 		//General Options
 		GenericAssetPipeline->bUseSourceNameForAsset = FbxImportUI->bOverrideFullName;
 		GenericAssetPipeline->ReimportStrategy = EReimportStrategyFlags::ApplyNoProperties;
@@ -632,6 +672,8 @@ namespace UE::Interchange::Private
 			GenericAssetPipeline->ImportOffsetTranslation = FbxImportUI->SkeletalMeshImportData->ImportTranslation;
 			GenericAssetPipeline->ImportOffsetUniformScale = FbxImportUI->SkeletalMeshImportData->ImportUniformScale;
 
+			SetTranslatorSettings(FbxImportUI->SkeletalMeshImportData);
+
 			FillInterchangeGenericAssetsPipelineFromFbxMeshImportData(GenericAssetPipeline, Cast<UFbxSkeletalMeshImportData>(FbxImportUI->SkeletalMeshImportData));
 		}
 		else if (FbxImportUI->MeshTypeToImport == EFBXImportType::FBXIT_StaticMesh)
@@ -645,6 +687,8 @@ namespace UE::Interchange::Private
 			GenericAssetPipeline->ImportOffsetRotation = FbxImportUI->StaticMeshImportData->ImportRotation;
 			GenericAssetPipeline->ImportOffsetTranslation = FbxImportUI->StaticMeshImportData->ImportTranslation;
 			GenericAssetPipeline->ImportOffsetUniformScale = FbxImportUI->StaticMeshImportData->ImportUniformScale;
+
+			SetTranslatorSettings(FbxImportUI->StaticMeshImportData);
 
 			FillInterchangeGenericAssetsPipelineFromFbxMeshImportData(GenericAssetPipeline, Cast<UFbxStaticMeshImportData>(FbxImportUI->StaticMeshImportData));
 		}
@@ -668,6 +712,10 @@ namespace UE::Interchange::Private
 			GenericAssetPipeline->ImportOffsetRotation = FbxImportUI->AnimSequenceImportData->ImportRotation;
 			GenericAssetPipeline->ImportOffsetTranslation = FbxImportUI->AnimSequenceImportData->ImportTranslation;
 			GenericAssetPipeline->ImportOffsetUniformScale = FbxImportUI->AnimSequenceImportData->ImportUniformScale;
+
+			SetTranslatorSettings(FbxImportUI->AnimSequenceImportData);
+
+			FillInterchangeGenericAssetsPipelineFromFbxAnimSequenceImportData(GenericAssetPipeline, Cast<UFbxAnimSequenceImportData>(FbxImportUI->AnimSequenceImportData));
 		}
 		else
 		{
@@ -676,6 +724,9 @@ namespace UE::Interchange::Private
 			GenericAssetPipeline->MeshPipeline->bImportStaticMeshes = true;
 			GenericAssetPipeline->MeshPipeline->bImportSkeletalMeshes = true;
 			GenericAssetPipeline->AnimationPipeline->bImportAnimations = true;
+
+			SetTranslatorSettings(FbxImportUI->StaticMeshImportData);
+
 			//Use the static mesh data
 			FillInterchangeGenericAssetsPipelineFromFbxMeshImportData(GenericAssetPipeline, Cast<UFbxStaticMeshImportData>(FbxImportUI->StaticMeshImportData));
 		}

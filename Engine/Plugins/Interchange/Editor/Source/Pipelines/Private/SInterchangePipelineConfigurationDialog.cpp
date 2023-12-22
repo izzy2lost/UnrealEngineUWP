@@ -2,18 +2,22 @@
 #include "SInterchangePipelineConfigurationDialog.h"
 
 #include "DetailsViewArgs.h"
+#include "Dialog/SCustomDialog.h"
 #include "Framework/MultiBox/MultiBoxBuilder.h"
 #include "Framework/Commands/UICommandList.h"
-#include "GameFramework/Actor.h"
 #include "Framework/Views/TableViewMetadata.h"
+#include "GameFramework/Actor.h"
 #include "IDetailsView.h"
 #include "IDocumentation.h"
 #include "InterchangeManager.h"
 #include "InterchangePipelineConfigurationBase.h"
 #include "InterchangeProjectSettings.h"
+#include "InterchangeTranslatorBase.h"
 #include "Interfaces/IMainFrameModule.h"
 #include "Misc/App.h"
 #include "Misc/ConfigCacheIni.h"
+#include "Misc/ConfigContext.h"
+#include "Misc/ScopedSlowTask.h"
 #include "Nodes/InterchangeBaseNodeContainer.h"
 #include "PropertyEditorModule.h"
 #include "SInterchangeGraphInspectorWindow.h"
@@ -36,28 +40,6 @@ static FAutoConsoleVariableRef CCvarInterchangeEnableFBXImport(
 
 const FName ReimportStackName = TEXT("ReimportPipeline");
 const FString ReimportPipelinePrefix = TEXT("reimport_");
-
- // Pipelines are renamed with the reimport prefix to avoid conflicts with the duplicates of the original pipelines that end up in the same package.
- // As this is the name displayed in the Dialog, conflicts won't matter.
-FString SInterchangePipelineConfigurationDialog::GetPipelineDisplayName(const UInterchangePipelineBase* Pipeline)
-{
-	static int32 RightChopIndex = ReimportPipelinePrefix.Len();
-
-	FString PipelineDisplayName = Pipeline->GetName();
-	if (PipelineDisplayName.StartsWith(ReimportPipelinePrefix))
-	{
-		PipelineDisplayName = PipelineDisplayName.RightChop(RightChopIndex);
-	}
-
-	FString StackName;
-	FString DisplayName;
-	if (PipelineDisplayName.Split("_", &StackName, &DisplayName))
-	{
-		return DisplayName;
-	}
-
-	return PipelineDisplayName;
-}
 
 void SInterchangePipelineItem::Construct(
 	const FArguments& InArgs,
@@ -206,6 +188,117 @@ SInterchangePipelineConfigurationDialog::~SInterchangePipelineConfigurationDialo
 	if (TSharedPtr<SWindow> OwnerWindowPinned = OwnerWindow.Pin())
 	{
 		OwnerWindowPinned->GetOnWindowClosedEvent().RemoveAll(this);
+	}
+}
+
+// Pipelines are renamed with the reimport prefix to avoid conflicts with the duplicates of the original pipelines that end up in the same package.
+ // As this is the name displayed in the Dialog, conflicts won't matter.
+FString SInterchangePipelineConfigurationDialog::GetPipelineDisplayName(const UInterchangePipelineBase* Pipeline)
+{
+	static int32 RightChopIndex = ReimportPipelinePrefix.Len();
+
+	FString PipelineDisplayName = Pipeline->GetName();
+	if (PipelineDisplayName.StartsWith(ReimportPipelinePrefix))
+	{
+		PipelineDisplayName = PipelineDisplayName.RightChop(RightChopIndex);
+	}
+
+	FString StackName;
+	FString DisplayName;
+	if (PipelineDisplayName.Split("_", &StackName, &DisplayName))
+	{
+		return DisplayName;
+	}
+
+	return PipelineDisplayName;
+}
+
+void SInterchangePipelineConfigurationDialog::SetEditPipeline(UInterchangePipelineBase* PipelineToEdit)
+{
+	TArray<UObject*> ObjectsToEdit;
+	ObjectsToEdit.Add(PipelineToEdit);
+	PipelineConfigurationDetailsView->SetObjects(ObjectsToEdit);
+}
+
+FReply SInterchangePipelineConfigurationDialog::OnEditTranslatorSettings()
+{
+	FPropertyEditorModule& PropertyEditorModule = FModuleManager::GetModuleChecked<FPropertyEditorModule>("PropertyEditor");
+	FDetailsViewArgs DetailsViewArgs;
+	DetailsViewArgs.bAllowSearch = true;
+	DetailsViewArgs.bShowPropertyMatrixButton = false;
+	DetailsViewArgs.bShowSectionSelector = false;
+	DetailsViewArgs.bAllowMultipleTopLevelObjects = true;
+	DetailsViewArgs.NameAreaSettings = FDetailsViewArgs::HideNameArea;
+	TSharedRef<IDetailsView> TranslatorSettingsDetailsView = PropertyEditorModule.CreateDetailView(DetailsViewArgs);
+	TranslatorSettingsDetailsView->OnFinishedChangingProperties().AddRaw(this, &SInterchangePipelineConfigurationDialog::OnFinishedChangingProperties);
+	TranslatorSettingsDetailsView->SetObject(TranslatorSettings);
+
+	TSharedRef<SCustomDialog> OptionsDialog =
+		SNew(SCustomDialog)
+		.Title(LOCTEXT("OptionsDialogTitle", "Translator Project Settings Editor"))
+		.WindowArguments(SWindow::FArguments()
+			.IsTopmostWindow(true)
+			.MinHeight(300.0f)
+			.MinWidth(500)
+			.SizingRule(ESizingRule::UserSized))
+		.HAlignContent(HAlign_Fill)
+		.VAlignContent(VAlign_Fill)
+		.HAlignIcon(HAlign_Left)
+		.VAlignIcon(VAlign_Top)
+		.UseScrollBox(true)
+		.Content()
+		[
+			SNew(SBorder)
+			.Padding(FMargin(10.0f, 3.0f))
+			.BorderImage(FAppStyle::GetBrush("ToolPanel.DarkGroupBorder"))
+			[
+				SNew(SVerticalBox)
+				+ SVerticalBox::Slot()
+				.HAlign(HAlign_Fill)
+				.VAlign(VAlign_Fill)
+				.FillHeight(1.0)
+				[
+					TranslatorSettingsDetailsView
+				]
+			]
+			
+		]
+		.Buttons(
+		{
+			SCustomDialog::FButton(LOCTEXT("DialogButtonOk", "Ok"))
+		});
+	OptionsDialog->ShowModal();
+
+	return FReply::Handled();
+}
+
+void SInterchangePipelineConfigurationDialog::OnFinishedChangingProperties(const FPropertyChangedEvent& PropertyChangedEvent)
+{
+	if (!Translator.IsValid() || !TranslatorSettings)
+	{
+		return;
+	}
+	if (UClass* TranslatorSettingsClass = TranslatorSettings->GetClass())
+	{
+		if (TranslatorSettingsClass->HasProperty(PropertyChangedEvent.Property))
+		{
+			//Save the config locally before the translation.
+			TranslatorSettings->SaveSettings();
+
+			//Need to Translate the source data
+ 			FScopedSlowTask Progress(2.f, NSLOCTEXT("SInterchangePipelineConfigurationDialog", "TranslatingSourceFile...", "Translating source file..."));
+ 			Progress.MakeDialog();
+ 			Progress.EnterProgressFrame(1.f);
+			//Reset the container
+			BaseNodeContainer->Reset();
+
+			Translator->Translate(*BaseNodeContainer.Get());
+
+			//Refresh the dialog
+			RefreshStack(false);
+
+			Progress.EnterProgressFrame(1.f);
+		}
 	}
 }
 
@@ -365,10 +458,11 @@ TSharedRef<SBox> SInterchangePipelineConfigurationDialog::SpawnPipelineConfigura
 	DetailsViewArgs.bAllowSearch = true;
 	DetailsViewArgs.bShowPropertyMatrixButton = false;
 	DetailsViewArgs.bShowSectionSelector = true;
+	DetailsViewArgs.bAllowMultipleTopLevelObjects = true;
 	DetailsViewArgs.NameAreaSettings = FDetailsViewArgs::HideNameArea;
 	PipelineConfigurationDetailsView = PropertyEditorModule.CreateDetailView(DetailsViewArgs);
 	InspectorBox->SetContent(PipelineConfigurationDetailsView->AsShared());
-	PipelineConfigurationDetailsView->SetObject(nullptr);
+	SetEditPipeline(nullptr);
 	PipelineConfigurationDetailsView->GetIsPropertyVisibleDelegate().BindLambda([this](const FPropertyAndParent& PropertyAndParent)
 		{
 			return IsPropertyVisible(PropertyAndParent);
@@ -399,10 +493,17 @@ void SInterchangePipelineConfigurationDialog::Construct(const FArguments& InArgs
 	BaseNodeContainer = InArgs._BaseNodeContainer;
 	ReimportObject = InArgs._ReimportObject;
 	SourceData = InArgs._SourceData;
+	Translator = InArgs._Translator;
+	if (Translator.IsValid())
+	{
+		TranslatorSettings = Translator->GetSettings();
+	}
+
 	if (ReimportObject.IsValid())
 	{
 		ensure(bReimport);
 	}
+	
 
 	check(OutPipelines);
 
@@ -439,7 +540,26 @@ void SInterchangePipelineConfigurationDialog::Construct(const FArguments& InArgs
 			[
 				SNew(SHorizontalBox)
 				+SHorizontalBox::Slot()
+				.AutoWidth()
+				.VAlign(VAlign_Center)
+				.Padding(2.0f, 2.0f)
+				[
+					SNew(SButton)
+					.Visibility_Lambda([this]()
+						{
+							return !TranslatorSettings ? EVisibility::Collapsed : EVisibility::All;
+						})
+					.ToolTipText(LOCTEXT("SInterchangePipelineConfigurationDialog_TranslatorSettings_Tooltip", "Edit translator project settings."))
+					.OnClicked(this, &SInterchangePipelineConfigurationDialog::OnEditTranslatorSettings)
+					[
+						SNew(SImage)
+							.Image(FAppStyle::GetBrush("Icons.Settings"))
+							.ColorAndOpacity(FSlateColor::UseForeground())
+					]
+				]
+				+SHorizontalBox::Slot()
 				.FillWidth(1.0f)
+				.VAlign(VAlign_Center)
 				.Padding(0.0f, 2.0f)
 				[
 					SNew(STextBlock)
@@ -676,10 +796,11 @@ FReply SInterchangePipelineConfigurationDialog::OnResetToDefault()
 	{
 		return Result;
 	}
+	UInterchangePipelineBase* PipelineToEdit = nullptr;
 	//Multi selection is not allowed
-	ensure(SelectedPipelines.Num() <= 1);
 	for(TWeakObjectPtr<UObject> WeakObject : SelectedPipelines)
 	{
+		//We test the cast because we can have null or other type selected (i.e. translator settings class default object).
 		if (UInterchangePipelineBase* Pipeline = Cast<UInterchangePipelineBase>(WeakObject.Get()))
 		{
 			const UClass* PipelineClass = Pipeline->GetClass();
@@ -710,7 +831,7 @@ FReply SInterchangePipelineConfigurationDialog::OnResetToDefault()
 									}
 									//Switch the pipeline the element point on
 									PipelineListViewItems[PipelineIndex]->Pipeline = GeneratedPipeline;
-									PipelineConfigurationDetailsView->SetObject(GeneratedPipeline, true);
+									PipelineToEdit = GeneratedPipeline;
 									PipelinesListView->SetSelection(PipelineListViewItems[PipelineIndex], ESelectInfo::Direct);
 									PipelinesListView->RequestListRefresh();
 									break;
@@ -722,6 +843,7 @@ FReply SInterchangePipelineConfigurationDialog::OnResetToDefault()
 			}
 		}
 	}
+	SetEditPipeline(PipelineToEdit);
 	return Result;
 }
 
@@ -947,8 +1069,7 @@ void SInterchangePipelineConfigurationDialog::OnPipelineSelectionChanged(TShared
 	{
 		CurrentSelectedPipeline = InItem->Pipeline;
 	}
-	
-	PipelineConfigurationDetailsView->SetObject(CurrentSelectedPipeline.Get());
+	SetEditPipeline(CurrentSelectedPipeline.Get());
 	
 	if (CurrentSelectedPipeline)
 	{
@@ -1026,7 +1147,7 @@ FReply SInterchangePipelineConfigurationDialog::OnPreviewImport() const
 	//Create and show the graph inspector UI dialog
 	TSharedRef<SWindow> Window = SNew(SWindow)
 		.ClientSize(FVector2D(800.f, 650.f))
-		.Title(NSLOCTEXT("Interchange", "GraphInspectorTitle", "Interchange node graph inspector"));
+		.Title(NSLOCTEXT("SInterchangePipelineConfigurationDialog", "InterchangePreviewTitle", "Interchange Preview"));
 	TSharedPtr<SInterchangeGraphInspectorWindow> InterchangeGraphInspectorWindow;
 
 	Window->SetContent
