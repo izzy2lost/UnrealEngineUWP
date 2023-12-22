@@ -2369,6 +2369,7 @@ void FHLSLMaterialTranslator::DoTranslate()
 
 void FHLSLMaterialTranslator::ValidateShadingModelsForFeatureLevel(const FMaterialShadingModelField& ShadingModels)
 {
+#if 0
 	if (FeatureLevel <= ERHIFeatureLevel::ES3_1)
 	{
 		const TArray<EMaterialShadingModel>& InvalidShadingModels = {};
@@ -2390,6 +2391,7 @@ void FHLSLMaterialTranslator::ValidateShadingModelsForFeatureLevel(const FMateri
 			}
 		}
 	}
+#endif
 }
 
 void FHLSLMaterialTranslator::GetMaterialEnvironment(EShaderPlatform InPlatform, FShaderCompilerEnvironment& OutEnvironment)

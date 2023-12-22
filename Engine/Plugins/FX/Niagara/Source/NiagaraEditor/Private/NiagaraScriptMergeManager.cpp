@@ -1602,7 +1602,7 @@ INiagaraMergeManager::FMergeEmitterResults FNiagaraScriptMergeManager::MergeEmit
 			ReportScriptStackDiffErrors(MergeResults, EventHandlerDiffResults.ScriptDiffResults, EventHandlerName);
 		}
 	}
-	else if (State == EmitterMergeState::CopyProperties)
+	else if (State == EmitterMergeState::CopyProperties) //-V547
 	{
 		UNiagaraEmitter* MergedInstance = Parent.Emitter->DuplicateWithoutMerging(GetTransientPackage());
 		MergedInstance->DisableVersioning(Parent.Version);

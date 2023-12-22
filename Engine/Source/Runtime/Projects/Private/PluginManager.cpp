@@ -768,9 +768,9 @@ void FPluginManager::ReadAllPlugins(FDiscoveredPluginMap& Plugins, const TSet<FS
 	TArray<FString> OptionalOutPluginRoots;
 	const FProjectDescriptor* Project = IProjectManager::Get().GetCurrentProject();
 
+#if !WITH_EDITOR
 	// Find any plugin manifest files. These give us the plugin list (and their descriptors) without needing to scour the directory tree.
 	TArray<FString> ManifestFileNames;
-#if !WITH_EDITOR
 	if (Project != nullptr)
 	{
 		FindPluginManifestsInDirectory(*FPaths::ProjectPluginsDir(), ManifestFileNames);
@@ -782,8 +782,10 @@ void FPluginManager::ReadAllPlugins(FDiscoveredPluginMap& Plugins, const TSet<FS
 	// track child plugins that don't want to go into main plugin set
 	TArray<TSharedRef<FPlugin>> ChildPlugins;
 
+#if !WITH_EDITOR
 	// If we didn't find any manifests, do a recursive search for plugins
 	if (ManifestFileNames.Num() == 0)
+#endif
 	{
 		UE_LOG(LogPluginManager, Verbose, TEXT("No *.upluginmanifest files found, looking for *.uplugin files instead."))
 
@@ -823,6 +825,7 @@ void FPluginManager::ReadAllPlugins(FDiscoveredPluginMap& Plugins, const TSet<FS
 			}
 		}
 	}
+#if !WITH_EDITOR
 	else
 	{
 		SlowTask_ReadAll.EnterProgressFrame();
@@ -880,6 +883,7 @@ void FPluginManager::ReadAllPlugins(FDiscoveredPluginMap& Plugins, const TSet<FS
 			}
 		}
 	}
+#endif
 
 	SlowTask_ReadAll.EnterProgressFrame();
 	if (Project != nullptr)
