@@ -38,6 +38,7 @@ struct FWorldPartitionAssetDataPatcher
 };
 
 class AActor;
+class UWorldPartition;
 class UActorDescContainerInstance;
 class FWorldPartitionActorDescInstance;
 class UActorDescContainer;

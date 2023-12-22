@@ -11,6 +11,7 @@
 #include "UObject/WeakObjectPtr.h"
 
 class AActor;
+class UWorldPartition;
 class UActorDescContainerInstance;
 
 #endif // WITH_EDITOR
