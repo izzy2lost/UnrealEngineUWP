@@ -16,7 +16,11 @@ $ RemoteExecutorPriority : Priority order for remote executors (XGE, SNDBS, FAST
 
 $ bAllowBoxExecutor : This property is being renamed and should not be used
 
+$ bAllowUBAExecutor : Whether the experimental UnrealBuildAccelerator executor will be used.
+
 $ bAllowBoxLocalExecutor : This property is being renamed and should not be used
+
+$ bAllowUBALocalExecutor : Whether the experimental UnrealBuildAccelerator (local only) executor will be used.
 
 $ bAllowXGE : Whether XGE may be used if available, default is true.
 
@@ -51,10 +55,6 @@ $ ArtifactDirectory : Location to store the artifacts.
 $ bUseUnityBuild : Whether to unify C++ code into larger files for faster compilation.
 
 $ bForceUnityBuild : Whether to force C++ source files to be combined into larger files for faster compilation.
-
-$ bAllowUBAExecutor : Whether the experimental UnrealBuildAccelerator executor will be used.
-
-$ bAllowUBALocalExecutor : Whether the experimental UnrealBuildAccelerator (local only) executor will be used.
 
 $ DefaultWarningLevel : Default treatment of uncategorized warnings
 
