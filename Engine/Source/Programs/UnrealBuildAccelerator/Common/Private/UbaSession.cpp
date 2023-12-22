@@ -10,11 +10,6 @@
 #include "UbaProtocol.h"
 
 #if PLATFORM_WINDOWS
-#include <algorithm>
-#define True_CreateFileW ::CreateFileW
-#define True_CreateFileMappingW ::CreateFileMappingW
-#define True_MapViewOfFile ::MapViewOfFile
-#define True_UnmapViewOfFile ::UnmapViewOfFile
 #include "UbaWinBinDependencyParser.h"
 #include <powerbase.h>
 #pragma comment(lib, "Powrprof.lib")
@@ -901,13 +896,10 @@ namespace uba
 		out.push_back({ library, temp3.data, attr, isSystem });
 
 		bool result = true;
-		FindImports(applicationName, [&](const char* import)
+		FindImports(applicationName, [&](const tchar* importName)
 			{
-				if (!result)
-					return;
-				tchar importW[128];
-				swprintf_s(importW, 128, TC("%hs"), import);
-				result = CopyImports(out, importW, applicationDir, applicationDirEnd, handledImports);
+				if (result)
+					result = CopyImports(out, importName, applicationDir, applicationDirEnd, handledImports);
 			});
 		return result;
 		#else
@@ -1031,7 +1023,7 @@ namespace uba
 		StringBuffer<> traceName;
 		if (info.traceName && *info.traceName)
 			traceName.Append(info.traceName);
-		else if (info.launchVisualizer || !m_traceOutputFile.IsEmpty())
+		else if (info.launchVisualizer || !m_traceOutputFile.IsEmpty() || info.traceEnabled)
 			traceName.Append(m_id);
 
 		if (!traceName.IsEmpty())
@@ -1451,56 +1443,7 @@ namespace uba
 	bool Session::IsKnownSystemFile(const tchar* applicationName)
 	{
 #if PLATFORM_WINDOWS
-		// These dlls should _always_ exist on all machines so we can filter them out from the list of imports to copy
-
-		static const wchar_t* knownSystemFiles[] = // Sorted lowercase
-		{
-			L"advapi32.dll",
-			L"bcrypt.dll",
-			L"bcryptprimitives.dll",
-			L"combase.dll",
-			L"cryptbase.dll",
-			L"dbghelp.dll",
-			L"dnsapi.dll",
-			L"fwpuclnt.dll",
-			L"gdi32.dll",
-			L"gdi32full.dll",
-			L"imm32.dll",
-			L"iphlpapi.dll",
-			L"kernel32.dll",
-			L"kernelbase.dll",
-			L"msvcp_win.dll",
-			L"msvcrt.dll",
-			L"mswsock.dll",
-			L"ncrypt.dll",
-			L"nsi.dll",
-			L"ntasn1.dll",
-			L"ntdll.dll",
-			L"ole32.dll",
-			L"oleaut32.dll",
-			L"ondemandconnroutehelper.dll",
-			L"powrprof.dll",
-			L"rasadhlp.dll",
-			L"rpcrt4.dll",
-			L"rstrtmgr.dll",
-			L"sechost.dll",
-			L"sspicli.dll",
-			L"ucrtbase.dll",
-			L"umpdc.dll",
-			L"umppc17706.dll",
-			L"user32.dll",
-			L"version.dll",
-			L"webio.dll",
-			L"win32u.dll",
-			L"winhttp.dll",
-			L"winnsi.dll",
-			L"ws2_32.dll",
-		};
-
-		auto lastSeparator = TStrrchr(applicationName, PathSeparator);
-		StringBuffer<> nameLower;
-		nameLower.Append(lastSeparator + 1).MakeLower();
-		return std::binary_search(knownSystemFiles, knownSystemFiles + sizeof_array(knownSystemFiles), nameLower.data, [](const wchar_t* a, const wchar_t* b) { return TStrcmp(a, b) < 0; });
+		return uba::IsKnownSystemFile(applicationName);
 #else
 		return false;
 #endif

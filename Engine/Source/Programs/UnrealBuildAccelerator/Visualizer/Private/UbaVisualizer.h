@@ -30,7 +30,8 @@ namespace uba
 		void PaintAll(HDC hdc, const RECT& clientRect);
 		void PaintProcessRect(TraceView::Process& process, HDC hdc, RECT rect, const RECT& progressRect, bool selected, bool writingBitmap);
 		void PaintTimeline(HDC hdc, const RECT& clientRect);
-		void PaintDetailedStats(HDC hdc, int& posY, const RECT& progressRect, TraceView::Session& session, bool isRemote, u64 playTime);
+		using DrawTextFunc = Function<void(const StringBufferBase& text, RECT& rect)>;
+		void PaintDetailedStats(int& posY, const RECT& progressRect, TraceView::Session& session, bool isRemote, u64 playTime, const DrawTextFunc& drawTextFunc);
 
 		struct Stats
 		{
@@ -50,6 +51,7 @@ namespace uba
 			Stats stats;
 			u32 buttonSelected = ~0u;
 			float timelineSelected = 0;
+			u32 fetchedFilesSelected = ~0u;
 
 		};
 		void HitTest(HitTestResult& outResult, const POINT& pos);
@@ -134,6 +136,7 @@ namespace uba
 		Stats m_stats;
 		u32 m_buttonSelected = ~0u;
 		float m_timelineSelected = 0;
+		u32 m_fetchedFilesSelected = ~0u;
 		
 		bool m_mouseOverWindow = false;
 

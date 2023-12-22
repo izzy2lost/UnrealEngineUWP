@@ -12,6 +12,7 @@ namespace uba
 	class ProcessHandle;
 	class Session;
 	class SessionServer;
+	class Scheduler;
 	class Storage;
 	class StorageServer;
 	struct ProcessStartInfo;
@@ -72,17 +73,18 @@ extern "C"
 	UBA_API uba::u64 ProcessHandle_GetTotalWallTime(uba::ProcessHandle* handle);
 	UBA_API void ProcessHandle_Cancel(uba::ProcessHandle* handle, bool terminate);
 	UBA_API void DestroyProcessHandle(uba::ProcessHandle* handle);
+	UBA_API const uba::ProcessStartInfo* Process_GetStartInfo(uba::Process& process);
 
-	using SessionServer_RemoteProcessAvailableCallback = void();
-	using SessionServer_RemoteProcessReturnedCallback = void(uba::Process& process);
+	using SessionServer_RemoteProcessAvailableCallback = void(void* userData);
+	using SessionServer_RemoteProcessReturnedCallback = void(uba::Process& process, void* userData);
 	using SessionServer_CustomServiceFunction = uba::u32(const uba::Guid& clientUid, const void* recv, uba::u32 recvSize, void* send, uba::u32 sendCapacity, void* userData);
 
 	UBA_API uba::SessionServerCreateInfo* CreateSessionServerCreateInfo(uba::Storage& storage, uba::NetworkServer& client, uba::LogWriter& writer, const uba::tchar* rootDir, const uba::tchar* traceOutputFile,
 		bool disableCustomAllocator, bool launchVisualizer, bool resetCas, bool writeToDisk, bool detailedTrace, bool allowWaitOnMem = false, bool allowKillOnMem = false);
 	UBA_API void DestroySessionServerCreateInfo(uba::SessionServerCreateInfo* info);
 	UBA_API uba::SessionServer* CreateSessionServer(const uba::SessionServerCreateInfo& info);
-	UBA_API void SessionServer_SetRemoteProcessAvailable(uba::SessionServer* server, SessionServer_RemoteProcessAvailableCallback* available);
-	UBA_API void SessionServer_SetRemoteProcessReturned(uba::SessionServer* server, SessionServer_RemoteProcessReturnedCallback* returned);
+	UBA_API void SessionServer_SetRemoteProcessAvailable(uba::SessionServer* server, SessionServer_RemoteProcessAvailableCallback* available, void* userData);
+	UBA_API void SessionServer_SetRemoteProcessReturned(uba::SessionServer* server, SessionServer_RemoteProcessReturnedCallback* returned, void* userData);
 	UBA_API void SessionServer_RefreshDirectory(uba::SessionServer* server, const uba::tchar* directory);
 	UBA_API void SessionServer_RegisterNewFile(uba::SessionServer* server, const uba::tchar* filePath);
 	UBA_API uba::ProcessHandle* SessionServer_RunProcess(uba::SessionServer* server, uba::ProcessStartInfo& info, bool async, bool enableDetour);
@@ -105,4 +107,20 @@ extern "C"
 
 	UBA_API uba::ProcessStartInfo* CreateProcessStartInfo(const uba::tchar* application, const uba::tchar* arguments, const uba::tchar* workingDir, const uba::tchar* description, uba::u32 priorityClass, uba::u64 outputStatsThresholdMs, bool trackInputs, const uba::tchar* logFile, ProcessHandle_ExitCallback* exit);
 	UBA_API void DestroyProcessStartInfo(uba::ProcessStartInfo* info);
+
+
+	// Scheduler
+	UBA_API uba::Scheduler* Scheduler_Create(uba::SessionServer* session, uba::u32 maxLocalProcessors = 0);
+	UBA_API void Scheduler_Start(uba::Scheduler* scheduler);
+	UBA_API void Scheduler_EnqueueProcess(uba::Scheduler* scheduler, const uba::ProcessStartInfo& info, float weight = 1.0f, const void* knownInputs = nullptr, uba::u32 knownInputsBytes = 0, uba::u32 knownInputsCount = 0);
+	UBA_API void Scheduler_Stop(uba::Scheduler* scheduler);
+	UBA_API void Scheduler_Destroy(uba::Scheduler* scheduler);
+	UBA_API void Scheduler_GetStats(uba::Scheduler* scheduler, uba::u32& outQueued, uba::u32& outActive, uba::u32& outFinished);
+
+	// Misc
+	using Uba_CustomAssertHandler = void(const uba::tchar* text);
+	UBA_API void Uba_SetCustomAssertHandler(Uba_CustomAssertHandler* handler);
+
+	using ImportFunc = void(const uba::tchar* importName, void* userData);
+	UBA_API void Uba_FindImports(const uba::tchar* binary, ImportFunc* func, void* userData);
 }

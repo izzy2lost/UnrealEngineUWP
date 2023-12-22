@@ -70,6 +70,8 @@ namespace uba
 
 	void WriteAssertInfo(class StringBufferBase& out, const tchar* text, const char* file, u32 line, const char* expr, u32 skipCallstack);
 	ANALYSIS_NORETURN void UbaAssert(const tchar* text, const char* file, u32 line, const char* expr, u32 terminateCode);
+	using CustomAssertHandler = void(const tchar* text);
+	void SetCustomAssertHandler(CustomAssertHandler* handler);
 	bool CreateGuid(Guid& out);
 	bool IsRunningWine();
 	bool IsEscapePressed();

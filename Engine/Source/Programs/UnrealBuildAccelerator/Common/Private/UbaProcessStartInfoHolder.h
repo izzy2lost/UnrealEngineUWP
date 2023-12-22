@@ -1,0 +1,88 @@
+// Copyright Epic Games, Inc. All Rights Reserved.
+
+#pragma once
+
+#define Local_GetLongPathNameW uba::GetLongPathNameW
+
+#include "UbaFile.h"
+#include "UbaPathUtils.h"
+
+namespace uba
+{
+	inline void FixFileName(StringBufferBase& out, const tchar* fileName, const tchar* workingDir)
+	{
+		tchar buffer[1024];
+		u32 charLen;
+		u64 workingDirLen = 0;
+		if (workingDir)
+			workingDirLen = TStrlen(workingDir);
+		FixPath2(fileName, workingDir, workingDirLen, buffer, &charLen);
+		out.Append(buffer);
+	}
+
+	struct ProcessStartInfoHolder
+	{
+		ProcessStartInfoHolder(const ProcessStartInfo& si)
+		{
+			startInfo = si;
+
+			StringBuffer<512> temp;
+			FixFileName(temp, si.workingDir, nullptr);
+			temp.EnsureEndsWithSlash();
+			workingDir = temp.data;
+			startInfo.workingDir = workingDir.c_str();
+
+			temp.EnsureEndsWithSlash();
+			StringBuffer<512> temp2;
+			FixFileName(temp2, si.application, temp.data);
+			application = temp2.data;
+			startInfo.application = application.c_str();
+
+			arguments = si.arguments;
+			startInfo.arguments = arguments.c_str();
+
+			description = si.description;
+			startInfo.description = description.c_str();
+
+			if (si.logFile)
+			{
+				logFile = si.logFile;
+				startInfo.logFile = logFile.c_str();
+			}
+		}
+
+		ProcessStartInfoHolder(const ProcessStartInfoHolder& o)
+		{
+			*this = o;
+		}
+
+		void operator=(const ProcessStartInfoHolder& o)
+		{
+			startInfo = o.startInfo;
+
+			workingDir = o.workingDir;
+			startInfo.workingDir = workingDir.c_str();
+			application = o.application;
+			startInfo.application = application.c_str();
+			arguments = o.arguments;
+			startInfo.arguments = arguments.c_str();
+			description = o.description;
+			startInfo.description = description.c_str();
+
+			if (o.startInfo.logFile)
+			{
+				logFile = o.logFile;
+				startInfo.logFile = logFile.c_str();
+			}
+		}
+
+		ProcessStartInfo startInfo;
+
+		TString description;
+		TString application;
+		TString arguments;
+		TString workingDir;
+		TString logFile;
+	};
+
+}

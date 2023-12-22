@@ -2272,13 +2272,13 @@ HMODULE Recursive_LoadLibraryExW(LPCWSTR lpLibFileName, LPCWSTR originalName, DW
 		return 0;
 
 	// Important that this code is not doing allocations.. it could cause a recursive stack overflow
-	struct Import { char name[128]; Import(const char* s) { strcpy_s(name, sizeof_array(name), s); } };
+	struct Import { wchar_t name[128]; Import(const wchar_t* s) { wcscpy_s(name, sizeof_array(name), s); } };
 	std::vector<Import, GrowingAllocator<Import>> importedModules(&g_memoryBlock);
 	{
 		SuppressCreateFileDetourScope cfs;
-		if (!FindImports(lpLibFileName, [&](const char* import)
+		if (!FindImports(lpLibFileName, [&](const wchar_t* import)
 			{
-				if (!GetModuleHandleA(import))
+				if (!GetModuleHandleW(import))
 					importedModules.emplace_back(import);
 			}))
 		{
@@ -2287,13 +2287,10 @@ HMODULE Recursive_LoadLibraryExW(LPCWSTR lpLibFileName, LPCWSTR originalName, DW
 	}
 	for (auto& importedModule : importedModules)
 	{
-		if (GetModuleHandleA(importedModule.name))
+		if (GetModuleHandleW(importedModule.name))
 			continue;
 
-		wchar_t moduleNameW[256];
-		swprintf_s(moduleNameW, 256, L"%hs", importedModule.name);
-
-		const wchar_t* path = moduleNameW;
+		const wchar_t* path = importedModule.name;
 		if (path[1] == ':')
 			if (const wchar_t* lastSlash = wcsrchr(path, '\\'))
 				path = lastSlash + 1;
@@ -2301,7 +2298,7 @@ HMODULE Recursive_LoadLibraryExW(LPCWSTR lpLibFileName, LPCWSTR originalName, DW
 		StringBuffer<512> tempBuf;
 		Rpc_GetFullFileName(path, pathLen, tempBuf, false);
 
-		if (HMODULE r = Recursive_LoadLibraryExW(path, moduleNameW, dwFlags, additionalLoads, visitedModules))
+		if (HMODULE r = Recursive_LoadLibraryExW(path, importedModule.name, dwFlags, additionalLoads, visitedModules))
 			additionalLoads.push_back(r);
 	}
 

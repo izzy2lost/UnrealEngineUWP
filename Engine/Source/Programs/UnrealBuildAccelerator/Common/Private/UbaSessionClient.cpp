@@ -227,6 +227,11 @@ namespace uba
 			if (moduleCount == 0)
 				return m_logger.Error(TC("Application %s not found"), application);
 
+			struct ModuleInfo { TString name; CasKey casKey; u32 attributes; Event done; };
+			List<ModuleInfo> modules;
+
+			Atomic<bool> success = true;
+
 			while (moduleCount--)
 			{
 				StringBuffer<> moduleFile;
@@ -247,20 +252,35 @@ namespace uba
 					moduleFile.Clear().Append(localSystemModule);
 				}
 
-				CasKey newCasKey;
-				bool storeUncompressed = true;
-				u64 fileSize;
-				if (!RetrieveCasFile(newCasKey, fileSize, casKey, moduleFile.data, storeUncompressed))
-					return m_logger.Error(TC("Casfile not found for %s (%s)"), moduleFile.data, CasKeyString(casKey).str);
-
-				const tchar* moduleName = moduleFile.data;
-				if (const tchar* lastSeparator = TStrrchr(moduleFile.data, PathSeparator))
-					moduleName = lastSeparator + 1;
-
-				StringBuffer<> temp;
-				if (!WriteBinFile(temp, moduleName, newCasKey, keyStr, fileAttributes))
-					return false;
+				auto& m = modules.emplace_back(moduleFile.data, casKey, fileAttributes, true);
+				m_client.AddWork([&]()
+					{
+						auto g = MakeGuard([&]() { m.done.Set(); });
+						CasKey newCasKey;
+						bool storeUncompressed = true;
+						u64 fileSize;
+						const tchar* moduleName = m.name.c_str();
+						if (!RetrieveCasFile(newCasKey, fileSize, m.casKey, moduleName, storeUncompressed))
+						{
+							m_logger.Error(TC("Casfile not found for %s (%s)"), moduleName, CasKeyString(m.casKey).str);
+							success = false;
+							return;
+						}
+						if (const tchar* lastSeparator = TStrrchr(moduleName, PathSeparator))
+							moduleName = lastSeparator + 1;
+						StringBuffer<> temp;
+						if (!WriteBinFile(temp, moduleName, newCasKey, keyStr, m.attributes))
+							success = false;
+					}, 1, TC("EnsureApp"));
 			}
+
+			// Wait for all to be done
+			for (auto& m : modules)
+				if (!m.done.IsSet(10 * 60 * 1000)) // 10 minutes is a very long time
+					return m_logger.Error(TC("Timed out while waiting for application cas files to be downloaded"));
+
+			if (!success)
+				return false;
 
 			failGuard.Cancel();
 		}
@@ -678,6 +698,9 @@ namespace uba
 
 	bool SessionClient::GetFullFileName(GetFullFileNameResponse& out, const GetFullFileNameMessage& msg)
 	{
+		// TODO: There is a potential risk here where two different applications asks for the full name of a file
+		// and they have different bin/working dir.. and there are two versions of this file.
+
 		ScopedWriteLock lock(m_nameToNameLookupLock);
 		auto insres = m_nameToNameLookup.try_emplace(msg.fileName.data);
 		NameRec& rec = insres.first->second;
@@ -1099,7 +1122,7 @@ namespace uba
 					{
 						Storage::RetrieveResult result;
 						bool allowProxy = true;
-						bool res = m_storage.RetrieveCasFile(result, knownInputKey, TC(""), nullptr, 1, allowProxy);
+						bool res = m_storage.RetrieveCasFile(result, knownInputKey, TC("KnownInput"), nullptr, 1, allowProxy);
 						(void)res;
 					}, 1, TC("KnownInput"));
 			}

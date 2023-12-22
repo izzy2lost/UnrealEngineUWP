@@ -1,51 +1,23 @@
 // Copyright Epic Games, Inc. All Rights Reserved.
 
 #include "UbaSessionServer.h"
-#include "UbaStorage.h"
-#include "UbaProcess.h"
 #include "UbaNetworkServer.h"
+#include "UbaProcess.h"
+#include "UbaProcessStartInfoHolder.h"
+#include "UbaStorage.h"
 
 namespace uba
 {
-	void FixFileName(StringBufferBase& out, const tchar* fileName, const tchar* workingDir)
-	{
-		tchar buffer[1024];
-		u32 charLen;
-		u64 workingDirLen = 0;
-		if (workingDir)
-			workingDirLen = TStrlen(workingDir);
-		FixPath2(fileName, workingDir, workingDirLen, buffer, &charLen);
-		out.Append(buffer);
-	}
-
-	class SessionServer::RemoteProcess : public Process
+	class SessionServer::RemoteProcess : public Process, public ProcessStartInfoHolder
 	{
 	public:
 		RemoteProcess(SessionServer* server, const ProcessStartInfo& si, u32 processId, float weight)
-		:	m_server(server)
-		,	m_startInfo(si)
+		:	ProcessStartInfoHolder(si)
+		,	m_server(server)
 		,	m_processId(processId)
 		,	m_done(true)
 		,	m_weight(weight)
 		{
-			StringBuffer<512> temp;
-			FixFileName(temp, si.workingDir, nullptr);
-			temp.EnsureEndsWithSlash();
-			workingDir = temp.data;
-
-			temp.EnsureEndsWithSlash();
-			StringBuffer<512> temp2;
-			FixFileName(temp2, si.application, temp.data);
-			application = temp2.data;
-
-			description = si.description;
-			arguments = si.arguments;
-
-			m_startInfo.description = description.c_str();
-			m_startInfo.application = application.c_str();
-			m_startInfo.arguments = arguments.c_str();
-			m_startInfo.workingDir = workingDir.c_str();
-			m_startInfo.logFile = nullptr;
 		}
 
 		~RemoteProcess()
@@ -53,7 +25,7 @@ namespace uba
 			delete[] m_knownInputs;
 		}
 
-		virtual const ProcessStartInfo& GetStartInfo() override { return m_startInfo; }
+		virtual const ProcessStartInfo& GetStartInfo() override { return startInfo; }
 		virtual u32 GetId() override { return m_processId; }
 		virtual u32 GetExitCode() override { UBA_ASSERT(m_done.IsSet(0)); return m_exitCode; }
 		virtual bool HasExited() override { return m_done.IsSet(0); }
@@ -73,13 +45,13 @@ namespace uba
 			else
 				m_done.Set();
 
-			if (m_startInfo.exitedFunc)
+			if (startInfo.exitedFunc)
 			{
 				ProcessHandle h;
 				h.m_process = this;
-				m_startInfo.exitedFunc(m_startInfo.exitedUserData, h);
+				startInfo.exitedFunc(startInfo.exitedUserData, h);
 				h.m_process = nullptr;
-				m_startInfo.exitedFunc = nullptr;
+				startInfo.exitedFunc = nullptr;
 			}
 		}
 
@@ -88,11 +60,6 @@ namespace uba
 		virtual bool IsChild() override { return false; }
 
 		SessionServer* m_server;
-		ProcessStartInfo m_startInfo;
-		TString description;
-		TString application;
-		TString arguments;
-		TString workingDir;
 		u32 m_processId;
 		u32 m_exitCode = ~u32(0);
 		u64 m_processorTime = 0;
@@ -930,12 +897,12 @@ namespace uba
 
 					ProcessAdded(*process, sessionId);
 					writer.WriteU32(process->m_processId);
-					writer.WriteString(process->m_startInfo.description);
-					writer.WriteString(process->m_startInfo.application);
-					writer.WriteString(process->m_startInfo.arguments);
-					writer.WriteString(process->m_startInfo.workingDir);
+					writer.WriteString(process->startInfo.description);
+					writer.WriteString(process->startInfo.application);
+					writer.WriteString(process->startInfo.arguments);
+					writer.WriteString(process->startInfo.workingDir);
 					writer.WriteU32(*(u32*)&process->m_weight);
-					writer.WriteU64(process->m_startInfo.outputStatsThresholdMs);
+					writer.WriteU64(process->startInfo.outputStatsThresholdMs);
 
 					for (auto kiIt = process->m_knownInputs, kiEnd = kiIt + process->m_knownInputsCount; kiIt!=kiEnd; ++kiIt)
 						if (session.sentKeys.insert(kiIt->key).second)
@@ -1044,9 +1011,9 @@ namespace uba
 					process.m_logLines.push_back({ std::move(text), type });
 				}
 
-				if (auto func = process.m_startInfo.logLineFunc)
+				if (auto func = process.startInfo.logLineFunc)
 					for (auto& line : process.m_logLines)
-						func(process.m_startInfo.logLineUserData, line.text.c_str(), u32(line.text.size()), line.type);
+						func(process.startInfo.logLineUserData, line.text.c_str(), u32(line.text.size()), line.type);
 
 				u32 id = process.m_processId;
 				m_trace.ProcessExited(id, exitCode, reader.GetPositionData(), reader.GetLeft());
@@ -1064,10 +1031,10 @@ namespace uba
 				process.m_server = nullptr;
 				process.m_done.Set();
 				
-				if (process.m_startInfo.exitedFunc)
+				if (process.startInfo.exitedFunc)
 				{
-					process.m_startInfo.exitedFunc(process.m_startInfo.exitedUserData, h);
-					process.m_startInfo.exitedFunc = nullptr;
+					process.startInfo.exitedFunc(process.startInfo.exitedUserData, h);
+					process.startInfo.exitedFunc = nullptr;
 				}
 				return true;
 			}

@@ -17,6 +17,8 @@
 
 namespace uba
 {
+	CustomAssertHandler* g_assertHandler;
+
 	ANALYSIS_NORETURN void UbaAssert(const tchar* text, const char* file, u32 line, const char* expr, u32 terminateCode)
 	{
 		static ReaderWriterLock assertLock;
@@ -24,6 +26,13 @@ namespace uba
 
 		StringBuffer<4096> b;
 		WriteAssertInfo(b, text, file, line, expr, 1);
+
+		if (g_assertHandler)
+		{
+			g_assertHandler(b.data);
+			return;
+		}
+
 		Fputs(b.data, stdout);
 		Fputs(TC("\n"), stdout);
 		fflush(stdout);
@@ -45,6 +54,11 @@ namespace uba
 #else
 		exit(-1);
 #endif
+	}
+
+	void SetCustomAssertHandler(CustomAssertHandler* handler)
+	{
+		g_assertHandler = handler;
 	}
 
 	ANALYSIS_NORETURN void FatalError(u32 code, const tchar* format, ...)

@@ -607,7 +607,10 @@ namespace uba
 			}
 
 			if (m_visibleComponents[ComponentType_DetailedData])
-				PaintDetailedStats(hdc, posY, progressRect, session, processLocation.sessionIndex != 0, playTime);
+			{
+				auto drawText = [&](const StringBufferBase& text, RECT& rect) { DrawTextW(hdc, text.data, text.count, &rect, DT_SINGLELINE); };
+				PaintDetailedStats(posY, progressRect, session, processLocation.sessionIndex != 0, playTime, drawText);
+			}
 
 			if (m_visibleComponents[ComponentType_Bars])
 			{
@@ -1224,6 +1227,51 @@ namespace uba
 			MoveToEx(hdc, left, 2, NULL);
 			LineTo(hdc, left + 1, progressRect.bottom);
 		}
+		else if (m_fetchedFilesSelected != ~0u)
+		{
+			auto& session = m_traceView.sessions[m_fetchedFilesSelected];
+			auto& fetchedFiles = session.fetchedFiles;
+
+			int width = 1000;
+			int height = Min(int(clientRect.bottom), int(fetchedFiles.size() * m_popupFontHeight));
+
+
+			POINT p;
+			GetCursorPos(&p);
+			ScreenToClient(m_hwnd, &p);
+			RECT r;
+			r.left = p.x;
+			r.top = p.y;
+			r.right = r.left + width;
+			r.bottom = r.top + height;
+
+			if (r.right > clientRect.right)
+				OffsetRect(&r, -width, 0);
+			if (r.bottom > clientRect.bottom)
+			{
+				OffsetRect(&r, 0, -height);
+				if (r.top < 0)
+					OffsetRect(&r, 0, -r.top);
+			}
+			FillRect(hdc, &r, m_tooltipBackgroundBrush);
+
+			SelectObject(hdc, m_font);
+			DrawTextLogger logger(hdc, r, FontHeight);
+			for (auto& f : fetchedFiles)
+			{
+				if (f.hint == TC("KnownInput"))
+					continue;
+				if (logger.rect.top >= r.bottom - FontHeight)
+				{
+					logger.rect.top = r.top;
+					logger.rect.left += 500;
+					if (logger.rect.left >= r.right)
+						break;
+				}
+				logger.Info(L"%s", f.hint.c_str());
+			}
+			logger.Info(L"...");
+		}
 	}
 
 	void Visualizer::PaintProcessRect(TraceView::Process& process, HDC hdc, RECT rect, const RECT& progressRect, bool selected, bool writingBitmap)
@@ -1397,7 +1445,7 @@ namespace uba
 		*/
 	}
 
-	void Visualizer::PaintDetailedStats(HDC hdc, int& posY, const RECT& progressRect, TraceView::Session& session, bool isRemote, u64 playTime)
+	void Visualizer::PaintDetailedStats(int& posY, const RECT& progressRect, TraceView::Session& session, bool isRemote, u64 playTime, const DrawTextFunc& drawTextFunc)
 	{
 		int stepY = FontHeight;
 		int startPosY = posY;
@@ -1413,14 +1461,12 @@ namespace uba
 				textRect.top = posY;
 				textRect.bottom = posY + stepY;
 				posY += stepY;
-				if (!hdc)
-					return;
 				StringBuffer<> str;
 				va_list arg;
 				va_start(arg, format);
 				str.Append(format, arg);
 				va_end(arg);
-				DrawTextW(hdc, str.data, str.count, &textRect, DT_SINGLELINE);
+				drawTextFunc(str, textRect);
 			};
 
 		drawText(L"Finished: %u", session.processExitedCount);
@@ -1593,7 +1639,15 @@ namespace uba
 			}
 
 			if (m_visibleComponents[ComponentType_DetailedData])
-				PaintDetailedStats(0, posY, progressRect, session, i != 0, playTime);
+			{
+				auto drawText = [&](const StringBufferBase& text, RECT& rect)
+					{
+						//DrawTextW(hdc, text.data, text.count, &rect, DT_SINGLELINE);
+						if (pos.x >= rect.left && pos.x < rect.right && pos.y >= rect.top && pos.y < rect.bottom && text.StartsWith(TC("Fetched Files")))
+							outResult.fetchedFilesSelected = sessionIndex;
+					};
+				PaintDetailedStats(posY, progressRect, session, i != 0, playTime, drawText);
+			}
 
 			if (m_visibleComponents[ComponentType_Bars])
 			{
@@ -1710,7 +1764,8 @@ namespace uba
 		if (res.processSelected == m_processSelected && res.processLocation == m_processSelectedLocation &&
 			res.sessionSelectedIndex == m_sessionSelectedIndex &&
 			res.statsSelected == m_statsSelected && memcmp(&res.stats, &m_stats, sizeof(Stats)) == 0 &&
-			res.buttonSelected == m_buttonSelected && res.timelineSelected == m_timelineSelected)
+			res.buttonSelected == m_buttonSelected && res.timelineSelected == m_timelineSelected &&
+			res.fetchedFilesSelected == m_fetchedFilesSelected)
 			return false;
 		m_processSelected = res.processSelected;
 		m_processSelectedLocation = res.processLocation;
@@ -1719,6 +1774,7 @@ namespace uba
 		m_stats = res.stats;
 		m_buttonSelected = res.buttonSelected;
 		m_timelineSelected = res.timelineSelected;
+		m_fetchedFilesSelected = res.fetchedFilesSelected;
 		return true;
 	}
 
@@ -1965,13 +2021,14 @@ namespace uba
 			tme.hwndTrack = hWnd;
 			TrackMouseEvent(&tme);
 
-			if (m_processSelected || m_sessionSelectedIndex != ~0u || m_statsSelected || m_timelineSelected)
+			if (m_processSelected || m_sessionSelectedIndex != ~0u || m_statsSelected || m_timelineSelected || m_fetchedFilesSelected != ~0u)
 			{
 				m_processSelected = false;
 				m_sessionSelectedIndex = ~0u;
 				m_statsSelected = false;
 				m_buttonSelected = ~0u;
 				m_timelineSelected = 0;
+				m_fetchedFilesSelected = ~0u;
 				RedrawWindow(hWnd, NULL, NULL, RDW_INVALIDATE);
 			}
 			break;
@@ -1983,6 +2040,7 @@ namespace uba
 			m_statsSelected = false;
 			m_buttonSelected = ~0u;
 			m_timelineSelected = 0;
+			m_fetchedFilesSelected = ~0u;
 			m_autoScroll = false;
 			POINTS p = MAKEPOINTS(lParam);
 			m_mouseAnchor = {p.x, p.y};

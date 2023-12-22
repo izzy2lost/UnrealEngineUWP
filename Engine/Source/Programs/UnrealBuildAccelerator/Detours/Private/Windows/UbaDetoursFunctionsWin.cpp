@@ -3,6 +3,8 @@
 #include "UbaDetoursFunctionsWin.h"
 #include "UbaDetoursFileMappingTable.h"
 
+#define IS_DETOURED_INCLUDE 1
+
 #if !defined(UBA_USE_MIMALLOC)
 #define True_malloc malloc
 #else

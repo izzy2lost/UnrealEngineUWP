@@ -4,8 +4,14 @@
 #include "UbaNetworkBackendQuic.h"
 #include "UbaNetworkBackendTcp.h"
 #include "UbaAWS.h"
+#include "UbaProcess.h"
+#include "UbaScheduler.h"
 #include "UbaStorageServer.h"
 #include "UbaSessionServer.h"
+
+#if PLATFORM_WINDOWS
+#include "UbaWinBinDependencyParser.h"
+#endif
 
 namespace uba
 {
@@ -283,6 +289,12 @@ uba::StorageClient* CreateStorageClient(uba::NetworkClient& client, const uba::t
 	{
 		delete handle;
 	}
+
+	const uba::ProcessStartInfo* Process_GetStartInfo(uba::Process& process)
+	{
+		return &process.GetStartInfo();
+	}
+
 /*
 	uba::SessionClient* CreateSessionClient(const uba::SessionClientCreateInfo& info)
 	{
@@ -318,13 +330,13 @@ uba::StorageClient* CreateStorageClient(uba::NetworkClient& client, const uba::t
 	{
 		return new uba::SessionServer(info);
 	}
-	void SessionServer_SetRemoteProcessAvailable(uba::SessionServer* server, SessionServer_RemoteProcessAvailableCallback* available)
+	void SessionServer_SetRemoteProcessAvailable(uba::SessionServer* server, SessionServer_RemoteProcessAvailableCallback* available, void* userData)
 	{
-		server->SetRemoteProcessSlotAvailableEvent(available);
+		server->SetRemoteProcessSlotAvailableEvent([available, userData]() { available(userData); });
 	}
-	void SessionServer_SetRemoteProcessReturned(uba::SessionServer* server, SessionServer_RemoteProcessReturnedCallback* returned)
+	void SessionServer_SetRemoteProcessReturned(uba::SessionServer* server, SessionServer_RemoteProcessReturnedCallback* returned, void* userData)
 	{
-		server->SetRemoteProcessReturnedEvent(returned);
+		server->SetRemoteProcessReturnedEvent([returned, userData](uba::Process& process) { returned(process, userData); });
 	}
 	void SessionServer_RefreshDirectory(uba::SessionServer* server, const uba::tchar* directory)
 	{
@@ -415,5 +427,47 @@ uba::StorageClient* CreateStorageClient(uba::NetworkClient& client, const uba::t
 		free((void*)info->description);
 		free((void*)info->logFile);
 		delete info;
+	}
+
+	uba::Scheduler* Scheduler_Create(uba::SessionServer* session, uba::u32 maxLocalProcessors)
+	{
+		return new uba::Scheduler(*session, maxLocalProcessors);
+	}
+
+	void Scheduler_Start(uba::Scheduler* scheduler)
+	{
+		scheduler->Start();
+	}
+
+	void Scheduler_EnqueueProcess(uba::Scheduler* scheduler, const uba::ProcessStartInfo& info, float weight, const void* knownInputs, uba::u32 knownInputsBytes, uba::u32 knownInputsCount)
+	{
+		scheduler->EnqueueProcess(info, weight, knownInputs, knownInputsBytes, knownInputsCount);
+	}
+
+	void Scheduler_Stop(uba::Scheduler* scheduler)
+	{
+		scheduler->Stop();
+	}
+
+	void Scheduler_Destroy(uba::Scheduler* scheduler)
+	{
+		delete scheduler;
+	}
+
+	void Scheduler_GetStats(uba::Scheduler* scheduler, uba::u32& outQueued, uba::u32& outActive, uba::u32& outFinished)
+	{
+		scheduler->GetStats(outQueued, outActive, outFinished);
+	}
+
+	void Uba_SetCustomAssertHandler(Uba_CustomAssertHandler* handler)
+	{
+		uba::SetCustomAssertHandler(handler);
+	}
+
+	void Uba_FindImports(const uba::tchar* binary, ImportFunc* func, void* userData)
+	{
+#if PLATFORM_WINDOWS
+		uba::FindImports(binary, [&](const uba::tchar* importName) { func(importName, userData); });
+#endif
 	}
 }
