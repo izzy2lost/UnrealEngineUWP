@@ -27,6 +27,13 @@ bool USimpleTargetingSelectionTask::AddTargetActor(const FTargetingRequestHandle
 			FTargetingDefaultResultData& ResultData = ResultsSet.TargetResults.AddDefaulted_GetRef();
 			ResultData.HitResult.HitObjectHandle = FActorInstanceHandle(Actor);
 			ResultData.HitResult.Location = Actor->GetActorLocation();
+			if (const FTargetingSourceContext* SourceContext = FTargetingSourceContext::Find(TargetingHandle))
+			{
+				if (SourceContext->SourceActor)
+				{
+					ResultData.HitResult.Distance = FVector::Distance(SourceContext->SourceActor->GetActorLocation(), Actor->GetActorLocation());
+				}
+			}
 			return true;
 		}
 	}
@@ -40,6 +47,13 @@ bool USimpleTargetingSelectionTask::AddHitResult(const FTargetingRequestHandle& 
 	{
 		FTargetingDefaultResultData& ResultData = ResultsSet.TargetResults.AddDefaulted_GetRef();
 		ResultData.HitResult = HitResult;
+		if (const FTargetingSourceContext* SourceContext = FTargetingSourceContext::Find(TargetingHandle))
+		{
+			if (SourceContext->SourceActor)
+			{
+				ResultData.HitResult.Distance = FVector::Distance(SourceContext->SourceActor->GetActorLocation(), HitResult.GetActor()->GetActorLocation());
+			}
+		}
 		return true;
 	}
 	return false;

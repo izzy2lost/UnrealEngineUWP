@@ -47,6 +47,8 @@ void UTargetingSelectionTask_SourceActor::Execute(const FTargetingRequestHandle&
 					FTargetingDefaultResultData* ResultData = new(Results.TargetResults) FTargetingDefaultResultData();
 					ResultData->HitResult.HitObjectHandle = FActorInstanceHandle(SourceContext->SourceActor);
 					ResultData->HitResult.Location = SourceContext->SourceActor->GetActorLocation();
+					ResultData->HitResult.Distance = 0.0f;
+					ResultData->HitResult.Time = 0.f;
 				}
 
 #if ENABLE_DRAW_DEBUG
