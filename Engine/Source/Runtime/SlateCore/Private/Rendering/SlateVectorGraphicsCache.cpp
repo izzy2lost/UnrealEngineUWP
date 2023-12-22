@@ -149,6 +149,10 @@ void FSlateVectorGraphicsCache::UpdateCache()
 						NewProxy->StartUV = FVector2f((float)(NewSlot->X + Padding) / FoundAtlas->GetWidth(), (float)(NewSlot->Y + Padding) / FoundAtlas->GetHeight());
 						NewProxy->SizeUV = FVector2f((float)(NewSlot->Width - Padding * 2) / FoundAtlas->GetWidth(), (float)(NewSlot->Height - Padding * 2) / FoundAtlas->GetHeight());
 						NewProxy->ActualSize = FIntPoint(PixelSize.X, PixelSize.Y);
+
+#if WITH_ATLAS_DEBUGGING
+						AtlasDebugData.Add(NewSlot, Request.Key.BrushName);
+#endif
 					}
 				}
 				UpdateFlushCounters(0, Atlases.Num(), 0, NonAtlasedTextures.Num());
@@ -204,6 +208,9 @@ void FSlateVectorGraphicsCache::ReleaseResources(bool bWaitForRelease /* = false
 
 void FSlateVectorGraphicsCache::DeleteResources()
 {
+#if WITH_ATLAS_DEBUGGING
+	AtlasDebugData.Empty();
+#endif
 	Atlases.Empty();
 	NonAtlasedTextures.Empty();
 	ResourceMap.Empty();

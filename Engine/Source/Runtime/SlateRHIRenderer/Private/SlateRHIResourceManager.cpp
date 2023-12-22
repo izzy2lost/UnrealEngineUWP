@@ -382,7 +382,8 @@ FAtlasSlotInfo FSlateRHIResourceManager::GetAtlasSlotInfoAtPosition(FIntPoint In
 {
 	const FSlateTextureAtlas* Atlas = nullptr;
 
-	if (PrecachedTextureAtlases.IsValidIndex(AtlasIndex))
+	bool bIsPrecachedTextureAtlases = PrecachedTextureAtlases.IsValidIndex(AtlasIndex);
+	if (bIsPrecachedTextureAtlases)
 	{
 		Atlas = PrecachedTextureAtlases[AtlasIndex];
 	}
@@ -391,22 +392,18 @@ FAtlasSlotInfo FSlateRHIResourceManager::GetAtlasSlotInfoAtPosition(FIntPoint In
 		Atlas = VectorGraphicsCache->GetAtlas(AtlasIndex - PrecachedTextureAtlases.Num());
 	}
 
+	FAtlasSlotInfo NewInfo;
 	if (Atlas)
 	{
-		FAtlasSlotInfo NewInfo;
-
 		const FAtlasedTextureSlot* Slot = Atlas->GetSlotAtPosition(InPosition);
 		if (Slot)
 		{
 			NewInfo.AtlasSlotRect = FSlateRect(FVector2f((float)Slot->X, (float)Slot->Y), FVector2f((float)(Slot->X + Slot->Width), (float)(Slot->Y + Slot->Height)));
-
-			NewInfo.TextureName = AtlasDebugData.FindRef(Slot);
-
-			return NewInfo;
+			NewInfo.TextureName = bIsPrecachedTextureAtlases ? AtlasDebugData.FindRef(Slot) : VectorGraphicsCache->GetAtlasDebugData(Slot);
 		}
 	}
 
-	return FAtlasSlotInfo();
+	return NewInfo;
 }
 #endif
 
