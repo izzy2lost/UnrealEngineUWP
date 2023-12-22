@@ -2963,7 +2963,7 @@ void FEdModeFoliage::ApplyPaintBucket_Add(AActor* Actor)
 						continue;
 					}
 
-					new(InstancesToPlace)FPotentialInstance(InstLocation, Triangle.WorldNormal, Component, 1.f);
+					InstancesToPlace.Emplace(FPotentialInstance(InstLocation, Triangle.WorldNormal, Component, 1.f));
 				}
 			}
 		}

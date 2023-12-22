@@ -470,7 +470,7 @@ void AAbilitySystemDebugHUD::DisplayDebugStrings(UCanvas* InCanvas, const AActor
 		InCanvas->TextSize(Font, DrawString, TextWidth, TextHeight);
 		MaxWidth = FMath::Max(MaxWidth, TextWidth);
 		TotalHeight += TextHeight;
-		new(StringsToDraw)FStringAndLineHeight(DrawString, TextHeight);
+		StringsToDraw.Emplace(FStringAndLineHeight(DrawString, TextHeight));
 	}
 
 	FVector ThisOrigin;
