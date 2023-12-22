@@ -399,7 +399,7 @@ namespace UE::Interchange::Private
 		, const IInterchangeAnimationPayloadInterface* AnimSequenceTranslatorPayloadInterface
 		, const FString& AssetName
 		, const bool bIsReimporting
-		, TArray<FString> OutCurvesNotFound
+		, TArray<FString>& OutCurvesNotFound
 		, UInterchangeAnimSequenceFactory* Factory)
 	{
 		TMap<const UInterchangeSceneNode*, TFuture<TOptional<UE::Interchange::FAnimationPayloadData>>> AnimationPayloads;
