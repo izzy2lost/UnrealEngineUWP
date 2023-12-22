@@ -631,7 +631,7 @@ private:
 	bool bIsExitingModesDuringTick = false;
 
 	/** GizmoStateTarget used to handle a new TRS gizmo transform begin/end sequence. */
-	TObjectPtr<UEditorGizmoStateTarget> GizmoStateTarget;
+	TWeakObjectPtr<UEditorGizmoStateTarget> GizmoStateTarget;
 
 	/** Flag to track if we started a new TRS gizmo transform.
 	 * NOTE: we have to use it for now as StartTracking / EndTracking iterates thru the modes even if the ITF context captured something.

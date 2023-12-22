@@ -1974,14 +1974,14 @@ UModeManagerInteractiveToolsContext* FEditorModeTools::GetInteractiveToolsContex
 
 IGizmoStateTarget* FEditorModeTools::GetGizmoStateTarget()
 {
-	if (!GizmoStateTarget)
+	if (!GizmoStateTarget.IsValid())
 	{
 		GizmoStateTarget = UEditorGizmoStateTarget::Construct(
 			this,
 			NSLOCTEXT("UTransformGizmo", "UTransformGizmoTransaction", "Transform"),
 			InteractiveToolsContext->GizmoManager);
 	}
-	return GizmoStateTarget;
+	return GizmoStateTarget.Get();
 }
 
 bool FEditorModeTools::BeginTransform(const FGizmoState& InState)
