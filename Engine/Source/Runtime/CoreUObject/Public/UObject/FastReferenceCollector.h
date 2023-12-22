@@ -290,6 +290,37 @@ struct FWeakReferenceInfo
 	UObject* ReferenceOwner = nullptr;
 };
 
+/** Maintains a stack of schemas currently processed by reachability analysis for debugging referencing property names */
+struct FDebugSchemaStackNode
+{
+#if !UE_BUILD_SHIPPING
+	FMemberId Member;
+	FSchemaView Schema;
+	FDebugSchemaStackNode* Prev;
+	
+	FDebugSchemaStackNode()
+		: Member(0)
+		, Prev(nullptr)
+	{
+	}
+	FDebugSchemaStackNode(FSchemaView InSchema, FDebugSchemaStackNode* PrevNode)
+		: Member(0)
+		, Schema(InSchema)
+		, Prev(PrevNode)
+	{
+	}
+#endif // !UE_BUILD_SHIPPING
+
+	FORCEINLINE void SetMemberId(FMemberId MemberId)
+	{
+#if !UE_BUILD_SHIPPING
+		Member = MemberId;
+#endif
+	}
+
+	COREUOBJECT_API FString ToString() const;
+};
+
 /** Thread-local context containing initial objects and references to collect */
 struct alignas(PLATFORM_CACHE_LINE_SIZE) FWorkerContext
 {
@@ -323,6 +354,8 @@ public:
 	bool bIsSuspended = false;
 	bool bDidWork = false;
 
+	FDebugSchemaStackNode* SchemaStack = nullptr;
+
 	FORCEINLINE UObject* GetReferencingObject()	{ return ReferencingObject;	}
 
 	TConstArrayView<UObject*> GetInitialObjects() { return InitialObjects; }
@@ -351,6 +384,40 @@ public:
 	FORCEINLINE int32 GetWorkerIndex() const { return ObjectsToSerialize.GetWorkerIndex(); }
 	void AllocateWorkerIndex();
 	void FreeWorkerIndex();
+};
+
+//////////////////////////////////////////////////////////////////////////
+
+struct FDebugSchemaStackScope
+{
+#if !UE_BUILD_SHIPPING
+	FWorkerContext& Context;
+	FDebugSchemaStackNode Node;
+#endif
+
+	FDebugSchemaStackScope(FWorkerContext& InContext, FSchemaView Schema)
+#if !UE_BUILD_SHIPPING
+		: Context(InContext)
+		, Node(Schema, InContext.SchemaStack)
+#endif
+	{
+#if !UE_BUILD_SHIPPING
+		InContext.SchemaStack = &Node;
+#endif
+	}
+	~FDebugSchemaStackScope()
+	{
+#if !UE_BUILD_SHIPPING
+		Context.SchemaStack = Node.Prev;
+#endif
+	}
+};
+
+struct FDebugSchemaStackNoOpScope
+{
+	FDebugSchemaStackNoOpScope(FWorkerContext& InContext, FSchemaView Schema)
+	{
+	}
 };
 
 //////////////////////////////////////////////////////////////////////////
@@ -440,6 +507,7 @@ FORCEINLINE_DEBUGGABLE void VisitStructs(DispatcherType& Dispatcher, FSchemaView
 template<class DispatcherType, class ArrayType>
 FORCEINLINE_DEBUGGABLE void VisitStructArray(DispatcherType& Dispatcher, FSchemaView StructSchema, ArrayType& Array)
 {
+	typename DispatcherType::SchemaStackScopeType SchemaStack(Dispatcher.Context, StructSchema);
 	VisitStructs(Dispatcher, StructSchema, (uint8*)Array.GetData(), Array.Num());
 }
 
@@ -459,6 +527,7 @@ FORCEINLINE_DEBUGGABLE void VisitSparseStructArray(DispatcherType& Dispatcher, F
 		{
 			if (Array.IsAllocated(Idx))
 			{
+				typename DispatcherType::SchemaStackScopeType SchemaStack(Dispatcher.Context, StructSchema);
 				VisitNestedStructMembers(Dispatcher, StructSchema, It);
 			}
 		}
@@ -496,6 +565,7 @@ FORCEINLINE_DEBUGGABLE void VisitOptional(DispatcherType& Dispatcher, FSchemaVie
 	check(!StructSchema.IsEmpty());
 	uint32 ValueSize = StructSchema.GetStructStride();
 	bool bIsSet = *(bool*)(Instance + ValueSize);
+	typename DispatcherType::SchemaStackScopeType SchemaStack(Dispatcher.Context, StructSchema);
 	VisitStructs(Dispatcher, StructSchema, Instance, bIsSet);
 }
 
@@ -567,6 +637,7 @@ FORCEINLINE_DEBUGGABLE void VisitMembers(DispatcherType& Dispatcher, FSchemaView
 		for (FMemberUnpacked Member : Quad.Members)
 		{
 			uint8* MemberPtr = (uint8*)(InstanceCursor + Member.WordOffset);
+			Dispatcher.SetDebugSchemaStackMemberId(FMemberId(DebugIdx));
 
 			switch (Member.Type)
 			{
@@ -635,6 +706,7 @@ struct TDirectDispatcher
 	static constexpr bool bBatching = false;
 	static constexpr bool bParallel = IsParallel(ProcessorType::Options);
 
+	typedef FDebugSchemaStackScope SchemaStackScopeType;
 	ProcessorType& Processor;
 	FWorkerContext& Context;
 	FReferenceCollector& Collector;
@@ -720,6 +792,11 @@ struct TDirectDispatcher
 
 	void Suspend()
 	{
+	}
+
+	void SetDebugSchemaStackMemberId(FMemberId Member)
+	{
+		Context.SchemaStack->SetMemberId(Member);
 	}
 };
 
@@ -839,6 +916,7 @@ StoleARO:
 		} // while (true)
 		
 		Processor.LogDetailedStatsSummary();
+		checkf(Context.SchemaStack == nullptr, TEXT("Debug Schema Stack is not empty after processing all objects"));
 	}
 
 private:
@@ -874,6 +952,7 @@ private:
 #endif
 			if (!Schema.IsEmpty())
 			{
+				typename DispatcherType::SchemaStackScopeType SchemaStack(Dispatcher.Context, Schema);
 				Processor.BeginTimingObject(CurrentObject);
 				Private::VisitMembers(Dispatcher, Schema, CurrentObject);
 				Processor.UpdateDetailedStats(CurrentObject);

@@ -90,9 +90,8 @@ public:
 				FString DebugInfo;
 				if (UClass *Class = (ReferencingObject ? ReferencingObject->GetClass() : nullptr))
 				{
-					UE::GC::FMemberInfo Member = GetMemberDebugInfo(Class->ReferenceSchema.Get(), MemberId);
-					DebugInfo = FString::Printf(TEXT("ReferencingObjectClass: %s, Property Name: %s, Offset: %d"),
-						*Class->GetFullName(), *Member.Name.GetPlainNameString(), Member.Offset);
+					DebugInfo = FString::Printf(TEXT("ReferencingObjectClass: %s, Property: %s"),
+						*Class->GetFullName(), *ObjectsToSerializeStruct.SchemaStack->ToString());
 				}
 				else
 				{
@@ -212,9 +211,8 @@ public:
 				FString DebugInfo;
 				if (UClass *Class = (ReferencingObject ? ReferencingObject->GetClass() : nullptr))
 				{
-					UE::GC::FMemberInfo Member = GetMemberDebugInfo(Class->ReferenceSchema.Get(), MemberId);
-					DebugInfo = FString::Printf(TEXT("ReferencingObjectClass: %s, Property Name: %s, Offset: %d"),
-						*Class->GetFullName(), *Member.Name.GetPlainNameString(), Member.Offset);
+					DebugInfo = FString::Printf(TEXT("ReferencingObjectClass: %s, Property: %s"),
+						*Class->GetFullName(), *ObjectsToSerializeStruct.SchemaStack->ToString());
 				}
 				else
 				{
@@ -456,9 +454,8 @@ public:
 				FString DebugInfo;
 				if (UClass* Class = (ReferencingObject ? ReferencingObject->GetClass() : nullptr))
 				{
-					UE::GC::FMemberInfo Member = GetMemberDebugInfo(Class->ReferenceSchema.Get(), MemberId);
-					DebugInfo = FString::Printf(TEXT("property: %s, offset: %d"),
-						*Member.Name.GetPlainNameString(), Member.Offset);
+					DebugInfo = FString::Printf(TEXT("property: %s"),
+						*ObjectsToSerializeStruct.SchemaStack->ToString());
 				}
 				else
 				{

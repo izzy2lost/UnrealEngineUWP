@@ -2981,6 +2981,8 @@ struct TBatchDispatcher
 	static constexpr bool bBatching = true;
 	static constexpr bool bParallel = IsParallel(ProcessorType::Options);
 
+	typedef FDebugSchemaStackNoOpScope SchemaStackScopeType;
+
 	FWorkerContext& Context;
 	const FPermanentObjectPoolExtents PermanentPool;
 	FReferenceCollector& Collector;
@@ -3165,6 +3167,10 @@ struct TBatchDispatcher
 	{
 		FlushQueuedReferences();
 		Context.IncrementalStructs = StructBatcher.Suspend();
+	}
+
+	void SetDebugSchemaStackMemberId(FMemberId Member)
+	{
 	}
 };
 
@@ -3577,6 +3583,26 @@ public:
 
 #endif // !UE_BUILD_SHIPPING
 
+FString FDebugSchemaStackNode::ToString() const
+{
+	FString Result;
+#if !UE_BUILD_SHIPPING
+	for (const FDebugSchemaStackNode* Node = this; Node; Node = Node->Prev)
+	{
+		FMemberInfo MemberInfo = GetMemberDebugInfo(Node->Schema, Node->Member);
+		FString MemberInfoString = FString::Printf(TEXT("%s (0x%x)"), *MemberInfo.Name.GetPlainNameString(), MemberInfo.Offset);
+		if (!Result.IsEmpty())
+		{
+			MemberInfoString += TEXT(" -> ");
+		}
+		Result = MemberInfoString + Result;
+	}
+#else
+	Result += TEXT("Unknown");
+#endif
+	return Result;
+}
+
 FORCEINLINE static void CheckReference(UObject*& Object, const UObject* ReferencingObject, const FProperty* ReferencingProperty)
 {
 #if ENABLE_GC_OBJECT_CHECKS
@@ -3655,6 +3681,7 @@ void TFastReferenceCollector<ProcessorType, CollectorType>::ProcessStructs(Dispa
 				check(AoS.Stride == AoS.Schema.GetStructStride());
 				uint8* StructIt = AoS.Data;
 				uint8* StructEnd = AoS.Data + AoS.Num * AoS.Stride;
+				typename DispatcherType::SchemaStackScopeType SchemaStack(Dispatcher.Context, AoS.Schema);
 				do
 				{
 					Private::VisitMembers(Dispatcher, AoS.Schema, StructIt); 
