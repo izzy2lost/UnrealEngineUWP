@@ -602,10 +602,16 @@ FFbxImporter::~FFbxImporter()
 //-------------------------------------------------------------------------
 //
 //-------------------------------------------------------------------------
-FFbxImporter* FFbxImporter::GetInstance()
+FFbxImporter* FFbxImporter::GetInstance(bool bDoNotCreate /*= false*/)
 {
 	if (!StaticInstance.IsValid())
 	{
+		//Return nullptr if we cannot create the instance
+		if (bDoNotCreate)
+		{
+			return nullptr;
+		}
+
 		StaticInstance = MakeShareable( new FFbxImporter() );
 	}
 	return StaticInstance.Get();

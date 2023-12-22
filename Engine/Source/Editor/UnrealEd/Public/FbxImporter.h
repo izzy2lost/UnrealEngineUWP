@@ -606,7 +606,7 @@ public:
 	/**
 	 * Returns the importer singleton. It will be created on the first request.
 	 */
-	UNREALED_API static FFbxImporter* GetInstance();
+	UNREALED_API static FFbxImporter* GetInstance(bool bDoNotCreate = false);
 	static void DeleteInstance();
 
 	/**

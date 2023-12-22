@@ -1623,11 +1623,11 @@ UInterchangeManager::ImportInternal(const FString& ContentPath, const UInterchan
 
 	//In runtime we do not have any pipeline configurator
 #if WITH_EDITORONLY_DATA
-	TSoftClassPtr <UInterchangePipelineConfigurationBase> PipelineConfigurationDialogClass = InterchangeImportSettings.PipelineConfigurationDialogClass;
+	TSoftClassPtr <UInterchangePipelineConfigurationBase> ImportDialogClass = InterchangeImportSettings.ImportDialogClass;
 
-	if (PipelineConfigurationDialogClass.IsValid())
+	if (ImportDialogClass.IsValid())
 	{
-		UClass* PipelineConfigurationClass = PipelineConfigurationDialogClass.LoadSynchronous();
+		UClass* PipelineConfigurationClass = ImportDialogClass.LoadSynchronous();
 		if (PipelineConfigurationClass)
 		{
 			RegisteredPipelineConfiguration = NewObject<UInterchangePipelineConfigurationBase>(GetTransientPackage(), PipelineConfigurationClass, NAME_None, RF_NoFlags);

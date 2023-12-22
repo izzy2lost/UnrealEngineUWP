@@ -1148,7 +1148,7 @@ UObject* UFbxFactory::RecursiveImportNode(UnFbx::FFbxImporter* FbxImporter, void
 
 void UFbxFactory::CleanUp() 
 {
-	UnFbx::FFbxImporter* FFbxImporter = UnFbx::FFbxImporter::GetInstance();
+	UnFbx::FFbxImporter* FFbxImporter = UnFbx::FFbxImporter::GetInstance(true/*bDoNotCreate*/);
 	bDetectImportTypeOnImport = true;
 	bShowOption = true;
 	// load options

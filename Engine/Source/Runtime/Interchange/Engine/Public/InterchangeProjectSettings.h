@@ -51,13 +51,37 @@ struct FInterchangeImportSettings
 	UPROPERTY(EditAnywhere, Category = "Pipeline")
 	FName DefaultPipelineStack = NAME_None;
 
-	/** This tell interchange which pipeline configuration dialog to popup when we need to configure the pipelines.*/
+	/** This tell interchange which class to instance to show the import dialog.*/
 	UPROPERTY(EditAnywhere, Category = "Pipeline")
-	TSoftClassPtr <UInterchangePipelineConfigurationBase> PipelineConfigurationDialogClass;
+	TSoftClassPtr <UInterchangePipelineConfigurationBase> ImportDialogClass;
 
-	/** If enabled, the pipeline stacks configuration dialog will show when interchange must choose a pipeline to import or re-import. If disabled interchange will use the DefaultPipelineStack.*/
+	/** If enabled, the import option dialog will show when interchange import or re-import.*/
 	UPROPERTY(EditAnywhere, Category = "Pipeline")
-	bool bShowPipelineStacksConfigurationDialog = true;
+	bool bShowImportDialog = true;
+};
+
+USTRUCT()
+struct FInterchangePerTranslatorDialogOverride
+{
+	GENERATED_BODY()
+
+	UPROPERTY(EditAnywhere, Category = "DialogOverride", meta = (AllowedClasses = "/Script/InterchangeCore.InterchangeTranslatorBase"))
+	TSoftClassPtr<UInterchangeTranslatorBase> Translator;
+
+	UPROPERTY(EditAnywhere, Category = "DialogOverride")
+	bool bShowImportDialog = true;
+};
+
+USTRUCT()
+struct FInterchangeDialogOverride
+{
+	GENERATED_BODY()
+
+	UPROPERTY(EditAnywhere, Category = "DialogOverride")
+	bool bShowImportDialog = true;
+
+	UPROPERTY(EditAnywhere, Category = "DialogOverride", meta = (AllowedClasses = "/Script/InterchangeCore.InterchangePipelineBase, /Script/InterchangeEngine.InterchangeBlueprintPipelineBase, /Script/InterchangeEngine.InterchangePythonPipelineAsset"))
+	TArray<FInterchangePerTranslatorDialogOverride> PerTranslatorImportDialogOverride;
 };
 
 USTRUCT()
@@ -69,9 +93,9 @@ struct FInterchangeContentImportSettings : public FInterchangeImportSettings
 	UPROPERTY(EditAnywhere, Category = "Pipeline", Meta=(DisplayAfter="DefaultPipelineStack"))
 	TMap<EInterchangeTranslatorAssetType, FName> DefaultPipelineStackOverride;
 
-	/** This tell interchange which pipeline stack to select when importing.*/
-	UPROPERTY(EditAnywhere, Category = "Pipeline", Meta=(DisplayAfter="bShowPipelineStacksConfigurationDialog"))
-	TMap<EInterchangeTranslatorAssetType, bool> ShowPipelineStacksConfigurationDialogOverride;
+	/** This tell interchange if the import dialog should show or not when importing a particular type of asset.*/
+	UPROPERTY(EditAnywhere, Category = "Pipeline", Meta=(DisplayAfter="bShowImportDialog"))
+	TMap<EInterchangeTranslatorAssetType, FInterchangeDialogOverride> ShowImportDialogOverride;
 };
 
 UCLASS(config=Engine, meta=(DisplayName=Interchange), MinimalAPI)
