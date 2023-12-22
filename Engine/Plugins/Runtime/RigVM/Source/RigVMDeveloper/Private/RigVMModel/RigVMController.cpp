@@ -4455,6 +4455,8 @@ TMap<FRigVMGraphFunctionIdentifier, URigVMLibraryNode*> URigVMController::Locali
 		FunctionsToLocalize.AddUnique(FRigVMGraphFunctionData::FindFunctionData(FunctionDefinition));
 	}
 
+	const int32 InputNodesToVisitCount = NodesToVisit.Num();
+
 	const FSoftObjectPath ThisFunctionHost = ThisLibrary->GetFunctionHostObjectPath();
 	
 	// find all functions to localize
@@ -4474,6 +4476,12 @@ TMap<FRigVMGraphFunctionIdentifier, URigVMLibraryNode*> URigVMController::Locali
 		{
 			ReportAndNotifyErrorf(TEXT("Cannot localize function - could not find function %s in host %s."), *NodeToVisit.LibraryNode.ToString(), *NodeToVisit.HostObject.ToString());
 			return LocalizedFunctions;
+		}
+
+		// Do not localize public functions if they are not part of the input set of functions
+		if (bIsPublic && NodeToVisitIndex >= InputNodesToVisitCount)
+		{
+			continue;
 		}
 
 		if (!bLocalizeDependentPrivateFunctions)
