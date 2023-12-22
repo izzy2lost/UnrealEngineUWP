@@ -21,7 +21,9 @@ namespace uba
 		virtual ~WorkManagerImpl();
 		virtual void AddWork(const Function<void()>& work, u32 count, const tchar* desc) override;
 		virtual u32 GetWorkerCount() override;
+		void DoWork(u32 count = 1);
 		void FlushWork();
+
 	private:
 		struct Worker;
 		void PushWorker(Worker* worker);

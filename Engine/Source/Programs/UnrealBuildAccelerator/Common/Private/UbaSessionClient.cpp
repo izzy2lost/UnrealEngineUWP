@@ -231,7 +231,8 @@ namespace uba
 			List<ModuleInfo> modules;
 
 			Atomic<bool> success = true;
-
+			Atomic<u32> handledCount;
+			u32 workCount = 0;
 			while (moduleCount--)
 			{
 				StringBuffer<> moduleFile;
@@ -252,9 +253,12 @@ namespace uba
 					moduleFile.Clear().Append(localSystemModule);
 				}
 
+				++workCount;
+
 				auto& m = modules.emplace_back(moduleFile.data, casKey, fileAttributes);
 				m_client.AddWork([&]()
 					{
+						++handledCount;
 						auto g = MakeGuard([&]() { m.done.Set(); });
 						CasKey newCasKey;
 						bool storeUncompressed = true;
@@ -273,6 +277,9 @@ namespace uba
 							success = false;
 					}, 1, TC("EnsureApp"));
 			}
+
+			while (handledCount < workCount)
+				m_client.DoWork();
 
 			// Wait for all to be done
 			for (auto& m : modules)

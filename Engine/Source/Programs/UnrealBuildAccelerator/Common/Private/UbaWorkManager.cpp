@@ -115,6 +115,21 @@ namespace uba
 		--m_activeWorkerCount;
 	}
 
+	void WorkManagerImpl::DoWork(u32 count)
+	{
+		while (count--)
+		{
+			ScopedWriteLock lock(m_workLock);
+			if (m_work.empty())
+				break;
+			Work work = m_work.front();
+			m_work.pop_front();
+			lock.Leave();
+
+			work.func();
+		}
+	}
+
 	void WorkManagerImpl::FlushWork()
 	{
 		while (true)
