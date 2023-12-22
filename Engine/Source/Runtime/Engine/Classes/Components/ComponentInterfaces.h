@@ -38,7 +38,7 @@ public:
 	virtual UWorld* GetWorld() const = 0;
 	virtual FSceneInterface* GetScene() const = 0;
 	virtual FPrimitiveSceneProxy* GetSceneProxy() const = 0;
-	virtual void GetUsedMaterials(TArray<UMaterialInterface*> OutMaterials, bool bGetDebugMaterials = false) const = 0;		
+	virtual void GetUsedMaterials(TArray<UMaterialInterface*>& OutMaterials, bool bGetDebugMaterials = false) const = 0;		
 	virtual void MarkRenderStateDirty() = 0;
 	virtual void DestroyRenderState() = 0;
 	virtual void CreateRenderState(FRegisterComponentContext* Context) = 0;	

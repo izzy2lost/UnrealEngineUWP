@@ -4920,7 +4920,7 @@ FPrimitiveSceneProxy* FActorPrimitiveComponentInterface::GetSceneProxy() const
 	return UPrimitiveComponent::GetPrimitiveComponent(this)->SceneProxy;
 }
 
-void FActorPrimitiveComponentInterface::GetUsedMaterials(TArray<UMaterialInterface*> OutMaterials, bool bGetDebugMaterials) const
+void FActorPrimitiveComponentInterface::GetUsedMaterials(TArray<UMaterialInterface*>& OutMaterials, bool bGetDebugMaterials) const
 {
 	UPrimitiveComponent::GetPrimitiveComponent(this)->GetUsedMaterials(OutMaterials, bGetDebugMaterials);
 }

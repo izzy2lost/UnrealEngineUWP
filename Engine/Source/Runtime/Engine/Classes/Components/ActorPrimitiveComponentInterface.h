@@ -16,7 +16,7 @@ public:
 	UWorld* GetWorld() const override;
 	FSceneInterface* GetScene() const override;
 	FPrimitiveSceneProxy* GetSceneProxy() const override;	
-	void GetUsedMaterials(TArray<UMaterialInterface*> OutMaterials, bool bGetDebugMaterials) const;
+	void GetUsedMaterials(TArray<UMaterialInterface*>& OutMaterials, bool bGetDebugMaterials) const;
 	void MarkRenderStateDirty() override;
 	void DestroyRenderState() override;
 	void CreateRenderState(FRegisterComponentContext* Context) override;
