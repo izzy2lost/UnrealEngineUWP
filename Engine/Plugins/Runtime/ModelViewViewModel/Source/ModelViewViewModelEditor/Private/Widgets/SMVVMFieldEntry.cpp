@@ -127,6 +127,8 @@ void SFieldPaths::Construct(const FArguments& InArgs)
 {
 	TextStyle = InArgs._TextStyle;
 
+	HighlightField = InArgs._HighlightField;
+
 	ChildSlot
 	[
 		SAssignNew(FieldBox, SHorizontalBox)
@@ -163,15 +165,29 @@ void SFieldPaths::SetFieldPaths(TArrayView<UE::MVVM::FMVVMConstFieldVariant> InP
 					.Field(InPropertyPath[Index])
 				];
 
+			bool bShowFieldNotify = HighlightField.IsSet() && HighlightField.GetValue().Contains(Index);
+			if (bShowFieldNotify)
+			{
+				FieldBox->AddSlot()
+					.HAlign(HAlign_Fill)
+					.VAlign(VAlign_Center)
+					.AutoWidth()
+					[
+						SNew(SImage)
+						.DesiredSizeOverride(FVector2D(16.0f, 16.0f))
+						.Image(FAppStyle::GetBrush("Kismet.VariableList.FieldNotify"))
+					];
+			}
+
 			FieldBox->AddSlot()
 				.HAlign(HAlign_Fill)
 				.VAlign(VAlign_Center)
-				.Padding(4, 0, 0, 0)
 				.AutoWidth()
 				[
 					SNew(STextBlock)
 					.TextStyle(TextStyle)
 					.Clipping(EWidgetClipping::OnDemand)
+					.SimpleTextMode(true)
 					.Text(Private::GetFieldDisplayName(InPropertyPath[Index]))
 				];
 		}
@@ -185,6 +201,7 @@ void SFieldPaths::SetFieldPaths(TArrayView<UE::MVVM::FMVVMConstFieldVariant> InP
 					SNew(STextBlock)
 					.TextStyle(TextStyle)
 					.Clipping(EWidgetClipping::OnDemand)
+					.SimpleTextMode(true)
 					.Text(LOCTEXT("Invalid", "Invalid Field"))
 				];
 		}
@@ -195,7 +212,6 @@ void SFieldPaths::SetFieldPaths(TArrayView<UE::MVVM::FMVVMConstFieldVariant> InP
 			FieldBox->AddSlot()
 				.HAlign(HAlign_Left)
 				.VAlign(VAlign_Center)
-				.Padding(6, 0)
 				.AutoWidth()
 				[
 					SNew(SImage)
