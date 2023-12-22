@@ -1770,7 +1770,7 @@ public:
 		DeAllocateLeafNode(LeafNodeIdx);
 	}
 
-	virtual bool RemoveElement(const TPayloadType& Payload)
+	virtual bool RemoveElement(const TPayloadType& Payload) override
 	{
 		if (UNLIKELY(!ensure(bModifyingTreeMultiThreadingFastCheck == false)))
 		{

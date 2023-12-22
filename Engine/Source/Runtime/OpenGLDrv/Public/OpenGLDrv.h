@@ -321,9 +321,9 @@ public:
 #endif
 
 	// FDynamicRHI interface.
-	virtual void Init();
+	virtual void Init() override;
 
-	virtual void Shutdown();
+	virtual void Shutdown() override;
 	virtual const TCHAR* GetName() override { return TEXT("OpenGL"); }
 
 	template<typename TRHIType>
@@ -763,7 +763,7 @@ public:
 
 	virtual FSamplerStateRHIRef RHICreateSamplerState(const FSamplerStateInitializerRHI& Initializer) final override;
 
-	virtual FGraphicsPipelineStateRHIRef RHICreateGraphicsPipelineState(const FGraphicsPipelineStateInitializer& Initializer)
+	virtual FGraphicsPipelineStateRHIRef RHICreateGraphicsPipelineState(const FGraphicsPipelineStateInitializer& Initializer) override
 	{
 		PrepareGFXBoundShaderState(Initializer);
 

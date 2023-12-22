@@ -404,7 +404,7 @@ private:
 	{
 	}
 
-	virtual void OnPackageGenerated(const FName& PackageName)
+	virtual void OnPackageGenerated(const FName& PackageName) override
 	{
 		FPackageId PackageId = FPackageId::FromName(PackageName);
 		UE_LOG(LogCookOnTheFly, Verbose, TEXT("Package 0x%llX '%s' generated"), PackageId.ValueForDebugging(), *PackageName.ToString());
