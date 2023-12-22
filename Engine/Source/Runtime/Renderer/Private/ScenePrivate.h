@@ -43,7 +43,6 @@
 #endif
 #include "Nanite/Nanite.h"
 #include "Lumen/LumenViewState.h"
-#include "StochasticShadows/StochasticShadowsViewState.h"
 #include "StochasticDirectLighting/StochasticDirectLightingViewState.h"
 #include "VolumetricRenderTargetViewStateData.h"
 #include "GPUScene.h"
@@ -1019,7 +1018,6 @@ public:
 	TRefCountPtr<IPooledRenderTarget> SubsurfaceScatteringQualityHistoryRT;
 
 	FLumenViewState Lumen;
-	FStochasticShadowsViewState StochasticShadows;
 	FStochasticDirectLightingViewState StochasticDirectLighting;
 
 	// Map from Light ID in GPU Scene to index in the View's ForwardLightData array

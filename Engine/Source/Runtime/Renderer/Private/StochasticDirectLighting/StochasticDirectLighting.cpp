@@ -6,9 +6,6 @@
 #include "PixelShaderUtils.h"
 #include "BasePassRendering.h"
 
-namespace StochasticDirectLighting
-{
-
 static TAutoConsoleVariable<int32> CVarStochasticDirectLighting(
 	TEXT("r.StochasticDirectLighting"),
 	0,
@@ -152,88 +149,91 @@ static TAutoConsoleVariable<int> CVarStochasticDirectLightingIESProfiles(
 	ECVF_Scalability | ECVF_RenderThreadSafe
 );
 
-// must match values in StochasticDirectLighting.ush
-constexpr int32 TileSize = 8;
-constexpr int32 MaxLocalLightIndexXY = 16; // 16 * 16 = 256
-constexpr uint32 ShadingTileIndexUnshadowed = 0xFFFFF; // limited by PackShadingTile()
-constexpr uint32 ShadingAtlasSizeInTiles = 512;
-
-bool IsEnabled()
+namespace StochasticDirectLighting
 {
-	return CVarStochasticDirectLighting.GetValueOnRenderThread() != 0;
-}
+	// must match values in StochasticDirectLighting.ush
+	constexpr int32 TileSize = 8;
+	constexpr int32 MaxLocalLightIndexXY = 16; // 16 * 16 = 256
+	constexpr uint32 ShadingTileIndexUnshadowed = 0xFFFFF; // limited by PackShadingTile()
+	constexpr uint32 ShadingAtlasSizeInTiles = 512;
 
-bool IsUsingLightFunctions()
-{
-	return IsEnabled() && CVarStochasticDirectLightingLightFunctions.GetValueOnRenderThread() != 0;
-}
-
-bool IsLightSupported(uint8 LightType, ECastRayTracedShadow::Type CastRayTracedShadow)
-{
-	if (StochasticDirectLighting::IsEnabled() && LightType != LightType_Directional)
+	bool IsEnabled()
 	{
-		const bool bRayTracedShadows = (CastRayTracedShadow == ECastRayTracedShadow::Enabled || (ShouldRenderRayTracingShadows() && CastRayTracedShadow == ECastRayTracedShadow::UseProjectSetting));
-		return CVarStochasticDirectLighting.GetValueOnRenderThread() == 2 || bRayTracedShadows;
+		return CVarStochasticDirectLighting.GetValueOnRenderThread() != 0;
 	}
 
-	return false;
-}
-
-bool ShouldCompileShaders(const FGlobalShaderPermutationParameters& Parameters)
-{
-	if (IsMobilePlatform(Parameters.Platform))
+	bool IsUsingLightFunctions()
 	{
+		return IsEnabled() && CVarStochasticDirectLightingLightFunctions.GetValueOnRenderThread() != 0;
+	}
+
+	bool IsLightSupported(uint8 LightType, ECastRayTracedShadow::Type CastRayTracedShadow)
+	{
+		if (StochasticDirectLighting::IsEnabled() && LightType != LightType_Directional)
+		{
+			const bool bRayTracedShadows = (CastRayTracedShadow == ECastRayTracedShadow::Enabled || (ShouldRenderRayTracingShadows() && CastRayTracedShadow == ECastRayTracedShadow::UseProjectSetting));
+			return CVarStochasticDirectLighting.GetValueOnRenderThread() == 2 || bRayTracedShadows;
+		}
+
 		return false;
 	}
 
-	// SM6 because it uses typed loads to accumulate lights
-	return IsFeatureLevelSupported(Parameters.Platform, ERHIFeatureLevel::SM6);
-}
-
-uint32 GetStateFrameIndex(FSceneViewState* ViewState)
-{
-	uint32 StateFrameIndex = ViewState ? ViewState->GetFrameIndex() : 0;
-
-	if (CVarStochasticDirectLightingFixedStateFrameIndex.GetValueOnRenderThread() >= 0)
+	bool ShouldCompileShaders(const FGlobalShaderPermutationParameters& Parameters)
 	{
-		StateFrameIndex = CVarStochasticDirectLightingFixedStateFrameIndex.GetValueOnRenderThread();
+		if (IsMobilePlatform(Parameters.Platform))
+		{
+			return false;
+		}
+
+		// SM6 because it uses typed loads to accumulate lights
+		return IsFeatureLevelSupported(Parameters.Platform, ERHIFeatureLevel::SM6);
 	}
-		
-	return StateFrameIndex;
-}
 
-FIntPoint GetNumSamplesPerPixel2d()
-{
-	const uint32 NumSamplesPerPixel1d = FMath::RoundUpToPowerOfTwo(FMath::Clamp(CVarStochasticDirectLightingNumSamplesPerPixel.GetValueOnRenderThread(), 1, 4));
-	return NumSamplesPerPixel1d == 4 ? FIntPoint(2, 2) : (NumSamplesPerPixel1d == 2 ? FIntPoint(2, 1) : FIntPoint(1, 1));
-}
+	uint32 GetStateFrameIndex(FSceneViewState* ViewState)
+	{
+		uint32 StateFrameIndex = ViewState ? ViewState->GetFrameIndex() : 0;
 
-int32 GetDebugMode()
-{
-	return CVarStochasticDirectLightingDebug.GetValueOnRenderThread();
-}
+		if (CVarStochasticDirectLightingFixedStateFrameIndex.GetValueOnRenderThread() >= 0)
+		{
+			StateFrameIndex = CVarStochasticDirectLightingFixedStateFrameIndex.GetValueOnRenderThread();
+		}
 
-bool UseWaveOps(EShaderPlatform ShaderPlatform)
-{
-	return CVarStochasticDirectLightingWaveOps.GetValueOnRenderThread() != 0 
-		&& GRHISupportsWaveOperations
-		&& RHISupportsWaveOperations(ShaderPlatform);
-}
+		return StateFrameIndex;
+	}
 
-void ModifyCompilationEnvironment(EShaderPlatform Platform, FShaderCompilerEnvironment& OutEnvironment)
-{
-	FForwardLightingParameters::ModifyCompilationEnvironment(Platform, OutEnvironment);
-}
+	FIntPoint GetNumSamplesPerPixel2d()
+	{
+		const uint32 NumSamplesPerPixel1d = FMath::RoundUpToPowerOfTwo(FMath::Clamp(CVarStochasticDirectLightingNumSamplesPerPixel.GetValueOnRenderThread(), 1, 4));
+		return NumSamplesPerPixel1d == 4 ? FIntPoint(2, 2) : (NumSamplesPerPixel1d == 2 ? FIntPoint(2, 1) : FIntPoint(1, 1));
+	}
 
-// Keep in sync with TILE_TYPE_* in shaders
-enum class ETileType : uint8
-{
-	SimpleShading = 0,
-	ComplexShading = 1,
-	SHADING_MAX = 2,
+	int32 GetDebugMode()
+	{
+		return CVarStochasticDirectLightingDebug.GetValueOnRenderThread();
+	}
 
-	Empty = 2,
-	MAX = 3
+	bool UseWaveOps(EShaderPlatform ShaderPlatform)
+	{
+		return CVarStochasticDirectLightingWaveOps.GetValueOnRenderThread() != 0
+			&& GRHISupportsWaveOperations
+			&& RHISupportsWaveOperations(ShaderPlatform);
+	}
+
+	void ModifyCompilationEnvironment(EShaderPlatform Platform, FShaderCompilerEnvironment& OutEnvironment)
+	{
+		FForwardLightingParameters::ModifyCompilationEnvironment(Platform, OutEnvironment);
+	}
+
+	// Keep in sync with TILE_TYPE_* in shaders
+	enum class ETileType : uint8
+	{
+		SimpleShading = 0,
+		ComplexShading = 1,
+		SHADING_MAX = 2,
+
+		Empty = 2,
+		MAX = 3
+	};
 };
 
 class FTileClassificationCS : public FGlobalShader
@@ -533,10 +533,10 @@ class FShadeLightSamplesCS : public FGlobalShader
 
 IMPLEMENT_GLOBAL_SHADER(FShadeLightSamplesCS, "/Engine/Private/StochasticDirectLighting/StochasticDirectLightingShading.usf", "ShadeLightSamplesCS", SF_Compute);
 
-class FTemporalAccumulationCS : public FGlobalShader
+class FSDLTemporalAccumulationCS : public FGlobalShader
 {
-	DECLARE_GLOBAL_SHADER(FTemporalAccumulationCS)
-	SHADER_USE_PARAMETER_STRUCT(FTemporalAccumulationCS, FGlobalShader)
+	DECLARE_GLOBAL_SHADER(FSDLTemporalAccumulationCS)
+	SHADER_USE_PARAMETER_STRUCT(FSDLTemporalAccumulationCS, FGlobalShader)
 
 	BEGIN_SHADER_PARAMETER_STRUCT(FParameters, )
 		SHADER_PARAMETER_STRUCT_INCLUDE(FStochasticDirectLightingParameters, StochasticDirectLightingParameters)
@@ -577,12 +577,12 @@ class FTemporalAccumulationCS : public FGlobalShader
 	}
 };
 
-IMPLEMENT_GLOBAL_SHADER(FTemporalAccumulationCS, "/Engine/Private/StochasticDirectLighting/StochasticDirectLightingTemporal.usf", "TemporalAccumulationCS", SF_Compute);
+IMPLEMENT_GLOBAL_SHADER(FSDLTemporalAccumulationCS, "/Engine/Private/StochasticDirectLighting/StochasticDirectLightingTemporal.usf", "SDLTemporalAccumulationCS", SF_Compute);
 
-class FSpatialFilterCS : public FGlobalShader
+class FSDLSpatialFilterCS : public FGlobalShader
 {
-	DECLARE_GLOBAL_SHADER(FSpatialFilterCS)
-	SHADER_USE_PARAMETER_STRUCT(FSpatialFilterCS, FGlobalShader)
+	DECLARE_GLOBAL_SHADER(FSDLSpatialFilterCS)
+	SHADER_USE_PARAMETER_STRUCT(FSDLSpatialFilterCS, FGlobalShader)
 
 	BEGIN_SHADER_PARAMETER_STRUCT(FParameters, )
 		SHADER_PARAMETER_STRUCT_INCLUDE(FStochasticDirectLightingParameters, StochasticDirectLightingParameters)
@@ -613,16 +613,13 @@ class FSpatialFilterCS : public FGlobalShader
 	}
 };
 
-IMPLEMENT_GLOBAL_SHADER(FSpatialFilterCS, "/Engine/Private/StochasticDirectLighting/StochasticDirectLightingSpatial.usf", "SpatialFilterCS", SF_Compute);
-
-} // namespace StochasticDirectLighting
+IMPLEMENT_GLOBAL_SHADER(FSDLSpatialFilterCS, "/Engine/Private/StochasticDirectLighting/StochasticDirectLightingSpatial.usf", "SDLSpatialFilterCS", SF_Compute);
 
 /**
  * Single pass batched light rendering using ray tracing (distance field or triangle) for shadowing.
  */
 void FDeferredShadingSceneRenderer::RenderStochasticDirectLighting(FRDGBuilder& GraphBuilder, const FSceneTextures& SceneTextures)
 {
-	using namespace StochasticDirectLighting;
 	if (!StochasticDirectLighting::IsEnabled())
 	{
 		return;
@@ -725,7 +722,7 @@ void FDeferredShadingSceneRenderer::RenderStochasticDirectLighting(FRDGBuilder& 
 	}
 
 	// Setup the light function atlas
-	const bool bUseLightFunctionAtlas = LightFunctionAtlas::IsEnabled(View, LightFunctionAtlas::ELightFunctionAtlasSystem::StochasticShadows);
+	const bool bUseLightFunctionAtlas = LightFunctionAtlas::IsEnabled(View, LightFunctionAtlas::ELightFunctionAtlasSystem::StochasticDirectLighting);
 
 	const FIntPoint ViewSizeInTiles = FIntPoint::DivideAndRoundUp(View.ViewRect.Size(), StochasticDirectLighting::TileSize);
 	const int32 TileDataStride = ViewSizeInTiles.X * ViewSizeInTiles.Y;
@@ -1103,7 +1100,7 @@ void FDeferredShadingSceneRenderer::RenderStochasticDirectLighting(FRDGBuilder& 
 
 	// Temporal accumulation
 	{
-		FTemporalAccumulationCS::FParameters* PassParameters = GraphBuilder.AllocParameters<FTemporalAccumulationCS::FParameters>();
+		FSDLTemporalAccumulationCS::FParameters* PassParameters = GraphBuilder.AllocParameters<FSDLTemporalAccumulationCS::FParameters>();
 		PassParameters->StochasticDirectLightingParameters = StochasticDirectLightingParameters;
 		PassParameters->ResolvedDiffuseLighting = ResolvedDiffuseLighting;
 		PassParameters->ResolvedSpecularLighting = ResolvedSpecularLighting;
@@ -1120,12 +1117,12 @@ void FDeferredShadingSceneRenderer::RenderStochasticDirectLighting(FRDGBuilder& 
 		PassParameters->RWSceneDepth = GraphBuilder.CreateUAV(SceneDepthCopy);
 		PassParameters->RWSceneColor = GraphBuilder.CreateUAV(SceneTextures.Color.Target);
 
-		FTemporalAccumulationCS::FPermutationDomain PermutationVector;
-		PermutationVector.Set<FTemporalAccumulationCS::FValidHistory>(DiffuseLightingAndSecondMomentHistory != nullptr && bTemporal);
-		PermutationVector.Set<FTemporalAccumulationCS::FDebugMode>(bDebug);
-		auto ComputeShader = View.ShaderMap->GetShader<FTemporalAccumulationCS>(PermutationVector);
+		FSDLTemporalAccumulationCS::FPermutationDomain PermutationVector;
+		PermutationVector.Set<FSDLTemporalAccumulationCS::FValidHistory>(DiffuseLightingAndSecondMomentHistory != nullptr && bTemporal);
+		PermutationVector.Set<FSDLTemporalAccumulationCS::FDebugMode>(bDebug);
+		auto ComputeShader = View.ShaderMap->GetShader<FSDLTemporalAccumulationCS>(PermutationVector);
 
-		const FIntVector GroupCount = FComputeShaderUtils::GetGroupCount(View.ViewRect.Size(), FTemporalAccumulationCS::GetGroupSize());
+		const FIntVector GroupCount = FComputeShaderUtils::GetGroupCount(View.ViewRect.Size(), FSDLTemporalAccumulationCS::GetGroupSize());
 
 		FComputeShaderUtils::AddPass(
 			GraphBuilder,
@@ -1137,19 +1134,19 @@ void FDeferredShadingSceneRenderer::RenderStochasticDirectLighting(FRDGBuilder& 
 
 	// Spatial filter
 	{
-		FSpatialFilterCS::FParameters* PassParameters = GraphBuilder.AllocParameters<FSpatialFilterCS::FParameters>();
+		FSDLSpatialFilterCS::FParameters* PassParameters = GraphBuilder.AllocParameters<FSDLSpatialFilterCS::FParameters>();
 		PassParameters->StochasticDirectLightingParameters = StochasticDirectLightingParameters;
 		PassParameters->RWSceneColor = GraphBuilder.CreateUAV(SceneTextures.Color.Target);
 		PassParameters->DiffuseLightingAndSecondMomentTexture = DiffuseLightingAndSecondMoment;
 		PassParameters->SpecularLightingAndSecondMomentTexture = SpecularLightingAndSecondMoment;
 		PassParameters->SpatialFilterDepthWeightScale = CVarStochasticDirectLightingSpatialDepthWeightScale.GetValueOnRenderThread();
 
-		FSpatialFilterCS::FPermutationDomain PermutationVector;
-		PermutationVector.Set<FSpatialFilterCS::FSpatialFilter>(CVarStochasticDirectLightingSpatial.GetValueOnRenderThread() != 0);
-		PermutationVector.Set<FSpatialFilterCS::FDebugMode>(bDebug);
-		auto ComputeShader = View.ShaderMap->GetShader<FSpatialFilterCS>(PermutationVector);
+		FSDLSpatialFilterCS::FPermutationDomain PermutationVector;
+		PermutationVector.Set<FSDLSpatialFilterCS::FSpatialFilter>(CVarStochasticDirectLightingSpatial.GetValueOnRenderThread() != 0);
+		PermutationVector.Set<FSDLSpatialFilterCS::FDebugMode>(bDebug);
+		auto ComputeShader = View.ShaderMap->GetShader<FSDLSpatialFilterCS>(PermutationVector);
 
-		const FIntVector GroupCount = FComputeShaderUtils::GetGroupCount(View.ViewRect.Size(), FSpatialFilterCS::GetGroupSize());
+		const FIntVector GroupCount = FComputeShaderUtils::GetGroupCount(View.ViewRect.Size(), FSDLSpatialFilterCS::GetGroupSize());
 
 		FComputeShaderUtils::AddPass(
 			GraphBuilder,

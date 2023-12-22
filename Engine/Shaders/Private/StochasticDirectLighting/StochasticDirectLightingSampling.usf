@@ -172,7 +172,7 @@ void GenerateSamplesCS(
 				const uint LocalLightIndex = GetCulledLightDataGrid(CulledLightGridData.DataStartIndex + GridLightIndex);
 				const FLocalLightData LocalLightData = GetLocalLightDataNonStereo(LocalLightIndex);
 
-				if (LocalLightData.bStochasticShadowsSupported && LocalLightIndex < MAX_LOCAL_LIGHT_INDEX)
+				if (LocalLightData.bStochasticDirectLightingSupported && LocalLightIndex < MAX_LOCAL_LIGHT_INDEX)
 				{
 					uint DWORDIndex = LocalLightIndex / 32;
 					uint BitMask = 1u << (LocalLightIndex % 32);
@@ -325,7 +325,7 @@ void GenerateSamplesCS(
 					const uint LocalLightIndex = GetCulledLightDataGrid(CulledLightGridData.DataStartIndex + GridLightIndex);
 					const FLocalLightData LocalLightData = GetLocalLightDataNonStereo(LocalLightIndex);
 
-					if (LocalLightData.bStochasticShadowsSupported)
+					if (LocalLightData.bStochasticDirectLightingSupported)
 					{
 						const FLightSceneData LightSceneData = GetLightSceneData(LocalLightData.LightSceneId);
 						FDeferredLightData LightData = ConvertToDeferredLight(LightSceneData);

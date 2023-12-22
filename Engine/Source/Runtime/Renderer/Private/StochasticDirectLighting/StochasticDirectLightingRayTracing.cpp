@@ -6,9 +6,6 @@
 #include "Lumen/LumenHardwareRayTracingCommon.h"
 #include "BasePassRendering.h"
 
-namespace StochasticDirectLighting
-{
-
 static TAutoConsoleVariable<int32> CVarStochasticDirectLightingScreenTraces(
 	TEXT("r.StochasticDirectLighting.ScreenTraces"),
 	0,
@@ -86,62 +83,72 @@ static TAutoConsoleVariable<int32> CVarStochasticDirectLightingHairVoxelTraces(
 	ECVF_Scalability | ECVF_RenderThreadSafe
 );
 
-bool UseHardwareRayTracing()
+namespace StochasticDirectLighting
 {
-	#if RHI_RAYTRACING
+	bool UseHardwareRayTracing()
 	{
-		return IsRayTracingEnabled() 
-			&& CVarStochasticDirectLightingHardwareRayTracing.GetValueOnRenderThread() != 0;
+		#if RHI_RAYTRACING
+		{
+			return IsRayTracingEnabled() 
+				&& CVarStochasticDirectLightingHardwareRayTracing.GetValueOnRenderThread() != 0;
+		}
+		#else
+		{
+			return false;
+		}
+		#endif
 	}
-	#else
+
+	bool UseInlineHardwareRayTracing()
 	{
-		return false;
+		#if RHI_RAYTRACING
+		{
+			return UseHardwareRayTracing()
+				&& GRHISupportsInlineRayTracing
+				&& CVarStochasticDirectLightingHardwareRayTracingInline.GetValueOnRenderThread() != 0;
+		}
+		#else
+		{
+			return false;
+		}
+		#endif
 	}
-	#endif
-}
 
-bool UseInlineHardwareRayTracing()
-{
-	#if RHI_RAYTRACING
+	bool IsUsingClosestHZB()
 	{
-		return UseHardwareRayTracing()
-			&& GRHISupportsInlineRayTracing
-			&& CVarStochasticDirectLightingHardwareRayTracingInline.GetValueOnRenderThread() != 0;
+		return IsEnabled() && CVarStochasticDirectLightingScreenTraces.GetValueOnRenderThread() != 0;
 	}
-	#else
+
+	bool IsUsingGlobalSDF()
 	{
-		return false;
+		return IsEnabled() && CVarStochasticDirectLightingWorldSpaceTraces.GetValueOnRenderThread() != 0 && !UseHardwareRayTracing();
 	}
-	#endif
-}
 
-bool IsUsingClosestHZB()
-{
-	return IsEnabled() && CVarStochasticDirectLightingScreenTraces.GetValueOnRenderThread() != 0;
-}
+	BEGIN_SHADER_PARAMETER_STRUCT(FHairVoxelTraceParameters, )
+		SHADER_PARAMETER_RDG_UNIFORM_BUFFER(FHairStrandsViewUniformParameters, HairStrands)
+		SHADER_PARAMETER_RDG_UNIFORM_BUFFER(FVirtualVoxelParameters, VirtualVoxel)
+	END_SHADER_PARAMETER_STRUCT()
 
-bool IsUsingGlobalSDF()
-{
-	return IsEnabled() && CVarStochasticDirectLightingWorldSpaceTraces.GetValueOnRenderThread() != 0 && !UseHardwareRayTracing();
-}
+	BEGIN_SHADER_PARAMETER_STRUCT(FCompactedTraceParameters, )
+		RDG_BUFFER_ACCESS(IndirectArgs, ERHIAccess::IndirectArgs)
+		SHADER_PARAMETER_RDG_BUFFER_SRV(StructuredBuffer<uint>, CompactedTraceTexelData)
+		SHADER_PARAMETER_RDG_BUFFER_SRV(StructuredBuffer<uint>, CompactedTraceTexelAllocator)
+	END_SHADER_PARAMETER_STRUCT()
 
-BEGIN_SHADER_PARAMETER_STRUCT(FHairVoxelTraceParameters, )
-	SHADER_PARAMETER_RDG_UNIFORM_BUFFER(FHairStrandsViewUniformParameters, HairStrands)
-	SHADER_PARAMETER_RDG_UNIFORM_BUFFER(FVirtualVoxelParameters, VirtualVoxel)
-END_SHADER_PARAMETER_STRUCT()
+	enum class ECompactedTraceIndirectArgs
+	{
+		NumTracesDiv64 = 0 * sizeof(FRHIDispatchIndirectParameters),
+		NumTracesDiv32 = 1 * sizeof(FRHIDispatchIndirectParameters),
+		NumTraces = 2 * sizeof(FRHIDispatchIndirectParameters),
+		MAX = 3
+	};
 
-BEGIN_SHADER_PARAMETER_STRUCT(FCompactedTraceParameters, )
-	RDG_BUFFER_ACCESS(IndirectArgs, ERHIAccess::IndirectArgs)
-	SHADER_PARAMETER_RDG_BUFFER_SRV(StructuredBuffer<uint>, CompactedTraceTexelData)
-	SHADER_PARAMETER_RDG_BUFFER_SRV(StructuredBuffer<uint>, CompactedTraceTexelAllocator)
-END_SHADER_PARAMETER_STRUCT()
-
-enum class ECompactedTraceIndirectArgs
-{
-	NumTracesDiv64 = 0 * sizeof(FRHIDispatchIndirectParameters),
-	NumTracesDiv32 = 1 * sizeof(FRHIDispatchIndirectParameters),
-	NumTraces = 2 * sizeof(FRHIDispatchIndirectParameters),
-	MAX = 3
+	FCompactedTraceParameters CompactStochasticDirectLightingTraces(
+		const FViewInfo& View,
+		FRDGBuilder& GraphBuilder,
+		const FIntPoint SampleBufferSize,
+		FRDGTextureRef LightSamples,
+		const FStochasticDirectLightingParameters& StochasticDirectLightingParameters);
 };
 
 class FCompactLightSampleTracesCS : public FGlobalShader
@@ -223,7 +230,7 @@ class FHardwareRayTraceLightSamples : public FLumenHardwareRayTracingShaderBase
 	BEGIN_SHADER_PARAMETER_STRUCT(FParameters, )
 		SHADER_PARAMETER_STRUCT_INCLUDE(StochasticDirectLighting::FCompactedTraceParameters, CompactedTraceParameters)
 		SHADER_PARAMETER_STRUCT_INCLUDE(FStochasticDirectLightingParameters, StochasticDirectLightingParameters)
-		SHADER_PARAMETER_STRUCT_INCLUDE(FHairVoxelTraceParameters, HairVoxelTraceParameters)
+		SHADER_PARAMETER_STRUCT_INCLUDE(StochasticDirectLighting::FHairVoxelTraceParameters, HairVoxelTraceParameters)
 		SHADER_PARAMETER_RDG_TEXTURE_UAV(RWTexture2D<uint>, RWLightSamples)
 		SHADER_PARAMETER_RDG_TEXTURE(Texture2D<float>, LightSampleRayDistance)
 		SHADER_PARAMETER(float, RayTracingBias)
@@ -274,7 +281,7 @@ class FSoftwareRayTraceLightSamplesCS : public FGlobalShader
 	BEGIN_SHADER_PARAMETER_STRUCT(FParameters, )
 		SHADER_PARAMETER_STRUCT_INCLUDE(StochasticDirectLighting::FCompactedTraceParameters, CompactedTraceParameters)
 		SHADER_PARAMETER_STRUCT_INCLUDE(FStochasticDirectLightingParameters, StochasticDirectLightingParameters)
-		SHADER_PARAMETER_STRUCT_INCLUDE(FHairVoxelTraceParameters, HairVoxelTraceParameters)
+		SHADER_PARAMETER_STRUCT_INCLUDE(StochasticDirectLighting::FHairVoxelTraceParameters, HairVoxelTraceParameters)
 		SHADER_PARAMETER_RDG_TEXTURE_UAV(RWTexture2D<uint>, RWLightSamples)
 		SHADER_PARAMETER_RDG_TEXTURE(Texture2D<float>, LightSampleRayDistance)
 	END_SHADER_PARAMETER_STRUCT()
@@ -349,10 +356,39 @@ class FScreenSpaceRayTraceLightSamplesCS : public FGlobalShader
 IMPLEMENT_GLOBAL_SHADER(FScreenSpaceRayTraceLightSamplesCS, "/Engine/Private/StochasticDirectLighting/StochasticDirectLightingTracing.usf", "ScreenSpaceRayTraceLightSamplesCS", SF_Compute);
 
 #if RHI_RAYTRACING
-void SetHardwareRayTracingPassParameters(
+void FDeferredShadingSceneRenderer::PrepareStochasticDirectLightingLumenMaterial(const FViewInfo& View, TArray<FRHIRayTracingShader*>& OutRayGenShaders)
+{
+	using namespace StochasticDirectLighting;
+
+	if (StochasticDirectLighting::IsEnabled() && StochasticDirectLighting::UseHardwareRayTracing())
+	{
+		for (int32 HairVoxelTraces = 0; HairVoxelTraces < 2; ++HairVoxelTraces)
+		{
+			FHardwareRayTraceLightSamplesRGS::FPermutationDomain PermutationVector;
+			PermutationVector.Set<FHardwareRayTraceLightSamplesRGS::FHairVoxelTraces>(HairVoxelTraces != 0);
+			PermutationVector.Set<FHardwareRayTraceLightSamplesRGS::FDebugMode>(StochasticDirectLighting::GetDebugMode() != 0);
+			TShaderRef<FHardwareRayTraceLightSamplesRGS> RayGenerationShader = View.ShaderMap->GetShader<FHardwareRayTraceLightSamplesRGS>(PermutationVector);
+			OutRayGenShaders.Add(RayGenerationShader.GetRayTracingShader());
+		}
+	}
+}
+
+namespace StochasticDirectLighting
+{
+	void SetHardwareRayTracingPassParameters(
+		const FViewInfo& View,
+		FRDGBuilder& GraphBuilder,
+		const FCompactedTraceParameters& CompactedTraceParameters,
+		const FStochasticDirectLightingParameters& StochasticDirectLightingParameters,
+		FRDGTextureRef LightSamples,
+		FRDGTextureRef LightSampleRayDistance,
+		FHardwareRayTraceLightSamples::FParameters* PassParameters);
+};
+
+void StochasticDirectLighting::SetHardwareRayTracingPassParameters(
 	const FViewInfo& View,
 	FRDGBuilder& GraphBuilder,
-	const FCompactedTraceParameters& CompactedTraceParameters,
+	const StochasticDirectLighting::FCompactedTraceParameters& CompactedTraceParameters,
 	const FStochasticDirectLightingParameters& StochasticDirectLightingParameters,
 	FRDGTextureRef LightSamples,
 	FRDGTextureRef LightSampleRayDistance,
@@ -375,10 +411,9 @@ void SetHardwareRayTracingPassParameters(
 	checkf(View.RayTracingSceneInitTask == nullptr, TEXT("RayTracingSceneInitTask must be completed before creating SRV for RayTracingSceneMetadata."));
 	PassParameters->RayTracingSceneMetadata = View.GetRayTracingSceneChecked()->GetOrCreateMetadataBufferSRV(GraphBuilder.RHICmdList);
 }
-
 #endif
 
-FCompactedTraceParameters CompactStochasticDirectLightingTraces(
+StochasticDirectLighting::FCompactedTraceParameters StochasticDirectLighting::CompactStochasticDirectLightingTraces(
 	const FViewInfo& View,
 	FRDGBuilder& GraphBuilder,
 	const FIntPoint SampleBufferSize,
@@ -450,7 +485,7 @@ FCompactedTraceParameters CompactStochasticDirectLightingTraces(
 /**
  * Ray trace light samples using a variety of tracing methods depending on the feature configuration.
  */
-void RayTraceLightSamples(
+void StochasticDirectLighting::RayTraceLightSamples(
 	const FViewInfo& View,
 	FRDGBuilder& GraphBuilder,
 	const FSceneTextures& SceneTextures,
@@ -463,7 +498,7 @@ void RayTraceLightSamples(
 
 	if (CVarStochasticDirectLightingScreenTraces.GetValueOnRenderThread() != 0)
 	{
-		FCompactedTraceParameters CompactedTraceParameters = CompactStochasticDirectLightingTraces(
+		FCompactedTraceParameters CompactedTraceParameters = StochasticDirectLighting::CompactStochasticDirectLightingTraces(
 			View,
 			GraphBuilder,
 			SampleBufferSize,
@@ -511,7 +546,7 @@ void RayTraceLightSamples(
 
 	if (CVarStochasticDirectLightingWorldSpaceTraces.GetValueOnRenderThread() != 0)
 	{
-		FCompactedTraceParameters CompactedTraceParameters = CompactStochasticDirectLightingTraces(
+		FCompactedTraceParameters CompactedTraceParameters = StochasticDirectLighting::CompactStochasticDirectLightingTraces(
 			View,
 			GraphBuilder,
 			SampleBufferSize,
@@ -604,24 +639,3 @@ void RayTraceLightSamples(
 		}
 	}
 }
-
-} // namespace StochasticDirectLighting
-
-#if RHI_RAYTRACING
-void FDeferredShadingSceneRenderer::PrepareStochasticDirectLightingLumenMaterial(const FViewInfo& View, TArray<FRHIRayTracingShader*>& OutRayGenShaders)
-{
-	using namespace StochasticDirectLighting;
-
-	if (StochasticDirectLighting::IsEnabled() && StochasticDirectLighting::UseHardwareRayTracing())
-	{
-		for (int32 HairVoxelTraces = 0; HairVoxelTraces < 2; ++HairVoxelTraces)
-		{
-			FHardwareRayTraceLightSamplesRGS::FPermutationDomain PermutationVector;
-			PermutationVector.Set<FHardwareRayTraceLightSamplesRGS::FHairVoxelTraces>(HairVoxelTraces != 0);
-			PermutationVector.Set<FHardwareRayTraceLightSamplesRGS::FDebugMode>(StochasticDirectLighting::GetDebugMode() != 0);
-			TShaderRef<FHardwareRayTraceLightSamplesRGS> RayGenerationShader = View.ShaderMap->GetShader<FHardwareRayTraceLightSamplesRGS>(PermutationVector);
-			OutRayGenShaders.Add(RayGenerationShader.GetRayTracingShader());
-		}
-	}
-}
-#endif

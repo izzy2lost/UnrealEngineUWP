@@ -66,7 +66,7 @@ FNeighborhoodClamp GetNeighborhoodClamp(
 }
 
 [numthreads(THREADGROUP_SIZE, THREADGROUP_SIZE, 1)]
-void TemporalAccumulationCS(
+void SDLTemporalAccumulationCS(
 	uint3 GroupId : SV_GroupID,
 	uint3 GroupThreadId : SV_GroupThreadID,
 	uint3 DispatchThreadId : SV_DispatchThreadID)

@@ -38,7 +38,7 @@ enum class ELightFunctionAtlasSystem
 {
 	VolumetricFog,
 	DeferredLighting,
-	StochasticShadows,
+	StochasticDirectLighting,
 	Lumen,
 };
 
