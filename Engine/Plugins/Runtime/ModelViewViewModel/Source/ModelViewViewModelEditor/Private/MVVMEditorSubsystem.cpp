@@ -338,10 +338,10 @@ UFunction* UMVVMEditorSubsystem::GetConversionFunction(const UWidgetBlueprint* W
 {
 	if (UMVVMBlueprintViewConversionFunction* ConversionFunction = Binding.Conversion.GetConversionFunction(bSourceToDestination))
 	{
-		TVariant<const UFunction*, TSubclassOf<UK2Node>> Result = ConversionFunction->GetConversionFunction(WidgetBlueprint);
-		if (Result.IsType<const UFunction*>())
+		FMVVMBlueprintFunctionReference Result = ConversionFunction->GetConversionFunction();
+		if (Result.GetType() == EMVVMBlueprintFunctionReferenceType::Function)
 		{
-			return const_cast<UFunction*>(Result.Get<const UFunction*>());
+			return const_cast<UFunction*>(Result.GetFunction(WidgetBlueprint));
 		}
 	}
 	return nullptr;
@@ -762,10 +762,6 @@ UEdGraph* UMVVMEditorSubsystem::GetConversionFunctionGraph(const UWidgetBlueprin
 
 UK2Node_CallFunction* UMVVMEditorSubsystem::GetConversionFunctionNode(const UWidgetBlueprint* WidgetBlueprint, const FMVVMBlueprintViewBinding& Binding, bool bSourceToDestination) const
 {
-	if (const UMVVMBlueprintViewConversionFunction* Found = Binding.Conversion.GetConversionFunction(bSourceToDestination))
-	{
-		return Cast<UK2Node_CallFunction>(Found->GetWrapperNode());
-	}
 	return nullptr;
 }
 

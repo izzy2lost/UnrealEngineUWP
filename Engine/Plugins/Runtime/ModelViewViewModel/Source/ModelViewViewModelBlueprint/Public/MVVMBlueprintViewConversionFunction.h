@@ -2,6 +2,7 @@
 
 #pragma once
 
+#include "MVVMBlueprintFunctionReference.h"
 #include "MVVMBlueprintPin.h"
 #include "MVVMBlueprintView.h"
 #include "Engine/MemberReference.h"
@@ -34,7 +35,11 @@ public:
 	FName GetCompiledFunctionName(const UClass* SelfContext) const;
 
 	/** @return the conversion function. */
+	UE_DEPRECATED(5.4, "GetConversionFunction that returns a variant is deprecated.")
 	TVariant<const UFunction*, TSubclassOf<UK2Node>> GetConversionFunction(const UBlueprint* SelfContext) const;
+
+	/** @return the conversion function. */
+	FMVVMBlueprintFunctionReference GetConversionFunction() const;
 
 	/** Set the function. Generate a Graph. */
 	void InitializeFromFunction(UBlueprint* SelfContext, FName GraphName, const UFunction* Function);
@@ -70,11 +75,6 @@ public:
 	FName GetWrapperGraphName() const
 	{
 		return GraphName;
-	}
-
-	UK2Node* GetWrapperNode() const
-	{
-		return CachedWrapperNode;
 	}
 
 	/**
@@ -115,6 +115,8 @@ public:
 
 	FSimpleMulticastDelegate OnWrapperGraphModified;
 
+	virtual void PostLoad() override;
+
 private:
 	void HandleGraphChanged(const FEdGraphEditAction& Action, TWeakObjectPtr<UBlueprint> Context);
 	void HandleUserDefinedPinRenamed(UK2Node* InNode, FName OldPinName, FName NewPinName, TWeakObjectPtr<UBlueprint> WeakBlueprint);
@@ -128,19 +130,11 @@ private:
 
 private:
 	/**
-	 * The conversion UFunction when simple or when it's complex.
-	 * @note Only one of FunctionReference or the GraphNode can be valid.
+	 * Conversion reference. It can be simple, complex or a K2Node.
+	 * @note The conversion is complex
 	 */
 	UPROPERTY(VisibleAnywhere, Category = "Viewmodel")
-	FMemberReference FunctionReference;
-	
-	/**
-	 * The conversion K2Node the graph is generated for.
-	 * @note Only one of FunctionReference or the GraphNode can be valid.
-	 * @note The conversion is complex.
-	 */
-	UPROPERTY(VisibleAnywhere, Category = "Viewmodel")
-	TSubclassOf<UK2Node> FunctionNode;
+	FMVVMBlueprintFunctionReference ConversionFunction;
 
 	/** Name of the generated graph if a wrapper is needed. */
 	UPROPERTY(VisibleAnywhere, Category = "Viewmodel")
@@ -164,4 +158,10 @@ private:
 
 	FDelegateHandle OnGraphChangedHandle;
 	FDelegateHandle OnUserDefinedPinRenamedHandle;
+
+
+	UPROPERTY()
+	FMemberReference FunctionReference_DEPRECATED;
+	UPROPERTY()
+	TSubclassOf<UK2Node> FunctionNode_DEPRECATED;
 };

@@ -6,6 +6,7 @@
 #include "Bindings/MVVMBindingHelper.h"
 #include "Framework/MVVMRowHelper.h"
 #include "MVVMBlueprintViewBinding.h"
+#include "MVVMBlueprintViewConversionFunction.h"
 #include "MVVMDeveloperProjectSettings.h"
 #include "MVVMPropertyPath.h"
 
@@ -384,8 +385,13 @@ const UFunction* SBindingRow::GetSelectedConversionFunction(bool bSourceToDest) 
 {
 	if (FMVVMBlueprintViewBinding* ViewBinding = GetThisViewBinding())
 	{
-		UMVVMEditorSubsystem* EditorSubsystem = GetEditorSubsystem();
-		return EditorSubsystem->GetConversionFunction(GetBlueprint(), *ViewBinding, bSourceToDest);
+		if (UMVVMBlueprintViewConversionFunction* ConversionFunction = ViewBinding->Conversion.GetConversionFunction(bSourceToDest))
+		{
+			if (ConversionFunction->GetConversionFunction().GetType() == EMVVMBlueprintFunctionReferenceType::Function)
+			{
+				return ConversionFunction->GetConversionFunction().GetFunction(GetBlueprint());
+			}
+		}
 	}
 	return nullptr;
 }

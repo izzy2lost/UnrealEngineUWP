@@ -104,10 +104,10 @@ namespace UE::MVVM::Private
 
 		if (UMVVMBlueprintViewConversionFunction* ViewConversionFunction = Binding.Conversion.GetConversionFunction(bIsSource))
 		{
-			TVariant<const UFunction*, TSubclassOf<UK2Node>> ConversionFunction = ViewConversionFunction->GetConversionFunction(WidgetBlueprint);
-			if (ConversionFunction.IsType<const UFunction*>())
+			FMVVMBlueprintFunctionReference ConversionFunction = ViewConversionFunction->GetConversionFunction();
+			if (ConversionFunction.GetType() == EMVVMBlueprintFunctionReferenceType::Function)
 			{
-				if (const UFunction* ConversionFunctionPtr = ConversionFunction.Get<const UFunction*>())
+				if (const UFunction* ConversionFunctionPtr = ConversionFunction.GetFunction(WidgetBlueprint))
 				{
 					if (bUseDisplayName)
 					{
@@ -133,9 +133,9 @@ namespace UE::MVVM::Private
 					NameBuilder << TEXT("<ERROR>");
 				}
 			}
-			else
+			else if (ConversionFunction.GetType() == EMVVMBlueprintFunctionReferenceType::Node)
 			{
-				TSubclassOf<UK2Node> ConversionFunctionNode = ConversionFunction.Get<TSubclassOf<UK2Node>>();
+				TSubclassOf<UK2Node> ConversionFunctionNode = ConversionFunction.GetNode();
 				if (ConversionFunctionNode.Get())
 				{
 					if (bUseDisplayName)
@@ -151,6 +151,10 @@ namespace UE::MVVM::Private
 				{
 					NameBuilder << TEXT("<ERROR>");
 				}
+			}
+			else
+			{
+				NameBuilder << TEXT("<ERROR>");
 			}
 
 			// AddPins

@@ -2221,13 +2221,14 @@ void FMVVMViewBlueprintCompiler::PreCompileBindings(UWidgetBlueprintGeneratedCla
 					return false;
 				}
 
-				TVariant<const UFunction*, TSubclassOf<UK2Node>> FunctionOrWrapperFunction = ViewConversionFunction->GetConversionFunction(Self->WidgetBlueprintCompilerContext.WidgetBlueprint());
-				if (FunctionOrWrapperFunction.IsType<const UFunction*>())
+				FMVVMBlueprintFunctionReference FunctionOrWrapperFunction = ViewConversionFunction->GetConversionFunction();
+				if (FunctionOrWrapperFunction.GetType() == EMVVMBlueprintFunctionReferenceType::Function)
 				{
-					if (!GetDefault<UMVVMDeveloperProjectSettings>()->IsConversionFunctionAllowed(Self->WidgetBlueprintCompilerContext.WidgetBlueprint(), FunctionOrWrapperFunction.Get<const UFunction*>()))
+					const UFunction* WrapperFunction = FunctionOrWrapperFunction.GetFunction(Self->WidgetBlueprintCompilerContext.WidgetBlueprint());
+					if (!GetDefault<UMVVMDeveloperProjectSettings>()->IsConversionFunctionAllowed(Self->WidgetBlueprintCompilerContext.WidgetBlueprint(), WrapperFunction))
 					{
 						Self->AddMessageForBinding(Binding
-							, FText::Format(LOCTEXT("ConversionFunctionNotAllow", "The conversion function {0} is not allowed."), FText::FromName(FunctionOrWrapperFunction.Get<const UFunction*>()->GetFName()))
+							, FText::Format(LOCTEXT("ConversionFunctionNotAllow", "The conversion function {0} is not allowed."), FText::FromName(WrapperFunction->GetFName()))
 							, EMessageType::Error
 							, FMVVMBlueprintPinId()
 						);

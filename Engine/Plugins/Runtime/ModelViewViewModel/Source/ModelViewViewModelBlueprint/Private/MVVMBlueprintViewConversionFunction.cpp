@@ -62,21 +62,21 @@ bool UMVVMBlueprintViewConversionFunction::IsValidConversionFunction(const UBlue
 
 bool UMVVMBlueprintViewConversionFunction::IsValid(const UBlueprint* SelfContext) const
 {
-	if (FunctionNode.Get())
+	if (ConversionFunction.GetType() != EMVVMBlueprintFunctionReferenceType::Function)
 	{
 		return false; // not valid for now
 	}
 	
 	UClass* SelfClass = SelfContext->SkeletonGeneratedClass ? SelfContext->SkeletonGeneratedClass : SelfContext->GeneratedClass;
-	const UFunction* ConversionFunction = FunctionReference.ResolveMember<UFunction>(SelfClass);
-	if (ConversionFunction)
+	const UFunction* Function = ConversionFunction.GetFunction(SelfContext);
+	if (Function)
 	{
-		if (!GetDefault<UMVVMDeveloperProjectSettings>()->IsConversionFunctionAllowed(SelfContext, ConversionFunction))
+		if (!GetDefault<UMVVMDeveloperProjectSettings>()->IsConversionFunctionAllowed(SelfContext, Function))
 		{
 			return false;
 		}
 
-		return IsValidConversionFunction(SelfContext, ConversionFunction);
+		return IsValidConversionFunction(SelfContext, Function);
 	}
 	return false;
 }
@@ -89,16 +89,16 @@ bool UMVVMBlueprintViewConversionFunction::NeedsWrapperGraph(const UBlueprint* S
 
 bool UMVVMBlueprintViewConversionFunction::NeedsWrapperGraphInternal(const UClass* SkeletalSelfContext) const
 {
-	if (FunctionNode.Get())
+	if (ConversionFunction.GetType() != EMVVMBlueprintFunctionReferenceType::Function)
 	{
 		return true; // not valid for now
 	}
 
 
-	const UFunction* ConversionFunction = FunctionReference.ResolveMember<UFunction>(const_cast<UClass*>(SkeletalSelfContext));
-	if (ensure(ConversionFunction))
+	const UFunction* Function = ConversionFunction.GetFunction(SkeletalSelfContext);
+	if (ensure(Function))
 	{
-		return SavedPins.Num() > 1 || !UE::MVVM::BindingHelper::IsValidForSimpleRuntimeConversion(ConversionFunction);
+		return SavedPins.Num() > 1 || !UE::MVVM::BindingHelper::IsValidForSimpleRuntimeConversion(Function);
 	}
 	return false;
 }
@@ -117,7 +117,12 @@ const UFunction* UMVVMBlueprintViewConversionFunction::GetCompiledFunction(const
 		CompiledFunction.SetSelfMember(GraphName);
 		return CompiledFunction.ResolveMember<UFunction>(const_cast<UClass*>(SelfContext));
 	}
-	return FunctionReference.ResolveMember<UFunction>(const_cast<UClass*>(SelfContext));
+
+	if (ConversionFunction.GetType() == EMVVMBlueprintFunctionReferenceType::Function)
+	{
+		return ConversionFunction.GetFunction(SelfContext);
+	}
+	return nullptr;
 }
 
 FName UMVVMBlueprintViewConversionFunction::GetCompiledFunctionName(const UClass* SelfContext) const
@@ -127,27 +132,17 @@ FName UMVVMBlueprintViewConversionFunction::GetCompiledFunctionName(const UClass
 		ensure(!GraphName.IsNone());
 		return GraphName;
 	}
-	return FunctionReference.GetMemberName();
+	return ConversionFunction.GetName();
 }
 
-TVariant<const UFunction*, TSubclassOf<UK2Node>> UMVVMBlueprintViewConversionFunction::GetConversionFunction(const UBlueprint* SelfContext) const
+FMVVMBlueprintFunctionReference UMVVMBlueprintViewConversionFunction::GetConversionFunction() const
 {
-	if (FunctionNode.Get())
-	{
-		return TVariant<const UFunction*, TSubclassOf<UK2Node>>( TInPlaceType<TSubclassOf<UK2Node>>(), FunctionNode);
-	}
-	else
-	{
-		UClass* SelfClass = SelfContext->SkeletonGeneratedClass ? SelfContext->SkeletonGeneratedClass : SelfContext->GeneratedClass;
-		const UFunction* ConversionFunction = FunctionReference.ResolveMember<UFunction>(SelfClass);
-		return TVariant<const UFunction*, TSubclassOf<UK2Node>>( TInPlaceType<const UFunction*>(), ConversionFunction);
-	}
+	return ConversionFunction;
 }
 
 void UMVVMBlueprintViewConversionFunction::Reset()
 {
-	FunctionReference = FMemberReference();
-	FunctionNode = TSubclassOf<UK2Node>();
+	ConversionFunction = FMVVMBlueprintFunctionReference();
 	GraphName = FName();
 	bWrapperGraphTransient = false;
 	SavedPins.Reset();
@@ -160,26 +155,7 @@ void UMVVMBlueprintViewConversionFunction::InitializeFromFunction(UBlueprint* In
 
 	if (ensure(InFunction && !InGraphName.IsNone()))
 	{
-		UClass* OwnerClass = InFunction->GetOuterUClass();
-		FGuid MemberGuid;
-		UBlueprint::GetGuidFromClassByFieldName<UFunction>(OwnerClass, InFunction->GetFName(), MemberGuid);
-
-		bool bIsSelf = (InContext->GeneratedClass && InContext->GeneratedClass->IsChildOf(OwnerClass))
-			|| (InContext->SkeletonGeneratedClass && InContext->SkeletonGeneratedClass->IsChildOf(OwnerClass));
-		if (bIsSelf)
-		{
-			FunctionReference.SetSelfMember(InFunction->GetFName(), MemberGuid);
-		}
-		else
-		{
-			if (UBlueprint* VariableOwnerBP = Cast<UBlueprint>(OwnerClass->ClassGeneratedBy))
-			{
-				OwnerClass = VariableOwnerBP->SkeletonGeneratedClass ? VariableOwnerBP->SkeletonGeneratedClass : VariableOwnerBP->GeneratedClass;
-			}
-
-			FunctionReference.SetExternalMember(InFunction->GetFName(), OwnerClass, MemberGuid);
-		}
-
+		ConversionFunction = FMVVMBlueprintFunctionReference(InContext, InFunction);
 		check(GraphName.IsNone()); // the name needs to be set before a GetOrCreateWrapperGraph
 		GraphName = InGraphName;
 		bWrapperGraphTransient = !GetDefault<UMVVMDeveloperProjectSettings>()->bAllowConversionFunctionGeneratedGraphInEditor;
@@ -196,11 +172,11 @@ void UMVVMBlueprintViewConversionFunction::Deprecation_InitializeFromWrapperGrap
 	{
 		if (UK2Node_CallFunction* CallFunction = Cast<UK2Node_CallFunction>(WrapperNode))
 		{
-			FunctionReference = CallFunction->FunctionReference;
+			ConversionFunction = FMVVMBlueprintFunctionReference(CallFunction->FunctionReference);
 		}
 		else
 		{
-			FunctionNode = WrapperNode->GetClass();
+			ConversionFunction = FMVVMBlueprintFunctionReference(WrapperNode->GetClass());
 		}
 		check(WrapperNode->GetGraph());
 		SetCachedWrapperGraph(SelfContext, WrapperNode->GetGraph(), WrapperNode);
@@ -222,7 +198,7 @@ void UMVVMBlueprintViewConversionFunction::Deprecation_InitializeFromMemberRefer
 {
 	Reset();
 
-	FunctionReference = MemberReference;
+	ConversionFunction = FMVVMBlueprintFunctionReference(MemberReference);
 
 	check(GraphName.IsNone()); // the name needs to be set before a GetOrCreateWrapperGraph
 	GraphName = InGraphName;
@@ -230,8 +206,8 @@ void UMVVMBlueprintViewConversionFunction::Deprecation_InitializeFromMemberRefer
 
 	// since it is a new object, we can't create a the graph right away
 	UClass* GeneratedClass = SelfContext->SkeletonGeneratedClass ? SelfContext->SkeletonGeneratedClass : SelfContext->GeneratedClass;
-	const UFunction* ConversionFunction = FunctionReference.ResolveMember<UFunction>(GeneratedClass);
-	const FProperty* PinProperty = ConversionFunction ? UE::MVVM::BindingHelper::GetFirstArgumentProperty(ConversionFunction) : nullptr;
+	const UFunction* Function = ConversionFunction.GetFunction(GeneratedClass);
+	const FProperty* PinProperty = Function ? UE::MVVM::BindingHelper::GetFirstArgumentProperty(Function) : nullptr;
 	if (PinProperty)
 	{
 		FName PinPropertyName = PinProperty->GetFName();
@@ -254,8 +230,8 @@ void UMVVMBlueprintViewConversionFunction::Deprecation_SetWrapperGraphName(UBlue
 
 		// since it is a new object, we can't create a the graph right away
 		UClass* GeneratedClass = SelfContext->SkeletonGeneratedClass ? SelfContext->SkeletonGeneratedClass : SelfContext->GeneratedClass;
-		const UFunction* ConversionFunction = FunctionReference.ResolveMember<UFunction>(GeneratedClass);
-		const FProperty* PinProperty = ConversionFunction ? UE::MVVM::BindingHelper::GetFirstArgumentProperty(ConversionFunction) : nullptr;
+		const UFunction* Function = ConversionFunction.GetFunction(GeneratedClass);
+		const FProperty* PinProperty = Function ? UE::MVVM::BindingHelper::GetFirstArgumentProperty(Function) : nullptr;
 		if (PinProperty)
 		{
 			FName PinPropertyName = PinProperty->GetFName();
@@ -330,15 +306,14 @@ UEdGraph* UMVVMBlueprintViewConversionFunction::GetOrCreateIntermediateWrapperGr
 	}
 	else if (IsValid(Context.Blueprint))
 	{
-		TVariant<const UFunction*, TSubclassOf<UK2Node>> ConversionFunction = GetConversionFunction(Context.Blueprint);
-		if (ConversionFunction.IsType<TSubclassOf<UK2Node>>())
+		if (ConversionFunction.GetType() != EMVVMBlueprintFunctionReferenceType::Function)
 		{
 			ensure(false); // not supported for now
 			return nullptr;
 		}
 
 		CreateWrapperGraphName();
-		return GetOrCreateWrapperGraphInternal(Context, ConversionFunction.Get<const UFunction*>());
+		return GetOrCreateWrapperGraphInternal(Context, ConversionFunction.GetFunction(Context.Blueprint));
 	}
 	return nullptr;
 }
@@ -361,15 +336,14 @@ UEdGraph* UMVVMBlueprintViewConversionFunction::GetOrCreateWrapperGraph(UBluepri
 	}
 	else if (IsValid(Blueprint))
 	{
-		TVariant<const UFunction*, TSubclassOf<UK2Node>> ConversionFunction = GetConversionFunction(Blueprint);
-		if (ConversionFunction.IsType<TSubclassOf<UK2Node>>())
+		if (ConversionFunction.GetType() != EMVVMBlueprintFunctionReferenceType::Function)
 		{
 			ensure(false); // not supported for now
 			return nullptr;
 		}
 
 		CreateWrapperGraphName();
-		return GetOrCreateWrapperGraphInternal(Blueprint, ConversionFunction.Get<const UFunction*>());
+		return GetOrCreateWrapperGraphInternal(Blueprint, ConversionFunction.GetFunction(Blueprint));
 	}
 	return nullptr;
 }
@@ -380,17 +354,17 @@ UEdGraphPin* UMVVMBlueprintViewConversionFunction::GetOrCreateGraphPin(UBlueprin
 	return CachedWrapperGraph ? UE::MVVM::ConversionFunctionHelper::FindPin(CachedWrapperGraph, PinId.GetNames()) : nullptr;
 }
 
-UEdGraph* UMVVMBlueprintViewConversionFunction::GetOrCreateWrapperGraphInternal(FKismetCompilerContext& Context, const UFunction* Function)
+UEdGraph* UMVVMBlueprintViewConversionFunction::GetOrCreateWrapperGraphInternal(FKismetCompilerContext& Context, const UFunction* InFunction)
 {
-	return GetOrCreateWrapperGraphInternal(Context.Blueprint, Function);
+	return GetOrCreateWrapperGraphInternal(Context.Blueprint, InFunction);
 }
 
-UEdGraph* UMVVMBlueprintViewConversionFunction::GetOrCreateWrapperGraphInternal(UBlueprint* Blueprint, const UFunction* Function)
+UEdGraph* UMVVMBlueprintViewConversionFunction::GetOrCreateWrapperGraphInternal(UBlueprint* Blueprint, const UFunction* InFunction)
 {
 	check(Blueprint);
-	check(Function);
+	check(InFunction);
 	bool bConst = true;
-	TPair<UEdGraph*, UK2Node*> Result = UE::MVVM::ConversionFunctionHelper::CreateGraph(Blueprint, GraphName, nullptr, Function, bConst, bWrapperGraphTransient);
+	TPair<UEdGraph*, UK2Node*> Result = UE::MVVM::ConversionFunctionHelper::CreateGraph(Blueprint, GraphName, nullptr, InFunction, bConst, bWrapperGraphTransient);
 	const_cast<UMVVMBlueprintViewConversionFunction*>(this)->SetCachedWrapperGraph(Blueprint, Result.Get<0>(), Result.Get<1>());
 	LoadPinValuesInternal(Blueprint);
 	return CachedWrapperGraph;
@@ -499,5 +473,21 @@ void UMVVMBlueprintViewConversionFunction::HandleUserDefinedPinRenamed(UK2Node* 
 	{
 		SavePinValues(Blueprint);
 		OnWrapperGraphModified.Broadcast();
+	}
+}
+
+void UMVVMBlueprintViewConversionFunction::PostLoad()
+{
+	Super::PostLoad();
+
+	if (FunctionNode_DEPRECATED.Get())
+	{
+		ConversionFunction = FMVVMBlueprintFunctionReference(FunctionNode_DEPRECATED.Get());
+		FunctionNode_DEPRECATED = TSubclassOf<UK2Node>();
+	}
+	else if (!FunctionReference_DEPRECATED.GetMemberName().IsNone())
+	{
+		ConversionFunction = FMVVMBlueprintFunctionReference(FunctionReference_DEPRECATED);
+		FunctionReference_DEPRECATED = FMemberReference();
 	}
 }

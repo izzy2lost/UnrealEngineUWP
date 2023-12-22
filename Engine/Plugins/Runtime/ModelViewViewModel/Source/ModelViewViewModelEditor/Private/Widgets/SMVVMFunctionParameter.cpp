@@ -3,12 +3,15 @@
 #include "SMVVMFunctionParameter.h" 
 #include "EdGraphSchema_K2.h"
 #include "Editor.h"
+#include "MVVMBlueprintFunctionReference.h"
 #include "MVVMBlueprintView.h"
+#include "MVVMBlueprintViewConversionFunction.h"
 #include "MVVMEditorSubsystem.h"
 #include "NodeFactory.h"
 #include "SGraphPin.h"
 #include "Styling/MVVMEditorStyle.h"
 #include "Types/MVVMBindingMode.h"
+
 #include "WidgetBlueprint.h"
 #include "Widgets/Images/SImage.h"
 #include "Widgets/SBoxPanel.h"
@@ -19,7 +22,7 @@
 #include "Widgets/SOverlay.h"
 #include "Widgets/Text/STextBlock.h"
 
-#define LOCTEXT_NAMESPACE "MVVMFieldBinding"
+#define LOCTEXT_NAMESPACE "FunctionParameter"
 
 namespace UE::MVVM
 {
@@ -218,14 +221,25 @@ FFieldSelectionContext SFunctionParameter::GetSelectedSelectionContext() const
 		return Result;
 	}
 
-	const UFunction* ConversionFunction = GEditor->GetEditorSubsystem<UMVVMEditorSubsystem>()->GetConversionFunction(WidgetBlueprintPtr, *Binding, bSourceToDestination);
+	UMVVMBlueprintViewConversionFunction* ConversionFunction = Binding->Conversion.GetConversionFunction(bSourceToDestination);
 	if (ConversionFunction == nullptr)
 	{
 		return Result;
 	}
 
+	FProperty* PinProperty = nullptr;
+	if (ParameterId.GetNames().Num() > 0)
+	{
+		FMVVMBlueprintFunctionReference FunctionReference = ConversionFunction->GetConversionFunction();
+		if (FunctionReference.GetType() == EMVVMBlueprintFunctionReferenceType::Function)
+		{
+			const UFunction* Function = FunctionReference.GetFunction(WidgetBlueprintPtr);
+			PinProperty = Function ? Function->FindPropertyByName(ParameterId.GetNames().Last()) : nullptr;
+		}
+	}
+
 	Result.BindingMode = EMVVMBindingMode::OneWayToDestination;
-	Result.AssignableTo = ParameterId.GetNames().Num() > 0 ? ConversionFunction->FindPropertyByName(ParameterId.GetNames().Last()) : nullptr;
+	Result.AssignableTo = PinProperty;
 	Result.bAllowWidgets = true;
 	Result.bAllowViewModels = true;
 	Result.bAllowConversionFunctions = false;
