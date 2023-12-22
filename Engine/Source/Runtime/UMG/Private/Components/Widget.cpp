@@ -318,7 +318,6 @@ void UWidget::SetIsEnabled(bool bInIsEnabled)
 	if (bIsEnabled != bInIsEnabled)
 	{
 		bIsEnabled = bInIsEnabled;
-		BroadcastFieldValueChanged(FFieldNotificationClassDescriptor::bIsEnabled);
 		bValueChanged = true;
 	}
 
@@ -330,6 +329,7 @@ void UWidget::SetIsEnabled(bool bInIsEnabled)
 
 	if (bValueChanged)
 	{
+		BroadcastFieldValueChanged(FFieldNotificationClassDescriptor::bIsEnabled);
 		// Note: State is disabled, so we broadcast !bIsEnabled
 		BroadcastBinaryPostStateChange(UWidgetDisabledStateRegistration::Bit, !bIsEnabled);
 	}
