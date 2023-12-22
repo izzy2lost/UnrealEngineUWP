@@ -630,7 +630,12 @@ bool FPCGAttributeFilterElementBase::DoFiltering(FPCGContext* Context, EPCGAttri
 			TargetValues.SetNum(PCGAttributeFilterConstants::ChunkSize);
 			FirstThresholdValues.SetNum(PCGAttributeFilterConstants::ChunkSize);
 			SecondThresholdValues.SetNum(PCGAttributeFilterConstants::ChunkSize);
-			SkipTests.SetNumZeroed(PCGAttributeFilterConstants::ChunkSize); // All initialized to false
+
+			const bool bShouldSample = FirstThresholdInfo.ThresholdPointData || SecondThresholdInfo.ThresholdPointData;
+			if (bShouldSample)
+			{
+				SkipTests.SetNumUninitialized(PCGAttributeFilterConstants::ChunkSize);
+			}
 
 			const int32 NumberOfIterations = (NumberOfEntries + PCGAttributeFilterConstants::ChunkSize - 1) / PCGAttributeFilterConstants::ChunkSize;
 
@@ -641,6 +646,12 @@ bool FPCGAttributeFilterElementBase::DoFiltering(FPCGContext* Context, EPCGAttri
 				TArrayView<Type> TargetView(TargetValues.GetData(), Range);
 				TArrayView<Type> FirstThresholdView(FirstThresholdValues.GetData(), Range);
 				TArrayView<Type> SecondThresholdView(SecondThresholdValues.GetData(), Range);
+
+				// Need to reset the skip tests to False
+				if (bShouldSample)
+				{
+					FMemory::Memzero(SkipTests.GetData(), SkipTests.Num() * sizeof(bool));
+				}
 
 				// Sampling the points if needed
 				auto SamplePointData = [Range, StartIndex, &OperationData, &SkipTests](UPCGPointData* InPointData, const UPCGSpatialData* InSpatialData)
@@ -668,11 +679,14 @@ bool FPCGAttributeFilterElementBase::DoFiltering(FPCGContext* Context, EPCGAttri
 					}
 				};
 
-				SamplePointData(FirstThresholdInfo.ThresholdPointData, FirstThresholdInfo.ThresholdSpatialData);
-
-				if (FirstThresholdInfo.ThresholdPointData != SecondThresholdInfo.ThresholdPointData)
+				if (bShouldSample)
 				{
-					SamplePointData(SecondThresholdInfo.ThresholdPointData, SecondThresholdInfo.ThresholdSpatialData);
+					SamplePointData(FirstThresholdInfo.ThresholdPointData, FirstThresholdInfo.ThresholdSpatialData);
+
+					if (FirstThresholdInfo.ThresholdPointData != SecondThresholdInfo.ThresholdPointData)
+					{
+						SamplePointData(SecondThresholdInfo.ThresholdPointData, SecondThresholdInfo.ThresholdSpatialData);
+					}
 				}
 
 				// If ThresholdView point on ThresholdPointData points, there are only "ChunkSize" points in it.
@@ -703,7 +717,7 @@ bool FPCGAttributeFilterElementBase::DoFiltering(FPCGContext* Context, EPCGAttri
 
 				for (int32 j = 0; j < Range; ++j)
 				{
-					if (SkipTests[j])
+					if (bShouldSample && SkipTests[j])
 					{
 						AddElement(true, StartIndex + j);
 						continue;
