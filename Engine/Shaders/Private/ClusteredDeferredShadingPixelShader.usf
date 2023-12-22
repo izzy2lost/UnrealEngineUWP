@@ -159,7 +159,7 @@ float4 GetSimpleLightLighting(
 	#if SUBSTRATE_ENABLED && USE_HAIR_LIGHTING == 0
 		FDeferredLightData LightData = ConvertToDeferredLight(LocalLight);
 		LightData.ShadowedBits = 1;
-		LightData.bRectLight = false;
+		LightData.bRectLight = LightData.bRectLight && USE_RECT_LIGHT;
 
 		FSubstrateShadowTermInputParameters SubstrateShadowTermInputParameters	= GetInitialisedSubstrateShadowTermInputParameters();
 		SubstrateShadowTermInputParameters.bEvaluateShadowTerm					= false;
@@ -272,7 +272,7 @@ float4 GetLightGridLocalLighting(
 
 		FDeferredLightData LightData = ConvertToDeferredLight(LocalLight);
 		LightData.ShadowedBits = 1;
-		LightData.bRectLight = false;
+		LightData.bRectLight = LightData.bRectLight && USE_RECT_LIGHT;
 		#if USE_IES_PROFILE
 		LightData.Color *= ComputeLightProfileMultiplier(TranslatedWorldPosition, LightData.TranslatedWorldPosition, -LightData.Direction, LightData.Tangent, LightData.IESAtlasIndex);
 		#endif

@@ -1197,7 +1197,6 @@ void FSceneRenderer::GatherAndSortLights(FSortedLightSetSceneInfo& OutSortedLigh
 						(!SortedLightInfo->SortKey.Fields.bShadowed || bShadowedLightsInClustered) &&
 						(!SortedLightInfo->SortKey.Fields.bLightFunction || bUseLightFunctionAtlas)
 						&& LightSceneInfoCompact.LightType != LightType_Directional
-						&& LightSceneInfoCompact.LightType != LightType_Rect
 						&& !bHandledByStochasticShadows;
 
 					// Track feature available accross all lights
