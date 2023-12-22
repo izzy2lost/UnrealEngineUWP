@@ -1754,7 +1754,7 @@ THIRD_PARTY_INCLUDES_START
 #define STBIR_FREE(ptr,user_data)	 FMemory::Free(ptr)
 #define STB_IMAGE_RESIZE_IMPLEMENTATION
 #define STBIR_DONT_CHANGE_FP_CONTRACT
-#include "ThirdParty/stb_image_resize/stb_image_resize2.h"
+#include <stb_image_resize2.h>
 THIRD_PARTY_INCLUDES_END
 
 #if USING_CODE_ANALYSIS

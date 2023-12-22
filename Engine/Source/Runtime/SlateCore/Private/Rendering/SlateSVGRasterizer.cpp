@@ -4,8 +4,8 @@
 
 #if !UE_SERVER
 THIRD_PARTY_INCLUDES_START
-#include "ThirdParty/nanosvg/src/nanosvg.h"
-#include "ThirdParty/nanosvg/src/nanosvgrast.h"
+#include <nanosvg.h>
+#include <nanosvgrast.h>
 THIRD_PARTY_INCLUDES_END
 #endif
 

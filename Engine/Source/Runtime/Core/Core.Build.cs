@@ -26,8 +26,10 @@ public class Core : ModuleRules
 			}
 		}
 
+		PrivateDependencyModuleNames.Add("AtomicQueue");
 		PrivateDependencyModuleNames.Add("BLAKE3");
 		PrivateDependencyModuleNames.Add("OodleDataCompression");
+		PrivateDependencyModuleNames.Add("xxhash");
 
 		PublicDependencyModuleNames.Add("TraceLog");
 

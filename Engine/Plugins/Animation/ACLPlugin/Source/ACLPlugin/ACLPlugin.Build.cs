@@ -16,8 +16,8 @@ namespace UnrealBuildTool.Rules
 			// Replace with PCHUsageMode.UseExplicitOrSharedPCHs when this plugin can compile with cpp20
 			PCHUsage = PCHUsageMode.NoPCHs;
 
-			PublicIncludePaths.Add(Path.Combine(ACLSDKDir, "acl/includes"));
-			PublicIncludePaths.Add(Path.Combine(ACLSDKDir, "acl/external/rtm/includes"));
+			PublicSystemIncludePaths.Add(Path.Combine(ACLSDKDir, "acl/includes"));
+			PublicSystemIncludePaths.Add(Path.Combine(ACLSDKDir, "acl/external/rtm/includes"));
 
 			PublicDependencyModuleNames.Add("Core");
 			PublicDependencyModuleNames.Add("CoreUObject");

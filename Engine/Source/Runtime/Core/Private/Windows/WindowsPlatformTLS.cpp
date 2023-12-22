@@ -5,7 +5,8 @@
 #if WITH_EDITOR
 
 #include "Templates/UnrealTemplate.h"
-#include "ThirdParty/AtomicQueue/AtomicQueue.h"
+
+#include <AtomicQueue.h>
 
 // Custom cross-platform dynamic TLS implementation because we hit OS TLS slot limit on many platforms. 
 // Compile-time defined num slot and num thread limits.

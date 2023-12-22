@@ -6,8 +6,9 @@
 #include "Containers/LockFreeList.h"
 #include "Templates/SharedPointer.h"
 #include "Experimental/ConcurrentLinearAllocator.h"
-#include "ThirdParty/AtomicQueue/AtomicQueue.h"
 #include "CoreTypes.h"
+
+#include <AtomicQueue.h>
 
 namespace UE::Tasks
 {
