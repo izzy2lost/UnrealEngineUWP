@@ -14,6 +14,10 @@
 
 #define LOCTEXT_NAMESPACE "SSkeinSourceControlWidgets"
 
+bool SSourceControlControls::bStaticDisableCheckInChangesOverride = false;
+bool SSourceControlControls::bStaticDisableSyncLatestOverride = false;
+FOnClicked SSourceControlControls::OnSyncLatestClickedStaticOverride;
+
 /**
  * Construct this widget
  *
@@ -172,7 +176,8 @@ void SSourceControlControls::OnSourceControlStateChanged()
 		}
 	);
 
-	bConflictsRemaining = (Conflicts.Num() > 0);
+	NumConflictsRemaining = Conflicts.Num();
+	bConflictsRemaining = (NumConflictsRemaining > 0);
 }
 
 bool SSourceControlControls::AreConflictsRemaining() const
@@ -185,6 +190,11 @@ bool SSourceControlControls::AreConflictsRemaining() const
 	}
 
 	return false;
+}
+
+int32 SSourceControlControls::GetNumConflictsRemaining() const
+{
+	return NumConflictsRemaining;
 }
 
 /** Sync Status */
@@ -205,7 +215,7 @@ bool SSourceControlControls::IsSourceControlSyncEnabled() const
 		return false;
 	}
 
-	return IsSyncLatestEnabled.Get(true);
+	return IsSyncLatestEnabled.Get(true) && !bStaticDisableSyncLatestOverride;
 }
 
 bool SSourceControlControls::HasSourceControlChangesToSync() const
@@ -298,7 +308,11 @@ FReply SSourceControlControls::OnSourceControlSyncClicked() const
 	}
 	else if (HasSourceControlChangesToSync())
 	{
-		if (OnSyncLatestClicked.IsBound())
+		if (OnSyncLatestClickedStaticOverride.IsBound())
+		{
+			OnSyncLatestClickedStaticOverride.Execute();
+		}
+		else if (OnSyncLatestClicked.IsBound())
 		{
 			OnSyncLatestClicked.Execute();
 		}
@@ -328,7 +342,7 @@ bool SSourceControlControls::IsSourceControlCheckInEnabled() const
 		return false;
 	}
 
-	return IsCheckInChangesEnabled.Get(true);
+	return IsCheckInChangesEnabled.Get(true) && !bStaticDisableCheckInChangesOverride;
 }
 
 bool SSourceControlControls::HasSourceControlChangesToCheckIn() const
@@ -380,7 +394,6 @@ FText SSourceControlControls::GetSourceControlCheckInStatusText() const
 	return LOCTEXT("CheckInButtonNoChangesText", "No Changes");
 }
 
-
 FText SSourceControlControls::GetSourceControlCheckInStatusTooltipText() const
 {
 	if (AreConflictsRemaining())
@@ -389,6 +402,10 @@ FText SSourceControlControls::GetSourceControlCheckInStatusTooltipText() const
 	}
 	if (HasSourceControlChangesToCheckIn())
 	{
+		if (bStaticDisableCheckInChangesOverride)
+		{
+			return LOCTEXT("CheckInButtonChangesTooltipTextDisabled", "Check-in disabled while in a rewound state.");
+		}
 		return FText::Format(LOCTEXT("CheckInButtonChangesTooltipText", "Check-in {0} change(s) to this project"), GetNumLocalChanges());
 	}
 	return LOCTEXT("CheckInButtonNoChangesTooltipText", "No Changes to check in for this project");

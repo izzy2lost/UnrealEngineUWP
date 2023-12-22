@@ -56,8 +56,15 @@ private:
 
 	/** Conflicts */
 	void CheckSourceControlStatus();
+public:
 	bool AreConflictsRemaining() const;
+	int32 GetNumConflictsRemaining() const;
+	
+	static void SetCheckInChangesDisabledOverride(bool InEnabled) { bStaticDisableCheckInChangesOverride = InEnabled; }
+	static void SetSyncLatestDisabledOverride(bool InEnabled) { bStaticDisableSyncLatestOverride = InEnabled; }
+	static FOnClicked& GetOnSyncLatestClickedStaticOverride() { return OnSyncLatestClickedStaticOverride; }
 
+private:
 	void OnSourceControlProviderChanged(ISourceControlProvider& OldProvider, ISourceControlProvider& NewProvider);
 	void OnSourceControlStateChanged();
 	
@@ -74,9 +81,14 @@ private:
 
 	/** Is there a conflict remaining? */
 	bool bConflictsRemaining;
+	int32 NumConflictsRemaining;
 
 	FDelegateHandle SourceControlProviderChangedHandle;
 	FDelegateHandle SourceControlStateChangedHandle;
+
+	static bool bStaticDisableCheckInChangesOverride;
+	static bool bStaticDisableSyncLatestOverride;
+	static FOnClicked OnSyncLatestClickedStaticOverride;
 };
 
 #endif // SOURCE_CONTROL_WITH_SLATE
