@@ -364,7 +364,7 @@ public:
 	 * @param Name				The trainer name
 	 * @param TrainerSettings	The trainer settings to use.
 	 */
-	UFUNCTION(BlueprintCallable, Category = "LearningAgents", meta = (DeterminesOutputType = "Class"))
+	UFUNCTION(BlueprintCallable, Category = "LearningAgents", meta = (DeterminesOutputType = "Class", AutoCreateRefTerm = "TrainerSettings"))
 	static ULearningAgentsTrainer* MakeTrainer(
 		ULearningAgentsManager* InManager,
 		ULearningAgentsInteractor* InInteractor,
@@ -383,7 +383,7 @@ public:
 	 * @param InCritic The critic to be trained.
 	 * @param TrainerSettings The trainer settings to use.
 	 */
-	UFUNCTION(BlueprintCallable, Category = "LearningAgents")
+	UFUNCTION(BlueprintCallable, Category = "LearningAgents", meta = (AutoCreateRefTerm = "TrainerSettings"))
 	void SetupTrainer(
 		ULearningAgentsManager* InManager,
 		ULearningAgentsInteractor* InInteractor,
@@ -483,7 +483,7 @@ public:
 	 * @param TrainerPathSettings		The path settings used by the trainer.
 	 * @param bResetAgentsOnBegin		If true, reset all agents at the beginning of training.
 	 */
-	UFUNCTION(BlueprintCallable, Category = "LearningAgents")
+	UFUNCTION(BlueprintCallable, Category = "LearningAgents", meta = (AutoCreateRefTerm = "TrainerTrainingSettings,TrainerGameSettings,TrainerPathSettings"))
 	void BeginTraining(
 		const FLearningAgentsTrainerTrainingSettings& TrainerTrainingSettings = FLearningAgentsTrainerTrainingSettings(),
 		const FLearningAgentsTrainerGameSettings& TrainerGameSettings = FLearningAgentsTrainerGameSettings(),
@@ -532,7 +532,7 @@ public:
 	 * @param bResetAgentsOnBegin				If true, reset all agents at the beginning of training.
 	 * @param bResetAgentsOnUpdate				If true, reset all agents whenever an updated policy is received.
 	 */
-	UFUNCTION(BlueprintCallable, Category = "LearningAgents")
+	UFUNCTION(BlueprintCallable, Category = "LearningAgents", meta = (AutoCreateRefTerm = "TrainerTrainingSettings,TrainerGameSettings,TrainerPathSettings"))
 	void RunTraining(
 		const FLearningAgentsTrainerTrainingSettings& TrainerTrainingSettings = FLearningAgentsTrainerTrainingSettings(),
 		const FLearningAgentsTrainerGameSettings& TrainerGameSettings = FLearningAgentsTrainerGameSettings(),

@@ -177,7 +177,7 @@ public:
 	 * @param ImitationTrainerTrainingSettings	The training settings for this network.
 	 * @param ImitationTrainerPathSettings		The path settings used by the imitation trainer.
 	 */
-	UFUNCTION(BlueprintCallable, Category = "LearningAgents")
+	UFUNCTION(BlueprintCallable, Category = "LearningAgents", meta = (AutoCreateRefTerm = "ImitationTrainerSettings,ImitationTrainerTrainingSettings,ImitationTrainerPathSettings"))
 	void BeginTraining(
 		const ULearningAgentsRecording* Recording,
 		const FLearningAgentsImitationTrainerSettings& ImitationTrainerSettings = FLearningAgentsImitationTrainerSettings(),
@@ -201,7 +201,7 @@ public:
 	 * @param ImitationTrainerTrainingSettings	The training settings for this network.
 	 * @param ImitationTrainerPathSettings		The path settings used by the imitation trainer.
 	 */
-	UFUNCTION(BlueprintCallable, Category = "LearningAgents")
+	UFUNCTION(BlueprintCallable, Category = "LearningAgents", meta = (AutoCreateRefTerm = "ImitationTrainerSettings,ImitationTrainerTrainingSettings,ImitationTrainerPathSettings"))
 	void RunTraining(
 		const ULearningAgentsRecording* Recording,
 		const FLearningAgentsImitationTrainerSettings& ImitationTrainerSettings = FLearningAgentsImitationTrainerSettings(),

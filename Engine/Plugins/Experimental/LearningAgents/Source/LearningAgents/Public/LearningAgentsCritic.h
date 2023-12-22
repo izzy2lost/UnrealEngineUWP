@@ -68,7 +68,7 @@ public:
 	 * @param CriticSettings				The critic settings to use on creation of a new critic network
 	 * @param Seed							Random seed to use for initializing the critic weights
 	 */
-	UFUNCTION(BlueprintCallable, Category = "LearningAgents", meta = (Class = "/Script/LearningAgents.LearningAgentsCritic", DeterminesOutputType = "Class"))
+	UFUNCTION(BlueprintCallable, Category = "LearningAgents", meta = (Class = "/Script/LearningAgents.LearningAgentsCritic", DeterminesOutputType = "Class", AutoCreateRefTerm = "CriticSettings"))
 	static ULearningAgentsCritic* MakeCritic(
 		ULearningAgentsManager* InManager,
 		ULearningAgentsInteractor* InInteractor,
@@ -93,7 +93,7 @@ public:
 	 * @param CriticSettings				The critic settings to use on creation of a new critic network
 	 * @param Seed							Random seed to use for initializing the critic weights
 	 */
-	UFUNCTION(BlueprintCallable, Category = "LearningAgents")
+	UFUNCTION(BlueprintCallable, Category = "LearningAgents", meta = (AutoCreateRefTerm = "CriticSettings"))
 	void SetupCritic(
 		ULearningAgentsManager* InManager,
 		ULearningAgentsInteractor* InInteractor,

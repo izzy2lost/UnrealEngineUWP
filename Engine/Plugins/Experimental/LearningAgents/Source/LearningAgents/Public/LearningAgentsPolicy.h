@@ -89,7 +89,7 @@ public:
 	 * @param PolicySettings				The policy settings to use on creation of a new policy network
 	 * @param Seed							Random seed to use for initializing network weights and policy sampling
 	 */
-	UFUNCTION(BlueprintCallable, Category = "LearningAgents", meta=(Class = "/Script/LearningAgents.LearningAgentsPolicy", DeterminesOutputType = "Class"))
+	UFUNCTION(BlueprintCallable, Category = "LearningAgents", meta=(Class = "/Script/LearningAgents.LearningAgentsPolicy", DeterminesOutputType = "Class", AutoCreateRefTerm = "PolicySettings"))
 	static ULearningAgentsPolicy* MakePolicy(
 		ULearningAgentsManager* InManager,
 		ULearningAgentsInteractor* InInteractor,
@@ -124,7 +124,7 @@ public:
 	 * @param PolicySettings				The policy settings to use on creation of a new policy network
 	 * @param Seed							Random seed to use for initializing network weights and policy sampling
 	 */
-	UFUNCTION(BlueprintCallable, Category = "LearningAgents")
+	UFUNCTION(BlueprintCallable, Category = "LearningAgents", meta = (AutoCreateRefTerm = "PolicySettings"))
 	void SetupPolicy(
 		ULearningAgentsManager* InManager,
 		ULearningAgentsInteractor* InInteractor,

@@ -61,7 +61,7 @@ public:
 	 *									set then a new recording object will be created.
 	 * @pram bReinitializeRecording		If to reinitialize the recording asset
 	 */
-	UFUNCTION(BlueprintCallable, Category = "LearningAgents", meta = (Class = "/Script/LearningAgentsTraining.LearningAgentsRecorder", DeterminesOutputType = "Class"))
+	UFUNCTION(BlueprintCallable, Category = "LearningAgents", meta = (Class = "/Script/LearningAgentsTraining.LearningAgentsRecorder", DeterminesOutputType = "Class", AutoCreateRefTerm = "RecorderPathSettings"))
 	static ULearningAgentsRecorder* MakeRecorder(
 		ULearningAgentsManager* InManager,
 		ULearningAgentsInteractor* InInteractor,
@@ -81,7 +81,7 @@ public:
 	 *									set then a new recording object will be created.
 	 * @pram bReinitializeRecording		If to reinitialize the recording asset
 	 */
-	UFUNCTION(BlueprintCallable, Category = "LearningAgents")
+	UFUNCTION(BlueprintCallable, Category = "LearningAgents", meta = (AutoCreateRefTerm = "RecorderPathSettings"))
 	void SetupRecorder(
 		ULearningAgentsManager* InManager,
 		ULearningAgentsInteractor* InInteractor,
