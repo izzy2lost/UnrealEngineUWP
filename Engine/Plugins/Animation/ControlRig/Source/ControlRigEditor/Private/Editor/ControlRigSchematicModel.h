@@ -33,6 +33,27 @@ protected:
 	friend class FControlRigSchematicModel;
 };
 
+/** Link between two rig element schematic nodes */
+class FControlRigSchematicRigElementKeyLink : public FSchematicGraphLink
+{
+public:
+
+	SCHEMATICGRAPHLINK_BODY(FControlRigSchematicRigElementKeyLink, FSchematicGraphLink)
+
+	virtual ~FControlRigSchematicRigElementKeyLink() override {}
+	
+	const FRigElementKey& GetSourceKey() const { return SourceKey; }
+	const FRigElementKey& GetTargetKey() const { return TargetKey; }
+	
+protected:
+
+	FRigElementKey SourceKey;
+	FRigElementKey TargetKey;
+
+	friend class FControlRigSchematicModel;
+};
+
+
 /** Model for the schematic views */
 class FControlRigSchematicModel : public FSchematicGraphModel
 {
@@ -47,6 +68,8 @@ public:
 	bool ContainsElementKeyNode(const FRigElementKey& InKey) const;
 	virtual bool RemoveNode(const FGuid& InGuid) override;
 	bool RemoveElementKeyNode(const FRigElementKey& InKey);
+	FControlRigSchematicRigElementKeyLink* AddElementKeyLink(const FRigElementKey& InSourceKey, const FRigElementKey& InTargetKey, bool bNotify = true);
+	void UpdateElementKeyLinks();
 
 	void OnSetObjectBeingDebugged(UObject* InObject);
 	void OnHierarchyModified(ERigHierarchyNotification InNotif, URigHierarchy* InHierarchy, const FRigBaseElement* InElement);
@@ -57,7 +80,7 @@ public:
 	virtual const FSlateBrush* GetBrushForNode(const FSchematicGraphNode* InNode) const override;
 	virtual FLinearColor GetColorForNode(const FSchematicGraphNode* InNode) const override;
 	virtual const FText GetToolTipForNode(const FSchematicGraphNode* InNode) const override;
-	virtual ESchematicGraphNodeVisibility GetVisibilityForNode(const FSchematicGraphNode* InNode) const override;
+	virtual ESchematicGraphVisibility GetVisibilityForNode(const FSchematicGraphNode* InNode) const override;
 	virtual ESchematicGraphNodePlacementConstraint GetPlacementForNode(const FSchematicGraphNode* InNode) const override;
 
 	virtual bool GetForwardedNodeForDrag(FGuid& InOutGuid) const override;

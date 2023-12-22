@@ -64,6 +64,8 @@ FControlRigSchematicRigElementKeyNode* FControlRigSchematicModel::AddElementKeyN
 		{
 			OnNodeAddedDelegate.Broadcast(Node);
 		}
+
+		UpdateElementKeyLinks();
 	}
 	return Node;
 }
@@ -102,9 +104,178 @@ bool FControlRigSchematicModel::RemoveElementKeyNode(const FRigElementKey& InKey
 	if(const FGuid* GuidPtr = RigElementKeyToGuid.Find(InKey))
 	{
 		const FGuid Guid = *GuidPtr;
-		return RemoveNode(Guid);
+		const bool bResult = RemoveNode(Guid);
+		if(bResult)
+		{
+			UpdateElementKeyLinks();
+		}
+		return bResult;
 	}
 	return false;
+}
+
+FControlRigSchematicRigElementKeyLink* FControlRigSchematicModel::AddElementKeyLink(const FRigElementKey& InSourceKey, const FRigElementKey& InTargetKey, bool bNotify)
+{
+	check(InSourceKey.IsValid());
+	check(InTargetKey.IsValid());
+	check(InSourceKey != InTargetKey);
+	const FControlRigSchematicRigElementKeyNode* SourceNode = FindElementKeyNode(InSourceKey);
+	const FControlRigSchematicRigElementKeyNode* TargetNode = FindElementKeyNode(InTargetKey);
+	if(SourceNode && TargetNode)
+	{
+		FControlRigSchematicRigElementKeyLink* Link = AddLink<FControlRigSchematicRigElementKeyLink>(SourceNode->GetGuid(), TargetNode->GetGuid());
+		Link->SourceKey = InSourceKey;
+		Link->TargetKey = InTargetKey;
+		Link->Thickness = 2.5f;
+		return Link;
+	}
+	return nullptr;
+}
+
+void FControlRigSchematicModel::UpdateElementKeyLinks()
+{
+	const TSharedPtr<FControlRigEditor> Editor = ControlRigEditor.Pin();
+	if(!Editor.IsValid())
+	{
+		return;
+	}
+
+	typedef TTuple< FRigElementKey, FRigElementKey > TElementKeyPair;
+	typedef TTuple< FGuid, TElementKeyPair > TElementKeyLinkPair;
+
+	struct FLinkTraverser
+	{
+		const FControlRigSchematicRigElementKeyNode* VisitElement(
+			const FRigBaseElement* InElement, 
+			const FControlRigSchematicRigElementKeyNode* InNode, 
+			TArray< TElementKeyPair >& OutExpectedLinks) const
+		{
+			const FControlRigSchematicRigElementKeyNode* Node = InNode;
+			if(const FControlRigSchematicRigElementKeyNode* SelfNode = FindNode(InElement->GetKey()))
+			{
+				Node = SelfNode;
+			}
+
+			const TConstArrayView<FRigBaseElement*> Children = Hierarchy->GetChildren(InElement);
+			for(const FRigBaseElement* Child : Children)
+			{
+				const FControlRigSchematicRigElementKeyNode* ChildNode = VisitElement(Child, Node, OutExpectedLinks);
+				if(Node && ChildNode && Node != ChildNode)
+				{
+					OutExpectedLinks.Emplace(Node->GetKey(), ChildNode->GetKey());
+				}
+			}
+
+			return Node;
+		}
+
+		const FControlRigSchematicRigElementKeyNode* FindNode(const FRigElementKey& InKey) const
+		{
+			if(const FGuid* ElementGuid = RigElementKeyToGuid->Find(InKey))
+			{
+				return Cast<FControlRigSchematicRigElementKeyNode>(NodeByGuid->FindChecked(*ElementGuid).Get());
+			}
+			if(const FRigElementKey* SocketKey = SocketToParent.Find(InKey))
+			{
+				if(const FGuid* ElementGuid = RigElementKeyToGuid->Find(*SocketKey))
+				{
+					return Cast<FControlRigSchematicRigElementKeyNode>(NodeByGuid->FindChecked(*ElementGuid).Get());
+				}
+			}
+			if(const FRigElementKey* ParentKey = ParentToSocket.Find(InKey))
+			{
+				if(const FGuid* ElementGuid = RigElementKeyToGuid->Find(*ParentKey))
+				{
+					return Cast<FControlRigSchematicRigElementKeyNode>(NodeByGuid->FindChecked(*ElementGuid).Get());
+				}
+			}
+			return nullptr;
+		}
+
+		TArray< TElementKeyPair > ComputeExpectedLinks() const
+		{
+			SocketToParent.Reset();
+			ParentToSocket.Reset();
+
+			// create a map to look up sockets
+			const TArray<FRigElementKey> SocketKeys = Hierarchy->GetSocketKeys();
+			for(const FRigElementKey& SocketKey : SocketKeys)
+			{
+				const FRigElementKey ParentKey = Hierarchy->GetFirstParent(SocketKey);
+				if(ParentKey.IsValid())
+				{
+					SocketToParent.Add(SocketKey, ParentKey);
+					if(!ParentToSocket.Contains(ParentKey))
+					{
+						ParentToSocket.Add(ParentKey, SocketKey);
+					}
+				}
+			}
+			
+			TArray< TElementKeyPair > ExpectedLinks;
+			const TArray<FRigBaseElement*> RootElements = Hierarchy->GetRootElements();
+			for(const FRigBaseElement* RootElement : RootElements)
+			{
+				VisitElement(RootElement, nullptr, ExpectedLinks);
+			}
+			return ExpectedLinks;
+		}
+
+		const UControlRig* ControlRig; 
+		const URigHierarchy* Hierarchy; 
+		const TMap<FRigElementKey, FGuid>* RigElementKeyToGuid = nullptr;
+		const TMap<FGuid, TSharedPtr<FSchematicGraphNode>>* NodeByGuid = nullptr;
+		mutable TMap<FRigElementKey, FRigElementKey> SocketToParent;
+		mutable TMap<FRigElementKey, FRigElementKey> ParentToSocket;
+	};
+
+	FLinkTraverser Traverser;
+	Traverser.ControlRig = Editor->GetControlRig();
+	if(Traverser.ControlRig == nullptr)
+	{
+		return;
+	}
+	Traverser.Hierarchy = Traverser.ControlRig->GetHierarchy();
+	if(Traverser.Hierarchy == nullptr)
+	{
+		return;
+	}
+	Traverser.RigElementKeyToGuid = &RigElementKeyToGuid;
+	Traverser.NodeByGuid = &NodeByGuid;
+
+	const TArray< TElementKeyPair > ExpectedLinks = Traverser.ComputeExpectedLinks();
+
+	TArray< TElementKeyLinkPair > ExistingLinks;
+	for(const TSharedPtr<FSchematicGraphLink>& Link : Links)
+	{
+		if(const FControlRigSchematicRigElementKeyLink* ElementKeyLink = Cast<FControlRigSchematicRigElementKeyLink>(Link.Get()))
+		{
+			ExistingLinks.Emplace(ElementKeyLink->GetGuid(), TElementKeyPair(ElementKeyLink->GetSourceKey(), ElementKeyLink->GetTargetKey()));
+		}
+	}
+
+	// remove the obsolete links
+	for(const TTuple< FGuid, TTuple< FRigElementKey, FRigElementKey > >& ExistingLink : ExistingLinks)
+	{
+		if(!ExpectedLinks.Contains(ExistingLink.Get<1>()))
+		{
+			(void)RemoveLink(ExistingLink.Get<0>());
+		}
+	}
+
+	// add missing links
+	for(const TElementKeyPair& ExpectedLink : ExpectedLinks)
+	{
+		if(!ExistingLinks.ContainsByPredicate([ExpectedLink](const TElementKeyLinkPair& ExistingLink) -> bool
+		{
+			return ExistingLink.Get<1>() == ExpectedLink;
+		}))
+		{
+			(void)AddElementKeyLink(ExpectedLink.Get<0>(), ExpectedLink.Get<1>());
+		}
+	}
+
+	// todo: also introduce links for module relationships
 }
 
 void FControlRigSchematicModel::OnSetObjectBeingDebugged(UObject* InObject)
@@ -135,6 +306,9 @@ void FControlRigSchematicModel::OnSetObjectBeingDebugged(UObject* InObject)
 			Hierarchy->OnModified().RemoveAll(this);
 			Hierarchy->OnModified().AddRaw(this, &FControlRigSchematicModel::OnHierarchyModified);
 		}
+
+		// todo: react to the rig being constructed - but not when the rig hierarchy is being copied 
+		// ControlRig->OnPostConstruction_AnyThread().AddRaw(this, &FControlRigSchematicModel::OnPostConstruction);
 	}
 }
 
@@ -396,11 +570,13 @@ FLinearColor FControlRigSchematicModel::GetColorForNode(const FSchematicGraphNod
 			}
 			case ERigElementType::Socket:
 			{
-				return FControlRigEditorStyle::Get().SocketUserInterfaceColor;
+				return FLinearColor::White;
+				//return FControlRigEditorStyle::Get().SocketUserInterfaceColor;
 			}
 			case ERigElementType::Connector:
 			{
-				return FControlRigEditorStyle::Get().ConnectorUserInterfaceColor;
+				return FLinearColor::White;
+				//return FControlRigEditorStyle::Get().ConnectorUserInterfaceColor;
 			}
 		}
 	}
@@ -441,7 +617,7 @@ const FText FControlRigSchematicModel::GetToolTipForNode(const FSchematicGraphNo
 	return FSchematicGraphModel::GetToolTipForNode(InNode);
 }
 
-ESchematicGraphNodeVisibility FControlRigSchematicModel::GetVisibilityForNode(const FSchematicGraphNode* InNode) const
+ESchematicGraphVisibility FControlRigSchematicModel::GetVisibilityForNode(const FSchematicGraphNode* InNode) const
 {
 	if(const FControlRigSchematicRigElementKeyNode* Node = Cast<FControlRigSchematicRigElementKeyNode>(InNode))
 	{
@@ -452,7 +628,7 @@ ESchematicGraphNodeVisibility FControlRigSchematicModel::GetVisibilityForNode(co
 			{
 				if(ContainsElementKeyNode(ResolvedSocket))
 				{
-					return ESchematicGraphNodeVisibility::Hidden;
+					return ESchematicGraphVisibility::Hidden;
 				}
 			}
 		}

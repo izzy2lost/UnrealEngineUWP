@@ -131,7 +131,10 @@ public:
 				return;
 			}
 
-			LastValue = InterpolatedValue.IsSet() ? InterpolatedValue : DesiredValue;
+			if(!LastValue.IsSet())
+			{
+				LastValue = InterpolatedValue.IsSet() ? InterpolatedValue : DesiredValue;
+			}
 			DesiredValue = InValue;
 		}
 		else

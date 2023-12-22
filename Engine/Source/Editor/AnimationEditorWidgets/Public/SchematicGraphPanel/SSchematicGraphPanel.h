@@ -19,14 +19,14 @@ enum ESchematicGraphNodePlacementConstraint
 	BottomRight
 };
 
-enum ESchematicGraphNodeVisibility
+enum ESchematicGraphVisibility
 {
 	Visible,
 	FadedOut,
 	Hidden
 };
 
-#define SCHEMATICGRAPHNODE_BODY(ClassName, SuperClass) \
+#define SCHEMATICGRAPHELEMENT_BODY(ClassName, SuperClass, BaseClass) \
 inline static const FName& Type = TEXT(#ClassName); \
 virtual const FName& GetType() const override { return ClassName::Type; } \
 virtual bool IsA(const FName& InType) const \
@@ -40,23 +40,29 @@ virtual bool IsA(const FName& InType) const \
 template<typename T> \
 friend const T* Cast(const ClassName* InNode) \
 { \
-	return Cast<T>((const FSchematicGraphNode*) InNode); \
+	return Cast<T>((const BaseClass*) InNode); \
 } \
 template<typename T> \
 friend T* Cast(ClassName* InNode) \
 { \
-	return Cast<T>((FSchematicGraphNode*) InNode); \
+	return Cast<T>((BaseClass*) InNode); \
 } \
 template<typename T> \
 friend const T* CastChecked(const ClassName* InNode) \
 { \
-	return CastChecked<T>((const FSchematicGraphNode*) InNode); \
+	return CastChecked<T>((const BaseClass*) InNode); \
 } \
 template<typename T> \
 friend T* CastChecked(ClassName* InNode) \
 { \
-	return CastChecked<T>((FSchematicGraphNode*) InNode); \
-} \
+	return CastChecked<T>((BaseClass*) InNode); \
+}
+
+#define SCHEMATICGRAPHNODE_BODY(ClassName, SuperClass) \
+SCHEMATICGRAPHELEMENT_BODY(ClassName, SuperClass, FSchematicGraphNode)
+
+#define SCHEMATICGRAPHLINK_BODY(ClassName, SuperClass) \
+SCHEMATICGRAPHELEMENT_BODY(ClassName, SuperClass, FSchematicGraphNode)
 
 class ANIMATIONEDITORWIDGETS_API FSchematicGraphNode
 {
@@ -128,8 +134,8 @@ public:
 	virtual const FText& GetToolTip() const { return ToolTip; }
 	virtual ESchematicGraphNodePlacementConstraint GetPlacement() const { return Placement; }
 	virtual void SetPlacement(ESchematicGraphNodePlacementConstraint InPlacement) { Placement = InPlacement; }
-	virtual ESchematicGraphNodeVisibility GetVisibility() const { return Visibility; }
-	virtual void SetVisibility(ESchematicGraphNodeVisibility InVisibility) { Visibility = InVisibility; }
+	virtual ESchematicGraphVisibility GetVisibility() const { return Visibility; }
+	virtual void SetVisibility(ESchematicGraphVisibility InVisibility) { Visibility = InVisibility; }
 	virtual bool IsDragSupported() const { return bDragSupported; }
 	virtual void SetDragSupported(bool InDragSupported) { bDragSupported = InDragSupported;}
 
@@ -146,14 +152,109 @@ protected:
 	const FSlateBrush* Brush = nullptr;
 	FText ToolTip = FText();
 	ESchematicGraphNodePlacementConstraint Placement = ESchematicGraphNodePlacementConstraint::Free;
-	ESchematicGraphNodeVisibility Visibility = ESchematicGraphNodeVisibility::Visible;
+	ESchematicGraphVisibility Visibility = ESchematicGraphVisibility::Visible;
 	bool bDragSupported = false;
+
+	friend class FSchematicGraphModel;
+};
+
+class ANIMATIONEDITORWIDGETS_API FSchematicGraphLink
+{
+public:
+	virtual ~FSchematicGraphLink() {}
+	
+	inline static const FName& Type = TEXT("FSchematicGraphLink");
+	virtual const FName& GetType() const;
+	virtual bool IsA(const FName& InType) const;
+	template<typename NodeType>
+	bool IsA() const
+	{
+		return IsA(NodeType::Type);
+	}
+	
+	template<typename T>
+	friend const T* Cast(const FSchematicGraphLink* InNode)
+	{
+		if(InNode)
+		{
+			if(InNode->IsA<T>())
+			{
+				return static_cast<const T*>(InNode);
+			}
+		}
+		return nullptr;
+	}
+
+	template<typename T>
+	friend T* Cast(FSchematicGraphLink* InNode)
+	{
+		if(InNode)
+		{
+			if(InNode->IsA<T>())
+			{
+				return static_cast<T*>(InNode);
+			}
+		}
+		return nullptr;
+	}
+
+	template<typename T>
+	friend const T* CastChecked(const FSchematicGraphLink* InNode)
+	{
+		const T* Node = Cast<T>(InNode);
+		check(Node);
+		return Node;
+	}
+
+	template<typename T>
+	friend T* CastChecked(FSchematicGraphLink* InNode)
+	{
+		T* Node = Cast<T>(InNode);
+		check(Node);
+		return Node;
+	}
+	
+	const FGuid& GetGuid() const { return Guid; }
+	static uint32 GetLinkHash(const FGuid& InSourceNodeGuid, const FGuid& InTargetNodeGuid)
+	{
+		return HashCombine(GetTypeHash(InSourceNodeGuid), GetTypeHash(InTargetNodeGuid));
+	}
+	uint32 GetLinkHash() const { return GetLinkHash(SourceNodeGuid, TargetNodeGuid); }
+	const FGuid& GetSourceNodeGuid() const { return SourceNodeGuid; }
+	const FGuid& GetTargetNodeGuid() const { return TargetNodeGuid; }
+	virtual float GetMinimum() const { return Minimum; }
+	virtual float GetMaximum() const { return Maximum; }
+	virtual FVector2d GetSourceNodeOffset() const { return SourceNodeOffset; }
+	virtual FVector2d GetTargetNodeOffset() const { return TargetNodeOffset; }
+	virtual FLinearColor GetColor() const { return Color; }
+	virtual float GetThickness() const { return Thickness; }
+	virtual const FSlateBrush* GetBrush() const { return Brush; }
+	virtual const FText& GetToolTip() const { return ToolTip; }
+	virtual ESchematicGraphVisibility GetVisibility() const { return Visibility; }
+	virtual void SetVisibility(ESchematicGraphVisibility InVisibility) { Visibility = InVisibility; }
+
+protected:
+	
+	FGuid Guid = FGuid::NewGuid();
+	FGuid SourceNodeGuid = FGuid();
+	FGuid TargetNodeGuid = FGuid();
+	float Minimum = 0.f;
+	float Maximum = 1.f;
+	FVector2d SourceNodeOffset = FVector2d::ZeroVector;
+	FVector2d TargetNodeOffset = FVector2d::ZeroVector;
+	FLinearColor Color = FLinearColor::White;
+	float Thickness = 1.f;
+	const FSlateBrush* Brush = nullptr;
+	FText ToolTip = FText();
+	ESchematicGraphVisibility Visibility = ESchematicGraphVisibility::Visible;
 
 	friend class FSchematicGraphModel;
 };
 
 DECLARE_EVENT_OneParam(FSchematicGraph, FOnNodeAdded, const FSchematicGraphNode*);
 DECLARE_EVENT_OneParam(FSchematicGraph, FOnNodeRemoved, const FSchematicGraphNode*);
+DECLARE_EVENT_OneParam(FSchematicGraph, FOnLinkAdded, const FSchematicGraphLink*);
+DECLARE_EVENT_OneParam(FSchematicGraph, FOnLinkRemoved, const FSchematicGraphLink*);
 DECLARE_EVENT(FSchematicGraph, FOnGraphReset);
 
 class ANIMATIONEDITORWIDGETS_API FSchematicGraphModel
@@ -179,9 +280,9 @@ public:
 	}
 
 	template<typename NodeType = FSchematicGraphNode>
-	const NodeType* FindNode(const FGuid& InGuid) const
+	const NodeType* FindNode(const FGuid& InNodeGuid) const
 	{
-		if(const TSharedPtr<FSchematicGraphNode>* ExistingNode = NodeByGuid.Find(InGuid))
+		if(const TSharedPtr<FSchematicGraphNode>* ExistingNode = NodeByGuid.Find(InNodeGuid))
 		{
 			return Cast<NodeType>(ExistingNode->Get());
 		};
@@ -189,9 +290,9 @@ public:
 	}
 
 	template<typename NodeType = FSchematicGraphNode>
-	const NodeType* FindNodeChecked(const FGuid& InGuid) const
+	const NodeType* FindNodeChecked(const FGuid& InNodeGuid) const
 	{
-		if(const TSharedPtr<FSchematicGraphNode>* ExistingNode = NodeByGuid.Find(InGuid))
+		if(const TSharedPtr<FSchematicGraphNode>* ExistingNode = NodeByGuid.Find(InNodeGuid))
 		{
 			check(ExistingNode->Get()->IsA(NodeType::Type));
 			return static_cast<NodeType*>(ExistingNode->Get());
@@ -199,13 +300,13 @@ public:
 		return nullptr;
 	}
 
-	virtual bool RemoveNode(const FGuid& InGuid);
+	virtual bool RemoveNode(const FGuid& InNodeGuid);
 
 	const TArray<TSharedPtr<FSchematicGraphNode>>& GetNodes() const { return Nodes; }
 
-	FVector2d GetPositionForNode(const FGuid& InGuid) const;
+	FVector2d GetPositionForNode(const FGuid& InNodeGuid) const;
 	virtual FVector2d GetPositionForNode(const FSchematicGraphNode* InNode) const;
-	FVector2d GetPositionOffsetForNode(const FGuid& InGuid) const;
+	FVector2d GetPositionOffsetForNode(const FGuid& InNodeGuid) const;
 	virtual FVector2d GetPositionOffsetForNode(const FSchematicGraphNode* InNode) const;
 	bool GetPositionAnimationEnabledForNode(const FGuid& InNodeGuid) const;
 	virtual bool GetPositionAnimationEnabledForNode(const FSchematicGraphNode* InNode) const;
@@ -215,23 +316,118 @@ public:
 	virtual float GetScaleForNode(const FSchematicGraphNode* InNode, bool bIncludeScaleOffset) const;
 	float GetScaleOffsetForNode(const FGuid& InNodeGuid) const;
 	virtual float GetScaleOffsetForNode(const FSchematicGraphNode* InNode) const;
+	float GetMinimumLinkDistanceForNode(const FGuid& InNodeGuid) const;
+	virtual float GetMinimumLinkDistanceForNode(const FSchematicGraphNode* InNode) const;
 	bool IsAutoScaleEnabledForNode(const FGuid& InNodeGuid) const;
 	virtual bool IsAutoScaleEnabledForNode(const FSchematicGraphNode* InNode) const;
-	FLinearColor GetColorForNode(const FGuid& InGuid) const;
+	FLinearColor GetColorForNode(const FGuid& InNodeGuid) const;
 	virtual FLinearColor GetColorForNode(const FSchematicGraphNode* InNode) const;
-	const FSlateBrush* GetBrushForNode(const FGuid& InGuid) const;
+	const FSlateBrush* GetBrushForNode(const FGuid& InNodeGuid) const;
 	virtual const FSlateBrush* GetBrushForNode(const FSchematicGraphNode* InNode) const;
-	const FText GetToolTipForNode(const FGuid& InGuid) const;
+	const FText GetToolTipForNode(const FGuid& InNodeGuid) const;
 	virtual const FText GetToolTipForNode(const FSchematicGraphNode* InNode) const;
-	ESchematicGraphNodePlacementConstraint GetPlacementForNode(const FGuid& InGuid) const;
+	ESchematicGraphNodePlacementConstraint GetPlacementForNode(const FGuid& InNodeGuid) const;
 	virtual ESchematicGraphNodePlacementConstraint GetPlacementForNode(const FSchematicGraphNode* InNode) const;
-	ESchematicGraphNodeVisibility GetVisibilityForNode(const FGuid& InGuid) const;
-	virtual ESchematicGraphNodeVisibility GetVisibilityForNode(const FSchematicGraphNode* InNode) const;
-	bool IsDragSupportedForNode(const FGuid& InGuid) const;
+	ESchematicGraphVisibility GetVisibilityForNode(const FGuid& InNodeGuid) const;
+	virtual ESchematicGraphVisibility GetVisibilityForNode(const FSchematicGraphNode* InNode) const;
+	bool IsDragSupportedForNode(const FGuid& InNodeGuid) const;
 	virtual bool IsDragSupportedForNode(const FSchematicGraphNode* InNode) const;
+
+	template<typename LinkType = FSchematicGraphLink>
+	LinkType* AddLink(const FGuid& InSourceNodeGuid, const FGuid& InTargetNodeGuid, bool bNotify = true)
+	{
+		const TSharedPtr<FSchematicGraphLink> NewLink = MakeShareable(new LinkType);
+		NewLink->SourceNodeGuid = InSourceNodeGuid;
+		NewLink->TargetNodeGuid = InTargetNodeGuid;
+		Links.Add(NewLink);
+		LinkByGuid.Add(NewLink->GetGuid(), NewLink);
+		LinkByHash.Add(NewLink->GetLinkHash(), NewLink);
+		NodeGuidToLinkGuids.FindOrAdd(InSourceNodeGuid).Get<0>().Add(NewLink->GetGuid());
+		NodeGuidToLinkGuids.FindOrAdd(InTargetNodeGuid).Get<1>().Add(NewLink->GetGuid());
+
+		if (bNotify && OnLinkAddedDelegate.IsBound())
+		{
+			OnLinkAddedDelegate.Broadcast(NewLink.Get());
+		}
+		return static_cast<LinkType*>(NewLink.Get());
+	}
+
+	template<typename LinkType = FSchematicGraphLink>
+	const LinkType* FindLink(const FGuid& InLinkGuid) const
+	{
+		if(const TSharedPtr<FSchematicGraphLink>* ExistingLink = LinkByGuid.Find(InLinkGuid))
+		{
+			return Cast<LinkType>(ExistingLink->Get());
+		};
+		return nullptr;
+	}
+
+	template<typename LinkType = FSchematicGraphLink>
+	const LinkType* FindLinkChecked(const FGuid& InLinkGuid) const
+	{
+		if(const TSharedPtr<FSchematicGraphLink>* ExistingLink = LinkByGuid.Find(InLinkGuid))
+		{
+			check(ExistingLink->Get()->IsA(LinkType::Type));
+			return static_cast<LinkType*>(ExistingLink->Get());
+		};
+		return nullptr;
+	}
+
+	template<typename LinkType = FSchematicGraphLink>
+	const LinkType* FindLink(const FGuid& InSourceNodeGuid, const FGuid& InTargetNodeGuid) const
+	{
+		const uint32 LinkHash = FSchematicGraphLink::GetLinkHash(InSourceNodeGuid, InTargetNodeGuid);
+		if(const TSharedPtr<FSchematicGraphLink>* ExistingLink = LinkByHash.Find(LinkHash))
+		{
+			return Cast<LinkType>(ExistingLink->Get());
+		};
+		return nullptr;
+	}
+
+	template<typename LinkType = FSchematicGraphLink>
+	const LinkType* FindLinkChecked(const FGuid& InSourceNodeGuid, const FGuid& InTargetNodeGuid) const
+	{
+		const uint32 LinkHash = FSchematicGraphLink::GetLinkHash(InSourceNodeGuid, InTargetNodeGuid);
+		if(const TSharedPtr<FSchematicGraphLink>* ExistingLink = LinkByHash.Find(LinkHash))
+		{
+			check(ExistingLink->Get()->IsA(LinkType::Type));
+			return Cast<LinkType>(ExistingLink->Get());
+		};
+		return nullptr;
+	}
+
+	bool IsLinkedTo(const FGuid& InSourceNodeGuid, const FGuid& InTargetNodeGuid) const;
+	TArray<const FSchematicGraphLink*> FindLinksOnNode(const FGuid& InNodeGuid) const;
+	TArray<const FSchematicGraphLink*> FindLinksOnSource(const FGuid& InSourceNodeGuid) const;
+	TArray<const FSchematicGraphLink*> FindLinksOnTarget(const FGuid& InTargetNodeGuid) const;
+
+	virtual bool RemoveLink(const FGuid& InLinkGuid);
+
+	const TArray<TSharedPtr<FSchematicGraphLink>>& GetLinks() const { return Links; }
+
+	float GetMinimumForLink(const FGuid& InLinkGuid) const;
+	virtual float GetMinimumForLink(const FSchematicGraphLink* InLink) const;
+	float GetMaximumForLink(const FGuid& InLinkGuid) const;
+	virtual float GetMaximumForLink(const FSchematicGraphLink* InLink) const;
+	FVector2d GetSourceNodeOffsetForLink(const FGuid& InLinkGuid) const;
+	FVector2d GetSourceNodeOffsetForLink(const FSchematicGraphLink* InLink) const;
+	FVector2d GetTargetNodeOffsetForLink(const FGuid& InLinkGuid) const;
+	FVector2d GetTargetNodeOffsetForLink(const FSchematicGraphLink* InLink) const;
+	FLinearColor GetColorForLink(const FGuid& InLinkGuid) const;
+	virtual FLinearColor GetColorForLink(const FSchematicGraphLink* InLink) const;
+	float GetThicknessForLink(const FGuid& InLinkGuid) const;
+	virtual float GetThicknessForLink(const FSchematicGraphLink* InLink) const;
+	const FSlateBrush* GetBrushForLink(const FGuid& InLinkGuid) const;
+	virtual const FSlateBrush* GetBrushForLink(const FSchematicGraphLink* InLink) const;
+	const FText GetToolTipForLink(const FGuid& InLinkGuid) const;
+	virtual const FText GetToolTipForLink(const FSchematicGraphLink* InLink) const;
+	ESchematicGraphVisibility GetVisibilityForLink(const FGuid& InLinkGuid) const;
+	virtual ESchematicGraphVisibility GetVisibilityForLink(const FSchematicGraphLink* InLink) const;
 
 	FOnNodeAdded& OnNodeAdded() { return OnNodeAddedDelegate; }
 	FOnNodeRemoved& OnNodeRemoved() { return OnNodeRemovedDelegate; }
+	FOnLinkAdded& OnLinkAdded() { return OnLinkAddedDelegate; }
+	FOnLinkRemoved& OnLinkRemoved() { return OnLinkRemovedDelegate; }
 	FOnGraphReset& OnGraphReset() { return OnGraphResetDelegate; }
 
 	virtual bool GetForwardedNodeForDrag(FGuid& InOutGuid) const { return false; }
@@ -240,10 +436,15 @@ protected:
 
 	TArray<TSharedPtr<FSchematicGraphNode>> Nodes;
 	TMap<FGuid, TSharedPtr<FSchematicGraphNode>> NodeByGuid;
-	TMap<FGuid, TArray<FGuid>> Links;
+	TArray<TSharedPtr<FSchematicGraphLink>> Links;
+	TMap<FGuid, TSharedPtr<FSchematicGraphLink>> LinkByGuid;
+	TMap<uint32, TSharedPtr<FSchematicGraphLink>> LinkByHash;
+	TMap<FGuid, TTuple<TArray<FGuid>, TArray<FGuid>>> NodeGuidToLinkGuids;
 
 	FOnNodeAdded OnNodeAddedDelegate;
 	FOnNodeRemoved OnNodeRemovedDelegate;
+	FOnLinkAdded OnLinkAddedDelegate;
+	FOnLinkRemoved OnLinkRemovedDelegate;
 	FOnGraphReset OnGraphResetDelegate;
 };
 
@@ -344,7 +545,8 @@ public:
 private:
 
 	bool bIsBeingDragged = false;
-	FVector2d OriginalSize = FVector2d(50.0,50.0);
+	static inline const FVector2d DefaultNodeSize = FVector2d(32.0,32.0);  
+	FVector2d OriginalSize = DefaultNodeSize;
 	static inline constexpr float ScaledUp = 1.25;
 	static inline constexpr float ScaledDown = 0.75;
 
@@ -365,6 +567,7 @@ private:
 	SSchematicGraphPanel* SchematicGraphPanel = nullptr;
 
 	friend class SSchematicGraphPanel;
+	friend class FSchematicGraphModel;
 };
 
 
@@ -396,6 +599,14 @@ public:
 	SLATE_EVENT(FOnDrop, OnDrop)
 	SLATE_END_ARGS()
 
+	struct FSchematicLinkWidgetInfo
+	{
+		TSharedPtr<FFloatAttribute> Minimum;
+		TSharedPtr<FFloatAttribute> Maximum;
+		TSharedPtr<FLinearColorAttribute> Color;
+		TSharedPtr<FFloatAttribute> Thickness;
+	};
+
 	virtual ~SSchematicGraphPanel() override
 	{
 		OnNodeClickedDelegate.Unbind();
@@ -409,6 +620,9 @@ public:
 	void AddNode(const FSchematicGraphNode* InNodeToAdd);
 	void RemoveNode(const FSchematicGraphNode* InNodeToRemove);
 	const SSchematicGraphNode* FindNode(const FGuid& InGuid) const;
+	void AddLink(const FSchematicGraphLink* InLinkToAdd);
+	void RemoveLink(const FSchematicGraphLink* InLinkToRemove);
+	const FSchematicLinkWidgetInfo* FindLink(const FGuid& InGuid) const;
 	
 	// SNodePanel interface
 	virtual void OnArrangeChildren(const FGeometry& AllottedGeometry, FArrangedChildren& ArrangedChildren) const override;
@@ -436,11 +650,20 @@ public:
 	virtual FVector2d GetSizeForNode(FGuid InNodeGuid) const;
 	virtual float GetScaleForNode(FGuid InNodeGuid, bool bIncludeScaleOffset) const;
 	virtual bool IsAutoScaleEnabledForNode(FGuid InNodeGuid) const;
+	virtual float GetMinimumLinkDistanceForNode(FGuid InLinkGuid, bool bIncludeScale = true) const;
 	virtual FLinearColor GetColorForNode(FGuid InNodeGuid) const;
 	virtual const FSlateBrush* GetBrushForNode(FGuid InNodeGuid) const;
 	virtual FText GetToolTipForNode(FGuid InNodeGuid) const;
-	virtual ESchematicGraphNodeVisibility GetVisibilityForNode(FGuid InNodeGuid) const;
+	virtual ESchematicGraphVisibility GetVisibilityForNode(FGuid InNodeGuid) const;
 	virtual bool IsDragSupportedForNode(FGuid InNodeGuid) const;
+
+	virtual float GetMinimumForLink(FGuid InLinkGuid) const;
+	virtual float GetMaximumForLink(FGuid InLinkGuid) const;
+	virtual FLinearColor GetColorForLink(FGuid InLinkGuid) const;
+	virtual float GetThicknessForLink(FGuid InLinkGuid) const;
+	virtual const FSlateBrush* GetBrushForLink(FGuid InLinkGuid) const;
+	virtual FText GetToolTipForLink(FGuid InLinkGuid) const;
+	virtual ESchematicGraphVisibility GetVisibilityForLink(FGuid InLinkGuid) const;
 
 	void UpdateAutoScalingForNodes();
 
@@ -462,6 +685,12 @@ public:
 	TArray<FGuid> NodesBottomLeft;
 	TArray<FGuid> NodesBottomRight;
 	TMap<FGuid, TSharedPtr<SSchematicGraphNode>> NodeByGuid;
+
+	TMap<FGuid, TSharedPtr<FSchematicLinkWidgetInfo>> LinkByGuid;
+
+	mutable TMap<FGuid, FVector2d> NodeCenterByGuid;
+	mutable TArray<bool> NodeVisibilityByIndex;
+	mutable TMap<FGuid, bool> NodeVisibilityByGuid;
 };
 
 #endif
