@@ -1757,14 +1757,12 @@ namespace UnrealBuildTool
 		/// <returns>New toolchain instance.</returns>
 		public override UEToolChain CreateToolChain(ReadOnlyTargetRules Target)
 		{
+			VCToolChain toolchain = new VCToolChain(Target, Logger);
 			if (Target.StaticAnalyzer == StaticAnalyzer.PVSStudio)
 			{
-				return new PVSToolChain(Target, Logger);
+				return new PVSToolChain(Target, toolchain, Logger);
 			}
-			else
-			{
-				return new VCToolChain(Target, Logger);
-			}
+			return toolchain;
 		}
 
 		/// <summary>

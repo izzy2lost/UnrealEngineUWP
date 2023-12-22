@@ -806,20 +806,18 @@ namespace UnrealBuildTool
 						}
 
 						// these are parsed by external tools wishing to open this file directly
-						foreach (LinkedAction BuildAction in MergedActionsToExecute)
+						foreach (LinkedAction BuildAction in MergedActionsToExecute.Where(BuildAction => BuildAction.ActionType == ActionType.Compile && (BuildAction.Inner as VCCompileAction)?.bIsAnalyzing != true))
 						{
-							if (BuildAction.ActionType == ActionType.Compile)
+							FileItem? PreprocessedFile = BuildAction.ProducedItems.FirstOrDefault(x => x.HasExtension(".i"));
+							if (PreprocessedFile != null)
 							{
-								FileItem? PreprocessedFile = BuildAction.ProducedItems.FirstOrDefault(x => x.HasExtension(".i"));
-								if (PreprocessedFile != null)
-								{
-									Logger.LogInformation("PreProcessPath: {File}", PreprocessedFile);
-								}
-								FileItem? AssemblyPath = BuildAction.ProducedItems.FirstOrDefault(x => x.HasExtension(".asm"));
-								if (AssemblyPath != null)
-								{
-									Logger.LogInformation("AssemblyPath: {File}", AssemblyPath);
-								}
+								Logger.LogInformation("PreProcessPath: {File}", PreprocessedFile);
+							}
+
+							FileItem? AssemblyPath = BuildAction.ProducedItems.FirstOrDefault(x => x.HasExtension(".asm"));
+							if (AssemblyPath != null)
+							{
+								Logger.LogInformation("AssemblyPath: {File}", AssemblyPath);
 							}
 						}
 					}
