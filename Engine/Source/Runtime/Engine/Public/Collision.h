@@ -77,31 +77,6 @@ public:
 		bHit = (PolyVertices.Num() == 3) ? FindSeparatingAxisTriangle() : FindSeparatingAxisGeneric();
 	}
 
-	/**
-	 *	Legacy constructor for the class (deprecated)
-	 */
-	FSeparatingAxisPointCheck(
-		const FVector& InV0,
-		const FVector& InV1,
-		const FVector& InV2,
-		const FVector& InBoxCenter,
-		const FVector& InBoxExtent,
-		float InBestDist
-		)
-		: HitNormal(FVector::ZeroVector),
-		  BestDist(InBestDist),
-		  PolyVertices(TriangleVertices),
-		  BoxCenter(InBoxCenter),
-		  BoxExtent(InBoxExtent),
-		  bCalcLeastPenetration(true)
-	{
-		TriangleVertices.Empty(3);
-		TriangleVertices[0] = InV0;
-		TriangleVertices[1] = InV1;
-		TriangleVertices[2] = InV2;
-		bHit = FindSeparatingAxisTriangle();
-	}
-
 private:
 
 	/**
@@ -158,9 +133,6 @@ private:
 
 	/** Flag specifying whether the least penetration should be calculated. */
 	bool bCalcLeastPenetration;
-
-	/** Array into which triangle vertices are placed (legacy use only) */
-	static ENGINE_API TArray<FVector> TriangleVertices;
 };
 
 /**

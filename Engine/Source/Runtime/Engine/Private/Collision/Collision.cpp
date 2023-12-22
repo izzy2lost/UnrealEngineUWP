@@ -235,8 +235,6 @@ void FCollisionQueryParams::SetNumIgnoredComponents(int32 NewNum)
 //////////////////////////////////////////////////////////////////////////
 // FSeparatingAxisPointCheck
 
-TArray<FVector> FSeparatingAxisPointCheck::TriangleVertices;
-
 bool FSeparatingAxisPointCheck::TestSeparatingAxisCommon(const FVector& Axis, float ProjectedPolyMin, float ProjectedPolyMax)
 {
 	const float ProjectedCenter = FVector::DotProduct(Axis, BoxCenter);
