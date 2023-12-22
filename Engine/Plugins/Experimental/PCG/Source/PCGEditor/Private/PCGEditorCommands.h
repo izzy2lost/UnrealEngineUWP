@@ -17,6 +17,7 @@ public:
 	TSharedPtr<FUICommandInfo> ExportNodes;
 	TSharedPtr<FUICommandInfo> ConvertToStandaloneNodes;
 	TSharedPtr<FUICommandInfo> Find;
+	TSharedPtr<FUICommandInfo> ShowSelectedDetails;
 	TSharedPtr<FUICommandInfo> PauseAutoRegeneration;
 	TSharedPtr<FUICommandInfo> ForceGraphRegeneration;
 	TSharedPtr<FUICommandInfo> OpenDebugObjectTreeTab;

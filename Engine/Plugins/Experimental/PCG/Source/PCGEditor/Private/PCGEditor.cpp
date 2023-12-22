@@ -128,6 +128,7 @@ void FPCGEditor::Initialize(const EToolkitMode::Type InMode, const TSharedPtr<cl
 	for (int PropertyDetailsIndex = 0; PropertyDetailsIndex < 4; ++PropertyDetailsIndex)
 	{
 		TSharedRef<SPCGEditorGraphDetailsView> PropertyDetailsWidget = SNew(SPCGEditorGraphDetailsView);
+		PropertyDetailsWidget->SetEditor(SharedThis(this));
 		PropertyDetailsWidget->SetObject(PCGGraphBeingEdited);
 		PropertyDetailsWidgets.Add(PropertyDetailsWidget);
 	}
@@ -596,6 +597,10 @@ void FPCGEditor::BindCommands()
 		FExecuteAction::CreateSP(this, &FPCGEditor::OnFind));
 
 	ToolkitCommands->MapAction(
+		PCGEditorCommands.ShowSelectedDetails,
+		FExecuteAction::CreateSP(this, &FPCGEditor::OpenDetailsView));
+
+	ToolkitCommands->MapAction(
 		PCGEditorCommands.PauseAutoRegeneration,
 		FExecuteAction::CreateSP(this, &FPCGEditor::OnPauseAutomaticRegeneration_Clicked),
 		FCanExecuteAction(),
@@ -693,6 +698,102 @@ void FPCGEditor::OnFind()
 	{
 		TabManager->TryInvokeTab(FPCGEditor_private::FindID);
 		FindWidget->FocusForUse();
+	}
+}
+
+void FPCGEditor::OpenDetailsView()
+{
+	if (TabManager.IsValid())
+	{
+		auto InvokeFirstUnlockedTab = [this](bool bVisibleOnly) -> bool
+		{
+			for (int DetailsViewIndex = 0; DetailsViewIndex < PropertyDetailsWidgets.Num(); ++DetailsViewIndex)
+			{
+				TSharedPtr<SPCGEditorGraphDetailsView> DetailsView = PropertyDetailsWidgets[DetailsViewIndex];
+				if (DetailsView.IsValid() && !DetailsView->IsLocked())
+				{
+					if (!bVisibleOnly || TabManager->FindExistingLiveTab(FPCGEditor_private::PropertyDetailsID[DetailsViewIndex]))
+					{
+						TabManager->TryInvokeTab(FPCGEditor_private::PropertyDetailsID[DetailsViewIndex]);
+						return true;
+					}
+				}
+			}
+
+			return false;
+		};
+
+		if (InvokeFirstUnlockedTab(true) || InvokeFirstUnlockedTab(false))
+		{
+			return;
+		}
+
+		// Default to first if they are all locked
+		if (PropertyDetailsWidgets[0].IsValid())
+		{
+			TabManager->TryInvokeTab(FPCGEditor_private::PropertyDetailsID[0]);
+		}
+	}
+}
+
+void FPCGEditor::OnDetailsViewTabClosed(TSharedRef<SDockTab> DockTab, int Index)
+{
+	if (!PropertyDetailsWidgets.IsValidIndex(Index))
+	{
+		return;
+	}
+
+	TSharedPtr<SPCGEditorGraphDetailsView> DetailsView = PropertyDetailsWidgets[Index];
+	if (DetailsView.IsValid() && DetailsView->IsLocked())
+	{
+		DetailsView->SetIsLocked(false);
+	}
+}
+
+void FPCGEditor::OnAttributeListViewTabClosed(TSharedRef<SDockTab> DockTab, int Index)
+{
+	if (!AttributesWidgets.IsValidIndex(Index))
+	{
+		return;
+	}
+
+	TSharedPtr<SPCGEditorGraphAttributeListView> AttributeListView = AttributesWidgets[Index];
+	if (AttributeListView.IsValid())
+	{
+		if (AttributeListView->IsLocked())
+		{
+			AttributeListView->SetIsLocked(false);
+		}
+
+		UPCGEditorGraphNodeBase* NodeInspected = AttributeListView->GetNodeBeingInspected();
+		AttributeListView->SetNodeBeingInspected(nullptr);
+
+		if (NodeInspected)
+		{
+			bool bIsStillInspectedOnVisibleTabs = false;
+			for (int OtherTabIndex = 0; OtherTabIndex < AttributesWidgets.Num(); ++OtherTabIndex)
+			{
+				TSharedPtr<SPCGEditorGraphAttributeListView> ALV = AttributesWidgets[OtherTabIndex];
+				if (ALV.IsValid() && ALV->GetNodeBeingInspected() == NodeInspected && TabManager->FindExistingLiveTab(FPCGEditor_private::AttributesID[OtherTabIndex]))
+				{
+					bIsStillInspectedOnVisibleTabs = true;
+					break;
+				}
+			}
+
+			if (!bIsStillInspectedOnVisibleTabs)
+			{
+				NodeInspected->SetInspected(false);
+
+				for (TSharedPtr<SPCGEditorGraphAttributeListView> ALV : AttributesWidgets)
+				{
+					if (ALV.IsValid() && ALV->GetNodeBeingInspected() == NodeInspected)
+					{
+						ALV->SetNodeBeingInspected(nullptr);
+					}
+				}
+			}
+		}
 	}
 }
 
@@ -1331,7 +1432,33 @@ void FPCGEditor::OnToggleInspected()
 
 	if (bIsInspecting)
 	{
-		GetTabManager()->TryInvokeTab(FPCGEditor_private::AttributesID[0]);
+		// Summon the first attribute list view that is inspecting this node
+		auto InvokeFirstTab = [this, PCGGraphNodeBase](bool bVisibleOnly) -> bool
+		{
+			for (int AttributeListViewIndex = 0; AttributeListViewIndex < AttributesWidgets.Num(); ++AttributeListViewIndex)
+			{
+				TSharedPtr<SPCGEditorGraphAttributeListView> AttributeListView = AttributesWidgets[AttributeListViewIndex];
+				if (AttributeListView->GetNodeBeingInspected() == PCGGraphNodeBase)
+				{
+					if (!bVisibleOnly || TabManager->FindExistingLiveTab(FPCGEditor_private::AttributesID[AttributeListViewIndex]))
+					{
+						GetTabManager()->TryInvokeTab(FPCGEditor_private::AttributesID[AttributeListViewIndex]);
+						return true;
+					}
+				}
+			}
+
+			return false;
+		};
+
+		const bool bTabSummoned = (InvokeFirstTab(true) || InvokeFirstTab(false));
+
+		// Default to first if they are all locked
+		if (!bTabSummoned)
+		{
+			GetTabManager()->TryInvokeTab(FPCGEditor_private::AttributesID[0]);
+		}
+
 		DebugObjectTreeWidget->SetNodeBeingInspected(PCGNode);
 	}
 }
@@ -2260,21 +2387,7 @@ void FPCGEditor::OnSelectedNodesChanged(const TSet<UObject*>& NewSelection)
 	{
 		for (UObject* Object : NewSelection)
 		{
-			if (UPCGEditorGraphNodeBase* PCGGraphNode = Cast<UPCGEditorGraphNodeBase>(Object))
-			{
-				if (UPCGNode* PCGNode = PCGGraphNode->GetPCGNode())
-				{
-					if (PCGNode->IsInstance())
-					{
-						SelectedObjects.Add(Cast<UPCGSettingsInstance>(PCGNode->GetSettingsInterface()));
-					}
-					else
-					{
-						SelectedObjects.Add(PCGNode->GetSettings());
-					}
-				}
-			}
-			else if (UEdGraphNode* GraphNode = Cast<UEdGraphNode>(Object))
+			if (UEdGraphNode* GraphNode = Cast<UEdGraphNode>(Object))
 			{
 				SelectedObjects.Add(GraphNode);
 			}
@@ -2285,8 +2398,6 @@ void FPCGEditor::OnSelectedNodesChanged(const TSet<UObject*>& NewSelection)
 	{
 		PropertyDetailsWidget->SetObjects(SelectedObjects, /*bForceRefresh=*/true);
 	}
-
-	GetTabManager()->TryInvokeTab(FPCGEditor_private::PropertyDetailsID[0]);
 }
 
 void FPCGEditor::OnNodeTitleCommitted(const FText& NewText, ETextCommit::Type CommitInfo, UEdGraphNode* NodeBeingChanged)
@@ -2441,6 +2552,7 @@ TSharedRef<SDockTab> FPCGEditor::SpawnTab_PropertyDetails(const FSpawnTabArgs& A
 
 	return SNew(SDockTab)
 		.Label(Label)
+		.OnTabClosed_Raw(this, &FPCGEditor::OnDetailsViewTabClosed, PropertyDetailsIndex)
 		.TabColorScale(GetTabColorScale())
 		[
 			DetailsView.ToSharedRef()
@@ -2473,6 +2585,7 @@ TSharedRef<SDockTab> FPCGEditor::SpawnTab_Attributes(const FSpawnTabArgs& Args, 
 
 	return SNew(SDockTab)
 		.Label(Label)
+		.OnTabClosed_Raw(this, &FPCGEditor::OnAttributeListViewTabClosed, AttributesIndex)
 		.TabColorScale(GetTabColorScale())
 		[
 			AttributesWidgets[AttributesIndex].ToSharedRef()

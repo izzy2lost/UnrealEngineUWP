@@ -6,6 +6,9 @@
 #include "PCGNode.h"
 #include "PCGSettings.h"
 
+#include "PCGEditor.h"
+#include "PCGEditorGraphNode.h"
+
 #include "DetailsViewArgs.h"
 #include "IDetailsView.h"
 #include "PropertyEditorModule.h"
@@ -61,9 +64,14 @@ void SPCGEditorGraphDetailsView::Construct(const FArguments& InArgs)
 			.HAlign(HAlign_Center)
 			.VAlign(VAlign_Center)
 			[
-				SNew(STextBlock)
+				SNew(SButton)
+				.ButtonStyle(FAppStyle::Get(), "SimpleButton")
+				.OnClicked(this, &SPCGEditorGraphDetailsView::OnNameClicked)
 				.Visibility(this, &SPCGEditorGraphDetailsView::GetNameVisibility)
-				.Text(this, &SPCGEditorGraphDetailsView::GetName)
+				[
+					SNew(STextBlock)
+					.Text(this, &SPCGEditorGraphDetailsView::GetName)
+				]
 			]
 			+SHorizontalBox::Slot()
 			[
@@ -79,19 +87,51 @@ void SPCGEditorGraphDetailsView::Construct(const FArguments& InArgs)
 
 void SPCGEditorGraphDetailsView::SetObject(UObject* InObject, bool bForceRefresh)
 {
-	TArray<UObject*> InObjects;
+	TArray<TWeakObjectPtr<UObject>> InObjects;
 	InObjects.Add(InObject);
 
 	SetObjects(InObjects, bForceRefresh);
 }
 
-void SPCGEditorGraphDetailsView::SetObjects(const TArray<UObject*>& InObjects, bool bForceRefresh, bool bOverrideLock)
+void SPCGEditorGraphDetailsView::SetObjects(const TArray<TWeakObjectPtr<UObject>>& InObjects, bool bForceRefresh, bool bOverrideLock)
 {
 	if (bOverrideLock || !bIsLocked)
 	{
-		DetailsView->SetObjects(InObjects, bForceRefresh, bOverrideLock);
+		SelectedObjects = InObjects;
 
-		// Unlock the view automatically if we are viewing nothing
+		// Filter only the types we're interested in, e.g. the settings and not the nodes themselves
+		TArray<TWeakObjectPtr<UObject>> ObjectsToView;
+		ObjectsToView.Reserve(InObjects.Num());
+
+		for (const TWeakObjectPtr<UObject>& InObject : InObjects)
+		{
+			if (!InObject.IsValid())
+			{
+				continue;
+			}
+
+			if (UPCGEditorGraphNodeBase* PCGGraphNode = Cast<UPCGEditorGraphNodeBase>(InObject.Get()))
+			{
+				if (UPCGNode* PCGNode = PCGGraphNode->GetPCGNode())
+				{
+					if (PCGNode->IsInstance())
+					{
+						ObjectsToView.Add(PCGNode->GetSettingsInterface());
+					}
+					else
+					{
+						ObjectsToView.Add(PCGNode->GetSettings());
+					}
+
+					continue;
+				}
+			}
+
+			ObjectsToView.Add(InObject);
+		}
+
+		DetailsView->SetObjects(ObjectsToView);
+
 		if (InObjects.IsEmpty())
 		{
 			bIsLocked = false;
@@ -99,29 +139,32 @@ void SPCGEditorGraphDetailsView::SetObjects(const TArray<UObject*>& InObjects, b
 	}
 }
 
-void SPCGEditorGraphDetailsView::SetObjects(const TArray<TWeakObjectPtr<UObject>>& InObjects, bool bForceRefresh, bool bOverrideLock)
-{
-	TArray<UObject*> Objects;
-	Objects.Reserve(InObjects.Num());
-	for (const TWeakObjectPtr<UObject>& InObject : InObjects)
-	{
-		if (InObject.IsValid())
-		{
-			Objects.Add(InObject.Get());
-		}
-	}
-
-	SetObjects(Objects, bForceRefresh, bOverrideLock);
-}
-
 const TArray<TWeakObjectPtr<UObject>>& SPCGEditorGraphDetailsView::GetSelectedObjects() const
 {
-	return DetailsView->GetSelectedObjects();
+	return SelectedObjects;
 }
 
 FReply SPCGEditorGraphDetailsView::OnLockButtonClicked()
 {
 	bIsLocked = !bIsLocked;
+	return FReply::Handled();
+}
+
+FReply SPCGEditorGraphDetailsView::OnNameClicked()
+{
+	if (SelectedObjects.Num() != 1)
+	{
+		return FReply::Handled();
+	}
+
+	if (UEdGraphNode* GraphNode = Cast<UEdGraphNode>(SelectedObjects[0].Get()))
+	{
+		if (FPCGEditor* Editor = EditorPtr.Pin().Get())
+		{
+			Editor->JumpToNode(GraphNode);
+		}
+	}
+
 	return FReply::Handled();
 }
 
@@ -137,15 +180,15 @@ EVisibility SPCGEditorGraphDetailsView::GetNameVisibility() const
 
 FText SPCGEditorGraphDetailsView::GetName() const
 {
-	const TArray<TWeakObjectPtr<UObject>>& SelectedObjects = GetSelectedObjects();
-	if (SelectedObjects.IsEmpty())
+	const TArray<TWeakObjectPtr<UObject>>& DetailsSelectedObjects = DetailsView->GetSelectedObjects();
+	if (DetailsSelectedObjects.IsEmpty())
 	{
 		// Implementation note: this doesn't really happen since we reselect the graph settings when unselecting
 		return LOCTEXT("NoObjectsSelected", "Empty selection");
 	}
-	else if (SelectedObjects.Num() == 1)
+	else if (DetailsSelectedObjects.Num() == 1)
 	{
-		UObject* SelectedObject = SelectedObjects[0].Get();
+		UObject* SelectedObject = DetailsSelectedObjects[0].Get();
 		UPCGNode* OwnerNode = nullptr;
 
 		if (Cast<UPCGSettings>(SelectedObject) != nullptr || Cast<UPCGSettingsInstance>(SelectedObject) != nullptr)
@@ -168,7 +211,7 @@ FText SPCGEditorGraphDetailsView::GetName() const
 	}
 	else
 	{
-		return FText::Format(LOCTEXT("MultipleObjectsSelectedFmt", "{0} nodes"), FText::AsNumber(SelectedObjects.Num()));
+		return FText::Format(LOCTEXT("MultipleObjectsSelectedFmt", "{0} nodes"), FText::AsNumber(DetailsSelectedObjects.Num()));
 	}
 }
 
@@ -182,8 +225,8 @@ bool SPCGEditorGraphDetailsView::IsReadOnlyProperty(const FPropertyAndParent& In
 		return false;
 	}
 
-	const TArray<TWeakObjectPtr<UObject>>& SelectedObjects = DetailsView->GetSelectedObjects();
-	for (const TWeakObjectPtr<UObject>& SelectedObject : SelectedObjects)
+	const TArray<TWeakObjectPtr<UObject>>& DetailsSelectedObjects = DetailsView->GetSelectedObjects();
+	for (const TWeakObjectPtr<UObject>& SelectedObject : DetailsSelectedObjects)
 	{
 		if (!SelectedObject.IsValid())
 		{

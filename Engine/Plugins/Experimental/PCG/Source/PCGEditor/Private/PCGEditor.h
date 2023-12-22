@@ -104,6 +104,15 @@ private:
 	/** Bring up the find tab */
 	void OnFind();
 
+	/** Bring up the first free details view, or if they are all locked, the first details view */
+	void OpenDetailsView();
+
+	/** Called when a details view tab is closed */
+	void OnDetailsViewTabClosed(TSharedRef<SDockTab> DockTab, int Index);
+
+	/** Called when an attribute list view tab is closed */
+	void OnAttributeListViewTabClosed(TSharedRef<SDockTab> DockTab, int Index);
+
 	/** Enable/Disable automatic PCG node generation */
 	void OnPauseAutomaticRegeneration_Clicked();
 	/** Has the user paused automatic regeneration in the Graph Editor */

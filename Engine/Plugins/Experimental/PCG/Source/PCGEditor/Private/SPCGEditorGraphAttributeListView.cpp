@@ -453,9 +453,14 @@ void SPCGEditorGraphAttributeListView::Construct(const FArguments& InArgs, TShar
 			.VAlign(EVerticalAlignment::VAlign_Center)
 			.Padding(4.0f, 0.0f)
 			[
-				SAssignNew(NodeNameTextBlock, STextBlock)
-				.Text(PCGEditorGraphAttributeListView::NoNodeInspectedText)
-				.ToolTipText(PCGEditorGraphAttributeListView::NoNodeInspectedToolTip)
+				SNew(SButton)
+				.ButtonStyle(FAppStyle::Get(), "SimpleButton")
+				.OnClicked(this, &SPCGEditorGraphAttributeListView::OnNodeNameClicked)
+				[
+					SAssignNew(NodeNameTextBlock, STextBlock)
+					.Text(PCGEditorGraphAttributeListView::NoNodeInspectedText)
+					.ToolTipText(PCGEditorGraphAttributeListView::NoNodeInspectedToolTip)
+				]
 			]
 			+SHorizontalBox::Slot()
 			.FillWidth(1.0f)
@@ -1428,6 +1433,16 @@ const FSlateBrush* SPCGEditorGraphAttributeListView::OnGetLockButtonImageResourc
 FReply SPCGEditorGraphAttributeListView::OnLockClick()
 {
 	bIsLocked = !bIsLocked;
+	return FReply::Handled();
+}
+
+FReply SPCGEditorGraphAttributeListView::OnNodeNameClicked()
+{
+	if (PCGEditorGraphNode.Get() && PCGEditorPtr.IsValid())
+	{
+		PCGEditorPtr.Pin()->JumpToNode(PCGEditorGraphNode.Get());
+	}
+
 	return FReply::Handled();
 }
 

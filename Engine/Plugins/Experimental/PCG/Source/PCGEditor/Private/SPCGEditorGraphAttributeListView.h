@@ -143,6 +143,7 @@ public:
 	void SetNodeBeingInspected(UPCGEditorGraphNodeBase* InNode);
 
 	bool IsLocked() const { return bIsLocked; }
+	void SetIsLocked(bool bInIsLocked) { bIsLocked = bInIsLocked; }
 
 private:
 	TSharedRef<SHeaderRow> CreateHeaderRowWidget() const;
@@ -212,6 +213,7 @@ private:
 	const FSlateBrush* OnGetLockButtonImageResource() const;
 
 	FReply OnLockClick();
+	FReply OnNodeNameClicked();
 
 	/** Pointer back to the PCG editor that owns us */
 	TWeakPtr<FPCGEditor> PCGEditorPtr;

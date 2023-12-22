@@ -5,6 +5,7 @@
 #include "Templates/SharedPointer.h"
 #include "Widgets/SCompoundWidget.h"
 
+class FPCGEditor;
 class IDetailsView;
 struct FPropertyAndParent;
 
@@ -19,6 +20,10 @@ public:
 	/** Constructs this widget with InArgs */
 	void Construct(const FArguments& InArgs);
 
+	/** Sets the editor associated to this details view, used for interaction from the details view to the editor */
+	void SetEditor(TWeakPtr<FPCGEditor> InEditorPtr) { EditorPtr = InEditorPtr; }
+
+	/** Returns the details view under this widget */
 	TSharedPtr<IDetailsView> GetDetailsView() const { return DetailsView; }
 
 	//~Begin IDetailsView-like interface
@@ -29,14 +34,14 @@ public:
 	void SetObject(UObject* InObject, bool bForceRefresh = false);
 
 	/** Changes the selected objects in the details view. Will unlock automatically. */
-	void SetObjects(const TArray<UObject*>& InObjects, bool bForceRefresh = false, bool bOverrideLock = false);
-
-	/** Changes the selected objects in the details view. Will unlock automatically. */
 	void SetObjects(const TArray<TWeakObjectPtr<UObject>>& InObjects, bool bForceRefresh = false, bool bOverrideLock = false);
 
 	/** Retrieves the list of objects currently shown in the details view */
 	const TArray<TWeakObjectPtr<UObject>>& GetSelectedObjects() const;
 	//~End IDetailsView-like interface
+
+	/** Controls lock from the editor */
+	void SetIsLocked(bool bInIsLocked) { bIsLocked = bInIsLocked; }
 
 protected:
 	/** Returns whether a property should be readonly (used for instances) */
@@ -45,6 +50,7 @@ protected:
 	bool IsVisibleProperty(const FPropertyAndParent& InPropertyAndParent) const;
 
 	FReply OnLockButtonClicked();
+	FReply OnNameClicked();
 	const FSlateBrush* GetLockIcon() const;
 
 	/** Gets the current visibility state of the name section, which is related to whether the details view is locked. */
@@ -54,4 +60,7 @@ protected:
 
 	TSharedPtr<IDetailsView> DetailsView;
 	bool bIsLocked : 1 = false;
+
+	TArray<TWeakObjectPtr<UObject>> SelectedObjects;
+	TWeakPtr<FPCGEditor> EditorPtr = nullptr;
 };
