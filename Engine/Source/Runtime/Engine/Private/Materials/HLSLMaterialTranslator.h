@@ -541,8 +541,7 @@ protected:
 
 		bool SubstrateGenerateDerivedMaterialOperatorData(FHLSLMaterialTranslator* Compiler);
 
-		void SubstrateEvaluateSharedLocalBases(FHLSLMaterialTranslator* Compiler, uint8& RequestedSharedLocalBasesCount, FShaderCompilerEnvironment* OutEnvironment);
-		void SubstrateEvaluateSharedLocalBasesNew(FHLSLMaterialTranslator* Compiler, uint8& RequestedSharedLocalBasesCount, FEnvironmentDefines* OutEnvironment);
+		void SubstrateEvaluateSharedLocalBases(FHLSLMaterialTranslator* Compiler, uint8& RequestedSharedLocalBasesCount, FEnvironmentDefines* OutEnvironment);
 
 		FSubstrateSharedLocalBasesInfo SubstrateCompilationInfoGetMatchingSharedLocalBasisInfo(const FSubstrateRegisteredSharedLocalBasis& SearchedSharedLocalBasis);
 
@@ -649,12 +648,6 @@ public:
 	virtual FString GetParameterCodeDeriv(int32 Index, ECompiledPartialDerivativeVariation Variation);
 
 protected:
-	// These -Old functions are temporarily preserved in order to switch back to the old way of
-	// generating material translation results. We intend to remove these as soon as we are sure
-	// the new implementations of these functions work well.
-	void GetMaterialEnvironmentOld(EShaderPlatform InPlatform, FShaderCompilerEnvironment& OutEnvironment);
-	FString GetMaterialShaderCodeOld();
-
 	uint64 GetParameterHash(int32 Index);
 
 	uint64 GetParameterMaterialAttributeMask(int32 Index);
