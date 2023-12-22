@@ -27,6 +27,9 @@ void SSourceControlControls::Construct(const FArguments& InArgs)
 	IsSyncLatestEnabled = InArgs._IsEnabledSyncLatest;
 	IsCheckInChangesEnabled = InArgs._IsEnabledCheckInChanges;
 
+	IsSyncLatestSeparatorEnabled = InArgs._IsEnabledSyncLatestSeparator;
+	IsCheckInChangesSeparatorEnabled = InArgs._IsEnabledCheckInChangesSeparator;
+
 	ChildSlot
 	[
 		SNew(SHorizontalBox)
@@ -78,7 +81,7 @@ void SSourceControlControls::Construct(const FArguments& InArgs)
 		.AutoWidth()
 		[
 			SNew(SSeparator)
-			.Visibility(this, &SSourceControlControls::GetSourceControlCheckInStatusVisibility)
+			.Visibility(this, &SSourceControlControls::GetSourceControlCheckInSeparatorVisibility)
 			.Thickness(1.0)
 			.Orientation(EOrientation::Orient_Vertical)
 		]
@@ -118,7 +121,7 @@ void SSourceControlControls::Construct(const FArguments& InArgs)
 		.AutoWidth()
 		[
 			SNew(SSeparator)
-			.Visibility(this, &SSourceControlControls::GetSourceControlCheckInStatusVisibility)
+			.Visibility(this, &SSourceControlControls::GetSourceControlSyncSeparatorVisibility)
 			.Thickness(1.0)
 			.Orientation(EOrientation::Orient_Vertical)
 		]
@@ -234,6 +237,17 @@ EVisibility SSourceControlControls::GetSourceControlSyncStatusVisibility() const
 	return EVisibility::Collapsed;
 }
 
+EVisibility SSourceControlControls::GetSourceControlSyncSeparatorVisibility() const
+{
+	EVisibility StatusVisibility = GetSourceControlSyncStatusVisibility();
+	if (StatusVisibility != EVisibility::Visible)
+	{
+		return StatusVisibility;
+	}
+
+	return IsSyncLatestSeparatorEnabled.Get(true) ? EVisibility::Visible : EVisibility::Collapsed;
+}
+
 FText SSourceControlControls::GetSourceControlSyncStatusText() const
 {
 	if (HasSourceControlChangesToSync())
@@ -344,6 +358,17 @@ EVisibility SSourceControlControls::GetSourceControlCheckInStatusVisibility() co
 		}
 	}
 	return EVisibility::Collapsed;
+}
+
+EVisibility SSourceControlControls::GetSourceControlCheckInSeparatorVisibility() const
+{
+	EVisibility StatusVisibility = GetSourceControlCheckInStatusVisibility();
+	if (StatusVisibility != EVisibility::Visible)
+	{
+		return StatusVisibility;
+	}
+
+	return IsCheckInChangesSeparatorEnabled.Get(true) ? EVisibility::Visible : EVisibility::Collapsed;
 }
 
 FText SSourceControlControls::GetSourceControlCheckInStatusText() const

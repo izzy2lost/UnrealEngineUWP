@@ -19,6 +19,8 @@ public:
 
 		SLATE_ATTRIBUTE(bool, IsEnabledSyncLatest)
 		SLATE_ATTRIBUTE(bool, IsEnabledCheckInChanges)
+		SLATE_ATTRIBUTE(bool, IsEnabledSyncLatestSeparator)
+		SLATE_ATTRIBUTE(bool, IsEnabledCheckInChangesSeparator)
 		SLATE_EVENT(FOnClicked, OnClickedSyncLatest)
 		SLATE_EVENT(FOnClicked, OnClickedCheckInChanges)
 		SLATE_EVENT(FOnGetContent, OnGenerateKebabMenu)
@@ -35,6 +37,7 @@ private:
 	bool IsSourceControlSyncEnabled() const;
 	bool HasSourceControlChangesToSync() const;
 	EVisibility GetSourceControlSyncStatusVisibility() const;
+	EVisibility GetSourceControlSyncSeparatorVisibility() const;
 	FText GetSourceControlSyncStatusText() const;
 	FText GetSourceControlSyncStatusTooltipText() const;
 	const FSlateBrush* GetSourceControlSyncStatusIcon() const;
@@ -45,6 +48,7 @@ private:
 	bool IsSourceControlCheckInEnabled() const;
 	bool HasSourceControlChangesToCheckIn() const;
 	EVisibility GetSourceControlCheckInStatusVisibility() const;
+	EVisibility GetSourceControlCheckInSeparatorVisibility() const;
 	FText GetSourceControlCheckInStatusText() const;
 	FText GetSourceControlCheckInStatusTooltipText() const;
 	const FSlateBrush* GetSourceControlCheckInStatusIcon() const;
@@ -64,6 +68,9 @@ private:
 
 	TAttribute<bool> IsSyncLatestEnabled;
 	TAttribute<bool> IsCheckInChangesEnabled;
+
+	TAttribute<bool> IsSyncLatestSeparatorEnabled;
+	TAttribute<bool> IsCheckInChangesSeparatorEnabled;
 
 	/** Is there a conflict remaining? */
 	bool bConflictsRemaining;
