@@ -49,6 +49,9 @@ protected:
 	/** CVar config: synchronous initialization (alignment on a barrier before initializing NVIDIA synchronization) */
 	const bool bCfgPreInitAlignment;
 
+	/** CVar config: Force delay after joining the barrier */
+	const float CfgPostBarrierJoinSleep;
+
 	/** CVar config: pre-present threads alignment on a network barrier */
 	const int32 CfgPrePresentAlignmentLimit;
 	/** Pre-present sync counter */

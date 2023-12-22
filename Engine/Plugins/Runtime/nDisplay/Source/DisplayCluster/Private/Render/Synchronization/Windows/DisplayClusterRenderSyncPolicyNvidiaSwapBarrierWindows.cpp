@@ -256,6 +256,13 @@ bool FDisplayClusterRenderSyncPolicyNvidiaSwapBarrier::InitializeNvidiaSwapLock(
 		UE_LOG(LogDisplayClusterRenderSync, Log, TEXT("NVS_SB: Successfully bound group %d to the swap barrier %d"), RequestedGroup, RequestedBarrier);
 	}
 
+	// Force sleep if requested
+	if (CfgPostBarrierJoinSleep > 0.f)
+	{
+		TRACE_CPUPROFILER_EVENT_SCOPE(nDisplay PostBarrierJoinSleep);
+		FPlatformProcess::SleepNoStats(CfgPostBarrierJoinSleep);
+	}
+
 	UE_LOG(LogDisplayClusterRenderSync, Log, TEXT("NVS_SB: Initialized successfully"));
 
 	return true;

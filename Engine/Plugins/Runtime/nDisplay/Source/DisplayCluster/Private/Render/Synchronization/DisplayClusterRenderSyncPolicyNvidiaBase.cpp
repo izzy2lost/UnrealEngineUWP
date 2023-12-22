@@ -19,7 +19,18 @@
 static TAutoConsoleVariable<bool> CVarNvidiaSyncPreInitAlignment(
 	TEXT("nDisplay.sync.nvidia.PreInitAlignment"),
 	true,
-	TEXT("NVIDIA sync: Aligns RHI threads before initializing synchronization subsystem."),
+	TEXT("Aligns RHI threads before initializing synchronization subsystem."),
+	ECVF_ReadOnly | ECVF_RenderThreadSafe
+);
+
+// Forces delay after joining the barrier. The idea is to give nvidia sync clients some time
+// to switch to sync state before calling present. 
+static TAutoConsoleVariable<float> CVarNvidiaSyncPostBarrierJoinSleep(
+	TEXT("nDisplay.sync.nvidia.PostBarrierJoinSleep"),
+	0.f,
+	TEXT("Forces thread delay after joining the barrier\n")
+	TEXT("    N <= 0 : Disabled\n")
+	TEXT("    N  > 0 : Sleep time (seconds)\n"),
 	ECVF_ReadOnly | ECVF_RenderThreadSafe
 );
 
@@ -90,6 +101,7 @@ TAutoConsoleVariable<bool> CVarNvidiaSyncPrintStatsEveryFrame(
 FDisplayClusterRenderSyncPolicyNvidiaBase::FDisplayClusterRenderSyncPolicyNvidiaBase(const TMap<FString, FString>& Parameters)
 	: Super(Parameters)
 	, bCfgPreInitAlignment(CVarNvidiaSyncPreInitAlignment.GetValueOnAnyThread())
+	, CfgPostBarrierJoinSleep(CVarNvidiaSyncPostBarrierJoinSleep.GetValueOnAnyThread())
 	, CfgPrePresentAlignmentLimit(CVarNvidiaSyncPrePresentAlignmentLimit.GetValueOnAnyThread())
 	, CfgFrameCompletionLimit(CVarNvidiaSyncFrameCompletionLimit.GetValueOnAnyThread())
 	, bCfgPostPresentAlignment(CVarNvidiaSyncPostPresentAlignment.GetValueOnAnyThread())
@@ -108,8 +120,9 @@ FDisplayClusterRenderSyncPolicyNvidiaBase::FDisplayClusterRenderSyncPolicyNvidia
 #endif // WITH_NVAPI
 
 	UE_LOG(LogDisplayClusterRenderSync, Log,
-		TEXT("NVIDIA sync configuration: PreInitAlignment=%d, PrePresentAlignmentLimit=%d, FrameCompletionLimit=%d, PostPresentAlignment=%d"),
+		TEXT("NVIDIA sync configuration: PreInitAlignment=%d, PostBarrierJoinSleep=%f, PrePresentAlignmentLimit=%d, FrameCompletionLimit=%d, PostPresentAlignment=%d"),
 		bCfgPreInitAlignment ? 1 : 0,
+		CfgPostBarrierJoinSleep,
 		CfgPrePresentAlignmentLimit,
 		CfgFrameCompletionLimit,
 		bCfgPostPresentAlignment ? 1 : 0

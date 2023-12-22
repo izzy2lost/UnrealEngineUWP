@@ -275,6 +275,13 @@ bool FDisplayClusterRenderSyncPolicyNvidiaPresentBarrier::InitializePresentBarri
 		}
 	}
 
+	// Force sleep if requested
+	if(CfgPostBarrierJoinSleep > 0.f)
+	{
+		TRACE_CPUPROFILER_EVENT_SCOPE(nDisplay PostBarrierJoinSleep);
+		FPlatformProcess::SleepNoStats(CfgPostBarrierJoinSleep);
+	}
+
 	UE_LOG(LogDisplayClusterRenderSync, Log, TEXT("NVS_PB: Initialized successfully"));
 
 	return true;
