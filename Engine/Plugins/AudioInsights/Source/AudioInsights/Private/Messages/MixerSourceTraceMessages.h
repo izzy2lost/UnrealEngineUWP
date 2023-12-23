@@ -4,7 +4,7 @@
 #include "AudioDefines.h"
 #include "Messages/AnalyzerMessageQueue.h"
 #include "Trace/Analyzer.h"
-#include "Views//TableDashboardViewFactory.h"
+#include "Views/TableDashboardViewFactory.h"
 
 
 namespace UE::Audio::Insights
