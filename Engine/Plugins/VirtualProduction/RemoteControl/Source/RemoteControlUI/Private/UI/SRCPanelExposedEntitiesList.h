@@ -160,6 +160,8 @@ private:
 	FReply OnCreateGroup();
 	/** Handles group deletion. */
 	void OnDeleteGroup(const FGuid& GroupId);
+	/** Called when an Entity is rebound */
+	void OnEntityRebind(const FGuid& InEntityGuid);
 	/** Select actors in the current level. */
 	void SelectActorsInlevel(const TArray<UObject*>& Objects);
 	//~ Register to engine/editor events in order to correctly update widgets.

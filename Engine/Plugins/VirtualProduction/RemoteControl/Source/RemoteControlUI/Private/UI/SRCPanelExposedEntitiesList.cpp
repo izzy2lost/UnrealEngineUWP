@@ -1266,6 +1266,18 @@ void SRCPanelExposedEntitiesList::OnDeleteGroup(const FGuid& GroupId)
 	Preset->Layout.DeleteGroup(GroupId);
 }
 
+void SRCPanelExposedEntitiesList::OnEntityRebind(const FGuid& InEntityGuid)
+{
+	const TSharedPtr<SRCPanelTreeNode>* FoundNode = FieldEntities.FindByPredicate([InEntityGuid] (const TSharedPtr<SRCPanelTreeNode>& InNode) { return InNode->GetRCId() == InEntityGuid; } );
+	if (FoundNode && FoundNode->IsValid())
+	{
+		if (const TSharedPtr<SRCPanelExposedEntity>& Entity = StaticCastSharedPtr<SRCPanelExposedEntity>(*FoundNode))
+		{
+			Entity->Refresh();
+		}
+	}
+}
+
 void SRCPanelExposedEntitiesList::SelectActorsInlevel(const TArray<UObject*>& Objects)
 {
 	if (GEditor)
@@ -1603,6 +1615,7 @@ void SRCPanelExposedEntitiesList::RegisterPresetDelegates()
 	Layout.OnFieldDeleted().AddSP(this, &SRCPanelExposedEntitiesList::OnFieldDeleted);
 	Layout.OnFieldOrderChanged().AddSP(this, &SRCPanelExposedEntitiesList::OnFieldOrderChanged);
 	Preset->OnEntitiesUpdated().AddSP(this, &SRCPanelExposedEntitiesList::OnEntitiesUpdated);
+	Preset->OnEntityRebind().AddSP(this, &SRCPanelExposedEntitiesList::OnEntityRebind);
 }
 
 void SRCPanelExposedEntitiesList::UnregisterPresetDelegates()
@@ -1611,6 +1624,7 @@ void SRCPanelExposedEntitiesList::UnregisterPresetDelegates()
 	{
 		FRemoteControlPresetLayout& Layout = Preset->Layout;
 		Preset->OnEntitiesUpdated().RemoveAll(this);
+		Preset->OnEntityRebind().RemoveAll(this);
 		Layout.OnFieldOrderChanged().RemoveAll(this);
 		Layout.OnFieldDeleted().RemoveAll(this);
 		Layout.OnFieldAdded().RemoveAll(this);

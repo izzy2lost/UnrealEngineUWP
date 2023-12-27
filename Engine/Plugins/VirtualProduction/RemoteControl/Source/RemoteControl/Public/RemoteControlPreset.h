@@ -600,7 +600,10 @@ public:
 	 * Delegate called when the exposed entity wrapper itself is updated (ie. binding change, rename)  
 	 */
 	FOnPresetEntitiesUpdatedEvent& OnEntitiesUpdated() { return OnEntitiesUpdatedDelegate; }
-	
+
+	DECLARE_MULTICAST_DELEGATE_OneParam(FOnEntityRebind, const FGuid&)
+	FOnEntityRebind& OnEntityRebind() { return OnEntityRebindDelegate; }
+
 	DECLARE_MULTICAST_DELEGATE_TwoParams(FOnPresetPropertyExposed, URemoteControlPreset* /*Preset*/, FName /*ExposedLabel*/);
 	UE_DEPRECATED(4.27, "This delegate is deprecated, use OnEntityExposed instead.")
 	FOnPresetPropertyExposed& OnPropertyExposed() { return OnPropertyExposedDelegate; }
@@ -884,6 +887,8 @@ private:
 	FOnPresetEntityEvent OnEntityUnexposedDelegate;
 	/** Delegate triggered when entities are modified and may need to be re-resolved. */
 	FOnPresetEntitiesUpdatedEvent OnEntitiesUpdatedDelegate;
+	/** Delegate triggered when an Entity is rebound */
+	FOnEntityRebind OnEntityRebindDelegate;
 	/** Delegate triggered when an exposed property value has changed. */
 	FOnPresetExposedPropertiesModified OnPropertyChangedDelegate;
 	/** Delegate triggered when a new property has been exposed. */
