@@ -1,4 +1,4 @@
-﻿// Copyright Epic Games, Inc. All Rights Reserved.
+// Copyright Epic Games, Inc. All Rights Reserved.
 
 #pragma once
 
@@ -33,29 +33,29 @@ public:
 	/** Whether the Behaviour list widget currently has focus. Used for Delete Item UI command */
 	bool IsListFocused() const;
 
-	/** Delete Item UI command implementation for this panel */
-	virtual void DeleteSelectedPanelItem() override;
+	/** Delete Items UI command implementation for this panel */
+	virtual void DeleteSelectedPanelItems() override;
 
-	/** "Duplicate Item" UI command implementation for Behaviour panel*/
-	virtual void DuplicateSelectedPanelItem() override;
+	/** "Duplicate Items" UI command implementation for Behaviour panel*/
+	virtual void DuplicateSelectedPanelItems() override;
 
-	/** "Copy Item" UI command implementation for Behaviour panel*/
-	virtual void CopySelectedPanelItem() override;
+	/** "Copy Items" UI command implementation for Behaviour panel*/
+	virtual void CopySelectedPanelItems() override;
 
-	/** "Paste Item" UI command implementation for Behaviour panel*/
-	virtual void PasteItemFromClipboard() override;
+	/** "Paste Items" UI command implementation for Behaviour panel*/
+	virtual void PasteItemsFromClipboard() override;
 
-	/** Whether a given clipboard item can be successfully pasted into this panel */
-	virtual bool CanPasteClipboardItem(UObject* InLogicClipboardItem) override;
+	/** Whether a given clipboard items can be successfully pasted into this panel */
+	virtual bool CanPasteClipboardItems(const TArrayView<const TObjectPtr<UObject>> InLogicClipboardItems) const override;
 
 	/** Provides an item suffix for the Paste context menu to provide users with useful context on the nature of the item being pasted */
 	virtual FText GetPasteItemMenuEntrySuffix() override;
 
-	/** Returns the UI item currently selected by the user (if any)*/
-	virtual TSharedPtr<FRCLogicModeBase> GetSelectedLogicItem() override;
+	/** Returns the UI items currently selected by the user (if any). To be implemented per child panel */
+	virtual TArray<TSharedPtr<FRCLogicModeBase>> GetSelectedLogicItems() const override;
 
 	/** Returns the parent Controller associated with this behaviour*/
-	URCController* GetParentController();
+	URCController* GetParentController() const;
 
 protected:
 

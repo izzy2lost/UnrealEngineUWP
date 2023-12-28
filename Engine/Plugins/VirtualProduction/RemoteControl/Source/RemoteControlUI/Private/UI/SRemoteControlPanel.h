@@ -54,7 +54,7 @@ DECLARE_DELEGATE_TwoParams(FOnLiveModeChange, TSharedPtr<SRemoteControlPanel> /*
  * UI representation of a remote control preset.
  * Allows a user to expose/unexpose properties and functions from actors and blueprint libraries.
  */
-class SRemoteControlPanel : public SCompoundWidget
+class SRemoteControlPanel : public SCompoundWidget, public FGCObject
 {
 	SLATE_BEGIN_ARGS(SRemoteControlPanel) {}
 		SLATE_EVENT(FOnLiveModeChange, OnLiveModeChange)
@@ -153,13 +153,16 @@ public:
 	}
 
 	/** For Copy UI command - Sets the logic clipboard item and source */
-	void SetLogicClipboardItem(UObject* InItem, TSharedPtr<SRCLogicPanelBase> SourcePanel);
+	void SetLogicClipboardItems(const TArray<UObject*>& InItems, const TSharedPtr<SRCLogicPanelBase>& SourcePanel);
 
 	/** Fetches the last UI item copied to Logic clipboard by the user */
-	UObject* GetLogicClipboardItem()
+	TArray<UObject*> GetLogicClipboardItems()
 	{
-		return LogicClipboardItem;
+		return LogicClipboardItems;
 	}
+
+	// FGCObject interface
+	virtual void AddReferencedObjects(FReferenceCollector& Collector) override;
 
 private:
 
@@ -426,13 +429,15 @@ private:
 	/** Action panel UI widget for Remote Control Logic*/
 	TSharedPtr<class SRCActionPanel> ActionPanel;
 
-	/** LogicClipboardItem - Holds the latest item copied from a Logic panel
+	/** LogicClipboardItems - Holds the items copied from a Logic panel
 	*
 	* Note: We track UObjects (Data Model) here rather than the UI Models as the latter are swept away the moment the user navigates to a different Controller.
 	* For example if the user copies an action from a behaviour in a given Controller but then navigates to another Controller, we can no longer rely on the previous UI objects
 	* as they would have been discarded in favor of a new data set for the actively selected Controller */
-	UPROPERTY(Transient)
-	TObjectPtr<UObject> LogicClipboardItem;
+	TArray<TObjectPtr<UObject>> LogicClipboardItems;
+
+	// FGCObject interface
+	virtual FString GetReferencerName() const override { return "RemoteControlPanel"; }
 
 	/** Keeps track of whether materials were compiled from the current frame. Used to limit the number of UI refresh to once per frame. */
 	bool bMaterialsCompiledThisFrame = false;

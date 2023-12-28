@@ -859,6 +859,16 @@ bool URCVirtualPropertySelfContainer::UpdateValueWithProperty(const FProperty* I
 	return Result == EPropertyBagResult::Success;
 }
 
+bool URCVirtualPropertySelfContainer::UpdateValueWithProperty(const URCVirtualPropertyBase* InVirtualProperty)
+{
+	if (InVirtualProperty && InVirtualProperty->GetContainerPtr())
+	{
+		return Bag.SetValue(PropertyName, InVirtualProperty->GetProperty(), InVirtualProperty->GetContainerPtr()) == EPropertyBagResult::Success;	
+	}
+
+	return false;
+}
+
 void URCVirtualPropertySelfContainer::Reset()
 {
 	PropertyName = NAME_None;

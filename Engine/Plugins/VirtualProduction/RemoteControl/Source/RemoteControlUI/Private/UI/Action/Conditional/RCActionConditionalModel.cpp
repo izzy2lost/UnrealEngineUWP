@@ -11,13 +11,16 @@
 #include "RemoteControlField.h"
 #include "RemoteControlPreset.h"
 #include "Styling/RemoteControlStyles.h"
+#include "UI/Action/SRCActionPanel.h"
 #include "UI/Action/SRCVirtualPropertyWidget.h"
 #include "UI/Behaviour/Builtin/Conditional/RCBehaviourConditionalModel.h"
 #include "UI/RCUIHelpers.h"
 #include "UI/RemoteControlPanelStyle.h"
 #include "UI/SRCPanelDragHandle.h"
 #include "UI/SRCPanelExposedEntity.h"
+#include "UI/SRemoteControlPanel.h"
 #include "Widgets/Layout/SBox.h"
+#include "Widgets/Text/STextBlock.h"
 #include "Widgets/Views/SHeaderRow.h"
 #include "Widgets/Views/SListView.h"
 #include "Widgets/Views/STableRow.h"
@@ -112,6 +115,7 @@ TSharedPtr<SHeaderRow> FRCActionConditionalModel::GetHeaderRow()
 FRCActionConditionalModel::FRCActionConditionalModel(URCAction* InAction, const TSharedPtr<class FRCBehaviourModel> InBehaviourItem, const TSharedPtr<SRemoteControlPanel> InRemoteControlPanel)
 	: FRCActionModel(InAction, InBehaviourItem, InRemoteControlPanel)
 {
+	SAssignNew(ConditionWidget, STextBlock);
 }
 
 TSharedPtr<FRCActionConditionalModel> FRCActionConditionalModel::GetModelByActionType(URCAction* InAction, const TSharedPtr<class FRCBehaviourModel> InBehaviourItem, const TSharedPtr<SRemoteControlPanel> InRemoteControlPanel)
@@ -132,6 +136,38 @@ TSharedPtr<FRCActionConditionalModel> FRCActionConditionalModel::GetModelByActio
 	return nullptr;
 }
 
+FText FRCActionConditionalModel::CreateConditionComparandText(const URCBehaviourConditional* InBehaviour, const FRCBehaviourCondition* InCondition)
+{
+	if (!InBehaviour || !InCondition)
+	{
+		return FText::GetEmpty();
+	}
+
+	const FText ConditionText = InBehaviour->GetConditionTypeAsText(InCondition->ConditionType);
+
+	if (InCondition->ConditionType == ERCBehaviourConditionType::Else)
+	{
+		return ConditionText; // Else doesn't need to display the comparand
+	}
+
+	if (!InCondition->Comparand)
+	{
+		return FText::GetEmpty();
+	}
+
+	const FText ComparandValueText = FText::FromString(InCondition->Comparand->GetDisplayValueAsString());
+
+	return FText::Format(INVTEXT("{0} {1}"), ConditionText, ComparandValueText);
+}
+
+void FRCActionConditionalModel::UpdateConditionWidget(const FText& InNewText) const
+{
+	if (ConditionWidget.IsValid())
+	{
+		ConditionWidget->SetText(InNewText);
+	}
+}
+
 TSharedRef<SWidget> FRCActionConditionalModel::GetConditionWidget()
 {
 	if (TSharedPtr<FRCBehaviourConditionalModel> BehaviourItem = StaticCastSharedPtr<FRCBehaviourConditionalModel>(BehaviourItemWeakPtr.Pin()))
@@ -143,7 +179,8 @@ TSharedRef<SWidget> FRCActionConditionalModel::GetConditionWidget()
 				if(ensure(Condition->Comparand))
 				{
 					return SAssignNew(EditableVirtualPropertyWidget, SRCVirtualPropertyWidget, Condition->Comparand)
-						.OnGenerateWidget(this, &FRCActionConditionalModel::OnGenerateConditionWidget);
+						.OnGenerateWidget(this, &FRCActionConditionalModel::OnGenerateConditionWidget)
+						.OnExitingEditMode(this, &FRCActionConditionalModel::OnExitingEditingMode);
 				}
 			}
 		}
@@ -159,33 +196,87 @@ TSharedRef<SWidget> FRCActionConditionalModel::OnGenerateConditionWidget(URCVirt
 		return SNullWidget::NullWidget;
 	}
 
-	if (TSharedPtr<FRCBehaviourConditionalModel> BehaviourItem = StaticCastSharedPtr<FRCBehaviourConditionalModel>(BehaviourItemWeakPtr.Pin()))
+	if (const TSharedPtr<FRCBehaviourConditionalModel> BehaviourItem = StaticCastSharedPtr<FRCBehaviourConditionalModel>(BehaviourItemWeakPtr.Pin()))
 	{
 		if (URCBehaviourConditional* Behaviour = Cast<URCBehaviourConditional>(BehaviourItem->GetBehaviour()))
 		{
-			if (FRCBehaviourCondition* Condition = Behaviour->Conditions.Find(GetAction()))
+			if (const FRCBehaviourCondition* Condition = Behaviour->Conditions.Find(GetAction()))
 			{
 				const FText ConditionText = Behaviour->GetConditionTypeAsText(Condition->ConditionType);
 
-				FText ConditionComparandText;
+				FText ConditionComparandText = CreateConditionComparandText(Behaviour, Condition);
 
-				if (Condition->ConditionType == ERCBehaviourConditionType::Else)
+				UpdateConditionWidget(ConditionComparandText);
+
+				if (ConditionWidget.IsValid())
 				{
-					ConditionComparandText = ConditionText; // Else doesn't need to display the comparand
+					return ConditionWidget.ToSharedRef();
 				}
-				else
-				{
-					const FText ComparandValueText = FText::FromName(*Condition->Comparand->GetDisplayValueAsString());
-
-					ConditionComparandText = FText::Format(FText::FromName("{0} {1}"), ConditionText, ComparandValueText);
-				}
-
-				return SNew(STextBlock).Text(ConditionComparandText);
 			}
 		}
 	}
 
 	return SNullWidget::NullWidget;
+}
+
+void FRCActionConditionalModel::OnExitingEditingMode()
+{
+	if (const TSharedPtr<FRCBehaviourConditionalModel> BehaviourItem = StaticCastSharedPtr<FRCBehaviourConditionalModel>(BehaviourItemWeakPtr.Pin()))
+	{
+		if (URCBehaviourConditional* Behaviour = Cast<URCBehaviourConditional>(BehaviourItem->GetBehaviour()))
+		{
+			if (const FRCBehaviourCondition* Condition = Behaviour->Conditions.Find(GetAction()))
+			{
+				const FText ConditionText = Behaviour->GetConditionTypeAsText(Condition->ConditionType);
+
+				const FText ConditionComparandText = CreateConditionComparandText(Behaviour, Condition);
+
+				UpdateSelectedConditionalActionModel(Condition, ConditionComparandText);
+			}
+		}
+	}
+}
+
+void FRCActionConditionalModel::UpdateSelectedConditionalActionModel(const FRCBehaviourCondition* InConditionToCopy, const FText& InNewConditionText) const
+{
+	if (!InConditionToCopy || !InConditionToCopy->Comparand)
+	{
+		return;
+	}
+
+	// Update other selected action based on the edited one
+	if (const TSharedPtr<SRemoteControlPanel> RCPanel = GetRemoteControlPanel())
+    {
+    	if (const TSharedPtr<SRCActionPanel> LogicPanel = RCPanel->GetLogicActionPanel())
+    	{
+    		const TArray<TSharedPtr<FRCLogicModeBase>> SelectedLogicItems = LogicPanel->GetSelectedLogicItems();
+
+    		// If the selected items don't contain this one then skip it
+    		if (SelectedLogicItems.Contains(SharedThis(this)))
+    		{
+    			for (const TSharedPtr<FRCLogicModeBase>& SelectedLogicItem : SelectedLogicItems)
+    			{
+    				if (const TSharedPtr<FRCActionConditionalModel> SelectedConditionalActionModel = StaticCastSharedPtr<FRCActionConditionalModel>(SelectedLogicItem))
+    				{
+    					if (const TSharedPtr<FRCBehaviourModel> SelectedBehaviourModel = SelectedConditionalActionModel->GetParentBehaviour())
+    					{
+    						if (URCBehaviourConditional* SelectedBehaviour = Cast<URCBehaviourConditional>(SelectedBehaviourModel->GetBehaviour()))
+    						{
+    							if (const FRCBehaviourCondition* SelectedCondition = SelectedBehaviour->Conditions.Find(SelectedConditionalActionModel->GetAction()))
+    							{
+    								if (SelectedCondition->Comparand)
+    								{
+    									SelectedCondition->Comparand->UpdateValueWithProperty(InConditionToCopy->Comparand);
+    									SelectedConditionalActionModel->UpdateConditionWidget(InNewConditionText);
+    								}
+    							}
+    						}
+    					}
+    				}
+    			}
+    		}
+    	}
+    }
 }
 
 TSharedRef<ITableRow> FRCActionConditionalModel::OnGenerateWidgetForList(TSharedPtr<FRCActionConditionalModel> InItem, const TSharedRef<STableViewBase>& OwnerTable)

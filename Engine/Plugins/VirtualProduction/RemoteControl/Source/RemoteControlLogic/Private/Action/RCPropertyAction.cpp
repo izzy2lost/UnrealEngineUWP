@@ -1,4 +1,4 @@
-﻿// Copyright Epic Games, Inc. All Rights Reserved.
+// Copyright Epic Games, Inc. All Rights Reserved.
 
 #include "Action/RCPropertyAction.h"
 
@@ -20,7 +20,7 @@ URCPropertyAction::URCPropertyAction()
 	PropertySelfContainer = CreateDefaultSubobject<URCVirtualPropertySelfContainer>(FName("VirtualPropertySelfContainer"));
 }
 
-URCBehaviour* URCAction::GetParentBehaviour()
+URCBehaviour* URCAction::GetParentBehaviour() const
 {
 	URCActionContainer* ActionContainer = Cast<URCActionContainer>(GetOuter());
 	if (ensure(ActionContainer))

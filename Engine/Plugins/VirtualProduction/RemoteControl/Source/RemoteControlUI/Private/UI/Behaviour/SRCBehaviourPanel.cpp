@@ -1,4 +1,4 @@
-﻿// Copyright Epic Games, Inc. All Rights Reserved.
+// Copyright Epic Games, Inc. All Rights Reserved.
 
 #include "SRCBehaviourPanel.h"
 #include "SRCBehaviourPanelList.h"
@@ -219,9 +219,9 @@ bool SRCBehaviourPanel::IsListFocused() const
 	return BehaviourPanelList.IsValid() && BehaviourPanelList->IsListFocused();
 }
 
-void SRCBehaviourPanel::DeleteSelectedPanelItem()
+void SRCBehaviourPanel::DeleteSelectedPanelItems()
 {
-	BehaviourPanelList->DeleteSelectedPanelItem();
+	BehaviourPanelList->DeleteSelectedPanelItems();
 }
 
 void SRCBehaviourPanel::DuplicateBehaviour(URCBehaviour* InBehaviour)
@@ -234,74 +234,103 @@ void SRCBehaviourPanel::DuplicateBehaviour(URCBehaviour* InBehaviour)
 	}
 }
 
-void SRCBehaviourPanel::DuplicateSelectedPanelItem()
+void SRCBehaviourPanel::DuplicateSelectedPanelItems()
 {
 	FScopedTransaction Transaction(LOCTEXT("DuplicateBehaviour", "Duplicate Behaviour"));
 
-	if (TSharedPtr<FRCBehaviourModel> SelectedBehaviourItem = BehaviourPanelList->GetSelectedBehaviourItem())
+	for (const TSharedPtr<FRCLogicModeBase>& LogicItem : GetSelectedLogicItems())
 	{
-		DuplicateBehaviour(SelectedBehaviourItem->GetBehaviour());
-	}
-}
-
-void SRCBehaviourPanel::CopySelectedPanelItem()
-{
-	if (TSharedPtr<SRemoteControlPanel> RemoteControlPanel = GetRemoteControlPanel())
-	{
-		if (TSharedPtr<FRCBehaviourModel> SelectedBehaviourItem = BehaviourPanelList->GetSelectedBehaviourItem())
+		if (const TSharedPtr<FRCBehaviourModel>& BehaviourItem = StaticCastSharedPtr<FRCBehaviourModel>(LogicItem))
 		{
-			RemoteControlPanel->SetLogicClipboardItem(SelectedBehaviourItem->GetBehaviour(), SharedThis(this));
+			DuplicateBehaviour(BehaviourItem->GetBehaviour());
 		}
 	}
 }
 
-void SRCBehaviourPanel::PasteItemFromClipboard()
+void SRCBehaviourPanel::CopySelectedPanelItems()
+{
+	if (const TSharedPtr<SRemoteControlPanel>& RemoteControlPanel = GetRemoteControlPanel())
+	{
+		TArray<UObject*> ItemsToCopy;
+		const TArray<TSharedPtr<FRCLogicModeBase>> LogicItems = GetSelectedLogicItems();
+		ItemsToCopy.Reserve(LogicItems.Num());
+
+		for (const TSharedPtr<FRCLogicModeBase>& LogicItem : LogicItems)
+		{
+			if (const TSharedPtr<FRCBehaviourModel>& SelectedBehaviourItem = StaticCastSharedPtr<FRCBehaviourModel>(LogicItem))
+			{
+				ItemsToCopy.Add(SelectedBehaviourItem->GetBehaviour());
+			}
+		}
+
+		RemoteControlPanel->SetLogicClipboardItems(ItemsToCopy, SharedThis(this));
+	}
+}
+
+void SRCBehaviourPanel::PasteItemsFromClipboard()
 {
 	FScopedTransaction Transaction(LOCTEXT("PasteBehaviour", "Paste Behaviour"));
 
-	if (TSharedPtr<SRemoteControlPanel> RemoteControlPanel = GetRemoteControlPanel())
+	if (const TSharedPtr<SRemoteControlPanel>& RemoteControlPanel = GetRemoteControlPanel())
 	{
 		if (RemoteControlPanel->LogicClipboardItemSource == SharedThis(this))
 		{
-			if(URCBehaviour* Behaviour = Cast<URCBehaviour>(RemoteControlPanel->GetLogicClipboardItem()))
+			for (UObject* LogicItem : RemoteControlPanel->GetLogicClipboardItems())
 			{
-				DuplicateBehaviour(Behaviour);
+				if(URCBehaviour* Behaviour = Cast<URCBehaviour>(LogicItem))
+				{
+					DuplicateBehaviour(Behaviour);
+				}
 			}
 		}
 	}
 }
 
-bool SRCBehaviourPanel::CanPasteClipboardItem(UObject* InLogicClipboardItem)
+bool SRCBehaviourPanel::CanPasteClipboardItems(const TArrayView<const TObjectPtr<UObject>> InLogicClipboardItems) const
 {
-	URCBehaviour* LogicClipboardBehaviour = Cast<URCBehaviour>(InLogicClipboardItem);
-
-	URCController* ControllerSource = LogicClipboardBehaviour->ControllerWeakPtr.Get();
-	if (!ControllerSource)
+	for (const UObject* LogicClipboardItem : InLogicClipboardItems)
 	{
-		return false;
+		const URCBehaviour* LogicClipboardBehaviour = Cast<URCBehaviour>(LogicClipboardItem);
+
+		const URCController* ControllerSource = LogicClipboardBehaviour->ControllerWeakPtr.Get();
+		if (!ControllerSource)
+		{
+			return false;
+		}
+
+		const URCController* ControllerTarget = GetParentController();
+		if (!ControllerTarget)
+		{
+			return false;
+		}
+
+		// Copy-Paste is only permitted between Controllers of the same type
+		//
+		return ControllerSource->GetValueType() == ControllerTarget->GetValueType();
 	}
 
-	URCController* ControllerTarget = GetParentController();
-	if (!ControllerTarget)
-	{
-		return false;
-	}
-
-	// Copy-Paste is only permitted between Controllers of the same type
-	//
-	return ControllerSource->GetValueType() == ControllerTarget->GetValueType();
+	return false;
 }
 
 FText SRCBehaviourPanel::GetPasteItemMenuEntrySuffix()
 {
-	if (TSharedPtr<SRemoteControlPanel> RemoteControlPanel = GetRemoteControlPanel())
+	if (const TSharedPtr<SRemoteControlPanel>& RemoteControlPanel = GetRemoteControlPanel())
 	{
 		// This function should only have been called if we were the source of the item copied.
 		if (ensure(RemoteControlPanel->LogicClipboardItemSource == SharedThis(this)))
 		{
-			if (URCBehaviour* Behaviour = Cast<URCBehaviour>(RemoteControlPanel->GetLogicClipboardItem()))
+			TArray<UObject*> LogicClipboardItems = RemoteControlPanel->GetLogicClipboardItems();
+
+			if (LogicClipboardItems.Num() > 0)
 			{
-				return FText::Format(FText::FromString("Behaviour {0}"), Behaviour->GetDisplayName());
+				if (URCBehaviour* Behaviour = Cast<URCBehaviour>(LogicClipboardItems[0]))
+				{
+					if (LogicClipboardItems.Num() > 1)
+					{
+						return FText::Format(LOCTEXT("BehaviourPanelPasteMenuMultiEntrySuffix", "Behaviour {0} and {1} other(s)"), Behaviour->GetDisplayName(), (LogicClipboardItems.Num() - 1));
+					}
+					return FText::Format(LOCTEXT("BehaviourPanelPasteMenuEntrySuffix", "Behaviour {0}"), Behaviour->GetDisplayName());
+				}
 			}
 		}
 	}
@@ -309,19 +338,19 @@ FText SRCBehaviourPanel::GetPasteItemMenuEntrySuffix()
 	return FText::GetEmpty();
 }
 
-TSharedPtr<FRCLogicModeBase> SRCBehaviourPanel::GetSelectedLogicItem()
+TArray<TSharedPtr<FRCLogicModeBase>> SRCBehaviourPanel::GetSelectedLogicItems() const
 {
 	if (BehaviourPanelList)
 	{
-		return BehaviourPanelList->GetSelectedBehaviourItem();
+		return BehaviourPanelList->GetSelectedLogicItems();
 	}
 
-	return nullptr;
+	return {};
 }
 
-URCController* SRCBehaviourPanel::GetParentController()
+URCController* SRCBehaviourPanel::GetParentController() const
 {
-	if (TSharedPtr<FRCControllerModel> ControllerItem = SelectedControllerItemWeakPtr.Pin())
+	if (const TSharedPtr<FRCControllerModel> ControllerItem = SelectedControllerItemWeakPtr.Pin())
 	{
 		return Cast<URCController>(ControllerItem->GetVirtualProperty());
 	}
@@ -342,7 +371,7 @@ FReply SRCBehaviourPanel::RequestDeleteSelectedItem()
 
 	if (UserResponse == EAppReturnType::Yes)
 	{
-		DeleteSelectedPanelItem();
+		DeleteSelectedPanelItems();
 	}
 
 	return FReply::Handled();

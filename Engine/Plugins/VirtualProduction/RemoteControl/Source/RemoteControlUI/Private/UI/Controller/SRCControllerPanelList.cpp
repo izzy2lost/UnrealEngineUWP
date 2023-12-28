@@ -1,4 +1,4 @@
-﻿// Copyright Epic Games, Inc. All Rights Reserved.
+// Copyright Epic Games, Inc. All Rights Reserved.
 
 #include "SRCControllerPanelList.h"
 
@@ -732,9 +732,19 @@ bool SRCControllerPanelList::IsListFocused() const
 	return ListView->HasAnyUserFocus().IsSet() || ContextMenuWidgetCached.IsValid();
 }
 
-void SRCControllerPanelList::DeleteSelectedPanelItem()
+void SRCControllerPanelList::DeleteSelectedPanelItems()
 {
-	DeleteItemFromLogicPanel<FRCControllerModel>(ControllerItems, ListView->GetSelectedItems());
+	DeleteItemsFromLogicPanel<FRCControllerModel>(ControllerItems, ListView->GetSelectedItems());
+}
+
+TArray<TSharedPtr<FRCLogicModeBase>> SRCControllerPanelList::GetSelectedLogicItems()
+{
+	// Controllers don't support multi selection
+	if (const TSharedPtr<FRCLogicModeBase> SelectedControllerItemPtr = SelectedControllerItemWeakPtr.Pin())
+	{
+		return { SelectedControllerItemPtr };
+	}
+	return TArray<TSharedPtr<FRCLogicModeBase>>();
 }
 
 void SRCControllerPanelList::NotifyPreChange(FEditPropertyChain* PropertyAboutToChange)

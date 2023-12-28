@@ -100,6 +100,11 @@ TSharedRef<SBox> SRemoteControlPanel::CreateNoneSelectedWidget()
 		];
 }
 
+void SRemoteControlPanel::AddReferencedObjects(FReferenceCollector& Collector)
+{
+	Collector.AddReferencedObjects(LogicClipboardItems);
+}
+
 namespace RemoteControlPanelUtils
 {
 	bool IsExposableActor(AActor* Actor)
@@ -2466,9 +2471,9 @@ bool SRemoteControlPanel::CanDeleteEntity() const
 		return false;
 	}
 
-	if (TSharedPtr<SRCLogicPanelBase> ActiveLogicPanel = GetActiveLogicPanel())
+	if (const TSharedPtr<SRCLogicPanelBase> ActiveLogicPanel = GetActiveLogicPanel())
 	{
-		return ActiveLogicPanel->GetSelectedLogicItem() != nullptr; // User has focus on a logic panel
+		return !ActiveLogicPanel->GetSelectedLogicItems().IsEmpty(); // User has focus on a logic panel
 	}
 
 	if (LastSelectedEntity.IsValid() && Preset.IsValid())
@@ -2488,7 +2493,8 @@ void SRemoteControlPanel::RenameEntity_Execute() const
 		return;
 	}
 
-	if (LastSelectedEntity->GetRCType() == SRCPanelTreeNode::FieldChild) // Field Child does not contain entity ID, that is why it should not be processed
+	if (LastSelectedEntity->GetRCType() == SRCPanelTreeNode::FieldChild ||
+		LastSelectedEntity->GetRCType() == SRCPanelTreeNode::FieldGroup) // Field Child/Group does not contain entity ID, that is why it should not be processed
 	{
 		return;
 	}
@@ -2517,17 +2523,17 @@ bool SRemoteControlPanel::CanRenameEntity() const
 	return false;
 }
 
-void SRemoteControlPanel::SetLogicClipboardItem(UObject* InItem, TSharedPtr<SRCLogicPanelBase> InSourcePanel)
+void SRemoteControlPanel::SetLogicClipboardItems(const TArray<UObject*>& InItems, const TSharedPtr<SRCLogicPanelBase>& InSourcePanel)
 {
-	LogicClipboardItem = InItem;
+	LogicClipboardItems = InItems;
 	LogicClipboardItemSource = InSourcePanel;
 }
 
 void SRemoteControlPanel::CopyItem_Execute()
 {
-	if (TSharedPtr<SRCLogicPanelBase> ActiveLogicPanel = GetActiveLogicPanel())
+	if (const TSharedPtr<SRCLogicPanelBase> ActiveLogicPanel = GetActiveLogicPanel())
 	{
-		ActiveLogicPanel->CopySelectedPanelItem();
+		ActiveLogicPanel->CopySelectedPanelItems();
 	}
 }
 
@@ -2538,9 +2544,9 @@ bool SRemoteControlPanel::CanCopyItem() const
 		return false;
 	}
 
-	if (TSharedPtr<SRCLogicPanelBase> ActiveLogicPanel = GetActiveLogicPanel())
+	if (const TSharedPtr<SRCLogicPanelBase> ActiveLogicPanel = GetActiveLogicPanel())
 	{
-		return ActiveLogicPanel->GetSelectedLogicItem().IsValid();
+		return !ActiveLogicPanel->GetSelectedLogicItems().IsEmpty();
 	}
 
 	return false;
@@ -2548,9 +2554,9 @@ bool SRemoteControlPanel::CanCopyItem() const
 
 void SRemoteControlPanel::PasteItem_Execute()
 {
-	if (TSharedPtr<SRCLogicPanelBase> ActiveLogicPanel = GetActiveLogicPanel())
+	if (const TSharedPtr<SRCLogicPanelBase> ActiveLogicPanel = GetActiveLogicPanel())
 	{
-		ActiveLogicPanel->PasteItemFromClipboard();
+		ActiveLogicPanel->PasteItemsFromClipboard();
 	}
 }
 
@@ -2561,14 +2567,14 @@ bool SRemoteControlPanel::CanPasteItem() const
 		return false;
 	}
 
-	if(LogicClipboardItem)
+	if(!LogicClipboardItems.IsEmpty())
 	{
-		if (TSharedPtr<SRCLogicPanelBase> ActiveLogicPanel = GetActiveLogicPanel())
+		if (const TSharedPtr<SRCLogicPanelBase>& ActiveLogicPanel = GetActiveLogicPanel())
 		{
 			// Currently we only support pasting items between panels of exactly the same type.
 			if (LogicClipboardItemSource == ActiveLogicPanel)
 			{
-				return ActiveLogicPanel->CanPasteClipboardItem(LogicClipboardItem);
+				return ActiveLogicPanel->CanPasteClipboardItems(LogicClipboardItems);
 			}
 		}
 	}
@@ -2578,9 +2584,9 @@ bool SRemoteControlPanel::CanPasteItem() const
 
 void SRemoteControlPanel::DuplicateItem_Execute()
 {
-	if (TSharedPtr<SRCLogicPanelBase> ActiveLogicPanel = GetActiveLogicPanel())
+	if (const TSharedPtr<SRCLogicPanelBase>& ActiveLogicPanel = GetActiveLogicPanel())
 	{
-		ActiveLogicPanel->DuplicateSelectedPanelItem();
+		ActiveLogicPanel->DuplicateSelectedPanelItems();
 
 		return;
 	}
@@ -2593,9 +2599,9 @@ bool SRemoteControlPanel::CanDuplicateItem() const
 		return false;
 	}
 
-	if (TSharedPtr<SRCLogicPanelBase> ActiveLogicPanel = GetActiveLogicPanel())
+	if (const TSharedPtr<SRCLogicPanelBase>& ActiveLogicPanel = GetActiveLogicPanel())
 	{
-		return ActiveLogicPanel->GetSelectedLogicItem().IsValid();
+		return !ActiveLogicPanel->GetSelectedLogicItems().IsEmpty();
 	}
 
 	return false;
@@ -2603,15 +2609,9 @@ bool SRemoteControlPanel::CanDuplicateItem() const
 
 void SRemoteControlPanel::UpdateValue_Execute()
 {
-	if (const TSharedPtr<SRCLogicPanelBase> ActiveLogicPanel = GetActiveLogicPanel())
+	if (const TSharedPtr<SRCLogicPanelBase>& ActiveLogicPanel = GetActiveLogicPanel())
 	{
-		if (const TSharedPtr<FRCActionModel> RCActionLogicItem = StaticCastSharedPtr<FRCActionModel>(ActiveLogicPanel->GetSelectedLogicItem()))
-		{
-			if (const URCPropertyAction* RCPropertyAction = Cast<URCPropertyAction>(RCActionLogicItem->GetAction()))
-			{
-				RCPropertyAction->UpdateValueBasedOnRCProperty();
-			}
-		}
+		ActiveLogicPanel->UpdateValue();
 	}
 }
 
@@ -2624,22 +2624,7 @@ bool SRemoteControlPanel::CanUpdateValue() const
 	
 	if (const TSharedPtr<SRCLogicPanelBase> ActiveLogicPanel = GetActiveLogicPanel())
 	{
-		if (const TSharedPtr<FRCActionModel> RCActionLogicItem = StaticCastSharedPtr<FRCActionModel>(ActiveLogicPanel->GetSelectedLogicItem()))
-		{
-			if (const URemoteControlPreset* RCPreset = GetPreset())
-			{
-				if (const URCAction* RCAction = RCActionLogicItem->GetAction())
-				{
-					if (const TSharedPtr<FRCBehaviourModel> ParentBehaviour = RCActionLogicItem->GetParentBehaviour())
-					{
-						if (const URCBehaviour* Behaviour = ParentBehaviour->GetBehaviour())
-						{
-							return RCAction->IsA<URCPropertyAction>() && !Behaviour->IsA<URCBehaviourBind>() && RCPreset->GetExposedEntity(RCAction->ExposedFieldId).IsValid();
-						}
-					}
-				}
-			}
-		}
+		return ActiveLogicPanel->CanUpdateValue();
 	}
 
 	return false;

@@ -3,13 +3,16 @@
 #pragma once
 
 #include "Action/RCFunctionAction.h"
-#include "Action/RCPropertyIdAction.h"
 #include "Action/RCPropertyAction.h"
+#include "Action/RCPropertyIdAction.h"
 #include "UI/Action/RCActionModel.h"
 
+struct FRCBehaviourCondition;
 class SActionItemListRow;
 class SBox;
 class SRCVirtualPropertyWidget;
+class STextBlock;
+class URCBehaviourConditional;
 
 /* 
 * ~ FRCActionConditionalModel ~
@@ -41,7 +44,23 @@ public:
 	static TSharedPtr<FRCActionConditionalModel> GetModelByActionType(URCAction* InAction, const TSharedPtr<class FRCBehaviourModel> InBehaviourItem, const TSharedPtr<SRemoteControlPanel> InRemoteControlPanel);
 
 private:
+	/** Create the text to be assigned to the ConditionWidget */
+	FText CreateConditionComparandText(const URCBehaviourConditional* InBehaviour, const FRCBehaviourCondition* InCondition);
+
+	/** Update the condition widget text with the new text given */
+	void UpdateConditionWidget(const FText& InNewText) const;
+
+	/** Called when constructing the widget or after editing the condition value */
 	TSharedRef<SWidget> OnGenerateConditionWidget(class URCVirtualPropertySelfContainer* InComparand);
+
+	/** Called when exiting edit mode to update other selected actions */
+	void OnExitingEditingMode();
+
+	/** Called when updating the condition to update every other actions currently selected with the new condition */
+	void UpdateSelectedConditionalActionModel(const FRCBehaviourCondition* InConditionToCopy, const FText& InNewConditionText) const;
+
+	/** Holding the widget that display the condition as text */
+	TSharedPtr<STextBlock> ConditionWidget;
 };
 
 /*

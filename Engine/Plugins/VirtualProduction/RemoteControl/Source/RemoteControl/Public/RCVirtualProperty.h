@@ -416,6 +416,15 @@ public:
  	 */
 	bool UpdateValueWithProperty(const FProperty* InProperty, const void* InPropertyContainer);
 
+	/**
+  	* Update property bag value using URCVirtualPropertyBase passed.
+  	*
+  	* @param InVirtualProperty Virtual Property to update from
+  	*
+  	* @return true if value copied successfully
+  	*/
+	bool UpdateValueWithProperty(const URCVirtualPropertyBase* InVirtualProperty);
+
 	/** Resets the property bag instance to empty and remove Virtual Property data */
 	void Reset();
 

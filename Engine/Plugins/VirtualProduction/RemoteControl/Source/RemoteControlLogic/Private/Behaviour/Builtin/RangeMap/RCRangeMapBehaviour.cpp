@@ -1,4 +1,4 @@
-﻿// Copyright Epic Games, Inc. All Rights Reserved.
+// Copyright Epic Games, Inc. All Rights Reserved.
 
 #include "Behaviour/Builtin/RangeMap/RCRangeMapBehaviour.h"
 
@@ -131,6 +131,15 @@ bool URCRangeMapBehaviour::GetNearestActionByThreshold(TTuple<URCAction*, bool>&
 	}
 	
 	return true;
+}
+
+bool FRCRangeMapInput::SetInputValue(double InValue) const
+{
+	if (InputProperty)
+	{
+		return InputProperty->SetValueDouble(InValue);
+	}
+	return false;
 }
 
 bool FRCRangeMapInput::GetInputValue(double& OutValue) const

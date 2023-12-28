@@ -1,4 +1,4 @@
-﻿// Copyright Epic Games, Inc. All Rights Reserved.
+// Copyright Epic Games, Inc. All Rights Reserved.
 
 #pragma once
 
@@ -30,6 +30,9 @@ struct REMOTECONTROLLOGIC_API FRCRangeMapInput
 
 	/** Returns the Step value from the virtual property, safely*/
 	bool GetInputValue(double& OutValue) const;
+
+	/** Set the Step value for the virtual property, return true if successful */
+	bool SetInputValue(double InValue) const;
 };
 
 /**

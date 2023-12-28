@@ -64,6 +64,7 @@ public:
 
 		ListView = SNew(SListView<TSharedPtr<ActionType>>)
 			.ListItemsSource(&ActionItems)
+			.SelectionMode(ESelectionMode::Multi)
 			.HeaderRow(ActionType::GetHeaderRow())
 			.OnGenerateRow(this, &SRCActionPanelList::OnGenerateWidgetForList)
 			.OnSelectionChanged(this, &SRCActionPanelList::OnSelectionChanged)
@@ -130,37 +131,51 @@ public:
 		return ActionItems.Num();
 	}
 
-	/** The number of Controllers currently selected*/
+	/** The number of Controllers currently selected */
 	virtual int32 NumSelectedLogicItems() const override
 	{
 		return ListView->GetNumItemsSelected();
 	}
 
-	/** Whether the Actions List View currently has focus.*/
+	/** Whether the Actions List View currently has focus. */
 	virtual bool IsListFocused() const override
 	{
 		return ListView->HasAnyUserFocus().IsSet() || ContextMenuWidgetCached.IsValid();
 	}
 
-	/** Deletes currently selected items from the list view*/
-	virtual void DeleteSelectedPanelItem() override
+	/** Deletes currently selected items from the list view */
+	virtual void DeleteSelectedPanelItems() override
 	{
-		DeleteItemFromLogicPanel<ActionType>(ActionItems, ListView->GetSelectedItems());
+		DeleteItemsFromLogicPanel<ActionType>(ActionItems, ListView->GetSelectedItems());
 	}
 
-	/** Returns the UI item currently selected by the user (if any)*/
-	virtual TSharedPtr<FRCLogicModeBase> GetSelectedLogicItem() override
+	/** Returns the UI items currently selected by the user (if any). */
+	virtual TArray<TSharedPtr<FRCLogicModeBase>> GetSelectedLogicItems() override
 	{
-		return GetSelectedActionItem();
+		TArray<TSharedPtr<FRCLogicModeBase>> SelectedValidLogicItems;
+		if (ListView.IsValid())
+		{
+			TArray<TSharedPtr<ActionType>> AllSelectedLogicItems = ListView->GetSelectedItems();
+			SelectedValidLogicItems.Reserve(AllSelectedLogicItems.Num());
+
+			for (const TSharedPtr<ActionType>& LogicItem : AllSelectedLogicItems)
+			{
+				if (LogicItem.IsValid())
+				{
+					SelectedValidLogicItems.Add(LogicItem);
+				}
+			}
+		}
+		return SelectedValidLogicItems;
 	}
 
-	/** The currently selected Action item*/
+	/** The currently selected Action item */
 	TSharedPtr<FRCActionModel> GetSelectedActionItem()
 	{
 		return SelectedActionItem;
 	}
 
-	/** Fetches the parent Action panel*/
+	/** Fetches the parent Action panel */
 	TSharedPtr<SRCActionPanel> GetActionPanel()
 	{
 		return ActionPanelWeakPtr.Pin();
@@ -172,7 +187,7 @@ public:
 		return BehaviourItemWeakPtr.Pin();
 	}
 
-	/** Adds an Action by Remote Control Field Guid*/
+	/** Adds an Action by Remote Control Field Guid */
 	URCAction* AddAction(const FGuid& InRemoteControlFieldId)
 	{
 		if (const URemoteControlPreset* Preset = GetPreset())
@@ -236,7 +251,7 @@ public:
 
 private:
 
-	/** OnGenerateRow delegate for the Actions List View*/
+	/** OnGenerateRow delegate for the Actions List View */
 	TSharedRef<ITableRow> OnGenerateWidgetForList( TSharedPtr<ActionType> InItem, const TSharedRef<STableViewBase>& OwnerTable )
 	{
 		if (ensure(InItem))
@@ -250,7 +265,7 @@ private:
 			];
 	}
 
-	/** Responds to the selection of a newly created action. Resets UI state*/
+	/** Responds to the selection of a newly created action. Resets UI state */
 	void OnActionAdded(URCAction* InAction)
 	{
 		// Historical note: Previously we used to call Reset here after adding an Action
@@ -258,13 +273,13 @@ private:
 		// @todo: This improvement needs to be done for "Remove Action" as well.
 	}
 
-	/** Responds to the removal of all actions. Rests UI state*/
+	/** Responds to the removal of all actions. Rests UI state */
 	void OnEmptyActions()
 	{
 		Reset();
 	}
 
-	/** Refreshes the list from the latest state of the data model*/
+	/** Refreshes the list from the latest state of the data model */
 	virtual void Reset() override
 	{
 		ActionItems.Empty();
@@ -289,7 +304,7 @@ private:
 		ListView->RebuildList();
 	}
 
-	/** Handles broadcasting of a successful remove item operation.*/
+	/** Handles broadcasting of a successful remove item operation. */
 	virtual void BroadcastOnItemRemoved() override {}
 
 	/** Fetches the Remote Control preset associated with the parent panel */
@@ -303,7 +318,7 @@ private:
 		return nullptr;
 	}
 
-	/** Removes the given Action UI model item from the list of UI models*/
+	/** Removes the given Action UI model item from the list of UI models */
 	virtual int32 RemoveModel(const TSharedPtr<FRCLogicModeBase> InModel) override
 	{
 		if (const TSharedPtr<FRCBehaviourModel> BehaviourModel = BehaviourItemWeakPtr.Pin())
@@ -447,19 +462,19 @@ private:
 
 private:
 
-	/** The currently selected Action item*/
+	/** The currently selected Action item */
 	TSharedPtr<FRCActionModel> SelectedActionItem;
 
-	/** The parent Action Panel widget*/
+	/** The parent Action Panel widget */
 	TWeakPtr<SRCActionPanel> ActionPanelWeakPtr;
 
-	/** The Behaviour (UI model) associated with us*/
+	/** The Behaviour (UI model) associated with us */
 	TWeakPtr<FRCBehaviourModel> BehaviourItemWeakPtr;
 
 	/** List of Actions (UI model) active in this widget */
 	TArray<TSharedPtr<ActionType>> ActionItems;
 
-	/** List View widget for representing our Actions List*/
+	/** List View widget for representing our Actions List */
 	TSharedPtr<SListView<TSharedPtr<ActionType>>> ListView;
 
 	/** Panel Style reference. */

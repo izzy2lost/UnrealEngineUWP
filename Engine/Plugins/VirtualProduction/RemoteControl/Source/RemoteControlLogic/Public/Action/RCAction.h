@@ -1,4 +1,4 @@
-﻿// Copyright Epic Games, Inc. All Rights Reserved.
+// Copyright Epic Games, Inc. All Rights Reserved.
 
 #pragma once
 
@@ -25,7 +25,7 @@ public:
 	virtual void CopyTo(URCAction* Action) {}
 
 	/** Returns the parent Behaviour associated with this Action */
-	URCBehaviour* GetParentBehaviour();
+	URCBehaviour* GetParentBehaviour() const;
 
 public:
 	/** Exposed Property or Function field Id*/

@@ -7,6 +7,8 @@
 #include "Action/RCPropertyAction.h"
 #include "UI/Action/RCActionModel.h"
 
+class STextBlock;
+
 /*
  * ~ FRCActionRangeMapModel ~
  *
@@ -35,7 +37,20 @@ public:
 	static TSharedPtr<FRCActionRangeMapModel> GetModelByActionType(URCAction* InAction, const TSharedPtr<class FRCBehaviourModel> InBehaviourItem, const TSharedPtr<SRemoteControlPanel> InRemoteControlPanel);
 
 private:
+	/** Update the condition widget text with the new text given */
+	void UpdateConditionWidget(const FText& InNewText) const;
+
+	/** Called when updating the condition to update every other actions currently selected with the new condition */
+	void UpdateSelectedRangeMapActionModel(double InNewValue, const FText& InNewConditionText) const;
+
+	/** Called when constructing the widget or after editing the condition value */
 	TSharedRef<SWidget> OnGenerateInputWidget(class URCVirtualPropertySelfContainer* InComparand) const;
+
+	/** Called when exiting edit mode to update other selected actions */
+	void OnExitingEditingMode() const;
+
+	/** Holding the widget that display the condition as text */
+	TSharedPtr<STextBlock> ConditionWidget;
 };
 
 /*

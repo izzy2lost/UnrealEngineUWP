@@ -1,4 +1,4 @@
-﻿// Copyright Epic Games, Inc. All Rights Reserved.
+// Copyright Epic Games, Inc. All Rights Reserved.
 
 #include "SRCBehaviourPanelList.h"
 
@@ -101,33 +101,35 @@ void SRCBehaviourPanelList::AddNewLogicItem(UObject* InLogicItem)
 
 void SRCBehaviourPanelList::AddSpecialContextMenuOptions(FMenuBuilder& MenuBuilder)
 {
-	if (TSharedPtr<FRCBehaviourModel> BehaviourItem = GetSelectedBehaviourItem())
-	{
-		const bool bIsEnabled = BehaviourItem->IsBehaviourEnabled();
+	const FUIAction EnableAction(FExecuteAction::CreateSP(this, &SRCBehaviourPanelList::SetIsBehaviourEnabled, true));
+	const FUIAction DisableAction(FExecuteAction::CreateSP(this, &SRCBehaviourPanelList::SetIsBehaviourEnabled, false));
 
-		FUIAction Action(FExecuteAction::CreateSP(this, &SRCBehaviourPanelList::SetIsBehaviourEnabled, !bIsEnabled));
+	static const FText EnableLabel = LOCTEXT("LabelEnableBehaviour", "Enable");
+	static const FText EnableTooltip = LOCTEXT("TooltipEnableBehaviour", "Enables the current behaviours. Restores functioning of Actions associated with these behaviours.");
+	static const FText DisableLabel = LOCTEXT("LabelDisableBehaviour", "Disable");
+	static const FText DisableTooltip = LOCTEXT("TooltipDisableBehaviour", "Disables the current behaviours. Actions will not be processed for these behaviours when the Controller value changes");
 
-		FText Label, Tooltip;
-		if (bIsEnabled)
-		{
-			Label = LOCTEXT("LabelDisableBehaviour", "Disable");
-			Tooltip = LOCTEXT("TooltipDisableBehaviour", "Disables the current behaviour. Actions will not be processed for this behaviour when the Controller value changes");
-		}
-		else
-		{
-			Label = LOCTEXT("LabelEnableBehaviour", "Enable");
-			Tooltip = LOCTEXT("TooltipEnableBehaviour", "Enables the current behaviour. Restores functioning of Actions associated with this behaviour.");
-		}
-
-		MenuBuilder.AddMenuEntry(Label, Tooltip, FSlateIcon(), Action);
-	}
+	MenuBuilder.AddMenuEntry(EnableLabel, EnableTooltip, FSlateIcon(), EnableAction);
+	MenuBuilder.AddMenuEntry(DisableLabel, DisableTooltip, FSlateIcon(), DisableAction);
 }
 
 void SRCBehaviourPanelList::SetIsBehaviourEnabled(const bool bIsEnabled)
 {
-	if (TSharedPtr<SRemoteControlPanel> RemoteControlPanel = GetRemoteControlPanel())
+	// Disable all selected behaviour here
+	for (const TSharedPtr<FRCLogicModeBase>& LogicItem : GetSelectedLogicItems())
 	{
-		if (TSharedPtr<SRCActionPanel> ActionPanel = RemoteControlPanel->GetLogicActionPanel())
+		if (const TSharedPtr<FRCBehaviourModel>& BehaviourModel = StaticCastSharedPtr<FRCBehaviourModel>(LogicItem))
+		{
+			BehaviourModel->SetIsBehaviourEnabled(bIsEnabled);
+		}
+	}
+
+	// Disable only the ActionPanel of the currently selected behaviour.
+	// When selecting a different behaviour the ActionPanel will be re-constructed,
+	// it will get the current status of the behaviour (enabled or disabled) and will match it for the ActionPanel as well
+	if (const TSharedPtr<SRemoteControlPanel> RemoteControlPanel = GetRemoteControlPanel())
+	{
+		if (const TSharedPtr<SRCActionPanel> ActionPanel = RemoteControlPanel->GetLogicActionPanel())
 		{
 			ActionPanel->SetIsBehaviourEnabled(bIsEnabled);
 		}
@@ -278,9 +280,28 @@ bool SRCBehaviourPanelList::IsListFocused() const
 	return ListView->HasAnyUserFocus().IsSet() || ContextMenuWidgetCached.IsValid();;
 }
 
-void SRCBehaviourPanelList::DeleteSelectedPanelItem()
+void SRCBehaviourPanelList::DeleteSelectedPanelItems()
 {
-	DeleteItemFromLogicPanel<FRCBehaviourModel>(BehaviourItems, ListView->GetSelectedItems());
+	DeleteItemsFromLogicPanel<FRCBehaviourModel>(BehaviourItems, ListView->GetSelectedItems());
+}
+
+TArray<TSharedPtr<FRCLogicModeBase>> SRCBehaviourPanelList::GetSelectedLogicItems()
+{
+	TArray<TSharedPtr<FRCLogicModeBase>> SelectedValidLogicItems;
+	if (ListView.IsValid())
+	{
+		TArray<TSharedPtr<FRCBehaviourModel>> AllSelectedLogicItems = ListView->GetSelectedItems();
+		SelectedValidLogicItems.Reserve(AllSelectedLogicItems.Num());
+
+		for (const TSharedPtr<FRCBehaviourModel>& LogicItem : AllSelectedLogicItems)
+		{
+			if (LogicItem.IsValid())
+			{
+				SelectedValidLogicItems.Add(LogicItem);
+			}
+		}
+	}
+	return SelectedValidLogicItems;
 }
 
 void SRCBehaviourPanelList::RequestRefresh()

@@ -12,6 +12,7 @@
 #include "Action/RCPropertyAction.h"
 
 #include "Controller/RCController.h"
+#include "Behaviour/Builtin/Bind/RCBehaviourBind.h"
 #include "Behaviour/Builtin/Conditional/RCBehaviourConditional.h"
 #include "Behaviour/Builtin/RCBehaviourOnValueChangedNode.h"
 #include "Behaviour/RCBehaviour.h"
@@ -542,19 +543,19 @@ bool SRCActionPanel::IsListFocused() const
 	return ActionPanelList.IsValid() && ActionPanelList->IsListFocused();
 }
 
-void SRCActionPanel::DeleteSelectedPanelItem()
+void SRCActionPanel::DeleteSelectedPanelItems()
 {
-	ActionPanelList->DeleteSelectedPanelItem();
+	ActionPanelList->DeleteSelectedPanelItems();
 }
 
-TSharedPtr<FRCLogicModeBase> SRCActionPanel::GetSelectedLogicItem()
+TArray<TSharedPtr<FRCLogicModeBase>> SRCActionPanel::GetSelectedLogicItems() const
 {
-	if(ActionPanelList)
+	if (ActionPanelList)
 	{
-		return ActionPanelList->GetSelectedLogicItem();
+		return ActionPanelList->GetSelectedLogicItems();
 	}
 
-	return nullptr;
+	return {};
 }
 
 void SRCActionPanel::DuplicateAction(URCAction* InAction)
@@ -601,61 +602,79 @@ void SRCActionPanel::AddNewActionToList(URCAction* NewAction)
 	}
 }
 
-void SRCActionPanel::DuplicateSelectedPanelItem()
+void SRCActionPanel::DuplicateSelectedPanelItems()
 {
 	if (!ensure(ActionPanelList.IsValid()))
 	{
 		return;
 	}
 
-	if (const TSharedPtr<FRCActionModel> ActionItem = StaticCastSharedPtr<FRCActionModel>(ActionPanelList->GetSelectedLogicItem()))
+	for (const TSharedPtr<FRCLogicModeBase>& Action : GetSelectedLogicItems())
 	{
-		DuplicateAction(ActionItem->GetAction());
-	}
-}
-
-void SRCActionPanel::CopySelectedPanelItem()
-{
-	if (TSharedPtr<SRemoteControlPanel> RemoteControlPanel = GetRemoteControlPanel())
-	{
-		if (TSharedPtr<FRCActionModel> ActionItem = StaticCastSharedPtr<FRCActionModel>(ActionPanelList->GetSelectedLogicItem()))
+		if (const TSharedPtr<FRCActionModel> ActionItem = StaticCastSharedPtr<FRCActionModel>(Action))
 		{
-			RemoteControlPanel->SetLogicClipboardItem(ActionItem->GetAction(), SharedThis(this));
+			DuplicateAction(ActionItem->GetAction());
 		}
 	}
 }
 
-void SRCActionPanel::PasteItemFromClipboard()
+void SRCActionPanel::CopySelectedPanelItems()
 {
-	if (TSharedPtr<SRemoteControlPanel> RemoteControlPanel = GetRemoteControlPanel())
+	if (const TSharedPtr<SRemoteControlPanel>& RemoteControlPanel = GetRemoteControlPanel())
+	{
+		TArray<UObject*> ItemsToCopy;
+		const TArray<TSharedPtr<FRCLogicModeBase>> LogicItems = GetSelectedLogicItems();
+		ItemsToCopy.Reserve(LogicItems.Num());
+
+		for (const TSharedPtr<FRCLogicModeBase>& LogicItem : LogicItems)
+		{
+			if (const TSharedPtr<FRCActionModel> ActionItem = StaticCastSharedPtr<FRCActionModel>(LogicItem))
+			{
+				ItemsToCopy.Add(ActionItem->GetAction());
+			}
+		}
+
+		RemoteControlPanel->SetLogicClipboardItems(ItemsToCopy, SharedThis(this));
+	}
+}
+
+void SRCActionPanel::PasteItemsFromClipboard()
+{
+	if (const TSharedPtr<SRemoteControlPanel>& RemoteControlPanel = GetRemoteControlPanel())
 	{
 		if (RemoteControlPanel->LogicClipboardItemSource == SharedThis(this))
 		{
-			if(URCAction* Action = Cast<URCAction>(RemoteControlPanel->GetLogicClipboardItem()))
+			for (UObject* LogicClipboardItem : RemoteControlPanel->GetLogicClipboardItems())
 			{
-				DuplicateAction(Action);
+				if(URCAction* Action = Cast<URCAction>(LogicClipboardItem))
+				{
+					DuplicateAction(Action);
+				}
 			}
 		}
 	}
 }
 
-bool SRCActionPanel::CanPasteClipboardItem(UObject* InLogicClipboardItem)
+bool SRCActionPanel::CanPasteClipboardItems(const TArrayView<const TObjectPtr<UObject>> InLogicClipboardItems) const
 {
-	URCAction* LogicClipboardAction = Cast<URCAction>(InLogicClipboardItem);
-	if (!LogicClipboardAction)
+	for (const UObject* LogicClipboardItem : InLogicClipboardItems)
 	{
-		return false;
-	}
-
-	if (URCBehaviour* BehaviourSource = LogicClipboardAction->GetParentBehaviour())
-	{
-		if (TSharedPtr<FRCBehaviourModel> BehaviourItemTarget = SelectedBehaviourItemWeakPtr.Pin())
+		const URCAction* LogicClipboardAction = Cast<URCAction>(LogicClipboardItem);
+		if (!LogicClipboardAction)
 		{
-			if (URCBehaviour* BehaviourTarget = BehaviourItemTarget->GetBehaviour())
+			return false;
+		}
+
+		if (const URCBehaviour* BehaviourSource = LogicClipboardAction->GetParentBehaviour())
+		{
+			if (const TSharedPtr<FRCBehaviourModel>& BehaviourItemTarget = SelectedBehaviourItemWeakPtr.Pin())
 			{
-				// Copy-paste is allowed between compatible Behaviour types only
-				//
-				return BehaviourSource->GetClass() == BehaviourTarget->GetClass();
+				if (const URCBehaviour* BehaviourTarget = BehaviourItemTarget->GetBehaviour())
+				{
+					// Copy-paste is allowed between compatible Behaviour types only
+					//
+					return BehaviourSource->GetClass() == BehaviourTarget->GetClass();
+				}
 			}
 		}
 	}
@@ -663,18 +682,85 @@ bool SRCActionPanel::CanPasteClipboardItem(UObject* InLogicClipboardItem)
 	return false;
 }
 
+void SRCActionPanel::UpdateValue()
+{
+	for (const TSharedPtr<FRCLogicModeBase>& LogicItem : GetSelectedLogicItems())
+	{
+		if (const TSharedPtr<FRCActionModel>& ActionLogicItem = StaticCastSharedPtr<FRCActionModel>(LogicItem))
+		{
+			if (const URCPropertyAction* RCPropertyAction = Cast<URCPropertyAction>(ActionLogicItem->GetAction()))
+			{
+				RCPropertyAction->UpdateValueBasedOnRCProperty();
+			}
+		}
+	}
+}
+
+bool SRCActionPanel::CanUpdateValue() const
+{
+	const TArray<TSharedPtr<FRCLogicModeBase>>& LogicItems = GetSelectedLogicItems();
+
+	if (LogicItems.IsEmpty())
+	{
+		return false;
+	}
+
+	if (const TSharedPtr<FRCActionModel> ActionLogicItem = StaticCastSharedPtr<FRCActionModel>(LogicItems[0]))
+	{
+		if (const TSharedPtr<FRCBehaviourModel> ParentBehaviour = ActionLogicItem->GetParentBehaviour())
+		{
+			if (const URCBehaviour* Behaviour = ParentBehaviour->GetBehaviour())
+			{
+				if (Behaviour->IsA<URCBehaviourBind>())
+				{
+					return false;
+				}
+			}
+		}
+	}
+
+	for (const TSharedPtr<FRCLogicModeBase>& ActionItem : LogicItems)
+	{
+		if (const TSharedPtr<FRCActionModel> ActionLogicItem = StaticCastSharedPtr<FRCActionModel>(ActionItem))
+		{
+			if (const URCAction* RCAction = ActionLogicItem->GetAction())
+			{
+				if (const URemoteControlPreset* RCPreset = GetPreset())
+				{
+					if (RCAction->IsA<URCPropertyAction>()	&&
+						RCPreset->GetExposedEntity(RCAction->ExposedFieldId).IsValid())
+					{
+						// if at least one of the selected actions can update, then enable it
+						return true;
+					}
+				}
+			}
+		}
+	}
+	return false;
+}
+
 FText SRCActionPanel::GetPasteItemMenuEntrySuffix()
 {
-	if (TSharedPtr<SRemoteControlPanel> RemoteControlPanel = GetRemoteControlPanel())
+	if (const TSharedPtr<SRemoteControlPanel> RemoteControlPanel = GetRemoteControlPanel())
 	{
 		// This function should only have been called if we were the source of the item copied.
 		if (ensure(RemoteControlPanel->LogicClipboardItemSource == SharedThis(this)))
 		{
-			if (URCAction* Action = Cast<URCAction>(RemoteControlPanel->GetLogicClipboardItem()))
+			TArray<UObject*> LogicClipboardItems = RemoteControlPanel->GetLogicClipboardItems();
+
+			if (LogicClipboardItems.Num() > 0)
 			{
-				if (URCBehaviour* Behaviour = Action->GetParentBehaviour())
+				if (const URCAction* Action = Cast<URCAction>(LogicClipboardItems[0]))
 				{
-					return FText::Format(FText::FromString("Action {0}"), Behaviour->GetDisplayName());
+					if (URCBehaviour* Behaviour = Action->GetParentBehaviour())
+					{
+						if (LogicClipboardItems.Num() > 1)
+						{
+							return FText::Format(LOCTEXT("ActionPanelPasteMenuMultiEntrySuffix", "Action {0} and {1} other(s)"), Behaviour->GetDisplayName(), (LogicClipboardItems.Num() - 1));
+						}
+						return FText::Format(LOCTEXT("ActionPanelPasteMenuEntrySuffix", "Action {0}"), Behaviour->GetDisplayName());
+					}
 				}
 			}
 		}
@@ -736,7 +822,7 @@ FReply SRCActionPanel::RequestDeleteSelectedItem()
 
 	if (UserResponse == EAppReturnType::Yes)
 	{
-		DeleteSelectedPanelItem();
+		DeleteSelectedPanelItems();
 	}
 
 	return FReply::Handled();

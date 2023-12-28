@@ -30,7 +30,6 @@ public:
 	URCBehaviourBind* GetBindBehaviour() const;
 
 private:
-
 	/** The Bind Behaviour (Data model) associated with us*/
 	TWeakObjectPtr<URCBehaviourBind> BindBehaviourWeakPtr;
 

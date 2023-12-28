@@ -1,4 +1,4 @@
-﻿// Copyright Epic Games, Inc. All Rights Reserved.
+// Copyright Epic Games, Inc. All Rights Reserved.
 
 #pragma once
 
@@ -40,20 +40,17 @@ public:
 	/** Returns number of items in the list. */
 	virtual int32 Num() const override;
 
-	/** The number of Controllers currently selected*/
+	/** The number of Controllers currently selected */
 	virtual int32 NumSelectedLogicItems() const override;
 
-	/** Whether the Behaviours List View currently has focus.*/
+	/** Whether the Behaviours List View currently has focus. */
 	virtual bool IsListFocused() const override;
 
-	/** Deletes currently selected items from the list view*/
-	virtual void DeleteSelectedPanelItem() override;
+	/** Deletes currently selected items from the list view */
+	virtual void DeleteSelectedPanelItems() override;
 
-	/** Returns the UI item currently selected by the user (if any)*/
-	virtual TSharedPtr<FRCLogicModeBase> GetSelectedLogicItem() override
-	{
-		return GetSelectedBehaviourItem();
-	}
+	/** Returns the UI items currently selected by the user (if any). */
+	virtual TArray<TSharedPtr<FRCLogicModeBase>> GetSelectedLogicItems() override;
 
 	TSharedPtr<FRCBehaviourModel> GetSelectedBehaviourItem()
 	{
@@ -69,7 +66,7 @@ public:
 
 private:
 
-	/** Enables or Disables the currently selected behaviour*/
+	/** Enables or Disables the currently selected behaviour */
 	void SetIsBehaviourEnabled(const bool bIsEnabled);
 
 	void AddBehaviourToList(URCBehaviour* InBehaviour);
@@ -86,16 +83,16 @@ private:
 	/** Responds to the removal of all Behaviours. Rests UI state */
 	void OnEmptyBehaviours();
 
-	/** Refreshes the list from the latest state of the model*/
+	/** Refreshes the list from the latest state of the model */
 	virtual void Reset() override;
 
-	/** Handles broadcasting of a successful remove item operation.*/
+	/** Handles broadcasting of a successful remove item operation. */
 	virtual void BroadcastOnItemRemoved() override;
 
 	/** Fetches the Remote Control preset associated with the parent panel */
 	virtual URemoteControlPreset* GetPreset() override;
 
-	/** Removes the given Behaviour UI model item from the list of UI models*/
+	/** Removes the given Behaviour UI model item from the list of UI models */
 	virtual int32 RemoveModel(const TSharedPtr<FRCLogicModeBase> InModel) override;
 
 	void OnBehaviourListModified();
@@ -114,7 +111,7 @@ private:
 	/** List of Behaviours (UI models) active in this widget */
 	TArray<TSharedPtr<FRCBehaviourModel>> BehaviourItems;
 
-	/** List View widget for representing our Behaivours List*/
+	/** List View widget for representing our Behaviours List */
 	TSharedPtr<SListView<TSharedPtr<FRCBehaviourModel>>> ListView;
 
 	/** Panel Style reference. */

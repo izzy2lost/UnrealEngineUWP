@@ -40,23 +40,29 @@ public:
 	/** Whether the Actions list widget currently has focus.*/
 	bool IsListFocused() const;
 
-	/** Delete Item UI command implementation for this panel */
-	virtual void DeleteSelectedPanelItem() override;
+	/** Delete Items UI command implementation for this panel */
+	virtual void DeleteSelectedPanelItems() override;
 
-	/** Returns the UI item currently selected by the user (if any)*/
-	virtual TSharedPtr<FRCLogicModeBase> GetSelectedLogicItem() override;
+	/** Returns the UI items currently selected by the user (if any). To be implemented per child panel */
+	virtual TArray<TSharedPtr<FRCLogicModeBase>> GetSelectedLogicItems() const override;
 
-	/** "Duplicate Item" UI command implementation for Action panel*/
-	virtual void DuplicateSelectedPanelItem() override;
+	/** "Duplicate Items" UI command implementation for Action panel*/
+	virtual void DuplicateSelectedPanelItems() override;
 
-	/** "Copy Item" UI command implementation for Action panel*/
-	virtual void CopySelectedPanelItem() override;
+	/** "Copy Items" UI command implementation for Action panel*/
+	virtual void CopySelectedPanelItems() override;
 
-	/** "Paste Item" UI command implementation for Action panel*/
-	virtual void PasteItemFromClipboard() override;
+	/** "Paste Items" UI command implementation for Action panel*/
+	virtual void PasteItemsFromClipboard() override;
 
-	/** Whether a given clipboard item can be successfully pasted into this panel */
-	virtual bool CanPasteClipboardItem(UObject* InLogicClipboardItem) override;
+	/** Whether clipboard items can be successfully pasted into this panel */
+	virtual bool CanPasteClipboardItems(const TArrayView<const TObjectPtr<UObject>> InLogicClipboardItems) const override;
+
+	/** "Update Value" UI command implementation for panels */
+	virtual void UpdateValue() override;
+
+	/** Whether this panel can call the UpdateValue command */
+	virtual bool CanUpdateValue() const override;
 
 	/** Provides an item suffix for the Paste context menu to provide users with useful context on the nature of the item being pasted */
 	virtual FText GetPasteItemMenuEntrySuffix() override;
