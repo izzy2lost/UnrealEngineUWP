@@ -220,6 +220,9 @@ public:
 	/** Returns whether the property is editable in the Editor. */
 	bool IsEditableInEditor(FString* OutError = nullptr) const;
 
+	/** Returns whether the property is editable, will check for editor or packaged automatically */
+	bool IsEditable(FString* OutError = nullptr) const;
+
 	bool Serialize(FArchive& Ar);
 	void PostSerialize(const FArchive& Ar);
 	

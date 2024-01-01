@@ -71,12 +71,21 @@ bool URCBehaviourBind::CanHaveActionForField(const TSharedPtr<FRemoteControlFiel
 		return false; // already exists!
 	}
 
+	// Only property type will be allowed so we check before to avoid a cast
+	if (InRemoteControlField->FieldType != EExposedFieldType::Property)
+	{
+		return false;
+	}
+
 	// Advanced checks (by Controller type and Target type)
-	if (TSharedPtr<FRemoteControlProperty> RemoteControlEntityAsProperty = StaticCastSharedPtr<FRemoteControlProperty>(InRemoteControlField))
+	if (const TSharedPtr<FRemoteControlProperty> RCProperty = StaticCastSharedPtr<FRemoteControlProperty>(InRemoteControlField))
 	{
 		if (URCController* Controller = ControllerWeakPtr.Get())
 		{
-			return URCBehaviourBind::CanHaveActionForField(Controller, RemoteControlEntityAsProperty.ToSharedRef(), bAllowNumericInputAsStrings);
+			if (URCBehaviourBind::CanHaveActionForField(Controller, RCProperty.ToSharedRef(), bAllowNumericInputAsStrings))
+			{
+				return RCProperty->IsEditable();
+			}
 		}
 	}
 

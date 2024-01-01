@@ -185,6 +185,19 @@ URCAction* URCBehaviourConditional::AddConditionalAction(const TSharedRef<const 
 	return ActionContainer->AddAction(UniquenessTest, InRemoteControlField);
 }
 
+bool URCBehaviourConditional::CanHaveActionForField(const TSharedPtr<FRemoteControlField> InRemoteControlField) const
+{
+	if (InRemoteControlField->FieldType == EExposedFieldType::Property)
+	{
+		if (const TSharedPtr<FRemoteControlProperty>& RCProperty = StaticCastSharedPtr<FRemoteControlProperty>(InRemoteControlField))
+		{
+			return RCProperty->IsEditable();
+		}
+	}
+
+	return true;
+}
+
 FText URCBehaviourConditional::GetConditionTypeAsText(ERCBehaviourConditionType ConditionType) const
 {
 	FText ConditionDisplayText;

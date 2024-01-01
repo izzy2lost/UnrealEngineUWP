@@ -484,8 +484,15 @@ TMap<double, URCAction*> URCRangeMapBehaviour::GetNonLerpActions()
 
 bool URCRangeMapBehaviour::CanHaveActionForField(const TSharedPtr<FRemoteControlField> InRemoteControlField) const
 {
-	// We can select all of the actions, and the check whether its actually added is done elsewhere.
-	return true;
+	if (InRemoteControlField->FieldType == EExposedFieldType::Property)
+	{
+		if (const TSharedPtr<FRemoteControlProperty>& RCProperty = StaticCastSharedPtr<FRemoteControlProperty>(InRemoteControlField))
+		{
+			return RCProperty->IsEditable();
+		}
+	}
+
+	return false;
 }
 
 void URCRangeMapBehaviour::ApplyLerpOnStruct(const FRCRangeMapInput* MinRangeInput, const FRCRangeMapInput* MaxRangeInput, const double& InputAlpha, const FGuid& FieldId)

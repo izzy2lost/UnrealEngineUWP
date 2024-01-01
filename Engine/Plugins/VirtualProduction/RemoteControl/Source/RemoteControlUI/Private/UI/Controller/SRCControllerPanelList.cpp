@@ -823,6 +823,12 @@ bool SRCControllerPanelList::IsEntitySupported(const FGuid ExposedEntityId)
 	{
 		if (const TSharedPtr<const FRemoteControlProperty>& RemoteControlProperty = Preset->GetExposedEntity<FRemoteControlProperty>(ExposedEntityId).Pin())
 		{
+			if (!RemoteControlProperty->IsEditable())
+			{
+				// Property with error(s)
+				return false;
+			}
+
 			if (RemoteControlProperty->FieldType == EExposedFieldType::Property)
 			{
 				const FProperty* Property = RemoteControlProperty->GetProperty();

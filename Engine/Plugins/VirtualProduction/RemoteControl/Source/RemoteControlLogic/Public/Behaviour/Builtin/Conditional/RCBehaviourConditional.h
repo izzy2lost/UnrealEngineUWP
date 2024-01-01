@@ -82,10 +82,7 @@ public:
 	URCAction* AddConditionalAction(const TSharedRef<const FRemoteControlField> InRemoteControlField, const ERCBehaviourConditionType InConditionType, const TObjectPtr<URCVirtualPropertySelfContainer> InComparand);
 
 	/** Whether we can create an action pertaining to a given remote control field for the current behaviour */
-	virtual bool CanHaveActionForField(const TSharedPtr<FRemoteControlField> InRemoteControlField) const override
-	{
-		return true; // Conditional Behaviour can support multiple Action rows for a single Remote Control Field
-	}
+	virtual bool CanHaveActionForField(const TSharedPtr<FRemoteControlField> InRemoteControlField) const override;
 
 	/** User-friendly text representation of a condition enum. Used to display comparator info in the Actions table */
 	FText GetConditionTypeAsText(ERCBehaviourConditionType ConditionType) const;

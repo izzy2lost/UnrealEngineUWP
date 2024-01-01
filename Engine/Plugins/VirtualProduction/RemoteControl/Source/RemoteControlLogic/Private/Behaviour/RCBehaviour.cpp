@@ -82,6 +82,14 @@ bool URCBehaviour::CanHaveActionForField(const TSharedPtr<FRemoteControlField> I
 		return false; // already exists!
 	}
 
+	if (InRemoteControlField->FieldType == EExposedFieldType::Property)
+	{
+		if (const TSharedPtr<FRemoteControlProperty>& RCProperty = StaticCastSharedPtr<FRemoteControlProperty>(InRemoteControlField))
+		{
+			return RCProperty->IsEditable();
+		}
+	}
+
 	return true;
 }
 

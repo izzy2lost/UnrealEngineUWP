@@ -6,6 +6,7 @@
 #include "GameFramework/Actor.h"
 #include "IRemoteControlModule.h"
 #include "Math/NumericLimits.h"
+#include "Misc/App.h"
 #include "RemoteControlObjectVersion.h"
 #include "RemoteControlFieldPath.h"
 #include "RemoteControlBinding.h"
@@ -332,6 +333,15 @@ bool FRemoteControlProperty::IsEditableInPackaged(FString* OutError) const
 bool FRemoteControlProperty::IsEditableInEditor(FString* OutError) const
 {
 	return IRemoteControlModule::Get().PropertySupportsRawModification(GetProperty(), GetBoundObject(), true, OutError);
+}
+
+bool FRemoteControlProperty::IsEditable(FString* OutError) const
+{
+	if (FApp::IsGame())
+	{
+		return IsEditableInPackaged(OutError); 
+	}
+	return IsEditableInEditor(OutError);
 }
 
 bool FRemoteControlProperty::Serialize(FArchive& Ar)
