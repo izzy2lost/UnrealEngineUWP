@@ -40,6 +40,16 @@ void URCSetAssetByPathBehaviour::Initialize()
 	Super::Initialize();
 }
 
+void URCSetAssetByPathBehaviour::UpdateEntityIds(const TMap<FGuid, FGuid>& InEntityIdMap)
+{
+	if (const FGuid* FoundId = InEntityIdMap.Find(TargetEntityId))
+	{
+		TargetEntityId = *FoundId;
+	}
+
+	Super::UpdateEntityIds(InEntityIdMap);
+}
+
 bool URCSetAssetByPathBehaviour::SetAssetByPath(const FString& AssetPath, const FString& DefaultString)
 {
 	const URCController* Controller = ControllerWeakPtr.Get();

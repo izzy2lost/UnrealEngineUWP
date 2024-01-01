@@ -99,6 +99,28 @@ URCBehaviour* URCActionContainer::GetParentBehaviour()
 	return Cast<URCBehaviour>(GetOuter());
 }
 
+void URCActionContainer::ForEachAction(TFunctionRef<void(URCAction*)> InActionFunction, bool bInRecursive)
+{
+	for (URCAction* Action : GetActions())
+	{
+		if (Action)
+		{
+			InActionFunction(Action);
+		}
+	}
+
+	if (bInRecursive)
+	{
+		for (URCActionContainer* ChildActionContainer : ActionContainers)
+		{
+			if (ChildActionContainer)
+			{
+				ChildActionContainer->ForEachAction(InActionFunction, bInRecursive);
+			}
+		}
+	}
+}
+
 TArray<const URCPropertyAction*> URCActionContainer::GetPropertyActions() const
 {
 	TArray<const URCPropertyAction*> PropertyActions;

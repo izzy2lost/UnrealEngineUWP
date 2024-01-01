@@ -20,6 +20,10 @@ class REMOTECONTROLLOGIC_API URCController : public URCVirtualPropertyInContaine
 
 public:
 
+	//~ Begin URCVirtualPropertyBase
+	virtual void UpdateEntityIds(const TMap<FGuid, FGuid>& InEntityIdMap) override;
+	//~ End URCVirtualPropertyBase
+	
 #if WITH_EDITOR
 	/** Called after applying a transaction to the object. Used to broadcast Undo related container changes to UI Used to broadcast Undo related container changes to UI */
 	virtual void PostEditUndo();

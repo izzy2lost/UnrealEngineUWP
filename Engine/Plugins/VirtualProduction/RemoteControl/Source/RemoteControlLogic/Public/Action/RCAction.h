@@ -27,6 +27,12 @@ public:
 	/** Returns the parent Behaviour associated with this Action */
 	URCBehaviour* GetParentBehaviour() const;
 
+	/**
+	 * @brief Called internally when entity Ids are renewed.
+	 * @param InEntityIdMap Map of old Id to new Id.
+	 */
+	virtual void UpdateEntityIds(const TMap<FGuid, FGuid>& InEntityIdMap);
+
 public:
 	/** Exposed Property or Function field Id*/
 	UPROPERTY()

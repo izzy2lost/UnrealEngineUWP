@@ -31,6 +31,14 @@ URCBehaviour* URCAction::GetParentBehaviour() const
 	return nullptr;
 }
 
+void URCAction::UpdateEntityIds(const TMap<FGuid, FGuid>& InEntityIdMap)
+{
+	if (const FGuid* FoundId = InEntityIdMap.Find(ExposedFieldId))
+	{
+		ExposedFieldId = *FoundId;
+	}
+}
+
 void URCPropertyAction::Execute() const
 {
 	if (!PresetWeakPtr.IsValid())
@@ -71,6 +79,16 @@ void URCPropertyAction::Execute() const
 	}
 	
 	Super::Execute();
+}
+
+void URCPropertyAction::UpdateEntityIds(const TMap<FGuid, FGuid>& InEntityIdMap)
+{
+	if (PropertySelfContainer)
+	{
+		PropertySelfContainer->UpdateEntityIds(InEntityIdMap);
+	}
+	
+	Super::UpdateEntityIds(InEntityIdMap);	
 }
 
 FProperty* URCPropertyAction::GetProperty() const

@@ -286,6 +286,12 @@ struct REMOTECONTROL_API FRemoteControlPresetLayout
 	/** Get the preset that owns this layout. */
 	URemoteControlPreset* GetOwner();
 
+	/**
+	 * @brief Called internally when entity Ids are renewed.
+	 * @param InEntityIdMap Map of old Id to new Id.
+	 */
+	void UpdateEntityIds(const TMap<FGuid, FGuid>& InEntityIdMap);
+	
 	// Layout operation delegates
 	DECLARE_MULTICAST_DELEGATE_OneParam(FOnGroupAdded, const FRemoteControlPresetGroup& /*NewGroup*/);
 	FOnGroupAdded& OnGroupAdded() { return OnGroupAddedDelegate; }
@@ -585,6 +591,16 @@ public:
 	 */
 	void RebindAllEntitiesUnderSameActor(const FGuid& EntityId, AActor* NewActor, bool bUseRebindingContext = true);
 
+	/**
+	 * Renews all exposed entity guids. Necessary when duplicating.
+	 */
+	void RenewEntityIds();
+
+	/**
+	 * Renews all controller guids. Necessary when duplicating.
+	 */
+	void RenewControllerIds();
+	
 	DECLARE_MULTICAST_DELEGATE_TwoParams(FOnPresetEntityEvent, URemoteControlPreset* /*Preset*/, const FGuid& /*EntityId*/);
 	FOnPresetEntityEvent& OnEntityExposed() { return OnEntityExposedDelegate; }
 	FOnPresetEntityEvent& OnEntityUnexposed() { return OnEntityUnexposedDelegate; }
@@ -611,7 +627,12 @@ public:
 	DECLARE_MULTICAST_DELEGATE_TwoParams(FOnPresetPropertyUnexposed, URemoteControlPreset* /*Preset*/, FName /*ExposedLabel*/);
 	UE_DEPRECATED(4.27, "This delegate is deprecated, use OnEntityUnexposed instead.")
 	FOnPresetPropertyUnexposed& OnPropertyUnexposed() { return OnPropertyUnexposedDelegate; }
-
+	
+	using FGuidToGuidMap = TMap<FGuid, FGuid>;	// Workaround for delegate macro.
+	
+	DECLARE_MULTICAST_DELEGATE_TwoParams(FOnPropertyIdsRenewed, URemoteControlPreset* /*Preset*/, const FGuidToGuidMap& /*OldToNewEntityIds*/);
+	FOnPropertyIdsRenewed& OnPropertyIdsRenewed() { return OnPropertyIdsRenewedDelegate;}
+	
 	DECLARE_MULTICAST_DELEGATE_ThreeParams(FOnPresetFieldRenamed, URemoteControlPreset* /*Preset*/, FName /*OldExposedLabel*/, FName /**NewExposedLabel*/);
 	FOnPresetFieldRenamed& OnFieldRenamed() { return OnPresetFieldRenamed; }
 
@@ -632,6 +653,9 @@ public:
 
 	DECLARE_MULTICAST_DELEGATE_ThreeParams(FOnControllerRenamed, URemoteControlPreset* /*Preset*/, const FName /*OldLabel*/, const FName /*NewLabel*/);
 	FOnControllerRenamed& OnControllerRenamed() { return OnControllerRenamedDelegate; }
+
+	DECLARE_MULTICAST_DELEGATE_TwoParams(FOnControllerIdsRenewed, URemoteControlPreset* /*Preset*/, const FGuidToGuidMap& /*OldToNewControllerIds*/);
+	FOnControllerIdsRenewed& OnControllerIdsRenewed() { return OnControllerIdsRenewedDelegate; }
 	
 	DECLARE_MULTICAST_DELEGATE_TwoParams(FOnControllerModified, URemoteControlPreset* /*Preset*/, const TSet<FGuid>& /*ModifiedControllerIds*/);
 	FOnControllerModified& OnControllerModified() { return OnControllerModifiedDelegate; }
@@ -895,6 +919,8 @@ private:
 	FOnPresetPropertyExposed OnPropertyExposedDelegate;
 	/** Delegate triggered when a property has been unexposed. */
 	FOnPresetPropertyUnexposed OnPropertyUnexposedDelegate;
+	/** Delegate triggered when the property guids are renewed. */
+	FOnPropertyIdsRenewed OnPropertyIdsRenewedDelegate;
 	/** Delegate triggered when a field has been renamed. */
 	FOnPresetFieldRenamed OnPresetFieldRenamed;
 	/** Delegate triggered when the preset's metadata has been modified. */
@@ -909,6 +935,8 @@ private:
 	FOnControllerRemoved OnControllerRemovedDelegate;
 	/** Delegate triggered when a Controller is renamed */
 	FOnControllerRenamed OnControllerRenamedDelegate;
+	/** Delegate triggered when a Controller guids are renewed. */
+	FOnControllerIdsRenewed OnControllerIdsRenewedDelegate;
 	/** Delegate triggered when a Controller has been changed */
 	FOnControllerModified OnControllerModifiedDelegate;
 

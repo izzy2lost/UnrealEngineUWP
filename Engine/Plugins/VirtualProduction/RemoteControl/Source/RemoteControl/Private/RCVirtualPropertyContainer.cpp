@@ -291,6 +291,17 @@ FName URCVirtualPropertyContainerBase::GenerateUniquePropertyName(const FName& I
 	return *FinalName;
 }
 
+void URCVirtualPropertyContainerBase::UpdateEntityIds(const TMap<FGuid, FGuid>& InEntityIdMap)
+{
+	for (const TObjectPtr<URCVirtualPropertyBase>& VirtualProperty : VirtualProperties)
+	{
+		if (VirtualProperty)
+		{
+			VirtualProperty->UpdateEntityIds(InEntityIdMap);
+		}
+	}
+}
+
 #if WITH_EDITOR
 void URCVirtualPropertyContainerBase::PostEditUndo()
 {

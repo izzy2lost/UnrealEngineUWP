@@ -90,6 +90,26 @@ void URCPropertyIdAction::Execute() const
 	Super::Execute();
 }
 
+void URCPropertyIdAction::UpdateEntityIds(const TMap<FGuid, FGuid>& InEntityIdMap)
+{
+	for (const TPair<FName, TObjectPtr<URCVirtualPropertySelfContainer>>& PropertyContainerEntry : PropertySelfContainer)
+	{
+		if (PropertyContainerEntry.Value)
+		{
+			PropertyContainerEntry.Value->UpdateEntityIds(InEntityIdMap);
+		}
+	}
+	for (const TPair<FName, TObjectPtr<URCVirtualPropertySelfContainer>>& PropertyContainerEntry : CachedPropertySelfContainer)
+	{
+		if (PropertyContainerEntry.Value)
+		{
+			PropertyContainerEntry.Value->UpdateEntityIds(InEntityIdMap);
+		}
+	}
+	
+	Super::UpdateEntityIds(InEntityIdMap);
+}
+
 void URCPropertyIdAction::PostLoad()
 {
 	UObject::PostLoad();

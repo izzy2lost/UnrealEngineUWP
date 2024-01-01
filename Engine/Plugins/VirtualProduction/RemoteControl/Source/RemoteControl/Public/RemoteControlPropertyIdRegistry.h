@@ -101,6 +101,8 @@ private:
 	/** Holds the type to be created. */
 	UPROPERTY()
 	UClass* ClassToCreate = nullptr;
+
+	friend class URemoteControlPropertyIdRegistry;
 };
 
 template<> struct TStructOpsTypeTraits<FRCPropertyIdWrapper> : public TStructOpsTypeTraitsBase2<FRCPropertyIdWrapper>
@@ -192,6 +194,12 @@ public:
 	DECLARE_MULTICAST_DELEGATE(FOnPropertyIdActionNeedsRefresh)
 	FOnPropertyIdActionNeedsRefresh& OnPropertyIdActionNeedsRefresh() { return OnPropertyIdActionNeedsRefreshDelegate; };
 #endif
+
+	/**
+	 * @brief Called internally when entity Ids are renewed.
+	 * @param InEntityIdMap Map of old Id to new Id.
+	 */
+	void UpdateEntityIds(const TMap<FGuid, FGuid>& InEntityIdMap);
 
 private:
 	/** Call the recursive function TryCopyNonUClassOwnerProperty for the last try on copying the value to the property

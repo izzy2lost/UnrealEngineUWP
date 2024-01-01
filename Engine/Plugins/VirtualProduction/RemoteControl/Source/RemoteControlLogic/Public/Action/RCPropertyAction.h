@@ -22,6 +22,7 @@ public:
 	
 	//~ Begin URCAction interface
 	virtual void Execute() const override;
+	virtual void UpdateEntityIds(const TMap<FGuid, FGuid>& InEntityIdMap) override;
 	//~ End URCAction interface
 
 	/* Returns the FProperty underlying this Action */

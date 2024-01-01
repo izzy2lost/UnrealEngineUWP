@@ -10,6 +10,19 @@
 
 #define LOCTEXT_NAMESPACE "RCController"
 
+void URCController::UpdateEntityIds(const TMap<FGuid, FGuid>& InEntityIdMap)
+{
+	for (URCBehaviour* Behaviour : Behaviours)
+	{
+		if (Behaviour)
+		{
+			Behaviour->UpdateEntityIds(InEntityIdMap);
+		}
+	}
+	
+	Super::UpdateEntityIds(InEntityIdMap);
+}
+
 #if WITH_EDITOR
 void URCController::PostEditUndo()
 {

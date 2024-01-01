@@ -163,4 +163,15 @@ const FText& URCBehaviour::GetBehaviorDescription()
 	return GetDefault<URCBehaviourNode>(BehaviourNodeClass)->BehaviorDescription;
 }
 
+void URCBehaviour::UpdateEntityIds(const TMap<FGuid, FGuid>& InEntityIdMap)
+{
+	if (ActionContainer)
+	{
+		ActionContainer->ForEachAction([&InEntityIdMap](URCAction* InAction)
+		{
+			InAction->UpdateEntityIds(InEntityIdMap);
+		}, /*bInRecursive*/ true);
+	}
+}
+
 #endif

@@ -2,9 +2,27 @@
 
 #include "Controller/RCControllerContainer.h"
 
+#include "Action/RCAction.h"
+#include "Action/RCActionContainer.h"
 #include "Controller/RCController.h"
 #include "RCVirtualProperty.h"
 #include "Templates/SubclassOf.h"
+
+void URCControllerContainer::UpdateEntityIds(const TMap<FGuid, FGuid>& InEntityIdMap)
+{
+	for (URCActionContainer* ActionContainer : SharedActionContainers)
+	{
+		if (ActionContainer)
+		{
+			ActionContainer->ForEachAction([&InEntityIdMap](URCAction* InAction)
+			{
+				InAction->UpdateEntityIds(InEntityIdMap);
+			}, /*bInRecursive*/ true);
+		}
+	}
+
+	Super::UpdateEntityIds(InEntityIdMap);
+}
 
 URCVirtualPropertyInContainer* URCControllerContainer::AddProperty(const FName& InPropertyName, TSubclassOf<URCVirtualPropertyInContainer> InPropertyClass, const EPropertyBagPropertyType InValueType, UObject* InValueTypeObject /*= nullptr*/, TArray<FPropertyBagPropertyDescMetaData> MetaData /*= TArray<FPropertyBagPropertyDescMetaData>()*/)
 {

@@ -54,6 +54,12 @@ public:
 	/** Initialization routine. Called after the parent container has setup data for this property */
 	virtual void Init() {}
 
+	/**
+	 * @brief Called internally when entity Ids are renewed.
+	 * @param InEntityIdMap Map of old Id to new Id.
+	 */
+	virtual void UpdateEntityIds(const TMap<FGuid, FGuid>& InEntityIdMap) {}
+
 	/** Returns const FProperty for this RC virtual property */
 	virtual const FProperty* GetProperty() const;
 

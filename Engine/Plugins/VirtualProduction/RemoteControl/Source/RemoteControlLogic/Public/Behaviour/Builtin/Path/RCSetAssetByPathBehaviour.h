@@ -74,9 +74,10 @@ public:
 
 	//~ Begin URCBehaviour interface
 	virtual void Initialize() override;
+	virtual void UpdateEntityIds(const TMap<FGuid, FGuid>& InEntityIdMap) override;
 	//~ End URCBehaviour interface
 
-	/** Given an Input Path, sets the Target Exposed Propterty to the Asset. */
+	/** Given an Input Path, sets the Target Exposed Property to the Asset. */
 	bool SetAssetByPath(const FString& AssetPath, const FString& DefaultString);
 
 	/** List of Supported Assets SetAssetByPath Logic Behaviour can set and change. */
@@ -88,10 +89,10 @@ public:
 	/** Sets the target entity upon which the asset will be set upon. */
 	void SetTargetEntity(const TSharedPtr<const FRemoteControlEntity>& InEntity);
 
-	/** Returns a Pointer to the current Target Entityy */
+	/** Returns a Pointer to the current Target Entity */
 	TWeakPtr<const FRemoteControlEntity> GetTargetEntity() const;
 
-	/** Auxialiary Function to apply to update the Target Texture */
+	/** Auxiliary Function to apply to update the Target Texture */
 	void UpdateTargetEntity();
 
 	/** Called whenever a change has occured in the Slate */

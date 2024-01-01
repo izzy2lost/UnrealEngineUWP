@@ -20,10 +20,11 @@ class REMOTECONTROLLOGIC_API URCPropertyIdAction : public URCAction
 public:
 	//~ BEGIN : URCAction Interface
 	virtual void Execute() const override;
-	virtual void PostLoad() override;
+	virtual void UpdateEntityIds(const TMap<FGuid, FGuid>& InEntityIdMap) override;
 	//~ END : URCAction Interface
 	
 	//~ BEGIN : UObject Interface
+	virtual void PostLoad() override;
 #if WITH_EDITOR
 	virtual void PostEditChangeChainProperty(struct FPropertyChangedChainEvent& PropertyChangedEvent) override;
 #endif // WITH_EDITOR

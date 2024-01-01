@@ -95,6 +95,9 @@ public:
 	/** Derive the parent Behaviour holding this Action Container */
 	URCBehaviour* GetParentBehaviour();
 
+	/** Call the given function on all actions of the container. */
+	void ForEachAction(TFunctionRef<void(URCAction*)> InActionFunction, bool bInRecursive);
+
 private:
 	/** Add remote control property action  */
 	URCPropertyAction* AddPropertyAction(const TSharedRef<const FRemoteControlProperty> InRemoteControlProperty);

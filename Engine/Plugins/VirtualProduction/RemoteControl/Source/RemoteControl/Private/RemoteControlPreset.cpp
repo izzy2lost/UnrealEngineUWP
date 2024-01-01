@@ -141,6 +141,31 @@ namespace
 
 		return CurrentConfiguration;
 	}
+
+	template<typename InValueType>
+	void RehashMap(TMap<FGuid, InValueType>& InOutMapToRehash, const TMap<FGuid, FGuid>& InGuidMap)
+	{
+		TMap<FGuid, InValueType> RehashedMap;
+		RehashedMap.Reserve(InOutMapToRehash.Num());
+	
+		for (TPair<FGuid, InValueType>& Entry : InOutMapToRehash)
+		{
+			RehashedMap.Add(InGuidMap.Contains(Entry.Key) ? InGuidMap[Entry.Key] : Entry.Key, MoveTemp(Entry.Value));
+		}
+
+		InOutMapToRehash = MoveTemp(RehashedMap);
+	}
+
+	void RehashSet(TSet<FGuid>& InOutSetToRehash, const TMap<FGuid, FGuid>& InGuidMap)
+	{
+		TSet<FGuid> RehashedSet;
+		RehashedSet.Reserve(InOutSetToRehash.Num());
+		for (const FGuid& Key : InOutSetToRehash)
+		{
+			RehashedSet.Add(InGuidMap.Contains(Key) ? InGuidMap[Key] : Key);
+		}
+		InOutSetToRehash = MoveTemp(RehashedSet);
+	}
 }
 
 FRemoteControlPresetExposeArgs::FRemoteControlPresetExposeArgs()
@@ -603,6 +628,20 @@ URemoteControlPreset* FRemoteControlPresetLayout::GetOwner()
 	return Owner.Get();
 }
 
+void FRemoteControlPresetLayout::UpdateEntityIds(const TMap<FGuid, FGuid>& InEntityIdMap)
+{
+	for (FRemoteControlPresetGroup& Group : Groups)
+	{
+		for (FGuid& FieldId : Group.AccessFields())
+		{
+			if (InEntityIdMap.Contains(FieldId))
+			{
+				FieldId = InEntityIdMap[FieldId];
+			}
+		}
+	}
+}
+
 FRemoteControlPresetGroup& FRemoteControlPresetLayout::CreateGroupInternal(FName GroupName, FGuid GroupId)
 {
 	PRAGMA_DISABLE_DEPRECATION_WARNINGS
@@ -672,6 +711,12 @@ void URemoteControlPreset::PostDuplicate(bool bDuplicateForPIE)
 	if (!bDuplicateForPIE)
 	{
 		PresetId = FGuid::NewGuid();
+
+		if (IsEmbeddedPreset())
+		{
+			RenewEntityIds();
+			RenewControllerIds();
+		}
 	}
 }
 
@@ -1716,6 +1761,84 @@ void URemoteControlPreset::RebindAllEntitiesUnderSameActor(const FGuid& EntityId
 	{
 		RebindingManager->RebindAllEntitiesUnderSameActor(this, Entity, NewActor, bUseRebindingContext);
 	}
+}
+
+void URemoteControlPreset::RenewEntityIds()
+{
+	Modify();
+
+	TArray<TSharedPtr<FRemoteControlEntity>> ExposedEntities = Registry->GetExposedEntities();
+
+	// Keep track of the guids for delegate broadcast.
+	TMap<FGuid, FGuid> EntityIdMap;	// old -> new
+	EntityIdMap.Reserve(ExposedEntities.Num());
+	
+	for (const TSharedPtr<FRemoteControlEntity>& Entity : ExposedEntities)
+	{
+		if (Entity)
+		{
+			const FGuid OldEntityId = Entity->Id;
+			Entity->Id = FGuid::NewGuid();
+			EntityIdMap.Add(OldEntityId, Entity->Id);
+		}
+	}
+
+	// Rehash the registries
+	Registry->Rehash();
+	PropertyIdRegistry->UpdateEntityIds(EntityIdMap);
+	Layout.UpdateEntityIds(EntityIdMap);
+	
+	// Update NameToGuidMap.
+	for (TPair<FName, FGuid>& NameToGuid : NameToGuidMap)
+	{
+		if (const FGuid* FoundNewId = EntityIdMap.Find(NameToGuid.Value))
+		{
+			NameToGuid.Value = *FoundNewId;
+		}
+	}
+
+	RehashMap(FieldCache, EntityIdMap);
+	RehashMap(PropertyWatchers, EntityIdMap);
+	RehashMap(PreObjectsModifiedCache, EntityIdMap);
+	RehashMap(PreObjectsModifiedActorCache, EntityIdMap);
+	RehashMap(PreMaterialModifiedCache, EntityIdMap);
+	RehashSet(PerFrameModifiedProperties, EntityIdMap);
+	RehashSet(PerFrameUpdatedEntities, EntityIdMap);
+
+	if (ControllerContainer)
+	{
+		ControllerContainer->UpdateEntityIds(EntityIdMap);
+	}
+
+	// Fire the delegates once the registry has been rehashed to ensure proper lookup.
+	OnPropertyIdsRenewed().Broadcast(this, EntityIdMap);
+}
+
+void URemoteControlPreset::RenewControllerIds()
+{
+	if (!ControllerContainer)
+	{
+		return;
+	}
+	
+#if WITH_EDITOR
+	ControllerContainer->Modify();
+#endif
+
+	// Keep track of the guids for delegate broadcast.
+	TMap<FGuid, FGuid> ControllerIdMap;	// old -> new
+	ControllerIdMap.Reserve(ControllerContainer->VirtualProperties.Num());
+	
+	for (const TObjectPtr<URCVirtualPropertyBase>& Controller : ControllerContainer->VirtualProperties)
+	{
+		const FGuid OldControllerId = Controller->Id;
+		Controller->Id = FGuid::NewGuid();
+		ControllerIdMap.Add(OldControllerId, Controller->Id);
+	}
+
+	// It doesn't seem like controller Ids are used as hashing key.
+	
+	OnControllerIdsRenewed().Broadcast(this, ControllerIdMap);
 }
 
 void URemoteControlPreset::NotifyExposedPropertyChanged(FName PropertyLabel)

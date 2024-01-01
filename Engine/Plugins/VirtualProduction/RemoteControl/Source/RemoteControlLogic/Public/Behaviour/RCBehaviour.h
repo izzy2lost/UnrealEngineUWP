@@ -85,6 +85,12 @@ public:
 	const FText& GetBehaviorDescription();
 #endif
 
+	/**
+	 * @brief Called internally when entity Ids are renewed.
+	 * @param InEntityIdMap Map of old Id to new Id.
+	 */
+	virtual void UpdateEntityIds(const TMap<FGuid, FGuid>& InEntityIdMap);
+
 protected:
 	/**
 	 * It created the node if it called first time

@@ -620,6 +620,32 @@ TSet<FGuid> URemoteControlPropertyIdRegistry::GetEntityIdsList()
 	return OutIds;
 }
 
+void URemoteControlPropertyIdRegistry::UpdateEntityIds(const TMap<FGuid, FGuid>& InEntityIdMap)
+{
+	bool bNeedsRehash = false;
+	for (FRCPropertyIdWrapper& PropertyId : IdentifiedFields)
+	{
+		if (const FGuid* FoundNewId = InEntityIdMap.Find(PropertyId.GetEntityId()))
+		{
+			PropertyId.EntityId = *FoundNewId;
+			bNeedsRehash = true;
+		}
+	}
+
+	if (bNeedsRehash)
+	{
+		TSet<FRCPropertyIdWrapper> RehashedIdentifiedFields;
+		RehashedIdentifiedFields.Reserve(IdentifiedFields.Num());
+	
+		for (FRCPropertyIdWrapper& Wrapper : IdentifiedFields)
+		{
+			RehashedIdentifiedFields.Add(FRCPropertyIdWrapper(Wrapper));
+		}
+	
+		IdentifiedFields = MoveTemp(RehashedIdentifiedFields);
+	}
+}
+
 bool URemoteControlPropertyIdRegistry::CopyNonUClassOwnerProperty(const FRemoteControlPropertyIdArgs& InArgs, TSharedPtr<FRemoteControlProperty> TargetRCProperty, FProperty* InProperty, UObject* BoundObject)
 {
 	bool bCheckByteEnumComparison = false;
