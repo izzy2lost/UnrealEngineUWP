@@ -198,18 +198,6 @@ namespace UE::PixelStreamingInput
 		 */
 		bool bFakingTouchEvents;
 
-		/**
-		 * Touch only. Location of the focused UI widget. If no UI widget is focused
-		 * then this has the UnfocusedPos value.
-		 */
-		FVector2D FocusedPos;
-
-		/**
-		 * Touch only. A special position which indicates that no UI widget is
-		 * focused.
-		 */
-		const FVector2D UnfocusedPos;
-
 		/*
 		 * Padding for string parsing when handling messages.
 		 * 1 character for the actual message and then

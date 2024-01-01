@@ -47,8 +47,6 @@ namespace UE::PixelStreamingInput
 		, bIsMouseActive(false)
 		, MessageHandler(InTargetHandler)
 		, PixelStreamerApplicationWrapper(InApplicationWrapper)
-		, FocusedPos(FVector2D(-1.0f, -1.0f))
-		, UnfocusedPos(FVector2D(-1.0f, -1.0f))
 	{
 		// Register this input handler as an IMotionController. The module handles the registering as an IInputDevice
 		IModularFeatures::Get().RegisterModularFeature(GetModularFeatureName(), this);
@@ -1448,7 +1446,7 @@ namespace UE::PixelStreamingInput
 				{
 					FIntRect ScreenRect = *ScreenRectPtr;
 					FIntPoint SizeInScreen = ScreenRect.Max - ScreenRect.Min;
-					NormalizedLocation = FocusedPos / SizeInScreen;
+					NormalizedLocation = FocusedWidget->GetCachedGeometry().GetAbsolutePosition() / SizeInScreen;
 				}
 
 				NormalizedLocation *= uint16_MAX;
