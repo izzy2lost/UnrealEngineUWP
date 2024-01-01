@@ -28,8 +28,20 @@ namespace UE::ConcertSyncTests::Replication
 	public:
 	
 		FSendReceiveTestBase(const FString& InName, const bool bInComplexTask);
-		
-		static ConcertSyncClient::Replication::FJoinReplicatedSessionArgs CreateHandshakeArgsFrom(const UObject& Object, const FGuid& SenderStreamId = FGuid::NewGuid());
+
+		/**
+		 * Creates joining arguments containing a stream that will replicate a single object.
+		 * @param Object The object to replicate
+		 * @param SenderStreamId The ID of the new stream
+		 * @param ReplicationMode The replication mode for the object. Set to Realtime by default so tests need not handle latency (due to FReplicatedObjectInfo::ReplicationRate).
+		 * @param ReplicationRate The replication rate for the object. Only used if ReplicationMode == EConcertObjectReplicationMode::SpecifiedRate
+		 */
+		static ConcertSyncClient::Replication::FJoinReplicatedSessionArgs CreateHandshakeArgsFrom(
+			const UObject& Object,
+			const FGuid& SenderStreamId = FGuid::NewGuid(),
+			EConcertObjectReplicationMode ReplicationMode = EConcertObjectReplicationMode::Realtime,
+			uint8 ReplicationRate = 30
+			);
 		
 		using FReceiveReplicationEventSignature = void(const FConcertSessionContext& Context, const FConcertReplication_BatchReplicationEvent& Event);
 		

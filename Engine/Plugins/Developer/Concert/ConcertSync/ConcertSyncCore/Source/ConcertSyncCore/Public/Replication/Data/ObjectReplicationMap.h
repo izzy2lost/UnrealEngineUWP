@@ -10,10 +10,12 @@ USTRUCT()
 struct FReplicatedObjectInfo
 {
 	GENERATED_BODY()
-	
+
+	/** The exact class of the object being replicated. */
 	UPROPERTY()
 	FSoftClassPath ClassPath;
-	
+
+	/** The properties to replicate for the object */
 	UPROPERTY()
 	FConcertPropertySelection PropertySelection;
 
@@ -24,7 +26,11 @@ struct FReplicatedObjectInfo
 	}
 
 	/** @return Whether this data is valid for sending to the server. */
-	bool IsValidForSendingToServer() const { return ClassPath.IsValid() && !PropertySelection.ReplicatedProperties.IsEmpty(); }
+	bool IsValidForSendingToServer() const
+	{
+		return ClassPath.IsValid()
+			&& !PropertySelection.ReplicatedProperties.IsEmpty();
+	}
 	
 	friend bool operator==(const FReplicatedObjectInfo& Left, const FReplicatedObjectInfo& Right)
 	{

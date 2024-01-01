@@ -133,13 +133,21 @@ namespace UE::ConcertSyncServer::Replication
 		}
 
 		/** Checks whether this request is valid to apply. */
-		static bool ShouldAcceptRequest(const FConcertReplication_ChangeStream_Request& Request, const FConcertReplicationClient& Client, const FAuthorityManager& AuthorityManager, FConcertReplication_ChangeStream_Response& OutResponse)
+		static bool ShouldAcceptRequest(
+			const FConcertReplication_ChangeStream_Request& Request,
+			const FConcertReplicationClient& Client,
+			const FAuthorityManager& AuthorityManager,
+			FConcertReplication_ChangeStream_Response& OutResponse
+			)
 		{
 			OutResponse.ErrorCode = EReplicationResponseErrorCode::Handled;
+			
 			ValidatePutObjectsRequestSemantics(Request, Client, OutResponse);
 			ValidateAddedStreamsAreUnique(Request, Client, OutResponse);
 			LookForAuthorityConflicts(Request, Client, AuthorityManager, OutResponse);
 			ValidateUnpacking(Request, OutResponse);
+			ConcertSyncCore::Replication::ChangeStreamUtils::ValidateFrequencyChanges(Request, Client.GetStreamDescriptions(), &OutResponse.FrequencyErrors);
+			
 			return OutResponse.IsSuccess();
 		}
 	}
@@ -152,18 +160,18 @@ namespace UE::ConcertSyncServer::Replication
 		Response = {};
 		
 		const FGuid SendingClientId = ConcertSessionContext.SourceEndpointId;
-		const TSharedRef<FConcertReplicationClient>* SendingClient = Clients.Find(SendingClientId);
-		if (SendingClient && Private::ShouldAcceptRequest(Request, SendingClient->Get(), AuthorityManager.Get(), Response))
+		const TUniquePtr<FConcertReplicationClient>* SendingClient = Clients.Find(SendingClientId);
+		if (SendingClient && Private::ShouldAcceptRequest(Request, *SendingClient->Get(), AuthorityManager.Get(), Response))
 		{
 			// If the client had authority over any objects that were removed by this request, authority must be cleaned up
-			ConcertSyncCore::Replication::ChangeStreamUtils::ForEachObjectLosingAuthority(Request, SendingClient->Get().GetStreamDescriptions(),
+			ConcertSyncCore::Replication::ChangeStreamUtils::ForEachObjectLosingAuthority(Request, SendingClient->Get()->GetStreamDescriptions(),
 				[this, &SendingClientId](const FObjectInStreamID& RemovedObject)
 				{
 					AuthorityManager->RemoveAuthority({ RemovedObject, SendingClientId});
 					return EBreakBehavior::Continue;
 				});
 			
-			SendingClient->Get().ApplyValidatedRequest(Request);
+			SendingClient->Get()->ApplyValidatedRequest(Request);
 		}
 		else
 		{

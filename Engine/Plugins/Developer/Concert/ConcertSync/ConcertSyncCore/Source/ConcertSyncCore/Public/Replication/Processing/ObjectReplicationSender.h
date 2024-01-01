@@ -15,11 +15,20 @@ namespace UE::ConcertSyncCore
 	class CONCERTSYNCCORE_API FObjectReplicationSender : public FObjectReplicationProcessor
 	{
 	public:
-
-		FObjectReplicationSender(const FGuid& TargetEndpointId, TSharedRef<IConcertSession> Session, TSharedRef<IReplicationDataSource> DataSource);
+		
+		/**
+		 * @param TargetEndpointId The endpoints to send to
+		 * @param Session The session to use for sending
+		 * @param DataSource Source of the data that is to be sent
+		 */
+		FObjectReplicationSender(
+			const FGuid& TargetEndpointId,
+			TSharedRef<IConcertSession> Session,
+			TSharedRef<IReplicationDataSource> DataSource
+			);
 		
 		//~ Begin FObjectReplicationProcessor Interface
-		virtual void ProcessObjects(float TimeBudget) override;
+		virtual void ProcessObjects(const FProcessObjectsParams& Params) override;
 		//~ End FObjectReplicationProcessor Interface
 
 	protected:
@@ -32,9 +41,9 @@ namespace UE::ConcertSyncCore
 
 		/** The endpoint data will be sent to */
 		const FGuid TargetEndpointId;
-
+		
 		/** The session through which replication messages are sent. */
-		TSharedRef<IConcertSession> Session;
+		const TSharedRef<IConcertSession> Session;
 
 		/** This event is filled in ProcessObjects and finally sent to TargetEndpointId. */
 		FConcertReplication_BatchReplicationEvent EventToSend;

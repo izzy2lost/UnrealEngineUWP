@@ -20,7 +20,7 @@ struct FConcertReplication_ChangeStream_PutObject
 {
 	GENERATED_BODY()
 
-	// TODO UE-201166: Add two enums here that describe how Propertiy and ClassPath are to be interpreted.
+	// TODO UE-201166: Add enum flags here that describe how Properties and ClassPath are to be interpreted.
 	
 	/**
 	 * The property selection the object should have.
@@ -62,6 +62,57 @@ struct FConcertReplication_ChangeStream_PutObject
 	CONCERTSYNCCORE_API TOptional<FReplicatedObjectInfo> MakeObjectInfoIfValid() const;
 };
 
+UENUM()
+enum class EConcertReplicationChangeFrequencyFlags : uint8
+{
+	None = 0,
+	/** FConcertReplication_ChangeStream_Frequency::NewDefaults contains the new defaults to set. */
+	SetDefaults = 1 << 0,
+};
+ENUM_CLASS_FLAGS(EConcertReplicationChangeFrequencyFlags);
+
+/** Changes to set to make to the stream's replication frequency. */
+USTRUCT()
+struct FConcertReplication_ChangeStream_Frequency
+{
+	GENERATED_BODY()
+
+	/**
+	 * Replaces the entire overrides with this content.
+	 * If a specified object is not specified in the associated stream, this request DOES fail.
+	 * 
+	 * Usually you want to specify either OverridesToPut, or OverridesToPut & OverridesToRemove but not both.
+	 * A put is useful for situations where you don't care what objects have been overriden thus far and want to straight out replace them all.
+	 */
+	UPROPERTY()
+	TMap<FSoftObjectPath, FConcertObjectReplicationSettings> OverridesToPut;
+
+	/**
+	 * Removes the specified overrides.
+	 * If a specified object is not specified in the associated stream, this request DOES NOT fail.
+	 * 
+	 * Executed after OverridesToPut (but you should either use OverridesToPut, or OverridesToRemove & OverridesToAdd).
+	 */
+	UPROPERTY()
+	TSet<FSoftObjectPath> OverridesToRemove;
+	
+	/**
+	 * Adds the specified overrides.
+	 * If a specified object is not specified in the associated stream, this request DOES fail.
+	 * 
+	 * Executed after OverridesToAdd (but you should either use OverridesToPut, or OverridesToRemove & OverridesToAdd).
+	 */
+	UPROPERTY()
+	TMap<FSoftObjectPath, FConcertObjectReplicationSettings> OverridesToAdd;
+
+	/** Only applied if Flags contains the SetDefaults flag. */
+	UPROPERTY()
+	FConcertObjectReplicationSettings NewDefaults;
+	
+	UPROPERTY()
+	EConcertReplicationChangeFrequencyFlags Flags = EConcertReplicationChangeFrequencyFlags::None;
+};
+
 /**
  * Let's a client change its streams owned on the server.
  * 
@@ -91,14 +142,27 @@ struct FConcertReplication_ChangeStream_Request
 	 * @see FConcertChangeStream_Response::AuthorityConflicts for some examples of conflicts.
 	 *
 	 * If the key identifies a stream that does not exist, the request will fail.
-	 * 
+	 *
+	 * TODO UE-201167: Make the request no longer fail
 	 * If the key identifies a stream that is in StreamsToAdd, the request will fail to avoid allowing the construction of
 	 * ambiguous requests, e.g. both StreamsToAdd and ObjectsToPut containing object Foo but with different property selections.
 	 */
 	UPROPERTY()
 	TMap<FObjectInStreamID, FConcertReplication_ChangeStream_PutObject> ObjectsToPut;
 
-	// TODO UE-201167: Change StreamsToAdd so you just give FGuid of new streams and specify properties in ObjectsToPut > easier API usage.
+	/**
+	 * Changes the replication frequency settings for a stream.
+	 * 
+	 * If a specified stream does not exist, the request fails.
+	 * Specifying a request that changes nothing does not result in any failure.
+	 * 
+	 * TODO UE-201167: Change StreamsToAdd such that no ambiguous requests are even possible and update this doc's wording.
+	 * If the key may identify a stream that is in StreamsToAdd, in which case the frequency is what is specified in FrequencyChanges.
+	 */
+	UPROPERTY()
+	TMap<FGuid, FConcertReplication_ChangeStream_Frequency> FrequencyChanges;
+	
+	// TODO UE-201167: Change StreamsToAdd so you just give FGuid of new streams and specify properties in ObjectsToPut and FrequencyChanges > easier API usage.
 	
 	/**
 	 * New streams to add to the server.
@@ -150,6 +214,41 @@ enum class EConcertPutObjectErrorCode : uint8
 	MissingData
 };
 
+UENUM()
+enum class EConcertChangeObjectFrequencyErrorCode : uint8
+{
+	/** The object for which the frequency was being changed was not registered. */
+	NotRegistered,
+	/** The replication rate parameter was rejected (it cannot be 0). */
+	InvalidReplicationRate
+};
+
+UENUM()
+enum class EConcertChangeStreamFrequencyErrorCode : uint8
+{
+	/** The stream was not registered */
+	UnknownStream,
+	/** The replication rate parameter was rejected (it cannot be 0). */
+	InvalidReplicationRate
+};
+
+USTRUCT()
+struct FConcertReplication_ChangeStream_FrequencyResponse
+{
+	GENERATED_BODY()
+
+	/** Streams that could not have their frequencies overriden. */
+	UPROPERTY()
+	TMap<FObjectInStreamID, EConcertChangeObjectFrequencyErrorCode> OverrideFailures;
+
+	/** Streams that could not have their frequency defaults overriden. */
+	UPROPERTY()
+	TMap<FGuid, EConcertChangeStreamFrequencyErrorCode> DefaultFailures;
+	
+	bool IsSuccess() const { return OverrideFailures.IsEmpty() && DefaultFailures.IsEmpty(); }
+	bool IsFailure() const { return !IsSuccess(); }
+};
+
 /**
  * Contains information about why a request failed. This info could be parsed and displayed to the end user as error.
  * If there is even just one error, the entire request fails and no changes are made server-side.
@@ -189,7 +288,18 @@ struct FConcertReplication_ChangeStream_Response
 	UPROPERTY()
 	TSet<FGuid> FailedStreamCreation;
 
-	bool IsSuccess() const { return ErrorCode == EReplicationResponseErrorCode::Handled && AuthorityConflicts.IsEmpty() && ObjectsToPutSemanticErrors.IsEmpty() && FailedStreamCreation.IsEmpty(); }
+	/** Errors updating the frequency */
+	UPROPERTY()
+	FConcertReplication_ChangeStream_FrequencyResponse FrequencyErrors;
+	
+	bool IsSuccess() const
+	{
+		return ErrorCode == EReplicationResponseErrorCode::Handled
+			&& AuthorityConflicts.IsEmpty()
+			&& ObjectsToPutSemanticErrors.IsEmpty()
+			&& FailedStreamCreation.IsEmpty()
+			&& FrequencyErrors.IsSuccess();
+	}
 	bool IsFailure() const { return !IsSuccess(); }
 
 	bool WasObjectPutSuccessful(const FObjectInStreamID& Object) const { return !AuthorityConflicts.Contains(Object) && !ObjectsToPutSemanticErrors.Contains(Object); }

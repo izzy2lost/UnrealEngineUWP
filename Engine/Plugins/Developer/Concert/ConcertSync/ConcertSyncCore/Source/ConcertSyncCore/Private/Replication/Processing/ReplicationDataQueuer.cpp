@@ -14,7 +14,7 @@ namespace UE::ConcertSyncCore
 		}
 	}
 
-	void FReplicationDataQueuer::ForEachPendingObject(TFunctionRef<void(const FObjectInStreamID&)> ProcessItemFunc) const
+	void FReplicationDataQueuer::ForEachPendingObject(TFunctionRef<void(const FReplicatedObjectId&)> ProcessItemFunc) const
 	{
 		for (auto It = PendingEvents.CreateConstIterator(); It; ++It)
 		{
@@ -28,7 +28,7 @@ namespace UE::ConcertSyncCore
 	}
 
 	bool FReplicationDataQueuer::ExtractReplicationDataForObject(
-		const FObjectInStreamID& Object,
+		const FReplicatedObjectId& Object,
 		TFunctionRef<void(const FConcertSessionSerializedPayload& Payload)> ProcessCopyable,
 		TFunctionRef<void(FConcertSessionSerializedPayload&& Payload)> ProcessMoveable
 		)

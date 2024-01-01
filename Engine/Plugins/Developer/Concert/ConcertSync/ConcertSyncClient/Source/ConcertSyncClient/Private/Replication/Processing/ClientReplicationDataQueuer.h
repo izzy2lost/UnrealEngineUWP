@@ -9,7 +9,6 @@ class IConcertClientReplicationBridge;
 
 namespace UE::ConcertSyncClient::Replication
 {
-
 	/** Queues events received from the server. */
 	class FClientReplicationDataQueuer : public ConcertSyncCore::FReplicationDataQueuer
 	{

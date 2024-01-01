@@ -16,6 +16,8 @@
 class IConcertClientReplicationBridge;
 class IConcertServerSession;
 
+enum class EConcertQueryClientStreamFlags : uint8;
+
 struct FConcertReplication_ChangeStream_Response;
 struct FConcertReplication_QueryReplicationInfo_Response;
 struct FConcertReplication_QueryReplicationInfo_Request;
@@ -70,8 +72,11 @@ namespace UE::ConcertSyncServer::Replication
 		/** Receives replication events from all endpoints. */
 		FServerObjectReplicationReceiver ReplicationDataReceiver;
 
-		/** Clients that have requested to join replication. Maps client ID to replication info. */
-		TMap<FGuid, TSharedRef<FConcertReplicationClient>> Clients;
+		/**
+		 * Clients that have requested to join replication. Maps client ID to replication info.
+		 * Clients are stored in a unique ptr to avoid dealing with reallocations when the map resizes.
+		 */
+		TMap<FGuid, TUniquePtr<FConcertReplicationClient>> Clients;
 
 		// Joining
 		EConcertSessionResponseCode HandleJoinReplicationSessionRequest(const FConcertSessionContext& ConcertSessionContext, const FConcertReplication_Join_Request& Request, FConcertReplication_Join_Response& Response);
@@ -80,7 +85,7 @@ namespace UE::ConcertSyncServer::Replication
 		// Querying
 		EConcertSessionResponseCode HandleQueryReplicationInfoRequest(const FConcertSessionContext& ConcertSessionContext, const FConcertReplication_QueryReplicationInfo_Request& Request, FConcertReplication_QueryReplicationInfo_Response& Response);
 		/** Gets all registered streams and optionally removes the properties. */
-		TArray<FSharedReplicationStreamDescription> BuildClientStreamInfo(const FConcertReplicationClient& Client, bool bSkipProperties) const;
+		static TArray<FSharedReplicationStreamDescription> BuildClientStreamInfo(const FConcertReplicationClient& Client, EConcertQueryClientStreamFlags QueryFlags);
 		/** Maps the client's streams to the objects in that stream the client has taken authority over. */
 		TArray<FReplicationAuthorityInfo> BuildClientAuthorityInfo(const FConcertReplicationClient& Client) const;
 
@@ -98,5 +103,8 @@ namespace UE::ConcertSyncServer::Replication
 		 * This is configured in an .ini. TODO: Add config
 		 */
 		void Tick(IConcertServerSession& InSession, float InDeltaTime);
+		
+		/** Callback to clients for obtaining an object's frequency settings. */
+		FConcertObjectReplicationSettings GetObjectFrequencySettings(const FReplicatedObjectId& Object) const;
 	};
 }

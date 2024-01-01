@@ -22,20 +22,26 @@ namespace UE::ConcertSyncTests::Replication
 			: FConcertClientServerCommunicationTest(InName, bInComplexTask)
 	{}
 
-	ConcertSyncClient::Replication::FJoinReplicatedSessionArgs FSendReceiveTestBase::CreateHandshakeArgsFrom(const UObject& Object, const FGuid& SenderStreamId)
+	ConcertSyncClient::Replication::FJoinReplicatedSessionArgs FSendReceiveTestBase::CreateHandshakeArgsFrom(
+		const UObject& Object,
+		const FGuid& SenderStreamId,
+		EConcertObjectReplicationMode ReplicationMode,
+		uint8 ReplicationRate
+		)
 	{
 		ConcertSyncClient::Replication::FJoinReplicatedSessionArgs SenderJoinArgs;
 		
-		FReplicatedObjectInfo AllProperties { Object.GetClass() };
-		ConcertSyncCore::PropertyChain::ForEachReplicatableConcertProperty(*Object.GetClass(), [&AllProperties](FConcertPropertyChain&& Chain)
+		FReplicatedObjectInfo ReplicatedObjectInfo { Object.GetClass() };
+		ConcertSyncCore::PropertyChain::ForEachReplicatableConcertProperty(*Object.GetClass(), [&ReplicatedObjectInfo](FConcertPropertyChain&& Chain)
 		{
-			AllProperties.PropertySelection.ReplicatedProperties.Emplace(MoveTemp(Chain));
+			ReplicatedObjectInfo.PropertySelection.ReplicatedProperties.Emplace(MoveTemp(Chain));
 			return EBreakBehavior::Continue;
 		});
 
 		FReplicationStreamDescription SendingStream;
 		SendingStream.BaseDescription.Identifier = SenderStreamId;
-		SendingStream.BaseDescription.ReplicationMap.ReplicatedObjects.Add(&Object, AllProperties);
+		SendingStream.BaseDescription.ReplicationMap.ReplicatedObjects.Add(&Object, ReplicatedObjectInfo);
+		SendingStream.BaseDescription.FrequencySettings.Defaults = { ReplicationMode, ReplicationRate };
 		SenderJoinArgs.Streams.Add(SendingStream);
 		return SenderJoinArgs;
 	}

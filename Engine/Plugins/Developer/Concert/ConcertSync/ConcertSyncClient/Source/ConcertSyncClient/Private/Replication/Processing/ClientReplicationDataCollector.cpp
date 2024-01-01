@@ -16,11 +16,13 @@ namespace UE::ConcertSyncClient::Replication
 	FClientReplicationDataCollector::FClientReplicationDataCollector(
 		IConcertClientReplicationBridge* InReplicationBridge,
 		TSharedRef<ConcertSyncCore::IObjectReplicationFormat> InReplicationFormat,
-		FGetClientStreams InGetStreamsDelegate
+		FGetClientStreams InGetStreamsDelegate,
+		const FGuid& InClientId
 		)
 		: Bridge(InReplicationBridge)
 		, ReplicationFormat(MoveTemp(InReplicationFormat))
 		, GetStreamsDelegate(MoveTemp(InGetStreamsDelegate))
+		, ClientId(InClientId)
 	{
 		check(GetStreamsDelegate.IsBound());
 		Bridge->OnObjectDiscovered().AddRaw(this, &FClientReplicationDataCollector::StartTrackingObject);
@@ -153,7 +155,7 @@ namespace UE::ConcertSyncClient::Replication
 		}
 	}
 
-	void FClientReplicationDataCollector::ForEachPendingObject(TFunctionRef<void(const FObjectInStreamID&)> ProcessItemFunc) const
+	void FClientReplicationDataCollector::ForEachPendingObject(TFunctionRef<void(const FReplicatedObjectId&)> ProcessItemFunc) const
 	{
 		for (const TPair<FSoftObjectPath, TArray<FObjectInfo>>& Pair : ObjectsToReplicate)
 		{
@@ -161,14 +163,17 @@ namespace UE::ConcertSyncClient::Replication
 			{
 				if (ObjectInfo.ObjectCache.IsValid())
 				{
-					ProcessItemFunc({ ObjectInfo.StreamId, ObjectInfo.ObjectCache.Get() });
+					ProcessItemFunc(FReplicatedObjectId {
+						FObjectInStreamID{ ObjectInfo.StreamId, ObjectInfo.ObjectCache.Get() },
+						ClientId
+					});
 				}
 			}
 		}
 	}
 
 	bool FClientReplicationDataCollector::ExtractReplicationDataForObject(
-		const FObjectInStreamID& ObjectToProcess,
+		const FReplicatedObjectId& ObjectToProcess,
 		TFunctionRef<void(const FConcertSessionSerializedPayload& Payload)> ProcessCopyable,
 		TFunctionRef<void(FConcertSessionSerializedPayload&& Payload)> ProcessMoveable
 		)

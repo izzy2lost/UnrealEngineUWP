@@ -61,9 +61,13 @@ namespace UE::ConcertSyncClient::Replication
 			FClientReplicationDataCollector::FGetClientStreams::CreateLambda([this]()
 			{
 				return &RegisteredStreams;
-			}))
+			}),
+			LiveSession->GetSessionClientEndpointId()
+			))
+		, Sender(
+			ConcertSyncCore::FGetObjectFrequencySettings::CreateRaw(this, &FReplicationManagerState_Connected::GetObjectFrequencySettings),
+			LiveSession->GetSessionServerEndpointId(), LiveSession, ReplicationDataSource
 			)
-		, Sender(MakeShared<ConcertSyncCore::FObjectReplicationSender>(LiveSession->GetSessionServerEndpointId(), LiveSession, ReplicationDataSource))
 		, ReceivedDataCache(MakeShared<ConcertSyncCore::FObjectReplicationCache>(ReplicationFormat))
 		, Receiver(MakeShared<ConcertSyncCore::FObjectReplicationReceiver>(LiveSession, ReceivedDataCache))
 		, ReceivedReplicationQueuer(FClientReplicationDataQueuer::Make(ReplicationBridge, ReceivedDataCache))
@@ -142,7 +146,7 @@ namespace UE::ConcertSyncClient::Replication
 			return MakeFulfilledPromise<FConcertReplication_QueryReplicationInfo_Response>(FConcertReplication_QueryReplicationInfo_Response{ EReplicationResponseErrorCode::Timeout }).GetFuture();
 		}
 		
-		if (EnumHasAllFlags(Args.QueryFlags, EConcertQueryClientStreamFlags::SkipAuthority | EConcertQueryClientStreamFlags::SkipStreamInfo))
+		if (EnumHasAllFlags(Args.QueryFlags, EConcertQueryClientStreamFlags::SkipAuthority | EConcertQueryClientStreamFlags::SkipStreamInfo | EConcertQueryClientStreamFlags::SkipFrequency ))
 		{
 			UE_LOG(LogConcert, Warning, TEXT("Request QueryClientInfo is pointless because SkipAuthority and SkipStreamInfo are both set. Returning immediately..."));
 			return MakeFulfilledPromise<FConcertReplication_QueryReplicationInfo_Response>().GetFuture();
@@ -218,34 +222,10 @@ namespace UE::ConcertSyncClient::Replication
 
 	void FReplicationManagerState_Connected::Tick(IConcertClientSession& Session, float DeltaTime)
 	{
-		// TODO DP: Set this up in a config file
-		constexpr double TimeBudget = 1.0 / 60.0;
-		double TimeLeft = TimeBudget;
-
-		auto NextIndex = [this](int32 Current){ return AlternatingTickTasks.IsValidIndex(Current + 1) ? Current + 1 : 0; };
-		int32 CurrentIndex = NextTickTaskIndex;
-		const double StartTime = FPlatformTime::Seconds();
-		do
-		{
-			FTickTask Task = AlternatingTickTasks[CurrentIndex]; 
-			Invoke(Task, this, TimeLeft);
-
-			const double TotalElapsedTime = FPlatformTime::Seconds() - StartTime;
-			TimeLeft = TimeBudget - TotalElapsedTime;
-			CurrentIndex = NextIndex(CurrentIndex);
-		}
-		while (TimeLeft > 0.0 && CurrentIndex != NextTickTaskIndex);
-		NextTickTaskIndex = CurrentIndex;
-	}
-
-	void FReplicationManagerState_Connected::TickSender(float TimeBudget)
-	{
-		Sender->ProcessObjects(TimeBudget);
-	}
-
-	void FReplicationManagerState_Connected::TickReceiver(float TimeBudget)
-	{
-		ReplicationApplier->ProcessObjects(TimeBudget);
+		// TODO UE-190714: We should set a time budget for the client so ticking does not cause frame spikes
+		const ConcertSyncCore::FProcessObjectsParams Params { DeltaTime };
+		Sender.ProcessObjects(Params);
+		ReplicationApplier->ProcessObjects(Params);
 	}
 
 	void FReplicationManagerState_Connected::UpdateReplicatedObjectsAfterStreamChange(const FConcertReplication_ChangeStream_Request& Request, const FConcertReplication_ChangeStream_Response& Response)
@@ -359,6 +339,22 @@ namespace UE::ConcertSyncClient::Replication
 		{
 			ReplicationDataSource->AddReplicatedObjectStreams(ReleaseAuthority.Key, ReleaseAuthority.Value.StreamIds);
 		}
+	}
+
+	FConcertObjectReplicationSettings FReplicationManagerState_Connected::GetObjectFrequencySettings(const FReplicatedObjectId& Object) const
+	{
+		const FReplicationStreamDescription* Stream = RegisteredStreams.FindByPredicate([&Object](const FReplicationStreamDescription& Description)
+		{
+			return Description.BaseDescription.Identifier == Object.StreamId;
+		});
+		
+		if (!ensureMsgf(Stream, TEXT("Caller of GetObjectFrequencySettings is trying to send an object that is not registered with the client")))
+		{
+			UE_LOG(LogConcert, Warning, TEXT("Requested frequency settings for unknown stream %s and object %s"), *Object.StreamId.ToString(), *Object.Object.ToString());
+			return {};
+		}
+		
+		return Stream->BaseDescription.FrequencySettings.GetSettingsFor(Object.Object);
 	}
 }
 

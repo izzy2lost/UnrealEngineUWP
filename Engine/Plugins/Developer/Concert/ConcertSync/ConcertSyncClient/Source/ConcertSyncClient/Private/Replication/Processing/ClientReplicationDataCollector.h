@@ -35,10 +35,18 @@ namespace UE::ConcertSyncClient::Replication
 	public:
 
 		DECLARE_DELEGATE_RetVal(const TArray<FReplicationStreamDescription>*, FGetClientStreams);
+
+		/**
+		 * @param InReplicationBridge 
+		 * @param InReplicationFormat 
+		 * @param InGetStreamsDelegate 
+		 * @param ClientId 
+		 */
 		FClientReplicationDataCollector(
 			IConcertClientReplicationBridge* InReplicationBridge,
 			TSharedRef<ConcertSyncCore::IObjectReplicationFormat> InReplicationFormat,
-			FGetClientStreams InGetStreamsDelegate
+			FGetClientStreams InGetStreamsDelegate,
+			const FGuid& InClientId
 			);
 		virtual ~FClientReplicationDataCollector() override;
 		
@@ -67,9 +75,9 @@ namespace UE::ConcertSyncClient::Replication
 		void AppendOwningStreamsForObject(const FSoftObjectPath& ObjectPath, TSet<FGuid>& Paths) const;
 
 		//~ Begin IReplicationDataSource Interface
-		virtual void ForEachPendingObject(TFunctionRef<void(const FObjectInStreamID&)> ProcessItemFunc) const override;
+		virtual void ForEachPendingObject(TFunctionRef<void(const FReplicatedObjectId&)> ProcessItemFunc) const override;
 		virtual int32 NumObjects() const override { return NumTrackedObjects; }
-		virtual bool ExtractReplicationDataForObject(const FObjectInStreamID& Object, TFunctionRef<void(const FConcertSessionSerializedPayload& Payload)> ProcessCopyable, TFunctionRef<void(FConcertSessionSerializedPayload&& Payload)> ProcessMoveable) override;
+		virtual bool ExtractReplicationDataForObject(const FReplicatedObjectId& Object, TFunctionRef<void(const FConcertSessionSerializedPayload& Payload)> ProcessCopyable, TFunctionRef<void(FConcertSessionSerializedPayload&& Payload)> ProcessMoveable) override;
 		//~ End IReplicationDataSource Interface
 
 	private:
@@ -81,6 +89,9 @@ namespace UE::ConcertSyncClient::Replication
 
 		/** Gets the stream of the managed client. */
 		const FGetClientStreams GetStreamsDelegate;
+
+		/** Endpoint ID of the client */
+		const FGuid ClientId;
 
 		struct FObjectInfo
 		{

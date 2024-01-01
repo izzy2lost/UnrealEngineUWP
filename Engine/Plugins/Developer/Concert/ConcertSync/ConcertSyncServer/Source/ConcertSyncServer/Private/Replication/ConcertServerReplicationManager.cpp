@@ -43,7 +43,7 @@ namespace UE::ConcertSyncServer::Replication
 
 	void FConcertServerReplicationManager::ForEachStream(const FGuid& ClientEndpointId, TFunctionRef<EBreakBehavior(const FReplicationStreamDescription& Stream)> Callback) const
 	{
-		const TSharedRef<FConcertReplicationClient>* Client = Clients.Find(ClientEndpointId);
+		const TUniquePtr<FConcertReplicationClient>* Client = Clients.Find(ClientEndpointId);
 		if (!ensure(Client))
 		{
 			return;
@@ -60,7 +60,7 @@ namespace UE::ConcertSyncServer::Replication
 
 	void FConcertServerReplicationManager::ForEachSendingClient(TFunctionRef<EBreakBehavior(const FGuid& ClientEndpointId)> Callback) const
 	{
-		for (const TPair<FGuid, TSharedRef<FConcertReplicationClient>>& ClientPair : Clients)
+		for (const TPair<FGuid, TUniquePtr<FConcertReplicationClient>>& ClientPair : Clients)
 		{
 			if (!ClientPair.Value->GetStreamDescriptions().IsEmpty()
 				&& Callback(ClientPair.Key) == EBreakBehavior::Break)
@@ -113,20 +113,29 @@ namespace UE::ConcertSyncServer::Replication
 			return EConcertSessionResponseCode::Success;
 		}
 
-		Clients.Emplace(ClientId, MakeShared<FConcertReplicationClient>(MoveTemp(StreamDescriptions), ClientId, Session, ReplicationCache));
+		Clients.Emplace(
+			ClientId,
+			MakeUnique<FConcertReplicationClient>(
+				MoveTemp(StreamDescriptions),
+				ClientId,
+				Session,
+				ReplicationCache,
+				ConcertSyncCore::FGetObjectFrequencySettings::CreateRaw(this, &FConcertServerReplicationManager::GetObjectFrequencySettings)
+			)
+		);
 		Response = { EJoinReplicationErrorCode::Success };
 		return EConcertSessionResponseCode::Success;
 	}
 
 	EConcertSessionResponseCode FConcertServerReplicationManager::HandleQueryReplicationInfoRequest(
-		const FConcertSessionContext& ConcertSessionContext,
+		const FConcertSessionContext&,
 		const FConcertReplication_QueryReplicationInfo_Request& Request,
 		FConcertReplication_QueryReplicationInfo_Response& Response
 		)
 	{
 		for (const FGuid& EndpointId : Request.ClientEndpointIds)
 		{
-			const TSharedRef<FConcertReplicationClient>* Client = Clients.Find(EndpointId);
+			const TUniquePtr<FConcertReplicationClient>* Client = Clients.Find(EndpointId);
 			if (!Client)
 			{
 				// This could happen if the client left the replication session before this request was answered
@@ -136,43 +145,38 @@ namespace UE::ConcertSyncServer::Replication
 			FReplicationClientQueriedInfo& EndpointInfo = Response.ClientInfo.Add(EndpointId);
 			if (!EnumHasAnyFlags(Request.QueryFlags, EConcertQueryClientStreamFlags::SkipStreamInfo))
 			{
-				const bool bSkipProperties = EnumHasAnyFlags(Request.QueryFlags, EConcertQueryClientStreamFlags::SkipProperties);
-				EndpointInfo.Streams = BuildClientStreamInfo(Client->Get(), bSkipProperties);
+				EndpointInfo.Streams = BuildClientStreamInfo(*Client->Get(), Request.QueryFlags);
 			}
 			if (!EnumHasAnyFlags(Request.QueryFlags, EConcertQueryClientStreamFlags::SkipAuthority))
 			{
-				EndpointInfo.Authority = BuildClientAuthorityInfo(Client->Get());
+				EndpointInfo.Authority = BuildClientAuthorityInfo(*Client->Get());
 			}
+			
 		}
 
 		Response.ErrorCode = EReplicationResponseErrorCode::Handled;
 		return EConcertSessionResponseCode::Success;
 	}
 
-	TArray<FSharedReplicationStreamDescription> FConcertServerReplicationManager::BuildClientStreamInfo(const FConcertReplicationClient& Client, bool bSkipProperties) const
+	TArray<FSharedReplicationStreamDescription> FConcertServerReplicationManager::BuildClientStreamInfo(const FConcertReplicationClient& Client, EConcertQueryClientStreamFlags QueryFlags)
 	{
 		TArray<FSharedReplicationStreamDescription> Result;
-		Algo::Transform(Client.GetStreamDescriptions(), Result, [bSkipProperties](const FReplicationStreamDescription& Description)
+		Algo::Transform(Client.GetStreamDescriptions(), Result, [QueryFlags](const FReplicationStreamDescription& Description)
 		{
-			if (!bSkipProperties)
+			using namespace ConcertSyncCore;
+			
+			EReplicationStreamCloneFlags Flags = EReplicationStreamCloneFlags::None;
+			if (EnumHasAnyFlags(QueryFlags, EConcertQueryClientStreamFlags::SkipProperties))
 			{
-				return Description.BaseDescription;
+				Flags |= EReplicationStreamCloneFlags::SkipProperties;
 			}
-
-			const FSharedReplicationStreamDescription& CopiedDescription = Description.BaseDescription;
-			const FObjectReplicationMap& CopiedReplicationMap = CopiedDescription.ReplicationMap;
-
-			// It was requested to skip sending the properties (saves network bandwidth)
-			FSharedReplicationStreamDescription StrippedResult;
-			StrippedResult.Identifier = CopiedDescription.Identifier;
-			StrippedResult.ReplicationMap.ReplicatedObjects.Reserve(CopiedReplicationMap.ReplicatedObjects.Num());
-			for (const TPair<FSoftObjectPath, FReplicatedObjectInfo>& ObjectInfo : CopiedReplicationMap.ReplicatedObjects)
+			if (EnumHasAnyFlags(QueryFlags, EConcertQueryClientStreamFlags::SkipFrequency))
 			{
-				StrippedResult.ReplicationMap.ReplicatedObjects.Add(ObjectInfo.Key, { ObjectInfo.Value.ClassPath });
+				Flags |= EReplicationStreamCloneFlags::SkipFrequency;
 			}
-			return StrippedResult;
+			
+			return Description.BaseDescription.Clone(Flags);
 		});
-
 		return Result;
 	}
 
@@ -230,13 +234,34 @@ namespace UE::ConcertSyncServer::Replication
 
 	void FConcertServerReplicationManager::Tick(IConcertServerSession& InSession, float InDeltaTime)
 	{
-		// TODO: Time slice replication clients
-		for (TPair<FGuid, TSharedRef<FConcertReplicationClient>>& Client : Clients)
+		// TODO UE-190714: We may want to set a time budget for clients.
+		// TODO UE-203340: Time slice clients
+		for (TPair<FGuid, TUniquePtr<FConcertReplicationClient>>& Client : Clients)
 		{
-			// TODO: Load time budget from config
-			constexpr float TimeBudget = 1.f / 60.f;
-			Client.Value->ProcessClient(TimeBudget);
+			Client.Value->ProcessClient({ InDeltaTime });
 		}
+	}
+
+	FConcertObjectReplicationSettings FConcertServerReplicationManager::GetObjectFrequencySettings(const FReplicatedObjectId& Object) const
+	{
+		const TUniquePtr<FConcertReplicationClient>* Client = Clients.Find(Object.SenderEndpointId);
+		if (!ensureMsgf(Client, TEXT("Caller is trying to retrieve non-existing client")))
+		{
+			UE_LOG(LogConcert, Warning, TEXT("Requested frequency settings for unknown client %s"), *Object.SenderEndpointId.ToString());
+			return {};
+		}
+		
+		const FReplicationStreamDescription* Stream = Client->Get()->GetStreamDescriptions().FindByPredicate([&Object](const FReplicationStreamDescription& Description)
+			{
+				return Description.BaseDescription.Identifier == Object.StreamId;
+			});
+		if (!ensureMsgf(Stream, TEXT("Caller is trying to retrieve an object that is not registered with the client")))
+		{
+			UE_LOG(LogConcert, Warning, TEXT("Requested frequency settings for unknown stream %s and object %s"), *Object.StreamId.ToString(), *Object.Object.ToString());
+			return {};
+		}
+			
+		return Stream->BaseDescription.FrequencySettings.GetSettingsFor(Object.Object);
 	}
 }
 

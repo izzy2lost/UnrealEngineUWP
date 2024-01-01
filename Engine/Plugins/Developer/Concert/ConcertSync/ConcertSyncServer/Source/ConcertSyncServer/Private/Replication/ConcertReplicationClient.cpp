@@ -12,17 +12,21 @@ namespace UE::ConcertSyncServer::Replication
 		TArray<FReplicationStreamDescription> StreamDescriptions,
 		const FGuid& ClientEndpointId,
 		TSharedRef<IConcertSession> Session,
-		TSharedRef<ConcertSyncCore::FObjectReplicationCache> ReplicationCache
+		TSharedRef<ConcertSyncCore::FObjectReplicationCache> ReplicationCache,
+		ConcertSyncCore::FGetObjectFrequencySettings GetObjectFrequencySettingsDelegate
 	)
 		: StreamDescriptions(MoveTemp(StreamDescriptions))
 		, ClientEndpointId(ClientEndpointId)
 		, EventQueue(FServerReplicationDataQueuer::Make(ClientEndpointId, MoveTemp(ReplicationCache)))
-		, DataRelay(ClientEndpointId, MoveTemp(Session), EventQueue)
+		, DataRelay(
+			MoveTemp(GetObjectFrequencySettingsDelegate),
+			ClientEndpointId, MoveTemp(Session), EventQueue
+			)
 	{}
 
-	void FConcertReplicationClient::ProcessClient(float TimeBudget)
+	void FConcertReplicationClient::ProcessClient(const ConcertSyncCore::FProcessObjectsParams& Params)
 	{
-		DataRelay.ProcessObjects(TimeBudget);
+		DataRelay.ProcessObjects(Params);
 	}
 
 	void FConcertReplicationClient::ApplyValidatedRequest(const FConcertReplication_ChangeStream_Request& Request)

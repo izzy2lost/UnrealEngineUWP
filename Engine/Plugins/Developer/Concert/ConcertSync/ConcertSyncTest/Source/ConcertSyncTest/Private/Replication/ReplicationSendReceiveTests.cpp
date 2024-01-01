@@ -117,8 +117,8 @@ namespace UE::ConcertSyncTests::Replication::SendReceiveFlow
 		{
 			ConcertSyncClient::Replication::FJoinReplicatedSessionArgs SenderJoinArgs;
 			const UClass& TestClass = *TestObject->GetClass();
-			
-			FReplicatedObjectInfo FloatProperties { &TestClass };
+
+			FReplicatedObjectInfo FloatProperties {&TestClass};
 			FloatProperties.PropertySelection.ReplicatedProperties.Add(*FConcertPropertyChain::CreateFromPath(TestClass, { GET_MEMBER_NAME_CHECKED(UTestReflectionObject, Float) }));
 			FReplicatedObjectInfo VectorProperties { &TestClass };
 			VectorProperties.PropertySelection.ReplicatedProperties.Add(*FConcertPropertyChain::CreateFromPath(TestClass, { GET_MEMBER_NAME_CHECKED(UTestReflectionObject, Vector) }));
@@ -126,9 +126,14 @@ namespace UE::ConcertSyncTests::Replication::SendReceiveFlow
 			FReplicationStreamDescription FloatStream;
 			FloatStream.BaseDescription.Identifier = FloatStreamId;
 			FloatStream.BaseDescription.ReplicationMap.ReplicatedObjects.Add(TestObject, FloatProperties);
+			// Use realtime replication, otherwise we'll have to pass time for the frequency system
+			FloatStream.BaseDescription.FrequencySettings.Defaults.ReplicationMode = EConcertObjectReplicationMode::Realtime;
+			
 			FReplicationStreamDescription VectorStream;
 			VectorStream.BaseDescription.Identifier = VectorStreamId;
 			VectorStream.BaseDescription.ReplicationMap.ReplicatedObjects.Add(TestObject, VectorProperties);
+			// Use realtime replication, otherwise we'll have to pass time for the frequency system
+			VectorStream.BaseDescription.FrequencySettings.Defaults.ReplicationMode = EConcertObjectReplicationMode::Realtime;
 			
 			SenderJoinArgs.Streams.Add(FloatStream);
 			SenderJoinArgs.Streams.Add(VectorStream);

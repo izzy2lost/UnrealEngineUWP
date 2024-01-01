@@ -4,6 +4,7 @@
 
 #include "Containers/Array.h"
 #include "HAL/Platform.h"
+#include "Messages/ChangeStream.h"
 #include "Templates/Function.h"
 
 enum class EBreakBehavior : uint8;
@@ -38,6 +39,34 @@ namespace UE::ConcertSyncCore::Replication::ChangeStreamUtils
 	CONCERTSYNCCORE_API void ApplyValidatedRequest(
 		const FConcertReplication_ChangeStream_Request& Request,
 		IN OUT TArray<FReplicationStreamDescription>& StreamsToModify
+		);
+	
+	/**
+	 * Modifies StreamToModify as described by the request.
+	 * 
+	 * Validate the request before calling.
+	 * This function does use ensure conditions where it makes sense but it does not check all failure cases.
+	 * 
+	 * @param Request The request to parse
+	 * @param SettingsToModify The streams to apply the request to
+	 */
+	CONCERTSYNCCORE_API void ApplyValidatedFrequencyChanges(
+		const FConcertReplication_ChangeStream_Frequency& Request,
+		FConcertStreamFrequencySettings& SettingsToModify
+		);
+	/**
+	 * Validates a FConcertReplication_ChangeStream_Request and optionally outputs the errors into OptionalErrors if set.
+	 *
+	 * @param Request The request to validate. Note that the full request is needed (if an object is added through this
+	 * @param Streams The streams array Request would be run on
+	 * @param OptionalErrors Errors are written into this struct if set
+	 *
+	 * @return Whether Request is valid to apply to Streams
+	 */
+	CONCERTSYNCCORE_API bool ValidateFrequencyChanges(
+		const FConcertReplication_ChangeStream_Request& Request,
+		const TArray<FReplicationStreamDescription>& Streams,
+		OUT FConcertReplication_ChangeStream_FrequencyResponse* OptionalErrors = nullptr
 		);
 
 	/** Iterates entries with incomplete data, which are entries for which IsValidForSendingToServer returns false. */

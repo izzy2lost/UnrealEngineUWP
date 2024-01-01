@@ -48,6 +48,7 @@ namespace UE::ConcertSyncCore::Replication::ChangeStreamUtils
 		{
 			FSharedReplicationStreamDescription& BaseDescription = StreamIt->BaseDescription;
 			TMap<FSoftObjectPath, FReplicatedObjectInfo>& ReplicationMap = BaseDescription.ReplicationMap.ReplicatedObjects;
+			FConcertStreamFrequencySettings& FrequencySettings = BaseDescription.FrequencySettings;
 			const FGuid& StreamId = BaseDescription.Identifier;
 			
 			for (const FObjectInStreamID& ObjectToRemove : Request.ObjectsToRemove)
@@ -55,7 +56,13 @@ namespace UE::ConcertSyncCore::Replication::ChangeStreamUtils
 				if (ObjectToRemove.StreamId == StreamId)
 				{
 					ReplicationMap.Remove(ObjectToRemove.Object);
+					FrequencySettings.ObjectOverrides.Remove(ObjectToRemove.Object);
 				}
+			}
+
+			if (const FConcertReplication_ChangeStream_Frequency* FrequencyChange = Request.FrequencyChanges.Find(StreamId))
+			{
+				ApplyValidatedFrequencyChanges(*FrequencyChange, FrequencySettings);
 			}
 			
 			if (Request.StreamsToRemove.Contains(StreamId)
@@ -103,6 +110,128 @@ namespace UE::ConcertSyncCore::Replication::ChangeStreamUtils
 			}
 		}
 	}
+	
+	void ApplyValidatedFrequencyChanges(
+		const FConcertReplication_ChangeStream_Frequency& Request,
+		FConcertStreamFrequencySettings& SettingsToModify
+		)
+	{
+		if (EnumHasAnyFlags(Request.Flags, EConcertReplicationChangeFrequencyFlags::SetDefaults)
+			&& ensure(Request.NewDefaults.IsValid()))
+		{
+			SettingsToModify.Defaults = Request.NewDefaults;
+		}
+
+		if (!Request.OverridesToPut.IsEmpty())
+		{
+			SettingsToModify.ObjectOverrides = Request.OverridesToPut;
+		}
+
+		for (const FSoftObjectPath& ToRemove : Request.OverridesToRemove)
+		{
+			SettingsToModify.ObjectOverrides.Remove(ToRemove);
+		}
+		
+		for (const TPair<FSoftObjectPath, FConcertObjectReplicationSettings>& ToAdd : Request.OverridesToAdd)
+		{
+			if (ensure(ToAdd.Value.IsValid()))
+			{
+				SettingsToModify.ObjectOverrides.Add(ToAdd.Key, ToAdd.Value);
+			}
+		}
+	}
+
+#define ADD_ERROR(Condition, Callback) if (Condition) { Callback; }
+	namespace Private
+	{
+		static void MarkAsMissingStream(const FGuid& StreamId, const TMap<FSoftObjectPath, FConcertObjectReplicationSettings>& Added, FConcertReplication_ChangeStream_FrequencyResponse& Errors)
+		{
+			for (const TPair<FSoftObjectPath, FConcertObjectReplicationSettings>& Pair : Added)
+			{
+				Errors.OverrideFailures.Add({ StreamId, Pair.Key }, EConcertChangeObjectFrequencyErrorCode::NotRegistered);
+			}
+		}
+
+		static bool HasOrIsAddingProperties(const FConcertReplication_ChangeStream_Request& Request, const FSharedReplicationStreamDescription& Stream, const FSoftObjectPath& ObjectPath)
+		{
+			const FObjectReplicationMap& ReplicationMap = Stream.ReplicationMap;
+			return ReplicationMap.HasProperties(ObjectPath)
+				// It might be that ObjectsToPut is invalid.
+				// We do not need to check that here because the underlying FConcertReplication_ChangeStream_Request will be checked separately and would fail then anyways.
+				|| Request.ObjectsToPut.Contains({ Stream.Identifier, ObjectPath });
+		}
+		
+		static bool ValidateAddedFrequencies(
+			const FConcertReplication_ChangeStream_Request& FullRequest,
+			const TMap<FSoftObjectPath, FConcertObjectReplicationSettings>& Added,
+			const FSharedReplicationStreamDescription& Stream,
+			FConcertReplication_ChangeStream_FrequencyResponse* OptionalErrors = nullptr)
+		{
+			bool bAnyError = false;
+			for (const TPair<FSoftObjectPath, FConcertObjectReplicationSettings>& Pair : Added)
+			{
+				if (!HasOrIsAddingProperties(FullRequest, Stream, Pair.Key))
+				{
+					bAnyError = true;
+					ADD_ERROR(OptionalErrors, OptionalErrors->OverrideFailures.Add({ Stream.Identifier, Pair.Key }, EConcertChangeObjectFrequencyErrorCode::NotRegistered));
+				}
+				else if (!Pair.Value.IsValid())
+				{
+					ADD_ERROR(OptionalErrors, OptionalErrors->OverrideFailures.Add({ Stream.Identifier, Pair.Key }, EConcertChangeObjectFrequencyErrorCode::InvalidReplicationRate));
+				}
+			}
+			
+			return bAnyError;
+		}
+	}
+
+	bool ValidateFrequencyChanges(
+		const FConcertReplication_ChangeStream_Request& Request,
+		const TArray<FReplicationStreamDescription>& Streams,
+		FConcertReplication_ChangeStream_FrequencyResponse* OptionalErrors
+		)
+	{
+		using namespace Private;
+		bool bAnyErrors = false;
+		
+		for (const TPair<FGuid, FConcertReplication_ChangeStream_Frequency>& SubRequestPair : Request.FrequencyChanges)
+		{
+			const FGuid& TargetStreamId = SubRequestPair.Key;
+			const FConcertReplication_ChangeStream_Frequency& SubRequest = SubRequestPair.Value;
+			
+			const bool bIsModifyingDefaults = EnumHasAnyFlags(SubRequest.Flags, EConcertReplicationChangeFrequencyFlags::SetDefaults);
+			const FReplicationStreamDescription* StreamDescription = Streams.FindByPredicate([&TargetStreamId](const FReplicationStreamDescription& Description)
+			{
+				return Description.BaseDescription.Identifier == TargetStreamId;
+			});
+
+			// Referenced stream does not exist
+			if (!StreamDescription)
+			{
+				// TODO UE-201167: Once StreamsToAdd no longer specifies objects directly, we need to handle that case here
+				
+				bAnyErrors = true;
+				ADD_ERROR(OptionalErrors && bIsModifyingDefaults, OptionalErrors->DefaultFailures.Add(TargetStreamId, EConcertChangeStreamFrequencyErrorCode::UnknownStream))
+				ADD_ERROR(OptionalErrors, MarkAsMissingStream(TargetStreamId, SubRequest.OverridesToPut, *OptionalErrors))
+				ADD_ERROR(OptionalErrors, MarkAsMissingStream(TargetStreamId, SubRequest.OverridesToAdd, *OptionalErrors))
+				continue;
+			}
+
+			// Defaults must be valid
+			if (bIsModifyingDefaults && !SubRequest.NewDefaults.IsValid())
+			{
+				bAnyErrors = true;
+				ADD_ERROR(OptionalErrors && bIsModifyingDefaults, OptionalErrors->DefaultFailures.Add(TargetStreamId, EConcertChangeStreamFrequencyErrorCode::InvalidReplicationRate))
+			}
+
+			// Object paths referenced must have properties mapped to them in the replication map
+			bAnyErrors |= ValidateAddedFrequencies(Request, SubRequest.OverridesToPut, StreamDescription->BaseDescription, OptionalErrors);
+			bAnyErrors |= ValidateAddedFrequencies(Request, SubRequest.OverridesToAdd, StreamDescription->BaseDescription, OptionalErrors);
+		}
+		
+		return bAnyErrors;
+	}
+#undef ADD_ERROR
 	
 	void IterateInvalidEntries(
 		const FObjectReplicationMap& ReplicationMap,

@@ -5,18 +5,15 @@
 #include "ReplicationManagerState.h"
 #include "Replication/Processing/ClientReplicationDataCollector.h"
 #include "Replication/Processing/ClientReplicationDataQueuer.h"
+#include "Replication/Processing/ObjectReplicationSender.h"
+#include "Replication/Processing/Proxy/ObjectProcessorProxy_Frequency.h"
+
+class IConcertClientSession;
 
 namespace UE::ConcertSyncCore
 {
 	class FObjectReplicationReceiver;
 }
-
-namespace UE::ConcertSyncCore
-{
-	class FObjectReplicationSender;
-}
-
-class IConcertClientSession;
 
 namespace UE::ConcertSyncClient::Replication
 {
@@ -70,8 +67,11 @@ namespace UE::ConcertSyncClient::Replication
 		// Sending
 		/** Used as source of replication data. */
 		const TSharedRef<FClientReplicationDataCollector> ReplicationDataSource;
+		
+		/** Sends to remote endpoint and makes sure the objects are replicated at the specified frequency settings. */
+		using FDataRelayThrottledByFrequency = ConcertSyncCore::TObjectProcessorProxy_Frequency<ConcertSyncCore::FObjectReplicationSender>;
 		/** Sends data collected by ReplicationDataSource to the server. */
-		const TSharedRef<ConcertSyncCore::FObjectReplicationSender> Sender;
+		FDataRelayThrottledByFrequency Sender;
 
 		// Receiving
 		/** Stores data received by Receiver until it is consumed by ReceivedReplicationQueuer. */
@@ -82,20 +82,6 @@ namespace UE::ConcertSyncClient::Replication
 		const TSharedRef<FClientReplicationDataQueuer> ReceivedReplicationQueuer;
 		/** Processes data from ReceivedReplicationQueuer once we tick. */
 		const TSharedRef<FObjectReplicationApplierProcessor> ReplicationApplier;
-
-		using FTickTask = void(FReplicationManagerState_Connected::*)(float TimeBudget);
-		/**
-		 * We have two tasks that need to be performed each tick: Collecting data to send and applying received data.
-		 * In order that no task starves the other, we alternate which one we start with.
-		 *
-		 * Example assuming time budget of 0.1s (unrealistic time budget):
-		 * Tick 1: TickSender takes 0.8s and finishes. TickReceiver has 0.2s but cannot finish all work.
-		 * Tick 2: TickReceiver finishes work taking 0.7s. TickSender gets the remaining 0.3s.
-		 * Tick 3. TickSender starts again followed by TickSender ...
-		 */
-		const TArray<FTickTask, TInlineAllocator<2>> AlternatingTickTasks { &FReplicationManagerState_Connected::TickSender, &FReplicationManagerState_Connected::TickReceiver };
-		/** The first index to process next tick. */
-		int32 NextTickTaskIndex = 0;
 
 		//~ Begin FReplicationManagerState Interface
 		virtual void OnEnterState() override;
@@ -112,11 +98,6 @@ namespace UE::ConcertSyncClient::Replication
 		 * It is configured in the project settings TODO: Add config
 		 */
 		void Tick(IConcertClientSession& Session, float DeltaTime);
-
-		/** Collects and sends data to the server. */
-		void TickSender(float TimeBudget);
-		/** Processes received data and serializes UObjects. */
-		void TickReceiver(float TimeBudget);
 		
 		/** Updates replicated objects affected by the change request. */
 		void UpdateReplicatedObjectsAfterStreamChange(const FConcertReplication_ChangeStream_Request& Request, const FConcertReplication_ChangeStream_Response& Response);
@@ -132,5 +113,8 @@ namespace UE::ConcertSyncClient::Replication
 		void UpdateReplicatedObjectsAfterAuthorityChange(FConcertReplication_ChangeAuthority_Request&& Request, const FConcertReplication_ChangeAuthority_Response& Response) const;
 		void HandleReleasingReplicatedObjects(const FConcertReplication_ChangeAuthority_Request& Request) const;
 		void RevertReleasingReplicatedObjects(const FConcertReplication_ChangeAuthority_Request& Request) const;
+		
+		/** Callback to Sender for obtaining an object's frequency settings. */
+		FConcertObjectReplicationSettings GetObjectFrequencySettings(const FReplicatedObjectId& Object) const;
 	};
 }

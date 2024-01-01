@@ -34,6 +34,7 @@ struct FReplicationClientQueriedInfo
 	 * 
 	 * If EConcertQueryClientStreamFlags::SkipStreamInfo was set, this is empty.
 	 * If EConcertQueryClientStreamFlags::SkipProperties was set, streams' FReplicatedObjectInfo::PropertySelection are empty.
+	 * If EConcertQueryClientStreamFlags::SkipFrequency was set, the FrequencySettings are empty.
 	 */
 	UPROPERTY()
 	TArray<FSharedReplicationStreamDescription> Streams;

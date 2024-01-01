@@ -4,6 +4,7 @@
 
 #include "Containers/Array.h"
 #include "Replication/Processing/ObjectReplicationSender.h"
+#include "Replication/Processing/Proxy/ObjectProcessorProxy_Frequency.h"
 #include "Templates/SharedPointer.h"
 
 struct FReplicationStreamDescription;
@@ -13,6 +14,7 @@ struct FConcertReplication_ChangeStream_Request;
 namespace UE::ConcertSyncCore
 {
 	class FObjectReplicationCache;
+	struct FProcessObjectsParams;
 }
 
 namespace UE::ConcertSyncServer::Replication
@@ -28,14 +30,15 @@ namespace UE::ConcertSyncServer::Replication
 			TArray<FReplicationStreamDescription> StreamDescriptions,
 			const FGuid& ClientEndpointId,
 			TSharedRef<IConcertSession> Session,
-			TSharedRef<ConcertSyncCore::FObjectReplicationCache> ReplicationCache
+			TSharedRef<ConcertSyncCore::FObjectReplicationCache> ReplicationCache,
+			ConcertSyncCore::FGetObjectFrequencySettings GetObjectFrequencySettingsDelegate
 			);
 
 		/**
 		 * Process any latent tasks, such as processing pending events that need to be sent to the remote instance.
 		 * Process given a time budget. The time budget may be exceeded but we'll try not to and to stay as close to the budget as possible.
 		 */
-		void ProcessClient(float TimeBudget);
+		void ProcessClient(const ConcertSyncCore::FProcessObjectsParams& Params);
 		
 		/** Updates the StreamDescriptions array with the changes from Request. The request already passed validation and is valid to apply. */
 		void ApplyValidatedRequest(const FConcertReplication_ChangeStream_Request& Request);
@@ -54,7 +57,9 @@ namespace UE::ConcertSyncServer::Replication
 		/** Queues up replication data and passes it to DataRelay. */
 		TSharedRef<FServerReplicationDataQueuer> EventQueue;
 
+		/** Sends to remote endpoint and makes sure the objects are replicated at the specified frequency settings. */
+		using FDataRelayThrottledByFrequency = ConcertSyncCore::TObjectProcessorProxy_Frequency<ConcertSyncCore::FObjectReplicationSender>;
 		/** Sends data to the remote endpoint */
-		ConcertSyncCore::FObjectReplicationSender DataRelay;
+		FDataRelayThrottledByFrequency DataRelay;
 	};
 }

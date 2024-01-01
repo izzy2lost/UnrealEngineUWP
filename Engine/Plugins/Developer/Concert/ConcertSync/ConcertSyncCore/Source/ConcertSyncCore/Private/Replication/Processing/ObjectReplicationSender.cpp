@@ -23,9 +23,9 @@ namespace UE::ConcertSyncCore
 		, Session(MoveTemp(Session))
 	{}
 
-	void FObjectReplicationSender::ProcessObjects(float TimeBudget)
+	void FObjectReplicationSender::ProcessObjects(const FProcessObjectsParams& Params)
 	{
-		FObjectReplicationProcessor::ProcessObjects(TimeBudget);
+		FObjectReplicationProcessor::ProcessObjects(Params);
 
 		if (!EventToSend.Streams.IsEmpty())
 		{

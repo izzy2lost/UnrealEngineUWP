@@ -12,9 +12,7 @@ enum class EConcertQueryClientStreamFlags : uint8
 {
 	None = 0,
 
-	/**
-	 * If set, FReplicationClientQueriedInfo::Streams will be empty.
-	 */
+	/** If set, FReplicationClientQueriedInfo::Streams will be empty. */
 	SkipStreamInfo = 1 << 0,
 
 	/**
@@ -24,10 +22,14 @@ enum class EConcertQueryClientStreamFlags : uint8
 	 */
 	SkipProperties = 1 << 1,
 	
+	/** If set, FReplicationClientQueriedInfo::Authority will be empty. */
+	SkipAuthority = 1 << 2,
+
 	/**
-	 * If set, FReplicationClientQueriedInfo::Authority will be empty.
+	 * Optimization. Ignored if SkipStreamInfo is set.
+	 * If set, FReplicationClientQueriedInfo::Streams.FrequencySettings will not be set.
 	 */
-	SkipAuthority = 1 << 2
+	SkipFrequency = 1 << 3,
 };
 ENUM_CLASS_FLAGS(EConcertQueryClientStreamFlags)
 
