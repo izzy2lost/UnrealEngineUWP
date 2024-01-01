@@ -28,7 +28,9 @@ namespace UE::ConcertSyncTests::Replication::Stream
 		// 1. Start up client with float property stream
 		UTestReflectionObject* MainTestObject = NewObject<UTestReflectionObject>(GetTransientPackage());
 		UTestReflectionObject* SecondaryTestObject = NewObject<UTestReflectionObject>(GetTransientPackage());
-		auto[FloatStreamId, FloatStream] = CreateFloatPropertyStream(*MainTestObject);
+		FGuid FloatStreamId;
+		FReplicationStreamDescription FloatStream;
+		Tie(FloatStreamId, FloatStream) = CreateFloatPropertyStream(*MainTestObject);
 		SenderArgs.Streams = { FloatStream };
 		
 		SetUpClientAndServer();
@@ -318,7 +320,9 @@ namespace UE::ConcertSyncTests::Replication::Stream
 		// 1. Start up client with float property stream
 		UTestReflectionObject* MainTestObject = NewObject<UTestReflectionObject>(GetTransientPackage());
 		UTestReflectionObject* SecondaryTestObject = NewObject<UTestReflectionObject>(GetTransientPackage());
-		auto[FloatStreamId, FloatStream] = CreateFloatPropertyStream(*MainTestObject);
+		FGuid FloatStreamId;
+		FReplicationStreamDescription FloatStream;
+		Tie(FloatStreamId, FloatStream) = CreateFloatPropertyStream(*MainTestObject);
 		SenderArgs.Streams = { FloatStream };
 		
 		SetUpClientAndServer();
