@@ -23,6 +23,7 @@ extern "C"
 	UBA_DETOURED_API bool UbaRunningRemote();
 
 	// Using custom message inside UbaScheduler so can't be combined with RegisterCustomService.
+	// This function will automatically flush written files before requesting next process and will also update environment if new process is retrieved
 	UBA_DETOURED_API bool UbaRequestNextProcess(wchar_t* outArguments, unsigned int outArgumentsCapacity);
 }
 

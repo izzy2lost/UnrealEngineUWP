@@ -1032,12 +1032,19 @@ extern "C"
 
 	UBA_DETOURED_API bool UbaRequestNextProcess(wchar_t* outArguments, u32 outArgumentsCapacity)
 	{
+		if (!UbaFlushWrittenFiles())
+			return false;
+
 		*outArguments = 0;
-		StackBinaryReader<1024> reader;
-		reader.SetSize(UbaSendCustomMessage(nullptr, 0, reader.buffer, 1024));
+		StackBinaryReader<2048> reader;
+		reader.SetSize(UbaSendCustomMessage(nullptr, 0, reader.buffer, 2048));
 		if (!reader.GetLeft())
 			return false;
 		reader.ReadString(outArguments, outArgumentsCapacity);
-		return true;
+		reader.SkipString(); // Working dir
+		StringBuffer<256> description;
+		reader.ReadString(description);
+
+		return UbaUpdateEnvironment(description.data);
 	}
 }
