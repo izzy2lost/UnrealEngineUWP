@@ -134,11 +134,11 @@ int wmain(int argc, wchar_t* argv[])
 	else
 	{
 		using u32 = unsigned int;
-		using UbaSendMessageFunc = u32(const void* send, u32 sendSize, void* recv, u32 recvCapacity);
+		using UbaSendCustomMessageFunc = u32(const void* send, u32 sendSize, void* recv, u32 recvCapacity);
 
-		UbaSendMessageFunc* sendMessage = (UbaSendMessageFunc*)GetProcAddress(detoursHandle, "UbaSendMessage");
+		UbaSendCustomMessageFunc* sendMessage = (UbaSendCustomMessageFunc*)GetProcAddress(detoursHandle, "UbaSendCustomMessage");
 		if (!sendMessage)
-			return LogError(L"Couldn't find UbaSendMessage function in UbaDetours.dll");
+			return LogError(L"Couldn't find UbaSendCustomMessage function in UbaDetours.dll");
 
 		const wchar_t* helloMsg = L"Hello from client";
 		wchar_t response[256];

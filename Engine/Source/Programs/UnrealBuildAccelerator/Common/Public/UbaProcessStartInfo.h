@@ -30,7 +30,7 @@ namespace uba
 
 		using ExitedCallback = void(void* userData, const ProcessHandle&);
 		ExitedCallback* exitedFunc = nullptr;	// Callback for when process is done (it has already exited)
-		void* exitedUserData = nullptr;			// User data provided to exit callback
+		void* userData = nullptr;				// User data provided to exit callback
 
 		int uiLanguage = 1033;					// Internal use
 	};

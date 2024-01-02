@@ -77,7 +77,7 @@ extern "C"
 
 	using SessionServer_RemoteProcessAvailableCallback = void(void* userData);
 	using SessionServer_RemoteProcessReturnedCallback = void(uba::Process& process, void* userData);
-	using SessionServer_CustomServiceFunction = uba::u32(const uba::Guid& clientUid, const void* recv, uba::u32 recvSize, void* send, uba::u32 sendCapacity, void* userData);
+	using SessionServer_CustomServiceFunction = uba::u32(uba::ProcessHandle* handle, const void* recv, uba::u32 recvSize, void* send, uba::u32 sendCapacity, void* userData);
 
 	UBA_API uba::SessionServerCreateInfo* CreateSessionServerCreateInfo(uba::Storage& storage, uba::NetworkServer& client, uba::LogWriter& writer, const uba::tchar* rootDir, const uba::tchar* traceOutputFile,
 		bool disableCustomAllocator, bool launchVisualizer, bool resetCas, bool writeToDisk, bool detailedTrace, bool allowWaitOnMem = false, bool allowKillOnMem = false);
@@ -110,7 +110,7 @@ extern "C"
 
 
 	// Scheduler
-	UBA_API uba::Scheduler* Scheduler_Create(uba::SessionServer* session, uba::u32 maxLocalProcessors = 0);
+	UBA_API uba::Scheduler* Scheduler_Create(uba::SessionServer* session, uba::u32 maxLocalProcessors = 0, bool enableProcessReuse = false);
 	UBA_API void Scheduler_Start(uba::Scheduler* scheduler);
 	UBA_API void Scheduler_EnqueueProcess(uba::Scheduler* scheduler, const uba::ProcessStartInfo& info, float weight = 1.0f, const void* knownInputs = nullptr, uba::u32 knownInputsBytes = 0, uba::u32 knownInputsCount = 0);
 	UBA_API void Scheduler_Stop(uba::Scheduler* scheduler);

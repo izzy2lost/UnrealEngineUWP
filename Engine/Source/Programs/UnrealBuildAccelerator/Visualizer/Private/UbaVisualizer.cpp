@@ -456,6 +456,7 @@ namespace uba
 		SelectObject(textDC, m_font);
 		SelectObject(textDC, GetStockObject(NULL_BRUSH));
 		SetBkMode(textDC, TRANSPARENT);
+		SetBkColor(hdc, m_useDarkMode ? RGB(70, 70, 70) : RGB(180, 180, 180));
 
 		//TEXTMETRIC metric;
 		//GetTextMetrics(textDC, &metric);
@@ -519,10 +520,7 @@ namespace uba
 					rect.bottom = textBottom;
 
 					if (selected)
-					{
 						SetBkMode(hdc, OPAQUE);
-						SetBkColor(hdc, m_useDarkMode ? RGB(70, 70, 70) : RGB(180, 180, 180));
-					}
 					ExtTextOutW(hdc, 5, posY+2, ETO_CLIPPED, &rect, text.data, text.count, NULL);
 					if (selected)
 						SetBkMode(hdc, TRANSPARENT);
@@ -608,7 +606,15 @@ namespace uba
 
 			if (m_visibleComponents[ComponentType_DetailedData])
 			{
-				auto drawText = [&](const StringBufferBase& text, RECT& rect) { DrawTextW(hdc, text.data, text.count, &rect, DT_SINGLELINE); };
+				auto drawText = [&](const StringBufferBase& text, RECT& rect)
+					{
+						bool selected = m_fetchedFilesSelected == processLocation.sessionIndex && text.StartsWith(TC("Fetched Files"));
+						if (selected)
+							SetBkMode(hdc, OPAQUE);
+						DrawTextW(hdc, text.data, text.count, &rect, DT_SINGLELINE);
+						if (selected)
+							SetBkMode(hdc, TRANSPARENT);
+					};
 				PaintDetailedStats(posY, progressRect, session, processLocation.sessionIndex != 0, playTime, drawText);
 			}
 
@@ -1231,46 +1237,51 @@ namespace uba
 		{
 			auto& session = m_traceView.sessions[m_fetchedFilesSelected];
 			auto& fetchedFiles = session.fetchedFiles;
-
-			int width = 1000;
-			int height = Min(int(clientRect.bottom), int(fetchedFiles.size() * m_popupFontHeight));
-
-
-			POINT p;
-			GetCursorPos(&p);
-			ScreenToClient(m_hwnd, &p);
-			RECT r;
-			r.left = p.x;
-			r.top = p.y;
-			r.right = r.left + width;
-			r.bottom = r.top + height;
-
-			if (r.right > clientRect.right)
-				OffsetRect(&r, -width, 0);
-			if (r.bottom > clientRect.bottom)
+			if (!fetchedFiles.empty() && !fetchedFiles[0].hint.empty())
 			{
-				OffsetRect(&r, 0, -height);
-				if (r.top < 0)
-					OffsetRect(&r, 0, -r.top);
-			}
-			FillRect(hdc, &r, m_tooltipBackgroundBrush);
+				int colWidth = 500;
+				int width = colWidth * 2;
+				int height = Min(int(clientRect.bottom), int(fetchedFiles.size() * m_popupFontHeight));
 
-			SelectObject(hdc, m_font);
-			DrawTextLogger logger(hdc, r, FontHeight);
-			for (auto& f : fetchedFiles)
-			{
-				if (f.hint == TC("KnownInput"))
-					continue;
-				if (logger.rect.top >= r.bottom - FontHeight)
+
+				POINT p;
+				GetCursorPos(&p);
+				ScreenToClient(m_hwnd, &p);
+				RECT r;
+				r.left = p.x;
+				r.top = p.y;
+				r.right = r.left + width;
+				r.bottom = r.top + height;
+
+				if (r.right > clientRect.right)
+					OffsetRect(&r, -width, 0);
+				if (r.bottom > clientRect.bottom)
 				{
-					logger.rect.top = r.top;
-					logger.rect.left += 500;
-					if (logger.rect.left >= r.right)
-						break;
+					OffsetRect(&r, 0, -height);
+					if (r.top < 0)
+						OffsetRect(&r, 0, -r.top);
 				}
-				logger.Info(L"%s", f.hint.c_str());
+				FillRect(hdc, &r, m_tooltipBackgroundBrush);
+
+				SelectObject(hdc, m_font);
+				DrawTextLogger logger(hdc, r, FontHeight);
+				for (auto& f : fetchedFiles)
+				{
+					if (f.hint == TC("KnownInput"))
+						continue;
+					if (logger.rect.top >= r.bottom - FontHeight)
+					{
+						if (logger.rect.left + colWidth >= r.right)
+						{
+							logger.Info(L"...");
+							break;
+						}
+						logger.rect.top = r.top;
+						logger.rect.left += colWidth;
+					}
+					logger.Info(L"%s", f.hint.c_str());
+				}
 			}
-			logger.Info(L"...");
 		}
 	}
 

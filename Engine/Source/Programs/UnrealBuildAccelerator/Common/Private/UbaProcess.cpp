@@ -431,9 +431,13 @@ namespace uba
 
 		if (m_startInfo.exitedFunc)
 		{
+			auto exitedFunc = m_startInfo.exitedFunc;
+			auto userData = m_startInfo.userData;
+			m_startInfo.exitedFunc = nullptr;
+			m_startInfo.userData = nullptr;
 			ProcessHandle h;
 			h.m_process = this;
-			m_startInfo.exitedFunc(m_startInfo.exitedUserData, h);
+			exitedFunc(userData, h);
 			h.m_process = nullptr;
 		}
 	}
@@ -801,19 +805,7 @@ namespace uba
 					m_processStats.Add(stats);
 
 					if (GetApplicationRules()[m_rulesIndex].rules->IsExitCodeSuccess(m_nativeProcessExitCode) && !IsCancelled())
-					{
-						TimerScope ts(m_processStats.writeFiles);
-						ScopedWriteLock lock(m_writtenFilesLock);
-						for (auto& kv : m_writtenFiles)
-						{
-							if (kv.second.owner != this)
-								continue;
-							kv.second.owner = nullptr;
-							if (kv.second.mappingHandle.IsValid())
-								if (!m_session.WriteFileToDisk(*this, kv.second))
-									m_messageSuccess = false;
-						}
-					}
+						WriteFilesToDisk();
 
 					if (m_parentProcess)
 					{
@@ -833,19 +825,24 @@ namespace uba
 				}
 			case MessageType_Custom:
 				{
-					m_session.CustomMessage(reader, writer);
+					m_session.CustomMessage(*this, reader, writer);
 					return true;
 				}
 			case MessageType_FlushWrittenFiles:
 				{
-					return m_session.FlushWrittenFiles(*this);
+					WriteFilesToDisk();
+					bool result = m_session.FlushWrittenFiles(*this);
+					writer.WriteBool(result);
+					return true;
 				}
 
 			case MessageType_UpdateEnvironment:
 				{
 					StringBuffer<> reason;
 					reader.ReadString(reason);
-					return m_session.UpdateEnvironment(*this, reason.data);
+					bool result = m_session.UpdateEnvironment(*this, reason.data);
+					writer.WriteBool(result);
+					return true;
 				}
 		}
 		return m_session.m_logger.Error(TC("Unknown message type %u"), messageType);
@@ -979,6 +976,22 @@ namespace uba
 			}
 			exeName.Clear().Append(m_arguments.data() + firstArgumentStart, firstArgumentEnd - firstArgumentStart);
 		}
+	}
+
+	bool ProcessImpl::WriteFilesToDisk()
+	{
+		TimerScope ts(m_processStats.writeFiles);
+		ScopedWriteLock lock(m_writtenFilesLock);
+		for (auto& kv : m_writtenFiles)
+		{
+			if (kv.second.owner != this)
+				continue;
+			kv.second.owner = nullptr;
+			if (kv.second.mappingHandle.IsValid())
+				if (!m_session.WriteFileToDisk(*this, kv.second))
+					return false;
+		}
+		return true;
 	}
 
 	const tchar* ProcessImpl::InternalGetChildLogFile(StringBufferBase& temp)

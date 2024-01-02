@@ -17,7 +17,7 @@ namespace uba
 	class Scheduler
 	{
 	public:
-		Scheduler(SessionServer& session, u32 maxLocalProcessors = 0);
+		Scheduler(SessionServer& session, u32 maxLocalProcessors = 0, bool enableProcessReuse = false);
 		~Scheduler();
 
 		void Start();
@@ -34,6 +34,7 @@ namespace uba
 		void RemoteSlotAvailable();
 		void ProcessExited(ExitProcessInfo* info, const ProcessHandle& handle);
 		bool RunQueuedProcess(bool runLocal);
+		u32 HandleReuseMessage(Process& process, const void* recv, u32 recvSize, void* send, u32 sendCapacity);
 
 		SessionServer& m_session;
 		u32 m_maxLocalProcessors;

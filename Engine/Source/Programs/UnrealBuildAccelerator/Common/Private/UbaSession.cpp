@@ -1270,10 +1270,9 @@ namespace uba
 		RegisterCreateFileForWrite(key, fixedFilePath.data, fixedFilePath.count, true);
 	}
 
-	void Session::RegisterCustomService(CustomServiceFunction* function, void* userData)
+	void Session::RegisterCustomService(CustomServiceFunction&& function)
 	{
 		m_customServiceFunction = function;
-		m_customServiceUserData = userData;
 	}
 
 	const tchar* Session::GetId() { return m_id.data; }
@@ -1968,14 +1967,14 @@ namespace uba
 		return true;
 	}
 
-	bool Session::CustomMessage(BinaryReader& reader, BinaryWriter& writer)
+	bool Session::CustomMessage(Process& process, BinaryReader& reader, BinaryWriter& writer)
 	{
 		if (!m_customServiceFunction)
 			return false;
 		u32 recvSize = reader.ReadU32();
 		u32* sendSize = (u32*)writer.AllocWrite(4);
 		void* sendData = writer.GetData() + writer.GetPosition();
-		u32 written = m_customServiceFunction({}, reader.GetPositionData(), recvSize, sendData, u32(writer.GetCapacityLeft()), m_customServiceUserData);
+		u32 written = m_customServiceFunction(process, reader.GetPositionData(), recvSize, sendData, u32(writer.GetCapacityLeft()));
 		*sendSize = written;
 		writer.AllocWrite(written);
 		return true;
@@ -1987,12 +1986,22 @@ namespace uba
 
 	bool Session::FlushWrittenFiles(ProcessImpl& process)
 	{
-		return false;
+		return true;
 	}
 
 	bool Session::UpdateEnvironment(ProcessImpl& process, const tchar* reason)
 	{
-		return false;
+		StackBinaryWriter<16 * 1024> writer;
+		process.m_processStats.Write(writer);
+		process.m_sessionStats.Write(writer);
+		process.m_storageStats.Write(writer);
+		process.m_systemStats.Write(writer);
+		m_trace.ProcessEnvironmentUpdated(process.GetId(), reason, writer.GetData(), writer.GetPosition());
+		process.m_processStats = {};
+		process.m_sessionStats = {};
+		process.m_storageStats = {};
+		process.m_systemStats = {};
+		return true;
 	}
 
 	void Session::PrintSessionStats(Logger& logger)

@@ -5,7 +5,7 @@
 #include "UbaStringBuffer.h"
 #include <algorithm>
 
-#if !defined(IS_DETOURED_INCLUDE)
+#if !defined(UBA_IS_DETOURED_INCLUDE)
 #define True_CreateFileW ::CreateFileW
 #define True_CreateFileMappingW ::CreateFileMappingW
 #define True_MapViewOfFile ::MapViewOfFile
@@ -34,6 +34,7 @@ namespace uba
 			L"fwpuclnt.dll",
 			L"gdi32.dll",
 			L"gdi32full.dll",
+			L"glu32.dll",
 			L"imagehlp.dll",
 			L"imm32.dll",
 			L"iphlpapi.dll",
@@ -50,6 +51,7 @@ namespace uba
 			L"ole32.dll",
 			L"oleaut32.dll",
 			L"ondemandconnroutehelper.dll",
+			L"opengl32.dll",
 			L"powrprof.dll",
 			L"psapi.dll",
 			L"rasadhlp.dll",

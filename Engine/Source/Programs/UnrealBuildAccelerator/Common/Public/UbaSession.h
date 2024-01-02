@@ -54,8 +54,8 @@ namespace uba
 		void RefreshDirectory(const tchar* dirName); // Tell uba a directory on disk has been changed by some other system while session is running
 		void RegisterNewFile(const tchar* filePath); // Tell uba a new file on disk has been added by some other system while session is running
 
-		using CustomServiceFunction = u32(const Guid& clientUid, const void* recv, u32 recvSize, void* send, u32 sendCapacity, void* userData);
-		void RegisterCustomService(CustomServiceFunction* function, void* userData = nullptr); // Register a custom service (that can be communicated with from the remote agents)
+		using CustomServiceFunction = Function<u32(Process& handle, const void* recv, u32 recvSize, void* send, u32 sendCapacity)>;
+		void RegisterCustomService(CustomServiceFunction&& function); // Register a custom service (that can be communicated with from the remote agents)
 
 		const tchar* GetId();			// Id for session. Will be "yymmdd_hhmmss" unless SessionCreateInfo.useUniqueId is set to false
 		u32 GetActiveProcessCount();	// Current active processes running inside session
@@ -113,7 +113,7 @@ namespace uba
 		virtual bool GetListDirectoryInfo(ListDirectoryResponse& out, tchar* dirName, const StringKey& dirKey);
 		virtual bool WriteFileToDisk(ProcessImpl& process, WrittenFile& file);
 		virtual bool AllocFailed(Process& process, const tchar* allocType, u32 error);
-		virtual bool CustomMessage(BinaryReader& reader, BinaryWriter& writer);
+		virtual bool CustomMessage(Process& process, BinaryReader& reader, BinaryWriter& writer);
 		virtual void FileEntryAdded(StringKey fileNameKey, u64 lastWritten, u64 size);
 		virtual bool FlushWrittenFiles(ProcessImpl& process);
 		virtual bool UpdateEnvironment(ProcessImpl& process, const tchar* reason);
@@ -220,8 +220,7 @@ namespace uba
 		Vector<tchar> m_environmentVariables;
 		UnorderedSet<const tchar*, HashStringNoCase, EqualStringNoCase> m_localEnvironmentVariables;
 
-		CustomServiceFunction* m_customServiceFunction = nullptr;
-		void* m_customServiceUserData = nullptr;
+		CustomServiceFunction m_customServiceFunction;
 
 		friend class ProcessImpl;
 	};

@@ -45,21 +45,30 @@ namespace uba
 			else
 				m_done.Set();
 
-			if (startInfo.exitedFunc)
-			{
-				ProcessHandle h;
-				h.m_process = this;
-				startInfo.exitedFunc(startInfo.exitedUserData, h);
-				h.m_process = nullptr;
-				startInfo.exitedFunc = nullptr;
-			}
+			ProcessHandle h;
+			h.m_process = this;
+			CallProcessExit(h);
+			h.m_process = nullptr;
 		}
 
 		virtual const tchar* GetExecutingHost() const override { return m_executingHost.c_str(); }
 		virtual bool IsRemote() const override { return true; }
 		virtual bool IsChild() override { return false; }
 
+		void CallProcessExit(ProcessHandle& h)
+		{
+			if (!startInfo.exitedFunc)
+				return;
+			ScopedWriteLock lock(m_exitedLock);
+			auto exitedFunc = startInfo.exitedFunc;
+			auto userData = startInfo.userData;
+			startInfo.exitedFunc = nullptr;
+			startInfo.userData = nullptr;
+			exitedFunc(userData, h);
+		}
+
 		SessionServer* m_server;
+		ReaderWriterLock m_exitedLock;
 		u32 m_processId;
 		u32 m_exitCode = ~u32(0);
 		u64 m_processorTime = 0;
@@ -1030,12 +1039,7 @@ namespace uba
 				process.m_wallTime = processStats.wallTime;
 				process.m_server = nullptr;
 				process.m_done.Set();
-				
-				if (process.startInfo.exitedFunc)
-				{
-					process.startInfo.exitedFunc(process.startInfo.exitedUserData, h);
-					process.startInfo.exitedFunc = nullptr;
-				}
+				process.CallProcessExit(h);
 				return true;
 			}
 
@@ -1117,7 +1121,17 @@ namespace uba
 			}
 			case SessionMessageType_Custom:
 			{
-				CustomMessage(reader, writer);
+				u32 processId = reader.ReadU32();
+				ScopedWriteLock lock(m_processesLock);
+				auto findIt = m_processes.find(processId);
+				if (findIt == m_processes.end())
+					return m_logger.Error(TC("Failed to find process for id %u when receiving custom message"), processId);
+				ProcessHandle h(findIt->second);
+				lock.Leave();
+
+				auto& remoteProcess = *(RemoteProcess*)h.m_process;
+				ScopedWriteLock exitedLock(remoteProcess.m_exitedLock);
+				CustomMessage(remoteProcess, reader, writer);
 				return true;
 			}
 			case SessionMessageType_UpdateEnvironment:

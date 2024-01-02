@@ -182,15 +182,15 @@ namespace uba
 	bool RunCustomService(LoggerWithWriter& logger, SessionServer& session, const tchar* workingDir, const RunProcessFunction& runProcess)
 	{
 		bool gotMessage = false;
-		session.RegisterCustomService([](const Guid& connectionUid, const void* recv, u32 recvSize, void* send, u32 sendCapacity, void* gotMessagePtr)
+		session.RegisterCustomService([&](uba::Process& process, const void* recv, u32 recvSize, void* send, u32 sendCapacity)
 			{
-				*(bool*)gotMessagePtr = true;
+				gotMessage = true;
 				//wprintf(L"GOT MESSAGE: %.*s\n", recvSize / 2, (const wchar_t*)recv);
 				const wchar_t* hello = L"Hello response from server";
 				u64 helloBytes = wcslen(hello) * 2;
 				memcpy(send, hello, helloBytes);
 				return u32(helloBytes);
-			}, &gotMessage);
+			});
 
 		StringBuffer<> testApp;
 		GetTestAppPath(logger, testApp);

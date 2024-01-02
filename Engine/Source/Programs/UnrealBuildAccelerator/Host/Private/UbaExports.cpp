@@ -395,7 +395,11 @@ uba::StorageClient* CreateStorageClient(uba::NetworkClient& client, const uba::t
 
 	void SessionServer_RegisterCustomService(uba::SessionServer* server, SessionServer_CustomServiceFunction* function, void* userData)
 	{
-		server->RegisterCustomService(function, userData);
+		server->RegisterCustomService([function, userData](uba::Process& process, const void* recv, uba::u32 recvSize, void* send, uba::u32 sendCapacity)
+			{
+				uba::ProcessHandle h(&process);
+				return function(&h, recv, recvSize, send, sendCapacity, userData);
+			});
 	}
 
 	void DestroySessionServer(uba::SessionServer* server)
@@ -429,9 +433,9 @@ uba::StorageClient* CreateStorageClient(uba::NetworkClient& client, const uba::t
 		delete info;
 	}
 
-	uba::Scheduler* Scheduler_Create(uba::SessionServer* session, uba::u32 maxLocalProcessors)
+	uba::Scheduler* Scheduler_Create(uba::SessionServer* session, uba::u32 maxLocalProcessors, bool enableProcessReuse)
 	{
-		return new uba::Scheduler(*session, maxLocalProcessors);
+		return new uba::Scheduler(*session, maxLocalProcessors, enableProcessReuse);
 	}
 
 	void Scheduler_Start(uba::Scheduler* scheduler)

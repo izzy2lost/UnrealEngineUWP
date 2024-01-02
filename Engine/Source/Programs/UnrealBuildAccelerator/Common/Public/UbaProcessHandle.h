@@ -48,10 +48,11 @@ namespace uba
 		inline bool operator==(const ProcessHandle& o) const { return m_process == o.m_process; }
 		inline u64 GetHash() const { return u64(m_process); }
 
-	private:
 		ProcessHandle(Process* process);
+	private:
 		Process* m_process;
 		friend class ProcessImpl;
+		friend class Scheduler;
 		friend class Session;
 		friend class SessionClient;
 		friend class SessionServer;

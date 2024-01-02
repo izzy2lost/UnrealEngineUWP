@@ -1,9 +1,10 @@
 // Copyright Epic Games, Inc. All Rights Reserved.
 
+#define UBA_IS_DETOURED_INCLUDE 1
+
 #include "UbaDetoursFunctionsWin.h"
 #include "UbaDetoursFileMappingTable.h"
-
-#define IS_DETOURED_INCLUDE 1
+#include "UbaDetoursApi.h"
 
 #if !defined(UBA_USE_MIMALLOC)
 #define True_malloc malloc
@@ -584,6 +585,7 @@ thread_local const wchar_t* t_createFileFileName;
 #include "UbaDetoursFunctionsNtDll.inl"
 #include "UbaDetoursFunctionsKernelBase.inl"
 #include "UbaDetoursFunctionsUcrtBase.inl"
+#include "UbaDetoursFunctionsImagehlp.inl"
 
 void DetourAttachFunction(void** trueFunc, void* detouredFunc, const char* funcName)
 {
@@ -639,7 +641,19 @@ int DetourAttachFunctions(bool runningRemote)
 		DETOURED_FUNCTIONS_SHLWAPI
 	}
 
-#undef DETOURED_FUNCTION
+	#undef DETOURED_FUNCTION
+
+
+	if (g_isRunningWine && g_rules->DetourImageGetDigestStream())
+	{
+		if (HMODULE moduleHandle = LoadLibraryW(L"Imagehlp.dll"))
+		{
+			True_ImageGetDigestStream = (ImageGetDigestStreamFunc*)GetProcAddress(moduleHandle, "ImageGetDigestStream");
+			DetourAttachFunction((PVOID*)&True_ImageGetDigestStream, Detoured_ImageGetDigestStream, "ImageGetDigestStream");
+		}
+	}
+
+
 
 	// Can't attach to these when running through debugger with some vs extensions (Microsoft child process debugging)
 #if UBA_DEBUG
@@ -968,7 +982,8 @@ void PostDeinit()
 extern "C"
 {
 	using namespace uba;
-	__declspec(dllexport) u32 UbaSendMessage(const void* send, u32 sendSize, void* recv, u32 recvCapacity)
+
+	UBA_DETOURED_API u32 UbaSendCustomMessage(const void* send, u32 sendSize, void* recv, u32 recvCapacity)
 	{
 		//TimerScope ts(g_stats.init);
 		ScopedWriteLock pcs(g_communicationLock);
@@ -984,27 +999,45 @@ extern "C"
 		return recvSize;
 	}
 
-	__declspec(dllexport) void UbaFlushWrittenFiles()
+	UBA_DETOURED_API bool UbaFlushWrittenFiles()
 	{
 		ScopedWriteLock pcs(g_communicationLock);
 		BinaryWriter writer;
 		writer.WriteByte(MessageType_FlushWrittenFiles);
 		writer.Flush();
+		BinaryReader reader;
+		return reader.ReadBool();
 	}
 
-	__declspec(dllexport) void UbaUpdateEnvironment(const wchar_t* reason)
+	UBA_DETOURED_API bool UbaUpdateEnvironment(const wchar_t* reason)
 	{
-		ScopedWriteLock pcs(g_communicationLock);
-		BinaryWriter writer;
-		writer.WriteByte(MessageType_UpdateEnvironment);
-		writer.WriteString(reason ? reason : L"");
-		writer.Flush();
-
+		{
+			ScopedWriteLock pcs(g_communicationLock);
+			BinaryWriter writer;
+			writer.WriteByte(MessageType_UpdateEnvironment);
+			writer.WriteString(reason ? reason : L"");
+			writer.Flush();
+			BinaryReader reader;
+			if (!reader.ReadBool())
+				return false;
+		}
 		Rpc_UpdateTables();
+		return true;
 	}
 
-	__declspec(dllexport) bool UbaRunningRemote()
+	UBA_DETOURED_API bool UbaRunningRemote()
 	{
 		return g_runningRemote;
+	}
+
+	UBA_DETOURED_API bool UbaRequestNextProcess(wchar_t* outArguments, u32 outArgumentsCapacity)
+	{
+		*outArguments = 0;
+		StackBinaryReader<1024> reader;
+		reader.SetSize(UbaSendCustomMessage(nullptr, 0, reader.buffer, 1024));
+		if (!reader.GetLeft())
+			return false;
+		reader.ReadString(outArguments, outArgumentsCapacity);
+		return true;
 	}
 }

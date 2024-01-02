@@ -27,8 +27,6 @@ namespace uba
 			SessionStats sessionStats;
 			StorageStats storageStats;
 			SystemStats systemStats;
-			struct Update { u64 time; TString reason; };
-			Vector<Update> updates;
 		};
 
 		struct Processor

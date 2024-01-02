@@ -16,6 +16,7 @@ namespace uba
 		AtomicU64(u64 initialValue = 0) : Atomic<u64>(initialValue) {}
 		AtomicU64(AtomicU64&& o) noexcept : Atomic<u64>(o.load()) {}
 		void operator=(u64 o) { store(o); }
+		void operator=(const AtomicU64& o) { store(o); }
 	};
 
 	class CriticalSection

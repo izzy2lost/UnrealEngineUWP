@@ -538,12 +538,24 @@ namespace uba
 			TraceView::ProcessLocation active = findIt->second;
 			auto& session = GetSession(out, active.sessionIndex);
 
-			TraceView::Process& process = session.processors[active.processorIndex].processes[active.processIndex];
+			auto& processes = session.processors[active.processorIndex].processes;
+			TraceView::Process& process = processes[active.processIndex];
 			process.processStats.Read(reader, out.version);
 			process.sessionStats.Read(reader, out.version);
 			process.storageStats.Read(reader);
 			process.systemStats.Read(reader);
-			process.updates.push_back(TraceView::Process::Update{ time,reason.data });
+			process.exitCode = 0u;
+			process.stop = time;
+			process.bitmapDirty = true;
+
+			processes.emplace_back();
+			auto& process2 = processes.back();
+			m_activeProcesses[processId].processIndex = u32(processes.size() - 1);
+			process2.id = processId;
+			process2.description = reason.data;
+			process2.start = time;
+			process2.stop = ~u64(0);
+			process2.exitCode = ~0u;
 			break;
 		}
 		case TraceType_ProcessReturned:

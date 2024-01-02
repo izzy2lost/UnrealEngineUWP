@@ -25,18 +25,23 @@ namespace uba
 	{
 		Scheduler* scheduler = nullptr;
 		ProcessStartInfo::ExitedCallback* originalExitedFunc = nullptr;
-		void* originalExitedData = nullptr;
+		void* originalUserData = nullptr;
 		const u8* knownInputs = nullptr;
 		u32 knownInputsCount = 0;
 		bool wasReturned = false;
 		bool isRemote = false;
 	};
 
-	Scheduler::Scheduler(SessionServer& session, u32 maxLocalProcessors)
+	Scheduler::Scheduler(SessionServer& session, u32 maxLocalProcessors, bool enableProcessReuse)
 	:	m_session(session)
 	,	m_maxLocalProcessors(maxLocalProcessors ? maxLocalProcessors : GetLogicalProcessorCount())
 	,	m_updateThreadLoop(false)
 	{
+		if (enableProcessReuse)
+			session.RegisterCustomService([this](Process& process, const void* recv, u32 recvSize, void* send, u32 sendCapacity)
+				{
+					return HandleReuseMessage(process, recv, recvSize, send, sendCapacity);
+				});
 	}
 
 	Scheduler::~Scheduler()
@@ -103,18 +108,18 @@ namespace uba
 
 	void Scheduler::RemoteProcessReturned(Process& process)
 	{
-		auto& ei = *(ExitProcessInfo*)process.GetStartInfo().exitedUserData;
+		auto& ei = *(ExitProcessInfo*)process.GetStartInfo().userData;
 
 		ScopedWriteLock lock(m_queuedProcessesLock);
 		ProcessStartInfo info = process.GetStartInfo();
 		info.exitedFunc = ei.originalExitedFunc;
-		info.exitedUserData = ei.originalExitedData;
+		info.userData = ei.originalUserData;
 		m_queuedProcesses.emplace_front(info, ei.knownInputs, ei.knownInputsCount);
 		ei.knownInputs = nullptr;
+		ei.wasReturned = true;
 		lock.Leave();
 
-		ei.wasReturned = true;
-		process.Cancel(true);
+		process.Cancel(true); // Cancel will call ProcessExited
 		--m_activeRemoteProcesses;
 		m_updateThreadLoop.Set();
 	}
@@ -126,13 +131,13 @@ namespace uba
 
 	void Scheduler::ProcessExited(ExitProcessInfo* info, const ProcessHandle& handle)
 	{
-		auto ig = MakeGuard([info]() { delete[] info->knownInputs;  delete info; });
+		auto ig = MakeGuard([info]() { delete[] info->knownInputs; delete info; });
 
 		if (info->wasReturned)
 			return;
 
-		if (info->originalExitedFunc)
-			info->originalExitedFunc(info->originalExitedData, handle);
+		if (auto func = info->originalExitedFunc)
+			func(info->originalUserData, handle);
 
 		++m_finishedProcesses;
 
@@ -154,21 +159,26 @@ namespace uba
 			return false;
 		auto si = m_queuedProcesses.front();
 		m_queuedProcesses.pop_front();
+		if (runLocal)
+			++m_activeLocalProcesses;
 		lock.Leave();
 
 		auto exitInfo = new ExitProcessInfo();
 		exitInfo->scheduler = this;
 		exitInfo->originalExitedFunc = si.startInfo.exitedFunc;
-		exitInfo->originalExitedData = si.startInfo.exitedUserData;
+		exitInfo->originalUserData = si.startInfo.userData;
 		exitInfo->knownInputs = si.knownInputs;
 		exitInfo->knownInputsCount = si.knownInputsCount;
 		exitInfo->isRemote = !runLocal;
-		si.startInfo.exitedUserData = exitInfo;
-		si.startInfo.exitedFunc = [](void* userData, const ProcessHandle& handle) { auto ei = (ExitProcessInfo*)userData; ei->scheduler->ProcessExited(ei, handle); };
+		si.startInfo.userData = exitInfo;
+		si.startInfo.exitedFunc = [](void* userData, const ProcessHandle& handle)
+			{
+				auto ei = (ExitProcessInfo*)userData;
+				ei->scheduler->ProcessExited(ei, handle);
+			};
 
 		if (runLocal)
 		{
-			++m_activeLocalProcesses;
 			m_session.RunProcess(si.startInfo);
 		}
 		else
@@ -177,5 +187,53 @@ namespace uba
 			m_session.RunProcessRemote(si.startInfo, 1.0f, si.knownInputs, si.knownInputsCount);
 		}
 		return true;
+	}
+
+	u32 Scheduler::HandleReuseMessage(Process& process, const void* recv, u32 recvSize, void* send, u32 sendCapacity)
+	{
+		auto& currentStartInfo = process.GetStartInfo();
+		auto info = (ExitProcessInfo*)currentStartInfo.userData;
+		if (!info) // If null, process has already exited from some other thread
+			return 0;
+
+		// Call ExitedFunc and cleanup
+		if (auto func = info->originalExitedFunc)
+		{
+			ProcessHandle h;
+			h.m_process = &process;
+			func(info->originalUserData, h);
+			h.m_process = nullptr;
+		}
+		delete[] info->knownInputs;
+		info->knownInputs = nullptr;
+		info->originalExitedFunc = nullptr;
+		info->originalUserData = nullptr;
+
+		// Try to get queued process to send back
+		ScopedWriteLock lock(m_queuedProcessesLock);
+		if (info->wasReturned)
+			return 0;
+		if (m_queuedProcesses.empty())
+			return 0;
+		auto qp = m_queuedProcesses.front();
+		m_queuedProcesses.pop_front();
+		lock.Leave();
+
+		delete[] qp.knownInputs;
+		auto& si = qp.startInfo;
+
+		UBA_ASSERT(Equals(currentStartInfo.application, si.application));
+
+		// Move over exited func and user data for the queued process
+		info->originalExitedFunc = si.exitedFunc;
+		info->originalUserData = si.userData;
+
+		// TODO: Don't think we need to udpate the other parts of StartInfo
+
+		BinaryWriter writer((u8*)send, 0, sendCapacity);
+		writer.WriteString(si.arguments);
+		writer.WriteString(si.workingDir);
+		writer.WriteString(si.description);
+		return u32(writer.GetPosition());
 	}
 }

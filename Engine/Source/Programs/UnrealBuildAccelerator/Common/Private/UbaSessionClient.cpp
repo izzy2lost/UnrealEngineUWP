@@ -1452,7 +1452,7 @@ namespace uba
 					};
 
 					ExitedRec* exitedRec = new ExitedRec(*this, activeWeightLock, activeWeight, rec);
-					startInfo.exitedUserData = exitedRec;
+					startInfo.userData = exitedRec;
 					startInfo.exitedFunc = [](void* userData, const ProcessHandle& h)
 					{
 						auto er = (ExitedRec*)userData;
@@ -1662,12 +1662,13 @@ namespace uba
 		m_stats.Print(logger);
 	}
 
-	bool SessionClient::CustomMessage(BinaryReader& reader, BinaryWriter& writer)
+	bool SessionClient::CustomMessage(Process& process, BinaryReader& reader, BinaryWriter& writer)
 	{
 		StackBinaryWriter<SendMaxSize> msgWriter;
 		NetworkMessage msg(m_client, ServiceId, SessionMessageType_Custom, msgWriter);
 
 		u32 recvSize = reader.ReadU32();
+		msgWriter.WriteU32(process.GetId());
 		msgWriter.WriteU32(recvSize);
 		msgWriter.WriteBytes(reader.GetPositionData(), recvSize);
 
@@ -1699,6 +1700,12 @@ namespace uba
 		process.m_sessionStats.Write(writer);
 		process.m_storageStats.Write(writer);
 		process.m_systemStats.Write(writer);
+
+		process.m_processStats = {};
+		process.m_sessionStats = {};
+		process.m_storageStats = {};
+		process.m_systemStats = {};
+
 		StackBinaryReader<SendMaxSize> reader;
 		if (!msg.Send(reader, m_stats.customMsg))
 			return false;
