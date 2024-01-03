@@ -102,7 +102,7 @@ namespace UE::MultiUserClient
 
 	const FObjectReplicationMap* FMultiUserReplicationManager::FindReplicationMapForClient(const FGuid& ClientId) const
 	{
-		if (ConnectedState)
+		if (ConnectedState && ensureMsgf(IsInGameThread(), TEXT("To simplify implementation, only calls from game thread are allowed.")))
 		{
 			const FReplicationClient* ReplicationClient = ConnectedState->ClientManager.FindClient(ClientId);
 			return ReplicationClient
@@ -114,7 +114,7 @@ namespace UE::MultiUserClient
 
 	bool FMultiUserReplicationManager::IsReplicatingObject(const FGuid& ClientId, const FSoftObjectPath& ObjectPath) const 
 	{
-		if (ConnectedState)
+		if (ConnectedState && ensureMsgf(IsInGameThread(), TEXT("To simplify implementation, only calls from game thread are allowed.")))
 		{
 			const FReplicationClient* ReplicationClient = ConnectedState->ClientManager.FindClient(ClientId);
 			return ReplicationClient && ReplicationClient->GetAuthoritySynchronizer().HasAuthorityOver(ObjectPath);
@@ -124,16 +124,27 @@ namespace UE::MultiUserClient
 
 	void FMultiUserReplicationManager::RegisterReplicationDiscoverer(TSharedRef<IReplicationDiscoverer> Discoverer)
 	{
-		DiscoveryContainer.AddDiscoverer(Discoverer);
+		if (ensureMsgf(IsInGameThread(), TEXT("To simplify implementation, only calls from game thread are allowed.")))
+		{
+			DiscoveryContainer.AddDiscoverer(Discoverer);
+		}
 	}
 
 	void FMultiUserReplicationManager::RemoveReplicationDiscoverer(const TSharedRef<IReplicationDiscoverer>& Discoverer)
 	{
-		DiscoveryContainer.RemoveDiscoverer(Discoverer);
+		if (ensureMsgf(IsInGameThread(), TEXT("To simplify implementation, only calls from game thread are allowed.")))
+		{
+			DiscoveryContainer.RemoveDiscoverer(Discoverer);
+		}
 	}
 
 	TSharedRef<IClientChangeOperation> FMultiUserReplicationManager::EnqueueChanges(const FGuid& ClientId, TAttribute<FChangeClientReplicationRequest> SubmissionParams)
 	{
+		if (!ensureMsgf(IsInGameThread(), TEXT("To simplify implementation, only calls from game thread are allowed.")))
+		{
+			return FExternalClientChangeRequestHandler::MakeFailedOperation(EChangeStreamOperationResult::NotOnGameThread, EChangeAuthorityOperationResult::NotOnGameThread);
+		}
+		
 		if (ConnectedState)
 		{
 			FReplicationClient* ReplicationClient = ConnectedState->ClientManager.FindClient(ClientId);

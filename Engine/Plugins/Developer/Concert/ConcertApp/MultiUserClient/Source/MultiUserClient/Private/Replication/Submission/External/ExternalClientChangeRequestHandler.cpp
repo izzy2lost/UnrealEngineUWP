@@ -65,6 +65,7 @@ namespace UE::MultiUserClient
 
 	TSharedRef<IClientChangeOperation> FExternalClientChangeRequestHandler::HandleRequest(TAttribute<FChangeClientReplicationRequest> SubmissionParams)
 	{
+		check(IsInGameThread());
 		TSharedRef<FClientChangeOperation> Result = FClientChangeOperation::StartOperation(
 			StreamId,
 			GetStreamContentDelegate,

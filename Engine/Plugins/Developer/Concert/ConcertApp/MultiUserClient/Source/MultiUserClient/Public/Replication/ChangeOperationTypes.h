@@ -44,6 +44,8 @@ namespace UE::MultiUserClient
 		NotInSession,
 		/** No submission took place because the client ID was invalid.  */
 		UnknownClient,
+		/** The request was not made on the game thread. */
+		NotOnGameThread,
 
 		/** Not an actual return code. Make sure it's always last. */
 		Count
@@ -77,6 +79,8 @@ namespace UE::MultiUserClient
 		NotInSession,
 		/** No submission took place because the client ID was invalid.  */
 		UnknownClient,
+		/** The request was not made on the game thread. */
+		NotOnGameThread,
 
 		/** Not an actual return code. Make sure it's always last. */
 		Count

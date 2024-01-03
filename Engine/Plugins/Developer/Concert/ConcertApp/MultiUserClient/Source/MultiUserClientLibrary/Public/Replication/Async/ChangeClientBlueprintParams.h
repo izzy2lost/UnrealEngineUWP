@@ -38,6 +38,8 @@ enum class EMultiUserChangeStreamOperationResult : uint8
 	NotInSession,
 	/** No submission took place because the client ID was invalid.  */
 	UnknownClient,
+	/** The request was not made on the game thread. */
+	NotOnGameThread,
 	/** The MultiUserClient module is not available. Usually when you're in a runtime build but the operation can only be run in editor builds. */
 	NotAvailable
 };
@@ -71,6 +73,8 @@ enum class EMultiUserChangeAuthorityOperationResult : uint8
 	NotInSession,
 	/** No submission took place because the client ID was invalid.  */
 	UnknownClient,
+	/** The request was not made on the game thread. */
+	NotOnGameThread,
 	/** The MultiUserClient module is not available. Usually when you're in a runtime build but the operation can only be run in editor builds. */
 	NotAvailable
 };

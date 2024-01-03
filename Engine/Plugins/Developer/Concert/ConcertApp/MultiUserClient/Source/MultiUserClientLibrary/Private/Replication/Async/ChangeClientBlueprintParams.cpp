@@ -7,12 +7,12 @@ namespace UE::MultiUserClientLibrary
 #if WITH_CONCERT
 	EMultiUserChangeStreamOperationResult Transform(MultiUserClient::EChangeStreamOperationResult Data)
 	{
-		static_assert(static_cast<int32>(MultiUserClient::EChangeStreamOperationResult::Count) == 8, "Update this location if you changed the enum");
+		static_assert(static_cast<int32>(MultiUserClient::EChangeStreamOperationResult::Count) == 9, "Update EMultiUserChangeStreamOperationResult to have the equivalent enum entry you added to EChangeStreamOperationResult");
 		return static_cast<EMultiUserChangeStreamOperationResult>(Data);
 	}
 	EMultiUserChangeAuthorityOperationResult Transform(MultiUserClient::EChangeAuthorityOperationResult Data)
 	{
-		static_assert(static_cast<int32>(MultiUserClient::EChangeAuthorityOperationResult::Count) == 9, "Update this location if you changed the enum");
+		static_assert(static_cast<int32>(MultiUserClient::EChangeAuthorityOperationResult::Count) == 10, "Update EMultiUserChangeStreamOperationResult to have the equivalent enum entry you added to EChangeStreamOperationResult");
 		return static_cast<EMultiUserChangeAuthorityOperationResult>(Data);
 	}
 	FMultiUserChangeClientReplicationResult Transform(MultiUserClient::FChangeClientReplicationResult Data)

@@ -22,9 +22,15 @@ namespace UE::MultiUserClient
 
 		/**
 		 * @return Gets the last known server map of objects registered for replication for a given client.
-		 * This server state is regularly polled whilst the local client state should always be in synch.*/
+		 * 
+		 * This server state is regularly polled whilst the local client state should always be in synch.
+		 * This function must be called from the game thread.
+		 */
 		virtual const FObjectReplicationMap* FindReplicationMapForClient(const FGuid& ClientId) const = 0;
-		/** @return Whether the local editor instance thinks the client has authority over the properties it has registered to ObjectPath. */
+		/**
+		 * @return Whether the local editor instance thinks the client has authority over the properties it has registered to ObjectPath.
+		 * This function must be called from the game thread.
+		 */
 		virtual bool IsReplicatingObject(const FGuid& ClientId, const FSoftObjectPath& ObjectPath) const = 0;
 
 		/**
@@ -33,9 +39,11 @@ namespace UE::MultiUserClient
 		 * It is used to automatically configure UObjects for replication when appropriate:
 		 * - When an user adds an object via Add Actor button
 		 * - When an UObject is added to the world via a transaction (run on the client machine that adds the UObject)
+		 * This function must be called from the game thread.
+		 * 
 		 */
 		virtual void RegisterReplicationDiscoverer(TSharedRef<IReplicationDiscoverer> Discoverer) = 0;
-		/** Unregisters a previously registered discoverer */
+		/** Unregisters a previously registered discoverer. This function must be called from the game thread. */
 		virtual void RemoveReplicationDiscoverer(const TSharedRef<IReplicationDiscoverer>& Discoverer) = 0;
 
 		/**
@@ -45,6 +53,8 @@ namespace UE::MultiUserClient
 		 * A stream is the mapping of objects to properties.
 		 * The authority state specifies which of the registered objects should actually be sending data.
 		 * The stream change is requested first and is followed by the authority change.
+		 *
+		 * This function must be called from the game thread.
 		 *
 		 * @param ClientId The client for which to change authority
 		 * @param SubmissionParams Once the request is ready to be sent to the server, this attribute is used to generate the change request

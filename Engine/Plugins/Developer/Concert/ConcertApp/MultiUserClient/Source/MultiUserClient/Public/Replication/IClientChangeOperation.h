@@ -9,8 +9,8 @@
 namespace UE::MultiUserClient
 {
 	/**
-	 * Abstracts an operation that is changing a client's stream, authority, or both.
-	 * They are the result of IMultiUserReplication::EnqueueChanges.
+	 * Exposes events that occur as part of changing a client's stream, authority, or both.
+	 * This is the result of IMultiUserReplication::EnqueueChanges.
 	 *
 	 * IClientChangeOperation wraps ISubmissionOperation, which is internal to Multi-User.
 	 * This allows the two interface to change independently.
@@ -22,21 +22,21 @@ namespace UE::MultiUserClient
 		/**
 		 * Completes when the operation of changing streams has completed.
 		 * @note This can be called at most once; subsequent calls result in an unset future.
-		 * @note This future can execute on any thread!
+		 * @note This future can complete on any thread.
 		 */
 		virtual TFuture<EChangeStreamOperationResult> OnChangeStream() = 0;
 		
 		/**
 		 * Completes when the operation of changing authority has completed.
 		 * @note This can be called at most once; subsequent calls result in an unset future.
-		 * @note This future can execute on any thread!
+		 * @note This future can complete on any thread.
 		 */
 		virtual TFuture<EChangeAuthorityOperationResult> OnChangeAuthority() = 0;
 		
 		/**
 		 * Completes all sub-operations have completed.
 		 * @note This can be called at most once; subsequent calls result in an unset future.
-		 * @note This future can execute on any thread!
+		 * @note This future can complete on any thread.
 		 */
 		virtual TFuture<FChangeClientReplicationResult> OnOperationCompleted() = 0;
 		
