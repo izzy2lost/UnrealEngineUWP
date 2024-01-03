@@ -143,8 +143,11 @@ namespace uba
 	{
 		CasKey casKey;
 		u32 fileAttributes = DefaultAttributes(); // TODO: This is wrong.. need to retrieve from server if this is executable or not
-		if (fileName[1] == ':')
+
+		bool isAbsolute = IsWindows ? (fileName.count > 1 && fileName[1] == ':') : (fileName.count > 0 && fileName[0] == '/');
+		if (isAbsolute)
 		{
+			UBA_ASSERT(fileNameKey != StringKeyZero);
 			if (!GetCasKeyForFile(casKey, processId, fileName, fileNameKey))
 				return false;
 			// This needs to be absolute virtual path (the path on the host).. don't remember why this was written like this. Changed to just use fileName (needed for shadercompilerworker)
@@ -154,6 +157,7 @@ namespace uba
 		}
 		else
 		{
+			UBA_ASSERT(fileNameKey == StringKeyZero);
 			StackBinaryWriter<1024> writer;
 			NetworkMessage msg(m_client, ServiceId, SessionMessageType_EnsureBinaryFile, writer);
 			writer.WriteU32(processId);
@@ -180,7 +184,7 @@ namespace uba
 		if (!RetrieveCasFile(newKey, fileSize, casKey, outVirtual.data, storeUncompressed))
 			UBA_ASSERTF(false, TC("Casfile not found for %s using %s"), outVirtual.data, CasKeyString(casKey).str);
 		StringBuffer<> destFile;
-		if (fileName[1] == ':')
+		if (isAbsolute || fileName.Contains(TC(".."))) // This is not beautiful, but we need to keep some dlls in the sub folder (for cl.exe etc)
 			destFile.AppendFileName(fileName.data);
 		else
 			destFile.Append(fileName);
@@ -726,9 +730,13 @@ namespace uba
 		if (!EnsureBinaryFile(out.fileName, out.virtualFileName, msg.process.m_id, msg.fileName, msg.fileNameKey, dir.c_str()))
 			return false;
 
+		StringKey fileNameKey = msg.fileNameKey;
+		if (fileNameKey == StringKeyZero)
+			fileNameKey =  CaseInsensitiveFs ? ToStringKeyLower(out.virtualFileName) : ToStringKey(out.virtualFileName);
+
 		rec.name = out.fileName.data;
 		rec.virtualName = out.virtualFileName.data;
-		out.mappedFileTableSize = AddFileMapping(msg.fileNameKey, msg.fileName.data, out.fileName.data);
+		out.mappedFileTableSize = AddFileMapping(fileNameKey, msg.fileName.data, out.fileName.data);
 		return true;
 	}
 

@@ -212,11 +212,17 @@ namespace uba
 
 	void Rpc_GetFullFileName(const tchar*& path, u64& pathLen, StringBufferBase& tempBuf, bool useVirtualName)
 	{
-		tempBuf.Append(path, pathLen);
-		if (CaseInsensitiveFs)
-			tempBuf.MakeLower();
-		CHECK_PATH(tempBuf.data);
-		StringKey fileNameKey = ToStringKey(tempBuf);
+		StringKey fileNameKey;
+		bool isAbsolute = IsWindows ? (pathLen > 1 && path[1] == ':') : (pathLen > 0 && path[0] == '/');
+		if (isAbsolute)
+		{
+			tempBuf.Append(path, pathLen);
+			if (CaseInsensitiveFs)
+				tempBuf.MakeLower();
+			fileNameKey = ToStringKey(tempBuf);
+			tempBuf.Clear();
+		}
+
 		u32 mappedFileTableSize;
 
 		{
@@ -228,7 +234,6 @@ namespace uba
 			writer.WriteStringKey(fileNameKey);
 			writer.Flush();
 			BinaryReader reader;
-			tempBuf.Clear();
 			reader.ReadString(tempBuf);
 			if (useVirtualName)
 			{

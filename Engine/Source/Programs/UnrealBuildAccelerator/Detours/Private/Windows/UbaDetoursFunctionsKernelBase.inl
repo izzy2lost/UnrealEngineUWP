@@ -2838,9 +2838,9 @@ DWORD Detoured_GetLongPathNameA(LPCSTR lpszShortPath, LPSTR lpszLongPath, DWORD 
 
 DWORD Detoured_GetFullPathNameA(LPCSTR lpFileName, DWORD nBufferLength, LPSTR lpBuffer, LPSTR* lpFilePart)
 {
+	// Is verified that both windows and wine are calling GetFullPathNameW
 	DETOURED_CALL(GetFullPathNameA);
 	DEBUG_LOG_TRUE(L"GetFullPathNameA", L"");
-	UBA_ASSERT(!g_runningRemote || g_isRunningWine); // Wine is calling GetFullPathNameW.. need to check so windows is doing that too
 	return True_GetFullPathNameA(lpFileName, nBufferLength, lpBuffer, lpFilePart);
 }
 

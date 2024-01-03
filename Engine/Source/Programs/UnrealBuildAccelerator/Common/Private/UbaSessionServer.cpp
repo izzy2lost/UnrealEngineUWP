@@ -626,7 +626,7 @@ namespace uba
 				StringBuffer<> lookupStr;
 				lookupStr.Append(fileName).Append(applicationDir).Append('#');
 				lookupStr.MakeLower();
-				StringKey lookupKey = ToStringKey(lookupStr);
+				StringKey lookupKey = ToStringKeyNoCheck(lookupStr.data, lookupStr.count);
 
 				ScopedWriteLock lock(m_applicationDataLock);
 				auto insres = m_applicationData.try_emplace(lookupKey);
@@ -644,8 +644,11 @@ namespace uba
 				StringBuffer<> absoluteFile;
 				if (SearchPathForFile(m_logger, absoluteFile, fileName.data, applicationDir.data))
 					if (!absoluteFile.StartsWith(m_systemPath.data) || !IsKnownSystemFile(absoluteFile.data))
+					{
+						fileNameKey = ToStringKeyLower(absoluteFile);
 						if (!StoreCasFile(casKey, fileNameKey, absoluteFile.data))
 							return false;
+					}
 
 				u64 startPos = writer.GetPosition();
 				writer.WriteCasKey(casKey);

@@ -30,6 +30,11 @@ namespace uba
 		u32 knownInputsCount = 0;
 		bool wasReturned = false;
 		bool isRemote = false;
+
+		// If reusing processes then these are the actual info of the process
+		TString lastArguments;
+		TString lastWorkingDir;
+		TString lastDescription;
 	};
 
 	Scheduler::Scheduler(SessionServer& session, u32 maxLocalProcessors, bool enableProcessReuse)
@@ -114,7 +119,14 @@ namespace uba
 		ProcessStartInfo info = process.GetStartInfo();
 		info.exitedFunc = ei.originalExitedFunc;
 		info.userData = ei.originalUserData;
+		if (!ei.lastArguments.empty())
+		{
+			info.arguments = ei.lastArguments.c_str();
+			info.workingDir = ei.lastWorkingDir.c_str();
+			info.description = ei.lastDescription.c_str();
+		}
 		m_queuedProcesses.emplace_front(info, ei.knownInputs, ei.knownInputsCount);
+		ei.knownInputsCount = 0;
 		ei.knownInputs = nullptr;
 		ei.wasReturned = true;
 		lock.Leave();
@@ -199,15 +211,21 @@ namespace uba
 		// Call ExitedFunc and cleanup
 		if (auto func = info->originalExitedFunc)
 		{
+			UBA_ASSERT(!info->wasReturned);
 			ProcessHandle h;
 			h.m_process = &process;
 			func(info->originalUserData, h);
 			h.m_process = nullptr;
 		}
+		info->knownInputsCount = 0;
 		delete[] info->knownInputs;
 		info->knownInputs = nullptr;
 		info->originalExitedFunc = nullptr;
 		info->originalUserData = nullptr;
+
+		info->lastArguments.clear();
+		info->lastWorkingDir.clear();
+		info->lastDescription.clear();
 
 		// Try to get queued process to send back
 		ScopedWriteLock lock(m_queuedProcessesLock);
@@ -227,6 +245,9 @@ namespace uba
 		// Move over exited func and user data for the queued process
 		info->originalExitedFunc = si.exitedFunc;
 		info->originalUserData = si.userData;
+		info->lastArguments = si.arguments;
+		info->lastWorkingDir = si.workingDir;
+		info->lastDescription = si.description;
 
 		// TODO: Don't think we need to udpate the other parts of StartInfo
 

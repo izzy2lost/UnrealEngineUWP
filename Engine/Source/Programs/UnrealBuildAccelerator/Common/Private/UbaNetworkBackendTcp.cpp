@@ -594,14 +594,15 @@ namespace uba
 			return false;
 		}
 
-		if (!pollRes || p.revents & (POLLHUP)) // Treat hangup as timeout (since we want retry if that happens)
+		u16 validFlags = POLLERR | POLLHUP; // Treat hangup as timeout (since we want retry if that happens). Also treat error as timeout. This is needed for Wine agent to be able to retry
+		if (!pollRes || p.revents & validFlags)
 		{
 			if (timedOut)
 				*timedOut = true;
 			return false;
 		}
 
-		if (p.revents & (POLLERR | POLLNVAL))
+		if (p.revents & POLLNVAL)
 		{
 			logger.Warning(TC("WSAPoll returned successful but with unexpected flags: %u"), p.revents);
 			return false;

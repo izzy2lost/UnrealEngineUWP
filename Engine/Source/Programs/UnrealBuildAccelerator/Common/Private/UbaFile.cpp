@@ -1,8 +1,11 @@
 // Copyright Epic Games, Inc. All Rights Reserved.
 
+#define Local_GetLongPathNameW uba::GetLongPathNameW
+
 #include "UbaFile.h"
 #include "UbaDirectoryIterator.h"
 #include "UbaEvent.h"
+#include "UbaPathUtils.h"
 #include "UbaProcessStats.h"
 
 #if PLATFORM_WINDOWS
@@ -336,7 +339,7 @@ namespace uba
 		fullPath.Append(file);
 		if (GetFileAttributesW(fullPath.data) != INVALID_FILE_ATTRIBUTES)
 		{
-			out.Append(fullPath);
+			FixPath(fullPath.data, nullptr, 0, out);
 			return true;
 		}
 
@@ -369,7 +372,7 @@ namespace uba
 			fullPath.Append(file);
 			if (GetFileAttributesW(fullPath.data) != INVALID_FILE_ATTRIBUTES)
 			{
-				out.Append(fullPath);
+				FixPath(fullPath.data, nullptr, 0, out);
 				return true;
 			}
 
