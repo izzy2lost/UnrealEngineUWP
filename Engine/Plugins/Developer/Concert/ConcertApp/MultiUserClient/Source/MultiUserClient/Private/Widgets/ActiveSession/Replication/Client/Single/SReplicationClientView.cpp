@@ -15,6 +15,7 @@
 #include "Widgets/ActiveSession/Replication/Client/SClientToolbar.h"
 
 #include "Widgets/SBoxPanel.h"
+#include "Widgets/ActiveSession/Replication/Client/FrequencyContextMenuUtils.h"
 #include "Widgets/Layout/SBox.h"
 
 #define LOCTEXT_NAMESPACE "SReplicationClientView"
@@ -66,7 +67,7 @@ namespace UE::MultiUserClient
 		FGlobalAuthorityCache& AuthorityCache = ClientManager->GetAuthorityCache();
 		
 		const TAttribute<const IReplicationStreamViewer*> GetReplicationViewerAttribute =
-			TAttribute<const IReplicationStreamViewer*>::CreateLambda([this](){ return EditorView_TwoSectioned.Get(); });
+			TAttribute<const IReplicationStreamViewer*>::CreateLambda([this](){ return EditorView.Get(); });
 
 		// Add checkboxes in front of top level and subobject rows for changing authority
 		const FCreateEditorParams ReplicationEditorCreationParams
@@ -79,6 +80,7 @@ namespace UE::MultiUserClient
 			.ViewerParams =
 			{
 				.SubobjectModel = CreateDefaultComponentHierarchySubobjectModel(), // This makes actors have children in the top view
+				.OnExtendObjectsContextMenu = FExtendObjectMenu::CreateSP(this, &SReplicationClientView::ExtendObjectContextMenu),
 				.AdditionalObjectColumns =
 				{
 					SingleClientColumns::ToggleObjectAuthority(AuthorityTracker, SubmissionWorkflow),
@@ -93,21 +95,21 @@ namespace UE::MultiUserClient
 			}
 		};
 
-		EditorView_TwoSectioned = CreateDefaultStreamEditor(ReplicationEditorCreationParams);
-		return EditorView_TwoSectioned.ToSharedRef();
+		EditorView = CreateDefaultStreamEditor(ReplicationEditorCreationParams);
+		return EditorView.ToSharedRef();
+	}
+
+	void SReplicationClientView::ExtendObjectContextMenu(FMenuBuilder& MenuBuilder, TConstArrayView<FSoftObjectPath> ContextObjects) const
+	{
+		const FReplicationClient* ReplicationClient = GetReplicationClientAttribute.Get();
+		check(ReplicationClient);
+		
+		FrequencyContextMenuUtils::AddFrequencyOptionsIfOneContextObject_SingleClient(MenuBuilder, ContextObjects, ReplicationClient->GetEndpointId(), *ClientManager);
 	}
 
 	void SReplicationClientView::OnModelChanged() const
 	{
-		// Only one is valid at the same time
-		if (EditorView_TwoSectioned)
-		{
-			EditorView_TwoSectioned->Refresh();
-		}
-		if (EditorView_ThreeSectioned)
-		{
-			EditorView_ThreeSectioned->Refresh();
-		}
+		EditorView->Refresh();
 	}
 
 	void SReplicationClientView::EnumerateReplicatedObjects(TFunctionRef<void(const FSoftObjectPath&)> Consumer) const

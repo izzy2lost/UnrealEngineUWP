@@ -23,7 +23,8 @@ namespace UE::MultiUserClient
 
 		//~ Begin IClientStreamSynchronizer Interface
 		virtual FGuid GetStreamId() const override;
-		virtual const FObjectReplicationMap& GetServerState() const override { return LastKnownServerState; }
+		virtual const FObjectReplicationMap& GetServerState() const override { return LastKnownServerState.ReplicationMap; }
+		virtual const FConcertStreamFrequencySettings& GetFrequencySettings() const override { return LastKnownServerState.FrequencySettings; }
 		virtual FOnServerStateChanged& OnServerStateChanged() override { return OnServerStateChangedDelegate; }
 		//~ End IClientStreamSynchronizer Interface
 
@@ -35,7 +36,7 @@ namespace UE::MultiUserClient
 		const FDelegateHandle QueryStreamHandle; 
 
 		/** Represents what the local client thinks the replication map on the server currently looks like. */
-		FObjectReplicationMap LastKnownServerState;
+		FSharedReplicationStreamDescription LastKnownServerState;
 		
 		/** Event executed when the result of GetServerState has been synched. */
 		FOnServerStateChanged OnServerStateChangedDelegate;

@@ -40,13 +40,13 @@ namespace UE::MultiUserClient
 		});
 		if (MultiUserDescription
 			// Avoid unnecessary Broadcast()s
-			&& LastKnownServerState != MultiUserDescription->ReplicationMap)
+			&& LastKnownServerState != *MultiUserDescription)
 		{
-			LastKnownServerState = MultiUserDescription->ReplicationMap;
+			LastKnownServerState = *MultiUserDescription;
 			OnServerStateChangedDelegate.Broadcast();
 		}
 		// If the remote client removed the last object, the stream is implicitly deleted.
-		else if (!MultiUserDescription && !LastKnownServerState.ReplicatedObjects.IsEmpty())
+		else if (!MultiUserDescription && !LastKnownServerState.ReplicationMap.ReplicatedObjects.IsEmpty())
 		{
 			LastKnownServerState = {};
 			OnServerStateChangedDelegate.Broadcast();

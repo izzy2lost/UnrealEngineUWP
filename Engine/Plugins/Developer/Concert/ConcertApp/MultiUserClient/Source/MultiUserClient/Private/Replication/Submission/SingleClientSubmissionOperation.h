@@ -68,10 +68,10 @@ namespace UE::MultiUserClient
 		
 		//~ Begin ISubmissionOperation Interface
 		virtual bool IsModifyingStreams() const override { return bModifiesStreams; }
-		virtual TFuture<FSubmitStreamChangesResponse> OnCompleteStreamChangesFuture() override { return StreamChangesPromise.GetFuture();  }
-		virtual TFuture<FSubmitAuthorityChangesRequest> OnRequestAuthorityChangeFuture() override { return AuthorityChangeRequestPromise.GetFuture(); }
-		virtual TFuture<FSubmitAuthorityChangesResponse> OnCompleteAuthorityChangeFuture() override { return AuthorityChangeResponsePromise.GetFuture(); }
-		virtual TFuture<ESubmissionOperationCompletedCode> OnCompletedOperation() override { return CompleteOperationPromise.GetFuture(); }
+		virtual TFuture<FSubmitStreamChangesResponse> OnCompleteStreamChangesFuture_AnyThread() override { return StreamChangesPromise.GetFuture();  }
+		virtual TFuture<FSubmitAuthorityChangesRequest> OnRequestAuthorityChangeFuture_AnyThread() override { return AuthorityChangeRequestPromise.GetFuture(); }
+		virtual TFuture<FSubmitAuthorityChangesResponse> OnCompleteAuthorityChangeFuture_AnyThread() override { return AuthorityChangeResponsePromise.GetFuture(); }
+		virtual TFuture<ESubmissionOperationCompletedCode> OnCompletedOperation_AnyThread() override { return CompleteOperationPromise.GetFuture(); }
 		//~ End ISubmissionOperation Interface
 
 	private:

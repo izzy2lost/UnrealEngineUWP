@@ -89,7 +89,7 @@ namespace UE::MultiUserClient
 
 		if (!RequestData.StreamChangeRequest.IsEmpty())
 		{
-			Operation->OnCompleteStreamChangesFuture().Next([this, Token = LifetimeToken.ToWeakPtr()](FSubmitStreamChangesResponse&& Response)
+			Operation->OnCompleteStreamChangesFuture_AnyThread().Next([this, Token = LifetimeToken.ToWeakPtr()](FSubmitStreamChangesResponse&& Response)
 			{
 				if (const TSharedPtr<FToken> TokenPin = Token.Pin())
 				{
@@ -99,7 +99,7 @@ namespace UE::MultiUserClient
 		}
 		if (!RequestData.AuthorityRequest.IsEmpty())
 		{
-			Operation->OnCompleteAuthorityChangeFuture().Next([this, Token = LifetimeToken.ToWeakPtr()](FSubmitAuthorityChangesResponse&& Response)
+			Operation->OnCompleteAuthorityChangeFuture_AnyThread().Next([this, Token = LifetimeToken.ToWeakPtr()](FSubmitAuthorityChangesResponse&& Response)
 			{
 				if (const TSharedPtr<FToken> TokenPin = Token.Pin())
 				{

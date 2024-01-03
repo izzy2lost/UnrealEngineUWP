@@ -4,6 +4,7 @@
 
 #include "IClientStreamSynchronizer.h"
 #include "Replication/Data/ObjectReplicationMap.h"
+#include "Replication/Data/ReplicationStreamDescription.h"
 #include "Templates/UnrealTemplate.h"
 
 class IConcertSyncClient;
@@ -21,13 +22,14 @@ namespace UE::MultiUserClient
 		//~ Begin IClientStreamSynchronizer Interface
 		virtual FGuid GetStreamId() const override { return LocalClientStreamId; }
 		virtual const FObjectReplicationMap& GetServerState() const override;
+		virtual const FConcertStreamFrequencySettings& GetFrequencySettings() const override;
 		virtual FOnServerStateChanged& OnServerStateChanged() override { return OnServerStateChangedDelegate; }
 		//~ End IClientStreamSynchronizer Interface
 
 	private:
 		
 		/** Returned by GetServerState when there is no registered stream. */
-		const FObjectReplicationMap EmptyState; 
+		const FSharedReplicationStreamDescription EmptyState; 
 		
 		/** Owning client. Used to send change requests to the server. */
 		const TSharedRef<IConcertSyncClient> LocalClient;
@@ -38,6 +40,7 @@ namespace UE::MultiUserClient
 		FOnServerStateChanged OnServerStateChangedDelegate;
 		
 		void OnPostStreamsChanged();
+		const FSharedReplicationStreamDescription* GetLocalMultiUserStream() const;
 	};
 }
 

@@ -2,10 +2,12 @@
 
 #pragma once
 
+#include "Containers/ContainersFwd.h"
 #include "Delegates/Delegate.h"
 #include "Delegates/DelegateCombinations.h"
 
 class FMenuBuilder;
+struct FSoftObjectPath;
 
 namespace UE::ConcertClientSharedSlate
 {
@@ -14,6 +16,6 @@ namespace UE::ConcertClientSharedSlate
 	/** A predicate for determining Left < Right. */
 	DECLARE_DELEGATE_RetVal_TwoParams(bool, FSortPropertyPredicate, const FReplicatedPropertyData& Left, const FReplicatedPropertyData& Right);
 
-	/** Extends entries already added to a FMenuBuilder */
-	DECLARE_DELEGATE_OneParam(FExtendMenu, FMenuBuilder&);
+	/** Extends a context menu that is being built for a select of objects. */
+	DECLARE_DELEGATE_TwoParams(FExtendObjectMenu, FMenuBuilder&, TConstArrayView<FSoftObjectPath> ContextObjects);
 }

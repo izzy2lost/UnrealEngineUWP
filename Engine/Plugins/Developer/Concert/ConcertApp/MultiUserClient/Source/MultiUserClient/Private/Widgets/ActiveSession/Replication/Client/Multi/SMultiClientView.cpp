@@ -16,6 +16,7 @@
 #include "Widgets/ActiveSession/Replication/Client/SClientToolbar.h"
 
 #include "Widgets/SBoxPanel.h"
+#include "Widgets/ActiveSession/Replication/Client/FrequencyContextMenuUtils.h"
 
 #define LOCTEXT_NAMESPACE "SMultiClientView"
 
@@ -91,6 +92,7 @@ namespace UE::MultiUserClient
 			.ViewerParams 
 			{
 				.SubobjectModel = CreateDefaultComponentHierarchySubobjectModel(), // This makes actors have children in the top view
+				.OnExtendObjectsContextMenu = FExtendObjectMenu::CreateSP(this, &SMultiClientView::ExtendObjectContextMenu),
 				.AdditionalObjectColumns =
 				{
 					MultiStreamColumns::ReplicationToggle(InConcertClient, ConsolidatedStreamModelAttribute, InClientManager),
@@ -154,6 +156,11 @@ namespace UE::MultiUserClient
 		// When reassignment operations complete, the content of the columns changes so a resort is required.
 		StreamEditor->GetEditorBase().RequestObjectColumnResort(MultiStreamColumns::ReassignOwnershipColumnId);
 		StreamEditor->GetEditorBase().RequestPropertyColumnResort(MultiStreamColumns::AssignPropertyColumnId);
+	}
+
+	void SMultiClientView::ExtendObjectContextMenu(FMenuBuilder& MenuBuilder, TConstArrayView<FSoftObjectPath> ContextObjects) const
+	{
+		FrequencyContextMenuUtils::AddFrequencyOptionsIfOneContextObject_MultiClient(MenuBuilder, ContextObjects, *ClientManager);
 	}
 }
 

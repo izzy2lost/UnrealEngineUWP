@@ -77,6 +77,7 @@ namespace UE::MultiUserClient
 		FAuthorityChangeTracker& GetAuthorityDiffer() { return LocalAuthorityDiffer; }
 
 		/** @return The object with which you can submit changes. You can use it to listen to general events. If you want to submit changes, you should prefer to use the SubmissionQueue. */
+		const ISubmissionWorkflow& GetSubmissionWorkflow() const { return *SubmissionWorkflow; }
 		ISubmissionWorkflow& GetSubmissionWorkflow() { return *SubmissionWorkflow; }
 		/** @return Implements simple game-thread based queue for SubmissionWorkflow. Only one submission can be in progress at any given time. */
 		FSubmissionQueue& GetSubmissionQueue() { return SubmissionQueue; }

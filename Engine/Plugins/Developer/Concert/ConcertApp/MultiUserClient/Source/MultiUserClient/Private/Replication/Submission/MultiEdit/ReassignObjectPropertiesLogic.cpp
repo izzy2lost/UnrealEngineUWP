@@ -341,7 +341,7 @@ namespace UE::MultiUserClient
 		}
 		
 		InProgressOperation = { MoveTemp(ObjectsToReassign), ClientId, MoveTemp(OldRegisteredObjects), MoveTemp(ReassignedAuthority), ParallelSubmissionOperation.ToSharedRef() };
-		ParallelSubmissionOperation->GetFuture()
+		ParallelSubmissionOperation->OnCompletedFuture_AnyThread()
 			.Next([this](FParallelExecutionResult&& Result)
 			{
 				// When "this" is being destroyed, there is no sense in further processing.
@@ -462,7 +462,7 @@ namespace UE::MultiUserClient
 			return;
 		}
 		
-		SubmitOperation->OnCompletedOperation().Next([this](ESubmissionOperationCompletedCode)
+		SubmitOperation->OnCompletedOperation_AnyThread().Next([this](ESubmissionOperationCompletedCode)
 		{
 			// We're not on game thread if OnCompletedOperation completes due to a timeout.
 			// By contract, IParallelSubmissionOperation must be destroyed on the game thread!

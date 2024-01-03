@@ -136,7 +136,7 @@ namespace UE::MultiUserClient
 			}
 
 			//~ Begin IParallelSubmissionOperation Interface
-			virtual TFuture<FParallelExecutionResult> GetFuture() override { return Promise.GetFuture(); }
+			virtual TFuture<FParallelExecutionResult> OnCompletedFuture_AnyThread() override { return Promise.GetFuture(); }
 			//~ End IParallelSubmissionOperation Interface
 
 			void OnCompleteStream(const FGuid& ClientId, FSubmitStreamChangesResponse&& Response)
@@ -230,7 +230,7 @@ namespace UE::MultiUserClient
 			const TSharedPtr<ISubmissionOperation> SubmissionOperation = Workflow.SubmitChanges(SubmissionParams);
 			if (ensure(SubmissionOperation))
 			{
-				SubmissionOperation->OnCompleteStreamChangesFuture()
+				SubmissionOperation->OnCompleteStreamChangesFuture_AnyThread()
 					.Next([this, WeakOwner = Owner.AsWeak()](FSubmitStreamChangesResponse&& Response)
 					{
 						if (const TSharedPtr<FSyncOperation> SyncOperation = WeakOwner.Pin())
@@ -238,7 +238,7 @@ namespace UE::MultiUserClient
 							SyncOperation->OnCompleteStream(ClientId, MoveTemp(Response));
 						}
 					});
-				SubmissionOperation->OnCompleteAuthorityChangeFuture()
+				SubmissionOperation->OnCompleteAuthorityChangeFuture_AnyThread()
 					.Next([this, WeakOwner = Owner.AsWeak()](FSubmitAuthorityChangesResponse&& Response)
 					{
 						if (const TSharedPtr<FSyncOperation> SyncOperation = WeakOwner.Pin())

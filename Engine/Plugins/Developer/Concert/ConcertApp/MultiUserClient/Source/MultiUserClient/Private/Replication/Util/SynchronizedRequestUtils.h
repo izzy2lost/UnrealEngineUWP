@@ -31,8 +31,11 @@ namespace UE::MultiUserClient
 	{
 	public:
 
-		/** @return Future completed when all parallel submissions have been completed. */
-		virtual TFuture<FParallelExecutionResult> GetFuture() = 0;
+		/**
+		 * @return Future completed when all parallel submissions have been completed.
+		 * @note This can complete on any thread. Usually this finishes on the game thread but timeouts usually occur on the messaging (UDP) thread.
+		 */
+		virtual TFuture<FParallelExecutionResult> OnCompletedFuture_AnyThread() = 0;
 
 		virtual ~IParallelSubmissionOperation() = default;
 	};

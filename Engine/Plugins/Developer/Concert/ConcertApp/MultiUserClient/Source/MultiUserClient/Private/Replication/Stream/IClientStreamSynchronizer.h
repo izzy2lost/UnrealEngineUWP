@@ -5,6 +5,7 @@
 #include "Async/Future.h"
 #include "Delegates/Delegate.h"
 
+struct FConcertStreamFrequencySettings;
 struct FObjectReplicationMap;
 
 namespace UE::MultiUserClient
@@ -21,8 +22,12 @@ namespace UE::MultiUserClient
 		
 		/** @return The managed client's stream ID. */
 		virtual FGuid GetStreamId() const = 0;
+		
 		/** @return What local instance thinks the client's server state is. */
 		virtual const FObjectReplicationMap& GetServerState() const = 0;
+
+		/** @return What the local instance thinks the client's replication frequencies are. */
+		virtual const FConcertStreamFrequencySettings& GetFrequencySettings() const = 0;
 
 		DECLARE_MULTICAST_DELEGATE(FOnServerStateChanged);
 		/** @return Event executed when the result of GetServerState has been updated. */

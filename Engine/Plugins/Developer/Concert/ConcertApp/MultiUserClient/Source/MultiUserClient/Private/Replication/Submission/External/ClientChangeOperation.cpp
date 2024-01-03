@@ -6,7 +6,6 @@
 #include "ConcertLogGlobal.h"
 #include "Replication/Submission/ISubmissionWorkflow.h"
 #include "Replication/Submission/Queue/SubmissionQueue.h"
-
 #include "Replication/Submission/ISubmissionOperation.h"
 
 namespace UE::MultiUserClient
@@ -97,7 +96,7 @@ namespace UE::MultiUserClient
 		// When submission workflow is destroyed, it will finish the below futures.
 		// Keep weak reference to us in case the owning FExternalClientChangeRequestHandler is destroyed before the submission workflow.
 		// This way our code does not rely on whether FExternalClientChangeRequestHandler or ISubmissionWorkflow is destroyed first.
-		SubmissionOperation->OnCompleteStreamChangesFuture()
+		SubmissionOperation->OnCompleteStreamChangesFuture_AnyThread()
 			.Next([WeakThis = SharedThis(this).ToWeakPtr()](FSubmitStreamChangesResponse&& Response)
 			{
 				if (const TSharedPtr<FClientChangeOperation> ThisPin = WeakThis.Pin())
@@ -105,7 +104,7 @@ namespace UE::MultiUserClient
 					ThisPin->EmplaceStreamResult(ClientChangeConversionUtils::Transform(Response));
 				}
 			});
-		SubmissionOperation->OnCompleteAuthorityChangeFuture()
+		SubmissionOperation->OnCompleteAuthorityChangeFuture_AnyThread()
 			.Next([WeakThis = SharedThis(this).ToWeakPtr()](FSubmitAuthorityChangesResponse&& Response)
 			{
 				if (const TSharedPtr<FClientChangeOperation> ThisPin = WeakThis.Pin())
@@ -113,7 +112,7 @@ namespace UE::MultiUserClient
 					ThisPin->EmplaceAuthorityResult(ClientChangeConversionUtils::Transform(Response));
 				}
 			});
-		SubmissionOperation->OnCompletedOperation()
+		SubmissionOperation->OnCompletedOperation_AnyThread()
 			.Next([WeakThis = SharedThis(this).ToWeakPtr()](ESubmissionOperationCompletedCode Response)
 			{
 				if (const TSharedPtr<FClientChangeOperation> ThisPin = WeakThis.Pin())

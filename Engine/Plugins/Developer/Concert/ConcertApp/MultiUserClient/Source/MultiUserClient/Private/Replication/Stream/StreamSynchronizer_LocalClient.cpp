@@ -4,7 +4,6 @@
 
 #include "IConcertSyncClient.h"
 #include "Replication/IConcertClientReplicationManager.h"
-#include "Replication/Messages/ChangeStream.h"
 
 #define LOCTEXT_NAMESPACE "FLocalClientStreamDiffer"
 
@@ -34,31 +33,41 @@ namespace UE::MultiUserClient
 
 	const FObjectReplicationMap& FStreamSynchronizer_LocalClient::GetServerState() const
 	{
-		IConcertClientReplicationManager* ReplicationManager = LocalClient->GetReplicationManager();
-		if (!ensure(ReplicationManager))
-		{
-			return EmptyState;
-		}
-		
-		const FObjectReplicationMap* Result = nullptr;
-		ReplicationManager->ForEachRegisteredStream([this, &Result](const FReplicationStreamDescription& Stream)
-		{
-			if (Stream.BaseDescription.Identifier == LocalClientStreamId)
-			{
-				Result = &Stream.BaseDescription.ReplicationMap;
-				return EBreakBehavior::Break;
-			}
-			return EBreakBehavior::Continue;
-		});
-		return Result
-			? *Result
-			: EmptyState;
+		const FSharedReplicationStreamDescription* Description = GetLocalMultiUserStream();
+		return Description ? Description->ReplicationMap : EmptyState.ReplicationMap;
+	}
+
+	const FConcertStreamFrequencySettings& FStreamSynchronizer_LocalClient::GetFrequencySettings() const
+	{
+		const FSharedReplicationStreamDescription* Description = GetLocalMultiUserStream();
+		return Description ? Description->FrequencySettings : EmptyState.FrequencySettings;
 	}
 
 	void FStreamSynchronizer_LocalClient::OnPostStreamsChanged()
 	{
 		// Note that this fires even for non MU-related changes, e.g. due to some other system's Concert replication API usage.
 		OnServerStateChangedDelegate.Broadcast();
+	}
+
+	const FSharedReplicationStreamDescription* FStreamSynchronizer_LocalClient::GetLocalMultiUserStream() const
+	{
+		IConcertClientReplicationManager* ReplicationManager = LocalClient->GetReplicationManager();
+		if (!ensure(ReplicationManager))
+		{
+			return nullptr;
+		}
+		
+		const FSharedReplicationStreamDescription* Result = nullptr;
+		ReplicationManager->ForEachRegisteredStream([this, &Result](const FReplicationStreamDescription& Stream)
+		{
+			if (Stream.BaseDescription.Identifier == LocalClientStreamId)
+			{
+				Result = &Stream.BaseDescription;
+				return EBreakBehavior::Break;
+			}
+			return EBreakBehavior::Continue;
+		});
+		return Result;
 	}
 }
 

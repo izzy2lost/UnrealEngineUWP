@@ -202,20 +202,24 @@ namespace UE::ConcertClientSharedSlate
 	TSharedPtr<SWidget> SBaseReplicationStreamEditor::OnObjectsContextMenuOpening()
 	{
 		FMenuBuilder MenuBuilder(true, nullptr);
+		
 		AddObjectSourceContextMenuOptions(MenuBuilder);
 		MenuBuilder.AddMenuEntry(
-				LOCTEXT("DeleteItems", "Delete"),
-				TAttribute<FText>::CreateLambda([this](){ return GetEditingDisabledText(); }),
-				FSlateIcon(),
-				FUIAction(
-					FExecuteAction::CreateSP(this, &SBaseReplicationStreamEditor::OnDeleteObjects_PassByValue, ReplicationViewer->GetSelectedOutlinerObjects()),
-					FCanExecuteAction::CreateLambda([this]() { return !IsEditingDisabled(); })
-					),
-				NAME_None,
-				EUserInterfaceActionType::Button
-			);
+			LOCTEXT("DeleteItems", "Delete"),
+			TAttribute<FText>::CreateLambda([this](){ return GetEditingDisabledText(); }),
+			FSlateIcon(),
+			FUIAction(
+				FExecuteAction::CreateSP(this, &SBaseReplicationStreamEditor::OnDeleteObjects_PassByValue, ReplicationViewer->GetSelectedOutlinerObjects()),
+				FCanExecuteAction::CreateLambda([this]() { return !IsEditingDisabled(); })
+				),
+			NAME_None,
+			EUserInterfaceActionType::Button
+		);
+
+		TArray<FSoftObjectPath> SelectedObjects;
+		Algo::Transform(ReplicationViewer->GetSelectedOutlinerObjects(), SelectedObjects, [](const TSharedPtr<FReplicatedObjectData>& Data){ return Data->GetObjectPath(); });
+		OnExtendObjectsContextMenuDelegate.ExecuteIfBound(MenuBuilder, SelectedObjects);
 		
-		OnExtendObjectsContextMenuDelegate.ExecuteIfBound(MenuBuilder);
 		return MenuBuilder.MakeWidget();
 	}
 

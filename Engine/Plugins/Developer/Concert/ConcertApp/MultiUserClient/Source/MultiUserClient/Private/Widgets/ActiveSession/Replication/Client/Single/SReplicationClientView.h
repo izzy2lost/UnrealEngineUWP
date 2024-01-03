@@ -6,6 +6,7 @@
 #include "Widgets/SCompoundWidget.h"
 
 class IConcertClient;
+class FMenuBuilder;
 
 namespace UE::ConcertClientSharedSlate
 {
@@ -40,14 +41,15 @@ namespace UE::MultiUserClient
 		FReplicationClientManager* ClientManager;
 		
 		/** The editor view of the replication content. */
-		TSharedPtr<ConcertClientSharedSlate::IReplicationStreamEditor> EditorView_TwoSectioned;
-		/** The editor view of the replication content. */
-		TSharedPtr<ConcertClientSharedSlate::IReplicationStreamEditor> EditorView_ThreeSectioned;
+		TSharedPtr<ConcertClientSharedSlate::IReplicationStreamEditor> EditorView;
 		
 		/** The client to depict. Should always return true. If the client is destroyed, so should this widget be. */
 		TAttribute<FReplicationClient*> GetReplicationClientAttribute;
-		
+
 		TSharedRef<SWidget> CreateContent(FReplicationClient& InReplicationClient);
+
+		/** Adds additional entries to the context menu for the object tree view. */
+		void ExtendObjectContextMenu(FMenuBuilder& MenuBuilder, TConstArrayView<FSoftObjectPath> ContextObjects) const;
 		
 		/** Called when any of the streams change. */
 		void OnModelChanged() const;

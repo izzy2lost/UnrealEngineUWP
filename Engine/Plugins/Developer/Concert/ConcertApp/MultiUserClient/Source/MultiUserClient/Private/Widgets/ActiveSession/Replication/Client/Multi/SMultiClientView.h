@@ -5,12 +5,8 @@
 #include "Widgets/DeclarativeSyntaxSupport.h"
 #include "Widgets/SCompoundWidget.h"
 
-namespace UE::MultiUserClient
-{
-	class IClientSelectionModel;
-}
-
 class IConcertClient;
+class FMenuBuilder;
 
 namespace UE::ConcertClientSharedSlate
 {
@@ -24,6 +20,7 @@ namespace UE::MultiUserClient
 	class FMultiStreamModel;
 	class FReplicationClient;
 	class FReplicationClientManager;
+	class IClientSelectionModel;
 	class SClientToolbar;
 
 	/** Displays a selection of clients. */
@@ -62,5 +59,8 @@ namespace UE::MultiUserClient
 		void RebuildClientSubscriptions();
 		void CleanClientSubscriptions();
 		void OnClientChanged(FGuid Guid);
+		
+		/** Adds additional entries to the context menu for the object tree view. */
+		void ExtendObjectContextMenu(FMenuBuilder& MenuBuilder, TConstArrayView<FSoftObjectPath> ContextObjects) const;
 	};
 }
