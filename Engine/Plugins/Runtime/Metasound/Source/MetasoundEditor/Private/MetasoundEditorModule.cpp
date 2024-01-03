@@ -231,6 +231,13 @@ namespace Metasound
 		{
 			void LoadAndRegisterAsset(const FAssetData& InAssetData)
 			{
+				// Ignore requests if running cook, as presave will register and cook using the
+				// proper node register call which avoids async registration/igraph generation.
+				if (IsRunningCookCommandlet())
+				{
+					return;
+				}
+
 				Frontend::FMetaSoundAssetRegistrationOptions RegOptions;
 				RegOptions.bForceReregister = false;
 				if (const UMetaSoundSettings* Settings = GetDefault<UMetaSoundSettings>())
