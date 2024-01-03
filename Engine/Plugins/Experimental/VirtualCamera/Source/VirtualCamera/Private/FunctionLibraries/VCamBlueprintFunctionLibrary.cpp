@@ -2,9 +2,6 @@
 
 #include "FunctionLibraries/VCamBlueprintFunctionLibrary.h"
 
-#include "LevelSequence/VirtualCameraClipsMetaData.h"
-#include "VirtualCameraUserSettings.h"
-
 #include "AssetRegistry/AssetData.h"
 #include "CineCameraActor.h"
 #include "CineCameraComponent.h"
@@ -49,11 +46,6 @@ bool UVCamBlueprintFunctionLibrary::IsGameRunning()
 #else
 	return true;
 #endif
-}
-
-UVirtualCameraUserSettings* UVCamBlueprintFunctionLibrary::GetUserSettings()
-{
-	return GetMutableDefault<UVirtualCameraUserSettings>();
 }
 
 ULevelSequence* UVCamBlueprintFunctionLibrary::GetCurrentLevelSequence()
@@ -129,7 +121,6 @@ int32 UVCamBlueprintFunctionLibrary::GetLevelSequenceLengthInFrames(const ULevel
 	return 0;
 }
 
-
 int32 UVCamBlueprintFunctionLibrary::TimecodeToFrameAmount(FTimecode Timecode, const FFrameRate& InFrameRate)
 {
 	return Timecode.ToFrameNumber(InFrameRate).Value; 
@@ -160,7 +151,6 @@ bool UVCamBlueprintFunctionLibrary::IsCurrentLevelSequencePlaying()
 #endif
 }
 
-
 UTexture* UVCamBlueprintFunctionLibrary::ImportSnapshotTexture(FString FileName, FString SubFolderName, FString AbsolutePathPackage)
 {
 #if WITH_EDITOR
@@ -170,56 +160,23 @@ UTexture* UVCamBlueprintFunctionLibrary::ImportSnapshotTexture(FString FileName,
 #endif
 }
 
-
-bool UVCamBlueprintFunctionLibrary::ModifyLevelSequenceMetadata(UVirtualCameraClipsMetaData* LevelSequenceMetaData)
-{
-#if WITH_EDITOR
-	if (LevelSequenceMetaData)
-	{
-		LevelSequenceMetaData->MarkPackageDirty();
-
-		return UEditorAssetLibrary::SaveAsset(LevelSequenceMetaData->GetPathName());
-	}
-#endif
-
-	return false;
-}
-
-bool UVCamBlueprintFunctionLibrary::ModifyLevelSequenceMetadataForSelects(UVirtualCameraClipsMetaData* LevelSequenceMetaData, bool bIsSelected)
-{
-#if WITH_EDITOR
-	if (LevelSequenceMetaData)
-	{
-		LevelSequenceMetaData->SetSelected(bIsSelected);
-		LevelSequenceMetaData->MarkPackageDirty();
-
-		return UEditorAssetLibrary::SaveAsset(LevelSequenceMetaData->GetPathName());
-	}
-#endif
-
-	return false;
-
-}
-
 bool UVCamBlueprintFunctionLibrary::EditorSaveAsset(FString AssetPath)
 {
 #if WITH_EDITOR
 	return UEditorAssetLibrary::SaveAsset(AssetPath, true);
-#endif
+#else
 	return false;
-
+#endif
 }
-
 
 UObject* UVCamBlueprintFunctionLibrary::EditorLoadAsset(FString AssetPath)
 {
 #if WITH_EDITOR
 	return UEditorAssetLibrary::LoadAsset(AssetPath);
-#endif
+#else
 	return nullptr;
+#endif
 }
-
-
 
 void UVCamBlueprintFunctionLibrary::ModifyObjectMetadataTags(UObject* InObject, FName InTag, FString InValue)
 {

@@ -17,7 +17,6 @@ class ULevelSequence;
 class UPrimitiveComponent;
 class USceneCaptureComponent2D;
 class UVirtualCameraClipsMetaData;
-class UVirtualCameraUserSettings; 
 
 #if WITH_EDITOR
 class ISequencer;
@@ -60,7 +59,7 @@ struct VIRTUALCAMERA_API FVCamTraceHitProxyResult
 	}
 };
 
-UCLASS(config=VirtualCamera, BlueprintType)
+UCLASS(BlueprintType)
 class VIRTUALCAMERA_API UVCamBlueprintFunctionLibrary : public UBlueprintFunctionLibrary
 {
 	GENERATED_BODY()
@@ -70,9 +69,6 @@ public:
 	/** Returns true if not in editor or if running the game in PIE or Simulate*/
 	UFUNCTION(BlueprintPure, Category = "VirtualCamera")
 	static bool IsGameRunning();
-
-	UFUNCTION(BlueprintPure, Category = "VirtualCamera")
-	static UVirtualCameraUserSettings* GetUserSettings();
 
 	/**
 	 * Get the currently opened level sequence asset
@@ -127,14 +123,6 @@ public:
 	/** Imports image as a uasset */
 	UFUNCTION(BlueprintCallable, Category = "VirtualCamera")
 	static UTexture* ImportSnapshotTexture(FString FileName, FString SubFolderName, FString AbsolutePathPackage);
-
-	/** Saves UVirtualCameraClipsMetaData with updated selects information. */ 
-	UFUNCTION(BlueprintCallable, Category = "VirtualCamera | Metadata")
-	static bool ModifyLevelSequenceMetadataForSelects(UVirtualCameraClipsMetaData* LevelSequenceMetaData, bool bIsSelected);
-	
-	/** Marks a LevelSequence as dirty and saves it, persisting metadata changes */
-	UFUNCTION(BlueprintCallable, Category = "VirtualCamera | Metadata")
-	static bool ModifyLevelSequenceMetadata(UVirtualCameraClipsMetaData* LevelSequenceMetaData);
 	
 	/** Save an asset through path. Returns true on success. */
 	UFUNCTION(BlueprintCallable, Category = "VirtualCamera | Clips")

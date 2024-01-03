@@ -3,47 +3,19 @@
 #include "VirtualCamera.h"
 
 #include "AdvancedWidgetsModule.h"
-#include "ConcertVirtualCamera.h"
-
 
 DEFINE_LOG_CATEGORY(LogVirtualCamera);
 
-
-const IVirtualCameraModule& IVirtualCameraModule::Get()
+namespace UE::VirtualCamera
 {
-	static const FName ModuleName = TEXT("VirtualCamera");
-	return FModuleManager::Get().GetModuleChecked<IVirtualCameraModule>(ModuleName);
-}
-
-
-/**
- *
- */
-class FVirtualCameraModuleImpl : public IVirtualCameraModule
-{
-public:
-	virtual FConcertVirtualCameraManager* GetConcertVirtualCameraManager() const override
+	void FVirtualCameraModuleImpl::StartupModule()
 	{
-		return ConcertManager.Get();
-	}
-
-private:
-	virtual void StartupModule() override
-	{
-		LLM_SCOPE_BYNAME(TEXT("VirtualCamera"));
-		ConcertManager = MakeUnique<FConcertVirtualCameraManager>();
-
 		// Loads widgets (ex. RadialSlider) that are potentially referenced by assets
 		FModuleManager::Get().LoadModuleChecked<FAdvancedWidgetsModule>("AdvancedWidgets");
 	}
 
-	virtual void ShutdownModule() override
-	{
-		ConcertManager.Reset();
-	}
+	void FVirtualCameraModuleImpl::ShutdownModule()
+	{}
+}
 
-	TUniquePtr<FConcertVirtualCameraManager> ConcertManager;
-};
-
-
-IMPLEMENT_MODULE(FVirtualCameraModuleImpl, VirtualCamera)
+IMPLEMENT_MODULE(UE::VirtualCamera::FVirtualCameraModuleImpl, VirtualCamera)

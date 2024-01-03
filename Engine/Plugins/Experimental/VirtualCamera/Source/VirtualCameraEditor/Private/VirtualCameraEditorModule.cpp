@@ -1,19 +1,14 @@
 // Copyright Epic Games, Inc. All Rights Reserved.
 
-#include "ISettingsModule.h"
-#include "ISettingsSection.h"
 #include "Modules/ModuleManager.h"
-#include "VirtualCameraUserSettings.h"
 
 #include "ActorFactories/ActorFactoryBlueprint.h"
 #include "CineCameraActor.h"
 #include "Filters/CustomClassFilterData.h"
-#include "Interfaces/IPluginManager.h"
 #include "IPlacementModeModule.h"
 #include "IVPUtilitiesEditorModule.h"
 #include "LevelEditor.h"
 #include "LevelEditorOutlinerSettings.h"
-#include "VirtualCameraActor.h"
 
 #define LOCTEXT_NAMESPACE "FVirtualCameraEditorModule"
 
@@ -24,15 +19,12 @@ class FVirtualCameraEditorModule : public IModuleInterface
 public:
 	virtual void StartupModule() override
 	{
-		RegisterSettings();
 		RegisterPlacementModeItems();
 		RegisterOutlinerFilters();
 	}
 
 	virtual void ShutdownModule() override
-	{
-		UnregisterSettings();
-	}
+	{}
 
 private:
 	
@@ -77,32 +69,7 @@ private:
 				TSharedRef<FCustomClassFilterData> CineCameraActorClassData =
 					MakeShared<FCustomClassFilterData>(ACineCameraActor::StaticClass(), VPFilterCategory, FLinearColor::White);
 				LevelEditorModule->AddCustomClassFilterToOutliner(CineCameraActorClassData);
-
-				TSharedRef<FCustomClassFilterData> VirtualCameraActorClassData =
-					MakeShared<FCustomClassFilterData>(AVirtualCameraActor::StaticClass(), VPFilterCategory, FLinearColor::White);
-				LevelEditorModule->AddCustomClassFilterToOutliner(VirtualCameraActorClassData);
 			}
-		}
-	}
-	
-	void RegisterSettings()
-	{
-		ISettingsModule* SettingsModule = FModuleManager::GetModulePtr<ISettingsModule>("Settings");
-		if (SettingsModule != nullptr)
-		{
-			ISettingsSectionPtr SettingsSection = SettingsModule->RegisterSettings("Project", "Plugins", "VirtualCamera",
-				LOCTEXT("VirtualCameraUserSettingsName", "Virtual Camera"),
-				LOCTEXT("VirtualCameraUserSettingsDescription", "Configure the Virtual Camera settings."),
-				GetMutableDefault<UVirtualCameraUserSettings>());
-		}
-	}
-
-	void UnregisterSettings()
-	{
-		ISettingsModule* SettingsModule = FModuleManager::GetModulePtr<ISettingsModule>("Settings");
-		if (SettingsModule != nullptr)
-		{
-			SettingsModule->UnregisterSettings("Project", "Plugins", "VirtualCamera");
 		}
 	}
 };

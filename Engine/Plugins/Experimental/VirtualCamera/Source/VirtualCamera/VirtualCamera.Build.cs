@@ -37,25 +37,7 @@ public class VirtualCamera : ModuleRules
 				"AdvancedWidgets"
 			}
 		);
-
-		if (Target.Type == TargetType.Editor || Target.Type == TargetType.Program)
-		{
-			PrivateDefinitions.Add("VIRTUALCAMERA_WITH_CONCERT=1");
-			PrivateDependencyModuleNames.AddRange(
-				new string[]
-				{
-					"Concert",
-					"ConcertSyncClient",
-					"MultiUserClient",
-				}
-			);
-		}
-		else
-		{
-			PrivateDefinitions.Add("VIRTUALCAMERA_WITH_CONCERT=0");
-		}
-
-
+		
 		if (Target.bBuildEditor == true)
 		{
 			PublicDependencyModuleNames.Add("LevelSequenceEditor");

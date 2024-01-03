@@ -2,22 +2,20 @@
 
 #pragma once
 
-#include "CoreMinimal.h"
 #include "Modules/ModuleInterface.h"
 #include "Modules/ModuleManager.h"
 
 DECLARE_LOG_CATEGORY_EXTERN(LogVirtualCamera, Log, Log);
 
-
-class FConcertVirtualCameraManager;
-
-/**
- *
- */
-class IVirtualCameraModule : public IModuleInterface
+namespace UE::VirtualCamera
 {
-public:
-	static const IVirtualCameraModule& Get();
+	class FVirtualCameraModuleImpl : public IModuleInterface
+	{
+	public:
 
-	virtual FConcertVirtualCameraManager* GetConcertVirtualCameraManager() const = 0;
-};
+		//~ Begin IModuleInterface Interface
+		virtual void StartupModule() override;
+		virtual void ShutdownModule() override;
+		//~ End IModuleInterface Interface
+	};
+}
