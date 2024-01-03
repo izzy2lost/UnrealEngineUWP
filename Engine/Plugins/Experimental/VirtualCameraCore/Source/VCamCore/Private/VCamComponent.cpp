@@ -528,7 +528,7 @@ void UVCamComponent::RemoveInputMappingContext(UInputMappingContext* Context)
 
 bool UVCamComponent::SetInputProfileFromName(const FName ProfileName)
 {
-	if (const UVCamInputSettings* VCamInputSettings = GetDefault<UVCamInputSettings>())
+	if (const UVCamInputSettings* VCamInputSettings = UVCamInputSettings::GetVCamInputSettings())
 	{
 		if (const FVCamInputProfile* NewInputProfile = VCamInputSettings->InputProfiles.Find(ProfileName))
 		{

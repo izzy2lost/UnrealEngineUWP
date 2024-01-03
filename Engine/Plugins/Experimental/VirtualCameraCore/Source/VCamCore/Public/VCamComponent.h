@@ -2,19 +2,16 @@
 
 #pragma once
 
-#include "CoreMinimal.h"
-
 #include "EVCamTargetViewportID.h"
+#include "Input/VCamInputDeviceConfig.h"
+#include "Input/VCamInputSettings.h"
+#include "Util/VCamViewportLocker.h"
 #include "Modifier/ModifierStackEntry.h"
 #include "VCamSubsystem.h"
 
 #include "GameplayTagContainer.h"
 #include "Roles/LiveLinkCameraTypes.h"
-#include "VCamInputSettings.h"
-#include "Input/VCamInputDeviceConfig.h"
-#include "Util/VCamViewportLocker.h"
 #include "Subsystems/SubsystemCollection.h"
-
 #if WITH_EDITOR
 #include "UnrealEdMisc.h"
 #endif
@@ -42,7 +39,6 @@ class IConcertClientSession;
 struct FConcertSessionContext;
 struct FMultiUserVCamCameraComponentEvent;
 #endif
-
 
 DECLARE_DYNAMIC_MULTICAST_DELEGATE_OneParam(FOnComponentReplaced, UVCamComponent*, NewComponent);
 

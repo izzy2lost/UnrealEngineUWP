@@ -14,9 +14,9 @@ public class VCamCore : ModuleRules
 				"Composure",
 				"Core",
 				"CinematicCamera",
+				"DeveloperSettings",
 				"EnhancedInput",
 				"RemoteSession",
-				"VCamInput",
 				"VPUtilities"
 			});
 		

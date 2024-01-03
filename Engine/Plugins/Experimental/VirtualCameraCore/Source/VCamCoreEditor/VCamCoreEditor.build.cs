@@ -35,7 +35,6 @@ public class VCamCoreEditor : ModuleRules
 				"UMGEditor",
 				"UnrealEd",
 				"VCamCore",
-				"VCamInput",
 				"VPUtilities", 
 			}
 		);

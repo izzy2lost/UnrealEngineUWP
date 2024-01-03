@@ -1,6 +1,6 @@
 // Copyright Epic Games, Inc. All Rights Reserved.
 
-#include "VCamInputSettings.h"
+#include "Input/VCamInputSettings.h"
 
 #include "Interfaces/IPluginManager.h"
 #include "Misc/ConfigCacheIni.h"
@@ -48,19 +48,21 @@ TArray<FName> UVCamInputSettings::GetInputProfileNames() const
 void UVCamInputSettings::PostInitProperties()
 {
 	Super::PostInitProperties();
-
+	// Prior to 5.4, UVCamInputSettings used to save and load settings to ProjectName/Saved/Platform/Game.ini
+	// Starting with 5.4, UVCamInputSettings saves to ProjectName/Saved/Platform/VirtualCameraCore.ini.
+	
 	// Our flow is a bit unusual.
-	// UVCamInputSettings uses ProjectName/Saved/Platform/Game.ini to save & load settings.
 	// We've got a bunch of default settings in DefaultVCamInputSettings.ini.
 	// This allows us to iterate faster than setting up the default values in the C++ constructor.
-	// If we want default values to change, artists can just copy the settings from Game.ini into DefaultVCamInputSettings.ini..
-	// On the first run, we load from DefaultVCamInputSettings.ini.
-	// After that the engine will continue to use Game.ini.
+	// If we want default values to change, artists can just copy the settings from Game.ini into DefaultVCamInputSettings.ini.
+	// On the first run of th engine, we load from DefaultVCamInputSettings.ini.
+	// After that the engine will continue to use VirtualCameraCore.ini.
 	const TSharedPtr<IPlugin> VirtualCameraPlugin = IPluginManager::Get().FindPlugin(TEXT("VirtualCameraCore"));
 	const FString PluginDefaultConfigFile = VirtualCameraPlugin->GetBaseDir() / TEXT("Config") / TEXT("DefaultVCamInputSettings.ini");
 	const FString RealDefaultConfigFile = GetConfigFilename(this);
-	const bool bNeedsDefaultValues = !GConfig->DoesSectionExist(TEXT("/Script/VCamInput.VCamInputSettings"), RealDefaultConfigFile);
-	const bool bConfigStillExists = GConfig->DoesSectionExist(TEXT("/Script/VCamInput.VCamInputSettings"), PluginDefaultConfigFile);
+	
+	const bool bNeedsDefaultValues = !GConfig->DoesSectionExist(TEXT("/Script/VCamCore.VCamInputSettings"), RealDefaultConfigFile);
+	const bool bConfigStillExists = GConfig->DoesSectionExist(TEXT("/Script/VCamCore.VCamInputSettings"), PluginDefaultConfigFile);
 	if (bNeedsDefaultValues && ensureMsgf(bConfigStillExists, TEXT("The content or location of DefaultVCamInputSettings.ini has changed")))
 	{
 		LoadConfig(StaticClass(), *PluginDefaultConfigFile);

@@ -50,14 +50,6 @@
 			"PlatformDenyList": [
 				"TVOS"
 			]
-		},
-		{
-			"Name": "VCamInput",
-			"Type": "Runtime",
-			"LoadingPhase": "PreDefault",
-			"PlatformDenyList": [
-				"TVOS"
-			]
 		}
 	],
 	"Plugins": [

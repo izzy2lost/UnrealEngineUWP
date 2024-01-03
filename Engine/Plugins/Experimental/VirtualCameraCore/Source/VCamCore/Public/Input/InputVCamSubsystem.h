@@ -71,8 +71,7 @@ private:
 	UPROPERTY(Transient)
 	TObjectPtr<UEnhancedInputUserSettings> UserSettings;
 
-protected:
-	// Map of inputs that should be injected every frame. These inputs will be injected when ForcedInput is ticked. 
+	/** Map of inputs that should be injected every frame. These inputs will be injected when ForcedInput is ticked. */
 	UPROPERTY(Transient) 
 	TMap<TObjectPtr<const UInputAction>, FInjectedInput> ContinuouslyInjectedInputs;
 };
