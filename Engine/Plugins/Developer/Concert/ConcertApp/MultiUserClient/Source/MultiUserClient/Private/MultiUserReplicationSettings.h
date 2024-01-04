@@ -3,7 +3,7 @@
 #pragma once
 
 #include "UObject/Object.h"
-#include "Replication/Settings/ConcertReplicationEditorSettings.h"
+#include "Replication/Settings/ConcertStreamObjectAutoBindingRules.h"
 #include "MultiUserReplicationSettings.generated.h"
 
 UCLASS(config=MultiUserClient)
@@ -14,7 +14,10 @@ public:
 
 	static UMultiUserReplicationSettings* Get() { return GetMutableDefault<UMultiUserReplicationSettings>(); }
 
-	/** Settings that affect the replication editor */
+	/**
+	 * When you add an object via the stream editor, you may want to automatically bind properties and add additional subobjects.
+	 * Here you can specify the rules to achieve this.
+	 */
 	UPROPERTY(Config, Category = "Replication Settings", EditAnywhere)
-	FConcertReplicationEditorSettings ReplicationEditorSettings;
+	FConcertStreamObjectAutoBindingRules ReplicationEditorSettings;
 };

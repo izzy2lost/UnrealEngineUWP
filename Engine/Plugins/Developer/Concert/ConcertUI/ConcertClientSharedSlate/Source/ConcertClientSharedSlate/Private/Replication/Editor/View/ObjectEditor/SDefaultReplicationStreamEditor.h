@@ -12,7 +12,7 @@
 
 class SHorizontalBox;
 struct FConcertPropertyChain;
-struct FConcertReplicationEditorSettings;
+struct FConcertStreamObjectAutoBindingRules;
 
 namespace UE::ConcertClientSharedSlate
 {

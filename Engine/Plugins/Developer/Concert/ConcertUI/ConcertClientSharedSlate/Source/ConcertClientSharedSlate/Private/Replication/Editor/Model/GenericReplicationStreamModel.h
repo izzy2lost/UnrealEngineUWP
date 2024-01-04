@@ -6,7 +6,7 @@
 #include "Misc/Attribute.h"
 #include "UObject/WeakObjectPtrTemplates.h"
 
-struct FConcertReplicationEditorSettings;
+struct FConcertStreamObjectAutoBindingRules;
 struct FObjectReplicationMap;
 
 namespace UE::ConcertClientSharedSlate

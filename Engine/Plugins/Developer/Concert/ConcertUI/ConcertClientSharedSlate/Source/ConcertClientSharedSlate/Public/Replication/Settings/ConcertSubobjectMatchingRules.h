@@ -2,12 +2,12 @@
 
 #pragma once
 
-#include "ConcertInheritableClassOption.h"
+#include "Templates/Function.h"
 #include "UObject/SoftObjectPath.h"
-#include "ConcertDefaultSubobjectSelection.generated.h"
+#include "ConcertSubobjectMatchingRules.generated.h"
 
 UENUM()
-enum class EMultiUserIncludeAllSubobjectsType : uint8
+enum class EConcertIncludeAllSubobjectsType : uint8
 {
 	/** Include nothing by default */
 	None,
@@ -17,9 +17,9 @@ enum class EMultiUserIncludeAllSubobjectsType : uint8
 	AllSubobjects
 };
 
-/** Settings for components that are supposed to be included  */
+/** Defines rules for finding subobjects of an object. */
 USTRUCT()
-struct FConcertDefaultSubobjectSelection : public FConcertInheritableClassOption
+struct FConcertSubobjectMatchingRules
 {
 	GENERATED_BODY()
 	
@@ -31,7 +31,7 @@ struct FConcertDefaultSubobjectSelection : public FConcertInheritableClassOption
 	TSet<FSoftClassPath> IncludeClasses;
 
 	/**
-	 * Components that match any of this regex will be excluded from DefaultSelectedComponentClasses.
+	 * Components that match any of this regex will be excluded from IncludeClasses.
 	 *
 	 * Tips:
 	 * - If you want to include "Component" but not "ComponentName" you can use boundaries "\bComponent\b".
@@ -52,5 +52,11 @@ struct FConcertDefaultSubobjectSelection : public FConcertInheritableClassOption
 
 	/** Behaviour to configure for including all of a certain type of subobject. */
 	UPROPERTY(EditAnywhere, AdvancedDisplay, Category = "Config")
-	EMultiUserIncludeAllSubobjectsType IncludeAllOption = EMultiUserIncludeAllSubobjectsType::None;
+	EConcertIncludeAllSubobjectsType IncludeAllOption = EConcertIncludeAllSubobjectsType::None;
+
+	/**
+	 * Looks for subobjects in AddedObject that match these rules.
+	 * This looks for direct subobjects only though you can call MatchToSubobjectsIn recursively on what you received through OnSubobjectMatched.
+	 */
+	void MatchToSubobjectsIn(const UObject& AddedObject, TFunctionRef<void(UObject&)> OnSubobjectMatched) const;
 };

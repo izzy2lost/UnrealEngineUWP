@@ -13,7 +13,7 @@
 class UObject;
 class SWidget;
 
-struct FConcertReplicationEditorSettings;
+struct FConcertStreamObjectAutoBindingRules;
 struct FObjectReplicationMap;
 
 namespace UE::ConcertClientSharedSlate

@@ -14,7 +14,7 @@ namespace UE::MultiUserClient
 		: ClientId(InClientId)
 		, ExtendBySettings(
 			// Use MU settings for auto adding properties & objects
-			TAttribute<const FConcertReplicationEditorSettings*>::CreateLambda([]()
+			TAttribute<const FConcertStreamObjectAutoBindingRules*>::CreateLambda([]()
 			{
 				return &UMultiUserReplicationSettings::Get()->ReplicationEditorSettings;
 			}))

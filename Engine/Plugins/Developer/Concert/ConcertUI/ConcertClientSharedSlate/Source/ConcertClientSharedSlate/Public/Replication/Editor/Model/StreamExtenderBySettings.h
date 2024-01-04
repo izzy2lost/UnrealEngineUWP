@@ -6,7 +6,7 @@
 #include "Misc/Attribute.h"
 
 class UObject;
-struct FConcertReplicationEditorSettings;
+struct FConcertStreamObjectAutoBindingRules;
 
 namespace UE::ConcertClientSharedSlate
 {
@@ -15,7 +15,7 @@ namespace UE::ConcertClientSharedSlate
 	{
 	public:
 		
-		FStreamExtenderBySettings(TAttribute<const FConcertReplicationEditorSettings*> InReplicationSettingsAttribute);
+		FStreamExtenderBySettings(TAttribute<const FConcertStreamObjectAutoBindingRules*> InReplicationSettingsAttribute);
 
 		//~ Begin IStreamExtender Interface
 		virtual void ExtendStream(UObject& ExtendedObject, IStreamExtensionContext& Context) override;
@@ -24,6 +24,6 @@ namespace UE::ConcertClientSharedSlate
 	private:
 		
 		/** Optional settings for auto adding common properties and objects. */
-		TAttribute<const FConcertReplicationEditorSettings*> ReplicationSettingsAttribute;
+		TAttribute<const FConcertStreamObjectAutoBindingRules*> ReplicationSettingsAttribute;
 	};
 }

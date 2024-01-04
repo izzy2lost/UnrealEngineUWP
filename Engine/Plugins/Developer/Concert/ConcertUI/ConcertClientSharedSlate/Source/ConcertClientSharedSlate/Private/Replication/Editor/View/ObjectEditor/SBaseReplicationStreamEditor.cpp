@@ -10,7 +10,7 @@
 #include "Replication/Editor/Model/ReplicatedObjectData.h"
 #include "Replication/Editor/View/DisplayUtils.h"
 #include "Replication/Editor/View/ObjectViewer/SReplicationStreamViewer.h"
-#include "Replication/Settings/ConcertReplicationEditorSettings.h"
+#include "Replication/Settings/ConcertStreamObjectAutoBindingRules.h"
 
 #include "Algo/AnyOf.h"
 #include "Replication/Editor/Model/ISubobjectModel.h"

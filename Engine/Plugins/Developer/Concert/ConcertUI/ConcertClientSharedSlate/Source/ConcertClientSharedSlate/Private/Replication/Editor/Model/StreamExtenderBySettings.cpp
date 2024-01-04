@@ -4,17 +4,17 @@
 
 #include "Replication/Data/ConcertPropertySelection.h"
 #include "Replication/Editor/Model/Extension/IStreamExtensionContext.h"
-#include "Replication/Settings/ConcertReplicationEditorSettings.h"
+#include "Replication/Settings/ConcertStreamObjectAutoBindingRules.h"
 
 namespace UE::ConcertClientSharedSlate
 {
-	FStreamExtenderBySettings::FStreamExtenderBySettings(TAttribute<const FConcertReplicationEditorSettings*> InReplicationSettingsAttribute)
+	FStreamExtenderBySettings::FStreamExtenderBySettings(TAttribute<const FConcertStreamObjectAutoBindingRules*> InReplicationSettingsAttribute)
 		: ReplicationSettingsAttribute(MoveTemp(InReplicationSettingsAttribute))
 	{}
 
 	void FStreamExtenderBySettings::ExtendStream(UObject& ExtendedObject, IStreamExtensionContext& Context)
 	{
-		const FConcertReplicationEditorSettings* Settings = ReplicationSettingsAttribute.Get();
+		const FConcertStreamObjectAutoBindingRules* Settings = ReplicationSettingsAttribute.Get();
 		if (!ensure(Settings))
 		{
 			return;
@@ -23,7 +23,7 @@ namespace UE::ConcertClientSharedSlate
 		{
 			Context.AddPropertyTo(ExtendedObject, MoveTemp(PropertyChain));
 		});
-		Settings->AddAdditionalObjectsFromSettings(ExtendedObject, [&ExtendedObject, &Context](UObject& AdditionalObject)
+		Settings->DefaultAddedSubobjectRules.MatchSubobjectsRecursivelyFor(ExtendedObject, [&ExtendedObject, &Context](UObject& AdditionalObject)
 		{
 			Context.AddAdditionalObject(AdditionalObject);
 		});
