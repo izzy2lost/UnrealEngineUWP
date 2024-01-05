@@ -12,6 +12,7 @@ namespace UE::MultiUserClient
 {
 	class IClientStreamSynchronizer;
 	class FAuthorityChangeTracker;
+	class FFrequencyChangeTracker;
 	class FGlobalAuthorityCache;
 	class FStreamChangeTracker;
 	
@@ -22,13 +23,22 @@ namespace UE::MultiUserClient
 	class FChangeRequestBuilder
 	{
 	public:
-
+		
+		/**
+		 * @param InLocalClientId Endpoint ID of the client for which the request is being generated
+		 * @param InAuthorityCache Used to predict conflicts. The caller ensures it outlives the constructed instance.
+		 * @param InStreamSynchronizer Used to determine whether a new stream must be created. The caller ensures it outlives the constructed instance.
+		 * @param InStreamChangeTracker Builds object part of the stream request. The caller ensures it outlives the constructed instance.
+		 * @param InAuthorityChangeTracker Builds the authority changing request. The caller ensures it outlives the constructed instance.
+		 * @param InFrequencyChangeTracker Builds the object replication frequency part of the request. The caller ensures it outlives the constructed instance.
+		 */
 		FChangeRequestBuilder(
 			const FGuid& InLocalClientId,
-			const FGlobalAuthorityCache& InAuthorityCache,
-			IClientStreamSynchronizer& InStreamSynchronizer,
-			FStreamChangeTracker& InStreamChangeTracker,
-			FAuthorityChangeTracker& AuthorityChangeTracker
+			const FGlobalAuthorityCache& InAuthorityCache UE_LIFETIMEBOUND,
+			IClientStreamSynchronizer& InStreamSynchronizer UE_LIFETIMEBOUND,
+			FStreamChangeTracker& InStreamChangeTracker UE_LIFETIMEBOUND,
+			FAuthorityChangeTracker& InAuthorityChangeTracker UE_LIFETIMEBOUND,
+			FFrequencyChangeTracker& InFrequencyChangeTracker UE_LIFETIMEBOUND
 			);
 
 		/** @return Valid request that can be sent to the server, if there are any local changes. */
@@ -52,6 +62,8 @@ namespace UE::MultiUserClient
 		FStreamChangeTracker& StreamChangeTracker;
 		/** Informs us when authority is changed by the user. */
 		FAuthorityChangeTracker& AuthorityChangeTracker;
+		/** Used to build the object replication frequency requests. */
+		FFrequencyChangeTracker& FrequencyChangeTracker;
 
 		/** @return The ID MU uses for its single stream. */
 		FGuid GetLocalClientStreamId() const;

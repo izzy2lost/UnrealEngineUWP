@@ -4,6 +4,7 @@
 
 #include "Components/ActorComponent.h"
 #include "Internationalization/Regex.h"
+#include "Misc/EBreakBehavior.h"
 
 namespace UE::ConcertClientSharedSlate
 {
@@ -23,17 +24,17 @@ namespace UE::ConcertClientSharedSlate
 	}
 }
 
-void FConcertSubobjectMatchingRules::MatchToSubobjectsIn(const UObject& AddedObject, TFunctionRef<void(UObject&)> OnSubobjectMatched) const
+void FConcertSubobjectMatchingRules::MatchToSubobjectsBreakable(const UObject& AddedObject, TFunctionRef<EBreakBehavior(UObject&)> OnSubobjectMatched) const
 {
 	// Do not search recursively so FurtherObjectsCallback can decide to call AddAdditionalObjectsFromSettings again on the newly added objects.
 	constexpr bool bIncludeNested = false;
-	ForEachObjectWithOuter(&AddedObject, [this, &OnSubobjectMatched](UObject* Subobject)
+	ForEachObjectWithOuterBreakable(&AddedObject, [this, &OnSubobjectMatched](UObject* Subobject)
 	{
 		// Has exclusion regex?
 		const bool bShouldExclude = UE::ConcertClientSharedSlate::MatchesAnyRegex(Subobject->GetName(), ExcludeSubobjectRegex);
 		if (bShouldExclude)
 		{
-			return;
+			return true;
 		}
 
 		// Was told to add all UActorComponents?
@@ -42,8 +43,7 @@ void FConcertSubobjectMatchingRules::MatchToSubobjectsIn(const UObject& AddedObj
 			&& IncludeAllOption == EConcertIncludeAllSubobjectsType::AllComponents;
 		if (bIncludeAllSubobjects || bIncludeDueToComponent)
 		{
-			OnSubobjectMatched(*Subobject);
-			return;
+			return OnSubobjectMatched(*Subobject) == EBreakBehavior::Break;
 		}
 
 		// Has configured class?
@@ -52,8 +52,7 @@ void FConcertSubobjectMatchingRules::MatchToSubobjectsIn(const UObject& AddedObj
 		{
 			if (IncludeClasses.Contains(Subobject->GetClass()))
 			{
-				OnSubobjectMatched(*Subobject);
-				return;
+				return OnSubobjectMatched(*Subobject) == EBreakBehavior::Break;
 			}
 		}
 
@@ -61,7 +60,9 @@ void FConcertSubobjectMatchingRules::MatchToSubobjectsIn(const UObject& AddedObj
 		const bool bShouldIncludeByRegex = UE::ConcertClientSharedSlate::MatchesAnyRegex(Subobject->GetName(), IncludeSubobjectRegex);
 		if (bShouldIncludeByRegex)
 		{
-			OnSubobjectMatched(*Subobject);
+			return OnSubobjectMatched(*Subobject) == EBreakBehavior::Break;
 		}
+		
+		return true;
 	}, bIncludeNested);
 }

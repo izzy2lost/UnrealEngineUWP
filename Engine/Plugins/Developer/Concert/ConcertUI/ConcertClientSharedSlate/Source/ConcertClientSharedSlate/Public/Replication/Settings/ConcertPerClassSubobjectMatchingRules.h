@@ -34,6 +34,14 @@ struct CONCERTCLIENTSHAREDSLATE_API FConcertPerClassSubobjectMatchingRules
 	UPROPERTY(EditAnywhere, Config, Category = "Replication|Editor")
 	TMap<FSoftClassPath, FConcertInheritableSubobjectMatchingRules> SubobjectMatchingRules;
 
-	/** Recursively walks up Object class hierarchy and tries to find subobjects  */
-	void MatchSubobjectsRecursivelyFor(const UObject& Object, TFunctionRef<void(UObject&)> OnSubobjectMatched) const;
+	/** Recursively walks up Object class hierarchy and tries to find subobjects */
+	void MatchSubobjectsRecursivelyBreakable(const UObject& Object, TFunctionRef<EBreakBehavior(UObject&)> OnSubobjectMatched) const;
+	void MatchSubobjectsRecursively(const UObject& Object, TFunctionRef<void(UObject&)> OnSubobjectMatched) const
+	{
+		return MatchSubobjectsRecursivelyBreakable(Object, [&OnSubobjectMatched](UObject& Object)
+		{
+			OnSubobjectMatched(Object);
+			return EBreakBehavior::Continue;
+		});
+	}
 };

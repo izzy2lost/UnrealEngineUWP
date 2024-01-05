@@ -2,11 +2,11 @@
 
 #include "MultiUserStreamExtender.h"
 
-#include "MultiUserReplicationSettings.h"
 #include "ReplicationDiscoveryContainer.h"
 #include "Replication/IReplicationDiscoveryContext.h"
 #include "Replication/Data/ConcertPropertySelection.h"
 #include "Replication/Editor/Model/Extension/IStreamExtensionContext.h"
+#include "Settings/MultiUserReplicationSettings.h"
 
 namespace UE::MultiUserClient
 {

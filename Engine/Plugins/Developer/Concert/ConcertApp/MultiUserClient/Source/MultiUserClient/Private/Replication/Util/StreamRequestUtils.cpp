@@ -7,9 +7,13 @@
 
 namespace UE::MultiUserClient::StreamRequestUtils
 {
-	FConcertReplication_ChangeStream_Request BuildChangeRequest_CreateNewStream(const FGuid& StreamId, const FStreamChangelist& FromChangelist)
+	FConcertReplication_ChangeStream_Request BuildChangeRequest_CreateNewStream(
+		const FGuid& StreamId,
+		const FStreamChangelist& ObjectChanges,
+		FFrequencyChangelist FrequencyChanges
+		)
 	{
-		const TMap<FObjectInStreamID, FConcertReplication_ChangeStream_PutObject>& ObjectsToPut = FromChangelist.ObjectsToPut;
+		const TMap<FObjectInStreamID, FConcertReplication_ChangeStream_PutObject>& ObjectsToPut = ObjectChanges.ObjectsToPut;
 		
 		FConcertReplication_ChangeStream_Request Request;
 		Request.StreamsToAdd.Emplace();
@@ -32,11 +36,36 @@ namespace UE::MultiUserClient::StreamRequestUtils
 			ReplicationMap.ReplicatedObjects.Add(PutObjectPair.Key.Object, *NewObjectInfo);
 		}
 		
+		FConcertStreamFrequencySettings& FrequencySettings = NewStream.BaseDescription.FrequencySettings;
+		if (FrequencyChanges.NewDefaults)
+		{
+			FrequencySettings.Defaults = MoveTemp(*FrequencyChanges.NewDefaults);
+		}
+		for (TPair<FSoftObjectPath, FConcertObjectReplicationSettings>& Overrides : FrequencyChanges.OverridesToAdd)
+		{
+			FrequencySettings.ObjectOverrides.Emplace(MoveTemp(Overrides.Key), MoveTemp(Overrides.Value));
+		}
+		
 		return Request;
 	}
 		
-	FConcertReplication_ChangeStream_Request BuildChangeRequest_UpdateExistingStream(FStreamChangelist FromChangelist)
+	FConcertReplication_ChangeStream_Request BuildChangeRequest_UpdateExistingStream(
+		const FGuid& StreamId,
+		FStreamChangelist ObjectChanges,
+		FFrequencyChangelist FrequencyChanges
+		)
 	{
-		return { MoveTemp(FromChangelist.ObjectsToRemove), MoveTemp(FromChangelist.ObjectsToPut) };
+		FConcertReplication_ChangeStream_Request Result { MoveTemp(ObjectChanges.ObjectsToRemove), MoveTemp(ObjectChanges.ObjectsToPut) };
+		
+		FConcertReplication_ChangeStream_Frequency& FrequencyChangeRequest = Result.FrequencyChanges.Add(StreamId);
+		if (FrequencyChanges.NewDefaults)
+		{
+			FrequencyChangeRequest.NewDefaults = MoveTemp(*FrequencyChanges.NewDefaults); 
+			FrequencyChangeRequest.Flags = EConcertReplicationChangeFrequencyFlags::SetDefaults; 
+		}
+		FrequencyChangeRequest.OverridesToAdd = MoveTemp(FrequencyChanges.OverridesToAdd);
+		FrequencyChangeRequest.OverridesToRemove = MoveTemp(FrequencyChanges.OverridesToRemove);
+
+		return Result;
 	}
 }

@@ -23,7 +23,7 @@ namespace UE::ConcertClientSharedSlate
 		{
 			Context.AddPropertyTo(ExtendedObject, MoveTemp(PropertyChain));
 		});
-		Settings->DefaultAddedSubobjectRules.MatchSubobjectsRecursivelyFor(ExtendedObject, [&ExtendedObject, &Context](UObject& AdditionalObject)
+		Settings->DefaultAddedSubobjectRules.MatchSubobjectsRecursively(ExtendedObject, [&ExtendedObject, &Context](UObject& AdditionalObject)
 		{
 			Context.AddAdditionalObject(AdditionalObject);
 		});

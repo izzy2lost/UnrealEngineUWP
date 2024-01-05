@@ -21,7 +21,7 @@ namespace UE::MultiUserClient
 {
 	/**
 	 * Knows of the local client's registered replication streams and builds a changelist. The changelist tracks the
-	 * unconfirmed changes to the client's streams and is updates when the server confirms the change.
+	 * unconfirmed changes to the client's streams and is updated when the server confirms the change.
 	 */
 	class FStreamChangeTracker : public FNoncopyable
 	{

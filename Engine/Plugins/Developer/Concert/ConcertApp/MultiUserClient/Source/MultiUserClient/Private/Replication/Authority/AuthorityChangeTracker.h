@@ -22,8 +22,12 @@ namespace UE::MultiUserClient
 	class FAuthorityChangeTracker
 	{
 	public:
-		
-		FAuthorityChangeTracker(const FGuid& InClientId, const IClientAuthoritySynchronizer& InAuthoritySynchronizer, FGlobalAuthorityCache& InAuthorityCache);
+		/**
+		 * @param InClientId The endpoint ID of the owning client
+		 * @param InAuthoritySynchronizer Used to get the authority state on the server. The caller ensures it outlives the constructed instance.
+		 * @param InAuthorityCache Used to predict authority conflicts. The caller ensures it outlives the constructed instance.
+		 */
+		FAuthorityChangeTracker(const FGuid& InClientId, const IClientAuthoritySynchronizer& InAuthoritySynchronizer UE_LIFETIMEBOUND, FGlobalAuthorityCache& InAuthorityCache UE_LIFETIMEBOUND);
 		~FAuthorityChangeTracker();
 		
 		/** Marks that the authority should be changed to bNewAuthorityState. */
@@ -33,9 +37,6 @@ namespace UE::MultiUserClient
 
 		/** Diffs NewAuthorityStates to the current authority states and removes entries. */
 		void RefreshChanges();
-		
-		void ClearChanges() { NewAuthorityStates.Reset(); }
-		bool HasChanges() const { return !NewAuthorityStates.IsEmpty(); }
 		
 		/** Gets the authority state the object will have if the changes are applied. */
 		bool GetAuthorityStateAfterApplied(const FSoftObjectPath& ObjectPath) const;

@@ -121,7 +121,7 @@ namespace UE::MultiUserClient::ClientChangeConversionUtils
 		const bool bNeedsToRegisterStream = ClientStreamContent.IsEmpty();
 		return bNeedsToRegisterStream
 			? StreamRequestUtils::BuildChangeRequest_CreateNewStream(ClientStreamId, StreamChangelist)
-			: StreamRequestUtils::BuildChangeRequest_UpdateExistingStream(MoveTemp(StreamChangelist));
+			: StreamRequestUtils::BuildChangeRequest_UpdateExistingStream(ClientStreamId, MoveTemp(StreamChangelist));
 	}
 
 	TOptional<FConcertReplication_ChangeAuthority_Request> Transform(

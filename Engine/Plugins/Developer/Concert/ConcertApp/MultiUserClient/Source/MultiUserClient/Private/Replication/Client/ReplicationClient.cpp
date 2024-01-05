@@ -10,6 +10,7 @@
 #include "Replication/Submission/Data/AuthoritySubmission.h"
 
 #include "Misc/CoreDelegates.h"
+#include "Settings/MultiUserReplicationSettings.h"
 
 namespace UE::MultiUserClient
 {
@@ -44,8 +45,9 @@ namespace UE::MultiUserClient
 			FStreamChangeTracker::FOnModifyReplicationMap::CreateLambda([this](){ ClientContentStorage->Stream->Modify(); })
 			)
 		, LocalAuthorityDiffer(EndpointId, *AuthoritySynchronizer, InAuthorityCache)
-		, ChangeRequestBuilder(EndpointId, InAuthorityCache, *StreamSynchronizer, LocalClientStreamDiffer, LocalAuthorityDiffer)
-		, AutoSubmissionPolicy(SubmissionQueue, ChangeRequestBuilder, LocalClientEditModel.Get(), LocalAuthorityDiffer)
+		, LocalFrequencyChangeTracker(*StreamSynchronizer)
+		, ChangeRequestBuilder(EndpointId, InAuthorityCache, *StreamSynchronizer, LocalClientStreamDiffer, LocalAuthorityDiffer, LocalFrequencyChangeTracker)
+		, AutoSubmissionPolicy(SubmissionQueue, ChangeRequestBuilder, LocalClientEditModel.Get(), LocalAuthorityDiffer, LocalFrequencyChangeTracker)
 	{
 		LocalClientEditModel->OnObjectsChanged().AddRaw(this, &FReplicationClient::OnObjectsChanged);
 		LocalClientEditModel->OnPropertiesChanged().AddRaw(this, &FReplicationClient::OnPropertiesChanged);
@@ -83,7 +85,6 @@ namespace UE::MultiUserClient
 	{
 		// Whenever this client's server state changes, the UI must be refreshed.
 		GetClientContent()->Stream->ReplicationMap = GetStreamSynchronizer().GetServerState();
-
 		DeferOnModelChanged();
 	}
 
@@ -116,6 +117,8 @@ namespace UE::MultiUserClient
 		TakeAuthorityOverNewlyAddedObjects(ChangeData);
 		// Refresh because local authority changes may no longer be valid after modifying the stream
 		LocalAuthorityDiffer.RefreshChanges();
+		// Check whether added objects are supposed to default to some special frequency settings
+		ApplyDefaultFrequencySettings(ChangeData);
 
 		// Finally, let everybody else know.
 		OnModelChangedDelegate.Broadcast();
@@ -136,6 +139,24 @@ namespace UE::MultiUserClient
 				return FSoftObjectPath(Object.Get()) ;
 			});
 		LocalAuthorityDiffer.SetAuthorityIfAllowed(ObjectPaths, true);
+	}
+
+	void FReplicationClient::ApplyDefaultFrequencySettings(const FDeferredOnModelChangedData& ChangeData)
+	{
+		UMultiUserReplicationSettings* Settings = UMultiUserReplicationSettings::Get();
+		for (const TWeakObjectPtr<UObject>& AddedObject : ChangeData.AccumulatedAddedObjects)
+		{
+			if (!AddedObject.IsValid())
+			{
+				continue;
+			}
+			
+			const TOptional<FConcertObjectReplicationSettings> FrequencyOverride = Settings->DetermineObjectFrequencySettings(*AddedObject);
+			if (FrequencyOverride)
+			{
+				LocalFrequencyChangeTracker.AddOverride(AddedObject.Get(), *FrequencyOverride);
+			}
+		}
 	}
 
 	void FReplicationClient::OnAuthoritySubmissionCompleted(const FSubmitAuthorityChangesRequest& Request, const FSubmitAuthorityChangesResponse& Response)

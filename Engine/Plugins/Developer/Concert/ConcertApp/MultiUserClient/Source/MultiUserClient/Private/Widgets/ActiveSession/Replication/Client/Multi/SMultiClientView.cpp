@@ -4,7 +4,6 @@
 
 #include "IClientSelectionModel.h"
 #include "MultiStreamModel.h"
-#include "MultiUserReplicationSettings.h"
 #include "Replication/Client/ReplicationClient.h"
 #include "Replication/Client/ReplicationClientManager.h"
 #include "Replication/Editor/Model/Object/ActorSelectionSourceModel.h"

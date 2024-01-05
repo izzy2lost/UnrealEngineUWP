@@ -6,6 +6,11 @@
 #include "Replication/Submission/Queue/DeferredSubmitter.h"
 #include "Templates/UnrealTemplate.h"
 
+namespace UE::MultiUserClient
+{
+	class FFrequencyChangeTracker;
+}
+
 namespace UE::ConcertClientSharedSlate
 {
 	class IEditableReplicationStreamModel;
@@ -33,10 +38,11 @@ namespace UE::MultiUserClient
 	public:
 		
 		FAutoSubmissionPolicy(
-			FSubmissionQueue& InSubmissionQueue,
-			const FChangeRequestBuilder& InRequestBuilder,
-			ConcertClientSharedSlate::IEditableReplicationStreamModel& InStreamEditorModel,
-			FAuthorityChangeTracker& InAuthorityChangeTracker
+			FSubmissionQueue& InSubmissionQueue UE_LIFETIMEBOUND,
+			const FChangeRequestBuilder& InRequestBuilder UE_LIFETIMEBOUND,
+			ConcertClientSharedSlate::IEditableReplicationStreamModel& InStreamEditorModel UE_LIFETIMEBOUND,
+			FAuthorityChangeTracker& InAuthorityChangeTracker UE_LIFETIMEBOUND,
+			FFrequencyChangeTracker& InFrequencyChangeTracker UE_LIFETIMEBOUND
 			);
 		~FAutoSubmissionPolicy();
 
@@ -54,6 +60,8 @@ namespace UE::MultiUserClient
 		ConcertClientSharedSlate::IEditableReplicationStreamModel& StreamEditorModel;
 		/** Informs us when authority is changed by the user. */
 		FAuthorityChangeTracker& AuthorityChangeTracker;
+		/** Informs us when frequency settings are changed by the user. */
+		FFrequencyChangeTracker& FrequencyChangeTracker;
 
 		/** Whether any changes were made. */
 		bool bIsDirty = false;

@@ -15,7 +15,9 @@
 #include "IConcertSyncClient.h"
 #include "IConcertSyncClientModule.h"
 #include "MultiUserClientUtils.h"
+#include "MultiUserReplicationStyle.h"
 #include "Replication/MultiUserReplicationManager.h"
+#include "Settings/MultiUserReplicationSettings.h"
 
 #include "Misc/App.h"
 #include "Misc/AsyncTaskNotification.h"
@@ -50,8 +52,6 @@
 #include "DetailLayoutBuilder.h"
 #include "DetailCategoryBuilder.h"
 #include "DetailWidgetRow.h"
-#include "MultiUserReplicationSettings.h"
-#include "MultiUserReplicationStyle.h"
 
 
 #include "Widgets/SConcertBrowser.h"

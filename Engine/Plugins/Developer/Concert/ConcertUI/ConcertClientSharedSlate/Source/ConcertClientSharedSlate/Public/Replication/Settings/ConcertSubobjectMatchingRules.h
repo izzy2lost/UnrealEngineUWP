@@ -2,6 +2,7 @@
 
 #pragma once
 
+#include "Misc/EBreakBehavior.h"
 #include "Templates/Function.h"
 #include "UObject/SoftObjectPath.h"
 #include "ConcertSubobjectMatchingRules.generated.h"
@@ -58,5 +59,13 @@ struct FConcertSubobjectMatchingRules
 	 * Looks for subobjects in AddedObject that match these rules.
 	 * This looks for direct subobjects only though you can call MatchToSubobjectsIn recursively on what you received through OnSubobjectMatched.
 	 */
-	void MatchToSubobjectsIn(const UObject& AddedObject, TFunctionRef<void(UObject&)> OnSubobjectMatched) const;
+	void MatchToSubobjectsBreakable(const UObject& AddedObject, TFunctionRef<EBreakBehavior(UObject&)> OnSubobjectMatched) const;
+	void MatchToSubobjects(const UObject& AddedObject, TFunctionRef<void(UObject&)> OnSubobjectMatched) const
+	{
+		return MatchToSubobjectsBreakable(AddedObject, [&OnSubobjectMatched](UObject& Object)
+		{
+			OnSubobjectMatched(Object);
+			return EBreakBehavior::Continue;
+		});
+	}
 };

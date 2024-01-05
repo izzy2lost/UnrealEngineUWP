@@ -2,7 +2,6 @@
 
 #include "SReplicationClientView.h"
 
-#include "MultiUserReplicationSettings.h"
 #include "Replication/Client/ReplicationClient.h"
 #include "Replication/Editor/Model/IEditableReplicationStreamModel.h"
 #include "Replication/Editor/Model/Object/ActorSelectionSourceModel.h"

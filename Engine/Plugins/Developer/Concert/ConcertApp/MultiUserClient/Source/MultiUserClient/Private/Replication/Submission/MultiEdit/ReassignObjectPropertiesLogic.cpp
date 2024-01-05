@@ -449,7 +449,7 @@ namespace UE::MultiUserClient
 			StreamId
 			);
 		FConcertReplication_ChangeStream_Request AssignedToClientRequest = bIsStreamRegistered
-			? StreamRequestUtils::BuildChangeRequest_UpdateExistingStream(Changelist)
+			? StreamRequestUtils::BuildChangeRequest_UpdateExistingStream(StreamId, Changelist)
 			: StreamRequestUtils::BuildChangeRequest_CreateNewStream(StreamId, Changelist);
 		
 		const TSharedPtr<ISubmissionOperation> SubmitOperation = Workflow.SubmitChanges({

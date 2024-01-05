@@ -6,6 +6,7 @@
 #include "ISubmissionWorkflow.h"
 #include "Replication/Authority/AuthorityChangeTracker.h"
 #include "Replication/Editor/Model/IEditableReplicationStreamModel.h"
+#include "Replication/Frequency/FrequencyChangeTracker.h"
 #include "Replication/Submission/Queue/SubmissionQueue.h"
 
 namespace UE::MultiUserClient
@@ -14,17 +15,20 @@ namespace UE::MultiUserClient
 		FSubmissionQueue& InSubmissionQueue,
 		const FChangeRequestBuilder& InRequestBuilder,
 		ConcertClientSharedSlate::IEditableReplicationStreamModel& InStreamEditorModel,
-		FAuthorityChangeTracker& InAuthorityChangeTracker
+		FAuthorityChangeTracker& InAuthorityChangeTracker,
+		FFrequencyChangeTracker& InFrequencyChangeTracker
 		)
 		: FSelfUnregisteringDeferredSubmitter(InSubmissionQueue)
 		, SubmissionQueue(InSubmissionQueue)
 		, RequestBuilder(InRequestBuilder)
 		, StreamEditorModel(InStreamEditorModel)
 		, AuthorityChangeTracker(InAuthorityChangeTracker)
+		, FrequencyChangeTracker(InFrequencyChangeTracker)
 	{
 		StreamEditorModel.OnObjectsChanged().AddRaw(this, &FAutoSubmissionPolicy::OnObjectsChanged);
 		StreamEditorModel.OnPropertiesChanged().AddRaw(this, &FAutoSubmissionPolicy::OnChangesDetected);
 		AuthorityChangeTracker.OnAddedOwnedObjects().AddRaw(this, &FAutoSubmissionPolicy::OnChangesDetected);
+		FrequencyChangeTracker.OnFrequencySettingsChanged().AddRaw(this, &FAutoSubmissionPolicy::OnChangesDetected);
 	}
 
 	FAutoSubmissionPolicy::~FAutoSubmissionPolicy()
@@ -32,6 +36,7 @@ namespace UE::MultiUserClient
 		StreamEditorModel.OnObjectsChanged().RemoveAll(this);
 		StreamEditorModel.OnPropertiesChanged().RemoveAll(this);
 		AuthorityChangeTracker.OnAddedOwnedObjects().RemoveAll(this);
+		FrequencyChangeTracker.OnFrequencySettingsChanged().RemoveAll(this);
 	}
 
 	void FAutoSubmissionPolicy::ProcessAccumulatedChangesAndSubmit()

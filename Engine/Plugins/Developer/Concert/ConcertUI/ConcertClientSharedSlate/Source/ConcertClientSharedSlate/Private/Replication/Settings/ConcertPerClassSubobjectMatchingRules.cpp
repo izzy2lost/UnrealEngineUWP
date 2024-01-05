@@ -6,7 +6,7 @@
 
 namespace UE::ConcertClientSharedSlate::DefaultSubobjects
 {
-	static void InternalAddAdditionalObjectsFromSettings(UClass& StartClass, const FConcertPerClassSubobjectMatchingRules& Settings, const UObject& AddedObject, TFunctionRef<void(UObject&)> OnSubobjectMatched)
+	static void InternalAddAdditionalObjectsFromSettings(UClass& StartClass, const FConcertPerClassSubobjectMatchingRules& Settings, const UObject& AddedObject, TFunctionRef<EBreakBehavior(UObject&)> OnSubobjectMatched)
 	{
 		// Find the most specialized class properties
 		UClass* Current = &StartClass;
@@ -18,8 +18,18 @@ namespace UE::ConcertClientSharedSlate::DefaultSubobjects
 			{
 				continue;
 			}
+
+			EBreakBehavior BreakResult = EBreakBehavior::Continue;
+			DefaultSubobjects->MatchToSubobjectsBreakable(AddedObject, [&OnSubobjectMatched, &BreakResult](UObject& Object)
+			{
+				BreakResult = OnSubobjectMatched(Object);
+				return BreakResult;
+			});
+			if (BreakResult == EBreakBehavior::Break)
+			{
+				return;
+			}
 			
-			DefaultSubobjects->MatchToSubobjectsIn(AddedObject, OnSubobjectMatched);
 			// Recurse super structs
 			if (UClass* Parent = Current->GetSuperClass()
 				; Parent && DefaultSubobjects->bInheritFromBase)
@@ -30,7 +40,7 @@ namespace UE::ConcertClientSharedSlate::DefaultSubobjects
 	}
 }
 
-void FConcertPerClassSubobjectMatchingRules::MatchSubobjectsRecursivelyFor(const UObject& Object, TFunctionRef<void(UObject&)> OnSubobjectMatched) const
+void FConcertPerClassSubobjectMatchingRules::MatchSubobjectsRecursivelyBreakable(const UObject& Object, TFunctionRef<EBreakBehavior(UObject&)> OnSubobjectMatched) const
 {
 	checkf(!Object.IsA<UClass>(), TEXT("Pass in the UObject instanced directly, not its class!"));
 	UE::ConcertClientSharedSlate::DefaultSubobjects::InternalAddAdditionalObjectsFromSettings(*Object.GetClass(), *this, Object, OnSubobjectMatched);

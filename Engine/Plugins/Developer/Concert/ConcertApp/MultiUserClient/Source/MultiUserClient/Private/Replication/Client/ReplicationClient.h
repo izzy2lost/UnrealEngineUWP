@@ -4,6 +4,7 @@
 
 #include "Replication/Authority/AuthorityChangeTracker.h"
 #include "Replication/Authority/IClientAuthoritySynchronizer.h"
+#include "Replication/Frequency/FrequencyChangeTracker.h"
 #include "Replication/Stream/IClientStreamSynchronizer.h"
 #include "Replication/Stream/StreamChangeTracker.h"
 #include "Replication/Submission/AutoSubmissionPolicy.h"
@@ -48,9 +49,9 @@ namespace UE::MultiUserClient
 		 */
 		FReplicationClient(
 			const FGuid& EndpointId,
-			FReplicationDiscoveryContainer& InDiscoveryContainer,
-			FGlobalAuthorityCache& InAuthorityCache,
-			UMultiUserReplicationClientPreset& InSessionContent,
+			FReplicationDiscoveryContainer& InDiscoveryContainer UE_LIFETIMEBOUND,
+			FGlobalAuthorityCache& InAuthorityCache UE_LIFETIMEBOUND,
+			UMultiUserReplicationClientPreset& InSessionContent UE_LIFETIMEBOUND,
 			TUniquePtr<IClientStreamSynchronizer> InStreamSynchronizer,
 			TUniquePtr<IClientAuthoritySynchronizer> InAuthoritySynchronizer,
 			TUniquePtr<ISubmissionWorkflow> InSubmissionWorkflow
@@ -136,6 +137,8 @@ namespace UE::MultiUserClient
 		FStreamChangeTracker LocalClientStreamDiffer;
 		/** Tracks changes made to the client's authority state. */
 		FAuthorityChangeTracker LocalAuthorityDiffer;
+		/** Tracks enqueued local changes to object replication frequency. */
+		FFrequencyChangeTracker LocalFrequencyChangeTracker;
 		
 		/** Shared logic for building stream and authority change requests based on local change made. */
 		FChangeRequestBuilder ChangeRequestBuilder;
@@ -170,6 +173,9 @@ namespace UE::MultiUserClient
 		
 		/** Takes authority over newly added objects for better UX */
 		void TakeAuthorityOverNewlyAddedObjects(const FDeferredOnModelChangedData& ChangeData);
+
+		/** Applies default replication frequency settings specified in the Multi User settings */
+		void ApplyDefaultFrequencySettings(const FDeferredOnModelChangedData& ChangeData);
 		
 		/** Removes authority if request fails */
 		void OnAuthoritySubmissionCompleted(const FSubmitAuthorityChangesRequest& Request, const FSubmitAuthorityChangesResponse& Response);
