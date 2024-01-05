@@ -32,7 +32,7 @@ struct CONCERTSYNCCORE_API FConcertObjectReplicationSettings
 	GENERATED_BODY()
 	
 	/** Controls how often this object should be replicated. */
-	UPROPERTY()
+	UPROPERTY(EditAnywhere, Category = "Concert")
 	EConcertObjectReplicationMode ReplicationMode = EConcertObjectReplicationMode::SpecifiedRate;
 	
 	/**
@@ -41,7 +41,7 @@ struct CONCERTSYNCCORE_API FConcertObjectReplicationSettings
 	 * The update in seconds is given by 1 / ReplicationRate.
 	 * The default rate of 30 results in an update interval every 0.033s
 	 */
-	UPROPERTY()
+	UPROPERTY(EditAnywhere, Category = "Concert")
 	uint8 ReplicationRate = 30;
 
 	bool IsValid() const { return ReplicationMode == EConcertObjectReplicationMode::Realtime || ReplicationRate > 0; }
@@ -83,6 +83,29 @@ struct CONCERTSYNCCORE_API FConcertObjectReplicationSettings
 	friend bool operator!=(const FConcertObjectReplicationSettings& Left, const FConcertObjectReplicationSettings& Right)
 	{
 		return !(Left == Right);
+	}
+
+	/** @return Whether Left replicates less frequently than Right. */
+	friend bool operator<(const FConcertObjectReplicationSettings& Left, const FConcertObjectReplicationSettings& Right)
+	{
+		const bool bLeftIsRealtime = Left.ReplicationMode == EConcertObjectReplicationMode::Realtime;
+		const bool bRightIsRealtime = Right.ReplicationMode == EConcertObjectReplicationMode::Realtime;
+		if (bLeftIsRealtime || bRightIsRealtime)
+		{
+			return !bLeftIsRealtime && bRightIsRealtime;
+		}
+		return Left.ReplicationRate < Right.ReplicationRate;
+	}
+	/** @return Whether Left replicates less or equally frequently than Right. */
+	friend bool operator<=(const FConcertObjectReplicationSettings& Left, const FConcertObjectReplicationSettings& Right)
+	{
+		const bool bLeftIsRealtime = Left.ReplicationMode == EConcertObjectReplicationMode::Realtime;
+		const bool bRightIsRealtime = Right.ReplicationMode == EConcertObjectReplicationMode::Realtime;
+		if (bLeftIsRealtime || bRightIsRealtime)
+		{
+			return bRightIsRealtime;
+		}
+		return Left.ReplicationRate <= Right.ReplicationRate;
 	}
 };
 

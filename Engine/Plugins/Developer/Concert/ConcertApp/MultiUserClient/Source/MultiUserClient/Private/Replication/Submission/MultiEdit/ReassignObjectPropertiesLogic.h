@@ -75,12 +75,16 @@ namespace UE::MultiUserClient
 
 		struct FOperationData
 		{
+			using FClientId = FGuid;
+			
 			const TArray<FSoftObjectPath> ObjectsBeingReassigned;
 			const FGuid AssignedToClient;
 			/** The objects we tried to remove from all the other clients. If the removal request worked, the (previously) assigned properties will be transferred to the target client. */
-			const TMap<FGuid, FObjectReplicationMap> OldRegisteredObjects;
+			const TMap<FClientId, FObjectReplicationMap> OldRegisteredObjects;
+			/** The frequency settings that clients had at the beginning of the reassign operation. */
+			const TMap<FClientId, FConcertStreamFrequencySettings> OldFrequencies; 
 			/** Clients to the objects they had authority over. Used to later to determine which objects to give the target client authority over (do not transfer authority from failed clients). */
-			const TMap<FGuid, TArray<FSoftObjectPath>> OldAuthority;
+			const TMap<FClientId, TArray<FSoftObjectPath>> OldAuthority;
 			
 			/**
 			 * The first step of reassignment is to remove all object bindings from all other clients.
