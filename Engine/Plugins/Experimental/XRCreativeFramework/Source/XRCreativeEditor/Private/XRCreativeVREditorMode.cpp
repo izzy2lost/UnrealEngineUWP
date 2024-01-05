@@ -249,6 +249,8 @@ void UXRCreativeVREditorMode::EnableStereo()
 		UE_LOG(LogXRCreativeEditor, Warning, TEXT("No UInputMappingContexts provided in the UXRCreativeToolset. Action bindings will not be visible to the OpenXR runtime."));
 	}
 
+	Contexts.Empty(); // TODO this is a temporary fix because OpenXRInput.cpp does not respect input priorities. So instead we force it to fall back to legacy bindings because these actually work. 
+
 	UOpenXRInputFunctionLibrary::BeginXRSession(Contexts);
 }
 

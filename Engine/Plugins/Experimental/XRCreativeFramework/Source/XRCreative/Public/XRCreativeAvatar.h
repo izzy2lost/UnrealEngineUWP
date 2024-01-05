@@ -6,6 +6,7 @@
 #include "XRCreativeAvatar.generated.h"
 
 
+
 #if WITH_EDITOR
 class IConcertClientSession;
 #endif
@@ -82,12 +83,14 @@ public:
 
 	// Adds an explicitly provided Input Mapping Context to the input system
 	UFUNCTION(BlueprintCallable, Category="XR Creative")
-	void AddInputMappingContext(UInputMappingContext* Context, int32 Priority);
+	void AddInputMappingContext(UInputMappingContext* Context, int32 Priority, const FModifyContextOptions Options);
 
 	// Removes an explicitly provided Input Mapping Context to the input system
 	UFUNCTION(BlueprintCallable, Category="XR Creative")
-	void RemoveInputMappingContext(UInputMappingContext* Context);
-
+	void RemoveInputMappingContext(UInputMappingContext* Context, const FModifyContextOptions Options);
+	
+	UFUNCTION(BlueprintCallable, Category="XR Creative")
+	void ClearAllInputMappings();
 	/**
 	* Called when In-Editor VR mode is started. In-Editor equivalent to Begin Play.
 	*/

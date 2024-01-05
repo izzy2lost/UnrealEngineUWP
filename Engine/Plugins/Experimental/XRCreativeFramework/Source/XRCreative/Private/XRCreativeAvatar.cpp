@@ -272,26 +272,34 @@ void AXRCreativeAvatar::UnregisterObjectForInput(UObject* InObject)
 }
 
 
-void AXRCreativeAvatar::AddInputMappingContext(UInputMappingContext* InContext, int32 InPriority)
+void AXRCreativeAvatar::AddInputMappingContext(UInputMappingContext* InContext, int32 InPriority,const FModifyContextOptions Options)
 {
 	if (IEnhancedInputSubsystemInterface* EnhancedInputSubsystemInterface = GetEnhancedInputSubsystemInterface())
 	{
 		if (IsValid(InContext))
 		{
-			EnhancedInputSubsystemInterface->AddMappingContext(InContext, InPriority);
+			EnhancedInputSubsystemInterface->AddMappingContext(InContext, InPriority, Options);
 		}
 	}
 }
 
 
-void AXRCreativeAvatar::RemoveInputMappingContext(UInputMappingContext* InContext)
+void AXRCreativeAvatar::RemoveInputMappingContext(UInputMappingContext* InContext, const FModifyContextOptions Options)
 {
 	if (IEnhancedInputSubsystemInterface* EnhancedInputSubsystemInterface = GetEnhancedInputSubsystemInterface())
 	{
 		if (IsValid(InContext))
 		{
-			EnhancedInputSubsystemInterface->RemoveMappingContext(InContext);
+			EnhancedInputSubsystemInterface->RemoveMappingContext(InContext, Options);
 		}
+	}
+}
+
+void AXRCreativeAvatar::ClearAllInputMappings()
+{
+	if (IEnhancedInputSubsystemInterface* EnhancedInputSubsystemInterface = GetEnhancedInputSubsystemInterface())
+	{
+		EnhancedInputSubsystemInterface->ClearAllMappings();
 	}
 }
 
