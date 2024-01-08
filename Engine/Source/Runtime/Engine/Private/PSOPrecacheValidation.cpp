@@ -12,6 +12,8 @@
 
 #if PSO_PRECACHING_VALIDATE && UE_WITH_PSO_PRECACHING
 
+UE_DISABLE_OPTIMIZATION
+
 /**
 * Different IHVs and drivers can have different opinions on what subset of a PSO
 * matters for caching. We track multiple PSO subsets, ranging from shaders-only
@@ -341,7 +343,7 @@ void PSOCollectorStats::CheckFullPipelineStateInCache(
 	}
 	
 	EPSOPrecacheResult Result = PSOCollectorStats::GetFullPSOPrecacheStatsCollector().CheckStateInCacheByHash(PrecacheStateHash, PSOPrecacheResult, PSOCollectorIndex, VFType);
-	if (IsPrecachingValidationEnabled() && Result == EPSOPrecacheResult::Missed)
+	if (IsFullPrecachingValidationEnabled() && Result == EPSOPrecacheResult::Missed)
 	{
 		// only report here if it's not missing with minimal PSO initializer
 		bool bMinimalPSOPrecached = bCheckMinimalPSOPrecached ? PSOCollectorStats::GetMinimalPSOPrecacheStatsCollector().IsPrecached(Initializer.StatePrecachePSOHash) : true;
@@ -350,6 +352,20 @@ void PSOCollectorStats::CheckFullPipelineStateInCache(
 			const FMaterial* Material = MaterialRenderProxy ? MaterialRenderProxy->GetMaterialNoFallback(GMaxRHIFeatureLevel) : nullptr;
 			LogPSOMissInfo(Initializer, EPSOPrecacheMissType::FullPSO, Result, Material, VFType, PrimitiveSceneProxy, PSOCollectorIndex, 0);
 		}
+	}
+}
+
+void PSOCollectorStats::CheckComputePipelineStateInCache(
+	const FRHIComputeShader& ComputeShader,
+	EPSOPrecacheResult PSOPrecacheResult,
+	const FMaterialRenderProxy* MaterialRenderProxy,
+	int32 PSOCollectorIndex)
+{
+	EPSOPrecacheResult Result = PSOCollectorStats::GetFullPSOPrecacheStatsCollector().CheckStateInCache(ComputeShader, PSOCollectorStats::GetPSOPrecacheHash, PSOPrecacheResult, PSOCollectorIndex, nullptr);
+	if (IsFullPrecachingValidationEnabled() && Result == EPSOPrecacheResult::Missed)
+	{
+		const FMaterial* Material = MaterialRenderProxy ? MaterialRenderProxy->GetMaterialNoFallback(GMaxRHIFeatureLevel) : nullptr;
+		LogPSOMissInfo(ComputeShader, Result, Material, PSOCollectorIndex);
 	}
 }
 
@@ -900,6 +916,34 @@ void LogPSOMissInfo(
 		check(false);
 	}
 #endif // PSO_PRECACHING_TRACKING
+
+	UE_LOG(LogEngine, Log, TEXT("%s\n"), StringBuilder.ToString());
+}
+
+void LogPSOMissInfo(
+	const FRHIComputeShader& ComputeShader,
+	EPSOPrecacheResult PrecacheResult,
+	const FMaterial* Material,
+	int32 PSOCollectorIndex)
+{
+	PSOMissStringBuilder StringBuilder;
+	StringBuilder.Appendf(TEXT("\n\nPSO PRECACHING MISS:"));
+	StringBuilder.Appendf(TEXT("\n\tType:\t\t\t\t\t%s"), TEXT("Compute"));
+	StringBuilder.Appendf(TEXT("\n\tPSOPrecachingState:\t\t%s"), GetPSOPrecacheResultName(PrecacheResult));
+	StringBuilder.Appendf(TEXT("\n\tMaterial:\t\t\t\t%s"), Material ? *Material->GetAssetName() : TEXT("Unknown"));
+	StringBuilder.Appendf(TEXT("\n\tPassName:\t\t\t\t%s"), FPSOCollectorCreateManager::GetName(EShadingPath::Deferred, PSOCollectorIndex));
+	StringBuilder.Appendf(TEXT("\n\tCompute Shader Hash:\t%s"), *(ComputeShader.GetHash().ToString()));
+
+	// Not sure yet if this is interesting data or not
+	/*
+#if PSO_PRECACHING_TRACKING
+	if (Material)
+	{
+		StringBuilder << TEXT("\n\n\tMissed Info:");
+		LogMaterialPSOPrecacheRequestData(*Material, nullptr, StringBuilder);
+	}
+#endif // PSO_PRECACHING_TRACKING
+	*/
 
 	UE_LOG(LogEngine, Log, TEXT("%s\n"), StringBuilder.ToString());
 }

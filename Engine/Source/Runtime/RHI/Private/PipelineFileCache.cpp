@@ -3416,22 +3416,29 @@ void FPipelineFileCacheManager::LogNewGraphicsPSOToConsoleAndCSV(FPipelineCacheF
 	}
 	else
 	{
-		UE_LOG(LogRHI, Log, TEXT("Encountered a new graphics PSO for the file cache but it was already precached at runtime: %u"), PSOHash);
+		UE_LOG(LogRHI, Verbose, TEXT("Encountered a new graphics PSO for the file cache but it was already precached at runtime: %u"), PSOHash);
 	}
 }
 
-void FPipelineFileCacheManager::LogNewComputePSOToConsoleAndCSV(FPipelineCacheFileFormatPSO& PSO, uint32 PSOHash)
+void FPipelineFileCacheManager::LogNewComputePSOToConsoleAndCSV(FPipelineCacheFileFormatPSO& PSO, uint32 PSOHash, bool bWasPSOPrecached)
 {
 	if (!LogNewPSOsToConsoleAndCSV)
 	{
 		return;
 	}
 
-	CSV_EVENT(PSO, TEXT("Encountered new compute PSO"));
-	UE_LOG(LogRHI, Display, TEXT("Encountered a new compute PSO: %u"), PSOHash);
-	if (GPSOFileCachePrintNewPSODescriptors > 0)
+	if (!bWasPSOPrecached)
 	{
-		UE_LOG(LogRHI, Display, TEXT("New compute PSO (%u) Description: %s"), PSOHash, *PSO.ComputeDesc.ComputeShader.ToString());
+		CSV_EVENT(PSO, TEXT("Encountered new compute PSO"));
+		UE_LOG(LogRHI, Display, TEXT("Encountered a new compute PSO: %u"), PSOHash);
+		if (GPSOFileCachePrintNewPSODescriptors > 0)
+		{
+			UE_LOG(LogRHI, Display, TEXT("New compute PSO (%u) Description: %s"), PSOHash, *PSO.ComputeDesc.ComputeShader.ToString());
+		}
+	}
+	else
+	{
+		UE_LOG(LogRHI, Verbose, TEXT("Encountered a new compute PSO for the file cache but it was already precached at runtime: %u"), PSOHash);
 	}
 }
 
@@ -3535,7 +3542,7 @@ void FPipelineFileCacheManager::CacheGraphicsPSO(uint32 RunTimeHash, FGraphicsPi
 	}
 }
 
-void FPipelineFileCacheManager::CacheComputePSO(uint32 RunTimeHash, FRHIComputeShader const* Initializer)
+void FPipelineFileCacheManager::CacheComputePSO(uint32 RunTimeHash, FRHIComputeShader const* Initializer, bool bWasPSOPrecached)
 {
 	if(IsPipelineFileCacheEnabled() && (LogPSOtoFileCache() || ReportNewPSOs()))
 	{
@@ -3562,20 +3569,28 @@ void FPipelineFileCacheManager::CacheComputePSO(uint32 RunTimeHash, FRHIComputeS
 						bool bActuallyNewPSO = !NewPSOHashes.Contains(PSOHash);
 						if (bActuallyNewPSO)
 						{
-							LogNewComputePSOToConsoleAndCSV(NewEntry, PSOHash);
-							
+							LogNewComputePSOToConsoleAndCSV(NewEntry, PSOHash, bWasPSOPrecached);
+
+							if (bWasPSOPrecached)
+							{
+								bActuallyNewPSO = !GPSOExcludePrecachePSOsInFileCache;
+							}							
+						}
+
+						if (bActuallyNewPSO)
+						{
 							if (LogPSOtoFileCache())
 							{
 								NewPSOs.Add(NewEntry);
 								INC_MEMORY_STAT_BY(STAT_NewCachedPSOMemory, sizeof(FPipelineCacheFileFormatPSO) + sizeof(uint32) + sizeof(uint32));
 							}
-							
+
 							NewPSOHashes.Add(PSOHash);
-							
+
 							NumNewPSOs++;
 							INC_DWORD_STAT(STAT_NewComputePipelineStateCount);
 							INC_DWORD_STAT(STAT_TotalComputePipelineStateCount);
-							
+
 							if (ReportNewPSOs() && PSOLoggedEvent.IsBound())
 							{
 								PSOLoggedEvent.Broadcast(NewEntry);

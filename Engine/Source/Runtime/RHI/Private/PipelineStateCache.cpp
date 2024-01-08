@@ -812,16 +812,21 @@ FComputePipelineState* FindComputePipelineState(FRHIComputeShader* ComputeShader
 	return PipelineStateCache::FindComputePipelineState(ComputeShader, bVerifyUse);
 }
 
-FComputePipelineState* GetComputePipelineState(FRHIComputeCommandList& RHICmdList, FRHIComputeShader* ComputeShader)
+FComputePipelineState* GetComputePipelineState(FRHIComputeCommandList& RHICmdList, FRHIComputeShader* ComputeShader, EPSOPrecacheResult PSOPrecacheResult)
 {
-	FComputePipelineState* PipelineState = PipelineStateCache::GetAndOrCreateComputePipelineState(RHICmdList, ComputeShader, false);
+	FComputePipelineState* PipelineState = PipelineStateCache::GetAndOrCreateComputePipelineState(RHICmdList, ComputeShader, false, PSOPrecacheResult);
 	PipelineState->Verify_IncUse();
 	return PipelineState;
 }
 
-void SetComputePipelineState(FRHIComputeCommandList& RHICmdList, FRHIComputeShader* ComputeShader)
+FComputePipelineState* GetComputePipelineState(FRHIComputeCommandList& RHICmdList, FRHIComputeShader* ComputeShader)
 {
-	FComputePipelineState* PipelineState = GetComputePipelineState(RHICmdList, ComputeShader);
+	return GetComputePipelineState(RHICmdList, ComputeShader, EPSOPrecacheResult::Untracked);
+}
+
+void SetComputePipelineState(FRHIComputeCommandList& RHICmdList, FRHIComputeShader* ComputeShader, EPSOPrecacheResult PSOPrecacheResult)
+{
+	FComputePipelineState* PipelineState = GetComputePipelineState(RHICmdList, ComputeShader, PSOPrecacheResult);
 	RHICmdList.SetComputePipelineState(PipelineState, ComputeShader);
 }
 
@@ -2225,7 +2230,7 @@ static void InternalCreateComputePipelineState(FRHIComputeShader* ComputeShader,
 	}
 }
 
-FComputePipelineState* PipelineStateCache::GetAndOrCreateComputePipelineState(FRHIComputeCommandList& RHICmdList, FRHIComputeShader* ComputeShader, bool bFromFileCache)
+FComputePipelineState* PipelineStateCache::GetAndOrCreateComputePipelineState(FRHIComputeCommandList& RHICmdList, FRHIComputeShader* ComputeShader, bool bFromFileCache, EPSOPrecacheResult PSOPrecacheResult)
 {
 	LLM_SCOPE(ELLMTag::PSO);
 
@@ -2235,8 +2240,9 @@ FComputePipelineState* PipelineStateCache::GetAndOrCreateComputePipelineState(FR
 	bool DoAsyncCompile = IsAsyncCompilationAllowed(RHICmdList, bFromFileCache);
 
 	if (bWasFound == false)
-	{
-		FPipelineFileCacheManager::CacheComputePSO(GetTypeHash(ComputeShader), ComputeShader);
+	{		
+		bool bWasPSOPrecached = PSOPrecacheResult == EPSOPrecacheResult::Active || PSOPrecacheResult == EPSOPrecacheResult::Complete;
+		FPipelineFileCacheManager::CacheComputePSO(GetTypeHash(ComputeShader), ComputeShader, bWasPSOPrecached);
 
 		// create new compute state
 		OutCachedState = new FComputePipelineState(ComputeShader);

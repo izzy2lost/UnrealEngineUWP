@@ -55,6 +55,15 @@ extern ENGINE_API void LogPSOMissInfo(
 	uint64 ShadersOnlyPSOInitializerHash);
 
 /**
+ * Log PSO miss information to logg with optional detailed information on what's causing the miss compared to what's already precached
+ */
+extern ENGINE_API void LogPSOMissInfo(
+	const FRHIComputeShader& ComputeShader,
+	EPSOPrecacheResult PrecacheResult,
+	const FMaterial* Material,
+	int32 PSOCollectorIndex);
+
+/**
  * Wraps all PSO precache state tracking data
  */
 namespace PSOCollectorStats
@@ -88,6 +97,15 @@ namespace PSOCollectorStats
 		const FMaterialRenderProxy* Material, 
 		const FVertexFactoryType* VFType, 
 		const FPrimitiveSceneProxy* PrimitiveSceneProxy, 
+		int32 PSOCollectorIndex);
+
+	/**
+	 * Check if the compute PSO is precached and if not output information on what state is missing
+	 */
+	extern ENGINE_API void CheckComputePipelineStateInCache(
+		const FRHIComputeShader& ComputeShader,
+		EPSOPrecacheResult PSOPrecacheResult,
+		const FMaterialRenderProxy* Material,
 		int32 PSOCollectorIndex);
 
 	using VertexFactoryCountTableType = Experimental::TRobinHoodHashMap<const FVertexFactoryType*, uint32>;

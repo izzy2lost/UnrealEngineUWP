@@ -23,6 +23,7 @@
 #include "Materials/Material.h"
 #include "ComponentRecreateRenderStateContext.h"
 #include "Engine/World.h"
+#include "NaniteVertexFactory.h"
 
 #if WITH_EDITOR
 #include "IHierarchicalLODUtilities.h"
@@ -851,7 +852,22 @@ void USplineMeshComponent::CollectPSOPrecacheData(const FPSOPrecacheParams& Base
 	FPSOPrecacheParams SplineMeshPSOParams = BasePrecachePSOParams;
 	SplineMeshPSOParams.bReverseCulling ^= (SplineParams.StartScale.X < 0) ^ (SplineParams.StartScale.Y < 0);
 
-	CollectPSOPrecacheDataImpl(VertexFactoryType, SplineMeshPSOParams, SMC_GetElements, OutParams);
+	if (ShouldCreateNaniteProxy())
+	{
+		if (NaniteLegacyMaterialsSupported())
+		{
+			CollectPSOPrecacheDataImpl(&Nanite::FVertexFactory::StaticType, SplineMeshPSOParams, SMC_GetElements, OutParams);
+		}
+
+		if (NaniteComputeMaterialsSupported())
+		{
+			CollectPSOPrecacheDataImpl(&FNaniteVertexFactory::StaticType, SplineMeshPSOParams, SMC_GetElements, OutParams);
+		}
+	}
+	else
+	{
+		CollectPSOPrecacheDataImpl(VertexFactoryType, SplineMeshPSOParams, SMC_GetElements, OutParams);
+	}
 }
 
 FPrimitiveSceneProxy* USplineMeshComponent::CreateStaticMeshSceneProxy(Nanite::FMaterialAudit& NaniteMaterials, bool bCreateNanite)

@@ -771,13 +771,8 @@ inline bool PrepareShadingCommand(FNaniteShadingCommand& ShadingCommand)
 	}
 
 #if PSO_PRECACHING_VALIDATE
-	PSOCollectorStats::GetFullPSOPrecacheStatsCollector().CheckStateInCache(
-		*ShadingCommand.Pipeline->ComputeShader,
-		PSOCollectorStats::GetPSOPrecacheHash,
-		PSOPrecacheResult,
-		uint32(EMeshPass::BasePass),
-		&FNaniteVertexFactory::StaticType
-	);
+	static int32 PSOCollectorIndex = FPSOCollectorCreateManager::GetIndex(EShadingPath::Deferred, TEXT("NaniteMesh"));
+	PSOCollectorStats::CheckComputePipelineStateInCache(*ShadingCommand.Pipeline->ComputeShader, PSOPrecacheResult, ShadingCommand.Pipeline->MaterialProxy, PSOCollectorIndex);
 #endif
 
 	// Try and skip draw if the PSO is not precached yet.

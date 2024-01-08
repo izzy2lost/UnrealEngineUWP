@@ -1887,23 +1887,27 @@ void CollectRasterPSOInitializersForPermutation(
 			PSOPrecacheData.GraphicsPSOInitializer = GraphicsPSOInit;
 		#if PSO_PRECACHING_VALIDATE
 			PSOPrecacheData.PSOCollectorIndex = PSOCollectorIndex;
-			PSOPrecacheData.VertexFactoryType = nullptr;
+			PSOPrecacheData.VertexFactoryType = &Nanite::FVertexFactory::StaticType;
 		#endif
 			PSOInitializers.Add(PSOPrecacheData);
 		}
 
-		// Compute PSO setup
-		TShaderRef<FMicropolyRasterizeCS> MicropolyRasterizeCS;
-		if (ProgrammableShaders.TryGetComputeShader(&MicropolyRasterizeCS))
 		{
-			FPSOPrecacheData ComputePSOPrecacheData;
-			ComputePSOPrecacheData.Type = FPSOPrecacheData::EType::Compute;
-			ComputePSOPrecacheData.ComputeShader = MicropolyRasterizeCS.GetComputeShader();
-		#if PSO_PRECACHING_VALIDATE
-			ComputePSOPrecacheData.PSOCollectorIndex = PSOCollectorIndex;
-			ComputePSOPrecacheData.VertexFactoryType = nullptr;
-		#endif
-			PSOInitializers.Add(ComputePSOPrecacheData);
+			FMaterialShaders* MicropolyRasterizeShaders = ProgrammableShaders.Shaders[SF_Compute] ? &ProgrammableShaders : &NonProgrammableShaders;
+
+			// Compute PSO setup
+			TShaderRef<FMicropolyRasterizeCS> MicropolyRasterizeCS;
+			if (MicropolyRasterizeShaders->TryGetComputeShader(&MicropolyRasterizeCS))
+			{
+				FPSOPrecacheData ComputePSOPrecacheData;
+				ComputePSOPrecacheData.Type = FPSOPrecacheData::EType::Compute;
+				ComputePSOPrecacheData.ComputeShader = MicropolyRasterizeCS.GetComputeShader();
+#if PSO_PRECACHING_VALIDATE
+				ComputePSOPrecacheData.PSOCollectorIndex = PSOCollectorIndex;
+				ComputePSOPrecacheData.VertexFactoryType = nullptr;
+#endif
+				PSOInitializers.Add(ComputePSOPrecacheData);
+			}
 		}
 	}
 }
@@ -1957,8 +1961,8 @@ void CollectRasterPSOInitializersForPipeline(
 	const EOutputBufferMode RasterMode = Pipeline == EPipeline::Shadows ? EOutputBufferMode::DepthOnly : EOutputBufferMode::VisBuffer;
 	const bool bHasVirtualShadowMapArray = Pipeline == EPipeline::Shadows; // true during shadow pass
 	const bool bVisualizeActive = false; // no precache for visualization modes
-	const bool bForceDisableWPO = false; // no precache for force disable WPO
 	const bool bSplineMesh = false; // no precache for spline meshes
+	const bool bPatches = false; // no precache for patches
 		
 	FHWRasterizeVS::FPermutationDomain PermutationVectorVS;
 	FHWRasterizeMS::FPermutationDomain PermutationVectorMS;
@@ -1967,29 +1971,37 @@ void CollectRasterPSOInitializersForPipeline(
 	SetupProgrammableRasterizePermutationVectors(RasterMode, bUseMeshShader, bUsePrimitiveShader, bVisualizeActive, bHasVirtualShadowMapArray,
 		PermutationVectorVS, PermutationVectorMS, PermutationVectorPS, PermutationVectorCS);
 
+	PermutationVectorCS.Set<FMicropolyRasterizeCS::FPatchesDim>(bPatches);
+
 	if (PreCacheParams.bDefaultMaterial)
 	{
 		CollectRasterPSOInitializersForDefaultMaterial(RasterMaterial, bUseMeshShader, bUsePrimitiveShader, PermutationVectorVS, PermutationVectorMS, PermutationVectorPS, PermutationVectorCS, PSOCollectorIndex, PSOInitializers);
 	}
 	else
 	{
-		const uint32 MaterialBitFlags = PackMaterialBitFlags(
-			RasterMaterial,
-			RasterMaterial.MaterialUsesWorldPositionOffset_GameThread(),
-			RasterMaterial.MaterialUsesPixelDepthOffset_GameThread(),
-			RasterMaterial.MaterialUsesDisplacement_GameThread(),
-			bForceDisableWPO,
-			bSplineMesh
-		);
-		const bool bVertexProgrammable = FNaniteMaterialShader::IsVertexProgrammable(MaterialBitFlags);
-		const bool bPixelProgrammable = FNaniteMaterialShader::IsPixelProgrammable(MaterialBitFlags);
+		const auto AddPSOInitializers = [&](bool bForceDisableWPO)
+		{
+			const uint32 MaterialBitFlags = PackMaterialBitFlags(
+				RasterMaterial,
+				RasterMaterial.MaterialUsesWorldPositionOffset_GameThread(),
+				RasterMaterial.MaterialUsesPixelDepthOffset_GameThread(),
+				RasterMaterial.MaterialUsesDisplacement_GameThread(),
+				bForceDisableWPO,
+				bSplineMesh
+			);
+			const bool bVertexProgrammable = FNaniteMaterialShader::IsVertexProgrammable(MaterialBitFlags);
+			const bool bPixelProgrammable = FNaniteMaterialShader::IsPixelProgrammable(MaterialBitFlags);
 
-		const FMeshPassProcessor::FMeshDrawingPolicyOverrideSettings OverrideSettings = FMeshPassProcessor::ComputeMeshOverrideSettings(PreCacheParams);
-		ERasterizerCullMode MeshCullMode = FMeshPassProcessor::ComputeMeshCullMode(RasterMaterial, OverrideSettings);
-		const bool bIsTwoSided = MeshCullMode == CM_None;
+			const FMeshPassProcessor::FMeshDrawingPolicyOverrideSettings OverrideSettings = FMeshPassProcessor::ComputeMeshOverrideSettings(PreCacheParams);
+			ERasterizerCullMode MeshCullMode = FMeshPassProcessor::ComputeMeshCullMode(RasterMaterial, OverrideSettings);
+			const bool bIsTwoSided = MaterialBitFlags & NANITE_MATERIAL_FLAG_TWO_SIDED;
 
-		CollectRasterPSOInitializersForPermutation(RasterMaterial, bVertexProgrammable, bPixelProgrammable, bUseMeshShader, bUsePrimitiveShader, bIsTwoSided, bSplineMesh,
-			PermutationVectorVS, PermutationVectorMS, PermutationVectorPS, PermutationVectorCS, PSOCollectorIndex, PSOInitializers);
+			CollectRasterPSOInitializersForPermutation(RasterMaterial, bVertexProgrammable, bPixelProgrammable, bUseMeshShader, bUsePrimitiveShader, bIsTwoSided, bSplineMesh,
+				PermutationVectorVS, PermutationVectorMS, PermutationVectorPS, PermutationVectorCS, PSOCollectorIndex, PSOInitializers);
+		};
+
+		AddPSOInitializers(true /*bForceDisableWPO*/);
+		AddPSOInitializers(false /*bForceDisableWPO*/);		
 	}
 }
 
@@ -3764,13 +3776,15 @@ FBinningData FRenderer::AddPass_Rasterize(
 	// PSO state can be cached like regular MDCs before activating this (UE-171561)
 	const bool bAllowPrecacheSkip = false;// GSkipDrawOnPSOPrecaching != 0;
 
+	int32 PSOCollectorIndex = FPSOCollectorCreateManager::GetIndex(EShadingPath::Deferred, TEXT("NaniteMesh"));
+
 	if (!bPatches)
 	{
 		FRDGPass* HWPass = GraphBuilder.AddPass(
 			RDG_EVENT_NAME("HW Rasterize"),
 			RasterPassParameters,
 			ERDGPassFlags::Raster | ERDGPassFlags::SkipRenderPass | ParallelTranslateFlag,
-			[RasterPassParameters, &PassData, ViewRect, &SceneView = SceneView, FixedMaterialProxy, bAllowPrecacheSkip, RPInfo, bMainPass, bUsePrimitiveShader, bUseMeshShader, RenderFlags = RenderFlags](FRHICommandList& RHICmdList)
+			[RasterPassParameters, &PassData, ViewRect, &SceneView = SceneView, FixedMaterialProxy, bAllowPrecacheSkip, RPInfo, bMainPass, bUsePrimitiveShader, bUseMeshShader, PSOCollectorIndex, RenderFlags = RenderFlags](FRHICommandList& RHICmdList)
 		{
 			auto& RasterizerPasses = PassData.RasterizerPasses;
 			if (RasterizerPasses.Num() == 0)
@@ -3870,6 +3884,14 @@ FBinningData FRenderer::AddPass_Rasterize(
 				else
 				{
 					BindShadersToPSOInit(RasterizerPass);
+
+#if PSO_PRECACHING_VALIDATE
+					if (PSOCollectorStats::IsFullPrecachingValidationEnabled())
+					{
+						PSOCollectorStats::CheckFullPipelineStateInCache(GraphicsPSOInit, EPSOPrecacheResult::Unknown, RasterizerPass.RasterPipeline.RasterMaterial, &Nanite::FVertexFactory::StaticType, nullptr, PSOCollectorIndex);
+					}
+#endif // PSO_PRECACHING_VALIDATE
+
 					SetGraphicsPipelineState(RHICmdList, GraphicsPSOInit, 0);
 					BindShaderParameters(RasterizerPass);
 				}
@@ -3896,7 +3918,7 @@ FBinningData FRenderer::AddPass_Rasterize(
 			RDG_EVENT_NAME("SW Rasterize"),
 			RasterPassParameters,
 			ComputePassFlags | ParallelTranslateFlag,
-			[RasterPassParameters, &PassData, &SceneView = SceneView, FixedMaterialProxy, RenderFlags = RenderFlags, bAllowPrecacheSkip](FRHIComputeCommandList& RHICmdList)
+			[RasterPassParameters, &PassData, &SceneView = SceneView, FixedMaterialProxy, RenderFlags = RenderFlags, PSOCollectorIndex](FRHIComputeCommandList& RHICmdList)
 		{
 			auto& RasterizerPasses = PassData.RasterizerPasses;
 			if (RasterizerPasses.Num() == 0)
@@ -3927,7 +3949,13 @@ FBinningData FRenderer::AddPass_Rasterize(
 				// TODO: Implement support for testing precache and skipping if needed
 
 				FComputeShaderUtils::ValidateIndirectArgsBuffer(IndirectArgsBuffer->GetSize(), RasterizerPass.IndirectOffset);
-				SetComputePipelineState(RHICmdList, ShaderRHI);
+
+				EPSOPrecacheResult PSOPrecacheResult = PipelineStateCache::CheckPipelineStateInCache(ShaderRHI);
+				SetComputePipelineState(RHICmdList, ShaderRHI, PSOPrecacheResult);
+
+#if PSO_PRECACHING_VALIDATE
+				PSOCollectorStats::CheckComputePipelineStateInCache(*ShaderRHI, PSOPrecacheResult, RasterizerPass.ComputeMaterialProxy, PSOCollectorIndex);
+#endif
 
 				SetShaderParametersMixedCS(
 					RHICmdList,
