@@ -1831,6 +1831,8 @@ namespace impl
 
 								if (Props.IsPassThrough)
 								{
+									Image.bIsPassThrough = true;
+
 									// Since it's known it's a pass-through texture there is no need to cache or convert it so we can generate it here already.
 									Image.Image = System->GetImage(OperationData->InstanceID, Image.ImageID, 0, 0);
 									check(Image.Image->IsReference());
@@ -1841,7 +1843,6 @@ namespace impl
 									{
 										TSoftObjectPtr<UTexture> Ref = CustomizableObject->ReferencedPassThroughTextures[ReferenceID];
 										CustomizableObjectInstancePrivateData->PassThroughTexturesToLoad.Add(Ref);
-										Image.bIsPassThrough = true;
 									}
 									else
 									{
