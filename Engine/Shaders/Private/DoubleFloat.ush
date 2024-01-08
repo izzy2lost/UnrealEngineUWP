@@ -6,13 +6,14 @@
 // 'High' stores the core value, 'Low' stores the residual error that couldn't fit in 'High'.
 // This combination has 2x23=46 significant bits, providing twice the precision a float offers.
 // Operations are slower than floats, but faster than doubles on consumer GPUs (with potentially greater support)
-// Platforms that don't support fused multiply-add and INVARIANT may see reduced precision.
+// Platforms that don't support fused multiply-add and INVARIANT may see decreased performance or reduced precision.
 // 
 // Based on:
 //  [0] Thall, A. (2006), Extended-precision floating-point numbers for GPU computation.
 //  [1] Mioara Maria Joldes, Jean-Michel Muller, Valentina Popescu. (2017), Tight and rigourous error bounds for basic building blocks of double-word arithmetic.
 //  [2] Vincent Lefevre, Nicolas Louvet, Jean-Michel Muller, Joris Picot, and Laurence Rideau. (2022), Accurate Calculation of Euclidean Norms using Double-Word Arithmetic
 //  [3] Jean-Michel Muller and Laurence Rideau. (2022), Formalization of Double-Word Arithmetic, and Comments on "Tight and Rigorous Error Bounds for Basic Building Blocks of Double-Word Arithmetic"
+//  [4] T. J. Dekker. (1971), A floating-point technique for extending the available precision.
 
 #ifndef UE_DF_FORCE_FP32_OPS
 #define UE_DF_FORCE_FP32_OPS 0
@@ -20,11 +21,6 @@
 
 #ifndef UE_DF_NO_FAST_MATH
 #define UE_DF_NO_FAST_MATH 0
-#endif
-
-// Temporary hack until mad support is added to Switch toolchain
-#if SWITCH_PROFILE || SWITCH_PROFILE_FORWARD
-#define mad(a, b, c) (((a)*(b))+(c))
 #endif
 
 /* FDFScalar */
@@ -196,6 +192,15 @@ FDFVector4 DFSwizzle(FDFVector2 V, int C0, int C1, int C2, int C3) { return Make
 FDFVector4 DFSwizzle(FDFVector3 V, int C0, int C1, int C2, int C3) { return MakeDFVector(DFGetComponent(V, C0), DFGetComponent(V, C1), DFGetComponent(V, C2), DFGetComponent(V, C3)); }
 FDFVector4 DFSwizzle(FDFVector4 V, int C0, int C1, int C2, int C3) { return MakeDFVector(DFGetComponent(V, C0), DFGetComponent(V, C1), DFGetComponent(V, C2), DFGetComponent(V, C3)); }
 
+float3 DFFastToTranslatedWorld(FDFVector3 WorldPosition, FDFVector3 PreViewTranslation)
+{
+	return DFFastLocalSubtractDemote(WorldPosition, DFNegate(PreViewTranslation));
+}
+
+float3 DFFastToTranslatedWorld(float3 WorldPosition, FDFVector3 PreViewTranslation)
+{
+	return DFFastLocalSubtractDemote(WorldPosition, DFNegate(PreViewTranslation));
+}
 
 #define DFHackToFloat DFDemote
 
@@ -482,6 +487,11 @@ float4x4 DFDemote(FDFMatrix V)
 	return MultiplyTranslation(V.M, V.PostTranslation);
 }
 
+float4x4 DFDemote(float4x4 V)
+{
+	return V;
+}
+
 float4x4 DFDemote(FDFInverseMatrix V)
 {
 	return MultiplyTranslation(-V.PreTranslation, V.M);
@@ -490,7 +500,7 @@ float4x4 DFDemote(FDFInverseMatrix V)
 float4 DFTransformLocalToTranslatedWorld(float3 LocalPosition, FDFMatrix LocalToWorld, FDFVector3 PreViewTranslation)
 {
 	// Multiply local position with LocalToWorld 3x3 first for high precision rotation and scale, then move the world position part to translated world before adding it  
-	float3 RotatedScaledPosition = mad(LocalPosition.xxx, LocalToWorld.M[0].xyz, mad(LocalPosition.yyy, LocalToWorld.M[1].xyz, LocalPosition.zzz * LocalToWorld.M[2].xyz));
+	float3 RotatedScaledPosition = FMA(LocalPosition.xxx, LocalToWorld.M[0].xyz, FMA(LocalPosition.yyy, LocalToWorld.M[1].xyz, LocalPosition.zzz * LocalToWorld.M[2].xyz));
 
 #if UE_DF_NO_FAST_MATH
 	float3 TranslatedWorldPositionOrigin = DFAddDemote(DFGetOrigin(LocalToWorld), ResolvedView.PreViewTranslation);
@@ -503,12 +513,31 @@ float4 DFTransformLocalToTranslatedWorld(float3 LocalPosition, FDFMatrix LocalTo
 
 FDFVector3 DFMultiplyLHSAndFastTwoSum(float3 Lhs, float Factor, float3 Rhs)
 {
-	const float3 S = mad(Lhs, Factor, Rhs);
-	const float3 E = INVARIANT(Rhs - mad(-Lhs, Factor, S));
+	const float3 S = INVARIANT(FMA(Lhs, Factor, Rhs));
+	const float3 E = INVARIANT(Rhs - FMA(-Lhs, Factor, S));
 	return MakeDFVector3(S, E);
 }
 
-// Temporary hack until mad support is added to Switch toolchain
-#if SWITCH_PROFILE || SWITCH_PROFILE_FORWARD
-#undef mad
+#if FEATURE_LEVEL >= FEATURE_LEVEL_SM6 || PLATFORM_SUPPORTS_SM6_0_WAVE_OPERATIONS
+FDFMatrix WaveReadLaneAt(FDFMatrix In, uint SrcIndex)
+{
+	FDFMatrix Result;
+	Result.M[0] = WaveReadLaneAt(In.M[0], SrcIndex);
+	Result.M[1] = WaveReadLaneAt(In.M[1], SrcIndex);
+	Result.M[2] = WaveReadLaneAt(In.M[2], SrcIndex);
+	Result.M[3] = WaveReadLaneAt(In.M[3], SrcIndex);
+	Result.PostTranslation = WaveReadLaneAt(In.PostTranslation, SrcIndex);
+	return Result;
+}
+
+FDFInverseMatrix WaveReadLaneAt(FDFInverseMatrix In, uint SrcIndex)
+{
+	FDFInverseMatrix Result;
+	Result.M[0] = WaveReadLaneAt(In.M[0], SrcIndex);
+	Result.M[1] = WaveReadLaneAt(In.M[1], SrcIndex);
+	Result.M[2] = WaveReadLaneAt(In.M[2], SrcIndex);
+	Result.M[3] = WaveReadLaneAt(In.M[3], SrcIndex);
+	Result.PreTranslation = WaveReadLaneAt(In.PreTranslation, SrcIndex);
+	return Result;
+}
 #endif

@@ -218,7 +218,8 @@ FFloatType DFFastLocalSubtractDemote(FDFType Lhs, FDFType Rhs)
 #else
 	const FFloatType High = INVARIANT(Lhs.High - Rhs.High);
 	const FFloatType Low = INVARIANT(Lhs.Low - Rhs.Low);
-	return INVARIANT(High + Low);
+	const FFloatType Sum = INVARIANT(High + Low);
+	return Sum;
 #endif
 }
 
@@ -230,7 +231,8 @@ FFloatType DFFastLocalSubtractDemote(FDFType Lhs, FFloatType Rhs)
 	return DFSubtractDemote(Lhs, Rhs);
 #else
 	const FFloatType High = INVARIANT(Lhs.High - Rhs);
-	return INVARIANT(High + Lhs.Low);
+	const FFloatType Sum = INVARIANT(High + Lhs.Low);
+	return Sum;
 #endif
 }
 
@@ -243,15 +245,34 @@ FFloatType DFFastLocalSubtractDemote(FFloatType Lhs, FDFType Rhs)
 /** MULTIPLICATION **/
 /********************/
 
+// [4] Algorithm 'mul12' (Page 241)
+FDFType DFTwoProductNoFMA(FFloatType Lhs, FFloatType Rhs)
+{
+	const FFloatType Constant = 4097; // = 2^(t - t/2) + 1, where t is the number of mantissa bits
+	const FFloatType Px = INVARIANT(Lhs * Constant);
+	const FFloatType Hx = INVARIANT(Lhs - Px + Px);
+	const FFloatType Tx = INVARIANT(Lhs - Hx);
+	const FFloatType Py = INVARIANT(Rhs * Constant);
+	const FFloatType Hy = INVARIANT(Rhs - Py + Py);
+	const FFloatType Ty = INVARIANT(Rhs - Hy);
+	const FFloatType P = INVARIANT(Hx * Hy);
+	const FFloatType Q = INVARIANT(Hx * Ty + Tx * Hy);
+	const FFloatType Z = INVARIANT(P + Q);
+	const FFloatType E = INVARIANT(P - Z + Q + Tx * Ty);
+	return DFFastTwoSum(Z, E);
+}
+
 // Multiply up two single precision scalars to one double precision scalar. (AKA Fast2Mult)
 // [1] Algorithm 3
 FDFType DFTwoProduct(FFloatType Lhs, FFloatType Rhs)
 {
 #if UE_DF_FORCE_FP32_OPS
 	return DFPromote(Lhs * Rhs);
+#elif !PLATFORM_SUPPORTS_FMA
+	return DFTwoProductNoFMA(Lhs, Rhs);
 #else
 	const FFloatType P = Lhs * Rhs;
-	const FFloatType E = INVARIANT(mad(Lhs, Rhs, -P));
+	const FFloatType E = INVARIANT(FMA(Lhs, Rhs, -P));
 	return DFConstructor(P, E);
 #endif
 }
@@ -259,30 +280,32 @@ FDFType DFTwoProduct(FFloatType Lhs, FFloatType Rhs)
 // Alias for DFTwoProduct
 FDFType DFMultiply(FFloatType Lhs, FFloatType Rhs) { return DFTwoProduct(Lhs, Rhs); }
 
-// [1] Algorithm 11
+// [1] Algorithm 11.
+// If no FMA is available, mad() expansion makes this equivalent to [1] Algorithm 10
 FDFType DFMultiply(FDFType Lhs, FDFType Rhs)
 {
 #if UE_DF_FORCE_FP32_OPS
 	return DFPromote(Lhs.High * Rhs.High);
 #else
 	const FDFType P = DFTwoProduct(Lhs.High, Rhs.High);
-	FFloatType T = P.Low;
-	T = INVARIANT(mad(Lhs.High, Rhs.Low, T));
-	T = INVARIANT(mad(Lhs.Low, Rhs.High, T));
+	FFloatType T = INVARIANT(Lhs.High * Rhs.Low);
+	T = INVARIANT(FMA(Lhs.Low, Rhs.High, T));
+	T = INVARIANT(T + P.Low);
 
 	return DFFastTwoSum(P.High, T);
 #endif
 }
 
 // [1] Algorithm 9
+// If no FMA is available, mad() expansion makes this equivalent to [1] Algorithm 8
 FDFType DFMultiply(FDFType Lhs, FFloatType Rhs)
 {
 #if UE_DF_FORCE_FP32_OPS
 	return DFPromote(Lhs.High * Rhs);
 #else
 	FDFType P = DFTwoProduct(Lhs.High, Rhs);
-	P.Low = mad(Lhs.Low, Rhs, P.Low);
-	return DFFastTwoSum(P.High, P.Low);
+	FFloatType T = INVARIANT(FMA(Lhs.Low, Rhs, P.Low));
+	return DFFastTwoSum(P.High, T);
 #endif
 }
 
@@ -294,9 +317,9 @@ FFloatType DFMultiplyDemote(FDFType Lhs, FDFType Rhs)
 	return Lhs.High * Rhs.High;
 #else
 	const FDFType P = DFTwoProduct(Lhs.High, Rhs.High);
-	FFloatType T = P.Low;
-	T = INVARIANT(mad(Lhs.High, Rhs.Low, T));
-	T = INVARIANT(mad(Lhs.Low, Rhs.High, T));
+	FFloatType T = INVARIANT(Lhs.High * Rhs.Low);
+	T = INVARIANT(FMA(Lhs.Low, Rhs.High, T));
+	T = INVARIANT(T + P.Low);
 
 	return P.High + T;
 #endif
@@ -308,7 +331,7 @@ FFloatType DFMultiplyDemote(FDFType Lhs, FFloatType Rhs)
 	return Lhs.High * Rhs;
 #else
 	FDFType P = DFTwoProduct(Lhs.High, Rhs);
-	P.Low = mad(Lhs.Low, Rhs, P.Low);
+	P.Low = FMA(Lhs.Low, Rhs, P.Low);
 	return P.High + P.Low;
 #endif
 }
@@ -334,14 +357,18 @@ FDFType DFSqr(FFloatType V) { return DFTwoProduct(V, V); }
 /** DIVISION **/
 /**************/
 
+FDFType DFFastDivide(FDFType Lhs, FDFType Rhs);
+
 // [1] Algorithm 18
 FDFType DFDivide(FDFType Lhs, FDFType Rhs)
 {
 #if UE_DF_FORCE_FP32_OPS
 	return DFPromote(Lhs.High / Rhs.High);
+#elif !PLATFORM_SUPPORTS_FMA
+	return DFFastDivide(Lhs, Rhs);
 #else
 	const FFloatType Th = INVARIANT(1.0 / Rhs.High);
-	const FFloatType Rh = INVARIANT(mad(-Rhs.High, Th, 1));
+	const FFloatType Rh = INVARIANT(FMA(-Rhs.High, Th, 1));
 	const FFloatType Rl = INVARIANT(-Rhs.Low * Th);
 	const FDFType E = DFFastTwoSum(Rh, Rl);
 	const FDFType D = DFMultiply(E, Th);
@@ -407,7 +434,7 @@ FDFType DFFastDivide(FDFType Lhs, FFloatType Rhs)
 {
 #if UE_DF_FORCE_FP32_OPS
 	return DFPromote(Lhs.High / Rhs);
-#elif UE_DF_NO_FAST_MATH
+#elif UE_DF_NO_FAST_MATH && PLATFORM_SUPPORTS_FMA
 	return DFDivide(Lhs, Rhs);
 #else
 	const FFloatType Th = INVARIANT(Lhs.High / Rhs);
@@ -627,7 +654,7 @@ FDFType DFSqrt(FDFType V)
 	return DFPromote(sqrt(V.High));
 #else
 	const FFloatType Sh = sqrt(V.High);
-	const FFloatType P1 = INVARIANT(mad(-Sh, Sh, V.High));
+	const FFloatType P1 = INVARIANT(FMA(-Sh, Sh, V.High)); // Note: precision loss here if FMA is not supported
 	const FFloatType P2 = INVARIANT(V.Low + P1);
 
 	const FFloatType Sl = INVARIANT(P2 / (2.0 * Sh));
@@ -635,9 +662,9 @@ FDFType DFSqrt(FDFType V)
 
 	// equivalent to (remark 3.5)
 	//precise FFloatType Tl = P2 / Sh;
-	//precise FFloatType Zh = mad(0.5, Tl, Sh);
+	//precise FFloatType Zh = FMA(0.5, Tl, Sh);
 	//precise FFloatType D = Zh - Sh;
-	//precise FFloatType Zl = mad(0.5, Tl, -D);
+	//precise FFloatType Zl = FMA(0.5, Tl, -D);
 	//return DFConstructor(Zh, Zl);
 #endif
 }
@@ -649,7 +676,7 @@ FFloatType DFSqrtDemote(FDFType V)
 	return sqrt(V.High);
 #else
 	const FFloatType Sh = sqrt(V.High);
-	const FFloatType P1 = INVARIANT(mad(-Sh, Sh, V.High));
+	const FFloatType P1 = INVARIANT(FMA(-Sh, Sh, V.High)); // Note: precision loss here if FMA is not supported
 	const FFloatType P2 = INVARIANT(V.Low + P1);
 
 	const FFloatType Sl = INVARIANT(P2 / (2.0 * Sh));
@@ -702,8 +729,8 @@ void DFSinCos(FDFType V, out FFloatType Sin, out FFloatType Cos)
 	sincos(V.High, Sh, Ch);
 	FFloatType Sl, Cl;
 	sincos(V.Low, Sl, Cl);
-	Sin = mad(Sh, Cl,  Ch*Sl); // trigonometric identity for sin(h+l)
-	Cos = mad(Ch, Cl, -Sh*Sl); // trigonometric identity for cos(h+l)
+	Sin = FMA(Sh, Cl,  Ch*Sl); // trigonometric identity for sin(h+l)
+	Cos = FMA(Ch, Cl, -Sh*Sl); // trigonometric identity for cos(h+l)
 #endif
 }
 
