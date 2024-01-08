@@ -6,6 +6,7 @@
 #include "NiagaraCommon.h"
 #include "NiagaraShared.h"
 #include "NiagaraShader.h"
+#include "NiagaraSimCacheCustomStorageInterface.h"
 #include "ShaderParameterUtils.h"
 #include "RHIUtilities.h"
 
@@ -13,6 +14,8 @@
 
 template<typename TArrayType, class TOwnerType>
 struct FNDIArrayProxyImpl;
+class UNDIArraySimCacheData;
+struct FNDIArraySimCacheDataFrame;
 
 #define NDIARRAY_GENERATE_BODY(CLASSNAME, TYPENAME, MEMBERNAME) \
 	using FProxyType = FNDIArrayProxyImpl<TYPENAME, CLASSNAME>; \
@@ -61,6 +64,10 @@ struct INDIArrayProxyBase : public FNiagaraDataInterfaceProxyRW
 #if WITH_NIAGARA_DEBUGGER
 	virtual void DrawDebugHud(FNDIDrawDebugHudContext& DebugHudContext) const = 0;
 #endif
+	virtual bool SimCacheWriteFrame(UNDIArraySimCacheData* CacheData, int FrameIndex, FNiagaraSystemInstance* SystemInstance) const = 0;
+	virtual bool SimCacheReadFrame(UNDIArraySimCacheData* CacheData, int FrameIndex, FNiagaraSystemInstance* SystemInstance) = 0;
+	virtual FString SimCacheVisualizerRead(UNDIArraySimCacheData* CacheData, FNDIArraySimCacheDataFrame& FrameData, int Element) const = 0;
+
 	virtual bool CopyToInternal(INDIArrayProxyBase* Destination) const = 0;
 	virtual bool Equals(const INDIArrayProxyBase* Other) const = 0;
 	virtual int32 PerInstanceDataSize() const = 0;
@@ -71,7 +78,7 @@ struct INDIArrayProxyBase : public FNiagaraDataInterfaceProxyRW
 };
 
 UCLASS(abstract, EditInlineNew, MinimalAPI)
-class UNiagaraDataInterfaceArray : public UNiagaraDataInterfaceRWBase
+class UNiagaraDataInterfaceArray : public UNiagaraDataInterfaceRWBase, public INiagaraSimCacheCustomStorageInterface
 {
 	GENERATED_UCLASS_BODY()
 
@@ -111,6 +118,14 @@ public:
 	NIAGARA_API virtual void SetShaderParameters(const FNiagaraDataInterfaceSetShaderParametersContext& Context) const override;
 	//UNiagaraDataInterface Interface
 
+	//~ INiagaraSimCacheCustomStorageInterface interface BEGIN
+	virtual UObject* SimCacheBeginWrite(UObject* SimCache, FNiagaraSystemInstance* NiagaraSystemInstance, const void* OptionalPerInstanceData, FNiagaraSimCacheFeedbackContext& FeedbackContext) const override;
+	virtual bool SimCacheWriteFrame(UObject* StorageObject, int FrameIndex, FNiagaraSystemInstance* SystemInstance, const void* OptionalPerInstanceData, FNiagaraSimCacheFeedbackContext& FeedbackContext) const override;
+	//virtual bool SimCacheEndWrite(UObject* StorageObject) const override;
+	virtual bool SimCacheReadFrame(UObject* StorageObject, int FrameA, int FrameB, float Interp, FNiagaraSystemInstance* SystemInstance, void* OptionalPerInstanceData) override;
+	//~ INiagaraSimCacheCustomStorageInterface interface END
+	NIAGARA_API FString SimCacheVisualizerRead(UNDIArraySimCacheData* CacheData, FNDIArraySimCacheDataFrame& FrameData, int Element) const;
+
 	/** ReadWrite lock to ensure safe access to the underlying array. */
 	FRWLock ArrayRWGuard;
 
@@ -126,4 +141,35 @@ protected:
 #if WITH_EDITORONLY_DATA
 	virtual void GetFunctionsInternal(TArray<FNiagaraFunctionSignature>& OutFunctions) const override { GetProxyAs<INDIArrayProxyBase>()->GetFunctions(OutFunctions); }
 #endif
+};
+
+USTRUCT()
+struct FNDIArraySimCacheDataFrame
+{
+	GENERATED_BODY()
+		
+	UPROPERTY()
+	int32 NumElements = 0;
+
+	UPROPERTY()
+	int32 DataOffset = INDEX_NONE;
+};
+
+UCLASS(MinimalAPI)
+class UNDIArraySimCacheData : public UObject
+{
+	GENERATED_BODY()
+
+public:
+	UPROPERTY()
+	TArray<FNDIArraySimCacheDataFrame> CpuFrameData;
+
+	UPROPERTY()
+	TArray<FNDIArraySimCacheDataFrame> GpuFrameData;
+
+	UPROPERTY()
+	TArray<uint8> BufferData;
+
+	// Internal use only
+	int32 FindOrAddData(TConstArrayView<uint8> ArrayData);
 };

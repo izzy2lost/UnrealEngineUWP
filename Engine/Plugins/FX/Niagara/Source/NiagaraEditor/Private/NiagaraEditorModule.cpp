@@ -47,6 +47,7 @@
 #include "NiagaraSettings.h"
 #include "NiagaraShaderModule.h"
 
+#include "NiagaraDataInterfaceArray.h"
 #include "NiagaraDataInterfaceCurve.h"
 #include "NiagaraDataInterfaceVector2DCurve.h"
 #include "NiagaraDataInterfaceVectorCurve.h"
@@ -114,6 +115,7 @@
 #include "Customizations/NiagaraOutlinerCustomization.h"
 #include "Customizations/NiagaraSimulationStageCustomization.h"
 #include "Customizations/NiagaraDataChannelDetails.h"
+#include "Customizations/SimCache/NiagaraArraySimCacheVisualizer.h"
 #include "Customizations/SimCache/FNiagaraDataChannelSimCacheVisualizer.h"
 #include "Customizations/SimCache/NiagaraRenderTargetVolumeSimCacheVisualizer.h"
 
@@ -1429,6 +1431,13 @@ void FNiagaraEditorModule::StartupModule()
 	// Register sim cache visualizers
 	RegisterDataInterfaceCacheVisualizer(UNiagaraDataInterfaceDataChannelWrite::StaticClass(), MakeShared<FNiagaraDataChannelSimCacheVisualizer>());
 	RegisterDataInterfaceCacheVisualizer(UNiagaraDataInterfaceRenderTargetVolume::StaticClass(), MakeShared<FNiagaraRenderTargetVolumeSimCacheVisualizer>());
+	for (TObjectIterator<UClass> It; It; ++It)
+	{
+		if (It->IsChildOf(UNiagaraDataInterfaceArray::StaticClass()))
+		{
+			RegisterDataInterfaceCacheVisualizer(*It, MakeShared<FNiagaraArraySimCacheVisualizer>(*It));
+		}
+	}
 
 #if NIAGARA_PERF_BASELINES
 	UNiagaraEffectType::OnGeneratePerfBaselines().BindRaw(this, &FNiagaraEditorModule::GeneratePerfBaselines);
