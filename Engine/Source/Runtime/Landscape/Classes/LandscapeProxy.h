@@ -1030,6 +1030,8 @@ public:
 
 	static void RemoveInvalidExclusionBoxes();
 
+	static void DebugDrawExclusionBoxes(const UWorld* World);
+
 	/* Invalidate the precomputed grass and baked texture data for the specified components */
 	LANDSCAPE_API static void InvalidateGeneratedComponentData(const TSet<ULandscapeComponent*>& Components, bool bInvalidateLightingCache = false);
 	LANDSCAPE_API static void InvalidateGeneratedComponentData(const TArray<ULandscapeComponent*>& Components, bool bInvalidateLightingCache = false);

@@ -462,6 +462,8 @@ void ULandscapeSubsystem::Tick(float DeltaTime)
 	}
 
 	ActiveProxies.Reset();
+	
+	ALandscapeProxy::DebugDrawExclusionBoxes(World);
 
 #if WITH_EDITOR
 	if (GIsEditor && !World->IsPlayInEditor())

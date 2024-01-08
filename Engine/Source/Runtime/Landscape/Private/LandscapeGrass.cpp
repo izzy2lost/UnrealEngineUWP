@@ -78,6 +78,10 @@
 #include "MaterialHLSLGenerator.h"
 #endif
 
+#if !UE_BUILD_SHIPPING
+#include "DrawDebugHelpers.h"
+#endif // !UE_BUILD_SHIPPING
+
 #define LOCTEXT_NAMESPACE "Landscape"
 
 DEFINE_LOG_CATEGORY(LogGrass);
@@ -797,6 +801,14 @@ static FAutoConsoleCommand ConsoleCommandDumpLandscapeGrassData(
 		}
 	}));
 
+#if !UE_BUILD_SHIPPING
+static bool bGGrassDrawExclusionVolumes = false;
+static FAutoConsoleVariableRef CVarGrassDrawExclusionVolumes(
+	TEXT("grass.DrawExclusionVolumes"),
+	bGGrassDrawExclusionVolumes,
+	TEXT("Whether we should draw the exclusion volumes or not"));
+#endif // !UE_BUILD_SHIPPING
+
 struct FPerQualityLevelInt;
 struct FPerQualityLevelFloat;
 
@@ -806,6 +818,7 @@ DECLARE_CYCLE_STAT(TEXT("Grass End Comp"), STAT_FoliageGrassEndComp, STATGROUP_F
 DECLARE_CYCLE_STAT(TEXT("Grass Destroy Comps"), STAT_FoliageGrassDestoryComp, STATGROUP_Foliage);
 DECLARE_CYCLE_STAT(TEXT("Grass Update"), STAT_GrassUpdate, STATGROUP_Foliage);
 DECLARE_CYCLE_STAT(TEXT("Grass Type Update Summary"), STAT_UpdateGrassTypeSummary, STATGROUP_Foliage);
+DECLARE_DWORD_ACCUMULATOR_STAT(TEXT("Grass Exclusion Volumes"), STAT_GrassExclusionVolumes, STATGROUP_Foliage);
 
 int32 ALandscapeProxy::GrassUpdateInterval = 1;
 
@@ -2404,16 +2417,22 @@ static TMap<FWeakObjectPtr, FBox, FDefaultSetAllocator, TWeakObjectPtrMapKeyFunc
 
 void ALandscapeProxy::AddExclusionBox(FWeakObjectPtr Owner, const FBox& Box)
 {
+	INC_DWORD_STAT(STAT_GrassExclusionVolumes);
+
 	GGrassExclusionBoxes.Add(Owner, Box);
 	GGrassExclusionChangeTag++;
 }
 void ALandscapeProxy::RemoveExclusionBox(FWeakObjectPtr Owner)
 {
+	DEC_DWORD_STAT(STAT_GrassExclusionVolumes);
+
 	GGrassExclusionBoxes.Remove(Owner);
 	GGrassExclusionChangeTag++;
 }
 void ALandscapeProxy::RemoveAllExclusionBoxes()
 {
+	SET_DWORD_STAT(STAT_GrassExclusionVolumes, 0);
+
 	if (GGrassExclusionBoxes.Num())
 	{
 		GGrassExclusionBoxes.Empty();
@@ -2427,12 +2446,31 @@ void ALandscapeProxy::RemoveInvalidExclusionBoxes()
 	{
 		if (!Iter->Key.IsValid())
 		{
+			DEC_DWORD_STAT(STAT_GrassExclusionVolumes);
+
 			Iter.RemoveCurrent();
 			GGrassExclusionChangeTag++;
 		}
 	}
 
 	GGrassExclusionBoxes.Compact();
+}
+
+void ALandscapeProxy::DebugDrawExclusionBoxes(const UWorld* InWorld)
+{
+#if !UE_BUILD_SHIPPING
+	if (bGGrassDrawExclusionVolumes)
+	{
+		for (auto Iter = GGrassExclusionBoxes.CreateIterator(); Iter; ++Iter)
+		{
+			if (Iter->Key.IsValid())
+			{
+				const FBox& Box = Iter->Value;
+				DrawDebugBox(InWorld, Box.GetCenter(), Box.GetExtent(), FColor::Red);
+			}
+		}
+	}
+#endif // !UE_BUILD_SHIPPING
 }
 
 #if WITH_EDITOR
