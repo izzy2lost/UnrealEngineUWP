@@ -444,6 +444,11 @@ namespace Horde.Server.Agents.Pools
 		public Condition? Condition { get; set; }
 
 		/// <summary>
+		/// Color to display for this pool
+		/// </summary>
+		public string ColorValue { get; set; }
+
+		/// <summary>
 		/// Whether to enable autoscaling for this pool
 		/// </summary>
 		public bool EnableAutoscaling { get; set; }
@@ -527,6 +532,7 @@ namespace Horde.Server.Agents.Pools
 			Id = pool.Id.ToString();
 			Name = pool.Name;
 			Condition = pool.Condition;
+			ColorValue = pool.GetColorValue();
 			EnableAutoscaling = pool.EnableAutoscaling;
 			ConformInterval = pool.ConformInterval == null ? null : (int)pool.ConformInterval.Value.TotalHours;
 			ScaleOutCooldown = pool.ScaleOutCooldown == null ? null : (int)pool.ScaleOutCooldown.Value.TotalSeconds;
