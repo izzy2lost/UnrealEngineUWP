@@ -21,6 +21,10 @@ APCGPartitionActor::APCGPartitionActor(const FObjectInitializer& ObjectInitializ
 {
 	PCGGridSize = InvalidPCGGridSizeValue;
 
+#if WITH_EDITORONLY_DATA
+	bActorLabelEditable = false;
+#endif // WITH_EDITORONLY_DATA
+
 #if WITH_EDITOR
 	// Setup bounds component
 	BoundsComponent = CreateDefaultSubobject<UBoxComponent>(TEXT("BoundsComponent"));
