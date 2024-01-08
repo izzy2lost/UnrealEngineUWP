@@ -1261,7 +1261,7 @@ void UObject::ConditionalPostLoad()
 {
 	LLM_SCOPE(ELLMTag::UObject);
 
-	ensureAlways((GetLoaderType() != ELoaderType::ZenLoader) || !HasAnyFlags(RF_NeedLoad));
+	ensureAlwaysMsgf((GetLoaderType() != ELoaderType::ZenLoader) || !HasAnyFlags(RF_NeedLoad), TEXT("Object '%s' does not have RF_NeedLoad cleared in PostLoad!"), *GetFullName());
 
 	if (HasAnyFlags(RF_NeedPostLoad))
 	{
