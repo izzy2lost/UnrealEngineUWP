@@ -339,7 +339,7 @@ export const StepsPanelInner: React.FC<{ jobDetails: JobDetailsV2, depStepId?: s
       if (props) {
          const item = props.item as StepItem;
          if (item.agentRow) {
-            props.styles = { ...props.styles, root: { background: hordeTheme.horde.dividerColor, selectors: { ".ms-DetailsRow-cell": { "overflow": "visible" } } } };
+            props.styles = { ...props.styles, root: { background: `${hordeTheme.horde.dividerColor} !important` , selectors: { ".ms-DetailsRow-cell": { "overflow": "visible" } } } };
          } else {
             props.styles = { ...props.styles, root: { selectors: { ".ms-DetailsRow-cell": { "overflow": "visible" }, "div[data-automation-key=\"Name\"],div[data-automation-key=\"ViewLogColumn\"]": { padding: 0 } } } };
          }

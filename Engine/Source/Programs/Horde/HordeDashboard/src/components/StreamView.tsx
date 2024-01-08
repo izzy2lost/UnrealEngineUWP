@@ -547,7 +547,7 @@ const StreamViewInner: React.FC = observer(() => {
                      <Stack horizontal verticalAlign="center" horizontalAlign={"end"} tokens={{ childrenGap: 8 }}>
                         <Stack horizontal tokens={{ childrenGap: 18 }}>
                            {!isSwarmTab && <DefaultButton
-                              styles={{ root: { fontFamily: "Horde Open Sans SemiBold !important", backgroundColor: "transparent" } }}
+                              styles={{ root: { fontFamily: "Horde Open Sans SemiBold !important"  } }}
                               text="Search"
                               split={!isSummary}
                               menuProps={!isSummary ? findJobsItems : undefined}

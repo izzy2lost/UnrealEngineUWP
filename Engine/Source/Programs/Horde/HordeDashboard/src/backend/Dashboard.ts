@@ -453,10 +453,10 @@ export class Dashboard {
         const dark = this.darktheme;
 
         const colors = new Map<StatusColor, string>([
-            [StatusColor.Success, dark ? "#3b7b0a" : "#52C705"],
-            [StatusColor.Warnings, dark ? "#9a7b18" : "#EDC74A"],
-            [StatusColor.Failure, dark ? "#882f19" : "#DE4522"],
-            [StatusColor.Running, dark ? "#146579" : "#00BCF2"],
+            [StatusColor.Success, dark ? "#48940f" : "#52C705"],
+            [StatusColor.Warnings, dark ? "#d6b445" : "#EDC74A"],
+            [StatusColor.Failure, dark ? "#c44525" : "#DE4522"],
+            [StatusColor.Running, dark ? "#35a8c4" : "#00BCF2"],
             [StatusColor.Waiting, dark ? "#474542" : "#A19F9D"],
             [StatusColor.Ready, dark ? "#474542" : "#A19F9D"],
             [StatusColor.Skipped, dark ? "#63625c" : "#C3C2C1"],

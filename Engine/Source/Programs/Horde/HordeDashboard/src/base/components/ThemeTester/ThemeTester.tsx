@@ -1,4 +1,4 @@
-import { Checkbox, ChoiceGroup, DefaultButton, IChoiceGroupOption, IContextualMenuProps, ITextStyles, Pivot, PivotItem, PrimaryButton, SearchBox, SpinButton, Stack, Text, TextField, Toggle } from "@fluentui/react";
+import { Checkbox, DefaultButton, IContextualMenuProps, ITextStyles, Pivot, PivotItem, PrimaryButton, SearchBox, SpinButton, Stack, Text, TextField, Toggle } from "@fluentui/react";
 import { useState } from "react";
 import { Breadcrumbs } from "../../../components/Breadcrumbs";
 import { TopNav } from "../../../components/TopNav";
@@ -13,7 +13,7 @@ import { SpinnerSticker } from "./stickers/Spinner";
 
 const mediumTextStyle: ITextStyles = {
    root: {
-      fontSize: "16px",
+      fontSize: "14px",
       fontWeight: 600
    }
 }
@@ -51,13 +51,6 @@ const CommandsMenusNavsPanel: React.FC = () => {
 
 const BasicInputsPanel: React.FC = () => {
 
-   const choiceGroupOptions: IChoiceGroupOption[] = [
-      { key: 'A', text: 'Option A' },
-      { key: 'B', text: 'Option B' },
-      { key: 'C', text: 'Option C', disabled: true },
-      { key: 'D', text: 'Option D' },
-   ];
-
    const splitButtonMenuProps: IContextualMenuProps = {
       items: [
          {
@@ -74,7 +67,7 @@ const BasicInputsPanel: React.FC = () => {
    };
 
    return <Stack>
-      <Stack horizontal style={{ width: 1400 }} tokens={{ childrenGap: 92 }}>
+      <Stack horizontal style={{ width: 1400 }} tokens={{ childrenGap: 64 }}>
          <Stack>
             <Stack>
                <Stack style={{ paddingTop: 24, paddingBottom: 12 }} >
@@ -99,15 +92,6 @@ const BasicInputsPanel: React.FC = () => {
                   <Checkbox label="Checked checkbox" defaultChecked />
                   <Checkbox label="Disabled checkbox" disabled />
                   <Checkbox label="Disabled checked checkbox" disabled defaultChecked />
-               </Stack>
-            </Stack>
-            <Stack>
-               <Stack style={{ paddingTop: 24, paddingBottom: 12 }} >
-                  <Text styles={mediumTextStyle} >Choice Group</Text>
-               </Stack>
-
-               <Stack>
-                  <ChoiceGroup defaultSelectedKey="B" options={choiceGroupOptions} label="Pick one"  />
                </Stack>
             </Stack>
             <Stack>

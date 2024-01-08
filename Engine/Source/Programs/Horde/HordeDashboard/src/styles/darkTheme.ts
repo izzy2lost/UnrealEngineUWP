@@ -1,13 +1,42 @@
 import { createTheme } from '@fluentui/react';
 import { HordeTheme, HordeThemeExtensions } from './themeTypes';
 
-const baseWhite = "#D8D8D8"
+// Primary white 
+const baseWhite = "#e0e0e0"
+
+// Primary black (backgrounds)
+const baseBlack = "#0f0f0f"
+
+// Neutral color for panels
+const baseNeutral = "#181A1B"
+
+const neutralLight = "#3F3F3F"
+
+
+// Text in drop downs, etc
+const neutralPrimary = "#c0c0c0"
+
+// Lighter neutral color, disabled text
+const neutralDisabled = "#868686"
+
+// Primary color, for main action buttons, command bar icons
+const basePrimary = "#0078D4"
+
+// Widget (input) border colors
+const borderColor = neutralLight
+const borderHoverColor = "#4f4f4f"
+
+// Sub-menu divider color
+const menuHeader = "#2b94fe";
+
+// background highlight color 
+const backgroundHoverColor = borderHoverColor;
 
 // text colors
 const textColor = baseWhite;
-const linkColor = "#55B7FF";
-const linkColorHovered = "#AADBFF";
-const hilightColor = "#212425";
+const textHoverColor = "#FFFFFF";
+const linkColor = "#2b94fe";
+const linkColorHovered = "#50a4f9";
 
 // Horde specific color extensions
 const hordeDarkTheme: HordeThemeExtensions = {
@@ -17,20 +46,138 @@ const hordeDarkTheme: HordeThemeExtensions = {
     // Breadcrumb area background color
     breadCrumbsBackground: "#1B1D1E",
     // Panel and modal content background color
-    contentBackground: "#181A1B",
+    contentBackground: baseNeutral,
     // Neutral background color, used for site margins, and hinting such as in detail list rows
-    neutralBackground: "#101010",
+    neutralBackground: baseBlack,
     // divides sections
     dividerColor: "#25282A",
     // Scrollbar theme colors
-    scrollbarThumbColor: "#5F5F5F",
-    scrollbarTrackColor: "#2F2F2F"
+    scrollbarThumbColor: "#575757",
+    scrollbarTrackColor: baseNeutral
+
 }
 
 // Fluent theme
 export const darkTheme = createTheme({
     isInverted: true,
+    palette: {
+        // primary theme color, for primary actions, commandbar icons, etc
+        themePrimary: basePrimary,
+        // used on spinner
+        themeLight: "#7F7F7F",
+
+        neutralPrimary: neutralPrimary,
+
+        // highlights in dropdowns, etc
+        neutralLight: borderHoverColor,
+
+        // a bit misleading, highlight on hover for combobox for example 
+        neutralDark: "#FFFFFF",
+
+        // disabled border on text field, empty area of slifer
+        neutralLighter: neutralLight,
+
+        // This is used by top nav ContextualMenu, chevron focus
+        neutralQuaternaryAlt: baseNeutral,
+
+        // used for down chevron
+        neutralSecondary: textColor,
+
+        // Disabled menu item
+        neutralTertiary: neutralDisabled,
+
+        neutralQuaternary: "#121212",
+
+        black: baseWhite,
+        white: baseBlack,
+
+        // debugging
+        /*
+        themeDarker: "#FF0000",
+        themeDark: "#FF0000",
+        themeDarkAlt: "#FF0000",        
+        themeSecondary: "#FF0000",
+        themeTertiary: "#FF0000",    
+        themeLighter: "#FF0000",
+        themeLighterAlt: "#FF0000"
+        */
+
+    },
+    semanticColors: {
+        // body
+        bodyBackground: baseBlack,
+        bodyText: textColor,
+
+        // buttons
+        buttonText: textColor,
+        buttonTextHovered: textHoverColor,
+        buttonTextDisabled: "#949898",
+        primaryButtonText: "#F8FBFE",
+        primaryButtonTextPressed: textHoverColor,
+        primaryButtonTextHovered: textHoverColor,
+        primaryButtonTextDisabled: "#949898",
+
+        // links
+        actionLink: textColor,
+        link: linkColor,
+        linkHovered: linkColorHovered,
+
+        // menus
+        menuHeader: menuHeader,
+        menuItemText: textColor,
+        menuItemTextHovered: textHoverColor,
+        menuItemBackgroundHovered: backgroundHoverColor,
+
+        // list 
+        listText: textColor,
+
+        // input
+        inputBackground: baseBlack,
+        inputText: textColor,
+        inputIcon: textColor,
+        inputIconHovered: textColor,
+        inputPlaceholderText: "#7F7F7F",
+        inputBorder: borderColor,
+        inputBorderHovered: borderHoverColor,
+        inputFocusBorderAlt: basePrimary,
+        smallInputBorder: borderHoverColor
+    },
     components: {
+        "DefaultButton": {
+            styles: {
+                root: {
+                    border: "1px solid #121212",
+                    backgroundColor: neutralLight
+                },
+                rootHovered: {                    
+                    backgroundColor: backgroundHoverColor
+            },
+                splitButtonDivider: {
+                    backgroundColor: "#121212",
+                },
+                splitButtonMenuButton: {
+                    backgroundColor: neutralLight,
+                    border: "1px solid #121212"
+                }
+            }
+        },
+        "PrimaryButton": {
+            styles: {
+                root: {                    
+                    backgroundColor: basePrimary,
+                },
+                rootHovered: {                    
+                    backgroundColor: "#0089E5"
+                },
+                splitButtonDivider: {
+                    backgroundColor: "#F8FBFE",
+                },
+                splitButtonMenuButton: {
+                    backgroundColor: basePrimary,
+                    border: "1px solid #121212"
+                }
+            }
+        },
         "ScrollablePane": {
             styles: {
                 root: {
@@ -45,15 +192,23 @@ export const darkTheme = createTheme({
         },
         "DetailsList": {
             styles: {
-                root: {
+                root: {                    
                     selectors: {
                         '.ms-DetailsHeader': {
-                            background: hordeDarkTheme.contentBackground,
-                            borderBottomColor: "#363A3C"
+                            background: baseNeutral,
+                            borderBottomColor: baseNeutral
+
+                        },
+                        '.ms-DetailsRow': {
+                            color: textColor,
+                            backgroundColor: "unset",
+                            background: "#181A1B",
+                            borderBottom: "1px solid #212425"
                         },
                         '.ms-DetailsRow:hover': {
+                            color: textColor,
                             backgroundColor: "unset",
-                            background: hilightColor
+                            background: "#2F2F2F"
                         }
                     }
                 }
@@ -78,10 +233,10 @@ export const darkTheme = createTheme({
                         },
                         "*::-webkit-scrollbar-track": {
                             background: hordeDarkTheme.scrollbarTrackColor
-                         },
-                         "*::-webkit-scrollbar-thumb": {
+                        },
+                        "*::-webkit-scrollbar-thumb": {
                             background: hordeDarkTheme.scrollbarThumbColor
-                         }
+                        }
 
                     }
                 }
@@ -90,13 +245,74 @@ export const darkTheme = createTheme({
         "Checkbox": {
             styles: {
                 checkmark: {
-                    color: "#FFFFFF"
+                    color: "#FFFFFF",
+                    backgroundColor: basePrimary
                 },
                 checkbox: {
-                    borderBottomColor: "#959595",
-                    borderTopColor: "#959595",
-                    borderLeftColor: "#959595",
-                    borderRightColor: "#959595"
+                    ":hover": {
+                        borderColor: `${borderHoverColor} !important`,
+                        backgroundColor: basePrimary
+                    },                    
+                    borderColor: borderColor,
+                }
+            }
+        },
+        "Dropdown": {
+            styles: {
+                dropdown: {
+                    ":focus::after": {
+                        borderColor: `${borderHoverColor} !important`
+                    }
+                },
+                title: {
+                    ":hover": {
+                        borderColor: `${borderHoverColor} !important`
+                    }
+                },
+                dropdownItemHeader: {
+                    color: menuHeader
+                }
+            }
+        },
+        "ComboBox": {
+            styles: {
+                root: {
+                    backgroundColor: baseBlack,                    
+                    selectors: {
+                        "button": {
+                            backgroundColor: neutralLight
+                        },
+                        "button:hover": {
+                            backgroundColor: backgroundHoverColor
+                        },
+                        ".ms-Icon": {
+                            color: textColor
+                        }
+                    }
+                },
+                input: {
+                    borderBottomColor: borderHoverColor,
+                    borderTopColor: borderHoverColor,
+                    borderLeftColor: borderHoverColor,
+                    borderRightColor: borderHoverColor
+                }
+            }
+        },
+        "SearchBox": {
+            styles: {
+                iconContainer: {
+                    color: "#bfbfbf",
+                    borderBottomColor: borderHoverColor,
+                    borderTopColor: borderHoverColor,
+                    borderLeftColor: borderHoverColor,
+                    borderRightColor: borderHoverColor
+                },
+                field: {
+                    backgroundColor: baseBlack,
+                    borderBottomColor: borderHoverColor,
+                    borderTopColor: borderHoverColor,
+                    borderLeftColor: borderHoverColor,
+                    borderRightColor: borderHoverColor
                 }
             }
         },
@@ -105,9 +321,12 @@ export const darkTheme = createTheme({
                 root: {
                     selectors: {
                         '.ms-Toggle-thumb': {
-                            background: "#FFFFFF !important"
+                            background: "#0070e0 !important"
                         }
                     }
+                },
+                pill: {
+                    backgroundColor: baseBlack
                 }
             }
         },
@@ -124,55 +343,50 @@ export const darkTheme = createTheme({
                     }
                 }
             }
-        }
-    },
-    palette: {
-        themePrimary: '#0078d4',
-        themeLighterAlt: '#eff6fc',
-        themeLighter: '#deecf9',
-        themeLight: '#c7e0f4',
-        themeTertiary: '#71afe5',
-        themeSecondary: '#2b88d8',
-        themeDarkAlt: '#106ebe',
-        themeDark: '#005a9e',
-        themeDarker: '#004578',
-        neutralLighterAlt: '#212425',
-        neutralLighter: '#212425',
-        neutralLight: '#212425',
-        neutralQuaternaryAlt: '#212425',
-        neutralQuaternary: '#212425',
-        neutralTertiaryAlt: '#212425',
-        neutralTertiary: '#c8c8c8',
-        neutralSecondary: '#d0d0d0',
-        neutralPrimaryAlt: '#dadada',
-        neutralPrimary: '#B5B5B5',
-        neutralDark: '#f4f4f4',
-        black: '#f8f8f8',
-        white: '#181A1B',
-    },
-    semanticColors: {
-        bodyBackground: hordeDarkTheme.neutralBackground,
-        bodyText: textColor,
-        buttonText: "#FFFFFF",
-        buttonTextHovered: "#FFFFFF",
-        buttonTextDisabled: "#949898",
-        actionLink: textColor,
-        link: linkColor,
-        linkHovered: linkColorHovered,
-        menuHeader: "#55B7FF",
-        menuItemText: textColor,
-        menuItemTextHovered: "#F1F1F1",
-        menuItemBackgroundHovered: hilightColor,
-        listText: textColor,
-        primaryButtonText: "#FFFFFF",
-        primaryButtonTextHovered: "#FFFFFF",
-        primaryButtonTextDisabled: "#949898",
-        inputText: textColor,
-        inputPlaceholderText: "#888888",
-        inputBorder: "#959595",
-        inputBorderHovered: "#B5B5B5",
-        smallInputBorder: "#959595"
+        },
+        "TextField": {
+            styles: {
+                root: {
+                    selectors: {
+                        'input:disabled': {
+                            backgroundColor: "#2f2f2f"
 
+                        },
+                    },
+
+
+                }
+            }
+        },
+        "CommandBar": {
+            styles: {
+                root: {
+                    ".icon": {
+                        color: "#FF0000 !important"
+                    }
+                }
+            }
+        },
+        "TagPicker": {
+            styles: {
+                root: {
+                    selectors: {
+                        '.ms-BasePicker-input': {
+                            background: `${baseBlack} !important`
+                        }
+                    }
+                }
+            }
+        },
+        "Separator": {
+            styles: {
+                root: {
+                    "::before": {
+                        backgroundColor: "#121212"
+                    }
+                }
+            }
+        }
     },
     defaultFontStyle: {
         fontFamily: 'Horde Open Sans Regular'

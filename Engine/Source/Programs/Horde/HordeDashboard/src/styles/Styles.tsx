@@ -101,7 +101,7 @@ registerIcons({
       "Repeat": IconContents.REPEAT,
       "FlowReview": IconContents.FLOW_REVIEW,
       "FastForward": IconContents.FAST_FORWARD,
-      "Play": IconContents.PLAY,
+      "Play": IconContents.PLAY      
    }
 });
 
