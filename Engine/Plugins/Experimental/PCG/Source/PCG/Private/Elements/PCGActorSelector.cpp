@@ -239,20 +239,28 @@ FPCGSelectionKey FPCGSelectionKey::CreateFromPath(const FSoftObjectPath& InObjec
 	return Key;
 }
 
+FPCGSelectionKey FPCGSelectionKey::CreateFromPath(FSoftObjectPath&& InObjectPath)
+{
+	FPCGSelectionKey Key{};
+	Key.Selection = EPCGActorSelection::ByPath;
+	Key.ObjectPath = std::forward<FSoftObjectPath>(InObjectPath);
+	Key.ActorFilter = EPCGActorFilter::AllWorldActors;
+
+	return Key;
+}
+
 void FPCGSelectionKey::SetExtraDependency(const UClass* InExtraDependency)
 {
 	OptionalExtraDependency = InExtraDependency;
 }
 
-bool FPCGSelectionKey::IsMatching(const TSoftObjectPtr<UObject>& InObjectPtr, const UPCGComponent* InComponent) const
+bool FPCGSelectionKey::IsMatching(const UObject* InObject, const UPCGComponent* InComponent) const
 {
-	if (InObjectPtr.IsNull())
+	if (!InObject)
 	{
 		return false;
 	}
 
-	const UObject* InObject = InObjectPtr.Get();
-	
 	// If we filter something else than all world actors, matching depends on the component.
 	// Re-use the same mechanism than Get Actor Data, which should be cheap since we don't look for all actors in the world.
 	if (ActorFilter != EPCGActorFilter::AllWorldActors)
@@ -283,10 +291,93 @@ bool FPCGSelectionKey::IsMatching(const TSoftObjectPtr<UObject>& InObjectPtr, co
 	case EPCGActorSelection::ByClass:
 		return InObject && InObject->GetClass()->IsChildOf(SelectionClass);
 	case EPCGActorSelection::ByPath:
-		return InObjectPtr.ToSoftObjectPath() == ObjectPath;
+		return FSoftObjectPath(InObject) == ObjectPath;
 	default:
 		return false;
 	}
+}
+
+bool FPCGSelectionKey::IsMatching(const UObject* InObject, const TSet<FName>& InRemovedTags, const TSet<UPCGComponent*>& InComponents, TSet<UPCGComponent*>& MatchedComponents) const
+{
+	if (!InObject)
+	{
+		return false;
+	}
+
+	// If we filter something else than all world actors, matching depends on the component.
+	// Since we can have a lot of components in InComponents, we go the other way around (Actor to component)
+	if (ActorFilter != EPCGActorFilter::AllWorldActors)
+	{
+		bool bFoundMatch = false;
+
+		const AActor* InActor = Cast<const AActor>(InObject);
+
+		if (!InActor)
+		{
+			return false;
+		}
+
+		TArray<UActorComponent*, TInlineAllocator<64>> ActorComponents;
+
+		if (ActorFilter == EPCGActorFilter::Self || ActorFilter == EPCGActorFilter::Original)
+		{
+			InActor->GetComponents(UPCGComponent::StaticClass(), ActorComponents);
+		}
+		else if (ActorFilter == EPCGActorFilter::Parent || (ActorFilter == EPCGActorFilter::Root && !InActor->GetParentActor()))
+		{
+			TArray<AActor*> ActorsToCheck;
+			InActor->GetAllChildActors(ActorsToCheck, /*bIncludeDescendants=*/ActorFilter == EPCGActorFilter::Root);
+			ActorsToCheck.Add(const_cast<AActor*>(InActor));
+			TArray<UActorComponent*, TInlineAllocator<64>> TempActorComponents;
+			for (AActor* Current : ActorsToCheck)
+			{
+				// TempActorComponents is reset in GetComponents
+				InActor->GetComponents(UPCGComponent::StaticClass(), TempActorComponents);
+				ActorComponents.Append(TempActorComponents);
+			}
+		}
+
+		for (UActorComponent* Component : ActorComponents)
+		{
+			if (UPCGComponent* PCGComponent = Cast<UPCGComponent>(Component))
+			{
+				if (InComponents.Contains(PCGComponent))
+				{
+					MatchedComponents.Add(PCGComponent);
+					bFoundMatch = true;
+				}
+			}
+		}
+
+		return bFoundMatch;
+	}
+
+	bool bIsMatched = false;
+	switch (Selection)
+	{
+	case EPCGActorSelection::ByTag:
+	{
+		const AActor* InActor = Cast<const AActor>(InObject);
+		bIsMatched = InRemovedTags.Contains(Tag) || (InActor && InActor->ActorHasTag(Tag));
+		break;
+	}
+	case EPCGActorSelection::ByClass:
+		bIsMatched = InObject->IsA(SelectionClass);
+		break;
+	case EPCGActorSelection::ByPath:
+		bIsMatched = FSoftObjectPath(InObject) == ObjectPath;
+		break;
+	default:
+		bIsMatched = false;
+		break;
+	}
+
+	if (bIsMatched)
+	{
+		MatchedComponents.Append(InComponents);
+	}
+
+	return bIsMatched;
 }
 
 bool FPCGSelectionKey::operator==(const FPCGSelectionKey& InOther) const
@@ -313,6 +404,20 @@ bool FPCGSelectionKey::operator==(const FPCGSelectionKey& InOther) const
 		return true;
 	}
 	}
+}
+
+FArchive& operator<<(FArchive& Ar, FPCGSelectionKey& Key)
+{
+	// Serialize the normal UPROPERTY data
+	if (Ar.IsLoading() || Ar.IsSaving())
+	{
+		if (UScriptStruct* ThisStruct = FPCGSelectionKey::StaticStruct())
+		{
+			ThisStruct->SerializeTaggedProperties(Ar, reinterpret_cast<uint8*>(&Key), ThisStruct, nullptr);
+		}
+	}
+
+	return Ar;
 }
 
 uint32 GetTypeHash(const FPCGSelectionKey& In)

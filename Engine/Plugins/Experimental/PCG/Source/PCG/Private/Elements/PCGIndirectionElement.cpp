@@ -5,6 +5,7 @@
 #include "PCGPin.h"
 #include "PCGSettings.h"
 #include "Elements/PCGExecuteBlueprint.h" // Blueprint element class
+#include "Helpers/PCGDynamicTrackingHelpers.h" // Dynamic tracking
 #include "Helpers/PCGSettingsHelpers.h"   // Graph and log errors
 
 #include UE_INLINE_GENERATED_CPP_BY_NAME(PCGIndirectionElement)
@@ -17,10 +18,11 @@ namespace PCGIndirectionSettings
 }
 
 #if WITH_EDITOR
-void UPCGIndirectionSettings::GetTrackedActorKeys(FPCGSelectionKeyToSettingsMap& OutKeysToSettings, TArray<TObjectPtr<const UPCGGraph>>& OutVisitedGraphs) const
+void UPCGIndirectionSettings::GetStaticTrackedKeys(FPCGSelectionKeyToSettingsMap& OutKeysToSettings, TArray<TObjectPtr<const UPCGGraph>>& OutVisitedGraphs) const
 {
-	if (Settings.IsNull())
+	if (IsPropertyOverriddenByPin(GET_MEMBER_NAME_CHECKED(UPCGIndirectionSettings, Settings)) || Settings.IsNull())
 	{
+		// Dynamic tracking or null settings
 		return;
 	}
 
@@ -262,6 +264,14 @@ bool FPCGIndirectionElement::PrepareDataInternal(FPCGContext* InContext) const
 		Context->InnerContext->DependenciesCrc = Context->DependenciesCrc;
 
 		Context->InnerContext->AsyncState = Context->AsyncState;
+
+#if WITH_EDITOR
+		// If we have an override, register for dynamic tracking.
+		if (Context->IsValueOverriden(GET_MEMBER_NAME_CHECKED(UPCGIndirectionSettings, Settings)))
+		{
+			FPCGDynamicTrackingHelper::AddSingleDynamicTrackingKey(Context, FPCGSelectionKey::CreateFromPath(Context->InnerSettings), /*bIsCulled=*/false);
+		}
+#endif // WITH_EDITOR
 	}
 
 	return true;

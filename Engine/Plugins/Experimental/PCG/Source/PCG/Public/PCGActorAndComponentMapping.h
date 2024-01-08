@@ -129,16 +129,8 @@ private:
 	bool AnyRuntimeGenComponentsExist() const;
 
 #if WITH_EDITOR
-	/* Return true if something is still tracked or was just untracked. */
-	bool AddOrUpdateTrackedActor(AActor* InActor);
-
-	void RegisterActor(AActor* InActor);
-
-	/* Return true if the actor was tracked. */
-	bool UnregisterActor(AActor* InActor);
-
-	/* Return true if the object was tracked. */
-	bool UnregisterObject(const TSoftObjectPtr<UObject>& InObject);
+	/** Return true if the key is tracked.*/
+	bool IsKeyTracked(const FPCGSelectionKey& InKey) const;
 
 	void OnActorAdded(AActor* InActor);
 	void OnActorLoaded(AActor& InActor);
@@ -146,8 +138,6 @@ private:
 	void OnActorDeleted(AActor* InActor);
 	void OnActorUnloaded(AActor& InActor);
 	void OnActorDeleted_Internal(AActor* InActor, bool bShouldDirty, int32 LevelInstanceDepth);
-	void OnActorMoved(AActor* InActor);
-	void OnActorMoved_Internal(AActor* InActor, int32 LevelInstanceDepth);
 	void OnLandscapeChanged(ALandscapeProxy* InLandscape, const FLandscapeProxyComponentDataChangedParams& InChangeParams);
 	void ApplyLandscapeChanges(ALandscapeProxy* InLandscape);
 	void OnPreObjectPropertyChanged(UObject* InObject, const FEditPropertyChain& InEditPropertyChain);
@@ -162,22 +152,17 @@ private:
 	void UnregisterTracking(UPCGComponent* InComponent);
 
 	/** Unregister tracking when a component is removed or keys are unregistered */
-	void UnregisterTracking(UPCGComponent* InComponent, const TSet<TSoftObjectPtr<UObject>>* OptionalObjectsToUntrack);
+	void UnregisterTracking(UPCGComponent* InComponent, const TSet<FPCGSelectionKey>* OptionalKeysToUntrack);
 
-	/** Trigger an update when the actor changed. 
-	* Can specify if the actor has moved to also update components that were at its previous position.
+	/** Trigger an update when an object/actor changed.
+	* Can specify previous actor bounds if it has moved to also update components that were at its previous position.
 	* Can also specify an optional object, originating the change, to avoid re-dirtying a component if it was the origin.
 	* Another option when an actor is deleted/unload, don't refresh their components.
 	*/
-	void OnActorChanged(AActor* InActor, bool bInHasMoved, const UObject* InOriginatingChangeObject = nullptr, int32 LevelInstanceDepth = 0, bool bNoRefreshOnOwner = false);
+	void OnObjectChanged(UObject* InObject, const FBox& InPreviousBounds = FBox(EForceInit::ForceInit), const UObject* InOriginatingChangeObject = nullptr, int32 LevelInstanceDepth = 0, bool bNoRefreshOnOwner = false);
 
-	/** Update dependencies for a given tracked actor. */
-	void UpdateActorDependencies(AActor* InActor);
-
-	bool IsActorTracked(const AActor* InActor) const;
-
-	/** Gather all settings from a given component that track the actor, and clear the cache for them. Returns true if we should dirty afterwards (aka at least one settings was cleared and/or landscape changed). */
-	bool ClearCache(const UObject* InObject, const UPCGComponent* InComponent, const bool bIntersect, const TSet<FName>& InRemovedTags, const UObject* InOriginatingChange) const;
+	/** Gather all settings from a given component that track the key, and clear the cache for them. Returns true if we should dirty afterwards (aka at least one settings was cleared and/or landscape changed). */
+	bool ClearCacheForKeys(const TArray<FPCGSelectionKey>& InKeys, const UPCGComponent* InComponent, const bool bIntersect, const UObject* InOriginatingChange) const;
 #endif // WITH_EDITOR
 
 private:
@@ -212,28 +197,22 @@ private:
 	/** Will hold all the components that are not partitioned (and not local) and are tracking something. Will be use to dispatch actor tracking updates. */
 	FPCGComponentOctreeAndMap NonPartitionedOctree;
 
-	/** Keep a mapping between tracked actors and the components that track them, and the tracking needs to be culled.*/
-	TMap<TObjectKey<AActor>, TSet<UPCGComponent*>> CulledTrackedActorsToComponentsMap;
+	/** Keep a mapping between tracked keys and the components that track them, and the tracking needs to be culled.*/
+	TMap<FPCGSelectionKey, TSet<UPCGComponent*>> CulledTrackedKeysToComponentsMap;
 
-	/** Same mapping but for always tracked actors */
-	TMap<TObjectKey<AActor>, TSet<UPCGComponent*>> AlwaysTrackedActorsToComponentsMap;
-
-	/** Object tracking. Use soft pointers, because tracked objects might not be yet loaded. */
-	TMap<TSoftObjectPtr<UObject>, TSet<UPCGComponent*>> TrackedObjectsToComponentsMap;
-
-	/** Finally keep a mapping between actors and their position to know if an actor move in/out of a component tracking bounds. Only kept for actors that need to be culled. */
-	TMap<TObjectKey<AActor>, FBox> TrackedActorToPositionMap;
+	/** Same mapping but for always tracked keys */
+	TMap<FPCGSelectionKey, TSet<UPCGComponent*>> AlwaysTrackedKeysToComponentsMap;
 
 	mutable FRWLock TrackedComponentsLock;
 
 	// Keep track of actors that aren't yet ready (or if the subsystem is not yet ready), whether we should dirty them and their instance level depth so we can add them in next tick.
 	TMap<TObjectKey<AActor>, TTuple<bool, int>> DelayedAddedActors;
 
-	/** Keep a mapping between tracked actors and their dependencies. */
-	TMap<TObjectKey<AActor>, TSet<TObjectPtr<UObject>>> TrackedActorsToDependenciesMap;
-
 	/** Transient list of tags, kept when there is a tag change on a tracked Actor. */
 	TSet<FName> TempTrackedActorTags;
+
+	/** Transient map of actors and their previous bounds, to know when they move and update the components that were touching the actor before, but not anymore. */
+	TMap<TObjectKey<AActor>, FBox> ActorToPreviousBoundsMap;
 
 #if WITH_EDITOR
 	// Part for the delayed landscape change update

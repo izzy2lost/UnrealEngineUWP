@@ -3,6 +3,7 @@
 #include "PCGComponent.h"
 
 #include "PCGContext.h"
+#include "PCGCustomVersion.h"
 #include "PCGEngineSettings.h"
 #include "PCGGraph.h"
 #include "PCGInputOutputSettings.h"
@@ -369,6 +370,12 @@ FPCGTaskId UPCGComponent::CreateGenerateTask(bool bForce, const TArray<FPCGTaskI
 		return InvalidPCGTaskId;
 	}
 
+#if WITH_EDITOR
+	// No need for lock since it is not executed in parallel.
+	CurrentExecutionDynamicTracking.Empty();
+	CurrentExecutionDynamicTrackingSettings.Empty();
+#endif // WITH_EDITOR
+
 	return GetSubsystem()->ScheduleGraph(this, *AllDependencies);
 }
 
@@ -427,6 +434,10 @@ void UPCGComponent::PostProcessGraph(const FBox& InNewBounds, bool bInGenerated,
 
 			CallPostGenerateFunctions(Context);
 		}
+
+#if WITH_EDITOR
+		UpdateDynamicTracking();
+#endif // WITH_EDITOR
 	}
 
 	// Trigger notification - will be used by other tracking mechanisms
@@ -1215,7 +1226,23 @@ void UPCGComponent::Serialize(FArchive& Ar)
 	}
 #endif // WITH_EDITOR
 
+	Ar.UsingCustomVersion(FPCGCustomVersion::GUID);
+
 	Super::Serialize(Ar);
+
+#if WITH_EDITOR
+	int32 DataVersion = FPCGCustomVersion::LatestVersion;
+	if (Ar.IsLoading())
+	{
+		DataVersion = Ar.CustomVer(FPCGCustomVersion::GUID);
+	}
+
+	if (DataVersion >= FPCGCustomVersion::DynamicTrackingKeysSerializedInComponent)
+	{
+		Ar << DynamicallyTrackedKeysToSettings;
+	}
+#endif // WITH_EDITOR
+
 
 #if WITH_EDITOR
 	if (Ar.IsSaving() && CurrentEditingMode == EPCGEditorDirtyMode::Preview)
@@ -1691,41 +1718,37 @@ bool UPCGComponent::UpdateTrackingCache(TArray<FPCGSelectionKey>* OptionalChange
 		return false;
 	}
 
-	// Store in a temporary map to detect key changes.
-	TMap<FPCGSelectionKey, bool> NewTrackedKeysToCulling;
-
 	int32 FoundKeys = 0;
+
+	// Store in a temporary map to detect key changes.
+	FPCGSelectionKeyToSettingsMap NewTrackedKeysToSettings;
 
 	if (UPCGGraph* PCGGraph = GetGraph())
 	{
-		CachedTrackedKeysToSettings = PCGGraph->GetTrackedActorKeysToSettings();
+		NewTrackedKeysToSettings = PCGGraph->GetTrackedActorKeysToSettings();
 
 		// Also add a key for the landscape, with settings null and always culled, if we should track the landscape
 		if (ShouldTrackLandscape())
 		{
 			FPCGSelectionKey LandscapeKey = FPCGSelectionKey(ALandscapeProxy::StaticClass());
-			CachedTrackedKeysToSettings.FindOrAdd(LandscapeKey).Emplace(/*Settings*/nullptr, /*bIsCulled*/true);
+			NewTrackedKeysToSettings.FindOrAdd(LandscapeKey).Emplace(/*Settings*/nullptr, /*bIsCulled*/true);
 		}
 
 		// A tag should be culled, if only all the settings that track this tag should cull.
 		// Note that is only impact the fact that we track (or not) this tag.
 		// If a setting is marked as "should cull", it will only be dirtied (at least by default), if the actor with the
 		// given tag intersect with the component.
-		for (const TPair<FPCGSelectionKey, TArray<FPCGSettingsAndCulling>>& It : CachedTrackedKeysToSettings)
+		for (const TPair<FPCGSelectionKey, TArray<FPCGSettingsAndCulling>>& It : NewTrackedKeysToSettings)
 		{
 			const FPCGSelectionKey& Key = It.Key;
 
 			// Should cull only if all the settings requires a cull.
-			const bool bShouldCull = Algo::AllOf(It.Value, [](const FPCGSettingsAndCulling& SettingsAndCullingPair) { return SettingsAndCullingPair.Value; });
+			const bool bShouldCull = PCGSettings::IsKeyCulled(It.Value);
+			const TArray<FPCGSettingsAndCulling>* OldSettingsAndCulling = StaticallyTrackedKeysToSettings.Find(It.Key);
+			const bool OldCulling = OldSettingsAndCulling && PCGSettings::IsKeyCulled(*OldSettingsAndCulling);
+			const bool bNewKeyOrCullChanged = !OldSettingsAndCulling || (OldCulling != bShouldCull);
 
-			NewTrackedKeysToCulling.Emplace(Key, bShouldCull);
-
-			// Look for the key in the previous cached keys.
-			const bool* OldCulling = CachedTrackedKeysToCulling.Find(Key);
-			// It is a new key if we didn't find it. We also mark it changed if the key existed, but the culling changed.
-			const bool bNewKeyOrCullChanged = !OldCulling || (*OldCulling != bShouldCull);
-			// Then remove the key.
-			CachedTrackedKeysToCulling.Remove(Key);
+			StaticallyTrackedKeysToSettings.Remove(Key);
 
 			if (!bNewKeyOrCullChanged)
 			{
@@ -1740,18 +1763,18 @@ bool UPCGComponent::UpdateTrackingCache(TArray<FPCGSelectionKey>* OptionalChange
 		// At the end, we also have keys that were tracked but no more, so add them at the list of tracked keys
 		if (OptionalChangedKeys)
 		{
-			OptionalChangedKeys->Reserve(OptionalChangedKeys->Num() + CachedTrackedKeysToCulling.Num());
+			OptionalChangedKeys->Reserve(OptionalChangedKeys->Num() + StaticallyTrackedKeysToSettings.Num());
 
-			for (const TPair<FPCGSelectionKey, bool>& It : CachedTrackedKeysToCulling)
+			for (const TPair<FPCGSelectionKey, TArray<FPCGSettingsAndCulling>>& It : StaticallyTrackedKeysToSettings)
 			{
 				OptionalChangedKeys->Add(It.Key);
 			}
 		}
 	}
 
-	bool bHasChanged = CachedTrackedKeysToSettings.Num() != FoundKeys;
+	bool bHasChanged = NewTrackedKeysToSettings.Num() != FoundKeys;
 
-	CachedTrackedKeysToCulling = MoveTemp(NewTrackedKeysToCulling);
+	StaticallyTrackedKeysToSettings = MoveTemp(NewTrackedKeysToSettings);
 
 	return bHasChanged;
 }
@@ -2048,16 +2071,15 @@ bool UPCGComponent::ShouldGenerateBPPCGAddedToWorld() const
 	}
 }
 
-bool UPCGComponent::IsObjectTracked(const TSoftObjectPtr<UObject>& InObjectPtr, bool& bOutIsCulled) const
+bool UPCGComponent::IsObjectTracked(const UObject* InObject, bool& bOutIsCulled) const
 {
-	check(!InObjectPtr.IsNull());
+	check(InObject);
 
 	if (!GetOwner())
 	{
 		return false;
 	}
 
-	const UObject* InObject = InObjectPtr.Get();
 
 	// We should always track the owner of the component, without culling
 	if (GetOwner() == InObject)
@@ -2073,26 +2095,23 @@ bool UPCGComponent::IsObjectTracked(const TSoftObjectPtr<UObject>& InObjectPtr, 
 		return true;
 	}
 
-	bool bFound = false;
-
-	for (const TPair<FPCGSelectionKey, bool>& It : CachedTrackedKeysToCulling)
+	auto CheckMap = [this, &InObject, &bOutIsCulled](const FPCGSelectionKeyToSettingsMap& InMap) -> bool
 	{
-		if (It.Key.IsMatching(InObjectPtr, this))
+		for (const auto& It : InMap)
 		{
-			bOutIsCulled = It.Value;
-			bFound = true;
+			bool bFound = It.Key.IsMatching(InObject, this);
 
-			// Check for other tags that might not be culled
-			if (bOutIsCulled)
+			if (bFound)
 			{
-				continue;
+				bOutIsCulled = PCGSettings::IsKeyCulled(It.Value);
+				return true;
 			}
-
-			return true;
 		}
-	}
 
-	return bFound;
+		return false;
+	};
+
+	return CheckMap(StaticallyTrackedKeysToSettings) || CheckMap(DynamicallyTrackedKeysToSettings);
 }
 
 void UPCGComponent::OnRefresh(bool bForceRefresh, bool bForceCleanup)
@@ -2683,48 +2702,66 @@ UPCGSubsystem* UPCGComponent::GetSubsystem() const
 }
 
 #if WITH_EDITOR
-TArray<const UPCGSettings*> UPCGComponent::GatherSettingsTracking(const UObject* InObject, bool bIntersect, const TSet<FName>& InRemovedTags, const UObject* InOriginatingChangeObject) const
+void UPCGComponent::ApplyToEachSettings(const FPCGSelectionKey& InKey, const TFunctionRef<void(const FPCGSelectionKey&, const FPCGSettingsAndCulling&)> InCallback) const
 {
-	TRACE_CPUPROFILER_EVENT_SCOPE(UPCGComponent::GatherSettingsTracking);
+	TRACE_CPUPROFILER_EVENT_SCOPE(UPCGComponent::ApplyToEachSettings);
 
-	if (!InObject)
+	auto FindAndApplyInMap = [&InKey, &InCallback](const FPCGSelectionKeyToSettingsMap& InMap)
 	{
-		return {};
-	}
-
-	TArray<const UPCGSettings*> TrackedSettings;
-
-	for (const auto& It : CachedTrackedKeysToSettings)
-	{
-		const FPCGSelectionKey& Key = It.Key;
-
-		const bool bRemovedTagIsTracked = (Key.Selection == EPCGActorSelection::ByTag) && InRemovedTags.Contains(Key.Tag);
-
-		if (It.Key.IsMatching(InObject, this) || bRemovedTagIsTracked)
+		if (const TArray<FPCGSettingsAndCulling>* StaticallyTrackedSettings = InMap.Find(InKey))
 		{
-			// Extra care if the change originates from a PCGComponent. Only dirty if we are tracking a PCG component.
-			if (InOriginatingChangeObject && InOriginatingChangeObject->IsA<UPCGComponent>() 
-				&& (!It.Key.OptionalExtraDependency || !It.Key.OptionalExtraDependency->IsChildOf(UPCGComponent::StaticClass())))
+			for (const FPCGSettingsAndCulling& SettingsAndCulling : *StaticallyTrackedSettings)
 			{
-				continue;
-			}
-
-			for (const FPCGSettingsAndCulling& SettingsAndCulling : It.Value)
-			{
-				if (SettingsAndCulling.Value && !bIntersect)
-				{
-					continue;
-				}
-
-				if (const UPCGSettings* Settings = SettingsAndCulling.Key.Get())
-				{
-					TrackedSettings.Add(Settings);
-				}
+				InCallback(InKey, SettingsAndCulling);
 			}
 		}
+	};
+
+	FindAndApplyInMap(StaticallyTrackedKeysToSettings);
+	FindAndApplyInMap(DynamicallyTrackedKeysToSettings);
+}
+
+TArray<FPCGSelectionKey> UPCGComponent::GatherTrackingKeys() const
+{
+	TArray<FPCGSelectionKey> Keys;
+	Keys.Reserve(StaticallyTrackedKeysToSettings.Num() + DynamicallyTrackedKeysToSettings.Num());
+	for (const auto& It : StaticallyTrackedKeysToSettings)
+	{
+		Keys.Add(It.Key);
 	}
 
-	return TrackedSettings;
+	for (const auto& It : DynamicallyTrackedKeysToSettings)
+	{
+		Keys.Add(It.Key);
+	}
+
+	return Keys;
+}
+
+bool UPCGComponent::IsKeyTrackedAndCulled(const FPCGSelectionKey& Key, bool& bOutIsCulled) const
+{
+	bool bIsTracked = false;
+
+	bool bStaticallyCulled = true;
+	bool bDynamicallyCulled = true;
+
+	if (auto* It = StaticallyTrackedKeysToSettings.Find(Key))
+	{
+		bIsTracked = true;
+		bStaticallyCulled = PCGSettings::IsKeyCulled(*It);
+	}
+
+	if (auto* It = DynamicallyTrackedKeysToSettings.Find(Key))
+	{
+		bIsTracked = true;
+		bDynamicallyCulled = PCGSettings::IsKeyCulled(*It);
+	}
+
+	// If it is tracked statically and dynamically, we will cull only and only if both are culling.
+	// Otherwise, it means that at least one key requires to always track, so bOutIsCulled needs to be False.
+	bOutIsCulled = bIsTracked && bStaticallyCulled && bDynamicallyCulled;
+
+	return bIsTracked;
 }
 
 bool UPCGComponent::ShouldTrackLandscape() const
@@ -2741,6 +2778,127 @@ bool UPCGComponent::ShouldTrackLandscape() const
 		&& Algo::AnyOf(PCGGraph->GetInputNode()->GetOutputPins(), [](const UPCGPin* InPin) { return InPin && InPin->IsConnected(); });
 
 	return bUseLandscapePin || bHasLandscapeHasInput;
+}
+
+void UPCGComponent::RegisterDynamicTracking(const UPCGSettings* InSettings, const TArrayView<TPair<FPCGSelectionKey, bool>>& InDynamicKeysAndCulling)
+{
+	if (!InSettings)
+	{
+		return;
+	}
+
+	FScopeLock Lock(&CurrentExecutionDynamicTrackingLock);
+	CurrentExecutionDynamicTrackingSettings.Add(InSettings);
+
+	for (const TPair<FPCGSelectionKey, bool>& It : InDynamicKeysAndCulling)
+	{
+		CurrentExecutionDynamicTracking.FindOrAdd(It.Key).Emplace(InSettings, It.Value);
+	}
+}
+
+void UPCGComponent::UpdateDynamicTracking()
+{
+	TRACE_CPUPROFILER_EVENT_SCOPE(UPCGComponent::UpdateDynamicTracking);
+
+	UPCGSubsystem* Subsystem = GetSubsystem();
+	if (!Subsystem)
+	{
+		return;
+	}
+
+	// If the component is local, we defer the tracking to the original component.
+	// So move everything to the original (while making sure we are not duplicating keys/settings).
+	// Since it can happen in parallel, we need to lock.
+	if (IsLocalComponent())
+	{
+		TRACE_CPUPROFILER_EVENT_SCOPE(UPCGComponent::UpdateDynamicTracking::LocalComponent);
+
+		UPCGComponent* OriginalComponent = GetOriginalComponent();
+		FScopeLock Lock(&OriginalComponent->CurrentExecutionDynamicTrackingLock);
+		for (auto& It : CurrentExecutionDynamicTracking)
+		{
+			TArray<FPCGSettingsAndCulling>& OriginalSettingsAndCulling = OriginalComponent->CurrentExecutionDynamicTracking.FindOrAdd(It.Key);
+			for (FPCGSettingsAndCulling& SettingsAndCulling : It.Value)
+			{
+				OriginalSettingsAndCulling.AddUnique(std::move(SettingsAndCulling));
+			}
+		}
+
+		OriginalComponent->CurrentExecutionDynamicTrackingSettings.Append(CurrentExecutionDynamicTrackingSettings);
+
+		CurrentExecutionDynamicTracking.Empty();
+		CurrentExecutionDynamicTrackingSettings.Empty();
+		return;
+	}
+
+	TArray<FPCGSelectionKey> ChangedKeys;
+
+	// Locking to make sure we never hit this multiple times.
+	{
+		FScopeLock Lock(&CurrentExecutionDynamicTrackingLock);
+
+		// Go over all dynamic keys gathered during this execution.
+		// If they are not already tracked, we need to register this key.
+		// Otherwise, we need to gather all the settings that tracked this key that were not executed (because of caching).
+		for (auto& It : CurrentExecutionDynamicTracking)
+		{
+			if (TArray<FPCGSettingsAndCulling>* AllSettingsAndCulling = DynamicallyTrackedKeysToSettings.Find(It.Key))
+			{
+				for (FPCGSettingsAndCulling& SettingsAndCulling : *AllSettingsAndCulling)
+				{
+					if (SettingsAndCulling.Key.Get() && !CurrentExecutionDynamicTrackingSettings.Contains(SettingsAndCulling.Key.Get()))
+					{
+						It.Value.AddUnique(std::move(SettingsAndCulling));
+					}
+				}
+			}
+			else
+			{
+				ChangedKeys.Add(It.Key);
+			}
+		}
+
+		// Go over all already registered dynamic keys
+		// If they are not in the current execution gathered keys, we check if they are associated with settings that 
+		// were executed. If so, we re-add them to the current execution gathered keys.
+		// If not, it means that the key is no longer tracked and should be unregistered.
+		for (auto& It : DynamicallyTrackedKeysToSettings)
+		{
+			if (!CurrentExecutionDynamicTracking.Contains(It.Key))
+			{
+				TArray<FPCGSettingsAndCulling>* AllSettingsAndCulling = nullptr;
+
+				for (FPCGSettingsAndCulling& SettingsAndCulling : It.Value)
+				{
+					if (SettingsAndCulling.Key.Get() && !CurrentExecutionDynamicTrackingSettings.Contains(SettingsAndCulling.Key.Get()))
+					{
+						if (!AllSettingsAndCulling)
+						{
+							AllSettingsAndCulling = &CurrentExecutionDynamicTracking.Add(It.Key);
+						}
+
+						check(AllSettingsAndCulling);
+						// No need for Add Unique since they are already unique in the original map.
+						AllSettingsAndCulling->Add(std::move(SettingsAndCulling));
+					}
+				}
+
+				if (!AllSettingsAndCulling)
+				{
+					ChangedKeys.Add(It.Key);
+				}
+			}
+		}
+
+		DynamicallyTrackedKeysToSettings = std::move(CurrentExecutionDynamicTracking);
+		CurrentExecutionDynamicTracking.Empty();
+		CurrentExecutionDynamicTrackingSettings.Empty();
+	}
+
+	if (!ChangedKeys.IsEmpty())
+	{
+		Subsystem->UpdateComponentTracking(this, /*bShouldDirtyActors=*/false, &ChangedKeys);
+	}
 }
 
 #endif // WITH_EDITOR

@@ -1027,7 +1027,7 @@ void UPCGGraph::GetTrackedActorKeysToSettings(FPCGSelectionKeyToSettingsMap& Out
 		// Don't track for disabled nodes.
 		if (Settings && Settings->bEnabled)
 		{
-			Settings->GetTrackedActorKeys(OutTagsToSettings, OutVisitedGraphs);
+			Settings->GetStaticTrackedKeys(OutTagsToSettings, OutVisitedGraphs);
 		}
 	}
 

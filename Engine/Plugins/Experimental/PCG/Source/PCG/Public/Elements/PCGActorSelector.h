@@ -42,8 +42,11 @@ enum class EPCGActorFilter : uint8
 * Object can be selected using the EPCGActorSelection::ByClass or EPCGActorSelection::ByPath
 * Actors have more options for selection with Self/Parent/Root/Original and also EPCGActorSelection::ByTag
 */
+USTRUCT()
 struct FPCGSelectionKey
 {
+	GENERATED_BODY()
+
 	FPCGSelectionKey() = default;
 
 	// For all filters others than AllWorldActor. For AllWorldActors Filter, use the other constructors.
@@ -53,25 +56,38 @@ struct FPCGSelectionKey
 	explicit FPCGSelectionKey(TSubclassOf<UObject> InSelectionClass);
 
 	static FPCGSelectionKey CreateFromPath(const FSoftObjectPath& InObjectPath);
+	static FPCGSelectionKey CreateFromPath(FSoftObjectPath&& InObjectPath);
 
 	bool operator==(const FPCGSelectionKey& InOther) const;
 
 	friend uint32 GetTypeHash(const FPCGSelectionKey& In);
-	bool IsMatching(const TSoftObjectPtr<UObject>& InObjectPtr, const UPCGComponent* InComponent) const;
+	bool IsMatching(const UObject* InObject, const UPCGComponent* InComponent) const;
+	bool IsMatching(const UObject* InObject, const TSet<FName>& InRemovedTags, const TSet<UPCGComponent*>& InComponents, TSet<UPCGComponent*>& MatchedComponents) const;
 
 	void SetExtraDependency(const UClass* InExtraDependency);
 
+	UPROPERTY()
 	EPCGActorFilter ActorFilter = EPCGActorFilter::AllWorldActors;
+
+	UPROPERTY()
 	EPCGActorSelection Selection = EPCGActorSelection::Unknown;
+
+	UPROPERTY()
 	FName Tag = NAME_None;
+
+	UPROPERTY()
 	TSubclassOf<UObject> SelectionClass = nullptr;
 
 	// If the Selection is ByPath, contain the path to select.
+	UPROPERTY()
 	FSoftObjectPath ObjectPath;
 
 	// If it should track a specific object dependency instead of an actor. For example, GetActorData with GetPCGComponent data.
-	const UClass* OptionalExtraDependency = nullptr;
+	UPROPERTY()
+	TObjectPtr<const UClass> OptionalExtraDependency = nullptr;
 };
+
+FArchive& operator<<(FArchive& Ar, FPCGSelectionKey& Key);
 
 /** Helper struct for organizing queries against the world to gather actors. */
 USTRUCT(BlueprintType)

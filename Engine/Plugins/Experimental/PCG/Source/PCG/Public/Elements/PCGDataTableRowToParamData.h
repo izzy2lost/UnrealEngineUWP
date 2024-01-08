@@ -14,11 +14,18 @@ class UPCGDataTableRowToParamDataSettings : public UPCGSettings
 	GENERATED_BODY()
 
 public:
+	//~Begin UObject interface
+	virtual void PostLoad() override;
+	//~End UObject interface
+
 #if WITH_EDITOR
 	//~Begin UPCGSettings interface
 	virtual FName GetDefaultNodeName() const override { return FName(TEXT("DataTableRowToAttributeSet")); }
 	virtual FText GetDefaultNodeTitle() const override { return NSLOCTEXT("PCGDataTableRowToParamDataSettings", "NodeTitle", "Data Table Row To Attribute Set"); }
 	virtual EPCGSettingsType GetType() const override { return EPCGSettingsType::Metadata; }
+	virtual void GetStaticTrackedKeys(FPCGSelectionKeyToSettingsMap& OutKeysToSettings, TArray<TObjectPtr<const UPCGGraph>>& OutVisitedGraphs) const override;
+	virtual bool CanDynamicalyTrackKeys() const override { return true; }
+	virtual void ApplyDeprecationBeforeUpdatePins(UPCGNode* InOutNode, TArray<TObjectPtr<UPCGPin>>& InputPins, TArray<TObjectPtr<UPCGPin>>& OutputPins);
 #endif
 
 	virtual FString GetAdditionalTitleInformation() const override;
@@ -30,13 +37,15 @@ public:
 	UPROPERTY(BlueprintReadWrite, EditAnywhere, Category = Settings, meta = (PCG_Overridable))
 	FName RowName = NAME_None;	
 
-	// Path override, hidden to be only presented as param pin
-	UPROPERTY(BlueprintReadWrite, Category = Settings, meta = (PCG_Overridable))
-	FString PathOverride = FString();
-
 	// the data table to copy from
-	UPROPERTY(BlueprintReadWrite, EditAnywhere, Category = Settings)
+	UPROPERTY(BlueprintReadWrite, EditAnywhere, Category = Settings, meta = (PCG_Overridable, PCG_OverrideAliases = "PathOverride"))
 	TSoftObjectPtr<UDataTable> DataTable;
+
+#if WITH_EDITORONLY_DATA
+	UPROPERTY()
+	FString PathOverride_DEPRECATED = FString();
+#endif // 
+
 
 protected:
 #if WITH_EDITOR

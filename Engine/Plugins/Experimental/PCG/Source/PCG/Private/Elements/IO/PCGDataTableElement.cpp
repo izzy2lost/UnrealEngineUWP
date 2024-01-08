@@ -7,13 +7,14 @@
 #include "PCGParamData.h"
 #include "Data/PCGPointData.h"
 #include "Elements/IO/PCGExternalDataContext.h"
+#include "Helpers/PCGDynamicTrackingHelpers.h"
 
 #include "Engine/DataTable.h"
 
 #define LOCTEXT_NAMESPACE "PCGLoadDataTable"
 
 #if WITH_EDITOR
-void UPCGLoadDataTableSettings::GetTrackedActorKeys(FPCGSelectionKeyToSettingsMap& OutKeysToSettings, TArray<TObjectPtr<const UPCGGraph>>& OutVisitedGraphs) const
+void UPCGLoadDataTableSettings::GetStaticTrackedKeys(FPCGSelectionKeyToSettingsMap& OutKeysToSettings, TArray<TObjectPtr<const UPCGGraph>>& OutVisitedGraphs) const
 {
 	if (DataTable.IsNull())
 	{
@@ -268,6 +269,14 @@ bool FPCGLoadDataTableElement::ExecuteLoad(FPCGExternalDataContext* Context) con
 	}
 
 	PointDataAccessorMapping.RowKeys = MakeUnique<FPCGAttributeAccessorKeysGenericPtrs>(AllRows);
+
+#if WITH_EDITOR
+	// If we have an override, register for dynamic tracking.
+	if (Context->IsValueOverriden(GET_MEMBER_NAME_CHECKED(UPCGLoadDataTableSettings, DataTable)))
+	{
+		FPCGDynamicTrackingHelper::AddSingleDynamicTrackingKey(Context, FPCGSelectionKey::CreateFromPath(DataTable), /*bIsCulled=*/false);
+	}
+#endif // WITH_EDITOR
 	
 	return FPCGExternalDataElement::ExecuteLoad(Context);
 }

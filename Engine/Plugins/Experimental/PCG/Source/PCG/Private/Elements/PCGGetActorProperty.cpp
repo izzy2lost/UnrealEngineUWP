@@ -7,6 +7,7 @@
 #include "PCGComponent.h"
 #include "PCGParamData.h"
 #include "Helpers/PCGBlueprintHelpers.h"
+#include "Helpers/PCGDynamicTrackingHelpers.h"
 #include "Helpers/PCGPropertyHelpers.h"
 #include "Helpers/PCGHelpers.h"
 #include "Metadata/PCGAttributePropertySelector.h"
@@ -15,7 +16,7 @@
 #define LOCTEXT_NAMESPACE "PCGPropertyToParamDataElement"
 
 #if WITH_EDITOR
-void UPCGGetActorPropertySettings::GetTrackedActorKeys(FPCGSelectionKeyToSettingsMap& OutKeysToSettings, TArray<TObjectPtr<const UPCGGraph>>& OutVisitedGraphs) const
+void UPCGGetActorPropertySettings::GetStaticTrackedKeys(FPCGSelectionKeyToSettingsMap& OutKeysToSettings, TArray<TObjectPtr<const UPCGGraph>>& OutVisitedGraphs) const
 {
 	OutKeysToSettings.FindOrAdd(ActorSelector.GetAssociatedKey()).Emplace(this, bTrackActorsOnlyWithinBounds);
 }
@@ -162,7 +163,15 @@ bool FPCGGetActorPropertyElement::ExecuteInternal(FPCGContext* Context) const
 		const FPCGAttributePropertySelector Selector = FPCGAttributePropertySelector::CreateSelectorFromString(Settings->PropertyName.ToString());
 
 		PCGPropertyHelpers::FExtractorParameters Parameters{ ObjectToInspect, ObjectToInspect->GetClass(), Selector, Settings->OutputAttributeName, Settings->bForceObjectAndStructExtraction, /*bPropertyNeedsToBeVisible=*/true };
-		if (UPCGParamData* ParamData = PCGPropertyHelpers::ExtractPropertyAsAttributeSet(Parameters, Context))
+
+		// Don't care for object traversed in non-editor build, since it is only useful for tracking.
+		TSet<FSoftObjectPath>* ObjectTraversedPtr = nullptr;
+#if WITH_EDITOR
+		TSet<FSoftObjectPath> ObjectTraversed;
+		ObjectTraversedPtr = &ObjectTraversed;
+#endif // WITH_EDITOR
+
+		if (UPCGParamData* ParamData = PCGPropertyHelpers::ExtractPropertyAsAttributeSet(Parameters, Context, ObjectTraversedPtr))
 		{
 			TArray<FPCGTaggedData>& Outputs = Context->OutputData.TaggedData;
 			FPCGTaggedData& Output = Outputs.Emplace_GetRef();
@@ -179,6 +188,21 @@ bool FPCGGetActorPropertyElement::ExecuteInternal(FPCGContext* Context) const
 				PCGE_LOG(Error, GraphAndLog, FText::Format(LOCTEXT("FailedToExtract", "Fail to extract the property '{0}' on actor {1}."), Selector.GetDisplayText(), FText::FromString(FoundActor->GetName())));
 			}
 		}
+
+		// Register dynamic tracking
+#if WITH_EDITOR
+		if (!ObjectTraversed.IsEmpty())
+		{
+			FPCGDynamicTrackingHelper DynamicTracking;
+			DynamicTracking.EnableAndInitialize(Context, ObjectTraversed.Num());
+			for (FSoftObjectPath& Path : ObjectTraversed)
+			{
+				DynamicTracking.AddToTracking(FPCGSelectionKey::CreateFromPath(std::move(Path)), /*bCulled=*/false);
+			}
+
+			DynamicTracking.Finalize(Context);
+		}
+#endif // WITH_EDITOR
 	}
 
 	return true;

@@ -9,6 +9,8 @@
 #include "Elements/PCGActorSelector.h"
 #include "Tests/Determinism/PCGDeterminismSettings.h"
 
+#include "Algo/AllOf.h"
+
 #include "PCGSettings.generated.h"
 
 class UPCGComponent;
@@ -20,8 +22,17 @@ class UPCGGraph;
 class UPCGNode;
 class UPCGSettings;
 
-using FPCGSettingsAndCulling = TPair<TWeakObjectPtr<const UPCGSettings>, bool>;
+using FPCGSettingsAndCulling = TPair<TSoftObjectPtr<const UPCGSettings>, bool>;
 using FPCGSelectionKeyToSettingsMap = TMap<FPCGSelectionKey, TArray<FPCGSettingsAndCulling>>;
+
+namespace PCGSettings
+{
+	// A key is culled if and only if all the settings are culled.
+	inline bool IsKeyCulled(const TArray<FPCGSettingsAndCulling>& SettingsAndCulling)
+	{
+		return Algo::AllOf(SettingsAndCulling, [](const FPCGSettingsAndCulling& SettingsAndCullingPair) { return SettingsAndCullingPair.Value; });
+	}
+}
 
 UENUM()
 enum class EPCGSettingsExecutionMode : uint8
@@ -278,8 +289,11 @@ public:
 	/** Can override to add a custom icon next to the pin label (and an optional tooltip). Return false if no override is available. */
 	virtual bool GetPinExtraIcon(const UPCGPin* InPin, FName& OutExtraIcon, FText& OutTooltip) const;
 
-	/** Derived classes must implement this to communicate dependencies on external actors */
-	virtual void GetTrackedActorKeys(FPCGSelectionKeyToSettingsMap& OutKeysToSettings, TArray<TObjectPtr<const UPCGGraph>>& OutVisitedGraphs) const {}
+	/** Derived classes must implement this to communicate dependencies that are known statically. */
+	virtual void GetStaticTrackedKeys(FPCGSelectionKeyToSettingsMap& OutKeysToSettings, TArray<TObjectPtr<const UPCGGraph>>& OutVisitedGraphs) const {}
+
+	/** Derived classes must implement this to communicate that they might have dynamic dependencies. */
+	virtual bool CanDynamicalyTrackKeys() const { return false; }
 
 	/** Override this class to provide an UObject to jump to in case of double click on node
 	 *  ie. returning a blueprint instance will open the given blueprint in its editor.

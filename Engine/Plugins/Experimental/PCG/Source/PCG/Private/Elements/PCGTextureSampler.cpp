@@ -6,6 +6,7 @@
 #include "PCGContext.h"
 #include "PCGCrc.h"
 #include "Helpers/PCGBlueprintHelpers.h"
+#include "Helpers/PCGDynamicTrackingHelpers.h"
 #include "Helpers/PCGHelpers.h"
 #include "Helpers/PCGSettingsHelpers.h"
 
@@ -19,6 +20,19 @@
 #define LOCTEXT_NAMESPACE "PCGTextureSamplerElement"
 
 #if WITH_EDITOR
+void UPCGTextureSamplerSettings::GetStaticTrackedKeys(FPCGSelectionKeyToSettingsMap& OutKeysToSettings, TArray<TObjectPtr<const UPCGGraph>>& OutVisitedGraphs) const
+{
+	if (IsPropertyOverriddenByPin(GET_MEMBER_NAME_CHECKED(UPCGTextureSamplerSettings, Texture)) || Texture.IsNull())
+	{
+		// Dynamic tracking or null settings
+		return;
+	}
+
+	FPCGSelectionKey Key = FPCGSelectionKey::CreateFromPath(Texture.ToSoftObjectPath());
+
+	OutKeysToSettings.FindOrAdd(Key).Emplace(this, /*bCulling=*/false);
+}
+
 void UPCGTextureSamplerSettings::PostEditChangeProperty(FPropertyChangedEvent& PropertyChangedEvent) 
 {
 	if (PropertyChangedEvent.Property)
@@ -190,6 +204,14 @@ bool FPCGTextureSamplerElement::ExecuteInternal(FPCGContext* InContext) const
 	TextureData->Rotation = Rotation;
 	TextureData->bUseTileBounds = bUseTileBounds;
 	TextureData->TileBounds = FBox2D(TileBoundsMin, TileBoundsMax);
+
+#if WITH_EDITOR
+	// If we have an override, register for dynamic tracking.
+	if (Context->IsValueOverriden(GET_MEMBER_NAME_CHECKED(UPCGTextureSamplerSettings, Texture)))
+	{
+		FPCGDynamicTrackingHelper::AddSingleDynamicTrackingKey(Context, FPCGSelectionKey::CreateFromPath(Texture), /*bIsCulled=*/false);
+	}
+#endif // WITH_EDITOR
 
 	return false;
 }

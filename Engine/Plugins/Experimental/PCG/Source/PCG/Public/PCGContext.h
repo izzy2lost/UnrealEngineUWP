@@ -49,7 +49,7 @@ struct PCG_API FPCGContext
 {
 	GENERATED_BODY()
 
-	virtual ~FPCGContext() {}
+	virtual ~FPCGContext() = default;
 
 	FPCGDataCollection InputData;
 	FPCGDataCollection OutputData;
@@ -116,18 +116,19 @@ struct PCG_API FPCGContext
 	//  in properties in any case. This will be called from the graph executor when needed and is implemented to look like normal reference traversal.
 	void AddStructReferencedObjects(FReferenceCollector& Collector);
 
-protected:
-	virtual UObject* GetExternalContainerForOverridableParam(const FPCGSettingsOverridableParam& InParam) { return nullptr; }
-	virtual void* GetUnsafeExternalContainerForOverridableParam(const FPCGSettingsOverridableParam& InParam) { return nullptr; }
-	virtual void AddExtraStructReferencedObjects(FReferenceCollector& Collector) {}
-
-private:
+	/** Caution: most use cases should use GetInputSettings, because they contain the overridden values. Use this one if you really need to get the original pointer. */
 	template<typename SettingsType>
 	const SettingsType* GetOriginalSettings() const 
 	{
 		return PCGContextHelpers::GetInputSettings<SettingsType>(Node, InputData);
 	}
 
+protected:
+	virtual UObject* GetExternalContainerForOverridableParam(const FPCGSettingsOverridableParam& InParam) { return nullptr; }
+	virtual void* GetUnsafeExternalContainerForOverridableParam(const FPCGSettingsOverridableParam& InParam) { return nullptr; }
+	virtual void AddExtraStructReferencedObjects(FReferenceCollector& Collector) {}
+
+private:
 	// Copy of the settings that will be used to apply overrides.
 	TObjectPtr<UPCGSettings> SettingsWithOverride = nullptr;
 

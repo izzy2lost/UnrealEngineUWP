@@ -71,9 +71,10 @@ namespace PCGPropertyHelpers
 	/**
 	* Extract a given property in an Attribute Set.
 	* @param Parameters - Parameters for extaction, cf above.
-	* @prama InOptionalContext - Optional context if the extraction is done in a PCG Node, so errors are using the context to log.
+	* @param InOptionalContext - Optional context if the extraction is done in a PCG Node, so errors are using the context to log.
+	* @param OptionalObjectTraversed - Optional set to store all objects that we traversed, to be able to react to those objects changes.
 	*/
-	UPCGParamData* ExtractPropertyAsAttributeSet(const FExtractorParameters& Parameters, FPCGContext* InOptionalContext = nullptr);
+	UPCGParamData* ExtractPropertyAsAttributeSet(const FExtractorParameters& Parameters, FPCGContext* OptionalContext = nullptr, TSet<FSoftObjectPath>* OptionalObjectTraversed = nullptr);
 }
 
 //////

@@ -30,6 +30,11 @@ namespace PCGActorAndComponentMapping
 {
 	FBox GetActorBounds(const AActor* InActor)
 	{
+		if (!InActor)
+		{
+			return FBox(EForceInit::ForceInit);
+		}
+
 		FBox ActorBounds = InActor->GetComponentsBoundingBox();
 		if (!ActorBounds.IsValid && InActor->GetRootComponent() != nullptr)
 		{
@@ -824,8 +829,7 @@ void FPCGActorAndComponentMapping::RegisterTracking(UPCGComponent* InComponent)
 	}
 
 	// Components owner needs to be always tracked
-	RegisterActor(ComponentOwner);
-	AlwaysTrackedActorsToComponentsMap.FindOrAdd(ComponentOwner).Add(InComponent);
+	AlwaysTrackedKeysToComponentsMap.FindOrAdd(FPCGSelectionKey(EPCGActorFilter::Self)).Add(InComponent);
 
 	UpdateTracking(InComponent, /*bInShouldDirtyActors=*/ false);
 
@@ -864,138 +868,52 @@ void FPCGActorAndComponentMapping::UpdateTracking(UPCGComponent* InComponent, bo
 	TArray<FPCGSelectionKey> AllKeys;
 	if (ChangedKeys == nullptr)
 	{
-		InComponent->CachedTrackedKeysToSettings.GenerateKeyArray(AllKeys);
+		AllKeys = InComponent->GatherTrackingKeys();
 		ChangedKeys = &AllKeys;
 	}
 
 	check(ChangedKeys);
 
-	if (ChangedKeys->IsEmpty())
+	auto RemoveFromMap = [InComponent](TMap<FPCGSelectionKey, TSet<UPCGComponent*>>& InMap, const FPCGSelectionKey& InKey)
 	{
-		// Nothing to do
-		return;
-	}
-
-	// And we also need to find all actors that should be tracked
-	TSet<TSoftObjectPtr<UObject>> CandidatesForTracking;
-	TSet<TSoftObjectPtr<UObject>> CandidatesForUntracking;
-
-	auto GatherObjects = [this, InComponent, &CandidatesForTracking, &CandidatesForUntracking](const FPCGSelectionKey& InKey, bool bInShouldUntrack)
-	{
-		if (InKey.Selection == EPCGActorSelection::ByPath)
+		if (TSet<UPCGComponent*>* Components = InMap.Find(InKey))
 		{
-			// Don't track null objects
-			if (InKey.ObjectPath.IsNull())
+			Components->Remove(InComponent);
+			if (Components->IsEmpty())
 			{
-				return;
-			}
-
-			TSoftObjectPtr<UObject> Object(InKey.ObjectPath);
-			if (bInShouldUntrack && !CandidatesForTracking.Contains(Object))
-			{
-				CandidatesForUntracking.Add(Object);
-			}
-			else
-			{
-				CandidatesForTracking.Add(Object);
-				CandidatesForUntracking.Remove(Object);
-			}
-
-			return;
-		}
-
-		// InKey provide the info for selecting a given actor.
-		// We reconstruct the selector settings from this key, and we also force it to SelectMultiple, since
-		// we want to gather all the actors that matches this given key.
-		FPCGActorSelectorSettings SelectorSettings = FPCGActorSelectorSettings::ReconstructFromKey(InKey);
-		SelectorSettings.bSelectMultiple = true;
-		TArray<AActor*> AllActors = PCGActorSelector::FindActors(SelectorSettings, InComponent, [](const AActor*) { return true; }, [](const AActor*) { return true; });
-
-		for (AActor* Actor : AllActors)
-		{
-			if (!Actor)
-			{
-				continue;
-			}
-
-			if (bInShouldUntrack && !CandidatesForTracking.Contains(Actor))
-			{
-				CandidatesForUntracking.Add(Actor);
-			}
-			else
-			{
-				CandidatesForTracking.Add(Actor);
-				CandidatesForUntracking.Remove(Actor);
+				InMap.Remove(InKey);
 			}
 		}
 	};
 
 	for (const FPCGSelectionKey& Key : *ChangedKeys)
 	{
-		const bool bShouldUntrack = !InComponent->CachedTrackedKeysToSettings.Contains(Key);
-		GatherObjects(Key, bShouldUntrack);
-	}
-
-	const bool bDisableDelayedActorRegistering = PCGActorAndComponentMapping::CVarDisableDelayedActorRegistering.GetValueOnAnyThread();
-	for (const TSoftObjectPtr<UObject>& ObjectPtr : CandidatesForTracking)
-	{
-		AActor* Actor = Cast<AActor>(ObjectPtr.Get());
-
-		if (Actor && !Actor->HasActorRegisteredAllComponents() && !bDisableDelayedActorRegistering)
+		// bShouldBeCulled is modified in IsKeyTrackedAndCulled
+		bool bShouldBeCulled = false;
+		if (!InComponent->IsKeyTrackedAndCulled(Key, bShouldBeCulled))
 		{
-			DelayedAddedActors.Emplace(Actor, { false, 0 });
-			continue;
+			// Untrack
+			RemoveFromMap(CulledTrackedKeysToComponentsMap, Key);
+			RemoveFromMap(AlwaysTrackedKeysToComponentsMap, Key);
 		}
-
-		bool bShouldCull = false;
-		if (!InComponent->IsObjectTracked(ObjectPtr, bShouldCull))
+		else if (bShouldBeCulled)
 		{
-			continue;
-		}
-
-		if (Actor)
-		{
-			// Making sure that we only have the component in one map.
-			auto RemoveFromMap = [InComponent, Actor](TMap<TObjectKey<AActor>, TSet<UPCGComponent*>>& InMap)
-			{
-				if (TSet<UPCGComponent*>* Components = InMap.Find(Actor))
-				{
-					Components->Remove(InComponent);
-					if (Components->IsEmpty())
-					{
-						InMap.Remove(Actor);
-					}
-				}
-			};
-
-			if (bShouldCull)
-			{
-				CulledTrackedActorsToComponentsMap.FindOrAdd(Actor).Add(InComponent);
-				RemoveFromMap(AlwaysTrackedActorsToComponentsMap);
-			}
-			else
-			{
-				AlwaysTrackedActorsToComponentsMap.FindOrAdd(Actor).Add(InComponent);
-				RemoveFromMap(CulledTrackedActorsToComponentsMap);
-			}
-
-			RegisterActor(Actor);
+			RemoveFromMap(AlwaysTrackedKeysToComponentsMap, Key);
+			CulledTrackedKeysToComponentsMap.FindOrAdd(Key).Add(InComponent);
 		}
 		else
 		{
-			TrackedObjectsToComponentsMap.FindOrAdd(ObjectPtr).Add(InComponent);
+			RemoveFromMap(CulledTrackedKeysToComponentsMap, Key);
+			AlwaysTrackedKeysToComponentsMap.FindOrAdd(Key).Add(InComponent);
 		}
 	}
-
-	// Also unregister all keys that are not tracked anymore.
-	UnregisterTracking(InComponent, &CandidatesForUntracking);
 }
 
 void FPCGActorAndComponentMapping::RemapTracking(const UPCGComponent* InOldComponent, UPCGComponent* InNewComponent)
 {
-	auto ReplaceInMap = [InOldComponent, InNewComponent]<typename Key>(TMap<Key, TSet<UPCGComponent*>>& InMap)
+	auto ReplaceInMap = [InOldComponent, InNewComponent](TMap<FPCGSelectionKey, TSet<UPCGComponent*>>& InMap)
 	{
-		for (TPair<Key, TSet<UPCGComponent*>>& It : InMap)
+		for (TPair<FPCGSelectionKey, TSet<UPCGComponent*>>& It : InMap)
 		{
 			if (It.Value.Remove(InOldComponent) > 0)
 			{
@@ -1004,9 +922,8 @@ void FPCGActorAndComponentMapping::RemapTracking(const UPCGComponent* InOldCompo
 		}
 	};
 
-	ReplaceInMap(CulledTrackedActorsToComponentsMap);
-	ReplaceInMap(AlwaysTrackedActorsToComponentsMap);
-	ReplaceInMap(TrackedObjectsToComponentsMap);
+	ReplaceInMap(CulledTrackedKeysToComponentsMap);
+	ReplaceInMap(AlwaysTrackedKeysToComponentsMap);
 
 	// Old component will probably die, but we'll force removing the delegates even if it is const.
 	if (UPCGComponent* MutableOldComponent = const_cast<UPCGComponent*>(InOldComponent))
@@ -1023,79 +940,56 @@ void FPCGActorAndComponentMapping::RemapTracking(const UPCGComponent* InOldCompo
 	}
 }
 
-void FPCGActorAndComponentMapping::UnregisterTracking(UPCGComponent* InComponent, const TSet<TSoftObjectPtr<UObject>>* OptionalObjectsToUntrack)
+void FPCGActorAndComponentMapping::UnregisterTracking(UPCGComponent* InComponent, const TSet<FPCGSelectionKey>* OptionalKeysToUntrack)
 {
-	if (!InComponent || (OptionalObjectsToUntrack && OptionalObjectsToUntrack->IsEmpty()))
+	if (!InComponent)
 	{
 		return;
 	}
 
-	TSet<AActor*> ActorCandidatesForUntrack;
-
-	if (OptionalObjectsToUntrack)
+	TSet<FPCGSelectionKey> KeysToRemove;
+	auto RemoveAllFromMap = [InComponent, &KeysToRemove](TMap<FPCGSelectionKey, TSet<UPCGComponent*>>& InMap)
 	{
-		auto RemoveFromMap = [InComponent](auto& InMap, auto& Key, auto OnEmpty)
+		for (auto& It : InMap)
 		{
-			if (TSet<UPCGComponent*>* It = InMap.Find(Key))
+			It.Value.Remove(InComponent);
+			if (It.Value.IsEmpty())
 			{
-				It->Remove(InComponent);
-				if (It->IsEmpty())
-				{
-					OnEmpty(Key);
-				}
-			}
-		};
-
-		for (const TSoftObjectPtr<UObject>& ObjectPtr : *OptionalObjectsToUntrack)
-		{
-			if (AActor* Actor = Cast<AActor>(ObjectPtr.Get()))
-			{
-				RemoveFromMap(CulledTrackedActorsToComponentsMap, Actor, [&ActorCandidatesForUntrack](AActor* Actor) { ActorCandidatesForUntrack.Add(Actor); });
-				RemoveFromMap(AlwaysTrackedActorsToComponentsMap, Actor, [&ActorCandidatesForUntrack](AActor* Actor) { ActorCandidatesForUntrack.Add(Actor); });
-			}
-			else
-			{
-				RemoveFromMap(TrackedObjectsToComponentsMap, ObjectPtr, [this](const TSoftObjectPtr<UObject>& ObjectPtr) { UnregisterObject(ObjectPtr); });
+				KeysToRemove.Add(It.Key);
 			}
 		}
+	};
+
+	auto RemoveKeysFromMap = [InComponent, &KeysToRemove](TMap<FPCGSelectionKey, TSet<UPCGComponent*>>& InMap, const TSet<FPCGSelectionKey>& SetToIterateOn)
+	{
+		for (const FPCGSelectionKey& KeyIt : SetToIterateOn)
+		{
+			if (TSet<UPCGComponent*>* ComponentSetPtr = InMap.Find(KeyIt))
+			{
+				ComponentSetPtr->Remove(InComponent);
+				if (ComponentSetPtr->IsEmpty())
+				{
+					KeysToRemove.Add(KeyIt);
+				}
+			}
+		}
+	};
+
+	if (OptionalKeysToUntrack)
+	{
+		RemoveKeysFromMap(CulledTrackedKeysToComponentsMap, *OptionalKeysToUntrack);
+		RemoveKeysFromMap(AlwaysTrackedKeysToComponentsMap, *OptionalKeysToUntrack);
 	}
 	else
 	{
-		auto RemoveAllFromMap = [InComponent](auto& InMap, auto OnEmpty)
-		{
-			for (auto& It : InMap)
-			{
-				It.Value.Remove(InComponent);
-				if (It.Value.IsEmpty())
-				{
-					OnEmpty(It.Key);
-				}
-			}
-		};
-
-		RemoveAllFromMap(CulledTrackedActorsToComponentsMap, [&ActorCandidatesForUntrack](const TObjectKey<AActor>& ActorKey) { ActorCandidatesForUntrack.Add(ActorKey.ResolveObjectPtr()); });
-		RemoveAllFromMap(AlwaysTrackedActorsToComponentsMap, [&ActorCandidatesForUntrack](const TObjectKey<AActor>& ActorKey) { ActorCandidatesForUntrack.Add(ActorKey.ResolveObjectPtr()); });
-		RemoveAllFromMap(TrackedObjectsToComponentsMap, [this](const TSoftObjectPtr<UObject>& ObjectPtr) { UnregisterObject(ObjectPtr); });
+		RemoveAllFromMap(CulledTrackedKeysToComponentsMap);
+		RemoveAllFromMap(AlwaysTrackedKeysToComponentsMap);
 	}
 
-	// We also need to untrack actors that doesn't have any component that tracks them.
-	auto ShouldBeRemoved = [](const AActor* InActor, TMap<TObjectKey<AActor>, TSet<UPCGComponent*>>& InMap)
+	for (const FPCGSelectionKey& Key : KeysToRemove)
 	{
-		TSet<UPCGComponent*>* RegisteredComponents = InMap.Find(InActor);
-		return !RegisteredComponents || RegisteredComponents->IsEmpty();
-	};
-
-	for (AActor* Candidate : ActorCandidatesForUntrack)
-	{
-		if (!Candidate)
-		{
-			continue;
-		}
-
-		if (Candidate && ShouldBeRemoved(Candidate, AlwaysTrackedActorsToComponentsMap) && ShouldBeRemoved(Candidate, CulledTrackedActorsToComponentsMap))
-		{
-			UnregisterActor(Candidate);
-		}
+		CulledTrackedKeysToComponentsMap.Remove(Key);
+		AlwaysTrackedKeysToComponentsMap.Remove(Key);
 	}
 }
 
@@ -1112,6 +1006,11 @@ void FPCGActorAndComponentMapping::UnregisterTracking(UPCGComponent* InComponent
 	InComponent->OnPCGGraphCleanedDelegate.RemoveAll(this);
 }
 
+bool FPCGActorAndComponentMapping::IsKeyTracked(const FPCGSelectionKey& InKey) const
+{
+	return CulledTrackedKeysToComponentsMap.Contains(InKey) || AlwaysTrackedKeysToComponentsMap.Contains(InKey);
+}
+
 void FPCGActorAndComponentMapping::ResetPartitionActorsMap()
 {
 	PartitionActorsMapLock.WriteLock();
@@ -1121,7 +1020,6 @@ void FPCGActorAndComponentMapping::ResetPartitionActorsMap()
 
 void FPCGActorAndComponentMapping::RegisterTrackingCallbacks()
 {
-	GEngine->OnActorMoved().AddRaw(this, &FPCGActorAndComponentMapping::OnActorMoved);
 	GEngine->OnLevelActorAdded().AddRaw(this, &FPCGActorAndComponentMapping::OnActorAdded);
 	GEngine->OnLevelActorDeleted().AddRaw(this, &FPCGActorAndComponentMapping::OnActorDeleted);
 	FCoreUObjectDelegates::OnObjectPropertyChanged.AddRaw(this, &FPCGActorAndComponentMapping::OnObjectPropertyChanged);
@@ -1139,7 +1037,6 @@ void FPCGActorAndComponentMapping::RegisterTrackingCallbacks()
 
 void FPCGActorAndComponentMapping::TeardownTrackingCallbacks()
 {
-	GEngine->OnActorMoved().RemoveAll(this);
 	GEngine->OnLevelActorAdded().RemoveAll(this);
 	GEngine->OnLevelActorDeleted().RemoveAll(this);
 	FCoreUObjectDelegates::OnObjectPropertyChanged.RemoveAll(this);
@@ -1239,6 +1136,20 @@ void FPCGActorAndComponentMapping::OnActorAdded_Internal(AActor* InActor, bool b
 	TRACE_CPUPROFILER_EVENT_SCOPE(FPCGActorAndComponentMapping::OnActorAdded);
 	check(InActor && !InActor->IsA<APCGWorldActor>() && PCGSubsystem && InActor->GetWorld() == PCGSubsystem->GetWorld());
 
+	if (ALandscapeProxy* LandscapeProxy = Cast<ALandscapeProxy>(InActor))
+	{
+		if (!LandscapeProxy->OnComponentDataChanged.IsBoundToObject(this))
+		{
+			LandscapeProxy->OnComponentDataChanged.AddRaw(this, &FPCGActorAndComponentMapping::OnLandscapeChanged);
+		}
+	}
+
+	if (!bShouldDirty)
+	{
+		// Nothing to do
+		return;
+	}
+
 	// A delayed actor should only be added from AddDelayedActors(), because that guarantees the new actor has waited at
 	// least one tick for its properties to be popualated.
 	if (!bForceAddDelayedActor && DelayedAddedActors.Contains(InActor))
@@ -1285,142 +1196,8 @@ void FPCGActorAndComponentMapping::OnActorAdded_Internal(AActor* InActor, bool b
 	}
 #endif // WITH_EDITOR
 
-	if (AddOrUpdateTrackedActor(InActor) && bShouldDirty)
-	{
-		// Finally notify them all
-		OnActorChanged(InActor, /*bInHasMoved=*/ false, nullptr, LevelInstanceDepth);
-	}
-}
-
-bool FPCGActorAndComponentMapping::AddOrUpdateTrackedActor(AActor* InActor)
-{
-	// We have to make sure to not create a infinite loop
-	if (!InActor || InActor->IsA<APCGWorldActor>() || !PCGSubsystem || InActor->GetWorld() != PCGSubsystem->GetWorld())
-	{
-		return false;
-	}
-
-#if WITH_EDITOR
-	if (InActor->bIsEditorPreviewActor)
-	{
-		return false;
-	}
-#endif
-
-	// Gather all components, and check if they want to track this one
-	TSet<UPCGComponent*> AllComponents = GetAllRegisteredComponents();
-
-	TSet<UPCGComponent*>* CulledTrackedComponents = nullptr;
-	TSet<UPCGComponent*>* AlwaysTrackedComponents = nullptr;
-	
-	for (UPCGComponent* PCGComponent : AllComponents)
-	{
-		// Making sure that they are not currently waiting to die
-		{
-			FScopeLock Lock(&DelayedComponentToUnregisterLock);
-			if (DelayedComponentToUnregister.Contains(PCGComponent))
-			{
-				continue;
-			}
-		}
-
-		bool bTrackingIsCulled = false;
-		if (PCGComponent && PCGComponent->IsObjectTracked(InActor, bTrackingIsCulled))
-		{
-			if (bTrackingIsCulled)
-			{
-				if (!CulledTrackedComponents)
-				{
-					CulledTrackedComponents = &CulledTrackedActorsToComponentsMap.FindOrAdd(InActor);
-				}
-
-				check(CulledTrackedComponents);
-				CulledTrackedComponents->Add(PCGComponent);
-			}
-			else
-			{
-				if (!AlwaysTrackedComponents)
-				{
-					AlwaysTrackedComponents = &AlwaysTrackedActorsToComponentsMap.FindOrAdd(InActor);
-				}
-
-				check(AlwaysTrackedComponents);
-				AlwaysTrackedComponents->Add(PCGComponent);
-			}
-		}
-	}
-
-	if (CulledTrackedComponents || AlwaysTrackedComponents)
-	{
-		RegisterActor(InActor);
-		return true;
-	}
-	else if (IsActorTracked(InActor))
-	{
-		// Do some cleanup if the actor was tracked. 
-		// We will force the refresh here, so return false to make sure we don't refresh it twice.
-		OnActorDeleted(InActor);
-		return false;
-	}
-	else
-	{
-		// If it is not tracked, and should not be tracked, just do nothing.
-		return false;
-	}
-}
-
-void FPCGActorAndComponentMapping::RegisterActor(AActor* InActor)
-{
-	if (!InActor)
-	{
-		return;
-	}
-
-	if (ALandscapeProxy* LandscapeProxy = Cast<ALandscapeProxy>(InActor))
-	{
-		// Only add it once.
-		if (!TrackedActorToPositionMap.Contains(InActor))
-		{
-			LandscapeProxy->OnComponentDataChanged.AddRaw(this, &FPCGActorAndComponentMapping::OnLandscapeChanged);
-		}
-	}
-
-	TrackedActorToPositionMap.FindOrAdd(InActor) = PCGActorAndComponentMapping::GetActorBounds(InActor);
-
-	// Also gather dependencies
-	UpdateActorDependencies(InActor);
-}
-
-bool FPCGActorAndComponentMapping::UnregisterActor(AActor* InActor)
-{
-	if (!InActor)
-	{
-		return false;
-	}
-
-	if (IsActorTracked(InActor))
-	{
-		TrackedActorToPositionMap.Remove(InActor);
-		CulledTrackedActorsToComponentsMap.Remove(InActor);
-		AlwaysTrackedActorsToComponentsMap.Remove(InActor);
-		TrackedActorsToDependenciesMap.Remove(InActor);
-
-		if (ALandscapeProxy* LandscapeProxy = Cast<ALandscapeProxy>(InActor))
-		{
-			LandscapeProxy->OnComponentDataChanged.RemoveAll(this);
-		}
-
-		return true;
-	}
-	else
-	{
-		return false;
-	}
-}
-
-bool FPCGActorAndComponentMapping::UnregisterObject(const TSoftObjectPtr<UObject>& InObject)
-{
-	return TrackedObjectsToComponentsMap.Remove(InObject) > 0;
+	// Finally notify them all
+	OnObjectChanged(InActor, FBox(EForceInit::ForceInit), nullptr, LevelInstanceDepth);
 }
 
 void FPCGActorAndComponentMapping::OnActorUnloaded(AActor& InActor)
@@ -1465,6 +1242,17 @@ void FPCGActorAndComponentMapping::OnActorDeleted_Internal(AActor* InActor, bool
 	TRACE_CPUPROFILER_EVENT_SCOPE(UPCGActorAndComponentMapping::OnActorDeleted);
 	check(InActor && PCGSubsystem && InActor->GetWorld() == PCGSubsystem->GetWorld());
 
+	if (ALandscapeProxy* LandscapeProxy = Cast<ALandscapeProxy>(InActor))
+	{
+		LandscapeProxy->OnComponentDataChanged.RemoveAll(this);
+	}
+
+	if (!bShouldDirty)
+	{
+		// Nothing to do
+		return;
+	}
+
 #if WITH_EDITOR
 	// When editing/deleting/replacing a level instance, this will allow us to first remove the previously tracked actors that were under the level instance
 	if (ALevelInstanceEditorInstanceActor* LevelInstanceEditorInstance = Cast<ALevelInstanceEditorInstanceActor>(InActor))
@@ -1496,73 +1284,33 @@ void FPCGActorAndComponentMapping::OnActorDeleted_Internal(AActor* InActor, bool
 	});
 #endif // WITH_EDITOR
 
-	if (!IsActorTracked(InActor))
-	{
-		return;
-	}
-
-	if (bShouldDirty)
-	{
-		// Notify all components that the actor has changed (was removed), but the Refresh will only happen AFTER the actor was actually removed from the world (because of delayed refresh).
-		OnActorChanged(InActor, /*bInHasMoved=*/ false, nullptr, LevelInstanceDepth, /*bNoRefreshOnOwner=*/true);
-	}
-
-	// And then delete everything
-	UnregisterActor(InActor);
-}
-
-void FPCGActorAndComponentMapping::OnActorMoved(AActor* InActor)
-{
-	OnActorMoved_Internal(InActor, /*LevelInstanceDepth=*/0);
-}
-
-void FPCGActorAndComponentMapping::OnActorMoved_Internal(AActor* InActor, int32 LevelInstanceDepth)
-{
-	TRACE_CPUPROFILER_EVENT_SCOPE(FPCGActorAndComponentMapping::OnActorMoved);
-
-	if (!InActor || (PCGSubsystem && InActor->GetWorld() != PCGSubsystem->GetWorld()))
-	{
-		return;
-	}
-
-#if WITH_EDITOR
-	if (InActor->bIsEditorPreviewActor)
-	{
-		return;
-	}
-
-	// If we've moved a level instance actor, we instead "push" forward the notification while making sure this will
-	//  trigger changes at this "level" in the world hierarchy
-	PCGActorAndComponentMapping::PropagateToLevelInstanceActors(InActor, PCGSubsystem, [this, LevelInstanceDepth](AActor* LevelActor)
-	{
-		OnActorMoved_Internal(LevelActor, LevelInstanceDepth + 1);
-		return true;
-	});
-#endif
-
-	if (!IsActorTracked(InActor))
-	{
-		return;
-	}
-
-	// Notify all components
-	OnActorChanged(InActor, /*bInHasMoved=*/ true, nullptr, LevelInstanceDepth);
-
-	// Update Actor position
-	if (FBox* ActorBounds = TrackedActorToPositionMap.Find(InActor))
-	{
-		*ActorBounds = PCGActorAndComponentMapping::GetActorBounds(InActor);
-	}
+	// Notify all components that the actor has changed (was removed), but the Refresh will only happen AFTER the actor was actually removed from the world (because of delayed refresh).
+	OnObjectChanged(InActor, FBox(EForceInit::ForceInit), nullptr, LevelInstanceDepth, /*bNoRefreshOnOwner=*/true);
 }
 
 void FPCGActorAndComponentMapping::OnPreObjectPropertyChanged(UObject* InObject, const FEditPropertyChain& InEditPropertyChain)
 {
+	// Nothing to do if we track nothing
+	if (CulledTrackedKeysToComponentsMap.IsEmpty() && AlwaysTrackedKeysToComponentsMap.IsEmpty())
+	{
+		return;
+	}
+
 	// We want to track tags, to see if a tag was removed
 	TempTrackedActorTags.Empty();
 	FProperty* MemberProperty = InEditPropertyChain.GetActiveMemberNode() ? InEditPropertyChain.GetActiveMemberNode()->GetValue() : nullptr;
 	AActor* Actor = Cast<AActor>(InObject);
 
-	if (!Actor || (PCGSubsystem && Actor->GetWorld() != PCGSubsystem->GetWorld()) || !MemberProperty || MemberProperty->GetFName() != GET_MEMBER_NAME_CHECKED(AActor, Tags))
+	// Otherwise, if it's an actor component, track it as well
+	if (!Actor)
+	{
+		if (UActorComponent* ActorComponent = Cast<UActorComponent>(InObject))
+		{
+			Actor = ActorComponent->GetOwner();
+		}
+	}
+
+	if (!Actor || (PCGSubsystem && Actor->GetWorld() != PCGSubsystem->GetWorld()))
 	{
 		return;
 	}
@@ -1574,11 +1322,22 @@ void FPCGActorAndComponentMapping::OnPreObjectPropertyChanged(UObject* InObject,
 	}
 #endif
 
-	TempTrackedActorTags = TSet<FName>(Actor->Tags);
+	if (MemberProperty && MemberProperty->GetFName() == GET_MEMBER_NAME_CHECKED(AActor, Tags))
+	{
+		TempTrackedActorTags = TSet<FName>(Actor->Tags);
+	}
+
+	ActorToPreviousBoundsMap.FindOrAdd(Actor) = PCGActorAndComponentMapping::GetActorBounds(Actor);
 }
 
 void FPCGActorAndComponentMapping::OnObjectSaved(UObject* InObject, FObjectPreSaveContext InObjectSaveContext)
 {
+	// Nothing to do if we track nothing
+	if (CulledTrackedKeysToComponentsMap.IsEmpty() && AlwaysTrackedKeysToComponentsMap.IsEmpty())
+	{
+		return;
+	}
+
 	// Only trigger a refresh a new user data and if it is a data table
 	// We only track data table because we probably will catch other changes with OnObjectPropertyChanged.
 	// To avoid to force the check multiple times (on change + on save)
@@ -1593,6 +1352,12 @@ void FPCGActorAndComponentMapping::OnObjectPropertyChanged(UObject* InObject, FP
 {
 	TRACE_CPUPROFILER_EVENT_SCOPE(FPCGActorAndComponentMapping::OnObjectPropertyChanged);
 
+	// Nothing to do if we track nothing
+	if (CulledTrackedKeysToComponentsMap.IsEmpty() && AlwaysTrackedKeysToComponentsMap.IsEmpty())
+	{
+		return;
+	}
+
 	const bool bValueNotInteractive = (InEvent.ChangeType != EPropertyChangeType::Interactive);
 	// Special exception for actor tags, as we can't track otherwise an actor "losing" a tag
 	const bool bActorTagChange = (InEvent.Property && InEvent.Property->GetFName() == GET_MEMBER_NAME_CHECKED(AActor, Tags));
@@ -1604,11 +1369,6 @@ void FPCGActorAndComponentMapping::OnObjectPropertyChanged(UObject* InObject, FP
 	// Might be an over-optimistic approach, might need a revisit.
 	const bool bIsStaticMeshCompilationResult = bEventIsEmpty && InObject && InObject->IsA<UStaticMesh>()
 		&& FStaticMeshCompilingManager::Get().GetNumRemainingMeshes() > 0;
-
-	if ((!bValueNotInteractive && !bActorTagChange) || bIsTextureCompilationResult || bIsStaticMeshCompilationResult)
-	{
-		return;
-	}
 
 	// First check if it is an actor
 	AActor* Actor = Cast<AActor>(InObject);
@@ -1622,90 +1382,77 @@ void FPCGActorAndComponentMapping::OnObjectPropertyChanged(UObject* InObject, FP
 		}
 	}
 
-	// If we don't find any actor, try to see if it is a dependency
-	if (!Actor)
+	FBox PreviousBounds{ EForceInit::ForceInit };
+	ActorToPreviousBoundsMap.RemoveAndCopyValue(Actor, PreviousBounds);
+
+	if ((!bValueNotInteractive && !bActorTagChange) || bIsTextureCompilationResult || bIsStaticMeshCompilationResult)
 	{
-		if (TSet<UPCGComponent*>* Components = TrackedObjectsToComponentsMap.Find(InObject))
-		{
-			for (UPCGComponent* Component : *Components)
-			{
-				if (ClearCache(InObject, Component, /*bIntersect=*/ false, {}, InObject))
-				{
-					Component->DirtyGenerated();
-					Component->Refresh();
-				}
-			}
-		}
-
-		for (const TPair<TObjectKey<AActor>, TSet<TObjectPtr<UObject>>>& TrackedActor : TrackedActorsToDependenciesMap)
-		{
-			if (TrackedActor.Value.Contains(InObject))
-			{
-				if (AActor* ActorToChange = TrackedActor.Key.ResolveObjectPtr())
-				{
-					// Ignore property changes on delayed actors. All their properties are still being set.
-					if (DelayedAddedActors.Contains(ActorToChange))
-					{
-						return;
-					}
-
-					OnActorChanged(ActorToChange, /*bInHasMoved=*/ false, /*InOriginatingChangeObject=*/ InObject);
-					UpdateActorDependencies(ActorToChange);
-				}
-			}
-		}
-
 		return;
 	}
 
-	if (PCGSubsystem && Actor->GetWorld() != PCGSubsystem->GetWorld())
+	if (PCGSubsystem && Actor && Actor->GetWorld() != PCGSubsystem->GetWorld())
 	{
 		return;
 	}
 
 #if WITH_EDITOR
-	if (Actor->bIsEditorPreviewActor)
+	if (Actor && Actor->bIsEditorPreviewActor)
 	{
 		return;
 	}
 #endif
 
 	// Ignore property changes on delayed actors. All their properties are still being set.
-	if (DelayedAddedActors.Contains(Actor))
+	if (Actor && DelayedAddedActors.Contains(Actor))
 	{
 		return;
 	}
 
-	// Check if we are not tracking it or is a tag change.
-	bool bShouldChange = true;
-	if (!IsActorTracked(Actor) || bActorTagChange)
-	{
-		bShouldChange = AddOrUpdateTrackedActor(Actor);
-	}
-
-	if (bShouldChange)
-	{
-		OnActorChanged(Actor, /*bInHasMoved=*/ false, /*InOriginatingChangeObject=*/ InObject);
-	}
-	else
-	{
-		// Otherwise we are already tracking the actor, so update its dependencies
-		UpdateActorDependencies(Actor);
-	}
+	OnObjectChanged(Actor ? static_cast<UObject*>(Actor) : InObject, PreviousBounds, /*InOriginatingChangeObject=*/ InObject);
 }
 
-void FPCGActorAndComponentMapping::OnActorChanged(AActor* InActor, bool bInHasMoved, const UObject* InOriginatingChangeObject, int32 LevelInstanceDepth, bool bNoRefreshOwner)
+void FPCGActorAndComponentMapping::OnObjectChanged(UObject* InObject, const FBox& InPreviousBounds, const UObject* InOriginatingChangeObject, int32 LevelInstanceDepth, bool bNoRefreshOwner)
 {
-	TRACE_CPUPROFILER_EVENT_SCOPE(FPCGActorAndComponentMapping::OnActorChanged);
+	// Nothing to do if we track nothing
+	if (CulledTrackedKeysToComponentsMap.IsEmpty() && AlwaysTrackedKeysToComponentsMap.IsEmpty())
+	{
+		return;
+	}
 
-	check(InActor);
-	ensure(!PCGSubsystem || InActor->GetWorld() == PCGSubsystem->GetWorld());
+	TRACE_CPUPROFILER_EVENT_SCOPE(FPCGActorAndComponentMapping::OnObjectChanged);
 
-	TSet<UPCGComponent*>* CulledTrackedComponents = CulledTrackedActorsToComponentsMap.Find(InActor);
-	TSet<UPCGComponent*>* AlwaysTrackedComponents = AlwaysTrackedActorsToComponentsMap.Find(InActor);
+	check(InObject);
+	AActor* Actor = Cast<AActor>(InObject);
+
+	ensure(!PCGSubsystem || !Actor || Actor->GetWorld() == PCGSubsystem->GetWorld());
+
+	/** First gather all the components that are tracking this actor */
+	TSet<UPCGComponent*> CulledTrackedComponents;
+	TSet<UPCGComponent*> AlwaysTrackedComponents;
+	TArray<FPCGSelectionKey> MatchedKeys;
+
+	TSet<FName> RemovedTags;
+	if (Actor && !TempTrackedActorTags.IsEmpty())
+	{
+		RemovedTags = TempTrackedActorTags.Difference(TSet<FName>(Actor->Tags));
+	}
+
+	auto Gather = [InObject, &RemovedTags, &MatchedKeys](TMap<FPCGSelectionKey, TSet<UPCGComponent*>> InMap, TSet<UPCGComponent*>& OutSet)
+	{
+		for (auto& It : InMap)
+		{
+			if (It.Key.IsMatching(InObject, RemovedTags, It.Value, OutSet))
+			{
+				MatchedKeys.Add(It.Key);
+			}
+		}
+	};
+
+	Gather(CulledTrackedKeysToComponentsMap, CulledTrackedComponents);
+	Gather(AlwaysTrackedKeysToComponentsMap, AlwaysTrackedComponents);
 
 	// If this actor is not tracked, just early out
-	if (!CulledTrackedComponents && !AlwaysTrackedComponents)
+	if (CulledTrackedComponents.IsEmpty() && AlwaysTrackedComponents.IsEmpty())
 	{
 		return;
 	}
@@ -1713,24 +1460,46 @@ void FPCGActorAndComponentMapping::OnActorChanged(AActor* InActor, bool bInHasMo
 	TSet<UPCGComponent*> DirtyComponents;
 
 	EPCGComponentDirtyFlag DirtyFlag = EPCGComponentDirtyFlag::Actor;
-	if (InActor->IsA<ALandscapeProxy>())
+	if (InObject->IsA<ALandscapeProxy>())
 	{
 		DirtyFlag = DirtyFlag | EPCGComponentDirtyFlag::Landscape;
 	}
 
-	// Check if we have a change of tag too
-	TSet<FName> RemovedTags = TempTrackedActorTags.Difference(TSet<FName>(InActor->Tags));
-
 	// We need the actor bounds to know if we are intersecting, for the culled settings to be dirtied.
-	const FBox ActorBounds = PCGActorAndComponentMapping::GetActorBounds(InActor);
-	// We also need the OldActorBounds if it has moved, and is different than the new bounds.
-	FBox* OldActorBoundsPtr = bInHasMoved ? TrackedActorToPositionMap.Find(InActor) : nullptr;
-	if (OldActorBoundsPtr && OldActorBoundsPtr->Equals(ActorBounds))
+	const FBox ActorBounds = PCGActorAndComponentMapping::GetActorBounds(Actor);
+
 	{
-		OldActorBoundsPtr = nullptr;
+		TRACE_CPUPROFILER_EVENT_SCOPE(FPCGActorAndComponentMapping::OnActorChanged::AlwaysTrackedUpdate);
+
+		for (UPCGComponent* PCGComponent : AlwaysTrackedComponents)
+		{
+			if (!PCGComponent || PCGComponent == InOriginatingChangeObject || (bNoRefreshOwner && PCGComponent->GetOwner() == InObject))
+			{
+				continue;
+			}
+
+			// Don't mark "Owner changed" if the change originate from a PCG Component. It will be delegated to the ClearCacheForActor.
+			// It is necessary to avoid infine loops when there are multiple PCG components on one actor, and one component was generated.
+			const bool bOwnerChanged = (PCGComponent->GetOwner() == InObject) && (!InOriginatingChangeObject || !InOriginatingChangeObject->IsA<UPCGComponent>());
+			bool bShouldDirty = bOwnerChanged || (PCGComponent->ShouldTrackLandscape() && InObject->IsA<ALandscapeProxy>());
+
+			// Since when we clear the cache for a settings, we clear it all, it's only necessary to do it once on the original component. And we will dirty all the local components (with dirty dispatch)
+			if (!DirtyComponents.Contains(PCGComponent))
+			{
+				const FBox ComponentBounds = PCGComponent->GetGridBounds();
+				const bool bIntersect = bOwnerChanged || ActorBounds.Intersect(ComponentBounds);// || (OldActorBoundsPtr && OldActorBoundsPtr->Intersect(ComponentBounds));
+
+				bShouldDirty |= ClearCacheForKeys(MatchedKeys, PCGComponent, /*bIntersect=*/true, InOriginatingChangeObject);
+				if (bShouldDirty)
+				{
+					PCGComponent->DirtyGenerated(DirtyFlag, /*bDispatchToLocalComponents=*/true);
+					DirtyComponents.Add(PCGComponent);
+				}
+			}
+		}
 	}
 
-	if (CulledTrackedComponents)
+	if (!CulledTrackedComponents.IsEmpty())
 	{
 		// Keep a pointer to the current bounds we are looking at for the partition case. Set it to Actorbounds first, then will be set to old bounds if necessary.
 		const FBox* CurrentActorBoundsPtr = &ActorBounds;
@@ -1738,20 +1507,22 @@ void FPCGActorAndComponentMapping::OnActorChanged(AActor* InActor, bool bInHasMo
 		// Then do an octree find to get all components that intersect with this actor.
 		// If the actor has moved, we also need to find components that intersected with it before
 		// We first do it for non-partitioned, then we do it for partitioned
-		auto UpdateNonPartitioned = [this, &DirtyComponents, InActor, CulledTrackedComponents, &RemovedTags, DirtyFlag, InOriginatingChangeObject, bNoRefreshOwner](const FPCGComponentRef& ComponentRef) -> void
+		auto UpdateNonPartitioned = [this, &DirtyComponents, InObject, CulledTrackedComponents, &RemovedTags, DirtyFlag, InOriginatingChangeObject, bNoRefreshOwner, &MatchedKeys](const FPCGComponentRef& ComponentRef) -> void
 		{
 			TRACE_CPUPROFILER_EVENT_SCOPE(FPCGActorAndComponentMapping::OnActorChanged::UpdateNonPartitioned);
 
 			// Don't dirty if the component was already dirtied, not tracked, the origin of the change or its owner is the changed actor and we should not refresh.
-			if (DirtyComponents.Contains(ComponentRef.Component) || 
-				!CulledTrackedComponents->Contains(ComponentRef.Component) ||
+			if (DirtyComponents.Contains(ComponentRef.Component) ||
+				!CulledTrackedComponents.Contains(ComponentRef.Component) ||
 				(InOriginatingChangeObject == ComponentRef.Component) ||
-				(bNoRefreshOwner && ComponentRef.Component->GetOwner() == InActor))
+				(bNoRefreshOwner && ComponentRef.Component->GetOwner() == InObject))
 			{
 				return;
 			}
 
-			if (ClearCache(InActor, ComponentRef.Component, /*bIntersect=*/true, RemovedTags, InOriginatingChangeObject))
+			bool bShouldDirty = ComponentRef.Component->ShouldTrackLandscape() && InObject->IsA<ALandscapeProxy>();
+			bShouldDirty |= ClearCacheForKeys(MatchedKeys, ComponentRef.Component, /*bIntersect=*/true, InOriginatingChangeObject);
+			if (bShouldDirty)
 			{
 				ComponentRef.Component->DirtyGenerated(DirtyFlag);
 				DirtyComponents.Add(ComponentRef.Component);
@@ -1762,16 +1533,16 @@ void FPCGActorAndComponentMapping::OnActorChanged(AActor* InActor, bool bInHasMo
 
 		// For partitioned, we first need check if the original component intersect with the bounds, then forward the dirty call only to locals that intersect with the bounds.
 		// Note: CurrentActorBoundsPtr is passed by reference because it will be modified between lambda calls (cf comment above).
-		auto UpdatePartitioned = [this, &DirtyComponents, InActor, CulledTrackedComponents, &CurrentActorBoundsPtr, &RemovedTags, DirtyFlag, InOriginatingChangeObject, bNoRefreshOwner](const FPCGComponentRef& ComponentRef)  -> void
+		auto UpdatePartitioned = [this, &DirtyComponents, InObject, CulledTrackedComponents, &CurrentActorBoundsPtr, &RemovedTags, DirtyFlag, InOriginatingChangeObject, bNoRefreshOwner, &MatchedKeys](const FPCGComponentRef& ComponentRef)  -> void
 		{
 			TRACE_CPUPROFILER_EVENT_SCOPE(FPCGActorAndComponentMapping::OnActorChanged::UpdatePartitioned);
 
 			// Don't dirty if the component is not tracked, the origin of the change or its owner is the changed actor and we should not refresh.
 			// We can "re-dirty" it because changes can impact different local components, from the same
 			// original component.
-			if (!CulledTrackedComponents->Contains(ComponentRef.Component) ||
+			if (!CulledTrackedComponents.Contains(ComponentRef.Component) ||
 				(InOriginatingChangeObject == ComponentRef.Component) ||
-				(bNoRefreshOwner && ComponentRef.Component->GetOwner() == InActor))
+				(bNoRefreshOwner && ComponentRef.Component->GetOwner() == InObject))
 			{
 				return;
 			}
@@ -1785,12 +1556,14 @@ void FPCGActorAndComponentMapping::OnActorChanged(AActor* InActor, bool bInHasMo
 			}
 
 			const FBox Overlap = CurrentActorBoundsPtr->Overlap(ComponentBounds);
+			bool bShouldDirty = ComponentRef.Component->ShouldTrackLandscape() && InObject->IsA<ALandscapeProxy>();
+			bShouldDirty |= ClearCacheForKeys(MatchedKeys, ComponentRef.Component, /*bIntersect=*/true, InOriginatingChangeObject);
 			bool bWasDirtied = false;
 
 			// Since when we clear the cache for a settings, we clear it all, it's only necessary to do it once on the original component, then only dirty the local that intersects.
-			if (ClearCache(InActor, ComponentRef.Component, /*bIntersect=*/true, RemovedTags, InOriginatingChangeObject))
+			if (bShouldDirty)
 			{
-				ForAllIntersectingPartitionActors(Overlap, [InActor, Component = ComponentRef.Component, &bWasDirtied, DirtyFlag, InOriginatingChangeObject](APCGPartitionActor* InPartitionActor) -> void
+				ForAllIntersectingPartitionActors(Overlap, [InObject, Component = ComponentRef.Component, &bWasDirtied, DirtyFlag, InOriginatingChangeObject](APCGPartitionActor* InPartitionActor) -> void
 				{
 					if (UPCGComponent* LocalComponent = InPartitionActor->GetLocalComponent(Component))
 					{
@@ -1811,53 +1584,22 @@ void FPCGActorAndComponentMapping::OnActorChanged(AActor* InActor, bool bInHasMo
 		PartitionedOctree.FindElementsWithBoundsTest(ActorBounds, UpdatePartitioned);
 
 		// If it has moved, redo it with the old bounds.
-		if (OldActorBoundsPtr)
+		if (InPreviousBounds.IsValid)
 		{
 			TRACE_CPUPROFILER_EVENT_SCOPE(FPCGActorAndComponentMapping::OnActorChanged::SecondUpdateHasMoved);
 
 			// Set the actor bounds with the old one, to have the right Overlap in the Partition case.
-			CurrentActorBoundsPtr = OldActorBoundsPtr;
-			NonPartitionedOctree.FindElementsWithBoundsTest(*OldActorBoundsPtr, UpdateNonPartitioned);
-			PartitionedOctree.FindElementsWithBoundsTest(*OldActorBoundsPtr, UpdatePartitioned);
+			CurrentActorBoundsPtr = &InPreviousBounds;
+			NonPartitionedOctree.FindElementsWithBoundsTest(InPreviousBounds, UpdateNonPartitioned);
+			PartitionedOctree.FindElementsWithBoundsTest(InPreviousBounds, UpdatePartitioned);
 		}
 	}
 
 	// Finally, dirty all components that always track this actor that are not yet notified.
-	if (AlwaysTrackedComponents)
-	{
-		TRACE_CPUPROFILER_EVENT_SCOPE(FPCGActorAndComponentMapping::OnActorChanged::AlwaysTrackedUpdate);
-
-		for (UPCGComponent* PCGComponent : *AlwaysTrackedComponents)
-		{
-			if (!PCGComponent || PCGComponent == InOriginatingChangeObject || (bNoRefreshOwner && PCGComponent->GetOwner() == InActor))
-			{
-				continue;
-			}
-
-			// Don't mark "Owner changed" if the change originate from a PCG Component. It will be delegated to the ClearCacheForActor.
-			// It is necessary to avoid infine loops when there are multiple PCG components on one actor, and one component was generated.
-			const bool bOwnerChanged = (PCGComponent->GetOwner() == InActor) && (!InOriginatingChangeObject || !InOriginatingChangeObject->IsA<UPCGComponent>());
-			bool bWasDirtied = false;
-
-			// Since when we clear the cache for a settings, we clear it all, it's only necessary to do it once on the original component. And we will dirty all the local components (with dirty dispatch)
-			if (!DirtyComponents.Contains(PCGComponent))
-			{
-				const FBox ComponentBounds = PCGComponent->GetGridBounds();
-				const bool bIntersect = ActorBounds.Intersect(ComponentBounds) || (OldActorBoundsPtr && OldActorBoundsPtr->Intersect(ComponentBounds));
-				bWasDirtied = ClearCache(InActor, PCGComponent, /*bIntersect=*/bIntersect, RemovedTags, InOriginatingChangeObject);
-			}
-
-			if (bWasDirtied || bOwnerChanged)
-			{
-				PCGComponent->DirtyGenerated(DirtyFlag, /*bDispatchToLocalComponents=*/true);
-				DirtyComponents.Add(PCGComponent);
-			}
-		}
-	}
 
 	// If it is a landscape and we should discard the refresh, early out.
 	bool bIsInEditingMode = false;
-	ALandscapeProxy* Landscape = Cast<ALandscapeProxy>(InActor);
+	ALandscapeProxy* Landscape = Cast<ALandscapeProxy>(InObject);
 	if (PCGActorAndComponentMapping::ShouldDiscardLandscapeRefresh(Landscape, bIsInEditingMode, bIsCurrentlyExitingLandscapeEditMode))
 	{
 		// If we are in editing, keep track of all the dirtied landscape to refresh them when we exit.
@@ -1879,7 +1621,7 @@ void FPCGActorAndComponentMapping::OnActorChanged(AActor* InActor, bool bInHasMo
 			continue;
 		}
 
-		const bool bOwnerHasChanged = Component->GetOwner() == InActor;
+		const bool bOwnerHasChanged = Component->GetOwner() == InObject;
 
 		if ((!bNoRefreshOwner || !bOwnerHasChanged) && (!Component->bOnlyTrackItself || bOwnerHasChanged))
 		{
@@ -1887,9 +1629,9 @@ void FPCGActorAndComponentMapping::OnActorChanged(AActor* InActor, bool bInHasMo
 			// level hierarchy, otherwise we will end up generating in the Level Instance level, which is wrong.
 			// Note that in some instances (e.g. when something happens at the Level Instance level) we need to make sure that the
 			// PCG components higher-up are properly updated, hence the level instance depth
-			if (LevelInstanceSubsystem)
+			if (LevelInstanceSubsystem && Actor)
 			{
-				const ILevelInstanceInterface* ActorLevelInstance = LevelInstanceSubsystem->GetParentLevelInstance(InActor);
+				const ILevelInstanceInterface* ActorLevelInstance = LevelInstanceSubsystem->GetParentLevelInstance(Actor);
 				int LocalDepth = LevelInstanceDepth;
 				while (ActorLevelInstance && LocalDepth-- > 0)
 				{
@@ -1907,7 +1649,7 @@ void FPCGActorAndComponentMapping::OnActorChanged(AActor* InActor, bool bInHasMo
 					continue;
 				}
 			}
-			
+
 			Component->Refresh();
 		}
 	}
@@ -1938,35 +1680,7 @@ void FPCGActorAndComponentMapping::ApplyLandscapeChanges(ALandscapeProxy* InLand
 		return;
 	}
 	
-	// We don't know if the landscape moved, only that it has changed. Since `bHasMoved` is doing a bit more, always assume that the landscape has moved.
-	OnActorChanged(InLandscape, /*bHasMoved=*/true);
-
-	// Also update its dependencies
-	UpdateActorDependencies(InLandscape);
-}
-
-void FPCGActorAndComponentMapping::UpdateActorDependencies(AActor* InActor)
-{
-	if (!InActor)
-	{
-		return;
-	}
-
-	// Don't track what the PCG Component is already tracking (itself and graphs)
-	static const TArray<UClass*> ExcludedClasses =
-	{
-		UPCGComponent::StaticClass(),
-		UPCGGraphInterface::StaticClass(),
-		UMaterialInterface::StaticClass()
-	};
-
-
-	if (!PCGActorAndComponentMapping::CVarDisableObjectDependenciesTracking.GetValueOnAnyThread())
-	{
-		TSet<TObjectPtr<UObject>>& DependenciesSet = TrackedActorsToDependenciesMap.FindOrAdd(InActor);
-		DependenciesSet.Empty();
-		PCGHelpers::GatherDependencies(InActor, DependenciesSet, 1, ExcludedClasses);
-	}
+	OnObjectChanged(InLandscape, FBox(EForceInit::ForceInit), InLandscape);
 }
 
 void FPCGActorAndComponentMapping::OnPCGGraphGeneratedOrCleaned(UPCGComponent* InComponent)
@@ -1976,35 +1690,41 @@ void FPCGActorAndComponentMapping::OnPCGGraphGeneratedOrCleaned(UPCGComponent* I
 		return;
 	}
 
-	OnActorChanged(InComponent->GetOwner(), /*bInHasMoved=*/false, InComponent);
+	OnObjectChanged(InComponent->GetOwner(), FBox(EForceInit::ForceInit), InComponent);
 }
 
-bool FPCGActorAndComponentMapping::IsActorTracked(const AActor* InActor) const
+bool FPCGActorAndComponentMapping::ClearCacheForKeys(const TArray<FPCGSelectionKey>& InKeys, const UPCGComponent* InComponent, const bool bIntersect, const UObject* InOriginatingChange) const
 {
-	return InActor && (CulledTrackedActorsToComponentsMap.Contains(InActor) || AlwaysTrackedActorsToComponentsMap.Contains(InActor));
-}
-
-bool FPCGActorAndComponentMapping::ClearCache(const UObject* InObject, const UPCGComponent* InComponent, const bool bIntersect, const TSet<FName>& InRemovedTags, const UObject* InOriginatingChange) const
-{
-	check(InObject && InComponent);
+	check(InComponent);
 
 	if (!PCGSubsystem)
 	{
 		return false;
 	}
 
-	// Special case for the landscape. No settings associated, but we should dirty if the component is tracking the landscape.
-	bool bShouldDirty = InComponent->ShouldTrackLandscape() && InObject->IsA<ALandscapeProxy>();
-
-	for (const UPCGSettings* Settings : InComponent->GatherSettingsTracking(InObject, bIntersect, InRemovedTags, InOriginatingChange))
+	bool bShouldDirty = InComponent->ShouldTrackLandscape() && InOriginatingChange && InOriginatingChange->IsA<ALandscapeProxy>();
+	auto ClearCache = [this, InOriginatingChange, bIntersect, &bShouldDirty](const FPCGSelectionKey& Key, const FPCGSettingsAndCulling& SettingsAndCulling)
 	{
-		if (!Settings) 
+		if (!SettingsAndCulling.Key.IsValid() || (SettingsAndCulling.Value && !bIntersect))
 		{
-			continue;
+			return;
+		}
+
+		// Extra care if the change originates from a PCGComponent. Only dirty if we are tracking a PCG component.
+		if (InOriginatingChange && InOriginatingChange->IsA<UPCGComponent>()
+			&& (!Key.OptionalExtraDependency || !Key.OptionalExtraDependency->IsChildOf(UPCGComponent::StaticClass())))
+		{
+			return;
 		}
 
 		bShouldDirty = true;
+		const UPCGSettings* Settings = SettingsAndCulling.Key.Get();
 		PCGSubsystem->CleanFromCache(Settings->GetElement().Get(), Settings);
+	};
+
+	for (const FPCGSelectionKey& Key : InKeys)
+	{
+		InComponent->ApplyToEachSettings(Key, ClearCache);
 	}
 
 	return bShouldDirty;

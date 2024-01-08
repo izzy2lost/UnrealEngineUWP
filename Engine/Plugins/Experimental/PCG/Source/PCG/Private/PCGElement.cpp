@@ -174,6 +174,14 @@ void IPCGElement::PostExecute(FPCGContext* Context) const
 		Context->OutputData.Crc = Context->OutputData.ComputeCrc(bShouldComputeFullOutputDataCrc);
 	}
 
+#if WITH_EDITOR
+	// Register the element to the component indicating the element has run and can have dynamic tracked keys.
+	if (Settings && Settings->CanDynamicalyTrackKeys() && Context->SourceComponent.IsValid())
+	{
+		Context->SourceComponent->RegisterDynamicTracking(Settings, {});
+	}
+#endif // WITH_EDITOR
+
 	Context->CurrentPhase = EPCGExecutionPhase::Done;
 }
 

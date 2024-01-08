@@ -299,7 +299,7 @@ public:
 	/** Did the given node produce one or more data items in the given stack in a previous execution. */
 	bool HasNodeProducedData(const UPCGNode* InNode, const FPCGStack& Stack) const;
 
-	bool IsObjectTracked(const TSoftObjectPtr<UObject>& InObjectPtr, bool& bOutIsCulled) const;
+	bool IsObjectTracked(const UObject* InObject, bool& bOutIsCulled) const;
 
 	/** Know if we need to force a generation, in case of BP added to the world in editor */
 	bool ShouldGenerateBPPCGAddedToWorld() const;
@@ -309,6 +309,9 @@ public:
 
 	/** Get execution stack information. */
 	bool GetStackContext(FPCGStackContext& OutStackContext) const;
+
+	/** To be called by an element to notify the component that this settings have a dynamic dependency. */
+	void RegisterDynamicTracking(const UPCGSettings* InSettings, const TArrayView<TPair<FPCGSelectionKey, bool>>& InDynamicKeysAndCulling);
 #endif
 
 	/** Utility function (mostly for tests) to properly set the value of bIsComponentPartitioned.
@@ -437,14 +440,17 @@ private:
 	/** Returns true if something changed in the tracking. */
 	bool UpdateTrackingCache(TArray<FPCGSelectionKey>* OptionalChangedKeys = nullptr);
 
-	/** Gather all the settings that are tracking the given object. If it is an actor, the settings should cull and there is no intersection, it will not be added to the list.
-	* @param InObject                   The object the component is tracking. Can be an Actor (for culling).
-	* @param bIntersect                 If the actor is intersecting with the component. Useful for culling.
-	* @param InRemovedTags              List of tags that were removed, because the actor won't have those tags on it, but we still need to gather the settings that were tracking this tag. Can be empty.
-	* @param InOriginatingChangeObject: Optional pointer on the originating object that triggered the update. Useful to track PCGComponents generation/cleanup. Can be null.
-	* @return                           Array of all the settings that track the actor.
-	*/
-	TArray<const UPCGSettings*> GatherSettingsTracking(const UObject* InObject, const bool bIntersect, const TSet<FName>& InRemovedTags, const UObject* InOriginatingChangeObject) const;
+	/** Apply a function to all settings that track a given key. */
+	void ApplyToEachSettings(const FPCGSelectionKey& InKey, const TFunctionRef<void(const FPCGSelectionKey&, const FPCGSettingsAndCulling&)> InCallback) const;
+
+	/** Return all the keys tracked by the component (statically and dynamically). */
+	TArray<FPCGSelectionKey> GatherTrackingKeys() const;
+
+	/** Return true if the key is tracked, and if so, bOutIsCulled will contains if the key is culled or not. */
+	bool IsKeyTrackedAndCulled(const FPCGSelectionKey& Key, bool& bOutIsCulled) const;
+
+	/** Compare the temp map to the stored map for dynamic tracking and register/unregister accordingly. If it is a local component, it will push the info to the original. */
+	void UpdateDynamicTracking();
 
 	bool ShouldTrackLandscape() const;
 
@@ -515,12 +521,21 @@ private:
 #if WITH_EDITOR
 	int32 InspectionCounter = 0;
 	FBox LastGeneratedBoundsPriorToUndo = FBox(EForceInit::ForceInit);
-	FPCGSelectionKeyToSettingsMap CachedTrackedKeysToSettings;
-
-	TMap<FPCGSelectionKey, bool> CachedTrackedKeysToCulling;
 #endif
 
 #if WITH_EDITORONLY_DATA
+	FPCGSelectionKeyToSettingsMap StaticallyTrackedKeysToSettings;
+
+	// Temporary storage for dynamic tracking that will be filled during component execution.
+	FPCGSelectionKeyToSettingsMap CurrentExecutionDynamicTracking;
+	// Temporary storage for dynamic tracking that will keep all settings that could have dynamic tracking, in order to detect changes.
+	TSet<const UPCGSettings*> CurrentExecutionDynamicTrackingSettings;
+	mutable FCriticalSection CurrentExecutionDynamicTrackingLock;
+
+	// Need to keep a reference to all tracked settings to still react to changes after a map load (since the component won't have been executed).
+	// Serialization will be done in the Serialize function
+	FPCGSelectionKeyToSettingsMap DynamicallyTrackedKeysToSettings;
+
 	UPROPERTY(Transient)
 	TMap<FPCGStack, FPCGDataCollection> InspectionCache;
 #endif

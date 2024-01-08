@@ -34,15 +34,16 @@ namespace PCGPropertyHelpers
 
 	/**
 	* Recursive function to go down the property chain to find the property and its container address.
-	* @param CurrentClass      Struct/Class for the current container
-	* @param CurrentName       Property name to look for in the container class.
-	* @param NextNames         List of property names to continue extracting at a deeper level.
-	* @param bNeedsToBeVisible Discard properties that are not visibile in Blueprint
-	* @param OutContainer      Raw address for the current container. Will be write to at each recursive call.
-	* @param OptionalContext   Optional context used for logging.
+	* @param CurrentClass            Struct/Class for the current container
+	* @param CurrentName             Property name to look for in the container class.
+	* @param NextNames               List of property names to continue extracting at a deeper level.
+	* @param bNeedsToBeVisible       Discard properties that are not visibile in Blueprint
+	* @param OutContainer            Raw address for the current container. Will be write to at each recursive call.
+	* @param OptionalContext         Optional context used for logging.
+	* @param OptionalObjectTraversed Optional set to store all object that we traversed, to be able to react to those objects changes.
 	* @returns                 The last property of the chain (and its container address is in OutContainer)
 	*/
-	const FProperty* ExtractPropertyChain(const UStruct* CurrentClass, const FName CurrentName, TArrayView<const FString> NextNames, const bool bNeedsToBeVisible, const void*& OutContainer, FPCGContext* OptionalContext)
+	const FProperty* ExtractPropertyChain(const UStruct* CurrentClass, const FName CurrentName, TArrayView<const FString> NextNames, const bool bNeedsToBeVisible, const void*& OutContainer, FPCGContext* OptionalContext, TSet<FSoftObjectPath>* OptionalObjectTraversed)
 	{
 		check(CurrentClass);
 
@@ -98,7 +99,7 @@ namespace PCGPropertyHelpers
 				return nullptr;
 			}
 
-			return ExtractPropertyChain(NextClass, FName(NextNames[0]), NextNames.RightChop(1), bNeedsToBeVisible, OutContainer, OptionalContext);
+			return ExtractPropertyChain(NextClass, FName(NextNames[0]), NextNames.RightChop(1), bNeedsToBeVisible, OutContainer, OptionalContext, OptionalObjectTraversed);
 		}
 		else
 		{
@@ -125,7 +126,7 @@ EPCGMetadataTypes PCGPropertyHelpers::GetMetadataTypeFromProperty(const FPropert
 	return PropertyAccessor.IsValid() ? EPCGMetadataTypes(PropertyAccessor->GetUnderlyingType()) : EPCGMetadataTypes::Unknown;
 }
 
-UPCGParamData* PCGPropertyHelpers::ExtractPropertyAsAttributeSet(const PCGPropertyHelpers::FExtractorParameters& Parameters, FPCGContext* InOptionalContext)
+UPCGParamData* PCGPropertyHelpers::ExtractPropertyAsAttributeSet(const PCGPropertyHelpers::FExtractorParameters& Parameters, FPCGContext* OptionalContext, TSet<FSoftObjectPath>* OptionalObjectTraversed)
 {
 	check(Parameters.Container && Parameters.Class);
 
@@ -136,7 +137,7 @@ UPCGParamData* PCGPropertyHelpers::ExtractPropertyAsAttributeSet(const PCGProper
 	// If Name is none, extract the container as-is, using Parameters.Class, otherwise, extract the chain.
 	if (!ExtractRoot)
 	{
-		Property = ExtractPropertyChain(Parameters.Class, PropertyName, Parameters.PropertySelector.GetExtraNames(), Parameters.bPropertyNeedsToBeVisible, Container, InOptionalContext);
+		Property = ExtractPropertyChain(Parameters.Class, PropertyName, Parameters.PropertySelector.GetExtraNames(), Parameters.bPropertyNeedsToBeVisible, Container, OptionalContext, OptionalObjectTraversed);
 		if (!Property)
 		{
 			return nullptr;
@@ -159,6 +160,9 @@ UPCGParamData* PCGPropertyHelpers::ExtractPropertyAsAttributeSet(const PCGProper
 	// Force extraction if the property is not supported by accessors.
 	const bool bShouldExtract = Parameters.bShouldExtract || !PCGAttributeAccessorHelpers::IsPropertyAccessorSupported(Property);
 
+	// Keep track if the extracted property is an object or not
+	const FObjectProperty* ObjectProperty = CastField<FObjectProperty>(Property);
+
 	// Special case where the property is a struct/object, that is not supported by our metadata, we will try to break it down to multiple attributes in the resulting param data, if asked.
 	if (ExtractRoot || ((Property->IsA<FStructProperty>() || Property->IsA<FObjectProperty>()) && bShouldExtract))
 	{
@@ -175,7 +179,7 @@ UPCGParamData* PCGPropertyHelpers::ExtractPropertyAsAttributeSet(const PCGProper
 			UnderlyingClass = StructProperty->Struct;
 			AddressFunc = [StructProperty](const void* InAddress) { return StructProperty->ContainerPtrToValuePtr<void>(InAddress); };
 		}
-		else if (const FObjectProperty* ObjectProperty = CastField<FObjectProperty>(Property))
+		else if (ObjectProperty)
 		{
 			UnderlyingClass = ObjectProperty->PropertyClass;
 			AddressFunc = [ObjectProperty](const void* InAddress) { return ObjectProperty->GetObjectPropertyValue_InContainer(InAddress); };
@@ -224,7 +228,7 @@ UPCGParamData* PCGPropertyHelpers::ExtractPropertyAsAttributeSet(const PCGProper
 
 	if (ExtractableProperties.IsEmpty())
 	{
-		LogError(LOCTEXT("NoPropertiesFound", "No properties found to extract"), InOptionalContext);
+		LogError(LOCTEXT("NoPropertiesFound", "No properties found to extract"), OptionalContext);
 		return nullptr;
 	}
 
@@ -261,19 +265,28 @@ UPCGParamData* PCGPropertyHelpers::ExtractPropertyAsAttributeSet(const PCGProper
 		// Add a new entry for all elements
 		PCGMetadataEntryKey EntryKey = Metadata->AddEntry();
 
+		// Offset the address if needed
+		const void* ContainerPtr = AddressFunc(ElementAddress);
+
 		for (ExtractablePropertyTuple& ExtractableProperty : ExtractableProperties)
 		{
 			const FName AttributeName = ExtractableProperty.Get<0>();
 			const FProperty* FinalProperty = ExtractableProperty.Get<1>();
 
-			// Offset the address if needed
-			const void* ContainerPtr = AddressFunc(ElementAddress);
-
 			if (!Metadata->SetAttributeFromDataProperty(AttributeName, EntryKey, ContainerPtr, FinalProperty, /*bCreate=*/ true))
 			{
-				LogError(FText::Format(LOCTEXT("ErrorCreatingAttribute", "Error while creating an attribute for property '{0}'. Either the property type is not supported by PCG or attribute creation failed."), FText::FromString(FinalProperty->GetName())), InOptionalContext);
+				LogError(FText::Format(LOCTEXT("ErrorCreatingAttribute", "Error while creating an attribute for property '{0}'. Either the property type is not supported by PCG or attribute creation failed."), FText::FromString(FinalProperty->GetName())), OptionalContext);
 				bValidOperation = false;
 				break;
+			}
+		}
+
+		if (bValidOperation && bShouldExtract && OptionalObjectTraversed && ObjectProperty)
+		{
+			const UObject* Object = ObjectProperty->GetPropertyValue_InContainer(ElementAddress);
+			if (IsValid(Object))
+			{
+				OptionalObjectTraversed->Add(Object);
 			}
 		}
 	}

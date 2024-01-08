@@ -2,7 +2,9 @@
 
 #include "Elements/PCGGetPropertyFromObjectPath.h"
 
+#include "PCGComponent.h"
 #include "PCGParamData.h"
+#include "Helpers/PCGDynamicTrackingHelpers.h"
 #include "Helpers/PCGPropertyHelpers.h"
 #include "Metadata/Accessors/IPCGAttributeAccessor.h"
 #include "Metadata/Accessors/PCGAttributeAccessorKeys.h"
@@ -13,8 +15,15 @@
 #define LOCTEXT_NAMESPACE "PCGGetPropertyFromObjectPathElement"
 
 #if WITH_EDITOR
-void UPCGGetPropertyFromObjectPathSettings::GetTrackedActorKeys(FPCGSelectionKeyToSettingsMap& OutKeysToSettings, TArray<TObjectPtr<const UPCGGraph>>& OutVisitedGraphs) const
+void UPCGGetPropertyFromObjectPathSettings::GetStaticTrackedKeys(FPCGSelectionKeyToSettingsMap& OutKeysToSettings, TArray<TObjectPtr<const UPCGGraph>>& OutVisitedGraphs) const
 {
+	// If input pin is connected, tracking is dynamic.
+	const UPCGNode* Node = Cast<const UPCGNode>(GetOuter());
+	if (Node && Node->IsInputPinConnected(PCGPinConstants::DefaultInputLabel))
+	{
+		return;
+	}
+
 	for (const FSoftObjectPath& ObjectPath : ObjectPathsToExtract)
 	{
 		if (ObjectPath.IsNull())
@@ -288,6 +297,16 @@ bool FPCGGetPropertyFromObjectPathElement::ExecuteInternal(FPCGContext* Context)
 		}
 	};
 
+#if WITH_EDITOR
+	FPCGDynamicTrackingHelper DynamicTrackingHelper;
+	UPCGComponent* SourceComponent = Context->SourceComponent.Get();
+	const bool IsDynamicallyTracking = (SourceComponent && Context->Node) ? Context->Node->IsInputPinConnected(PCGPinConstants::DefaultInputLabel) : false;
+	if (IsDynamicallyTracking)
+	{
+		DynamicTrackingHelper.EnableAndInitialize(ThisContext, ThisContext->PathsToObjectsToExtractAndIncomingDataIndex.Num());
+	}
+#endif // WITH_EDITOR
+
 	for (const TTuple<FSoftObjectPath, int32>& SoftPathAndIndex : ThisContext->PathsToObjectsToExtractAndIncomingDataIndex)
 	{
 		const FSoftObjectPath& SoftPath = SoftPathAndIndex.Get<FSoftObjectPath>();
@@ -322,6 +341,9 @@ bool FPCGGetPropertyFromObjectPathElement::ExecuteInternal(FPCGContext* Context)
 		if (UPCGParamData* ParamData = PCGPropertyHelpers::ExtractPropertyAsAttributeSet(Parameters, Context))
 		{
 			AddToOutput(ParamData, Index);
+#if WITH_EDITOR
+			DynamicTrackingHelper.AddToTracking(FPCGSelectionKey::CreateFromPath(SoftPath), /*bIsCulled=*/ false);
+#endif // WITH_EDITOR
 		}
 		else
 		{
@@ -335,6 +357,10 @@ bool FPCGGetPropertyFromObjectPathElement::ExecuteInternal(FPCGContext* Context)
 			}
 		}
 	}
+
+#if WITH_EDITOR
+	DynamicTrackingHelper.Finalize(ThisContext);
+#endif // WITH_EDITOR
 
 	return true;
 }

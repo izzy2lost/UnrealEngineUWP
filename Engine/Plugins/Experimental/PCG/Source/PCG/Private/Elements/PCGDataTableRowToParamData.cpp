@@ -6,6 +6,7 @@
 #include "PCGParamData.h"
 #include "PCGPin.h"
 #include "PCGModule.h"
+#include "Helpers/PCGDynamicTrackingHelpers.h"
 #include "Metadata/PCGMetadata.h"
 
 #include "Engine/DataTable.h"
@@ -13,6 +14,29 @@
 #include UE_INLINE_GENERATED_CPP_BY_NAME(PCGDataTableRowToParamData)
 
 #define LOCTEXT_NAMESPACE "PCGDataTableRowToParamDataElement"
+
+#if WITH_EDITOR
+void UPCGDataTableRowToParamDataSettings::GetStaticTrackedKeys(FPCGSelectionKeyToSettingsMap& OutKeysToSettings, TArray<TObjectPtr<const UPCGGraph>>& OutVisitedGraphs) const
+{
+	if (IsPropertyOverriddenByPin(GET_MEMBER_NAME_CHECKED(UPCGDataTableRowToParamDataSettings, DataTable)) || DataTable.IsNull())
+	{
+		// Dynamic tracking or null settings
+		return;
+	}
+
+	FPCGSelectionKey Key = FPCGSelectionKey::CreateFromPath(DataTable.ToSoftObjectPath());
+
+	OutKeysToSettings.FindOrAdd(Key).Emplace(this, /*bCulling=*/false);
+}
+
+void UPCGDataTableRowToParamDataSettings::ApplyDeprecationBeforeUpdatePins(UPCGNode* InOutNode, TArray<TObjectPtr<UPCGPin>>& InputPins, TArray<TObjectPtr<UPCGPin>>& OutputPins)
+{
+	Super::ApplyDeprecationBeforeUpdatePins(InOutNode, InputPins, OutputPins);
+
+	// Overridable properties have been renamed, rename all pins by their counterpart, to avoid breaking existing graphs.
+	InOutNode->RenameInputPin(TEXT("Path Override"), TEXT("Data Table"));
+}
+#endif // WITH_EDITOR
 
 FPCGElementPtr UPCGDataTableRowToParamDataSettings::CreateElement() const
 {
@@ -32,6 +56,19 @@ TArray<FPCGPinProperties> UPCGDataTableRowToParamDataSettings::OutputPinProperti
 	return PinProperties;
 }
 
+void UPCGDataTableRowToParamDataSettings::PostLoad()
+{
+	Super::PostLoad();
+
+#if WITH_EDITOR
+	if (!PathOverride_DEPRECATED.IsEmpty())
+	{
+		DataTable = TSoftObjectPtr<UDataTable>(PathOverride_DEPRECATED);
+		PathOverride_DEPRECATED.Empty();
+	}
+#endif // WITH_EDITOR
+}
+
 FString UPCGDataTableRowToParamDataSettings::GetAdditionalTitleInformation() const
 {
 	return FString::Printf(TEXT("%s[ %s ]"), DataTable ? *DataTable->GetFName().ToString() : TEXT("None"), *RowName.ToString());
@@ -44,15 +81,9 @@ bool FPCGDataTableRowToParamData::ExecuteInternal(FPCGContext* Context) const
 	const UPCGDataTableRowToParamDataSettings* Settings = Context->GetInputSettings<UPCGDataTableRowToParamDataSettings>();
 	check(Settings);
 
-	const FString& PathOverride = Settings->PathOverride;
 	const FName RowName = Settings->RowName;
 
 	TSoftObjectPtr<UDataTable> DataTablePtr = Settings->DataTable;
-
-	if (!PathOverride.IsEmpty())
-	{
-		DataTablePtr = FSoftObjectPath(PathOverride);
-	}
 
 	const UDataTable* DataTable = DataTablePtr.LoadSynchronous();
 	if (!DataTable)
@@ -89,6 +120,14 @@ bool FPCGDataTableRowToParamData::ExecuteInternal(FPCGContext* Context) const
 	TArray<FPCGTaggedData>& Outputs = Context->OutputData.TaggedData;
 	FPCGTaggedData& Output = Outputs.Emplace_GetRef();
 	Output.Data = ParamData;
+
+#if WITH_EDITOR
+	// If we have an override, register for dynamic tracking.
+	if (Context->IsValueOverriden(GET_MEMBER_NAME_CHECKED(UPCGDataTableRowToParamDataSettings, DataTable)))
+	{
+		FPCGDynamicTrackingHelper::AddSingleDynamicTrackingKey(Context, FPCGSelectionKey::CreateFromPath(DataTable), /*bIsCulled=*/false);
+	}
+#endif // WITH_EDITOR
 
 	return true;
 }

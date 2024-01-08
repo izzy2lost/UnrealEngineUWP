@@ -7,6 +7,7 @@
 #include "PCGSubsystem.h"
 #include "Data/PCGUserParametersData.h"
 #include "Graph/PCGStackContext.h"
+#include "Helpers/PCGDynamicTrackingHelpers.h"
 #include "Helpers/PCGSettingsHelpers.h"
 
 #include "Algo/Find.h"
@@ -155,7 +156,7 @@ void UPCGBaseSubgraphSettings::PostEditChangeProperty(struct FPropertyChangedEve
 	}
 }
 
-void UPCGBaseSubgraphSettings::GetTrackedActorKeys(FPCGSelectionKeyToSettingsMap& OutKeysToSettings, TArray<TObjectPtr<const UPCGGraph>>& VisitedGraphs) const
+void UPCGBaseSubgraphSettings::GetStaticTrackedKeys(FPCGSelectionKeyToSettingsMap& OutKeysToSettings, TArray<TObjectPtr<const UPCGGraph>>& VisitedGraphs) const
 {
 	if (UPCGGraph* Subgraph = GetSubgraph())
 	{
@@ -528,6 +529,9 @@ bool FPCGSubgraphElement::ExecuteInternal(FPCGContext* InContext) const
 		{
 			// If OriginalSettings is null, then we ARE the original settings, and writing over the existing graph is incorrect (and potentially a race condition)
 			Settings->SubgraphInstance->SetGraph(Settings->SubgraphOverride);
+#if WITH_EDITOR
+			FPCGDynamicTrackingHelper::AddSingleDynamicTrackingKey(Context, FPCGSelectionKey::CreateFromPath(Settings->SubgraphOverride), /*bIsCulled=*/false);
+#endif // WITH_EDITOR
 		}
 	}
 

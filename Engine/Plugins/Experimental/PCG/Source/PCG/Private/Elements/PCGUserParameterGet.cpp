@@ -9,6 +9,7 @@
 #include "PCGPin.h"
 #include "PCGSubgraph.h"
 #include "Data/PCGUserParametersData.h"
+#include "Helpers/PCGDynamicTrackingHelpers.h"
 #include "Helpers/PCGPropertyHelpers.h"
 #include "Metadata/PCGAttributePropertySelector.h"
 
@@ -163,10 +164,32 @@ bool FPCGUserParameterGetElement::ExecuteInternal(FPCGContext* Context) const
 
 	PCGPropertyHelpers::FExtractorParameters ExtractorParameters{ Parameters.GetMemory(), PropertyBag, FPCGAttributePropertySelector::CreateAttributeSelector(PropertyName), PropertyName, Settings->bForceObjectAndStructExtraction, /*bPropertyNeedsToBeVisible=*/false};
 
-	if (UPCGParamData* ParamData = PCGPropertyHelpers::ExtractPropertyAsAttributeSet(ExtractorParameters, Context))
+	// Don't care for object traversed in non-editor build, since it is only useful for tracking.
+	TSet<FSoftObjectPath>* ObjectTraversedPtr = nullptr;
+#if WITH_EDITOR
+	TSet<FSoftObjectPath> ObjectTraversed;
+	ObjectTraversedPtr = &ObjectTraversed;
+#endif // WITH_EDITOR
+
+	if (UPCGParamData* ParamData = PCGPropertyHelpers::ExtractPropertyAsAttributeSet(ExtractorParameters, Context, ObjectTraversedPtr))
 	{
 		Context->OutputData.TaggedData.Emplace_GetRef().Data = ParamData;
 	}
+
+	// Register dynamic tracking
+#if WITH_EDITOR
+	if (!ObjectTraversed.IsEmpty())
+	{
+		FPCGDynamicTrackingHelper DynamicTracking;
+		DynamicTracking.EnableAndInitialize(Context, ObjectTraversed.Num());
+		for (FSoftObjectPath& Path : ObjectTraversed)
+		{
+			DynamicTracking.AddToTracking(FPCGSelectionKey::CreateFromPath(std::move(Path)), /*bCulled=*/false);
+		}
+
+		DynamicTracking.Finalize(Context);
+	}
+#endif // WITH_EDITOR
 
 	return true;
 }

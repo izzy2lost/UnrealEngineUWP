@@ -8,6 +8,7 @@
 #include "PCGPin.h"
 #include "PCGSubsystem.h"
 #include "Graph/PCGStackContext.h"
+#include "Helpers/PCGDynamicTrackingHelpers.h"
 #include "Helpers/PCGHelpers.h"
 
 #include "Algo/Copy.h"
@@ -180,6 +181,9 @@ bool FPCGLoopElement::ExecuteInternal(FPCGContext* InContext) const
 			// If OriginalSettings is null, then we ARE the original settings, and writing over the existing graph is incorrect (and potentially a race condition)
 			check(Settings->OriginalSettings);
 			Settings->SubgraphInstance->SetGraph(Settings->SubgraphOverride);
+#if WITH_EDITOR
+			FPCGDynamicTrackingHelper::AddSingleDynamicTrackingKey(Context, FPCGSelectionKey::CreateFromPath(Settings->SubgraphOverride), /*bIsCulled=*/false);
+#endif // WITH_EDITOR
 		}
 
 		UPCGGraph* Subgraph = Settings->GetSubgraph();

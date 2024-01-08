@@ -68,6 +68,9 @@ struct PCG_API FPCGCustomVersion
 		// Added 'bComponentsMustOverlapSelf' to GetActorData when the mode collects PCG component data
 		GetPCGComponentDataMustOverlapSourceComponentByDefault = 19,
 
+		// Added dynamic tracking to the PCG component serialization
+		DynamicTrackingKeysSerializedInComponent = 20,
+
 		// -----<new versions can be added above this line>-------------------------------------------------
 		VersionPlusOne,
 		LatestVersion = VersionPlusOne - 1
