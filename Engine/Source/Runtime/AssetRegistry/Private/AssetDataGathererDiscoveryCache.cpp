@@ -25,7 +25,7 @@ FArchive& operator<<(FArchive& Ar, FFileJournalFileHandle& H)
 
 namespace AssetDataGathererConstants
 {
-const FGuid DiscoveryCacheVersion(TEXT("62267A3E1D2144EF9C8734271DD28742"));
+const FGuid DiscoveryCacheVersion(TEXT("4F4C364CC08C47B9BF18278136E1CB6E"));
 }
 
 namespace UE::AssetDataGather::Private
@@ -54,12 +54,13 @@ void FAssetDataDiscoveryCache::LoadAndUpdateCache()
 	}
 
 	FString TestError;
+	FFileJournalId TestJournalId;
 	FFileJournalEntryHandle TestLatestJournalEntry;
 	FString ProjectDir = FPaths::ProjectDir();
 	IPlatformFile& PlatformFile = FPlatformFileManager::Get().GetPlatformFile();
 	FString TestVolumeName = PlatformFile.FileJournalGetVolumeName(ProjectDir);
-	EFileJournalResult TestResult = PlatformFile.FileJournalGetLatestEntry(*TestVolumeName,	TestLatestJournalEntry,
-		&TestError);
+	EFileJournalResult TestResult = PlatformFile.FileJournalGetLatestEntry(*TestVolumeName,	TestJournalId,
+		TestLatestJournalEntry, &TestError);
 	bool bPlatformSupported = TestResult == EFileJournalResult::Success;
 
 	bool bInvalidateEnabled = GPreloadSettings.IsDiscoveryCacheInvalidateEnabled();
@@ -126,7 +127,7 @@ void FAssetDataDiscoveryCache::LoadAndUpdateCache()
 		else
 		{
 			EFileJournalResult Result = PlatformFile.FileJournalReadModified(*VolumeInfo.VolumeName,
-				VolumeInfo.NextJournalEntryToScan, KnownDirectories, ModifiedDirectories,
+				VolumeInfo.JournalId, VolumeInfo.NextJournalEntryToScan, KnownDirectories, ModifiedDirectories,
 				VolumeInfo.NextJournalEntryToScan, &VolumeInfo.LastError);
 			switch (Result)
 			{
@@ -150,6 +151,7 @@ void FAssetDataDiscoveryCache::LoadAndUpdateCache()
 
 		if (!bReadModifiedSucceeded)
 		{
+			VolumeInfo.JournalId = VolumeInfo.JournalIdOnDisk;
 			VolumeInfo.NextJournalEntryToScan = VolumeInfo.NextJournalEntryOnDisk;
 			VolumeInfo.Dirs.Empty();
 		}
@@ -469,16 +471,19 @@ void FCachedVolumeInfo::InitializePlatformData()
 	if (VolumeName.IsEmpty() || VolumeName == GEmptyVolumeName)
 	{
 		bJournalAvailable = false;
+		JournalIdOnDisk = FileJournalIdInvalid;
 		NextJournalEntryOnDisk = FileJournalEntryHandleInvalid;
+		JournalId = FileJournalIdInvalid;
 		NextJournalEntryToScan = FileJournalEntryHandleInvalid;
 	}
 	else
 	{
 		EFileJournalResult Result = FPlatformFileManager::Get().GetPlatformFile().FileJournalGetLatestEntry(
-			*VolumeName, NextJournalEntryOnDisk, &LastError);
+			*VolumeName, JournalIdOnDisk, NextJournalEntryOnDisk, &LastError);
 		bJournalAvailable = Result == EFileJournalResult::Success;
 		if (NextJournalEntryToScan == FileJournalEntryHandleInvalid)
 		{
+			JournalId = JournalIdOnDisk;
 			NextJournalEntryToScan = NextJournalEntryOnDisk;
 		}
 	}
@@ -523,6 +528,7 @@ FArchive& operator<<(FArchive& Ar, FCachedVolumeInfo& Data)
 {
 	Ar << Data.Dirs;
 	Ar << Data.VolumeName;
+	Ar << Data.JournalId;
 	Ar << Data.NextJournalEntryToScan;
 	return Ar;
 }

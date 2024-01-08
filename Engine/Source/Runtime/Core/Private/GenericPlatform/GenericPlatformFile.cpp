@@ -1022,13 +1022,14 @@ bool IPlatformFile::FileJournalIsAvailable(const TCHAR* VolumeOrPath, ELogVerbos
 }
 
 EFileJournalResult IPlatformFile::FileJournalGetLatestEntry(const TCHAR* VolumeOrPath,
-	FFileJournalEntryHandle& OutEntryHandle, FString* OutError)
+	FFileJournalId& OutJournalId, FFileJournalEntryHandle& OutEntryHandle, FString* OutError)
 {
 	if (OutError)
 	{
 		*OutError = UE::PlatformFileJournal::Private::PlatformNotAvailableMessage;
 	}
-	OutEntryHandle = 0;
+	OutJournalId = FileJournalIdInvalid;
+	OutEntryHandle = FileJournalEntryHandleInvalid;
 	return EFileJournalResult::InvalidPlatform;
 }
 
@@ -1047,10 +1048,11 @@ FFileJournalData IPlatformFile::FileJournalGetFileData(const TCHAR* FilenameOrDi
 }
 
 EFileJournalResult IPlatformFile::FileJournalReadModified(const TCHAR* VolumeName,
-	const FFileJournalEntryHandle& StartingJournalEntry, TMap<FFileJournalFileHandle, FString>& KnownDirectories,
-	TSet<FString>& OutModifiedDirectories, FFileJournalEntryHandle& OutNextJournalEntry, FString* OutError)
+	const FFileJournalId& JournalIdOfStartingEntry, const FFileJournalEntryHandle& StartingJournalEntry,
+	TMap<FFileJournalFileHandle, FString>& KnownDirectories, TSet<FString>& OutModifiedDirectories,
+	FFileJournalEntryHandle& OutNextJournalEntry, FString* OutError)
 {
-	OutNextJournalEntry = StartingJournalEntry;
+	OutNextJournalEntry = FileJournalEntryHandleInvalid;
 	if (OutError)
 	{
 		*OutError = UE::PlatformFileJournal::Private::PlatformNotAvailableMessage;

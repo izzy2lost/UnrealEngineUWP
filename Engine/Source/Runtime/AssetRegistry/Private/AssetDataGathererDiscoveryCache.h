@@ -84,12 +84,14 @@ public:
 public:
 	TMap<FString, FCachedDirScanDir> Dirs;
 	FString VolumeName;
+	FFileJournalId JournalId = FileJournalIdInvalid;
 	FFileJournalEntryHandle NextJournalEntryToScan = FileJournalEntryHandleInvalid;
 
 	// Transient
 	/** Directories that we marked for recursive removal from CachedVolumes; we consume this during WriteCacheFile. */
 	TArray<FString> DirsToRemove;
 	FString LastError;
+	FFileJournalId JournalIdOnDisk = FileJournalIdInvalid;
 	FFileJournalEntryHandle NextJournalEntryOnDisk = FileJournalEntryHandleInvalid;
 	bool bJournalAvailable = false;
 };

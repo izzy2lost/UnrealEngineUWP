@@ -137,8 +137,9 @@ bool FWindowsPlatformFile::FileJournalIsAvailable(const TCHAR* VolumeOrPath, ELo
 		return true;
 	}
 
+	FFileJournalId JournalId;
 	FFileJournalEntryHandle Handle;
-	EFileJournalResult Result = FileJournalGetLatestEntry(VolumeOrPath, Handle, OutError);
+	EFileJournalResult Result = FileJournalGetLatestEntry(VolumeOrPath, JournalId, Handle, OutError);
 	if (Result == EFileJournalResult::Success)
 	{
 		if (OutErrorLevel)
@@ -159,11 +160,12 @@ bool FWindowsPlatformFile::FileJournalIsAvailable(const TCHAR* VolumeOrPath, ELo
 
 
 EFileJournalResult FWindowsPlatformFile::FileJournalGetLatestEntry(const TCHAR* VolumeName,
-	FFileJournalEntryHandle& OutEntryHandle, FString* OutError)
+	FFileJournalId& OutJournalId, FFileJournalEntryHandle& OutEntryHandle, FString* OutError)
 {
 	using namespace UE::WindowsPlatformFileJournal::Private;
 
-	OutEntryHandle = 0;
+	OutJournalId = FileJournalIdInvalid;
+	OutEntryHandle = FileJournalEntryHandleInvalid;
 
 	HANDLE JournalHandle;
 	TStringBuilder<16> NormalizedVolumeName;
@@ -181,7 +183,9 @@ EFileJournalResult FWindowsPlatformFile::FileJournalGetLatestEntry(const TCHAR* 
 	{
 		return Result;
 	}
+	static_assert(sizeof(uint64) >= sizeof(JournalDescriptor.UsnJournalID), "We are storing JournalIDs as uint64");
 	static_assert(sizeof(uint64) >= sizeof(USN), "We are storing USNs as uint64");
+	OutJournalId = static_cast<FFileJournalId>(JournalDescriptor.UsnJournalID);
 	OutEntryHandle = static_cast<FFileJournalEntryHandle>(JournalDescriptor.NextUsn);
 	return EFileJournalResult::Success;
 }
@@ -352,15 +356,16 @@ FFileJournalData FWindowsPlatformFile::FileJournalGetFileData(const TCHAR* Filen
 }
 
 EFileJournalResult FWindowsPlatformFile::FileJournalReadModified(const TCHAR* VolumeName,
-	const FFileJournalEntryHandle& StartingJournalEntry, TMap<FFileJournalFileHandle, FString>& KnownDirectories,
-	TSet<FString>& OutModifiedDirectories, FFileJournalEntryHandle& OutNextJournalEntry, FString* OutError)
+	const FFileJournalId& JournalIdOfStartingEntry, const FFileJournalEntryHandle& StartingJournalEntry,
+	TMap<FFileJournalFileHandle, FString>& KnownDirectories, TSet<FString>& OutModifiedDirectories,
+	FFileJournalEntryHandle& OutNextJournalEntry, FString* OutError)
 {
 	using namespace UE::WindowsPlatformFileJournal::Private;
 
 	if (!FileJournalIsAvailableSystemWide(nullptr, OutError))
 	{
-		return IPlatformFile::FileJournalReadModified(VolumeName, StartingJournalEntry, KnownDirectories,
-			OutModifiedDirectories, OutNextJournalEntry, nullptr);
+		return IPlatformFile::FileJournalReadModified(VolumeName, JournalIdOfStartingEntry, StartingJournalEntry,
+			KnownDirectories, OutModifiedDirectories, OutNextJournalEntry, nullptr);
 	}
 
 	EFileJournalResult Result;
@@ -389,6 +394,35 @@ EFileJournalResult FWindowsPlatformFile::FileJournalReadModified(const TCHAR* Vo
 	if (Result != EFileJournalResult::Success)
 	{
 		return Result;
+	}
+
+	if (static_cast<DWORDLONG>(JournalIdOfStartingEntry) != JournalDescriptor.UsnJournalID)
+	{
+		if (OutError)
+		{
+			*OutError = FString::Printf(
+				TEXT("The JournalId StartingJournalEntry on volume '%s' came from a different journal. This can happen when the Journal has been destroyed and recreated. ")
+				TEXT("StoredJournalId = %" UINT64_FMT ", CurrentJournalId = %" UINT64_FMT "."),
+				VolumeName, static_cast<uint64>(JournalIdOfStartingEntry), static_cast<uint64>(JournalDescriptor.UsnJournalID));
+		}
+		return EFileJournalResult::JournalWrapped;
+	}
+
+	// FSCTL_READ_USN_JOURNAL does not return an error if the StartUsn is greater than the end of the current journal;
+	// it returns no results and reports the input StartUsn as the next USN to read. We want this to be an error
+	// condition similar to wrapping the journal. StartUSn == NextUSN is valid, but StartUSN > NextUSN is not.
+	// Return a wrap code for that case.
+	USN CurrentJournalUSN = static_cast<USN>(OutNextJournalEntry);
+	if (CurrentJournalUSN > JournalDescriptor.NextUsn)
+	{
+		if (OutError)
+		{
+			*OutError = FString::Printf(
+				TEXT("The stored value for StartingJournalEntry on volume '%s' is invalid; it is past the end of the current Journal. This can happen when the Journal has been destroyed and recreated. ")
+				TEXT("StoredValue = %" UINT64_FMT ", CurrentEnd = %" UINT64_FMT "."),
+				VolumeName, static_cast<uint64>(CurrentJournalUSN), static_cast<uint64>(JournalDescriptor.NextUsn));
+		}
+		return EFileJournalResult::JournalWrapped;
 	}
 
 	READ_USN_JOURNAL_DATA_V1 ReadJournalRequest;
@@ -427,7 +461,7 @@ EFileJournalResult FWindowsPlatformFile::FileJournalReadModified(const TCHAR* Vo
 		DWORD dwIoControlCode = bShowFilenames ? FSCTL_READ_USN_JOURNAL : FSCTL_READ_UNPRIVILEGED_USN_JOURNAL;
 		bool bWasFirstCall = bFirstCall;
 		bFirstCall = false;
-		USN CurrentJournalUSN = static_cast<USN>(OutNextJournalEntry);
+		CurrentJournalUSN = static_cast<USN>(OutNextJournalEntry);
 		ReadJournalRequest.StartUsn = CurrentJournalUSN;
 
 		BOOL ReadJournalResult = ::DeviceIoControl(
@@ -858,7 +892,7 @@ bool FWindowsPlatformFile::FileJournalIsAvailable(const TCHAR* VolumeOrPath, ELo
 }
 
 EFileJournalResult  FWindowsPlatformFile::FileJournalGetLatestEntry(const TCHAR* VolumeName,
-	FFileJournalEntryHandle& OutEntryHandle, FString* OutError)
+	FFileJournalId& OutJournalId, FFileJournalEntryHandle& OutEntryHandle, FString* OutError)
 {
 	using namespace UE::WindowsPlatformFileJournal::Private;
 
@@ -869,7 +903,7 @@ EFileJournalResult  FWindowsPlatformFile::FileJournalGetLatestEntry(const TCHAR*
 		OutError = nullptr;
 	}
 #endif
-	return IPlatformFile::FileJournalGetLatestEntry(VolumeName, OutEntryHandle, OutError);
+	return IPlatformFile::FileJournalGetLatestEntry(VolumeName, OutJournalId, OutEntryHandle, OutError);
 }
 
 bool FWindowsPlatformFile::FileJournalIterateDirectory(const TCHAR* Directory,
@@ -884,8 +918,9 @@ FFileJournalData FWindowsPlatformFile::FileJournalGetFileData(const TCHAR* Filen
 }
 
 EFileJournalResult FWindowsPlatformFile::FileJournalReadModified(const TCHAR* VolumeName,
-	const FFileJournalEntryHandle& StartingJournalEntry, TMap<FFileJournalFileHandle, FString>& KnownDirectories,
-	TSet<FString>& OutModifiedDirectories, FFileJournalEntryHandle& OutNextJournalEntry, FString* OutError)
+	const FFileJournalId& JournalIdOfStartingEntry, const FFileJournalEntryHandle& StartingJournalEntry,
+	TMap<FFileJournalFileHandle, FString>& KnownDirectories, TSet<FString>& OutModifiedDirectories,
+	FFileJournalEntryHandle& OutNextJournalEntry, FString* OutError)
 {
 	using namespace UE::WindowsPlatformFileJournal::Private;
 
@@ -896,8 +931,8 @@ EFileJournalResult FWindowsPlatformFile::FileJournalReadModified(const TCHAR* Vo
 		OutError = nullptr;
 	}
 #endif
-	return IPlatformFile::FileJournalReadModified(VolumeName, StartingJournalEntry, KnownDirectories, OutModifiedDirectories,
-		OutNextJournalEntry, OutError);
+	return IPlatformFile::FileJournalReadModified(VolumeName, JournalIdOfStartingEntry, StartingJournalEntry,
+		KnownDirectories, OutModifiedDirectories, OutNextJournalEntry, OutError);
 }
 
 #endif // else !UE_WINDOWS_PLATFORM_FILEJOURNAL_ENABLED

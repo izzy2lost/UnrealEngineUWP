@@ -81,14 +81,14 @@ public:
 
 	virtual bool FileJournalIsAvailable(const TCHAR* VolumeOrPath = nullptr, ELogVerbosity::Type* OutErrorLevel = nullptr,
 		FString* OutError = nullptr) override;
-	virtual EFileJournalResult FileJournalGetLatestEntry(const TCHAR* VolumeName, FFileJournalEntryHandle& OutEntryHandle,
-		FString* OutError = nullptr) override;
+	virtual EFileJournalResult FileJournalGetLatestEntry(const TCHAR* VolumeName, FFileJournalId& OutJournalId, 
+		FFileJournalEntryHandle& OutEntryHandle, FString* OutError = nullptr) override;
 	virtual bool FileJournalIterateDirectory(const TCHAR* Directory, FDirectoryJournalVisitorFunc Visitor) override;
 	virtual FFileJournalData FileJournalGetFileData(const TCHAR* FilenameOrDirectory) override;
 	virtual EFileJournalResult FileJournalReadModified(const TCHAR* VolumeName,
-		const FFileJournalEntryHandle& StartingJournalEntry, TMap<FFileJournalFileHandle, FString>& KnownDirectories,
-		TSet<FString>& OutModifiedDirectories, FFileJournalEntryHandle& OutNextJournalEntry,
-		FString* OutError = nullptr) override;
+		const FFileJournalId& JournalIdOfStartingEntry, const FFileJournalEntryHandle& StartingJournalEntry,
+		TMap<FFileJournalFileHandle, FString>& KnownDirectories, TSet<FString>& OutModifiedDirectories,
+		FFileJournalEntryHandle& OutNextJournalEntry, FString* OutError = nullptr) override;
 	virtual FString FileJournalGetVolumeName(FStringView InPath) override;
 };
 

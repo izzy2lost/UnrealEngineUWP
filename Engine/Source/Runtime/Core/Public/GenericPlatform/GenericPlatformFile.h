@@ -231,6 +231,12 @@ struct FFileStatData
 
 
 /**
+ * A handle used by the FileJournal API. Platform-specific identifier for which disk journal is being read.
+ */
+typedef uint64 FFileJournalId;
+constexpr FFileJournalId FileJournalIdInvalid = static_cast<FFileJournalId>(MAX_uint64);
+
+/**
  * A handle used by the FileJournal API. Represents an entry for an action on a file in the FileJournal.
  */
 typedef uint64 FFileJournalEntryHandle;
@@ -547,7 +553,7 @@ public:
 	 * and optionally a user-displayable explanation for the error code.
 	 */
 	CORE_API virtual EFileJournalResult FileJournalGetLatestEntry(const TCHAR* VolumeName,
-		FFileJournalEntryHandle& OutEntryHandle, FString* OutError = nullptr);
+		FFileJournalId& OutJournalId, FFileJournalEntryHandle& OutEntryHandle, FString* OutError = nullptr);
 
 	/** File and directory visitor function that takes FileJournal data. */
 	typedef TFunctionRef<bool(const TCHAR*, const FFileJournalData&)> FDirectoryJournalVisitorFunc;
@@ -580,9 +586,9 @@ public:
 	/**
 	 * Query the FileJournal to find a list of all directories on the given volume with files that have been added,
 	 * deleted, or modified in the specified time range. The beginning of the time range is specified by
-	 * StartingJournalEntry, which came from FileJournalGetLatestEntry or a previous call to FileJournalReadModified.
-	 * The end of the range is the latest modification on the volume. VolumeName can be the return value from
-	 * FileJournalGetVolumeName, or any path on the desired volume.
+	 * JournalIdOfStartingEntry and StartingJournalEntry, which came from FileJournalGetLatestEntry or a previous
+	 * call to FileJournalReadModified. The end of the range is the latest modification on the volume. VolumeName can
+	 * be the return value from FileJournalGetVolumeName, or any path on the desired volume.
 	 * 
 	 * The caller must provide the mapping from FFileJournalFileHandle to DirectoryName; the FFileJournalFileHandle 
 	 * for each Directory can be found from FileJournalGetFileData or FileJournalIterateDirectory.
@@ -594,9 +600,9 @@ public:
 	 * explanation for the error code. In an error case, partial results may still be written into the output.
 	 */
 	CORE_API virtual EFileJournalResult FileJournalReadModified(const TCHAR* VolumeName,
-		const FFileJournalEntryHandle& StartingJournalEntry, TMap<FFileJournalFileHandle, FString>& KnownDirectories,
-		TSet<FString>& OutModifiedDirectories, FFileJournalEntryHandle& OutNextJournalEntry,
-		FString* OutError = nullptr);
+		const FFileJournalId& JournalIdOfStartingEntry, const FFileJournalEntryHandle& StartingJournalEntry,
+		TMap<FFileJournalFileHandle, FString>& KnownDirectories, TSet<FString>& OutModifiedDirectories,
+		FFileJournalEntryHandle& OutNextJournalEntry, FString* OutError = nullptr);
 
 	/**
 	 * Return the VolumeSpecifier present in the given path. Returns empty string if path does not have a valid
