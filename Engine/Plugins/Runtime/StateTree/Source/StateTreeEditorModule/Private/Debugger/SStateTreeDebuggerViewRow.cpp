@@ -124,10 +124,13 @@ TSharedPtr<SWidget> SStateTreeDebuggerViewRow::GenerateEventWidget() const
 
 		switch (ConditionEvent.EventType)
 		{
-		case EStateTreeTraceEventType::Passed:			Image = StyleSet.GetBrush("StateTreeEditor.Debugger.Condition.Passed");			break;
-		case EStateTreeTraceEventType::Failed:			Image = StyleSet.GetBrush("StateTreeEditor.Debugger.Condition.Failed");			break;
-		case EStateTreeTraceEventType::OnEvaluating:	Image = StyleSet.GetBrush("StateTreeEditor.Debugger.Condition.OnEvaluating");	break;
-		case EStateTreeTraceEventType::OnTransition:	Image = StyleSet.GetBrush("StateTreeEditor.Debugger.Condition.OnTransition");	break;
+		case EStateTreeTraceEventType::Passed:					Image = StyleSet.GetBrush("StateTreeEditor.Debugger.Condition.Passed");			break;
+		case EStateTreeTraceEventType::ForcedSuccess:			Image = StyleSet.GetBrush("StateTreeEditor.Debugger.Condition.Passed");			break;
+		case EStateTreeTraceEventType::Failed:					Image = StyleSet.GetBrush("StateTreeEditor.Debugger.Condition.Failed");			break;
+		case EStateTreeTraceEventType::ForcedFailure:			Image = StyleSet.GetBrush("StateTreeEditor.Debugger.Condition.Failed");			break;
+		case EStateTreeTraceEventType::InternalForcedFailure:	Image = StyleSet.GetBrush("StateTreeEditor.Debugger.Condition.Failed");			break;
+		case EStateTreeTraceEventType::OnEvaluating:			Image = StyleSet.GetBrush("StateTreeEditor.Debugger.Condition.OnEvaluating");	break;
+		case EStateTreeTraceEventType::OnTransition:			Image = StyleSet.GetBrush("StateTreeEditor.Debugger.Condition.OnTransition");	break;
 		default:
 			Image = StyleSet.GetBrush("StateTreeEditor.Debugger.Unset");
 		}

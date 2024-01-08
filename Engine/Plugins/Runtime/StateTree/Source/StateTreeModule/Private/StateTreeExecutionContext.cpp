@@ -2291,6 +2291,8 @@ bool FStateTreeExecutionContext::TestAllConditions(const FStateTreeExecutionFram
 				if (!CopyBatchWithValidation(CurrentParentFrame, CurrentFrame, ConditionInstanceView, Cond.BindingsBatch))
 				{
 					// If the source data cannot be accessed, the whole expression evaluates to false.
+					STATETREE_TRACE_CONDITION_EVENT(ConditionIndex, ConditionInstanceView, EStateTreeTraceEventType::InternalForcedFailure);
+					STATETREE_TRACE_LOG_EVENT(TEXT("Evaluation forced to false: source data cannot be accessed (e.g. enter conditions trying to access inactive parent state)"));
 					Values[0] = false;
 					break;
 				}
@@ -2307,8 +2309,8 @@ bool FStateTreeExecutionContext::TestAllConditions(const FStateTreeExecutionFram
 		}
 		else
 		{
-			bValue = Cond.EvaluationMode == EStateTreeConditionEvaluationMode::ForcedTrue ? true : /* EStateTreeConditionEvaluationMode::AlwaysFalse */ false;
-			STATETREE_TRACE_CONDITION_EVENT(ConditionIndex, FStateTreeDataView{}, bValue ? EStateTreeTraceEventType::Passed : EStateTreeTraceEventType::Failed);
+			bValue = Cond.EvaluationMode == EStateTreeConditionEvaluationMode::ForcedTrue;
+			STATETREE_TRACE_CONDITION_EVENT(ConditionIndex, FStateTreeDataView{}, bValue ? EStateTreeTraceEventType::ForcedSuccess : EStateTreeTraceEventType::ForcedFailure);
 		}
 
 		const int32 DeltaIndent = Cond.DeltaIndent;

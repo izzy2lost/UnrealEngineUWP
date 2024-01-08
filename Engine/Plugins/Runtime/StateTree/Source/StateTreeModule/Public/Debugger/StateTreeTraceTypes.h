@@ -17,23 +17,27 @@ UENUM()
 enum class EStateTreeTraceEventType : uint8
 {
 	Unset,
-	OnEntering			UMETA(DisplayName = "Entering"),
-	OnEntered			UMETA(DisplayName = "Entered"),
-	OnExiting			UMETA(DisplayName = "Exiting"),
-	OnExited			UMETA(DisplayName = "Exited"),
-	Push				UMETA(DisplayName = "Push"),
-	Pop					UMETA(DisplayName = "Pop"),
-	OnStateSelected		UMETA(DisplayName = "Selected"),
-	OnStateCompleted	UMETA(DisplayName = "Completed"),
-	OnTicking			UMETA(DisplayName = "Tick"),
-	OnTaskCompleted		UMETA(DisplayName = "Completed"),
-	OnTicked			UMETA(DisplayName = "Ticked"),
-	Passed				UMETA(DisplayName = "Passed"),
-	Failed				UMETA(DisplayName = "Failed"),
-	OnEvaluating		UMETA(DisplayName = "Evaluating"),
-	OnTransition		UMETA(DisplayName = "Transition"),
-	OnTreeStarted		UMETA(DisplayName = "Tree Started"),
-	OnTreeStopped		UMETA(DisplayName = "Tree Stopped")
+	OnEntering				UMETA(DisplayName = "Entering"),
+	OnEntered				UMETA(DisplayName = "Entered"),
+	OnExiting				UMETA(DisplayName = "Exiting"),
+	OnExited				UMETA(DisplayName = "Exited"),
+	Push					UMETA(DisplayName = "Push"),
+	Pop						UMETA(DisplayName = "Pop"),
+	OnStateSelected			UMETA(DisplayName = "Selected"),
+	OnStateCompleted		UMETA(DisplayName = "Completed"),
+	OnTicking				UMETA(DisplayName = "Tick"),
+	OnTaskCompleted			UMETA(DisplayName = "Completed"),
+	OnTicked				UMETA(DisplayName = "Ticked"),
+	Passed					UMETA(DisplayName = "Passed"),
+	Failed					UMETA(DisplayName = "Failed"),
+	ForcedSuccess			UMETA(DisplayName = "Forced Success"),
+	ForcedFailure			UMETA(DisplayName = "Forced Failure"),
+	InternalForcedFailure	UMETA(DisplayName = "Internal Forced Failure"),
+	OnEvaluating			UMETA(DisplayName = "Evaluating"),
+	OnTransition			UMETA(DisplayName = "Transition"),
+	OnTreeStarted			UMETA(DisplayName = "Tree Started"),
+	OnTreeStopped			UMETA(DisplayName = "Tree Stopped")
+
 };
 
 #if WITH_STATETREE_DEBUGGER
