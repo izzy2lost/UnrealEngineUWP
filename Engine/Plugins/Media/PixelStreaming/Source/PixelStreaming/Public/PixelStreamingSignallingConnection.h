@@ -17,7 +17,7 @@ class IWebSocket;
 class PIXELSTREAMING_API FPixelStreamingSignallingConnection : public IPixelStreamingSignallingConnection
 {
 public:
-	FPixelStreamingSignallingConnection(TSharedPtr<IPixelStreamingSignallingConnectionObserver> InObserver, FString InStreamerId = "");
+	FPixelStreamingSignallingConnection(TSharedPtr<IPixelStreamingSignallingConnectionObserver> InObserver, FString InStreamerId = "", TSharedPtr<IWebSocket> InWebSocket = nullptr);
 	virtual ~FPixelStreamingSignallingConnection();
 
 	/* IPixelStreamingSignallingConnection Interface */

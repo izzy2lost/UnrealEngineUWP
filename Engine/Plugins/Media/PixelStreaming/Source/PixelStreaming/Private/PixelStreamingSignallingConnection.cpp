@@ -17,9 +17,10 @@
 DECLARE_LOG_CATEGORY_EXTERN(LogPixelStreamingSS, Log, VeryVerbose);
 DEFINE_LOG_CATEGORY(LogPixelStreamingSS);
 
-FPixelStreamingSignallingConnection::FPixelStreamingSignallingConnection(TSharedPtr<IPixelStreamingSignallingConnectionObserver> InObserver, FString InStreamerId)
+FPixelStreamingSignallingConnection::FPixelStreamingSignallingConnection(TSharedPtr<IPixelStreamingSignallingConnectionObserver> InObserver, FString InStreamerId, TSharedPtr<IWebSocket> InWebSocket)
 	: Observer(InObserver)
 	, StreamerId(InStreamerId)
+	, WebSocket(InWebSocket)
 {
 	RegisterHandler("identify", [this](FJsonObjectPtr JsonMsg) { OnIdRequested(); });
 	RegisterHandler("config", [this](FJsonObjectPtr JsonMsg) { OnConfig(JsonMsg); });
@@ -39,6 +40,9 @@ FPixelStreamingSignallingConnection::FPixelStreamingSignallingConnection(TShared
 FPixelStreamingSignallingConnection::~FPixelStreamingSignallingConnection()
 {
 	Disconnect();
+
+	WebSocket.Reset();
+	Observer.Reset();
 }
 
 void FPixelStreamingSignallingConnection::Connect(FString InUrl, bool bIsReconnect)
@@ -72,8 +76,11 @@ void FPixelStreamingSignallingConnection::Connect(FString InUrl, bool bIsReconne
 		Url = Final;
 	}
 
-	WebSocket = FWebSocketsModule::Get().CreateWebSocket(Url, TEXT(""));
-	verifyf(WebSocket, TEXT("Web Socket Factory failed to return a valid Web Socket."));
+	if(!WebSocket.IsValid())
+	{	
+		WebSocket = FWebSocketsModule::Get().CreateWebSocket(Url, TEXT(""));
+		verifyf(WebSocket, TEXT("Web Socket Factory failed to return a valid Web Socket."));
+	}
 
 	OnConnectedHandle = WebSocket->OnConnected().AddLambda([this]() { OnConnected(); });
 	OnConnectionErrorHandle = WebSocket->OnConnectionError().AddLambda([this](const FString& Error) { OnConnectionError(Error); });
@@ -118,7 +125,6 @@ void FPixelStreamingSignallingConnection::Disconnect()
 	WebSocket->OnBinaryMessage().Remove(OnBinaryMessageHandle);
 
 	WebSocket->Close();
-	WebSocket = nullptr;
 	UE_LOG(LogPixelStreamingSS, Log, TEXT("Closing websocket to SS %s"), *Url);
 }
 
