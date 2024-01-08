@@ -60,7 +60,8 @@ private:
 	TMap<FString, TSharedPtr<IAnalyticsSpan>> TaskSpans;
 	FCriticalSection TaskSpanCriticalSection;
 
-	FString LevelName;
+	FString EditorMapName;
+	FString PIEMapName;
 	double SessionStartTime;
 	double AssetOpenStartTime;
 	double TimeToStartEditor;

@@ -29,7 +29,7 @@ public:
 	typedef TFunction<void(const FString& EventName, const TArray<FAnalyticsEventAttribute>& Attrs)> OnRecordEvent;
 
 	/** Check whether the module is available*/
-	static STUDIOTELEMETRY_API bool IsAvaliable() { return FModuleManager::Get().IsModuleLoaded("StudioTelemetry"); }
+	static STUDIOTELEMETRY_API bool IsAvailable() { return FModuleManager::Get().IsModuleLoaded("StudioTelemetry"); }
 
 	/** Access to the module singleton*/
 	static STUDIOTELEMETRY_API FStudioTelemetry& Get();
