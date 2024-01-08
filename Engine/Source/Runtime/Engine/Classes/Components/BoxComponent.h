@@ -63,10 +63,10 @@ public:
 	// Sets the box extents without triggering a render or physics update.
 	FORCEINLINE void InitBoxExtent(const FVector& InBoxExtent) { BoxExtent = InBoxExtent; }
 
-#if WITH_EDITOR
+#if !UE_BUILD_SHIPPING
 	ENGINE_API FEngineShowFlags GetShowFlags() const { return ShowFlags; }
 	ENGINE_API void SetShowFlags(const FEngineShowFlags& InShowFlags);
-#endif // WITH_EDITOR
+#endif // !UE_BUILD_SHIPPING
 };
 
 

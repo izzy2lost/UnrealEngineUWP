@@ -105,11 +105,13 @@ void UBoxComponent::UpdateBodySetup()
 	}
 }
 
+#if !UE_BUILD_SHIPPING
 void UBoxComponent::SetShowFlags(const FEngineShowFlags& InShowFlags)
 {
 	ShowFlags = InShowFlags;
 	MarkRenderStateDirty();
 }
+#endif // !UE_BUILD_SHIPPING
 
 bool UBoxComponent::IsZeroExtent() const
 {
