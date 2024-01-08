@@ -1833,19 +1833,17 @@ void FSceneProxy::GetDynamicRayTracingInstances(FRayTracingMaterialGatheringCont
 		return;
 	}
 
-	// Setup a new instance
-	FRayTracingGeometry* DynamicGeometry = nullptr;
-	FRayTracingInstance& RayTracingInstance = OutRayTracingInstances.Emplace_GetRef();
+	if (!ensure(DynamicRayTracingGeometries.IsValidIndex(ValidLODIndex)))
+	{
+		return;
+	}
+
 	const FStaticMeshLODResources& LODData = RenderData->LODResources[ValidLODIndex];
-	if (DynamicRayTracingGeometries.IsValidIndex(ValidLODIndex))
-	{
-		DynamicGeometry = &DynamicRayTracingGeometries[ValidLODIndex];
-		RayTracingInstance.Geometry = DynamicGeometry;
-	}
-	else
-	{
-		RayTracingInstance.Geometry = &LODData.RayTracingGeometry;
-	}
+	FRayTracingGeometry* DynamicGeometry = &DynamicRayTracingGeometries[ValidLODIndex];
+
+	// Setup a new instance
+	FRayTracingInstance& RayTracingInstance = OutRayTracingInstances.Emplace_GetRef();
+	RayTracingInstance.Geometry = DynamicGeometry;
 
 	const FInstanceSceneDataBuffers* InstanceSceneDataBuffers = GetInstanceSceneDataBuffers();
 	const int32 InstanceCount = InstanceSceneDataBuffers ? InstanceSceneDataBuffers->GetNumInstances() : 1;
@@ -1884,25 +1882,22 @@ void FSceneProxy::GetDynamicRayTracingInstances(FRayTracingMaterialGatheringCont
 	RayTracingInstance.bInstanceMaskAndFlagsDirty = false;
 	RayTracingInstance.MaskAndFlags = CachedRayTracingInstanceMaskAndFlags;
 
-	if (!IsRayTracingStaticRelevant() && DynamicGeometry != nullptr)
-	{
-		// Use the shared vertex buffer - needs to be updated every frame
-		FRWBuffer* VertexBuffer = nullptr;
+	// Use the shared vertex buffer - needs to be updated every frame
+	FRWBuffer* VertexBuffer = nullptr;
 
-		Context.DynamicRayTracingGeometriesToUpdate.Add(
-			FRayTracingDynamicGeometryUpdateParams
-			{
-				CachedRayTracingMaterials,
-				false,
-				(uint32)LODData.GetNumVertices(),
-				(uint32)LODData.GetNumVertices() * (uint32)sizeof(FVector3f),
-				DynamicGeometry->Initializer.TotalPrimitiveCount,
-				DynamicGeometry,
-				VertexBuffer,
-				true
-			}
-		);
-	}
+	Context.DynamicRayTracingGeometriesToUpdate.Add(
+		FRayTracingDynamicGeometryUpdateParams
+		{
+			CachedRayTracingMaterials,
+			false,
+			(uint32)LODData.GetNumVertices(),
+			(uint32)LODData.GetNumVertices() * (uint32)sizeof(FVector3f),
+			DynamicGeometry->Initializer.TotalPrimitiveCount,
+			DynamicGeometry,
+			VertexBuffer,
+			true
+		}
+	);
 }
 
 ERayTracingPrimitiveFlags FSceneProxy::GetCachedRayTracingInstance(FRayTracingInstance& RayTracingInstance)
@@ -1976,7 +1971,6 @@ ERayTracingPrimitiveFlags FSceneProxy::GetCachedRayTracingInstance(FRayTracingIn
 	{
 		SetupFallbackRayTracingMaterials(ValidLODIndex, RayTracingInstance.Materials);
 	}
-
 
 	const bool bIsRayTracingFarField = IsRayTracingFarField();
 
