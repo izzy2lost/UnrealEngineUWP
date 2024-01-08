@@ -3575,6 +3575,10 @@ void UCustomizableInstancePrivateData::BuildMeshSockets(const TSharedRef<FUpdate
 			}
 		}
 	}
+
+#if !WITH_EDITOR
+	SkeletalMesh->RebuildSocketMap();
+#endif // !WITH_EDITOR
 }
 
 
@@ -5473,8 +5477,10 @@ void UCustomizableInstancePrivateData::BuildMaterials(const TSharedRef<FUpdateCo
 				UMaterialInterface* MaterialTemplate = ReferencedMaterials[ReferencedMaterialIndex];
 				if (!MaterialTemplate)
 				{
+					// Missing MaterialTemplate. Use DefaultMaterial instead. 
+					MaterialTemplate = UMaterial::GetDefaultMaterial(MD_Surface);
+					check(MaterialTemplate);
 					UE_LOG(LogMutable, Error, TEXT("Build Materials: Missing referenced template to use as parent material on CustomizableObject [%s]."), *CustomizableObject->GetName());
-					continue;
 				}
 
 				// This section will require a new slot
@@ -5484,7 +5490,7 @@ void UCustomizableInstancePrivateData::BuildMaterials(const TSharedRef<FUpdateCo
 				const int32 MaterialSlotIndex = Materials.Num();
 				FSkeletalMaterial& MaterialSlot = Materials.AddDefaulted_GetRef();
 				MaterialSlot.MaterialInterface = MaterialTemplate;
-				MaterialSlot.MaterialSlotName = CustomizableObject->ReferencedMaterialSlotNames[Surface.MaterialIndex];
+				MaterialSlot.MaterialSlotName = CustomizableObject->ReferencedMaterialSlotNames.IsValidIndex(Surface.MaterialIndex) ? CustomizableObject->ReferencedMaterialSlotNames[Surface.MaterialIndex] : NAME_None;
 				SetMeshUVChannelDensity(MaterialSlot.UVChannelData, RefSkeletalMeshData->Settings.DefaultUVChannelDensity);
 
 				const int32 LODMaterialIndex = SkeletalMesh->GetLODInfoArray()[LODIndex].LODMaterialMap.Add(MaterialSlotIndex);

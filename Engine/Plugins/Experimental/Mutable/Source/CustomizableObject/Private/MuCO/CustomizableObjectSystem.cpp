@@ -884,18 +884,6 @@ void UpdateSkeletalMesh(const TSharedRef<FUpdateContextPrivate>& Context)
 
 	UCustomizableObjectInstance* CustomizableObjectInstance = Context->Instance.Get();
 	check(CustomizableObjectInstance);
-	
-	for (int32 ComponentIndex = 0; ComponentIndex < CustomizableObjectInstance->SkeletalMeshes.Num(); ++ComponentIndex)
-	{
-		if (TObjectPtr<USkeletalMesh> SkeletalMesh = CustomizableObjectInstance->SkeletalMeshes[ComponentIndex])
-		{
-#if WITH_EDITOR
-			UCustomizableInstancePrivateData::RegenerateImportedModel(SkeletalMesh);
-#else
-			SkeletalMesh->RebuildSocketMap();
-#endif
-		}
-	}
 
 	UCustomizableInstancePrivateData* CustomizableObjectInstancePrivateData = CustomizableObjectInstance->GetPrivate();
 	check(CustomizableObjectInstancePrivateData != nullptr);
@@ -2347,13 +2335,14 @@ namespace impl
 				{
 					MUTABLE_CPUPROFILER_SCOPE(UpdateSkeletalMesh_PostBeginUpdate2);
 
-					for (int32 Component = 0; Component < CustomizableObjectInstance->SkeletalMeshes.Num(); ++Component)
+					for (TObjectPtr<USkeletalMesh>& SkeletalMesh : CustomizableObjectInstance->SkeletalMeshes)
 					{
-						if (CustomizableObjectInstance->SkeletalMeshes[Component] && CustomizableObjectInstance->SkeletalMeshes[Component]->GetLODInfoArray().Num())
+						if (SkeletalMesh && SkeletalMesh->GetResourceForRendering() && !SkeletalMesh->GetResourceForRendering()->IsInitialized())
 						{
-							MUTABLE_CPUPROFILER_SCOPE(UpdateSkeletalMesh_PostEditChangeProperty);
-
-							CustomizableInstancePrivateData->PostEditChangePropertyWithoutEditor(CustomizableObjectInstance->SkeletalMeshes[Component]);
+#if WITH_EDITOR
+							UCustomizableInstancePrivateData::RegenerateImportedModel(SkeletalMesh);
+#endif
+							CustomizableInstancePrivateData->PostEditChangePropertyWithoutEditor(SkeletalMesh);
 						}
 					}
 				}
