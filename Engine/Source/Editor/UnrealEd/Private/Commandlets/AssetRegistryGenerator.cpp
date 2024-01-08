@@ -17,6 +17,7 @@
 #include "CookMetadata.h"
 #include "Commandlets/ChunkDependencyInfo.h"
 #include "Commandlets/IChunkDataGenerator.h"
+#include "Containers/RingBuffer.h"
 #include "Engine/AssetManager.h"
 #include "Engine/Level.h"
 #include "Engine/World.h"
@@ -2098,6 +2099,30 @@ bool FAssetRegistryGenerator::GatherAllPackageDependencies(FName PackageName, TA
 	return true;
 }
 
+/**
+ * Helper struct to get the shortest reference chain in cook dependencies from one or more PackageNames
+ * to the set of packages that are hard-imported into a chunk. Constructs the distance graph for
+ * all packages reachable via cookdependencies from the input InSourceSet.
+ */
+class FAssetRegistryGenerator::FGetShortestReferenceChain
+{
+public:
+	void Initialize(const FAssetRegistryGenerator::FChunkPackageSet* InSourceSet);
+	FString Get(FName PackageName);
+
+private:
+	static constexpr int32 NoPath = MAX_int32;
+	struct FVertexData
+	{
+		FName NextTowardSource = NAME_None;
+		int32 SourceDistance = NoPath;
+	};
+
+private:
+	TMap<FName, FVertexData> Vertices;
+	bool bInitialized = false;
+};
+
 bool FAssetRegistryGenerator::GenerateAssetChunkInformationCSV(const FString& OutputPath, bool bWriteIndividualFiles)
 {
 	FString TmpString, TmpStringChunks;
@@ -2140,6 +2165,8 @@ bool FAssetRegistryGenerator::GenerateAssetChunkInformationCSV(const FString& Ou
 		}
 	}
 
+	TMap<int32, FGetShortestReferenceChain> ReferenceChainFinderForChunk;
+
 	for (const FAssetData* AssetDataPtr : AssetDataList)
 	{
 		const FAssetData& AssetData = *AssetDataPtr;
@@ -2160,12 +2187,10 @@ bool FAssetRegistryGenerator::GenerateAssetChunkInformationCSV(const FString& Ou
 
 					if (!bHardChunk)
 					{
-						SoftChain = GetShortestReferenceChain(AssetData.PackageName, PakchunkIndex);
+						FGetShortestReferenceChain& ChainFinder = ReferenceChainFinderForChunk.FindOrAdd(PakchunkIndex);
+						ChainFinder.Initialize(ChunkManifests[PakchunkIndex].Get());
+						SoftChain = ChainFinder.Get(AssetData.PackageName);
 					}
-				}
-				if (SoftChain.IsEmpty())
-				{
-					SoftChain = TEXT("Soft: Possibly Unassigned Asset");
 				}
 
 				// Build "other chunks" string or None if not part of
@@ -2404,67 +2429,84 @@ void FAssetRegistryGenerator::FixupPackageDependenciesForChunks(UE::Cook::FCookS
 	}
 }
 
-void FAssetRegistryGenerator::FindShortestReferenceChain(TArray<FReferencePair> PackageNames, int32 PakchunkIndex, uint32& OutParentIndex, FString& OutChainPath)
+void FAssetRegistryGenerator::FGetShortestReferenceChain::Initialize(const FAssetRegistryGenerator::FChunkPackageSet* SourceSet)
 {
-	TArray<FReferencePair> ReferencesToCheck;
-	uint32 Index = 0;
-	for (const auto& Pkg : PackageNames)
+	if (bInitialized)
 	{
-		if (ChunkManifests[PakchunkIndex] && ChunkManifests[PakchunkIndex]->Contains(Pkg.PackageName))
+		return;
+	}
+	bInitialized = true;
+	if (!SourceSet)
+	{
+		return;
+	}
+
+	IAssetRegistry& AssetRegistryShadowedVar = IAssetRegistry::GetChecked();
+	Vertices.Reset();
+
+	// BFS the entire graph of dependencies outward from the SourceSet to construct the distance graph
+	TRingBuffer<FName> BFSQueue;
+	for (const TPair<FName, FString>& Pair : *SourceSet)
+	{
+		BFSQueue.Add(Pair.Key);
+		Vertices.FindOrAdd(Pair.Key).SourceDistance = 0;
+	}
+
+	TArray<FName> AssetDependencies;
+	while (!BFSQueue.IsEmpty())
+	{
+		FName CurrentVertex = BFSQueue.PopFrontValue();
+		int32 NextDistance = Vertices[CurrentVertex].SourceDistance + 1;
+
+		AssetDependencies.Reset();
+		AssetRegistryShadowedVar.GetDependencies(CurrentVertex, AssetDependencies);
+		for (FName NextVertex : AssetDependencies)
 		{
-			OutChainPath += TEXT("Soft: ");
-			OutChainPath += Pkg.PackageName.ToString();
-			OutParentIndex = Pkg.ParentNodeIndex;
-			return;
-		}
-		TArray<FName> AssetReferences;
-		AssetRegistry.GetReferencers(Pkg.PackageName, AssetReferences);
-		for (const auto& Ref : AssetReferences)
-		{
-			if (!InspectedNames.Contains(Ref))
+			FVertexData& NextData = Vertices.FindOrAdd(NextVertex);
+			if (NextData.SourceDistance > NextDistance)
 			{
-				ReferencesToCheck.Add(FReferencePair(Ref, Index));
-				InspectedNames.Add(Ref);
+				NextData.SourceDistance = NextDistance;
+				NextData.NextTowardSource = CurrentVertex;
+				BFSQueue.Add(NextVertex);
 			}
 		}
-
-		++Index;
-	}
-
-	if (ReferencesToCheck.Num() > 0)
-	{
-		uint32 ParentIndex = INDEX_NONE;
-		FindShortestReferenceChain(ReferencesToCheck, PakchunkIndex, ParentIndex, OutChainPath);
-
-		if (ParentIndex < (uint32)PackageNames.Num())
-		{
-			OutChainPath += TEXT("->");
-			OutChainPath += PackageNames[ParentIndex].PackageName.ToString();
-			OutParentIndex = PackageNames[ParentIndex].ParentNodeIndex;
-		}
-	}
-	else if (PackageNames.Num() > 0)
-	{
-		//best guess
-		OutChainPath += TEXT("Soft From Unassigned Package? Best Guess: ");
-		OutChainPath += PackageNames[0].PackageName.ToString();
-		OutParentIndex = PackageNames[0].ParentNodeIndex;
 	}
 }
 
-FString FAssetRegistryGenerator::GetShortestReferenceChain(FName PackageName, int32 PakchunkIndex)
+FString FAssetRegistryGenerator::FGetShortestReferenceChain::Get(FName TargetPackageName)
 {
-	FString StringChain;
-	TArray<FReferencePair> ReferencesToCheck;
-	uint32 ParentIndex;
-	ReferencesToCheck.Add(FReferencePair(PackageName, 0));
-	InspectedNames.Empty();
-	InspectedNames.Add(PackageName);
-	FindShortestReferenceChain(ReferencesToCheck, PakchunkIndex, ParentIndex, StringChain);
+	FName CurrentVertex = TargetPackageName;
+	FVertexData* VertexData = &Vertices.FindOrAdd(CurrentVertex);
+	if (VertexData->SourceDistance == NoPath)
+	{
+		return TEXT("Soft: Unknown reference chain. Soft From Unassigned Package?");
+	}
+	if (VertexData->SourceDistance == 0)
+	{
+		return FString(TEXT("Hard"));
+	}
 
-	return StringChain;
+	TArray<FName> Chain;
+	Chain.Add(TargetPackageName);
+	int32 MaxPossibleLength = Vertices.Num();
+	for (; VertexData->SourceDistance != 0;)
+	{
+		CurrentVertex = VertexData->NextTowardSource;
+		checkf(!CurrentVertex.IsNone(), TEXT("Distance graph has incomplete path; this should be impossible."));
+		Chain.Add(CurrentVertex);
+		checkf(Chain.Num() <= MaxPossibleLength, TEXT("Cycle in Distance graph; this should be impossible."));
+		VertexData = &Vertices.FindOrAdd(CurrentVertex);
+	}
+	check(Chain.Num() > 1); // Loop runs at least once
+
+	TStringBuilder<1024> Result;
+	Result << TEXT("Soft: ") << Chain[Chain.Num() - 1];
+	for (int32 Index = Chain.Num() - 2; Index >= 0; --Index)
+	{
+		Result << TEXT("->") << Chain[Index];
+	}
+	return FString(Result);
 }
-
 
 bool FAssetRegistryGenerator::CreateOrEmptyCollection(FName CollectionName)
 {

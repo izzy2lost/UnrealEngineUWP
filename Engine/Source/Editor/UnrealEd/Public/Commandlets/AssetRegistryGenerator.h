@@ -266,6 +266,8 @@ public:
 	static void UpdateAssetManagerDatabase();
 
 private:
+	class FGetShortestReferenceChain;
+
 	/**
 	 * Updates all asset package flags in the specified package
 	 *
@@ -332,8 +334,6 @@ private:
 	TArray<TUniquePtr<FChunkPackageSet>> FinalChunkManifests;
 	/** Additional data generators used when creating chunks */
 	TArray<TSharedRef<IChunkDataGenerator>> ChunkDataGenerators;
-	/** Lookup table of used package names used when searching references. */
-	TSet<FName> InspectedNames;
 	/** Source of the config-driven parent-child relationships between chunks. */
 	UChunkDependencyInfo& DependencyInfo;
 
@@ -342,24 +342,6 @@ private:
 
 	/** Mapping from chunk id to pakchunk file index. If not defined, Pakchunk index will be the same as chunk id by default */
 	TMap<int32, int32> ChunkIdPakchunkIndexMapping;
-
-	struct FReferencePair
-	{
-		FReferencePair() {}
-
-		FReferencePair(const FName& InName, uint32 InParentIndex)
-			: PackageName(InName)
-			, ParentNodeIndex(InParentIndex)
-		{}
-
-		bool operator == (const FReferencePair& RHS) const
-		{
-			return PackageName == RHS.PackageName;
-		}
-
-		FName		PackageName;
-		uint32		ParentNodeIndex;
-	};
 
 	/**
 	 * Updates AssetData with TagsAndValues corresponding to any collections 
@@ -441,12 +423,6 @@ private:
 
 	/** Save a CSV dump of chunk asset information, if bWriteIndividualFiles is true it writes a CSV per chunk in addition to AllChunksInfo */
 	bool GenerateAssetChunkInformationCSV(const FString& OutputPath, bool bWriteIndividualFiles = false);
-
-	/** Finds the asset belonging to ChunkID with the smallest number of links to Packages In PackageNames */
-	void FindShortestReferenceChain(TArray<FReferencePair> PackageNames, int32 ChunkID, uint32& OutParentIndex, FString& OutChainPath);
-
-	/** Helper function for FindShortestReferenceChain */
-	FString	GetShortestReferenceChain(FName PackageName, int32 ChunkID);
 
 	/** Recursively remove redundant packages from child chunks based on the chunk dependency tree. */
 	void SubtractParentChunkPackagesFromChildChunks(const FChunkDependencyTreeNode& Node,
