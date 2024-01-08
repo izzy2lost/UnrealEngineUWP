@@ -1334,7 +1334,7 @@ bool URigVMPin::CanBeBoundToVariable(const FRigVMExternalVariable& InExternalVar
 		const FRigVMPropertyPath PropertyPath(Property, InSegmentPath);
 		Property = PropertyPath.GetTailProperty();
 
-		FRigVMExternalVariable::GetTypeFromProperty(Property, ExternalCPPType, ExternalCPPTypeObject);
+		RigVMPropertyUtils::GetTypeFromProperty(Property, ExternalCPPType, ExternalCPPTypeObject);
 	}
 
 	const FString CPPBaseType = IsArray() ? GetArrayElementCppType() : GetCPPType();

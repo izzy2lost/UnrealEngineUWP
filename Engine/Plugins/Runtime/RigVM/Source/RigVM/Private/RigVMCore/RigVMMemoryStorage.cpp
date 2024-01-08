@@ -649,7 +649,7 @@ bool URigVMMemoryStorageGeneratorClass::RemoveStorageClass(UObject* InOuter, ERi
 
 uint32 URigVMMemoryStorageGeneratorClass::GetMemoryHash() const
 {
-	if(CachedMemoryHash != 0)
+ 	if(CachedMemoryHash != 0)
 	{
 		return CachedMemoryHash;
 	}
@@ -658,20 +658,21 @@ uint32 URigVMMemoryStorageGeneratorClass::GetMemoryHash() const
 
 	for(const FProperty* Property : LinkedProperties)
 	{
-		CachedMemoryHash = HashCombine(CachedMemoryHash, GetTypeHash(Property->GetFName().ToString()));
-		CachedMemoryHash = HashCombine(CachedMemoryHash, GetTypeHash(Property->GetCPPType()));
+		CachedMemoryHash = HashCombineFast(CachedMemoryHash, GetTypeHash(Property->GetFName().ToString()));
+		CachedMemoryHash = HashCombineFast(CachedMemoryHash, GetTypeHash(Property->GetCPPType()));
 	}
 	
 	// for literals we also hash the content / defaults for each property
 	if(GetMemoryType() == ERigVMMemoryType::Literal)
 	{
-		if(URigVMMemoryStorage* CDO = Cast<URigVMMemoryStorage>(GetDefaultObject(true)))
+		if(const URigVMMemoryStorage* CDO = Cast<URigVMMemoryStorage>(GetDefaultObject(true)))
 		{
 			for(const FProperty* Property : LinkedProperties)
 			{
-				FString DefaultValue;
-				Property->ExportTextItem_InContainer(DefaultValue, CDO, nullptr, nullptr, PPF_None, nullptr);
-				CachedMemoryHash = HashCombine(CachedMemoryHash, GetTypeHash(DefaultValue));
+				const uint32 PropertyHash =
+					RigVMPropertyUtils::GetPropertyHashFast(Property, reinterpret_cast<const uint8*>(CDO));
+ 
+				CachedMemoryHash = HashCombineFast(CachedMemoryHash, PropertyHash);
 			}
 		}
 	}

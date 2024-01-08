@@ -274,7 +274,7 @@ TRigVMTypeIndex FRigVMCompilerWorkData::GetTypeIndexForOperand(const FRigVMOpera
 
 	FName CPPTypeName(NAME_None);
 	UObject* CPPTypeObject = nullptr;
-	FRigVMExternalVariable::GetTypeFromProperty(Property, CPPTypeName, CPPTypeObject);
+	RigVMPropertyUtils::GetTypeFromProperty(Property, CPPTypeName, CPPTypeObject);
 
 	return FRigVMRegistry::Get().GetTypeIndex(CPPTypeName, CPPTypeObject);
 }

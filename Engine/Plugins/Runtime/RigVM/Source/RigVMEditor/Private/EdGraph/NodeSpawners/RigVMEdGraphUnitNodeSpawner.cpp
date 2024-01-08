@@ -16,6 +16,7 @@
 #include "RigVMBlueprintUtils.h"
 #include "ScopedTransaction.h"
 #include "RigVMFunctions/Execution/RigVMFunction_UserDefinedEvent.h"
+#include "RigVMPropertyUtils.h"
 
 #include UE_INLINE_GENERATED_CPP_BY_NAME(RigVMEdGraphUnitNodeSpawner)
 
@@ -175,7 +176,7 @@ URigVMEdGraphNode* URigVMEdGraphUnitNodeSpawner::SpawnNode(UEdGraph* ParentGraph
 				FPinInfo Pin;
 				const FProperty* Property = *It;
 				Pin.Name = Property->GetFName();
-				FRigVMExternalVariableDef::GetTypeFromProperty(Property, Pin.CPPType, Pin.CPPTypeObject);
+				RigVMPropertyUtils::GetTypeFromProperty(Property, Pin.CPPType, Pin.CPPTypeObject);
 				if(Pin.CPPType.IsNone())
 				{
 					continue;

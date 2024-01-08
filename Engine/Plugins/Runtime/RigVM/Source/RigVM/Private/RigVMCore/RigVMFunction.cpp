@@ -5,6 +5,7 @@
 #include "RigVMCore/RigVMRegistry.h"
 #include "RigVMCore/RigVMExternalVariable.h"
 #include "RigVMCore/RigVMStruct.h"
+#include "RigVMPropertyUtils.h"
 #include "UObject/Package.h"
 
 FRigVMFunction::FRigVMFunction(const TCHAR* InName, FRigVMFunctionPtr InFunctionPtr, UScriptStruct* InStruct, int32 InIndex, const TArray<FRigVMFunctionArgument>& InArguments)
@@ -88,7 +89,7 @@ const TArray<TRigVMTypeIndex>& FRigVMFunction::GetArgumentTypeIndices() const
 				{
 					FName CPPType = NAME_None;
 					UObject* CPPTypeObject = nullptr;
-					FRigVMExternalVariable::GetTypeFromProperty(Property, CPPType, CPPTypeObject);
+					RigVMPropertyUtils::GetTypeFromProperty(Property, CPPType, CPPTypeObject);
 
 					const FRigVMTemplateArgumentType Type(CPPType, CPPTypeObject);
 					ArgumentTypeIndices.Add(FRigVMRegistry::Get().FindOrAddType(Type));
