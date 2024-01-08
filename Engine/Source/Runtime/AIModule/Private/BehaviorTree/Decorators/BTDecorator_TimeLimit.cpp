@@ -4,6 +4,11 @@
 
 #include UE_INLINE_GENERATED_CPP_BY_NAME(BTDecorator_TimeLimit)
 
+struct FBTimeLimitMemory
+{
+	bool bElapsed = false;
+};
+
 UBTDecorator_TimeLimit::UBTDecorator_TimeLimit(const FObjectInitializer& ObjectInitializer) : Super(ObjectInitializer)
 {
 	NodeName = "TimeLimit";
@@ -17,19 +22,45 @@ UBTDecorator_TimeLimit::UBTDecorator_TimeLimit(const FObjectInitializer& ObjectI
 	FlowAbortMode = EBTFlowAbortMode::Self;
 }
 
-void UBTDecorator_TimeLimit::OnNodeActivation(FBehaviorTreeSearchData& SearchData)
+uint16 UBTDecorator_TimeLimit::GetInstanceMemorySize() const
 {
-	uint8* RawMemory = SearchData.OwnerComp.GetNodeMemory(this, SearchData.OwnerComp.FindInstanceContainingNode(this));
-	if (RawMemory)
-	{
-		FBTAuxiliaryMemory* DecoratorMemory = GetSpecialNodeMemory<FBTAuxiliaryMemory>(RawMemory);
-		DecoratorMemory->NextTickRemainingTime = TimeLimit;
-		DecoratorMemory->AccumulatedDeltaTime = 0.0f;
-	}
+	return sizeof(FBTimeLimitMemory);
 }
 
-void UBTDecorator_TimeLimit::TickNode(UBehaviorTreeComponent& OwnerComp, uint8* NodeMemory, float DeltaSeconds)
+void UBTDecorator_TimeLimit::InitializeMemory(UBehaviorTreeComponent& OwnerComp, uint8* NodeMemory, const EBTMemoryInit::Type InitType) const
 {
+	InitializeNodeMemory<FBTimeLimitMemory>(NodeMemory, InitType);
+}
+
+void UBTDecorator_TimeLimit::CleanupMemory(UBehaviorTreeComponent& OwnerComp, uint8* NodeMemory, const EBTMemoryClear::Type CleanupType) const
+{
+	CleanupNodeMemory<FBTimeLimitMemory>(NodeMemory, CleanupType);
+}
+
+void UBTDecorator_TimeLimit::OnBecomeRelevant(UBehaviorTreeComponent& OwnerComp, uint8* NodeMemory)
+{
+	Super::OnBecomeRelevant(OwnerComp, NodeMemory);
+
+	SetNextTickTime(NodeMemory, TimeLimit);
+}
+
+void UBTDecorator_TimeLimit::OnCeaseRelevant(UBehaviorTreeComponent& OwnerComp, uint8* NodeMemory)
+{
+	Super::OnCeaseRelevant(OwnerComp, NodeMemory);
+
+	reinterpret_cast<FBTimeLimitMemory*>(NodeMemory)->bElapsed = false;
+}
+
+bool UBTDecorator_TimeLimit::CalculateRawConditionValue(UBehaviorTreeComponent& OwnerComp, uint8* NodeMemory) const
+{
+	return !reinterpret_cast<FBTimeLimitMemory*>(NodeMemory)->bElapsed;
+}
+
+void UBTDecorator_TimeLimit::TickNode(UBehaviorTreeComponent& OwnerComp, uint8* NodeMemory, const float DeltaSeconds)
+{
+	ensureMsgf(DeltaSeconds >= TimeLimit, TEXT("Using SetNextTickTime in OnBecomeRelevant should guarantee that we are only getting ticked when the time limit is finished"));
+	reinterpret_cast<FBTimeLimitMemory*>(NodeMemory)->bElapsed = true;
+
 	OwnerComp.RequestExecution(this);
 }
 
@@ -47,7 +78,7 @@ void UBTDecorator_TimeLimit::DescribeRuntimeValues(const UBehaviorTreeComponent&
 	const FBTAuxiliaryMemory* DecoratorMemory = GetSpecialNodeMemory<FBTAuxiliaryMemory>(NodeMemory);
 	if (OwnerComp.GetWorld())
 	{
-		const float TimeLeft = DecoratorMemory->NextTickRemainingTime > 0 ? DecoratorMemory->NextTickRemainingTime : 0;
+		const float TimeLeft = DecoratorMemory->NextTickRemainingTime > 0.f ? DecoratorMemory->NextTickRemainingTime : 0.f;
 		Values.Add(FString::Printf(TEXT("%s in %ss"),
 			*UBehaviorTreeTypes::DescribeNodeResult(EBTNodeResult::Failed),
 			*FString::SanitizeFloat(TimeLeft)));

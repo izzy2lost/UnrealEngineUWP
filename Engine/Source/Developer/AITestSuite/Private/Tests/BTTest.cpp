@@ -7,6 +7,7 @@
 #include "AITestsCommon.h"
 #include "MockAI_BT.h"
 #include "BehaviorTree/TestBTDecorator_CantExecute.h"
+#include "BehaviorTree/Decorators/BTDecorator_TimeLimit.h"
 
 #define LOCTEXT_NAMESPACE "AITestSuite_BTTest"
 
@@ -797,6 +798,69 @@ struct FAITest_BTCompositeFailedDecoratorUnregistersChildren : public FAITest_Si
 	}
 };
 IMPLEMENT_AI_LATENT_TEST(FAITest_BTCompositeFailedDecoratorUnregistersChildren, "System.AI.Behavior Trees.Composite failed decorator unregisters child nodes")
+
+struct FAITest_BTTimeLimitDecorator : FAITest_SimpleBT
+{
+	FAITest_BTTimeLimitDecorator()
+	{
+		enum
+		{
+			Task1Execute = 1,
+			Task1Tick,
+			Task2Execute,
+		};
+		
+		UBTCompositeNode& CompNode = FBTBuilder::AddSelector(*BTAsset);
+		{
+			FBTBuilder::AddTask(CompNode, Task1Execute, EBTNodeResult::Succeeded, /*ExecutionTicks*/ 5, Task1Tick);
+			{
+				constexpr float NumTicks = 2.5f;
+				FBTBuilder::WithDecorator<UBTDecorator_TimeLimit>(CompNode).TimeLimit = NumTicks * FAITestHelpers::TickInterval;
+			}
+
+			FBTBuilder::AddTask(CompNode, Task2Execute, EBTNodeResult::Succeeded);
+		}
+
+		ExpectedResult.Add(Task1Execute);
+		ExpectedResult.Add(Task1Tick);
+		ExpectedResult.Add(Task1Tick);
+		ExpectedResult.Add(Task2Execute);
+	}
+};
+IMPLEMENT_AI_LATENT_TEST(FAITest_BTTimeLimitDecorator, "System.AI.Behavior Trees.TimeLimit decorator")
+
+struct FAITest_BTTimeLimitInCompositeDecorator : FAITest_SimpleBT
+{
+	FAITest_BTTimeLimitInCompositeDecorator()
+	{
+		enum
+		{
+			Task1Execute = 1,
+			Task1Tick,
+			Task2Execute,
+		};
+		
+		UBTCompositeNode& CompNode = FBTBuilder::AddSelector(*BTAsset);
+		{
+			FBTBuilder::AddTask(CompNode, Task1Execute, EBTNodeResult::Succeeded, /*ExecutionTicks*/ 5, Task1Tick);
+			{
+				constexpr float NumTicks = 2.5f;
+				FBTBuilder::WithDecorator<UBTDecorator_TimeLimit>(CompNode).TimeLimit = NumTicks * FAITestHelpers::TickInterval;
+
+				TArray<FBTDecoratorLogic>& CompositeOps = CompNode.Children.Last().DecoratorOps;
+				CompositeOps.Add(FBTDecoratorLogic(EBTDecoratorLogic::Test, 0));
+			}
+
+			FBTBuilder::AddTask(CompNode, Task2Execute, EBTNodeResult::Succeeded);
+		}
+
+		ExpectedResult.Add(Task1Execute);
+		ExpectedResult.Add(Task1Tick);
+		ExpectedResult.Add(Task1Tick);
+		ExpectedResult.Add(Task2Execute);
+	}
+};
+IMPLEMENT_AI_LATENT_TEST(FAITest_BTTimeLimitInCompositeDecorator, "System.AI.Behavior Trees.TimeLimit in Composite decorator")
 
 /* All BTAbortingDuringService/BTAbortingDuringTaskService come from UDN case 00317509*/
 struct FAITest_BTAbortingDuringServiceTick : public FAITest_SimpleBT
