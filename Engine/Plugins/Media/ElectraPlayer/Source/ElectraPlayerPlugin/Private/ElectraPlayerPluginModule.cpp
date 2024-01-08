@@ -92,9 +92,9 @@ public:
 		FGraphEventRef	GraphEvent;
 	};
 
-	static IElectraDecoderResourceDelegateBase::IAsyncConsecutiveTaskSync* CreateAsyncConsecutiveTaskSync()
+	static TSharedPtr<IElectraDecoderResourceDelegateBase::IAsyncConsecutiveTaskSync, ESPMode::ThreadSafe> CreateAsyncConsecutiveTaskSync()
 	{
-		return new FAsyncConsecutiveTaskSync();
+		return MakeShared<FAsyncConsecutiveTaskSync, ESPMode::ThreadSafe>();
 	}
 
 	static void RunCodeAsync(TFunction<void()>&& CodeToRun, IElectraDecoderResourceDelegateBase::IAsyncConsecutiveTaskSync* TaskSync)

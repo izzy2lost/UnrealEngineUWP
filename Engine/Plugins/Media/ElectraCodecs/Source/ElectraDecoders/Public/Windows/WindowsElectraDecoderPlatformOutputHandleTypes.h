@@ -3,6 +3,7 @@
 #pragma once
 
 #include "CoreMinimal.h"
+#include "IElectraDecoderResourceDelegateBase.h"
 
 #include "Windows/AllowWindowsPlatformTypes.h"
 THIRD_PARTY_INCLUDES_START
@@ -54,21 +55,22 @@ class FElectraDecoderOutputSync final
 {
 public:
 	FElectraDecoderOutputSync() : SyncValue(0), CopyDoneSyncValue(0) {}
-	FElectraDecoderOutputSync(TRefCountPtr<IUnknown> InSync, uint64 InSyncValue, TRefCountPtr<IMFSample> InMFSample = nullptr)
-		: Sync(InSync), SyncValue(InSyncValue), MFSample(InMFSample)
+	FElectraDecoderOutputSync(TRefCountPtr<IUnknown> InSync, uint64 InSyncValue, TRefCountPtr<IMFSample> InMFSample = nullptr, TSharedPtr<IElectraDecoderResourceDelegateBase::IAsyncConsecutiveTaskSync> InTaskSync = nullptr)
+		: Sync(InSync), SyncValue(InSyncValue), TaskSync(InTaskSync), MFSample(InMFSample)
 	{}
 	FElectraDecoderOutputSync(TRefCountPtr<IUnknown> InSync, uint64 InSyncValue, TRefCountPtr<ID3D12Fence> InCopyDoneSync, uint64 InCopyDoneSyncValue)
 		: Sync(InSync), SyncValue(InSyncValue), CopyDoneSync(InCopyDoneSync), CopyDoneSyncValue(InCopyDoneSyncValue)
 	{}
 
-	TRefCountPtr<IUnknown>		Sync;				// An IUnknown based sync primitive (fence, or DX12 specific WMF object)
-	uint64						SyncValue;			// Optionally needed sync value
+	TRefCountPtr<IUnknown>		Sync;														// Optional IUnknown based sync primitive (fence, or DX12 specific WMF object)
+	uint64						SyncValue;													// Optionally needed sync value
+	TSharedPtr<IElectraDecoderResourceDelegateBase::IAsyncConsecutiveTaskSync> TaskSync;	// Optional Sync/Perquisite object to use to run code async after the decoder data arrives
 
-	TRefCountPtr<ID3D12Fence>	CopyDoneSync;		// Fence to signal end of copy from this buffer back to decoder
-	uint64						CopyDoneSyncValue;	// Value to be used with CopyDoneSync fence
+	TRefCountPtr<ID3D12Fence>	CopyDoneSync;												// Optional fence to signal end of copy from this buffer back to decoder
+	uint64						CopyDoneSyncValue;											// Value to be used with CopyDoneSync fence
 
 private:
-	TRefCountPtr<IMFSample>		MFSample;			// The sample reference can ride along to ensure that the DX12 WMF interface properly keeps reference to the sample until we enqueue their sync primitives with the a D3D queue
+	TRefCountPtr<IMFSample>		MFSample;													// The sample reference can ride along to ensure that the DX12 WMF interface properly keeps reference to the sample until we enqueue their sync primitives with the a D3D queue
 };
 
 class IElectraDecoderVideoOutputImageBuffers

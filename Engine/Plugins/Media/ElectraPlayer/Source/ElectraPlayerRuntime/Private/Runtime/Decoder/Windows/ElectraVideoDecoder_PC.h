@@ -21,6 +21,13 @@ THIRD_PARTY_INCLUDES_START
 #include "mfidl.h"
 THIRD_PARTY_INCLUDES_END
 
+#if defined(NTDDI_WIN10_NI)
+#include <mfd3d12.h>
+#define HAVE_MFSAMPLE_WITH_DX12 1
+#else
+#define HAVE_MFSAMPLE_WITH_DX12 0
+#endif
+
 #include "Windows/HideWindowsPlatformTypes.h"
 
 struct ID3D12Resource;
@@ -65,6 +72,12 @@ public:
 	TRefCountPtr<IUnknown> GetSync(uint64& SyncValue) const override;
 
 private:
+#if HAVE_MFSAMPLE_WITH_DX12
+	void TriggerDataCopy(TRefCountPtr<IMFD3D12SynchronizationObjectCommands> DecoderSync, TRefCountPtr<ID3D12Fence> ResourceFence, const FElectraDecoderOutputSync& OutputSync, Electra::IVideoDecoderResourceDelegate* InResourceDelegate) const;
+#else
+	void TriggerDataCopy(TRefCountPtr<IUnknown> DecoderSync, TRefCountPtr<ID3D12Fence> ResourceFence, const FElectraDecoderOutputSync& OutputSync, Electra::IVideoDecoderResourceDelegate* InResourceDelegate) const;
+#endif
+
 	// Decoder output type
 	EOutputType OutputType = EOutputType::Unknown;
 

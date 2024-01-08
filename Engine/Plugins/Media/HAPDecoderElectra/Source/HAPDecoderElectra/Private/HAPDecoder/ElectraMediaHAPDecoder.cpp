@@ -155,12 +155,12 @@ public:
 #if ELECTRA_MEDIAGPUBUFFER_DX12
 		if (InBufferIndex == 0)
 		{
-			SyncObject = { Buffer[Buffer_Color].GPUBuffer.Fence.GetReference(), Buffer[Buffer_Color].GPUBuffer.FenceValue };
+			SyncObject = { Buffer[Buffer_Color].GPUBuffer.Fence.GetReference(), Buffer[Buffer_Color].GPUBuffer.FenceValue, nullptr, Buffer_TaskSync };
 			return true;
 		}
 		if (InBufferIndex == 1)
 		{
-			SyncObject = { Buffer[Buffer_Alpha].GPUBuffer.Fence.GetReference(), Buffer[Buffer_Alpha].GPUBuffer.FenceValue };
+			SyncObject = { Buffer[Buffer_Alpha].GPUBuffer.Fence.GetReference(), Buffer[Buffer_Alpha].GPUBuffer.FenceValue, nullptr, Buffer_TaskSync };
 			return true;
 		}
 #endif
@@ -238,6 +238,9 @@ public:
 		FElectraMediaDecoderOutputBufferPool_DX12::FOutputData GPUBuffer;
 #endif
 	} Buffer[Buffer_Max];
+#if ELECTRA_MEDIAGPUBUFFER_DX12
+	TSharedPtr<IElectraDecoderResourceDelegateBase::IAsyncConsecutiveTaskSync> Buffer_TaskSync;
+#endif
 };
 
 
@@ -320,7 +323,7 @@ private:
 		mutable TSharedPtr<FElectraMediaDecoderOutputBufferPool_DX12> D3D12ResourcePool;
 #endif
 	} InstanceBufferData[FVideoDecoderOutputHAPElectra::Buffer_Max];
-	mutable TUniquePtr<IElectraDecoderResourceDelegateBase::IAsyncConsecutiveTaskSync> TaskSync;
+	mutable TSharedPtr<IElectraDecoderResourceDelegateBase::IAsyncConsecutiveTaskSync> TaskSync;
 };
 
 
@@ -641,7 +644,7 @@ IElectraDecoder::EDecoderError FVideoDecoderHAPElectra::DecodeAccessUnit(const F
 				// Create a tasksync instance so we can have our own async jobs run in consecutive order
 				if (!TaskSync.IsValid())
 				{
-					TaskSync.Reset(PinnedResourceDelegate->CreateAsyncConsecutiveTaskSync());
+					TaskSync = PinnedResourceDelegate->CreateAsyncConsecutiveTaskSync();
 				}
 
 				InstanceBufferData[BufIdx].D3D12ResourcePool->AllocateOutputDataAsBuffer(BufferInfo.GPUBuffer, ResourcePitch);
@@ -686,7 +689,7 @@ IElectraDecoder::EDecoderError FVideoDecoderHAPElectra::DecodeAccessUnit(const F
 			{
 				if (Result == HapResult_No_Error)
 				{
-					if (!PinnedResourceDelegate->RunCodeAsync([BufferResource = BufferInfo.GPUBuffer.Resource, BufferFence = BufferInfo.GPUBuffer.Fence, BufferFenceValue = BufferInfo.GPUBuffer.FenceValue, ResourcePitch, BufferAddr, BufferPitch, DecodedPitch = DecodedHeight / BlockSizeY, TempBuffer]()
+					if (PinnedResourceDelegate->RunCodeAsync([BufferResource = BufferInfo.GPUBuffer.Resource, BufferFence = BufferInfo.GPUBuffer.Fence, BufferFenceValue = BufferInfo.GPUBuffer.FenceValue, ResourcePitch, BufferAddr, BufferPitch, DecodedPitch = DecodedHeight / BlockSizeY, TempBuffer]()
 						{
 							uint8* DX12BufferAddr;
 							HRESULT Res = BufferResource->Map(0, nullptr, (void**)&DX12BufferAddr);
@@ -698,6 +701,11 @@ IElectraDecoder::EDecoderError FVideoDecoderHAPElectra::DecodeAccessUnit(const F
 
 							BufferFence->Signal(BufferFenceValue);
 						}, TaskSync.Get()))
+					{
+						// note: we share one task sync for all buffers -> this will lead any external task to be executed after ALL tasks we trigger have been done (aka: after the "last" buffer is ready)
+						NewOutput->Buffer_TaskSync = TaskSync;
+					}
+					else	
 					{
 						uint8* DX12BufferAddr;
 						HRESULT Res = BufferInfo.GPUBuffer.Resource->Map(0, nullptr, (void**)&DX12BufferAddr);

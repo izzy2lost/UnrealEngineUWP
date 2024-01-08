@@ -170,7 +170,7 @@ public:
 			SyncObject = { Buffer.DecoderSync.GetReference(), 0, Buffer.MFSample };
 			// note: a reference to the MFSample remains with this instance, but is assumed to soon be released as the instance will be destroyed shortly after this was called
 #else
-			SyncObject = { Buffer.Fence.GetReference(), Buffer.FenceValue, nullptr };
+			SyncObject = { Buffer.Fence.GetReference(), Buffer.FenceValue, nullptr, Buffer_TaskSync };
 #endif
 			return true;
 		}
@@ -236,6 +236,7 @@ public:
 	} Buffer;
 #else
 	FElectraMediaDecoderOutputBufferPool_DX12::FOutputData Buffer;
+	TSharedPtr<IElectraDecoderResourceDelegateWindows::IAsyncConsecutiveTaskSync, ESPMode::ThreadSafe> Buffer_TaskSync;
 #endif
 };
 
@@ -349,7 +350,6 @@ private:
 	bool ConvertDecoderOutput();
 	static void CopyBufferData(TRefCountPtr<IMF2DBuffer> Buffer2D, TRefCountPtr<ID3D12Resource> BufferResource, TRefCountPtr<ID3D12Fence> BufferFence, uint64 BufferFenceValue, uint32 BufferPitch, int32 DecodedHeight);
 
-
 	TWeakPtr<IElectraDecoderResourceDelegate, ESPMode::ThreadSafe> ResourceDelegate;
 
 	IElectraDecoder::FError LastError;
@@ -370,7 +370,7 @@ private:
 	uint32 MaxHeight;
 #if !ALLOW_MFSAMPLE_WITH_DX12
 	mutable TSharedPtr<FElectraMediaDecoderOutputBufferPool_DX12> D3D12ResourcePool;
-	mutable TUniquePtr<IElectraDecoderResourceDelegateBase::IAsyncConsecutiveTaskSync> TaskSync;
+	mutable TSharedPtr<IElectraDecoderResourceDelegateBase::IAsyncConsecutiveTaskSync> TaskSync;
 #endif
 
 	static const GUID MFTms_AVLowLatencyMode;
@@ -1154,7 +1154,7 @@ bool FElectraVideoDecoderH264_DX::ConvertDecoderOutput()
 		// Create a tasksync instance so we can have our own async jobs run in consecutive order
 		if (!TaskSync.IsValid())
 		{
-			TaskSync.Reset(PinnedResourceDelegate->CreateAsyncConsecutiveTaskSync());
+			TaskSync = PinnedResourceDelegate->CreateAsyncConsecutiveTaskSync();
 		}
 
 		// Get data from MFSample...
@@ -1170,10 +1170,14 @@ bool FElectraVideoDecoderH264_DX::ConvertDecoderOutput()
 
 		NewOutput->Pitch = BufferPitch;
 
-		if (!PinnedResourceDelegate->RunCodeAsync([DecodedOutputSample, Buffer2D, BufferResource = NewOutput->Buffer.Resource, BufferFence = NewOutput->Buffer.Fence, BufferFenceValue = NewOutput->Buffer.FenceValue, BufferPitch, DecodedHeight = NewOutput->DecodedHeight]()
+		if (PinnedResourceDelegate->RunCodeAsync([DecodedOutputSample, Buffer2D, BufferResource = NewOutput->Buffer.Resource, BufferFence = NewOutput->Buffer.Fence, BufferFenceValue = NewOutput->Buffer.FenceValue, BufferPitch, DecodedHeight = NewOutput->DecodedHeight]()
 			{
 				CopyBufferData(Buffer2D, BufferResource, BufferFence, BufferFenceValue, BufferPitch, DecodedHeight);
 			}, TaskSync.Get()))
+		{
+			NewOutput->Buffer_TaskSync = TaskSync;
+		}
+		else
 		{
 			CopyBufferData(Buffer2D, NewOutput->Buffer.Resource, NewOutput->Buffer.Fence, NewOutput->Buffer.FenceValue, BufferPitch, NewOutput->DecodedHeight);
 		}

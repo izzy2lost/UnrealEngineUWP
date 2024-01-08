@@ -116,9 +116,9 @@ bool FElectraPlayerPlatform::StartupPlatformResources(const Electra::FParamDict&
 		return false;
 	};
 
-	auto CreateAsyncConsecutiveTaskSyncCallback = reinterpret_cast<IElectraDecoderResourceDelegateWindows::IAsyncConsecutiveTaskSync*(*)()>(Params.GetValue(FName(TEXT("CreateAsyncConsecutiveTaskSync"))).SafeGetPointer());
+	auto CreateAsyncConsecutiveTaskSyncCallback = reinterpret_cast<TSharedPtr<IElectraDecoderResourceDelegateWindows::IAsyncConsecutiveTaskSync, ESPMode::ThreadSafe>(*)()>(Params.GetValue(FName(TEXT("CreateAsyncConsecutiveTaskSync"))).SafeGetPointer());
 
-	Callbacks.CreateAsyncConsecutiveTaskSync = [CreateAsyncConsecutiveTaskSyncCallback]() -> IElectraDecoderResourceDelegateWindows::IAsyncConsecutiveTaskSync*
+	Callbacks.CreateAsyncConsecutiveTaskSync = [CreateAsyncConsecutiveTaskSyncCallback]() -> TSharedPtr<IElectraDecoderResourceDelegateWindows::IAsyncConsecutiveTaskSync, ESPMode::ThreadSafe>
 	{
 		if (CreateAsyncConsecutiveTaskSyncCallback)
 		{

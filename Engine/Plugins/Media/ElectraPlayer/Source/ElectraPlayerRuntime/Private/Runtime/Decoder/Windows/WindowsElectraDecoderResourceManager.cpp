@@ -129,7 +129,7 @@ bool FElectraDecoderResourceManagerWindows::GetD3DDevice(void **OutD3DDevice, in
 	return false;
 }
 
-IElectraDecoderResourceDelegateWindows::IAsyncConsecutiveTaskSync* FElectraDecoderResourceManagerWindows::CreateAsyncConsecutiveTaskSync()
+TSharedPtr<IElectraDecoderResourceDelegateBase::IAsyncConsecutiveTaskSync, ESPMode::ThreadSafe> FElectraDecoderResourceManagerWindows::CreateAsyncConsecutiveTaskSync()
 {
 	if (WindowsDecoderResources::Callbacks.CreateAsyncConsecutiveTaskSync)
 	{

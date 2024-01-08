@@ -39,7 +39,7 @@ public:
 		IAsyncConsecutiveTaskSync() = default;
 	};
 
-	virtual IAsyncConsecutiveTaskSync* CreateAsyncConsecutiveTaskSync()
+	virtual TSharedPtr<IAsyncConsecutiveTaskSync, ESPMode::ThreadSafe> CreateAsyncConsecutiveTaskSync()
 	{ return nullptr; }
 	virtual bool RunCodeAsync(TFunction<void()>&& CodeToRun, IAsyncConsecutiveTaskSync* TaskSync = nullptr)
 	{ return false; }

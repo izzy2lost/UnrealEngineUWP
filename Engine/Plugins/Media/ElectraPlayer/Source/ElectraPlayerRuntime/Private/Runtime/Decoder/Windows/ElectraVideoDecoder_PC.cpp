@@ -4,7 +4,7 @@
 #include "Renderer/RendererVideo.h"
 #include COMPILED_PLATFORM_HEADER(ElectraDecoderGPUBufferHelpers.h)
 #include COMPILED_PLATFORM_HEADER(ElectraDecoderPlatformOutputHandleTypes.h)
-//#include COMPILED_PLATFORM_HEADER(PlatformHeaders_Video_DX.h) // PRIVATE FOR CODECS
+#include "WindowsElectraDecoderResourceManager.h"
 
 #include "Windows/AllowWindowsPlatformTypes.h"
 THIRD_PARTY_INCLUDES_START
@@ -365,49 +365,71 @@ void FElectraPlayerVideoDecoderOutputPC::InitializeWithResource(const TRefCountP
 
 	// - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -
 
-	// Trigger copy (this will eventually execute on the submission thread of RHI if running in UE)
-	// (note: we pass in all of FElectraDecoderOutputSync to guarantee any references needed to make the decoder output sync work are passed along, too!)
-	InResourceDelegate->ExecuteCodeWithCopyCommandQueueUsage([CmdList = D3DCmdList, DestFence = D3DFence, DestFenceValue = FenceValue, 
-#if ALLOW_MFSAMPLE_WITH_DX12
-															  DecoderSync, /*SAMPLE ?*/
-#endif
-															  ResourceFence, OutputSync](ID3D12CommandQueue* D3DCmdQueue)
+	// Can we wait for the decoder to have the data ready using an async CPU job?
+	bool bTriggerOk = false;
+	if (OutputSync.TaskSync.IsValid())
 	{
-#if ALLOW_MFSAMPLE_WITH_DX12
-		if (DecoderSync)
-		{
-			// Sync queue to make sure decoder output is ready for us (WMF case)
-			DecoderSync->EnqueueResourceReadyWait(D3DCmdQueue);
-		}
-#endif
-		if (ResourceFence)
-		{
-			// Sync queue to make sure decoder output is ready for us
-			D3DCmdQueue->Wait(ResourceFence, OutputSync.SyncValue);
-		}
+		// Yes. Trigger the GPU copy once the CPU is ready, so we can avoid any stalls on the copy-queue waiting for decoder data...
+		auto ElectraDecoderResourceDelegate = Electra::FElectraDecoderResourceManagerWindows::GetDelegate();
 
-		// Execute copy
-		ID3D12CommandList* CmdLists[1] = { CmdList.GetReference() };
-		D3DCmdQueue->ExecuteCommandLists(1, CmdLists);
+		// Note: we capture "this" as we ensure that this instance only dies once the copy triggered here is actually done, hence ensuring any reference to "this" is done
+		bTriggerOk = ElectraDecoderResourceDelegate->RunCodeAsync([this, DecoderSync, ResourceFence, OutputSync, InResourceDelegate]()
+			{
+				TriggerDataCopy(DecoderSync, ResourceFence, OutputSync, InResourceDelegate);
+			}, OutputSync.TaskSync.Get());
+	}
 
-#if ALLOW_MFSAMPLE_WITH_DX12
-		if (DecoderSync)
-		{
-			// Sync to end of copy operation and release MFSample once reached
-			DecoderSync->EnqueueResourceRelease(D3DCmdQueue);
-		}
-#endif
-		// Trigger optional notification back to the decoder, so it could reuse its buffer after the copy
-		if (OutputSync.CopyDoneSync)
-		{
-			D3DCmdQueue->Signal(OutputSync.CopyDoneSync, OutputSync.CopyDoneSyncValue);
-		}
-
-		// Notify user of the output data we just copied of its arrival
-		D3DCmdQueue->Signal(DestFence, DestFenceValue);
-	});
+	if (!bTriggerOk)
+	{
+		// We could not run the trigger async. Schedule the copy right away. Any needed synchronization will be done in the copy-queue by the GPU
+		TriggerDataCopy(DecoderSync, ResourceFence, OutputSync, InResourceDelegate);
+	}
 }
 
+#if ALLOW_MFSAMPLE_WITH_DX12
+void FElectraPlayerVideoDecoderOutputPC::TriggerDataCopy(TRefCountPtr<IMFD3D12SynchronizationObjectCommands> DecoderSync, TRefCountPtr<ID3D12Fence> ResourceFence, const FElectraDecoderOutputSync& OutputSync, Electra::IVideoDecoderResourceDelegate* InResourceDelegate) const
+#else
+void FElectraPlayerVideoDecoderOutputPC::TriggerDataCopy(TRefCountPtr<IUnknown> DecoderSync, TRefCountPtr<ID3D12Fence> ResourceFence, const FElectraDecoderOutputSync& OutputSync, Electra::IVideoDecoderResourceDelegate* InResourceDelegate) const
+#endif
+{
+	// Trigger copy (this will eventually execute on the submission thread of RHI if running in UE)
+	// (note: we pass in all of FElectraDecoderOutputSync to guarantee any references needed to make the decoder output sync work are passed along, too!)
+	InResourceDelegate->ExecuteCodeWithCopyCommandQueueUsage([CmdList = D3DCmdList, DestFence = D3DFence, DestFenceValue = FenceValue, DecoderSync, ResourceFence, OutputSync](ID3D12CommandQueue* D3DCmdQueue)
+		{
+	#if ALLOW_MFSAMPLE_WITH_DX12
+			if (DecoderSync)
+			{
+				// Sync queue to make sure decoder output is ready for us (WMF case)
+				DecoderSync->EnqueueResourceReadyWait(D3DCmdQueue);
+			}
+	#endif
+			if (ResourceFence)
+			{
+				// Sync queue to make sure decoder output is ready for us
+				D3DCmdQueue->Wait(ResourceFence, OutputSync.SyncValue);
+			}
+
+			// Execute copy
+			ID3D12CommandList* CmdLists[1] = { CmdList.GetReference() };
+			D3DCmdQueue->ExecuteCommandLists(1, CmdLists);
+
+	#if ALLOW_MFSAMPLE_WITH_DX12
+			if (DecoderSync)
+			{
+				// Sync to end of copy operation and release MFSample once reached
+				DecoderSync->EnqueueResourceRelease(D3DCmdQueue);
+			}
+	#endif
+			// Trigger optional notification back to the decoder, so it could reuse its buffer after the copy
+			if (OutputSync.CopyDoneSync)
+			{
+				D3DCmdQueue->Signal(OutputSync.CopyDoneSync, OutputSync.CopyDoneSyncValue);
+			}
+
+			// Notify user of the output data we just copied of its arrival
+			D3DCmdQueue->Signal(DestFence, DestFenceValue);
+		});
+}
 
 void FElectraPlayerVideoDecoderOutputPC::InitializeWithSharedTexture(const TRefCountPtr<ID3D11Device>& InD3D11Device, const TRefCountPtr<ID3D11DeviceContext> InDeviceContext, const TRefCountPtr<IMFSample> InMFSample, const FIntPoint& OutputDim, TSharedPtr<Electra::FParamDict, ESPMode::ThreadSafe> InParamDict)
 {

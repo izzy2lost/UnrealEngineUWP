@@ -152,7 +152,7 @@ public:
 #if ELECTRA_MEDIAGPUBUFFER_DX12
 		if (InBufferIndex == 0)
 		{
-			SyncObject = { GPUBuffer.Fence.GetReference(), GPUBuffer.FenceValue };
+			SyncObject = { GPUBuffer.Fence.GetReference(), GPUBuffer.FenceValue, nullptr, GPUBuffer_TaskSync };
 			return true;
 		}
 #endif
@@ -207,6 +207,7 @@ public:
 	EElectraDecoderPlatformPixelEncoding BufferEncoding = EElectraDecoderPlatformPixelEncoding::Native;
 #if ELECTRA_MEDIAGPUBUFFER_DX12
 	FElectraMediaDecoderOutputBufferPool_DX12::FOutputData GPUBuffer;
+	TSharedPtr<IElectraDecoderResourceDelegateBase::IAsyncConsecutiveTaskSync> GPUBuffer_TaskSync;
 #endif
 };
 
@@ -297,7 +298,7 @@ private:
 	uint32 MaxOutputBuffers;
 #if ELECTRA_MEDIAGPUBUFFER_DX12
 	mutable TSharedPtr<FElectraMediaDecoderOutputBufferPool_DX12> D3D12ResourcePool;
-	mutable TUniquePtr<IElectraDecoderResourceDelegateBase::IAsyncConsecutiveTaskSync> TaskSync;
+	mutable TSharedPtr<IElectraDecoderResourceDelegateBase::IAsyncConsecutiveTaskSync> TaskSync;
 #endif
 };
 
@@ -723,7 +724,7 @@ IElectraDecoder::EDecoderError FVideoDecoderAvidDNxHDElectra::DecodeAccessUnit(c
 			// Create a tasksync instance so we can have our own async jobs run in consecutive order
 			if (!TaskSync.IsValid())
 			{
-				TaskSync.Reset(PinnedResourceDelegate->CreateAsyncConsecutiveTaskSync());
+				TaskSync = PinnedResourceDelegate->CreateAsyncConsecutiveTaskSync();
 			}
 
 			// Request resource and fence...
@@ -772,11 +773,15 @@ IElectraDecoder::EDecoderError FVideoDecoderAvidDNxHDElectra::DecodeAccessUnit(c
 				// If we have a temp buffer, we need to copy the data first...
 				if (!TempBuffer.IsEmpty())
 				{
-					if (!PinnedResourceDelegate->RunCodeAsync([BufferResource=NewOutput->GPUBuffer.Resource, Width=NewOutput->Width, Height=NewOutput->Height, ResourcePitch, BPP, TempBuffer, BufferFence=NewOutput->GPUBuffer.Fence, BufferFenceValue=NewOutput->GPUBuffer.FenceValue]()
+					if (PinnedResourceDelegate->RunCodeAsync([BufferResource = NewOutput->GPUBuffer.Resource, Width = NewOutput->Width, Height = NewOutput->Height, ResourcePitch, BPP, TempBuffer, BufferFence = NewOutput->GPUBuffer.Fence, BufferFenceValue = NewOutput->GPUBuffer.FenceValue]()
 						{
 							CopyData(BufferResource, ResourcePitch, TempBuffer.GetData(), Width * BPP, Height);
 							BufferFence->Signal(BufferFenceValue);
 						}, TaskSync.Get()))
+					{
+						NewOutput->GPUBuffer_TaskSync = TaskSync;
+					}
+					else
 					{
 						// Async copy failed, do it synchronously...
 						CopyData(NewOutput->GPUBuffer.Resource, ResourcePitch, TempBuffer.GetData(), NewOutput->Width * BPP, NewOutput->Height);
