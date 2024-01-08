@@ -11,6 +11,6 @@ struct FTypedElementPivotOffset final : public FTypedElementDataStorageColumn
 {
 	GENERATED_BODY()
 
-	UPROPERTY()
+	UPROPERTY(meta = (IgnoreForMemberInitializationTest))
 	FVector Offset;
 };
