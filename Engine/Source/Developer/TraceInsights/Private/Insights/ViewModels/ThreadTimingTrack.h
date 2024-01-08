@@ -206,8 +206,6 @@ private:
 						  TSharedPtr<FThreadTrackEvent>& OutParentTimingEvent,
 						  TSharedPtr<FThreadTrackEvent>& OutRootTimingEvent) const;
 
-	void OnFilterTrackClicked();
-
 	static void CreateFThreadTrackEventFromInfo(const TimelineEventInfo& InEventInfo, const TSharedRef<const FBaseTimingTrack> InTrack, int32 InDepth, TSharedPtr<FThreadTrackEvent> &OutTimingEvent);
 	static bool TimerIndexToTimerId(uint32 InTimerIndex, uint32 & OutTimerId);
 
@@ -219,7 +217,6 @@ private:
 	FThreadTimingSharedState& SharedState;
 
 	TSharedPtr<Insights::FFilterConfigurator> FilterConfigurator;
-	FDelegateHandle OnFilterChangesCommittedHandle;
 
 	// Search cache
 	mutable TTimingEventSearchCache<TraceServices::FTimingProfilerEvent> SearchCache;
