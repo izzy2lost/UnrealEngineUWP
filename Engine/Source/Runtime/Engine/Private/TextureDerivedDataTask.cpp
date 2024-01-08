@@ -1431,6 +1431,9 @@ static void DDC1_FetchAndFillDerivedData(
 
 	FSharedBuffer RawDerivedData;
 	const FSharedString SharedTexturePathName(TexturePathName);
+	const FSharedString SharedTextureMetaPathName(WriteToString<256>(TexturePathName, TEXTVIEW(" [Meta]")));
+	const FSharedString SharedTextureFastPathName(WriteToString<256>(TexturePathName, TEXTVIEW(" [Fast]")));
+	const FSharedString SharedTextureFastMetaPathName(WriteToString<256>(TexturePathName, TEXTVIEW(" [Fast][Meta]")));
 
 	FString LocalDerivedDataKeySuffix;
 	FString LocalDerivedDataKey;
@@ -1453,7 +1456,7 @@ static void DDC1_FetchAndFillDerivedData(
 
 			TArray<FCacheGetValueRequest, TInlineAllocator<2>> Requests;
 			Requests.Add({ SharedTexturePathName, ConvertLegacyCacheKey(FetchFirstKey), ECachePolicy::Default, 0 /* UserData */});
-			Requests.Add({ SharedTexturePathName, GetTextureDerivedMetadataKeyFromSuffix(FetchFirstKeySuffix), ECachePolicy::Default, 1 /* UserData */});
+			Requests.Add({ SharedTextureMetaPathName, GetTextureDerivedMetadataKeyFromSuffix(FetchFirstKeySuffix), ECachePolicy::Default, 1 /* UserData */});
 
 			FRequestOwner BlockingOwner(EPriority::Blocking);
 			FSharedBuffer MetadataBuffer;
@@ -1493,8 +1496,8 @@ static void DDC1_FetchAndFillDerivedData(
 		GetTextureDerivedDataKeyFromSuffix(LocalDerivedDataKeySuffix, LocalDerivedDataKey);
 
 		TArray<FCacheGetValueRequest, TInlineAllocator<2>> Requests;
-		Requests.Add({ SharedTexturePathName, ConvertLegacyCacheKey(LocalDerivedDataKey), ECachePolicy::Default, 0 /* UserData */ });
-		Requests.Add({ SharedTexturePathName, GetTextureDerivedMetadataKeyFromSuffix(LocalDerivedDataKeySuffix), ECachePolicy::Default, 1 /* UserData */ });
+		Requests.Add({ SharedTextureFastPathName, ConvertLegacyCacheKey(LocalDerivedDataKey), ECachePolicy::Default, 0 /* UserData */ });
+		Requests.Add({ SharedTextureFastMetaPathName, GetTextureDerivedMetadataKeyFromSuffix(LocalDerivedDataKeySuffix), ECachePolicy::Default, 1 /* UserData */ });
 
 		FRequestOwner BlockingOwner(EPriority::Blocking);
 		FSharedBuffer MetadataBuffer;
