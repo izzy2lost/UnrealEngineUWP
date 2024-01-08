@@ -55,6 +55,7 @@
 #include "NiagaraDataInterfaceColorCurve.h"
 #include "DataInterface/NiagaraDataInterfaceDataChannelRead.h"
 #include "DataInterface/NiagaraDataInterfaceDataChannelWrite.h"
+#include "DataInterface/NiagaraDataInterfaceMemoryBuffer.h"
 #include "NiagaraDataInterfaceRenderTargetVolume.h"
 
 #include "ViewModels/NiagaraScriptViewModel.h"
@@ -117,6 +118,7 @@
 #include "Customizations/NiagaraDataChannelDetails.h"
 #include "Customizations/SimCache/NiagaraArraySimCacheVisualizer.h"
 #include "Customizations/SimCache/FNiagaraDataChannelSimCacheVisualizer.h"
+#include "Customizations/SimCache/NiagaraMemoryBufferSimCacheVisualizer.h"
 #include "Customizations/SimCache/NiagaraRenderTargetVolumeSimCacheVisualizer.h"
 
 #include "NiagaraComponent.h"
@@ -1430,6 +1432,7 @@ void FNiagaraEditorModule::StartupModule()
 
 	// Register sim cache visualizers
 	RegisterDataInterfaceCacheVisualizer(UNiagaraDataInterfaceDataChannelWrite::StaticClass(), MakeShared<FNiagaraDataChannelSimCacheVisualizer>());
+	RegisterDataInterfaceCacheVisualizer(UNiagaraDataInterfaceMemoryBuffer::StaticClass(), MakeShared<FNiagaraMemoryBufferSimCacheVisualizer>());
 	RegisterDataInterfaceCacheVisualizer(UNiagaraDataInterfaceRenderTargetVolume::StaticClass(), MakeShared<FNiagaraRenderTargetVolumeSimCacheVisualizer>());
 	for (TObjectIterator<UClass> It; It; ++It)
 	{

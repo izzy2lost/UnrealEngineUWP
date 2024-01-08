@@ -1383,6 +1383,38 @@ struct FNDIInputParam<FNiagaraEmitterID>
 	FORCEINLINE void Reset() { Index.Reset(); }
 };
 
+template<>
+struct FNDIInputParam<FIntVector2>
+{
+	VectorVM::FExternalFuncInputHandler<int32> X;
+	VectorVM::FExternalFuncInputHandler<int32> Y;
+	FORCEINLINE FNDIInputParam(FVectorVMExternalFunctionContext& Context) : X(Context), Y(Context) {}
+	FORCEINLINE FIntVector2 GetAndAdvance() { return FIntVector2(X.GetAndAdvance(), Y.GetAndAdvance()); }
+	FORCEINLINE bool IsConstant() const { return X.IsConstant() && Y.IsConstant(); }
+};
+
+template<>
+struct FNDIInputParam<FIntVector3>
+{
+	VectorVM::FExternalFuncInputHandler<int32> X;
+	VectorVM::FExternalFuncInputHandler<int32> Y;
+	VectorVM::FExternalFuncInputHandler<int32> Z;
+	FORCEINLINE FNDIInputParam(FVectorVMExternalFunctionContext& Context) : X(Context), Y(Context), Z(Context) {}
+	FORCEINLINE FIntVector3 GetAndAdvance() { return FIntVector3(X.GetAndAdvance(), Y.GetAndAdvance(), Z.GetAndAdvance()); }
+	FORCEINLINE bool IsConstant() const { return X.IsConstant() && Y.IsConstant() && Z.IsConstant(); }
+};
+
+template<>
+struct FNDIInputParam<FIntVector4>
+{
+	VectorVM::FExternalFuncInputHandler<int32> X;
+	VectorVM::FExternalFuncInputHandler<int32> Y;
+	VectorVM::FExternalFuncInputHandler<int32> Z;
+	VectorVM::FExternalFuncInputHandler<int32> W;
+	FORCEINLINE FNDIInputParam(FVectorVMExternalFunctionContext& Context) : X(Context), Y(Context), Z(Context), W(Context) {}
+	FORCEINLINE FIntVector4 GetAndAdvance() { return FIntVector4(X.GetAndAdvance(), Y.GetAndAdvance(), Z.GetAndAdvance(), W.GetAndAdvance()); }
+	FORCEINLINE bool IsConstant() const { return X.IsConstant() && Y.IsConstant() && Z.IsConstant() && W.IsConstant(); }
+};
 
 //Helper to deal with types with potentially several output registers.
 template<typename T>
@@ -1569,6 +1601,54 @@ struct FNDIOutputParam<FNiagaraID>
 	{
 		*Index.GetDestAndAdvance() = Val.Index;
 		*AcquireTag.GetDestAndAdvance() = Val.AcquireTag;
+	}
+};
+
+template<>
+struct FNDIOutputParam<FIntVector2>
+{
+	VectorVM::FExternalFuncRegisterHandler<int32> X;
+	VectorVM::FExternalFuncRegisterHandler<int32> Y;
+	FORCEINLINE FNDIOutputParam(FVectorVMExternalFunctionContext& Context) : X(Context), Y(Context) {}
+	FORCEINLINE bool IsValid() const { return X.IsValid() || Y.IsValid(); }
+	FORCEINLINE void SetAndAdvance(FIntVector2 Val)
+	{
+		*X.GetDestAndAdvance() = Val.X;
+		*Y.GetDestAndAdvance() = Val.Y;
+	}
+};
+
+template<>
+struct FNDIOutputParam<FIntVector3>
+{
+	VectorVM::FExternalFuncRegisterHandler<int32> X;
+	VectorVM::FExternalFuncRegisterHandler<int32> Y;
+	VectorVM::FExternalFuncRegisterHandler<int32> Z;
+	FORCEINLINE FNDIOutputParam(FVectorVMExternalFunctionContext& Context) : X(Context), Y(Context), Z(Context) {}
+	FORCEINLINE bool IsValid() const { return X.IsValid() || Y.IsValid() || Z.IsValid(); }
+	FORCEINLINE void SetAndAdvance(FIntVector3 Val)
+	{
+		*X.GetDestAndAdvance() = Val.X;
+		*Y.GetDestAndAdvance() = Val.Y;
+		*Z.GetDestAndAdvance() = Val.Z;
+	}
+};
+
+template<>
+struct FNDIOutputParam<FIntVector4>
+{
+	VectorVM::FExternalFuncRegisterHandler<int32> X;
+	VectorVM::FExternalFuncRegisterHandler<int32> Y;
+	VectorVM::FExternalFuncRegisterHandler<int32> Z;
+	VectorVM::FExternalFuncRegisterHandler<int32> W;
+	FORCEINLINE FNDIOutputParam(FVectorVMExternalFunctionContext& Context) : X(Context), Y(Context), Z(Context), W(Context) {}
+	FORCEINLINE bool IsValid() const { return X.IsValid() || Y.IsValid() || Z.IsValid() || W.IsValid(); }
+	FORCEINLINE void SetAndAdvance(FIntVector4 Val)
+	{
+		*X.GetDestAndAdvance() = Val.X;
+		*Y.GetDestAndAdvance() = Val.Y;
+		*Z.GetDestAndAdvance() = Val.Z;
+		*W.GetDestAndAdvance() = Val.W;
 	}
 };
 
