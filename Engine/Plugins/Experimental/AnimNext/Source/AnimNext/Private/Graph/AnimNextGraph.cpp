@@ -47,7 +47,7 @@ void UAnimNextGraph::AllocateInstanceImpl(FAnimNextGraphInstance* ParentGraphIns
 
 	Instance.Release();
 
-	const FName EntryPoint = InEntryPoint == NAME_None ? DefaultEntryPoint : InEntryPoint;
+	const FName EntryPoint = (InEntryPoint == NAME_None) ? DefaultEntryPoint : InEntryPoint;
 	const FAnimNextDecoratorHandle ResolvedRootDecoratorHandle = ResolvedRootDecoratorHandles.FindRef(EntryPoint);
 	if (!ResolvedRootDecoratorHandle.IsValid())
 	{
