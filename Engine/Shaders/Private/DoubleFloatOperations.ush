@@ -368,7 +368,7 @@ FDFType DFDivide(FDFType Lhs, FDFType Rhs)
 	return DFFastDivide(Lhs, Rhs);
 #else
 	const FFloatType Th = INVARIANT(1.0 / Rhs.High);
-	const FFloatType Rh = INVARIANT(FMA(-Rhs.High, Th, 1));
+	const FFloatType Rh = INVARIANT(FMA(-Rhs.High, Th, (FFloatType)1));
 	const FFloatType Rl = INVARIANT(-Rhs.Low * Th);
 	const FDFType E = DFFastTwoSum(Rh, Rl);
 	const FDFType D = DFMultiply(E, Th);
@@ -662,9 +662,9 @@ FDFType DFSqrt(FDFType V)
 
 	// equivalent to (remark 3.5)
 	//precise FFloatType Tl = P2 / Sh;
-	//precise FFloatType Zh = FMA(0.5, Tl, Sh);
+	//precise FFloatType Zh = FMA((FFloatType)0.5, Tl, Sh);
 	//precise FFloatType D = Zh - Sh;
-	//precise FFloatType Zl = FMA(0.5, Tl, -D);
+	//precise FFloatType Zl = FMA((FFloatType)0.5, Tl, -D);
 	//return DFConstructor(Zh, Zl);
 #endif
 }
