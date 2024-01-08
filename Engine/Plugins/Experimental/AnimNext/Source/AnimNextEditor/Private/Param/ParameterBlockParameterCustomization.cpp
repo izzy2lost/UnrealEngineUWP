@@ -16,6 +16,7 @@
 #include "ISinglePropertyView.h"
 #include "IStructureDataProvider.h"
 #include "UncookedOnlyUtils.h"
+#include "Param/AnimNextParameterBlock_EditorData.h"
 
 #define LOCTEXT_NAMESPACE "ParamTypePropertyCustomization"
 
