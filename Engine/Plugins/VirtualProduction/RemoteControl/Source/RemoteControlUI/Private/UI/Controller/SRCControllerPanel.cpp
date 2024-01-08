@@ -206,7 +206,7 @@ FText SRCControllerPanel::GetPasteItemMenuEntrySuffix()
 					{
 						return FText::Format(LOCTEXT("ControllerPanelPasteMenuMultiEntrySuffix", "Controller {0} and {1} other(s)"), FText::FromName(Controller->DisplayName), (LogicClipboardItems.Num() - 1));
 					}
-					return FText::Format(LOCTEXT("ControllerPanelPasteMenuMultiEntrySuffix", "Controller {0}"), FText::FromName(Controller->DisplayName));
+					return FText::Format(LOCTEXT("ControllerPanelPasteMenuEntrySuffix", "Controller {0}"), FText::FromName(Controller->DisplayName));
 				}
 			}
 		}
