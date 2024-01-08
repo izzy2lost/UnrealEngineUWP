@@ -207,7 +207,6 @@ public:
 	static CORE_API void CeaseBeingFirstInstance();
 
 	static CORE_API bool TryGetMemoryUsage(FProcHandle& ProcessHandle, FPlatformProcessMemoryStats& OutStats);
-
 	/**
 	 * Whether to expect to run at a low process integrity level or not. This affects the paths that must be used for user and temp storage.
 	 * The process may launch at default (medium) integrity level and then downgrade itself to low later for security benefits, so checking
