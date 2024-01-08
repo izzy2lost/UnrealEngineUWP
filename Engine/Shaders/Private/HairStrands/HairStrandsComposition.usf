@@ -98,8 +98,8 @@ void ComposeSamplePS(
 		discard;
 	}
 
-	const uint TotalNodeCount = HairStrands.HairSampleCount.Load(uint3(0, 0, 0));
-	const uint Resolution = uint(ceil(sqrt(float(TotalNodeCount))));
+	const uint TotalNodeCount = HairStrands.HairSampleCount[0];
+	const uint2 Resolution = GetHairSampleResolution(TotalNodeCount);
 
 	const float3 ClosetPointWorldPosition = LWCHackToFloat(SvPositionToWorld(float4(Input.Position.xy, HairDeviceZ, 1.0)));
 	const float4 Volumetric = EvaluateVolumetric(ClosetPointWorldPosition, ConvertFromDeviceZ(HairDeviceZ));
@@ -117,8 +117,8 @@ void ComposeSamplePS(
 		}
 		#endif
 
-		const uint LocalOffset = NodeDesc.Offset + SampleIt;
-		const uint2 Coord = uint2(LocalOffset % Resolution, LocalOffset / Resolution);
+		const uint LinearCoord = NodeDesc.Offset + SampleIt;
+		const uint2 Coord = GetHairSampleCoord(LinearCoord, Resolution);
 		LocalAccColor += HairLightingSampleBuffer.Load(uint3(Coord, 0)).xyz;
 	}
 	OutColor.rgb = LocalAccColor * Volumetric.a + Volumetric.rgb;

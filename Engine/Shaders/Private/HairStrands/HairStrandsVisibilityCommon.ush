@@ -305,6 +305,17 @@ uint GetPackedHairSampleCoverage8bit(in FPackedHairSample In)
 	return 0xFF & (In.Tangent_Coverage8bit>>24);
 }
 
+uint2 GetHairSampleResolution(uint InNodeCount)
+{
+	uint Resolution = ceil(sqrt(InNodeCount));
+	return uint2(Resolution, Resolution);
+}
+
+uint2 GetHairSampleCoord(uint InLinearCoord, uint2 InResolution)
+{
+	return uint2(InLinearCoord % InResolution.x, InLinearCoord / InResolution.x);
+}
+
 ////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////
 // Hair velocity
 

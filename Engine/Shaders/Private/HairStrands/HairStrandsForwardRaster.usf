@@ -214,12 +214,12 @@ float	RadiusAtDepth1;
 ///////////////////////////////////////////////////////////////////////////
 // Control points
 Buffer<float4> ControlPoints;
-Texture2D<uint> ControlPointCount;
+StructuredBuffer<uint> ControlPointCount;
 uint MaxControlPointCount;
 
 uint GetControlPointCount()
 {
-	return ControlPointCount.Load(uint3(0,0,0));
+	return ControlPointCount[0];
 }
 
 // Custom encoding for forward rasterizer. Position are 32bits float. This is temporary.
@@ -1189,9 +1189,7 @@ float4 UnpackVelocityData(uint2 In)
 
 float3 LoadSampleColor(uint InPrimId, uint2 InSampleResolution)
 {
-	uint2 SampleCoord = 0;
-	SampleCoord.x = InPrimId % InSampleResolution.x;
-	SampleCoord.y = InPrimId / InSampleResolution.x;
+	const uint2 SampleCoord = GetHairSampleCoord(InPrimId, InSampleResolution);
 	return SampleLightingTexture.Load(uint3(SampleCoord, 0)).xyz;
 }
 
@@ -1248,12 +1246,7 @@ void RasterCS(
 	uint   Thread_LoopCountToFullCoverage = 0;
 	uint2  Thread_PixelCoord = 0;
 
-	uint2 SampleLightingEffectiveResolution = 0;
-	{
-		const uint EffectivePointCount = ControlPointCount.Load(uint3(0, 0, 0));
-		SampleLightingEffectiveResolution.x = ceil(sqrt(EffectivePointCount));
-		SampleLightingEffectiveResolution.y = SampleLightingEffectiveResolution.x;
-	}
+	const uint2 SampleLightingEffectiveResolution = GetHairSampleResolution(ControlPointCount[0]);
 
 	LOOP
 	for (uint WorkIndex = 0; WorkIndex < MAX_WORK_COUNT; WorkIndex++)

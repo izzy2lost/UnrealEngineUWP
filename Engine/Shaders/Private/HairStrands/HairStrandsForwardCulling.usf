@@ -29,7 +29,7 @@ uint				CurveCount;
 RWBuffer<float4>					RWPoints;
 RWStructuredBuffer<FPackedHairVis>	RWHairVis;
 RWBuffer<uint2>						RWCoord;
-RWTexture2D<uint>					RWCounter;
+RWStructuredBuffer<uint>			RWCounter;
 
 ///////////////////////////////////////////////////////////////////////////////////////////////////
 // Utils
@@ -158,7 +158,7 @@ void CSMain(uint DispatchThreadID : SV_DispatchThreadID, uint GroupThreadID : SV
 	// Alloc
 	if (GroupThreadID == 0)
 	{
-		InterlockedAdd(RWCounter[uint2(0,0)], s_ValidSegmentCount, s_WriteOffset);
+		InterlockedAdd(RWCounter[0], s_ValidSegmentCount, s_WriteOffset);
 	}
 	GroupMemoryBarrierWithGroupSync();
 
@@ -308,7 +308,7 @@ void CSMain(uint DispatchThreadID : SV_DispatchThreadID, uint GroupThreadID : SV
 	// Alloc
 	if (GroupThreadID == 0)
 	{
-		InterlockedAdd(RWCounter[uint2(0,0)], s_ValidSegmentCount, s_WriteOffset);
+		InterlockedAdd(RWCounter[0], s_ValidSegmentCount, s_WriteOffset);
 	}
 	GroupMemoryBarrierWithGroupSync();
 

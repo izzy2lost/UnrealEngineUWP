@@ -1040,10 +1040,11 @@ void MainCS(uint InGroupIndex : SV_GroupIndex, uint3 DispatchThreadId : SV_Dispa
 
 		const uint DispatchX = HairVisibilityIndirectArgsBuffer[0];
 		const uint DispatchY = HairVisibilityIndirectArgsBuffer[1];
-		const uint UsedSampleCount = HairStrands.HairSampleCount.Load(uint3(0, 0, 0));
+		const uint UsedSampleCount = HairStrands.HairSampleCount[0];
 		const uint DispatchedSampleCount = DispatchX * DispatchY * HairVisibilityNodeGroupSize;
 
-		const uint2 EquivalentResolution = ceil(sqrt(UsedSampleCount));
+		const uint2 EquivalentResolution = GetHairSampleResolution(UsedSampleCount);
+		const uint2 AllocatedResolution = HairStrands.HairSampleViewportResolution;
 	
 		// Pixel coord
 		FShaderPrintContext Context = InitShaderPrintContext(true, uint2(450, 100));
@@ -1062,6 +1063,10 @@ void MainCS(uint InGroupIndex : SV_GroupIndex, uint3 DispatchThreadId : SV_Dispa
 		Print(Context, EquivalentResolution.x, FontCyan, 4);
 		Print(Context, TEXT("x"), FontSilver);
 		Print(Context, EquivalentResolution.y, FontCyan, 4);
+		Print(Context, TEXT(" | "), FontSilver);
+		Print(Context, AllocatedResolution.x, FontGrey, 4);
+		Print(Context, TEXT("x"), FontSilver);
+		Print(Context, AllocatedResolution.y, FontGrey, 4);
 		Newline(Context);
 
 		Print(Context, TEXT("MacroGroup Count           "), FontYellow);

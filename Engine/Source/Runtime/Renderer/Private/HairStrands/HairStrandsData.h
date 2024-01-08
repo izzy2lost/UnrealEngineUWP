@@ -40,7 +40,7 @@ BEGIN_GLOBAL_SHADER_PARAMETER_STRUCT(FHairStrandsViewUniformParameters, )
 	SHADER_PARAMETER_RDG_TEXTURE(Texture2D, HairOnlyDepthFurthestHZBTexture)			// HZB furthest depth texture containing only hair depth (not strongly typed for legacy shader code reason)
 	SHADER_PARAMETER_SAMPLER(SamplerState, HairOnlyDepthHZBSampler)						// HZB sampler
 	SHADER_PARAMETER_RDG_TEXTURE(Texture2D<uint>, HairSampleOffset)						// Offset & count, for accessing pixel's samples, based on screen pixel position
-	SHADER_PARAMETER_RDG_TEXTURE(Texture2D<uint>, HairSampleCount)						// Total count of hair sample, in sample space
+	SHADER_PARAMETER_RDG_BUFFER_SRV(StructuredBuffer<uint>, HairSampleCount)			// Total count of hair sample, in sample space
 	SHADER_PARAMETER_RDG_BUFFER_SRV(StructuredBuffer<FPackedHairSample>, HairSampleData)// Sample data (coverage, tangent, base color, ...), in sample space // HAIRSTRANDS_TODO: change this to be a uint4 so that we don't have to include the type for generated contant buffer
 	SHADER_PARAMETER_RDG_BUFFER_SRV(Buffer<uint2>, HairSampleCoords)					// Screen pixel coordinate of each sample, in sample space
 	SHADER_PARAMETER_RDG_BUFFER_SRV(Buffer<uint2>, HairTileData)						// Tile coords (RG16F)
@@ -112,7 +112,7 @@ struct FHairStrandsVisibilityData
 
 	uint32			MaxSampleCount = 8; // Sample count per pixel
 	uint32			MaxNodeCount = 0;	// Total sample count
-	FRDGTextureRef	NodeCount = nullptr;
+	FRDGBufferRef	NodeCount = nullptr;
 	FRDGTextureRef	NodeIndex = nullptr;
 	FRDGBufferRef	NodeData = nullptr;
 	FRDGBufferRef	NodeVisData = nullptr;
@@ -124,7 +124,7 @@ struct FHairStrandsVisibilityData
 	uint32				RasterizedInstanceCount = 0;
 	uint32				MaxControlPointCount = 0;
 	FRDGBufferSRVRef	ControlPointsSRV = nullptr;
-	FRDGTextureRef		ControlPointCount = nullptr;
+	FRDGBufferSRVRef	ControlPointCount = nullptr;
 	FRDGBufferSRVRef	ControlPointVelocitySRV = nullptr;
 
 	FHairStrandsTiles TileData;

@@ -163,7 +163,7 @@ void MainCS(uint2 DispatchThreadId : SV_DispatchThreadID)
 	// Note: Use a fixed group count width (HAIR_VISIBILITY_GROUP_COUNT_WIDTH) for avoiding loading the indirect args (to avoid dep. memory fetch)
 	const uint SampleIndex = DispatchThreadId.x + DispatchThreadId.y * TRANSMITTANCE_GROUP_SIZE * HAIR_VISIBILITY_GROUP_COUNT_WIDTH;
 
-	const uint MaxVisibilityNodeCount = HairStrands.HairSampleCount.Load(uint3(0, 0, 0));
+	const uint MaxVisibilityNodeCount = HairStrands.HairSampleCount[0];
 	if (SampleIndex >= MaxVisibilityNodeCount)
 	{
 		return;
@@ -355,7 +355,7 @@ void MainCS(uint2 DispatchThreadId : SV_DispatchThreadID)
 {
 	const uint SampleIndex = DispatchThreadId.x + DispatchThreadId.y * TRANSMITTANCE_GROUP_SIZE * HAIR_VISIBILITY_GROUP_COUNT_WIDTH;
 
-	const uint MaxVisibilityNodeCount = HairStrands.HairSampleCount.Load(uint3(0, 0, 0));
+	const uint MaxVisibilityNodeCount = HairStrands.HairSampleCount[0];
 	if (SampleIndex >= MaxVisibilityNodeCount)
 	{
 		return;
@@ -440,7 +440,7 @@ void MainCS(uint2 DispatchThreadId : SV_DispatchThreadID)
 {
 	const uint SampleIndex = DispatchThreadId.x + DispatchThreadId.y * TRANSMITTANCE_GROUP_SIZE * HAIR_VISIBILITY_GROUP_COUNT_WIDTH;
 
-	const uint MaxVisibilityNodeCount = HairStrands.HairSampleCount.Load(uint3(0, 0, 0));
+	const uint MaxVisibilityNodeCount = HairStrands.HairSampleCount[0];
 	if (SampleIndex >= MaxVisibilityNodeCount)
 	{
 		return;
