@@ -4,8 +4,10 @@
 
 #include "Async/Fundamental/Scheduler.h"
 #include "Async/Fundamental/Task.h"
+#include "Async/Mutex.h"
 #include "Async/TaskGraphFwd.h"
 #include "Async/TaskTrace.h"
+#include "Async/UniqueLock.h"
 #include "Containers/Array.h"
 #include "Containers/LockFreeFixedSizeAllocator.h"
 #include "Containers/LockFreeList.h"
@@ -152,9 +154,13 @@ namespace UE::Tasks
 			////////////////////////////////////////////////////////////////////////////
 
 		protected:
-			explicit FTaskBase(uint32 InitRefCount)
+			explicit FTaskBase(uint32 InitRefCount, bool bUnlockPrerequisites = true)
 				: RefCount(InitRefCount)
 			{
+				if (bUnlockPrerequisites)
+				{
+					Prerequisites.Unlock();
+				}
 			}
 
 			void Init(const TCHAR* InDebugName, ETaskPriority InPriority, EExtendedTaskPriority InExtendedPriority, ETaskFlags Flags)
@@ -254,11 +260,12 @@ namespace UE::Tasks
 				return Prerequisite.IsValid() ? AddPrerequisites(*Prerequisite.Pimpl) : false;
 			}
 
+protected:
 			// The task will be executed only when all prerequisites are completed.
 			// Must not be called concurrently.
 			// @param InPrerequisites - an iterable collection of tasks
 			template<typename PrerequisiteCollectionType, decltype(std::declval<PrerequisiteCollectionType>().begin())* = nullptr>
-			void AddPrerequisites(const PrerequisiteCollectionType& InPrerequisites)
+			void AddPrerequisites(const PrerequisiteCollectionType& InPrerequisites, bool bLockPrerequisite)
 			{
 				TASKGRAPH_VERBOSE_EVENT_SCOPE(FTaskBase::AddPrerequisites_Collection);
 
@@ -269,7 +276,6 @@ namespace UE::Tasks
 				// prerequisite can be added successfully, and release the lock if it wasn't
 				uint32 PrevNumLocks = NumLocks.fetch_add(GetNum(InPrerequisites), std::memory_order_relaxed); // relaxed because the following
 				// `AddSubsequent` provides required sync
-				checkf(PrevNumLocks + GetNum(InPrerequisites) < ExecutionFlag, TEXT("Max number of nested tasks reached: %d"), ExecutionFlag);
 
 				uint32 NumCompletedPrerequisites = 0;
 				for (auto& Prereq : InPrerequisites)
@@ -280,6 +286,10 @@ namespace UE::Tasks
 					if constexpr (std::is_same_v<FPrerequisiteType, FTaskBase*>)
 					{
 						Prerequisite = Prereq;
+					}
+					else if constexpr (std::is_same_v<FPrerequisiteType, FGraphEventRef>)
+					{
+						Prerequisite = Prereq.GetReference();
 					}
 					else if constexpr (std::is_pointer_v<FPrerequisiteType>)
 					{
@@ -299,7 +309,14 @@ namespace UE::Tasks
 					if (Prerequisite->AddSubsequent(*this)) // acq_rel memory order
 					{
 						Prerequisite->AddRef(); // keep it alive until this task's execution
-						Prerequisites.Push(Prerequisite); // release memory order
+						if (bLockPrerequisite)
+						{
+							Prerequisites.Push(Prerequisite); // release memory order
+						}
+						else
+						{
+							Prerequisites.PushNoLock(Prerequisite); // relaxed memory order
+						}
 					}
 					else
 					{
@@ -307,9 +324,20 @@ namespace UE::Tasks
 					}
 				}
 
+				// This check is here to avoid the data dependency on PrevNumLocks.
+				checkf(PrevNumLocks + GetNum(InPrerequisites) < ExecutionFlag, TEXT("Max number of nested tasks reached: %d"), ExecutionFlag);
+
 				// unlock for prerequisites that weren't added
-				NumLocks.fetch_sub(NumCompletedPrerequisites, std::memory_order_relaxed);  // relaxed because the previous 
-				// `AddSubsequent` provides required sync
+				NumLocks.fetch_sub(NumCompletedPrerequisites, std::memory_order_release);
+			}
+public:
+			// The task will be executed only when all prerequisites are completed.
+			// Must not be called concurrently.
+			// @param InPrerequisites - an iterable collection of tasks
+			template<typename PrerequisiteCollectionType, decltype(std::declval<PrerequisiteCollectionType>().begin())* = nullptr>
+			void AddPrerequisites(const PrerequisiteCollectionType& InPrerequisites)
+			{
+				AddPrerequisites(InPrerequisites, true /* bLockPrerequisites */);
 			}
 
 			// the task unlocks all its subsequents on completion.
@@ -500,20 +528,15 @@ namespace UE::Tasks
 					ClearPipe();
 				}
 
-				TArray<FTaskBase*> Subs;
-				Subsequents.PopAllAndClose(Subs); // gets `Subs` in LIFO order
-				// try to maintain FIFO order where it's possible. e.g. if multiple piped tasks (subsequents) depend on the same (this) task, 
-				// preserve the piping order, which is also the order in which subsequents were added as dependencies of this task
-
 				// Push the first subsequent to the local queue so we pick it up directly as our next task.
 				// This saves us the cost of going to the global queue and performing a wake-up.
 				bool bWakeUpWorker = false;
 
-				for (int32 Index = Subs.Num() - 1; Index >= 0; --Index)
+				for (FTaskBase* Subsequent : Subsequents.Close())
 				{
 					// bWakeUpWorker is passed by reference and is automatically set to true if we successfully schedule a task on the local queue.
 					// so all the remaining ones are sent to the global queue.
-					Subs[Index]->TryUnlock(bWakeUpWorker);
+					Subsequent->TryUnlock(bWakeUpWorker);
 				}
 
 				// release nested tasks
@@ -631,7 +654,7 @@ namespace UE::Tasks
 			void ReleasePrerequisites()
 			{
 				TASKGRAPH_VERBOSE_EVENT_SCOPE(FTaskBase::ReleasePrerequisites);
-				while (FTaskBase* Prerequisite = Prerequisites.Pop())
+				for (FTaskBase* Prerequisite : Prerequisites.PopAll())
 				{
 					TASKGRAPH_VERBOSE_EVENT_SCOPE(FTaskBase::ReleasePrerequisite);
 					Prerequisite->Release();
@@ -648,6 +671,95 @@ namespace UE::Tasks
 
 			LowLevelTasks::FTask LowLevelTask;
 
+			// the task is completed when its subsequents list is closed and no more can be added
+			template <typename AllocatorType = FDefaultAllocator>
+			class FSubsequents
+			{
+			public:
+				bool PushIfNotClosed(FTaskBase* NewItem)
+				{
+					TASKGRAPH_VERBOSE_EVENT_SCOPE(FSubsequents::PushIfNotClosed);
+					if (bIsClosed.load(std::memory_order_relaxed))
+					{
+						return false;
+					}
+					UE::TUniqueLock Lock(Mutex);
+					if (bIsClosed)
+					{
+						return false;
+					}
+					Subsequents.Emplace(NewItem);
+					return true;
+				}
+
+				TArray<FTaskBase*, AllocatorType> Close()
+				{
+					TASKGRAPH_VERBOSE_EVENT_SCOPE(FSubsequents::Close);
+					UE::TUniqueLock Lock(Mutex);
+					bIsClosed = true;
+					return MoveTemp(Subsequents);
+				}
+
+				bool IsClosed() const
+				{
+					return bIsClosed;
+				}
+
+			private:
+				TArray<FTaskBase*, AllocatorType> Subsequents;
+				std::atomic<bool>  bIsClosed = false;
+				UE::FMutex Mutex;
+			};
+
+			FSubsequents<TInlineAllocator<1>> Subsequents;
+
+			// stores backlinks to prerequsites, either execution prerequisites or nested tasks (completion prerequisites).
+			// It's populated in three stages:
+			// 1) by adding execution prerequisites, before the task is launched.
+			// 2) by piping, when the previous piped task (if any) is added as a prerequisite. can happen concurrently with other threads accessing prerequisites for
+			//		task retraction.
+			// 3) by adding nested tasks. after piping. during task execution.
+			template <typename AllocatorType = FDefaultAllocator>
+			class FPrerequisites
+			{
+			public:
+				void Push(FTaskBase* Prerequisite)
+				{
+					TASKGRAPH_VERBOSE_EVENT_SCOPE(FPrerequisites::Push);
+					UE::TUniqueLock Lock(Mutex);
+					Prerequisites.Emplace(Prerequisite);
+				}
+
+				void PushNoLock(FTaskBase* Prerequisite)
+				{
+					TASKGRAPH_VERBOSE_EVENT_SCOPE(FPrerequisites::PushNoLock);
+					Prerequisites.Emplace(Prerequisite);
+				}
+
+				TArray<FTaskBase*, AllocatorType> PopAll()
+				{
+					TASKGRAPH_VERBOSE_EVENT_SCOPE(FPrerequisites::PopAll);
+					UE::TUniqueLock Lock(Mutex);
+					return MoveTemp(Prerequisites);
+				}
+
+				void Unlock()
+				{
+					Mutex.Unlock();
+				}
+			private:
+				TArray<FTaskBase*, AllocatorType> Prerequisites;
+				UE::FMutex Mutex { UE::AcquireLock }; // Start locked by default to avoid compare exchange during construction.
+			};
+
+			FPrerequisites<TInlineAllocator<1>> Prerequisites;
+
+			FPipe* Pipe{ nullptr };
+
+#if UE_TASK_TRACE_ENABLED
+			std::atomic<TaskTrace::FId> TraceId{ TaskTrace::GenerateTaskId() };
+#endif
+
 			// the number of times that the task should be unlocked before it can be scheduled or completed
 			// initial count is 1 for launching the task (it can't be scheduled before it's launched)
 			// reaches 0 the task is scheduled for execution.
@@ -656,24 +768,13 @@ namespace UE::Tasks
 			static constexpr uint32 NumInitialLocks = 1;
 			std::atomic<uint32> NumLocks{ NumInitialLocks };
 
-#if UE_TASK_TRACE_ENABLED
-			std::atomic<TaskTrace::FId> TraceId { TaskTrace::GenerateTaskId() };
-#endif
-
-			// the task is completed when its subsequents list is closed
-			TClosableLockFreePointerListUnorderedSingleConsumer<FTaskBase, 0> Subsequents;
-
-			// stores backlinks to prerequsites, either execution prerequisites or nested tasks (completion prerequisites).
-			// It's populated in three stages:
-			// 1) by adding execution prerequisites, before the task is launched.
-			// 2) by piping, when the previous piped task (if any) is added as a prerequisite. can happen concurrently with other threads accessing prerequisites for
-			//		task retraction.
-			// 3) by adding nested tasks. after piping. during task execution.
-			TLockFreePointerListUnordered<FTaskBase, 0> Prerequisites;
-
-			FPipe* Pipe{ nullptr };
-
 			std::atomic<uint32> ExecutingThreadId = FThread::InvalidThreadId;
+
+protected:
+			void UnlockPrerequisites()
+			{
+				Prerequisites.Unlock();
+			}
 		};
 
 		// an extension of FTaskBase for tasks that return a result.
@@ -786,7 +887,15 @@ namespace UE::Tasks
 
 			static void* operator new(size_t Size)
 			{
-				return Size <= SmallTaskSize ? SmallTaskAllocator.Allocate() : GMalloc->Malloc(sizeof(TExecutableTask), LargeTaskAlignment);
+				if (Size <= SmallTaskSize)
+				{
+					 return SmallTaskAllocator.Allocate();
+				}
+				else
+				{
+					TASKGRAPH_VERBOSE_EVENT_SCOPE(TExecutableTask::LargeAlloc);
+					return GMalloc->Malloc(sizeof(TExecutableTask), LargeTaskAlignment);
+				}
 			}
 
 			static void operator delete(void* Ptr, size_t Size)

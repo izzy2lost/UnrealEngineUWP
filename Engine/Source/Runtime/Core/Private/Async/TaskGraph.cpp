@@ -2404,8 +2404,6 @@ FGraphEventImplAllocator& GetGraphEventImplAllocator()
 	return Singleton;
 }
 
-FGraphTaskAllocator SmallTaskAllocator;
-
 #else
 
 // Statics and some implementations from FBaseGraphTask and FGraphEvent

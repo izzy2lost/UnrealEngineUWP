@@ -463,18 +463,14 @@ class FBaseGraphTask : public UE::Tasks::Private::FTaskBase
 {
 public:
 	explicit FBaseGraphTask(const FGraphEventArray* InPrerequisites)
-		: FTaskBase(/*InitRefCount=*/ 1)
-	{		
+		: FTaskBase(/*InitRefCount=*/ 1, false /* bUnlockPrerequisites */)
+	{
 		if (InPrerequisites != nullptr)
 		{
-			for (const FGraphEventRef& Prereq : *InPrerequisites)
-			{
-				if (Prereq)
-				{
-					AddPrerequisites(*Prereq);
-				}
-			}
+			AddPrerequisites(*InPrerequisites, false /* bLockPrerequisite */);
 		}
+
+		UnlockPrerequisites();
 	}
 
 	void Init(const TCHAR* InDebugName, UE::Tasks::ETaskPriority InPriority, UE::Tasks::EExtendedTaskPriority InExtendedPriority, UE::Tasks::ETaskFlags InTaskFlags = UE::Tasks::ETaskFlags::None)
@@ -561,13 +557,9 @@ public:
 	}
 };
 
-static constexpr int32 SmallTaskSize = 256;
-using FGraphTaskAllocator = TLockFreeFixedSizeAllocator_TLSCache<SmallTaskSize, PLATFORM_CACHE_LINE_SIZE>;
-CORE_API extern FGraphTaskAllocator SmallTaskAllocator;
-
 // the new task implementation integrated into the old task API
 template<typename TTask>
-class TGraphTask : public FBaseGraphTask
+class TGraphTask final : public TConcurrentLinearObject<TGraphTask<TTask>, FTaskGraphBlockAllocationTag>, public FBaseGraphTask
 {
 public:
 	/**
@@ -633,9 +625,6 @@ public:
 		return FConstructor(Prerequisites);
 	}
 
-	static void* operator new(size_t Size);
-	static void operator delete(void* Ptr, size_t Size);
-
 private:
 	explicit TGraphTask(const FGraphEventArray* InPrerequisites)
 		: FBaseGraphTask(InPrerequisites)
@@ -660,18 +649,6 @@ private:
 private:
 	TTypeCompatibleBytes<TTask> TaskStorage;
 };
-
-template<typename TTask>
-void* TGraphTask<TTask>::operator new(size_t Size)
-{
-	return Size <= SmallTaskSize ? SmallTaskAllocator.Allocate() : GMalloc->Malloc(sizeof(TGraphTask), PLATFORM_CACHE_LINE_SIZE);
-}
-
-template<typename TTask>
-void TGraphTask<TTask>::operator delete(void* Ptr, size_t Size)
-{
-	Size <= SmallTaskSize ? SmallTaskAllocator.Free(Ptr) : GMalloc->Free(Ptr);
-}
 
 // an adaptation of FBaseGraphTask to be used as a standalone FGraphEvent
 class FGraphEventImpl : public FBaseGraphTask

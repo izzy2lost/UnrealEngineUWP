@@ -111,7 +111,7 @@ namespace UE::Tasks
 
 				// prerequisites are "consumed" here even if their retraction fails. this means that once prerequisite retraction failed, it won't be performed again. 
 				// this can be potentially improved by using a different container for prerequisites
-				while (FTaskBase* Prerequisite = Prerequisites.Pop())
+				for (FTaskBase* Prerequisite : Prerequisites.PopAll())
 				{
 					// ignore if retraction failed, as this thread still can try to help with other prerequisites instead of being blocked in waiting
 					Prerequisite->TryRetractAndExecute(Timeout, RecursionDepth);
@@ -160,7 +160,7 @@ namespace UE::Tasks
 				bool bSucceeded = true;
 				// prerequisites are "consumed" here even if their retraction fails. this means that once prerequisite retraction failed, it won't be performed again. 
 				// this can be potentially improved by using a different container for prerequisites
-				while (FTaskBase* Prerequisite = Prerequisites.Pop())
+				for (FTaskBase* Prerequisite : Prerequisites.PopAll())
 				{
 					if (!Prerequisite->TryRetractAndExecute(Timeout, RecursionDepth))
 					{
@@ -200,8 +200,8 @@ namespace UE::Tasks
 				return;
 			}
 
+			TRACE_CPUPROFILER_EVENT_SCOPE(FTaskBase::WaitWithNamedThreadsSupport);
 			TaskTrace::FWaitingScope WaitingScope(GetTraceId());
-			TRACE_CPUPROFILER_EVENT_SCOPE(Tasks::Wait);
 
 			if (!TryWaitOnNamedThread(*this))
 			{
