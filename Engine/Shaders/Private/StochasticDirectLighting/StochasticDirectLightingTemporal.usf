@@ -3,6 +3,8 @@
 #include "../Common.ush"
 #include "StochasticDirectLighting.ush"
 
+Texture2D<float4> CompositeUpsampleWeights;
+Texture2D<float2> SampleLuminanceSumTexture;
 Texture2D ResolvedDiffuseLighting;
 Texture2D ResolvedSpecularLighting;
 Texture2D StochasticDirectLightingDepthHistory;
@@ -15,6 +17,7 @@ float4 HistoryUVMinMax;
 float PrevSceneColorPreExposureCorrection;
 float TemporalMaxFramesAccumulated;
 float TemporalNeighborhoodClampScale;
+uint2 DownsampledViewSize;
 
 RWTexture2D<float4> RWDiffuseLightingAndSecondMoment;
 RWTexture2D<float4> RWSpecularLightingAndSecondMoment;
@@ -22,13 +25,14 @@ RWTexture2D<UNORM float> RWNumFramesAccumulated;
 RWTexture2D<float> RWSceneDepth;
 RWTexture2D<float4> RWSceneColor;
 
-struct FNeighborhoodClamp
+struct FNeighborhood
 {
-	float3 Min;
-	float3 Max;
+	float3 Mean;
+	float3 ClampMin;
+	float3 ClampMax;
 };
 
-FNeighborhoodClamp GetNeighborhoodClamp(
+FNeighborhood GetNeighborhood(
 	uint2 ScreenCoord, 
 	Texture2D SampleTexture,
 	float3 CenterSample)
@@ -46,7 +50,7 @@ FNeighborhoodClamp GetNeighborhoodClamp(
 			{
 				uint2 NeigborScreenCoord = clamp(ScreenCoord + int2(NeigborOffsetX, NeigborOffsetY), 0u, View.ViewRectMinAndSize.zw - 1);
 				float3 NeigborSample = SampleTexture[NeigborScreenCoord].xyz;
-				
+	
 				SampleSum += NeigborSample;
 				SampleSqSum += Pow2(NeigborSample);
 			}
@@ -58,11 +62,30 @@ FNeighborhoodClamp GetNeighborhoodClamp(
 	float3 M2 = SampleSqSum / NumSamples;
 	float3 Variance = max(M2 - Pow2(M1), 0.0f);
 	float3 StdDev = sqrt(Variance);
+	
+	FNeighborhood Neighborhood = (FNeighborhood)0;
+	Neighborhood.Mean = M1;
+	Neighborhood.ClampMin = M1 - TemporalNeighborhoodClampScale * StdDev;
+	Neighborhood.ClampMax = M1 + TemporalNeighborhoodClampScale * StdDev;
+	return Neighborhood;
+}
 
-	FNeighborhoodClamp NeighborhoodClamp = (FNeighborhoodClamp)0;
-	NeighborhoodClamp.Min = M1 - TemporalNeighborhoodClampScale * StdDev;
-	NeighborhoodClamp.Max = M1 + TemporalNeighborhoodClampScale * StdDev;
-	return NeighborhoodClamp;
+void AccumulateSampleLuminanceSum(uint2 DownsampledScreenCoord, float UpsampleWeight, inout float2 SampleLuminanceSum)
+{
+	if (all(DownsampledScreenCoord < DownsampledViewSize))
+	{
+		SampleLuminanceSum += SampleLuminanceSumTexture[DownsampledScreenCoord] * UpsampleWeight;
+	}
+}
+
+float3 ClampLuminance(float3 Lighting, float LuminanceClamp)
+{
+	if (Luminance(Lighting) > LuminanceClamp)
+	{
+		Lighting *= LuminanceClamp / Luminance(Lighting);
+	}
+
+	return Lighting;
 }
 
 [numthreads(THREADGROUP_SIZE, THREADGROUP_SIZE, 1)]
@@ -76,7 +99,7 @@ void SDLTemporalAccumulationCS(
 #if DEBUG_MODE
 	int2 DebugScreenCoord = View.CursorPosition.x >= 0 ? View.CursorPosition * View.ViewResolutionFraction : -1;
 	bool bDebug = all(ScreenCoord == DebugScreenCoord);
-	FShaderPrintContext Context = InitShaderPrintContext(true, float2(0.55, 0.3));
+	FShaderPrintContext Context = InitShaderPrintContext(true, float2(0.55, 0.4));
 #endif
 
 	if (all(ScreenCoord < View.ViewRectMinAndSize.zw))
@@ -95,6 +118,16 @@ void SDLTemporalAccumulationCS(
 
 		if (GBuffer.Depth > 0.0f && GBuffer.ShadingModelID != SHADINGMODELID_UNLIT)
 		{
+			float2 SampleLuminanceSum = 0.0f;
+			{
+				uint2 DownsampledScreenCoord = floor(ScreenUV * View.BufferSizeAndInvSize.xy / DOWNSAMPLE_FACTOR - 0.5f);
+				float4 DownsampledScreenWeights = CompositeUpsampleWeights[ScreenCoord];
+				AccumulateSampleLuminanceSum(DownsampledScreenCoord + uint2(0, 0), DownsampledScreenWeights.x, SampleLuminanceSum);
+				AccumulateSampleLuminanceSum(DownsampledScreenCoord + uint2(1, 0), DownsampledScreenWeights.y, SampleLuminanceSum);
+				AccumulateSampleLuminanceSum(DownsampledScreenCoord + uint2(0, 1), DownsampledScreenWeights.z, SampleLuminanceSum);
+				AccumulateSampleLuminanceSum(DownsampledScreenCoord + uint2(1, 1), DownsampledScreenWeights.w, SampleLuminanceSum);
+			}
+
 			DiffuseLighting = ResolvedDiffuseLighting[ScreenCoord].xyz;
 			SpecularLighting = ResolvedSpecularLighting[ScreenCoord].xyz;
 
@@ -165,11 +198,10 @@ void SDLTemporalAccumulationCS(
 						SpecularLightingAndSecondMomentHistory = SpecularLightingAndSecondMomentHistory / dot(HistoryWeights, 1.0f);
 
 						// Correct history for current frame exposure
-						DiffuseLightingAndSecondMomentHistory.xyz *= PrevSceneColorPreExposureCorrection;
-						SpecularLightingAndSecondMomentHistory.xyz *= PrevSceneColorPreExposureCorrection;
-
-						DiffuseLightingAndSecondMomentHistory.w *= Pow2(PrevSceneColorPreExposureCorrection);
-						SpecularLightingAndSecondMomentHistory.w *= Pow2(PrevSceneColorPreExposureCorrection);
+						float3 HistoryDiffuseLighting = DiffuseLightingAndSecondMomentHistory.xyz * PrevSceneColorPreExposureCorrection;
+						float3 HistorySpecularLighting = SpecularLightingAndSecondMomentHistory.xyz * PrevSceneColorPreExposureCorrection;
+						float HistoryDiffuseSecondMoment = DiffuseLightingAndSecondMomentHistory.w * Pow2(PrevSceneColorPreExposureCorrection);
+						float HistorySpecularSecondMoment = SpecularLightingAndSecondMomentHistory.w * Pow2(PrevSceneColorPreExposureCorrection);
 
 						// Reproject and rescale normalized NumFramesAccumulated
 						float NumFramesAccumulatedHistory = 0.0f;
@@ -177,24 +209,24 @@ void SDLTemporalAccumulationCS(
 						NumFramesAccumulatedHistory = NumFramesAccumulatedHistory / dot(HistoryWeights, 1.0f);
 						NumFramesAccumulated = min(NumFramesAccumulatedHistory + 1.0f, TemporalMaxFramesAccumulated);
 
+						// Clamp history to current neighborhood
+						FNeighborhood DiffuseNeighborhood = GetNeighborhood(ScreenCoord, ResolvedDiffuseLighting, float4(DiffuseLighting, DiffuseSecondMoment));
+						FNeighborhood SpecularNeighborhood = GetNeighborhood(ScreenCoord, ResolvedSpecularLighting, float4(SpecularLighting, SpecularSecondMoment));
+						float3 ClampedHistoryDiffuseLighting = clamp(HistoryDiffuseLighting, DiffuseNeighborhood.ClampMin, DiffuseNeighborhood.ClampMax);
+						float3 ClampedHistorySpecularLighting = clamp(HistorySpecularLighting, SpecularNeighborhood.ClampMin, SpecularNeighborhood.ClampMax);
+
+						// Clamp history to max sample luminance
+						ClampedHistoryDiffuseLighting = ClampLuminance(ClampedHistoryDiffuseLighting, SampleLuminanceSum.x);
+						ClampedHistorySpecularLighting = ClampLuminance(ClampedHistorySpecularLighting, SampleLuminanceSum.y);
+						float ClampedHistoryDiffuseSecondMoment = clamp(ClampedHistoryDiffuseSecondMoment, 0, Pow2(SampleLuminanceSum.x));
+						float ClampedHistorySpecularSecondMoment = clamp(ClampedHistorySpecularSecondMoment, 0, Pow2(SampleLuminanceSum.y));
+
+						// Blend history with new samples
 						float Alpha = 1.0f / (1.0f + NumFramesAccumulated);
-						DiffuseLighting = lerp(DiffuseLightingAndSecondMomentHistory.xyz, DiffuseLighting, Alpha);
-						SpecularLighting = lerp(SpecularLightingAndSecondMomentHistory.xyz, SpecularLighting, Alpha);
-						DiffuseSecondMoment = lerp(DiffuseLightingAndSecondMomentHistory.w, DiffuseSecondMoment, Alpha);
-						SpecularSecondMoment = lerp(SpecularLightingAndSecondMomentHistory.w, SpecularSecondMoment, Alpha);
-
-						FNeighborhoodClamp DiffuseNeighborhoodClamp = GetNeighborhoodClamp(ScreenCoord, ResolvedDiffuseLighting, DiffuseLighting);
-						FNeighborhoodClamp SpecularNeighborhoodClamp = GetNeighborhoodClamp(ScreenCoord, ResolvedSpecularLighting, SpecularLighting);
-
-						float3 ClampedDiffuseLighting = clamp(DiffuseLighting, DiffuseNeighborhoodClamp.Min, DiffuseNeighborhoodClamp.Max);
-						float3 ClampedSpecularLighting = clamp(SpecularLighting, SpecularNeighborhoodClamp.Min, SpecularNeighborhoodClamp.Max);
-
-						// Approximate clamp for second moments in order to reduce ghosting from the spatial pass while still allowing accumulated secondary moments to deviate from accumulated lighting
-						DiffuseSecondMoment += Pow2(Luminance(ClampedDiffuseLighting)) - Pow2(Luminance(DiffuseLighting));
-						SpecularSecondMoment += Pow2(Luminance(ClampedSpecularLighting)) - Pow2(Luminance(SpecularLighting));
-
-						DiffuseLighting = ClampedDiffuseLighting;
-						SpecularLighting = ClampedSpecularLighting;
+						DiffuseLighting = lerp(ClampedHistoryDiffuseLighting, DiffuseLighting, Alpha);
+						SpecularLighting = lerp(ClampedHistorySpecularLighting, SpecularLighting, Alpha);
+						DiffuseSecondMoment = lerp(ClampedHistoryDiffuseSecondMoment, DiffuseSecondMoment, Alpha);
+						SpecularSecondMoment = lerp(ClampedHistorySpecularSecondMoment, SpecularSecondMoment, Alpha);
 					}
 				}
 			}
@@ -218,6 +250,13 @@ void SDLTemporalAccumulationCS(
 				Newline(Context);
 				Print(Context, TEXT("SpecularVariance: "));
 				Print(Context, SpecularVariance);
+				Newline(Context);
+				Print(Context, TEXT("SampleLuminanceSum: "));
+				Print(Context, SampleLuminanceSum);
+				Newline(Context);
+				Print(Context, TEXT("Luminance:          "));
+				Print(Context, Luminance(DiffuseLighting));
+				Print(Context, Luminance(SpecularLighting));
 			}
 			#endif
 		}

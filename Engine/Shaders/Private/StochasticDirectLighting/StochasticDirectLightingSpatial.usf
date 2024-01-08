@@ -23,7 +23,7 @@ void SDLSpatialFilterCS(
 #if DEBUG_MODE
 	int2 DebugScreenCoord = View.CursorPosition.x >= 0 ? View.CursorPosition * View.ViewResolutionFraction : -1;
 	bool bDebug = all(ScreenCoord == DebugScreenCoord);
-	FShaderPrintContext Context = InitShaderPrintContext(true, float2(0.55, 0.45));
+	FShaderPrintContext Context = InitShaderPrintContext(true, float2(0.55, 0.7));
 #endif
 
 	if (all(ScreenCoord < View.ViewRectMinAndSize.zw))
@@ -109,14 +109,10 @@ void SDLSpatialFilterCS(
 			}
 			#endif
 
-			const float3 N = GBuffer.WorldNormal;
-			const float3 V = normalize(View.TranslatedWorldCameraOrigin - TranslatedWorldPosition);
-			const float NoV = saturate(dot(N, V));
-			const float3 SpecularEnv = EnvBRDF(GBuffer.SpecularColor, GBuffer.Roughness, NoV);
-
 			// Final pass outputs composites irradiance and outputs it to scene color
-			float3 DiffuseLighting = SafeModulate(DiffuseLightingSum / DiffuseLightingWeightSum, GBuffer.DiffuseColor);
-			float3 SpecularLighting = SafeModulate(SpecularLightingSum / SpecularLightingWeightSum, SpecularEnv);
+			float3 DiffuseLighting = DiffuseLightingSum / DiffuseLightingWeightSum;
+			float3 SpecularLighting = SpecularLightingSum / SpecularLightingWeightSum;
+			ModulateLighting(GBuffer, TranslatedWorldPosition, DiffuseLighting, SpecularLighting);
 
 			// Composite diffuse and specular into scene color
 			const bool bNeedsSeparateSubsurfaceLightAccumulation = UseSubsurfaceProfile(GBuffer.ShadingModelID);

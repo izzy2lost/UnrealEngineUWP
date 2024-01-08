@@ -177,13 +177,27 @@ uint GetShadingTileGridOffset(uint2 ShadingTileCoord, uint IndexInCell)
 }
 
 // Remove texture detail before denoising
-float3 SafeDemodulate(float3 Lighting, float3 Texture)
+void DemodulateLighting(FGBufferData GBuffer, float3 TranslatedWorldPosition, inout float3 DiffuseLighting, inout float3 SpecularLighting)
 {
-	return Lighting / max(Texture, 0.001f);
+	const float3 N = GBuffer.WorldNormal;
+	const float3 V = normalize(View.TranslatedWorldCameraOrigin - TranslatedWorldPosition);
+	const float NoV = saturate(dot(N, V));
+	const float3 SpecularEnv = EnvBRDF(GBuffer.SpecularColor, GBuffer.Roughness, NoV);
+
+	// #sdl_todo: demodulate earlier during BRDF evaluation
+	DiffuseLighting = DiffuseLighting / max(GBuffer.DiffuseColor, 0.001f);
+	SpecularLighting = SpecularLighting / max(SpecularEnv, 0.001f);	
 }
 
 // Restore texture detail after denoising
-float3 SafeModulate(float3 Lighting, float3 Texture)
+void ModulateLighting(FGBufferData GBuffer, float3 TranslatedWorldPosition, inout float3 DiffuseLighting, inout float3 SpecularLighting)
 {
-	return Lighting * max(Texture, 0.001f);
+	const float3 N = GBuffer.WorldNormal;
+	const float3 V = normalize(View.TranslatedWorldCameraOrigin - TranslatedWorldPosition);
+	const float NoV = saturate(dot(N, V));
+	const float3 SpecularEnv = EnvBRDF(GBuffer.SpecularColor, GBuffer.Roughness, NoV);
+
+	// Final pass outputs composites irradiance and outputs it to scene color
+	DiffuseLighting = DiffuseLighting * max(GBuffer.DiffuseColor, 0.001f);
+	SpecularLighting = SpecularLighting * max(SpecularEnv, 0.001f);
 }

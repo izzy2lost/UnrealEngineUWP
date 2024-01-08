@@ -121,13 +121,6 @@ static TAutoConsoleVariable<int> CVarStochasticDirectLightingFixedStateFrameInde
 	ECVF_RenderThreadSafe
 );
 
-static TAutoConsoleVariable<int> CVarStochasticDirectLightingCandidateLightMask(
-	TEXT("r.StochasticDirectLighting.CandidateLightMask"),
-	1,
-	TEXT("#sdl_todo: finish and pick one shader path."),
-	ECVF_Scalability | ECVF_RenderThreadSafe
-);
-
 static TAutoConsoleVariable<int> CVarStochasticDirectLightingTexturedRectLights(
 	TEXT("r.StochasticDirectLighting.TexturedRectLights"),
 	0,
@@ -331,14 +324,15 @@ class FInitCompositeIndirectArgsCS : public FGlobalShader
 
 IMPLEMENT_GLOBAL_SHADER(FInitCompositeIndirectArgsCS, "/Engine/Private/StochasticDirectLighting/StochasticDirectLighting.usf", "InitCompositeIndirectArgsCS", SF_Compute);
 
-class FGenerateSamplesCS : public FGlobalShader
+class FGenerateLightSamplesCS : public FGlobalShader
 {
-	DECLARE_GLOBAL_SHADER(FGenerateSamplesCS)
-	SHADER_USE_PARAMETER_STRUCT(FGenerateSamplesCS, FGlobalShader)
+	DECLARE_GLOBAL_SHADER(FGenerateLightSamplesCS)
+	SHADER_USE_PARAMETER_STRUCT(FGenerateLightSamplesCS, FGlobalShader)
 
 	BEGIN_SHADER_PARAMETER_STRUCT(FParameters, )
 		RDG_BUFFER_ACCESS(IndirectArgs, ERHIAccess::IndirectArgs)
 		SHADER_PARAMETER_STRUCT_INCLUDE(FStochasticDirectLightingParameters, StochasticDirectLightingParameters)
+		SHADER_PARAMETER_RDG_TEXTURE_UAV(RWTexture2D<float2>, RWSampleLuminanceSum)
 		SHADER_PARAMETER_RDG_TEXTURE_UAV(RWTexture2D<float>, RWDownsampledSceneDepth)
 		SHADER_PARAMETER_RDG_TEXTURE_UAV(RWTexture2D<UNORM float3>, RWDownsampledSceneWorldNormal)
 		SHADER_PARAMETER_RDG_BUFFER_UAV(RWStructuredBuffer<uint>, RWCompositeTileAllocator)
@@ -355,9 +349,9 @@ class FGenerateSamplesCS : public FGlobalShader
 	class FLightFunctionAtlas : SHADER_PERMUTATION_BOOL("USE_LIGHT_FUNCTION_ATLAS");
 	class FTexturedRectLights : SHADER_PERMUTATION_BOOL("USE_SOURCE_TEXTURE");
 	class FNumSamplesPerPixel1d : SHADER_PERMUTATION_SPARSE_INT("NUM_SAMPLES_PER_PIXEL_1D", 1, 2, 4);
-	class FCandidateLightMask : SHADER_PERMUTATION_BOOL("CANDIDATE_LIGHT_MASK");
+
 	class FDebugMode : SHADER_PERMUTATION_BOOL("DEBUG_MODE");
-	using FPermutationDomain = TShaderPermutationDomain<FTileType, FIESProfile, FLightFunctionAtlas, FTexturedRectLights, FNumSamplesPerPixel1d, FCandidateLightMask, FDebugMode>;
+	using FPermutationDomain = TShaderPermutationDomain<FTileType, FIESProfile, FLightFunctionAtlas, FTexturedRectLights, FNumSamplesPerPixel1d, FDebugMode>;
 
 	static int32 GetGroupSize()
 	{	
@@ -377,7 +371,7 @@ class FGenerateSamplesCS : public FGlobalShader
 	}
 };
 
-IMPLEMENT_GLOBAL_SHADER(FGenerateSamplesCS, "/Engine/Private/StochasticDirectLighting/StochasticDirectLightingSampling.usf", "GenerateSamplesCS", SF_Compute);
+IMPLEMENT_GLOBAL_SHADER(FGenerateLightSamplesCS, "/Engine/Private/StochasticDirectLighting/StochasticDirectLightingSampling.usf", "GenerateLightSamplesCS", SF_Compute);
 
 class FClearLightSamplesCS : public FGlobalShader
 {
@@ -540,6 +534,8 @@ class FSDLTemporalAccumulationCS : public FGlobalShader
 
 	BEGIN_SHADER_PARAMETER_STRUCT(FParameters, )
 		SHADER_PARAMETER_STRUCT_INCLUDE(FStochasticDirectLightingParameters, StochasticDirectLightingParameters)
+		SHADER_PARAMETER_RDG_TEXTURE(Texture2D<float4>, CompositeUpsampleWeights)
+		SHADER_PARAMETER_RDG_TEXTURE(Texture2D<float2>, SampleLuminanceSumTexture)
 		SHADER_PARAMETER_RDG_TEXTURE(Texture2D<float4>, ResolvedDiffuseLighting)
 		SHADER_PARAMETER_RDG_TEXTURE(Texture2D<float4>, ResolvedSpecularLighting)
 		SHADER_PARAMETER_RDG_TEXTURE(Texture2D<float4>, DiffuseLightingAndSecondMomentHistoryTexture)
@@ -870,9 +866,15 @@ void FDeferredShadingSceneRenderer::RenderStochasticDirectLighting(FRDGBuilder& 
 	FRDGBufferRef CompositeTileAllocator = GraphBuilder.CreateBuffer(FRDGBufferDesc::CreateStructuredDesc(sizeof(uint32), 1), TEXT("StochasticDirectLighting.CompositeTileAllocator"));
 	FRDGBufferRef CompositeTileData = GraphBuilder.CreateBuffer(FRDGBufferDesc::CreateStructuredDesc(2 * sizeof(uint32), MaxCompositeTiles), TEXT("StochasticDirectLighting.CompositeTileData"));
 	AddClearUAVPass(GraphBuilder, GraphBuilder.CreateUAV(CompositeTileAllocator), 0);
+
+
+	FRDGTextureRef SampleLuminanceSum = GraphBuilder.CreateTexture(
+		FRDGTextureDesc::Create2D(DownsampledBufferSize, PF_G16R16F, FClearValueBinding::Black, TexCreate_ShaderResource | TexCreate_UAV),
+		TEXT("StochasticDirectLighting.SampleLuminanceSum"));
 	
 	// Generate new candidate light samples
 	{
+		FRDGTextureUAVRef SampleLuminanceSumUAV = GraphBuilder.CreateUAV(SampleLuminanceSum, ERDGUnorderedAccessViewFlags::SkipBarrier);
 		FRDGTextureUAVRef DownsampledSceneDepthUAV = GraphBuilder.CreateUAV(DownsampledSceneDepth, ERDGUnorderedAccessViewFlags::SkipBarrier);
 		FRDGTextureUAVRef DownsampledSceneWorldNormalUAV = GraphBuilder.CreateUAV(DownsampledSceneWorldNormal, ERDGUnorderedAccessViewFlags::SkipBarrier);
 		FRDGBufferUAVRef CompositeTileAllocatorUAV = GraphBuilder.CreateUAV(CompositeTileAllocator, ERDGUnorderedAccessViewFlags::SkipBarrier);
@@ -905,9 +907,10 @@ void FDeferredShadingSceneRenderer::RenderStochasticDirectLighting(FRDGBuilder& 
 
 		for (int32 TileType = 0; TileType < (int32)StochasticDirectLighting::ETileType::SHADING_MAX; ++TileType)
 		{
-			FGenerateSamplesCS::FParameters* PassParameters = GraphBuilder.AllocParameters<FGenerateSamplesCS::FParameters>();
+			FGenerateLightSamplesCS::FParameters* PassParameters = GraphBuilder.AllocParameters<FGenerateLightSamplesCS::FParameters>();
 			PassParameters->IndirectArgs = DownsampledTileIndirectArgs;
 			PassParameters->StochasticDirectLightingParameters = StochasticDirectLightingParameters;
+			PassParameters->RWSampleLuminanceSum = SampleLuminanceSumUAV;
 			PassParameters->RWDownsampledSceneDepth = DownsampledSceneDepthUAV;
 			PassParameters->RWDownsampledSceneWorldNormal = DownsampledSceneWorldNormalUAV;
 			PassParameters->RWLightSamples = LightSamplesUAV;
@@ -918,15 +921,14 @@ void FDeferredShadingSceneRenderer::RenderStochasticDirectLighting(FRDGBuilder& 
 			PassParameters->HistoryScreenPositionScaleBias = HistoryScreenPositionScaleBias;
 			PassParameters->HistoryUVMinMax = HistoryUVMinMax;
 
-			FGenerateSamplesCS::FPermutationDomain PermutationVector;
-			PermutationVector.Set<FGenerateSamplesCS::FTileType>(TileType);
-			PermutationVector.Set<FGenerateSamplesCS::FIESProfile>(CVarStochasticDirectLightingIESProfiles.GetValueOnRenderThread() != 0);
-			PermutationVector.Set<FGenerateSamplesCS::FLightFunctionAtlas>(bUseLightFunctionAtlas);
-			PermutationVector.Set<FGenerateSamplesCS::FTexturedRectLights>(CVarStochasticDirectLightingTexturedRectLights.GetValueOnRenderThread() != 0);
-			PermutationVector.Set<FGenerateSamplesCS::FNumSamplesPerPixel1d>(NumSamplesPerPixel2d.X * NumSamplesPerPixel2d.Y);
-			PermutationVector.Set<FGenerateSamplesCS::FDebugMode>(bDebug);
-			PermutationVector.Set<FGenerateSamplesCS::FCandidateLightMask>(CVarStochasticDirectLightingCandidateLightMask.GetValueOnRenderThread() != 0);
-			auto ComputeShader = View.ShaderMap->GetShader<FGenerateSamplesCS>(PermutationVector);
+			FGenerateLightSamplesCS::FPermutationDomain PermutationVector;
+			PermutationVector.Set<FGenerateLightSamplesCS::FTileType>(TileType);
+			PermutationVector.Set<FGenerateLightSamplesCS::FIESProfile>(CVarStochasticDirectLightingIESProfiles.GetValueOnRenderThread() != 0);
+			PermutationVector.Set<FGenerateLightSamplesCS::FLightFunctionAtlas>(bUseLightFunctionAtlas);
+			PermutationVector.Set<FGenerateLightSamplesCS::FTexturedRectLights>(CVarStochasticDirectLightingTexturedRectLights.GetValueOnRenderThread() != 0);
+			PermutationVector.Set<FGenerateLightSamplesCS::FNumSamplesPerPixel1d>(NumSamplesPerPixel2d.X * NumSamplesPerPixel2d.Y);
+			PermutationVector.Set<FGenerateLightSamplesCS::FDebugMode>(bDebug);
+			auto ComputeShader = View.ShaderMap->GetShader<FGenerateLightSamplesCS>(PermutationVector);
 
 			FComputeShaderUtils::AddPass(
 				GraphBuilder,
@@ -1102,6 +1104,8 @@ void FDeferredShadingSceneRenderer::RenderStochasticDirectLighting(FRDGBuilder& 
 	{
 		FSDLTemporalAccumulationCS::FParameters* PassParameters = GraphBuilder.AllocParameters<FSDLTemporalAccumulationCS::FParameters>();
 		PassParameters->StochasticDirectLightingParameters = StochasticDirectLightingParameters;
+		PassParameters->CompositeUpsampleWeights = CompositeUpsampleWeights;
+		PassParameters->SampleLuminanceSumTexture = SampleLuminanceSum;
 		PassParameters->ResolvedDiffuseLighting = ResolvedDiffuseLighting;
 		PassParameters->ResolvedSpecularLighting = ResolvedSpecularLighting;
 		PassParameters->DiffuseLightingAndSecondMomentHistoryTexture = DiffuseLightingAndSecondMomentHistory;

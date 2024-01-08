@@ -152,21 +152,14 @@ void ShadeLightSamplesCS(
 				DiffuseLighting *= View.PreExposure;
 				SpecularLighting *= View.PreExposure;
 
-				const float3 N = GBuffer.WorldNormal;
-				const float3 V = normalize(View.TranslatedWorldCameraOrigin - TranslatedWorldPosition);
-				const float NoV = saturate(dot(N, V));
-				const float3 SpecularEnv = EnvBRDF(GBuffer.SpecularColor, GBuffer.Roughness, NoV);
-
-				// #sdl_todo: demodulate earlier during BRDF evaluation
-				DiffuseLighting = SafeDemodulate(DiffuseLighting, GBuffer.DiffuseColor);
-				SpecularLighting = SafeDemodulate(SpecularLighting, SpecularEnv);
+				DemodulateLighting(GBuffer, TranslatedWorldPosition, DiffuseLighting, SpecularLighting);
 			}
 
 			#if DEBUG_MODE
 			if (bDebug)
 			{
 				Newline(Context);
-				Print(Context, TEXT("Diffuse: ")); 
+				Print(Context, TEXT("Diffuse:  ")); 
 				Print(Context, DiffuseLighting);
 				Newline(Context);
 				Print(Context, TEXT("Specular: ")); 

@@ -13,78 +13,62 @@
 #include "StochasticDirectLighting.ush"
 #include "StochasticDirectLightingTracing.ush"
 
-float GetLocalLightTargetPDF(FDeferredLightData LightData, float3 TranslatedWorldPosition, FGBufferData GBuffer, uint2 ScreenCoord)
+struct FLightTargetPDF
 {
-	float SampleWeight = 0.0f;
+	float3 Diffuse;
+	float3 Specular;
+	float Weight;
+};
 
-	float3 L = LightData.Direction;
-	float3 ToLight = L;
+FLightTargetPDF InitLightTargetPDF()
+{
+	FLightTargetPDF LightTargetPDF;
+	LightTargetPDF.Diffuse = 0.0f;
+	LightTargetPDF.Specular = 0.0f;
+	LightTargetPDF.Weight = 0.0f;
+	return LightTargetPDF;
+}
 
-	float LightMask = GetLocalLightAttenuation(TranslatedWorldPosition, LightData, ToLight, L);
+FLightTargetPDF GetLocalLightTargetPDF(FDeferredLightData LightData, float3 TranslatedWorldPosition, FGBufferData GBuffer, uint2 ScreenCoord)
+{
+	FLightTargetPDF LightTargetPDF = InitLightTargetPDF();
 
-	if (LightMask > 0.0f)
+	float3 CameraVector = normalize(TranslatedWorldPosition - View.TranslatedWorldCameraOrigin);
+	GBuffer.Roughness = max(GBuffer.Roughness, View.MinRoughness);
+
+	float4 LightAttenuation = 1.0f;
+	float Dither = 0.5f;
+	float SurfaceShadow = 1.0f;
+	float AmbientOcclusion = 1.0f;
+
+	// #sdl_todo: Move more shading models to TILE_MODE_SIMPLE_SHADING
+	#if TILE_TYPE == TILE_MODE_SIMPLE_SHADING
 	{
-		float Attenuation = 0.0f;
+		GBuffer.ShadingModelID = SHADINGMODELID_DEFAULT_LIT;
+	}
+	#endif
+	LightData.ShadowedBits = 0;
 
-		if (LightData.bRectLight)
-		{
-			FRect Rect = GetRect(ToLight, LightData);
-			Attenuation = IntegrateLight(Rect);
-		}
-		else
-		{
-			FCapsuleLight Capsule = GetCapsule(ToLight, LightData);
-			Attenuation = IntegrateLight(Capsule, LightData.bInverseSquared);
-		}
+	FDeferredLightingSplit SplitLighting = GetDynamicLightingSplit(
+		TranslatedWorldPosition, CameraVector, GBuffer, AmbientOcclusion, GBuffer.ShadingModelID, 
+		LightData, LightAttenuation, Dither, ScreenCoord, 
+		SurfaceShadow);
 
-		// #sdl_todo: figure out cheap sampling
-		SampleWeight = Attenuation * LightMask * View.PreExposure * Luminance(LightData.Color);
+	LightTargetPDF.Diffuse = SplitLighting.DiffuseLighting.xyz * View.PreExposure;
+	LightTargetPDF.Specular = SplitLighting.SpecularLighting.xyz * View.PreExposure;
 
-		#define REFERENCE_SAMPLING 1
-		#if REFERENCE_SAMPLING
-		{
-			float3 CameraVector = normalize(TranslatedWorldPosition - View.TranslatedWorldCameraOrigin);
-			GBuffer.Roughness = max(GBuffer.Roughness, View.MinRoughness);
-
-			float4 LightAttenuation = 1.0f;
-			float Dither = 0.5f;
-			float SurfaceShadow = 1.0f;
-			float AmbientOcclusion = 1.0f;
-
-			// #sdl_todo: Move more shading models to TILE_MODE_SIMPLE_SHADING
-			#if TILE_TYPE == TILE_MODE_SIMPLE_SHADING
-			{
-				GBuffer.ShadingModelID = SHADINGMODELID_DEFAULT_LIT;
-			}
-			#endif
-			LightData.ShadowedBits = 0;
-
-			float4 LightRadiance = GetDynamicLighting(
-				TranslatedWorldPosition,
-				CameraVector,
-				GBuffer, 
-				AmbientOcclusion,
-				GBuffer.ShadingModelID,
-				LightData,
-				LightAttenuation,
-				Dither,
-				ScreenCoord, 
-				SurfaceShadow);
-
-			SampleWeight = Luminance(LightRadiance.xyz * View.PreExposure);
-
-			if (SampleWeight > 0.01f && LightData.IESAtlasIndex >= 0)
-			{
-				SampleWeight *= ComputeLightProfileMultiplier(TranslatedWorldPosition, LightData.TranslatedWorldPosition, -LightData.Direction, LightData.Tangent, LightData.IESAtlasIndex);
-			}
-		}
-		#endif
+	// #sdl_todo: move light profile to GetDynamicLightingSplit for better handling
+	if (LightData.IESAtlasIndex >= 0 && Luminance(LightTargetPDF.Diffuse + LightTargetPDF.Specular) > 0.01f)
+	{
+		const float LightProfileMult = ComputeLightProfileMultiplier(TranslatedWorldPosition, LightData.TranslatedWorldPosition, -LightData.Direction, LightData.Tangent, LightData.IESAtlasIndex);
+		LightTargetPDF.Diffuse *= LightProfileMult;
+		LightTargetPDF.Specular *= LightProfileMult;
 	}
 
 	// Simulate tonemapping
-	SampleWeight = log2(max(SampleWeight + 1.0f, 1.0f));
+	LightTargetPDF.Weight = log2(Luminance(LightTargetPDF.Diffuse + LightTargetPDF.Specular) + 1.0f);
 
-	return SampleWeight;
+	return LightTargetPDF;
 }
 
 uint2 DownsampledViewSize;
@@ -95,6 +79,7 @@ int DebugMode;
 
 RWTexture2D<float> RWDownsampledSceneDepth;
 RWTexture2D<UNORM float3> RWDownsampledSceneWorldNormal;
+RWTexture2D<float2> RWSampleLuminanceSum;
 RWStructuredBuffer<uint> RWCompositeTileAllocator;
 RWStructuredBuffer<uint2> RWCompositeTileData;
 RWTexture2D<uint> RWLightSamples;
@@ -103,10 +88,7 @@ float4 HistoryScreenPositionScaleBias;
 float4 HistoryUVMinMax;
 
 groupshared uint SharedLightMask[SHARED_LIGHT_MASK_SIZE];
-
-#if CANDIDATE_LIGHT_MASK
-	groupshared uint SharedCandidateLightMask[SHARED_LIGHT_MASK_SIZE];
-#endif
+groupshared uint SharedCandidateLightMask[SHARED_LIGHT_MASK_SIZE];
 
 void MarkLocalLightIndex(uint LocalLightIndex)
 {
@@ -125,7 +107,7 @@ float2 DownsampledBufferInvSize;
  * Run one thread per sample and generate new light samples for tracing
  */
 [numthreads(THREADGROUP_SIZE, THREADGROUP_SIZE, 1)]
-void GenerateSamplesCS(
+void GenerateLightSamplesCS(
 	uint3 GroupId : SV_GroupID,
 	uint3 GroupThreadId : SV_GroupThreadID,
 	uint3 DispatchThreadId : SV_DispatchThreadID)
@@ -137,12 +119,10 @@ void GenerateSamplesCS(
 		SharedLightMask[LinearThreadIndex] = 0;
 	}
 
-#if CANDIDATE_LIGHT_MASK
 	if (LinearThreadIndex < SHARED_LIGHT_MASK_SIZE)
 	{
 		SharedCandidateLightMask[LinearThreadIndex] = 0;
 	}
-#endif
 
 	GroupMemoryBarrierWithGroupSync();
 
@@ -152,7 +132,6 @@ void GenerateSamplesCS(
 		uint2 DownsampledTileCoord = UnpackTile(DownsampledTileData[DownsampledTileIndex + TILE_TYPE * DownsampledTileDataStride]);
 		uint2 DownsampledScreenCoord = DownsampledTileCoord * TILE_SIZE + GroupThreadId.xy;
 
-		#if CANDIDATE_LIGHT_MASK
 		if (all(DownsampledScreenCoord < DownsampledViewSize))
 		{
 			uint2 ScreenCoord = DownsampledScreenCoordToScreenCoord(DownsampledScreenCoord);	
@@ -180,7 +159,6 @@ void GenerateSamplesCS(
 				}
 			}
 		}
-		#endif
 	
 		GroupMemoryBarrierWithGroupSync();
 
@@ -211,6 +189,8 @@ void GenerateSamplesCS(
 			const float2 ScreenUV = (ScreenCoord + 0.5f) * View.BufferSizeAndInvSize.zw;
 			const FGBufferData GBuffer = GetGBufferData(ScreenUV);
 			const float SceneDepth = GBuffer.Depth;
+			float3 DiffuseSum = 0.0f;
+			float3 SpecularSum = 0.0f;
 			float WeightSum = 0.0f;
 
 			if (SceneDepth > 0)
@@ -268,7 +248,6 @@ void GenerateSamplesCS(
 				}
 				#endif
 
-	#if CANDIDATE_LIGHT_MASK
 				for (uint MaskIndex = 0; MaskIndex < SHARED_LIGHT_MASK_SIZE; ++MaskIndex)
 				{
 					uint CandidateLightMask = SharedCandidateLightMask[MaskIndex];
@@ -283,21 +262,24 @@ void GenerateSamplesCS(
 						const FLightSceneData LightSceneData = GetLightSceneData(LocalLightData.LightSceneId);
 						FDeferredLightData LightData = ConvertToDeferredLight(LightSceneData);
 					
-						float SampleWeight = GetLocalLightTargetPDF(LightData, TranslatedWorldPosition, GBuffer, ScreenCoord);
+						FLightTargetPDF LightTargetPDF = GetLocalLightTargetPDF(LightData, TranslatedWorldPosition, GBuffer, ScreenCoord);
 
 						#if DEBUG_MODE
 						if (bDebug)
 						{
 							Newline(Context);
 							Print(Context, LocalLightData.LightSceneId);
-							Print(Context, SampleWeight);
+							Print(Context, LightTargetPDF.Weight);
 						}
 						#endif
 
-						if (SampleWeight > SamplingMinWeight)
+						if (LightTargetPDF.Weight > SamplingMinWeight)
 						{
-							float Tau = WeightSum / (WeightSum + SampleWeight);
-							WeightSum += SampleWeight;
+							float Tau = WeightSum / (WeightSum + LightTargetPDF.Weight);
+							WeightSum += LightTargetPDF.Weight;
+
+							DiffuseSum += LightTargetPDF.Diffuse;
+							SpecularSum += LightTargetPDF.Specular;
 
 							for (uint LightSampleIndex = 0; LightSampleIndex < NUM_SAMPLES_PER_PIXEL_1D; ++LightSampleIndex)
 							{
@@ -310,7 +292,7 @@ void GenerateSamplesCS(
 									// Select this sample
 									LightIndexRandom[LightSampleIndex] = (LightIndexRandom[LightSampleIndex] - Tau) / (1.0f - Tau);
 									LightSamples[LightSampleIndex].LocalLightIndex = LocalLightIndex;
-									LightSamples[LightSampleIndex].Weight = SampleWeight;
+									LightSamples[LightSampleIndex].Weight = LightTargetPDF.Weight;
 								}
 
 								LightIndexRandom[LightSampleIndex] = clamp(LightIndexRandom[LightSampleIndex], 0, 0.9999f);
@@ -319,52 +301,7 @@ void GenerateSamplesCS(
 					}
 				}
 
-	#else
-				for (uint GridLightIndex = 0; GridLightIndex < NumLightsInGridCell; ++GridLightIndex)
-				{
-					const uint LocalLightIndex = GetCulledLightDataGrid(CulledLightGridData.DataStartIndex + GridLightIndex);
-					const FLocalLightData LocalLightData = GetLocalLightDataNonStereo(LocalLightIndex);
-
-					if (LocalLightData.bStochasticDirectLightingSupported)
-					{
-						const FLightSceneData LightSceneData = GetLightSceneData(LocalLightData.LightSceneId);
-						FDeferredLightData LightData = ConvertToDeferredLight(LightSceneData);
-						float SampleWeight = GetLocalLightTargetPDF(LightData, TranslatedWorldPosition, GBuffer, ScreenCoord);
-
-						#if DEBUG_MODE
-						if (bDebug)
-						{
-							Newline(Context);
-							Print(Context, LocalLightData.LightSceneId);
-							Print(Context, SampleWeight);
-						}
-						#endif
-
-						if (SampleWeight > SamplingMinWeight)
-						{
-							float Tau = WeightSum / (WeightSum + SampleWeight);
-							WeightSum += SampleWeight;
-
-							for (uint LightSampleIndex = 0; LightSampleIndex < NUM_SAMPLES_PER_PIXEL_1D; ++LightSampleIndex)
-							{
-								if (LightIndexRandom[LightSampleIndex] < Tau)
-								{
-									LightIndexRandom[LightSampleIndex] /= Tau;
-								}
-								else
-								{
-									// Select this sample
-									LightIndexRandom[LightSampleIndex] = (LightIndexRandom[LightSampleIndex] - Tau) / (1.0f - Tau);
-									LightSamples[LightSampleIndex].LocalLightIndex = LocalLightIndex;
-									LightSamples[LightSampleIndex].Weight = SampleWeight;
-								}
-
-								LightIndexRandom[LightSampleIndex] = clamp(LightIndexRandom[LightSampleIndex], 0, 0.9999f);
-							}
-						}
-					}
-				}
-	#endif
+				DemodulateLighting(GBuffer, TranslatedWorldPosition, DiffuseSum, SpecularSum);
 
 				#if DEBUG_MODE
 				if (bDebug)
@@ -395,12 +332,20 @@ void GenerateSamplesCS(
 							AddLineTWS(Context, TranslatedWorldPosition, TranslatedWorldPosition + LightSampleTrace.Direction * LightSampleTrace.Distance, float4(LightSceneData.Color.xyz / Luminance(LightSceneData.Color.xyz), 1.0f));
 						}
 					}
+
+					Newline(Context);
+					Print(Context, TEXT("Diffuse sum:  "));
+					Print(Context, DiffuseSum);
+					Newline(Context);
+					Print(Context, TEXT("Specular sum: "));
+					Print(Context, SpecularSum);
 				}
 				#endif
 			}
 
 			RWDownsampledSceneDepth[DownsampledScreenCoord] = SceneDepth;
 			RWDownsampledSceneWorldNormal[DownsampledScreenCoord] = EncodeNormal(GBuffer.WorldNormal);
+			RWSampleLuminanceSum[DownsampledScreenCoord] = float2(Luminance(DiffuseSum), Luminance(SpecularSum));
 
 			for (uint LightSampleIndex = 0; LightSampleIndex < NUM_SAMPLES_PER_PIXEL_1D; ++LightSampleIndex)
 			{
