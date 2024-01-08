@@ -566,9 +566,6 @@ void FToolBarBuilder::AddToolBarWidget( TSharedRef<SWidget> InWidget, const TAtt
 {
 	ApplySectionBeginning();
 
-	// If tutorial name specified, wrap in tutorial wrapper
-	const FName WrapperName = GenerateTutorialIdentfierName(InTutorialHighlightName, NAME_None, nullptr, MultiBox->GetBlocks().Num());
-
 	const FToolBarStyle& ToolBarStyle = GetStyleSet()->GetWidgetStyle<FToolBarStyle>(GetStyleName());
 
 	TSharedRef<SWidget> ChildWidget = InWidget;
@@ -589,9 +586,14 @@ void FToolBarBuilder::AddToolBarWidget( TSharedRef<SWidget> InWidget, const TAtt
 		.HAlign( HAlign_Center )
 		[
 			SNew( STextBlock )
-			.Visibility_Lambda( [ChildWidget] () -> EVisibility {
+			.Visibility_Lambda( [LabelVisibilityCopy = LabelVisibility, ChildWidget] () -> EVisibility {
 				if (FMultiBoxSettings::UseSmallToolBarIcons.Get())
 					return EVisibility::Collapsed;
+
+				if (LabelVisibilityCopy.IsSet())
+				{
+					return LabelVisibilityCopy.GetValue();
+				}
 
 				return ChildWidget->GetVisibility();
 			})
@@ -608,9 +610,6 @@ void FToolBarBuilder::AddToolBarWidget( TSharedRef<SWidget> InWidget, const TAtt
 void FToolBarBuilder::AddWidget( TSharedRef<SWidget> InWidget, FName InTutorialHighlightName, bool bSearchable, EHorizontalAlignment Alignment, FNewMenuDelegate InCustomMenuDelegate )
 {
 	ApplySectionBeginning();
-
-	// If tutorial name specified, wrap in tutorial wrapper
-	const FName WrapperName = GenerateTutorialIdentfierName(InTutorialHighlightName, NAME_None, nullptr, MultiBox->GetBlocks().Num());
 
 	TSharedRef<SWidget> ChildWidget = InWidget;
 	InWidget = 
