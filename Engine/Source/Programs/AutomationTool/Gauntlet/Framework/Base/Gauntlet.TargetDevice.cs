@@ -106,10 +106,8 @@ namespace Gauntlet
 		/// <summary>
 		/// Installs a build to the device
 		/// </summary>
-		/// <param name="Build">A reference to the build to install</param>
-		/// <param name="ProjectName">Name of the UE project being installed</param>
-		/// <param name="Sandbox">Which sandbox to install to</param>
-		void InstallApplication(IBuild Build, string ProjectName, string Sandbox);
+		/// <param name="AppConfiguration">The configuration containing the build to install</param>
+		void InstallBuild(UnrealAppConfig AppConfiguration);
 
 		/// <summary>
 		/// Create an IAppInstall that is configured by the provided AppConfiguration

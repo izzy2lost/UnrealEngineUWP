@@ -166,7 +166,7 @@ namespace Gauntlet
 
 		}
 
-		public void InstallApplication(IBuild Build, string ProjectName, string Sandbox)
+		public void InstallBuild(UnrealAppConfig AppConfiguration)
 		{
 
 		}
