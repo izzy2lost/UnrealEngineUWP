@@ -305,6 +305,10 @@ public:
 	// Returns the default value clamped with the limit meta values defined by the UPROPERTY in URigVMUnitNodes 
 	FString ClampDefaultValueFromMetaData(const FString& InDefaultValue) const;
 
+	// Returns the keyed metadata associated with this pin, if any
+	UFUNCTION(BlueprintCallable, Category = RigVMPin)
+	FString GetMetaData(FName InKey) const;
+
 	// Returns the name of a custom widget to be used
 	// for editing the Pin.
 	UFUNCTION(BlueprintCallable, Category = RigVMPin)
@@ -468,6 +472,9 @@ public:
 
 	// Returns the decorator backing up this pin
 	TSharedPtr<FStructOnScope> GetDecoratorInstance(bool bUseDefaultValueFromPin = true) const;
+
+	// Returns the struct of the decorator backing up this pin
+	UScriptStruct* GetDecoratorScriptStruct() const;
 
 private:
 

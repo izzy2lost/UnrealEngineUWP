@@ -510,6 +510,25 @@ TSharedPtr<FStructOnScope> URigVMNode::GetDecoratorInstance(const URigVMPin* InD
 	return EmptyScope;
 }
 
+UScriptStruct* URigVMNode::GetDecoratorScriptStruct(const FName& InName) const
+{
+	return GetDecoratorScriptStruct(FindPin(InName.ToString()));
+}
+
+UScriptStruct* URigVMNode::GetDecoratorScriptStruct(const URigVMPin* InDecoratorPin) const
+{
+	if(const URigVMPin* RootPin = FindDecorator(InDecoratorPin))
+	{
+		check(RootPin->IsStruct());
+
+		UScriptStruct* ScriptStruct = RootPin->GetScriptStruct();
+		check(ScriptStruct->IsChildOf(FRigVMDecorator::StaticStruct()));
+		return ScriptStruct;
+	}
+
+	return nullptr;
+}
+
 URigVMLibraryNode* URigVMNode::FindFunctionForNode() const  
 {
 	const UObject* Subject = this;

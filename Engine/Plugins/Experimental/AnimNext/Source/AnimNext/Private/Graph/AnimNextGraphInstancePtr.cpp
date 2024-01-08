@@ -19,10 +19,12 @@ void FAnimNextGraphInstancePtr::Release()
 	if (Impl)
 	{
 #if WITH_EDITORONLY_DATA
-		const UAnimNextGraph* Graph = Impl->GetGraph();
-		FRWScopeLock Lock(Graph->GraphInstancesLock, SLT_Write);
-		check(Graph->GraphInstances.Contains(Impl.Get()));
-		Graph->GraphInstances.Remove(Impl.Get());
+		{
+			const UAnimNextGraph* Graph = Impl->GetGraph();
+			FScopeLock Lock(&Graph->GraphInstancesLock);
+			check(Graph->GraphInstances.Contains(Impl.Get()));
+			Graph->GraphInstances.Remove(Impl.Get());
+		}
 #endif
 
 		// Destroy the graph instance

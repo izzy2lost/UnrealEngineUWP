@@ -27,7 +27,8 @@ class UAnimNextGraphEntry : public UAnimNextRigVMAssetEntry, public IAnimNextRig
 
 	// UAnimNextRigVMAssetEntry interface
 	virtual FName GetEntryName() const override;
-
+	virtual void SetEntryName(FName InName, bool bSetupUndoRedo = true) override;
+	
 	// IAnimNextRigVMGraphInterface interface
 	virtual URigVMGraph* GetRigVMGraph() const override;
 	virtual URigVMEdGraph* GetEdGraph() const override;

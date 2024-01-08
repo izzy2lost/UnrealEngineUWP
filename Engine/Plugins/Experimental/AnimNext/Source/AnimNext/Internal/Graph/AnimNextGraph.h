@@ -3,7 +3,9 @@
 #pragma once
 
 #include "CoreMinimal.h"
+#include "AnimNextGraphEntryPoint.h"
 #include "AnimNextRigVMAsset.h"
+#include "RigUnit_AnimNextGraphRoot.h"
 #include "RigVMCore/RigVM.h"
 #include "DecoratorBase/DecoratorPtr.h"
 #include "DecoratorBase/DecoratorHandle.h"
@@ -71,10 +73,15 @@ public:
 	virtual TConstArrayView<UE::AnimNext::FScheduleTerm> GetTerms() const override;
 
 	// Allocates an instance of the graph
-	void AllocateInstance(FAnimNextGraphInstancePtr& Instance) const;
+	// @param	OutInstance		The instance to allocate data for
+	// @param	InEntryPoint	The entry point to use. If this is NAME_None then the default entry point for this graph is used
+	void AllocateInstance(FAnimNextGraphInstancePtr& OutInstance, FName InEntryPoint = NAME_None) const;
 
 	// Allocates an instance of the graph with the specified parent graph instance
-	void AllocateInstance(FAnimNextGraphInstance& ParentGraphInstance, FAnimNextGraphInstancePtr& Instance) const;
+	// @param	InOutParentGraphInstance	The parent graph instance to use
+	// @param	OutInstance					The instance to allocate data for
+	// @param	InEntryPoint				The entry point to use. If this is NAME_None then the default entry point for this graph is used
+	void AllocateInstance(FAnimNextGraphInstance& InOutParentGraphInstance, FAnimNextGraphInstancePtr& OutInstance, FName InEntryPoint = NAME_None) const;
 
 	// Get the parameter to use to access the reference pose
 	UE::AnimNext::FParamId GetReferencePoseParam() const { return ReferencePoseId; }
@@ -88,7 +95,7 @@ protected:
 	bool LoadFromArchiveBuffer(const TArray<uint8>& SharedDataArchiveBuffer);
 
 	// Allocates an instance of the graph with an optional parent graph instance
-	void AllocateInstanceImpl(FAnimNextGraphInstance* ParentGraphInstance, FAnimNextGraphInstancePtr& Instance) const;
+	void AllocateInstanceImpl(FAnimNextGraphInstance* InOutParentGraphInstance, FAnimNextGraphInstancePtr& OutInstance, FName InEntryPoint) const;
 
 #if WITH_EDITORONLY_DATA
 	// During graph compilation, if we have existing graph instances, we freeze them by releasing their memory before thawing them
@@ -113,22 +120,22 @@ protected:
 	friend UE::AnimNext::FModule;
 	
 #if WITH_EDITORONLY_DATA
-	mutable FRWLock GraphInstancesLock;
+	mutable FCriticalSection GraphInstancesLock;
 
 	// This is a list of live graph instances that have been allocated, used in the editor to reset instances when we re-compile/live edit
 	mutable TSet<FAnimNextGraphInstance*> GraphInstances;
 #endif
 
-	// This is the execute method definition used by this graph
+	// This is the execute method definition used by a graph to evaluate latent pins
 	UPROPERTY()
 	FAnimNextGraphEvaluatorExecuteDefinition ExecuteDefinition;
 
-	// This is a handle to the root decorator in our graph
+	// Data for each entry point in this graph
 	UPROPERTY()
-	FAnimNextEntryPointHandle RootDecoratorHandle;
+	TArray<FAnimNextGraphEntryPoint> EntryPoints;
 
-	// This is a resolved handle to the root decorator in our graph
-	FAnimNextDecoratorHandle ResolvedRootDecoratorHandle;
+	// This is a resolved handle to the root decorator in our graph, for each entry point 
+	TMap<FName, FAnimNextDecoratorHandle> ResolvedRootDecoratorHandles;
 
 	// This is the graph shared data used by the decorator system, the output of FDecoratorReader
 	// We de-serialize manually into this buffer from the archive buffer, this is never saved on disk
@@ -140,6 +147,10 @@ protected:
 	// The shared data serialization archive stores indices to these to perform UObject serialization
 	UPROPERTY()
 	TArray<TObjectPtr<UObject>> GraphReferencedObjects;
+
+	// The entry point that this graph defaults to using
+	UPROPERTY(EditAnywhere, Category = "Graph")
+	FName DefaultEntryPoint = FRigUnit_AnimNextGraphRoot::DefaultEntryPoint;
 
 	// The parameter to use to access the reference pose
 	UPROPERTY(EditAnywhere, Category = "Graph", meta=(CustomWidget = "ParamName", AllowedParamType = "FAnimNextGraphReferencePose"))

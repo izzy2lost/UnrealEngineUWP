@@ -3,10 +3,8 @@
 #pragma once
 
 #include "CoreMinimal.h"
-#include "Param/AnimNextParameterBlock_EditorData.h"
-#include "Graph/AnimNextGraph_EditorData.h"
-#include "AnimNextRigVMAssetEditorData.h"
 #include "IAnimNextRigVMGraphInterface.h"
+#include "AssetRegistry/AssetData.h"
 #include "Param/ParamTypeHandle.h"
 #include "RigVMCore/RigVMTemplate.h"
 
@@ -25,6 +23,7 @@ class UAnimNextGraph_EdGraph;
 struct FEdGraphPinType;
 class UAnimNextRigVMAsset;
 class UAnimNextRigVMAssetEditorData;
+class UAnimNextRigVMAssetEntry;
 
 namespace UE
 {
@@ -141,32 +140,13 @@ struct ANIMNEXTUNCOOKEDONLY_API FUtils
 	static FRigVMTemplateArgumentType GetRigVMArgTypeFromParamType(const FAnimNextParamType& InParamType);
 
 	/** Set up a simple animation graph */
-	static void SetupAnimGraph(URigVMController* InController);
+	static void SetupAnimGraph(UAnimNextRigVMAssetEntry* InEntry, URigVMController* InController);
 	
 	/** Set up a simple parameter graph */
 	static void SetupParameterGraph(URigVMController* InController);
 	
-	/** Set up a binding graph given the type to set */
-	static void SetupBindingGraph(URigVMController* InController, FName InParameterName, const FAnimNextParamType& InParamType);
-
-	/** Set up a binding graph for a simple literal value given the type to set */
-	static void SetupBindingGraphForLiteral(URigVMController* InController, FName InParameterName, const FAnimNextParamType& InParamType);
-
 	/** Converts the Verse-tag-like snake_case_parameter_name to a period-separated display name similar to a gameplay tag */
 	static FText GetParameterDisplayNameText(FName InParameterName);
-
-	/** Returns all nodes in all graphs of the specified class */
-	template<class T>
-	static void GetAllNodesOfClass(const UAnimNextRigVMAssetEditorData* InEditorData, TArray<T*>& OutNodes)
-	{
-		InEditorData->ForEachEntryOfType<IAnimNextRigVMGraphInterface>([&OutNodes](IAnimNextRigVMGraphInterface* InGraphInterface)
-		{
-			TArray<T*> GraphNodes;
-			InGraphInterface->GetEdGraph()->GetNodesOfClass<T>(GraphNodes);
-			OutNodes.Append(GraphNodes);
-			return true;
-		});
-	}
 	
 	// Gets the parameters that are exported to the asset registry for an asset
 	static bool GetExportedParametersForAsset(const FAssetData& InAsset, FAnimNextParameterProviderAssetRegistryExports& OutExports);
@@ -174,7 +154,10 @@ struct ANIMNEXTUNCOOKEDONLY_API FUtils
 	// Gets all the parameters that are exported to the asset registry
 	static bool GetExportedParametersFromAssetRegistry(FAnimNextParameterProviderAssetRegistryExports& OutExports);
 
-	// Gets the parameters that are used by a RigVM graph
+	// Gets the exported parameters that are used by a RigVM asset
+	static void GetAssetParameters(const UAnimNextRigVMAssetEditorData* EditorData, FAnimNextParameterProviderAssetRegistryExports& OutExports);
+
+	// Gets the exported parameters that are used by a RigVM graph
 	static void GetGraphParameters(const URigVMGraph* Graph, FAnimNextParameterProviderAssetRegistryExports& OutExports);
 
 	// Gets the parameters that are exported to the asset registry by a schedule

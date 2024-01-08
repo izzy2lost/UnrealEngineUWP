@@ -48,7 +48,7 @@ void UAnimNextGraph_EditorData::PostLoad()
 					UAnimNextGraphEntry* GraphEntry = CastChecked<UAnimNextGraphEntry>(FoundEntry);
 					GraphEntry->EdGraph = Graph;
 
-					Graph->Rename(*MakeEdGraphName(FoundRigVMGraph->GetFName()).ToString(), FoundEntry, REN_ForceNoResetLoaders | REN_DoNotDirty | REN_DontCreateRedirectors | REN_NonTransactional);
+					Graph->Rename(nullptr, FoundEntry, REN_ForceNoResetLoaders | REN_DoNotDirty | REN_DontCreateRedirectors | REN_NonTransactional);
 					Graph->Initialize(this);
 				}
 			}
@@ -58,6 +58,7 @@ void UAnimNextGraph_EditorData::PostLoad()
 
 void UAnimNextGraph_EditorData::RecompileVM()
 {
+	UE::AnimNext::UncookedOnly::FUtils::GetAssetParameters(this, CachedExports);
 	UE::AnimNext::UncookedOnly::FUtils::Compile(GetTypedOuter<UAnimNextGraph>());
 }
 
@@ -125,9 +126,18 @@ UEdGraph* UAnimNextGraph_EditorData::CreateEdGraph(URigVMGraph* InRigVMGraph, bo
 	UAnimNextGraphEntry* Entry = Cast<UAnimNextGraphEntry>(FindEntryForRigVMGraph(InRigVMGraph));
 	if(Entry == nullptr)
 	{
-		return nullptr;
+		// Not found, we could be adding a new entry, in which case the graph wont be assigned yet
+		check(Entries.Num() > 0);
+		check(Cast<IAnimNextRigVMGraphInterface>(Entries.Last()) != nullptr);
+		check(Cast<IAnimNextRigVMGraphInterface>(Entries.Last())->GetRigVMGraph() == nullptr);
+		Entry = Cast<UAnimNextGraphEntry>(FindEntryForRigVMGraph(nullptr));
 	}
 
+	if(Entry == nullptr)
+	{
+		return nullptr;
+	}
+	
 	if(bForce)
 	{
 		RemoveEdGraph(InRigVMGraph);
@@ -136,7 +146,7 @@ UEdGraph* UAnimNextGraph_EditorData::CreateEdGraph(URigVMGraph* InRigVMGraph, bo
 	FString GraphName = InRigVMGraph->GetName();
 	check(!GraphName.IsEmpty());
 
-	UAnimNextGraph_EdGraph* RigFunctionGraph = NewObject<UAnimNextGraph_EdGraph>(Entry, MakeEdGraphName(*GraphName), RF_Transactional);
+	UAnimNextGraph_EdGraph* RigFunctionGraph = NewObject<UAnimNextGraph_EdGraph>(Entry, NAME_None, RF_Transactional);
 	RigFunctionGraph->Schema = UAnimNextGraph_EdGraphSchema::StaticClass();
 	RigFunctionGraph->bAllowDeletion = true;
 	RigFunctionGraph->bIsFunctionDefinition = false;
@@ -191,7 +201,7 @@ UAnimNextGraphEntry* UAnimNextGraph_EditorData::AddGraph(FName InName, bool bSet
 	int32 NameNumber = InName.GetNumber() + 1;
 	while(bAlreadyExists)
 	{
-		NewGraphName = FName(InName, NameNumber);
+		NewGraphName = FName(InName, NameNumber++);
 		bAlreadyExists =  Entries.ContainsByPredicate(DuplicateNamePredicate);
 	}
 
@@ -210,12 +220,12 @@ UAnimNextGraphEntry* UAnimNextGraph_EditorData::AddGraph(FName InName, bool bSet
 	{
 		TGuardValue<bool> EnablePythonPrint(bSuspendPythonMessagesForRigVMClient, !bPrintPythonCommand);
 		TGuardValue<bool> DisableAutoCompile(bAutoRecompileVM, false);
-		URigVMGraph* NewGraph = RigVMClient.AddModel(NewGraphName, bSetupUndoRedo);
+		URigVMGraph* NewGraph = RigVMClient.AddModel(URigVMGraph::StaticClass()->GetFName(), bSetupUndoRedo);
 		ensure(NewGraph);
 		NewEntry->Graph = NewGraph;
 
 		URigVMController* Controller = RigVMClient.GetController(NewGraph);
-		UE::AnimNext::UncookedOnly::FUtils::SetupAnimGraph(Controller);
+		UE::AnimNext::UncookedOnly::FUtils::SetupAnimGraph(NewEntry, Controller);
 	}
 
 	BroadcastModified();

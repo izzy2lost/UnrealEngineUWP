@@ -17,3 +17,10 @@ struct FAnimNextScope : public FAnimNextTag
 {
 	GENERATED_BODY()
 };
+
+// Empty struct to tag named entry points
+USTRUCT(BlueprintType)
+struct FAnimNextEntryPoint : public FAnimNextTag
+{
+	GENERATED_BODY()
+};

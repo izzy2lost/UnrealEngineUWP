@@ -312,6 +312,10 @@ public:
 
 	TSharedPtr<FStructOnScope> GetDecoratorInstance(const URigVMPin* InDecoratorPin, bool bUseDefaultValueFromPin = true) const;
 
+	UScriptStruct* GetDecoratorScriptStruct(const FName& InName) const;
+
+	UScriptStruct* GetDecoratorScriptStruct(const URigVMPin* InDecoratorPin) const;
+	
 	virtual bool IsOutDated() const
 	{
 		return false;

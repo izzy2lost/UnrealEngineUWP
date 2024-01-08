@@ -14,7 +14,7 @@ class UAnimNextParameterBlock;
 class UAnimNextParameterBlockParameter;
 class UAnimNextParameterBlock_Controller;
 enum class ERigVMGraphNotifType : uint8;
-class FAnimationAnimNextParametersEditorTest_Block;
+
 
 namespace UE::AnimNext::UncookedOnly
 {
@@ -32,6 +32,11 @@ namespace UE::AnimNext::Editor
 	class SRigVMAssetViewRow;
 	class FParameterBlockParameterCustomization;
 	class FModule;
+}
+
+namespace UE::AnimNext::Tests
+{
+	class FEditor_Parameters_ParameterBlock;
 }
 
 UCLASS()
@@ -74,7 +79,7 @@ class UAnimNextParameterBlock_EditorData : public UAnimNextRigVMAssetEditorData
 	friend class UE::AnimNext::Editor::SRigVMAssetView;
 	friend class UE::AnimNext::Editor::SParameterPicker;
 	friend class UE::AnimNext::Editor::FParameterBlockTabSummoner;
-	friend class FAnimationAnimNextParametersEditorTest_Block;
+	friend class UE::AnimNext::Tests::FEditor_Parameters_ParameterBlock;
 	friend class UE::AnimNext::Editor::SRigVMAssetViewRow;
 	friend class UE::AnimNext::Editor::FParameterBlockParameterCustomization;
 

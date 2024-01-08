@@ -10,6 +10,7 @@
 #include "IAnimNextRigVMParameterInterface.h"
 #include "UncookedOnlyUtils.h"
 #include "Misc/TransactionObjectEvent.h"
+#include "Param/AnimNextTag.h"
 #include "RigVMModel/RigVMFunctionLibrary.h"
 #include "RigVMModel/RigVMNotifications.h"
 #include "RigVMModel/Nodes/RigVMCollapseNode.h"
@@ -44,7 +45,7 @@ void UAnimNextRigVMAssetEditorData::ReconstructAllNodes()
 	}
 
 	TArray<URigVMEdGraphNode*> AllNodes;
-	UE::AnimNext::UncookedOnly::FUtils::GetAllNodesOfClass(this, AllNodes);
+	GetAllNodesOfClass(AllNodes);
 
 	for (URigVMEdGraphNode* Node : AllNodes)
 	{
@@ -152,23 +153,8 @@ void UAnimNextRigVMAssetEditorData::GetAssetRegistryTags(FAssetRegistryTagsConte
 {
 	Super::GetAssetRegistryTags(Context);
 
-	FAnimNextParameterProviderAssetRegistryExports ExportParameters;
-	ExportParameters.Parameters.Reserve(Entries.Num());
-
-	for(const UAnimNextRigVMAssetEntry* Entry : Entries)
-	{
-		if(const IAnimNextRigVMParameterInterface* ParameterInterface = Cast<IAnimNextRigVMParameterInterface>(Entry))
-		{
-			ExportParameters.Parameters.Emplace(Entry->GetEntryName(), ParameterInterface->GetParamType(), EAnimNextParameterFlags::Bound);
-		}
-		else if(const IAnimNextRigVMGraphInterface* GraphInterface = Cast<IAnimNextRigVMGraphInterface>(Entry))
-		{
-			UE::AnimNext::UncookedOnly::FUtils::GetGraphParameters(GraphInterface->GetRigVMGraph(), ExportParameters);
-		}
-	}
-
 	FString TagValue;
-	FAnimNextParameterProviderAssetRegistryExports::StaticStruct()->ExportText(TagValue, &ExportParameters, nullptr, nullptr, PPF_None, nullptr);
+	FAnimNextParameterProviderAssetRegistryExports::StaticStruct()->ExportText(TagValue, &CachedExports, nullptr, nullptr, PPF_None, nullptr);
 	Context.AddTag(FAssetRegistryTag(UE::AnimNext::ExportsAnimNextAssetRegistryTag, TagValue, FAssetRegistryTag::TT_Hidden));
 }
 
@@ -428,7 +414,7 @@ void UAnimNextRigVMAssetEditorData::HandleRigVMGraphAdded(const FRigVMClient* In
 			GetOuter() != GetTransientPackage())
 		{
 			CreateEdGraph(RigVMGraph, true);
-			RecompileVM();
+			RequestAutoVMRecompilation();
 		}
 		
 #if WITH_EDITOR
@@ -782,29 +768,14 @@ UAnimNextRigVMAssetEntry* UAnimNextRigVMAssetEditorData::FindEntryForRigVMGraph(
 {
 	for(UAnimNextRigVMAssetEntry* Entry : Entries)
 	{
-		if(Entry->GetEntryName() == InRigVMGraph->GetFName())
+		if(IAnimNextRigVMGraphInterface* GraphInterface = Cast<IAnimNextRigVMGraphInterface>(Entry))
 		{
-			return Entry;
+			if(GraphInterface->GetRigVMGraph() == InRigVMGraph)
+			{
+				return Entry;
+			}
 		}
 	}
 
 	return nullptr;
-}
-
-UAnimNextRigVMAssetEntry* UAnimNextRigVMAssetEditorData::FindEntryForEdGraph(URigVMEdGraph* InEdGraph) const
-{
-	for(UAnimNextRigVMAssetEntry* Entry : Entries)
-	{
-		if(MakeEdGraphName(Entry->GetEntryName()) == InEdGraph->GetFName())
-		{
-			return Entry;
-		}
-	}
-
-	return nullptr;
-}
-
-FName UAnimNextRigVMAssetEditorData::MakeEdGraphName(FName InRigVMGraphName)
-{
-	return *FString::Printf(TEXT("%s_EdGraph"), *InRigVMGraphName.ToString());
 }

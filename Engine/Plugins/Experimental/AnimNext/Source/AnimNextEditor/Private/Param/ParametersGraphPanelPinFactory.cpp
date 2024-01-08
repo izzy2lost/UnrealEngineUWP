@@ -25,9 +25,12 @@ TSharedPtr<SGraphPin> FParametersGraphPanelPinFactory::CreatePin_Internal(UEdGra
 		{
 			if(ModelPin->GetCustomWidgetName() == "ParamName")
 			{
+				const FString ParamTypeString = ModelPin->GetMetaData("AllowedParamType");
+				FAnimNextParamType FilterType = FAnimNextParamType::FromString(ParamTypeString);
 				return SNew(SGraphPinParamName, InPin)
 					.ModelPin(ModelPin)
-					.GraphNode(RigNode);
+					.GraphNode(RigNode)
+					.FilterType(FilterType);
 			}
 		}
 	}

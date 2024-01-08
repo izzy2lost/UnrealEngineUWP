@@ -15,6 +15,8 @@
 #include "Graph/AnimNextGraphInstance.h"
 #include "Serialization/MemoryReader.h"
 #include "AnimNextStats.h"
+#include "Graph/AnimNextGraphEntryPoint.h"
+#include "Graph/RigUnit_AnimNextGraphRoot.h"
 
 DEFINE_STAT(STAT_AnimNext_Graph_AllocateInstance);
 
@@ -29,22 +31,24 @@ UAnimNextGraph::UAnimNextGraph(const FObjectInitializer& ObjectInitializer)
 	ExtendedExecuteContext.SetContextPublicDataStruct(FAnimNextExecuteContext::StaticStruct());
 }
 
-void UAnimNextGraph::AllocateInstance(FAnimNextGraphInstancePtr& Instance) const
+void UAnimNextGraph::AllocateInstance(FAnimNextGraphInstancePtr& Instance, FName InEntryPoint) const
 {
-	AllocateInstanceImpl(nullptr, Instance);
+	AllocateInstanceImpl(nullptr, Instance, InEntryPoint);
 }
 
-void UAnimNextGraph::AllocateInstance(FAnimNextGraphInstance& ParentGraphInstance, FAnimNextGraphInstancePtr& Instance) const
+void UAnimNextGraph::AllocateInstance(FAnimNextGraphInstance& ParentGraphInstance, FAnimNextGraphInstancePtr& Instance, FName InEntryPoint) const
 {
-	AllocateInstanceImpl(&ParentGraphInstance, Instance);
+	AllocateInstanceImpl(&ParentGraphInstance, Instance, InEntryPoint);
 }
 
-void UAnimNextGraph::AllocateInstanceImpl(FAnimNextGraphInstance* ParentGraphInstance, FAnimNextGraphInstancePtr& Instance) const
+void UAnimNextGraph::AllocateInstanceImpl(FAnimNextGraphInstance* ParentGraphInstance, FAnimNextGraphInstancePtr& Instance, FName InEntryPoint) const
 {
 	SCOPE_CYCLE_COUNTER(STAT_AnimNext_Graph_AllocateInstance);
 
 	Instance.Release();
 
+	const FName EntryPoint = InEntryPoint == NAME_None ? DefaultEntryPoint : InEntryPoint;
+	const FAnimNextDecoratorHandle ResolvedRootDecoratorHandle = ResolvedRootDecoratorHandles.FindRef(EntryPoint);
 	if (!ResolvedRootDecoratorHandle.IsValid())
 	{
 		return;
@@ -55,6 +59,7 @@ void UAnimNextGraph::AllocateInstanceImpl(FAnimNextGraphInstance* ParentGraphIns
 
 		InstanceImpl->Graph = this;
 		InstanceImpl->ParentGraphInstance = ParentGraphInstance;
+		InstanceImpl->EntryPoint = EntryPoint;
 
 		// If we have a parent graph, use its root since we share the same root, otherwise if we have no parent, we are the root
 		InstanceImpl->RootGraphInstance = ParentGraphInstance != nullptr ? ParentGraphInstance->GetRootGraphInstance() : InstanceImpl.Get();
@@ -80,7 +85,7 @@ void UAnimNextGraph::AllocateInstanceImpl(FAnimNextGraphInstance* ParentGraphIns
 #if WITH_EDITORONLY_DATA
 	if (Instance.IsValid())
 	{
-		FRWScopeLock Lock(GraphInstancesLock, SLT_Write);
+		FScopeLock Lock(&GraphInstancesLock);
 		check(!GraphInstances.Contains(Instance.Impl.Get()));
 		GraphInstances.Add(Instance.Impl.Get());
 	}
@@ -169,7 +174,10 @@ bool UAnimNextGraph::LoadFromArchiveBuffer(const TArray<uint8>& InSharedDataArch
 	const FDecoratorReader::EErrorState ErrorState = DecoratorReader.ReadGraph(SharedDataBuffer);
 	if (ErrorState == FDecoratorReader::EErrorState::None)
 	{
-		ResolvedRootDecoratorHandle = DecoratorReader.ResolveEntryPointHandle(RootDecoratorHandle);
+		for(FAnimNextGraphEntryPoint& EntryPoint : EntryPoints)
+		{
+			ResolvedRootDecoratorHandles.Add(EntryPoint.EntryPointName, DecoratorReader.ResolveEntryPointHandle(EntryPoint.RootDecoratorHandle));
+		}
 
 		// Make sure our execute method is registered
 		FRigUnit_AnimNextGraphEvaluator::RegisterExecuteMethod(ExecuteDefinition);
@@ -178,7 +186,7 @@ bool UAnimNextGraph::LoadFromArchiveBuffer(const TArray<uint8>& InSharedDataArch
 	else
 	{
 		SharedDataBuffer.Empty(0);
-		ResolvedRootDecoratorHandle = FAnimNextDecoratorHandle();
+		ResolvedRootDecoratorHandles.Add(FRigUnit_AnimNextGraphRoot::DefaultEntryPoint, FAnimNextDecoratorHandle());
 		return false;
 	}
 }
@@ -186,9 +194,10 @@ bool UAnimNextGraph::LoadFromArchiveBuffer(const TArray<uint8>& InSharedDataArch
 #if WITH_EDITORONLY_DATA
 void UAnimNextGraph::FreezeGraphInstances()
 {
-	FRWScopeLock Lock(GraphInstancesLock, SLT_ReadOnly);
+	FScopeLock Lock(&GraphInstancesLock);
 
-	for (FAnimNextGraphInstance* GraphInstance : GraphInstances)
+	TSet<FAnimNextGraphInstance*> GraphInstancesCopy = GraphInstances;
+	for (FAnimNextGraphInstance* GraphInstance : GraphInstancesCopy)
 	{
 		GraphInstance->Freeze();
 	}
@@ -196,9 +205,10 @@ void UAnimNextGraph::FreezeGraphInstances()
 
 void UAnimNextGraph::ThawGraphInstances()
 {
-	FRWScopeLock Lock(GraphInstancesLock, SLT_ReadOnly);
+	FScopeLock Lock(&GraphInstancesLock);
 
-	for (FAnimNextGraphInstance* GraphInstance : GraphInstances)
+	TSet<FAnimNextGraphInstance*> GraphInstancesCopy = GraphInstances;
+	for (FAnimNextGraphInstance* GraphInstance : GraphInstancesCopy)
 	{
 		GraphInstance->Thaw();
 	}

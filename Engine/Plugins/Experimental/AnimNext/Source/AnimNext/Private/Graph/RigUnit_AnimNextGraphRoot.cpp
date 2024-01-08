@@ -5,6 +5,7 @@
 #include UE_INLINE_GENERATED_CPP_BY_NAME(RigUnit_AnimNextGraphRoot)
 
 FName FRigUnit_AnimNextGraphRoot::EventName = TEXT("DummyExecute");
+FName FRigUnit_AnimNextGraphRoot::DefaultEntryPoint = TEXT("Root");
 
 FRigUnit_AnimNextGraphRoot_DummyExecute()
 {

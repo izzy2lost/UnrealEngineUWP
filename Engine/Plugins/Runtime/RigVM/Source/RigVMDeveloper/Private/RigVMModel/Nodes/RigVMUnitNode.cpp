@@ -315,10 +315,6 @@ FString URigVMUnitNode::GetStructDefaultValue() const
 	TArray<FString> PinDefaultValues;
 	for (URigVMPin* Pin : GetPins())
 	{
-		if (Pin->GetDirection() == ERigVMPinDirection::Hidden)
-		{
-			continue;
-		}
 		FString PinDefaultValue = Pin->GetDefaultValue();
 		if (Pin->IsStringType())
 		{

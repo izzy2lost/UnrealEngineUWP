@@ -1128,13 +1128,62 @@ FName URigVMPin::GetCustomWidgetName() const
 #if WITH_EDITOR
 	if(CustomWidgetName.IsNone())
 	{
-		if(const URigVMUnitNode* UnitNode = Cast<URigVMUnitNode>(GetNode()))
+		return FName(GetMetaData(FRigVMStruct::CustomWidgetMetaName));
+	}
+#endif
+	return CustomWidgetName;
+}
+
+FString URigVMPin::GetMetaData(FName InKey) const
+{
+	if (IsArrayElement())
+	{
+		return GetParentPin()->GetMetaData(InKey);
+	}
+
+#if WITH_EDITOR
+	if(const URigVMUnitNode* UnitNode = Cast<URigVMUnitNode>(GetNode()))
+	{
+		if(IsDecoratorPin())
+		{
+			if(const UScriptStruct* Struct = GetDecoratorScriptStruct())
+			{
+				if(const FProperty* Property = Struct->FindPropertyByName(GetFName()))
+				{
+					const FString MetaData = Property->GetMetaData(InKey);
+					if(!MetaData.IsEmpty())
+					{
+						return *MetaData;
+					}
+				}
+				else
+				{
+					// Possible the pin was programmatically generated from the decorator's shared struct
+					TSharedPtr<FStructOnScope> DecoratorScope = GetDecoratorInstance();
+					if(DecoratorScope.IsValid())
+					{
+						const FRigVMDecorator* VMDecorator = (FRigVMDecorator*)DecoratorScope->GetStructMemory();
+						Struct = VMDecorator->GetDecoratorSharedDataStruct();
+						Property = Struct->FindPropertyByName(GetFName());
+						if(Property)
+						{
+							const FString MetaData = Property->GetMetaData(InKey);
+							if(!MetaData.IsEmpty())
+							{
+								return *MetaData;
+							}
+						}
+					}
+				}
+			}
+		}
+		else
 		{
 			if(const UScriptStruct* Struct = UnitNode->GetScriptStruct())
 			{
 				if(const FProperty* Property = Struct->FindPropertyByName(GetFName()))
 				{
-					const FString MetaData = Property->GetMetaData(FRigVMStruct::CustomWidgetMetaName);
+					const FString MetaData = Property->GetMetaData(InKey);
 					if(!MetaData.IsEmpty())
 					{
 						return *MetaData;
@@ -1142,21 +1191,21 @@ FName URigVMPin::GetCustomWidgetName() const
 				}
 			}
 		}
-		else if(const URigVMTemplateNode* TemplateNode = Cast<URigVMTemplateNode>(GetNode()))
+	}
+	else if(const URigVMTemplateNode* TemplateNode = Cast<URigVMTemplateNode>(GetNode()))
+	{
+		if(const FRigVMTemplate* Template = TemplateNode->GetTemplate())
 		{
-			if(const FRigVMTemplate* Template = TemplateNode->GetTemplate())
+			const FString MetaData = Template->GetArgumentMetaData(GetFName(), InKey);
+			if(!MetaData.IsEmpty())
 			{
-				const FString MetaData = Template->GetArgumentMetaData(GetFName(), FRigVMStruct::CustomWidgetMetaName);
-				if(!MetaData.IsEmpty())
-				{
-					return *MetaData;
-				}
+				return *MetaData;
 			}
 		}
 	}
 #endif
-	
-	return CustomWidgetName;
+
+	return FString();
 }
 
 FText URigVMPin::GetToolTipText() const
@@ -1436,6 +1485,16 @@ TSharedPtr<FStructOnScope> URigVMPin::GetDecoratorInstance(bool bUseDefaultValue
 
 	static const TSharedPtr<FStructOnScope> EmptyDecorator;
 	return EmptyDecorator;
+}
+
+UScriptStruct* URigVMPin::GetDecoratorScriptStruct() const
+{
+	if(const URigVMNode* Node = GetNode())
+	{
+		return Node->GetDecoratorScriptStruct(GetRootPin());
+	}
+
+	return nullptr;
 }
 
 void URigVMPin::UpdateTypeInformationIfRequired() const

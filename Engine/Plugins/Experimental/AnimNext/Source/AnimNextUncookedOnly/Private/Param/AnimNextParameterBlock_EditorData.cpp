@@ -106,14 +106,14 @@ UAnimNextParameterBlockGraph* UAnimNextParameterBlock_EditorData::AddGraph(FName
 	{
 		TGuardValue<bool> EnablePythonPrint(bSuspendPythonMessagesForRigVMClient, !bPrintPythonCommand);
 		TGuardValue<bool> DisableAutoCompile(bAutoRecompileVM, false);
-		URigVMGraph* NewGraph = RigVMClient.AddModel(NewGraphName, bSetupUndoRedo);
+		URigVMGraph* NewGraph = RigVMClient.AddModel(URigVMGraph::StaticClass()->GetFName(), bSetupUndoRedo);
 		ensure(NewGraph);
 		NewEntry->Graph = NewGraph;
 
 		URigVMController* Controller = RigVMClient.GetController(NewGraph);
 		UE::AnimNext::UncookedOnly::FUtils::SetupParameterGraph(Controller);
 	}
-	
+
 	BroadcastModified();
 
 	return NewEntry;
@@ -165,7 +165,7 @@ void UAnimNextParameterBlock_EditorData::PostLoad()
 					UAnimNextParameterBlockGraph* GraphEntry = CastChecked<UAnimNextParameterBlockGraph>(FoundEntry);
 					GraphEntry->EdGraph = Graph;
 
-					Graph->Rename(*MakeEdGraphName(FoundRigVMGraph->GetFName()).ToString(), FoundEntry, REN_ForceNoResetLoaders | REN_DoNotDirty | REN_DontCreateRedirectors | REN_NonTransactional);
+					Graph->Rename(nullptr, FoundEntry, REN_ForceNoResetLoaders | REN_DoNotDirty | REN_DontCreateRedirectors | REN_NonTransactional);
 					Graph->Initialize(this);
 				}
 			}
@@ -202,6 +202,7 @@ void UAnimNextParameterBlock_EditorData::PostLoad()
 
 void UAnimNextParameterBlock_EditorData::RecompileVM()
 {
+	UE::AnimNext::UncookedOnly::FUtils::GetAssetParameters(this, CachedExports);
 	UE::AnimNext::UncookedOnly::FUtils::CompileVM(GetTypedOuter<UAnimNextParameterBlock>());
 }
 
@@ -239,6 +240,15 @@ UEdGraph* UAnimNextParameterBlock_EditorData::CreateEdGraph(URigVMGraph* InRigVM
 	UAnimNextParameterBlockGraph* Entry = Cast<UAnimNextParameterBlockGraph>(FindEntryForRigVMGraph(InRigVMGraph));
 	if(Entry == nullptr)
 	{
+		// Not found, we could be adding a new entry, in which case the graph wont be assigned yet
+		check(Entries.Num() > 0);
+		check(Cast<IAnimNextRigVMGraphInterface>(Entries.Last()) != nullptr);
+		check(Cast<IAnimNextRigVMGraphInterface>(Entries.Last())->GetRigVMGraph() == nullptr);
+		Entry = Cast<UAnimNextParameterBlockGraph>(Entries.Last());
+	}
+
+	if(Entry == nullptr)
+	{
 		return nullptr;
 	}
 
@@ -250,7 +260,7 @@ UEdGraph* UAnimNextParameterBlock_EditorData::CreateEdGraph(URigVMGraph* InRigVM
 	FString GraphName = InRigVMGraph->GetName();
 	check(!GraphName.IsEmpty());
 
-	UAnimNextParameterBlock_EdGraph* RigFunctionGraph = NewObject<UAnimNextParameterBlock_EdGraph>(Entry, MakeEdGraphName(*GraphName), RF_Transactional);
+	UAnimNextParameterBlock_EdGraph* RigFunctionGraph = NewObject<UAnimNextParameterBlock_EdGraph>(Entry, NAME_None, RF_Transactional);
 	RigFunctionGraph->Schema = UAnimNextParameterBlock_EdGraphSchema::StaticClass();
 	RigFunctionGraph->bAllowDeletion = true;
 	RigFunctionGraph->bIsFunctionDefinition = false;

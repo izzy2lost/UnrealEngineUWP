@@ -5,6 +5,7 @@
 
 #include "DecoratorBase/DecoratorReader.h"
 #include "Graph/AnimNextGraph.h"
+#include "Graph/RigUnit_AnimNextGraphRoot.h"
 #include "Misc/AutomationTest.h"
 #include "Serialization/MemoryReader.h"
 
@@ -30,10 +31,12 @@ namespace UE::AnimNext
 		ExecuteDefinition.Hash = 0;
 		ExecuteDefinition.MethodName = TEXT("Execute_0");
 
+		FAnimNextGraphEntryPoint& EntryPoint = Graph.EntryPoints.AddDefaulted_GetRef();
+		EntryPoint.EntryPointName = FRigUnit_AnimNextGraphRoot::DefaultEntryPoint;
+		EntryPoint.RootDecoratorHandle = FAnimNextEntryPointHandle(NodeHandles[0]);
 		Graph.ExecuteDefinition = ExecuteDefinition;
 		Graph.SharedDataArchiveBuffer = SharedDataArchiveBuffer;
 		Graph.GraphReferencedObjects.Empty();
-		Graph.RootDecoratorHandle = FAnimNextEntryPointHandle(NodeHandles[0]);
 
 		// Reconstruct our graph shared data
 		FMemoryReader GraphSharedDataArchive(SharedDataArchiveBuffer);
@@ -42,7 +45,7 @@ namespace UE::AnimNext
 		const FDecoratorReader::EErrorState ErrorState = DecoratorReader.ReadGraph(Graph.SharedDataBuffer);
 		if (ErrorState == FDecoratorReader::EErrorState::None)
 		{
-			Graph.ResolvedRootDecoratorHandle = DecoratorReader.ResolveEntryPointHandle(Graph.RootDecoratorHandle);
+			Graph.ResolvedRootDecoratorHandles.Add(FRigUnit_AnimNextGraphRoot::DefaultEntryPoint, DecoratorReader.ResolveEntryPointHandle(Graph.EntryPoints[0].RootDecoratorHandle));
 
 			for (FNodeHandle& NodeHandle : NodeHandles)
 			{
@@ -56,7 +59,7 @@ namespace UE::AnimNext
 		else
 		{
 			Graph.SharedDataBuffer.Empty(0);
-			Graph.ResolvedRootDecoratorHandle = FAnimNextDecoratorHandle();
+			Graph.ResolvedRootDecoratorHandles.Add(FRigUnit_AnimNextGraphRoot::DefaultEntryPoint, FAnimNextDecoratorHandle());
 			return false;
 		}
 	}

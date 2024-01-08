@@ -73,6 +73,9 @@ class UAnimNextScheduleEntry_AnimNextGraph : public UAnimNextScheduleEntry
 private:
 	friend struct UE::AnimNext::UncookedOnly::FUtils;
 
+	// UObject interface
+	virtual void GetPreloadDependencies(TArray<UObject*>& OutDeps) override;
+
 	// The graph to run by default
 	UPROPERTY(EditAnywhere, Category = "Graph")
 	TObjectPtr<UAnimNextGraph> Graph = nullptr;
@@ -131,6 +134,9 @@ class UAnimNextScheduleEntry_ParamScope : public UAnimNextScheduleEntry
 
 private:
 	friend struct UE::AnimNext::UncookedOnly::FUtils;
+
+	// UObject interface
+	virtual void GetPreloadDependencies(TArray<UObject*>& OutDeps) override;
 
 	// The scope to use
 	UPROPERTY(EditAnywhere, Category = "Parameters", meta = (CustomWidget = "ParamName", AllowedParamType = "FAnimNextScope"))
@@ -239,6 +245,9 @@ private:
 	virtual void GetAssetRegistryTags(FAssetRegistryTagsContext Context) const override;
 	UE_DEPRECATED(5.4, "Implement the version that takes FAssetRegistryTagsContext instead.")
 	virtual void GetAssetRegistryTags(TArray<FAssetRegistryTag>& OutTags) const override;
+	virtual void GetPreloadDependencies(TArray<UObject*>& OutDeps) override;
+
+	void HandlePackageDone(const FEndLoadPackageContext& Context);
 
 	// Compile the editor data into a compact runtime representation
 	void CompileSchedule();

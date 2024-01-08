@@ -16,13 +16,18 @@ namespace UE::AnimNext::Editor
 	class FParameterBlockParameterCustomization;
 }
 
+namespace UE::AnimNext::Tests
+{
+	class FEditor_Parameters_ParameterBlock;
+}
+
 UCLASS(MinimalAPI, Category = "Parameters")
 class UAnimNextParameterBlockParameter : public UAnimNextRigVMAssetEntry, public IAnimNextRigVMParameterInterface
 {
 	GENERATED_BODY()
 
 	friend class UAnimNextParameterBlock_EditorData;
-	friend class FAnimationAnimNextParametersEditorTest_Block;
+	friend class UE::AnimNext::Tests::FEditor_Parameters_ParameterBlock;
 	friend class UE::AnimNext::Editor::FParameterBlockParameterCustomization;
 
 	// UAnimNextRigVMAssetEntry interface

@@ -13,5 +13,8 @@ class UAnimNextParameterBlock_EdGraphSchema : public URigVMEdGraphSchema
 	GENERATED_BODY()
 
 	// URigVMEdGraphSchema interface
-	virtual TSubclassOf<URigVMEdGraphNode> GetGraphNodeClass(const URigVMEdGraph* InGraph) const override { return UAnimNextParameterBlock_EdGraphNode::StaticClass(); }	
+	virtual TSubclassOf<URigVMEdGraphNode> GetGraphNodeClass(const URigVMEdGraph* InGraph) const override { return UAnimNextParameterBlock_EdGraphNode::StaticClass(); }
+
+	// UEdGraphSchema interface
+	virtual void GetGraphDisplayInformation(const UEdGraph& Graph, /*out*/ FGraphDisplayInfo& DisplayInfo) const override;
 };

@@ -37,7 +37,7 @@ UObject* UAnimNextGraphFactory::FactoryCreateNew(UClass* Class, UObject* InParen
 	EditorData->Initialize(/*bRecompileVM*/false);
 
 	// Add root graph
-	EditorData->AddGraph(TEXT("Root"), false);
+	EditorData->AddGraph(FRigUnit_AnimNextGraphRoot::DefaultEntryPoint, false);
 	check(EditorData->Entries.Num() > 0);
 
 	// Compile the initial skeleton

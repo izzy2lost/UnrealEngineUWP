@@ -5,7 +5,7 @@
 
 #include UE_INLINE_GENERATED_CPP_BY_NAME(RigUnit_AnimNextParameterBeginExecution)
 
-FName FRigUnit_AnimNextParameterBeginExecution::EventName = TEXT("Update");
+FName FRigUnit_AnimNextParameterBeginExecution::DefaultEntryPoint = TEXT("Update");
 
 FRigUnit_AnimNextParameterBeginExecution_Execute()
 {

@@ -100,7 +100,7 @@ void FAnimNextScheduleGraphTask::RunGraph(const UE::AnimNext::FScheduleContext& 
 	// Allocate our graph instance data
 	if (!GraphCache.GraphInstanceData.IsValid())
 	{
-		GraphToRun->AllocateInstance(GraphCache.GraphInstanceData);
+		GraphToRun->AllocateInstance(GraphCache.GraphInstanceData, EntryPoint);
 
 		// Only do dynamic verification for dynamic graphs. Static graphs get verified at compile time. 
 		if (Graph == nullptr && DynamicGraph != NAME_None)

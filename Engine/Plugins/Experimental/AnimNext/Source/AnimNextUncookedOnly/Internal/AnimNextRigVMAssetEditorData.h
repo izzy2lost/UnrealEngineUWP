@@ -6,6 +6,7 @@
 #include "RigVMModel/RigVMGraph.h"
 #include "RigVMCore/RigVMGraphFunctionHost.h"
 #include "RigVMBlueprint.h"
+#include "UncookedOnlyUtils.h"
 #include "Kismet/BlueprintFunctionLibrary.h"
 #include "AnimNextRigVMAssetEditorData.generated.h"
 
@@ -32,6 +33,11 @@ namespace UE::AnimNext::Editor
 	class FParameterBlockParameterCustomization;
 	class FModule;
 	class FWorkspaceEditor;
+}
+
+namespace UE::AnimNext::Tests
+{
+	class FEditor_Graph;
 }
 
 namespace UE::AnimNext::UncookedOnly
@@ -73,6 +79,7 @@ protected:
 	friend class UAnimNextRigVMAssetLibrary;
 	friend class UAnimNextGraph_EdGraph;
 	friend class UAnimNextParameterBlock_EdGraph;
+	friend class UE::AnimNext::Tests::FEditor_Graph;
 
 	// UObject interface
 	virtual void Serialize(FArchive& Ar) override;
@@ -164,9 +171,6 @@ protected:
 		return CastChecked<EntryClassType>(CreateNewSubEntry(InEditorData, EntryClassType::StaticClass()));
 	}
 
-	// Helper that generates a fixed UEdGraph name counterpart to a a URigVMGraph 
-	static FName MakeEdGraphName(FName InRigVMGraphName);
-
 	// Get all the entries for this asset
 	TConstArrayView<TObjectPtr<UAnimNextRigVMAssetEntry>> GetAllEntries() const { return Entries; } 
 
@@ -190,6 +194,19 @@ protected:
 		}
 	}
 
+	// Returns all nodes in all graphs of the specified class
+	template<class T>
+	void GetAllNodesOfClass(TArray<T*>& OutNodes)
+	{
+		ForEachEntryOfType<IAnimNextRigVMGraphInterface>([&OutNodes](IAnimNextRigVMGraphInterface* InGraphInterface)
+		{
+			TArray<T*> GraphNodes;
+			InGraphInterface->GetEdGraph()->GetNodesOfClass<T>(GraphNodes);
+			OutNodes.Append(GraphNodes);
+			return true;
+		});
+	}
+	
 	// Find an entry by name
 	ANIMNEXTUNCOOKEDONLY_API UAnimNextRigVMAssetEntry* FindEntry(FName InName) const;
 
@@ -212,9 +229,6 @@ protected:
 
 	// Find an entry that corresponds to the specified RigVMGraph. This uses the name of the graph to match the entry 
 	UAnimNextRigVMAssetEntry* FindEntryForRigVMGraph(URigVMGraph* InRigVMGraph) const;
-
-	// Find an entry that corresponds to the specified EdGraph
-	UAnimNextRigVMAssetEntry* FindEntryForEdGraph(URigVMEdGraph* InEdGraph) const;
 
 	/** All entries in this asset - not saved, either serialized or discovered at load time */
 	UPROPERTY(transient)
@@ -259,6 +273,9 @@ protected:
 	// Delegate to subscribe to modifications to this editor data
 	UE::AnimNext::UncookedOnly::FOnEditorDataModified ModifiedDelegate;
 
+	// Cached exports, generated on compilation
+	FAnimNextParameterProviderAssetRegistryExports CachedExports;
+	
 	bool bAutoRecompileVM = true;
 	bool bErrorsDuringCompilation = false;
 	bool bSuspendModelNotificationsForSelf = false;

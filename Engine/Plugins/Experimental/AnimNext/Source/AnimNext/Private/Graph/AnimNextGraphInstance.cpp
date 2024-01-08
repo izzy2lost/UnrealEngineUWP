@@ -40,6 +40,11 @@ const UAnimNextGraph* FAnimNextGraphInstance::GetGraph() const
 	return Graph;
 }
 
+FName FAnimNextGraphInstance::GetEntryPoint() const
+{
+	return EntryPoint;
+}
+
 UE::AnimNext::FWeakDecoratorPtr FAnimNextGraphInstance::GetGraphRootPtr() const
 {
 	return GraphInstancePtr;
@@ -58,6 +63,20 @@ FAnimNextGraphInstance* FAnimNextGraphInstance::GetRootGraphInstance() const
 bool FAnimNextGraphInstance::UsesGraph(const UAnimNextGraph* InGraph) const
 {
 	return Graph == InGraph;
+}
+
+bool FAnimNextGraphInstance::UsesEntryPoint(FName InEntryPoint) const
+{
+	if(Graph != nullptr)
+	{
+		if(InEntryPoint == NAME_None)
+		{
+			return EntryPoint == Graph->DefaultEntryPoint;
+		}
+
+		return InEntryPoint == EntryPoint;
+	}
+	return false;
 }
 
 bool FAnimNextGraphInstance::IsRoot() const
@@ -110,7 +129,7 @@ void FAnimNextGraphInstance::ExecuteLatentPins(const TConstArrayView<UE::AnimNex
 	if (URigVM* VM = Graph->VM)
 	{
 		FAnimNextExecuteContext& AnimNextContext = ExtendedExecuteContext.GetPublicDataSafe<FAnimNextExecuteContext>();
-		AnimNextContext.SetupForExecution(LatentHandles, DestinationBasePtr, bIsFrozen);
+		AnimNextContext.SetupForExecution(this, LatentHandles, DestinationBasePtr, bIsFrozen);
 
 		VM->ExecuteVM(ExtendedExecuteContext, FRigUnit_AnimNextShimRoot::EventName);
 
@@ -140,7 +159,10 @@ void FAnimNextGraphInstance::Thaw()
 
 		{
 			UE::AnimNext::FExecutionContext Context(*this);
-			GraphInstancePtr = Context.AllocateNodeInstance(UE::AnimNext::FWeakDecoratorPtr(), GraphPtr->ResolvedRootDecoratorHandle);
+			if(const FAnimNextDecoratorHandle* FoundHandle = GraphPtr->ResolvedRootDecoratorHandles.Find(EntryPoint))
+			{
+				GraphInstancePtr = Context.AllocateNodeInstance(UE::AnimNext::FWeakDecoratorPtr(), *FoundHandle);
+			}
 		}
 
 		if (!IsValid())

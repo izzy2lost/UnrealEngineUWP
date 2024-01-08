@@ -70,6 +70,7 @@ FText URigVMEdGraphNode::GetNodeTitle(ENodeTitleType::Type TitleType) const
 					{
 						const FRigVMStruct* RigVMStruct = (const FRigVMStruct*)StructOnScope->GetStructMemory();
 						NodeTitle = FText::FromString(RigVMStruct->GetUnitLabel());
+						SubTitle = RigVMStruct->GetUnitSubTitle();
 					}
 				}
 			}

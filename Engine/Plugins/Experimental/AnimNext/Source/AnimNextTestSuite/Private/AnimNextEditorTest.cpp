@@ -9,6 +9,10 @@
 #include "Param/AnimNextParameterBlock.h"
 #include "Param/AnimNextParameterBlockParameter.h"
 #include "Animation/AnimSequence.h"
+#include "Graph/AnimNextGraph.h"
+#include "Graph/AnimNextGraphEntry.h"
+#include "Graph/AnimNextGraph_EditorData.h"
+#include "Graph/GraphFactory.h"
 #if WITH_EDITOR
 #include "ScopedTransaction.h"
 #include "Editor.h"
@@ -19,9 +23,12 @@
 
 #if WITH_DEV_AUTOMATION_TESTS && WITH_EDITOR
 
-IMPLEMENT_SIMPLE_AUTOMATION_TEST(FAnimationAnimNextParametersEditorTest_Block, "Animation.AnimNext.Parameters.Editor.Block", EAutomationTestFlags::EditorContext | EAutomationTestFlags::EngineFilter)
+namespace UE::AnimNext::Tests
+{
 
-bool FAnimationAnimNextParametersEditorTest_Block::RunTest(const FString& InParameters)
+IMPLEMENT_SIMPLE_AUTOMATION_TEST(FEditor_Parameters_ParameterBlock, "Animation.AnimNext.Editor.Parameters.ParameterBlock", EAutomationTestFlags::EditorContext | EAutomationTestFlags::EngineFilter)
+
+bool FEditor_Parameters_ParameterBlock::RunTest(const FString& InParameters)
 {
 	using namespace UE::AnimNext;
 
@@ -131,14 +138,14 @@ bool FAnimationAnimNextParametersEditorTest_Block::RunTest(const FString& InPara
 	AddErrorIfFalse(EditorData->Entries.Num() == 1, FString::Printf(TEXT("Unexpected entry count found in parameter block (Have %d, expected 1)."), EditorData->Entries.Num()));
 	GEditor->UndoTransaction();
 
-	Tests::FUtils::CleanupAfterTests();
+	FUtils::CleanupAfterTests();
 
 	return true;
 }
 
-IMPLEMENT_SIMPLE_AUTOMATION_TEST(FAnimationAnimNextParametersEditorTest_Python, "Animation.AnimNext.Parameters.Editor.Python", EAutomationTestFlags::EditorContext | EAutomationTestFlags::EngineFilter)
+IMPLEMENT_SIMPLE_AUTOMATION_TEST(FEditor_Parameters_Python, "Animation.AnimNext.Editor.Parameters.Python", EAutomationTestFlags::EditorContext | EAutomationTestFlags::EngineFilter)
 
-bool FAnimationAnimNextParametersEditorTest_Python::RunTest(const FString& InParameters)
+bool FEditor_Parameters_Python::RunTest(const FString& InParameters)
 {
 	using namespace UE::AnimNext;
 
@@ -152,9 +159,70 @@ bool FAnimationAnimNextParametersEditorTest_Python::RunTest(const FString& InPar
 
 	IPythonScriptPlugin::Get()->ExecPythonCommand(Script);
 
-	Tests::FUtils::CleanupAfterTests();
+	FUtils::CleanupAfterTests();
 
 	return true;
+}
+
+IMPLEMENT_SIMPLE_AUTOMATION_TEST(FEditor_Graph, "Animation.AnimNext.Editor.Graph", EAutomationTestFlags::EditorContext | EAutomationTestFlags::EngineFilter)
+
+bool FEditor_Graph::RunTest(const FString& InParameters)
+{
+	using namespace UE::AnimNext;
+
+	const TStrongObjectPtr<UFactory> GraphFactory(NewObject<UAnimNextGraphFactory>());
+	UAnimNextGraph* Graph = Cast<UAnimNextGraph>(GraphFactory->FactoryCreateNew(UAnimNextGraph::StaticClass(), GetTransientPackage(), TEXT("TestAnimNextGraph"), RF_Transient, nullptr, nullptr, NAME_None));
+	if(Graph == nullptr)
+	{
+		AddError(TEXT("Could not create graph."));
+		return false;
+	}
+
+	UAnimNextGraph_EditorData* EditorData = UncookedOnly::FUtils::GetEditorData(Graph);
+	if(EditorData == nullptr)
+	{
+		AddError(TEXT("Graph has no editor data."));
+		return false;
+	}
+
+	// Add graph
+	UAnimNextGraphEntry* GraphEntry = nullptr;
+	{
+		FScopedTransaction Transaction(FText::GetEmpty());
+		GraphEntry = EditorData->AddGraph(TEXT("TestGraph"));
+		AddErrorIfFalse(Graph != nullptr, TEXT("Could not create new graph in asset."));
+	}
+
+	GEditor->UndoTransaction();
+	AddErrorIfFalse(EditorData->Entries.Num() == 1, FString::Printf(TEXT("Unexpected entry count found in graph asset (Have %d, expected 1)."), EditorData->Entries.Num()));
+
+	GEditor->RedoTransaction();
+	AddErrorIfFalse(EditorData->Entries.Num() == 2, FString::Printf(TEXT("Unexpected entry count found in graph asset (Have %d, expected 2)."), EditorData->Entries.Num()));
+
+	// RemoveEntry
+	{
+		FScopedTransaction Transaction(FText::GetEmpty());
+		AddErrorIfFalse(EditorData->RemoveEntry(GraphEntry), TEXT("Failed to remove entry."));
+	}
+
+	GEditor->UndoTransaction();
+	AddErrorIfFalse(EditorData->Entries.Num() == 2, FString::Printf(TEXT("Unexpected entry count found in graph asset (Have %d, expected 2)."), EditorData->Entries.Num()));
+
+	GEditor->RedoTransaction();
+	AddErrorIfFalse(EditorData->Entries.Num() == 1, FString::Printf(TEXT("Unexpected entry count found in graph asset (Have %d, expected 1)."), EditorData->Entries.Num()));
+
+	GEditor->UndoTransaction();
+	AddErrorIfFalse(EditorData->Entries.Num() == 2, FString::Printf(TEXT("Unexpected entry count found in graph asset (Have %d, expected 2)."), EditorData->Entries.Num()));
+
+	// FindEntry
+	AddErrorIfFalse(EditorData->FindEntry(TEXT("TestGraph")) != nullptr, TEXT("Could not find entry in asset."));
+	GEditor->UndoTransaction();
+
+	FUtils::CleanupAfterTests();
+
+	return true;
+}
+
 }
 
 #endif	// WITH_DEV_AUTOMATION_TESTS && WITH_EDITOR

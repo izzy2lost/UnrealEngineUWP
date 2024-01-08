@@ -27,9 +27,14 @@ struct FAnimNextSubGraphHostDecoratorSharedData : public FAnimNextDecoratorShare
 	UPROPERTY(meta = (Hidden))
 	FAnimNextDecoratorHandle ReferencePoseChild;
 
+	/** Entry point in the Subgraph that we will use */
+	UPROPERTY(EditAnywhere, Category = "Default", meta=(CustomWidget = "ParamName", AllowedParamType = "FAnimNextEntryPoint"))
+	FName EntryPoint;
+
 	// Latent pin support boilerplate
 	#define DECORATOR_LATENT_PROPERTIES_ENUMERATOR(GeneratorMacro) \
 		GeneratorMacro(SubGraph) \
+		GeneratorMacro(EntryPoint) \
 
 	GENERATE_DECORATOR_LATENT_PROPERTIES(FAnimNextSubGraphHostDecoratorSharedData, DECORATOR_LATENT_PROPERTIES_ENUMERATOR)
 	#undef DECORATOR_LATENT_PROPERTIES_ENUMERATOR
@@ -60,6 +65,9 @@ namespace UE::AnimNext
 
 			// The graph instance
 			FAnimNextGraphInstancePtr GraphInstance;
+
+			// The entry point to use
+			FName EntryPoint;
 
 			// The current slot state
 			ESlotState State = ESlotState::Inactive;

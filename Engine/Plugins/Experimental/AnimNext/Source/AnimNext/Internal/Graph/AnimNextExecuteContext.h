@@ -7,6 +7,8 @@
 #include "Units/RigUnit.h"
 #include "AnimNextExecuteContext.generated.h"
 
+struct FAnimNextGraphInstance;
+
 namespace UE::AnimNext
 {
 	struct FLatentPropertyHandle;
@@ -19,6 +21,7 @@ struct FAnimNextExecuteContext : public FRigVMExecuteContext
 
 	FAnimNextExecuteContext() = default;
 
+	const FAnimNextGraphInstance& GetGraphInstance() const { check(Instance); return *Instance; }
 	const TConstArrayView<UE::AnimNext::FLatentPropertyHandle>& GetLatentHandles() const { return LatentHandles; }
 	void* GetDestinationBasePtr() const { return DestinationBasePtr; }
 	bool IsFrozen() const { return bIsFrozen; }
@@ -28,14 +31,16 @@ struct FAnimNextExecuteContext : public FRigVMExecuteContext
 		Super::Copy(InOtherContext);
 
 		const FAnimNextExecuteContext* OtherContext = (const FAnimNextExecuteContext*)InOtherContext;
+		Instance = OtherContext->Instance;
 		LatentHandles = OtherContext->LatentHandles;
 		DestinationBasePtr = OtherContext->DestinationBasePtr;
 		bIsFrozen = OtherContext->bIsFrozen;
 	}
 
 private:
-	void SetupForExecution(const TConstArrayView<UE::AnimNext::FLatentPropertyHandle>& InLatentHandles, void* InDestinationBasePtr, bool bInIsFrozen)
+	void SetupForExecution(const FAnimNextGraphInstance* InInstance, const TConstArrayView<UE::AnimNext::FLatentPropertyHandle>& InLatentHandles, void* InDestinationBasePtr, bool bInIsFrozen)
 	{
+		Instance = InInstance;
 		LatentHandles = InLatentHandles;
 		DestinationBasePtr = InDestinationBasePtr;
 		bIsFrozen = bInIsFrozen;
@@ -44,11 +49,13 @@ private:
 	// Call this to reset the context to its original state to detect stale usage, can't call it Reset due to virtual in base with that name
 	void DebugReset()
 	{
+		Instance = nullptr;
 		LatentHandles = TConstArrayView<UE::AnimNext::FLatentPropertyHandle>();
 		DestinationBasePtr = nullptr;
 		bIsFrozen = false;
 	}
 
+	const FAnimNextGraphInstance* Instance = nullptr;
 	TConstArrayView<UE::AnimNext::FLatentPropertyHandle> LatentHandles;
 	void* DestinationBasePtr = nullptr;
 	bool bIsFrozen = false;

@@ -16,12 +16,17 @@ struct ANIMNEXT_API FRigUnit_AnimNextParameterBeginExecution : public FRigUnit_A
 	RIGVM_METHOD()
 	void Execute();
 
-	virtual FName GetEventName() const override { return EventName; }
+	virtual FString GetUnitLabel() const override { return EntryPoint.ToString(); };
+	virtual FName GetEventName() const override { return EntryPoint; }
 	virtual bool CanOnlyExistOnce() const override { return true; }
 
 	// The execution result
-	UPROPERTY(EditAnywhere, DisplayName = "Execute", Category = "BeginExecution", meta = (Output))
+	UPROPERTY(EditAnywhere, DisplayName = "Execute", Category = "Entry Point", meta = (Output))
 	FAnimNextParameterExecuteContext ExecuteContext;
 
-	static FName EventName;
+	// The name of the entry point
+	UPROPERTY(VisibleAnywhere, Category = "Entry Point", meta = (Hidden))
+	FName EntryPoint = DefaultEntryPoint;
+
+	static FName DefaultEntryPoint;
 };

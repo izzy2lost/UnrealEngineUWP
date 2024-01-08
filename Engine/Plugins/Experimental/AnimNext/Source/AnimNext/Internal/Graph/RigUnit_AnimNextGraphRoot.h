@@ -23,6 +23,7 @@ struct ANIMNEXT_API FRigUnit_AnimNextGraphRoot : public FRigUnit_AnimNextBase
 	void DummyExecute();
 
 	virtual FName GetEventName() const override { return EventName; }
+	virtual FString GetUnitSubTitle() const override { return EntryPoint.ToString(); };
 	virtual bool CanOnlyExistOnce() const override { return true; }
 
 	// The execution result
@@ -34,6 +35,13 @@ struct ANIMNEXT_API FRigUnit_AnimNextGraphRoot : public FRigUnit_AnimNextBase
 	UPROPERTY()
 	FAnimNextExecuteContext ExecuteContext;
 
+	// The name of the entry point
+	UPROPERTY(VisibleAnywhere, Category = Result, meta = (Hidden))
+	FName EntryPoint = DefaultEntryPoint;
+
 	// This unit is our graph entry point, it needs an event so we can call it
 	static FName EventName;
+
+	// Default entry point name
+	static FName DefaultEntryPoint;
 };

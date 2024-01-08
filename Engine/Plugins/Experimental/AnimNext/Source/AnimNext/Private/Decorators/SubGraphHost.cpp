@@ -3,6 +3,7 @@
 #include "Decorators/SubGraphHost.h"
 
 #include "DecoratorBase/ExecutionContext.h"
+#include "Graph/AnimNextGraphInstance.h"
 
 namespace UE::AnimNext
 {
@@ -67,14 +68,25 @@ namespace UE::AnimNext
 		const bool bHasActiveSubGraph = InstanceData->CurrentlyActiveSubGraphIndex != INDEX_NONE;
 
 		TObjectPtr<const UAnimNextGraph> CurrentActiveSubGraph;
+		FName CurrentActiveEntryPoint = NAME_None;
 		if (bHasActiveSubGraph)
 		{
-			CurrentActiveSubGraph = InstanceData->SubGraphSlots[InstanceData->CurrentlyActiveSubGraphIndex].SubGraph;
+			const FSubGraphSlot& SubGraphSlot = InstanceData->SubGraphSlots[InstanceData->CurrentlyActiveSubGraphIndex];
+			CurrentActiveSubGraph = SubGraphSlot.SubGraph;
+			CurrentActiveEntryPoint = SubGraphSlot.EntryPoint;
 		}
 
 		const TObjectPtr<const UAnimNextGraph> DesiredSubGraph = SharedData->GetSubGraph(Context, Binding);
+		const FName EntryPoint = SharedData->GetEntryPoint(Context, Binding);
 
-		if (CurrentActiveSubGraph != DesiredSubGraph || !bHasActiveSubGraph)
+		// Check for reentrancy and early-out if we are linking back to the current instance
+		FAnimNextGraphInstance& GraphInstance = Context.GetGraphInstance();
+		if(GraphInstance.UsesGraph(DesiredSubGraph) && GraphInstance.UsesEntryPoint(EntryPoint))
+		{
+			return;
+		}
+
+		if (!bHasActiveSubGraph || CurrentActiveSubGraph != DesiredSubGraph || CurrentActiveEntryPoint != EntryPoint)
 		{
 			// Find an empty slot we can use
 			int32 FreeSlotIndex = INDEX_NONE;
@@ -99,6 +111,7 @@ namespace UE::AnimNext
 			FSubGraphSlot& SubGraphSlot = InstanceData->SubGraphSlots[FreeSlotIndex];
 			SubGraphSlot.SubGraph = DesiredSubGraph;
 			SubGraphSlot.State = DesiredSubGraph ? ESlotState::ActiveWithGraph : ESlotState::ActiveWithReferencePose;
+			SubGraphSlot.EntryPoint = EntryPoint;
 
 			const int32 OldChildIndex = InstanceData->CurrentlyActiveSubGraphIndex;
 			const int32 NewChildIndex = FreeSlotIndex;
@@ -188,7 +201,7 @@ namespace UE::AnimNext
 
 			if (SubGraphEntry.State == ESlotState::ActiveWithGraph)
 			{
-				SubGraphEntry.SubGraph->AllocateInstance(Context.GetGraphInstance(), SubGraphEntry.GraphInstance);
+				SubGraphEntry.SubGraph->AllocateInstance(Context.GetGraphInstance(), SubGraphEntry.GraphInstance, SubGraphEntry.EntryPoint);
 			}
 		}
 	}
