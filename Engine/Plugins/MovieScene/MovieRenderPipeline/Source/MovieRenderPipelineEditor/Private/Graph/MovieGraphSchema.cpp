@@ -142,6 +142,22 @@ bool UMovieGraphSchema::IsConnectionToBranchAllowed(const UEdGraphPin* InputPin,
 	return FromPin->IsConnectionToBranchAllowed(ToPin, OutError);
 }
 
+void UMovieGraphSchema::AddExtraMenuActions(FGraphActionMenuBuilder& ActionMenuBuilder) const
+{
+	// Comment action
+	ActionMenuBuilder.AddAction(CreateCommentMenuAction());
+}
+
+TSharedRef<FMovieGraphSchemaAction_NewComment> UMovieGraphSchema::CreateCommentMenuAction() const
+{
+	const FText CommentMenuDesc = LOCTEXT("AddComment", "Add Comment");
+	const FText CommentCategory;
+	const FText CommentDescription = LOCTEXT("AddCommentTooltip", "Create a resizable comment box.");
+
+	const TSharedRef<FMovieGraphSchemaAction_NewComment> NewCommentAction = MakeShared<FMovieGraphSchemaAction_NewComment>(CommentCategory, CommentMenuDesc, CommentDescription, 0);
+	return NewCommentAction;
+}
+
 void UMovieGraphSchema::GetGraphContextActions(FGraphContextMenuBuilder& ContextMenuBuilder) const
 {
 	InitMoviePipelineNodeClasses();
@@ -204,6 +220,8 @@ void UMovieGraphSchema::GetGraphContextActions(FGraphContextMenuBuilder& Context
 		
 		ContextMenuBuilder.AddAction(NewAction);
 	}
+
+	AddExtraMenuActions(ContextMenuBuilder);
 }
 
 const FPinConnectionResponse UMovieGraphSchema::CanCreateConnection(const UEdGraphPin* PinA, const UEdGraphPin* PinB) const

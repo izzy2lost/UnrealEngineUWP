@@ -208,10 +208,6 @@ void SMoviePipelineGraphPanel::MakeEditorCommands()
 			FExecuteAction::CreateSP(this, &SMoviePipelineGraphPanel::OnStraightenConnections)
 		);
 
-		GraphEditorCommands->MapAction(FGraphEditorCommands::Get().CreateComment,
-			FExecuteAction::CreateSP(this, &SMoviePipelineGraphPanel::OnCreateComment)
-		);
-
 		// Distribution Commands
 		GraphEditorCommands->MapAction(FGraphEditorCommands::Get().DistributeNodesHorizontally,
 			FExecuteAction::CreateSP(this, &SMoviePipelineGraphPanel::OnDistributeNodesH)

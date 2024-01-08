@@ -45,6 +45,17 @@ private:
 	 */
 	bool IsConnectionToBranchAllowed(const UEdGraphPin* InputPin, const UEdGraphPin* OutputPin, FText& OutError) const;
 
+	/**
+	 * Adds extra menu actions to the context/palette menu.
+	 */
+	void AddExtraMenuActions(FGraphActionMenuBuilder& ActionMenuBuilder) const;
+
+	/**
+	 * Returns a menu action for creating a new comment in the graph.
+	 * Note that this is not the same as adding a new comment to the graph via hotkey.
+	 */
+	TSharedRef<FMovieGraphSchemaAction_NewComment> CreateCommentMenuAction() const;
+
 public:
 	// Allowed "PinCategory" values for use on EdGraphPin
 	static const FName PC_Branch;
@@ -160,6 +171,9 @@ struct FMovieGraphSchemaAction_NewComment : public FMovieGraphSchemaAction
 		static FName Type("FMovieGraphSchemaAction_NewComment");
 		return Type;
 	}
+
+	// Inherit the base class's constructors for context menu/palette
+	using FMovieGraphSchemaAction::FMovieGraphSchemaAction;
 
 	FMovieGraphSchemaAction_NewComment()
 		: FMovieGraphSchemaAction()
