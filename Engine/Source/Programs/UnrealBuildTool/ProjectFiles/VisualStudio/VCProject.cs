@@ -12,6 +12,7 @@ using System.Text;
 using System.Text.RegularExpressions;
 using System.Threading.Tasks;
 using System.Xml;
+using System.Xml.Linq;
 using EpicGames.Core;
 using Microsoft.Extensions.Logging;
 using UnrealBuildBase;
@@ -904,6 +905,7 @@ namespace UnrealBuildTool
 			StringBuilder VCProjectFileContent = new StringBuilder();
 			StringBuilder VCFiltersFileContent = new StringBuilder();
 			StringBuilder VCUserFileContent = new StringBuilder();
+			VisualStudioUserFileSettings VCUserFileSettings = new VisualStudioUserFileSettings();
 
 			// Visual Studio doesn't require a *.vcxproj.filters file to even exist alongside the project unless
 			// it actually has something of substance in it.  We'll avoid saving it out unless we need to.
@@ -1406,7 +1408,7 @@ namespace UnrealBuildTool
 			// Write each configuration
 			foreach (ProjectConfigAndTargetCombination Combination in ProjectConfigAndTargetCombinations)
 			{
-				WriteConfiguration(ProjectName, Combination, VCProjectFileContent, PlatformProjectGenerators, bGenerateUserFileContent ? VCUserFileContent : null);
+				WriteConfiguration(ProjectName, Combination, VCProjectFileContent, PlatformProjectGenerators, bGenerateUserFileContent ? VCUserFileContent : null, bGenerateUserFileContent ? VCUserFileSettings : null);
 			}
 
 			{ 
@@ -1783,9 +1785,154 @@ namespace UnrealBuildTool
 				{
 					bSuccess = ProjectFileGenerator.WriteFileIfChanged(VCUserFilePath, VCUserFileContent.ToString(), Logger);
 				}
+				else
+				{
+					bSuccess = PatchVCUserFile(VCUserFilePath, VCUserFileContent.ToString(), VCUserFileSettings, Logger);
+				}
 			}
 
 			return bSuccess;
+		}
+
+		private bool PatchVCUserFile(string FileName, string NewFileContents, VisualStudioUserFileSettings UserFileSettings, ILogger Logger)
+		{
+			// Before we start, see if any relevant property is present in the new contents.
+			if (UserFileSettings.PropertiesToPatch.Any(NewFileContents.Contains) == false)
+			{
+				return true;
+			}
+
+			XDocument CurrentContent;
+			try
+			{
+				CurrentContent = XDocument.Load(FileName);
+			}
+			catch (Exception ex)
+			{
+				string Message = String.Format("Error while trying to parse XML file {0}.", FileName);
+				Logger.LogError("{Message}", Message);
+				throw new BuildException(ex, Message);
+			}
+
+			XDocument NewContent;
+			try
+			{
+				NewContent = XDocument.Parse(NewFileContents);
+			}
+			catch (Exception ex)
+			{
+				string Message = String.Format("Error while trying to parse XML new data for file {0} ('{1}').", FileName, NewFileContents);
+				Logger.LogError("{Message}", Message);
+				throw new BuildException(ex, Message);
+			}
+
+			if (CurrentContent.Root == null || NewContent.Root == null)
+			{
+				return true;
+			}
+
+			XNamespace NS = NewContent.Root.Name.Namespace;
+			// Skip patching if namespaces don't match (should never be the case?)
+			if (NS != CurrentContent.Root.Name.Namespace)
+			{
+				return false;
+			}
+
+			// Create dictionaries with key == Condition of each <PropertyGroup> and value == <PropertyGroup> XElement itself for both current and new document.
+			Dictionary<string, XElement> CurrentPropertyGroups = CurrentContent
+				.Descendants(NS + "PropertyGroup")
+				.Select(Element => (Attribute: Element.Attribute("Condition"), Element: Element))
+				.Where(Pair => Pair.Attribute != null)
+				.ToDictionary(Pair => Pair.Attribute!.Value, Pair => Pair.Element);
+
+			Dictionary<string, XElement> NewPropertyGroups = NewContent
+				.Descendants(NS + "PropertyGroup")
+				.Select(Element => (Attribute: Element.Attribute("Condition"), Element: Element))
+				.Where(Pair => Pair.Attribute != null)
+				.ToDictionary(Pair => Pair.Attribute!.Value, Pair => Pair.Element);
+
+			bool bNeedsSaving = false;
+
+			// Go over every <PropertyGroup> in new document.
+			foreach ((string Attribute, XElement NewPropertyGroup) in NewPropertyGroups)
+			{
+				// Check if new document <PropertyGroup> contains any properties that we need to patch in the current document.
+				if (NewPropertyGroup.Elements().Any(Element => UserFileSettings.PropertiesToPatch.Contains(Element.Name.LocalName)) == false)
+				{
+					continue;
+				}
+
+				// Check if <PropertyGroup> with same "Condition" attribute already exist in the current document.
+				// If yes, update required properties in existing <PropertyGroup> but preserve any other property in current document order.
+				if (CurrentPropertyGroups.TryGetValue(Attribute, out var CurrentPropertyGroup))
+				{
+					// Preserve values from current document for relevant properties by patching corresponding properties in new document. 
+					var ElementsToPreserveValuesFrom = CurrentPropertyGroup
+						.Elements()
+						.Where(Element => UserFileSettings.PropertiesToPatchOrderButPreserveValue.Contains(Element.Name.LocalName));
+					foreach (XElement CurrentElement in ElementsToPreserveValuesFrom)
+					{
+						XElement? NewElement = NewPropertyGroup.Element(CurrentElement.Name);
+						if (NewElement != null)
+						{
+							NewElement.Value = CurrentElement.Value;
+						}
+					}
+
+					XElement[] CurrentPropertyGroupElementsForPatch = CurrentPropertyGroup
+						.Elements()
+						.Where(Element => UserFileSettings.PropertiesToPatch.Contains(Element.Name.LocalName))
+						.ToArray();
+
+					XElement[] NewPropertyGroupElementsForPatch = NewPropertyGroup
+						.Elements()
+						.Where(Element => UserFileSettings.PropertiesToPatch.Contains(Element.Name.LocalName))
+						.ToArray();
+					
+					// Check if all properties are already has the correct value and order, and skip patching if so.
+					if (CurrentPropertyGroupElementsForPatch.Length == NewPropertyGroupElementsForPatch.Length &&
+						!CurrentPropertyGroupElementsForPatch.Where((CurrentProperty, i) => CurrentProperty.Name != NewPropertyGroupElementsForPatch[i].Name || CurrentProperty.Value != NewPropertyGroupElementsForPatch[i].Value).Any())
+					{
+						continue;
+					}
+
+					// Remove all existing properties that we need to update from existing document, this simplifies logic of adding them,
+					// because we need to update the values and ensure the order of properties is as declared in the new document,
+					// because the order of properties is important for MSBuild when one property uses a value of another property.
+					CurrentPropertyGroupElementsForPatch.Remove();
+
+					// Add new properties to existing <PropertyGroup> in the order as they are defined in new document.
+					CurrentPropertyGroup.Add(NewPropertyGroupElementsForPatch);
+
+					bNeedsSaving = true;
+				}
+				else // Otherwise add new <PropertyGroup> as-is to the end of existing document.
+				{
+					CurrentContent.Root.Add(NewPropertyGroup);
+					bNeedsSaving = true;
+				}
+			}
+
+			if (bNeedsSaving)
+			{
+				try
+				{
+					CurrentContent.Save(FileName);
+					Logger.LogDebug("Patching {Path}.", Path.GetFileName(FileName));
+				}
+				catch (Exception ex)
+				{
+					string Message = String.Format("Error while trying to write file {0}. The file is probably read-only.", FileName);
+					Logger.LogError("{Message}", Message);
+					throw new BuildException(ex, Message);
+				}
+			}
+			else
+			{
+				Logger.LogDebug("{Path} doesn't require patching.", Path.GetFileName(FileName));
+			}
+
+			return true;
 		}
 
 		private class ProjectConfigurationForGenerator : ProjectBuildConfiguration
@@ -2066,7 +2213,7 @@ namespace UnrealBuildTool
 		}
 
 		// Anonymous function that writes project configuration data
-		private void WriteConfiguration(string ProjectName, ProjectConfigAndTargetCombination Combination, StringBuilder VCProjectFileContent, PlatformProjectGeneratorCollection PlatformProjectGenerators, StringBuilder? VCUserFileContent)
+		private void WriteConfiguration(string ProjectName, ProjectConfigAndTargetCombination Combination, StringBuilder VCProjectFileContent, PlatformProjectGeneratorCollection PlatformProjectGenerators, StringBuilder? VCUserFileContent, VisualStudioUserFileSettings? VCUserFileSettings)
 		{
 			UnrealTargetConfiguration Configuration = Combination.Configuration;
 
@@ -2096,6 +2243,7 @@ namespace UnrealBuildTool
 				}
 
 				DirectoryReference ProjectDirectory = ProjectFilePath.Directory;
+				FileReference? NMakePath = null;
 
 				if (IsStubProject)
 				{
@@ -2188,7 +2336,7 @@ namespace UnrealBuildTool
 					}
 
 					// Make the output file path
-					FileReference NMakePath = FileReference.Combine(OutputDirectory, BaseExeName);
+					NMakePath = FileReference.Combine(OutputDirectory, BaseExeName);
 					if (Configuration != TargetRulesObject.UndecoratedConfiguration)
 					{
 						NMakePath += "-" + UBTPlatformName + "-" + UBTConfigurationName;
@@ -2285,14 +2433,14 @@ namespace UnrealBuildTool
 					VCProjectFileContent.AppendLine("  </ItemDefinitionGroup>");
 				}
 
-				if (VCUserFileContent != null && Combination.ProjectTarget != null)
+				if (VCUserFileContent != null && VCUserFileSettings != null && Combination.ProjectTarget != null)
 				{
 					TargetRules TargetRulesObject = Combination.ProjectTarget.TargetRules!;
 
 					if (ProjGenerator != null)
 					{
 						string? ForeignUProjectPath = (IsForeignProject && !String.IsNullOrEmpty(UProjectPath)) ? UProjectPath : null;
-						VCUserFileContent.Append(ProjGenerator.GetVisualStudioUserFileStrings(new(Combination.Platform!.Value, Configuration, ProjectFileFormat, Combination.Architecture), ConditionString, TargetRulesObject, Combination.ProjectTarget.TargetFilePath, ProjectFilePath, ProjectName, ForeignUProjectPath));
+						VCUserFileContent.Append(ProjGenerator.GetVisualStudioUserFileStrings(VCUserFileSettings, new(Combination.Platform!.Value, Configuration, ProjectFileFormat, Combination.Architecture), ConditionString, TargetRulesObject, Combination.ProjectTarget.TargetFilePath, ProjectFilePath, NMakePath, ProjectName, ForeignUProjectPath));
 					}
 				}
 			}

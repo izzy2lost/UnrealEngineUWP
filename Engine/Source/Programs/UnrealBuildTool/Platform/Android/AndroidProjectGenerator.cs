@@ -120,12 +120,6 @@ namespace UnrealBuildTool
 					Path.Combine(intermediateRootPath, "LLDBSymbolsLibs", "arm64") // support bDontBundleLibrariesInAPK
 				};
 				ProjectFileBuilder.AppendLine($"    <AndroidSymbolDirectories>{string.Join(";", symbolLocations)}</AndroidSymbolDirectories>");
-
-				// At this stage we don't know if bDontBundleLibrariesInAPK is enabled or not, so make a fail-safe check.
-				string pushSOScript = Path.Combine(
-					Path.GetDirectoryName(NMakeOutputPath.FullName)!,
-					"Push_" + Path.GetFileNameWithoutExtension(NMakeOutputPath.FullName) + "-arm64_so.bat");
-				ProjectFileBuilder.AppendLine($"    <AndroidPostApkInstallCommands>IF EXIST {pushSOScript} {pushSOScript};$(AndroidPostApkInstallCommands)</AndroidPostApkInstallCommands>");
 			}
 			else
 			{
@@ -139,23 +133,48 @@ namespace UnrealBuildTool
 			return (AGDEInstalled ? " -Architectures=arm64 -ForceAPKGeneration" : "") + base.GetExtraBuildArguments(InVSSettings);
 		}
 
-		public override string GetVisualStudioUserFileStrings(VSSettings InVSSettings,
-			string InConditionString, TargetRules InTargetRules, FileReference TargetRulesPath, FileReference ProjectFilePath)
+		public override string GetVisualStudioUserFileStrings(VisualStudioUserFileSettings VCUserFileSettings, VSSettings InVSSettings, string InConditionString, TargetRules InTargetRules, FileReference TargetRulesPath, FileReference ProjectFilePath, FileReference? NMakeOutputPath, string ProjectName, string? ForeignUProjectPath)
 		{
 			if (AGDEInstalled
 				&& (InVSSettings.Platform == UnrealTargetPlatform.Android)
 				&& ((InTargetRules.Type == TargetRules.TargetType.Client) || (InTargetRules.Type == TargetRules.TargetType.Game)))
 			{
-				string UserFileEntry = "<PropertyGroup " + InConditionString + ">\n";
-				UserFileEntry += "	<AndroidLldbStartupCommands>" +
-												"command script import \"" + Path.Combine(Unreal.EngineDirectory.FullName, "Extras", "LLDBDataFormatters", "UEDataFormatters_2ByteChars.py") + "\";" +
-												"$(AndroidLldbStartupCommands)" +
-											"</AndroidLldbStartupCommands>\n";
-				UserFileEntry += "</PropertyGroup>\n";
-				return UserFileEntry;
+				StringBuilder Out = new StringBuilder();
+				Out.AppendLine("  <PropertyGroup " + InConditionString + ">");
+
+				string LldbFormatterImport = $"command script import \"" + Path.Combine(Unreal.EngineDirectory.FullName, "Extras", "LLDBDataFormatters", "UEDataFormatters_2ByteChars.py") + "\"";
+				Out.AppendLine($"    <AndroidLldbStartupCommands>{LldbFormatterImport};$(AndroidLldbStartupCommands)</AndroidLldbStartupCommands>");
+				VCUserFileSettings.PatchProperty("AndroidLldbStartupCommands");
+
+				if (NMakeOutputPath != null)
+				{
+					// It's critical to have AndroidDebugTarget here and for it to be before properties that use it (e.g. AndroidPostApkInstallCommands), otherwise MSBuild will evaluate it to empty string.
+					Out.AppendLine("    <AndroidDebugTarget></AndroidDebugTarget>");
+
+					// At this stage we don't know if bDontBundleLibrariesInAPK is enabled or not, so make a fail-safe check.
+					string PushSOScript = Path.Combine(
+						Path.GetDirectoryName(NMakeOutputPath.FullName)!,
+						"Push_" + Path.GetFileNameWithoutExtension(NMakeOutputPath.FullName) + "-arm64_so.bat");
+
+					// AGDE specifies current debug target in AndroidDebugTarget property in a form of "model:serial:arch".
+					// AndroidDebugTarget is a special property and needs to be evaluated in-line. And the push script needs the device serial as first argument to push to the correct device. 
+					// MSBuild Property Functions allow to invoke limited C# expression from with-in MSBuild, see https://learn.microsoft.com/en-us/visualstudio/msbuild/property-functions?view=vs-2022
+					// They lack conditional statements, so this expression makes a branch-less variant by always appending "::" to AndroidDebugTarget,
+					// so regardless of what value it has, Split(':')[1] will never throw an exception.
+					string GetTargetDeviceSerial = "$([System.String]::Concat($(AndroidDebugTarget), \"::\").Split(':')[1])";
+					Out.AppendLine(
+						$"    <AndroidPostApkInstallCommands>IF EXIST {PushSOScript} {PushSOScript} {GetTargetDeviceSerial};$(AndroidPostApkInstallCommands)</AndroidPostApkInstallCommands>");
+
+					// Ensure the following properties are up to date even if .vcxproj.user already exists and are in correct order between each other.
+					VCUserFileSettings.PatchProperty("AndroidDebugTarget", true);
+					VCUserFileSettings.PatchProperty("AndroidPostApkInstallCommands");
+				}
+
+				Out.AppendLine("  </PropertyGroup>");
+				return Out.ToString();
 			}
 
-			return base.GetVisualStudioUserFileStrings(InVSSettings, InConditionString, InTargetRules, TargetRulesPath, ProjectFilePath);
+			return string.Empty;
 		}
 	}
 }

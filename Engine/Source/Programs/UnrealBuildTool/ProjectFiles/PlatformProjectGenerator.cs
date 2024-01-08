@@ -270,35 +270,58 @@ namespace UnrealBuildTool
 		}
 
 		/// <summary>
-		/// Get the text to insert into the user file for the given platform/configuration/target
+		/// Additional configuration related to Visual Studio user file (.vcxproj.user). 
 		/// </summary>
-		/// <param name="InVSSettings">The ProjectFileSettings that contains the project platform/configuration/etc info being built</param>
-		/// <param name="InConditionString">The condition string </param>
-		/// <param name="InTargetRules">The target rules </param>
-		/// <param name="TargetRulesPath">The target rules path</param>
-		/// <param name="ProjectFilePath">The project file path</param>
-		/// <returns>The string to append to the user file</returns>
-		public virtual string GetVisualStudioUserFileStrings(VSSettings InVSSettings,
-			string InConditionString, TargetRules InTargetRules, FileReference TargetRulesPath, FileReference ProjectFilePath)
+		public class VisualStudioUserFileSettings
 		{
-			return "";
+			public IReadOnlySet<string> PropertiesToPatch => PropertiesToPatchContainer;
+
+			public IReadOnlySet<string> PropertiesToPatchOrderButPreserveValue => PropertiesToPatchOrderButPreserveValueContainer;
+
+			/// <summary>
+			/// Patch existing .vcxproj.user file based on the new file content and corresponding patching settings, by doing the following:
+			/// - Go over every &lt;PropertyGroup&gt; in the new document.
+			/// - Finds &lt;PropertyGroup&gt; in the current document with matching "Condition" attribute.
+			/// - If no property group is found, appends property group from new document to the end of current document.
+			/// - Otherwise, saves values of properties configured with bPreserveExistingValue == true.
+			/// - Removes all properties flagged for patching from current document property group.
+			/// - Adds all properties required for patching from new document property group as declared in new document order.
+			///
+			/// This makes possible to override some properties crucial for UE features while keeping rest of user configuration intact.
+			/// 
+			/// Otherwise, if .vcxproj.user doesn't exist, patching do nothing and instead creates a new file based on new file content.
+			/// </summary>
+			/// <param name="PropertyName">Name of the property to patch.</param>
+			/// <param name="bPreserveExistingValue">If true, the value of the property will be taken from existing user file, but relative order will be taken from newly generated file.</param>
+			public void PatchProperty(string PropertyName, bool bPreserveExistingValue = false)
+			{
+				if (!PropertiesToPatchContainer.Contains(PropertyName))
+					PropertiesToPatchContainer.Add(PropertyName);
+
+				if (bPreserveExistingValue && !PropertiesToPatchOrderButPreserveValueContainer.Contains(PropertyName))
+					PropertiesToPatchOrderButPreserveValueContainer.Add(PropertyName);
+			}
+
+			private HashSet<string> PropertiesToPatchContainer = new();
+			private HashSet<string> PropertiesToPatchOrderButPreserveValueContainer = new();
 		}
 
 		/// <summary>
 		/// Get the text to insert into the user file for the given platform/configuration/target
 		/// </summary>
+		/// <param name="VCUserFileSettings">Configuration for user file creation/patching/etc.</param>
 		/// <param name="InVSSettings">The ProjectFileSettings that contains the project platform/configuration/etc info being built</param>
 		/// <param name="InConditionString">The condition string </param>
 		/// <param name="InTargetRules">The target rules </param>
 		/// <param name="TargetRulesPath">The target rules path</param>
 		/// <param name="ProjectFilePath">The project file path</param>
+		/// <param name="NMakeOutputPath">Output path for NMake</param>
 		/// <param name="ProjectName">The name of the project</param>
 		/// <param name="ForeignUProjectPath">Path to foreign .uproject file, if any</param>
 		/// <returns>The string to append to the user file</returns>
-		public virtual string GetVisualStudioUserFileStrings(VSSettings InVSSettings,
-			string InConditionString, TargetRules InTargetRules, FileReference TargetRulesPath, FileReference ProjectFilePath, string ProjectName, string? ForeignUProjectPath)
+		public virtual string GetVisualStudioUserFileStrings(VisualStudioUserFileSettings VCUserFileSettings, VSSettings InVSSettings, string InConditionString, TargetRules InTargetRules, FileReference TargetRulesPath, FileReference ProjectFilePath, FileReference? NMakeOutputPath, string ProjectName, string? ForeignUProjectPath)
 		{
-			return GetVisualStudioUserFileStrings(InVSSettings, InConditionString, InTargetRules, TargetRulesPath, ProjectFilePath);
+			return string.Empty;
 		}
 
 		/// <summary>
