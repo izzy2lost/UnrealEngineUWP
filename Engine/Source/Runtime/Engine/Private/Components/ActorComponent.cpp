@@ -37,6 +37,8 @@
 #include "SceneInterface.h"
 #include "UObject/FortniteReleaseBranchCustomObjectVersion.h"
 #include "UObject/FrameworkObjectVersion.h"
+#include "PSOPrecacheMaterial.h"
+#include "Materials/MaterialInterface.h"
 
 #if WITH_EDITOR
 #include "Kismet2/ComponentEditorUtils.h"
@@ -88,6 +90,10 @@ FAutoConsoleVariableRef GTickComponentLatentActionsWithTheComponentCVar(
 
 /** Static var indicating activity of reregister context */
 int32 FGlobalComponentReregisterContext::ActiveGlobalReregisterContextCount = 0;
+
+/** Static var indicating activity of recreate render state context */
+int32 FGlobalComponentRecreateRenderStateContext::ActiveGlobalRecreateRenderStateContextCount = 0;
+
 
 bool GDefaultUseSubObjectReplicationList = false;
 static FAutoConsoleVariableRef CVarDefaultUseSubObjectReplicationList(
@@ -298,6 +304,8 @@ FGlobalComponentRecreateRenderStateContext::FGlobalComponentRecreateRenderStateC
 	{
 		TRACE_CPUPROFILER_EVENT_SCOPE(FGlobalComponentRecreateRenderStateContext::FGlobalComponentRecreateRenderStateContext);
 
+		ActiveGlobalRecreateRenderStateContextCount++;
+
 		// wait until resources are released
 		FlushRenderingCommands();
 
@@ -316,7 +324,7 @@ FGlobalComponentRecreateRenderStateContext::FGlobalComponentRecreateRenderStateC
 
 FGlobalComponentRecreateRenderStateContext::FGlobalComponentRecreateRenderStateContext(const TArray<UActorComponent*>& InComponents)
 {
-	if (FApp::CanEverRender())
+	if (FApp::CanEverRender() && ++ActiveGlobalRecreateRenderStateContextCount == 1)
 	{
 		TRACE_CPUPROFILER_EVENT_SCOPE(FGlobalComponentRecreateRenderStateContext::FGlobalComponentRecreateRenderStateContext);
 
@@ -340,9 +348,22 @@ FGlobalComponentRecreateRenderStateContext::~FGlobalComponentRecreateRenderState
 {
 	TRACE_CPUPROFILER_EVENT_SCOPE(FGlobalComponentRecreateRenderStateContext::~FGlobalComponentRecreateRenderStateContext);
 
-	ComponentContexts.Empty();
+	if (FApp::CanEverRender())
+	{
+		check(ActiveGlobalRecreateRenderStateContextCount > 0);
 
-	UpdateAllPrimitiveSceneInfos();
+		// Check if this is the last active context
+		if (--ActiveGlobalRecreateRenderStateContextCount == 0)
+		{
+			// Clear the PSO material request cache to make sure PSO collection happens again on possible changed data
+			ClearMaterialPSORequests();
+			UMaterialInterface::PrecacheDefaultMaterialPSOs();
+
+			ComponentContexts.Empty();
+
+			UpdateAllPrimitiveSceneInfos();
+		}
+	}
 }
 
 void FGlobalComponentRecreateRenderStateContext::UpdateAllPrimitiveSceneInfos()

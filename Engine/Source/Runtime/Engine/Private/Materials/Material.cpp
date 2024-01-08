@@ -585,28 +585,33 @@ void UMaterialInterface::InitDefaultMaterials()
 		// Skip platforms that do not support MVF, non-MVF path needs mesh information for PSO 
 		if (bInitialized && PipelineStateCache::IsPSOPrecachingEnabled() && RHISupportsManualVertexFetch(GMaxRHIShaderPlatform))
 		{
-			TArray<FMaterialPSOPrecacheRequestID> MaterialPrecacheRequestIDs;
+			PrecacheDefaultMaterialPSOs();
+		}
+	}
+}
 
-			FPSOPrecacheParams PrecachePSOParams;
-			PrecachePSOParams.bDefaultMaterial = true;
-			FPSOPrecacheVertexFactoryDataList AllVertexFactoryTypes;
-			for (TLinkedList<FVertexFactoryType*>::TIterator It(FVertexFactoryType::GetTypeList()); It; It.Next())
-			{
-				FPSOPrecacheVertexFactoryData VFData;
-				VFData.VertexFactoryType = *It;
-				AllVertexFactoryTypes.Add(VFData);
-			}
-			for (int32 Domain = 0; Domain < MD_MAX; ++Domain)
-			{
-				if (GDefaultMaterials[Domain])
-				{
-					PrecachePSOParams.Mobility = EComponentMobility::Static;
-					GDefaultMaterials[Domain]->PrecachePSOs(AllVertexFactoryTypes, PrecachePSOParams, EPSOPrecachePriority::High, MaterialPrecacheRequestIDs);
+void UMaterialInterface::PrecacheDefaultMaterialPSOs()
+{
+	TArray<FMaterialPSOPrecacheRequestID> MaterialPrecacheRequestIDs;
 
-					PrecachePSOParams.Mobility = EComponentMobility::Movable;
-					GDefaultMaterials[Domain]->PrecachePSOs(AllVertexFactoryTypes, PrecachePSOParams, EPSOPrecachePriority::High, MaterialPrecacheRequestIDs);
-				}
-			}
+	FPSOPrecacheParams PrecachePSOParams;
+	PrecachePSOParams.bDefaultMaterial = true;
+	FPSOPrecacheVertexFactoryDataList AllVertexFactoryTypes;
+	for (TLinkedList<FVertexFactoryType*>::TIterator It(FVertexFactoryType::GetTypeList()); It; It.Next())
+	{
+		FPSOPrecacheVertexFactoryData VFData;
+		VFData.VertexFactoryType = *It;
+		AllVertexFactoryTypes.Add(VFData);
+	}
+	for (int32 Domain = 0; Domain < MD_MAX; ++Domain)
+	{
+		if (GDefaultMaterials[Domain])
+		{
+			PrecachePSOParams.Mobility = EComponentMobility::Static;
+			GDefaultMaterials[Domain]->PrecachePSOs(AllVertexFactoryTypes, PrecachePSOParams, EPSOPrecachePriority::High, MaterialPrecacheRequestIDs);
+
+			PrecachePSOParams.Mobility = EComponentMobility::Movable;
+			GDefaultMaterials[Domain]->PrecachePSOs(AllVertexFactoryTypes, PrecachePSOParams, EPSOPrecachePriority::High, MaterialPrecacheRequestIDs);
 		}
 	}
 }

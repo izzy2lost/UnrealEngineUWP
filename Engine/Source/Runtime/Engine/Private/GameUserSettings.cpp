@@ -17,6 +17,7 @@
 #include "HAL/PlatformFramePacer.h"
 #include "HDRHelper.h"
 #include "UnrealClient.h"
+#include "ComponentRecreateRenderStateContext.h"
 
 // For sandboxing migration of UserSettings from AppData\Local to AppData\LocalLow.
 #if PLATFORM_WINDOWS
@@ -505,8 +506,12 @@ void UGameUserSettings::ApplyResolutionSettings(bool bCheckForCommandLineOverrid
 
 void UGameUserSettings::ApplySettings(bool bCheckForCommandLineOverrides)
 {
-	ApplyResolutionSettings(bCheckForCommandLineOverrides);
-	ApplyNonResolutionSettings();
+	{
+		// Push recreate render state context to force single recreate instead of multiple recreates for each changed cvar
+		FGlobalComponentRecreateRenderStateContext Context;
+		ApplyResolutionSettings(bCheckForCommandLineOverrides);
+		ApplyNonResolutionSettings();
+	}
 	RequestUIUpdate();
 
 	SaveSettings();

@@ -65,6 +65,7 @@
 #include "RenderTargetPool.h"
 #include "RenderGraphBuilder.h"
 #include "CustomResourcePool.h"
+#include "ComponentRecreateRenderStateContext.h"
 
 #if WITH_EDITOR
 #include "PIEPreviewDeviceProfileSelectorModule.h"
@@ -1119,6 +1120,10 @@ void UGameEngine::Init(IEngineLoop* InEngineLoop)
 	// Load and apply user game settings
 	{
 		TRACE_CPUPROFILER_EVENT_SCOPE(InitGameUserSettings);
+
+		// Push recreate render state context to force single recreate instead of multiple recreates for each changed cvar
+		FGlobalComponentRecreateRenderStateContext Context;
+
 		GetGameUserSettings()->LoadSettings();
 		GetGameUserSettings()->ApplyNonResolutionSettings();
 	}

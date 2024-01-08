@@ -137,6 +137,11 @@ extern ENGINE_API void ReleasePSOPrecacheData(const TArray<FMaterialPSOPrecacheR
 extern ENGINE_API void BoostPSOPriority(const TArray<FMaterialPSOPrecacheRequestID>& MaterialPSORequestIDs);
 
 /**
+ * Invalidate & clear all the current material PSO requests
+ */
+extern ENGINE_API void ClearMaterialPSORequests();
+
+/**
  * Get original FMaterialPSOPrecacheParams from precache request
  */
 extern ENGINE_API FMaterialPSOPrecacheParams GetMaterialPSOPrecacheParams(FMaterialPSOPrecacheRequestID RequestID);

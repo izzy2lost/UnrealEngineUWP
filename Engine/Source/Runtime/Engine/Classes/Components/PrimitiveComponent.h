@@ -914,7 +914,7 @@ public:
 	virtual void CollectPSOPrecacheData(const FPSOPrecacheParams& BasePrecachePSOParams, FComponentPSOPrecacheParamsList& OutParams) {}
 
 	/** Precache all PSOs which can be used by the primitive component */
-	ENGINE_API virtual void PrecachePSOs();
+	ENGINE_API virtual void PrecachePSOs() override;
 
 	/** Schedule task to mark render state dirty when the PSO precaching tasks are done */
 	ENGINE_API void RequestRecreateRenderStateWhenPSOPrecacheFinished(const FGraphEventArray& PSOPrecacheCompileEvents);

@@ -3171,6 +3171,12 @@ TArray<FMaterialPSOPrecacheRequestID> FMaterial::GetMaterialPSOPrecacheRequestID
 	return TmpPrecachedPSORequestIDs;
 }
 
+void FMaterial::ClearPrecachedPSORequestIDs()
+{
+	FScopeLock ScopeLock(&PrecachedPSORequestIDsCS);
+	PrecachedPSORequestIDs.Empty();
+}
+
 #if WITH_EDITOR
 
 void FMaterial::BeginCacheShaders(EShaderPlatform Platform, EMaterialShaderPrecompileMode PrecompileMode, const ITargetPlatform* TargetPlatform, TUniqueFunction<void(bool bSuccess)>&& CompletionCallback)

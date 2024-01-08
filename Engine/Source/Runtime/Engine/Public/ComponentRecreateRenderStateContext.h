@@ -77,6 +77,7 @@ public:
 	{
 		if (Component && !Component->IsRenderStateCreated() && Component->IsRegistered())
 		{
+			Component->PrecachePSOs();
 			Component->CreateRenderState_Concurrent(nullptr);
 
 			UpdateAllPrimitiveSceneInfosForSingleComponent(Component, ScenesToUpdateAllPrimitiveSceneInfos);
@@ -108,6 +109,9 @@ public:
 
 	/** Destructor */
 	ENGINE_API ~FGlobalComponentRecreateRenderStateContext();
+
+	/** Indicates that a FGlobalComponentRecreateRenderStateContext is currently active */
+	static int32 ActiveGlobalRecreateRenderStateContextCount;
 
 private:
 	/** The recreate contexts for the individual components. */

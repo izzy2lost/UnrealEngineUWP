@@ -1849,6 +1849,11 @@ public:
 	ENGINE_API TArray<FMaterialPSOPrecacheRequestID> GetMaterialPSOPrecacheRequestIDs() const;
 
 	/**
+	 * Clear all cached PSO data because manager has been reset
+	 */
+	void ClearPrecachedPSORequestIDs();
+
+	/**
 	 * Should the shader for this material with the given platform, shader type and vertex 
 	 * factory type combination be compiled
 	 *

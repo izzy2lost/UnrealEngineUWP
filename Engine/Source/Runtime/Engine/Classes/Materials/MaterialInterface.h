@@ -1054,6 +1054,11 @@ public:
 	 */
 	ENGINE_API static void InitDefaultMaterials();
 
+	/**
+	 * Precache PSOs for all default materials.
+	 */
+	ENGINE_API static void PrecacheDefaultMaterialPSOs();
+
 	/** Checks to see if an input property should be active, based on the state of the material */
 	ENGINE_API virtual bool IsPropertyActive(EMaterialProperty InProperty) const;
 

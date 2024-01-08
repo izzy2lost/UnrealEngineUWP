@@ -1520,6 +1520,13 @@ void UTextRenderComponent::PostLoad()
 		}
 	}
 
+	PrecachePSOs();
+
+	Super::PostLoad();
+}
+
+void UTextRenderComponent::PrecachePSOs()
+{
 	if (IsComponentPSOPrecachingEnabled() && TextMaterial
 		// FIXME: need to collect an actual vertex declaration for non-MVF path
 		&& RHISupportsManualVertexFetch(GMaxRHIShaderPlatform))
@@ -1533,8 +1540,6 @@ void UTextRenderComponent::PostLoad()
 
 		TextMaterial->PrecachePSOs(&FLocalVertexFactory::StaticType, PrecachePSOParams);
 	}
-
-	Super::PostLoad();
 }
 
 void UTextRenderComponent::InitializeMIDCache()

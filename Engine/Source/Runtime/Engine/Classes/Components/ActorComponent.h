@@ -686,6 +686,9 @@ protected:
 	 */
 	ENGINE_API virtual void OnUnregister();
 
+	/** Precache all PSOs which can be used by the actor component */
+	virtual void PrecachePSOs() {}
+
 	/** Return true if CreateRenderState() should be called */
 	virtual bool ShouldCreateRenderState() const 
 	{
