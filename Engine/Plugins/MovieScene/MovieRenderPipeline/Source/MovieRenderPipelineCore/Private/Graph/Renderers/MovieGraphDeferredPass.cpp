@@ -119,7 +119,7 @@ void FMovieGraphDeferredPass::Render(const FMovieGraphTraversalContext& InFrameT
 		OverscanFraction = FMath::Clamp(CameraNode->OverscanPercentage / 100.f, 0.f, 1.f);
 	}
 	
-	FIntPoint AccumulatorResolution = UMovieGraphBlueprintLibrary::GetEffectiveOutputResolution(InTimeData.EvaluatedConfig, LayerData.BranchName);
+	FIntPoint AccumulatorResolution = UMovieGraphBlueprintLibrary::GetEffectiveOutputResolution(InTimeData.EvaluatedConfig);
 	// ToDo: When tiling is used, this should be the size of the per-tile backbuffer
 	FIntPoint BackbufferResolution = AccumulatorResolution;
 	// ToDo: This math probably needs the per-tile, pre-overlapped size? 
