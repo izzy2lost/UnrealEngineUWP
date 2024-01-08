@@ -876,6 +876,48 @@ bool FMallocBinned2::IsInternallyThreadSafe() const
 	return true;
 }
 
+static bool PromoteToLargerBin(SIZE_T& Size, uint32& Alignment, const FMallocBinned2& Malloc)
+{
+	// try to promote our allocation request to a larger bin with a matching natural alignment
+	// if requested alignment is larger than BINNED2_MINIMUM_ALIGNMENT but smaller than BINNED2_MAXIMUM_ALIGNMENT
+	// so we don't do a page allocation with a lot of memory waste
+	Alignment = FMath::Max<uint32>(Alignment, BINNED2_MINIMUM_ALIGNMENT);
+	const SIZE_T AlignedSize = Align(Size, Alignment);
+	if (UNLIKELY((AlignedSize <= BINNED2_MAX_SMALL_POOL_SIZE) && (Alignment <= BINNED2_MAXIMUM_ALIGNMENT)))
+	{
+		uint32 PoolIndex = Malloc.BoundSizeToPoolIndex(AlignedSize);
+		do
+		{
+			uint32 BlockSize = Malloc.PoolIndexToBlockSize(PoolIndex);
+			if (IsAligned(BlockSize, Alignment))
+			{
+				// we found a matching pool for our alignment and size requirements, so modify the size request to match
+				Size = SIZE_T(BlockSize);
+				Alignment = BINNED2_MINIMUM_ALIGNMENT;
+				return true;
+			}
+
+			PoolIndex++;
+		} while (PoolIndex < BINNED2_SMALL_POOL_COUNT);
+	}
+
+	return false;
+}
+
+void* FMallocBinned2::MallocSelect(SIZE_T Size, uint32 Alignment, bool bUseSmallPool)
+{
+	if (!bUseSmallPool)
+	{
+		bUseSmallPool = PromoteToLargerBin(Size, Alignment, *this);
+	}
+
+	if (bUseSmallPool)
+	{
+		return MallocExternalSmall(Size, Alignment);
+	}
+	return MallocExternalLarge(Size, Alignment);
+}
+
 void* FMallocBinned2::MallocExternalSmall(SIZE_T Size, uint32 Alignment)
 {
 	uint32 PoolIndex = BoundSizeToPoolIndex(Size);
@@ -1010,7 +1052,7 @@ void* FMallocBinned2::ReallocExternal(void* Ptr, SIZE_T NewSize, uint32 Alignmen
 #else
 		if( 
 #endif
-			((NewSize <= BlockSize) & (Alignment <= BINNED2_MINIMUM_ALIGNMENT)) && // one branch, not two
+			((NewSize <= BlockSize) & (IsAligned(BlockSize, Alignment))) && // one branch, not two
 			(PoolIndex == 0 || NewSize > PoolIndexToBlockSize(PoolIndex - 1)))
 		{
 			return Ptr;
@@ -1039,6 +1081,10 @@ void* FMallocBinned2::ReallocExternal(void* Ptr, SIZE_T NewSize, uint32 Alignmen
 	SIZE_T PoolOSRequestedBytes = Pool->GetOSRequestedBytes();
 	checkf(PoolOSRequestedBytes <= PoolOsBytes, TEXT("FMallocBinned2::ReallocExternal %d %d"), int32(PoolOSRequestedBytes), int32(PoolOsBytes));
 	bool bUseSmallMalloc = UseSmallAlloc(NewSize, Alignment);
+	if (!bUseSmallMalloc)
+	{
+		bUseSmallMalloc = PromoteToLargerBin(NewSize, Alignment, *this);
+	}
 	if (NewSize > PoolOsBytes || // can't fit in the old block
 		bUseSmallMalloc || // can switch to the small block allocator
 		Align(NewSize, OsAllocationGranularity) < PoolOsBytes) // we can get some pages back

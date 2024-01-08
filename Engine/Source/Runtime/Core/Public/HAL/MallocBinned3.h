@@ -667,12 +667,30 @@ public:
 		if ((Count <= BINNED3_MAX_SMALL_POOL_SIZE) & (Alignment <= BINNED3_MINIMUM_ALIGNMENT)) // one branch, not two
 		{
 			SizeOut = PoolIndexToBlockSize(BoundSizeToPoolIndex(Count));
+			check(SizeOut >= Count);
+			return SizeOut;
 		}
-		else
+		Alignment = FMath::Max<uint32>(Alignment, BINNED3_MINIMUM_ALIGNMENT);
+		Count = Align(Count, Alignment);
+		if ((Count <= BINNED3_MAX_SMALL_POOL_SIZE) & (Alignment <= BINNED3_MAX_SMALL_POOL_ALIGNMENT))
 		{
-			Alignment = FPlatformMath::Max<uint32>(Alignment, OsAllocationGranularity);
-			SizeOut = Align(Count, Alignment);
+			uint32 PoolIndex = BoundSizeToPoolIndex(Count);
+			do
+			{
+				uint32 BlockSize = PoolIndexToBlockSize(PoolIndex);
+				if (IsAligned(BlockSize, Alignment))
+				{
+					SizeOut = SIZE_T(BlockSize);
+					check(SizeOut >= Count);
+					return SizeOut;
+				}
+
+				PoolIndex++;
+			} while (PoolIndex < BINNED3_SMALL_POOL_COUNT);
 		}
+		
+		Alignment = FPlatformMath::Max<uint32>(Alignment, OsAllocationGranularity);
+		SizeOut = Align(Count, Alignment);
 		check(SizeOut >= Count);
 		return SizeOut;
 	}

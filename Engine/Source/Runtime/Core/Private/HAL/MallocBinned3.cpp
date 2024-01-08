@@ -989,6 +989,7 @@ void* FMallocBinned3::MallocExternal(SIZE_T Size, uint32 Alignment)
 					// we found a matching pool for our alignment and size requirements, so modify the size request to match
 					Size = SIZE_T(BlockSize);
 					UsePools = true;
+					Alignment = BINNED3_MINIMUM_ALIGNMENT;
 					break;
 				}
 
@@ -1155,7 +1156,7 @@ void* FMallocBinned3::ReallocExternal(void* Ptr, SIZE_T NewSize, uint32 Alignmen
 		check(Ptr); // null is an OS allocation because it will not fall in our VM block
 		uint32 BlockSize = PoolIndexToBlockSize(PoolIndex);
 		if (
-			((NewSize <= BlockSize) & (Alignment <= BINNED3_MINIMUM_ALIGNMENT)) && // one branch, not two
+			((NewSize <= BlockSize) & (IsAligned(BlockSize, Alignment))) && // one branch, not two
 			(PoolIndex == 0 || NewSize > PoolIndexToBlockSize(PoolIndex - 1)))
 		{
 #if BINNED3_ALLOCATOR_STATS
