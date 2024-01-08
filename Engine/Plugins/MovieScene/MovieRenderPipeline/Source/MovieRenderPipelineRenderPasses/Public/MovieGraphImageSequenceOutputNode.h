@@ -177,7 +177,7 @@ public:
 	UMovieGraphImageSequenceOutputNode_MultiLayerEXR()
 		: UMovieGraphImageSequenceOutputNode_EXR()
 	{
-		// Multi-layer default excludes {render_layer}.
+		// Multi-layer default excludes {layer_name}.
 		FileNameFormat = TEXT("{sequence_name}.{frame_number}");
 	}
 
