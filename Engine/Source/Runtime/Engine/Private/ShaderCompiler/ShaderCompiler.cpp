@@ -4050,6 +4050,8 @@ void FShaderCompileThreadRunnable::CompileDirectlyThroughDll()
 void FShaderCompileThreadRunnable::PrintWorkerMemoryUsage()
 {
 	FScopeLock WorkerScopeLock(&WorkerInfosLock);
+	FPlatformProcessMemoryStats TotalMemoryStats{};
+	int32 NumValidWorkers = 0;
 	for (int32 Iter = 0, End = WorkerInfos.Num(); Iter < End; Iter++)
 	{
 		const TUniquePtr<FShaderCompileWorkerInfo>& WorkerInfo = WorkerInfos[Iter];
@@ -4061,21 +4063,42 @@ void FShaderCompileThreadRunnable::PrintWorkerMemoryUsage()
 		FPlatformProcessMemoryStats MemoryStats;
 		if (FPlatformProcess::TryGetMemoryUsage(ProcHandle, MemoryStats))
 		{
+			NumValidWorkers++;
 			UE_LOG(LogShaderCompilers, Display,
 				TEXT("ShaderCompileWorker [%d/%d] MemoryStats:")
 				TEXT("\n\t     UsedPhysical %llu")
 				TEXT("\n\t PeakUsedPhysical %llu")
 				TEXT("\n\t      UsedVirtual %llu")
 				TEXT("\n\t  PeakUsedVirtual %llu"),
-				Iter,
+				Iter + 1,
 				End,
 				MemoryStats.UsedPhysical,
 				MemoryStats.PeakUsedPhysical,
 				MemoryStats.UsedVirtual,
 				MemoryStats.PeakUsedVirtual
 			);
+			TotalMemoryStats.UsedPhysical += MemoryStats.UsedPhysical;
+			TotalMemoryStats.PeakUsedPhysical += MemoryStats.PeakUsedPhysical;
+			TotalMemoryStats.UsedVirtual += MemoryStats.PeakUsedVirtual;
+			TotalMemoryStats.PeakUsedVirtual += MemoryStats.PeakUsedVirtual;
 		}
 		LogQueuedCompileJobs(WorkerInfo->QueuedJobs, -1);
+	}
+
+	if (NumValidWorkers > 0)
+	{
+		UE_LOG(LogShaderCompilers, Display,
+			TEXT("Sum of MemoryStats for %d ShaderCompileWorker(s):")
+			TEXT("\n\t     UsedPhysical %llu")
+			TEXT("\n\t PeakUsedPhysical %llu")
+			TEXT("\n\t      UsedVirtual %llu")
+			TEXT("\n\t  PeakUsedVirtual %llu"),
+			NumValidWorkers,
+			TotalMemoryStats.UsedPhysical,
+			TotalMemoryStats.PeakUsedPhysical,
+			TotalMemoryStats.UsedVirtual,
+			TotalMemoryStats.PeakUsedVirtual
+		);
 	}
 }
 
