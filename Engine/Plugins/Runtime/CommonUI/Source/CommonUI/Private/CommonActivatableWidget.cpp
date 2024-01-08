@@ -77,6 +77,14 @@ UWidget* UCommonActivatableWidget::GetDesiredFocusTarget() const
 	return NativeGetDesiredFocusTarget();
 }
 
+void UCommonActivatableWidget::ClearFocusRestorationTarget()
+{
+	if (TSharedPtr<FActivatableTreeNode> PinnedTreeNode = InputTreeNode.Pin())
+	{
+		PinnedTreeNode->ClearFocusRestorationTarget();
+	}
+}
+
 TOptional<FActivationMetadata> UCommonActivatableWidget::GetActivationMetadata() const
 {
 	return TOptional<FActivationMetadata>();

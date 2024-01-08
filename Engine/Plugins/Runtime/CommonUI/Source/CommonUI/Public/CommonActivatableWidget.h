@@ -66,6 +66,10 @@ public:
 	UFUNCTION(BlueprintCallable, Category = ActivatableWidget)
 	UWidget* GetDesiredFocusTarget() const;
 
+	/** Clears the cached focus target that's set when bAutoRestoreFocus is true */
+	UFUNCTION(BlueprintCallable, Category = ActivatableWidget)
+	void ClearFocusRestorationTarget();
+
 	FSimpleMulticastDelegate& OnActivated() const { return OnActivatedEvent; }
 	FSimpleMulticastDelegate& OnDeactivated() const { return OnDeactivatedEvent; }
 
