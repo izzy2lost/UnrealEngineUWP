@@ -196,24 +196,19 @@ namespace EpicGames.Horde.Storage.Nodes
 			int fileCount = (int)reader.ReadUnsignedVarInt();
 			for (int idx = 0; idx < fileCount; idx++)
 			{
-				IoHash hash = reader.ReadIoHash();
+				IoHash targetHash = reader.ReadIoHash();
 
-				ChunkedDataNodeType type;
+				ChunkedDataNodeType targetType = ChunkedDataNodeType.Unknown;
 				if (reader.Version >= 2)
 				{
-					type = (ChunkedDataNodeType)reader.ReadUnsignedVarInt();
+					targetType = (ChunkedDataNodeType)reader.ReadUnsignedVarInt();
 				}
-				else
-				{
-					type = ChunkedDataNodeType.Unknown;
-				}
-
-				ChunkedDataNodeRef target = new ChunkedDataNodeRef(hash, type, reader.ReadBlobReference());
 
 				string name = reader.ReadString();
 				FileEntryFlags flags = (FileEntryFlags)reader.ReadUnsignedVarInt();
 				long length = (long)reader.ReadUnsignedVarInt();
 				IoHash streamHash = reader.ReadIoHash();
+				ChunkedDataNodeRef target = new ChunkedDataNodeRef(targetType, targetHash, reader.ReadBlobReference());
 
 				ReadOnlyMemory<byte> customData = default;
 				if ((flags & FileEntryFlags.HasCustomData) != 0)

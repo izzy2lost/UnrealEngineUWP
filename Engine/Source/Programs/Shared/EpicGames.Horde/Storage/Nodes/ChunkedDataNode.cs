@@ -110,10 +110,10 @@ namespace EpicGames.Horde.Storage.Nodes
 	/// <summary>
 	/// Reference to a chunked data node
 	/// </summary>
-	/// <param name="Hash">Hash of the target node</param>
 	/// <param name="Type">Type of the referenced node</param>
+	/// <param name="Hash">Hash of the target node</param>
 	/// <param name="Handle">Handle to the target node</param>
-	public record class ChunkedDataNodeRef(IoHash Hash, ChunkedDataNodeType Type, IBlobHandle Handle)
+	public record class ChunkedDataNodeRef(ChunkedDataNodeType Type, IoHash Hash, IBlobHandle Handle)
 	{
 		/// <summary>
 		/// Read the node which is the target of this ref
@@ -270,7 +270,7 @@ namespace EpicGames.Horde.Storage.Nodes
 				}
 
 				HashedNodeRef<ChunkedDataNode> nodeRef = await writer.WriteHashedNodeRefAsync<ChunkedDataNode>(GetNodeType<LeafChunkedDataNode>(), nextLength, Array.Empty<IBlobHandle>(), cancellationToken);
-				leafNodeRefs.Add(new ChunkedDataNodeRef(nodeRef.Hash, ChunkedDataNodeType.Leaf, nodeRef.Handle));
+				leafNodeRefs.Add(new ChunkedDataNodeRef(ChunkedDataNodeType.Leaf, nodeRef.Hash, nodeRef.Handle));
 
 				readBuffer.Memory.Slice(nextLength, size - nextLength).CopyTo(readBuffer.Memory);
 				size -= nextLength;
@@ -400,7 +400,7 @@ namespace EpicGames.Horde.Storage.Nodes
 
 				IBlobHandle handle = reader.ReadBlobReference();
 
-				children.Add(new ChunkedDataNodeRef(hash, type, handle));
+				children.Add(new ChunkedDataNodeRef(type, hash, handle));
 			}
 			Children = children;
 		}
@@ -452,7 +452,7 @@ namespace EpicGames.Horde.Storage.Nodes
 				foreach (InteriorChunkedDataNode interiorNode in interiorNodes)
 				{
 					HashedNodeRef<ChunkedDataNode> newNodeRef = await writer.WriteHashedNodeAsync<ChunkedDataNode>(interiorNode, cancellationToken);
-					handleBuffer.Add(new ChunkedDataNodeRef(newNodeRef.Hash, ChunkedDataNodeType.Interior, newNodeRef.Handle));
+					handleBuffer.Add(new ChunkedDataNodeRef(ChunkedDataNodeType.Interior, newNodeRef.Hash, newNodeRef.Handle));
 				}
 
 				nodeRefs = handleBuffer;
