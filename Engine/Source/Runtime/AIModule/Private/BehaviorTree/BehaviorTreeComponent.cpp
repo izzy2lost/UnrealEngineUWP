@@ -1594,9 +1594,6 @@ void UBehaviorTreeComponent::ApplyAllSearchUpdates(const TArray<FBehaviorTreeSea
 
 void UBehaviorTreeComponent::TickNewlyAddedAuxNodesHelper()
 {
-	UWorld* MyWorld = GetWorld();
-	const float CurrentFrameDeltaSeconds = MyWorld ? MyWorld->GetDeltaSeconds() : 0.0f;
-
 	for (const FBehaviorTreeSearchUpdate& UpdateInfo : SearchData.PendingUpdates)
 	{
 		if (!UpdateInfo.bApplySkipped && UpdateInfo.Mode == EBTNodeUpdateMode::Add && UpdateInfo.AuxNode && InstanceStack.IsValidIndex(UpdateInfo.InstanceIndex))
@@ -1606,7 +1603,7 @@ void UBehaviorTreeComponent::TickNewlyAddedAuxNodesHelper()
 
 			// We do not care about the next needed DeltaTime, it will be recalculated in the tick later.
 			float NextNeededDeltaTime = 0.0f;
-			UpdateInfo.AuxNode->WrappedTickNode(*this, NodeMemory, CurrentFrameDeltaSeconds, NextNeededDeltaTime);
+			UpdateInfo.AuxNode->WrappedTickNode(*this, NodeMemory, CurrentFrameDeltaTime, NextNeededDeltaTime);
 		}
 	}
 }
@@ -1674,20 +1671,22 @@ void UBehaviorTreeComponent::ApplyDiscardedSearch()
 	SearchData.PendingNotifies.Reset();
 }
 
-void UBehaviorTreeComponent::TickComponent(float DeltaTime, enum ELevelTick TickType, FActorComponentTickFunction *ThisTickFunction)
+void UBehaviorTreeComponent::TickComponent(float DeltaTime, const ELevelTick TickType, FActorComponentTickFunction *ThisTickFunction)
 {
+	// Tick can be optimized by the tick function to not be called every frame so we need
+	// to set the current frame delta time based on that information for other tick scenarios (e.g. manual ticking in unit tests)
+	const UWorld* World = GetWorld();
+	const bool bUseWorldDTForCurrentFrame = (ThisTickFunction != nullptr && World != nullptr);
+	
+	CurrentFrameDeltaTime = bUseWorldDTForCurrentFrame ? World->GetDeltaSeconds() : DeltaTime;
+
 	// Warn if BT asked to be ticked the next frame and did not.
-	if (bTickedOnce && NextTickDeltaTime == 0.0f)
+	if (bTickedOnce && NextTickDeltaTime == 0.0f && bUseWorldDTForCurrentFrame)
 	{
-		UWorld* MyWorld = GetWorld();
-		if (MyWorld)
+		const double CurrentGameTime = World->GetTimeSeconds();
+		if (CurrentGameTime - LastRequestedDeltaTimeGameTime - CurrentFrameDeltaTime > KINDA_SMALL_NUMBER)
 		{
-			const double CurrentGameTime = MyWorld->GetTimeSeconds();
-			const float CurrentDeltaTime = MyWorld->GetDeltaSeconds();
-			if (CurrentGameTime - LastRequestedDeltaTimeGameTime - CurrentDeltaTime > KINDA_SMALL_NUMBER)
-			{
-				UE_VLOG(GetOwner(), LogBehaviorTree, Error, TEXT("BT(%i) expected to be tick next frame, current deltatime(%f) and calculated deltatime(%f)."), GFrameCounter, CurrentDeltaTime, CurrentGameTime - LastRequestedDeltaTimeGameTime);
-			}
+			UE_VLOG(GetOwner(), LogBehaviorTree, Error, TEXT("BT(%llu) expected to be tick next frame, current deltatime(%f) and calculated deltatime(%f)."), GFrameCounter, CurrentFrameDeltaTime, CurrentGameTime - LastRequestedDeltaTimeGameTime);
 		}
 	}
 
@@ -1705,8 +1704,14 @@ void UBehaviorTreeComponent::TickComponent(float DeltaTime, enum ELevelTick Tick
 		ScheduleNextTick(NextTickDeltaTime);
 		return;
 	}
-	DeltaTime += AccumulatedTickDeltaTime;
-	AccumulatedTickDeltaTime = 0.0f;
+
+	AccumulatedTickDeltaTime += DeltaTime;
+	ON_SCOPE_EXIT
+	{
+		AccumulatedTickDeltaTime = 0.0f;
+	};
+
+	DeltaTime = AccumulatedTickDeltaTime;
 
 	const bool bWasTickedOnce = bTickedOnce;
 	bTickedOnce = true;
@@ -2440,15 +2445,13 @@ void UBehaviorTreeComponent::ExecuteTask(UBTTaskNode* TaskNode)
 	}
 
 	// Services were already ticked for this frame, need to tick the new ones. 
-	UWorld* MyWorld = GetWorld();
-	const float CurrentFrameDeltaSeconds = MyWorld ? MyWorld->GetDeltaSeconds() : 0.0f;
 	for (UBTService* ServiceNode : TaskNode->Services)
 	{
 		uint8* NodeMemory = (uint8*)ServiceNode->GetNodeMemory<uint8>(ActiveInstance);
 
 		// We do not care about the next needed DeltaTime, it will be recalculated in the tick later.
 		float NextNeededDeltaTime = 0.0f;
-		ServiceNode->WrappedTickNode(*this, NodeMemory, CurrentFrameDeltaSeconds, NextNeededDeltaTime);
+		ServiceNode->WrappedTickNode(*this, NodeMemory, CurrentFrameDeltaTime, NextNeededDeltaTime);
 	}
 
 	ActiveInstance.ActiveNode = TaskNode;

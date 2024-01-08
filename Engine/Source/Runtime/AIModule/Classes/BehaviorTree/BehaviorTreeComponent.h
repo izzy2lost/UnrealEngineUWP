@@ -246,7 +246,16 @@ public:
 	AIMODULE_API bool IsAuxNodeActive(const UBTAuxiliaryNode* AuxNodeTemplate, int32 InstanceIdx) const;
 
 	/** Returns true if InstanceStack contains any BT runtime instances */
-	bool IsInstanceStackEmpty() const { return (InstanceStack.Num() == 0); }
+	bool IsInstanceStackEmpty() const
+	{
+		return (InstanceStack.Num() == 0);
+	}
+
+	/** Returns the accumulated delta time for the current tick */
+	float GetAccumulatedTickDeltaTime() const
+	{
+		return AccumulatedTickDeltaTime;
+	}
 
 	/** @return status of speficied task */
 	AIMODULE_API EBTTaskStatus::Type GetTaskStatus(const UBTTaskNode* TaskNode) const;
@@ -531,12 +540,18 @@ protected:
 
 	/** Used to tell tickmanager that we want interval ticking */
 	bool bTickedOnce = false;
+
 	/** Predicted next DeltaTime*/
-	float NextTickDeltaTime = 0.;
+	float NextTickDeltaTime = 0.f;
+
 	/** Accumulated DeltaTime if ticked more than predicted next delta time */
-	float AccumulatedTickDeltaTime = 0.0f;
+	float AccumulatedTickDeltaTime = 0.f;
+
+	/** Current frame DeltaTime */
+	float CurrentFrameDeltaTime = 0.f;
+
 	/** GameTime of the last DeltaTime request, used for debugging to output warnings about ticking */
-	double LastRequestedDeltaTimeGameTime = 0.;
+	double LastRequestedDeltaTimeGameTime = 0;
 
 #if CSV_PROFILER
 	/** CSV tick stat name. Can be changed but must point to a static string */
