@@ -330,9 +330,9 @@ namespace Horde.Agent.Execution
 
 					// Build a set of directories to protect
 					HashSet<DirectoryReference> protectDirs = new HashSet<DirectoryReference>();
+					protectDirs.Add(DirectoryReference.Combine(rootDir, "Leases")); // Current lease may be writing a log here
 					if (!removeUntrackedFiles)
 					{
-						protectDirs.Add(DirectoryReference.Combine(rootDir, "Leases"));
 						protectDirs.Add(DirectoryReference.Combine(rootDir, "Temp"));
 						protectDirs.Add(DirectoryReference.Combine(rootDir, "Saved"));
 					}
