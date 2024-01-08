@@ -684,9 +684,7 @@ FPathTracingPayload TraceTransparentRay(inout FPathState PathState, int Bounce, 
 	return Payload;
 }
 
-#define PATH_TRACING_DEBUG_TRANSPARENCY_RAY 0
-
-float3 TraceTransparentVisibilityRay(FRayDesc Ray, int Bounce, float PathRoughness, uint MissShaderIndex, bool bCastShadows, inout RandomSequence RandSequence)
+float3 TraceTransparentVisibilityRay(FRayDesc Ray, float PathRoughness, uint MissShaderIndex, bool bCastShadows, inout RandomSequence RandSequence)
 {
 	if (!bCastShadows && MissShaderIndex == 0)
 	{
@@ -694,7 +692,7 @@ float3 TraceTransparentVisibilityRay(FRayDesc Ray, int Bounce, float PathRoughne
 		return 1.0;
 	}
 
-	const uint RayFlags = 0;
+	const uint RayFlags = RAY_FLAG_ACCEPT_FIRST_HIT_AND_END_SEARCH | RAY_FLAG_SKIP_CLOSEST_HIT_SHADER;
 	const uint InstanceInclusionMask = PATHTRACER_MASK_SHADOW | (length2(Ray.Origin) < Pow2(PATH_TRACING_SKIP_HAIR_DISTANCE) ? PATHTRACER_MASK_HAIR_SHADOW : 0);
 	const uint RayContributionToHitGroupIndex = RAY_TRACING_SHADER_SLOT_SHADOW;
 	const uint MultiplierForGeometryContributionToShaderIndex = RAY_TRACING_NUM_SHADER_SLOTS;
@@ -707,60 +705,26 @@ float3 TraceTransparentVisibilityRay(FRayDesc Ray, int Bounce, float PathRoughne
 		Ray.TMin = POSITIVE_INFINITY;
 		Ray.TMax = POSITIVE_INFINITY;
 	}
+	TraceRay(
+		TLAS,
+		RayFlags,
+		InstanceInclusionMask,
+		RayContributionToHitGroupIndex,
+		MultiplierForGeometryContributionToShaderIndex,
+		MissShaderIndex,
+		Ray.GetNativeDesc(),
+		PackedPayload);
 
-	const float OrigTMin = Ray.TMin;
-
-	// Trace the ray - progressing in steps through transparent geometry
-#if PATH_TRACING_DEBUG_TRANSPARENCY_RAY
-	const int MaxSteps = 256; // avoid TDRs during debugging by capping how many times we go around
-	int Steps = 0;
-	for (int Counter = 0; Counter < MaxSteps; Counter++)
-#else
-	for (;;)
-#endif
+	if (PackedPayload.IsHit())
 	{
-		// Reset payload to a miss for the rare case of a mesh without a valid CHS assigned
-		// Note that in this case we will get incorrect shadowing, but this is preferable to an infinite loop
-		PackedPayload.SetMiss();
-		TraceRay(
-			TLAS,
-			RayFlags,
-			InstanceInclusionMask,
-			RayContributionToHitGroupIndex,
-			MultiplierForGeometryContributionToShaderIndex,
-			MissShaderIndex,
-			Ray.GetNativeDesc(),
-			PackedPayload);
-
-		if (PackedPayload.IsMiss())
-		{
-			// we didn't hit anything, we are done
-			break;
-		}
-		if (!any(PackedPayload.GetRayThroughput() > 0))
-		{
-			// we've accumulated to full opacity, we are done
-			break;
-		}
-		// we hit some geometry, move one ulp past the hit and trace the same ray again
-		Ray.TMin = asfloat(asuint(PackedPayload.HitT) + 1);
-#if PATH_TRACING_DEBUG_TRANSPARENCY_RAY
-		Steps++;
-#endif
+		// We didn't run the miss shader, therefore we must have hit something opaque (or reached full opacity)
+		return 0.0;
 	}
 
-#if PATH_TRACING_DEBUG_TRANSPARENCY_RAY
-	if (Steps == 0) return 1.0;
-	if (Steps == 1) return float3(0, 0, 1);
-	if (Steps == 2) return float3(0, 1, 0);
-	if (Steps == MaxSteps) return float3(1, 0, 0);
-	const float t = float(Steps) / float(MaxSteps);
-	return t;
-#else
 	float3 Throughput = PackedPayload.GetRayThroughput();
 	if (bCastShadows && any(Throughput > 0))
 	{
-		FVolumeIntersectionList VolumeIsectList = VolumeIntersect(Ray.Origin, Ray.Direction, OrigTMin, Ray.TMax);
+		FVolumeIntersectionList VolumeIsectList = VolumeIntersect(Ray.Origin, Ray.Direction, Ray.TMin, Ray.TMax);
 		if (VolumeIsectList.HitBlocker())
 		{
 			// blockers are opaque -- done!
@@ -774,7 +738,6 @@ float3 TraceTransparentVisibilityRay(FRayDesc Ray, int Bounce, float PathRoughne
 		Throughput *= exp(-max(PackedPayload.GetTau(), 0.0));
 	}
 	return Throughput;
-#endif
 }
 
 struct FProbeResult
@@ -1347,9 +1310,9 @@ bool PathTracingKernel(inout FPathState PathState, int Bounce)
 	// This array will hold a CDF for light picking
 	float LightPickingCdf[RAY_TRACING_LIGHT_COUNT_MAXIMUM];
 
-#if PATH_TRACING_DEBUG_TRANSPARENCY_RAY
+#if 0
 	// visualize the shadow ray handling directly
-	PathState.Radiance = TraceTransparentVisibilityRay(PathState.Ray, Bounce, 0.0, 0, true, PathState.RandSequence);
+	PathState.Radiance = TraceTransparentVisibilityRay(PathState.Ray, 0.0, 0, true, PathState.RandSequence);
 	return false;
 #endif
 
@@ -1444,7 +1407,7 @@ bool PathTracingKernel(inout FPathState PathState, int Bounce)
 							{
 								LightContrib *= MISWeightRobust(LightSample.Pdf, MaterialEval.Pdf);
 							}
-							LightContrib *= TraceTransparentVisibilityRay(LightRay, Bounce, 1.0, MissShaderIndex, bCastShadows, PathState.RandSequence);
+							LightContrib *= TraceTransparentVisibilityRay(LightRay, 1.0, MissShaderIndex, bCastShadows, PathState.RandSequence);
 
 							AccumulateRadiance(PathState.Radiance, LightContrib, bIsCameraRay);
 						}
@@ -1470,7 +1433,7 @@ bool PathTracingKernel(inout FPathState PathState, int Bounce)
 								LightContrib *= MISWeightRobust(MaterialSample.Pdf, LightResult.Pdf);
 							}
 							MaterialRay.TMax = LightResult.HitT;
-							LightContrib *= TraceTransparentVisibilityRay(MaterialRay, Bounce, MaterialSample.Roughness, MissShaderIndex, bCastShadows, PathState.RandSequence);
+							LightContrib *= TraceTransparentVisibilityRay(MaterialRay, MaterialSample.Roughness, MissShaderIndex, bCastShadows, PathState.RandSequence);
 							AccumulateRadiance(PathState.Radiance, LightContrib, bIsCameraRay);
 						}
 					}
@@ -1611,7 +1574,7 @@ bool PathTracingKernel(inout FPathState PathState, int Bounce)
 					}
 					const bool bCastShadows = bIsVolumeSample ? CastsVolumeShadow(LightId) : CastsShadow(LightId);
 					const uint MissShaderIndex = GetLightMissShaderIndex(LightId);
-					LightContrib *= TraceTransparentVisibilityRay(LightRay, Bounce, AvgRoughness, MissShaderIndex, bCastShadows, PathState.RandSequence);
+					LightContrib *= TraceTransparentVisibilityRay(LightRay, AvgRoughness, MissShaderIndex, bCastShadows, PathState.RandSequence);
 
 					AccumulateRadiance(PathState.Radiance, LightContrib, bIsCameraRay);
 				}
@@ -1753,7 +1716,7 @@ bool PathTracingKernel(inout FPathState PathState, int Bounce)
 				LightRay.TMax = LightResult.HitT;
 				const bool bCastShadows = bIsVolumeSample ? CastsVolumeShadow(LightId) : CastsShadow(LightId);
 				const uint MissShaderIndex = GetLightMissShaderIndex(LightId);
-				LightContrib *= TraceTransparentVisibilityRay(LightRay, Bounce, ShadowRayRoughness, MissShaderIndex, bCastShadows, PathState.RandSequence);
+				LightContrib *= TraceTransparentVisibilityRay(LightRay, ShadowRayRoughness, MissShaderIndex, bCastShadows, PathState.RandSequence);
 				// the light made some contribution, and there was nothing along the shadow ray
 				AccumulateRadiance(PathState.Radiance, LightContrib, bIsCameraRay);
 			}

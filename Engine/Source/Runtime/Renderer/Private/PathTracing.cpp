@@ -1397,16 +1397,26 @@ FRayTracingLightFunctionMap GatherLightFunctionLightsPathTracing(FScene* Scene, 
 	return RayTracingLightFunctionMap;
 }
 
-static bool NeedsAnyHitShader(bool bIsMasked, bool bIsDitherMasked)
+static bool NeedsAnyHitShader(EBlendMode BlendMode)
 {
-	// Masked materials use AHS to quickly reject masked out portions
-	// However, dither masking gets treated as ordinary translucency
-	return (bIsMasked && !bIsDitherMasked);
+	switch (BlendMode)
+	{
+		case BLEND_Opaque: 							return false; // always hit
+		case BLEND_Masked: 							return true;  // runs shader (NOTE: dithered masking gets turned into translucent for the path tracer)
+		case BLEND_Translucent: 					return true;  // casts transparent (colored) shadows depending on the shading model setup (fake caustics or transparent shadows)
+		case BLEND_Additive: 						return false; // never hit for shadows, goes through the default shader instead, so no need to use AHS for primary rays
+		case BLEND_Modulate: 						return true;  // casts colored shadows
+		case BLEND_AlphaComposite: 					return true;
+		case BLEND_AlphaHoldout: 					return false; // treat as opaque for shadows
+		case BLEND_TranslucentColoredTransmittance: return true;  // NOTE: Substrate only
+		default: checkf(false, TEXT("Unhandled blend mode %d"), int(BlendMode)); return false;
+	}
+
 }
 
 static bool NeedsAnyHitShader(const FMaterial& RESTRICT MaterialResource)
 {
-	return NeedsAnyHitShader(MaterialResource.GetBlendMode() == BLEND_Masked, MaterialResource.IsDitherMasked());
+	return NeedsAnyHitShader(MaterialResource.GetBlendMode());
 }
 
 template<bool UseAnyHitShader, bool UseIntersectionShader, bool IsGPULightmass, bool SimplifySubstrate>
@@ -1437,7 +1447,7 @@ public:
 			// This material is only for surfaces at the moment
 			return false;
 		}
-		if (NeedsAnyHitShader(Parameters.MaterialParameters.BlendMode == BLEND_Masked, Parameters.MaterialParameters.bIsDitherMasked) != UseAnyHitShader)
+		if (NeedsAnyHitShader(Parameters.MaterialParameters.BlendMode) != UseAnyHitShader)
 		{
 			return false;
 		}

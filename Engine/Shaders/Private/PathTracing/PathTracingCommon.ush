@@ -598,7 +598,11 @@ FPackedPathTracingPayload InitPathTracingVisibilityPayload(float PathRoughness)
 	Output.SetVisibilityRay();
 	Output.SetPathRoughness(PathRoughness);
 	Output.SetRayThroughput(1.0);
-	Output.SetMiss();
+	// NOTE: We start with HitT = 0 which counts as "IsHit()". This will be changed by the miss shader if we don't register any hits (or the AHS writes don't accumulate all the way to 0)
+	// This is because we want to be able to skip the CHS on shadow rays. Therefore the miss shader is the one that will be responsible for telling us a ray did not hit anything opaque.
+	// If after tracing the ray we still have IsHit() returning true, this means we must have hit something opaque (without having run either CHS or AHS).
+	// This also has the benefit of preparing the "mailbox" used for detecting duplicate invocations of AHS with an invalid value.
+	Output.HitT = 0.0;
 	return Output;
 }
 

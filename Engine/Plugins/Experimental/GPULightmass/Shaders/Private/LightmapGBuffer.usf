@@ -78,7 +78,7 @@ void LightmapGBufferPS(
 	FPixelMaterialInputs PixelMaterialInputs;
 	// Support WPO in the far future
 	// CalcMaterialParametersEx(MaterialParameters, PixelMaterialInputs, float4(0, 0, 0, 0), float4(0, 0, 0, 0), bIsFrontFace, Input.SavedWorldPositionWithShaderOffsets, Input.SavedWorldPosition);
-	CalcMaterialParametersEx(MaterialParameters, PixelMaterialInputs, float4(0, 0, 0, 0), float4(0, 0, 0, 0), bIsFrontFace, Input.SavedWorldPosition, Input.SavedWorldPosition);
+	CalcMaterialParametersEx(MaterialParameters, PixelMaterialInputs, float4(0, 0, 0, 0), float4(0, 0, 0, 0), bIsFrontFace, Input.SavedWorldPosition.xyz, Input.SavedWorldPosition.xyz);
 	
 	float4 OutWorldPosition = float4(LWCHackToFloat(MaterialParameters.AbsoluteWorldPosition) * WorldPositionScalar, 1.0f);
 	// Faceted triangle normal
