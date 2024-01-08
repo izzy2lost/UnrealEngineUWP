@@ -354,11 +354,11 @@ void ACineCameraRigRail::SetMIDParameters()
 void ACineCameraRigRail::Tick(float DeltaTime)
 {
 	Super::Tick(DeltaTime);
-	if (DriveMode == ECineCameraRigRailDriveMode::Duration)
+	if (DriveMode == ECineCameraRigRailDriveMode::Duration && bPlay)
 	{
 		DriveByParam(DeltaTime);
 	}
-	else if (DriveMode == ECineCameraRigRailDriveMode::Speed)
+	else if (DriveMode == ECineCameraRigRailDriveMode::Speed && bPlay)
 	{
 		DriveBySpeed(DeltaTime);
 	}

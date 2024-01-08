@@ -117,6 +117,10 @@ public:
 	UPROPERTY(EditAnywhere, Interp, Category = "DriveMode")
 	float Speed = 100;
 
+	/* Determine if it can update position in Duration mode or Speed mode. If false, it pauses the update.*/
+	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "DriveMode")
+	bool bPlay = true;
+
 	/* Enable loop in speed or duration mode */
 	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "DriveMode")
 	bool bLoop = true;
