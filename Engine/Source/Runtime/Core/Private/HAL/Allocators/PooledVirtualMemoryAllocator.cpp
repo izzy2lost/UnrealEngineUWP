@@ -85,7 +85,7 @@ void* FPooledVirtualMemoryAllocator::Allocate(SIZE_T Size, uint32 AllocationHint
 			if (void* Ptr = Desc.Pool->Allocate(Size))
 			{
 				// LLM wants to be informed of the allocations of physical RAM, this is the closest we can get.
-				LLM(FLowLevelMemTracker::Get().OnLowLevelAlloc(ELLMTracker::Platform, Ptr, Size));
+				LLM_IF_ENABLED(FLowLevelMemTracker::Get().OnLowLevelAlloc(ELLMTracker::Platform, Ptr, Size));
 				return Ptr;
 			}
 		}
@@ -112,7 +112,7 @@ void* FPooledVirtualMemoryAllocator::Allocate(SIZE_T Size, uint32 AllocationHint
 		void* Ptr = Desc.Pool->Allocate(Size);
 
 		// LLM wants to be informed of the allocations of physical RAM, this is the closest we can get.
-		LLM(FLowLevelMemTracker::Get().OnLowLevelAlloc(ELLMTracker::Platform, Ptr, Size));
+		LLM_IF_ENABLED(FLowLevelMemTracker::Get().OnLowLevelAlloc(ELLMTracker::Platform, Ptr, Size));
 		return Ptr;
 	}
 };
@@ -154,7 +154,7 @@ void FPooledVirtualMemoryAllocator::Free(void* Ptr, SIZE_T Size, FCriticalSectio
 			{
 				// LLVM wants to be informed of the allocations of physical RAM.
 				// This is the closest we can get.
-				LLM(FLowLevelMemTracker::Get().OnLowLevelFree(ELLMTracker::Platform, Ptr));
+				LLM_IF_ENABLED(FLowLevelMemTracker::Get().OnLowLevelFree(ELLMTracker::Platform, Ptr));
 				Desc.Pool->Free(Ptr, Size);
 
 				// check if the pool is empty and delete if so

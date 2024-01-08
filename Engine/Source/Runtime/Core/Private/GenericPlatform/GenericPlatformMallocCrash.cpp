@@ -242,9 +242,9 @@ FGenericPlatformMallocCrash::FGenericPlatformMallocCrash( FMalloc* MainMalloc )
 	SmallMemoryPool = (uint8*)FPlatformMemory::BinnedAllocFromOS((SIZE_T)SmallMemoryPoolSize);
 	BookkeepingPool = (uint8*)FPlatformMemory::BinnedAllocFromOS((SIZE_T)BookkeepingPoolSize);
 
-	LLM(FLowLevelMemTracker::Get().OnLowLevelAlloc(ELLMTracker::Default, LargeMemoryPool, LargeMemoryPoolSize));
-	LLM(FLowLevelMemTracker::Get().OnLowLevelAlloc(ELLMTracker::Default, SmallMemoryPool, SmallMemoryPoolSize));
-	LLM(FLowLevelMemTracker::Get().OnLowLevelAlloc(ELLMTracker::Default, BookkeepingPool, BookkeepingPoolSize));
+	LLM_IF_ENABLED(FLowLevelMemTracker::Get().OnLowLevelAlloc(ELLMTracker::Default, LargeMemoryPool, LargeMemoryPoolSize));
+	LLM_IF_ENABLED(FLowLevelMemTracker::Get().OnLowLevelAlloc(ELLMTracker::Default, SmallMemoryPool, SmallMemoryPoolSize));
+	LLM_IF_ENABLED(FLowLevelMemTracker::Get().OnLowLevelAlloc(ELLMTracker::Default, BookkeepingPool, BookkeepingPoolSize));
 
 	MemoryTrace_Alloc((uint64)LargeMemoryPool, LargeMemoryPoolSize, alignof(uint8), EMemoryTraceRootHeap::SystemMemory);
 	MemoryTrace_Alloc((uint64)SmallMemoryPool, SmallMemoryPoolSize, alignof(uint8), EMemoryTraceRootHeap::SystemMemory);

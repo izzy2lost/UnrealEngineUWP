@@ -540,7 +540,7 @@ void* FUnixPlatformMemory::BinnedAllocFromOS(SIZE_T Size)
 		AllocDescriptor->OriginalSizeAsPassed = Size;
 	}
 
-	LLM(FLowLevelMemTracker::Get().OnLowLevelAlloc(ELLMTracker::Platform, Pointer, Size));
+	LLM_IF_ENABLED(FLowLevelMemTracker::Get().OnLowLevelAlloc(ELLMTracker::Platform, Pointer, Size));
 	UE::FForkPageProtector::Get().AddMemoryRegion(Pointer, Size);
 
 	return Pointer;
@@ -548,7 +548,7 @@ void* FUnixPlatformMemory::BinnedAllocFromOS(SIZE_T Size)
 
 void FUnixPlatformMemory::BinnedFreeToOS(void* Ptr, SIZE_T Size)
 {
-	LLM(FLowLevelMemTracker::Get().OnLowLevelFree(ELLMTracker::Platform, Ptr));
+	LLM_IF_ENABLED(FLowLevelMemTracker::Get().OnLowLevelFree(ELLMTracker::Platform, Ptr));
 	// guard against someone not passing size in whole pages
 	static SIZE_T OSPageSize = FPlatformMemory::GetConstants().PageSize;
 	SIZE_T SizeInWholePages = (Size % OSPageSize) ? (Size + OSPageSize - (Size % OSPageSize)) : Size;

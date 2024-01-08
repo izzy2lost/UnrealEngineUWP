@@ -120,7 +120,7 @@ void FMetalBuffer::Release()
     {
         LLM_PLATFORM_SCOPE_METAL(ELLMTagMetal::Buffers);
         
-        LLM(FLowLevelMemTracker::Get().OnLowLevelFree(ELLMTracker::Platform, this, ELLMAllocType::System));
+		LLM_IF_ENABLED(FLowLevelMemTracker::Get().OnLowLevelFree(ELLMTracker::Platform, this, ELLMAllocType::System));
         
         DEC_MEMORY_STAT_BY(STAT_MetalBufferMemory, GetLength());
         DEC_DWORD_STAT(STAT_MetalBufferCount);

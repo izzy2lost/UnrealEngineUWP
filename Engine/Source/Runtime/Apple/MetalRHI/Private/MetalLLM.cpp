@@ -163,7 +163,7 @@ void MetalLLM::LogAllocTexture(MTL::Device* Device, MTL::TextureDescriptor* Desc
 	}
 	INC_DWORD_STAT(STAT_MetalTextureCount);
 	
-	LLM(FLowLevelMemTracker::Get().OnLowLevelAlloc(ELLMTracker::Platform, Ptr, Size, ELLMTag::Untagged, ELLMAllocType::System));
+	LLM_IF_ENABLED(FLowLevelMemTracker::Get().OnLowLevelAlloc(ELLMTracker::Platform, Ptr, Size, ELLMTag::Untagged, ELLMAllocType::System));
 	// Assign a dealloc handler to untrack the memory - but don't track the dispatch block!
 	{
 		LLM_SCOPED_PAUSE_TRACKING(ELLMAllocType::System);
@@ -174,7 +174,7 @@ void MetalLLM::LogAllocTexture(MTL::Device* Device, MTL::TextureDescriptor* Desc
 			[[[FMetalDeallocHandler alloc] initWithBlock:^{
 				LLM_PLATFORM_SCOPE_METAL(ELLMTagMetal::RenderTargets);
 				
-				LLM(FLowLevelMemTracker::Get().OnLowLevelFree(ELLMTracker::Platform, Ptr, ELLMAllocType::System));
+				LLM_IF_ENABLED(FLowLevelMemTracker::Get().OnLowLevelFree(ELLMTracker::Platform, Ptr, ELLMAllocType::System));
 				
 #if PLATFORM_IOS
 				if (!bMemoryless)
@@ -192,7 +192,7 @@ void MetalLLM::LogAllocTexture(MTL::Device* Device, MTL::TextureDescriptor* Desc
 			[[[FMetalDeallocHandler alloc] initWithBlock:^{
 				LLM_PLATFORM_SCOPE_METAL(ELLMTagMetal::Textures);
 			
-				LLM(FLowLevelMemTracker::Get().OnLowLevelFree(ELLMTracker::Platform, Ptr, ELLMAllocType::System));
+				LLM_IF_ENABLED(FLowLevelMemTracker::Get().OnLowLevelFree(ELLMTracker::Platform, Ptr, ELLMAllocType::System));
 			
 #if PLATFORM_IOS
 				if (!bMemoryless)
@@ -215,7 +215,7 @@ void MetalLLM::LogAllocBuffer(MTL::Device* Device, FMetalBufferPtr Buffer)
 	INC_MEMORY_STAT_BY(STAT_MetalBufferMemory, Size);
 	INC_DWORD_STAT(STAT_MetalBufferCount);
 	
-	LLM(FLowLevelMemTracker::Get().OnLowLevelAlloc(ELLMTracker::Platform, Ptr, Size, ELLMTag::Untagged, ELLMAllocType::System));
+	LLM_IF_ENABLED(FLowLevelMemTracker::Get().OnLowLevelAlloc(ELLMTracker::Platform, Ptr, Size, ELLMTag::Untagged, ELLMAllocType::System));
     Buffer->MarkAllocated();
 }
 
@@ -227,7 +227,7 @@ void MetalLLM::LogAllocBufferNative(MTL::Device* Device, MTLBufferPtr Buffer)
     INC_MEMORY_STAT_BY(STAT_MetalBufferMemory, Size);
     INC_DWORD_STAT(STAT_MetalBufferCount);
     
-    LLM(FLowLevelMemTracker::Get().OnLowLevelAlloc(ELLMTracker::Platform, Ptr, Size, ELLMTag::Untagged, ELLMAllocType::System));
+	LLM_IF_ENABLED(FLowLevelMemTracker::Get().OnLowLevelAlloc(ELLMTracker::Platform, Ptr, Size, ELLMTag::Untagged, ELLMAllocType::System));
     // Assign a dealloc handler to untrack the memory - but don't track the dispatch block!
     {
         LLM_SCOPED_PAUSE_TRACKING(ELLMAllocType::System);
@@ -236,7 +236,7 @@ void MetalLLM::LogAllocBufferNative(MTL::Device* Device, MTLBufferPtr Buffer)
         [[[FMetalDeallocHandler alloc] initWithBlock:^{
             LLM_PLATFORM_SCOPE_METAL(ELLMTagMetal::Buffers);
             
-            LLM(FLowLevelMemTracker::Get().OnLowLevelFree(ELLMTracker::Platform, Ptr, ELLMAllocType::System));
+			LLM_IF_ENABLED(FLowLevelMemTracker::Get().OnLowLevelFree(ELLMTracker::Platform, Ptr, ELLMAllocType::System));
             
             DEC_MEMORY_STAT_BY(STAT_MetalBufferMemory, Size);
             DEC_DWORD_STAT(STAT_MetalBufferCount);
@@ -253,7 +253,7 @@ void MetalLLM::LogAllocHeap(MTL::Device* Device, MTL::Heap* Heap)
 	INC_MEMORY_STAT_BY(STAT_MetalHeapMemory, Size);
 	INC_DWORD_STAT(STAT_MetalHeapCount);
 	
-	LLM(FLowLevelMemTracker::Get().OnLowLevelAlloc(ELLMTracker::Platform, Ptr, Size, ELLMTag::Untagged, ELLMAllocType::System));
+	LLM_IF_ENABLED(FLowLevelMemTracker::Get().OnLowLevelAlloc(ELLMTracker::Platform, Ptr, Size, ELLMTag::Untagged, ELLMAllocType::System));
 	// Assign a dealloc handler to untrack the memory - but don't track the dispatch block!
 	{
 		LLM_SCOPED_PAUSE_TRACKING(ELLMAllocType::System);
@@ -263,7 +263,7 @@ void MetalLLM::LogAllocHeap(MTL::Device* Device, MTL::Heap* Heap)
 			LLM_SCOPE_METAL(ELLMTagMetal::Heaps);
 			LLM_PLATFORM_SCOPE_METAL(ELLMTagMetal::Heaps);
 			
-			LLM(FLowLevelMemTracker::Get().OnLowLevelFree(ELLMTracker::Platform, Ptr, ELLMAllocType::System));
+			LLM_IF_ENABLED(FLowLevelMemTracker::Get().OnLowLevelFree(ELLMTracker::Platform, Ptr, ELLMAllocType::System));
 			
 			DEC_MEMORY_STAT_BY(STAT_MetalHeapMemory, Size);
 			DEC_DWORD_STAT(STAT_MetalHeapCount);

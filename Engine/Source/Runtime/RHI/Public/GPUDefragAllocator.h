@@ -795,7 +795,7 @@ protected:
 	{
 		MemoryTrace_ReallocFree((uint64)Source);
 		MemoryTrace_ReallocAlloc((uint64)Dest->Base, Size, 4);
-		LLM(FLowLevelMemTracker::Get().OnLowLevelAllocMoved(ELLMTracker::Default, Dest->Base, Source));
+		LLM_IF_ENABLED(FLowLevelMemTracker::Get().OnLowLevelAllocMoved(ELLMTracker::Default, Dest->Base, Source));
 
 		uint8* DestAddr = Dest->Base + DestOffset;
 		int64 MemDistance = (int64)(DestAddr) - (int64)(Source);
