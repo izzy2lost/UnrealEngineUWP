@@ -162,6 +162,7 @@ const FText& URCBehaviour::GetBehaviorDescription()
 
 	return GetDefault<URCBehaviourNode>(BehaviourNodeClass)->BehaviorDescription;
 }
+#endif
 
 void URCBehaviour::UpdateEntityIds(const TMap<FGuid, FGuid>& InEntityIdMap)
 {
@@ -173,5 +174,3 @@ void URCBehaviour::UpdateEntityIds(const TMap<FGuid, FGuid>& InEntityIdMap)
 		}, /*bInRecursive*/ true);
 	}
 }
-
-#endif
