@@ -75,6 +75,10 @@ public:
 	UFUNCTION(BlueprintPure, Category = "Movie Graph")
 	static FText GetJobAuthor(const UMovieGraphPipeline* InMovieGraphPipeline);
 
+	/** Gets the completion percent of the Pipeline in 0-1 */
+	UFUNCTION(BlueprintPure, Category = "Movie Graph")
+	static float GetCompletionPercentage(const UMovieGraphPipeline* InPipeline);
+
 	/**
 	* Determines the overall current frame number and total number of frames.
 	* @param	InMovieGraphPipeline	- The pipeline to get the frame information from.

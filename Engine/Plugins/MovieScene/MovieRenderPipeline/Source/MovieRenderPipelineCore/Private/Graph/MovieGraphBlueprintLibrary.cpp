@@ -370,6 +370,21 @@ FText UMovieGraphBlueprintLibrary::GetJobAuthor(const UMovieGraphPipeline* InMov
 	return InMovieGraphPipeline ? FText::FromString(UE::MoviePipeline::GetJobAuthor(InMovieGraphPipeline->GetCurrentJob())) : FText();
 }
 
+float UMovieGraphBlueprintLibrary::GetCompletionPercentage(const UMovieGraphPipeline* InPipeline)
+{
+	if (!InPipeline)
+	{
+		return 0.f;
+	}
+
+	int32 OutputFrames;
+	int32 TotalOutputFrames;
+	GetOverallOutputFrames(InPipeline, OutputFrames, TotalOutputFrames);
+
+	const float CompletionPercentage = FMath::Clamp(OutputFrames / (float)TotalOutputFrames, 0.f, 1.f);
+	return CompletionPercentage;
+}
+
 void UMovieGraphBlueprintLibrary::GetOverallOutputFrames(const UMovieGraphPipeline* InMovieGraphPipeline, int32& OutCurrentIndex, int32& OutTotalCount)
 {
 	OutCurrentIndex = 0;

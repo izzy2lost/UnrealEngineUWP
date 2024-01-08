@@ -301,7 +301,7 @@ void UMoviePipelinePIEExecutor::OnTick()
 	
 	if (RemainingInitializationFrames <= 0)
 	{
-		Queue->GetJobs()[CurrentPipelineIndex]->SetStatusProgress(UMoviePipelineBlueprintLibrary::GetCompletionPercentage(Cast<UMoviePipeline>(ActiveMoviePipeline)));
+		Queue->GetJobs()[CurrentPipelineIndex]->SetStatusProgress(GetCompletionPercentageFromActivePipeline());
 	}
 	
 	FText WindowTitle = GetWindowTitle();
