@@ -91,6 +91,34 @@ namespace Audio
 
 			return SoundClass;
 		}
+
+		template<typename SendInfo>
+		void ClearPreviousSubmixSends(const TArray<SendInfo>& InPreviousSendInfos, const TArray<SendInfo>& InNewSendInfos, FMixerDevice* InMixerDevice, FMixerSourceVoice* InMixerSourceVoice)
+		{
+			// Loop through every previous send setting
+			for (const SendInfo& PreviousSendSetting : InPreviousSendInfos)
+			{
+				bool bFound = false;
+
+				// See if it's in the current send list
+				for (const SendInfo&  CurrentSendSettings : InNewSendInfos)
+				{
+					if (CurrentSendSettings.SoundSubmix == PreviousSendSetting.SoundSubmix)
+					{
+						bFound = true;
+						break;
+					}
+				}
+
+				// If it's not in the current send list, add to submixes to clear
+				if (!bFound)
+				{
+					FMixerSubmixPtr SubmixPtr = InMixerDevice->GetSubmixInstance(PreviousSendSetting.SoundSubmix).Pin();
+					InMixerSourceVoice->ClearSubmixSendInfo(SubmixPtr);
+				}
+			}
+		}
+		
 	} // namespace MixerSourcePrivate
 
 	namespace ModulationUtils
@@ -1675,6 +1703,52 @@ namespace Audio
 			MixerSourceVoice->SetSpatializationParams(SpatializationParams);
 		}
 	}
+	
+	void FMixerSource::UpdateSubmixSendLevels(const FSoundSubmixSendInfoBase& InSendInfo, const EMixerSourceSubmixSendStage InSendStage)
+	{
+		if (InSendInfo.SoundSubmix != nullptr)
+		{
+			const FMixerSubmixWeakPtr SubmixInstance = MixerDevice->GetSubmixInstance(InSendInfo.SoundSubmix);
+			float SendLevel = 1.0f;
+
+			// calculate send level based on distance if that method is enabled
+			if (!WaveInstance->bEnableSubmixSends)
+			{
+				SendLevel = 0.0f;
+			}
+			else if (InSendInfo.SendLevelControlMethod == ESendLevelControlMethod::Manual)
+			{
+				if (InSendInfo.DisableManualSendClamp)
+				{
+					SendLevel = InSendInfo.SendLevel;
+				}
+				else
+				{
+					SendLevel = FMath::Clamp(InSendInfo.SendLevel, 0.0f, 1.0f);
+				}
+			}
+			else
+			{
+				// The alpha value is determined identically between manual and custom curve methods
+				const FVector2D SendRadialRange = { InSendInfo.MinSendDistance, InSendInfo.MaxSendDistance};
+				const FVector2D SendLevelRange = { InSendInfo.MinSendLevel, InSendInfo.MaxSendLevel };
+				const float Denom = FMath::Max(SendRadialRange.Y - SendRadialRange.X, 1.0f);
+				const float Alpha = FMath::Clamp((WaveInstance->ListenerToSoundDistance - SendRadialRange.X) / Denom, 0.0f, 1.0f);
+
+				if (InSendInfo.SendLevelControlMethod == ESendLevelControlMethod::Linear)
+				{
+					SendLevel = FMath::Clamp(FMath::Lerp(SendLevelRange.X, SendLevelRange.Y, Alpha), 0.0f, 1.0f);
+				}
+				else // use curve
+				{
+					SendLevel = FMath::Clamp(InSendInfo.CustomSendLevelCurve.GetRichCurveConst()->Eval(Alpha), 0.0f, 1.0f);
+				}
+			}
+
+			// set the level and stage for this send
+			MixerSourceVoice->SetSubmixSendInfo(SubmixInstance, SendLevel, InSendStage);
+		}
+	}
 
 	void FMixerSource::UpdateEffects()
 	{
@@ -1749,7 +1823,7 @@ namespace Audio
 			{
 				SubmixPtr = MixerDevice->GetSubmixInstance(WaveInstance->SoundSubmix);
 			}
-			else if(WaveInstance->SoundSubmix && WaveInstance->SoundSubmix->bAutoRouteToMasterSubmixWhenOrphaned)
+			else if(!WaveInstance->SoundSubmix && WaveInstance->SoundSubmix->bAutoRouteToMasterSubmixWhenOrphaned)
 			{
 				SubmixPtr = MixerDevice->GetMasterSubmix();
 			}
@@ -1761,117 +1835,25 @@ namespace Audio
 			PrevousSubmix = SubmixKey;
 		}
 
-		if (WaveInstance->SubmixSendSettings.Num() > 0)
+		// Attenuation Submix Sends. (these come from Attenuation assets).
+		// These are largely identical to SoundSubmix Sends, but don't specify a send stage, so we pass one here.
+		for (const FAttenuationSubmixSendSettings& SendSettings : WaveInstance->AttenuationSubmixSends)
 		{
-			for (const FAttenuationSubmixSendSettings& SendSettings : WaveInstance->SubmixSendSettings)
-			{
-				if (SendSettings.Submix)
-				{
-					float SubmixSendLevel = 0.0f;
-
-					if (SendSettings.SubmixSendMethod == ESubmixSendMethod::Manual)
-					{
-						SubmixSendLevel = FMath::Clamp(SendSettings.ManualSubmixSendLevel, 0.0f, 1.0f);
-					}
-					else
-					{
-						// The alpha value is determined identically between manual and custom curve methods
-						const float Denom = FMath::Max(SendSettings.SubmixSendDistanceMax - SendSettings.SubmixSendDistanceMin, 1.0f);
-						const float Alpha = FMath::Clamp((WaveInstance->ListenerToSoundDistance - SendSettings.SubmixSendDistanceMin) / Denom, 0.0f, 1.0f);
-
-						if (SendSettings.SubmixSendMethod == ESubmixSendMethod::Linear)
-						{
-							SubmixSendLevel = FMath::Clamp(FMath::Lerp(SendSettings.SubmixSendLevelMin, SendSettings.SubmixSendLevelMax, Alpha), 0.0f, 1.0f);
-						}
-						else
-						{
-							SubmixSendLevel = FMath::Clamp(SendSettings.CustomSubmixSendCurve.GetRichCurveConst()->Eval(Alpha), 0.0f, 1.0f);
-						}
-					}
-
-
-					FMixerSubmixPtr SubmixPtr = MixerDevice->GetSubmixInstance(SendSettings.Submix).Pin();
-					MixerSourceVoice->SetSubmixSendInfo(SubmixPtr, SubmixSendLevel);
-				}
-			}
+			UpdateSubmixSendLevels(SendSettings, EMixerSourceSubmixSendStage::PostDistanceAttenuation);
 		}
-
-		// Clear submix sends if they need clearing.
-		if (PreviousSubmixSendSettings.Num() > 0)
-		{
-			// Loop through every previous send setting
-			for (FSoundSubmixSendInfo& PreviousSendSetting : PreviousSubmixSendSettings)
-			{
-				bool bFound = false;
-
-				// See if it's in the current send list
-				for (const FSoundSubmixSendInfo& CurrentSendSettings : WaveInstance->SoundSubmixSends)
-				{
-					if (CurrentSendSettings.SoundSubmix == PreviousSendSetting.SoundSubmix)
-					{
-						bFound = true;
-						break;
-					}
-				}
-
-				// If it's not in the current send list, add to submixes to clear
-				if (!bFound)
-				{
-					FMixerSubmixPtr SubmixPtr = MixerDevice->GetSubmixInstance(PreviousSendSetting.SoundSubmix).Pin();
-					MixerSourceVoice->ClearSubmixSendInfo(SubmixPtr);
-				}
-			}
-		}
-		PreviousSubmixSendSettings = WaveInstance->SoundSubmixSends;
-
-		// Update submix send levels
+		// Clear any previous sends that may not exist now.
+		MixerSourcePrivate::ClearPreviousSubmixSends(PreviousAttenuationSendSettings, WaveInstance->AttenuationSubmixSends, MixerDevice, MixerSourceVoice);
+		PreviousAttenuationSendSettings = WaveInstance->AttenuationSubmixSends; 
+		
+		// Sound submix Sends. (these come from SoundBase derived assets).
 		for (FSoundSubmixSendInfo& SendInfo : WaveInstance->SoundSubmixSends)
 		{
-			if (SendInfo.SoundSubmix != nullptr)
-			{
-				FMixerSubmixWeakPtr SubmixInstance = MixerDevice->GetSubmixInstance(SendInfo.SoundSubmix);
-				float SendLevel = 1.0f;
-
-				// calculate send level based on distance if that method is enabled
-				if (!WaveInstance->bEnableSubmixSends)
-				{
-					SendLevel = 0.0f;
-				}
-				else if (SendInfo.SendLevelControlMethod == ESendLevelControlMethod::Manual)
-				{
-					if (SendInfo.DisableManualSendClamp)
-					{
-						SendLevel = SendInfo.SendLevel;
-					}
-					else
-					{
-						SendLevel = FMath::Clamp(SendInfo.SendLevel, 0.0f, 1.0f);
-					}
-				}
-				else
-				{
-					// The alpha value is determined identically between manual and custom curve methods
-					const FVector2D SendRadialRange = { SendInfo.MinSendDistance, SendInfo.MaxSendDistance};
-					const FVector2D SendLevelRange = { SendInfo.MinSendLevel, SendInfo.MaxSendLevel };
-					const float Denom = FMath::Max(SendRadialRange.Y - SendRadialRange.X, 1.0f);
-					const float Alpha = FMath::Clamp((WaveInstance->ListenerToSoundDistance - SendRadialRange.X) / Denom, 0.0f, 1.0f);
-
-					if (SendInfo.SendLevelControlMethod == ESendLevelControlMethod::Linear)
-					{
-						SendLevel = FMath::Clamp(FMath::Lerp(SendLevelRange.X, SendLevelRange.Y, Alpha), 0.0f, 1.0f);
-					}
-					else // use curve
-					{
-						SendLevel = FMath::Clamp(SendInfo.CustomSendLevelCurve.GetRichCurveConst()->Eval(Alpha), 0.0f, 1.0f);
-					}
-				}
-
-				// set the level and stage for this send
-				EMixerSourceSubmixSendStage SendStage = MixerSourcePrivate::SubmixSendStageToMixerSourceSubmixSendStage(SendInfo.SendStage);
-				MixerSourceVoice->SetSubmixSendInfo(SubmixInstance, SendLevel, SendStage);
-			}
+			UpdateSubmixSendLevels(SendInfo, MixerSourcePrivate::SubmixSendStageToMixerSourceSubmixSendStage(SendInfo.SendStage));
 		}
- 		
+		// Again, Clear any sends that maybe not exist now.
+		MixerSourcePrivate::ClearPreviousSubmixSends(PreviousSubmixSendSettings, WaveInstance->SoundSubmixSends, MixerDevice, MixerSourceVoice);
+		PreviousSubmixSendSettings = WaveInstance->SoundSubmixSends;
+
 		MixerSourceVoice->SetEnablement(WaveInstance->bEnableBusSends, WaveInstance->bEnableBaseSubmix, WaveInstance->bEnableSubmixSends);
 
 		MixerSourceVoice->SetSourceBufferListener(WaveInstance->SourceBufferListener, WaveInstance->bShouldSourceBufferListenerZeroBuffer);

@@ -129,8 +129,9 @@ struct FSoundParseParameters
 	// The sound submix to use for the wave instance
 	USoundSubmixBase* SoundSubmix;
 
-	// The submix sends to use
+	// The submix sends. 
 	TArray<FSoundSubmixSendInfo> SoundSubmixSends;
+	TArray<FAttenuationSubmixSendSettings> AttenuationSubmixSends;
 
 	// The source bus sends to use
 	TArray<FSoundSourceBusSendInfo> BusSends[(int32)EBusSendType::Count];
@@ -141,9 +142,6 @@ struct FSoundParseParameters
 	FVector2D ReverbSendLevelDistanceRange;
 	float ManualReverbSendLevel;
 	FRuntimeFloatCurve CustomReverbSendCurve;
-
-	// Submix send params to use for this sound
-	TArray<FAttenuationSubmixSendSettings> SubmixSendSettings;
 
 	// The distance between left and right channels when spatializing stereo assets
 	float StereoSpread;

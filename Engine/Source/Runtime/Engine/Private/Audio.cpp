@@ -20,6 +20,7 @@
 #include "UObject/UObjectIterator.h"
 #include "XmlFile.h"
 #include "XmlNode.h"
+#include "Algo/ForEach.h"
 
 DEFINE_LOG_CATEGORY(LogAudio);
 
@@ -976,14 +977,17 @@ void FWaveInstance::AddReferencedObjects( FReferenceCollector& Collector )
 		Collector.AddReferencedObject(SynthSound->GetOwningSynthComponentPtr());
 	}
 
-	for (FAttenuationSubmixSendSettings& SubmixSend : SubmixSendSettings)
+	auto AddSubmixSendRef = [&Collector](FSoundSubmixSendInfoBase& Info)
 	{
-		if (SubmixSend.Submix)
+		if (Info.SoundSubmix)
 		{
-			Collector.AddReferencedObject(SubmixSend.Submix);
-		}
-	}
-
+			Collector.AddReferencedObject(Info.SoundSubmix);
+		}	
+	};
+	
+	Algo::ForEach(SoundSubmixSends, AddSubmixSendRef);
+	Algo::ForEach(AttenuationSubmixSends, AddSubmixSendRef);
+	
 	Collector.AddReferencedObject( SoundClass );
 	NotifyBufferFinishedHooks.AddReferencedObjects( Collector );
 }

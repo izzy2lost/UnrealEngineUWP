@@ -403,7 +403,7 @@ public:
 	float ManualReverbSendLevel;
 	
 	/** The submix send settings to use. */
-	TArray<FAttenuationSubmixSendSettings> SubmixSendSettings;
+	TArray<FAttenuationSubmixSendSettings> AttenuationSubmixSends;
 
 private:
 	/** Cached play order */

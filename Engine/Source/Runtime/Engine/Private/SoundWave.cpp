@@ -3443,16 +3443,13 @@ void USoundWave::Parse(FAudioDevice* AudioDevice, const UPTRINT NodeWaveInstance
 		}
 	}
 
-
- 	// Copy the submix send settings
- 	WaveInstance->SubmixSendSettings = ParseParams.SubmixSendSettings;
+ 	// Copy the submix sends. (both attenuation and soundbase versions).
+ 	WaveInstance->AttenuationSubmixSends = ParseParams.AttenuationSubmixSends;
+	WaveInstance->SoundSubmixSends = ParseParams.SoundSubmixSends;
 
 	// Get the envelope follower settings
 	WaveInstance->EnvelopeFollowerAttackTime = ParseParams.EnvelopeFollowerAttackTime;
 	WaveInstance->EnvelopeFollowerReleaseTime = ParseParams.EnvelopeFollowerReleaseTime;
-
-	// Copy over the submix sends.
-	WaveInstance->SoundSubmixSends = ParseParams.SoundSubmixSends;
 
 	// Copy over the source bus send and data
 	if (!WaveInstance->ActiveSound->bIsPreviewSound)

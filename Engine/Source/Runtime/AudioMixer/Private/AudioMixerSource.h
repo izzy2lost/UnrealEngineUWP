@@ -123,6 +123,7 @@ namespace Audio
 		float GetInheritedSubmixVolumeModulation() const;
 
 	private:
+		void UpdateSubmixSendLevels(const FSoundSubmixSendInfoBase& InSendInfo, EMixerSourceSubmixSendStage InSendStage);
 
 		FMixerDevice* MixerDevice;
 		FMixerBuffer* MixerBuffer;
@@ -180,6 +181,7 @@ namespace Audio
 
 		// An array of submix sends from previous update. Allows us to clear out submix sends if they are no longer being sent.
 		TArray<FSoundSubmixSendInfo> PreviousSubmixSendSettings;
+		TArray<FAttenuationSubmixSendSettings> PreviousAttenuationSendSettings;
 
 		// Whether or not we're currently releasing our resources. Prevents recycling the source until release is finished.
 		FThreadSafeBool bIsReleasing;
