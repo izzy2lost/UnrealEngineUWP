@@ -407,7 +407,7 @@ namespace Horde.Server.Perforce
 				}
 				else
 				{
-					syncNode = new SyncNode(change, parentChange, parent.Contents.Target);
+					syncNode = new SyncNode(change, parentChange, new HashedNodeRef<DirectoryNode>(parent.Contents.Hash, parent.Contents.Handle));
 				}
 			}
 
@@ -683,7 +683,7 @@ namespace Horde.Server.Perforce
 			await store.WriteRefTargetAsync(refName, commitNodeRef, options.RefOptions, cancellationToken: cancellationToken);
 
 			// Log the snapshot info
-			_logger.LogInformation("Snapshot for {StreamId} CL {Change} is ref {RefName} (commit: {CommitHandle}, root: {RootHandle})", streamConfig.Id, change, refName, commitNodeRef.Handle.GetLocator(), rootRef.Target.Handle.GetLocator());
+			_logger.LogInformation("Snapshot for {StreamId} CL {Change} is ref {RefName} (commit: {CommitHandle}, root: {RootHandle})", streamConfig.Id, change, refName, commitNodeRef.Handle.GetLocator(), rootRef.Handle.GetLocator());
 		}
 
 		static int GetFileOffset(string path)

@@ -650,7 +650,7 @@ namespace EpicGames.Horde.Storage
 					DirectoryReference subDirPath = DirectoryReference.Combine(dirRef, subDirEntry.Name.ToString());
 					DirectoryState subDirState = dirState.FindOrAddDirectory(subDirEntry.Name);
 
-					DirectoryNode subDirNode = await subDirEntry.Target.ExpandAsync(cancellationToken);
+					DirectoryNode subDirNode = await subDirEntry.ExpandAsync(cancellationToken);
 					await SyncDirectoryAsync(subDirPath, subDirState, subDirNode, flag, cacheDirState, cancellationToken);
 
 					dirState.LayerFlags |= flag;
@@ -721,7 +721,7 @@ namespace EpicGames.Horde.Storage
 			}
 		}
 
-		async Task ExtractDataAsync(HashedNodeRef<ChunkedDataNode> nodeRef, Stream outputStream, CancellationToken cancellationToken)
+		async Task ExtractDataAsync(ChunkedDataNodeRef nodeRef, Stream outputStream, CancellationToken cancellationToken)
 		{
 			BlobType blobType = await nodeRef.Handle.ReadTypeAsync(cancellationToken);
 			if (blobType.Guid == LeafChunkedDataNode.BlobType.Guid)
@@ -730,8 +730,8 @@ namespace EpicGames.Horde.Storage
 			}
 			else if (blobType.Guid == InteriorChunkedDataNode.BlobType.Guid)
 			{
-				InteriorChunkedDataNode interiorNode = (InteriorChunkedDataNode)await nodeRef.ExpandAsync(cancellationToken);
-				foreach (HashedNodeRef<ChunkedDataNode> childNodeRef in interiorNode.Children)
+				InteriorChunkedDataNode interiorNode = await nodeRef.Handle.ReadNodeAsync<InteriorChunkedDataNode>(cancellationToken);
+				foreach (ChunkedDataNodeRef childNodeRef in interiorNode.Children)
 				{
 					await ExtractDataAsync(childNodeRef, outputStream, cancellationToken);
 				}
@@ -742,7 +742,7 @@ namespace EpicGames.Horde.Storage
 			}
 		}
 
-		async Task ExtractLeafDataAsync(HashedNodeRef<ChunkedDataNode> nodeRef, Stream outputStream, CancellationToken cancellationToken)
+		async Task ExtractLeafDataAsync(ChunkedDataNodeRef nodeRef, Stream outputStream, CancellationToken cancellationToken)
 		{
 			// Try to copy cached data for this node
 			HashInfo? hashInfo;

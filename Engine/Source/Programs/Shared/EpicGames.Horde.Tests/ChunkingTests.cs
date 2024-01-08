@@ -106,7 +106,7 @@ namespace EpicGames.Horde.Tests
 				data[idx] = (byte)idx;
 			}
 
-			HashedNodeRef<ChunkedDataNode> handle;
+			ChunkedDataNodeRef handle;
 
 			const int NumIterations = 100;
 			{

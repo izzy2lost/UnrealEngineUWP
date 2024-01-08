@@ -1,5 +1,7 @@
 // Copyright Epic Games, Inc. All Rights Reserved.
 
+using System.Threading;
+using System.Threading.Tasks;
 using EpicGames.Core;
 
 namespace EpicGames.Horde.Storage.Nodes
@@ -7,58 +9,23 @@ namespace EpicGames.Horde.Storage.Nodes
 	/// <summary>
 	/// Reference to a directory node, including the target hash and length
 	/// </summary>
-	public class DirectoryNodeRef
+	/// <param name="Hash">Hash of the target node</param>
+	/// <param name="Length">Sum total of all the file lengths in this directory tree</param>
+	/// <param name="Handle">Handle to the target node</param>
+	public record class DirectoryNodeRef(IoHash Hash, long Length, IBlobHandle Handle)
 	{
-		/// <summary>
-		/// Length of this directory tree
-		/// </summary>
-		public long Length { get; }
-
-		/// <summary>
-		/// Target node
-		/// </summary>
-		public HashedNodeRef<DirectoryNode> Target { get; }
-
 		/// <summary>
 		/// Constructor
 		/// </summary>
 		public DirectoryNodeRef(long length, HashedNodeRef<DirectoryNode> target)
+			: this(target.Hash, length, target.Handle)
 		{
-			Length = length;
-			Target = target;
 		}
 
 		/// <summary>
-		/// Constructor
+		/// Get the target directory node
 		/// </summary>
-		public DirectoryNodeRef(IBlobReader reader)
-		{
-			Target = new HashedNodeRef<DirectoryNode>(reader);
-			Length = (long)reader.ReadUnsignedVarInt();
-		}
-
-		/// <summary>
-		/// Serialize this directory entry to disk
-		/// </summary>
-		/// <param name="writer"></param>
-		public virtual void Serialize(IBlobWriter writer)
-		{
-			writer.WriteHashedNodeRef(Target);
-			writer.WriteUnsignedVarInt((ulong)Length);
-		}
-	}
-
-	/// <summary>
-	/// Extension methods for <see cref="DirectoryNodeRef"/>
-	/// </summary>
-	public static class DirectoryNodeRefExtensions
-	{
-		/// <summary>
-		/// Serialize a directory node ref to a blob writer
-		/// </summary>
-		public static void WriteDirectoryNodeRef(this IBlobWriter writer, DirectoryNodeRef nodeRef)
-		{
-			nodeRef.Serialize(writer);
-		}
+		public ValueTask<DirectoryNode> ExpandAsync(CancellationToken cancellationToken = default)
+			=> Handle.ReadNodeAsync<DirectoryNode>(cancellationToken);
 	}
 }

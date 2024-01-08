@@ -95,7 +95,11 @@ namespace EpicGames.Horde.Storage.Nodes
 			CommitterId = reader.ReadOptionalString();
 			Message = reader.ReadString();
 			Time = reader.ReadDateTime();
-			Contents = new DirectoryNodeRef(reader);
+
+			IoHash hash = reader.ReadIoHash();
+			long length = (long)reader.ReadUnsignedVarInt();
+			Contents = new DirectoryNodeRef(hash, length, reader.ReadBlobReference());
+
 			Metadata = reader.ReadDictionary(() => reader.ReadGuidUnrealOrder(), () => reader.ReadHashedNodeRef());
 		}
 
@@ -110,7 +114,11 @@ namespace EpicGames.Horde.Storage.Nodes
 			writer.WriteOptionalString(CommitterId);
 			writer.WriteString(Message);
 			writer.WriteDateTime(Time);
-			writer.WriteDirectoryNodeRef(Contents);
+
+			writer.WriteIoHash(Contents.Hash);
+			writer.WriteUnsignedVarInt((ulong)Contents.Length);
+			writer.WriteBlobReference(Contents.Handle);
+
 			writer.WriteDictionary(Metadata, key => writer.WriteGuidUnrealOrder(key), value => writer.WriteHashedNodeRef(value));
 		}
 	}

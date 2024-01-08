@@ -73,7 +73,7 @@ namespace Horde.Commands.Vcs
 
 			DirectoryState newState = new DirectoryState();
 
-			DirectoryNode directoryNode = await directoryRef.Target.ExpandAsync();
+			DirectoryNode directoryNode = await directoryRef.ExpandAsync();
 			foreach ((string name, DirectoryEntry? subDirEntry, DirectoryState? subDirState) in EnumerableExtensions.Zip(directoryNode.NameToDirectory, directoryState?.Directories))
 			{
 				DirectoryReference subDirPath = DirectoryReference.Combine(dirPath, name.ToString());
@@ -110,7 +110,7 @@ namespace Horde.Commands.Vcs
 				}
 			}
 
-			newState.Hash = directoryRef.Target.Hash;
+			newState.Hash = directoryRef.Hash;
 			return newState;
 		}
 

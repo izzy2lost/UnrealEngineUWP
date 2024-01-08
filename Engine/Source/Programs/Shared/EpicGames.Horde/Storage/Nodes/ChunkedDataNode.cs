@@ -110,47 +110,16 @@ namespace EpicGames.Horde.Storage.Nodes
 	/// <summary>
 	/// Reference to a chunked data node
 	/// </summary>
-	public class ChunkedDataNodeRef : HashedNodeRef<ChunkedDataNode>
+	/// <param name="Hash">Hash of the target node</param>
+	/// <param name="Type">Type of the referenced node</param>
+	/// <param name="Handle">Handle to the target node</param>
+	public record class ChunkedDataNodeRef(IoHash Hash, ChunkedDataNodeType Type, IBlobHandle Handle)
 	{
 		/// <summary>
-		/// Type of the referenced node
+		/// Read the node which is the target of this ref
 		/// </summary>
-		public ChunkedDataNodeType Type { get; }
-
-		/// <summary>
-		/// Constructor
-		/// </summary>
-		public ChunkedDataNodeRef(IBlobReader reader)
-			: base(reader)
-		{
-			Type = (ChunkedDataNodeType)reader.ReadUnsignedVarInt();
-		}
-
-		/// <summary>
-		/// Constructor
-		/// </summary>
-		public ChunkedDataNodeRef(ChunkedDataNodeType type, IBlobReader reader)
-			: base(reader)
-		{
-			Type = type;
-		}
-
-		/// <summary>
-		/// Constructor
-		/// </summary>
-		public ChunkedDataNodeRef(ChunkedDataNodeType type, HashedNodeRef<ChunkedDataNode> target)
-			: base(target)
-		{
-			Type = type;
-		}
-
-		/// <inheritdoc/>
-		public override void Serialize(IBlobWriter writer)
-		{
-			base.Serialize(writer);
-
-			writer.WriteUnsignedVarInt((ulong)Type);
-		}
+		public ValueTask<ChunkedDataNode> ExpandAsync(CancellationToken cancellationToken = default)
+			=> Handle.ReadNodeAsync<ChunkedDataNode>(cancellationToken);
 	}
 
 	/// <summary>
@@ -301,7 +270,7 @@ namespace EpicGames.Horde.Storage.Nodes
 				}
 
 				HashedNodeRef<ChunkedDataNode> nodeRef = await writer.WriteHashedNodeRefAsync<ChunkedDataNode>(GetNodeType<LeafChunkedDataNode>(), nextLength, Array.Empty<IBlobHandle>(), cancellationToken);
-				leafNodeRefs.Add(new ChunkedDataNodeRef(ChunkedDataNodeType.Leaf, nodeRef));
+				leafNodeRefs.Add(new ChunkedDataNodeRef(nodeRef.Hash, ChunkedDataNodeType.Leaf, nodeRef.Handle));
 
 				readBuffer.Memory.Slice(nextLength, size - nextLength).CopyTo(readBuffer.Memory);
 				size -= nextLength;
@@ -417,14 +386,21 @@ namespace EpicGames.Horde.Storage.Nodes
 			List<ChunkedDataNodeRef> children = new List<ChunkedDataNodeRef>();
 			while (reader.GetMemory().Length > 0)
 			{
+				IoHash hash = reader.ReadIoHash();
+
+				ChunkedDataNodeType type;
 				if (reader.Version >= 2)
 				{
-					children.Add(new ChunkedDataNodeRef(reader));
+					type = (ChunkedDataNodeType)reader.ReadUnsignedVarInt();
 				}
 				else
 				{
-					children.Add(new ChunkedDataNodeRef(ChunkedDataNodeType.Unknown, reader.ReadHashedNodeRef<ChunkedDataNode>()));
+					type = ChunkedDataNodeType.Unknown;
 				}
+
+				IBlobHandle handle = reader.ReadBlobReference();
+
+				children.Add(new ChunkedDataNodeRef(hash, type, handle));
 			}
 			Children = children;
 		}
@@ -434,7 +410,9 @@ namespace EpicGames.Horde.Storage.Nodes
 		{
 			foreach (ChunkedDataNodeRef child in Children)
 			{
-				writer.WriteHashedNodeRef(child);
+				writer.WriteIoHash(child.Hash);
+				writer.WriteUnsignedVarInt((int)child.Type);
+				writer.WriteBlobReference(child.Handle);
 			}
 		}
 
@@ -474,7 +452,7 @@ namespace EpicGames.Horde.Storage.Nodes
 				foreach (InteriorChunkedDataNode interiorNode in interiorNodes)
 				{
 					HashedNodeRef<ChunkedDataNode> newNodeRef = await writer.WriteHashedNodeAsync<ChunkedDataNode>(interiorNode, cancellationToken);
-					handleBuffer.Add(new ChunkedDataNodeRef(ChunkedDataNodeType.Interior, newNodeRef));
+					handleBuffer.Add(new ChunkedDataNodeRef(newNodeRef.Hash, ChunkedDataNodeType.Interior, newNodeRef.Handle));
 				}
 
 				nodeRefs = handleBuffer;
@@ -520,7 +498,7 @@ namespace EpicGames.Horde.Storage.Nodes
 		/// <inheritdoc/>
 		public override async Task CopyToStreamAsync(Stream outputStream, CancellationToken cancellationToken)
 		{
-			foreach (HashedNodeRef<ChunkedDataNode> childNodeRef in Children)
+			foreach (ChunkedDataNodeRef childNodeRef in Children)
 			{
 				ChunkedDataNode childNode = await childNodeRef.ExpandAsync(cancellationToken);
 				await childNode.CopyToStreamAsync(outputStream, cancellationToken);

@@ -88,7 +88,7 @@ namespace UnrealBuildTool.Artifacts
 				string outputName = artifact.GetFullPath(ArtifactAction.DirectoryMapping);
 				using FileStream stream = new(outputName, FileMode.Open, FileAccess.Read, FileShare.Read);
 				ChunkedData chunkedData = await fileWriter.CreateAsync(stream, leafOptions.TargetSize, cancellationToken);
-				OutputRefs[index++] = new HashedNodeRef<ChunkedDataNode>(chunkedData.Root);
+				OutputRefs[index++] = new HashedNodeRef<ChunkedDataNode>(chunkedData.Root.Hash, chunkedData.Root.Handle);
 			}
 		}
 	}

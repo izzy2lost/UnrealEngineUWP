@@ -264,11 +264,11 @@ namespace EpicGames.Horde.Tests
 			Assert.AreEqual(1, root.Directories.Count);
 			Assert.AreEqual("hello", root.Directories.First().Name);
 
-			DirectoryNode hello = await root.Directories.First().Target.ExpandAsync(CancellationToken.None);
+			DirectoryNode hello = await root.Directories.First().ExpandAsync(CancellationToken.None);
 			Assert.AreEqual(1, hello.Directories.Count);
 			Assert.AreEqual("world", hello.Directories.First().Name);
 
-			DirectoryNode world = await hello.Directories.First().Target.ExpandAsync(CancellationToken.None);
+			DirectoryNode world = await hello.Directories.First().ExpandAsync(CancellationToken.None);
 			Assert.AreEqual(0, world.Directories.Count);
 		}
 
@@ -310,7 +310,7 @@ namespace EpicGames.Horde.Tests
 			Assert.AreEqual(1, root.Directories.Count);
 			Assert.AreEqual("hello", root.Directories.First().Name);
 
-			DirectoryNode hello = await root.Directories.First().Target.ExpandAsync();
+			DirectoryNode hello = await root.Directories.First().ExpandAsync();
 			Assert.AreEqual(0, hello.Directories.Count);
 			Assert.AreEqual(1, hello.Files.Count);
 			Assert.AreEqual("world", hello.Files.First().Name);
@@ -333,7 +333,7 @@ namespace EpicGames.Horde.Tests
 			new Random(0).NextBytes(chunk);
 
 			// Generate a tree
-			HashedNodeRef<ChunkedDataNode> nodeRef;
+			ChunkedDataNodeRef nodeRef;
 			{
 				await using IStorageWriter writer = store.CreateWriter(options: new BundleOptions { MaxBlobSize = 1024 });
 
@@ -449,7 +449,7 @@ namespace EpicGames.Horde.Tests
 				Assert.AreEqual(oldInteriorNode.Children.Count, newInteriorNode.Children.Count);
 
 				int index = 0;
-				foreach ((HashedNodeRef<ChunkedDataNode> oldFileRef, HashedNodeRef<ChunkedDataNode> newFileRef) in oldInteriorNode.Children.Zip(newInteriorNode.Children))
+				foreach ((ChunkedDataNodeRef oldFileRef, ChunkedDataNodeRef newFileRef) in oldInteriorNode.Children.Zip(newInteriorNode.Children))
 				{
 					ChunkedDataNode oldFile = await oldFileRef.ExpandAsync();
 					ChunkedDataNode newFile = await newFileRef.ExpandAsync();
@@ -489,7 +489,7 @@ namespace EpicGames.Horde.Tests
 			}
 			else if (fileNode is InteriorChunkedDataNode interiorFileNode)
 			{
-				foreach (HashedNodeRef<ChunkedDataNode> childRef in interiorFileNode.Children)
+				foreach (ChunkedDataNodeRef childRef in interiorFileNode.Children)
 				{
 					ChunkedDataNode child = await childRef.ExpandAsync();
 					offset += await CheckFileDataAsync(child, data.Slice(offset));

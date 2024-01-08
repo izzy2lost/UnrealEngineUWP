@@ -405,7 +405,7 @@ namespace Horde.Server.Storage
 						List<object> directories = new List<object>();
 						foreach ((string name, DirectoryEntry entry) in directoryNode.NameToDirectory)
 						{
-							directories.Add(new { name = name.ToString(), length = entry.Length, hash = entry.Target.Hash, link = GetNodeLink(linkBase, entry.Target.Handle) });
+							directories.Add(new { name = name.ToString(), length = entry.Length, hash = entry.Hash, link = GetNodeLink(linkBase, entry.Handle) });
 						}
 
 						List<object> files = new List<object>();

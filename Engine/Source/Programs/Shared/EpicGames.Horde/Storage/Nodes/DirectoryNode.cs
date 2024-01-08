@@ -196,15 +196,43 @@ namespace EpicGames.Horde.Storage.Nodes
 			int fileCount = (int)reader.ReadUnsignedVarInt();
 			for (int idx = 0; idx < fileCount; idx++)
 			{
-				FileEntry entry = new FileEntry(reader);
-				_nameToFileEntry[entry.Name] = entry;
+				IoHash hash = reader.ReadIoHash();
+
+				ChunkedDataNodeType type;
+				if (reader.Version >= 2)
+				{
+					type = (ChunkedDataNodeType)reader.ReadUnsignedVarInt();
+				}
+				else
+				{
+					type = ChunkedDataNodeType.Unknown;
+				}
+
+				ChunkedDataNodeRef target = new ChunkedDataNodeRef(hash, type, reader.ReadBlobReference());
+
+				string name = reader.ReadString();
+				FileEntryFlags flags = (FileEntryFlags)reader.ReadUnsignedVarInt();
+				long length = (long)reader.ReadUnsignedVarInt();
+				IoHash streamHash = reader.ReadIoHash();
+
+				ReadOnlyMemory<byte> customData = default;
+				if ((flags & FileEntryFlags.HasCustomData) != 0)
+				{
+					customData = reader.ReadVariableLengthBytes();
+					flags &= ~FileEntryFlags.HasCustomData;
+				}
+
+				_nameToFileEntry[name] = new FileEntry(name, flags, length, streamHash, target, customData);
 			}
 
 			int directoryCount = (int)reader.ReadUnsignedVarInt();
 			for (int idx = 0; idx < directoryCount; idx++)
 			{
-				DirectoryEntry entry = new DirectoryEntry(reader);
-				_nameToDirectoryEntry[entry.Name] = entry;
+				IoHash hash = reader.ReadIoHash();
+				long length = (long)reader.ReadUnsignedVarInt();
+				string name = reader.ReadString();
+
+				_nameToDirectoryEntry[name] = new DirectoryEntry(name, hash, length, reader.ReadBlobReference());
 			}
 		}
 
@@ -216,13 +244,30 @@ namespace EpicGames.Horde.Storage.Nodes
 			writer.WriteUnsignedVarInt(Files.Count);
 			foreach (FileEntry fileEntry in _nameToFileEntry.Values)
 			{
-				writer.WriteFileEntry(fileEntry);
+				writer.WriteIoHash(fileEntry.Target.Hash);
+				writer.WriteUnsignedVarInt((int)fileEntry.Target.Type);
+				writer.WriteBlobReference(fileEntry.Target.Handle);
+
+				FileEntryFlags flags = (fileEntry.CustomData.Length > 0) ? (fileEntry.Flags | FileEntryFlags.HasCustomData) : (fileEntry.Flags & ~FileEntryFlags.HasCustomData);
+
+				writer.WriteString(fileEntry.Name);
+				writer.WriteUnsignedVarInt((ulong)flags);
+				writer.WriteUnsignedVarInt((ulong)fileEntry.Length);
+				writer.WriteIoHash(fileEntry.StreamHash);
+
+				if ((flags & FileEntryFlags.HasCustomData) != 0)
+				{
+					writer.WriteVariableLengthBytes(fileEntry.CustomData.Span);
+				}
 			}
 
 			writer.WriteUnsignedVarInt(Directories.Count);
 			foreach (DirectoryEntry directoryEntry in _nameToDirectoryEntry.Values)
 			{
-				writer.WriteDirectoryEntry(directoryEntry);
+				writer.WriteIoHash(directoryEntry.Hash);
+				writer.WriteUnsignedVarInt((ulong)directoryEntry.Length);
+				writer.WriteString(directoryEntry.Name);
+				writer.WriteBlobReference(directoryEntry.Handle);
 			}
 		}
 
@@ -381,7 +426,7 @@ namespace EpicGames.Horde.Storage.Nodes
 					return null;
 				}
 
-				directoryNode = await directoryEntry.Target.ExpandAsync(cancellationToken);
+				directoryNode = await directoryEntry.ExpandAsync(cancellationToken);
 			}
 			return directoryNode;
 		}
@@ -470,7 +515,7 @@ namespace EpicGames.Horde.Storage.Nodes
 		{
 			if (TryGetDirectoryEntry(name, out DirectoryEntry? entry))
 			{
-				return await entry.Target.ExpandAsync(cancellationToken);
+				return await entry.ExpandAsync(cancellationToken);
 			}
 			else
 			{
@@ -679,7 +724,7 @@ namespace EpicGames.Horde.Storage.Nodes
 					childNode ??= new DirectoryNode();
 					await childNode.UpdateAsync(directory, writer, cancellationToken);
 					HashedNodeRef<DirectoryNode> nodeRef = await writer.WriteHashedNodeAsync(childNode, cancellationToken);
-					_nameToDirectoryEntry[name] = new DirectoryEntry(name, childNode.Length, nodeRef);
+					_nameToDirectoryEntry[name] = new DirectoryEntry(name, nodeRef.Hash, childNode.Length, nodeRef.Handle);
 				}
 			}
 			foreach ((string name, FileEntry? file) in update.Files)
@@ -813,7 +858,7 @@ namespace EpicGames.Horde.Storage.Nodes
 				if (windowOffset < directoryEntry.Length && windowOffset + windowLength >= 0)
 				{
 					DirectoryInfo subDirectoryInfo = directoryInfo.CreateSubdirectory(directoryEntry.Name.ToString());
-					DirectoryNode subDirectoryNode = await directoryEntry.Target.ExpandAsync(cancellationToken);
+					DirectoryNode subDirectoryNode = await directoryEntry.ExpandAsync(cancellationToken);
 					await subDirectoryNode.CopyToDirectoryInternalAsync(subDirectoryInfo, windowOffset, windowLength, copyStats, logger, cancellationToken);
 				}
 				windowOffset -= directoryEntry.Length;
@@ -910,7 +955,7 @@ namespace EpicGames.Horde.Storage.Nodes
 				}
 			}
 
-			FileEntry entry = new FileEntry(name, flags, length, chunkedData);
+			FileEntry entry = new FileEntry(name, flags, length, chunkedData.StreamHash, chunkedData.Root, default);
 			AddFile(path, entry);
 			return entry;
 		}
@@ -1083,7 +1128,7 @@ namespace EpicGames.Horde.Storage.Nodes
 				string directoryPath = $"{prefix}{directoryEntry.Name}/";
 				if (filter == null || filter.PossiblyMatches(directoryPath))
 				{
-					DirectoryNode node = await directoryEntry.Target.ExpandAsync(cancellationToken);
+					DirectoryNode node = await directoryEntry.ExpandAsync(cancellationToken);
 					await CopyFilesAsync(node, directoryPath, filter, archive, logger, cancellationToken);
 				}
 				numCopiedDirs++;

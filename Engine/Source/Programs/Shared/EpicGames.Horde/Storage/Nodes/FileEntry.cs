@@ -80,66 +80,27 @@ namespace EpicGames.Horde.Storage.Nodes
 		/// <summary>
 		/// Custom user data for this file entry
 		/// </summary>
-		public ReadOnlyMemory<byte> CustomData { get; set; } = ReadOnlyMemory<byte>.Empty;
+		public ReadOnlyMemory<byte> CustomData { get; set; }
 
 		/// <summary>
 		/// Constructor
 		/// </summary>
-		public FileEntry(string name, FileEntryFlags flags, long length, ChunkedData chunkedData)
+		public FileEntry(string name, FileEntryFlags flags, long length, ChunkedData chunkedData, ReadOnlyMemory<byte> customData = default)
+			: this(name, flags, length, chunkedData.StreamHash, chunkedData.Root, customData)
+		{
+		}
+
+		/// <summary>
+		/// Constructor
+		/// </summary>
+		public FileEntry(string name, FileEntryFlags flags, long length, IoHash streamHash, ChunkedDataNodeRef target, ReadOnlyMemory<byte> customData)
 		{
 			Name = name;
 			Flags = flags;
 			Length = length;
-			StreamHash = chunkedData.StreamHash;
-			Target = chunkedData.Root;
-		}
-
-		/// <summary>
-		/// Deserialize from a buffer
-		/// </summary>
-		/// <param name="reader"></param>
-		public FileEntry(IBlobReader reader)
-		{
-			if (reader.Version >= 2)
-			{
-				Target = new ChunkedDataNodeRef(reader);
-			}
-			else
-			{
-				Target = new ChunkedDataNodeRef(ChunkedDataNodeType.Unknown, reader);
-			}
-
-			Name = reader.ReadString();
-			Flags = (FileEntryFlags)reader.ReadUnsignedVarInt();
-			Length = (long)reader.ReadUnsignedVarInt();
-			StreamHash = reader.ReadIoHash();
-
-			if ((Flags & FileEntryFlags.HasCustomData) != 0)
-			{
-				CustomData = reader.ReadVariableLengthBytes();
-				Flags &= ~FileEntryFlags.HasCustomData;
-			}
-		}
-
-		/// <summary>
-		/// Serialize this entry
-		/// </summary>
-		/// <param name="writer"></param>
-		public void Serialize(IBlobWriter writer)
-		{
-			writer.WriteNodeRef(Target);
-
-			FileEntryFlags flags = (CustomData.Length > 0) ? (Flags | FileEntryFlags.HasCustomData) : (Flags & ~FileEntryFlags.HasCustomData);
-
-			writer.WriteString(Name);
-			writer.WriteUnsignedVarInt((ulong)flags);
-			writer.WriteUnsignedVarInt((ulong)Length);
-			writer.WriteIoHash(StreamHash);
-
-			if ((flags & FileEntryFlags.HasCustomData) != 0)
-			{
-				writer.WriteVariableLengthBytes(CustomData.Span);
-			}
+			StreamHash = streamHash;
+			Target = target;
+			CustomData = customData;
 		}
 
 		/// <summary>
@@ -190,20 +151,6 @@ namespace EpicGames.Horde.Storage.Nodes
 
 		/// <inheritdoc/>
 		public override string ToString() => Name.ToString();
-	}
-
-	/// <summary>
-	/// Extension methods for <see cref="FileEntry"/>
-	/// </summary>
-	public static class FileEntryExtensions
-	{
-		/// <summary>
-		/// Serialize a file entry to a writer
-		/// </summary>
-		public static void WriteFileEntry(this IBlobWriter writer, FileEntry entry)
-		{
-			entry.Serialize(writer);
-		}
 	}
 
 	/// <summary>

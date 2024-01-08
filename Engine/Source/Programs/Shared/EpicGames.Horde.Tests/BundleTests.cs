@@ -80,7 +80,7 @@ namespace EpicGames.Horde.Tests
 			using ChunkedDataWriter fileNodeWriter = new ChunkedDataWriter(writer, options);
 
 			ChunkedDataNode node;
-			HashedNodeRef<ChunkedDataNode> nodeRef;
+			ChunkedDataNodeRef nodeRef;
 			byte[] data = CreateBuffer(1024);
 
 			nodeRef = (await fileNodeWriter.CreateAsync(data.AsMemory(0, 7), CancellationToken.None)).Root;
@@ -127,7 +127,7 @@ namespace EpicGames.Horde.Tests
 			return output;
 		}
 
-		private static async Task TestBufferlessReadsAsync(HashedNodeRef<ChunkedDataNode> nodeRef, ReadOnlyMemory<byte> expected)
+		private static async Task TestBufferlessReadsAsync(ChunkedDataNodeRef nodeRef, ReadOnlyMemory<byte> expected)
 		{
 			using MemoryStream memoryStream = new MemoryStream();
 			await ChunkedDataNode.CopyToStreamAsync(nodeRef.Handle, memoryStream, default);
