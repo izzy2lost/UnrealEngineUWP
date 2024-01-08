@@ -3469,7 +3469,8 @@ void UNavigationSystemV1::UpdateActorAndComponentsInNavOctree(AActor& Actor, boo
 			{
 				for (AActor* AttachedActor : UniqueAttachedActors)
 				{
-					DataHandler.UpdateActorAndComponentsInNavOctree(Actor);
+					checkf(AttachedActor, TEXT("GetAllAttachedActors should only return unique, non-null ptrs."));
+					DataHandler.UpdateActorAndComponentsInNavOctree(*AttachedActor);
 				}
 			}
 		}
