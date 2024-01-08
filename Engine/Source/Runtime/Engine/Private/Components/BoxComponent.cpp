@@ -14,9 +14,9 @@
 
 UBoxComponent::UBoxComponent(const FObjectInitializer& ObjectInitializer)
 	: Super(ObjectInitializer)
-#if WITH_EDITOR
+#if !UE_BUILD_SHIPPING
 	, ShowFlags(ESFIM_All0)
-#endif // WITH_EDITOR
+#endif // !UE_BUILD_SHIPPING
 {
 	BoxExtent = FVector(32.0f, 32.0f, 32.0f);
 
