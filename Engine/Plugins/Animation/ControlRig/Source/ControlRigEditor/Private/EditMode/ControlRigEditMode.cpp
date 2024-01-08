@@ -1426,7 +1426,7 @@ bool FControlRigEditMode::HandleClick(FEditorViewportClient* InViewportClient, H
 						UAdditiveControlRig* AdditiveControlRig = Cast<UAdditiveControlRig>(ControlRig);
 						UFKControlRig* FKControlRig = Cast<UFKControlRig>(ControlRig);
 
-						if (AdditiveControlRig || FKControlRig)
+						if ((AdditiveControlRig || FKControlRig) && ControlRig->GetObjectBinding().IsValid())
 						{
 							if (USkeletalMeshComponent* RigMeshComp = Cast<USkeletalMeshComponent>(ControlRig->GetObjectBinding()->GetBoundObject()))
 							{
