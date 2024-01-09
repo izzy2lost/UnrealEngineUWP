@@ -5,6 +5,7 @@
 #include "Containers/Utf8String.h"
 #include "HAL/Platform.h"
 #include "HAL/PlatformMisc.h"
+#include "UObject/UnrealType.h"
 #include "VerseVM/Inline/VVMArrayBaseInline.h"
 #include "VerseVM/Inline/VVMClassInline.h"
 #include "VerseVM/Inline/VVMEqualInline.h"

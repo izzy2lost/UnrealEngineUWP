@@ -10,7 +10,6 @@ namespace Verse
 {
 
 DEFINE_DERIVED_VCPPCLASSINFO(VType);
-DEFINE_TRIVIAL_VISIT_REFERENCES(VType);
 
 VType::VType(FAllocationContext Context, VEmergentType* Type)
 	: VCell(Context, Type)

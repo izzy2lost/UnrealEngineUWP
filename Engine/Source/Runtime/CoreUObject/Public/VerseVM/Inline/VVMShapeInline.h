@@ -44,6 +44,8 @@ inline bool VShape::VEntry::operator==(const VShape::VEntry& Other) const
 	{
 		case EFieldType::Offset:
 			return Index == Other.Index;
+		case EFieldType::FProperty:
+			return Property == Other.Property;
 		case EFieldType::Constant:
 			return VValue::Equal(FRunningContextPromise(), Value.Get(), Other.Value.Get(),
 				[](VValue Left, VValue Right) {

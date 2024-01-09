@@ -24,6 +24,9 @@ protected:
 	COREUOBJECT_API explicit VType(FAllocationContext Context, VEmergentType* Type);
 };
 
+// Define the template function VType::VisitReferencesImpl here so it can be called by subclasses.
+DEFINE_TRIVIAL_VISIT_REFERENCES(VType);
+
 struct VTrivialType : VType
 {
 	DECLARE_DERIVED_VCPPCLASSINFO(COREUOBJECT_API, VType);

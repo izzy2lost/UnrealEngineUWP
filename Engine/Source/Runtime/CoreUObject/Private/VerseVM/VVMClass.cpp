@@ -4,6 +4,8 @@
 #include "VerseVM/VVMClass.h"
 #include "Async/ExternalMutex.h"
 #include "UObject/Class.h"
+#include "UObject/Package.h"
+#include "UObject/UObjectGlobals.h"
 #include "UObject/VerseValueProperty.h"
 #include "VerseVM/Inline/VVMAbstractVisitorInline.h"
 #include "VerseVM/Inline/VVMClassInline.h"

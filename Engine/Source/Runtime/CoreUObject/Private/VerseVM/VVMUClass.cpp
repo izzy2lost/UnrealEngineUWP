@@ -4,6 +4,7 @@
 
 #include "VerseVM/VVMUClass.h"
 #include "UObject/GarbageCollectionSchema.h"
+#include "UObject/Package.h"
 
 IMPLEMENT_CORE_INTRINSIC_CLASS(UVerseVMClass, UClass,
 	{

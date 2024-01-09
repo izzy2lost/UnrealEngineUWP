@@ -14,9 +14,10 @@ class UVerseVMClass;
 
 namespace Verse
 {
-struct VUniqueString;
+struct VObject;
 struct VProcedure;
 struct VPackage;
+struct VUniqueString;
 
 /// This provides a custom comparison that allows us to do pointer-based compares of each unique string set, rather than hash-based comparisons.
 struct FEmergentTypesCacheKeyFuncs : TDefaultMapKeyFuncs<TWriteBarrier<VUniqueStringSet>, TWriteBarrier<VEmergentType>, /*bInAllowDuplicateKeys*/ false>
