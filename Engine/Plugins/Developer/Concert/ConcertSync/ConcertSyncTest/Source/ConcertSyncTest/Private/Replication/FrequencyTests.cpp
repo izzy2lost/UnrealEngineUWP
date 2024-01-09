@@ -8,6 +8,8 @@
 #include "Misc/AutomationTest.h"
 #include "Tests/AutomationCommon.h"
 
+#if WITH_AUTOMATION_TESTS
+
 namespace UE::ConcertSyncTests::Replication::Frequency
 {
 	/** Makes the test object replicate at a frequency of 30 times per second. */
@@ -151,3 +153,5 @@ namespace UE::ConcertSyncTests::Replication::Frequency
 		return true;
 	}
 }
+
+#endif
