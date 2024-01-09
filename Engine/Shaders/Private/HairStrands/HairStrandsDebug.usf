@@ -960,7 +960,9 @@ uint HairVisibilityNodeGroupSize;
 uint AllocatedSampleCount;
 uint HairInstanceCount;
 
-Buffer<uint> HairInstanceIDs;
+Buffer<uint> HairInstanceDataBuffer;
+Buffer<int> InstanceAABBBuffer;
+
 Texture2D<float> HairCountTexture;
 Texture2D<uint> HairCountUintTexture;
 
@@ -1004,37 +1006,99 @@ void DrawInstanceAABB(uint PrimitiveId)
 	}
 }
 
+struct FData
+{
+	uint InstanceID;
+	uint RegisteredIndex;
+	uint GeometryType;
+	float4 InstanceScreenSphereBound;
+};
+
+FData LoadInstanceData(uint InIndex)
+{
+	const uint Index8 = InIndex*8;
+	FData Out;
+	Out.InstanceID					= HairInstanceDataBuffer[Index8+0];
+	Out.RegisteredIndex				= HairInstanceDataBuffer[Index8+1];
+	Out.GeometryType				= HairInstanceDataBuffer[Index8+2];
+
+	Out.InstanceScreenSphereBound.x	= asfloat(HairInstanceDataBuffer[Index8+4]);
+	Out.InstanceScreenSphereBound.y	= asfloat(HairInstanceDataBuffer[Index8+5]);
+	Out.InstanceScreenSphereBound.z	= asfloat(HairInstanceDataBuffer[Index8+6]);
+	Out.InstanceScreenSphereBound.w	= asfloat(HairInstanceDataBuffer[Index8+7]);
+	return Out;
+}
 [numthreads(1, 1, 1)]
 void MainCS(uint InGroupIndex : SV_GroupIndex, uint3 DispatchThreadId : SV_DispatchThreadID)
 {	
 	// Draw AABB of the instance groups
 	if (all(DispatchThreadId == 0))
 	{
-		// Macro groups bounds
+		// Draw bound & legends
 		{
-			for (uint GroupIndex =0;GroupIndex< HairMacroGroupCount; GroupIndex++)
-			{
-				FHairAABB Bound = ReadHairAABB(GroupIndex, HairMacroGroupAABBBuffer);
-				AddAABBTWS(Bound.Min, Bound.Max, GetGPUAABBMacroGroupBoundColor());
-			}
-		}
+			FShaderPrintContext CtxL = InitShaderPrintContext(true, uint2(900, 100));
+			bool bDrawGPUScene 					= false;
+			bool bDrawInstanceGroupScreen		= false;
+			bool bDrawHairInstances 			= false;
+			bool bDrawMacroBounds 				= false;
+			bool bDrawVoxelAlignedMacroBounds	= false;
 
-		// Voxel aligned macro groups bounds
-		{
-			for (uint GroupIndex = 0; GroupIndex < HairMacroGroupCount; GroupIndex++)
+			// Bounds legends
 			{
-				FHairAABB Bound = ReadHairAABB(GroupIndex, HairMacroGroupVoxelAlignedAABBBuffer);
-				AddAABBTWS(Bound.Min, Bound.Max, GetGPUAABBMacroGroupBoundVoxelAlignedColor());
+				bDrawGPUScene 				= AddCheckbox(CtxL, TEXT("Bound - GPU Scene"), 							true, FFontColor(GetGPUSceneBoundColor().xyz)); 						Newline(CtxL);
+				bDrawInstanceGroupScreen	= AddCheckbox(CtxL, TEXT("Bound - Instance Group Screen"), 				true, FFontColor(GetInstanceGroupScreenBoundColor().xyz)); 				Newline(CtxL);
+				bDrawHairInstances 			= AddCheckbox(CtxL, TEXT("Bound - AABB Instance Group"), 				true, FFontColor(GetGPUAABBInstanceGroupBoundColor().xyz)); 			Newline(CtxL);
+				bDrawMacroBounds 			= AddCheckbox(CtxL, TEXT("Bound - AABB Macro Group"), 					true, FFontColor(GetGPUAABBMacroGroupBoundColor().xyz)); 				Newline(CtxL);
+				bDrawVoxelAlignedMacroBounds= AddCheckbox(CtxL, TEXT("Bound - AABB Macro Group (voxel-aligned)"),	true, FFontColor(GetGPUAABBMacroGroupBoundVoxelAlignedColor().xyz)); 	Newline(CtxL);
 			}
-		}
 
-		// Hair instance bounds
-		for (uint HairInstanceIndex = 0; HairInstanceIndex < HairInstanceCount; HairInstanceIndex++)
-		{
-			const uint InstanceID = HairInstanceIDs[HairInstanceIndex];
-			if (InstanceID != ~0)
+			// Macro groups bounds
+			if (bDrawMacroBounds)
 			{
-				DrawInstanceAABB(InstanceID);
+				for (uint GroupIndex =0;GroupIndex< HairMacroGroupCount; GroupIndex++)
+				{
+					FHairAABB Bound = ReadHairAABB(GroupIndex, HairMacroGroupAABBBuffer);
+					AddAABBTWS(Bound.Min, Bound.Max, GetGPUAABBMacroGroupBoundColor());
+				}
+			}
+	
+			// Voxel aligned macro groups bounds
+			if (bDrawVoxelAlignedMacroBounds)
+			{
+				for (uint GroupIndex = 0; GroupIndex < HairMacroGroupCount; GroupIndex++)
+				{
+					FHairAABB Bound = ReadHairAABB(GroupIndex, HairMacroGroupVoxelAlignedAABBBuffer);
+					AddAABBTWS(Bound.Min, Bound.Max, GetGPUAABBMacroGroupBoundVoxelAlignedColor());
+				}
+			}
+	
+			// Hair instance
+			for (uint HairInstanceIndex = 0; HairInstanceIndex < HairInstanceCount; HairInstanceIndex++)
+			{
+				const FData InstanceData = LoadInstanceData(HairInstanceIndex);
+
+				// GPU scene bounds
+				if (bDrawGPUScene)
+				{
+					if (InstanceData.InstanceID != ~0)
+					{
+						DrawInstanceAABB(InstanceData.InstanceID);
+					}
+				}
+
+				// Instance AABB
+				if (bDrawHairInstances && InstanceData.GeometryType == 0/*Strands*/)
+				{
+					const FHairAABB AABB = ReadHairAABB(InstanceData.RegisteredIndex, InstanceAABBBuffer);
+					AddAABBTWS(AABB.Min, AABB.Max, GetGPUAABBInstanceGroupBoundColor());
+				}
+
+				// Screen AABB/size
+				if (bDrawInstanceGroupScreen && InstanceData.GeometryType == 0/*Strands*/)
+				{
+					FShaderPrintContext Context = InitShaderPrintContext(true, uint2(50, 50));
+					AddCircleSS(Context, InstanceData.InstanceScreenSphereBound.xy, InstanceData.InstanceScreenSphereBound.w, ColorGreen);
+				}
 			}
 		}
 
@@ -1381,7 +1445,6 @@ bool HasAttribute(FInstanceInfo In, uint InAttributeIt)
 
 [numthreads(1, 1, 1)]
 void MainCS(uint GroupIndex : SV_GroupIndex, uint3 DispatchThreadId : SV_DispatchThreadID)
-#if PERMUTATION_OUTPUT_TYPE == 0
 {
 	// Draw AABB of the instance groups
 	if (any(DispatchThreadId != 0))
@@ -1618,31 +1681,7 @@ void MainCS(uint GroupIndex : SV_GroupIndex, uint3 DispatchThreadId : SV_Dispatc
 			Newline(Context);
 		}
 	}
-
-	// Bounds legends
-	{
-		FShaderPrintContext CtxL = InitShaderPrintContext(true, uint2(900, 100));
-		Print(CtxL, TEXT("Bound - GPU Scene"), 							FFontColor(GetGPUSceneBoundColor().xyz)); Newline(CtxL);
-		Print(CtxL, TEXT("Bound - Instance Group Screen"), 				FFontColor(GetInstanceGroupScreenBoundColor().xyz)); Newline(CtxL);
-		Print(CtxL, TEXT("Bound - AABB Instance Group"), 				FFontColor(GetGPUAABBInstanceGroupBoundColor().xyz)); Newline(CtxL);
-		Print(CtxL, TEXT("Bound - AABB Macro Group"), 					FFontColor(GetGPUAABBMacroGroupBoundColor().xyz)); Newline(CtxL);
-		Print(CtxL, TEXT("Bound - AABB Macro Group (voxel-aligned)"),	FFontColor(GetGPUAABBMacroGroupBoundVoxelAlignedColor().xyz)); Newline(CtxL);
-	}
 }
-#else  // PERMUTATION_OUTPUT_TYPE
-{
-	if (all(DispatchThreadId == 0))
-	{
-		// Bound
-		const FHairAABB AABB = ReadHairAABB(InstanceRegisteredIndex, InstanceAABB);
-		AddAABBTWS(AABB.Min, AABB.Max, GetGPUAABBInstanceGroupBoundColor());
-
-		// Screen size
-		FShaderPrintContext Context = InitShaderPrintContext(true, uint2(50, 50));
-		AddCircleSS(Context, InstanceScreenSphereBound.xy, InstanceScreenSphereBound.w, ColorGreen);
-	}
-}
-#endif // PERMUTATION_OUTPUT_TYPE
 
 #endif // SHADER_PRINT_INSTANCE
 

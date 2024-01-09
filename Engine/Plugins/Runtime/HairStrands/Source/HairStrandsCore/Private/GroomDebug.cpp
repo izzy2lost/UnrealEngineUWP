@@ -705,8 +705,7 @@ class FHairDebugPrintInstanceCS : public FGlobalShader
 	DECLARE_GLOBAL_SHADER(FHairDebugPrintInstanceCS);
 	SHADER_USE_PARAMETER_STRUCT(FHairDebugPrintInstanceCS, FGlobalShader);
 
-	class FOutputType : SHADER_PERMUTATION_INT("PERMUTATION_OUTPUT_TYPE", 2);
-	using FPermutationDomain = TShaderPermutationDomain<FOutputType>;
+	using FPermutationDomain = TShaderPermutationDomain<>;
 
 	BEGIN_SHADER_PARAMETER_STRUCT(FParameters, )
 		SHADER_PARAMETER(uint32, InstanceCount)
@@ -933,7 +932,6 @@ static void AddHairDebugPrintInstancePass(
 		Parameters->Infos = GraphBuilder.CreateSRV(InfoBuffer, PF_R32_UINT);
 		ShaderPrint::SetParameters(GraphBuilder, *ShaderPrintData, Parameters->ShaderPrintUniformBuffer);
 		FHairDebugPrintInstanceCS::FPermutationDomain PermutationVector;
-		PermutationVector.Set<FHairDebugPrintInstanceCS::FOutputType>(0);
 		TShaderMapRef<FHairDebugPrintInstanceCS> ComputeShader(ShaderMap, PermutationVector);
 
 		ClearUnusedGraphResources(ComputeShader, Parameters);
@@ -944,36 +942,6 @@ static void AddHairDebugPrintInstancePass(
 			ComputeShader,
 			Parameters,
 			FIntVector(1, 1, 1));
-	}
-
-	// Draw instances bound (one pass for each instance, due to separate AABB resources)
-	FHairDebugPrintInstanceCS::FPermutationDomain PermutationVector;
-	PermutationVector.Set<FHairDebugPrintInstanceCS::FOutputType>(1);
-	TShaderMapRef<FHairDebugPrintInstanceCS> ComputeShader(ShaderMap, PermutationVector);
-	for (uint32 InstanceIndex = 0; InstanceIndex < InstanceCount; ++InstanceIndex)
-	{
-		const FHairStrandsInstance* AbstractInstance = Instances[InstanceIndex];
-		const FHairGroupInstance* Instance = static_cast<const FHairGroupInstance*>(AbstractInstance);
-
-		if (Instance->GeometryType == EHairGeometryType::Strands)
-		{
-			const float MaxRectSizeInPixels = FMath::Min(View.UnscaledViewRect.Height(), View.UnscaledViewRect.Width());
-			const float ContinousLODRadius = Instance->HairGroupPublicData->ContinuousLODScreenSize * MaxRectSizeInPixels * 0.5f; // Diameter->Radius
-
-			FHairDebugPrintInstanceCS::FParameters* Parameters = GraphBuilder.AllocParameters<FHairDebugPrintInstanceCS::FParameters>();
-			Parameters->InstanceRegisteredIndex = Instance->RegisteredIndex;
-			Parameters->InstanceAABB = TransientResources.GroupAABBSRV;
-			Parameters->InstanceScreenSphereBound = FVector4f(Instance->HairGroupPublicData->ContinuousLODScreenPos.X, Instance->HairGroupPublicData->ContinuousLODScreenPos.Y, 0.f, ContinousLODRadius);
-			ShaderPrint::SetParameters(GraphBuilder, *ShaderPrintData, Parameters->ShaderPrintUniformBuffer);
-			ClearUnusedGraphResources(ComputeShader, Parameters);
-
-			FComputeShaderUtils::AddPass(
-				GraphBuilder,
-				RDG_EVENT_NAME("HairStrands::DebugPrintInstance(Bound)", InstanceCount),
-				ComputeShader,
-				Parameters,
-				FIntVector(1, 1, 1));
-		}
 	}
 }
 

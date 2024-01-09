@@ -200,7 +200,8 @@ class FHairDebugPrintCS : public FGlobalShader
 		SHADER_PARAMETER(uint32, AllocatedSampleCount)
 		SHADER_PARAMETER(uint32, HairInstanceCount)
 		SHADER_PARAMETER(float, ResolutionScale)
-		SHADER_PARAMETER_RDG_BUFFER_SRV(Buffer<uint>, HairInstanceIDs)
+		SHADER_PARAMETER_RDG_BUFFER_SRV(Buffer<uint>, HairInstanceDataBuffer)
+		SHADER_PARAMETER_RDG_BUFFER_SRV(Buffer<int>, InstanceAABBBuffer)
 		SHADER_PARAMETER_RDG_TEXTURE(Texture2D, HairCountTexture)
 		SHADER_PARAMETER_RDG_TEXTURE(Texture2D, HairCountUintTexture)
 		SHADER_PARAMETER_RDG_BUFFER_SRV(Buffer<uint>, HairVisibilityIndirectArgsBuffer)
@@ -245,15 +246,24 @@ static void AddDebugHairPrintPass(
 		return;
 	}
 
-	if (!TryEnableShaderDrawAndShaderPrint(*View, MacroGroupResources.MacroGroupCount * 32u, 2000u))
+	if (!TryEnableShaderDrawAndShaderPrint(*View, MacroGroupResources.MacroGroupCount * 32u, 8192u))
 	{
 		return;
 	}
 
+	struct FData
+	{
+		uint32 PrimitiveID = ~0;
+		uint32 RegisteredIndex = ~0;
+		uint32 GeometryType = 0;
+		uint32 Pad0 = 0;
+		FVector4f InstanceScreenSphereBound = FVector4f::Zero();
+	};
+
 	// Build mapping Instance -> PrimitiveID to fetch primitive data (i.e., transform & co)
 	const uint32 MacroGroupCount = MacroGroupDatas.Num();
-	TArray<uint32> InstanceIDs;
-	InstanceIDs.Reserve(MacroGroupCount * 4u);
+	TArray<FData> InstanceDatas;
+	InstanceDatas.Reserve(MacroGroupCount * 4u);
 	for (uint32 MacroGroupIndex = 0; MacroGroupIndex < MacroGroupCount; ++MacroGroupIndex)
 	{
 		const FHairStrandsMacroGroupData& MacroGroup = MacroGroupDatas[MacroGroupIndex];
@@ -261,21 +271,30 @@ static void AddDebugHairPrintPass(
 		{
 			if (PrimitiveInfo.PrimitiveSceneProxy)
 			{
-				uint32 PrimitiveID = ~0u;
+				FData& InstanceData = InstanceDatas.AddDefaulted_GetRef();
+				InstanceData.PrimitiveID = ~0u;
 				if (const FPrimitiveSceneInfo* SceneInfo = PrimitiveInfo.PrimitiveSceneProxy->GetPrimitiveSceneInfo())
 				{
-					PrimitiveID = SceneInfo->GetIndex();
+					InstanceData.PrimitiveID = SceneInfo->GetIndex();
 				}
-				InstanceIDs.Add(PrimitiveID);
+
+				FHairStrandsInstance* Instance = PrimitiveInfo.PublicDataPtr->Instance;
+				check(Instance);
+
+				const float MaxRectSizeInPixels = FMath::Min(View->UnscaledViewRect.Height(), View->UnscaledViewRect.Width());
+				const float ContinousLODRadius = PrimitiveInfo.PublicDataPtr->ContinuousLODScreenSize * MaxRectSizeInPixels * 0.5f; // Diameter->Radius
+
+				InstanceData.GeometryType 				= Instance->GetHairGeometry();
+				InstanceData.RegisteredIndex			= Instance->RegisteredIndex;
+				InstanceData.InstanceScreenSphereBound 	= FVector4f(PrimitiveInfo.PublicDataPtr->ContinuousLODScreenPos.X, PrimitiveInfo.PublicDataPtr->ContinuousLODScreenPos.Y, 0.f, ContinousLODRadius);
 			}
 			else
 			{
-				InstanceIDs.Add(0u);
+				InstanceDatas.AddDefaulted();
 			}
 		}
 	}
-	FRDGBufferRef InstancesIDBuffer = CreateVertexBuffer(GraphBuilder, TEXT("Hair.Debug.InstanceIDs"), FRDGBufferDesc::CreateBufferDesc(4, InstanceIDs.Num()), InstanceIDs.GetData(), 4u * InstanceIDs.Num());
-
+	FRDGBufferRef InstanceDataBuffer = CreateVertexBuffer(GraphBuilder, TEXT("Hair.Debug.InstanceDatas"), FRDGBufferDesc::CreateBufferDesc(sizeof(FData), InstanceDatas.Num()), InstanceDatas.GetData(), sizeof(FData) * InstanceDatas.Num());
 
 	FRDGTextureRef ViewHairCountTexture = VisibilityData.ViewHairCountTexture ? VisibilityData.ViewHairCountTexture : GSystemTextures.GetBlackDummy(GraphBuilder);
 	FRDGTextureRef ViewHairCountUintTexture = VisibilityData.ViewHairCountUintTexture ? VisibilityData.ViewHairCountUintTexture : GSystemTextures.GetBlackDummy(GraphBuilder);
@@ -286,8 +305,9 @@ static void AddDebugHairPrintPass(
 	FHairDebugPrintCS::FParameters* Parameters = GraphBuilder.AllocParameters<FHairDebugPrintCS::FParameters>();
 	Parameters->ResolutionScale = float(View->ViewRect.Width()) / float(View->UnscaledViewRect.Width());
 	Parameters->Scene = View->GetSceneUniforms().GetBuffer(GraphBuilder);
-	Parameters->HairInstanceCount = InstanceIDs.Num();
-	Parameters->HairInstanceIDs = GraphBuilder.CreateSRV(InstancesIDBuffer, PF_R32_UINT);
+	Parameters->HairInstanceCount = InstanceDatas.Num();
+	Parameters->HairInstanceDataBuffer = GraphBuilder.CreateSRV(InstanceDataBuffer, PF_R32_UINT);
+	Parameters->InstanceAABBBuffer = Scene->HairStrandsSceneData.TransientResources->GroupAABBSRV;
 	Parameters->GroupSize = GetVendorOptimalGroupSize2D();
 	Parameters->ViewUniformBuffer = View->ViewUniformBuffer;
 	Parameters->MaxResolution = VisibilityData.CoverageTexture ? VisibilityData.CoverageTexture->Desc.Extent : FIntPoint(0,0);
