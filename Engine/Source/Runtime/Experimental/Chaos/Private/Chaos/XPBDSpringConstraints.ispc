@@ -32,18 +32,11 @@ export void ApplyXPBDSpringConstraints(uniform FVector4f PandInvM[],
 		const varying float Lambda = Lambdas[i];
 
 		varying float DLambda;
-		const varying FVector3f Delta = GetXPBDSpringDelta(P1, P2, InvM1, InvM2, Dt, Dist, Lambda, Stiffness, FLOAT_SMALL_NUMBER, DLambda);
+		const varying FVector3f Delta = GetXPBDSpringDelta(P1, P2, InvM1, InvM2, Dt, Dist, Lambda, Stiffness, DLambda);
 
 		Lambdas[i] = Lambda + DLambda;
-
-		if (InvM1 > FLOAT_ZERO)
-		{
-			VectorScatter(&PandInvM[i1], SetVector4( P1 + (InvM1 * Delta), InvM1 ));
-		}
-		if (InvM2 > FLOAT_ZERO)
-		{
-			VectorScatter(&PandInvM[i2], SetVector4( P2 - (InvM2 * Delta), InvM2 ));
-		}
+		VectorScatter(&PandInvM[i1], SetVector4( P1 + (InvM1 * Delta), InvM1 ));
+		VectorScatter(&PandInvM[i2], SetVector4( P2 - (InvM2 * Delta), InvM2 ));
 	}
 }
 
@@ -78,18 +71,11 @@ export void ApplyXPBDSpringConstraintsWithDamping(uniform FVector4f PandInvM[],
 		const varying float Lambda = Lambdas[i];
 
 		varying float DLambda;
-		const FVector3f Delta = GetXPBDSpringDeltaWithDamping(P1, P2, X1, X2, InvM1, InvM2, Dt, Dist, Lambda, Stiffness, DampingRatio, FLOAT_SMALL_NUMBER, DLambda);
+		const FVector3f Delta = GetXPBDSpringDeltaWithDamping(P1, P2, X1, X2, InvM1, InvM2, Dt, Dist, Lambda, Stiffness, DampingRatio, DLambda);
 
 		Lambdas[i] = Lambda + DLambda;
-
-		if (InvM1 > FLOAT_ZERO)
-		{
-			VectorScatter(&PandInvM[i1], SetVector4( P1 + (InvM1 * Delta), InvM1 ));
-		}
-		if (InvM2 > FLOAT_ZERO)
-		{
-			VectorScatter(&PandInvM[i2], SetVector4( P2 - (InvM2 * Delta), InvM2 ));
-		}
+		VectorScatter(&PandInvM[i1], SetVector4( P1 + (InvM1 * Delta), InvM1 ));
+		VectorScatter(&PandInvM[i2], SetVector4( P2 - (InvM2 * Delta), InvM2 ));
 	}
 }
 
@@ -124,18 +110,12 @@ export void ApplyXPBDSpringDampingConstraints(uniform FVector4f PandInvM[],
 		const varying float Lambda = Lambdas[i];
 
 		varying float DLambda;
-		const FVector3f Delta = GetXPBDSpringDampingDelta(P1, P2, X1, X2, InvM1, InvM2, Dt, Dist, Lambda, Stiffness, DampingRatio, FLOAT_SMALL_NUMBER, DLambda);
+		const FVector3f Delta = GetXPBDSpringDampingDelta(P1, P2, X1, X2, InvM1, InvM2, Dt, Dist, Lambda, Stiffness, DampingRatio, DLambda);
 
 		Lambdas[i] = Lambda + DLambda;
-
-		if (InvM1 > FLOAT_ZERO)
-		{
-			VectorScatter(&PandInvM[i1], SetVector4( P1 + (InvM1 * Delta), InvM1 ));
-		}
-		if (InvM2 > FLOAT_ZERO)
-		{
-			VectorScatter(&PandInvM[i2], SetVector4( P2 - (InvM2 * Delta), InvM2 ));
-		}
+		
+		VectorScatter(&PandInvM[i1], SetVector4( P1 + (InvM1 * Delta), InvM1 ));
+		VectorScatter(&PandInvM[i2], SetVector4( P2 - (InvM2 * Delta), InvM2 ));
 	}
 }
 
@@ -144,7 +124,6 @@ export void ApplyXPBDSpringConstraintsWithWeightMaps(uniform FVector4f PandInvM[
 									const uniform float Dists[],
 									uniform float Lambdas[],
 									const uniform float Dt,
-									const uniform float MinStiffness,
 									const uniform uint8 StiffnessIndices[],
 									const uniform float StiffnessTable[],
 									const uniform int32 NumConstraints)
@@ -173,18 +152,12 @@ export void ApplyXPBDSpringConstraintsWithWeightMaps(uniform FVector4f PandInvM[
 		const varying float Stiffness = StiffnessTable[StiffnessIndex];
 
 		varying float DLambda;
-		const varying FVector3f Delta = GetXPBDSpringDelta(P1, P2, InvM1, InvM2, Dt, Dist, Lambda, Stiffness, MinStiffness, DLambda);
+		const varying FVector3f Delta = GetXPBDSpringDelta(P1, P2, InvM1, InvM2, Dt, Dist, Lambda, Stiffness, DLambda);
 
 		Lambdas[i] = Lambda + DLambda;
-
-		if (InvM1 > FLOAT_ZERO)
-		{
-			VectorScatter(&PandInvM[i1], SetVector4( P1 + (InvM1 * Delta), InvM1 ));
-		}
-		if (InvM2 > FLOAT_ZERO)
-		{
-			VectorScatter(&PandInvM[i2], SetVector4( P2 + (InvM2 * Delta), InvM2 ));
-		}
+		
+		VectorScatter(&PandInvM[i1], SetVector4( P1 + (InvM1 * Delta), InvM1 ));
+		VectorScatter(&PandInvM[i2], SetVector4( P2 + (InvM2 * Delta), InvM2 ));
 	}
 }
 
@@ -194,7 +167,6 @@ export void ApplyXPBDSpringConstraintsWithDampingAndWeightMaps(uniform FVector4f
 															const uniform float Dists[],
 															uniform float Lambdas[],
 															const uniform float Dt,
-															const uniform float MinStiffness,
 															const uniform bool StiffnessHasMap,
 															const uniform uint8 StiffnessIndices[],
 															const uniform float StiffnessTable[],
@@ -232,18 +204,12 @@ export void ApplyXPBDSpringConstraintsWithDampingAndWeightMaps(uniform FVector4f
 		const varying float DampingRatio = DampingTable[DampingIndex];
 
 		varying float DLambda;
-		const FVector3f Delta = GetXPBDSpringDeltaWithDamping(P1, P2, X1, X2, InvM1, InvM2, Dt, Dist, Lambda, Stiffness, DampingRatio, MinStiffness, DLambda);
+		const FVector3f Delta = GetXPBDSpringDeltaWithDamping(P1, P2, X1, X2, InvM1, InvM2, Dt, Dist, Lambda, Stiffness, DampingRatio, DLambda);
 
 		Lambdas[i] = Lambda + DLambda;
-
-		if (InvM1 > FLOAT_ZERO)
-		{
-			VectorScatter(&PandInvM[i1], SetVector4( P1 + (InvM1 * Delta), InvM1 ));
-		}
-		if (InvM2 > FLOAT_ZERO)
-		{
-			VectorScatter(&PandInvM[i2], SetVector4( P2 - (InvM2 * Delta), InvM2 ));
-		}
+		
+		VectorScatter(&PandInvM[i1], SetVector4( P1 + (InvM1 * Delta), InvM1 ));
+		VectorScatter(&PandInvM[i2], SetVector4( P2 - (InvM2 * Delta), InvM2 ));
 	}
 }
 
@@ -253,7 +219,6 @@ export void ApplyXPBDSpringDampingConstraintsWithWeightMaps(uniform FVector4f Pa
 															const uniform float Dists[],
 															uniform float Lambdas[],
 															const uniform float Dt,
-															const uniform float MinStiffness,
 															const uniform bool StiffnessHasMap,
 															const uniform uint8 StiffnessIndices[],
 															const uniform float StiffnessTable[],
@@ -291,17 +256,11 @@ export void ApplyXPBDSpringDampingConstraintsWithWeightMaps(uniform FVector4f Pa
 		const varying float DampingRatio = DampingTable[DampingIndex];
 
 		varying float DLambda;
-		const FVector3f Delta = GetXPBDSpringDampingDelta(P1, P2, X1, X2, InvM1, InvM2, Dt, Dist, Lambda, Stiffness, DampingRatio, MinStiffness, DLambda);
+		const FVector3f Delta = GetXPBDSpringDampingDelta(P1, P2, X1, X2, InvM1, InvM2, Dt, Dist, Lambda, Stiffness, DampingRatio, DLambda);
 
 		Lambdas[i] = Lambda + DLambda;
-
-		if (InvM1 > FLOAT_ZERO)
-		{
-			VectorScatter(&PandInvM[i1], SetVector4( P1 + (InvM1 * Delta), InvM1 ));
-		}
-		if (InvM2 > FLOAT_ZERO)
-		{
-			VectorScatter(&PandInvM[i2], SetVector4( P2 - (InvM2 * Delta), InvM2 ));
-		}
+		
+		VectorScatter(&PandInvM[i1], SetVector4( P1 + (InvM1 * Delta), InvM1 ));
+		VectorScatter(&PandInvM[i2], SetVector4( P2 - (InvM2 * Delta), InvM2 ));
 	}
 }

@@ -92,35 +92,29 @@ void FXPBDSpringConstraints::ApplyHelper(SolverParticlesOrRange& Particles, cons
 	if constexpr (bDampingBefore)
 	{
 		Delta += Spring::GetXPBDSpringDampingDelta(Particles, Dt, Constraint, Dists[ConstraintIndex], LambdasDamping[ConstraintIndex],
-			ExpStiffnessValue, MinStiffness, DampingRatioValue);
+			ExpStiffnessValue, DampingRatioValue);
 	}
 
 	if constexpr (bSingleLambda)
 	{
 		Delta += Spring::GetXPBDSpringDeltaWithDamping(Particles, Dt, Constraint, Dists[ConstraintIndex], Lambdas[ConstraintIndex],
-			ExpStiffnessValue, MinStiffness, DampingRatioValue);
+			ExpStiffnessValue, DampingRatioValue);
 	}
 
 	if constexpr (bSeparateStretch)
 	{
 		Delta += Spring::GetXPBDSpringDelta(Particles, Dt, Constraint, Dists[ConstraintIndex], Lambdas[ConstraintIndex],
-			ExpStiffnessValue, MinStiffness);
+			ExpStiffnessValue);
 	}
 
 	if constexpr (bDampingAfter)
 	{
 		Delta += Spring::GetXPBDSpringDampingDelta(Particles, Dt, Constraint, Dists[ConstraintIndex], LambdasDamping[ConstraintIndex],
-			ExpStiffnessValue, MinStiffness, DampingRatioValue);
+			ExpStiffnessValue, DampingRatioValue);
 	}
-
-	if (Particles.InvM(Index1) > (FSolverReal)0.)
-	{
-		Particles.P(Index1) += Particles.InvM(Index1) * Delta;
-	}
-	if (Particles.InvM(Index2) > (FSolverReal)0.)
-	{
-		Particles.P(Index2) -= Particles.InvM(Index2) * Delta;
-	}
+	
+	Particles.P(Index1) += Particles.InvM(Index1) * Delta;
+	Particles.P(Index2) -= Particles.InvM(Index2) * Delta;
 }
 
 template<typename SolverParticlesOrRange>
@@ -220,7 +214,6 @@ void FXPBDSpringConstraints::Apply(SolverParticlesOrRange& Particles, const FSol
 								&Dists.GetData()[ColorStart],
 								&Lambdas.GetData()[ColorStart],
 								Dt,
-								MinStiffness,
 								StiffnessHasWeightMap,
 								StiffnessHasWeightMap ? &Stiffness.GetIndices().GetData()[ColorStart] : nullptr,
 								&Stiffness.GetTable().GetData()[0],
@@ -244,7 +237,6 @@ void FXPBDSpringConstraints::Apply(SolverParticlesOrRange& Particles, const FSol
 								&Dists.GetData()[ColorStart],
 								&LambdasDamping.GetData()[ColorStart],
 								Dt,
-								MinStiffness,
 								StiffnessHasWeightMap,
 								StiffnessHasWeightMap ? &Stiffness.GetIndices().GetData()[ColorStart] : nullptr,
 								&Stiffness.GetTable().GetData()[0],
@@ -265,7 +257,6 @@ void FXPBDSpringConstraints::Apply(SolverParticlesOrRange& Particles, const FSol
 						&Dists.GetData()[ColorStart],
 						&Lambdas.GetData()[ColorStart],
 						Dt,
-						MinStiffness,
 						&Stiffness.GetIndices().GetData()[ColorStart],
 						&Stiffness.GetTable().GetData()[0],
 						ColorSize);

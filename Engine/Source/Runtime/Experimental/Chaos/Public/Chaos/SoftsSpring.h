@@ -12,15 +12,10 @@ namespace Spring
 template<typename SolverParticlesOrRange>
 FSolverVec3 GetXPBDSpringDelta(const SolverParticlesOrRange& Particles, const FSolverReal Dt,
 	const TVec2<int32>& Constraint, const FSolverReal RestLength, FSolverReal& Lambda,
-	const FSolverReal StiffnessValue, const FSolverReal MinStiffness)
+	const FSolverReal StiffnessValue)
 {
 	const int32 Index1 = Constraint[0];
 	const int32 Index2 = Constraint[1];
-
-	if (StiffnessValue < MinStiffness || (Particles.InvM(Index2) == (FSolverReal)0. && Particles.InvM(Index1) == (FSolverReal)0.))
-	{
-		return FSolverVec3((FSolverReal)0.);
-	}
 
 	const FSolverReal CombinedInvMass = Particles.InvM(Index2) + Particles.InvM(Index1);
 
@@ -43,16 +38,13 @@ FSolverVec3 GetXPBDSpringDelta(const SolverParticlesOrRange& Particles, const FS
 template<typename SolverParticlesOrRange>
 FSolverVec3 GetXPBDSpringDeltaWithDamping(const SolverParticlesOrRange& Particles, const FSolverReal Dt,
 	const TVec2<int32>& Constraint, const FSolverReal RestLength, FSolverReal& Lambda,
-	const FSolverReal StiffnessValue, const FSolverReal MinStiffness, const FSolverReal DampingRatioValue)
+	const FSolverReal StiffnessValue, const FSolverReal DampingRatioValue)
 {
 	const int32 Index1 = Constraint[0];
 	const int32 Index2 = Constraint[1];
 
 	const FSolverReal CombinedInvMass = Particles.InvM(Index2) + Particles.InvM(Index1);
-	if (StiffnessValue < MinStiffness || CombinedInvMass < UE_SMALL_NUMBER)
-	{
-		return FSolverVec3((FSolverReal)0.);
-	}
+	check(CombinedInvMass > (FSolverReal)0);
 
 	const FSolverReal Damping = DampingRatioValue * 2.f * FMath::Sqrt(StiffnessValue / CombinedInvMass) * (RestLength > UE_SMALL_NUMBER ? (FSolverReal)1. / RestLength : (FSolverReal)1.);
 
@@ -81,15 +73,12 @@ FSolverVec3 GetXPBDSpringDeltaWithDamping(const SolverParticlesOrRange& Particle
 template<typename SolverParticlesOrRange>
 FSolverVec3 GetXPBDSpringDampingDelta(const SolverParticlesOrRange& Particles, const FSolverReal Dt,
 	const TVec2<int32>& Constraint, const FSolverReal RestLength, FSolverReal& Lambda,
-	const FSolverReal StiffnessValue, const FSolverReal MinStiffness, const FSolverReal DampingRatioValue)
+	const FSolverReal StiffnessValue, const FSolverReal DampingRatioValue)
 {
 	const int32 Index1 = Constraint[0];
 	const int32 Index2 = Constraint[1];
 	const FSolverReal CombinedInvMass = Particles.InvM(Index2) + Particles.InvM(Index1);
-	if (StiffnessValue < MinStiffness || CombinedInvMass < UE_SMALL_NUMBER)
-	{
-		return FSolverVec3((FSolverReal)0.);
-	}
+	check(CombinedInvMass > (FSolverReal)0);
 
 	const FSolverReal Damping = DampingRatioValue * 2.f * FMath::Sqrt(StiffnessValue / CombinedInvMass) * (RestLength > UE_SMALL_NUMBER ? (FSolverReal)1. / RestLength : (FSolverReal)1.);
 
@@ -112,19 +101,15 @@ FSolverVec3 GetXPBDSpringDampingDelta(const SolverParticlesOrRange& Particles, c
 template<typename SolverParticlesOrRange>
 FSolverVec3 GetXPBDAxialSpringDelta(const SolverParticlesOrRange& Particles, const FSolverReal Dt,
 	const TVec3<int32>& Constraint, const FSolverReal Bary, const FSolverReal RestLength, FSolverReal& Lambda,
-	const FSolverReal StiffnessValue, const FSolverReal MinStiffness)
+	const FSolverReal StiffnessValue)
 {
 	const int32 Index1 = Constraint[0];
 	const int32 Index2 = Constraint[1];
 	const int32 Index3 = Constraint[2];
 
 	const FSolverReal PInvMass = Particles.InvM(Index3) * ((FSolverReal)1. - Bary) + Particles.InvM(Index2) * Bary;
-	if (StiffnessValue < MinStiffness || (Particles.InvM(Index2) == (FSolverReal)0. && PInvMass == (FSolverReal)0.))
-	{
-		return FSolverVec3((FSolverReal)0.);
-	}
-
 	const FSolverReal CombinedInvMass = PInvMass + Particles.InvM(Index1);
+	check(CombinedInvMass > (FSolverReal)0);
 
 	const FSolverVec3& P1 = Particles.P(Index1);
 	const FSolverVec3& P2 = Particles.P(Index2);
@@ -147,7 +132,7 @@ FSolverVec3 GetXPBDAxialSpringDelta(const SolverParticlesOrRange& Particles, con
 template<typename SolverParticlesOrRange>
 FSolverVec3 GetXPBDAxialSpringDeltaWithDamping(const SolverParticlesOrRange& Particles, const FSolverReal Dt,
 	const TVec3<int32>& Constraint, const FSolverReal Bary, const FSolverReal RestLength, FSolverReal& Lambda,
-	const FSolverReal StiffnessValue, const FSolverReal MinStiffness, const FSolverReal DampingRatioValue)
+	const FSolverReal StiffnessValue, const FSolverReal DampingRatioValue)
 {
 	const int32 Index1 = Constraint[0];
 	const int32 Index2 = Constraint[1];
@@ -155,10 +140,7 @@ FSolverVec3 GetXPBDAxialSpringDeltaWithDamping(const SolverParticlesOrRange& Par
 
 	const FSolverReal PInvMass = Particles.InvM(Index3) * ((FSolverReal)1. - Bary) + Particles.InvM(Index2) * Bary;
 	const FSolverReal CombinedInvMass = PInvMass + Particles.InvM(Index1);
-	if (StiffnessValue < MinStiffness || CombinedInvMass < UE_SMALL_NUMBER)
-	{
-		return FSolverVec3((FSolverReal)0.);
-	}
+	check(CombinedInvMass > (FSolverReal)0);
 
 	const FSolverReal Damping = DampingRatioValue * 2.f * FMath::Sqrt(StiffnessValue / CombinedInvMass) * (RestLength > UE_SMALL_NUMBER ? (FSolverReal)1. / RestLength : (FSolverReal)1.);
 
@@ -191,7 +173,7 @@ FSolverVec3 GetXPBDAxialSpringDeltaWithDamping(const SolverParticlesOrRange& Par
 template<typename SolverParticlesOrRange>
 FSolverVec3 GetXPBDAxialSpringDampingDelta(const SolverParticlesOrRange& Particles, const FSolverReal Dt,
 	const TVec3<int32>& Constraint, const FSolverReal Bary, const FSolverReal RestLength, FSolverReal& Lambda,
-	const FSolverReal StiffnessValue, const FSolverReal MinStiffness, const FSolverReal DampingRatioValue)
+	const FSolverReal StiffnessValue, const FSolverReal DampingRatioValue)
 {
 	const int32 Index1 = Constraint[0];
 	const int32 Index2 = Constraint[1];
@@ -199,10 +181,7 @@ FSolverVec3 GetXPBDAxialSpringDampingDelta(const SolverParticlesOrRange& Particl
 
 	const FSolverReal PInvMass = Particles.InvM(Index3) * ((FSolverReal)1. - Bary) + Particles.InvM(Index2) * Bary;
 	const FSolverReal CombinedInvMass = PInvMass + Particles.InvM(Index1);
-	if (StiffnessValue < MinStiffness || CombinedInvMass < UE_SMALL_NUMBER)
-	{
-		return FSolverVec3((FSolverReal)0.);
-	}
+	check(CombinedInvMass > (FSolverReal)0);
 
 	const FSolverReal Damping = DampingRatioValue * 2.f * FMath::Sqrt(StiffnessValue / CombinedInvMass) * (RestLength > UE_SMALL_NUMBER ? (FSolverReal)1. / RestLength : (FSolverReal)1.);
 
@@ -235,7 +214,7 @@ inline void UpdateSpringLinearSystem(const FSolverParticlesRange& Particles, con
 	const int32 Index1 = Constraint[0];
 	const int32 Index2 = Constraint[1];
 
-	if (StiffnessValue < MinStiffness || (Particles.InvM(Index2) == (FSolverReal)0. && Particles.InvM(Index1) == (FSolverReal)0.))
+	if (StiffnessValue <= MinStiffness || (Particles.InvM(Index2) == (FSolverReal)0. && Particles.InvM(Index1) == (FSolverReal)0.))
 	{
 		return;
 	}
