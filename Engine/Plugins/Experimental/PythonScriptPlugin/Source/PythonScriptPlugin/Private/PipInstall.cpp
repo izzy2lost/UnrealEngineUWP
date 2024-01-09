@@ -20,7 +20,7 @@
 
 // In order to keep editor startup time fast, check directly for this utils version (make sure to match with wheel version in PythonScriptPlugin/Content/Python/Lib/wheels)
 // NOTE: This version must also be changed in PipInstallMode.cs in order to support UBT functionality
-const FString FPipInstall::PipInstallUtilsVer = TEXT("0.1.3");
+const FString FPipInstall::PipInstallUtilsVer = TEXT("0.1.4");
 
 const FString FPipInstall::PluginsListingFilename = TEXT("pyreqs_plugins.list");
 const FString FPipInstall::PluginsSitePackageFilename = TEXT("plugin_site_package.pth");
@@ -186,7 +186,8 @@ bool FPipInstall::HasInstallLines(const TArray<FString>& RequirementLines)
 {
 	for (const FStringView Line : RequirementLines)
 	{
-		if (!Line.TrimStart().StartsWith(TCHAR('#')))
+		bool bCommentLine = Line.TrimStart().StartsWith(TCHAR('#'));
+		if (!bCommentLine && !Line.Contains(TEXT("# [pkg:check]")))
 		{
 			return true;
 		}

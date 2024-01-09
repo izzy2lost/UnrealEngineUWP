@@ -166,7 +166,7 @@ namespace UnrealBuildTool.Modes
 	{
 		// Don't bother to re-install pip install tools if this version is already installed
 		// NOTE: This version must also be changed in PipInstall.cpp in order to support editor startup process
-		private const string PipInstallUtilsVer = "0.1.3";
+		private const string PipInstallUtilsVer = "0.1.4";
 
 		// Generated from enabled plugins list
 		private const string PluginsListingFilename = "pyreqs_plugins.list";
