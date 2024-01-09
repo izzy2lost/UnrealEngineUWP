@@ -292,6 +292,11 @@ void FHairCardsVertexFactory::GetPSOPrecacheVertexFetchElements(EVertexInputStre
 	Elements.Add(FVertexElement(0, 0, VET_UInt, 13, 0, true));
 }
 
+EPrimitiveIdMode FHairCardsVertexFactory::GetPrimitiveIdMode(ERHIFeatureLevel::Type In) const
+{
+	return In > ERHIFeatureLevel::ES3_1 ? PrimID_DynamicPrimitiveShaderData : PrimID_ForceZero;
+}
+
 void FHairCardsVertexFactory::SetData(const FDataType& InData)
 {
 	Data = InData;
@@ -333,7 +338,13 @@ void FHairCardsVertexFactory::InitResources(FRHICommandListBase& RHICmdList)
 	// in case if we switch feature level at runtime.
 	FVertexDeclarationElementList Elements;
 	SetPrimitiveIdStreamIndex(CurrentFeatureLevel, EVertexInputStreamType::Default, -1);
-	AddPrimitiveIdStreamElement(EVertexInputStreamType::Default, Elements, 13, 0xff);
+
+	// Sanity check - When using mobile feature level, ensure we don't use primitive data as we set the PrimitiveIdStream to 0xFF for mobile
+	if (CurrentFeatureLevel <= ERHIFeatureLevel::ES3_1)
+	{
+		check(GetPrimitiveIdMode(CurrentFeatureLevel) == PrimID_ForceZero);
+	}
+	AddPrimitiveIdStreamElement(EVertexInputStreamType::Default, Elements, 13 /*AttributeIndex*/, 0xff /*AttributeIndex_Mobile*/);
 
 	// Note this is a local version of the VF's bSupportsManualVertexFetch, which take into account the feature level
 	const bool bManualFetch = SupportsManualVertexFetch(CurrentFeatureLevel);

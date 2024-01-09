@@ -262,6 +262,11 @@ void FHairStrandsVertexFactory::GetPSOPrecacheVertexFetchElements(EVertexInputSt
 #endif
 }
 
+EPrimitiveIdMode FHairStrandsVertexFactory::GetPrimitiveIdMode(ERHIFeatureLevel::Type In) const
+{
+	return PrimID_ForceZero;
+}
+
 IMPLEMENT_VERTEX_FACTORY_PARAMETER_TYPE(FHairStrandsVertexFactory, SF_Vertex,		FHairStrandsVertexFactoryShaderParameters);
 IMPLEMENT_VERTEX_FACTORY_PARAMETER_TYPE(FHairStrandsVertexFactory, SF_Pixel,		FHairStrandsVertexFactoryShaderParameters);
 IMPLEMENT_VERTEX_FACTORY_PARAMETER_TYPE(FHairStrandsVertexFactory, SF_Compute,		FHairStrandsVertexFactoryShaderParameters);

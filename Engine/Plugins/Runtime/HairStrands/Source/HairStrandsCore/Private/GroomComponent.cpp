@@ -864,12 +864,14 @@ public:
 		const FVertexFactory* VertexFactory = nullptr;
 		FIndexBuffer* IndexBuffer = nullptr;
 		const FMaterialRenderProxy* MaterialRenderProxy = Debug_MaterialProxy;
+		const ERHIFeatureLevel::Type FeatureLevel = View->GetFeatureLevel();
 
 		uint32 NumPrimitive = 0;
 		uint32 HairVertexCount = 0;
 		uint32 MaxVertexIndex = 0;
 		bool bUseCulling = false;
 		bool bWireframe = false;
+		EPrimitiveIdMode PrimitiveIdMode = PrimID_Num;
 		if (GeometryType == EHairGeometryType::Meshes)
 		{
 			if (!Instance->Meshes.IsValid(IntLODIndex))
@@ -878,6 +880,7 @@ public:
 			}
 			VertexFactory = (FVertexFactory*)Instance->Meshes.LODs[IntLODIndex].GetVertexFactory();
 			check(VertexFactory);
+			PrimitiveIdMode = Instance->Meshes.LODs[IntLODIndex].GetVertexFactory()->GetPrimitiveIdMode(FeatureLevel);
 			HairVertexCount = Instance->Meshes.LODs[IntLODIndex].RestResource->GetPrimitiveCount() * 3;
 			MaxVertexIndex = HairVertexCount;
 			NumPrimitive = HairVertexCount / 3;
@@ -898,6 +901,7 @@ public:
 
 			VertexFactory = (FVertexFactory*)Instance->Cards.LODs[IntLODIndex].GetVertexFactory();
 			check(VertexFactory);
+			PrimitiveIdMode = Instance->Meshes.LODs[IntLODIndex].GetVertexFactory()->GetPrimitiveIdMode(FeatureLevel);
 			HairVertexCount = Instance->Cards.LODs[IntLODIndex].RestResource->GetPrimitiveCount() * 3;
 			MaxVertexIndex = HairVertexCount;
 			NumPrimitive = HairVertexCount / 3;
@@ -912,6 +916,7 @@ public:
 		else // if (GeometryType == EHairGeometryType::Strands)
 		{
 			VertexFactory = (FVertexFactory*)Instance->Strands.VertexFactory;
+			PrimitiveIdMode = Instance->Strands.VertexFactory->GetPrimitiveIdMode(FeatureLevel);
 			HairVertexCount = Instance->HairGroupPublicData->GetActiveStrandsPointCount();
 			MaxVertexIndex = HairVertexCount * HAIR_POINT_TO_VERTEX;
 			bUseCulling = Instance->Strands.bCullingEnable;
@@ -1007,7 +1012,7 @@ public:
 		//primtiveid is set to 0
 		BatchElement.FirstIndex = 0;
 		BatchElement.NumInstances = 1;
-		BatchElement.PrimitiveIdMode = GeometryType == EHairGeometryType::Strands ? PrimID_ForceZero : PrimID_DynamicPrimitiveShaderData;
+		BatchElement.PrimitiveIdMode = PrimitiveIdMode;
 		if (bUseCulling)
 		{
 			BatchElement.NumPrimitives = 0;
