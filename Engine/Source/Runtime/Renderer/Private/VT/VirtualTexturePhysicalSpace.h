@@ -10,9 +10,9 @@
 #include "VirtualTextureShared.h"
 #include "VirtualTexturing.h"
 
+/** Description that determines a unique physical space. This is filled out by a producer. */
 struct FVTPhysicalSpaceDescription
 {
-	uint32 PoolSettingsHash;
 	uint32 TileSize;
 	uint8 Dimensions;
 	uint8 NumLayers;
@@ -23,8 +23,7 @@ struct FVTPhysicalSpaceDescription
 
 inline bool operator==(const FVTPhysicalSpaceDescription& Lhs, const FVTPhysicalSpaceDescription& Rhs)
 {
-	if (Lhs.PoolSettingsHash != Rhs.PoolSettingsHash ||
-		Lhs.TileSize != Rhs.TileSize ||
+	if (Lhs.TileSize != Rhs.TileSize ||
 		Lhs.NumLayers != Rhs.NumLayers || 
 		Lhs.Dimensions != Rhs.Dimensions || 
 		Lhs.bContinuousUpdate != Rhs.bContinuousUpdate)
@@ -53,8 +52,7 @@ inline bool operator!=(const FVTPhysicalSpaceDescription& Lhs, const FVTPhysical
 
 inline uint32 GetTypeHash(const FVTPhysicalSpaceDescription& Desc)
 {
-	uint32 Hash = Desc.PoolSettingsHash;
-	Hash = HashCombine(Hash, GetTypeHash(Desc.TileSize));
+	uint32 Hash = Desc.TileSize;
 	Hash = HashCombine(Hash, GetTypeHash(Desc.Dimensions));
 	Hash = HashCombine(Hash, GetTypeHash(Desc.NumLayers));
 	Hash = HashCombine(Hash, GetTypeHash(Desc.bContinuousUpdate));
@@ -66,24 +64,40 @@ inline uint32 GetTypeHash(const FVTPhysicalSpaceDescription& Desc)
 	return Hash;
 }
 
+/** Additional part of the description for a unique physical space that is derived from the virtual texture pool config. */
+struct FVTPhysicalSpaceDescriptionExt
+{
+	int32 TileWidthHeight = 0;
+	int32 PoolCount = 1;
+	bool bEnableResidencyMipMapBias = false;
+};
+
+inline bool operator==(const FVTPhysicalSpaceDescriptionExt& Lhs, const FVTPhysicalSpaceDescriptionExt& Rhs)
+{
+	return Lhs.TileWidthHeight == Rhs.TileWidthHeight && Lhs.PoolCount == Rhs.PoolCount && Lhs.bEnableResidencyMipMapBias == Rhs.bEnableResidencyMipMapBias;
+}
+
+/** Virtual texture physical space that contains the physical texture and the page pool that tracks residency. */
 class FVirtualTexturePhysicalSpace final : public FRenderResource
 {
 public:
-	FVirtualTexturePhysicalSpace(const FVTPhysicalSpaceDescription& InDesc, uint16 InID, int32 InTileWidthHeight, bool bInEnableResidencyMipMapBias);
+	FVirtualTexturePhysicalSpace(uint16 InID, const FVTPhysicalSpaceDescription& InDesc, FVTPhysicalSpaceDescriptionExt& InDescExt);
 	virtual ~FVirtualTexturePhysicalSpace();
 
 	inline const FVTPhysicalSpaceDescription& GetDescription() const { return Description; }
+	inline const FVTPhysicalSpaceDescriptionExt& GetDescriptionExt() const { return DescriptionExt; }
 	inline const FString& GetFormatString() const { return FormatString; }
 	inline EPixelFormat GetFormat(int32 Layer) const { return Description.Format[Layer]; }
 	inline uint16 GetID() const { return ID; }
-	inline uint32 GetNumTiles() const { return TextureSizeInTiles * TextureSizeInTiles; }
-	inline uint32 GetSizeInTiles() const { return TextureSizeInTiles; }
-	inline uint32 GetTextureSize() const { return TextureSizeInTiles * Description.TileSize; }
-	inline FIntVector GetPhysicalLocation(uint16 pAddress) const { return FIntVector(pAddress % TextureSizeInTiles, pAddress / TextureSizeInTiles, 0); }
+	inline uint32 GetSizeInTiles() const { return DescriptionExt.TileWidthHeight; }
+	inline uint32 GetNumTiles() const { return GetSizeInTiles() * GetSizeInTiles(); }
+	inline uint32 GetTextureSize() const { return GetSizeInTiles() * Description.TileSize; }
+	inline FIntVector GetPhysicalLocation(uint16 pAddress) const { return FIntVector(pAddress % GetSizeInTiles(), pAddress / GetSizeInTiles(), 0); }
 
 	// 16bit page tables allocate 6bits to address TileX/Y, so can only address tiles from 0-63
-	inline bool DoesSupport16BitPageTable() const { return TextureSizeInTiles <= 64u; }
+	inline bool DoesSupport16BitPageTable() const { return GetSizeInTiles() <= 64u; }
 
+	uint32 GetTileSizeInBytes() const;
 	uint32 GetSizeInBytes() const;
 
 	inline const FTexturePagePool& GetPagePool() const { return Pool; }
@@ -129,17 +143,16 @@ public:
 
 private:
 	FVTPhysicalSpaceDescription Description;
+	FVTPhysicalSpaceDescriptionExt DescriptionExt;
 	FString FormatString;
 	FTexturePagePool Pool;
 	TRefCountPtr<IPooledRenderTarget> PooledRenderTarget[VIRTUALTEXTURE_SPACE_MAXLAYERS];
 	FShaderResourceViewRHIRef TextureSRV[VIRTUALTEXTURE_SPACE_MAXLAYERS];
 	FShaderResourceViewRHIRef TextureSRV_SRGB[VIRTUALTEXTURE_SPACE_MAXLAYERS];
 
-	uint32 TextureSizeInTiles;
-	uint32 NumRefs;
 	uint16 ID;
+	uint32 NumRefs;
 	
-	bool bEnableResidencyMipMapBias;
 	float ResidencyMipMapBias;
 	uint32 LastFrameOversubscribed;
 

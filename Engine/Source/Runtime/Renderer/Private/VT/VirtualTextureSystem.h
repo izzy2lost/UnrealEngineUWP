@@ -227,6 +227,7 @@ private:
 	void GetContinuousUpdatesToProduce(FUniqueRequestList const* RequestList, int32 MaxTilesToProduce, int32 MaxContinuousUpdates);
 
 	void UpdateResidencyTracking() const;
+	void GrowPhysicalPools() const;
 
 #if WITH_EDITOR
 	void RecordPageRequests(FUniquePageList const* UniquePageList, TSet<uint64>& OutPages);

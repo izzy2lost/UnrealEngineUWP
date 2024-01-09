@@ -53,12 +53,11 @@ static TAutoConsoleVariable<float> CVarVTResidencyAdjustmentRate(
 	ECVF_RenderThreadSafe);
 
 
-FVirtualTexturePhysicalSpace::FVirtualTexturePhysicalSpace(const FVTPhysicalSpaceDescription& InDesc, uint16 InID, int32 InTileWidthHeight, bool bInEnableResidencyMipMapBias)
+FVirtualTexturePhysicalSpace::FVirtualTexturePhysicalSpace(uint16 InID, const FVTPhysicalSpaceDescription& InDesc, FVTPhysicalSpaceDescriptionExt& InDescExt)
 	: Description(InDesc)
-	, TextureSizeInTiles(InTileWidthHeight)
-	, NumRefs(0u)
+	, DescriptionExt(InDescExt)
 	, ID(InID)
-	, bEnableResidencyMipMapBias(bInEnableResidencyMipMapBias)
+	, NumRefs(0u)
 	, ResidencyMipMapBias(0.0f)
 	, LastFrameOversubscribed(0)
 #if !UE_BUILD_SHIPPING
@@ -186,14 +185,26 @@ void FVirtualTexturePhysicalSpace::FinalizeTextures(FRDGBuilder& GraphBuilder)
 	}
 }
 
-uint32 FVirtualTexturePhysicalSpace::GetSizeInBytes() const
+uint32 FVirtualTexturePhysicalSpace::GetTileSizeInBytes() const
 {
 	SIZE_T TileSizeBytes = 0;
 	for (int32 Layer = 0; Layer < Description.NumLayers; ++Layer)
 	{
 		TileSizeBytes += CalculateImageBytes(Description.TileSize, Description.TileSize, 0, Description.Format[Layer]);
 	}
-	return GetNumTiles() * TileSizeBytes;
+	return TileSizeBytes;
+
+}
+
+uint32 FVirtualTexturePhysicalSpace::GetSizeInBytes() const
+{
+	SIZE_T TextureSizeBytes = 0;
+	const uint32 TextureSize = GetTextureSize();
+	for (int32 Layer = 0; Layer < Description.NumLayers; ++Layer)
+	{
+		TextureSizeBytes += CalculateImageBytes(TextureSize, TextureSize, 0, Description.Format[Layer]);
+	}
+	return TextureSizeBytes;
 }
 
 void FVirtualTexturePhysicalSpace::UpdateResidencyTracking(uint32 Frame)
@@ -229,7 +240,7 @@ void FVirtualTexturePhysicalSpace::UpdateResidencyTracking(uint32 Frame)
 
 	ResidencyMipMapBias = FMath::Clamp(ResidencyMipMapBias, 0.f, MaxMipMapBias);
 
-	if (!bEnableResidencyMipMapBias || LockedPageResidency > LockedUpperBound)
+	if (!DescriptionExt.bEnableResidencyMipMapBias || LockedPageResidency > LockedUpperBound)
 	{
 		ResidencyMipMapBias = 0.f;
 	}
