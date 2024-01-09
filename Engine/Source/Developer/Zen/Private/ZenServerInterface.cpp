@@ -1797,7 +1797,16 @@ FZenServiceInstance::~FZenServiceInstance()
 {
 }
 
-bool 
+const FString FZenServiceInstance::GetPath() const
+{
+	if (Settings.IsAutoLaunch())
+	{
+		return Settings.SettingsVariant.Get<FServiceAutoLaunchSettings>().DataPath;
+	}
+	return GetURL();
+}
+
+bool
 FZenServiceInstance::IsServiceRunning()
 {
 	return !Settings.IsAutoLaunch() || bHasLaunchedLocal;
