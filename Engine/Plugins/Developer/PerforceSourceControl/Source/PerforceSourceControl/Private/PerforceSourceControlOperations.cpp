@@ -2022,11 +2022,6 @@ bool FPerforceUpdateStatusWorker::UpdateStates() const
 		using namespace TypedElementQueryBuilder;
 		using DSI = ITypedElementDataStorageInterface;
 
-		if (!State.IsSourceControlled())
-		{
-			return;
-		}
-
 		DSI* DataStorage = UTypedElementRegistry::GetInstance()->GetMutableDataStorage();
 		if (!DataStorage)
 		{
@@ -2053,6 +2048,11 @@ bool FPerforceUpdateStatusWorker::UpdateStates() const
 
 		TypedElementRowHandle Row = GetRevisionControlRow(State.GetFilename());
 
+		if (!State.IsSourceControlled())
+		{
+			return;
+		}
+		
 		DataStorage->AddOrGetColumn<FSCCRevisionIdColumn>(Row)->RevisionId.Id[0] = State.LocalRevNumber;
 		DataStorage->AddOrGetColumn<FSCCExternalRevisionIdColumn>(Row)->RevisionId.Id[0] = State.DepotRevNumber;
 

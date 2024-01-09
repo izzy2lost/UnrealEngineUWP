@@ -23,7 +23,7 @@ static void ResolvePackageReference(ITypedElementDataStorageInterface::IQueryCon
 	LoadedPathColumn.LoadedPath = Package->GetLoadedPath();
 				
 	Context.AddColumn(PackageRow, MoveTemp(PathColumn));
-	Context.AddColumn(PackageRow, MoveTemp(LoadedPathColumn));	
+	Context.AddColumn(PackageRow, MoveTemp(LoadedPathColumn));
 };
 
 void UTypedElementUObjectPackagePathFactory::RegisterQueries(ITypedElementDataStorageInterface& DataStorage) const
@@ -46,7 +46,8 @@ void UTypedElementUObjectPackagePathFactory::RegisterQueries(ITypedElementDataSt
 					if (FString PackageFilename; FPackageName::TryConvertLongPackageNameToFilename(Path, PackageFilename))
 					{
 						FPaths::NormalizeFilename(PackageFilename);
-						TypedElementDataStorage::IndexHash Index = TypedElementDataStorage::GenerateIndexHash(FPaths::ConvertRelativePathToFull(PackageFilename));
+						FString FullPackageFilename = FPaths::ConvertRelativePathToFull(PackageFilename);
+						TypedElementDataStorage::IndexHash Index = TypedElementDataStorage::GenerateIndexHash(FullPackageFilename);
 						TypedElementRowHandle PackageRow = Context.FindIndexedRow(Index);
 						if (Context.IsRowAvailable(PackageRow))
 						{
@@ -57,6 +58,7 @@ void UTypedElementUObjectPackagePathFactory::RegisterQueries(ITypedElementDataSt
 						{
 							FTypedElementPackageUnresolvedReference UnresolvedPackageReference;
                             UnresolvedPackageReference.Index = Index;
+							UnresolvedPackageReference.PathOnDisk = MoveTemp(FullPackageFilename);
                             Context.AddColumn(Row, MoveTemp(UnresolvedPackageReference));
 						}
 					}
@@ -69,7 +71,7 @@ void UTypedElementUObjectPackagePathFactory::RegisterQueries(ITypedElementDataSt
 	DataStorage.RegisterQuery(
 		Select(
 			TEXT("Resolve package references"),
-			FProcessor(DSI::EQueryTickPhase::DuringPhysics, DataStorage.GetQueryTickGroupName(DSI::EQueryTickGroups::SyncExternalToDataStorage)),
+			FProcessor(DSI::EQueryTickPhase::FrameEnd, DataStorage.GetQueryTickGroupName(DSI::EQueryTickGroups::SyncExternalToDataStorage)),
 			[](DSI::IQueryContext& Context, TypedElementRowHandle Row, const FTypedElementUObjectColumn& Object, const FTypedElementPackageUnresolvedReference& UnresolvedPackageReference)
 			{
 				TypedElementRowHandle PackageRow = Context.FindIndexedRow(UnresolvedPackageReference.Index);

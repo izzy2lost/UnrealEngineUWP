@@ -1,7 +1,9 @@
-﻿// Copyright Epic Games, Inc. All Rights Reserved.
+// Copyright Epic Games, Inc. All Rights Reserved.
 
-#include "TypedElementSCCProcessors.h"
+#include "RevisionControlProcessors.h"
 
+#include "ISourceControlModule.h"
+#include "SourceControlFileStatusMonitor.h"
 #include "HAL/IConsoleManager.h"
 
 #include "Elements/Columns/TypedElementMiscColumns.h"
@@ -11,6 +13,13 @@
 #include "Elements/Columns/TypedElementViewportColumns.h"
 #include "Elements/Framework/TypedElementQueryBuilder.h"
 #include "Elements/Framework/TypedElementRegistry.h"
+
+static bool bAutoPopulateRevisionControlState = false;
+static FAutoConsoleVariableRef CVarAutoPopulateState(
+	TEXT("TEDS.RevisionControl.AutoPopulateState"),
+	bAutoPopulateRevisionControlState,
+	TEXT("Automatically query revision control provider and fill information into TEDS")
+);
 
 FAutoConsoleCommandWithArgsAndOutputDevice SetSelectionSCCStateConsoleCommand(
 	TEXT("TEDS.Debug.SetSCCState"),
@@ -72,7 +81,7 @@ FAutoConsoleCommandWithArgsAndOutputDevice SetSelectionSCCStateConsoleCommand(
 		}
 	));
 
-void UTypedElementSCCFactory::RegisterTables(ITypedElementDataStorageInterface& DataStorage) const
+void UTypedElementRevisionControlFactory::RegisterTables(ITypedElementDataStorageInterface& DataStorage) const
 {
 	DataStorage.RegisterTable(
 		TTypedElementColumnTypeList<
@@ -81,7 +90,7 @@ void UTypedElementSCCFactory::RegisterTables(ITypedElementDataStorageInterface& 
 		FName("Editor_RevisionControlTable"));
 }
 
-void UTypedElementSCCFactory::RegisterQueries(ITypedElementDataStorageInterface& DataStorage) const
+void UTypedElementRevisionControlFactory::RegisterQueries(ITypedElementDataStorageInterface& DataStorage) const
 {
 	using namespace TypedElementQueryBuilder;
 	using DSI = ITypedElementDataStorageInterface;
@@ -100,6 +109,64 @@ void UTypedElementSCCFactory::RegisterQueries(ITypedElementDataStorageInterface&
 		)
 		.Where()
 			.All<FTypedElementSyncFromWorldTag>()
+		.Compile()
+	);
+
+	CVarAutoPopulateState->AsVariable()->SetOnChangedCallback(
+		FConsoleVariableDelegate::CreateLambda([this, &DataStorage](IConsoleVariable* AutoPopulate)
+		{
+			if (AutoPopulate->GetBool())
+			{
+				RegisterFetchUpdates(DataStorage);
+			}
+			else
+			{
+				DataStorage.UnregisterQuery(FetchUpdates);
+			}
+		})
+	); 
+	
+	if (bAutoPopulateRevisionControlState)
+	{
+		RegisterFetchUpdates(DataStorage);
+	}
+}
+
+void UTypedElementRevisionControlFactory::RegisterFetchUpdates(ITypedElementDataStorageInterface& DataStorage) const
+{
+	using namespace TypedElementQueryBuilder;
+	using DSI = ITypedElementDataStorageInterface;
+	
+	FSourceControlFileStatusMonitor& FileStatusMonitor = ISourceControlModule::Get().GetSourceControlFileStatusMonitor();
+
+	FetchUpdates = DataStorage.RegisterQuery(
+		Select(
+			TEXT("Gather source control statuses for objects with unresolved package paths"),
+			FProcessor(DSI::EQueryTickPhase::DuringPhysics, DataStorage.GetQueryTickGroupName(DSI::EQueryTickGroups::SyncExternalToDataStorage))
+				.ForceToGameThread(true),
+			[this, &FileStatusMonitor](DSI::IQueryContext& Context, const FTypedElementPackageUnresolvedReference* InUnresolvedReferences)
+			{
+				TConstArrayView<TypedElementDataStorage::RowHandle> RowHandles = Context.GetRowHandles();
+				TConstArrayView<FTypedElementPackageUnresolvedReference, int64> UnresolvedReferences { InUnresolvedReferences, Context.GetRowCount() };
+
+				for (int64 UnresolvedReferenceIndex = 0; UnresolvedReferenceIndex < UnresolvedReferences.Num(); ++UnresolvedReferenceIndex)
+				{
+					const FTypedElementPackageUnresolvedReference& UnresolvedReference = UnresolvedReferences[UnresolvedReferenceIndex];
+					if (UnresolvedReference.Index == 0)
+					{
+						Context.RemoveColumns<FTypedElementPackageUnresolvedReference>(RowHandles[UnresolvedReferenceIndex]);
+						return;
+					}
+					static FSourceControlFileStatusMonitor::FOnSourceControlFileStatus EmptyDelegate{};
+					
+					FileStatusMonitor.StartMonitoringFile(
+						reinterpret_cast<uintptr_t>(this),
+						UnresolvedReference.PathOnDisk,
+						EmptyDelegate
+					);
+				}
+			}
+		)
 		.Compile()
 	);
 }

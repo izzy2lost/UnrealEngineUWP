@@ -18,6 +18,8 @@ struct FTypedElementPackageUnresolvedReference final : public FTypedElementDataS
 {
 	GENERATED_BODY()
 
+	FString PathOnDisk;
+	
 	TypedElementDataStorage::IndexHash Index;
 };
 
