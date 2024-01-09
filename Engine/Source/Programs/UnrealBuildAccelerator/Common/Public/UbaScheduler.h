@@ -17,7 +17,7 @@ namespace uba
 	class Scheduler
 	{
 	public:
-		Scheduler(SessionServer& session, u32 maxLocalProcessors = 0, bool enableProcessReuse = false);
+		Scheduler(SessionServer& session, u32 maxLocalProcessors = ~0u, bool enableProcessReuse = false);
 		~Scheduler();
 
 		void Start();

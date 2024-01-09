@@ -111,7 +111,7 @@ extern "C"
 
 
 	// Scheduler
-	UBA_API uba::Scheduler* Scheduler_Create(uba::SessionServer* session, uba::u32 maxLocalProcessors = 0, bool enableProcessReuse = false);
+	UBA_API uba::Scheduler* Scheduler_Create(uba::SessionServer* session, uba::u32 maxLocalProcessors = ~0u, bool enableProcessReuse = false);
 	UBA_API void Scheduler_Start(uba::Scheduler* scheduler);
 	UBA_API void Scheduler_EnqueueProcess(uba::Scheduler* scheduler, const uba::ProcessStartInfo& info, float weight = 1.0f, const void* knownInputs = nullptr, uba::u32 knownInputsBytes = 0, uba::u32 knownInputsCount = 0);
 	UBA_API void Scheduler_Stop(uba::Scheduler* scheduler);

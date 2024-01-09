@@ -39,7 +39,7 @@ namespace uba
 
 	Scheduler::Scheduler(SessionServer& session, u32 maxLocalProcessors, bool enableProcessReuse)
 	:	m_session(session)
-	,	m_maxLocalProcessors(maxLocalProcessors ? maxLocalProcessors : GetLogicalProcessorCount())
+	,	m_maxLocalProcessors(maxLocalProcessors != ~0u ? maxLocalProcessors : GetLogicalProcessorCount())
 	,	m_updateThreadLoop(false)
 	,	m_enableProcessReuse(enableProcessReuse)
 	{
