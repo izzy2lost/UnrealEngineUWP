@@ -12,7 +12,7 @@ namespace Chaos::Softs
 
 // Stiffness is in kg cm /s^2
 UE_DEPRECATED(5.2, "Use FXPBDSpringConstraints::MinStiffness instead.")
-static const FSolverReal XPBDSpringMinStiffness = (FSolverReal)0; // We're not checking against MinStiffness (except when it's constant and == 0)
+static const FSolverReal XPBDSpringMinStiffness = (FSolverReal)UE_SMALL_NUMBER; // Stiffness below this will be considered 0 
 UE_DEPRECATED(5.2, "Use FXPBDSpringConstraints::MaxStiffness instead.")
 static const FSolverReal XPBDSpringMaxStiffness = (FSolverReal)1e9;
 
@@ -21,7 +21,7 @@ class FXPBDSpringConstraints : public FPBDSpringConstraintsBase
 	typedef FPBDSpringConstraintsBase Base;
 
 public:
-	static constexpr FSolverReal MinStiffness = (FSolverReal)0; // We're not checking against MinStiffness (except when it's constant and == 0)
+	static constexpr FSolverReal MinStiffness = (FSolverReal)UE_SMALL_NUMBER; // Stiffness below this will be considered 0 
 	static constexpr FSolverReal MaxStiffness = (FSolverReal)1e9;
 	static constexpr FSolverReal MinDampingRatio = (FSolverReal)0.;
 	static constexpr FSolverReal MaxDampingRatio = (FSolverReal)1000.;
@@ -43,7 +43,7 @@ public:
 			InConstraints,
 			StiffnessMultipliers,
 			InStiffness,
-			true /*bTrimKinematicConstraints*/,
+			bTrimKinematicConstraints,
 			MaxStiffness)
 		, DampingRatio(FSolverVec2::ZeroVector)
 	{
@@ -58,41 +58,14 @@ public:
 		const TConstArrayView<FRealSingle>& StiffnessMultipliers,
 		const TConstArrayView<FRealSingle>& DampingMultipliers,
 		const FSolverVec2& InStiffness,
-		const FSolverVec2& InDampingRatio)
-		: Base(
-			Particles,
-			InConstraints,
-			StiffnessMultipliers,
-			InStiffness,
-			true /*bTrimKinematicConstraints*/,
-			MaxStiffness)
-		, DampingRatio(
-			InDampingRatio.ClampAxes(MinDampingRatio, MaxDampingRatio),
-			DampingMultipliers,
-			TConstArrayView<TVec2<int32>>(Constraints),
-			ParticleOffset,
-			ParticleCount)
-	{
-		Lambdas.Init((FSolverReal)0., Constraints.Num());
-		InitColor(Particles);
-	}
-
-	template<int32 Valence, TEMPLATE_REQUIRES(Valence >= 2 && Valence <= 4)>
-	UE_DEPRECATED(5.4, "XPBD Constraints must always trim kinematic constraints")
-	FXPBDSpringConstraints(
-		const FSolverParticlesRange& Particles,
-		const TArray<TVector<int32, Valence>>& InConstraints,
-		const TConstArrayView<FRealSingle>& StiffnessMultipliers,
-		const TConstArrayView<FRealSingle>& DampingMultipliers,
-		const FSolverVec2& InStiffness,
 		const FSolverVec2& InDampingRatio,
-		bool bTrimKinematicConstraints)
+		bool bTrimKinematicConstraints = false)
 		: Base(
 			Particles,
 			InConstraints,
 			StiffnessMultipliers,
 			InStiffness,
-			true /*bTrimKinematicConstraints*/,
+			bTrimKinematicConstraints,
 			MaxStiffness)
 		, DampingRatio(
 			InDampingRatio.ClampAxes(MinDampingRatio, MaxDampingRatio),
@@ -114,7 +87,8 @@ public:
 		const TConstArrayView<FRealSingle>& StiffnessMultipliers,
 		const TConstArrayView<FRealSingle>& DampingMultipliers,
 		const FSolverVec2& InStiffness,
-		const FSolverVec2& InDampingRatio)
+		const FSolverVec2& InDampingRatio,
+		bool bTrimKinematicConstraints = false)
 		: Base(
 			Particles,
 			ParticleOffset,
@@ -122,7 +96,7 @@ public:
 			InConstraints,
 			StiffnessMultipliers,
 			InStiffness,
-			true /*bTrimKinematicConstraints*/,
+			bTrimKinematicConstraints,
 			MaxStiffness)
 		, DampingRatio(
 			InDampingRatio.ClampAxes(MinDampingRatio, MaxDampingRatio),
@@ -130,41 +104,6 @@ public:
 			TConstArrayView<TVec2<int32>>(Constraints),
 			ParticleOffset,
 			ParticleCount)
-	{
-		Lambdas.Reset();
-		Lambdas.SetNumZeroed(Constraints.Num());
-		LambdasDamping.Reset();
-		LambdasDamping.SetNumZeroed(Constraints.Num());
-		InitColor(Particles);
-	}
-
-	template<int32 Valence, TEMPLATE_REQUIRES(Valence >= 2 && Valence <= 4)>
-	UE_DEPRECATED(5.4, "XPBD Constraints must always trim kinematic constraints")
-	FXPBDSpringConstraints(
-		const FSolverParticles& Particles,
-		int32 ParticleOffset,
-		int32 ParticleCount,
-		const TArray<TVector<int32, Valence>>& InConstraints,
-		const TConstArrayView<FRealSingle>& StiffnessMultipliers,
-		const TConstArrayView<FRealSingle>& DampingMultipliers,
-		const FSolverVec2& InStiffness,
-		const FSolverVec2& InDampingRatio,
-		bool bTrimKinematicConstraints)
-	: Base(
-		Particles,
-		ParticleOffset,
-		ParticleCount,
-		InConstraints,
-		StiffnessMultipliers,
-		InStiffness,
-		true /*bTrimKinematicConstraints*/,
-		MaxStiffness)
-	, DampingRatio(
-		InDampingRatio.ClampAxes(MinDampingRatio, MaxDampingRatio),
-		DampingMultipliers,
-		TConstArrayView<TVec2<int32>>(Constraints),
-		ParticleOffset,
-		ParticleCount)
 	{
 		Lambdas.Reset();
 		Lambdas.SetNumZeroed(Constraints.Num());
@@ -237,32 +176,16 @@ public:
 		const FSolverParticlesRange& Particles,
 		const TArray<TVec3<int32>>& InConstraints,
 		const TMap<FString, TConstArrayView<FRealSingle>>& WeightMaps,
-		const FCollectionPropertyConstFacade& PropertyCollection)
+		const FCollectionPropertyConstFacade& PropertyCollection,
+		bool bTrimKinematicConstraints = false)
 		: FXPBDSpringConstraints(
 			Particles,
 			InConstraints,
 			WeightMaps.FindRef(GetXPBDEdgeSpringStiffnessString(PropertyCollection, XPBDEdgeSpringStiffnessName.ToString())),
 			WeightMaps.FindRef(GetXPBDEdgeSpringDampingString(PropertyCollection, XPBDEdgeSpringDampingName.ToString())),
 			FSolverVec2(GetWeightedFloatXPBDEdgeSpringStiffness(PropertyCollection, MaxStiffness)),
-			FSolverVec2(GetWeightedFloatXPBDEdgeSpringDamping(PropertyCollection, MinDampingRatio)))
-		, XPBDEdgeSpringStiffnessIndex(PropertyCollection)
-		, XPBDEdgeSpringDampingIndex(PropertyCollection)
-	{}
-
-	UE_DEPRECATED(5.4, "XPBD Constraints must always trim kinematic constraints")
-	FXPBDEdgeSpringConstraints(
-		const FSolverParticlesRange & Particles,
-		const TArray<TVec3<int32>>&InConstraints,
-		const TMap<FString, TConstArrayView<FRealSingle>>&WeightMaps,
-		const FCollectionPropertyConstFacade & PropertyCollection,
-		bool bTrimKinematicConstraints)
-		: FXPBDSpringConstraints(
-			Particles,
-			InConstraints,
-			WeightMaps.FindRef(GetXPBDEdgeSpringStiffnessString(PropertyCollection, XPBDEdgeSpringStiffnessName.ToString())),
-			WeightMaps.FindRef(GetXPBDEdgeSpringDampingString(PropertyCollection, XPBDEdgeSpringDampingName.ToString())),
-			FSolverVec2(GetWeightedFloatXPBDEdgeSpringStiffness(PropertyCollection, MaxStiffness)),
-			FSolverVec2(GetWeightedFloatXPBDEdgeSpringDamping(PropertyCollection, MinDampingRatio)))
+			FSolverVec2(GetWeightedFloatXPBDEdgeSpringDamping(PropertyCollection, MinDampingRatio)),
+			bTrimKinematicConstraints)
 		, XPBDEdgeSpringStiffnessIndex(PropertyCollection)
 		, XPBDEdgeSpringDampingIndex(PropertyCollection)
 	{}
@@ -273,7 +196,8 @@ public:
 		int32 ParticleCount,
 		const TArray<TVec3<int32>>& InConstraints,
 		const TMap<FString, TConstArrayView<FRealSingle>>& WeightMaps,
-		const FCollectionPropertyConstFacade& PropertyCollection)
+		const FCollectionPropertyConstFacade& PropertyCollection,
+		bool bTrimKinematicConstraints = false)
 		: FXPBDSpringConstraints(
 			Particles,
 			ParticleOffset,
@@ -282,29 +206,8 @@ public:
 			WeightMaps.FindRef(GetXPBDEdgeSpringStiffnessString(PropertyCollection, XPBDEdgeSpringStiffnessName.ToString())),
 			WeightMaps.FindRef(GetXPBDEdgeSpringDampingString(PropertyCollection, XPBDEdgeSpringDampingName.ToString())),
 			FSolverVec2(GetWeightedFloatXPBDEdgeSpringStiffness(PropertyCollection, MaxStiffness)),
-			FSolverVec2(GetWeightedFloatXPBDEdgeSpringDamping(PropertyCollection, MinDampingRatio)))
-		, XPBDEdgeSpringStiffnessIndex(PropertyCollection)
-		, XPBDEdgeSpringDampingIndex(PropertyCollection)
-	{}
-
-	UE_DEPRECATED(5.4, "XPBD Constraints must always trim kinematic constraints")
-	FXPBDEdgeSpringConstraints(
-		const FSolverParticles & Particles,
-		int32 ParticleOffset,
-		int32 ParticleCount,
-		const TArray<TVec3<int32>>&InConstraints,
-		const TMap<FString, TConstArrayView<FRealSingle>>&WeightMaps,
-		const FCollectionPropertyConstFacade & PropertyCollection,
-		bool bTrimKinematicConstraints)
-		: FXPBDSpringConstraints(
-			Particles,
-			ParticleOffset,
-			ParticleCount,
-			InConstraints,
-			WeightMaps.FindRef(GetXPBDEdgeSpringStiffnessString(PropertyCollection, XPBDEdgeSpringStiffnessName.ToString())),
-			WeightMaps.FindRef(GetXPBDEdgeSpringDampingString(PropertyCollection, XPBDEdgeSpringDampingName.ToString())),
-			FSolverVec2(GetWeightedFloatXPBDEdgeSpringStiffness(PropertyCollection, MaxStiffness)),
-			FSolverVec2(GetWeightedFloatXPBDEdgeSpringDamping(PropertyCollection, MinDampingRatio)))
+			FSolverVec2(GetWeightedFloatXPBDEdgeSpringDamping(PropertyCollection, MinDampingRatio)),
+			bTrimKinematicConstraints)
 		, XPBDEdgeSpringStiffnessIndex(PropertyCollection)
 		, XPBDEdgeSpringDampingIndex(PropertyCollection)
 	{}
@@ -327,7 +230,8 @@ public:
 			StiffnessMultipliers,
 			DampingMultipliers,
 			FSolverVec2(GetWeightedFloatXPBDEdgeSpringStiffness(PropertyCollection, MaxStiffness)),
-			FSolverVec2(GetWeightedFloatXPBDEdgeSpringDamping(PropertyCollection, MinDampingRatio)))
+			FSolverVec2(GetWeightedFloatXPBDEdgeSpringDamping(PropertyCollection, MinDampingRatio)),
+			bTrimKinematicConstraints)
 		, XPBDEdgeSpringStiffnessIndex(PropertyCollection)
 		, XPBDEdgeSpringDampingIndex(PropertyCollection)
 	{}
@@ -367,57 +271,20 @@ public:
 		const FSolverParticlesRange& Particles,
 		const TArray<TVec2<int32>>& InConstraints,
 		const TMap<FString, TConstArrayView<FRealSingle>>& WeightMaps,
-		const FCollectionPropertyConstFacade& PropertyCollection)
+		const FCollectionPropertyConstFacade& PropertyCollection,
+		bool bTrimKinematicConstraints = false)
 		: FXPBDSpringConstraints(
 			Particles,
 			InConstraints,
 			WeightMaps.FindRef(GetXPBDBendingSpringStiffnessString(PropertyCollection, XPBDBendingSpringStiffnessName.ToString())),
 			WeightMaps.FindRef(GetXPBDBendingSpringDampingString(PropertyCollection, XPBDBendingSpringDampingName.ToString())),
 			FSolverVec2(GetWeightedFloatXPBDBendingSpringStiffness(PropertyCollection, MaxStiffness)),
-			FSolverVec2(GetWeightedFloatXPBDBendingSpringDamping(PropertyCollection, MinDampingRatio)))
+			FSolverVec2(GetWeightedFloatXPBDBendingSpringDamping(PropertyCollection, MinDampingRatio)),
+			bTrimKinematicConstraints)
 		, XPBDBendingSpringStiffnessIndex(PropertyCollection)
 		, XPBDBendingSpringDampingIndex(PropertyCollection)
 	{}
 
-	UE_DEPRECATED(5.4, "XPBD Constraints must always trim kinematic constraints")
-	FXPBDBendingSpringConstraints(
-		const FSolverParticlesRange & Particles,
-		const TArray<TVec2<int32>>&InConstraints,
-		const TMap<FString, TConstArrayView<FRealSingle>>&WeightMaps,
-		const FCollectionPropertyConstFacade & PropertyCollection,
-		bool bTrimKinematicConstraints)
-		: FXPBDSpringConstraints(
-			Particles,
-			InConstraints,
-			WeightMaps.FindRef(GetXPBDBendingSpringStiffnessString(PropertyCollection, XPBDBendingSpringStiffnessName.ToString())),
-			WeightMaps.FindRef(GetXPBDBendingSpringDampingString(PropertyCollection, XPBDBendingSpringDampingName.ToString())),
-			FSolverVec2(GetWeightedFloatXPBDBendingSpringStiffness(PropertyCollection, MaxStiffness)),
-			FSolverVec2(GetWeightedFloatXPBDBendingSpringDamping(PropertyCollection, MinDampingRatio)))
-		, XPBDBendingSpringStiffnessIndex(PropertyCollection)
-		, XPBDBendingSpringDampingIndex(PropertyCollection)
-	{}
-
-	FXPBDBendingSpringConstraints(
-		const FSolverParticles & Particles,
-		int32 ParticleOffset,
-		int32 ParticleCount,
-		const TArray<TVec2<int32>>&InConstraints,
-		const TMap<FString, TConstArrayView<FRealSingle>>&WeightMaps,
-		const FCollectionPropertyConstFacade & PropertyCollection)
-		: FXPBDSpringConstraints(
-			Particles,
-			ParticleOffset,
-			ParticleCount,
-			InConstraints,
-			WeightMaps.FindRef(GetXPBDBendingSpringStiffnessString(PropertyCollection, XPBDBendingSpringStiffnessName.ToString())),
-			WeightMaps.FindRef(GetXPBDBendingSpringDampingString(PropertyCollection, XPBDBendingSpringDampingName.ToString())),
-			FSolverVec2(GetWeightedFloatXPBDBendingSpringStiffness(PropertyCollection, MaxStiffness)),
-			FSolverVec2(GetWeightedFloatXPBDBendingSpringDamping(PropertyCollection, MinDampingRatio)))
-		, XPBDBendingSpringStiffnessIndex(PropertyCollection)
-		, XPBDBendingSpringDampingIndex(PropertyCollection)
-	{}
-
-	UE_DEPRECATED(5.4, "XPBD Constraints must always trim kinematic constraints")
 	FXPBDBendingSpringConstraints(
 		const FSolverParticles& Particles,
 		int32 ParticleOffset,
@@ -425,7 +292,7 @@ public:
 		const TArray<TVec2<int32>>& InConstraints,
 		const TMap<FString, TConstArrayView<FRealSingle>>& WeightMaps,
 		const FCollectionPropertyConstFacade& PropertyCollection,
-		bool bTrimKinematicConstraints)
+		bool bTrimKinematicConstraints = false)
 		: FXPBDSpringConstraints(
 			Particles,
 			ParticleOffset,
@@ -434,7 +301,8 @@ public:
 			WeightMaps.FindRef(GetXPBDBendingSpringStiffnessString(PropertyCollection, XPBDBendingSpringStiffnessName.ToString())),
 			WeightMaps.FindRef(GetXPBDBendingSpringDampingString(PropertyCollection, XPBDBendingSpringDampingName.ToString())),
 			FSolverVec2(GetWeightedFloatXPBDBendingSpringStiffness(PropertyCollection, MaxStiffness)),
-			FSolverVec2(GetWeightedFloatXPBDBendingSpringDamping(PropertyCollection, MinDampingRatio)))
+			FSolverVec2(GetWeightedFloatXPBDBendingSpringDamping(PropertyCollection, MinDampingRatio)),
+			bTrimKinematicConstraints)
 		, XPBDBendingSpringStiffnessIndex(PropertyCollection)
 		, XPBDBendingSpringDampingIndex(PropertyCollection)
 	{}
@@ -457,7 +325,8 @@ public:
 			StiffnessMultipliers,
 			DampingMultipliers,
 			FSolverVec2(GetWeightedFloatXPBDBendingSpringStiffness(PropertyCollection, MaxStiffness)),
-			FSolverVec2(GetWeightedFloatXPBDBendingSpringDamping(PropertyCollection, MinDampingRatio)))
+			FSolverVec2(GetWeightedFloatXPBDBendingSpringDamping(PropertyCollection, MinDampingRatio)),
+			bTrimKinematicConstraints)
 		, XPBDBendingSpringStiffnessIndex(PropertyCollection)
 		, XPBDBendingSpringDampingIndex(PropertyCollection)
 	{}

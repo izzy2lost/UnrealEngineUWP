@@ -974,7 +974,8 @@ void FClothConstraints::CreateStretchConstraints(
 				Evolution->GetSoftBodyParticles(ParticleRangeId),
 				TriangleMesh.GetSurfaceElements(),
 				WeightMaps,
-				ConfigProperties);
+				ConfigProperties,
+				/*bTrimKinematicConstraints =*/ true);
 			++NumUpdateLinearSystemRules;
 		}
 		else
@@ -985,7 +986,8 @@ void FClothConstraints::CreateStretchConstraints(
 				NumParticles,
 				TriangleMesh.GetSurfaceElements(),
 				WeightMaps,
-				ConfigProperties);
+				ConfigProperties,
+				/*bTrimKinematicConstraints =*/ true);
 		}
 
 		++NumConstraintInits;
@@ -1026,7 +1028,8 @@ void FClothConstraints::CreateStretchConstraints(
 				TriangleMesh,
 				PatternData->WeldedFaceVertexPatternPositions,
 				WeightMaps,
-				ConfigProperties);
+				ConfigProperties,
+				/*bTrimKinematicConstraints =*/ true);
 			++NumUpdateLinearSystemRules;
 		}
 		else
@@ -1038,7 +1041,8 @@ void FClothConstraints::CreateStretchConstraints(
 				TriangleMesh,
 				PatternData->WeldedFaceVertexPatternPositions,
 				WeightMaps,
-				ConfigProperties);
+				ConfigProperties,
+				/*bTrimKinematicConstraints =*/ true);
 		}
 
 		++NumConstraintInits;  // Uses init to update the property tables
@@ -1062,7 +1066,8 @@ void FClothConstraints::CreateBendingConstraints(
 				TriangleMesh,
 				PatternData->WeldedFaceVertexPatternPositions,
 				WeightMaps,
-				ConfigProperties);
+				ConfigProperties,
+				/*bTrimKinematicConstraints =*/ true);
 		}
 		else
 		{
@@ -1072,7 +1077,8 @@ void FClothConstraints::CreateBendingConstraints(
 				TriangleMesh,
 				PatternData->WeldedFaceVertexPatternPositions,
 				WeightMaps,
-				ConfigProperties);
+				ConfigProperties,
+				/*bTrimKinematicConstraints =*/ true);
 		}
 
 		++NumConstraintInits;  // Uses init to update the property tables
@@ -1088,7 +1094,8 @@ void FClothConstraints::CreateBendingConstraints(
 				Evolution->GetSoftBodyParticles(ParticleRangeId),
 				MoveTemp(BendingElements),
 				WeightMaps,
-				ConfigProperties);
+				ConfigProperties,
+				/*bTrimKinematicConstraints =*/ true);
 		}
 		else
 		{
@@ -1097,7 +1104,8 @@ void FClothConstraints::CreateBendingConstraints(
 				ParticleOffset, NumParticles,
 				MoveTemp(BendingElements),
 				WeightMaps,
-				ConfigProperties);
+				ConfigProperties,
+				/*bTrimKinematicConstraints =*/ true);
 		}
 
 		++NumConstraintInits;  // Uses init to update the property tables
@@ -1140,7 +1148,8 @@ void FClothConstraints::CreateBendingConstraints(
 				Evolution->GetSoftBodyParticles(ParticleRangeId),
 				CrossEdges,
 				WeightMaps,
-				ConfigProperties);
+				ConfigProperties,
+				/*bTrimKinematicConstraints =*/ true);
 			++NumUpdateLinearSystemRules;
 		}
 		else
@@ -1150,7 +1159,8 @@ void FClothConstraints::CreateBendingConstraints(
 				ParticleOffset, NumParticles,
 				CrossEdges,
 				WeightMaps,
-				ConfigProperties);
+				ConfigProperties,
+				/*bTrimKinematicConstraints =*/ true);
 		}
 
 		++NumConstraintInits;

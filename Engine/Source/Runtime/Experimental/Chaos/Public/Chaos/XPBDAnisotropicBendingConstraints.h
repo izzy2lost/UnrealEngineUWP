@@ -3,7 +3,6 @@
 
 #include "Chaos/PBDBendingConstraintsBase.h"
 #include "Chaos/CollectionPropertyFacade.h"
-#include "Chaos/PBDFlatWeightMap.h"
 #include "ChaosStats.h"
 
 namespace Chaos
@@ -20,7 +19,7 @@ class FXPBDAnisotropicBendingConstraints final : public FPBDBendingConstraintsBa
 
 public:
 	// Stiffness is in kg cm^2 / rad^2 s^2
-	static constexpr FSolverReal MinStiffness = (FSolverReal)0; // We're not checking against MinStiffness (except when it's constant and == 0)
+	static constexpr FSolverReal MinStiffness = (FSolverReal)1e-4; // Stiffness below this will be considered 0 since all of our calculations are actually based on 1 / stiffness.
 	static constexpr FSolverReal MaxStiffness = (FSolverReal)1e7;
 	static constexpr FSolverReal MinDamping = (FSolverReal)0.;
 	static constexpr FSolverReal MaxDamping = (FSolverReal)1000.;
@@ -34,17 +33,8 @@ public:
 		const FTriangleMesh& TriangleMesh,
 		const TArray<TVec3<FVec2f>>& FaceVertexPatternPositions,
 		const TMap<FString, TConstArrayView<FRealSingle>>& WeightMaps,
-		const FCollectionPropertyConstFacade& PropertyCollection);
-
-	UE_DEPRECATED(5.4, "XPBD Constraints must always trim kinematic constraints")
-	FXPBDAnisotropicBendingConstraints(const FSolverParticlesRange& InParticles,
-		const FTriangleMesh& TriangleMesh,
-		const TArray<TVec3<FVec2f>>& FaceVertexPatternPositions,
-		const TMap<FString, TConstArrayView<FRealSingle>>& WeightMaps,
 		const FCollectionPropertyConstFacade& PropertyCollection,
-		bool bTrimKinematicConstraints)
-		: FXPBDAnisotropicBendingConstraints(InParticles, TriangleMesh, FaceVertexPatternPositions, WeightMaps, PropertyCollection)
-	{}
+		bool bTrimKinematicConstraints = false);
 
 	CHAOS_API FXPBDAnisotropicBendingConstraints(const FSolverParticles& InParticles,
 		int32 InParticleOffset,
@@ -52,43 +42,10 @@ public:
 		const FTriangleMesh& TriangleMesh,
 		const TArray<TVec3<FVec2f>>& FaceVertexPatternPositions,
 		const TMap<FString, TConstArrayView<FRealSingle>>& WeightMaps,
-		const FCollectionPropertyConstFacade& PropertyCollection);
-
-	UE_DEPRECATED(5.4, "XPBD Constraints must always trim kinematic constraints")
-	FXPBDAnisotropicBendingConstraints(const FSolverParticles& InParticles,
-		int32 InParticleOffset,
-		int32 InParticleCount,
-		const FTriangleMesh& TriangleMesh,
-		const TArray<TVec3<FVec2f>>& FaceVertexPatternPositions,
-		const TMap<FString, TConstArrayView<FRealSingle>>& WeightMaps,
 		const FCollectionPropertyConstFacade& PropertyCollection,
-		bool bTrimKinematicConstraints)
-		: FXPBDAnisotropicBendingConstraints(InParticles, InParticleOffset, InParticleCount, TriangleMesh, FaceVertexPatternPositions, WeightMaps, PropertyCollection)
-	{}
+		bool bTrimKinematicConstraints = false);
 
 	CHAOS_API FXPBDAnisotropicBendingConstraints(const FSolverParticles& InParticles,
-		int32 InParticleOffset,
-		int32 InParticleCount,
-		const FTriangleMesh& TriangleMesh,
-		const TArray<TVec3<FVec2f>>& FaceVertexPatternPositions,
-		const TConstArrayView<FRealSingle>& StiffnessWarpMultipliers,
-		const TConstArrayView<FRealSingle>& StiffnessWeftMultipliers,
-		const TConstArrayView<FRealSingle>& StiffnessBiasMultipliers,
-		const TConstArrayView<FRealSingle>& BucklingStiffnessWarpMultipliers,
-		const TConstArrayView<FRealSingle>& BucklingStiffnessWeftMultipliers,
-		const TConstArrayView<FRealSingle>& BucklingStiffnessBiasMultipliers,
-		const TConstArrayView<FRealSingle>& DampingMultipliers,
-		const FSolverVec2& InStiffnessWarp,
-		const FSolverVec2& InStiffnessWeft,
-		const FSolverVec2& InStiffnessBias,
-		const FSolverReal InBucklingRatio,
-		const FSolverVec2& InBucklingStiffnessWarp,
-		const FSolverVec2& InBucklingStiffnessWeft,
-		const FSolverVec2& InBucklingStiffnessBias,
-		const FSolverVec2& InDampingRatio);
-
-	UE_DEPRECATED(5.4, "XPBD Constraints must always trim kinematic constraints")
-	FXPBDAnisotropicBendingConstraints(const FSolverParticles& InParticles,
 		int32 InParticleOffset,
 		int32 InParticleCount,
 		const FTriangleMesh& TriangleMesh,
@@ -108,16 +65,19 @@ public:
 		const FSolverVec2& InBucklingStiffnessWeft,
 		const FSolverVec2& InBucklingStiffnessBias,
 		const FSolverVec2& InDampingRatio,
-		bool bTrimKinematicConstraints)
-		: FXPBDAnisotropicBendingConstraints(InParticles, InParticleOffset, InParticleCount, TriangleMesh, FaceVertexPatternPositions, StiffnessWarpMultipliers, StiffnessWeftMultipliers,
-			StiffnessBiasMultipliers, BucklingStiffnessWarpMultipliers, BucklingStiffnessWeftMultipliers, BucklingStiffnessBiasMultipliers, DampingMultipliers, InStiffnessWarp,
-			InStiffnessWeft, InStiffnessBias, InBucklingRatio, InBucklingStiffnessWarp, InBucklingStiffnessWeft, InBucklingStiffnessBias, InDampingRatio)
-	{}
+		bool bTrimKinematicConstraints = false);
 
 	virtual ~FXPBDAnisotropicBendingConstraints() override {}
 
 	template<typename SolverParticlesOrRange>
-	CHAOS_API void Init(const SolverParticlesOrRange& InParticles);
+	void Init(const SolverParticlesOrRange& InParticles)
+	{ 
+		Lambdas.Reset();
+		Lambdas.AddZeroed(Constraints.Num());
+		LambdasDamping.Reset();
+		LambdasDamping.AddZeroed(Constraints.Num());
+		FPBDBendingConstraintsBase::Init(InParticles);
+	}
 
 	CHAOS_API void SetProperties(
 		const FCollectionPropertyConstFacade& PropertyCollection,
@@ -129,9 +89,16 @@ public:
 		SetProperties(PropertyCollection, TMap<FString, TConstArrayView<FRealSingle>>());
 	}
 
+	// Update stiffness table, as well as the simulation stiffness exponent
 	void ApplyProperties(const FSolverReal /*Dt*/, const int32 /*NumIterations*/)
 	{
-		// Nothing to be done here for flat weight maps. Want to avoid base class from being called instead.
+		Stiffness.ApplyXPBDValues(MaxStiffness);
+		StiffnessWeft.ApplyXPBDValues(MaxStiffness);
+		StiffnessBias.ApplyXPBDValues(MaxStiffness);
+		BucklingStiffness.ApplyXPBDValues(MaxStiffness);
+		BucklingStiffnessWeft.ApplyXPBDValues(MaxStiffness);
+		BucklingStiffnessBias.ApplyXPBDValues(MaxStiffness);
+		DampingRatio.ApplyValues();
 	}
 
 	template<typename SolverParticlesOrRange>
@@ -208,34 +175,18 @@ private:
 	using Base::ParticleOffset;
 	using Base::ParticleCount;
 	using Base::RestAngles;
-
-	FPBDFlatWeightMap StiffnessWarp;
-	FPBDFlatWeightMap StiffnessWeft;
-	FPBDFlatWeightMap StiffnessBias;
-	FPBDFlatWeightMap BucklingStiffnessWarp;
-	FPBDFlatWeightMap BucklingStiffnessWeft;
-	FPBDFlatWeightMap BucklingStiffnessBias;
-
-	FPBDFlatWeightMap DampingRatio;
+	using Base::Stiffness; // Warp
+	using Base::BucklingStiffness; // Warp
 	
+	FPBDStiffness StiffnessWeft;
+	FPBDStiffness StiffnessBias;
+	FPBDStiffness BucklingStiffnessWeft;
+	FPBDStiffness BucklingStiffnessBias;
+
+	FPBDWeightMap DampingRatio;
 	mutable TArray<FSolverReal> Lambdas;
 	mutable TArray<FSolverReal> LambdasDamping;
 	TArray<int32> ConstraintsPerColorStartIndex; // Constraints are ordered so each batch is contiguous. This is ColorNum + 1 length so it can be used as start and end.
-
-#if INTEL_ISPC
-	// Constraint SOA. InitColor will initialize these. Only used if using ISPC
-	TArray<int32> ConstraintsIndex1;
-	TArray<int32> ConstraintsIndex2;
-	TArray<int32> ConstraintsIndex3;
-	TArray<int32> ConstraintsIndex4;
-
-	// Particles.X but stored per constraint.
-	// These are only copied over if using ISPC.
-	TArray<FSolverVec3> X1Array;
-	TArray<FSolverVec3> X2Array;
-	TArray<FSolverVec3> X3Array;
-	TArray<FSolverVec3> X4Array;
-#endif
 
 	TArray<FSolverVec3> WarpWeftBiasBaseMultipliers;
 

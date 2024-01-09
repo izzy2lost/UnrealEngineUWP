@@ -31,16 +31,22 @@ export void ApplyXPBDAnisoSpringConstraints(uniform FVector4f PandInvM[],
 		
 		const varying float Dist = Dists[Index];
 		const varying float Lambda = Lambdas[Index];
-		const varying FVector3f WarpWeftBiasBaseMultiplier = VectorLoad(&WarpWeftBiasBaseMultiplers[extract(Index,0)]);
+		const varying FVector3f WarpWeftBiasBaseMultiplier = VectorGather(&WarpWeftBiasBaseMultiplers[Index]);
 		const varying float StiffnessValue = VectorDot(WarpWeftBiasBaseMultiplier, Stiffness);
 
 		varying float DLambda;
-		const varying FVector3f Delta = GetXPBDSpringDelta(P1, P2, InvM1, InvM2, Dt, Dist, Lambda, StiffnessValue, DLambda);
+		const varying FVector3f Delta = GetXPBDSpringDelta(P1, P2, InvM1, InvM2, Dt, Dist, Lambda, StiffnessValue, FLOAT_SMALL_NUMBER, DLambda);
 
 		Lambdas[Index] = Lambda + DLambda;
 
-		VectorScatter(&PandInvM[Index1], SetVector4( P1 + (InvM1 * Delta), InvM1 ));
-		VectorScatter(&PandInvM[Index2], SetVector4( P2 - (InvM2 * Delta), InvM2 ));
+		if (InvM1 > FLOAT_ZERO)
+		{
+			VectorScatter(&PandInvM[Index1], SetVector4( P1 + (InvM1 * Delta), InvM1 ));
+		}
+		if (InvM2 > FLOAT_ZERO)
+		{
+			VectorScatter(&PandInvM[Index2], SetVector4( P2 - (InvM2 * Delta), InvM2 ));
+		}
 	}
 }
 
@@ -74,16 +80,22 @@ export void ApplyXPBDAnisoSpringConstraintsWithDamping(uniform FVector4f PandInv
 
 		const varying float Dist = Dists[Index];
 		const varying float Lambda = Lambdas[Index];
-		const varying FVector3f WarpWeftBiasBaseMultiplier = VectorLoad(&WarpWeftBiasBaseMultiplers[extract(Index,0)]);
+		const varying FVector3f WarpWeftBiasBaseMultiplier = VectorGather(&WarpWeftBiasBaseMultiplers[Index]);
 		const varying float StiffnessValue = VectorDot(WarpWeftBiasBaseMultiplier, Stiffness);
 
 		varying float DLambda;
-		const FVector3f Delta = GetXPBDSpringDeltaWithDamping(P1, P2, X1, X2, InvM1, InvM2, Dt, Dist, Lambda, StiffnessValue, DampingRatio, DLambda);
+		const FVector3f Delta = GetXPBDSpringDeltaWithDamping(P1, P2, X1, X2, InvM1, InvM2, Dt, Dist, Lambda, StiffnessValue, DampingRatio, FLOAT_SMALL_NUMBER, DLambda);
 
 		Lambdas[Index] = Lambda + DLambda;
-		
-		VectorScatter(&PandInvM[Index1], SetVector4( P1 + (InvM1 * Delta), InvM1 ));
-		VectorScatter(&PandInvM[Index2], SetVector4( P2 - (InvM2 * Delta), InvM2 ));
+
+		if (InvM1 > FLOAT_ZERO)
+		{
+			VectorScatter(&PandInvM[Index1], SetVector4( P1 + (InvM1 * Delta), InvM1 ));
+		}
+		if (InvM2 > FLOAT_ZERO)
+		{
+			VectorScatter(&PandInvM[Index2], SetVector4( P2 - (InvM2 * Delta), InvM2 ));
+		}
 	}
 }
 
@@ -117,16 +129,22 @@ export void ApplyXPBDAnisoSpringDampingConstraints(uniform FVector4f PandInvM[],
 
 		const varying float Dist = Dists[Index];
 		const varying float Lambda = Lambdas[Index];
-		const varying FVector3f WarpWeftBiasBaseMultiplier = VectorLoad(&WarpWeftBiasBaseMultiplers[extract(Index,0)]);
+		const varying FVector3f WarpWeftBiasBaseMultiplier = VectorGather(&WarpWeftBiasBaseMultiplers[Index]);
 		const varying float StiffnessValue = VectorDot(WarpWeftBiasBaseMultiplier, Stiffness);
 
 		varying float DLambda;
-		const FVector3f Delta = GetXPBDSpringDampingDelta(P1, P2, X1, X2, InvM1, InvM2, Dt, Dist, Lambda, StiffnessValue, DampingRatio, DLambda);
+		const FVector3f Delta = GetXPBDSpringDampingDelta(P1, P2, X1, X2, InvM1, InvM2, Dt, Dist, Lambda, StiffnessValue, DampingRatio, FLOAT_SMALL_NUMBER, DLambda);
 
 		Lambdas[Index] = Lambda + DLambda;
-		
-		VectorScatter(&PandInvM[Index1], SetVector4( P1 + (InvM1 * Delta), InvM1 ));
-		VectorScatter(&PandInvM[Index2], SetVector4( P2 - (InvM2 * Delta), InvM2 ));
+
+		if (InvM1 > FLOAT_ZERO)
+		{
+			VectorScatter(&PandInvM[Index1], SetVector4( P1 + (InvM1 * Delta), InvM1 ));
+		}
+		if (InvM2 > FLOAT_ZERO)
+		{
+			VectorScatter(&PandInvM[Index2], SetVector4( P2 - (InvM2 * Delta), InvM2 ));
+		}
 	}
 }
 
@@ -136,15 +154,16 @@ export void ApplyXPBDAnisoSpringConstraintsWithWeightMaps(uniform FVector4f Pand
 									const uniform FVector3f WarpWeftBiasBaseMultiplers[],
 									uniform float Lambdas[],
 									const uniform float Dt,
+									const uniform float MinStiffness,
 									const uniform bool StiffnessHasMap,
-									const uniform FVector2f& StiffnessOffsetRange,
-									const uniform float StiffnessMapValues[],
+									const uniform uint8 StiffnessIndices[],
+									const uniform float StiffnessTable[],
 									const uniform bool StiffnessWeftHasMap,
-									const uniform FVector2f& StiffnessWeftOffsetRange,
-									const uniform float StiffnessWeftMapValues[],
+									const uniform uint8 StiffnessWeftIndices[],
+									const uniform float StiffnessWeftTable[],
 									const uniform bool StiffnessBiasHasMap,
-									const uniform FVector2f& StiffnessBiasOffsetRange,
-									const uniform float StiffnessBiasMapValues[],
+									const uniform uint8 StiffnessBiasIndices[],
+									const uniform float StiffnessBiasTable[],
 									const uniform int32 NumConstraints)
 {
 
@@ -153,6 +172,10 @@ export void ApplyXPBDAnisoSpringConstraintsWithWeightMaps(uniform FVector4f Pand
 		const varying FIntVector2 Constraint = VectorLoad(&Constraints[extract(Index,0)]);
 		const varying int32 Index1 = Constraint.V[0];
 		const varying int32 Index2 = Constraint.V[1];
+		
+		const varying int8 StiffnessIndex = StiffnessHasMap ? StiffnessIndices[Index] : 0;
+		const varying int8 StiffnessWeftIndex = StiffnessWeftHasMap ? StiffnessWeftIndices[Index] : 0;
+		const varying int8 StiffnessBiasIndex = StiffnessBiasHasMap ? StiffnessBiasIndices[Index] : 0;
 
 		const varying FVector4f PandInvM1 = VectorGather(&PandInvM[Index1]);
 		const varying FVector4f PandInvM2 = VectorGather(&PandInvM[Index2]);
@@ -164,21 +187,31 @@ export void ApplyXPBDAnisoSpringConstraintsWithWeightMaps(uniform FVector4f Pand
 
 		const varying float Dist = Dists[Index];
 		const varying float Lambda = Lambdas[Index];
-
-		const varying float Stiffness = StiffnessHasMap ? StiffnessOffsetRange.V[0] + StiffnessMapValues[Index]*StiffnessOffsetRange.V[1] : StiffnessOffsetRange.V[0];
-		const varying float StiffnessWeft = StiffnessWeftHasMap ? StiffnessWeftOffsetRange.V[0] + StiffnessWeftMapValues[Index]*StiffnessWeftOffsetRange.V[1] : StiffnessWeftOffsetRange.V[0];
-		const varying float StiffnessBias = StiffnessBiasHasMap ? StiffnessBiasOffsetRange.V[0] + StiffnessBiasMapValues[Index]*StiffnessBiasOffsetRange.V[1] : StiffnessBiasOffsetRange.V[0];
+		
+		#pragma ignore warning(perf)
+		const varying float Stiffness = StiffnessTable[StiffnessIndex];
+		#pragma ignore warning(perf)
+		const varying float StiffnessWeft = StiffnessWeftTable[StiffnessWeftIndex];
+		#pragma ignore warning(perf)
+		const varying float StiffnessBias = StiffnessBiasTable[StiffnessBiasIndex];
 		
 		const varying FVector3f StiffnessVector = {{StiffnessWeft, Stiffness, StiffnessBias}};
-		const varying FVector3f WarpWeftBiasBaseMultiplier = VectorLoad(&WarpWeftBiasBaseMultiplers[extract(Index,0)]);
+		const varying FVector3f WarpWeftBiasBaseMultiplier = VectorGather(&WarpWeftBiasBaseMultiplers[Index]);
 		const varying float StiffnessValue = VectorDot(WarpWeftBiasBaseMultiplier, StiffnessVector);
 
 		varying float DLambda;
-		const varying FVector3f Delta = GetXPBDSpringDelta(P1, P2, InvM1, InvM2, Dt, Dist, Lambda, StiffnessValue, DLambda);
+		const varying FVector3f Delta = GetXPBDSpringDelta(P1, P2, InvM1, InvM2, Dt, Dist, Lambda, StiffnessValue, MinStiffness, DLambda);
 
 		Lambdas[Index] = Lambda + DLambda;
-		VectorScatter(&PandInvM[Index1], SetVector4( P1 + (InvM1 * Delta), InvM1 ));
-		VectorScatter(&PandInvM[Index2], SetVector4( P2 - (InvM2 * Delta), InvM2 ));
+
+		if (InvM1 > FLOAT_ZERO)
+		{
+			VectorScatter(&PandInvM[Index1], SetVector4( P1 + (InvM1 * Delta), InvM1 ));
+		}
+		if (InvM2 > FLOAT_ZERO)
+		{
+			VectorScatter(&PandInvM[Index2], SetVector4( P2 - (InvM2 * Delta), InvM2 ));
+		}
 	}
 }
 
@@ -189,18 +222,19 @@ export void ApplyXPBDAnisoSpringConstraintsWithDampingAndWeightMaps(uniform FVec
 															const uniform FVector3f WarpWeftBiasBaseMultiplers[],
 															uniform float Lambdas[],
 															const uniform float Dt,
+															const uniform float MinStiffness,
 															const uniform bool StiffnessHasMap,
-															const uniform FVector2f& StiffnessOffsetRange,
-															const uniform float StiffnessMapValues[],
+															const uniform uint8 StiffnessIndices[],
+															const uniform float StiffnessTable[],
 															const uniform bool StiffnessWeftHasMap,
-															const uniform FVector2f& StiffnessWeftOffsetRange,
-															const uniform float StiffnessWeftMapValues[],
+															const uniform uint8 StiffnessWeftIndices[],
+															const uniform float StiffnessWeftTable[],
 															const uniform bool StiffnessBiasHasMap,
-															const uniform FVector2f& StiffnessBiasOffsetRange,
-															const uniform float StiffnessBiasMapValues[],
+															const uniform uint8 StiffnessBiasIndices[],
+															const uniform float StiffnessBiasTable[],
 															const uniform bool DampingHasMap,
-															const uniform FVector2f& DampingOffsetRange,
-															const uniform float DampingMapValues[],
+															const uniform uint8 DampingIndices[],
+															const uniform float DampingTable[],
 															const uniform int32 NumConstraints)
 {
 
@@ -209,6 +243,10 @@ export void ApplyXPBDAnisoSpringConstraintsWithDampingAndWeightMaps(uniform FVec
 		const varying FIntVector2 Constraint = VectorLoad(&Constraints[extract(Index,0)]);
 		const varying int32 Index1 = Constraint.V[0];
 		const varying int32 Index2 = Constraint.V[1];
+		const varying int8 StiffnessIndex = StiffnessHasMap ? StiffnessIndices[Index] : 0;
+		const varying int8 StiffnessWeftIndex = StiffnessWeftHasMap ? StiffnessWeftIndices[Index] : 0;
+		const varying int8 StiffnessBiasIndex = StiffnessBiasHasMap ? StiffnessBiasIndices[Index] : 0;
+		const varying int8 DampingIndex = DampingHasMap ? DampingIndices[Index] : 0;
 
 		const varying FVector4f PandInvM1 = VectorGather(&PandInvM[Index1]);
 		const varying FVector4f PandInvM2 = VectorGather(&PandInvM[Index2]);
@@ -223,24 +261,33 @@ export void ApplyXPBDAnisoSpringConstraintsWithDampingAndWeightMaps(uniform FVec
 
 		const varying float Dist = Dists[Index];
 		const varying float Lambda = Lambdas[Index];
-		
-		const varying float Stiffness = StiffnessHasMap ? StiffnessOffsetRange.V[0] + StiffnessMapValues[Index]*StiffnessOffsetRange.V[1] : StiffnessOffsetRange.V[0];
-		const varying float StiffnessWeft = StiffnessWeftHasMap ? StiffnessWeftOffsetRange.V[0] + StiffnessWeftMapValues[Index]*StiffnessWeftOffsetRange.V[1] : StiffnessWeftOffsetRange.V[0];
-		const varying float StiffnessBias = StiffnessBiasHasMap ? StiffnessBiasOffsetRange.V[0] + StiffnessBiasMapValues[Index]*StiffnessBiasOffsetRange.V[1] : StiffnessBiasOffsetRange.V[0];
+
+		#pragma ignore warning(perf)
+		const varying float Stiffness = StiffnessTable[StiffnessIndex];
+		#pragma ignore warning(perf)
+		const varying float StiffnessWeft = StiffnessWeftTable[StiffnessWeftIndex];
+		#pragma ignore warning(perf)
+		const varying float StiffnessBias = StiffnessBiasTable[StiffnessBiasIndex];
+		#pragma ignore warning(perf)
+		const varying float DampingRatio = DampingTable[DampingIndex];
 
 		const varying FVector3f StiffnessVector = {{StiffnessWeft, Stiffness, StiffnessBias}};
-		const varying FVector3f WarpWeftBiasBaseMultiplier = VectorLoad(&WarpWeftBiasBaseMultiplers[extract(Index,0)]);
+		const varying FVector3f WarpWeftBiasBaseMultiplier = VectorGather(&WarpWeftBiasBaseMultiplers[Index]);
 		const varying float StiffnessValue = VectorDot(WarpWeftBiasBaseMultiplier, StiffnessVector);
 
-		const varying float DampingRatio = DampingHasMap ? DampingOffsetRange.V[0] + DampingMapValues[Index]*DampingOffsetRange.V[1] : DampingOffsetRange.V[0];
-
 		varying float DLambda;
-		const FVector3f Delta = GetXPBDSpringDeltaWithDamping(P1, P2, X1, X2, InvM1, InvM2, Dt, Dist, Lambda, StiffnessValue, DampingRatio, DLambda);
+		const FVector3f Delta = GetXPBDSpringDeltaWithDamping(P1, P2, X1, X2, InvM1, InvM2, Dt, Dist, Lambda, StiffnessValue, DampingRatio, MinStiffness, DLambda);
 
 		Lambdas[Index] = Lambda + DLambda;
 
-		VectorScatter(&PandInvM[Index1], SetVector4( P1 + (InvM1 * Delta), InvM1 ));
-		VectorScatter(&PandInvM[Index2], SetVector4( P2 - (InvM2 * Delta), InvM2 ));
+		if (InvM1 > FLOAT_ZERO)
+		{
+			VectorScatter(&PandInvM[Index1], SetVector4( P1 + (InvM1 * Delta), InvM1 ));
+		}
+		if (InvM2 > FLOAT_ZERO)
+		{
+			VectorScatter(&PandInvM[Index2], SetVector4( P2 - (InvM2 * Delta), InvM2 ));
+		}
 	}
 }
 
@@ -251,18 +298,19 @@ export void ApplyXPBDAnisoSpringDampingConstraintsWithWeightMaps(uniform FVector
 															const uniform FVector3f WarpWeftBiasBaseMultiplers[],
 															uniform float Lambdas[],
 															const uniform float Dt,
+															const uniform float MinStiffness,
 															const uniform bool StiffnessHasMap,
-															const uniform FVector2f& StiffnessOffsetRange,
-															const uniform float StiffnessMapValues[],
+															const uniform uint8 StiffnessIndices[],
+															const uniform float StiffnessTable[],
 															const uniform bool StiffnessWeftHasMap,
-															const uniform FVector2f& StiffnessWeftOffsetRange,
-															const uniform float StiffnessWeftMapValues[],
+															const uniform uint8 StiffnessWeftIndices[],
+															const uniform float StiffnessWeftTable[],
 															const uniform bool StiffnessBiasHasMap,
-															const uniform FVector2f& StiffnessBiasOffsetRange,
-															const uniform float StiffnessBiasMapValues[],
+															const uniform uint8 StiffnessBiasIndices[],
+															const uniform float StiffnessBiasTable[],
 															const uniform bool DampingHasMap,
-															const uniform FVector2f& DampingOffsetRange,
-															const uniform float DampingMapValues[],
+															const uniform uint8 DampingIndices[],
+															const uniform float DampingTable[],
 															const uniform int32 NumConstraints)
 {
 
@@ -271,6 +319,10 @@ export void ApplyXPBDAnisoSpringDampingConstraintsWithWeightMaps(uniform FVector
 		const varying FIntVector2 Constraint = VectorLoad(&Constraints[extract(Index,0)]);
 		const varying int32 Index1 = Constraint.V[0];
 		const varying int32 Index2 = Constraint.V[1];
+		const varying int8 StiffnessIndex = StiffnessHasMap ? StiffnessIndices[Index] : 0;
+		const varying int8 StiffnessWeftIndex = StiffnessWeftHasMap ? StiffnessWeftIndices[Index] : 0;
+		const varying int8 StiffnessBiasIndex = StiffnessBiasHasMap ? StiffnessBiasIndices[Index] : 0;
+		const varying int8 DampingIndex = DampingHasMap ? DampingIndices[Index] : 0;
 
 		const varying FVector4f PandInvM1 = VectorGather(&PandInvM[Index1]);
 		const varying FVector4f PandInvM2 = VectorGather(&PandInvM[Index2]);
@@ -286,23 +338,32 @@ export void ApplyXPBDAnisoSpringDampingConstraintsWithWeightMaps(uniform FVector
 		const varying float Dist = Dists[Index];
 		const varying float Lambda = Lambdas[Index];
 
-		const varying float Stiffness = StiffnessHasMap ? StiffnessOffsetRange.V[0] + StiffnessMapValues[Index]*StiffnessOffsetRange.V[1] : StiffnessOffsetRange.V[0];
-		const varying float StiffnessWeft = StiffnessWeftHasMap ? StiffnessWeftOffsetRange.V[0] + StiffnessWeftMapValues[Index]*StiffnessWeftOffsetRange.V[1] : StiffnessWeftOffsetRange.V[0];
-		const varying float StiffnessBias = StiffnessBiasHasMap ? StiffnessBiasOffsetRange.V[0] + StiffnessBiasMapValues[Index]*StiffnessBiasOffsetRange.V[1] : StiffnessBiasOffsetRange.V[0];
+		#pragma ignore warning(perf)
+		const varying float Stiffness = StiffnessTable[StiffnessIndex];
+		#pragma ignore warning(perf)
+		const varying float StiffnessWeft = StiffnessWeftTable[StiffnessWeftIndex];
+		#pragma ignore warning(perf)
+		const varying float StiffnessBias = StiffnessBiasTable[StiffnessBiasIndex];
+		#pragma ignore warning(perf)
+		const varying float DampingRatio = DampingTable[DampingIndex];
 
 		const varying FVector3f StiffnessVector = {{StiffnessWeft, Stiffness, StiffnessBias}};
-		const varying FVector3f WarpWeftBiasBaseMultiplier = VectorLoad(&WarpWeftBiasBaseMultiplers[extract(Index,0)]);
+		const varying FVector3f WarpWeftBiasBaseMultiplier = VectorGather(&WarpWeftBiasBaseMultiplers[Index]);
 		const varying float StiffnessValue = VectorDot(WarpWeftBiasBaseMultiplier, StiffnessVector);
-		
-		const varying float DampingRatio = DampingHasMap ? DampingOffsetRange.V[0] + DampingMapValues[Index]*DampingOffsetRange.V[1] : DampingOffsetRange.V[0];
 
 		varying float DLambda;
-		const FVector3f Delta = GetXPBDSpringDampingDelta(P1, P2, X1, X2, InvM1, InvM2, Dt, Dist, Lambda, StiffnessValue, DampingRatio, DLambda);
+		const FVector3f Delta = GetXPBDSpringDampingDelta(P1, P2, X1, X2, InvM1, InvM2, Dt, Dist, Lambda, StiffnessValue, DampingRatio, MinStiffness, DLambda);
 
 		Lambdas[Index] = Lambda + DLambda;
-		
-		VectorScatter(&PandInvM[Index1], SetVector4( P1 + (InvM1 * Delta), InvM1 ));
-		VectorScatter(&PandInvM[Index2], SetVector4( P2 - (InvM2 * Delta), InvM2 ));
+
+		if (InvM1 > FLOAT_ZERO)
+		{
+			VectorScatter(&PandInvM[Index1], SetVector4( P1 + (InvM1 * Delta), InvM1 ));
+		}
+		if (InvM2 > FLOAT_ZERO)
+		{
+			VectorScatter(&PandInvM[Index2], SetVector4( P2 - (InvM2 * Delta), InvM2 ));
+		}
 	}
 }
 
@@ -336,17 +397,26 @@ export void ApplyXPBDAnisoAxialSpringConstraints(uniform FVector4f PandInvM[],
 		const varying float Bary = Barys[Index];
 		const varying float Dist = Dists[Index];
 		const varying float Lambda = Lambdas[Index];
-		const varying FVector3f WarpWeftBiasBaseMultiplier = VectorLoad(&WarpWeftBiasBaseMultiplers[extract(Index,0)]);
+		const varying FVector3f WarpWeftBiasBaseMultiplier = VectorGather(&WarpWeftBiasBaseMultiplers[Index]);
 		const varying float StiffnessValue = VectorDot(WarpWeftBiasBaseMultiplier, Stiffness);
 
 		varying float DLambda;
-		const varying FVector3f Delta = GetXPBDAxialSpringDelta(P1, P2, P3, InvM1, InvM2, InvM3, Dt, Bary, Dist, Lambda, StiffnessValue, DLambda);
+		const varying FVector3f Delta = GetXPBDAxialSpringDelta(P1, P2, P3, InvM1, InvM2, InvM3, Dt, Bary, Dist, Lambda, StiffnessValue, FLOAT_SMALL_NUMBER, DLambda);
 
 		Lambdas[Index] = Lambda + DLambda;
 
-		VectorScatter(&PandInvM[Index1], SetVector4( P1 + (InvM1 * Delta), InvM1 ));
-		VectorScatter(&PandInvM[Index2], SetVector4( P2 - (InvM2 * Bary * Delta), InvM2 ));
-		VectorScatter(&PandInvM[Index3], SetVector4( P3 - (InvM3 * (1.f - Bary) * Delta), InvM3 ));
+		if (InvM1 > FLOAT_ZERO)
+		{
+			VectorScatter(&PandInvM[Index1], SetVector4( P1 + (InvM1 * Delta), InvM1 ));
+		}
+		if (InvM2 > FLOAT_ZERO)
+		{
+			VectorScatter(&PandInvM[Index2], SetVector4( P2 - (InvM2 * Bary * Delta), InvM2 ));
+		}
+		if (InvM3 > FLOAT_ZERO)
+		{
+			VectorScatter(&PandInvM[Index3], SetVector4( P3 - (InvM3 * (1.f - Bary) * Delta), InvM3 ));
+		}
 	}
 }
 
@@ -386,17 +456,26 @@ export void ApplyXPBDAnisoAxialSpringConstraintsWithDamping(uniform FVector4f Pa
 		const varying float Bary = Barys[Index];
 		const varying float Dist = Dists[Index];
 		const varying float Lambda = Lambdas[Index];
-		const varying FVector3f WarpWeftBiasBaseMultiplier = VectorLoad(&WarpWeftBiasBaseMultiplers[extract(Index,0)]);
+		const varying FVector3f WarpWeftBiasBaseMultiplier = VectorGather(&WarpWeftBiasBaseMultiplers[Index]);
 		const varying float StiffnessValue = VectorDot(WarpWeftBiasBaseMultiplier, Stiffness);
 
 		varying float DLambda;
-		const FVector3f Delta = GetXPBDAxialSpringDeltaWithDamping(P1, P2, P3, X1, X2, X3, InvM1, InvM2, InvM3, Dt, Bary, Dist, Lambda, StiffnessValue, DampingRatio, DLambda);
+		const FVector3f Delta = GetXPBDAxialSpringDeltaWithDamping(P1, P2, P3, X1, X2, X3, InvM1, InvM2, InvM3, Dt, Bary, Dist, Lambda, StiffnessValue, DampingRatio, FLOAT_SMALL_NUMBER, DLambda);
 
 		Lambdas[Index] = Lambda + DLambda;
 
-		VectorScatter(&PandInvM[Index1], SetVector4( P1 + (InvM1 * Delta), InvM1 ));
-		VectorScatter(&PandInvM[Index2], SetVector4( P2 - (InvM2 * Bary * Delta), InvM2 ));
-		VectorScatter(&PandInvM[Index3], SetVector4( P3 - (InvM3 * (1.f - Bary) * Delta), InvM3 ));
+		if (InvM1 > FLOAT_ZERO)
+		{
+			VectorScatter(&PandInvM[Index1], SetVector4( P1 + (InvM1 * Delta), InvM1 ));
+		}
+		if (InvM2 > FLOAT_ZERO)
+		{
+			VectorScatter(&PandInvM[Index2], SetVector4( P2 - (InvM2 * Bary * Delta), InvM2 ));
+		}
+		if (InvM3 > FLOAT_ZERO)
+		{
+			VectorScatter(&PandInvM[Index3], SetVector4( P3 - (InvM3 * (1.f - Bary) * Delta), InvM3 ));
+		}
 	}
 }
 
@@ -436,17 +515,26 @@ export void ApplyXPBDAnisoAxialSpringDampingConstraints(uniform FVector4f PandIn
 		const varying float Bary = Barys[Index];
 		const varying float Dist = Dists[Index];
 		const varying float Lambda = Lambdas[Index];
-		const varying FVector3f WarpWeftBiasBaseMultiplier = VectorLoad(&WarpWeftBiasBaseMultiplers[extract(Index,0)]);
+		const varying FVector3f WarpWeftBiasBaseMultiplier = VectorGather(&WarpWeftBiasBaseMultiplers[Index]);
 		const varying float StiffnessValue = VectorDot(WarpWeftBiasBaseMultiplier, Stiffness);
 
 		varying float DLambda;
-		const FVector3f Delta = GetXPBDAxialSpringDampingDelta(P1, P2, P3, X1, X2, X3, InvM1, InvM2, InvM3, Dt, Bary, Dist, Lambda, StiffnessValue, DampingRatio, DLambda);
+		const FVector3f Delta = GetXPBDAxialSpringDampingDelta(P1, P2, P3, X1, X2, X3, InvM1, InvM2, InvM3, Dt, Bary, Dist, Lambda, StiffnessValue, DampingRatio, FLOAT_SMALL_NUMBER, DLambda);
 
 		Lambdas[Index] = Lambda + DLambda;
 
-		VectorScatter(&PandInvM[Index1], SetVector4( P1 + (InvM1 * Delta), InvM1 ));
-		VectorScatter(&PandInvM[Index2], SetVector4( P2 - (InvM2 * Bary * Delta), InvM2 ));
-		VectorScatter(&PandInvM[Index3], SetVector4( P3 - (InvM3 * (1.f - Bary) * Delta), InvM3 ));
+		if (InvM1 > FLOAT_ZERO)
+		{
+			VectorScatter(&PandInvM[Index1], SetVector4( P1 + (InvM1 * Delta), InvM1 ));
+		}
+		if (InvM2 > FLOAT_ZERO)
+		{
+			VectorScatter(&PandInvM[Index2], SetVector4( P2 - (InvM2 * Bary * Delta), InvM2 ));
+		}
+		if (InvM3 > FLOAT_ZERO)
+		{
+			VectorScatter(&PandInvM[Index3], SetVector4( P3 - (InvM3 * (1.f - Bary) * Delta), InvM3 ));
+		}
 	}
 }
 
@@ -457,15 +545,16 @@ export void ApplyXPBDAnisoAxialSpringConstraintsWithWeightMaps(uniform FVector4f
 									const uniform FVector3f WarpWeftBiasBaseMultiplers[],
 									uniform float Lambdas[],
 									const uniform float Dt,
+									const uniform float MinStiffness,
 									const uniform bool StiffnessHasMap,
-									const uniform FVector2f& StiffnessOffsetRange,
-									const uniform float StiffnessMapValues[],
+									const uniform uint8 StiffnessIndices[],
+									const uniform float StiffnessTable[],
 									const uniform bool StiffnessWeftHasMap,
-									const uniform FVector2f& StiffnessWeftOffsetRange,
-									const uniform float StiffnessWeftMapValues[],
+									const uniform uint8 StiffnessWeftIndices[],
+									const uniform float StiffnessWeftTable[],
 									const uniform bool StiffnessBiasHasMap,
-									const uniform FVector2f& StiffnessBiasOffsetRange,
-									const uniform float StiffnessBiasMapValues[],
+									const uniform uint8 StiffnessBiasIndices[],
+									const uniform float StiffnessBiasTable[],
 									const uniform int32 NumConstraints)
 {
 
@@ -475,6 +564,10 @@ export void ApplyXPBDAnisoAxialSpringConstraintsWithWeightMaps(uniform FVector4f
 		const varying int32 Index1 = Constraint.V[0];
 		const varying int32 Index2 = Constraint.V[1];
 		const varying int32 Index3 = Constraint.V[2];
+		
+		const varying int8 StiffnessIndex = StiffnessHasMap ? StiffnessIndices[Index] : 0;
+		const varying int8 StiffnessWeftIndex = StiffnessWeftHasMap ? StiffnessWeftIndices[Index] : 0;
+		const varying int8 StiffnessBiasIndex = StiffnessBiasHasMap ? StiffnessBiasIndices[Index] : 0;
 		
 		const varying FVector4f PandInvM1 = VectorGather(&PandInvM[Index1]);
 		const varying FVector4f PandInvM2 = VectorGather(&PandInvM[Index2]);
@@ -490,22 +583,34 @@ export void ApplyXPBDAnisoAxialSpringConstraintsWithWeightMaps(uniform FVector4f
 		const varying float Dist = Dists[Index];
 		const varying float Lambda = Lambdas[Index];
 		
-		const varying float Stiffness = StiffnessHasMap ? StiffnessOffsetRange.V[0] + StiffnessMapValues[Index]*StiffnessOffsetRange.V[1] : StiffnessOffsetRange.V[0];
-		const varying float StiffnessWeft = StiffnessWeftHasMap ? StiffnessWeftOffsetRange.V[0] + StiffnessWeftMapValues[Index]*StiffnessWeftOffsetRange.V[1] : StiffnessWeftOffsetRange.V[0];
-		const varying float StiffnessBias = StiffnessBiasHasMap ? StiffnessBiasOffsetRange.V[0] + StiffnessBiasMapValues[Index]*StiffnessBiasOffsetRange.V[1] : StiffnessBiasOffsetRange.V[0];
+		#pragma ignore warning(perf)
+		const varying float Stiffness = StiffnessTable[StiffnessIndex];
+		#pragma ignore warning(perf)
+		const varying float StiffnessWeft = StiffnessWeftTable[StiffnessWeftIndex];
+		#pragma ignore warning(perf)
+		const varying float StiffnessBias = StiffnessBiasTable[StiffnessBiasIndex];
 		
 		const varying FVector3f StiffnessVector = {{StiffnessWeft, Stiffness, StiffnessBias}};
-		const varying FVector3f WarpWeftBiasBaseMultiplier = VectorLoad(&WarpWeftBiasBaseMultiplers[extract(Index,0)]);
+		const varying FVector3f WarpWeftBiasBaseMultiplier = VectorGather(&WarpWeftBiasBaseMultiplers[Index]);
 		const varying float StiffnessValue = VectorDot(WarpWeftBiasBaseMultiplier, StiffnessVector);
 
 		varying float DLambda;
-		const varying FVector3f Delta = GetXPBDAxialSpringDelta(P1, P2, P3, InvM1, InvM2, InvM3, Dt, Bary, Dist, Lambda, StiffnessValue, DLambda);
+		const varying FVector3f Delta = GetXPBDAxialSpringDelta(P1, P2, P3, InvM1, InvM2, InvM3, Dt, Bary, Dist, Lambda, StiffnessValue, FLOAT_SMALL_NUMBER, DLambda);
 
 		Lambdas[Index] = Lambda + DLambda;
-		
-		VectorScatter(&PandInvM[Index1], SetVector4( P1 + (InvM1 * Delta), InvM1 ));
-		VectorScatter(&PandInvM[Index2], SetVector4( P2 - (InvM2 * Bary * Delta), InvM2 ));
-		VectorScatter(&PandInvM[Index3], SetVector4( P3 - (InvM3 * (1.f - Bary) * Delta), InvM3 ));
+
+		if (InvM1 > FLOAT_ZERO)
+		{
+			VectorScatter(&PandInvM[Index1], SetVector4( P1 + (InvM1 * Delta), InvM1 ));
+		}
+		if (InvM2 > FLOAT_ZERO)
+		{
+			VectorScatter(&PandInvM[Index2], SetVector4( P2 - (InvM2 * Bary * Delta), InvM2 ));
+		}
+		if (InvM3 > FLOAT_ZERO)
+		{
+			VectorScatter(&PandInvM[Index3], SetVector4( P3 - (InvM3 * (1.f - Bary) * Delta), InvM3 ));
+		}
 	}
 }
 
@@ -517,18 +622,19 @@ export void ApplyXPBDAnisoAxialSpringConstraintsWithDampingAndWeightMaps(uniform
 															const uniform FVector3f WarpWeftBiasBaseMultiplers[],
 															uniform float Lambdas[],
 															const uniform float Dt,
+															const uniform float MinStiffness,
 															const uniform bool StiffnessHasMap,
-															const uniform FVector2f& StiffnessOffsetRange,
-															const uniform float StiffnessMapValues[],
+															const uniform uint8 StiffnessIndices[],
+															const uniform float StiffnessTable[],
 															const uniform bool StiffnessWeftHasMap,
-															const uniform FVector2f& StiffnessWeftOffsetRange,
-															const uniform float StiffnessWeftMapValues[],
+															const uniform uint8 StiffnessWeftIndices[],
+															const uniform float StiffnessWeftTable[],
 															const uniform bool StiffnessBiasHasMap,
-															const uniform FVector2f& StiffnessBiasOffsetRange,
-															const uniform float StiffnessBiasMapValues[],
+															const uniform uint8 StiffnessBiasIndices[],
+															const uniform float StiffnessBiasTable[],
 															const uniform bool DampingHasMap,
-															const uniform FVector2f& DampingOffsetRange,
-															const uniform float DampingMapValues[],
+															const uniform uint8 DampingIndices[],
+															const uniform float DampingTable[],
 															const uniform int32 NumConstraints)
 {
 
@@ -538,75 +644,11 @@ export void ApplyXPBDAnisoAxialSpringConstraintsWithDampingAndWeightMaps(uniform
 		const varying int32 Index1 = Constraint.V[0];
 		const varying int32 Index2 = Constraint.V[1];
 		const varying int32 Index3 = Constraint.V[2];
-		
-		const varying FVector4f PandInvM1 = VectorGather(&PandInvM[Index1]);
-		const varying FVector4f PandInvM2 = VectorGather(&PandInvM[Index2]);
-		const varying FVector4f PandInvM3 = VectorGather(&PandInvM[Index3]);
 
-		varying FVector3f P1, P2, P3;
-		varying float InvM1, InvM2, InvM3;
-		UnzipPandInvM(PandInvM1, P1, InvM1);
-		UnzipPandInvM(PandInvM2, P2, InvM2);
-		UnzipPandInvM(PandInvM3, P3, InvM3);
-		
-		const varying FVector3f X1 = VectorGather(&X[Index1]);
-		const varying FVector3f X2 = VectorGather(&X[Index2]);
-		const varying FVector3f X3 = VectorGather(&X[Index3]);
-		
-		const varying float Bary = Barys[Index];
-		const varying float Dist = Dists[Index];
-		const varying float Lambda = Lambdas[Index];		
-		
-		const varying float Stiffness = StiffnessHasMap ? StiffnessOffsetRange.V[0] + StiffnessMapValues[Index]*StiffnessOffsetRange.V[1] : StiffnessOffsetRange.V[0];
-		const varying float StiffnessWeft = StiffnessWeftHasMap ? StiffnessWeftOffsetRange.V[0] + StiffnessWeftMapValues[Index]*StiffnessWeftOffsetRange.V[1] : StiffnessWeftOffsetRange.V[0];
-		const varying float StiffnessBias = StiffnessBiasHasMap ? StiffnessBiasOffsetRange.V[0] + StiffnessBiasMapValues[Index]*StiffnessBiasOffsetRange.V[1] : StiffnessBiasOffsetRange.V[0];
-
-		const varying FVector3f StiffnessVector = {{StiffnessWeft, Stiffness, StiffnessBias}};
-		const varying FVector3f WarpWeftBiasBaseMultiplier = VectorLoad(&WarpWeftBiasBaseMultiplers[extract(Index,0)]);
-		const varying float StiffnessValue = VectorDot(WarpWeftBiasBaseMultiplier, StiffnessVector);
-		
-		const varying float DampingRatio = DampingHasMap ? DampingOffsetRange.V[0] + DampingMapValues[Index]*DampingOffsetRange.V[1] : DampingOffsetRange.V[0];
-
-		varying float DLambda;
-		const FVector3f Delta = GetXPBDAxialSpringDeltaWithDamping(P1, P2, P3, X1, X2, X3, InvM1, InvM2, InvM3, Dt, Bary, Dist, Lambda, StiffnessValue, DampingRatio, DLambda);
-
-		Lambdas[Index] = Lambda + DLambda;
-		
-		VectorScatter(&PandInvM[Index1], SetVector4( P1 + (InvM1 * Delta), InvM1 ));
-		VectorScatter(&PandInvM[Index2], SetVector4( P2 - (InvM2 * Bary * Delta), InvM2 ));
-		VectorScatter(&PandInvM[Index3], SetVector4( P3 - (InvM3 * (1.f - Bary) * Delta), InvM3 ));
-	}
-}
-
-export void ApplyXPBDAnisoAxialSpringDampingConstraintsWithWeightMaps(uniform FVector4f PandInvM[],
-															const uniform FVector3f X[],
-															const uniform FIntVector Constraints[],
-															const uniform float Barys[],
-															const uniform float Dists[],
-															const uniform FVector3f WarpWeftBiasBaseMultiplers[],
-															uniform float Lambdas[],
-															const uniform float Dt,
-															const uniform bool StiffnessHasMap,
-															const uniform FVector2f& StiffnessOffsetRange,
-															const uniform float StiffnessMapValues[],
-															const uniform bool StiffnessWeftHasMap,
-															const uniform FVector2f& StiffnessWeftOffsetRange,
-															const uniform float StiffnessWeftMapValues[],
-															const uniform bool StiffnessBiasHasMap,
-															const uniform FVector2f& StiffnessBiasOffsetRange,
-															const uniform float StiffnessBiasMapValues[],
-															const uniform bool DampingHasMap,
-															const uniform FVector2f& DampingOffsetRange,
-															const uniform float DampingMapValues[],
-															const uniform int32 NumConstraints)
-{
-
-	foreach(Index = 0 ... NumConstraints)
-	{
-		const varying FIntVector Constraint = VectorLoad(&Constraints[extract(Index,0)]);
-		const varying int32 Index1 = Constraint.V[0];
-		const varying int32 Index2 = Constraint.V[1];
-		const varying int32 Index3 = Constraint.V[2];
+		const varying int8 StiffnessIndex = StiffnessHasMap ? StiffnessIndices[Index] : 0;
+		const varying int8 StiffnessWeftIndex = StiffnessWeftHasMap ? StiffnessWeftIndices[Index] : 0;
+		const varying int8 StiffnessBiasIndex = StiffnessBiasHasMap ? StiffnessBiasIndices[Index] : 0;
+		const varying int8 DampingIndex = DampingHasMap ? DampingIndices[Index] : 0;
 		
 		const varying FVector4f PandInvM1 = VectorGather(&PandInvM[Index1]);
 		const varying FVector4f PandInvM2 = VectorGather(&PandInvM[Index2]);
@@ -625,24 +667,123 @@ export void ApplyXPBDAnisoAxialSpringDampingConstraintsWithWeightMaps(uniform FV
 		const varying float Bary = Barys[Index];
 		const varying float Dist = Dists[Index];
 		const varying float Lambda = Lambdas[Index];
-		
-		const varying float Stiffness = StiffnessHasMap ? StiffnessOffsetRange.V[0] + StiffnessMapValues[Index]*StiffnessOffsetRange.V[1] : StiffnessOffsetRange.V[0];
-		const varying float StiffnessWeft = StiffnessWeftHasMap ? StiffnessWeftOffsetRange.V[0] + StiffnessWeftMapValues[Index]*StiffnessWeftOffsetRange.V[1] : StiffnessWeftOffsetRange.V[0];
-		const varying float StiffnessBias = StiffnessBiasHasMap ? StiffnessBiasOffsetRange.V[0] + StiffnessBiasMapValues[Index]*StiffnessBiasOffsetRange.V[1] : StiffnessBiasOffsetRange.V[0];
+
+		#pragma ignore warning(perf)
+		const varying float Stiffness = StiffnessTable[StiffnessIndex];
+		#pragma ignore warning(perf)
+		const varying float StiffnessWeft = StiffnessWeftTable[StiffnessWeftIndex];
+		#pragma ignore warning(perf)
+		const varying float StiffnessBias = StiffnessBiasTable[StiffnessBiasIndex];
+		#pragma ignore warning(perf)
+		const varying float DampingRatio = DampingTable[DampingIndex];
 
 		const varying FVector3f StiffnessVector = {{StiffnessWeft, Stiffness, StiffnessBias}};
-		const varying FVector3f WarpWeftBiasBaseMultiplier = VectorLoad(&WarpWeftBiasBaseMultiplers[extract(Index,0)]);
+		const varying FVector3f WarpWeftBiasBaseMultiplier = VectorGather(&WarpWeftBiasBaseMultiplers[Index]);
 		const varying float StiffnessValue = VectorDot(WarpWeftBiasBaseMultiplier, StiffnessVector);
 
-		const varying float DampingRatio = DampingHasMap ? DampingOffsetRange.V[0] + DampingMapValues[Index]*DampingOffsetRange.V[1] : DampingOffsetRange.V[0];
-
 		varying float DLambda;
-		const FVector3f Delta = GetXPBDAxialSpringDampingDelta(P1, P2, P3, X1, X2, X3, InvM1, InvM2, InvM3, Dt, Bary, Dist, Lambda, StiffnessValue, DampingRatio, DLambda);
+		const FVector3f Delta = GetXPBDAxialSpringDeltaWithDamping(P1, P2, P3, X1, X2, X3, InvM1, InvM2, InvM3, Dt, Bary, Dist, Lambda, StiffnessValue, DampingRatio, FLOAT_SMALL_NUMBER, DLambda);
 
 		Lambdas[Index] = Lambda + DLambda;
+
+		if (InvM1 > FLOAT_ZERO)
+		{
+			VectorScatter(&PandInvM[Index1], SetVector4( P1 + (InvM1 * Delta), InvM1 ));
+		}
+		if (InvM2 > FLOAT_ZERO)
+		{
+			VectorScatter(&PandInvM[Index2], SetVector4( P2 - (InvM2 * Bary * Delta), InvM2 ));
+		}
+		if (InvM3 > FLOAT_ZERO)
+		{
+			VectorScatter(&PandInvM[Index3], SetVector4( P3 - (InvM3 * (1.f - Bary) * Delta), InvM3 ));
+		}
+	}
+}
+
+export void ApplyXPBDAnisoAxialSpringDampingConstraintsWithWeightMaps(uniform FVector4f PandInvM[],
+															const uniform FVector3f X[],
+															const uniform FIntVector Constraints[],
+															const uniform float Barys[],
+															const uniform float Dists[],
+															const uniform FVector3f WarpWeftBiasBaseMultiplers[],
+															uniform float Lambdas[],
+															const uniform float Dt,
+															const uniform float MinStiffness,
+															const uniform bool StiffnessHasMap,
+															const uniform uint8 StiffnessIndices[],
+															const uniform float StiffnessTable[],
+															const uniform bool StiffnessWeftHasMap,
+															const uniform uint8 StiffnessWeftIndices[],
+															const uniform float StiffnessWeftTable[],
+															const uniform bool StiffnessBiasHasMap,
+															const uniform uint8 StiffnessBiasIndices[],
+															const uniform float StiffnessBiasTable[],
+															const uniform bool DampingHasMap,
+															const uniform uint8 DampingIndices[],
+															const uniform float DampingTable[],
+															const uniform int32 NumConstraints)
+{
+
+	foreach(Index = 0 ... NumConstraints)
+	{
+		const varying FIntVector Constraint = VectorLoad(&Constraints[extract(Index,0)]);
+		const varying int32 Index1 = Constraint.V[0];
+		const varying int32 Index2 = Constraint.V[1];
+		const varying int32 Index3 = Constraint.V[2];
+
+		const varying int8 StiffnessIndex = StiffnessHasMap ? StiffnessIndices[Index] : 0;
+		const varying int8 StiffnessWeftIndex = StiffnessWeftHasMap ? StiffnessWeftIndices[Index] : 0;
+		const varying int8 StiffnessBiasIndex = StiffnessBiasHasMap ? StiffnessBiasIndices[Index] : 0;
+		const varying int8 DampingIndex = DampingHasMap ? DampingIndices[Index] : 0;
 		
-		VectorScatter(&PandInvM[Index1], SetVector4( P1 + (InvM1 * Delta), InvM1 ));
-		VectorScatter(&PandInvM[Index2], SetVector4( P2 - (InvM2 * Bary * Delta), InvM2 ));
-		VectorScatter(&PandInvM[Index3], SetVector4( P3 - (InvM3 * (1.f - Bary) * Delta), InvM3 ));
+		const varying FVector4f PandInvM1 = VectorGather(&PandInvM[Index1]);
+		const varying FVector4f PandInvM2 = VectorGather(&PandInvM[Index2]);
+		const varying FVector4f PandInvM3 = VectorGather(&PandInvM[Index3]);
+
+		varying FVector3f P1, P2, P3;
+		varying float InvM1, InvM2, InvM3;
+		UnzipPandInvM(PandInvM1, P1, InvM1);
+		UnzipPandInvM(PandInvM2, P2, InvM2);
+		UnzipPandInvM(PandInvM3, P3, InvM3);
+		
+		const varying FVector3f X1 = VectorGather(&X[Index1]);
+		const varying FVector3f X2 = VectorGather(&X[Index2]);
+		const varying FVector3f X3 = VectorGather(&X[Index3]);
+		
+		const varying float Bary = Barys[Index];
+		const varying float Dist = Dists[Index];
+		const varying float Lambda = Lambdas[Index];
+
+		#pragma ignore warning(perf)
+		const varying float Stiffness = StiffnessTable[StiffnessIndex];
+		#pragma ignore warning(perf)
+		const varying float StiffnessWeft = StiffnessWeftTable[StiffnessWeftIndex];
+		#pragma ignore warning(perf)
+		const varying float StiffnessBias = StiffnessBiasTable[StiffnessBiasIndex];
+		#pragma ignore warning(perf)
+		const varying float DampingRatio = DampingTable[DampingIndex];
+
+		const varying FVector3f StiffnessVector = {{StiffnessWeft, Stiffness, StiffnessBias}};
+		const varying FVector3f WarpWeftBiasBaseMultiplier = VectorGather(&WarpWeftBiasBaseMultiplers[Index]);
+		const varying float StiffnessValue = VectorDot(WarpWeftBiasBaseMultiplier, StiffnessVector);
+
+		varying float DLambda;
+		const FVector3f Delta = GetXPBDAxialSpringDampingDelta(P1, P2, P3, X1, X2, X3, InvM1, InvM2, InvM3, Dt, Bary, Dist, Lambda, StiffnessValue, DampingRatio, FLOAT_SMALL_NUMBER, DLambda);
+
+		Lambdas[Index] = Lambda + DLambda;
+
+		if (InvM1 > FLOAT_ZERO)
+		{
+			VectorScatter(&PandInvM[Index1], SetVector4( P1 + (InvM1 * Delta), InvM1 ));
+		}
+		if (InvM2 > FLOAT_ZERO)
+		{
+			VectorScatter(&PandInvM[Index2], SetVector4( P2 - (InvM2 * Bary * Delta), InvM2 ));
+		}
+		if (InvM3 > FLOAT_ZERO)
+		{
+			VectorScatter(&PandInvM[Index3], SetVector4( P3 - (InvM3 * (1.f - Bary) * Delta), InvM3 ));
+		}
 	}
 }

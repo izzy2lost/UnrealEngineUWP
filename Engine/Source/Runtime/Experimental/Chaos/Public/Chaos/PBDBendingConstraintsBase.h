@@ -220,13 +220,30 @@ public:
 	}
 
 	template<typename SolverParticlesOrRange>
-	CHAOS_API void Init(const SolverParticlesOrRange& InParticles);
+	void Init(const SolverParticlesOrRange& InParticles)
+	{
+		IsBuckled.SetNumUninitialized(Constraints.Num());
+		for (int32 ConstraintIndex = 0; ConstraintIndex < Constraints.Num(); ++ConstraintIndex)
+		{
+			const TVec4<int32>& Constraint = Constraints[ConstraintIndex];
+			const int32 i1 = Constraint[0];
+			const int32 i2 = Constraint[1];
+			const int32 i3 = Constraint[2];
+			const int32 i4 = Constraint[3];
+			const FSolverVec3& P1 = InParticles.X(i1);
+			const FSolverVec3& P2 = InParticles.X(i2);
+			const FSolverVec3& P3 = InParticles.X(i3);
+			const FSolverVec3& P4 = InParticles.X(i4);
+			const FSolverReal Angle = CalcAngle(P1, P2, P3, P4);
+			IsBuckled[ConstraintIndex] = AngleIsBuckled(Angle, RestAngles[ConstraintIndex]);
+		}
+	}
 
 	const TArray<FSolverReal>& GetRestAngles() const { return RestAngles; }
 	const TArray<TVec4<int32>>& GetConstraints() const { return Constraints; }
 	const TArray<bool>& GetIsBuckled() const { return IsBuckled; }
 
-protected:
+private:
 	template<class TNum>
 	static TNum SafeDivide(const TNum& Numerator, const FSolverReal& Denominator)
 	{
@@ -235,7 +252,7 @@ protected:
 		return TNum(0);
 	}
 	
-	static TStaticArray<FSolverVec3, 4> CalcGradients(const FSolverVec3& P1, const FSolverVec3& P2, const FSolverVec3& P3, const FSolverVec3& P4, FSolverReal* OutAngle = nullptr)
+	static TStaticArray<FSolverVec3, 4> CalcGradients(const FSolverVec3& P1, const FSolverVec3& P2, const FSolverVec3& P3, const FSolverVec3& P4)
 	{
 		TStaticArray<FSolverVec3, 4> Grads;
 		// Calculated using Phi = atan2(SinPhi, CosPhi)
@@ -267,15 +284,9 @@ protected:
 		Grads[2] = -DPhiDP13 - DPhiDP23;
 		Grads[3] = -DPhiDP14 - DPhiDP24;
 
-		if (OutAngle)
-		{
-			*OutAngle = FMath::Atan2(SinPhi, CosPhi);
-		}
-
 		return Grads;
 	}
 
-private:
 	template<typename SolverParticlesOrRange>
 	static TArray<TVec4<int32>> TrimKinematicConstraints(const TArray<TVec4<int32>>& InConstraints, const SolverParticlesOrRange& InParticles)
 	{
@@ -327,12 +338,3 @@ protected:
 };
 
 }  // End namespace Chaos::Softs
-
-// Support ISPC enable/disable in non-shipping builds
-#if !INTEL_ISPC
-const bool bChaos_Bending_ISPC_Enabled = false;
-#elif UE_BUILD_SHIPPING
-const bool bChaos_Bending_ISPC_Enabled = true;
-#else
-extern CHAOS_API bool bChaos_Bending_ISPC_Enabled;
-#endif

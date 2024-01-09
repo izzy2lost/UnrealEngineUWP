@@ -5,7 +5,6 @@
 #include "Chaos/PBDAxialSpringConstraintsBase.h"
 #include "Chaos/PBDSpringConstraintsBase.h"
 #include "Chaos/PBDWeightMap.h"
-#include "Chaos/PBDFlatWeightMap.h"
 
 namespace Chaos
 {
@@ -23,7 +22,7 @@ class FXPBDAnisotropicEdgeSpringConstraints : public FPBDSpringConstraintsBase
 
 public:
 	// Stiffness is in kg cm /s^2
-	static constexpr FSolverReal MinStiffness = (FSolverReal)0; // We're not checking against MinStiffness (except when it's constant and == 0)
+	static constexpr FSolverReal MinStiffness = (FSolverReal)UE_SMALL_NUMBER; // Stiffness below this will be considered 0 
 	static constexpr FSolverReal MaxStiffness = (FSolverReal)1e9;
 	static constexpr FSolverReal MinDampingRatio = (FSolverReal)0.;
 	static constexpr FSolverReal MaxDampingRatio = (FSolverReal)1000.;
@@ -46,7 +45,8 @@ public:
 		const FSolverVec2& InStiffnessBias,
 		const FSolverVec2& InDampingRatio,
 		const FSolverVec2& InWarpScale,
-		const FSolverVec2& InWeftScale);
+		const FSolverVec2& InWeftScale,
+		bool bTrimKinematicConstraints = false);
 
 	CHAOS_API FXPBDAnisotropicEdgeSpringConstraints(
 		const FSolverParticles& InParticles,
@@ -66,7 +66,8 @@ public:
 		const FSolverVec2& InStiffnessBias,
 		const FSolverVec2& InDampingRatio,
 		const FSolverVec2& InWarpScale,
-		const FSolverVec2& InWeftScale);
+		const FSolverVec2& InWeftScale,
+		bool bTrimKinematicConstraints = false);
 
 	virtual ~FXPBDAnisotropicEdgeSpringConstraints() override {}
 
@@ -78,9 +79,13 @@ public:
 		LambdasDamping.AddZeroed(Constraints.Num());
 	}
 
-	// Update rest lengths from warp/weft scale
+	// Update stiffness table, as well as the simulation stiffness exponent
 	void ApplyProperties(const FSolverReal /*Dt*/, const int32 /*NumIterations*/)
 	{
+		Stiffness.ApplyXPBDValues(MaxStiffness);
+		StiffnessWeft.ApplyXPBDValues(MaxStiffness);
+		StiffnessBias.ApplyXPBDValues(MaxStiffness);
+		DampingRatio.ApplyValues();
 		bool bWarpScaleChanged = false;
 		WarpScale.ApplyValues(&bWarpScaleChanged);
 		bool bWeftScaleChanged = false;
@@ -115,11 +120,11 @@ private:
 	using Base::ParticleOffset;
 	using Base::ParticleCount;
 	using Base::Dists; // These will be updated when Warp/Weft Scales change.
+	using Base::Stiffness; // Warp stiffness
 
-	FPBDFlatWeightMap StiffnessWarp;
-	FPBDFlatWeightMap StiffnessWeft;
-	FPBDFlatWeightMap StiffnessBias;
-	FPBDFlatWeightMap DampingRatio;
+	FPBDStiffness StiffnessWeft;
+	FPBDStiffness StiffnessBias;
+	FPBDWeightMap DampingRatio;
 	FPBDWeightMap WarpScale;
 	FPBDWeightMap WeftScale;
 
@@ -139,7 +144,7 @@ class FXPBDAnisotropicAxialSpringConstraints : public FPBDAxialSpringConstraints
 
 public:
 	// Stiffness is in kg cm /s^2
-	static constexpr FSolverReal MinStiffness = (FSolverReal)0; // We're not checking against MinStiffness (except when it's constant and == 0)
+	static constexpr FSolverReal MinStiffness = (FSolverReal)UE_SMALL_NUMBER; // Stiffness below this will be considered 0 
 	static constexpr FSolverReal MaxStiffness = (FSolverReal)1e9;
 	static constexpr FSolverReal MinDampingRatio = (FSolverReal)0.;
 	static constexpr FSolverReal MaxDampingRatio = (FSolverReal)1000.;
@@ -162,7 +167,8 @@ public:
 		const FSolverVec2& InStiffnessBias,
 		const FSolverVec2& InDampingRatio,
 		const FSolverVec2& InWarpScale,
-		const FSolverVec2& InWeftScale);
+		const FSolverVec2& InWeftScale,
+		bool bTrimKinematicConstraints = false);
 
 		CHAOS_API FXPBDAnisotropicAxialSpringConstraints(
 			const FSolverParticles& InParticles,
@@ -182,7 +188,8 @@ public:
 			const FSolverVec2& InStiffnessBias,
 			const FSolverVec2& InDampingRatio,
 			const FSolverVec2& InWarpScale,
-			const FSolverVec2& InWeftScale);
+			const FSolverVec2& InWeftScale,
+			bool bTrimKinematicConstraints = false);
 
 		virtual ~FXPBDAnisotropicAxialSpringConstraints() override {}
 
@@ -194,9 +201,13 @@ public:
 			LambdasDamping.AddZeroed(Constraints.Num());
 		}
 
-		// Update rest lengths from warp/weft scale
+		// Update stiffness table, as well as the simulation stiffness exponent
 		void ApplyProperties(const FSolverReal /*Dt*/, const int32 /*NumIterations*/)
 		{
+			Stiffness.ApplyXPBDValues(MaxStiffness);
+			StiffnessWeft.ApplyXPBDValues(MaxStiffness);
+			StiffnessBias.ApplyXPBDValues(MaxStiffness);
+			DampingRatio.ApplyValues();
 			bool bWarpScaleChanged = false;
 			WarpScale.ApplyValues(&bWarpScaleChanged);
 			bool bWeftScaleChanged = false;
@@ -232,11 +243,11 @@ private:
 	using Base::ParticleCount;
 	using Base::Barys;
 	using Base::Dists; // These will be updated when Warp/Weft Scales change.
+	using Base::Stiffness; // Warp stiffness
 
-	FPBDFlatWeightMap StiffnessWarp;
-	FPBDFlatWeightMap StiffnessWeft;
-	FPBDFlatWeightMap StiffnessBias;
-	FPBDFlatWeightMap DampingRatio;
+	FPBDStiffness StiffnessWeft;
+	FPBDStiffness StiffnessBias;
+	FPBDWeightMap DampingRatio;
 	FPBDWeightMap WarpScale;
 	FPBDWeightMap WeftScale;
 
@@ -269,7 +280,8 @@ public:
 		const FTriangleMesh& TriangleMesh,
 		const TArray<TVec3<FVec2f>>& FaceVertexPatternPositions,
 		const TMap<FString, TConstArrayView<FRealSingle>>& WeightMaps,
-		const FCollectionPropertyConstFacade& PropertyCollection)
+		const FCollectionPropertyConstFacade& PropertyCollection,
+		bool bTrimKinematicConstraints = false)
 		: EdgeConstraints(
 			Particles,
 			TriangleMesh,
@@ -286,7 +298,8 @@ public:
 			FSolverVec2(GetWeightedFloatXPBDAnisoSpringStiffnessBias(PropertyCollection, DefaultStiffness)),
 			FSolverVec2(GetWeightedFloatXPBDAnisoSpringDamping(PropertyCollection, DefaultDamping)),
 			FSolverVec2(GetWeightedFloatXPBDAnisoSpringWarpScale(PropertyCollection, DefaultWarpWeftScale)),
-			FSolverVec2(GetWeightedFloatXPBDAnisoSpringWeftScale(PropertyCollection, DefaultWarpWeftScale)))
+			FSolverVec2(GetWeightedFloatXPBDAnisoSpringWeftScale(PropertyCollection, DefaultWarpWeftScale)),
+			bTrimKinematicConstraints)
 		, AxialConstraints(
 			Particles,
 			TriangleMesh,
@@ -303,7 +316,8 @@ public:
 			FSolverVec2(GetWeightedFloatXPBDAnisoSpringStiffnessBias(PropertyCollection, DefaultStiffness)),
 			FSolverVec2(GetWeightedFloatXPBDAnisoSpringDamping(PropertyCollection, DefaultDamping)),
 			FSolverVec2(GetWeightedFloatXPBDAnisoSpringWarpScale(PropertyCollection, DefaultWarpWeftScale)),
-			FSolverVec2(GetWeightedFloatXPBDAnisoSpringWeftScale(PropertyCollection, DefaultWarpWeftScale)))
+			FSolverVec2(GetWeightedFloatXPBDAnisoSpringWeftScale(PropertyCollection, DefaultWarpWeftScale)),
+			bTrimKinematicConstraints)
 		, XPBDAnisoSpringUse3dRestLengthsIndex(PropertyCollection)
 		, XPBDAnisoSpringStiffnessWarpIndex(PropertyCollection)
 		, XPBDAnisoSpringStiffnessWeftIndex(PropertyCollection)
@@ -320,7 +334,8 @@ public:
 		const FTriangleMesh& TriangleMesh,
 		const TArray<TVec3<FVec2f>>& FaceVertexPatternPositions,
 		const TMap<FString, TConstArrayView<FRealSingle>>& WeightMaps,
-		const FCollectionPropertyConstFacade& PropertyCollection)
+		const FCollectionPropertyConstFacade& PropertyCollection,
+		bool bTrimKinematicConstraints = false)
 		: EdgeConstraints(
 			InParticles,
 			InParticleOffset,
@@ -339,7 +354,8 @@ public:
 			FSolverVec2(GetWeightedFloatXPBDAnisoSpringStiffnessBias(PropertyCollection, DefaultStiffness)),
 			FSolverVec2(GetWeightedFloatXPBDAnisoSpringDamping(PropertyCollection, DefaultDamping)),
 			FSolverVec2(GetWeightedFloatXPBDAnisoSpringWarpScale(PropertyCollection, DefaultWarpWeftScale)),
-			FSolverVec2(GetWeightedFloatXPBDAnisoSpringWeftScale(PropertyCollection, DefaultWarpWeftScale)))
+			FSolverVec2(GetWeightedFloatXPBDAnisoSpringWeftScale(PropertyCollection, DefaultWarpWeftScale)),
+			bTrimKinematicConstraints)
 		, AxialConstraints(
 			InParticles,
 			InParticleOffset,
@@ -358,7 +374,8 @@ public:
 			FSolverVec2(GetWeightedFloatXPBDAnisoSpringStiffnessBias(PropertyCollection, DefaultStiffness)),
 			FSolverVec2(GetWeightedFloatXPBDAnisoSpringDamping(PropertyCollection, DefaultDamping)),
 			FSolverVec2(GetWeightedFloatXPBDAnisoSpringWarpScale(PropertyCollection, DefaultWarpWeftScale)),
-			FSolverVec2(GetWeightedFloatXPBDAnisoSpringWeftScale(PropertyCollection, DefaultWarpWeftScale)))
+			FSolverVec2(GetWeightedFloatXPBDAnisoSpringWeftScale(PropertyCollection, DefaultWarpWeftScale)),
+			bTrimKinematicConstraints)
 		, XPBDAnisoSpringUse3dRestLengthsIndex(PropertyCollection)
 		, XPBDAnisoSpringStiffnessWarpIndex(PropertyCollection)
 		, XPBDAnisoSpringStiffnessWeftIndex(PropertyCollection)
@@ -372,7 +389,7 @@ public:
 		const FCollectionPropertyConstFacade& PropertyCollection,
 		const TMap<FString, TConstArrayView<FRealSingle>>& WeightMaps);
 
-	// Update rest lengths from warp/weft scale
+	// Update stiffness table, as well as the simulation stiffness exponent
 	void ApplyProperties(const FSolverReal Dt, const int32 NumIterations)
 	{
 		EdgeConstraints.ApplyProperties(Dt, NumIterations);

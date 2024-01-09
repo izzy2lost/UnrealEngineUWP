@@ -1,16 +1,5 @@
 // Copyright Epic Games, Inc. All Rights Reserved.
 #include "Chaos/PBDBendingConstraintsBase.h"
-#if INTEL_ISPC
-#include "PBDBendingConstraints.ispc.generated.h"
-#endif
-
-#if INTEL_ISPC && !UE_BUILD_SHIPPING
-bool bChaos_Bending_ISPC_Enabled = true;
-FAutoConsoleVariableRef CVarChaosBendingISPCEnabled(TEXT("p.Chaos.Bending.ISPC"), bChaos_Bending_ISPC_Enabled, TEXT("Whether to use ISPC optimizations in Bending constraints"));
-
-static_assert(sizeof(ispc::FVector4f) == sizeof(Chaos::Softs::FPAndInvM), "sizeof(ispc::FVector4f) != sizeof(Chaos::Softs::FPAndInvM");
-static_assert(sizeof(ispc::FIntVector4) == sizeof(Chaos::TVec4<int32>), "sizeof(ispc::FIntVector4) != sizeof(Chaos::TVec4<int32>");
-#endif
 
 namespace Chaos::Softs 
 {
@@ -145,45 +134,4 @@ namespace Chaos::Softs
 		const TConstArrayView<FRealSingle>& RestAngleMap,
 		const FSolverVec2& RestAngleValue,
 		ERestAngleConstructionType RestAngleConstructionType);
-
-
-	template<typename SolverParticlesOrRange>
-	void FPBDBendingConstraintsBase::Init(const SolverParticlesOrRange& InParticles)
-	{
-		TRACE_CPUPROFILER_EVENT_SCOPE(FPBDBendingConstraintsBase_Init);
-
-		IsBuckled.SetNumUninitialized(Constraints.Num());
-#if INTEL_ISPC
-		if (bRealTypeCompatibleWithISPC && bChaos_Bending_ISPC_Enabled)
-		{
-			ispc::InitBendingConstraintsIsBuckled(
-				(const ispc::FVector3f*)InParticles.XArray().GetData(),
-				(const ispc::FIntVector4*)Constraints.GetData(),
-				RestAngles.GetData(),
-				IsBuckled.GetData(),
-				BucklingRatio,
-				Constraints.Num()
-			);
-		}
-		else
-#endif
-		{
-			for (int32 ConstraintIndex = 0; ConstraintIndex < Constraints.Num(); ++ConstraintIndex)
-			{
-				const TVec4<int32>& Constraint = Constraints[ConstraintIndex];
-				const int32 Index1 = Constraint[0];
-				const int32 Index2 = Constraint[1];
-				const int32 Index3 = Constraint[2];
-				const int32 Index4 = Constraint[3];
-				const FSolverVec3& P1 = InParticles.X(Index1);
-				const FSolverVec3& P2 = InParticles.X(Index2);
-				const FSolverVec3& P3 = InParticles.X(Index3);
-				const FSolverVec3& P4 = InParticles.X(Index4);
-				const FSolverReal Angle = CalcAngle(P1, P2, P3, P4);
-				IsBuckled[ConstraintIndex] = AngleIsBuckled(Angle, RestAngles[ConstraintIndex]);
-			}
-		}
-	}
-	template CHAOS_API void FPBDBendingConstraintsBase::Init(const FSolverParticles& InParticles);
-	template CHAOS_API void FPBDBendingConstraintsBase::Init(const FSolverParticlesRange& InParticles);
 }  // End namespace Chaos::Softs
