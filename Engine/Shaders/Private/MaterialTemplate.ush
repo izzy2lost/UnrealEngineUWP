@@ -444,7 +444,7 @@ struct FMaterialPixelParameters
 	uint InstanceId;
 #endif
 
-#if USES_PER_INSTANCE_CUSTOM_DATA_PS && VF_USE_PRIMITIVE_SCENE_DATA
+#if USES_PER_INSTANCE_CUSTOM_DATA && VF_USE_PRIMITIVE_SCENE_DATA
 	uint CustomDataOffset;
 	uint CustomDataCount;
 #endif
@@ -1186,7 +1186,7 @@ MaterialFloat2 GetDefaultSceneTextureUV(FMaterialPixelParameters Parameters, con
 /** Per Instance Custom Data Getter (Pixel Shader Variant - Visibility Buffer) */
 float GetPerInstanceCustomData(FMaterialPixelParameters Parameters, int Index, float DefaultValue)
 {
-#if VF_USE_PRIMITIVE_SCENE_DATA && USES_PER_INSTANCE_CUSTOM_DATA_PS
+#if VF_USE_PRIMITIVE_SCENE_DATA && USES_PER_INSTANCE_CUSTOM_DATA
 	const uint FloatIndex = uint(Index);
 	#if SHADER_USES_PRIMITIVE_UBO
 		return LoadInstanceCustomDataElementUBO(Parameters.PrimitiveId, FloatIndex, DefaultValue);
@@ -1199,7 +1199,7 @@ float GetPerInstanceCustomData(FMaterialPixelParameters Parameters, int Index, f
 			return Float4Packed[FloatIndex & 0x3u];
 		}
 	#endif
-#elif USE_INSTANCING && USES_PER_INSTANCE_CUSTOM_DATA_PS
+#elif USE_INSTANCING && USES_PER_INSTANCE_CUSTOM_DATA
 	const uint FloatIndex = uint(Index);
 	BRANCH
 	if (FloatIndex < InstanceVF.NumCustomDataFloats)
@@ -1247,12 +1247,12 @@ float GetPerInstanceCustomData(FMaterialVertexParameters Parameters, int Index, 
 /** Get the per-instance custom data when instancing */
 MaterialFloat3 GetPerInstanceCustomData3Vector(FMaterialPixelParameters Parameters, int Index, MaterialFloat3 DefaultValue)
 {
-#if VF_USE_PRIMITIVE_SCENE_DATA && USES_PER_INSTANCE_CUSTOM_DATA_PS
+#if VF_USE_PRIMITIVE_SCENE_DATA && USES_PER_INSTANCE_CUSTOM_DATA
 	return float3(GetPerInstanceCustomData(Parameters, Index + 0, DefaultValue.x),
 		GetPerInstanceCustomData(Parameters, Index + 1, DefaultValue.y),
 		GetPerInstanceCustomData(Parameters, Index + 2, DefaultValue.z));
 
-#elif USE_INSTANCING && USES_PER_INSTANCE_CUSTOM_DATA_PS
+#elif USE_INSTANCING && USES_PER_INSTANCE_CUSTOM_DATA
 	const uint FloatIndex = uint(Index);
 	BRANCH
 	if (FloatIndex + 2 < InstanceVF.NumCustomDataFloats)

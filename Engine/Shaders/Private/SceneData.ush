@@ -232,8 +232,10 @@ struct FInstanceSceneData
 	uint     NaniteRuntimeResourceID;
 	uint     NaniteHierarchyOffset;
 	float    RandomID;
+#if ENABLE_PER_INSTANCE_CUSTOM_DATA
 	uint     CustomDataOffset;
 	uint     CustomDataCount;
+#endif
 #if 1 //NEEDS_LIGHTMAP_COORDINATE // TODO: Fix Me
 	float4   LightMapAndShadowMapUVBias;
 #endif
@@ -989,8 +991,10 @@ FInstanceSceneData GetInstanceSceneData(uint InstanceId, uint SOAStride, bool bC
 
 		FInstancePayloadDataOffsets Offsets 	= GetInstancePayloadDataOffsets(InstanceData.PrimitiveId, InstanceData.Flags, InstanceData.RelativeId);
 	
+	#if ENABLE_PER_INSTANCE_CUSTOM_DATA
 		InstanceData.CustomDataCount			= CustomDataCount;
 		InstanceData.CustomDataOffset			= Offsets.CustomData;
+	#endif
 		InstanceData.LastUpdateSceneFrameNumber	= asuint(LoadInstanceSceneDataElement(0 * SOAStride + InstanceId).z);
 		InstanceData.RandomID					= LoadInstanceSceneDataElement(0 * SOAStride + InstanceId).w;
 

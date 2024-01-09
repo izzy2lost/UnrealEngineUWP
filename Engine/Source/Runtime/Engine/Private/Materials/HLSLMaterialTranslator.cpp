@@ -650,7 +650,6 @@ FHLSLMaterialTranslator::FHLSLMaterialTranslator(FMaterial* InMaterial,
 ,	bUsesInstanceLocalToWorldPS(false)
 ,	bUsesInstanceWorldToLocalPS(false)
 ,	bUsesPerInstanceRandomPS(false)
-,	bUsesPerInstanceCustomDataPS(false)
 ,	bUsesVertexPosition(false)
 ,	bUsesTransformVector(false)
 ,	bCompilingPreviousFrame(false)
@@ -14017,8 +14016,6 @@ int32 FHLSLMaterialTranslator::PerInstanceCustomData(int32 DataIndex, int32 Defa
 
 	// The case where ShaderFrequency is not SF_Vertex only works with Nanite - TODO: Edge case the error
 	MaterialCompilationOutput.bUsesPerInstanceCustomData = true;
-	// Whether we need to pass custom data paramaters to PS through interpolators
-	bUsesPerInstanceCustomDataPS |= (ShaderFrequency == SF_Pixel);
 	return AddInlinedCodeChunkZeroDeriv(MCT_Float, TEXT("GetPerInstanceCustomData(Parameters, %d, %s)"), DataIndex, *GetParameterCode(DefaultValueIndex));
 }
 
@@ -14037,8 +14034,6 @@ int32 FHLSLMaterialTranslator::PerInstanceCustomData3Vector(int32 DataIndex, int
 
 	// The case when ShaderFrequency is not SF_Vertex only works with Nanite - TODO: Edge case the error
 	MaterialCompilationOutput.bUsesPerInstanceCustomData = true;
-	// Whether we need to pass custom data paramaters to PS through interpolators
-	bUsesPerInstanceCustomDataPS |= (ShaderFrequency == SF_Pixel);
 	return AddInlinedCodeChunkZeroDeriv(MCT_Float3, TEXT("GetPerInstanceCustomData3Vector(Parameters, %d, %s)"), DataIndex, *GetParameterCode(DefaultValueIndex));
 }
 
