@@ -408,6 +408,33 @@ namespace PCG
 			}
 		};
 
+		/** "Find Nearest" trait support driven by less/less or equal operation, used for types that do not support distance computation */
+		template<typename Traits, typename T>
+		struct CompareBasedFindNearestTraits
+		{
+			enum { CanFindNearest = true};
+			enum { CanComputeDistance = false };
+
+			static bool IsCloserTo(const T& A, const T& B, const T& Target)
+			{
+				// If A is "between" B and Target, then it is closer, e.g. B < A <= Target or Target <= A < B
+				return (Traits::Less(B, A) && Traits::LessOrEqual(A, Target)) || (Traits::LessOrEqual(Target, A) && Traits::Less(A, B));
+			}
+		};
+
+		/** "Find Nearest" trait support driven by distance comparison, used for types that support distance computation */
+		template<typename Traits, typename T>
+		struct DistanceBasedFindNearestTraits
+		{
+			enum { CanFindNearest = true };
+			enum { CanComputeDistance = true };
+
+			static bool IsCloserTo(const T& A, const T& B, const T& Target)
+			{
+				return Traits::Distance(A, Target) < Traits::Distance(B, Target);
+			}
+		};
+
 		template<typename T>
 		struct DefaultWeightedSumTraits
 		{
@@ -440,9 +467,20 @@ namespace PCG
 			}
 		};
 
+		template <typename T>
+		struct DefaultScalarDistanceTraits : DistanceBasedFindNearestTraits<DefaultScalarDistanceTraits<T>, T>
+		{
+			using DistanceType = T;
+
+			static DistanceType Distance(const T& A, const T& B) 
+			{ 
+				return FMath::Abs(A - B);
+			}
+		};
+
 		// Common traits for int32, int64, float, double
 		template<typename T>
-		struct MetadataTraits : DefaultOperationTraits<T>, DefaultWeightedSumTraits<T>, DefaultMinMaxTraits<T>, DefaultCompareTraits<T>, LexToStringTraits<T>
+		struct MetadataTraits : DefaultOperationTraits<T>, DefaultWeightedSumTraits<T>, DefaultMinMaxTraits<T>, DefaultCompareTraits<T>, LexToStringTraits<T>, DefaultScalarDistanceTraits<T>
 		{
 			enum { CompressData = false };
 			enum { CanSearchString = false };
@@ -450,7 +488,7 @@ namespace PCG
 		};
 
 		template<>
-		struct MetadataTraits<float> : DefaultOperationTraits<float>, DefaultWeightedSumTraits<float>, DefaultMinMaxTraits<float>, DefaultCompareTraits<float>, LexToStringTraits<float>
+		struct MetadataTraits<float> : DefaultOperationTraits<float>, DefaultWeightedSumTraits<float>, DefaultMinMaxTraits<float>, DefaultCompareTraits<float>, LexToStringTraits<float>, DefaultScalarDistanceTraits<float>
 		{
 			enum { CompressData = false };
 			enum { CanSearchString = false };
@@ -463,7 +501,7 @@ namespace PCG
 		};
 
 		template<>
-		struct MetadataTraits<double> : DefaultOperationTraits<double>, DefaultWeightedSumTraits<double>, DefaultMinMaxTraits<double>, DefaultCompareTraits<double>, LexToStringTraits<double>
+		struct MetadataTraits<double> : DefaultOperationTraits<double>, DefaultWeightedSumTraits<double>, DefaultMinMaxTraits<double>, DefaultCompareTraits<double>, LexToStringTraits<double>, DefaultScalarDistanceTraits<double>
 		{
 			enum { CompressData = false };
 			enum { CanSearchString = false };
@@ -484,6 +522,8 @@ namespace PCG
 			enum { CanMulDiv = false };
 			enum { CanInterpolate = false };
 			enum { CanCompare = true };
+			enum { CanFindNearest = false };
+			enum { CanComputeDistance = false };
 			enum { CanSearchString = false };
 			enum { NeedsConstruction = false };
 
@@ -540,7 +580,7 @@ namespace PCG
 
 		// Vector types
 		template<typename T>
-		struct VectorTraits : DefaultOperationTraits<T>, DefaultWeightedSumTraits<T>, DefaultStringTraits<T>
+		struct VectorTraits : DefaultOperationTraits<T>, DefaultWeightedSumTraits<T>, DefaultStringTraits<T>, DistanceBasedFindNearestTraits<VectorTraits<T>, T>
 		{
 			enum { CompressData = false };
 			enum { CanMinMax = true };
@@ -549,9 +589,17 @@ namespace PCG
 			enum { CanSearchString = false };
 			enum { NeedsConstruction = false };
 
+			using DistanceType = typename T::FReal;
+
 			static T ZeroValue()
 			{
 				return T::Zero();
+			}
+
+			static DistanceType Distance(const T& A, const T& B) 
+			{
+				// Implementation note: we use SizeSquared here instead of SquareLength because FVector4 doesn't have it.
+				return (A - B).Size();
 			}
 		};
 
@@ -674,7 +722,7 @@ namespace PCG
 
 		// Quaternion
 		template<>
-		struct MetadataTraits<FQuat> : DefaultStringTraits<FQuat>
+		struct MetadataTraits<FQuat> : DefaultStringTraits<FQuat>, DistanceBasedFindNearestTraits<MetadataTraits<FQuat>, FQuat>
 		{
 			enum { CompressData = false };
 			enum { CanMinMax = false };
@@ -684,6 +732,8 @@ namespace PCG
 			enum { CanCompare = false };
 			enum { CanSearchString = false };
 			enum { NeedsConstruction = false };
+
+			using DistanceType = typename FQuat::FReal;
 
 			static bool Equal(const FQuat& A, const FQuat& B)
 			{
@@ -725,11 +775,16 @@ namespace PCG
 			{
 				return FQuat::Identity;
 			}
+
+			static FQuat::FReal Distance(const FQuat& A, const FQuat& B)
+			{
+				return A.AngularDistance(B);
+			}
 		};
 
 		// Rotator
 		template<>
-		struct MetadataTraits<FRotator> : DefaultStringTraits<FRotator>
+		struct MetadataTraits<FRotator> : DefaultStringTraits<FRotator>, DistanceBasedFindNearestTraits<MetadataTraits<FRotator>, FRotator>
 		{
 			enum { CompressData = false };
 			enum { CanMinMax = false };
@@ -739,6 +794,8 @@ namespace PCG
 			enum { CanCompare = false };
 			enum { CanSearchString = false };
 			enum { NeedsConstruction = false };
+
+			using DistanceType = typename FRotator::FReal;
 
 			static bool Equal(const FRotator& A, const FRotator& B)
 			{
@@ -775,6 +832,12 @@ namespace PCG
 			{
 				return FRotator::ZeroRotator;
 			}
+
+			static FRotator::FReal Distance(const FRotator& A, const FRotator& B)
+			{
+				// Use quaternions for distance calculation, but return degrees instead of radians here
+				return 180.0 * FQuat(A).AngularDistance(FQuat(B)) / UE_DOUBLE_PI;
+			}
 		};
 
 		// Transform
@@ -787,6 +850,8 @@ namespace PCG
 			enum { CanMulDiv = true };
 			enum { CanInterpolate = true };
 			enum { CanCompare = false };
+			enum { CanFindNearest = false };
+			enum { CanComputeDistance = false };
 			enum { CanSearchString = false };
 			enum { NeedsConstruction = false };
 
@@ -832,7 +897,7 @@ namespace PCG
 
 		// Strings
 		template<>
-		struct MetadataTraits<FString> : DefaultCompareTraits<FString>, DefaultStringTraits<FString>
+		struct MetadataTraits<FString> : DefaultCompareTraits<FString>, DefaultStringTraits<FString>, CompareBasedFindNearestTraits<MetadataTraits<FString>, FString>
 		{
 			enum { CompressData = true };
 			enum { CanMinMax = false };
@@ -864,7 +929,7 @@ namespace PCG
 		};
 
 		template<>
-		struct MetadataTraits<FName> : DefaultStringTraits<FName>
+		struct MetadataTraits<FName> : DefaultStringTraits<FName>, CompareBasedFindNearestTraits<MetadataTraits<FName>, FName>
 		{
 			enum { CompressData = false };
 			enum { CanMinMax = false };
@@ -917,7 +982,7 @@ namespace PCG
 		};
 
 		template<typename T>
-		struct SoftObjectPathTraits
+		struct SoftObjectPathTraits : CompareBasedFindNearestTraits<SoftObjectPathTraits<T>, T>
 		{
 			enum { CompressData = true };
 			enum { CanMinMax = false };

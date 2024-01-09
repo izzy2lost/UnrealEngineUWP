@@ -5,6 +5,7 @@
 #include "PCGData.h"
 #include "PCGSettings.h"
 #include "Elements/PCGTimeSlicedElementBase.h"
+#include "Metadata/PCGMetadataTypesConstantStruct.h"
 
 #include "PCGMatchAndSetAttributes.generated.h"
 
@@ -24,6 +25,14 @@ struct FPCGMatchAndSetAttributesIterationState
 	int CurrentPointIndex = 0;
 	const UPCGPointData* InPointData = nullptr;
 	UPCGPointData* OutPointData = nullptr;
+};
+
+UENUM()
+enum class EPCGMatchMaxDistanceMode
+{
+	NoMaxDistance UMETA(DisplayName="No maximum distance"),
+	UseConstantMaxDistance UMETA(DisplayName="Use constant maximum distance"),
+	AttributeMaxDistance
 };
 
 /** This class creates a PCG node that can match, select by weight or match & select by weight 
@@ -54,38 +63,54 @@ protected:
 	// ~End UPCGSettings interface
 
 public:
-	/** Controls whether selection of the attribute set values to copy will be done by matching point-to-attribute set (true) or done randomly (false) */
+	/** Controls whether selection of the attribute set values to copy will be done by matching point-to-attribute set (true) or done randomly (false). */
 	UPROPERTY(BlueprintReadWrite, EditAnywhere, Category = Settings)
 	bool bMatchAttributes = false;
 
-	/** Attribute from the point data to select & maetch */
+	/** Attribute from the point data to select & match. */
 	UPROPERTY(BlueprintReadWrite, EditAnywhere, Category = Settings, meta = (EditCondition = "bMatchAttributes", PCG_Overridable))
 	FPCGAttributePropertyInputSelector InputAttribute;
 
-	/** Attribute from the attribute set to match against */
+	/** Attribute from the attribute set to match against. */
 	UPROPERTY(BlueprintReadWrite, EditAnywhere, Category = Settings, meta = (EditCondition = "bMatchAttributes"))
 	FName MatchAttribute = NAME_None;
 
-	/** Controls whether points that have no valid match in the attribute set are kept as is (default values) or removed from the output */
+	/** Controls whether points that have no valid match in the attribute set are kept as is (default values) or removed from the output. */
 	UPROPERTY(BlueprintReadWrite, EditAnywhere, Category = Settings, meta = (EditCondition = "bMatchAttributes", PCG_Overridable))
 	bool bKeepUnmatched = true;
 
+	/** Controls whether the match operation will return the nearest match and not only match on equality. */
+	UPROPERTY(BlueprintReadWrite, EditAnywhere, Category = Settings, meta = (EditCondition = "bMatchAttributes", PCG_Overridable))
+	bool bFindNearest = false;
+
+	/** Controls whether the match operation has a maximum distance on which to reject points that would be too far from the nearest value. */
+	UPROPERTY(BlueprintReadWrite, EditAnywhere, Category = Settings, meta = (EditCondition = "bFindNearest", EditConditionHides, PCG_Overridable))
+	EPCGMatchMaxDistanceMode MaxDistanceMode = EPCGMatchMaxDistanceMode::NoMaxDistance;
+
+	/** Constant value that establishes the maximum distance an entry can be from its nearest match to be selected */
+	UPROPERTY(BlueprintReadWrite, EditAnywhere, Category = Settings, meta = (EditCondition = "bFindNearest && MaxDistanceMode==EPCGMatchMaxDistanceMode::UseConstantMaxDistance", EditConditionHides))
+	FPCGMetadataTypesConstantStruct MaxDistanceForNearestMatch;
+
+	UPROPERTY(BlueprintReadWrite, EditAnywhere, Category = Settings, meta = (EditCondition = "bFindNearest && MaxDistanceMode==EPCGMatchMaxDistanceMode::AttributeMaxDistance", EditConditionHides, PCG_Overridable))
+	FPCGAttributePropertyInputSelector MaxDistanceInputAttribute;
+
+	/** Controls whether we will use the attribute provided in the Input Weight Attribute to perform entry selection. */
 	UPROPERTY(BlueprintReadWrite, EditAnywhere, Category = Settings)
 	bool bUseInputWeightAttribute = false;
 
-	/** Input weight from the points, assumed to be in the [0, 1] range */
+	/** Input weight from the points, assumed to be in the [0, 1] range. */
 	UPROPERTY(BlueprintReadWrite, EditAnywhere, Category = Settings, meta = (EditCondition = "bUseInputWeightAttribute", PCG_Overridable))
 	FPCGAttributePropertyInputSelector InputWeightAttribute;
 
-	/** Controls whether we will consider the weights, as determined by the Weight Attribute values on the attribute set */
+	/** Controls whether we will consider the weights, as determined by the Weight Attribute values on the attribute set. */
 	UPROPERTY(BlueprintReadWrite, EditAnywhere, Category = Settings, meta = (DisplayName = "Use Match Weight", InlineEditConditionToggle, PCG_Overridable))
 	bool bUseWeightAttribute = false;
 
-	/** Attribute to weight more or less some entries from the attribute set */
+	/** Attribute to weight more or less some entries from the attribute set. */
 	UPROPERTY(BlueprintReadWrite, EditAnywhere, Category = Settings, meta = (DisplayName="Match Weight Attribute", EditCondition = "bUseWeightAttribute", PCG_Overridable))
 	FName WeightAttribute = NAME_None;
 
-	/** Controls whether we will emit a warning and return nothing if there is no provided attribute set */
+	/** Controls whether we will emit a warning and return nothing if there is no provided attribute set. */
 	UPROPERTY(BlueprintReadWrite, EditAnywhere, Category = Settings)
 	bool bWarnIfNoMatchData = true;
 };

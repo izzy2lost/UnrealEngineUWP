@@ -11,8 +11,10 @@
 #include "Metadata/PCGMetadataAttributeTpl.h"
 #include "Metadata/PCGMetadataAttributeTraits.h"
 #include "Metadata/Accessors/IPCGAttributeAccessor.h"
+#include "Metadata/Accessors/IPCGAttributeAccessorTpl.h"
 #include "Metadata/Accessors/PCGAttributeAccessorHelpers.h"
 #include "Metadata/Accessors/PCGAttributeAccessorKeys.h"
+#include "Metadata/Accessors/PCGCustomAccessor.h"
 
 #include "Algo/AnyOf.h"
 
@@ -23,6 +25,7 @@
 namespace PCGMatchAndSetAttributesConstants
 {
 	const FName MatchDataLabel = TEXT("Match Data");
+	const FName MaxDistanceLabel = TEXT("Max Match Distance");
 }
 
 #if WITH_EDITOR
@@ -59,6 +62,16 @@ TArray<FPCGPinProperties> UPCGMatchAndSetAttributesSettings::InputPinProperties(
 		LOCTEXT("MatchDataTooltip", "Input containing the data to match to, then copy the accompanying attribute values")
 	);
 
+	if (bFindNearest && MaxDistanceMode == EPCGMatchMaxDistanceMode::AttributeMaxDistance)
+	{
+		PinProperties.Emplace(PCGMatchAndSetAttributesConstants::MaxDistanceLabel,
+			EPCGDataType::Point | EPCGDataType::Param,
+			/*bAllowMultipleConnections=*/false,
+			/*bAllowMultipleData=*/true,
+			LOCTEXT("MaxDistanceTooltip", "Input containing the maximum distance allowed for near search, selected by the Max Distance Attribute.")
+		);
+	}
+
 	return PinProperties;
 }
 
@@ -93,14 +106,17 @@ public:
 	};
 
 	FPCGAttributeSetPartition() = default;
-	FPCGAttributeSetPartition(FPCGContext* InContext, const UPCGParamData* InParamData, bool bPartitionByAttribute, FName AttributeName, bool bUseWeightAttribute, FName WeightAttributeName)
+
+	FPCGAttributeSetPartition(FPCGContext* InContext, const UPCGParamData* InParamData, bool bPartitionByAttribute, FName AttributeName, bool bUseWeightAttribute, FName WeightAttributeName, bool bInFindNearest, EPCGMatchMaxDistanceMode InMaxDistanceMode, const FPCGMetadataTypesConstantStruct* InMaxDistanceForNearestMatch)
 	{
-		Initialize(InContext, InParamData, bPartitionByAttribute, AttributeName, bUseWeightAttribute, WeightAttributeName);
+		Initialize(InContext, InParamData, bPartitionByAttribute, AttributeName, bUseWeightAttribute, WeightAttributeName, bInFindNearest, InMaxDistanceMode, InMaxDistanceForNearestMatch);
 	}
 
-	bool Initialize(FPCGContext* Context, const UPCGParamData* InParamData, bool bPartitionByAttribute, FName AttributeName, bool bUseWeightAttribute, FName WeightAttributeName)
+	bool Initialize(FPCGContext* Context, const UPCGParamData* InParamData, bool bPartitionByAttribute, FName AttributeName, bool bUseWeightAttribute, FName WeightAttributeName, bool bInFindNearest, EPCGMatchMaxDistanceMode InMaxDistanceMode, const FPCGMetadataTypesConstantStruct* InMaxDistanceForNearestMatch)
 	{
 		ParamData = InParamData;
+		bFindNearest = bInFindNearest;
+		MaxDistanceMode = InMaxDistanceMode;
 
 		if (!ParamData || !ParamData->Metadata)
 		{
@@ -135,6 +151,39 @@ public:
 			{
 				PCGE_LOG_C(Error, GraphAndLog, Context, FText::Format(LOCTEXT("InvalidWeightAttributeType", "Weight attribute '{0}' does not have the proper type (int32, int64, float or double)."), FText::FromName(WeightAttributeName)));
 				return false;
+			}
+		}
+
+		if (Attribute && MaxDistanceMode == EPCGMatchMaxDistanceMode::UseConstantMaxDistance)
+		{
+			auto ValidateAttributeSupportsDistance = [](auto AttributeDummyValue) -> bool
+			{
+				using AttributeType = decltype(AttributeDummyValue);
+				return PCG::Private::MetadataTraits<AttributeType>::CanComputeDistance;
+			};
+
+			if (!PCGMetadataAttribute::CallbackWithRightType(Attribute->GetTypeId(), ValidateAttributeSupportsDistance))
+			{
+				PCGE_LOG_C(Error, GraphAndLog, Context, FText::Format(LOCTEXT("AttributeDoesNotSupportDistance", "Attribute '{0}' does not support distance computation."), FText::FromName(Attribute->Name)));
+				return false;
+			}
+
+			if (InMaxDistanceForNearestMatch)
+			{
+				auto CreateConstantAttribute = [this](auto&& Value)
+				{
+					using ConstantType = std::decay_t<decltype(Value)>;
+					ConstantThreshold = MakeUnique<FPCGConstantValueAccessor<ConstantType>>(std::forward<decltype(Value)>(Value));
+					ConstantKey = MakeUnique<FPCGAttributeAccessorKeysSingleObjectPtr<void>>();
+				};
+
+				InMaxDistanceForNearestMatch->Dispatcher(CreateConstantAttribute);
+
+				if (!ConstantThreshold.IsValid() || !ConstantKey.IsValid())
+				{
+					PCGE_LOG_C(Error, GraphAndLog, Context, LOCTEXT("InvalidConstantThresholdAttribute", "Distance threshold is invalid."));
+					return false;
+				}
 			}
 		}
 
@@ -227,6 +276,59 @@ public:
 		return true;
 	}
 
+	bool InitializeForData(FPCGContext* Context, const UPCGData* InMaxDistanceData, const FPCGAttributePropertyInputSelector* InMaxDistanceSelector)
+	{
+		if (Attribute && MaxDistanceMode == EPCGMatchMaxDistanceMode::AttributeMaxDistance)
+		{
+			ConstantThreshold.Reset();
+			ConstantKey.Reset();
+
+			if (InMaxDistanceData && InMaxDistanceSelector)
+			{
+				ConstantThreshold = PCGAttributeAccessorHelpers::CreateConstAccessor(InMaxDistanceData, *InMaxDistanceSelector);
+				ConstantKey = PCGAttributeAccessorHelpers::CreateConstKeys(InMaxDistanceData, *InMaxDistanceSelector);
+
+				if (!ConstantThreshold.IsValid() || !ConstantKey.IsValid())
+				{
+					PCGE_LOG_C(Error, GraphAndLog, Context, FText::Format(LOCTEXT("InvalidThresholdAttribute", "Attribute '{0}' used for max distance is invalid."), FText::FromName(InMaxDistanceSelector->GetAttributeName())));
+					return false;
+				}
+			}
+			else
+			{
+				return false;
+			}
+		}
+
+		if (Attribute && ConstantThreshold.IsValid() && ConstantKey.IsValid())
+		{
+			auto ValidateCompatibleThresholdType = [this](auto AttributeDummyValue) -> bool
+			{
+				using AttributeType = decltype(AttributeDummyValue);
+
+				if constexpr (PCG::Private::MetadataTraits<AttributeType>::CanComputeDistance)
+				{
+					using DistanceType = PCG::Private::MetadataTraits<AttributeType>::DistanceType;
+					DistanceType ThresholdValue{};
+					check(ConstantThreshold && ConstantKey);
+					return ConstantThreshold->Get(ThresholdValue, *ConstantKey, EPCGAttributeAccessorFlags::AllowBroadcast | EPCGAttributeAccessorFlags::AllowConstructible);
+				}
+				else
+				{
+					return false;
+				}
+			};
+
+			if (!PCGMetadataAttribute::CallbackWithRightType(Attribute->GetTypeId(), ValidateCompatibleThresholdType))
+			{
+				PCGE_LOG_C(Error, GraphAndLog, Context, FText::Format(LOCTEXT("InvalidThresholdAttribute", "Distance threshold type is not compatible with attribute '{0}'."), FText::FromName(Attribute->Name)));
+				return false;
+			}
+		}
+
+		return true;
+	}
+
 	bool IsValid() const { return bIsValid; }
 
 	TArray<int32> GetMatchingPartitionDataIndices(const TUniquePtr<const IPCGAttributeAccessor>& InputAttribute, const TUniquePtr<const IPCGAttributeAccessorKeys>& InputKeys, int32 PointsNum) const
@@ -240,6 +342,27 @@ public:
 			{
 				using AttributeType = decltype(AttributeDummyValue);
 
+				// Get threshold value if we need it.
+				void* ThresholdValuesPtr = nullptr;
+				int ConstKeyCount = ConstantKey.IsValid() ? FMath::Max(1, ConstantKey->GetNum()) : 0;
+
+				if constexpr (PCG::Private::MetadataTraits<AttributeType>::CanComputeDistance)
+				{
+					if (ConstantThreshold.IsValid() && ConstantKey.IsValid())
+					{
+						using DistanceType = PCG::Private::MetadataTraits<AttributeType>::DistanceType;
+						DistanceType* TypedThresholdValues = new DistanceType[ConstKeyCount];
+						TArrayView<DistanceType> ThresholdValues(TypedThresholdValues, ConstKeyCount);
+						if (!ConstantThreshold->GetRange(ThresholdValues, 0, *ConstantKey, EPCGAttributeAccessorFlags::AllowBroadcast | EPCGAttributeAccessorFlags::AllowConstructible))
+						{
+							delete[] TypedThresholdValues;
+							return false;
+						}
+
+						ThresholdValuesPtr = TypedThresholdValues;
+					}
+				}
+
 				// Get the values to match against from the attribute
 				const FPCGMetadataAttribute<AttributeType>* TypedAttribute = static_cast<const FPCGMetadataAttribute<AttributeType>*>(Attribute);
 				TArray<AttributeType> AttributeValues;
@@ -250,20 +373,66 @@ public:
 					AttributeValues.Add(TypedAttribute->GetValue(PartitionEntry.Key));
 				}
 
-				return PCGMetadataElementCommon::ApplyOnAccessor<AttributeType>(*InputKeys, *InputAttribute, [&AttributeValues, &MatchingPartitionDataIndices](const AttributeType& InValue, int32)
+				bool bApplyOk = PCGMetadataElementCommon::ApplyOnAccessor<AttributeType>(*InputKeys, *InputAttribute, [this, &AttributeValues, &MatchingPartitionDataIndices, ThresholdValuesPtr, ConstKeyCount](const AttributeType& InValue, int32 InIndex)
 				{
 					int32 MatchingPartitionDataIndex = INDEX_NONE;
+					bool bFoundEqualMatch = false;
 					for (int32 AttributeValueIndex = 0; AttributeValueIndex < AttributeValues.Num(); ++AttributeValueIndex)
 					{
 						if (PCG::Private::MetadataTraits<AttributeType>::Equal(InValue, AttributeValues[AttributeValueIndex]))
 						{
 							MatchingPartitionDataIndex = AttributeValueIndex;
+							bFoundEqualMatch = true;
 							break;
+						}
+						else if (bFindNearest)
+						{
+							if constexpr (PCG::Private::MetadataTraits<AttributeType>::CanFindNearest)
+							{
+								if (MatchingPartitionDataIndex == INDEX_NONE || PCG::Private::MetadataTraits<AttributeType>::IsCloserTo(AttributeValues[AttributeValueIndex], AttributeValues[MatchingPartitionDataIndex], InValue))
+								{
+									MatchingPartitionDataIndex = AttributeValueIndex;
+								}
+							}
+						}
+					}
+
+					// Finally, if we haven't found an equal match, we should compare against the distance threshold.
+					if (!bFoundEqualMatch && ThresholdValuesPtr && ConstKeyCount > 0)
+					{
+						if constexpr (PCG::Private::MetadataTraits<AttributeType>::CanComputeDistance)
+						{
+							using DistanceType = PCG::Private::MetadataTraits<AttributeType>::DistanceType;
+
+							DistanceType Distance = PCG::Private::MetadataTraits<AttributeType>::Distance(AttributeValues[MatchingPartitionDataIndex], InValue);
+							const DistanceType& ThresholdValue = static_cast<DistanceType*>(ThresholdValuesPtr)[InIndex % ConstKeyCount];
+
+							if (Distance >= ThresholdValue)
+							{
+								MatchingPartitionDataIndex = INDEX_NONE;
+							}
+						}
+						else
+						{
+							MatchingPartitionDataIndex = INDEX_NONE;
 						}
 					}
 
 					MatchingPartitionDataIndices.Add(MatchingPartitionDataIndex);
 				}, EPCGAttributeAccessorFlags::AllowBroadcast | EPCGAttributeAccessorFlags::AllowConstructible);
+
+				// delete threshold value ptr
+				if constexpr (PCG::Private::MetadataTraits<AttributeType>::CanComputeDistance)
+				{
+					if (ThresholdValuesPtr)
+					{
+						using DistanceType = PCG::Private::MetadataTraits<AttributeType>::DistanceType;
+						delete[] static_cast<DistanceType*>(ThresholdValuesPtr);
+						ThresholdValuesPtr = nullptr;
+					}
+				}
+
+				return bApplyOk;
 			};
 
 			if (!PCGMetadataAttribute::CallbackWithRightType(Attribute->GetTypeId(), FindMatchingValueKeyIndex))
@@ -328,6 +497,11 @@ private:
 	const UPCGParamData* ParamData = nullptr;
 	const FPCGMetadataAttributeBase* Attribute = nullptr;
 	bool bIsValid = false;
+	bool bFindNearest = false;
+	EPCGMatchMaxDistanceMode MaxDistanceMode = EPCGMatchMaxDistanceMode::NoMaxDistance;
+
+	TUniquePtr<const IPCGAttributeAccessor> ConstantThreshold;
+	TUniquePtr<const IPCGAttributeAccessorKeys> ConstantKey;
 
 	TArray<TPair<PCGMetadataValueKey, AttributeSetPartitionEntry>> PartitionData;
 };
@@ -344,19 +518,24 @@ public:
 	{
 	}
 
-	bool Initialize()
+	bool Initialize(const TMap<const UPCGData*, const UPCGData*>& InDataToMaxDistanceMap)
 	{
 		if (!Settings)
 		{
 			return false;
 		}
 
+		DataToMaxDistanceMap = InDataToMaxDistanceMap;
+
 		AttributeSetPartition.Initialize(Context,
 			ParamData,
 			Settings->bMatchAttributes,
 			Settings->MatchAttribute,
 			Settings->bUseWeightAttribute,
-			Settings->WeightAttribute);
+			Settings->WeightAttribute,
+			Settings->bFindNearest,
+			Settings->MaxDistanceMode,
+			&Settings->MaxDistanceForNearestMatch);
 
 		return AttributeSetPartition.IsValid();
 	}
@@ -379,6 +558,14 @@ public:
 				PCGE_LOG_C(Error, GraphAndLog, Context, FText::Format(LOCTEXT("MissingAttribute", "Point data does not have the input attribute '{0}'."), InputAttributeSource.GetDisplayText()));
 				return false;
 			}
+		}
+
+		const UPCGData** FoundMaxDistanceData = DataToMaxDistanceMap.Find(PointData);
+		const FPCGAttributePropertyInputSelector MaxDistanceSelector = Settings->MaxDistanceInputAttribute.CopyAndFixLast(FoundMaxDistanceData ? *FoundMaxDistanceData : nullptr);
+
+		if (!AttributeSetPartition.InitializeForData(Context, FoundMaxDistanceData ? *FoundMaxDistanceData : nullptr, FoundMaxDistanceData ? &MaxDistanceSelector : nullptr))
+		{
+			return false;
 		}
 
 		if (Settings->bUseInputWeightAttribute)
@@ -542,6 +729,7 @@ private:
 	TUniquePtr<const IPCGAttributeAccessor> InputWeightAccessor;
 	TUniquePtr<const IPCGAttributeAccessorKeys> InputAttributeKeys;
 	TArray<TPair<const FPCGMetadataAttributeBase*, FPCGMetadataAttributeBase*>> AttributesToSet;
+	TMap<const UPCGData*, const UPCGData*> DataToMaxDistanceMap;
 };
 
 FPCGMatchAndSetAttributesExecutionState::~FPCGMatchAndSetAttributesExecutionState()
@@ -566,7 +754,7 @@ bool FPCGMatchAndSetAttributesElement::PrepareDataInternal(FPCGContext* InContex
 	TArray<FPCGTaggedData>& Outputs = InContext->OutputData.TaggedData;
 	TArray<FPCGTaggedData> ParamDataInputs = InContext->InputData.GetInputsByPin(PCGMatchAndSetAttributesConstants::MatchDataLabel);
 
-	EPCGTimeSliceInitResult InitResult = TimeSlicedContext->InitializePerExecutionState([Settings, &ParamDataInputs](FPCGMatchAndSetAttributesElement::ContextType* Context, FPCGMatchAndSetAttributesExecutionState& OutState) -> EPCGTimeSliceInitResult
+	EPCGTimeSliceInitResult InitResult = TimeSlicedContext->InitializePerExecutionState([Settings, &ParamDataInputs, &Inputs](FPCGMatchAndSetAttributesElement::ContextType* Context, FPCGMatchAndSetAttributesExecutionState& OutState) -> EPCGTimeSliceInitResult
 	{
 		const UPCGParamData* ParamData = nullptr;
 
@@ -585,10 +773,37 @@ bool FPCGMatchAndSetAttributesElement::PrepareDataInternal(FPCGContext* InContex
 			return EPCGTimeSliceInitResult::NoOperation;
 		}
 
+		// If there are provided max distance entries, we should have either 1 or the same cardinality as the inputs
+		TMap<const UPCGData*, const UPCGData*> InputToMaxDistanceMapping;
+		if (Settings->MaxDistanceMode == EPCGMatchMaxDistanceMode::AttributeMaxDistance)
+		{
+			TArray<FPCGTaggedData> InputMaxDistanceData = Context->InputData.GetInputsByPin(PCGMatchAndSetAttributesConstants::MaxDistanceLabel);
+
+			if (InputMaxDistanceData.Num() == Inputs.Num())
+			{
+				for (int DataIndex = 0; DataIndex < Inputs.Num(); ++DataIndex)
+				{
+					InputToMaxDistanceMapping.Add(Inputs[DataIndex].Data, InputMaxDistanceData[DataIndex].Data);
+				}
+			}
+			else if (InputMaxDistanceData.Num() == 1)
+			{
+				for (int DataIndex = 0; DataIndex < Inputs.Num(); ++DataIndex)
+				{
+					InputToMaxDistanceMapping.Add(Inputs[DataIndex].Data, InputMaxDistanceData[0].Data);
+				}
+			}
+			else
+			{
+				PCGE_LOG_C(Error, GraphAndLog, Context, FText::Format(LOCTEXT("NoMatchingMaxDistanceData", "Invalid number of max distance providers for data; expected {0}, got {1}."), FText::AsNumber(Inputs.Num()), FText::AsNumber(InputMaxDistanceData.Num())));
+				return EPCGTimeSliceInitResult::AbortExecution;
+			}
+		}
+
 		OutState.Partition = new FPCGMatchAndSetPartition(Context, Settings, Context->SourceComponent.Get(), ParamData);
 		check(OutState.Partition);
 
-		if (OutState.Partition->Initialize())
+		if (OutState.Partition->Initialize(InputToMaxDistanceMapping))
 		{
 			return EPCGTimeSliceInitResult::Success;
 		}
