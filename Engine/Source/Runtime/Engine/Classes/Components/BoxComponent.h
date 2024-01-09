@@ -6,7 +6,6 @@
 #include "CoreMinimal.h"
 #include "UObject/ObjectMacros.h"
 #include "Components/ShapeComponent.h"
-#include "ShowFlags.h"
 #include "BoxComponent.generated.h"
 
 class FPrimitiveSceneProxy;
@@ -23,11 +22,6 @@ protected:
 	/** The extents (radii dimensions) of the box **/
 	UPROPERTY(EditAnywhere, BlueprintReadOnly, export, Category=Shape)
 	FVector BoxExtent;
-
-#if !UE_BUILD_SHIPPING
-	/** List of all show flags this box component visualizer should respect. */
-	FEngineShowFlags ShowFlags;
-#endif // !UE_BUILD_SHIPPING
 
 public:
 	/** 
@@ -62,11 +56,6 @@ public:
 
 	// Sets the box extents without triggering a render or physics update.
 	FORCEINLINE void InitBoxExtent(const FVector& InBoxExtent) { BoxExtent = InBoxExtent; }
-
-#if !UE_BUILD_SHIPPING
-	ENGINE_API FEngineShowFlags GetShowFlags() const { return ShowFlags; }
-	ENGINE_API void SetShowFlags(const FEngineShowFlags& InShowFlags);
-#endif // !UE_BUILD_SHIPPING
 };
 
 

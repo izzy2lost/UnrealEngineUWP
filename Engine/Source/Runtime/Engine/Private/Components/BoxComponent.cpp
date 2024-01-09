@@ -14,9 +14,6 @@
 
 UBoxComponent::UBoxComponent(const FObjectInitializer& ObjectInitializer)
 	: Super(ObjectInitializer)
-#if !UE_BUILD_SHIPPING
-	, ShowFlags(ESFIM_All0)
-#endif // !UE_BUILD_SHIPPING
 {
 	BoxExtent = FVector(32.0f, 32.0f, 32.0f);
 
@@ -105,14 +102,6 @@ void UBoxComponent::UpdateBodySetup()
 	}
 }
 
-#if !UE_BUILD_SHIPPING
-void UBoxComponent::SetShowFlags(const FEngineShowFlags& InShowFlags)
-{
-	ShowFlags = InShowFlags;
-	MarkRenderStateDirty();
-}
-#endif // !UE_BUILD_SHIPPING
-
 bool UBoxComponent::IsZeroExtent() const
 {
 	return BoxExtent.IsZero();
@@ -145,46 +134,6 @@ FPrimitiveSceneProxy* UBoxComponent::CreateSceneProxy()
 			,	LineThickness( InComponent->LineThickness )
 		{
 			bWillEverBeLit = false;
-
-#if !UE_BUILD_SHIPPING
-			struct FIterSink
-			{
-				FIterSink(const FEngineShowFlags InSelectedShowFlags)
-					: SelectedShowFlags(InSelectedShowFlags)
-				{
-					SelectedShowFlagIndices.SetNum(FEngineShowFlags::SF_FirstCustom, false);
-				}
-
-				bool HandleShowFlag(uint32 InIndex, const FString& InName)
-				{
-					if (SelectedShowFlags.GetSingleFlag(InIndex) == true)
-					{
-						SelectedShowFlagIndices.PadToNum(InIndex + 1, false);
-						SelectedShowFlagIndices[InIndex] = true;
-					}
-
-					return true;
-				}
-
-				bool OnEngineShowFlag(uint32 InIndex, const FString& InName)
-				{
-					return HandleShowFlag(InIndex, InName);
-				}
-
-				bool OnCustomShowFlag(uint32 InIndex, const FString& InName)
-				{
-					return HandleShowFlag(InIndex, InName);
-				}
-
-				const FEngineShowFlags SelectedShowFlags;
-
-				TBitArray<> SelectedShowFlagIndices;
-			};
-
-			FIterSink Sink(InComponent->ShowFlags);
-			FEngineShowFlags::IterateAllFlags(Sink);
-			SelectedShowFlagIndices = MoveTemp(Sink.SelectedShowFlagIndices);
-#endif // !UE_BUILD_SHIPPING
 		}
 
 		virtual void GetDynamicMeshElements(const TArray<const FSceneView*>& Views, const FSceneViewFamily& ViewFamily, uint32 VisibilityMap, FMeshElementCollector& Collector) const override
@@ -216,15 +165,6 @@ FPrimitiveSceneProxy* UBoxComponent::CreateSceneProxy()
 
 			FPrimitiveViewRelevance Result;
 			Result.bDrawRelevance = (IsShown(View) && bProxyVisible) || bShowForCollision;
-#if !UE_BUILD_SHIPPING
-			bool bAreAllSelectedFlagsEnabled = true;
-			for (TConstSetBitIterator<> It(SelectedShowFlagIndices); It; ++It)
-			{
-				bAreAllSelectedFlagsEnabled &= View->Family->EngineShowFlags.GetSingleFlag(It.GetIndex());
-			}
-
-			Result.bDrawRelevance &= bAreAllSelectedFlagsEnabled;
-#endif // !UE_BUILD_SHIPPING
 			Result.bDynamicRelevance = true;
 			Result.bShadowRelevance = IsShadowCast(View);
 			Result.bEditorPrimitiveRelevance = UseEditorCompositing(View);
@@ -238,9 +178,6 @@ FPrimitiveSceneProxy* UBoxComponent::CreateSceneProxy()
 		const FVector	BoxExtents;
 		const FColor	BoxColor;
 		const float		LineThickness;
-#if !UE_BUILD_SHIPPING
-		TBitArray<>		SelectedShowFlagIndices;
-#endif // !UE_BUILD_SHIPPING
 	};
 
 	return new FBoxSceneProxy( this );
