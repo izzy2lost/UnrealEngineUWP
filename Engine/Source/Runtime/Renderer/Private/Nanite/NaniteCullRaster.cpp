@@ -2472,7 +2472,9 @@ void FRenderer::AddPass_PrimitiveFilter()
 	LLM_SCOPE_BYTAG(Nanite);
 	
 	const uint32 PrimitiveCount = uint32(Scene.GetMaxPersistentPrimitiveIndex());
-	const uint32 HiddenPrimitiveCount = SceneView.HiddenPrimitives.Num();
+	const bool bHLODActive = Scene.SceneLODHierarchy.IsActive();
+	const uint32 HiddenHLODPrimitiveCount = bHLODActive && SceneView.ViewState ? SceneView.ViewState->HLODVisibilityState.ForcedHiddenPrimitiveMap.CountSetBits() : 0;
+	const uint32 HiddenPrimitiveCount = SceneView.HiddenPrimitives.Num() + HiddenHLODPrimitiveCount;
 	const uint32 ShowOnlyPrimitiveCount = SceneView.ShowOnlyPrimitives.IsSet() ? SceneView.ShowOnlyPrimitives->Num() : 0u;
 	
 	EFilterFlags HiddenFilterFlags = Configuration.HiddenFilterFlags;
@@ -2553,6 +2555,17 @@ void FRenderer::AddPass_PrimitiveFilter()
 			for (TSet<FPrimitiveComponentId>::TConstIterator It(SceneView.HiddenPrimitives); It; ++It)
 			{
 				HiddenPrimitiveIds.Add(It->PrimIDValue);
+			}
+
+			// HLOD visibily state
+			if (HiddenHLODPrimitiveCount > 0)
+			{
+				for (TConstSetBitIterator It(SceneView.ViewState->HLODVisibilityState.ForcedHiddenPrimitiveMap); It; ++It)
+				{
+					const int32 Index = It.GetIndex();
+					const FPrimitiveComponentId& PrimitiveComponentId = Scene.PrimitiveComponentIds[Index];
+					HiddenPrimitiveIds.Add(PrimitiveComponentId.PrimIDValue);
+				}
 			}
 
 			// Add extra entries to ensure the buffer is valid pow2 in size
