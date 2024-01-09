@@ -223,15 +223,6 @@ void UCustomizableObject::PostLoad()
 
 	const int32 CustomizableObjectCustomVersion = GetLinkerCustomVersion(FCustomizableObjectCustomVersion::GUID);
 
-	// Convert texture compression option
-	if (CustomizableObjectCustomVersion < FCustomizableObjectCustomVersion::TextureCompressionEnum)
-	{
-		CompileOptions.TextureCompression = CompileOptions.bTextureCompression_DEPRECATED
-			? ECustomizableObjectTextureCompression::Fast
-			: ECustomizableObjectTextureCompression::None
-			;
-	}
-
 	// Update state never-stream flag from deprecated enum
 	if (CustomizableObjectCustomVersion < FCustomizableObjectCustomVersion::CustomizableObjectStateHasSeparateNeverStreamFlag)
 	{
@@ -825,7 +816,7 @@ void UCustomizableObject::CompileForTargetPlatform(const ITargetPlatform* Target
 	if (bIsRootObject && bIsRelevantForThisTarget)
 	{
 		FCompilationOptions Options;
-		Options.OptimizationLevel = 2;	// max optimization when packaging.
+		Options.OptimizationLevel = UE_MUTABLE_MAX_OPTIMIZATION;	// max optimization when packaging.
 		Options.TextureCompression = ECustomizableObjectTextureCompression::HighQuality;
 		Options.bIsCooking = true;
 		Options.TargetPlatform = TargetPlatform;
@@ -851,6 +842,13 @@ bool UCustomizableObject::ConditionalAutoCompile()
 	// Don't compile compiled objects
 	if (IsCompiled())
 	{
+		// Show a warning if the compilation was not done with optimizations.
+		if (bIsCompiledWithOptimization)
+		{
+			FString Msg = FString::Printf(TEXT("Warning: Customizable Object [%s] was compiled without optimization."), *GetName());
+			GEngine->AddOnScreenDebugMessage((uint64)((PTRINT)this), 10.0f, FColor::Red, Msg);
+		}
+
 		return true;
 	}
 
@@ -982,6 +980,10 @@ void UCustomizableObject::SaveEmbeddedData(FArchive& Ar)
 
 	if (Private->GetModel())
 	{
+		// General derived flags
+		Ar << bDisableTextureStreaming;
+		Ar << bIsCompiledWithOptimization;
+
 		// Serialize morph data
 		{
 			Ar << ContributingMorphTargetsInfo;
@@ -1022,6 +1024,10 @@ void UCustomizableObject::LoadEmbeddedData(FArchive& Ar)
 
 	if(CurrentSupportedVersion == InternalVersion)
 	{
+		// General derived flags
+		Ar << bDisableTextureStreaming;
+		Ar << bIsCompiledWithOptimization;
+
 		// Load morph data
 		{
 			Ar << ContributingMorphTargetsInfo;

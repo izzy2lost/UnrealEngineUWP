@@ -935,7 +935,7 @@ void FCustomizableObjectSystemPrivate::GetMipStreamingConfig(const UCustomizable
 		bOutNeverStream = State->bDisableTextureStreaming;
 
 		// Was streaming disabled at object-compilation time? 
-		if (State->bDisableTextureStreamingOverride)
+		if (Instance.GetCustomizableObject()->bDisableTextureStreaming)
 		{
 			bOutNeverStream = true;
 		}

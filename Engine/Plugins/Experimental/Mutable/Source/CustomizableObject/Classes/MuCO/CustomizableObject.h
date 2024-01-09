@@ -11,14 +11,12 @@
 #include "MuCO/CustomizableObjectParameterTypeDefinitions.h"
 #include "MuCO/CustomizableObjectUIData.h"
 
-class FReply;
-
-#if WITH_EDITORONLY_DATA
-#endif
-
-
 #include "CustomizableObject.generated.h"
 
+/** Index of the maximum optimization level when compiling CustomizableObjects */
+#define UE_MUTABLE_MAX_OPTIMIZATION			2
+
+class FReply;
 class FMemoryReaderView;
 class FMemoryWriter64;
 class FObjectPreSaveContext;
@@ -168,18 +166,14 @@ USTRUCT()
 struct FCompilationOptions
 {
 	GENERATED_USTRUCT_BODY()
-
-	// Flag to know if texture compression should be enabled
-	UPROPERTY()
-	bool bTextureCompression_DEPRECATED = true;
 	
 	// Enum to know what texture compression should be used
 	UPROPERTY()
 	ECustomizableObjectTextureCompression TextureCompression = ECustomizableObjectTextureCompression::Fast;
 
-	// From 0 to 2
+	// From 0 to UE_MUTABLE_MAX_OPTIMIZATION
 	UPROPERTY()
-	int32 OptimizationLevel = 1;
+	int32 OptimizationLevel = UE_MUTABLE_MAX_OPTIMIZATION;
 
 	// Use the disk to store intermediate compilation data. This slows down the object compilation
 	// but it may be necessary for huge objects.
@@ -1121,6 +1115,12 @@ public:
 	UPROPERTY(VisibleAnywhere, Category = CustomizableObject)
 	TArray<FMutableModelImageProperties> ImageProperties;
 
+	/** This is a non-user-controlled flag to disable streaming (set at object compilation time, depending on optimization). */
+	bool bDisableTextureStreaming = false;
+
+	/** If the object is compiled, this flag is true if it was compiled with maximum optimizations. If the object is not compiled, its value is meaningless. */
+	bool bIsCompiledWithOptimization = true;
+
 	UPROPERTY(Transient)
 	TArray<FMorphTargetInfo> ContributingMorphTargetsInfo;
 	
@@ -1397,7 +1397,7 @@ private:
 	// This is a manual version number for the binary blobs in this asset.
 	// Increasing it invalidates all the previously compiled models.
 	// Warning: If while merging code both versions have changed, take the highest+1.
-	static const int32 CurrentSupportedVersion = 414;
+	static const int32 CurrentSupportedVersion = 415;
 
 	// Compile the object for a specific platform - Compile for Cook Customizable Object
 	void CompileForTargetPlatform(const ITargetPlatform* TargetPlatform);

@@ -262,9 +262,6 @@ struct FParameterUIData
 	UPROPERTY()
 	bool bDisableTextureStreaming = false;
 
-	/** This is a non-user-controlled flag to disable streaming at object compilation time. */
-	bool bDisableTextureStreamingOverride = false;
-
 	/** In this mode instances and their temp data will be reused between updates. It will be much faster but spend as much as ten times the memory.
 	    Useful for customization lockers with few characters that are going to have their parameters changed many times, not for in-game */
 	UPROPERTY(BlueprintReadWrite, Category = CustomizableObject)
@@ -282,7 +279,6 @@ struct FParameterUIData
 			|| ArrayIntegerParameterOption != Other.ArrayIntegerParameterOption || IntegerParameterGroupType != Other.IntegerParameterGroupType 
 			|| bLiveUpdateMode != Other.bLiveUpdateMode || bReuseInstanceTextures != Other.bReuseInstanceTextures
 			|| bDisableTextureStreaming != Other.bDisableTextureStreaming
-			|| bDisableTextureStreamingOverride != Other.bDisableTextureStreamingOverride
 			|| !ForcedParameterValues.OrderIndependentCompareEqual(Other.ForcedParameterValues)
 			)
 		{
@@ -301,7 +297,6 @@ struct FParameterUIData
 		Ar << UIData.IntegerParameterGroupType;
 		Ar << UIData.TextureCompressionStrategy;
 		Ar << UIData.bDisableTextureStreaming;
-		Ar << UIData.bDisableTextureStreamingOverride;
 		Ar << UIData.bLiveUpdateMode;
 		Ar << UIData.bReuseInstanceTextures;
 		Ar << UIData.ForcedParameterValues;
