@@ -54,7 +54,7 @@ AWorldPartitionHLOD::AWorldPartitionHLOD(const FObjectInitializer& ObjectInitial
 	// needs to be replicated.
 	bReplicates = true;
 
-	NetDormancy = DORM_DormantAll;
+	NetDormancy = DORM_Initial;
 	NetUpdateFrequency = 1.f;
 
 #if WITH_EDITORONLY_DATA
