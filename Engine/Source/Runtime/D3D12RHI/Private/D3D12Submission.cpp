@@ -778,9 +778,38 @@ uint64 FD3D12Queue::ExecutePayload()
 
 	PayloadToSubmit->PreExecute();
 
-	for (const FD3D12CommitReservedResourceDesc& CommitDesc : PayloadToSubmit->ReservedResourcesToCommit)
+	if (!PayloadToSubmit->ReservedResourcesToCommit.IsEmpty())
 	{
-		CommitDesc.Resource->CommitReservedResource(D3DCommandQueue, CommitDesc.CommitSizeInBytes);
+		// On some devices, some queues cannot perform tile remapping operations.
+		// We can work around this limitation by running the remapping in lockstep on another queue:
+		// - tile mapping queue waits for commands on this queue to finish
+		// - tile mapping queue performs the commit/decommit operations
+		// - this queue waits for tile mapping queue to finish
+		// The extra sync is not required when the current queue is capable of the remapping operations.
+
+		ID3D12CommandQueue* TileMappingQueue = (bSupportsTileMapping ? D3DCommandQueue : Device->TileMappingQueue).GetReference();
+		FD3D12Fence& TileMappingFence = Device->TileMappingFence;
+
+		const bool bCrossQueueSyncRequired = TileMappingQueue != D3DCommandQueue.GetReference();
+
+		if (bCrossQueueSyncRequired)
+		{
+			// tile mapping queue waits for commands on this queue to finish
+			D3DCommandQueue->Signal(TileMappingFence.D3DFence, ++TileMappingFence.LastSignaledValue);
+			TileMappingQueue->Wait(TileMappingFence.D3DFence, TileMappingFence.LastSignaledValue);
+		}
+
+		for (const FD3D12CommitReservedResourceDesc& CommitDesc : PayloadToSubmit->ReservedResourcesToCommit)
+		{
+			CommitDesc.Resource->CommitReservedResource(TileMappingQueue, CommitDesc.CommitSizeInBytes);
+		}
+
+		if (bCrossQueueSyncRequired)
+		{
+			// this queue waits for tile mapping operations to finish
+			TileMappingQueue->Signal(TileMappingFence.D3DFence, ++TileMappingFence.LastSignaledValue);
+			D3DCommandQueue->Wait(TileMappingFence.D3DFence, TileMappingFence.LastSignaledValue);
+		}
 	}
 
 	if (const int32 NumCommandLists = PayloadToSubmit->CommandListsToExecute.Num())

@@ -36,6 +36,7 @@ FD3D12Queue::FD3D12Queue(FD3D12Device* Device, ED3D12QueueType QueueType)
 	: Device(Device)
 	, QueueType(QueueType)
 	, BarrierTimestamps(Device, QueueType, D3D12_QUERY_TYPE_TIMESTAMP)
+	, bSupportsTileMapping(FD3D12DynamicRHI::GetD3DRHI()->QueueSupportsTileMapping(QueueType))
 {
 	FD3D12Adapter* Adapter = Device->GetParentAdapter();
 	const bool bFullGPUCrashDebugging = (Adapter->GetGPUCrashDebuggingModes() == ED3D12GPUCrashDebuggingModes::All);
@@ -140,6 +141,18 @@ FD3D12Device::FD3D12Device(FRHIGPUMask InGPUMask, FD3D12Adapter* InAdapter)
 	{
 		Queues.Emplace(this, (ED3D12QueueType)QueueType);
 	}
+
+	// Some hardware is not capable of running tile mapping operations on all queue types.
+	// Direct queue is used as a fallback if tile updates are requested on unsupported queue.
+	TileMappingQueue = Queues[size_t(ED3D12QueueType::Direct)].D3DCommandQueue;
+	VERIFYD3D12RESULT(GetDevice()->CreateFence(
+		0,
+		D3D12_FENCE_FLAG_NONE,
+		IID_PPV_ARGS(TileMappingFence.D3DFence.GetInitReference())
+	));
+#if NAME_OBJECTS
+	TileMappingFence.D3DFence->SetName(TEXT("TileMappingFence"));
+#endif
 }
 
 FD3D12Device::~FD3D12Device()

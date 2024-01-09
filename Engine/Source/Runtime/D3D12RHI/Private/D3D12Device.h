@@ -125,6 +125,9 @@ public:
 
 	bool bRequiresSignal = false;
 
+	// On some hardware, some auxiliary queue types may not support tile mapping and a separate queue must be used
+	bool bSupportsTileMapping = true;
+
 	// The underlying D3D queue object
 	TRefCountPtr<ID3D12CommandQueue> D3DCommandQueue;
 
@@ -342,6 +345,9 @@ public:
 	// after device creation and GRHISupportsAsyncTextureCreation was set and before resource init
 	void SetupAfterDeviceCreation();
 	void CleanupResources();
+
+	TRefCountPtr<ID3D12CommandQueue> TileMappingQueue;
+	FD3D12Fence TileMappingFence;
 
 private:
 	// called by SetupAfterDeviceCreation() when the device gets initialized
