@@ -43,12 +43,12 @@ FORCEINLINE void* UeVstackAllocHelper(FVirtualStackAllocator* Allocator, size_t 
 		// for these 'stack' allocations we call Free on both commit and abort, since
 		// the call frame that these would have otherwise existed in will always be
 		// returned from by the time we commit or abort
-		AutoRTFM::OpenCommit([Result]()
+		AutoRTFM::OnCommit([Result]
 		{
 			FMemory::Free(Result);
 		});
 
-		AutoRTFM::OpenAbort([Result]()
+		AutoRTFM::OnAbort([Result]
 		{
 			FMemory::Free(Result);
 		});

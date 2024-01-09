@@ -222,11 +222,13 @@ void FUIFrameworkWidgetTree::AuthorityAddChildInternal(UUIFrameworkWidget* Paren
 
 			UObject* OldOuter = Child->GetOuter();
 
-			UE_AUTORTFM_OPEN({
+			UE_AUTORTFM_OPEN(
+			{
 				Child->Rename(nullptr, ReplicatedOwner);
 			});
 
-			UE_AUTORTFM_OPENABORT({
+			UE_AUTORTFM_ONABORT(
+			{
 				Child->Rename(nullptr, OldOuter);
 			});
 		}

@@ -399,12 +399,14 @@ void FObjectReplicator::InitRecentProperties(uint8* Source)
 	// If acting as a server and are IsInternalAck, that means we're recording.
 	// In that case, we don't need to create any receiving state, as no one will be sending data to us.
 	ECreateRepStateFlags Flags = (Connection->IsInternalAck() && bIsServer) ? ECreateRepStateFlags::SkipCreateReceivingState : ECreateRepStateFlags::None;
-	UE_AUTORTFM_OPEN({
+	UE_AUTORTFM_OPEN(
+	{
 		RepState = LocalRepLayout.CreateRepState(Source, RepChangedPropertyTracker, Flags);
 	});
 
 	// RepState not valid at the start of this function so just go back to being a nullptr, and let the memory be cleaned up 
-	UE_AUTORTFM_OPENABORT({
+	UE_AUTORTFM_ONABORT(
+	{
 		RepState = nullptr;
 	});
 

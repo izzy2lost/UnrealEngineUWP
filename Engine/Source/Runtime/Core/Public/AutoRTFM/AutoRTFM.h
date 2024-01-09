@@ -9,12 +9,6 @@
 #endif
 
 #if UE_AUTORTFM
-	#define UE_PRAGMA_AUTORTFM _Pragma("autortfm")
-#else
-	#define UE_PRAGMA_AUTORTFM
-#endif
-
-#if UE_AUTORTFM
 #define UE_AUTORTFM_AUTORTFM(F) [[clang::autortfm(F), clang::noinline]]
 #define UE_AUTORTFM_NOAUTORTFM [[clang::noautortfm, clang::noinline]]
 #else
@@ -37,9 +31,14 @@
 
 #if defined(UE_AUTORTFM_STANDALONE)
 #define UE_AUTORTFM_API
+
+#define UE_AUTORTFM_MOVETEMP(x) std::move(x)
 #else
 #include <HAL/Platform.h>
 #define UE_AUTORTFM_API CORE_API
+
+#include <Templates/UnrealTemplate.h>
+#define UE_AUTORTFM_MOVETEMP(x) MoveTemp(x)
 #endif
 
 #if UE_AUTORTFM
@@ -67,12 +66,14 @@ extern "C"
 // This must match AutoRTFM::ETransactionResult.
 typedef enum
 {
-    autortfm_aborted_by_request,
+    autortfm_aborted_by_request = 0,
     autortfm_aborted_by_language,
     autortfm_committed,
-	autortfm_aborted_by_transact_in_open_commit,
-	autortfm_aborted_by_transact_in_open_abort,
-	autortfm_aborted_by_cascade
+	autortfm_aborted_by_transact_in_on_commit,
+	autortfm_aborted_by_transact_in_on_abort,
+	autortfm_aborted_by_cascade,
+	autortfm_aborted_by_transact_in_open_commit [[deprecated("Use autortfm_aborted_by_transact_in_on_commit instead.")]] = autortfm_aborted_by_transact_in_on_commit,
+	autortfm_aborted_by_transact_in_open_abort [[deprecated("Use autortfm_aborted_by_transact_in_on_abort instead.")]] = autortfm_aborted_by_transact_in_on_abort,
 } autortfm_result;
 
 // This must match AutoRTFM::EContextStatus.
@@ -304,25 +305,37 @@ UE_AUTORTFM_FORCEINLINE void autortfm_register_open_function(void* original_func
 // If this is called outside a transaction or from an open nest then the work
 // happens immediately.
 #if UE_AUTORTFM
-UE_AUTORTFM_API void autortfm_open_commit(void (*work)(void* arg), void* arg);
+UE_AUTORTFM_API void autortfm_on_commit(void (*work)(void* arg), void* arg);
 #else
-UE_AUTORTFM_FORCEINLINE void autortfm_open_commit(void (*work)(void* arg), void* arg)
+UE_AUTORTFM_FORCEINLINE void autortfm_on_commit(void (*work)(void* arg), void* arg)
 {
     work(arg);
 }
 #endif
 
+[[deprecated("Use autortfm_on_commit instead.")]]
+UE_AUTORTFM_FORCEINLINE void autortfm_open_commit(void (*work)(void* arg), void* arg)
+{
+	autortfm_on_commit(work, arg);
+}
+
 // Have some work happen when this transaction aborts. If this is called
 // outside a transaction or from an open nest then the work is ignored.
 #if UE_AUTORTFM
-UE_AUTORTFM_API void autortfm_open_abort(void (*work)(void* arg), void* arg);
+UE_AUTORTFM_API void autortfm_on_abort(void (*work)(void* arg), void* arg);
 #else
-UE_AUTORTFM_FORCEINLINE void autortfm_open_abort(void (*work)(void* arg), void* arg)
+UE_AUTORTFM_FORCEINLINE void autortfm_on_abort(void (*work)(void* arg), void* arg)
 {
 	UE_AUTORTFM_UNUSED(work);
 	UE_AUTORTFM_UNUSED(arg);
 }
 #endif
+
+[[deprecated("Use autortfm_on_abort instead.")]]
+UE_AUTORTFM_FORCEINLINE void autortfm_open_abort(void (*work)(void* arg), void* arg)
+{
+	autortfm_on_abort(work, arg);
+}
 
 // Inform the runtime that we have performed a new object allocation. It's only
 // necessary to call this inside of custom malloc implementations. As an
@@ -389,8 +402,10 @@ enum class ETransactionResult
     AbortedByRequest = autortfm_aborted_by_request,
     AbortedByLanguage = autortfm_aborted_by_language,
     Committed = autortfm_committed,
-	AbortedByTransactInOpenCommit = autortfm_aborted_by_transact_in_open_commit,
-	AbortedByTransactInOpenAbort = autortfm_aborted_by_transact_in_open_abort,
+	AbortedByTransactInOnCommit = autortfm_aborted_by_transact_in_on_commit,
+	AbortedByTransactInOnAbort = autortfm_aborted_by_transact_in_on_abort,
+	AbortedByTransactInOpenCommit [[deprecated("Use AbortedByTransactInOnCommit instead.")]] = autortfm_aborted_by_transact_in_on_commit,
+	AbortedByTransactInOpenAbort [[deprecated("Use AbortedByTransactInOnAbort instead.")]] = autortfm_aborted_by_transact_in_on_abort,
 	AbortedByCascade = autortfm_aborted_by_cascade
 };
 
@@ -569,14 +584,26 @@ UE_AUTORTFM_FORCEINLINE void RegisterOpenFunction(void* OriginalFunction, void* 
 }
 
 #if UE_AUTORTFM
-UE_AUTORTFM_API void OpenCommit(TFunction<void()>&& Work);
-UE_AUTORTFM_API void OpenAbort(TFunction<void()>&& Work);
+UE_AUTORTFM_API void OnCommit(TFunction<void()>&& Work);
+UE_AUTORTFM_API void OnAbort(TFunction<void()>&& Work);
 #else
 template<typename TFunctor>
-UE_AUTORTFM_FORCEINLINE void OpenCommit(const TFunctor& Work) { Work(); }
+UE_AUTORTFM_FORCEINLINE void OnCommit(const TFunctor& Work) { Work(); }
 template<typename TFunctor>
-UE_AUTORTFM_FORCEINLINE void OpenAbort(const TFunctor& Work) { }
+UE_AUTORTFM_FORCEINLINE void OnAbort(const TFunctor& Work) { }
 #endif
+
+[[deprecated("Use OnCommit instead.")]]
+UE_AUTORTFM_FORCEINLINE void OpenCommit(TFunction<void()>&& Work)
+{
+	OnCommit(UE_AUTORTFM_MOVETEMP(Work));
+}
+
+[[deprecated("Use OnAbort instead.")]]
+UE_AUTORTFM_FORCEINLINE void OpenAbort(TFunction<void()>&& Work)
+{
+	OnAbort(UE_AUTORTFM_MOVETEMP(Work));
+}
 
 UE_AUTORTFM_FORCEINLINE void* DidAllocate(void* Ptr, size_t Size)
 {
@@ -595,11 +622,20 @@ UE_AUTORTFM_FORCEINLINE void CheckConsistencyAssumingNoRaces()
 
 struct FRegisterOpenFunction
 {
-    FRegisterOpenFunction(void* OriginalFunction, void* NewFunction)
-    {
-        RegisterOpenFunction(OriginalFunction, NewFunction);
-    }
+	FRegisterOpenFunction(void* OriginalFunction, void* NewFunction)
+	{
+		RegisterOpenFunction(OriginalFunction, NewFunction);
+	}
 };
+
+// A collection of power-user functions that are reserved for use by the AutoRTFM runtime only.
+namespace ForTheRuntime
+{
+	[[deprecated("This macro is deprecated. Use UE_AUTORTFM_ONABORT instead!")]] UE_AUTORTFM_FORCEINLINE void DeprecatedUseOnAbortMacro() {}
+	[[deprecated("This macro is deprecated. Use UE_AUTORTFM_ONCOMMIT instead!")]] UE_AUTORTFM_FORCEINLINE void DeprecatedUseOnCommitMacro() {}
+} // namespace ForTheRuntime
+
+} // namespace AutoRTFM
 
 // Macro-based variants so we completely compile away when not in use, even in debug builds
 #if UE_AUTORTFM
@@ -612,16 +648,38 @@ struct FRegisterOpenFunction
 #define UE_AUTORTFM_END_DISABLE_WARNINGS
 #endif
 
-#define UE_AUTORTFM_OPEN(...) AutoRTFM::Open([&]() { __VA_ARGS__ })
-#define UE_AUTORTFM_OPENABORT(...) UE_AUTORTFM_BEGIN_DISABLE_WARNINGS AutoRTFM::OpenAbort([=]() { __VA_ARGS__ }) UE_AUTORTFM_END_DISABLE_WARNINGS
-#define UE_AUTORTFM_OPENCOMMIT(...) UE_AUTORTFM_BEGIN_DISABLE_WARNINGS AutoRTFM::OpenCommit([=]() { __VA_ARGS__ }) UE_AUTORTFM_END_DISABLE_WARNINGS
-#define UE_AUTORTFM_TRANSACT(...) AutoRTFM::Transact([&]() { __VA_ARGS__ })
+#define UE_AUTORTFM_OPEN_IMPL(...) AutoRTFM::Open([&]() { __VA_ARGS__ })
+#define UE_AUTORTFM_ONABORT_IMPL(...) UE_AUTORTFM_BEGIN_DISABLE_WARNINGS AutoRTFM::OnAbort([=]() { __VA_ARGS__ }) UE_AUTORTFM_END_DISABLE_WARNINGS
+#define UE_AUTORTFM_ONCOMMIT_IMPL(...) UE_AUTORTFM_BEGIN_DISABLE_WARNINGS AutoRTFM::OnCommit([=]() { __VA_ARGS__ }) UE_AUTORTFM_END_DISABLE_WARNINGS
+#define UE_AUTORTFM_TRANSACT_IMPL(...) AutoRTFM::Transact([&]() { __VA_ARGS__ })
 #else
-#define UE_AUTORTFM_OPEN(...) do { __VA_ARGS__ } while (false)
-#define UE_AUTORTFM_OPENABORT(...) do { /* do nothing */ } while (false)
-#define UE_AUTORTFM_OPENCOMMIT(...) do { __VA_ARGS__ } while (false)
-#define UE_AUTORTFM_TRANSACT(...) do { __VA_ARGS__ } while (false)
+#define UE_AUTORTFM_OPEN_IMPL(...) do { __VA_ARGS__ } while (false)
+#define UE_AUTORTFM_ONABORT_IMPL(...) do { /* do nothing */ } while (false)
+#define UE_AUTORTFM_ONCOMMIT_IMPL(...) do { __VA_ARGS__ } while (false)
+#define UE_AUTORTFM_TRANSACT_IMPL(...) do { __VA_ARGS__ } while (false)
 #endif
+
+// Runs a block of code in the open, non-transactionally. Anything performed in the open will not be undone if a transaction fails.
+#define UE_AUTORTFM_OPEN(...) UE_AUTORTFM_OPEN_IMPL(__VA_ARGS__)
+
+// Runs a block of code if a transaction aborts.
+// In non-transactional code paths the block of code will not be executed at all.
+// This captures any used variables from the parent function by-value.
+#define UE_AUTORTFM_ONABORT(...) UE_AUTORTFM_ONABORT_IMPL(__VA_ARGS__)
+
+// Runs a block of code if a transaction commits successfully.
+// In non-transactional code paths the block of code will be executed immediately.
+// This captures any used variables from the parent function by-value.
+#define UE_AUTORTFM_ONCOMMIT(...) UE_AUTORTFM_ONCOMMIT_IMPL(__VA_ARGS__)
+
+// Runs a block of code in the closed, transactionally, within a new transaction.
+#define UE_AUTORTFM_TRANSACT(...) UE_AUTORTFM_TRANSACT_IMPL(__VA_ARGS__)
+
+// Deprecated. Use UE_AUTORTFM_ONABORT instead.
+#define UE_AUTORTFM_OPENABORT(...) UE_AUTORTFM_ONABORT(AutoRTFM::ForTheRuntime::DeprecatedUseOnAbortMacro(); __VA_ARGS__)
+
+// Deprecated. Use UE_AUTORTFM_ONCOMMIT instead.
+#define UE_AUTORTFM_OPENCOMMIT(...) UE_AUTORTFM_ONCOMMIT(AutoRTFM::ForTheRuntime::DeprecatedUseOnCommitMacro(); __VA_ARGS__)
 
 #define UE_AUTORTFM_CONCAT_IMPL(A, B) A ## B
 #define UE_AUTORTFM_CONCAT(A, B) UE_AUTORTFM_CONCAT_IMPL(A, B)
@@ -636,5 +694,4 @@ struct FRegisterOpenFunction
 #define UE_AUTORTFM_REGISTER_SELF_FUNCTION(OriginalFunction)
 #endif
 
-} // namespace AutoRTFM
 #endif // __cplusplus

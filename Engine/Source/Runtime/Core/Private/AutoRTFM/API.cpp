@@ -234,21 +234,21 @@ extern "C" UE_AUTORTFM_NOAUTORTFM void autortfm_register_open_function(void* Ori
     FunctionMapAdd(OriginalFunction, NewFunction);
 }
 
-UE_AUTORTFM_AUTORTFM("RTFM_OpenCommit") void OpenCommit(TFunction<void()> && Work)
+UE_AUTORTFM_AUTORTFM("RTFM_OnCommit") void OnCommit(TFunction<void()> && Work)
 {
     Work();
 }
 
-UE_AUTORTFM_AUTORTFM("RTFM_OpenAbort") void OpenAbort(TFunction<void()> && Work)
+UE_AUTORTFM_AUTORTFM("RTFM_OnAbort") void OnAbort(TFunction<void()> && Work)
 {
 }
 
-extern "C" UE_AUTORTFM_AUTORTFM("RTFM_autortfm_open_commit") void autortfm_open_commit(void (*Work)(void* Arg), void* Arg)
+extern "C" UE_AUTORTFM_AUTORTFM("RTFM_autortfm_on_commit") void autortfm_on_commit(void (*Work)(void* Arg), void* Arg)
 {
     Work(Arg);
 }
 
-extern "C" UE_AUTORTFM_AUTORTFM("RTFM_autortfm_open_abort") void autortfm_open_abort(void (*Work)(void* arg), void* Arg)
+extern "C" UE_AUTORTFM_AUTORTFM("RTFM_autortfm_on_abort") void autortfm_on_abort(void (*Work)(void* arg), void* Arg)
 {
 }
 
@@ -442,28 +442,28 @@ extern "C" UE_AUTORTFM_NOAUTORTFM void RTFM_autortfm_record_open_write(void*, si
 	UE_LOG(LogAutoRTFM, Fatal, TEXT("The function `autortfm_record_open_write` was called from closed code."));
 }
 
-extern "C" UE_AUTORTFM_NOAUTORTFM void RTFM_OpenCommit(TFunction<void()> && Work)
+extern "C" UE_AUTORTFM_NOAUTORTFM void RTFM_OnCommit(TFunction<void()> && Work)
 {
 	FContext* Context = FContext::Get();
     ASSERT(Context->GetStatus() == EContextStatus::OnTrack);
     Context->GetCurrentTransaction()->DeferUntilCommit(MoveTemp(Work));
 }
 
-extern "C" UE_AUTORTFM_NOAUTORTFM void RTFM_OpenAbort(TFunction<void()>&& Work)
+extern "C" UE_AUTORTFM_NOAUTORTFM void RTFM_OnAbort(TFunction<void()>&& Work)
 {
 	FContext* Context = FContext::Get();
     ASSERT(Context->GetStatus() == EContextStatus::OnTrack);
     Context->GetCurrentTransaction()->DeferUntilAbort(MoveTemp(Work));
 }
 
-extern "C" UE_AUTORTFM_NOAUTORTFM void RTFM_autortfm_open_commit(void (*Work)(void* Arg), void* Arg)
+extern "C" UE_AUTORTFM_NOAUTORTFM void RTFM_autortfm_on_commit(void (*Work)(void* Arg), void* Arg)
 {
-    RTFM_OpenCommit([Work, Arg] { Work(Arg); });
+    RTFM_OnCommit([Work, Arg] { Work(Arg); });
 }
 
-extern "C" UE_AUTORTFM_NOAUTORTFM void RTFM_autortfm_open_abort(void (*Work)(void* arg), void* Arg)
+extern "C" UE_AUTORTFM_NOAUTORTFM void RTFM_autortfm_on_abort(void (*Work)(void* arg), void* Arg)
 {
-    RTFM_OpenAbort([Work, Arg] { Work(Arg); });
+    RTFM_OnAbort([Work, Arg] { Work(Arg); });
 }
 
 extern "C" UE_AUTORTFM_NOAUTORTFM void* RTFM_autortfm_did_allocate(void* Ptr, size_t Size)

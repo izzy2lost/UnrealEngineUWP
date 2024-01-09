@@ -308,7 +308,7 @@ BOOL RTFM_TlsSetValue(DWORD dwTlsIndex, LPVOID lpTlsValue)
 {
 	LPVOID CurrentValue = TlsGetValue(dwTlsIndex);
 
-	AutoRTFM::OpenAbort([dwTlsIndex, CurrentValue]
+	AutoRTFM::OnAbort([dwTlsIndex, CurrentValue]
 	{
 		TlsSetValue(dwTlsIndex, CurrentValue);
 	});

@@ -263,10 +263,14 @@ void FGCObject::RegisterGCObject()
 		StaticInit();
 
 		// Add this instance to the referencer's list
-		UE_AUTORTFM_OPEN({
+		UE_AUTORTFM_OPEN(
+		{
 			GGCObjectReferencer->AddObject(this);
 		});
-		UE_AUTORTFM_OPENABORT({
+
+		// But if we abort, we don't want to leave a dangling reference!
+		UE_AUTORTFM_ONABORT(
+		{
 			GGCObjectReferencer->RemoveObject(this);
 		});
 

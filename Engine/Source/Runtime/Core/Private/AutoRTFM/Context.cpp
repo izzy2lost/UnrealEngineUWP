@@ -289,12 +289,12 @@ ETransactionResult FContext::Transact(void (*Function)(void* Arg), void* Arg)
 
     if (UNLIKELY(EContextStatus::Committing == Status))
     {
-    	return ETransactionResult::AbortedByTransactInOpenCommit;
+    	return ETransactionResult::AbortedByTransactInOnCommit;
     }
 
     if (UNLIKELY(IsAborting()))
     {
-    	return ETransactionResult::AbortedByTransactInOpenAbort;
+    	return ETransactionResult::AbortedByTransactInOnAbort;
     }
     
     ASSERT(Status == EContextStatus::Idle || Status == EContextStatus::OnTrack);

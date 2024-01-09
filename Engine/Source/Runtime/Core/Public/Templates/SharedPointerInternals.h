@@ -129,7 +129,7 @@ namespace SharedPointerInternals
 #endif
 
 				// If the transaction would abort, we need to undo adding the shared reference.
-				UE_AUTORTFM_OPENABORT(
+				UE_AUTORTFM_ONABORT(
 				{
 					ReleaseSharedReference();
 				});
@@ -191,7 +191,7 @@ namespace SharedPointerInternals
 				// If we succeedd in taking a shared reference count, we need to undo that on an abort.
 				if (bSucceeded)
 				{
-					UE_AUTORTFM_OPENABORT(
+					UE_AUTORTFM_ONABORT(
 					{
 						ReleaseSharedReference();
 					});
@@ -217,7 +217,7 @@ namespace SharedPointerInternals
 		{
 			if constexpr (Mode == ESPMode::ThreadSafe)
 			{
-				UE_AUTORTFM_OPENCOMMIT(
+				UE_AUTORTFM_ONCOMMIT(
 				{
 					// std::memory_order_acq_rel is used here so that, if we do end up executing the destructor, it's not possible
 					// for side effects from executing the destructor end up being visible before we've determined that the shared

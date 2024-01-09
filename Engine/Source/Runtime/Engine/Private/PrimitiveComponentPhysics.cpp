@@ -1081,7 +1081,8 @@ void UPrimitiveComponent::SetCollisionEnabled(ECollisionEnabled::Type NewType)
 		});
 
 		// If we fail set the CollisionEnabled back to the CurrentType
-		UE_AUTORTFM_OPENABORT({
+		UE_AUTORTFM_ONABORT(
+		{
 			BodyInstance.SetCollisionEnabled(CurrentType);
 		});
 
