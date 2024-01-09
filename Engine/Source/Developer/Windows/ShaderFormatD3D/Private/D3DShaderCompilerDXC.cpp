@@ -348,12 +348,6 @@ public:
 
 		Out.Add(TEXT("-T"));
 		Out.Add(*ShaderProfile);
-
-		Out.Add(TEXT(" -Fc "));
-		Out.Add(TEXT("zzz.d3dasm"));	// Dummy
-
-		Out.Add(TEXT(" -Fo "));
-		Out.Add(TEXT("zzz.dxil"));	// Dummy
 	}
 
 	const FString& GetBatchBaseFilename() const
@@ -553,6 +547,14 @@ static HRESULT DXCCompileWrapper(
 
 	TArray<const WCHAR*> CompilerArgs;
 	Arguments.GetCompilerArgs(CompilerArgs);
+
+	// Give a unique name to the d3dasm and dxil outputs (Must have same scope as CompilerArgs so the temporary strings remain valid)
+	FString AsmFilename  = Arguments.GetBatchBaseFilename() + TEXT(".d3dasm");
+	FString DXILFilename = Arguments.GetBatchBaseFilename() + TEXT(".dxil");
+	CompilerArgs.Add(TEXT(" -Fc "));
+	CompilerArgs.Add(*AsmFilename);
+	CompilerArgs.Add(TEXT(" -Fo "));
+	CompilerArgs.Add(*DXILFilename);
 
 	HRESULT Result = InnerDXCCompileWrapper(Compiler, TextBlob,
 		CompilerArgs.GetData(), CompilerArgs.Num(), bExceptionError, OutCompileResult);
