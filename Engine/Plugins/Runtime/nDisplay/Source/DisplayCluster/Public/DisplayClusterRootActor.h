@@ -158,10 +158,10 @@ protected:
 	void SetLightCardOwnership();
 
 public:
-	UFUNCTION(BlueprintCallable, Category = "NDisplay")
+	UFUNCTION(BlueprintCallable, Category = "NDisplay|DCRA")
 	bool GetFlushPositionAndNormal(const FVector& WorldPosition, FVector& OutPosition, FVector& OutNormal);
 
-	UFUNCTION(BlueprintCallable, Category = "NDisplay")
+	UFUNCTION(BlueprintCallable, Category = "NDisplay|DCRA")
 	bool MakeStageActorFlushToWall(const TScriptInterface<IDisplayClusterStageActor>& StageActor, double DesiredOffsetFromFlush = 0.0f);
 
 	/**
@@ -171,7 +171,7 @@ public:
 	 * @param OutDistance - The distance to the stage geometry from the specified point
 	 * @return True if an intersection point from WorldPosition along WorldDirection was found, false if not
 	 */
-	UFUNCTION(BlueprintCallable, Category = "NDisplay")
+	UFUNCTION(BlueprintCallable, Category = "NDisplay|Stage")
 	bool GetDistanceToStageGeometry(const FVector& WorldPosition, const FVector& WorldDirection, float& OutDistance) const;
 
 	UFUNCTION(BlueprintGetter)
@@ -191,7 +191,7 @@ public:
 	 * Get the view origin most commonly used by viewports in this cluster.
 	 * If no viewports override the camera, this returns the default camera, or if there isn't one, the actor's root component.
 	 */
-	UFUNCTION(BlueprintCallable, Category = "NDisplay|Components")
+	UFUNCTION(BlueprintCallable, Category = "NDisplay|DCRA")
 	USceneComponent* GetCommonViewPoint() const;
 
 	UFUNCTION(BlueprintCallable, Category = "NDisplay|Render")
