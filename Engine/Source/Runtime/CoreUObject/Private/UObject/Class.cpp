@@ -1569,7 +1569,7 @@ void UStruct::SerializeVersionedTaggedProperties(FStructuredArchive::FSlot Slot,
 					Property = CustomFindProperty(Tag.Name);
 				}
 
-				if (SerializeContext)
+				if (SerializeContext && SerializeContext->bTrackSerializedPropertyPath)
 				{
 					const FName Name = Property ? Property->GetFName() : Tag.Name;
 					const int32 Index = Tag.ArrayIndex > 0 || (Property && Property->ArrayDim > 1) ? Tag.ArrayIndex : INDEX_NONE;
@@ -1713,7 +1713,7 @@ void UStruct::SerializeVersionedTaggedProperties(FStructuredArchive::FSlot Slot,
 					PropertyBag->LoadPropertyByTag(SerializeContext->SerializedPropertyPath, Tag, ValueSlot);
 				}
 
-				if (SerializeContext)
+				if (SerializeContext && SerializeContext->bTrackSerializedPropertyPath)
 				{
 					SerializeContext->SerializedPropertyPath.Pop();
 				}

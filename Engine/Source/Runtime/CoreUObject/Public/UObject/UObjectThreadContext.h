@@ -169,9 +169,11 @@ public:
 	/** Points to the most recently used Linker for serialization by CreateExport() */
 	FLinkerLoad* SerializedExportLinker;
 	/** Path to the property currently being serialized */
-	UE::FPropertyPathName SerializedPropertyPath;
+	UE_INTERNAL UE::FPropertyPathName SerializedPropertyPath;
+	/** True when SerializedPropertyPath is being tracked during serialization. */
+	UE_INTERNAL bool bTrackSerializedPropertyPath;
 	/** True when unknown properties will be serialized to or from a property bag for the serialized object. */
-	bool bSerializeUnknownProperty;
+	UE_INTERNAL bool bSerializeUnknownProperty;
 
 	/** Adds a new loaded object */
 	COREUOBJECT_API void AddLoadedObject(UObject* InObject);

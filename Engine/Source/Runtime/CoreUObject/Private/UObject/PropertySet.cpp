@@ -304,7 +304,7 @@ void FSetProperty::SerializeItem(FStructuredArchive::FSlot Slot, void* Value, co
 			for (; Num; --Num)
 			{
 				int32 Index = SetHelper.AddDefaultValue_Invalid_NeedsRehash();
-				if (Context)
+				if (Context && Context->bTrackSerializedPropertyPath)
 				{
 					Context->SerializedPropertyPath.SetIndex(Index);
 				}
@@ -387,7 +387,7 @@ void FSetProperty::SerializeItem(FStructuredArchive::FSlot Slot, void* Value, co
 			}
 		}
 
-		if (Context)
+		if (Context && Context->bTrackSerializedPropertyPath)
 		{
 			Context->SerializedPropertyPath.SetIndex(INDEX_NONE);
 		}

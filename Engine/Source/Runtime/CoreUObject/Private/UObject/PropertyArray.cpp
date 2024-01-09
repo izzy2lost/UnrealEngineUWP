@@ -616,7 +616,7 @@ void FArrayProperty::SerializeItem(FStructuredArchive::FSlot Slot, void* Value, 
 	}
 
 	FUObjectSerializeContext* Context = FUObjectThreadContext::Get().GetSerializeContext();
-	if (Context && MaybeInnerTag)
+	if (Context && Context->bTrackSerializedPropertyPath && MaybeInnerTag)
 	{
 		Context->SerializedPropertyPath.PushType(MaybeInnerTag->StructName);
 	}
@@ -658,7 +658,7 @@ void FArrayProperty::SerializeItem(FStructuredArchive::FSlot Slot, void* Value, 
 
 				// Serialize the item at this array index
 				i = PropertyNode->ArrayIndex;
-				if (Context)
+				if (Context && Context->bTrackSerializedPropertyPath)
 				{
 					Context->SerializedPropertyPath.SetIndex(i);
 				}
@@ -686,7 +686,7 @@ void FArrayProperty::SerializeItem(FStructuredArchive::FSlot Slot, void* Value, 
 			NAME_UArraySerializeCount.SetNumber(i);
 			FArchive::FScopeAddDebugData P(UnderlyingArchive, NAME_UArraySerializeCount);
 #endif
-			if (Context)
+			if (Context && Context->bTrackSerializedPropertyPath)
 			{
 				Context->SerializedPropertyPath.SetIndex(i);
 			}
@@ -718,7 +718,7 @@ void FArrayProperty::SerializeItem(FStructuredArchive::FSlot Slot, void* Value, 
 		}
 	}
 
-	if (Context)
+	if (Context && Context->bTrackSerializedPropertyPath)
 	{
 		Context->SerializedPropertyPath.SetIndex(INDEX_NONE);
 	}

@@ -230,13 +230,16 @@ static UObject* GenerateTestArchetype(UObject* ObjectOld, UClass* NewClass)
 	UObject* ObjectNew = NewObject<UObject>(GetTransientPackage(), NewClass);
 	{
 		FUObjectSerializeContext* LoadContext = FUObjectThreadContext::Get().GetSerializeContext();
+		const bool bRevertTrackSerializedPropertyPath = LoadContext->bTrackSerializedPropertyPath;
 		const bool bRevertSerializeUnknownProperty = LoadContext->bSerializeUnknownProperty;
 		UObject* RevertSerializedObject = LoadContext->SerializedObject;
+		LoadContext->bTrackSerializedPropertyPath = true;
 		LoadContext->bSerializeUnknownProperty = true;
 		LoadContext->SerializedObject = ObjectNew;
 		
 		FObjectReader(ObjectNew, SerializedData);
 		
+		LoadContext->bTrackSerializedPropertyPath = bRevertTrackSerializedPropertyPath;
 		LoadContext->bSerializeUnknownProperty = bRevertSerializeUnknownProperty;
 		LoadContext->SerializedObject = RevertSerializedObject;
 	}
