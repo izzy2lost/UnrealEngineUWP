@@ -57,9 +57,9 @@ namespace uba
 
 		void CallProcessExit(ProcessHandle& h)
 		{
+			ScopedWriteLock lock(m_exitedLock);
 			if (!startInfo.exitedFunc)
 				return;
-			ScopedWriteLock lock(m_exitedLock);
 			auto exitedFunc = startInfo.exitedFunc;
 			auto userData = startInfo.userData;
 			startInfo.exitedFunc = nullptr;

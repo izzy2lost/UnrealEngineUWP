@@ -216,7 +216,7 @@ namespace uba
 		bool isAbsolute = IsWindows ? (pathLen > 1 && path[1] == ':') : (pathLen > 0 && path[0] == '/');
 		if (isAbsolute)
 		{
-			tempBuf.Append(path, pathLen);
+			FixPath(tempBuf, path);
 			if (CaseInsensitiveFs)
 				tempBuf.MakeLower();
 			fileNameKey = ToStringKey(tempBuf);

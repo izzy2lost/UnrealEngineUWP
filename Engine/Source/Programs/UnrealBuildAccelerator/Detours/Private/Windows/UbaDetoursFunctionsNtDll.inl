@@ -673,6 +673,14 @@ NTSTATUS NTAPI Shared_NtCreateFile(bool IsCreateFunc, PHANDLE hFileHandle, ACCES
 						return STATUS_OBJECT_NAME_NOT_FOUND;
 					}
 				}
+				else if (!checkIfDir)
+				{
+					// File could have been deleted.
+					DirectoryTable::EntryInformation entryInfo;
+					g_directoryTable.GetEntryInformation(entryInfo, dirTableOffset);
+					if (entryInfo.attributes == 0)
+						return STATUS_OBJECT_NAME_NOT_FOUND;
+				}
 
 				bool isWriteAttributes = (DesiredAccess & FILE_WRITE_ATTRIBUTES) != 0;
 

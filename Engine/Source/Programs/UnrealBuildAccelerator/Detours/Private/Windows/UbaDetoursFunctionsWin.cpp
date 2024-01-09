@@ -1009,13 +1009,14 @@ extern "C"
 		return reader.ReadBool();
 	}
 
-	UBA_DETOURED_API bool UbaUpdateEnvironment(const wchar_t* reason)
+	UBA_DETOURED_API bool UbaUpdateEnvironment(const wchar_t* reason, bool resetStats)
 	{
 		{
 			ScopedWriteLock pcs(g_communicationLock);
 			BinaryWriter writer;
 			writer.WriteByte(MessageType_UpdateEnvironment);
 			writer.WriteString(reason ? reason : L"");
+			writer.WriteBool(resetStats);
 			writer.Flush();
 			BinaryReader reader;
 			if (!reader.ReadBool())
@@ -1038,13 +1039,17 @@ extern "C"
 		*outArguments = 0;
 		StackBinaryReader<2048> reader;
 		reader.SetSize(UbaSendCustomMessage(nullptr, 0, reader.buffer, 2048));
-		if (!reader.GetLeft())
-			return false;
-		reader.ReadString(outArguments, outArgumentsCapacity);
-		reader.SkipString(); // Working dir
-		StringBuffer<256> description;
-		reader.ReadString(description);
+		bool hasProcess = reader.GetLeft();
 
-		return UbaUpdateEnvironment(description.data);
+		StringBuffer<256> description;
+		if (hasProcess)
+		{
+			reader.ReadString(outArguments, outArgumentsCapacity);
+			reader.SkipString(); // Working dir
+			reader.ReadString(description);
+		}
+		if (!UbaUpdateEnvironment(description.data, hasProcess))
+			return false;
+		return hasProcess;
 	}
 }

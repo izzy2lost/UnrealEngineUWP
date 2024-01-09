@@ -625,6 +625,7 @@ namespace uba
 	bool SessionClient::MoveFile(MoveFileResponse& out, const MoveFileMessage& msg)
 	{
 		const tchar* fromName = msg.fromName.data;
+		const tchar* toName = msg.toName.data;
 
 		{
 			ScopedWriteLock lock(msg.process.m_writtenFilesLock);
@@ -632,8 +633,8 @@ namespace uba
 			auto findIt = writtenFiles.find(fromName);
 			if (findIt != writtenFiles.end())
 			{
-				auto insres = writtenFiles.try_emplace(msg.toName.data);
-				UBA_ASSERT(insres.second);
+				auto insres = writtenFiles.try_emplace(toName);
+				UBA_ASSERTF(insres.second, TC("Moving written file to other written file."));
 				insres.first->second = findIt->second;
 				insres.first->second.owner = &msg.process;
 				writtenFiles.erase(findIt);
@@ -643,11 +644,11 @@ namespace uba
 		bool sendMove = true;
 		{
 			ScopedWriteLock lock(m_outputFilesLock);
-			auto findIt = m_outputFiles.find(msg.fromName.data);
+			auto findIt = m_outputFiles.find(fromName);
 			if (findIt != m_outputFiles.end())
 			{
-				auto insres = m_outputFiles.try_emplace(msg.toName.data);
-				UBA_ASSERT(insres.second);
+				auto insres = m_outputFiles.try_emplace(toName);
+				UBA_ASSERTF(insres.second, TC("Failed to add move destination file %s as output file because it is already added."), toName);
 				insres.first->second = findIt->second;
 				m_outputFiles.erase(findIt);
 				sendMove = false;
@@ -661,7 +662,7 @@ namespace uba
 			return true;
 		}
 
-		out.result = uba::MoveFileExW(fromName, msg.toName.data, 0);
+		out.result = uba::MoveFileExW(fromName, toName, 0);
 		out.errorCode = GetLastError();
 
 		return true;
@@ -1694,30 +1695,39 @@ namespace uba
 		ScopedWriteLock lock(process.m_writtenFilesLock);
 		if (!SendFiles(process, process.m_processStats.sendFiles))
 			return false;
+		{
+			ScopedWriteLock lock2(m_outputFilesLock);
+			for (auto& kv : process.m_writtenFiles)
+				m_outputFiles.erase(kv.first);
+		}
 		process.m_writtenFiles.clear();
 		return true;
 	}
 
-	bool SessionClient::UpdateEnvironment(ProcessImpl& process, const tchar* reason)
+	bool SessionClient::UpdateEnvironment(ProcessImpl& process, const tchar* reason, bool resetStats)
 	{
-		StackBinaryWriter<16*1024> writer;
-		NetworkMessage msg(m_client, ServiceId, SessionMessageType_UpdateEnvironment, writer);
-		writer.WriteU32(process.m_id);
-		writer.WriteString(reason);
-		process.m_processStats.Write(writer);
-		process.m_sessionStats.Write(writer);
-		process.m_storageStats.Write(writer);
-		process.m_systemStats.Write(writer);
-
-		process.m_processStats = {};
-		process.m_sessionStats = {};
-		process.m_storageStats = {};
-		process.m_systemStats = {};
-
 		StackBinaryReader<SendMaxSize> reader;
-		if (!msg.Send(reader, m_stats.customMsg))
-			return false;
-		reader.Reset();
+
+		if (resetStats)
+		{
+			StackBinaryWriter<16 * 1024> writer;
+			NetworkMessage msg(m_client, ServiceId, SessionMessageType_UpdateEnvironment, writer);
+			writer.WriteU32(process.m_id);
+			writer.WriteString(reason);
+			process.m_processStats.Write(writer);
+			process.m_sessionStats.Write(writer);
+			process.m_storageStats.Write(writer);
+			process.m_systemStats.Write(writer);
+
+			process.m_processStats = {};
+			process.m_sessionStats = {};
+			process.m_storageStats = {};
+			process.m_systemStats = {};
+
+			if (!msg.Send(reader, m_stats.customMsg))
+				return false;
+			reader.Reset();
+		}
 		return SendUpdateDirectoryTable(reader);
 	}
 }

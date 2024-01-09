@@ -849,21 +849,28 @@ namespace uba
 
 		u32 entryIndex = 0;
 		u32 fetchIndex = 0;
+		bool success = true;
 		while (left)
 		{
 			if (fetchIndex >= EntryCount)
 			{
 				auto& entry = entries[entryIndex];
 				if (!entry.message.WaitForAsync(entry.reader))
-					return false; // TODO: Cleanup
+				{
+					success = false;
+					break;
+				}
 				entry.~Entry();
 				UBA_ASSERT(entry.reader.GetLeft() == messageMaxSize);
 			}
 
 			auto& entry = *new (entries + entryIndex) Entry(client, fetchId, readBuffer, fetchIndex);
 			if (!entry.message.SendAsync(entry.reader))
-				return false; // TODO: Cleanup
-
+			{
+				entry.~Entry();
+				success = false;
+				break;
+			}
 			++fetchIndex;
 			entryIndex = (entryIndex + 1) % EntryCount;
 
@@ -884,11 +891,11 @@ namespace uba
 		{
 			auto& entry = entries[waitIndex];
 			if (!entry.message.WaitForAsync(entry.reader))
-				return false;  // TODO: Cleanup
+				success = false;
 			entry.~Entry();
 			waitIndex = (waitIndex + 1) % EntryCount;
 		}
-		return true;
+		return success;
 	}
 
 

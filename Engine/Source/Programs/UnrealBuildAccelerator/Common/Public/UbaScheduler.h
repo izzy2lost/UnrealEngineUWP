@@ -45,6 +45,7 @@ namespace uba
 		Event m_updateThreadLoop;
 		Thread m_thread;
 		bool m_loop = false;
+		bool m_enableProcessReuse;
 
 		Atomic<u32> m_activeLocalProcesses;
 		Atomic<u32> m_activeRemoteProcesses;

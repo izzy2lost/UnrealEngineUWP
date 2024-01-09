@@ -53,6 +53,7 @@ namespace uba
 		void PrintSummary(Logger& logger); // Print summary stats of session
 		void RefreshDirectory(const tchar* dirName); // Tell uba a directory on disk has been changed by some other system while session is running
 		void RegisterNewFile(const tchar* filePath); // Tell uba a new file on disk has been added by some other system while session is running
+		void RegisterDeleteFile(const tchar* filePath); // Tell uba a file on disk has been deleted by some other system while session is running
 
 		using CustomServiceFunction = Function<u32(Process& handle, const void* recv, u32 recvSize, void* send, u32 sendCapacity)>;
 		void RegisterCustomService(CustomServiceFunction&& function); // Register a custom service (that can be communicated with from the remote agents)
@@ -116,7 +117,7 @@ namespace uba
 		virtual bool CustomMessage(Process& process, BinaryReader& reader, BinaryWriter& writer);
 		virtual void FileEntryAdded(StringKey fileNameKey, u64 lastWritten, u64 size);
 		virtual bool FlushWrittenFiles(ProcessImpl& process);
-		virtual bool UpdateEnvironment(ProcessImpl& process, const tchar* reason);
+		virtual bool UpdateEnvironment(ProcessImpl& process, const tchar* reason, bool resetStats);
 
 		static constexpr CasKey CasKeyIsDirectory = { ~u64(0), ~u64(0), ~u32(0) };
 

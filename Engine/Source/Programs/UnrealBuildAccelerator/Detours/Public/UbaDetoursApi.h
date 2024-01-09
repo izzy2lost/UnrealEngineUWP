@@ -16,8 +16,8 @@ extern "C"
 	UBA_DETOURED_API bool UbaFlushWrittenFiles();
 
 	// Update environment. Making sure caches are up-to-date in detoured process.
-	// reason ends up in the visualizer for the next block of process
-	UBA_DETOURED_API bool UbaUpdateEnvironment(const wchar_t* reason);
+	// reason ends up in the visualizer for the next block of process if resetStats is true (if resetStats is not true, this will just update the environment within same process)
+	UBA_DETOURED_API bool UbaUpdateEnvironment(const wchar_t* reason, bool resetStats);
 
 	// Returns true if process is running on a remote machine
 	UBA_DETOURED_API bool UbaRunningRemote();
@@ -37,7 +37,7 @@ if (UbaDetoursModule)
 {
 	using UbaFlushWrittenFilesFunc = bool();
 	using UbaRequestNextProcessFunc = bool(TCHAR* outArguments, uint32 outArgumentsCapacity);
-	using UbaUpdateEnvironmentFunc = bool(const wchar_t* reason);
+	using UbaUpdateEnvironmentFunc = bool(const wchar_t* reason, bool resetStats);
 
 	static UbaFlushWrittenFilesFunc* FlushWrittenFiles = (UbaFlushWrittenFilesFunc*)(void*)GetProcAddress(UbaDetoursModule, "UbaFlushWrittenFiles");
 	static UbaRequestNextProcessFunc* RequestNextProcess = (UbaRequestNextProcessFunc*)(void*)GetProcAddress(UbaDetoursModule, "UbaRequestNextProcess");

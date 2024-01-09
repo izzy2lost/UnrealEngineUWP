@@ -657,7 +657,7 @@ namespace uba
 		if (!shouldWriteToDisk)
 		{
 			u32 offset;
-			bool res = WriteDirectoryEntries(dirKey, dirName.data, offset);
+			u32 res = WriteDirectoryEntries(dirKey, dirName.data, offset);
 			UBA_ASSERT(res); (void)res;
 		}
 
@@ -685,7 +685,7 @@ namespace uba
 		{
 			u32 offset;
 			dirLock.Leave();
-			bool res = WriteDirectoryEntries(dirKey, dirName.data, offset);
+			u32 res = WriteDirectoryEntries(dirKey, dirName.data, offset);
 			UBA_ASSERT(res); (void)res;
 			dirLock.Enter();
 		}
@@ -1243,11 +1243,8 @@ namespace uba
 		WriteDirectoryEntriesInternal(dir, dirKey, dirPath.data, true, tableOffset);
 	}
 
-	void Session::RegisterNewFile(const tchar* filePath)
+	StringKey GetKeyAndFixedName(StringBuffer<>& fixedFilePath, const tchar* filePath)
 	{
-		UBA_ASSERT(!m_runningRemote);
-
-		StringBuffer<> fixedFilePath;
 		FixPath2(filePath, nullptr, 0, fixedFilePath.data, &fixedFilePath.count);
 
 		StringKey dirKey;
@@ -1260,14 +1257,28 @@ namespace uba
 
 		StringKeyHasher hasher;
 		hasher.Update(dirNameForHash.data, dirNameForHash.count);
-		
+
 		StringBuffer<128> baseFileNameForHash;
 		baseFileNameForHash.Append(baseFileName);
 		if (CaseInsensitiveFs)
 			baseFileNameForHash.MakeLower();
-		auto key = ToStringKey(hasher, baseFileNameForHash.data, baseFileNameForHash.count);
+		return ToStringKey(hasher, baseFileNameForHash.data, baseFileNameForHash.count);
+	}
 
+	void Session::RegisterNewFile(const tchar* filePath)
+	{
+		UBA_ASSERT(!m_runningRemote);
+		StringBuffer<> fixedFilePath;
+		auto key = GetKeyAndFixedName(fixedFilePath, filePath);
 		RegisterCreateFileForWrite(key, fixedFilePath.data, fixedFilePath.count, true);
+	}
+
+	void Session::RegisterDeleteFile(const tchar* filePath)
+	{
+		UBA_ASSERT(!m_runningRemote);
+		StringBuffer<> fixedFilePath;
+		auto key = GetKeyAndFixedName(fixedFilePath, filePath);
+		RegisterDeleteFile(key, fixedFilePath.data);
 	}
 
 	void Session::RegisterCustomService(CustomServiceFunction&& function)
@@ -1323,7 +1334,9 @@ namespace uba
 	void Session::FlushDeadProcesses()
 	{
 		ScopedWriteLock lock(m_processesLock);
-		m_deadProcesses.clear();
+		Vector<ProcessHandle> deadProcesses;
+		deadProcesses.swap(m_deadProcesses);
+		lock.Leave();
 	}
 
 	bool Session::GetInitResponse(InitResponse& out, const InitMessage& msg)
@@ -1989,7 +2002,7 @@ namespace uba
 		return true;
 	}
 
-	bool Session::UpdateEnvironment(ProcessImpl& process, const tchar* reason)
+	bool Session::UpdateEnvironment(ProcessImpl& process, const tchar* reason, bool resetStats)
 	{
 		StackBinaryWriter<16 * 1024> writer;
 		process.m_processStats.Write(writer);
@@ -2084,7 +2097,7 @@ namespace uba
 		#endif
 
 		if (!m_extraInfo.empty())
-			out.Append(' ').Append(m_extraInfo);
+			out.Append(m_extraInfo);
 
 		#if UBA_DEBUG
 		out.Append(TC(" DEBUG"));

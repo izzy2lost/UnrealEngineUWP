@@ -109,7 +109,7 @@ namespace uba
 				--charLen;
 			}
 
-			UBA_ASSERTF(workingDir && *workingDir, TC("No working dir provided"));
+			UBA_ASSERTF(workingDir && *workingDir, TC("No working dir provided but path is relative (%s)"), buffer);
 			tchar temp2[1024];
 			memcpy(temp2, workingDir, workingDirCharLen*sizeof(tchar));
 			memcpy(temp2 + workingDirCharLen, copyFrom, charLen*sizeof(tchar));

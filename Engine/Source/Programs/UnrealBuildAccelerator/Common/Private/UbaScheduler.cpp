@@ -41,12 +41,12 @@ namespace uba
 	:	m_session(session)
 	,	m_maxLocalProcessors(maxLocalProcessors ? maxLocalProcessors : GetLogicalProcessorCount())
 	,	m_updateThreadLoop(false)
+	,	m_enableProcessReuse(enableProcessReuse)
 	{
-		if (enableProcessReuse)
-			session.RegisterCustomService([this](Process& process, const void* recv, u32 recvSize, void* send, u32 sendCapacity)
-				{
-					return HandleReuseMessage(process, recv, recvSize, send, sendCapacity);
-				});
+		session.RegisterCustomService([this](Process& process, const void* recv, u32 recvSize, void* send, u32 sendCapacity)
+			{
+				return HandleReuseMessage(process, recv, recvSize, send, sendCapacity);
+			});
 	}
 
 	Scheduler::~Scheduler()
@@ -203,6 +203,9 @@ namespace uba
 
 	u32 Scheduler::HandleReuseMessage(Process& process, const void* recv, u32 recvSize, void* send, u32 sendCapacity)
 	{
+		if (!m_enableProcessReuse)
+			return 0;
+
 		auto& currentStartInfo = process.GetStartInfo();
 		auto info = (ExitProcessInfo*)currentStartInfo.userData;
 		if (!info) // If null, process has already exited from some other thread

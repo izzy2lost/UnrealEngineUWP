@@ -840,7 +840,8 @@ namespace uba
 				{
 					StringBuffer<> reason;
 					reader.ReadString(reason);
-					bool result = m_session.UpdateEnvironment(*this, reason.data);
+					bool resetStats = reader.ReadBool();
+					bool result = m_session.UpdateEnvironment(*this, reason.data, resetStats);
 					writer.WriteBool(result);
 					return true;
 				}

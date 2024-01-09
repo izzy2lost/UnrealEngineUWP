@@ -346,6 +346,10 @@ uba::StorageClient* CreateStorageClient(uba::NetworkClient& client, const uba::t
 	{
 		server->RegisterNewFile(filePath);
 	}
+	void SessionServer_RegisterDeleteFile(uba::SessionServer* server, const uba::tchar* filePath)
+	{
+		server->RegisterDeleteFile(filePath);
+	}
 	uba::ProcessHandle* SessionServer_RunProcess(uba::SessionServer* server, uba::ProcessStartInfo& info, bool async, bool enableDetour)
 	{
 		return new uba::ProcessHandle(server->RunProcess(info, async, enableDetour));
