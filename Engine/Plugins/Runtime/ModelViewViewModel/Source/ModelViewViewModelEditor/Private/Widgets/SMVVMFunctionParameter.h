@@ -4,6 +4,7 @@
 
 #include "MVVMBlueprintPin.h"
 #include "MVVMPropertyPath.h"
+#include "Types/MVVMLinkedPinValue.h"
 #include "Widgets/SCompoundWidget.h"
 #include "Widgets/SMVVMFieldSelectorMenu.h"
 
@@ -37,10 +38,10 @@ private:
 	ECheckBoxState OnGetIsBindArgumentChecked() const;
 	void OnBindArgumentChecked(ECheckBoxState Checked);
 
-	FMVVMBlueprintPropertyPath OnGetSelectedField() const;
-	void SetSelectedField(const FMVVMBlueprintPropertyPath& Path);
+	FMVVMLinkedPinValue OnGetSelectedField() const;
+	void SetSelectedField(const FMVVMLinkedPinValue& Path);
 
-	void HandleFieldSelectionChanged(FMVVMBlueprintPropertyPath SelectedField, const UFunction* Function);
+	void HandleFieldSelectionChanged(FMVVMLinkedPinValue Value);
 	FFieldSelectionContext GetSelectedSelectionContext() const;
 
 	int32 GetCurrentWidgetIndex() const;
@@ -52,7 +53,7 @@ private:
 	/** This reference is just to keep the default value widget alive. */
 	TSharedPtr<SGraphPin> GraphPin;
 
-	FMVVMBlueprintPropertyPath PreviousSelectedField;
+	FMVVMLinkedPinValue PreviousSelectedField;
 
 	bool bSourceToDestination = true;
 	bool bAllowDefault = true;

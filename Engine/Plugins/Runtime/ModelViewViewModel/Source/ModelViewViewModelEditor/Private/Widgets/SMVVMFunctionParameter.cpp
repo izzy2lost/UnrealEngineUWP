@@ -79,8 +79,7 @@ void SFunctionParameter::Construct(const FArguments& InArgs, UWidgetBlueprint* I
 			];
 	}
 
-	FMVVMBlueprintPropertyPath Path = OnGetSelectedField();
-	bDefaultValueVisible = !Path.IsValid();
+	bDefaultValueVisible = !OnGetSelectedField().IsValid();
 
 	bool bFromViewModel = UE::MVVM::IsForwardBinding(Binding->BindingType);
 	TSharedPtr<SHorizontalBox> HBox;
@@ -104,8 +103,8 @@ void SFunctionParameter::Construct(const FArguments& InArgs, UWidgetBlueprint* I
 				+ SWidgetSwitcher::Slot()
 				[
 					SNew(SFieldSelector, WidgetBlueprint.Get())
-					.OnGetPropertyPath(this, &SFunctionParameter::OnGetSelectedField)
-					.OnFieldSelectionChanged(this, &SFunctionParameter::HandleFieldSelectionChanged)
+					.OnGetLinkedValue(this, &SFunctionParameter::OnGetSelectedField)
+					.OnSelectionChanged(this, &SFunctionParameter::HandleFieldSelectionChanged)
 					.OnGetSelectionContext(this, &SFunctionParameter::GetSelectedSelectionContext)
 				]
 			]
@@ -158,7 +157,7 @@ void SFunctionParameter::OnBindArgumentChecked(ECheckBoxState Checked)
 	if (bDefaultValueVisible)
 	{
 		PreviousSelectedField = OnGetSelectedField();
-		SetSelectedField(FMVVMBlueprintPropertyPath());
+		SetSelectedField(FMVVMLinkedPinValue());
 	}
 	else
 	{
@@ -166,7 +165,7 @@ void SFunctionParameter::OnBindArgumentChecked(ECheckBoxState Checked)
 	}
 }
 
-FMVVMBlueprintPropertyPath SFunctionParameter::OnGetSelectedField() const
+FMVVMLinkedPinValue SFunctionParameter::OnGetSelectedField() const
 {
 	if (const UWidgetBlueprint* WidgetBlueprintPtr = WidgetBlueprint.Get())
 	{
@@ -175,14 +174,14 @@ FMVVMBlueprintPropertyPath SFunctionParameter::OnGetSelectedField() const
 		{
 			if (const FMVVMBlueprintViewBinding* Binding = View->GetBinding(BindingId))
 			{
-				return Subsystem->GetPathForConversionFunctionArgument(WidgetBlueprint.Get(), *Binding, ParameterId, bSourceToDestination);
+				return FMVVMLinkedPinValue(Subsystem->GetPathForConversionFunctionArgument(WidgetBlueprint.Get(), *Binding, ParameterId, bSourceToDestination));
 			}
 		}
 	}
-	return FMVVMBlueprintPropertyPath();
+	return FMVVMLinkedPinValue();
 }
 
-void SFunctionParameter::SetSelectedField(const FMVVMBlueprintPropertyPath& Path)
+void SFunctionParameter::SetSelectedField(const FMVVMLinkedPinValue& Value)
 {
 	if (const UWidgetBlueprint* WidgetBlueprintPtr = WidgetBlueprint.Get())
 	{
@@ -191,15 +190,15 @@ void SFunctionParameter::SetSelectedField(const FMVVMBlueprintPropertyPath& Path
 		{
 			if (FMVVMBlueprintViewBinding* Binding = View->GetBinding(BindingId))
 			{
-				Subsystem->SetPathForConversionFunctionArgument(WidgetBlueprint.Get(), *Binding, ParameterId, Path, bSourceToDestination);
+				Subsystem->SetPathForConversionFunctionArgument(WidgetBlueprint.Get(), *Binding, ParameterId, Value.IsPropertyPath() ? Value.GetPropertyPath() : FMVVMBlueprintPropertyPath(), bSourceToDestination);
 			}
 		}
 	}
 }
 
-void SFunctionParameter::HandleFieldSelectionChanged(FMVVMBlueprintPropertyPath SelectedField, const UFunction* Function)
+void SFunctionParameter::HandleFieldSelectionChanged(FMVVMLinkedPinValue Value)
 {
-	SetSelectedField(SelectedField);
+	SetSelectedField(Value);
 }
 
 FFieldSelectionContext SFunctionParameter::GetSelectedSelectionContext() const

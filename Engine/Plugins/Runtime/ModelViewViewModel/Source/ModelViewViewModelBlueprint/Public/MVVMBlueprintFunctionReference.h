@@ -33,14 +33,14 @@ public:
 	FMVVMBlueprintFunctionReference() = default;
 	MODELVIEWVIEWMODELBLUEPRINT_API explicit FMVVMBlueprintFunctionReference(const UBlueprint* InContext, const UFunction* InFunction);
 	MODELVIEWVIEWMODELBLUEPRINT_API explicit FMVVMBlueprintFunctionReference(FMemberReference InFunctionReference);
-	MODELVIEWVIEWMODELBLUEPRINT_API explicit FMVVMBlueprintFunctionReference(const TSubclassOf<UK2Node> InNode);
+	MODELVIEWVIEWMODELBLUEPRINT_API explicit FMVVMBlueprintFunctionReference(TSubclassOf<UK2Node> InNode);
 
 	/** If the node is of type Function, resolves the function. Uses the blueprint, if the function is defined on the BP itself. */
 	MODELVIEWVIEWMODELBLUEPRINT_API const UFunction* GetFunction(const UBlueprint* SelfContext) const;
 	/** If the node is of type Function, resolves the function. Uses the blueprint, if the function is defined on the BP itself. */
 	MODELVIEWVIEWMODELBLUEPRINT_API const UFunction* GetFunction(const UClass* SelfContext) const;
 	/** If the node is of type Node, return the node class. */
-	MODELVIEWVIEWMODELBLUEPRINT_API const TSubclassOf<UK2Node> GetNode() const;
+	MODELVIEWVIEWMODELBLUEPRINT_API TSubclassOf<UK2Node> GetNode() const;
 
 	EMVVMBlueprintFunctionReferenceType GetType() const
 	{

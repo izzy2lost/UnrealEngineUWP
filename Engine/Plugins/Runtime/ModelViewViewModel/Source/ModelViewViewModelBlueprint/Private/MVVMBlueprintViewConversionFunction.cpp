@@ -28,6 +28,9 @@ namespace UE::MVVM::Private
 
 bool UMVVMBlueprintViewConversionFunction::IsValidConversionFunction(const UBlueprint* WidgetBlueprint, const UFunction* Function)
 {
+	check(WidgetBlueprint);
+	check(Function);
+
 	// functions in the widget blueprint can do anything they want, other functions have to be static functions in a BlueprintFunctionLibrary
 	const UClass* FunctionClass = Function->GetOuterUClass();
 

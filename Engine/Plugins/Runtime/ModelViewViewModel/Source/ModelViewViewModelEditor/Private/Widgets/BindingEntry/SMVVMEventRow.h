@@ -51,11 +51,9 @@ private:
 
 	void OnIsEventCompileChanged(ECheckBoxState NewState);
 
-	FMVVMBlueprintPropertyPath GetSelectedPropertyPath(bool bSource) const;
+	FMVVMLinkedPinValue GetFieldSelectedValue(bool bSource) const;
 
-	const UFunction* GetSelectedConversionFunction(bool bSourceToDest) const;
-
-	void HandleFieldSelectionChanged(FMVVMBlueprintPropertyPath SelectedField, const UFunction* Function, bool bSource);
+	void HandleFieldSelectionChanged(FMVVMLinkedPinValue Value, bool bSource);
 
 	FFieldSelectionContext GetSelectedSelectionContext(bool bSource) const;
 

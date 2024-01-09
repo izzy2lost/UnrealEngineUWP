@@ -15,7 +15,7 @@ namespace UE::MVVM
 {
 class SPropertyPath;
 
-DECLARE_DELEGATE_RetVal(FMVVMBlueprintPropertyPath, FOnGetPropertyPath);
+
 
 class SCachedViewBindingPropertyPath : public SCompoundWidget
 {
@@ -23,6 +23,8 @@ private:
 	using Super = SCompoundWidget;
 
 public:
+	DECLARE_DELEGATE_RetVal(FMVVMBlueprintPropertyPath, FOnGetPropertyPath);
+
 	SLATE_BEGIN_ARGS(SCachedViewBindingPropertyPath)
 		: _TextStyle(&FCoreStyle::Get().GetWidgetStyle<FTextBlockStyle>("NormalText"))
 	{}

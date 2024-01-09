@@ -83,9 +83,8 @@ TSharedRef<SWidget> SEventRow::BuildRowWidget()
 				.MinDesiredWidth(150.0f)
 				[
 					SNew(SFieldSelector, GetBlueprint())
-					.OnGetPropertyPath(this, &SEventRow::GetSelectedPropertyPath, true)
-					.OnGetConversionFunction(this, &SEventRow::GetSelectedConversionFunction, true)
-					.OnFieldSelectionChanged(this, &SEventRow::HandleFieldSelectionChanged, true)
+					.OnGetLinkedValue(this, &SEventRow::GetFieldSelectedValue, true)
+					.OnSelectionChanged(this, &SEventRow::HandleFieldSelectionChanged, true)
 					.OnGetSelectionContext(this, &SEventRow::GetSelectedSelectionContext, true)
 					.OnDrop(this, &SEventRow::HandleFieldSelectorDrop, true)
 					.OnDragEnter(this, &SEventRow::HandleFieldSelectorDragEnter, true)
@@ -120,9 +119,8 @@ TSharedRef<SWidget> SEventRow::BuildRowWidget()
 				.MinDesiredWidth(150.0f)
 				[
 					SNew(SFieldSelector, GetBlueprint())
-					.OnGetPropertyPath(this, &SEventRow::GetSelectedPropertyPath, false)
-					.OnGetConversionFunction(this, &SEventRow::GetSelectedConversionFunction, false)
-					.OnFieldSelectionChanged(this, &SEventRow::HandleFieldSelectionChanged, false)
+					.OnGetLinkedValue(this, &SEventRow::GetFieldSelectedValue, false)
+					.OnSelectionChanged(this, &SEventRow::HandleFieldSelectionChanged, false)
 					.OnGetSelectionContext(this, &SEventRow::GetSelectedSelectionContext, false)
 					.OnDrop(this, &SEventRow::HandleFieldSelectorDrop, false)
 					.OnDragEnter(this, &SEventRow::HandleFieldSelectorDragEnter, false)
@@ -310,21 +308,16 @@ void SEventRow::OnIsEventCompileChanged(ECheckBoxState NewState)
 	}
 }
 
-FMVVMBlueprintPropertyPath SEventRow::GetSelectedPropertyPath(bool bEvent) const
+FMVVMLinkedPinValue SEventRow::GetFieldSelectedValue(bool bEvent) const
 {
 	if (const UMVVMBlueprintViewEvent* Event = GetEvent())
 	{
-		return bEvent ? Event->GetEventPath() : Event->GetDestinationPath();
+		return bEvent ? FMVVMLinkedPinValue(Event->GetEventPath()) : FMVVMLinkedPinValue(Event->GetDestinationPath());
 	}
-	return FMVVMBlueprintPropertyPath();
+	return FMVVMLinkedPinValue();
 }
 
-const UFunction* SEventRow::GetSelectedConversionFunction(bool bSourceToDest) const
-{
-	return nullptr;
-}
-
-void SEventRow::HandleFieldSelectionChanged(FMVVMBlueprintPropertyPath SelectedField, const UFunction* Function, bool bEvent)
+void SEventRow::HandleFieldSelectionChanged(FMVVMLinkedPinValue Value, bool bEvent)
 {
 	UWidgetBlueprint* WidgetBlueprint = GetBlueprint();
 	UMVVMBlueprintViewEvent* Event = GetEvent();
@@ -333,17 +326,11 @@ void SEventRow::HandleFieldSelectionChanged(FMVVMBlueprintPropertyPath SelectedF
 		UMVVMEditorSubsystem* Subsystem = GetEditorSubsystem();
 		if (bEvent)
 		{
-			if (Event->GetEventPath() != SelectedField)
-			{
-				Subsystem->SetEventPath(Event, SelectedField);
-			}
+			Subsystem->SetEventPath(Event, Value.IsPropertyPath() ? Value.GetPropertyPath() : FMVVMBlueprintPropertyPath());
 		}
 		else
 		{
-			if (Event->GetDestinationPath() != SelectedField)
-			{
-				Subsystem->SetEventDestinationPath(Event, SelectedField);
-			}
+			Subsystem->SetEventDestinationPath(Event, Value.IsPropertyPath() ? Value.GetPropertyPath() : FMVVMBlueprintPropertyPath());
 		}
 	}
 }

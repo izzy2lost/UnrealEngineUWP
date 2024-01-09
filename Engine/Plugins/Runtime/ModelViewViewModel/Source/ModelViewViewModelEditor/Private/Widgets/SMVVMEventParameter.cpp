@@ -67,8 +67,7 @@ void SEventParameter::Construct(const FArguments& InArgs, UWidgetBlueprint* InWi
 		}
 	}
 
-	FMVVMBlueprintPropertyPath Path = OnGetSelectedField();
-	bDefaultValueVisible = !Path.IsValid();
+	bDefaultValueVisible = !OnGetSelectedField().IsValid();
 
 	TSharedPtr<SHorizontalBox> HBox;
 
@@ -91,8 +90,8 @@ void SEventParameter::Construct(const FArguments& InArgs, UWidgetBlueprint* InWi
 				+ SWidgetSwitcher::Slot()
 				[
 					SNew(SFieldSelector, WidgetBlueprint.Get())
-					.OnGetPropertyPath(this, &SEventParameter::OnGetSelectedField)
-					.OnFieldSelectionChanged(this, &SEventParameter::HandleFieldSelectionChanged)
+					.OnGetLinkedValue(this, &SEventParameter::OnGetSelectedField)
+					.OnSelectionChanged(this, &SEventParameter::HandleFieldSelectionChanged)
 					.OnGetSelectionContext(this, &SEventParameter::GetSelectedSelectionContext)
 				]
 			]
@@ -143,7 +142,7 @@ void SEventParameter::OnBindArgumentChecked(ECheckBoxState Checked)
 	if (bDefaultValueVisible)
 	{
 		PreviousSelectedField = OnGetSelectedField();
-		SetSelectedField(FMVVMBlueprintPropertyPath());
+		SetSelectedField(FMVVMLinkedPinValue());
 	}
 	else
 	{
@@ -151,27 +150,27 @@ void SEventParameter::OnBindArgumentChecked(ECheckBoxState Checked)
 	}
 }
 
-FMVVMBlueprintPropertyPath SEventParameter::OnGetSelectedField() const
+FMVVMLinkedPinValue SEventParameter::OnGetSelectedField() const
 {
 	if (const UMVVMBlueprintViewEvent* EventPtr = ViewEvent.Get())
 	{
-		return EventPtr->GetPinPath(ParameterId);
+		return FMVVMLinkedPinValue(EventPtr->GetPinPath(ParameterId));
 	}
-	return FMVVMBlueprintPropertyPath();
+	return FMVVMLinkedPinValue();
 }
 
-void SEventParameter::SetSelectedField(const FMVVMBlueprintPropertyPath& Path)
+void SEventParameter::SetSelectedField(const FMVVMLinkedPinValue& Path)
 {
 	if (UMVVMBlueprintViewEvent* EventPtr = ViewEvent.Get())
 	{
 		const UMVVMEditorSubsystem* Subsystem = GEditor->GetEditorSubsystem<UMVVMEditorSubsystem>();
-		Subsystem->SetEventArgumentPath(EventPtr, ParameterId, Path);
+		Subsystem->SetEventArgumentPath(EventPtr, ParameterId, Path.IsPropertyPath() ? Path.GetPropertyPath(): FMVVMBlueprintPropertyPath());
 	}
 }
 
-void SEventParameter::HandleFieldSelectionChanged(FMVVMBlueprintPropertyPath SelectedField, const UFunction* Function)
+void SEventParameter::HandleFieldSelectionChanged(FMVVMLinkedPinValue Value)
 {
-	SetSelectedField(SelectedField);
+	SetSelectedField(Value);
 }
 
 FFieldSelectionContext SEventParameter::GetSelectedSelectionContext() const

@@ -48,7 +48,7 @@ FMVVMBlueprintFunctionReference::FMVVMBlueprintFunctionReference(FMemberReferenc
 	, Type(EMVVMBlueprintFunctionReferenceType::Function)
 {}
 
-FMVVMBlueprintFunctionReference::FMVVMBlueprintFunctionReference(const TSubclassOf<UK2Node> InNode)
+FMVVMBlueprintFunctionReference::FMVVMBlueprintFunctionReference(TSubclassOf<UK2Node> InNode)
 	: Node(InNode)
 	, Type(InNode.Get() != nullptr ? EMVVMBlueprintFunctionReferenceType::Node : EMVVMBlueprintFunctionReferenceType::None)
 {
@@ -79,7 +79,7 @@ const UFunction* FMVVMBlueprintFunctionReference::GetFunction(const UClass* Self
 	return FunctionReference.ResolveMember<UFunction>(const_cast<UClass*>(SelfContext), false);
 }
 
-const TSubclassOf<UK2Node> FMVVMBlueprintFunctionReference::GetNode() const
+TSubclassOf<UK2Node> FMVVMBlueprintFunctionReference::GetNode() const
 {
 	return Type == EMVVMBlueprintFunctionReferenceType::Node ? Node : TSubclassOf<UK2Node>();
 }

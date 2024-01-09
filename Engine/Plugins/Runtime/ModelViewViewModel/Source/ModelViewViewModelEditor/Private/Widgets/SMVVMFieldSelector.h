@@ -2,7 +2,6 @@
 
 #pragma once
 
-#include "MVVMPropertyPath.h"
 #include "Styling/CoreStyle.h"
 #include "Styling/SlateTypes.h"
 #include "Styling/SlateWidgetStyleAsset.h"
@@ -21,6 +20,7 @@ namespace UE::MVVM
 class SFieldSelector : public SCompoundWidget
 {
 public:
+	DECLARE_DELEGATE_RetVal(FMVVMLinkedPinValue, FOnGetLinkedPinValue);
 	DECLARE_DELEGATE_RetVal(FFieldSelectionContext, FOnGetSelectionContext);
 	DECLARE_DELEGATE_RetVal_TwoParams(FReply, FOnDrop, const FGeometry&, const FDragDropEvent&);
 	DECLARE_DELEGATE_TwoParams(FOnDragEnter, const FGeometry&, const FDragDropEvent&);
@@ -31,9 +31,8 @@ public:
 		}
 		SLATE_STYLE_ARGUMENT(FTextBlockStyle, TextStyle)
 		SLATE_ARGUMENT_DEFAULT(bool, ShowContext) = true;
-		SLATE_EVENT(FOnGetPropertyPath, OnGetPropertyPath)
-		SLATE_EVENT(FOnGetConversionFunction, OnGetConversionFunction)
-		SLATE_EVENT(FOnFieldSelectionChanged, OnFieldSelectionChanged)
+		SLATE_EVENT(FOnGetLinkedPinValue, OnGetLinkedValue)
+		SLATE_EVENT(FOnLinkedValueSelectionChanged, OnSelectionChanged)
 		SLATE_EVENT(FOnGetSelectionContext, OnGetSelectionContext)
 		SLATE_EVENT(FOnDrop, OnDrop)
 		SLATE_EVENT(FOnDragEnter, OnDragEnter)
@@ -51,7 +50,9 @@ private:
 	TSharedRef<SWidget> CreateSourcePanel();
 	TSharedRef<SWidget> HandleGetMenuContent();
 
-	void HandleFieldSelectionChanged(FMVVMBlueprintPropertyPath, const UFunction*);
+	void HandleFieldSelectionChanged(FMVVMLinkedPinValue NewValue);
+	FMVVMBlueprintPropertyPath HandleGetPropertyPath() const;
+	TVariant<const UFunction*, TSubclassOf<UK2Node>, FEmptyVariantState> HandleGetConversionFunction() const;
 	void HandleMenuClosed();
 
 private:
@@ -60,10 +61,9 @@ private:
 
 	TWeakObjectPtr<const UWidgetBlueprint> WidgetBlueprint;
 	const FTextBlockStyle* TextStyle = nullptr;
-	FOnGetPropertyPath OnGetPropertyPath;
-	FOnGetConversionFunction OnGetConversionFunction;
+	FOnGetLinkedPinValue OnGetLinkedValue;
+	FOnLinkedValueSelectionChanged OnSelectionChanged;
 	FOnGetSelectionContext OnGetSelectionContext;
-	FOnFieldSelectionChanged OnFieldSelectionChanged;
 	FOnDrop OnDropEvent;
 	FOnDragEnter OnDragEnterEvent;
 }; 

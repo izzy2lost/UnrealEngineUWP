@@ -119,9 +119,8 @@ TSharedRef<SWidget> SBindingRow::BuildRowWidget()
 				.MinDesiredWidth(150)
 				[
 					SNew(SFieldSelector, GetBlueprint())
-					.OnGetPropertyPath(this, &SBindingRow::GetSelectedPropertyPath, false)
-					.OnGetConversionFunction(this, &SBindingRow::GetSelectedConversionFunction, false)
-					.OnFieldSelectionChanged(this, &SBindingRow::HandleFieldSelectionChanged, false)
+					.OnGetLinkedValue(this, &SBindingRow::GetFieldSelectedValue, false)
+					.OnSelectionChanged(this, &SBindingRow::HandleFieldSelectionChanged, false)
 					.OnGetSelectionContext(this, &SBindingRow::GetSelectedSelectionContext, false)
 					.OnDrop(this, &SBindingRow::HandleFieldSelectorDrop, false)
 					.OnDragEnter(this, &SBindingRow::HandleFieldSelectorDragEnter, false)
@@ -165,9 +164,8 @@ TSharedRef<SWidget> SBindingRow::BuildRowWidget()
 				.MinDesiredWidth(150.0f)
 				[
 					SNew(SFieldSelector, GetBlueprint())
-					.OnGetPropertyPath(this, &SBindingRow::GetSelectedPropertyPath, true)
-					.OnGetConversionFunction(this, &SBindingRow::GetSelectedConversionFunction, true)
-					.OnFieldSelectionChanged(this, &SBindingRow::HandleFieldSelectionChanged, true)
+					.OnGetLinkedValue(this, &SBindingRow::GetFieldSelectedValue, true)
+					.OnSelectionChanged(this, &SBindingRow::HandleFieldSelectionChanged, true)
 					.OnGetSelectionContext(this, &SBindingRow::GetSelectedSelectionContext, true)
 					.OnDrop(this, &SBindingRow::HandleFieldSelectorDrop, true)
 					.OnDragEnter(this, &SBindingRow::HandleFieldSelectorDragEnter, true)
@@ -372,31 +370,31 @@ TArray<FBindingSource> SBindingRow::GetAvailableViewModels() const
 	return EditorSubsystem->GetAllViewModels(GetBlueprint());
 }
 
-FMVVMBlueprintPropertyPath SBindingRow::GetSelectedPropertyPath(bool bSource) const
+FMVVMLinkedPinValue SBindingRow::GetFieldSelectedValue(bool bSourceToDest) const
 {
 	if (FMVVMBlueprintViewBinding* ViewBinding = GetThisViewBinding())
 	{
-		return bSource ? ViewBinding->SourcePath : ViewBinding->DestinationPath;
-	}
-	return FMVVMBlueprintPropertyPath();
-}
 
-const UFunction* SBindingRow::GetSelectedConversionFunction(bool bSourceToDest) const
-{
-	if (FMVVMBlueprintViewBinding* ViewBinding = GetThisViewBinding())
-	{
 		if (UMVVMBlueprintViewConversionFunction* ConversionFunction = ViewBinding->Conversion.GetConversionFunction(bSourceToDest))
 		{
 			if (ConversionFunction->GetConversionFunction().GetType() == EMVVMBlueprintFunctionReferenceType::Function)
 			{
-				return ConversionFunction->GetConversionFunction().GetFunction(GetBlueprint());
+				return FMVVMLinkedPinValue(ConversionFunction->GetConversionFunction().GetFunction(GetBlueprint()));
+			}
+			else if (ConversionFunction->GetConversionFunction().GetType() == EMVVMBlueprintFunctionReferenceType::Function)
+			{
+				return FMVVMLinkedPinValue(ConversionFunction->GetConversionFunction().GetNode());
 			}
 		}
+		else
+		{
+			return FMVVMLinkedPinValue(bSourceToDest ? ViewBinding->SourcePath : ViewBinding->DestinationPath);
+		}
 	}
-	return nullptr;
+	return FMVVMLinkedPinValue();
 }
 
-void SBindingRow::HandleFieldSelectionChanged(FMVVMBlueprintPropertyPath SelectedField, const UFunction* Function, bool bSource)
+void SBindingRow::HandleFieldSelectionChanged(FMVVMLinkedPinValue Value, bool bSource)
 {
 	UWidgetBlueprint* WidgetBlueprint = GetBlueprint();
 	FMVVMBlueprintViewBinding* ViewBinding = GetThisViewBinding();
@@ -405,18 +403,40 @@ void SBindingRow::HandleFieldSelectionChanged(FMVVMBlueprintPropertyPath Selecte
 		UMVVMEditorSubsystem* Subsystem = GetEditorSubsystem();
 		if (bSource)
 		{
-			Subsystem->SetSourceToDestinationConversionFunction(WidgetBlueprint, *ViewBinding, Function);
-			if (ViewBinding->SourcePath != SelectedField)
+			if (Value.IsPropertyPath())
 			{
-				Subsystem->SetSourcePathForBinding(WidgetBlueprint, *ViewBinding, SelectedField);
+				Subsystem->SetSourcePathForBinding(WidgetBlueprint, *ViewBinding, Value.GetPropertyPath());
+			}
+			else if (Value.IsConversionFunction())
+			{
+				Subsystem->SetSourceToDestinationConversionFunction(WidgetBlueprint, *ViewBinding, FMVVMBlueprintFunctionReference(WidgetBlueprint, Value.GetConversionFunction()));
+			}
+			else if (Value.IsConversionNode())
+			{
+				Subsystem->SetSourceToDestinationConversionFunction(WidgetBlueprint, *ViewBinding, FMVVMBlueprintFunctionReference(Value.GetConversionNode()));
+			}
+			else
+			{
+				Subsystem->SetSourcePathForBinding(WidgetBlueprint, *ViewBinding, FMVVMBlueprintPropertyPath());
 			}
 		}
 		else
 		{
-			Subsystem->SetDestinationToSourceConversionFunction(WidgetBlueprint, *ViewBinding, Function);
-			if (ViewBinding->DestinationPath != SelectedField)
+			if (Value.IsPropertyPath())
 			{
-				Subsystem->SetDestinationPathForBinding(WidgetBlueprint, *ViewBinding, SelectedField);
+				Subsystem->SetDestinationPathForBinding(WidgetBlueprint, *ViewBinding, Value.GetPropertyPath());
+			}
+			else if (Value.IsConversionFunction())
+			{
+				Subsystem->SetDestinationToSourceConversionFunction(WidgetBlueprint, *ViewBinding, FMVVMBlueprintFunctionReference(WidgetBlueprint, Value.GetConversionFunction()));
+			}
+			else if (Value.IsConversionNode())
+			{
+				Subsystem->SetDestinationToSourceConversionFunction(WidgetBlueprint, *ViewBinding, FMVVMBlueprintFunctionReference(Value.GetConversionNode()));
+			}
+			else
+			{
+				Subsystem->SetDestinationPathForBinding(WidgetBlueprint, *ViewBinding, FMVVMBlueprintPropertyPath());
 			}
 		}
 	}
@@ -494,12 +514,10 @@ FReply SBindingRow::HandleFieldSelectorDrop(const FGeometry& MyGeometry, const F
 	UMVVMEditorSubsystem* Subsystem = GetEditorSubsystem();
 	if (bSource)
 	{
-		Subsystem->SetSourceToDestinationConversionFunction(WidgetBlueprint, *ViewBinding, nullptr);
 		Subsystem->SetSourcePathForBinding(WidgetBlueprint, *ViewBinding, PropertyPath.GetValue());
 	}
 	else
 	{
-		Subsystem->SetDestinationToSourceConversionFunction(WidgetBlueprint, *ViewBinding, nullptr);
 		Subsystem->SetDestinationPathForBinding(WidgetBlueprint, *ViewBinding, PropertyPath.GetValue());
 	}
 	return FReply::Handled();

@@ -33,17 +33,16 @@ void SFieldSelector::Construct(const FArguments& InArgs, const UWidgetBlueprint*
 	check(InWidgetBlueprint);
 	
 	TextStyle = InArgs._TextStyle;
-	OnGetPropertyPath = InArgs._OnGetPropertyPath;
-	OnGetConversionFunction = InArgs._OnGetConversionFunction;
+	OnGetLinkedValue = InArgs._OnGetLinkedValue;
+	OnSelectionChanged = InArgs._OnSelectionChanged;
 	OnGetSelectionContext = InArgs._OnGetSelectionContext;
-	OnFieldSelectionChanged = InArgs._OnFieldSelectionChanged;
 	OnDragEnterEvent = InArgs._OnDragEnter;
 	OnDropEvent = InArgs._OnDrop;
 
 	ChildSlot
 	[
 		SNew(SBox)
-		.MinDesiredWidth(200)
+		.MinDesiredWidth(200.0f)
 		[
 			SAssignNew(ComboButton, SComboButton)
 			.ComboButtonStyle(FMVVMEditorStyle::Get(), "FieldSelector.ComboButton")
@@ -63,7 +62,7 @@ void SFieldSelector::Construct(const FArguments& InArgs, const UWidgetBlueprint*
 					SNew(SCachedViewBindingPropertyPath, WidgetBlueprint.Get())
 					.TextStyle(TextStyle)
 					.ShowContext(InArgs._ShowContext)
-					.OnGetPropertyPath(InArgs._OnGetPropertyPath)
+					.OnGetPropertyPath(this, &SFieldSelector::HandleGetPropertyPath)
 				]
 
 				//1-Conversion Function
@@ -74,7 +73,7 @@ void SFieldSelector::Construct(const FArguments& InArgs, const UWidgetBlueprint*
 				[
 					SNew(SCachedViewBindingConversionFunction, WidgetBlueprint.Get())
 					.TextStyle(TextStyle)
-					.OnGetConversionFunction(InArgs._OnGetConversionFunction)
+					.OnGetConversionFunction(this, &SFieldSelector::HandleGetConversionFunction)
 				]
 
 				//2-Nothing selected.
@@ -95,16 +94,14 @@ void SFieldSelector::Construct(const FArguments& InArgs, const UWidgetBlueprint*
 
 int32 SFieldSelector::GetCurrentDisplayIndex() const
 {
-	if (OnGetConversionFunction.IsBound())
+	if (OnGetLinkedValue.IsBound())
 	{
-		if (OnGetConversionFunction.Execute() != nullptr)
+		FMVVMLinkedPinValue LinkedValue = OnGetLinkedValue.Execute();
+		if (LinkedValue.IsConversionFunction() || LinkedValue.IsConversionNode())
 		{
 			return 1;
 		}
-	}
-	if (OnGetPropertyPath.IsBound())
-	{
-		if (OnGetPropertyPath.Execute().IsValid())
+		else if (LinkedValue.IsPropertyPath())
 		{
 			return 0;
 		}
@@ -120,15 +117,10 @@ TSharedRef<SWidget> SFieldSelector::HandleGetMenuContent()
 		return SNullWidget::NullWidget;
 	}
 
-	const UFunction* CurrentSelectedFunction = nullptr;
-	if (OnGetConversionFunction.IsBound())
+	TOptional<FMVVMLinkedPinValue> CurrentSelected;
+	if (OnGetLinkedValue.IsBound())
 	{
-		CurrentSelectedFunction = OnGetConversionFunction.Execute();
-	}
-	TOptional<FMVVMBlueprintPropertyPath> CurrentSelectedPropertyPath;
-	if (OnGetPropertyPath.IsBound())
-	{
-		CurrentSelectedPropertyPath = OnGetPropertyPath.Execute();
+		CurrentSelected = OnGetLinkedValue.Execute();
 	}
 
 	FFieldSelectionContext SelectionContext;
@@ -138,11 +130,10 @@ TSharedRef<SWidget> SFieldSelector::HandleGetMenuContent()
 	}
 
 	TSharedRef<SFieldSelectorMenu> Menu = SNew(SFieldSelectorMenu, WidgetBlueprintPtr)
-		.OnFieldSelectionChanged(this, &SFieldSelector::HandleFieldSelectionChanged)
+		.CurrentSelected(CurrentSelected)
+		.OnSelectionChanged(this, &SFieldSelector::HandleFieldSelectionChanged)
 		.OnMenuCloseRequested(this, &SFieldSelector::HandleMenuClosed)
 		.SelectionContext(SelectionContext)
-		.CurrentPropertyPathSelected(CurrentSelectedPropertyPath)
-		.CurrentFunctionSelected(CurrentSelectedFunction)
 		;
 
 	ComboButton->SetMenuContentWidgetToFocus(Menu->GetWidgetToFocus());
@@ -150,17 +141,52 @@ TSharedRef<SWidget> SFieldSelector::HandleGetMenuContent()
 	return Menu;
 }
 
-void SFieldSelector::HandleFieldSelectionChanged(FMVVMBlueprintPropertyPath PropertyPath, const UFunction* Function)
+void SFieldSelector::HandleFieldSelectionChanged(FMVVMLinkedPinValue LinkedValue)
 {
 	if (ComboButton.IsValid())
 	{
 		ComboButton->SetIsOpen(false);
 	}
 
-	if (OnFieldSelectionChanged.IsBound())
+	if (OnSelectionChanged.IsBound())
 	{
-		OnFieldSelectionChanged.Execute(PropertyPath, Function);
+		OnSelectionChanged.Execute(LinkedValue);
 	}
+}
+
+FMVVMBlueprintPropertyPath SFieldSelector::HandleGetPropertyPath() const
+{
+	if (OnGetLinkedValue.IsBound())
+	{
+		FMVVMLinkedPinValue LinkedValue = OnGetLinkedValue.Execute();
+		if (LinkedValue.IsPropertyPath())
+		{
+			return LinkedValue.GetPropertyPath();
+		}
+	}
+	return FMVVMBlueprintPropertyPath();
+}
+
+TVariant<const UFunction*, TSubclassOf<UK2Node>, FEmptyVariantState> SFieldSelector::HandleGetConversionFunction() const
+{
+	using FReturnType = TVariant<const UFunction*, TSubclassOf<UK2Node>, FEmptyVariantState>;
+	if (OnGetLinkedValue.IsBound())
+	{
+		FMVVMLinkedPinValue LinkedValue = OnGetLinkedValue.Execute();
+		if (ensure(LinkedValue.IsConversionFunction() || LinkedValue.IsConversionNode()))
+		{
+			if (LinkedValue.IsConversionFunction())
+			{
+				return FReturnType(TInPlaceType<const UFunction*>(), LinkedValue.GetConversionFunction());
+			}
+			else
+			{
+				check(LinkedValue.IsConversionNode());
+				return FReturnType(TInPlaceType<TSubclassOf<UK2Node>>(), LinkedValue.GetConversionNode());
+			}
+		}
+	}
+	return FReturnType(TInPlaceType<FEmptyVariantState>());
 }
 
 void SFieldSelector::OnDragEnter(const FGeometry& MyGeometry, const FDragDropEvent& DragDropEvent)

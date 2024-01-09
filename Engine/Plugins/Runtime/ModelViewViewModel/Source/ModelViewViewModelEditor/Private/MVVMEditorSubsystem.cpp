@@ -356,11 +356,34 @@ UEdGraphPin* UMVVMEditorSubsystem::GetConversionFunctionArgumentPin(const UWidge
 	return nullptr;
 }
 
-void UMVVMEditorSubsystem::SetSourceToDestinationConversionFunction(UWidgetBlueprint* WidgetBlueprint, FMVVMBlueprintViewBinding& Binding, const UFunction* ConversionFunction)
+void UMVVMEditorSubsystem::SetSourceToDestinationConversionFunction(UWidgetBlueprint* WidgetBlueprint, FMVVMBlueprintViewBinding& Binding, const UFunction* NewConversionFunction)
+{
+	SetSourceToDestinationConversionFunction(WidgetBlueprint, Binding, FMVVMBlueprintFunctionReference(WidgetBlueprint, NewConversionFunction));
+}
+
+void UMVVMEditorSubsystem::SetSourceToDestinationConversionFunction(UWidgetBlueprint* WidgetBlueprint, FMVVMBlueprintViewBinding& Binding, const FMVVMBlueprintFunctionReference& NewConversionFunction)
 {
 	if (UMVVMBlueprintView* View = GetView(WidgetBlueprint))
 	{
-		if (ConversionFunction == nullptr || IsValidConversionFunction(WidgetBlueprint, ConversionFunction, Binding.SourcePath, Binding.DestinationPath))
+		const UFunction* NewFunction = nullptr;
+		if (NewConversionFunction.GetType() == EMVVMBlueprintFunctionReferenceType::Function)
+		{
+			NewFunction = NewConversionFunction.GetFunction(WidgetBlueprint);
+			if (!IsValidConversionFunction(WidgetBlueprint, NewFunction, Binding.SourcePath, Binding.DestinationPath))
+			{
+				NewFunction = nullptr;
+			}
+		}
+		const UFunction* CurrentFunction = nullptr;
+		if (Binding.Conversion.SourceToDestinationConversion != nullptr && Binding.Conversion.SourceToDestinationConversion->GetConversionFunction().GetType() == EMVVMBlueprintFunctionReferenceType::Function)
+		{
+			CurrentFunction = Binding.Conversion.SourceToDestinationConversion->GetConversionFunction().GetFunction(WidgetBlueprint);
+		}
+
+		bool bBothNull = Binding.Conversion.SourceToDestinationConversion == nullptr && NewConversionFunction.GetType() == EMVVMBlueprintFunctionReferenceType::None;
+		bool bBothSameValue = Binding.Conversion.SourceToDestinationConversion != nullptr && Binding.Conversion.SourceToDestinationConversion->GetConversionFunction() == NewConversionFunction;
+		bool bBothSameFunctionValue = CurrentFunction == NewFunction;
+		if (!bBothSameValue || !bBothNull || !NewFunction)
 		{
 			FScopedTransaction Transaction(LOCTEXT("SetConversionFunction", "Set Conversion Function"));
 
@@ -373,13 +396,20 @@ void UMVVMEditorSubsystem::SetSourceToDestinationConversionFunction(UWidgetBluep
 				Binding.Conversion.SourceToDestinationConversion->RemoveWrapperGraph(WidgetBlueprint);
 				Binding.Conversion.SourceToDestinationConversion = nullptr;
 			}
+			Binding.SourcePath = FMVVMBlueprintPropertyPath();
 
-			if (ConversionFunction != nullptr)
+			if (NewConversionFunction.GetType() == EMVVMBlueprintFunctionReferenceType::Function)
 			{
-				Binding.Conversion.SourceToDestinationConversion = NewObject<UMVVMBlueprintViewConversionFunction>(WidgetBlueprint);
-				FName GraphName = UE::MVVM::ConversionFunctionHelper::CreateWrapperName(Binding, true);
-				Binding.Conversion.SourceToDestinationConversion->InitializeFromFunction(WidgetBlueprint, GraphName, ConversionFunction);
-				Binding.SourcePath = FMVVMBlueprintPropertyPath();
+				if (NewFunction != nullptr)
+				{
+					Binding.Conversion.SourceToDestinationConversion = NewObject<UMVVMBlueprintViewConversionFunction>(WidgetBlueprint);
+					FName GraphName = UE::MVVM::ConversionFunctionHelper::CreateWrapperName(Binding, true);
+					Binding.Conversion.SourceToDestinationConversion->InitializeFromFunction(WidgetBlueprint, GraphName, NewFunction);
+				}
+			}
+			else
+			{
+				check(false); // not supported yet
 			}
 
 			UE::MVVM::Private::OnBindingPostEditChange(View, GET_MEMBER_NAME_CHECKED(FMVVMBlueprintViewBinding, Conversion));
@@ -388,11 +418,34 @@ void UMVVMEditorSubsystem::SetSourceToDestinationConversionFunction(UWidgetBluep
 	}
 }
 
-void UMVVMEditorSubsystem::SetDestinationToSourceConversionFunction(UWidgetBlueprint* WidgetBlueprint, FMVVMBlueprintViewBinding& Binding, const UFunction* ConversionFunction)
+void UMVVMEditorSubsystem::SetDestinationToSourceConversionFunction(UWidgetBlueprint* WidgetBlueprint, FMVVMBlueprintViewBinding& Binding, const UFunction* NewConversionFunction)
+{
+	SetDestinationToSourceConversionFunction(WidgetBlueprint, Binding, FMVVMBlueprintFunctionReference(WidgetBlueprint, NewConversionFunction));
+}
+
+void UMVVMEditorSubsystem::SetDestinationToSourceConversionFunction(UWidgetBlueprint* WidgetBlueprint, FMVVMBlueprintViewBinding& Binding, const FMVVMBlueprintFunctionReference& NewConversionFunction)
 {
 	if (UMVVMBlueprintView* View = GetView(WidgetBlueprint))
 	{
-		if (ConversionFunction == nullptr || IsValidConversionFunction(WidgetBlueprint, ConversionFunction, Binding.DestinationPath, Binding.SourcePath))
+		const UFunction* NewFunction = nullptr;
+		if (NewConversionFunction.GetType() == EMVVMBlueprintFunctionReferenceType::Function)
+		{
+			NewFunction = NewConversionFunction.GetFunction(WidgetBlueprint);
+			if (!IsValidConversionFunction(WidgetBlueprint, NewFunction, Binding.SourcePath, Binding.DestinationPath))
+			{
+				NewFunction = nullptr;
+			}
+		}
+		const UFunction* CurrentFunction = nullptr;
+		if (Binding.Conversion.DestinationToSourceConversion != nullptr && Binding.Conversion.DestinationToSourceConversion->GetConversionFunction().GetType() == EMVVMBlueprintFunctionReferenceType::Function)
+		{
+			CurrentFunction = Binding.Conversion.DestinationToSourceConversion->GetConversionFunction().GetFunction(WidgetBlueprint);
+		}
+
+		bool bBothNull = Binding.Conversion.DestinationToSourceConversion == nullptr && NewConversionFunction.GetType() == EMVVMBlueprintFunctionReferenceType::None;
+		bool bBothSameValue = Binding.Conversion.DestinationToSourceConversion != nullptr && Binding.Conversion.DestinationToSourceConversion->GetConversionFunction() == NewConversionFunction;
+		bool bBothSameFunctionValue = CurrentFunction == NewFunction;
+		if (!bBothSameValue || !bBothNull || !NewFunction)
 		{
 			FScopedTransaction Transaction(LOCTEXT("SetConversionFunction", "Set Conversion Function"));
 
@@ -405,13 +458,20 @@ void UMVVMEditorSubsystem::SetDestinationToSourceConversionFunction(UWidgetBluep
 				Binding.Conversion.DestinationToSourceConversion->RemoveWrapperGraph(WidgetBlueprint);
 				Binding.Conversion.DestinationToSourceConversion = nullptr;
 			}
+			Binding.DestinationPath = FMVVMBlueprintPropertyPath();
 
-			if (ConversionFunction != nullptr)
+			if (NewConversionFunction.GetType() == EMVVMBlueprintFunctionReferenceType::Function)
 			{
-				Binding.Conversion.DestinationToSourceConversion = NewObject<UMVVMBlueprintViewConversionFunction>(WidgetBlueprint);
-				FName GraphName = UE::MVVM::ConversionFunctionHelper::CreateWrapperName(Binding, false);
-				Binding.Conversion.DestinationToSourceConversion->InitializeFromFunction(WidgetBlueprint, GraphName, ConversionFunction);
-				Binding.DestinationPath = FMVVMBlueprintPropertyPath();
+				if (NewFunction != nullptr)
+				{
+					Binding.Conversion.DestinationToSourceConversion = NewObject<UMVVMBlueprintViewConversionFunction>(WidgetBlueprint);
+					FName GraphName = UE::MVVM::ConversionFunctionHelper::CreateWrapperName(Binding, true);
+					Binding.Conversion.DestinationToSourceConversion->InitializeFromFunction(WidgetBlueprint, GraphName, NewFunction);
+				}
+			}
+			else
+			{
+				check(false); // not supported yet
 			}
 
 			UE::MVVM::Private::OnBindingPostEditChange(View, GET_MEMBER_NAME_CHECKED(FMVVMBlueprintViewBinding, Conversion));
@@ -424,34 +484,39 @@ void UMVVMEditorSubsystem::SetDestinationPathForBinding(UWidgetBlueprint* Widget
 {
 	if (UMVVMBlueprintView* View = GetView(WidgetBlueprint))
 	{
-		FScopedTransaction Transaction(LOCTEXT("SetBindingProperty", "Set Binding Property"));
-
-		UE::MVVM::Private::OnBindingPreEditChange(View, GET_MEMBER_NAME_CHECKED(FMVVMBlueprintViewBinding, DestinationPath));
-
+		bool bHasConversion = Binding.Conversion.DestinationToSourceConversion != nullptr;
 		bool bEventSupported = UMVVMBlueprintViewEvent::Supports(WidgetBlueprint, PropertyPath);
-		UMVVMBlueprintViewEvent* Event = nullptr;
-		if (bEventSupported)
-		{
-			Event = AddEvent(WidgetBlueprint);
-		}
 
-		if (Event)
+		if (bEventSupported || bHasConversion || Binding.DestinationPath != PropertyPath)
 		{
-			Event->SetEventPath(PropertyPath);
-			View->RemoveBinding(&Binding);
-		}
-		else
-		{
-			if (Binding.Conversion.DestinationToSourceConversion && PropertyPath.IsValid())
+			FScopedTransaction Transaction(LOCTEXT("SetBindingProperty", "Set Binding Property"));
+
+			UE::MVVM::Private::OnBindingPreEditChange(View, GET_MEMBER_NAME_CHECKED(FMVVMBlueprintViewBinding, DestinationPath));
+
+			UMVVMBlueprintViewEvent* Event = nullptr;
+			if (bEventSupported)
 			{
-				Binding.Conversion.DestinationToSourceConversion->RemoveWrapperGraph(WidgetBlueprint);
-				Binding.Conversion.DestinationToSourceConversion = nullptr;
+				Event = AddEvent(WidgetBlueprint);
 			}
-			Binding.DestinationPath = PropertyPath;
-		}
 
-		UE::MVVM::Private::OnBindingPostEditChange(View, GET_MEMBER_NAME_CHECKED(FMVVMBlueprintViewBinding, DestinationPath));
-		FBlueprintEditorUtils::MarkBlueprintAsModified(WidgetBlueprint);
+			if (Event)
+			{
+				Event->SetEventPath(PropertyPath);
+				View->RemoveBinding(&Binding);
+			}
+			else
+			{
+				if (Binding.Conversion.DestinationToSourceConversion)
+				{
+					Binding.Conversion.DestinationToSourceConversion->RemoveWrapperGraph(WidgetBlueprint);
+					Binding.Conversion.DestinationToSourceConversion = nullptr;
+				}
+				Binding.DestinationPath = PropertyPath;
+			}
+
+			UE::MVVM::Private::OnBindingPostEditChange(View, GET_MEMBER_NAME_CHECKED(FMVVMBlueprintViewBinding, DestinationPath));
+			FBlueprintEditorUtils::MarkBlueprintAsModified(WidgetBlueprint);
+		}
 	}
 }
 
@@ -459,19 +524,23 @@ void UMVVMEditorSubsystem::SetSourcePathForBinding(UWidgetBlueprint* WidgetBluep
 {
 	if (UMVVMBlueprintView* View = GetView(WidgetBlueprint))
 	{
-		FScopedTransaction Transaction(LOCTEXT("SetBindingProperty", "Set Binding Property"));
-
-		UE::MVVM::Private::OnBindingPreEditChange(View, GET_MEMBER_NAME_CHECKED(FMVVMBlueprintViewBinding, SourcePath));
-
-		if (Binding.Conversion.SourceToDestinationConversion && PropertyPath.IsValid())
+		bool bHasConversion = Binding.Conversion.SourceToDestinationConversion != nullptr;
+		if (bHasConversion || Binding.SourcePath != PropertyPath)
 		{
-			Binding.Conversion.SourceToDestinationConversion->RemoveWrapperGraph(WidgetBlueprint);
-			Binding.Conversion.SourceToDestinationConversion = nullptr;
-		}
-		Binding.SourcePath = PropertyPath;
+			FScopedTransaction Transaction(LOCTEXT("SetBindingProperty", "Set Binding Property"));
 
-		UE::MVVM::Private::OnBindingPostEditChange(View, GET_MEMBER_NAME_CHECKED(FMVVMBlueprintViewBinding, SourcePath));
-		FBlueprintEditorUtils::MarkBlueprintAsModified(WidgetBlueprint);
+			UE::MVVM::Private::OnBindingPreEditChange(View, GET_MEMBER_NAME_CHECKED(FMVVMBlueprintViewBinding, SourcePath));
+
+			if (Binding.Conversion.SourceToDestinationConversion)
+			{
+				Binding.Conversion.SourceToDestinationConversion->RemoveWrapperGraph(WidgetBlueprint);
+				Binding.Conversion.SourceToDestinationConversion = nullptr;
+			}
+			Binding.SourcePath = PropertyPath;
+
+			UE::MVVM::Private::OnBindingPostEditChange(View, GET_MEMBER_NAME_CHECKED(FMVVMBlueprintViewBinding, SourcePath));
+			FBlueprintEditorUtils::MarkBlueprintAsModified(WidgetBlueprint);
+		}
 	}
 }
 
@@ -664,6 +733,11 @@ void UMVVMEditorSubsystem::SetCompileForEvent(UMVVMBlueprintViewEvent* Event, bo
 
 bool UMVVMEditorSubsystem::IsValidConversionFunction(const UWidgetBlueprint* WidgetBlueprint, const UFunction* Function, const FMVVMBlueprintPropertyPath& Source, const FMVVMBlueprintPropertyPath& Destination) const
 {
+	if (WidgetBlueprint == nullptr || Function == nullptr)
+	{
+		return false;
+	}
+
 	if (!UMVVMBlueprintViewConversionFunction::IsValidConversionFunction(WidgetBlueprint, Function))
 	{
 		return false;
