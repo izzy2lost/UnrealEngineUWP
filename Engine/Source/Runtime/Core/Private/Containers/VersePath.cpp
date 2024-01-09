@@ -40,7 +40,7 @@ namespace UE::VersePath::Private
 	bool ParseLabel(const TCHAR*& Ptr, EndType End)
 	{
 		const TCHAR* LocalPtr = Ptr;
-		if (LocalPtr == End || !Alpha(*LocalPtr))
+		if (LocalPtr == End || !AlphaNum(*LocalPtr))
 		{
 			return false;
 		}
