@@ -61,30 +61,25 @@ RWBuffer<uint> IndirectArgs;
 #if PRECISE_OCCLUSION_QUERIES
 RWBuffer<uint> OcclusionQueryIndirectArgs;
 #endif
-uint NumDensities;
-uint NumMaterials;
+uint NumDrawBuckets;
 uint NumViews;
-uint NumQuadsLOD0;
+uint NumQuads;
 
 [numthreads(64, 1, 1)]
 void MainCS(uint3 DispatchThreadId : SV_DispatchThreadID)
 {
-	const uint NumBuckets = NumDensities * NumMaterials;
 	const uint BucketIndex = DispatchThreadId.x;
 
-	if (BucketIndex >= NumBuckets)
+	if (BucketIndex >= NumDrawBuckets)
 	{
 		return;
 	}
 
-	const uint DensityIndex = BucketIndex % NumDensities;
-	const uint MaterialIndex = BucketIndex / NumDensities;
-	const uint NumQuads = NumQuadsLOD0 >> DensityIndex;
 	const uint IndexCountPerInstance = NumQuads * NumQuads * 6;
 
 	for (uint ViewIndex = 0; ViewIndex < NumViews; ++ViewIndex)
 	{
-		const uint IndirectArgIndex = NumBuckets * ViewIndex + BucketIndex;
+		const uint IndirectArgIndex = NumDrawBuckets * ViewIndex + BucketIndex;
 		IndirectArgs[IndirectArgIndex * 5 + 0] = IndexCountPerInstance;
 		IndirectArgs[IndirectArgIndex * 5 + 1] = 0; // InstanceCount
 		IndirectArgs[IndirectArgIndex * 5 + 2] = 0; // StartIndexLocation
@@ -156,8 +151,6 @@ float3 QuadTreePosition;
 float3 ObserverPosition;
 uint QuadTreeResolutionX;
 uint QuadTreeResolutionY;
-uint NumDensities;
-uint NumMaterials;
 uint ViewIndex;
 float LeafSize;
 float LODScale;
@@ -427,9 +420,10 @@ ByteAddressBuffer PackedNodes;
 #if PRECISE_OCCLUSION_QUERIES
 Buffer<uint> OcclusionResults;
 #endif // PRECISE_OCCLUSION_QUERIES
-uint NumDensities;
-uint NumMaterials;
 uint NumDispatchedThreads;
+uint NumDensities;
+uint NumQuadsLOD0;
+uint NumQuadsPerDraw;
 
 [numthreads(64, 1, 1)]
 void MainCS(uint3 DispatchThreadId : SV_DispatchThreadID)
@@ -449,7 +443,7 @@ void MainCS(uint3 DispatchThreadId : SV_DispatchThreadID)
 
 		// Load packed node coord and density index
 		const uint4 NodeCoordAndDensity = UnpackNodeCoord(PackedNodes.Load((DrawIndex + 1) << 2));
-		const uint DensityIndex = min(NodeCoordAndDensity.w, NumDensities - 1);
+		const uint DensityIndexClamped = min(NodeCoordAndDensity.w, NumDensities - 1);
 
 		// Sample the quadtree to access the water body render data
 		const float4 QuadTreeSample = QuadTreeTexture.Load(NodeCoordAndDensity.xyz);
@@ -473,9 +467,11 @@ void MainCS(uint3 DispatchThreadId : SV_DispatchThreadID)
 		}
 
 		// Increment bucket counter
-		const uint BucketIndex = MaterialIndex * NumDensities + DensityIndex;
+		const uint BucketIndex = MaterialIndex;
+		const uint NumTilesPerEdge = max(NumQuadsPerDraw, NumQuadsLOD0 >> DensityIndexClamped) / NumQuadsPerDraw;
+		const uint NumDraws = NumTilesPerEdge * NumTilesPerEdge;
 		uint Dummy;
-		BucketCounts.InterlockedAdd(BucketIndex << 2, 1, Dummy);
+		BucketCounts.InterlockedAdd(BucketIndex << 2, NumDraws, Dummy);
 	}
 }
 
@@ -629,9 +625,10 @@ void MainCS(uint3 DispatchThreadId : SV_DispatchThreadID)
 #endif
 
 RWBuffer<uint> IndirectArgs;
-RWBuffer<float4> InstanceData0;
-RWBuffer<float4> InstanceData1;
-RWBuffer<float4> InstanceData2;
+RWBuffer<uint> InstanceData0;
+RWBuffer<uint> InstanceData1;
+RWBuffer<uint> InstanceData2;
+RWBuffer<uint> InstanceData3;
 Texture2D<float4> QuadTreeTexture;
 Texture2D<float4> WaterZBoundsTexture;
 StructuredBuffer<FWaterBodyRenderData> WaterBodyRenderData;
@@ -650,6 +647,8 @@ uint NumMaterials;
 uint NumDispatchedThreads;
 uint BucketIndexOffset;
 uint NumLODs;
+uint NumQuadsLOD0;
+uint NumQuadsPerDraw;
 float LeafSize;
 float LODScale;
 float CaptureDepthRange;
@@ -702,64 +701,78 @@ void MainCS(uint3 DispatchThreadId : SV_DispatchThreadID)
 			}
 		}
 
-		const uint BucketIndex = MaterialIndex * NumDensities + DensityIndexClamped + BucketIndexOffset;
+		const uint BucketIndex = MaterialIndex + BucketIndexOffset;
 
 		const uint BucketInstanceDataOffset = InstanceDataOffsets.Load(BucketIndex);
+		const uint NumTilesPerEdge = max(NumQuadsPerDraw, NumQuadsLOD0 >> DensityIndexClamped) / NumQuadsPerDraw;
+		const uint NumInstances = NumTilesPerEdge * NumTilesPerEdge;
+		
+		// Increment InstanceCount
 		uint LocalInstanceDataOffset;
-		InterlockedAdd(IndirectArgs[BucketIndex * 5 + 1], 1, LocalInstanceDataOffset); // Increment InstanceCount
-		const uint InstanceDataIndex = BucketInstanceDataOffset + LocalInstanceDataOffset;
-		
-		const float Scale = (1u << LODLevel) * LeafSize;
-		const float WaterSurfaceBaseHeight = WaterZBoundsTexture.Load(int3(NodeCoord, LODLevel)).z * CaptureDepthRange;
-		const float3 TranslatedWorldPosition = float3((NodeCoord + 0.5f) * Scale, WaterSurfaceBaseHeight) + QuadTreePosition;
+		InterlockedAdd(IndirectArgs[BucketIndex * 5 + 1], NumInstances, LocalInstanceDataOffset); 
+		const uint InstanceDataBaseIndex = BucketInstanceDataOffset + LocalInstanceDataOffset;
 
-		// Add the data to the bucket
+		// On the first write to this bucket, set StartInstanceLocation to offset where the per-instance vertex attributes are read from
+		if (LocalInstanceDataOffset == 0)
 		{
-			float4 Data0;
-			Data0.x = TranslatedWorldPosition.x;
-			Data0.y = TranslatedWorldPosition.y;
-			Data0.z = TranslatedWorldPosition.z;
-			Data0.w = asfloat(WaterBodyIndex);
-
-			InstanceData0[InstanceDataIndex] = Data0;
+			IndirectArgs[BucketIndex * 5 + 4] = BucketInstanceDataOffset;
 		}
-		
-		// Should morph
+
+		// Write packed instance data
 		{
+			// Data0:
+			// uint NodeCoord.x : 11;
+			// uint NodeCoord.y : 11;
+			// uint LODLevel : 5;
+			// uint DensityIndex : 5;
+			//
+			// Data1:
+			// half WaterSurfaceBaseHeight;
+			// uint TileX : 8;
+			// uint TileY : 8;
+			//
+			// Data2:
+			// uint HeightLODFactorUnorm : 8;
+			// uint WaterBodyIndex : 24; // Could potentially use fewer bits for this to cram additional data in here in the future
+
 			const float3 ObserverPos = ObserverPosition - QuadTreePosition;
 			const int2 TextureLoadCoord = (int2)clamp(ObserverPos.xy / LeafSize, 0.0f, float2(QuadTreeResolutionX, QuadTreeResolutionY) - 0.5f);
 			const float WaterHeightForLOD = WaterZBoundsTexture.Load(int3(TextureLoadCoord, 0)).z * CaptureDepthRange;
 			const FWaterLODParams WaterLODParams = GetWaterLODParams(ObserverPos.z, WaterHeightForLOD, LODScale, NumLODs - 1);
-
 			const uint LogicalLODLevel = LODLevel + DensityIndex;
 
 			// Lowest LOD isn't always 0, this increases with the height distance 
 			const bool bIsLowestLOD = (LogicalLODLevel == WaterLODParams.LowestLOD);
+			const float HeightLODFactor = bIsLowestLOD ? WaterLODParams.HeightLODFactor : 0.0f;
+			const uint HeightLODFactorUnorm = uint(saturate(HeightLODFactor) * 255.0f);
+			const float WaterSurfaceBaseHeight = WaterZBoundsTexture.Load(int3(NodeCoord, LODLevel)).z;
 
-			// Only allow a tile to morph if it's not the last density level and not the last LOD level, sicne there is no next level to morph to
-			const uint bShouldMorph = (bLODMorphingEnabled && (DensityIndexClamped != NumDensities - 1)) ? 1 : 0;
-			// Tiles can morph twice to be able to morph between 3 LOD levels. Next to last density level can only morph once
-			const uint bCanMorphTwice = (DensityIndexClamped < NumDensities - 2) ? 1 : 0;
+			const uint Data0 = (NodeCoord.x & 0x7FFu) | ((NodeCoord.y & 0x7FFu) << 11u) | ((LODLevel & 0x1Fu) << 22u) | ((DensityIndex & 0x1Fu) << 27u);
+			const uint WaterHeightF16 = f32tof16(WaterSurfaceBaseHeight);
+			const uint Data2 = (HeightLODFactorUnorm & 0xFFu) | (WaterBodyIndex << 8u);
 
-			// Pack some of the data to save space. LOD level in the lower 8 bits and then bShouldMorph in the 9th bit and bCanMorphTwice in the 10th bit
-			const uint BitPackedChannel = ((uint)LogicalLODLevel & 0xFFu) | (bShouldMorph << 8u) | (bCanMorphTwice << 9u);
-
-			float4 Data1;
-			Data1.x = asfloat(BitPackedChannel);
-			Data1.y = bIsLowestLOD ? WaterLODParams.HeightLODFactor : 0.0f;
-			Data1.z = Scale;
-			Data1.w = Scale;
-
-			InstanceData1[InstanceDataIndex] = Data1;
+			// Render a single quadtree node by drawing one or multiple tile instances
+			uint TileX = 0;
+			uint TileY = 0;
+			for (uint InstanceIndex = 0; InstanceIndex < NumInstances; ++InstanceIndex)
+			{
+				const uint Data1 = WaterHeightF16 | ((TileX & 0xFFu) << 16u) | ((TileY & 0xFFu) << 24u);
+				InstanceData0[InstanceDataBaseIndex + InstanceIndex] = Data0;
+				InstanceData1[InstanceDataBaseIndex + InstanceIndex] = Data1;
+				InstanceData2[InstanceDataBaseIndex + InstanceIndex] = Data2;
+				
+				TileY = (TileX + 1) >= NumTilesPerEdge ? (TileY + 1) : TileY;
+				TileX = (TileX + 1) >= NumTilesPerEdge ? 0 : (TileX + 1);
+			}
 		}
 
 		// Instance Hit Proxy ID
 		if (bWithWaterSelectionSupport)
 		{
-			float4 Data2 = UnpackRGBA8(WBRenderData.HitProxyColorAndIsSelected).bgra;
-			Data2.w = Data2.w != 0.0f ? 1.0f : 0.0f;
-
-			InstanceData2[InstanceDataIndex] = Data2;
+			for (uint InstanceIndex = 0; InstanceIndex < NumInstances; ++InstanceIndex)
+			{
+				InstanceData3[InstanceDataBaseIndex + InstanceIndex] = WBRenderData.HitProxyColorAndIsSelected;
+			}
 		}
 	}
 }

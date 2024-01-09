@@ -106,7 +106,7 @@ private:
 
 	// One vertex factory per LOD
 	TArray<FWaterVertexFactoryType*> WaterVertexFactories;
-	TArray<FWaterVertexFactoryIndirectDrawType*> WaterVertexFactoriesIndirectDraw;
+	FWaterVertexFactoryIndirectDrawType* WaterVertexFactoryIndirectDraw;
 
 	/** Tiles containing water, stored in a quad tree */
 	FWaterQuadTree WaterQuadTree;
@@ -131,6 +131,8 @@ private:
 
 	/** Number of quads per side of a water quad tree tile at LOD0 */
 	int32 NumQuadsLOD0 = 0;
+
+	int32 NumQuadsPerIndirectDrawTile = 0;
 
 	/** Number of densities (same as number of grid index/vertex buffers) */
 	int32 DensityCount = 0;

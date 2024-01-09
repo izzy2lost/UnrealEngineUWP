@@ -61,10 +61,10 @@ public:
 	struct FTraverseParams
 	{
 		FRDGPooledBuffer* OutIndirectArgsBuffer = nullptr;
-		FRDGPooledBuffer* OutInstanceDataOffsetsBuffer = nullptr;
 		FRDGPooledBuffer* OutInstanceData0Buffer = nullptr;
 		FRDGPooledBuffer* OutInstanceData1Buffer = nullptr;
 		FRDGPooledBuffer* OutInstanceData2Buffer = nullptr;
+		FRDGPooledBuffer* OutInstanceData3Buffer = nullptr;
 		TArray<const FSceneView*> Views;
 		FVector QuadTreePosition;
 		FBox2D CullingBounds = FBox2D(ForceInit);
@@ -72,6 +72,7 @@ public:
 		uint32 NumMaterials = 0;
 		uint32 NumViews = 0;
 		uint32 NumQuadsLOD0 = 0;
+		uint32 NumQuadsPerTileSide = 0;
 		int32 ForceCollapseDensityLevel = -1;
 		float LeafSize = 1.0f;
 		float LODScale = 1.0f;

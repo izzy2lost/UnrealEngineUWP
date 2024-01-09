@@ -28,15 +28,8 @@ public:
 	{
 		if (bIndirectDraws)
 		{
-			InstanceDataOffsetsBufferParameter.Bind(ParameterMap, TEXT("InstanceDataOffsetsBuffer"));
-			InstanceData0BufferParameter.Bind(ParameterMap, TEXT("InstanceData0Buffer"));
-			InstanceData1BufferParameter.Bind(ParameterMap, TEXT("InstanceData1Buffer"));
-			if (bWithWaterSelectionSupport)
-			{
-				InstanceData2BufferParameter.Bind(ParameterMap, TEXT("InstanceData2Buffer"));
-			}
-			
-			DrawBucketIndexParameter.Bind(ParameterMap, TEXT("DrawBucketIndex"));
+			QuadTreePositionParameter.Bind(ParameterMap, TEXT("QuadTreePosition"));
+			LODMorphingEnabledParameter.Bind(ParameterMap, TEXT("bLODMorphingEnabled"));
 		}
 	}
 
@@ -66,13 +59,43 @@ public:
 		}
 #endif
 
-		if (VertexStreams.Num() > 0 && !bIndirectDraws)
+		if (bIndirectDraws)
+		{
+			if (VertexStreams.Num() > 0)
+			{
+				const int32 NumBuffers = bWithWaterSelectionSupport ? 4 : 3;
+				FRHIBuffer* InstanceVertexBuffers[] = 
+				{ 
+					WaterMeshUserData->IndirectInstanceData0, 
+					WaterMeshUserData->IndirectInstanceData1,
+					WaterMeshUserData->IndirectInstanceData2,
+					WaterMeshUserData->IndirectInstanceData3,
+				};
+				for (int32 i = 0; i < NumBuffers; ++i)
+				{
+					FVertexInputStream* InstanceInputStream = VertexStreams.FindByPredicate([i](const FVertexInputStream& InStream) { return InStream.StreamIndex == 1 + i; });
+					check(InstanceInputStream);
+
+					// Bind vertex buffer
+					check(InstanceVertexBuffers[i]);
+					InstanceInputStream->VertexBuffer = InstanceVertexBuffers[i];
+				}
+			}
+
+			const FVector PreViewTranslation = View->ViewMatrices.GetPreViewTranslation();
+			ShaderBindings.Add(QuadTreePositionParameter, FVector3f(PreViewTranslation + VertexFactory->GetQuadTreePositionWS()));
+
+			static const auto CVar = IConsoleManager::Get().FindTConsoleVariableDataInt(TEXT("r.Water.WaterMesh.LODMorphEnabled"));
+			const bool bLODMorphingEnabled = CVar && CVar->GetValueOnRenderThread() != 0;
+			ShaderBindings.Add(LODMorphingEnabledParameter, bLODMorphingEnabled ? 1 : 0);
+		}
+		else if (VertexStreams.Num() > 0)
 		{
 			for (int32 i = 0; i < WaterInstanceDataBuffersType::NumBuffers; ++i)
 			{
-				FVertexInputStream* InstanceInputStream = VertexStreams.FindByPredicate([i](const FVertexInputStream& InStream) { return InStream.StreamIndex == i+1; });
+				FVertexInputStream* InstanceInputStream = VertexStreams.FindByPredicate([i](const FVertexInputStream& InStream) { return InStream.StreamIndex == i + 1; });
 				check(InstanceInputStream);
-				
+
 				// Bind vertex buffer
 				check(InstanceDataBuffers->GetBuffer(i));
 				InstanceInputStream->VertexBuffer = InstanceDataBuffers->GetBuffer(i);
@@ -84,27 +107,11 @@ public:
 				VertexFactory->OffsetInstanceStreams(InstanceOffsetValue, InputStreamType, VertexStreams);
 			}
 		}
-
-		if (bIndirectDraws)
-		{
-			const uint32 DrawBucketIndex = BatchElement.UserIndex;
-			ShaderBindings.Add(InstanceDataOffsetsBufferParameter, WaterMeshUserData->IndirectInstanceDataOffsets);
-			ShaderBindings.Add(InstanceData0BufferParameter, WaterMeshUserData->IndirectInstanceData0);
-			ShaderBindings.Add(InstanceData1BufferParameter, WaterMeshUserData->IndirectInstanceData1);
-			if (bWithWaterSelectionSupport)
-			{
-				ShaderBindings.Add(InstanceData2BufferParameter, WaterMeshUserData->IndirectInstanceData2);
-			}
-			ShaderBindings.Add(DrawBucketIndexParameter, DrawBucketIndex);
-		}
 	}
 
 private:
-	LAYOUT_FIELD(FShaderResourceParameter, InstanceDataOffsetsBufferParameter);
-	LAYOUT_FIELD(FShaderResourceParameter, InstanceData0BufferParameter);
-	LAYOUT_FIELD(FShaderResourceParameter, InstanceData1BufferParameter);
-	LAYOUT_FIELD(FShaderResourceParameter, InstanceData2BufferParameter);
-	LAYOUT_FIELD(FShaderParameter, DrawBucketIndexParameter);
+	LAYOUT_FIELD(FShaderParameter, QuadTreePositionParameter);
+	LAYOUT_FIELD(FShaderParameter, LODMorphingEnabledParameter);
 };
 
 // ----------------------------------------------------------------------------------
