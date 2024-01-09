@@ -578,7 +578,7 @@ void FMaterialsSceneExtension::FUpdater::PostCacheNaniteMaterialBins(
 			auto* UVDensitiesOut = reinterpret_cast<FVector4f*>(MaterialSlotsOut);
 			for (auto& MaterialSection : MaterialSections)
 			{
-				UVDensitiesOut[MaterialSection.MaterialIndex] = MaterialSection.LocalUVDensities;
+				FMemory::Memcpy(&UVDensitiesOut[MaterialSection.MaterialIndex], &MaterialSection.LocalUVDensities, sizeof(MaterialSection.LocalUVDensities));
 			}
 		}
 	};
