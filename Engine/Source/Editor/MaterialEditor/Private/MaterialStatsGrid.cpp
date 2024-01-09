@@ -411,6 +411,36 @@ void FStatsGridRow_NumPreshaders::AddPlatform(TSharedPtr<FMaterialStats> StatsMa
 /*end FStatsGridRow_NumPreshaders functions*/
 /*==============================================================================================================*/
 
+/*==============================================================================================================*/
+/* FStatsGridRow_LWCUsage functions*/
+
+void FStatsGridRow_LWCUsage::CreateRow(TSharedPtr<FMaterialStats> StatsManager)
+{
+	// static string in the descriptor column
+	TSharedPtr<FGridCell> HeaderCell = MakeShareable(new FGridCell_StaticString(TEXT("Large World Coordinate Usages (Est.)"), TEXT("Estimates for the number of large world coordinate operations in the material.")));
+	HeaderCell->SetColor(FStyleColors::Foreground);
+	HeaderCell->SetContentBold(true);
+	AddCell(FMaterialStatsGrid::DescriptorColumnName, HeaderCell);
+
+	AddCell(FMaterialStatsGrid::ShaderColumnName, MakeShareable(new FGridCell_Empty()));
+	AddCell(FMaterialStatsGrid::ShaderStatisticColumnName, MakeShareable(new FGridCell_Empty()));
+
+	FillPlatformCellsHelper(StatsManager);
+}
+
+void FStatsGridRow_LWCUsage::AddPlatform(TSharedPtr<FMaterialStats> StatsManager, const TSharedPtr<FShaderPlatformSettings> Platform, const EMaterialQualityLevel::Type QualityLevel, const int32 InstanceIndex)
+{
+	// cell that will enumerate the number of pre shaders
+	const FString CellContent = FMaterialStatsUtils::MaterialQualityToShortString(QualityLevel);
+	TSharedPtr<FGridCell_ShaderValue> Cell = MakeShareable(new FGridCell_ShaderValue(StatsManager, EShaderInfoType::LWCUsage, ERepresentativeShader::Num, QualityLevel, Platform->GetPlatformShaderType(), InstanceIndex));
+
+	const FName ColumnName = FMaterialStatsGrid::MakePlatformColumnName(Platform, QualityLevel, InstanceIndex);
+	AddCell(ColumnName, Cell);
+}
+
+/*end FStatsGridRow_LWCUsage functions*/
+/*==============================================================================================================*/
+
 /***********************************************************************************************************************/
 /*FShaderStatsGrid functions*/
 
@@ -607,6 +637,7 @@ void FMaterialStatsGrid::BuildRowIds()
 		BuildKeyAndInsert(ERowType::Interpolators);
 		BuildKeyAndInsert(ERowType::Shaders);
 		BuildKeyAndInsert(ERowType::PreShaders);
+		BuildKeyAndInsert(ERowType::LWCUsage);
 	}
 }
 
@@ -681,6 +712,11 @@ void FMaterialStatsGrid::BuildStaticRows()
 		TSharedPtr<FStatsGridRow> Row = MakeShareable(new FStatsGridRow_NumPreshaders());
 		Row->CreateRow(StatsManager);
 		StaticRows.Add(ERowType::PreShaders, Row);
+	}
+	{
+		TSharedPtr<FStatsGridRow> Row = MakeShareable(new FStatsGridRow_LWCUsage());
+		Row->CreateRow(StatsManager);
+		StaticRows.Add(ERowType::LWCUsage, Row);
 	}
 }
 
@@ -1028,6 +1064,10 @@ FString FGridCell_ShaderValue::InternalGetContent(bool bLongContent)
 
 		case EShaderInfoType::PreShaderCount:
 			return bLongContent ? InstanceData.ShaderStatsInfo.PreShaderCount.StrDescriptionLong : InstanceData.ShaderStatsInfo.PreShaderCount.StrDescription;
+		break;
+
+		case EShaderInfoType::LWCUsage:
+			return bLongContent ? InstanceData.ShaderStatsInfo.LWCUsage.StrDescriptionLong : InstanceData.ShaderStatsInfo.LWCUsage.StrDescription;
 		break;
 	}
 

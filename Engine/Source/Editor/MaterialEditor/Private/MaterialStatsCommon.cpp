@@ -729,6 +729,20 @@ void FMaterialStatsUtils::ExtractMatertialStatsInfo(EShaderPlatform ShaderPlatfo
 		OutInfo.ShaderCount.StrDescription = FString::Printf(TEXT("%u"), TotalShadersForMaterial);
 		OutInfo.ShaderCount.StrDescriptionLong = FString::Printf(TEXT("Total Shaders: %u"), TotalShadersForMaterial);
 
+		FString LWCMessage;
+		TStaticArray<uint16, (int)ELWCFunctionKind::Max> LWCFuncUsages = MaterialResource->GetEstimatedLWCFuncUsages();
+		for (int KindIndex = 0; KindIndex < (int)ELWCFunctionKind::Max; ++KindIndex)
+		{
+			int Usages = LWCFuncUsages[KindIndex];
+			if (LWCFuncUsages[KindIndex] > 0)
+			{
+				LWCMessage += FString::Printf(TEXT("%s: %u\n"), *UEnum::GetDisplayValueAsText((ELWCFunctionKind)KindIndex).ToString(), Usages);
+			}
+		}
+
+		OutInfo.LWCUsage.StrDescription = LWCMessage;
+		OutInfo.LWCUsage.StrDescriptionLong = LWCMessage;
+
 		if (FMaterialShaderMap* ShaderMap = MaterialResource->GetGameThreadShaderMap())
 		{
 			// Add number of preshaders and stats

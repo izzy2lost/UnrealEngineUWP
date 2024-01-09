@@ -24,6 +24,7 @@ struct FShaderStatsInfo
 	FContent VirtualTextureLookupCount;
 	FContent ShaderCount;
 	FContent PreShaderCount;
+	FContent LWCUsage;
 	FString StrShaderErrors;
 
 	void Reset()
@@ -48,6 +49,9 @@ struct FShaderStatsInfo
 
 		PreShaderCount.StrDescription = TEXT("Compiling...");
 		PreShaderCount.StrDescriptionLong = TEXT("Compiling...");
+
+		LWCUsage.StrDescription = TEXT("Compiling...");
+		LWCUsage.StrDescriptionLong = TEXT("Compiling...");
 
 		StrShaderErrors.Empty();
 	}

@@ -88,6 +88,7 @@ enum class EShaderInfoType
 	VirtualTextureLookupCount,
 	ShaderCount,
 	PreShaderCount,
+	LWCUsage,
 	GenericShaderStatistics,
 };
 
@@ -257,6 +258,15 @@ public:
 	void AddPlatform(TSharedPtr<FMaterialStats> StatsManager, const TSharedPtr<FShaderPlatformSettings> Platform, const EMaterialQualityLevel::Type QualityLevel, const int32 InstanceIndex) override;
 };
 
+/** this row will display the LWC usage in the material for a specified platform */
+class FStatsGridRow_LWCUsage : public FStatsGridRow
+{
+public:
+	void CreateRow(TSharedPtr<FMaterialStats> StatsManager) override;
+
+	void AddPlatform(TSharedPtr<FMaterialStats> StatsManager, const TSharedPtr<FShaderPlatformSettings> Platform, const EMaterialQualityLevel::Type QualityLevel, const int32 InstanceIndex) override;
+};
+
 /** class that models the logical material stats grid */
 class FMaterialStatsGrid
 {
@@ -283,6 +293,7 @@ class FMaterialStatsGrid
 		VirtualTextureLookups,
 		Shaders,
 		PreShaders,
+		LWCUsage,
 
 		VertexShader,
 		FragmentShader,
