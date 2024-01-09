@@ -350,7 +350,7 @@ void SGraphPin::Construct(const FArguments& InArgs, UEdGraphPin* InPin)
 			.BorderImage(CachedImg_Pin_DiffOutline)
 			.BorderBackgroundColor(this, &SGraphPin::GetPinDiffColor)
 			[
-				SNew(SLevelOfDetailBranchNode)
+				SAssignNew(PinNameLODBranchNode, SLevelOfDetailBranchNode)
 				.UseLowDetailSlot(this, &SGraphPin::UseLowDetailPinNames)
 				.LowDetail()
 				[
@@ -383,6 +383,14 @@ TSharedRef<SWidget> SGraphPin::GetLabelWidget(const FName& InLabelStyle)
 		.TextStyle(FAppStyle::Get(), InLabelStyle)
 		.Visibility(this, &SGraphPin::GetPinLabelVisibility)
 		.ColorAndOpacity(this, &SGraphPin::GetPinTextColor);
+}
+
+void SGraphPin::RefreshLOD()
+{
+	if (PinNameLODBranchNode.IsValid())
+	{
+		PinNameLODBranchNode->RefreshLODSlotContent();
+	}
 }
 
 void SGraphPin::SetIsEditable(TAttribute<bool> InIsEditable)

@@ -44,6 +44,7 @@ class IToolTip;
 class SGraphPanel;
 class SGraphPin;
 class SInlineEditableTextBlock;
+class SLevelOfDetailBranchNode;
 class SToolTip;
 class SVerticalBox;
 class SWidget;
@@ -481,4 +482,7 @@ protected:
 
 	/** Cached pointer to graph editor settings */
 	const class UGraphEditorSettings* Settings;
+
+private:
+	TSharedPtr<SLevelOfDetailBranchNode> TitleLODBranchNode;
 };

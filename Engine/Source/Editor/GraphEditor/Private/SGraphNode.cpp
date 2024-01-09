@@ -554,6 +554,20 @@ void SGraphNode::SetOwner( const TSharedRef<SGraphPanel>& OwnerPanel )
 		this->RightNodeBox->ClearChildren();
 		CreatePinWidgets();
 	}
+
+	if (TitleLODBranchNode.IsValid())
+	{
+		TitleLODBranchNode->RefreshLODSlotContent();
+	}
+	
+	for (TSharedRef<SGraphPin> Pin : InputPins)
+	{
+		Pin->RefreshLOD();
+	}
+	for (TSharedRef<SGraphPin> Pin : OutputPins)
+	{
+		Pin->RefreshLOD();
+	}
 }
 
 /** @param NewPosition  The Node should be relocated to this position in the graph panel */
@@ -930,20 +944,19 @@ void SGraphNode::UpdateGraphNode()
 
 	SetDefaultTitleAreaWidget(DefaultTitleAreaWidget);
 
-	TSharedRef<SWidget> TitleAreaWidget = 
-		SNew(SLevelOfDetailBranchNode)
-		.UseLowDetailSlot(this, &SGraphNode::UseLowDetailNodeTitles)
-		.LowDetail()
-		[
-			SNew(SBorder)
-			.BorderImage( FAppStyle::GetBrush("Graph.Node.ColorSpill") )
-			.Padding( FMargin(75.0f, 22.0f) ) // Saving enough space for a 'typical' title so the transition isn't quite so abrupt
-			.BorderBackgroundColor( this, &SGraphNode::GetNodeTitleColor )
-		]
-		.HighDetail()
-		[
-			DefaultTitleAreaWidget
-		];
+	SAssignNew(TitleLODBranchNode, SLevelOfDetailBranchNode)
+	.UseLowDetailSlot(this, &SGraphNode::UseLowDetailNodeTitles)
+	.LowDetail()
+	[
+		SNew(SBorder)
+		.BorderImage( FAppStyle::GetBrush("Graph.Node.ColorSpill") )
+		.Padding( FMargin(75.0f, 22.0f) ) // Saving enough space for a 'typical' title so the transition isn't quite so abrupt
+		.BorderBackgroundColor( this, &SGraphNode::GetNodeTitleColor )
+	]
+	.HighDetail()
+	[
+		DefaultTitleAreaWidget
+	];
 
 	
 	if (!SWidget::GetToolTip().IsValid())
@@ -967,7 +980,7 @@ void SGraphNode::UpdateGraphNode()
 		.VAlign(VAlign_Top)
 		.Padding(Settings->GetNonPinNodeBodyPadding())
 		[
-			TitleAreaWidget
+			TitleLODBranchNode.ToSharedRef()
 		]
 
 		+SVerticalBox::Slot()
