@@ -3610,8 +3610,13 @@ bool FGameFeaturePluginStateMachineProperties::ParseURL()
 		return false;
 	}
 
-	//The current IdentifyingURLSubset IS the same as the PluginInstalledFilename, so just use the already parsed version
-	PluginInstalledFilename = PluginIdentifier.IdentifyingURLSubset;
+	FStringView PluginPathFromURL;
+	if (!UGameFeaturesSubsystem::ParsePluginURL(PluginIdentifier.GetFullPluginURL(), nullptr, &PluginPathFromURL))
+	{
+		return false;
+	}
+
+	PluginInstalledFilename = PluginPathFromURL;
 	PluginName = FPaths::GetBaseFilename(PluginInstalledFilename);
 
 	if (PluginInstalledFilename.IsEmpty() || !PluginInstalledFilename.EndsWith(TEXT(".uplugin")))

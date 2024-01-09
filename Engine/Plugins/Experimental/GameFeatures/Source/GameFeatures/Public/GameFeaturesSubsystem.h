@@ -474,6 +474,9 @@ public:
 	/** Tests whether the plugin URL is the specified protocol */
 	static bool IsPluginURLProtocol(FStringView PluginURL, EGameFeaturePluginProtocol PluginProtocol);
 
+	/** Parse the plugin URL into subparts */
+	static bool ParsePluginURL(FStringView PluginURL, EGameFeaturePluginProtocol* OutProtocol = nullptr, FStringView* OutPath = nullptr, FStringView* OutOptions = nullptr);
+
 public:
 	/** Returns all the active plugins GameFeatureDatas */
 	void GetGameFeatureDataForActivePlugins(TArray<const UGameFeatureData*>& OutActivePluginFeatureDatas);

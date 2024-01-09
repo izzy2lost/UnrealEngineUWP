@@ -199,26 +199,12 @@ void FGameFeaturePluginIdentifier::FromPluginURL(FString PluginURLIn)
 	IdentifyingURLSubset.Reset();
 	PluginURL = MoveTemp(PluginURLIn);
 
-	PluginProtocol = UGameFeaturesSubsystem::GetPluginURLProtocol(PluginURL);
-
-	if (ensureAlwaysMsgf( ((PluginProtocol != EGameFeaturePluginProtocol::Unknown) 
-						&& (PluginProtocol != EGameFeaturePluginProtocol::Count)),
-						TEXT("Invalid PluginProtocol in PluginURL %s"), *PluginURL))
+	if (UGameFeaturesSubsystem::ParsePluginURL(PluginURL, &PluginProtocol, &IdentifyingURLSubset))
 	{
-
-		int32 PluginProtocolEndIndex = FCString::Strlen(UE::GameFeatures::GameFeaturePluginProtocolPrefix(PluginProtocol));
-		int32 FirstOptionIndex = PluginURL.Find(UE::GameFeatures::PluginURLStructureInfo::OptionSeperator, ESearchCase::IgnoreCase, ESearchDir::FromStart, PluginProtocolEndIndex);
-		
-		//If we don't have any options, then the IdentifyingURLSubset is just our entire URL except the protocol string
-		if (FirstOptionIndex == INDEX_NONE)
+		if (!IdentifyingURLSubset.IsEmpty())
 		{
-			IdentifyingURLSubset = FStringView(PluginURL).RightChop(PluginProtocolEndIndex);
-		}
-		//The IdentifyingURLSubset will be the string between the end of the protocol string and before the first option
-		else
-		{
-			const int32 IdentifierCharCount = (FirstOptionIndex - PluginProtocolEndIndex);
-			IdentifyingURLSubset = FStringView(PluginURL).Mid(PluginProtocolEndIndex, IdentifierCharCount);
+			// Plugins must be unique so just use the name as the identifier. This avoids issues with normalizing paths.
+			IdentifyingURLSubset = FPathViews::GetCleanFilename(IdentifyingURLSubset);
 		}
 	}
 }
@@ -773,6 +759,55 @@ EGameFeaturePluginProtocol UGameFeaturesSubsystem::GetPluginURLProtocol(FStringV
 bool UGameFeaturesSubsystem::IsPluginURLProtocol(FStringView PluginURL, EGameFeaturePluginProtocol PluginProtocol)
 {
 	return PluginURL.StartsWith(UE::GameFeatures::GameFeaturePluginProtocolPrefix(PluginProtocol));
+}
+
+bool UGameFeaturesSubsystem::ParsePluginURL(FStringView PluginURL, EGameFeaturePluginProtocol* OutProtocol /*= nullptr*/, FStringView* OutPath /*= nullptr*/, FStringView* OutOptions /*= nullptr*/)
+{
+	FStringView Path;
+	FStringView Options;
+	EGameFeaturePluginProtocol PluginProtocol = UGameFeaturesSubsystem::GetPluginURLProtocol(PluginURL);
+
+	if (ensureAlwaysMsgf(PluginProtocol != EGameFeaturePluginProtocol::Unknown && PluginProtocol != EGameFeaturePluginProtocol::Count,
+		TEXT("Invalid PluginProtocol in PluginURL %.*s"), PluginURL.Len(), PluginURL.GetData()))
+	{
+		int32 PluginProtocolLen = FCString::Strlen(UE::GameFeatures::GameFeaturePluginProtocolPrefix(PluginProtocol));
+		int32 FirstOptionIndex = UE::String::FindFirst(PluginURL, UE::GameFeatures::PluginURLStructureInfo::OptionSeperator, ESearchCase::IgnoreCase);
+
+		//If we don't have any options, then the Path is just our entire URL except the protocol string
+		if (FirstOptionIndex == INDEX_NONE)
+		{
+			Path = PluginURL.RightChop(PluginProtocolLen);
+		}
+		//The Path will be the string between the end of the protocol string and before the first option
+		else
+		{
+			const int32 IdentifierCharCount = (FirstOptionIndex - PluginProtocolLen);
+			Path = PluginURL.Mid(PluginProtocolLen, IdentifierCharCount);
+			Options = PluginURL.RightChop(FirstOptionIndex);
+		}
+
+		if (ensureAlwaysMsgf(Path.EndsWith(TEXTVIEW(".uplugin")), TEXT("Invalid path in PluginURL %.*s"), PluginURL.Len(), PluginURL.GetData()))
+		{
+			if (OutProtocol)
+			{
+				*OutProtocol = PluginProtocol;
+			}
+
+			if (OutPath)
+			{
+				*OutPath = Path;
+			}
+
+			if (OutOptions)
+			{
+				*OutOptions = Options;
+			}
+
+			return true;
+		}
+	}
+
+	return false;
 }
 
 void UGameFeaturesSubsystem::OnGameFeatureTerminating(const FString& PluginName, const FGameFeaturePluginIdentifier& PluginIdentifier)
@@ -1863,8 +1898,13 @@ bool UGameFeaturesSubsystem::GetBuiltInGameFeaturePluginDetails(const TSharedRef
 
 bool UGameFeaturesSubsystem::GetGameFeaturePluginDetails(FString PluginURL, FGameFeaturePluginDetails& OutPluginDetails) const
 {
-	FGameFeaturePluginIdentifier Ident(MoveTemp(PluginURL));
-	return GetGameFeaturePluginDetailsInternal(FString(Ident.GetIdentifyingString()), OutPluginDetails);
+	FStringView PluginPath;
+	if (UGameFeaturesSubsystem::ParsePluginURL(PluginURL, nullptr, &PluginPath))
+	{
+		return GetGameFeaturePluginDetailsInternal(FString(PluginPath), OutPluginDetails);
+	}
+
+	return false;
 }
 
 bool UGameFeaturesSubsystem::GetGameFeaturePluginDetailsInternal(const FString& PluginDescriptorFilename, FGameFeaturePluginDetails& OutPluginDetails) const
