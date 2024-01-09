@@ -8,6 +8,7 @@
 #include "DragAndDrop/DecoratedDragDropOp.h"
 #include "Editor/EditorEngine.h"
 #include "EdGraphSchema_K2.h"
+#include "EdGraphUtilities.h"
 #include "Kismet2/BlueprintEditorUtils.h"
 #include "Misc/Guid.h"
 #include "ScopedTransaction.h"
@@ -105,34 +106,17 @@ void FRowHelper::DeleteEntries(const UWidgetBlueprint* WidgetBlueprint, UMVVMBlu
 	}
 }
 
-void FRowHelper::DuplicateBlueprintGraph(FBlueprintEditor* BlueprintEditor, UWidgetBlueprint* WidgetBlueprint, UMVVMBlueprintView* BlueprintView, TArrayView<const TSharedPtr<FBindingEntry>> Entries)
+void FRowHelper::ShowBlueprintGraph(FBlueprintEditor* BlueprintEditor, UWidgetBlueprint* WidgetBlueprint, UMVVMBlueprintView* BlueprintView, TArrayView<const TSharedPtr<FBindingEntry>> Entries)
 {
 	auto DuplicateGraph = [WidgetBlueprint, BlueprintEditor](UEdGraph* Graph)
 		{
-			if (Graph)
+			if (Graph && BlueprintEditor)
 			{
-				const FScopedTransaction Transaction(LOCTEXT("DuplicateGraph", "Duplicate Graph"));
-				WidgetBlueprint->Modify();
-
 				UEdGraph* DuplicatedGraph = GetDefault<UEdGraphSchema_K2>()->DuplicateGraph(Graph);
 				check(DuplicatedGraph);
+				DuplicatedGraph->SetFlags(RF_Transient);
 
-				for (UEdGraphNode* EdGraphNode : DuplicatedGraph->Nodes)
-				{
-					if (EdGraphNode)
-					{
-						EdGraphNode->CreateNewGuid();
-					}
-				}
-
-				DuplicatedGraph->Modify();
-				WidgetBlueprint->FunctionGraphs.Add(DuplicatedGraph);
-
-				FBlueprintEditorUtils::MarkBlueprintAsStructurallyModified(WidgetBlueprint);
-				if (BlueprintEditor)
-				{
-					BlueprintEditor->OpenDocument(DuplicatedGraph, FDocumentTracker::OpenNewDocument);
-				}
+				BlueprintEditor->OpenDocument(DuplicatedGraph, FDocumentTracker::OpenNewDocument);
 			}
 		};
 

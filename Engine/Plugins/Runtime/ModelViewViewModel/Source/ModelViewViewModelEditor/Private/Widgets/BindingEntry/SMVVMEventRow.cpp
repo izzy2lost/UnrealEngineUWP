@@ -399,20 +399,18 @@ TSharedRef<SWidget> SEventRow::HandleContextMenu() const
 		MenuBuilder.BeginSection("Developer", LOCTEXT("Developer", "Developer"));
 
 		UMVVMBlueprintViewEvent* Event = GetEvent();
-		if (GetDefault<UMVVMDeveloperProjectSettings>()->bShowDeveloperGenerateGraphSettings)		
+		if (GetDefault<UMVVMDeveloperProjectSettings>()->bShowDeveloperGenerateGraphSettings)
 		{
-			bool bCanDuplicateGraph = Event && Event->GetWrapperGraph();
-			//CanDuplicateGraph(GraphToDuplicate)
+			bool bCanShowGraph = Event && Event->GetWrapperGraph();
 
-			FUIAction DuplicateAction;
-			DuplicateAction.ExecuteAction = FExecuteAction::CreateSP(this, &SEventRow::HandleDuplicateGraph);
-			DuplicateAction.CanExecuteAction = FCanExecuteAction::CreateLambda([bCanDuplicateGraph]() { return bCanDuplicateGraph; });
-			MenuBuilder.AddMenuEntry(LOCTEXT("DuplicateGraph", "Copy event graph")
-				, LOCTEXT("DuplicateGraphTooltip", "Add a copy of the event graph to Blueprint."
-					" The copied graph will not bu used."
+			FUIAction ShowGraphAction;
+			ShowGraphAction.ExecuteAction = FExecuteAction::CreateSP(this, &SEventRow::HandleShowBlueprintGraph);
+			ShowGraphAction.CanExecuteAction = FCanExecuteAction::CreateLambda([bCanShowGraph]() { return bCanShowGraph; });
+			MenuBuilder.AddMenuEntry(LOCTEXT("ShowGraph", "Show event graph")
+				, LOCTEXT("ShowGraphTooltip", "Show the Blueprint graph that represent the event."
 					" The graph is always generated but may not be visible to the user.")
 				, FSlateIcon(FAppStyle::GetAppStyleSetName(), "Icons.Duplicate")
-				, DuplicateAction);
+				, ShowGraphAction);
 		}
 
 		MenuBuilder.EndSection();
@@ -421,10 +419,10 @@ TSharedRef<SWidget> SEventRow::HandleContextMenu() const
 	return MenuBuilder.MakeWidget();
 }
 
-void SEventRow::HandleDuplicateGraph() const
+void SEventRow::HandleShowBlueprintGraph() const
 {
 	TSharedPtr<FBindingEntry> Entry = GetEntry();
-	BindingEntry::FRowHelper::DuplicateBlueprintGraph(GetBlueprintEditor().Get(), GetBlueprint(), GetBlueprintView(), MakeArrayView(&Entry, 1));
+	BindingEntry::FRowHelper::ShowBlueprintGraph(GetBlueprintEditor().Get(), GetBlueprint(), GetBlueprintView(), MakeArrayView(&Entry, 1));
 }
 
 } // namespace

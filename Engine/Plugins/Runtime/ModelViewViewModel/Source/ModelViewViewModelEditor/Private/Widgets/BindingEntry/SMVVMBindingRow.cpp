@@ -381,7 +381,7 @@ FMVVMLinkedPinValue SBindingRow::GetFieldSelectedValue(bool bSourceToDest) const
 			{
 				return FMVVMLinkedPinValue(ConversionFunction->GetConversionFunction().GetFunction(GetBlueprint()));
 			}
-			else if (ConversionFunction->GetConversionFunction().GetType() == EMVVMBlueprintFunctionReferenceType::Function)
+			else if (ConversionFunction->GetConversionFunction().GetType() == EMVVMBlueprintFunctionReferenceType::Node)
 			{
 				return FMVVMLinkedPinValue(ConversionFunction->GetConversionFunction().GetNode());
 			}
@@ -770,18 +770,16 @@ TSharedRef<SWidget> SBindingRow::HandleContextMenu() const
 		FMVVMBlueprintViewBinding* ViewBinding = GetThisViewBinding();
 		if (GetDefault<UMVVMDeveloperProjectSettings>()->bShowDeveloperGenerateGraphSettings)
 		{
-			bool bCanDuplicateGraph = ViewBinding && (ViewBinding->Conversion.GetConversionFunction(true) != nullptr || ViewBinding->Conversion.GetConversionFunction(false) != nullptr);
-			//CanDuplicateGraph(GraphToDuplicate)
+			bool bCanShowGraph = ViewBinding && (ViewBinding->Conversion.GetConversionFunction(true) != nullptr || ViewBinding->Conversion.GetConversionFunction(false) != nullptr);
 
-			FUIAction DuplicateAction;
-			DuplicateAction.ExecuteAction = FExecuteAction::CreateSP(this, &SBindingRow::HandleDuplicateGraph);
-			DuplicateAction.CanExecuteAction = FCanExecuteAction::CreateLambda([bCanDuplicateGraph]() { return bCanDuplicateGraph; });
-			MenuBuilder.AddMenuEntry(LOCTEXT("DuplicateGraph", "Copy binding graph")
-				, LOCTEXT("DuplicateGraphTooltip", "Add a copy of the binding graph to Blueprint."
-					" The copied graph will not bu used."
+			FUIAction ShowGraphAction;
+			ShowGraphAction.ExecuteAction = FExecuteAction::CreateSP(this, &SBindingRow::HandleShowBlueprintGraph);
+			ShowGraphAction.CanExecuteAction = FCanExecuteAction::CreateLambda([bCanShowGraph]() { return bCanShowGraph; });
+			MenuBuilder.AddMenuEntry(LOCTEXT("ShowGraph", "Show binding graph")
+				, LOCTEXT("ShowGraphTooltip", "Show the Blueprint graph that represent the binding."
 					" The graph is always generated but may not be visible to the user.")
 				, FSlateIcon(FAppStyle::GetAppStyleSetName(), "Icons.Duplicate")
-				, DuplicateAction);
+				, ShowGraphAction);
 		}
 
 		MenuBuilder.EndSection();
@@ -790,10 +788,10 @@ TSharedRef<SWidget> SBindingRow::HandleContextMenu() const
 	return MenuBuilder.MakeWidget();
 }
 
-void SBindingRow::HandleDuplicateGraph() const
+void SBindingRow::HandleShowBlueprintGraph() const
 {
 	TSharedPtr<FBindingEntry> Entry = GetEntry();
-	BindingEntry::FRowHelper::DuplicateBlueprintGraph(GetBlueprintEditor().Get(), GetBlueprint(), GetBlueprintView(), MakeArrayView(&Entry, 1));
+	BindingEntry::FRowHelper::ShowBlueprintGraph(GetBlueprintEditor().Get(), GetBlueprint(), GetBlueprintView(), MakeArrayView(&Entry, 1));
 }
 
 } // namespace
