@@ -467,8 +467,6 @@ FText FMediaIOCorePlayerBase::GetTrackDisplayName(EMediaTrackType TrackType, int
 	default:
 		return FText::GetEmpty();
 	}
-
-	return FText::GetEmpty();
 }
 
 
