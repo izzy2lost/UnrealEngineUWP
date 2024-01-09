@@ -22,6 +22,7 @@
 #include "WorldPartition/WorldPartitionStreamingGeneration.h"
 #include "WorldPartition/WorldPartitionActorLoaderInterface.h"
 #include "WorldPartition/WorldPartitionEditorLoaderAdapter.h"
+#include "ExternalDirtyActorsTracker.h"
 #include "PackageSourceControlHelper.h"
 #include "CookPackageSplitter.h"
 #include "Delegates/DelegateCombinations.h"
@@ -148,7 +149,6 @@ private:
 	ENGINE_API void SavePerUserSettings();
 		
 	ENGINE_API void OnGCPostReachabilityAnalysis();
-	ENGINE_API void OnObjectsReplaced(const TMap<UObject*, UObject*>& OldToNewObjectMap);
 	ENGINE_API void OnPackageDirtyStateChanged(UPackage* Package);
 
 	// PIE/Game
@@ -406,8 +406,6 @@ public:
 	bool IsEnablingStreamingJustified() const { return bEnablingStreamingJustified; }
 
 	bool IsHLODsInEditorAllowed() const { return bAllowShowingHLODsInEditor; }
-
-	const TMap<FWorldPartitionReference, AActor*>& GetDirtyActors() const { return ObjectPtrDecay(DirtyActors); }
 #endif
 
 public:
@@ -546,7 +544,29 @@ private:
 
 	TArray<FWorldPartitionReference> LoadedSubobjects;
 
-	TMap<FWorldPartitionReference, TObjectPtr<AActor>> DirtyActors;
+	struct FWorldPartitionExternalDirtyActorsTrackerReference
+	{
+		using Type = FWorldPartitionReference;
+		using OwnerType = UWorldPartition;
+		static FWorldPartitionReference Store(UWorldPartition* InOwner, AActor* InActor) { return FWorldPartitionReference(InOwner, InActor->GetActorGuid()); }
+	};
+
+	class FWorldPartitionExternalDirtyActorsTracker : public TExternalDirtyActorsTracker<FWorldPartitionExternalDirtyActorsTrackerReference>
+	{
+	public:
+		FWorldPartitionExternalDirtyActorsTracker();
+		FWorldPartitionExternalDirtyActorsTracker(UWorldPartition* InWorldPartition);
+
+		//~ Begin TExternalDirtyActorsTracker interface
+		virtual void OnRemoveNonDirtyActor(const TWeakObjectPtr<AActor> InActor, FWorldPartitionReference& InValue) override;
+		virtual void Tick(float InDeltaTime) override;
+		//~ End TExternalDirtyActorsTracker interface
+
+	private:
+		TArray<TPair<TWeakObjectPtr<AActor>, FWorldPartitionReference>> NonDirtyActors;
+	};
+
+	TUniquePtr<FWorldPartitionExternalDirtyActorsTracker> ExternalDirtyActorsTracker;
 
 	TSet<FString> GeneratedStreamingPackageNames;
 

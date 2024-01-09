@@ -11,8 +11,10 @@
 #include "SWorldPartitionViewportWidget.h"
 #include "Widgets/Text/STextBlock.h"
 #include "SViewportToolBar.h"
+#include "WorldPartition/WorldPartition.h"
 #include "WorldPartition/ActorDescContainerInstance.h"
 #include "WorldPartition/WorldPartitionActorLoaderInterface.h"
+#include "ExternalDirtyActorsTracker.h"
 
 class SWorldPartitionEditorGrid2D : public SWorldPartitionEditorGrid
 {
@@ -49,13 +51,11 @@ protected:
 		TSharedPtr<FUICommandInfo> FocusLoadedRegions;
 		TSharedPtr<FUICommandInfo> FocusWorld;
 		
-
 		/**
 		 * Initialize commands
 		 */
 		virtual void RegisterCommands() override;
 	};
-
 
 	// In-viewport toolbar widget used in the world partition editor
 	class SToolBar : public SViewportToolBar
@@ -229,14 +229,13 @@ protected:
 	TSharedPtr<STextBlock> TextWorldBoundsInKMWidget;
 	TSharedPtr<STextBlock> TextRulerWidget;
 
-	// List of actors without an actor descriptor
-	class FNewlyAddedUnsavedActorDescsDescRegistry : public FActorDescInstanceList
+	struct FExternalDirtyActorTrackerGuid
 	{
-	public:
-		void OnActorAdded(AActor* Actor);
-		
-		const FWorldPartitionActorDescInstance* GetActorDescInstance(const FGuid& InActorGuid) const;
+		using Type = FGuid;
+		using OwnerType = SWorldPartitionEditorGrid2D;
+		static FGuid Store(SWorldPartitionEditorGrid2D* InOwner, AActor* InActor) { return InActor->GetActorGuid(); }
 	};
 
-	FNewlyAddedUnsavedActorDescsDescRegistry NewlyAddedUnsavedActorDescs;
+	using FExternalDirtyActorsTracker = TExternalDirtyActorsTracker<FExternalDirtyActorTrackerGuid>;
+	TUniquePtr<FExternalDirtyActorsTracker> ExternalDirtyActorsTracker;
 };

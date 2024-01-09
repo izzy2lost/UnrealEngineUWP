@@ -251,6 +251,42 @@ public:
 	}
 };
 
+UWorldPartition::FWorldPartitionExternalDirtyActorsTracker::FWorldPartitionExternalDirtyActorsTracker()
+	: Super(nullptr, nullptr)
+{}
+
+UWorldPartition::FWorldPartitionExternalDirtyActorsTracker::FWorldPartitionExternalDirtyActorsTracker(UWorldPartition* InWorldPartition)
+	: Super(InWorldPartition->GetTypedOuter<ULevel>(), InWorldPartition)
+{}
+
+void UWorldPartition::FWorldPartitionExternalDirtyActorsTracker::OnRemoveNonDirtyActor(TWeakObjectPtr<AActor> InActor, FWorldPartitionReference& InValue)
+{
+	check(InActor.IsValid());
+	NonDirtyActors.Emplace(InActor, InValue);
+}
+
+void UWorldPartition::FWorldPartitionExternalDirtyActorsTracker::Tick(float InDeltaSeconds)
+{
+	Super::Tick(InDeltaSeconds);
+
+	for (auto& [Actor, Reference] : NonDirtyActors)
+	{
+		// Resolve reference for newly added actors
+		if (!Reference.IsValid())
+		{
+			Reference = FWorldPartitionReference(Owner, Actor->GetActorGuid());
+		}
+
+		// Transfer ownership of our last ref if actor can be pinned
+		if (Reference.IsValid() && Reference.GetInstance()->GetHardRefCount() <= 1 && Owner->PinnedActors && FLoaderAdapterPinnedActors::SupportsPinning(Reference.GetInstance()))
+		{
+			Owner->PinnedActors->AddActors({ Reference.ToHandle() });
+		}
+	}
+
+	NonDirtyActors.Empty();
+}
+
 UWorldPartition::FWorldPartitionChangedEvent UWorldPartition::WorldPartitionChangedEvent;
 #endif
 
@@ -346,54 +382,6 @@ void UWorldPartition::OnGCPostReachabilityAnalysis()
 			}
 		}
 	}
-}
-
-void UWorldPartition::OnObjectsReplaced(const TMap<UObject*, UObject*>& OldToNewObjectMap)
-{
-	// Patch up actor pointers in dirty actor list
-	for (auto [OldObject, NewObject] : OldToNewObjectMap)
-	{
-		if (AActor* OldActor = Cast<AActor>(OldObject))
-		{
-			if (AActor* NewActor = Cast<AActor>(NewObject))
-			{
-				for (auto& [ActorReference, Actor] : DirtyActors)
-				{
-					if (Actor == OldActor)
-					{
-						Actor = NewActor;
-					}
-				}
-			}
-		}
-	}
-}
-
-void UWorldPartition::OnPackageDirtyStateChanged(UPackage* Package)
-{	
-	auto ShouldHandleActor = [this](AActor* Actor)
-	{
-		if (Actor && Actor->IsMainPackageActor())
-		{
-			if (ULevel* OuterLevel = Actor->GetTypedOuter<ULevel>())
-			{
-				return OuterLevel->GetWorldPartition() == this;
-			}
-		}
-		return false;
-	};
-
-	if (AActor* Actor = AActor::FindActorInPackage(Package); ShouldHandleActor(Actor))
-	{
-		if (FWorldPartitionHandle ActorHandle(this, Actor->GetActorGuid()); ActorHandle.IsValid())
-		{
-			if (Package->IsDirty())
-			{
-				DirtyActors.Add(ActorHandle.ToReference(), Actor);
-			}
-		}
-	}
-
 }
 
 // Returns whether the memory package is part of the known/valid package names
@@ -768,8 +756,6 @@ void UWorldPartition::Uninitialize()
 			RegisteredEditorLoaderAdapters.Empty();
 		}
 
-		DirtyActors.Empty();
-
 		UninitializeActorDescContainers();
 		ActorDescContainerInstance = nullptr;
 
@@ -878,7 +864,6 @@ void UWorldPartition::RegisterDelegates()
 			FEditorDelegates::CancelPIE.AddUObject(this, &UWorldPartition::OnCancelPIE);
 			FGameDelegates::Get().GetEndPlayMapDelegate().AddUObject(this, &UWorldPartition::OnEndPlay);
 			FCoreUObjectDelegates::PostReachabilityAnalysis.AddUObject(this, &UWorldPartition::OnGCPostReachabilityAnalysis);
-			FCoreUObjectDelegates::OnObjectsReplaced.AddUObject(this, &UWorldPartition::OnObjectsReplaced);
 			GEditor->OnPostBugItGoCalled().AddUObject(this, &UWorldPartition::OnPostBugItGoCalled);
 			GEditor->OnEditorClose().AddUObject(this, &UWorldPartition::SavePerUserSettings);
 			FWorldDelegates::OnPostWorldRename.AddUObject(this, &UWorldPartition::OnWorldRenamed);
@@ -886,7 +871,7 @@ void UWorldPartition::RegisterDelegates()
 
 		if (!IsRunningCommandlet())
 		{
-			UPackage::PackageDirtyStateChangedEvent.AddUObject(this, &UWorldPartition::OnPackageDirtyStateChanged);
+			ExternalDirtyActorsTracker = MakeUnique<FWorldPartitionExternalDirtyActorsTracker>(this);
 		}
 	}
 #endif
@@ -922,7 +907,6 @@ void UWorldPartition::UnregisterDelegates()
 			if (!IsEngineExitRequested())
 			{
 				FCoreUObjectDelegates::PostReachabilityAnalysis.RemoveAll(this);
-				FCoreUObjectDelegates::OnObjectsReplaced.RemoveAll(this);
 			}
 
 			GEditor->OnPostBugItGoCalled().RemoveAll(this);
@@ -931,7 +915,7 @@ void UWorldPartition::UnregisterDelegates()
 
 		if (!IsRunningCommandlet())
 		{
-			UPackage::PackageDirtyStateChangedEvent.RemoveAll(this);
+			ExternalDirtyActorsTracker.Reset();
 		}
 	}
 #endif
@@ -1213,11 +1197,6 @@ void UWorldPartition::OnActorDescInstanceAdded(FWorldPartitionActorDescInstance*
 	NewActorDescInstance->SetForceNonSpatiallyLoadded(!IsStreamingEnabledInEditor());
 
 	HashActorDescInstance(NewActorDescInstance);
-
-	if (AActor* NewActor = NewActorDescInstance->GetActor())
-	{
-		DirtyActors.Add(FWorldPartitionReference(NewActorDescInstance->GetContainerInstance(), NewActorDescInstance->GetGuid()), NewActor);
-	}
 
 	if (ForceLoadedActors)
 	{
@@ -1513,12 +1492,15 @@ void UWorldPartition::AddReferencedObjects(UObject* InThis, FReferenceCollector&
 	// by the transaction buffer, but we clear it when unloading regions, etc. and we don't want these actors to die.
 	// Also, we must avoid reporting these references when not collecting garbage, as code such as package deletion
 	// will skip packages with actors still referenced (via GatherObjectReferencersForDeletion).
-	if (IsGarbageCollecting())
+	if (This->ExternalDirtyActorsTracker.IsValid() && IsGarbageCollecting())
 	{
 		Collector.AllowEliminatingReferences(false);
-		for (auto& [ActorReference, Actor] : This->DirtyActors)
+		for (auto& [WeakActor, Value] : This->ExternalDirtyActorsTracker->GetDirtyActors())
 		{
-			Collector.AddReferencedObject(Actor);
+			if (TObjectPtr<AActor> Actor = WeakActor.Get(true))
+			{
+				Collector.AddReferencedObject(Actor);
+			}
 		}
 		Collector.AllowEliminatingReferences(true);
 	}
@@ -1540,25 +1522,9 @@ void UWorldPartition::Tick(float DeltaSeconds)
 		EditorHash->Tick(DeltaSeconds);
 	}
 
-	for (TMap<FWorldPartitionReference, TObjectPtr<AActor>>::TIterator DirtyActorIt(DirtyActors); DirtyActorIt; ++DirtyActorIt)
+	if (ExternalDirtyActorsTracker)
 	{
-		if (!DirtyActorIt.Key().IsValid())
-		{
-			DirtyActorIt.RemoveCurrent();
-		}
-		else if (!DirtyActorIt.Value()->GetPackage()->IsDirty())
-		{
-			// Transfer ownership of the last ref if actor can be pinned
-			if (DirtyActorIt.Key().GetInstance()->GetHardRefCount() <= 1 && PinnedActors && FLoaderAdapterPinnedActors::SupportsPinning(DirtyActorIt.Key().GetInstance()))
-			{
-				PinnedActors->AddActors({ DirtyActorIt.Key().ToHandle() });
-				DirtyActorIt.RemoveCurrent();
-			} // Clean up if a loader took a reference on the actor (ILoaderAdapter::RefreshLoadedState was called since)
-			else if (DirtyActorIt.Key().GetInstance()->GetHardRefCount() > 1)
-			{
-				DirtyActorIt.RemoveCurrent();
-			}
-		}
+		ExternalDirtyActorsTracker->Tick(DeltaSeconds);
 	}
 
 	if (bForceGarbageCollection)
@@ -2034,14 +2000,6 @@ bool UWorldPartition::UnregisterActorDescContainerInstance(UActorDescContainerIn
 			if (ActorHandle.IsValid())
 			{
 				ActorGuids.Add(It->GetGuid());
-
-				for (TMap<FWorldPartitionReference, TObjectPtr<AActor>>::TIterator DirtyActorIt(DirtyActors); DirtyActorIt; ++DirtyActorIt)
-				{
-					if (DirtyActorIt.Key() == ActorHandle)
-					{
-						DirtyActorIt.RemoveCurrent();
-					}
-				}
 			}
 		}
 
