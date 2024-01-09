@@ -319,10 +319,6 @@ protected:
 	TArray<FMaterialSection> MaterialSections;
 	FMaterialRelevance CombinedMaterialRelevance;
 
-#if RHI_RAYTRACING
-	TArray<TArray<FMaterialRenderProxy*>> RayTracingMaterialProxiesPerLOD;
-#endif
-
 #if WITH_EDITOR
 	TArray<FHitProxyId> HitProxyIds;
 	EHitProxyMode HitProxyMode = EHitProxyMode::MaterialSection;
@@ -458,7 +454,7 @@ protected:
 	ENGINE_API virtual void SetupFallbackRayTracingMaterials(int32 LODIndex, TArray<FMeshBatch>& OutMaterials) const;
 #endif // RHI_RAYTRACING
 
-#if NANITE_ENABLE_DEBUG_RENDERING
+#if RHI_RAYTRACING || NANITE_ENABLE_DEBUG_RENDERING
 	/** Configures mesh batch vertex / index state. Returns the number of primitives used in the element. */
 	ENGINE_API uint32 SetMeshElementGeometrySource(
 		int32 LODIndex,
@@ -534,7 +530,9 @@ protected:
 
 	/** Draw mesh collision if used for simple collision */
 	uint32 bDrawMeshCollisionIfSimple : 1;
+#endif
 
+#if RHI_RAYTRACING || NANITE_ENABLE_DEBUG_RENDERING
 	class FFallbackLODInfo
 	{
 	public:
@@ -543,7 +541,7 @@ protected:
 		{
 			/** Default constructor. */
 			FSectionInfo()
-				: Material(nullptr)
+				: MaterialProxy(nullptr)
 			#if WITH_EDITOR
 				, bSelected(false)
 				, HitProxy(nullptr)
@@ -551,7 +549,7 @@ protected:
 			{}
 
 			/** The material with which to render this section. */
-			UMaterialInterface* Material;
+			FMaterialRenderProxy* MaterialProxy;
 
 		#if WITH_EDITOR
 			/** True if this section should be rendered as selected (editor only). */

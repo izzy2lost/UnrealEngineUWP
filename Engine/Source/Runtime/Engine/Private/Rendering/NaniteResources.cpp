@@ -827,31 +827,6 @@ FSceneProxy::FSceneProxy(const FMaterialAudit& MaterialAudit, const FStaticMeshS
 	{
 		bHasRayTracingInstances = true;
 
-		RayTracingMaterialProxiesPerLOD.SetNumZeroed(RenderData->LODResources.Num());
-		for (int32 LODIndex = ClampedMinLOD; LODIndex < RenderData->LODResources.Num(); LODIndex++)
-		{
-			const FStaticMeshLODResources& LOD = RenderData->LODResources[LODIndex];
-			const FStaticMeshSectionArray& LODMeshSections = LOD.Sections;
-
-			RayTracingMaterialProxiesPerLOD[LODIndex].SetNumZeroed(LODMeshSections.Num());
-
-			TArray<FMaterialRenderProxy*>& RayTracingMaterialProxies = RayTracingMaterialProxiesPerLOD[LODIndex];
-
-			for (int32 SectionIndex = 0; SectionIndex < LODMeshSections.Num(); ++SectionIndex)
-			{
-				const FStaticMeshSection& MeshSection = LODMeshSections[SectionIndex];
-
-				UMaterialInterface* ShadingMaterial = MaterialAudit.GetMaterial(MeshSection.MaterialIndex);
-
-				if (ShadingMaterial == nullptr)
-				{
-					ShadingMaterial = UMaterial::GetDefaultMaterial(MD_Surface);
-				}
-
-				RayTracingMaterialProxies[SectionIndex] = ShadingMaterial->GetRenderProxy();
-			}
-		}
-
 		CoarseMeshStreamingHandle = (Nanite::CoarseMeshStreamingHandle)ProxyDesc.GetStaticMesh()->GetStreamingIndex();
 
 		// This will be filled later (on the render thread) and cached.
@@ -861,16 +836,28 @@ FSceneProxy::FSceneProxy(const FMaterialAudit& MaterialAudit, const FStaticMeshS
 	}
 #endif
 
+#if RHI_RAYTRACING || NANITE_ENABLE_DEBUG_RENDERING
+	bool bInitializeFallBackLODs = false;
+#	if RHI_RAYTRACING
+		bInitializeFallBackLODs |= bHasRayTracingInstances;
+#	endif
+#	if NANITE_ENABLE_DEBUG_RENDERING
+		bInitializeFallBackLODs |= true;
+#	endif
+
+	if (bInitializeFallBackLODs)
+	{
+		// Pre-allocate FallbackLODs. Dynamic resize is unsafe as the FFallbackLODInfo constructor queues up a rendering command with a reference to itself.
+		FallbackLODs.SetNumUninitialized(RenderData->LODResources.Num());
+
+		for (int32 LODIndex = 0; LODIndex < RenderData->LODResources.Num(); LODIndex++)
+		{
+			FFallbackLODInfo* NewLODInfo = new (&FallbackLODs[LODIndex]) FFallbackLODInfo(&ProxyDesc, RenderData->LODVertexFactories, LODIndex, ClampedMinLOD);
+		}
+	}
+#endif
 
 #if NANITE_ENABLE_DEBUG_RENDERING
-	// Pre-allocate FallbackLODs. Dynamic resize is unsafe as the FFallbackLODInfo constructor queues up a rendering command with a reference to itself.
-	FallbackLODs.SetNumUninitialized(RenderData->LODResources.Num());
-
-	for (int32 LODIndex = 0; LODIndex < RenderData->LODResources.Num(); LODIndex++)
-	{
-		FFallbackLODInfo* NewLODInfo = new (&FallbackLODs[LODIndex]) FFallbackLODInfo(&ProxyDesc, RenderData->LODVertexFactories, LODIndex, ClampedMinLOD);
-	}
-
 	if (BodySetup)
 	{
 		CollisionTraceFlag = BodySetup->GetCollisionTraceFlag();
@@ -1212,7 +1199,7 @@ FLightInteraction FSceneProxy::FMeshInfo::GetInteraction(const FLightSceneProxy*
 	return FLightInteraction::Dynamic();
 }
 
-#if NANITE_ENABLE_DEBUG_RENDERING
+#if RHI_RAYTRACING || NANITE_ENABLE_DEBUG_RENDERING
 
 // Loosely copied from FStaticMeshSceneProxy::FLODInfo::FLODInfo and modified for Nanite fallback
 // TODO: Refactor all this to share common code with Nanite and regular SM scene proxy
@@ -1282,15 +1269,17 @@ FSceneProxy::FFallbackLODInfo::FFallbackLODInfo(
 		FSectionInfo SectionInfo;
 
 		// Determine the material applied to this element of the LOD.
-		SectionInfo.Material = InProxyDesc->GetMaterial(Section.MaterialIndex);
+		UMaterialInterface* Material = InProxyDesc->GetMaterial(Section.MaterialIndex);
 #if WITH_EDITORONLY_DATA
 		SectionInfo.MaterialIndex = Section.MaterialIndex;
 #endif
 
-		if (!SectionInfo.Material)
+		if (Material == nullptr)
 		{
-			SectionInfo.Material = UMaterial::GetDefaultMaterial(MD_Surface);
+			Material = UMaterial::GetDefaultMaterial(MD_Surface);
 		}
+
+		SectionInfo.MaterialProxy = Material->GetRenderProxy();
 
 		// Per-section selection for the editor.
 #if WITH_EDITORONLY_DATA
@@ -1755,24 +1744,39 @@ void FSceneProxy::SetupRayTracingMaterials(int32 LODIndex, TArray<FMeshBatch>& O
 
 void FSceneProxy::SetupFallbackRayTracingMaterials(int32 LODIndex, TArray<FMeshBatch>& OutMaterials) const
 {
-	OutMaterials.SetNum(RayTracingMaterialProxiesPerLOD[LODIndex].Num());
+	const FStaticMeshLODResources& LOD = RenderData->LODResources[LODIndex];
+	const FStaticMeshVertexFactories& VFs = RenderData->LODVertexFactories[LODIndex];
+
+	const FFallbackLODInfo& FallbackLODInfo = FallbackLODs[LODIndex];
+
+	OutMaterials.SetNum(FallbackLODInfo.Sections.Num());
 
 	for (int32 SectionIndex = 0; SectionIndex < OutMaterials.Num(); ++SectionIndex)
 	{
-		const FMaterialRenderProxy* MaterialProxy = RayTracingMaterialProxiesPerLOD[LODIndex][SectionIndex];
-
-		const bool bWireframe = false;
-		const bool bUseReversedIndices = false;
+		const FFallbackLODInfo::FSectionInfo& SectionInfo = FallbackLODInfo.Sections[SectionIndex];
 
 		FMeshBatch& MeshBatch = OutMaterials[SectionIndex];
 		FMeshBatchElement& MeshBatchElement = MeshBatch.Elements[0];
 
-		MeshBatch.VertexFactory = &RenderData->LODVertexFactories[LODIndex].VertexFactory;
-		MeshBatch.MaterialRenderProxy = MaterialProxy;
-		MeshBatch.bWireframe = false;
+		const bool bWireframe = false;
+		const bool bUseReversedIndices = false;
+
+		SetMeshElementGeometrySource(LODIndex, SectionIndex, bWireframe, bUseReversedIndices, &VFs.VertexFactory, MeshBatch);
+
+		MeshBatch.VertexFactory = &VFs.VertexFactory;
+		MeshBatchElement.VertexFactoryUserData = VFs.VertexFactory.GetUniformBuffer();
+
+		const FStaticMeshSection& Section = LOD.Sections[SectionIndex];
+
+		MeshBatchElement.MinVertexIndex = Section.MinVertexIndex;
+		MeshBatchElement.MaxVertexIndex = Section.MaxVertexIndex;
+
+		MeshBatch.MaterialRenderProxy = SectionInfo.MaterialProxy;
+		MeshBatch.bWireframe = bWireframe;
 		MeshBatch.SegmentIndex = SectionIndex;
-		MeshBatch.LODIndex = 0;
+		MeshBatch.LODIndex = 0; // CacheRayTracingPrimitive(...) currently assumes that primitives with CacheInstances flag only cache mesh commands for one LOD
 		MeshBatch.CastRayTracedShadow = CastsDynamicShadow(); // Relying on BuildInstanceMaskAndFlags(...) to check Material.CastsRayTracedShadows()
+		MeshBatch.ReverseCulling = IsReversedCullingNeeded(bUseReversedIndices);
 
 		MeshBatchElement.PrimitiveUniformBufferResource = &GIdentityPrimitiveUniformBuffer;
 	}
@@ -1994,7 +1998,7 @@ ERayTracingPrimitiveFlags FSceneProxy::GetCachedRayTracingInstance(FRayTracingIn
 
 #endif // RHI_RAYTRACING
 
-#if NANITE_ENABLE_DEBUG_RENDERING
+#if RHI_RAYTRACING || NANITE_ENABLE_DEBUG_RENDERING
 
 // Loosely copied from FStaticMeshSceneProxy::SetMeshElementGeometrySource and modified for Nanite fallback
 // TODO: Refactor all this to share common code with Nanite and regular SM scene proxy
@@ -2058,8 +2062,8 @@ uint32 FSceneProxy::SetMeshElementGeometrySource(
 bool FSceneProxy::IsReversedCullingNeeded(bool bUseReversedIndices) const
 {
 	// Use != to ensure consistent face directions between negatively and positively scaled primitives
-	// NOTE: This is only used by debug draw mesh elements (Nanite determines cull mode on the GPU. See
-	// ReverseWindingOrder() in NaniteRasterizer.usf)
+	// NOTE: This is only used by ray tracing and debug draw mesh elements
+	// (Nanite determines cull mode on the GPU. See ReverseWindingOrder() in NaniteRasterizer.usf)
 	const bool bReverseNeeded = IsCullingReversedByComponent() != IsLocalToWorldDeterminantNegative();
 	return bReverseNeeded && !bUseReversedIndices;
 }
