@@ -135,11 +135,11 @@ void FAnimNode_AnimNextGraph::Evaluate_AnyThread(FPoseContext& Output)
 		check(SkeletalMeshComponent != nullptr);
 
 		FDataHandle RefPoseHandle = FDataRegistry::Get()->GetOrGenerateReferencePose(SkeletalMeshComponent);
-		const UE::AnimNext::FReferencePose& RefPose = RefPoseHandle.GetRef<UE::AnimNext::FReferencePose>();
-		FAnimNextGraphReferencePose GraphReferencePose(&RefPose);
+		FAnimNextGraphReferencePose GraphReferencePose(RefPoseHandle);
 
 		const int32 LODLevel = Output.AnimInstanceProxy->GetLODLevel();
 
+		const UE::AnimNext::FReferencePose& RefPose = RefPoseHandle.GetRef<UE::AnimNext::FReferencePose>();
 		FAnimNextGraphLODPose ResultPose(FLODPoseHeap(RefPose, LODLevel, true, Output.ExpectsAdditivePose()));
 
 		FAnimGraphParamStackScope Scope(Output);

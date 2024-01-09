@@ -1,4 +1,4 @@
-﻿// Copyright Epic Games, Inc. All Rights Reserved.
+// Copyright Epic Games, Inc. All Rights Reserved.
 
 #include "AnimNextSchedulePort_AnimNextMeshComponentPose.h"
 
@@ -56,6 +56,8 @@ void UAnimNextSchedulePort_AnimNextMeshComponentPose::Run(const UE::AnimNext::FS
 		return;
 	}
 
+	const UE::AnimNext::FReferencePose& RefPose = GraphReferencePose->ReferencePose.GetRef<UE::AnimNext::FReferencePose>();
+
 	FMemMark MemMark(FMemStack::Get());
 
 	TArray<FTransform, TMemStackAllocator<>> LocalSpaceTransforms;
@@ -66,8 +68,8 @@ void UAnimNextSchedulePort_AnimNextMeshComponentPose::Run(const UE::AnimNext::FS
 
 	// Convert and dispatch to renderer
 	Component->CompleteAndDispatch(
-		GraphReferencePose->ReferencePose->GetParentIndices(),
-		GraphReferencePose->ReferencePose->GetLODBoneIndexToMeshBoneIndexMap(InputPose->LODPose.LODLevel),
+		RefPose.GetParentIndices(),
+		RefPose.GetLODBoneIndexToMeshBoneIndexMap(InputPose->LODPose.LODLevel),
 		LocalSpaceTransforms);
 }
 

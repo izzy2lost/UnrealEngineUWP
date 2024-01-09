@@ -1,4 +1,4 @@
-﻿// Copyright Epic Games, Inc. All Rights Reserved.
+// Copyright Epic Games, Inc. All Rights Reserved.
 
 #include "AnimNextMeshComponent.h"
 #include "GenerationTools.h"
@@ -43,6 +43,5 @@ void UAnimNextMeshComponent::CompleteAndDispatch(TConstArrayView<FBoneIndexType>
 FAnimNextGraphReferencePose UAnimNextMeshComponent::GetReferencePose()
 {
 	UE::AnimNext::FDataHandle RefPoseHandle = UE::AnimNext::FDataRegistry::Get()->GetOrGenerateReferencePose(this);
-	const UE::AnimNext::FReferencePose& RefPose = RefPoseHandle.GetRef<UE::AnimNext::FReferencePose>();
-	return FAnimNextGraphReferencePose(&RefPose);
+	return FAnimNextGraphReferencePose(RefPoseHandle);
 }

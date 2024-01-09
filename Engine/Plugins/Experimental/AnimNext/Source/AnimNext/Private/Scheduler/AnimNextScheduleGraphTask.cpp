@@ -110,7 +110,7 @@ void FAnimNextScheduleGraphTask::RunGraph(const UE::AnimNext::FScheduleContext& 
 	}
 
 	const FAnimNextGraphReferencePose* GraphReferencePose = ParamStack.GetParamPtr<FAnimNextGraphReferencePose>(GraphToRun->GetReferencePoseParam());
-	if(GraphReferencePose == nullptr)
+	if(GraphReferencePose == nullptr || !GraphReferencePose->ReferencePose.IsValid())
 	{
 		return;
 	}
@@ -145,12 +145,14 @@ void FAnimNextScheduleGraphTask::RunGraph(const UE::AnimNext::FScheduleContext& 
 	{
 		return;
 	}
+	
+	const UE::AnimNext::FReferencePose& RefPose = GraphReferencePose->ReferencePose.GetRef<UE::AnimNext::FReferencePose>();
 
 	// Create or update our result pose
 	// TODO: Currently forcing additive flag to false here
-	if (OutputPose->LODPose.ShouldPrepareForLOD(*GraphReferencePose->ReferencePose, *GraphLODLevel, false))
+	if (OutputPose->LODPose.ShouldPrepareForLOD(RefPose, *GraphLODLevel, false))
 	{
-		OutputPose->LODPose.PrepareForLOD(*GraphReferencePose->ReferencePose, *GraphLODLevel, true, false);
+		OutputPose->LODPose.PrepareForLOD(RefPose, *GraphLODLevel, true, false);
 	}
 
 	check(OutputPose->LODPose.LODLevel == *GraphLODLevel);
@@ -168,7 +170,7 @@ void FAnimNextScheduleGraphTask::RunGraph(const UE::AnimNext::FScheduleContext& 
 	{
 		const FEvaluationProgram EvaluationProgram = UE::AnimNext::EvaluateGraph(GraphCache.GraphInstanceData);
 
-		FEvaluationVM EvaluationVM(EEvaluationFlags::All, *GraphReferencePose->ReferencePose, *GraphLODLevel);
+		FEvaluationVM EvaluationVM(EEvaluationFlags::All, RefPose, *GraphLODLevel);
 		bool bHasValidOutput = false;
 
 		if (!EvaluationProgram.IsEmpty())

@@ -14,12 +14,12 @@ struct FAnimNextGraphReferencePose
 
 	FAnimNextGraphReferencePose() = default;
 
-	explicit FAnimNextGraphReferencePose(const UE::AnimNext::FReferencePose* InReferencePose)
+	explicit FAnimNextGraphReferencePose(UE::AnimNext::FDataHandle& InReferencePose)
 		: ReferencePose(InReferencePose)
 	{
 	}
 
-	const UE::AnimNext::FReferencePose* ReferencePose = nullptr;
+	UE::AnimNext::FDataHandle ReferencePose;
 };
 
 USTRUCT(BlueprintType, meta = (DisplayName = "LODPose"))

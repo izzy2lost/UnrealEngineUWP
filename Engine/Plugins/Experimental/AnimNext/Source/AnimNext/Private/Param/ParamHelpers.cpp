@@ -325,7 +325,11 @@ void FParamHelpers::Copy(const FParamTypeHandle& InTypeHandle, TConstArrayView<u
 		SimpleCopy(sizeof(FAnimNextGraphLODPose), alignof(FAnimNextGraphLODPose));
 		break;
 	case FParamTypeHandle::EParamType::AnimNextGraphReferencePose:
-		SimpleCopy(sizeof(FAnimNextGraphReferencePose), alignof(FAnimNextGraphReferencePose));
+		{
+			const FAnimNextGraphReferencePose* SourceRefPose = reinterpret_cast<const FAnimNextGraphReferencePose*>(InSourceMemory.GetData());
+			FAnimNextGraphReferencePose* TargetSourceRefPose = reinterpret_cast<FAnimNextGraphReferencePose*>(InTargetMemory.GetData());
+			*TargetSourceRefPose = *SourceRefPose;
+		}
 		break;
 	case FParamTypeHandle::EParamType::Custom:
 		{
@@ -516,7 +520,12 @@ void FParamHelpers::Destroy(const FParamTypeHandle& InTypeHandle, TArrayView<uin
 	case FParamTypeHandle::EParamType::AnimNextMeshComponent:
 	case FParamTypeHandle::EParamType::AnimSequence:
 	case FParamTypeHandle::EParamType::AnimNextGraphLODPose:
+		break;
 	case FParamTypeHandle::EParamType::AnimNextGraphReferencePose:
+		{
+			FAnimNextGraphReferencePose* RefPose = reinterpret_cast<FAnimNextGraphReferencePose*>(InMemory.GetData());
+			RefPose->~FAnimNextGraphReferencePose();
+		}
 		break;
 	case FParamTypeHandle::EParamType::Custom:
 		{
