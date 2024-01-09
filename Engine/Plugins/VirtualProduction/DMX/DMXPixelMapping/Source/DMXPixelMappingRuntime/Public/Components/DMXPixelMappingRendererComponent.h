@@ -194,14 +194,6 @@ public:
 	UE_DEPRECATED(5.3, "Please use UDMXPixelMappingPixelMapRenderer to render the pixel map")
 	void EmptyDownsampleBuffer();
 
-#if WITH_EDITOR
-	UE_DEPRECATED(5.1, "Pixel Mapping Components no longer hold their own widget, in an effort to separate Views from Data.")
-	TSharedRef<SWidget> TakeWidget();
-
-	UE_DEPRECATED(5.1, "Pixel Mapping Components no longer hold their own widget, in an effort to separate Views from Data.")
-	FORCEINLINE TSharedPtr<SConstraintCanvas> GetComponentsCanvas() const { return ComponentsCanvas_DEPRECATED; }
-#endif // WITH_EDITOR
-
 private:
 	UE_DEPRECATED(5.3, "Please use UDMXPixelMappingPixelMapRenderer to render the pixel map")
 	int32 GetTotalDownsamplePixelCount();
@@ -218,10 +210,6 @@ private:
 	PRAGMA_DISABLE_DEPRECATION_WARNINGS
 	TSharedPtr<IDMXPixelMappingRenderer> PixelMappingRenderer_DEPRECATED;
 	PRAGMA_ENABLE_DEPRECATION_WARNINGS
-
-#if WITH_EDITORONLY_DATA
-	TSharedPtr<SConstraintCanvas> ComponentsCanvas_DEPRECATED;
-#endif // WITH_EDITORONLY_DATA
 
 	UPROPERTY(Transient, DuplicateTransient)
 	TObjectPtr<UTextureRenderTarget2D> DownsampleBufferTarget_DEPRECATED;

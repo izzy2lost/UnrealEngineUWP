@@ -34,15 +34,16 @@ void FDMXPixelMappingDetailCustomization_Renderer::CustomizeDetails(IDetailLayou
 	// Hide Output Component properties
 	const TSharedRef<IPropertyHandle> PositionXHandle = DetailLayout.GetProperty(UDMXPixelMappingOutputComponent::GetPositionXPropertyName(), UDMXPixelMappingOutputComponent::StaticClass());
 	DetailLayout.HideProperty(PositionXHandle);
-
-	const TSharedRef<IPropertyHandle> PositionYHandle = DetailLayout.GetProperty(UDMXPixelMappingOutputComponent::GetPositionYPropertyName(), UDMXPixelMappingOutputComponent::StaticClass());
+	const TSharedRef<IPropertyHandle> PositionYHandle = DetailLayout.GetProperty(UDMXPixelMappingOutputComponent::GetPositionXPropertyName(), UDMXPixelMappingOutputComponent::StaticClass());
 	DetailLayout.HideProperty(PositionYHandle);
 
 	const TSharedRef<IPropertyHandle> SizeXHandle = DetailLayout.GetProperty(UDMXPixelMappingOutputComponent::GetSizeXPropertyName(), UDMXPixelMappingOutputComponent::StaticClass());
 	DetailLayout.HideProperty(SizeXHandle);
-
 	const TSharedRef<IPropertyHandle> SizeYHandle = DetailLayout.GetProperty(UDMXPixelMappingOutputComponent::GetSizeYPropertyName(), UDMXPixelMappingOutputComponent::StaticClass());
 	DetailLayout.HideProperty(SizeYHandle);
+
+	const TSharedRef<IPropertyHandle> RotationHandle = DetailLayout.GetProperty(UDMXPixelMappingOutputComponent::GetRotationPropertyName(), UDMXPixelMappingOutputComponent::StaticClass());
+	DetailLayout.HideProperty(RotationHandle);
 
 	const TSharedRef<IPropertyHandle> IsLockInDesignerHandle = DetailLayout.GetProperty(UDMXPixelMappingOutputComponent::GetLockInDesignerPropertyName(), UDMXPixelMappingOutputComponent::StaticClass());
 	DetailLayout.HideProperty(IsLockInDesignerHandle);

@@ -42,8 +42,6 @@ public:
 	/** Returns true if the drag drop op was created with the constructor that provides a template */
 	bool WasCreatedAsTemplate() const { return bWasCreatedAsTemplate; }
 
-	/** Utiltity that applies grid snapping. Note, this grid snaps to pixels if grid snapping is disabled. */
-	void GridSnap();
 
 	/** Can be used to store the parent of the dragged component(s) */
 	TWeakObjectPtr<UDMXPixelMappingBaseComponent> Parent;
@@ -59,6 +57,9 @@ public:
 
 	/** Returns the dragged component references */
 	FORCEINLINE const TArray<TSharedPtr<FDMXPixelMappingComponentTemplate>>& GetTemplates() const { return Templates; }
+	
+	/** Utiltity that returns the grid snapped position from a desired position. */
+	FVector2D ComputeGridSnapPosition(const FVector2D& DesiredPosition) const;
 
 private:
 	/** True if this was created with the New version was used that provides a template */

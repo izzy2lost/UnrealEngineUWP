@@ -42,7 +42,6 @@ const FName FDMXPixelMappingToolkit::DetailsViewTabID(TEXT("DMXPixelMappingEdito
 const FName FDMXPixelMappingToolkit::LayoutViewTabID(TEXT("DMXPixelMappingEditor_LayoutViewTabID"));
 
 FDMXPixelMappingToolkit::FDMXPixelMappingToolkit()
-	: DMXPixelMapping(nullptr)
 {
 	EditorSettingsDump = TArray<uint8, TFixedAllocator<sizeof(UDMXPixelMappingEditorSettings)>>(reinterpret_cast<const uint8*>(GetDefault<UDMXPixelMappingEditorSettings>()), (int32)sizeof(UDMXPixelMappingEditorSettings));
 }
@@ -57,9 +56,122 @@ void FDMXPixelMappingToolkit::InitPixelMappingEditor(const EToolkitMode::Type Mo
 	check(InDMXPixelMapping);
 	InDMXPixelMapping->DestroyInvalidComponents();
 
-	DMXPixelMapping = InDMXPixelMapping;
+	// Make sure we loaded all UObjects
+	InDMXPixelMapping->CreateOrLoadObjects();
 
-	InitializeInternal(Mode, InitToolkitHost, FGuid::NewGuid());
+	// Bind to component changes
+	UDMXPixelMappingBaseComponent::GetOnComponentAdded().AddSP(this, &FDMXPixelMappingToolkit::OnComponentAddedOrRemoved);
+	UDMXPixelMappingBaseComponent::GetOnComponentRemoved().AddSP(this, &FDMXPixelMappingToolkit::OnComponentAddedOrRemoved);
+	UDMXPixelMappingBaseComponent::GetOnComponentRenamed().AddSP(this, &FDMXPixelMappingToolkit::OnComponentRenamed);
+
+	SetupCommands();
+
+	CreateInternalViews();
+
+	TSharedRef<FTabManager::FLayout> StandaloneDefaultLayout = FTabManager::NewLayout("Standalone_PixelMapping_Layout_2.0")
+		->AddArea
+		(
+			FTabManager::NewPrimaryArea()->SetOrientation(Orient_Vertical)
+			->Split
+			(
+				FTabManager::NewSplitter()
+				->SetOrientation(Orient_Horizontal)
+				->Split
+				(
+					FTabManager::NewSplitter()
+					->SetOrientation(Orient_Vertical)
+					->SetSizeCoefficient(.25f)
+					->Split
+					(
+						FTabManager::NewStack()
+						->AddTab(DMXLibraryViewTabID, ETabState::OpenedTab)
+						->SetSizeCoefficient(.382f)
+					)
+					->Split
+					(
+						FTabManager::NewStack()
+						->AddTab(HierarchyViewTabID, ETabState::OpenedTab)
+						->SetSizeCoefficient(.618f)
+					)
+				)
+				->Split
+				(
+					FTabManager::NewSplitter()
+					->SetOrientation(Orient_Vertical)
+					->SetSizeCoefficient(.5f)
+					->Split
+					(
+						FTabManager::NewStack()
+						->AddTab(DesignerViewTabID, ETabState::OpenedTab)
+						->SetSizeCoefficient(.75f)
+					)
+					->Split
+					(
+						FTabManager::NewStack()
+						->AddTab(PreviewViewTabID, ETabState::OpenedTab)
+						->SetSizeCoefficient(.25f)
+					)
+				)
+				->Split
+				(
+					FTabManager::NewSplitter()
+					->SetOrientation(Orient_Vertical)
+					->SetSizeCoefficient(.25f)
+					->Split
+					(
+						FTabManager::NewStack()
+						->AddTab(DetailsViewTabID, ETabState::OpenedTab)
+						->SetSizeCoefficient(.618f)
+					)
+					->Split
+					(
+						FTabManager::NewStack()
+						->AddTab(LayoutViewTabID, ETabState::OpenedTab)
+						->SetSizeCoefficient(.382f)
+					)
+				)
+			)
+		);
+
+	const bool bCreateDefaultStandaloneMenu = true;
+	const bool bCreateDefaultToolbar = true;
+	FAssetEditorToolkit::InitAssetEditor(Mode, InitToolkitHost, FDMXPixelMappingEditorModule::DMXPixelMappingEditorAppIdentifier,
+		StandaloneDefaultLayout, bCreateDefaultStandaloneMenu, bCreateDefaultToolbar, InDMXPixelMapping);
+
+	// Allow extenders to extend the toolbar, then regenerate menus and toolbars.
+	ExtendToolbar();
+	RegenerateMenusAndToolbars();
+
+	// Make an initial selection
+	if (UDMXPixelMappingRootComponent* RootComponent = InDMXPixelMapping->GetRootComponent())
+	{
+		UDMXPixelMappingBaseComponent* const* FirstRendererComponetPtr = Algo::FindByPredicate(InDMXPixelMapping->GetRootComponent()->GetChildren(), [](UDMXPixelMappingBaseComponent* Component)
+			{
+				return Component && Component->GetClass() == UDMXPixelMappingRendererComponent::StaticClass();
+			});
+		if (FirstRendererComponetPtr)
+		{
+			UDMXPixelMappingBaseComponent* const* FirstFixtureGroupComponetPtr = Algo::FindByPredicate((*FirstRendererComponetPtr)->GetChildren(), [](UDMXPixelMappingBaseComponent* Component)
+				{
+					return Component && Component->GetClass() == UDMXPixelMappingFixtureGroupComponent::StaticClass();
+				});
+
+			if (UDMXPixelMappingBaseComponent* const* ComponentToSelectPtr = FirstFixtureGroupComponetPtr ?
+				FirstFixtureGroupComponetPtr :
+				FirstRendererComponetPtr)
+			{
+				const FDMXPixelMappingComponentReference ComponentReference(StaticCastSharedRef<FDMXPixelMappingToolkit>(AsShared()), *ComponentToSelectPtr);
+				SelectComponents(TSet<FDMXPixelMappingComponentReference>({ ComponentReference }));
+			}
+		}
+	}
+
+	// Refresh the hierarchy view, so that it displays the pixelmapping of the now-initialized asset editor.
+	HierarchyView->RequestRefresh();
+
+	// Set the scale children with parent property on the pixel mapping object, so it is accessible the runtime module.
+	const UDMXPixelMappingEditorSettings* EditorSettings = GetDefault<UDMXPixelMappingEditorSettings>();
+	InDMXPixelMapping->bEditorScaleChildrenWithParent = EditorSettings->DesignerSettings.bScaleChildrenWithParent;
 }
 
 void FDMXPixelMappingToolkit::RegisterTabSpawners(const TSharedRef<class FTabManager>& InTabManager)
@@ -128,12 +240,13 @@ FString FDMXPixelMappingToolkit::GetWorldCentricTabPrefix() const
 
 void FDMXPixelMappingToolkit::Tick(float DeltaTime)
 {
-	if (!ensure(DMXPixelMapping))
+	UDMXPixelMapping* PixelMapping = GetDMXPixelMapping();
+	if (!PixelMapping)
 	{
 		return;
 	}
 
-	UDMXPixelMappingRootComponent* RootComponent = DMXPixelMapping->RootComponent;
+	UDMXPixelMappingRootComponent* RootComponent = PixelMapping->RootComponent;
 	if (!ensure(RootComponent))
 	{
 		return;
@@ -166,12 +279,20 @@ void FDMXPixelMappingToolkit::Tick(float DeltaTime)
 		EditorSettings->OnEditorSettingsChanged.Broadcast();
 
 		EditorSettingsDump = TArray<uint8, TFixedAllocator<sizeof(UDMXPixelMappingEditorSettings)>>(reinterpret_cast<const uint8*>(GetDefault<UDMXPixelMappingEditorSettings>()), (int32)sizeof(UDMXPixelMappingEditorSettings));
+	
+		// Set the scale children with parent property on the pixel mapping object, so it is accessible the runtime module.
+		PixelMapping->bEditorScaleChildrenWithParent = EditorSettings->DesignerSettings.bScaleChildrenWithParent;
 	}
 }
 
 TStatId FDMXPixelMappingToolkit::GetStatId() const
 {
 	RETURN_QUICK_DECLARE_CYCLE_STAT(FDMXPixelMappingToolkit, STATGROUP_Tickables);
+}
+
+UDMXPixelMapping* FDMXPixelMappingToolkit::GetDMXPixelMapping() const
+{
+	return HasEditingObject() ? Cast<UDMXPixelMapping>(GetEditingObject()) : nullptr;
 }
 
 FDMXPixelMappingComponentReference FDMXPixelMappingToolkit::GetReferenceFromComponent(UDMXPixelMappingBaseComponent* InComponent)
@@ -263,13 +384,14 @@ bool FDMXPixelMappingToolkit::IsComponentSelected(UDMXPixelMappingBaseComponent*
 
 void FDMXPixelMappingToolkit::AddRenderer()
 {
-	UDMXPixelMappingRootComponent* RootComponent = DMXPixelMapping ? DMXPixelMapping->GetRootComponent() : nullptr;
+	UDMXPixelMapping* PixelMapping = GetDMXPixelMapping();
+	UDMXPixelMappingRootComponent* RootComponent = PixelMapping ? PixelMapping->GetRootComponent() : nullptr;
 	if (RootComponent)
 	{
 		const FScopedTransaction AddMappingTransaction(LOCTEXT("AddMappingTransaction", "Add Mapping to Pixel Mapping"));
 
 		RootComponent->PreEditChange(UDMXPixelMappingBaseComponent::StaticClass()->FindPropertyByName(GET_MEMBER_NAME_CHECKED(UDMXPixelMappingBaseComponent, Children)));
-		UDMXPixelMappingRendererComponent* NewRendererComponent = FDMXPixelMappingEditorUtils::AddRenderer(DMXPixelMapping);
+		UDMXPixelMappingRendererComponent* NewRendererComponent = FDMXPixelMappingEditorUtils::AddRenderer(PixelMapping);
 		RootComponent->PostEditChange();
 
 		SetActiveRenderComponent(NewRendererComponent);
@@ -302,9 +424,10 @@ void FDMXPixelMappingToolkit::UpdateBlueprintNodes() const
 
 void FDMXPixelMappingToolkit::SaveThumbnailImage()
 {
-	if (DMXPixelMapping && ActiveRendererComponent.IsValid())
+	UDMXPixelMapping* PixelMapping = GetDMXPixelMapping();
+	if (PixelMapping && ActiveRendererComponent.IsValid())
 	{
-		DMXPixelMapping->ThumbnailImage = ActiveRendererComponent->GetRenderedInputTexture();
+		PixelMapping->ThumbnailImage = ActiveRendererComponent->GetRenderedInputTexture();
 	}
 }
 
@@ -327,6 +450,14 @@ TArray<UDMXPixelMappingBaseComponent*> FDMXPixelMappingToolkit::CreateComponents
 					NewComponent->Modify();
 
 					Target->AddChild(NewComponent);
+
+					// Output components need to adopt the initial rotation from their parent if possible.
+					UDMXPixelMappingOutputComponent* NewOutputComponent = Cast<UDMXPixelMappingOutputComponent>(NewComponent);
+					UDMXPixelMappingOutputComponent* ParentOutputComponent = NewOutputComponent ? Cast<UDMXPixelMappingOutputComponent>(NewOutputComponent->GetParent()) : nullptr;
+					if (NewOutputComponent && ParentOutputComponent)
+					{
+						NewOutputComponent->SetRotation(ParentOutputComponent->GetRotation());
+					}
 				}
 			}
 		}
@@ -452,42 +583,15 @@ void FDMXPixelMappingToolkit::SizeSelectedComponentToTexture(bool bTransacted)
 		SizeComponentToTextureTransaction = MakeShared<FScopedTransaction>(LOCTEXT("SizeComponentToTextureTransaction", "Size Component to Texture"));
 	}
 
-	const FDMXPixelMappingDesignerSettings& DesignerSettings = GetDefault<UDMXPixelMappingEditorSettings>()->DesignerSettings;
-	if (DesignerSettings.bScaleChildrenWithParent)
-	{
-		// Scale children to parent
-		const FVector2D RatioVector = TextureSize / Component->GetSize();
-		for (UDMXPixelMappingBaseComponent* BaseChild : Component->GetChildren())
-		{
-			if (UDMXPixelMappingOutputComponent* Child = Cast<UDMXPixelMappingOutputComponent>(BaseChild))
-			{
-				Child->PreEditChange(UDMXPixelMappingOutputComponent::StaticClass()->FindPropertyByName(UDMXPixelMappingOutputComponent::GetPositionXPropertyName()));
-				Child->PreEditChange(UDMXPixelMappingOutputComponent::StaticClass()->FindPropertyByName(UDMXPixelMappingOutputComponent::GetPositionYPropertyName()));
-				Child->PreEditChange(UDMXPixelMappingOutputComponent::StaticClass()->FindPropertyByName(UDMXPixelMappingOutputComponent::GetSizeXPropertyName()));
-				Child->PreEditChange(UDMXPixelMappingOutputComponent::StaticClass()->FindPropertyByName(UDMXPixelMappingOutputComponent::GetSizeYPropertyName()));
-
-				// Scale size
-				FVector2D NewSize = Child->GetSize() * RatioVector;
-
-				// Scale position (new position is zero vector)
-				const FVector2D ChildPosition = Child->GetPosition();
-				const FVector2D NewPositionRelative = (ChildPosition - Component->GetPosition()) * RatioVector;
-				Child->SetPosition(Component->GetPosition() + NewPositionRelative);
-
-				Child->PostEditChange();
-			}
-		}
-	}
-
-	Component->PreEditChange(UDMXPixelMappingOutputComponent::StaticClass()->FindPropertyByName(UDMXPixelMappingOutputComponent::GetPositionXPropertyName()));
-	Component->PreEditChange(UDMXPixelMappingOutputComponent::StaticClass()->FindPropertyByName(UDMXPixelMappingOutputComponent::GetPositionYPropertyName()));
-	Component->PreEditChange(UDMXPixelMappingOutputComponent::StaticClass()->FindPropertyByName(UDMXPixelMappingOutputComponent::GetSizeXPropertyName()));
-	Component->PreEditChange(UDMXPixelMappingOutputComponent::StaticClass()->FindPropertyByName(UDMXPixelMappingOutputComponent::GetSizeYPropertyName()));
-
+	Component->Modify();
+	Component->SetRotation(0.0);
 	Component->SetPosition(FVector2D::ZeroVector);
 	Component->SetSize(TextureSize);
+}
 
-	Component->PostEditChange();
+void FDMXPixelMappingToolkit::SetTransformHandleMode(EDMXPixelMappingTransformHandleMode NewTransformHandleMode)
+{
+	TransformHandleMode = NewTransformHandleMode;
 }
 
 void FDMXPixelMappingToolkit::ToggleGridSnapping()
@@ -503,7 +607,8 @@ void FDMXPixelMappingToolkit::ToggleGridSnapping()
 
 void FDMXPixelMappingToolkit::PostUndo(bool bSuccess)
 {
-	UDMXPixelMappingRootComponent* RootComponent = DMXPixelMapping ? DMXPixelMapping->GetRootComponent() : nullptr;
+	UDMXPixelMapping* PixelMapping = GetDMXPixelMapping();
+	UDMXPixelMappingRootComponent* RootComponent = PixelMapping ? PixelMapping->GetRootComponent() : nullptr;
 	if (!RootComponent)
 	{
 		return;
@@ -538,128 +643,6 @@ void FDMXPixelMappingToolkit::OnComponentRenamed(UDMXPixelMappingBaseComponent* 
 	UpdateBlueprintNodes();
 }
 
-
-void FDMXPixelMappingToolkit::InitializeInternal(const EToolkitMode::Type Mode, const TSharedPtr<class IToolkitHost>& InitToolkitHost, const FGuid& MessageLogGuid)
-{
-	if (!DMXPixelMapping)
-	{
-		return;
-	}
-
-	// Make sure we loaded all UObjects
-	DMXPixelMapping->CreateOrLoadObjects();
-
-	// Bind to component changes
-	UDMXPixelMappingBaseComponent::GetOnComponentAdded().AddSP(this, &FDMXPixelMappingToolkit::OnComponentAddedOrRemoved);
-	UDMXPixelMappingBaseComponent::GetOnComponentRemoved().AddSP(this, &FDMXPixelMappingToolkit::OnComponentAddedOrRemoved);
-	UDMXPixelMappingBaseComponent::GetOnComponentRenamed().AddSP(this, &FDMXPixelMappingToolkit::OnComponentRenamed);
-
-	// Create commands
-	DesignerCommandList = MakeShareable(new FUICommandList);
-	DesignerCommandList->MapAction(FGenericCommands::Get().Delete,
-		FExecuteAction::CreateSP(this, &FDMXPixelMappingToolkit::DeleteSelectedComponents)
-	);
-
-	CreateInternalViews();
-
-	TSharedRef<FTabManager::FLayout> StandaloneDefaultLayout = FTabManager::NewLayout("Standalone_PixelMapping_Layout_2.0")
-		->AddArea
-		(
-			FTabManager::NewPrimaryArea()->SetOrientation(Orient_Vertical)
-			->Split
-			(
-				FTabManager::NewSplitter()
-				->SetOrientation(Orient_Horizontal)
-				->Split
-				(
-					FTabManager::NewSplitter()
-					->SetOrientation(Orient_Vertical)
-					->SetSizeCoefficient(.25f)
-					->Split
-					(
-						FTabManager::NewStack()
-						->AddTab(DMXLibraryViewTabID, ETabState::OpenedTab)
-						->SetSizeCoefficient(.382f)
-					)
-					->Split
-					(
-						FTabManager::NewStack()
-						->AddTab(HierarchyViewTabID, ETabState::OpenedTab)
-						->SetSizeCoefficient(.618f)
-					)
-				)
-				->Split
-				(
-					FTabManager::NewSplitter()
-					->SetOrientation(Orient_Vertical)
-					->SetSizeCoefficient(.5f)
-					->Split
-					(
-						FTabManager::NewStack()
-						->AddTab(DesignerViewTabID, ETabState::OpenedTab)
-						->SetSizeCoefficient(.75f)
-					)
-					->Split
-					(
-						FTabManager::NewStack()
-						->AddTab(PreviewViewTabID, ETabState::OpenedTab)
-						->SetSizeCoefficient(.25f)
-					)
-				)
-				->Split
-				(
-					FTabManager::NewSplitter()
-					->SetOrientation(Orient_Vertical)
-					->SetSizeCoefficient(.25f)
-					->Split
-					(
-						FTabManager::NewStack()
-						->AddTab(DetailsViewTabID, ETabState::OpenedTab)
-						->SetSizeCoefficient(.618f)
-					)
-					->Split
-					(
-						FTabManager::NewStack()
-						->AddTab(LayoutViewTabID, ETabState::OpenedTab)
-						->SetSizeCoefficient(.382f)
-					)
-				)
-			)
-		);
-
-	const bool bCreateDefaultStandaloneMenu = true;
-	const bool bCreateDefaultToolbar = true;
-	FAssetEditorToolkit::InitAssetEditor(Mode, InitToolkitHost, FDMXPixelMappingEditorModule::DMXPixelMappingEditorAppIdentifier,
-		StandaloneDefaultLayout, bCreateDefaultStandaloneMenu, bCreateDefaultToolbar, DMXPixelMapping);
-	
-	SetupCommands();
-	ExtendToolbar();
-	RegenerateMenusAndToolbars();
-	
-	// Make an initial selection
-	if (UDMXPixelMappingRootComponent* RootComponent = DMXPixelMapping->GetRootComponent())
-	{
-		UDMXPixelMappingBaseComponent* const* FirstRendererComponetPtr = Algo::FindByPredicate(DMXPixelMapping->GetRootComponent()->GetChildren(), [](UDMXPixelMappingBaseComponent* Component)
-			{
-				return Component && Component->GetClass() == UDMXPixelMappingRendererComponent::StaticClass();
-			});
-		if (FirstRendererComponetPtr)
-		{
-			UDMXPixelMappingBaseComponent* const* FirstFixtureGroupComponetPtr = Algo::FindByPredicate((*FirstRendererComponetPtr)->GetChildren(), [](UDMXPixelMappingBaseComponent* Component)
-				{
-					return Component && Component->GetClass() == UDMXPixelMappingFixtureGroupComponent::StaticClass();
-				});
-
-			if (UDMXPixelMappingBaseComponent* const* ComponentToSelectPtr = FirstFixtureGroupComponetPtr ? 
-				FirstFixtureGroupComponetPtr : 
-				FirstRendererComponetPtr)
-			{
-				const FDMXPixelMappingComponentReference ComponentReference(StaticCastSharedRef<FDMXPixelMappingToolkit>(AsShared()), *ComponentToSelectPtr);
-				SelectComponents(TSet<FDMXPixelMappingComponentReference>({ ComponentReference }));
-			}
-		}
-	}
-}
 
 TSharedRef<SDockTab> FDMXPixelMappingToolkit::SpawnTab_DMXLibraryView(const FSpawnTabArgs& Args)
 {
@@ -751,19 +734,20 @@ void FDMXPixelMappingToolkit::CreateInternalViews()
 
 void FDMXPixelMappingToolkit::RenameComponent(const FName& CurrentObjectName, const FString& DesiredObjectName) const
 {
-	if (!DMXPixelMapping)
+	const UDMXPixelMapping* PixelMapping = GetDMXPixelMapping();
+	if (!PixelMapping)
 	{
 		return;
 	}
 
-	UDMXPixelMappingBaseComponent* ComponentToRename = DMXPixelMapping->FindComponent(CurrentObjectName);
+	UDMXPixelMappingBaseComponent* ComponentToRename = PixelMapping->FindComponent(CurrentObjectName);
 	if (!ensureMsgf(ComponentToRename, TEXT("Cannot find component '%s' to rename."), *CurrentObjectName.ToString()))
 	{
 		return;
 	}
 
 	const FName DesiredDisplayName = MakeObjectNameFromDisplayLabel(DesiredObjectName, ComponentToRename->GetFName());
-	UDMXPixelMappingBaseComponent* ExistingComponent = DMXPixelMapping->FindComponent(DesiredDisplayName);
+	UDMXPixelMappingBaseComponent* ExistingComponent = PixelMapping->FindComponent(DesiredDisplayName);
 
 	const FName UniqueName = ExistingComponent ?
 		MakeUniqueObjectName(ComponentToRename->GetOuter(), ComponentToRename->GetClass(), DesiredDisplayName) :
@@ -853,6 +837,13 @@ TSharedRef<SDMXPixelMappingLayoutView> FDMXPixelMappingToolkit::GetOrCreateLayou
 
 void FDMXPixelMappingToolkit::SetupCommands()
 {
+	// Create a command list for the designer view specifically
+	DesignerCommandList = MakeShareable(new FUICommandList);
+	DesignerCommandList->MapAction(FGenericCommands::Get().Delete,
+		FExecuteAction::CreateSP(this, &FDMXPixelMappingToolkit::DeleteSelectedComponents)
+	);
+
+	// Init the command list for this toolkit 
 	GetToolkitCommands()->MapAction(
 		FDMXPixelMappingEditorCommands::Get().AddMapping,
 		FExecuteAction::CreateSP(this, &FDMXPixelMappingToolkit::AddRenderer)
@@ -884,6 +875,20 @@ void FDMXPixelMappingToolkit::SetupCommands()
 			{ 
 				return bIsPlayingDMX;
 			})
+	);
+
+	GetToolkitCommands()->MapAction(
+		FDMXPixelMappingEditorCommands::Get().ResizeMode,
+		FExecuteAction::CreateSP(this, &FDMXPixelMappingToolkit::SetTransformHandleMode, EDMXPixelMappingTransformHandleMode::Resize),
+		FCanExecuteAction(),
+		FGetActionCheckState::CreateSP(this, &FDMXPixelMappingToolkit::GetTransformHandleModeCheckboxState, EDMXPixelMappingTransformHandleMode::Resize)
+	);
+
+	GetToolkitCommands()->MapAction(
+		FDMXPixelMappingEditorCommands::Get().RotateMode,
+		FExecuteAction::CreateSP(this, &FDMXPixelMappingToolkit::SetTransformHandleMode, EDMXPixelMappingTransformHandleMode::Rotate),
+		FCanExecuteAction(),
+		FGetActionCheckState::CreateSP(this, &FDMXPixelMappingToolkit::GetTransformHandleModeCheckboxState, EDMXPixelMappingTransformHandleMode::Rotate)
 	);
 
 	GetToolkitCommands()->MapAction(
@@ -922,6 +927,11 @@ void FDMXPixelMappingToolkit::ExtendToolbar()
 	// Let other part of the plugin extend DMX Pixel Maping Editor toolbar
 	AddMenuExtender(DMXPixelMappingEditorModule.GetMenuExtensibilityManager()->GetAllExtenders(GetToolkitCommands(), GetEditingObjects()));
 	AddToolbarExtender(DMXPixelMappingEditorModule.GetToolBarExtensibilityManager()->GetAllExtenders(GetToolkitCommands(), GetEditingObjects()));
+}
+
+ECheckBoxState FDMXPixelMappingToolkit::GetTransformHandleModeCheckboxState(EDMXPixelMappingTransformHandleMode CompareTransformHandleMode) const
+{
+	return CompareTransformHandleMode == TransformHandleMode ? ECheckBoxState::Checked : ECheckBoxState::Unchecked;
 }
 
 #undef LOCTEXT_NAMESPACE

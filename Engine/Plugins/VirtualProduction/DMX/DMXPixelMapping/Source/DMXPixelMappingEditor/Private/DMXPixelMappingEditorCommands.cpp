@@ -20,9 +20,11 @@ FDMXPixelMappingEditorCommands::FDMXPixelMappingEditorCommands()
 void FDMXPixelMappingEditorCommands::RegisterCommands()
 {
 	UI_COMMAND(AddMapping, "Add Source", "Adds a new Source Texure, Material or User Widget to the Pixel Map asset.", EUserInterfaceActionType::Button, FInputChord());
-
 	UI_COMMAND(PlayDMX, "Play DMX", "Starts to send DMX", EUserInterfaceActionType::Button, FInputChord());
 	UI_COMMAND(StopPlayingDMX, "Stop Playing DMX", "Stops playing DMX.", EUserInterfaceActionType::Button, FInputChord());
+
+	UI_COMMAND(ResizeMode, "Resize Mode", "Resizes components when transform handles are being dragged", EUserInterfaceActionType::Button, FInputChord());
+	UI_COMMAND(RotateMode, "Rotate Mode", "Rotates components when transform handles are being dragged", EUserInterfaceActionType::Button, FInputChord());
 
 	UI_COMMAND(ToggleGridSnapping, "Toggle Grid Snapping", "Enables/disables grid snapping", EUserInterfaceActionType::Button, FInputChord());
 

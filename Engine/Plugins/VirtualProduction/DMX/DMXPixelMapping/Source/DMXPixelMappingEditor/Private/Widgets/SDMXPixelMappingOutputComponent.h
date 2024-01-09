@@ -92,6 +92,9 @@ private:
 	/** Creates the child slot that displays info about the patch such as Addresses or the Fixture ID */
 	void CreatePatchInfoChildSlot();
 
+	/** Returns the render transform for this widget */
+	TOptional<FSlateRenderTransform> ComputeRenderTransform() const;
+
 	/** The box that is shown */
 	TSharedPtr<SBox> ComponentBox;
 

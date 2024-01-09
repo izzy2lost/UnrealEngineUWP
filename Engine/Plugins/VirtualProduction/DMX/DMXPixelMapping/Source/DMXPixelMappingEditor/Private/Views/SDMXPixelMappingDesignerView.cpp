@@ -526,7 +526,7 @@ FReply SDMXPixelMappingDesignerView::OnDragDetected(const FGeometry& MyGeometry,
 		// We rely on the first being the clicked component. There's an according comment in the DragDropOp and the detected drag is raised here.
 		UDMXPixelMappingOutputComponent* ClickedComponent = CastChecked<UDMXPixelMappingOutputComponent>(DraggedComponents[0]);
 
-		const FVector2D GraphSpaceDragOffset = DragAnchor - ClickedComponent->GetPosition();
+		const FVector2D GraphSpaceDragOffset = DragAnchor - ClickedComponent->GetPositionRotated();
 
 		TSharedRef<FDMXPixelMappingDragDropOp> DragDropOp = FDMXPixelMappingDragDropOp::New(Toolkit, GraphSpaceDragOffset, DraggedComponents);
 		DragDropOp->SetDecoratorVisibility(false);
@@ -564,29 +564,25 @@ void SDMXPixelMappingDesignerView::OnDragLeave(const FDragDropEvent& DragDropEve
 	SDMXPixelMappingSurface::OnDragLeave(DragDropEvent);
 
 	const TSharedPtr<FDMXPixelMappingDragDropOp> DragDropOp = DragDropEvent.GetOperationAs<FDMXPixelMappingDragDropOp>();
-	if (DragDropOp.IsValid())
+	if (DragDropOp.IsValid() && WeakToolkit.IsValid())
 	{
-		if (TSharedPtr<FDMXPixelMappingToolkit> ToolkitPtr = WeakToolkit.Pin())
+		TSharedRef<FDMXPixelMappingToolkit> Toolkit = WeakToolkit.Pin().ToSharedRef();
+
+		// If the drag drop op was dragged in from details or palette, remove the components
+		if (DragDropOp->WasCreatedAsTemplate())
 		{
-			FScopedRestoreSelection(ToolkitPtr.ToSharedRef(), StaticCastSharedRef<SDMXPixelMappingDesignerView>(AsShared()));
-
-			// If the drag drop op was dragged in from details or palette, remove the components
-			if (DragDropOp->WasCreatedAsTemplate())
+			TSet<FDMXPixelMappingComponentReference> Parents;
+			for (const TWeakObjectPtr<UDMXPixelMappingBaseComponent>& Component : DragDropOp->GetDraggedComponents())
 			{
-				TSet<FDMXPixelMappingComponentReference> Parents;
-				for (const TWeakObjectPtr<UDMXPixelMappingBaseComponent>& Component : DragDropOp->GetDraggedComponents())
+				if (Component.IsValid() && Component->GetParent())
 				{
-					if (Component.IsValid() && Component->GetParent())
-					{
-						Parents.Add(ToolkitPtr->GetReferenceFromComponent(Component->GetParent()));
-
-						Component->GetParent()->RemoveChild(Component.Get());
-					}
+					Parents.Add(Toolkit->GetReferenceFromComponent(Component->GetParent()));
+					Component->GetParent()->RemoveChild(Component.Get());
 				}
-
-				// Select parents instead
-				ToolkitPtr->SelectComponents(Parents);
 			}
+
+			// Select parents instead
+			Toolkit->SelectComponents(Parents);
 
 			RebuildDesigner();
 		}
@@ -766,22 +762,19 @@ FVector2D SDMXPixelMappingDesignerView::GetExtensionPosition(TSharedPtr<SDMXPixe
 {
 	const FDMXPixelMappingComponentReference& SelectedComponent = GetSelectedComponent();
 
-	if (SelectedComponent.IsValid())
+	if (UDMXPixelMappingOutputComponent* OutputComponent = Cast<UDMXPixelMappingOutputComponent>(SelectedComponent.GetComponent()))
 	{
 		FGeometry SelectedComponentGeometry;
-		FGeometry SelectedComponentParentGeometry;
 
-		if (GetComponentGeometry(SelectedComponent, SelectedComponentGeometry))
+		if (GetComponentGeometry(OutputComponent, SelectedComponentGeometry))
 		{
-			const FVector2f WidgetPosition = [Handle, &SelectedComponentGeometry]()
+			const FVector2f LocalPosition = [Handle, &SelectedComponentGeometry]()
 			{
 				// Get the initial offset based on the location around the selected object.
 				switch (Handle->GetTransformDirection())
 				{
 				case EDMXPixelMappingTransformDirection::CenterRight:
 					return FVector2f(SelectedComponentGeometry.GetLocalSize().X, SelectedComponentGeometry.GetLocalSize().Y * 0.5f);
-				case EDMXPixelMappingTransformDirection::BottomLeft:
-					return FVector2f(0, SelectedComponentGeometry.GetLocalSize().Y);
 				case EDMXPixelMappingTransformDirection::BottomCenter:
 					return FVector2f(SelectedComponentGeometry.GetLocalSize().X * 0.5f, SelectedComponentGeometry.GetLocalSize().Y);
 				case EDMXPixelMappingTransformDirection::BottomRight:
@@ -792,14 +785,30 @@ FVector2D SDMXPixelMappingDesignerView::GetExtensionPosition(TSharedPtr<SDMXPixe
 				return FVector2f::ZeroVector;
 			}();
 
+			const auto RotateVectorAroundPivot =
+				[](FVector2f Point, FVector2f Pivot, double AngleDegrees)
+				{
+					double Sin;
+					double Cos;
+					FMath::SinCos(&Sin, &Cos, FMath::DegreesToRadians(AngleDegrees));
+
+					const FVector2f RelativePositionOld = Point - Pivot;
+					const FVector2f RelativePositionNew = FVector2f(
+						Cos * RelativePositionOld.X - Sin * RelativePositionOld.Y,
+						Sin * RelativePositionOld.X + Cos * RelativePositionOld.Y);
+
+					return RelativePositionNew + Pivot;
+				};
+			const FVector2f LocalPositionRotated = RotateVectorAroundPivot(LocalPosition, SelectedComponentGeometry.GetLocalSize() / 2.f, OutputComponent->GetRotation());
+
 			const FVector2f SelectedWidgetScale = SelectedComponentGeometry.GetAccumulatedRenderTransform().GetMatrix().GetScale().GetVector();
 
 			const FVector2f ApplicationScaledOffset = UE::Slate::CastToVector2f(Handle->GetOffset() * GetDesignerGeometry().Scale);
 
 			const FVector2f LocalOffsetFull = ApplicationScaledOffset / SelectedWidgetScale;
-			const FVector2f PositionFullOffset = GetDesignerGeometry().AbsoluteToLocal(SelectedComponentGeometry.LocalToAbsolute(WidgetPosition + LocalOffsetFull));
+			const FVector2f PositionFullOffset = GetDesignerGeometry().AbsoluteToLocal(SelectedComponentGeometry.LocalToAbsolute(LocalPositionRotated + LocalOffsetFull));
 			const FVector2f LocalOffsetHalf = (ApplicationScaledOffset / 2.0f) / SelectedWidgetScale;
-			const FVector2f PositionHalfOffset = GetDesignerGeometry().AbsoluteToLocal(SelectedComponentGeometry.LocalToAbsolute(WidgetPosition + LocalOffsetHalf));
+			const FVector2f PositionHalfOffset = GetDesignerGeometry().AbsoluteToLocal(SelectedComponentGeometry.LocalToAbsolute(LocalPositionRotated + LocalOffsetHalf));
 
 			FVector2f PivotCorrection = PositionHalfOffset - (PositionFullOffset + FVector2f(5.0f, 5.0f));
 
@@ -1153,87 +1162,6 @@ void SDMXPixelMappingDesignerView::HandleDragEnterFromDetailsOrPalette(const TSh
 				}
 			}
 		}
-	}
-}
-
-SDMXPixelMappingDesignerView::FScopedRestoreSelection::FScopedRestoreSelection(TSharedRef<FDMXPixelMappingToolkit> ToolkitPtr, TSharedRef<SDMXPixelMappingDesignerView> DesignerView)
-	: WeakToolkit(ToolkitPtr)
-	, WeakDesignerView(DesignerView)
-{
-	if (TSharedPtr<FDMXPixelMappingToolkit> PinnedToolkit = WeakToolkit.Pin())
-	{
-		for (const FDMXPixelMappingComponentReference& ComponentReference : PinnedToolkit->GetSelectedComponents())
-		{
-			CachedSelectedComponents.Add(ComponentReference.GetComponent());
-		}
-	}
-}
-
-SDMXPixelMappingDesignerView::FScopedRestoreSelection::~FScopedRestoreSelection()
-{
-	if (TSharedPtr<FDMXPixelMappingToolkit> PinnedToolkit = WeakToolkit.Pin())
-	{
-		TArray<UDMXPixelMappingBaseComponent*> RemovedComponents;
-		TSet<FDMXPixelMappingComponentReference> ValidComponents;
-
-		if (UDMXPixelMapping* PixelMapping = PinnedToolkit->GetDMXPixelMapping())
-		{
-			TArray<UDMXPixelMappingBaseComponent*> ComponentsInPixelMapping;
-			PixelMapping->GetAllComponentsOfClass<UDMXPixelMappingBaseComponent>(ComponentsInPixelMapping);
-
-			for (UDMXPixelMappingBaseComponent* Component : ComponentsInPixelMapping)
-			{
-				const bool bComponentStillExists =
-					CachedSelectedComponents.ContainsByPredicate([Component](const TWeakObjectPtr<UDMXPixelMappingBaseComponent>& WeakCachedComponent)
-						{
-							return
-								WeakCachedComponent.IsValid() &&
-								Component == WeakCachedComponent.Get();
-						});
-
-				if (bComponentStillExists)
-				{
-					ValidComponents.Add(PinnedToolkit->GetReferenceFromComponent(Component));
-				}
-				else
-				{
-					RemovedComponents.Add(Component);
-				}
-			}
-
-			if (ValidComponents.Num() == 0)
-			{
-				// All were removed, select the the parent if possible or the renderer
-				UDMXPixelMappingBaseComponent** ComponentWithParentPtr = RemovedComponents.FindByPredicate([&ComponentsInPixelMapping](UDMXPixelMappingBaseComponent* Component)
-					{
-						return
-							Component &&
-							Component->GetParent() &&
-							ComponentsInPixelMapping.Contains(Component->GetParent());
-					});
-
-				if (ComponentWithParentPtr)
-				{
-					ValidComponents.Add(PinnedToolkit->GetReferenceFromComponent((*ComponentWithParentPtr)->GetParent()));
-				}
-				else
-				{
-					// Select the renderer
-					UDMXPixelMappingRendererComponent* RendererComponent = PinnedToolkit->GetActiveRendererComponent();
-					if (RendererComponent)
-					{
-						ValidComponents.Add(PinnedToolkit->GetReferenceFromComponent(RendererComponent));
-					}
-				}
-
-				PinnedToolkit->SelectComponents(ValidComponents);
-			}
-		}
-	}
-
-	if (TSharedPtr<SDMXPixelMappingDesignerView> PinnedDesignerView = WeakDesignerView.Pin())
-	{
-		PinnedDesignerView->CreateExtensionWidgetsForSelection();
 	}
 }
 

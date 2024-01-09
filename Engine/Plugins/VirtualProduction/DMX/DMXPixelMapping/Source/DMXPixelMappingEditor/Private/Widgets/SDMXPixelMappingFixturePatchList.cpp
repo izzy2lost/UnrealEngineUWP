@@ -45,14 +45,10 @@ FReply SDMXPixelMappingFixturePatchList::OnRowDragDetected(const FGeometry& MyGe
 	TArray<TSharedPtr<FDMXPixelMappingComponentTemplate>> Templates;
 	for (UDMXEntityFixturePatch* FixturePatch : GetSelectedFixturePatches())
 	{
-		UDMXEntityFixtureType* FixtureType = FixturePatch ? FixturePatch->GetFixtureType() : nullptr;
-		if (!FixturePatch || !FixtureType)
-		{
-			continue;
-		}
+		const FDMXFixtureMode* FixtureModePtr = FixturePatch->GetActiveMode();
 
 		const FDMXEntityFixturePatchRef FixturePatchReference(FixturePatch);
-		if (FixtureType->bFixtureMatrixEnabled)
+		if (FixtureModePtr && FixtureModePtr->bFixtureMatrixEnabled)
 		{
 			TSharedRef<FDMXPixelMappingComponentTemplate> FixturePatchMatrixTemplate = MakeShared<FDMXPixelMappingComponentTemplate>(UDMXPixelMappingMatrixComponent::StaticClass(), FixturePatchReference);
 			Templates.Add(FixturePatchMatrixTemplate);

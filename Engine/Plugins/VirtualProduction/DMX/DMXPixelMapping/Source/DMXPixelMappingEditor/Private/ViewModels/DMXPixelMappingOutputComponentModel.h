@@ -2,7 +2,7 @@
 
 #pragma once
 
-
+#include "Math/TransformCalculus2D.h"
 #include "Math/Vector2D.h"
 #include "UObject/WeakObjectPtr.h"
 
@@ -35,6 +35,9 @@ public:
 
 	/** Returns the size of the component */
 	FVector2D GetSize() const;
+
+	/** Returns the rotation, in degrees */
+	FQuat2D GetQuaternion() const;
 
 	/** Returns the Name of the component */
 	FText GetName() const;

@@ -30,7 +30,7 @@ void IDMXPixelMappingOutputComponentWidgetInterface::AddToCanvas(const TSharedRe
 	ParentCanvas = InCanvas;
 
 	ParentCanvas->AddSlot()
-		.ZOrder(100)
+		.ZOrder(0)
 		.AutoSize(true)
 		.Alignment(FVector2D::ZeroVector)
 		.Offset_Lambda([this]()
@@ -123,6 +123,8 @@ TSharedRef<SWidget> SDMXPixelMappingOutputComponent::CreateContent()
 {
 	const TSharedRef<SBorder> Content =
 		SNew(SBorder)
+		.RenderTransform(this, &SDMXPixelMappingOutputComponent::ComputeRenderTransform)
+		.RenderTransformPivot(FVector2D(0.5, 0.5))
 		.BorderImage(FDMXPixelMappingEditorStyle::Get().GetBrush("DMXPixelMappingEditor.ComponentBorder"))
 		.BorderBackgroundColor_Lambda([this]()
 			{
@@ -319,6 +321,10 @@ void SDMXPixelMappingOutputComponent::CreatePatchInfoChildSlot()
 	);
 }
 
+TOptional<FSlateRenderTransform> SDMXPixelMappingOutputComponent::ComputeRenderTransform() const
+{
+	return FSlateRenderTransform(Model->GetQuaternion(), FVector2D(0.0, 0.0));
+}
 
 class SDMXPixelMappingScreenComponentCell
 	: public SCompoundWidget

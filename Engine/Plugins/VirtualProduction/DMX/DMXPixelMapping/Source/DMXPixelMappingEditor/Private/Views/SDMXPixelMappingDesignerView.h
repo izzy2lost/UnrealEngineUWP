@@ -208,17 +208,4 @@ private:
 	TArray<TSharedRef<IDMXPixelMappingOutputComponentWidgetInterface>> OutputComponentWidgets;
 
 	TArray<TSharedPtr<SDMXPixelMappingTransformHandle>> TransformHandles;
-
-	/** Helper class to restore selection on scope */
-	class FScopedRestoreSelection
-	{
-	public:
-		FScopedRestoreSelection(TSharedRef<FDMXPixelMappingToolkit> ToolkitPtr, TSharedRef<SDMXPixelMappingDesignerView> DesignerView);
-		~FScopedRestoreSelection();
-
-	private:
-		TWeakPtr<FDMXPixelMappingToolkit> WeakToolkit;
-		TWeakPtr<SDMXPixelMappingDesignerView> WeakDesignerView;
-		TArray<TWeakObjectPtr<UDMXPixelMappingBaseComponent>> CachedSelectedComponents;
-	};
 };

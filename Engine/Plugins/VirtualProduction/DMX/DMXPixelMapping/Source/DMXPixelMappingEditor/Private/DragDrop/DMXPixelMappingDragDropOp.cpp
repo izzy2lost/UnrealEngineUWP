@@ -72,61 +72,53 @@ void FDMXPixelMappingDragDropOp::LayoutOutputComponents(const FVector2D& GraphSp
 	{
 		return;
 	}
-	const FVector2D Anchor = FirstComponent->GetPosition();
 
-	// Move all to new position
+	// Compute the translation for the first component
+	const FVector2D OldPositionRotated = FirstComponent->GetPositionRotated();
+	const FVector2D DesiredPositionRotated = FVector2D(GraphSpacePosition - GraphSpaceDragOffset);
+	const FVector2D NewPositionRotated = ComputeGridSnapPosition(DesiredPositionRotated);
+
+	// Move all to the new position
+	const FVector2D Translation = NewPositionRotated - OldPositionRotated;
 	for (const TWeakObjectPtr<UDMXPixelMappingBaseComponent>& Component : DraggedComponents)
 	{
 		if (UDMXPixelMappingOutputComponent* OutputComponent = Cast<UDMXPixelMappingOutputComponent>(Component.Get()))
 		{
-			OutputComponent->PreEditChange(nullptr);
-			
-			constexpr bool bModifyChildrenRecursive = true;
-			Component->ForEachChild([](UDMXPixelMappingBaseComponent* Component)
-				{
-					Component->Modify();
-				}, bModifyChildrenRecursive);
-
 			if (ensureMsgf(OutputComponent->GetClass() != UDMXPixelMappingMatrixComponent::StaticClass(),
-				TEXT("Only matrix components can laid out with FDMXPixelMappingDragDropOp::LayoutOutputComponents. Please use FGroupChildDragDropHelper instead (see FDMXPixelMappingDragDropOp::GetGroupChildDragDropHelper().")))
+				TEXT("Matrix components cannot be laid out with FDMXPixelMappingDragDropOp::LayoutOutputComponents. Please use FGroupChildDragDropHelper instead (see FDMXPixelMappingDragDropOp::GetGroupChildDragDropHelper().")))
 			{
-				const FVector2D AnchorOffset = Anchor - OutputComponent->GetPosition();
-
-				const FVector2D NewPosition = FVector2D(GraphSpacePosition - AnchorOffset - GraphSpaceDragOffset).RoundToVector();
-				OutputComponent->SetPosition(NewPosition);
+				OutputComponent->Modify();
+				OutputComponent->SetPosition(OutputComponent->GetPosition() + Translation);
 			}
-		}
-	}
-	GridSnap();
-
-	for (const TWeakObjectPtr<UDMXPixelMappingBaseComponent>& Component : DraggedComponents)
-	{
-		if (UDMXPixelMappingOutputComponent* OutputComponent = Cast<UDMXPixelMappingOutputComponent>(Component.Get()))
-		{
-			OutputComponent->PostEditChange();
 		}
 	}
 }
 
-void FDMXPixelMappingDragDropOp::GridSnap()
+FVector2D FDMXPixelMappingDragDropOp::ComputeGridSnapPosition(const FVector2D& DesiredPosition) const
 {
 	const UDMXPixelMapping* PixelMapping = WeakToolkit.IsValid() ? WeakToolkit.Pin()->GetDMXPixelMapping() : nullptr;
 	if (!PixelMapping || DraggedComponents.IsEmpty() || PixelMapping->SnapGridColumns == 0 || PixelMapping->SnapGridRows == 0)
 	{
-		return;
+		return DesiredPosition;
 	}
 
-	// Grid snap the first component only, and move the others by same delta.
 	UDMXPixelMappingOutputComponent* FirstComponent = Cast<UDMXPixelMappingOutputComponent>(DraggedComponents[0].Get());
 	if (!FirstComponent)
 	{
-		return;
+		return DesiredPosition;
 	}
 
 	UDMXPixelMappingRendererComponent* RendererOfFirstComponent = FirstComponent->GetRendererComponent();
 	if (!RendererOfFirstComponent)
 	{
-		return;
+		return DesiredPosition;
+	}
+
+	// Grid snap to pixels even when grid snapping is disabled, if the first component is axis aligned
+	const bool bIsAxisAligned = FMath::IsNearlyZero(FMath::Abs(FMath::Fmod(FirstComponent->GetRotation(), 90.f)));
+	if (!PixelMapping->bGridSnappingEnabled && !bIsAxisAligned)
+	{
+		return DesiredPosition;
 	}
 
 	const FVector2D CellSize = [PixelMapping, RendererOfFirstComponent]()
@@ -141,20 +133,12 @@ void FDMXPixelMappingDragDropOp::GridSnap()
 			return FVector2D(1.f, 1.f);
 		}();
 
-	const int32 Column = FirstComponent->GetPosition().X / CellSize.X;
-	const int32 Row = FirstComponent->GetPosition().Y / CellSize.Y;
+	const int32 Column = FMath::RoundHalfToZero(DesiredPosition.X / CellSize.X);
+	const int32 Row = FMath::RoundHalfToZero(DesiredPosition.Y / CellSize.Y);
 
 	const FVector2D GridSnapPosition = FVector2D(Column, Row) * CellSize;
-	const FVector2D DeltaVector = GridSnapPosition - FirstComponent->GetPosition();
 
-	FirstComponent->SetPosition(GridSnapPosition);
-	for (int32 ComponentIndex = 1; ComponentIndex < DraggedComponents.Num(); ComponentIndex++)
-	{
-		if (UDMXPixelMappingOutputComponent* OutputComponent = Cast<UDMXPixelMappingOutputComponent>(DraggedComponents[ComponentIndex].Get()))
-		{
-			OutputComponent->SetPosition(OutputComponent->GetPosition() + DeltaVector);
-		}
-	}
+	return GridSnapPosition;
 }
 
 #undef LOCTEXT_NAMESPACE

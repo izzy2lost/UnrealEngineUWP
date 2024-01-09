@@ -48,7 +48,7 @@ FDMXPixelMappingEditorStyle::FDMXPixelMappingEditorStyle()
 	// Component border style
 	{
 		FSlateBrush* ComponentBorderBrush = new FSlateBrush();
-		ComponentBorderBrush->Margin = FMargin(1.f);
+		ComponentBorderBrush->Margin = FMargin(2.f);
 		ComponentBorderBrush->DrawAs = ESlateBrushDrawType::Border;
 		ComponentBorderBrush->TintColor = FLinearColor::White;
 		Set("DMXPixelMappingEditor.ComponentBorder", ComponentBorderBrush);

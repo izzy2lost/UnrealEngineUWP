@@ -131,30 +131,6 @@ UDMXPixelMappingBaseComponent* UDMXPixelMapping::FindComponent(const FName& InNa
 	return FoundComponent;
 }
 
-#if WITH_EDITOR
-UDMXPixelMappingOutputComponent* UDMXPixelMapping::FindComponent(TSharedPtr<SWidget> InWidget) const
-{
-	PRAGMA_DISABLE_DEPRECATION_WARNINGS
-	UDMXPixelMappingOutputComponent* FoundComponent = nullptr;
-
-	ForEachComponentOfClass<UDMXPixelMappingOutputComponent>([&](UDMXPixelMappingOutputComponent* InComponent)
-		{
-			if (TSharedPtr<FDMXPixelMappingComponentWidget> ComponentWidget = InComponent->GetComponentWidget())
-			{
-				if(ComponentWidget->GetComponentBox() == InWidget)
-				{
-					FoundComponent = InComponent;
-				}
-			}
-		});
-
-	return FoundComponent;
-	PRAGMA_ENABLE_DEPRECATION_WARNINGS
-}
-
-#endif // WITH_EDITOR
-
-
 void UDMXPixelMapping::RemoveComponent(UDMXPixelMappingBaseComponent* InComponent)
 {
 	ensureMsgf(InComponent, TEXT("Trying to remove invalid component."));

@@ -54,7 +54,8 @@ public:
 
 #if WITH_EDITOR
 	/** Find the component by widget. */
-	UDMXPixelMappingOutputComponent* FindComponent(TSharedPtr<SWidget> InWidget) const;
+	UE_DEPRECATED(5.4, "Component widgets are no longer supported since 5.1. This function will always return nullptr.")
+	UDMXPixelMappingOutputComponent* FindComponent(TSharedPtr<SWidget> InWidget) const { return nullptr;}
 #endif // WITH_EDITOR
 
 	/**
@@ -158,6 +159,10 @@ public:
 	/** The color of the grid snapping grid */
 	UPROPERTY()
 	FLinearColor SnapGridColor;
+
+	/** If true, editor is set to scale children with parent. This is forwarded from the editor module (DMXPixelMappingEditorSettings) to be accessible in the runtime module. */
+	UPROPERTY(Transient, NonTransactional)
+	bool bEditorScaleChildrenWithParent = false;
 
 	/** Holds the Thumbnail image for this asset */
 	UPROPERTY()

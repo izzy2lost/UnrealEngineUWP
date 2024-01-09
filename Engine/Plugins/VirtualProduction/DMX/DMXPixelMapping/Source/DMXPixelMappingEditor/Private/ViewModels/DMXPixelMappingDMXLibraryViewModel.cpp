@@ -297,6 +297,9 @@ void UDMXPixelMappingDMXLibraryViewModel::LayoutEvenOverParent(const TArray<UDMX
 		return;
 	}
 
+	const double RestoreRotation = FixtureGroupComponent->GetRotation();
+	FixtureGroupComponent->SetRotation(0.0);
+
 	const int32 Columns = FMath::RoundFromZero(FMath::Sqrt((float)Components.Num()));
 	const int32 Rows = FMath::RoundFromZero((float)Components.Num() / Columns);
 	const FVector2D Size = FVector2D(FixtureGroupComponent->GetSize().X / Columns, FixtureGroupComponent->GetSize().Y / Rows);
@@ -319,6 +322,8 @@ void UDMXPixelMappingDMXLibraryViewModel::LayoutEvenOverParent(const TArray<UDMX
 			OutputComponent->SetSize(Size);
 		}
 	}
+
+	FixtureGroupComponent->SetRotation(RestoreRotation);
 }
 
 void UDMXPixelMappingDMXLibraryViewModel::LayoutAfterLastPatch(const TArray<UDMXPixelMappingBaseComponent*> Components)
@@ -334,6 +339,9 @@ void UDMXPixelMappingDMXLibraryViewModel::LayoutAfterLastPatch(const TArray<UDMX
 	{
 		return;
 	}
+
+	const double RestoreRotation = FixtureGroupComponent->GetRotation();
+	FixtureGroupComponent->SetRotation(0.0);
 
 	// Find other components
 	TArray<UDMXPixelMappingBaseComponent*> OtherComponentsInGroup;
@@ -397,6 +405,8 @@ void UDMXPixelMappingDMXLibraryViewModel::LayoutAfterLastPatch(const TArray<UDMX
 			}
 		}
 	}
+
+	FixtureGroupComponent->SetRotation(RestoreRotation);
 }
 
 void UDMXPixelMappingDMXLibraryViewModel::SelectFixtureGroupComponent(UDMXPixelMappingFixtureGroupComponent* FixtureGroupComponent)

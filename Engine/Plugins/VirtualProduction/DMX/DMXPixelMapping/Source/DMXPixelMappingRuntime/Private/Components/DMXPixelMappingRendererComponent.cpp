@@ -4,6 +4,7 @@
 
 #include "Async/Async.h"
 #include "Blueprint/UserWidget.h"
+#include "Components/DMXPixelMappingComponentGeometryCache.h"
 #include "Components/DMXPixelMappingFixtureGroupComponent.h"
 #include "Components/DMXPixelMappingFixtureGroupItemComponent.h"
 #include "Components/DMXPixelMappingMatrixComponent.h"
@@ -671,31 +672,6 @@ void UDMXPixelMappingRendererComponent::EmptyDownsampleBuffer()
 
 	DownsampleBuffer_DEPRECATED.Empty();
 }
-
-#if WITH_EDITOR
-TSharedRef<SWidget> UDMXPixelMappingRendererComponent::TakeWidget()
-{	
-	// DEPRECATED 5.3
-
-	if (!ComponentsCanvas_DEPRECATED.IsValid())
-	{
-		ComponentsCanvas_DEPRECATED =
-			SNew(SConstraintCanvas);
-	}
-
-	PRAGMA_DISABLE_DEPRECATION_WARNINGS
-	ForEachChild([&](UDMXPixelMappingBaseComponent* InComponent) {
-			if (UDMXPixelMappingOutputComponent* Component = Cast<UDMXPixelMappingOutputComponent>(InComponent))
-			{
-				// Build all child DMX pixel mapping slots
-				Component->BuildSlot(ComponentsCanvas_DEPRECATED.ToSharedRef());
-			}
-		}, true);
-	PRAGMA_ENABLE_DEPRECATION_WARNINGS
-
-	return ComponentsCanvas_DEPRECATED.ToSharedRef();
-}
-#endif // WITH_EDITOR
 
 int32 UDMXPixelMappingRendererComponent::GetTotalDownsamplePixelCount()
 {

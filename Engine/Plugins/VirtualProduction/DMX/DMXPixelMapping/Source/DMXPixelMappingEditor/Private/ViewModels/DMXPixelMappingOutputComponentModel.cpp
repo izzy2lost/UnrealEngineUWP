@@ -7,6 +7,7 @@
 #include "Components/DMXPixelMappingFixtureGroupItemComponent.h"
 #include "Components/DMXPixelMappingMatrixCellComponent.h"
 #include "Components/DMXPixelMappingMatrixComponent.h"
+#include "Components/DMXPixelMappingOutputComponent.h"
 #include "Components/DMXPixelMappingScreenComponent.h"
 #include "Library/DMXEntityFixturePatch.h"
 #include "Library/DMXLibrary.h"
@@ -59,6 +60,16 @@ FVector2D FDMXPixelMappingOutputComponentModel::GetSize() const
 		return OutputComponent->GetSize();
 	}
 	return FVector2D::ZeroVector;
+}
+
+FQuat2D FDMXPixelMappingOutputComponentModel::GetQuaternion() const
+{
+	if (UDMXPixelMappingOutputComponent* OutputComponent = WeakOutputComponent.Get())
+	{
+		const FQuat2D Quat(FMath::DegreesToRadians(OutputComponent->GetRotation()));
+		return Quat;
+	}
+	return FQuat2D();
 }
 
 FText FDMXPixelMappingOutputComponentModel::GetName() const
@@ -311,7 +322,7 @@ FLinearColor FDMXPixelMappingScreenComponentModel::GetColor() const
 		}
 		else
 		{
-			return ScreenComponent->GetEditorColor().CopyWithNewOpacity(0.6f);
+			return ScreenComponent->GetEditorColor().CopyWithNewOpacity(0.8f);
 		}
 	}
 

@@ -46,7 +46,6 @@ public:
 	virtual void PostLoad() override;
 	virtual void PostInitProperties() override;
 #if WITH_EDITOR
-	virtual void PreEditChange(FProperty* PropertyAboutToChange) override;
 	virtual void PostEditChangeProperty(FPropertyChangedEvent& PropertyChangedEvent) override;
 	virtual void PostEditChangeChainProperty(FPropertyChangedChainEvent& PropertyChangedChainEvent) override;
 #endif // WITH_EDITOR
@@ -65,12 +64,14 @@ public:
 	// ~End UDMXPixelMappingBaseComponent interface
 
 	// ~Begin UDMXPixelMappingOutputComponent interface
+	virtual void SetPosition(const FVector2D& NewPosition) override;
+	virtual void SetPositionRotated(FVector2D NewRotatedPosition) override;
+	virtual void SetSize(const FVector2D& NewSize) override;
+	virtual void SetRotation(double NewRotation) override;
 #if WITH_EDITOR
 	virtual const FText GetPaletteCategory() override;
 #endif // WITH_EDITOR
 	virtual bool IsOverParent() const override;
-	virtual void SetPosition(const FVector2D& NewPosition) override;
-	virtual void SetSize(const FVector2D& NewSize) override;
 	// ~End UDMXPixelMappingOutputComponent interface
 	
 	//~ Begin UDMXPixelMappingOutputDMXComponent implementation
@@ -79,12 +80,6 @@ public:
 	virtual void RenderWithInputAndSendDMX() override;
 	PRAGMA_ENABLE_DEPRECATION_WARNINGS
 	//~ End UDMXPixelMappingOutputDMXComponent implementation
-
-	/** Handles changes in position */
-	void HandlePositionChanged();
-
-	/** Handles changes in size or in matrix */
-	void HandleSizeChanged();
 
 	/** Handles changes in size or in matrix */
 	void HandleMatrixChanged();
@@ -103,10 +98,6 @@ protected:
 	/** Children available PreEditUndo, useful to hide all removed ones in post edit undo */
 	TArray<UDMXPixelMappingBaseComponent*> PreEditUndoMatrixCellChildren;
 #endif // WITH_EDITORONLY_DATA
-
-private:
-	/** Position before it was changed */
-	FVector2D PreEditChangePosition;
 
 public:
 #if WITH_EDITORONLY_DATA

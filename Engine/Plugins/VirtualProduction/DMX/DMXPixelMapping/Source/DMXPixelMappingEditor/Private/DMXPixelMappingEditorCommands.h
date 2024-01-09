@@ -18,10 +18,12 @@ public:
 	TSharedPtr<FUICommandInfo> PlayDMX;
 	TSharedPtr<FUICommandInfo> StopPlayingDMX;
 
-	// Grid snapping related
+	// Designer related
+	TSharedPtr<FUICommandInfo> ResizeMode;
+	TSharedPtr<FUICommandInfo> RotateMode;
+
 	TSharedPtr<FUICommandInfo> ToggleGridSnapping;
 
-	// Layout related
 	TSharedPtr<FUICommandInfo> SizeComponentToTexture;
 
 	TSharedPtr<FUICommandInfo> ToggleScaleChildrenWithParent;

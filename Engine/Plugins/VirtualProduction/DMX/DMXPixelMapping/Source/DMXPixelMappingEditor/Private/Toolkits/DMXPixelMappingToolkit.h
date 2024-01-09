@@ -7,6 +7,7 @@
 #include "Settings/DMXPixelMappingEditorSettings.h"
 #include "TickableEditorObject.h"
 #include "Toolkits/AssetEditorToolkit.h"
+#include "UObject/GCObject.h"
 #include "Widgets/Views/SHeaderRow.h"
 
 class FDMXPixelMappingComponentTemplate;
@@ -25,6 +26,16 @@ class UDMXPixelMappingBaseComponent;
 class UDMXPixelMappingMatrixComponent;
 class UDMXPixelMappingOutputComponent;
 class UDMXPixelMappingRendererComponent;
+enum class ECheckBoxState : uint8;
+
+namespace UE::DMX
+{
+	enum class EDMXPixelMappingTransformHandleMode : uint8
+	{
+		Resize,
+		Rotate
+	};
+}
 
 
 /**
@@ -35,6 +46,8 @@ class FDMXPixelMappingToolkit
 	, public FTickableEditorObject
 	, public FSelfRegisteringEditorUndoClient
 {
+	using EDMXPixelMappingTransformHandleMode = UE::DMX::EDMXPixelMappingTransformHandleMode;
+
 public:
 	DECLARE_MULTICAST_DELEGATE(FOnSelectedComponentsChangedDelegate)
 	FOnSelectedComponentsChangedDelegate& GetOnSelectedComponentsChangedDelegate() { return OnSelectedComponentsChangedDelegate; }
@@ -75,8 +88,8 @@ public:
 	virtual bool IsTickable() const override { return true; }
 	virtual TStatId GetStatId() const override;
 	//~ End FTickableEditorObject Interface
-
-	UDMXPixelMapping* GetDMXPixelMapping() const { return DMXPixelMapping; }
+		
+	UDMXPixelMapping* GetDMXPixelMapping() const;
 
 	FDMXPixelMappingComponentReference GetReferenceFromComponent(UDMXPixelMappingBaseComponent* InComponent);
 
@@ -141,6 +154,12 @@ public:
 	/** Toggles between grid snapping enabled and disabled */
 	void ToggleGridSnapping();
 
+	/** Sets how transform handles operate */
+	void SetTransformHandleMode(EDMXPixelMappingTransformHandleMode NewTransformHandleMode);
+
+	/** Returns the current transform handle mode */
+	EDMXPixelMappingTransformHandleMode GetTransformHandleMode() const { return TransformHandleMode; }
+
 private:
 	//~ Begin FSelfRegisteringEditorUndoClient interface
 	virtual void PostUndo(bool bSuccess) override;
@@ -162,8 +181,6 @@ private:
 
 	/** Saves a thumbnail image for the pixel mapping asset */
 	void SaveThumbnailImage();
-
-	void InitializeInternal(const EToolkitMode::Type Mode, const TSharedPtr<class IToolkitHost>& InitToolkitHost, const FGuid& MessageLogGuid);
 
 	/** Spawns the DMX Library View */
 	TSharedRef<SDockTab> SpawnTab_DMXLibraryView(const FSpawnTabArgs& Args);
@@ -189,7 +206,8 @@ private:
 
 	void CreateInternalViews();
 
-	UDMXPixelMapping* DMXPixelMapping;
+	/** Returns the checkbox state for a transform handle mode, checked if the mode equals the current mode. */
+	ECheckBoxState GetTransformHandleModeCheckboxState(EDMXPixelMappingTransformHandleMode CompareTransformHandleMode) const;
 
 	/** List of open tool panels; used to ensure only one exists at any one time */
 	TMap<FName, TWeakPtr<SDockableTab>> SpawnedToolPanels;
@@ -239,6 +257,9 @@ private:
 
 	/** True while removing components (to avoid needlessly updating blueprint nodes on each component removed via our own methods) */
 	bool bRemovingComponents = false;
+
+	/** The current transform handle mode */
+	EDMXPixelMappingTransformHandleMode TransformHandleMode = EDMXPixelMappingTransformHandleMode::Resize;
 
 public:
 	/** Name of the DMX Library View Tab */

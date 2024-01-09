@@ -30,7 +30,7 @@ TSharedPtr<FDMXPixelMappingGroupChildDragDropHelper> FDMXPixelMappingGroupChildD
 		return nullptr;
 	}
 	NewHelper->WeakParentGroupComponent = ParentGroupComponent;
-	NewHelper->ParentPosition = ParentGroupComponent->GetPosition();
+	NewHelper->ParentPosition = ParentGroupComponent->GetPositionRotated();
 	NewHelper->ParentSize = ParentGroupComponent->GetSize();
 
 	for (const TWeakObjectPtr<UDMXPixelMappingBaseComponent>& BaseComponent : DragDropOp->GetDraggedComponents())
@@ -86,7 +86,7 @@ void FDMXPixelMappingGroupChildDragDropHelper::LayoutAligned(const FVector2D& Gr
 	{
 		return;
 	}
-
+	 
 	FVector2D NextPosition = GraphSpacePosition - DragDropOp->GraphSpaceDragOffset;
 	float RowHeight = 0.f;
 
@@ -105,7 +105,7 @@ void FDMXPixelMappingGroupChildDragDropHelper::LayoutAligned(const FVector2D& Gr
 			if (GroupComponent->IsOverPosition(NextPosition) && 
 				GroupComponent->IsOverPosition(NextPosition + ChildComponent->GetSize()))
 			{
-				ChildComponent->SetPosition(NextPosition);
+				ChildComponent->SetPositionRotated(NextPosition);
 
 				RowHeight = FMath::Max(ChildComponent->GetSize().Y, RowHeight);
 				NextPosition = FVector2D(NextPosition.X + ChildComponent->GetSize().X, NextPosition.Y);
@@ -119,22 +119,22 @@ void FDMXPixelMappingGroupChildDragDropHelper::LayoutAligned(const FVector2D& Gr
 				if (GroupComponent->IsOverPosition(NextPositionOnNewRow) &&
 					GroupComponent->IsOverPosition(NextPositionOnNewRow + ChildComponent->GetSize()))
 				{
-					ChildComponent->SetPosition(NewRowPosition);
+					ChildComponent->SetPositionRotated(NewRowPosition);
 
 					NextPosition = FVector2D(NewRowPosition.X + ChildComponent->GetSize().X, NewRowPosition.Y);
 					RowHeight = ChildComponent->GetSize().Y;							
 				}
 				else
 				{
-					ChildComponent->SetPosition(NextPosition);
+					ChildComponent->SetPositionRotated(NextPosition);
 
 					NextPosition = FVector2D(NextPosition.X + ChildComponent->GetSize().X, NextPosition.Y);
 				}
 			}
 		}
 	}
-
-	DragDropOp->GridSnap();
+	const FVector2D GridSnapPosition = DragDropOp->ComputeGridSnapPosition(GroupComponent->GetPositionRotated());
+	GroupComponent->SetPositionRotated(GridSnapPosition);
 
 	for (const TWeakObjectPtr<UDMXPixelMappingOutputComponent>& WeakChildComponent : WeakChildComponents)
 	{
@@ -159,7 +159,7 @@ void FDMXPixelMappingGroupChildDragDropHelper::LayoutUnaligned(const FVector2D& 
 		return;
 	}
 
-	const FVector2D Anchor = FirstComponent->GetPosition();
+	const FVector2D Anchor = FirstComponent->GetPositionRotated();
 	for (const TWeakObjectPtr<UDMXPixelMappingOutputComponent>& WeakOutputComponent : WeakChildComponents)
 	{
 		if (UDMXPixelMappingOutputComponent* ChildComponent = WeakOutputComponent.Get())
@@ -172,14 +172,14 @@ void FDMXPixelMappingGroupChildDragDropHelper::LayoutUnaligned(const FVector2D& 
 					Component->Modify();
 				}, bModifyChildrenRecursive);
 
-			const FVector2D AnchorOffset = Anchor - ChildComponent->GetPosition();
+			const FVector2D AnchorOffset = Anchor - ChildComponent->GetPositionRotated();
 
 			const FVector2D NewPosition = GraphSpacePosition - AnchorOffset - DragDropOp->GraphSpaceDragOffset;
-			ChildComponent->SetPosition(NewPosition);
+			ChildComponent->SetPositionRotated(NewPosition);
 		}
 	}
-
-	DragDropOp->GridSnap();
+	const FVector2D GridSnapPosition = DragDropOp->ComputeGridSnapPosition(FirstComponent->GetPositionRotated());
+	FirstComponent->SetPositionRotated(GridSnapPosition);
 
 	for (const TWeakObjectPtr<UDMXPixelMappingOutputComponent>& WeakOutputComponent : WeakChildComponents)
 	{
