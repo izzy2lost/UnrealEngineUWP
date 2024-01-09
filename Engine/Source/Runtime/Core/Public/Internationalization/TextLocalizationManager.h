@@ -159,16 +159,16 @@ public:
 	CORE_API void RegisterPolyglotTextData(TArrayView<const FPolyglotTextData> InPolyglotTextDataArray, const bool InAddDisplayStrings = true);
 
 	/**	Finds and returns the display string with the given namespace and key, if it exists.
-	 *	Additionally, if a source string is specified and the found localized display string was not localized from that source string, null will be returned. */
-	CORE_API FTextConstDisplayStringPtr FindDisplayString(const FTextKey& Namespace, const FTextKey& Key, const FString* const SourceString = nullptr) const;
+	 *	Additionally, if a non-null and non-empty source string is specified and the found localized display string was not localized from that source string, null will be returned. */
+	CORE_API FTextConstDisplayStringPtr FindDisplayString(const FTextKey& Namespace, const FTextKey& Key, const FString* const SourceStringPtr = nullptr) const;
 
 	/**	Returns a display string with the given namespace and key.
 	 *	If no display string exists, it will be created using the source string or an empty string if no source string is provided.
 	 *	If a display string exists ...
 	 *		... but it was not localized from the specified source string, the display string will be set to the specified source and returned.
-	 *		... and it was localized from the specified source string (or none was provided), the display string will be returned.
+	 *		... and it was localized from the specified source string (or the source string was null or empty), the display string will be returned.
 	*/
-	CORE_API FTextConstDisplayStringRef GetDisplayString(const FTextKey& Namespace, const FTextKey& Key, const FString* const SourceString);
+	CORE_API FTextConstDisplayStringRef GetDisplayString(const FTextKey& Namespace, const FTextKey& Key, const FString* const SourceStringPtr);
 
 #if WITH_EDITORONLY_DATA
 	/** If an entry exists for the specified namespace and key, returns true and provides the localization resource identifier from which it was loaded. Otherwise, returns false. */
