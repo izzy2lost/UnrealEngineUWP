@@ -1574,6 +1574,8 @@ static void ConvertToLegacyStats(FDerivedDataCacheStatsNode& OutNode, FCacheStor
 	OutNode.SpeedStats.LatencyMS = Stats.AverageLatency.GetValue(Now) * 1000.0;
 	OutNode.SpeedStats.ReadSpeedMBs = Stats.AveragePhysicalReadSize.GetRate(Now) / 1024.0 / 1024.0;
 	OutNode.SpeedStats.WriteSpeedMBs = Stats.AveragePhysicalWriteSize.GetRate(Now) / 1024.0 / 1024.0;
+
+	OutNode.SetTotalPhysicalSize(Stats.TotalPhysicalSize);
 }
 
 void FCacheStoreHierarchy::LegacyStats(FDerivedDataCacheStatsNode& OutNode)

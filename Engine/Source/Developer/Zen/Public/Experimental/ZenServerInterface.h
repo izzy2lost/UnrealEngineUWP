@@ -3,6 +3,7 @@
 #pragma once
 
 #include "Async/Future.h"
+#include "Async/Mutex.h"
 #include "Containers/StringFwd.h"
 #include "Containers/StringView.h"
 #include "Containers/UnrealString.h"
@@ -177,6 +178,7 @@ public:
 	UE_API FZenServiceInstance(FServiceSettings&& InSettings);
 	UE_API ~FZenServiceInstance();
 
+	UE_API const FString GetPath() const;
 	inline const TCHAR* GetURL() const { return *URL; }
 	inline const TCHAR* GetHostName() const { return *HostName; }
 	inline uint16 GetPort() const { return Port; }
@@ -211,13 +213,15 @@ private:
 
 	mutable TPimplPtr<class FZenHttpRequest> CacheStatsHttpRequest;
 	mutable TFuture<FZenCacheStats> CacheStatsRequest;
-	mutable FZenCacheStats LastCacheStats;
 	mutable uint64 LastCacheStatsTime = 0;
+	mutable FMutex LastCacheStatsMutex;
+	mutable FZenCacheStats LastCacheStats;
 
 	mutable TPimplPtr<class FZenHttpRequest> ProjectStatsHttpRequest;
 	mutable TFuture<FZenProjectStats> ProjectStatsRequest;
-	mutable FZenProjectStats LastProjectStats;
 	mutable uint64 LastProjectStatsTime = 0;
+	mutable FMutex LastProjectStatsMutex;
+	mutable FZenProjectStats LastProjectStats;
 
 	FServiceSettings Settings;
 	FString URL;

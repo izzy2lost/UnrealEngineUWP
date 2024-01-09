@@ -2,6 +2,7 @@
 
 #include "DerivedDataLegacyCacheStore.h"
 #include "Experimental/ZenServerInterface.h"
+#include "Experimental/ZenStatistics.h"
 
 #if UE_WITH_ZEN
 
@@ -169,6 +170,7 @@ private:
 
 	void ActivatePerformanceEvaluationThread();
 	void ConditionalEvaluatePerformance();
+	void ConditionalUpdateStorageSize();
 	void UpdateStatus();
 
 	template <typename T, typename... ArgTypes>
@@ -228,6 +230,7 @@ private:
 	std::atomic<int64> LastPerformanceEvaluationTicks;
 	TOptional<FThread> PerformanceEvaluationThread;
 	FManualResetEvent PerformanceEvaluationThreadShutdownEvent;
+	std::atomic<int64> LastStorageSizeUpdateTicks;
 	float DeactivateAtMs = -1.0f;
 	ECacheStoreFlags OperationalFlags;
 	FRequestOwner PerformanceEvaluationRequestOwner;
@@ -310,6 +313,7 @@ public:
 			Request.Stats.Latency = AverageLatency;
 		}
 		CacheStore.ConditionalEvaluatePerformance();
+		CacheStore.ConditionalUpdateStorageSize();
 	}
 
 	void IssueRequests()
@@ -510,6 +514,7 @@ public:
 			Request.Stats.Latency = AverageLatency;
 		}
 		CacheStore.ConditionalEvaluatePerformance();
+		CacheStore.ConditionalUpdateStorageSize();
 	}
 
 	void IssueRequests()
@@ -716,6 +721,7 @@ public:
 			Request.Stats.Latency = AverageLatency;
 		}
 		CacheStore.ConditionalEvaluatePerformance();
+		CacheStore.ConditionalUpdateStorageSize();
 	}
 
 	void IssueRequests()
@@ -906,6 +912,7 @@ public:
 			Request.Stats.Latency = AverageLatency;
 		}
 		CacheStore.ConditionalEvaluatePerformance();
+		CacheStore.ConditionalUpdateStorageSize();
 	}
 
 	void IssueRequests()
@@ -1105,6 +1112,7 @@ public:
 			Request.Stats.Latency = AverageLatency;
 		}
 		CacheStore.ConditionalEvaluatePerformance();
+		CacheStore.ConditionalUpdateStorageSize();
 	}
 
 	void IssueRequests()
@@ -1601,6 +1609,7 @@ FZenCacheStore::~FZenCacheStore()
 void FZenCacheStore::Initialize(const FZenCacheStoreParams& Params)
 {
 	LastPerformanceEvaluationTicks.store(FDateTime::UtcNow().GetTicks(), std::memory_order_relaxed);
+	LastStorageSizeUpdateTicks.store(FDateTime::UtcNow().GetTicks(), std::memory_order_relaxed);
 	Namespace = Params.Namespace;
 
 	RpcUri << ZenService.GetInstance().GetURL() << ANSITEXTVIEW("/z$/$rpc");
@@ -1679,7 +1688,7 @@ void FZenCacheStore::Initialize(const FZenCacheStoreParams& Params)
 		}
 
 		StoreOwner->Add(this, Flags);
-		TStringBuilder<256> Path(InPlace, ZenService.GetInstance().GetURL(), TEXTVIEW(" ("), Namespace, TEXTVIEW(")"));
+		TStringBuilder<256> Path(InPlace, ZenService.GetInstance().GetPath(), TEXTVIEW(" ("), Namespace, TEXTVIEW(")"));
 		StoreStats = StoreOwner->CreateStats(this, Flags, TEXT("Zen"), *Params.Name, Path);
 		bTryEvaluatePerformance = !GIsBuildMachine && (StoreStats != nullptr) && (DeactivateAtMs > 0.0f);
 
@@ -1787,6 +1796,47 @@ void FZenCacheStore::ActivatePerformanceEvaluationThread()
 					});
 			}
 		});
+	}
+}
+
+void FZenCacheStore::ConditionalUpdateStorageSize()
+{
+	if (!StoreStats)
+	{
+		return;
+	}
+		
+	// Look for an opportunity to measure and evaluate if storage size is acceptable.
+	int64 LocalStorageSizeUpdateTicks = LastStorageSizeUpdateTicks.load(std::memory_order_relaxed);
+	FTimespan TimespanSinceLastStorageSizeUpdate = FDateTime::UtcNow() - FDateTime(LocalStorageSizeUpdateTicks);
+
+	if (TimespanSinceLastStorageSizeUpdate < FTimespan::FromSeconds(30))
+	{
+		return;
+	}
+
+	if (!LastStorageSizeUpdateTicks.compare_exchange_strong(LocalStorageSizeUpdateTicks, FDateTime::UtcNow().GetTicks()))
+	{
+		return;
+	}
+
+	bool PhysicalSizeIsValid = false;
+	double PhysicalSize = 0.0;
+	Zen::FZenCacheStats ZenCacheStats;
+	if (ZenService.GetInstance().GetCacheStats(ZenCacheStats))
+	{
+		PhysicalSize += ZenCacheStats.General.Size.Disk + static_cast<double>(ZenCacheStats.CID.Size.Total);
+		PhysicalSizeIsValid = true;
+	}
+	Zen::FZenProjectStats ZenProjectStats;
+	if (ZenService.GetInstance().GetProjectStats(ZenProjectStats))
+	{
+		PhysicalSize += ZenProjectStats.General.Size.Disk;
+		PhysicalSizeIsValid = true;
+	}
+	if (PhysicalSizeIsValid)
+	{
+		StoreStats->SetTotalPhysicalSize(static_cast<uint64>(PhysicalSize));
 	}
 }
 

@@ -162,6 +162,8 @@ public:
 	FMonotonicTimeSpan OtherThreadTime;
 	/** Count of requests that accessed the cache store. */
 	FRequestCounter RequestCount;
+	/** Total size of the data in the cache store, ~0ull indicate that the information is not available */
+	uint64 TotalPhysicalSize = ~0ull;
 
 	FTimeAveragedStat AverageLatency;
 	FTimeAveragedStat AveragePhysicalReadSize;
@@ -182,6 +184,7 @@ private:
 	void AddRequest(const FCacheStoreRequestStats& Stats) final;
 	void AddLatency(FMonotonicTimePoint StartTime, FMonotonicTimePoint EndTime, FMonotonicTimeSpan Latency) final;
 	double GetAverageLatency() final;
+	void SetTotalPhysicalSize(uint64 TotalPhysicalSize) final;
 };
 
 class FCacheStats final

@@ -311,6 +311,8 @@ public:
 
 	/** Gets the average latency value for the current time in seconds. */
 	virtual double GetAverageLatency() = 0;
+
+	virtual void SetTotalPhysicalSize(uint64 TotalPhysicalSize) = 0;
 };
 
 template <typename RequestRangeType, typename OnCompleteType>

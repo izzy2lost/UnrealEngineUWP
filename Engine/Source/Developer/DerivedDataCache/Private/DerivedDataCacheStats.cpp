@@ -317,6 +317,12 @@ double FCacheStoreStats::GetAverageLatency()
 	return AverageLatency.GetValue(FMonotonicTimePoint::Now());
 }
 
+void FCacheStoreStats::SetTotalPhysicalSize(uint64 InTotalPhysicalSize)
+{
+	TUniqueLock Lock(Mutex);
+	TotalPhysicalSize = InTotalPhysicalSize;
+}
+
 ///////////////////////////////////////////////////////////////////////////////////////////////////////////////////////
 
 FCacheBucketStats& FCacheStats::GetBucket(FCacheBucket Bucket)
