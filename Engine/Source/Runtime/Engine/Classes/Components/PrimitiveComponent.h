@@ -2241,14 +2241,23 @@ public:
 	*	Welding allows the child physics object to become physically connected to its parent. This is useful for creating compound rigid bodies with correct mass distribution.
 	*   @param InParent the component to be physically attached to
 	*   @param InSocketName optional socket to attach component to
+	*	@param bWeldToKinematicParent if true, children will be welded onto the parent even if the parent is kinematic (default false)
+	*
+	* By default if the root is kinematic then the welded bodies are set to kinematic rather than actually welded. This is beneficial if
+	* the actor is not moved very often or only contains a few welded shapes. However it can be expensive to move a kinematic actor
+	* that contains a large number of (unwelded) kinematic children, in which case you can setting bWeldToKinematicParent to true to generate
+	* a welded kinematic actor. There is no real benefit to welding if the actor does not move and, since the initial weld cost is fairly high,
+	* you generally would not enable welding on all kinematics in the world if you have a lot of them.
 	*/
-	ENGINE_API virtual void WeldTo(class USceneComponent* InParent, FName InSocketName = NAME_None);
+	ENGINE_API virtual void WeldTo(class USceneComponent* InParent, FName InSocketName = NAME_None, bool bWeldToKinematicParent = false);
 
 	/**
 	*	Does the actual work for welding.
+	*	@param bWeldSimulatedChild if true, simulated children will be welded onto the parent (default true)
+	*	@param bWeldToKinematicParent if true, children will be welded onto the parent even if the parent is kinematic (default false)
 	*	@return true if did a true weld of shapes, meaning body initialization is not needed
 	*/
-	ENGINE_API virtual bool WeldToImplementation(USceneComponent * InParent, FName ParentSocketName = NAME_None, bool bWeldSimulatedChild = true);
+	ENGINE_API virtual bool WeldToImplementation(USceneComponent * InParent, FName ParentSocketName = NAME_None, bool bWeldSimulatedChild = true, bool bWeldToKinematicParent = false);
 
 	/**
 	*   UnWelds this component from its parent component. Attachment is maintained (DetachFromParent automatically unwelds)

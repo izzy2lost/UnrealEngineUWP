@@ -780,7 +780,7 @@ void UPrimitiveComponent::GetWeldedBodies(TArray<FBodyInstance*> & OutWeldedBodi
 	}
 }
 
-bool UPrimitiveComponent::WeldToImplementation(USceneComponent * InParent, FName ParentSocketName /* = Name_None */, bool bWeldSimulatedChild /* = false */)
+bool UPrimitiveComponent::WeldToImplementation(USceneComponent * InParent, FName ParentSocketName /* = Name_None */, bool bWeldSimulatedChild /* = true */, bool bWeldToKinematicParent /* = false */)
 {
 	SCOPE_CYCLE_COUNTER(STAT_WeldPhysics);
 
@@ -829,7 +829,7 @@ bool UPrimitiveComponent::WeldToImplementation(USceneComponent * InParent, FName
 			//Child always inherits from root
 
 			//if root is kinematic simply set child to be kinematic and we're done
-			if (RootComponent->IsSimulatingPhysics(SocketName) == false)
+			if ((RootComponent->IsSimulatingPhysics(SocketName) == false) && (bWeldToKinematicParent == false))
 			{
 				FPlatformAtomics::InterlockedExchangePtr((void**)&BI->WeldParent, nullptr);
 				SetSimulatePhysics(false);
@@ -847,7 +847,7 @@ bool UPrimitiveComponent::WeldToImplementation(USceneComponent * InParent, FName
 	return false;
 }
 
-void UPrimitiveComponent::WeldTo(USceneComponent* InParent, FName InSocketName /* = NAME_None */)
+void UPrimitiveComponent::WeldTo(USceneComponent* InParent, FName InSocketName /* = NAME_None */, bool bWeldToKinematicParent /* = false */)
 {
 	//automatically attach if needed
 	if (GetAttachParent() != InParent || GetAttachSocketName() != InSocketName)
@@ -855,7 +855,8 @@ void UPrimitiveComponent::WeldTo(USceneComponent* InParent, FName InSocketName /
 		AttachToComponent(InParent, FAttachmentTransformRules::KeepWorldTransform, InSocketName);
 	}
 
-	WeldToImplementation(InParent, InSocketName);
+	const bool bWeldSimulatedChild = true;
+	WeldToImplementation(InParent, InSocketName, bWeldSimulatedChild, bWeldToKinematicParent);
 }
 
 void UPrimitiveComponent::UnWeldFromParent()
