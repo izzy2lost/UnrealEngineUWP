@@ -243,6 +243,16 @@ UE_AUTORTFM_AUTORTFM("RTFM_OnAbort") void OnAbort(TFunction<void()> && Work)
 {
 }
 
+void OpenCommit(TFunction<void()>&& Work)
+{
+	OnCommit(MoveTemp(Work));
+}
+
+void OpenAbort(TFunction<void()>&& Work)
+{
+	OnAbort(MoveTemp(Work));
+}
+
 extern "C" UE_AUTORTFM_AUTORTFM("RTFM_autortfm_on_commit") void autortfm_on_commit(void (*Work)(void* Arg), void* Arg)
 {
     Work(Arg);

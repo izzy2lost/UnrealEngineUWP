@@ -588,17 +588,20 @@ template<typename TFunctor>
 UE_AUTORTFM_FORCEINLINE void OnAbort(const TFunctor& Work) { }
 #endif
 
+#if UE_AUTORTFM
 [[deprecated("Use OnCommit instead.")]]
-UE_AUTORTFM_FORCEINLINE void OpenCommit(TFunction<void()>&& Work)
-{
-	OnCommit(std::move(Work));
-}
+UE_AUTORTFM_API void OpenCommit(TFunction<void()>&& Work);
 
 [[deprecated("Use OnAbort instead.")]]
-UE_AUTORTFM_FORCEINLINE void OpenAbort(TFunction<void()>&& Work)
-{
-	OnAbort(std::move(Work));
-}
+UE_AUTORTFM_API void OpenAbort(TFunction<void()>&& Work);
+#else
+template<typename TFunctor>
+UE_AUTORTFM_FORCEINLINE void OpenCommit(const TFunctor& Work) { Work(); }
+template<typename TFunctor>
+UE_AUTORTFM_FORCEINLINE void OpenAbort(const TFunctor& Work) { }
+#endif
+
+
 
 UE_AUTORTFM_FORCEINLINE void* DidAllocate(void* Ptr, size_t Size)
 {
