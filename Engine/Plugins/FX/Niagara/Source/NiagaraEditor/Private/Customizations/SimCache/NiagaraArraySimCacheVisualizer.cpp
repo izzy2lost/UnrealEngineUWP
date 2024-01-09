@@ -255,7 +255,7 @@ public:
 			NumElements = CacheData->GpuFrameData[FrameIndex].NumElements;
 		}
 
-		return FText::Format(LOCTEXT("CpuArrayInfoFormat", "GPU Array Num Elements = {0}"), NumElements);
+		return FText::Format(LOCTEXT("GpuArrayInfoFormat", "GPU Array Num Elements = {0}"), NumElements);
 	}
 
 private:

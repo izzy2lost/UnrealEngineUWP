@@ -104,7 +104,7 @@ public:
 					}
 					else
 					{
-						ItemText = LOCTEXT("Invalid Float", "Invalid Float");
+						ItemText = LOCTEXT("InvalidFloat", "Invalid Float");
 					}
 				}
 				break;
@@ -203,7 +203,7 @@ public:
 				+SHorizontalBox::Slot()
 				[
 					SNew(STextBlock)
-					.Text(LOCTEXT("DisplayNumElements", "Display Columns: "))
+					.Text(LOCTEXT("DisplayColumns", "Display Columns: "))
 				]
 				+SHorizontalBox::Slot()
 				.AutoWidth()
@@ -225,7 +225,7 @@ public:
 				+SHorizontalBox::Slot()
 				[
 					SNew(STextBlock)
-					.Text(LOCTEXT("DisplayNumElements", "Display Type: "))
+					.Text(LOCTEXT("DisplayType", "Display Type: "))
 				]
 				+SHorizontalBox::Slot()
 				.AutoWidth()
@@ -243,7 +243,7 @@ public:
 				+SHorizontalBox::Slot()
 				[
 					SNew(STextBlock)
-					.Text(LOCTEXT("DisplayNumElements", "Display SimTarget: "))
+					.Text(LOCTEXT("DisplaySimTarget", "Display SimTarget: "))
 				]
 				+SHorizontalBox::Slot()
 				.AutoWidth()
