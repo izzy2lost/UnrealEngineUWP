@@ -28,15 +28,13 @@ namespace Horde.Server.Acls
 	public class AclService
 	{
 		private readonly GlobalsService _globalsService;
-		private readonly ILogger _logger;
 
 		/// <summary>
 		/// Constructor
 		/// </summary>
-		public AclService(GlobalsService globalsService, ILogger<AclService> logger)
+		public AclService(GlobalsService globalsService)
 		{
 			_globalsService = globalsService;
-			_logger = logger;
 		}
 
 		/// <summary>
