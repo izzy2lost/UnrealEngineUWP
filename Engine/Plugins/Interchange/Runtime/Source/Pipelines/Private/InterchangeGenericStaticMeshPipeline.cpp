@@ -511,6 +511,7 @@ void UInterchangeGenericMeshPipeline::AddLodDataToStaticMesh(UInterchangeStaticM
 			BaseNodeContainer->SetNodeParentUid(StaticMeshLodDataUniqueID, StaticMeshFactoryUid);
 			StaticMeshFactoryNode->AddLodDataUniqueId(StaticMeshLodDataUniqueID);
 		}
+		TMap<FString, FString> ExistingLodSlotMaterialDependencies;
 		constexpr bool bAddSourceNodeName = true;
 		for (const FString& NodeUid : NodeUids)
 		{
@@ -546,7 +547,7 @@ void UInterchangeGenericMeshPipeline::AddLodDataToStaticMesh(UInterchangeStaticM
 				MeshNode->GetSlotMaterialDependencies(SlotMaterialDependencies);
 			}
 
-			UE::Interchange::MeshesUtilities::ApplySlotMaterialDependencies(*StaticMeshFactoryNode, SlotMaterialDependencies, *BaseNodeContainer);
+			UE::Interchange::MeshesUtilities::ApplySlotMaterialDependencies(*StaticMeshFactoryNode, SlotMaterialDependencies, *BaseNodeContainer, &ExistingLodSlotMaterialDependencies);
 
 			if (bImportCollisionAccordingToMeshName)
 			{

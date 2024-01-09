@@ -335,26 +335,29 @@ namespace UE::Interchange::MeshesUtilities
 
 	/**
 	 * Applies material slot dependencies stored in SlotMaterialDependencies to FactoryNode.
+	 * If the caller want to support bKeepSectionSeparate feature it must provide a valid ExistingSlotMaterialDependenciesPtr.
 	 */
 	template<class T>
-	void ApplySlotMaterialDependencies(T& FactoryNode, const TMap<FString, FString>& SlotMaterialDependencies, const UInterchangeBaseNodeContainer& NodeContainer)
+	void ApplySlotMaterialDependencies(T& FactoryNode
+		, const TMap<FString, FString>& SlotMaterialDependencies
+		, const UInterchangeBaseNodeContainer& NodeContainer
+		, TMap<FString, FString> *ExistingSlotMaterialDependenciesPtr)
 	{
 		bool bKeepSectionsSeparate = false;
-		FactoryNode.GetCustomKeepSectionsSeparate(bKeepSectionsSeparate);
-		
-		TMap<FString, FString> ExistingSlotMaterialDependencies;
-		if (bKeepSectionsSeparate)
+		if (ExistingSlotMaterialDependenciesPtr)
 		{
-			FactoryNode.GetSlotMaterialDependencies(ExistingSlotMaterialDependencies);
+			FactoryNode.GetCustomKeepSectionsSeparate(bKeepSectionsSeparate);
 		}
 
 		for (const TPair<FString, FString>& SlotMaterialDependency : SlotMaterialDependencies)
 		{
 			FString NewSlotName = SlotMaterialDependency.Key;
-			if (ExistingSlotMaterialDependencies.Contains(NewSlotName))
+			if (bKeepSectionsSeparate && ExistingSlotMaterialDependenciesPtr && ExistingSlotMaterialDependenciesPtr->Contains(NewSlotName))
 			{
-				NewSlotName += TEXT("_Section") + FString::FromInt(ExistingSlotMaterialDependencies.Num());
-				ExistingSlotMaterialDependencies.Add(NewSlotName, SlotMaterialDependency.Value);
+				TMap<FString, FString> NodeMaterialDependencies;
+				FactoryNode.GetSlotMaterialDependencies(NodeMaterialDependencies);
+				NewSlotName += TEXT("_Section") + FString::FromInt(NodeMaterialDependencies.Num());
+				ExistingSlotMaterialDependenciesPtr->Add(NewSlotName, SlotMaterialDependency.Value);
 			}
 			const FString MaterialFactoryNodeUid = UInterchangeBaseMaterialFactoryNode::GetMaterialFactoryNodeUidFromMaterialNodeUid(SlotMaterialDependency.Value);
 			FactoryNode.SetSlotMaterialDependencyUid(NewSlotName, MaterialFactoryNodeUid);
@@ -374,6 +377,10 @@ namespace UE::Interchange::MeshesUtilities
 			}
 		}
 
+		if (ExistingSlotMaterialDependenciesPtr)
+		{
+			ExistingSlotMaterialDependenciesPtr->Append(SlotMaterialDependencies);
+		}
 	}
 
 	template<class T>

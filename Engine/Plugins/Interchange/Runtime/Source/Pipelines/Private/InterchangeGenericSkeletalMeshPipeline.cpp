@@ -506,6 +506,7 @@ void UInterchangeGenericMeshPipeline::AddLodDataToSkeletalMesh(const UInterchang
 			LodDataNode->SetCustomSkeletonUid(SkeletonUid);
 			SkeletalMeshFactoryNode->AddLodDataUniqueId(SkeletalMeshLodDataUniqueID);
 		}
+		TMap<FString, FString> ExistingLodSlotMaterialDependencies;
 		constexpr bool bAddSourceNodeName = true;
 		for (const FString& NodeUid : NodeUids)
 		{
@@ -538,8 +539,7 @@ void UInterchangeGenericMeshPipeline::AddLodDataToSkeletalMesh(const UInterchang
 				MeshNode->GetSlotMaterialDependencies(SlotMaterialDependencies);
 			}
 
-			UE::Interchange::MeshesUtilities::ApplySlotMaterialDependencies(*SkeletalMeshFactoryNode, SlotMaterialDependencies, *BaseNodeContainer);
-
+			UE::Interchange::MeshesUtilities::ApplySlotMaterialDependencies(*SkeletalMeshFactoryNode, SlotMaterialDependencies, *BaseNodeContainer, &ExistingLodSlotMaterialDependencies);
 			LodDataNode->AddMeshUid(NodeUid);
 		}
 		UE::Interchange::MeshesUtilities::ReorderSlotMaterialDependencies(*SkeletalMeshFactoryNode, *BaseNodeContainer);

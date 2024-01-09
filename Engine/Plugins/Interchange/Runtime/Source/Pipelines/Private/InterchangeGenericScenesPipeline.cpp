@@ -631,7 +631,7 @@ void UInterchangeGenericLevelPipeline::SetUpFactoryNode(UInterchangeActorFactory
 			TMap<FString, FString> SlotMaterialDependencies;
 			SceneNode->GetSlotMaterialDependencies(SlotMaterialDependencies);
 
-			UE::Interchange::MeshesUtilities::ApplySlotMaterialDependencies(*MeshActorFactoryNode, SlotMaterialDependencies, *BaseNodeContainer);
+			UE::Interchange::MeshesUtilities::ApplySlotMaterialDependencies(*MeshActorFactoryNode, SlotMaterialDependencies, *BaseNodeContainer, nullptr);
 
 			FString AnimationAssetUidToPlay;
 			if (SceneNode->GetCustomAnimationAssetUidToPlay(AnimationAssetUidToPlay))
