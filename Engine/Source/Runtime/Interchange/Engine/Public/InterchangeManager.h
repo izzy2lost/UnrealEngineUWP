@@ -410,11 +410,13 @@ struct FImportAssetParameters
 	FOnImportDoneNative OnSceneImportDoneNative;
 };
 
-UCLASS(Transient, BlueprintType, MinimalAPI)
+UCLASS(Transient, BlueprintType, CustomConstructor, MinimalAPI)
 class UInterchangeManager : public UObject
 {
 	GENERATED_BODY()
 public:
+
+	UInterchangeManager(const FObjectInitializer& ObjectInitializer);
 
 	/**
 	 * Return the interchange manager singleton pointer.
@@ -690,6 +692,9 @@ protected:
 	ImportInternal(const FString& ContentPath, const UInterchangeSourceData* SourceData, const FImportAssetParameters& ImportAssetParameters, const UE::Interchange::EImportType ImportType);
 
 private:
+
+	static bool bIsCreatingSingleton;
+
 	struct FQueuedTaskData
 	{
 		TSharedPtr<UE::Interchange::FImportAsyncHelper, ESPMode::ThreadSafe> AsyncHelper;
