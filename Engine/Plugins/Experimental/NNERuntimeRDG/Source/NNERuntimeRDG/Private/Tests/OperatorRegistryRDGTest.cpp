@@ -81,6 +81,9 @@ const int Op##OpName##Idx = TestOps.Num() - 1;
 } \
 const int Op##OpName##OpVer##Idx = TestOps.Num() - 1;
 
+	bool bPrevSuppressLogWarnings = bSuppressLogWarnings;
+    bSuppressLogWarnings = true;
+
 	OP_REG(Conv)
 	OP_REG_VER(Clip, 9)
 	OP_REG_VER(Clip, 11)
@@ -112,13 +115,12 @@ const int Op##OpName##OpVer##Idx = TestOps.Num() - 1;
         TestOps[OpConvIdx].CreateFunc
     );
 
-    bool bPrevSuppressLogWarnings = bSuppressLogWarnings;
-    bSuppressLogWarnings = true;
+    
     UTEST_NULL(TEXT("FindUnversionedInClipVersioned"), 
         (void *) FRegistryTest::Get()->OpFind({{TEXT("Clip"), TEXT("Onnx")}})
     );
+	
     bSuppressLogWarnings = bPrevSuppressLogWarnings;
-    
 
 	return true;
 }
