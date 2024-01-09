@@ -588,7 +588,7 @@ inline bool IsUniformBufferStaticSlotValid(const FUniformBufferStaticSlot Slot)
 struct FRHIResourceTableEntry
 {
 public:
-	static CONSTEXPR uint32 GetEndOfStreamToken()
+	static constexpr uint32 GetEndOfStreamToken()
 	{
 		return 0xffffffff;
 	}

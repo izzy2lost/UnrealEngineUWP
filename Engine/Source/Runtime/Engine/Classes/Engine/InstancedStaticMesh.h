@@ -306,7 +306,7 @@ public:
 	ENGINE_API virtual void InitRHI(FRHICommandListBase& RHICmdList) override;
 
 	/** Make sure we account for changes in the signature of GetStaticBatchElementVisibility() */
-	static CONSTEXPR uint32 NumBitsForVisibilityMask()
+	static constexpr uint32 NumBitsForVisibilityMask()
 	{		
 		return 8 * sizeof(uint64);
 	}

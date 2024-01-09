@@ -84,22 +84,22 @@ enum class EUpdateTransformFlags : int32
 	OnlyUpdateIfUsingSocket = 0x4	
 };
 
-CONSTEXPR inline EUpdateTransformFlags operator|(EUpdateTransformFlags Left, EUpdateTransformFlags Right)
+constexpr inline EUpdateTransformFlags operator|(EUpdateTransformFlags Left, EUpdateTransformFlags Right)
 {
 	return static_cast<EUpdateTransformFlags> ( static_cast<int32> (Left) | static_cast<int32> (Right) );
 }
 
-CONSTEXPR inline EUpdateTransformFlags operator&(EUpdateTransformFlags Left, EUpdateTransformFlags Right)
+constexpr inline EUpdateTransformFlags operator&(EUpdateTransformFlags Left, EUpdateTransformFlags Right)
 {
 	return static_cast<EUpdateTransformFlags> (static_cast<int32> (Left) & static_cast<int32> (Right));
 }
 
-CONSTEXPR inline bool operator !(EUpdateTransformFlags Value)
+constexpr inline bool operator !(EUpdateTransformFlags Value)
 {
 	return Value == EUpdateTransformFlags::None;
 }
 
-CONSTEXPR inline EUpdateTransformFlags operator ~(EUpdateTransformFlags Value)
+constexpr inline EUpdateTransformFlags operator ~(EUpdateTransformFlags Value)
 {
 	return static_cast<EUpdateTransformFlags>(~static_cast<int32>(Value));
 }
