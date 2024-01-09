@@ -132,6 +132,7 @@ public:
 	BEGIN_SHADER_PARAMETER_STRUCT(FParameters, )
 		SHADER_PARAMETER_RDG_TEXTURE_SRV(Texture2D, QuadTreeTexture)
 		SHADER_PARAMETER_RDG_TEXTURE_SRV(Texture2D, WaterZBoundsTexture)
+		SHADER_PARAMETER(int32, InputMipLevelIndex)
 		RENDER_TARGET_BINDING_SLOTS()
 	END_SHADER_PARAMETER_STRUCT()
 
@@ -711,13 +712,23 @@ void FWaterQuadTreeGPU::Init(FRDGBuilder& GraphBuilder, const FInitParams& Param
 	{
 		TShaderMapRef<FWaterQuadTreeBuildPS> PixelShader(ShaderMap);
 
+		const bool bSupportsTextureViews = GRHISupportsTextureViews;
 		FIntRect BuildViewport(0, 0, QuadTreeResolution.X, QuadTreeResolution.Y);
 
 		for (int32 MipLevel = 1; MipLevel < NumMipLevels; ++MipLevel)
 		{
+			FRDGTextureSRVDesc QuadTreeSourceSRVDesc = FRDGTextureSRVDesc::CreateForMipLevel(QuadTreeTextureRDG, MipLevel - 1);
+			FRDGTextureSRVDesc WaterZBoundsSourceSRVDesc = FRDGTextureSRVDesc::CreateForMipLevel(WaterZBoundsTextureRDG, MipLevel - 1);
+			if (!bSupportsTextureViews)
+			{
+				QuadTreeSourceSRVDesc = FRDGTextureSRVDesc::Create(QuadTreeTextureRDG);
+				WaterZBoundsSourceSRVDesc = FRDGTextureSRVDesc::Create(WaterZBoundsTextureRDG);
+			}
+
 			FWaterQuadTreeBuildPS::FParameters* PassParameters = GraphBuilder.AllocParameters<FWaterQuadTreeBuildPS::FParameters>();
-			PassParameters->QuadTreeTexture = GraphBuilder.CreateSRV(FRDGTextureSRVDesc::CreateForMipLevel(QuadTreeTextureRDG, MipLevel - 1));
-			PassParameters->WaterZBoundsTexture = GraphBuilder.CreateSRV(FRDGTextureSRVDesc::CreateForMipLevel(WaterZBoundsTextureRDG, MipLevel - 1));
+			PassParameters->QuadTreeTexture = GraphBuilder.CreateSRV(QuadTreeSourceSRVDesc);
+			PassParameters->WaterZBoundsTexture = GraphBuilder.CreateSRV(WaterZBoundsSourceSRVDesc);
+			PassParameters->InputMipLevelIndex = bSupportsTextureViews ? 0 : (MipLevel - 1);
 			PassParameters->RenderTargets[0] = FRenderTargetBinding(QuadTreeTextureRDG, ERenderTargetLoadAction::ENoAction, MipLevel);
 			PassParameters->RenderTargets[1] = FRenderTargetBinding(WaterZBoundsTextureRDG, ERenderTargetLoadAction::ENoAction, MipLevel);
 

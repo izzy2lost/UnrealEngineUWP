@@ -6,6 +6,7 @@
 
 Texture2D<float4> QuadTreeTexture;
 Texture2D<float4> WaterZBoundsTexture;
+int InputMipLevelIndex;
 
 void Main(in float4 Position : SV_Position, out float4 OutColor : SV_Target0, out float4 OutWaterZBounds : SV_Target1)
 {
@@ -25,7 +26,7 @@ void Main(in float4 Position : SV_Position, out float4 OutColor : SV_Target0, ou
 	{
 		for (int x = 0; x < 2; ++x)
 		{
-			const float4 QuadTreeSample = QuadTreeTexture.Load(int3(BaseCoord + int2(x, y), 0));
+			const float4 QuadTreeSample = QuadTreeTexture.Load(int3(BaseCoord + int2(x, y), InputMipLevelIndex));
 			const FWaterQuadTreeNode ChildNode = WaterQuadTreeUnpackNodeRGBA8(QuadTreeSample);
 			
 			bHasCompleteSubtree = bHasCompleteSubtree && ChildNode.bHasCompleteSubtree;
@@ -34,7 +35,7 @@ void Main(in float4 Position : SV_Position, out float4 OutColor : SV_Target0, ou
 			MinTransitionWaterBodyRenderDataIndex = min(MinTransitionWaterBodyRenderDataIndex, ChildNode.TransitionWaterBodyRenderDataIndex);
 			MaxTransitionWaterBodyRenderDataIndex = max(MaxTransitionWaterBodyRenderDataIndex, ChildNode.TransitionWaterBodyRenderDataIndex);
 
-			const float3 WaterZBoundsSample = WaterZBoundsTexture.Load(int3(BaseCoord + int2(x, y), 0)).xyz;
+			const float3 WaterZBoundsSample = WaterZBoundsTexture.Load(int3(BaseCoord + int2(x, y), InputMipLevelIndex)).xyz;
 			MinZ = min(MinZ, WaterZBoundsSample.x);
 			MaxZ = max(MaxZ, WaterZBoundsSample.y);
 			SurfaceBaseHeightSum += WaterZBoundsSample.z;
