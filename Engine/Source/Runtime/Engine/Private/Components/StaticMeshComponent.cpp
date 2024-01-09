@@ -2325,8 +2325,13 @@ bool UStaticMeshComponent::SetStaticMesh(UStaticMesh* NewMesh)
 		);
 	}
 
-	// Precache the PSOs
-	PrecachePSOs();
+#if UE_WITH_PSO_PRECACHING
+	// Precache the PSOs if already precache otherwise will happen later on during PostLoad
+	if (bPSOPrecacheCalled)
+	{ 
+		PrecachePSOs();
+	}
+#endif // UE_WITH_PSO_PRECACHING
 
 	// Need to send this to render thread at some point
 	if (IsRenderStateCreated())
