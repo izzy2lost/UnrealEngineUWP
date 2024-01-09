@@ -150,8 +150,11 @@ void UDisplayClusterICVFXCameraComponent::UpdateOverscanEstimatedFrameSize()
 
 	const FDisplayClusterConfigurationICVFX_StageSettings& StageSettings = RootActor->GetStageSettings();
 
+	UCineCameraComponent* ActualCineCameraComponent = GetActualCineCameraComponent();
+	check(ActualCineCameraComponent);
+
 	const float CameraBufferRatio = CameraSettings.GetCameraBufferRatio(StageSettings);
-	const FIntPoint CameraFrameSize = CameraSettings.GetCameraFrameSize(StageSettings);
+	const FIntPoint CameraFrameSize = CameraSettings.GetCameraFrameSize(StageSettings, *ActualCineCameraComponent);
 
 	const FIntPoint InnerFrustumResolution(
 		CameraFrameSize.X * CameraBufferRatio,

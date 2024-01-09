@@ -456,12 +456,15 @@ FDisplayClusterShaderParameters_ICVFX::FCameraSettings FDisplayClusterViewportCo
 			Result.Resource.ViewportId = InCameraViewport.GetId();
 			Result.Local2WorldTransform = OriginComp->GetComponentTransform();
 
+			UCineCameraComponent* ActualCineCameraComponent = InCameraComponent.GetActualCineCameraComponent();
+			check(ActualCineCameraComponent);
+
 			// Get camera border settings
 			InCameraSettings.GetCameraBorder(*StageSettings, Result.InnerCameraBorderColor, Result.InnerCameraBorderThickness);
-			Result.InnerCameraFrameAspectRatio = InCameraSettings.GetCameraFrameAspectRatio(*StageSettings);
+			Result.InnerCameraFrameAspectRatio = InCameraSettings.GetCameraFrameAspectRatio(*StageSettings, *ActualCineCameraComponent);
 
 			// Soft edges
-			Result.SoftEdge = InCameraSettings.GetCameraSoftEdge(*StageSettings);
+			Result.SoftEdge = InCameraSettings.GetCameraSoftEdge(*StageSettings, *ActualCineCameraComponent);
 
 			// Rendering order for camera overlap
 			const FString InnerFrustumID = InCameraComponent.GetCameraUniqueId();
@@ -511,8 +514,11 @@ void FDisplayClusterViewportConfigurationHelpers_ICVFX::UpdateCameraViewportSett
 	// FDisplayClusterConfigurationICVFX_CameraSettings
 	InOutRenderSettings.CameraId.Empty();
 
+	UCineCameraComponent* ActualCineCameraComponent = InCameraComponent.GetActualCineCameraComponent();
+	check(ActualCineCameraComponent);
+
 	// UDisplayClusterConfigurationICVFX_CameraRenderSettings
-	const FIntPoint DesiredSize = InCameraSettings.GetCameraFrameSize(*StageSettings);
+	const FIntPoint DesiredSize = InCameraSettings.GetCameraFrameSize(*StageSettings, *ActualCineCameraComponent);
 
 	InOutRenderSettings.Rect = FDisplayClusterViewportHelpers::GetValidViewportRect(FIntRect(FIntPoint(0, 0), DesiredSize), DstViewport.GetId(), TEXT("Configuration Camera Frame Size"));
 

@@ -4,6 +4,7 @@
 #include "DisplayClusterConfigurationTypes.h"
 #include "IDisplayCluster.h"
 #include "Camera/CameraTypes.h"
+#include "CineCameraComponent.h"
 
 namespace UE::DisplayClusterConfiguration::ICVFX
 {
@@ -15,6 +16,14 @@ namespace UE::DisplayClusterConfiguration::ICVFX
 	}
 };
 using namespace UE::DisplayClusterConfiguration::ICVFX;
+
+int32 GDisplayClusterICVFXCameraAdoptResolution = 1;
+static FAutoConsoleVariableRef CVarGDisplayClusterICVFXCameraAdoptResolution(
+	TEXT("nDisplay.icvfx.camera.AdoptResolution"),
+	GDisplayClusterICVFXCameraAdoptResolution,
+	TEXT("Adopt camera viewport resolution with 'Filmback + CropSettings + SqueezeFactor' CineCamera settings.  (Default = 1)"),
+	ECVF_Default
+);
 
 ///////////////////////////////////////////////////////////////////////////////////////
 // FDisplayClusterConfigurationICVFX_ChromakeyMarkers
@@ -265,26 +274,48 @@ void FDisplayClusterConfigurationICVFX_CameraSettings::SetupViewInfo(const FDisp
 	CameraMotionBlur.SetupViewInfo(InStageSettings, InOutViewInfo);
 }
 
-FIntPoint FDisplayClusterConfigurationICVFX_CameraSettings::GetCameraFrameSize(const FDisplayClusterConfigurationICVFX_StageSettings& InStageSettings) const
+FIntPoint FDisplayClusterConfigurationICVFX_CameraSettings::GetCameraFrameSize(const FDisplayClusterConfigurationICVFX_StageSettings& InStageSettings, const UCineCameraComponent& InCineCameraComponent) const
 {
-	if (RenderSettings.CustomFrameSize.bUseCustomSize)
+	const FIntPoint CameraFrameSize = RenderSettings.CustomFrameSize.bUseCustomSize
+		? FIntPoint(RenderSettings.CustomFrameSize.CustomWidth, RenderSettings.CustomFrameSize.CustomHeight)
+		: FIntPoint(InStageSettings.DefaultFrameSize.Width, InStageSettings.DefaultFrameSize.Height);
+
+	if (GDisplayClusterICVFXCameraAdoptResolution)
 	{
-		// Custom camera size
-		return FIntPoint(RenderSettings.CustomFrameSize.CustomWidth, RenderSettings.CustomFrameSize.CustomHeight);
+		// Get the size of the cinematic camera's cropped sensor:
+		const double CropedSensorWidth  = FMath::Tan(FMath::DegreesToRadians(InCineCameraComponent.GetHorizontalFieldOfView()) / 2.f) * 2.f * InCineCameraComponent.CurrentFocalLength;
+		const double CropedSensorHeight = FMath::Tan(FMath::DegreesToRadians(InCineCameraComponent.GetVerticalFieldOfView()) / 2.f) * 2.f * InCineCameraComponent.CurrentFocalLength;
+
+		// Get the ratio of the cinematic camera's cropped sensor size to the base sensor size.
+		const double CroppedSensorWidthRatio  = CropedSensorWidth / InCineCameraComponent.Filmback.SensorWidth;
+		const double CroppedSensorHeightRatio = CropedSensorHeight / InCineCameraComponent.Filmback.SensorHeight;
+
+		// Adapt camera resolution to the filmback sensor aspect ratio
+		// We keep the width, but adjust the height to match the aspect ratio of the Fimlmback sensor.
+		const double CameraFrameHeight = (InCineCameraComponent.Filmback.SensorHeight > 0.f && InCineCameraComponent.Filmback.SensorWidth > 0.f)
+			? CameraFrameSize.X / (InCineCameraComponent.Filmback.SensorWidth / InCineCameraComponent.Filmback.SensorHeight)
+			: CameraFrameSize.Y;
+
+		// Get cropped camera size
+		const FIntPoint CroppedCameraFrameSize(
+			FMath::RoundToInt(CameraFrameSize.X * CroppedSensorWidthRatio),
+			FMath::RoundToInt(CameraFrameHeight * CroppedSensorHeightRatio)
+		);
+
+		return CroppedCameraFrameSize;
 	}
 
-	// global camera size
-	return FIntPoint(InStageSettings.DefaultFrameSize.Width, InStageSettings.DefaultFrameSize.Height);
+	return CameraFrameSize;
 }
 
-float FDisplayClusterConfigurationICVFX_CameraSettings::GetCameraFrameAspectRatio(const FDisplayClusterConfigurationICVFX_StageSettings& InStageSettings) const
+float FDisplayClusterConfigurationICVFX_CameraSettings::GetCameraFrameAspectRatio(const FDisplayClusterConfigurationICVFX_StageSettings& InStageSettings, const UCineCameraComponent& InCineCameraComponent) const
 {
-	FIntPoint FrameSize = GetCameraFrameSize(InStageSettings);
+	FIntPoint FrameSize = GetCameraFrameSize(InStageSettings, InCineCameraComponent);
 
 	return (FrameSize.Y > 0 && FrameSize.X > 0) ? (float)FrameSize.X / float(FrameSize.Y) : 0;
 }
 
-FVector4 FDisplayClusterConfigurationICVFX_CameraSettings::GetCameraSoftEdge(const FDisplayClusterConfigurationICVFX_StageSettings& InStageSettings) const
+FVector4 FDisplayClusterConfigurationICVFX_CameraSettings::GetCameraSoftEdge(const FDisplayClusterConfigurationICVFX_StageSettings& InStageSettings, const UCineCameraComponent& InCineCameraComponent) const
 {
 	FVector4 ResultSoftEdge(ForceInitToZero);
 
@@ -315,7 +346,7 @@ FVector4 FDisplayClusterConfigurationICVFX_CameraSettings::GetCameraSoftEdge(con
 		if (CustomFrustum.Mode == EDisplayClusterConfigurationViewportCustomFrustumMode::Pixels)
 		{
 			const float CameraBufferRatio = GetCameraBufferRatio(InStageSettings);
-			const FIntPoint FrameSize = GetCameraFrameSize(InStageSettings);
+			const FIntPoint FrameSize = GetCameraFrameSize(InStageSettings, InCineCameraComponent);
 
 			const float  FrameWidth = FrameSize.X * CameraBufferRatio;
 			const float FrameHeight = FrameSize.Y * CameraBufferRatio;
