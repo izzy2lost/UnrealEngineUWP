@@ -577,6 +577,9 @@ public:
 	/** Cache this preset's layout data. */
 	void CacheLayoutData();
 
+	/** Cache this preset's controllers labels. */
+	void CacheControllersLabels() const;
+
 	/** Resolves exposed property/function bounded objects */
 	UE_DEPRECATED(4.27, "ResolvedBoundObjects is deprecated, you can now resolve bound objects using FRemoteControlEntity.")
 	TArray<UObject*> ResolvedBoundObjects(FName FieldLabel);
@@ -600,7 +603,15 @@ public:
 	 * Renews all controller guids. Necessary when duplicating.
 	 */
 	void RenewControllerIds();
-	
+
+	/**
+	 * Rename the given controller with the new name if the name is unique
+	 * @param InControllerGuid Id of the controller to rename
+	 * @param InNewName New name for the controller
+	 * @return New name of the controller
+	 */
+	FName SetControllerDisplayName(FGuid InControllerGuid, const FName& InNewName) const;
+
 	DECLARE_MULTICAST_DELEGATE_TwoParams(FOnPresetEntityEvent, URemoteControlPreset* /*Preset*/, const FGuid& /*EntityId*/);
 	FOnPresetEntityEvent& OnEntityExposed() { return OnEntityExposedDelegate; }
 	FOnPresetEntityEvent& OnEntityUnexposed() { return OnEntityUnexposedDelegate; }
@@ -786,6 +797,9 @@ private:
 	void OnObjectPropertyChanged(UObject* Object, FPropertyChangedEvent& Event);
 	void OnPreObjectPropertyChanged(UObject* Object, const class FEditPropertyChain& PropertyChain);
 	void OnObjectTransacted(UObject* InObject, const FTransactionObjectEvent& InTransactionEvent);
+
+	/** Fix controllers labels for older presets. */
+	void FixAndCacheControllersLabels() const;
 
 #if WITH_EDITOR	
 	//~ Handle events that can incur bindings to be modified.

@@ -330,9 +330,13 @@ public:
 	UPROPERTY()
 	TWeakObjectPtr<URemoteControlPreset> PresetWeakPtr;
 
-	/** User friendly name of the Controller*/
+	/** Unique user friendly name of the controller, used as identifier in some API. */
 	UPROPERTY()
 	FName DisplayName;
+
+	/** Controller description */
+	UPROPERTY()
+	FText Description;
 
 	/** User configurable Display Index for this Virtual Property (as Logic Controller) when represented as a row in the RC Logic Controllers list  */
 	UPROPERTY()

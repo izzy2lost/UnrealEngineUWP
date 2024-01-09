@@ -53,6 +53,7 @@ namespace UE::RCControllerPanelList
 	{
 		const FName TypeColor = TEXT("TypeColor");
 		const FName Name = TEXT("Controller Name");
+		const FName Description = TEXT("Controller Description");
 		const FName Value = TEXT("Controller Value");
 		const FName DragHandle = TEXT("Drag Handle");
 		const FName FieldId = TEXT("Controller Field Id");
@@ -137,6 +138,10 @@ namespace UE::RCControllerPanelList
 			else if (ColumnName == UE::RCControllerPanelList::Columns::Name)
 			{
 				return WrapWithDropTarget(ControllerItem->GetNameWidget());
+			}
+			else if (ColumnName == UE::RCControllerPanelList::Columns::Description)
+			{
+				return WrapWithDropTarget(ControllerItem->GetDescriptionWidget());
 			}
 			else if (ColumnName == UE::RCControllerPanelList::Columns::Value)
 			{
@@ -321,7 +326,7 @@ namespace UE::RCControllerPanelList
 		{
 			if (ControllerItem.IsValid())
 			{
-				ControllerItem->EnterRenameMode();
+				ControllerItem->EnterDescriptionEditingMode();
 			}
 
 			return FSuperRowType::OnMouseButtonDoubleClick(InMyGeometry, InMouseEvent);
@@ -353,19 +358,23 @@ void SRCControllerPanelList::Construct(const FArguments& InArgs, const TSharedRe
 			.Style(&RCPanelStyle->HeaderRowStyle)
 
 			+ SHeaderRow::Column(UE::RCControllerPanelList::Columns::TypeColor)
-			.DefaultLabel(LOCTEXT("ControllerNameColumnName", ""))
-			.FixedWidth(30)
+			.DefaultLabel(LOCTEXT("ControllerColorColumnName", ""))
+			.FixedWidth(15)
 			.HeaderContentPadding(RCPanelStyle->HeaderRowPadding)
 
 			+ SHeaderRow::Column(UE::RCControllerPanelList::Columns::DragHandle)
 			.DefaultLabel(FText::GetEmpty())
-			.FixedWidth(30)
+			.FixedWidth(15)
 			.HeaderContentPadding(RCPanelStyle->HeaderRowPadding)
 
 			+ SHeaderRow::Column(UE::RCControllerPanelList::Columns::Name)
 			.DefaultLabel(LOCTEXT("ControllerNameColumnName", "Name"))
-			.FillWidth(0.15f)
+			.FillWidth(0.2f)
 			.HeaderContentPadding(RCPanelStyle->HeaderRowPadding)
+
+			+ SHeaderRow::Column(UE::RCControllerPanelList::Columns::Description)
+			.DefaultLabel(LOCTEXT("ControllerNameColumnDescription", "Description"))
+			.FillWidth(0.35f)
 
 			+ SHeaderRow::Column(UE::RCControllerPanelList::Columns::Value)
 			.DefaultLabel(LOCTEXT("ControllerValueColumnName", "Input"))
@@ -764,7 +773,7 @@ void SRCControllerPanelList::EnterRenameMode()
 {
 	if (TSharedPtr<FRCControllerModel> SelectedItem = SelectedControllerItemWeakPtr.Pin())
 	{
-		SelectedItem->EnterRenameMode();
+		SelectedItem->EnterDescriptionEditingMode();
 	}
 }
 

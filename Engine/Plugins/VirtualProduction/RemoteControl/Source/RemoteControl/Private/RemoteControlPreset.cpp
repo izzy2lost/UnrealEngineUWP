@@ -66,7 +66,7 @@ namespace
 	}
 
 	/** Create a unique name. */
-	FName MakeUniqueName(FName InBase, TFunctionRef<bool(FName)> NamePoolContains)
+	FName MakeUniqueName(FName InBase, TFunctionRef<bool(FName)> NamePoolContains, const FString& InSeparatorLeft = TEXT(" ("), const FString& InSeparatorRight = TEXT(")"))
 	{
 		// Try using the field name itself
 		if (!NamePoolContains(InBase))
@@ -77,7 +77,7 @@ namespace
 		// Then try the field name with a suffix
 		for (uint32 Index = 1; Index < 1000; ++Index)
 		{
-			const FName Candidate = FName(*FString::Printf(TEXT("%s (%d)"), *InBase.ToString(), Index));
+			const FName Candidate = FName(*FString::Printf(TEXT("%s%s%d%s"), *InBase.ToString(), *InSeparatorLeft, Index, *InSeparatorRight));
 			if (!NamePoolContains(Candidate))
 			{
 				return Candidate;
@@ -691,6 +691,8 @@ void URemoteControlPreset::PostLoad()
 	RegisterDelegates();
 
 	CacheFieldLayoutData();
+
+	FixAndCacheControllersLabels();
 
 	InitializeEntitiesMetadata();
 
@@ -1735,6 +1737,14 @@ void URemoteControlPreset::CacheLayoutData()
 	CacheFieldLayoutData();
 }
 
+void URemoteControlPreset::CacheControllersLabels() const
+{
+	if (ControllerContainer)
+	{
+		ControllerContainer->CacheControllersLabels();
+	}
+}
+
 TArray<UObject*> URemoteControlPreset::ResolvedBoundObjects(FName FieldLabel)
 {
 	TArray<UObject*> Objects;
@@ -1836,9 +1846,19 @@ void URemoteControlPreset::RenewControllerIds()
 		ControllerIdMap.Add(OldControllerId, Controller->Id);
 	}
 
-	// It doesn't seem like controller Ids are used as hashing key.
-	
+	// Re-cache after the Ids are updated
+	CacheControllersLabels();
+
 	OnControllerIdsRenewed().Broadcast(this, ControllerIdMap);
+}
+
+FName URemoteControlPreset::SetControllerDisplayName(FGuid InControllerGuid, const FName& InNewName) const
+{
+	if (ControllerContainer)
+	{
+		return ControllerContainer->SetControllerDisplayName(InControllerGuid, InNewName);
+	}
+	return NAME_None;
 }
 
 void URemoteControlPreset::NotifyExposedPropertyChanged(FName PropertyLabel)
@@ -2344,6 +2364,14 @@ void URemoteControlPreset::OnObjectTransacted(UObject* InObject, const FTransact
 				break;
 			}
 		}
+	}
+}
+
+void URemoteControlPreset::FixAndCacheControllersLabels() const
+{
+	if (ControllerContainer)
+	{
+		ControllerContainer->FixAndCacheControllersLabels();
 	}
 }
 
