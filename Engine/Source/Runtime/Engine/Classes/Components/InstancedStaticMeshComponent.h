@@ -412,13 +412,6 @@ private:
 	bool bUseConservativeBounds = false;
 	/** Current cached conservativ bounds. */
 	FBox CachedConservativeInstanceBounds;
-
-	/**
-	 *  Buffers with per-instance data laid out for rendering. 
-	 *  Serialized for cooked content. Used to create PerInstanceRenderData. 
-	 *  Alive between Serialize and PostLoad calls 
-	 */
-	TUniquePtr<FStaticMeshInstanceData> InstanceDataBufferSerializationTmp;
 public:
 
 #if WITH_EDITOR
@@ -507,6 +500,16 @@ public:
 #if WITH_EDITOR
 	ENGINE_API virtual void PostEditChangeChainProperty(FPropertyChangedChainEvent& PropertyChangedEvent) override;
 	ENGINE_API virtual void PostEditUndo() override;
+	/**
+	 * See: UObject::BeginCacheForCookedPlatformData
+	 */
+	ENGINE_API virtual void BeginCacheForCookedPlatformData( const ITargetPlatform* TargetPlatform ) override;
+	
+	/**
+	 * See: UObject::IsCachedCookedPlatformDataLoaded
+	 */
+	ENGINE_API virtual bool IsCachedCookedPlatformDataLoaded( const ITargetPlatform* TargetPlatform ) override;
+
 #endif
 	//~ End UObject Interface
 

@@ -37,6 +37,7 @@ union FInstanceDataFlags
 		uint16 bHasPerInstancePayloadExtension : 1;
 		uint16 bHasPerInstanceVisible : 1;
 		uint16 bHasPerInstanceEditorData : 1;
+		uint16 bHasCompressedSpatialHash : 1;
 	};
 
 	inline bool operator == (FInstanceDataFlags Other) const { return Packed == Other.Packed; }

@@ -200,6 +200,13 @@ void FInstanceSceneDataBuffers::ValidateData() const
 	// ValidateArray(Flags.bHasPerInstancePayloadExtension, InstancePayloadExtension, GetNumInstances());
 }
 
+void FInstanceSceneDataBuffers::SetImmutable(FInstanceSceneDataImmutable &&ImmutableData, FAccessTag AccessTag)
+{
+	ValidateAccess(AccessTag);
+	Flags.bHasCompressedSpatialHash = !ImmutableData.GetCompressedInstanceSpatialHashes().IsEmpty();
+	Immutable = MakeShared<FInstanceSceneDataImmutable>(MoveTemp(ImmutableData));
+}
+
 FSingleInstanceDataBuffers::FSingleInstanceDataBuffers()
 {
 	PrimitiveToRelativeWorld.SetIdentity();

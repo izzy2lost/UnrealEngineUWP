@@ -6,6 +6,7 @@
 #include "RenderTransform.h"
 #include "Tasks/Task.h"
 #include "Engine/EngineTypes.h"
+#include "Rendering/RenderingSpatialHash.h"
 
 class FPrimitiveDrawInterface;
 
@@ -111,6 +112,7 @@ struct FInstanceEditorData
 
 #endif
 
+class FInstanceSceneDataImmutable;
 
 /**
  */
@@ -187,8 +189,16 @@ public:
 
 	void ValidateData() const;
 
+	struct FCompressedSpatialHashItem
+	{
+		// TODO: compress the location - store delta to primitive loc for example
+		RenderingSpatialHash::FLocation64 Location;
+		int32 NumInstances;
+	};
+
 	struct FWriteView
 	{
+		FInstanceSceneDataBuffers::FAccessTag AccessTag;
 		FRenderTransform &PrimitiveToRelativeWorld;
 		FVector &PrimitiveWorldSpaceOffset;
 		TArray<FRenderBounds, TInlineAllocator<1>> &InstanceLocalBounds;
@@ -216,6 +226,7 @@ public:
 		check(CurrentWriterTag.compare_exchange_strong(PrevTagValue, AccessTag.WriterTag));
 		return 	FWriteView
 		{
+			AccessTag,
 			PrimitiveToRelativeWorld,
 			PrimitiveWorldSpaceOffset,
 			InstanceLocalBounds,
@@ -291,6 +302,9 @@ public:
 		};
 	}
 
+	ENGINE_API void SetImmutable(FInstanceSceneDataImmutable &&ImmutableData, FAccessTag AccessTag);
+	inline TSharedPtr<FInstanceSceneDataImmutable, ESPMode::ThreadSafe> GetImmutable() const { return Immutable; }
+
 protected:
 	FRenderTransform PrimitiveToRelativeWorld;
 	FVector PrimitiveWorldSpaceOffset;
@@ -322,6 +336,21 @@ protected:
 	FORCEINLINE void ValidateAccess(const FAccessTag& AccessTag) const {}
 #endif
 
+	TSharedPtr<FInstanceSceneDataImmutable, ESPMode::ThreadSafe> Immutable;
+};
+
+/**
+ * Stores instance data that is immutable - i.e., it is never changed after construction, it can be held onto by the renderer through a shared pointer.
+ */
+class FInstanceSceneDataImmutable
+{
+public:
+	inline FInstanceSceneDataImmutable(const TArray<FInstanceSceneDataBuffers::FCompressedSpatialHashItem> &InCompressedInstanceSpatialHashes) : CompressedInstanceSpatialHashes(InCompressedInstanceSpatialHashes) {}
+
+	inline const TArray<FInstanceSceneDataBuffers::FCompressedSpatialHashItem> &GetCompressedInstanceSpatialHashes() const { return CompressedInstanceSpatialHashes; }
+private:
+	// Encodes consecutive ranges of instances that share the same spatial hash location
+	TArray<FInstanceSceneDataBuffers::FCompressedSpatialHashItem> CompressedInstanceSpatialHashes;
 };
 
 /**

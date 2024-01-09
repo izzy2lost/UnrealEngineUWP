@@ -8,6 +8,8 @@
 #include "Rendering/RenderingSpatialHash.h"
 #include "Rendering/MotionVectorSimulation.h"
 
+//UE_DISABLE_OPTIMIZATION
+
 DEFINE_LOG_CATEGORY(LogInstanceProxy);
 
 #if 0
@@ -15,6 +17,172 @@ DEFINE_LOG_CATEGORY(LogInstanceProxy);
 #else
 	#define LOG_INST_DATA(_Format_, ...) 
 #endif
+
+/**
+ * Vector register version of FRenderTransform, used to preload the primitive to world transform into registers
+ */
+struct FRenderTransformVectorRegister
+{
+	VectorRegister4f R0;
+	VectorRegister4f R1;
+	VectorRegister4f R2;
+	VectorRegister4f Origin;
+
+	FORCEINLINE FRenderTransformVectorRegister(const FRenderTransform &RenderTransform)
+	{
+		//  we can use unaligmed vectorized load since we know there is data beyond the three rows (the origin), so it is ok to load whatever into the 4th component.
+		R0 = VectorLoad(&RenderTransform.TransformRows[0].X);
+		R1 = VectorLoad(&RenderTransform.TransformRows[1].X);
+		R2 = VectorLoad(&RenderTransform.TransformRows[2].X);
+		// But not for the origin
+		Origin = VectorLoadFloat3(&RenderTransform.Origin);
+	}
+};
+
+FORCEINLINE_DEBUGGABLE FRenderTransform VectorMatrixMultiply(const FRenderTransform& LocalToPrimitive, const FRenderTransformVectorRegister& PrimitiveToWorld)
+{
+	FRenderTransform Result;
+
+	// First row of result (Matrix1[0] * Matrix2).
+	{
+		//  we can use unaligmed vectorized load since we know there is data beyond the three rows (the origin), so it is ok to load whatever into the 4th component.
+		const VectorRegister4Float ARow = VectorLoad(&LocalToPrimitive.TransformRows[0].X);
+		VectorRegister4Float R0 = VectorMultiply(VectorReplicate(ARow, 0), PrimitiveToWorld.R0);
+		R0 = VectorMultiplyAdd(VectorReplicate(ARow, 1), PrimitiveToWorld.R1, R0);
+		R0 = VectorMultiplyAdd(VectorReplicate(ARow, 2), PrimitiveToWorld.R2, R0);
+	
+		// We can use unaligmed vectorized store since we know there is data beyond the three floats that is written later
+		// Note: stomps the X of the TransformRows[1]
+		VectorStore(R0, &Result.TransformRows[0].X);		
+	}
+
+	// Second row of result (Matrix1[1] * Matrix2).
+	{
+		//  we can use unaligmed vectorized load since we know there is data beyond the three rows (the origin), so it is ok to load whatever into the 4th component.
+		const VectorRegister4Float ARow = VectorLoad(&LocalToPrimitive.TransformRows[1].X);
+		VectorRegister4Float R1 = VectorMultiply(VectorReplicate(ARow, 0), PrimitiveToWorld.R0);
+		R1 = VectorMultiplyAdd(VectorReplicate(ARow, 1), PrimitiveToWorld.R1, R1);
+		R1 = VectorMultiplyAdd(VectorReplicate(ARow, 2), PrimitiveToWorld.R2, R1);
+
+		// We can use unaligmed vectorized store since we know there is data beyond the three floats that is written later
+		// Note: stomps the X of the TransformRows[2]
+		VectorStore(R1, &Result.TransformRows[1].X);
+	}
+
+	// Third row of result (Matrix1[2] * Matrix2).
+	{
+		//  we can use unaligmed vectorized load since we know there is data beyond the three rows (the origin), so it is ok to load whatever into the 4th component.
+		const VectorRegister4Float ARow = VectorLoad(&LocalToPrimitive.TransformRows[2].X);
+		VectorRegister4Float R2 = VectorMultiply(VectorReplicate(ARow, 0), PrimitiveToWorld.R0);
+		R2 = VectorMultiplyAdd(VectorReplicate(ARow, 1), PrimitiveToWorld.R1, R2);
+		R2 = VectorMultiplyAdd(VectorReplicate(ARow, 2), PrimitiveToWorld.R2, R2);
+
+		// We can use unaligmed vectorized store since we know there is data beyond the three floats that is written later
+		// Note: stomps the X of the Origin
+		VectorStore(R2, &Result.TransformRows[2].X);
+	}
+
+	// Fourth row of result (Matrix1[3] * Matrix2).
+	{
+		//  can _NOT_ use VectorLoad, or we'll run off the end of the FRenderTransform struct.
+		const VectorRegister4Float ARow = VectorLoadFloat3(&LocalToPrimitive.Origin);
+		
+		// Add B3 at once (instead of mult by 1.0 which would have been the fourth value in the 4x4 version of the matrix)
+		VectorRegister4Float R3 = VectorMultiplyAdd(VectorReplicate(ARow, 0), PrimitiveToWorld.R0, PrimitiveToWorld.Origin);
+		R3 = VectorMultiplyAdd(VectorReplicate(ARow, 1), PrimitiveToWorld.R1, R3);
+		R3 = VectorMultiplyAdd(VectorReplicate(ARow, 2), PrimitiveToWorld.R2, R3);
+
+		VectorStoreFloat3(R3, &Result.Origin);
+	}
+	return Result;
+}
+
+
+/**
+ * Helper function to apply transform update that selectively performs Orthogonalize only if the primitive transform has any non-uniform scale.
+ */
+template <typename DeltaType, typename IndexRemapType, typename TransformOutputType>
+FORCEINLINE void ApplyTransformUpdatesEx(const DeltaType &DeltaRange, const IndexRemapType &IndexRemap, const FRenderTransform &PrimitiveToRelativeWorld, const TArray<FRenderTransform> &InstanceTransforms, int32 PostUpdateNumTransforms, TransformOutputType &OutInstanceToPrimitiveRelative)
+{
+	OutInstanceToPrimitiveRelative.SetNum(PostUpdateNumTransforms);
+
+	if (DeltaRange.IsEmpty())
+	{
+		return;
+	}
+
+	if (PrimitiveToRelativeWorld.IsScaleNonUniform())
+	{
+		FRenderTransformVectorRegister PrimitiveToRelativeWorldVR(PrimitiveToRelativeWorld);
+		for (auto It = DeltaRange.GetIterator(); It; ++It)
+		{
+			int32 ItemIndex = It.GetItemIndex();
+			int32 InstanceIndex = It.GetIndex();
+
+			if (IndexRemap.Remap(ItemIndex, InstanceIndex))
+			{
+				FRenderTransform LocalToPrimitiveRelativeWorld = VectorMatrixMultiply(InstanceTransforms[ItemIndex], PrimitiveToRelativeWorldVR);
+				// Remove shear
+				LocalToPrimitiveRelativeWorld.Orthogonalize();
+				OutInstanceToPrimitiveRelative.Set(InstanceIndex, LocalToPrimitiveRelativeWorld);
+			}
+		}
+	}
+	else
+	{
+		FRenderTransformVectorRegister PrimitiveToRelativeWorldVR(PrimitiveToRelativeWorld);
+		for (auto It = DeltaRange.GetIterator(); It; ++It)
+		{
+			int32 ItemIndex = It.GetItemIndex();
+			int32 InstanceIndex = It.GetIndex();
+
+			if (IndexRemap.Remap(ItemIndex, InstanceIndex))
+			{
+				OutInstanceToPrimitiveRelative.Set(InstanceIndex, VectorMatrixMultiply(InstanceTransforms[ItemIndex], PrimitiveToRelativeWorldVR));
+			}
+		}
+	}
+}
+
+template <typename DeltaType, typename IndexRemapType>
+FORCEINLINE void ApplyTransformUpdates(const DeltaType &DeltaRange, const IndexRemapType &IndexRemap, const FRenderTransform &PrimitiveToRelativeWorld, const TArray<FRenderTransform> &InstanceTransforms, int32 PostUpdateNumTransforms, TArray<FRenderTransform> &OutInstanceToPrimitiveRelative)
+{
+	struct FArrayTransformCollector
+	{
+		FORCEINLINE void SetNum(int32 Num) { OutArray.SetNumUninitialized(Num); }
+		FORCEINLINE void Set(int32 Index, const FRenderTransform &Transform) { OutArray[Index] = Transform; }
+		TArray<FRenderTransform> &OutArray;
+	};
+
+	FArrayTransformCollector TransformCollector {OutInstanceToPrimitiveRelative};
+
+	ApplyTransformUpdatesEx(DeltaRange, IndexRemap, PrimitiveToRelativeWorld, InstanceTransforms, PostUpdateNumTransforms, TransformCollector);
+};
+/**
+ * Helper class to apply transform concatenation that selectively performs Orthogonalize only if the primitive transform has any non-uniform scale.
+ */
+struct FInstanceTransformApplyHelper
+{
+	FORCEINLINE_DEBUGGABLE FInstanceTransformApplyHelper(bool bHasWork, const FRenderTransform &InPrimitiveToRelativeWorld)
+	: PrimitiveToRelativeWorldVR(InPrimitiveToRelativeWorld)
+	, bNeedsOrthogonalization(bHasWork && InPrimitiveToRelativeWorld.IsScaleNonUniform())
+	{
+	}
+
+	FORCEINLINE_DEBUGGABLE FRenderTransform Apply(const FRenderTransform &InstanceTransform)
+	{
+		FRenderTransform LocalToPrimitiveRelativeWorld = VectorMatrixMultiply(InstanceTransform, PrimitiveToRelativeWorldVR);
+		if (bNeedsOrthogonalization)
+		{
+			// Remove shear
+			LocalToPrimitiveRelativeWorld.Orthogonalize();
+		}
+		return LocalToPrimitiveRelativeWorld;
+	}
+	FRenderTransformVectorRegister PrimitiveToRelativeWorldVR;
+	bool bNeedsOrthogonalization = false;
+};
+
 
 FISMCInstanceDataSceneProxy::FISMCInstanceDataSceneProxy(FStaticShaderPlatform InShaderPlatform, ERHIFeatureLevel::Type InFeatureLevel) 
 	: ShaderPlatform(InShaderPlatform)
@@ -25,6 +193,8 @@ FISMCInstanceDataSceneProxy::FISMCInstanceDataSceneProxy(FStaticShaderPlatform I
 
 struct FIdentityIndexRemap
 {
+	FORCEINLINE constexpr bool IsIdentity() const { return true; }
+
 	inline int32 operator[](int32 InIndex) const { return InIndex; }
 
 	template <typename DeltaType, typename ValueType>
@@ -40,7 +210,9 @@ struct FIdentityIndexRemap
 		}
 	}
 
-	FORCEINLINE constexpr bool RemapIndex(int32 Index) const { return true; }
+	FORCEINLINE constexpr bool RemapDestIndex(int32 Index) const { return true; }
+
+	FORCEINLINE bool Remap(int32 &SrcIndex, int32 &DstIndex) const  { return true; }
 };
 
 struct FReorderTableIndexRemap
@@ -65,10 +237,16 @@ struct FReorderTableIndexRemap
 		return ClampValidIndex(InIndex); 
 	}
 
-	FORCEINLINE bool RemapIndex(int32 &Index) const 
+	FORCEINLINE bool RemapDestIndex(int32 &Index) const 
 	{ 
 		Index = operator[](Index);
 		return Index != INDEX_NONE; 
+	}
+
+	FORCEINLINE bool Remap(int32 &SrcIndex, int32 &DstIndex) const 
+	{ 
+		RemapDestIndex(DstIndex);
+		return DstIndex != INDEX_NONE; 
 	}
 
 	template <typename DeltaType, typename ValueType>
@@ -103,6 +281,59 @@ FVector3f FISMCInstanceDataSceneProxy::GetLocalBoundsPadExtent(const FRenderTran
 }
 
 template <typename IndexRemapType>
+void FISMCInstanceDataSceneProxy::ApplyAttributeChanges(FISMInstanceUpdateChangeSet &ChangeSet, const IndexRemapType &IndexRemap, FInstanceSceneDataBuffers::FWriteView &ProxyData)
+{
+	if (ChangeSet.Flags.bHasPerInstanceCustomData)
+	{
+		ProxyData.NumCustomDataFloats = ChangeSet.NumCustomDataFloats;
+		IndexRemap.Scatter(ChangeSet.Flags.bHasPerInstanceCustomData, ChangeSet.GetCustomDataDelta(), ProxyData.InstanceCustomData, ChangeSet.PostUpdateNumInstances, MoveTemp(ChangeSet.PerInstanceCustomData), ProxyData.NumCustomDataFloats);
+	}
+	else
+	{
+		ProxyData.NumCustomDataFloats = 0;
+		ProxyData.InstanceCustomData.Reset();
+	}
+
+	IndexRemap.Scatter(ChangeSet.Flags.bHasPerInstanceLMSMUVBias, ChangeSet.GetInstanceLightShadowUVBiasDelta(), ProxyData.InstanceLightShadowUVBias, ChangeSet.PostUpdateNumInstances, MoveTemp(ChangeSet.InstanceLightShadowUVBias));
+#if WITH_EDITOR
+	IndexRemap.Scatter(ChangeSet.Flags.bHasPerInstanceEditorData, ChangeSet.GetInstanceEditorDataDelta(), ProxyData.InstanceEditorData, ChangeSet.PostUpdateNumInstances, MoveTemp(ChangeSet.InstanceEditorData));
+
+	// replace the HP container.
+	if (ChangeSet.HitProxyContainer)
+	{
+		HitProxyContainer = MoveTemp(ChangeSet.HitProxyContainer);
+	}
+
+#endif
+
+	// Delayed per instance random generation, moves it off the GT and RT, but still sucks
+	if (ChangeSet.Flags.bHasPerInstanceRandom)
+	{
+		// TODO: only need to process added instances? No help for ISM since the move path would be taken.
+		// TODO: OTOH for HISM there is no meaningful data, so just skipping and letting the SetNumZeroed fill in the blanks is fine.
+
+		ProxyData.InstanceRandomIDs.SetNumZeroed(ChangeSet.PostUpdateNumInstances);
+		if (ChangeSet.GeneratePerInstanceRandomIds)
+		{
+			// NOTE: this is not super efficient(!)
+			TArray<float> TmpInstanceRandomIDs;
+			TmpInstanceRandomIDs.SetNumZeroed(ChangeSet.PostUpdateNumInstances);
+			ChangeSet.GeneratePerInstanceRandomIds(TmpInstanceRandomIDs);
+			FIdentityDeltaRange PerInstanceRandomDelta(TmpInstanceRandomIDs.Num());
+			IndexRemap.Scatter(true, PerInstanceRandomDelta, ProxyData.InstanceRandomIDs, ChangeSet.PostUpdateNumInstances, MoveTemp(TmpInstanceRandomIDs));
+		}
+		//else 
+		//{
+		//	IndexRemap.Scatter(true, PerInstanceRandomDelta, ProxyData.InstanceRandomIDs, ChangeSet.PostUpdateNumInstances, MoveTemp(ChangeSet.InstanceRandomIDs));
+		//}
+	}
+	else
+	{
+		ProxyData.InstanceRandomIDs.Reset();
+	}
+}
+
+template <typename IndexRemapType>
 void FISMCInstanceDataSceneProxy::ApplyDataChanges(FISMInstanceUpdateChangeSet &ChangeSet, const IndexRemapType &IndexRemap, int32 PostUpdateNumInstances, FInstanceSceneDataBuffers::FWriteView &ProxyData)
 {
 	ProxyData.PrimitiveToRelativeWorld = ChangeSet.PrimitiveToRelativeWorld;
@@ -121,91 +352,18 @@ void FISMCInstanceDataSceneProxy::ApplyDataChanges(FISMInstanceUpdateChangeSet &
 	}
 
 	// unpack transform deltas
-	ProxyData.InstanceToPrimitiveRelative.SetNumUninitialized(PostUpdateNumInstances);
-	auto TransformDelta = ChangeSet.GetTransformDelta();
-	for (auto It = TransformDelta.GetIterator(); It; ++It)
-	{
-		int32 ItemIndex = It.GetItemIndex();
-		int32 InstanceIndex = It.GetIndex();
-
-		if (IndexRemap.RemapIndex(InstanceIndex))
-		{
-			FRenderTransform LocalToPrimitiveRelativeWorld = ChangeSet.Transforms[ItemIndex] * ChangeSet.PrimitiveToRelativeWorld;
-			// Remove shear
-			LocalToPrimitiveRelativeWorld.Orthogonalize();
-			ProxyData.InstanceToPrimitiveRelative[InstanceIndex] = LocalToPrimitiveRelativeWorld;
-		}
-	}
-
+	ApplyTransformUpdates(ChangeSet.GetTransformDelta(), IndexRemap, ChangeSet.PrimitiveToRelativeWorld, ChangeSet.Transforms, PostUpdateNumInstances, ProxyData.InstanceToPrimitiveRelative);
 	if (ChangeSet.Flags.bHasPerInstanceDynamicData)
 	{
 		FRenderTransform PrevPrimitiveToRelativeWorld = ChangeSet.PreviousPrimitiveToRelativeWorld.Get(ChangeSet.PrimitiveToRelativeWorld);
-		ProxyData.PrevInstanceToPrimitiveRelative.SetNumUninitialized(PostUpdateNumInstances);
-		for (auto It = TransformDelta.GetIterator(); It; ++It)
-		{
-			int32 ItemIndex = It.GetItemIndex();
-			int32 InstanceIndex = It.GetIndex();
-			if (IndexRemap.RemapIndex(InstanceIndex))
-			{
-				FRenderTransform PrevLocalToPrimitiveRelativeWorld = ChangeSet.PrevTransforms[ItemIndex] * PrevPrimitiveToRelativeWorld;
-				PrevLocalToPrimitiveRelativeWorld.Orthogonalize();
-				ProxyData.PrevInstanceToPrimitiveRelative[InstanceIndex] = PrevLocalToPrimitiveRelativeWorld;
-			}
-		}
+		ApplyTransformUpdates(ChangeSet.GetTransformDelta(), IndexRemap, PrevPrimitiveToRelativeWorld, ChangeSet.PrevTransforms, PostUpdateNumInstances, ProxyData.PrevInstanceToPrimitiveRelative);
 	}
 	else
 	{
 		ProxyData.PrevInstanceToPrimitiveRelative.Reset();
 	}
 
-	if (ChangeSet.Flags.bHasPerInstanceCustomData)
-	{
-		ProxyData.NumCustomDataFloats = ChangeSet.NumCustomDataFloats;
-		IndexRemap.Scatter(ChangeSet.Flags.bHasPerInstanceCustomData, ChangeSet.GetCustomDataDelta(), ProxyData.InstanceCustomData, PostUpdateNumInstances, MoveTemp(ChangeSet.PerInstanceCustomData), ProxyData.NumCustomDataFloats);
-	}
-	else
-	{
-		ProxyData.NumCustomDataFloats = 0;
-		ProxyData.InstanceCustomData.Reset();
-	}
-
-	IndexRemap.Scatter(ChangeSet.Flags.bHasPerInstanceLMSMUVBias, ChangeSet.GetInstanceLightShadowUVBiasDelta(), ProxyData.InstanceLightShadowUVBias, PostUpdateNumInstances, MoveTemp(ChangeSet.InstanceLightShadowUVBias));
-#if WITH_EDITOR
-	IndexRemap.Scatter(ChangeSet.Flags.bHasPerInstanceEditorData, ChangeSet.GetInstanceEditorDataDelta(), ProxyData.InstanceEditorData, PostUpdateNumInstances, MoveTemp(ChangeSet.InstanceEditorData));
-
-	// replace the HP container.
-	if (ChangeSet.HitProxyContainer)
-	{
-		HitProxyContainer = MoveTemp(ChangeSet.HitProxyContainer);
-	}
-
-#endif
-
-	// Delayed per instance random generation, moves it off the GT and RT, but still sucks
-	if (ChangeSet.Flags.bHasPerInstanceRandom)
-	{
-		// TODO: only need to process added instances? No help for ISM since the move path would be taken.
-		// TODO: OTOH for HISM there is no meaningful data, so just skipping and letting the SetNumZeroed fill in the blanks is fine.
-
-		ProxyData.InstanceRandomIDs.SetNumZeroed(PostUpdateNumInstances);
-		if (ChangeSet.GeneratePerInstanceRandomIds)
-		{
-			// NOTE: this is not super efficient(!)
-			TArray<float> TmpInstanceRandomIDs;
-			TmpInstanceRandomIDs.SetNumZeroed(PostUpdateNumInstances);
-			ChangeSet.GeneratePerInstanceRandomIds(TmpInstanceRandomIDs);
-			FIdentityDeltaRange PerInstanceRandomDelta(TmpInstanceRandomIDs.Num());
-			IndexRemap.Scatter(true, PerInstanceRandomDelta, ProxyData.InstanceRandomIDs, PostUpdateNumInstances, MoveTemp(TmpInstanceRandomIDs));
-		}
-		//else 
-		//{
-		//	IndexRemap.Scatter(true, PerInstanceRandomDelta, ProxyData.InstanceRandomIDs, PostUpdateNumInstances, MoveTemp(ChangeSet.InstanceRandomIDs));
-		//}
-	}
-	else
-	{
-		ProxyData.InstanceRandomIDs.Reset();
-	}
+	ApplyAttributeChanges(ChangeSet, IndexRemap, ProxyData);
 }
 
 template<typename ValueType>
@@ -217,8 +375,89 @@ void CondMove(bool bCondition, TArray<ValueType> &Data, int32 FromIndex, int32 T
 	}
 }
 
+struct FSrcIndexRemap
+{
+	FORCEINLINE constexpr bool IsIdentity() const { return false; }
+
+	FSrcIndexRemap(const TArray<int32> &InIndexRemap) : IndexRemap(InIndexRemap) {}
+
+	FORCEINLINE bool RemapDestIndex(int32 &Index) const 
+	{ 
+		return true;
+	}
+
+	FORCEINLINE bool Remap(int32 &SrcIndex, int32 &DstIndex) const 
+	{ 
+		SrcIndex = IndexRemap[SrcIndex];
+		return true; 
+	}
+
+	template <typename DeltaType, typename ValueType>
+	FORCEINLINE void Scatter(bool bHasData, const DeltaType &Delta, TArray<ValueType> &DestData, int32 NumOutElements, TArray<ValueType> &&InData, int32 ElementStride = 1) const
+	{
+		if (bHasData)
+		{
+			::Scatter(Delta, DestData, NumOutElements, MoveTemp(InData), *this, ElementStride);
+		}
+		else
+		{
+			DestData.Reset();
+		}
+	}
+
+	const TArray<int32> &IndexRemap;
+};
+
+void FISMCInstanceDataSceneProxy::BuildFromOptimizedDataBuffers(FISMInstanceUpdateChangeSet& ChangeSet, FInstanceIdIndexMap &OutInstanceIdIndexMap, FInstanceSceneDataBuffers::FWriteView &ProxyData)
+{
+	SCOPED_NAMED_EVENT(FISMCInstanceDataSceneProxy_BuildFromOptimizedDataBuffers, FColor::Emerald);
+
+	ProxyData.PrimitiveToRelativeWorld = ChangeSet.PrimitiveToRelativeWorld;
+	ProxyData.PrimitiveWorldSpaceOffset = ChangeSet.PrimitiveWorldSpaceOffset;
+		
+	check(!ChangeSet.Flags.bHasPerInstanceLocalBounds);
+	
+	// TODO: delta support & always assume all bounds changed, and that there is in fact only one
+	ProxyData.InstanceLocalBounds = MoveTemp(ChangeSet.InstanceLocalBounds);
+
+	// TODO: DISP - Fix me (this comment came along from FPrimitiveSceneProxy::SetInstanceLocalBounds and is probably still true...)
+	const FVector3f PadExtent = GetLocalBoundsPadExtent(ProxyData.PrimitiveToRelativeWorld, ChangeSet.AbsMaxDisplacement);
+	for (FRenderBounds& Bounds : ProxyData.InstanceLocalBounds)
+	{
+		Bounds.Min -= PadExtent;
+		Bounds.Max += PadExtent;
+	}
+
+	// If preoptimized:
+	if (PrecomputedOptimizationData.IsValid())
+	{
+		if (PrecomputedOptimizationData->ProxyIndexToComponentIndexRemap.IsEmpty())
+		{
+			ApplyTransformUpdates(ChangeSet.GetTransformDelta(), FIdentityIndexRemap(), ChangeSet.PrimitiveToRelativeWorld, ChangeSet.Transforms, ChangeSet.PostUpdateNumInstances, ProxyData.InstanceToPrimitiveRelative);
+			ApplyAttributeChanges(ChangeSet, FIdentityIndexRemap(), ProxyData);
+		}
+		else
+		{
+			FSrcIndexRemap SortedInstancesRemap(PrecomputedOptimizationData->ProxyIndexToComponentIndexRemap);
+			ApplyTransformUpdates(ChangeSet.GetTransformDelta(), SortedInstancesRemap, ChangeSet.PrimitiveToRelativeWorld, ChangeSet.Transforms, ChangeSet.PostUpdateNumInstances, ProxyData.InstanceToPrimitiveRelative);
+			ApplyAttributeChanges(ChangeSet, SortedInstancesRemap, ProxyData);
+		}
+
+		// We don't store an ID mapping for this case, since we assume a full rebuild is needed to handle any changes at all.
+		InstanceIdIndexMap.Reset(ChangeSet.PostUpdateNumInstances);
+	
+		InstanceSceneDataBuffers.SetImmutable(FInstanceSceneDataImmutable(PrecomputedOptimizationData->Hashes), ProxyData.AccessTag);
+
+		// Clear the data, we're done with it and it is never coming back (until it is loaded again)
+		PrecomputedOptimizationData.Reset();
+		return;
+	}
+}
+
 void FISMCInstanceDataSceneProxy::Build(FISMInstanceUpdateChangeSet&& ChangeSet)
 {
+	SCOPED_NAMED_EVENT(FISMCInstanceDataSceneProxy_Build, FColor::Emerald);
+
 	DecStatCounters();
 	check(ChangeSet.IsFullUpdate());
 	checkSlow(!ChangeSet.GetTransformDelta().IsDelta());
@@ -228,28 +467,38 @@ void FISMCInstanceDataSceneProxy::Build(FISMInstanceUpdateChangeSet&& ChangeSet)
 	checkSlow(!ChangeSet.GetInstanceEditorDataDelta().IsDelta() || ChangeSet.GetInstanceEditorDataDelta().IsEmpty());
 #endif
 
-
 	FInstanceSceneDataBuffers::FAccessTag AccessTag(PointerHash(this));
 	FInstanceSceneDataBuffers::FWriteView WriteView = InstanceSceneDataBuffers.BeginWriteAccess(AccessTag);
 
 	WriteView.Flags = ChangeSet.Flags;
 
-	UpdateIdMapping(ChangeSet);
-	check(ChangeSet.PostUpdateNumInstances == InstanceIdIndexMap.GetMaxInstanceIndex());
+	if (bBuildOptimized && ChangeSet.PostUpdateNumInstances)
+	{
+		BuildFromOptimizedDataBuffers(ChangeSet, InstanceIdIndexMap, WriteView);
+	}
+	else
+	{
+		UpdateIdMapping(ChangeSet, FIdentityIndexRemap());
+		check(ChangeSet.PostUpdateNumInstances == InstanceIdIndexMap.GetMaxInstanceIndex());
 
-	FIdentityIndexRemap IndexRemap;
-	ApplyDataChanges(ChangeSet, IndexRemap, InstanceIdIndexMap.GetMaxInstanceIndex(), WriteView);
+		FIdentityIndexRemap IndexRemap;
+		ApplyDataChanges(ChangeSet, IndexRemap, InstanceIdIndexMap.GetMaxInstanceIndex(), WriteView);
+	}
 	InstanceSceneDataBuffers.EndWriteAccess(AccessTag);
 
 	InstanceSceneDataBuffers.ValidateData();
 
 	IncStatCounters();
+
+	// This auto-resets such that following builds are _NOT_ doing the opt (these are symptoms of something that was expected to be static, was built anyway)
+	bBuildOptimized = false;
 }
 
-void FISMCInstanceDataSceneProxy::UpdateIdMapping(FISMInstanceUpdateChangeSet& ChangeSet)
+template <typename IndexRemapType>
+void FISMCInstanceDataSceneProxy::UpdateIdMapping(FISMInstanceUpdateChangeSet& ChangeSet, const IndexRemapType &IndexRemap)
 {
 	// update mapping, create explicit mapping if needed
-	if (ChangeSet.bIdentityIdMap)
+	if (ChangeSet.bIdentityIdMap && IndexRemap.IsIdentity())
 	{
 		// Reset to identity mapping with the new number of instances
 		InstanceIdIndexMap.Reset(ChangeSet.PostUpdateNumInstances);
@@ -275,7 +524,10 @@ void FISMCInstanceDataSceneProxy::UpdateIdMapping(FISMInstanceUpdateChangeSet& C
 		{
 			int32 NewInstanceIndex = It.GetIndex();
 			int32 ItemIndex = It.GetItemIndex();
-			FPrimitiveInstanceId InstanceId = ChangeSet.IndexToIdMapDeltaData[ItemIndex];
+			
+			IndexRemap.Remap(ItemIndex, NewInstanceIndex);
+
+			FPrimitiveInstanceId InstanceId = ChangeSet.bIdentityIdMap ? FPrimitiveInstanceId{ItemIndex} : ChangeSet.IndexToIdMapDeltaData[ItemIndex];
 			InstanceIdIndexMap.Update(InstanceId, NewInstanceIndex);
 		}
 	}
@@ -283,6 +535,7 @@ void FISMCInstanceDataSceneProxy::UpdateIdMapping(FISMInstanceUpdateChangeSet& C
 
 void FISMCInstanceDataSceneProxy::Update(FISMInstanceUpdateChangeSet&& ChangeSet)
 {
+	SCOPED_NAMED_EVENT(FISMCInstanceDataSceneProxy_Update, FColor::Emerald);
 	check(!ChangeSet.IsFullUpdate());
 
 	DecStatCounters();
@@ -323,7 +576,7 @@ void FISMCInstanceDataSceneProxy::Update(FISMInstanceUpdateChangeSet&& ChangeSet
 		}
 	}
 
-	UpdateIdMapping(ChangeSet);
+	UpdateIdMapping(ChangeSet, FIdentityIndexRemap());
 	check(ChangeSet.PostUpdateNumInstances == InstanceIdIndexMap.GetMaxInstanceIndex());
 
 	FIdentityIndexRemap IndexRemap;
@@ -382,14 +635,14 @@ void FISMCInstanceDataSceneProxyLegacyReordered::Update(FISMInstanceUpdateChange
 		{
 			// This is somewhat nonintuitive, but the current instance->index map is where we retain knowledge of where the instance used to be placed (in the component address space at last update)
 			int32 InstanceIndex = InstanceIdIndexMap.IdToIndex(FPrimitiveInstanceId{It.GetIndex()});
-			if (IndexRemapOld.RemapIndex(InstanceIndex))
+			if (IndexRemapOld.RemapDestIndex(InstanceIndex))
 			{
 				LOG_INST_DATA(TEXT("Update/HideInstance, ID: %d, IDX: %d"), It.GetIndex(), InstanceIndex);
 				ProxyData.VisibleInstances[InstanceIndex] = false;
 			}
 		}
 	}
-	UpdateIdMapping(ChangeSet);
+	UpdateIdMapping(ChangeSet, FIdentityIndexRemap());
 
 	LegacyInstanceReorderTable = MoveTemp(ChangeSet.LegacyInstanceReorderTable);
 	FReorderTableIndexRemap IndexRemap(LegacyInstanceReorderTable, ChangeSet.PostUpdateNumInstances);
@@ -422,7 +675,7 @@ void FISMCInstanceDataSceneProxyLegacyReordered::Build(FISMInstanceUpdateChangeS
 	LegacyInstanceReorderTable = MoveTemp(ChangeSet.LegacyInstanceReorderTable);
 	ProxyData.Flags = ChangeSet.Flags;
 
-	UpdateIdMapping(ChangeSet);
+	UpdateIdMapping(ChangeSet, FIdentityIndexRemap());
 
 	FReorderTableIndexRemap IndexRemap(LegacyInstanceReorderTable, ChangeSet.PostUpdateNumInstances);
 	ApplyDataChanges(ChangeSet, IndexRemap, ChangeSet.PostUpdateNumInstances, ProxyData);
@@ -434,7 +687,7 @@ void FISMCInstanceDataSceneProxyLegacyReordered::Build(FISMInstanceUpdateChangeS
 		ProxyData.VisibleInstances.SetNum(ChangeSet.PostUpdateNumInstances, false);
 		for (int32 InstanceIndex : LegacyInstanceReorderTable)
 		{
-			if (IndexRemap.RemapIndex(InstanceIndex))
+			if (IndexRemap.RemapDestIndex(InstanceIndex))
 			{
 				ProxyData.VisibleInstances[InstanceIndex] = true;
 			}
@@ -580,7 +833,6 @@ FISMCInstanceDataSceneProxyNoGPUScene::~FISMCInstanceDataSceneProxyNoGPUScene()
 template <typename IndexRemapType>
 void FISMCInstanceDataSceneProxyNoGPUScene::ApplyDataChanges(FISMInstanceUpdateChangeSet &ChangeSet, const IndexRemapType &IndexRemap, int32 PostUpdateNumInstances, FInstanceSceneDataBuffers::FWriteView &ProxyData, FStaticMeshInstanceData &LegacyInstanceData)
 {
-
 	ProxyData.NumCustomDataFloats = ChangeSet.Flags.bHasPerInstanceCustomData ? ChangeSet.NumCustomDataFloats : 0;
 	LegacyInstanceData.AllocateInstances(PostUpdateNumInstances, ProxyData.NumCustomDataFloats, GIsEditor ? EResizeBufferFlags::AllowSlackOnGrow|EResizeBufferFlags::AllowSlackOnReduce : EResizeBufferFlags::None, false); // In Editor always permit overallocation, to prevent too much realloc
 
@@ -622,7 +874,7 @@ void FISMCInstanceDataSceneProxyNoGPUScene::ApplyDataChanges(FISMInstanceUpdateC
 		int32 PackedIndex = It.GetItemIndex();
 		int32 InstanceIndex = It.GetIndex();
 
-		if (IndexRemap.RemapIndex(InstanceIndex))
+		if (IndexRemap.RemapDestIndex(InstanceIndex))
 		{
 			LegacyInstanceData.SetInstance(InstanceIndex, ChangeSet.Transforms[PackedIndex].ToMatrix44f(), ChangeSet.Flags.bHasPerInstanceRandom ? InstanceRandomIDs[InstanceIndex] : 0.0f);
 
@@ -641,7 +893,7 @@ void FISMCInstanceDataSceneProxyNoGPUScene::ApplyDataChanges(FISMInstanceUpdateC
 		{
 			int32 PackedIndex = It.GetItemIndex();
 			int32 InstanceIndex = It.GetIndex();
-			if (IndexRemap.RemapIndex(InstanceIndex))
+			if (IndexRemap.RemapDestIndex(InstanceIndex))
 			{
 				for (int32 j = 0; j < ProxyData.NumCustomDataFloats; ++j)
 				{
@@ -657,7 +909,7 @@ void FISMCInstanceDataSceneProxyNoGPUScene::ApplyDataChanges(FISMInstanceUpdateC
 		{
 			int32 PackedIndex = It.GetItemIndex();
 			int32 InstanceIndex = It.GetIndex();
-			if (IndexRemap.RemapIndex(InstanceIndex))
+			if (IndexRemap.RemapDestIndex(InstanceIndex))
 			{
 				FVector4f Packed = ChangeSet.InstanceLightShadowUVBias[PackedIndex];
 				FVector2D LightmapUVBias = FVector2D(Packed.X, Packed.Y);
@@ -676,7 +928,7 @@ void FISMCInstanceDataSceneProxyNoGPUScene::ApplyDataChanges(FISMInstanceUpdateC
 		{
 			int32 PackedIndex = It.GetItemIndex();
 			int32 InstanceIndex = It.GetIndex();
-			if (IndexRemap.RemapIndex(InstanceIndex))
+			if (IndexRemap.RemapDestIndex(InstanceIndex))
 			{
 				FColor HitProxyColor;
 				bool bSelected;
@@ -729,7 +981,7 @@ void FISMCInstanceDataSceneProxyNoGPUScene::Update(FISMInstanceUpdateChangeSet&&
 		{
 			// This is somewhat nonintuitive, but the current instance->index map is where we retain knowledge of where the instance used to be placed (in the component address space at last update)
 			int32 InstanceIndex = InstanceIdIndexMap.IdToIndex(FPrimitiveInstanceId{It.GetIndex()});
-			if (IndexRemapOld.RemapIndex(InstanceIndex))
+			if (IndexRemapOld.RemapDestIndex(InstanceIndex))
 			{
 				LOG_INST_DATA(TEXT("Update/HideInstance, ID: %d, IDX: %d"), It.GetIndex(), InstanceIndex);
 				LegacyInstanceBuffer->InstanceData->NullifyInstance(InstanceIndex);
@@ -737,7 +989,7 @@ void FISMCInstanceDataSceneProxyNoGPUScene::Update(FISMInstanceUpdateChangeSet&&
 		}
 	}
 
-	UpdateIdMapping(ChangeSet);
+	UpdateIdMapping(ChangeSet, FIdentityIndexRemap());
 	check(bLegacyReordered || ChangeSet.PostUpdateNumInstances == InstanceIdIndexMap.GetMaxInstanceIndex());
 
 	LegacyInstanceReorderTable = MoveTemp(ChangeSet.LegacyInstanceReorderTable);
@@ -765,7 +1017,7 @@ void FISMCInstanceDataSceneProxyNoGPUScene::Build(FISMInstanceUpdateChangeSet&& 
 
 	check(bLegacyReordered || ChangeSet.LegacyInstanceReorderTable.IsEmpty());
 
-	UpdateIdMapping(ChangeSet);
+	UpdateIdMapping(ChangeSet, FIdentityIndexRemap());
 	check(bLegacyReordered || ChangeSet.PostUpdateNumInstances == InstanceIdIndexMap.GetMaxInstanceIndex());
 
 	LegacyInstanceReorderTable = MoveTemp(ChangeSet.LegacyInstanceReorderTable);

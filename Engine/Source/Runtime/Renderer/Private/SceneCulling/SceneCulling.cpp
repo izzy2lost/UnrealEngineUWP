@@ -111,6 +111,12 @@ static TAutoConsoleVariable<int32> CVarSceneCulling(
 	}),
 	ECVF_RenderThreadSafe);
 
+static TAutoConsoleVariable<int32> CVarSceneCullingPrecomputed(
+	TEXT("r.SceneCulling.Precomputed"), 
+	0, 
+	TEXT("Enable/Disable precomputed spatial hashes for scene culling."),
+	ECVF_RenderThreadSafe | ECVF_ReadOnly);
+
 static TAutoConsoleVariable<int32> CVarSceneCullingAsyncUpdate(
 	TEXT("r.SceneCulling.Async.Update"), 
 	1, 
@@ -277,11 +283,9 @@ const FString &FSceneCulling::FPrimitiveState::ToString() const
 	case SinglePrim:
 		Result.Append(TEXT("SinglePrim"));
 		break;
-#if SCENE_CULLING_USE_PRECOMPUTED
 	case Precomputed:
 		Result.Append(TEXT("Precomputed"));
 		break;
-#endif
 	case Dynamic:
 		Result.Append(TEXT("Dynamic"));
 		break;
@@ -296,12 +300,10 @@ const FString &FSceneCulling::FPrimitiveState::ToString() const
 	return Result;
 }
 
-#if SCENE_CULLING_USE_PRECOMPUTED
 inline bool operator==(const FInstanceSceneDataBuffers::FCompressedSpatialHashItem A, const FInstanceSceneDataBuffers::FCompressedSpatialHashItem B)
 {
 	return A.Location == B.Location && A.NumInstances == B.NumInstances;
 }
-#endif
 
 #if OLA_TODO
 
@@ -872,6 +874,8 @@ public:
 		// TODO: this is not needed when we also call update for added primitives correctly, remove and replace with a check!
 		SceneCulling.PrimitiveStates.SetNum(SceneCulling.Scene.GetMaxPersistentPrimitiveIndex());
 
+		bUsePrecomputed = CVarSceneCullingPrecomputed.GetValueOnAnyThread() != 0;
+
 		if (CVarTreatDynamicInstancedAsUncullable.GetValueOnRenderThread() != 0)
 		{
 			// Flip dynamic stuff into the uncullabe bucket. 
@@ -1165,7 +1169,7 @@ public:
 		int32 RemovedInstanceCount[EUpdateFrequencyCategory::Num] = { 0, 0 };
 		FCellHeader PrevCellHeader = FCellHeader { 0u, InvalidCellFlag };
 
-		FORCEINLINE int32 GetRemovedInstanceCount() const
+		SC_FORCEINLINE int32 GetRemovedInstanceCount() const
 		{
 			return RemovedInstanceCount[EUpdateFrequencyCategory::Static] + RemovedInstanceCount[EUpdateFrequencyCategory::Dynamic];
 		}
@@ -1620,7 +1624,7 @@ public:
 		SceneCulling.FreeChunk(ChunkId);
 	}
 
-	FORCEINLINE FPrimitiveState ComputePrimitiveState(const FPrimitiveBounds& Bounds, FPrimitiveSceneInfo* PrimitiveSceneInfo, int32 NumInstances, int32 InstanceDataOffset, FPrimitiveSceneProxy* SceneProxy, FInstanceDataFlags InstanceDataFlags, const FPrimitiveState &PrevState)
+	SC_FORCEINLINE FPrimitiveState ComputePrimitiveState(const FPrimitiveBounds& Bounds, FPrimitiveSceneInfo* PrimitiveSceneInfo, int32 NumInstances, int32 InstanceDataOffset, FPrimitiveSceneProxy* SceneProxy, FInstanceDataFlags InstanceDataFlags, const FPrimitiveState &PrevState)
 	{
 		FPrimitiveState NewState;
 		NewState.bDynamic = PrevState.bDynamic || SceneProxy->IsOftenMoving();
@@ -1639,13 +1643,11 @@ public:
 			}
 			else
 			{
-#if SCENE_CULLING_USE_PRECOMPUTED
 				if (InstanceDataFlags.bHasCompressedSpatialHash && bUsePrecomputed)
 				{
 					NewState.State = FPrimitiveState::Precomputed;
 				}
 				else 
-#endif // SCENE_CULLING_USE_PRECOMPUTED
 				{
 					NewState.State = NewState.bDynamic ? DynamicInstancedPrimitiveState : FPrimitiveState::Cached;
 				}		
@@ -1658,7 +1660,7 @@ public:
 
 
 	template <EUpdateFrequencyCategory::EType UpdateFrequencyCategory>
-	FORCEINLINE int32 AddCachedOrDynamic(const FInstanceSceneDataBuffers *InstanceSceneDataBuffers, int32 CacheIndex, const bool bHasPerInstanceLocalBounds, int32 InstanceDataOffset, int32 NumInstances)
+	SC_FORCEINLINE int32 AddCachedOrDynamic(const FInstanceSceneDataBuffers *InstanceSceneDataBuffers, int32 CacheIndex, const bool bHasPerInstanceLocalBounds, int32 InstanceDataOffset, int32 NumInstances)
 	{
 		check(InstanceSceneDataBuffers != nullptr);
 
@@ -1694,7 +1696,7 @@ public:
 		return PrimitiveSceneInfo->GetInstanceSceneDataBuffers();
 	}
 
-	FORCEINLINE void AddInstances(FPersistentPrimitiveIndex PersistentId, FPrimitiveSceneInfo* PrimitiveSceneInfo)
+	SC_FORCEINLINE void AddInstances(FPersistentPrimitiveIndex PersistentId, FPrimitiveSceneInfo* PrimitiveSceneInfo)
 	{
 		FScene &Scene = SceneCulling.Scene;
 		TArray<FPrimitiveState> &PrimitiveStates = SceneCulling.PrimitiveStates;
@@ -1734,9 +1736,9 @@ public:
 				NewPrimitiveState.Payload = CellIndex;
 			}
 			break;
-#if SCENE_CULLING_USE_PRECOMPUTED
 			case FPrimitiveState::Precomputed:
 			{
+				check(InstanceSceneDataBuffers);
 				SC_SCOPED_NAMED_EVENT_DETAIL(SceneCulling_Post_AddInstances_Precomputed, FColor::Emerald);
 
 				BUILDER_LOG_LIST("Add CompressedInstanceSpatialHashes");
@@ -1755,7 +1757,6 @@ public:
 				NewPrimitiveState.InstanceSceneDataImmutable = InstanceSceneDataImmutable;
 			}
 			break;
-#endif // SCENE_CULLING_USE_PRECOMPUTED
 			case FPrimitiveState::UnCullable:
 			{
 				SceneCulling.UnCullablePrimitives.Add(PersistentId);
@@ -1763,12 +1764,16 @@ public:
 			break;
 			case FPrimitiveState::Dynamic:
 			{
+				check(InstanceSceneDataBuffers);
+
 				SC_SCOPED_NAMED_EVENT_DETAIL(SceneCulling_Post_AddInstances_Dynamic, FColor::Emerald);
 				NewPrimitiveState.Payload = AddCachedOrDynamic<EUpdateFrequencyCategory::Dynamic>(InstanceSceneDataBuffers, AllocateCacheEntry(), InstanceDataFlags.bHasPerInstanceLocalBounds, InstanceDataOffset, NumInstances);
 			}
 			break;
 			case FPrimitiveState::Cached:
 			{
+				check(InstanceSceneDataBuffers);
+
 				SC_SCOPED_NAMED_EVENT_DETAIL(SceneCulling_Post_AddInstances_Cached, FColor::Emerald);
 				NewPrimitiveState.Payload = AddCachedOrDynamic<EUpdateFrequencyCategory::Static>(InstanceSceneDataBuffers, AllocateCacheEntry(), InstanceDataFlags.bHasPerInstanceLocalBounds, InstanceDataOffset, NumInstances);
 			}
@@ -1806,7 +1811,6 @@ public:
 		MarkCellForRemove(CellIndex, NumInstances, UpdateFrequencyCategory);
 	}
 
-#if SCENE_CULLING_USE_PRECOMPUTED
 	inline void RemovePrecomputed(FSceneCulling::FPrimitiveState &PrimitiveState)
 	{
 		BUILDER_LOG("FPrimitiveState::Precomputed");
@@ -1820,7 +1824,6 @@ public:
 			MarkCellForRemove(CellIndex, Item.NumInstances, EUpdateFrequencyCategory::Static);
 		}
 	}
-#endif
 
 	inline void MarkInstancesForRemoval(FPersistentPrimitiveIndex PersistentPrimitiveIndex, FPrimitiveSceneInfo *PrimitiveSceneInfo)
 	{
@@ -1856,12 +1859,10 @@ public:
 			int32 CellIndex = PrimitiveState.Payload;
 			MarkCellForRemove(CellIndex, PrimitiveState.NumInstances, PrimitiveState.bDynamic ? EUpdateFrequencyCategory::Dynamic : EUpdateFrequencyCategory::Static);
 		}
-#if SCENE_CULLING_USE_PRECOMPUTED
 		else if (PrimitiveState.State == FPrimitiveState::Precomputed)
 		{
 			RemovePrecomputed(PrimitiveState);
 		}
-#endif
 		else if (PrimitiveState.State == FPrimitiveState::Cached || PrimitiveState.State == FPrimitiveState::Dynamic)
 		{
 			int32 CacheIndex = PrimitiveState.Payload;
@@ -1912,7 +1913,7 @@ public:
 
 	// Mark those that need for remove, queue others for add
 
-	FORCEINLINE void UpdateInstances(FPersistentPrimitiveIndex PersistentPrimitiveIndex, FPrimitiveSceneInfo* PrimitiveSceneInfo)
+	SC_FORCEINLINE void UpdateInstances(FPersistentPrimitiveIndex PersistentPrimitiveIndex, FPrimitiveSceneInfo* PrimitiveSceneInfo)
 	{
 		FSceneCulling::FPrimitiveState PrevPrimitiveState = SceneCulling.PrimitiveStates[PersistentPrimitiveIndex.Index];
 		BUILDER_LOG_SCOPE("UpdateInstances: %d [%s]", PersistentPrimitiveIndex.Index, *PrevPrimitiveState.ToString());
@@ -2018,7 +2019,6 @@ public:
 				UpdateProcessDynamicInstances(HashLocationComputer, InstanceDataOffset, NumInstances, PrevPrimitiveState.NumInstances, CellIndexCacheEntry);
 			}
 		}
-#if SCENE_CULLING_USE_PRECOMPUTED
 		else if (PrevPrimitiveState.State == FPrimitiveState::Precomputed)
 		{
 			SC_SCOPED_NAMED_EVENT_DETAIL(SceneCulling_Post_UpdateInstances_Precomputed, FColor::Emerald);
@@ -2033,7 +2033,6 @@ public:
 
 			bNeedsAdd = true;
 		}
-#endif
 		// In all other cases we have something that must be removed and is in either Cached or Dynamic state which are both removed in the same way.
 		else if (PrevPrimitiveState.State != FPrimitiveState::Unknown)
 		{
@@ -2081,14 +2080,12 @@ public:
 					NewPrimitiveState.Payload = CellIndex;
 				}
 				break;
-#if SCENE_CULLING_USE_PRECOMPUTED
 				case FPrimitiveState::Precomputed:
 				{
 					// this is wrong, post-update a precomputed item should be transitioned to dynamic.
 					check(false);
 				}
 				break;
-#endif // SCENE_CULLING_USE_PRECOMPUTED
 				case FPrimitiveState::UnCullable:
 				{
 					SceneCulling.UnCullablePrimitives.Add(PersistentPrimitiveIndex);
@@ -2323,6 +2320,7 @@ public:
 	int32 TotalUpdatedInstances = 0;
 	int32 TotalAddedInstances = 0;
 	int32 TotalRemovedInstances = 0;
+	bool bUsePrecomputed = false;
 
 #if SC_ENABLE_DETAILED_LOGGING
 	bool bIsLoggingEnabled = false;
@@ -2462,11 +2460,6 @@ void FSceneCulling::FUpdater::OnPreSceneUpdate(FRDGBuilder& GraphBuilder, const 
 	}
 	SC_DETAILED_LOGGING_SCOPE(Implementation);
 
-	// This can be run async, but we need to either
-	//  1. [if SCENE_CULLING_USE_PRECOMPUTED] retain a reference to the compressed data (could ref count this), or 
-	//  2. keep the proxy alive and store the pointer to the proxy somewhere before kicking off the async task.
-	// The post-callback then needs to queue its work to happen after this task.
-
 	// Handle all removed primitives 
 	// Step 1. Mark all removed instances
 #if SC_ALLOW_ASYNC_TASKS
@@ -2490,16 +2483,6 @@ void FSceneCulling::FUpdater::OnPreSceneUpdate(FRDGBuilder& GraphBuilder, const 
 #endif
 
 	// Updated primitives are not handled here (state-caching allows deferring those until the post update)
-}
-
-UE::Tasks::FTask FSceneCulling::FUpdater::GetAsyncProxyUseTaskHandle()
-{
-#if SCENE_CULLING_USE_PRECOMPUTED
-	// Sync is only requiured if using precomputed
-	return PreUpdateTaskHandle;
-#else 
-	return UE::Tasks::FTask();
-#endif
 }
 
 void FSceneCulling::FUpdater::OnPostSceneUpdate(FRDGBuilder& GraphBuilder, const FScenePostUpdateChangeSet& ScenePostUpdateData)

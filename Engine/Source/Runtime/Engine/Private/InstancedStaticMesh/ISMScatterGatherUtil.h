@@ -37,18 +37,19 @@ void Scatter(const DeltaType &Delta, TArray<ValueType> &OutDest, int32 DestNumEl
  * using the same delta information. 
  * Never takes move shortcut as there is an index remap.
  */
-template <typename DeltaType, typename ValueType, typename DestIndexRemapType>
-void Scatter(const DeltaType &Delta, TArray<ValueType> &OutDest, int32 DestNumElements, const TArray<ValueType> &InSource, const DestIndexRemapType &DestIndexRemap, int32 ElementStride = 1)
+template <typename DeltaType, typename ValueType, typename IndexRemapType>
+void Scatter(const DeltaType &Delta, TArray<ValueType> &OutDest, int32 DestNumElements, const TArray<ValueType> &InSource, const IndexRemapType &IndexRemap, int32 ElementStride = 1)
 {
 	check(InSource.Num() == Delta.GetNumItems() * ElementStride);
 	OutDest.SetNumUninitialized(DestNumElements * ElementStride);
 	for (auto It = Delta.GetIterator(); It; ++It)
 	{
-		int32 ItemIndex = It.GetItemIndex();
-		int32 DestIndex = DestIndexRemap[It.GetIndex()];
-		if (DestIndex != INDEX_NONE)
+		int32 SrcIndex = It.GetItemIndex();
+		int32 DestIndex = It.GetIndex();
+
+		if (IndexRemap.Remap(SrcIndex, DestIndex))
 		{
-			FMemory::Memcpy(&OutDest[DestIndex * ElementStride], &InSource[ItemIndex * ElementStride], ElementStride * sizeof(ValueType));
+			FMemory::Memcpy(&OutDest[DestIndex * ElementStride], &InSource[SrcIndex * ElementStride], ElementStride * sizeof(ValueType));
 		}
 	}
 }

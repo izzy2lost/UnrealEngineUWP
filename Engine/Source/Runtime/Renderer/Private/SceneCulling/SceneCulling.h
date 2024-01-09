@@ -20,9 +20,6 @@ class FScenePostUpdateChangeSet;
 class FScene;
 struct FPrimitiveBounds;
 
-// Note: the needed precomputation is not yet implemented in the ISM proxy / etc.
-#define SCENE_CULLING_USE_PRECOMPUTED 0
-
 /**
  * Represents either a set of planes, or a sphere,
  */
@@ -51,8 +48,7 @@ public:
 	{
 	public:
 		void OnPreSceneUpdate(FRDGBuilder& GraphBuilder, const FScenePreUpdateChangeSet& ScenePreUpdateData);
-		// Call to get a task to wait for the pre-update task to finish using scene proxies that were deleted - before actually deleting them
-		UE::Tasks::FTask GetAsyncProxyUseTaskHandle();
+
 		void OnPostSceneUpdate(FRDGBuilder& GraphBuilder, const FScenePostUpdateChangeSet& ScenePostUpdateData);
 		void FinalizeAndClear(FRDGBuilder& GraphBuilder, bool bPublishStats);
 
@@ -224,9 +220,7 @@ private:
 		{
 			Unknown,
 			SinglePrim,
-#if SCENE_CULLING_USE_PRECOMPUTED
 			Precomputed,
-#endif
 			UnCullable,
 			Dynamic,
 			Cached,
@@ -244,9 +238,7 @@ private:
 
 		const FString &ToString() const;
 
-#if SCENE_CULLING_USE_PRECOMPUTED
 		TSharedPtr<FInstanceSceneDataImmutable, ESPMode::ThreadSafe> InstanceSceneDataImmutable;
-#endif
 	};
 
 	TArray<FPrimitiveState> PrimitiveStates;

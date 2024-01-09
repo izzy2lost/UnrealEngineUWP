@@ -6610,10 +6610,6 @@ void FScene::UpdateAllPrimitiveSceneInfos(FRDGBuilder& GraphBuilder, EUpdateAllP
 
 	SceneExtensionsUpdaters.PostGPUSceneUpdate(GraphBuilder, SceneUB);
 
-	// Need to do this here since we delete the proxy next 
-	// TODO: should refactor to add this as a dependency for a proxy-deletion task instead.
-	SceneCullingUpdater.GetAsyncProxyUseTaskHandle().Wait();
-
 	GraphBuilder.AddSetupTask([DeletedPrimitiveSceneInfos = MoveTemp(DeletedPrimitiveSceneInfos)]
 	{
 		SCOPED_NAMED_EVENT(FScene_DeletePrimitiveSceneInfo, FColor::Red);

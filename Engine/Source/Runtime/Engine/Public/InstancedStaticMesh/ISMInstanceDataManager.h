@@ -16,6 +16,7 @@ class HHitProxy;
 struct FInstanceUpdateComponentDesc
 {
 	FMatrix PrimitiveLocalToWorld;
+	EComponentMobility::Type ComponentMobility = EComponentMobility::Movable;
 	FRenderBounds StaticMeshBounds;
 	FInstanceDataFlags Flags;
 	FPrimitiveMaterialPropertyDescriptor PrimitiveMaterialDesc;
@@ -53,6 +54,7 @@ public:
 		Initial, // In the initial state, there is no proxy and therefore changes do not need to be tracked, e.g., during initial setup of an ISM component.
 		Tracked,
 		Disabled,
+		Optimized, // In the optimized state there's no need to track any delta changes, but if anything changes at all we must rebuild.
 	};
 
 	enum class EMode
@@ -102,13 +104,10 @@ public:
 	 * and the tracking state is not Disabled.
 	 */
 	inline bool HasAnyChanges() const { return GetState() != ETrackingState::Disabled && (GetState() != ETrackingState::Tracked || HasAnyInstanceChanges());}
-
-	void SerializeRenderData(FArchive& Ar, bool bCooked);
-
 	bool FlushChanges(FInstanceUpdateComponentDesc &&ComponentData, bool bNewPrimitiveProxy);
 
 	// 
-	void PostLoad(int32 InNumInstances, TUniquePtr<FStaticMeshInstanceData> &&InStaticMeshInstanceData);
+	void PostLoad(int32 InNumInstances, FInstanceUpdateComponentDesc &&ComponentData);
 
 	/**
 	 * Clear the ID/Index association and reset the mapping to identity & number of instances to the given number.
@@ -158,6 +157,13 @@ public:
 	 */
 	void OnRegister(int32 InNumInstances);
 
+#if WITH_EDITOR
+	void BeginCacheForCookedPlatformData(const ITargetPlatform* TargetPlatform, FInstanceUpdateComponentDesc &&ComponentData, TStridedView<FMatrix> InstanceTransforms);
+
+	void WriteCookedRenderData(FArchive& Ar, FInstanceUpdateComponentDesc &&ComponentData, TStridedView<FMatrix> InstanceTransforms);
+#endif
+	void ReadCookedRenderData(FArchive& Ar);
+
 private:
 	template <typename TaskLambdaType>
 	static void BeginUpdateTask(FInstanceDataUpdateTaskInfo &InstanceDataUpdateTaskInfo, TaskLambdaType &&TaskLambda, const FInstanceDataBufferHeader &InInstanceDataBufferHeader);
@@ -182,6 +188,15 @@ private:
 
 	void InitChangeSet(const union FChangeDesc &ChangeDesc, const FInstanceUpdateComponentDesc &ComponentData, FISMInstanceUpdateChangeSet &ChangeSet);
 
+#if WITH_EDITOR
+
+	bool ShouldWriteCookedData(const ITargetPlatform* TargetPlatform, int32 NumInstancesToBuildFor);
+
+	/**
+	 * Build precomputed data from the input.
+	 */
+	static FISMPrecomputedSpatialHashData PrecomputeOptimizationData(FInstanceUpdateComponentDesc &&ComponentData, TStridedView<FMatrix> InstanceTransforms);
+#endif
 	EMode Mode = EMode::Default;
 	ETrackingState TrackingState = ETrackingState::Initial;
 
@@ -199,6 +214,7 @@ private:
 	bool bAnyEditorDataChanged = false;
 #endif	
 	bool bPrimitiveTransformChanged = false;
+	bool bAnyInstanceChange = false;
 
 	TSharedPtr<FISMCInstanceDataSceneProxy, ESPMode::ThreadSafe> Proxy;
 	TWeakObjectPtr<UPrimitiveComponent> PrimitiveComponent = nullptr;
@@ -208,8 +224,9 @@ private:
 
 	TPimplPtr<struct FLegacyBuildData> LegacyBuildData;
 
-	// Used for serialized legacy data to drive the non-GPU scene rendering path.
-	TUniquePtr<FStaticMeshInstanceData> LegacyStaticMeshInstanceData;
+	using PrecomputedOptimizationDataPtr = FISMCInstanceDataSceneProxy::FISMPrecomputedSpatialHashDataPtr;
+
+	PrecomputedOptimizationDataPtr PrecomputedOptimizationData;
 
 	// Must track this to detect changes 
 	// TODO: make event driven and save the storage?

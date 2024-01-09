@@ -2433,6 +2433,7 @@ void UInstancedStaticMeshComponent::BuildComponentInstanceData(ERHIFeatureLevel:
 
 	OutData.PrimitiveMaterialDesc = GetUsedMaterialPropertyDesc(FeatureLevel);
 	OutData.Flags = MakeInstanceDataFlags(OutData.PrimitiveMaterialDesc.bAnyMaterialHasPerInstanceRandom, OutData.PrimitiveMaterialDesc.bAnyMaterialHasPerInstanceCustomData);
+	OutData.ComponentMobility = Mobility;
 	OutData.PrimitiveLocalToWorld = GetRenderMatrix();
 	OutData.StaticMeshBounds = GetStaticMesh()->GetBounds();
 	OutData.NumProxyInstances = PerInstanceSMData.Num();
@@ -2966,40 +2967,19 @@ void UInstancedStaticMeshComponent::SerializeRenderData(FArchive& Ar)
 {
 	if (Ar.IsLoading())
 	{
-		uint64 RenderDataSizeBytes = 0;
-		Ar << RenderDataSizeBytes; // TODO: can skip serialization if we know that data will be discarded
-
-		if (RenderDataSizeBytes > 0)
-		{
-			// Serialize legacy format.
-			InstanceDataBufferSerializationTmp = MakeUnique<FStaticMeshInstanceData>();
-			InstanceDataBufferSerializationTmp->Serialize(Ar);
-		}
+		PrimitiveInstanceDataManager.ReadCookedRenderData(Ar);
 	}
 	else if (Ar.IsSaving())
 	{
-		uint64 RenderDataSizePos = Ar.Tell();
-		
-		// write render data size, will write real size later
-		uint64 RenderDataSizeBytes = 0;
-		Ar << RenderDataSizeBytes;
-
-		bool bSaveRenderData = NeedRenderDataForTargetPlatform(Ar.CookingTarget()) && InstancingRandomSeed != 0;
-		if (bSaveRenderData && !HasAnyFlags(RF_ClassDefaultObject | RF_ArchetypeObject))
+#if WITH_EDITOR
+		FInstanceUpdateComponentDesc ComponentData;
+		if (GetStaticMesh() != nullptr)
 		{
-			uint64 RenderDataPos = Ar.Tell();
-
-			FStaticMeshInstanceData StaticMeshInstanceDataTmp(Ar.CookingTarget()->SupportsFeature(ETargetPlatformFeatures::HalfFloatVertexFormat));
-			BuildLegacyRenderData(StaticMeshInstanceDataTmp);
-			StaticMeshInstanceDataTmp.Serialize(Ar);
-
-			// save render data real size
-			uint64 CurPos = Ar.Tell();
-			RenderDataSizeBytes = CurPos - RenderDataPos;
-			Ar.Seek(RenderDataSizePos);
-			Ar << RenderDataSizeBytes;
-			Ar.Seek(CurPos);
+			UpdateComponentToWorld();
+			BuildComponentInstanceData(GMaxRHIFeatureLevel, ComponentData);
 		}
+		PrimitiveInstanceDataManager.WriteCookedRenderData(Ar, MoveTemp(ComponentData), MakeStridedView(PerInstanceSMData, &FInstancedStaticMeshInstanceData::Transform));
+#endif
 	}
 }
 
@@ -4387,7 +4367,6 @@ void UInstancedStaticMeshComponent::ClearInstances()
 	PerInstanceSMData.Empty();
 	PerInstanceSMCustomData.Empty();
 	InstanceReorderTable.Empty();
-	InstanceDataBufferSerializationTmp.Reset();
 
 	ProxySize = 0;
 
@@ -4859,15 +4838,17 @@ void UInstancedStaticMeshComponent::PostLoad()
 
 	if (!HasAnyFlags(RF_ClassDefaultObject|RF_ArchetypeObject))
 	{
-		PrimitiveInstanceDataManager.PostLoad(PerInstanceSMData.Num(), MoveTemp(InstanceDataBufferSerializationTmp));
+		FInstanceUpdateComponentDesc ComponentData;
+		if (GetStaticMesh() != nullptr)
+		{
+			UpdateComponentToWorld();
+			BuildComponentInstanceData(GMaxRHIFeatureLevel, ComponentData);
+		}
+		PrimitiveInstanceDataManager.PostLoad(PerInstanceSMData.Num(), MoveTemp(ComponentData));
 	}
 
 	// Has different implementation in HISMC
 	OnPostLoadPerInstanceData();
-
-
-	// release InstanceDataBuffers
-	InstanceDataBufferSerializationTmp.Reset();
 }
 
 void UInstancedStaticMeshComponent::CollectPSOPrecacheData(const FPSOPrecacheParams& BasePrecachePSOParams, FComponentPSOPrecacheParamsList& OutParams)
@@ -5350,6 +5331,25 @@ void UInstancedStaticMeshComponent::PostEditUndo()
 
 	MarkRenderStateDirty();
 }
+
+void UInstancedStaticMeshComponent::BeginCacheForCookedPlatformData( const ITargetPlatform* TargetPlatform )
+{
+	Super::BeginCacheForCookedPlatformData(TargetPlatform);
+
+	FInstanceUpdateComponentDesc ComponentData;
+	if (GetStaticMesh() != nullptr)
+	{
+		UpdateComponentToWorld();
+		BuildComponentInstanceData(GMaxRHIFeatureLevel, ComponentData);
+	}
+	PrimitiveInstanceDataManager.BeginCacheForCookedPlatformData(TargetPlatform, MoveTemp(ComponentData), MakeStridedView(PerInstanceSMData, &FInstancedStaticMeshInstanceData::Transform));
+}
+	
+bool UInstancedStaticMeshComponent::IsCachedCookedPlatformDataLoaded( const ITargetPlatform* TargetPlatform )
+{
+	return Super::IsCachedCookedPlatformDataLoaded(TargetPlatform);
+}
+
 #endif
 
 bool UInstancedStaticMeshComponent::IsInstanceSelected(int32 InInstanceIndex) const

@@ -9,6 +9,8 @@
 #include "Rendering/MotionVectorSimulation.h"
 #include "SceneInterface.h"
 
+//UE_DISABLE_OPTIMIZATION
+
 #define IDPROXY_ENABLE_ASYNC_TASK 1
 
 #if 0
@@ -34,6 +36,29 @@ static TAutoConsoleVariable<int32> CVarInstanceDataResetTrackingOnRegister(
 	1,
 	TEXT("Chicken switch to disable the new code to reset tracking & instance count during OnRegister, if this causes problems.\nTODO: Remove."));
 
+static TAutoConsoleVariable<int32> CVarInstanceDataMinInstanceCountToOptimize(
+	TEXT("r.InstanceData.MinInstanceCountToOptimize"),
+	2,
+	TEXT("Minimum number of instances to perform optimized build for (if enabled), can be used to disable optimized build for small ISMs as there is some overhead from doing so."));
+
+namespace RenderingSpatialHash
+{
+	template <typename ScalarType>
+	FArchive& operator<<(FArchive& Ar, TLocation<ScalarType>& Item)
+	{
+		Ar << Item.Coord;
+		Ar << Item.Level;
+		return Ar;
+	}
+}
+
+FArchive& operator<<(FArchive& Ar, FInstanceSceneDataBuffers::FCompressedSpatialHashItem& Item)
+{
+	Ar << Item.Location;
+	Ar << Item.NumInstances;
+
+	return Ar;
+}
 
 FPrimitiveInstanceDataManager::FPrimitiveInstanceDataManager(UPrimitiveComponent* InPrimitiveComponent) 
 	: PrimitiveComponent(InPrimitiveComponent) 
@@ -326,31 +351,11 @@ void FPrimitiveInstanceDataManager::PrimitiveTransformChanged()
 
 bool FPrimitiveInstanceDataManager::HasAnyInstanceChanges() const
 {
-	return InstanceUpdateTracker.HasAnyChanges()
+	return bAnyInstanceChange || bNumCustomDataChanged || bBakedLightingDataChanged || bTransformChangedAllInstances
 #if WITH_EDITOR
 		|| bAnyEditorDataChanged 
 #endif
-		|| bNumCustomDataChanged || bBakedLightingDataChanged || bTransformChangedAllInstances;
-}
-
-
-void FPrimitiveInstanceDataManager::SerializeRenderData(FArchive& Ar, bool bCooked)
-{
-	if (bCooked)
-	{
-		bool bHasCookedData = false;//CachedCookedData != nullptr;
-		Ar << bHasCookedData;
-#if 0
-		if (bHasCookedData)
-		{
-			if (Ar.IsLoading())
-			{
-				CachedCookedData = new FInstanceSceneDataBuffers;
-			}
-			CachedCookedData->Serialize(Ar);
-		}
-#endif
-	}
+		|| InstanceUpdateTracker.HasAnyChanges();
 }
 
 /**
@@ -504,6 +509,7 @@ void FPrimitiveInstanceDataManager::InitChangeSet(const FChangeDesc &ChangeDesc,
 	bAnyEditorDataChanged = false;
 #endif	
 
+	bAnyInstanceChange = false;
 	bTransformChangedAllInstances = false;
 	bNumCustomDataChanged = false;
 	bBakedLightingDataChanged = false;
@@ -633,21 +639,21 @@ bool FPrimitiveInstanceDataManager::FlushChanges(FInstanceUpdateComponentDesc &&
 
 	// TODO: We may decide to do so if other conditions are met (e.g., large change-set or marked for full invalidation).
 	// TODO: Need to figure this out in some other way, e.g., attachment counter or whatnot, since the creation has been moved up we no longer know if this is a fresh one.
-	ChangeDesc.bUntrackedState = GetState() != ETrackingState::Tracked;
+	ChangeDesc.bUntrackedState = GetState() != ETrackingState::Tracked && GetState() != ETrackingState::Optimized;
 
 	// Figure out the deltas.
 	if (!ChangeDesc.bUntrackedState)
 	{
 		ChangeDesc.bInstancesChanged =  HasAnyInstanceChanges();
 
-		ChangeDesc.bPrimitiveTransformChanged = bPrimitiveTransformChanged || !ComponentData.PrimitiveLocalToWorld.Equals(PrimitiveLocalToWorld);
+		ChangeDesc.bPrimitiveTransformChanged = !ComponentData.PrimitiveLocalToWorld.Equals(PrimitiveLocalToWorld);
 		ChangeDesc.bMaterialUsageFlagsChanged = Flags != ComponentData.Flags;
 		ChangeDesc.bMaxDisplacementChanged = AbsMaxDisplacement != NewAbsMaxDisplacement;
 		ChangeDesc.bStaticMeshBoundsChanged = !StaticMeshBounds.Equals(ComponentData.StaticMeshBounds);
 	}
 	
 	// Yet another special case to handle externally managed data from landscape grass
-	if (Mode == EMode::ExternalLegacyData && (bPrimitiveTransformChanged || !ComponentData.PrimitiveLocalToWorld.Equals(PrimitiveLocalToWorld)))
+	if (Mode == EMode::ExternalLegacyData && (!ComponentData.PrimitiveLocalToWorld.Equals(PrimitiveLocalToWorld)))
 	{
 		ChangeDesc.bPrimitiveTransformChanged = true;
 	}
@@ -676,11 +682,19 @@ bool FPrimitiveInstanceDataManager::FlushChanges(FInstanceUpdateComponentDesc &&
 		return bWasUpdateQueued;
 	}
 
+	// If we got here & the state is "optimized" then we know the precomputed data is now invalid and we ditch it.
+	if (GetState() == ETrackingState::Optimized)
+	{
+		UE_LOG(LogInstanceProxy, Log, TEXT("Discarded PrecomputedOptimizationData"));
+		PrecomputedOptimizationData.Reset();
+	}
+
+	ETrackingState SuccessorTrackingState = ETrackingState::Tracked;
 	// 
 	{
 		// TODO: Maybe specialize for only bPrimitiveTransformChanged (no need to send/modify anything _other_ than the transform data)
 		// TODO: The states other than bCreateNewProxy _can_ be handled through delta updates (e.g., add instance + offset all the rest).
-		bool bNeedFullUpdate = ChangeDesc.bUntrackedState || ChangeDesc.bMaterialUsageFlagsChanged;
+		bool bNeedFullUpdate = ChangeDesc.bUntrackedState || ChangeDesc.bMaterialUsageFlagsChanged || GetState() == ETrackingState::Optimized;
 
 		// NOTE: Moving the update tracker to the change set implicitly resets it.
 		FISMInstanceUpdateChangeSet ChangeSet(bNeedFullUpdate, MoveTemp(InstanceUpdateTracker));
@@ -741,6 +755,17 @@ bool FPrimitiveInstanceDataManager::FlushChanges(FInstanceUpdateComponentDesc &&
 		else if (bNeedFullUpdate)
 		{
 			LOG_INST_DATA(TEXT("Full Build %s"), TEXT(""));
+			if (PrecomputedOptimizationData.IsValid())
+			{
+				check(Mode == EMode::Default);
+				check(ComponentData.ComponentMobility == EComponentMobility::Static || ComponentData.ComponentMobility == EComponentMobility::Stationary);
+
+				LOG_INST_DATA(TEXT("  Optimized Build (%s)"), PrecomputedOptimizationData.IsValid() ? TEXT("Precomputed") : TEXT(""));
+				Proxy->bBuildOptimized = true;
+				Proxy->PrecomputedOptimizationData = PrecomputedOptimizationData;
+				SuccessorTrackingState = ETrackingState::Optimized;
+			}
+
 			DispatchUpdateTask(bIsUnattached, InstanceDataBufferHeader, [ChangeSet = MoveTemp(ChangeSet), Proxy = Proxy] () mutable 
 			{
 				Proxy->Build(MoveTemp(ChangeSet));
@@ -758,43 +783,18 @@ bool FPrimitiveInstanceDataManager::FlushChanges(FInstanceUpdateComponentDesc &&
 	}
 
 	// After an update has been sent, we need to track all deltas.
-	TrackingState = ETrackingState::Tracked;
+	TrackingState = SuccessorTrackingState;
 
 	return true;
 }
 
-void FPrimitiveInstanceDataManager::PostLoad(int32 InNumInstances, TUniquePtr<FStaticMeshInstanceData> &&InStaticMeshInstanceData)
+void FPrimitiveInstanceDataManager::PostLoad(int32 InNumInstances, FInstanceUpdateComponentDesc &&ComponentData)
 {
 	if (GetState() == ETrackingState::Disabled)
 	{
 		return;
 	}
 
-	if (LegacyStaticMeshInstanceData.IsValid())
-	{
-		check(NumInstances == LegacyStaticMeshInstanceData->GetNumInstances());
-		// kick off conversion job to extract the needed data? When do we need what?
-
-		// Not sure about this whole thing... when do we need it, should it belong with the HISM implementation (probably)
-#ifdef NEW_INSTANCE_DATA_PATH_TODO
-		MarkForRebuildFromExternal([
-			LegacyInstanceData = MoveTemp(LegacyStaticMeshInstanceData)] (TArray<TRefCountPtr<HHitProxy>> &OutHitProxies) mutable
-		{
-			// TODO: Figure out the flow of these things again.
-			// NEW_INSTANCE_DATA_PATH_TODO: Need to differentiate wrt HISM such that we can send along the reorder table if needed...
-
-			OutHitProxies.Reset(); 
-			FPrimitiveInstanceDataManager::FExternalUpdateData ExternalUpdateData;
-			ExternalUpdateData.NumInstances = LegacyInstanceData ? LegacyInstanceData->GetNumInstances() : 0;
-			ExternalUpdateData.UpdateProxy = [LegacyInstanceDataInner = MoveTemp(LegacyInstanceData)](FInstanceDataSceneProxy &InstanceDataSceneProxy, const FRenderBounds &InstanceLocalBounds) mutable
-			{
-				// No reorder table needed since we never perform delta updates (is that true? how do we know that?).
-				InstanceDataSceneProxy.BuildFromLegacyData(MoveTemp(LegacyInstanceDataInner), InstanceLocalBounds, TArray<int32>());
-			};
-			return ExternalUpdateData;
-		});
-#endif
-	}
 	NumInstances = InNumInstances;
 }
 
@@ -875,6 +875,7 @@ void FPrimitiveInstanceDataManager::MarkChangeHelper(int32 InstanceIndex)
 
 	if (GetState() != ETrackingState::Tracked)
 	{
+		bAnyInstanceChange = true;
 		MarkComponentRenderInstancesDirty();
 		return;
 	}
@@ -889,6 +890,7 @@ void FPrimitiveInstanceDataManager::MarkChangeHelper(FPrimitiveInstanceId Instan
 
 	if (GetState() != ETrackingState::Tracked)
 	{
+		bAnyInstanceChange = true;
 		MarkComponentRenderInstancesDirty();
 		return;
 	}
@@ -1059,9 +1061,243 @@ void FPrimitiveInstanceDataManager::OnRegister(int32 InNumInstances)
 		{
 			ClearIdTracking(InNumInstances);
 		}
+	}
+}
+
+static bool ShouldUsePrecomputed()
+{
+	static const auto CVarPrecomputed = IConsoleManager::Get().FindTConsoleVariableDataInt(TEXT("r.SceneCulling.Precomputed"));
+	static const auto CVarSceneCull = IConsoleManager::Get().FindTConsoleVariableDataInt(TEXT("r.SceneCulling"));
+
+	return CVarSceneCull && CVarSceneCull->GetValueOnAnyThread() != 0
+		&& CVarPrecomputed && CVarPrecomputed->GetValueOnAnyThread() != 0;
+}
+
+#if WITH_EDITOR
+
+bool FPrimitiveInstanceDataManager::ShouldWriteCookedData(const ITargetPlatform* TargetPlatform, int32 NumInstancesToBuildFor)
+{
+	EComponentMobility::Type Mobility = PrimitiveComponent.IsValid() ? PrimitiveComponent->Mobility.GetValue() : EComponentMobility::Type::Movable;
+
+	// Only cook for static & stationary(?) regular ISMs
+	bool bValidTypeAndMobility = Mode == EMode::Default && (Mobility == EComponentMobility::Static || Mobility == EComponentMobility::Stationary);
+
+	return bValidTypeAndMobility
+		&& NumInstancesToBuildFor >= CVarInstanceDataMinInstanceCountToOptimize.GetValueOnAnyThread()
+		&& ShouldUsePrecomputed()
+		&& DoesTargetPlatformSupportNanite(TargetPlatform);
+
+}
+
+void FPrimitiveInstanceDataManager::BeginCacheForCookedPlatformData(const ITargetPlatform* TargetPlatform, FInstanceUpdateComponentDesc &&ComponentData, TStridedView<FMatrix> InstanceTransforms)
+{
+	// Already precomputed, we don't need to do it twice (could add checks to see that it is not incorrect for some obscure reason)
+	if (PrecomputedOptimizationData.IsValid())
+	{
+		return;
+	}
+	
+	bool bShouldBuild = ShouldWriteCookedData(TargetPlatform, InstanceTransforms.Num());
+
+	// TODO: we could kick an async thread here if that is preferrable for the cooker?
+	if (bShouldBuild && ComponentData.BuildChangeSet)
+	{
+		uint32 StartTime = FPlatformTime::Cycles();
+		PrecomputedOptimizationData = MakeShared<FISMPrecomputedSpatialHashData>(PrecomputeOptimizationData(MoveTemp(ComponentData), InstanceTransforms));
+		uint32 EndtTime = FPlatformTime::Cycles();
+
+		UE_LOG(LogInstanceProxy, Log, TEXT("Build Instance Spatial Hashes (%.2fms), Instances: %d, Hashes: %d, Remap Size: %d"), FPlatformTime::ToMilliseconds( EndtTime - StartTime ), InstanceTransforms.Num(), PrecomputedOptimizationData->Hashes.Num(), PrecomputedOptimizationData->ProxyIndexToComponentIndexRemap.Num());
+	}	
+}
+
+class FSpatialHashSortBuilder
+{
+public:
+	//int32 FirstLevel;
+	struct FSortedInstanceItem
+	{
+		RenderingSpatialHash::FLocation64 InstanceLoc;
+		int32 InstanceIndex;
+	};
+
+	template <typename GetWorldSpaceInstanceSphereFuncType>
+	void BuildOptimizedSpatialHashOrder(int32 NumInstances, GetWorldSpaceInstanceSphereFuncType &&GetWorldSpaceInstanceSphere)
+	{
+		// TODO: Fix the cvar interaction here, need to unify code path with SceneCulling, or something maybe even come up with some heuristic to allow using fewer bits?
+		int32 FirstLevel = 0;
+		{
+			static const auto CVarInstanceHierarchyMinCellSize = IConsoleManager::Get().FindTConsoleVariableDataFloat(TEXT("r.SceneCulling.MinCellSize"));
+			if (CVarInstanceHierarchyMinCellSize)
+			{
+				// TODO: only one code path to compute this value!!!
+				FirstLevel = RenderingSpatialHash::CalcLevel(CVarInstanceHierarchyMinCellSize->GetValueOnAnyThread() - 1.0);
+			}
+		}
+
+		SortedInstances.Reserve(NumInstances);
+		for (int32 InstanceIndex = 0; InstanceIndex < NumInstances; ++InstanceIndex)
+		{
+			FSphere InstanceWorldSpaceSphere = GetWorldSpaceInstanceSphere(InstanceIndex);
+
+			RenderingSpatialHash::FLocation64 InstanceLoc = RenderingSpatialHash::CalcLevelAndLocationClamped(InstanceWorldSpaceSphere.Center, InstanceWorldSpaceSphere.W, FirstLevel);
+
+			FSortedInstanceItem& Item = SortedInstances.AddDefaulted_GetRef();
+			Item.InstanceLoc = InstanceLoc;
+			Item.InstanceIndex = InstanceIndex;
+		}
+	
+		// Sort the instances according to hash location (first level, then coordinate) and last on instance Index.
+		SortedInstances.Sort(
+			[](const FSortedInstanceItem& A, const FSortedInstanceItem& B) -> bool
+			{
+				if (A.InstanceLoc.Level != B.InstanceLoc.Level)
+				{
+					return A.InstanceLoc.Level < B.InstanceLoc.Level;
+				}
+				if (A.InstanceLoc.Coord.X != B.InstanceLoc.Coord.X)
+				{
+					return A.InstanceLoc.Coord.X < B.InstanceLoc.Coord.X;
+				}
+				if (A.InstanceLoc.Coord.Y != B.InstanceLoc.Coord.Y)
+				{
+					return A.InstanceLoc.Coord.Y < B.InstanceLoc.Coord.Y;
+				}
+				if (A.InstanceLoc.Coord.Z != B.InstanceLoc.Coord.Z)
+				{
+					return A.InstanceLoc.Coord.Z < B.InstanceLoc.Coord.Z;
+				}
+				return A.InstanceIndex < B.InstanceIndex;
+			}
+		);
+	}
+	TArray<FSortedInstanceItem> SortedInstances;
+};
+
+FISMPrecomputedSpatialHashData FPrimitiveInstanceDataManager::PrecomputeOptimizationData(FInstanceUpdateComponentDesc &&ComponentData, TStridedView<FMatrix> InstanceTransforms)
+{
+	FSpatialHashSortBuilder SortBuilder;
+	const float LocalAbsMaxDisplacement = FMath::Max(-ComponentData.PrimitiveMaterialDesc.MinMaxMaterialDisplacement.X, ComponentData.PrimitiveMaterialDesc.MinMaxMaterialDisplacement.Y)
+									+ ComponentData.PrimitiveMaterialDesc.MaxWorldPositionOffsetDisplacement;
+
+	const FVector3f PadExtent = FISMCInstanceDataSceneProxy::GetLocalBoundsPadExtent(ComponentData.PrimitiveLocalToWorld, LocalAbsMaxDisplacement);
+	FRenderBounds InstanceLocalBounds = ComponentData.StaticMeshBounds;
+	InstanceLocalBounds.Min -= PadExtent;
+	InstanceLocalBounds.Max += PadExtent;
+
+	FSphere LocalInstanceSphere = InstanceLocalBounds.ToBoxSphereBounds().GetSphere();
+
+	SortBuilder.BuildOptimizedSpatialHashOrder(InstanceTransforms.Num(),
+		[&](int32 InstanceIndex) -> FSphere
+		{
+			FMatrix InstanceLocalToWorld = InstanceTransforms[InstanceIndex] * ComponentData.PrimitiveLocalToWorld;
+			return LocalInstanceSphere.TransformBy(InstanceLocalToWorld);
+		}				
+	);
+
+	FISMPrecomputedSpatialHashData Result;
+
+	// Pack down the spatial hashes & index remap
+	Result.ProxyIndexToComponentIndexRemap.SetNumUninitialized(InstanceTransforms.Num());
+
+	FInstanceSceneDataBuffers::FCompressedSpatialHashItem CurrentItem;
+	CurrentItem.NumInstances = 0;
+
+	bool bIsIdentityIndexMap = true;
+
+	for (int32 InstanceIndex = 0; InstanceIndex < SortBuilder.SortedInstances.Num(); ++InstanceIndex)
+	{
+		int32 ComponentInstanceIndex = SortBuilder.SortedInstances[InstanceIndex].InstanceIndex;
+		bIsIdentityIndexMap = bIsIdentityIndexMap && InstanceIndex == ComponentInstanceIndex;
+		Result.ProxyIndexToComponentIndexRemap[InstanceIndex] = ComponentInstanceIndex;
+
+		bool bSameLoc = CurrentItem.NumInstances > 0 && CurrentItem.Location == SortBuilder.SortedInstances[InstanceIndex].InstanceLoc;
+		if (bSameLoc)
+		{
+			CurrentItem.NumInstances += 1;
+		}
 		else
 		{
-			ClearChangeTracking();
+			if (CurrentItem.NumInstances > 0)
+			{
+				Result.Hashes.Add(CurrentItem);
+			}
+			CurrentItem.Location = SortBuilder.SortedInstances[InstanceIndex].InstanceLoc;
+			CurrentItem.NumInstances = 1;
+		}
+	}
+	if (CurrentItem.NumInstances > 0)
+	{
+		Result.Hashes.Add(CurrentItem);
+	}
+
+	// Don't store a 1:1 mapping
+	if (bIsIdentityIndexMap)
+	{
+		Result.ProxyIndexToComponentIndexRemap.Reset();
+	}
+
+	return Result;
+}
+
+void FPrimitiveInstanceDataManager::WriteCookedRenderData(FArchive& Ar, FInstanceUpdateComponentDesc &&ComponentData, TStridedView<FMatrix> InstanceTransforms)
+{
+	bool bHasCookedData = false;
+
+	bool bShouldBuild = ShouldWriteCookedData(Ar.CookingTarget(), InstanceTransforms.Num());
+
+	if (bShouldBuild)
+	{
+		if (!PrecomputedOptimizationData.IsValid())
+		{
+			if (ComponentData.BuildChangeSet)
+			{
+				PrecomputedOptimizationData = MakeShared<const FISMPrecomputedSpatialHashData>(PrecomputeOptimizationData(MoveTemp(ComponentData), InstanceTransforms));
+			}
+		}
+		
+		if (PrecomputedOptimizationData.IsValid())
+		{
+			// We have to copy the whole thing to be able to serialize?
+			FISMPrecomputedSpatialHashData OptData = *PrecomputedOptimizationData;
+
+			// Serialize the stuff we need.
+			bHasCookedData = true;
+			Ar << bHasCookedData;
+
+			OptData.Hashes.BulkSerialize(Ar);
+			OptData.ProxyIndexToComponentIndexRemap.BulkSerialize(Ar);
+		}
+	}
+
+	if (!bHasCookedData)
+	{
+		// write the bool if we didn't write any data previously
+		Ar << bHasCookedData;
+	}
+}
+#endif // WITH_EDITOR
+
+void FPrimitiveInstanceDataManager::ReadCookedRenderData(FArchive& Ar)
+{
+	bool bHasCookedData = false;
+	Ar << bHasCookedData;
+	if (bHasCookedData)
+	{
+		FISMPrecomputedSpatialHashData Tmp;
+
+		// TODO: Pack the data representation to far fewer bits
+		Tmp.Hashes.BulkSerialize(Ar);
+		// TODO: RLE-compress
+		Tmp.ProxyIndexToComponentIndexRemap.BulkSerialize(Ar);
+
+		// Ditch the precomputed data if it has been disabled (in the runtime), even if the cook was done with the data enabled.
+		if (ShouldUsePrecomputed())
+		{
+			PrecomputedOptimizationData = MakeShared<const FISMPrecomputedSpatialHashData>(Tmp);
+		}
+		else
+		{
+			PrecomputedOptimizationData.Reset();
 		}
 	}
 }

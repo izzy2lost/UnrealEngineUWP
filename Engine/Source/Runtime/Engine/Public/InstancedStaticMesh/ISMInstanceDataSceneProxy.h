@@ -16,6 +16,15 @@ class HHitProxy;
 DECLARE_LOG_CATEGORY_EXTERN(LogInstanceProxy, Log, All)
 
 /**
+ * Precomputed optimization data that descrives the spatial hashes and reordering needed.
+ */
+struct FISMPrecomputedSpatialHashData
+{
+	TArray<FInstanceSceneDataBuffers::FCompressedSpatialHashItem> Hashes;
+	TArray<int32> ProxyIndexToComponentIndexRemap;
+};
+
+/**
  * Proxy class that represents scene instance data to the renderer.
  * Responsible for preparing data for render use per-platform & serializing such data for cooked builds.
  * Supplies a persistent ID mapping for use in FScene. The ID mapping is reset when the proxy is recreated. 
@@ -64,14 +73,22 @@ public:
 
 	ENGINE_API static FVector3f GetLocalBoundsPadExtent(const FRenderTransform& LocalToWorld, float PadAmount);
 
+	using FISMPrecomputedSpatialHashDataPtr = TSharedPtr<const FISMPrecomputedSpatialHashData, ESPMode::ThreadSafe>;
 protected:
+	/**
+	 * Build an optimized instance buffer, where the order is sorted such that instances with the same spatial hash are consecutive.
+	 */
+	void BuildFromOptimizedDataBuffers(FISMInstanceUpdateChangeSet& ChangeSet, FInstanceIdIndexMap &OutInstanceIdIndexMap, FInstanceSceneDataBuffers::FWriteView &OutData);
+
 	// Update the InstanceIdIndexMap given the change set.
-	void UpdateIdMapping(FISMInstanceUpdateChangeSet& ChangeSet);
+	template <typename IndexRemapType>
+	void UpdateIdMapping(FISMInstanceUpdateChangeSet& ChangeSet, const IndexRemapType &IndexRemap);
 
 	template <typename IndexRemapType>
 	void ApplyDataChanges(FISMInstanceUpdateChangeSet &ChangeSet, const IndexRemapType &IndexRemap, int32 PostUpdateNumInstances, FInstanceSceneDataBuffers::FWriteView &ProxyData);
 	
-	friend class FPrimitiveInstanceDataManager;
+	template <typename IndexRemapType>
+	void ApplyAttributeChanges(FISMInstanceUpdateChangeSet &ChangeSet, const IndexRemapType &IndexRemap, FInstanceSceneDataBuffers::FWriteView &ProxyData);
 
 	FStaticShaderPlatform ShaderPlatform;
 	ERHIFeatureLevel::Type FeatureLevel;
@@ -85,11 +102,16 @@ protected:
 	FInstanceDataUpdateTaskInfo InstanceDataUpdateTaskInfo;
 	// True when it has never been updated before.
 	bool bIsNew = true;
-
+	// This should be set when constructing for a static primitive that wants pre-built instances.
+	bool bBuildOptimized = false;
 #if WITH_EDITOR
 	/**Container for hitproxies that are used by the instances, uses the FDeferredCleanupInterface machinery to delete itself back on the game thread when replaced. */
 	TPimplPtr<FOpaqueHitProxyContainer> HitProxyContainer;
 #endif
+
+	friend class FPrimitiveInstanceDataManager;
+
+	FISMPrecomputedSpatialHashDataPtr PrecomputedOptimizationData;
 };
 
 /**
