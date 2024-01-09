@@ -9,6 +9,7 @@ using System.IO;
 using System.Linq;
 using System.Net;
 using System.Reflection;
+using System.Security.Claims;
 using System.Text;
 using System.Threading;
 using System.Threading.Tasks;
@@ -287,6 +288,16 @@ namespace Horde.Server.Server
 			_logFileCollection = logFileCollection;
 			_globalConfig = globalConfig;
 			_logger = logger;
+		}
+
+		/// <summary>
+		/// Gets claims for the current user
+		/// </summary>
+		[HttpGet]
+		[Route("/api/v1/debug/claims")]
+		public ActionResult<Claim[]> GetUserClaims()
+		{
+			return User.Claims.ToArray();
 		}
 
 		/// <summary>
