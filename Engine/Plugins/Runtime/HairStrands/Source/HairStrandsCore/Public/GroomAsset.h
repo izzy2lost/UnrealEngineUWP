@@ -726,6 +726,10 @@ public:
 	FOnGroomAsyncLoadFinished OnGroomAsyncLoadFinished;
 
 	void MarkMaterialsHasChanged();
+
+	void RecreateResources();
+	void ChangeFeatureLevel(ERHIFeatureLevel::Type PendingFeatureLevel);
+	void ChangePlatformLevel(ERHIFeatureLevel::Type PendingFeatureLevel);
 #endif
 
 	/** Array of user data stored with the asset */
@@ -843,6 +847,8 @@ private:
 	TArray<FHairGroupsLOD>						CachedHairGroupsLOD;
 	TArray<FHairGroupsCardsSourceDescription>	CachedHairGroupsCards;
 	TArray<FHairGroupsMeshesSourceDescription>	CachedHairGroupsMeshes;
+	ERHIFeatureLevel::Type 						CachedResourcesPlatformLevel= ERHIFeatureLevel::Num;
+	ERHIFeatureLevel::Type 						CachedResourcesFeatureLevel = ERHIFeatureLevel::Num;
 
 	// Queue of procedural assets which needs to be saved
 	TQueue<UStaticMesh*> AssetToSave_Meshes;

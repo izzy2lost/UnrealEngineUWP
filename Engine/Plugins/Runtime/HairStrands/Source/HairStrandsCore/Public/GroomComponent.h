@@ -177,6 +177,12 @@ public:
 	void InvalidateAndRecreate();
 #endif
 
+#if WITH_EDITOR
+	virtual void PreFeatureLevelChange(ERHIFeatureLevel::Type PendingFeatureLevel) override;
+	void HandlePlatformPreviewChanged(ERHIFeatureLevel::Type InFeatureLevel);
+	void HandleFeatureLevelChanged(ERHIFeatureLevel::Type InFeatureLevel);
+#endif
+
 	/* Accessor function for changing Groom asset from blueprint/sequencer */
 	UFUNCTION(BlueprintCallable, Category = "Groom")
 	void SetGroomAsset(UGroomAsset* Asset);

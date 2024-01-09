@@ -2405,9 +2405,9 @@ static UMeshComponent* ValidateBindingAsset(
 	return ValidateBindingAsset(GroomAsset, BindingAsset, Cast<UGeometryCacheComponent>(MeshComponent), bIsBindingReloading, bValidationEnable, Component);
 }
 
-static EGroomGeometryType GetEffectiveGeometryType(EGroomGeometryType Type, bool bUseCards)
+static EGroomGeometryType GetEffectiveGeometryType(EGroomGeometryType Type, bool bUseCards, EShaderPlatform InPlatform)
 {
-	return Type == EGroomGeometryType::Strands && (!IsHairStrandsEnabled(EHairStrandsShaderType::Strands) || bUseCards) ? EGroomGeometryType::Cards : Type;
+	return Type == EGroomGeometryType::Strands && (!IsHairStrandsEnabled(EHairStrandsShaderType::Strands, InPlatform) || bUseCards) ? EGroomGeometryType::Cards : Type;
 }
 
 static EGroomCacheType GetEffectiveGroomCacheType(const UGroomCache* InCache, const UGroomAsset* InGroom)
@@ -2444,6 +2444,8 @@ void UGroomComponent::InitResources(bool bIsBindingReloading)
 
 	InitializedResources = GroomAsset;
 
+	const EShaderPlatform ShaderPlatform = GetWorld() && GetWorld()->Scene ? GetWorld()->Scene->GetShaderPlatform() : EShaderPlatform::SP_NumPlatforms;
+
 	// 1. Check if we need any kind of binding data, simulation data, or RBF data
 	//
 	//					  Requires    	| Requires     | Requires
@@ -2470,12 +2472,12 @@ void UGroomComponent::InitResources(bool bIsBindingReloading)
 	{
 		for (uint32 LODIt = 0, LODCount = GroomAsset->GetLODCount(); LODIt < LODCount; ++LODIt)
 		{
-			const EGroomGeometryType GeometryType = GetEffectiveGeometryType(GroomAsset->GetGeometryType(GroupIt, LODIt), bUseCards);
+			const EGroomGeometryType GeometryType = GetEffectiveGeometryType(GroomAsset->GetGeometryType(GroupIt, LODIt), bUseCards, ShaderPlatform);
 			const EGroomBindingType BindingType = GroomAsset->GetBindingType(GroupIt, LODIt);
 
 			// Note on Global Deformation:
 			// * Global deformation require to have skinning binding
-			// * Force global interpolation to be enable for meshes with skinning binding as we use RBF defomation for 'sticking' meshes onto skel. mesh surface			
+			// * Force global interpolation to be enable for meshes with skinning binding as we use RBF defomation for 'sticking' meshes onto skel. mesh surface
 			bHasNeedSkeletalMesh				= bHasNeedSkeletalMesh || BindingType == EGroomBindingType::Rigid;
 			bHasNeedSkinningBinding				= bHasNeedSkinningBinding || BindingType == EGroomBindingType::Skinning;
 			bHasNeedSimulation[GroupIt]			= bHasNeedSimulation[GroupIt] || IsSimulationEnable(GroupIt, LODIt);
@@ -2700,7 +2702,7 @@ void UGroomComponent::InitResources(bool bIsBindingReloading)
 
 				// * Force global interpolation to be enable for meshes with skinning binding as we use RBF defomation for 'sticking' meshes onto skel. mesh surface
 				// * Global deformation are allowed only with 'Skinning' binding type
-				const EHairGeometryType GeometryType = ToHairGeometryType(GetEffectiveGeometryType(GroomAsset->GetGeometryType(GroupIt, LODIt), bUseCards));
+				const EHairGeometryType GeometryType = ToHairGeometryType(GetEffectiveGeometryType(GroomAsset->GetGeometryType(GroupIt, LODIt), bUseCards, ShaderPlatform));
 				const bool LODSimulation = IsSimulationEnable(GroupIt, LODIt);
 				const bool LODGlobalInterpolation = LocalBindingAsset && BindingType == EHairBindingType::Skinning && GroomAsset->IsGlobalInterpolationEnable(GroupIt, LODIt);
 				bNeedStrandsData = bNeedStrandsData || GeometryType == EHairGeometryType::Strands;
@@ -3038,7 +3040,6 @@ void UGroomComponent::InitResources(bool bIsBindingReloading)
 
 void UGroomComponent::ReleaseResources()
 {
-	FHairStrandsSceneProxy* GroomSceneProxy = (FHairStrandsSceneProxy*)SceneProxy;
 	InitializedResources = nullptr;
 
 	HairGroupInstances.Empty();
@@ -3972,7 +3973,38 @@ void UGroomComponent::CheckForErrors()
 
 	ValidateMaterials(true);
 }
-#endif
+
+void UGroomComponent::PreFeatureLevelChange(ERHIFeatureLevel::Type PendingFeatureLevel)
+{
+
+}
+
+void UGroomComponent::HandlePlatformPreviewChanged(ERHIFeatureLevel::Type InFeatureLevel)
+{
+	if (BindingAsset)
+	{
+		BindingAsset->ChangePlatformLevel(InFeatureLevel);
+	}
+	if (GroomAsset)
+	{
+		GroomAsset->ChangePlatformLevel(InFeatureLevel);
+	}
+	InvalidateAndRecreate();
+}
+
+void UGroomComponent::HandleFeatureLevelChanged(ERHIFeatureLevel::Type InFeatureLevel)
+{
+	if (BindingAsset)
+	{
+		BindingAsset->ChangeFeatureLevel(InFeatureLevel);
+	}
+	if (GroomAsset)
+	{
+		GroomAsset->ChangeFeatureLevel(InFeatureLevel);
+	}
+	InvalidateAndRecreate();
+}
+#endif // WITH_EDITOR
 
 template<typename T>
 void InternalAddDedicatedVideoMemoryBytes(FResourceSizeEx& CumulativeResourceSize, T Resource)

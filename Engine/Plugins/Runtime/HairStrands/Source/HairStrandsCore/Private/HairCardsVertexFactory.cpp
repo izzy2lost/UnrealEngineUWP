@@ -326,15 +326,17 @@ void FHairCardsVertexFactory::InitResources(FRHICommandListBase& RHICmdList)
 	// We create different streams based on feature level
 	check(HasValidFeatureLevel());
 
+	const ERHIFeatureLevel::Type CurrentFeatureLevel = GetFeatureLevel();
+
 	// If the platform does not support manual vertex fetching we assume it is a low end platform, and so we don't enable deformation.
 	// VertexFactory needs to be able to support max possible shader platform and feature level
 	// in case if we switch feature level at runtime.
 	FVertexDeclarationElementList Elements;
-	SetPrimitiveIdStreamIndex(GetFeatureLevel(), EVertexInputStreamType::Default, -1);
+	SetPrimitiveIdStreamIndex(CurrentFeatureLevel, EVertexInputStreamType::Default, -1);
 	AddPrimitiveIdStreamElement(EVertexInputStreamType::Default, Elements, 13, 0xff);
 
 	// Note this is a local version of the VF's bSupportsManualVertexFetch, which take into account the feature level
-	const bool bManualFetch = SupportsManualVertexFetch(GetFeatureLevel());
+	const bool bManualFetch = SupportsManualVertexFetch(CurrentFeatureLevel);
 	if (!bManualFetch)
 	{
 		if (Data.GeometryType == EHairGeometryType::Cards)
@@ -346,6 +348,17 @@ void FHairCardsVertexFactory::InitResources(FRHICommandListBase& RHICmdList)
 			Elements.Add(AccessStreamComponent(FVertexStreamComponent(&LOD.RestResource->NormalsBuffer,			0, FHairCardsNormalFormat::SizeInByte,	FHairCardsNormalFormat::SizeInByte * FHairCardsNormalFormat::ComponentCount,		FHairCardsNormalFormat::VertexElementType,		EVertexStreamUsage::Default), 2));
 			Elements.Add(AccessStreamComponent(FVertexStreamComponent(&LOD.RestResource->UVsBuffer,				0, 0,									FHairCardsUVFormat::SizeInByte,														FHairCardsUVFormat::VertexElementType,			EVertexStreamUsage::Default), 3));
 			Elements.Add(AccessStreamComponent(FVertexStreamComponent(&LOD.RestResource->MaterialsBuffer,		0, 0,									FHairCardsMaterialFormat::SizeInByte,												FHairCardsMaterialFormat::VertexElementType,	EVertexStreamUsage::Default), 4));
+
+			// Ensure the rest resources are in correct states for the VF
+			const FHairCardsRestResource* RestResource = LOD.RestResource;
+			ENQUEUE_RENDER_COMMAND(FHairCardsVertexFactoryTransition)(/*UE::RenderCommandPipe::Groom,*/
+			[RestResource](FRHICommandListImmediate& RHICmdImmediateList)
+			{
+				RHICmdImmediateList.Transition(FRHITransitionInfo(RestResource->RestPositionBuffer.VertexBufferRHI,	ERHIAccess::Unknown, ERHIAccess::VertexOrIndexBuffer));
+				RHICmdImmediateList.Transition(FRHITransitionInfo(RestResource->NormalsBuffer.VertexBufferRHI, 		ERHIAccess::Unknown, ERHIAccess::VertexOrIndexBuffer));
+				RHICmdImmediateList.Transition(FRHITransitionInfo(RestResource->UVsBuffer.VertexBufferRHI, 			ERHIAccess::Unknown, ERHIAccess::VertexOrIndexBuffer));
+				RHICmdImmediateList.Transition(FRHITransitionInfo(RestResource->MaterialsBuffer.VertexBufferRHI, 	ERHIAccess::Unknown, ERHIAccess::VertexOrIndexBuffer));
+			});
 		}
 		else if (Data.GeometryType == EHairGeometryType::Meshes)
 		{
@@ -357,6 +370,16 @@ void FHairCardsVertexFactory::InitResources(FRHICommandListBase& RHICmdList)
 			Elements.Add(AccessStreamComponent(FVertexStreamComponent(&LOD.RestResource->NormalsBuffer,			0, FHairCardsNormalFormat::SizeInByte,	FHairCardsNormalFormat::SizeInByte * FHairCardsNormalFormat::ComponentCount,		FHairCardsNormalFormat::VertexElementType,		EVertexStreamUsage::Default), 2));
 			Elements.Add(AccessStreamComponent(FVertexStreamComponent(&LOD.RestResource->UVsBuffer,				0, 0,									FHairCardsUVFormat::SizeInByte,														FHairCardsUVFormat::VertexElementType,			EVertexStreamUsage::Default), 3));
 			Elements.Add(AccessStreamComponent(FVertexStreamComponent(&LOD.RestResource->NormalsBuffer,			0, 0,									FHairCardsMaterialFormat::SizeInByte,												FHairCardsMaterialFormat::VertexElementType,	EVertexStreamUsage::Default), 4)); 
+
+			// Ensure the rest resources are in correct states for the VF
+			const FHairMeshesRestResource* RestResource = LOD.RestResource;
+			ENQUEUE_RENDER_COMMAND(FHairCardsVertexFactoryTransition)(/*UE::RenderCommandPipe::Groom,*/
+			[RestResource](FRHICommandListImmediate& RHICmdImmediateList)
+			{
+				RHICmdImmediateList.Transition(FRHITransitionInfo(RestResource->RestPositionBuffer.VertexBufferRHI,	ERHIAccess::Unknown, ERHIAccess::VertexOrIndexBuffer));
+				RHICmdImmediateList.Transition(FRHITransitionInfo(RestResource->NormalsBuffer.VertexBufferRHI, 		ERHIAccess::Unknown, ERHIAccess::VertexOrIndexBuffer));
+				RHICmdImmediateList.Transition(FRHITransitionInfo(RestResource->UVsBuffer.VertexBufferRHI, 			ERHIAccess::Unknown, ERHIAccess::VertexOrIndexBuffer));
+			});
 		}
 
 		bNeedsDeclaration = true;

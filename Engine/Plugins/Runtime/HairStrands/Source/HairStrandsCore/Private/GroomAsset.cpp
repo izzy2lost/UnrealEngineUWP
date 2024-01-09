@@ -972,17 +972,22 @@ inline void InternalUpdateResource(FRenderResource* Resource)
 }
 
 template<typename T>
-inline void InternalReleaseResource(T*& Resource)
+inline void InternalReleaseResource(T*& Resource, bool bResetLoadedSize=false)
 {
 	if (Resource)
 	{
 		T* InResource = Resource;
+		if (bResetLoadedSize)
+		{
+			Resource->InternalResetLoadedSize();
+		}
+
 		ENQUEUE_RENDER_COMMAND(ReleaseHairResourceCommand)(UE::RenderCommandPipe::Groom,
-			[InResource](FRHICommandList& RHICmdList)
-			{
-				InResource->ReleaseResource();
-				delete InResource;
-			});
+		[InResource](FRHICommandList& RHICmdList)
+		{
+			InResource->ReleaseResource();
+			delete InResource;
+		});
 		Resource = nullptr;
 	}
 }
@@ -1078,9 +1083,9 @@ void UGroomAsset::ReleaseStrandsResource(uint32 GroupIndex)
 	if (GetHairGroupsResources().IsValidIndex(GroupIndex))
 	{
 		FHairGroupResources& GroupData = GetHairGroupsResources()[GroupIndex];
-		InternalReleaseResource(GroupData.Strands.RestResource);
-		InternalReleaseResource(GroupData.Strands.ClusterResource);
-		InternalReleaseResource(GroupData.Strands.InterpolationResource);
+		InternalReleaseResource(GroupData.Strands.RestResource, true);
+		InternalReleaseResource(GroupData.Strands.ClusterResource, true);
+		InternalReleaseResource(GroupData.Strands.InterpolationResource, true);
 		#if RHI_RAYTRACING
 		InternalReleaseResource(GroupData.Strands.RaytracingResource);
 		#endif
@@ -3787,3 +3792,32 @@ TArray<FHairGroupResources>& UGroomAsset::GetHairGroupsResources()
 {
 	return HairGroupsResources;
 }
+
+#if WITH_EDITOR
+void UGroomAsset::RecreateResources()
+{
+	FGroomComponentRecreateRenderStateContext RecreateContext(this);
+	ReleaseResource();
+	InitResources();
+}
+
+void UGroomAsset::ChangePlatformLevel(ERHIFeatureLevel::Type In)
+{
+	// When changing platform preview level, recreate resources to the correct platform settings (e.g., r.hairstrands.strands=0/1)
+	if (CachedResourcesPlatformLevel != In)
+	{
+		RecreateResources();
+		CachedResourcesPlatformLevel = In;
+	}
+}
+
+void UGroomAsset::ChangeFeatureLevel(ERHIFeatureLevel::Type In)
+{
+	// When changing feature level, recreate resources to the correct feature level
+	if (CachedResourcesFeatureLevel != In)
+	{
+		RecreateResources();
+		CachedResourcesFeatureLevel = In;
+	}
+}
+#endif

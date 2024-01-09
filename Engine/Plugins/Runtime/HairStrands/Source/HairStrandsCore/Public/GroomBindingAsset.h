@@ -254,6 +254,10 @@ public:
 	//private :
 #if WITH_EDITOR
 	FOnGroomBindingAssetChanged OnGroomBindingAssetChanged;
+
+	void RecreateResources();
+	void ChangeFeatureLevel(ERHIFeatureLevel::Type PendingFeatureLevel);
+	void ChangePlatformLevel(ERHIFeatureLevel::Type PendingFeatureLevel);
 #endif
 
 #if WITH_EDITORONLY_DATA
@@ -281,6 +285,10 @@ private:
 	bool bRegisterTargetMeshCallback = false;
 	bool bRegisterGroomAssetCallback = false;
 	TArray<FString> CachedDerivedDataKey;
+#endif
+#if WITH_EDITOR
+	ERHIFeatureLevel::Type CachedResourcesFeatureLevel = ERHIFeatureLevel::Num;
+	ERHIFeatureLevel::Type CachedResourcesPlatformLevel = ERHIFeatureLevel::Num;
 #endif
 	bool bIsValid = false;
 	uint32 AssetNameHash = 0;

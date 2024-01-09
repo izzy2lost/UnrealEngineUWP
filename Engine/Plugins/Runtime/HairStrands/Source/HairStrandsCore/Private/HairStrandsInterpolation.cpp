@@ -933,6 +933,7 @@ IMPLEMENT_GLOBAL_SHADER(FHairCardsDeformationCS, "/Engine/Private/HairStrands/Ha
 void AddHairCardsDeformationPass(
 	FRDGBuilder& GraphBuilder,
 	FGlobalShaderMap* ShaderMap,
+	const ERHIFeatureLevel::Type FeatureLevel,
 	const FShaderPrintData* ShaderPrintData,
 	FHairGroupInstance* Instance,
 	const int32 MeshLODIndex)
@@ -1012,12 +1013,31 @@ void AddHairCardsDeformationPass(
 	TShaderMapRef<FHairCardsDeformationCS> ComputeShader(ShaderMap, PermutationVector);
 
 	const FIntVector DispatchCount = FIntVector(FMath::DivideAndRoundUp(Parameters->CardsVertexCount, FHairCardsDeformationCS::GetGroupSize()), 1, 1);
-	FComputeShaderUtils::AddPass(
-		GraphBuilder,
+
+	const bool bManualFetch = FVertexFactoryType::CheckManualVertexFetchSupport(FeatureLevel);
+	FBufferRHIRef CardsRestPositionBuffer = LOD.RestResource->RestPositionBuffer.VertexBufferRHI;
+	FBufferRHIRef CardsRestTangentBuffer  = LOD.RestResource->NormalsBuffer.VertexBufferRHI;
+
+	GraphBuilder.AddPass(
 		RDG_EVENT_NAME("HairStrands::CardsDeformation(%s)", bSupportDynamicMesh ? TEXT("Dynamic") : TEXT("Static")),
-		ComputeShader,
 		Parameters,
-		DispatchCount);
+		ERDGPassFlags::Compute,
+		[Parameters, ComputeShader, DispatchCount, CardsRestPositionBuffer, CardsRestTangentBuffer, bManualFetch](FRHIComputeCommandList& RHICmdList)
+		{
+			// On platforms not supporting manual vertex fetching, ensure the resources are in 'VerteOrIndexBuffer' state after position/normals update
+			if (!bManualFetch)
+			{
+				RHICmdList.Transition(FRHITransitionInfo(CardsRestPositionBuffer, ERHIAccess::Unknown, ERHIAccess::SRVMask));
+				RHICmdList.Transition(FRHITransitionInfo(CardsRestTangentBuffer, ERHIAccess::Unknown, ERHIAccess::SRVMask));
+			}
+			FComputeShaderUtils::Dispatch(RHICmdList, ComputeShader, *Parameters, DispatchCount);
+			if (!bManualFetch)
+			{
+				RHICmdList.Transition(FRHITransitionInfo(CardsRestPositionBuffer, ERHIAccess::SRVMask, ERHIAccess::VertexOrIndexBuffer));
+				RHICmdList.Transition(FRHITransitionInfo(CardsRestTangentBuffer, ERHIAccess::SRVMask, ERHIAccess::VertexOrIndexBuffer));
+			}
+		});
+
 
 	// If LOD has switched, copy the current buffer, so that we don't get incorrect motion vector
 	if (bHasLODSwitch)

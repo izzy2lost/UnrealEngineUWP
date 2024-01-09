@@ -225,6 +225,7 @@ void AddBuildHairMeshAccelerationStructurePass(
 void AddHairCardsDeformationPass(
 	FRDGBuilder& GraphBuilder,
 	FGlobalShaderMap* ShaderMap,
+	const ERHIFeatureLevel::Type FeatureLevel,
 	const FShaderPrintData* ShaderPrintData,
 	FHairGroupInstance* Instance,
 	const int32 MeshLODIndex);

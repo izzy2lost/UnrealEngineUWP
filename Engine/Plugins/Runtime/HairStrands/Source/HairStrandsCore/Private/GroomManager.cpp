@@ -1966,6 +1966,7 @@ static void RunHairStrandsInterpolation_Cards(
 				AddHairCardsDeformationPass(
 					GraphBuilder,
 					ShaderMap,
+					View->GetFeatureLevel(),
 					ShaderPrintData,
 					InstanceData.Instance,
 					InstanceData.MeshLODIndex);

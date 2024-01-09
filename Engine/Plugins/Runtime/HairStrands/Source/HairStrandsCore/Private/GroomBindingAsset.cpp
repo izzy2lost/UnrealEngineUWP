@@ -242,6 +242,7 @@ void UGroomBindingAsset::ReleaseResource()
 				}
 				if (InRenRootResources)
 				{
+					InRenRootResources->InternalResetLoadedSize();
 					InRenRootResources->ReleaseResource();
 					delete InRenRootResources;
 				}
@@ -1225,3 +1226,32 @@ TArray<UGroomBindingAsset::FHairGroupPlatformData>& UGroomBindingAsset::GetHairG
 	return HairGroupsPlatformData;
 	PRAGMA_ENABLE_DEPRECATION_WARNINGS
 }
+
+#if WITH_EDITOR
+void UGroomBindingAsset::RecreateResources()
+{
+	ReleaseResource();
+	InitResource();
+	OnGroomBindingAssetChanged.Broadcast();
+}
+
+void UGroomBindingAsset::ChangeFeatureLevel(ERHIFeatureLevel::Type In)
+{
+	// When changing feature level, recreate resources to the correct feature level
+	if (CachedResourcesFeatureLevel != In)
+	{
+		RecreateResources();
+		CachedResourcesFeatureLevel = In;
+	}
+}
+
+void UGroomBindingAsset::ChangePlatformLevel(ERHIFeatureLevel::Type In)
+{
+	// When changing platform preview level, recreate resources to the correct platform settings (e.g., r.hairstrands.strands=0/1)
+	if (CachedResourcesPlatformLevel != In)
+	{
+		RecreateResources();
+		CachedResourcesPlatformLevel = In;
+	}
+}
+#endif // WITH_EDITOR
