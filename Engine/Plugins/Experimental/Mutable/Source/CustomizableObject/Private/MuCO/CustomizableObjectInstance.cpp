@@ -5396,6 +5396,12 @@ void UCustomizableInstancePrivateData::BuildMaterials(const TSharedRef<FUpdateCo
 
 	for (int32 ComponentIndex = 0; ComponentIndex < NumComponents; ++ComponentIndex)
 	{
+		if (!Public->SkeletalMeshes.IsValidIndex(ComponentIndex))
+		{
+			// This could happen if there are no meshes at all.
+			continue;
+		}
+
 		USkeletalMesh* SkeletalMesh = Public->SkeletalMeshes[ComponentIndex];
 
 		if (!SkeletalMesh)
