@@ -207,7 +207,7 @@ struct FInstLDSGDS
 	uint32 UNUSED : 1;
 	uint32 GDS : 1;
 	uint32 OP : 8;
-	uint32 ID : 8;
+	uint32 ID : 6;
 	uint32 ADDR : 8;
 	uint32 DATA0 : 8;
 	uint32 DATA1 : 8;
@@ -392,11 +392,9 @@ bool IsSOPK(const uint32* Code, uint32& AdvanceAmount)
 	if (bMatch)
 	{
 		AdvanceAmount = GetAdvanceAmount(EInstructionType::SOPK);
-		if (SOPK.SIMM16 == Operand_Literal)
-		{
-			// Skip 32bit literal next in the instruction stream
-			AdvanceAmount++;
-		}
+
+		// SOPK do not ever have a trailing literal as per the spec
+		// "Instructions in this format may not use a 32-bit literal constant which occurs immediately after the instruction."
 	}
 	return bMatch;
 }
@@ -478,7 +476,9 @@ bool IsVOP3(const uint32* Code, uint32& AdvanceAmount)
 	if (bMatch)
 	{
 		AdvanceAmount = GetAdvanceAmount(EInstructionType::VOP3);
-		if (VOP3.SRC0 == Operand_DPP8 || VOP3.SRC0 == Operand_DPP8FI || VOP3.SRC0 == Operand_DPP16 || VOP3.SRC0 == Operand_SDWA || VOP3.SRC0 == Operand_Literal || VOP3.SRC2 == Operand_Literal)
+		if (VOP3.SRC0 == Operand_DPP8 || VOP3.SRC0 == Operand_DPP8FI || VOP3.SRC0 == Operand_DPP16 || VOP3.SRC0 == Operand_SDWA || VOP3.SRC0 == Operand_Literal ||
+			VOP3.SRC1 == Operand_DPP8 || VOP3.SRC1 == Operand_DPP8FI || VOP3.SRC1 == Operand_DPP16 || VOP3.SRC1 == Operand_SDWA || VOP3.SRC1 == Operand_Literal ||
+			VOP3.SRC2 == Operand_DPP8 || VOP3.SRC2 == Operand_DPP8FI || VOP3.SRC2 == Operand_DPP16 || VOP3.SRC2 == Operand_SDWA || VOP3.SRC2 == Operand_Literal)
 		{
 			AdvanceAmount++;
 		}
@@ -626,4 +626,36 @@ EInstructionType DecodeInstructionType(const uint32* Code, uint32& AdvanceAmount
 	if (IsSOP2(Code, AdvanceAmount)) return EInstructionType::SOP2;
 	if (IsVOP2(Code, AdvanceAmount)) return EInstructionType::VOP2;
 	return EInstructionType::UNKNOWN;
+}
+
+const char* ToString(EInstructionType Inst)
+{
+#define OP_TO_STRING_CASE(x) case EInstructionType::x: return #x
+
+	switch (Inst)
+	{
+		OP_TO_STRING_CASE(SOP2);
+		OP_TO_STRING_CASE(SOPK);
+		OP_TO_STRING_CASE(SOP1);
+		OP_TO_STRING_CASE(SOPC);
+		OP_TO_STRING_CASE(SOPP);
+		OP_TO_STRING_CASE(SMEM);
+		OP_TO_STRING_CASE(VOP2);
+		OP_TO_STRING_CASE(VOP1);
+		OP_TO_STRING_CASE(VOP3);
+		OP_TO_STRING_CASE(VOPC);
+		OP_TO_STRING_CASE(VOP3P);
+		OP_TO_STRING_CASE(VINTERP);
+		OP_TO_STRING_CASE(LDSGDS);
+		OP_TO_STRING_CASE(MUBUF);
+		OP_TO_STRING_CASE(MTBUF);
+		OP_TO_STRING_CASE(MIMG);
+		OP_TO_STRING_CASE(EXPORT);
+		OP_TO_STRING_CASE(FSG);
+
+	default:
+		return "UNKNOWN";
+	}
+
+#undef OP_TO_STRING_CASE
 }

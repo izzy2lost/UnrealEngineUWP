@@ -628,8 +628,15 @@ bool PerformParsing(PARSER& Parser, const uint32* ReadPtr, const uint32* EndPtr)
 		EInstructionType InstructionType = DecodeInstructionType(ReadPtr, AdvanceAmount);
 		AdvanceAmount += Parser.AdjustAdvance(InstructionType, ReadPtr);
 
-		if ((ReadPtr + AdvanceAmount >= EndPtr) || InstructionType == EInstructionType::UNKNOWN)
+		if (InstructionType == EInstructionType::UNKNOWN)
 		{
+			//UE_LOG(LogTemp, Error, TEXT("Failed ISA Parse - Unknown Instruction"));
+			bSuccess = false;
+			break;
+		}
+		else if (ReadPtr + AdvanceAmount >= EndPtr)
+		{
+			//UE_LOG(LogTemp, Error, TEXT("Failed ISA Parse - Overfetch"));
 			bSuccess = false;
 			break;
 		}
@@ -702,6 +709,8 @@ bool PerformParsing(PARSER& Parser, const uint32* ReadPtr, const uint32* EndPtr)
 	return bSuccess;
 }
 
+#define DEBUG_DUMP_FAILURES 0
+
 bool ISAParser::HasDerivativeOps(bool& bHasDerivativeOps, const char* Code, uint32 CodeLength, EInstructionSet InstructionSet)
 {
 	const uint32* ReadPtr = reinterpret_cast<const uint32*>(Code);
@@ -712,9 +721,6 @@ bool ISAParser::HasDerivativeOps(bool& bHasDerivativeOps, const char* Code, uint
 
 	if (InstructionSet == EInstructionSet::RDNA1)
 	{
-		//FDebugParserRDNA1 PrintParser;
-		//PerformParsing(PrintParser, ReadPtr, EndPtr);
-
 		FQuadModeParserRDNA1 Parser;
 		if (PerformParsing(Parser, ReadPtr, EndPtr))
 		{
@@ -722,14 +728,16 @@ bool ISAParser::HasDerivativeOps(bool& bHasDerivativeOps, const char* Code, uint
 		}
 		else
 		{
+		#if DEBUG_DUMP_FAILURES
+			FDebugParserRDNA1 PrintParser;
+			PerformParsing(PrintParser, ReadPtr, EndPtr);
+		#endif
+
 			return false;
 		}
 	}
 	else if (InstructionSet == EInstructionSet::RDNA2)
 	{
-		//FDebugParserRDNA2 PrintParser;
-		//PerformParsing(PrintParser, ReadPtr, EndPtr);
-
 		FQuadModeParserRDNA2 Parser;
 		if (PerformParsing(Parser, ReadPtr, EndPtr))
 		{
@@ -737,6 +745,11 @@ bool ISAParser::HasDerivativeOps(bool& bHasDerivativeOps, const char* Code, uint
 		}
 		else
 		{
+		#if DEBUG_DUMP_FAILURES
+			FDebugParserRDNA2 PrintParser;
+			PerformParsing(PrintParser, ReadPtr, EndPtr);
+		#endif
+
 			return false;
 		}
 	}
