@@ -56,6 +56,9 @@ namespace uba
 		};
 		void HitTest(HitTestResult& outResult, const POINT& pos);
 
+		void WriteProcessStats(Logger& out, TraceView::Process& process);
+		void CopyTextToClipboard(const TString& str);
+		void UnselectAndRedraw();
 		bool UpdateAutoscroll();
 		bool UpdateSelection();
 		void UpdateScrollbars(bool redraw);
@@ -139,6 +142,7 @@ namespace uba
 		u32 m_fetchedFilesSelected = ~0u;
 		
 		bool m_mouseOverWindow = false;
+		bool m_showPopup = false;
 
 		enum ComponentType
 		{

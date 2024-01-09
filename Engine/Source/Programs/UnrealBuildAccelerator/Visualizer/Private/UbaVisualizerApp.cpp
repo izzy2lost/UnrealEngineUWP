@@ -47,15 +47,16 @@ struct MessageBoxLogWriter : public LogWriter
 
 	virtual void Log(LogEntryType type, const tchar* str, u32 strLen, const tchar* prefix = nullptr, u32 prefixLen = 0) override
 	{
+		if (type > LogEntryType_Warning)
+			return;
+
+		HWND hwnd = m_visualizer ? m_visualizer->GetHwnd() : NULL;
+		UINT flags = MB_ICONERROR;
+		if (!hwnd)
+			flags |= MB_TOPMOST;
+		MessageBox(hwnd, str, TC("UbaVisualizer"), flags);
 		if (type == LogEntryType_Error)
-		{
-			HWND hwnd = m_visualizer ? m_visualizer->GetHwnd() : NULL;
-			UINT flags = MB_ICONERROR;
-			if (!hwnd)
-				flags |= MB_TOPMOST;
-			MessageBox(hwnd, str, TC("UbaVisualizer"), flags);
 			ExitProcess(~0u);
-		}
 	}
 	
 	Visualizer* m_visualizer = nullptr;

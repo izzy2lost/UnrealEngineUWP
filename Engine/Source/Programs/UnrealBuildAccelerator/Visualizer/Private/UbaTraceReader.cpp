@@ -2,6 +2,7 @@
 
 #include "UbaTraceReader.h"
 #include "UbaFile.h"
+#include "UbaFileAccessor.h"
 #include "UbaNetworkClient.h"
 #include "UbaNetworkMessage.h"
 
@@ -58,10 +59,8 @@ namespace uba
 		u32 traceSize = reader.ReadU32(); (void)traceSize;
 		u32 version = reader.ReadU32();
 		if (version < TraceReadCompatibilityVersion || version > TraceVersion)
-		{
-			m_logger.Error(L"Incompatible trace version (%u). Current executable supports version %u to %u.", version, TraceReadCompatibilityVersion, TraceVersion);
-			return false;
-		}
+			return m_logger.Error(L"Incompatible trace version (%u). Current executable supports version %u to %u.", version, TraceReadCompatibilityVersion, TraceVersion);
+
 		out.version = version;
 		reader.ReadU32(); // ProcessId
 		u64 traceSystemStartTimeUs = 0;
@@ -862,6 +861,22 @@ namespace uba
 
 		m_activeProcesses.clear();
 		out.finished = true;
+	}
+
+	bool TraceReader::SaveAs(const tchar* fileName)
+	{
+		if (!m_memoryBegin)
+		{
+			m_logger.Warning(L"Can only save traces that are opened using -listen/-name.");
+			return false;
+		}
+
+		FileAccessor file(m_logger, fileName);
+		if (!file.CreateWrite())
+			return false;
+		if (!file.Write(m_memoryBegin, m_memoryPos - m_memoryBegin))
+			return false;
+		return file.Close();
 	}
 
 	Guid TraceReader::ReadClientId(TraceView& out, BinaryReader& reader)

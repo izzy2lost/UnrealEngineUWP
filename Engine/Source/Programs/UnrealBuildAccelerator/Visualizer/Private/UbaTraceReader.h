@@ -143,6 +143,8 @@ namespace uba
 		bool ReadTrace(TraceView& out, BinaryReader& reader, u64 maxTime);
 		void StopAllActive(TraceView& out, u64 stopTime);
 
+		bool SaveAs(const tchar* fileName);
+
 		Guid ReadClientId(TraceView& out, BinaryReader& reader);
 		TraceView::Session& GetSession(TraceView& out, u32 sessionIndex);
 		TraceView::Session* GetSession(TraceView& out, const Guid& clientUid);
