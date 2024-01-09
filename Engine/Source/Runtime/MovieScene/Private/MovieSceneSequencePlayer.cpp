@@ -242,6 +242,11 @@ void UMovieSceneSequencePlayer::PlayLooping(int32 NumLoops)
 
 void UMovieSceneSequencePlayer::PlayInternal()
 {
+	if (Observer && !Observer->CanObserveSequence())
+	{
+		return;
+	}
+
 	if (NeedsQueueLatentAction())
 	{
 		QueueLatentAction(FMovieSceneSequenceLatentActionDelegate::CreateUObject(this, &UMovieSceneSequencePlayer::PlayInternal));
@@ -321,6 +326,11 @@ void UMovieSceneSequencePlayer::PlayInternal()
 
 void UMovieSceneSequencePlayer::Pause()
 {
+	if (Observer && !Observer->CanObserveSequence())
+	{
+		return;
+	}
+
 	if (NeedsQueueLatentAction())
 	{
 		QueueLatentAction(FMovieSceneSequenceLatentActionDelegate::CreateUObject(this, &UMovieSceneSequencePlayer::Pause));
@@ -352,12 +362,8 @@ void UMovieSceneSequencePlayer::Pause()
 			}
 		};
 
-		if (Observer && !Observer->CanObserveSequence())
-		{
-			FinishPause();
-		}
 		// Evaluate the sequence at its current time, with a status of 'stopped' to ensure that animated state pauses correctly. (ie. audio sounds should stop/pause)
-		else if (TSharedPtr<FMovieSceneEntitySystemRunner> Runner = RootTemplateInstance.GetRunner())
+		if (TSharedPtr<FMovieSceneEntitySystemRunner> Runner = RootTemplateInstance.GetRunner())
 		{
 			FMovieSceneEvaluationRange CurrentTimeRange = PlayPosition.GetCurrentPositionAsRange();
 			const FMovieSceneContext Context(CurrentTimeRange, EMovieScenePlayerStatus::Stopped);
@@ -391,6 +397,11 @@ void UMovieSceneSequencePlayer::StopAtCurrentTime()
 
 void UMovieSceneSequencePlayer::StopInternal(FFrameTime TimeToResetTo)
 {
+	if (Observer && !Observer->CanObserveSequence())
+	{
+		return;
+	}
+
 	if (NeedsQueueLatentAction())
 	{
 		QueueLatentAction(FMovieSceneSequenceLatentActionDelegate::CreateUObject(this, &UMovieSceneSequencePlayer::StopInternal, TimeToResetTo));
@@ -459,11 +470,7 @@ void UMovieSceneSequencePlayer::StopInternal(FFrameTime TimeToResetTo)
 
 		TSharedPtr<FMovieSceneEntitySystemRunner> Runner = RootTemplateInstance.GetRunner();
 
-		if (Observer && !Observer->CanObserveSequence())
-		{
-			OnFlushed();
-		}
-		else if (Runner)
+		if (Runner)
 		{
 			// Finish but do not destroy
 			if (Runner->QueueFinalUpdate(RootTemplateInstance.GetRootInstanceHandle(), FSimpleDelegate::CreateWeakLambda(this, OnFlushed)))
@@ -625,6 +632,11 @@ void UMovieSceneSequencePlayer::PlayTo(FMovieSceneSequencePlaybackParams InPlayb
 
 void UMovieSceneSequencePlayer::SetPlaybackPosition(FMovieSceneSequencePlaybackParams InPlaybackParams)
 {
+	if (Observer && !Observer->CanObserveSequence())
+	{
+		return;
+	}
+
 	if (NeedsQueueLatentAction())
 	{
 		QueueLatentAction(FMovieSceneSequenceLatentActionDelegate::CreateUObject(this, &UMovieSceneSequencePlayer::SetPlaybackPosition, InPlaybackParams));
@@ -1235,6 +1247,7 @@ void UMovieSceneSequencePlayer::UpdateMovieSceneInstance(FMovieSceneEvaluationRa
 {
 	if (Observer && !Observer->CanObserveSequence())
 	{
+		UE_LOG(LogMovieScene, Error, TEXT("Refusing to update an unobservable sequence! Did it become unobservable during playback?"));
 		return;
 	}
 
@@ -1758,6 +1771,23 @@ void UMovieSceneSequencePlayer::PostNetReceive()
 	if (!bHasChangedStatus && !bHasChangedTime)
 	{
 		// Nothing to do
+		return;
+	}
+
+	if (Observer && !Observer->CanObserveSequence())
+	{
+		// We shouldn't do anything.
+#if !NO_LOGGING
+		if (UE_LOG_ACTIVE(LogMovieSceneRepl, Verbose))
+		{
+			const FFrameTime CurrentTime = PlayPosition.GetCurrentPosition();
+			const FString SequenceName = GetSequenceName(true);
+			UE_LOG(LogMovieSceneRepl, Verbose, TEXT("Ignoring network update for unobservable sequence %s %s @ %s. Server is %s @ %s."),
+				*SequenceName,
+				*UEnum::GetValueAsString(Status.GetValue()), *LexToString(CurrentTime),
+				*UEnum::GetValueAsString(NetSyncProps.LastKnownStatus.GetValue()), *LexToString(NetSyncProps.LastKnownPosition));
+		}
+#endif
 		return;
 	}
 

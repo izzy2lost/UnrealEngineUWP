@@ -165,7 +165,7 @@ class UMovieSceneSequencePlayer
 public:
 	GENERATED_BODY()
 
-	/** Obeserver interface used for controlling whether the effects of this sequence can be seen even when it is playing back. */
+	/** Obeserver interface used for controlling whether this sequence can be played. */
 	UPROPERTY(replicated)
 	TScriptInterface<IMovieSceneSequencePlayerObserver> Observer;
 
