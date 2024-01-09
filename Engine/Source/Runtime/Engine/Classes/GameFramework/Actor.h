@@ -1809,7 +1809,7 @@ public:
 	 * @param LocationRule				How to handle translation when attaching.
 	 * @param RotationRule				How to handle rotation when attaching.
 	 * @param ScaleRule					How to handle scale when attaching.
-	 * @param bWeldSimulatedBodies		Whether to weld together simulated physics bodies.
+	 * @param bWeldSimulatedBodies		Whether to weld together simulated physics bodies. This transfers the shapes in the welded object into the parent (if simulated), which can result in permanent changes that persist even after subsequently detaching.
 	 * @return							Whether the attachment was successful or not
 	 */
 	UFUNCTION(BlueprintCallable, meta = (DisplayName = "Attach Actor To Component", ScriptName = "AttachToComponent", bWeldSimulatedBodies = true), Category = "Transformation")
@@ -1845,7 +1845,7 @@ public:
 	 * @param LocationRule				How to handle translation when attaching.
 	 * @param RotationRule				How to handle rotation when attaching.
 	 * @param ScaleRule					How to handle scale when attaching.
-	 * @param bWeldSimulatedBodies		Whether to weld together simulated physics bodies.
+	 * @param bWeldSimulatedBodies		Whether to weld together simulated physics bodies.This transfers the shapes in the welded object into the parent (if simulated), which can result in permanent changes that persist even after subsequently detaching.
 	 * @return							Whether the attachment was successful or not
 	 */
 	UFUNCTION(BlueprintCallable, meta = (DisplayName = "Attach Actor To Actor", ScriptName = "AttachToActor", bWeldSimulatedBodies=true), Category = "Transformation")

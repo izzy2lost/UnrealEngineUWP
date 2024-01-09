@@ -729,7 +729,7 @@ public:
 	* @param  LocationRule				How to handle translation when attaching.
 	* @param  RotationRule				How to handle rotation when attaching.
 	* @param  ScaleRule					How to handle scale when attaching.
-	* @param  bWeldSimulatedBodies		Whether to weld together simulated physics bodies.
+	* @param  bWeldSimulatedBodies		Whether to weld together simulated physics bodies. This transfers the shapes in the welded object into the parent (if simulated), which can result in permanent changes that persist even after subsequently detaching.
 	* @return True if attachment is successful (or already attached to requested parent/socket), false if attachment is rejected and there is no change in AttachParent.
 	*/
 	UFUNCTION(BlueprintCallable, Category = "Transformation", meta = (DisplayName = "Attach Component To Component", ScriptName = "AttachToComponent", bWeldSimulatedBodies=true))
@@ -741,7 +741,7 @@ public:
 	ENGINE_API virtual void DetachFromParent(bool bMaintainWorldPosition = false, bool bCallModify = true);
 
 	/** 
-	 * Detach this component from whatever it is attached to. Automatically unwelds components that are welded together (See WeldTo)
+	 * Detach this component from whatever it is attached to. Automatically unwelds components that are welded together (see AttachToComponent), though note that some effects of welding may not be undone.
 	 * @param LocationRule				How to handle translations when detaching.
 	 * @param RotationRule				How to handle rotation when detaching.
 	 * @param ScaleRule					How to handle scales when detaching.
@@ -751,7 +751,7 @@ public:
 	ENGINE_API void K2_DetachFromComponent(EDetachmentRule LocationRule = EDetachmentRule::KeepRelative, EDetachmentRule RotationRule = EDetachmentRule::KeepRelative, EDetachmentRule ScaleRule = EDetachmentRule::KeepRelative, bool bCallModify = true);
 
 	/** 
-	 * Detach this component from whatever it is attached to. Automatically unwelds components that are welded together (See WeldTo)
+	 * Detach this component from whatever it is attached to. Automatically unwelds components that are welded together (See AttachToComponent), though note that some effects of welding may not be undone.
 	 * @param DetachmentRules			How to handle transforms & modification when detaching.
 	 */
 	ENGINE_API virtual void DetachFromComponent(const FDetachmentTransformRules& DetachmentRules);

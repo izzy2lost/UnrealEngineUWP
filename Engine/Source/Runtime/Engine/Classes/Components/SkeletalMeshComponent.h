@@ -1753,6 +1753,7 @@ public:
 
 	ENGINE_API virtual class UBodySetup* GetBodySetup() override;
 	ENGINE_API virtual bool CanEditSimulatePhysics() override;
+	ENGINE_API virtual bool IsSimulatingPhysics(FName BoneName = NAME_None) const override;
 	ENGINE_API virtual FBodyInstance* GetBodyInstance(FName BoneName = NAME_None, bool bGetWelded = true, int32 Index = INDEX_NONE) const override;
 	ENGINE_API virtual void UpdatePhysicsToRBChannels() override;
 	ENGINE_API virtual void SetAllPhysicsAngularVelocityInRadians(FVector const& NewVel, bool bAddToCurrent = false) override;
@@ -2097,6 +2098,10 @@ public:
 	/** Set all of the bones below passed in bone to be simulated */
 	UFUNCTION(BlueprintCallable, Category="Physics")
 	ENGINE_API void SetAllBodiesBelowSimulatePhysics(const FName& InBoneName, bool bNewSimulate, bool bIncludeSelf = true );
+
+	/** Set a single bone to be simulated (or not) */
+	UFUNCTION(BlueprintCallable, Category="Physics")
+	ENGINE_API void SetBodySimulatePhysics(const FName& InBoneName, bool bSimulate);
 
 	/** Allows you to reset bodies Simulate state based on where bUsePhysics is set to true in the BodySetup. */
 	UFUNCTION(BlueprintCallable, Category="Physics")
