@@ -16,6 +16,7 @@ struct FChaosClothSimulationModel;
 struct FSkeletalMeshLODInfo;
 struct FManagedArrayCollection;
 struct FChaosClothAssetLodTransitionDataCache;
+class UAnimationAsset;
 
 UENUM()
 enum class EClothAssetAsyncProperties : uint64
@@ -157,6 +158,17 @@ public:
 	UE_DEPRECATED(5.3, "Do not use. Will be made private in 5.4")
 	UPROPERTY(EditAnywhere, Category = "Dataflow")
 	FString DataflowTerminal = "ClothAssetTerminal";
+
+
+#if WITH_EDITORONLY_DATA
+
+	void SetPreviewSceneSkeletalMesh(USkeletalMesh* Mesh);
+	USkeletalMesh* GetPreviewSceneSkeletalMesh() const;
+
+	void SetPreviewSceneAnimation(UAnimationAsset* Animation);
+	UAnimationAsset* GetPreviewSceneAnimation() const;
+
+#endif
 
 private:
 	//~ Begin USkinnedAsset interface
@@ -301,6 +313,27 @@ private:
 
 	/** Simulation mesh Lods as fed to the solver for constraints creation. Ownership gets transferred to the proxy when it is changed during a simulation. */
 	TSharedPtr<FChaosClothSimulationModel> ClothSimulationModel;
+
+
+#if WITH_EDITORONLY_DATA
+
+	/*
+	* The following PreviewScene properties are modeled after PreviewSkeletalMesh in USkeleton
+	*	- they are inside WITH_EDITORONLY_DATA because they are not used at game runtime
+	*	- TSoftObjectPtrs since that will make it possible to avoid loading these assets until the PreviewScene asks for them
+	*	- DuplicateTransient so that if you copy a ClothAsset it won't copy these preview properties
+	*	- AssetRegistrySearchable makes it so that if the user searches the name of a PreviewScene asset in the Asset Browser, it will return any ClothAssets that use it
+	*/
+
+	/** Optional Skeletal Mesh that the cloth asset is attached to in the Preview Scene in the Cloth Editor */
+	UPROPERTY(DuplicateTransient, AssetRegistrySearchable)
+	TSoftObjectPtr<USkeletalMesh> PreviewSceneSkeletalMesh;
+
+	/** Optional animation attached to PreviewSceneSkeletalMesh in the Preview Scene in the Cloth Editor */
+	UPROPERTY(DuplicateTransient, AssetRegistrySearchable)
+	TSoftObjectPtr<UAnimationAsset> PreviewSceneAnimation;
+
+#endif
 
 	friend class UClothAssetBuilderEditor;
 };

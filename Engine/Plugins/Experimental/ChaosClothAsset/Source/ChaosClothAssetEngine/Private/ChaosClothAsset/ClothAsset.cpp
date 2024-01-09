@@ -8,6 +8,9 @@
 #include "ChaosClothAsset/ClothAssetPrivate.h"
 #include "ChaosClothAsset/ClothSimulationModel.h"
 #include "Animation/Skeleton.h"
+#if WITH_EDITORONLY_DATA
+#include "Animation/AnimationAsset.h"
+#endif
 #include "Engine/RendererSettings.h"
 #include "Engine/SkinnedAssetAsyncCompileUtils.h"
 #include "Features/IModularFeatures.h"
@@ -838,3 +841,29 @@ void UChaosClothAsset::BindSimMeshToRootBone()
 		FClothGeometryTools::BindMeshToRootBone(ClothCollection, true, false);
 	}
 }
+
+#if WITH_EDITORONLY_DATA
+
+void UChaosClothAsset::SetPreviewSceneSkeletalMesh(USkeletalMesh* Mesh)
+{
+	PreviewSceneSkeletalMesh = Mesh;
+}
+
+USkeletalMesh* UChaosClothAsset::GetPreviewSceneSkeletalMesh() const
+{
+	// Load the SkeletalMesh asset if it's not already loaded
+	return PreviewSceneSkeletalMesh.LoadSynchronous();
+}
+
+void UChaosClothAsset::SetPreviewSceneAnimation(UAnimationAsset* Animation)
+{
+	PreviewSceneAnimation = Animation;
+}
+
+UAnimationAsset* UChaosClothAsset::GetPreviewSceneAnimation() const
+{
+	// Load the animation asset if it's not already loaded
+	return PreviewSceneAnimation.LoadSynchronous();
+}
+
+#endif

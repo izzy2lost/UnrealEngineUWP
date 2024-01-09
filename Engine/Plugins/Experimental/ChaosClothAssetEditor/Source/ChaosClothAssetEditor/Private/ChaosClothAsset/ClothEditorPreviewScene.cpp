@@ -253,6 +253,11 @@ void FChaosClothPreviewScene::SceneDescriptionPropertyChanged(const FName& Prope
 
 		UpdateSkeletalMeshAnimation();
 		UpdateClothComponentAttachment();
+
+		if (UChaosClothAsset* const ClothAsset = ClothComponent->GetClothAsset())
+		{
+			ClothAsset->SetPreviewSceneSkeletalMesh(PreviewSceneDescription->SkeletalMeshAsset);
+		}
 	}
 
 	if (PropertyName == GET_MEMBER_NAME_CHECKED(UChaosClothPreviewSceneDescription, Translation) || 
@@ -272,6 +277,11 @@ void FChaosClothPreviewScene::SceneDescriptionPropertyChanged(const FName& Prope
 			PreviewAnimInstance = nullptr;
 		}
 		UpdateSkeletalMeshAnimation();
+
+		if (UChaosClothAsset* const ClothAsset = ClothComponent->GetClothAsset())
+		{
+			ClothAsset->SetPreviewSceneAnimation(PreviewSceneDescription->AnimationAsset);
+		}
 	}
 	
 }
@@ -338,6 +348,22 @@ void FChaosClothPreviewScene::SetClothAsset(UChaosClothAsset* Asset)
 	ClothComponent->InvalidateCachedBounds();
 	FSkinnedAssetCompilingManager::Get().FinishCompilation(TArrayView<USkinnedAsset* const>{Asset});
 	ClothComponent->UpdateBounds();
+
+	if (USkeletalMesh* const SkeletalMesh = Asset->GetPreviewSceneSkeletalMesh())
+	{
+		PreviewSceneDescription->SkeletalMeshAsset = SkeletalMesh;
+
+		SkeletalMeshComponent->SetSkeletalMeshAsset(PreviewSceneDescription->SkeletalMeshAsset);
+		UpdateSkeletalMeshAnimation();
+		UpdateClothComponentAttachment();
+	}
+	
+	if (UAnimationAsset* const Animation = Asset->GetPreviewSceneAnimation())
+	{
+		PreviewSceneDescription->AnimationAsset = Animation;
+
+		UpdateSkeletalMeshAnimation();
+	}
 }
 
 UAnimSingleNodeInstance* FChaosClothPreviewScene::GetPreviewAnimInstance()
