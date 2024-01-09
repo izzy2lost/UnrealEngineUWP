@@ -339,6 +339,11 @@ namespace uba
 			if (!m_storage.CreateDirectory(binaryDir.data))
 				return false;
 		}
+
+		#if !PLATFORM_WINDOWS
+		ScopedWriteLock hackLock(m_hackToPreventETXTBUSY);
+		#endif
+
 		return m_storage.CopyOrLink(casKey, out.data, fileAttributes);
 	}
 

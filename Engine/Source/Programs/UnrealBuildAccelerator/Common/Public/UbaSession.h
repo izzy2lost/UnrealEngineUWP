@@ -223,6 +223,12 @@ namespace uba
 
 		CustomServiceFunction m_customServiceFunction;
 
+		// This is a horrible hack to try to prevent ETXTBUSY. Our theory is that if posix_spawn happens with the exact same timing as symlink has an open handle we end up with the child process cloning that handle
+		// Causing posix_spawn to fail on the executable that was created with the symlink
+		#if !PLATFORM_WINDOWS
+		ReaderWriterLock m_hackToPreventETXTBUSY;
+		#endif
+
 		friend class ProcessImpl;
 	};
 
