@@ -613,8 +613,7 @@ namespace UnrealBuildTool
 						new XElement(NS + "ItemGroup",
 							from AutomationProject in AutomationProjectFiles
 							select new XElement(NS + "ProjectReference",
-								new XAttribute("Include", AutomationProject.ProjectFilePath.MakeRelativeTo(AutomationToolDir)),
-								new XElement(NS + "Private", "false")
+								new XAttribute("Include", AutomationProject.ProjectFilePath.MakeRelativeTo(AutomationToolDir))
 							)
 						)
 					)
