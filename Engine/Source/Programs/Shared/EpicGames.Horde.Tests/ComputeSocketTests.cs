@@ -118,7 +118,11 @@ namespace EpicGames.Horde.Tests
 		private static async Task<(Socket client, Socket server)> CreateSocketsAsync(CancellationToken cancellationToken)
 		{
 			int port = GetAvailablePort();
+#if NET8_0_OR_GREATER
+			using TcpListener listener = new (IPAddress.Loopback, port);
+#else
 			TcpListener listener = new (IPAddress.Loopback, port);
+#endif
 			listener.Start();
 			Socket clientSocket = new (SocketType.Stream, ProtocolType.Tcp);
 			Task clientConnectTask = clientSocket.ConnectAsync(IPAddress.Loopback, port, cancellationToken).AsTask();
@@ -219,7 +223,11 @@ namespace EpicGames.Horde.Tests
 		
 		static int GetAvailablePort()
 		{
+#if NET8_0_OR_GREATER
+			using TcpListener listener = new(IPAddress.Loopback, 0);
+#else
 			TcpListener listener = new(IPAddress.Loopback, 0);
+#endif
 			listener.Start();
 			int port = ((IPEndPoint)listener.LocalEndpoint).Port;
 			listener.Stop();

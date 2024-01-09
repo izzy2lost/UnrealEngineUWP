@@ -84,7 +84,7 @@ namespace Horde.Server.Tests
 			}
 			finally
 			{
-				cts.Cancel();
+				await cts.CancelAsync();
 				await tunnelService.StopAsync(CancellationToken.None);
 			}
 		}
@@ -112,7 +112,7 @@ namespace Horde.Server.Tests
 		
 		private static async Task StartEchoServerAsync(int port, int bufferSize, CancellationToken cancellationToken)
 		{
-			TcpListener listener = new (IPAddress.Any, port);
+			using TcpListener listener = new (IPAddress.Any, port);
 			listener.Start();
 
 			Console.WriteLine($"Echo server started on port {port}...");

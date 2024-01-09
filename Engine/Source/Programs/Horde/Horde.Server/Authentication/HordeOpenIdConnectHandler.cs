@@ -23,8 +23,8 @@ namespace Horde.Server.Authentication
 	{
 		readonly IUserCollection _userCollection;
 
-		public HordeOpenIdConnectHandler(IOptionsMonitor<OpenIdConnectOptions> options, ILoggerFactory logger, HtmlEncoder htmlEncoder, UrlEncoder encoder, ISystemClock clock, IUserCollection userCollection)
-			: base(options, logger, htmlEncoder, encoder, clock)
+		public HordeOpenIdConnectHandler(IOptionsMonitor<OpenIdConnectOptions> options, ILoggerFactory logger, HtmlEncoder htmlEncoder, UrlEncoder encoder, IUserCollection userCollection)
+			: base(options, logger, htmlEncoder, encoder)
 		{
 			_userCollection = userCollection;
 		}

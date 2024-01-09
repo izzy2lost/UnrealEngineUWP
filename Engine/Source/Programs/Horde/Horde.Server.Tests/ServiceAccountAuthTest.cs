@@ -40,13 +40,13 @@ namespace Horde.Server.Tests
 				description: "myDesc");
 
 			ILoggerFactory loggerFactory = ServiceProvider.GetRequiredService<ILoggerFactory>();
-			ServiceAccountAuthHandler handler = new ServiceAccountAuthHandler(new TestOptionsMonitor<ServiceAccountAuthOptions>(options), loggerFactory, new UrlTestEncoder(), new SystemClock(), serviceAccounts);
+			ServiceAccountAuthHandler handler = new ServiceAccountAuthHandler(new TestOptionsMonitor<ServiceAccountAuthOptions>(options), loggerFactory, new UrlTestEncoder(), serviceAccounts);
 			AuthenticationScheme scheme = new AuthenticationScheme(ServiceAccountAuthHandler.AuthenticationScheme, "ServiceAccountAuth", handler.GetType());
 			
 			HttpContext httpContext = new DefaultHttpContext();
 			if (headerValue != null)
 			{
-				httpContext.Request.Headers.Add(HeaderNames.Authorization, new StringValues(headerValue));	
+				httpContext.Request.Headers[HeaderNames.Authorization] = new StringValues(headerValue);	
 			}
 			
 			await handler.InitializeAsync(scheme, httpContext);

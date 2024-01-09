@@ -45,7 +45,7 @@ namespace Horde.Server.Utilities
 			ContentDisposition contentDisposition = new ContentDisposition();
 			contentDisposition.Inline = _inline;
 			contentDisposition.FileName = _fileName;
-			context.HttpContext.Response.Headers.Add("Content-Disposition", contentDisposition.ToString());
+			context.HttpContext.Response.Headers["Content-Disposition"] = contentDisposition.ToString();
 
 			CustomFileCallbackResultExecutor executor = new CustomFileCallbackResultExecutor(context.HttpContext.RequestServices.GetRequiredService<ILoggerFactory>());
             return executor.ExecuteAsync(context, this);

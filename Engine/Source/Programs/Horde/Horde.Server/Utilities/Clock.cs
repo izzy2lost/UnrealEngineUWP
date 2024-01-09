@@ -184,7 +184,7 @@ namespace HordeCommon
 			{
 				if (_backgroundTask != null)
 				{
-					_cancellationSource.Cancel();
+					await _cancellationSource.CancelAsync();
 					await _backgroundTask;
 					_backgroundTask = null;
 				}

@@ -119,7 +119,7 @@ namespace Horde.Server.Compute
 		{
 			if (!_queueUpdateTask.IsCompleted)
 			{
-				_cancellationSource.Cancel();
+				await _cancellationSource.CancelAsync();
 				try
 				{
 					await _queueUpdateTask;

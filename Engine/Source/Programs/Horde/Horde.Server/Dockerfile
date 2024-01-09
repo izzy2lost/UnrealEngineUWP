@@ -9,10 +9,10 @@
 
 ARG code_coverage="false"
 
-FROM redis:6.2.7 AS redis
+FROM redis:7.2 AS redis
 
 # Build image
-FROM mcr.microsoft.com/dotnet/sdk:6.0 AS build-env
+FROM mcr.microsoft.com/dotnet/sdk:8.0 AS build-env
 WORKDIR /app
 COPY Source/Programs/Horde/nuget.config ./Source/Programs/Horde/nuget.config
 RUN DEBIAN_FRONTEND=noninteractive \
@@ -24,8 +24,8 @@ RUN DEBIAN_FRONTEND=noninteractive \
 COPY --from=redis /usr/local/bin/redis-server /usr/local/bin/redis-server
 
 # Since the .deb does not install in this image, just download it and extract the static binary
-RUN wget https://repo.mongodb.org/apt/debian/dists/buster/mongodb-org/4.4/main/binary-amd64/mongodb-org-server_4.4.0_amd64.deb && \
-	dpkg -x mongodb-org-server_4.4.0_amd64.deb /tmp/mongodb && \
+RUN wget https://repo.mongodb.org/apt/debian/dists/bookworm/mongodb-org/7.0/main/binary-amd64/mongodb-org-server_7.0.4_amd64.deb && \
+	dpkg -x mongodb-org-server_7.0.4_amd64.deb /tmp/mongodb && \
 	cp /tmp/mongodb/usr/bin/mongod /usr/local/bin/mongod
 
 # Restore all the C# projects
@@ -74,7 +74,7 @@ FROM scratch AS build-env-output
 COPY --from=build-env /tmp/empty /tmp/dotcover-report/*.zip /
 
 # Create the runtime image
-FROM mcr.microsoft.com/dotnet/aspnet:6.0 AS runtime
+FROM mcr.microsoft.com/dotnet/aspnet:8.0 AS runtime
 WORKDIR /app
 COPY --from=build-env /app/out .
 ENTRYPOINT [ "dotnet", "Horde.Server.dll" ]

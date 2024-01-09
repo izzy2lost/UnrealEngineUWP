@@ -135,7 +135,7 @@ public abstract class DatabaseRunner : IDisposable
 
 	private static int GetAvailablePort()
 	{
-		TcpListener listener = new(IPAddress.Loopback, 0);
+		using TcpListener listener = new(IPAddress.Loopback, 0);
 		listener.Start();
 		int port = ((IPEndPoint)listener.LocalEndpoint).Port;
 		listener.Stop();
@@ -157,23 +157,16 @@ public abstract class DatabaseRunner : IDisposable
 			return true;
 		}
 
-		TcpListener? listenerAny = null;
-		TcpListener? listenerLoopback = null;
 		try
 		{
-			listenerAny = new TcpListener(IPAddress.Loopback, port);
+			using TcpListener listenerAny = new TcpListener(IPAddress.Loopback, port);
 			listenerAny.Start();
-			listenerLoopback = new TcpListener(IPAddress.Any, port);
+			using TcpListener listenerLoopback = new TcpListener(IPAddress.Any, port);
 			listenerLoopback.Start();
 			return true;
 		}
 		catch (SocketException)
 		{
-		}
-		finally
-		{
-			listenerAny?.Stop();
-			listenerLoopback?.Stop();
 		}
 
 		return false;

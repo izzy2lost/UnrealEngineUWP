@@ -114,7 +114,7 @@ public class Nftables
 		using ManagedProcessGroup processGroup = new ();
 		using ManagedProcess process = new (processGroup, executable, CommandLineArguments.Join(argumentsCopy), null, null, stdinData, ProcessPriorityClass.Normal);
 		await process.WaitForExitAsync(cancellationToken);
-		string outputText = await process.StdOutText.ReadToEndAsync();
+		string outputText = await process.StdOutText.ReadToEndAsync(cancellationToken);
 		return (process.ExitCode, outputText);
 	}
 

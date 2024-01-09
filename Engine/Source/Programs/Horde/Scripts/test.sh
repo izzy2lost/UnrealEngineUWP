@@ -1,6 +1,8 @@
 #!/bin/bash
 # Run tests (run from Dockerfile)
 
+export UE_DOTNET_VERSION=net8.0
+
 # Start Redis and MongoDB in the background for tests to use
 redis-server --save "" --appendonly no --daemonize yes || exit 1
 mongod --noauth --quiet --fork --dbpath /tmp/mongodb --logpath /tmp/mongod.log || exit 1

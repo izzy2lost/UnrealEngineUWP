@@ -130,7 +130,7 @@ namespace Horde.Server.Server
 		/// </summary>
 		static int GetAvailablePort()
 		{
-			TcpListener listener = new(IPAddress.Loopback, 0);
+			using TcpListener listener = new(IPAddress.Loopback, 0);
 			listener.Start();
 			int port = ((IPEndPoint)listener.LocalEndpoint).Port;
 			listener.Stop();

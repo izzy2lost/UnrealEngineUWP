@@ -74,9 +74,9 @@ namespace Horde.Server.Ddc
 		public override Task ExecuteResultAsync(ActionContext context)
 		{
 			context.HttpContext.Response.Headers.ContentType = _contentType;
-			context.HttpContext.Response.Headers.Add("X-Accel-Redirect", _nginxRedirectPath);
+			context.HttpContext.Response.Headers["X-Accel-Redirect"] = _nginxRedirectPath;
 			// disable buffering in nginx as this is mostly used for large objects which should be streamed
-			context.HttpContext.Response.Headers.Add("X-Accel-Buffering", "no");
+			context.HttpContext.Response.Headers["X-Accel-Buffering"] = "no";
 			return base.ExecuteResultAsync(context);
 		}
 	}

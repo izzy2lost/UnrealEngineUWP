@@ -64,7 +64,7 @@ namespace Horde.Server.Compute
 		/// <inheritdoc/>
 		public async Task StopAsync(CancellationToken cancellationToken)
 		{
-			_cancellationSource.Cancel();
+			await _cancellationSource.CancelAsync();
 
 			await _serverTask!.IgnoreCanceledExceptionsAsync().ConfigureAwait(false);
 			_serverTask = null;
@@ -76,7 +76,7 @@ namespace Horde.Server.Compute
 			using StreamReader reader = new (stream);
 			await using StreamWriter streamWriter = new (stream) { AutoFlush = true };
 			
-			string? requestStr = await reader.ReadLineAsync();
+			string? requestStr = await reader.ReadLineAsync(cancellationToken);
 			TunnelHandshakeRequest request = TunnelHandshakeRequest.Deserialize(requestStr);
 
 			_logger.LogDebug("Connecting to target {TargetHostname}:{TargetPort}", request.Host, request.Port);

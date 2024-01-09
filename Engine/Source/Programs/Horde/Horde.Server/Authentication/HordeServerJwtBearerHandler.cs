@@ -25,8 +25,8 @@ namespace Horde.Server.Authentication
 
 		readonly AsyncCachedValue<IGlobals> _globals;
 
-		public HordeServerJwtBearerHandler(ILoggerFactory logger, UrlEncoder encoder, ISystemClock clock, GlobalsService globalsService, IOptionsMonitorCache<JwtBearerOptions> optionsCache)
-			: base(GetOptionsMonitor(optionsCache), logger, encoder, clock)
+		public HordeServerJwtBearerHandler(ILoggerFactory logger, UrlEncoder encoder, GlobalsService globalsService, IOptionsMonitorCache<JwtBearerOptions> optionsCache)
+			: base(GetOptionsMonitor(optionsCache), logger, encoder)
 		{
 			_globals = new AsyncCachedValue<IGlobals>(async () => await globalsService.GetAsync(), TimeSpan.FromSeconds(30.0));
 		}

@@ -91,7 +91,7 @@ namespace Horde.Server.Logs
 						Task<int> waitTask = _logTailService.WaitForTailNextAsync(logId, cancellationSource.Token);
 
 						await Task.WhenAny(waitTask, moveNextTask);
-						cancellationSource.Cancel();
+						await cancellationSource.CancelAsync();
 
 						try
 						{

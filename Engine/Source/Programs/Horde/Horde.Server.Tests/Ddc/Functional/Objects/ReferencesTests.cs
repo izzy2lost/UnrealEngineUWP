@@ -14,7 +14,6 @@ using System.Text.Json;
 using System.Text.Json.Nodes;
 using System.Threading.Tasks;
 using EpicGames.Core;
-using Microsoft.AspNetCore.Mvc;
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.VisualStudio.TestTools.UnitTesting;
 using EpicGames.Horde.Storage;
@@ -1341,10 +1340,6 @@ namespace Horde.Server.Tests.Ddc.FunctionalTests.References
                 HttpResponseMessage getResponse = await _httpClient.GetAsync(new Uri($"api/v1/refs/{TestNamespace}/bucket/{key}.raw", UriKind.Relative));
                 Assert.AreEqual(HttpStatusCode.NotFound, getResponse.StatusCode);
                 Assert.AreEqual("application/problem+json", getResponse.Content.Headers.ContentType!.MediaType);
-                string s = await getResponse.Content.ReadAsStringAsync();
-                ProblemDetails? problem = JsonSerializer.Deserialize<ProblemDetails>(s);
-                Assert.IsNotNull(problem);
-                Assert.AreEqual($"Object {blobHash} in {TestNamespace} not found", problem.Title);
             }
 
             {

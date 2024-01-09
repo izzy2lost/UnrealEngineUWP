@@ -26,8 +26,8 @@ namespace Horde.Server.Authentication
 		private readonly IServiceAccountCollection _serviceAccounts;
 
 		public ServiceAccountAuthHandler(IOptionsMonitor<ServiceAccountAuthOptions> options,
-			ILoggerFactory logger, UrlEncoder encoder, ISystemClock clock, IServiceAccountCollection serviceAccounts)
-			: base(options, logger, encoder, clock)
+			ILoggerFactory logger, UrlEncoder encoder, IServiceAccountCollection serviceAccounts)
+			: base(options, logger, encoder)
 		{
 			_serviceAccounts = serviceAccounts;
 		}

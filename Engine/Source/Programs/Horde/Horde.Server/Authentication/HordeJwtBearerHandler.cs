@@ -206,12 +206,12 @@ public class HordeJwtBearerHandler
 			options.TokenValidationParameters.ValidateIssuerSigningKey = true;
 			options.TokenValidationParameters.ValidateLifetime = true;
 			
-			options.SecurityTokenValidators.Clear();
-			options.SecurityTokenValidators.Add(new StrictTokenValidator());
+			options.TokenHandlers.Clear();
+			options.TokenHandlers.Add(new StrictTokenHandler());
 		});
 	}
 
-	private class StrictTokenValidator : JwtSecurityTokenHandler
+	private class StrictTokenHandler : JwtSecurityTokenHandler
 	{
 		public override ClaimsPrincipal ValidateToken(string token, TokenValidationParameters validationParameters, out SecurityToken validatedToken)
 		{

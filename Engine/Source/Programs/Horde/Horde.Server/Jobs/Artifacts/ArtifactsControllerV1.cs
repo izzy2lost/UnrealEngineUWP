@@ -269,7 +269,7 @@ namespace Horde.Server.Jobs.Artifacts
 			parameters.IssuerSigningKey = globals.JwtSigningKey;
 
 			JwtSecurityTokenHandler handler = new JwtSecurityTokenHandler();
-			ClaimsPrincipal principal = handler.ValidateToken(code, parameters, out _);
+			TokenValidationResult tokenResult = await handler.ValidateTokenAsync(code, parameters);
 
 			IArtifactV1? artifact = await _artifactCollection.GetArtifactAsync(ObjectId.Parse(artifactId));
 			if (artifact == null)
@@ -278,7 +278,7 @@ namespace Horde.Server.Jobs.Artifacts
 			}
 
 			Claim directDownloadClaim = GetDirectDownloadClaim(artifact.JobId);
-			if (!principal.HasClaim(directDownloadClaim.Type, directDownloadClaim.Value))
+			if (!tokenResult.ClaimsIdentity.HasClaim(directDownloadClaim.Type, directDownloadClaim.Value))
 			{
 				return Forbid();
 			}
