@@ -98,7 +98,7 @@ namespace UE::Interchange::Private
 		FString DisplayText;
 		VariantSetNode.GetCustomDisplayText(DisplayText);
 
-		const TOptional<UE::Interchange::FVariantSetPayloadData>& PayloadData = PayloadInterface.GetVariantSetPayloadData(PayloadKey).Get();
+		const TOptional<UE::Interchange::FVariantSetPayloadData> PayloadData = PayloadInterface.GetVariantSetPayloadData(PayloadKey).Consume();
 		if (!PayloadData.IsSet())
 		{
 			UE_LOG(LogInterchangeImport, Warning, TEXT("No payload for variant set %s"), *DisplayText);
