@@ -322,6 +322,17 @@ int Shared_open(const char* funcName, const char* file, int flags, int mode, con
 					return -1;
 				}
 			}
+			else
+			{
+				// File could have been deleted.
+				DirectoryTable::EntryInformation entryInfo;
+				g_directoryTable.GetEntryInformation(entryInfo, dirTableOffset);
+				if (entryInfo.attributes == 0)
+				{
+					errno = ENOENT;
+					return -1;
+				}
+			}
 		}
 	}
 
