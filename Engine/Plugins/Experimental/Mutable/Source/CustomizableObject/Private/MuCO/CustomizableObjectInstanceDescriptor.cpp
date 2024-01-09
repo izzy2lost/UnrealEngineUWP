@@ -2574,11 +2574,13 @@ void FCustomizableObjectInstanceDescriptor::CreateParametersLookupTable()
 
 FDescriptorHash::FDescriptorHash(const FCustomizableObjectInstanceDescriptor& Descriptor)
 {
+#if WITH_EDITORONLY_DATA
 	if (Descriptor.CustomizableObject)
 	{
 		Hash = HashCombine(Hash, GetTypeHash(Descriptor.CustomizableObject->GetPathName()));
 		Hash = HashCombine(Hash, GetTypeHash(Descriptor.CustomizableObject->GetCompilationGuid()));
 	}
+#endif
 
 	for (const FCustomizableObjectBoolParameterValue& Value : Descriptor.BoolParameters)
 	{

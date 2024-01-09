@@ -1269,6 +1269,12 @@ void UCustomizableObject::PostCompile()
 
 	PostCompileDelegate.Broadcast();
 }
+
+
+FGuid UCustomizableObject::GetCompilationGuid() const
+{
+	return CompilationGuid;
+}
 #endif
 
 
@@ -1871,12 +1877,6 @@ bool UCustomizableObject::IsEnableUseRefSkeletalMeshAsPlaceholder() const
 bool UCustomizableObject::IsMeshCacheEnabled() const
 {
 	return bEnableMeshCache;
-}
-
-
-FGuid UCustomizableObject::GetCompilationGuid() const
-{
-	return CompilationGuid;
 }
 
 

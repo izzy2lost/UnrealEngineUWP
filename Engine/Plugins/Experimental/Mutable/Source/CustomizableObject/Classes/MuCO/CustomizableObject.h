@@ -1487,8 +1487,6 @@ public:
 
 	void Serialize(FArchive& Ar) override;
 
-	FGuid GetCompilationGuid() const;
-
 	int32 FindState( const FString& Name ) const;
 
 	/** Return the number of object states that are defined in the CustomizableObject. */
@@ -1588,15 +1586,22 @@ public:
 	UPROPERTY()
 	bool bIsChildObject = false;
 
-	/** Unique Identifier - used to locate Model and Streamable data on disk. Should not be modified. */
+	/** Unique Identifier - Deterministic. Used to locate Model and Streamable data on disk. Should not be modified. */
 	UPROPERTY(Transient)
 	FGuid Identifier;
+
+	/** Unique Identifier - Regenerated each time the object is compiled. */
+	UPROPERTY(Transient)
+	FGuid CompilationGuid;
 
 	ECustomizableObjectCompilationState CompilationState = ECustomizableObjectCompilationState::None;
 
 	FPostCompileDelegate PostCompileDelegate;
 
 	void PostCompile();
+
+	FGuid GetCompilationGuid() const;
+
 #endif
 
 	/** Create a new instance of this object. The instance parameters will be initialized with the object default values. */
@@ -1650,10 +1655,6 @@ private:
 
 	/** Cache of merged skeletons */
 	TArray<FMergedSkeleton> MergedSkeletons;
-
-	/** Unique identifier. Regenerated each time the object is compiled. */
-	UPROPERTY()
-	FGuid CompilationGuid;
 
 	/** BulkData that stores all in-game resources used by Mutable when generating instances.
 	  * Only valid in packaged builds */
