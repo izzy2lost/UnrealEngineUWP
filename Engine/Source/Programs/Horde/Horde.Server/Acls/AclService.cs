@@ -18,7 +18,6 @@ using Horde.Server.Jobs;
 using Horde.Server.Agents.Leases;
 using Google.Protobuf.WellKnownTypes;
 using HordeCommon.Rpc.Tasks;
-using Microsoft.Extensions.Logging;
 
 namespace Horde.Server.Acls
 {
