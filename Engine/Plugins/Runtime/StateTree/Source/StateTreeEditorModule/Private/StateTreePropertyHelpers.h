@@ -22,6 +22,19 @@ void DispatchPostEditToNodes(UObject& Owner, FPropertyChangedChainEvent& Propert
 /** Makes deterministic ID from the owners property path, a property path (or any string), and a seed value (e.g. array index). */
 FGuid MakeDeterministicID(const UObject& Owner, const FString& PropertyPath, const uint64 Seed);
 
+/* @return true if the property handle points to struct property of specified type.*/
+template<typename T>
+bool IsScriptStruct(const TSharedPtr<IPropertyHandle>& PropertyHandle)
+{
+	if (!PropertyHandle)
+	{
+		return false;
+	}
+
+	FStructProperty* StructProperty = CastField<FStructProperty>(PropertyHandle->GetProperty());
+	return StructProperty && StructProperty->Struct->IsA(TBaseStructure<T>::Get()->GetClass());
+}
+
 /**
  * Gets a struct value from property handle, checks type before access. Expects T is struct.
  * @param ValueProperty Handle to property where value is got from.

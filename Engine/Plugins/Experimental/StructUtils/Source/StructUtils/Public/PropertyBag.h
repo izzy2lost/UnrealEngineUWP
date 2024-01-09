@@ -440,6 +440,15 @@ struct STRUCTUTILS_API FInstancedPropertyBag
 	 */
 	void MigrateToNewBagInstance(const FInstancedPropertyBag& NewBagInstance);
 
+	/**
+	 * Changes the type of this bag to the specified other bag, copies base values from the other bag,
+	 * and migrates existing values over if marked as overridden in the OverriddenPropertyIDs.
+	 * The properties are matched between the bags based on the property ID.
+	 * @param NewBagInstance Reference to the new type.
+	 * @param OverriddenPropertyIDs Array if property IDs which should be copied over to the new instance. 
+	 */
+	void MigrateToNewBagInstanceWithOverrides(const FInstancedPropertyBag& NewBagInstance, TConstArrayView<FGuid> OverriddenPropertyIDs);
+
 	/** @return pointer to the property bag struct. */ 
 	const UPropertyBag* GetPropertyBagStruct() const;
 	

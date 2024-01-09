@@ -35,5 +35,6 @@ private:
 	void SyncParameters(const UStateTree* StateTreeToSync = nullptr) const;
 
 	TSharedPtr<IPropertyHandle> StructPropertyHandle;
+	TSharedPtr<IPropertyHandle> ParametersHandle;
 	TSharedPtr<IPropertyUtilities> PropUtils;
 };

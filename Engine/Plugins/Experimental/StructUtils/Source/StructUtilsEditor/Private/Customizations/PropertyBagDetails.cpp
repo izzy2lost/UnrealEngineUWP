@@ -719,6 +719,54 @@ TValueOrError<ReturnType, void> CallFunc(UObject* InTargetObject, UFunction* InF
 	}
 }
 
+/** Checks if the value for a source property in a source struct has the same value that the target property in the target struct. */
+bool ArePropertiesIdentical(
+	const FPropertyBagPropertyDesc* InSourcePropertyDesc,
+	const FInstancedPropertyBag& InSourceInstance,
+	const FPropertyBagPropertyDesc* InTargetPropertyDesc,
+	const FInstancedPropertyBag& InTargetInstance)
+{
+	if (!InSourceInstance.IsValid()
+		|| !InTargetInstance.IsValid()
+		|| !InSourcePropertyDesc
+		|| !InSourcePropertyDesc->CachedProperty
+		|| !InTargetPropertyDesc
+		|| !InTargetPropertyDesc->CachedProperty)
+	{
+		return false;
+	}
+
+	if (!InSourcePropertyDesc->CompatibleType(*InTargetPropertyDesc))
+	{
+		return false;
+	}
+
+	const uint8* SourceValueAddress = InSourceInstance.GetValue().GetMemory() + InSourcePropertyDesc->CachedProperty->GetOffset_ForInternal();
+	const uint8* TargetValueAddress = InTargetInstance.GetValue().GetMemory() + InTargetPropertyDesc->CachedProperty->GetOffset_ForInternal();
+
+	return InSourcePropertyDesc->CachedProperty->Identical(SourceValueAddress, TargetValueAddress);
+}
+
+/** Copy the value for a source property in a source struct to the target property in the target struct. */
+void CopyPropertyValue(const FPropertyBagPropertyDesc* InSourcePropertyDesc, const FInstancedPropertyBag& InSourceInstance, const FPropertyBagPropertyDesc* InTargetPropertyDesc, FInstancedPropertyBag& InTargetInstance)
+{
+	if (!InSourceInstance.IsValid() || !InTargetInstance.IsValid() || !InSourcePropertyDesc || !InSourcePropertyDesc->CachedProperty || !InTargetPropertyDesc || !InTargetPropertyDesc->CachedProperty)
+	{
+		return;
+	}
+
+	// Can't copy if they are not compatible.
+	if (!InSourcePropertyDesc->CompatibleType(*InTargetPropertyDesc))
+	{
+		return;
+	}
+
+	const uint8* SourceValueAddress = InSourceInstance.GetValue().GetMemory() + InSourcePropertyDesc->CachedProperty->GetOffset_ForInternal();
+	uint8* TargetValueAddress = InTargetInstance.GetMutableValue().GetMemory() + InTargetPropertyDesc->CachedProperty->GetOffset_ForInternal();
+
+	InSourcePropertyDesc->CachedProperty->CopyCompleteValue(TargetValueAddress, SourceValueAddress);
+}
+
 } // UE::StructUtils::Private
 
 
@@ -858,7 +906,7 @@ void FPropertyBagInstanceDataDetails::OnChildRowAdded(IDetailPropertyRow& ChildR
 				.HeightOverride(12)
 				[
 					SNew(SImage)
-					.ToolTipText_Lambda([UnsupportedTypeWarning, ChildPropertyHandle, bSupportedType]()
+					.ToolTipText_Lambda([UnsupportedTypeWarning, bSupportedType]()
 					{
 						return !bSupportedType
 							? UnsupportedTypeWarning
@@ -882,6 +930,212 @@ void FPropertyBagInstanceDataDetails::OnChildRowAdded(IDetailPropertyRow& ChildR
 		[
 			ValueWidget.ToSharedRef()
 		];
+
+
+	if (HasPropertyOverrides())
+	{
+		TWeakPtr<FPropertyBagInstanceDataDetails> WeakSelf = SharedThis<FPropertyBagInstanceDataDetails>(this);
+
+		TAttribute<bool> EditConditionValue = TAttribute<bool>::CreateLambda(
+			[WeakSelf, ChildPropertyHandle]() -> bool
+			{
+				if (const TSharedPtr<FPropertyBagInstanceDataDetails> Self = WeakSelf.Pin())
+				{
+					return Self->IsPropertyOverridden(ChildPropertyHandle) == EPropertyOverrideState::Yes;
+				}
+				return true;
+			});
+		
+		FOnBooleanValueChanged OnEditConditionChanged = FOnBooleanValueChanged::CreateLambda([WeakSelf, ChildPropertyHandle](bool bNewValue)
+		{
+			if (const TSharedPtr<FPropertyBagInstanceDataDetails> Self = WeakSelf.Pin())
+			{
+				Self->SetPropertyOverride(ChildPropertyHandle, bNewValue);
+			}
+		});
+
+		ChildRow.EditCondition(std::move(EditConditionValue), std::move(OnEditConditionChanged));
+
+		FIsResetToDefaultVisible IsResetVisible = FIsResetToDefaultVisible::CreateLambda([WeakSelf](TSharedPtr<IPropertyHandle> PropertyHandle)
+		{
+			if (const TSharedPtr<FPropertyBagInstanceDataDetails> Self = WeakSelf.Pin())
+			{
+				return !Self->IsDefaultValue(PropertyHandle);
+			}
+			return false;
+		});
+		FResetToDefaultHandler ResetHandler = FResetToDefaultHandler::CreateLambda([WeakSelf](TSharedPtr<IPropertyHandle> PropertyHandle)
+		{
+			if (const TSharedPtr<FPropertyBagInstanceDataDetails> Self = WeakSelf.Pin())
+			{
+				Self->ResetToDefault(PropertyHandle);
+			}
+		});
+		FResetToDefaultOverride ResetOverride = FResetToDefaultOverride::Create(IsResetVisible, ResetHandler);
+
+		ChildRow.OverrideResetToDefault(ResetOverride);
+	}
+}
+
+FPropertyBagInstanceDataDetails::EPropertyOverrideState FPropertyBagInstanceDataDetails::IsPropertyOverridden(TSharedPtr<IPropertyHandle> ChildPropertyHandle) const
+{
+	if (!ChildPropertyHandle)
+	{
+		return EPropertyOverrideState::Undetermined;;
+	}
+
+	int32 NumValues = 0;
+	int32 NumOverrides = 0; 
+
+	const FProperty* Property = ChildPropertyHandle->GetProperty();
+	check(Property);
+
+	EnumeratePropertyBags(BagStructProperty,
+		[Property, &NumValues, &NumOverrides]
+		(const FInstancedPropertyBag& DefaultPropertyBag, const FInstancedPropertyBag& PropertyBag, const IPropertyBagOverrideProvider& OverrideProvider)
+		{
+			NumValues++;
+			if (const UPropertyBag* Bag = PropertyBag.GetPropertyBagStruct())
+			{
+				const FPropertyBagPropertyDesc* PropertyDesc = Bag->FindPropertyDescByPropertyName(Property->GetFName());
+				if (PropertyDesc && OverrideProvider.IsPropertyOverridden(PropertyDesc->ID))
+				{
+					NumOverrides++;
+				}
+			}
+
+			return true;
+		});
+	
+	if (NumOverrides == 0)
+	{
+		return EPropertyOverrideState::No;
+	}
+	else if (NumOverrides == NumValues)
+	{
+		return EPropertyOverrideState::Yes;
+	}			
+	return EPropertyOverrideState::Undetermined;
+}
+	
+void FPropertyBagInstanceDataDetails::SetPropertyOverride(TSharedPtr<IPropertyHandle> ChildPropertyHandle, const bool bIsOverridden)
+{
+	if (!ChildPropertyHandle)
+	{
+		return;
+	}
+
+	const FProperty* Property = ChildPropertyHandle->GetProperty();
+	check(Property);
+
+	FScopedTransaction Transaction(FText::Format(LOCTEXT("OverrideChange", "Change Override for {0}"), FText::FromName(ChildPropertyHandle->GetProperty()->GetFName())));
+	
+	PreChangeOverrides();
+	
+	EnumeratePropertyBags(
+		BagStructProperty,
+		[Property, bIsOverridden]
+		(const FInstancedPropertyBag& DefaultPropertyBag, const FInstancedPropertyBag& PropertyBag, const IPropertyBagOverrideProvider& OverrideProvider)
+		{
+			if (const UPropertyBag* Bag = PropertyBag.GetPropertyBagStruct())
+			{
+				if (const FPropertyBagPropertyDesc* PropertyDesc = Bag->FindPropertyDescByPropertyName(Property->GetFName()))
+				{
+					OverrideProvider.SetPropertyOverride(PropertyDesc->ID, bIsOverridden);
+				}
+			}
+
+			return true;
+		});
+
+	PostChangeOverrides();
+}
+
+bool FPropertyBagInstanceDataDetails::IsDefaultValue(TSharedPtr<IPropertyHandle> ChildPropertyHandle) const
+{
+	if (!ChildPropertyHandle)
+	{
+		return true;
+	}
+
+	int32 NumValues = 0;
+	int32 NumOverridden = 0;
+	int32 NumIdentical = 0;
+
+	const FProperty* Property = ChildPropertyHandle->GetProperty();
+	check(Property);
+
+	EnumeratePropertyBags(
+		BagStructProperty,
+		[Property, &NumValues, &NumOverridden, &NumIdentical]
+		(const FInstancedPropertyBag& DefaultPropertyBag, const FInstancedPropertyBag& PropertyBag, const IPropertyBagOverrideProvider& OverrideProvider)
+		{
+			NumValues++;
+
+			const UPropertyBag* DefaultBag = DefaultPropertyBag.GetPropertyBagStruct();
+			const UPropertyBag* Bag = PropertyBag.GetPropertyBagStruct();
+			if (Bag && DefaultBag)
+			{
+				const FPropertyBagPropertyDesc* PropertyDesc = Bag->FindPropertyDescByName(Property->GetFName());
+				const FPropertyBagPropertyDesc* DefaultPropertyDesc = DefaultBag->FindPropertyDescByName(Property->GetFName());
+				if (PropertyDesc
+					&& DefaultPropertyDesc
+					&& OverrideProvider.IsPropertyOverridden(PropertyDesc->ID))
+				{
+					NumOverridden++;
+					if (UE::StructUtils::Private::ArePropertiesIdentical(DefaultPropertyDesc, DefaultPropertyBag, PropertyDesc, PropertyBag))
+					{
+						NumIdentical++;
+					}
+				}
+			}
+			return true;
+		});
+
+	if (NumOverridden == NumIdentical)
+	{
+		return true;
+	}
+	
+	return false;
+}
+
+void FPropertyBagInstanceDataDetails::ResetToDefault(TSharedPtr<IPropertyHandle> ChildPropertyHandle)
+{
+	if (!ChildPropertyHandle)
+	{
+		return;
+	}
+	
+	const FProperty* Property = ChildPropertyHandle->GetProperty();
+	check(Property);
+
+	FScopedTransaction Transaction(FText::Format(LOCTEXT("ResetToDefault", "Reset {0} to default value"), FText::FromName(ChildPropertyHandle->GetProperty()->GetFName())));
+	ChildPropertyHandle->NotifyPreChange();
+	
+	EnumeratePropertyBags(
+		BagStructProperty,
+		[Property]
+		(const FInstancedPropertyBag& DefaultPropertyBag, FInstancedPropertyBag& PropertyBag, const IPropertyBagOverrideProvider& OverrideProvider)
+		{
+			const UPropertyBag* DefaultBag = DefaultPropertyBag.GetPropertyBagStruct();
+			const UPropertyBag* Bag = PropertyBag.GetPropertyBagStruct();
+			if (Bag && DefaultBag)
+			{
+				const FPropertyBagPropertyDesc* PropertyDesc = Bag->FindPropertyDescByName(Property->GetFName());
+				const FPropertyBagPropertyDesc* DefaultPropertyDesc = DefaultBag->FindPropertyDescByName(Property->GetFName());
+				if (PropertyDesc
+					&& DefaultPropertyDesc
+					&& OverrideProvider.IsPropertyOverridden(PropertyDesc->ID))
+				{
+					UE::StructUtils::Private::CopyPropertyValue(DefaultPropertyDesc, DefaultPropertyBag, PropertyDesc, PropertyBag);
+				}
+			}
+			return true;
+		});
+
+	ChildPropertyHandle->NotifyPostChange(EPropertyChangeType::ValueSet);
+	ChildPropertyHandle->NotifyFinishedChangingProperties();
 }
 
 TSharedRef<SWidget> FPropertyBagInstanceDataDetails::OnPropertyNameContent(TSharedPtr<IPropertyHandle> ChildPropertyHandle, TSharedPtr<SInlineEditableTextBlock> InlineWidget) const

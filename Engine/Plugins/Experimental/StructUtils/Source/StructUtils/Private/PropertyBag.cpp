@@ -1248,7 +1248,13 @@ namespace UE::StructUtils::Private
 		return EPropertyBagResult::Success;
 	}
 
-	void CopyMatchingValuesByID(const FConstStructView Source, FStructView Target)
+	/**
+	 * Copies properties from Source to Target property bag. The bag layouts does not need to match.
+	 * Properties are matched based on the ID in the property bag descs.
+	 * If bHasOverrides == true, then only the matching properties, whose ID is found in Overrides are copied (if Overrides is empty, nothing is copied).
+	 * If bHasOverrides == false, all matching properties are copied.
+	 */
+	void CopyMatchingValuesByID(const FConstStructView Source, FStructView Target, bool bHasOverrides, TConstArrayView<FGuid> Overrides)
 	{
 		if (!Source.IsValid() || !Target.IsValid())
 		{
@@ -1266,6 +1272,12 @@ namespace UE::StructUtils::Private
 		// Iterate over source and copy to target if possible. Source is expected to usually have less items.
 		for (const FPropertyBagPropertyDesc& SourceDesc : SourceBagStruct->GetPropertyDescs())
 		{
+			const bool bShouldCopy = !bHasOverrides || Overrides.Contains(SourceDesc.ID);
+			if (!bShouldCopy)
+			{
+				continue;
+			}
+			
 			const FPropertyBagPropertyDesc* PotentialTargetDesc = TargetBagStruct->FindPropertyDescByID(SourceDesc.ID);
 			if (PotentialTargetDesc == nullptr
 				|| PotentialTargetDesc->CachedProperty == nullptr
@@ -1331,6 +1343,16 @@ namespace UE::StructUtils::Private
 				}
 			}
 		}
+	}
+
+	void CopyMatchingValuesByID(const FConstStructView Source, FStructView Target)
+	{
+		CopyMatchingValuesByID(Source, Target, /*bHasOverrides*/false, {});
+	}
+
+	void CopyMatchingValuesByIDWithOverrides(const FConstStructView Source, FStructView Target, TConstArrayView<FGuid> Overrides)
+	{
+		CopyMatchingValuesByID(Source, Target, /*bHasOverrides*/true, Overrides);
 	}
 
 	void RemovePropertyByName(TArray<FPropertyBagPropertyDesc>& Descs, const FName PropertyName, const int32 StartIndex = 0)
@@ -1686,6 +1708,15 @@ void FInstancedPropertyBag::MigrateToNewBagInstance(const FInstancedPropertyBag&
 	FInstancedStruct NewValue(NewBagInstance.Value);
 
 	UE::StructUtils::Private::CopyMatchingValuesByID(Value, NewValue);
+	
+	Value = MoveTemp(NewValue);
+}
+
+void FInstancedPropertyBag::MigrateToNewBagInstanceWithOverrides(const FInstancedPropertyBag& NewBagInstance, TConstArrayView<FGuid> OverriddenPropertyIDs)
+{
+	FInstancedStruct NewValue(NewBagInstance.Value);
+
+	UE::StructUtils::Private::CopyMatchingValuesByIDWithOverrides(Value, NewValue, OverriddenPropertyIDs);
 	
 	Value = MoveTemp(NewValue);
 }

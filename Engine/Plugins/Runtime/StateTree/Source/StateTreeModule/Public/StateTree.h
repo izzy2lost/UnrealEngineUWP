@@ -43,6 +43,8 @@ struct STATETREEMODULE_API FStateTreeCustomVersion
 		AddedLinkedAssetState,
 		// Change how external data is accessed
 		ChangedExternalDataAccess,
+		// Added override option for parameters
+		OverridableParameters,
 
 		// -----<new versions can be added above this line>-------------------------------------------------
 		VersionPlusOne,
