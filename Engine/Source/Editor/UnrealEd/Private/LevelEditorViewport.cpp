@@ -5486,7 +5486,8 @@ bool FLevelEditorViewportClient::EndTransform(const FGizmoState& InState)
 		TrackingTransaction.TransCount--;
 	}
 
-	const bool bDidMove = bDidAnythingActuallyChange && MouseDeltaTracker->HasReceivedDelta();
+	// TODO ensure that the gizmo actually moved
+	const bool bDidMove = bDidAnythingActuallyChange;
 	const FTypedElementListConstRef ElementsToManipulate = GetElementsToManipulate();
 
 	if (bHasBegunGizmoManipulation)
