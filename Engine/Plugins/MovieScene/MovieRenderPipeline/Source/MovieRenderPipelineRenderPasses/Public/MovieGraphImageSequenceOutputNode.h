@@ -51,6 +51,10 @@ public:
 
 	/**
 	* OCIO context of key-value string pairs, typically used to apply shot-specific looks (such as a CDL color correction, or a 1D grade LUT).
+	* 
+	* Notes:
+	* 1) If a configuration asset base context was set, it remains active but can be overridden here with new key-values.
+	* 2) Format tokens such as {shot_name} are supported and will get resolved before submission.
 	*/
 	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "OCIO", DisplayName = "OCIO Context", meta = (EditCondition = "bOverride_OCIOContext"))
 	TMap<FString, FString> OCIOContext;

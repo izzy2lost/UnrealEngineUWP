@@ -96,7 +96,7 @@ public:
 	//~ Begin UObject interface
 	virtual void PostInitProperties() override;
 	virtual void PostLoad() override;
-	virtual void GetAssetRegistryTags(FAssetRegistryTagsContext Context) const override;
+	virtual void GetAssetRegistryTags(FAssetRegistryTagsContext RegistryTagsContext) const override;
 	UE_DEPRECATED(5.4, "Implement the version that takes FAssetRegistryTagsContext instead.")
 	virtual void GetAssetRegistryTags(TArray<FAssetRegistryTag>& OutTags) const override;
 #if WITH_EDITORONLY_DATA
@@ -126,11 +126,17 @@ public:
 	UPROPERTY(BlueprintReadWrite, EditAnywhere, Category = "Config", meta = (FilePathFilter = "Config Files (*.ocio, *.ocioz)|*.ocio;*.ocioz", RelativeToGameDir))
 	FFilePath ConfigurationFile;
 
-	UPROPERTY(BlueprintReadWrite, EditAnywhere, Category = "ColorSpace")
+	UPROPERTY(BlueprintReadWrite, EditAnywhere, Category = "Transform")
 	TArray<FOpenColorIOColorSpace> DesiredColorSpaces;
 
-	UPROPERTY(BlueprintReadWrite, EditAnywhere, Category = "ColorSpace", DisplayName="Desired Display-Views")
+	UPROPERTY(BlueprintReadWrite, EditAnywhere, Category = "Transform", DisplayName="Desired Display-Views")
 	TArray<FOpenColorIODisplayView> DesiredDisplayViews;
+
+	/**
+	* OCIO context of key-value string pairs, typically used to apply shot-specific looks (such as a CDL color correction, or a 1D grade LUT).
+	*/
+	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Transform")
+	TMap<FString, FString> Context;
 
 private:
 

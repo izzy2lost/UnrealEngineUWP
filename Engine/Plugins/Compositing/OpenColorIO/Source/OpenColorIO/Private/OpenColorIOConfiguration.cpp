@@ -559,9 +559,9 @@ void UOpenColorIOConfiguration::GetAssetRegistryTags(TArray<FAssetRegistryTag>& 
 	PRAGMA_ENABLE_DEPRECATION_WARNINGS;
 }
 
-void UOpenColorIOConfiguration::GetAssetRegistryTags(FAssetRegistryTagsContext Context) const
+void UOpenColorIOConfiguration::GetAssetRegistryTags(FAssetRegistryTagsContext RegistryTagsContext) const
 {
-	Super::GetAssetRegistryTags(Context);
+	Super::GetAssetRegistryTags(RegistryTagsContext);
 
 	FString Description;
 	if (ConfigurationFile.FilePath.IsEmpty())
@@ -577,7 +577,7 @@ void UOpenColorIOConfiguration::GetAssetRegistryTags(FAssetRegistryTagsContext C
 		Description = TEXT("Configuration: ") + ConfigurationFile.FilePath;
 	}
 
-	Context.AddTag(FAssetRegistryTag(TEXT("ConfigurationFile"), Description, FAssetRegistryTag::TT_Hidden));
+	RegistryTagsContext.AddTag(FAssetRegistryTag(TEXT("ConfigurationFile"), Description, FAssetRegistryTag::TT_Hidden));
 }
 
 #if WITH_EDITORONLY_DATA

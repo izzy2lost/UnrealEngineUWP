@@ -38,13 +38,16 @@ public:
 	bool Initialize(UOpenColorIOConfiguration* InOwner, const FString& InSourceColorSpace, const FString& InDestinationColorSpace, const TMap<FString, FString>& InContextKeyValues = {});
 	UE_DEPRECATED(5.3, "This method is deprecated, please use Initialize without the owner argument.")
 	bool Initialize(UOpenColorIOConfiguration* InOwner, const FString& InSourceColorSpace, const FString& InDisplay, const FString& InView, EOpenColorIOViewTransformDirection InDirection, const TMap<FString, FString>& InContextKeyValues = {});
+	UE_DEPRECATED(5.4, "This method is deprecated, please use Initialize without the context argument.")
+	bool Initialize(const FString& InSourceColorSpace, const FString& InDestinationColorSpace, const TMap<FString, FString>& InContextKeyValues);
+	UE_DEPRECATED(5.4, "This method is deprecated, please use Initialize without the context argument.")
+	bool Initialize(const FString& InSourceColorSpace, const FString& InDisplay, const FString& InView, EOpenColorIOViewTransformDirection InDirection, const TMap<FString, FString>& InContextKeyValues);
 
-	/**
-	 * Initialize resources for color space transform. */
-	bool Initialize(const FString& InSourceColorSpace, const FString& InDestinationColorSpace, const TMap<FString, FString>& InContextKeyValues = {});
+	/** Initialize resources for color space transform. */
+	bool Initialize(const FString& InSourceColorSpace, const FString& InDestinationColorSpace);
 	
 	/** Initialize resources for display-view transform. */
-	bool Initialize(const FString& InSourceColorSpace, const FString& InDisplay, const FString& InView, EOpenColorIOViewTransformDirection InDirection, const TMap<FString, FString>& InContextKeyValues = {});
+	bool Initialize(const FString& InSourceColorSpace, const FString& InDisplay, const FString& InView, EOpenColorIOViewTransformDirection InDirection);
 
 	/**
 	 * Serialize LUT data. This will effectively serialize the LUT only when cooking
@@ -113,9 +116,8 @@ public:
 	// For all ColorTransforms, UOpenColorIOColorTransform::CacheResourceShadersForRendering
 	static void AllColorTransformsCacheResourceShadersForRendering();
 
-	// Get the context key-values.
-	const TMap<FString, FString>& GetContextKeyValues() const { return ContextKeyValues; }
-
+	// Get the owner config's context key-values.
+	TMap<FString, FString> GetContextKeyValues() const;
 
 protected:
 
@@ -262,9 +264,6 @@ private:
 	TArray<FOpenColorIOTransformResource> LoadedTransformResources;
 	
 	FOpenColorIOTransformResource* ColorTransformResources[ERHIFeatureLevel::Num];
-
-	/** Key-value string pairs used to define the processor's context. */
-	TMap<FString, FString> ContextKeyValues;
 
 	FRenderCommandFence ReleaseFence;
 

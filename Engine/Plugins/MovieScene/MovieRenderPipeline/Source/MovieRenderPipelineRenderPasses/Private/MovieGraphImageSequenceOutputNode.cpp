@@ -88,7 +88,7 @@ namespace UE::MovieGraph::Private
 	};
 
 	/**
-	 * Convenience function to resolve an OpenColorIO context with supported tokens. Editor-only.
+	 * Convenience function to resolve an OpenColorIO context with supported tokens.
 	 *
 	 * @return The resolved key/value context.
 	*/
@@ -371,8 +371,18 @@ void UMovieGraphImageSequenceOutputNode::OnReceiveImageDataImpl(UMovieGraphPipel
 #if WITH_OCIO
 		if (ParentNode->OCIOConfiguration.bIsEnabled && Payload->bAllowOCIO)
 		{
-			TMap<FString, FString> ResolvedOCIOContext = UE::MovieGraph::Private::ResolveOpenColorIOContext(
-				ParentNode->OCIOContext,
+			TMap<FString, FString> ResolvedOCIOContext;
+
+			const TObjectPtr<UOpenColorIOConfiguration>& ConfigurationAsset = ParentNode->OCIOConfiguration.ColorConfiguration.ConfigurationSource;
+			if (IsValid(ConfigurationAsset))
+			{
+				ResolvedOCIOContext = ConfigurationAsset->Context;
+			}
+
+			ResolvedOCIOContext.Append(ParentNode->OCIOContext);
+
+			ResolvedOCIOContext = UE::MovieGraph::Private::ResolveOpenColorIOContext(
+				ResolvedOCIOContext,
 				RenderData.Key,
 				InPipeline,
 				InRawFrameData->EvaluatedConfig.Get(),

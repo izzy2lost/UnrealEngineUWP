@@ -139,14 +139,24 @@ UOpenColorIOColorTransform::UOpenColorIOColorTransform(const FObjectInitializer&
 {
 }
 
-bool UOpenColorIOColorTransform::Initialize(UOpenColorIOConfiguration* InOwner, const FString& InSourceColorSpace, const FString& InDestinationColorSpace, const TMap<FString, FString>& InContextKeyValues)
+bool UOpenColorIOColorTransform::Initialize(UOpenColorIOConfiguration* InOwner, const FString& InSourceColorSpace, const FString& InDestinationColorSpace, const TMap<FString, FString>& /*InContextKeyValues*/)
 {
-	return Initialize(InSourceColorSpace, InDestinationColorSpace, InContextKeyValues);
+	return Initialize(InSourceColorSpace, InDestinationColorSpace);
 }
 
-bool UOpenColorIOColorTransform::Initialize(UOpenColorIOConfiguration* InOwner, const FString& InSourceColorSpace, const FString& InDisplay, const FString& InView, EOpenColorIOViewTransformDirection InDirection, const TMap<FString, FString>& InContextKeyValues)
+bool UOpenColorIOColorTransform::Initialize(UOpenColorIOConfiguration* InOwner, const FString& InSourceColorSpace, const FString& InDisplay, const FString& InView, EOpenColorIOViewTransformDirection InDirection, const TMap<FString, FString>& /*InContextKeyValues*/)
 {
-	return Initialize(InSourceColorSpace, InDisplay, InView, InDirection, InContextKeyValues);
+	return Initialize(InSourceColorSpace, InDisplay, InView, InDirection);
+}
+
+bool UOpenColorIOColorTransform::Initialize(const FString& InSourceColorSpace, const FString& InDestinationColorSpace, const TMap<FString, FString>& /*InContextKeyValues*/)
+{
+	return Initialize(InSourceColorSpace, InDestinationColorSpace);
+}
+
+bool UOpenColorIOColorTransform::Initialize(const FString& InSourceColorSpace, const FString& InDisplay, const FString& InView, EOpenColorIOViewTransformDirection InDirection, const TMap<FString, FString>& /*InContextKeyValues*/)
+{
+	return Initialize(InSourceColorSpace, InDisplay, InView, InDirection);
 }
 
 void UOpenColorIOColorTransform::Serialize(FArchive& Ar)
@@ -175,7 +185,7 @@ void UOpenColorIOColorTransform::Serialize(FArchive& Ar)
 	}
 }
 
-bool UOpenColorIOColorTransform::Initialize(const FString& InSourceColorSpace, const FString& InDestinationColorSpace, const TMap<FString, FString>& InContextKeyValues)
+bool UOpenColorIOColorTransform::Initialize(const FString& InSourceColorSpace, const FString& InDestinationColorSpace)
 {
 
 	if (InSourceColorSpace.IsEmpty() || InDestinationColorSpace.IsEmpty())
@@ -186,7 +196,6 @@ bool UOpenColorIOColorTransform::Initialize(const FString& InSourceColorSpace, c
 	SourceColorSpace = InSourceColorSpace;
 	DestinationColorSpace = InDestinationColorSpace;
 	bIsDisplayViewType = false;
-	ContextKeyValues = InContextKeyValues;
 
 #if WITH_EDITOR
 	ProcessTransformForGPU();
@@ -196,7 +205,7 @@ bool UOpenColorIOColorTransform::Initialize(const FString& InSourceColorSpace, c
 	return true;
 }
 
-bool UOpenColorIOColorTransform::Initialize(const FString& InSourceColorSpace, const FString& InDisplay, const FString& InView, EOpenColorIOViewTransformDirection InDirection, const TMap<FString, FString>& InContextKeyValues)
+bool UOpenColorIOColorTransform::Initialize(const FString& InSourceColorSpace, const FString& InDisplay, const FString& InView, EOpenColorIOViewTransformDirection InDirection)
 {
 	if (InSourceColorSpace.IsEmpty() || InDisplay.IsEmpty() || InView.IsEmpty())
 	{
@@ -209,7 +218,6 @@ bool UOpenColorIOColorTransform::Initialize(const FString& InSourceColorSpace, c
 	View = InView;
 	bIsDisplayViewType = true;
 	DisplayViewDirection = InDirection;
-	ContextKeyValues = InContextKeyValues;
 
 #if WITH_EDITOR
 	ProcessTransformForGPU();
@@ -424,7 +432,7 @@ void UOpenColorIOColorTransform::CacheResourceShadersForRendering(bool bRegenera
 
 	if (FApp::CanEverRender())
 	{
-		const UOpenColorIOConfiguration* ConfigurationOwner = Cast<UOpenColorIOConfiguration>(GetOuter());
+		const UOpenColorIOConfiguration* ConfigurationOwner = GetTypedOuter<UOpenColorIOConfiguration>();
 		if (IsValid(ConfigurationOwner))
 		{
 			//OCIO shaders are simple, we should be compatible with any feature levels. Use the levels required for materials.
@@ -584,7 +592,7 @@ bool UOpenColorIOColorTransform::IsTransform(const FString& InSourceColorSpace, 
 bool UOpenColorIOColorTransform::GetTransformProcessor(FOpenColorIOWrapperProcessor& OutProcessor) const
 {
 #if WITH_OCIO
-	UOpenColorIOConfiguration* ConfigurationOwner = Cast<UOpenColorIOConfiguration>(GetOuter());
+	UOpenColorIOConfiguration* ConfigurationOwner = GetTypedOuter<UOpenColorIOConfiguration>();
 	const FOpenColorIOWrapperConfig* ConfigWrapper = GetTransformConfigWrapper(ConfigurationOwner);
 
 	if (!ConfigWrapper)
@@ -597,11 +605,11 @@ bool UOpenColorIOColorTransform::GetTransformProcessor(FOpenColorIOWrapperProces
 	EOpenColorIOViewTransformDirection CurrentDisplayViewDirection;
 	if (GetDisplayViewDirection(CurrentDisplayViewDirection))
 	{
-		OutProcessor = FOpenColorIOWrapperProcessor(ConfigWrapper, SourceColorSpace, Display, View, CurrentDisplayViewDirection == EOpenColorIOViewTransformDirection::Inverse, GetContextKeyValues());
+		OutProcessor = FOpenColorIOWrapperProcessor(ConfigWrapper, SourceColorSpace, Display, View, CurrentDisplayViewDirection == EOpenColorIOViewTransformDirection::Inverse, ConfigurationOwner->Context);
 	}
 	else
 	{
-		OutProcessor = FOpenColorIOWrapperProcessor(ConfigWrapper, SourceColorSpace, DestinationColorSpace, GetContextKeyValues());
+		OutProcessor = FOpenColorIOWrapperProcessor(ConfigWrapper, SourceColorSpace, DestinationColorSpace, ConfigurationOwner->Context);
 	}
 
 	return OutProcessor.IsValid();
@@ -669,6 +677,17 @@ void UOpenColorIOColorTransform::AllColorTransformsCacheResourceShadersForRender
 	}
 }
 
+TMap<FString, FString> UOpenColorIOColorTransform::GetContextKeyValues() const
+{
+	UOpenColorIOConfiguration* ConfigurationOwner = GetTypedOuter<UOpenColorIOConfiguration>();
+	if (IsValid(ConfigurationOwner))
+	{
+		return ConfigurationOwner->Context;
+	}
+
+	return TMap<FString, FString>();
+}
+
 FString UOpenColorIOColorTransform::GetTransformFriendlyName() const
 {
 	if (bIsDisplayViewType)
@@ -722,7 +741,7 @@ void UOpenColorIOColorTransform::PostLoad()
 		}
 	}
 
-	UOpenColorIOConfiguration* ConfigurationOwner = Cast<UOpenColorIOConfiguration>(GetOuter());
+	UOpenColorIOConfiguration* ConfigurationOwner = GetTypedOuter<UOpenColorIOConfiguration>();
 
 	//To be able to fetch OCIO data, make sure our config owner has been postloaded.
 	if (ConfigurationOwner)
@@ -802,7 +821,7 @@ void UOpenColorIOColorTransform::FinishDestroy()
 bool UOpenColorIOColorTransform::UpdateShaderInfo(FString& OutShaderCodeHash, FString& OutShaderCode, FString& OutRawConfigHash)
 {
 	const UOpenColorIOSettings* Settings = GetDefault<UOpenColorIOSettings>();
-	UOpenColorIOConfiguration* ConfigurationOwner = Cast<UOpenColorIOConfiguration>(GetOuter());
+	UOpenColorIOConfiguration* ConfigurationOwner = GetTypedOuter<UOpenColorIOConfiguration>();
 	const FOpenColorIOWrapperConfig* ConfigWrapper = GetTransformConfigWrapper(ConfigurationOwner);
 
 	if (ConfigWrapper != nullptr)
@@ -846,7 +865,7 @@ void UOpenColorIOColorTransform::BeginCacheForCookedPlatformData(const ITargetPl
 			//Need to re-update shader data when cooking, they may not have been previously fetched.
 			bValidShaderInfo = UpdateShaderInfo(ShaderCodeHash, ShaderCode, RawConfigHash);
 		}
-		else if(const UOpenColorIOConfiguration* ConfigurationOwner = Cast<UOpenColorIOConfiguration>(GetOuter()))
+		else if(const UOpenColorIOConfiguration* ConfigurationOwner = GetTypedOuter<UOpenColorIOConfiguration>())
 		{
 			ShaderCodeHash = GeneratedShaderHash;
 			ShaderCode = GeneratedShader;
