@@ -59,7 +59,7 @@ float4 GetNodeAABB2D(uint3 InNodeCoord, float3 InQuadTreePosition, float InLeafS
 
 RWBuffer<uint> IndirectArgs;
 #if PRECISE_OCCLUSION_QUERIES
-RWBuffer<uint> OcclusionQueryIndirectArgs;
+RWBuffer<uint> OcclusionQueryArgs;
 #endif
 uint NumDrawBuckets;
 uint NumViews;
@@ -92,11 +92,11 @@ void MainCS(uint3 DispatchThreadId : SV_DispatchThreadID)
 	{
 		for (uint ViewIndex = 0; ViewIndex < NumViews; ++ViewIndex)
 		{
-			OcclusionQueryIndirectArgs[ViewIndex * 5 + 0] = 36;// IndexCountPerInstance; 12 triangles per cube
-			OcclusionQueryIndirectArgs[ViewIndex * 5 + 1] = 0; // InstanceCount
-			OcclusionQueryIndirectArgs[ViewIndex * 5 + 2] = 0; // StartIndexLocation
-			OcclusionQueryIndirectArgs[ViewIndex * 5 + 3] = 0; // BaseVertexLocation
-			OcclusionQueryIndirectArgs[ViewIndex * 5 + 4] = 0; // StartInstanceLocation
+			OcclusionQueryArgs[ViewIndex * 5 + 0] = 36;// IndexCountPerInstance; 12 triangles per cube
+			OcclusionQueryArgs[ViewIndex * 5 + 1] = 0; // InstanceCount
+			OcclusionQueryArgs[ViewIndex * 5 + 2] = 0; // StartIndexLocation
+			OcclusionQueryArgs[ViewIndex * 5 + 3] = 0; // BaseVertexLocation
+			OcclusionQueryArgs[ViewIndex * 5 + 4] = 0; // StartInstanceLocation
 		}
 	}
 #endif // PRECISE_OCCLUSION_QUERIES
@@ -140,7 +140,7 @@ RWByteAddressBuffer PackedNodes;
 #if PRECISE_OCCLUSION_QUERIES
 RWBuffer<float4> OcclusionQueryBoxes;
 RWBuffer<uint> OcclusionVisibility;
-RWBuffer<uint> OcclusionQueryIndirectArgs;
+RWBuffer<uint> OcclusionQueryArgs;
 #endif // PRECISE_OCCLUSION_QUERIES
 
 Texture2D<float4> QuadTreeTexture;
@@ -338,7 +338,7 @@ void MainCS(uint3 DispatchThreadId : SV_DispatchThreadID)
 #if PRECISE_OCCLUSION_QUERIES
 			// Increase the InstanceCount by 1.
 			uint Dummy = 0;
-			InterlockedAdd(OcclusionQueryIndirectArgs[ViewIndex * 5 + 1], 1, Dummy);
+			InterlockedAdd(OcclusionQueryArgs[ViewIndex * 5 + 1], 1, Dummy);
 
 			// Write out bounding box and store a flag indicating if the box crosses the near plane.
 			const float3 NodeAABBMin = float3(NodeAABB2D.xy, WaterZBounds.x);

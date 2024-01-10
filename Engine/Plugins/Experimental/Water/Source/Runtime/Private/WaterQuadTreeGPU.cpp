@@ -154,7 +154,7 @@ public:
 
 	BEGIN_SHADER_PARAMETER_STRUCT(FParameters, )
 		SHADER_PARAMETER_RDG_BUFFER_UAV(RWBuffer, IndirectArgs)
-		SHADER_PARAMETER_RDG_BUFFER_UAV(RWBuffer, OcclusionQueryIndirectArgs)
+		SHADER_PARAMETER_RDG_BUFFER_UAV(RWBuffer, OcclusionQueryArgs)
 		SHADER_PARAMETER(uint32, NumDrawBuckets)
 		SHADER_PARAMETER(uint32, NumViews)
 		SHADER_PARAMETER(uint32, NumQuads)
@@ -203,7 +203,7 @@ public:
 		SHADER_PARAMETER_RDG_BUFFER_UAV(RWByteAddressBuffer, PackedNodes)
 		SHADER_PARAMETER_RDG_BUFFER_UAV(RWBuffer, OcclusionQueryBoxes)
 		SHADER_PARAMETER_RDG_BUFFER_UAV(RWBuffer, OcclusionVisibility)
-		SHADER_PARAMETER_RDG_BUFFER_UAV(RWBuffer, OcclusionQueryIndirectArgs)
+		SHADER_PARAMETER_RDG_BUFFER_UAV(RWBuffer, OcclusionQueryArgs)
 		SHADER_PARAMETER_RDG_TEXTURE(Texture2D, QuadTreeTexture)
 		SHADER_PARAMETER_RDG_TEXTURE(Texture2D, WaterZBoundsTexture)
 		SHADER_PARAMETER_RDG_BUFFER_SRV(StructuredBuffer, WaterBodyRenderData)
@@ -793,7 +793,7 @@ void FWaterQuadTreeGPU::Traverse(FRDGBuilder& GraphBuilder, const FTraverseParam
 
 		FWaterQuadTreeInitializeIndirectArgsCS::FParameters* PassParameters = GraphBuilder.AllocParameters<FWaterQuadTreeInitializeIndirectArgsCS::FParameters>();
 		PassParameters->IndirectArgs = IndirectArgsBufferUAV;
-		PassParameters->OcclusionQueryIndirectArgs = OcclusionQueryIndirectArgsBufferUAV;
+		PassParameters->OcclusionQueryArgs = OcclusionQueryIndirectArgsBufferUAV;
 		PassParameters->NumDrawBuckets = Params.NumMaterials;
 		PassParameters->NumViews = Params.NumViews;
 		PassParameters->NumQuads = Params.NumQuadsPerTileSide;
@@ -868,7 +868,7 @@ void FWaterQuadTreeGPU::Traverse(FRDGBuilder& GraphBuilder, const FTraverseParam
 			PassParameters->PackedNodes = PackedNodesUAV;
 			PassParameters->OcclusionQueryBoxes = OcclusionQueryBoxesUAV;
 			PassParameters->OcclusionVisibility = OcclusionQueryResultsUAV;
-			PassParameters->OcclusionQueryIndirectArgs = OcclusionQueryIndirectArgsBufferUAV;
+			PassParameters->OcclusionQueryArgs = OcclusionQueryIndirectArgsBufferUAV;
 			PassParameters->QuadTreeTexture = QuadTreeTextureRDG;
 			PassParameters->WaterZBoundsTexture = WaterZBoundsTextureRDG;
 			PassParameters->WaterBodyRenderData = WaterBodyRenderDataBufferSRV;
