@@ -12,7 +12,7 @@ class UTexture2D;
 enum class ECustomizableObjectProjectorType : uint8;
 
 class FArchive;
-class UCustomizableInstancePrivateData;
+class UCustomizableInstancePrivate;
 class UCustomizableObject;
 class UCustomizableObjectInstance;
 class FDescriptorHash;
@@ -403,7 +403,7 @@ private:
 	friend FDescriptorHash;
 	friend FDescriptorRuntimeHash;
 	friend UCustomizableObjectInstance;
-	friend UCustomizableInstancePrivateData;
+	friend UCustomizableInstancePrivate;
 	friend FMultilayerProjector;
 	friend FMutableUpdateCandidate;
 };

@@ -154,12 +154,12 @@ struct FAnimBpGeneratedPhysicsAssets
 };
 
 UCLASS()
-class UCustomizableInstancePrivateData : public UObject
+class UCustomizableInstancePrivate : public UObject
 {
 public:
 	GENERATED_BODY()
 
-	UCustomizableInstancePrivateData();
+	UCustomizableInstancePrivate();
 
 	UPROPERTY( Transient )
 	TArray<FGeneratedMaterial> GeneratedMaterials;

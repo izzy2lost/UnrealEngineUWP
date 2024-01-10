@@ -772,7 +772,7 @@ void FinishUpdateGlobal(const TSharedRef<FUpdateContextPrivate>& Context)
 
 	if (Instance)
 	{
-		UCustomizableInstancePrivateData* PrivateInstance = Instance->GetPrivate();
+		UCustomizableInstancePrivate* PrivateInstance = Instance->GetPrivate();
 		
 		switch (Context->UpdateResult)
 		{
@@ -885,7 +885,7 @@ void UpdateSkeletalMesh(const TSharedRef<FUpdateContextPrivate>& Context)
 	UCustomizableObjectInstance* CustomizableObjectInstance = Context->Instance.Get();
 	check(CustomizableObjectInstance);
 
-	UCustomizableInstancePrivateData* CustomizableObjectInstancePrivateData = CustomizableObjectInstance->GetPrivate();
+	UCustomizableInstancePrivate* CustomizableObjectInstancePrivateData = CustomizableObjectInstance->GetPrivate();
 	check(CustomizableObjectInstancePrivateData != nullptr);
 	for (TObjectIterator<UCustomizableObjectInstanceUsage> It; It; ++It)
 	{
@@ -1029,7 +1029,7 @@ bool FCustomizableObjectSystemPrivate::TextureHasReferences(const FMutableImageC
 EUpdateRequired FCustomizableObjectSystemPrivate::IsUpdateRequired(const UCustomizableObjectInstance& Instance, bool bOnlyUpdateIfNotGenerated, bool bOnlyUpdateIfLODs, bool bIgnoreCloseDist) const
 {
 	UCustomizableObjectSystem* System = UCustomizableObjectSystem::GetInstance();
-	const UCustomizableInstancePrivateData* const Private = Instance.GetPrivate();
+	const UCustomizableInstancePrivate* const Private = Instance.GetPrivate();
 	
 	if (!Instance.CanUpdateInstance())
 	{
@@ -1083,7 +1083,7 @@ EUpdateRequired FCustomizableObjectSystemPrivate::IsUpdateRequired(const UCustom
 
 EQueuePriorityType FCustomizableObjectSystemPrivate::GetUpdatePriority(const UCustomizableObjectInstance& Instance,	bool bForceHighPriority) const
 {
-	const UCustomizableInstancePrivateData* InstancePrivate = Instance.GetPrivate();
+	const UCustomizableInstancePrivate* InstancePrivate = Instance.GetPrivate();
 		
 	const bool bNotGenerated = InstancePrivate->SkeletalMeshStatus == ESkeletalMeshStatus::NotGenerated;
 	const bool bShouldUpdateLODs = InstancePrivate->HasCOInstanceFlags(PendingLODsUpdate);
@@ -1128,7 +1128,7 @@ void FCustomizableObjectSystemPrivate::EnqueueUpdateSkeletalMesh(const TSharedRe
 	UCustomizableObjectInstance* Instance = Context->Instance.Get();
 	check(Instance);
 	
-	UCustomizableInstancePrivateData* InstancePrivate = Instance->GetPrivate();
+	UCustomizableInstancePrivate* InstancePrivate = Instance->GetPrivate();
 
 	const EQueuePriorityType Priority = GetUpdatePriority(*Instance, Context->bForceHighPriority);
 	const uint32 InstanceId = Instance->GetUniqueID();
@@ -1683,7 +1683,7 @@ namespace impl
 		check(System != nullptr);
 
 		const UCustomizableObject* CustomizableObject = OperationData->Instance->GetCustomizableObject();
-		UCustomizableInstancePrivateData* CustomizableObjectInstancePrivateData = OperationData->Instance->GetPrivate();
+		UCustomizableInstancePrivate* CustomizableObjectInstancePrivateData = OperationData->Instance->GetPrivate();
 
 		CustomizableObjectInstancePrivateData->PassThroughTexturesToLoad.Empty();
 
@@ -2273,10 +2273,10 @@ namespace impl
 		{
 			FMutableResourceCache& Cache = CustomizableObjectSystemPrivateData->GetObjectCache(CustomizableObjectInstance->GetCustomizableObject());
 
-			UCustomizableInstancePrivateData* CustomizableObjectInstancePrivateData = CustomizableObjectInstance->GetPrivate();
+			UCustomizableInstancePrivate* CustomizableObjectInstancePrivateData = CustomizableObjectInstance->GetPrivate();
 			for (FGeneratedTexture& GeneratedTexture : CustomizableObjectInstancePrivateData->TexturesToRelease)
 			{
-				UCustomizableInstancePrivateData::ReleaseMutableTexture(GeneratedTexture.Key, Cast<UTexture2D>(GeneratedTexture.Texture), Cache);
+				UCustomizableInstancePrivate::ReleaseMutableTexture(GeneratedTexture.Key, Cast<UTexture2D>(GeneratedTexture.Texture), Cache);
 			}
 
 			CustomizableObjectInstancePrivateData->TexturesToRelease.Empty();
@@ -2311,7 +2311,7 @@ namespace impl
 		const bool bInstanceInvalid = !CustomizableObjectInstance || !CustomizableObjectInstance->IsValidLowLevel();
 		if (!bInstanceInvalid)
 		{
-			UCustomizableInstancePrivateData* CustomizableInstancePrivateData = CustomizableObjectInstance->GetPrivate();
+			UCustomizableInstancePrivate* CustomizableInstancePrivateData = CustomizableObjectInstance->GetPrivate();
 
 #if WITH_EDITOR
 			CustomizableObjectInstance->LastUpdateMutableRuntimeCycles = OperationData->MutableRuntimeCycles;
@@ -2340,7 +2340,7 @@ namespace impl
 						if (SkeletalMesh && SkeletalMesh->GetResourceForRendering() && !SkeletalMesh->GetResourceForRendering()->IsInitialized())
 						{
 #if WITH_EDITOR
-							UCustomizableInstancePrivateData::RegenerateImportedModel(SkeletalMesh);
+							UCustomizableInstancePrivate::RegenerateImportedModel(SkeletalMesh);
 #endif
 							CustomizableInstancePrivateData->PostEditChangePropertyWithoutEditor(SkeletalMesh);
 						}
@@ -2430,7 +2430,7 @@ namespace impl
 			return;
 		}
 
-		UCustomizableInstancePrivateData* ObjectInstancePrivateData = ObjectInstance->GetPrivate();
+		UCustomizableInstancePrivate* ObjectInstancePrivateData = ObjectInstance->GetPrivate();
 		check(ObjectInstancePrivateData != nullptr);
 
 		if (OperationData->bLiveUpdateMode)
@@ -2667,7 +2667,7 @@ namespace impl
 
 		UCustomizableObjectInstance* CandidateInstance = Operation->Instance.Get();
 		
-		UCustomizableInstancePrivateData* CandidateInstancePrivateData = CandidateInstance->GetPrivate();
+		UCustomizableInstancePrivate* CandidateInstancePrivateData = CandidateInstance->GetPrivate();
 		if (!CandidateInstancePrivateData)
 		{
 			System->ClearCurrentMutableOperation();
@@ -3010,7 +3010,7 @@ bool UCustomizableObjectSystem::Tick(float DeltaTime)
 		{
 			if (IsValid(*CustomizableObjectInstance) && CustomizableObjectInstance->GetPrivate())
 			{
-				UCustomizableInstancePrivateData* ObjectInstancePrivateData = CustomizableObjectInstance->GetPrivate();
+				UCustomizableInstancePrivate* ObjectInstancePrivateData = CustomizableObjectInstance->GetPrivate();
 
 				if (ObjectInstancePrivateData->HasCOInstanceFlags(UsedByComponentInPlay))
 				{
@@ -3199,7 +3199,7 @@ void UCustomizableObjectSystem::DiscardInstances()
 		const bool bUpdating = Private->CurrentMutableOperation && Private->CurrentMutableOperation->Instance != Iterator->CustomizableObjectInstance;
 		if (COI && !bUpdating)
 		{
-			UCustomizableInstancePrivateData* COIPrivateData = COI ? COI->GetPrivate() : nullptr;
+			UCustomizableInstancePrivate* COIPrivateData = COI ? COI->GetPrivate() : nullptr;
 
 			// Only discard resources if the instance is still out range (it could have got closer to the player since the task was queued)
 			if (!CurrentInstanceLODManagement->IsOnlyUpdateCloseCustomizableObjectsEnabled() ||

@@ -111,7 +111,7 @@ class CUSTOMIZABLEOBJECT_API UCustomizableObjectInstance : public UObject
 {
 	GENERATED_BODY()
 
-	friend UCustomizableInstancePrivateData;
+	friend UCustomizableInstancePrivate;
 	friend FMutableUpdateCandidate;
 
 public:
@@ -677,7 +677,7 @@ public:
 	/** Flag to know if a property of this instance changed in the editor */
 	bool bEditorPropertyChanged = false;
 
-	UCustomizableInstancePrivateData* GetPrivate() const;
+	UCustomizableInstancePrivate* GetPrivate() const;
 
 	// TEMP VARIABLE to check the Min desired LODs for this instance
 	TWeakObjectPtr<UCustomizableObjectInstanceUsage> NearestToActor;
@@ -699,8 +699,8 @@ private:
 	UPROPERTY()
 	FCustomizableObjectInstanceDescriptor Descriptor;
 
-	UPROPERTY( Transient )
-	TObjectPtr<UCustomizableInstancePrivateData> PrivateData;
+	UPROPERTY()
+	TObjectPtr<UCustomizableInstancePrivate> PrivateData;
 
 	/** LODs applied on the beginning of the last update. Represent the actual LODs the Instance is using (not strictly true since an update can fail). */
 	int32 CurrentMinLOD = -1;

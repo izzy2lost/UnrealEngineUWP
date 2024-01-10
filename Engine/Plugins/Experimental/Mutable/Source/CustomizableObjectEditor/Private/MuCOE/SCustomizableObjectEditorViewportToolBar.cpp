@@ -208,7 +208,7 @@ FText SCustomizableObjectEditorViewportToolBar::GetCompileErrorOverlayText() con
 		return LOCTEXT("UpdatingSkeletalMesh", "Updating Skeletal Mesh");
 	}
 
-	const UCustomizableInstancePrivateData* PrivateInstance = Instance->GetPrivate();
+	const UCustomizableInstancePrivate* PrivateInstance = Instance->GetPrivate();
 	
 	switch (PrivateInstance->SkeletalMeshStatus)
 	{
