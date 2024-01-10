@@ -2117,9 +2117,14 @@ void FProperty::SaveToTag(FPropertyTag& Tag)
 	Tag.Name = GetFName();
 }
 
+void FProperty::AssignToTag(FPropertyTag& Tag)
+{
+	Tag.Prop = this;
+}
+
 FProperty* UStruct::FindPropertyByName(FName InName) const
 {
-	for (FProperty* Property = PropertyLink; Property != NULL; Property = Property->PropertyLinkNext)
+	for (FProperty* Property = PropertyLink; Property != nullptr; Property = Property->PropertyLinkNext)
 	{
 		if (Property->GetFName() == InName)
 		{
@@ -2127,5 +2132,5 @@ FProperty* UStruct::FindPropertyByName(FName InName) const
 		}
 	}
 
-	return NULL;
+	return nullptr;
 }

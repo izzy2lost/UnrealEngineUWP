@@ -1799,6 +1799,27 @@ void UObject::SerializeScriptProperties(FArchive& Ar) const
 	SerializeScriptProperties(FStructuredArchiveFromArchive(Ar).GetSlot());
 }
 
+namespace UE::Private
+{
+	/**
+	 *  Query if an object has another object used in its stead for TPS serialization
+	 *  This can be useful for backward compatibility testing or delaying version upgrading of data
+	 */
+	const UObject* GetDataImpersonator(const UObject* ThisObject)
+	{
+		if (ThisObject == nullptr)
+		{
+			return nullptr;
+		}
+		if (FUObjectSerializeContext* SerializeContext = FUObjectThreadContext::Get().GetSerializeContext();
+			SerializeContext && !SerializeContext->bImpersonateProperties)
+		{
+			return nullptr;
+		}
+		return FPropertyBagRepository::Get().FindArchetype(ThisObject);
+	}
+}
+
 void UObject::SerializeScriptProperties( FStructuredArchive::FSlot Slot ) const
 {
 	FArchive& UnderlyingArchive = Slot.GetUnderlyingArchive();
@@ -1819,19 +1840,35 @@ void UObject::SerializeScriptProperties( FStructuredArchive::FSlot Slot ) const
 		{
 			DiffObject = GetArchetype();
 		}
+		UStruct* DiffClass = HasAnyFlags(RF_ClassDefaultObject) ? ObjClass->GetSuperClass() : ObjClass;
+
+		// Query if this object data is being impersonated 
+		const UObject* ThisObject = this;
+		if (const UObject* Impersonator = UE::Private::GetDataImpersonator(ThisObject))
+		{
+			ensureAlwaysMsgf(!HasAnyFlags(RF_ClassDefaultObject), TEXT("CDO '%s' shoudn't be impersonated"), *ThisObject->GetPathName());
+			ThisObject = Impersonator;
+			ObjClass = ThisObject->GetClass();
+
+			//@todo FH: Support for Default Object needs to be added when using impersonators
+			const UObject* DiffImpersonator = UE::Private::GetDataImpersonator(DiffObject);
+			DiffObject = DiffImpersonator ? const_cast<UObject*>(DiffImpersonator) : ObjClass->GetDefaultObject(false);
+			DiffClass = DiffObject->GetClass();
+			ensureAlwaysMsgf(DiffClass == ObjClass, TEXT("Impersonation of '%s' using a different default class not appropriately supported at the moment. Class: '%s', DefaultClass: '%s'")
+				, *ThisObject->GetPathName(), *ObjClass->GetPathName(), *DiffClass->GetPathName());
+		}
+
 #if WITH_EDITOR
 		static const FBoolConfigValueHelper BreakSerializationRecursion(TEXT("StructSerialization"), TEXT("BreakSerializationRecursion"));
 		const bool bBreakSerializationRecursion = BreakSerializationRecursion && UnderlyingArchive.IsLoading() && UnderlyingArchive.GetLinker();
-#else 
-		const bool bBreakSerializationRecursion = false;
-#endif
-#if WITH_EDITOR
+
 		static const FName NAME_SerializeScriptProperties = FName(TEXT("SerializeScriptProperties"));
 		FArchive::FScopeAddDebugData P(UnderlyingArchive, NAME_SerializeScriptProperties);
 		FArchive::FScopeAddDebugData S(UnderlyingArchive, ObjClass->GetFName());
+#else 
+		const bool bBreakSerializationRecursion = false;
 #endif
-
-		ObjClass->SerializeTaggedProperties(Slot, (uint8*)this, HasAnyFlags(RF_ClassDefaultObject) ? ObjClass->GetSuperClass() : ObjClass, (uint8*)DiffObject, bBreakSerializationRecursion ? this : nullptr);
+		ObjClass->SerializeTaggedProperties(Slot, (uint8*)ThisObject, DiffClass, (uint8*)DiffObject, bBreakSerializationRecursion ? ThisObject : nullptr);
 	}
 	else if (UnderlyingArchive.GetPortFlags() != 0 && !UnderlyingArchive.ArUseCustomPropertyList )
 	{
@@ -1841,7 +1878,7 @@ void UObject::SerializeScriptProperties( FStructuredArchive::FSlot Slot ) const
 		{
 			DiffObject = GetArchetype();
 		}
-		ObjClass->SerializeBinEx(Slot, const_cast<UObject *>(this), DiffObject, DiffObject ? DiffObject->GetClass() : NULL);
+		ObjClass->SerializeBinEx(Slot, const_cast<UObject *>(this), DiffObject, DiffObject ? DiffObject->GetClass() : nullptr);
 	}
 	else
 	{

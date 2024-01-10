@@ -553,6 +553,7 @@ void FArrayProperty::SerializeItem(FStructuredArchive::FSlot Slot, void* Value, 
 		{
 			MaybeInnerTag.Emplace(UnderlyingArchive, Inner, 0, (uint8*)Value, (uint8*)Defaults);
 			UnderlyingArchive << MaybeInnerTag.GetValue();
+			Inner->AssignToTag(MaybeInnerTag.GetValue());
 		}
 
 		FPropertyTag& InnerTag = MaybeInnerTag.GetValue();

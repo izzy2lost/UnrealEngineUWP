@@ -8,6 +8,7 @@
 #include "UObject/UnrealTypePrivate.h"
 #include "UObject/PropertyHelper.h"
 #include "UObject/LinkerPlaceholderBase.h"
+#include "UObject/UObjectThreadContext.h"
 #include "Serialization/ArchiveUObjectFromStructuredArchive.h"
 #include "Hash/Blake3.h"
 #include "IO/IoHash.h"
@@ -499,12 +500,52 @@ bool FStructProperty::LoadFromTag(const FPropertyTag& Tag)
 	return false;
 }
 
+static const FName NAME_StructOriginalType(TEXT("OriginalType"));
+
 void FStructProperty::SaveToTag(FPropertyTag& Tag)
 {
 	Super::SaveToTag(Tag);
 
+	//@note FH: revisit this once UE-197352 lands to use the new property type name
+	FUObjectSerializeContext* Context = FUObjectThreadContext::Get().GetSerializeContext();
+	const FString* OriginalType = nullptr;
+	if (Context && Context->bImpersonateProperties)
+	{
+#if WITH_EDITORONLY_DATA
+		OriginalType = FindMetaData(NAME_StructOriginalType);
+		//@note: To support metadata defined on array of struct in UPROPERTY for testing purposes
+		FField* OwnerField = OriginalType == nullptr ? Owner.ToField() : nullptr;
+		OriginalType = OwnerField ? OwnerField->FindMetaData(NAME_StructOriginalType) : OriginalType;
+#endif
+	}
+
 	const UScriptStruct* LocalStruct = Struct;
 	check(LocalStruct);
-	Tag.StructName = LocalStruct->GetFName();
+	Tag.StructName = OriginalType ? FName(**OriginalType) : LocalStruct->GetFName();
 	Tag.StructGuid = LocalStruct->GetCustomGuid();
+}
+
+void FStructProperty::AssignToTag(FPropertyTag& Tag)
+{
+	Super::AssignToTag(Tag);
+
+	//@note FH: revisit this once UE-197352 lands to use the new property type name
+	FUObjectSerializeContext* Context = FUObjectThreadContext::Get().GetSerializeContext();
+	const FString* OriginalType = nullptr;
+	if (Context && Context->bImpersonateProperties)
+	{
+#if WITH_EDITORONLY_DATA
+		OriginalType = FindMetaData(NAME_StructOriginalType);
+		//@note: To support metadata defined on array of struct in UPROPERTY
+		FField* OwnerField = OriginalType == nullptr ? Owner.ToField() : nullptr;
+		OriginalType = OwnerField ? OwnerField->FindMetaData(NAME_StructOriginalType) : OriginalType;
+#endif
+	}
+
+	const UScriptStruct* LocalStruct = Struct;
+	check(LocalStruct);
+	if (OriginalType && FName(**OriginalType) == Tag.StructName)
+	{
+		Tag.StructName = LocalStruct->GetFName();
+	}
 }

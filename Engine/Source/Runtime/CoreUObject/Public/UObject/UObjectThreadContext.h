@@ -174,6 +174,9 @@ public:
 	UE_INTERNAL bool bTrackSerializedPropertyPath;
 	/** True when unknown properties will be serialized to or from a property bag for the serialized object. */
 	UE_INTERNAL bool bSerializeUnknownProperty;
+	/** True when the SerializedObject properties are being impersonated. */
+	UE_INTERNAL bool bImpersonateProperties;
+
 
 	/** Adds a new loaded object */
 	COREUOBJECT_API void AddLoadedObject(UObject* InObject);

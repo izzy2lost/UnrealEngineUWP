@@ -1595,7 +1595,7 @@ void UStruct::SerializeVersionedTaggedProperties(FStructuredArchive::FSlot Slot,
 
 				if (Property)
 				{
-					Tag.Prop = Property;
+					Property->AssignToTag(Tag);
 
 					FName PropID = Property->GetID();
 

@@ -1066,6 +1066,11 @@ public:
 	COREUOBJECT_API virtual void SaveToTag(FPropertyTag& Tag);
 
 	/**
+	 * Assign the property to tag and optionally modify other fields
+	 */
+	COREUOBJECT_API virtual void AssignToTag(FPropertyTag& Tag);
+
+	/**
 	 * Returns the first FProperty in this property's Outer chain that does not have a FProperty for an Outer
 	 */
 	FProperty* GetOwnerProperty()
@@ -6058,6 +6063,7 @@ public:
 #endif
 	virtual bool LoadFromTag(const FPropertyTag& Tag) override;
 	virtual void SaveToTag(FPropertyTag& Tag) override;
+	virtual void AssignToTag(FPropertyTag& Tag) override;
 	// End of FProperty interface
 
 	bool UseBinaryOrNativeSerialization(const FArchive& Ar) const;
