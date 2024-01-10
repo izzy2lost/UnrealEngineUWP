@@ -5,6 +5,7 @@
 #include "Curl/CurlHttp.h"
 #include "Stats/Stats.h"
 #include "Misc/App.h"
+#include "HAL/PlatformTime.h"
 #include "HttpModule.h"
 #include "Http.h"
 #include "Misc/EngineVersion.h"
@@ -729,6 +730,16 @@ size_t FCurlHttpRequest::DebugCallback(CURL * Handle, curl_infotype DebugInfoTyp
 		case CURLINFO_SSL_DATA_OUT:
 			TimeSinceLastResponse = 0.0f;
 			bAnyHttpActivity = true;
+#if WITH_CURL_XCURL
+			// Unlike libCurl, currently there is an issue in xCurl that it triggers CURLINFO_HEADER_OUT even if can't 
+			// connect. Had to disable this code, make sure not to treat that event as connected
+			if (ConnectTime < 0 && DebugInfoType != CURLINFO_HEADER_OUT)
+			{
+				ConnectTime = FPlatformTime::Seconds() - StartProcessTime;
+			}
+#else
+			curl_easy_getinfo(EasyHandle, CURLINFO_CONNECT_TIME, &ConnectTime);
+#endif
 			break;
 		default:
 			break;
@@ -986,6 +997,10 @@ bool FCurlHttpRequest::ProcessRequest()
 	// Add to global list while being processed so that the ref counted request does not get deleted
 	FHttpModule::Get().GetHttpManager().AddThreadedRequest(SharedThis(this));
 
+#if WITH_CURL_XCURL
+	StartProcessTime = FPlatformTime::Seconds();
+#endif
+
 	UE_LOG(LogHttp, Verbose, TEXT("%p: request (easy handle:%p) has been added to threaded queue for processing"), this, EasyHandle);
 	return true;
 }
@@ -1241,11 +1256,7 @@ void FCurlHttpRequest::FinishRequest()
 			}
 		}
 
-		// Mark last request attempt as completed successfully
-		SetStatus(EHttpRequestStatus::Succeeded);
-
-		// Call delegate with valid request/response objects
-		OnProcessRequestComplete().ExecuteIfBound(SharedThis(this),Response,true);
+		HandleRequestSucceed(Response);
 	}
 	else
 	{

@@ -44,6 +44,8 @@ protected:
 	 */
 	HTTP_API void FinishRequestNotInHttpManager();
 
+	HTTP_API void HandleRequestSucceed(TSharedPtr<IHttpResponse> Response);
+
 protected:
 	/** Current status of request being processed */
 	EHttpRequestStatus::Type CompletionStatus = EHttpRequestStatus::NotStarted;
@@ -59,4 +61,10 @@ protected:
 
 	/** Record when this request started */
 	double RequestStartTimeAbsoluteSeconds;
+
+	/** Record when the request start to process */
+	double StartProcessTime = 0.0;
+
+	/** Record how long it take to connect to the endpoint */
+	double ConnectTime = -1.0;
 };

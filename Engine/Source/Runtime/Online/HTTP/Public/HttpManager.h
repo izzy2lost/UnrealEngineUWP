@@ -49,6 +49,19 @@ DECLARE_DELEGATE_OneParam(FHttpManagerRequestAddedDelegate, const FHttpRequestRe
  */
 DECLARE_DELEGATE_OneParam(FHttpManagerRequestCompletedDelegate, const FHttpRequestRef& /*Request*/);
 
+struct FHttpStats
+{
+	/** The max time to successfully connect the backend */
+	float MaxTimeToConnect = -1.0f;
+	/** The max waiting queue in http manager */
+	uint32 MaxRequestsInQueue = 0;
+
+	bool operator==(const FHttpStats& Other) const
+	{
+		return MaxRequestsInQueue == Other.MaxRequestsInQueue && FMath::IsNearlyEqual(MaxTimeToConnect, Other.MaxTimeToConnect);
+	}
+};
+
 /**
  * Manages Http request that are currently being processed
  */
@@ -244,6 +257,8 @@ public:
 	 */
 	void SetURLRequestFilter(const UE::Core::FURLRequestFilter& InURLRequestFilter) { URLRequestFilter = InURLRequestFilter; }
 
+	FHttpStats GetHttpStats() const { return HttpStats; }
+
 protected:
 	/** 
 	 * Create HTTP thread object
@@ -306,6 +321,8 @@ protected:
 
 	TMap<EHttpFlushReason, FHttpFlushTimeLimit> FlushTimeLimitsMap;
 
+	FHttpStats HttpStats;
+
 PACKAGE_SCOPE:
 
 	/** Used to lock access to add/remove/find requests */
@@ -321,4 +338,10 @@ PACKAGE_SCOPE:
 	 * Access http thread of http manager for internal usage
 	 */
 	HTTP_API FHttpThreadBase* GetThread();
+
+	/** Record the time to connect, to have a general idea how long the client usually take to connect for success requests, to adjust the connection timeout */
+	HTTP_API void RecordStatTimeToConnect(float Duration);
+
+	/** Record the requests waiting in queue, to have an idea if there are too many requests or if request number limit is too small */
+	HTTP_API void RecordStatRequestsInQueue(uint32 RequestsInQueue);
 };

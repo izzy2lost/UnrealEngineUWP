@@ -127,6 +127,13 @@ EHttpRequestDelegateThreadPolicy FHttpRequestCommon::GetDelegateThreadPolicy() c
 	return DelegateThreadPolicy; 
 }
 
+void FHttpRequestCommon::HandleRequestSucceed(TSharedPtr<IHttpResponse> Response)
+{
+	SetStatus(EHttpRequestStatus::Succeeded);
+	OnProcessRequestComplete().ExecuteIfBound(SharedThis(this), Response, true);
+	FHttpModule::Get().GetHttpManager().RecordStatTimeToConnect(ConnectTime);
+}
+
 void FHttpRequestCommon::SetStatus(EHttpRequestStatus::Type InCompletionStatus)
 {
 	CompletionStatus = InCompletionStatus;
@@ -169,4 +176,3 @@ float FHttpRequestCommon::GetTimeoutOrDefault() const
 {
 	return GetTimeout().Get(FHttpModule::Get().GetHttpTimeout());
 }
-

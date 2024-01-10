@@ -250,6 +250,11 @@ void FHttpThreadBase::Process(TArray<IHttpThreadedRequest*>& RequestsToCancel, T
 		}
 	}
 
+	if (!RateLimitedThreadedRequests.IsEmpty())
+	{
+		FHttpModule::Get().GetHttpManager().RecordStatRequestsInQueue(RateLimitedThreadedRequests.Num());
+	}
+
 	{
 		SCOPE_CYCLE_COUNTER(STAT_HTTPThread_HttpThreadTick);
 

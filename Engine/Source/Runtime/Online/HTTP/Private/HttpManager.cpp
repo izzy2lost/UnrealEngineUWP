@@ -552,3 +552,13 @@ FHttpThreadBase* FHttpManager::GetThread()
 {
 	return Thread;
 }
+
+void FHttpManager::RecordStatTimeToConnect(float Duration)
+{
+	HttpStats.MaxTimeToConnect = FGenericPlatformMath::Max(Duration, HttpStats.MaxTimeToConnect);
+}
+
+void FHttpManager::RecordStatRequestsInQueue(uint32 RequestsInQueue)
+{
+	HttpStats.MaxRequestsInQueue = FGenericPlatformMath::Max(RequestsInQueue, HttpStats.MaxRequestsInQueue);
+}
