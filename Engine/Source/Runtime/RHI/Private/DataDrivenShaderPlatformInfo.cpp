@@ -433,6 +433,19 @@ void FGenericDataDrivenShaderPlatformInfo::UpdatePreviewPlatforms()
 				PREVIEW_FORCE_SETTING(bSupportsDebugViewShaders, true);
 				PREVIEW_FORCE_SETTING(bIsConsole, false);
 
+				// Support for stereo features requires extra consideration. The editor may not use the same technique as the preview platform,
+				// particularly MobileMultiView may be substituted by a fallback path. In order to avoid inundating real mobile platforms
+				// with the properties needed for the desktop MMV fallback path, override them here with the editor ones to make MMV preview possible
+				if (PreviewInfo.bSupportsMobileMultiView && !RuntimeInfo.bSupportsMobileMultiView)
+				{
+					PREVIEW_USE_RUNTIME_VALUE(bSupportsInstancedStereo);
+					PREVIEW_USE_RUNTIME_VALUE(bSupportsVertexShaderLayer);
+				}
+				else
+				{
+					PREVIEW_DISABLE_IF_RUNTIME_UNSUPPORTED(bSupportsInstancedStereo);
+				}
+
 				// Settings that should be kept true if the runtime also supports it.
 				PREVIEW_DISABLE_IF_RUNTIME_UNSUPPORTED(bSupportsNanite);
 				PREVIEW_DISABLE_IF_RUNTIME_UNSUPPORTED(bSupportsLumenGI);
@@ -461,19 +474,6 @@ void FGenericDataDrivenShaderPlatformInfo::UpdatePreviewPlatforms()
 				PREVIEW_FORCE_DISABLE(bSupportsIntrinsicWaveOnce);
 				PREVIEW_FORCE_DISABLE(bSupportsDOFHybridScattering);
 				PREVIEW_FORCE_DISABLE(bSupports4ComponentUAVReadWrite);
-
-				// Support for stereo features requires extra consideration. The editor may not use the same technique as the preview platform,
-				// particularly MobileMultiView may be substituted by a fallback path. In order to avoid inundating real mobile platforms
-				// with the properties needed for the desktop MMV fallback path, override them here with the editor ones to make MMV preview possible
-				if (PreviewInfo.bSupportsMobileMultiView && !RuntimeInfo.bSupportsMobileMultiView)
-				{
-					PREVIEW_USE_RUNTIME_VALUE(bSupportsInstancedStereo);
-					PREVIEW_USE_RUNTIME_VALUE(bSupportsVertexShaderLayer);
-				}
-				else
-				{
-					PREVIEW_DISABLE_IF_RUNTIME_UNSUPPORTED(bSupportsInstancedStereo);
-				}
 
 				// Make sure we're marked valid
 				PreviewInfo.bContainsValidPlatformInfo = true;
