@@ -210,16 +210,16 @@ void SDLTemporalAccumulationCS(
 						NumFramesAccumulated = min(NumFramesAccumulatedHistory + 1.0f, TemporalMaxFramesAccumulated);
 
 						// Clamp history to current neighborhood
-						FNeighborhood DiffuseNeighborhood = GetNeighborhood(ScreenCoord, ResolvedDiffuseLighting, float4(DiffuseLighting, DiffuseSecondMoment).xyz);
-						FNeighborhood SpecularNeighborhood = GetNeighborhood(ScreenCoord, ResolvedSpecularLighting, float4(SpecularLighting, SpecularSecondMoment).xyz);
+						FNeighborhood DiffuseNeighborhood = GetNeighborhood(ScreenCoord, ResolvedDiffuseLighting, DiffuseLighting);
+						FNeighborhood SpecularNeighborhood = GetNeighborhood(ScreenCoord, ResolvedSpecularLighting, SpecularLighting);
 						float3 ClampedHistoryDiffuseLighting = clamp(HistoryDiffuseLighting, DiffuseNeighborhood.ClampMin, DiffuseNeighborhood.ClampMax);
 						float3 ClampedHistorySpecularLighting = clamp(HistorySpecularLighting, SpecularNeighborhood.ClampMin, SpecularNeighborhood.ClampMax);
 
 						// Clamp history to max sample luminance
 						ClampedHistoryDiffuseLighting = ClampLuminance(ClampedHistoryDiffuseLighting, SampleLuminanceSum.x);
 						ClampedHistorySpecularLighting = ClampLuminance(ClampedHistorySpecularLighting, SampleLuminanceSum.y);
-						float ClampedHistoryDiffuseSecondMoment = clamp(ClampedHistoryDiffuseSecondMoment, 0, Pow2(SampleLuminanceSum.x));
-						float ClampedHistorySpecularSecondMoment = clamp(ClampedHistorySpecularSecondMoment, 0, Pow2(SampleLuminanceSum.y));
+						float ClampedHistoryDiffuseSecondMoment = clamp(HistoryDiffuseSecondMoment, 0, Pow2(SampleLuminanceSum.x));
+						float ClampedHistorySpecularSecondMoment = clamp(HistorySpecularSecondMoment, 0, Pow2(SampleLuminanceSum.y));
 
 						// Blend history with new samples
 						float Alpha = 1.0f / (1.0f + NumFramesAccumulated);
@@ -250,6 +250,12 @@ void SDLTemporalAccumulationCS(
 				Newline(Context);
 				Print(Context, TEXT("SpecularVariance: "));
 				Print(Context, SpecularVariance);
+				Newline(Context);
+				Print(Context, TEXT("Specular Second Moment: "));
+				Print(Context, SpecularSecondMoment);
+				Newline(Context);
+				Print(Context, TEXT("Specular Lighting: "));
+				Print(Context, SpecularLighting);
 				Newline(Context);
 				Print(Context, TEXT("SampleLuminanceSum: "));
 				Print(Context, SampleLuminanceSum);
