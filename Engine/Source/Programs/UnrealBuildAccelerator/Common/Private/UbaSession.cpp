@@ -930,7 +930,7 @@ namespace uba
 
 		UBA_ASSERTF(info.rootDir && *info.rootDir, TC("No root dir set when creating session"));
 		m_rootDir.count = GetFullPathNameW(info.rootDir, m_rootDir.capacity, m_rootDir.data, NULL);
-		m_rootDir.EnsureEndsWithSlash();
+		m_rootDir.Replace('/', PathSeparator).EnsureEndsWithSlash();
 		m_uid = u32(HashString()(m_rootDir.data));
 
 		m_runningRemote = runningRemote;
@@ -1908,7 +1908,10 @@ namespace uba
 			auto memClose = MakeGuard([&](){ UnmapViewOfFile(mem, fileSize); });
 
 			constexpr bool useFileMapForWrite = false;
-			bool useOverlap = false;// fileSize > 8 * 1024 * 1024;
+			//bool useOverlap = false;// fileSize > 8 * 1024 * 1024;
+
+			static bool useOverlap = false;
+
 
 			u32 attributes = DefaultAttributes();
 			if (useOverlap)
@@ -1926,8 +1929,17 @@ namespace uba
 			{
 				if (!destinationFile.CreateWrite(false, attributes, fileSize, m_tempPath.data))
 					return false;
+
+				u64 start = GetTime();
 				if (!destinationFile.Write(mem, fileSize))
 					return false;
+
+				if (!useOverlap && TimeToMs(GetTime() - start) > 4 * 1000)
+				{
+					useOverlap = true;
+					m_logger.Info(TC("Switching to overlapped I/O due to slow writes"));
+				}
+
 			}
 			if (u64 time = file.lastWriteTime)
 				if (!SetFileLastWriteTime(destinationFile.GetHandle(), time))

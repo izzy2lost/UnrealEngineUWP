@@ -2846,8 +2846,8 @@ DWORD Detoured_GetFullPathNameA(LPCSTR lpFileName, DWORD nBufferLength, LPSTR lp
 
 DWORD Detoured_GetFileAttributesA(LPCSTR lpFileName)
 {
+	// Is verified that both windows and wine are calling GetFullPathNameW
 	DEBUG_LOG_TRUE(L"GetFileAttributesA", L"");
-	UBA_ASSERT(!g_runningRemote);
 	return True_GetFileAttributesA(lpFileName);
 }
 

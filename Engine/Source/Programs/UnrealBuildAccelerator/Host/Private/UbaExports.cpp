@@ -198,6 +198,10 @@ extern "C"
 		using namespace uba;
 
 		#if UBA_USE_AWS
+		StringBuffer<> fixedRootDir;
+		fixedRootDir.count = GetFullPathNameW(rootDir, fixedRootDir.capacity, fixedRootDir.data, NULL);
+		fixedRootDir.Replace('/', PathSeparator).EnsureEndsWithSlash();
+		rootDir = fixedRootDir.data;
 		AWS aws;
 		if (!zone || !*zone)
 		{
