@@ -7529,7 +7529,7 @@ void FBlueprintComponentDetails::OnBrowseSocket()
 				{
 					// Pop up a combo box to pick socket from mesh
 					FSlateApplication::Get().PushMenu(
-						Editor.ToSharedRef(),
+						BlueprintEditorPtr.Pin()->GetToolkitHost()->GetParentWidget(),
 						FWidgetPath(),
 						SNew(SSocketChooserPopup)
 						.SceneComponent( ParentSceneComponent )
