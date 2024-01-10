@@ -14,6 +14,8 @@
 #include "RHIUtilities.h"
 #include "RenderGraphBuilder.h"
 
+DECLARE_MEMORY_STAT_POOL(TEXT("Total Physical Memory"), STAT_TotalPhysicalMemory, STATGROUP_VirtualTextureMemory, FPlatformMemory::MCR_GPU);
+
 CSV_DECLARE_CATEGORY_EXTERN(VirtualTexturing);
 
 static TAutoConsoleVariable<float> CVarVTResidencyMaxMipMapBias(
@@ -58,6 +60,7 @@ FVirtualTexturePhysicalSpace::FVirtualTexturePhysicalSpace(uint16 InID, const FV
 	, DescriptionExt(InDescExt)
 	, ID(InID)
 	, NumRefs(0u)
+	, NumResourceRefs(0u)
 	, ResidencyMipMapBias(0.0f)
 	, LastFrameOversubscribed(0)
 #if !UE_BUILD_SHIPPING
@@ -161,10 +164,14 @@ void FVirtualTexturePhysicalSpace::InitRHI(FRHICommandListBase& RHICmdList)
 		SRVCreateInfo.SRGBOverride = SRGBO_Default;
 		TextureSRV_SRGB[Layer] = RHICmdList.CreateShaderResourceView(TextureRHI, SRVCreateInfo);
 	}
+
+	INC_MEMORY_STAT_BY(STAT_TotalPhysicalMemory, GetSizeInBytes());
 }
 
 void FVirtualTexturePhysicalSpace::ReleaseRHI()
 {
+	DEC_MEMORY_STAT_BY(STAT_TotalPhysicalMemory, GetSizeInBytes());
+
 	for (int32 Layer = 0; Layer < Description.NumLayers; ++Layer)
 	{
 		GRenderTargetPool.FreeUnusedResource(PooledRenderTarget[Layer]);

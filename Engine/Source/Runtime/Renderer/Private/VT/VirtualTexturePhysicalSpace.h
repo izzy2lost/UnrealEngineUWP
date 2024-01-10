@@ -107,9 +107,17 @@ public:
 	virtual void InitRHI(FRHICommandListBase& RHICmdList) override;
 	virtual void ReleaseRHI() override;
 
+	// RefCount for TRefCountPtr management of physical space.
+	// Both producers and allocated VT keep references to keep a physical space alive.
 	inline uint32 AddRef() { return ++NumRefs; }
 	inline uint32 Release() { check(NumRefs > 0u); return --NumRefs; }
 	inline uint32 GetRefCount() const { return NumRefs; }
+
+	// RefCount for tracking allocated VT references only.
+	// We only allocate underlying physical texture when referenced from an allocated VT.
+	inline uint32 AddResourceRef() { return ++NumResourceRefs; }
+	inline uint32 ReleaseResourceRef() { check(NumResourceRefs > 0u); return --NumResourceRefs; }
+	inline uint32 GetResourceRefCount() const { return NumResourceRefs; }
 
 	FRHITexture* GetPhysicalTexture(int32 Layer) const
 	{
@@ -152,6 +160,7 @@ private:
 
 	uint16 ID;
 	uint32 NumRefs;
+	uint32 NumResourceRefs;
 	
 	float ResidencyMipMapBias;
 	uint32 LastFrameOversubscribed;

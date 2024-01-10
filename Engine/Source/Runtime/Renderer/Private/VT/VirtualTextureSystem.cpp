@@ -67,7 +67,6 @@ DECLARE_DWORD_COUNTER_STAT(TEXT("Num stacks produced"), STAT_NumStacksProduced, 
 
 DECLARE_DWORD_COUNTER_STAT(TEXT("Num flush caches"), STAT_NumFlushCache, STATGROUP_VirtualTexturing);
 
-DECLARE_MEMORY_STAT_POOL(TEXT("Total Physical Memory"), STAT_TotalPhysicalMemory, STATGROUP_VirtualTextureMemory, FPlatformMemory::MCR_GPU);
 DECLARE_MEMORY_STAT_POOL(TEXT("Total Pagetable Memory"), STAT_TotalPagetableMemory, STATGROUP_VirtualTextureMemory, FPlatformMemory::MCR_GPU);
 
 DECLARE_GPU_STAT(VirtualTexture);
@@ -379,7 +378,6 @@ FVirtualTextureSystem::~FVirtualTextureSystem()
 		if (PhysicalSpace)
 		{
 			check(PhysicalSpace->GetRefCount() == 0u);
-			DEC_MEMORY_STAT_BY(STAT_TotalPhysicalMemory, PhysicalSpace->GetSizeInBytes());
 			BeginReleaseResource(PhysicalSpace);
 		}
 	}
@@ -473,7 +471,7 @@ void FVirtualTextureSystem::ListPhysicalPoolsFromConsole()
 	uint64 TotalPhysicalMemory = 0u;
 	for(int32 i = 0; i < PhysicalSpaces.Num(); ++i)
 	{
-		if (PhysicalSpaces[i])
+		if (PhysicalSpaces[i] && PhysicalSpaces[i]->IsInitialized())
 		{
 			const FVirtualTexturePhysicalSpace& PhysicalSpace = *PhysicalSpaces[i];
 			const FVTPhysicalSpaceDescription& Desc = PhysicalSpace.GetDescription();
@@ -1046,9 +1044,6 @@ FVirtualTexturePhysicalSpace* FVirtualTextureSystem::AcquirePhysicalSpace(FRHICo
 	FVirtualTexturePhysicalSpace* PhysicalSpace = new FVirtualTexturePhysicalSpace(ID, InDesc, DescExt);
 	PhysicalSpaces[ID] = PhysicalSpace;
 
-	INC_MEMORY_STAT_BY(STAT_TotalPhysicalMemory, PhysicalSpace->GetSizeInBytes());
-	PhysicalSpace->InitResource(RHICmdList);
-
 	return PhysicalSpace;
 }
 
@@ -1061,8 +1056,6 @@ void FVirtualTextureSystem::ReleasePendingSpaces()
 		FVirtualTexturePhysicalSpace* PhysicalSpace = PhysicalSpaces[Id];
 		if ((bool)PhysicalSpace && PhysicalSpace->GetRefCount() == 0u)
 		{
-			DEC_MEMORY_STAT_BY(STAT_TotalPhysicalMemory, PhysicalSpace->GetSizeInBytes());
-
 			const FTexturePagePool& PagePool = PhysicalSpace->GetPagePool();
 			check(PagePool.GetNumMappedPages() == 0u);
 			check(PagePool.GetNumLockedPages() == 0u);
@@ -2995,7 +2988,7 @@ void FVirtualTextureSystem::DrawResidencyHud(UCanvas* InCanvas, APlayerControlle
 	for (int32 SpaceIndex = 0; SpaceIndex < PhysicalSpaces.Num(); ++SpaceIndex)
 	{
 		FVirtualTexturePhysicalSpace* PhysicalSpace = PhysicalSpaces[SpaceIndex];
-		if (PhysicalSpace)
+		if (PhysicalSpace && PhysicalSpace->IsInitialized())
 		{
 			int32 GraphX = GraphIndex % NumGraphsInRow;
 			int32 GraphY = GraphIndex / NumGraphsInRow;

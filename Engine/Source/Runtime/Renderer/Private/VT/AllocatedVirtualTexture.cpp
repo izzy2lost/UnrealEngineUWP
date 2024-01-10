@@ -8,7 +8,8 @@
 #include "VT/VirtualTexturePhysicalSpace.h"
 #include "Misc/StringBuilder.h"
 
-FAllocatedVirtualTexture::FAllocatedVirtualTexture(FRHICommandListBase& RHICmdList,
+FAllocatedVirtualTexture::FAllocatedVirtualTexture(
+	FRHICommandListBase& RHICmdList,
 	FVirtualTextureSystem* InSystem,
 	uint32 InFrame,
 	const FAllocatedVTDescription& InDesc,
@@ -40,7 +41,7 @@ FAllocatedVirtualTexture::FAllocatedVirtualTexture(FRHICommandListBase& RHICmdLi
 				ProducerPhysicalGroupIndex = Producer->GetPhysicalGroupIndexForTextureLayer(ProducerLayerIndex);
 				PhysicalSpace = Producer->GetPhysicalSpaceForPhysicalGroup(ProducerPhysicalGroupIndex);
 			}
-			const uint32 UniquePhysicalSpaceIndex = AddUniquePhysicalSpace(PhysicalSpace, UniqueProducerIndex, ProducerPhysicalGroupIndex);
+			const uint32 UniquePhysicalSpaceIndex = AddUniquePhysicalSpace(RHICmdList, PhysicalSpace, UniqueProducerIndex, ProducerPhysicalGroupIndex);
 			UniquePageTableLayers[UniquePhysicalSpaceIndex].ProducerTextureLayerMask |= 1 << ProducerLayerIndex;
 			const uint8 PageTableLayerLocalIndex = UniquePageTableLayers[UniquePhysicalSpaceIndex].TextureLayerCount++;
 			
@@ -140,6 +141,10 @@ void FAllocatedVirtualTexture::Destroy(FVirtualTextureSystem* System)
 
 		for (int32 PageTableIndex = 0u; PageTableIndex < UniquePageTableLayers.Num(); ++PageTableIndex)
 		{
+			if (UniquePageTableLayers[PageTableIndex].PhysicalSpace->ReleaseResourceRef() == 0)
+			{
+				UniquePageTableLayers[PageTableIndex].PhysicalSpace->ReleaseResource();
+			}
 			UniquePageTableLayers[PageTableIndex].PhysicalSpace.SafeRelease();
 		}
 
@@ -360,7 +365,7 @@ uint32 FAllocatedVirtualTexture::AddUniqueProducer(FVirtualTextureProducerHandle
 	return Index;
 }
 
-uint32 FAllocatedVirtualTexture::AddUniquePhysicalSpace(FVirtualTexturePhysicalSpace* InPhysicalSpace, uint32 InUniqueProducerIndex, uint32 InProducerPhysicalSpaceIndex)
+uint32 FAllocatedVirtualTexture::AddUniquePhysicalSpace(FRHICommandListBase& InRHICmdList, FVirtualTexturePhysicalSpace* InPhysicalSpace, uint32 InUniqueProducerIndex, uint32 InProducerPhysicalSpaceIndex)
 {
 	if (Description.bShareDuplicateLayers)
 	{
@@ -382,6 +387,11 @@ uint32 FAllocatedVirtualTexture::AddUniquePhysicalSpace(FVirtualTexturePhysicalS
 	UniquePageTableLayers[Index].ProducerPhysicalGroupIndex = InProducerPhysicalSpaceIndex;
 	UniquePageTableLayers[Index].ProducerTextureLayerMask = 0;
 	UniquePageTableLayers[Index].TextureLayerCount = 0;
+
+	if (InPhysicalSpace->AddResourceRef() == 1)
+	{
+		InPhysicalSpace->InitResource(InRHICmdList);
+	}
 
 	return Index;
 }
