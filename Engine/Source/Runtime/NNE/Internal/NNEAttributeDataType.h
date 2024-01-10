@@ -2,7 +2,6 @@
 
 #pragma once
 
-#include "UObject/Class.h"
 #include "UObject/Object.h"
 
 #include "NNEAttributeDataType.generated.h"

@@ -2,7 +2,8 @@
 
 #pragma once
 
-#include "CoreMinimal.h"
+#include "Containers/ContainersFwd.h"
+#include "Containers/UnrealString.h"
 #include "NNETypes.h"
 
 namespace UE::NNE::Internal

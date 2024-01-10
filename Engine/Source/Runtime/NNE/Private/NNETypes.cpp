@@ -17,7 +17,7 @@ namespace UE::NNE::TypesUtils
 			if (lhs.GetData()[i] != rhs.GetData()[i])
 				return false;
 		}
-			
+
 		return true;
 	}
 }
@@ -116,7 +116,7 @@ FTensorShape FTensorShape::Make(TConstArrayView<uint32> Data)
 	Shape.Data.Append(Data);
 	return Shape;
 }
-	
+
 FTensorShape FTensorShape::MakeFromSymbolic(const FSymbolicTensorShape& SymbolicShape)
 {
 	FTensorShape ConcreteShape;

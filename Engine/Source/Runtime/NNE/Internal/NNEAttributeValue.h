@@ -5,7 +5,6 @@
 #include "NNEAttributeValueTraits.h"
 #include "Serialization/MemoryWriter.h"
 #include "Serialization/MemoryReader.h"
-#include "UObject/Class.h"
 #include "UObject/Object.h"
 
 #include "NNEAttributeValue.generated.h"

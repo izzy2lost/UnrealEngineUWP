@@ -2,7 +2,8 @@
 
 #pragma once
 
-#include "CoreMinimal.h"
+#include "Containers/ContainersFwd.h"
+#include "Containers/UnrealString.h"
 #include "Memory/SharedBuffer.h"
 #include "Misc/Guid.h"
 #include "Templates/SharedPointer.h"

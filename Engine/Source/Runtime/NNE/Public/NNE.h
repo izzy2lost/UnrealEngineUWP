@@ -2,7 +2,8 @@
 
 #pragma once
 
-#include "CoreMinimal.h"
+#include "Containers/ArrayView.h"
+#include "Containers/UnrealString.h"
 #include "NNERuntime.h"
 #include "UObject/WeakInterfacePtr.h"
 
@@ -52,7 +53,6 @@ namespace UE::NNE
 				T* RuntimePtr = Cast<T>(Runtime.Get());
 				return TWeakInterfacePtr<T>(RuntimePtr);
 			}
-				
 		}
 		return TWeakInterfacePtr<T>(nullptr);
 	}

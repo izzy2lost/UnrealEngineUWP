@@ -2,8 +2,7 @@
 
 #pragma once
 
-#include "CoreMinimal.h"
-#include "NNERuntime.h"
+#include "Containers/ContainersFwd.h"
 #include "NNETypes.h"
 #include "UObject/Interface.h"
 

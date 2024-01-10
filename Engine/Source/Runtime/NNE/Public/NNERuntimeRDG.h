@@ -2,7 +2,7 @@
 
 #pragma once
 
-#include "CoreMinimal.h"
+#include "Containers/ContainersFwd.h"
 #include "NNETypes.h"
 #include "RenderGraphFwd.h"
 #include "UObject/Interface.h"

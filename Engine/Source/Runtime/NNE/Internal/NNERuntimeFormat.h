@@ -2,9 +2,9 @@
 
 #pragma once
 
-#include "UObject/Object.h"
 #include "NNEAttributeValue.h"
 #include "NNETypes.h"
+#include "UObject/Object.h"
 
 #include "NNERuntimeFormat.generated.h"
 
