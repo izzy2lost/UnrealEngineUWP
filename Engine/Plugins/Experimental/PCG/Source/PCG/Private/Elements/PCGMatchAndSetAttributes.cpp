@@ -68,7 +68,7 @@ TArray<FPCGPinProperties> UPCGMatchAndSetAttributesSettings::InputPinProperties(
 			EPCGDataType::Point | EPCGDataType::Param,
 			/*bAllowMultipleConnections=*/false,
 			/*bAllowMultipleData=*/true,
-			LOCTEXT("MaxDistanceTooltip", "Input containing the maximum distance allowed for near search, selected by the Max Distance Attribute.")
+			LOCTEXT("MaxDistanceTooltip", "Input containing the maximum distance allowed for nearest search, selected by the Max Distance Attribute.")
 		);
 	}
 
@@ -302,26 +302,21 @@ public:
 
 		if (Attribute && ConstantThreshold.IsValid() && ConstantKey.IsValid())
 		{
-			auto ValidateCompatibleThresholdType = [this](auto AttributeDummyValue) -> bool
-			{
-				using AttributeType = decltype(AttributeDummyValue);
-
-				if constexpr (PCG::Private::MetadataTraits<AttributeType>::CanComputeDistance)
-				{
-					using DistanceType = typename PCG::Private::MetadataTraits<AttributeType>::DistanceType;
-					DistanceType ThresholdValue{};
-					check(ConstantThreshold && ConstantKey);
-					return ConstantThreshold->Get(ThresholdValue, *ConstantKey, EPCGAttributeAccessorFlags::AllowBroadcast | EPCGAttributeAccessorFlags::AllowConstructible);
-				}
-				else
-				{
-					return false;
-				}
-			};
-
-			if (!PCGMetadataAttribute::CallbackWithRightType(Attribute->GetTypeId(), ValidateCompatibleThresholdType))
+			if (!PCG::Private::IsBroadcastableOrConstructible(ConstantThreshold->GetUnderlyingType(), Attribute->GetTypeId()))
 			{
 				PCGE_LOG_C(Error, GraphAndLog, Context, FText::Format(LOCTEXT("InvalidThresholdAttribute", "Distance threshold type is not compatible with attribute '{0}'."), FText::FromName(Attribute->Name)));
+				return false;
+			}
+
+			auto ValidateTypeCanComputeDistance = [](auto AttributeDummyValue) -> bool
+			{
+				using AttributeType = decltype(AttributeDummyValue);
+				return PCG::Private::MetadataTraits<AttributeType>::CanComputeDistance;
+			};
+
+			if (!PCGMetadataAttribute::CallbackWithRightType(Attribute->GetTypeId(), ValidateTypeCanComputeDistance))
+			{
+				PCGE_LOG_C(Error, GraphAndLog, Context, FText::Format(LOCTEXT("AttributeDoesNotSupportMaxDistance", "The selected attribute '{0}' does not support computing distances."), FText::FromName(Attribute->Name)));
 				return false;
 			}
 		}
@@ -352,10 +347,18 @@ public:
 					{
 						using DistanceType = typename PCG::Private::MetadataTraits<AttributeType>::DistanceType;
 						DistanceType* TypedThresholdValues = new DistanceType[ConstKeyCount];
-						TArrayView<DistanceType> ThresholdValues(TypedThresholdValues, ConstKeyCount);
-						if (!ConstantThreshold->GetRange(ThresholdValues, 0, *ConstantKey, EPCGAttributeAccessorFlags::AllowBroadcast | EPCGAttributeAccessorFlags::AllowConstructible))
+						if (TypedThresholdValues)
 						{
-							delete[] TypedThresholdValues;
+							TArrayView<DistanceType> ThresholdValues(TypedThresholdValues, ConstKeyCount);
+							if (!ConstantThreshold->GetRange(ThresholdValues, 0, *ConstantKey, EPCGAttributeAccessorFlags::AllowBroadcast | EPCGAttributeAccessorFlags::AllowConstructible))
+							{
+								delete[] TypedThresholdValues;
+								return false;
+							}
+						}
+						else
+						{
+							// Couldn't allocate memory, exit early
 							return false;
 						}
 

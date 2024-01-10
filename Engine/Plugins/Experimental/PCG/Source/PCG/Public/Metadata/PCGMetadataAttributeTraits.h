@@ -415,6 +415,7 @@ namespace PCG
 			enum { CanFindNearest = true};
 			enum { CanComputeDistance = false };
 
+			/** Returns true if A is strictly closer to Target than B is. */
 			static bool IsCloserTo(const T& A, const T& B, const T& Target)
 			{
 				// If A is "between" B and Target, then it is closer, e.g. B < A <= Target or Target <= A < B
@@ -429,6 +430,7 @@ namespace PCG
 			enum { CanFindNearest = true };
 			enum { CanComputeDistance = true };
 
+			/** Returns true if A is strictly closer to Target than B is. */
 			static bool IsCloserTo(const T& A, const T& B, const T& Target)
 			{
 				return Traits::Distance(A, Target) < Traits::Distance(B, Target);
@@ -580,7 +582,7 @@ namespace PCG
 
 		// Vector types
 		template<typename T>
-		struct VectorTraits : DefaultOperationTraits<T>, DefaultWeightedSumTraits<T>, DefaultStringTraits<T>, DistanceBasedFindNearestTraits<VectorTraits<T>, T>
+		struct VectorTraits : DefaultOperationTraits<T>, DefaultWeightedSumTraits<T>, DefaultStringTraits<T>
 		{
 			enum { CompressData = false };
 			enum { CanMinMax = true };
@@ -588,6 +590,8 @@ namespace PCG
 			enum { CanCompare = true };
 			enum { CanSearchString = false };
 			enum { NeedsConstruction = false };
+			enum { CanFindNearest = true };
+			enum { CanComputeDistance = true };
 
 			using DistanceType = typename T::FReal;
 
@@ -598,8 +602,13 @@ namespace PCG
 
 			static DistanceType Distance(const T& A, const T& B) 
 			{
-				// Implementation note: we use SizeSquared here instead of SquareLength because FVector4 doesn't have it.
 				return (A - B).Size();
+			}
+
+			/** Returns true if A is strictly closer to Target than B is. Implementation note: we don't use the standard distance-based traits to have a more efficient check here. */
+			static bool IsCloserTo(const T& A, const T& B, const T& Target)
+			{
+				return (A - Target).SizeSquared() < (B - Target).SizeSquared();
 			}
 		};
 
