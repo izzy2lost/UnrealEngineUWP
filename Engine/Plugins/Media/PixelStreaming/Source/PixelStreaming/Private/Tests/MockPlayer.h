@@ -91,6 +91,10 @@ namespace UE::PixelStreaming
 		void Connect(int Port)
 		{
 			FString Url = FString::Printf(TEXT("ws://127.0.0.1:%d"), Port);
+			if(Mode == EMode::CreateOffers)
+			{
+				Url += "/?OfferToReceive=true";
+			}
 			SignallingServerConnection->TryConnect(Url);
 		}
 
@@ -159,6 +163,10 @@ namespace UE::PixelStreaming
 					[](const FString& Error) {
 					});
 			}
+			else if (Mode == EMode::AcceptOffers)
+			{
+				SignallingServerConnection->RequestStreamerList();
+			}
 		}
 
 		virtual void OnSignallingSessionDescription(webrtc::SdpType Type, const FString& Sdp) override
@@ -200,7 +208,15 @@ namespace UE::PixelStreaming
 		virtual void OnSignallingPlayerConnected(FPixelStreamingPlayerId PlayerId, const FPixelStreamingPlayerConfig& PlayerConfig, bool bSendOffer) override {}
 		virtual void OnSignallingPlayerDisconnected(FPixelStreamingPlayerId PlayerId) override {}
 		virtual void OnSignallingSFUPeerDataChannels(FPixelStreamingPlayerId SFUId, FPixelStreamingPlayerId PlayerId, int32 SendStreamId, int32 RecvStreamId) override {}
-		virtual void OnSignallingStreamerList(const TArray<FString>& StreamerList) override {}
+		virtual void OnSignallingStreamerList(const TArray<FString>& StreamerList) override 
+		{
+			if(StreamerList.Num() != 1)
+			{
+				UE_LOG(LogPixelStreaming, Error, TEXT("Invalid number streamers connected (%d). Expected just one!"), StreamerList.Num());
+			}
+
+			SignallingServerConnection->SendSubscribe(StreamerList[0]);
+		}
 		virtual void OnPlayerRequestsBitrate(FPixelStreamingPlayerId PlayerId, int MinBitrate, int MaxBitrate) override {}
 
 		DECLARE_MULTICAST_DELEGATE(FOnConnectionEstablished);

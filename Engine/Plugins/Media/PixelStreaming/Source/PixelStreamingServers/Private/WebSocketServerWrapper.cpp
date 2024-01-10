@@ -18,6 +18,7 @@ namespace UE::PixelStreamingServers
 		: Id(IdGenerator.Increment())
 		, SocketConnection(InSocketConnection)
 	{
+		UrlArgs = SocketConnection->GetUrlArgs();
 	}
 
 	FWebSocketConnection::~FWebSocketConnection()
@@ -32,6 +33,11 @@ namespace UE::PixelStreamingServers
 	uint16 FWebSocketConnection::GetId() const
 	{
 		return Id;
+	}
+
+	TArray<FString> FWebSocketConnection::GetUrlArgs() const
+	{
+		return UrlArgs;
 	}
 
 	bool FWebSocketConnection::Send(FString Message) const

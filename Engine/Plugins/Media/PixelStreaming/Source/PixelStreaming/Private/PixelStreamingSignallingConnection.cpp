@@ -98,6 +98,7 @@ void FPixelStreamingSignallingConnection::Connect(FString InUrl, bool bIsReconne
 	}
 
 	WebSocket->Connect();
+	bIsConnected = true;
 }
 
 void FPixelStreamingSignallingConnection::TryConnect(FString InUrl)
@@ -113,7 +114,7 @@ void FPixelStreamingSignallingConnection::Disconnect()
 		StopReconnectTimer();
 	}
 
-	if (!WebSocket)
+	if (!WebSocket || !bIsConnected)
 	{
 		return;
 	}
@@ -126,6 +127,8 @@ void FPixelStreamingSignallingConnection::Disconnect()
 
 	WebSocket->Close();
 	UE_LOG(LogPixelStreamingSS, Log, TEXT("Closing websocket to SS %s"), *Url);
+
+	bIsConnected = false;
 }
 
 bool FPixelStreamingSignallingConnection::IsConnected() const

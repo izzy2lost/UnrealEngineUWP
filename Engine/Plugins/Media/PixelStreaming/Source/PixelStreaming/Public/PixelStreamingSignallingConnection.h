@@ -94,6 +94,7 @@ private:
 
 	bool bAutoReconnectEnabled = true;
 	bool bKeepAliveEnabled = true;
+	bool bIsConnected = false;
 	/** Handle for efficient management of KeepAlive timer */
 	FTimerHandle TimerHandle_KeepAlive;
 	FTimerHandle TimerHandle_Reconnect;

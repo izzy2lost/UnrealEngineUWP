@@ -212,12 +212,17 @@ namespace UE::PixelStreamingServers
 			UnsubscribePlayer(PlayerConnectionId);
 		}
 
+		// We don't want to make the connections shared to prevent someone accidentally holding on to it. So we use it raw here
+		FWebSocketConnection* PlayerWS = (*PlayersWS->GetConnections().Find(PlayerConnectionId)).Get();
+		bool bUESendsOffer = !PlayerWS->GetUrlArgs().Contains(TEXT("OfferToReceive=true"));
+
 		// Send "playerConnected" message to streamer which kicks off making a new RTC connection
 		TSharedRef<FJsonObject> OnPlayerConnectedJSON = MakeShared<FJsonObject>();
 		OnPlayerConnectedJSON->SetStringField("type", "playerConnected");
 		OnPlayerConnectedJSON->SetStringField("playerId", FString::FromInt(PlayerConnectionId));
 		OnPlayerConnectedJSON->SetBoolField("dataChannel", true);
 		OnPlayerConnectedJSON->SetBoolField("sfu", false);
+		OnPlayerConnectedJSON->SetBoolField("sendOffer", bUESendsOffer);
 		SendStreamerMessage(StreamerConnectionId, OnPlayerConnectedJSON);
 
 		PlayerSubscriptions.Add(PlayerConnectionId, StreamerConnectionId);
@@ -350,12 +355,22 @@ namespace UE::PixelStreamingServers
 		}
 		else
 		{
-			if (PlayerSubscriptions.Contains(ConnectionId))
+			if (!PlayerSubscriptions.Contains(ConnectionId))
 			{
-				// Add player id to any messages going to streamer so streamer knows who sent it
-				JSONObj->SetStringField(TEXT("playerId"), FString::FromInt(ConnectionId));
-				SendStreamerMessage(PlayerSubscriptions[ConnectionId], JSONObj);
+				TArray<FString> StreamerConnections = StreamersWS->GetConnectionNames();
+				if(StreamerConnections.Num() == 0)
+				{
+					UE_LOG(LogPixelStreamingServers, Error, TEXT("Player %d sent a message, but no streamers were connected"), ConnectionId);
+					return;
+				}
+
+				UE_LOG(LogPixelStreamingServers, Log, TEXT("Player %d attempted to send an outgoing message without having subscribed first. Defaulting to %s"), ConnectionId, *StreamerConnections[0]);
+				SubscribePlayer(ConnectionId, StreamerConnections[0]);
 			}
+
+			// Add player id to any messages going to streamer so streamer knows who sent it
+			JSONObj->SetStringField(TEXT("playerId"), FString::FromInt(ConnectionId));
+			SendStreamerMessage(PlayerSubscriptions[ConnectionId], JSONObj);
 		}
 	}
 
@@ -366,16 +381,6 @@ namespace UE::PixelStreamingServers
 		{
 			StreamersWS->NameConnection(ConnectionId, StreamerName);
 			StreamersWS->RemoveName(LEGACY_NAME);
-
-			// subscribe any unsubscribed players to this new streamer
-			for (auto& ConnectionPair : PlayersWS->GetConnections())
-			{
-				const uint16 PlayerConnectionId = ConnectionPair.Key;
-				if (!PlayerSubscriptions.Contains(PlayerConnectionId))
-				{
-					SubscribePlayer(PlayerConnectionId, StreamerName);
-				}
-			}
 		}
 	}
 
