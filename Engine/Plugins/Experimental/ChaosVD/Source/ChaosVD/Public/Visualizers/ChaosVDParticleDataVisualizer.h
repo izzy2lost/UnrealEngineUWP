@@ -18,6 +18,7 @@ enum class EChaosVDParticleDataVisualizationFlags : uint32
 	AngularAcceleration = 1 << 3,
 	LinearImpulse		= 1 << 4,
 	AngularImpulse		= 1 << 5,
+	ClusterConnectivityEdge	= 1 << 6,
 };
 ENUM_CLASS_FLAGS(EChaosVDParticleDataVisualizationFlags);
 

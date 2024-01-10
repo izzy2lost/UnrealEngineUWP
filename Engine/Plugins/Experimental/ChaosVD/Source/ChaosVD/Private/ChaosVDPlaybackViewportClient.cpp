@@ -18,6 +18,7 @@
 #include "UnrealWidget.h"
 #include "Actors/ChaosVDSolverInfoActor.h"
 #include "Components/ChaosVDSolverCollisionDataComponent.h"
+#include "Components/InstancedStaticMeshComponent.h"
 #include "Visualizers/ChaosVDDebugDrawUtils.h"
 #include "Widgets/SChaosVDMainTab.h"
 
@@ -32,8 +33,10 @@ FChaosVDPlaybackViewportClient::FChaosVDPlaybackViewportClient(const TSharedPtr<
 
 	if (UChaosVDEditorSettings* Settings = GetMutableDefault<UChaosVDEditorSettings>())
 	{
-		OverrideFarClipPlane(Settings->FarClippingOverride);
-		Settings->OnFarClippingOverrideChanged().AddRaw(this, &FChaosVDPlaybackViewportClient::HandleFarClippingOverrideSettingsChanged);
+		Settings->OnFarClippingOverrideChanged().AddRaw(this, &FChaosVDPlaybackViewportClient::HandleViewportSettingsChanged);
+		Settings->OnVisibilitySettingsChanged().AddRaw(this, &FChaosVDPlaybackViewportClient::HandleViewportSettingsChanged);
+
+		HandleViewportSettingsChanged(Settings);
 	}
 }
 
@@ -55,6 +58,7 @@ FChaosVDPlaybackViewportClient::~FChaosVDPlaybackViewportClient()
 	if (UChaosVDEditorSettings* Settings = GetMutableDefault<UChaosVDEditorSettings>())
 	{
 		Settings->OnFarClippingOverrideChanged().RemoveAll(this);
+		Settings->OnVisibilitySettingsChanged().RemoveAll(this);
 	}
 }
 
@@ -87,6 +91,32 @@ void FChaosVDPlaybackViewportClient::ProcessClick(FSceneView& View, HHitProxy* H
 			// but passing a null hitproxy when the hit proxy was not a component
 			// It allow us to handle things like clear selection on the Collision Data Visualizer
 			bClickHandled = Visualizer->VisProxyHandleClick(this, ComponentVisProxy, Click);
+		}
+
+		const IChaosVDGeometryComponent* AsCVDGeometryComponent = nullptr;
+		int32 MeshInstanceIndex = INDEX_NONE;
+
+		if (const HInstancedStaticMeshInstance* InstancedStaticMeshProxy = HitProxyCast<HInstancedStaticMeshInstance>(HitProxy))
+		{
+			AsCVDGeometryComponent = Cast<IChaosVDGeometryComponent>(InstancedStaticMeshProxy->Component);
+			MeshInstanceIndex = InstancedStaticMeshProxy->InstanceIndex;
+		}
+		else if (const HActor* ActorHitProxy = HitProxyCast<HActor>(HitProxy))
+		{
+			AsCVDGeometryComponent = Cast<IChaosVDGeometryComponent>(ActorHitProxy->PrimComponent.Get());
+			MeshInstanceIndex = 0;
+		}
+
+		if (AsCVDGeometryComponent && MeshInstanceIndex != INDEX_NONE)
+		{
+			if (const TSharedPtr<FChaosVDMeshDataInstanceHandle> MeshDataHandle = AsCVDGeometryComponent->GetMeshDataInstanceHandle(MeshInstanceIndex))
+			{
+				if (AChaosVDParticleActor* ClickedActor = ScenePtr->GetParticleActor(MeshDataHandle->GetOwningSolverID(), MeshDataHandle->GetOwningParticleID()))
+				{
+					ScenePtr->SetSelectedObject(ClickedActor);
+					bClickHandled = true;
+				}
+			}
 		}
 
 		if (bClickHandled)
@@ -138,11 +168,13 @@ void FChaosVDPlaybackViewportClient::HandleActorMoving(AActor* MovedActor) const
 	}
 }
 
-void FChaosVDPlaybackViewportClient::HandleFarClippingOverrideSettingsChanged(UChaosVDEditorSettings* SettingsObject)
+void FChaosVDPlaybackViewportClient::HandleViewportSettingsChanged(UChaosVDEditorSettings* SettingsObject)
 {
 	if (SettingsObject)
 	{
 		OverrideFarClipPlane(SettingsObject->FarClippingOverride);
+		EngineShowFlags.SetMeshEdges(EnumHasAnyFlags(static_cast<EChaosVDGeometryVisibilityFlags>(SettingsObject->GeometryVisibilityFlags), EChaosVDGeometryVisibilityFlags::ShowTriangleEdges));
+		Invalidate();
 	}
 }
 

@@ -8,7 +8,7 @@
 
 /** CVD version of a Static Mesh Component that holds additional CVD data */
 UCLASS(HideCategories=("Transform"), MinimalAPI)
-class UChaosVDStaticMeshComponent : public UStaticMeshComponent, public IChaosVDGeometryDataComponent, public FChaosVDGeometryDataComponentBase
+class UChaosVDStaticMeshComponent : public UStaticMeshComponent, public IChaosVDGeometryComponent
 {
 	GENERATED_BODY()
 
@@ -21,11 +21,6 @@ public:
 	}
 
 	// BEGIN IChaosVDGeometryDataComponent Interface
-	virtual FChaosVDShapeCollisionData* GetCollisionData() override { return &CollisionData; }
-	
-	virtual uint32 GetGeometryID() const override { return GeometryID; }
-	
-	virtual void  SetGeometryID(uint32 ID) override { GeometryID = ID; }
 
 	virtual bool IsMeshReady() const override { return bIsMeshReady; }
 	
@@ -33,19 +28,43 @@ public:
 
 	virtual FChaosVDMeshReadyDelegate* OnMeshReady() override { return &MeshReadyDelegate; }
 	
-	virtual void SetRootImplicitObject(const Chaos::FConstImplicitObjectPtr& InImplicitObject) override;
-	
-	virtual void UpdateVisibility() override;
-	
-	virtual void UpdateDataFromShapeArray(const TArray<FChaosVDShapeCollisionData>& InShapeArray) override;
+	virtual FChaosVDMeshComponentEmptyDelegate* OnComponentEmpty() override { return &ComponentEmptyDelegate; }
 
-	virtual void SetImplicitObject(const Chaos::FImplicitObject* InImplicitObject) override;
+	virtual uint32 GetGeometryKey() const override;
+	virtual void UpdateInstanceVisibility(const TSharedPtr<FChaosVDMeshDataInstanceHandle>& InInstanceHandle, bool bIsVisible) override;
+
+	virtual void SetIsSelected(const TSharedPtr<FChaosVDMeshDataInstanceHandle>& InInstanceHandle, bool bIsSelected) override;
+
+	virtual bool ShouldRenderSelected() const override;
 	
-	virtual void UpdateColors() override;
+	virtual void UpdateInstanceColor(const TSharedPtr<FChaosVDMeshDataInstanceHandle>& InInstanceHandle, FLinearColor NewColor) override;
+	virtual void UpdateInstanceWorldTransform(const TSharedPtr<FChaosVDMeshDataInstanceHandle>& InInstanceHandle, const FTransform& InTransform) override;
+
+	virtual void SetMeshComponentAttributeFlags(EChaosVDMeshAttributesFlags Flags) override { MeshComponentAttributeFlags = static_cast<uint8>(Flags); }
+	virtual EChaosVDMeshAttributesFlags GetMeshComponentAttributeFlags() const override {return static_cast<EChaosVDMeshAttributesFlags>(MeshComponentAttributeFlags); };
+
+	virtual TSharedPtr<FChaosVDMeshDataInstanceHandle> GetMeshDataInstanceHandle(int32 InstanceIndex) const override;
+	virtual TArrayView<TSharedPtr<FChaosVDMeshDataInstanceHandle>> GetMeshDataInstanceHandles() override;
+
+	virtual void Reset() override;
+
+	virtual TSharedPtr<FChaosVDMeshDataInstanceHandle> AddMeshInstance(const FTransform InstanceTransform, bool bIsWorldSpace, const TSharedPtr<FChaosVDExtractedGeometryDataHandle>& InGeometryHandle, int32 ParticleID, int32 SolverID) override;
+	virtual void AddMeshInstanceForHandle(TSharedPtr<FChaosVDMeshDataInstanceHandle> MeshDataHandle, const FTransform InstanceTransform, bool bIsWorldSpace, const TSharedPtr<FChaosVDExtractedGeometryDataHandle>& InGeometryHandle, int32 ParticleID, int32 SolverID) override;
+	virtual void RemoveMeshInstance(TSharedPtr<FChaosVDMeshDataInstanceHandle> InHandleToRemove) override;
 	// END IChaosVDGeometryDataComponent Interface
 
 protected:
-	
-	UPROPERTY(VisibleAnywhere, Category="Geometry Data", meta=(FullyExpand = true))
-	FChaosVDShapeCollisionData CollisionData;
+
+	bool UpdateGeometryKey(uint32 NewHandleGeometryKey);
+
+	uint8 MeshComponentAttributeFlags = 0;
+	uint8 CurrentGeometryKey = 0;
+	bool bIsMeshReady = false;
+	bool bIsOwningParticleSelected = false;
+	FChaosVDMeshReadyDelegate MeshReadyDelegate;
+	FChaosVDMeshComponentEmptyDelegate ComponentEmptyDelegate;
+
+	TSharedPtr<FChaosVDMeshDataInstanceHandle> CurrentMeshDataHandle = nullptr;
+
+	TSharedPtr<FChaosVDExtractedGeometryDataHandle> CurrentGeometryHandle = nullptr;
 };

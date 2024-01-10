@@ -148,6 +148,27 @@ void FChaosVDDebugDrawUtils::DrawBox(FPrimitiveDrawInterface* PDI, const FVector
 	}
 }
 
+void FChaosVDDebugDrawUtils::DrawLine(FPrimitiveDrawInterface* PDI, const FVector& InStartPosition, const FVector& InEndPosition, const FColor& InColor, FStringView DebugText, ESceneDepthPriorityGroup DepthPriority)
+{
+	if (!PDI)
+	{
+		return;
+	}
+
+	constexpr float Thickness = 2.0f;
+	constexpr float DepthBias = 0;
+	constexpr bool bScreenSpace = Thickness > 0;
+
+	PDI->DrawLine(InStartPosition, InEndPosition, InColor, DepthPriority, Thickness, DepthBias, bScreenSpace);
+
+	if (!DebugText.IsEmpty())
+	{
+		// Draw the text in the middle of the line
+		const FVector TextWorldPosition = InStartPosition + ((InEndPosition - InStartPosition)  * 0.5f);
+		DrawText(DebugText, TextWorldPosition, InColor);
+	}
+}
+
 void FChaosVDDebugDrawUtils::DrawCanvas(FViewport& InViewport, FSceneView& View, FCanvas& Canvas)
 {
 	if (!GEngine)

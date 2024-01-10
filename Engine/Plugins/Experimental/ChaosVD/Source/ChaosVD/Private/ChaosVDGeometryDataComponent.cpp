@@ -6,207 +6,153 @@
 #include "ChaosVDGeometryBuilder.h"
 #include "ChaosVDModule.h"
 #include "ChaosVDParticleActor.h"
-#include "ChaosVDScene.h"
 #include "Components/MeshComponent.h"
-#include "MaterialDomain.h"
 #include "Materials/Material.h"
 #include "Materials/MaterialInterface.h"
 #include "Materials/MaterialInstanceDynamic.h"
 
-void FChaosVDGeometryDataComponentBase::UpdateVisibility_Internal(const FChaosVDShapeCollisionData& InCollisionData, UMeshComponent* MeshComponent)
+FChaosVDMeshDataInstanceHandle::FChaosVDMeshDataInstanceHandle(int32 InInstanceIndex, UMeshComponent* InMeshComponent, int32 InParticleID, int32 InSolverID)
 {
-	if (!InCollisionData.bIsValid)
+	MeshComponent = InMeshComponent;
+	MeshInstanceIndex = InInstanceIndex;
+	OwningParticleID = InParticleID;
+	OwningSolverID = InSolverID;
+
+	if (Cast<UInstancedStaticMeshComponent>(MeshComponent))
 	{
-		return;
+		MeshComponentType = EChaosVDMeshComponent::InstancedStatic;
 	}
-
-	if (MeshComponent)
+	else if (Cast<UStaticMeshComponent>(MeshComponent))
 	{
-		if (const UChaosVDEditorSettings* EditorSettings = GetDefault<UChaosVDEditorSettings>())
-		{
-			const EChaosVDGeometryVisibilityFlags CurrentVisibilityFlags = static_cast<EChaosVDGeometryVisibilityFlags>(EditorSettings->GeometryVisibilityFlags);
-			
-			bool bShouldGeometryBeVisible = false;
-
-			if (!EnumHasAnyFlags(CurrentVisibilityFlags, EChaosVDGeometryVisibilityFlags::ShowDisabledParticles))
-			{
-				//TODO: We should use IChaosVDParticleVisualizationDataProvider instead, which AChaosVDParticleActor implements already
-				// but it is not an uinterface
-				if (AChaosVDParticleActor* ParticleActor = Cast<AChaosVDParticleActor>(MeshComponent->GetOwner()))
-				{
-					if (const FChaosVDParticleDataWrapper* ParticleData = ParticleActor->GetParticleData())
-					{
-						if (ParticleData->ParticleDynamicsMisc.HasValidData() && ParticleData->ParticleDynamicsMisc.bDisabled)
-						{
-							MeshComponent->SetVisibility(bShouldGeometryBeVisible);
-							return;
-						}
-					}
-				}
-			}
-
-			// TODO: Re-visit the way we determine visibility of the meshes.
-			// Now that the options have grown and they will continue to do so, these checks are becoming hard to read and extend
-
-			const bool bIsHeightfield = GetImplicitObject() && Chaos::GetInnerType(GetImplicitObject()->GetType()) == Chaos::ImplicitObjectType::HeightField;
-
-			if (bIsHeightfield && EnumHasAnyFlags(CurrentVisibilityFlags, EChaosVDGeometryVisibilityFlags::ShowHeightfields))
-			{
-				bShouldGeometryBeVisible = true;
-			}
-			else
-			{
-				// Complex vs Simple takes priority although this is subject to change
-				const bool bShouldBeVisibleIfComplex = InCollisionData.bIsComplex && EnumHasAnyFlags(CurrentVisibilityFlags, EChaosVDGeometryVisibilityFlags::Complex);
-				const bool bShouldBeVisibleIfSimple = !InCollisionData.bIsComplex && EnumHasAnyFlags(CurrentVisibilityFlags, EChaosVDGeometryVisibilityFlags::Simple);
-			
-				if (bShouldBeVisibleIfComplex || bShouldBeVisibleIfSimple)
-				{
-					bShouldGeometryBeVisible = (InCollisionData.bSimCollision && EnumHasAnyFlags(CurrentVisibilityFlags, EChaosVDGeometryVisibilityFlags::Simulated))
-					|| (InCollisionData.bQueryCollision && EnumHasAnyFlags(CurrentVisibilityFlags, EChaosVDGeometryVisibilityFlags::Query));
-				}
-			}
-
-			MeshComponent->SetVisibility(bShouldGeometryBeVisible);
-		}
+		MeshComponentType = EChaosVDMeshComponent::Static;
+	}
+	else
+	{
+		MeshComponentType = EChaosVDMeshComponent::Dynamic;
 	}
 }
 
-void FChaosVDGeometryDataComponentBase::UpdateDataFromShapeArray_Internal(const TArray<FChaosVDShapeCollisionData>& InShapeArray, FChaosVDShapeCollisionData& CollisionDataToUpdate, UMeshComponent* MeshComponent)
+void FChaosVDMeshDataInstanceHandle::SetWorldTransform(const FTransform& InTransform)
 {
-	if (!ensureMsgf(RootImplicitObject.IsValid(), TEXT("Tried to Update Collision Data without a valid Implicit Object")))
+	if (!ExtractedGeometryHandle)
 	{
+		UE_LOG(LogChaosVDEditor, Error, TEXT("[%s] Attempted to update the world transform without a valid geometry handle"), ANSI_TO_TCHAR(__FUNCTION__));
 		return;
 	}
 
-	RootImplicitObject.GetReference()->VisitObjects([this, &CollisionDataToUpdate, &InShapeArray] (const Chaos::FImplicitObject* ImplicitA, const Chaos::FRigidTransform3& RelativeTransformA, const int32 RootObjectIndexA, const int32 ObjectIndex, const int32 LeafObjectIndexA)
-	{
-		if (!InShapeArray.IsValidIndex(LeafObjectIndexA))
-		{
-			return true;
-		}
+	const FTransform ExtractedRelativeTransform = ExtractedGeometryHandle->GetRelativeTransform();
 
-		if (ImplicitA == ImplicitObject)
-		{
-			CollisionDataToUpdate = InShapeArray[LeafObjectIndexA];
-			CollisionDataToUpdate.bIsComplex = FChaosVDGeometryBuilder::DoesImplicitContainType(ImplicitA, Chaos::ImplicitObjectType::HeightField) || FChaosVDGeometryBuilder::DoesImplicitContainType(ImplicitA, Chaos::ImplicitObjectType::TriangleMesh);
-			CollisionDataToUpdate.bIsValid = true;
-		}
-
-		return true;
-	});
-
-	// If our collision data was successfully updated and we have a valid mesh component, set the correct material
-	if (CollisionDataToUpdate.bIsValid && MeshComponent)
-	{
-		if (const UChaosVDEditorSettings* EditorSettings = GetDefault<UChaosVDEditorSettings>())
-		{
-			const bool bIsQueryOnly = CollisionDataToUpdate.bQueryCollision && !CollisionDataToUpdate.bSimCollision;
-
-			UMaterialInterface* MaterialToApply = bIsQueryOnly ? GetCachedMaterialInstance(EChaosVDMaterialType::QueryOnlyMaterial) : GetCachedMaterialInstance(EChaosVDMaterialType::SimOnlyMaterial);
-
-			if (MaterialToApply)
-			{
-				MeshComponent->SetMaterial(0, MaterialToApply);
-			}
-			else
-			{
-				ensure(false);
-				UE_LOG(LogChaosVDEditor, Error, TEXT("[%s] Failed to get Query Only material for, applying the default mesh to all geometry"), ANSI_TO_TCHAR(__FUNCTION__));
-				
-				MeshComponent->SetMaterial(0, UMaterial::GetDefaultMaterial(EMaterialDomain::MD_Surface));
-			}
-		}
-	}
-}
-
-void FChaosVDGeometryDataComponentBase::UpdateColors_Internal(UMeshComponent* MeshComponent)
-{
-	if (!MeshComponent)
-	{
-		return;
-	}
-
-	//TODO: Remove this direct dependency to AChaosVDParticleACtor
-	AChaosVDParticleActor* ParticleActor = Cast<AChaosVDParticleActor>(MeshComponent->GetOwner());
-	if (!ParticleActor)
-	{
-		return;
-	}
-
-	const FChaosVDParticleDataWrapper* ParticleData = ParticleActor->GetParticleData();
-	if (!ParticleData)
-	{
-		return;
-	}
-
-	const UChaosVDEditorSettings* EditorSettings = GetDefault<UChaosVDEditorSettings>();
-	if (!EditorSettings)
-	{
-		return;
-	}
-
-	constexpr FLinearColor DefaultColor(0.088542f, 0.088542f, 0.088542f);
-	FLinearColor ColorToApply = DefaultColor;
-
-	switch(EditorSettings->ParticleColorMode)
-	{
-		case EChaosVDParticleDebugColorMode::ShapeType:
-			{
-				ColorToApply = GetImplicitObject() ? EditorSettings->ColorsByShapeType.GetColorFromShapeType(Chaos::GetInnerType(GetImplicitObject()->GetType())) : DefaultColor;
-				break;
-			}
-		case EChaosVDParticleDebugColorMode::State:
-			{
-				if (ParticleData->Type == EChaosVDParticleType::Static)
-				{
-					ColorToApply = EditorSettings->ColorsByParticleState.GetColorFromState(EChaosVDObjectStateType::Static);
-				}
-				else
-				{
-					ColorToApply = EditorSettings->ColorsByParticleState.GetColorFromState(ParticleData->ParticleDynamicsMisc.MObjectState);
-				}
-				break;
-			}
-		case EChaosVDParticleDebugColorMode::ClientServer:
-			{
-				const TSharedPtr<FChaosVDScene> Scene = ParticleActor->GetScene().Pin();
-				const bool bIsServer = (Scene.IsValid()) ? Scene->IsSolverForServer(ParticleData->SolverID) : false;
-				if (ParticleData->Type == EChaosVDParticleType::Static)
-				{
-					ColorToApply = EditorSettings->ColorsByClientServer.GetColorFromState(bIsServer, EChaosVDObjectStateType::Static);
-				}
-				else
-				{
-					ColorToApply = EditorSettings->ColorsByClientServer.GetColorFromState(bIsServer, ParticleData->ParticleDynamicsMisc.MObjectState);
-				}
-				break;
-			}
-
-		case EChaosVDParticleDebugColorMode::None:
-		default:
-			// Nothing to do here. Color to apply is already set to the default
-			break;
-	}
-
-	if (CurrentGeometryColor == ColorToApply)
-	{
-		return;
-	}
+	CurrentWorldTransform.SetLocation(InTransform.TransformPosition(ExtractedRelativeTransform.GetLocation()));
+	CurrentWorldTransform.SetRotation(InTransform.TransformRotation(ExtractedRelativeTransform.GetRotation()));
+	CurrentWorldTransform.SetScale3D(ExtractedGeometryHandle->GetRelativeTransform().GetScale3D());
 	
-	if (UMaterialInstanceDynamic* DynamicMaterial = Cast<UMaterialInstanceDynamic>(MeshComponent->GetMaterial(0)))
+	if (IChaosVDGeometryComponent* CVDGeometryComponent = Cast<IChaosVDGeometryComponent>(GetMeshComponent()))
 	{
-		DynamicMaterial->SetVectorParameterValue(TEXT("BaseColor"), ColorToApply);
-		CurrentGeometryColor = ColorToApply;
+		CVDGeometryComponent->UpdateInstanceWorldTransform(AsShared(), CurrentWorldTransform);
 	}
 }
 
-void FChaosVDGeometryDataComponentBase::SetImplicitObject_Internal(const Chaos::FImplicitObject* InImplicitObject)
+void FChaosVDMeshDataInstanceHandle::SetInstanceColor(const FLinearColor& NewColor)
 {
-	ImplicitObject = InImplicitObject;
+	if (CurrentGeometryColor != NewColor)
+	{
+		if (IChaosVDGeometryComponent* CVDGeometryComponent = Cast<IChaosVDGeometryComponent>(GetMeshComponent()))
+		{
+			CVDGeometryComponent->UpdateInstanceColor(AsShared(), NewColor);
+			CurrentGeometryColor = NewColor;
+		}
+	}
 }
 
-UMaterialInstanceDynamic* FChaosVDGeometryDataComponentBase::GetCachedMaterialInstance(EChaosVDMaterialType Type)
+void FChaosVDMeshDataInstanceHandle::UpdateMeshComponentForCollisionData(const FChaosVDShapeCollisionData& InCollisionData)
+{
+	if (InCollisionData.bIsValid && CollisionData != InCollisionData)
+	{
+		if (const TSharedPtr<FChaosVDGeometryBuilder> GeometryBuilderPtr = GeometryBuilderInstance.Pin())
+		{
+			EChaosVDMeshAttributesFlags RequiredMeshAttributes = EChaosVDMeshAttributesFlags::None;
+
+			// If this is a query only type of geometry, we need a translucent mesh
+			if (InCollisionData.bQueryCollision && !InCollisionData.bSimCollision)
+			{
+				EnumAddFlags(RequiredMeshAttributes, EChaosVDMeshAttributesFlags::TranslucentGeometry);
+			}
+
+			// Mirrored geometry needs to be on a instanced mesh component with reversed culling
+			if (GeometryBuilderPtr->HasNegativeScale(ExtractedGeometryHandle->GetRelativeTransform()))
+			{
+				EnumAddFlags(RequiredMeshAttributes, EChaosVDMeshAttributesFlags::MirroredGeometry);
+			}
+
+			// If the current mesh component does not meet the required mesh attributes, we need to move to a new mesh component that it does
+			bool bMeshComponentWasUpdated = false;
+			if (IChaosVDGeometryComponent* CVDOldGeometryComponent = Cast<IChaosVDGeometryComponent>(GetMeshComponent()))
+			{
+				if (RequiredMeshAttributes != CVDOldGeometryComponent->GetMeshComponentAttributeFlags())
+				{
+					CVDOldGeometryComponent->RemoveMeshInstance(AsShared());
+
+					if (bIsSelected)
+					{
+						CVDOldGeometryComponent->SetIsSelected(AsShared(), false);
+					}
+
+					GeometryBuilderPtr->UpdateMeshDataInstance<UChaosVDInstancedStaticMeshComponent>(AsShared(), RequiredMeshAttributes);
+
+					bMeshComponentWasUpdated = true;
+				}
+			}
+
+			if (bMeshComponentWasUpdated)
+			{
+				if (IChaosVDGeometryComponent* CVDNewGeometryComponent = Cast<IChaosVDGeometryComponent>(GetMeshComponent()))
+				{
+					if (CurrentGeometryColor != FLinearColor(ForceInitToZero))
+					{
+						CVDNewGeometryComponent->UpdateInstanceColor(AsShared(), CurrentGeometryColor);
+					}
+						
+					CVDNewGeometryComponent->UpdateInstanceVisibility(AsShared(), bIsVisible);
+					CVDNewGeometryComponent->SetIsSelected(AsShared(), bIsSelected);
+				}
+			}
+		}
+	}
+}
+
+void FChaosVDMeshDataInstanceHandle::SetGeometryCollisionData(const FChaosVDShapeCollisionData& InCollisionData)
+{
+	// If this is a static mesh component, we can't just update change the material. We need to remove this instance from the current component and move it to a
+	// component that has the correct translucent mesh
+	if (GetMeshComponentType() == EChaosVDMeshComponent::InstancedStatic)
+	{
+		UpdateMeshComponentForCollisionData(InCollisionData);
+	}
+
+	CollisionData = InCollisionData;
+}
+
+void FChaosVDMeshDataInstanceHandle::SetIsSelected(bool bInIsSelected)
+{
+	if (IChaosVDGeometryComponent* CVDGeometryComponent = Cast<IChaosVDGeometryComponent>(GetMeshComponent()))
+	{
+		CVDGeometryComponent->SetIsSelected(AsShared(), bInIsSelected);
+	}
+
+	bIsSelected = bInIsSelected;
+}
+
+void FChaosVDMeshDataInstanceHandle::SetVisibility(bool bInIsVisible)
+{
+	if (IChaosVDGeometryComponent* CVDGeometryComponent = Cast<IChaosVDGeometryComponent>(GetMeshComponent()))
+	{
+		CVDGeometryComponent->UpdateInstanceVisibility(AsShared(), bInIsVisible);
+	}
+
+	bIsVisible = bInIsVisible;
+}
+
+UMaterialInstanceDynamic* FChaosVDMeshDataInstanceHandle::GetCachedMaterialInstance(EChaosVDMaterialType Type)
 {
 	const UChaosVDEditorSettings* EditorSettings = GetDefault<UChaosVDEditorSettings>();
 	if (!EditorSettings)
@@ -223,16 +169,26 @@ UMaterialInstanceDynamic* FChaosVDGeometryDataComponentBase::GetCachedMaterialIn
 		UMaterialInterface* MaterialToCreate = nullptr;
 		switch(Type)
 		{
-			case EChaosVDMaterialType::QueryOnlyMaterial:
-				{
-					MaterialToCreate = EditorSettings->QueryOnlyMeshesMaterial.Get();
-					break;
-				}
-			case EChaosVDMaterialType::SimOnlyMaterial:
-				{
-					MaterialToCreate = EditorSettings->SimOnlyMeshesMaterial.Get();
-					break;
-				}
+		case EChaosVDMaterialType::QueryOnlyMaterial:
+			{
+				MaterialToCreate = EditorSettings->QueryOnlyMeshesMaterial.Get();
+				break;
+			}
+		case EChaosVDMaterialType::SimOnlyMaterial:
+			{
+				MaterialToCreate = EditorSettings->SimOnlyMeshesMaterial.Get();
+				break;
+			}
+		case EChaosVDMaterialType::Instanced:
+			{
+				MaterialToCreate = EditorSettings->InstancedMeshesMaterial.Get();
+				break;
+			}
+		case EChaosVDMaterialType::InstancedQueryOnly:
+			{
+				MaterialToCreate = EditorSettings->InstancedMeshesQueryOnlyMaterial.Get();
+				break;
+			}
 		}
 		
 		if (MaterialToCreate)
@@ -247,8 +203,198 @@ UMaterialInstanceDynamic* FChaosVDGeometryDataComponentBase::GetCachedMaterialIn
 	return nullptr;
 }
 
-const Chaos::FImplicitObject* FChaosVDGeometryDataComponentBase::GetImplicitObject() const
+void FChaosVDMeshDataInstanceHandle::HandleInstanceIndexUpdated(TArrayView<const FInstancedStaticMeshDelegates::FInstanceIndexUpdateData> InIndexUpdates)
 {
-	// If the root object is no longer valid, the implicit object ptr we have is probably garbage
-	return RootImplicitObject.IsValid() ? ImplicitObject : nullptr;
+	// When an index changes, we receive an array with all the indexes that were modified. We need to only act upon the update of for the index we are tracking in this handle
+	for (const FInstancedStaticMeshDelegates::FInstanceIndexUpdateData& IndexUpdateData : InIndexUpdates)
+	{
+		switch (IndexUpdateData.Type)
+		{
+			case FInstancedStaticMeshDelegates::EInstanceIndexUpdateType::Added:
+				break; // We don't need to process 'Added' updates as they can't affect existing IDs
+			case FInstancedStaticMeshDelegates::EInstanceIndexUpdateType::Relocated:
+				{
+					if (MeshInstanceIndex == IndexUpdateData.OldIndex)
+					{
+						MeshInstanceIndex = IndexUpdateData.Index;
+					}
+					break;
+				}
+
+			case FInstancedStaticMeshDelegates::EInstanceIndexUpdateType::Removed:
+			case FInstancedStaticMeshDelegates::EInstanceIndexUpdateType::Cleared:
+			case FInstancedStaticMeshDelegates::EInstanceIndexUpdateType::Destroyed:
+				{
+					if (MeshInstanceIndex == IndexUpdateData.Index)
+					{
+						MeshInstanceIndex = INDEX_NONE;
+					}
+					break;
+				}
+			default:
+				break;
+		}
+	}
+}
+
+void FChaosVDGeometryComponentUtils::UpdateCollisionDataFromShapeArray(const TArray<FChaosVDShapeCollisionData>& InShapeArray, const TSharedPtr<FChaosVDMeshDataInstanceHandle>& InInstanceHandle)
+{
+	if (!ensureMsgf(InInstanceHandle && InInstanceHandle->GetGeometryHandle() && InInstanceHandle->GetGeometryHandle()->GetRootImplicitObject(), TEXT("Tried to Update Collision Data without a valid Implicit Object")))
+	{
+		return;
+	}
+
+	FChaosVDShapeCollisionData CollisionDataToUpdate = InInstanceHandle->GetGeometryCollisionData();
+
+	InInstanceHandle->GetGeometryHandle()->GetRootImplicitObject()->VisitObjects([InInstanceHandle, &CollisionDataToUpdate, &InShapeArray] (const Chaos::FImplicitObject* ImplicitA, const Chaos::FRigidTransform3& RelativeTransformA, const int32 RootObjectIndexA, const int32 ObjectIndex, const int32 LeafObjectIndexA)
+	{
+		if (!InShapeArray.IsValidIndex(LeafObjectIndexA))
+		{
+			return true;
+		}
+
+		if (ImplicitA == InInstanceHandle->GetGeometryHandle()->GetImplicitObject())
+		{
+			
+			CollisionDataToUpdate = InShapeArray[LeafObjectIndexA];
+			CollisionDataToUpdate.bIsComplex = FChaosVDGeometryBuilder::DoesImplicitContainType(ImplicitA, Chaos::ImplicitObjectType::HeightField) || FChaosVDGeometryBuilder::DoesImplicitContainType(ImplicitA, Chaos::ImplicitObjectType::TriangleMesh);
+			CollisionDataToUpdate.bIsValid = true;
+		}
+
+		return true;
+	});
+
+	InInstanceHandle->SetGeometryCollisionData(CollisionDataToUpdate);
+}
+
+void FChaosVDGeometryComponentUtils::UpdateMeshColor(const TSharedPtr<FChaosVDMeshDataInstanceHandle>& InInstanceHandle, const FChaosVDParticleDataWrapper& InParticleData, bool bIsServer)
+{
+	const FChaosVDShapeCollisionData ShapeData = InInstanceHandle->GetGeometryCollisionData();
+	const bool bIsQueryOnly = ShapeData.bQueryCollision && !ShapeData.bSimCollision;
+
+	if (ShapeData.bIsValid)
+	{
+		FLinearColor ColorToApply = GetGeometryParticleColor(InInstanceHandle->GetGeometryHandle(), InParticleData, bIsServer);
+
+		constexpr float QueryOnlyShapeOpacity = 0.6f;
+		ColorToApply.A = bIsQueryOnly ? QueryOnlyShapeOpacity : 1.0f;
+
+		InInstanceHandle->SetInstanceColor(ColorToApply);
+	}
+}
+
+void FChaosVDGeometryComponentUtils::UpdateMeshVisibility(const TSharedPtr<FChaosVDMeshDataInstanceHandle>& InInstanceHandle, const FChaosVDParticleDataWrapper& InParticleData, bool bIsActive)
+{
+	if (!InInstanceHandle || !InInstanceHandle->GetGeometryHandle())
+	{
+		return;
+	}
+
+	if (!bIsActive)
+	{
+		InInstanceHandle->SetVisibility(bIsActive);
+		return;
+	}
+
+	if (const UChaosVDEditorSettings* EditorSettings = GetDefault<UChaosVDEditorSettings>())
+	{
+		const EChaosVDGeometryVisibilityFlags CurrentVisibilityFlags = static_cast<EChaosVDGeometryVisibilityFlags>(EditorSettings->GeometryVisibilityFlags);
+		
+		bool bShouldGeometryBeVisible = false;
+
+		if (!EnumHasAnyFlags(CurrentVisibilityFlags, EChaosVDGeometryVisibilityFlags::ShowDisabledParticles))
+		{
+			if (InParticleData.ParticleDynamicsMisc.HasValidData() && InParticleData.ParticleDynamicsMisc.bDisabled)
+			{
+				InInstanceHandle->SetVisibility(bShouldGeometryBeVisible);
+				return;
+			}
+		}
+
+		// TODO: Re-visit the way we determine visibility of the meshes.
+		// Now that the options have grown and they will continue to do so, these checks are becoming hard to read and extend
+
+		const bool bIsHeightfield = InInstanceHandle->GetGeometryHandle()->GetImplicitObject() && Chaos::GetInnerType(InInstanceHandle->GetGeometryHandle()->GetImplicitObject()->GetType()) == Chaos::ImplicitObjectType::HeightField;
+
+		if (bIsHeightfield && EnumHasAnyFlags(CurrentVisibilityFlags, EChaosVDGeometryVisibilityFlags::ShowHeightfields))
+		{
+			bShouldGeometryBeVisible = true;
+		}
+		else
+		{
+			const FChaosVDShapeCollisionData InstanceShapeData = InInstanceHandle->GetGeometryCollisionData();
+
+			if (InstanceShapeData.bIsValid)
+			{
+				// Complex vs Simple takes priority although this is subject to change
+				const bool bShouldBeVisibleIfComplex = InstanceShapeData.bIsComplex && EnumHasAnyFlags(CurrentVisibilityFlags, EChaosVDGeometryVisibilityFlags::Complex);
+				const bool bShouldBeVisibleIfSimple = !InstanceShapeData.bIsComplex && EnumHasAnyFlags(CurrentVisibilityFlags, EChaosVDGeometryVisibilityFlags::Simple);
+		
+				if (bShouldBeVisibleIfComplex || bShouldBeVisibleIfSimple)
+				{
+					bShouldGeometryBeVisible = (InstanceShapeData.bSimCollision && EnumHasAnyFlags(CurrentVisibilityFlags, EChaosVDGeometryVisibilityFlags::Simulated))
+					|| (InstanceShapeData.bQueryCollision && EnumHasAnyFlags(CurrentVisibilityFlags, EChaosVDGeometryVisibilityFlags::Query));
+				}
+			}
+		}
+
+		InInstanceHandle->SetVisibility(bShouldGeometryBeVisible);
+	}
+}
+
+FLinearColor FChaosVDGeometryComponentUtils::GetGeometryParticleColor(const TSharedPtr<FChaosVDExtractedGeometryDataHandle>& InGeometryHandle, const FChaosVDParticleDataWrapper& InParticleData, bool bIsServer)
+{
+	constexpr FLinearColor DefaultColor(0.088542f, 0.088542f, 0.088542f);
+	FLinearColor ColorToApply = DefaultColor;
+
+	if (!InGeometryHandle)
+	{
+		return ColorToApply;
+	}
+
+	const UChaosVDEditorSettings* EditorSettings = GetDefault<UChaosVDEditorSettings>();
+	if (!EditorSettings)
+	{
+		return ColorToApply;
+	}
+
+	switch (EditorSettings->ParticleColorMode)
+	{
+	case EChaosVDParticleDebugColorMode::ShapeType:
+		{
+			ColorToApply = InGeometryHandle->GetImplicitObject() ? EditorSettings->ColorsByShapeType.GetColorFromShapeType(Chaos::GetInnerType(InGeometryHandle->GetImplicitObject()->GetType())) : DefaultColor;
+			break;
+		}
+	case EChaosVDParticleDebugColorMode::State:
+		{
+			if (InParticleData.Type == EChaosVDParticleType::Static)
+			{
+				ColorToApply = EditorSettings->ColorsByParticleState.GetColorFromState(EChaosVDObjectStateType::Static);
+			}
+			else
+			{
+				ColorToApply = EditorSettings->ColorsByParticleState.GetColorFromState(InParticleData.ParticleDynamicsMisc.MObjectState);
+			}
+			break;
+		}
+	case EChaosVDParticleDebugColorMode::ClientServer:
+		{
+			if (InParticleData.Type == EChaosVDParticleType::Static)
+			{
+				ColorToApply = EditorSettings->ColorsByClientServer.GetColorFromState(bIsServer, EChaosVDObjectStateType::Static);
+			}
+			else
+			{
+				ColorToApply = EditorSettings->ColorsByClientServer.GetColorFromState(bIsServer, InParticleData.ParticleDynamicsMisc.MObjectState);
+			}
+			break;
+		}
+
+	case EChaosVDParticleDebugColorMode::None:
+	default:
+		// Nothing to do here. Color to apply is already set to the default
+		break;
+	}
+
+	return ColorToApply;
 }

@@ -115,7 +115,7 @@ void SChaosVDCollisionDataInspector::SetCollisionDataProviderObjectToInspect(ICh
 		return;
 	}
 
-	CurrentObjectBeingInspectedName = CollisionDataProvider->GetName();
+	CurrentObjectBeingInspectedName = CollisionDataProvider->GetProviderName();
 
 	TArray<TSharedPtr<FName>> NewCollisionDataEntriesNameList;
 	TArray<TSharedPtr<FChaosVDCollisionDataFinder>> FoundCollisionData;

@@ -2,11 +2,14 @@
 
 #include "Widgets/SChaosVDDetailsView.h"
 
+#include "ChaosVDParticleActor.h"
 #include "GameFramework/Actor.h"
 #include "PropertyEditorModule.h"
 #include "SSubobjectInstanceEditor.h"
 #include "SSubobjectEditor.h"
 #include "SSubobjectEditorModule.h"
+#include "Visualizers/IChaosVDParticleVisualizationDataProvider.h"
+
 
 void SChaosVDDetailsView::Construct(const FArguments& InArgs)
 {
@@ -76,6 +79,7 @@ void SChaosVDDetailsView::SetSelectedObject(UObject* NewObject)
 	}
 
 	CurrentObjectInView = NewObject;
+
 	DetailsView->SetObject(NewObject, true);
 	SubobjectEditor->UpdateTree();
 }

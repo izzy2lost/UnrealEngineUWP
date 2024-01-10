@@ -38,5 +38,5 @@ public:
 	/**
 	 * Returns the name of the object providing the collision data
 	 */
-	virtual FName GetName() PURE_VIRTUAL(IChaosVDCollisionDataProviderInterface::HasCollisionData, return FName();)
+	virtual FName GetProviderName() PURE_VIRTUAL(IChaosVDCollisionDataProviderInterface::GetProviderName, return FName();)
 };

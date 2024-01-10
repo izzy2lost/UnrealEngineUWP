@@ -115,6 +115,8 @@ namespace Chaos
 
 				// Needed to update the shapes array.
 				SetGeometry(GeometryParticles->GetGeometry(ParticleIdx));
+
+				CVD_TRACE_INVALIDATE_CACHED_GEOMETRY(CurrentGeometry);
 			}
 		}
 	}
@@ -170,6 +172,8 @@ namespace Chaos
 					return;
 				}
 			}
+
+			CVD_TRACE_INVALIDATE_CACHED_GEOMETRY(CurrentGeometry);
 		}
 	}
 
@@ -192,6 +196,8 @@ namespace Chaos
 		GeometryParticles->RemoveShapesAtSortedIndices(ParticleIdx, InIndices);
 
 		Union->RemoveAtSortedIndices(InIndices);
+
+		CVD_TRACE_INVALIDATE_CACHED_GEOMETRY(CurrentGeometry);
 
 		// Needed to update the shapes array.
 		// @todo(chaos): is it though? Maybe for the bounds etc?

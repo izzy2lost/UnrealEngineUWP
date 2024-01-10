@@ -17,7 +17,7 @@ DECLARE_MULTICAST_DELEGATE_TwoParams(FChaosVDGeometryDataLoaded, const Chaos::FC
 struct FChaosVDStepData
 {
 	FString StepName;
-	TArray<FChaosVDParticleDataWrapper> RecordedParticlesData;
+	TArray<TSharedPtr<FChaosVDParticleDataWrapper>> RecordedParticlesData;
 	TArray<TSharedPtr<FChaosVDParticlePairMidPhase>> RecordedMidPhases;
 	TArray<FChaosVDConstraint> RecordedConstraints;
 	TMap<int32, TArray<FChaosVDConstraint>> RecordedConstraintsByParticleID;
@@ -283,6 +283,9 @@ protected:
 
 	/** True if this recording is being populated from a live session */
 	bool bIsLive = false;
+
+	/** Map that temporary holds generated particle data during the key frame generation process, keeping its memory allocation between generated frames*/
+	TMap<int32, TSharedPtr<FChaosVDParticleDataWrapper>> ParticlesOnCurrentGeneratedKeyframe;
 
 	friend class FChaosVDTraceProvider;
 	friend class FChaosVDTraceImplicitObjectProcessor;

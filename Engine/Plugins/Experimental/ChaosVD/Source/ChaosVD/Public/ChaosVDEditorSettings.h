@@ -43,6 +43,7 @@ enum class EChaosVDGeometryVisibilityFlags : uint8
 	Complex = 1 << 4,
 	ShowHeightfields = 1 << 5, // Selecting this will show heightfields even if complex is not selected
 	ShowDisabledParticles = 1 << 6,
+	ShowTriangleEdges = 1 << 7,
 };
 ENUM_CLASS_FLAGS(EChaosVDGeometryVisibilityFlags)
 
@@ -214,6 +215,12 @@ public:
 
 	UPROPERTY(Config)
 	TSoftObjectPtr<UMaterial> SimOnlyMeshesMaterial;
+
+	UPROPERTY(Config)
+	TSoftObjectPtr<UMaterial> InstancedMeshesMaterial;
+
+	UPROPERTY(Config)
+	TSoftObjectPtr<UMaterial> InstancedMeshesQueryOnlyMaterial;
 
 	UPROPERTY(Config)
 	FSoftClassPath SkySphereActorClass;

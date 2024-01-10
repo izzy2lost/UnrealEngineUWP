@@ -11,6 +11,7 @@
 #include "Chaos/Collision/CollisionFilterBits.h"
 #include "ChaosCheck.h"
 #include "Chaos/ChaosDebugDrawDeclares.h"
+#include "ChaosVisualDebugger/ChaosVisualDebuggerTrace.h"
 #if CHAOS_DEBUG_DRAW
 #include "Chaos/ChaosDebugDraw.h"
 #endif
@@ -2955,6 +2956,12 @@ protected:
 				{
 					//must set geometry after because shapes are rebuilt and we want them to know about anything Func did
 					Data.SetGeometry(GeomToModify);
+				}
+				else
+				{
+					// Only invalidate the geometry if we modified the existing one.
+					// New geometry will be always evaluated the first time it is seen
+					CVD_TRACE_INVALIDATE_CACHED_GEOMETRY(GeomToModify);
 				}
 				UpdateShapesArray();
 			}

@@ -25,6 +25,8 @@ public:
 
 	TSharedPtr<FChaosVDTraceManager>& GetTraceManager() { return ChaosVDTraceManager; };
 
+	void SpawnCVDTab();
+
 private:
 
 	void RegisterClassesCustomDetails() const;
@@ -44,6 +46,8 @@ private:
 	TMap<FGuid, TSharedPtr<FChaosVDEngine>> ActiveChaosVDInstances;
 
 	TMap<FGuid, TWeakPtr<SDockTab>> ActiveCVDTabs;
+
+	TArray<FName> CreatedExtraTabSpawnersIDs;
 
 	TSharedPtr<FChaosVDTraceManager> ChaosVDTraceManager;
 

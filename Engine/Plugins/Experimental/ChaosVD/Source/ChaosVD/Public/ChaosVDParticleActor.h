@@ -13,6 +13,7 @@
 
 #include "ChaosVDParticleActor.generated.h"
 
+class FChaosVDParticleActorCustomization;
 enum class EChaosVDParticleDataVisualizationFlags : uint32;
 class FChaosVDScene;
 struct FChaosVDParticleDebugData;
@@ -35,18 +36,19 @@ enum class EChaosVDActorGeometryUpdateFlags : int32
 };
 ENUM_CLASS_FLAGS(EChaosVDActorGeometryUpdateFlags)
 
+DECLARE_DELEGATE(FChaosVDParticleDataUpdatedDelegate)
+
 /** Actor used to represent a Chaos Particle in the Visual Debugger's world */
 UCLASS(HideCategories=(Transform))
 class AChaosVDParticleActor : public AActor, public IChaosVDParticleVisualizationDataProvider, public IChaosVDVisualizerContainerInterface,
 								public FChaosVDSceneObjectBase, public IChaosVDCollisionDataProviderInterface
 {
-
 	GENERATED_BODY()
 
 public:
 	AChaosVDParticleActor(const FObjectInitializer& ObjectInitializer);
 
-	void UpdateFromRecordedParticleData(const FChaosVDParticleDataWrapper& InRecordedData, const Chaos::FRigidTransform3& SimulationTransform);
+	void UpdateFromRecordedParticleData(const TSharedPtr<FChaosVDParticleDataWrapper>& InRecordedData, const Chaos::FRigidTransform3& SimulationTransform);
 
 	void UpdateGeometry(const Chaos::FConstImplicitObjectPtr& InImplicitObject, EChaosVDActorGeometryUpdateFlags OptionsFlags = EChaosVDActorGeometryUpdateFlags::None);
 
@@ -56,7 +58,7 @@ public:
 
 	virtual void BeginDestroy() override;
 
-	virtual const FChaosVDParticleDataWrapper* GetParticleData() override { return &ParticleDataViewer; }
+	virtual const FChaosVDParticleDataWrapper* GetParticleData() override { return ParticleDataPtr.Get(); }
 	virtual void GetVisualizationContext(FChaosVDVisualizationContext& OutVisualizationContext) override;
 
 	void CreateVisualizers();
@@ -80,19 +82,31 @@ public:
 	 */
 	bool IsActive() const { return bIsActive; }
 
+	virtual FBox GetComponentsBoundingBox(bool bNonColliding, bool bIncludeFromChildActors) const override;
+
 	//BEGIN IChaosVDCollisionDataProvider Interface
 	virtual void GetCollisionData(TArray<TSharedPtr<FChaosVDCollisionDataFinder>>& OutCollisionDataFound) override;
 	virtual bool HasCollisionData() override;
-	virtual FName GetName() override;
+	virtual FName GetProviderName() override;
 	//END IChaosVDCollisionDataProvider Interface
 
+	void SetIsServerParticle(bool bNewIsServer) { bIsServer = bNewIsServer; }
+	bool GetIsServerParticle() const { return bIsServer; }
+
+	virtual void PushSelectionToProxies() override;
+
+	FChaosVDParticleDataUpdatedDelegate& OnParticleDataUpdated() { return ParticleDataUpdatedDelegate; };
+
 protected:
+
+	void ProcessUpdatedAndRemovedHandles(TArray<TSharedPtr<FChaosVDExtractedGeometryDataHandle>>& OutExtractedGeometryDataHandles);
 
 	const TArray<TSharedPtr<FChaosVDParticlePairMidPhase>>* GetCollisionMidPhasesArray() const;
 
 	void UpdateShapeDataComponents();
 
-	void PerformTaskOnGeometryComponents(TFunction<void(IChaosVDGeometryDataComponent& InDataComponent)> TaskToPerform);
+	template<typename TTaskCallback>
+	void PerformTaskOnGeometry(const TTaskCallback& TaskToPerform);
 	
 	UPROPERTY(EditAnywhere, Category = "Viewport Visualization Flags", meta = (Bitmask, BitmaskEnum = "/Script/ChaosVD.EChaosVDParticleDataVisualizationFlags"))
 	uint8 LocalParticleDataVisualizationFlags;
@@ -100,18 +114,35 @@ protected:
 	UPROPERTY(EditAnywhere, Category = "Viewport Visualization Flags")
 	bool bShowDebugText = false;
 
-	UPROPERTY(EditAnywhere, Category = "Particle Data")
-	FChaosVDParticleDataWrapper ParticleDataViewer;
+	TSharedPtr<FChaosVDParticleDataWrapper> ParticleDataPtr;
 
 	FTransform CachedSimulationTransform;
 
 	bool bIsGeometryDataGenerationStarted = false;
 
-	TArray<TWeakObjectPtr<UMeshComponent>> MeshComponents;
-
 	FDelegateHandle GeometryUpdatedDelegate;
 
 	TMap<FStringView, TUniquePtr<FChaosVDDataVisualizerBase>> CVDVisualizers;
 
+	TArray<TSharedPtr<FChaosVDMeshDataInstanceHandle>> MeshDataHandles;
+
+	FChaosVDParticleDataUpdatedDelegate ParticleDataUpdatedDelegate;
+
 	bool bIsActive = false;
+
+	bool bIsServer = false;
+
+	friend FChaosVDParticleActorCustomization;
 };
+
+template <typename TTaskCallback>
+void AChaosVDParticleActor::PerformTaskOnGeometry(const TTaskCallback& TaskToPerform)
+{
+	for (TSharedPtr<FChaosVDMeshDataInstanceHandle>& MeshDataHandle : MeshDataHandles)
+	{
+		if (MeshDataHandle)
+		{
+			TaskToPerform(MeshDataHandle);
+		}
+	}
+}

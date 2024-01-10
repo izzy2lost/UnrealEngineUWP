@@ -18,7 +18,6 @@
 #include "Visualizers/ChaosVDParticleDataVisualizer.h"
 #include "Visualizers/ChaosVDSolverCollisionDataComponentVisualizer.h"
 
-
 AChaosVDParticleActor::AChaosVDParticleActor(const FObjectInitializer& ObjectInitializer) : Super(ObjectInitializer)
 {
 	RootComponent = CreateDefaultSubobject<USceneComponent>(TEXT("SceneComponent0"));
@@ -28,69 +27,133 @@ AChaosVDParticleActor::AChaosVDParticleActor(const FObjectInitializer& ObjectIni
 	CreateVisualizers();
 }
 
-void AChaosVDParticleActor::UpdateFromRecordedParticleData(const FChaosVDParticleDataWrapper& InRecordedData, const Chaos::FRigidTransform3& SimulationTransform)
+void AChaosVDParticleActor::UpdateFromRecordedParticleData(const TSharedPtr<FChaosVDParticleDataWrapper>& InRecordedData, const Chaos::FRigidTransform3& SimulationTransform)
 {
+	if (!ensure(InRecordedData.IsValid()))
+	{
+		return;	
+	}
+
+	if (TSharedPtr<FChaosVDScene> ScenePtr = SceneWeakPtr.Pin())
+	{
+		if (InRecordedData->ParticleCluster.HasValidData())
+		{
+			if (AChaosVDParticleActor* ParentParticle = ScenePtr->GetParticleActor(InRecordedData->SolverID, InRecordedData->ParticleCluster.ParentParticleID))
+			{
+				AttachToActor(ParentParticle, FAttachmentTransformRules::KeepWorldTransform);
+			}
+			else if (AActor* CurrentParent = GetAttachParentActor())
+			{
+				DetachFromActor(FDetachmentTransformRules::KeepWorldTransform);
+			}
+		}
+	}
+
 	//TODO: Make the simulation transform be cached on the CVD Scene, so we can query from it when needed
 	// Copying it to each particle actor is not efficient
 	CachedSimulationTransform = SimulationTransform;
 
-	if (InRecordedData.ParticlePositionRotation.HasValidData())
+	FTransform NewParticleTransform;
+	bool bHasNewTransform = false;
+	if (InRecordedData->ParticlePositionRotation.HasValidData())
 	{
-		const FVector TargetLocation = SimulationTransform.TransformPosition(InRecordedData.ParticlePositionRotation.MX);
-		if (GetActorLocation() != TargetLocation)
-		{
-			SetActorLocation(InRecordedData.ParticlePositionRotation.MX);
-		}
+		const FVector TargetLocation = SimulationTransform.TransformPosition(InRecordedData->ParticlePositionRotation.MX);
+		const FVector CurrentLocation = SimulationTransform.TransformPosition(ParticleDataPtr && ParticleDataPtr->ParticlePositionRotation.HasValidData() ? ParticleDataPtr->ParticlePositionRotation.MX : FVector::ZeroVector);
 
-		const FQuat TargetRotation = SimulationTransform.GetRotation() * InRecordedData.ParticlePositionRotation.MR;
-		if (GetActorRotation() != TargetRotation.Rotator())
-		{
-			SetActorRotation(TargetRotation);
-		}
-	}
+		const FQuat TargetRotation = SimulationTransform.GetRotation() * InRecordedData->ParticlePositionRotation.MR;
+		const FQuat CurrentRotation = SimulationTransform.GetRotation() * (ParticleDataPtr && ParticleDataPtr->ParticlePositionRotation.HasValidData() ? ParticleDataPtr->ParticlePositionRotation.MR : FQuat::Identity);
 
-	if (ParticleDataViewer.GeometryHash != InRecordedData.GeometryHash)
-	{
-		UpdateGeometry(InRecordedData.GeometryHash, EChaosVDActorGeometryUpdateFlags::ForceUpdate);
+		NewParticleTransform.SetLocation(TargetLocation);
+		NewParticleTransform.SetRotation(TargetRotation);
+		NewParticleTransform.SetScale3D(FVector(1.0f,1.0f,1.0f));
+
+		bHasNewTransform = CurrentRotation != TargetRotation || CurrentLocation != TargetLocation;
+
 	}
 
 	// This is iterating and comparing each element of the array,
 	// We might need to find a faster way of determine if the data changed, but for now this is faster than assuming it changed
-	const bool bShapeDataIsDirty = ParticleDataViewer.CollisionDataPerShape != InRecordedData.CollisionDataPerShape;
+	const bool bShapeDataIsDirty = !ParticleDataPtr || (ParticleDataPtr->CollisionDataPerShape != InRecordedData->CollisionDataPerShape);
+	const bool bDisabledStateChanged = ParticleDataPtr && (ParticleDataPtr->ParticleDynamicsMisc.bDisabled != InRecordedData->ParticleDynamicsMisc.bDisabled);
+	const bool bHasNewGeometry = !ParticleDataPtr || (ParticleDataPtr->GeometryHash != InRecordedData->GeometryHash);
 
-	// TODO: We should store a ptr to the data and in our custom details panel draw it
-	ParticleDataViewer = InRecordedData;
+	ParticleDataPtr = InRecordedData;
+
+	if (bHasNewGeometry)
+	{
+		UpdateGeometry(InRecordedData->GeometryHash, EChaosVDActorGeometryUpdateFlags::ForceUpdate);
+	}
+
+	if (bHasNewTransform)
+	{
+		PerformTaskOnGeometry([NewParticleTransform](TSharedPtr<FChaosVDMeshDataInstanceHandle>& MeshDataHandle)
+		{
+			MeshDataHandle->SetWorldTransform(NewParticleTransform);
+		});
+	}
 
 	// Now that we have updated particle data, update the Shape data and visibility as needed
-	if (bShapeDataIsDirty)
+	if (bShapeDataIsDirty || bHasNewGeometry)
 	{
 		UpdateShapeDataComponents();
 		UpdateGeometryComponentsVisibility();
 	}
+	else if (bDisabledStateChanged)
+	{
+		UpdateGeometryComponentsVisibility();
+	}
 
 	UpdateGeometryColors();
+
+	OnParticleDataUpdated().ExecuteIfBound();
 }
+
+void AChaosVDParticleActor::ProcessUpdatedAndRemovedHandles(TArray<TSharedPtr<FChaosVDExtractedGeometryDataHandle>>& OutExtractedGeometryDataHandles)
+{
+	for (TArray<TSharedPtr<FChaosVDMeshDataInstanceHandle>>::TIterator MeshDataHandleRemoveIterator = MeshDataHandles.CreateIterator(); MeshDataHandleRemoveIterator; ++MeshDataHandleRemoveIterator)
+	{
+		TSharedPtr<FChaosVDMeshDataInstanceHandle>& ExistingMeshDataHandle = *MeshDataHandleRemoveIterator;
+		if (ExistingMeshDataHandle.IsValid() && ExistingMeshDataHandle->GetGeometryHandle())
+		{
+			bool bExists = false;
+
+			// TODO: This search is n2, but I didn't see this as bottleneck. We should check if it is worth adding this to a TSet, or implementing the < operator so we can sort the array and do a binary search
+			// (avoiding the need to allocate a new container) 
+			for (TArray<TSharedPtr<FChaosVDExtractedGeometryDataHandle>>::TIterator HandleRemoveIterator = OutExtractedGeometryDataHandles.CreateIterator(); HandleRemoveIterator; ++HandleRemoveIterator)
+			{
+				const TSharedPtr<FChaosVDExtractedGeometryDataHandle> GeometryDataHandle = *HandleRemoveIterator;
+				const TSharedPtr<FChaosVDExtractedGeometryDataHandle> ExistingComponentGeometryDataHandle = ExistingMeshDataHandle->GetGeometryHandle();
+
+				const bool bBothHandlesAreValid = GeometryDataHandle && ExistingComponentGeometryDataHandle;
+				if (bBothHandlesAreValid && *GeometryDataHandle == *ExistingMeshDataHandle->GetGeometryHandle())
+				{
+					bExists = true;
+
+					// If we have a CVD Geometry Component for this handle, just remove it from the list as it means we don't need to re-create it
+					HandleRemoveIterator.RemoveCurrent();
+					break;
+				}
+			}
+
+			if (!bExists)
+			{
+				if (IChaosVDGeometryComponent* AsGeometryComponent = Cast<IChaosVDGeometryComponent>(ExistingMeshDataHandle->GetMeshComponent()))
+				{
+					AsGeometryComponent->RemoveMeshInstance(ExistingMeshDataHandle);
+				}
+
+				MeshDataHandleRemoveIterator.RemoveCurrent();
+			}
+		}		
+	}
+}
+
 
 void AChaosVDParticleActor::UpdateGeometry(const Chaos::FConstImplicitObjectPtr& InImplicitObject, EChaosVDActorGeometryUpdateFlags OptionsFlags)
 {
-	if (!InImplicitObject.IsValid())
-	{
-		return;
-	}
-	
 	if (EnumHasAnyFlags(OptionsFlags, EChaosVDActorGeometryUpdateFlags::ForceUpdate))
 	{
 		bIsGeometryDataGenerationStarted = false;
-
-		for (TWeakObjectPtr<UMeshComponent>& MeshComponent : MeshComponents)
-		{
-			if (MeshComponent.IsValid())
-			{
-				MeshComponent->DestroyComponent();
-			}
-		}
-
-		MeshComponents.Reset();
 	}
 
 	if (bIsGeometryDataGenerationStarted)
@@ -98,44 +161,114 @@ void AChaosVDParticleActor::UpdateGeometry(const Chaos::FConstImplicitObjectPtr&
 		return;
 	}
 
-	if (const TSharedPtr<FChaosVDScene>& ScenePtr = SceneWeakPtr.Pin())
+	if (!ParticleDataPtr)
 	{
-		if (const TSharedPtr<FChaosVDGeometryBuilder>& GeometryGenerator = ScenePtr->GetGeometryGenerator())
-		{
-			TArray<TWeakObjectPtr<UMeshComponent>> OutGeneratedMeshComponents;
-			Chaos::FRigidTransform3 Transform;
+		return;
+	}
 
-			// Heightfields need to be created as Static meshes and use normal Static Mesh components because we need LODs for them due to their high triangle count
-			if (FChaosVDGeometryBuilder::DoesImplicitContainType(InImplicitObject, Chaos::ImplicitObjectType::HeightField))
+	if (!InImplicitObject.IsValid())
+	{
+		return;
+	}
+
+	const TSharedPtr<FChaosVDScene> ScenePtr = SceneWeakPtr.Pin();
+	if (!ScenePtr.IsValid())
+	{
+		return;
+	}
+
+	const TSharedPtr<FChaosVDGeometryBuilder> GeometryGenerator = ScenePtr->GetGeometryGenerator();
+	if (!GeometryGenerator.IsValid())
+	{
+		return;
+	}
+
+	const int32 ObjectsToGenerateNum = InImplicitObject->CountLeafObjectsInHierarchyImpl();
+
+	// If the new implicit object is empty, then we can just clear all the mesh components and early out
+	if (ObjectsToGenerateNum == 0)
+	{
+		for (const TSharedPtr<FChaosVDMeshDataInstanceHandle>& MeshDataHandle : MeshDataHandles)
+		{
+			if (!MeshDataHandle.IsValid())
 			{
-				constexpr int32 LODsToGenerateNum = 3;
-				constexpr int32 StartingMeshComponentIndex = 0;
-				GeometryGenerator->CreateMeshComponentsFromImplicit<UStaticMesh, UChaosVDStaticMeshComponent>(InImplicitObject, this, OutGeneratedMeshComponents, Transform, StartingMeshComponentIndex, LODsToGenerateNum);
+				continue;
+			}
+
+			if (IChaosVDGeometryComponent* AsGeometryComponent = Cast<IChaosVDGeometryComponent>(MeshDataHandle->GetMeshComponent()))
+			{
+				AsGeometryComponent->RemoveMeshInstance(MeshDataHandle);
+			}
+		}
+
+		MeshDataHandles.Reset();
+		return;
+	}
+	
+	TArray<TSharedPtr<FChaosVDExtractedGeometryDataHandle>> OutExtractedGeometryDataHandles;
+	OutExtractedGeometryDataHandles.Reserve(ObjectsToGenerateNum);
+
+	// Heightfields need to be created as Static meshes and use normal Static Mesh components because we need LODs for them due to their high triangle count
+	const bool bHasToUseStaticMeshComponent = FChaosVDGeometryBuilder::DoesImplicitContainType(InImplicitObject, Chaos::ImplicitObjectType::HeightField);
+	constexpr int32 LODsToGenerateNum = 3;
+	constexpr int32 LODsToGenerateNumForInstancedStaticMesh = 0;
+
+	GeometryGenerator->CreateMeshesFromImplicitObject<UStaticMesh>(InImplicitObject, this, OutExtractedGeometryDataHandles, bHasToUseStaticMeshComponent ? LODsToGenerateNum : LODsToGenerateNumForInstancedStaticMesh);
+
+	// This should not happen in theory, but there might be some valid situations where it does. Adding an ensure to catch them and then evaluate if it is really an issue (if it is not I will remove the ensure later on). 
+	if (!ensure(ObjectsToGenerateNum == OutExtractedGeometryDataHandles.Num()))
+	{
+		UE_LOG(LogChaosVDEditor, Warning, TEXT("[%s] Geometry objects being generated doesn't match the number of objects in the implicit object | Expected [%d] | Being generated [%d] | Particle Actor [%s]"), ANSI_TO_TCHAR(__FUNCTION__), ObjectsToGenerateNum, OutExtractedGeometryDataHandles.Num(), *GetName());
+	}
+
+	// Figure out what geometry was removed, and destroy their components as needed. Also, if a geometry is already generated an active, remove it from the geometry to generate list
+	ProcessUpdatedAndRemovedHandles(OutExtractedGeometryDataHandles);
+
+	if (OutExtractedGeometryDataHandles.Num() > 0)
+	{
+		for (const TSharedPtr<FChaosVDExtractedGeometryDataHandle>& ExtractedGeometryDataHandle : OutExtractedGeometryDataHandles)
+		{
+			//TODO: Time Slice component creation
+			TSharedPtr<FChaosVDMeshDataInstanceHandle> MeshDataInstance;
+
+			if (bHasToUseStaticMeshComponent)
+			{
+				MeshDataInstance = GeometryGenerator->CreateMeshDataInstance<UChaosVDStaticMeshComponent>(*ParticleDataPtr.Get(), ExtractedGeometryDataHandle);
 			}
 			else
 			{
-				GeometryGenerator->CreateMeshComponentsFromImplicit<UStaticMesh, UChaosVDInstancedStaticMeshComponent>(InImplicitObject, this, OutGeneratedMeshComponents, Transform);
+				MeshDataInstance = GeometryGenerator->CreateMeshDataInstance<UChaosVDInstancedStaticMeshComponent>(*ParticleDataPtr.Get(), ExtractedGeometryDataHandle);
 			}
 
-			if (OutGeneratedMeshComponents.Num() > 0)
+			const UMeshComponent* CreatedMeshComponent = MeshDataInstance->GetMeshComponent();
+			if (!CreatedMeshComponent)
 			{
-				MeshComponents.Append(OutGeneratedMeshComponents);
-
-				for (TWeakObjectPtr<UMeshComponent> MeshComponent : MeshComponents)
-				{
-					if (IChaosVDGeometryDataComponent* DataComponent = Cast<IChaosVDGeometryDataComponent>(MeshComponent.Get()))
-					{
-						DataComponent->SetRootImplicitObject(InImplicitObject);
-						DataComponent->UpdateDataFromShapeArray(ParticleDataViewer.CollisionDataPerShape);
-					}
-				}
-
-				UpdateGeometryComponentsVisibility();
-				UpdateGeometryColors();
-
-				bIsGeometryDataGenerationStarted = true;
+				UE_LOG(LogChaosVDEditor, Error, TEXT("[%s] Failed To Create mesh component for [%s]"), ANSI_TO_TCHAR(__FUNCTION__), *GetName());
+				continue;
 			}
+
+			// If we have a valid transform data, we need to update our instance with it as the mesh component is not part of this actor (and event if it is, we don't use the actor transform anymore)
+			if (ParticleDataPtr && ParticleDataPtr->ParticlePositionRotation.HasValidData())
+			{
+				const FVector TargetLocation = CachedSimulationTransform.TransformPosition(ParticleDataPtr->ParticlePositionRotation.MX);
+				const FQuat TargetRotation = CachedSimulationTransform.GetRotation() * ParticleDataPtr->ParticlePositionRotation.MR;
+
+				FTransform ParticleTransform;
+				ParticleTransform.SetLocation(TargetLocation);
+				ParticleTransform.SetRotation(TargetRotation);
+
+				MeshDataInstance->SetWorldTransform(ParticleTransform);
+			}
+
+			MeshDataHandles.Add(MeshDataInstance);
 		}
+
+		// Ensure that visibility and colorization is up to date after updating this Particle's Geometry
+		UpdateGeometryComponentsVisibility();
+		
+		UpdateGeometryColors();
+
+		bIsGeometryDataGenerationStarted = true;
 	}
 }
 
@@ -158,9 +291,9 @@ void AChaosVDParticleActor::SetScene(TWeakPtr<FChaosVDScene> InScene)
 	{
 		GeometryUpdatedDelegate = ScenePtr->OnNewGeometryAvailable().AddWeakLambda(this, [this](const Chaos::FConstImplicitObjectPtr& ImplicitObject, const uint32 ID)
 		{
-			if (ParticleDataViewer.GeometryHash == ID)
+			if (ParticleDataPtr && ParticleDataPtr->GeometryHash == ID)
 			{
-				UpdateGeometry(ImplicitObject);
+				UpdateGeometry(ImplicitObject, EChaosVDActorGeometryUpdateFlags::ForceUpdate);
 			}
 		});
 	}
@@ -180,7 +313,7 @@ void AChaosVDParticleActor::GetVisualizationContext(FChaosVDVisualizationContext
 {
 	OutVisualizationContext.SpaceTransform = CachedSimulationTransform;
 	OutVisualizationContext.CVDScene = SceneWeakPtr;
-	OutVisualizationContext.SolverID = ParticleDataViewer.SolverID;
+	OutVisualizationContext.SolverID = ParticleDataPtr ? ParticleDataPtr->SolverID : INDEX_NONE;
 }
 
 void AChaosVDParticleActor::CreateVisualizers()
@@ -194,7 +327,7 @@ bool AChaosVDParticleActor::IsSelectedInEditor() const
 {
 	// The implementation of this method in UObject, used a global edit callback,
 	// but as we don't use the global editor selection system, we need to re-route it.
-	if (TSharedPtr<FChaosVDScene> ScenePtr = SceneWeakPtr.Pin())
+	if (const TSharedPtr<FChaosVDScene> ScenePtr = SceneWeakPtr.Pin())
 	{
 		return ScenePtr->IsObjectSelected(this);
 	}
@@ -205,16 +338,6 @@ bool AChaosVDParticleActor::IsSelectedInEditor() const
 void AChaosVDParticleActor::PostEditChangeProperty(FPropertyChangedEvent& PropertyChangedEvent)
 {
 	Super::PostEditChangeProperty(PropertyChangedEvent);
-
-	if (PropertyChangedEvent.GetMemberPropertyName() == GET_MEMBER_NAME_STRING_CHECKED(AChaosVDParticleActor, ParticleDataViewer))
-	{
-		// Not particularly useful for now. This is a test code verifying we can react to changes in the data.
-		// In the future this could be part of the Re-simulation feature. When data is changed here, it can be propagated to the evolution instance that will be re-simulated
-		if (PropertyChangedEvent.GetPropertyName() == GET_MEMBER_NAME_STRING_CHECKED(FChaosVDParticleDataWrapper, GeometryHash))
-		{
-			UpdateGeometry(ParticleDataViewer.GeometryHash, EChaosVDActorGeometryUpdateFlags::ForceUpdate);
-		}
-	}
 
 	if (PropertyChangedEvent.GetMemberPropertyName() == GET_MEMBER_NAME_STRING_CHECKED(AChaosVDParticleActor, LocalParticleDataVisualizationFlags))
 	{
@@ -228,11 +351,42 @@ void AChaosVDParticleActor::PostEditChangeProperty(FPropertyChangedEvent& Proper
 #if WITH_EDITOR
 void AChaosVDParticleActor::SetIsTemporarilyHiddenInEditor(bool bIsHidden)
 {
-	const bool bShouldBeHidden = bIsActive ? bIsHidden : true;
+	Super::SetIsTemporarilyHiddenInEditor(bIsHidden);
 
-	Super::SetIsTemporarilyHiddenInEditor(bShouldBeHidden);
+	PerformTaskOnGeometry([this, bIsHidden](TSharedPtr<FChaosVDMeshDataInstanceHandle>& MeshDataHandle)
+	{
+		FChaosVDGeometryComponentUtils::UpdateMeshVisibility(MeshDataHandle, ParticleDataPtr ? *ParticleDataPtr.Get() : FChaosVDParticleDataWrapper(), IsActive() && !bIsHidden);
+	});
 }
 #endif //WITH_EDITOR
+
+FBox AChaosVDParticleActor::GetComponentsBoundingBox(bool bNonColliding, bool bIncludeFromChildActors) const
+{
+	FBox BoundingBox = FBox(ForceInitToZero);
+	if (ParticleDataPtr)
+	{
+		FBoxSphereBounds::Builder BoundsBuilder;
+
+		for (const TSharedPtr<FChaosVDMeshDataInstanceHandle>& MeshDataHandle : MeshDataHandles)
+		{
+			if (MeshDataHandle)
+			{
+				if (const UStaticMeshComponent* StaticMeshComponent = Cast<UStaticMeshComponent>(MeshDataHandle->GetMeshComponent()))
+				{
+					if (const UStaticMesh* Mesh = StaticMeshComponent->GetStaticMesh())
+					{
+						BoundsBuilder += Mesh->GetBounds().TransformBy(MeshDataHandle->GetWorldTransform());
+					}
+				}
+			}
+		}
+
+		const FBoxSphereBounds SphereBounds= BoundsBuilder;
+		BoundingBox = SphereBounds.GetBox();
+	}
+
+	return BoundingBox;
+}
 
 void AChaosVDParticleActor::GetCollisionData(TArray<TSharedPtr<FChaosVDCollisionDataFinder>>& OutCollisionDataFound)
 {
@@ -262,80 +416,77 @@ bool AChaosVDParticleActor::HasCollisionData()
 	return false;
 }
 
-FName AChaosVDParticleActor::GetName()
+FName AChaosVDParticleActor::GetProviderName()
 {
 	return GetFName();
 }
 
+void AChaosVDParticleActor::PushSelectionToProxies()
+{
+	Super::PushSelectionToProxies();
+
+	PerformTaskOnGeometry([this](TSharedPtr<FChaosVDMeshDataInstanceHandle>& MeshDataHandle)
+	{
+		const bool bIsSelectedInEditor = IsSelectedInEditor();
+		MeshDataHandle->SetIsSelected(bIsSelectedInEditor);
+	});
+}
+
 const TArray<TSharedPtr<FChaosVDParticlePairMidPhase>>* AChaosVDParticleActor::GetCollisionMidPhasesArray() const
 {
+	if (!ParticleDataPtr.IsValid())
+	{
+		return nullptr;
+	}
+
 	const TSharedPtr<FChaosVDScene> ScenePtr = SceneWeakPtr.Pin();
 	if (!ScenePtr.IsValid())
 	{
 		return nullptr;
 	}
 
-	if (AChaosVDSolverInfoActor* SolverInfoActor = ScenePtr->GetSolverInfoActor(ParticleDataViewer.SolverID))
+	if (AChaosVDSolverInfoActor* SolverInfoActor = ScenePtr->GetSolverInfoActor(ParticleDataPtr->SolverID))
 	{
 		if (const UChaosVDSolverCollisionDataComponent* CollisionDataComponent = SolverInfoActor->GetCollisionDataComponent())
 		{
-			return CollisionDataComponent->GetMidPhasesForParticle(ParticleDataViewer.ParticleIndex, EChaosVDCollisionParticlePairSlot::Any);
+			return CollisionDataComponent->GetMidPhasesForParticle(ParticleDataPtr->ParticleIndex, EChaosVDCollisionParticlePairSlot::Any);
 		}
 	}
 
 	return nullptr;
 }
 
-void AChaosVDParticleActor::PerformTaskOnGeometryComponents(TFunction<void(IChaosVDGeometryDataComponent& InDataComponent)> TaskToPerform)
-{
-	if (!ensure(TaskToPerform))
-	{
-		UE_LOG(LogChaosVDEditor, Error, TEXT("[%s] Called with an invalid task callback..."), ANSI_TO_TCHAR(__FUNCTION__))
-		return;
-	}
-
-	for (TWeakObjectPtr<UMeshComponent> MeshComponent : MeshComponents)
-	{
-		if (IChaosVDGeometryDataComponent* DataComponent = Cast<IChaosVDGeometryDataComponent>(MeshComponent.Get()))
-		{
-			// We need wait until we have a valid mesh
-			if (DataComponent->IsMeshReady())
-			{
-				TaskToPerform(*DataComponent);
-			}
-			else if (FChaosVDMeshReadyDelegate* MeshReadyDelegate = DataComponent->OnMeshReady())
-			{
-				// TODO: Guard against this being multiple times for a specific task.
-				// These tasks should probably be implemented on the components themselves
-				// and they decide if they need to wait and how to do so.
-				MeshReadyDelegate->AddWeakLambda(MeshComponent.Get(), [TaskToPerform](IChaosVDGeometryDataComponent& GeometryDataComponent)
-				{
-					TaskToPerform(GeometryDataComponent);
-				});
-			}
-		}
-	}
-}
-
 void AChaosVDParticleActor::UpdateShapeDataComponents()
 {
-	for (TWeakObjectPtr<UMeshComponent> MeshComponent : MeshComponents)
+	PerformTaskOnGeometry([this](TSharedPtr<FChaosVDMeshDataInstanceHandle>& MeshDataHandle)
 	{
-		if (IChaosVDGeometryDataComponent* DataComponent = Cast<IChaosVDGeometryDataComponent>(MeshComponent.Get()))
+		if (ParticleDataPtr)
 		{
-			DataComponent->UpdateDataFromShapeArray(ParticleDataViewer.CollisionDataPerShape);
+			FChaosVDGeometryComponentUtils::UpdateCollisionDataFromShapeArray(ParticleDataPtr->CollisionDataPerShape, MeshDataHandle);
 		}
-	}
+	});
 }
 
 void AChaosVDParticleActor::UpdateGeometryComponentsVisibility()
 {
-	PerformTaskOnGeometryComponents([](IChaosVDGeometryDataComponent& GeometryDataComponent){ GeometryDataComponent.UpdateVisibility(); });
+	PerformTaskOnGeometry([this](TSharedPtr<FChaosVDMeshDataInstanceHandle>& MeshDataHandle)
+	{
+		if (ParticleDataPtr)
+		{
+			FChaosVDGeometryComponentUtils::UpdateMeshVisibility(MeshDataHandle, *ParticleDataPtr.Get(), IsActive());
+		}
+	});
 }
 
 void AChaosVDParticleActor::UpdateGeometryColors()
 {
-	PerformTaskOnGeometryComponents([](IChaosVDGeometryDataComponent& GeometryDataComponent){ GeometryDataComponent.UpdateColors(); });
+	PerformTaskOnGeometry([this](TSharedPtr<FChaosVDMeshDataInstanceHandle>& MeshDataHandle)
+	{
+		if (ParticleDataPtr)
+		{
+			FChaosVDGeometryComponentUtils::UpdateMeshColor(MeshDataHandle, *ParticleDataPtr.Get(), GetIsServerParticle());
+		}
+	});
 }
 
 void AChaosVDParticleActor::SetIsActive(bool bNewActive)
@@ -349,7 +500,9 @@ void AChaosVDParticleActor::SetIsActive(bool bNewActive)
 		// We need to add a way to unlist inactive particle actors without a full hierarchy rebuild, which would be too costly
 		bEditable = bNewActive;
 		bListedInSceneOutliner = bNewActive;
-		SetIsTemporarilyHiddenInEditor(!bIsActive);
+
+		UpdateGeometryComponentsVisibility();
+
 #endif
 
 		if (const TSharedPtr<FChaosVDScene> ScenePtr = SceneWeakPtr.Pin())

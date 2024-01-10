@@ -24,15 +24,15 @@ bool FChaosVDTraceParticleDataProcessor::ProcessRawData(const TArray<uint8>& InD
 
 	Chaos::FChaosArchive Ar(MemeReader);
 
-	FChaosVDParticleDataWrapper ParticleData;
-	ParticleData.Serialize(Ar);
+	TSharedPtr<FChaosVDParticleDataWrapper> ParticleData = MakeShared<FChaosVDParticleDataWrapper>();
+	ParticleData->Serialize(Ar);
 
 	// This can be null if the recording started Mid-Frame. In this case we just discard the data for now
-	if (FChaosVDSolverFrameData* FrameData = ProviderSharedPtr->GetCurrentSolverFrame(ParticleData.SolverID))
+	if (FChaosVDSolverFrameData* FrameData = ProviderSharedPtr->GetCurrentSolverFrame(ParticleData->SolverID))
 	{
 		if (ensureMsgf(FrameData->SolverSteps.Num() > 0, TEXT("A particle was traced without a valid step scope")))
 		{
-			FrameData->SolverSteps.Last().RecordedParticlesData.Add(MoveTemp(ParticleData));
+			FrameData->SolverSteps.Last().RecordedParticlesData.Add(ParticleData);
 		}
 	}
 

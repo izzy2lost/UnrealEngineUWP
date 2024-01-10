@@ -19,6 +19,15 @@
 
 DEFINE_LOG_CATEGORY(LogChaosVDEditor);
 
+FAutoConsoleCommand ChaosVDSpawnNewCVDInstance(
+	TEXT("p.Chaos.VD.SpawnNewCVDInstance"),
+	TEXT("Opens a new CVD windows wothout closing an existing one"),
+	FConsoleCommandWithArgsDelegate::CreateLambda([](const TArray<FString>& Args)
+	{
+		FChaosVDModule::Get().SpawnCVDTab();
+	})
+);
+
 FChaosVDModule& FChaosVDModule::Get()
 {
 	return FModuleManager::Get().LoadModuleChecked<FChaosVDModule>(TEXT("ChaosVD"));
@@ -47,6 +56,11 @@ void FChaosVDModule::ShutdownModule()
 	FChaosVDStyle::Shutdown();
 
 	FGlobalTabmanager::Get()->UnregisterNomadTabSpawner(FChaosVDTabID::ChaosVisualDebuggerTab);
+
+	for (const FName TabID : CreatedExtraTabSpawnersIDs)
+	{
+		FGlobalTabmanager::Get()->UnregisterNomadTabSpawner(TabID);
+	}
 	
 	FCoreDelegates::OnEnginePreExit.RemoveAll(this);
 
@@ -60,6 +74,22 @@ void FChaosVDModule::RegisterClassesCustomDetails() const
 	PropertyModule.RegisterCustomClassLayout("ChaosVDInstancedStaticMeshComponent", FOnGetDetailCustomizationInstance::CreateStatic(&FChaosVDGeometryComponentCustomization::MakeInstance));
 	PropertyModule.RegisterCustomClassLayout("ChaosVDStaticMeshComponent", FOnGetDetailCustomizationInstance::CreateStatic(&FChaosVDGeometryComponentCustomization::MakeInstance));
 	PropertyModule.RegisterCustomPropertyTypeLayout("ChaosVDParticleDataWrapper", FOnGetPropertyTypeCustomizationInstance::CreateStatic(&FChaosVDParticleDataWrapperCustomization::MakeInstance));
+}
+
+void FChaosVDModule::SpawnCVDTab()
+{
+	// Registering new tab spawners with random names is not the best idea to spawn new tabs, but it is good enough to test we can run multiple instances of CVD withing the editor.
+	// This is also why spawning new tabs it is only exposed via console commands for now.
+	// When this feature is deemed stable and exposed in the UI I will investigate a more correct way of implementing this
+	const FName NewTabID = FName(FChaosVDTabID::ChaosVisualDebuggerTab.ToString() + FGuid::NewGuid().ToString());
+
+	FGlobalTabmanager::Get()->RegisterNomadTabSpawner(NewTabID, FOnSpawnTab::CreateRaw(this, &FChaosVDModule::SpawnMainTab))
+						.SetDisplayName(LOCTEXT("VisualDebuggerTabTitle", "Chaos Visual Debugger"))
+						.SetTooltipText(LOCTEXT("VisualDebuggerTabDesc", "Opens the Chaos Visual Debugger window"));
+
+	FGlobalTabmanager::Get()->TryInvokeTab(NewTabID);
+
+	CreatedExtraTabSpawnersIDs.Add(NewTabID);
 }
 
 TSharedRef<SDockTab> FChaosVDModule::SpawnMainTab(const FSpawnTabArgs& Args)

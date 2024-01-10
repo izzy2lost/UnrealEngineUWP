@@ -366,9 +366,8 @@ void FChaosVDRecording::GetAvailableSolverIDsAtGameFrame_AssumesLocked(const FCh
 
 void FChaosVDRecording::CollapseSolverFramesRange_AssumesLocked(int32 SolverID, int32 StartFrame, int32 EndFrame, FChaosVDSolverFrameData& OutCollapsedFrameData)
 {
-	static TMap<int32, FChaosVDParticleDataWrapper> TempParticleDataByID;
-
-	TempParticleDataByID.Reset();
+	// Make sure we start with a clear map
+	ParticlesOnCurrentGeneratedKeyframe.Reset();
 	
 	for (int32 CurrentFrameNumber = StartFrame; CurrentFrameNumber <= EndFrame; CurrentFrameNumber++)
 	{
@@ -383,15 +382,20 @@ void FChaosVDRecording::CollapseSolverFramesRange_AssumesLocked(int32 SolverID, 
 			{
 				for (const FChaosVDStepData& StepData : SolverFrameData->SolverSteps)
 				{
-					for (const FChaosVDParticleDataWrapper& ParticleData : StepData.RecordedParticlesData)
+					for (const TSharedPtr<FChaosVDParticleDataWrapper>& ParticleData : StepData.RecordedParticlesData)
 					{
-						if (FChaosVDParticleDataWrapper* FoundParticleData = TempParticleDataByID.Find(ParticleData.ParticleIndex))
+						if (!ParticleData)
+						{
+							continue;
+						}
+
+						if (TSharedPtr<FChaosVDParticleDataWrapper>* FoundParticleData = ParticlesOnCurrentGeneratedKeyframe.Find(ParticleData->ParticleIndex))
 						{
 							(*FoundParticleData) = ParticleData;
 						}
 						else
 						{
-							TempParticleDataByID.Add(ParticleData.ParticleIndex, ParticleData);
+							ParticlesOnCurrentGeneratedKeyframe.Add(ParticleData->ParticleIndex, ParticleData);
 						}
 					}
 				}
@@ -411,7 +415,9 @@ void FChaosVDRecording::CollapseSolverFramesRange_AssumesLocked(int32 SolverID, 
 				FChaosVDStepData CollapsedStepData;
 				CollapsedStepData.StepName = TEXT("GeneratedStep");
 
-				TempParticleDataByID.GenerateValueArray(CollapsedStepData.RecordedParticlesData);
+				ParticlesOnCurrentGeneratedKeyframe.GenerateValueArray(CollapsedStepData.RecordedParticlesData);
+
+				ParticlesOnCurrentGeneratedKeyframe.Reset();
 				
 				OutCollapsedFrameData.SolverSteps.Add(MoveTemp(CollapsedStepData));
 			}

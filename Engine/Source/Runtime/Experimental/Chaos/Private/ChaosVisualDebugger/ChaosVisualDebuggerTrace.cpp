@@ -54,7 +54,7 @@ struct FChaosVDGeometryTraceContext
 
 	uint32 GetGeometryHashForImplicit(const Chaos::FImplicitObject* Implicit)
 	{
-		if (!ensure(Implicit != nullptr))
+		if (Implicit == nullptr)
 		{
 			return 0;
 		}
@@ -558,6 +558,16 @@ void FChaosVisualDebuggerTrace::TraceImplicitObject(FChaosVDImplicitObjectWrappe
 	WrappedGeometryData.Serialize(Ar);
 
 	TraceBinaryData(TLSDataBuffer.BufferRef, FChaosVDImplicitObjectWrapper::WrapperTypeName);
+}
+
+void FChaosVisualDebuggerTrace::InvalidateGeometryFromCache(const Chaos::FImplicitObject* CachedGeometryToInvalidate)
+{
+	if (!IsTracing())
+	{
+		return;
+	}
+
+	GeometryTracerObject.RemoveCachedGeometryHash(CachedGeometryToInvalidate);
 }
 
 void FChaosVisualDebuggerTrace::TraceNonSolverLocation(const FVector& InLocation, FStringView DebugNameID)

@@ -4,6 +4,8 @@
 
 #include "ChaosVDEditorSettings.h"
 #include "ChaosVDModule.h"
+#include "ChaosVDParticleActor.h"
+#include "ChaosVDScene.h"
 #include "DataWrappers/ChaosVDParticleDataWrapper.h"
 #include "Visualizers/ChaosVDDebugDrawUtils.h"
 
@@ -77,6 +79,31 @@ void FChaosVDParticleDataVisualizer::DrawVisualization(const FSceneView* View, F
 		if (EnumHasAnyFlags(VisualizationFlagsToUse, EChaosVDParticleDataVisualizationFlags::AngularImpulse))
 		{
 			FChaosVDDebugDrawUtils::DrawArrowVector(PDI, OwnerCoMLocation, OwnerCoMLocation + AngImpScale * ParticleDataViewer->ParticleDynamics.MAngularImpulseVelocity, TEXT("Angular Implulse Velocity"), FColor::Emerald);
+		}
+	}
+
+	// TODO: This is a Proof of concept to test how debug draw connectivity data will look
+	// This will get re-implemented when we move particle data visualization to the new visualization system currently used for Collision Data
+	if (ParticleDataViewer->ParticleCluster.HasValidData())
+	{
+		if (EnumHasAnyFlags(VisualizationFlagsToUse, EChaosVDParticleDataVisualizationFlags::ClusterConnectivityEdge))
+		{
+			for (const FChaosVDConnectivityEdge& ConnectivityEdge : ParticleDataViewer->ParticleCluster.ConnectivityEdges)
+			{
+				if (TSharedPtr<FChaosVDScene> ScenePtr = VisualizationContext.CVDScene.Pin())
+				{
+					if (AChaosVDParticleActor* SiblingParticle = ScenePtr->GetParticleActor(VisualizationContext.SolverID, ConnectivityEdge.SiblingParticleID))
+					{
+						if (const FChaosVDParticleDataWrapper* SiblingParticleData = SiblingParticle->GetParticleData())
+						{
+							FVector BoxExtents(2,2,2);
+							FTransform BoxTransform(ParticleDataViewer->ParticlePositionRotation.MR, ParticleDataViewer->ParticlePositionRotation.MX);
+							FChaosVDDebugDrawUtils::DrawBox(PDI, BoxExtents, FColor::Black, BoxTransform, nullptr, ESceneDepthPriorityGroup::SDPG_Foreground);
+							FChaosVDDebugDrawUtils::DrawLine(PDI, ParticleDataViewer->ParticlePositionRotation.MX, SiblingParticleData->ParticlePositionRotation.MX, FColor::Blue, FString::Printf(TEXT("Strain [%f]"), ConnectivityEdge.Strain), ESceneDepthPriorityGroup::SDPG_Foreground);
+						}
+					}	
+				}
+			}
 		}
 	}
 }

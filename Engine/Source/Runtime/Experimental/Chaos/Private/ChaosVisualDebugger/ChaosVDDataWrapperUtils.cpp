@@ -80,6 +80,12 @@ FChaosVDParticleDataWrapper FChaosVDDataWrapperUtils::BuildParticleDataWrapperFr
 		WrappedParticleData.ParticleDynamicsMisc.CopyFrom(*RigidParticle);
 		WrappedParticleData.ParticleMassProps.CopyFrom(*RigidParticle);
 	}
+
+	if (const Chaos::TPBDRigidClusteredParticleHandleImp<Chaos::FReal, 3, true>* ClusteredParticle = ParticleHandlePtr->CastToClustered())
+	{
+		WrappedParticleData.ParticleCluster.CopyFrom(*ClusteredParticle);
+	}
+
 	return MoveTemp(WrappedParticleData);
 }
 

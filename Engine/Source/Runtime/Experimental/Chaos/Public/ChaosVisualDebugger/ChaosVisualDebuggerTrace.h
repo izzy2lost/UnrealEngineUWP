@@ -91,6 +91,10 @@
 	#define CVD_TRACE_NON_SOLVER_TRANSFORM(Transform, DebugName)
 #endif
 
+#ifndef CVD_TRACE_INVALIDATE_CACHED_GEOMETRY
+	#define CVD_TRACE_INVALIDATE_CACHED_GEOMETRY(ImplicitObjectPtr)
+#endif
+
 #else
 
 #include "ChaosVDRuntimeModule.h"
@@ -310,6 +314,11 @@ UE_TRACE_EVENT_END()
 	FChaosVisualDebuggerTrace::TraceNonSolverTransform(Transform, DebugName);
 #endif
 
+#ifndef CVD_TRACE_INVALIDATE_CACHED_GEOMETRY
+	#define CVD_TRACE_INVALIDATE_CACHED_GEOMETRY(ImplicitObjectPtr) \
+	FChaosVisualDebuggerTrace::InvalidateGeometryFromCache(ImplicitObjectPtr);
+#endif
+
 struct FChaosVDContext;
 
 namespace Chaos
@@ -410,6 +419,12 @@ public:
 	 *  @param WrappedGeometryData Wrapper containing a ptr to the implicit and its ID
 	 */
 	static CHAOS_API void TraceImplicitObject(FChaosVDImplicitObjectWrapper WrappedGeometryData);
+
+	/**
+	 * Removes an implicit object from the serialized geometry IDs cache, to ensure we re-serialize it with any new changes
+	 *  @param CachedGeometryToInvalidate Ptr to the Geometry we want to invalidate from the cache
+	 */
+	static CHAOS_API void InvalidateGeometryFromCache(const Chaos::FImplicitObject* CachedGeometryToInvalidate);
 
 	/**
 	 * Traces the provided location using with the provided ID -

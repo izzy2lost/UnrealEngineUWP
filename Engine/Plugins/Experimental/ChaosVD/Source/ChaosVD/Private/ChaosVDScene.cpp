@@ -51,6 +51,8 @@ void FChaosVDScene::Initialize()
 	PhysicsVDWorld = CreatePhysicsVDWorld();
 
 	GeometryGenerator = MakeShared<FChaosVDGeometryBuilder>();
+
+	GeometryGenerator->Initialize(AsWeak());
 	
 	StreamableManager = MakeShared<FStreamableManager>();
 
@@ -60,6 +62,8 @@ void FChaosVDScene::Initialize()
 		// Jira for tracking UE-191639
 		StreamableManager->RequestSyncLoad(Settings->QueryOnlyMeshesMaterial.ToSoftObjectPath());
 		StreamableManager->RequestSyncLoad(Settings->SimOnlyMeshesMaterial.ToSoftObjectPath());
+		StreamableManager->RequestSyncLoad(Settings->InstancedMeshesMaterial.ToSoftObjectPath());
+		StreamableManager->RequestSyncLoad(Settings->InstancedMeshesQueryOnlyMaterial.ToSoftObjectPath());
 		
 		Settings->OnVisibilitySettingsChanged().AddRaw(this, &FChaosVDScene::HandleVisibilitySettingsChanged);
 		Settings->OnColorSettingsChanged().AddRaw(this, &FChaosVDScene::HandleColorSettingsChanged);
@@ -133,7 +137,7 @@ void FChaosVDScene::UpdateFromRecordedStepData(const int32 SolverID, const FStri
 		UpdatingSceneSlowTask.MakeDialogDelayed(ChaosVDSceneUIOptions::DelayToShowProgressDialogThreshold, ChaosVDSceneUIOptions::bShowCancelButton, ChaosVDSceneUIOptions::bAllowInPIE);
 	
 		// Go over existing Particle VD Instances and update them or create them if needed 
-		for (const FChaosVDParticleDataWrapper& Particle : InRecordedStepData.RecordedParticlesData)
+		for (const TSharedPtr<FChaosVDParticleDataWrapper>& Particle : InRecordedStepData.RecordedParticlesData)
 		{
 			const int32 ParticleVDInstanceID = GetIDForRecordedParticleData(Particle);
 			ParticlesIDsInRecordedStepData.Add(ParticleVDInstanceID);
@@ -301,6 +305,10 @@ Chaos::FConstImplicitObjectPtr FChaosVDScene::GetUpdatedGeometry(int32 GeometryI
 		{
 			return *Geometry;
 		}
+		else
+		{
+			UE_LOG(LogChaosVDEditor, Warning, TEXT("Geometry for key [%d] is not loaded in the recording yet"), GeometryID);
+		}
 	}
 
 	return nullptr;
@@ -337,33 +345,28 @@ bool FChaosVDScene::IsSolverForServer(int32 SolverID) const
 	return false;
 }
 
-AChaosVDParticleActor* FChaosVDScene::SpawnParticleFromRecordedData(const FChaosVDParticleDataWrapper& InParticleData, const FChaosVDSolverFrameData& InFrameData)
+AChaosVDParticleActor* FChaosVDScene::SpawnParticleFromRecordedData(const TSharedPtr<FChaosVDParticleDataWrapper>& InParticleData, const FChaosVDSolverFrameData& InFrameData)
 {
 	using namespace Chaos;
 
+	if (!InParticleData.IsValid())
+	{
+		return nullptr;
+	}
+
 	FActorSpawnParameters Params;
-	Params.Name = *InParticleData.DebugName;
+	Params.Name = *InParticleData->DebugName;
 	Params.NameMode = FActorSpawnParameters::ESpawnActorNameMode::Requested;
 
 	if (AChaosVDParticleActor* NewActor = PhysicsVDWorld->SpawnActor<AChaosVDParticleActor>(Params))
 	{
 		NewActor->SetIsActive(true);
+		NewActor->SetScene(AsShared());
+		NewActor->SetIsServerParticle(IsSolverForServer(InParticleData->SolverID));
 		NewActor->UpdateFromRecordedParticleData(InParticleData, InFrameData.SimulationTransform);
 
-		if (!InParticleData.DebugName.IsEmpty())
-		{
-			NewActor->SetActorLabel(InParticleData.DebugName);
-		}
-
-		NewActor->SetScene(AsShared());
-		
-		if (ensure(LoadedRecording.IsValid()))
-		{
-			if (const Chaos::FConstImplicitObjectPtr* Geometry = LoadedRecording->GetGeometryMap().Find(InParticleData.GeometryHash))
-			{
-				NewActor->UpdateGeometry(*Geometry);
-			}
-		}
+		const bool bHasDebugName = !InParticleData->DebugName.IsEmpty();
+		NewActor->SetActorLabel(bHasDebugName ? InParticleData->DebugName : TEXT("Unnamed Particle - ID : ") + FString::FromInt(InParticleData->ParticleIndex));
 
 		return NewActor;
 	}
@@ -371,9 +374,9 @@ AChaosVDParticleActor* FChaosVDScene::SpawnParticleFromRecordedData(const FChaos
 	return nullptr;
 }
 
-int32 FChaosVDScene::GetIDForRecordedParticleData(const FChaosVDParticleDataWrapper& InParticleData) const
+int32 FChaosVDScene::GetIDForRecordedParticleData(const TSharedPtr<FChaosVDParticleDataWrapper>& InParticleData) const
 {
-	return InParticleData.ParticleIndex;
+	return InParticleData ? InParticleData->ParticleIndex : INDEX_NONE;
 }
 
 void FChaosVDScene::CreateBaseLights(UWorld* TargetWorld) const
@@ -412,6 +415,16 @@ void FChaosVDScene::CreateBaseLights(UWorld* TargetWorld) const
 	}
 }
 
+AActor* FChaosVDScene::CreateMeshComponentsContainer(UWorld* TargetWorld)
+{
+	const FName GeometryFolderPath("ChaosVisualDebugger/GeneratedMeshComponents");
+
+	MeshComponentContainerActor = TargetWorld->SpawnActor<AActor>();
+	MeshComponentContainerActor->SetFolderPath(GeometryFolderPath);
+
+	return MeshComponentContainerActor;
+}
+
 UWorld* FChaosVDScene::CreatePhysicsVDWorld()
 {
 	const FName UniqueWorldName = FName(FGuid::NewGuid().ToString());
@@ -433,6 +446,7 @@ UWorld* FChaosVDScene::CreatePhysicsVDWorld()
 	);
 
 	CreateBaseLights(NewWorld);
+	CreateMeshComponentsContainer(NewWorld);
 
 	ActorDestroyedHandle = NewWorld->AddOnActorDestroyedHandler(FOnActorDestroyed::FDelegate::CreateRaw(this, &FChaosVDScene::HandleActorDestroyed));
 	
@@ -522,13 +536,16 @@ void FChaosVDScene::InitializeSelectionSets()
 	SelectionSet = NewObject<UTypedElementSelectionSet>(GetTransientPackage(), NAME_None, RF_Transactional);
 	SelectionSet->AddToRoot();
 
-	ActorSelection = USelection::CreateActorSelection(GetTransientPackage(), TEXT("CVDSelectedActors"), RF_Transactional);
+	FString ActorSelectionObjectName = FString::Printf(TEXT("CVDSelectedActors-%s"), *FGuid::NewGuid().ToString());
+	ActorSelection = USelection::CreateActorSelection(GetTransientPackage(), *ActorSelectionObjectName, RF_Transactional);
 	ActorSelection->SetElementSelectionSet(SelectionSet);
 
-	ComponentSelection = USelection::CreateComponentSelection(GetTransientPackage(), TEXT("CVDSelectedComponents"), RF_Transactional);
+	FString ComponentSelectionObjectName = FString::Printf(TEXT("CVDSelectedComponents-%s"), *FGuid::NewGuid().ToString());
+	ComponentSelection = USelection::CreateComponentSelection(GetTransientPackage(), *ComponentSelectionObjectName, RF_Transactional);
 	ComponentSelection->SetElementSelectionSet(SelectionSet);
 
-	ObjectSelection = USelection::CreateObjectSelection(GetTransientPackage(), TEXT("CVDSelectedObjects"), RF_Transactional);
+	FString ObjectSelectionObjectName = FString::Printf(TEXT("CVDSelectedObjects-%s"), *FGuid::NewGuid().ToString());
+	ObjectSelection = USelection::CreateObjectSelection(GetTransientPackage(), *ObjectSelectionObjectName, RF_Transactional);
 	ObjectSelection->SetElementSelectionSet(SelectionSet);
 
 	SelectionSet->OnPreChange().AddRaw(this, &FChaosVDScene::HandlePreSelectionChange);

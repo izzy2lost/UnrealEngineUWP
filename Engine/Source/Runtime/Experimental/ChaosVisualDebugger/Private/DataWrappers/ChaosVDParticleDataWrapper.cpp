@@ -76,6 +76,26 @@ bool FChaosVDParticleDynamicMisc::Serialize(FArchive& Ar)
 	return true;
 }
 
+bool FChaosVDParticleCluster::Serialize(FArchive& Ar)
+{
+	Ar << ParentParticleID;	
+	Ar << NumChildren;
+	Ar << ChildToParent;
+	Ar << ClusterGroupIndex;
+	Ar << bInternalCluster;
+	Ar << CollisionImpulse;
+	Ar << ExternalStrains;
+	Ar << InternalStrains;
+	Ar << Strain;
+	Ar << ConnectivityEdges;
+	Ar << bIsAnchored;
+	Ar << bUnbreakable;
+	Ar << bIsChildToParentLocked;
+	
+	Ar << bHasValidData;
+	return true;
+}
+
 bool FChaosVDParticleDataWrapper::Serialize(FArchive& Ar)
 {
 	Ar << Type;
@@ -109,6 +129,8 @@ bool FChaosVDParticleDataWrapper::Serialize(FArchive& Ar)
 	Ar << bHasValidData;
 
 	Ar << CollisionDataPerShape;
+
+	Ar << ParticleCluster;
 
 	return true;
 }

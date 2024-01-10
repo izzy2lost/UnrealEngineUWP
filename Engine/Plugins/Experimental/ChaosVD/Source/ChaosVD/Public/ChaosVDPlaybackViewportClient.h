@@ -35,7 +35,7 @@ public:
 private:
 	void HandleObjectFocused(UObject* FocusedObject);
 	void HandleActorMoving(AActor* MovedActor) const;
-	void HandleFarClippingOverrideSettingsChanged(UChaosVDEditorSettings* SettingsObject);
+	void HandleViewportSettingsChanged(UChaosVDEditorSettings* SettingsObject);
 	
 	FDelegateHandle ObjectFocusedDelegateHandle;
 	UWorld* CVDWorld;

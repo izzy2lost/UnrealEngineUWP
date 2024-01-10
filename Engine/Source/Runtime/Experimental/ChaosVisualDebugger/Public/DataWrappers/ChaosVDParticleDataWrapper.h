@@ -394,10 +394,146 @@ struct TStructOpsTypeTraits<FChaosVDParticleDynamicMisc> : public TStructOpsType
 	};
 };
 
-/** Simplified UStruct version of FChaosVDParticleDataWrapper.
+/** Represents the data of a connectivity Edge that CVD can use to reconstruct it during playback */
+USTRUCT()
+struct FChaosVDConnectivityEdge
+{
+	GENERATED_BODY()
+
+	UPROPERTY(EditAnywhere, Category=ConnectivityEdge)
+	int32 SiblingParticleID = INDEX_NONE;
+
+	UPROPERTY(EditAnywhere, Category=ConnectivityEdge)
+	float Strain = 0.0f;
+
+	CHAOSVDRUNTIME_API bool Serialize(FArchive& Ar)
+	{
+		Ar << SiblingParticleID;
+		Ar << Strain;
+
+		return true;
+	}
+};
+
+inline FArchive& operator<<(FArchive& Ar, FChaosVDConnectivityEdge& Data)
+{
+	Data.Serialize(Ar);
+	return Ar;
+}
+
+template<>
+struct TStructOpsTypeTraits<FChaosVDConnectivityEdge> : public TStructOpsTypeTraitsBase2<FChaosVDConnectivityEdge>
+{
+	enum
+	{
+		WithSerializer = true,
+	};
+};
+
+/** Structure contained data from a Clustered Particle.
  * Used to be able to show the values in the editor and allow changes via the Property Editor.
  */
 USTRUCT()
+struct FChaosVDParticleCluster : public FChaosVDParticleDataBase
+{
+	GENERATED_BODY()
+
+	FChaosVDParticleCluster()
+	{
+	}
+
+	CHAOSVDRUNTIME_API bool Serialize(FArchive& Ar);
+
+	template <typename TOther>
+	void CopyFrom(const TOther& Other)
+	{
+		ParentParticleID = Other.ClusterIds().Id ? Other.ClusterIds().Id->UniqueIdx().Idx : INDEX_NONE;
+
+		NumChildren = Other.ClusterIds().NumChildren;
+
+		ChildToParent = Other.ChildToParent();
+		ClusterGroupIndex = Other.ClusterGroupIndex();
+		bInternalCluster = Other.InternalCluster();
+		CollisionImpulse = Other.CollisionImpulses();
+		ExternalStrains = Other.GetExternalStrain();
+		InternalStrains = Other.GetInternalStrains();
+		Strain = Other.Strain();
+
+
+		ConnectivityEdges.Reserve(Other.ConnectivityEdges().Num());
+		for (auto& Edge : Other.ConnectivityEdges())
+		{
+			int32 SiblingId = Edge.Sibling ? Edge.Sibling->UniqueIdx().Idx : INDEX_NONE;
+			ConnectivityEdges.Add( { SiblingId,  Edge.Strain });
+		}
+
+		bIsAnchored = Other.IsAnchored();
+		bUnbreakable = Other.Unbreakable();
+		bIsChildToParentLocked = Other.IsChildToParentLocked();
+		
+		bHasValidData = true;
+	}
+
+	UPROPERTY(EditAnywhere, Category= "Particle Cluster")
+	int32 ParentParticleID = INDEX_NONE;
+
+	UPROPERTY(EditAnywhere, Category= "Particle Cluster | Cluster Id")
+	int32 NumChildren = INDEX_NONE;
+	
+	UPROPERTY(EditAnywhere, Category= "Particle Cluster")
+	FTransform ChildToParent;
+
+	UPROPERTY(EditAnywhere, Category= "Particle Cluster")
+	int32 ClusterGroupIndex = INDEX_NONE;
+
+	UPROPERTY(EditAnywhere, Category= "Particle Cluster")
+	bool bInternalCluster = false;
+
+	UPROPERTY(EditAnywhere, Category= "Particle Cluster")
+	float CollisionImpulse = 0.0f;
+
+	UPROPERTY(EditAnywhere, Category= "Particle Cluster")
+	float ExternalStrains = 0.0f;
+	
+	UPROPERTY(EditAnywhere, Category= "Particle Cluster")
+	float InternalStrains = 0.0f;
+
+	UPROPERTY(EditAnywhere, Category= "Particle Cluster")
+	float Strain = 0.0f;
+
+	UPROPERTY(EditAnywhere, Category= "Particle Cluster")
+	TArray<FChaosVDConnectivityEdge> ConnectivityEdges;
+
+	UPROPERTY(EditAnywhere, Category= "Particle Cluster")
+	bool bIsAnchored = false;
+
+	UPROPERTY(EditAnywhere, Category= "Particle Cluster")
+	bool bUnbreakable = false;
+
+	UPROPERTY(EditAnywhere, Category= "Particle Cluster")
+	bool bIsChildToParentLocked = false;
+};
+
+inline FArchive& operator<<(FArchive& Ar, FChaosVDParticleCluster& Data)
+{
+	Data.Serialize(Ar);
+	return Ar;
+}
+
+template<>
+struct TStructOpsTypeTraits<FChaosVDParticleCluster> : public TStructOpsTypeTraitsBase2<FChaosVDParticleCluster>
+{
+	enum
+	{
+		WithSerializer = true,
+	};
+};
+
+
+/** Simplified UStruct version of FChaosVDParticleDataWrapper.
+ * Used to be able to show the values in the editor and allow changes via the Property Editor.
+ */
+USTRUCT(DisplayName="Particle Data")
 struct FChaosVDParticleDataWrapper : public FChaosVDParticleDataBase
 {
 	virtual ~FChaosVDParticleDataWrapper() override = default;
@@ -439,6 +575,9 @@ struct FChaosVDParticleDataWrapper : public FChaosVDParticleDataBase
 
 	UPROPERTY(EditAnywhere, Category= "Particle Particle Mass Props")
 	FChaosVDParticleMassProps ParticleMassProps;
+
+	UPROPERTY(EditAnywhere, Category= "Particle Cluster Data")
+	FChaosVDParticleCluster ParticleCluster;
 
 	UPROPERTY()
 	TArray<FChaosVDShapeCollisionData> CollisionDataPerShape;

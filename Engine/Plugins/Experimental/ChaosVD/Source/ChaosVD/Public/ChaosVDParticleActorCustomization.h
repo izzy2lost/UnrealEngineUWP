@@ -4,12 +4,17 @@
 
 #include "Templates/SharedPointer.h"
 #include "IDetailCustomization.h"
+#include "DataWrappers/ChaosVDParticleDataWrapper.h"
+
+struct FChaosVDParticleDataWrapper;
+class AChaosVDParticleActor;
 
 /** Custom details panel for the ChaosVD Particle Actor */
 class FChaosVDParticleActorCustomization : public IDetailCustomization
 {
 public:
 	FChaosVDParticleActorCustomization();
+	virtual ~FChaosVDParticleActorCustomization() override;
 
 	inline static FName ChaosVDCategoryName = FName("Particle Data");
 	inline static FName ChaosVDVisualizationCategoryName = FName("Viewport Visualization Flags");
@@ -20,4 +25,9 @@ public:
 
 private:
 	TSet<FName> AllowedCategories;
+	TWeakObjectPtr<AChaosVDParticleActor> CurrentObservedActor;
+
+	void HandleParticleDataUpdated();
+
+	FChaosVDParticleDataWrapper CurrentParticleDataCopy;
 };

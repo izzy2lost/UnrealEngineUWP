@@ -103,6 +103,8 @@ public:
 
 	AActor* GetSkySphereActor() const { return SkySphere; }
 
+	AActor* GetMeshComponentsContainerActor() const { return MeshComponentContainerActor; }
+
 	FChaosVDActorActiveStateUpdateDelegate& OnActorActiveStateChanged() { return ParticleActorUpdateDelegate; }
 
 	TSharedPtr<FChaosVDRecording> LoadedRecording;
@@ -110,11 +112,13 @@ public:
 private:
 
 	/** Creates an ChaosVDParticle actor for the Provided recorded Particle Data */
-	AChaosVDParticleActor* SpawnParticleFromRecordedData(const FChaosVDParticleDataWrapper& InParticleData, const FChaosVDSolverFrameData& InFrameData);
+	AChaosVDParticleActor* SpawnParticleFromRecordedData(const TSharedPtr<FChaosVDParticleDataWrapper>& InParticleData, const FChaosVDSolverFrameData& InFrameData);
 
 	/** Returns the ID used to track this recorded particle data */
-	int32 GetIDForRecordedParticleData(const FChaosVDParticleDataWrapper& InParticleData) const;
+	int32 GetIDForRecordedParticleData(const TSharedPtr<FChaosVDParticleDataWrapper>& InParticleData) const;
 	void CreateBaseLights(UWorld* TargetWorld) const;
+
+	AActor* CreateMeshComponentsContainer(UWorld* TargetWorld);
 
 	/** Creates the instance of the World which will be used the recorded data*/
 	UWorld* CreatePhysicsVDWorld();
@@ -166,6 +170,8 @@ private:
 	TSharedPtr<struct FStreamableManager> StreamableManager;
 
 	mutable AActor* SkySphere = nullptr;
+
+	AActor* MeshComponentContainerActor = nullptr;
 
 	bool bIsInitialized = false;
 
