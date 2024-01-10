@@ -10,12 +10,6 @@
 namespace UE::PoseSearch
 {
 
-/** Motion matching state message container */
-struct FTraceMotionMatchingStateMessage : FTraceMotionMatchingState, FTraceMessage
-{
-};
-FArchive& operator<<(FArchive& Ar, FTraceMotionMatchingStateMessage& State);
-
 /**
  * Provider to the widgets for pose search functionality, largely mimicking FAnimationProvider
  */

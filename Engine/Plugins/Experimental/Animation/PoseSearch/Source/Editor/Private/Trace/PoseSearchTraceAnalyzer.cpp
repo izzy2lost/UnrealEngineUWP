@@ -24,7 +24,7 @@ void FTraceAnalyzer::OnAnalysisBegin(const FOnAnalysisContext& Context)
 	ANSICHAR MotionMatchingStateName[NAME_SIZE];
 
 	FTraceLogger::Name.GetPlainANSIString(LoggerName);
-	FTraceMotionMatchingState::Name.GetPlainANSIString(MotionMatchingStateName);
+	FTraceMotionMatchingStateMessage::Name.GetPlainANSIString(MotionMatchingStateName);
 
 	Builder.RouteEvent(RouteId_MotionMatchingState, LoggerName, MotionMatchingStateName);
 }

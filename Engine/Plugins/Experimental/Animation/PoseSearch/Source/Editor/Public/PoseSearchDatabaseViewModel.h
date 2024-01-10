@@ -7,6 +7,7 @@
 #include "MovieSceneFwd.h"
 #include "PoseSearch/PoseSearchAssetSampler.h"
 #include "PoseSearch/PoseSearchMirrorDataCache.h"
+#include "PoseSearch/PoseSearchRole.h"
 #include "PoseSearchDatabasePreviewScene.h"
 #include "UObject/GCObject.h"
 
@@ -28,9 +29,10 @@ namespace UE::PoseSearch
 	struct FDatabasePreviewActor
 	{
 	public:
-		bool SpawnPreviewActor(UWorld* World, const UPoseSearchDatabase* PoseSearchDatabase, int32 IndexAssetIdx, int32 PoseIdxForTimeOffset = INDEX_NONE);
+		bool SpawnPreviewActor(UWorld* World, const UPoseSearchDatabase* PoseSearchDatabase, int32 IndexAssetIdx, const FRole& Role, const FTransform& SamplerRootTransformOrigin, const FTransform* PrecalculatedRootTransformOrigin, int32 PoseIdxForTimeOffset = INDEX_NONE);
 		void UpdatePreviewActor(const UPoseSearchDatabase* PoseSearchDatabase, float PlayTime, bool bQuantizeAnimationToPoseData);
-		bool DrawPreviewActor(const UPoseSearchDatabase* PoseSearchDatabase, bool bDisplayRootMotionSpeed, bool bDisplayBlockTransition, TConstArrayView<float> QueryVector);
+		static bool DrawPreviewActors(TArrayView<FDatabasePreviewActor> PreviewActors, const UPoseSearchDatabase* PoseSearchDatabase, bool bDisplayRootMotionSpeed, bool bDisplayBlockTransition, TConstArrayView<float> QueryVector);
+
 		void Destroy();
 
 		const UDebugSkelMeshComponent* GetDebugSkelMeshComponent() const;
@@ -41,6 +43,7 @@ namespace UE::PoseSearch
 		int32 GetIndexAssetIndex() const { return IndexAssetIndex; }
 		int32 GetCurrentPoseIndex() const { return CurrentPoseIndex; }
 		float GetPlayTimeOffset() const { return PlayTimeOffset; }
+		const FTransform& GetRootTransformOrigin() const { return RootTransformOrigin;  }
 		
 	private:
 		UAnimPreviewInstance* GetAnimPreviewInstanceInternal();
@@ -63,6 +66,8 @@ namespace UE::PoseSearch
 
 		TArray<FVector> SampledRootMotion;
 		TArray<float> SampledRootMotionSpeed;
+
+		FRole ActorRole = DefaultRole;
 	};
 
 	class FDatabaseViewModel : public TSharedFromThis<FDatabaseViewModel>, public FGCObject
@@ -91,8 +96,8 @@ namespace UE::PoseSearch
 
 		void Tick(float DeltaSeconds);
 
-		TArray<FDatabasePreviewActor>& GetPreviewActors() { return PreviewActors; }
-		const TArray<FDatabasePreviewActor>& GetPreviewActors() const { return PreviewActors; }
+		const TArray<TArray<FDatabasePreviewActor>>& GetPreviewActors() const { return PreviewActors; }
+		TArray<TArray<FDatabasePreviewActor>>& GetPreviewActors() { return PreviewActors; }
 
 		void ToggleDisplayRootMotionSpeed() { bDisplayRootMotionSpeed = !bDisplayRootMotionSpeed;	}
 		bool IsDisplayRootMotionSpeedChecked() const { return bDisplayRootMotionSpeed; }
@@ -110,6 +115,8 @@ namespace UE::PoseSearch
 		void AddBlendSpaceToDatabase(UBlendSpace* BlendSpace);
 		void AddAnimCompositeToDatabase(UAnimComposite* AnimComposite);
 		void AddAnimMontageToDatabase(UAnimMontage* AnimMontage);
+		void AddMultiSequenceToDatabase();
+
 		bool DeleteFromDatabase(int32 AnimationAssetIndex);
 
 		void SetDisableReselection(int32 AnimationAssetIndex, bool bEnabled);
@@ -151,7 +158,7 @@ namespace UE::PoseSearch
 		TWeakPtr<SDatabaseDataDetails> DatabaseDataDetails;
 
 		/** Actors to be displayed in the preview viewport */
-		TArray<FDatabasePreviewActor> PreviewActors;
+		TArray<TArray<FDatabasePreviewActor>> PreviewActors;
 		
 		/** From zero to the play length of the longest preview */
 		float MaxPreviewPlayLength = 0.f;

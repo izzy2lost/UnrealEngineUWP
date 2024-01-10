@@ -14,14 +14,17 @@ void UPoseSearchFeatureChannel_PermutationTime::FindOrAddToSchema(UPoseSearchSch
 		PermutationTime->Weight = 0.f;
 #endif // WITH_EDITORONLY_DATA
 		Schema->AddTemporaryChannel(PermutationTime);
+
+		UE_LOG(LogPoseSearch, Warning, TEXT("required UPoseSearchFeatureChannel_PermutationTime has been added by the Schema '%s' with Weight of zero. Explicitly add one of this channel to the Schema to be able to tune its weight"), *Schema->GetName());
 	}
 }
 
-void UPoseSearchFeatureChannel_PermutationTime::Finalize(UPoseSearchSchema* Schema)
+bool UPoseSearchFeatureChannel_PermutationTime::Finalize(UPoseSearchSchema* Schema)
 {
 	ChannelDataOffset = Schema->SchemaCardinality;
 	ChannelCardinality = 1;
 	Schema->SchemaCardinality += ChannelCardinality;
+	return true;
 }
 
 void UPoseSearchFeatureChannel_PermutationTime::BuildQuery(UE::PoseSearch::FSearchContext& SearchContext) const

@@ -17,7 +17,7 @@ public:
 #endif // WITH_EDITORONLY_DATA
 
 	// UPoseSearchFeatureChannel interface
-	virtual void Finalize(UPoseSearchSchema* Schema) override;
+	virtual bool Finalize(UPoseSearchSchema* Schema) override;
 	virtual void BuildQuery(UE::PoseSearch::FSearchContext& SearchContext) const override;
 
 #if WITH_EDITOR

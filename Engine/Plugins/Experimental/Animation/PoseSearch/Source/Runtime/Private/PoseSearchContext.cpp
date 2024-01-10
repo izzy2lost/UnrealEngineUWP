@@ -16,29 +16,33 @@ namespace UE::PoseSearch
 #if ENABLE_DRAW_DEBUG
 //////////////////////////////////////////////////////////////////////////
 // FDebugDrawParams
-FDebugDrawParams::FDebugDrawParams(FAnimInstanceProxy* InAnimInstanceProxy, const FTransform& InRootMotionTransform, const UPoseSearchDatabase* InDatabase, EDebugDrawFlags InFlags)
-: AnimInstanceProxy(InAnimInstanceProxy)
-, World(nullptr)
-, Mesh(nullptr)
-, RootMotionTransform(&InRootMotionTransform)
+FDebugDrawParams::FDebugDrawParams(TArrayView<FAnimInstanceProxy*> InAnimInstanceProxies, TConstArrayView<const IPoseHistory*> InPoseHistories, const FRoleToIndex& InRoleToIndex, const UPoseSearchDatabase* InDatabase, EDebugDrawFlags InFlags)
+: AnimInstanceProxies(InAnimInstanceProxies)
+, Meshes()
+, PoseHistories(InPoseHistories)
+, RoleToIndex(InRoleToIndex)
 , Database(InDatabase)
 , Flags(InFlags)
 {
+	check(RoleToIndex.Num() == InAnimInstanceProxies.Num() && RoleToIndex.Num() == PoseHistories.Num());
+	check(IsValid(RoleToIndex));
 }
 
-FDebugDrawParams::FDebugDrawParams(const UWorld* InWorld, const USkinnedMeshComponent* InMesh, const FTransform& InRootMotionTransform, const UPoseSearchDatabase* InDatabase, EDebugDrawFlags InFlags)
-: AnimInstanceProxy(nullptr)
-, World(InWorld)
-, Mesh(InMesh)
-, RootMotionTransform(&InRootMotionTransform)
+FDebugDrawParams::FDebugDrawParams(TArrayView<const USkinnedMeshComponent*> InMeshes, TConstArrayView<const IPoseHistory*> InPoseHistories, const FRoleToIndex& InRoleToIndex, const UPoseSearchDatabase* InDatabase, EDebugDrawFlags InFlags)
+: AnimInstanceProxies()
+, Meshes(InMeshes)
+, PoseHistories(InPoseHistories)
+, RoleToIndex(InRoleToIndex)
 , Database(InDatabase)
 , Flags(InFlags)
 {
+	check(RoleToIndex.Num() == Meshes.Num() && RoleToIndex.Num() == PoseHistories.Num());
+	check(IsValid(RoleToIndex));
 }
 
 bool FDebugDrawParams::CanDraw() const
 {
-	return (AnimInstanceProxy || World) && Database && Database->Schema && Database->Schema->IsValid();
+	return (!AnimInstanceProxies.IsEmpty() || !Meshes.IsEmpty()) && !RoleToIndex.IsEmpty() && Database && Database->Schema;
 }
 
 const FSearchIndex* FDebugDrawParams::GetSearchIndex() const
@@ -54,12 +58,13 @@ const UPoseSearchSchema* FDebugDrawParams::GetSchema() const
 FVector FDebugDrawParams::ExtractPosition(TConstArrayView<float> PoseVector, const UPoseSearchFeatureChannel_Position* Position) const
 {
 	check(Position);
+	check(Position->SampleRole == Position->OriginRole);
 	const FVector BonePosition = FFeatureVectorHelper::DecodeVector(PoseVector, Position->GetChannelDataOffset(), Position->ComponentStripping);
-	const FVector WorldBonePosition = GetRootTransform().TransformPosition(BonePosition);
+	const FVector WorldBonePosition = GetRootTransform(Position->SampleRole).TransformPosition(BonePosition);
 	return WorldBonePosition;
 }
 
-FVector FDebugDrawParams::ExtractPosition(TConstArrayView<float> PoseVector, float SampleTimeOffset, int8 SchemaBoneIdx, EPermutationTimeType PermutationTimeType, int32 SamplingAttributeId) const
+FVector FDebugDrawParams::ExtractPosition(TConstArrayView<float> PoseVector, float SampleTimeOffset, int8 SchemaBoneIdx, const FRole& Role, EPermutationTimeType PermutationTimeType, int32 SamplingAttributeId) const
 {
 	// we don't wanna ask for a SchemaOriginBoneIdx in the future or past
 	check(PermutationTimeType != EPermutationTimeType::UsePermutationTime);
@@ -68,15 +73,18 @@ FVector FDebugDrawParams::ExtractPosition(TConstArrayView<float> PoseVector, flo
 		// looking for a UPoseSearchFeatureChannel_Position that matches the TimeOffset and SchemaBoneIdx,
 		// with SchemaOriginBoneIdx to be the root bone and the appropriate PermutationTimeType 
 		if (const UPoseSearchFeatureChannel_Position* FoundPosition = static_cast<const UPoseSearchFeatureChannel_Position*>(
-			Schema->FindChannel([SampleTimeOffset, SchemaBoneIdx, PermutationTimeType, SamplingAttributeId, Schema](const UPoseSearchFeatureChannel* Channel) -> const UPoseSearchFeatureChannel_Position*
+			Schema->FindChannel([SampleTimeOffset, SchemaBoneIdx, &Role, PermutationTimeType, SamplingAttributeId](const UPoseSearchFeatureChannel* Channel) -> const UPoseSearchFeatureChannel_Position*
 				{
 					if (const UPoseSearchFeatureChannel_Position* Position = Cast<UPoseSearchFeatureChannel_Position>(Channel))
 					{
 						if (Position->SchemaBoneIdx == SchemaBoneIdx &&
 							Position->SampleTimeOffset == SampleTimeOffset &&
+							Position->OriginTimeOffset == 0.f &&
 							Position->PermutationTimeType == PermutationTimeType &&
 							Position->SamplingAttributeId == SamplingAttributeId &&
-							Position->SchemaOriginBoneIdx == RootSchemaBoneIdx)
+							Position->SchemaOriginBoneIdx == RootSchemaBoneIdx &&
+							Position->SampleRole == Role &&
+							Position->OriginRole == Role)
 						{
 							return Position;
 						}
@@ -87,15 +95,32 @@ FVector FDebugDrawParams::ExtractPosition(TConstArrayView<float> PoseVector, flo
 			return ExtractPosition(PoseVector, FoundPosition);
 		}
 
-		if (Mesh && SchemaBoneIdx > RootSchemaBoneIdx)
+		if (const int32* RoleIndex = RoleToIndex.Find(Role))
 		{
-			return Mesh->GetSocketTransform(Schema->BoneReferences[SchemaBoneIdx].BoneName).GetTranslation();
+			if (const IPoseHistory* PoseHistory = PoseHistories[*RoleIndex])
+			{
+				if (const USkeleton* Skeleton = Schema->GetSkeleton(Role))
+				{
+					const FBoneIndexType BoneIndexType = Schema->GetBoneReferences(Role)[SchemaBoneIdx].BoneIndex;
+
+					FTransform WorldBoneTransform;
+					if (PoseHistory->GetTransformAtTime(SampleTimeOffset, WorldBoneTransform, Skeleton, BoneIndexType, WorldSpaceIndexType))
+					{
+						return WorldBoneTransform.GetTranslation();
+					}
+				}
+			}
+
+			if (SchemaBoneIdx > RootSchemaBoneIdx && !Meshes.IsEmpty())
+			{
+				return Meshes[*RoleIndex]->GetSocketTransform(Schema->GetBoneReferences(Role)[SchemaBoneIdx].BoneName).GetTranslation();
+			}
 		}
 	}
-	return GetRootTransform().GetTranslation();
+	return GetRootTransform(Role).GetTranslation();
 }
 
-FQuat FDebugDrawParams::ExtractRotation(TConstArrayView<float> PoseVector, float SampleTimeOffset, int8 SchemaBoneIdx) const
+FQuat FDebugDrawParams::ExtractRotation(TConstArrayView<float> PoseVector, float SampleTimeOffset, int8 SchemaBoneIdx, const FRole& Role, EPermutationTimeType PermutationTimeType, int32 SamplingAttributeId) const
 {
 	if (const UPoseSearchSchema* Schema = GetSchema())
 	{
@@ -108,13 +133,18 @@ FQuat FDebugDrawParams::ExtractRotation(TConstArrayView<float> PoseVector, float
 			// the features data associated to this channel would be a heading vector in GetRootTransform space (since OriginTimeOffset is zero)), 
 			// so by finding at least two with differnt axis we'll be able to compose a delta rotation from OriginTimeOffset (zero) to SampleTimeOffset
 			FoundHeading[HeadingAxis] = static_cast<const UPoseSearchFeatureChannel_Heading*>(
-				Schema->FindChannel([SampleTimeOffset, SchemaBoneIdx, HeadingAxis](const UPoseSearchFeatureChannel* Channel) -> const UPoseSearchFeatureChannel_Heading*
+				Schema->FindChannel([SampleTimeOffset, SchemaBoneIdx, &Role, PermutationTimeType, SamplingAttributeId, HeadingAxis](const UPoseSearchFeatureChannel* Channel) -> const UPoseSearchFeatureChannel_Heading*
 					{
 						if (const UPoseSearchFeatureChannel_Heading* Heading = Cast<UPoseSearchFeatureChannel_Heading>(Channel))
 						{
-							if (Heading->OriginTimeOffset == 0.f &&
-								Heading->SchemaBoneIdx == SchemaBoneIdx &&
+							if (Heading->SchemaBoneIdx == SchemaBoneIdx &&
 								Heading->SampleTimeOffset == SampleTimeOffset &&
+								Heading->OriginTimeOffset == 0.f &&
+								Heading->PermutationTimeType == PermutationTimeType &&
+								Heading->SamplingAttributeId == SamplingAttributeId &&
+								Heading->SchemaOriginBoneIdx == RootSchemaBoneIdx &&
+								Heading->SampleRole == Role &&
+								Heading->OriginRole == Role &&
 								int32(Heading->HeadingAxis) == HeadingAxis)
 							{
 								return Heading;
@@ -185,37 +215,60 @@ FQuat FDebugDrawParams::ExtractRotation(TConstArrayView<float> PoseVector, float
 				// world rotation associated to the time zero, we can calcualte the world rotation at time SampleTimeOffset
 				const FMatrix RotMatrix(DecodedHeading[int32(EHeadingAxis::X)], DecodedHeading[int32(EHeadingAxis::Y)], DecodedHeading[int32(EHeadingAxis::Z)], FVector::ZeroVector);
 				const FQuat RotQuat(RotMatrix);
-				const FQuat RotQuatWorld = RotQuat * GetRootTransform().GetRotation();
+				const FQuat RotQuatWorld = RotQuat * GetRootTransform(Role).GetRotation();
 				return RotQuatWorld;
 			}
 		}
 
-		if (Mesh && SchemaBoneIdx > RootSchemaBoneIdx)
+		if (const int32* RoleIndex = RoleToIndex.Find(Role))
 		{
-			return Mesh->GetSocketTransform(Schema->BoneReferences[SchemaBoneIdx].BoneName).GetRotation();
+			if (const IPoseHistory* PoseHistory = PoseHistories[*RoleIndex])
+			{
+				if (const USkeleton* Skeleton = Schema->GetSkeleton(Role))
+				{
+					const FBoneIndexType BoneIndexType = Schema->GetBoneReferences(Role)[SchemaBoneIdx].BoneIndex;
+
+					FTransform WorldBoneTransform;
+					if (PoseHistory->GetTransformAtTime(SampleTimeOffset, WorldBoneTransform, Skeleton, BoneIndexType, WorldSpaceIndexType))
+					{
+						return WorldBoneTransform.GetRotation();
+					}
+				}
+			}
+
+			if (SchemaBoneIdx > RootSchemaBoneIdx && !Meshes.IsEmpty())
+			{
+				return Meshes[*RoleIndex]->GetSocketTransform(Schema->GetBoneReferences(Role)[SchemaBoneIdx].BoneName).GetRotation();
+			}
 		}
 	}
 
-	return GetRootTransform().GetRotation();
+	return GetRootTransform(Role).GetRotation();
 }
 
-const FTransform& FDebugDrawParams::GetRootTransform() const
+FTransform FDebugDrawParams::GetRootTransform(const FRole& Role) const
 {
-	check(RootMotionTransform);
-	return *RootMotionTransform;
+	if (const int32* RoleIndex = RoleToIndex.Find(Role))
+	{
+		// @todo: add and use SampleTimeOffset to get the root transform at a specific time now using the trajectory
+		return PoseHistories[*RoleIndex]->GetTrajectory().GetSampleAtTime(0.f).GetTransform();
+	}
+	return FTransform::Identity;
 }
 
 void FDebugDrawParams::DrawLine(const FVector& LineStart, const FVector& LineEnd, const FColor& Color, float Thickness) const
 {
 	if (Color.A > 0)
 	{
-		if (AnimInstanceProxy)
+		if (!AnimInstanceProxies.IsEmpty())
 		{
-			AnimInstanceProxy->AnimDrawDebugLine(LineStart, LineEnd, Color, false, 0.f, Thickness, SDPG_Foreground);
+			// any AnimInstanceProxy is fine to draw
+			AnimInstanceProxies[0]->AnimDrawDebugLine(LineStart, LineEnd, Color, false, 0.f, Thickness, SDPG_Foreground);
 		}
-		else if (World)
+		else if (!Meshes.IsEmpty())
 		{
-			DrawDebugLine(World, LineStart, LineEnd, Color, false, 0.f, SDPG_Foreground, Thickness);
+			// any Mesh is fine to draw
+			DrawDebugLine(Meshes[0]->GetWorld(), LineStart, LineEnd, Color, false, 0.f, SDPG_Foreground, Thickness);
 		}
 	}
 }
@@ -224,13 +277,15 @@ void FDebugDrawParams::DrawPoint(const FVector& Position, const FColor& Color, f
 {
 	if (Color.A > 0)
 	{
-		if (AnimInstanceProxy)
+		if (!AnimInstanceProxies.IsEmpty())
 		{
-			AnimInstanceProxy->AnimDrawDebugPoint(Position, Thickness, Color, false, 0.f, SDPG_Foreground);
+			// any AnimInstanceProxy is fine to draw
+			AnimInstanceProxies[0]->AnimDrawDebugPoint(Position, Thickness, Color, false, 0.f, SDPG_Foreground);
 		}
-		else if (World)
+		else if (!Meshes.IsEmpty())
 		{
-			DrawDebugPoint(World, Position, Thickness, Color, false, 0.f, SDPG_Foreground);
+			// any Mesh is fine to draw
+			DrawDebugPoint(Meshes[0]->GetWorld(), Position, Thickness, Color, false, 0.f, SDPG_Foreground);
 		}
 	}
 }
@@ -239,14 +294,16 @@ void FDebugDrawParams::DrawCircle(const FMatrix& TransformMatrix, float Radius, 
 {
 	if (Color.A > 0)
 	{
-		if (AnimInstanceProxy)
+		if (!AnimInstanceProxies.IsEmpty())
 		{
-			AnimInstanceProxy->AnimDrawDebugCircle(TransformMatrix.GetOrigin(), Radius, Segments, Color, TransformMatrix.GetScaledAxis(EAxis::X), false, 0.f, SDPG_Foreground, Thickness);
+			// any AnimInstanceProxy is fine to draw
+			AnimInstanceProxies[0]->AnimDrawDebugCircle(TransformMatrix.GetOrigin(), Radius, Segments, Color, TransformMatrix.GetScaledAxis(EAxis::X), false, 0.f, SDPG_Foreground, Thickness);
 		}
-		else if (World)
+		else if (!Meshes.IsEmpty())
 		{
+			// any Mesh is fine to draw
 			// @todo: use the DrawDebugCircle API with the up vector to communize with the AnimInstanceProxy call
-			DrawDebugCircle(World, TransformMatrix, Radius, Segments, Color, false, 0.f, SDPG_Foreground, Thickness);
+			DrawDebugCircle(Meshes[0]->GetWorld(), TransformMatrix, Radius, Segments, Color, false, 0.f, SDPG_Foreground, Thickness);
 		}
 	}
 }
@@ -353,27 +410,37 @@ void FDebugDrawParams::DrawFeatureVector(int32 PoseIdx)
 // FCachedQuery
 FCachedQuery::FCachedQuery(const UPoseSearchSchema* InSchema)
 {
-	check(InSchema && InSchema->IsValid());
+	check(InSchema);
 	Schema = InSchema;
 	Values.SetNumZeroed(Schema->SchemaCardinality);
 }
 
 //////////////////////////////////////////////////////////////////////////
 // FSearchContext
-FSearchContext::FSearchContext(const UAnimInstance* InAnimInstance, const IPoseHistory* InHistory, TConstArrayView<const UObject*> InAssetsToConsider,
-		float InDesiredPermutationTimeOffset, const FPoseIndicesHistory* InPoseIndicesHistory,
-		const FSearchResult& InCurrentResult, const FFloatInterval& InPoseJumpThresholdTime, bool bInUseCachedChannelData)
-: AnimInstance(InAnimInstance)
-, History(InHistory)
-, AssetsToConsider(InAssetsToConsider)
+FSearchContext::FSearchContext(float InDesiredPermutationTimeOffset, const FPoseIndicesHistory* InPoseIndicesHistory,
+	const FSearchResult& InCurrentResult, const FFloatInterval& InPoseJumpThresholdTime, bool bInUseCachedChannelData)
+: AnimInstances()
+, PoseHistories()
+, RoleToIndex()
+, AssetsToConsider()
 , DesiredPermutationTimeOffset(InDesiredPermutationTimeOffset)
 , PoseIndicesHistory(InPoseIndicesHistory)
 , CurrentResult(InCurrentResult)
 , PoseJumpThresholdTime(InPoseJumpThresholdTime)
 , bUseCachedChannelData(bInUseCachedChannelData)
 {
-	check(AnimInstance);
 	UpdateCurrentResultPoseVector();
+}
+
+void FSearchContext::AddRole(const FRole& Role, const UAnimInstance* AnimInstance, const IPoseHistory* PoseHistory)
+{
+	check(RoleToIndex.Num() == AnimInstances.Num() && RoleToIndex.Num() == PoseHistories.Num());
+
+	AnimInstances.Add(AnimInstance);
+	PoseHistories.Add(PoseHistory);
+	RoleToIndex.Add(Role) = RoleToIndex.Num();
+
+	check(IsValid(RoleToIndex));
 }
 
 void FSearchContext::UpdateCurrentResultPoseVector()
@@ -394,7 +461,7 @@ void FSearchContext::UpdateCurrentResultPoseVector()
 	}
 }
 
-FQuat FSearchContext::GetSampleRotation(float SampleTimeOffset, float OriginTimeOffset, int8 SchemaSampleBoneIdx, int8 SchemaOriginBoneIdx, EPermutationTimeType PermutationTimeType, const FQuat* SampleBoneRotationWorldOverride)
+FQuat FSearchContext::GetSampleRotation(float SampleTimeOffset, float OriginTimeOffset, int8 SchemaSampleBoneIdx, int8 SchemaOriginBoneIdx, const FRole& SampleRole, const FRole& OriginRole, EPermutationTimeType PermutationTimeType, const FQuat* SampleBoneRotationWorldOverride)
 {
 	float PermutationSampleTimeOffset = 0.f;
 	float PermutationOriginTimeOffset = 0.f;
@@ -403,10 +470,10 @@ FQuat FSearchContext::GetSampleRotation(float SampleTimeOffset, float OriginTime
 	const float SampleTime = SampleTimeOffset + PermutationSampleTimeOffset;
 	const float OriginTime = OriginTimeOffset + PermutationOriginTimeOffset;
 
-	return GetSampleRotationInternal(SampleTime, OriginTime, SchemaSampleBoneIdx, SchemaOriginBoneIdx, SampleBoneRotationWorldOverride);
+	return GetSampleRotationInternal(SampleTime, OriginTime, SchemaSampleBoneIdx, SchemaOriginBoneIdx, SampleRole, OriginRole, SampleBoneRotationWorldOverride);
 }
 
-FVector FSearchContext::GetSamplePosition(float SampleTimeOffset, float OriginTimeOffset, int8 SchemaSampleBoneIdx, int8 SchemaOriginBoneIdx, EPermutationTimeType PermutationTimeType, const FVector* SampleBonePositionWorldOverride)
+FVector FSearchContext::GetSamplePosition(float SampleTimeOffset, float OriginTimeOffset, int8 SchemaSampleBoneIdx, int8 SchemaOriginBoneIdx, const FRole& SampleRole, const FRole& OriginRole, EPermutationTimeType PermutationTimeType, const FVector* SampleBonePositionWorldOverride)
 {
 	float PermutationSampleTimeOffset = 0.f;
 	float PermutationOriginTimeOffset = 0.f;
@@ -414,10 +481,10 @@ FVector FSearchContext::GetSamplePosition(float SampleTimeOffset, float OriginTi
 
 	const float SampleTime = SampleTimeOffset + PermutationSampleTimeOffset;
 	const float OriginTime = OriginTimeOffset + PermutationOriginTimeOffset;
-	return GetSamplePositionInternal(SampleTime, OriginTime, SchemaSampleBoneIdx, SchemaOriginBoneIdx, SampleBonePositionWorldOverride);
+	return GetSamplePositionInternal(SampleTime, OriginTime, SchemaSampleBoneIdx, SchemaOriginBoneIdx, SampleRole, OriginRole, SampleBonePositionWorldOverride);
 }
 
-FVector FSearchContext::GetSampleVelocity(float SampleTimeOffset, float OriginTimeOffset, int8 SchemaSampleBoneIdx, int8 SchemaOriginBoneIdx, bool bUseCharacterSpaceVelocities, EPermutationTimeType PermutationTimeType, const FVector* SampleBoneVelocityWorldOverride)
+FVector FSearchContext::GetSampleVelocity(float SampleTimeOffset, float OriginTimeOffset, int8 SchemaSampleBoneIdx, int8 SchemaOriginBoneIdx, const FRole& SampleRole, const FRole& OriginRole, bool bUseCharacterSpaceVelocities, EPermutationTimeType PermutationTimeType, const FVector* SampleBoneVelocityWorldOverride)
 {
 	using namespace UE::PoseSearch;
 
@@ -430,26 +497,27 @@ FVector FSearchContext::GetSampleVelocity(float SampleTimeOffset, float OriginTi
 
 	if (SampleBoneVelocityWorldOverride)
 	{
-		const FTransform RootBoneTransform = GetWorldBoneTransformAtTime(OriginTime, RootSchemaBoneIdx);
+		const FTransform RootBoneTransform = GetWorldBoneTransformAtTime(OriginTime, OriginRole, RootSchemaBoneIdx);
 		return RootBoneTransform.InverseTransformVector(*SampleBoneVelocityWorldOverride);
 	}
 
 	// calculating the local Position for the bone indexed by SchemaSampleBoneIdx
-	const FVector PreviousTranslation = GetSamplePositionInternal(SampleTime - FiniteDelta, bUseCharacterSpaceVelocities ? OriginTime - FiniteDelta : OriginTime, SchemaSampleBoneIdx, SchemaOriginBoneIdx);
-	const FVector CurrentTranslation = GetSamplePositionInternal(SampleTime, OriginTime, SchemaSampleBoneIdx, SchemaOriginBoneIdx);
+	const FVector PreviousTranslation = GetSamplePositionInternal(SampleTime - FiniteDelta, bUseCharacterSpaceVelocities ? OriginTime - FiniteDelta : OriginTime, SchemaSampleBoneIdx, SchemaOriginBoneIdx, SampleRole, OriginRole);
+	const FVector CurrentTranslation = GetSamplePositionInternal(SampleTime, OriginTime, SchemaSampleBoneIdx, SchemaOriginBoneIdx, SampleRole, OriginRole);
 
 	const FVector LinearVelocity = (CurrentTranslation - PreviousTranslation) / FiniteDelta;
 	return LinearVelocity;
 }
 
-FTransform FSearchContext::GetWorldRootBoneTransformAtTime(float SampleTime) const
+FTransform FSearchContext::GetWorldRootBoneTransformAtTime(float SampleTime, const FRole& SampleRole) const
 {
 	check(!CachedQueries.IsEmpty());
 	const UPoseSearchSchema* Schema = CachedQueries.Last().GetSchema();
 	check(Schema);
 
+	const IPoseHistory* PoseHistory = GetPoseHistory(SampleRole);
 	#if WITH_EDITOR
-	if (!History)
+	if (!PoseHistory)
 	{
 		UE_LOG(LogPoseSearch, Error, TEXT("FSearchContext::GetWorldRootBoneTransformAtTime - Couldn't search for world space root boneTransform by %s, because no IPoseHistory has been found!"), *Schema->GetName());
 	}
@@ -457,12 +525,13 @@ FTransform FSearchContext::GetWorldRootBoneTransformAtTime(float SampleTime) con
 	#endif // WITH_EDITOR
 	{
 		FTransform WorldRootBoneTransform;
-		if (ensure(History) && History->GetTransformAtTime(SampleTime, WorldRootBoneTransform, Schema->Skeleton, RootBoneIndexType, WorldSpaceIndexType))
+		if (ensure(PoseHistory) && PoseHistory->GetTransformAtTime(SampleTime, WorldRootBoneTransform, Schema->GetSkeleton(SampleRole), RootBoneIndexType, WorldSpaceIndexType))
 		{
 			return WorldRootBoneTransform;
 		}
 	}
 
+	const UAnimInstance* AnimInstance = GetAnimInstance(SampleRole);
 	if (AnimInstance && AnimInstance->CurrentSkeleton)
 	{
 		const FTransform& RootBoneTransform = AnimInstance->CurrentSkeleton->GetReferenceSkeleton().GetRefBonePose()[RootSchemaBoneIdx];
@@ -473,54 +542,79 @@ FTransform FSearchContext::GetWorldRootBoneTransformAtTime(float SampleTime) con
 	return FTransform::Identity;
 }
 
-FTransform FSearchContext::GetWorldBoneTransformAtTime(float SampleTime, int8 SchemaBoneIdx)
+bool FSearchContext::ArePoseHistoriesValid() const
+{
+	for (const IPoseHistory* PoseHistory : PoseHistories)
+	{
+		if (!PoseHistory)
+		{
+			return false;
+		}
+	}
+	return true;
+}
+
+FTransform FSearchContext::GetWorldBoneTransformAtTime(float SampleTime, const FRole& SampleRole, int8 SchemaBoneIdx)
 {
 	// CachedQueries.Last is the query we're building 
 	check(!CachedQueries.IsEmpty());
 	const UPoseSearchSchema* Schema = CachedQueries.Last().GetSchema();
 	check(Schema);
 
-	const FBoneIndexType BoneIndexType = Schema->GetBoneIndexType(SchemaBoneIdx);
-	if (const FCachedTransform<FTransform>* CachedTransform = CachedTransforms.Find(SampleTime, BoneIndexType))
+	TConstArrayView<FBoneReference> BoneReferences = Schema->GetBoneReferences(SampleRole);
+	check(BoneReferences[SchemaBoneIdx].HasValidSetup());
+	const FBoneIndexType BoneIndexType = BoneReferences[SchemaBoneIdx].BoneIndex;
+
+	const uint32 SampleTimeHash = GetTypeHash(SampleTime);
+	const uint32 SampleRoleHash = GetTypeHash(SampleRole);
+	const uint32 SampleTimeAndRoleHash = HashCombineFast(SampleTimeHash, SampleRoleHash);
+	const uint32 BoneIndexTypeHash = GetTypeHash(BoneIndexType);
+	const uint32 BoneCachedTransformKey = HashCombineFast(SampleTimeAndRoleHash, BoneIndexTypeHash);
+
+	if (const FTransform* CachedTransform = CachedTransforms.Find(BoneCachedTransformKey))
 	{
-		return CachedTransform->Transform;
+		return *CachedTransform;
 	}
 
 	FTransform WorldBoneTransform;
 	if (BoneIndexType == RootBoneIndexType)
 	{
 		// we already tried querying the CachedTransforms so, let's search in Trajectory
-		WorldBoneTransform = GetWorldRootBoneTransformAtTime(SampleTime);
+		WorldBoneTransform = GetWorldRootBoneTransformAtTime(SampleTime, SampleRole);
 	}
 	else // if (BoneIndexType != RootBoneIndexType)
 	{
 		// searching for RootBoneIndexType in CachedTransforms
-		if (const FCachedTransform<FTransform>* CachedTransform = CachedTransforms.Find(SampleTime, RootBoneIndexType))
+		static const uint32 RootBoneIndexTypeHash = GetTypeHash(RootBoneIndexType); // Note: static const, since RootBoneIndexType is a constant
+		const uint32 RootBoneCachedTransformKey = HashCombineFast(SampleTimeAndRoleHash, RootBoneIndexTypeHash);
+		if (const FTransform* CachedTransform = CachedTransforms.Find(RootBoneCachedTransformKey))
 		{
-			WorldBoneTransform = CachedTransform->Transform;
+			WorldBoneTransform = *CachedTransform;
 		}
 		else
 		{
-			WorldBoneTransform = GetWorldRootBoneTransformAtTime(SampleTime);
+			WorldBoneTransform = GetWorldRootBoneTransformAtTime(SampleTime, SampleRole);
 		}
 
 		// collecting the local bone transforms from the IPoseHistory
+		const IPoseHistory* PoseHistory = GetPoseHistory(SampleRole);
 		#if WITH_EDITOR
-		if (!History)
+		if (!PoseHistory)
 		{
 			UE_LOG(LogPoseSearch, Error, TEXT("FSearchContext::GetWorldBoneTransformAtTime - Couldn't search for bones requested by %s, because no IPoseHistory has been found!"), *Schema->GetName());
 		}
 		else
 		#endif // WITH_EDITOR
 		{
-			check(History);
+			check(PoseHistory);
 
+			const USkeleton* Skeleton = Schema->GetSkeleton(SampleRole);
 			FTransform LocalBoneTransform;
-			if (!History->GetTransformAtTime(SampleTime, LocalBoneTransform, Schema->Skeleton, BoneIndexType, RootBoneIndexType))
+			if (!PoseHistory->GetTransformAtTime(SampleTime, LocalBoneTransform, Skeleton, BoneIndexType, RootBoneIndexType))
 			{
-				if (const USkeleton* Skeleton = Schema->Skeleton)
+				if (Skeleton)
 				{
-					if (!History->IsEmpty())
+					if (!PoseHistory->IsEmpty())
 					{
 						UE_LOG(LogPoseSearch, Warning, TEXT("FSearchContext::GetWorldBoneTransformAtTime - Couldn't find BoneIndexType %d (%s) requested by %s"), BoneIndexType, *Skeleton->GetReferenceSkeleton().GetBoneName(BoneIndexType).ToString(), *Schema->GetName());
 					}
@@ -535,55 +629,55 @@ FTransform FSearchContext::GetWorldBoneTransformAtTime(float SampleTime, int8 Sc
 		}
 	}
 
-	CachedTransforms.Add(SampleTime, BoneIndexType, WorldBoneTransform);
+	CachedTransforms.Add(BoneCachedTransformKey) = WorldBoneTransform;
 	return WorldBoneTransform;
 }
 
-FVector FSearchContext::GetSamplePositionInternal(float SampleTime, float OriginTime, int8 SchemaSampleBoneIdx, int8 SchemaOriginBoneIdx, const FVector* SampleBonePositionWorldOverride)
+FVector FSearchContext::GetSamplePositionInternal(float SampleTime, float OriginTime, int8 SchemaSampleBoneIdx, int8 SchemaOriginBoneIdx, const FRole& SampleRole, const FRole& OriginRole, const FVector* SampleBonePositionWorldOverride)
 {
 	if (SampleBonePositionWorldOverride)
 	{
-		const FTransform RootBoneTransform = GetWorldBoneTransformAtTime(OriginTime, RootSchemaBoneIdx);
+		const FTransform RootBoneTransform = GetWorldBoneTransformAtTime(OriginTime, OriginRole, RootSchemaBoneIdx);
 		if (SchemaOriginBoneIdx == RootSchemaBoneIdx)
 		{
 			return RootBoneTransform.InverseTransformPosition(*SampleBonePositionWorldOverride);
 		}
 
 		// @todo: validate this still works for when root bone is not Identity
-		const FTransform OriginBoneTransform = GetWorldBoneTransformAtTime(OriginTime, SchemaOriginBoneIdx);
+		const FTransform OriginBoneTransform = GetWorldBoneTransformAtTime(OriginTime, OriginRole, SchemaOriginBoneIdx);
 		const FVector DeltaBoneTranslation = *SampleBonePositionWorldOverride - OriginBoneTransform.GetTranslation();
 		return RootBoneTransform.InverseTransformVector(DeltaBoneTranslation);
 	}
 
-	const FTransform RootBoneTransform = GetWorldBoneTransformAtTime(OriginTime, RootSchemaBoneIdx);
-	const FTransform SampleBoneTransform = GetWorldBoneTransformAtTime(SampleTime, SchemaSampleBoneIdx);
+	const FTransform RootBoneTransform = GetWorldBoneTransformAtTime(OriginTime, OriginRole, RootSchemaBoneIdx);
+	const FTransform SampleBoneTransform = GetWorldBoneTransformAtTime(SampleTime, SampleRole, SchemaSampleBoneIdx);
 	if (SchemaOriginBoneIdx == RootSchemaBoneIdx)
 	{
 		return RootBoneTransform.InverseTransformPosition(SampleBoneTransform.GetTranslation());
 	}
 
-	const FTransform OriginBoneTransform = GetWorldBoneTransformAtTime(OriginTime, SchemaOriginBoneIdx);
+	const FTransform OriginBoneTransform = GetWorldBoneTransformAtTime(OriginTime, OriginRole, SchemaOriginBoneIdx);
 	const FVector DeltaBoneTranslation = SampleBoneTransform.GetTranslation() - OriginBoneTransform.GetTranslation();
 	return RootBoneTransform.InverseTransformVector(DeltaBoneTranslation);
 }
 
-FQuat FSearchContext::GetSampleRotationInternal(float SampleTime, float OriginTime, int8 SchemaSampleBoneIdx, int8 SchemaOriginBoneIdx, const FQuat* SampleBoneRotationWorldOverride)
+FQuat FSearchContext::GetSampleRotationInternal(float SampleTime, float OriginTime, int8 SchemaSampleBoneIdx, int8 SchemaOriginBoneIdx, const FRole& SampleRole, const FRole& OriginRole, const FQuat* SampleBoneRotationWorldOverride)
 {
 	if (SampleBoneRotationWorldOverride)
 	{
-		const FTransform RootBoneTransform = GetWorldBoneTransformAtTime(OriginTime, RootSchemaBoneIdx);
+		const FTransform RootBoneTransform = GetWorldBoneTransformAtTime(OriginTime, OriginRole, RootSchemaBoneIdx);
 		if (SchemaOriginBoneIdx == RootSchemaBoneIdx)
 		{
 			return RootBoneTransform.InverseTransformRotation(*SampleBoneRotationWorldOverride);
 		}
 
-		const FTransform OriginBoneTransform = GetWorldBoneTransformAtTime(OriginTime, SchemaOriginBoneIdx);
+		const FTransform OriginBoneTransform = GetWorldBoneTransformAtTime(OriginTime, OriginRole, SchemaOriginBoneIdx);
 		const FQuat DeltaBoneRotation = OriginBoneTransform.InverseTransformRotation(*SampleBoneRotationWorldOverride);
 		return RootBoneTransform.InverseTransformRotation(DeltaBoneRotation);
 	}
 
-	const FTransform RootBoneTransform = GetWorldBoneTransformAtTime(OriginTime, RootSchemaBoneIdx);
-	const FTransform SampleBoneTransform = GetWorldBoneTransformAtTime(SampleTime, SchemaSampleBoneIdx);
+	const FTransform RootBoneTransform = GetWorldBoneTransformAtTime(OriginTime, OriginRole, RootSchemaBoneIdx);
+	const FTransform SampleBoneTransform = GetWorldBoneTransformAtTime(SampleTime, SampleRole, SchemaSampleBoneIdx);
 	return RootBoneTransform.InverseTransformRotation(SampleBoneTransform.GetRotation());
 }
 
@@ -645,7 +739,7 @@ TConstArrayView<float> FSearchContext::GetOrBuildQuery(const UPoseSearchSchema* 
 {
 	QUICK_SCOPE_CYCLE_COUNTER(STAT_PoseSearch_GetOrBuildQuery);
 
-	check(Schema && Schema->IsValid());
+	check(Schema);
 	if (const FCachedQuery* FoundCachedQuery = CachedQueries.FindByPredicate(
 		[Schema](const FCachedQuery& CachedQuery)
 		{

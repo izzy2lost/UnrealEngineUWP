@@ -11,8 +11,6 @@ struct FCompactPose;
 namespace UE::PoseSearch
 {
 
-//POSESEARCH_API FTransform MirrorTransform(const FTransform& InTransform, EAxis::Type MirrorAxis, const FQuat& ReferenceRotation);
-
 struct POSESEARCH_API FMirrorDataCache
 {
 	FMirrorDataCache();

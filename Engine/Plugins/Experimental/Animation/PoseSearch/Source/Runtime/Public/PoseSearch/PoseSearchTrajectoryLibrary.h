@@ -6,6 +6,8 @@
 #include "PoseSearch/PoseSearchTrajectoryTypes.h"
 #include "PoseSearchTrajectoryLibrary.generated.h"
 
+class UAnimInstance;
+
 USTRUCT(BlueprintType)
 struct POSESEARCH_API FPoseSearchTrajectoryData
 {
@@ -44,6 +46,7 @@ public:
 	};
 
 	void UpdateData(float DeltaTime, const FAnimInstanceProxy& AnimInstanceProxy, FDerived& TrajectoryDataDerived, FState& TrajectoryDataState) const;
+	void UpdateData(float DeltaTime, const UAnimInstance* AnimInstance, FDerived& TrajectoryDataDerived, FState& TrajectoryDataState) const;
 	FVector StepCharacterMovementGroundPrediction(float DeltaTime, const FVector& InVelocity, const FVector& InAcceleration, const FDerived& TrajectoryDataDerived) const;
 	
 	// If the character is forward facing (i.e. bOrientRotationToMovement is true), this controls how quickly the trajectory will rotate
@@ -77,10 +80,12 @@ public:
 
 /**
  * Set of functions to help populate a FPoseSearchQueryTrajectory for motion matching.
- * UCharacterTrajectoryComponent uses these functions, but they can also be used by a UAnimInstance to avoid the component.
  */
-struct POSESEARCH_API FPoseSearchTrajectoryLibrary
+UCLASS()
+class POSESEARCH_API UPoseSearchTrajectoryLibrary : public UBlueprintFunctionLibrary
 {
+	GENERATED_BODY()
+
 public:
 	static void InitTrajectorySamples(FPoseSearchQueryTrajectory& Trajectory, const FPoseSearchTrajectoryData& TrajectoryData, const FPoseSearchTrajectoryData::FDerived& TrajectoryDataDerived, const FPoseSearchTrajectoryData::FSampling& TrajectoryDataSampling);
 
@@ -91,6 +96,13 @@ public:
 
 	// Update prediction by simulating the movement math for ground locomotion from UCharacterMovementComponent.
 	static void UpdatePrediction_SimulateCharacterMovement(FPoseSearchQueryTrajectory& Trajectory, const FPoseSearchTrajectoryData& TrajectoryData, const FPoseSearchTrajectoryData::FDerived& TrajectoryDataDerived, const FPoseSearchTrajectoryData::FSampling& TrajectoryDataSampling);
+
+	/** Get a Pose History node context from an anim node context (pure) */
+	UFUNCTION(BlueprintPure, Category = "Animation|PoseSearch", meta = (BlueprintThreadSafe, DisplayName = "Pose Search Generate Trajectory"))
+	static void PoseSearchGenerateTrajectory(
+		const UAnimInstance* InAnimInstance, UPARAM(ref) const FPoseSearchTrajectoryData& InTrajectoryData, float InDeltaTime,
+		UPARAM(ref) FPoseSearchQueryTrajectory& InOutTrajectory, UPARAM(ref) float& InOutDesiredControllerYawLastUpdate, FPoseSearchQueryTrajectory& OutTrajectory,
+		float InHistorySamplingInterval = 0.04f, int32 InTrajectoryHistoryCount = 10, float InPredictionSamplingInterval = 0.4f, int32 InTrajectoryPredictionCount = 8);
 
 private:
 	static FVector RemapVectorMagnitudeWithCurve(const FVector& Vector, bool bUseCurve, const FRuntimeFloatCurve& Curve);

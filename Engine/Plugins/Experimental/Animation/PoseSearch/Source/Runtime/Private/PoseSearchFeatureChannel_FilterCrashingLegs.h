@@ -32,6 +32,9 @@ public:
 	FBoneReference RightFoot;
 
 	UPROPERTY(EditAnywhere, Category = "Settings")
+	FName SampleRole = UE::PoseSearch::DefaultRole;
+
+	UPROPERTY(EditAnywhere, Category = "Settings")
 	float Weight = 0.2f;
 
 	UPROPERTY()
@@ -54,7 +57,7 @@ public:
 	float AllowedTolerance = 0.3f;
 
 	// UPoseSearchFeatureChannel interface
-	virtual void Finalize(UPoseSearchSchema* Schema) override;
+	virtual bool Finalize(UPoseSearchSchema* Schema) override;
 	virtual void BuildQuery(UE::PoseSearch::FSearchContext& SearchContext) const override;
 
 	virtual void AddDependentChannels(UPoseSearchSchema* Schema) const override;
@@ -66,6 +69,7 @@ public:
 #if WITH_EDITOR
 	virtual void FillWeights(TArrayView<float> Weights) const override;
 	virtual bool IndexAsset(UE::PoseSearch::FAssetIndexer& Indexer) const override;
+	virtual const UE::PoseSearch::FRole GetDefaultRole() const override { return SampleRole; }
 #endif
 
 	// IPoseSearchFilter interface

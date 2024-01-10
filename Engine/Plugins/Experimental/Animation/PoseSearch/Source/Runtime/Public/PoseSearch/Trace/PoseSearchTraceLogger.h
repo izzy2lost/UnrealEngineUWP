@@ -3,6 +3,7 @@
 #pragma once
 
 #include "PoseSearch/PoseSearchContext.h"
+#include "PoseSearch/PoseSearchHistory.h"
 #include "PoseSearch/PoseSearchTrajectoryTypes.h"
 
 UE_TRACE_CHANNEL_EXTERN(PoseSearchChannel, POSESEARCH_API);
@@ -63,7 +64,7 @@ POSESEARCH_API FArchive& operator<<(FArchive& Ar, FTraceMotionMatchingStateDatab
 /**
  * Used to trace motion matching state data via the logger, which is then placed into a timeline
  */
-struct POSESEARCH_API FTraceMotionMatchingState
+struct POSESEARCH_API FTraceMotionMatchingStateMessage : public FTraceMessage
 {
 	/** Amount of time since the last pose switch */
 	float ElapsedPoseSearchTime = 0.f;
@@ -80,9 +81,13 @@ struct POSESEARCH_API FTraceMotionMatchingState
 	float SearchBruteForceCost = 0.f;
 	int32 SearchBestPosePos = 0;
 
+	TArray<uint64> SkeletalMeshComponentIds;
+	
+	TArray<FRole> Roles;
+
 	TArray<FTraceMotionMatchingStateDatabaseEntry> DatabaseEntries;
 
-	FPoseSearchQueryTrajectory Trajectory;
+	TArray<UE::PoseSearch::FArchivedPoseHistory> PoseHistories;
 
 	/** Index of the current database in DatabaseEntries */
 	int32 CurrentDbEntryIdx = INDEX_NONE;
@@ -91,7 +96,7 @@ struct POSESEARCH_API FTraceMotionMatchingState
 	int32 CurrentPoseEntryIdx = INDEX_NONE;
 
 	/** Output the current state info to the logger */
-	void Output(const UObject* AnimInstance, int32 NodeId);
+	void Output();
 
 	const UPoseSearchDatabase* GetCurrentDatabase() const;
 	int32 GetCurrentDatabasePoseIndex() const;
@@ -126,6 +131,6 @@ struct POSESEARCH_API FTraceMotionMatchingState
 	static const FName Name;
 };
 
-POSESEARCH_API FArchive& operator<<(FArchive& Ar, FTraceMotionMatchingState& State);
+POSESEARCH_API FArchive& operator<<(FArchive& Ar, FTraceMotionMatchingStateMessage& State);
 
 } // namespace UE::PoseSearch

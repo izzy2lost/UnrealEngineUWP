@@ -52,44 +52,47 @@ namespace UE::PoseSearch
 
 			TArray<FTransform> WorldTransforms;
 			TArray<FLinearColor> BoneColors;
-			for (const FDatabasePreviewActor& PreviewActor : ViewModel->GetPreviewActors())
+			for (const TArray<FDatabasePreviewActor>& PreviewActorGroup : ViewModel->GetPreviewActors())
 			{
-				const UDebugSkelMeshComponent* MeshComponent = PreviewActor.GetDebugSkelMeshComponent();
-				if (MeshComponent && MeshComponent->GetSkeletalMeshAsset() && MeshComponent->GetNumDrawTransform() > 0 && MeshComponent->SkeletonDrawMode != ESkeletonDrawMode::Hidden)
+				for (const FDatabasePreviewActor& PreviewActor : PreviewActorGroup)
 				{
-					WorldTransforms.SetNumUninitialized(MeshComponent->GetNumDrawTransform());
-					BoneColors.SetNumUninitialized(MeshComponent->GetNumDrawTransform());
-
-					// factor skeleton draw mode into color selection
-					const FLinearColor BoneColor = MeshComponent->SkeletonDrawMode == ESkeletonDrawMode::GreyedOut ? PersonaOptions->DisabledBoneColor : PersonaOptions->DefaultBoneColor;
-					const FLinearColor VirtualBoneColor = MeshComponent->SkeletonDrawMode == ESkeletonDrawMode::GreyedOut ? PersonaOptions->DisabledBoneColor : PersonaOptions->VirtualBoneColor;
-
-					const TArray<FBoneIndexType>& DrawBoneIndices = MeshComponent->GetDrawBoneIndices();
-					for (int32 Index = 0; Index < DrawBoneIndices.Num(); ++Index)
+					const UDebugSkelMeshComponent* MeshComponent = PreviewActor.GetDebugSkelMeshComponent();
+					if (MeshComponent && MeshComponent->GetSkeletalMeshAsset() && MeshComponent->GetNumDrawTransform() > 0 && MeshComponent->SkeletonDrawMode != ESkeletonDrawMode::Hidden)
 					{
-						const int32 BoneIndex = DrawBoneIndices[Index];
-						WorldTransforms[BoneIndex] = MeshComponent->GetDrawTransform(BoneIndex) * MeshComponent->GetComponentTransform();
-						BoneColors[BoneIndex] = BoneColor;
+						WorldTransforms.SetNumUninitialized(MeshComponent->GetNumDrawTransform());
+						BoneColors.SetNumUninitialized(MeshComponent->GetNumDrawTransform());
+
+						// factor skeleton draw mode into color selection
+						const FLinearColor BoneColor = MeshComponent->SkeletonDrawMode == ESkeletonDrawMode::GreyedOut ? PersonaOptions->DisabledBoneColor : PersonaOptions->DefaultBoneColor;
+						const FLinearColor VirtualBoneColor = MeshComponent->SkeletonDrawMode == ESkeletonDrawMode::GreyedOut ? PersonaOptions->DisabledBoneColor : PersonaOptions->VirtualBoneColor;
+
+						const TArray<FBoneIndexType>& DrawBoneIndices = MeshComponent->GetDrawBoneIndices();
+						for (int32 Index = 0; Index < DrawBoneIndices.Num(); ++Index)
+						{
+							const int32 BoneIndex = DrawBoneIndices[Index];
+							WorldTransforms[BoneIndex] = MeshComponent->GetDrawTransform(BoneIndex) * MeshComponent->GetComponentTransform();
+							BoneColors[BoneIndex] = BoneColor;
+						}
+
+						// color virtual bones
+						for (int16 VirtualBoneIndex : MeshComponent->GetReferenceSkeleton().GetRequiredVirtualBones())
+						{
+							BoneColors[VirtualBoneIndex] = VirtualBoneColor;
+						}
+
+						FSkelDebugDrawConfig DrawConfig;
+						DrawConfig.BoneDrawMode = (EBoneDrawMode::Type)PersonaOptions->DefaultBoneDrawSelection;
+						DrawConfig.BoneDrawSize = 0.2f;
+						DrawConfig.bAddHitProxy = false;
+						DrawConfig.bForceDraw = false;
+						DrawConfig.DefaultBoneColor = PersonaOptions->DefaultBoneColor;
+						DrawConfig.AffectedBoneColor = PersonaOptions->AffectedBoneColor;
+						DrawConfig.SelectedBoneColor = PersonaOptions->SelectedBoneColor;
+						DrawConfig.ParentOfSelectedBoneColor = PersonaOptions->ParentOfSelectedBoneColor;
+
+						SkeletalDebugRendering::DrawBones(PDI, MeshComponent->GetComponentLocation(), DrawBoneIndices, MeshComponent->GetReferenceSkeleton(),
+							WorldTransforms, MeshComponent->BonesOfInterest, BoneColors, TArray<TRefCountPtr<HHitProxy>>(), DrawConfig);
 					}
-
-					// color virtual bones
-					for (int16 VirtualBoneIndex : MeshComponent->GetReferenceSkeleton().GetRequiredVirtualBones())
-					{
-						BoneColors[VirtualBoneIndex] = VirtualBoneColor;
-					}
-
-					FSkelDebugDrawConfig DrawConfig;
-					DrawConfig.BoneDrawMode = (EBoneDrawMode::Type)PersonaOptions->DefaultBoneDrawSelection;
-					DrawConfig.BoneDrawSize = 0.2f;
-					DrawConfig.bAddHitProxy = false;
-					DrawConfig.bForceDraw = false;
-					DrawConfig.DefaultBoneColor = PersonaOptions->DefaultBoneColor;
-					DrawConfig.AffectedBoneColor = PersonaOptions->AffectedBoneColor;
-					DrawConfig.SelectedBoneColor = PersonaOptions->SelectedBoneColor;
-					DrawConfig.ParentOfSelectedBoneColor = PersonaOptions->ParentOfSelectedBoneColor;
-
-					SkeletalDebugRendering::DrawBones(PDI, MeshComponent->GetComponentLocation(), DrawBoneIndices, MeshComponent->GetReferenceSkeleton(),
-						WorldTransforms, MeshComponent->BonesOfInterest, BoneColors, TArray<TRefCountPtr<HHitProxy>>(), DrawConfig);
 				}
 			}
 		}

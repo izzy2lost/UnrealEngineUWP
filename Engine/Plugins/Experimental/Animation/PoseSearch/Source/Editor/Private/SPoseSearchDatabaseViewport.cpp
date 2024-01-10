@@ -10,6 +10,7 @@
 
 #include "SSimpleTimeSlider.h"
 #include "Viewports.h"
+#include "Widgets/Images/SImage.h"
 #include "Widgets/Input/SButton.h"
 
 namespace UE::PoseSearch
@@ -158,21 +159,26 @@ namespace UE::PoseSearch
 			FMultiBoxCustomization::None, 
 			nullptr, true);
 
-		auto AddToolBarButton = [&ToolBarBuilder](FName ButtonStyleName, FOnButtonClickedEvent& OnClicked)
-		{
-			ToolBarBuilder.AddToolBarWidget(
-				SNew(SButton)
-				.ButtonStyle(FAppStyle::Get(), ButtonStyleName)
-				.OnClicked_Lambda([&OnClicked]() 
-				{
-					if (OnClicked.IsBound())
-					{
-						OnClicked.Execute();
-						return FReply::Handled();
-					}
-					return FReply::Unhandled();
-				}));
-		};
+		auto AddToolBarButton = [&ToolBarBuilder](FName ButtonImageName, FOnButtonClickedEvent& OnClicked)
+			{
+				ToolBarBuilder.AddToolBarWidget(
+					SNew(SButton)
+					.ButtonStyle(FAppStyle::Get(), "Animation.PlayControlsButton")
+					.OnClicked_Lambda([&OnClicked]()
+						{
+							if (OnClicked.IsBound())
+							{
+								OnClicked.Execute();
+								return FReply::Handled();
+							}
+							return FReply::Unhandled();
+						})
+					[
+						SNew(SImage)
+							.ColorAndOpacity(FSlateColor::UseSubduedForeground())
+							.Image(FAppStyle::Get().GetBrush(ButtonImageName))
+					]);
+			};
 
 		//ToolBarBuilder.SetStyle(&FAppStyle::Get(), "PaletteToolBar");
 		ToolBarBuilder.BeginSection("Preview");

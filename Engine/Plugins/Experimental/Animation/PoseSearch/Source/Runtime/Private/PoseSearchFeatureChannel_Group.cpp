@@ -3,17 +3,21 @@
 #include "PoseSearchFeatureChannel_Group.h"
 #include "PoseSearch/PoseSearchSchema.h"
 
-void UPoseSearchFeatureChannel_GroupBase::Finalize(UPoseSearchSchema* Schema)
+bool UPoseSearchFeatureChannel_GroupBase::Finalize(UPoseSearchSchema* Schema)
 {
 	ChannelDataOffset = Schema->SchemaCardinality;
 	for (TObjectPtr<UPoseSearchFeatureChannel>& SubChannelPtr : GetSubChannels())
 	{
 		if (UPoseSearchFeatureChannel* SubChannel = SubChannelPtr.Get())
 		{
-			SubChannel->Finalize(Schema);
+			if (!SubChannel->Finalize(Schema))
+			{
+				return false;
+			}
 		}
 	}
 	ChannelCardinality = Schema->SchemaCardinality - ChannelDataOffset;
+	return true;
 }
 
 void UPoseSearchFeatureChannel_GroupBase::AddDependentChannels(UPoseSearchSchema* Schema) const

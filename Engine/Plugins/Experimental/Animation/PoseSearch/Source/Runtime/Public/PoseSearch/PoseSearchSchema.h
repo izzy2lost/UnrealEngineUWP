@@ -4,7 +4,6 @@
 
 #include "BoneContainer.h"
 #include "Engine/DataAsset.h"
-#include "Interfaces/Interface_BoneReferenceSkeletonProvider.h"
 #include "PoseSearch/PoseSearchFeatureChannel.h"
 #include "PoseSearchSchema.generated.h"
 
@@ -24,24 +23,50 @@ enum class EPoseSearchDataPreprocessor : int32
 	NormalizeOnlyByDeviation
 };
 
+
+USTRUCT()
+struct POSESEARCH_API FPoseSearchRoledSkeleton
+{
+	GENERATED_BODY()
+
+	// Skeleton Reference for Motion Matching Database assets. Must be set to a compatible skeleton to the animation data in the database.
+	UPROPERTY(EditAnywhere, Category = "Schema")
+	TObjectPtr<USkeleton> Skeleton;
+
+	// Setting up and assigning a mirror data table will allow all your assets in your database to access the mirrored version of the data. This is required for mirroring to work with Motion Matching.
+	UPROPERTY(EditAnywhere, Category = "Schema")
+	TObjectPtr<UMirrorDataTable> MirrorDataTable;
+
+	UPROPERTY(EditAnywhere, Category = "Schema")
+	FName Role;
+
+	UPROPERTY(Transient)
+	TArray<FBoneReference> BoneReferences;
+
+	UPROPERTY(Transient)
+	TArray<uint16> BoneIndicesWithParents;
+};
+
 /**
 * Specifies the format of a pose search index. At runtime, queries are built according to the schema for searching.
 */
 UCLASS(BlueprintType, Category = "Animation|Pose Search", meta = (DisplayName = "Pose Search Schema"), CollapseCategories)
-class POSESEARCH_API UPoseSearchSchema : public UDataAsset, public IBoneReferenceSkeletonProvider
+class POSESEARCH_API UPoseSearchSchema : public UDataAsset
 {
 	GENERATED_BODY()
 
 public:
-	// Skeleton Reference for Motion Matching Database assets. Must be set to a compatible skeleton to the animation data in the database.
-	UPROPERTY(EditAnywhere, Category = "Schema", meta = (DisplayPriority = 0))
-	TObjectPtr<USkeleton> Skeleton;
-
+	UPROPERTY()
+	TObjectPtr<USkeleton> Skeleton_DEPRECATED;
+	
 	// The update rate at which we sample the animation data in the database. The higher the SampleRate the more refined your searches will be, but the more memory will be required
 	UPROPERTY(EditAnywhere, Category = "Schema", meta = (DisplayPriority = 3, ClampMin = "1", ClampMax = "240"))
 	int32 SampleRate = 30;
 
 private:
+	UPROPERTY(EditAnywhere, Category = "Schema", meta = (DisplayPriority = 0))
+	TArray<FPoseSearchRoledSkeleton> Skeletons;
+
 	// Channels itemize the cost breakdown of the Schema in simpler parts such as position or velocity of a bones, or phase of limbs. The total cost of a query against an indexed database pose will be the sum of the combined channel costs
 	UPROPERTY(EditAnywhere, Instanced, Category = "Schema")
 	TArray<TObjectPtr<UPoseSearchFeatureChannel>> Channels;
@@ -51,9 +76,8 @@ private:
 	TArray<TObjectPtr<UPoseSearchFeatureChannel>> FinalizedChannels;
 
 public:
-	// Setting up and assigning a mirror data table will allow all your assets in your database to access the mirrored version of the data. This is required for mirroring to work with Motion Matching.
-	UPROPERTY(EditAnywhere, Category = "Schema", meta = (DisplayPriority = 1))
-	TObjectPtr<UMirrorDataTable> MirrorDataTable;
+	UPROPERTY()
+	TObjectPtr<UMirrorDataTable> MirrorDataTable_DEPRECATED;
 
 #if WITH_EDITORONLY_DATA
 	// Type of operation performed to the full pose features dataset
@@ -63,12 +87,6 @@ public:
 
 	UPROPERTY(Transient)
 	int32 SchemaCardinality = 0;
-
-	UPROPERTY(Transient)
-	TArray<FBoneReference> BoneReferences;
-
-	UPROPERTY(Transient)
-	TArray<uint16> BoneIndicesWithParents;
 
 #if WITH_EDITORONLY_DATA
 	// How many times the animation assets of the database using this schema will be indexed.
@@ -95,7 +113,7 @@ public:
 	UPROPERTY(EditAnywhere, Category = "Debug")
 	bool bInjectAdditionalDebugChannels;
 
-	bool IsValid () const;
+	//bool IsValid () const;
 
 	TConstArrayView<TObjectPtr<UPoseSearchFeatureChannel>> GetChannels() const { return FinalizedChannels; }
 
@@ -118,20 +136,30 @@ public:
 	virtual void PreSave(FObjectPreSaveContext ObjectSaveContext) override;
 	virtual void PostLoad() override;
 
-	int8 AddBoneReference(const FBoneReference& BoneReference);
-
-	// IBoneReferenceSkeletonProvider
-	USkeleton* GetSkeleton(bool& bInvalidSkeletonIsError, const IPropertyHandle* PropertyHandle) override;
+	int8 AddBoneReference(const FBoneReference& BoneReference, const UE::PoseSearch::FRole& Role);
 
 #if WITH_EDITOR
 	virtual void PostEditChangeProperty(struct FPropertyChangedEvent& PropertyChangedEvent) override;
-#endif
+	const UE::PoseSearch::FRole GetDefaultRole() const;
+#endif // WITH_EDITOR
 
 	TConstArrayView<float> BuildQuery(UE::PoseSearch::FSearchContext& SearchContext) const;
 
-	FBoneIndexType GetBoneIndexType(int8 SchemaBoneIdx) const;
-
+	void AddSkeleton(USkeleton* Skeleton, UMirrorDataTable* MirrorDataTable = nullptr, const UE::PoseSearch::FRole& Role = UE::PoseSearch::DefaultRole);
+	bool AreSkeletonsCompatible(const UPoseSearchSchema* Other) const;
 	void AddDefaultChannels();
+
+	// we avoid exposing GetRoledSkeleton(RoleIndex) and all others method referencing Skeletons by index
+	// to avoid confusing the Role to index mapping in the Schema versus the Role to index mapping in other assets
+	// please use GetRoledSkeleton(Role)
+	void InitBoneContainersFromRoledSkeleton(TMap<FName, FBoneContainer>& RoledBoneContainers) const;
+	bool AllRoledSkeletonHaveMirrorDataTable() const;
+	const FPoseSearchRoledSkeleton* GetRoledSkeleton(const UE::PoseSearch::FRole& Role) const;
+	FPoseSearchRoledSkeleton* GetRoledSkeleton(const UE::PoseSearch::FRole& Role);
+
+	USkeleton* GetSkeleton(const UE::PoseSearch::FRole& Role) const;
+	UMirrorDataTable* GetMirrorDataTable(const UE::PoseSearch::FRole& Role) const;
+	TConstArrayView<FBoneReference> GetBoneReferences(const UE::PoseSearch::FRole& Role) const;
 
 private:
 	template <typename FindPredicateType>
@@ -156,4 +184,5 @@ private:
 	}
 
 	void Finalize();
+	void ResetFinalize();
 };

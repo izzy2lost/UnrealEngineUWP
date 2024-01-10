@@ -75,8 +75,11 @@ public:
 	FPoseSearchTrajectoryData TrajectoryData;
 
 	// FAnimNode_Base interface
+	virtual void Initialize_AnyThread(const FAnimationInitializeContext& Context) override;
 	virtual void CacheBones_AnyThread(const FAnimationCacheBonesContext& Context) override;
 	virtual void Update_AnyThread(const FAnimationUpdateContext& Context) override;
+	virtual bool HasPreUpdate() const { return true; }
+	virtual void PreUpdate(const UAnimInstance* InAnimInstance) override;
 	// End of FAnimNode_Base interface
 
 	const UE::PoseSearch::IPoseHistory& GetPoseHistory() const { return PoseHistory; }

@@ -69,6 +69,90 @@ FORCEINLINE auto LowerBound(IteratorType First, IteratorType Last, const ValueTy
 	return LowerBound(First, Last, Value, FIdentityFunctor(), SortPredicate);
 }
 
+static FBoneIndexType GetRemappedBoneIndexType(FBoneIndexType BoneIndexType, const USkeleton* BoneIndexSkeleton, const USkeleton* LastUpdateSkeleton)
+{
+	// remapping BoneIndexType in case the skeleton used to store history (LastUpdateSkeleton) is different from BoneIndexSkeleton
+	if (LastUpdateSkeleton != nullptr && LastUpdateSkeleton != BoneIndexSkeleton)
+	{
+		const FSkeletonRemapping& SkeletonRemapping = UE::Anim::FSkeletonRemappingRegistry::Get().GetRemapping(BoneIndexSkeleton, LastUpdateSkeleton);
+		if (SkeletonRemapping.IsValid())
+		{
+			BoneIndexType = SkeletonRemapping.GetTargetSkeletonBoneIndex(BoneIndexType);
+		}
+	}
+
+	return BoneIndexType;
+}
+
+static FComponentSpaceTransformIndex GetRemappedComponentSpaceTransformIndex(const USkeleton* BoneIndexSkeleton, const USkeleton* LastUpdateSkeleton, const FBoneToTransformMap& BoneToTransformMap, FBoneIndexType BoneIndexType, bool& bSuccess)
+{
+	check(BoneIndexType != WorldSpaceIndexType);
+
+	FComponentSpaceTransformIndex BoneTransformIndex = FComponentSpaceTransformIndex(BoneIndexType);
+	if (BoneIndexType != ComponentSpaceIndexType)
+	{
+		BoneIndexType = GetRemappedBoneIndexType(BoneIndexType, BoneIndexSkeleton, LastUpdateSkeleton);
+
+		if (!BoneToTransformMap.IsEmpty())
+		{
+			if (const FComponentSpaceTransformIndex* FoundBoneTransformIndex = BoneToTransformMap.Find(BoneTransformIndex))
+			{
+				BoneTransformIndex = *FoundBoneTransformIndex;
+			}
+			else
+			{
+				BoneTransformIndex = RootBoneIndexType;
+				bSuccess = false;
+			}
+		}
+	}
+	return BoneTransformIndex;
+}
+
+static bool LerpEntries(float Time, bool bExtrapolate, const FPoseHistoryEntry& PrevEntry, const FPoseHistoryEntry& NextEntry, const USkeleton* BoneIndexSkeleton, const USkeleton* LastUpdateSkeleton,
+	const FBoneToTransformMap& BoneToTransformMap, FBoneIndexType BoneIndexType, FBoneIndexType ReferenceBoneIndexType, FTransform& OutBoneTransform)
+{
+	bool bSuccess = true;
+
+	const float Denominator = NextEntry.AccumulatedSeconds - PrevEntry.AccumulatedSeconds;
+	float LerpValue = 0.f;
+	if (!FMath::IsNearlyZero(Denominator))
+	{
+		const float Numerator = Time - PrevEntry.AccumulatedSeconds;
+		LerpValue = bExtrapolate ? Numerator / Denominator : FMath::Clamp(Numerator / Denominator, 0.f, 1.f);
+	}
+
+	const FComponentSpaceTransformIndex BoneTransformIndex = GetRemappedComponentSpaceTransformIndex(BoneIndexSkeleton, LastUpdateSkeleton, BoneToTransformMap, BoneIndexType, bSuccess);
+	const FComponentSpaceTransformIndex ReferenceBoneTransformIndex = GetRemappedComponentSpaceTransformIndex(BoneIndexSkeleton, LastUpdateSkeleton, BoneToTransformMap, ReferenceBoneIndexType, bSuccess);
+
+	if (BoneTransformIndex != ComponentSpaceIndexType)
+	{
+		if (ReferenceBoneTransformIndex == ComponentSpaceIndexType)
+		{
+			OutBoneTransform.Blend(
+				PrevEntry.GetComponentSpaceTransform(BoneTransformIndex),
+				NextEntry.GetComponentSpaceTransform(BoneTransformIndex),
+				LerpValue);
+		}
+		else
+		{
+			OutBoneTransform.Blend(
+				PrevEntry.GetComponentSpaceTransform(BoneTransformIndex) * PrevEntry.GetComponentSpaceTransform(ReferenceBoneTransformIndex).Inverse(),
+				NextEntry.GetComponentSpaceTransform(BoneTransformIndex) * NextEntry.GetComponentSpaceTransform(ReferenceBoneTransformIndex).Inverse(),
+				LerpValue);
+		}
+	}
+	else
+	{
+		// @todo: implement if required
+		OutBoneTransform = FTransform::Identity;
+		bSuccess = false;
+		unimplemented();
+	}
+
+	return bSuccess;
+}
+
 //////////////////////////////////////////////////////////////////////////
 // FPoseHistoryEntry
 void FPoseHistoryEntry::Update(float Time, FCSPose<FCompactPose>& ComponentSpacePose, const FBoneToTransformMap& BoneToTransformMap, bool bStoreScales)
@@ -134,13 +218,22 @@ FTransform FPoseHistoryEntry::GetComponentSpaceTransform(int32 Index) const
 	return FTransform(Quat, ComponentSpacePositions[Index], Scale);
 }
 
+FArchive& operator<<(FArchive& Ar, FPoseHistoryEntry& Entry)
+{
+	Ar << Entry.ComponentSpaceRotations;
+	Ar << Entry.ComponentSpacePositions;
+	Ar << Entry.ComponentSpaceScales;
+	Ar << Entry.AccumulatedSeconds;
+	return Ar;
+}
+
 //////////////////////////////////////////////////////////////////////////
 // IPoseHistory
 #if ENABLE_DRAW_DEBUG && ENABLE_ANIM_DEBUG
 void IPoseHistory::DebugDraw(FAnimInstanceProxy& AnimInstanceProxy, FColor Color, float Time, float PointSize, bool bExtrapolate) const
 {
 	const FBoneContainer& BoneContainer = AnimInstanceProxy.GetRequiredBones();
-	if (BoneContainer.IsValid())
+	if (Color.A > 0 && BoneContainer.IsValid())
 	{
 		const USkeleton* Skeleton = BoneContainer.GetSkeletonAsset();
 		FTransform OutBoneTransform;
@@ -174,119 +267,31 @@ void IPoseHistory::DebugDraw(FAnimInstanceProxy& AnimInstanceProxy, FColor Color
 #endif // ENABLE_DRAW_DEBUG && ENABLE_ANIM_DEBUG
 
 //////////////////////////////////////////////////////////////////////////
-// FPoseHistory
-void FPoseHistory::CacheBones_AnyThread(int32 InNumPoses, float InSamplingInterval, const TArray<FBoneIndexType>& RequiredBones)
+// FArchivedPoseHistory
+void FArchivedPoseHistory::InitFrom(const IPoseHistory* PoseHistory)
 {
-	check(InNumPoses >= 2 && InSamplingInterval > UE_KINDA_SMALL_NUMBER);
-
-	MaxNumPoses = InNumPoses;
-	SamplingInterval = InSamplingInterval;
-
+	Trajectory.Samples.Reset();
 	BoneToTransformMap.Reset();
-	if (!RequiredBones.IsEmpty())
-	{
-		// making sure we always collect the root bone transform (by construction BoneToTransformMap[0] = 0)
-		BoneToTransformMap.Add(RootBoneIndexType) = BoneToTransformMap.Num();
-
-		for (int32 i = 0; i < RequiredBones.Num(); ++i)
-		{
-			// adding only unique RequiredBones to avoid oversizing Entries::ComponentSpaceTransforms
-			if (!BoneToTransformMap.Find(RequiredBones[i]))
-			{
-				BoneToTransformMap.Add(RequiredBones[i]) = BoneToTransformMap.Num();
-			}
-		}
-	}
-
 	Entries.Reset();
-	Entries.Reserve(MaxNumPoses);
-}
 
-FBoneIndexType FPoseHistory::GetRemappedBoneIndexType(FBoneIndexType BoneIndexType, const USkeleton* BoneIndexSkeleton, const USkeleton* LastUpdateSkeleton)
-{
-	// remapping BoneIndexType in case the skeleton used to store history (LastUpdateSkeleton) is different from BoneIndexSkeleton
-	if (LastUpdateSkeleton != nullptr && LastUpdateSkeleton != BoneIndexSkeleton)
+	if (PoseHistory)
 	{
-		const FSkeletonRemapping& SkeletonRemapping = UE::Anim::FSkeletonRemappingRegistry::Get().GetRemapping(BoneIndexSkeleton, LastUpdateSkeleton);
-		if (SkeletonRemapping.IsValid())
+		Trajectory = PoseHistory->GetTrajectory();
+		BoneToTransformMap = PoseHistory->GetBoneToTransformMap();
+			
+		const int32 NumEntries = PoseHistory->GetNumEntries();
+		Entries.SetNum(NumEntries);
+
+		for (int32 EntryIndex = 0; EntryIndex < NumEntries; ++EntryIndex)
 		{
-			BoneIndexType = SkeletonRemapping.GetTargetSkeletonBoneIndex(BoneIndexType);
+			Entries[EntryIndex] = PoseHistory->GetEntry(EntryIndex);
+			// validating input PoseHistory to have Entries properly sorted by time
+			check(EntryIndex == 0 || (Entries[EntryIndex - 1].AccumulatedSeconds <= Entries[EntryIndex].AccumulatedSeconds));
 		}
 	}
-
-	return BoneIndexType;
 }
 
-FComponentSpaceTransformIndex FPoseHistory::GetRemappedComponentSpaceTransformIndex(const USkeleton* BoneIndexSkeleton, const USkeleton* LastUpdateSkeleton, const FBoneToTransformMap& BoneToTransformMap, FBoneIndexType BoneIndexType, bool& bSuccess)
-{
-	check(BoneIndexType != WorldSpaceIndexType);
-
-	FComponentSpaceTransformIndex BoneTransformIndex = FComponentSpaceTransformIndex(BoneIndexType);
-	if (BoneIndexType != ComponentSpaceIndexType)
-	{
-		BoneIndexType = GetRemappedBoneIndexType(BoneIndexType, BoneIndexSkeleton, LastUpdateSkeleton);
-
-		if (!BoneToTransformMap.IsEmpty())
-		{
-			if (const FComponentSpaceTransformIndex* FoundBoneTransformIndex = BoneToTransformMap.Find(BoneTransformIndex))
-			{
-				BoneTransformIndex = *FoundBoneTransformIndex;
-			}
-			else
-			{
-				BoneTransformIndex = RootBoneIndexType;
-				bSuccess = false;
-			}
-		}
-	}
-	return BoneTransformIndex;
-}
-
-bool FPoseHistory::LerpEntries(float Time, bool bExtrapolate, const FPoseHistoryEntry& PrevEntry, const FPoseHistoryEntry& NextEntry, const USkeleton* BoneIndexSkeleton, const USkeleton* LastUpdateSkeleton,
-	const FBoneToTransformMap& BoneToTransformMap, FBoneIndexType BoneIndexType, FBoneIndexType ReferenceBoneIndexType, FTransform& OutBoneTransform)
-{
-	bool bSuccess = true;
-
-	const float Denominator = NextEntry.AccumulatedSeconds - PrevEntry.AccumulatedSeconds;
-	float LerpValue = 0.f;
-	if (!FMath::IsNearlyZero(Denominator))
-	{
-		const float Numerator = Time - PrevEntry.AccumulatedSeconds;
-		LerpValue = bExtrapolate ? Numerator / Denominator : FMath::Clamp(Numerator / Denominator, 0.f, 1.f);
-	}
-
-	const FComponentSpaceTransformIndex BoneTransformIndex = GetRemappedComponentSpaceTransformIndex(BoneIndexSkeleton, LastUpdateSkeleton, BoneToTransformMap, BoneIndexType, bSuccess);
-	const FComponentSpaceTransformIndex ReferenceBoneTransformIndex = GetRemappedComponentSpaceTransformIndex(BoneIndexSkeleton, LastUpdateSkeleton, BoneToTransformMap, ReferenceBoneIndexType, bSuccess);
-
-	if (BoneTransformIndex != ComponentSpaceIndexType)
-	{
-		if (ReferenceBoneTransformIndex == ComponentSpaceIndexType)
-		{
-			OutBoneTransform.Blend(
-				PrevEntry.GetComponentSpaceTransform(BoneTransformIndex),
-				NextEntry.GetComponentSpaceTransform(BoneTransformIndex),
-				LerpValue);
-		}
-		else
-		{
-			OutBoneTransform.Blend(
-				PrevEntry.GetComponentSpaceTransform(BoneTransformIndex) * PrevEntry.GetComponentSpaceTransform(ReferenceBoneTransformIndex).Inverse(),
-				NextEntry.GetComponentSpaceTransform(BoneTransformIndex) * NextEntry.GetComponentSpaceTransform(ReferenceBoneTransformIndex).Inverse(),
-				LerpValue);
-		}
-	}
-	else
-	{
-		// @todo: implement if required
-		OutBoneTransform = FTransform::Identity;
-		bSuccess = false;
-		unimplemented();
-	}
-
-	return bSuccess;
-}
-
-bool FPoseHistory::GetTransformAtTime(float Time, FTransform& OutBoneTransform, const USkeleton* BoneIndexSkeleton, FBoneIndexType BoneIndexType, FBoneIndexType ReferenceBoneIndexType, bool bExtrapolate) const
+bool FArchivedPoseHistory::GetTransformAtTime(float Time, FTransform& OutBoneTransform, const USkeleton* BoneIndexSkeleton, FBoneIndexType BoneIndexType, FBoneIndexType ReferenceBoneIndexType, bool bExtrapolate) const
 {
 	static_assert(RootBoneIndexType == 0 && ComponentSpaceIndexType == FBoneIndexType(-1) && WorldSpaceIndexType == FBoneIndexType(-2)); // some assumptions
 	check(BoneIndexType != ComponentSpaceIndexType && BoneIndexType != WorldSpaceIndexType);
@@ -309,7 +314,7 @@ bool FPoseHistory::GetTransformAtTime(float Time, FTransform& OutBoneTransform, 
 
 		if (NumEntries > 1)
 		{
-			const int32 LowerBoundIdx = LowerBound(Entries.begin(), Entries.end(), Time, [](const FPoseHistoryEntry& Entry, float Value) { return Value > Entry.AccumulatedSeconds; });
+			const int32 LowerBoundIdx = Algo::LowerBound(Entries, Time, [](const FPoseHistoryEntry& Entry, float Value) { return Value > Entry.AccumulatedSeconds; });
 			NextIdx = FMath::Clamp(LowerBoundIdx, 1, NumEntries - 1);
 			PrevIdx = NextIdx - 1;
 		}
@@ -317,7 +322,7 @@ bool FPoseHistory::GetTransformAtTime(float Time, FTransform& OutBoneTransform, 
 		const FPoseHistoryEntry& PrevEntry = Entries[PrevIdx];
 		const FPoseHistoryEntry& NextEntry = Entries[NextIdx];
 
-		bSuccess = LerpEntries(Time, bExtrapolate, PrevEntry, NextEntry, BoneIndexSkeleton, GetLastUpdateSkeleton(), BoneToTransformMap, BoneIndexType, ReferenceBoneIndexType, OutBoneTransform);
+		bSuccess = LerpEntries(Time, bExtrapolate, PrevEntry, NextEntry, BoneIndexSkeleton, nullptr, BoneToTransformMap, BoneIndexType, ReferenceBoneIndexType, OutBoneTransform);
 		if (bApplyComponentToWorld)
 		{
 			OutBoneTransform *= ComponentToWorld;
@@ -331,90 +336,304 @@ bool FPoseHistory::GetTransformAtTime(float Time, FTransform& OutBoneTransform, 
 	return bSuccess;
 }
 
-void FPoseHistory::Update_AnyThread(float DeltaTime, const FPoseSearchQueryTrajectory& InTrajectory, float InTrajectorySpeedMultiplier, bool bGenerateTrajectory, const FAnimInstanceProxy& AnimInstanceProxy, const FPoseSearchTrajectoryData& TrajectoryData, const FPoseSearchTrajectoryData::FSampling& TrajectoryDataSampling, bool bNeedsReset)
+#if ENABLE_DRAW_DEBUG && ENABLE_ANIM_DEBUG
+void FArchivedPoseHistory::DebugDraw(const UWorld* World, FColor Color) const
 {
+	if (Color.A > 0 && !Trajectory.Samples.IsEmpty())
+	{
+		TArray<FTransform, TInlineAllocator<128>> PrevGlobalTransforms;
+
+		for (int32 EntryIndex = 0; EntryIndex < Entries.Num(); ++EntryIndex)
+		{
+			const FPoseHistoryEntry& Entry = Entries[EntryIndex];
+
+			const int32 PrevGlobalTransformsNum = PrevGlobalTransforms.Num();
+			const int32 Max = FMath::Max(PrevGlobalTransformsNum, Entry.Num());
+
+			PrevGlobalTransforms.SetNum(Max, false);
+
+			for (int32 i = 0; i < Entry.Num(); ++i)
+			{
+				const FTransform RootTransform = Trajectory.GetSampleAtTime(Entry.AccumulatedSeconds).GetTransform();
+				const FTransform GlobalTransforms = Entry.GetComponentSpaceTransform(i) * RootTransform;
+
+				if (i < PrevGlobalTransformsNum)
+				{
+					DrawDebugLine(World, PrevGlobalTransforms[i].GetTranslation(), GlobalTransforms.GetTranslation(), Color, false, -1.f, SDPG_Foreground);
+				}
+
+				PrevGlobalTransforms[i] = GlobalTransforms;
+			}
+		}
+	}
+}
+#endif // ENABLE_DRAW_DEBUG && ENABLE_ANIM_DEBUG
+
+FArchive& operator<<(FArchive& Ar, FArchivedPoseHistory& Entry)
+{
+	Ar << Entry.BoneToTransformMap;
+	Ar << Entry.Entries;
+	Ar << Entry.Trajectory;
+	return Ar;
+}
+
+//////////////////////////////////////////////////////////////////////////
+// FPoseHistory
+FPoseHistory::FPoseHistory(const FPoseHistory& Other)
+	: FPoseHistory()
+{
+	*this = Other;
+}
+
+FPoseHistory::FPoseHistory(FPoseHistory&& Other)
+	: FPoseHistory()
+{
+	*this = MoveTemp(Other);
+}
+
+FPoseHistory& FPoseHistory::operator=(const FPoseHistory& Other)
+{
+	CheckThreadSafetyWrite(ReadDataThreadSafeCounter);
+	CheckThreadSafetyWrite(WriteDataThreadSafeCounter);
+
+	ReadData = Other.ReadData;
+	WriteData = Other.WriteData;
+	return *this;
+}
+
+FPoseHistory& FPoseHistory::operator=(FPoseHistory&& Other)
+{
+	CheckThreadSafetyWrite(ReadDataThreadSafeCounter);
+	CheckThreadSafetyWrite(WriteDataThreadSafeCounter);
+
+	ReadData = MoveTemp(Other.ReadData);
+	WriteData = MoveTemp(Other.WriteData);
+	return *this;
+}
+
+void FPoseHistory::Initialize_AnyThread(int32 InNumPoses, float InSamplingInterval)
+{
+	CheckThreadSafetyWrite(WriteDataThreadSafeCounter);
+	check(InNumPoses >= 2 && InSamplingInterval > UE_KINDA_SMALL_NUMBER);
+
+	MaxNumPoses = InNumPoses;
+	SamplingInterval = InSamplingInterval;
+}
+
+void FPoseHistory::CacheBones_AnyThread(const TArray<FBoneIndexType>& RequiredBones)
+{
+	CheckThreadSafetyWrite(WriteDataThreadSafeCounter);
+
+	check(MaxNumPoses >= 2 && SamplingInterval > UE_KINDA_SMALL_NUMBER);
+
+	WriteData.BoneToTransformMap.Reset();
+	if (!RequiredBones.IsEmpty())
+	{
+		// making sure we always collect the root bone transform (by construction BoneToTransformMap[0] = 0)
+		WriteData.BoneToTransformMap.Add(RootBoneIndexType) = WriteData.BoneToTransformMap.Num();
+
+		for (int32 i = 0; i < RequiredBones.Num(); ++i)
+		{
+			// adding only unique RequiredBones to avoid oversizing Entries::ComponentSpaceTransforms
+			if (!WriteData.BoneToTransformMap.Find(RequiredBones[i]))
+			{
+				WriteData.BoneToTransformMap.Add(RequiredBones[i]) = WriteData.BoneToTransformMap.Num();
+			}
+		}
+	}
+
+	WriteData.Entries.Reset();
+	WriteData.Entries.Reserve(MaxNumPoses);
+}
+
+bool FPoseHistory::GetTransformAtTime(float Time, FTransform& OutBoneTransform, const USkeleton* BoneIndexSkeleton, FBoneIndexType BoneIndexType, FBoneIndexType ReferenceBoneIndexType, bool bExtrapolate) const
+{
+	CheckThreadSafetyRead(ReadDataThreadSafeCounter);
+
+	static_assert(RootBoneIndexType == 0 && ComponentSpaceIndexType == FBoneIndexType(-1) && WorldSpaceIndexType == FBoneIndexType(-2)); // some assumptions
+	check(BoneIndexType != ComponentSpaceIndexType && BoneIndexType != WorldSpaceIndexType);
+	
+	bool bSuccess = false;
+	
+	const bool bApplyComponentToWorld = ReferenceBoneIndexType == WorldSpaceIndexType;
+	FTransform ComponentToWorld = FTransform::Identity;
+	if (bApplyComponentToWorld)
+	{
+		ComponentToWorld = Trajectory.GetSampleAtTime(Time, bExtrapolate).GetTransform();
+		ReferenceBoneIndexType = ComponentSpaceIndexType;
+	}
+
+	const int32 NumEntries = ReadData.Entries.Num();
+	if (NumEntries > 0)
+	{
+		int32 NextIdx = 0;
+		int32 PrevIdx = 0;
+
+		if (NumEntries > 1)
+		{
+			const int32 LowerBoundIdx = LowerBound(ReadData.Entries.begin(), ReadData.Entries.end(), Time, [](const FPoseHistoryEntry& Entry, float Value) { return Value > Entry.AccumulatedSeconds; });
+			NextIdx = FMath::Clamp(LowerBoundIdx, 1, NumEntries - 1);
+			PrevIdx = NextIdx - 1;
+		}
+	
+		const FPoseHistoryEntry& PrevEntry = ReadData.Entries[PrevIdx];
+		const FPoseHistoryEntry& NextEntry = ReadData.Entries[NextIdx];
+
+		bSuccess = LerpEntries(Time, bExtrapolate, PrevEntry, NextEntry, BoneIndexSkeleton, ReadData.LastUpdateSkeleton.Get(), ReadData.BoneToTransformMap, BoneIndexType, ReferenceBoneIndexType, OutBoneTransform);
+		if (bApplyComponentToWorld)
+		{
+			OutBoneTransform *= ComponentToWorld;
+		}
+	}
+	else
+	{
+		OutBoneTransform = ComponentToWorld;
+	}
+	
+	return bSuccess;
+}
+
+const FPoseSearchQueryTrajectory& FPoseHistory::GetTrajectory() const
+{
+	CheckThreadSafetyRead(ReadDataThreadSafeCounter);
+	return Trajectory;
+}
+
+float FPoseHistory::GetTrajectorySpeedMultiplier() const
+{
+	CheckThreadSafetyRead(ReadDataThreadSafeCounter);
+	return TrajectorySpeedMultiplier;
+}
+
+bool FPoseHistory::IsEmpty() const
+{
+	CheckThreadSafetyRead(ReadDataThreadSafeCounter);
+	return ReadData.Entries.IsEmpty();
+}
+
+const FBoneToTransformMap& FPoseHistory::GetBoneToTransformMap() const
+{
+	CheckThreadSafetyRead(ReadDataThreadSafeCounter);
+	return ReadData.BoneToTransformMap;
+}
+
+int32 FPoseHistory::GetNumEntries() const
+{
+	CheckThreadSafetyRead(ReadDataThreadSafeCounter);
+	return ReadData.Entries.Num();
+}
+
+const FPoseHistoryEntry& FPoseHistory::GetEntry(int32 EntryIndex) const
+{
+	CheckThreadSafetyRead(ReadDataThreadSafeCounter);
+	return ReadData.Entries[EntryIndex];
+}
+
+void FPoseHistory::PreUpdate(const UAnimInstance* AnimInstance, float DeltaTime, bool bGenerateTrajectory, const FPoseSearchTrajectoryData& TrajectoryData, const FPoseSearchTrajectoryData::FSampling& TrajectoryDataSampling, bool bNeedsReset)
+{
+	// we're writing both ReadData, WriteData. checking for thread safety
+	CheckThreadSafetyWrite(ReadDataThreadSafeCounter);
+	CheckThreadSafetyWrite(WriteDataThreadSafeCounter);
+
+	check(IsInGameThread());
+
 	if (bNeedsReset)
 	{
-		Entries.Reset();
+		WriteData.Entries.Reset();
 	}
 
 	if (bGenerateTrajectory)
 	{
 		// @todo: Synchronize the FPoseSearchQueryTrajectorySample::AccumulatedSeconds of the generated trajectory with the FPoseHistoryEntry::AccumulatedSeconds of the captured poses
 		FPoseSearchTrajectoryData::FDerived TrajectoryDataDerived;
-		TrajectoryData.UpdateData(DeltaTime, AnimInstanceProxy, TrajectoryDataDerived, TrajectoryDataState);
-		FPoseSearchTrajectoryLibrary::InitTrajectorySamples(Trajectory, TrajectoryData, TrajectoryDataDerived, TrajectoryDataSampling);
-		FPoseSearchTrajectoryLibrary::UpdateHistory_TransformHistory(Trajectory, TrajectoryData, TrajectoryDataDerived, TrajectoryDataSampling, DeltaTime);
-		FPoseSearchTrajectoryLibrary::UpdatePrediction_SimulateCharacterMovement(Trajectory, TrajectoryData, TrajectoryDataDerived, TrajectoryDataSampling);
+		TrajectoryData.UpdateData(DeltaTime, AnimInstance, TrajectoryDataDerived, TrajectoryDataState);
+		UPoseSearchTrajectoryLibrary::InitTrajectorySamples(Trajectory, TrajectoryData, TrajectoryDataDerived, TrajectoryDataSampling);
+		UPoseSearchTrajectoryLibrary::UpdateHistory_TransformHistory(Trajectory, TrajectoryData, TrajectoryDataDerived, TrajectoryDataSampling, DeltaTime);
+		UPoseSearchTrajectoryLibrary::UpdatePrediction_SimulateCharacterMovement(Trajectory, TrajectoryData, TrajectoryDataDerived, TrajectoryDataSampling);
 
 		// @todo: support TrajectorySpeedMultiplier
-		TrajectorySpeedMultiplier = 1.f;
+		//TrajectorySpeedMultiplier = 1.f;
 	}
-	else
+	
+	ReadData = WriteData;
+}
+
+void FPoseHistory::Update_AnyThread(float DeltaTime, const FPoseSearchQueryTrajectory& InTrajectory, float InTrajectorySpeedMultiplier)
+{
+	if (!InTrajectory.Samples.IsEmpty())
 	{
-		TrajectoryDataState = FPoseSearchTrajectoryData::FState();
-	Trajectory = InTrajectory;
+		CheckThreadSafetyWrite(ReadDataThreadSafeCounter);
+
+		// @todo: THIS IS NOT THREAD SAFE! in the contex of multi character motion matching (CheckThreadSafetyWrite will assert in case of improper usage)
+		Trajectory = InTrajectory;
 
 		TrajectorySpeedMultiplier = InTrajectorySpeedMultiplier;
-	if (!FMath::IsNearlyEqual(TrajectorySpeedMultiplier, 1.f))
-	{
-		const float TrajectorySpeedMultiplierInv = FMath::IsNearlyZero(TrajectorySpeedMultiplier) ? 1.f : 1.f / TrajectorySpeedMultiplier;
-		for (FPoseSearchQueryTrajectorySample& Sample : Trajectory.Samples)
+
+		if (!FMath::IsNearlyEqual(TrajectorySpeedMultiplier, 1.f))
 		{
-			Sample.AccumulatedSeconds *= TrajectorySpeedMultiplierInv;
+			const float TrajectorySpeedMultiplierInv = FMath::IsNearlyZero(TrajectorySpeedMultiplier) ? 1.f : 1.f / TrajectorySpeedMultiplier;
+			for (FPoseSearchQueryTrajectorySample& Sample : Trajectory.Samples)
+			{
+				Sample.AccumulatedSeconds *= TrajectorySpeedMultiplierInv;
+			}
 		}
 	}
 }
-}
 
-void FPoseHistory::EvaluateComponentSpace_AnyThread(float DeltaTime, FCSPose<FCompactPose>& ComponentSpacePose, bool bGenerateTrajectory, bool bStoreScales)
+void FPoseHistory::EvaluateComponentSpace_AnyThread(float DeltaTime, FCSPose<FCompactPose>& ComponentSpacePose, bool bStoreScales)
 {
+	CheckThreadSafetyWrite(WriteDataThreadSafeCounter);
+
+	check(MaxNumPoses >= 2 && SamplingInterval > UE_KINDA_SMALL_NUMBER);
+
 	const USkeleton* Skeleton = ComponentSpacePose.GetPose().GetBoneContainer().GetSkeletonAsset();
-	if (LastUpdateSkeleton != Skeleton)
+	if (WriteData.LastUpdateSkeleton != Skeleton)
 	{
 		// @todo: support a different USkeleton per FPoseHistoryEntry if required
-		Entries.Reset();
-		LastUpdateSkeleton = Skeleton;
+		WriteData.Entries.Reset();
+		WriteData.LastUpdateSkeleton = Skeleton;
 	}
 
 	// Age our elapsed times
-	for (FPoseHistoryEntry& Entry : Entries)
+	for (FPoseHistoryEntry& Entry : WriteData.Entries)
 	{
 		Entry.AccumulatedSeconds -= DeltaTime;
 	}
 
-	if (Entries.Num() != MaxNumPoses)
+	if (WriteData.Entries.Num() != MaxNumPoses)
 	{
 		// Consume every pose until the queue is full
-		Entries.Emplace();
+		WriteData.Entries.Emplace();
 	}
-	else if (Entries[Entries.Num() - 2].AccumulatedSeconds <= -SamplingInterval)
+	else if (WriteData.Entries[WriteData.Entries.Num() - 2].AccumulatedSeconds <= -SamplingInterval)
 	{
-		FPoseHistoryEntry EntryTemp = MoveTemp(Entries.First());
-		Entries.PopFront();
-		Entries.Emplace(MoveTemp(EntryTemp));
+		FPoseHistoryEntry EntryTemp = MoveTemp(WriteData.Entries.First());
+		WriteData.Entries.PopFront();
+		WriteData.Entries.Emplace(MoveTemp(EntryTemp));
 	}
 
 	// Regardless of the retention policy, we always update the most recent Entry
-	Entries.Last().Update(0.f, ComponentSpacePose, BoneToTransformMap, bStoreScales);
+	WriteData.Entries.Last().Update(0.f, ComponentSpacePose, WriteData.BoneToTransformMap, bStoreScales);
 }
 
 #if ENABLE_DRAW_DEBUG && ENABLE_ANIM_DEBUG
 void FPoseHistory::DebugDraw(FAnimInstanceProxy& AnimInstanceProxy, FColor Color) const
 {
+	CheckThreadSafetyRead(ReadDataThreadSafeCounter);
+
 	if (CVarAnimPoseHistoryDebugDrawTrajectory.GetValueOnAnyThread())
 	{
 		Trajectory.DebugDrawTrajectory(AnimInstanceProxy);
 	}
 
 	if (Color.A > 0 && CVarAnimPoseHistoryDebugDrawPose.GetValueOnAnyThread())
-{
+	{
 		const bool bValidTrajectory = !Trajectory.Samples.IsEmpty();
 		TArray<FTransform, TInlineAllocator<128>> PrevGlobalTransforms;
 
-	for (int32 EntryIndex = 0; EntryIndex < Entries.Num(); ++EntryIndex)
-	{
-		const FPoseHistoryEntry& Entry = Entries[EntryIndex];
+		for (int32 EntryIndex = 0; EntryIndex < ReadData.Entries.Num(); ++EntryIndex)
+		{
+			const FPoseHistoryEntry& Entry = ReadData.Entries[EntryIndex];
 
 			const int32 PrevGlobalTransformsNum = PrevGlobalTransforms.Num();
 			const int32 Max = FMath::Max(PrevGlobalTransformsNum, Entry.Num());
@@ -439,19 +658,14 @@ void FPoseHistory::DebugDraw(FAnimInstanceProxy& AnimInstanceProxy, FColor Color
 #endif // ENABLE_DRAW_DEBUG && ENABLE_ANIM_DEBUG
 
 //////////////////////////////////////////////////////////////////////////
-// FExtendedPoseHistory
-void FExtendedPoseHistory::Init(const IPoseHistory* InPoseHistory)
+// FMemStackPoseHistory
+void FMemStackPoseHistory::Init(const IPoseHistory* InPoseHistory)
 {
 	check(InPoseHistory);
 	PoseHistory = InPoseHistory;
 }
 
-bool FExtendedPoseHistory::IsInitialized() const
-{
-	return PoseHistory != nullptr;
-}
-
-bool FExtendedPoseHistory::GetTransformAtTime(float Time, FTransform& OutBoneTransform, const USkeleton* BoneIndexSkeleton, FBoneIndexType BoneIndexType, FBoneIndexType ReferenceBoneIndexType, bool bExtrapolate) const
+bool FMemStackPoseHistory::GetTransformAtTime(float Time, FTransform& OutBoneTransform, const USkeleton* BoneIndexSkeleton, FBoneIndexType BoneIndexType, FBoneIndexType ReferenceBoneIndexType, bool bExtrapolate) const
 {
 	check(PoseHistory);
 	if (Time > 0.f)
@@ -469,11 +683,10 @@ bool FExtendedPoseHistory::GetTransformAtTime(float Time, FTransform& OutBoneTra
 
 			const int32 LowerBoundIdx = Algo::LowerBound(FutureEntries, Time, [](const FPoseHistoryEntry& Entry, float Value) { return Value > Entry.AccumulatedSeconds; });
 			const int32 NextIdx = FMath::Min(LowerBoundIdx, Num - 1);
-			const FPoseHistoryEntries& PastEntries = GetEntries();
 			const FPoseHistoryEntry& NextEntry = FutureEntries[NextIdx];
-			const FPoseHistoryEntry& PrevEntry = NextIdx > 0 ? FutureEntries[NextIdx - 1] : !PastEntries.IsEmpty() ? PastEntries.First() : NextEntry;
+			const FPoseHistoryEntry& PrevEntry = NextIdx > 0 ? FutureEntries[NextIdx - 1] : PoseHistory->GetNumEntries() > 0 ? PoseHistory->GetEntry(PoseHistory->GetNumEntries() - 1) : NextEntry;
 						
-			const bool bSuccess = FPoseHistory::LerpEntries(Time, bExtrapolate, PrevEntry, NextEntry, BoneIndexSkeleton, GetLastUpdateSkeleton(), GetBoneToTransformMap(), BoneIndexType, ReferenceBoneIndexType, OutBoneTransform);
+			const bool bSuccess = LerpEntries(Time, bExtrapolate, PrevEntry, NextEntry, BoneIndexSkeleton, nullptr, GetBoneToTransformMap(), BoneIndexType, ReferenceBoneIndexType, OutBoneTransform);
 			if (bApplyComponentToWorld)
 			{
 				OutBoneTransform *= ComponentToWorld;
@@ -485,7 +698,7 @@ bool FExtendedPoseHistory::GetTransformAtTime(float Time, FTransform& OutBoneTra
 	return PoseHistory->GetTransformAtTime(Time, OutBoneTransform, BoneIndexSkeleton, BoneIndexType, ReferenceBoneIndexType, bExtrapolate);
 }
 
-void FExtendedPoseHistory::AddFutureRootBone(float Time, const FTransform& FutureRootBoneTransform, bool bStoreScales)
+void FMemStackPoseHistory::AddFutureRootBone(float Time, const FTransform& FutureRootBoneTransform, bool bStoreScales)
 {
 	// we don't allow to add "past" or "present" poses to FutureEntries
 	check(Time > 0.f);
@@ -497,7 +710,7 @@ void FExtendedPoseHistory::AddFutureRootBone(float Time, const FTransform& Futur
 	FutureEntry.AccumulatedSeconds = Time;
 }
 
-void FExtendedPoseHistory::AddFuturePose(float Time, FCSPose<FCompactPose>& ComponentSpacePose)
+void FMemStackPoseHistory::AddFuturePose(float Time, FCSPose<FCompactPose>& ComponentSpacePose)
 {
 	// we don't allow to add "past" or "present" poses to FutureEntries
 	check(Time > 0.f);
@@ -506,8 +719,27 @@ void FExtendedPoseHistory::AddFuturePose(float Time, FCSPose<FCompactPose>& Comp
 	FutureEntries.InsertDefaulted_GetRef(LowerBoundIdx).Update(Time, ComponentSpacePose, GetBoneToTransformMap(), true);
 }
 
+int32 FMemStackPoseHistory::GetNumEntries() const
+{
+	check(PoseHistory);
+	return PoseHistory->GetNumEntries() + FutureEntries.Num();
+}
+
+const FPoseHistoryEntry& FMemStackPoseHistory::GetEntry(int32 EntryIndex) const
+{
+	check(PoseHistory);
+
+	const int32 PoseHistoryNumEntries = PoseHistory->GetNumEntries();
+	if (EntryIndex < PoseHistoryNumEntries)
+	{
+		return PoseHistory->GetEntry(EntryIndex);
+	}
+	return FutureEntries[EntryIndex - PoseHistoryNumEntries];
+}
+
+
 #if ENABLE_DRAW_DEBUG && ENABLE_ANIM_DEBUG
-void FExtendedPoseHistory::DebugDraw(FAnimInstanceProxy& AnimInstanceProxy, FColor Color) const
+void FMemStackPoseHistory::DebugDraw(FAnimInstanceProxy& AnimInstanceProxy, FColor Color) const
 {
 	check(PoseHistory);
 
@@ -517,10 +749,8 @@ void FExtendedPoseHistory::DebugDraw(FAnimInstanceProxy& AnimInstanceProxy, FCol
 		const bool bValidTrajectory = !Trajectory.Samples.IsEmpty();
 		TArray<FTransform, TInlineAllocator<128>> PrevGlobalTransforms;
 
-		const FPoseHistoryEntries& PastEntries = GetEntries();
-
 		int32 EntriesNum = FutureEntries.Num();
-		if (!PastEntries.IsEmpty())
+		if (PoseHistory->GetNumEntries() > 0)
 		{
 			// connecting the future entries with the past entries
 			++EntriesNum;
@@ -528,7 +758,7 @@ void FExtendedPoseHistory::DebugDraw(FAnimInstanceProxy& AnimInstanceProxy, FCol
 
 		for (int32 EntryIndex = 0; EntryIndex < EntriesNum; ++EntryIndex)
 		{
-			const FPoseHistoryEntry& Entry = (EntryIndex == FutureEntries.Num()) ? PastEntries.Last() : FutureEntries[EntryIndex];
+			const FPoseHistoryEntry& Entry = (EntryIndex == FutureEntries.Num()) ? PoseHistory->GetEntry(PoseHistory->GetNumEntries() - 1) : FutureEntries[EntryIndex];
 
 			const int32 PrevGlobalTransformsNum = PrevGlobalTransforms.Num();
 			const int32 Max = FMath::Max(PrevGlobalTransformsNum, Entry.Num());

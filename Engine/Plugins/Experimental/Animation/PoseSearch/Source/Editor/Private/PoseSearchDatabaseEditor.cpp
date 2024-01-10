@@ -517,12 +517,12 @@ namespace UE::PoseSearch
 		{
 			for (TSharedPtr<FDatabaseAssetTreeNode>& SelectedItem : SelectedItems)
 			{
-				if (!SelectedItem.IsValid() || !PoseSearchDatabase->AnimationAssets.IsValidIndex(SelectedItem->SourceAssetIdx))
+				if (!SelectedItem.IsValid() || !PoseSearchDatabase->GetAnimationAssets().IsValidIndex(SelectedItem->SourceAssetIdx))
 				{
 					continue;
 				}
 
-				const FInstancedStruct& DatabaseAsset = PoseSearchDatabase->AnimationAssets[SelectedItem->SourceAssetIdx];
+				const FInstancedStruct& DatabaseAsset = PoseSearchDatabase->GetAnimationAssetStruct(SelectedItem->SourceAssetIdx);
 				const UScriptStruct* ScriptStruct = DatabaseAsset.GetScriptStruct();
 				FSelectionWidget& SelectionWidget = FindOrAddSelectionWidget(ScriptStruct);
 
@@ -569,6 +569,18 @@ namespace UE::PoseSearch
 					static_cast<FPoseSearchDatabaseAnimMontage&>(NewSelectionReflection->AnimMontage) = *DatabaseAnimMontage;
 					NewSelectionReflection->AnimMontage.bLooping = DatabaseAnimMontage->IsLooping();
 					NewSelectionReflection->AnimMontage.bHasRootMotion = DatabaseAnimMontage->IsRootMotionEnabled();
+					NewSelectionReflection->SetSourceLink(SelectedItem, AssetTreeWidget);
+					NewSelectionReflection->SetFlags(RF_Transactional);
+
+					SelectionWidget.SelectedReflections.Add(NewSelectionReflection);
+				}
+				else if (const FPoseSearchDatabaseMultiSequence* DatabaseMultiSequence = DatabaseAsset.GetPtr<FPoseSearchDatabaseMultiSequence>())
+				{
+					UPoseSearchDatabaseMultiSequenceReflection* NewSelectionReflection = NewObject<UPoseSearchDatabaseMultiSequenceReflection>();
+					NewSelectionReflection->AddToRoot();
+					static_cast<FPoseSearchDatabaseMultiSequence&>(NewSelectionReflection->MultiSequence) = *DatabaseMultiSequence;
+					NewSelectionReflection->MultiSequence.bLooping = DatabaseMultiSequence->IsLooping();
+					NewSelectionReflection->MultiSequence.bHasRootMotion = DatabaseMultiSequence->IsRootMotionEnabled();
 					NewSelectionReflection->SetSourceLink(SelectedItem, AssetTreeWidget);
 					NewSelectionReflection->SetFlags(RF_Transactional);
 

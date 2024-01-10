@@ -5,6 +5,7 @@
 #include "IO/IoHash.h"
 #include "Interfaces/Interface_BoneReferenceSkeletonProvider.h"
 #include "DrawDebugHelpers.h"
+#include "PoseSearch/PoseSearchRole.h"
 #include "PoseSearchFeatureChannel.generated.h"
 
 class UPoseSearchSchema;
@@ -120,7 +121,7 @@ public:
 	int32 GetChannelDataOffset() const { checkSlow(ChannelDataOffset >= 0); return ChannelDataOffset; }
 
 	// Called during UPoseSearchSchema::Finalize to prepare the schema for this channel
-	virtual void Finalize(UPoseSearchSchema* Schema) PURE_VIRTUAL(UPoseSearchFeatureChannel::Finalize, );
+	virtual bool Finalize(UPoseSearchSchema* Schema) PURE_VIRTUAL(UPoseSearchFeatureChannel::Finalize, return false;);
 	
 	// Called at runtime to add this channel's data to the query pose vector
 	virtual void BuildQuery(UE::PoseSearch::FSearchContext& SearchContext) const PURE_VIRTUAL(UPoseSearchFeatureChannel::BuildQuery, );
@@ -154,9 +155,10 @@ public:
 
 	virtual bool CanBeNormalizedWith(const UPoseSearchFeatureChannel* Other) const;
 	const UPoseSearchSchema* GetSchema() const;
+
+	virtual const UE::PoseSearch::FRole GetDefaultRole() const;
 #endif
 
-private:
 	// IBoneReferenceSkeletonProvider interface
 	// Note this function is exclusively for FBoneReference details customization
 	USkeleton* GetSkeleton(bool& bInvalidSkeletonIsError, const IPropertyHandle* PropertyHandle) override;

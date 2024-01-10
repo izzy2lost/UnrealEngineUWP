@@ -5,11 +5,12 @@
 #include "PoseSearch/PoseSearchContext.h"
 #include "PoseSearch/PoseSearchSchema.h"
 
-void UPoseSearchFeatureChannel_SamplingTime::Finalize(UPoseSearchSchema* Schema)
+bool UPoseSearchFeatureChannel_SamplingTime::Finalize(UPoseSearchSchema* Schema)
 {
 	ChannelDataOffset = Schema->SchemaCardinality;
 	ChannelCardinality = 1;
 	Schema->SchemaCardinality += ChannelCardinality;
+	return true;
 }
 
 void UPoseSearchFeatureChannel_SamplingTime::BuildQuery(UE::PoseSearch::FSearchContext& SearchContext) const

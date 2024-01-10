@@ -39,11 +39,4 @@ void FTraceProvider::AppendMotionMatchingState(const FTraceMotionMatchingStateMe
 	Session.UpdateDurationSeconds(InTime);
 }
 
-FArchive& operator<<(FArchive& Ar, FTraceMotionMatchingStateMessage& State)
-{
-	Ar << static_cast<FTraceMessage&>(State);
-	Ar << static_cast<FTraceMotionMatchingState&>(State);
-	return Ar;
-}
-
 } // namespace UE::PoseSearch

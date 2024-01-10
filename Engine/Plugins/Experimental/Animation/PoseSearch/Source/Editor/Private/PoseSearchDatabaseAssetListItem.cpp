@@ -411,7 +411,7 @@ namespace UE::PoseSearch
 		if (const UPoseSearchDatabase* Database = ViewModelPtr->GetPoseSearchDatabase())
 		{
 			TSharedPtr<FDatabaseAssetTreeNode> TreeNodePtr = WeakAssetTreeNode.Pin();
-			if (Database->AnimationAssets.IsValidIndex(TreeNodePtr->SourceAssetIdx))
+			if (Database->GetAnimationAssets().IsValidIndex(TreeNodePtr->SourceAssetIdx))
 			{
 				if (ViewModelPtr->IsDisableReselection(TreeNodePtr->SourceAssetIdx))
 				{
@@ -448,7 +448,7 @@ namespace UE::PoseSearch
 		if (const UPoseSearchDatabase* Database = ViewModelPtr->GetPoseSearchDatabase())
 		{
 			TSharedPtr<FDatabaseAssetTreeNode> TreeNodePtr = WeakAssetTreeNode.Pin();
-			if (Database->AnimationAssets.IsValidIndex(TreeNodePtr->SourceAssetIdx))
+			if (Database->GetAnimationAssets().IsValidIndex(TreeNodePtr->SourceAssetIdx))
 			{
 				if (ViewModelPtr->IsEnabled(TreeNodePtr->SourceAssetIdx))
 				{

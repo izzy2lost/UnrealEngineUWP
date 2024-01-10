@@ -35,7 +35,7 @@ public:
 		TLabelBuilder LabelBuilder;
 		for (const FTraceMotionMatchingStateDatabaseEntry& DbEntry : DatabaseEntries)
 		{
-			const UPoseSearchDatabase* Database = FTraceMotionMatchingState::GetObjectFromId<UPoseSearchDatabase>(DbEntry.DatabaseId);
+			const UPoseSearchDatabase* Database = FTraceMotionMatchingStateMessage::GetObjectFromId<UPoseSearchDatabase>(DbEntry.DatabaseId);
 			if (FAsyncPoseSearchDatabasesManagement::RequestAsyncBuildIndex(Database, ERequestAsyncBuildFlag::ContinueRequest))
 			{
 				for (const TObjectPtr<UPoseSearchFeatureChannel>& ChannelPtr : Database->Schema->GetChannels())
@@ -219,21 +219,15 @@ static void AddUnfilteredDatabaseRow(const UPoseSearchDatabase* Database,
 		const FInstancedStruct& DatabaseAssetStruct = Database->GetAnimationAssetStruct(*SearchIndexAsset);
 		if (const FPoseSearchDatabaseAnimationAssetBase* DatabaseAsset = DatabaseAssetStruct.GetPtr<FPoseSearchDatabaseAnimationAssetBase>())
 		{
+			const float PlayLength = DatabaseAsset->GetPlayLength();
+			UObject* AnimationAsset = DatabaseAsset->GetAnimationAsset();
+
 			Row->AssetName = DatabaseAsset->GetName();
-			Row->AssetPath = DatabaseAsset->GetAnimationAsset() ? DatabaseAsset->GetAnimationAsset()->GetPathName() : "";
+			Row->AssetPath = AnimationAsset ? AnimationAsset->GetPathName() : "";
 			Row->bLooping = DatabaseAsset->IsLooping();
 			Row->BlendParameters = SearchIndexAsset->GetBlendParameters();
-			Row->AnimFrame = 0;
-			Row->AnimPercentage = 0.0f;
-
-			if (const FPoseSearchDatabaseAnimationAssetBase* DatabaseAnimationAssetBase = DatabaseAssetStruct.GetPtr<FPoseSearchDatabaseAnimationAssetBase>())
-			{
-				if (const UAnimSequenceBase* SequenceBase = Cast<UAnimSequenceBase>(DatabaseAnimationAssetBase->GetAnimationAsset()))
-				{
-					Row->AnimFrame = SequenceBase->GetFrameAtTime(Time);
-					Row->AnimPercentage = Time / SequenceBase->GetPlayLength();
-				}
-			}
+			Row->AnimFrame = DatabaseAsset->GetFrameAtTime(Time);
+			Row->AnimPercentage = FMath::IsNearlyZero(PlayLength) ? 0.f : Time / PlayLength;
 		}
 	}
 }
@@ -262,7 +256,7 @@ void SDebuggerDatabaseView::Update(const FTraceMotionMatchingStateMessage& State
 	TArray<uint32> PoseToPCAValuesVectorIndexes;
 	for (const FTraceMotionMatchingStateDatabaseEntry& DbEntry : State.DatabaseEntries)
 	{
-		const UPoseSearchDatabase* Database = FTraceMotionMatchingState::GetObjectFromId<UPoseSearchDatabase>(DbEntry.DatabaseId);
+		const UPoseSearchDatabase* Database = FTraceMotionMatchingStateMessage::GetObjectFromId<UPoseSearchDatabase>(DbEntry.DatabaseId);
 		if (FAsyncPoseSearchDatabasesManagement::RequestAsyncBuildIndex(Database, ERequestAsyncBuildFlag::ContinueRequest))
 		{
 			const FSearchIndex& SearchIndex = Database->GetSearchIndex();

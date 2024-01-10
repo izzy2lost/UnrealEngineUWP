@@ -391,6 +391,7 @@ FArchive& operator<<(FArchive& Ar, FSearchStats& Stats)
 const FSearchIndexAsset& FSearchIndexBase::GetAssetForPose(int32 PoseIdx) const
 {
 	const uint32 AssetIndex = PoseMetadata[PoseIdx].GetAssetIndex();
+	check(Assets[AssetIndex].IsPoseInRange(PoseIdx));
 	return Assets[AssetIndex];
 }
 

@@ -41,7 +41,7 @@ namespace UE::PoseSearch
 		return (Values[Num - 1] - Values[Num - 2]) * (Sample - (Num - 1)) + Values[Num - 1];
 	}
 
-	static bool CollectBonePositions(TArray<FVector>& BonePositions, FAssetIndexer& Indexer, int8 SchemaBoneIdx)
+	static bool CollectBonePositions(TArray<FVector>& BonePositions, FAssetIndexer& Indexer, int8 SchemaBoneIdx, const FRole& Role)
 	{
 		const int32 NumSamples = Indexer.GetEndSampleIdx() - Indexer.GetBeginSampleIdx();
 
@@ -50,7 +50,7 @@ namespace UE::PoseSearch
 		BonePositions.AddDefaulted(NumSamples);
 		for (int32 SampleIdx = 0; SampleIdx != NumSamples; ++SampleIdx)
 		{
-			if (!Indexer.GetSamplePosition(BonePositions[SampleIdx], 0.f, 0.f, SampleIdx, SchemaBoneIdx, RootSchemaBoneIdx, EPermutationTimeType::UseSampleTime))
+			if (!Indexer.GetSamplePosition(BonePositions[SampleIdx], 0.f, 0.f, SampleIdx, SchemaBoneIdx, RootSchemaBoneIdx, Role, Role))
 			{
 				return false;
 			}
@@ -284,19 +284,22 @@ namespace UE::PoseSearch
 } // namespace UE::PoseSearch
 #endif // WITH_EDITOR
 
-void UPoseSearchFeatureChannel_Phase::Finalize(UPoseSearchSchema* Schema)
+bool UPoseSearchFeatureChannel_Phase::Finalize(UPoseSearchSchema* Schema)
 {
 	ChannelDataOffset = Schema->SchemaCardinality;
 	ChannelCardinality = 2;
 	Schema->SchemaCardinality += ChannelCardinality;
-	SchemaBoneIdx = Schema->AddBoneReference(Bone);
+
+	SchemaBoneIdx = Schema->AddBoneReference(Bone, SampleRole);
+
+	return SchemaBoneIdx >= 0;
 }
 
 void UPoseSearchFeatureChannel_Phase::AddDependentChannels(UPoseSearchSchema* Schema) const
 {
 	if (Schema->bInjectAdditionalDebugChannels)
 	{
-		UPoseSearchFeatureChannel_Position::FindOrAddToSchema(Schema, 0.f, Bone.BoneName);
+		UPoseSearchFeatureChannel_Position::FindOrAddToSchema(Schema, 0.f, Bone.BoneName, SampleRole);
 	}
 }
 
@@ -309,8 +312,8 @@ void UPoseSearchFeatureChannel_Phase::BuildQuery(UE::PoseSearch::FSearchContext&
 	{
 		// composing a unique identifier to specify this channel with all the required properties to be able to share the query data with other channels of the same type
 		uint32 UniqueIdentifier = GetClass()->GetUniqueID();
-		UniqueIdentifier = HashCombineFast(UniqueIdentifier, ::GetTypeHash(SchemaBoneIdx));
-		UniqueIdentifier = HashCombineFast(UniqueIdentifier, ::GetTypeHash(InputQueryPose));
+		UniqueIdentifier = HashCombineFast(UniqueIdentifier, GetTypeHash(SchemaBoneIdx));
+		UniqueIdentifier = HashCombineFast(UniqueIdentifier, GetTypeHash(InputQueryPose));
 
 		TConstArrayView<float> CachedChannelData;
 		if (const UPoseSearchFeatureChannel* CachedChannel = SearchContext.GetCachedChannelData(UniqueIdentifier, this, CachedChannelData))
@@ -334,7 +337,7 @@ void UPoseSearchFeatureChannel_Phase::BuildQuery(UE::PoseSearch::FSearchContext&
 
 	const bool bCanUseCurrentResult = SearchContext.CanUseCurrentResult();
 	const bool bSkip = InputQueryPose != EInputQueryPose::UseCharacterPose && bCanUseCurrentResult;
-	if (bSkip || !SearchContext.GetHistory())
+	if (bSkip || !SearchContext.ArePoseHistoriesValid())
 	{
 		if (bCanUseCurrentResult)
 		{
@@ -342,7 +345,7 @@ void UPoseSearchFeatureChannel_Phase::BuildQuery(UE::PoseSearch::FSearchContext&
 			return;
 		}
 		
-		// we leave the SearchContext.EditFeatureVector() set to zero since the SearchContext.History is invalid and it'll fail if we continue
+		// we leave the SearchContext.EditFeatureVector() set to zero since the SearchContext.PoseHistory is invalid and it'll fail if we continue
 		UE_LOG(LogPoseSearch, Error, TEXT("UPoseSearchFeatureChannel_Phase::BuildQuery - Failed because Pose History Node is missing."));
 		return;
 	}
@@ -366,11 +369,11 @@ void UPoseSearchFeatureChannel_Phase::DebugDraw(const UE::PoseSearch::FDebugDraw
 #endif // WITH_EDITORONLY_DATA
 
 	const FVector2D Phase = FFeatureVectorHelper::DecodeVector2D(PoseVector, ChannelDataOffset);
-	const FVector BonePos = DrawParams.ExtractPosition(PoseVector, 0.f, SchemaBoneIdx);
+	const FVector BonePos = DrawParams.ExtractPosition(PoseVector, 0.f, SchemaBoneIdx, SampleRole);
 
-	const FVector TransformXAxisVector = DrawParams.GetRootTransform().TransformVector(FVector::XAxisVector);
-	const FVector TransformYAxisVector = DrawParams.GetRootTransform().TransformVector(FVector::YAxisVector);
-	const FVector TransformZAxisVector = DrawParams.GetRootTransform().TransformVector(FVector::ZAxisVector);
+	const FVector TransformXAxisVector = DrawParams.GetRootTransform(SampleRole).TransformVector(FVector::XAxisVector);
+	const FVector TransformYAxisVector = DrawParams.GetRootTransform(SampleRole).TransformVector(FVector::YAxisVector);
+	const FVector TransformZAxisVector = DrawParams.GetRootTransform(SampleRole).TransformVector(FVector::ZAxisVector);
 
 	const FVector PhaseVector = (TransformZAxisVector * Phase.X + TransformYAxisVector * Phase.Y) * ScaleFactor;
 	DrawParams.DrawLine(BonePos, BonePos + PhaseVector, Color);
@@ -408,7 +411,7 @@ bool UPoseSearchFeatureChannel_Phase::IndexAsset(UE::PoseSearch::FAssetIndexer& 
 	TArray<LocalMinMax> LocalMinMax;
 	TArray<FVector> BonePositions;
 
-	if (!CollectBonePositions(BonePositions, Indexer, SchemaBoneIdx))
+	if (!CollectBonePositions(BonePositions, Indexer, SchemaBoneIdx, SampleRole))
 	{
 		return false;
 	}
@@ -448,7 +451,7 @@ UE::PoseSearch::TLabelBuilder& UPoseSearchFeatureChannel_Phase::GetLabel(UE::Pos
 	if (SchemaBoneIdx != RootSchemaBoneIdx)
 	{
 		LabelBuilder.Append(TEXT("_"));
-		LabelBuilder.Append(Schema->BoneReferences[SchemaBoneIdx].BoneName.ToString());
+		LabelBuilder.Append(Schema->GetBoneReferences(SampleRole)[SchemaBoneIdx].BoneName.ToString());
 	}
 
 	return LabelBuilder;

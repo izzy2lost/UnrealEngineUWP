@@ -66,9 +66,9 @@ namespace UE::PoseSearch
 			const bool bDisplayBlockTransition = ViewModel->IsDisplayBlockTransitionChecked();
 			bool bDrawQueryVector = ViewModel->ShouldDrawQueryVector();
 
-			for (FDatabasePreviewActor& PreviewActor : ViewModel->GetPreviewActors())
+			for (TArray<FDatabasePreviewActor>& PreviewActorGroup : ViewModel->GetPreviewActors())
 			{
-				bDrawQueryVector &= !PreviewActor.DrawPreviewActor(Database, bDisplayRootMotionSpeed, bDisplayBlockTransition, bDrawQueryVector ? ViewModel->GetQueryVector() : TConstArrayView<float>());
+				bDrawQueryVector &= !FDatabasePreviewActor::DrawPreviewActors(PreviewActorGroup, Database, bDisplayRootMotionSpeed, bDisplayBlockTransition, bDrawQueryVector ? ViewModel->GetQueryVector() : TConstArrayView<float>());
 			}
 		}
 	}

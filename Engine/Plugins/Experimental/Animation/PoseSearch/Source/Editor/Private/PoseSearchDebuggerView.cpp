@@ -12,6 +12,7 @@
 #include "PoseSearchDebuggerDatabaseView.h"
 #include "PoseSearchDebuggerReflection.h"
 #include "PoseSearchDebuggerViewModel.h"
+#include "PoseSearchEditor.h"
 #include "PropertyEditorModule.h"
 #include "Subsystems/AssetEditorSubsystem.h"
 #include "Trace/PoseSearchTraceProvider.h"
@@ -178,19 +179,20 @@ void SDebuggerView::Tick(const FGeometry& AllottedGeometry, const double InCurre
 	}
 
 	const UWorld* DebuggerWorld = FDebugger::GetWorld();
-    check(DebuggerWorld);
-	
+	check(DebuggerWorld);
+
 	// @TODO: Handle editor world when those features are enabled for the Rewind Debugger
 	// Currently prevents debug draw remnants from stopped world
 	if (DebuggerWorld->WorldType != EWorldType::PIE)
 	{
 		return;
 	}
-	
+
 	const bool bSameTime = FMath::Abs(TimeMarker - PreviousTimeMarker) < DOUBLE_SMALL_NUMBER;
 	PreviousTimeMarker = TimeMarker;
 
 	TSharedPtr<FDebuggerViewModel> Model = ViewModel.Get();
+	check(Model.IsValid());
 
 	// We haven't reached the update point yet
 	if (CurrentConsecutiveFrames < ConsecutiveFramesUpdateThreshold)
@@ -222,9 +224,147 @@ void SDebuggerView::Tick(const FGeometry& AllottedGeometry, const double InCurre
 		}
 	}
 
-	// Draw visualization every tick
-	DrawVisualization();
-	
+	// Draw features
+	if (const FTraceMotionMatchingStateMessage* State = Model->GetMotionMatchingState())
+	{
+		FRoleToIndex RoleToIndex;
+		TArray<const USkinnedMeshComponent*> Meshes;
+		TArray<const IPoseHistory*> PoseHistories;
+
+		const int32 NumRoles = State->Roles.Num();
+
+		RoleToIndex.Reserve(NumRoles);
+		Meshes.SetNum(NumRoles);
+		PoseHistories.SetNum(NumRoles);
+
+		for (int32 RoleIndex = 0; RoleIndex < NumRoles; ++RoleIndex)
+		{
+			const uint64 ActorSkeletalMeshComponentId = State->SkeletalMeshComponentIds[RoleIndex];
+			if (const TWeakObjectPtr<AActor>* ActorPtr = Model->GetDebugDrawActors().Find(ActorSkeletalMeshComponentId))
+			{
+				if (ActorPtr->IsValid())
+				{
+					const FRole& Role = State->Roles[RoleIndex];
+
+					for (UActorComponent* ActorComponent : (*ActorPtr)->GetInstanceComponents())
+					{
+						if (UPoseSearchMeshComponent* PoseSearchMeshComponent = Cast<UPoseSearchMeshComponent>(ActorComponent))
+						{
+							RoleToIndex.Add(Role) = RoleIndex;
+							Meshes[RoleIndex] = PoseSearchMeshComponent;
+							PoseHistories[RoleIndex] = &State->PoseHistories[RoleIndex];
+							break;
+						}
+					}
+				}
+			}
+		}
+
+		// checking if all roles have been resolved properly
+		if (RoleToIndex.Num() != NumRoles)
+		{
+			return;
+		}
+
+		// Draw world space trajectory
+#if ENABLE_ANIM_DEBUG
+		const bool bDrawTrajectory = Model->GetDrawTrajectory();
+		const bool bDrawHistory = Model->GetDrawHistory();
+
+		if (bDrawTrajectory || bDrawHistory)
+		{
+			for (int32 RoleIndex = 0; RoleIndex < NumRoles; ++RoleIndex)
+			{
+				UWorld* World = Meshes[RoleIndex]->GetWorld();
+				const FPoseSearchQueryTrajectory& Trajectory = State->PoseHistories[RoleIndex].Trajectory;
+				
+				if (bDrawTrajectory)
+				{
+					Trajectory.DebugDrawTrajectory(World);
+				}
+
+				if (bDrawHistory)
+				{
+					State->PoseHistories[RoleIndex].DebugDraw(World, FColor::Red);
+				}
+			}
+		}
+#endif
+
+		// Draw query vector
+		if (Model->GetDrawQuery())
+		{
+			if (const UPoseSearchDatabase* CurrentDatabase = Model->GetCurrentDatabase())
+			{
+				for (const FTraceMotionMatchingStateDatabaseEntry& DbEntry : State->DatabaseEntries)
+				{
+					const UPoseSearchDatabase* Database = FTraceMotionMatchingStateMessage::GetObjectFromId<UPoseSearchDatabase>(DbEntry.DatabaseId);
+					if (Database && Database == CurrentDatabase &&
+						FAsyncPoseSearchDatabasesManagement::RequestAsyncBuildIndex(CurrentDatabase, ERequestAsyncBuildFlag::ContinueRequest) &&
+						DbEntry.QueryVector.Num() == Database->Schema->SchemaCardinality)
+					{
+						FDebugDrawParams DrawParams(Meshes, PoseHistories, RoleToIndex, CurrentDatabase, EDebugDrawFlags::DrawQuery);
+						DrawParams.DrawFeatureVector(DbEntry.QueryVector);
+						break;
+					}
+				}
+			}
+		}
+
+		// Draw selected poses
+		const TSharedPtr<SListView<TSharedRef<FDebuggerDatabaseRowData>>>& DatabaseRows = DatabaseView->GetDatabaseRows();
+		TArray<TSharedRef<FDebuggerDatabaseRowData>> SelectedRows = DatabaseRows->GetSelectedItems();
+
+		// Draw any selected database vectors
+		constexpr int32 MaxRowsToDraw = 250;
+
+		const int32 NumRowsToDraw = FMath::Min(MaxRowsToDraw, SelectedRows.Num());
+		for (int32 RowIdx = 0; RowIdx < NumRowsToDraw; ++RowIdx)
+		{
+			const TSharedRef<FDebuggerDatabaseRowData>& Row = SelectedRows[RowIdx];
+			const UPoseSearchDatabase* RowDatabase = Row->SharedData->SourceDatabase.Get();
+			if (FAsyncPoseSearchDatabasesManagement::RequestAsyncBuildIndex(RowDatabase, ERequestAsyncBuildFlag::ContinueRequest))
+			{
+				FDebugDrawParams DrawParams(Meshes, PoseHistories, RoleToIndex, RowDatabase);
+				DrawParams.DrawFeatureVector(Row->PoseIdx);
+			}
+		}
+
+		// Draw active pose
+		TArray<TSharedRef<FDebuggerDatabaseRowData>> ActiveRows = DatabaseView->GetActiveRow()->GetSelectedItems();
+
+		// Active row should only have 0 or 1
+		check(ActiveRows.Num() < 2);
+
+		if (!ActiveRows.IsEmpty())
+		{
+			const UPoseSearchDatabase* Database = ActiveRows[0]->SharedData->SourceDatabase.Get();
+			if (Database && FAsyncPoseSearchDatabasesManagement::RequestAsyncBuildIndex(Database, ERequestAsyncBuildFlag::ContinueRequest))
+			{
+				// Use the motion-matching state's pose idx, as the active row may be update-throttled at this point
+				FDebugDrawParams DrawParams(Meshes, PoseHistories, RoleToIndex, Database);
+				DrawParams.DrawFeatureVector(ActiveRows[0]->PoseIdx);
+			}
+		}
+
+
+		// Draw continuing pose
+		TArray<TSharedRef<FDebuggerDatabaseRowData>> ContinuingRows = DatabaseView->GetContinuingPoseRow()->GetSelectedItems();
+
+		// ContinuingPose row should only have 0 or 1
+		check(ContinuingRows.Num() < 2);
+
+		if (!ContinuingRows.IsEmpty())
+		{
+			const UPoseSearchDatabase* Database = ContinuingRows[0]->SharedData->SourceDatabase.Get();
+			if (Database && FAsyncPoseSearchDatabasesManagement::RequestAsyncBuildIndex(Database, ERequestAsyncBuildFlag::ContinueRequest))
+			{
+				FDebugDrawParams DrawParams(Meshes, PoseHistories, RoleToIndex, Database);
+				DrawParams.DrawFeatureVector(ContinuingRows[0]->PoseIdx);
+			}
+		}
+	}
+
 	// synchronizing the model DrawQuery state with all the open PoseSearchDatabaseEditor(s)
 	const bool bDrawQuery = Model->GetDrawQuery();
 	if (UAssetEditorSubsystem* AssetEditorSS = GEditor->GetEditorSubsystem<UAssetEditorSubsystem>())
@@ -250,6 +390,7 @@ void SDebuggerView::Tick(const FGeometry& AllottedGeometry, const double InCurre
 bool SDebuggerView::UpdateNodeSelection()
 {
 	TSharedPtr<FDebuggerViewModel> Model = ViewModel.Get();
+	check(Model.IsValid());
 
 	// Update selection view if no node selected
 	bool bNodeSelected = SelectedNodeId != INDEX_NONE;
@@ -297,106 +438,9 @@ void SDebuggerView::UpdateViews() const
 	}
 }
 
-void SDebuggerView::DrawVisualization() const
-{
-	if (const FTraceMotionMatchingStateMessage* State = ViewModel.Get()->GetMotionMatchingState())
-	{
-		const UWorld* DebuggerWorld = FDebugger::GetWorld();
-		check(DebuggerWorld);
-
-		DrawFeatures(*DebuggerWorld, *State, ViewModel.Get()->GetRootBoneTransform(), ViewModel.Get()->GetMeshComponent());
-	}
-}
-
 TArray<TSharedRef<FDebuggerDatabaseRowData>> SDebuggerView::GetSelectedDatabaseRows() const
 {
 	return DatabaseView->GetDatabaseRows()->GetSelectedItems();
-}
-
-void SDebuggerView::DrawFeatures(const UWorld& DebuggerWorld, const FTraceMotionMatchingStateMessage& State, const FTransform& RootBoneWorldTransform, const USkinnedMeshComponent* Mesh, int32 MaxRowsToDraw) const
-{
-	// Draw world space trajectory
-#if ENABLE_ANIM_DEBUG
-	if (ViewModel.Get()->GetDrawTrajectory())
-	{
-		State.Trajectory.DebugDrawTrajectory(&DebuggerWorld);
-	}
-#endif
-
-	// Draw query vector
-	if (ViewModel.Get()->GetDrawQuery())
-	{
-		if (const UPoseSearchDatabase* CurrentDatabase = ViewModel.Get()->GetCurrentDatabase())
-		{
-			for (const FTraceMotionMatchingStateDatabaseEntry& DbEntry : State.DatabaseEntries)
-			{
-				const UPoseSearchDatabase* Database = FTraceMotionMatchingState::GetObjectFromId<UPoseSearchDatabase>(DbEntry.DatabaseId);
-				if (Database && Database == CurrentDatabase && 
-					FAsyncPoseSearchDatabasesManagement::RequestAsyncBuildIndex(CurrentDatabase, ERequestAsyncBuildFlag::ContinueRequest) &&
-					DbEntry.QueryVector.Num() == Database->Schema->SchemaCardinality)
-				{
-					FDebugDrawParams DrawParams(&DebuggerWorld, Mesh, RootBoneWorldTransform, CurrentDatabase, EDebugDrawFlags::DrawQuery);
-					DrawParams.DrawFeatureVector(DbEntry.QueryVector);
-					break;
-				}
-			}
-		}
-	}
-
-	// Draw selected poses
-	const TSharedPtr<SListView<TSharedRef<FDebuggerDatabaseRowData>>>& DatabaseRows = DatabaseView->GetDatabaseRows();
-	TArray<TSharedRef<FDebuggerDatabaseRowData>> SelectedRows = DatabaseRows->GetSelectedItems();
-	
-	// Draw any selected database vectors
-	const int32 NumRowsToDraw = FMath::Min(MaxRowsToDraw, SelectedRows.Num());
-	for (int32 RowIdx = 0; RowIdx < NumRowsToDraw; ++RowIdx)
-	{
-		const TSharedRef<FDebuggerDatabaseRowData>& Row = SelectedRows[RowIdx];
-		const UPoseSearchDatabase* RowDatabase = Row->SharedData->SourceDatabase.Get();
-		if (FAsyncPoseSearchDatabasesManagement::RequestAsyncBuildIndex(RowDatabase, ERequestAsyncBuildFlag::ContinueRequest))
-		{
-			FDebugDrawParams DrawParams(&DebuggerWorld, Mesh, RootBoneWorldTransform, RowDatabase);
-			DrawParams.DrawFeatureVector(Row->PoseIdx);
-		}
-	}
-
-	// Draw active pose
-	{
-		TArray<TSharedRef<FDebuggerDatabaseRowData>> ActiveRows = DatabaseView->GetActiveRow()->GetSelectedItems();
-
-		// Active row should only have 0 or 1
-		check(ActiveRows.Num() < 2);
-
-		if (!ActiveRows.IsEmpty())
-		{
-			const UPoseSearchDatabase* Database = ActiveRows[0]->SharedData->SourceDatabase.Get();
-			if (Database && FAsyncPoseSearchDatabasesManagement::RequestAsyncBuildIndex(Database, ERequestAsyncBuildFlag::ContinueRequest))
-			{
-				// Use the motion-matching state's pose idx, as the active row may be update-throttled at this point
-				FDebugDrawParams DrawParams(&DebuggerWorld, Mesh, RootBoneWorldTransform, Database);
-				DrawParams.DrawFeatureVector(ActiveRows[0]->PoseIdx);
-			}
-		}
-	}
-
-
-	// Draw continuing pose
-	{
-		TArray<TSharedRef<FDebuggerDatabaseRowData>> ContinuingRows = DatabaseView->GetContinuingPoseRow()->GetSelectedItems();
-
-		// ContinuingPose row should only have 0 or 1
-		check(ContinuingRows.Num() < 2);
-
-		if (!ContinuingRows.IsEmpty())
-		{
-			const UPoseSearchDatabase* Database = ContinuingRows[0]->SharedData->SourceDatabase.Get();
-			if (Database && FAsyncPoseSearchDatabasesManagement::RequestAsyncBuildIndex(Database, ERequestAsyncBuildFlag::ContinueRequest))
-			{
-				FDebugDrawParams DrawParams(&DebuggerWorld, Mesh, RootBoneWorldTransform, Database);
-				DrawParams.DrawFeatureVector(ContinuingRows[0]->PoseIdx);
-			}
-		}
-	}
 }
 
 int32 SDebuggerView::SelectView() const
@@ -414,6 +458,7 @@ int32 SDebuggerView::SelectView() const
 	}
 
 	const TSharedPtr<FDebuggerViewModel> Model = ViewModel.Get();
+	check(Model.IsValid());
 
 	const bool bNoActiveNodes = Model->GetNodesNum() == 0;
 	const bool bNodeSelectedWithoutData = SelectedNodeId != INDEX_NONE && Model->GetMotionMatchingState() == nullptr;
@@ -437,6 +482,8 @@ int32 SDebuggerView::SelectView() const
 void SDebuggerView::OnPoseSelectionChanged(const UPoseSearchDatabase* Database, int32 DbPoseIdx, float Time)
 {
 	const TSharedPtr<FDebuggerViewModel> Model = ViewModel.Get();
+	check(Model.IsValid());
+
 	if (const FTraceMotionMatchingStateMessage* State = Model->GetMotionMatchingState())
 	{
 		DetailsView->Update(*State);
@@ -566,6 +613,33 @@ TSharedRef<SHorizontalBox> SDebuggerView::GenerateReturnButtonView()
 				[
 					SNew(STextBlock)
 					.Text(LOCTEXT("PoseSearchDebuggerDrawTrajectory", "Draw Trajectory"))
+				]
+			]
+		]
+		+SHorizontalBox::Slot()
+		.VAlign(VAlign_Top)
+		.HAlign(HAlign_Left)
+		.Padding(64, 5, 0, 0)
+		.AutoWidth()
+		[
+			SNew(SHorizontalBox)
+
+			+ SHorizontalBox::Slot()
+			.AutoWidth()
+			.Padding(0, 5, 0, 0)
+			[
+				SNew(SCheckBox)
+				.IsChecked_Lambda([this]
+				{
+					return ViewModel.Get()->GetDrawHistory() ? ECheckBoxState::Checked : ECheckBoxState::Unchecked; 
+				})
+				.OnCheckStateChanged_Lambda([this](ECheckBoxState State)
+				{
+					ViewModel.Get()->SetDrawHistory(State == ECheckBoxState::Checked);
+				})
+				[
+					SNew(STextBlock)
+					.Text(LOCTEXT("PoseSearchDebuggerDrawHistory", "Draw History"))
 				]
 			]
 		]

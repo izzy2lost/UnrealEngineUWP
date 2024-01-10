@@ -62,44 +62,44 @@ FPoseSearchQueryTrajectorySample FPoseSearchQueryTrajectory::GetSampleAtTime(flo
 #if ENABLE_ANIM_DEBUG
 void FPoseSearchQueryTrajectory::DebugDrawTrajectory(const UWorld* World, float HeightOffset) const
 {
-	FVector OffsetVector = FVector::UpVector * HeightOffset;
+	const FVector OffsetVector = FVector::UpVector * HeightOffset;
 
 	const int32 LastIndex = Samples.Num() - 1;
 	if (LastIndex >= 0)
 	{
 		for (int32 Index = 0; ; ++Index)
 		{
-			DrawDebugSphere(World, Samples[Index].Position + OffsetVector, 2.f /*Radius*/, 4 /*Segments*/, FColor::Black);
-			DrawDebugCoordinateSystem(World, Samples[Index].Position + OffsetVector, FRotator(Samples[Index].Facing), 12.f /*Scale*/);
+			DrawDebugSphere(World, Samples[Index].Position + OffsetVector, 2.f /*Radius*/, 4 /*Segments*/, FColor::Black, false /*bPersistentLines*/, -1.f /*LifeTime*/, SDPG_Foreground);
+			DrawDebugCoordinateSystem(World, Samples[Index].Position + OffsetVector, FRotator(Samples[Index].Facing), 12.f /*Scale*/, false /*bPersistentLines*/, -1.f /*LifeTime*/, SDPG_Foreground);
 
 			if (Index == LastIndex)
 			{
 				break;
 			}
 			
-			DrawDebugLine(World, Samples[Index].Position + OffsetVector, Samples[Index + 1].Position + OffsetVector, FColor::Black);
+			DrawDebugLine(World, Samples[Index].Position + OffsetVector, Samples[Index + 1].Position + OffsetVector, FColor::Black, false /*bPersistentLines*/, -1.f /*LifeTime*/, SDPG_Foreground);
 		}
 	}
 }
 
 void FPoseSearchQueryTrajectory::DebugDrawTrajectory(FAnimInstanceProxy& AnimInstanceProxy, float HeightOffset) const
 {
-	FVector OffsetVector = FVector::UpVector * HeightOffset;
+	const FVector OffsetVector = FVector::UpVector * HeightOffset;
 
 	const int32 LastIndex = Samples.Num() - 1;
 	if (LastIndex >= 0)
 	{
 		for (int32 Index = 0; ; ++Index)
 		{
-			AnimInstanceProxy.AnimDrawDebugSphere(Samples[Index].Position + OffsetVector, 2.f /*Radius*/, 4 /*Segments*/, FColor::Black);
-			AnimInstanceProxy.AnimDrawDebugCoordinateSystem(Samples[Index].Position + OffsetVector, FRotator(Samples[Index].Facing), 12.f /*Scale*/);
+			AnimInstanceProxy.AnimDrawDebugSphere(Samples[Index].Position + OffsetVector, 2.f /*Radius*/, 4 /*Segments*/, FColor::Black, false /*bPersistentLines*/, -1.f /*LifeTime*/, 0.f /*Thickness*/, SDPG_Foreground);
+			AnimInstanceProxy.AnimDrawDebugCoordinateSystem(Samples[Index].Position + OffsetVector, FRotator(Samples[Index].Facing), 12.f /*Scale*/, false /*bPersistentLines*/, -1.f /*LifeTime*/, 0.f /*Thickness*/, SDPG_Foreground);
 
 			if (Index == LastIndex)
 			{
 				break;
 			}
 			
-			AnimInstanceProxy.AnimDrawDebugLine(Samples[Index].Position + OffsetVector, Samples[Index + 1].Position + OffsetVector, FColor::Black);
+			AnimInstanceProxy.AnimDrawDebugLine(Samples[Index].Position + OffsetVector, Samples[Index + 1].Position + OffsetVector, FColor::Black, false /*bPersistentLines*/, -1.f /*LifeTime*/, 0.f /*Thickness*/, SDPG_Foreground);
 		}
 	}
 }

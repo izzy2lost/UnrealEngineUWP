@@ -69,7 +69,7 @@ public:
 	virtual TConstArrayView<TObjectPtr<UPoseSearchFeatureChannel>> GetSubChannels() const override { return SubChannels; }
 
 	// UPoseSearchFeatureChannel interface
-	virtual void Finalize(UPoseSearchSchema* Schema) override;
+	virtual bool Finalize(UPoseSearchSchema* Schema) override;
 
 #if ENABLE_DRAW_DEBUG
 	virtual void DebugDraw(const UE::PoseSearch::FDebugDrawParams& DrawParams, TConstArrayView<float> PoseVector) const override;

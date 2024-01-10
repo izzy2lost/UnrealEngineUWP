@@ -78,17 +78,12 @@ public:
 	TArray<TSharedRef<FDebuggerDatabaseRowData>> GetSelectedDatabaseRows() const;
 
 private:
-	/** Called each frame to draw features of the query vector & database selections */
-	void DrawFeatures(const UWorld& DebuggerWorld, const FTraceMotionMatchingStateMessage& State, const FTransform& RootBoneWorldTransform, const USkinnedMeshComponent* Mesh, int32 MaxRowsToDraw = 250) const;
-	
 	/** Check if a node selection was made, true if a node is selected */
 	bool UpdateNodeSelection();
 
 	/** Update the database and details views */
 	void UpdateViews() const;
 
-	void DrawVisualization() const;
-	
 	/** Returns an int32 appropriate to the index of our widget selector */
 	int32 SelectView() const;
 

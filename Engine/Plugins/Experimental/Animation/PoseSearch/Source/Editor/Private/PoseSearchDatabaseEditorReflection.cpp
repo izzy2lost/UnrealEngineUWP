@@ -103,6 +103,27 @@ void UPoseSearchDatabaseAnimMontageReflection::PostEditChangeProperty(struct FPr
 	}
 }
 
+void UPoseSearchDatabaseMultiSequenceReflection::PostEditChangeProperty(struct FPropertyChangedEvent& PropertyChangedEvent)
+{
+	Super::PostEditChangeProperty(PropertyChangedEvent);
+
+	if (const TSharedPtr<UE::PoseSearch::FDatabaseViewModel> ViewModel = WeakAssetTreeNode.Pin()->EditorViewModel.Pin())
+	{
+		UPoseSearchDatabase* Database = ViewModel->GetPoseSearchDatabase();
+		if (IsValid(Database))
+		{
+			FInstancedStruct& DatabaseAsset = Database->GetMutableAnimationAssetStruct(WeakAssetTreeNode.Pin()->SourceAssetIdx);
+			if (FPoseSearchDatabaseMultiSequence* DatabaseMultiSequence = DatabaseAsset.GetMutablePtr<FPoseSearchDatabaseMultiSequence>())
+			{
+				*DatabaseMultiSequence = MultiSequence;
+				Database->MarkPackageDirty();
+
+				AssetTreeWidget->FinalizeTreeChanges(true);
+			}
+		}
+	}
+}
+
 #endif // WITH_EDITOR
 
 void UPoseSearchDatabaseStatistics::Initialize(const UPoseSearchDatabase* PoseSearchDatabase)
@@ -114,7 +135,7 @@ void UPoseSearchDatabaseStatistics::Initialize(const UPoseSearchDatabase* PoseSe
 		const UE::PoseSearch::FSearchIndex& SearchIndex = PoseSearchDatabase->GetSearchIndex();
 		// General Information
 	
-		AnimationSequences = PoseSearchDatabase->AnimationAssets.Num();
+		AnimationSequences = PoseSearchDatabase->GetAnimationAssets().Num();
 			
 		const int32 SampleRate = FMath::Max(1, PoseSearchDatabase->Schema->SampleRate);
 		TotalAnimationPosesInFrames = SearchIndex.GetNumPoses();
@@ -170,8 +191,8 @@ void UPoseSearchDatabaseStatistics::Initialize(const UPoseSearchDatabase* PoseSe
 		{
 			uint32 SourceAnimAssetsSizeCookedEstimateInBytes = 0;
 			TSet<const UObject*> Analyzed;
-			Analyzed.Reserve(PoseSearchDatabase->AnimationAssets.Num());
-			for (const FInstancedStruct& AnimAsset : PoseSearchDatabase->AnimationAssets)
+			Analyzed.Reserve(PoseSearchDatabase->GetAnimationAssets().Num());
+			for (const FInstancedStruct& AnimAsset : PoseSearchDatabase->GetAnimationAssets())
 			{
 				if (const FPoseSearchDatabaseAnimationAssetBase* DatabaseAnimationAssetBase = AnimAsset.GetPtr<FPoseSearchDatabaseAnimationAssetBase>())
 				{

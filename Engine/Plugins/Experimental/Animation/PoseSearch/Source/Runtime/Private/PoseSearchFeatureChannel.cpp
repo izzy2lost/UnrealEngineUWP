@@ -191,7 +191,7 @@ bool UPoseSearchFeatureChannel::CanBeNormalizedWith(const UPoseSearchFeatureChan
 		return false;
 	}
 
-	if (GetSchema()->Skeleton != Other->GetSchema()->Skeleton)
+	if (!GetSchema()->AreSkeletonsCompatible(Other->GetSchema()))
 	{
 		return false;
 	}
@@ -218,6 +218,16 @@ const UPoseSearchSchema* UPoseSearchFeatureChannel::GetSchema() const
 	}
 	return nullptr;
 }
+
+const UE::PoseSearch::FRole UPoseSearchFeatureChannel::GetDefaultRole() const
+{
+	if (const UPoseSearchSchema* Schema = GetSchema())
+	{
+		Schema->GetDefaultRole();
+	}
+	return UE::PoseSearch::DefaultRole;
+}
+
 #endif // WITH_EDITOR
 
 USkeleton* UPoseSearchFeatureChannel::GetSkeleton(bool& bInvalidSkeletonIsError, const IPropertyHandle* PropertyHandle)
@@ -227,7 +237,7 @@ USkeleton* UPoseSearchFeatureChannel::GetSkeleton(bool& bInvalidSkeletonIsError,
 	// blueprint generated classes don't have a schema, until they're instanced by the schema
 	if (const UPoseSearchSchema* Schema = GetSchema())
 	{
-		return Schema->Skeleton;
+		return Schema->GetSkeleton(GetDefaultRole());
 	}
 #else
 	checkNoEntry();

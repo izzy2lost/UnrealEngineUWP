@@ -74,7 +74,7 @@ public:
 	virtual TConstArrayView<TObjectPtr<UPoseSearchFeatureChannel>> GetSubChannels() const override { return SubChannels; }
 
 	// UPoseSearchFeatureChannel interface
-	virtual void Finalize(UPoseSearchSchema* Schema) override;
+	virtual bool Finalize(UPoseSearchSchema* Schema) override;
 
 #if WITH_EDITOR
 	virtual UE::PoseSearch::TLabelBuilder& GetLabel(UE::PoseSearch::TLabelBuilder& LabelBuilder, UE::PoseSearch::ELabelFormat LabelFormat = UE::PoseSearch::ELabelFormat::Full_Horizontal) const override;

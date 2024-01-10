@@ -44,7 +44,7 @@ UPoseSearchFeatureChannel_Trajectory::UPoseSearchFeatureChannel_Trajectory()
 		}));
 }
 
-void UPoseSearchFeatureChannel_Trajectory::Finalize(UPoseSearchSchema* Schema)
+bool UPoseSearchFeatureChannel_Trajectory::Finalize(UPoseSearchSchema* Schema)
 {
 	SubChannels.Reset();
 
@@ -53,12 +53,15 @@ void UPoseSearchFeatureChannel_Trajectory::Finalize(UPoseSearchSchema* Schema)
 		if (EnumHasAnyFlags(Sample.Flags, EPoseSearchTrajectoryFlags::Position | EPoseSearchTrajectoryFlags::PositionXY))
 		{
 			UPoseSearchFeatureChannel_Position* Position = NewObject<UPoseSearchFeatureChannel_Position>(this, NAME_None, RF_Transient);
+			Position->SampleRole = SampleRole;
+			Position->OriginRole = SampleRole;
 #if WITH_EDITORONLY_DATA
 			Position->Weight = Sample.Weight * Weight;
 			Position->DebugColor = Sample.DebugColor;
 #endif // WITH_EDITORONLY_DATA
 			Position->SampleTimeOffset = Sample.Offset;
 			Position->InputQueryPose = EInputQueryPose::UseCharacterPose;
+	
 			if (EnumHasAnyFlags(Sample.Flags, EPoseSearchTrajectoryFlags::PositionXY))
 			{
 				Position->ComponentStripping = EComponentStrippingVector::StripZ;
@@ -69,6 +72,8 @@ void UPoseSearchFeatureChannel_Trajectory::Finalize(UPoseSearchSchema* Schema)
 		if (EnumHasAnyFlags(Sample.Flags, EPoseSearchTrajectoryFlags::Velocity | EPoseSearchTrajectoryFlags::VelocityXY))
 		{
 			UPoseSearchFeatureChannel_Velocity* Velocity = NewObject<UPoseSearchFeatureChannel_Velocity>(this, NAME_None, RF_Transient);
+			Velocity->SampleRole = SampleRole;
+			Velocity->OriginRole = SampleRole;
 #if WITH_EDITORONLY_DATA
 			Velocity->Weight = Sample.Weight * Weight;
 			Velocity->DebugColor = Sample.DebugColor;
@@ -86,6 +91,8 @@ void UPoseSearchFeatureChannel_Trajectory::Finalize(UPoseSearchSchema* Schema)
 		if (EnumHasAnyFlags(Sample.Flags, EPoseSearchTrajectoryFlags::VelocityDirection | EPoseSearchTrajectoryFlags::VelocityDirectionXY))
 		{
 			UPoseSearchFeatureChannel_Velocity* Velocity = NewObject<UPoseSearchFeatureChannel_Velocity>(this, NAME_None, RF_Transient);
+			Velocity->SampleRole = SampleRole;
+			Velocity->OriginRole = SampleRole;
 #if WITH_EDITORONLY_DATA
 			Velocity->Weight = Sample.Weight * Weight;
 			Velocity->DebugColor = Sample.DebugColor;
@@ -104,6 +111,8 @@ void UPoseSearchFeatureChannel_Trajectory::Finalize(UPoseSearchSchema* Schema)
 		if (EnumHasAnyFlags(Sample.Flags, EPoseSearchTrajectoryFlags::FacingDirection | EPoseSearchTrajectoryFlags::FacingDirectionXY))
 		{
 			UPoseSearchFeatureChannel_Heading* Heading = NewObject<UPoseSearchFeatureChannel_Heading>(this, NAME_None, RF_Transient);
+			Heading->SampleRole = SampleRole;
+			Heading->OriginRole = SampleRole;
 #if WITH_EDITORONLY_DATA
 			Heading->Weight = Sample.Weight * Weight;
 			Heading->DebugColor = Sample.DebugColor;
@@ -118,7 +127,7 @@ void UPoseSearchFeatureChannel_Trajectory::Finalize(UPoseSearchSchema* Schema)
 		}
 	}
 
-	Super::Finalize(Schema);
+	return Super::Finalize(Schema);
 }
 
 #if ENABLE_DRAW_DEBUG
@@ -159,11 +168,11 @@ void UPoseSearchFeatureChannel_Trajectory::DebugDraw(const UE::PoseSearch::FDebu
 			if (PrevTimeOffset * CurrTimeOffset < UE_KINDA_SMALL_NUMBER)
 			{
 				// we jumped from negative to positive time offset without having a zero time offset. so we add the zero
-				TrajSplinePos.Add(DrawParams.ExtractPosition(PoseVector, 0.f));
+				TrajSplinePos.Add(DrawParams.ExtractPosition(PoseVector, 0.f, RootSchemaBoneIdx, Positions[i]->OriginRole));
 				TrajSplineColor.Add(Color);
 			}
 
-			TrajSplinePos.Add(DrawParams.ExtractPosition(PoseVector, CurrTimeOffset));
+			TrajSplinePos.Add(DrawParams.ExtractPosition(PoseVector, CurrTimeOffset, RootSchemaBoneIdx, Positions[i]->OriginRole));
 			TrajSplineColor.Add(Color);
 
 			PrevTimeOffset = CurrTimeOffset;

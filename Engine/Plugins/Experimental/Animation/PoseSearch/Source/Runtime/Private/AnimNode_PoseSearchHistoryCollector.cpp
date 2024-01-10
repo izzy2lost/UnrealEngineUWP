@@ -37,6 +37,13 @@ private:
 /////////////////////////////////////////////////////
 // FAnimNode_PoseSearchHistoryCollector_Base
 
+void FAnimNode_PoseSearchHistoryCollector_Base::Initialize_AnyThread(const FAnimationInitializeContext& Context)
+{
+	Super::Initialize_AnyThread(Context);
+
+	PoseHistory.Initialize_AnyThread(PoseCount, SamplingInterval);
+}
+
 void FAnimNode_PoseSearchHistoryCollector_Base::CacheBones_AnyThread(const FAnimationCacheBonesContext& Context)
 {
 	DECLARE_SCOPE_HIERARCHICAL_COUNTER_ANIMNODE(Update_AnyThread);
@@ -66,7 +73,7 @@ void FAnimNode_PoseSearchHistoryCollector_Base::CacheBones_AnyThread(const FAnim
 		}
 	}
 
-	PoseHistory.CacheBones_AnyThread(PoseCount, SamplingInterval, RequiredBones);
+	PoseHistory.CacheBones_AnyThread(RequiredBones);
 
 	if (bInitializeWithRefPose)
 	{
@@ -76,7 +83,7 @@ void FAnimNode_PoseSearchHistoryCollector_Base::CacheBones_AnyThread(const FAnim
 		Pose.SetBoneContainer(&Context.AnimInstanceProxy->GetRequiredBones());
 		FCSPose<FCompactPose> ComponentSpacePose;
 		ComponentSpacePose.InitPose(Pose);
-		PoseHistory.EvaluateComponentSpace_AnyThread(0.f, ComponentSpacePose, bGenerateTrajectory, bStoreScales);
+		PoseHistory.EvaluateComponentSpace_AnyThread(0.f, ComponentSpacePose, bStoreScales);
 	}
 }
 
@@ -84,7 +91,17 @@ void FAnimNode_PoseSearchHistoryCollector_Base::Update_AnyThread(const FAnimatio
 {
 	GetEvaluateGraphExposedInputs().Execute(Context);
 
-	const bool bNeedsReset = bResetOnBecomingRelevant && UpdateCounter.HasEverBeenUpdated() && !UpdateCounter.WasSynchronizedCounter(Context.AnimInstanceProxy->GetUpdateCounter());
+	PoseHistory.Update_AnyThread(Context.GetDeltaTime(), bGenerateTrajectory ? FPoseSearchQueryTrajectory() : Trajectory, TrajectorySpeedMultiplier);
+
+	UpdateCounter.SynchronizeWith(Context.AnimInstanceProxy->GetUpdateCounter());
+}
+
+void FAnimNode_PoseSearchHistoryCollector_Base::PreUpdate(const UAnimInstance* InAnimInstance)
+{
+	Super::PreUpdate(InAnimInstance);
+	
+	const bool bNeedsReset = bResetOnBecomingRelevant && UpdateCounter.HasEverBeenUpdated() && !UpdateCounter.WasSynchronizedCounter(InAnimInstance->GetUpdateCounter());
+	const float DeltaTime = InAnimInstance->GetDeltaSeconds();
 
 	FPoseSearchTrajectoryData::FSampling TrajectoryDataSampling;
 	TrajectoryDataSampling.NumHistorySamples = FMath::Max(PoseCount, TrajectoryHistoryCount);
@@ -92,9 +109,7 @@ void FAnimNode_PoseSearchHistoryCollector_Base::Update_AnyThread(const FAnimatio
 	TrajectoryDataSampling.NumPredictionSamples = TrajectoryPredictionCount;
 	TrajectoryDataSampling.SecondsPerPredictionSample = PredictionSamplingInterval;
 
-	PoseHistory.Update_AnyThread(Context.GetDeltaTime(), Trajectory, TrajectorySpeedMultiplier, bGenerateTrajectory, *Context.AnimInstanceProxy, TrajectoryData, TrajectoryDataSampling, bNeedsReset);
-
-	UpdateCounter.SynchronizeWith(Context.AnimInstanceProxy->GetUpdateCounter());
+	PoseHistory.PreUpdate(InAnimInstance, DeltaTime, bGenerateTrajectory, TrajectoryData, TrajectoryDataSampling, bNeedsReset);
 }
 
 /////////////////////////////////////////////////////
@@ -126,14 +141,14 @@ void FAnimNode_PoseSearchHistoryCollector::Evaluate_AnyThread(FPoseContext& Outp
 
 	FCSPose<FCompactPose> ComponentSpacePose;
 	ComponentSpacePose.InitPose(Output.Pose);
-	PoseHistory.EvaluateComponentSpace_AnyThread(Output.AnimInstanceProxy->GetDeltaSeconds(), ComponentSpacePose, bGenerateTrajectory, bStoreScales);
+	PoseHistory.EvaluateComponentSpace_AnyThread(Output.AnimInstanceProxy->GetDeltaSeconds(), ComponentSpacePose, bStoreScales);
 
 #if ENABLE_DRAW_DEBUG && ENABLE_ANIM_DEBUG
-		FColor Color;
+	FColor Color;
 #if WITH_EDITORONLY_DATA
-		Color = DebugColor.ToFColor(true);
+	Color = DebugColor.ToFColor(true);
 #else // WITH_EDITORONLY_DATA
-		Color = FLinearColor::Red.ToFColor(true);
+	Color = FLinearColor::Red.ToFColor(true);
 #endif // WITH_EDITORONLY_DATA
 	PoseHistory.DebugDraw(*Output.AnimInstanceProxy, Color);
 #endif // ENABLE_DRAW_DEBUG && ENABLE_ANIM_DEBUG
@@ -180,14 +195,14 @@ void FAnimNode_PoseSearchComponentSpaceHistoryCollector::EvaluateComponentSpace_
 	Super::EvaluateComponentSpace_AnyThread(Output);
 	Source.EvaluateComponentSpace(Output);
 
-	PoseHistory.EvaluateComponentSpace_AnyThread(Output.AnimInstanceProxy->GetDeltaSeconds(), Output.Pose, bGenerateTrajectory, bStoreScales);
+	PoseHistory.EvaluateComponentSpace_AnyThread(Output.AnimInstanceProxy->GetDeltaSeconds(), Output.Pose, bStoreScales);
 
 #if ENABLE_DRAW_DEBUG && ENABLE_ANIM_DEBUG
-		FColor Color;
+	FColor Color;
 #if WITH_EDITORONLY_DATA
-		Color = DebugColor.ToFColor(true);
+	Color = DebugColor.ToFColor(true);
 #else // WITH_EDITORONLY_DATA
-		Color = FLinearColor::Red.ToFColor(true);
+	Color = FLinearColor::Red.ToFColor(true);
 #endif // WITH_EDITORONLY_DATA
 	PoseHistory.DebugDraw(*Output.AnimInstanceProxy, Color);
 #endif // ENABLE_DRAW_DEBUG && ENABLE_ANIM_DEBUG

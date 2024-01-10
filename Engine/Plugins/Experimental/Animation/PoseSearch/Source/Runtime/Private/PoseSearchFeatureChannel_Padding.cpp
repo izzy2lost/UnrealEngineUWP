@@ -12,11 +12,12 @@ void UPoseSearchFeatureChannel_Padding::AddToSchema(UPoseSearchSchema* Schema, i
 	Schema->AddTemporaryChannel(Padding);
 }
 
-void UPoseSearchFeatureChannel_Padding::Finalize(UPoseSearchSchema* Schema)
+bool UPoseSearchFeatureChannel_Padding::Finalize(UPoseSearchSchema* Schema)
 {
 	ChannelDataOffset = Schema->SchemaCardinality;
 	ChannelCardinality = PaddingSize;
 	Schema->SchemaCardinality += ChannelCardinality;
+	return true;
 }
 
 void UPoseSearchFeatureChannel_Padding::BuildQuery(UE::PoseSearch::FSearchContext& SearchContext) const

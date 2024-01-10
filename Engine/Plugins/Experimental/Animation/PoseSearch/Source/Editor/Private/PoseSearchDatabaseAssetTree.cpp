@@ -246,8 +246,8 @@ namespace UE::PoseSearch
 						
 			// Build an index based off of alphabetical order than iterate the index instead
 			TArray<uint32> IndexArray;
-			IndexArray.SetNumUninitialized(Database->AnimationAssets.Num());
-			for (int32 AnimationAssetIdx = 0; AnimationAssetIdx < Database->AnimationAssets.Num(); ++AnimationAssetIdx)
+			IndexArray.SetNumUninitialized(Database->GetAnimationAssets().Num());
+			for (int32 AnimationAssetIdx = 0; AnimationAssetIdx < Database->GetAnimationAssets().Num(); ++AnimationAssetIdx)
 			{
 				IndexArray[AnimationAssetIdx] = AnimationAssetIdx;
 			}
@@ -273,7 +273,7 @@ namespace UE::PoseSearch
 			});
 
 			// create all nodes
-			for (int32 AnimationAssetIdx = 0; AnimationAssetIdx < Database->AnimationAssets.Num(); ++AnimationAssetIdx)
+			for (int32 AnimationAssetIdx = 0; AnimationAssetIdx < Database->GetAnimationAssets().Num(); ++AnimationAssetIdx)
 			{
 				const int32 MappedId = IndexArray[AnimationAssetIdx];
 
@@ -486,6 +486,14 @@ namespace UE::PoseSearch
 				FUIAction(FExecuteAction::CreateSP(this, &SDatabaseAssetTree::OnAddAnimMontage, true)),
 				NAME_None,
 				EUserInterfaceActionType::Button);
+
+			AddOptions.AddMenuEntry(
+				LOCTEXT("AddMultiSequenceOption", "Multi Sequence"),
+				LOCTEXT("AddMultiSequenceToDatabaseTooltip", "Add new multi sequence to the database"),
+				FSlateIcon(),
+				FUIAction(FExecuteAction::CreateSP(this, &SDatabaseAssetTree::OnAddMultiSequence, true)),
+				NAME_None,
+				EUserInterfaceActionType::Button);
 		}
 		AddOptions.EndSection();
 
@@ -615,6 +623,18 @@ namespace UE::PoseSearch
 		FScopedTransaction Transaction(LOCTEXT("AddAnimMontageTransaction", "Add Anim Montage"));
 
 		EditorViewModel.Pin()->AddAnimMontageToDatabase(nullptr);
+
+		if (bFinalizeChanges)
+		{
+			FinalizeTreeChanges();
+		}
+	}
+
+	void SDatabaseAssetTree::OnAddMultiSequence(bool bFinalizeChanges)
+	{
+		FScopedTransaction Transaction(LOCTEXT("AddMultiSequenceTransaction", "Add Multi Sequence"));
+
+		EditorViewModel.Pin()->AddMultiSequenceToDatabase();
 
 		if (bFinalizeChanges)
 		{

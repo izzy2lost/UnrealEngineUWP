@@ -143,7 +143,7 @@ static FTransform ExtractBlendSpaceRootMotion(float StartTime, float DeltaTime, 
 	return RootMotionParams.GetRootMotionTransform();
 }
 
-static void ProcessRootTransform(const UBlendSpace* BlendSpace, const FVector& BlendParameters, float CachedPlayLength, const FBoneContainer& BoneContainer,
+static void ProcessRootTransform(const UBlendSpace* BlendSpace, const FVector& BlendParameters, float CachedPlayLength,
 	int32 RootTransformSamplingRate, bool bIsLoopable, TArray<FTransform>& AccumulatedRootTransform)
 {
 	// Pre-compute root motion
@@ -192,14 +192,15 @@ static int32 GetHighestWeightSample(const TArray<struct FBlendSampleData>& Sampl
 
 //////////////////////////////////////////////////////////////////////////
 // FAssetSamplerBase
-FAnimationAssetSampler::FAnimationAssetSampler(TObjectPtr<const UAnimationAsset> InAnimationAsset, const FVector& InBlendParameters, int32 InRootTransformSamplingRate)
+FAnimationAssetSampler::FAnimationAssetSampler(TObjectPtr<const UAnimationAsset> InAnimationAsset, const FTransform& InRootTransformOrigin, const FVector& InBlendParameters, int32 InRootTransformSamplingRate)
 {
-	Init(InAnimationAsset, InBlendParameters, InRootTransformSamplingRate);
+	Init(InAnimationAsset, InRootTransformOrigin, InBlendParameters, InRootTransformSamplingRate);
 }
 
-void FAnimationAssetSampler::Init(TObjectPtr<const UAnimationAsset> InAnimationAsset, const FVector& InBlendParameters, int32 InRootTransformSamplingRate)
+void FAnimationAssetSampler::Init(TObjectPtr<const UAnimationAsset> InAnimationAsset, const FTransform& InRootTransformOrigin, const FVector& InBlendParameters, int32 InRootTransformSamplingRate)
 {
 	AnimationAssetPtr = InAnimationAsset;
+	RootTransformOrigin = InRootTransformOrigin;
 	BlendParameters = InBlendParameters;
 	RootTransformSamplingRate = InRootTransformSamplingRate;
 	CachedPlayLength = GetPlayLength(AnimationAssetPtr.Get(), BlendParameters);
@@ -524,14 +525,14 @@ FTransform FAnimationAssetSampler::ExtractRootTransform(float Time) const
 		}
 	}
 
-	return RootTransform;
+	return RootTransform * RootTransformOrigin;
 }
 
-void FAnimationAssetSampler::Process(const FBoneContainer& BoneContainer)
+void FAnimationAssetSampler::Process()
 {
 	if (const UBlendSpace* BlendSpace = Cast<UBlendSpace>(AnimationAssetPtr.Get()))
 	{
-		ProcessRootTransform(BlendSpace, BlendParameters, CachedPlayLength, BoneContainer, RootTransformSamplingRate, IsLoopable(), AccumulatedRootTransform);
+		ProcessRootTransform(BlendSpace, BlendParameters, CachedPlayLength, RootTransformSamplingRate, IsLoopable(), AccumulatedRootTransform);
 	}
 }
 

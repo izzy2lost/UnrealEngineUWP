@@ -2,14 +2,13 @@
 
 #pragma once
 
-#include "AlphaBlend.h"
-#include "AnimNodes/AnimNode_SequenceEvaluator.h"
 #include "Animation/AnimExecutionContext.h"
 #include "Animation/AnimNodeReference.h"
 #include "Kismet/BlueprintFunctionLibrary.h"
 #include "PoseSearch/PoseSearchDefines.h"
 #include "PoseSearch/PoseSearchHistory.h"
 #include "PoseSearch/PoseSearchResult.h"
+#include "PoseSearch/PoseSearchRole.h"
 #include "SequenceEvaluatorLibrary.h"
 #include "SequencePlayerLibrary.h"
 #include "PoseSearchLibrary.generated.h"
@@ -100,7 +99,6 @@ class POSESEARCH_API UPoseSearchLibrary : public UBlueprintFunctionLibrary
 		const UE::PoseSearch::FSearchResult& CurrentResult,
 		float ElapsedPoseSearchTime,
 		const FTransform& RootMotionTransformDelta,
-		const UObject* AnimInstance,
 		int32 NodeId,
 		float DeltaTime,
 		bool bSearch,
@@ -170,6 +168,26 @@ public:
 		float FutureAnimationStartTime = 0.f,
 		float TimeToFutureAnimationStart = 0.f,
 		const int32 DebugSessionUniqueIdentifier = 6174);
+
+	UFUNCTION(BlueprintPure, Category = "Animation|Pose Search", meta = (BlueprintThreadSafe, Keywords = "PoseMatch"))
+	static void MotionMatchMulti(
+		TArray<ACharacter*> AnimInstances,
+		TArray<FName> Roles,
+		const UPoseSearchDatabase* Database,
+		const FName PoseHistoryName,
+		FPoseSearchBlueprintResult& Result,
+		const int32 DebugSessionUniqueIdentifier = 6174);
+
+	static void MotionMatch(
+		TArrayView<UAnimInstance*> AnimInstances,
+		TConstArrayView<FName> Roles,
+		const UPoseSearchDatabase* Database,
+		const FName PoseHistoryName,
+		FPoseSearchBlueprintResult& Result,
+		const UAnimationAsset* FutureAnimation,
+		float FutureAnimationStartTime,
+		float TimeToFutureAnimationStart,
+		const int32 DebugSessionUniqueIdentifier);
 
 	static UE::PoseSearch::FSearchResult MotionMatch(const FAnimationBaseContext& Context, TConstArrayView<UObject*> AssetsToSearch,
 		const UObject* PlayingAsset = nullptr, float PlayingAssetAccumulatedTime = 0.f);

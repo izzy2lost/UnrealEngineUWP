@@ -31,7 +31,7 @@ UPoseSearchFeatureChannel_Pose::UPoseSearchFeatureChannel_Pose()
 		}));
 }
 
-void UPoseSearchFeatureChannel_Pose::Finalize(UPoseSearchSchema* Schema)
+bool UPoseSearchFeatureChannel_Pose::Finalize(UPoseSearchSchema* Schema)
 {
 	SubChannels.Reset();
 
@@ -42,6 +42,8 @@ void UPoseSearchFeatureChannel_Pose::Finalize(UPoseSearchSchema* Schema)
 		{
 			UPoseSearchFeatureChannel_Position* Position = NewObject<UPoseSearchFeatureChannel_Position>(this, NAME_None, RF_Transient);
 			Position->Bone = SampledBone.Reference;
+			Position->SampleRole = SampleRole;
+			Position->OriginRole = SampleRole;
 #if WITH_EDITORONLY_DATA
 			Position->Weight = SampledBone.Weight * Weight;
 			Position->DebugColor = SampledBone.DebugColor;
@@ -55,6 +57,8 @@ void UPoseSearchFeatureChannel_Pose::Finalize(UPoseSearchSchema* Schema)
 		{
 			UPoseSearchFeatureChannel_Heading* HeadingX = NewObject<UPoseSearchFeatureChannel_Heading>(this, NAME_None, RF_Transient);
 			HeadingX->Bone = SampledBone.Reference;
+			HeadingX->SampleRole = SampleRole;
+			HeadingX->OriginRole = SampleRole;
 #if WITH_EDITORONLY_DATA
 			HeadingX->Weight = SampledBone.Weight * Weight;
 			HeadingX->DebugColor = SampledBone.DebugColor;
@@ -66,6 +70,8 @@ void UPoseSearchFeatureChannel_Pose::Finalize(UPoseSearchSchema* Schema)
 
 			UPoseSearchFeatureChannel_Heading* HeadingY = NewObject<UPoseSearchFeatureChannel_Heading>(this, NAME_None, RF_Transient);
 			HeadingY->Bone = SampledBone.Reference;
+			HeadingY->SampleRole = SampleRole;
+			HeadingY->OriginRole = SampleRole;
 #if WITH_EDITORONLY_DATA
 			HeadingY->Weight = SampledBone.Weight * Weight;
 			HeadingY->DebugColor = SampledBone.DebugColor;
@@ -80,6 +86,8 @@ void UPoseSearchFeatureChannel_Pose::Finalize(UPoseSearchSchema* Schema)
 		{
 			UPoseSearchFeatureChannel_Velocity* Velocity = NewObject<UPoseSearchFeatureChannel_Velocity>(this, NAME_None, RF_Transient);
 			Velocity->Bone = SampledBone.Reference;
+			Velocity->SampleRole = SampleRole;
+			Velocity->OriginRole = SampleRole;
 #if WITH_EDITORONLY_DATA
 			Velocity->Weight = SampledBone.Weight * Weight;
 			Velocity->DebugColor = SampledBone.DebugColor;
@@ -94,6 +102,7 @@ void UPoseSearchFeatureChannel_Pose::Finalize(UPoseSearchSchema* Schema)
 		{
 			UPoseSearchFeatureChannel_Phase* Phase = NewObject<UPoseSearchFeatureChannel_Phase>(this, NAME_None, RF_Transient);
 			Phase->Bone = SampledBone.Reference;
+			Phase->SampleRole = SampleRole;
 #if WITH_EDITORONLY_DATA
 			Phase->Weight = SampledBone.Weight * Weight;
 			Phase->DebugColor = SampledBone.DebugColor;
@@ -103,7 +112,7 @@ void UPoseSearchFeatureChannel_Pose::Finalize(UPoseSearchSchema* Schema)
 		}
 	}
 
-	Super::Finalize(Schema);
+	return Super::Finalize(Schema);
 }
 
 #if WITH_EDITOR

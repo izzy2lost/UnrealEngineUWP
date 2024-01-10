@@ -7,6 +7,7 @@
 #include "PoseSearch/PoseSearchCost.h"
 #include "PoseSearch/PoseSearchIndex.h"
 #include "PoseSearch/PoseSearchResult.h"
+#include "PoseSearch/PoseSearchRole.h"
 #include "PoseSearchDatabase.generated.h"
 
 struct FInstancedStruct;
@@ -14,6 +15,7 @@ class UAnimationAsset;
 class UAnimComposite;
 class UAnimMontage;
 class UBlendSpace;
+class UPoseSearchMultiSequence;
 
 #if WITH_EDITORONLY_DATA
 class UPoseSearchNormalizationSet;
@@ -52,6 +54,14 @@ struct POSESEARCH_API FPoseSearchDatabaseAnimationAssetBase
 	virtual ~FPoseSearchDatabaseAnimationAssetBase() = default;
 	virtual UObject* GetAnimationAsset() const { return nullptr; }
 	virtual float GetPlayLength() const;
+	virtual int32 GetNumRoles() const { return 1; }
+	virtual UE::PoseSearch::FRole GetRole(int32 RoleIndex) const { return UE::PoseSearch::DefaultRole; }
+	virtual UAnimationAsset* GetAnimationAssetForRole(const UE::PoseSearch::FRole& Role) const;
+	virtual const FTransform& GetRootTransformOriginForRole(const UE::PoseSearch::FRole& Role) const;
+
+#if WITH_EDITOR
+	virtual int32 GetFrameAtTime(float Time) const;
+#endif // WITH_EDITOR
 
 #if WITH_EDITORONLY_DATA
 	virtual bool IsDisableReselection() const { return bDisableReselection; }
@@ -108,14 +118,14 @@ struct POSESEARCH_API FPoseSearchDatabaseSequence : public FPoseSearchDatabaseAn
 	UPROPERTY(EditAnywhere, Category="Settings", meta = (DisplayPriority = 2))
 	FFloatInterval SamplingRange = FFloatInterval(0.f, 0.f);
 
-	UClass* GetAnimationAssetStaticClass() const override;
-	bool IsLooping() const override;
-	const FString GetName() const override;
-	bool IsRootMotionEnabled() const override;
-	FFloatInterval GetSamplingRange() const override { return SamplingRange; }
+	virtual UClass* GetAnimationAssetStaticClass() const override;
+	virtual bool IsLooping() const override;
+	virtual const FString GetName() const override;
+	virtual bool IsRootMotionEnabled() const override;
+	virtual FFloatInterval GetSamplingRange() const override { return SamplingRange; }
 #endif // WITH_EDITORONLY_DATA
 	
-	UObject* GetAnimationAsset() const override;
+	virtual UObject* GetAnimationAsset() const override;
 };
 
 /** An blend space entry in a UPoseSearchDatabase. */
@@ -154,16 +164,20 @@ struct POSESEARCH_API FPoseSearchDatabaseBlendSpace : public FPoseSearchDatabase
 	UPROPERTY(EditAnywhere, Category = "Settings", meta = (EditCondition = "bUseSingleSample", EditConditionHides, DisplayPriority = 9))
 	float BlendParamY = 0.f;
 
-	UClass* GetAnimationAssetStaticClass() const override;
-	bool IsLooping() const override;
-	const FString GetName() const override;
-	bool IsRootMotionEnabled() const override;
+	virtual UClass* GetAnimationAssetStaticClass() const override;
+	virtual bool IsLooping() const override;
+	virtual const FString GetName() const override;
+	virtual bool IsRootMotionEnabled() const override;
 
 	void GetBlendSpaceParameterSampleRanges(int32& HorizontalBlendNum, int32& VerticalBlendNum) const;
 	FVector BlendParameterForSampleRanges(int32 HorizontalBlendIndex, int32 VerticalBlendIndex) const;
 #endif // WITH_EDITORONLY_DATA
 
-	UObject* GetAnimationAsset() const override;
+	virtual UObject* GetAnimationAsset() const override;
+
+#if WITH_EDITOR
+	virtual int32 GetFrameAtTime(float Time) const override;
+#endif // WITH_EDITOR
 };
 
 /** An entry in a UPoseSearchDatabase. */
@@ -183,14 +197,14 @@ struct POSESEARCH_API FPoseSearchDatabaseAnimComposite : public FPoseSearchDatab
 	UPROPERTY(EditAnywhere, Category = "Settings", meta = (DisplayPriority = 3))
 	FFloatInterval SamplingRange = FFloatInterval(0.f, 0.f);
 
-	UClass* GetAnimationAssetStaticClass() const override;
-	bool IsLooping() const override;
-	const FString GetName() const override;
-	bool IsRootMotionEnabled() const override;
-	FFloatInterval GetSamplingRange() const override { return SamplingRange; }
+	virtual UClass* GetAnimationAssetStaticClass() const override;
+	virtual bool IsLooping() const override;
+	virtual const FString GetName() const override;
+	virtual bool IsRootMotionEnabled() const override;
+	virtual FFloatInterval GetSamplingRange() const override { return SamplingRange; }
 #endif // WITH_EDITORONLY_DATA
 
-	UObject* GetAnimationAsset() const override;
+	virtual UObject* GetAnimationAsset() const override;
 };
 
 /** An anim montage entry in a UPoseSearchDatabase. */
@@ -210,14 +224,50 @@ struct POSESEARCH_API FPoseSearchDatabaseAnimMontage : public FPoseSearchDatabas
 	UPROPERTY(EditAnywhere, Category="Settings", meta = (DisplayPriority = 2))
 	FFloatInterval SamplingRange = FFloatInterval(0.f, 0.f);
 
-	UClass* GetAnimationAssetStaticClass() const override;
-	bool IsLooping() const override;
-	const FString GetName() const override;
-	bool IsRootMotionEnabled() const override;
-	FFloatInterval GetSamplingRange() const override { return SamplingRange; }
+	virtual UClass* GetAnimationAssetStaticClass() const override;
+	virtual bool IsLooping() const override;
+	virtual const FString GetName() const override;
+	virtual bool IsRootMotionEnabled() const override;
+	virtual FFloatInterval GetSamplingRange() const override { return SamplingRange; }
 #endif // WITH_EDITORONLY_DATA
 
-	UObject* GetAnimationAsset() const override;
+	virtual UObject* GetAnimationAsset() const override;
+};
+
+USTRUCT(BlueprintType, Category = "Animation|Pose Search")
+struct POSESEARCH_API FPoseSearchDatabaseMultiSequence : public FPoseSearchDatabaseAnimationAssetBase
+{
+	GENERATED_BODY()
+	virtual ~FPoseSearchDatabaseMultiSequence() = default;
+
+	UPROPERTY(EditAnywhere, Category="Settings", meta = (DisplayPriority = 0))
+	TObjectPtr<UPoseSearchMultiSequence> MultiSequence;
+
+#if WITH_EDITORONLY_DATA
+	// It allows users to set a time range to an individual animation sequence in the database. 
+	// This is effectively trimming the beginning and end of the animation in the database (not in the original sequence).
+	// If set to [0, 0] it will be the entire frame range of the original sequence.
+	UPROPERTY(EditAnywhere, Category="Settings", meta = (DisplayPriority = 2))
+	FFloatInterval SamplingRange = FFloatInterval(0.f, 0.f);
+
+	virtual UClass* GetAnimationAssetStaticClass() const override;
+	virtual bool IsLooping() const override;
+	virtual const FString GetName() const override;
+	virtual bool IsRootMotionEnabled() const override;
+	virtual FFloatInterval GetSamplingRange() const override { return SamplingRange; }
+#endif // WITH_EDITORONLY_DATA
+
+	virtual UObject* GetAnimationAsset() const override;
+	virtual float GetPlayLength() const override;
+
+	virtual int32 GetNumRoles() const override;
+	virtual UE::PoseSearch::FRole GetRole(int32 RoleIndex) const override;
+	virtual UAnimationAsset* GetAnimationAssetForRole(const UE::PoseSearch::FRole& Role) const override;
+	virtual const FTransform& GetRootTransformOriginForRole(const UE::PoseSearch::FRole& Role) const override;
+
+#if WITH_EDITOR
+	virtual int32 GetFrameAtTime(float Time) const override;
+#endif // WITH_EDITOR
 };
 
 /** A data asset for indexing a collection of animation sequences. */
@@ -341,6 +391,10 @@ public:
 
 	int32 GetPoseIndexFromTime(float AssetTime, const UE::PoseSearch::FSearchIndexAsset& SearchIndexAsset) const;
 
+	void AddAnimationAsset(FInstancedStruct AnimationAsset);
+	void RemoveAnimationAssetAt(int32 AnimationAssetIndex);
+
+	const TArray<FInstancedStruct>& GetAnimationAssets() const { return AnimationAssets; }
 	const FInstancedStruct& GetAnimationAssetStruct(int32 AnimationAssetIndex) const;
 	const FInstancedStruct& GetAnimationAssetStruct(const UE::PoseSearch::FSearchIndexAsset& SearchIndexAsset) const;
 	FInstancedStruct& GetMutableAnimationAssetStruct(int32 AnimationAssetIndex);
@@ -380,7 +434,13 @@ public:
 
 	void SynchronizeWithExternalDependencies();
 	void SynchronizeWithExternalDependencies(TConstArrayView<UAnimSequenceBase*> SequencesBase);
+
+	bool Contains(const UObject* Object) const;
 #endif // WITH_EDITOR
+
+#if WITH_EDITOR && ENABLE_ANIM_DEBUG
+	void TestSynchronizeWithExternalDependencies();
+#endif // WITH_EDITOR && ENABLE_ANIM_DEBUG
 
 private:
 	UE::PoseSearch::FSearchResult SearchPCAKDTree(UE::PoseSearch::FSearchContext& SearchContext) const;

@@ -1,25 +1,35 @@
 // Copyright Epic Games, Inc. All Rights Reserved.
 
 #include "PoseSearchFeatureChannel_Position.h"
+#include "Engine/BlueprintGeneratedClass.h"
 #include "PoseSearch/PoseSearchAssetIndexer.h"
 #include "PoseSearch/PoseSearchAssetSampler.h"
 #include "PoseSearch/PoseSearchContext.h"
 #include "PoseSearch/PoseSearchDatabase.h"
 #include "PoseSearch/PoseSearchSchema.h"
-#include "Engine/BlueprintGeneratedClass.h"
+
+#if WITH_EDITOR
+#include "PropertyHandle.h"
+#endif // WITH_EDITOR
 
 UPoseSearchFeatureChannel_Position::UPoseSearchFeatureChannel_Position()
 {
 	bUseBlueprintQueryOverride = Cast<UBlueprintGeneratedClass>(GetClass()) != nullptr;
 }
 
-void UPoseSearchFeatureChannel_Position::FindOrAddToSchema(UPoseSearchSchema* Schema, float SampleTimeOffset, const FName& BoneName, EPermutationTimeType PermutationTimeType)
+void UPoseSearchFeatureChannel_Position::FindOrAddToSchema(UPoseSearchSchema* Schema, float SampleTimeOffset, const FName& BoneName, const UE::PoseSearch::FRole& Role, EPermutationTimeType PermutationTimeType)
 {
-	if (!Schema->FindChannel([SampleTimeOffset, &BoneName, PermutationTimeType](const UPoseSearchFeatureChannel* Channel) -> const UPoseSearchFeatureChannel_Position*
+	if (!Schema->FindChannel([SampleTimeOffset, &BoneName, &Role, PermutationTimeType](const UPoseSearchFeatureChannel* Channel) -> const UPoseSearchFeatureChannel_Position*
 		{
 			if (const UPoseSearchFeatureChannel_Position* Position = Cast<UPoseSearchFeatureChannel_Position>(Channel))
 			{
-				if (Position->Bone.BoneName == BoneName && Position->OriginBone.BoneName == NAME_None && Position->SampleTimeOffset == SampleTimeOffset && Position->OriginTimeOffset == 0.f && Position->PermutationTimeType == PermutationTimeType)
+				if (Position->Bone.BoneName == BoneName &&
+					Position->OriginBone.BoneName == NAME_None &&
+					Position->SampleTimeOffset == SampleTimeOffset &&
+					Position->OriginTimeOffset == 0.f &&
+					Position->PermutationTimeType == PermutationTimeType &&
+					Position->SampleRole == Role &&
+					Position->OriginRole == Role)
 				{
 					return Position;
 				}
@@ -29,6 +39,8 @@ void UPoseSearchFeatureChannel_Position::FindOrAddToSchema(UPoseSearchSchema* Sc
 	{
 		UPoseSearchFeatureChannel_Position* Position = NewObject<UPoseSearchFeatureChannel_Position>(Schema, NAME_None, RF_Transient);
 		Position->Bone.BoneName = BoneName;
+		Position->SampleRole = Role;
+		Position->OriginRole = Role;
 #if WITH_EDITORONLY_DATA
 		Position->Weight = 0.f;
 		// @todo: perhaps add a tunable color for injected channels
@@ -40,14 +52,16 @@ void UPoseSearchFeatureChannel_Position::FindOrAddToSchema(UPoseSearchSchema* Sc
 	}
 }
 
-void UPoseSearchFeatureChannel_Position::Finalize(UPoseSearchSchema* Schema)
+bool UPoseSearchFeatureChannel_Position::Finalize(UPoseSearchSchema* Schema)
 {
 	ChannelDataOffset = Schema->SchemaCardinality;
 	ChannelCardinality = UE::PoseSearch::FFeatureVectorHelper::GetVectorCardinality(ComponentStripping);
 	Schema->SchemaCardinality += ChannelCardinality;
 
-	SchemaBoneIdx = Schema->AddBoneReference(Bone);
-	SchemaOriginBoneIdx = Schema->AddBoneReference(OriginBone);
+	SchemaBoneIdx = Schema->AddBoneReference(Bone, SampleRole);
+	SchemaOriginBoneIdx = Schema->AddBoneReference(OriginBone, OriginRole);
+	
+	return SchemaBoneIdx >= 0 && SchemaOriginBoneIdx >= 0;
 }
 
 void UPoseSearchFeatureChannel_Position::AddDependentChannels(UPoseSearchSchema* Schema) const
@@ -59,7 +73,7 @@ void UPoseSearchFeatureChannel_Position::AddDependentChannels(UPoseSearchSchema*
 		if (SchemaOriginBoneIdx != RootSchemaBoneIdx)
 		{
 			const EPermutationTimeType DependentChannelsPermutationTimeType = PermutationTimeType == EPermutationTimeType::UsePermutationTime ? EPermutationTimeType::UseSampleToPermutationTime : EPermutationTimeType::UseSampleTime;
-			UPoseSearchFeatureChannel_Position::FindOrAddToSchema(Schema, 0.f, OriginBone.BoneName, DependentChannelsPermutationTimeType);
+			UPoseSearchFeatureChannel_Position::FindOrAddToSchema(Schema, 0.f, OriginBone.BoneName, OriginRole, DependentChannelsPermutationTimeType);
 		}
 	}
 }
@@ -70,8 +84,8 @@ void UPoseSearchFeatureChannel_Position::BuildQuery(UE::PoseSearch::FSearchConte
 
 	if (bUseBlueprintQueryOverride)
 	{
-		const FVector BonePositionWorld = BP_GetWorldPosition(SearchContext.GetAnimInstance());
-		const FVector BonePosition = SearchContext.GetSamplePosition(SampleTimeOffset, OriginTimeOffset, SchemaBoneIdx, SchemaOriginBoneIdx, PermutationTimeType, &BonePositionWorld);
+		const FVector BonePositionWorld = BP_GetWorldPosition(SearchContext.GetAnimInstance(SampleRole));
+		const FVector BonePosition = SearchContext.GetSamplePosition(SampleTimeOffset, OriginTimeOffset, SchemaBoneIdx, SchemaOriginBoneIdx, SampleRole, OriginRole, PermutationTimeType, &BonePositionWorld);
   		FFeatureVectorHelper::EncodeVector(SearchContext.EditFeatureVector(), ChannelDataOffset, BonePosition, ComponentStripping);
 		return;
 	}
@@ -81,14 +95,16 @@ void UPoseSearchFeatureChannel_Position::BuildQuery(UE::PoseSearch::FSearchConte
 	{
 		// composing a unique identifier to specify this channel with all the required properties to be able to share the query data with other channels of the same type
 		uint32 UniqueIdentifier = GetClass()->GetUniqueID();
-		UniqueIdentifier = HashCombineFast(UniqueIdentifier, ::GetTypeHash(SamplingAttributeId));
-		UniqueIdentifier = HashCombineFast(UniqueIdentifier, ::GetTypeHash(SampleTimeOffset));
-		UniqueIdentifier = HashCombineFast(UniqueIdentifier, ::GetTypeHash(OriginTimeOffset));
-		UniqueIdentifier = HashCombineFast(UniqueIdentifier, ::GetTypeHash(SchemaBoneIdx));
-		UniqueIdentifier = HashCombineFast(UniqueIdentifier, ::GetTypeHash(SchemaOriginBoneIdx));
-		UniqueIdentifier = HashCombineFast(UniqueIdentifier, ::GetTypeHash(InputQueryPose));
-		UniqueIdentifier = HashCombineFast(UniqueIdentifier, ::GetTypeHash(ComponentStripping));
-		UniqueIdentifier = HashCombineFast(UniqueIdentifier, ::GetTypeHash(PermutationTimeType));
+		UniqueIdentifier = HashCombineFast(UniqueIdentifier, GetTypeHash(SampleRole));
+		UniqueIdentifier = HashCombineFast(UniqueIdentifier, GetTypeHash(OriginRole));
+		UniqueIdentifier = HashCombineFast(UniqueIdentifier, GetTypeHash(SamplingAttributeId));
+		UniqueIdentifier = HashCombineFast(UniqueIdentifier, GetTypeHash(SampleTimeOffset));
+		UniqueIdentifier = HashCombineFast(UniqueIdentifier, GetTypeHash(OriginTimeOffset));
+		UniqueIdentifier = HashCombineFast(UniqueIdentifier, GetTypeHash(SchemaBoneIdx));
+		UniqueIdentifier = HashCombineFast(UniqueIdentifier, GetTypeHash(SchemaOriginBoneIdx));
+		UniqueIdentifier = HashCombineFast(UniqueIdentifier, GetTypeHash(InputQueryPose));
+		UniqueIdentifier = HashCombineFast(UniqueIdentifier, GetTypeHash(ComponentStripping));
+		UniqueIdentifier = HashCombineFast(UniqueIdentifier, GetTypeHash(PermutationTimeType));
 
 		TConstArrayView<float> CachedChannelData;
 		if (const UPoseSearchFeatureChannel* CachedChannel = SearchContext.GetCachedChannelData(UniqueIdentifier, this, CachedChannelData))
@@ -100,6 +116,8 @@ void UPoseSearchFeatureChannel_Position::BuildQuery(UE::PoseSearch::FSearchConte
 			check(CachedChannelData.Num() == ChannelCardinality);
 
 			// making sure there were no hash collisions
+			check(CachedPositionChannel->SampleRole == SampleRole);
+			check(CachedPositionChannel->OriginRole == OriginRole);
 			check(CachedPositionChannel->SamplingAttributeId == SamplingAttributeId);
 			check(CachedPositionChannel->SampleTimeOffset == SampleTimeOffset);
 			check(CachedPositionChannel->OriginTimeOffset == OriginTimeOffset);
@@ -117,23 +135,23 @@ void UPoseSearchFeatureChannel_Position::BuildQuery(UE::PoseSearch::FSearchConte
 	}
 
 	const bool bCanUseCurrentResult = SearchContext.CanUseCurrentResult();
-	const bool bSkip = InputQueryPose != EInputQueryPose::UseCharacterPose && bCanUseCurrentResult;
-		const bool bIsRootBone = SchemaBoneIdx == RootSchemaBoneIdx;
-	if (bSkip || (!SearchContext.GetHistory() && !bIsRootBone))
-		{
+	const bool bSkip = InputQueryPose != EInputQueryPose::UseCharacterPose && bCanUseCurrentResult && SampleRole == OriginRole;
+	const bool bIsRootBone = SchemaBoneIdx == RootSchemaBoneIdx;
+	if (bSkip || (!SearchContext.ArePoseHistoriesValid() && !bIsRootBone))
+	{
 		if (bCanUseCurrentResult)
-			{
+		{
 			FFeatureVectorHelper::Copy(SearchContext.EditFeatureVector(), ChannelDataOffset, ChannelCardinality, SearchContext.GetCurrentResultPoseVector());
 			return;
-			}
+		}
 
-		// we leave the SearchContext.EditFeatureVector() set to zero since the SearchContext.History is invalid and it'll fail if we continue
-				UE_LOG(LogPoseSearch, Error, TEXT("UPoseSearchFeatureChannel_Position::BuildQuery - Failed because Pose History Node is missing."));
+		// we leave the SearchContext.EditFeatureVector() set to zero since the SearchContext.PoseHistory is invalid and it'll fail if we continue
+		UE_LOG(LogPoseSearch, Error, TEXT("UPoseSearchFeatureChannel_Position::BuildQuery - Failed because Pose History Node is missing."));
 		return;
-			}
+	}
 	
-			// calculating the BonePosition in root bone space for the bone indexed by SchemaBoneIdx
-	const FVector BonePosition = SearchContext.GetSamplePosition(SampleTimeOffset, OriginTimeOffset, SchemaBoneIdx, SchemaOriginBoneIdx, PermutationTimeType);
+	// calculating the BonePosition in root bone space for the bone indexed by SchemaBoneIdx
+	const FVector BonePosition = SearchContext.GetSamplePosition(SampleTimeOffset, OriginTimeOffset, SchemaBoneIdx, SchemaOriginBoneIdx, SampleRole, OriginRole, PermutationTimeType);
 	FFeatureVectorHelper::EncodeVector(SearchContext.EditFeatureVector(), ChannelDataOffset, BonePosition, ComponentStripping);
 }
 
@@ -150,21 +168,19 @@ void UPoseSearchFeatureChannel_Position::DebugDraw(const UE::PoseSearch::FDebugD
 #endif // WITH_EDITORONLY_DATA
 
 	const FVector FeaturesVector = FFeatureVectorHelper::DecodeVector(PoseVector, ChannelDataOffset, ComponentStripping);
-	if (SchemaOriginBoneIdx == RootSchemaBoneIdx && FMath::IsNearlyZero(OriginTimeOffset))
+	const EPermutationTimeType TimeType = PermutationTimeType == EPermutationTimeType::UsePermutationTime ? EPermutationTimeType::UseSampleToPermutationTime : EPermutationTimeType::UseSampleTime;
+	const FVector OriginBonePos = DrawParams.ExtractPosition(PoseVector, OriginTimeOffset, SchemaOriginBoneIdx, OriginRole, TimeType);
+	const FVector DeltaPos = DrawParams.GetRootTransform(OriginRole).TransformVector(FeaturesVector);
+	const FVector BonePos = OriginBonePos + DeltaPos;
+	DrawParams.DrawPoint(BonePos, Color);
+
+	const bool bDrawOrigin = !DeltaPos.IsNearlyZero() && (SchemaOriginBoneIdx != RootSchemaBoneIdx || !FMath::IsNearlyZero(OriginTimeOffset) ||
+							 SampleRole != OriginRole || PermutationTimeType != EPermutationTimeType::UseSampleTime);
+	if (bDrawOrigin)
 	{
-		const FVector BonePos = DrawParams.GetRootTransform().TransformPosition(FeaturesVector);
-		DrawParams.DrawPoint(BonePos, Color);
-	}
-	else
-	{
-		const EPermutationTimeType TimeType = PermutationTimeType == EPermutationTimeType::UsePermutationTime ? EPermutationTimeType::UseSampleToPermutationTime : EPermutationTimeType::UseSampleTime;
-		const FVector OriginBonePos = DrawParams.ExtractPosition(PoseVector, OriginTimeOffset, SchemaOriginBoneIdx, TimeType);
-		const FVector DeltaPos = DrawParams.GetRootTransform().TransformVector(FeaturesVector);
-		const FVector BonePos = OriginBonePos + DeltaPos;
-		DrawParams.DrawLine(OriginBonePos, BonePos, Color);
 		DrawParams.DrawPoint(OriginBonePos, Color);
-		DrawParams.DrawPoint(BonePos, Color);
-	}	
+		DrawParams.DrawLine(OriginBonePos, BonePos, Color);
+	}
 }
 #endif // ENABLE_DRAW_DEBUG
 
@@ -184,7 +200,7 @@ bool UPoseSearchFeatureChannel_Position::IndexAsset(UE::PoseSearch::FAssetIndexe
 	FVector BonePosition;
 	for (int32 SampleIdx = Indexer.GetBeginSampleIdx(); SampleIdx != Indexer.GetEndSampleIdx(); ++SampleIdx)
 	{
-		if (Indexer.GetSamplePosition(BonePosition, SampleTimeOffset, OriginTimeOffset, SampleIdx, SchemaBoneIdx, SchemaOriginBoneIdx, PermutationTimeType, SamplingAttributeId))
+		if (Indexer.GetSamplePosition(BonePosition, SampleTimeOffset, OriginTimeOffset, SampleIdx, SchemaBoneIdx, SchemaOriginBoneIdx, SampleRole, OriginRole, PermutationTimeType, SamplingAttributeId))
 		{
 			FFeatureVectorHelper::EncodeVector(Indexer.GetPoseVector(SampleIdx), ChannelDataOffset, BonePosition, ComponentStripping);
 		}
@@ -219,13 +235,27 @@ UE::PoseSearch::TLabelBuilder& UPoseSearchFeatureChannel_Position::GetLabel(UE::
 	if (SchemaBoneIdx != RootSchemaBoneIdx)
 	{
 		LabelBuilder.Append(TEXT("_"));
-		LabelBuilder.Append(Schema->BoneReferences[SchemaBoneIdx].BoneName.ToString());
+		LabelBuilder.Append(Schema->GetBoneReferences(SampleRole)[SchemaBoneIdx].BoneName.ToString());
+	}
+
+	if (SampleRole != DefaultRole)
+	{
+		LabelBuilder.Append(TEXT("["));
+		LabelBuilder.Append(SampleRole.ToString());
+		LabelBuilder.Append(TEXT("]"));
 	}
 
 	if (SchemaOriginBoneIdx != RootSchemaBoneIdx)
 	{
 		LabelBuilder.Append(TEXT("_"));
-		LabelBuilder.Append(Schema->BoneReferences[SchemaOriginBoneIdx].BoneName.ToString());
+		LabelBuilder.Append(Schema->GetBoneReferences(OriginRole)[SchemaOriginBoneIdx].BoneName.ToString());
+	}
+
+	if (OriginRole != DefaultRole)
+	{
+		LabelBuilder.Append(TEXT("["));
+		LabelBuilder.Append(OriginRole.ToString());
+		LabelBuilder.Append(TEXT("]"));
 	}
 
 	AppendLabelSeparator(LabelBuilder, LabelFormat, true);
@@ -238,5 +268,20 @@ UE::PoseSearch::TLabelBuilder& UPoseSearchFeatureChannel_Position::GetLabel(UE::
 	}
 
 	return LabelBuilder;
+}
+
+USkeleton* UPoseSearchFeatureChannel_Position::GetSkeleton(bool& bInvalidSkeletonIsError, const IPropertyHandle* PropertyHandle)
+{
+	// blueprint generated classes don't have a schema, until they're instanced by the schema
+	if (const UPoseSearchSchema* Schema = GetSchema())
+	{
+		bInvalidSkeletonIsError = false;
+		if (PropertyHandle && PropertyHandle->GetProperty()->GetFName() == GET_MEMBER_NAME_CHECKED(UPoseSearchFeatureChannel_Position, OriginBone))
+		{
+			return Schema->GetSkeleton(OriginRole);
+		}
+	}
+
+	return Super::GetSkeleton(bInvalidSkeletonIsError, PropertyHandle);
 }
 #endif

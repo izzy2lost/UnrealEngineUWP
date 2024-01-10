@@ -27,26 +27,28 @@ static float ComputeCrashingLegsValue(const FVector& RightThighPos, const FVecto
 	return CrashingLegsValue;
 }
 
-void UPoseSearchFeatureChannel_FilterCrashingLegs::Finalize(UPoseSearchSchema* Schema)
+bool UPoseSearchFeatureChannel_FilterCrashingLegs::Finalize(UPoseSearchSchema* Schema)
 {
 	ChannelDataOffset = Schema->SchemaCardinality;
 	ChannelCardinality = 1;
 	Schema->SchemaCardinality += ChannelCardinality;
 
-	LeftThighIdx = Schema->AddBoneReference(LeftThigh);
-	RightThighIdx = Schema->AddBoneReference(RightThigh);
-	LeftFootIdx = Schema->AddBoneReference(LeftFoot);
-	RightFootIdx = Schema->AddBoneReference(RightFoot);
+	LeftThighIdx = Schema->AddBoneReference(LeftThigh, SampleRole);
+	RightThighIdx = Schema->AddBoneReference(RightThigh, SampleRole);
+	LeftFootIdx = Schema->AddBoneReference(LeftFoot, SampleRole);
+	RightFootIdx = Schema->AddBoneReference(RightFoot, SampleRole);
+
+	return LeftThighIdx >= 0 && RightThighIdx >= 0 && LeftFootIdx >= 0 && RightFootIdx >= 0;
 }
 
 void UPoseSearchFeatureChannel_FilterCrashingLegs::AddDependentChannels(UPoseSearchSchema* Schema) const
 {
 	if (Schema->bInjectAdditionalDebugChannels)
 	{
-		UPoseSearchFeatureChannel_Position::FindOrAddToSchema(Schema, 0.f, LeftThigh.BoneName);
-		UPoseSearchFeatureChannel_Position::FindOrAddToSchema(Schema, 0.f, RightThigh.BoneName);
-		UPoseSearchFeatureChannel_Position::FindOrAddToSchema(Schema, 0.f, LeftFoot.BoneName);
-		UPoseSearchFeatureChannel_Position::FindOrAddToSchema(Schema, 0.f, RightFoot.BoneName);
+		UPoseSearchFeatureChannel_Position::FindOrAddToSchema(Schema, 0.f, LeftThigh.BoneName, SampleRole);
+		UPoseSearchFeatureChannel_Position::FindOrAddToSchema(Schema, 0.f, RightThigh.BoneName, SampleRole);
+		UPoseSearchFeatureChannel_Position::FindOrAddToSchema(Schema, 0.f, LeftFoot.BoneName, SampleRole);
+		UPoseSearchFeatureChannel_Position::FindOrAddToSchema(Schema, 0.f, RightFoot.BoneName, SampleRole);
 	}
 }
 
@@ -59,11 +61,12 @@ void UPoseSearchFeatureChannel_FilterCrashingLegs::BuildQuery(UE::PoseSearch::FS
 	{
 		// composing a unique identifier to specify this channel with all the required properties to be able to share the query data with other channels of the same type
 		uint32 UniqueIdentifier = GetClass()->GetUniqueID();
-		UniqueIdentifier = HashCombineFast(UniqueIdentifier, ::GetTypeHash(LeftThighIdx));
-		UniqueIdentifier = HashCombineFast(UniqueIdentifier, ::GetTypeHash(RightThighIdx));
-		UniqueIdentifier = HashCombineFast(UniqueIdentifier, ::GetTypeHash(LeftFootIdx));
-		UniqueIdentifier = HashCombineFast(UniqueIdentifier, ::GetTypeHash(RightFootIdx));
-		UniqueIdentifier = HashCombineFast(UniqueIdentifier, ::GetTypeHash(InputQueryPose));
+		UniqueIdentifier = HashCombineFast(UniqueIdentifier, GetTypeHash(SampleRole));
+		UniqueIdentifier = HashCombineFast(UniqueIdentifier, GetTypeHash(LeftThighIdx));
+		UniqueIdentifier = HashCombineFast(UniqueIdentifier, GetTypeHash(RightThighIdx));
+		UniqueIdentifier = HashCombineFast(UniqueIdentifier, GetTypeHash(LeftFootIdx));
+		UniqueIdentifier = HashCombineFast(UniqueIdentifier, GetTypeHash(RightFootIdx));
+		UniqueIdentifier = HashCombineFast(UniqueIdentifier, GetTypeHash(InputQueryPose));
 
 		TConstArrayView<float> CachedChannelData;
 		if (const UPoseSearchFeatureChannel* CachedChannel = SearchContext.GetCachedChannelData(UniqueIdentifier, this, CachedChannelData))
@@ -75,6 +78,7 @@ void UPoseSearchFeatureChannel_FilterCrashingLegs::BuildQuery(UE::PoseSearch::FS
 			check(CachedChannelData.Num() == ChannelCardinality);
 
 			// making sure there were no hash collisions
+			check(CachedFilterCrashingLegs->SampleRole == SampleRole);
 			check(CachedFilterCrashingLegs->LeftThighIdx == LeftThighIdx);
 			check(CachedFilterCrashingLegs->RightThighIdx == RightThighIdx);
 			check(CachedFilterCrashingLegs->LeftFootIdx == LeftFootIdx);
@@ -91,7 +95,7 @@ void UPoseSearchFeatureChannel_FilterCrashingLegs::BuildQuery(UE::PoseSearch::FS
 	// trying to get the BuildQuery data from the continuing pose
 	const bool bCanUseCurrentResult = SearchContext.CanUseCurrentResult();
 	const bool bSkip = InputQueryPose != EInputQueryPose::UseCharacterPose && bCanUseCurrentResult;
-	if (bSkip || !SearchContext.GetHistory())
+	if (bSkip || !SearchContext.ArePoseHistoriesValid())
 	{
 		if (bCanUseCurrentResult)
 		{
@@ -99,16 +103,16 @@ void UPoseSearchFeatureChannel_FilterCrashingLegs::BuildQuery(UE::PoseSearch::FS
 			return;
 		}
 
-		// we leave the SearchContext.EditFeatureVector() set to zero since the SearchContext.History is invalid and it'll fail if we continue
+		// we leave the SearchContext.EditFeatureVector() set to zero since the SearchContext.PoseHistory is invalid and it'll fail if we continue
 		UE_LOG(LogPoseSearch, Error, TEXT("UPoseSearchFeatureChannel_FilterCrashingLegs::BuildQuery - Failed because Pose History Node is missing."));
 		return;
 	}
 
 	// composing the BuildQuery data from the bones
-	const FVector RightThighPosition = SearchContext.GetSamplePosition(0.f, 0.f, RightThighIdx);
-	const FVector LeftThighPosition = SearchContext.GetSamplePosition(0.f, 0.f, LeftThighIdx);
-	const FVector RightFootPosition = SearchContext.GetSamplePosition(0.f, 0.f, RightFootIdx);
-	const FVector LeftFootPosition = SearchContext.GetSamplePosition(0.f, 0.f, LeftFootIdx);
+	const FVector RightThighPosition = SearchContext.GetSamplePosition(0.f, 0.f, RightThighIdx, RootSchemaBoneIdx, SampleRole, SampleRole);
+	const FVector LeftThighPosition = SearchContext.GetSamplePosition(0.f, 0.f, LeftThighIdx, RootSchemaBoneIdx, SampleRole, SampleRole);
+	const FVector RightFootPosition = SearchContext.GetSamplePosition(0.f, 0.f, RightFootIdx, RootSchemaBoneIdx, SampleRole, SampleRole);
+	const FVector LeftFootPosition = SearchContext.GetSamplePosition(0.f, 0.f, LeftFootIdx, RootSchemaBoneIdx, SampleRole, SampleRole);
 
 	const float CrashingLegsValue = ComputeCrashingLegsValue(RightThighPosition, LeftThighPosition, RightFootPosition, LeftFootPosition);
 
@@ -122,10 +126,10 @@ void UPoseSearchFeatureChannel_FilterCrashingLegs::DebugDraw(const UE::PoseSearc
 
 	const float CrashingLegsValue = FFeatureVectorHelper::DecodeFloat(PoseVector, ChannelDataOffset);
 
-	const FVector LeftThighPosition = DrawParams.ExtractPosition(PoseVector, 0.f, LeftThighIdx);
-	const FVector RightThighPosition = DrawParams.ExtractPosition(PoseVector, 0.f, RightThighIdx);
-	const FVector LeftFootPosition = DrawParams.ExtractPosition(PoseVector, 0.f, LeftFootIdx);
-	const FVector RightFootPosition = DrawParams.ExtractPosition(PoseVector, 0.f, RightFootIdx);
+	const FVector LeftThighPosition = DrawParams.ExtractPosition(PoseVector, 0.f, LeftThighIdx, SampleRole);
+	const FVector RightThighPosition = DrawParams.ExtractPosition(PoseVector, 0.f, RightThighIdx, SampleRole);
+	const FVector LeftFootPosition = DrawParams.ExtractPosition(PoseVector, 0.f, LeftFootIdx, SampleRole);
+	const FVector RightFootPosition = DrawParams.ExtractPosition(PoseVector, 0.f, RightFootIdx, SampleRole);
 
 	const float FeetDistance = (RightFootPosition - LeftFootPosition).Length();
 
@@ -189,10 +193,10 @@ bool UPoseSearchFeatureChannel_FilterCrashingLegs::IndexAsset(UE::PoseSearch::FA
 	FVector RightThighPosition, LeftThighPosition, RightFootPosition, LeftFootPosition;
 	for (int32 SampleIdx = Indexer.GetBeginSampleIdx(); SampleIdx != Indexer.GetEndSampleIdx(); ++SampleIdx)
 	{
-		if (Indexer.GetSamplePosition(RightThighPosition, 0.f, 0.f, SampleIdx, RightThighIdx) &&
-			Indexer.GetSamplePosition(LeftThighPosition, 0.f, 0.f, SampleIdx, LeftThighIdx) &&
-			Indexer.GetSamplePosition(RightFootPosition, 0.f, 0.f, SampleIdx, RightFootIdx) &&
-			Indexer.GetSamplePosition(LeftFootPosition, 0.f, 0.f, SampleIdx, LeftFootIdx))
+		if (Indexer.GetSamplePosition(RightThighPosition, 0.f, 0.f, SampleIdx, RightThighIdx, RootSchemaBoneIdx, SampleRole, SampleRole) &&
+			Indexer.GetSamplePosition(LeftThighPosition, 0.f, 0.f, SampleIdx, LeftThighIdx, RootSchemaBoneIdx, SampleRole, SampleRole) &&
+			Indexer.GetSamplePosition(RightFootPosition, 0.f, 0.f, SampleIdx, RightFootIdx, RootSchemaBoneIdx, SampleRole, SampleRole) &&
+			Indexer.GetSamplePosition(LeftFootPosition, 0.f, 0.f, SampleIdx, LeftFootIdx, RootSchemaBoneIdx, SampleRole, SampleRole))
 		{
 			const float CrashingLegsValue = ComputeCrashingLegsValue(RightThighPosition, LeftThighPosition, RightFootPosition, LeftFootPosition);
 			FFeatureVectorHelper::EncodeFloat(Indexer.GetPoseVector(SampleIdx), ChannelDataOffset, CrashingLegsValue);

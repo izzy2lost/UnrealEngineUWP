@@ -146,6 +146,35 @@ public:
 };
 
 USTRUCT()
+struct FPoseSearchDatabaseMultiSequenceEx : public FPoseSearchDatabaseMultiSequence
+{
+	GENERATED_BODY()
+
+	// Is this animation set as looping? If you want to change this you need to change it in the base Anim Sequence.
+	// Changing the sampling range will disable looping
+	UPROPERTY(VisibleAnywhere, Category="Sequence", meta = (DisplayPriority = 10))
+	bool bLooping = false;
+
+	// Does this animation have root motion enabled ? If you want to change this you need to change it in the base Anim Sequence.
+	UPROPERTY(VisibleAnywhere, Category="Sequence", meta = (DisplayPriority = 11))
+	bool bHasRootMotion = false;
+};
+
+UCLASS()
+class UPoseSearchDatabaseMultiSequenceReflection : public UPoseSearchDatabaseReflectionBase
+{
+	GENERATED_BODY()
+
+public:
+	UPROPERTY(EditAnywhere, Category = "Selected Sequence")
+	FPoseSearchDatabaseMultiSequenceEx MultiSequence;
+
+#if WITH_EDITOR
+	virtual void PostEditChangeProperty(struct FPropertyChangedEvent& PropertyChangedEvent) override;
+#endif
+};
+
+USTRUCT()
 struct FPoseSearchDatabaseMemoryStats
 {
 	GENERATED_BODY()

@@ -65,7 +65,7 @@ UObject* UPoseSearchSchemaFactory::FactoryCreateNew(UClass* Class, UObject* InPa
 	if (TargetSkeleton)
 	{
 		Schema = NewObject<UPoseSearchSchema>(InParent, Class, Name, Flags);
-		Schema->Skeleton = TargetSkeleton;
+		Schema->AddSkeleton(TargetSkeleton);
 		Schema->AddDefaultChannels();
 	}
 	return Schema;

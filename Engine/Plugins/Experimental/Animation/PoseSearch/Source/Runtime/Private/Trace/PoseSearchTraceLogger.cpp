@@ -19,7 +19,7 @@ namespace UE::PoseSearch
 {
 
 const FName FTraceLogger::Name("PoseSearch");
-const FName FTraceMotionMatchingState::Name("MotionMatchingState");
+const FName FTraceMotionMatchingStateMessage::Name("MotionMatchingState");
 
 bool IsTracing(const FAnimationBaseContext& InContext)
 {
@@ -68,8 +68,10 @@ FArchive& operator<<(FArchive& Ar, FTraceMotionMatchingStateDatabaseEntry& Entry
 	return Ar;
 }
 
-FArchive& operator<<(FArchive& Ar, FTraceMotionMatchingState& State)
+FArchive& operator<<(FArchive& Ar, FTraceMotionMatchingStateMessage& State)
 {
+	Ar << static_cast<FTraceMessage&>(State);
+
 	Ar << State.ElapsedPoseSearchTime;
 	Ar << State.AssetPlayerTime;
 	Ar << State.DeltaTime;
@@ -81,37 +83,26 @@ FArchive& operator<<(FArchive& Ar, FTraceMotionMatchingState& State)
 	Ar << State.SearchBestCost;
 	Ar << State.SearchBruteForceCost;
 	Ar << State.SearchBestPosePos;
+	Ar << State.SkeletalMeshComponentIds;
+	Ar << State.Roles;
 	Ar << State.DatabaseEntries;
-	Ar << State.Trajectory;
+	Ar << State.PoseHistories;	
 	Ar << State.CurrentDbEntryIdx;
 	Ar << State.CurrentPoseEntryIdx;
 	return Ar;
 }
 
-void FTraceMotionMatchingState::Output(const UObject* AnimInstance, int32 NodeId)
+void FTraceMotionMatchingStateMessage::Output()
 {
 #if OBJECT_TRACE_ENABLED
 	TArray<uint8> ArchiveData;
 	FMemoryWriter Archive(ArchiveData);
-
-	TRACE_OBJECT(AnimInstance);
-	UObject* SkeletalMeshComponent = AnimInstance->GetOuter();
-
-	FTraceMessage TraceMessage;
-	TraceMessage.Cycle = FPlatformTime::Cycles64();
-	TraceMessage.AnimInstanceId = FObjectTrace::GetObjectId(AnimInstance);
-	TraceMessage.SkeletalMeshComponentId = FObjectTrace::GetObjectId(SkeletalMeshComponent);
-	TraceMessage.NodeId = NodeId;
-	TraceMessage.FrameCounter = FObjectTrace::GetObjectWorldTickCounter(AnimInstance);
-
-	Archive << TraceMessage;
 	Archive << *this;
-
 	UE_TRACE_LOG(PoseSearch, MotionMatchingState, PoseSearchChannel) << MotionMatchingState.Data(ArchiveData.GetData(), ArchiveData.Num());
 #endif
 }
 
-const UPoseSearchDatabase* FTraceMotionMatchingState::GetCurrentDatabase() const
+const UPoseSearchDatabase* FTraceMotionMatchingStateMessage::GetCurrentDatabase() const
 {
 	const UPoseSearchDatabase* Database = nullptr;
 	if (DatabaseEntries.IsValidIndex(CurrentDbEntryIdx))
@@ -121,7 +112,7 @@ const UPoseSearchDatabase* FTraceMotionMatchingState::GetCurrentDatabase() const
 	return Database;
 }
 
-int32 FTraceMotionMatchingState::GetCurrentDatabasePoseIndex() const
+int32 FTraceMotionMatchingStateMessage::GetCurrentDatabasePoseIndex() const
 {
 	if (const FTraceMotionMatchingStatePoseEntry* PoseEntry = GetCurrentPoseEntry())
 	{
@@ -130,7 +121,7 @@ int32 FTraceMotionMatchingState::GetCurrentDatabasePoseIndex() const
 	return INDEX_NONE;
 }
 
-const FTraceMotionMatchingStatePoseEntry* FTraceMotionMatchingState::GetCurrentPoseEntry() const
+const FTraceMotionMatchingStatePoseEntry* FTraceMotionMatchingStateMessage::GetCurrentPoseEntry() const
 {
 	if (DatabaseEntries.IsValidIndex(CurrentDbEntryIdx))
 	{

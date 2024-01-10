@@ -26,6 +26,8 @@ public:
 
 	// Used for view callbacks
     const FTraceMotionMatchingStateMessage* GetMotionMatchingState() const;
+	const TMap<uint64, TWeakObjectPtr<AActor>>& GetDebugDrawActors() const { return DebugDrawActors; }
+
 	const UPoseSearchDatabase* GetCurrentDatabase() const;
 	const TArray<int32>* GetNodeIds() const;
 	int32 GetNodesNum() const;
@@ -44,18 +46,14 @@ public:
 	bool GetDrawQuery() const { return bDrawQuery; }
 
 	void SetDrawTrajectory(bool bInDrawTrajectory) { bDrawTrajectory = bInDrawTrajectory; }
-
 	bool GetDrawTrajectory() const { return bDrawTrajectory; }
 
-	/** Callback to reset debug skeletons for the active world */
-	void OnWorldCleanup(UWorld* InWorld, bool bSessionEnded, bool bCleanupResources);
-
-	const USkinnedMeshComponent* GetMeshComponent() const;
+	void SetDrawHistory(bool bInDrawHistory) { bDrawHistory = bInDrawHistory; }
+	bool GetDrawHistory() const { return bDrawHistory; }
 
 private:
-	/** Update the list of states for this frame */
-	void UpdateFromTimeline();
 
+	// @todo: duplicate member, already contained in MotionMatchingStates(FTraceMessage)::NodeId
 	/** List of all Node IDs associated with motion matching states */
 	TArray<int32> NodeIds;
 	
@@ -65,9 +63,7 @@ private:
 	/** Currently active motion matching state index based on node selection in the view */
 	int32 ActiveMotionMatchingStateIdx = INDEX_NONE;
 
-	/** Current Skeletal Mesh Component Id for the AnimInstance */
-	uint64 SkeletalMeshComponentId = 0;
-
+	// @todo: duplicate information already present in MotionMatchingStates::Trajectories
 	/** Currently active root bone transform */
 	FTransform RootBoneWorldTransform = FTransform::Identity;
 
@@ -77,20 +73,13 @@ private:
 	/** Anim Instance associated with this debugger instance */
 	uint64 AnimInstanceId = 0;
 
-	/** Actor object for the skeleton */
-	TWeakObjectPtr<AActor> DebugDrawActor;
+	/** Actor object populated by the timeline mapped from the MotionMatchingStates.SkeletalMeshComponentIds. used as input for additional bone transforms to draw channels */
+	TMap<uint64, TWeakObjectPtr<AActor>> DebugDrawActors;
 
-	/** Derived skeletal mesh for setting the skeleton in the scene */
-	TWeakObjectPtr<UPoseSearchMeshComponent> DebugDrawMeshComponent;
-
-	/** Whether the skeleton have been initialized for this world */
-	bool bSkeletonInitialized = false;
-	
 	bool bIsVerbose = false;
-
 	bool bDrawQuery = true;	
-
 	bool bDrawTrajectory = false;
+	bool bDrawHistory = false;
 	
 	/** Limits some public API */
 	friend class FDebugger;

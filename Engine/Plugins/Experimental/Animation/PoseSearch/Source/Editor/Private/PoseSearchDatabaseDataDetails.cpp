@@ -239,7 +239,6 @@ public:
 					.Margin(FMargin(1.f, 1.f, 1.f, 1.f))
 					.Text_Lambda([this, ColumnName]() -> FText
 						{
-							FString PoseIdxString;
 							if (!ChannelItem->IsExpanded())
 							{
 								if (const TSharedPtr<FDatabaseViewModel> ViewModel = EditorViewModel.Pin())
@@ -247,17 +246,90 @@ public:
 									const UPoseSearchDatabase* PoseSearchDatabase = ViewModel->GetPoseSearchDatabase();
 									if (FAsyncPoseSearchDatabasesManagement::RequestAsyncBuildIndex(PoseSearchDatabase, ERequestAsyncBuildFlag::ContinueRequest))
 									{
-										if (const FDatabasePreviewActor* FoundPreviewActor = ViewModel->GetPreviewActors().FindByPredicate(
-											[ColumnName](const FDatabasePreviewActor& PreviewActor)
-											{ return *GetNameSafe(PreviewActor.GetActor()) == ColumnName; }))
+										for (const TArray<FDatabasePreviewActor>& PreviewActorGroup : ViewModel->GetPreviewActors())
 										{
-											const int32 PoseIdx = FoundPreviewActor->GetCurrentPoseIndex();
-											PoseIdxString.AppendInt(PoseIdx);
+											for (const FDatabasePreviewActor& PreviewActor : PreviewActorGroup)
+											{
+												if (*GetNameSafe(PreviewActor.GetActor()) == ColumnName)
+												{
+													const int32 PoseIdx = PreviewActor.GetCurrentPoseIndex();
+													FString PoseIdxString;
+													PoseIdxString.AppendInt(PoseIdx);
+													return FText::FromString(PoseIdxString);
+												}
+											}
 										}
 									}
 								}
 							}
-							return FText::FromString(PoseIdxString);
+							return FText::GetEmpty();
+						});
+			}
+
+			if (ChannelItem->GetCompactLabel() == "SearchAssetIndex")
+			{
+				return SNew(STextBlock)
+					.Margin(FMargin(1.f, 1.f, 1.f, 1.f))
+					.Text_Lambda([this, ColumnName]() -> FText
+						{
+							if (!ChannelItem->IsExpanded())
+							{
+								if (const TSharedPtr<FDatabaseViewModel> ViewModel = EditorViewModel.Pin())
+								{
+									const UPoseSearchDatabase* PoseSearchDatabase = ViewModel->GetPoseSearchDatabase();
+									if (FAsyncPoseSearchDatabasesManagement::RequestAsyncBuildIndex(PoseSearchDatabase, ERequestAsyncBuildFlag::ContinueRequest))
+									{
+										for (const TArray<FDatabasePreviewActor>& PreviewActorGroup : ViewModel->GetPreviewActors())
+										{
+											for (const FDatabasePreviewActor& PreviewActor : PreviewActorGroup)
+											{
+												if (*GetNameSafe(PreviewActor.GetActor()) == ColumnName)
+												{
+													const int32 AssetIdx = PreviewActor.GetIndexAssetIndex();
+													FString AssetIdxString;
+													AssetIdxString.AppendInt(AssetIdx);
+													return FText::FromString(AssetIdxString);
+												}
+											}
+										}
+									}
+								}
+							}
+							return FText::GetEmpty();
+						});
+			}
+
+			if (ChannelItem->GetCompactLabel() == "SourceAssetIndex")
+			{
+				return SNew(STextBlock)
+					.Margin(FMargin(1.f, 1.f, 1.f, 1.f))
+					.Text_Lambda([this, ColumnName]() -> FText
+						{
+							if (!ChannelItem->IsExpanded())
+							{
+								if (const TSharedPtr<FDatabaseViewModel> ViewModel = EditorViewModel.Pin())
+								{
+									const UPoseSearchDatabase* PoseSearchDatabase = ViewModel->GetPoseSearchDatabase();
+									if (FAsyncPoseSearchDatabasesManagement::RequestAsyncBuildIndex(PoseSearchDatabase, ERequestAsyncBuildFlag::ContinueRequest))
+									{
+										for (const TArray<FDatabasePreviewActor>& PreviewActorGroup : ViewModel->GetPreviewActors())
+										{
+											for (const FDatabasePreviewActor& PreviewActor : PreviewActorGroup)
+											{
+												if (*GetNameSafe(PreviewActor.GetActor()) == ColumnName)
+												{
+													const FSearchIndexAsset& IndexAsset = PoseSearchDatabase->GetSearchIndex().Assets[PreviewActor.GetIndexAssetIndex()];
+													const int32 AssetIdx = PreviewActor.GetIndexAssetIndex();
+													FString AssetIdxString;
+													AssetIdxString.AppendInt(IndexAsset.GetSourceAssetIdx());
+													return FText::FromString(AssetIdxString);
+												}
+											}
+										}
+									}
+								}
+							}
+							return FText::GetEmpty();
 						});
 			}
 		}
@@ -278,53 +350,58 @@ public:
 							const UPoseSearchDatabase* PoseSearchDatabase = ViewModel->GetPoseSearchDatabase();
 							if (FAsyncPoseSearchDatabasesManagement::RequestAsyncBuildIndex(PoseSearchDatabase, ERequestAsyncBuildFlag::ContinueRequest))
 							{
-								if (const FDatabasePreviewActor* FoundPreviewActor = ViewModel->GetPreviewActors().FindByPredicate(
-									[ColumnName](const FDatabasePreviewActor& PreviewActor)
-									{ return *GetNameSafe(PreviewActor.GetActor()) == ColumnName; }))
+								for (const TArray<FDatabasePreviewActor>& PreviewActorGroup : ViewModel->GetPreviewActors())
 								{
-									const int32 PoseIdx = FoundPreviewActor->GetCurrentPoseIndex();
-									const TArray<float> PoseValues = PoseSearchDatabase->GetSearchIndex().GetPoseValuesSafe(PoseIdx);
-
-									if (Cardinality > 1)
+									for (const FDatabasePreviewActor& PreviewActor : PreviewActorGroup)
 									{
-										// using only one decimal to keep the string compact
-										for (int32 i = 0; i < Cardinality; ++i)
+										if (*GetNameSafe(PreviewActor.GetActor()) == ColumnName)
 										{
-											if (i != 0)
-											{
-												StringBuilder.Append(TEXT(", "));
-											}
+											const int32 PoseIdx = PreviewActor.GetCurrentPoseIndex();
+											const TArray<float> PoseValues = PoseSearchDatabase->GetSearchIndex().GetPoseValuesSafe(PoseIdx);
 
-											const int32 PoseValueIndex = i + DataOffset;
-											if (PoseValueIndex < PoseValues.Num())
+											if (Cardinality > 1)
 											{
-												const float Value = PoseValues[PoseValueIndex];
-												StringBuilder.Appendf(TEXT("%.1f"), Value);
+												// using only one decimal to keep the string compact
+												for (int32 i = 0; i < Cardinality; ++i)
+												{
+													if (i != 0)
+													{
+														StringBuilder.Append(TEXT(", "));
+													}
+
+													const int32 PoseValueIndex = i + DataOffset;
+													if (PoseValueIndex < PoseValues.Num())
+													{
+														const float Value = PoseValues[PoseValueIndex];
+														StringBuilder.Appendf(TEXT("%.1f"), Value);
+													}
+													else
+													{
+														StringBuilder.Append(TEXT("---"));
+													}
+												}
 											}
 											else
 											{
-												StringBuilder.Append(TEXT("---"));
+												// using all the float digits 
+												if (DataOffset < PoseValues.Num())
+												{
+													const float Value = PoseValues[DataOffset];
+													StringBuilder.Appendf(TEXT("%f"), Value);
+												}
+												else
+												{
+													StringBuilder.Append(TEXT("---"));
+												}
 											}
-										}
-									}
-									else
-									{
-										// using all the float digits 
-										if (DataOffset < PoseValues.Num())
-										{
-											const float Value = PoseValues[DataOffset];
-											StringBuilder.Appendf(TEXT("%f"), Value);
-										}
-										else
-										{
-											StringBuilder.Append(TEXT("---"));
+											return FText::FromString(StringBuilder.ToString());
 										}
 									}
 								}
 							}
 						}
 					}
-					return FText::FromString(StringBuilder.ToString());
+					return FText::GetEmpty();
 				});
 	}
 };
@@ -406,13 +483,25 @@ void SDatabaseDataDetails::Reconstruct(int32 MaxPreviewActors)
 			.ToolTipText(LOCTEXT("Query_ToolTip", "Query Values")));
 	}
 
-	const TArray<FDatabasePreviewActor>& PreviewActors = ViewModel->GetPreviewActors();
-	const int32 PreviewActorNum = FMath::Min(MaxPreviewActors, PreviewActors.Num());
-	for (int32 PreviewActorIdx = 0; PreviewActorIdx < PreviewActorNum; ++PreviewActorIdx)
+	int32 AddedColumns = 0;
+	for (const TArray<FDatabasePreviewActor>& PreviewActorGroup : ViewModel->GetPreviewActors())
 	{
-		const FDatabasePreviewActor& PreviewActor = PreviewActors[PreviewActorIdx];
-		HeaderRow->AddColumn(SHeaderRow::Column(*GetNameSafe(PreviewActor.GetActor()))
-			.DefaultLabel(FText::FromString(PreviewActor.GetSampler().GetAsset()->GetName())));
+		for (const FDatabasePreviewActor& PreviewActor : PreviewActorGroup)
+		{
+			HeaderRow->AddColumn(SHeaderRow::Column(*GetNameSafe(PreviewActor.GetActor())) 
+				.DefaultLabel(FText::FromString(PreviewActor.GetSampler().GetAsset()->GetName())));
+
+			++AddedColumns;
+			if (AddedColumns >= MaxPreviewActors)
+			{
+				break;
+			}
+		}
+
+		if (AddedColumns >= MaxPreviewActors)
+		{
+			break;
+		}
 	}
 
 	ChannelItemsTreeView = SNew(SChannelItemsTreeView)
@@ -476,6 +565,8 @@ void SDatabaseDataDetails::RebuildChannelItemsStats(TArray<FChannelItemPtr>& Cha
 	ChannelItems.Add(ChannelItem);
 
 	ChannelItem->GetChannelItems().Add(MakeShareable(new FChannelItem("SDatabaseDataDetailsPoseIndex", "PoseIndex")));
+	ChannelItem->GetChannelItems().Add(MakeShareable(new FChannelItem("SDatabaseDataDetailsPoseIndex", "SearchAssetIndex")));
+	ChannelItem->GetChannelItems().Add(MakeShareable(new FChannelItem("SDatabaseDataDetailsPoseIndex", "SourceAssetIndex")));
 	// @todo: add support for additional stats
 	//ChannelItem->GetChannelItems().Add(MakeShareable(new FChannelItem("SDatabaseDataDetailsValueVectorIndex", "ValueVectorIndex")));
 	//ChannelItem->GetChannelItems().Add(MakeShareable(new FChannelItem("SDatabaseDataDetailsPCAValueVectorIndex", "PCAValueVectorIndex")));
