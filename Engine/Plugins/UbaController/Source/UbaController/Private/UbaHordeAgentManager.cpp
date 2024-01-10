@@ -321,7 +321,7 @@ void FUbaHordeAgentManager::ThreadAgent(FHordeAgentWrapper& Wrapper)
 
 		if (!bAddClientSuccess)
 		{
-			UE_LOG(LogUbaController, Error, TEXT("Server_AddClient(%s:%d) failed"), *IpAddress, ListenPort);
+			UE_LOG(LogUbaController, Display, TEXT("Server_AddClient(%s:%d) failed"), *IpAddress, ListenPort);
 			return;
 		}
 
