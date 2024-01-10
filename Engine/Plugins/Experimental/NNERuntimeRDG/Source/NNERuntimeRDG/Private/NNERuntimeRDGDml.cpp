@@ -79,7 +79,20 @@ bool FRuntimeDmlStartup()
 				checkf(false, TEXT("%s"), *ErrorMessage);
 			}
 
-			FPlatformProcess::GetDllHandle(*DirectMLDLLPaths[Idx]);
+			void* DllHandle = FPlatformProcess::GetDllHandle(*DirectMLDLLPaths[Idx]);
+			if (!DllHandle)
+			{
+				const FString ErrorMessage = FString::Format(TEXT("DLL file could not be loaded from \"{0}\"."),
+					{ IFileManager::Get().ConvertToAbsolutePathForExternalAppForRead(*DirectMLDLLPaths[Idx]) });
+				UE_LOG(LogNNE, Warning, TEXT("NNERuntimeRDGDml:%s"), *ErrorMessage);
+				checkf(false, TEXT("%s"), *ErrorMessage);
+			}
+			else
+			{
+				const FString SuccessMessage = FString::Format(TEXT("DLL file loaded from \"{0}\"."),
+					{ IFileManager::Get().ConvertToAbsolutePathForExternalAppForRead(*DirectMLDLLPaths[Idx]) });
+				UE_LOG(LogNNE, Display, TEXT("NNERuntimeRDGDml:%s"), *SuccessMessage);
+			}
 		}
 
 #if defined(DIRECTML_PATH)
