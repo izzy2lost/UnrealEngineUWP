@@ -1242,7 +1242,7 @@ void FMobileSceneRenderer::Render(FRDGBuilder& GraphBuilder)
 
 	for (FSceneViewExtensionRef& ViewExtension : ViewFamily.ViewExtensions)
 	{
-		ViewExtension->PreRenderBasePass_RenderThread(GraphBuilder);
+		ViewExtension->PreRenderBasePass_RenderThread(GraphBuilder, bIsFullDepthPrepassEnabled /*bDepthBufferIsPopulated*/);
 	}
 
 	if (bRendererOutputFinalSceneColor)

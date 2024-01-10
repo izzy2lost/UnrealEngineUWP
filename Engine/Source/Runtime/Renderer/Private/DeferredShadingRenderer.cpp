@@ -2328,7 +2328,7 @@ void FDeferredShadingSceneRenderer::Render(FRDGBuilder& GraphBuilder)
 
 		for (FSceneViewExtensionRef& ViewExtension : ViewFamily.ViewExtensions)
 		{
-			ViewExtension->PreRenderBasePass_RenderThread(GraphBuilder);
+			ViewExtension->PreRenderBasePass_RenderThread(GraphBuilder, ShouldRenderPrePass() /*bDepthBufferIsPopulated*/);
 		}
 
 		BeginAsyncDistanceFieldShadowProjections(GraphBuilder, SceneTextures, InitViewTaskDatas.DynamicShadows);

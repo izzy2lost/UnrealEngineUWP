@@ -415,11 +415,11 @@ void FWaterViewExtension::PreRenderView_RenderThread(FRDGBuilder& GraphBuilder, 
 	}
 }
 
-void FWaterViewExtension::PreRenderBasePass_RenderThread(FRDGBuilder& GraphBuilder)
+void FWaterViewExtension::PreRenderBasePass_RenderThread(FRDGBuilder& GraphBuilder, bool bDepthBufferIsPopulated)
 {
 	for (FWaterMeshGPUWork::FCallback& Callback : GWaterMeshGPUWork.Callbacks)
 	{
-		Callback.Function(GraphBuilder);
+		Callback.Function(GraphBuilder, bDepthBufferIsPopulated);
 	}
 }
 

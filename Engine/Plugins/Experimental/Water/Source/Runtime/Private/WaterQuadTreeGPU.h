@@ -79,6 +79,7 @@ public:
 		int32 DebugShowTile = 0;
 		bool bWithWaterSelectionSupport = false;
 		bool bLODMorphingEnabled = false;
+		bool bDepthBufferIsPopulated = false;
 	};
 
 	void Init(FRDGBuilder& GraphBuilder, const FInitParams& Params, TArray<FDraw>& Draws);

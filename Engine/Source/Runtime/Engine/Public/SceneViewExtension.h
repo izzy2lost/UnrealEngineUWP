@@ -156,9 +156,9 @@ public:
 	virtual void PreInitViews_RenderThread(FRDGBuilder& GraphBuilder) {}
 
 	/**
-	 * Called on render thread right before Base Pass rendering.
+	 * Called on render thread right before Base Pass rendering. bDepthBufferIsPopulated is true if anything has been rendered to the depth buffer. This does not need to be a full depth prepass.
 	 */
-	virtual void PreRenderBasePass_RenderThread(FRDGBuilder& GraphBuilder) {}
+	virtual void PreRenderBasePass_RenderThread(FRDGBuilder& GraphBuilder, bool bDepthBufferIsPopulated) {}
 
 	/**
 	 * Called right after Base Pass rendering finished when using the deferred renderer.

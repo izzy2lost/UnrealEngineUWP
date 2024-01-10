@@ -819,7 +819,7 @@ void FWaterQuadTreeGPU::Traverse(FRDGBuilder& GraphBuilder, const FTraverseParam
 		FRDGBufferSRV* PackedNodesSRV = GraphBuilder.CreateSRV(FRDGBufferSRVDesc(PackedNodes, PF_R32_UINT));
 		FRDGBufferSRV* BucketCountsSRV = GraphBuilder.CreateSRV(FRDGBufferSRVDesc(BucketCounts, PF_R32_UINT));
 
-		const bool bPixelPreciseOQForThisView = bPixelPreciseOcclusionQueries && View->bIsViewInfo;
+		const bool bPixelPreciseOQForThisView = bPixelPreciseOcclusionQueries && ViewInfo && Params.bDepthBufferIsPopulated;
 
 		FRDGBuffer* OcclusionQueryBoxes = nullptr;
 		FRDGBuffer* OcclusionQueryResults = nullptr;
@@ -899,7 +899,8 @@ void FWaterQuadTreeGPU::Traverse(FRDGBuilder& GraphBuilder, const FTraverseParam
 			TShaderMapRef<FWaterQuadTreeOcclusionQueryVS> VertexShader(ShaderMap);
 			TShaderMapRef<FWaterQuadTreeOcclusionQueryPS> PixelShader(ShaderMap);
 
-			FRDGTextureRef DepthTexture = ViewInfo->GetSceneTextures().Depth.Target;
+			FRDGTextureRef DepthTexture = GetIfProduced(ViewInfo->GetSceneTextures().Depth.Target);
+			check(DepthTexture);
 
 			FWaterQuadTreeOcclusionQueryParameters* PassParameters = GraphBuilder.AllocParameters<FWaterQuadTreeOcclusionQueryParameters>();
 			PassParameters->IndirectDrawArgsBuffer = OcclusionQueryIndirectArgsBuffer;

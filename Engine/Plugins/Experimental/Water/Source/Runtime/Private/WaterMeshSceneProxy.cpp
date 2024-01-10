@@ -295,7 +295,7 @@ void FWaterMeshSceneProxy::CreateRenderThreadResources(FRHICommandListBase& RHIC
 	{
 		FWaterMeshGPUWork::FCallback Callback;
 		Callback.Proxy = this;
-		Callback.Function = [this](FRDGBuilder& GraphBuilder)
+		Callback.Function = [this](FRDGBuilder& GraphBuilder, bool bDepthBufferIsPopulated)
 		{
 			if (bNeedToTraverseGPUQuadTree)
 			{
@@ -303,8 +303,11 @@ void FWaterMeshSceneProxy::CreateRenderThreadResources(FRHICommandListBase& RHIC
 				{
 					BuildGPUQuadTree(GraphBuilder);
 				}
-				QuadTreeGPU.Traverse(GraphBuilder, WaterQuadTreeGPUTraverseParams);
+				FWaterQuadTreeGPU::FTraverseParams TraverseParams = MoveTemp(WaterQuadTreeGPUTraverseParams);
+				TraverseParams.bDepthBufferIsPopulated = bDepthBufferIsPopulated;
+				QuadTreeGPU.Traverse(GraphBuilder, TraverseParams);
 				bNeedToTraverseGPUQuadTree = false;
+				WaterQuadTreeGPUTraverseParams = {};
 			}
 		};
 		GWaterMeshGPUWork.Callbacks.Add(MoveTemp(Callback));

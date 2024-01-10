@@ -24,7 +24,7 @@ public:
 	virtual void SetupViewFamily(FSceneViewFamily& InViewFamily) override;
 	virtual void PreRenderViewFamily_RenderThread(FRDGBuilder& GraphBuilder, FSceneViewFamily& InViewFamily) override;
 	virtual void PreRenderView_RenderThread(FRDGBuilder& GraphBuilder, FSceneView& InView) override;
-	virtual void PreRenderBasePass_RenderThread(FRDGBuilder& GraphBuilder) override;
+	virtual void PreRenderBasePass_RenderThread(FRDGBuilder& GraphBuilder, bool bDepthBufferIsPopulated) override;
 	// End FSceneViewExtensionBase implementation
 
 	void MarkWaterInfoTextureForRebuild(const UE::WaterInfo::FRenderingContext& RenderContext);
@@ -61,7 +61,7 @@ struct FWaterMeshGPUWork
 	struct FCallback
 	{
 		class FWaterMeshSceneProxy* Proxy = nullptr;
-		TFunction<void(FRDGBuilder&)> Function;
+		TFunction<void(FRDGBuilder&, bool)> Function;
 	};
 	TArray<FCallback> Callbacks;
 };
