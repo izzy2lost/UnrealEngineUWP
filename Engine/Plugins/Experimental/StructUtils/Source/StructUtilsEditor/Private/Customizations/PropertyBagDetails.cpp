@@ -997,7 +997,7 @@ FPropertyBagInstanceDataDetails::EPropertyOverrideState FPropertyBagInstanceData
 			NumValues++;
 			if (const UPropertyBag* Bag = PropertyBag.GetPropertyBagStruct())
 			{
-				const FPropertyBagPropertyDesc* PropertyDesc = Bag->FindPropertyDescByPropertyName(Property->GetFName());
+				const FPropertyBagPropertyDesc* PropertyDesc = Bag->FindPropertyDescByProperty(Property);
 				if (PropertyDesc && OverrideProvider.IsPropertyOverridden(PropertyDesc->ID))
 				{
 					NumOverrides++;
@@ -1039,7 +1039,7 @@ void FPropertyBagInstanceDataDetails::SetPropertyOverride(TSharedPtr<IPropertyHa
 		{
 			if (const UPropertyBag* Bag = PropertyBag.GetPropertyBagStruct())
 			{
-				if (const FPropertyBagPropertyDesc* PropertyDesc = Bag->FindPropertyDescByPropertyName(Property->GetFName()))
+				if (const FPropertyBagPropertyDesc* PropertyDesc = Bag->FindPropertyDescByProperty(Property))
 				{
 					OverrideProvider.SetPropertyOverride(PropertyDesc->ID, bIsOverridden);
 				}
@@ -1076,8 +1076,8 @@ bool FPropertyBagInstanceDataDetails::IsDefaultValue(TSharedPtr<IPropertyHandle>
 			const UPropertyBag* Bag = PropertyBag.GetPropertyBagStruct();
 			if (Bag && DefaultBag)
 			{
-				const FPropertyBagPropertyDesc* PropertyDesc = Bag->FindPropertyDescByName(Property->GetFName());
-				const FPropertyBagPropertyDesc* DefaultPropertyDesc = DefaultBag->FindPropertyDescByName(Property->GetFName());
+				const FPropertyBagPropertyDesc* PropertyDesc = Bag->FindPropertyDescByProperty(Property);
+				const FPropertyBagPropertyDesc* DefaultPropertyDesc = DefaultBag->FindPropertyDescByProperty(Property);
 				if (PropertyDesc
 					&& DefaultPropertyDesc
 					&& OverrideProvider.IsPropertyOverridden(PropertyDesc->ID))
@@ -1122,8 +1122,8 @@ void FPropertyBagInstanceDataDetails::ResetToDefault(TSharedPtr<IPropertyHandle>
 			const UPropertyBag* Bag = PropertyBag.GetPropertyBagStruct();
 			if (Bag && DefaultBag)
 			{
-				const FPropertyBagPropertyDesc* PropertyDesc = Bag->FindPropertyDescByName(Property->GetFName());
-				const FPropertyBagPropertyDesc* DefaultPropertyDesc = DefaultBag->FindPropertyDescByName(Property->GetFName());
+				const FPropertyBagPropertyDesc* PropertyDesc = Bag->FindPropertyDescByProperty(Property);
+				const FPropertyBagPropertyDesc* DefaultPropertyDesc = DefaultBag->FindPropertyDescByProperty(Property);
 				if (PropertyDesc
 					&& DefaultPropertyDesc
 					&& OverrideProvider.IsPropertyOverridden(PropertyDesc->ID))

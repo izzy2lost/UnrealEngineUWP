@@ -434,20 +434,21 @@ struct STRUCTUTILS_API FInstancedPropertyBag
 	void MigrateToNewBagStruct(const UPropertyBag* NewBagStruct);
 
 	/**
-	 * Changes the type of this bag to the specified other bag, copies base values from the other bag, and migrates existing values over.
+	 * Changes the type of this bag to the InNewBagInstance, and migrates existing values over.
+	 * Properties that do not exist in this bag will get values from NewBagInstance.
 	 * The properties are matched between the bags based on the property ID.
-	 * @param NewBagInstance Reference to the new type.
+	 * @param InNewBagInstance New bag composition and values used for new properties.
 	 */
-	void MigrateToNewBagInstance(const FInstancedPropertyBag& NewBagInstance);
+	void MigrateToNewBagInstance(const FInstancedPropertyBag& InNewBagInstance);
 
 	/**
-	 * Changes the type of this bag to the specified other bag, copies base values from the other bag,
-	 * and migrates existing values over if marked as overridden in the OverriddenPropertyIDs.
+	 * Changes the type of this bag to the InNewBagInstance, and migrates existing values over if marked as overridden in the OverriddenPropertyIDs.
+	 * Properties that does not exist in this bag, or are not overridden, will get values from InNewBagInstance.
 	 * The properties are matched between the bags based on the property ID.
-	 * @param NewBagInstance Reference to the new type.
+	 * @param InNewBagInstance New bag composition and values used for new properties.
 	 * @param OverriddenPropertyIDs Array if property IDs which should be copied over to the new instance. 
 	 */
-	void MigrateToNewBagInstanceWithOverrides(const FInstancedPropertyBag& NewBagInstance, TConstArrayView<FGuid> OverriddenPropertyIDs);
+	void MigrateToNewBagInstanceWithOverrides(const FInstancedPropertyBag& InNewBagInstance, TConstArrayView<FGuid> OverriddenPropertyIDs);
 
 	/** @return pointer to the property bag struct. */ 
 	const UPropertyBag* GetPropertyBagStruct() const;
@@ -885,6 +886,9 @@ public:
 
 	/** @return property description based on the created property name. The name can be different from the descriptor name due to name sanitization. */
 	const FPropertyBagPropertyDesc* FindPropertyDescByPropertyName(const FName PropertyName) const;
+
+	/** @return property description based on pointer to property. */
+	const FPropertyBagPropertyDesc* FindPropertyDescByProperty(const FProperty* Property) const;
 
 #if WITH_ENGINE && WITH_EDITOR
 	/** @return true if any of the properties on the bag has type of the specified user defined struct. */
