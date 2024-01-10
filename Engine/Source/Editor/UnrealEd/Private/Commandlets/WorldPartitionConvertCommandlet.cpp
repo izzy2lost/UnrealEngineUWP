@@ -242,13 +242,9 @@ UWorldPartition* UWorldPartitionConvertCommandlet::CreateWorldPartition(AWorldSe
 		WorldPartition->RuntimeHash->LoadConfig(*RuntimeHashClass, *LevelConfigFilename);
 
 		// Use specified existing default HLOD layer if valid 
-		if (UHLODLayer* ExistingHLODLayer = LoadObject<UHLODLayer>(NULL, *DefaultHLODLayerAsset, nullptr, LOAD_NoWarn))
+		if (UHLODLayer* ExistingHLODLayer = LoadObject<UHLODLayer>(NULL, *DefaultHLODLayerAsset.ToString(), nullptr, LOAD_NoWarn))
 		{
 			WorldPartition->DefaultHLODLayer = ExistingHLODLayer;
-		}
-		else if(UHLODLayer* FoundLayer = HLODLayers.FindRef(DefaultHLODLayerName))
-		{
-			WorldPartition->DefaultHLODLayer = FoundLayer;
 		}
 	}
 
@@ -583,40 +579,6 @@ bool UWorldPartitionConvertCommandlet::RenameWorldPackageWithSuffix(UWorld* Worl
 	return true;
 }
 
-
-UHLODLayer* UWorldPartitionConvertCommandlet::CreateHLODLayerFromINI(const FString& InHLODLayerName)
-{
-	const FString PackagePath = HLODLayerAssetsPath / InHLODLayerName;
-	UPackage* AssetPackage = CreatePackage(*PackagePath);
-	if (!AssetPackage)
-	{
-		UE_LOG(LogWorldPartitionConvertCommandlet, Error, TEXT("Package \"%s\" creation failed"), *PackagePath);
-		return nullptr;
-	}
-
-	// Make sure we overwrite any existing HLODLayer asset package
-	AssetPackage->MarkAsFullyLoaded();
-
-	UHLODLayer* HLODLayer = NewObject<UHLODLayer>(AssetPackage, *InHLODLayerName, RF_Public | RF_Standalone);
-	if (!HLODLayer)
-	{
-		UE_LOG(LogWorldPartitionConvertCommandlet, Error, TEXT("HLODLayer \"%s\" creation failed"), *InHLODLayerName);
-		return nullptr;
-	}
-
-	HLODLayer->LoadConfig(nullptr, *LevelConfigFilename);
-
-	// Notify the asset registry
-	FAssetRegistryModule::AssetCreated(HLODLayer);
-
-	// Mark the package dirty...
-	HLODLayer->Modify();
-
-	PackagesToSave.Add(HLODLayer->GetOutermost());
-
-	return HLODLayer;
-}
-
 void UWorldPartitionConvertCommandlet::SetupHLOD()
 {
 	// No need to spawn HLOD actors during the conversion
@@ -627,23 +589,13 @@ void UWorldPartitionConvertCommandlet::SetupHLOD()
 
 void UWorldPartitionConvertCommandlet::SetupHLODLayerAssets()
 {
-	TArray<FString> HLODLayerSectionsNames;
-	if (GConfig->GetPerObjectConfigSections(LevelConfigFilename, TEXT("HLODLayer"), HLODLayerSectionsNames))
-	{
-		for(const FString& HLODLayerSectionName : HLODLayerSectionsNames)
-		{
-			FString HLODLayerName(*HLODLayerSectionName.Left(HLODLayerSectionName.Find(TEXT(" "))));
-			UHLODLayer* HLODLayer = CreateHLODLayerFromINI(HLODLayerName);
-			HLODLayers.Add(HLODLayerName, HLODLayer);
-		}
-	}
-
 	// Assign HLOD layers to the classes listed in the level config
 	for (const FHLODLayerActorMapping& Entry : HLODLayersForActorClasses)
 	{
-		UHLODLayer* HLODLayer = HLODLayers.FindRef(Entry.HLODLayer);
-		if (!ensure(HLODLayer))
+		UHLODLayer* HLODLayer = LoadObject<UHLODLayer>(NULL, *Entry.HLODLayer.ToString(), nullptr, LOAD_NoWarn);
+		if (!HLODLayer)
 		{
+			UE_LOG(LogWorldPartitionConvertCommandlet, Warning, TEXT("Unable to load HLOD Layer %s, skipping assignment to class %s"), *Entry.HLODLayer.ToString(), *Entry.ActorClass.ToString());
 			continue;
 		}
 
@@ -1713,11 +1665,6 @@ int32 UWorldPartitionConvertCommandlet::Main(const FString& Params)
 			{
 				WorldPartition->EditorHash->SaveConfig(CPF_Config, *LevelConfigFilename);
 				WorldPartition->RuntimeHash->SaveConfig(CPF_Config, *LevelConfigFilename);
-			}
-			
-			for(const auto& Pair : HLODLayers)
-			{
-				Pair.Value->SaveConfig(CPF_Config, *LevelConfigFilename);
 			}
 
 			UE_LOG(LogWorldPartitionConvertCommandlet, Display, TEXT("Generated ini file: %s"), *LevelConfigFilename);

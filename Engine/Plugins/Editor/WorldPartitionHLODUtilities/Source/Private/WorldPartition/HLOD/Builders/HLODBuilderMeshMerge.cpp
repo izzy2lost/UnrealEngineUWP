@@ -62,15 +62,11 @@ uint32 UHLODBuilderMeshMergeSettings::GetCRC() const
 
 	uint32 Hash = Ar.GetCrc();
 
-	if (!HLODMaterial.IsNull())
+	if (HLODMaterial)
 	{
-		UMaterialInterface* Material = HLODMaterial.LoadSynchronous();
-		if (Material)
-		{
-			uint32 MaterialCRC = UHLODProxy::GetCRC(Material);
-			UE_LOG(LogHLODBuilder, VeryVerbose, TEXT(" - Material = %d"), MaterialCRC);
-			Hash = HashCombine(Hash, MaterialCRC);
-		}
+		uint32 MaterialCRC = UHLODProxy::GetCRC(HLODMaterial);
+		UE_LOG(LogHLODBuilder, VeryVerbose, TEXT(" - Material = %d"), MaterialCRC);
+		Hash = HashCombine(Hash, MaterialCRC);
 	}
 
 	return Hash;
@@ -92,7 +88,7 @@ TArray<UActorComponent*> UHLODBuilderMeshMerge::Build(const FHLODBuildContext& I
 
 	const UHLODBuilderMeshMergeSettings* MeshMergeSettings = CastChecked<UHLODBuilderMeshMergeSettings>(HLODBuilderSettings);
 	FMeshMergingSettings UseSettings = MeshMergeSettings->MeshMergeSettings; // Make a copy as we may tweak some values
-	UMaterialInterface* HLODMaterial = MeshMergeSettings->HLODMaterial.LoadSynchronous();
+	UMaterialInterface* HLODMaterial = MeshMergeSettings->HLODMaterial;
 
 	// When using automatic texture sizing based on draw distance, use the MinVisibleDistance for this HLOD.
 	if (UseSettings.MaterialSettings.TextureSizingType == TextureSizingType_AutomaticFromMeshDrawDistance)
