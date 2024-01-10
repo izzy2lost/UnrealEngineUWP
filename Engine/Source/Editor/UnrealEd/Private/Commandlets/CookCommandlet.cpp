@@ -516,6 +516,14 @@ void UCookCommandlet::RunCookByTheBookCook(UCookOnTheFlyServer* CookOnTheFlyServ
 	bool bTestCook = EnumHasAnyFlags(CookOnTheFlyServer->GetCookFlags(), ECookInitializationFlags::TestCook);
 
 #if ENABLE_LOW_LEVEL_MEM_TRACKER
+	FDelegateHandle FlushUpdateHandle = FCoreDelegates::OnAsyncLoadingFlushUpdate.AddLambda([]()
+		{
+			FLowLevelMemTracker::Get().UpdateStatsPerFrame();
+		});
+	FDelegateHandle FlushHandle = FCoreDelegates::OnAsyncLoadingFlush.AddLambda([]()
+		{
+			FLowLevelMemTracker::Get().UpdateStatsPerFrame();
+		});
 	FLowLevelMemTracker::Get().UpdateStatsPerFrame();
 #endif
 	bool bShouldVerifyEDLCookInfo = false;
@@ -550,6 +558,11 @@ void UCookCommandlet::RunCookByTheBookCook(UCookOnTheFlyServer* CookOnTheFlyServ
 #endif
 			}, bFullReferencesExpected);
 	}
+
+#if ENABLE_LOW_LEVEL_MEM_TRACKER
+	FCoreDelegates::OnAsyncLoadingFlushUpdate.Remove(FlushUpdateHandle);
+	FCoreDelegates::OnAsyncLoadingFlush.Remove(FlushHandle);
+#endif
 }
 
 bool UCookCommandlet::CookAsCookWorker()

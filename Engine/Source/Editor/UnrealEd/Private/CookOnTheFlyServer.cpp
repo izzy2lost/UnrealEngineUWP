@@ -2781,6 +2781,9 @@ void UCookOnTheFlyServer::PumpLoads(UE::Cook::FTickStackData& StackData, uint32 
 		LoadPackageInQueue(PackageData, StackData.ResultFlags, NumPushed);
 		OutNumPushed += NumPushed;
 		ProcessUnsolicitedPackages(); // May add new packages into the LoadQueue
+#if ENABLE_LOW_LEVEL_MEM_TRACKER
+		FLowLevelMemTracker::Get().UpdateStatsPerFrame();
+#endif
 
 		if (PumpHasExceededMaxMemory(StackData.ResultFlags))
 		{
@@ -4566,6 +4569,9 @@ void UCookOnTheFlyServer::PumpSaves(UE::Cook::FTickStackData& StackData, uint32 
 		ReleaseCookedPlatformData(PackageData, !Context.bHasRetryErrorCode ? EStateChangeReason::Completed : EStateChangeReason::DoneForNow);
 		PromoteToSaveComplete(PackageData, ESendFlags::QueueAdd);
 		++OutNumPushed;
+#if ENABLE_LOW_LEVEL_MEM_TRACKER
+		FLowLevelMemTracker::Get().UpdateStatsPerFrame();
+#endif
 	}
 }
 
@@ -8557,6 +8563,9 @@ void UCookOnTheFlyServer::BlockOnAssetRegistry(TConstArrayView<FString> Commandl
 	{
 		AssetRegistry->ClearGathererCache();
 	}
+#if ENABLE_LOW_LEVEL_MEM_TRACKER
+	FLowLevelMemTracker::Get().UpdateStatsPerFrame();
+#endif
 }
 
 void UCookOnTheFlyServer::RefreshPlatformAssetRegistries(const TArrayView<const ITargetPlatform* const>& TargetPlatforms)
@@ -11143,10 +11152,7 @@ void UCookOnTheFlyServer::StartCookByTheBook( const FCookByTheBookStartupOptions
 	RecordDLCPackagesFromBaseGame(BeginContext);
 	RegisterCookByTheBookDelegates();
 
-	PRAGMA_DISABLE_DEPRECATION_WARNINGS;
-	CookByTheBookStartedEvent.Broadcast();
-	PRAGMA_ENABLE_DEPRECATION_WARNINGS;
-	UE::Cook::FDelegates::CookByTheBookStarted.Broadcast(*this);
+	BroadcastCookByTheBookStarted();
 }
 
 const UCookOnTheFlyServer::FCookByTheBookStartupOptions& UCookOnTheFlyServer::BlockOnPrebootCookGate(bool& bOutAbortCook,
@@ -11322,10 +11328,7 @@ void UCookOnTheFlyServer::StartCookAsCookWorker()
 	{
 		RegisterCookByTheBookDelegates();
 		BeginCookFinishShaderCodeLibrary(BeginContext);
-		PRAGMA_DISABLE_DEPRECATION_WARNINGS;
-		CookByTheBookStartedEvent.Broadcast();
-		PRAGMA_ENABLE_DEPRECATION_WARNINGS;
-		UE::Cook::FDelegates::CookByTheBookStarted.Broadcast(*this);
+		BroadcastCookByTheBookStarted();
 	}
 }
 
@@ -13032,6 +13035,17 @@ void ConditionalWaitOnCommandFile(FStringView GateName, TFunctionRef<void (FStri
 	}
 
 	CommandHandler(CommandContents);
+}
+
+void UCookOnTheFlyServer::BroadcastCookByTheBookStarted()
+{
+	PRAGMA_DISABLE_DEPRECATION_WARNINGS;
+	CookByTheBookStartedEvent.Broadcast();
+	PRAGMA_ENABLE_DEPRECATION_WARNINGS;
+	UE::Cook::FDelegates::CookByTheBookStarted.Broadcast(*this);
+#if ENABLE_LOW_LEVEL_MEM_TRACKER
+	FLowLevelMemTracker::Get().UpdateStatsPerFrame();
+#endif
 }
 
 #undef LOCTEXT_NAMESPACE
