@@ -392,9 +392,12 @@ public:
 	// UObject Interface
 
 	/** Get the caches assigned GUID, this can be set from a user or will be auto created on first write of the cache. */
-	const FGuid& GetCacheGuid() { return CacheGuid; }
+	const FGuid& GetCacheGuid() const { return CacheGuid; }
 	/** Set the caches GUID to use. */
 	void SetCacheGuid(const FGuid& InGuid) { CacheGuid = InGuid; }
+
+	/** Get the system asset this cache was created from. */
+	TSoftObjectPtr<UNiagaraSystem> GetSystemAsset() const { return SoftNiagaraSystem; }
 
 	/** A valid cache is one that contains at least 1 frames worth of data. */
 	UFUNCTION(BlueprintCallable, Category=NiagaraSimCache, meta=(DisplayName="IsValid"))
