@@ -6154,13 +6154,6 @@ void FScene::UpdateAllPrimitiveSceneInfos(FRDGBuilder& GraphBuilder, EUpdateAllP
 
 			DistanceFieldSceneData.UpdatePrimitive(PrimitiveSceneInfo);
 			LumenUpdatePrimitive(PrimitiveSceneInfo);
-		#if RHI_RAYTRACING
-			// Don't do this for things with an instance update coming!
-			if (!UpdatedInstances.Find(PrimitiveSceneInfo->Proxy))
-			{
-				PrimitiveSceneInfo->UpdateCachedRayTracingInstanceWorldBounds(LocalToWorld);
-			}
-		#endif
 
 			// If the primitive has static mesh elements, it should have returned true from ShouldRecreateProxyOnUpdateTransform!
 			check(!(bUpdateStaticDrawLists && PrimitiveSceneInfo->StaticMeshes.Num()));

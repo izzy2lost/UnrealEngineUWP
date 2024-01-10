@@ -874,19 +874,10 @@ namespace RayTracing
 
 				TRACE_CPUPROFILER_EVENT_SCOPE(RayTracingSceneStaticInstanceTask);
 
-				FGraphEventArray CullingTasks;
-
 				const bool bAutoInstance = CVarRayTracingAutoInstance.GetValueOnRenderThread() != 0;
 
 				// Instance batches by FRelevantPrimitive::InstancingKey()
 				Experimental::TSherwoodMap<uint64, FAutoInstanceBatch> InstanceBatches;
-
-				TArray<FRayTracingCullPrimitiveInstancesClosure> CullInstancesClosures;
-				if (CullingParameters.CullingMode != RayTracing::ECullingMode::Disabled && GetRayTracingCullingPerInstance())
-				{
-					CullInstancesClosures.Reserve(RelevantStaticPrimitives.Num());
-					CullingTasks.Reserve(RelevantStaticPrimitives.Num() / 256 + 1);
-				}
 
 				// scan relevant primitives computing hash data to look for duplicate instances
 				for (const FRelevantPrimitive& RelevantPrimitive : RelevantStaticPrimitives)
@@ -935,39 +926,6 @@ namespace RayTracing
 							AddDebugRayTracingInstanceFlags(NewInstance.Flags);
 
 							NewInstance.LayerIndex = (uint8)(RelevantPrimitive.bAnySegmentsDecal && !bNeedSeparateDecalInstance ? ERayTracingSceneLayer::Decals : ERayTracingSceneLayer::Base);
-
-							const Experimental::FHashElementId GroupId = Scene.PrimitiveRayTracingGroupIds[PrimitiveIndex];
-							const bool bUseGroupBounds = CullingParameters.bCullUsingGroupIds && GroupId.IsValid();
-
-							if (CullingParameters.CullingMode != RayTracing::ECullingMode::Disabled && GetRayTracingCullingPerInstance() && RelevantPrimitive.CachedRayTracingInstance->NumTransforms > 1 && !bUseGroupBounds && !CullingParameters.bUseGPUInstanceCulling)
-							{
-								const bool bIsFarFieldPrimitive = EnumHasAnyFlags(Flags, ERayTracingPrimitiveFlags::FarField);
-
-								TArrayView<uint32> InstanceActivationMask = RayTracingScene.Allocate<uint32>(FMath::DivideAndRoundUp(NewInstance.NumTransforms, 32u));
-
-								NewInstance.ActivationMask = InstanceActivationMask;
-
-								FRayTracingCullPrimitiveInstancesClosure Closure;
-								Closure.Scene = &Scene;
-								Closure.SceneInfo = SceneInfo;
-								Closure.PrimitiveIndex = PrimitiveIndex;
-								Closure.bIsFarFieldPrimitive = bIsFarFieldPrimitive;
-								Closure.CullingParameters = &CullingParameters;
-								Closure.OutInstanceActivationMask = InstanceActivationMask;
-
-								CullInstancesClosures.Add(MoveTemp(Closure));
-
-								if (CullInstancesClosures.Num() >= 256)
-								{
-									CullingTasks.Add(FFunctionGraphTask::CreateAndDispatchWhenReady([CullInstancesClosures = MoveTemp(CullInstancesClosures)]()
-										{
-											for (auto& Closure : CullInstancesClosures)
-											{
-												Closure();
-											}
-										}, TStatId(), nullptr, ENamedThreads::AnyThread));
-								}
-							}
 
 							if (bNeedSeparateDecalInstance && !GRayTracingExcludeDecals)
 							{
@@ -1128,22 +1086,6 @@ namespace RayTracing
 								}
 							}
 						}
-					}
-				}
-
-				if (!CullingParameters.bUseGPUInstanceCulling)
-				{
-					CullingTasks.Add(FFunctionGraphTask::CreateAndDispatchWhenReady([CullInstancesClosures = MoveTemp(CullInstancesClosures)]()
-						{
-							for (auto& Closure : CullInstancesClosures)
-							{
-								Closure();
-							}
-						}, TStatId(), nullptr, ENamedThreads::AnyThread));
-
-					for (FGraphEventRef& CullingTask : CullingTasks)
-					{
-						MyCompletionGraphEvent->DontCompleteUntil(CullingTask);
 					}
 				}
 			}

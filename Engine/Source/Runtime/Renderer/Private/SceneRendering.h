@@ -1173,7 +1173,7 @@ struct FRayTracingCullingParameters
 	bool bIsRayTracingFarField;
 	bool bCullUsingGroupIds;
 	bool bCullMinDrawDistance;
-	bool bUseGPUInstanceCulling;
+	bool bUseInstanceCulling;
 
 	void Init(FViewInfo& View);
 };

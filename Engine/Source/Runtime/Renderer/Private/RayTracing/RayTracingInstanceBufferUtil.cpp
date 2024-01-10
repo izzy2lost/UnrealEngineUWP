@@ -182,9 +182,7 @@ void FillRayTracingInstanceUploadBuffer(
 			const uint32 NumTransforms = SceneInstance.NumTransforms;
 
 			checkf(SceneInstance.UserData.Num() == 0 || SceneInstance.UserData.Num() >= int32(NumTransforms),
-				TEXT("User data array must be either be empty (Instance.DefaultUserData is used), or contain one entry per entry in Transforms array."));
-
-			check(SceneInstance.ActivationMask.IsEmpty() || SceneInstance.ActivationMask.Num() * 32 >= int32(NumTransforms));
+				TEXT("User data array must be either be empty (Instance.DefaultUserData is used), or contain one entry per entry in Transforms array."));			
 
 			const bool bUseUniqueUserData = SceneInstance.UserData.Num() != 0;
 
@@ -243,12 +241,7 @@ void FillRayTracingInstanceUploadBuffer(
 				checkf(InstanceDesc.InstanceId <= 0xFFFFFF, TEXT("InstanceId must fit in 24 bits."));
 				checkf(InstanceDesc.InstanceContributionToHitGroupIndex <= 0xFFFFFF, TEXT("InstanceContributionToHitGroupIndex must fit in 24 bits."));
 
-				if (!SceneInstance.ActivationMask.IsEmpty() && (SceneInstance.ActivationMask[TransformIndex / 32] & (1 << (TransformIndex % 32))) == 0)
-				{
-					// Set flag for deactivated instances
-					InstanceDesc.AccelerationStructureIndex = 0xFFFFFFFF;
-					NumInactiveNativeInstancesThisSceneInstance++;
-				} else if (bCpuInstance)
+				if (bCpuInstance)
 				{
 					const uint32 TransformDataOffset = InstanceDesc.GPUSceneInstanceOrTransformIndex * 3;
 					FMatrix LocalToTranslatedWorld = SceneInstance.Transforms[TransformIndex].ConcatTranslation(PreViewTranslation);

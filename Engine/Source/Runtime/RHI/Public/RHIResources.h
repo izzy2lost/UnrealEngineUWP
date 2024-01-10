@@ -2847,7 +2847,16 @@ class FRHIRayTracingGeometry;
 * All instances covered by this descriptor will share shader bindings, but may have different transforms and user data.
 */
 struct FRayTracingGeometryInstance
-{	
+{
+	PRAGMA_DISABLE_DEPRECATION_WARNINGS
+	FRayTracingGeometryInstance() = default;
+	FRayTracingGeometryInstance(const FRayTracingGeometryInstance&) = default;
+	FRayTracingGeometryInstance& operator=(const FRayTracingGeometryInstance&) = default;
+	FRayTracingGeometryInstance(FRayTracingGeometryInstance&&) = default;
+	FRayTracingGeometryInstance& operator=(FRayTracingGeometryInstance&&) = default;
+	~FRayTracingGeometryInstance() = default;
+	PRAGMA_ENABLE_DEPRECATION_WARNINGS
+
 	FRHIRayTracingGeometry* GeometryRHI = nullptr;
 
 	// A single physical mesh may be duplicated many times in the scene with different transforms and user data.
@@ -2875,6 +2884,7 @@ struct FRayTracingGeometryInstance
 	TArrayView<const uint32> UserData;
 
 	// Each geometry copy can have one bit to make it individually deactivated (removed from TLAS while maintaining hit group indexing). Useful for culling.
+	UE_DEPRECATED(5.4, "ActivationMask has been deprecated.")
 	TArrayView<const uint32> ActivationMask;
 
 	// Whether local bounds scale and center translation should be applied to the instance transform.

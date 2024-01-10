@@ -690,8 +690,6 @@ public:
 	TArray<uint64> CachedRayTracingMeshCommandsHashPerLOD;
 	// TODO: this should be placed in FRayTracingScene and we have a pointer/handle here. It's here for now for PoC
 	FRayTracingGeometryInstance CachedRayTracingInstance;
-	TArray<FBoxSphereBounds> CachedRayTracingInstanceWorldBounds;
-	int32 SmallestRayTracingInstanceWorldBoundsIndex;
 #endif
 
 private:
@@ -757,7 +755,8 @@ private:
 	void RemoveCachedRayTracingPrimitives();
 
 	/** Updates cached world bounds in CachedRayTracingInstance */
-	void UpdateCachedRayTracingInstanceWorldBounds(const FMatrix& NewPrimitiveLocalToWorld);
+	UE_DEPRECATED(5.4, "UpdateCachedRayTracingInstanceWorldBounds has been deprecated.")
+	void UpdateCachedRayTracingInstanceWorldBounds(const FMatrix& NewPrimitiveLocalToWorld) {};
 
 	/** Updates cached ray tracing instances. Utility closely mirrors CacheRayTracingPrimitives(..) */
 	static void UpdateCachedRayTracingInstances(FScene* Scene, const TArrayView<FPrimitiveSceneInfo*>& SceneInfos);

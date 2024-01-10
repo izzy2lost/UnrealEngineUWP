@@ -1170,11 +1170,6 @@ void FPrimitiveSceneInfo::UpdateCachedRayTracingInstance(FPrimitiveSceneInfo* Sc
 		SceneInfo->CachedRayTracingInstance.NumTransforms = CachedRayTracingInstance.NumTransforms;
 		SceneInfo->CachedRayTracingInstance.BaseInstanceSceneDataOffset = SceneInfo->GetInstanceSceneDataOffset();
 
-		SceneInfo->CachedRayTracingInstanceWorldBounds.Empty();
-		SceneInfo->CachedRayTracingInstanceWorldBounds.AddUninitialized(CachedRayTracingInstance.NumTransforms);
-
-		SceneInfo->UpdateCachedRayTracingInstanceWorldBounds(SceneProxy->GetLocalToWorld());
-
 		SceneInfo->CachedRayTracingGeometry = CachedRayTracingInstance.Geometry;
 
 		if (Nanite::GetRayTracingMode() != Nanite::ERayTracingMode::Fallback && SceneProxy->IsNaniteMesh())
@@ -1231,36 +1226,6 @@ void FPrimitiveSceneInfo::RemoveCachedRayTracingPrimitives()
 		CachedRayTracingMeshCommandIndicesPerLOD.Empty();
 
 		CachedRayTracingMeshCommandsHashPerLOD.Empty();
-	}
-}
-
-void FPrimitiveSceneInfo::UpdateCachedRayTracingInstanceWorldBounds(const FMatrix& NewPrimitiveLocalToWorld)
-{
-	QUICK_SCOPE_CYCLE_COUNTER(STAT_UpdateCachedRayTracingInstanceWorldBounds);
-	TRACE_CPUPROFILER_EVENT_SCOPE(UpdateCachedRayTracingInstanceWorldBounds);
-
-	if (CachedRayTracingInstanceWorldBounds.IsEmpty())
-	{
-		return;
-	}
-	
-	SmallestRayTracingInstanceWorldBoundsIndex = 0;
-
-	const FInstanceSceneDataBuffers *InstanceSceneDataBuffers = GetInstanceSceneDataBuffers();
-	if (InstanceSceneDataBuffers && InstanceSceneDataBuffers->GetNumInstances() > 0)
-	{
-		for (int32 Index = 0; Index < CachedRayTracingInstanceWorldBounds.Num(); Index++)
-		{
-			FBoxSphereBounds WorldSpaceBounds = InstanceSceneDataBuffers->GetInstanceWorldBounds(Index);
-			CachedRayTracingInstanceWorldBounds[Index] = WorldSpaceBounds;
-			SmallestRayTracingInstanceWorldBoundsIndex = WorldSpaceBounds.SphereRadius < CachedRayTracingInstanceWorldBounds[SmallestRayTracingInstanceWorldBoundsIndex].SphereRadius ? Index : SmallestRayTracingInstanceWorldBoundsIndex;
-		}
-	}
-	else
-	{
-		check(CachedRayTracingInstanceWorldBounds.Num() == 1);
-		CachedRayTracingInstanceWorldBounds[0] = Proxy->GetBounds();
-		SmallestRayTracingInstanceWorldBoundsIndex = 0;
 	}
 }
 #endif
