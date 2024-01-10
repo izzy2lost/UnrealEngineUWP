@@ -10,4 +10,9 @@ UCLASS(Config=Game)
 class INSTANCEDACTORS_API AInstancedActorsManager : public APartitionActor
 {
 	GENERATED_BODY()
+
+#if WITH_EDITOR
+	//~ Begin AActor Interface
+	virtual uint32 GetDefaultGridSize(UWorld* InWorld) const override;
+#endif
 };
