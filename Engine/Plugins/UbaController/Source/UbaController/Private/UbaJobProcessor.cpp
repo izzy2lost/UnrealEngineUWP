@@ -352,6 +352,8 @@ uint32 FUbaJobProcessor::Run()
 		FPlatformProcess::Sleep(UbaJobProcessorOptions::SleepTimeBetweenActions);
 	}
 
+	ShutDownUba();
+
 	bIsWorkDone = true;
 	return 0;
 }

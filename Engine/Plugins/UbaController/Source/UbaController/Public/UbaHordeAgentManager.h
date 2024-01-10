@@ -17,14 +17,15 @@ public:
 	void SetTargetCoreCount(uint32 Count);
 
 private:
-	void RequestAgent();
-	void ParseConfig();
-
 	struct FHordeAgentWrapper
 	{
 		FThread Thread;
 		FEvent* ShouldExit;
 	};
+
+	void RequestAgent();
+	void ThreadAgent(FHordeAgentWrapper& Wrapper);
+	void ParseConfig();
 
 	uba::NetworkServer* UbaServer;
 
