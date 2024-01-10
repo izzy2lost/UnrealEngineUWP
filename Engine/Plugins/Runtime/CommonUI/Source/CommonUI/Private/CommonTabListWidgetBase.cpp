@@ -167,11 +167,13 @@ void UCommonTabListWidgetBase::RemoveAllTabs()
 		if (UCommonButtonBase* const TabButton =  Iter->Value.TabButton)
 		{
 			TabButton->RemoveFromParent();
-
-			RegisteredTabsByID.Remove(Iter->Key);
 			
-			HandleTabRemoval(Iter->Key, TabButton);
-			OnTabButtonRemoval.Broadcast(Iter->Key, TabButton);
+			const FName Key = Iter->Key;
+
+			RegisteredTabsByID.Remove(Key);
+			
+			HandleTabRemoval(Key, TabButton);
+			OnTabButtonRemoval.Broadcast(Key, TabButton);
 		}
 	}
 }
