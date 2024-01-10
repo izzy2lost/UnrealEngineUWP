@@ -2745,6 +2745,7 @@ static void AddHairAuxilaryPass(
 	const FRDGBufferRef& HairSampleData,
 	FRDGTextureRef Output0,
 	FRDGTextureRef Output1,
+	FRDGTextureRef Output2,
 	FRDGTextureRef OutColorTexture,
 	FRDGTextureRef OutDepthTexture,
 	FRDGTextureRef OutLightChannelMaskTexture)
@@ -2777,6 +2778,7 @@ static void AddHairAuxilaryPass(
 		Parameters->RenderTargets[0] = FRenderTargetBinding(Output0, ERenderTargetLoadAction::ELoad, 0 /*Mip-0*/, 0/*First slice, which contains state/counter*/);
 		Parameters->RenderTargets[1] = FRenderTargetBinding(Output1, ERenderTargetLoadAction::ELoad);
 		Parameters->RenderTargets[2] = FRenderTargetBinding(OutColorTexture, ERenderTargetLoadAction::ELoad);
+		Parameters->RenderTargets[3] = FRenderTargetBinding(Output2, ERenderTargetLoadAction::ELoad);
 	}
 
 	if (PassType == EHairAuxilaryPassType::MaterialData_LightChannelMask || PassType == EHairAuxilaryPassType::LightChannelMask)
@@ -2865,6 +2867,7 @@ static FRDGTextureRef AddHairLightChannelMaskPass(
 		nullptr,
 		nullptr,
 		nullptr,
+		nullptr,
 		SceneDepthTexture,
 		OutLightChannelMask);
 	return OutLightChannelMask;
@@ -2881,6 +2884,7 @@ static void AddHairMaterialDataPatchPass(
 	const FRDGBufferRef& HairSampleData,
 	FRDGTextureRef& OutMaterial0,
 	FRDGTextureRef& OutMaterial1,
+	FRDGTextureRef& OutMaterial2,
 	FRDGTextureRef& OutColorTexture,
 	FRDGTextureRef& OutDepthTexture,
 	FRDGTextureRef& OutLightChannelMask)
@@ -2917,6 +2921,7 @@ static void AddHairMaterialDataPatchPass(
 		HairSampleData,
 		OutMaterial0,
 		OutMaterial1,
+		OutMaterial2,
 		OutColorTexture,
 		OutDepthTexture,
 		OutLightChannelMask);
@@ -2951,6 +2956,7 @@ static void AddHairOnlyDepthPass(
 			nullptr,
 			nullptr,
 			nullptr,
+			nullptr,
 			OutDepthTexture,
 			nullptr);
 	}
@@ -2964,6 +2970,7 @@ static void AddHairOnlyDepthPass(
 		CoverageTexture,
 		HairSampleOffset,
 		HairSampleData,
+		nullptr,
 		nullptr,
 		nullptr,
 		nullptr,
@@ -4606,15 +4613,18 @@ void RenderHairStrandsVisibilityBuffer(
 
 	FRDGTextureRef SceneMaterial0 = nullptr;
 	FRDGTextureRef SceneMaterial1 = nullptr;
+	FRDGTextureRef SceneMaterial2 = nullptr;
 	if (Substrate::IsSubstrateEnabled())
 	{
 		SceneMaterial0 = View.SubstrateViewData.SceneData->MaterialTextureArray;
 		SceneMaterial1 = View.SubstrateViewData.SceneData->TopLayerTexture;
+		SceneMaterial2 = nullptr;
 	}
 	else
 	{
 		SceneMaterial0 = SceneGBufferBTexture;
 		SceneMaterial1 = SceneGBufferCTexture;
+		SceneMaterial2 = SceneGBufferATexture;
 	}
 
 	{
@@ -4728,6 +4738,7 @@ void RenderHairStrandsVisibilityBuffer(
 						CompactNodeData,
 						SceneMaterial0,
 						SceneMaterial1,
+						SceneMaterial2,
 						SceneColorTexture,
 						SceneDepthTexture,
 						VisibilityData.LightChannelMaskTexture);
@@ -4844,6 +4855,7 @@ void RenderHairStrandsVisibilityBuffer(
 						CompactNodeData,
 						SceneMaterial0,
 						SceneMaterial1,
+						SceneMaterial2,
 						SceneColorTexture,
 						SceneDepthTexture,
 						VisibilityData.LightChannelMaskTexture);
@@ -5040,6 +5052,7 @@ void RenderHairStrandsVisibilityBuffer(
 							CompactNodeData,
 							SceneMaterial0,
 							SceneMaterial1,
+							SceneMaterial2,
 							SceneColorTexture,
 							SceneDepthTexture,
 							VisibilityData.LightChannelMaskTexture);
@@ -5179,6 +5192,7 @@ void RenderHairStrandsVisibilityBuffer(
 						CompactNodeData,
 						SceneMaterial0,
 						SceneMaterial1,
+						SceneMaterial2,
 						SceneColorTexture,
 						SceneDepthTexture,
 						VisibilityData.LightChannelMaskTexture);

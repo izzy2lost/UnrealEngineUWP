@@ -1737,6 +1737,7 @@ FHairGroupPublicData::FVertexFactoryInput InternalComputeHairStrandsVertexInputD
 	OutVFInput.Strands.Common.Flags |= Instance->Strands.Modifier.bUseStableRasterization ? HAIR_FLAGS_STABLE_RASTER : 0u;
 	OutVFInput.Strands.Common.Flags |= bRaytracingGeometry ? HAIR_FLAGS_RAYTRACING_GEOMETRY : 0u;
 	OutVFInput.Strands.Common.Flags |= Instance->Debug.Proxy->Holdout() ? HAIR_FLAGS_HOLDOUT : 0u;
+	OutVFInput.Strands.Common.Flags |= Instance->Debug.Proxy->CastsContactShadow() ? HAIR_FLAGS_CAST_CONTACT_SHADOW : 0u;
 	OutVFInput.Strands.Common.RaytracingProceduralSplits = GetHairRaytracingProceduralSplits();
 	OutVFInput.Strands.Common.GroupIndex = Instance->Debug.GroupIndex;
 	OutVFInput.Strands.Common.GroupCount = Instance->Debug.GroupCount;

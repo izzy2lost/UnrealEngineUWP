@@ -105,6 +105,7 @@
 #define HAIR_FLAGS_STABLE_RASTER 2u
 #define HAIR_FLAGS_RAYTRACING_GEOMETRY 4u
 #define HAIR_FLAGS_HOLDOUT 8u
+#define HAIR_FLAGS_CAST_CONTACT_SHADOW 10u
 
 #ifndef __cplusplus //HLSL
 bool HasHairFlags(uint In, uint Flags)

@@ -63,11 +63,11 @@ float ShadowRayCast(
 		uint2 PixelPos = View.ViewRectMin.xy + View.ViewSizeAndInvSize.xy * HitUV;
 		FSubstrateAddressing SubstrateAddressing = GetSubstratePixelDataByteOffset(PixelPos, uint2(View.BufferSizeAndInvSize.xy), SubstrateRayCast.MaxBytesPerPixel);
 		FSubstratePixelHeader SubstratePixelHeader = UnpackSubstrateHeaderIn(SubstrateRayCast.MaterialTextureArray, SubstrateAddressing, SubstrateRayCast.TopLayerTexture);
-		bOutHitCastContactShadow = bHairNoShadowLight || SubstratePixelHeader.DoesCastContactShadow();
+		bOutHitCastContactShadow = SubstratePixelHeader.DoesCastContactShadow();
 #endif
 #else
 		FGBufferData SampleGBuffer = GetGBufferData(HitUV);
-		bOutHitCastContactShadow = bHairNoShadowLight || CastContactShadow(SampleGBuffer);
+		bOutHitCastContactShadow = CastContactShadow(SampleGBuffer);
 #endif
 	}
 
