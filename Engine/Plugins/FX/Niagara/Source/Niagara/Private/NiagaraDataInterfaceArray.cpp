@@ -118,7 +118,51 @@ bool UNiagaraDataInterfaceArray::SimCacheReadFrame(UObject* StorageObject, int F
 	return ArrayProxy->SimCacheReadFrame(CacheData, FrameA, SystemInstance);
 }
 
-FString UNiagaraDataInterfaceArray::SimCacheVisualizerRead(UNDIArraySimCacheData* CacheData, FNDIArraySimCacheDataFrame& FrameData, int Element) const
+bool UNiagaraDataInterfaceArray::SimCacheCompareFrame(UObject* LhsStorageObject, UObject* RhsStorageObject, int FrameIndex, TOptional<float> InTolerance, FString& OutErrors) const
+{
+	UNDIArraySimCacheData* LhsCacheData = CastChecked<UNDIArraySimCacheData>(LhsStorageObject);
+	UNDIArraySimCacheData* RhsCacheData = CastChecked<UNDIArraySimCacheData>(RhsStorageObject);
+
+	if (!LhsCacheData->CpuFrameData.IsValidIndex(FrameIndex) || !RhsCacheData->CpuFrameData.IsValidIndex(FrameIndex) ||
+		!LhsCacheData->GpuFrameData.IsValidIndex(FrameIndex) || !RhsCacheData->GpuFrameData.IsValidIndex(FrameIndex) )
+	{
+		OutErrors = TEXT("FrameIndex was not valid");
+		return false;
+	}
+
+	const INDIArrayProxyBase* ArrayProxy = GetProxyAs<INDIArrayProxyBase>();
+	const float Tolerance = InTolerance.Get(UE_SMALL_NUMBER);
+
+	auto CompareFrames =
+		[&](const FNDIArraySimCacheDataFrame& LhsFrame, const FNDIArraySimCacheDataFrame& RhsFrame, const TCHAR* SimType)
+		{
+			if (LhsFrame.NumElements != RhsFrame.NumElements)
+			{
+				OutErrors = FString::Printf(TEXT("Element Count Mismatch (%d -> %d) for %s data"), LhsCacheData->CpuFrameData[FrameIndex].NumElements, RhsCacheData->CpuFrameData[FrameIndex].NumElements, SimType);
+				return false;
+			}
+
+			const uint8* LhsArrayData = LhsCacheData->BufferData.GetData() + LhsFrame.DataOffset;
+			const uint8* RhsArrayData = RhsCacheData->BufferData.GetData() + RhsFrame.DataOffset;
+			for (int32 i=0; i < LhsFrame.NumElements; ++i)
+			{
+				if (!ArrayProxy->SimCacheCompareElement(LhsArrayData, RhsArrayData, i, Tolerance))
+				{
+					const FString LhsValue = ArrayProxy->SimCacheVisualizerRead(LhsCacheData, LhsFrame, i);
+					const FString RhsValue = ArrayProxy->SimCacheVisualizerRead(RhsCacheData, RhsFrame, i);
+					OutErrors = FString::Printf(TEXT("Element %d Mismatch (%s -> %s) for %s data"), i, *LhsValue, *RhsValue, SimType);
+					return false;
+				}
+			}
+			return true;
+		};
+
+	return
+		CompareFrames(LhsCacheData->CpuFrameData[FrameIndex], RhsCacheData->CpuFrameData[FrameIndex], TEXT("CPU")) &&
+		CompareFrames(LhsCacheData->GpuFrameData[FrameIndex], RhsCacheData->GpuFrameData[FrameIndex], TEXT("GPU"));
+}
+
+FString UNiagaraDataInterfaceArray::SimCacheVisualizerRead(const UNDIArraySimCacheData* CacheData, const FNDIArraySimCacheDataFrame& FrameData, int Element) const
 {
 	const INDIArrayProxyBase* ArrayProxy = GetProxyAs<INDIArrayProxyBase>();
 	return ArrayProxy->SimCacheVisualizerRead(CacheData, FrameData, Element);

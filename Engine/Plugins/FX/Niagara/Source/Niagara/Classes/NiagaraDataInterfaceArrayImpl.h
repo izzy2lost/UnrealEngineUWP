@@ -141,6 +141,11 @@ struct FNDIArrayImplHelperBase
 		FMemory::Memcpy(Dest, Src, NumElements * sizeof(TArrayType));
 	}
 
+	static bool IsNearlyEqual(const TArrayType& Lhs, const TArrayType& Rhs, float Tolerance)
+	{
+		return FMath::IsNearlyEqual(Lhs, Rhs, Tolerance);
+	}
+
 	//static TArrayType AtomicAdd(TArrayType* Dest, TArrayType Value) { check(false); }
 	//static TArrayType AtomicMin(TArrayType* Dest, TArrayType Value) { check(false); }
 	//static TArrayType AtomicMax(TArrayType* Dest, TArrayType Value) { check(false); }
@@ -1077,6 +1082,7 @@ struct FNDIArrayProxyImpl : public INDIArrayProxyBase
 						}
 					);
 					RHICmdList.Transition(TransitionsAfter);
+					ReadbackManager->WaitCompletion(RHICmdList);
 				}
 			);
 
@@ -1129,7 +1135,14 @@ struct FNDIArrayProxyImpl : public INDIArrayProxyBase
 		return true;
 	}
 
-	virtual FString SimCacheVisualizerRead(UNDIArraySimCacheData* CacheData, FNDIArraySimCacheDataFrame& FrameData, int Element) const override
+	virtual bool SimCacheCompareElement(const uint8* LhsData, const uint8* RhsData, int32 Element, float Tolerance) const override
+	{
+		const TArrayType* LhsArrayData = reinterpret_cast<const TArrayType*>(LhsData);
+		const TArrayType* RhsArrayData = reinterpret_cast<const TArrayType*>(RhsData);
+		return FNDIArrayImplHelper<TArrayType>::IsNearlyEqual(LhsArrayData[Element], RhsArrayData[Element], Tolerance);
+	}
+
+	virtual FString SimCacheVisualizerRead(const UNDIArraySimCacheData* CacheData, const FNDIArraySimCacheDataFrame& FrameData, int Element) const override
 	{
 		FString OutValue;
 		if (Element < FrameData.NumElements)

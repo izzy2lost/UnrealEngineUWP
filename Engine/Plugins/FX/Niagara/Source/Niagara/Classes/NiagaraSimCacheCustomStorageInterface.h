@@ -61,7 +61,7 @@ public:
 	Called to compare a frame between two separate simulation cache storages
 	This will be called on the CDO object since we do not have the actual data interface.
 	*/
-	virtual bool SimCacheCompareFrame(UObject* LhsStorageObject, UObject* RhsStorageObject, int FrameIndex, TOptional<float> Tolerance, FString& OutErrors) { OutErrors = TEXT("Compare not implemented"); return false; }
+	virtual bool SimCacheCompareFrame(UObject* LhsStorageObject, UObject* RhsStorageObject, int FrameIndex, TOptional<float> Tolerance, FString& OutErrors) const { OutErrors = TEXT("Compare not implemented"); return false; }
 
 	/**
 	This function allows you to preserve a list of attributes when building a renderer only cache.
