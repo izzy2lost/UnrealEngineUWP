@@ -66,12 +66,11 @@ namespace UE::PixelStreaming
 				InitialVideoConfig = MoveTemp(VideoConfig);
 				return WEBRTC_VIDEO_CODEC_OK;
 			}
-			case EPixelStreamingCodec::H265:
+			case EPixelStreamingCodec::AV1:
 			{
-				TUniquePtr<FVideoEncoderConfigH265> VideoConfig = MakeUnique<FVideoEncoderConfigH265>();
+				TUniquePtr<FVideoEncoderConfigAV1> VideoConfig = MakeUnique<FVideoEncoderConfigAV1>();
 				SetInitialSettings(InCodecSettings, *VideoConfig);
-				VideoConfig->Profile = PixelStreaming::Settings::GetH265Profile();
-				VideoConfig->RepeatSPSPPS = true;
+				VideoConfig->RepeatSeqHdr = true;
 				VideoConfig->IntraRefreshPeriodFrames = PixelStreaming::Settings::CVarPixelStreamingEncoderIntraRefreshPeriodFrames.GetValueOnAnyThread();
 				VideoConfig->IntraRefreshCountFrames = PixelStreaming::Settings::CVarPixelStreamingEncoderIntraRefreshCountFrames.GetValueOnAnyThread();
 				VideoConfig->KeyframeInterval = PixelStreaming::Settings::CVarPixelStreamingEncoderKeyframeInterval.GetValueOnAnyThread();
@@ -158,9 +157,9 @@ namespace UE::PixelStreaming
 				HardwareEncoder = Factory.GetOrCreateHardwareEncoder(StreamId, VideoConfig).Pin();
 				break;
 			}
-			case EPixelStreamingCodec::H265:
+			case EPixelStreamingCodec::AV1:
 			{
-				FVideoEncoderConfigH265& VideoConfig = *StaticCast<FVideoEncoderConfigH265*>(InitialVideoConfig.Get());
+				FVideoEncoderConfigAV1& VideoConfig = *StaticCast<FVideoEncoderConfigAV1*>(InitialVideoConfig.Get());
 				HardwareEncoder = Factory.GetOrCreateHardwareEncoder(StreamId, VideoConfig).Pin();
 				break;
 			}
@@ -281,16 +280,13 @@ namespace UE::PixelStreaming
 						CodecInfo.codecSpecific.H264.base_layer_sync = false;
 
 						break;
-					case EPixelStreamingCodec::H265:
-						CodecInfo.codecType = webrtc::VideoCodecType::kVideoCodecH265;
-						CodecInfo.codecSpecific.H265.packetization_mode = webrtc::H265PacketizationMode::NonInterleaved;
-						CodecInfo.codecSpecific.H265.idr_frame = Packet.bIsKeyframe;
-
+					case EPixelStreamingCodec::AV1:
+						CodecInfo.codecType = webrtc::VideoCodecType::kVideoCodecAV1;
 						break;
 				}
 
 #if PIXELSTREAMING_DUMP_ENCODING
-				Packet.WriteToFile(TEXT("SingleLayerHardware.h265"));
+				Packet.WriteToFile(TEXT("SingleLayerHardware"));
 #endif
 
 				UpdateFrameMetadataPrePacketization(*AdaptedLayer);
@@ -358,13 +354,11 @@ namespace UE::PixelStreaming
 					}
 
 					break;
-				case EPixelStreamingCodec::H265:
-					if (HardwareEncoder->GetInstance()->Has<FVideoEncoderConfigH265>())
+				case EPixelStreamingCodec::AV1:
+					if (HardwareEncoder->GetInstance()->Has<FVideoEncoderConfigAV1>())
 					{
-						FVideoEncoderConfigH265& VideoConfigH265 = HardwareEncoder->GetInstance()->Edit<FVideoEncoderConfigH265>();
-						VideoConfig = &VideoConfigH265;
-
-						VideoConfigH265.Profile = UE::PixelStreaming::Settings::GetH265Profile();
+						FVideoEncoderConfigAV1& VideoConfigAV1 = HardwareEncoder->GetInstance()->Edit<FVideoEncoderConfigAV1>();
+						VideoConfig = &VideoConfigAV1;
 					}
 
 					break;
@@ -391,7 +385,6 @@ namespace UE::PixelStreaming
 			const ERateControlMode RateControlCVar = UE::PixelStreaming::Settings::GetRateControlCVar();
 			const EMultipassMode MultiPassCVar = UE::PixelStreaming::Settings::GetMultipassCVar();
 			const bool bFillerDataCVar = UE::PixelStreaming::Settings::CVarPixelStreamingEnableFillerData.GetValueOnAnyThread();
-			const EH264Profile H265Profile = UE::PixelStreaming::Settings::GetH264Profile();
 
 			VideoConfig->MaxBitrate = MaxBitrateCVar > -1 ? MaxBitrateCVar : VideoConfig->MaxBitrate;
 			VideoConfig->TargetBitrate = TargetBitrateCVar > -1 ? TargetBitrateCVar : WebRtcProposedTargetBitrate;

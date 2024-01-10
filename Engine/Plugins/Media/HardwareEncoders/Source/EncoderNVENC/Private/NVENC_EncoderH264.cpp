@@ -62,8 +62,6 @@ namespace
 				return NV_ENC_H264_PROFILE_HIGH_444_GUID;
 			case AVEncoder::FVideoEncoder::H264Profile::STEREO:
 				return NV_ENC_H264_PROFILE_STEREO_GUID;
-			case AVEncoder::FVideoEncoder::H264Profile::SVC_TEMPORAL_SCALABILITY:
-				return NV_ENC_H264_PROFILE_SVC_TEMPORAL_SCALABILTY;
 			case AVEncoder::FVideoEncoder::H264Profile::PROGRESSIVE_HIGH:
 				return NV_ENC_H264_PROFILE_PROGRESSIVE_HIGH_GUID;
 			case AVEncoder::FVideoEncoder::H264Profile::CONSTRAINED_HIGH:

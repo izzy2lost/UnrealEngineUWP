@@ -3,7 +3,8 @@
 #pragma once
 
 #include "WebRTCIncludes.h"
-
+#include "PixelStreamingCodec.h"
+#include "Video/Decoders/Configs/VideoDecoderConfigAV1.h"
 #include "Video/Decoders/Configs/VideoDecoderConfigH264.h"
 #include "Video/Resources/VideoResourceRHI.h"
 
@@ -12,7 +13,7 @@ namespace UE::PixelStreaming
 	class FVideoDecoderHardware : public webrtc::VideoDecoder
 	{
 	public:
-		FVideoDecoderHardware();
+		FVideoDecoderHardware(EPixelStreamingCodec Codec);
 		virtual ~FVideoDecoderHardware() = default;
 
 		virtual bool Configure(const Settings& settings) override;

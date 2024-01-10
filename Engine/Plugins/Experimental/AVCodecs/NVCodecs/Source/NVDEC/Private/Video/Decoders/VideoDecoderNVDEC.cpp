@@ -142,8 +142,7 @@ FAVResult FVideoDecoderNVDEC::ApplyConfig()
     					ReconfigParams.display_area.right = PendingConfig.display_area.right;
     					ReconfigParams.ulTargetWidth = PendingConfig.ulWidth;
     					ReconfigParams.ulTargetHeight = PendingConfig.ulHeight;
-    
-    					ReconfigParams.ulNumDecodeSurfaces = GetNumDecodeSurfaces(PendingConfig.CodecType, PendingConfig.ulWidth, PendingConfig.ulHeight);;
+						ReconfigParams.ulNumDecodeSurfaces = PendingConfig.ulNumDecodeSurfaces;
 
 						FCUDAContextScope const ContextGuard(GetDevice()->GetContext<FVideoContextCUDA>()->Raw);
 						CUresult const Result = FAPI::Get<FNVDEC>().cuvidReconfigureDecoder(Decoder, &ReconfigParams);
@@ -195,7 +194,7 @@ bool FVideoDecoderNVDEC::GetCapability(CUVIDDECODECAPS& CapsToQuery) const
 		CUresult const Result = FAPI::Get<FNVDEC>().cuvidGetDecoderCaps(&CapsToQuery);
 		if (Result != CUDA_SUCCESS)
 		{
-			FAVResult::Log(EAVResult::Warning, TEXT("Failed to query for NVENC capability"), TEXT("NVDEC"), Result);
+			FAVResult::Log(EAVResult::Warning, TEXT("Failed to query for NVDEC capability"), TEXT("NVDEC"), Result);
 
 			return false;
 		}
@@ -324,54 +323,9 @@ FAVResult FVideoDecoderNVDEC::ReceiveFrame(TResolvableVideoResource<FVideoResour
 	return FAVResult(EAVResult::ErrorInvalidState, TEXT("Decoder not open"), TEXT("NVDEC"));
 }
 
-unsigned long FVideoDecoderNVDEC::GetNumDecodeSurfaces(cudaVideoCodec Codec, unsigned int Width, unsigned int Height)
-{
-	if (Codec == cudaVideoCodec_VP9) 
-	{
-        return 12;
-    }
-
-    if (Codec == cudaVideoCodec_H264 || Codec == cudaVideoCodec_H264_SVC || Codec == cudaVideoCodec_H264_MVC) 
-	{
-        // assume worst-case of 20 decode surfaces for H264
-        return 20;
-    }
-
-    if (Codec == cudaVideoCodec_HEVC) 
-	{
-        // ref HEVC spec: A.4.1 General tier and level limits
-        // currently assuming level 6.2, 8Kx4K
-        int MaxLumaPS = 35651584;
-        int MaxDpbPicBuf = 6;
-        int PicSizeInSamplesY = (int)(Width * Height);
-        int MaxDpbSize;
-
-        if (PicSizeInSamplesY <= (MaxLumaPS>>2))
-		{
-			MaxDpbSize = MaxDpbPicBuf * 4;
-		}
-        else if (PicSizeInSamplesY <= (MaxLumaPS>>1))
-		{
-			MaxDpbSize = MaxDpbPicBuf * 2;
-		}
-        else if (PicSizeInSamplesY <= ((3*MaxLumaPS)>>2))
-		{
-			MaxDpbSize = (MaxDpbPicBuf * 4) / 3;
-		}
-        else
-		{
-			MaxDpbSize = MaxDpbPicBuf;
-		}
-
-        return FMath::Min(MaxDpbSize, 16) + 4;
-    }
-
-    return 8;
-}
-
 int FVideoDecoderNVDEC::HandleVideoSequence(CUVIDEOFORMAT *VideoFormat)
 {
-	int NumDecodeSurfaces = GetNumDecodeSurfaces(VideoFormat->codec, VideoFormat->coded_width, VideoFormat->coded_height);
+	int NumDecodeSurfaces = VideoFormat->min_num_decode_surfaces;
 
 	CUVIDDECODECAPS DecodeCaps;
 	memset(&DecodeCaps, 0, sizeof(DecodeCaps));

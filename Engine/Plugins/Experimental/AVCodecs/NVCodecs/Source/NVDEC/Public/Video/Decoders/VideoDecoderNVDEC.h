@@ -54,9 +54,6 @@ public:
 	int HandleVideoSequence(CUVIDEOFORMAT *VideoFormat);
     int HandlePictureDecode(CUVIDPICPARAMS *PicParams);
     int HandlePictureDisplay(CUVIDPARSERDISPINFO *DispInfo);
-
-private:
-	unsigned long GetNumDecodeSurfaces(cudaVideoCodec Codec, unsigned int Width, unsigned int Height);
 };
 
 namespace Internal 

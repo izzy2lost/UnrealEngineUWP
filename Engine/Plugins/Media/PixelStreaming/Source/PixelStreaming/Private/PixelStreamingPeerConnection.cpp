@@ -123,12 +123,10 @@ namespace
 					{
 						return EPixelStreamingCodec::VP9;
 					}
-					/*
-					else if (absl::EqualsIgnoreCase(Codec.name, cricket::kH265CodecName))
+					else if (absl::EqualsIgnoreCase(Codec.name, cricket::kAv1CodecName))
 					{
-						return EPixelStreamingCodec::H265;
+						return EPixelStreamingCodec::AV1;
 					}
-					*/
 					else if (absl::EqualsIgnoreCase(Codec.name, cricket::kH264CodecName))
 					{
 						return EPixelStreamingCodec::H264;

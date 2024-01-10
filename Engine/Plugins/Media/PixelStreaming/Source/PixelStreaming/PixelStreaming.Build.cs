@@ -67,7 +67,7 @@ namespace UnrealBuildTool.Rules
                 "WebRTC",
                 "PixelCapture",
                 "PixelStreamingInput",
-                "MediaIOCore",
+                "MediaIOCore"
             });
 
             PrivateDependencyModuleNames.AddRange(new string[]
@@ -118,6 +118,11 @@ namespace UnrealBuildTool.Rules
                 PrivateDependencyModuleNames.Add("D3D12RHI");
 
                 AddEngineThirdPartyPrivateStaticDependencies(Target, "DX11", "DX12");
+            }
+
+            if (Target.IsInPlatformGroup(UnrealPlatformGroup.Apple))
+            {
+                AddEngineThirdPartyPrivateStaticDependencies(Target, "MetalCPP");
             }
 
             // When we build a Game target we also package the servers with it as runtime dependencies

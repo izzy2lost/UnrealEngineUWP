@@ -30,10 +30,11 @@ namespace UnrealBuildTool.Rules
 				"HTTP",
 				"Sockets",
 				"ApplicationCore",
-				"PixelStreamingInput"
+				"PixelStreamingInput",
+				"AVCodecsCore"
 			});
 
-			if(Target.bBuildEditor)
+			if (Target.bBuildEditor)
 			{
 				PrivateDependencyModuleNames.AddRange(new string[]
 				{
@@ -44,6 +45,11 @@ namespace UnrealBuildTool.Rules
 					"LevelEditor",
 					"MainFrame"
 				});
+			}
+
+			if (Target.IsInPlatformGroup(UnrealPlatformGroup.Apple))
+			{
+				AddEngineThirdPartyPrivateStaticDependencies(Target, "MetalCPP");
 			}
 		}
 	}

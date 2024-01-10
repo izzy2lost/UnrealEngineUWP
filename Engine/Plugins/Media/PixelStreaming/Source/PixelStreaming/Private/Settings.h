@@ -8,7 +8,7 @@
 #include "Misc/CommandLine.h"
 #include "InputCoreTypes.h"
 #include "Video/Encoders/Configs/VideoEncoderConfigH264.h"
-#include "Video/Encoders/Configs/VideoEncoderConfigH265.h"
+#include "Video/Encoders/Configs/VideoEncoderConfigAV1.h"
 #include "WebRTCIncludes.h"
 #include "PixelStreamingCodec.h"
 
@@ -26,7 +26,6 @@ namespace UE::PixelStreaming::Settings
 	extern TAutoConsoleVariable<bool> CVarPixelStreamingEnableFillerData;
 	extern TAutoConsoleVariable<FString> CVarPixelStreamingEncoderMultipass;
 	extern TAutoConsoleVariable<FString> CVarPixelStreamingH264Profile;
-	extern TAutoConsoleVariable<FString> CVarPixelStreamingH265Profile;
 	extern TAutoConsoleVariable<FString> CVarPixelStreamingEncoderPreset;
 	extern TAutoConsoleVariable<int32> CVarPixelStreamingEncoderKeyframeInterval;
 	extern TAutoConsoleVariable<int32> CVarPixelStreamingEncoderIntraRefreshPeriodFrames;
@@ -95,7 +94,6 @@ namespace UE::PixelStreaming::Settings
 	EMultipassMode GetMultipassCVar();
 	webrtc::DegradationPreference GetDegradationPreference();
 	EH264Profile GetH264Profile();
-	EH265Profile GetH265Profile();
 	EAVPreset GetEncoderPreset();
 	EInputControllerMode GetInputControllerMode();
 	FString GetDefaultStreamerID();

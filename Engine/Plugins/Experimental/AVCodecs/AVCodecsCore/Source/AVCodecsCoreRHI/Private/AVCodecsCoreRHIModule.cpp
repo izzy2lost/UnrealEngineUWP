@@ -6,10 +6,12 @@
 
 #include "Video/Resources/VideoResourceRHI.h"
 #include "Video/Decoders/VideoDecoderRHI.h"
+#include "Video/Decoders/Configs/VideoDecoderConfigAV1.h"
 #include "Video/Decoders/Configs/VideoDecoderConfigVP9.h"
 #include "Video/Decoders/Configs/VideoDecoderConfigH264.h"
 #include "Video/Decoders/Configs/VideoDecoderConfigH265.h"
 #include "Video/Encoders/VideoEncoderRHI.h"
+#include "Video/Encoders/Configs/VideoEncoderConfigAV1.h"
 #include "Video/Encoders/Configs/VideoEncoderConfigH264.h"
 #include "Video/Encoders/Configs/VideoEncoderConfigH265.h"
 
@@ -99,12 +101,14 @@ public:
 			});
 		}
 
+		FVideoEncoder::Register<TVideoEncoderRHI<FVideoEncoderConfigAV1>, FVideoResourceRHI, FVideoEncoderConfigAV1>();
 		FVideoEncoder::Register<TVideoEncoderRHI<FVideoEncoderConfigH264>, FVideoResourceRHI, FVideoEncoderConfigH264>();
 		FVideoEncoder::Register<TVideoEncoderRHI<FVideoEncoderConfigH265>, FVideoResourceRHI, FVideoEncoderConfigH265>();
 
 		FVideoDecoder::Register<TVideoDecoderRHI<FVideoDecoderConfigH264>, FVideoResourceRHI, FVideoDecoderConfigH264>();
 		FVideoDecoder::Register<TVideoDecoderRHI<FVideoDecoderConfigH265>, FVideoResourceRHI, FVideoDecoderConfigH265>();
         FVideoDecoder::Register<TVideoDecoderRHI<FVideoDecoderConfigVP9>, FVideoResourceRHI, FVideoDecoderConfigVP9>();
+		FVideoDecoder::Register<TVideoDecoderRHI<FVideoDecoderConfigAV1>, FVideoResourceRHI, FVideoDecoderConfigAV1>();
 	}
 };
 

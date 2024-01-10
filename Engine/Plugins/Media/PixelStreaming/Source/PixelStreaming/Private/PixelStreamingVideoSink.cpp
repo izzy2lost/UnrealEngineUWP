@@ -85,15 +85,15 @@ void FPixelStreamingVideoSink::OnFrame(const webrtc::VideoFrame& Frame)
                 	RenderTargetDescriptor,
                 	RenderTarget,
                 	TEXT("PIXELSTEAMINGPLAYER"));
+
+				// Create the update region structure
+        		const FUpdateTextureRegion2D Region(0, 0, 0, 0, FrameSize.X, FrameSize.Y);
+
+        		// Set the Pixel data of the webrtc Frame to the SourceTexture
+        		RHIUpdateTexture2D(SourceTexture, 0, Region, FrameSize.X * 4, Buffer.GetData());
+
+            	OnFrame(SourceTexture);
         	}
-
-        	// Create the update region structure
-        	const FUpdateTextureRegion2D Region(0, 0, 0, 0, FrameSize.X, FrameSize.Y);
-
-        	// Set the Pixel data of the webrtc Frame to the SourceTexture
-        	RHIUpdateTexture2D(SourceTexture, 0, Region, FrameSize.X * 4, Buffer.GetData());
-
-            OnFrame(SourceTexture);
     	});
 	}
 }

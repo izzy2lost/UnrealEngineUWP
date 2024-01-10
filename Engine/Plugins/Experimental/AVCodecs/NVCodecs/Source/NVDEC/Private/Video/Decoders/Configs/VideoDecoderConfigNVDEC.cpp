@@ -37,3 +37,11 @@ DLLEXPORT FAVResult FAVExtension::TransformConfig(FVideoDecoderConfigNVDEC& OutC
 	
 	return FAVExtension::TransformConfig<FVideoDecoderConfigNVDEC, FVideoDecoderConfig>(OutConfig, InConfig);
 }
+
+template <>
+DLLEXPORT FAVResult FAVExtension::TransformConfig(FVideoDecoderConfigNVDEC& OutConfig, FVideoDecoderConfigAV1 const& InConfig)
+{
+	OutConfig.CodecType = cudaVideoCodec_AV1;
+	
+	return FAVExtension::TransformConfig<FVideoDecoderConfigNVDEC, FVideoDecoderConfig>(OutConfig, InConfig);
+}

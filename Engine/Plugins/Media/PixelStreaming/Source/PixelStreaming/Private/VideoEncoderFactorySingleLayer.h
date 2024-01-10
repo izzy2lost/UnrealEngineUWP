@@ -5,7 +5,7 @@
 
 #include "Video/VideoEncoder.h"
 #include "Video/Encoders/Configs/VideoEncoderConfigH264.h"
-#include "Video/Encoders/Configs/VideoEncoderConfigH265.h"
+#include "Video/Encoders/Configs/VideoEncoderConfigAV1.h"
 #include "Video/Resources/VideoResourceRHI.h"
 
 #include "PixelStreamingPrivate.h"

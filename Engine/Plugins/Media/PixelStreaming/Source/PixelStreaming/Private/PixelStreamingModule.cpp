@@ -16,6 +16,7 @@
 #include "Engine/Texture2D.h"
 #include "Slate/SceneViewport.h"
 #include "PixelStreamingUtils.h"
+#include "PixelStreamingCoderUtils.h"
 #include "Utils.h"
 #include "UtilsRender.h"
 
@@ -452,10 +453,10 @@ namespace UE::PixelStreaming
 		}
 #endif
 
-		if ((Settings::CVarPixelStreamingEncoderCodec.GetValueOnAnyThread() == "H264" && !FVideoEncoder::IsSupported<FVideoResourceRHI, FVideoEncoderConfigH264>())
-			|| (Settings::CVarPixelStreamingEncoderCodec.GetValueOnAnyThread() == "H265" && !FVideoEncoder::IsSupported<FVideoResourceRHI, FVideoEncoderConfigH265>()))
+		if ((Settings::CVarPixelStreamingEncoderCodec.GetValueOnAnyThread() == "H264" && !IsEncoderSupported<FVideoEncoderConfigH264>())
+			|| (Settings::CVarPixelStreamingEncoderCodec.GetValueOnAnyThread() == "AV1" && !IsEncoderSupported<FVideoEncoderConfigAV1>()))
 		{
-			UE_LOG(LogPixelStreaming, Warning, TEXT("Could not setup hardware encoder. This is usually a driver issue, try reinstalling your drivers."));
+			UE_LOG(LogPixelStreaming, Warning, TEXT("Could not setup hardware encoder. This is usually a driver issue or hardware limitation, try reinstalling your drivers."));
 			UE_LOG(LogPixelStreaming, Warning, TEXT("Falling back to VP8 software video encoding."));
 			Settings::CVarPixelStreamingEncoderCodec.AsVariable()->Set(TEXT("VP8"), ECVF_SetByCommandline);
 		}

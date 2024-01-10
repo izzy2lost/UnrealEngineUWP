@@ -1100,7 +1100,7 @@ namespace UE::PixelStreaming
 			switch (Codec)
 			{
 				case EPixelStreamingCodec::H264:
-				case EPixelStreamingCodec::H265:
+				case EPixelStreamingCodec::AV1:
 					return (PlayerId == QualityControllingId || PlayerId == SFUPlayerId);
 					break;
 				case EPixelStreamingCodec::VP8:

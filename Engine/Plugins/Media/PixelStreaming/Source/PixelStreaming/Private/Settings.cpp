@@ -68,12 +68,6 @@ namespace UE::PixelStreaming::Settings
 		TEXT("PixelStreaming encoder profile. Supported modes are `AUTO`, `BASELINE`, `MAIN`, `HIGH`, `HIGH444`, `STEREO`, `SVC_TEMPORAL_SCALABILITY`, `PROGRESSIVE_HIGH`, `CONSTRAINED_HIGH`"),
 		ECVF_Default);
 
-	TAutoConsoleVariable<FString> CVarPixelStreamingH265Profile(
-		TEXT("PixelStreaming.Encoder.H265Profile"),
-		TEXT("MAIN"),
-		TEXT("PixelStreaming encoder profile. Supported modes are `AUTO`, `BASELINE`, `MAIN`, `MAIN10`"),
-		ECVF_Default);
-
 	TAutoConsoleVariable<FString> CVarPixelStreamingEncoderPreset(
 		TEXT("PixelStreaming.Encoder.Preset"),
 		TEXT("ULTRA_LOW_LATENCY"),
@@ -101,7 +95,7 @@ namespace UE::PixelStreaming::Settings
 	TAutoConsoleVariable<FString> CVarPixelStreamingEncoderCodec(
 		TEXT("PixelStreaming.Encoder.Codec"),
 		TEXT("H264"),
-		TEXT("PixelStreaming encoder codec. Supported values are `H264`, `H265`, `VP8`, `VP9`"),
+		TEXT("PixelStreaming encoder codec. Supported values are `H264`, `AV1`, `VP8`, `VP9`"),
 		ECVF_Default);
 
 	TAutoConsoleVariable<int32> CVarPixelStreamingEncoderMaxSessions(
@@ -412,12 +406,6 @@ namespace UE::PixelStreaming::Settings
 		{ "CONSTRAINED_HIGH", EH264Profile::ConstrainedHigh },
 	};
 
-	std::map<FString, EH265Profile> const H265ProfileMap{
-		{ "AUTO", EH265Profile::Auto },
-		{ "MAIN", EH265Profile::Main },
-		{ "MAIN10", EH265Profile::Main10 },
-	};
-
 	std::map<FString, EAVPreset> const EncoderPresetMap{
 		{ "ULTRA_LOW_LATENCY", EAVPreset::UltraLowQuality },
 		{ "LOW_QUALITY", EAVPreset::LowQuality },
@@ -465,15 +453,6 @@ namespace UE::PixelStreaming::Settings
 		auto const Iter = H264ProfileMap.find(H264Profile);
 		if (Iter == std::end(H264ProfileMap))
 			return EH264Profile::Baseline;
-		return Iter->second;
-	}
-
-	EH265Profile GetH265Profile()
-	{
-		const FString H265Profile = CVarPixelStreamingH265Profile.GetValueOnAnyThread();
-		auto const Iter = H265ProfileMap.find(H265Profile);
-		if (Iter == std::end(H265ProfileMap))
-			return EH265Profile::Auto;
 		return Iter->second;
 	}
 
@@ -534,8 +513,8 @@ namespace UE::PixelStreaming::Settings
 			case EPixelStreamingCodec::H264:
 				CVarPixelStreamingEncoderCodec.AsVariable()->Set(TEXT("H264"));
 				break;
-			case EPixelStreamingCodec::H265:
-				CVarPixelStreamingEncoderCodec.AsVariable()->Set(TEXT("H265"));
+			case EPixelStreamingCodec::AV1:
+				CVarPixelStreamingEncoderCodec.AsVariable()->Set(TEXT("AV1"));
 				break;
 			case EPixelStreamingCodec::VP8:
 				CVarPixelStreamingEncoderCodec.AsVariable()->Set(TEXT("VP8"));
@@ -556,9 +535,9 @@ namespace UE::PixelStreaming::Settings
 		{
 			return EPixelStreamingCodec::H264;
 		}
-		else if (CodecStr == TEXT("H265"))
+		else if (CodecStr == TEXT("AV1"))
 		{
-			return EPixelStreamingCodec::H265;
+			return EPixelStreamingCodec::AV1;
 		}
 		else if (CodecStr == TEXT("VP8"))
 		{
@@ -789,7 +768,6 @@ namespace UE::PixelStreaming::Settings
 		CommandLineParseValue(TEXT("PixelStreamingEncoderCodec="), CVarPixelStreamingEncoderCodec);
 		CommandLineParseValue(TEXT("PixelStreamingEncoderMaxSessions="), CVarPixelStreamingEncoderMaxSessions);
 		CommandLineParseValue(TEXT("PixelStreamingH264Profile="), CVarPixelStreamingH264Profile);
-		CommandLineParseValue(TEXT("PixelStreamingH265Profile="), CVarPixelStreamingH265Profile);
 		CommandLineParseValue(TEXT("PixelStreamingEncoderPreset="), CVarPixelStreamingEncoderPreset);
 		CommandLineParseValue(TEXT("PixelStreamingDegradationPreference="), CVarPixelStreamingDegradationPreference);
 		CommandLineParseValue(TEXT("PixelStreamingWebRTCDegradationPreference="), CVarPixelStreamingDegradationPreference);

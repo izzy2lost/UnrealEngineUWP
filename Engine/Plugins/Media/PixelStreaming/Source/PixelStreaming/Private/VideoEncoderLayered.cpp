@@ -157,7 +157,7 @@ namespace UE::PixelStreaming
 		// clang-format off
 		const webrtc::SdpVideoFormat Format(CurrentCodec.codecType == webrtc::kVideoCodecVP8 ? "VP8"
 										  : CurrentCodec.codecType == webrtc::kVideoCodecVP9 ? "VP9"
-										  : CurrentCodec.codecType == webrtc::kVideoCodecH265 ? "H265"
+										  : CurrentCodec.codecType == webrtc::kVideoCodecAV1 ? "AV1"
 																							 : "H264",
 			                                VideoFormat.parameters);
 		// clang-format on

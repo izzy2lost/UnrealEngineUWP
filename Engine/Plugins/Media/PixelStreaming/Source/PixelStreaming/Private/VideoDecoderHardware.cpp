@@ -5,6 +5,7 @@
 #include "FrameBufferRHI.h"
 #include "PixelStreamingPrivate.h"
 #include "PixelStreamingTrace.h"
+#include "Misc/AssertionMacros.h"
 
 namespace UE::PixelStreaming
 {
@@ -16,10 +17,25 @@ namespace UE::PixelStreaming
 		}
 	};
 
-	FVideoDecoderHardware::FVideoDecoderHardware()
+	FVideoDecoderHardware::FVideoDecoderHardware(EPixelStreamingCodec Codec)
 	{
-		FVideoDecoderConfigH264 DecoderConfig;
-		Decoder = FVideoDecoder::CreateChecked<FVideoResourceRHI>(FAVDevice::GetHardwareDevice(), DecoderConfig);
+		switch(Codec)
+		{
+			case EPixelStreamingCodec::H264:
+			{
+				FVideoDecoderConfigH264 DecoderConfig;
+				Decoder = FVideoDecoder::CreateChecked<FVideoResourceRHI>(FAVDevice::GetHardwareDevice(), DecoderConfig);
+				break;
+			}
+			case EPixelStreamingCodec::AV1:
+			{
+				FVideoDecoderConfigAV1 DecoderConfig;
+				Decoder = FVideoDecoder::CreateChecked<FVideoResourceRHI>(FAVDevice::GetHardwareDevice(), DecoderConfig);
+				break;
+			}
+			default:
+				checkNoEntry();
+		}
 	}
 
 	bool FVideoDecoderHardware::Configure(const Settings& settings)
