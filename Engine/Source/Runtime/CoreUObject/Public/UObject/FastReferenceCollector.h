@@ -916,7 +916,6 @@ StoleARO:
 		} // while (true)
 		
 		Processor.LogDetailedStatsSummary();
-		checkf(Context.SchemaStack == nullptr, TEXT("Debug Schema Stack is not empty after processing all objects"));
 	}
 
 private:
