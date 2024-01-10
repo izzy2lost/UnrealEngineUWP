@@ -1359,7 +1359,8 @@ ILevelInstanceInterface* ULevelInstanceSubsystem::CreateLevelInstanceFrom(const 
 	return GetLevelInstance(NewLevelInstanceID);
 }
 
-bool ULevelInstanceSubsystem::BreakLevelInstance(ILevelInstanceInterface* LevelInstance, uint32 Levels /* = 1 */, TArray<AActor*>* OutMovedActors /* = nullptr */)
+bool ULevelInstanceSubsystem::BreakLevelInstance(ILevelInstanceInterface* LevelInstance, uint32 Levels /* = 1 */,
+	TArray<AActor*>* OutMovedActors /* = nullptr */, ELevelInstanceBreakFlags Flags /* = None */)
 {
 	const double StartTime = FPlatformTime::Seconds();
 
@@ -1368,7 +1369,7 @@ bool ULevelInstanceSubsystem::BreakLevelInstance(ILevelInstanceInterface* LevelI
 	GetMutableDefault<ULevelEditorMiscSettings>()->bAvoidRelabelOnPasteSelected = 1;
 
 	TArray<AActor*> MovedActors;
-	BreakLevelInstance_Impl(LevelInstance, Levels, MovedActors);
+	BreakLevelInstance_Impl(LevelInstance, Levels, MovedActors, Flags);
 
 	USelection* ActorSelection = GEditor->GetSelectedActors();
 	ActorSelection->BeginBatchSelectOperation();
@@ -1391,7 +1392,8 @@ bool ULevelInstanceSubsystem::BreakLevelInstance(ILevelInstanceInterface* LevelI
 	return bStatus;
 }
 
-void ULevelInstanceSubsystem::BreakLevelInstance_Impl(ILevelInstanceInterface* LevelInstance, uint32 Levels, TArray<AActor*>& OutMovedActors)
+void ULevelInstanceSubsystem::BreakLevelInstance_Impl(ILevelInstanceInterface* LevelInstance, uint32 Levels,
+	TArray<AActor*>& OutMovedActors, ELevelInstanceBreakFlags Flags)
 {
 	if (Levels > 0)
 	{
@@ -1487,10 +1489,59 @@ void ULevelInstanceSubsystem::BreakLevelInstance_Impl(ILevelInstanceInterface* L
 		const bool bWarnAboutReferences = true;
 		const bool bWarnAboutRenaming = false;
 		const bool bMoveAllOrFail = true;
-		if (!EditorLevelUtils::CopyActorsToLevel(ActorsToMove.Array(), DestinationLevel, bWarnAboutReferences, bWarnAboutRenaming, bMoveAllOrFail))
+
+		TArray<AActor*> ActorsMovedThisStage;
+		if (!EditorLevelUtils::CopyActorsToLevel(ActorsToMove.Array(), DestinationLevel, bWarnAboutReferences, bWarnAboutRenaming, bMoveAllOrFail, &ActorsMovedThisStage))
 		{
 			UE_LOG(LogLevelInstance, Warning, TEXT("Failed to break Level Instance because not all actors could be moved"));
 			return;
+		}
+
+		OutMovedActors.Append(ActorsMovedThisStage);
+
+		const bool bKeepFolders = EnumHasAnyFlags(Flags, ELevelInstanceBreakFlags::KeepFolders);
+		FString LevelInstanceFolder;
+		if (bKeepFolders)
+		{
+			// Build the folder name to move the actors into
+			const FName LevelInstancePath = LevelInstanceActor->GetFolderPath();
+			if (!LevelInstancePath.IsNone())
+			{
+				LevelInstanceFolder = LevelInstancePath.ToString();
+				LevelInstanceFolder += TEXT('/');
+			}
+			LevelInstanceFolder += LevelInstanceActor->GetActorNameOrLabel();
+		}
+
+		TArray<ILevelInstanceInterface*> ChildLevelInstances;
+		for (AActor* Actor : ActorsMovedThisStage)
+		{
+			if (bKeepFolders)
+			{
+				// Update the folder path of the moved actor, combining LI's path + LI's name + actor's path
+				TStringBuilder<128> NewActorPath;
+				NewActorPath += LevelInstanceFolder;
+
+				const FName OldActorPath = Actor->GetFolderPath();
+				if (!OldActorPath.IsNone())
+				{
+					NewActorPath += TEXT('/');
+					NewActorPath += Actor->GetFolderPath().ToString();
+				}
+
+				Actor->SetFolderPath(FName(NewActorPath));
+			}
+
+			// Break up any sub LevelInstances if more levels are requested
+			if (Levels > 1)
+			{
+				if (ILevelInstanceInterface* ChildLevelInstance = Cast<ILevelInstanceInterface>(Actor))
+				{
+					OutMovedActors.RemoveSingleSwap(Actor);
+
+					ChildLevelInstances.Add(ChildLevelInstance);
+				}
+			}
 		}
 
 		// Clear undo buffer here because operation of Breaking a level instance is not undoable.
@@ -1509,38 +1560,12 @@ void ULevelInstanceSubsystem::BreakLevelInstance_Impl(ILevelInstanceInterface* L
 
 		// Destroy the old LevelInstance instance actor
 		GetWorld()->DestroyActor(LevelInstanceActor);
-	
-		const bool bContinueBreak = Levels > 1;
-		TArray<ILevelInstanceInterface*> Children;
 
-		for (FSelectionIterator It(GEditor->GetSelectedActorIterator()); It; ++It)
+		for (auto& Child : ChildLevelInstances)
 		{
-			AActor* Actor = Cast<AActor>(*It);
-
-			if (Actor)
-			{
-				OutMovedActors.Add(Actor);
-			}
-
-			// Break up any sub LevelInstances if more levels are requested
-			if (bContinueBreak)
-			{
-				if (ILevelInstanceInterface* ChildLevelInstance = Cast<ILevelInstanceInterface>(Actor))
-				{
-					OutMovedActors.Remove(Actor);
-
-					Children.Add(ChildLevelInstance);
-				}
-			}
-		}
-
-		for (auto& Child : Children)
-		{
-			BreakLevelInstance_Impl(Child, Levels - 1, OutMovedActors);
+			BreakLevelInstance_Impl(Child, Levels - 1, OutMovedActors, Flags);
 		}
 	}
-
-	return;
 }
 
 bool ULevelInstanceSubsystem::LevelInstanceHasLevelScriptBlueprint(const ILevelInstanceInterface* LevelInstance) const

@@ -51,4 +51,16 @@ public:
 
 	UPROPERTY(config, EditAnywhere, Category = Pivot)
 	ELevelInstancePivotType PivotType;
+
+	/**
+	 * When the Level Instance is broken via "Level->Break..", its actors will be placed inside the folder the LI is
+	 * inside of, under a subfolder with the name of the Level Instance, and also keeping their original folder structure.
+	 * So if i.e. the Level Instance Actor is called "Desert/LI_House2", and an actor inside is named "Lights/Light_Sun",
+	 * the actor will be moved to "Desert/LI_House2/Lights/Light_Sun" in the outer level.
+	 *
+	 * If this flag is not set, actors will be placed either in the root folder of the outer level (but their original
+	 * folders from the LI kept), or, if "Current Folder" is set, they'll be moved there without any subfolders.
+	 */
+	UPROPERTY(config, EditAnywhere, Category = Break)
+	bool bKeepFoldersDuringBreak = false;
 };

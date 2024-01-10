@@ -402,54 +402,90 @@ namespace LevelInstanceMenuUtils
 	void CreateBreakSubMenu(UToolMenu* Menu, TArray<ILevelInstanceInterface*> BreakableLevelInstances)
 	{
 		static int32 BreakLevels = 1;
+		ULevelInstanceEditorPerProjectUserSettings* Settings = GetMutableDefault<ULevelInstanceEditorPerProjectUserSettings>();
 
 		if (ULevelInstanceSubsystem* LevelInstanceSubsystem = GEditor->GetEditorWorldContext().World()->GetSubsystem<ULevelInstanceSubsystem>())
 		{
-			FToolMenuSection& Section = Menu->AddSection(NAME_None, LOCTEXT("LevelInstanceBreakSection", "Break Level Instance"));
-			TSharedRef<SWidget> MenuWidget =
-				SNew(SVerticalBox)
+			FToolMenuSection& Section = Menu->AddSection("Options", LOCTEXT("LevelInstanceBreakOptionsSection", "Options"));
 
-				+SVerticalBox::Slot()
-				[
-					SNew(SHorizontalBox)
-					+ SHorizontalBox::Slot()
-					[
-						SNew(SNumericEntryBox<int32>)
-						.MinValue(1)
-						.Value_Lambda([]() { return BreakLevels; })
-						.OnValueChanged_Lambda([](int32 InValue) { BreakLevels = InValue; })
-						.LabelPadding(0)
-						.Label()
-						[
-							SNumericEntryBox<int32>::BuildLabel(LOCTEXT("BreakLevelsLabel", "Levels"), FLinearColor::White, SNumericEntryBox<int32>::BlueLabelBackgroundColor)
-						]
-					]
-				]
-
-				+SVerticalBox::Slot()
-				.VAlign(VAlign_Center)
-				.HAlign(HAlign_Center)
-				.Padding(0, 5, 0, 0)
-				[
-					SNew(SButton)
-					.HAlign(HAlign_Center)
-					.ContentPadding(FAppStyle::GetMargin("StandardDialog.ContentPadding"))
-					.OnClicked_Lambda([BreakableLevelInstances, LevelInstanceSubsystem]() 
+			FToolMenuEntry OrganizeInFoldersEntry = FToolMenuEntry::InitMenuEntry(
+				"OrganizeInFolders",
+				LOCTEXT("OrganizeActorsInFolders", "Keep Folders"),
+				LOCTEXT(
+					"OrganizeActorsInFoldersTooltip",
+					"Should the actors be placed in the folder the Level Instance is in, "
+					"and keep the folder structure they had inside the Level Instance?"
+				),
+				FSlateIcon(),
+				FUIAction(
+					FExecuteAction::CreateLambda([Settings]()
 					{
-						const FText LevelInstanceBreakWarning = FText::Format(LOCTEXT("BreakingLevelInstance", "You are about to break {0} level instance(s). This action cannot be undone. Are you sure ?"),  FText::FromString(FString::FromInt(BreakableLevelInstances.Num())));
-						if (FMessageDialog::Open(EAppMsgType::YesNo, LevelInstanceBreakWarning) == EAppReturnType::Yes)
-						{
-							for (ILevelInstanceInterface* LevelInstance : BreakableLevelInstances)
-							{
-								LevelInstanceSubsystem->BreakLevelInstance(LevelInstance, BreakLevels);
-							}
-						}
-						return FReply::Handled();
+						Settings->bKeepFoldersDuringBreak = !Settings->bKeepFoldersDuringBreak;
+					}),
+					FCanExecuteAction(),
+					FGetActionCheckState::CreateLambda([Settings]
+					{
+						return Settings->bKeepFoldersDuringBreak ? ECheckBoxState::Checked : ECheckBoxState::Unchecked;
 					})
-					.Text(LOCTEXT("BreakLevelInstances_BreakLevelInstanceButton", "Break Level Instance(s)"))
+				),
+				EUserInterfaceActionType::ToggleButton
+			);
+			OrganizeInFoldersEntry.bShouldCloseWindowAfterMenuSelection = false;
+			Section.AddEntry(OrganizeInFoldersEntry);
+
+			TSharedRef<SWidget> MenuWidget =
+				SNew(SBox)
+				.Padding(FMargin(5, 2, 5, 0))
+				[
+					SNew(SNumericEntryBox<int32>)
+					.MinValue(1)
+					.Value_Lambda([]() { return BreakLevels; })
+					.OnValueChanged_Lambda([](int32 InValue) { BreakLevels = InValue; })
+					.Label()
+					[
+						SNumericEntryBox<int32>::BuildLabel(LOCTEXT("BreakLevelsLabel", "Levels"), FLinearColor::White, FLinearColor::Transparent)
+					]
 				];
 
 			Section.AddEntry(FToolMenuEntry::InitWidget("SetBreakLevels", MenuWidget, FText::GetEmpty(), false));
+
+			Section.AddSeparator(NAME_None);
+
+			FToolMenuEntry ExecuteEntry = FToolMenuEntry::InitMenuEntry(
+				"ExecuteBreak",
+				LOCTEXT("BreakLevelInstances_BreakLevelInstanceButton", "Break Level Instance(s)"),
+				FText(),
+				FSlateIcon(),
+				FUIAction(
+					FExecuteAction::CreateLambda([BreakableLevelInstances, LevelInstanceSubsystem, Settings]()
+					{
+						const FText LevelInstanceBreakWarning = FText::Format(
+							LOCTEXT(
+								"BreakingLevelInstance",
+								"You are about to break {0} level instance(s). This action cannot be undone. Are you sure ?"
+							),
+							FText::AsNumber(BreakableLevelInstances.Num())
+						);
+
+						if (FMessageDialog::Open(EAppMsgType::YesNo, LevelInstanceBreakWarning) == EAppReturnType::Yes)
+						{
+							ELevelInstanceBreakFlags Flags = ELevelInstanceBreakFlags::None;
+							if (Settings->bKeepFoldersDuringBreak)
+							{
+								Flags |= ELevelInstanceBreakFlags::KeepFolders;
+							}
+
+							for (ILevelInstanceInterface* LevelInstance : BreakableLevelInstances)
+							{
+								LevelInstanceSubsystem->BreakLevelInstance(LevelInstance, BreakLevels, nullptr, Flags);
+							}
+						}
+					})
+				),
+				EUserInterfaceActionType::Button
+			);
+
+			Section.AddEntry(ExecuteEntry);
 		}
 	}
 

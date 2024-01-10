@@ -25,6 +25,23 @@ class ULevelStreamingLevelInstanceEditor;
 class UWorldPartitionSubsystem;
 class UBlueprint;
 
+enum class ELevelInstanceBreakFlags : uint8
+{
+	None = 0,
+
+	/**
+	 * The actors will be placed inside the folder the LI is inside of, under a subfolder with the name of the
+	 * Level Instance, and also keeping their original folder structure.
+	 * So if i.e. the Level Instance Actor is called "Desert/LI_House2", and an actor inside is named "Lights/Light_Sun",
+	 * the actor will be moved to "Desert/LI_House2/Lights/Light_Sun" in the outer level.
+	 *
+	 * If this flag is not set, actors will be placed either in the root folder of the outer level (but their original
+	 * folders from the LI kept), or, if context folder is set, they'll be moved there without any subfolders.
+	 */
+	KeepFolders = 1 << 0,
+};
+ENUM_CLASS_FLAGS(ELevelInstanceBreakFlags);
+
 /**
  * ULevelInstanceSubsystem
  */
@@ -109,7 +126,7 @@ public:
 	ENGINE_API ILevelInstanceInterface* CreateLevelInstanceFrom(const TArray<AActor*>& ActorsToMove, const FNewLevelInstanceParams& CreationParams);
 	ENGINE_API bool MoveActorsToLevel(const TArray<AActor*>& ActorsToRemove, ULevel* DestinationLevel, TArray<AActor*>* OutActors = nullptr) const;
 	ENGINE_API bool MoveActorsTo(ILevelInstanceInterface* LevelInstance, const TArray<AActor*>& ActorsToMove, TArray<AActor*>* OutActors = nullptr);
-	ENGINE_API bool BreakLevelInstance(ILevelInstanceInterface* LevelInstance, uint32 Levels = 1, TArray<AActor*>* OutMovedActors = nullptr);
+	ENGINE_API bool BreakLevelInstance(ILevelInstanceInterface* LevelInstance, uint32 Levels = 1, TArray<AActor*>* OutMovedActors = nullptr, ELevelInstanceBreakFlags Flags = ELevelInstanceBreakFlags::None);
 
 	ENGINE_API bool CanMoveActorToLevel(const AActor* Actor, FText* OutReason = nullptr) const;
 	ENGINE_API void OnActorDeleted(AActor* Actor);
@@ -172,7 +189,7 @@ private:
 	ENGINE_API bool ForEachLevelInstanceChildImpl(const ILevelInstanceInterface* LevelInstance, bool bRecursive, TFunctionRef<bool(const ILevelInstanceInterface*)> Operation) const;
 	ENGINE_API bool ForEachLevelInstanceChildImpl(ILevelInstanceInterface* LevelInstance, bool bRecursive, TFunctionRef<bool(ILevelInstanceInterface*)> Operation) const;
 
-	ENGINE_API void BreakLevelInstance_Impl(ILevelInstanceInterface* LevelInstance, uint32 Levels, TArray<AActor*>& OutMovedActors);
+	ENGINE_API void BreakLevelInstance_Impl(ILevelInstanceInterface* LevelInstance, uint32 Levels, TArray<AActor*>& OutMovedActors, ELevelInstanceBreakFlags Flags);
 
 	static ENGINE_API bool ShouldIgnoreDirtyPackage(UPackage* DirtyPackage, const UWorld* EditingWorld);
 
