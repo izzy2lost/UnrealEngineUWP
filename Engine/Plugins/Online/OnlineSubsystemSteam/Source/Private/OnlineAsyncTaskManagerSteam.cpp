@@ -611,7 +611,7 @@ void FOnlineAsyncTaskManagerSteam::OnSteamServersDisconnected(SteamServersDiscon
 }
 
 /**
- * Notification event from Steam that server session has connected with the master server
+ * Notification event from Steam that server session has connected with the server list
  */
 class FOnlineAsyncEventSteamServerConnectedGS : public FOnlineAsyncEvent<FOnlineSubsystemSteam>
 {
@@ -683,7 +683,7 @@ void FOnlineAsyncTaskManagerSteam::OnSteamServersConnectedGS(SteamServersConnect
 }
 
 /**
- * Notification event from Steam that server session has been disconnected with the master server
+ * Notification event from Steam that server session has been disconnected with the server list
  */
 class FOnlineAsyncEventSteamServerDisconnectedGS : public FOnlineAsyncEvent<FOnlineSubsystemSteam>
 {
