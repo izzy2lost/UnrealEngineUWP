@@ -2225,7 +2225,7 @@ void FSceneRenderer::BeginAsyncDistanceFieldShadowProjections(FRDGBuilder& Graph
 				{
 					// Kick off distance field shadow calculation in async compute
 					// Don't need store result reference because it is internally cached by FProjectedShadowInfo
-					ProjectedShadowInfo->RenderRayTracedDistanceFieldProjection(GraphBuilder, true, SceneTextures, View);
+					ProjectedShadowInfo->RenderRayTracedDistanceFieldProjection(GraphBuilder, true, SceneTextures, View, ScissorRect);
 				}
 			}
 		}

@@ -632,7 +632,8 @@ public:
 		FRDGBuilder& GraphBuilder,
 		bool bAsyncCompute,
 		const FMinimalSceneTextures& SceneTextures,
-		const FViewInfo& View);
+		const FViewInfo& View,
+		const FIntRect& ScissorRect);
 
 	/** 
 	* Renders ray traced distance field shadows into an existing texture.
