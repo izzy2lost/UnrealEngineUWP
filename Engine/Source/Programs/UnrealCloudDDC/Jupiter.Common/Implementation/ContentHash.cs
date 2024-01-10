@@ -118,7 +118,7 @@ namespace Jupiter.Implementation
 		public override void Write(CbWriter writer, ContentHash value) => writer.WriteHashValue(new IoHash(value.HashData));
 
 		/// <inheritdoc/>
-		public override void WriteNamed(CbWriter writer, Utf8String name, ContentHash value) => writer.WriteHash(name, new IoHash(value.HashData));
+		public override void WriteNamed(CbWriter writer, CbFieldName name, ContentHash value) => writer.WriteHash(name, new IoHash(value.HashData));
 	}
 
 	public class ContentHashJsonConverter : JsonConverter<ContentHash>
