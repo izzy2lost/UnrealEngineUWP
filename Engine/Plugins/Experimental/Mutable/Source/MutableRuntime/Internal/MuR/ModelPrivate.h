@@ -675,6 +675,10 @@ namespace mu
         //!
         FProgram m_program;
 
+
+    	void UnloadRoms();
+
+
         //!
         void Serialise( OutputArchive& arch ) const
         {

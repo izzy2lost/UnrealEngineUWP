@@ -24,6 +24,8 @@
 #include "Interfaces/ITargetPlatform.h"
 #include "Misc/App.h"
 #include "MuCO/CustomizableObjectPrivate.h"
+#include "MuR/Model.h"
+#include "MuR/ModelPrivate.h"
 
 class UTexture2D;
 
@@ -1360,6 +1362,8 @@ void FCustomizableObjectCompiler::FinishCompilation()
 	}
 	else
 	{
+		CurrentObject->GetModel()->GetPrivate()->UnloadRoms();
+
 		// when skipping the SaveDerivedData task unlock the object so that instances can be updated
 		UCustomizableObjectSystem::GetInstance()->UnlockObject(CurrentObject);
 	}
@@ -1380,6 +1384,8 @@ void FCustomizableObjectCompiler::FinishSavingDerivedData()
 	SaveDDThread.Reset();
 	SaveDDTask.Reset();
 
+	CurrentObject->GetModel()->GetPrivate()->UnloadRoms();
+	
 	// Unlock the object so that instances can be updated
 	UCustomizableObjectSystem::GetInstance()->UnlockObject(CurrentObject);
 
