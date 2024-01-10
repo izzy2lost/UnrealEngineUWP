@@ -82,7 +82,7 @@ struct MIXERENGINE_API TextureHelper
 
 	static RawBufferPtr					RawFromRT(UTextureRenderTarget2D* RenderTarget, const BufferDescriptor& Desc);
 	static RawBufferPtr					RawFromTexture(UTexture2D* Texture, const BufferDescriptor& Desc);
-	static RawBufferPtr					RawFromResource(FTexture2DRHIRef ResourceRHI, const BufferDescriptor& Desc);
+	static RawBufferPtr					RawFromResource(const FTexture2DRHIRef& ResourceRHI, const BufferDescriptor& Desc);
 	static BufferFormat					FindOptimalSupportedFormat(BufferFormat SrcFormat);
 
 	static void							RawFromRT_Tiled(UTextureRenderTarget2D* RenderTarget, const BufferDescriptor& Desc, size_t TileSizeX, size_t TileSizeY, RawBufferPtrTiles& Tiles);
