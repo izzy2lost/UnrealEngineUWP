@@ -8,8 +8,10 @@
 #include "IO/IoHash.h"
 #include "ISourceControlModule.h"
 #include "ISourceControlProvider.h"
+#include "HAL/PlatformFileManager.h"
 #include "Interfaces/IPluginManager.h"
 #include "Logging/MessageLog.h"
+#include "Logging/StructuredLog.h"
 #include "Misc/CommandLine.h"
 #include "Misc/FileHelper.h"
 #include "Misc/Parse.h"
@@ -205,13 +207,21 @@ private:
 	return FString(TEXT("Unknown"));
 }
 
-/** Utility function to create a directory to submit payloads from. */
-[[nodiscard]] static bool TryCreateSubmissionSessionDirectory(FStringView SessionDirectoryPath, FStringView IgnoreFileName)
+/** Utility function to create a directory to submit payloads from and add the dummy P4IGNORE file */
+[[nodiscard]] static bool TrySetupSubmissionSessionDirectory(FStringView SessionDirectoryPath, FStringView IgnoreFileName)
 {
+	if (!FPlatformFileManager::Get().GetPlatformFile().CreateDirectoryTree(WriteToString<512>(SessionDirectoryPath).ToString()))
+	{
+		TStringBuilder<MAX_SPRINTF> SystemErrorMsg;
+		Utils::GetFormattedSystemError(SystemErrorMsg);
+
+		UE_LOGFMT(LogVirtualization, Error, "Failed to create '{SubmissionDir}' due to: {SysError}", SessionDirectoryPath, SystemErrorMsg);
+		return false;
+	}
+
 	// Write out an ignore file to the submission directory (will create the directory if needed)
 	{
 		TStringBuilder<260> IgnoreFilePath;
-
 		FPathViews::Append(IgnoreFilePath, SessionDirectoryPath, IgnoreFileName);
 
 		// A very basic .p4ignore file that should make sure that we are only submitting valid .upayload files.
@@ -226,6 +236,10 @@ private:
 
 		if (!FFileHelper::SaveStringToFile(FileContents, IgnoreFilePath.ToString()))
 		{
+			TStringBuilder<MAX_SPRINTF> SystemErrorMsg;
+			Utils::GetFormattedSystemError(SystemErrorMsg);
+
+			UE_LOGFMT(LogVirtualization, Error, "Failed to create '{IgnoreFile}' due to: {SysError}", IgnoreFilePath, SystemErrorMsg);
 			return false;
 		}
 	}
@@ -715,9 +729,9 @@ bool FSourceControlBackend::PushData(TArrayView<FPushRequest> Requests, EPushFla
 	TStringBuilder<260> SessionDirectory;
 	FPathViews::Append(SessionDirectory, SubmissionRootDir, SessionGuid);
 
-	if (!TryCreateSubmissionSessionDirectory(SessionDirectory, IgnoreFileName))
+	if (!TrySetupSubmissionSessionDirectory(SessionDirectory, IgnoreFileName))
 	{
-		UE_LOG(LogVirtualization, Error, TEXT("[%s] Failed to created directory '%s' to submit payloads from"), *GetDebugName(), SessionDirectory.ToString());
+		UE_LOG(LogVirtualization, Error, TEXT("[%s] Failed to setup the directory to submit payloads from"), *GetDebugName());
 		return false;
 	}
 
@@ -1118,7 +1132,17 @@ bool FSourceControlBackend::TryApplySettingsFromConfigFiles(const FString& Confi
 		// TODO: We should just extract this from the perforce environment but that requires extending
 		// the source control api.
 		// Letting the backend define the ignore filename to use is a quicker work around
-		FParse::Value(*ConfigEntry, TEXT("IgnoreFile="), IgnoreFileName);
+		if (FParse::Value(*ConfigEntry, TEXT("IgnoreFile="), IgnoreFileName))
+		{
+#if 0
+			if (IgnoreFileName.Contains(TEXT("\\")) || IgnoreFileName.Contains(TEXT("/")))
+			{
+				UE_LOG(LogVirtualization, Error, TEXT("[%s] Invalid IgnoreFile entry! This value should just be the filename and not contain any path info"), *GetDebugName());
+				return false;
+			}
+#endif
+		}
+
 		UE_LOG(LogVirtualization, Log, TEXT("[%s] Using '%s' as the p4 ignore file name"), *GetDebugName(), *IgnoreFileName);
 	}
 

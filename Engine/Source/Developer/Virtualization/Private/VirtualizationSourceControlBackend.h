@@ -73,11 +73,11 @@ class FSemaphore;
  * IgnoreFile [string]:				Sets the name of the p4 ignore file to use. When submitting payloads we 
  *									create a custom p4 ignore file to override any ignore settings for a project
  *									which allows us to submit from the saved directory which is normally prevented
- *									by the default ignore file. This value can be set to what ever is used by
- *									your perforce environment. [Default=".p4ignore.txt"]
+ *									by the default ignore file. This value should be set to the value of P4IGNORE
+									used by your environment. [Default=".p4ignore.txt"]
  * UseRetryConnectionDialog[bool]	When true a slate dialog will be shown if the initial connection to the 
  *									source control server fails allowing the user to attempt to input the correct
- *									login values. [Default=false]&
+ *									login values. [Default=false]
  * 
  * Environment Variables:
  * UE-VirtualizationWorkingDir [string]:	This can be set to a valid directory path that the backend
