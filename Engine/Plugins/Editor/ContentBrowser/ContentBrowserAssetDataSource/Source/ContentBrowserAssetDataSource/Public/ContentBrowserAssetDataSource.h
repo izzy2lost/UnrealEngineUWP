@@ -133,6 +133,7 @@ public:
 
 		void RemoveUnusedCachedData(const FContentBrowserDataFilterCacheIDOwner& IDOwner, TArrayView<const FName> InVirtualPathsInUse, const FContentBrowserDataFilter& DataFilter);
 		void ClearCachedData(const FContentBrowserDataFilterCacheIDOwner& IDOwner);
+		void Reset();
 
 	private:
 		friend UContentBrowserAssetDataSource;

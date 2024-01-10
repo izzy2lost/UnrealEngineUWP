@@ -3463,6 +3463,11 @@ void UContentBrowserAssetDataSource::FAssetDataSourceFilterCache::ClearCachedDat
 	CachedCompiledInternalPaths.Remove(IDOwner);
 }
 
+void UContentBrowserAssetDataSource::FAssetDataSourceFilterCache::Reset()
+{
+	CachedCompiledInternalPaths.Reset(); 
+}
+
 void UContentBrowserAssetDataSource::FAssetDataSourceFilterCache::OnPathAdded(FName Path, FStringView PathString, uint32 PathHash, FName ParentPath, uint32 ParentPathHash, int32 PathDepth)
 {
 	for (TPair<FContentBrowserDataFilterCacheID, FCachedDataPerID>& CachedCompiledInternalPath : CachedCompiledInternalPaths)

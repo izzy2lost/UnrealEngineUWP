@@ -465,6 +465,19 @@ void UContentBrowserAliasDataSource::RemoveAlias(const FSoftObjectPath& ObjectPa
 	}
 }
 
+void UContentBrowserAliasDataSource::RebuildAliases()
+{
+	PathTree = FPathTree();
+	AllAliases.Reset();
+	AliasesForObjectPath.Reset();
+	AliasesInPackagePath.Reset();
+	AlreadyAddedOriginalAssets.Reset();
+	FilterCache.Reset();
+	RootPathVirtualTree.Reset();
+
+	OnRebuildAliases().Broadcast();
+}
+
 PRAGMA_DISABLE_DEPRECATION_WARNINGS
 void UContentBrowserAliasDataSource::RemoveAliases(FName ObjectPath)
 {
