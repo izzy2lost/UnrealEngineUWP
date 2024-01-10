@@ -33,6 +33,8 @@ namespace UE::Mass::Debug
 		int32 ChunksCount = 0;
 		/** Total amount of memory taken by this archetype */
 		SIZE_T AllocatedSize = 0;
+		/** How much memory allocated for entities is being unused */
+		SIZE_T WastedEntityMemory = 0;
 		/** Total amount of memory needed by a single entity */
 		int32 BytesPerEntity = 0;
 	};

@@ -217,11 +217,13 @@ FMassArchetypeHandle FMassEntityManager::CreateArchetype(const FMassArchetypeCom
 	{
 		if (Ptr->IsEquivalent(Composition))
 		{
+#if WITH_MASSENTITY_DEBUG
 			// Keep track of all names for this archetype.
 			if (!CreationParams.DebugName.IsNone())
 			{
 				Ptr->AddUniqueDebugName(CreationParams.DebugName);
 			}
+#endif // WITH_MASSENTITY_DEBUG
 			if (CreationParams.ChunkMemorySize > 0 && CreationParams.ChunkMemorySize != Ptr->GetChunkAllocSize())
 			{
 				UE_LOG(LogMass, Warning, TEXT("Reusing existing Archetype, but the requested ChunkMemorySize is different. Requested %d, existing: %d")

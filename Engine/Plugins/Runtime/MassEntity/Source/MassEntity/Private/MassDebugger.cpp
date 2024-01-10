@@ -436,6 +436,11 @@ void FMassDebugger::GetArchetypeEntityStats(const FMassArchetypeHandle& Archetyp
 	OutStats.ChunksCount = ArchetypeData.GetChunkCount();
 	OutStats.AllocatedSize = ArchetypeData.GetAllocatedSize();
 	OutStats.BytesPerEntity = ArchetypeData.GetBytesPerEntity();
+
+	SIZE_T ActiveChunksMemorySize = 0;
+	SIZE_T ActiveEntitiesMemorySize = 0;
+	ArchetypeData.DebugGetEntityMemoryNumbers(ActiveChunksMemorySize, ActiveEntitiesMemorySize);
+	OutStats.WastedEntityMemory = ActiveChunksMemorySize - ActiveEntitiesMemorySize;
 }
 
 const TConstArrayView<FName> FMassDebugger::GetArchetypeDebugNames(const FMassArchetypeHandle& ArchetypeHandle)

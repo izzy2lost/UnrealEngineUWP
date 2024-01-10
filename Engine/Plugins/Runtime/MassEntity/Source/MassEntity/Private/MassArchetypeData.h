@@ -21,14 +21,14 @@ struct FMassArchetypeChunk
 {
 private:
 	uint8* RawMemory = nullptr;
-	int32 AllocSize = 0;
+	SIZE_T AllocSize = 0;
 	int32 NumInstances = 0;
 	int32 SerialModificationNumber = 0;
 	TArray<FInstancedStruct> ChunkFragmentData;
 	FMassArchetypeSharedFragmentValues SharedFragmentValues;
 
 public:
-	explicit FMassArchetypeChunk(const int32 InAllocSize, TConstArrayView<FInstancedStruct> InChunkFragmentTemplates, FMassArchetypeSharedFragmentValues InSharedFragmentValues)
+	explicit FMassArchetypeChunk(const SIZE_T InAllocSize, TConstArrayView<FInstancedStruct> InChunkFragmentTemplates, FMassArchetypeSharedFragmentValues InSharedFragmentValues)
 		: AllocSize(InAllocSize)
 		, ChunkFragmentData(InChunkFragmentTemplates)
 		, SharedFragmentValues(InSharedFragmentValues)
@@ -170,17 +170,19 @@ private:
 	TMap<const UScriptStruct*, int32> FragmentIndexMap;
 
 	int32 NumEntitiesPerChunk;
-	int32 TotalBytesPerEntity;
+	SIZE_T TotalBytesPerEntity = 0;
 	int32 EntityListOffsetWithinChunk;
 
 	// Archetype version at which this archetype was created, useful for query to do incremental archetype matching
-	uint32 CreatedArchetypeDataVersion;
+	uint32 CreatedArchetypeDataVersion = 0;
 
+#if WITH_MASSENTITY_DEBUG
 	// Arrays of names the archetype is referred as.
 	TArray<FName> DebugNames;
+#endif // WITH_MASSENTITY_DEBUG
 
 	// Defaults to UMassEntitySettings.ChunkMemorySize. In near future will support being set via constructor.
-	const int32 ChunkMemorySize;
+	const SIZE_T ChunkMemorySize = 0;
 	
 	friend FMassEntityQuery;
 	friend FMassArchetypeEntityCollection;
@@ -236,11 +238,11 @@ public:
 	FORCEINLINE const int32* GetInternalIndexForEntity(const int32 EntityIndex) const { return EntityMap.Find(EntityIndex); }
 	FORCEINLINE int32 GetInternalIndexForEntityChecked(const int32 EntityIndex) const { return EntityMap.FindChecked(EntityIndex); }
 	int32 GetNumEntitiesPerChunk() const { return NumEntitiesPerChunk; }
-	int32 GetBytesPerEntity() const { return TotalBytesPerEntity; }
+	SIZE_T GetBytesPerEntity() const { return TotalBytesPerEntity; }
 
 	int32 GetNumEntities() const { return EntityMap.Num(); }
 
-	int32 GetChunkAllocSize() const { return ChunkMemorySize; }
+	SIZE_T GetChunkAllocSize() const { return ChunkMemorySize; }
 
 	int32 GetChunkCount() const { return Chunks.Num(); }
 
@@ -292,19 +294,27 @@ public:
 	// Converts the list of fragments into a user-readable debug string
 	FString DebugGetDescription() const;
 
+	/** Copies debug names from another archetype data. */
+	void CopyDebugNamesFrom(const FMassArchetypeData& Other)
+	{ 
+#if WITH_MASSENTITY_DEBUG
+		DebugNames = Other.DebugNames; 
+#endif // WITH_MASSENTITY_DEBUG
+	}
+
+#if WITH_MASSENTITY_DEBUG
+	/** Fetches how much memory is allocated for active chunks, and how much of that memory is actually occupied */
+	void DebugGetEntityMemoryNumbers(SIZE_T& OutActiveChunksMemorySize, SIZE_T& OutActiveEntitiesMemorySize) const;
+
 	/** Adds new debug name associated with the archetype. */
 	void AddUniqueDebugName(const FName& Name) { DebugNames.AddUnique(Name); }
 	
 	/** @return array of debug names associated with this archetype. */
 	const TConstArrayView<FName> GetDebugNames() const { return DebugNames; }
 	
-	/** Copies debug names from another archetype data. */
-	void CopyDebugNamesFrom(const FMassArchetypeData& Other) { DebugNames = Other.DebugNames; }
-	
 	/** @return string of all debug names combined */
 	FString GetCombinedDebugNamesAsString() const;
 
-#if WITH_MASSENTITY_DEBUG
 	/**
 	 * Prints out debug information about the archetype
 	 */

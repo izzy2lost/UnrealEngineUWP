@@ -33,11 +33,12 @@ namespace UE::Mass
 
 FMassArchetypeData::FMassArchetypeData(const FMassArchetypeCreationParams& CreationParams)
 	: NumEntitiesPerChunk(UE::Mass::Private::UninitializedInt32)
-	, TotalBytesPerEntity(UE::Mass::Private::UninitializedInt32)
 	, EntityListOffsetWithinChunk(UE::Mass::Private::UninitializedInt32)
 	, ChunkMemorySize(UE::Mass::SanitizeChunkMemorySize(CreationParams.ChunkMemorySize ? CreationParams.ChunkMemorySize : GET_MASS_CONFIG_VALUE(ChunkMemorySize)))
 {
+#if WITH_MASSENTITY_DEBUG
 	DebugNames.Add(CreationParams.DebugName);
+#endif // WITH_MASSENTITY_DEBUG
 }
 
 void FMassArchetypeData::ForEachFragmentType(TFunction< void(const UScriptStruct* /*Fragment*/)> Function) const
@@ -55,6 +56,15 @@ bool FMassArchetypeData::HasFragmentType(const UScriptStruct* FragmentType) cons
 
 void FMassArchetypeData::Initialize(const FMassArchetypeCompositionDescriptor& InCompositionDescriptor, const uint32 ArchetypeDataVersion)
 {
+	if (!ensureMsgf(Chunks.Num() == 0, TEXT("Trying to re-initialize non-empty Mass Archetype is not supported")))
+	{
+		return;
+	}
+	if (!ensureMsgf(CreatedArchetypeDataVersion == 0, TEXT("MassArchetype has already been initialized")))
+	{
+		return;
+	}
+
 	CreatedArchetypeDataVersion = ArchetypeDataVersion;
 	CompositionDescriptor.Fragments = InCompositionDescriptor.Fragments;
 	ConfigureFragments();
@@ -111,10 +121,10 @@ void FMassArchetypeData::ConfigureFragments()
 	SortedFragmentList.Sort(FScriptStructSortOperator());
 
 	// Figure out how many bytes all of the individual fragments (and metadata) will cost per entity
-	int32 FragmentSizeTallyBytes = 0;
+	SIZE_T FragmentSizeTallyBytes = 0;
 
 	// Alignment padding computation is currently very conservative and over-estimated.
-	int32 AlignmentPadding = 0;
+	SIZE_T AlignmentPadding = 0;
 	
 	// Save room for the 'metadata' (entity array)
 	FragmentSizeTallyBytes += sizeof(FMassEntityHandle);
@@ -129,8 +139,8 @@ void FMassArchetypeData::ConfigureFragments()
 		checkSlow(FragmentType);
 		FragmentConfigs[FragmentIndex].FragmentType = FragmentType;
 
-		AlignmentPadding += FragmentType->GetMinAlignment();
-		FragmentSizeTallyBytes += FragmentType->GetStructureSize();
+		AlignmentPadding += SIZE_T(FragmentType->GetMinAlignment());
+		FragmentSizeTallyBytes += SIZE_T(FragmentType->GetStructureSize());
 
 		FragmentIndexMap.Add(FragmentType, FragmentIndex);
 	}
@@ -142,12 +152,12 @@ void FMassArchetypeData::ConfigureFragments()
 	NumEntitiesPerChunk = ChunkAvailableSize / TotalBytesPerEntity;
 
 	// Set up the offsets for each fragment into the chunk data
-	int32 CurrentOffset = NumEntitiesPerChunk * sizeof(FMassEntityHandle);
+	SIZE_T CurrentOffset = NumEntitiesPerChunk * sizeof(FMassEntityHandle);
 	for (FMassArchetypeFragmentConfig& FragmentData : FragmentConfigs)
 	{
 		CurrentOffset = Align(CurrentOffset, FragmentData.FragmentType->GetMinAlignment());
 		FragmentData.ArrayOffsetWithinChunk = CurrentOffset;
-		const int32 SizeOfThisFragmentArray = NumEntitiesPerChunk * FragmentData.FragmentType->GetStructureSize();
+		const SIZE_T SizeOfThisFragmentArray = NumEntitiesPerChunk * FragmentData.FragmentType->GetStructureSize();
 		CurrentOffset += SizeOfThisFragmentArray;
 	}
 }
@@ -845,6 +855,13 @@ FString FMassArchetypeData::DebugGetDescription() const
 #endif
 }
 
+#if WITH_MASSENTITY_DEBUG
+void FMassArchetypeData::DebugGetEntityMemoryNumbers(SIZE_T& OutActiveChunksMemorySize, SIZE_T& OutActiveEntitiesMemorySize) const
+{
+	OutActiveChunksMemorySize = GetChunkAllocSize() *  Chunks.Num();
+	OutActiveEntitiesMemorySize = TotalBytesPerEntity * EntityMap.Num();
+}
+
 FString FMassArchetypeData::GetCombinedDebugNamesAsString() const
 {
 	TStringBuilder<256> StringBuilder;
@@ -859,7 +876,6 @@ FString FMassArchetypeData::GetCombinedDebugNamesAsString() const
 	return StringBuilder.ToString();
 }
 
-#if WITH_MASSENTITY_DEBUG
 void FMassArchetypeData::DebugPrintArchetype(FOutputDevice& Ar)
 {
 	Ar.Logf(ELogVerbosity::Log, TEXT("Name: %s"), *GetCombinedDebugNamesAsString());
@@ -901,7 +917,7 @@ void FMassArchetypeData::DebugPrintArchetype(FOutputDevice& Ar)
 	{
 		Ar.Logf(ELogVerbosity::Log, TEXT("\tEntity Occupancy: %.1f%%"), CurrentEntityCapacity > 0 ? ((EntityMap.Num() * 100.0f) / (float)CurrentEntityCapacity) : 0.f);
 	}
-	Ar.Logf(ELogVerbosity::Log, TEXT("\tBytes / Entity  : %d"), TotalBytesPerEntity);
+	Ar.Logf(ELogVerbosity::Log, TEXT("\tBytes / Entity  : %zu"), TotalBytesPerEntity);
 	Ar.Logf(ELogVerbosity::Log, TEXT("\tEntities / Chunk: %d"), NumEntitiesPerChunk);
 
 	Ar.Logf(ELogVerbosity::Log, TEXT("\tOffset 0x%04X: Entity[] (%d bytes each)"), EntityListOffsetWithinChunk, sizeof(FMassEntityHandle));
@@ -914,7 +930,7 @@ void FMassArchetypeData::DebugPrintArchetype(FOutputDevice& Ar)
 
 	//@TODO: Print out padding in between things?
 
-	const int32 UnusuablePaddingOffset = TotalBytesPerEntity * NumEntitiesPerChunk;
+	const SIZE_T UnusuablePaddingOffset = TotalBytesPerEntity * NumEntitiesPerChunk;
 	const int32 UnusuablePaddingAmount = GetChunkAllocSize() - UnusuablePaddingOffset;
 	if (UnusuablePaddingAmount > 0)
 	{
