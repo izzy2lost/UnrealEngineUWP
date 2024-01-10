@@ -2,7 +2,7 @@
 
 #pragma once
 
-#include "CoreMinimal.h"
+#include "UObject/Object.h"
 #include "VCamModifierContext.generated.h"
 
 UCLASS(Blueprintable, Abstract, EditInlineNew)
