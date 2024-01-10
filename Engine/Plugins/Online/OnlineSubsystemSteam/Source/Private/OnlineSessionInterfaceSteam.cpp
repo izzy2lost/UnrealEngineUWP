@@ -1338,19 +1338,19 @@ FString FOnlineSessionSteam::GetCustomDedicatedServerName() const
 {
 	FString ServerName;
 
-	if (FParse::Value(FCommandLine::Get(), TEXT("-SteamServerName="), ServerName))
+	if (!FParse::Value(FCommandLine::Get(), TEXT("-SteamServerName="), ServerName))
 	{
-		if (ServerName.Len() >= k_cbMaxGameServerName)
-		{
-			UE_LOG_ONLINE_SESSION(Warning, TEXT("SteamServerName overflows the maximum amount of characters %d allowed, truncating."), k_cbMaxGameServerName);
-			// Must have space for the null terminator
-			ServerName.LeftInline(k_cbMaxGameServerName - 1);
-		}
-
-		return ServerName;
+		GConfig->GetString(TEXT("OnlineSubsystemSteam"), TEXT("SteamServerName"), ServerName, GEngineIni);
 	}
-	
-	return TEXT("");
+
+	if (ServerName.Len() >= k_cbMaxGameServerName)
+	{
+		UE_LOG_ONLINE_SESSION(Warning, TEXT("SteamServerName overflows the maximum amount of characters %d allowed, truncating."), k_cbMaxGameServerName);
+		// Must have space for the null terminator
+		ServerName.LeftInline(k_cbMaxGameServerName - 1);
+	}
+
+	return ServerName;
 }
 
 FUniqueNetIdPtr FOnlineSessionSteam::CreateSessionIdFromString(const FString& SessionIdStr)
