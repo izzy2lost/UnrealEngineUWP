@@ -137,6 +137,7 @@ struct FReplicatedPhysicsTargetAsync
 
 	/** The replication mode this PhysicsObject should use */
 	EPhysicsReplicationMode RepMode;
+	EPhysicsReplicationMode RepModeOverride;
 
 	/** Correction values from previous update */
 	FVector PrevPosTarget;
@@ -167,10 +168,18 @@ public:
 	/** Is this target waiting for up to date data? */
 	const bool IsWaiting() { return WaitForServerFrame > INDEX_NONE; } const
 
+	/** Set target to wait for data newer than @param InWaitForServerFrame and while waiting replicate via @param InRepModeOverride */
+	void SetWaiting(int32 InWaitForServerFrame, EPhysicsReplicationMode InRepModeOverride)
+	{
+		SetWaiting(InWaitForServerFrame);
+		RepModeOverride = InRepModeOverride;
+	}
+
 	/** Set target to wait for data newer than @param InWaitForServerFrame */
 	void SetWaiting(int32 InWaitForServerFrame)
 	{
-		WaitForServerFrame = InWaitForServerFrame; 
+		RepModeOverride = RepMode;
+		WaitForServerFrame = InWaitForServerFrame;
 		PRAGMA_DISABLE_DEPRECATION_WARNINGS
 		bWaiting = IsWaiting();
 		PRAGMA_ENABLE_DEPRECATION_WARNINGS

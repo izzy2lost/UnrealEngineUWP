@@ -992,18 +992,19 @@ int32 FRewindData::FindValidResimFrame(const int32 RequestedFrame)
 		{
 			for (auto& InputsHistory : InputsHistories)
 			{
-				if (!InputsHistory.Pin().Get()->HasValidDatas(ValidFrame))
+				if (InputsHistory.IsValid() && !InputsHistory.Pin().Get()->HasValidDatas(ValidFrame))
 				{
 					bHasTargetHistory = false;
 					break;
 				}
 			}
 		}
+
 		if (bHasTargetHistory)
 		{
 			for (auto& StatesHistory : StatesHistories)
 			{
-				if (!StatesHistory.Pin().Get()->HasValidDatas(ValidFrame))
+				if (StatesHistory.IsValid() && !StatesHistory.Pin().Get()->HasValidDatas(ValidFrame))
 				{
 					bHasTargetHistory = false;
 					break;

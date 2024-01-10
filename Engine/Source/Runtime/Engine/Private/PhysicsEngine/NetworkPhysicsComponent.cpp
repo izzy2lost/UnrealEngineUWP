@@ -18,6 +18,15 @@
 
 #include UE_INLINE_GENERATED_CPP_BY_NAME(NetworkPhysicsComponent)
 
+namespace PhysicsReplicationCVars
+{
+	namespace ResimulationCVars
+	{
+		static bool bAllowRewindToClosestState = true;
+		static FAutoConsoleVariableRef CVarResimAllowRewindToClosestState(TEXT("np2.Resim.AllowRewindToClosestState"), bAllowRewindToClosestState, TEXT("When rewinding to a specific frame, if the client doens't have state data for that frame, use closest data available. Only affects the first rewind frame, when FPBDRigidsEvolution is set to Reset."));
+	}
+}
+
 /** These CVars are deprecated from UE 5.4, physics frame offset for networked physics prediction is now handled via PlayerController with automatic time dilation
 * p.net.CmdOffsetEnabled = 0 is recommended to disable the deprecated flow */
 namespace InputCmdCVars
@@ -639,8 +648,7 @@ void UNetworkPhysicsComponent::OnRep_SetReplicatedInputs()
 		PlayerController = GetWorld()->GetFirstPlayerController();
 	}
 
-	// For local controller we should already have correct replicated inputs
-	if (PlayerController && !IsLocallyControlled() && !HasServerWorld() && InputsHistory)
+	if (PlayerController && !HasServerWorld() && InputsHistory)
 	{
 		const int32 LocalOffset = PlayerController->GetNetworkPhysicsTickOffset();
 
@@ -741,7 +749,7 @@ void UNetworkPhysicsComponent::OnPreProcessInputsInternal(const int32 PhysicsSte
 			}
 		}
 
-		// for the inputs client local ones are ground truth otherwise use the replicated ones coming from the server
+		// Apply replicated inputs on server and simulated proxies (and on local player if we are resimulating)
 		if (!IsLocallyControlled() || bIsSolverResim)
 		{
 			FNetworkPhysicsDatas* PhysicsDatas = InputsDatas.Get();
@@ -772,6 +780,7 @@ void UNetworkPhysicsComponent::OnPreProcessInputsInternal(const int32 PhysicsSte
 			}
 		}
 
+		// Apply replicated state on clients if we are resimulating
 		if (!HasServerWorld() && bIsSolverResim)
 		{
 			FNetworkPhysicsDatas* PhysicsDatas = StatesDatas.Get();
@@ -779,7 +788,8 @@ void UNetworkPhysicsComponent::OnPreProcessInputsInternal(const int32 PhysicsSte
 	#if DEBUG_NETWORK_PHYSICS
 			UE_LOG(LogChaos, Log, TEXT("		Extracting history states at frame %d | Component = %s"), PhysicsStep, *GetFullName());
 	#endif
-			if (StatesHistory->ExtractDatas(PhysicsStep, bIsSolverReset, PhysicsDatas, true))
+			const bool bExactFrame = PhysicsReplicationCVars::ResimulationCVars::bAllowRewindToClosestState ? !bIsSolverReset : true;
+			if (StatesHistory->ExtractDatas(PhysicsStep, bIsSolverReset, PhysicsDatas, bExactFrame))
 			{
 				PhysicsDatas->ApplyDatas(ActorComponent);
 			}

@@ -778,7 +778,7 @@ void FPhysicsReplicationAsync::OnPreSimulate_Internal()
 					// If final resim frame, mark interpolated targets as waiting for up to date data from the server.
 					if (Target.RepMode == EPhysicsReplicationMode::PredictiveInterpolation)
 					{
-						Target.SetWaiting(RigidsSolver->GetCurrentFrame() + Target.FrameOffset);
+						Target.SetWaiting(RigidsSolver->GetCurrentFrame() + Target.FrameOffset, Target.RepModeOverride);
 					}
 				}
 			}
@@ -866,6 +866,7 @@ void FPhysicsReplicationAsync::UpdateAsyncTarget(const FPhysicsRepAsyncInputData
 		Target->PrevPosTarget = Input.TargetState.Position;
 		Target->PrevRotTarget = Input.TargetState.Quaternion;
 		Target->PrevLinVel = Input.TargetState.LinVel;
+		Target->RepModeOverride = Input.RepMode;
 	}
 
 	/** Target Update Description
@@ -1059,7 +1060,7 @@ void FPhysicsReplicationAsync::ApplyTargetStatesAsync(const float DeltaSeconds, 
 
 			if (FPBDRigidParticleHandle* RigidHandle = Handle->CastToRigidParticle())
 			{
-				const EPhysicsReplicationMode RepMode = Target.RepMode;
+				const EPhysicsReplicationMode RepMode = Target.IsWaiting() ? Target.RepModeOverride : Target.RepMode;
 				switch (RepMode)
 				{
 					case EPhysicsReplicationMode::Default:
@@ -1405,7 +1406,7 @@ bool FPhysicsReplicationAsync::PredictiveInterpolation(Chaos::FPBDRigidParticleH
 	if (PhysicsReplicationCVars::ResimulationCVars::bDisableReplicationOnInteraction && ParticlesInResimIslands.Contains(Handle->GetHandleIdx()))
 	{
 		// If particle is in an island with a resim object, don't run replication and wait for an up to date target (after leaving the island)
-		Target.SetWaiting(RigidsSolver->GetCurrentFrame() + Target.FrameOffset);
+		Target.SetWaiting(RigidsSolver->GetCurrentFrame() + Target.FrameOffset, EPhysicsReplicationMode::Resimulation);
 		return false;
 	}
 
