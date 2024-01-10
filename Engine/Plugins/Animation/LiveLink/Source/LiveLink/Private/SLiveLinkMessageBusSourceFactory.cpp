@@ -198,8 +198,11 @@ TSharedRef<ITableRow> SLiveLinkMessageBusSourceFactory::MakeSourceListViewWidget
 
 void SLiveLinkMessageBusSourceFactory::OnSourceListSelectionChanged(TSharedPtr<FLiveLinkSource> Source, ESelectInfo::Type SelectionType)
 {
-	SelectedResult = Source->PollResult;
-	OnSourceSelected.ExecuteIfBound(SelectedResult);
+	if (Source)
+	{
+		SelectedResult = Source->PollResult;
+		OnSourceSelected.ExecuteIfBound(SelectedResult);
+	}
 }
 
 #undef LOCTEXT_NAMESPACE
